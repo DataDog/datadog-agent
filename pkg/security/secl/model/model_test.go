@@ -119,6 +119,7 @@ func TestPathValidation(t *testing.T) {
 
 func TestSetFieldValue(t *testing.T) {
 	var readOnlyError *eval.ErrFieldReadOnly
+	var fieldNotFoundError *eval.ErrFieldNotFound
 
 	event := NewDefaultEvent()
 	for _, field := range event.GetFields() {
@@ -131,14 +132,11 @@ func TestSetFieldValue(t *testing.T) {
 		case reflect.String:
 			err = event.SetFieldValue(field, "aaa")
 			if err != nil {
-				if errors.As(err, &readOnlyError) {
+				if errors.As(err, &readOnlyError) || errors.As(err, &fieldNotFoundError) {
 					continue
 				} else {
 					t.Error(err)
 				}
-			}
-			if err = event.SetFieldValue(field, "aaa"); err != nil && !errors.As(err, &readOnlyError) {
-				t.Error(err)
 			}
 			value, err := event.GetFieldValue(field)
 			if err != nil {
@@ -159,7 +157,7 @@ func TestSetFieldValue(t *testing.T) {
 		case reflect.Int:
 			err = event.SetFieldValue(field, 123)
 			if err != nil {
-				if errors.As(err, &readOnlyError) {
+				if errors.As(err, &readOnlyError) || errors.As(err, &fieldNotFoundError) {
 					continue
 				} else {
 					t.Error(err)
@@ -184,7 +182,7 @@ func TestSetFieldValue(t *testing.T) {
 		case reflect.Bool:
 			err = event.SetFieldValue(field, true)
 			if err != nil {
-				if errors.As(err, &readOnlyError) {
+				if errors.As(err, &readOnlyError) || errors.As(err, &fieldNotFoundError) {
 					continue
 				} else {
 					t.Error(err)

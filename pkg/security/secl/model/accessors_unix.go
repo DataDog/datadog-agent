@@ -28595,6 +28595,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if ev.Exec.Process == nil {
 			ev.Exec.Process = &Process{}
 		}
+		if !ev.Exec.Process.IsNotKworker() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
 		rv, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Exec.Process.FileEvent.FileFields.CTime"}
@@ -28604,6 +28607,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 	case "exec.file.filesystem":
 		if ev.Exec.Process == nil {
 			ev.Exec.Process = &Process{}
+		}
+		if !ev.Exec.Process.IsNotKworker() {
+			return &eval.ErrFieldNotFound{Field: field}
 		}
 		rv, ok := value.(string)
 		if !ok {
@@ -28615,6 +28621,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if ev.Exec.Process == nil {
 			ev.Exec.Process = &Process{}
 		}
+		if !ev.Exec.Process.IsNotKworker() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
 		rv, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Exec.Process.FileEvent.FileFields.GID"}
@@ -28625,6 +28634,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if ev.Exec.Process == nil {
 			ev.Exec.Process = &Process{}
 		}
+		if !ev.Exec.Process.IsNotKworker() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
 		rv, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Exec.Process.FileEvent.FileFields.Group"}
@@ -28634,6 +28646,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 	case "exec.file.hashes":
 		if ev.Exec.Process == nil {
 			ev.Exec.Process = &Process{}
+		}
+		if !ev.Exec.Process.IsNotKworker() {
+			return &eval.ErrFieldNotFound{Field: field}
 		}
 		switch rv := value.(type) {
 		case string:
@@ -28648,6 +28663,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if ev.Exec.Process == nil {
 			ev.Exec.Process = &Process{}
 		}
+		if !ev.Exec.Process.IsNotKworker() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
 		rv, ok := value.(bool)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Exec.Process.FileEvent.FileFields.InUpperLayer"}
@@ -28657,6 +28675,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 	case "exec.file.inode":
 		if ev.Exec.Process == nil {
 			ev.Exec.Process = &Process{}
+		}
+		if !ev.Exec.Process.IsNotKworker() {
+			return &eval.ErrFieldNotFound{Field: field}
 		}
 		rv, ok := value.(int)
 		if !ok {
@@ -28668,6 +28689,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if ev.Exec.Process == nil {
 			ev.Exec.Process = &Process{}
 		}
+		if !ev.Exec.Process.IsNotKworker() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
 		rv, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Exec.Process.FileEvent.FileFields.Mode"}
@@ -28677,6 +28701,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 	case "exec.file.modification_time":
 		if ev.Exec.Process == nil {
 			ev.Exec.Process = &Process{}
+		}
+		if !ev.Exec.Process.IsNotKworker() {
+			return &eval.ErrFieldNotFound{Field: field}
 		}
 		rv, ok := value.(int)
 		if !ok {
@@ -28688,6 +28715,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if ev.Exec.Process == nil {
 			ev.Exec.Process = &Process{}
 		}
+		if !ev.Exec.Process.IsNotKworker() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
 		rv, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Exec.Process.FileEvent.FileFields.PathKey.MountID"}
@@ -28697,6 +28727,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 	case "exec.file.name":
 		if ev.Exec.Process == nil {
 			ev.Exec.Process = &Process{}
+		}
+		if !ev.Exec.Process.IsNotKworker() {
+			return &eval.ErrFieldNotFound{Field: field}
 		}
 		rv, ok := value.(string)
 		if !ok {
@@ -28713,6 +28746,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if ev.Exec.Process == nil {
 			ev.Exec.Process = &Process{}
 		}
+		if !ev.Exec.Process.IsNotKworker() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
 		rv, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Exec.Process.FileEvent.PkgName"}
@@ -28722,6 +28758,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 	case "exec.file.package.source_version":
 		if ev.Exec.Process == nil {
 			ev.Exec.Process = &Process{}
+		}
+		if !ev.Exec.Process.IsNotKworker() {
+			return &eval.ErrFieldNotFound{Field: field}
 		}
 		rv, ok := value.(string)
 		if !ok {
@@ -28733,6 +28772,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if ev.Exec.Process == nil {
 			ev.Exec.Process = &Process{}
 		}
+		if !ev.Exec.Process.IsNotKworker() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
 		rv, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Exec.Process.FileEvent.PkgVersion"}
@@ -28742,6 +28784,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 	case "exec.file.path":
 		if ev.Exec.Process == nil {
 			ev.Exec.Process = &Process{}
+		}
+		if !ev.Exec.Process.IsNotKworker() {
+			return &eval.ErrFieldNotFound{Field: field}
 		}
 		rv, ok := value.(string)
 		if !ok {
@@ -28758,6 +28803,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if ev.Exec.Process == nil {
 			ev.Exec.Process = &Process{}
 		}
+		if !ev.Exec.Process.IsNotKworker() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
 		rv, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Exec.Process.FileEvent.FileFields.Mode"}
@@ -28768,6 +28816,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if ev.Exec.Process == nil {
 			ev.Exec.Process = &Process{}
 		}
+		if !ev.Exec.Process.IsNotKworker() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
 		rv, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Exec.Process.FileEvent.FileFields.UID"}
@@ -28777,6 +28828,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 	case "exec.file.user":
 		if ev.Exec.Process == nil {
 			ev.Exec.Process = &Process{}
+		}
+		if !ev.Exec.Process.IsNotKworker() {
+			return &eval.ErrFieldNotFound{Field: field}
 		}
 		rv, ok := value.(string)
 		if !ok {
@@ -28848,6 +28902,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if ev.Exec.Process == nil {
 			ev.Exec.Process = &Process{}
 		}
+		if !ev.Exec.Process.HasInterpreter() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
 		rv, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Exec.Process.LinuxBinprm.FileEvent.FileFields.CTime"}
@@ -28857,6 +28914,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 	case "exec.interpreter.file.filesystem":
 		if ev.Exec.Process == nil {
 			ev.Exec.Process = &Process{}
+		}
+		if !ev.Exec.Process.HasInterpreter() {
+			return &eval.ErrFieldNotFound{Field: field}
 		}
 		rv, ok := value.(string)
 		if !ok {
@@ -28868,6 +28928,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if ev.Exec.Process == nil {
 			ev.Exec.Process = &Process{}
 		}
+		if !ev.Exec.Process.HasInterpreter() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
 		rv, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Exec.Process.LinuxBinprm.FileEvent.FileFields.GID"}
@@ -28878,6 +28941,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if ev.Exec.Process == nil {
 			ev.Exec.Process = &Process{}
 		}
+		if !ev.Exec.Process.HasInterpreter() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
 		rv, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Exec.Process.LinuxBinprm.FileEvent.FileFields.Group"}
@@ -28887,6 +28953,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 	case "exec.interpreter.file.hashes":
 		if ev.Exec.Process == nil {
 			ev.Exec.Process = &Process{}
+		}
+		if !ev.Exec.Process.HasInterpreter() {
+			return &eval.ErrFieldNotFound{Field: field}
 		}
 		switch rv := value.(type) {
 		case string:
@@ -28901,6 +28970,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if ev.Exec.Process == nil {
 			ev.Exec.Process = &Process{}
 		}
+		if !ev.Exec.Process.HasInterpreter() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
 		rv, ok := value.(bool)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Exec.Process.LinuxBinprm.FileEvent.FileFields.InUpperLayer"}
@@ -28910,6 +28982,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 	case "exec.interpreter.file.inode":
 		if ev.Exec.Process == nil {
 			ev.Exec.Process = &Process{}
+		}
+		if !ev.Exec.Process.HasInterpreter() {
+			return &eval.ErrFieldNotFound{Field: field}
 		}
 		rv, ok := value.(int)
 		if !ok {
@@ -28921,6 +28996,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if ev.Exec.Process == nil {
 			ev.Exec.Process = &Process{}
 		}
+		if !ev.Exec.Process.HasInterpreter() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
 		rv, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Exec.Process.LinuxBinprm.FileEvent.FileFields.Mode"}
@@ -28930,6 +29008,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 	case "exec.interpreter.file.modification_time":
 		if ev.Exec.Process == nil {
 			ev.Exec.Process = &Process{}
+		}
+		if !ev.Exec.Process.HasInterpreter() {
+			return &eval.ErrFieldNotFound{Field: field}
 		}
 		rv, ok := value.(int)
 		if !ok {
@@ -28941,6 +29022,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if ev.Exec.Process == nil {
 			ev.Exec.Process = &Process{}
 		}
+		if !ev.Exec.Process.HasInterpreter() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
 		rv, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Exec.Process.LinuxBinprm.FileEvent.FileFields.PathKey.MountID"}
@@ -28950,6 +29034,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 	case "exec.interpreter.file.name":
 		if ev.Exec.Process == nil {
 			ev.Exec.Process = &Process{}
+		}
+		if !ev.Exec.Process.HasInterpreter() {
+			return &eval.ErrFieldNotFound{Field: field}
 		}
 		rv, ok := value.(string)
 		if !ok {
@@ -28966,6 +29053,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if ev.Exec.Process == nil {
 			ev.Exec.Process = &Process{}
 		}
+		if !ev.Exec.Process.HasInterpreter() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
 		rv, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Exec.Process.LinuxBinprm.FileEvent.PkgName"}
@@ -28975,6 +29065,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 	case "exec.interpreter.file.package.source_version":
 		if ev.Exec.Process == nil {
 			ev.Exec.Process = &Process{}
+		}
+		if !ev.Exec.Process.HasInterpreter() {
+			return &eval.ErrFieldNotFound{Field: field}
 		}
 		rv, ok := value.(string)
 		if !ok {
@@ -28986,6 +29079,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if ev.Exec.Process == nil {
 			ev.Exec.Process = &Process{}
 		}
+		if !ev.Exec.Process.HasInterpreter() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
 		rv, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Exec.Process.LinuxBinprm.FileEvent.PkgVersion"}
@@ -28995,6 +29091,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 	case "exec.interpreter.file.path":
 		if ev.Exec.Process == nil {
 			ev.Exec.Process = &Process{}
+		}
+		if !ev.Exec.Process.HasInterpreter() {
+			return &eval.ErrFieldNotFound{Field: field}
 		}
 		rv, ok := value.(string)
 		if !ok {
@@ -29011,6 +29110,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if ev.Exec.Process == nil {
 			ev.Exec.Process = &Process{}
 		}
+		if !ev.Exec.Process.HasInterpreter() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
 		rv, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Exec.Process.LinuxBinprm.FileEvent.FileFields.Mode"}
@@ -29021,6 +29123,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if ev.Exec.Process == nil {
 			ev.Exec.Process = &Process{}
 		}
+		if !ev.Exec.Process.HasInterpreter() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
 		rv, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Exec.Process.LinuxBinprm.FileEvent.FileFields.UID"}
@@ -29030,6 +29135,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 	case "exec.interpreter.file.user":
 		if ev.Exec.Process == nil {
 			ev.Exec.Process = &Process{}
+		}
+		if !ev.Exec.Process.HasInterpreter() {
+			return &eval.ErrFieldNotFound{Field: field}
 		}
 		rv, ok := value.(string)
 		if !ok {
@@ -29330,6 +29438,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if ev.Exit.Process == nil {
 			ev.Exit.Process = &Process{}
 		}
+		if !ev.Exit.Process.IsNotKworker() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
 		rv, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Exit.Process.FileEvent.FileFields.CTime"}
@@ -29339,6 +29450,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 	case "exit.file.filesystem":
 		if ev.Exit.Process == nil {
 			ev.Exit.Process = &Process{}
+		}
+		if !ev.Exit.Process.IsNotKworker() {
+			return &eval.ErrFieldNotFound{Field: field}
 		}
 		rv, ok := value.(string)
 		if !ok {
@@ -29350,6 +29464,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if ev.Exit.Process == nil {
 			ev.Exit.Process = &Process{}
 		}
+		if !ev.Exit.Process.IsNotKworker() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
 		rv, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Exit.Process.FileEvent.FileFields.GID"}
@@ -29360,6 +29477,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if ev.Exit.Process == nil {
 			ev.Exit.Process = &Process{}
 		}
+		if !ev.Exit.Process.IsNotKworker() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
 		rv, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Exit.Process.FileEvent.FileFields.Group"}
@@ -29369,6 +29489,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 	case "exit.file.hashes":
 		if ev.Exit.Process == nil {
 			ev.Exit.Process = &Process{}
+		}
+		if !ev.Exit.Process.IsNotKworker() {
+			return &eval.ErrFieldNotFound{Field: field}
 		}
 		switch rv := value.(type) {
 		case string:
@@ -29383,6 +29506,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if ev.Exit.Process == nil {
 			ev.Exit.Process = &Process{}
 		}
+		if !ev.Exit.Process.IsNotKworker() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
 		rv, ok := value.(bool)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Exit.Process.FileEvent.FileFields.InUpperLayer"}
@@ -29392,6 +29518,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 	case "exit.file.inode":
 		if ev.Exit.Process == nil {
 			ev.Exit.Process = &Process{}
+		}
+		if !ev.Exit.Process.IsNotKworker() {
+			return &eval.ErrFieldNotFound{Field: field}
 		}
 		rv, ok := value.(int)
 		if !ok {
@@ -29403,6 +29532,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if ev.Exit.Process == nil {
 			ev.Exit.Process = &Process{}
 		}
+		if !ev.Exit.Process.IsNotKworker() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
 		rv, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Exit.Process.FileEvent.FileFields.Mode"}
@@ -29412,6 +29544,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 	case "exit.file.modification_time":
 		if ev.Exit.Process == nil {
 			ev.Exit.Process = &Process{}
+		}
+		if !ev.Exit.Process.IsNotKworker() {
+			return &eval.ErrFieldNotFound{Field: field}
 		}
 		rv, ok := value.(int)
 		if !ok {
@@ -29423,6 +29558,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if ev.Exit.Process == nil {
 			ev.Exit.Process = &Process{}
 		}
+		if !ev.Exit.Process.IsNotKworker() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
 		rv, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Exit.Process.FileEvent.FileFields.PathKey.MountID"}
@@ -29432,6 +29570,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 	case "exit.file.name":
 		if ev.Exit.Process == nil {
 			ev.Exit.Process = &Process{}
+		}
+		if !ev.Exit.Process.IsNotKworker() {
+			return &eval.ErrFieldNotFound{Field: field}
 		}
 		rv, ok := value.(string)
 		if !ok {
@@ -29448,6 +29589,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if ev.Exit.Process == nil {
 			ev.Exit.Process = &Process{}
 		}
+		if !ev.Exit.Process.IsNotKworker() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
 		rv, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Exit.Process.FileEvent.PkgName"}
@@ -29457,6 +29601,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 	case "exit.file.package.source_version":
 		if ev.Exit.Process == nil {
 			ev.Exit.Process = &Process{}
+		}
+		if !ev.Exit.Process.IsNotKworker() {
+			return &eval.ErrFieldNotFound{Field: field}
 		}
 		rv, ok := value.(string)
 		if !ok {
@@ -29468,6 +29615,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if ev.Exit.Process == nil {
 			ev.Exit.Process = &Process{}
 		}
+		if !ev.Exit.Process.IsNotKworker() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
 		rv, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Exit.Process.FileEvent.PkgVersion"}
@@ -29477,6 +29627,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 	case "exit.file.path":
 		if ev.Exit.Process == nil {
 			ev.Exit.Process = &Process{}
+		}
+		if !ev.Exit.Process.IsNotKworker() {
+			return &eval.ErrFieldNotFound{Field: field}
 		}
 		rv, ok := value.(string)
 		if !ok {
@@ -29493,6 +29646,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if ev.Exit.Process == nil {
 			ev.Exit.Process = &Process{}
 		}
+		if !ev.Exit.Process.IsNotKworker() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
 		rv, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Exit.Process.FileEvent.FileFields.Mode"}
@@ -29503,6 +29659,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if ev.Exit.Process == nil {
 			ev.Exit.Process = &Process{}
 		}
+		if !ev.Exit.Process.IsNotKworker() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
 		rv, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Exit.Process.FileEvent.FileFields.UID"}
@@ -29512,6 +29671,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 	case "exit.file.user":
 		if ev.Exit.Process == nil {
 			ev.Exit.Process = &Process{}
+		}
+		if !ev.Exit.Process.IsNotKworker() {
+			return &eval.ErrFieldNotFound{Field: field}
 		}
 		rv, ok := value.(string)
 		if !ok {
@@ -29583,6 +29745,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if ev.Exit.Process == nil {
 			ev.Exit.Process = &Process{}
 		}
+		if !ev.Exit.Process.HasInterpreter() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
 		rv, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Exit.Process.LinuxBinprm.FileEvent.FileFields.CTime"}
@@ -29592,6 +29757,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 	case "exit.interpreter.file.filesystem":
 		if ev.Exit.Process == nil {
 			ev.Exit.Process = &Process{}
+		}
+		if !ev.Exit.Process.HasInterpreter() {
+			return &eval.ErrFieldNotFound{Field: field}
 		}
 		rv, ok := value.(string)
 		if !ok {
@@ -29603,6 +29771,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if ev.Exit.Process == nil {
 			ev.Exit.Process = &Process{}
 		}
+		if !ev.Exit.Process.HasInterpreter() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
 		rv, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Exit.Process.LinuxBinprm.FileEvent.FileFields.GID"}
@@ -29613,6 +29784,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if ev.Exit.Process == nil {
 			ev.Exit.Process = &Process{}
 		}
+		if !ev.Exit.Process.HasInterpreter() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
 		rv, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Exit.Process.LinuxBinprm.FileEvent.FileFields.Group"}
@@ -29622,6 +29796,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 	case "exit.interpreter.file.hashes":
 		if ev.Exit.Process == nil {
 			ev.Exit.Process = &Process{}
+		}
+		if !ev.Exit.Process.HasInterpreter() {
+			return &eval.ErrFieldNotFound{Field: field}
 		}
 		switch rv := value.(type) {
 		case string:
@@ -29636,6 +29813,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if ev.Exit.Process == nil {
 			ev.Exit.Process = &Process{}
 		}
+		if !ev.Exit.Process.HasInterpreter() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
 		rv, ok := value.(bool)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Exit.Process.LinuxBinprm.FileEvent.FileFields.InUpperLayer"}
@@ -29645,6 +29825,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 	case "exit.interpreter.file.inode":
 		if ev.Exit.Process == nil {
 			ev.Exit.Process = &Process{}
+		}
+		if !ev.Exit.Process.HasInterpreter() {
+			return &eval.ErrFieldNotFound{Field: field}
 		}
 		rv, ok := value.(int)
 		if !ok {
@@ -29656,6 +29839,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if ev.Exit.Process == nil {
 			ev.Exit.Process = &Process{}
 		}
+		if !ev.Exit.Process.HasInterpreter() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
 		rv, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Exit.Process.LinuxBinprm.FileEvent.FileFields.Mode"}
@@ -29665,6 +29851,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 	case "exit.interpreter.file.modification_time":
 		if ev.Exit.Process == nil {
 			ev.Exit.Process = &Process{}
+		}
+		if !ev.Exit.Process.HasInterpreter() {
+			return &eval.ErrFieldNotFound{Field: field}
 		}
 		rv, ok := value.(int)
 		if !ok {
@@ -29676,6 +29865,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if ev.Exit.Process == nil {
 			ev.Exit.Process = &Process{}
 		}
+		if !ev.Exit.Process.HasInterpreter() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
 		rv, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Exit.Process.LinuxBinprm.FileEvent.FileFields.PathKey.MountID"}
@@ -29685,6 +29877,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 	case "exit.interpreter.file.name":
 		if ev.Exit.Process == nil {
 			ev.Exit.Process = &Process{}
+		}
+		if !ev.Exit.Process.HasInterpreter() {
+			return &eval.ErrFieldNotFound{Field: field}
 		}
 		rv, ok := value.(string)
 		if !ok {
@@ -29701,6 +29896,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if ev.Exit.Process == nil {
 			ev.Exit.Process = &Process{}
 		}
+		if !ev.Exit.Process.HasInterpreter() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
 		rv, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Exit.Process.LinuxBinprm.FileEvent.PkgName"}
@@ -29710,6 +29908,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 	case "exit.interpreter.file.package.source_version":
 		if ev.Exit.Process == nil {
 			ev.Exit.Process = &Process{}
+		}
+		if !ev.Exit.Process.HasInterpreter() {
+			return &eval.ErrFieldNotFound{Field: field}
 		}
 		rv, ok := value.(string)
 		if !ok {
@@ -29721,6 +29922,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if ev.Exit.Process == nil {
 			ev.Exit.Process = &Process{}
 		}
+		if !ev.Exit.Process.HasInterpreter() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
 		rv, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Exit.Process.LinuxBinprm.FileEvent.PkgVersion"}
@@ -29730,6 +29934,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 	case "exit.interpreter.file.path":
 		if ev.Exit.Process == nil {
 			ev.Exit.Process = &Process{}
+		}
+		if !ev.Exit.Process.HasInterpreter() {
+			return &eval.ErrFieldNotFound{Field: field}
 		}
 		rv, ok := value.(string)
 		if !ok {
@@ -29746,6 +29953,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if ev.Exit.Process == nil {
 			ev.Exit.Process = &Process{}
 		}
+		if !ev.Exit.Process.HasInterpreter() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
 		rv, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Exit.Process.LinuxBinprm.FileEvent.FileFields.Mode"}
@@ -29756,6 +29966,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if ev.Exit.Process == nil {
 			ev.Exit.Process = &Process{}
 		}
+		if !ev.Exit.Process.HasInterpreter() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
 		rv, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Exit.Process.LinuxBinprm.FileEvent.FileFields.UID"}
@@ -29765,6 +29978,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 	case "exit.interpreter.file.user":
 		if ev.Exit.Process == nil {
 			ev.Exit.Process = &Process{}
+		}
+		if !ev.Exit.Process.HasInterpreter() {
+			return &eval.ErrFieldNotFound{Field: field}
 		}
 		rv, ok := value.(string)
 		if !ok {
@@ -30884,6 +31100,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if ev.BaseEvent.ProcessContext.Ancestor == nil {
 			ev.BaseEvent.ProcessContext.Ancestor = &ProcessCacheEntry{}
 		}
+		if !ev.BaseEvent.ProcessContext.IsNotKworker() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
 		rv, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.Args"}
@@ -30896,6 +31115,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		if ev.BaseEvent.ProcessContext.Ancestor == nil {
 			ev.BaseEvent.ProcessContext.Ancestor = &ProcessCacheEntry{}
+		}
+		if !ev.BaseEvent.ProcessContext.IsNotKworker() {
+			return &eval.ErrFieldNotFound{Field: field}
 		}
 		switch rv := value.(type) {
 		case string:
@@ -30913,6 +31135,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if ev.BaseEvent.ProcessContext.Ancestor == nil {
 			ev.BaseEvent.ProcessContext.Ancestor = &ProcessCacheEntry{}
 		}
+		if !ev.BaseEvent.ProcessContext.IsNotKworker() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
 		switch rv := value.(type) {
 		case string:
 			ev.BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.Argv = append(ev.BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.Argv, rv)
@@ -30929,6 +31154,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if ev.BaseEvent.ProcessContext.Ancestor == nil {
 			ev.BaseEvent.ProcessContext.Ancestor = &ProcessCacheEntry{}
 		}
+		if !ev.BaseEvent.ProcessContext.IsNotKworker() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
 		rv, ok := value.(bool)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.ArgsTruncated"}
@@ -30941,6 +31169,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		if ev.BaseEvent.ProcessContext.Ancestor == nil {
 			ev.BaseEvent.ProcessContext.Ancestor = &ProcessCacheEntry{}
+		}
+		if !ev.BaseEvent.ProcessContext.IsNotKworker() {
+			return &eval.ErrFieldNotFound{Field: field}
 		}
 		switch rv := value.(type) {
 		case string:
@@ -30958,6 +31189,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if ev.BaseEvent.ProcessContext.Ancestor == nil {
 			ev.BaseEvent.ProcessContext.Ancestor = &ProcessCacheEntry{}
 		}
+		if !ev.BaseEvent.ProcessContext.IsNotKworker() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
 		rv, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.Argv0"}
@@ -30970,6 +31204,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		if ev.BaseEvent.ProcessContext.Ancestor == nil {
 			ev.BaseEvent.ProcessContext.Ancestor = &ProcessCacheEntry{}
+		}
+		if !ev.BaseEvent.ProcessContext.IsNotKworker() {
+			return &eval.ErrFieldNotFound{Field: field}
 		}
 		rv, ok := value.(int)
 		if !ok {
@@ -30984,6 +31221,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if ev.BaseEvent.ProcessContext.Ancestor == nil {
 			ev.BaseEvent.ProcessContext.Ancestor = &ProcessCacheEntry{}
 		}
+		if !ev.BaseEvent.ProcessContext.IsNotKworker() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
 		rv, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.Credentials.CapPermitted"}
@@ -30996,6 +31236,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		if ev.BaseEvent.ProcessContext.Ancestor == nil {
 			ev.BaseEvent.ProcessContext.Ancestor = &ProcessCacheEntry{}
+		}
+		if !ev.BaseEvent.ProcessContext.IsNotKworker() {
+			return &eval.ErrFieldNotFound{Field: field}
 		}
 		rv, ok := value.(string)
 		if !ok {
@@ -31010,6 +31253,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if ev.BaseEvent.ProcessContext.Ancestor == nil {
 			ev.BaseEvent.ProcessContext.Ancestor = &ProcessCacheEntry{}
 		}
+		if !ev.BaseEvent.ProcessContext.IsNotKworker() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
 		rv, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.ContainerID"}
@@ -31022,6 +31268,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		if ev.BaseEvent.ProcessContext.Ancestor == nil {
 			ev.BaseEvent.ProcessContext.Ancestor = &ProcessCacheEntry{}
+		}
+		if !ev.BaseEvent.ProcessContext.IsNotKworker() {
+			return &eval.ErrFieldNotFound{Field: field}
 		}
 		rv, ok := value.(int)
 		if !ok {
@@ -31036,6 +31285,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if ev.BaseEvent.ProcessContext.Ancestor == nil {
 			ev.BaseEvent.ProcessContext.Ancestor = &ProcessCacheEntry{}
 		}
+		if !ev.BaseEvent.ProcessContext.IsNotKworker() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
 		rv, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.Credentials.EGID"}
@@ -31049,6 +31301,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if ev.BaseEvent.ProcessContext.Ancestor == nil {
 			ev.BaseEvent.ProcessContext.Ancestor = &ProcessCacheEntry{}
 		}
+		if !ev.BaseEvent.ProcessContext.IsNotKworker() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
 		rv, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.Credentials.EGroup"}
@@ -31061,6 +31316,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		if ev.BaseEvent.ProcessContext.Ancestor == nil {
 			ev.BaseEvent.ProcessContext.Ancestor = &ProcessCacheEntry{}
+		}
+		if !ev.BaseEvent.ProcessContext.IsNotKworker() {
+			return &eval.ErrFieldNotFound{Field: field}
 		}
 		switch rv := value.(type) {
 		case string:
@@ -31078,6 +31336,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if ev.BaseEvent.ProcessContext.Ancestor == nil {
 			ev.BaseEvent.ProcessContext.Ancestor = &ProcessCacheEntry{}
 		}
+		if !ev.BaseEvent.ProcessContext.IsNotKworker() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
 		switch rv := value.(type) {
 		case string:
 			ev.BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.Envs = append(ev.BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.Envs, rv)
@@ -31094,6 +31355,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if ev.BaseEvent.ProcessContext.Ancestor == nil {
 			ev.BaseEvent.ProcessContext.Ancestor = &ProcessCacheEntry{}
 		}
+		if !ev.BaseEvent.ProcessContext.IsNotKworker() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
 		rv, ok := value.(bool)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.EnvsTruncated"}
@@ -31106,6 +31370,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		if ev.BaseEvent.ProcessContext.Ancestor == nil {
 			ev.BaseEvent.ProcessContext.Ancestor = &ProcessCacheEntry{}
+		}
+		if !ev.BaseEvent.ProcessContext.IsNotKworker() {
+			return &eval.ErrFieldNotFound{Field: field}
 		}
 		rv, ok := value.(int)
 		if !ok {
@@ -31120,6 +31387,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if ev.BaseEvent.ProcessContext.Ancestor == nil {
 			ev.BaseEvent.ProcessContext.Ancestor = &ProcessCacheEntry{}
 		}
+		if !ev.BaseEvent.ProcessContext.IsNotKworker() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
 		rv, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.Credentials.EUser"}
@@ -31132,6 +31402,12 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		if ev.BaseEvent.ProcessContext.Ancestor == nil {
 			ev.BaseEvent.ProcessContext.Ancestor = &ProcessCacheEntry{}
+		}
+		if !ev.BaseEvent.ProcessContext.IsNotKworker() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
+		if !ev.BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.IsNotKworker() {
+			return &eval.ErrFieldNotFound{Field: field}
 		}
 		rv, ok := value.(int)
 		if !ok {
@@ -31146,6 +31422,12 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if ev.BaseEvent.ProcessContext.Ancestor == nil {
 			ev.BaseEvent.ProcessContext.Ancestor = &ProcessCacheEntry{}
 		}
+		if !ev.BaseEvent.ProcessContext.IsNotKworker() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
+		if !ev.BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.IsNotKworker() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
 		rv, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.FileEvent.Filesystem"}
@@ -31158,6 +31440,12 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		if ev.BaseEvent.ProcessContext.Ancestor == nil {
 			ev.BaseEvent.ProcessContext.Ancestor = &ProcessCacheEntry{}
+		}
+		if !ev.BaseEvent.ProcessContext.IsNotKworker() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
+		if !ev.BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.IsNotKworker() {
+			return &eval.ErrFieldNotFound{Field: field}
 		}
 		rv, ok := value.(int)
 		if !ok {
@@ -31172,6 +31460,12 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if ev.BaseEvent.ProcessContext.Ancestor == nil {
 			ev.BaseEvent.ProcessContext.Ancestor = &ProcessCacheEntry{}
 		}
+		if !ev.BaseEvent.ProcessContext.IsNotKworker() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
+		if !ev.BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.IsNotKworker() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
 		rv, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.FileEvent.FileFields.Group"}
@@ -31184,6 +31478,12 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		if ev.BaseEvent.ProcessContext.Ancestor == nil {
 			ev.BaseEvent.ProcessContext.Ancestor = &ProcessCacheEntry{}
+		}
+		if !ev.BaseEvent.ProcessContext.IsNotKworker() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
+		if !ev.BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.IsNotKworker() {
+			return &eval.ErrFieldNotFound{Field: field}
 		}
 		switch rv := value.(type) {
 		case string:
@@ -31201,6 +31501,12 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if ev.BaseEvent.ProcessContext.Ancestor == nil {
 			ev.BaseEvent.ProcessContext.Ancestor = &ProcessCacheEntry{}
 		}
+		if !ev.BaseEvent.ProcessContext.IsNotKworker() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
+		if !ev.BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.IsNotKworker() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
 		rv, ok := value.(bool)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.FileEvent.FileFields.InUpperLayer"}
@@ -31213,6 +31519,12 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		if ev.BaseEvent.ProcessContext.Ancestor == nil {
 			ev.BaseEvent.ProcessContext.Ancestor = &ProcessCacheEntry{}
+		}
+		if !ev.BaseEvent.ProcessContext.IsNotKworker() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
+		if !ev.BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.IsNotKworker() {
+			return &eval.ErrFieldNotFound{Field: field}
 		}
 		rv, ok := value.(int)
 		if !ok {
@@ -31227,6 +31539,12 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if ev.BaseEvent.ProcessContext.Ancestor == nil {
 			ev.BaseEvent.ProcessContext.Ancestor = &ProcessCacheEntry{}
 		}
+		if !ev.BaseEvent.ProcessContext.IsNotKworker() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
+		if !ev.BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.IsNotKworker() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
 		rv, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.FileEvent.FileFields.Mode"}
@@ -31239,6 +31557,12 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		if ev.BaseEvent.ProcessContext.Ancestor == nil {
 			ev.BaseEvent.ProcessContext.Ancestor = &ProcessCacheEntry{}
+		}
+		if !ev.BaseEvent.ProcessContext.IsNotKworker() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
+		if !ev.BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.IsNotKworker() {
+			return &eval.ErrFieldNotFound{Field: field}
 		}
 		rv, ok := value.(int)
 		if !ok {
@@ -31253,6 +31577,12 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if ev.BaseEvent.ProcessContext.Ancestor == nil {
 			ev.BaseEvent.ProcessContext.Ancestor = &ProcessCacheEntry{}
 		}
+		if !ev.BaseEvent.ProcessContext.IsNotKworker() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
+		if !ev.BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.IsNotKworker() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
 		rv, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.FileEvent.FileFields.PathKey.MountID"}
@@ -31265,6 +31595,12 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		if ev.BaseEvent.ProcessContext.Ancestor == nil {
 			ev.BaseEvent.ProcessContext.Ancestor = &ProcessCacheEntry{}
+		}
+		if !ev.BaseEvent.ProcessContext.IsNotKworker() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
+		if !ev.BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.IsNotKworker() {
+			return &eval.ErrFieldNotFound{Field: field}
 		}
 		rv, ok := value.(string)
 		if !ok {
@@ -31287,6 +31623,12 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if ev.BaseEvent.ProcessContext.Ancestor == nil {
 			ev.BaseEvent.ProcessContext.Ancestor = &ProcessCacheEntry{}
 		}
+		if !ev.BaseEvent.ProcessContext.IsNotKworker() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
+		if !ev.BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.IsNotKworker() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
 		rv, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.FileEvent.PkgName"}
@@ -31299,6 +31641,12 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		if ev.BaseEvent.ProcessContext.Ancestor == nil {
 			ev.BaseEvent.ProcessContext.Ancestor = &ProcessCacheEntry{}
+		}
+		if !ev.BaseEvent.ProcessContext.IsNotKworker() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
+		if !ev.BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.IsNotKworker() {
+			return &eval.ErrFieldNotFound{Field: field}
 		}
 		rv, ok := value.(string)
 		if !ok {
@@ -31313,6 +31661,12 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if ev.BaseEvent.ProcessContext.Ancestor == nil {
 			ev.BaseEvent.ProcessContext.Ancestor = &ProcessCacheEntry{}
 		}
+		if !ev.BaseEvent.ProcessContext.IsNotKworker() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
+		if !ev.BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.IsNotKworker() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
 		rv, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.FileEvent.PkgVersion"}
@@ -31325,6 +31679,12 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		if ev.BaseEvent.ProcessContext.Ancestor == nil {
 			ev.BaseEvent.ProcessContext.Ancestor = &ProcessCacheEntry{}
+		}
+		if !ev.BaseEvent.ProcessContext.IsNotKworker() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
+		if !ev.BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.IsNotKworker() {
+			return &eval.ErrFieldNotFound{Field: field}
 		}
 		rv, ok := value.(string)
 		if !ok {
@@ -31347,6 +31707,12 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if ev.BaseEvent.ProcessContext.Ancestor == nil {
 			ev.BaseEvent.ProcessContext.Ancestor = &ProcessCacheEntry{}
 		}
+		if !ev.BaseEvent.ProcessContext.IsNotKworker() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
+		if !ev.BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.IsNotKworker() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
 		rv, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.FileEvent.FileFields.Mode"}
@@ -31359,6 +31725,12 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		if ev.BaseEvent.ProcessContext.Ancestor == nil {
 			ev.BaseEvent.ProcessContext.Ancestor = &ProcessCacheEntry{}
+		}
+		if !ev.BaseEvent.ProcessContext.IsNotKworker() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
+		if !ev.BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.IsNotKworker() {
+			return &eval.ErrFieldNotFound{Field: field}
 		}
 		rv, ok := value.(int)
 		if !ok {
@@ -31373,6 +31745,12 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if ev.BaseEvent.ProcessContext.Ancestor == nil {
 			ev.BaseEvent.ProcessContext.Ancestor = &ProcessCacheEntry{}
 		}
+		if !ev.BaseEvent.ProcessContext.IsNotKworker() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
+		if !ev.BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.IsNotKworker() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
 		rv, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.FileEvent.FileFields.User"}
@@ -31385,6 +31763,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		if ev.BaseEvent.ProcessContext.Ancestor == nil {
 			ev.BaseEvent.ProcessContext.Ancestor = &ProcessCacheEntry{}
+		}
+		if !ev.BaseEvent.ProcessContext.IsNotKworker() {
+			return &eval.ErrFieldNotFound{Field: field}
 		}
 		rv, ok := value.(int)
 		if !ok {
@@ -31399,6 +31780,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if ev.BaseEvent.ProcessContext.Ancestor == nil {
 			ev.BaseEvent.ProcessContext.Ancestor = &ProcessCacheEntry{}
 		}
+		if !ev.BaseEvent.ProcessContext.IsNotKworker() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
 		rv, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.Credentials.FSGroup"}
@@ -31411,6 +31795,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		if ev.BaseEvent.ProcessContext.Ancestor == nil {
 			ev.BaseEvent.ProcessContext.Ancestor = &ProcessCacheEntry{}
+		}
+		if !ev.BaseEvent.ProcessContext.IsNotKworker() {
+			return &eval.ErrFieldNotFound{Field: field}
 		}
 		rv, ok := value.(int)
 		if !ok {
@@ -31425,6 +31812,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if ev.BaseEvent.ProcessContext.Ancestor == nil {
 			ev.BaseEvent.ProcessContext.Ancestor = &ProcessCacheEntry{}
 		}
+		if !ev.BaseEvent.ProcessContext.IsNotKworker() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
 		rv, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.Credentials.FSUser"}
@@ -31437,6 +31827,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		if ev.BaseEvent.ProcessContext.Ancestor == nil {
 			ev.BaseEvent.ProcessContext.Ancestor = &ProcessCacheEntry{}
+		}
+		if !ev.BaseEvent.ProcessContext.IsNotKworker() {
+			return &eval.ErrFieldNotFound{Field: field}
 		}
 		rv, ok := value.(int)
 		if !ok {
@@ -31451,6 +31844,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if ev.BaseEvent.ProcessContext.Ancestor == nil {
 			ev.BaseEvent.ProcessContext.Ancestor = &ProcessCacheEntry{}
 		}
+		if !ev.BaseEvent.ProcessContext.IsNotKworker() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
 		rv, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.Credentials.Group"}
@@ -31463,6 +31859,12 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		if ev.BaseEvent.ProcessContext.Ancestor == nil {
 			ev.BaseEvent.ProcessContext.Ancestor = &ProcessCacheEntry{}
+		}
+		if !ev.BaseEvent.ProcessContext.IsNotKworker() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
+		if !ev.BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.HasInterpreter() {
+			return &eval.ErrFieldNotFound{Field: field}
 		}
 		rv, ok := value.(int)
 		if !ok {
@@ -31477,6 +31879,12 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if ev.BaseEvent.ProcessContext.Ancestor == nil {
 			ev.BaseEvent.ProcessContext.Ancestor = &ProcessCacheEntry{}
 		}
+		if !ev.BaseEvent.ProcessContext.IsNotKworker() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
+		if !ev.BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.HasInterpreter() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
 		rv, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.Filesystem"}
@@ -31489,6 +31897,12 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		if ev.BaseEvent.ProcessContext.Ancestor == nil {
 			ev.BaseEvent.ProcessContext.Ancestor = &ProcessCacheEntry{}
+		}
+		if !ev.BaseEvent.ProcessContext.IsNotKworker() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
+		if !ev.BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.HasInterpreter() {
+			return &eval.ErrFieldNotFound{Field: field}
 		}
 		rv, ok := value.(int)
 		if !ok {
@@ -31503,6 +31917,12 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if ev.BaseEvent.ProcessContext.Ancestor == nil {
 			ev.BaseEvent.ProcessContext.Ancestor = &ProcessCacheEntry{}
 		}
+		if !ev.BaseEvent.ProcessContext.IsNotKworker() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
+		if !ev.BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.HasInterpreter() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
 		rv, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.Group"}
@@ -31515,6 +31935,12 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		if ev.BaseEvent.ProcessContext.Ancestor == nil {
 			ev.BaseEvent.ProcessContext.Ancestor = &ProcessCacheEntry{}
+		}
+		if !ev.BaseEvent.ProcessContext.IsNotKworker() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
+		if !ev.BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.HasInterpreter() {
+			return &eval.ErrFieldNotFound{Field: field}
 		}
 		switch rv := value.(type) {
 		case string:
@@ -31532,6 +31958,12 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if ev.BaseEvent.ProcessContext.Ancestor == nil {
 			ev.BaseEvent.ProcessContext.Ancestor = &ProcessCacheEntry{}
 		}
+		if !ev.BaseEvent.ProcessContext.IsNotKworker() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
+		if !ev.BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.HasInterpreter() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
 		rv, ok := value.(bool)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.InUpperLayer"}
@@ -31544,6 +31976,12 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		if ev.BaseEvent.ProcessContext.Ancestor == nil {
 			ev.BaseEvent.ProcessContext.Ancestor = &ProcessCacheEntry{}
+		}
+		if !ev.BaseEvent.ProcessContext.IsNotKworker() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
+		if !ev.BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.HasInterpreter() {
+			return &eval.ErrFieldNotFound{Field: field}
 		}
 		rv, ok := value.(int)
 		if !ok {
@@ -31558,6 +31996,12 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if ev.BaseEvent.ProcessContext.Ancestor == nil {
 			ev.BaseEvent.ProcessContext.Ancestor = &ProcessCacheEntry{}
 		}
+		if !ev.BaseEvent.ProcessContext.IsNotKworker() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
+		if !ev.BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.HasInterpreter() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
 		rv, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.Mode"}
@@ -31570,6 +32014,12 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		if ev.BaseEvent.ProcessContext.Ancestor == nil {
 			ev.BaseEvent.ProcessContext.Ancestor = &ProcessCacheEntry{}
+		}
+		if !ev.BaseEvent.ProcessContext.IsNotKworker() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
+		if !ev.BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.HasInterpreter() {
+			return &eval.ErrFieldNotFound{Field: field}
 		}
 		rv, ok := value.(int)
 		if !ok {
@@ -31584,6 +32034,12 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if ev.BaseEvent.ProcessContext.Ancestor == nil {
 			ev.BaseEvent.ProcessContext.Ancestor = &ProcessCacheEntry{}
 		}
+		if !ev.BaseEvent.ProcessContext.IsNotKworker() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
+		if !ev.BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.HasInterpreter() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
 		rv, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.PathKey.MountID"}
@@ -31596,6 +32052,12 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		if ev.BaseEvent.ProcessContext.Ancestor == nil {
 			ev.BaseEvent.ProcessContext.Ancestor = &ProcessCacheEntry{}
+		}
+		if !ev.BaseEvent.ProcessContext.IsNotKworker() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
+		if !ev.BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.HasInterpreter() {
+			return &eval.ErrFieldNotFound{Field: field}
 		}
 		rv, ok := value.(string)
 		if !ok {
@@ -31618,6 +32080,12 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if ev.BaseEvent.ProcessContext.Ancestor == nil {
 			ev.BaseEvent.ProcessContext.Ancestor = &ProcessCacheEntry{}
 		}
+		if !ev.BaseEvent.ProcessContext.IsNotKworker() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
+		if !ev.BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.HasInterpreter() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
 		rv, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.PkgName"}
@@ -31630,6 +32098,12 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		if ev.BaseEvent.ProcessContext.Ancestor == nil {
 			ev.BaseEvent.ProcessContext.Ancestor = &ProcessCacheEntry{}
+		}
+		if !ev.BaseEvent.ProcessContext.IsNotKworker() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
+		if !ev.BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.HasInterpreter() {
+			return &eval.ErrFieldNotFound{Field: field}
 		}
 		rv, ok := value.(string)
 		if !ok {
@@ -31644,6 +32118,12 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if ev.BaseEvent.ProcessContext.Ancestor == nil {
 			ev.BaseEvent.ProcessContext.Ancestor = &ProcessCacheEntry{}
 		}
+		if !ev.BaseEvent.ProcessContext.IsNotKworker() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
+		if !ev.BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.HasInterpreter() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
 		rv, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.PkgVersion"}
@@ -31656,6 +32136,12 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		if ev.BaseEvent.ProcessContext.Ancestor == nil {
 			ev.BaseEvent.ProcessContext.Ancestor = &ProcessCacheEntry{}
+		}
+		if !ev.BaseEvent.ProcessContext.IsNotKworker() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
+		if !ev.BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.HasInterpreter() {
+			return &eval.ErrFieldNotFound{Field: field}
 		}
 		rv, ok := value.(string)
 		if !ok {
@@ -31678,6 +32164,12 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if ev.BaseEvent.ProcessContext.Ancestor == nil {
 			ev.BaseEvent.ProcessContext.Ancestor = &ProcessCacheEntry{}
 		}
+		if !ev.BaseEvent.ProcessContext.IsNotKworker() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
+		if !ev.BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.HasInterpreter() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
 		rv, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.Mode"}
@@ -31690,6 +32182,12 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		if ev.BaseEvent.ProcessContext.Ancestor == nil {
 			ev.BaseEvent.ProcessContext.Ancestor = &ProcessCacheEntry{}
+		}
+		if !ev.BaseEvent.ProcessContext.IsNotKworker() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
+		if !ev.BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.HasInterpreter() {
+			return &eval.ErrFieldNotFound{Field: field}
 		}
 		rv, ok := value.(int)
 		if !ok {
@@ -31704,6 +32202,12 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if ev.BaseEvent.ProcessContext.Ancestor == nil {
 			ev.BaseEvent.ProcessContext.Ancestor = &ProcessCacheEntry{}
 		}
+		if !ev.BaseEvent.ProcessContext.IsNotKworker() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
+		if !ev.BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.HasInterpreter() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
 		rv, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.User"}
@@ -31716,6 +32220,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		if ev.BaseEvent.ProcessContext.Ancestor == nil {
 			ev.BaseEvent.ProcessContext.Ancestor = &ProcessCacheEntry{}
+		}
+		if !ev.BaseEvent.ProcessContext.IsNotKworker() {
+			return &eval.ErrFieldNotFound{Field: field}
 		}
 		rv, ok := value.(bool)
 		if !ok {
@@ -31730,6 +32237,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if ev.BaseEvent.ProcessContext.Ancestor == nil {
 			ev.BaseEvent.ProcessContext.Ancestor = &ProcessCacheEntry{}
 		}
+		if !ev.BaseEvent.ProcessContext.IsNotKworker() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
 		rv, ok := value.(bool)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.IsThread"}
@@ -31742,6 +32252,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		if ev.BaseEvent.ProcessContext.Ancestor == nil {
 			ev.BaseEvent.ProcessContext.Ancestor = &ProcessCacheEntry{}
+		}
+		if !ev.BaseEvent.ProcessContext.IsNotKworker() {
+			return &eval.ErrFieldNotFound{Field: field}
 		}
 		rv, ok := value.(int)
 		if !ok {
@@ -31756,6 +32269,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if ev.BaseEvent.ProcessContext.Ancestor == nil {
 			ev.BaseEvent.ProcessContext.Ancestor = &ProcessCacheEntry{}
 		}
+		if !ev.BaseEvent.ProcessContext.IsNotKworker() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
 		rv, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.PPid"}
@@ -31768,6 +32284,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		if ev.BaseEvent.ProcessContext.Ancestor == nil {
 			ev.BaseEvent.ProcessContext.Ancestor = &ProcessCacheEntry{}
+		}
+		if !ev.BaseEvent.ProcessContext.IsNotKworker() {
+			return &eval.ErrFieldNotFound{Field: field}
 		}
 		rv, ok := value.(int)
 		if !ok {
@@ -31782,6 +32301,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if ev.BaseEvent.ProcessContext.Ancestor == nil {
 			ev.BaseEvent.ProcessContext.Ancestor = &ProcessCacheEntry{}
 		}
+		if !ev.BaseEvent.ProcessContext.IsNotKworker() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
 		rv, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.TTYName"}
@@ -31795,6 +32317,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if ev.BaseEvent.ProcessContext.Ancestor == nil {
 			ev.BaseEvent.ProcessContext.Ancestor = &ProcessCacheEntry{}
 		}
+		if !ev.BaseEvent.ProcessContext.IsNotKworker() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
 		rv, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.Credentials.UID"}
@@ -31807,6 +32332,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		if ev.BaseEvent.ProcessContext.Ancestor == nil {
 			ev.BaseEvent.ProcessContext.Ancestor = &ProcessCacheEntry{}
+		}
+		if !ev.BaseEvent.ProcessContext.IsNotKworker() {
+			return &eval.ErrFieldNotFound{Field: field}
 		}
 		rv, ok := value.(string)
 		if !ok {
@@ -32013,6 +32541,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if ev.BaseEvent.ProcessContext == nil {
 			ev.BaseEvent.ProcessContext = &ProcessContext{}
 		}
+		if !ev.BaseEvent.ProcessContext.Process.IsNotKworker() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
 		rv, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Process.FileEvent.FileFields.CTime"}
@@ -32022,6 +32553,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 	case "process.file.filesystem":
 		if ev.BaseEvent.ProcessContext == nil {
 			ev.BaseEvent.ProcessContext = &ProcessContext{}
+		}
+		if !ev.BaseEvent.ProcessContext.Process.IsNotKworker() {
+			return &eval.ErrFieldNotFound{Field: field}
 		}
 		rv, ok := value.(string)
 		if !ok {
@@ -32033,6 +32567,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if ev.BaseEvent.ProcessContext == nil {
 			ev.BaseEvent.ProcessContext = &ProcessContext{}
 		}
+		if !ev.BaseEvent.ProcessContext.Process.IsNotKworker() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
 		rv, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Process.FileEvent.FileFields.GID"}
@@ -32043,6 +32580,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if ev.BaseEvent.ProcessContext == nil {
 			ev.BaseEvent.ProcessContext = &ProcessContext{}
 		}
+		if !ev.BaseEvent.ProcessContext.Process.IsNotKworker() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
 		rv, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Process.FileEvent.FileFields.Group"}
@@ -32052,6 +32592,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 	case "process.file.hashes":
 		if ev.BaseEvent.ProcessContext == nil {
 			ev.BaseEvent.ProcessContext = &ProcessContext{}
+		}
+		if !ev.BaseEvent.ProcessContext.Process.IsNotKworker() {
+			return &eval.ErrFieldNotFound{Field: field}
 		}
 		switch rv := value.(type) {
 		case string:
@@ -32066,6 +32609,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if ev.BaseEvent.ProcessContext == nil {
 			ev.BaseEvent.ProcessContext = &ProcessContext{}
 		}
+		if !ev.BaseEvent.ProcessContext.Process.IsNotKworker() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
 		rv, ok := value.(bool)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Process.FileEvent.FileFields.InUpperLayer"}
@@ -32075,6 +32621,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 	case "process.file.inode":
 		if ev.BaseEvent.ProcessContext == nil {
 			ev.BaseEvent.ProcessContext = &ProcessContext{}
+		}
+		if !ev.BaseEvent.ProcessContext.Process.IsNotKworker() {
+			return &eval.ErrFieldNotFound{Field: field}
 		}
 		rv, ok := value.(int)
 		if !ok {
@@ -32086,6 +32635,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if ev.BaseEvent.ProcessContext == nil {
 			ev.BaseEvent.ProcessContext = &ProcessContext{}
 		}
+		if !ev.BaseEvent.ProcessContext.Process.IsNotKworker() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
 		rv, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Process.FileEvent.FileFields.Mode"}
@@ -32095,6 +32647,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 	case "process.file.modification_time":
 		if ev.BaseEvent.ProcessContext == nil {
 			ev.BaseEvent.ProcessContext = &ProcessContext{}
+		}
+		if !ev.BaseEvent.ProcessContext.Process.IsNotKworker() {
+			return &eval.ErrFieldNotFound{Field: field}
 		}
 		rv, ok := value.(int)
 		if !ok {
@@ -32106,6 +32661,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if ev.BaseEvent.ProcessContext == nil {
 			ev.BaseEvent.ProcessContext = &ProcessContext{}
 		}
+		if !ev.BaseEvent.ProcessContext.Process.IsNotKworker() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
 		rv, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Process.FileEvent.FileFields.PathKey.MountID"}
@@ -32115,6 +32673,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 	case "process.file.name":
 		if ev.BaseEvent.ProcessContext == nil {
 			ev.BaseEvent.ProcessContext = &ProcessContext{}
+		}
+		if !ev.BaseEvent.ProcessContext.Process.IsNotKworker() {
+			return &eval.ErrFieldNotFound{Field: field}
 		}
 		rv, ok := value.(string)
 		if !ok {
@@ -32131,6 +32692,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if ev.BaseEvent.ProcessContext == nil {
 			ev.BaseEvent.ProcessContext = &ProcessContext{}
 		}
+		if !ev.BaseEvent.ProcessContext.Process.IsNotKworker() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
 		rv, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Process.FileEvent.PkgName"}
@@ -32140,6 +32704,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 	case "process.file.package.source_version":
 		if ev.BaseEvent.ProcessContext == nil {
 			ev.BaseEvent.ProcessContext = &ProcessContext{}
+		}
+		if !ev.BaseEvent.ProcessContext.Process.IsNotKworker() {
+			return &eval.ErrFieldNotFound{Field: field}
 		}
 		rv, ok := value.(string)
 		if !ok {
@@ -32151,6 +32718,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if ev.BaseEvent.ProcessContext == nil {
 			ev.BaseEvent.ProcessContext = &ProcessContext{}
 		}
+		if !ev.BaseEvent.ProcessContext.Process.IsNotKworker() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
 		rv, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Process.FileEvent.PkgVersion"}
@@ -32160,6 +32730,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 	case "process.file.path":
 		if ev.BaseEvent.ProcessContext == nil {
 			ev.BaseEvent.ProcessContext = &ProcessContext{}
+		}
+		if !ev.BaseEvent.ProcessContext.Process.IsNotKworker() {
+			return &eval.ErrFieldNotFound{Field: field}
 		}
 		rv, ok := value.(string)
 		if !ok {
@@ -32176,6 +32749,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if ev.BaseEvent.ProcessContext == nil {
 			ev.BaseEvent.ProcessContext = &ProcessContext{}
 		}
+		if !ev.BaseEvent.ProcessContext.Process.IsNotKworker() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
 		rv, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Process.FileEvent.FileFields.Mode"}
@@ -32186,6 +32762,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if ev.BaseEvent.ProcessContext == nil {
 			ev.BaseEvent.ProcessContext = &ProcessContext{}
 		}
+		if !ev.BaseEvent.ProcessContext.Process.IsNotKworker() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
 		rv, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Process.FileEvent.FileFields.UID"}
@@ -32195,6 +32774,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 	case "process.file.user":
 		if ev.BaseEvent.ProcessContext == nil {
 			ev.BaseEvent.ProcessContext = &ProcessContext{}
+		}
+		if !ev.BaseEvent.ProcessContext.Process.IsNotKworker() {
+			return &eval.ErrFieldNotFound{Field: field}
 		}
 		rv, ok := value.(string)
 		if !ok {
@@ -32266,6 +32848,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if ev.BaseEvent.ProcessContext == nil {
 			ev.BaseEvent.ProcessContext = &ProcessContext{}
 		}
+		if !ev.BaseEvent.ProcessContext.Process.HasInterpreter() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
 		rv, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.CTime"}
@@ -32275,6 +32860,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 	case "process.interpreter.file.filesystem":
 		if ev.BaseEvent.ProcessContext == nil {
 			ev.BaseEvent.ProcessContext = &ProcessContext{}
+		}
+		if !ev.BaseEvent.ProcessContext.Process.HasInterpreter() {
+			return &eval.ErrFieldNotFound{Field: field}
 		}
 		rv, ok := value.(string)
 		if !ok {
@@ -32286,6 +32874,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if ev.BaseEvent.ProcessContext == nil {
 			ev.BaseEvent.ProcessContext = &ProcessContext{}
 		}
+		if !ev.BaseEvent.ProcessContext.Process.HasInterpreter() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
 		rv, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.GID"}
@@ -32296,6 +32887,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if ev.BaseEvent.ProcessContext == nil {
 			ev.BaseEvent.ProcessContext = &ProcessContext{}
 		}
+		if !ev.BaseEvent.ProcessContext.Process.HasInterpreter() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
 		rv, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.Group"}
@@ -32305,6 +32899,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 	case "process.interpreter.file.hashes":
 		if ev.BaseEvent.ProcessContext == nil {
 			ev.BaseEvent.ProcessContext = &ProcessContext{}
+		}
+		if !ev.BaseEvent.ProcessContext.Process.HasInterpreter() {
+			return &eval.ErrFieldNotFound{Field: field}
 		}
 		switch rv := value.(type) {
 		case string:
@@ -32319,6 +32916,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if ev.BaseEvent.ProcessContext == nil {
 			ev.BaseEvent.ProcessContext = &ProcessContext{}
 		}
+		if !ev.BaseEvent.ProcessContext.Process.HasInterpreter() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
 		rv, ok := value.(bool)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.InUpperLayer"}
@@ -32328,6 +32928,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 	case "process.interpreter.file.inode":
 		if ev.BaseEvent.ProcessContext == nil {
 			ev.BaseEvent.ProcessContext = &ProcessContext{}
+		}
+		if !ev.BaseEvent.ProcessContext.Process.HasInterpreter() {
+			return &eval.ErrFieldNotFound{Field: field}
 		}
 		rv, ok := value.(int)
 		if !ok {
@@ -32339,6 +32942,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if ev.BaseEvent.ProcessContext == nil {
 			ev.BaseEvent.ProcessContext = &ProcessContext{}
 		}
+		if !ev.BaseEvent.ProcessContext.Process.HasInterpreter() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
 		rv, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.Mode"}
@@ -32348,6 +32954,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 	case "process.interpreter.file.modification_time":
 		if ev.BaseEvent.ProcessContext == nil {
 			ev.BaseEvent.ProcessContext = &ProcessContext{}
+		}
+		if !ev.BaseEvent.ProcessContext.Process.HasInterpreter() {
+			return &eval.ErrFieldNotFound{Field: field}
 		}
 		rv, ok := value.(int)
 		if !ok {
@@ -32359,6 +32968,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if ev.BaseEvent.ProcessContext == nil {
 			ev.BaseEvent.ProcessContext = &ProcessContext{}
 		}
+		if !ev.BaseEvent.ProcessContext.Process.HasInterpreter() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
 		rv, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.PathKey.MountID"}
@@ -32368,6 +32980,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 	case "process.interpreter.file.name":
 		if ev.BaseEvent.ProcessContext == nil {
 			ev.BaseEvent.ProcessContext = &ProcessContext{}
+		}
+		if !ev.BaseEvent.ProcessContext.Process.HasInterpreter() {
+			return &eval.ErrFieldNotFound{Field: field}
 		}
 		rv, ok := value.(string)
 		if !ok {
@@ -32384,6 +32999,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if ev.BaseEvent.ProcessContext == nil {
 			ev.BaseEvent.ProcessContext = &ProcessContext{}
 		}
+		if !ev.BaseEvent.ProcessContext.Process.HasInterpreter() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
 		rv, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Process.LinuxBinprm.FileEvent.PkgName"}
@@ -32393,6 +33011,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 	case "process.interpreter.file.package.source_version":
 		if ev.BaseEvent.ProcessContext == nil {
 			ev.BaseEvent.ProcessContext = &ProcessContext{}
+		}
+		if !ev.BaseEvent.ProcessContext.Process.HasInterpreter() {
+			return &eval.ErrFieldNotFound{Field: field}
 		}
 		rv, ok := value.(string)
 		if !ok {
@@ -32404,6 +33025,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if ev.BaseEvent.ProcessContext == nil {
 			ev.BaseEvent.ProcessContext = &ProcessContext{}
 		}
+		if !ev.BaseEvent.ProcessContext.Process.HasInterpreter() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
 		rv, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Process.LinuxBinprm.FileEvent.PkgVersion"}
@@ -32413,6 +33037,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 	case "process.interpreter.file.path":
 		if ev.BaseEvent.ProcessContext == nil {
 			ev.BaseEvent.ProcessContext = &ProcessContext{}
+		}
+		if !ev.BaseEvent.ProcessContext.Process.HasInterpreter() {
+			return &eval.ErrFieldNotFound{Field: field}
 		}
 		rv, ok := value.(string)
 		if !ok {
@@ -32429,6 +33056,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if ev.BaseEvent.ProcessContext == nil {
 			ev.BaseEvent.ProcessContext = &ProcessContext{}
 		}
+		if !ev.BaseEvent.ProcessContext.Process.HasInterpreter() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
 		rv, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.Mode"}
@@ -32439,6 +33069,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if ev.BaseEvent.ProcessContext == nil {
 			ev.BaseEvent.ProcessContext = &ProcessContext{}
 		}
+		if !ev.BaseEvent.ProcessContext.Process.HasInterpreter() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
 		rv, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.UID"}
@@ -32448,6 +33081,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 	case "process.interpreter.file.user":
 		if ev.BaseEvent.ProcessContext == nil {
 			ev.BaseEvent.ProcessContext = &ProcessContext{}
+		}
+		if !ev.BaseEvent.ProcessContext.Process.HasInterpreter() {
+			return &eval.ErrFieldNotFound{Field: field}
 		}
 		rv, ok := value.(string)
 		if !ok {
@@ -32482,6 +33118,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if ev.BaseEvent.ProcessContext.Parent == nil {
 			ev.BaseEvent.ProcessContext.Parent = &Process{}
 		}
+		if !ev.BaseEvent.ProcessContext.HasParent() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
 		rv, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Parent.Args"}
@@ -32494,6 +33133,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		if ev.BaseEvent.ProcessContext.Parent == nil {
 			ev.BaseEvent.ProcessContext.Parent = &Process{}
+		}
+		if !ev.BaseEvent.ProcessContext.HasParent() {
+			return &eval.ErrFieldNotFound{Field: field}
 		}
 		switch rv := value.(type) {
 		case string:
@@ -32511,6 +33153,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if ev.BaseEvent.ProcessContext.Parent == nil {
 			ev.BaseEvent.ProcessContext.Parent = &Process{}
 		}
+		if !ev.BaseEvent.ProcessContext.HasParent() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
 		switch rv := value.(type) {
 		case string:
 			ev.BaseEvent.ProcessContext.Parent.Argv = append(ev.BaseEvent.ProcessContext.Parent.Argv, rv)
@@ -32527,6 +33172,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if ev.BaseEvent.ProcessContext.Parent == nil {
 			ev.BaseEvent.ProcessContext.Parent = &Process{}
 		}
+		if !ev.BaseEvent.ProcessContext.HasParent() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
 		rv, ok := value.(bool)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Parent.ArgsTruncated"}
@@ -32539,6 +33187,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		if ev.BaseEvent.ProcessContext.Parent == nil {
 			ev.BaseEvent.ProcessContext.Parent = &Process{}
+		}
+		if !ev.BaseEvent.ProcessContext.HasParent() {
+			return &eval.ErrFieldNotFound{Field: field}
 		}
 		switch rv := value.(type) {
 		case string:
@@ -32556,6 +33207,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if ev.BaseEvent.ProcessContext.Parent == nil {
 			ev.BaseEvent.ProcessContext.Parent = &Process{}
 		}
+		if !ev.BaseEvent.ProcessContext.HasParent() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
 		rv, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Parent.Argv0"}
@@ -32568,6 +33222,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		if ev.BaseEvent.ProcessContext.Parent == nil {
 			ev.BaseEvent.ProcessContext.Parent = &Process{}
+		}
+		if !ev.BaseEvent.ProcessContext.HasParent() {
+			return &eval.ErrFieldNotFound{Field: field}
 		}
 		rv, ok := value.(int)
 		if !ok {
@@ -32582,6 +33239,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if ev.BaseEvent.ProcessContext.Parent == nil {
 			ev.BaseEvent.ProcessContext.Parent = &Process{}
 		}
+		if !ev.BaseEvent.ProcessContext.HasParent() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
 		rv, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Parent.Credentials.CapPermitted"}
@@ -32594,6 +33254,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		if ev.BaseEvent.ProcessContext.Parent == nil {
 			ev.BaseEvent.ProcessContext.Parent = &Process{}
+		}
+		if !ev.BaseEvent.ProcessContext.HasParent() {
+			return &eval.ErrFieldNotFound{Field: field}
 		}
 		rv, ok := value.(string)
 		if !ok {
@@ -32608,6 +33271,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if ev.BaseEvent.ProcessContext.Parent == nil {
 			ev.BaseEvent.ProcessContext.Parent = &Process{}
 		}
+		if !ev.BaseEvent.ProcessContext.HasParent() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
 		rv, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Parent.ContainerID"}
@@ -32620,6 +33286,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		if ev.BaseEvent.ProcessContext.Parent == nil {
 			ev.BaseEvent.ProcessContext.Parent = &Process{}
+		}
+		if !ev.BaseEvent.ProcessContext.HasParent() {
+			return &eval.ErrFieldNotFound{Field: field}
 		}
 		rv, ok := value.(int)
 		if !ok {
@@ -32634,6 +33303,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if ev.BaseEvent.ProcessContext.Parent == nil {
 			ev.BaseEvent.ProcessContext.Parent = &Process{}
 		}
+		if !ev.BaseEvent.ProcessContext.HasParent() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
 		rv, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Parent.Credentials.EGID"}
@@ -32647,6 +33319,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if ev.BaseEvent.ProcessContext.Parent == nil {
 			ev.BaseEvent.ProcessContext.Parent = &Process{}
 		}
+		if !ev.BaseEvent.ProcessContext.HasParent() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
 		rv, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Parent.Credentials.EGroup"}
@@ -32659,6 +33334,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		if ev.BaseEvent.ProcessContext.Parent == nil {
 			ev.BaseEvent.ProcessContext.Parent = &Process{}
+		}
+		if !ev.BaseEvent.ProcessContext.HasParent() {
+			return &eval.ErrFieldNotFound{Field: field}
 		}
 		switch rv := value.(type) {
 		case string:
@@ -32676,6 +33354,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if ev.BaseEvent.ProcessContext.Parent == nil {
 			ev.BaseEvent.ProcessContext.Parent = &Process{}
 		}
+		if !ev.BaseEvent.ProcessContext.HasParent() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
 		switch rv := value.(type) {
 		case string:
 			ev.BaseEvent.ProcessContext.Parent.Envs = append(ev.BaseEvent.ProcessContext.Parent.Envs, rv)
@@ -32692,6 +33373,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if ev.BaseEvent.ProcessContext.Parent == nil {
 			ev.BaseEvent.ProcessContext.Parent = &Process{}
 		}
+		if !ev.BaseEvent.ProcessContext.HasParent() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
 		rv, ok := value.(bool)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Parent.EnvsTruncated"}
@@ -32704,6 +33388,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		if ev.BaseEvent.ProcessContext.Parent == nil {
 			ev.BaseEvent.ProcessContext.Parent = &Process{}
+		}
+		if !ev.BaseEvent.ProcessContext.HasParent() {
+			return &eval.ErrFieldNotFound{Field: field}
 		}
 		rv, ok := value.(int)
 		if !ok {
@@ -32718,6 +33405,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if ev.BaseEvent.ProcessContext.Parent == nil {
 			ev.BaseEvent.ProcessContext.Parent = &Process{}
 		}
+		if !ev.BaseEvent.ProcessContext.HasParent() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
 		rv, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Parent.Credentials.EUser"}
@@ -32730,6 +33420,12 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		if ev.BaseEvent.ProcessContext.Parent == nil {
 			ev.BaseEvent.ProcessContext.Parent = &Process{}
+		}
+		if !ev.BaseEvent.ProcessContext.HasParent() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
+		if !ev.BaseEvent.ProcessContext.Parent.IsNotKworker() {
+			return &eval.ErrFieldNotFound{Field: field}
 		}
 		rv, ok := value.(int)
 		if !ok {
@@ -32744,6 +33440,12 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if ev.BaseEvent.ProcessContext.Parent == nil {
 			ev.BaseEvent.ProcessContext.Parent = &Process{}
 		}
+		if !ev.BaseEvent.ProcessContext.HasParent() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
+		if !ev.BaseEvent.ProcessContext.Parent.IsNotKworker() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
 		rv, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Parent.FileEvent.Filesystem"}
@@ -32756,6 +33458,12 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		if ev.BaseEvent.ProcessContext.Parent == nil {
 			ev.BaseEvent.ProcessContext.Parent = &Process{}
+		}
+		if !ev.BaseEvent.ProcessContext.HasParent() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
+		if !ev.BaseEvent.ProcessContext.Parent.IsNotKworker() {
+			return &eval.ErrFieldNotFound{Field: field}
 		}
 		rv, ok := value.(int)
 		if !ok {
@@ -32770,6 +33478,12 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if ev.BaseEvent.ProcessContext.Parent == nil {
 			ev.BaseEvent.ProcessContext.Parent = &Process{}
 		}
+		if !ev.BaseEvent.ProcessContext.HasParent() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
+		if !ev.BaseEvent.ProcessContext.Parent.IsNotKworker() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
 		rv, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Parent.FileEvent.FileFields.Group"}
@@ -32782,6 +33496,12 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		if ev.BaseEvent.ProcessContext.Parent == nil {
 			ev.BaseEvent.ProcessContext.Parent = &Process{}
+		}
+		if !ev.BaseEvent.ProcessContext.HasParent() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
+		if !ev.BaseEvent.ProcessContext.Parent.IsNotKworker() {
+			return &eval.ErrFieldNotFound{Field: field}
 		}
 		switch rv := value.(type) {
 		case string:
@@ -32799,6 +33519,12 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if ev.BaseEvent.ProcessContext.Parent == nil {
 			ev.BaseEvent.ProcessContext.Parent = &Process{}
 		}
+		if !ev.BaseEvent.ProcessContext.HasParent() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
+		if !ev.BaseEvent.ProcessContext.Parent.IsNotKworker() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
 		rv, ok := value.(bool)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Parent.FileEvent.FileFields.InUpperLayer"}
@@ -32811,6 +33537,12 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		if ev.BaseEvent.ProcessContext.Parent == nil {
 			ev.BaseEvent.ProcessContext.Parent = &Process{}
+		}
+		if !ev.BaseEvent.ProcessContext.HasParent() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
+		if !ev.BaseEvent.ProcessContext.Parent.IsNotKworker() {
+			return &eval.ErrFieldNotFound{Field: field}
 		}
 		rv, ok := value.(int)
 		if !ok {
@@ -32825,6 +33557,12 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if ev.BaseEvent.ProcessContext.Parent == nil {
 			ev.BaseEvent.ProcessContext.Parent = &Process{}
 		}
+		if !ev.BaseEvent.ProcessContext.HasParent() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
+		if !ev.BaseEvent.ProcessContext.Parent.IsNotKworker() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
 		rv, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Parent.FileEvent.FileFields.Mode"}
@@ -32837,6 +33575,12 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		if ev.BaseEvent.ProcessContext.Parent == nil {
 			ev.BaseEvent.ProcessContext.Parent = &Process{}
+		}
+		if !ev.BaseEvent.ProcessContext.HasParent() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
+		if !ev.BaseEvent.ProcessContext.Parent.IsNotKworker() {
+			return &eval.ErrFieldNotFound{Field: field}
 		}
 		rv, ok := value.(int)
 		if !ok {
@@ -32851,6 +33595,12 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if ev.BaseEvent.ProcessContext.Parent == nil {
 			ev.BaseEvent.ProcessContext.Parent = &Process{}
 		}
+		if !ev.BaseEvent.ProcessContext.HasParent() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
+		if !ev.BaseEvent.ProcessContext.Parent.IsNotKworker() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
 		rv, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Parent.FileEvent.FileFields.PathKey.MountID"}
@@ -32863,6 +33613,12 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		if ev.BaseEvent.ProcessContext.Parent == nil {
 			ev.BaseEvent.ProcessContext.Parent = &Process{}
+		}
+		if !ev.BaseEvent.ProcessContext.HasParent() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
+		if !ev.BaseEvent.ProcessContext.Parent.IsNotKworker() {
+			return &eval.ErrFieldNotFound{Field: field}
 		}
 		rv, ok := value.(string)
 		if !ok {
@@ -32885,6 +33641,12 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if ev.BaseEvent.ProcessContext.Parent == nil {
 			ev.BaseEvent.ProcessContext.Parent = &Process{}
 		}
+		if !ev.BaseEvent.ProcessContext.HasParent() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
+		if !ev.BaseEvent.ProcessContext.Parent.IsNotKworker() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
 		rv, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Parent.FileEvent.PkgName"}
@@ -32897,6 +33659,12 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		if ev.BaseEvent.ProcessContext.Parent == nil {
 			ev.BaseEvent.ProcessContext.Parent = &Process{}
+		}
+		if !ev.BaseEvent.ProcessContext.HasParent() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
+		if !ev.BaseEvent.ProcessContext.Parent.IsNotKworker() {
+			return &eval.ErrFieldNotFound{Field: field}
 		}
 		rv, ok := value.(string)
 		if !ok {
@@ -32911,6 +33679,12 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if ev.BaseEvent.ProcessContext.Parent == nil {
 			ev.BaseEvent.ProcessContext.Parent = &Process{}
 		}
+		if !ev.BaseEvent.ProcessContext.HasParent() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
+		if !ev.BaseEvent.ProcessContext.Parent.IsNotKworker() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
 		rv, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Parent.FileEvent.PkgVersion"}
@@ -32923,6 +33697,12 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		if ev.BaseEvent.ProcessContext.Parent == nil {
 			ev.BaseEvent.ProcessContext.Parent = &Process{}
+		}
+		if !ev.BaseEvent.ProcessContext.HasParent() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
+		if !ev.BaseEvent.ProcessContext.Parent.IsNotKworker() {
+			return &eval.ErrFieldNotFound{Field: field}
 		}
 		rv, ok := value.(string)
 		if !ok {
@@ -32945,6 +33725,12 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if ev.BaseEvent.ProcessContext.Parent == nil {
 			ev.BaseEvent.ProcessContext.Parent = &Process{}
 		}
+		if !ev.BaseEvent.ProcessContext.HasParent() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
+		if !ev.BaseEvent.ProcessContext.Parent.IsNotKworker() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
 		rv, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Parent.FileEvent.FileFields.Mode"}
@@ -32957,6 +33743,12 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		if ev.BaseEvent.ProcessContext.Parent == nil {
 			ev.BaseEvent.ProcessContext.Parent = &Process{}
+		}
+		if !ev.BaseEvent.ProcessContext.HasParent() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
+		if !ev.BaseEvent.ProcessContext.Parent.IsNotKworker() {
+			return &eval.ErrFieldNotFound{Field: field}
 		}
 		rv, ok := value.(int)
 		if !ok {
@@ -32971,6 +33763,12 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if ev.BaseEvent.ProcessContext.Parent == nil {
 			ev.BaseEvent.ProcessContext.Parent = &Process{}
 		}
+		if !ev.BaseEvent.ProcessContext.HasParent() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
+		if !ev.BaseEvent.ProcessContext.Parent.IsNotKworker() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
 		rv, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Parent.FileEvent.FileFields.User"}
@@ -32983,6 +33781,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		if ev.BaseEvent.ProcessContext.Parent == nil {
 			ev.BaseEvent.ProcessContext.Parent = &Process{}
+		}
+		if !ev.BaseEvent.ProcessContext.HasParent() {
+			return &eval.ErrFieldNotFound{Field: field}
 		}
 		rv, ok := value.(int)
 		if !ok {
@@ -32997,6 +33798,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if ev.BaseEvent.ProcessContext.Parent == nil {
 			ev.BaseEvent.ProcessContext.Parent = &Process{}
 		}
+		if !ev.BaseEvent.ProcessContext.HasParent() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
 		rv, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Parent.Credentials.FSGroup"}
@@ -33009,6 +33813,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		if ev.BaseEvent.ProcessContext.Parent == nil {
 			ev.BaseEvent.ProcessContext.Parent = &Process{}
+		}
+		if !ev.BaseEvent.ProcessContext.HasParent() {
+			return &eval.ErrFieldNotFound{Field: field}
 		}
 		rv, ok := value.(int)
 		if !ok {
@@ -33023,6 +33830,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if ev.BaseEvent.ProcessContext.Parent == nil {
 			ev.BaseEvent.ProcessContext.Parent = &Process{}
 		}
+		if !ev.BaseEvent.ProcessContext.HasParent() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
 		rv, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Parent.Credentials.FSUser"}
@@ -33035,6 +33845,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		if ev.BaseEvent.ProcessContext.Parent == nil {
 			ev.BaseEvent.ProcessContext.Parent = &Process{}
+		}
+		if !ev.BaseEvent.ProcessContext.HasParent() {
+			return &eval.ErrFieldNotFound{Field: field}
 		}
 		rv, ok := value.(int)
 		if !ok {
@@ -33049,6 +33862,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if ev.BaseEvent.ProcessContext.Parent == nil {
 			ev.BaseEvent.ProcessContext.Parent = &Process{}
 		}
+		if !ev.BaseEvent.ProcessContext.HasParent() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
 		rv, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Parent.Credentials.Group"}
@@ -33061,6 +33877,12 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		if ev.BaseEvent.ProcessContext.Parent == nil {
 			ev.BaseEvent.ProcessContext.Parent = &Process{}
+		}
+		if !ev.BaseEvent.ProcessContext.HasParent() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
+		if !ev.BaseEvent.ProcessContext.Parent.HasInterpreter() {
+			return &eval.ErrFieldNotFound{Field: field}
 		}
 		rv, ok := value.(int)
 		if !ok {
@@ -33075,6 +33897,12 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if ev.BaseEvent.ProcessContext.Parent == nil {
 			ev.BaseEvent.ProcessContext.Parent = &Process{}
 		}
+		if !ev.BaseEvent.ProcessContext.HasParent() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
+		if !ev.BaseEvent.ProcessContext.Parent.HasInterpreter() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
 		rv, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Parent.LinuxBinprm.FileEvent.Filesystem"}
@@ -33087,6 +33915,12 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		if ev.BaseEvent.ProcessContext.Parent == nil {
 			ev.BaseEvent.ProcessContext.Parent = &Process{}
+		}
+		if !ev.BaseEvent.ProcessContext.HasParent() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
+		if !ev.BaseEvent.ProcessContext.Parent.HasInterpreter() {
+			return &eval.ErrFieldNotFound{Field: field}
 		}
 		rv, ok := value.(int)
 		if !ok {
@@ -33101,6 +33935,12 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if ev.BaseEvent.ProcessContext.Parent == nil {
 			ev.BaseEvent.ProcessContext.Parent = &Process{}
 		}
+		if !ev.BaseEvent.ProcessContext.HasParent() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
+		if !ev.BaseEvent.ProcessContext.Parent.HasInterpreter() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
 		rv, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Parent.LinuxBinprm.FileEvent.FileFields.Group"}
@@ -33113,6 +33953,12 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		if ev.BaseEvent.ProcessContext.Parent == nil {
 			ev.BaseEvent.ProcessContext.Parent = &Process{}
+		}
+		if !ev.BaseEvent.ProcessContext.HasParent() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
+		if !ev.BaseEvent.ProcessContext.Parent.HasInterpreter() {
+			return &eval.ErrFieldNotFound{Field: field}
 		}
 		switch rv := value.(type) {
 		case string:
@@ -33130,6 +33976,12 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if ev.BaseEvent.ProcessContext.Parent == nil {
 			ev.BaseEvent.ProcessContext.Parent = &Process{}
 		}
+		if !ev.BaseEvent.ProcessContext.HasParent() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
+		if !ev.BaseEvent.ProcessContext.Parent.HasInterpreter() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
 		rv, ok := value.(bool)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Parent.LinuxBinprm.FileEvent.FileFields.InUpperLayer"}
@@ -33142,6 +33994,12 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		if ev.BaseEvent.ProcessContext.Parent == nil {
 			ev.BaseEvent.ProcessContext.Parent = &Process{}
+		}
+		if !ev.BaseEvent.ProcessContext.HasParent() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
+		if !ev.BaseEvent.ProcessContext.Parent.HasInterpreter() {
+			return &eval.ErrFieldNotFound{Field: field}
 		}
 		rv, ok := value.(int)
 		if !ok {
@@ -33156,6 +34014,12 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if ev.BaseEvent.ProcessContext.Parent == nil {
 			ev.BaseEvent.ProcessContext.Parent = &Process{}
 		}
+		if !ev.BaseEvent.ProcessContext.HasParent() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
+		if !ev.BaseEvent.ProcessContext.Parent.HasInterpreter() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
 		rv, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Parent.LinuxBinprm.FileEvent.FileFields.Mode"}
@@ -33168,6 +34032,12 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		if ev.BaseEvent.ProcessContext.Parent == nil {
 			ev.BaseEvent.ProcessContext.Parent = &Process{}
+		}
+		if !ev.BaseEvent.ProcessContext.HasParent() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
+		if !ev.BaseEvent.ProcessContext.Parent.HasInterpreter() {
+			return &eval.ErrFieldNotFound{Field: field}
 		}
 		rv, ok := value.(int)
 		if !ok {
@@ -33182,6 +34052,12 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if ev.BaseEvent.ProcessContext.Parent == nil {
 			ev.BaseEvent.ProcessContext.Parent = &Process{}
 		}
+		if !ev.BaseEvent.ProcessContext.HasParent() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
+		if !ev.BaseEvent.ProcessContext.Parent.HasInterpreter() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
 		rv, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Parent.LinuxBinprm.FileEvent.FileFields.PathKey.MountID"}
@@ -33194,6 +34070,12 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		if ev.BaseEvent.ProcessContext.Parent == nil {
 			ev.BaseEvent.ProcessContext.Parent = &Process{}
+		}
+		if !ev.BaseEvent.ProcessContext.HasParent() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
+		if !ev.BaseEvent.ProcessContext.Parent.HasInterpreter() {
+			return &eval.ErrFieldNotFound{Field: field}
 		}
 		rv, ok := value.(string)
 		if !ok {
@@ -33216,6 +34098,12 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if ev.BaseEvent.ProcessContext.Parent == nil {
 			ev.BaseEvent.ProcessContext.Parent = &Process{}
 		}
+		if !ev.BaseEvent.ProcessContext.HasParent() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
+		if !ev.BaseEvent.ProcessContext.Parent.HasInterpreter() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
 		rv, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Parent.LinuxBinprm.FileEvent.PkgName"}
@@ -33228,6 +34116,12 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		if ev.BaseEvent.ProcessContext.Parent == nil {
 			ev.BaseEvent.ProcessContext.Parent = &Process{}
+		}
+		if !ev.BaseEvent.ProcessContext.HasParent() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
+		if !ev.BaseEvent.ProcessContext.Parent.HasInterpreter() {
+			return &eval.ErrFieldNotFound{Field: field}
 		}
 		rv, ok := value.(string)
 		if !ok {
@@ -33242,6 +34136,12 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if ev.BaseEvent.ProcessContext.Parent == nil {
 			ev.BaseEvent.ProcessContext.Parent = &Process{}
 		}
+		if !ev.BaseEvent.ProcessContext.HasParent() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
+		if !ev.BaseEvent.ProcessContext.Parent.HasInterpreter() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
 		rv, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Parent.LinuxBinprm.FileEvent.PkgVersion"}
@@ -33254,6 +34154,12 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		if ev.BaseEvent.ProcessContext.Parent == nil {
 			ev.BaseEvent.ProcessContext.Parent = &Process{}
+		}
+		if !ev.BaseEvent.ProcessContext.HasParent() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
+		if !ev.BaseEvent.ProcessContext.Parent.HasInterpreter() {
+			return &eval.ErrFieldNotFound{Field: field}
 		}
 		rv, ok := value.(string)
 		if !ok {
@@ -33276,6 +34182,12 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if ev.BaseEvent.ProcessContext.Parent == nil {
 			ev.BaseEvent.ProcessContext.Parent = &Process{}
 		}
+		if !ev.BaseEvent.ProcessContext.HasParent() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
+		if !ev.BaseEvent.ProcessContext.Parent.HasInterpreter() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
 		rv, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Parent.LinuxBinprm.FileEvent.FileFields.Mode"}
@@ -33288,6 +34200,12 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		if ev.BaseEvent.ProcessContext.Parent == nil {
 			ev.BaseEvent.ProcessContext.Parent = &Process{}
+		}
+		if !ev.BaseEvent.ProcessContext.HasParent() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
+		if !ev.BaseEvent.ProcessContext.Parent.HasInterpreter() {
+			return &eval.ErrFieldNotFound{Field: field}
 		}
 		rv, ok := value.(int)
 		if !ok {
@@ -33302,6 +34220,12 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if ev.BaseEvent.ProcessContext.Parent == nil {
 			ev.BaseEvent.ProcessContext.Parent = &Process{}
 		}
+		if !ev.BaseEvent.ProcessContext.HasParent() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
+		if !ev.BaseEvent.ProcessContext.Parent.HasInterpreter() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
 		rv, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Parent.LinuxBinprm.FileEvent.FileFields.User"}
@@ -33314,6 +34238,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		if ev.BaseEvent.ProcessContext.Parent == nil {
 			ev.BaseEvent.ProcessContext.Parent = &Process{}
+		}
+		if !ev.BaseEvent.ProcessContext.HasParent() {
+			return &eval.ErrFieldNotFound{Field: field}
 		}
 		rv, ok := value.(bool)
 		if !ok {
@@ -33328,6 +34255,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if ev.BaseEvent.ProcessContext.Parent == nil {
 			ev.BaseEvent.ProcessContext.Parent = &Process{}
 		}
+		if !ev.BaseEvent.ProcessContext.HasParent() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
 		rv, ok := value.(bool)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Parent.IsThread"}
@@ -33340,6 +34270,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		if ev.BaseEvent.ProcessContext.Parent == nil {
 			ev.BaseEvent.ProcessContext.Parent = &Process{}
+		}
+		if !ev.BaseEvent.ProcessContext.HasParent() {
+			return &eval.ErrFieldNotFound{Field: field}
 		}
 		rv, ok := value.(int)
 		if !ok {
@@ -33354,6 +34287,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if ev.BaseEvent.ProcessContext.Parent == nil {
 			ev.BaseEvent.ProcessContext.Parent = &Process{}
 		}
+		if !ev.BaseEvent.ProcessContext.HasParent() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
 		rv, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Parent.PPid"}
@@ -33366,6 +34302,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		if ev.BaseEvent.ProcessContext.Parent == nil {
 			ev.BaseEvent.ProcessContext.Parent = &Process{}
+		}
+		if !ev.BaseEvent.ProcessContext.HasParent() {
+			return &eval.ErrFieldNotFound{Field: field}
 		}
 		rv, ok := value.(int)
 		if !ok {
@@ -33380,6 +34319,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if ev.BaseEvent.ProcessContext.Parent == nil {
 			ev.BaseEvent.ProcessContext.Parent = &Process{}
 		}
+		if !ev.BaseEvent.ProcessContext.HasParent() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
 		rv, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Parent.TTYName"}
@@ -33393,6 +34335,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if ev.BaseEvent.ProcessContext.Parent == nil {
 			ev.BaseEvent.ProcessContext.Parent = &Process{}
 		}
+		if !ev.BaseEvent.ProcessContext.HasParent() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
 		rv, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Parent.Credentials.UID"}
@@ -33405,6 +34350,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		if ev.BaseEvent.ProcessContext.Parent == nil {
 			ev.BaseEvent.ProcessContext.Parent = &Process{}
+		}
+		if !ev.BaseEvent.ProcessContext.HasParent() {
+			return &eval.ErrFieldNotFound{Field: field}
 		}
 		rv, ok := value.(string)
 		if !ok {
@@ -33493,6 +34441,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if ev.PTrace.Tracee.Ancestor == nil {
 			ev.PTrace.Tracee.Ancestor = &ProcessCacheEntry{}
 		}
+		if !ev.PTrace.Tracee.IsNotKworker() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
 		rv, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Ancestor.ProcessContext.Process.Args"}
@@ -33505,6 +34456,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		if ev.PTrace.Tracee.Ancestor == nil {
 			ev.PTrace.Tracee.Ancestor = &ProcessCacheEntry{}
+		}
+		if !ev.PTrace.Tracee.IsNotKworker() {
+			return &eval.ErrFieldNotFound{Field: field}
 		}
 		switch rv := value.(type) {
 		case string:
@@ -33522,6 +34476,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if ev.PTrace.Tracee.Ancestor == nil {
 			ev.PTrace.Tracee.Ancestor = &ProcessCacheEntry{}
 		}
+		if !ev.PTrace.Tracee.IsNotKworker() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
 		switch rv := value.(type) {
 		case string:
 			ev.PTrace.Tracee.Ancestor.ProcessContext.Process.Argv = append(ev.PTrace.Tracee.Ancestor.ProcessContext.Process.Argv, rv)
@@ -33538,6 +34495,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if ev.PTrace.Tracee.Ancestor == nil {
 			ev.PTrace.Tracee.Ancestor = &ProcessCacheEntry{}
 		}
+		if !ev.PTrace.Tracee.IsNotKworker() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
 		rv, ok := value.(bool)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Ancestor.ProcessContext.Process.ArgsTruncated"}
@@ -33550,6 +34510,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		if ev.PTrace.Tracee.Ancestor == nil {
 			ev.PTrace.Tracee.Ancestor = &ProcessCacheEntry{}
+		}
+		if !ev.PTrace.Tracee.IsNotKworker() {
+			return &eval.ErrFieldNotFound{Field: field}
 		}
 		switch rv := value.(type) {
 		case string:
@@ -33567,6 +34530,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if ev.PTrace.Tracee.Ancestor == nil {
 			ev.PTrace.Tracee.Ancestor = &ProcessCacheEntry{}
 		}
+		if !ev.PTrace.Tracee.IsNotKworker() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
 		rv, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Ancestor.ProcessContext.Process.Argv0"}
@@ -33579,6 +34545,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		if ev.PTrace.Tracee.Ancestor == nil {
 			ev.PTrace.Tracee.Ancestor = &ProcessCacheEntry{}
+		}
+		if !ev.PTrace.Tracee.IsNotKworker() {
+			return &eval.ErrFieldNotFound{Field: field}
 		}
 		rv, ok := value.(int)
 		if !ok {
@@ -33593,6 +34562,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if ev.PTrace.Tracee.Ancestor == nil {
 			ev.PTrace.Tracee.Ancestor = &ProcessCacheEntry{}
 		}
+		if !ev.PTrace.Tracee.IsNotKworker() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
 		rv, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Ancestor.ProcessContext.Process.Credentials.CapPermitted"}
@@ -33605,6 +34577,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		if ev.PTrace.Tracee.Ancestor == nil {
 			ev.PTrace.Tracee.Ancestor = &ProcessCacheEntry{}
+		}
+		if !ev.PTrace.Tracee.IsNotKworker() {
+			return &eval.ErrFieldNotFound{Field: field}
 		}
 		rv, ok := value.(string)
 		if !ok {
@@ -33619,6 +34594,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if ev.PTrace.Tracee.Ancestor == nil {
 			ev.PTrace.Tracee.Ancestor = &ProcessCacheEntry{}
 		}
+		if !ev.PTrace.Tracee.IsNotKworker() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
 		rv, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Ancestor.ProcessContext.Process.ContainerID"}
@@ -33631,6 +34609,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		if ev.PTrace.Tracee.Ancestor == nil {
 			ev.PTrace.Tracee.Ancestor = &ProcessCacheEntry{}
+		}
+		if !ev.PTrace.Tracee.IsNotKworker() {
+			return &eval.ErrFieldNotFound{Field: field}
 		}
 		rv, ok := value.(int)
 		if !ok {
@@ -33645,6 +34626,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if ev.PTrace.Tracee.Ancestor == nil {
 			ev.PTrace.Tracee.Ancestor = &ProcessCacheEntry{}
 		}
+		if !ev.PTrace.Tracee.IsNotKworker() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
 		rv, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Ancestor.ProcessContext.Process.Credentials.EGID"}
@@ -33658,6 +34642,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if ev.PTrace.Tracee.Ancestor == nil {
 			ev.PTrace.Tracee.Ancestor = &ProcessCacheEntry{}
 		}
+		if !ev.PTrace.Tracee.IsNotKworker() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
 		rv, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Ancestor.ProcessContext.Process.Credentials.EGroup"}
@@ -33670,6 +34657,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		if ev.PTrace.Tracee.Ancestor == nil {
 			ev.PTrace.Tracee.Ancestor = &ProcessCacheEntry{}
+		}
+		if !ev.PTrace.Tracee.IsNotKworker() {
+			return &eval.ErrFieldNotFound{Field: field}
 		}
 		switch rv := value.(type) {
 		case string:
@@ -33687,6 +34677,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if ev.PTrace.Tracee.Ancestor == nil {
 			ev.PTrace.Tracee.Ancestor = &ProcessCacheEntry{}
 		}
+		if !ev.PTrace.Tracee.IsNotKworker() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
 		switch rv := value.(type) {
 		case string:
 			ev.PTrace.Tracee.Ancestor.ProcessContext.Process.Envs = append(ev.PTrace.Tracee.Ancestor.ProcessContext.Process.Envs, rv)
@@ -33703,6 +34696,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if ev.PTrace.Tracee.Ancestor == nil {
 			ev.PTrace.Tracee.Ancestor = &ProcessCacheEntry{}
 		}
+		if !ev.PTrace.Tracee.IsNotKworker() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
 		rv, ok := value.(bool)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Ancestor.ProcessContext.Process.EnvsTruncated"}
@@ -33715,6 +34711,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		if ev.PTrace.Tracee.Ancestor == nil {
 			ev.PTrace.Tracee.Ancestor = &ProcessCacheEntry{}
+		}
+		if !ev.PTrace.Tracee.IsNotKworker() {
+			return &eval.ErrFieldNotFound{Field: field}
 		}
 		rv, ok := value.(int)
 		if !ok {
@@ -33729,6 +34728,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if ev.PTrace.Tracee.Ancestor == nil {
 			ev.PTrace.Tracee.Ancestor = &ProcessCacheEntry{}
 		}
+		if !ev.PTrace.Tracee.IsNotKworker() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
 		rv, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Ancestor.ProcessContext.Process.Credentials.EUser"}
@@ -33741,6 +34743,12 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		if ev.PTrace.Tracee.Ancestor == nil {
 			ev.PTrace.Tracee.Ancestor = &ProcessCacheEntry{}
+		}
+		if !ev.PTrace.Tracee.IsNotKworker() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
+		if !ev.PTrace.Tracee.Ancestor.ProcessContext.Process.IsNotKworker() {
+			return &eval.ErrFieldNotFound{Field: field}
 		}
 		rv, ok := value.(int)
 		if !ok {
@@ -33755,6 +34763,12 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if ev.PTrace.Tracee.Ancestor == nil {
 			ev.PTrace.Tracee.Ancestor = &ProcessCacheEntry{}
 		}
+		if !ev.PTrace.Tracee.IsNotKworker() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
+		if !ev.PTrace.Tracee.Ancestor.ProcessContext.Process.IsNotKworker() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
 		rv, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Ancestor.ProcessContext.Process.FileEvent.Filesystem"}
@@ -33767,6 +34781,12 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		if ev.PTrace.Tracee.Ancestor == nil {
 			ev.PTrace.Tracee.Ancestor = &ProcessCacheEntry{}
+		}
+		if !ev.PTrace.Tracee.IsNotKworker() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
+		if !ev.PTrace.Tracee.Ancestor.ProcessContext.Process.IsNotKworker() {
+			return &eval.ErrFieldNotFound{Field: field}
 		}
 		rv, ok := value.(int)
 		if !ok {
@@ -33781,6 +34801,12 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if ev.PTrace.Tracee.Ancestor == nil {
 			ev.PTrace.Tracee.Ancestor = &ProcessCacheEntry{}
 		}
+		if !ev.PTrace.Tracee.IsNotKworker() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
+		if !ev.PTrace.Tracee.Ancestor.ProcessContext.Process.IsNotKworker() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
 		rv, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Ancestor.ProcessContext.Process.FileEvent.FileFields.Group"}
@@ -33793,6 +34819,12 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		if ev.PTrace.Tracee.Ancestor == nil {
 			ev.PTrace.Tracee.Ancestor = &ProcessCacheEntry{}
+		}
+		if !ev.PTrace.Tracee.IsNotKworker() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
+		if !ev.PTrace.Tracee.Ancestor.ProcessContext.Process.IsNotKworker() {
+			return &eval.ErrFieldNotFound{Field: field}
 		}
 		switch rv := value.(type) {
 		case string:
@@ -33810,6 +34842,12 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if ev.PTrace.Tracee.Ancestor == nil {
 			ev.PTrace.Tracee.Ancestor = &ProcessCacheEntry{}
 		}
+		if !ev.PTrace.Tracee.IsNotKworker() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
+		if !ev.PTrace.Tracee.Ancestor.ProcessContext.Process.IsNotKworker() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
 		rv, ok := value.(bool)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Ancestor.ProcessContext.Process.FileEvent.FileFields.InUpperLayer"}
@@ -33822,6 +34860,12 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		if ev.PTrace.Tracee.Ancestor == nil {
 			ev.PTrace.Tracee.Ancestor = &ProcessCacheEntry{}
+		}
+		if !ev.PTrace.Tracee.IsNotKworker() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
+		if !ev.PTrace.Tracee.Ancestor.ProcessContext.Process.IsNotKworker() {
+			return &eval.ErrFieldNotFound{Field: field}
 		}
 		rv, ok := value.(int)
 		if !ok {
@@ -33836,6 +34880,12 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if ev.PTrace.Tracee.Ancestor == nil {
 			ev.PTrace.Tracee.Ancestor = &ProcessCacheEntry{}
 		}
+		if !ev.PTrace.Tracee.IsNotKworker() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
+		if !ev.PTrace.Tracee.Ancestor.ProcessContext.Process.IsNotKworker() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
 		rv, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Ancestor.ProcessContext.Process.FileEvent.FileFields.Mode"}
@@ -33848,6 +34898,12 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		if ev.PTrace.Tracee.Ancestor == nil {
 			ev.PTrace.Tracee.Ancestor = &ProcessCacheEntry{}
+		}
+		if !ev.PTrace.Tracee.IsNotKworker() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
+		if !ev.PTrace.Tracee.Ancestor.ProcessContext.Process.IsNotKworker() {
+			return &eval.ErrFieldNotFound{Field: field}
 		}
 		rv, ok := value.(int)
 		if !ok {
@@ -33862,6 +34918,12 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if ev.PTrace.Tracee.Ancestor == nil {
 			ev.PTrace.Tracee.Ancestor = &ProcessCacheEntry{}
 		}
+		if !ev.PTrace.Tracee.IsNotKworker() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
+		if !ev.PTrace.Tracee.Ancestor.ProcessContext.Process.IsNotKworker() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
 		rv, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Ancestor.ProcessContext.Process.FileEvent.FileFields.PathKey.MountID"}
@@ -33874,6 +34936,12 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		if ev.PTrace.Tracee.Ancestor == nil {
 			ev.PTrace.Tracee.Ancestor = &ProcessCacheEntry{}
+		}
+		if !ev.PTrace.Tracee.IsNotKworker() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
+		if !ev.PTrace.Tracee.Ancestor.ProcessContext.Process.IsNotKworker() {
+			return &eval.ErrFieldNotFound{Field: field}
 		}
 		rv, ok := value.(string)
 		if !ok {
@@ -33896,6 +34964,12 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if ev.PTrace.Tracee.Ancestor == nil {
 			ev.PTrace.Tracee.Ancestor = &ProcessCacheEntry{}
 		}
+		if !ev.PTrace.Tracee.IsNotKworker() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
+		if !ev.PTrace.Tracee.Ancestor.ProcessContext.Process.IsNotKworker() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
 		rv, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Ancestor.ProcessContext.Process.FileEvent.PkgName"}
@@ -33908,6 +34982,12 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		if ev.PTrace.Tracee.Ancestor == nil {
 			ev.PTrace.Tracee.Ancestor = &ProcessCacheEntry{}
+		}
+		if !ev.PTrace.Tracee.IsNotKworker() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
+		if !ev.PTrace.Tracee.Ancestor.ProcessContext.Process.IsNotKworker() {
+			return &eval.ErrFieldNotFound{Field: field}
 		}
 		rv, ok := value.(string)
 		if !ok {
@@ -33922,6 +35002,12 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if ev.PTrace.Tracee.Ancestor == nil {
 			ev.PTrace.Tracee.Ancestor = &ProcessCacheEntry{}
 		}
+		if !ev.PTrace.Tracee.IsNotKworker() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
+		if !ev.PTrace.Tracee.Ancestor.ProcessContext.Process.IsNotKworker() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
 		rv, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Ancestor.ProcessContext.Process.FileEvent.PkgVersion"}
@@ -33934,6 +35020,12 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		if ev.PTrace.Tracee.Ancestor == nil {
 			ev.PTrace.Tracee.Ancestor = &ProcessCacheEntry{}
+		}
+		if !ev.PTrace.Tracee.IsNotKworker() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
+		if !ev.PTrace.Tracee.Ancestor.ProcessContext.Process.IsNotKworker() {
+			return &eval.ErrFieldNotFound{Field: field}
 		}
 		rv, ok := value.(string)
 		if !ok {
@@ -33956,6 +35048,12 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if ev.PTrace.Tracee.Ancestor == nil {
 			ev.PTrace.Tracee.Ancestor = &ProcessCacheEntry{}
 		}
+		if !ev.PTrace.Tracee.IsNotKworker() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
+		if !ev.PTrace.Tracee.Ancestor.ProcessContext.Process.IsNotKworker() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
 		rv, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Ancestor.ProcessContext.Process.FileEvent.FileFields.Mode"}
@@ -33968,6 +35066,12 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		if ev.PTrace.Tracee.Ancestor == nil {
 			ev.PTrace.Tracee.Ancestor = &ProcessCacheEntry{}
+		}
+		if !ev.PTrace.Tracee.IsNotKworker() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
+		if !ev.PTrace.Tracee.Ancestor.ProcessContext.Process.IsNotKworker() {
+			return &eval.ErrFieldNotFound{Field: field}
 		}
 		rv, ok := value.(int)
 		if !ok {
@@ -33982,6 +35086,12 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if ev.PTrace.Tracee.Ancestor == nil {
 			ev.PTrace.Tracee.Ancestor = &ProcessCacheEntry{}
 		}
+		if !ev.PTrace.Tracee.IsNotKworker() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
+		if !ev.PTrace.Tracee.Ancestor.ProcessContext.Process.IsNotKworker() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
 		rv, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Ancestor.ProcessContext.Process.FileEvent.FileFields.User"}
@@ -33994,6 +35104,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		if ev.PTrace.Tracee.Ancestor == nil {
 			ev.PTrace.Tracee.Ancestor = &ProcessCacheEntry{}
+		}
+		if !ev.PTrace.Tracee.IsNotKworker() {
+			return &eval.ErrFieldNotFound{Field: field}
 		}
 		rv, ok := value.(int)
 		if !ok {
@@ -34008,6 +35121,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if ev.PTrace.Tracee.Ancestor == nil {
 			ev.PTrace.Tracee.Ancestor = &ProcessCacheEntry{}
 		}
+		if !ev.PTrace.Tracee.IsNotKworker() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
 		rv, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Ancestor.ProcessContext.Process.Credentials.FSGroup"}
@@ -34020,6 +35136,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		if ev.PTrace.Tracee.Ancestor == nil {
 			ev.PTrace.Tracee.Ancestor = &ProcessCacheEntry{}
+		}
+		if !ev.PTrace.Tracee.IsNotKworker() {
+			return &eval.ErrFieldNotFound{Field: field}
 		}
 		rv, ok := value.(int)
 		if !ok {
@@ -34034,6 +35153,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if ev.PTrace.Tracee.Ancestor == nil {
 			ev.PTrace.Tracee.Ancestor = &ProcessCacheEntry{}
 		}
+		if !ev.PTrace.Tracee.IsNotKworker() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
 		rv, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Ancestor.ProcessContext.Process.Credentials.FSUser"}
@@ -34046,6 +35168,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		if ev.PTrace.Tracee.Ancestor == nil {
 			ev.PTrace.Tracee.Ancestor = &ProcessCacheEntry{}
+		}
+		if !ev.PTrace.Tracee.IsNotKworker() {
+			return &eval.ErrFieldNotFound{Field: field}
 		}
 		rv, ok := value.(int)
 		if !ok {
@@ -34060,6 +35185,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if ev.PTrace.Tracee.Ancestor == nil {
 			ev.PTrace.Tracee.Ancestor = &ProcessCacheEntry{}
 		}
+		if !ev.PTrace.Tracee.IsNotKworker() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
 		rv, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Ancestor.ProcessContext.Process.Credentials.Group"}
@@ -34072,6 +35200,12 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		if ev.PTrace.Tracee.Ancestor == nil {
 			ev.PTrace.Tracee.Ancestor = &ProcessCacheEntry{}
+		}
+		if !ev.PTrace.Tracee.IsNotKworker() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
+		if !ev.PTrace.Tracee.Ancestor.ProcessContext.Process.HasInterpreter() {
+			return &eval.ErrFieldNotFound{Field: field}
 		}
 		rv, ok := value.(int)
 		if !ok {
@@ -34086,6 +35220,12 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if ev.PTrace.Tracee.Ancestor == nil {
 			ev.PTrace.Tracee.Ancestor = &ProcessCacheEntry{}
 		}
+		if !ev.PTrace.Tracee.IsNotKworker() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
+		if !ev.PTrace.Tracee.Ancestor.ProcessContext.Process.HasInterpreter() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
 		rv, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.Filesystem"}
@@ -34098,6 +35238,12 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		if ev.PTrace.Tracee.Ancestor == nil {
 			ev.PTrace.Tracee.Ancestor = &ProcessCacheEntry{}
+		}
+		if !ev.PTrace.Tracee.IsNotKworker() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
+		if !ev.PTrace.Tracee.Ancestor.ProcessContext.Process.HasInterpreter() {
+			return &eval.ErrFieldNotFound{Field: field}
 		}
 		rv, ok := value.(int)
 		if !ok {
@@ -34112,6 +35258,12 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if ev.PTrace.Tracee.Ancestor == nil {
 			ev.PTrace.Tracee.Ancestor = &ProcessCacheEntry{}
 		}
+		if !ev.PTrace.Tracee.IsNotKworker() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
+		if !ev.PTrace.Tracee.Ancestor.ProcessContext.Process.HasInterpreter() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
 		rv, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.Group"}
@@ -34124,6 +35276,12 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		if ev.PTrace.Tracee.Ancestor == nil {
 			ev.PTrace.Tracee.Ancestor = &ProcessCacheEntry{}
+		}
+		if !ev.PTrace.Tracee.IsNotKworker() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
+		if !ev.PTrace.Tracee.Ancestor.ProcessContext.Process.HasInterpreter() {
+			return &eval.ErrFieldNotFound{Field: field}
 		}
 		switch rv := value.(type) {
 		case string:
@@ -34141,6 +35299,12 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if ev.PTrace.Tracee.Ancestor == nil {
 			ev.PTrace.Tracee.Ancestor = &ProcessCacheEntry{}
 		}
+		if !ev.PTrace.Tracee.IsNotKworker() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
+		if !ev.PTrace.Tracee.Ancestor.ProcessContext.Process.HasInterpreter() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
 		rv, ok := value.(bool)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.InUpperLayer"}
@@ -34153,6 +35317,12 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		if ev.PTrace.Tracee.Ancestor == nil {
 			ev.PTrace.Tracee.Ancestor = &ProcessCacheEntry{}
+		}
+		if !ev.PTrace.Tracee.IsNotKworker() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
+		if !ev.PTrace.Tracee.Ancestor.ProcessContext.Process.HasInterpreter() {
+			return &eval.ErrFieldNotFound{Field: field}
 		}
 		rv, ok := value.(int)
 		if !ok {
@@ -34167,6 +35337,12 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if ev.PTrace.Tracee.Ancestor == nil {
 			ev.PTrace.Tracee.Ancestor = &ProcessCacheEntry{}
 		}
+		if !ev.PTrace.Tracee.IsNotKworker() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
+		if !ev.PTrace.Tracee.Ancestor.ProcessContext.Process.HasInterpreter() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
 		rv, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.Mode"}
@@ -34179,6 +35355,12 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		if ev.PTrace.Tracee.Ancestor == nil {
 			ev.PTrace.Tracee.Ancestor = &ProcessCacheEntry{}
+		}
+		if !ev.PTrace.Tracee.IsNotKworker() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
+		if !ev.PTrace.Tracee.Ancestor.ProcessContext.Process.HasInterpreter() {
+			return &eval.ErrFieldNotFound{Field: field}
 		}
 		rv, ok := value.(int)
 		if !ok {
@@ -34193,6 +35375,12 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if ev.PTrace.Tracee.Ancestor == nil {
 			ev.PTrace.Tracee.Ancestor = &ProcessCacheEntry{}
 		}
+		if !ev.PTrace.Tracee.IsNotKworker() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
+		if !ev.PTrace.Tracee.Ancestor.ProcessContext.Process.HasInterpreter() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
 		rv, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.PathKey.MountID"}
@@ -34205,6 +35393,12 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		if ev.PTrace.Tracee.Ancestor == nil {
 			ev.PTrace.Tracee.Ancestor = &ProcessCacheEntry{}
+		}
+		if !ev.PTrace.Tracee.IsNotKworker() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
+		if !ev.PTrace.Tracee.Ancestor.ProcessContext.Process.HasInterpreter() {
+			return &eval.ErrFieldNotFound{Field: field}
 		}
 		rv, ok := value.(string)
 		if !ok {
@@ -34227,6 +35421,12 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if ev.PTrace.Tracee.Ancestor == nil {
 			ev.PTrace.Tracee.Ancestor = &ProcessCacheEntry{}
 		}
+		if !ev.PTrace.Tracee.IsNotKworker() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
+		if !ev.PTrace.Tracee.Ancestor.ProcessContext.Process.HasInterpreter() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
 		rv, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.PkgName"}
@@ -34239,6 +35439,12 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		if ev.PTrace.Tracee.Ancestor == nil {
 			ev.PTrace.Tracee.Ancestor = &ProcessCacheEntry{}
+		}
+		if !ev.PTrace.Tracee.IsNotKworker() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
+		if !ev.PTrace.Tracee.Ancestor.ProcessContext.Process.HasInterpreter() {
+			return &eval.ErrFieldNotFound{Field: field}
 		}
 		rv, ok := value.(string)
 		if !ok {
@@ -34253,6 +35459,12 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if ev.PTrace.Tracee.Ancestor == nil {
 			ev.PTrace.Tracee.Ancestor = &ProcessCacheEntry{}
 		}
+		if !ev.PTrace.Tracee.IsNotKworker() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
+		if !ev.PTrace.Tracee.Ancestor.ProcessContext.Process.HasInterpreter() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
 		rv, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.PkgVersion"}
@@ -34265,6 +35477,12 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		if ev.PTrace.Tracee.Ancestor == nil {
 			ev.PTrace.Tracee.Ancestor = &ProcessCacheEntry{}
+		}
+		if !ev.PTrace.Tracee.IsNotKworker() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
+		if !ev.PTrace.Tracee.Ancestor.ProcessContext.Process.HasInterpreter() {
+			return &eval.ErrFieldNotFound{Field: field}
 		}
 		rv, ok := value.(string)
 		if !ok {
@@ -34287,6 +35505,12 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if ev.PTrace.Tracee.Ancestor == nil {
 			ev.PTrace.Tracee.Ancestor = &ProcessCacheEntry{}
 		}
+		if !ev.PTrace.Tracee.IsNotKworker() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
+		if !ev.PTrace.Tracee.Ancestor.ProcessContext.Process.HasInterpreter() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
 		rv, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.Mode"}
@@ -34299,6 +35523,12 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		if ev.PTrace.Tracee.Ancestor == nil {
 			ev.PTrace.Tracee.Ancestor = &ProcessCacheEntry{}
+		}
+		if !ev.PTrace.Tracee.IsNotKworker() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
+		if !ev.PTrace.Tracee.Ancestor.ProcessContext.Process.HasInterpreter() {
+			return &eval.ErrFieldNotFound{Field: field}
 		}
 		rv, ok := value.(int)
 		if !ok {
@@ -34313,6 +35543,12 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if ev.PTrace.Tracee.Ancestor == nil {
 			ev.PTrace.Tracee.Ancestor = &ProcessCacheEntry{}
 		}
+		if !ev.PTrace.Tracee.IsNotKworker() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
+		if !ev.PTrace.Tracee.Ancestor.ProcessContext.Process.HasInterpreter() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
 		rv, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.User"}
@@ -34325,6 +35561,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		if ev.PTrace.Tracee.Ancestor == nil {
 			ev.PTrace.Tracee.Ancestor = &ProcessCacheEntry{}
+		}
+		if !ev.PTrace.Tracee.IsNotKworker() {
+			return &eval.ErrFieldNotFound{Field: field}
 		}
 		rv, ok := value.(bool)
 		if !ok {
@@ -34339,6 +35578,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if ev.PTrace.Tracee.Ancestor == nil {
 			ev.PTrace.Tracee.Ancestor = &ProcessCacheEntry{}
 		}
+		if !ev.PTrace.Tracee.IsNotKworker() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
 		rv, ok := value.(bool)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Ancestor.ProcessContext.Process.IsThread"}
@@ -34351,6 +35593,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		if ev.PTrace.Tracee.Ancestor == nil {
 			ev.PTrace.Tracee.Ancestor = &ProcessCacheEntry{}
+		}
+		if !ev.PTrace.Tracee.IsNotKworker() {
+			return &eval.ErrFieldNotFound{Field: field}
 		}
 		rv, ok := value.(int)
 		if !ok {
@@ -34365,6 +35610,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if ev.PTrace.Tracee.Ancestor == nil {
 			ev.PTrace.Tracee.Ancestor = &ProcessCacheEntry{}
 		}
+		if !ev.PTrace.Tracee.IsNotKworker() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
 		rv, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Ancestor.ProcessContext.Process.PPid"}
@@ -34377,6 +35625,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		if ev.PTrace.Tracee.Ancestor == nil {
 			ev.PTrace.Tracee.Ancestor = &ProcessCacheEntry{}
+		}
+		if !ev.PTrace.Tracee.IsNotKworker() {
+			return &eval.ErrFieldNotFound{Field: field}
 		}
 		rv, ok := value.(int)
 		if !ok {
@@ -34391,6 +35642,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if ev.PTrace.Tracee.Ancestor == nil {
 			ev.PTrace.Tracee.Ancestor = &ProcessCacheEntry{}
 		}
+		if !ev.PTrace.Tracee.IsNotKworker() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
 		rv, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Ancestor.ProcessContext.Process.TTYName"}
@@ -34404,6 +35658,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if ev.PTrace.Tracee.Ancestor == nil {
 			ev.PTrace.Tracee.Ancestor = &ProcessCacheEntry{}
 		}
+		if !ev.PTrace.Tracee.IsNotKworker() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
 		rv, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Ancestor.ProcessContext.Process.Credentials.UID"}
@@ -34416,6 +35673,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		if ev.PTrace.Tracee.Ancestor == nil {
 			ev.PTrace.Tracee.Ancestor = &ProcessCacheEntry{}
+		}
+		if !ev.PTrace.Tracee.IsNotKworker() {
+			return &eval.ErrFieldNotFound{Field: field}
 		}
 		rv, ok := value.(string)
 		if !ok {
@@ -34622,6 +35882,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if ev.PTrace.Tracee == nil {
 			ev.PTrace.Tracee = &ProcessContext{}
 		}
+		if !ev.PTrace.Tracee.Process.IsNotKworker() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
 		rv, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Process.FileEvent.FileFields.CTime"}
@@ -34631,6 +35894,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 	case "ptrace.tracee.file.filesystem":
 		if ev.PTrace.Tracee == nil {
 			ev.PTrace.Tracee = &ProcessContext{}
+		}
+		if !ev.PTrace.Tracee.Process.IsNotKworker() {
+			return &eval.ErrFieldNotFound{Field: field}
 		}
 		rv, ok := value.(string)
 		if !ok {
@@ -34642,6 +35908,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if ev.PTrace.Tracee == nil {
 			ev.PTrace.Tracee = &ProcessContext{}
 		}
+		if !ev.PTrace.Tracee.Process.IsNotKworker() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
 		rv, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Process.FileEvent.FileFields.GID"}
@@ -34652,6 +35921,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if ev.PTrace.Tracee == nil {
 			ev.PTrace.Tracee = &ProcessContext{}
 		}
+		if !ev.PTrace.Tracee.Process.IsNotKworker() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
 		rv, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Process.FileEvent.FileFields.Group"}
@@ -34661,6 +35933,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 	case "ptrace.tracee.file.hashes":
 		if ev.PTrace.Tracee == nil {
 			ev.PTrace.Tracee = &ProcessContext{}
+		}
+		if !ev.PTrace.Tracee.Process.IsNotKworker() {
+			return &eval.ErrFieldNotFound{Field: field}
 		}
 		switch rv := value.(type) {
 		case string:
@@ -34675,6 +35950,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if ev.PTrace.Tracee == nil {
 			ev.PTrace.Tracee = &ProcessContext{}
 		}
+		if !ev.PTrace.Tracee.Process.IsNotKworker() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
 		rv, ok := value.(bool)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Process.FileEvent.FileFields.InUpperLayer"}
@@ -34684,6 +35962,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 	case "ptrace.tracee.file.inode":
 		if ev.PTrace.Tracee == nil {
 			ev.PTrace.Tracee = &ProcessContext{}
+		}
+		if !ev.PTrace.Tracee.Process.IsNotKworker() {
+			return &eval.ErrFieldNotFound{Field: field}
 		}
 		rv, ok := value.(int)
 		if !ok {
@@ -34695,6 +35976,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if ev.PTrace.Tracee == nil {
 			ev.PTrace.Tracee = &ProcessContext{}
 		}
+		if !ev.PTrace.Tracee.Process.IsNotKworker() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
 		rv, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Process.FileEvent.FileFields.Mode"}
@@ -34704,6 +35988,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 	case "ptrace.tracee.file.modification_time":
 		if ev.PTrace.Tracee == nil {
 			ev.PTrace.Tracee = &ProcessContext{}
+		}
+		if !ev.PTrace.Tracee.Process.IsNotKworker() {
+			return &eval.ErrFieldNotFound{Field: field}
 		}
 		rv, ok := value.(int)
 		if !ok {
@@ -34715,6 +36002,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if ev.PTrace.Tracee == nil {
 			ev.PTrace.Tracee = &ProcessContext{}
 		}
+		if !ev.PTrace.Tracee.Process.IsNotKworker() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
 		rv, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Process.FileEvent.FileFields.PathKey.MountID"}
@@ -34724,6 +36014,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 	case "ptrace.tracee.file.name":
 		if ev.PTrace.Tracee == nil {
 			ev.PTrace.Tracee = &ProcessContext{}
+		}
+		if !ev.PTrace.Tracee.Process.IsNotKworker() {
+			return &eval.ErrFieldNotFound{Field: field}
 		}
 		rv, ok := value.(string)
 		if !ok {
@@ -34740,6 +36033,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if ev.PTrace.Tracee == nil {
 			ev.PTrace.Tracee = &ProcessContext{}
 		}
+		if !ev.PTrace.Tracee.Process.IsNotKworker() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
 		rv, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Process.FileEvent.PkgName"}
@@ -34749,6 +36045,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 	case "ptrace.tracee.file.package.source_version":
 		if ev.PTrace.Tracee == nil {
 			ev.PTrace.Tracee = &ProcessContext{}
+		}
+		if !ev.PTrace.Tracee.Process.IsNotKworker() {
+			return &eval.ErrFieldNotFound{Field: field}
 		}
 		rv, ok := value.(string)
 		if !ok {
@@ -34760,6 +36059,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if ev.PTrace.Tracee == nil {
 			ev.PTrace.Tracee = &ProcessContext{}
 		}
+		if !ev.PTrace.Tracee.Process.IsNotKworker() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
 		rv, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Process.FileEvent.PkgVersion"}
@@ -34769,6 +36071,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 	case "ptrace.tracee.file.path":
 		if ev.PTrace.Tracee == nil {
 			ev.PTrace.Tracee = &ProcessContext{}
+		}
+		if !ev.PTrace.Tracee.Process.IsNotKworker() {
+			return &eval.ErrFieldNotFound{Field: field}
 		}
 		rv, ok := value.(string)
 		if !ok {
@@ -34785,6 +36090,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if ev.PTrace.Tracee == nil {
 			ev.PTrace.Tracee = &ProcessContext{}
 		}
+		if !ev.PTrace.Tracee.Process.IsNotKworker() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
 		rv, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Process.FileEvent.FileFields.Mode"}
@@ -34795,6 +36103,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if ev.PTrace.Tracee == nil {
 			ev.PTrace.Tracee = &ProcessContext{}
 		}
+		if !ev.PTrace.Tracee.Process.IsNotKworker() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
 		rv, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Process.FileEvent.FileFields.UID"}
@@ -34804,6 +36115,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 	case "ptrace.tracee.file.user":
 		if ev.PTrace.Tracee == nil {
 			ev.PTrace.Tracee = &ProcessContext{}
+		}
+		if !ev.PTrace.Tracee.Process.IsNotKworker() {
+			return &eval.ErrFieldNotFound{Field: field}
 		}
 		rv, ok := value.(string)
 		if !ok {
@@ -34875,6 +36189,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if ev.PTrace.Tracee == nil {
 			ev.PTrace.Tracee = &ProcessContext{}
 		}
+		if !ev.PTrace.Tracee.Process.HasInterpreter() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
 		rv, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Process.LinuxBinprm.FileEvent.FileFields.CTime"}
@@ -34884,6 +36201,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 	case "ptrace.tracee.interpreter.file.filesystem":
 		if ev.PTrace.Tracee == nil {
 			ev.PTrace.Tracee = &ProcessContext{}
+		}
+		if !ev.PTrace.Tracee.Process.HasInterpreter() {
+			return &eval.ErrFieldNotFound{Field: field}
 		}
 		rv, ok := value.(string)
 		if !ok {
@@ -34895,6 +36215,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if ev.PTrace.Tracee == nil {
 			ev.PTrace.Tracee = &ProcessContext{}
 		}
+		if !ev.PTrace.Tracee.Process.HasInterpreter() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
 		rv, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Process.LinuxBinprm.FileEvent.FileFields.GID"}
@@ -34905,6 +36228,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if ev.PTrace.Tracee == nil {
 			ev.PTrace.Tracee = &ProcessContext{}
 		}
+		if !ev.PTrace.Tracee.Process.HasInterpreter() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
 		rv, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Process.LinuxBinprm.FileEvent.FileFields.Group"}
@@ -34914,6 +36240,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 	case "ptrace.tracee.interpreter.file.hashes":
 		if ev.PTrace.Tracee == nil {
 			ev.PTrace.Tracee = &ProcessContext{}
+		}
+		if !ev.PTrace.Tracee.Process.HasInterpreter() {
+			return &eval.ErrFieldNotFound{Field: field}
 		}
 		switch rv := value.(type) {
 		case string:
@@ -34928,6 +36257,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if ev.PTrace.Tracee == nil {
 			ev.PTrace.Tracee = &ProcessContext{}
 		}
+		if !ev.PTrace.Tracee.Process.HasInterpreter() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
 		rv, ok := value.(bool)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Process.LinuxBinprm.FileEvent.FileFields.InUpperLayer"}
@@ -34937,6 +36269,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 	case "ptrace.tracee.interpreter.file.inode":
 		if ev.PTrace.Tracee == nil {
 			ev.PTrace.Tracee = &ProcessContext{}
+		}
+		if !ev.PTrace.Tracee.Process.HasInterpreter() {
+			return &eval.ErrFieldNotFound{Field: field}
 		}
 		rv, ok := value.(int)
 		if !ok {
@@ -34948,6 +36283,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if ev.PTrace.Tracee == nil {
 			ev.PTrace.Tracee = &ProcessContext{}
 		}
+		if !ev.PTrace.Tracee.Process.HasInterpreter() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
 		rv, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Process.LinuxBinprm.FileEvent.FileFields.Mode"}
@@ -34957,6 +36295,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 	case "ptrace.tracee.interpreter.file.modification_time":
 		if ev.PTrace.Tracee == nil {
 			ev.PTrace.Tracee = &ProcessContext{}
+		}
+		if !ev.PTrace.Tracee.Process.HasInterpreter() {
+			return &eval.ErrFieldNotFound{Field: field}
 		}
 		rv, ok := value.(int)
 		if !ok {
@@ -34968,6 +36309,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if ev.PTrace.Tracee == nil {
 			ev.PTrace.Tracee = &ProcessContext{}
 		}
+		if !ev.PTrace.Tracee.Process.HasInterpreter() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
 		rv, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Process.LinuxBinprm.FileEvent.FileFields.PathKey.MountID"}
@@ -34977,6 +36321,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 	case "ptrace.tracee.interpreter.file.name":
 		if ev.PTrace.Tracee == nil {
 			ev.PTrace.Tracee = &ProcessContext{}
+		}
+		if !ev.PTrace.Tracee.Process.HasInterpreter() {
+			return &eval.ErrFieldNotFound{Field: field}
 		}
 		rv, ok := value.(string)
 		if !ok {
@@ -34993,6 +36340,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if ev.PTrace.Tracee == nil {
 			ev.PTrace.Tracee = &ProcessContext{}
 		}
+		if !ev.PTrace.Tracee.Process.HasInterpreter() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
 		rv, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Process.LinuxBinprm.FileEvent.PkgName"}
@@ -35002,6 +36352,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 	case "ptrace.tracee.interpreter.file.package.source_version":
 		if ev.PTrace.Tracee == nil {
 			ev.PTrace.Tracee = &ProcessContext{}
+		}
+		if !ev.PTrace.Tracee.Process.HasInterpreter() {
+			return &eval.ErrFieldNotFound{Field: field}
 		}
 		rv, ok := value.(string)
 		if !ok {
@@ -35013,6 +36366,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if ev.PTrace.Tracee == nil {
 			ev.PTrace.Tracee = &ProcessContext{}
 		}
+		if !ev.PTrace.Tracee.Process.HasInterpreter() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
 		rv, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Process.LinuxBinprm.FileEvent.PkgVersion"}
@@ -35022,6 +36378,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 	case "ptrace.tracee.interpreter.file.path":
 		if ev.PTrace.Tracee == nil {
 			ev.PTrace.Tracee = &ProcessContext{}
+		}
+		if !ev.PTrace.Tracee.Process.HasInterpreter() {
+			return &eval.ErrFieldNotFound{Field: field}
 		}
 		rv, ok := value.(string)
 		if !ok {
@@ -35038,6 +36397,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if ev.PTrace.Tracee == nil {
 			ev.PTrace.Tracee = &ProcessContext{}
 		}
+		if !ev.PTrace.Tracee.Process.HasInterpreter() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
 		rv, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Process.LinuxBinprm.FileEvent.FileFields.Mode"}
@@ -35048,6 +36410,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if ev.PTrace.Tracee == nil {
 			ev.PTrace.Tracee = &ProcessContext{}
 		}
+		if !ev.PTrace.Tracee.Process.HasInterpreter() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
 		rv, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Process.LinuxBinprm.FileEvent.FileFields.UID"}
@@ -35057,6 +36422,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 	case "ptrace.tracee.interpreter.file.user":
 		if ev.PTrace.Tracee == nil {
 			ev.PTrace.Tracee = &ProcessContext{}
+		}
+		if !ev.PTrace.Tracee.Process.HasInterpreter() {
+			return &eval.ErrFieldNotFound{Field: field}
 		}
 		rv, ok := value.(string)
 		if !ok {
@@ -35091,6 +36459,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if ev.PTrace.Tracee.Parent == nil {
 			ev.PTrace.Tracee.Parent = &Process{}
 		}
+		if !ev.PTrace.Tracee.HasParent() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
 		rv, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Parent.Args"}
@@ -35103,6 +36474,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		if ev.PTrace.Tracee.Parent == nil {
 			ev.PTrace.Tracee.Parent = &Process{}
+		}
+		if !ev.PTrace.Tracee.HasParent() {
+			return &eval.ErrFieldNotFound{Field: field}
 		}
 		switch rv := value.(type) {
 		case string:
@@ -35120,6 +36494,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if ev.PTrace.Tracee.Parent == nil {
 			ev.PTrace.Tracee.Parent = &Process{}
 		}
+		if !ev.PTrace.Tracee.HasParent() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
 		switch rv := value.(type) {
 		case string:
 			ev.PTrace.Tracee.Parent.Argv = append(ev.PTrace.Tracee.Parent.Argv, rv)
@@ -35136,6 +36513,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if ev.PTrace.Tracee.Parent == nil {
 			ev.PTrace.Tracee.Parent = &Process{}
 		}
+		if !ev.PTrace.Tracee.HasParent() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
 		rv, ok := value.(bool)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Parent.ArgsTruncated"}
@@ -35148,6 +36528,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		if ev.PTrace.Tracee.Parent == nil {
 			ev.PTrace.Tracee.Parent = &Process{}
+		}
+		if !ev.PTrace.Tracee.HasParent() {
+			return &eval.ErrFieldNotFound{Field: field}
 		}
 		switch rv := value.(type) {
 		case string:
@@ -35165,6 +36548,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if ev.PTrace.Tracee.Parent == nil {
 			ev.PTrace.Tracee.Parent = &Process{}
 		}
+		if !ev.PTrace.Tracee.HasParent() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
 		rv, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Parent.Argv0"}
@@ -35177,6 +36563,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		if ev.PTrace.Tracee.Parent == nil {
 			ev.PTrace.Tracee.Parent = &Process{}
+		}
+		if !ev.PTrace.Tracee.HasParent() {
+			return &eval.ErrFieldNotFound{Field: field}
 		}
 		rv, ok := value.(int)
 		if !ok {
@@ -35191,6 +36580,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if ev.PTrace.Tracee.Parent == nil {
 			ev.PTrace.Tracee.Parent = &Process{}
 		}
+		if !ev.PTrace.Tracee.HasParent() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
 		rv, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Parent.Credentials.CapPermitted"}
@@ -35203,6 +36595,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		if ev.PTrace.Tracee.Parent == nil {
 			ev.PTrace.Tracee.Parent = &Process{}
+		}
+		if !ev.PTrace.Tracee.HasParent() {
+			return &eval.ErrFieldNotFound{Field: field}
 		}
 		rv, ok := value.(string)
 		if !ok {
@@ -35217,6 +36612,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if ev.PTrace.Tracee.Parent == nil {
 			ev.PTrace.Tracee.Parent = &Process{}
 		}
+		if !ev.PTrace.Tracee.HasParent() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
 		rv, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Parent.ContainerID"}
@@ -35229,6 +36627,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		if ev.PTrace.Tracee.Parent == nil {
 			ev.PTrace.Tracee.Parent = &Process{}
+		}
+		if !ev.PTrace.Tracee.HasParent() {
+			return &eval.ErrFieldNotFound{Field: field}
 		}
 		rv, ok := value.(int)
 		if !ok {
@@ -35243,6 +36644,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if ev.PTrace.Tracee.Parent == nil {
 			ev.PTrace.Tracee.Parent = &Process{}
 		}
+		if !ev.PTrace.Tracee.HasParent() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
 		rv, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Parent.Credentials.EGID"}
@@ -35256,6 +36660,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if ev.PTrace.Tracee.Parent == nil {
 			ev.PTrace.Tracee.Parent = &Process{}
 		}
+		if !ev.PTrace.Tracee.HasParent() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
 		rv, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Parent.Credentials.EGroup"}
@@ -35268,6 +36675,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		if ev.PTrace.Tracee.Parent == nil {
 			ev.PTrace.Tracee.Parent = &Process{}
+		}
+		if !ev.PTrace.Tracee.HasParent() {
+			return &eval.ErrFieldNotFound{Field: field}
 		}
 		switch rv := value.(type) {
 		case string:
@@ -35285,6 +36695,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if ev.PTrace.Tracee.Parent == nil {
 			ev.PTrace.Tracee.Parent = &Process{}
 		}
+		if !ev.PTrace.Tracee.HasParent() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
 		switch rv := value.(type) {
 		case string:
 			ev.PTrace.Tracee.Parent.Envs = append(ev.PTrace.Tracee.Parent.Envs, rv)
@@ -35301,6 +36714,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if ev.PTrace.Tracee.Parent == nil {
 			ev.PTrace.Tracee.Parent = &Process{}
 		}
+		if !ev.PTrace.Tracee.HasParent() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
 		rv, ok := value.(bool)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Parent.EnvsTruncated"}
@@ -35313,6 +36729,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		if ev.PTrace.Tracee.Parent == nil {
 			ev.PTrace.Tracee.Parent = &Process{}
+		}
+		if !ev.PTrace.Tracee.HasParent() {
+			return &eval.ErrFieldNotFound{Field: field}
 		}
 		rv, ok := value.(int)
 		if !ok {
@@ -35327,6 +36746,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if ev.PTrace.Tracee.Parent == nil {
 			ev.PTrace.Tracee.Parent = &Process{}
 		}
+		if !ev.PTrace.Tracee.HasParent() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
 		rv, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Parent.Credentials.EUser"}
@@ -35339,6 +36761,12 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		if ev.PTrace.Tracee.Parent == nil {
 			ev.PTrace.Tracee.Parent = &Process{}
+		}
+		if !ev.PTrace.Tracee.HasParent() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
+		if !ev.PTrace.Tracee.Parent.IsNotKworker() {
+			return &eval.ErrFieldNotFound{Field: field}
 		}
 		rv, ok := value.(int)
 		if !ok {
@@ -35353,6 +36781,12 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if ev.PTrace.Tracee.Parent == nil {
 			ev.PTrace.Tracee.Parent = &Process{}
 		}
+		if !ev.PTrace.Tracee.HasParent() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
+		if !ev.PTrace.Tracee.Parent.IsNotKworker() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
 		rv, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Parent.FileEvent.Filesystem"}
@@ -35365,6 +36799,12 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		if ev.PTrace.Tracee.Parent == nil {
 			ev.PTrace.Tracee.Parent = &Process{}
+		}
+		if !ev.PTrace.Tracee.HasParent() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
+		if !ev.PTrace.Tracee.Parent.IsNotKworker() {
+			return &eval.ErrFieldNotFound{Field: field}
 		}
 		rv, ok := value.(int)
 		if !ok {
@@ -35379,6 +36819,12 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if ev.PTrace.Tracee.Parent == nil {
 			ev.PTrace.Tracee.Parent = &Process{}
 		}
+		if !ev.PTrace.Tracee.HasParent() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
+		if !ev.PTrace.Tracee.Parent.IsNotKworker() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
 		rv, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Parent.FileEvent.FileFields.Group"}
@@ -35391,6 +36837,12 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		if ev.PTrace.Tracee.Parent == nil {
 			ev.PTrace.Tracee.Parent = &Process{}
+		}
+		if !ev.PTrace.Tracee.HasParent() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
+		if !ev.PTrace.Tracee.Parent.IsNotKworker() {
+			return &eval.ErrFieldNotFound{Field: field}
 		}
 		switch rv := value.(type) {
 		case string:
@@ -35408,6 +36860,12 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if ev.PTrace.Tracee.Parent == nil {
 			ev.PTrace.Tracee.Parent = &Process{}
 		}
+		if !ev.PTrace.Tracee.HasParent() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
+		if !ev.PTrace.Tracee.Parent.IsNotKworker() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
 		rv, ok := value.(bool)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Parent.FileEvent.FileFields.InUpperLayer"}
@@ -35420,6 +36878,12 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		if ev.PTrace.Tracee.Parent == nil {
 			ev.PTrace.Tracee.Parent = &Process{}
+		}
+		if !ev.PTrace.Tracee.HasParent() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
+		if !ev.PTrace.Tracee.Parent.IsNotKworker() {
+			return &eval.ErrFieldNotFound{Field: field}
 		}
 		rv, ok := value.(int)
 		if !ok {
@@ -35434,6 +36898,12 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if ev.PTrace.Tracee.Parent == nil {
 			ev.PTrace.Tracee.Parent = &Process{}
 		}
+		if !ev.PTrace.Tracee.HasParent() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
+		if !ev.PTrace.Tracee.Parent.IsNotKworker() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
 		rv, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Parent.FileEvent.FileFields.Mode"}
@@ -35446,6 +36916,12 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		if ev.PTrace.Tracee.Parent == nil {
 			ev.PTrace.Tracee.Parent = &Process{}
+		}
+		if !ev.PTrace.Tracee.HasParent() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
+		if !ev.PTrace.Tracee.Parent.IsNotKworker() {
+			return &eval.ErrFieldNotFound{Field: field}
 		}
 		rv, ok := value.(int)
 		if !ok {
@@ -35460,6 +36936,12 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if ev.PTrace.Tracee.Parent == nil {
 			ev.PTrace.Tracee.Parent = &Process{}
 		}
+		if !ev.PTrace.Tracee.HasParent() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
+		if !ev.PTrace.Tracee.Parent.IsNotKworker() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
 		rv, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Parent.FileEvent.FileFields.PathKey.MountID"}
@@ -35472,6 +36954,12 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		if ev.PTrace.Tracee.Parent == nil {
 			ev.PTrace.Tracee.Parent = &Process{}
+		}
+		if !ev.PTrace.Tracee.HasParent() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
+		if !ev.PTrace.Tracee.Parent.IsNotKworker() {
+			return &eval.ErrFieldNotFound{Field: field}
 		}
 		rv, ok := value.(string)
 		if !ok {
@@ -35494,6 +36982,12 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if ev.PTrace.Tracee.Parent == nil {
 			ev.PTrace.Tracee.Parent = &Process{}
 		}
+		if !ev.PTrace.Tracee.HasParent() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
+		if !ev.PTrace.Tracee.Parent.IsNotKworker() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
 		rv, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Parent.FileEvent.PkgName"}
@@ -35506,6 +37000,12 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		if ev.PTrace.Tracee.Parent == nil {
 			ev.PTrace.Tracee.Parent = &Process{}
+		}
+		if !ev.PTrace.Tracee.HasParent() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
+		if !ev.PTrace.Tracee.Parent.IsNotKworker() {
+			return &eval.ErrFieldNotFound{Field: field}
 		}
 		rv, ok := value.(string)
 		if !ok {
@@ -35520,6 +37020,12 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if ev.PTrace.Tracee.Parent == nil {
 			ev.PTrace.Tracee.Parent = &Process{}
 		}
+		if !ev.PTrace.Tracee.HasParent() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
+		if !ev.PTrace.Tracee.Parent.IsNotKworker() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
 		rv, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Parent.FileEvent.PkgVersion"}
@@ -35532,6 +37038,12 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		if ev.PTrace.Tracee.Parent == nil {
 			ev.PTrace.Tracee.Parent = &Process{}
+		}
+		if !ev.PTrace.Tracee.HasParent() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
+		if !ev.PTrace.Tracee.Parent.IsNotKworker() {
+			return &eval.ErrFieldNotFound{Field: field}
 		}
 		rv, ok := value.(string)
 		if !ok {
@@ -35554,6 +37066,12 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if ev.PTrace.Tracee.Parent == nil {
 			ev.PTrace.Tracee.Parent = &Process{}
 		}
+		if !ev.PTrace.Tracee.HasParent() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
+		if !ev.PTrace.Tracee.Parent.IsNotKworker() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
 		rv, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Parent.FileEvent.FileFields.Mode"}
@@ -35566,6 +37084,12 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		if ev.PTrace.Tracee.Parent == nil {
 			ev.PTrace.Tracee.Parent = &Process{}
+		}
+		if !ev.PTrace.Tracee.HasParent() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
+		if !ev.PTrace.Tracee.Parent.IsNotKworker() {
+			return &eval.ErrFieldNotFound{Field: field}
 		}
 		rv, ok := value.(int)
 		if !ok {
@@ -35580,6 +37104,12 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if ev.PTrace.Tracee.Parent == nil {
 			ev.PTrace.Tracee.Parent = &Process{}
 		}
+		if !ev.PTrace.Tracee.HasParent() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
+		if !ev.PTrace.Tracee.Parent.IsNotKworker() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
 		rv, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Parent.FileEvent.FileFields.User"}
@@ -35592,6 +37122,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		if ev.PTrace.Tracee.Parent == nil {
 			ev.PTrace.Tracee.Parent = &Process{}
+		}
+		if !ev.PTrace.Tracee.HasParent() {
+			return &eval.ErrFieldNotFound{Field: field}
 		}
 		rv, ok := value.(int)
 		if !ok {
@@ -35606,6 +37139,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if ev.PTrace.Tracee.Parent == nil {
 			ev.PTrace.Tracee.Parent = &Process{}
 		}
+		if !ev.PTrace.Tracee.HasParent() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
 		rv, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Parent.Credentials.FSGroup"}
@@ -35618,6 +37154,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		if ev.PTrace.Tracee.Parent == nil {
 			ev.PTrace.Tracee.Parent = &Process{}
+		}
+		if !ev.PTrace.Tracee.HasParent() {
+			return &eval.ErrFieldNotFound{Field: field}
 		}
 		rv, ok := value.(int)
 		if !ok {
@@ -35632,6 +37171,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if ev.PTrace.Tracee.Parent == nil {
 			ev.PTrace.Tracee.Parent = &Process{}
 		}
+		if !ev.PTrace.Tracee.HasParent() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
 		rv, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Parent.Credentials.FSUser"}
@@ -35644,6 +37186,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		if ev.PTrace.Tracee.Parent == nil {
 			ev.PTrace.Tracee.Parent = &Process{}
+		}
+		if !ev.PTrace.Tracee.HasParent() {
+			return &eval.ErrFieldNotFound{Field: field}
 		}
 		rv, ok := value.(int)
 		if !ok {
@@ -35658,6 +37203,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if ev.PTrace.Tracee.Parent == nil {
 			ev.PTrace.Tracee.Parent = &Process{}
 		}
+		if !ev.PTrace.Tracee.HasParent() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
 		rv, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Parent.Credentials.Group"}
@@ -35670,6 +37218,12 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		if ev.PTrace.Tracee.Parent == nil {
 			ev.PTrace.Tracee.Parent = &Process{}
+		}
+		if !ev.PTrace.Tracee.HasParent() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
+		if !ev.PTrace.Tracee.Parent.HasInterpreter() {
+			return &eval.ErrFieldNotFound{Field: field}
 		}
 		rv, ok := value.(int)
 		if !ok {
@@ -35684,6 +37238,12 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if ev.PTrace.Tracee.Parent == nil {
 			ev.PTrace.Tracee.Parent = &Process{}
 		}
+		if !ev.PTrace.Tracee.HasParent() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
+		if !ev.PTrace.Tracee.Parent.HasInterpreter() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
 		rv, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Parent.LinuxBinprm.FileEvent.Filesystem"}
@@ -35696,6 +37256,12 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		if ev.PTrace.Tracee.Parent == nil {
 			ev.PTrace.Tracee.Parent = &Process{}
+		}
+		if !ev.PTrace.Tracee.HasParent() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
+		if !ev.PTrace.Tracee.Parent.HasInterpreter() {
+			return &eval.ErrFieldNotFound{Field: field}
 		}
 		rv, ok := value.(int)
 		if !ok {
@@ -35710,6 +37276,12 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if ev.PTrace.Tracee.Parent == nil {
 			ev.PTrace.Tracee.Parent = &Process{}
 		}
+		if !ev.PTrace.Tracee.HasParent() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
+		if !ev.PTrace.Tracee.Parent.HasInterpreter() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
 		rv, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Parent.LinuxBinprm.FileEvent.FileFields.Group"}
@@ -35722,6 +37294,12 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		if ev.PTrace.Tracee.Parent == nil {
 			ev.PTrace.Tracee.Parent = &Process{}
+		}
+		if !ev.PTrace.Tracee.HasParent() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
+		if !ev.PTrace.Tracee.Parent.HasInterpreter() {
+			return &eval.ErrFieldNotFound{Field: field}
 		}
 		switch rv := value.(type) {
 		case string:
@@ -35739,6 +37317,12 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if ev.PTrace.Tracee.Parent == nil {
 			ev.PTrace.Tracee.Parent = &Process{}
 		}
+		if !ev.PTrace.Tracee.HasParent() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
+		if !ev.PTrace.Tracee.Parent.HasInterpreter() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
 		rv, ok := value.(bool)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Parent.LinuxBinprm.FileEvent.FileFields.InUpperLayer"}
@@ -35751,6 +37335,12 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		if ev.PTrace.Tracee.Parent == nil {
 			ev.PTrace.Tracee.Parent = &Process{}
+		}
+		if !ev.PTrace.Tracee.HasParent() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
+		if !ev.PTrace.Tracee.Parent.HasInterpreter() {
+			return &eval.ErrFieldNotFound{Field: field}
 		}
 		rv, ok := value.(int)
 		if !ok {
@@ -35765,6 +37355,12 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if ev.PTrace.Tracee.Parent == nil {
 			ev.PTrace.Tracee.Parent = &Process{}
 		}
+		if !ev.PTrace.Tracee.HasParent() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
+		if !ev.PTrace.Tracee.Parent.HasInterpreter() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
 		rv, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Parent.LinuxBinprm.FileEvent.FileFields.Mode"}
@@ -35777,6 +37373,12 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		if ev.PTrace.Tracee.Parent == nil {
 			ev.PTrace.Tracee.Parent = &Process{}
+		}
+		if !ev.PTrace.Tracee.HasParent() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
+		if !ev.PTrace.Tracee.Parent.HasInterpreter() {
+			return &eval.ErrFieldNotFound{Field: field}
 		}
 		rv, ok := value.(int)
 		if !ok {
@@ -35791,6 +37393,12 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if ev.PTrace.Tracee.Parent == nil {
 			ev.PTrace.Tracee.Parent = &Process{}
 		}
+		if !ev.PTrace.Tracee.HasParent() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
+		if !ev.PTrace.Tracee.Parent.HasInterpreter() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
 		rv, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Parent.LinuxBinprm.FileEvent.FileFields.PathKey.MountID"}
@@ -35803,6 +37411,12 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		if ev.PTrace.Tracee.Parent == nil {
 			ev.PTrace.Tracee.Parent = &Process{}
+		}
+		if !ev.PTrace.Tracee.HasParent() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
+		if !ev.PTrace.Tracee.Parent.HasInterpreter() {
+			return &eval.ErrFieldNotFound{Field: field}
 		}
 		rv, ok := value.(string)
 		if !ok {
@@ -35825,6 +37439,12 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if ev.PTrace.Tracee.Parent == nil {
 			ev.PTrace.Tracee.Parent = &Process{}
 		}
+		if !ev.PTrace.Tracee.HasParent() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
+		if !ev.PTrace.Tracee.Parent.HasInterpreter() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
 		rv, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Parent.LinuxBinprm.FileEvent.PkgName"}
@@ -35837,6 +37457,12 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		if ev.PTrace.Tracee.Parent == nil {
 			ev.PTrace.Tracee.Parent = &Process{}
+		}
+		if !ev.PTrace.Tracee.HasParent() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
+		if !ev.PTrace.Tracee.Parent.HasInterpreter() {
+			return &eval.ErrFieldNotFound{Field: field}
 		}
 		rv, ok := value.(string)
 		if !ok {
@@ -35851,6 +37477,12 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if ev.PTrace.Tracee.Parent == nil {
 			ev.PTrace.Tracee.Parent = &Process{}
 		}
+		if !ev.PTrace.Tracee.HasParent() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
+		if !ev.PTrace.Tracee.Parent.HasInterpreter() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
 		rv, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Parent.LinuxBinprm.FileEvent.PkgVersion"}
@@ -35863,6 +37495,12 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		if ev.PTrace.Tracee.Parent == nil {
 			ev.PTrace.Tracee.Parent = &Process{}
+		}
+		if !ev.PTrace.Tracee.HasParent() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
+		if !ev.PTrace.Tracee.Parent.HasInterpreter() {
+			return &eval.ErrFieldNotFound{Field: field}
 		}
 		rv, ok := value.(string)
 		if !ok {
@@ -35885,6 +37523,12 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if ev.PTrace.Tracee.Parent == nil {
 			ev.PTrace.Tracee.Parent = &Process{}
 		}
+		if !ev.PTrace.Tracee.HasParent() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
+		if !ev.PTrace.Tracee.Parent.HasInterpreter() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
 		rv, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Parent.LinuxBinprm.FileEvent.FileFields.Mode"}
@@ -35897,6 +37541,12 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		if ev.PTrace.Tracee.Parent == nil {
 			ev.PTrace.Tracee.Parent = &Process{}
+		}
+		if !ev.PTrace.Tracee.HasParent() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
+		if !ev.PTrace.Tracee.Parent.HasInterpreter() {
+			return &eval.ErrFieldNotFound{Field: field}
 		}
 		rv, ok := value.(int)
 		if !ok {
@@ -35911,6 +37561,12 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if ev.PTrace.Tracee.Parent == nil {
 			ev.PTrace.Tracee.Parent = &Process{}
 		}
+		if !ev.PTrace.Tracee.HasParent() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
+		if !ev.PTrace.Tracee.Parent.HasInterpreter() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
 		rv, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Parent.LinuxBinprm.FileEvent.FileFields.User"}
@@ -35923,6 +37579,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		if ev.PTrace.Tracee.Parent == nil {
 			ev.PTrace.Tracee.Parent = &Process{}
+		}
+		if !ev.PTrace.Tracee.HasParent() {
+			return &eval.ErrFieldNotFound{Field: field}
 		}
 		rv, ok := value.(bool)
 		if !ok {
@@ -35937,6 +37596,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if ev.PTrace.Tracee.Parent == nil {
 			ev.PTrace.Tracee.Parent = &Process{}
 		}
+		if !ev.PTrace.Tracee.HasParent() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
 		rv, ok := value.(bool)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Parent.IsThread"}
@@ -35949,6 +37611,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		if ev.PTrace.Tracee.Parent == nil {
 			ev.PTrace.Tracee.Parent = &Process{}
+		}
+		if !ev.PTrace.Tracee.HasParent() {
+			return &eval.ErrFieldNotFound{Field: field}
 		}
 		rv, ok := value.(int)
 		if !ok {
@@ -35963,6 +37628,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if ev.PTrace.Tracee.Parent == nil {
 			ev.PTrace.Tracee.Parent = &Process{}
 		}
+		if !ev.PTrace.Tracee.HasParent() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
 		rv, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Parent.PPid"}
@@ -35975,6 +37643,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		if ev.PTrace.Tracee.Parent == nil {
 			ev.PTrace.Tracee.Parent = &Process{}
+		}
+		if !ev.PTrace.Tracee.HasParent() {
+			return &eval.ErrFieldNotFound{Field: field}
 		}
 		rv, ok := value.(int)
 		if !ok {
@@ -35989,6 +37660,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if ev.PTrace.Tracee.Parent == nil {
 			ev.PTrace.Tracee.Parent = &Process{}
 		}
+		if !ev.PTrace.Tracee.HasParent() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
 		rv, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Parent.TTYName"}
@@ -36002,6 +37676,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if ev.PTrace.Tracee.Parent == nil {
 			ev.PTrace.Tracee.Parent = &Process{}
 		}
+		if !ev.PTrace.Tracee.HasParent() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
 		rv, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Parent.Credentials.UID"}
@@ -36014,6 +37691,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		if ev.PTrace.Tracee.Parent == nil {
 			ev.PTrace.Tracee.Parent = &Process{}
+		}
+		if !ev.PTrace.Tracee.HasParent() {
+			return &eval.ErrFieldNotFound{Field: field}
 		}
 		rv, ok := value.(string)
 		if !ok {
@@ -36935,6 +38615,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if ev.Signal.Target.Ancestor == nil {
 			ev.Signal.Target.Ancestor = &ProcessCacheEntry{}
 		}
+		if !ev.Signal.Target.IsNotKworker() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
 		rv, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Ancestor.ProcessContext.Process.Args"}
@@ -36947,6 +38630,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		if ev.Signal.Target.Ancestor == nil {
 			ev.Signal.Target.Ancestor = &ProcessCacheEntry{}
+		}
+		if !ev.Signal.Target.IsNotKworker() {
+			return &eval.ErrFieldNotFound{Field: field}
 		}
 		switch rv := value.(type) {
 		case string:
@@ -36964,6 +38650,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if ev.Signal.Target.Ancestor == nil {
 			ev.Signal.Target.Ancestor = &ProcessCacheEntry{}
 		}
+		if !ev.Signal.Target.IsNotKworker() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
 		switch rv := value.(type) {
 		case string:
 			ev.Signal.Target.Ancestor.ProcessContext.Process.Argv = append(ev.Signal.Target.Ancestor.ProcessContext.Process.Argv, rv)
@@ -36980,6 +38669,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if ev.Signal.Target.Ancestor == nil {
 			ev.Signal.Target.Ancestor = &ProcessCacheEntry{}
 		}
+		if !ev.Signal.Target.IsNotKworker() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
 		rv, ok := value.(bool)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Ancestor.ProcessContext.Process.ArgsTruncated"}
@@ -36992,6 +38684,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		if ev.Signal.Target.Ancestor == nil {
 			ev.Signal.Target.Ancestor = &ProcessCacheEntry{}
+		}
+		if !ev.Signal.Target.IsNotKworker() {
+			return &eval.ErrFieldNotFound{Field: field}
 		}
 		switch rv := value.(type) {
 		case string:
@@ -37009,6 +38704,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if ev.Signal.Target.Ancestor == nil {
 			ev.Signal.Target.Ancestor = &ProcessCacheEntry{}
 		}
+		if !ev.Signal.Target.IsNotKworker() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
 		rv, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Ancestor.ProcessContext.Process.Argv0"}
@@ -37021,6 +38719,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		if ev.Signal.Target.Ancestor == nil {
 			ev.Signal.Target.Ancestor = &ProcessCacheEntry{}
+		}
+		if !ev.Signal.Target.IsNotKworker() {
+			return &eval.ErrFieldNotFound{Field: field}
 		}
 		rv, ok := value.(int)
 		if !ok {
@@ -37035,6 +38736,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if ev.Signal.Target.Ancestor == nil {
 			ev.Signal.Target.Ancestor = &ProcessCacheEntry{}
 		}
+		if !ev.Signal.Target.IsNotKworker() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
 		rv, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Ancestor.ProcessContext.Process.Credentials.CapPermitted"}
@@ -37047,6 +38751,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		if ev.Signal.Target.Ancestor == nil {
 			ev.Signal.Target.Ancestor = &ProcessCacheEntry{}
+		}
+		if !ev.Signal.Target.IsNotKworker() {
+			return &eval.ErrFieldNotFound{Field: field}
 		}
 		rv, ok := value.(string)
 		if !ok {
@@ -37061,6 +38768,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if ev.Signal.Target.Ancestor == nil {
 			ev.Signal.Target.Ancestor = &ProcessCacheEntry{}
 		}
+		if !ev.Signal.Target.IsNotKworker() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
 		rv, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Ancestor.ProcessContext.Process.ContainerID"}
@@ -37073,6 +38783,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		if ev.Signal.Target.Ancestor == nil {
 			ev.Signal.Target.Ancestor = &ProcessCacheEntry{}
+		}
+		if !ev.Signal.Target.IsNotKworker() {
+			return &eval.ErrFieldNotFound{Field: field}
 		}
 		rv, ok := value.(int)
 		if !ok {
@@ -37087,6 +38800,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if ev.Signal.Target.Ancestor == nil {
 			ev.Signal.Target.Ancestor = &ProcessCacheEntry{}
 		}
+		if !ev.Signal.Target.IsNotKworker() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
 		rv, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Ancestor.ProcessContext.Process.Credentials.EGID"}
@@ -37100,6 +38816,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if ev.Signal.Target.Ancestor == nil {
 			ev.Signal.Target.Ancestor = &ProcessCacheEntry{}
 		}
+		if !ev.Signal.Target.IsNotKworker() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
 		rv, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Ancestor.ProcessContext.Process.Credentials.EGroup"}
@@ -37112,6 +38831,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		if ev.Signal.Target.Ancestor == nil {
 			ev.Signal.Target.Ancestor = &ProcessCacheEntry{}
+		}
+		if !ev.Signal.Target.IsNotKworker() {
+			return &eval.ErrFieldNotFound{Field: field}
 		}
 		switch rv := value.(type) {
 		case string:
@@ -37129,6 +38851,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if ev.Signal.Target.Ancestor == nil {
 			ev.Signal.Target.Ancestor = &ProcessCacheEntry{}
 		}
+		if !ev.Signal.Target.IsNotKworker() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
 		switch rv := value.(type) {
 		case string:
 			ev.Signal.Target.Ancestor.ProcessContext.Process.Envs = append(ev.Signal.Target.Ancestor.ProcessContext.Process.Envs, rv)
@@ -37145,6 +38870,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if ev.Signal.Target.Ancestor == nil {
 			ev.Signal.Target.Ancestor = &ProcessCacheEntry{}
 		}
+		if !ev.Signal.Target.IsNotKworker() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
 		rv, ok := value.(bool)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Ancestor.ProcessContext.Process.EnvsTruncated"}
@@ -37157,6 +38885,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		if ev.Signal.Target.Ancestor == nil {
 			ev.Signal.Target.Ancestor = &ProcessCacheEntry{}
+		}
+		if !ev.Signal.Target.IsNotKworker() {
+			return &eval.ErrFieldNotFound{Field: field}
 		}
 		rv, ok := value.(int)
 		if !ok {
@@ -37171,6 +38902,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if ev.Signal.Target.Ancestor == nil {
 			ev.Signal.Target.Ancestor = &ProcessCacheEntry{}
 		}
+		if !ev.Signal.Target.IsNotKworker() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
 		rv, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Ancestor.ProcessContext.Process.Credentials.EUser"}
@@ -37183,6 +38917,12 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		if ev.Signal.Target.Ancestor == nil {
 			ev.Signal.Target.Ancestor = &ProcessCacheEntry{}
+		}
+		if !ev.Signal.Target.IsNotKworker() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
+		if !ev.Signal.Target.Ancestor.ProcessContext.Process.IsNotKworker() {
+			return &eval.ErrFieldNotFound{Field: field}
 		}
 		rv, ok := value.(int)
 		if !ok {
@@ -37197,6 +38937,12 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if ev.Signal.Target.Ancestor == nil {
 			ev.Signal.Target.Ancestor = &ProcessCacheEntry{}
 		}
+		if !ev.Signal.Target.IsNotKworker() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
+		if !ev.Signal.Target.Ancestor.ProcessContext.Process.IsNotKworker() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
 		rv, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Ancestor.ProcessContext.Process.FileEvent.Filesystem"}
@@ -37209,6 +38955,12 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		if ev.Signal.Target.Ancestor == nil {
 			ev.Signal.Target.Ancestor = &ProcessCacheEntry{}
+		}
+		if !ev.Signal.Target.IsNotKworker() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
+		if !ev.Signal.Target.Ancestor.ProcessContext.Process.IsNotKworker() {
+			return &eval.ErrFieldNotFound{Field: field}
 		}
 		rv, ok := value.(int)
 		if !ok {
@@ -37223,6 +38975,12 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if ev.Signal.Target.Ancestor == nil {
 			ev.Signal.Target.Ancestor = &ProcessCacheEntry{}
 		}
+		if !ev.Signal.Target.IsNotKworker() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
+		if !ev.Signal.Target.Ancestor.ProcessContext.Process.IsNotKworker() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
 		rv, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Ancestor.ProcessContext.Process.FileEvent.FileFields.Group"}
@@ -37235,6 +38993,12 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		if ev.Signal.Target.Ancestor == nil {
 			ev.Signal.Target.Ancestor = &ProcessCacheEntry{}
+		}
+		if !ev.Signal.Target.IsNotKworker() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
+		if !ev.Signal.Target.Ancestor.ProcessContext.Process.IsNotKworker() {
+			return &eval.ErrFieldNotFound{Field: field}
 		}
 		switch rv := value.(type) {
 		case string:
@@ -37252,6 +39016,12 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if ev.Signal.Target.Ancestor == nil {
 			ev.Signal.Target.Ancestor = &ProcessCacheEntry{}
 		}
+		if !ev.Signal.Target.IsNotKworker() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
+		if !ev.Signal.Target.Ancestor.ProcessContext.Process.IsNotKworker() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
 		rv, ok := value.(bool)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Ancestor.ProcessContext.Process.FileEvent.FileFields.InUpperLayer"}
@@ -37264,6 +39034,12 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		if ev.Signal.Target.Ancestor == nil {
 			ev.Signal.Target.Ancestor = &ProcessCacheEntry{}
+		}
+		if !ev.Signal.Target.IsNotKworker() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
+		if !ev.Signal.Target.Ancestor.ProcessContext.Process.IsNotKworker() {
+			return &eval.ErrFieldNotFound{Field: field}
 		}
 		rv, ok := value.(int)
 		if !ok {
@@ -37278,6 +39054,12 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if ev.Signal.Target.Ancestor == nil {
 			ev.Signal.Target.Ancestor = &ProcessCacheEntry{}
 		}
+		if !ev.Signal.Target.IsNotKworker() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
+		if !ev.Signal.Target.Ancestor.ProcessContext.Process.IsNotKworker() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
 		rv, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Ancestor.ProcessContext.Process.FileEvent.FileFields.Mode"}
@@ -37290,6 +39072,12 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		if ev.Signal.Target.Ancestor == nil {
 			ev.Signal.Target.Ancestor = &ProcessCacheEntry{}
+		}
+		if !ev.Signal.Target.IsNotKworker() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
+		if !ev.Signal.Target.Ancestor.ProcessContext.Process.IsNotKworker() {
+			return &eval.ErrFieldNotFound{Field: field}
 		}
 		rv, ok := value.(int)
 		if !ok {
@@ -37304,6 +39092,12 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if ev.Signal.Target.Ancestor == nil {
 			ev.Signal.Target.Ancestor = &ProcessCacheEntry{}
 		}
+		if !ev.Signal.Target.IsNotKworker() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
+		if !ev.Signal.Target.Ancestor.ProcessContext.Process.IsNotKworker() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
 		rv, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Ancestor.ProcessContext.Process.FileEvent.FileFields.PathKey.MountID"}
@@ -37316,6 +39110,12 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		if ev.Signal.Target.Ancestor == nil {
 			ev.Signal.Target.Ancestor = &ProcessCacheEntry{}
+		}
+		if !ev.Signal.Target.IsNotKworker() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
+		if !ev.Signal.Target.Ancestor.ProcessContext.Process.IsNotKworker() {
+			return &eval.ErrFieldNotFound{Field: field}
 		}
 		rv, ok := value.(string)
 		if !ok {
@@ -37338,6 +39138,12 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if ev.Signal.Target.Ancestor == nil {
 			ev.Signal.Target.Ancestor = &ProcessCacheEntry{}
 		}
+		if !ev.Signal.Target.IsNotKworker() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
+		if !ev.Signal.Target.Ancestor.ProcessContext.Process.IsNotKworker() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
 		rv, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Ancestor.ProcessContext.Process.FileEvent.PkgName"}
@@ -37350,6 +39156,12 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		if ev.Signal.Target.Ancestor == nil {
 			ev.Signal.Target.Ancestor = &ProcessCacheEntry{}
+		}
+		if !ev.Signal.Target.IsNotKworker() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
+		if !ev.Signal.Target.Ancestor.ProcessContext.Process.IsNotKworker() {
+			return &eval.ErrFieldNotFound{Field: field}
 		}
 		rv, ok := value.(string)
 		if !ok {
@@ -37364,6 +39176,12 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if ev.Signal.Target.Ancestor == nil {
 			ev.Signal.Target.Ancestor = &ProcessCacheEntry{}
 		}
+		if !ev.Signal.Target.IsNotKworker() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
+		if !ev.Signal.Target.Ancestor.ProcessContext.Process.IsNotKworker() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
 		rv, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Ancestor.ProcessContext.Process.FileEvent.PkgVersion"}
@@ -37376,6 +39194,12 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		if ev.Signal.Target.Ancestor == nil {
 			ev.Signal.Target.Ancestor = &ProcessCacheEntry{}
+		}
+		if !ev.Signal.Target.IsNotKworker() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
+		if !ev.Signal.Target.Ancestor.ProcessContext.Process.IsNotKworker() {
+			return &eval.ErrFieldNotFound{Field: field}
 		}
 		rv, ok := value.(string)
 		if !ok {
@@ -37398,6 +39222,12 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if ev.Signal.Target.Ancestor == nil {
 			ev.Signal.Target.Ancestor = &ProcessCacheEntry{}
 		}
+		if !ev.Signal.Target.IsNotKworker() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
+		if !ev.Signal.Target.Ancestor.ProcessContext.Process.IsNotKworker() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
 		rv, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Ancestor.ProcessContext.Process.FileEvent.FileFields.Mode"}
@@ -37410,6 +39240,12 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		if ev.Signal.Target.Ancestor == nil {
 			ev.Signal.Target.Ancestor = &ProcessCacheEntry{}
+		}
+		if !ev.Signal.Target.IsNotKworker() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
+		if !ev.Signal.Target.Ancestor.ProcessContext.Process.IsNotKworker() {
+			return &eval.ErrFieldNotFound{Field: field}
 		}
 		rv, ok := value.(int)
 		if !ok {
@@ -37424,6 +39260,12 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if ev.Signal.Target.Ancestor == nil {
 			ev.Signal.Target.Ancestor = &ProcessCacheEntry{}
 		}
+		if !ev.Signal.Target.IsNotKworker() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
+		if !ev.Signal.Target.Ancestor.ProcessContext.Process.IsNotKworker() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
 		rv, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Ancestor.ProcessContext.Process.FileEvent.FileFields.User"}
@@ -37436,6 +39278,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		if ev.Signal.Target.Ancestor == nil {
 			ev.Signal.Target.Ancestor = &ProcessCacheEntry{}
+		}
+		if !ev.Signal.Target.IsNotKworker() {
+			return &eval.ErrFieldNotFound{Field: field}
 		}
 		rv, ok := value.(int)
 		if !ok {
@@ -37450,6 +39295,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if ev.Signal.Target.Ancestor == nil {
 			ev.Signal.Target.Ancestor = &ProcessCacheEntry{}
 		}
+		if !ev.Signal.Target.IsNotKworker() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
 		rv, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Ancestor.ProcessContext.Process.Credentials.FSGroup"}
@@ -37462,6 +39310,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		if ev.Signal.Target.Ancestor == nil {
 			ev.Signal.Target.Ancestor = &ProcessCacheEntry{}
+		}
+		if !ev.Signal.Target.IsNotKworker() {
+			return &eval.ErrFieldNotFound{Field: field}
 		}
 		rv, ok := value.(int)
 		if !ok {
@@ -37476,6 +39327,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if ev.Signal.Target.Ancestor == nil {
 			ev.Signal.Target.Ancestor = &ProcessCacheEntry{}
 		}
+		if !ev.Signal.Target.IsNotKworker() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
 		rv, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Ancestor.ProcessContext.Process.Credentials.FSUser"}
@@ -37488,6 +39342,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		if ev.Signal.Target.Ancestor == nil {
 			ev.Signal.Target.Ancestor = &ProcessCacheEntry{}
+		}
+		if !ev.Signal.Target.IsNotKworker() {
+			return &eval.ErrFieldNotFound{Field: field}
 		}
 		rv, ok := value.(int)
 		if !ok {
@@ -37502,6 +39359,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if ev.Signal.Target.Ancestor == nil {
 			ev.Signal.Target.Ancestor = &ProcessCacheEntry{}
 		}
+		if !ev.Signal.Target.IsNotKworker() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
 		rv, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Ancestor.ProcessContext.Process.Credentials.Group"}
@@ -37514,6 +39374,12 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		if ev.Signal.Target.Ancestor == nil {
 			ev.Signal.Target.Ancestor = &ProcessCacheEntry{}
+		}
+		if !ev.Signal.Target.IsNotKworker() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
+		if !ev.Signal.Target.Ancestor.ProcessContext.Process.HasInterpreter() {
+			return &eval.ErrFieldNotFound{Field: field}
 		}
 		rv, ok := value.(int)
 		if !ok {
@@ -37528,6 +39394,12 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if ev.Signal.Target.Ancestor == nil {
 			ev.Signal.Target.Ancestor = &ProcessCacheEntry{}
 		}
+		if !ev.Signal.Target.IsNotKworker() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
+		if !ev.Signal.Target.Ancestor.ProcessContext.Process.HasInterpreter() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
 		rv, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.Filesystem"}
@@ -37540,6 +39412,12 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		if ev.Signal.Target.Ancestor == nil {
 			ev.Signal.Target.Ancestor = &ProcessCacheEntry{}
+		}
+		if !ev.Signal.Target.IsNotKworker() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
+		if !ev.Signal.Target.Ancestor.ProcessContext.Process.HasInterpreter() {
+			return &eval.ErrFieldNotFound{Field: field}
 		}
 		rv, ok := value.(int)
 		if !ok {
@@ -37554,6 +39432,12 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if ev.Signal.Target.Ancestor == nil {
 			ev.Signal.Target.Ancestor = &ProcessCacheEntry{}
 		}
+		if !ev.Signal.Target.IsNotKworker() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
+		if !ev.Signal.Target.Ancestor.ProcessContext.Process.HasInterpreter() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
 		rv, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.Group"}
@@ -37566,6 +39450,12 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		if ev.Signal.Target.Ancestor == nil {
 			ev.Signal.Target.Ancestor = &ProcessCacheEntry{}
+		}
+		if !ev.Signal.Target.IsNotKworker() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
+		if !ev.Signal.Target.Ancestor.ProcessContext.Process.HasInterpreter() {
+			return &eval.ErrFieldNotFound{Field: field}
 		}
 		switch rv := value.(type) {
 		case string:
@@ -37583,6 +39473,12 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if ev.Signal.Target.Ancestor == nil {
 			ev.Signal.Target.Ancestor = &ProcessCacheEntry{}
 		}
+		if !ev.Signal.Target.IsNotKworker() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
+		if !ev.Signal.Target.Ancestor.ProcessContext.Process.HasInterpreter() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
 		rv, ok := value.(bool)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.InUpperLayer"}
@@ -37595,6 +39491,12 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		if ev.Signal.Target.Ancestor == nil {
 			ev.Signal.Target.Ancestor = &ProcessCacheEntry{}
+		}
+		if !ev.Signal.Target.IsNotKworker() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
+		if !ev.Signal.Target.Ancestor.ProcessContext.Process.HasInterpreter() {
+			return &eval.ErrFieldNotFound{Field: field}
 		}
 		rv, ok := value.(int)
 		if !ok {
@@ -37609,6 +39511,12 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if ev.Signal.Target.Ancestor == nil {
 			ev.Signal.Target.Ancestor = &ProcessCacheEntry{}
 		}
+		if !ev.Signal.Target.IsNotKworker() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
+		if !ev.Signal.Target.Ancestor.ProcessContext.Process.HasInterpreter() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
 		rv, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.Mode"}
@@ -37621,6 +39529,12 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		if ev.Signal.Target.Ancestor == nil {
 			ev.Signal.Target.Ancestor = &ProcessCacheEntry{}
+		}
+		if !ev.Signal.Target.IsNotKworker() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
+		if !ev.Signal.Target.Ancestor.ProcessContext.Process.HasInterpreter() {
+			return &eval.ErrFieldNotFound{Field: field}
 		}
 		rv, ok := value.(int)
 		if !ok {
@@ -37635,6 +39549,12 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if ev.Signal.Target.Ancestor == nil {
 			ev.Signal.Target.Ancestor = &ProcessCacheEntry{}
 		}
+		if !ev.Signal.Target.IsNotKworker() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
+		if !ev.Signal.Target.Ancestor.ProcessContext.Process.HasInterpreter() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
 		rv, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.PathKey.MountID"}
@@ -37647,6 +39567,12 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		if ev.Signal.Target.Ancestor == nil {
 			ev.Signal.Target.Ancestor = &ProcessCacheEntry{}
+		}
+		if !ev.Signal.Target.IsNotKworker() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
+		if !ev.Signal.Target.Ancestor.ProcessContext.Process.HasInterpreter() {
+			return &eval.ErrFieldNotFound{Field: field}
 		}
 		rv, ok := value.(string)
 		if !ok {
@@ -37669,6 +39595,12 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if ev.Signal.Target.Ancestor == nil {
 			ev.Signal.Target.Ancestor = &ProcessCacheEntry{}
 		}
+		if !ev.Signal.Target.IsNotKworker() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
+		if !ev.Signal.Target.Ancestor.ProcessContext.Process.HasInterpreter() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
 		rv, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.PkgName"}
@@ -37681,6 +39613,12 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		if ev.Signal.Target.Ancestor == nil {
 			ev.Signal.Target.Ancestor = &ProcessCacheEntry{}
+		}
+		if !ev.Signal.Target.IsNotKworker() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
+		if !ev.Signal.Target.Ancestor.ProcessContext.Process.HasInterpreter() {
+			return &eval.ErrFieldNotFound{Field: field}
 		}
 		rv, ok := value.(string)
 		if !ok {
@@ -37695,6 +39633,12 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if ev.Signal.Target.Ancestor == nil {
 			ev.Signal.Target.Ancestor = &ProcessCacheEntry{}
 		}
+		if !ev.Signal.Target.IsNotKworker() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
+		if !ev.Signal.Target.Ancestor.ProcessContext.Process.HasInterpreter() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
 		rv, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.PkgVersion"}
@@ -37707,6 +39651,12 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		if ev.Signal.Target.Ancestor == nil {
 			ev.Signal.Target.Ancestor = &ProcessCacheEntry{}
+		}
+		if !ev.Signal.Target.IsNotKworker() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
+		if !ev.Signal.Target.Ancestor.ProcessContext.Process.HasInterpreter() {
+			return &eval.ErrFieldNotFound{Field: field}
 		}
 		rv, ok := value.(string)
 		if !ok {
@@ -37729,6 +39679,12 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if ev.Signal.Target.Ancestor == nil {
 			ev.Signal.Target.Ancestor = &ProcessCacheEntry{}
 		}
+		if !ev.Signal.Target.IsNotKworker() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
+		if !ev.Signal.Target.Ancestor.ProcessContext.Process.HasInterpreter() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
 		rv, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.Mode"}
@@ -37741,6 +39697,12 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		if ev.Signal.Target.Ancestor == nil {
 			ev.Signal.Target.Ancestor = &ProcessCacheEntry{}
+		}
+		if !ev.Signal.Target.IsNotKworker() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
+		if !ev.Signal.Target.Ancestor.ProcessContext.Process.HasInterpreter() {
+			return &eval.ErrFieldNotFound{Field: field}
 		}
 		rv, ok := value.(int)
 		if !ok {
@@ -37755,6 +39717,12 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if ev.Signal.Target.Ancestor == nil {
 			ev.Signal.Target.Ancestor = &ProcessCacheEntry{}
 		}
+		if !ev.Signal.Target.IsNotKworker() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
+		if !ev.Signal.Target.Ancestor.ProcessContext.Process.HasInterpreter() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
 		rv, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.User"}
@@ -37767,6 +39735,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		if ev.Signal.Target.Ancestor == nil {
 			ev.Signal.Target.Ancestor = &ProcessCacheEntry{}
+		}
+		if !ev.Signal.Target.IsNotKworker() {
+			return &eval.ErrFieldNotFound{Field: field}
 		}
 		rv, ok := value.(bool)
 		if !ok {
@@ -37781,6 +39752,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if ev.Signal.Target.Ancestor == nil {
 			ev.Signal.Target.Ancestor = &ProcessCacheEntry{}
 		}
+		if !ev.Signal.Target.IsNotKworker() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
 		rv, ok := value.(bool)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Ancestor.ProcessContext.Process.IsThread"}
@@ -37793,6 +39767,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		if ev.Signal.Target.Ancestor == nil {
 			ev.Signal.Target.Ancestor = &ProcessCacheEntry{}
+		}
+		if !ev.Signal.Target.IsNotKworker() {
+			return &eval.ErrFieldNotFound{Field: field}
 		}
 		rv, ok := value.(int)
 		if !ok {
@@ -37807,6 +39784,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if ev.Signal.Target.Ancestor == nil {
 			ev.Signal.Target.Ancestor = &ProcessCacheEntry{}
 		}
+		if !ev.Signal.Target.IsNotKworker() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
 		rv, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Ancestor.ProcessContext.Process.PPid"}
@@ -37819,6 +39799,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		if ev.Signal.Target.Ancestor == nil {
 			ev.Signal.Target.Ancestor = &ProcessCacheEntry{}
+		}
+		if !ev.Signal.Target.IsNotKworker() {
+			return &eval.ErrFieldNotFound{Field: field}
 		}
 		rv, ok := value.(int)
 		if !ok {
@@ -37833,6 +39816,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if ev.Signal.Target.Ancestor == nil {
 			ev.Signal.Target.Ancestor = &ProcessCacheEntry{}
 		}
+		if !ev.Signal.Target.IsNotKworker() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
 		rv, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Ancestor.ProcessContext.Process.TTYName"}
@@ -37846,6 +39832,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if ev.Signal.Target.Ancestor == nil {
 			ev.Signal.Target.Ancestor = &ProcessCacheEntry{}
 		}
+		if !ev.Signal.Target.IsNotKworker() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
 		rv, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Ancestor.ProcessContext.Process.Credentials.UID"}
@@ -37858,6 +39847,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		if ev.Signal.Target.Ancestor == nil {
 			ev.Signal.Target.Ancestor = &ProcessCacheEntry{}
+		}
+		if !ev.Signal.Target.IsNotKworker() {
+			return &eval.ErrFieldNotFound{Field: field}
 		}
 		rv, ok := value.(string)
 		if !ok {
@@ -38064,6 +40056,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if ev.Signal.Target == nil {
 			ev.Signal.Target = &ProcessContext{}
 		}
+		if !ev.Signal.Target.Process.IsNotKworker() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
 		rv, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Process.FileEvent.FileFields.CTime"}
@@ -38073,6 +40068,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 	case "signal.target.file.filesystem":
 		if ev.Signal.Target == nil {
 			ev.Signal.Target = &ProcessContext{}
+		}
+		if !ev.Signal.Target.Process.IsNotKworker() {
+			return &eval.ErrFieldNotFound{Field: field}
 		}
 		rv, ok := value.(string)
 		if !ok {
@@ -38084,6 +40082,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if ev.Signal.Target == nil {
 			ev.Signal.Target = &ProcessContext{}
 		}
+		if !ev.Signal.Target.Process.IsNotKworker() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
 		rv, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Process.FileEvent.FileFields.GID"}
@@ -38094,6 +40095,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if ev.Signal.Target == nil {
 			ev.Signal.Target = &ProcessContext{}
 		}
+		if !ev.Signal.Target.Process.IsNotKworker() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
 		rv, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Process.FileEvent.FileFields.Group"}
@@ -38103,6 +40107,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 	case "signal.target.file.hashes":
 		if ev.Signal.Target == nil {
 			ev.Signal.Target = &ProcessContext{}
+		}
+		if !ev.Signal.Target.Process.IsNotKworker() {
+			return &eval.ErrFieldNotFound{Field: field}
 		}
 		switch rv := value.(type) {
 		case string:
@@ -38117,6 +40124,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if ev.Signal.Target == nil {
 			ev.Signal.Target = &ProcessContext{}
 		}
+		if !ev.Signal.Target.Process.IsNotKworker() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
 		rv, ok := value.(bool)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Process.FileEvent.FileFields.InUpperLayer"}
@@ -38126,6 +40136,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 	case "signal.target.file.inode":
 		if ev.Signal.Target == nil {
 			ev.Signal.Target = &ProcessContext{}
+		}
+		if !ev.Signal.Target.Process.IsNotKworker() {
+			return &eval.ErrFieldNotFound{Field: field}
 		}
 		rv, ok := value.(int)
 		if !ok {
@@ -38137,6 +40150,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if ev.Signal.Target == nil {
 			ev.Signal.Target = &ProcessContext{}
 		}
+		if !ev.Signal.Target.Process.IsNotKworker() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
 		rv, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Process.FileEvent.FileFields.Mode"}
@@ -38146,6 +40162,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 	case "signal.target.file.modification_time":
 		if ev.Signal.Target == nil {
 			ev.Signal.Target = &ProcessContext{}
+		}
+		if !ev.Signal.Target.Process.IsNotKworker() {
+			return &eval.ErrFieldNotFound{Field: field}
 		}
 		rv, ok := value.(int)
 		if !ok {
@@ -38157,6 +40176,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if ev.Signal.Target == nil {
 			ev.Signal.Target = &ProcessContext{}
 		}
+		if !ev.Signal.Target.Process.IsNotKworker() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
 		rv, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Process.FileEvent.FileFields.PathKey.MountID"}
@@ -38166,6 +40188,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 	case "signal.target.file.name":
 		if ev.Signal.Target == nil {
 			ev.Signal.Target = &ProcessContext{}
+		}
+		if !ev.Signal.Target.Process.IsNotKworker() {
+			return &eval.ErrFieldNotFound{Field: field}
 		}
 		rv, ok := value.(string)
 		if !ok {
@@ -38182,6 +40207,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if ev.Signal.Target == nil {
 			ev.Signal.Target = &ProcessContext{}
 		}
+		if !ev.Signal.Target.Process.IsNotKworker() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
 		rv, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Process.FileEvent.PkgName"}
@@ -38191,6 +40219,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 	case "signal.target.file.package.source_version":
 		if ev.Signal.Target == nil {
 			ev.Signal.Target = &ProcessContext{}
+		}
+		if !ev.Signal.Target.Process.IsNotKworker() {
+			return &eval.ErrFieldNotFound{Field: field}
 		}
 		rv, ok := value.(string)
 		if !ok {
@@ -38202,6 +40233,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if ev.Signal.Target == nil {
 			ev.Signal.Target = &ProcessContext{}
 		}
+		if !ev.Signal.Target.Process.IsNotKworker() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
 		rv, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Process.FileEvent.PkgVersion"}
@@ -38211,6 +40245,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 	case "signal.target.file.path":
 		if ev.Signal.Target == nil {
 			ev.Signal.Target = &ProcessContext{}
+		}
+		if !ev.Signal.Target.Process.IsNotKworker() {
+			return &eval.ErrFieldNotFound{Field: field}
 		}
 		rv, ok := value.(string)
 		if !ok {
@@ -38227,6 +40264,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if ev.Signal.Target == nil {
 			ev.Signal.Target = &ProcessContext{}
 		}
+		if !ev.Signal.Target.Process.IsNotKworker() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
 		rv, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Process.FileEvent.FileFields.Mode"}
@@ -38237,6 +40277,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if ev.Signal.Target == nil {
 			ev.Signal.Target = &ProcessContext{}
 		}
+		if !ev.Signal.Target.Process.IsNotKworker() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
 		rv, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Process.FileEvent.FileFields.UID"}
@@ -38246,6 +40289,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 	case "signal.target.file.user":
 		if ev.Signal.Target == nil {
 			ev.Signal.Target = &ProcessContext{}
+		}
+		if !ev.Signal.Target.Process.IsNotKworker() {
+			return &eval.ErrFieldNotFound{Field: field}
 		}
 		rv, ok := value.(string)
 		if !ok {
@@ -38317,6 +40363,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if ev.Signal.Target == nil {
 			ev.Signal.Target = &ProcessContext{}
 		}
+		if !ev.Signal.Target.Process.HasInterpreter() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
 		rv, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Process.LinuxBinprm.FileEvent.FileFields.CTime"}
@@ -38326,6 +40375,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 	case "signal.target.interpreter.file.filesystem":
 		if ev.Signal.Target == nil {
 			ev.Signal.Target = &ProcessContext{}
+		}
+		if !ev.Signal.Target.Process.HasInterpreter() {
+			return &eval.ErrFieldNotFound{Field: field}
 		}
 		rv, ok := value.(string)
 		if !ok {
@@ -38337,6 +40389,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if ev.Signal.Target == nil {
 			ev.Signal.Target = &ProcessContext{}
 		}
+		if !ev.Signal.Target.Process.HasInterpreter() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
 		rv, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Process.LinuxBinprm.FileEvent.FileFields.GID"}
@@ -38347,6 +40402,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if ev.Signal.Target == nil {
 			ev.Signal.Target = &ProcessContext{}
 		}
+		if !ev.Signal.Target.Process.HasInterpreter() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
 		rv, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Process.LinuxBinprm.FileEvent.FileFields.Group"}
@@ -38356,6 +40414,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 	case "signal.target.interpreter.file.hashes":
 		if ev.Signal.Target == nil {
 			ev.Signal.Target = &ProcessContext{}
+		}
+		if !ev.Signal.Target.Process.HasInterpreter() {
+			return &eval.ErrFieldNotFound{Field: field}
 		}
 		switch rv := value.(type) {
 		case string:
@@ -38370,6 +40431,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if ev.Signal.Target == nil {
 			ev.Signal.Target = &ProcessContext{}
 		}
+		if !ev.Signal.Target.Process.HasInterpreter() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
 		rv, ok := value.(bool)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Process.LinuxBinprm.FileEvent.FileFields.InUpperLayer"}
@@ -38379,6 +40443,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 	case "signal.target.interpreter.file.inode":
 		if ev.Signal.Target == nil {
 			ev.Signal.Target = &ProcessContext{}
+		}
+		if !ev.Signal.Target.Process.HasInterpreter() {
+			return &eval.ErrFieldNotFound{Field: field}
 		}
 		rv, ok := value.(int)
 		if !ok {
@@ -38390,6 +40457,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if ev.Signal.Target == nil {
 			ev.Signal.Target = &ProcessContext{}
 		}
+		if !ev.Signal.Target.Process.HasInterpreter() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
 		rv, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Process.LinuxBinprm.FileEvent.FileFields.Mode"}
@@ -38399,6 +40469,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 	case "signal.target.interpreter.file.modification_time":
 		if ev.Signal.Target == nil {
 			ev.Signal.Target = &ProcessContext{}
+		}
+		if !ev.Signal.Target.Process.HasInterpreter() {
+			return &eval.ErrFieldNotFound{Field: field}
 		}
 		rv, ok := value.(int)
 		if !ok {
@@ -38410,6 +40483,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if ev.Signal.Target == nil {
 			ev.Signal.Target = &ProcessContext{}
 		}
+		if !ev.Signal.Target.Process.HasInterpreter() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
 		rv, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Process.LinuxBinprm.FileEvent.FileFields.PathKey.MountID"}
@@ -38419,6 +40495,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 	case "signal.target.interpreter.file.name":
 		if ev.Signal.Target == nil {
 			ev.Signal.Target = &ProcessContext{}
+		}
+		if !ev.Signal.Target.Process.HasInterpreter() {
+			return &eval.ErrFieldNotFound{Field: field}
 		}
 		rv, ok := value.(string)
 		if !ok {
@@ -38435,6 +40514,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if ev.Signal.Target == nil {
 			ev.Signal.Target = &ProcessContext{}
 		}
+		if !ev.Signal.Target.Process.HasInterpreter() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
 		rv, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Process.LinuxBinprm.FileEvent.PkgName"}
@@ -38444,6 +40526,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 	case "signal.target.interpreter.file.package.source_version":
 		if ev.Signal.Target == nil {
 			ev.Signal.Target = &ProcessContext{}
+		}
+		if !ev.Signal.Target.Process.HasInterpreter() {
+			return &eval.ErrFieldNotFound{Field: field}
 		}
 		rv, ok := value.(string)
 		if !ok {
@@ -38455,6 +40540,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if ev.Signal.Target == nil {
 			ev.Signal.Target = &ProcessContext{}
 		}
+		if !ev.Signal.Target.Process.HasInterpreter() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
 		rv, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Process.LinuxBinprm.FileEvent.PkgVersion"}
@@ -38464,6 +40552,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 	case "signal.target.interpreter.file.path":
 		if ev.Signal.Target == nil {
 			ev.Signal.Target = &ProcessContext{}
+		}
+		if !ev.Signal.Target.Process.HasInterpreter() {
+			return &eval.ErrFieldNotFound{Field: field}
 		}
 		rv, ok := value.(string)
 		if !ok {
@@ -38480,6 +40571,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if ev.Signal.Target == nil {
 			ev.Signal.Target = &ProcessContext{}
 		}
+		if !ev.Signal.Target.Process.HasInterpreter() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
 		rv, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Process.LinuxBinprm.FileEvent.FileFields.Mode"}
@@ -38490,6 +40584,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if ev.Signal.Target == nil {
 			ev.Signal.Target = &ProcessContext{}
 		}
+		if !ev.Signal.Target.Process.HasInterpreter() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
 		rv, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Process.LinuxBinprm.FileEvent.FileFields.UID"}
@@ -38499,6 +40596,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 	case "signal.target.interpreter.file.user":
 		if ev.Signal.Target == nil {
 			ev.Signal.Target = &ProcessContext{}
+		}
+		if !ev.Signal.Target.Process.HasInterpreter() {
+			return &eval.ErrFieldNotFound{Field: field}
 		}
 		rv, ok := value.(string)
 		if !ok {
@@ -38533,6 +40633,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if ev.Signal.Target.Parent == nil {
 			ev.Signal.Target.Parent = &Process{}
 		}
+		if !ev.Signal.Target.HasParent() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
 		rv, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Parent.Args"}
@@ -38545,6 +40648,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		if ev.Signal.Target.Parent == nil {
 			ev.Signal.Target.Parent = &Process{}
+		}
+		if !ev.Signal.Target.HasParent() {
+			return &eval.ErrFieldNotFound{Field: field}
 		}
 		switch rv := value.(type) {
 		case string:
@@ -38562,6 +40668,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if ev.Signal.Target.Parent == nil {
 			ev.Signal.Target.Parent = &Process{}
 		}
+		if !ev.Signal.Target.HasParent() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
 		switch rv := value.(type) {
 		case string:
 			ev.Signal.Target.Parent.Argv = append(ev.Signal.Target.Parent.Argv, rv)
@@ -38578,6 +40687,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if ev.Signal.Target.Parent == nil {
 			ev.Signal.Target.Parent = &Process{}
 		}
+		if !ev.Signal.Target.HasParent() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
 		rv, ok := value.(bool)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Parent.ArgsTruncated"}
@@ -38590,6 +40702,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		if ev.Signal.Target.Parent == nil {
 			ev.Signal.Target.Parent = &Process{}
+		}
+		if !ev.Signal.Target.HasParent() {
+			return &eval.ErrFieldNotFound{Field: field}
 		}
 		switch rv := value.(type) {
 		case string:
@@ -38607,6 +40722,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if ev.Signal.Target.Parent == nil {
 			ev.Signal.Target.Parent = &Process{}
 		}
+		if !ev.Signal.Target.HasParent() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
 		rv, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Parent.Argv0"}
@@ -38619,6 +40737,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		if ev.Signal.Target.Parent == nil {
 			ev.Signal.Target.Parent = &Process{}
+		}
+		if !ev.Signal.Target.HasParent() {
+			return &eval.ErrFieldNotFound{Field: field}
 		}
 		rv, ok := value.(int)
 		if !ok {
@@ -38633,6 +40754,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if ev.Signal.Target.Parent == nil {
 			ev.Signal.Target.Parent = &Process{}
 		}
+		if !ev.Signal.Target.HasParent() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
 		rv, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Parent.Credentials.CapPermitted"}
@@ -38645,6 +40769,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		if ev.Signal.Target.Parent == nil {
 			ev.Signal.Target.Parent = &Process{}
+		}
+		if !ev.Signal.Target.HasParent() {
+			return &eval.ErrFieldNotFound{Field: field}
 		}
 		rv, ok := value.(string)
 		if !ok {
@@ -38659,6 +40786,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if ev.Signal.Target.Parent == nil {
 			ev.Signal.Target.Parent = &Process{}
 		}
+		if !ev.Signal.Target.HasParent() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
 		rv, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Parent.ContainerID"}
@@ -38671,6 +40801,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		if ev.Signal.Target.Parent == nil {
 			ev.Signal.Target.Parent = &Process{}
+		}
+		if !ev.Signal.Target.HasParent() {
+			return &eval.ErrFieldNotFound{Field: field}
 		}
 		rv, ok := value.(int)
 		if !ok {
@@ -38685,6 +40818,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if ev.Signal.Target.Parent == nil {
 			ev.Signal.Target.Parent = &Process{}
 		}
+		if !ev.Signal.Target.HasParent() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
 		rv, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Parent.Credentials.EGID"}
@@ -38698,6 +40834,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if ev.Signal.Target.Parent == nil {
 			ev.Signal.Target.Parent = &Process{}
 		}
+		if !ev.Signal.Target.HasParent() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
 		rv, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Parent.Credentials.EGroup"}
@@ -38710,6 +40849,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		if ev.Signal.Target.Parent == nil {
 			ev.Signal.Target.Parent = &Process{}
+		}
+		if !ev.Signal.Target.HasParent() {
+			return &eval.ErrFieldNotFound{Field: field}
 		}
 		switch rv := value.(type) {
 		case string:
@@ -38727,6 +40869,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if ev.Signal.Target.Parent == nil {
 			ev.Signal.Target.Parent = &Process{}
 		}
+		if !ev.Signal.Target.HasParent() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
 		switch rv := value.(type) {
 		case string:
 			ev.Signal.Target.Parent.Envs = append(ev.Signal.Target.Parent.Envs, rv)
@@ -38743,6 +40888,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if ev.Signal.Target.Parent == nil {
 			ev.Signal.Target.Parent = &Process{}
 		}
+		if !ev.Signal.Target.HasParent() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
 		rv, ok := value.(bool)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Parent.EnvsTruncated"}
@@ -38755,6 +40903,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		if ev.Signal.Target.Parent == nil {
 			ev.Signal.Target.Parent = &Process{}
+		}
+		if !ev.Signal.Target.HasParent() {
+			return &eval.ErrFieldNotFound{Field: field}
 		}
 		rv, ok := value.(int)
 		if !ok {
@@ -38769,6 +40920,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if ev.Signal.Target.Parent == nil {
 			ev.Signal.Target.Parent = &Process{}
 		}
+		if !ev.Signal.Target.HasParent() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
 		rv, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Parent.Credentials.EUser"}
@@ -38781,6 +40935,12 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		if ev.Signal.Target.Parent == nil {
 			ev.Signal.Target.Parent = &Process{}
+		}
+		if !ev.Signal.Target.HasParent() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
+		if !ev.Signal.Target.Parent.IsNotKworker() {
+			return &eval.ErrFieldNotFound{Field: field}
 		}
 		rv, ok := value.(int)
 		if !ok {
@@ -38795,6 +40955,12 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if ev.Signal.Target.Parent == nil {
 			ev.Signal.Target.Parent = &Process{}
 		}
+		if !ev.Signal.Target.HasParent() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
+		if !ev.Signal.Target.Parent.IsNotKworker() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
 		rv, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Parent.FileEvent.Filesystem"}
@@ -38807,6 +40973,12 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		if ev.Signal.Target.Parent == nil {
 			ev.Signal.Target.Parent = &Process{}
+		}
+		if !ev.Signal.Target.HasParent() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
+		if !ev.Signal.Target.Parent.IsNotKworker() {
+			return &eval.ErrFieldNotFound{Field: field}
 		}
 		rv, ok := value.(int)
 		if !ok {
@@ -38821,6 +40993,12 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if ev.Signal.Target.Parent == nil {
 			ev.Signal.Target.Parent = &Process{}
 		}
+		if !ev.Signal.Target.HasParent() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
+		if !ev.Signal.Target.Parent.IsNotKworker() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
 		rv, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Parent.FileEvent.FileFields.Group"}
@@ -38833,6 +41011,12 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		if ev.Signal.Target.Parent == nil {
 			ev.Signal.Target.Parent = &Process{}
+		}
+		if !ev.Signal.Target.HasParent() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
+		if !ev.Signal.Target.Parent.IsNotKworker() {
+			return &eval.ErrFieldNotFound{Field: field}
 		}
 		switch rv := value.(type) {
 		case string:
@@ -38850,6 +41034,12 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if ev.Signal.Target.Parent == nil {
 			ev.Signal.Target.Parent = &Process{}
 		}
+		if !ev.Signal.Target.HasParent() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
+		if !ev.Signal.Target.Parent.IsNotKworker() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
 		rv, ok := value.(bool)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Parent.FileEvent.FileFields.InUpperLayer"}
@@ -38862,6 +41052,12 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		if ev.Signal.Target.Parent == nil {
 			ev.Signal.Target.Parent = &Process{}
+		}
+		if !ev.Signal.Target.HasParent() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
+		if !ev.Signal.Target.Parent.IsNotKworker() {
+			return &eval.ErrFieldNotFound{Field: field}
 		}
 		rv, ok := value.(int)
 		if !ok {
@@ -38876,6 +41072,12 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if ev.Signal.Target.Parent == nil {
 			ev.Signal.Target.Parent = &Process{}
 		}
+		if !ev.Signal.Target.HasParent() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
+		if !ev.Signal.Target.Parent.IsNotKworker() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
 		rv, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Parent.FileEvent.FileFields.Mode"}
@@ -38888,6 +41090,12 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		if ev.Signal.Target.Parent == nil {
 			ev.Signal.Target.Parent = &Process{}
+		}
+		if !ev.Signal.Target.HasParent() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
+		if !ev.Signal.Target.Parent.IsNotKworker() {
+			return &eval.ErrFieldNotFound{Field: field}
 		}
 		rv, ok := value.(int)
 		if !ok {
@@ -38902,6 +41110,12 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if ev.Signal.Target.Parent == nil {
 			ev.Signal.Target.Parent = &Process{}
 		}
+		if !ev.Signal.Target.HasParent() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
+		if !ev.Signal.Target.Parent.IsNotKworker() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
 		rv, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Parent.FileEvent.FileFields.PathKey.MountID"}
@@ -38914,6 +41128,12 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		if ev.Signal.Target.Parent == nil {
 			ev.Signal.Target.Parent = &Process{}
+		}
+		if !ev.Signal.Target.HasParent() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
+		if !ev.Signal.Target.Parent.IsNotKworker() {
+			return &eval.ErrFieldNotFound{Field: field}
 		}
 		rv, ok := value.(string)
 		if !ok {
@@ -38936,6 +41156,12 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if ev.Signal.Target.Parent == nil {
 			ev.Signal.Target.Parent = &Process{}
 		}
+		if !ev.Signal.Target.HasParent() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
+		if !ev.Signal.Target.Parent.IsNotKworker() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
 		rv, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Parent.FileEvent.PkgName"}
@@ -38948,6 +41174,12 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		if ev.Signal.Target.Parent == nil {
 			ev.Signal.Target.Parent = &Process{}
+		}
+		if !ev.Signal.Target.HasParent() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
+		if !ev.Signal.Target.Parent.IsNotKworker() {
+			return &eval.ErrFieldNotFound{Field: field}
 		}
 		rv, ok := value.(string)
 		if !ok {
@@ -38962,6 +41194,12 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if ev.Signal.Target.Parent == nil {
 			ev.Signal.Target.Parent = &Process{}
 		}
+		if !ev.Signal.Target.HasParent() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
+		if !ev.Signal.Target.Parent.IsNotKworker() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
 		rv, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Parent.FileEvent.PkgVersion"}
@@ -38974,6 +41212,12 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		if ev.Signal.Target.Parent == nil {
 			ev.Signal.Target.Parent = &Process{}
+		}
+		if !ev.Signal.Target.HasParent() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
+		if !ev.Signal.Target.Parent.IsNotKworker() {
+			return &eval.ErrFieldNotFound{Field: field}
 		}
 		rv, ok := value.(string)
 		if !ok {
@@ -38996,6 +41240,12 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if ev.Signal.Target.Parent == nil {
 			ev.Signal.Target.Parent = &Process{}
 		}
+		if !ev.Signal.Target.HasParent() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
+		if !ev.Signal.Target.Parent.IsNotKworker() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
 		rv, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Parent.FileEvent.FileFields.Mode"}
@@ -39008,6 +41258,12 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		if ev.Signal.Target.Parent == nil {
 			ev.Signal.Target.Parent = &Process{}
+		}
+		if !ev.Signal.Target.HasParent() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
+		if !ev.Signal.Target.Parent.IsNotKworker() {
+			return &eval.ErrFieldNotFound{Field: field}
 		}
 		rv, ok := value.(int)
 		if !ok {
@@ -39022,6 +41278,12 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if ev.Signal.Target.Parent == nil {
 			ev.Signal.Target.Parent = &Process{}
 		}
+		if !ev.Signal.Target.HasParent() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
+		if !ev.Signal.Target.Parent.IsNotKworker() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
 		rv, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Parent.FileEvent.FileFields.User"}
@@ -39034,6 +41296,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		if ev.Signal.Target.Parent == nil {
 			ev.Signal.Target.Parent = &Process{}
+		}
+		if !ev.Signal.Target.HasParent() {
+			return &eval.ErrFieldNotFound{Field: field}
 		}
 		rv, ok := value.(int)
 		if !ok {
@@ -39048,6 +41313,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if ev.Signal.Target.Parent == nil {
 			ev.Signal.Target.Parent = &Process{}
 		}
+		if !ev.Signal.Target.HasParent() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
 		rv, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Parent.Credentials.FSGroup"}
@@ -39060,6 +41328,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		if ev.Signal.Target.Parent == nil {
 			ev.Signal.Target.Parent = &Process{}
+		}
+		if !ev.Signal.Target.HasParent() {
+			return &eval.ErrFieldNotFound{Field: field}
 		}
 		rv, ok := value.(int)
 		if !ok {
@@ -39074,6 +41345,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if ev.Signal.Target.Parent == nil {
 			ev.Signal.Target.Parent = &Process{}
 		}
+		if !ev.Signal.Target.HasParent() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
 		rv, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Parent.Credentials.FSUser"}
@@ -39086,6 +41360,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		if ev.Signal.Target.Parent == nil {
 			ev.Signal.Target.Parent = &Process{}
+		}
+		if !ev.Signal.Target.HasParent() {
+			return &eval.ErrFieldNotFound{Field: field}
 		}
 		rv, ok := value.(int)
 		if !ok {
@@ -39100,6 +41377,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if ev.Signal.Target.Parent == nil {
 			ev.Signal.Target.Parent = &Process{}
 		}
+		if !ev.Signal.Target.HasParent() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
 		rv, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Parent.Credentials.Group"}
@@ -39112,6 +41392,12 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		if ev.Signal.Target.Parent == nil {
 			ev.Signal.Target.Parent = &Process{}
+		}
+		if !ev.Signal.Target.HasParent() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
+		if !ev.Signal.Target.Parent.HasInterpreter() {
+			return &eval.ErrFieldNotFound{Field: field}
 		}
 		rv, ok := value.(int)
 		if !ok {
@@ -39126,6 +41412,12 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if ev.Signal.Target.Parent == nil {
 			ev.Signal.Target.Parent = &Process{}
 		}
+		if !ev.Signal.Target.HasParent() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
+		if !ev.Signal.Target.Parent.HasInterpreter() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
 		rv, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Parent.LinuxBinprm.FileEvent.Filesystem"}
@@ -39138,6 +41430,12 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		if ev.Signal.Target.Parent == nil {
 			ev.Signal.Target.Parent = &Process{}
+		}
+		if !ev.Signal.Target.HasParent() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
+		if !ev.Signal.Target.Parent.HasInterpreter() {
+			return &eval.ErrFieldNotFound{Field: field}
 		}
 		rv, ok := value.(int)
 		if !ok {
@@ -39152,6 +41450,12 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if ev.Signal.Target.Parent == nil {
 			ev.Signal.Target.Parent = &Process{}
 		}
+		if !ev.Signal.Target.HasParent() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
+		if !ev.Signal.Target.Parent.HasInterpreter() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
 		rv, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Parent.LinuxBinprm.FileEvent.FileFields.Group"}
@@ -39164,6 +41468,12 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		if ev.Signal.Target.Parent == nil {
 			ev.Signal.Target.Parent = &Process{}
+		}
+		if !ev.Signal.Target.HasParent() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
+		if !ev.Signal.Target.Parent.HasInterpreter() {
+			return &eval.ErrFieldNotFound{Field: field}
 		}
 		switch rv := value.(type) {
 		case string:
@@ -39181,6 +41491,12 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if ev.Signal.Target.Parent == nil {
 			ev.Signal.Target.Parent = &Process{}
 		}
+		if !ev.Signal.Target.HasParent() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
+		if !ev.Signal.Target.Parent.HasInterpreter() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
 		rv, ok := value.(bool)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Parent.LinuxBinprm.FileEvent.FileFields.InUpperLayer"}
@@ -39193,6 +41509,12 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		if ev.Signal.Target.Parent == nil {
 			ev.Signal.Target.Parent = &Process{}
+		}
+		if !ev.Signal.Target.HasParent() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
+		if !ev.Signal.Target.Parent.HasInterpreter() {
+			return &eval.ErrFieldNotFound{Field: field}
 		}
 		rv, ok := value.(int)
 		if !ok {
@@ -39207,6 +41529,12 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if ev.Signal.Target.Parent == nil {
 			ev.Signal.Target.Parent = &Process{}
 		}
+		if !ev.Signal.Target.HasParent() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
+		if !ev.Signal.Target.Parent.HasInterpreter() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
 		rv, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Parent.LinuxBinprm.FileEvent.FileFields.Mode"}
@@ -39219,6 +41547,12 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		if ev.Signal.Target.Parent == nil {
 			ev.Signal.Target.Parent = &Process{}
+		}
+		if !ev.Signal.Target.HasParent() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
+		if !ev.Signal.Target.Parent.HasInterpreter() {
+			return &eval.ErrFieldNotFound{Field: field}
 		}
 		rv, ok := value.(int)
 		if !ok {
@@ -39233,6 +41567,12 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if ev.Signal.Target.Parent == nil {
 			ev.Signal.Target.Parent = &Process{}
 		}
+		if !ev.Signal.Target.HasParent() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
+		if !ev.Signal.Target.Parent.HasInterpreter() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
 		rv, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Parent.LinuxBinprm.FileEvent.FileFields.PathKey.MountID"}
@@ -39245,6 +41585,12 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		if ev.Signal.Target.Parent == nil {
 			ev.Signal.Target.Parent = &Process{}
+		}
+		if !ev.Signal.Target.HasParent() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
+		if !ev.Signal.Target.Parent.HasInterpreter() {
+			return &eval.ErrFieldNotFound{Field: field}
 		}
 		rv, ok := value.(string)
 		if !ok {
@@ -39267,6 +41613,12 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if ev.Signal.Target.Parent == nil {
 			ev.Signal.Target.Parent = &Process{}
 		}
+		if !ev.Signal.Target.HasParent() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
+		if !ev.Signal.Target.Parent.HasInterpreter() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
 		rv, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Parent.LinuxBinprm.FileEvent.PkgName"}
@@ -39279,6 +41631,12 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		if ev.Signal.Target.Parent == nil {
 			ev.Signal.Target.Parent = &Process{}
+		}
+		if !ev.Signal.Target.HasParent() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
+		if !ev.Signal.Target.Parent.HasInterpreter() {
+			return &eval.ErrFieldNotFound{Field: field}
 		}
 		rv, ok := value.(string)
 		if !ok {
@@ -39293,6 +41651,12 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if ev.Signal.Target.Parent == nil {
 			ev.Signal.Target.Parent = &Process{}
 		}
+		if !ev.Signal.Target.HasParent() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
+		if !ev.Signal.Target.Parent.HasInterpreter() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
 		rv, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Parent.LinuxBinprm.FileEvent.PkgVersion"}
@@ -39305,6 +41669,12 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		if ev.Signal.Target.Parent == nil {
 			ev.Signal.Target.Parent = &Process{}
+		}
+		if !ev.Signal.Target.HasParent() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
+		if !ev.Signal.Target.Parent.HasInterpreter() {
+			return &eval.ErrFieldNotFound{Field: field}
 		}
 		rv, ok := value.(string)
 		if !ok {
@@ -39327,6 +41697,12 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if ev.Signal.Target.Parent == nil {
 			ev.Signal.Target.Parent = &Process{}
 		}
+		if !ev.Signal.Target.HasParent() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
+		if !ev.Signal.Target.Parent.HasInterpreter() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
 		rv, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Parent.LinuxBinprm.FileEvent.FileFields.Mode"}
@@ -39339,6 +41715,12 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		if ev.Signal.Target.Parent == nil {
 			ev.Signal.Target.Parent = &Process{}
+		}
+		if !ev.Signal.Target.HasParent() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
+		if !ev.Signal.Target.Parent.HasInterpreter() {
+			return &eval.ErrFieldNotFound{Field: field}
 		}
 		rv, ok := value.(int)
 		if !ok {
@@ -39353,6 +41735,12 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if ev.Signal.Target.Parent == nil {
 			ev.Signal.Target.Parent = &Process{}
 		}
+		if !ev.Signal.Target.HasParent() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
+		if !ev.Signal.Target.Parent.HasInterpreter() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
 		rv, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Parent.LinuxBinprm.FileEvent.FileFields.User"}
@@ -39365,6 +41753,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		if ev.Signal.Target.Parent == nil {
 			ev.Signal.Target.Parent = &Process{}
+		}
+		if !ev.Signal.Target.HasParent() {
+			return &eval.ErrFieldNotFound{Field: field}
 		}
 		rv, ok := value.(bool)
 		if !ok {
@@ -39379,6 +41770,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if ev.Signal.Target.Parent == nil {
 			ev.Signal.Target.Parent = &Process{}
 		}
+		if !ev.Signal.Target.HasParent() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
 		rv, ok := value.(bool)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Parent.IsThread"}
@@ -39391,6 +41785,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		if ev.Signal.Target.Parent == nil {
 			ev.Signal.Target.Parent = &Process{}
+		}
+		if !ev.Signal.Target.HasParent() {
+			return &eval.ErrFieldNotFound{Field: field}
 		}
 		rv, ok := value.(int)
 		if !ok {
@@ -39405,6 +41802,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if ev.Signal.Target.Parent == nil {
 			ev.Signal.Target.Parent = &Process{}
 		}
+		if !ev.Signal.Target.HasParent() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
 		rv, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Parent.PPid"}
@@ -39417,6 +41817,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		if ev.Signal.Target.Parent == nil {
 			ev.Signal.Target.Parent = &Process{}
+		}
+		if !ev.Signal.Target.HasParent() {
+			return &eval.ErrFieldNotFound{Field: field}
 		}
 		rv, ok := value.(int)
 		if !ok {
@@ -39431,6 +41834,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if ev.Signal.Target.Parent == nil {
 			ev.Signal.Target.Parent = &Process{}
 		}
+		if !ev.Signal.Target.HasParent() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
 		rv, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Parent.TTYName"}
@@ -39444,6 +41850,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if ev.Signal.Target.Parent == nil {
 			ev.Signal.Target.Parent = &Process{}
 		}
+		if !ev.Signal.Target.HasParent() {
+			return &eval.ErrFieldNotFound{Field: field}
+		}
 		rv, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Parent.Credentials.UID"}
@@ -39456,6 +41865,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		if ev.Signal.Target.Parent == nil {
 			ev.Signal.Target.Parent = &Process{}
+		}
+		if !ev.Signal.Target.HasParent() {
+			return &eval.ErrFieldNotFound{Field: field}
 		}
 		rv, ok := value.(string)
 		if !ok {
