@@ -125,15 +125,8 @@ func (h *StatKeeper) add(tx Transaction) {
 	stats.AddRequest(tx.StatusCode(), latency, tx.StaticTags(), tx.DynamicTags())
 }
 
-func (h *StatKeeper) newKey(tx Transaction, path string, fullPath bool) Key {
-	return Key{
-		ConnectionKey: tx.ConnTuple(),
-		Path: Path{
-			Content:  path,
-			FullPath: fullPath,
-		},
-		Method: tx.Method(),
-	}
+func (h *StatKeeper) newKey(tx Transaction, path []byte, fullPath bool) Key {
+	return NewKeyWithConnection(tx.ConnTuple(), path, fullPath, tx.Method())
 }
 
 func pathIsMalformed(fullPath []byte) bool {
@@ -145,14 +138,14 @@ func pathIsMalformed(fullPath []byte) bool {
 	return false
 }
 
-func (h *StatKeeper) processHTTPPath(tx Transaction, path []byte) (pathStr string, rejected bool) {
+func (h *StatKeeper) processHTTPPath(tx Transaction, path []byte) ([]byte, bool) {
 	match := false
 	for _, r := range h.replaceRules {
 		if r.Re.Match(path) {
 			if r.Repl == "" {
 				// this is a "drop" rule
 				h.telemetry.rejected.Add(1)
-				return "", true
+				return nil, true
 			}
 
 			path = r.Re.ReplaceAll(path, []byte(r.Repl))
@@ -164,19 +157,10 @@ func (h *StatKeeper) processHTTPPath(tx Transaction, path []byte) (pathStr strin
 	// Otherwise, we don't want the custom path to be rejected by our path formatting check.
 	if !match && pathIsMalformed(path) {
 		if h.oversizedLogLimit.ShouldLog() {
-			log.Debugf("http path malformed: %+v %s", h.newKey(tx, "", false).ConnectionKey, tx.String())
+			log.Debugf("http path malformed: %+v %s", h.newKey(tx, nil, false).ConnectionKey, tx.String())
 		}
 		h.telemetry.nonPrintableCharacters.Add(1)
-		return "", true
+		return nil, true
 	}
-	return h.intern(path), false
-}
-
-func (h *StatKeeper) intern(b []byte) string {
-	v, ok := h.interned[string(b)]
-	if !ok {
-		v = string(b)
-		h.interned[v] = v
-	}
-	return v
+	return path, false
 }

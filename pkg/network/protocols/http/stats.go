@@ -6,6 +6,7 @@
 package http
 
 import (
+	"github.com/DataDog/datadog-agent/pkg/util/intern"
 	"github.com/DataDog/sketches-go/ddsketch"
 
 	"github.com/DataDog/datadog-agent/pkg/network/types"
@@ -64,7 +65,7 @@ func (m Method) String() string {
 
 // Path represents the HTTP path
 type Path struct {
-	Content  string
+	Content  *intern.StringValue
 	FullPath bool
 }
 
@@ -77,11 +78,23 @@ type Key struct {
 }
 
 // NewKey generates a new Key
-func NewKey(saddr, daddr util.Address, sport, dport uint16, path string, fullPath bool, method Method) Key {
+func NewKey(saddr, daddr util.Address, sport, dport uint16, path []byte, fullPath bool, method Method) Key {
 	return Key{
 		ConnectionKey: types.NewConnectionKey(saddr, daddr, sport, dport),
 		Path: Path{
-			Content:  path,
+			Content:  intern.Interner.Get(path),
+			FullPath: fullPath,
+		},
+		Method: method,
+	}
+}
+
+// NewKeyWithConnection generates a new Key with a given connection tuple
+func NewKeyWithConnection(connKey types.ConnectionKey, path []byte, fullPath bool, method Method) Key {
+	return Key{
+		ConnectionKey: connKey,
+		Path: Path{
+			Content:  intern.Interner.Get(path),
 			FullPath: fullPath,
 		},
 		Method: method,

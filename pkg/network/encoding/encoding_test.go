@@ -15,6 +15,8 @@ import (
 	"syscall"
 	"testing"
 
+	"github.com/DataDog/datadog-agent/pkg/util/intern"
+
 	"github.com/golang/protobuf/proto"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -283,7 +285,7 @@ func testSerialization(t *testing.T, aggregateByStatusCode bool) {
 				util.AddressFromString("20.1.1.1"),
 				40000,
 				80,
-				"/testpath",
+				[]byte("/testpath"),
 				true,
 				http.MethodGet,
 			): httpReqStats,
@@ -313,7 +315,7 @@ func testSerialization(t *testing.T, aggregateByStatusCode bool) {
 				util.AddressFromString("10.2.2.2"),
 				1000,
 				9000,
-				"/testpath",
+				[]byte("/testpath"),
 				true,
 				http.MethodGet,
 			): httpReqStats,
@@ -540,7 +542,7 @@ func testHTTPSerializationWithLocalhostTraffic(t *testing.T, aggregateByStatusCo
 				localhost,
 				clientPort,
 				serverPort,
-				"/testpath",
+				[]byte("/testpath"),
 				true,
 				http.MethodGet,
 			): httpReqStats,
@@ -558,7 +560,7 @@ func testHTTPSerializationWithLocalhostTraffic(t *testing.T, aggregateByStatusCo
 			localhost,
 			serverPort,
 			clientPort,
-			"/testpath",
+			[]byte("/testpath"),
 			true,
 			http.MethodGet,
 		)
@@ -681,7 +683,7 @@ func testHTTP2SerializationWithLocalhostTraffic(t *testing.T, aggregateByStatusC
 				localhost,
 				clientPort,
 				serverPort,
-				"/testpath",
+				[]byte("/testpath"),
 				true,
 				http.MethodPost,
 			): http2ReqStats,
@@ -699,7 +701,7 @@ func testHTTP2SerializationWithLocalhostTraffic(t *testing.T, aggregateByStatusC
 			localhost,
 			serverPort,
 			clientPort,
-			"/testpath",
+			[]byte("/testpath"),
 			true,
 			http.MethodPost,
 		)
@@ -760,7 +762,7 @@ func TestPooledObjectGarbageRegression(t *testing.T) {
 		util.AddressFromString("172.217.10.45"),
 		60000,
 		8080,
-		"",
+		nil,
 		true,
 		http.MethodGet,
 	)
@@ -800,7 +802,7 @@ func TestPooledObjectGarbageRegression(t *testing.T) {
 	for i := 0; i < 1000; i++ {
 		if (i % 2) == 0 {
 			httpKey.Path = http.Path{
-				Content:  fmt.Sprintf("/path-%d", i),
+				Content:  intern.Interner.GetString(fmt.Sprintf("/path-%d", i)),
 				FullPath: true,
 			}
 			in.HTTP = map[http.Key]*http.RequestStats{httpKey: {}}
@@ -808,7 +810,7 @@ func TestPooledObjectGarbageRegression(t *testing.T) {
 
 			require.NotNil(t, out)
 			require.Len(t, out.EndpointAggregations, 1)
-			require.Equal(t, httpKey.Path.Content, out.EndpointAggregations[0].Path)
+			require.Equal(t, httpKey.Path.Content.Get(), out.EndpointAggregations[0].Path)
 		} else {
 			// No HTTP data in this payload, so we should never get HTTP data back after the serialization
 			in.HTTP = nil
@@ -826,7 +828,7 @@ func TestPooledHTTP2ObjectGarbageRegression(t *testing.T) {
 		util.AddressFromString("172.217.10.45"),
 		60000,
 		8080,
-		"",
+		nil,
 		true,
 		http.MethodGet,
 	)
@@ -866,7 +868,7 @@ func TestPooledHTTP2ObjectGarbageRegression(t *testing.T) {
 	for i := 0; i < 1000; i++ {
 		if (i % 2) == 0 {
 			httpKey.Path = http.Path{
-				Content:  fmt.Sprintf("/path-%d", i),
+				Content:  intern.Interner.GetString(fmt.Sprintf("/path-%d", i)),
 				FullPath: true,
 			}
 			in.HTTP2 = map[http.Key]*http.RequestStats{httpKey: {}}
@@ -874,7 +876,7 @@ func TestPooledHTTP2ObjectGarbageRegression(t *testing.T) {
 
 			require.NotNil(t, out)
 			require.Len(t, out.EndpointAggregations, 1)
-			require.Equal(t, httpKey.Path.Content, out.EndpointAggregations[0].Path)
+			require.Equal(t, httpKey.Path.Content.Get(), out.EndpointAggregations[0].Path)
 		} else {
 			// No HTTP2 data in this payload, so we should never get HTTP2 data back after the serialization
 			in.HTTP2 = nil
