@@ -97,7 +97,7 @@ variables (see Invoke docs for more details).
 
 ### Golang
 
-You must [install Golang](https://golang.org/doc/install) version `1.20.7` or
+You must [install Golang](https://golang.org/doc/install) version `1.20.8` or
 higher. Make sure that `$GOPATH/bin` is in your `$PATH` otherwise `invoke`
 cannot use any additional tool it might need.
 

@@ -1,3 +1,5 @@
+# If you update this configuration please update `uds_dogstatsd_*` experiments
+# to match, where reasonable.
 generator:
   - unix_datagram:
       seed: [2, 3, 5, 7, 11, 13, 17, 19, 23, 29, 31, 37, 41, 43, 47, 53,
@@ -5,11 +7,31 @@ generator:
       path: "/tmp/dsd.socket"
       variant:
         dogstatsd:
-          metric_names_minimum: 32
-          metric_names_maximum: 128
-          tag_keys_minimum: 0
-          tag_keys_maximum: 512
-      bytes_per_second: "100 Mb"
+          contexts_minimum: 1000
+          contexts_maximum: 10000
+          name_length_minimum: 1
+          name_length_maximum: 200
+          tag_key_length_minimum: 1
+          tag_key_length_maximum: 100
+          tag_value_length_minimum: 1
+          tag_value_length_maximum: 100
+          tags_per_msg_minimum: 2
+          tags_per_msg_maximum: 50
+          multivalue_count_minimum: 2
+          multivalue_count_maximum: 32
+          multivalue_pack_probability: 0.08
+          kind_weights:
+            metric: 90
+            event: 5
+            service_check: 5
+          metric_weights:
+            count: 100
+            gauge: 10
+            timer: 0
+            distribution: 50
+            set: 0
+            histogram: 1
+      bytes_per_second: "1000 Mb"
       block_sizes: ["256b", "512b", "1Kb", "2Kb", "3Kb", "4Kb", "5Kb", "6Kb"]
       maximum_prebuild_cache_size_bytes: "500 Mb"
 
@@ -18,3 +40,7 @@ blackhole:
       binding_addr: "127.0.0.1:9091"
   - http:
       binding_addr: "127.0.0.1:9092"
+
+target_metrics:
+  - prometheus:
+      uri: "http://127.0.0.1:9000"

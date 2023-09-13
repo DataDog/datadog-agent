@@ -9,6 +9,9 @@
     paths:
       - $CI_PROJECT_DIR/kitchen_logs
   retry: 1
+  variables:
+    KUBERNETES_MEMORY_REQUEST: "6Gi"
+    KUBERNETES_MEMORY_LIMIT: "12Gi"
 
 .kitchen_common_with_junit:
   extends:
