@@ -14,11 +14,15 @@ package probe
 import "C"
 import (
 	"fmt"
+	"os"
 	"strings"
 	"unsafe"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
+
+// allow us to change for testing
+var readfn = doReadCrashDump
 
 type logCallbackContext struct {
 	loglines       []string
@@ -62,11 +66,9 @@ func logLineCallback(voidctx C.PVOID, str C.PCSTR) {
 		for idx, l := range lines {
 			if strings.HasPrefix(l, bugcheckCodePrefix) {
 				ctx.loglines = append(ctx.loglines, l)
-				return
 			}
 			if strings.HasPrefix(l, debugSessionTimePrefix) {
 				ctx.loglines = append(ctx.loglines, l)
-				return
 			}
 			if strings.HasPrefix(l, retAddrPrefix) {
 				ctx.hasSeenRetAddr = true
@@ -80,11 +82,17 @@ func logLineCallback(voidctx C.PVOID, str C.PCSTR) {
 	}
 	ctx.loglines = append(ctx.loglines, lines[start:]...)
 }
+
+func doReadCrashDump(fn *C.char, ctx unsafe.Pointer, exterr *C.long) C.READ_CRASH_DUMP_ERROR {
+	err := C.readCrashDump(fn, ctx, exterr)
+	return err
+}
+
 func parseCrashDump(wcs *WinCrashStatus) {
 	var ctx logCallbackContext
 	var extendedError uint32
 
-	err := C.readCrashDump(C.CString(wcs.FileName), unsafe.Pointer(&ctx), (*C.long)(unsafe.Pointer(&extendedError)))
+	err := readfn(C.CString(wcs.FileName), unsafe.Pointer(&ctx), (*C.long)(unsafe.Pointer(&extendedError)))
 
 	if err != C.RCD_NONE {
 		wcs.Success = false
@@ -129,9 +137,9 @@ func parseCrashDump(wcs *WinCrashStatus) {
 	for _, line := range ctx.loglines[:end] {
 
 		if strings.HasPrefix(line, debugSessionTimePrefix) {
-			parts := strings.SplitN(line, ":", 2)
-			if len(parts) == 2 {
-				wcs.DateString = strings.TrimSpace(parts[1])
+			_, after, found := strings.Cut(line, ":")
+			if found {
+				wcs.DateString = strings.TrimSpace(after)
 			}
 			continue
 		}
@@ -164,4 +172,19 @@ func parseCrashDump(wcs *WinCrashStatus) {
 		break
 	}
 	wcs.Success = true
+}
+
+// this function is only used in the go test.  However, since it includes Cgo references,
+// the compiler won't allow it to be in the `crashparse_test.go` file.  So stash it here.
+func testCrashReader(fn *C.char, ctx unsafe.Pointer, exterr *C.long) C.READ_CRASH_DUMP_ERROR {
+	testbytes, err := os.ReadFile(C.GoString(fn))
+	if err != nil {
+		return C.RCD_OPEN_DUMP_FILE_FAILED
+	}
+
+	teststring := string(testbytes)
+
+	logLineCallback((C.PVOID)(ctx), C.CString(teststring))
+	return C.RCD_NONE
+
 }
