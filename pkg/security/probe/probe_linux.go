@@ -5,6 +5,7 @@
 
 //go:build linux
 
+// Package probe holds probe related files
 package probe
 
 import (
@@ -80,6 +81,7 @@ var (
 	}
 )
 
+// PlatformProbe defines a platform probe
 type PlatformProbe struct {
 	// Constants and configuration
 	Manager        *manager.Manager
@@ -98,7 +100,7 @@ type PlatformProbe struct {
 
 	// Approvers / discarders section
 	Erpc                           *erpc.ERPC
-	erpcRequest                    *erpc.ERPCRequest
+	erpcRequest                    *erpc.Request
 	inodeDiscarders                *inodeDiscarders
 	notifyDiscarderPushedCallbacks []NotifyDiscarderPushedCallback
 	approvers                      map[eval.EventType]kfilters.ActiveApprovers
@@ -302,6 +304,7 @@ func (p *Probe) Start() error {
 	return p.eventStream.Start(&p.wg)
 }
 
+// PlaySnapshot plays a snapshot
 func (p *Probe) PlaySnapshot() {
 	// Get the snapshotted data
 	var events []*model.Event
@@ -436,6 +439,7 @@ func (p *Probe) GetMonitor() *Monitor {
 	return p.monitor
 }
 
+// EventMarshallerCtor returns the event marshaller ctor
 func (p *Probe) EventMarshallerCtor(event *model.Event) func() easyjson.Marshaler {
 	return func() easyjson.Marshaler {
 		return serializers.NewEventSerializer(event, p.resolvers)
@@ -1375,7 +1379,7 @@ func NewProbe(config *config.Config, opts Opts) (*Probe, error) {
 			approvers:          make(map[eval.EventType]kfilters.ActiveApprovers),
 			managerOptions:     ebpf.NewDefaultOptions(),
 			Erpc:               nerpc,
-			erpcRequest:        &erpc.ERPCRequest{},
+			erpcRequest:        &erpc.Request{},
 			isRuntimeDiscarded: !opts.DontDiscardRuntime,
 			useFentry:          config.Probe.EventStreamUseFentry,
 		},
@@ -1591,7 +1595,7 @@ func NewProbe(config *config.Config, opts Opts) (*Probe, error) {
 	p.scrubber = procutil.NewDefaultDataScrubber()
 	p.scrubber.AddCustomSensitiveWords(config.Probe.CustomSensitiveWords)
 
-	resolversOpts := resolvers.ResolversOpts{
+	resolversOpts := resolvers.Opts{
 		PathResolutionEnabled: opts.PathResolutionEnabled,
 		TagsResolver:          opts.TagsResolver,
 		UseRingBuffer:         useRingBuffers,
@@ -1752,6 +1756,7 @@ func (p *Probe) GetConstantFetcherStatus() (*constantfetch.ConstantFetcherStatus
 // AppendProbeRequestsToFetcher returns the offsets and struct sizes constants, from a constant fetcher
 func AppendProbeRequestsToFetcher(constantFetcher constantfetch.ConstantFetcher, kv *kernel.Version) {
 	constantFetcher.AppendSizeofRequest(constantfetch.SizeOfInode, "struct inode", "linux/fs.h")
+	constantFetcher.AppendOffsetofRequest(constantfetch.OffsetNameSuperBlockStructSFlags, "struct super_block", "s_flags", "linux/fs.h")
 	constantFetcher.AppendOffsetofRequest(constantfetch.OffsetNameSuperBlockStructSMagic, "struct super_block", "s_magic", "linux/fs.h")
 	constantFetcher.AppendOffsetofRequest(constantfetch.OffsetNameDentryStructDSB, "struct dentry", "d_sb", "linux/dcache.h")
 	constantFetcher.AppendOffsetofRequest(constantfetch.OffsetNameSignalStructStructTTY, "struct signal_struct", "tty", "linux/sched/signal.h")
@@ -1760,7 +1765,7 @@ func AppendProbeRequestsToFetcher(constantFetcher constantfetch.ConstantFetcher,
 	constantFetcher.AppendOffsetofRequest(constantfetch.OffsetNameLinuxBinprmP, "struct linux_binprm", "p", "linux/binfmts.h")
 	constantFetcher.AppendOffsetofRequest(constantfetch.OffsetNameLinuxBinprmArgc, "struct linux_binprm", "argc", "linux/binfmts.h")
 	constantFetcher.AppendOffsetofRequest(constantfetch.OffsetNameLinuxBinprmEnvc, "struct linux_binprm", "envc", "linux/binfmts.h")
-	constantFetcher.AppendOffsetofRequest(constantfetch.OffsetNameVmAreaStructFlags, "struct vm_area_struct", "vm_flags", "linux/mm_types.h")
+	constantFetcher.AppendOffsetofRequest(constantfetch.OffsetNameVMAreaStructFlags, "struct vm_area_struct", "vm_flags", "linux/mm_types.h")
 	// bpf offsets
 	constantFetcher.AppendOffsetofRequest(constantfetch.OffsetNameBPFMapStructID, "struct bpf_map", "id", "linux/bpf.h")
 	if kv.Code != 0 && (kv.Code >= kernel.Kernel4_15 || kv.IsRH7Kernel()) {

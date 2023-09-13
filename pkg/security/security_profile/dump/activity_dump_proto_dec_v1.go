@@ -5,13 +5,14 @@
 
 //go:build linux
 
+// Package dump holds dump related files
 package dump
 
 import (
 	adproto "github.com/DataDog/agent-payload/v5/cws/dumpsv1"
 
 	"github.com/DataDog/datadog-agent/pkg/security/config"
-	"github.com/DataDog/datadog-agent/pkg/security/security_profile/activity_tree"
+	activity_tree "github.com/DataDog/datadog-agent/pkg/security/security_profile/activity_tree"
 	mtdt "github.com/DataDog/datadog-agent/pkg/security/security_profile/activity_tree/metadata"
 )
 

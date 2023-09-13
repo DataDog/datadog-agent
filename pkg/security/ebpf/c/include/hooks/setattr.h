@@ -50,6 +50,11 @@ int hook_security_inode_setattr(ctx_t *ctx) {
         return 0;
     }
 
+    if (is_non_mountable_dentry(dentry)) {
+        pop_syscall_with(security_inode_predicate);
+        return 0;
+    }
+
     syscall->setattr.dentry = dentry;
 
     // the mount id of path_key is resolved by kprobe/mnt_want_write. It is already set by the time we reach this probe.

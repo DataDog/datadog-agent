@@ -36,7 +36,7 @@ func TestReportClusterQuotas(t *testing.T) {
 	instanceCfg := []byte("")
 	initCfg := []byte("")
 	kubeASCheck := KubernetesASFactory().(*KubeASCheck)
-	err = kubeASCheck.Configure(aggregator.GetSenderManager(), integration.FakeConfigHash, instanceCfg, initCfg, "test")
+	err = kubeASCheck.Configure(aggregator.NewNoOpSenderManager(), integration.FakeConfigHash, instanceCfg, initCfg, "test")
 	require.NoError(t, err)
 
 	mocked := mocksender.NewMockSender(kubeASCheck.ID())

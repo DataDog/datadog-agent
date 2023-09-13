@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+// Package command holds command related files
 package command
 
 import (
@@ -16,12 +17,15 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/security-agent/flags"
 )
 
+// GlobalParams defines global parameters
 type GlobalParams struct {
 	ConfigFilePaths []string
 }
 
+// SubcommandFactory returns a sub-command factory
 type SubcommandFactory func(globalParams *GlobalParams) []*cobra.Command
 
+// LoggerName defines the logger name
 const LoggerName = "SECURITY"
 
 var defaultSecurityAgentConfigFilePaths = []string{
@@ -46,7 +50,7 @@ Datadog Security Agent takes care of running compliance and security checks.`,
 			}
 
 			if len(globalParams.ConfigFilePaths) == 1 && globalParams.ConfigFilePaths[0] == "" {
-				return fmt.Errorf("no Security Agent config files to load, exiting.")
+				return fmt.Errorf("no Security Agent config files to load, exiting")
 			}
 			return nil
 		},

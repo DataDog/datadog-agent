@@ -5,6 +5,7 @@
 
 //go:build linux
 
+// Package managerhelper holds managerhelper related files
 package managerhelper
 
 import (

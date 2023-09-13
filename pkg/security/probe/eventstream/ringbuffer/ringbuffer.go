@@ -5,6 +5,7 @@
 
 //go:build linux
 
+// Package ringbuffer holds ringbuffer related files
 package ringbuffer
 
 import (

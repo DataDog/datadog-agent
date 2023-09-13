@@ -5,6 +5,7 @@
 
 //go:build linux
 
+// Package path holds path related files
 package path
 
 import (
@@ -17,6 +18,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 )
 
+// ResolverInterface defines the resolver interface
 type ResolverInterface interface {
 	ResolveBasename(e *model.FileFields) string
 	ResolveFileFieldsPath(e *model.FileFields, pidCtx *model.PIDContext, ctrCtx *model.ContainerContext) (string, error)

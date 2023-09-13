@@ -17,6 +17,7 @@ import (
 	"os/signal"
 	"runtime"
 	"syscall"
+	"time"
 
 	"github.com/spf13/cobra"
 	"go.uber.org/fx"
@@ -52,10 +53,12 @@ import (
 	"github.com/DataDog/datadog-agent/comp/remote-config/rcclient"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/api/healthprobe"
+	"github.com/DataDog/datadog-agent/pkg/autodiscovery/providers"
 	"github.com/DataDog/datadog-agent/pkg/cloudfoundry/containertagger"
 	"github.com/DataDog/datadog-agent/pkg/collector"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/embed/jmx"
 	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/config/remote/data"
 	remoteconfig "github.com/DataDog/datadog-agent/pkg/config/remote/service"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	adScheduler "github.com/DataDog/datadog-agent/pkg/logs/schedulers/ad"
@@ -498,6 +501,14 @@ func startAgent(
 		} else {
 			// Subscribe to `AGENT_TASK` product
 			rcclient.SubscribeAgentTask()
+
+			if pkgconfig.Datadog.GetBool("remote_configuration.agent_integrations.enabled") {
+				// Spin up the config provider to schedule integrations through remote-config
+				rcProvider := providers.NewRemoteConfigProvider()
+				rcclient.Subscribe(data.ProductAgentIntegrations, rcProvider.IntegrationScheduleCallback)
+				// LoadAndRun is called later on
+				common.AC.AddConfigProvider(rcProvider, true, 10*time.Second)
+			}
 		}
 	}
 
@@ -517,7 +528,7 @@ func startAgent(
 	}
 
 	// start the cmd HTTP server
-	if err = api.StartServer(configService, flare, server, capture, serverDebug, logsAgent); err != nil {
+	if err = api.StartServer(configService, flare, server, capture, serverDebug, logsAgent, aggregator.GetSenderManager()); err != nil {
 		return log.Errorf("Error while starting api server, exiting: %v", err)
 	}
 
@@ -597,8 +608,8 @@ func startAgent(
 	// Start NetFlow server
 	// This must happen after LoadComponents is set up (via common.LoadComponents).
 	// netflow.StartServer uses AgentDemultiplexer, that uses ContextResolver, that uses the tagger (initialized by LoadComponents)
-	if netflow.IsEnabled() {
-		if err = netflow.StartServer(demux); err != nil {
+	if netflow.IsEnabled(pkgconfig.Datadog) {
+		if err = netflow.StartServer(demux, pkgconfig.Datadog, log); err != nil {
 			log.Errorf("Failed to start NetFlow server: %s", err)
 		}
 	}

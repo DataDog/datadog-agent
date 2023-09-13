@@ -55,11 +55,11 @@ profiles:
   f5-big-ip:
     definition_file: f5-big-ip.yaml
 `)
-
-	err := chk.Configure(aggregator.GetSenderManager(), integration.FakeConfigHash, rawInstanceConfig, rawInitConfig, "test")
+	senderManager := mocksender.CreateDefaultDemultiplexer()
+	err := chk.Configure(senderManager, integration.FakeConfigHash, rawInstanceConfig, rawInitConfig, "test")
 	assert.NoError(t, err)
 
-	sender := mocksender.NewMockSender(chk.ID()) // required to initiate aggregator
+	sender := mocksender.NewMockSenderWithSenderManager(chk.ID(), senderManager)
 	sender.On("Gauge", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
 	sender.On("MonotonicCount", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
 	sender.On("ServiceCheck", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
@@ -746,11 +746,11 @@ profiles:
   f5-big-ip:
     definition_file: f5-big-ip.yaml
 `)
-
-	err := chk.Configure(aggregator.GetSenderManager(), integration.FakeConfigHash, rawInstanceConfig, rawInitConfig, "test")
+	senderManager := mocksender.CreateDefaultDemultiplexer()
+	err := chk.Configure(senderManager, integration.FakeConfigHash, rawInstanceConfig, rawInitConfig, "test")
 	assert.NoError(t, err)
 
-	sender := mocksender.NewMockSender(chk.ID()) // required to initiate aggregator
+	sender := mocksender.NewMockSenderWithSenderManager(chk.ID(), senderManager)
 	sender.On("Gauge", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
 	sender.On("MonotonicCount", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
 	sender.On("ServiceCheck", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
@@ -1428,11 +1428,11 @@ profiles:
   f5-big-ip:
     definition_file: f5-big-ip.yaml
 `)
-
-	err := chk.Configure(aggregator.GetSenderManager(), integration.FakeConfigHash, rawInstanceConfig, rawInitConfig, "test")
+	senderManager := mocksender.CreateDefaultDemultiplexer()
+	err := chk.Configure(senderManager, integration.FakeConfigHash, rawInstanceConfig, rawInitConfig, "test")
 	assert.NoError(t, err)
 
-	sender := mocksender.NewMockSender(chk.ID()) // required to initiate aggregator
+	sender := mocksender.NewMockSenderWithSenderManager(chk.ID(), senderManager)
 	sender.On("Gauge", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
 	sender.On("MonotonicCount", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
 	sender.On("ServiceCheck", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()

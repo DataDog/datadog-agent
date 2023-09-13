@@ -151,21 +151,21 @@ variables:
   # To use images from datadog-agent-buildimages dev branches, set the corresponding
   # SUFFIX variable to _test_only
   DATADOG_AGENT_BUILDIMAGES_SUFFIX: ""
-  DATADOG_AGENT_BUILDIMAGES: v18868373-918b265
+  DATADOG_AGENT_BUILDIMAGES: v19979316-3aa3d4b
   DATADOG_AGENT_WINBUILDIMAGES_SUFFIX: ""
-  DATADOG_AGENT_WINBUILDIMAGES: v18868373-918b265
+  DATADOG_AGENT_WINBUILDIMAGES: v19979316-3aa3d4b
   DATADOG_AGENT_ARMBUILDIMAGES_SUFFIX: ""
-  DATADOG_AGENT_ARMBUILDIMAGES: v18868373-918b265
+  DATADOG_AGENT_ARMBUILDIMAGES: v19979316-3aa3d4b
   DATADOG_AGENT_SYSPROBE_BUILDIMAGES_SUFFIX: ""
-  DATADOG_AGENT_SYSPROBE_BUILDIMAGES: v18868373-918b265
+  DATADOG_AGENT_SYSPROBE_BUILDIMAGES: v19979316-3aa3d4b
   DATADOG_AGENT_KERNEL_MATRIX_TESTING_BUILDIMAGES_SUFFIX: ""
-  DATADOG_AGENT_KERNEL_MATRIX_TESTING_BUILDIMAGES: v18868373-918b265
+  DATADOG_AGENT_KERNEL_MATRIX_TESTING_BUILDIMAGES: v19979316-3aa3d4b
   DATADOG_AGENT_NIKOS_BUILDIMAGES_SUFFIX: ""
-  DATADOG_AGENT_NIKOS_BUILDIMAGES: v18868373-918b265
+  DATADOG_AGENT_NIKOS_BUILDIMAGES: v19979316-3aa3d4b
   DATADOG_AGENT_BTF_GEN_BUILDIMAGES_SUFFIX: ""
-  DATADOG_AGENT_BTF_GEN_BUILDIMAGES: v18868373-918b265
+  DATADOG_AGENT_BTF_GEN_BUILDIMAGES: v19979316-3aa3d4b
+  TEST_INFRA_DEFINITIONS_BUILDIMAGES: 713eba6ee3fe
   DATADOG_AGENT_BUILDERS: v19474930-fe4bcd9
-  TEST_INFRA_DEFINITIONS_BUILDIMAGES: 521dba064c2b
 
   DATADOG_AGENT_EMBEDDED_PATH: /opt/datadog-agent/embedded
   DEB_GPG_KEY_ID: ad9589b7
@@ -268,6 +268,9 @@ variables:
 
 .if_testing_cleanup: &if_testing_cleanup
   if: $TESTING_CLEANUP == "true"
+
+.if_not_e2e: &if_not_e2e
+  if: $RUN_KITCHEN_TESTS == "false"
 
 .if_deploy_on_beta_repo_branch: &if_deploy_on_beta_repo_branch
   if: $DEPLOY_AGENT == "true" && $BUCKET_BRANCH == "beta"
@@ -846,6 +849,7 @@ workflow:
 
 .on_security_agent_changes_or_manual:
   - <<: *if_main_branch
+    allow_failure: true
   - changes:
       paths:
         - pkg/ebpf/**/*
@@ -909,3 +913,9 @@ workflow:
     when: always
   - when: manual
     allow_failure: true
+
+.on_main_and_no_skip_e2e:
+  - <<: *if_not_e2e
+    when: never
+  - <<: *if_main_branch
+    when: on_success

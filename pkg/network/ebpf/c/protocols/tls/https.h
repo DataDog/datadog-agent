@@ -3,8 +3,8 @@
 
 #ifdef COMPILE_CORE
 #include "ktypes.h"
-#define MINORBITS  20
-#define MINORMASK  ((1U << MINORBITS) - 1)
+#define MINORBITS 20
+#define MINORMASK ((1U << MINORBITS) - 1)
 #define MAJOR(dev) ((unsigned int)((dev) >> MINORBITS))
 #define MINOR(dev) ((unsigned int)((dev)&MINORMASK))
 #else
@@ -22,10 +22,10 @@
 #include "protocols/classification/dispatcher-maps.h"
 #include "protocols/http/buffer.h"
 #include "protocols/http/http.h"
-#include "protocols/http/maps.h"
-#include "protocols/http/types.h"
-#include "protocols/tls/go-tls-types.h"
 #include "protocols/tls/tags-types.h"
+#include "protocols/tls/native-tls-maps.h"
+#include "protocols/tls/go-tls-types.h"
+#include "protocols/tls/go-tls-maps.h"
 
 #define HTTPS_PORT 443
 
@@ -66,11 +66,12 @@ static __always_inline void tls_process(struct pt_regs *ctx, conn_tuple_t *t, vo
 
     protocol_t protocol = get_protocol_from_stack(stack, LAYER_APPLICATION);
     http_transaction_t http;
+
     switch (protocol) {
     case PROTOCOL_HTTP:
         bpf_memset(&http, 0, sizeof(http));
         bpf_memcpy(&http.tup, t, sizeof(conn_tuple_t));
-        read_into_buffer(http.request_fragment, buffer_ptr, len);
+        read_into_user_buffer_http(http.request_fragment, buffer_ptr);
         http_process(&http, NULL, tags);
         break;
     case PROTOCOL_HTTP2:
