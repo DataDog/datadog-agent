@@ -8,6 +8,7 @@ package npm
 import (
 	"errors"
 	"math"
+	"os"
 	"testing"
 	"time"
 
@@ -15,6 +16,7 @@ import (
 	krpretty "github.com/kr/pretty"
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e"
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/params"
 	"github.com/DataDog/test-infra-definitions/components/datadog/agentparams"
 	"github.com/cenkalti/backoff/v4"
 	"github.com/stretchr/testify/require"
@@ -27,14 +29,23 @@ network_config:
 
 type ec2VMSuite struct {
 	e2e.Suite[e2e.FakeIntakeEnv]
+	DevMode bool
 }
 
-// Source of our kitchen CI images test/kitchen/platforms.json
+// TestEC2VMSuite will validate running the agent on a single EC2 VM
 func TestEC2VMSuite(t *testing.T) {
+	s := &ec2VMSuite{}
+	e2eParams := []params.Option{}
+	// debug helper
+	if _, devmode := os.LookupEnv("TESTS_E2E_DEVMODE"); devmode {
+		e2eParams = []params.Option{params.WithDevMode(), params.WithSkipDeleteOnFailure()}
+		s.DevMode = true
+	}
+
+	// Source of our kitchen CI images test/kitchen/platforms.json
 	// Other VM image can be used, our kitchen CI images test/kitchen/platforms.json
 	// ec2params.WithImageName("ami-a4dc46db", os.AMD64Arch, ec2os.AmazonLinuxOS) // ubuntu-16-04-4.4
-
-	e2e.Run(t, &ec2VMSuite{}, e2e.FakeIntakeStackDef(nil, agentparams.WithSystemProbeConfig(NPMsystemProbeConfig)))
+	e2e.Run(t, s, e2e.FakeIntakeStackDef(nil, agentparams.WithSystemProbeConfig(NPMsystemProbeConfig)), e2eParams...)
 }
 
 // TestFakeIntakeNPM Validate the agent can communicate with the (fake) backend and send connections every 30 seconds
@@ -43,7 +54,10 @@ func TestEC2VMSuite(t *testing.T) {
 func (v *ec2VMSuite) TestFakeIntakeNPM() {
 	t := v.T()
 
-	v.Env().Fakeintake.FlushServerAndResetAggregators()
+	// default is to reset the current state of the fakeintake aggregators
+	if !v.DevMode {
+		v.Env().Fakeintake.FlushServerAndResetAggregators()
+	}
 
 	targetHostnameNetID := ""
 	// looking for 1 host to send CollectorConnections payload to the fakeintake
@@ -151,5 +165,4 @@ func (v *ec2VMSuite) TestFakeIntakeNPM_TCP_UDP_DNS() {
 		return nil
 	}, backoff.WithMaxRetries(backoff.NewConstantBackOff(time.Second), 60))
 	require.NoError(t, err)
-
 }
