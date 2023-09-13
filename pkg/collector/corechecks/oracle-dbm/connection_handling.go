@@ -144,7 +144,7 @@ func (c *Check) Connect() (*sqlx.DB, error) {
 				ht.value = Oci
 			}
 		}
-		c.tags = append(c.tags, fmt.Sprintf("hosting-type:%s", ht.value))
+		c.tags = append(c.tags, fmt.Sprintf("hosting_type:%s", ht.value))
 		ht.valid = true
 		c.hostingType = ht
 	}
