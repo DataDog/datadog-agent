@@ -473,6 +473,7 @@ func TestCapturePayloadAsTags(t *testing.T) {
 		"key2": map[string]interface{}{
 			"key3": 3,
 			"key4": true,
+			"keylist": []interface{}{1, 2, 3, "four", 5.5},
 		},
 		"key5": "value5",
 	}
@@ -484,6 +485,11 @@ func TestCapturePayloadAsTags(t *testing.T) {
 	assert.Equal(t, "value1", executionSpan.Meta["test.key1"])
 	assert.Equal(t, "3", executionSpan.Meta["test.key2.key3"])
 	assert.Equal(t, "true", executionSpan.Meta["test.key2.key4"])
+	assert.Equal(t, "1", executionSpan.Meta["test.key2.keylist.0"])
+	assert.Equal(t, "2", executionSpan.Meta["test.key2.keylist.1"])
+	assert.Equal(t, "3", executionSpan.Meta["test.key2.keylist.2"])
+	assert.Equal(t, "four", executionSpan.Meta["test.key2.keylist.3"])
+	assert.Equal(t, "5.5", executionSpan.Meta["test.key2.keylist.4"])
 	assert.Equal(t, "value5", executionSpan.Meta["test.key5"])
 }
 

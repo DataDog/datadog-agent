@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"net/http"
 	"os"
+	"reflect"
 	"regexp"
 	"strconv"
 	"time"
@@ -244,7 +245,13 @@ func capturePayloadAsTags(payloadJSON map[string]interface{}, targetSpan *pb.Spa
 		case map[string]interface{}:
 			capturePayloadAsTags(value, targetSpan, key, depth+1, maxDepth)
 		default:
-			targetSpan.Meta[key] = fmt.Sprintf("%v", value)
+			if reflect.TypeOf(value).Kind() == reflect.Slice {
+				for i := 0; i < reflect.ValueOf(value).Len(); i++ {
+					targetSpan.Meta[key + "." + strconv.Itoa(i)] = fmt.Sprintf("%v", reflect.ValueOf(value).Index(i))
+				}
+			} else {
+				targetSpan.Meta[key] = fmt.Sprintf("%v", value)
+			}
 		}
 	}
 }
