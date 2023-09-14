@@ -86,8 +86,9 @@ type ResolverOptions struct {
 	// the compliance module is run as part of a container.
 	HostRoot string
 
-	// ContainerID sets the resolving context relative to a specific container (optional)
-	ContainerID string
+	// HostRootPID sets the resolving context relative to a specific process
+	// ID (optional)
+	HostRootPID int32
 
 	// StatsdClient is the statsd client used internally by the compliance
 	// resolver (optional)
@@ -167,10 +168,9 @@ func (r *defaultResolver) Close() {
 
 func (r *defaultResolver) ResolveInputs(ctx context.Context, rule *Rule) (ResolvedInputs, error) {
 	resolvingContext := ResolvingContext{
-		RuleID:      rule.ID,
-		Hostname:    r.opts.Hostname,
-		ContainerID: r.opts.ContainerID,
-		InputSpecs:  make(map[string]*InputSpec),
+		RuleID:     rule.ID,
+		Hostname:   r.opts.Hostname,
+		InputSpecs: make(map[string]*InputSpec),
 	}
 
 	// We deactivate all docker rules, or kubernetes cluster rules if adequate
@@ -193,11 +193,14 @@ func (r *defaultResolver) ResolveInputs(ctx context.Context, rule *Rule) (Resolv
 	// resolve the image metadata associated with the container to be part of
 	// the resolved inputs.
 	rootPath := r.opts.HostRoot
-	if containerID := r.opts.ContainerID; containerID != "" {
-		var ok bool
-		rootPath, ok = r.resolveContainerRootPath(ctx, containerID)
-		if !ok {
-			return nil, fmt.Errorf("could not resolve the root path to run the resolver for container ID=%q", containerID)
+	if pid := r.opts.HostRootPID; pid > 0 {
+		containerID, ok := getProcessContainerID(pid)
+		if ok {
+			rootPath, ok = getProcessRootPath(pid)
+			if !ok {
+				return nil, fmt.Errorf("could not resolve the root path to run the resolver for container ID=%q", resolvingContext.ContainerID)
+			}
+			resolvingContext.ContainerID = containerID
 		}
 	}
 
@@ -492,22 +495,6 @@ func (r *defaultResolver) getProcs(ctx context.Context) ([]*process.Process, err
 		r.procsCache = procs
 	}
 	return r.procsCache, nil
-}
-
-func (r *defaultResolver) resolveContainerRootPath(ctx context.Context, containerID string) (string, bool) {
-	if containerID == "" {
-		return "", false
-	}
-	procs, err := r.getProcs(ctx)
-	if err != nil {
-		return "", false
-	}
-	for _, proc := range procs {
-		if cID, ok := getProcessContainerID(proc.Pid); ok && cID == containerID {
-			return getProcessRootPath(proc.Pid)
-		}
-	}
-	return "", false
 }
 
 func (r *defaultResolver) resolveGroup(ctx context.Context, spec InputSpecGroup) (interface{}, error) {
