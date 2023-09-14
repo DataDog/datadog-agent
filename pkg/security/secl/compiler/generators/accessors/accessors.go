@@ -357,7 +357,6 @@ func parseFieldDef(def string) (seclField, error) {
 	def = strings.TrimSpace(def)
 	alias, options, splitted := strings.Cut(def, ",")
 
-	log.Printf("options: %+v", def)
 	field := seclField{name: alias}
 
 	if alias == "-" {
@@ -444,7 +443,6 @@ func handleSpecRecursive(module *common.Module, astFiles *AstFiles, spec interfa
 			}
 		}
 
-		log.Printf("len(field.Names): %+v", field.Names)
 		if isEmbedded := len(field.Names) == 0; isEmbedded { // embedded as in a struct embedded in another struct
 			if fieldTag, found := tag.Lookup("field"); found && fieldTag == "-" {
 				continue
@@ -487,7 +485,6 @@ func handleSpecRecursive(module *common.Module, astFiles *AstFiles, spec interfa
 			if tags, err := structtag.Parse(string(tag)); err == nil && len(tags.Tags()) != 0 {
 				opOverrides, fields, gettersOnlyFields = parseTags(tags, typeSpec.Name.Name)
 
-				log.Printf("getters only 1: %+v", len(gettersOnlyFields))
 				if opOverrides == "" && fields == nil && gettersOnlyFields == nil {
 					continue
 				}
@@ -495,7 +492,6 @@ func handleSpecRecursive(module *common.Module, astFiles *AstFiles, spec interfa
 				fields = append(fields, seclField{name: fieldBasename})
 			}
 
-			log.Printf("getters only 2: %+v", len(gettersOnlyFields))
 			fieldType, isPointer, isArray := getFieldIdentName(field.Type)
 
 			prefixedFieldName := fieldBasename
@@ -617,7 +613,6 @@ func parseTags(tags *structtag.Tags, containerStructName string) (string, []secl
 	for _, tag := range tags.Tags() {
 		switch tag.Key {
 		case "field":
-			log.Printf("tag: %+v", tag)
 			fieldDefs := strings.Split(tag.Value(), ";")
 			for _, fieldDef := range fieldDefs {
 				field, err := parseFieldDef(fieldDef)
@@ -633,7 +628,6 @@ func parseTags(tags *structtag.Tags, containerStructName string) (string, []secl
 
 				if field.gettersOnly {
 					gettersOnlyFields = append(gettersOnlyFields, field)
-					log.Printf("getter: %+v", field)
 				} else {
 					fields = append(fields, field)
 				}
