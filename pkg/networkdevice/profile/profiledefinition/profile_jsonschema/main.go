@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:generate go run ./main.go device_profile_rc_config_schema.json
+//go:generate go run ./main.go ../schema/profile_rc_schema.json
 
 // Package main holds main related files
 package main
@@ -31,7 +31,7 @@ func generateJsonSchema(output string) error {
 func main() {
 	var output string
 
-	flag.StringVar(&output, "output", "./device_profile_rc_config_schema.json", "Generate JSON schema generated file")
+	flag.StringVar(&output, "output", "../schema/profile_rc_schema.json", "Generate JSON schema generated file")
 	flag.Parse()
 
 	if err := generateJsonSchema(output); err != nil {

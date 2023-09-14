@@ -1,4 +1,4 @@
-package main
+package schema
 
 import (
 	_ "embed"
@@ -9,7 +9,7 @@ import (
 )
 
 var (
-	//go:embed device_profile_rc_config_jsonschema.json
+	//go:embed profile_rc_schema.json
 	deviceProfileRcConfigJsonschema []byte
 )
 
