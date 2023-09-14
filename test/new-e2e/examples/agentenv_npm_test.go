@@ -9,23 +9,19 @@ import (
 	"testing"
 	"time"
 
+	"github.com/DataDog/datadog-agent/test/new-e2e/npm"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e"
 	"github.com/DataDog/test-infra-definitions/components/datadog/agentparams"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
-const NPMsystemProbeConfig = `
-network_config:
-  enabled: true
-`
-
 type vmSuiteEx6 struct {
 	e2e.Suite[e2e.FakeIntakeEnv]
 }
 
 func TestVMSuiteEx6(t *testing.T) {
-	e2e.Run(t, &vmSuiteEx6{}, e2e.FakeIntakeStackDef(nil, agentparams.WithSystemProbeConfig(NPMsystemProbeConfig)))
+	e2e.Run(t, &vmSuiteEx6{}, e2e.FakeIntakeStackDef(nil, agentparams.WithSystemProbeConfig(npm.SystemProbeConfig)))
 }
 
 func (v *vmSuiteEx6) Test1_FakeIntakeNPM() {
