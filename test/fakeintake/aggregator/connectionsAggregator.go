@@ -32,8 +32,8 @@ func (c *Connections) GetTags() []string {
 	return dns
 }
 
-// DecodeCollectorConnection return a CollectorConnections protobuf object from raw bytes
-func DecodeCollectorConnection(b []byte) (cnx *agentmodel.CollectorConnections, err error) {
+// decodeCollectorConnection return a CollectorConnections protobuf object from raw bytes
+func decodeCollectorConnection(b []byte) (cnx *agentmodel.CollectorConnections, err error) {
 	m, err := agentmodel.DecodeMessage(b)
 	if err != nil {
 		return nil, err
@@ -47,7 +47,7 @@ func DecodeCollectorConnection(b []byte) (cnx *agentmodel.CollectorConnections, 
 
 // ParseConnections return the Connections from payload
 func ParseConnections(payload api.Payload) (conns []*Connections, err error) {
-	connections, err := DecodeCollectorConnection(payload.Data)
+	connections, err := decodeCollectorConnection(payload.Data)
 	if err != nil {
 		return nil, err
 	}
