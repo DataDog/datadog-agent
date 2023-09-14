@@ -356,7 +356,7 @@ func (n *netlinkRouter) getInterface(srcAddress util.Address, srcIP net.IP, netn
 	return iff
 }
 
-// Adds error tag and increments counter
+// CounterIncWithTag adds error tag and increments counter
 func CounterIncWithTag(counter telemetry.Counter, err error) (errno syscall.Errno, ok bool) {
 	if errno, ok = err.(syscall.Errno); ok {
 		if tag := unix.ErrnoName(errno); tag != "" {
