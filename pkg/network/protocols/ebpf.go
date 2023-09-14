@@ -80,3 +80,11 @@ func toProtocolType(protoNum uint8, layerBit uint16) ProtocolType {
 		return Unknown
 	}
 }
+
+// TLSProgramType is a C type to represent the eBPF programs used for tail calls
+// in TLS traffic decoding
+type TLSProgramType C.tls_prog_t
+
+const (
+// Add TLS prog constants here
+)
