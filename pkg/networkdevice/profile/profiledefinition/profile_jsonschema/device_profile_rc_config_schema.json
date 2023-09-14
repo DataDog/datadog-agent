@@ -1,6 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://github.com/DataDog/datadog-agent/pkg/networkdevice/profile/profiledefinition/device-profile-rc-config",
+  "$ref": "#/$defs/DeviceProfileRcConfig",
   "$defs": {
     "DeviceMeta": {
       "properties": {
@@ -10,6 +11,18 @@
       },
       "additionalProperties": false,
       "type": "object"
+    },
+    "DeviceProfileRcConfig": {
+      "properties": {
+        "profile_definition": {
+          "$ref": "#/$defs/ProfileDefinition"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "profile_definition"
+      ]
     },
     "MetadataConfig": {
       "additionalProperties": {
@@ -258,15 +271,5 @@
       "additionalProperties": false,
       "type": "object"
     }
-  },
-  "properties": {
-    "profile_definition": {
-      "$ref": "#/$defs/ProfileDefinition"
-    }
-  },
-  "additionalProperties": false,
-  "type": "object",
-  "required": [
-    "profile_definition"
-  ]
+  }
 }
