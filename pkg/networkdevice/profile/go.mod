@@ -4,6 +4,7 @@ go 1.20
 
 require (
 	github.com/invopop/jsonschema v0.8.0
+	github.com/santhosh-tekuri/jsonschema/v5 v5.3.1
 	github.com/stretchr/testify v1.8.4
 	gopkg.in/yaml.v2 v2.4.0
 )
