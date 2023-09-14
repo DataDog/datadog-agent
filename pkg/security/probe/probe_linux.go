@@ -364,12 +364,12 @@ func (p *Probe) DispatchEvent(event *model.Event) {
 		p.profileManagers.securityProfileManager.LookupEventInProfiles(event)
 	}
 
-	// send wildcard first
-	for _, handler := range p.eventHandlers[model.UnknownEventType] {
-		handler.HandleEvent(handler.Copy(event))
+	// send wildcard events to handlers which need direct access to all the event fields
+	for _, handler := range p.fullAccessEventHandlers[model.UnknownEventType] {
+		handler.HandleEvent(event)
 	}
 
-	// send specific event
+	// send specific event to handlers that make a copy of the event fields they need
 	p.sendSpecificEvent(event)
 
 	// handle anomaly detections
@@ -390,7 +390,7 @@ func (p *Probe) DispatchEvent(event *model.Event) {
 // send specific event
 func (p *Probe) sendSpecificEvent(event *model.Event) {
 	for _, handler := range p.eventHandlers[event.GetEventType()] {
-		handler.HandleEvent(event)
+		handler.HandleEvent(handler.Copy(event))
 	}
 }
 
