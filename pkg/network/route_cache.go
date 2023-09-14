@@ -276,7 +276,7 @@ func (n *netlinkRouter) Route(source, dest util.Address, netns uint32) (Route, b
 
 	if err != nil {
 		if iifIndex > 0 {
-			errno, ok := IncWithTag(routeCacheTelemetry.netlinkErrors, err)
+			errno, ok := CounterIncWithTag(routeCacheTelemetry.netlinkErrors, err)
 			if ok {
 				if errno == syscall.EINVAL || errno == syscall.ENODEV {
 					// invalidate interface cache entry as this may have been the cause of the netlink error
@@ -358,16 +358,12 @@ func (n *netlinkRouter) getInterface(srcAddress util.Address, srcIP net.IP, netn
 
 // Adds error tag and increments counter
 func CounterIncWithTag(counter telemetry.Counter, err error) (errno syscall.Errno, ok bool) {
-	errno, ok = err.(syscall.Errno)
-	if !ok {
-		counter.Inc()
-		return
+	if errno, ok = err.(syscall.Errno); ok {
+		if tag := unix.ErrnoName(errno); tag != "" {
+			counter.Inc(tag)
+			return
+		}
 	}
-	if tag := unix.ErrnoName(errno); tag != "" {
-		counter.Inc(tag)
-		return
-	}
-
 	counter.Inc()
 	return
 }
