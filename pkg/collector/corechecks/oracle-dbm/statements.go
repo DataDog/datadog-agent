@@ -809,8 +809,11 @@ func (c *Check) StatementMetrics() (int, error) {
 									if err == nil {
 										stepPayload.AccessPredicates = obfuscated.Query
 									} else {
-										stepPayload.AccessPredicates = "obfuscation error"
-										log.Errorf("Access obfuscation error")
+										stepPayload.AccessPredicates = "Access obfuscation error"
+										if c.config.ExecutionPlans.LogUnobfuscatedPlans {
+											stepPayload.AccessPredicates = fmt.Sprintf("%s, unobfuscated filter: %s", stepPayload.AccessPredicates, stepRow.AccessPredicates.String)
+										}
+										log.Error(stepPayload.AccessPredicates)
 									}
 								}
 								if stepRow.FilterPredicates.Valid {
@@ -818,8 +821,11 @@ func (c *Check) StatementMetrics() (int, error) {
 									if err == nil {
 										stepPayload.FilterPredicates = obfuscated.Query
 									} else {
-										stepPayload.FilterPredicates = "obfuscation error"
-										log.Errorf("Filter obfuscation error")
+										stepPayload.FilterPredicates = "Filter obfuscation error"
+										if c.config.ExecutionPlans.LogUnobfuscatedPlans {
+											stepPayload.FilterPredicates = fmt.Sprintf("%s, unobfuscated filter: %s", stepPayload.FilterPredicates, stepRow.FilterPredicates.String)
+										}
+										log.Error(stepPayload.FilterPredicates)
 									}
 								}
 								if stepRow.Projection.Valid {
