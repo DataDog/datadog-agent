@@ -917,7 +917,7 @@ func TestGetKubernetesPodByName(t *testing.T) {
 
 			pod, err := testStore.GetKubernetesPodByName(test.args.podName, test.args.podNamespace)
 
-			assert.DeepEqual(t, test.want.pod, pod)
+			assert.Equal(t, test.want.pod, pod)
 			if test.want.err != nil {
 				assert.Error(t, err, test.want.err.Error())
 			}
