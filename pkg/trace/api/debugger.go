@@ -27,6 +27,8 @@ const (
 	debuggerDiagnosticsURLTemplate = "https://debugger-intake.%s/api/v2/debugger"
 
 	// ddTagsQueryStringMaxLen is the maximum number of characters we send as ddtags in the intake query string.
+	// This limit is not imposed by the event platform intake, it's a safeguard we've added to guarantee an upper
+	// bound for the tags.
 	ddTagsQueryStringMaxLen = 4001
 )
 
