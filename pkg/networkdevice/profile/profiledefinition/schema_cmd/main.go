@@ -9,24 +9,12 @@
 package main
 
 import (
-	"encoding/json"
 	"flag"
+	"github.com/DataDog/datadog-agent/pkg/networkdevice/profile/profiledefinition/schema"
 	"os"
-
-	"github.com/invopop/jsonschema"
-
-	"github.com/DataDog/datadog-agent/pkg/networkdevice/profile/profiledefinition"
 )
 
-func generateJsonSchema(output string) error {
-	schema := jsonschema.Reflect(&profiledefinition.DeviceProfileRcConfig{})
-	schemaJSON, err := json.MarshalIndent(schema, "", "  ")
-	if err != nil {
-		return err
-	}
-	schemaJSON = append(schemaJSON, byte('\n'))
-	return os.WriteFile(output, schemaJSON, 0664)
-}
+//go:generate go run ./main.go ../schema/profile_rc_schema.json
 
 func main() {
 	var output string
@@ -34,7 +22,13 @@ func main() {
 	flag.StringVar(&output, "output", "../schema/profile_rc_schema.json", "Generate JSON schema generated file")
 	flag.Parse()
 
-	if err := generateJsonSchema(output); err != nil {
+	schemaJSON, err := schema.GenerateJsonSchema()
+	if err != nil {
+		panic(err)
+	}
+
+	err = os.WriteFile(output, schemaJSON, 0664)
+	if err != nil {
 		panic(err)
 	}
 }

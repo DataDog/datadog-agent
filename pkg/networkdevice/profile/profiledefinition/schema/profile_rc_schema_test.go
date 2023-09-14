@@ -1,16 +1,10 @@
 package schema
 
 import (
-	_ "embed"
 	"encoding/json"
 	"github.com/santhosh-tekuri/jsonschema/v5"
 	"github.com/stretchr/testify/require"
 	"testing"
-)
-
-var (
-	//go:embed profile_rc_schema.json
-	deviceProfileRcConfigJsonschema []byte
 )
 
 func Test_DeviceProfileRcConfigJsonSchema(t *testing.T) {
