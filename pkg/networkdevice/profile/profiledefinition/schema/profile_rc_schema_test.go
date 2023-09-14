@@ -14,7 +14,7 @@ import (
 )
 
 type testcaseExpected struct {
-	errors []string `json:"errors"`
+	Errors []string `json:"errors"`
 }
 
 func Test_DeviceProfileRcConfigJsonSchema(t *testing.T) {
@@ -66,12 +66,9 @@ func Test_Schema_TextCases(t *testing.T) {
 		err = json.Unmarshal(testcaseExpectedErr, &expected)
 		require.NoError(t, err)
 
-		for _, expectedError := range expected.errors {
+		for _, expectedError := range expected.Errors {
 			assert.ErrorContains(t, validationErr, expectedError)
 		}
-		//fmt.Printf("%+v", expected)
-
-		//assert.Equal(t, string(testcaseExpectedErr), validationErrStr)
 	}
 }
 
