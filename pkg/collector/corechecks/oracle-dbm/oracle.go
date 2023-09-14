@@ -51,7 +51,7 @@ const (
 	oci         hostingCode = "OCI"
 )
 
-type HostingType struct {
+type hostingType struct {
 	value hostingCode
 	valid bool
 }
@@ -105,7 +105,7 @@ type Check struct {
 	fqtEmitted                              *cache.Cache
 	planEmitted                             *cache.Cache
 	previousPGAOverAllocationCount          pgaOverAllocationCount
-	hostingType                             HostingType
+	hostingType
 }
 
 func handleServiceCheck(c *Check, err error) {

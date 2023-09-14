@@ -98,7 +98,7 @@ func (c *Check) Connect() (*sqlx.DB, error) {
 	}
 
 	if !c.hostingType.valid {
-		ht := HostingType{value: selfManaged, valid: false}
+		ht := hostingType{value: selfManaged, valid: false}
 
 		// Is RDS?
 		if c.filePath == "" {
