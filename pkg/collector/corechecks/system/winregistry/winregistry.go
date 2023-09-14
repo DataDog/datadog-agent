@@ -10,7 +10,7 @@ package winregistry
 import (
 	"errors"
 	"fmt"
-	"github.com/DataDog/datadog-agent/pkg/aggregator"
+	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"io/fs"
 	"strconv"
 	"strings"
@@ -30,8 +30,7 @@ const (
 )
 
 type metricCfg struct {
-	Name     string
-	Mappings []map[string]float64 `yaml:"mapping"`
+	Name string
 }
 
 type registryKeyCfg struct {
@@ -62,8 +61,8 @@ type WindowsRegistryCheck struct {
 	registryKeys []registryKey
 }
 
-func (c *WindowsRegistryCheck) Configure(integrationConfigDigest uint64, data integration.Data, initConfig integration.Data, source string) error {
-	err := c.CommonConfigure(integrationConfigDigest, initConfig, data, source)
+func (c *WindowsRegistryCheck) Configure(senderManager sender.SenderManager, integrationConfigDigest uint64, data integration.Data, initConfig integration.Data, source string) error {
+	err := c.CommonConfigure(senderManager, integrationConfigDigest, initConfig, data, source)
 	if err != nil {
 		return err
 	}
@@ -129,8 +128,7 @@ func (c *WindowsRegistryCheck) Run() error {
 	return nil
 }
 
-func processRegistryKeyMetrics(sender aggregator.Sender, regKey registry.Key, regKeyCfg registryKey) {
-NextMetric:
+func processRegistryKeyMetrics(sender sender.Sender, regKey registry.Key, regKeyCfg registryKey) {
 	for valueName, metric := range regKeyCfg.metrics {
 		_, valueType, err := regKey.GetValue(valueName, nil)
 		gaugeName := fmt.Sprintf("%s.%s.%s", checkPrefix, regKeyCfg.name, metric.Name)
@@ -161,14 +159,7 @@ NextMetric:
 				if parsedVal, err := strconv.ParseFloat(val, 64); err == nil {
 					sender.Gauge(gaugeName, parsedVal, "", nil)
 				} else {
-					// Value can't be parsed, let's check the mappings
-					for _, mapping := range metric.Mappings {
-						if mappedValue, found := mapping[val]; found {
-							sender.Gauge(gaugeName, mappedValue, "", nil)
-							continue NextMetric
-						}
-					}
-					log.Warnf("no mapping found for value %s of key %s", valueName, regKeyCfg.originalKeyPath)
+					log.Warnf("value %s of key %s cannot be parsed", valueName, regKeyCfg.originalKeyPath)
 				}
 			default:
 				log.Warnf("unsupported data type of value %s for key %s: %d", valueName, regKeyCfg.originalKeyPath, valueType)
