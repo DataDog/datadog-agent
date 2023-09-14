@@ -357,10 +357,9 @@ func creatFakeStore() *workloadmetatesting.Store {
 
 func setFakeStatsSummary(t *testing.T, kubeletMock *mock.KubeletMock, rc int, err error) {
     filePath := "../../testdata/summary.json"
-    var content []byte
-    content, err = os.ReadFile(filePath)
-    if err != nil {
-        t.Errorf("unable to read test file at: %s, err: %v", filePath, err)
+    content, fileErr := os.ReadFile(filePath)
+    if fileErr != nil {
+        t.Errorf("unable to read test file at: %s, err: %v", filePath, fileErr)
     }
     kubeletMock.MockReplies["/stats/summary"] = &mock.HTTPReplyMock{
         Data:         content,

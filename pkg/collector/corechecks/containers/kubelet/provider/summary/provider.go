@@ -31,6 +31,7 @@ type Provider struct {
 	store  workloadmeta.Store
 }
 
+// Create a new provider by filter, config and workloadmeta
 func NewProvider(filter *containers.Filter,
 	config *common.KubeletConfig,
 	store workloadmeta.Store) *Provider {
@@ -76,6 +77,7 @@ func reportFsMetric(sender sender.Sender,
 	}
 }
 
+// Process metrics and report
 func (p *Provider) Provide(kc kubelet.KubeUtilInterface, sender sender.Sender) error {
 	statsSummary, err := kc.GetLocalStatsSummary(context.TODO())
 	if err != nil || statsSummary == nil {
