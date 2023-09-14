@@ -10,7 +10,6 @@ import (
 	"bufio"
 	"bytes"
 	_ "embed"
-	"errors"
 	"flag"
 	"fmt"
 	"go/ast"
@@ -658,7 +657,7 @@ func newAstFiles(cfg *packages.Config, files ...string) (*AstFiles, error) {
 		}
 
 		if len(pkgs) == 0 || len(pkgs[0].Syntax) == 0 {
-			return nil, errors.New(fmt.Sprintf("failed to get syntax from parse file %s", file))
+			return nil, fmt.Errorf("failed to get syntax from parse file %s", file)
 		}
 
 		astFiles.files = append(astFiles.files, pkgs[0].Syntax[0])
@@ -738,12 +737,12 @@ func newField(allFields map[string]*common.StructField, field *common.StructFiel
 	return result
 }
 
-func Split(r rune) bool {
+func split(r rune) bool {
 	return r == '.' || r == '_'
 }
 
 func pascalCaseFieldName(fieldName string) string {
-	chunks := strings.FieldsFunc(fieldName, Split)
+	chunks := strings.FieldsFunc(fieldName, split)
 	caser := cases.Title(language.Und, cases.NoLower)
 
 	for idx, chunk := range chunks {
@@ -797,12 +796,28 @@ func getDefaultValueOfType(returnType string) string {
 			return "&eval.CIDRValues{}"
 		}
 		return "net.IPNet{}"
+	} else if baseType == "time.Time" {
+		if isArray {
+			return "[]time.Time{}"
+		}
+		return "time.Time{}"
 	} else {
 		if isArray {
 			return "[]string{}"
 		}
 		return `""`
 	}
+}
+
+func combineFieldMaps(map1 map[string]*common.StructField, map2 map[string]*common.StructField) map[string]*common.StructField {
+	combined := make(map[string]*common.StructField)
+	for k, v := range map1 {
+		combined[k] = v
+	}
+	for key, value := range map2 {
+		combined[key] = value
+	}
+	return combined
 }
 
 func getFieldHandler(allFields map[string]*common.StructField, field *common.StructField) string {
@@ -919,6 +934,7 @@ var funcMap = map[string]interface{}{
 	"GetHandlers":           getHandlers,
 	"PascalCaseFieldName":   pascalCaseFieldName,
 	"GetDefaultValueOfType": getDefaultValueOfType,
+	"CombineFieldMaps":      combineFieldMaps,
 }
 
 //go:embed accessors.tmpl
@@ -929,9 +945,6 @@ var fieldHandlersTemplate string
 
 //go:embed per_field_accessors.tmpl
 var perFieldAccessorsTemplate string
-
-//go:embed getters_only_accessors.tmpl
-var gettersOnlyAccessorsTemplate string
 
 func main() {
 	module, err := parseFile(modelFile, typesFile, pkgname)
@@ -958,12 +971,6 @@ func main() {
 	}
 
 	if err := GenerateContent(perFieldAccessorsOutput, module, perFieldAccessorsTemplate); err != nil {
-		panic(err)
-	}
-
-	fmt.Println(len(module.GettersOnlyFields))
-
-	if err := GenerateContent(gettersOnlyAccessorsOutput, module, gettersOnlyAccessorsTemplate); err != nil {
 		panic(err)
 	}
 }
@@ -1031,7 +1038,6 @@ func init() {
 	flag.StringVar(&pkgname, "package", pkgPrefix+"/"+os.Getenv("GOPACKAGE"), "Go package name")
 	flag.StringVar(&buildTags, "tags", "", "build tags used for parsing")
 	flag.StringVar(&perFieldAccessorsOutput, "per-field-accessors-output", "per_field_accessors_unix.go", "Generated per-field accessors output file")
-	flag.StringVar(&gettersOnlyAccessorsOutput, "getters-only-accessors-output", "getters_only_accessors_unix.go", "Generated getters only accessors output file")
 	flag.StringVar(&output, "output", "", "Go generated file")
 	flag.Parse()
 }

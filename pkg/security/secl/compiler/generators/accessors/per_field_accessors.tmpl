@@ -14,7 +14,9 @@ import (
     "github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 )
 
-{{range $Name, $Field := .Fields}}
+{{$combinedFieldMaps := CombineFieldMaps .Fields .GettersOnlyFields}}
+
+{{range $Name, $Field := $combinedFieldMaps}}
 
 {{ $pascalCaseName := PascalCaseFieldName $Name }}
 
@@ -87,6 +89,14 @@ func (ev *Event) Get{{$pascalCaseName}}() {{ $accessorReturnType }} {
     {{else}}
 
         {{$Return := $Field.Name | printf "ev.%s"}}
+
+        {{$Checks := $Field | GetChecks $.AllFields}}
+        {{range $Check := $Checks}}
+        {{$Check = $Check | printf "ev.%s"}}
+        if !{{$Check}}() {
+            return {{ GetDefaultValueOfType $accessorReturnType}}
+        }
+        {{end}}
 
         {{if $Field.IsLength}}
             {{$Return = ".length" | TrimSuffix $Field.Name | printf "len(ev.%s)"}}

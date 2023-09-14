@@ -599,6 +599,30 @@ func (ev *Event) GetEventTimestamp() int {
 	return ev.FieldHandlers.ResolveEventTimestamp(ev, &ev.BaseEvent)
 }
 
+// GetExecExecTime returns the value of the field, resolving if necessary
+func (ev *Event) GetExecExecTime() time.Time {
+	if ev.GetEventType().String() != "exec" {
+		return time.Time{}
+	}
+	return ev.Exec.Process.ExecTime
+}
+
+// GetExecExitTime returns the value of the field, resolving if necessary
+func (ev *Event) GetExecExitTime() time.Time {
+	if ev.GetEventType().String() != "exec" {
+		return time.Time{}
+	}
+	return ev.Exec.Process.ExitTime
+}
+
+// GetExecForkTime returns the value of the field, resolving if necessary
+func (ev *Event) GetExecForkTime() time.Time {
+	if ev.GetEventType().String() != "exec" {
+		return time.Time{}
+	}
+	return ev.Exec.Process.ForkTime
+}
+
 // GetExecArgs returns the value of the field, resolving if necessary
 func (ev *Event) GetExecArgs() string {
 	if ev.GetEventType().String() != "exec" {
@@ -748,12 +772,18 @@ func (ev *Event) GetExecFileChangeTime() uint64 {
 	if ev.GetEventType().String() != "exec" {
 		return 0
 	}
+	if !ev.Exec.Process.IsNotKworker() {
+		return 0
+	}
 	return ev.Exec.Process.FileEvent.FileFields.CTime
 }
 
 // GetExecFileFilesystem returns the value of the field, resolving if necessary
 func (ev *Event) GetExecFileFilesystem() string {
 	if ev.GetEventType().String() != "exec" {
+		return ""
+	}
+	if !ev.Exec.Process.IsNotKworker() {
 		return ""
 	}
 	return ev.FieldHandlers.ResolveFileFilesystem(ev, &ev.Exec.Process.FileEvent)
@@ -764,12 +794,18 @@ func (ev *Event) GetExecFileGid() uint32 {
 	if ev.GetEventType().String() != "exec" {
 		return 0
 	}
+	if !ev.Exec.Process.IsNotKworker() {
+		return 0
+	}
 	return ev.Exec.Process.FileEvent.FileFields.GID
 }
 
 // GetExecFileGroup returns the value of the field, resolving if necessary
 func (ev *Event) GetExecFileGroup() string {
 	if ev.GetEventType().String() != "exec" {
+		return ""
+	}
+	if !ev.Exec.Process.IsNotKworker() {
 		return ""
 	}
 	return ev.FieldHandlers.ResolveFileFieldsGroup(ev, &ev.Exec.Process.FileEvent.FileFields)
@@ -780,12 +816,18 @@ func (ev *Event) GetExecFileHashes() []string {
 	if ev.GetEventType().String() != "exec" {
 		return []string{}
 	}
+	if !ev.Exec.Process.IsNotKworker() {
+		return []string{}
+	}
 	return ev.FieldHandlers.ResolveHashesFromEvent(ev, &ev.Exec.Process.FileEvent)
 }
 
 // GetExecFileInUpperLayer returns the value of the field, resolving if necessary
 func (ev *Event) GetExecFileInUpperLayer() bool {
 	if ev.GetEventType().String() != "exec" {
+		return false
+	}
+	if !ev.Exec.Process.IsNotKworker() {
 		return false
 	}
 	return ev.FieldHandlers.ResolveFileFieldsInUpperLayer(ev, &ev.Exec.Process.FileEvent.FileFields)
@@ -796,12 +838,18 @@ func (ev *Event) GetExecFileInode() uint64 {
 	if ev.GetEventType().String() != "exec" {
 		return 0
 	}
+	if !ev.Exec.Process.IsNotKworker() {
+		return 0
+	}
 	return ev.Exec.Process.FileEvent.FileFields.PathKey.Inode
 }
 
 // GetExecFileMode returns the value of the field, resolving if necessary
 func (ev *Event) GetExecFileMode() uint16 {
 	if ev.GetEventType().String() != "exec" {
+		return 0
+	}
+	if !ev.Exec.Process.IsNotKworker() {
 		return 0
 	}
 	return ev.Exec.Process.FileEvent.FileFields.Mode
@@ -812,6 +860,9 @@ func (ev *Event) GetExecFileModificationTime() uint64 {
 	if ev.GetEventType().String() != "exec" {
 		return 0
 	}
+	if !ev.Exec.Process.IsNotKworker() {
+		return 0
+	}
 	return ev.Exec.Process.FileEvent.FileFields.MTime
 }
 
@@ -820,12 +871,18 @@ func (ev *Event) GetExecFileMountId() uint32 {
 	if ev.GetEventType().String() != "exec" {
 		return 0
 	}
+	if !ev.Exec.Process.IsNotKworker() {
+		return 0
+	}
 	return ev.Exec.Process.FileEvent.FileFields.PathKey.MountID
 }
 
 // GetExecFileName returns the value of the field, resolving if necessary
 func (ev *Event) GetExecFileName() string {
 	if ev.GetEventType().String() != "exec" {
+		return ""
+	}
+	if !ev.Exec.Process.IsNotKworker() {
 		return ""
 	}
 	return ev.FieldHandlers.ResolveFileBasename(ev, &ev.Exec.Process.FileEvent)
@@ -844,12 +901,18 @@ func (ev *Event) GetExecFilePackageName() string {
 	if ev.GetEventType().String() != "exec" {
 		return ""
 	}
+	if !ev.Exec.Process.IsNotKworker() {
+		return ""
+	}
 	return ev.FieldHandlers.ResolvePackageName(ev, &ev.Exec.Process.FileEvent)
 }
 
 // GetExecFilePackageSourceVersion returns the value of the field, resolving if necessary
 func (ev *Event) GetExecFilePackageSourceVersion() string {
 	if ev.GetEventType().String() != "exec" {
+		return ""
+	}
+	if !ev.Exec.Process.IsNotKworker() {
 		return ""
 	}
 	return ev.FieldHandlers.ResolvePackageSourceVersion(ev, &ev.Exec.Process.FileEvent)
@@ -860,12 +923,18 @@ func (ev *Event) GetExecFilePackageVersion() string {
 	if ev.GetEventType().String() != "exec" {
 		return ""
 	}
+	if !ev.Exec.Process.IsNotKworker() {
+		return ""
+	}
 	return ev.FieldHandlers.ResolvePackageVersion(ev, &ev.Exec.Process.FileEvent)
 }
 
 // GetExecFilePath returns the value of the field, resolving if necessary
 func (ev *Event) GetExecFilePath() string {
 	if ev.GetEventType().String() != "exec" {
+		return ""
+	}
+	if !ev.Exec.Process.IsNotKworker() {
 		return ""
 	}
 	return ev.FieldHandlers.ResolveFilePath(ev, &ev.Exec.Process.FileEvent)
@@ -884,6 +953,9 @@ func (ev *Event) GetExecFileRights() int {
 	if ev.GetEventType().String() != "exec" {
 		return 0
 	}
+	if !ev.Exec.Process.IsNotKworker() {
+		return 0
+	}
 	return ev.FieldHandlers.ResolveRights(ev, &ev.Exec.Process.FileEvent.FileFields)
 }
 
@@ -892,12 +964,18 @@ func (ev *Event) GetExecFileUid() uint32 {
 	if ev.GetEventType().String() != "exec" {
 		return 0
 	}
+	if !ev.Exec.Process.IsNotKworker() {
+		return 0
+	}
 	return ev.Exec.Process.FileEvent.FileFields.UID
 }
 
 // GetExecFileUser returns the value of the field, resolving if necessary
 func (ev *Event) GetExecFileUser() string {
 	if ev.GetEventType().String() != "exec" {
+		return ""
+	}
+	if !ev.Exec.Process.IsNotKworker() {
 		return ""
 	}
 	return ev.FieldHandlers.ResolveFileFieldsUser(ev, &ev.Exec.Process.FileEvent.FileFields)
@@ -956,12 +1034,18 @@ func (ev *Event) GetExecInterpreterFileChangeTime() uint64 {
 	if ev.GetEventType().String() != "exec" {
 		return 0
 	}
+	if !ev.Exec.Process.HasInterpreter() {
+		return 0
+	}
 	return ev.Exec.Process.LinuxBinprm.FileEvent.FileFields.CTime
 }
 
 // GetExecInterpreterFileFilesystem returns the value of the field, resolving if necessary
 func (ev *Event) GetExecInterpreterFileFilesystem() string {
 	if ev.GetEventType().String() != "exec" {
+		return ""
+	}
+	if !ev.Exec.Process.HasInterpreter() {
 		return ""
 	}
 	return ev.FieldHandlers.ResolveFileFilesystem(ev, &ev.Exec.Process.LinuxBinprm.FileEvent)
@@ -972,12 +1056,18 @@ func (ev *Event) GetExecInterpreterFileGid() uint32 {
 	if ev.GetEventType().String() != "exec" {
 		return 0
 	}
+	if !ev.Exec.Process.HasInterpreter() {
+		return 0
+	}
 	return ev.Exec.Process.LinuxBinprm.FileEvent.FileFields.GID
 }
 
 // GetExecInterpreterFileGroup returns the value of the field, resolving if necessary
 func (ev *Event) GetExecInterpreterFileGroup() string {
 	if ev.GetEventType().String() != "exec" {
+		return ""
+	}
+	if !ev.Exec.Process.HasInterpreter() {
 		return ""
 	}
 	return ev.FieldHandlers.ResolveFileFieldsGroup(ev, &ev.Exec.Process.LinuxBinprm.FileEvent.FileFields)
@@ -988,12 +1078,18 @@ func (ev *Event) GetExecInterpreterFileHashes() []string {
 	if ev.GetEventType().String() != "exec" {
 		return []string{}
 	}
+	if !ev.Exec.Process.HasInterpreter() {
+		return []string{}
+	}
 	return ev.FieldHandlers.ResolveHashesFromEvent(ev, &ev.Exec.Process.LinuxBinprm.FileEvent)
 }
 
 // GetExecInterpreterFileInUpperLayer returns the value of the field, resolving if necessary
 func (ev *Event) GetExecInterpreterFileInUpperLayer() bool {
 	if ev.GetEventType().String() != "exec" {
+		return false
+	}
+	if !ev.Exec.Process.HasInterpreter() {
 		return false
 	}
 	return ev.FieldHandlers.ResolveFileFieldsInUpperLayer(ev, &ev.Exec.Process.LinuxBinprm.FileEvent.FileFields)
@@ -1004,12 +1100,18 @@ func (ev *Event) GetExecInterpreterFileInode() uint64 {
 	if ev.GetEventType().String() != "exec" {
 		return 0
 	}
+	if !ev.Exec.Process.HasInterpreter() {
+		return 0
+	}
 	return ev.Exec.Process.LinuxBinprm.FileEvent.FileFields.PathKey.Inode
 }
 
 // GetExecInterpreterFileMode returns the value of the field, resolving if necessary
 func (ev *Event) GetExecInterpreterFileMode() uint16 {
 	if ev.GetEventType().String() != "exec" {
+		return 0
+	}
+	if !ev.Exec.Process.HasInterpreter() {
 		return 0
 	}
 	return ev.Exec.Process.LinuxBinprm.FileEvent.FileFields.Mode
@@ -1020,6 +1122,9 @@ func (ev *Event) GetExecInterpreterFileModificationTime() uint64 {
 	if ev.GetEventType().String() != "exec" {
 		return 0
 	}
+	if !ev.Exec.Process.HasInterpreter() {
+		return 0
+	}
 	return ev.Exec.Process.LinuxBinprm.FileEvent.FileFields.MTime
 }
 
@@ -1028,12 +1133,18 @@ func (ev *Event) GetExecInterpreterFileMountId() uint32 {
 	if ev.GetEventType().String() != "exec" {
 		return 0
 	}
+	if !ev.Exec.Process.HasInterpreter() {
+		return 0
+	}
 	return ev.Exec.Process.LinuxBinprm.FileEvent.FileFields.PathKey.MountID
 }
 
 // GetExecInterpreterFileName returns the value of the field, resolving if necessary
 func (ev *Event) GetExecInterpreterFileName() string {
 	if ev.GetEventType().String() != "exec" {
+		return ""
+	}
+	if !ev.Exec.Process.HasInterpreter() {
 		return ""
 	}
 	return ev.FieldHandlers.ResolveFileBasename(ev, &ev.Exec.Process.LinuxBinprm.FileEvent)
@@ -1052,12 +1163,18 @@ func (ev *Event) GetExecInterpreterFilePackageName() string {
 	if ev.GetEventType().String() != "exec" {
 		return ""
 	}
+	if !ev.Exec.Process.HasInterpreter() {
+		return ""
+	}
 	return ev.FieldHandlers.ResolvePackageName(ev, &ev.Exec.Process.LinuxBinprm.FileEvent)
 }
 
 // GetExecInterpreterFilePackageSourceVersion returns the value of the field, resolving if necessary
 func (ev *Event) GetExecInterpreterFilePackageSourceVersion() string {
 	if ev.GetEventType().String() != "exec" {
+		return ""
+	}
+	if !ev.Exec.Process.HasInterpreter() {
 		return ""
 	}
 	return ev.FieldHandlers.ResolvePackageSourceVersion(ev, &ev.Exec.Process.LinuxBinprm.FileEvent)
@@ -1068,12 +1185,18 @@ func (ev *Event) GetExecInterpreterFilePackageVersion() string {
 	if ev.GetEventType().String() != "exec" {
 		return ""
 	}
+	if !ev.Exec.Process.HasInterpreter() {
+		return ""
+	}
 	return ev.FieldHandlers.ResolvePackageVersion(ev, &ev.Exec.Process.LinuxBinprm.FileEvent)
 }
 
 // GetExecInterpreterFilePath returns the value of the field, resolving if necessary
 func (ev *Event) GetExecInterpreterFilePath() string {
 	if ev.GetEventType().String() != "exec" {
+		return ""
+	}
+	if !ev.Exec.Process.HasInterpreter() {
 		return ""
 	}
 	return ev.FieldHandlers.ResolveFilePath(ev, &ev.Exec.Process.LinuxBinprm.FileEvent)
@@ -1092,6 +1215,9 @@ func (ev *Event) GetExecInterpreterFileRights() int {
 	if ev.GetEventType().String() != "exec" {
 		return 0
 	}
+	if !ev.Exec.Process.HasInterpreter() {
+		return 0
+	}
 	return ev.FieldHandlers.ResolveRights(ev, &ev.Exec.Process.LinuxBinprm.FileEvent.FileFields)
 }
 
@@ -1100,12 +1226,18 @@ func (ev *Event) GetExecInterpreterFileUid() uint32 {
 	if ev.GetEventType().String() != "exec" {
 		return 0
 	}
+	if !ev.Exec.Process.HasInterpreter() {
+		return 0
+	}
 	return ev.Exec.Process.LinuxBinprm.FileEvent.FileFields.UID
 }
 
 // GetExecInterpreterFileUser returns the value of the field, resolving if necessary
 func (ev *Event) GetExecInterpreterFileUser() string {
 	if ev.GetEventType().String() != "exec" {
+		return ""
+	}
+	if !ev.Exec.Process.HasInterpreter() {
 		return ""
 	}
 	return ev.FieldHandlers.ResolveFileFieldsUser(ev, &ev.Exec.Process.LinuxBinprm.FileEvent.FileFields)
@@ -1173,6 +1305,30 @@ func (ev *Event) GetExecUser() string {
 		return ""
 	}
 	return ev.Exec.Process.Credentials.User
+}
+
+// GetExitExecTime returns the value of the field, resolving if necessary
+func (ev *Event) GetExitExecTime() time.Time {
+	if ev.GetEventType().String() != "exit" {
+		return time.Time{}
+	}
+	return ev.Exit.Process.ExecTime
+}
+
+// GetExitExitTime returns the value of the field, resolving if necessary
+func (ev *Event) GetExitExitTime() time.Time {
+	if ev.GetEventType().String() != "exit" {
+		return time.Time{}
+	}
+	return ev.Exit.Process.ExitTime
+}
+
+// GetExitForkTime returns the value of the field, resolving if necessary
+func (ev *Event) GetExitForkTime() time.Time {
+	if ev.GetEventType().String() != "exit" {
+		return time.Time{}
+	}
+	return ev.Exit.Process.ForkTime
 }
 
 // GetExitArgs returns the value of the field, resolving if necessary
@@ -1340,12 +1496,18 @@ func (ev *Event) GetExitFileChangeTime() uint64 {
 	if ev.GetEventType().String() != "exit" {
 		return 0
 	}
+	if !ev.Exit.Process.IsNotKworker() {
+		return 0
+	}
 	return ev.Exit.Process.FileEvent.FileFields.CTime
 }
 
 // GetExitFileFilesystem returns the value of the field, resolving if necessary
 func (ev *Event) GetExitFileFilesystem() string {
 	if ev.GetEventType().String() != "exit" {
+		return ""
+	}
+	if !ev.Exit.Process.IsNotKworker() {
 		return ""
 	}
 	return ev.FieldHandlers.ResolveFileFilesystem(ev, &ev.Exit.Process.FileEvent)
@@ -1356,12 +1518,18 @@ func (ev *Event) GetExitFileGid() uint32 {
 	if ev.GetEventType().String() != "exit" {
 		return 0
 	}
+	if !ev.Exit.Process.IsNotKworker() {
+		return 0
+	}
 	return ev.Exit.Process.FileEvent.FileFields.GID
 }
 
 // GetExitFileGroup returns the value of the field, resolving if necessary
 func (ev *Event) GetExitFileGroup() string {
 	if ev.GetEventType().String() != "exit" {
+		return ""
+	}
+	if !ev.Exit.Process.IsNotKworker() {
 		return ""
 	}
 	return ev.FieldHandlers.ResolveFileFieldsGroup(ev, &ev.Exit.Process.FileEvent.FileFields)
@@ -1372,12 +1540,18 @@ func (ev *Event) GetExitFileHashes() []string {
 	if ev.GetEventType().String() != "exit" {
 		return []string{}
 	}
+	if !ev.Exit.Process.IsNotKworker() {
+		return []string{}
+	}
 	return ev.FieldHandlers.ResolveHashesFromEvent(ev, &ev.Exit.Process.FileEvent)
 }
 
 // GetExitFileInUpperLayer returns the value of the field, resolving if necessary
 func (ev *Event) GetExitFileInUpperLayer() bool {
 	if ev.GetEventType().String() != "exit" {
+		return false
+	}
+	if !ev.Exit.Process.IsNotKworker() {
 		return false
 	}
 	return ev.FieldHandlers.ResolveFileFieldsInUpperLayer(ev, &ev.Exit.Process.FileEvent.FileFields)
@@ -1388,12 +1562,18 @@ func (ev *Event) GetExitFileInode() uint64 {
 	if ev.GetEventType().String() != "exit" {
 		return 0
 	}
+	if !ev.Exit.Process.IsNotKworker() {
+		return 0
+	}
 	return ev.Exit.Process.FileEvent.FileFields.PathKey.Inode
 }
 
 // GetExitFileMode returns the value of the field, resolving if necessary
 func (ev *Event) GetExitFileMode() uint16 {
 	if ev.GetEventType().String() != "exit" {
+		return 0
+	}
+	if !ev.Exit.Process.IsNotKworker() {
 		return 0
 	}
 	return ev.Exit.Process.FileEvent.FileFields.Mode
@@ -1404,6 +1584,9 @@ func (ev *Event) GetExitFileModificationTime() uint64 {
 	if ev.GetEventType().String() != "exit" {
 		return 0
 	}
+	if !ev.Exit.Process.IsNotKworker() {
+		return 0
+	}
 	return ev.Exit.Process.FileEvent.FileFields.MTime
 }
 
@@ -1412,12 +1595,18 @@ func (ev *Event) GetExitFileMountId() uint32 {
 	if ev.GetEventType().String() != "exit" {
 		return 0
 	}
+	if !ev.Exit.Process.IsNotKworker() {
+		return 0
+	}
 	return ev.Exit.Process.FileEvent.FileFields.PathKey.MountID
 }
 
 // GetExitFileName returns the value of the field, resolving if necessary
 func (ev *Event) GetExitFileName() string {
 	if ev.GetEventType().String() != "exit" {
+		return ""
+	}
+	if !ev.Exit.Process.IsNotKworker() {
 		return ""
 	}
 	return ev.FieldHandlers.ResolveFileBasename(ev, &ev.Exit.Process.FileEvent)
@@ -1436,12 +1625,18 @@ func (ev *Event) GetExitFilePackageName() string {
 	if ev.GetEventType().String() != "exit" {
 		return ""
 	}
+	if !ev.Exit.Process.IsNotKworker() {
+		return ""
+	}
 	return ev.FieldHandlers.ResolvePackageName(ev, &ev.Exit.Process.FileEvent)
 }
 
 // GetExitFilePackageSourceVersion returns the value of the field, resolving if necessary
 func (ev *Event) GetExitFilePackageSourceVersion() string {
 	if ev.GetEventType().String() != "exit" {
+		return ""
+	}
+	if !ev.Exit.Process.IsNotKworker() {
 		return ""
 	}
 	return ev.FieldHandlers.ResolvePackageSourceVersion(ev, &ev.Exit.Process.FileEvent)
@@ -1452,12 +1647,18 @@ func (ev *Event) GetExitFilePackageVersion() string {
 	if ev.GetEventType().String() != "exit" {
 		return ""
 	}
+	if !ev.Exit.Process.IsNotKworker() {
+		return ""
+	}
 	return ev.FieldHandlers.ResolvePackageVersion(ev, &ev.Exit.Process.FileEvent)
 }
 
 // GetExitFilePath returns the value of the field, resolving if necessary
 func (ev *Event) GetExitFilePath() string {
 	if ev.GetEventType().String() != "exit" {
+		return ""
+	}
+	if !ev.Exit.Process.IsNotKworker() {
 		return ""
 	}
 	return ev.FieldHandlers.ResolveFilePath(ev, &ev.Exit.Process.FileEvent)
@@ -1476,6 +1677,9 @@ func (ev *Event) GetExitFileRights() int {
 	if ev.GetEventType().String() != "exit" {
 		return 0
 	}
+	if !ev.Exit.Process.IsNotKworker() {
+		return 0
+	}
 	return ev.FieldHandlers.ResolveRights(ev, &ev.Exit.Process.FileEvent.FileFields)
 }
 
@@ -1484,12 +1688,18 @@ func (ev *Event) GetExitFileUid() uint32 {
 	if ev.GetEventType().String() != "exit" {
 		return 0
 	}
+	if !ev.Exit.Process.IsNotKworker() {
+		return 0
+	}
 	return ev.Exit.Process.FileEvent.FileFields.UID
 }
 
 // GetExitFileUser returns the value of the field, resolving if necessary
 func (ev *Event) GetExitFileUser() string {
 	if ev.GetEventType().String() != "exit" {
+		return ""
+	}
+	if !ev.Exit.Process.IsNotKworker() {
 		return ""
 	}
 	return ev.FieldHandlers.ResolveFileFieldsUser(ev, &ev.Exit.Process.FileEvent.FileFields)
@@ -1548,12 +1758,18 @@ func (ev *Event) GetExitInterpreterFileChangeTime() uint64 {
 	if ev.GetEventType().String() != "exit" {
 		return 0
 	}
+	if !ev.Exit.Process.HasInterpreter() {
+		return 0
+	}
 	return ev.Exit.Process.LinuxBinprm.FileEvent.FileFields.CTime
 }
 
 // GetExitInterpreterFileFilesystem returns the value of the field, resolving if necessary
 func (ev *Event) GetExitInterpreterFileFilesystem() string {
 	if ev.GetEventType().String() != "exit" {
+		return ""
+	}
+	if !ev.Exit.Process.HasInterpreter() {
 		return ""
 	}
 	return ev.FieldHandlers.ResolveFileFilesystem(ev, &ev.Exit.Process.LinuxBinprm.FileEvent)
@@ -1564,12 +1780,18 @@ func (ev *Event) GetExitInterpreterFileGid() uint32 {
 	if ev.GetEventType().String() != "exit" {
 		return 0
 	}
+	if !ev.Exit.Process.HasInterpreter() {
+		return 0
+	}
 	return ev.Exit.Process.LinuxBinprm.FileEvent.FileFields.GID
 }
 
 // GetExitInterpreterFileGroup returns the value of the field, resolving if necessary
 func (ev *Event) GetExitInterpreterFileGroup() string {
 	if ev.GetEventType().String() != "exit" {
+		return ""
+	}
+	if !ev.Exit.Process.HasInterpreter() {
 		return ""
 	}
 	return ev.FieldHandlers.ResolveFileFieldsGroup(ev, &ev.Exit.Process.LinuxBinprm.FileEvent.FileFields)
@@ -1580,12 +1802,18 @@ func (ev *Event) GetExitInterpreterFileHashes() []string {
 	if ev.GetEventType().String() != "exit" {
 		return []string{}
 	}
+	if !ev.Exit.Process.HasInterpreter() {
+		return []string{}
+	}
 	return ev.FieldHandlers.ResolveHashesFromEvent(ev, &ev.Exit.Process.LinuxBinprm.FileEvent)
 }
 
 // GetExitInterpreterFileInUpperLayer returns the value of the field, resolving if necessary
 func (ev *Event) GetExitInterpreterFileInUpperLayer() bool {
 	if ev.GetEventType().String() != "exit" {
+		return false
+	}
+	if !ev.Exit.Process.HasInterpreter() {
 		return false
 	}
 	return ev.FieldHandlers.ResolveFileFieldsInUpperLayer(ev, &ev.Exit.Process.LinuxBinprm.FileEvent.FileFields)
@@ -1596,12 +1824,18 @@ func (ev *Event) GetExitInterpreterFileInode() uint64 {
 	if ev.GetEventType().String() != "exit" {
 		return 0
 	}
+	if !ev.Exit.Process.HasInterpreter() {
+		return 0
+	}
 	return ev.Exit.Process.LinuxBinprm.FileEvent.FileFields.PathKey.Inode
 }
 
 // GetExitInterpreterFileMode returns the value of the field, resolving if necessary
 func (ev *Event) GetExitInterpreterFileMode() uint16 {
 	if ev.GetEventType().String() != "exit" {
+		return 0
+	}
+	if !ev.Exit.Process.HasInterpreter() {
 		return 0
 	}
 	return ev.Exit.Process.LinuxBinprm.FileEvent.FileFields.Mode
@@ -1612,6 +1846,9 @@ func (ev *Event) GetExitInterpreterFileModificationTime() uint64 {
 	if ev.GetEventType().String() != "exit" {
 		return 0
 	}
+	if !ev.Exit.Process.HasInterpreter() {
+		return 0
+	}
 	return ev.Exit.Process.LinuxBinprm.FileEvent.FileFields.MTime
 }
 
@@ -1620,12 +1857,18 @@ func (ev *Event) GetExitInterpreterFileMountId() uint32 {
 	if ev.GetEventType().String() != "exit" {
 		return 0
 	}
+	if !ev.Exit.Process.HasInterpreter() {
+		return 0
+	}
 	return ev.Exit.Process.LinuxBinprm.FileEvent.FileFields.PathKey.MountID
 }
 
 // GetExitInterpreterFileName returns the value of the field, resolving if necessary
 func (ev *Event) GetExitInterpreterFileName() string {
 	if ev.GetEventType().String() != "exit" {
+		return ""
+	}
+	if !ev.Exit.Process.HasInterpreter() {
 		return ""
 	}
 	return ev.FieldHandlers.ResolveFileBasename(ev, &ev.Exit.Process.LinuxBinprm.FileEvent)
@@ -1644,12 +1887,18 @@ func (ev *Event) GetExitInterpreterFilePackageName() string {
 	if ev.GetEventType().String() != "exit" {
 		return ""
 	}
+	if !ev.Exit.Process.HasInterpreter() {
+		return ""
+	}
 	return ev.FieldHandlers.ResolvePackageName(ev, &ev.Exit.Process.LinuxBinprm.FileEvent)
 }
 
 // GetExitInterpreterFilePackageSourceVersion returns the value of the field, resolving if necessary
 func (ev *Event) GetExitInterpreterFilePackageSourceVersion() string {
 	if ev.GetEventType().String() != "exit" {
+		return ""
+	}
+	if !ev.Exit.Process.HasInterpreter() {
 		return ""
 	}
 	return ev.FieldHandlers.ResolvePackageSourceVersion(ev, &ev.Exit.Process.LinuxBinprm.FileEvent)
@@ -1660,12 +1909,18 @@ func (ev *Event) GetExitInterpreterFilePackageVersion() string {
 	if ev.GetEventType().String() != "exit" {
 		return ""
 	}
+	if !ev.Exit.Process.HasInterpreter() {
+		return ""
+	}
 	return ev.FieldHandlers.ResolvePackageVersion(ev, &ev.Exit.Process.LinuxBinprm.FileEvent)
 }
 
 // GetExitInterpreterFilePath returns the value of the field, resolving if necessary
 func (ev *Event) GetExitInterpreterFilePath() string {
 	if ev.GetEventType().String() != "exit" {
+		return ""
+	}
+	if !ev.Exit.Process.HasInterpreter() {
 		return ""
 	}
 	return ev.FieldHandlers.ResolveFilePath(ev, &ev.Exit.Process.LinuxBinprm.FileEvent)
@@ -1684,6 +1939,9 @@ func (ev *Event) GetExitInterpreterFileRights() int {
 	if ev.GetEventType().String() != "exit" {
 		return 0
 	}
+	if !ev.Exit.Process.HasInterpreter() {
+		return 0
+	}
 	return ev.FieldHandlers.ResolveRights(ev, &ev.Exit.Process.LinuxBinprm.FileEvent.FileFields)
 }
 
@@ -1692,12 +1950,18 @@ func (ev *Event) GetExitInterpreterFileUid() uint32 {
 	if ev.GetEventType().String() != "exit" {
 		return 0
 	}
+	if !ev.Exit.Process.HasInterpreter() {
+		return 0
+	}
 	return ev.Exit.Process.LinuxBinprm.FileEvent.FileFields.UID
 }
 
 // GetExitInterpreterFileUser returns the value of the field, resolving if necessary
 func (ev *Event) GetExitInterpreterFileUser() string {
 	if ev.GetEventType().String() != "exit" {
+		return ""
+	}
+	if !ev.Exit.Process.HasInterpreter() {
 		return ""
 	}
 	return ev.FieldHandlers.ResolveFileFieldsUser(ev, &ev.Exit.Process.LinuxBinprm.FileEvent.FileFields)
@@ -2983,6 +3247,21 @@ func (ev *Event) GetOpenRetval() int64 {
 	return ev.Open.SyscallEvent.Retval
 }
 
+// GetProcessExecTime returns the value of the field, resolving if necessary
+func (ev *Event) GetProcessExecTime() time.Time {
+	return ev.BaseEvent.ProcessContext.Process.ExecTime
+}
+
+// GetProcessExitTime returns the value of the field, resolving if necessary
+func (ev *Event) GetProcessExitTime() time.Time {
+	return ev.BaseEvent.ProcessContext.Process.ExitTime
+}
+
+// GetProcessForkTime returns the value of the field, resolving if necessary
+func (ev *Event) GetProcessForkTime() time.Time {
+	return ev.BaseEvent.ProcessContext.Process.ForkTime
+}
+
 // GetProcessAncestorsArgs returns the value of the field, resolving if necessary
 func (ev *Event) GetProcessAncestorsArgs() []string {
 	var values []string
@@ -4155,56 +4434,89 @@ func (ev *Event) GetProcessEuser() string {
 
 // GetProcessFileChangeTime returns the value of the field, resolving if necessary
 func (ev *Event) GetProcessFileChangeTime() uint64 {
+	if !ev.BaseEvent.ProcessContext.Process.IsNotKworker() {
+		return 0
+	}
 	return ev.BaseEvent.ProcessContext.Process.FileEvent.FileFields.CTime
 }
 
 // GetProcessFileFilesystem returns the value of the field, resolving if necessary
 func (ev *Event) GetProcessFileFilesystem() string {
+	if !ev.BaseEvent.ProcessContext.Process.IsNotKworker() {
+		return ""
+	}
 	return ev.FieldHandlers.ResolveFileFilesystem(ev, &ev.BaseEvent.ProcessContext.Process.FileEvent)
 }
 
 // GetProcessFileGid returns the value of the field, resolving if necessary
 func (ev *Event) GetProcessFileGid() uint32 {
+	if !ev.BaseEvent.ProcessContext.Process.IsNotKworker() {
+		return 0
+	}
 	return ev.BaseEvent.ProcessContext.Process.FileEvent.FileFields.GID
 }
 
 // GetProcessFileGroup returns the value of the field, resolving if necessary
 func (ev *Event) GetProcessFileGroup() string {
+	if !ev.BaseEvent.ProcessContext.Process.IsNotKworker() {
+		return ""
+	}
 	return ev.FieldHandlers.ResolveFileFieldsGroup(ev, &ev.BaseEvent.ProcessContext.Process.FileEvent.FileFields)
 }
 
 // GetProcessFileHashes returns the value of the field, resolving if necessary
 func (ev *Event) GetProcessFileHashes() []string {
+	if !ev.BaseEvent.ProcessContext.Process.IsNotKworker() {
+		return []string{}
+	}
 	return ev.FieldHandlers.ResolveHashesFromEvent(ev, &ev.BaseEvent.ProcessContext.Process.FileEvent)
 }
 
 // GetProcessFileInUpperLayer returns the value of the field, resolving if necessary
 func (ev *Event) GetProcessFileInUpperLayer() bool {
+	if !ev.BaseEvent.ProcessContext.Process.IsNotKworker() {
+		return false
+	}
 	return ev.FieldHandlers.ResolveFileFieldsInUpperLayer(ev, &ev.BaseEvent.ProcessContext.Process.FileEvent.FileFields)
 }
 
 // GetProcessFileInode returns the value of the field, resolving if necessary
 func (ev *Event) GetProcessFileInode() uint64 {
+	if !ev.BaseEvent.ProcessContext.Process.IsNotKworker() {
+		return 0
+	}
 	return ev.BaseEvent.ProcessContext.Process.FileEvent.FileFields.PathKey.Inode
 }
 
 // GetProcessFileMode returns the value of the field, resolving if necessary
 func (ev *Event) GetProcessFileMode() uint16 {
+	if !ev.BaseEvent.ProcessContext.Process.IsNotKworker() {
+		return 0
+	}
 	return ev.BaseEvent.ProcessContext.Process.FileEvent.FileFields.Mode
 }
 
 // GetProcessFileModificationTime returns the value of the field, resolving if necessary
 func (ev *Event) GetProcessFileModificationTime() uint64 {
+	if !ev.BaseEvent.ProcessContext.Process.IsNotKworker() {
+		return 0
+	}
 	return ev.BaseEvent.ProcessContext.Process.FileEvent.FileFields.MTime
 }
 
 // GetProcessFileMountId returns the value of the field, resolving if necessary
 func (ev *Event) GetProcessFileMountId() uint32 {
+	if !ev.BaseEvent.ProcessContext.Process.IsNotKworker() {
+		return 0
+	}
 	return ev.BaseEvent.ProcessContext.Process.FileEvent.FileFields.PathKey.MountID
 }
 
 // GetProcessFileName returns the value of the field, resolving if necessary
 func (ev *Event) GetProcessFileName() string {
+	if !ev.BaseEvent.ProcessContext.Process.IsNotKworker() {
+		return ""
+	}
 	return ev.FieldHandlers.ResolveFileBasename(ev, &ev.BaseEvent.ProcessContext.Process.FileEvent)
 }
 
@@ -4215,21 +4527,33 @@ func (ev *Event) GetProcessFileNameLength() int {
 
 // GetProcessFilePackageName returns the value of the field, resolving if necessary
 func (ev *Event) GetProcessFilePackageName() string {
+	if !ev.BaseEvent.ProcessContext.Process.IsNotKworker() {
+		return ""
+	}
 	return ev.FieldHandlers.ResolvePackageName(ev, &ev.BaseEvent.ProcessContext.Process.FileEvent)
 }
 
 // GetProcessFilePackageSourceVersion returns the value of the field, resolving if necessary
 func (ev *Event) GetProcessFilePackageSourceVersion() string {
+	if !ev.BaseEvent.ProcessContext.Process.IsNotKworker() {
+		return ""
+	}
 	return ev.FieldHandlers.ResolvePackageSourceVersion(ev, &ev.BaseEvent.ProcessContext.Process.FileEvent)
 }
 
 // GetProcessFilePackageVersion returns the value of the field, resolving if necessary
 func (ev *Event) GetProcessFilePackageVersion() string {
+	if !ev.BaseEvent.ProcessContext.Process.IsNotKworker() {
+		return ""
+	}
 	return ev.FieldHandlers.ResolvePackageVersion(ev, &ev.BaseEvent.ProcessContext.Process.FileEvent)
 }
 
 // GetProcessFilePath returns the value of the field, resolving if necessary
 func (ev *Event) GetProcessFilePath() string {
+	if !ev.BaseEvent.ProcessContext.Process.IsNotKworker() {
+		return ""
+	}
 	return ev.FieldHandlers.ResolveFilePath(ev, &ev.BaseEvent.ProcessContext.Process.FileEvent)
 }
 
@@ -4240,16 +4564,25 @@ func (ev *Event) GetProcessFilePathLength() int {
 
 // GetProcessFileRights returns the value of the field, resolving if necessary
 func (ev *Event) GetProcessFileRights() int {
+	if !ev.BaseEvent.ProcessContext.Process.IsNotKworker() {
+		return 0
+	}
 	return ev.FieldHandlers.ResolveRights(ev, &ev.BaseEvent.ProcessContext.Process.FileEvent.FileFields)
 }
 
 // GetProcessFileUid returns the value of the field, resolving if necessary
 func (ev *Event) GetProcessFileUid() uint32 {
+	if !ev.BaseEvent.ProcessContext.Process.IsNotKworker() {
+		return 0
+	}
 	return ev.BaseEvent.ProcessContext.Process.FileEvent.FileFields.UID
 }
 
 // GetProcessFileUser returns the value of the field, resolving if necessary
 func (ev *Event) GetProcessFileUser() string {
+	if !ev.BaseEvent.ProcessContext.Process.IsNotKworker() {
+		return ""
+	}
 	return ev.FieldHandlers.ResolveFileFieldsUser(ev, &ev.BaseEvent.ProcessContext.Process.FileEvent.FileFields)
 }
 
@@ -4285,56 +4618,89 @@ func (ev *Event) GetProcessGroup() string {
 
 // GetProcessInterpreterFileChangeTime returns the value of the field, resolving if necessary
 func (ev *Event) GetProcessInterpreterFileChangeTime() uint64 {
+	if !ev.BaseEvent.ProcessContext.Process.HasInterpreter() {
+		return 0
+	}
 	return ev.BaseEvent.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.CTime
 }
 
 // GetProcessInterpreterFileFilesystem returns the value of the field, resolving if necessary
 func (ev *Event) GetProcessInterpreterFileFilesystem() string {
+	if !ev.BaseEvent.ProcessContext.Process.HasInterpreter() {
+		return ""
+	}
 	return ev.FieldHandlers.ResolveFileFilesystem(ev, &ev.BaseEvent.ProcessContext.Process.LinuxBinprm.FileEvent)
 }
 
 // GetProcessInterpreterFileGid returns the value of the field, resolving if necessary
 func (ev *Event) GetProcessInterpreterFileGid() uint32 {
+	if !ev.BaseEvent.ProcessContext.Process.HasInterpreter() {
+		return 0
+	}
 	return ev.BaseEvent.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.GID
 }
 
 // GetProcessInterpreterFileGroup returns the value of the field, resolving if necessary
 func (ev *Event) GetProcessInterpreterFileGroup() string {
+	if !ev.BaseEvent.ProcessContext.Process.HasInterpreter() {
+		return ""
+	}
 	return ev.FieldHandlers.ResolveFileFieldsGroup(ev, &ev.BaseEvent.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields)
 }
 
 // GetProcessInterpreterFileHashes returns the value of the field, resolving if necessary
 func (ev *Event) GetProcessInterpreterFileHashes() []string {
+	if !ev.BaseEvent.ProcessContext.Process.HasInterpreter() {
+		return []string{}
+	}
 	return ev.FieldHandlers.ResolveHashesFromEvent(ev, &ev.BaseEvent.ProcessContext.Process.LinuxBinprm.FileEvent)
 }
 
 // GetProcessInterpreterFileInUpperLayer returns the value of the field, resolving if necessary
 func (ev *Event) GetProcessInterpreterFileInUpperLayer() bool {
+	if !ev.BaseEvent.ProcessContext.Process.HasInterpreter() {
+		return false
+	}
 	return ev.FieldHandlers.ResolveFileFieldsInUpperLayer(ev, &ev.BaseEvent.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields)
 }
 
 // GetProcessInterpreterFileInode returns the value of the field, resolving if necessary
 func (ev *Event) GetProcessInterpreterFileInode() uint64 {
+	if !ev.BaseEvent.ProcessContext.Process.HasInterpreter() {
+		return 0
+	}
 	return ev.BaseEvent.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.PathKey.Inode
 }
 
 // GetProcessInterpreterFileMode returns the value of the field, resolving if necessary
 func (ev *Event) GetProcessInterpreterFileMode() uint16 {
+	if !ev.BaseEvent.ProcessContext.Process.HasInterpreter() {
+		return 0
+	}
 	return ev.BaseEvent.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.Mode
 }
 
 // GetProcessInterpreterFileModificationTime returns the value of the field, resolving if necessary
 func (ev *Event) GetProcessInterpreterFileModificationTime() uint64 {
+	if !ev.BaseEvent.ProcessContext.Process.HasInterpreter() {
+		return 0
+	}
 	return ev.BaseEvent.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.MTime
 }
 
 // GetProcessInterpreterFileMountId returns the value of the field, resolving if necessary
 func (ev *Event) GetProcessInterpreterFileMountId() uint32 {
+	if !ev.BaseEvent.ProcessContext.Process.HasInterpreter() {
+		return 0
+	}
 	return ev.BaseEvent.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.PathKey.MountID
 }
 
 // GetProcessInterpreterFileName returns the value of the field, resolving if necessary
 func (ev *Event) GetProcessInterpreterFileName() string {
+	if !ev.BaseEvent.ProcessContext.Process.HasInterpreter() {
+		return ""
+	}
 	return ev.FieldHandlers.ResolveFileBasename(ev, &ev.BaseEvent.ProcessContext.Process.LinuxBinprm.FileEvent)
 }
 
@@ -4345,21 +4711,33 @@ func (ev *Event) GetProcessInterpreterFileNameLength() int {
 
 // GetProcessInterpreterFilePackageName returns the value of the field, resolving if necessary
 func (ev *Event) GetProcessInterpreterFilePackageName() string {
+	if !ev.BaseEvent.ProcessContext.Process.HasInterpreter() {
+		return ""
+	}
 	return ev.FieldHandlers.ResolvePackageName(ev, &ev.BaseEvent.ProcessContext.Process.LinuxBinprm.FileEvent)
 }
 
 // GetProcessInterpreterFilePackageSourceVersion returns the value of the field, resolving if necessary
 func (ev *Event) GetProcessInterpreterFilePackageSourceVersion() string {
+	if !ev.BaseEvent.ProcessContext.Process.HasInterpreter() {
+		return ""
+	}
 	return ev.FieldHandlers.ResolvePackageSourceVersion(ev, &ev.BaseEvent.ProcessContext.Process.LinuxBinprm.FileEvent)
 }
 
 // GetProcessInterpreterFilePackageVersion returns the value of the field, resolving if necessary
 func (ev *Event) GetProcessInterpreterFilePackageVersion() string {
+	if !ev.BaseEvent.ProcessContext.Process.HasInterpreter() {
+		return ""
+	}
 	return ev.FieldHandlers.ResolvePackageVersion(ev, &ev.BaseEvent.ProcessContext.Process.LinuxBinprm.FileEvent)
 }
 
 // GetProcessInterpreterFilePath returns the value of the field, resolving if necessary
 func (ev *Event) GetProcessInterpreterFilePath() string {
+	if !ev.BaseEvent.ProcessContext.Process.HasInterpreter() {
+		return ""
+	}
 	return ev.FieldHandlers.ResolveFilePath(ev, &ev.BaseEvent.ProcessContext.Process.LinuxBinprm.FileEvent)
 }
 
@@ -4370,16 +4748,25 @@ func (ev *Event) GetProcessInterpreterFilePathLength() int {
 
 // GetProcessInterpreterFileRights returns the value of the field, resolving if necessary
 func (ev *Event) GetProcessInterpreterFileRights() int {
+	if !ev.BaseEvent.ProcessContext.Process.HasInterpreter() {
+		return 0
+	}
 	return ev.FieldHandlers.ResolveRights(ev, &ev.BaseEvent.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields)
 }
 
 // GetProcessInterpreterFileUid returns the value of the field, resolving if necessary
 func (ev *Event) GetProcessInterpreterFileUid() uint32 {
+	if !ev.BaseEvent.ProcessContext.Process.HasInterpreter() {
+		return 0
+	}
 	return ev.BaseEvent.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.UID
 }
 
 // GetProcessInterpreterFileUser returns the value of the field, resolving if necessary
 func (ev *Event) GetProcessInterpreterFileUser() string {
+	if !ev.BaseEvent.ProcessContext.Process.HasInterpreter() {
+		return ""
+	}
 	return ev.FieldHandlers.ResolveFileFieldsUser(ev, &ev.BaseEvent.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields)
 }
 
@@ -4395,146 +4782,266 @@ func (ev *Event) GetProcessIsThread() bool {
 
 // GetProcessParentArgs returns the value of the field, resolving if necessary
 func (ev *Event) GetProcessParentArgs() string {
+	if !ev.BaseEvent.ProcessContext.HasParent() {
+		return ""
+	}
 	return ev.FieldHandlers.ResolveProcessArgs(ev, ev.BaseEvent.ProcessContext.Parent)
 }
 
 // GetProcessParentArgsFlags returns the value of the field, resolving if necessary
 func (ev *Event) GetProcessParentArgsFlags() []string {
+	if !ev.BaseEvent.ProcessContext.HasParent() {
+		return []string{}
+	}
 	return ev.FieldHandlers.ResolveProcessArgsFlags(ev, ev.BaseEvent.ProcessContext.Parent)
 }
 
 // GetProcessParentArgsOptions returns the value of the field, resolving if necessary
 func (ev *Event) GetProcessParentArgsOptions() []string {
+	if !ev.BaseEvent.ProcessContext.HasParent() {
+		return []string{}
+	}
 	return ev.FieldHandlers.ResolveProcessArgsOptions(ev, ev.BaseEvent.ProcessContext.Parent)
 }
 
 // GetProcessParentArgsTruncated returns the value of the field, resolving if necessary
 func (ev *Event) GetProcessParentArgsTruncated() bool {
+	if !ev.BaseEvent.ProcessContext.HasParent() {
+		return false
+	}
 	return ev.FieldHandlers.ResolveProcessArgsTruncated(ev, ev.BaseEvent.ProcessContext.Parent)
 }
 
 // GetProcessParentArgv returns the value of the field, resolving if necessary
 func (ev *Event) GetProcessParentArgv() []string {
+	if !ev.BaseEvent.ProcessContext.HasParent() {
+		return []string{}
+	}
 	return ev.FieldHandlers.ResolveProcessArgv(ev, ev.BaseEvent.ProcessContext.Parent)
 }
 
 // GetProcessParentArgv0 returns the value of the field, resolving if necessary
 func (ev *Event) GetProcessParentArgv0() string {
+	if !ev.BaseEvent.ProcessContext.HasParent() {
+		return ""
+	}
 	return ev.FieldHandlers.ResolveProcessArgv0(ev, ev.BaseEvent.ProcessContext.Parent)
 }
 
 // GetProcessParentCapEffective returns the value of the field, resolving if necessary
 func (ev *Event) GetProcessParentCapEffective() uint64 {
+	if !ev.BaseEvent.ProcessContext.HasParent() {
+		return 0
+	}
 	return ev.BaseEvent.ProcessContext.Parent.Credentials.CapEffective
 }
 
 // GetProcessParentCapPermitted returns the value of the field, resolving if necessary
 func (ev *Event) GetProcessParentCapPermitted() uint64 {
+	if !ev.BaseEvent.ProcessContext.HasParent() {
+		return 0
+	}
 	return ev.BaseEvent.ProcessContext.Parent.Credentials.CapPermitted
 }
 
 // GetProcessParentComm returns the value of the field, resolving if necessary
 func (ev *Event) GetProcessParentComm() string {
+	if !ev.BaseEvent.ProcessContext.HasParent() {
+		return ""
+	}
 	return ev.BaseEvent.ProcessContext.Parent.Comm
 }
 
 // GetProcessParentContainerId returns the value of the field, resolving if necessary
 func (ev *Event) GetProcessParentContainerId() string {
+	if !ev.BaseEvent.ProcessContext.HasParent() {
+		return ""
+	}
 	return ev.BaseEvent.ProcessContext.Parent.ContainerID
 }
 
 // GetProcessParentCreatedAt returns the value of the field, resolving if necessary
 func (ev *Event) GetProcessParentCreatedAt() int {
+	if !ev.BaseEvent.ProcessContext.HasParent() {
+		return 0
+	}
 	return ev.FieldHandlers.ResolveProcessCreatedAt(ev, ev.BaseEvent.ProcessContext.Parent)
 }
 
 // GetProcessParentEgid returns the value of the field, resolving if necessary
 func (ev *Event) GetProcessParentEgid() uint32 {
+	if !ev.BaseEvent.ProcessContext.HasParent() {
+		return 0
+	}
 	return ev.BaseEvent.ProcessContext.Parent.Credentials.EGID
 }
 
 // GetProcessParentEgroup returns the value of the field, resolving if necessary
 func (ev *Event) GetProcessParentEgroup() string {
+	if !ev.BaseEvent.ProcessContext.HasParent() {
+		return ""
+	}
 	return ev.BaseEvent.ProcessContext.Parent.Credentials.EGroup
 }
 
 // GetProcessParentEnvp returns the value of the field, resolving if necessary
 func (ev *Event) GetProcessParentEnvp() []string {
+	if !ev.BaseEvent.ProcessContext.HasParent() {
+		return []string{}
+	}
 	return ev.FieldHandlers.ResolveProcessEnvp(ev, ev.BaseEvent.ProcessContext.Parent)
 }
 
 // GetProcessParentEnvs returns the value of the field, resolving if necessary
 func (ev *Event) GetProcessParentEnvs() []string {
+	if !ev.BaseEvent.ProcessContext.HasParent() {
+		return []string{}
+	}
 	return ev.FieldHandlers.ResolveProcessEnvs(ev, ev.BaseEvent.ProcessContext.Parent)
 }
 
 // GetProcessParentEnvsTruncated returns the value of the field, resolving if necessary
 func (ev *Event) GetProcessParentEnvsTruncated() bool {
+	if !ev.BaseEvent.ProcessContext.HasParent() {
+		return false
+	}
 	return ev.FieldHandlers.ResolveProcessEnvsTruncated(ev, ev.BaseEvent.ProcessContext.Parent)
 }
 
 // GetProcessParentEuid returns the value of the field, resolving if necessary
 func (ev *Event) GetProcessParentEuid() uint32 {
+	if !ev.BaseEvent.ProcessContext.HasParent() {
+		return 0
+	}
 	return ev.BaseEvent.ProcessContext.Parent.Credentials.EUID
 }
 
 // GetProcessParentEuser returns the value of the field, resolving if necessary
 func (ev *Event) GetProcessParentEuser() string {
+	if !ev.BaseEvent.ProcessContext.HasParent() {
+		return ""
+	}
 	return ev.BaseEvent.ProcessContext.Parent.Credentials.EUser
 }
 
 // GetProcessParentFileChangeTime returns the value of the field, resolving if necessary
 func (ev *Event) GetProcessParentFileChangeTime() uint64 {
+	if !ev.BaseEvent.ProcessContext.HasParent() {
+		return 0
+	}
+	if !ev.BaseEvent.ProcessContext.Parent.IsNotKworker() {
+		return 0
+	}
 	return ev.BaseEvent.ProcessContext.Parent.FileEvent.FileFields.CTime
 }
 
 // GetProcessParentFileFilesystem returns the value of the field, resolving if necessary
 func (ev *Event) GetProcessParentFileFilesystem() string {
+	if !ev.BaseEvent.ProcessContext.HasParent() {
+		return ""
+	}
+	if !ev.BaseEvent.ProcessContext.Parent.IsNotKworker() {
+		return ""
+	}
 	return ev.FieldHandlers.ResolveFileFilesystem(ev, &ev.BaseEvent.ProcessContext.Parent.FileEvent)
 }
 
 // GetProcessParentFileGid returns the value of the field, resolving if necessary
 func (ev *Event) GetProcessParentFileGid() uint32 {
+	if !ev.BaseEvent.ProcessContext.HasParent() {
+		return 0
+	}
+	if !ev.BaseEvent.ProcessContext.Parent.IsNotKworker() {
+		return 0
+	}
 	return ev.BaseEvent.ProcessContext.Parent.FileEvent.FileFields.GID
 }
 
 // GetProcessParentFileGroup returns the value of the field, resolving if necessary
 func (ev *Event) GetProcessParentFileGroup() string {
+	if !ev.BaseEvent.ProcessContext.HasParent() {
+		return ""
+	}
+	if !ev.BaseEvent.ProcessContext.Parent.IsNotKworker() {
+		return ""
+	}
 	return ev.FieldHandlers.ResolveFileFieldsGroup(ev, &ev.BaseEvent.ProcessContext.Parent.FileEvent.FileFields)
 }
 
 // GetProcessParentFileHashes returns the value of the field, resolving if necessary
 func (ev *Event) GetProcessParentFileHashes() []string {
+	if !ev.BaseEvent.ProcessContext.HasParent() {
+		return []string{}
+	}
+	if !ev.BaseEvent.ProcessContext.Parent.IsNotKworker() {
+		return []string{}
+	}
 	return ev.FieldHandlers.ResolveHashesFromEvent(ev, &ev.BaseEvent.ProcessContext.Parent.FileEvent)
 }
 
 // GetProcessParentFileInUpperLayer returns the value of the field, resolving if necessary
 func (ev *Event) GetProcessParentFileInUpperLayer() bool {
+	if !ev.BaseEvent.ProcessContext.HasParent() {
+		return false
+	}
+	if !ev.BaseEvent.ProcessContext.Parent.IsNotKworker() {
+		return false
+	}
 	return ev.FieldHandlers.ResolveFileFieldsInUpperLayer(ev, &ev.BaseEvent.ProcessContext.Parent.FileEvent.FileFields)
 }
 
 // GetProcessParentFileInode returns the value of the field, resolving if necessary
 func (ev *Event) GetProcessParentFileInode() uint64 {
+	if !ev.BaseEvent.ProcessContext.HasParent() {
+		return 0
+	}
+	if !ev.BaseEvent.ProcessContext.Parent.IsNotKworker() {
+		return 0
+	}
 	return ev.BaseEvent.ProcessContext.Parent.FileEvent.FileFields.PathKey.Inode
 }
 
 // GetProcessParentFileMode returns the value of the field, resolving if necessary
 func (ev *Event) GetProcessParentFileMode() uint16 {
+	if !ev.BaseEvent.ProcessContext.HasParent() {
+		return 0
+	}
+	if !ev.BaseEvent.ProcessContext.Parent.IsNotKworker() {
+		return 0
+	}
 	return ev.BaseEvent.ProcessContext.Parent.FileEvent.FileFields.Mode
 }
 
 // GetProcessParentFileModificationTime returns the value of the field, resolving if necessary
 func (ev *Event) GetProcessParentFileModificationTime() uint64 {
+	if !ev.BaseEvent.ProcessContext.HasParent() {
+		return 0
+	}
+	if !ev.BaseEvent.ProcessContext.Parent.IsNotKworker() {
+		return 0
+	}
 	return ev.BaseEvent.ProcessContext.Parent.FileEvent.FileFields.MTime
 }
 
 // GetProcessParentFileMountId returns the value of the field, resolving if necessary
 func (ev *Event) GetProcessParentFileMountId() uint32 {
+	if !ev.BaseEvent.ProcessContext.HasParent() {
+		return 0
+	}
+	if !ev.BaseEvent.ProcessContext.Parent.IsNotKworker() {
+		return 0
+	}
 	return ev.BaseEvent.ProcessContext.Parent.FileEvent.FileFields.PathKey.MountID
 }
 
 // GetProcessParentFileName returns the value of the field, resolving if necessary
 func (ev *Event) GetProcessParentFileName() string {
+	if !ev.BaseEvent.ProcessContext.HasParent() {
+		return ""
+	}
+	if !ev.BaseEvent.ProcessContext.Parent.IsNotKworker() {
+		return ""
+	}
 	return ev.FieldHandlers.ResolveFileBasename(ev, &ev.BaseEvent.ProcessContext.Parent.FileEvent)
 }
 
@@ -4545,21 +5052,45 @@ func (ev *Event) GetProcessParentFileNameLength() int {
 
 // GetProcessParentFilePackageName returns the value of the field, resolving if necessary
 func (ev *Event) GetProcessParentFilePackageName() string {
+	if !ev.BaseEvent.ProcessContext.HasParent() {
+		return ""
+	}
+	if !ev.BaseEvent.ProcessContext.Parent.IsNotKworker() {
+		return ""
+	}
 	return ev.FieldHandlers.ResolvePackageName(ev, &ev.BaseEvent.ProcessContext.Parent.FileEvent)
 }
 
 // GetProcessParentFilePackageSourceVersion returns the value of the field, resolving if necessary
 func (ev *Event) GetProcessParentFilePackageSourceVersion() string {
+	if !ev.BaseEvent.ProcessContext.HasParent() {
+		return ""
+	}
+	if !ev.BaseEvent.ProcessContext.Parent.IsNotKworker() {
+		return ""
+	}
 	return ev.FieldHandlers.ResolvePackageSourceVersion(ev, &ev.BaseEvent.ProcessContext.Parent.FileEvent)
 }
 
 // GetProcessParentFilePackageVersion returns the value of the field, resolving if necessary
 func (ev *Event) GetProcessParentFilePackageVersion() string {
+	if !ev.BaseEvent.ProcessContext.HasParent() {
+		return ""
+	}
+	if !ev.BaseEvent.ProcessContext.Parent.IsNotKworker() {
+		return ""
+	}
 	return ev.FieldHandlers.ResolvePackageVersion(ev, &ev.BaseEvent.ProcessContext.Parent.FileEvent)
 }
 
 // GetProcessParentFilePath returns the value of the field, resolving if necessary
 func (ev *Event) GetProcessParentFilePath() string {
+	if !ev.BaseEvent.ProcessContext.HasParent() {
+		return ""
+	}
+	if !ev.BaseEvent.ProcessContext.Parent.IsNotKworker() {
+		return ""
+	}
 	return ev.FieldHandlers.ResolveFilePath(ev, &ev.BaseEvent.ProcessContext.Parent.FileEvent)
 }
 
@@ -4570,101 +5101,203 @@ func (ev *Event) GetProcessParentFilePathLength() int {
 
 // GetProcessParentFileRights returns the value of the field, resolving if necessary
 func (ev *Event) GetProcessParentFileRights() int {
+	if !ev.BaseEvent.ProcessContext.HasParent() {
+		return 0
+	}
+	if !ev.BaseEvent.ProcessContext.Parent.IsNotKworker() {
+		return 0
+	}
 	return ev.FieldHandlers.ResolveRights(ev, &ev.BaseEvent.ProcessContext.Parent.FileEvent.FileFields)
 }
 
 // GetProcessParentFileUid returns the value of the field, resolving if necessary
 func (ev *Event) GetProcessParentFileUid() uint32 {
+	if !ev.BaseEvent.ProcessContext.HasParent() {
+		return 0
+	}
+	if !ev.BaseEvent.ProcessContext.Parent.IsNotKworker() {
+		return 0
+	}
 	return ev.BaseEvent.ProcessContext.Parent.FileEvent.FileFields.UID
 }
 
 // GetProcessParentFileUser returns the value of the field, resolving if necessary
 func (ev *Event) GetProcessParentFileUser() string {
+	if !ev.BaseEvent.ProcessContext.HasParent() {
+		return ""
+	}
+	if !ev.BaseEvent.ProcessContext.Parent.IsNotKworker() {
+		return ""
+	}
 	return ev.FieldHandlers.ResolveFileFieldsUser(ev, &ev.BaseEvent.ProcessContext.Parent.FileEvent.FileFields)
 }
 
 // GetProcessParentFsgid returns the value of the field, resolving if necessary
 func (ev *Event) GetProcessParentFsgid() uint32 {
+	if !ev.BaseEvent.ProcessContext.HasParent() {
+		return 0
+	}
 	return ev.BaseEvent.ProcessContext.Parent.Credentials.FSGID
 }
 
 // GetProcessParentFsgroup returns the value of the field, resolving if necessary
 func (ev *Event) GetProcessParentFsgroup() string {
+	if !ev.BaseEvent.ProcessContext.HasParent() {
+		return ""
+	}
 	return ev.BaseEvent.ProcessContext.Parent.Credentials.FSGroup
 }
 
 // GetProcessParentFsuid returns the value of the field, resolving if necessary
 func (ev *Event) GetProcessParentFsuid() uint32 {
+	if !ev.BaseEvent.ProcessContext.HasParent() {
+		return 0
+	}
 	return ev.BaseEvent.ProcessContext.Parent.Credentials.FSUID
 }
 
 // GetProcessParentFsuser returns the value of the field, resolving if necessary
 func (ev *Event) GetProcessParentFsuser() string {
+	if !ev.BaseEvent.ProcessContext.HasParent() {
+		return ""
+	}
 	return ev.BaseEvent.ProcessContext.Parent.Credentials.FSUser
 }
 
 // GetProcessParentGid returns the value of the field, resolving if necessary
 func (ev *Event) GetProcessParentGid() uint32 {
+	if !ev.BaseEvent.ProcessContext.HasParent() {
+		return 0
+	}
 	return ev.BaseEvent.ProcessContext.Parent.Credentials.GID
 }
 
 // GetProcessParentGroup returns the value of the field, resolving if necessary
 func (ev *Event) GetProcessParentGroup() string {
+	if !ev.BaseEvent.ProcessContext.HasParent() {
+		return ""
+	}
 	return ev.BaseEvent.ProcessContext.Parent.Credentials.Group
 }
 
 // GetProcessParentInterpreterFileChangeTime returns the value of the field, resolving if necessary
 func (ev *Event) GetProcessParentInterpreterFileChangeTime() uint64 {
+	if !ev.BaseEvent.ProcessContext.HasParent() {
+		return 0
+	}
+	if !ev.BaseEvent.ProcessContext.Parent.HasInterpreter() {
+		return 0
+	}
 	return ev.BaseEvent.ProcessContext.Parent.LinuxBinprm.FileEvent.FileFields.CTime
 }
 
 // GetProcessParentInterpreterFileFilesystem returns the value of the field, resolving if necessary
 func (ev *Event) GetProcessParentInterpreterFileFilesystem() string {
+	if !ev.BaseEvent.ProcessContext.HasParent() {
+		return ""
+	}
+	if !ev.BaseEvent.ProcessContext.Parent.HasInterpreter() {
+		return ""
+	}
 	return ev.FieldHandlers.ResolveFileFilesystem(ev, &ev.BaseEvent.ProcessContext.Parent.LinuxBinprm.FileEvent)
 }
 
 // GetProcessParentInterpreterFileGid returns the value of the field, resolving if necessary
 func (ev *Event) GetProcessParentInterpreterFileGid() uint32 {
+	if !ev.BaseEvent.ProcessContext.HasParent() {
+		return 0
+	}
+	if !ev.BaseEvent.ProcessContext.Parent.HasInterpreter() {
+		return 0
+	}
 	return ev.BaseEvent.ProcessContext.Parent.LinuxBinprm.FileEvent.FileFields.GID
 }
 
 // GetProcessParentInterpreterFileGroup returns the value of the field, resolving if necessary
 func (ev *Event) GetProcessParentInterpreterFileGroup() string {
+	if !ev.BaseEvent.ProcessContext.HasParent() {
+		return ""
+	}
+	if !ev.BaseEvent.ProcessContext.Parent.HasInterpreter() {
+		return ""
+	}
 	return ev.FieldHandlers.ResolveFileFieldsGroup(ev, &ev.BaseEvent.ProcessContext.Parent.LinuxBinprm.FileEvent.FileFields)
 }
 
 // GetProcessParentInterpreterFileHashes returns the value of the field, resolving if necessary
 func (ev *Event) GetProcessParentInterpreterFileHashes() []string {
+	if !ev.BaseEvent.ProcessContext.HasParent() {
+		return []string{}
+	}
+	if !ev.BaseEvent.ProcessContext.Parent.HasInterpreter() {
+		return []string{}
+	}
 	return ev.FieldHandlers.ResolveHashesFromEvent(ev, &ev.BaseEvent.ProcessContext.Parent.LinuxBinprm.FileEvent)
 }
 
 // GetProcessParentInterpreterFileInUpperLayer returns the value of the field, resolving if necessary
 func (ev *Event) GetProcessParentInterpreterFileInUpperLayer() bool {
+	if !ev.BaseEvent.ProcessContext.HasParent() {
+		return false
+	}
+	if !ev.BaseEvent.ProcessContext.Parent.HasInterpreter() {
+		return false
+	}
 	return ev.FieldHandlers.ResolveFileFieldsInUpperLayer(ev, &ev.BaseEvent.ProcessContext.Parent.LinuxBinprm.FileEvent.FileFields)
 }
 
 // GetProcessParentInterpreterFileInode returns the value of the field, resolving if necessary
 func (ev *Event) GetProcessParentInterpreterFileInode() uint64 {
+	if !ev.BaseEvent.ProcessContext.HasParent() {
+		return 0
+	}
+	if !ev.BaseEvent.ProcessContext.Parent.HasInterpreter() {
+		return 0
+	}
 	return ev.BaseEvent.ProcessContext.Parent.LinuxBinprm.FileEvent.FileFields.PathKey.Inode
 }
 
 // GetProcessParentInterpreterFileMode returns the value of the field, resolving if necessary
 func (ev *Event) GetProcessParentInterpreterFileMode() uint16 {
+	if !ev.BaseEvent.ProcessContext.HasParent() {
+		return 0
+	}
+	if !ev.BaseEvent.ProcessContext.Parent.HasInterpreter() {
+		return 0
+	}
 	return ev.BaseEvent.ProcessContext.Parent.LinuxBinprm.FileEvent.FileFields.Mode
 }
 
 // GetProcessParentInterpreterFileModificationTime returns the value of the field, resolving if necessary
 func (ev *Event) GetProcessParentInterpreterFileModificationTime() uint64 {
+	if !ev.BaseEvent.ProcessContext.HasParent() {
+		return 0
+	}
+	if !ev.BaseEvent.ProcessContext.Parent.HasInterpreter() {
+		return 0
+	}
 	return ev.BaseEvent.ProcessContext.Parent.LinuxBinprm.FileEvent.FileFields.MTime
 }
 
 // GetProcessParentInterpreterFileMountId returns the value of the field, resolving if necessary
 func (ev *Event) GetProcessParentInterpreterFileMountId() uint32 {
+	if !ev.BaseEvent.ProcessContext.HasParent() {
+		return 0
+	}
+	if !ev.BaseEvent.ProcessContext.Parent.HasInterpreter() {
+		return 0
+	}
 	return ev.BaseEvent.ProcessContext.Parent.LinuxBinprm.FileEvent.FileFields.PathKey.MountID
 }
 
 // GetProcessParentInterpreterFileName returns the value of the field, resolving if necessary
 func (ev *Event) GetProcessParentInterpreterFileName() string {
+	if !ev.BaseEvent.ProcessContext.HasParent() {
+		return ""
+	}
+	if !ev.BaseEvent.ProcessContext.Parent.HasInterpreter() {
+		return ""
+	}
 	return ev.FieldHandlers.ResolveFileBasename(ev, &ev.BaseEvent.ProcessContext.Parent.LinuxBinprm.FileEvent)
 }
 
@@ -4675,21 +5308,45 @@ func (ev *Event) GetProcessParentInterpreterFileNameLength() int {
 
 // GetProcessParentInterpreterFilePackageName returns the value of the field, resolving if necessary
 func (ev *Event) GetProcessParentInterpreterFilePackageName() string {
+	if !ev.BaseEvent.ProcessContext.HasParent() {
+		return ""
+	}
+	if !ev.BaseEvent.ProcessContext.Parent.HasInterpreter() {
+		return ""
+	}
 	return ev.FieldHandlers.ResolvePackageName(ev, &ev.BaseEvent.ProcessContext.Parent.LinuxBinprm.FileEvent)
 }
 
 // GetProcessParentInterpreterFilePackageSourceVersion returns the value of the field, resolving if necessary
 func (ev *Event) GetProcessParentInterpreterFilePackageSourceVersion() string {
+	if !ev.BaseEvent.ProcessContext.HasParent() {
+		return ""
+	}
+	if !ev.BaseEvent.ProcessContext.Parent.HasInterpreter() {
+		return ""
+	}
 	return ev.FieldHandlers.ResolvePackageSourceVersion(ev, &ev.BaseEvent.ProcessContext.Parent.LinuxBinprm.FileEvent)
 }
 
 // GetProcessParentInterpreterFilePackageVersion returns the value of the field, resolving if necessary
 func (ev *Event) GetProcessParentInterpreterFilePackageVersion() string {
+	if !ev.BaseEvent.ProcessContext.HasParent() {
+		return ""
+	}
+	if !ev.BaseEvent.ProcessContext.Parent.HasInterpreter() {
+		return ""
+	}
 	return ev.FieldHandlers.ResolvePackageVersion(ev, &ev.BaseEvent.ProcessContext.Parent.LinuxBinprm.FileEvent)
 }
 
 // GetProcessParentInterpreterFilePath returns the value of the field, resolving if necessary
 func (ev *Event) GetProcessParentInterpreterFilePath() string {
+	if !ev.BaseEvent.ProcessContext.HasParent() {
+		return ""
+	}
+	if !ev.BaseEvent.ProcessContext.Parent.HasInterpreter() {
+		return ""
+	}
 	return ev.FieldHandlers.ResolveFilePath(ev, &ev.BaseEvent.ProcessContext.Parent.LinuxBinprm.FileEvent)
 }
 
@@ -4700,56 +5357,98 @@ func (ev *Event) GetProcessParentInterpreterFilePathLength() int {
 
 // GetProcessParentInterpreterFileRights returns the value of the field, resolving if necessary
 func (ev *Event) GetProcessParentInterpreterFileRights() int {
+	if !ev.BaseEvent.ProcessContext.HasParent() {
+		return 0
+	}
+	if !ev.BaseEvent.ProcessContext.Parent.HasInterpreter() {
+		return 0
+	}
 	return ev.FieldHandlers.ResolveRights(ev, &ev.BaseEvent.ProcessContext.Parent.LinuxBinprm.FileEvent.FileFields)
 }
 
 // GetProcessParentInterpreterFileUid returns the value of the field, resolving if necessary
 func (ev *Event) GetProcessParentInterpreterFileUid() uint32 {
+	if !ev.BaseEvent.ProcessContext.HasParent() {
+		return 0
+	}
+	if !ev.BaseEvent.ProcessContext.Parent.HasInterpreter() {
+		return 0
+	}
 	return ev.BaseEvent.ProcessContext.Parent.LinuxBinprm.FileEvent.FileFields.UID
 }
 
 // GetProcessParentInterpreterFileUser returns the value of the field, resolving if necessary
 func (ev *Event) GetProcessParentInterpreterFileUser() string {
+	if !ev.BaseEvent.ProcessContext.HasParent() {
+		return ""
+	}
+	if !ev.BaseEvent.ProcessContext.Parent.HasInterpreter() {
+		return ""
+	}
 	return ev.FieldHandlers.ResolveFileFieldsUser(ev, &ev.BaseEvent.ProcessContext.Parent.LinuxBinprm.FileEvent.FileFields)
 }
 
 // GetProcessParentIsKworker returns the value of the field, resolving if necessary
 func (ev *Event) GetProcessParentIsKworker() bool {
+	if !ev.BaseEvent.ProcessContext.HasParent() {
+		return false
+	}
 	return ev.BaseEvent.ProcessContext.Parent.PIDContext.IsKworker
 }
 
 // GetProcessParentIsThread returns the value of the field, resolving if necessary
 func (ev *Event) GetProcessParentIsThread() bool {
+	if !ev.BaseEvent.ProcessContext.HasParent() {
+		return false
+	}
 	return ev.BaseEvent.ProcessContext.Parent.IsThread
 }
 
 // GetProcessParentPid returns the value of the field, resolving if necessary
 func (ev *Event) GetProcessParentPid() uint32 {
+	if !ev.BaseEvent.ProcessContext.HasParent() {
+		return 0
+	}
 	return ev.BaseEvent.ProcessContext.Parent.PIDContext.Pid
 }
 
 // GetProcessParentPpid returns the value of the field, resolving if necessary
 func (ev *Event) GetProcessParentPpid() uint32 {
+	if !ev.BaseEvent.ProcessContext.HasParent() {
+		return 0
+	}
 	return ev.BaseEvent.ProcessContext.Parent.PPid
 }
 
 // GetProcessParentTid returns the value of the field, resolving if necessary
 func (ev *Event) GetProcessParentTid() uint32 {
+	if !ev.BaseEvent.ProcessContext.HasParent() {
+		return 0
+	}
 	return ev.BaseEvent.ProcessContext.Parent.PIDContext.Tid
 }
 
 // GetProcessParentTtyName returns the value of the field, resolving if necessary
 func (ev *Event) GetProcessParentTtyName() string {
+	if !ev.BaseEvent.ProcessContext.HasParent() {
+		return ""
+	}
 	return ev.BaseEvent.ProcessContext.Parent.TTYName
 }
 
 // GetProcessParentUid returns the value of the field, resolving if necessary
 func (ev *Event) GetProcessParentUid() uint32 {
+	if !ev.BaseEvent.ProcessContext.HasParent() {
+		return 0
+	}
 	return ev.BaseEvent.ProcessContext.Parent.Credentials.UID
 }
 
 // GetProcessParentUser returns the value of the field, resolving if necessary
 func (ev *Event) GetProcessParentUser() string {
+	if !ev.BaseEvent.ProcessContext.HasParent() {
+		return ""
+	}
 	return ev.BaseEvent.ProcessContext.Parent.Credentials.User
 }
 
@@ -4797,6 +5496,30 @@ func (ev *Event) GetPtraceRetval() int64 {
 		return 0
 	}
 	return ev.PTrace.SyscallEvent.Retval
+}
+
+// GetPtraceTraceeExecTime returns the value of the field, resolving if necessary
+func (ev *Event) GetPtraceTraceeExecTime() time.Time {
+	if ev.GetEventType().String() != "ptrace" {
+		return time.Time{}
+	}
+	return ev.PTrace.Tracee.Process.ExecTime
+}
+
+// GetPtraceTraceeExitTime returns the value of the field, resolving if necessary
+func (ev *Event) GetPtraceTraceeExitTime() time.Time {
+	if ev.GetEventType().String() != "ptrace" {
+		return time.Time{}
+	}
+	return ev.PTrace.Tracee.Process.ExitTime
+}
+
+// GetPtraceTraceeForkTime returns the value of the field, resolving if necessary
+func (ev *Event) GetPtraceTraceeForkTime() time.Time {
+	if ev.GetEventType().String() != "ptrace" {
+		return time.Time{}
+	}
+	return ev.PTrace.Tracee.Process.ForkTime
 }
 
 // GetPtraceTraceeAncestorsArgs returns the value of the field, resolving if necessary
@@ -6244,12 +6967,18 @@ func (ev *Event) GetPtraceTraceeFileChangeTime() uint64 {
 	if ev.GetEventType().String() != "ptrace" {
 		return 0
 	}
+	if !ev.PTrace.Tracee.Process.IsNotKworker() {
+		return 0
+	}
 	return ev.PTrace.Tracee.Process.FileEvent.FileFields.CTime
 }
 
 // GetPtraceTraceeFileFilesystem returns the value of the field, resolving if necessary
 func (ev *Event) GetPtraceTraceeFileFilesystem() string {
 	if ev.GetEventType().String() != "ptrace" {
+		return ""
+	}
+	if !ev.PTrace.Tracee.Process.IsNotKworker() {
 		return ""
 	}
 	return ev.FieldHandlers.ResolveFileFilesystem(ev, &ev.PTrace.Tracee.Process.FileEvent)
@@ -6260,12 +6989,18 @@ func (ev *Event) GetPtraceTraceeFileGid() uint32 {
 	if ev.GetEventType().String() != "ptrace" {
 		return 0
 	}
+	if !ev.PTrace.Tracee.Process.IsNotKworker() {
+		return 0
+	}
 	return ev.PTrace.Tracee.Process.FileEvent.FileFields.GID
 }
 
 // GetPtraceTraceeFileGroup returns the value of the field, resolving if necessary
 func (ev *Event) GetPtraceTraceeFileGroup() string {
 	if ev.GetEventType().String() != "ptrace" {
+		return ""
+	}
+	if !ev.PTrace.Tracee.Process.IsNotKworker() {
 		return ""
 	}
 	return ev.FieldHandlers.ResolveFileFieldsGroup(ev, &ev.PTrace.Tracee.Process.FileEvent.FileFields)
@@ -6276,12 +7011,18 @@ func (ev *Event) GetPtraceTraceeFileHashes() []string {
 	if ev.GetEventType().String() != "ptrace" {
 		return []string{}
 	}
+	if !ev.PTrace.Tracee.Process.IsNotKworker() {
+		return []string{}
+	}
 	return ev.FieldHandlers.ResolveHashesFromEvent(ev, &ev.PTrace.Tracee.Process.FileEvent)
 }
 
 // GetPtraceTraceeFileInUpperLayer returns the value of the field, resolving if necessary
 func (ev *Event) GetPtraceTraceeFileInUpperLayer() bool {
 	if ev.GetEventType().String() != "ptrace" {
+		return false
+	}
+	if !ev.PTrace.Tracee.Process.IsNotKworker() {
 		return false
 	}
 	return ev.FieldHandlers.ResolveFileFieldsInUpperLayer(ev, &ev.PTrace.Tracee.Process.FileEvent.FileFields)
@@ -6292,12 +7033,18 @@ func (ev *Event) GetPtraceTraceeFileInode() uint64 {
 	if ev.GetEventType().String() != "ptrace" {
 		return 0
 	}
+	if !ev.PTrace.Tracee.Process.IsNotKworker() {
+		return 0
+	}
 	return ev.PTrace.Tracee.Process.FileEvent.FileFields.PathKey.Inode
 }
 
 // GetPtraceTraceeFileMode returns the value of the field, resolving if necessary
 func (ev *Event) GetPtraceTraceeFileMode() uint16 {
 	if ev.GetEventType().String() != "ptrace" {
+		return 0
+	}
+	if !ev.PTrace.Tracee.Process.IsNotKworker() {
 		return 0
 	}
 	return ev.PTrace.Tracee.Process.FileEvent.FileFields.Mode
@@ -6308,6 +7055,9 @@ func (ev *Event) GetPtraceTraceeFileModificationTime() uint64 {
 	if ev.GetEventType().String() != "ptrace" {
 		return 0
 	}
+	if !ev.PTrace.Tracee.Process.IsNotKworker() {
+		return 0
+	}
 	return ev.PTrace.Tracee.Process.FileEvent.FileFields.MTime
 }
 
@@ -6316,12 +7066,18 @@ func (ev *Event) GetPtraceTraceeFileMountId() uint32 {
 	if ev.GetEventType().String() != "ptrace" {
 		return 0
 	}
+	if !ev.PTrace.Tracee.Process.IsNotKworker() {
+		return 0
+	}
 	return ev.PTrace.Tracee.Process.FileEvent.FileFields.PathKey.MountID
 }
 
 // GetPtraceTraceeFileName returns the value of the field, resolving if necessary
 func (ev *Event) GetPtraceTraceeFileName() string {
 	if ev.GetEventType().String() != "ptrace" {
+		return ""
+	}
+	if !ev.PTrace.Tracee.Process.IsNotKworker() {
 		return ""
 	}
 	return ev.FieldHandlers.ResolveFileBasename(ev, &ev.PTrace.Tracee.Process.FileEvent)
@@ -6340,12 +7096,18 @@ func (ev *Event) GetPtraceTraceeFilePackageName() string {
 	if ev.GetEventType().String() != "ptrace" {
 		return ""
 	}
+	if !ev.PTrace.Tracee.Process.IsNotKworker() {
+		return ""
+	}
 	return ev.FieldHandlers.ResolvePackageName(ev, &ev.PTrace.Tracee.Process.FileEvent)
 }
 
 // GetPtraceTraceeFilePackageSourceVersion returns the value of the field, resolving if necessary
 func (ev *Event) GetPtraceTraceeFilePackageSourceVersion() string {
 	if ev.GetEventType().String() != "ptrace" {
+		return ""
+	}
+	if !ev.PTrace.Tracee.Process.IsNotKworker() {
 		return ""
 	}
 	return ev.FieldHandlers.ResolvePackageSourceVersion(ev, &ev.PTrace.Tracee.Process.FileEvent)
@@ -6356,12 +7118,18 @@ func (ev *Event) GetPtraceTraceeFilePackageVersion() string {
 	if ev.GetEventType().String() != "ptrace" {
 		return ""
 	}
+	if !ev.PTrace.Tracee.Process.IsNotKworker() {
+		return ""
+	}
 	return ev.FieldHandlers.ResolvePackageVersion(ev, &ev.PTrace.Tracee.Process.FileEvent)
 }
 
 // GetPtraceTraceeFilePath returns the value of the field, resolving if necessary
 func (ev *Event) GetPtraceTraceeFilePath() string {
 	if ev.GetEventType().String() != "ptrace" {
+		return ""
+	}
+	if !ev.PTrace.Tracee.Process.IsNotKworker() {
 		return ""
 	}
 	return ev.FieldHandlers.ResolveFilePath(ev, &ev.PTrace.Tracee.Process.FileEvent)
@@ -6380,6 +7148,9 @@ func (ev *Event) GetPtraceTraceeFileRights() int {
 	if ev.GetEventType().String() != "ptrace" {
 		return 0
 	}
+	if !ev.PTrace.Tracee.Process.IsNotKworker() {
+		return 0
+	}
 	return ev.FieldHandlers.ResolveRights(ev, &ev.PTrace.Tracee.Process.FileEvent.FileFields)
 }
 
@@ -6388,12 +7159,18 @@ func (ev *Event) GetPtraceTraceeFileUid() uint32 {
 	if ev.GetEventType().String() != "ptrace" {
 		return 0
 	}
+	if !ev.PTrace.Tracee.Process.IsNotKworker() {
+		return 0
+	}
 	return ev.PTrace.Tracee.Process.FileEvent.FileFields.UID
 }
 
 // GetPtraceTraceeFileUser returns the value of the field, resolving if necessary
 func (ev *Event) GetPtraceTraceeFileUser() string {
 	if ev.GetEventType().String() != "ptrace" {
+		return ""
+	}
+	if !ev.PTrace.Tracee.Process.IsNotKworker() {
 		return ""
 	}
 	return ev.FieldHandlers.ResolveFileFieldsUser(ev, &ev.PTrace.Tracee.Process.FileEvent.FileFields)
@@ -6452,12 +7229,18 @@ func (ev *Event) GetPtraceTraceeInterpreterFileChangeTime() uint64 {
 	if ev.GetEventType().String() != "ptrace" {
 		return 0
 	}
+	if !ev.PTrace.Tracee.Process.HasInterpreter() {
+		return 0
+	}
 	return ev.PTrace.Tracee.Process.LinuxBinprm.FileEvent.FileFields.CTime
 }
 
 // GetPtraceTraceeInterpreterFileFilesystem returns the value of the field, resolving if necessary
 func (ev *Event) GetPtraceTraceeInterpreterFileFilesystem() string {
 	if ev.GetEventType().String() != "ptrace" {
+		return ""
+	}
+	if !ev.PTrace.Tracee.Process.HasInterpreter() {
 		return ""
 	}
 	return ev.FieldHandlers.ResolveFileFilesystem(ev, &ev.PTrace.Tracee.Process.LinuxBinprm.FileEvent)
@@ -6468,12 +7251,18 @@ func (ev *Event) GetPtraceTraceeInterpreterFileGid() uint32 {
 	if ev.GetEventType().String() != "ptrace" {
 		return 0
 	}
+	if !ev.PTrace.Tracee.Process.HasInterpreter() {
+		return 0
+	}
 	return ev.PTrace.Tracee.Process.LinuxBinprm.FileEvent.FileFields.GID
 }
 
 // GetPtraceTraceeInterpreterFileGroup returns the value of the field, resolving if necessary
 func (ev *Event) GetPtraceTraceeInterpreterFileGroup() string {
 	if ev.GetEventType().String() != "ptrace" {
+		return ""
+	}
+	if !ev.PTrace.Tracee.Process.HasInterpreter() {
 		return ""
 	}
 	return ev.FieldHandlers.ResolveFileFieldsGroup(ev, &ev.PTrace.Tracee.Process.LinuxBinprm.FileEvent.FileFields)
@@ -6484,12 +7273,18 @@ func (ev *Event) GetPtraceTraceeInterpreterFileHashes() []string {
 	if ev.GetEventType().String() != "ptrace" {
 		return []string{}
 	}
+	if !ev.PTrace.Tracee.Process.HasInterpreter() {
+		return []string{}
+	}
 	return ev.FieldHandlers.ResolveHashesFromEvent(ev, &ev.PTrace.Tracee.Process.LinuxBinprm.FileEvent)
 }
 
 // GetPtraceTraceeInterpreterFileInUpperLayer returns the value of the field, resolving if necessary
 func (ev *Event) GetPtraceTraceeInterpreterFileInUpperLayer() bool {
 	if ev.GetEventType().String() != "ptrace" {
+		return false
+	}
+	if !ev.PTrace.Tracee.Process.HasInterpreter() {
 		return false
 	}
 	return ev.FieldHandlers.ResolveFileFieldsInUpperLayer(ev, &ev.PTrace.Tracee.Process.LinuxBinprm.FileEvent.FileFields)
@@ -6500,12 +7295,18 @@ func (ev *Event) GetPtraceTraceeInterpreterFileInode() uint64 {
 	if ev.GetEventType().String() != "ptrace" {
 		return 0
 	}
+	if !ev.PTrace.Tracee.Process.HasInterpreter() {
+		return 0
+	}
 	return ev.PTrace.Tracee.Process.LinuxBinprm.FileEvent.FileFields.PathKey.Inode
 }
 
 // GetPtraceTraceeInterpreterFileMode returns the value of the field, resolving if necessary
 func (ev *Event) GetPtraceTraceeInterpreterFileMode() uint16 {
 	if ev.GetEventType().String() != "ptrace" {
+		return 0
+	}
+	if !ev.PTrace.Tracee.Process.HasInterpreter() {
 		return 0
 	}
 	return ev.PTrace.Tracee.Process.LinuxBinprm.FileEvent.FileFields.Mode
@@ -6516,6 +7317,9 @@ func (ev *Event) GetPtraceTraceeInterpreterFileModificationTime() uint64 {
 	if ev.GetEventType().String() != "ptrace" {
 		return 0
 	}
+	if !ev.PTrace.Tracee.Process.HasInterpreter() {
+		return 0
+	}
 	return ev.PTrace.Tracee.Process.LinuxBinprm.FileEvent.FileFields.MTime
 }
 
@@ -6524,12 +7328,18 @@ func (ev *Event) GetPtraceTraceeInterpreterFileMountId() uint32 {
 	if ev.GetEventType().String() != "ptrace" {
 		return 0
 	}
+	if !ev.PTrace.Tracee.Process.HasInterpreter() {
+		return 0
+	}
 	return ev.PTrace.Tracee.Process.LinuxBinprm.FileEvent.FileFields.PathKey.MountID
 }
 
 // GetPtraceTraceeInterpreterFileName returns the value of the field, resolving if necessary
 func (ev *Event) GetPtraceTraceeInterpreterFileName() string {
 	if ev.GetEventType().String() != "ptrace" {
+		return ""
+	}
+	if !ev.PTrace.Tracee.Process.HasInterpreter() {
 		return ""
 	}
 	return ev.FieldHandlers.ResolveFileBasename(ev, &ev.PTrace.Tracee.Process.LinuxBinprm.FileEvent)
@@ -6548,12 +7358,18 @@ func (ev *Event) GetPtraceTraceeInterpreterFilePackageName() string {
 	if ev.GetEventType().String() != "ptrace" {
 		return ""
 	}
+	if !ev.PTrace.Tracee.Process.HasInterpreter() {
+		return ""
+	}
 	return ev.FieldHandlers.ResolvePackageName(ev, &ev.PTrace.Tracee.Process.LinuxBinprm.FileEvent)
 }
 
 // GetPtraceTraceeInterpreterFilePackageSourceVersion returns the value of the field, resolving if necessary
 func (ev *Event) GetPtraceTraceeInterpreterFilePackageSourceVersion() string {
 	if ev.GetEventType().String() != "ptrace" {
+		return ""
+	}
+	if !ev.PTrace.Tracee.Process.HasInterpreter() {
 		return ""
 	}
 	return ev.FieldHandlers.ResolvePackageSourceVersion(ev, &ev.PTrace.Tracee.Process.LinuxBinprm.FileEvent)
@@ -6564,12 +7380,18 @@ func (ev *Event) GetPtraceTraceeInterpreterFilePackageVersion() string {
 	if ev.GetEventType().String() != "ptrace" {
 		return ""
 	}
+	if !ev.PTrace.Tracee.Process.HasInterpreter() {
+		return ""
+	}
 	return ev.FieldHandlers.ResolvePackageVersion(ev, &ev.PTrace.Tracee.Process.LinuxBinprm.FileEvent)
 }
 
 // GetPtraceTraceeInterpreterFilePath returns the value of the field, resolving if necessary
 func (ev *Event) GetPtraceTraceeInterpreterFilePath() string {
 	if ev.GetEventType().String() != "ptrace" {
+		return ""
+	}
+	if !ev.PTrace.Tracee.Process.HasInterpreter() {
 		return ""
 	}
 	return ev.FieldHandlers.ResolveFilePath(ev, &ev.PTrace.Tracee.Process.LinuxBinprm.FileEvent)
@@ -6588,6 +7410,9 @@ func (ev *Event) GetPtraceTraceeInterpreterFileRights() int {
 	if ev.GetEventType().String() != "ptrace" {
 		return 0
 	}
+	if !ev.PTrace.Tracee.Process.HasInterpreter() {
+		return 0
+	}
 	return ev.FieldHandlers.ResolveRights(ev, &ev.PTrace.Tracee.Process.LinuxBinprm.FileEvent.FileFields)
 }
 
@@ -6596,12 +7421,18 @@ func (ev *Event) GetPtraceTraceeInterpreterFileUid() uint32 {
 	if ev.GetEventType().String() != "ptrace" {
 		return 0
 	}
+	if !ev.PTrace.Tracee.Process.HasInterpreter() {
+		return 0
+	}
 	return ev.PTrace.Tracee.Process.LinuxBinprm.FileEvent.FileFields.UID
 }
 
 // GetPtraceTraceeInterpreterFileUser returns the value of the field, resolving if necessary
 func (ev *Event) GetPtraceTraceeInterpreterFileUser() string {
 	if ev.GetEventType().String() != "ptrace" {
+		return ""
+	}
+	if !ev.PTrace.Tracee.Process.HasInterpreter() {
 		return ""
 	}
 	return ev.FieldHandlers.ResolveFileFieldsUser(ev, &ev.PTrace.Tracee.Process.LinuxBinprm.FileEvent.FileFields)
@@ -6628,12 +7459,18 @@ func (ev *Event) GetPtraceTraceeParentArgs() string {
 	if ev.GetEventType().String() != "ptrace" {
 		return ""
 	}
+	if !ev.PTrace.Tracee.HasParent() {
+		return ""
+	}
 	return ev.FieldHandlers.ResolveProcessArgs(ev, ev.PTrace.Tracee.Parent)
 }
 
 // GetPtraceTraceeParentArgsFlags returns the value of the field, resolving if necessary
 func (ev *Event) GetPtraceTraceeParentArgsFlags() []string {
 	if ev.GetEventType().String() != "ptrace" {
+		return []string{}
+	}
+	if !ev.PTrace.Tracee.HasParent() {
 		return []string{}
 	}
 	return ev.FieldHandlers.ResolveProcessArgsFlags(ev, ev.PTrace.Tracee.Parent)
@@ -6644,12 +7481,18 @@ func (ev *Event) GetPtraceTraceeParentArgsOptions() []string {
 	if ev.GetEventType().String() != "ptrace" {
 		return []string{}
 	}
+	if !ev.PTrace.Tracee.HasParent() {
+		return []string{}
+	}
 	return ev.FieldHandlers.ResolveProcessArgsOptions(ev, ev.PTrace.Tracee.Parent)
 }
 
 // GetPtraceTraceeParentArgsTruncated returns the value of the field, resolving if necessary
 func (ev *Event) GetPtraceTraceeParentArgsTruncated() bool {
 	if ev.GetEventType().String() != "ptrace" {
+		return false
+	}
+	if !ev.PTrace.Tracee.HasParent() {
 		return false
 	}
 	return ev.FieldHandlers.ResolveProcessArgsTruncated(ev, ev.PTrace.Tracee.Parent)
@@ -6660,12 +7503,18 @@ func (ev *Event) GetPtraceTraceeParentArgv() []string {
 	if ev.GetEventType().String() != "ptrace" {
 		return []string{}
 	}
+	if !ev.PTrace.Tracee.HasParent() {
+		return []string{}
+	}
 	return ev.FieldHandlers.ResolveProcessArgv(ev, ev.PTrace.Tracee.Parent)
 }
 
 // GetPtraceTraceeParentArgv0 returns the value of the field, resolving if necessary
 func (ev *Event) GetPtraceTraceeParentArgv0() string {
 	if ev.GetEventType().String() != "ptrace" {
+		return ""
+	}
+	if !ev.PTrace.Tracee.HasParent() {
 		return ""
 	}
 	return ev.FieldHandlers.ResolveProcessArgv0(ev, ev.PTrace.Tracee.Parent)
@@ -6676,12 +7525,18 @@ func (ev *Event) GetPtraceTraceeParentCapEffective() uint64 {
 	if ev.GetEventType().String() != "ptrace" {
 		return 0
 	}
+	if !ev.PTrace.Tracee.HasParent() {
+		return 0
+	}
 	return ev.PTrace.Tracee.Parent.Credentials.CapEffective
 }
 
 // GetPtraceTraceeParentCapPermitted returns the value of the field, resolving if necessary
 func (ev *Event) GetPtraceTraceeParentCapPermitted() uint64 {
 	if ev.GetEventType().String() != "ptrace" {
+		return 0
+	}
+	if !ev.PTrace.Tracee.HasParent() {
 		return 0
 	}
 	return ev.PTrace.Tracee.Parent.Credentials.CapPermitted
@@ -6692,12 +7547,18 @@ func (ev *Event) GetPtraceTraceeParentComm() string {
 	if ev.GetEventType().String() != "ptrace" {
 		return ""
 	}
+	if !ev.PTrace.Tracee.HasParent() {
+		return ""
+	}
 	return ev.PTrace.Tracee.Parent.Comm
 }
 
 // GetPtraceTraceeParentContainerId returns the value of the field, resolving if necessary
 func (ev *Event) GetPtraceTraceeParentContainerId() string {
 	if ev.GetEventType().String() != "ptrace" {
+		return ""
+	}
+	if !ev.PTrace.Tracee.HasParent() {
 		return ""
 	}
 	return ev.PTrace.Tracee.Parent.ContainerID
@@ -6708,12 +7569,18 @@ func (ev *Event) GetPtraceTraceeParentCreatedAt() int {
 	if ev.GetEventType().String() != "ptrace" {
 		return 0
 	}
+	if !ev.PTrace.Tracee.HasParent() {
+		return 0
+	}
 	return ev.FieldHandlers.ResolveProcessCreatedAt(ev, ev.PTrace.Tracee.Parent)
 }
 
 // GetPtraceTraceeParentEgid returns the value of the field, resolving if necessary
 func (ev *Event) GetPtraceTraceeParentEgid() uint32 {
 	if ev.GetEventType().String() != "ptrace" {
+		return 0
+	}
+	if !ev.PTrace.Tracee.HasParent() {
 		return 0
 	}
 	return ev.PTrace.Tracee.Parent.Credentials.EGID
@@ -6724,12 +7591,18 @@ func (ev *Event) GetPtraceTraceeParentEgroup() string {
 	if ev.GetEventType().String() != "ptrace" {
 		return ""
 	}
+	if !ev.PTrace.Tracee.HasParent() {
+		return ""
+	}
 	return ev.PTrace.Tracee.Parent.Credentials.EGroup
 }
 
 // GetPtraceTraceeParentEnvp returns the value of the field, resolving if necessary
 func (ev *Event) GetPtraceTraceeParentEnvp() []string {
 	if ev.GetEventType().String() != "ptrace" {
+		return []string{}
+	}
+	if !ev.PTrace.Tracee.HasParent() {
 		return []string{}
 	}
 	return ev.FieldHandlers.ResolveProcessEnvp(ev, ev.PTrace.Tracee.Parent)
@@ -6740,12 +7613,18 @@ func (ev *Event) GetPtraceTraceeParentEnvs() []string {
 	if ev.GetEventType().String() != "ptrace" {
 		return []string{}
 	}
+	if !ev.PTrace.Tracee.HasParent() {
+		return []string{}
+	}
 	return ev.FieldHandlers.ResolveProcessEnvs(ev, ev.PTrace.Tracee.Parent)
 }
 
 // GetPtraceTraceeParentEnvsTruncated returns the value of the field, resolving if necessary
 func (ev *Event) GetPtraceTraceeParentEnvsTruncated() bool {
 	if ev.GetEventType().String() != "ptrace" {
+		return false
+	}
+	if !ev.PTrace.Tracee.HasParent() {
 		return false
 	}
 	return ev.FieldHandlers.ResolveProcessEnvsTruncated(ev, ev.PTrace.Tracee.Parent)
@@ -6756,12 +7635,18 @@ func (ev *Event) GetPtraceTraceeParentEuid() uint32 {
 	if ev.GetEventType().String() != "ptrace" {
 		return 0
 	}
+	if !ev.PTrace.Tracee.HasParent() {
+		return 0
+	}
 	return ev.PTrace.Tracee.Parent.Credentials.EUID
 }
 
 // GetPtraceTraceeParentEuser returns the value of the field, resolving if necessary
 func (ev *Event) GetPtraceTraceeParentEuser() string {
 	if ev.GetEventType().String() != "ptrace" {
+		return ""
+	}
+	if !ev.PTrace.Tracee.HasParent() {
 		return ""
 	}
 	return ev.PTrace.Tracee.Parent.Credentials.EUser
@@ -6772,12 +7657,24 @@ func (ev *Event) GetPtraceTraceeParentFileChangeTime() uint64 {
 	if ev.GetEventType().String() != "ptrace" {
 		return 0
 	}
+	if !ev.PTrace.Tracee.HasParent() {
+		return 0
+	}
+	if !ev.PTrace.Tracee.Parent.IsNotKworker() {
+		return 0
+	}
 	return ev.PTrace.Tracee.Parent.FileEvent.FileFields.CTime
 }
 
 // GetPtraceTraceeParentFileFilesystem returns the value of the field, resolving if necessary
 func (ev *Event) GetPtraceTraceeParentFileFilesystem() string {
 	if ev.GetEventType().String() != "ptrace" {
+		return ""
+	}
+	if !ev.PTrace.Tracee.HasParent() {
+		return ""
+	}
+	if !ev.PTrace.Tracee.Parent.IsNotKworker() {
 		return ""
 	}
 	return ev.FieldHandlers.ResolveFileFilesystem(ev, &ev.PTrace.Tracee.Parent.FileEvent)
@@ -6788,12 +7685,24 @@ func (ev *Event) GetPtraceTraceeParentFileGid() uint32 {
 	if ev.GetEventType().String() != "ptrace" {
 		return 0
 	}
+	if !ev.PTrace.Tracee.HasParent() {
+		return 0
+	}
+	if !ev.PTrace.Tracee.Parent.IsNotKworker() {
+		return 0
+	}
 	return ev.PTrace.Tracee.Parent.FileEvent.FileFields.GID
 }
 
 // GetPtraceTraceeParentFileGroup returns the value of the field, resolving if necessary
 func (ev *Event) GetPtraceTraceeParentFileGroup() string {
 	if ev.GetEventType().String() != "ptrace" {
+		return ""
+	}
+	if !ev.PTrace.Tracee.HasParent() {
+		return ""
+	}
+	if !ev.PTrace.Tracee.Parent.IsNotKworker() {
 		return ""
 	}
 	return ev.FieldHandlers.ResolveFileFieldsGroup(ev, &ev.PTrace.Tracee.Parent.FileEvent.FileFields)
@@ -6804,12 +7713,24 @@ func (ev *Event) GetPtraceTraceeParentFileHashes() []string {
 	if ev.GetEventType().String() != "ptrace" {
 		return []string{}
 	}
+	if !ev.PTrace.Tracee.HasParent() {
+		return []string{}
+	}
+	if !ev.PTrace.Tracee.Parent.IsNotKworker() {
+		return []string{}
+	}
 	return ev.FieldHandlers.ResolveHashesFromEvent(ev, &ev.PTrace.Tracee.Parent.FileEvent)
 }
 
 // GetPtraceTraceeParentFileInUpperLayer returns the value of the field, resolving if necessary
 func (ev *Event) GetPtraceTraceeParentFileInUpperLayer() bool {
 	if ev.GetEventType().String() != "ptrace" {
+		return false
+	}
+	if !ev.PTrace.Tracee.HasParent() {
+		return false
+	}
+	if !ev.PTrace.Tracee.Parent.IsNotKworker() {
 		return false
 	}
 	return ev.FieldHandlers.ResolveFileFieldsInUpperLayer(ev, &ev.PTrace.Tracee.Parent.FileEvent.FileFields)
@@ -6820,12 +7741,24 @@ func (ev *Event) GetPtraceTraceeParentFileInode() uint64 {
 	if ev.GetEventType().String() != "ptrace" {
 		return 0
 	}
+	if !ev.PTrace.Tracee.HasParent() {
+		return 0
+	}
+	if !ev.PTrace.Tracee.Parent.IsNotKworker() {
+		return 0
+	}
 	return ev.PTrace.Tracee.Parent.FileEvent.FileFields.PathKey.Inode
 }
 
 // GetPtraceTraceeParentFileMode returns the value of the field, resolving if necessary
 func (ev *Event) GetPtraceTraceeParentFileMode() uint16 {
 	if ev.GetEventType().String() != "ptrace" {
+		return 0
+	}
+	if !ev.PTrace.Tracee.HasParent() {
+		return 0
+	}
+	if !ev.PTrace.Tracee.Parent.IsNotKworker() {
 		return 0
 	}
 	return ev.PTrace.Tracee.Parent.FileEvent.FileFields.Mode
@@ -6836,6 +7769,12 @@ func (ev *Event) GetPtraceTraceeParentFileModificationTime() uint64 {
 	if ev.GetEventType().String() != "ptrace" {
 		return 0
 	}
+	if !ev.PTrace.Tracee.HasParent() {
+		return 0
+	}
+	if !ev.PTrace.Tracee.Parent.IsNotKworker() {
+		return 0
+	}
 	return ev.PTrace.Tracee.Parent.FileEvent.FileFields.MTime
 }
 
@@ -6844,12 +7783,24 @@ func (ev *Event) GetPtraceTraceeParentFileMountId() uint32 {
 	if ev.GetEventType().String() != "ptrace" {
 		return 0
 	}
+	if !ev.PTrace.Tracee.HasParent() {
+		return 0
+	}
+	if !ev.PTrace.Tracee.Parent.IsNotKworker() {
+		return 0
+	}
 	return ev.PTrace.Tracee.Parent.FileEvent.FileFields.PathKey.MountID
 }
 
 // GetPtraceTraceeParentFileName returns the value of the field, resolving if necessary
 func (ev *Event) GetPtraceTraceeParentFileName() string {
 	if ev.GetEventType().String() != "ptrace" {
+		return ""
+	}
+	if !ev.PTrace.Tracee.HasParent() {
+		return ""
+	}
+	if !ev.PTrace.Tracee.Parent.IsNotKworker() {
 		return ""
 	}
 	return ev.FieldHandlers.ResolveFileBasename(ev, &ev.PTrace.Tracee.Parent.FileEvent)
@@ -6868,12 +7819,24 @@ func (ev *Event) GetPtraceTraceeParentFilePackageName() string {
 	if ev.GetEventType().String() != "ptrace" {
 		return ""
 	}
+	if !ev.PTrace.Tracee.HasParent() {
+		return ""
+	}
+	if !ev.PTrace.Tracee.Parent.IsNotKworker() {
+		return ""
+	}
 	return ev.FieldHandlers.ResolvePackageName(ev, &ev.PTrace.Tracee.Parent.FileEvent)
 }
 
 // GetPtraceTraceeParentFilePackageSourceVersion returns the value of the field, resolving if necessary
 func (ev *Event) GetPtraceTraceeParentFilePackageSourceVersion() string {
 	if ev.GetEventType().String() != "ptrace" {
+		return ""
+	}
+	if !ev.PTrace.Tracee.HasParent() {
+		return ""
+	}
+	if !ev.PTrace.Tracee.Parent.IsNotKworker() {
 		return ""
 	}
 	return ev.FieldHandlers.ResolvePackageSourceVersion(ev, &ev.PTrace.Tracee.Parent.FileEvent)
@@ -6884,12 +7847,24 @@ func (ev *Event) GetPtraceTraceeParentFilePackageVersion() string {
 	if ev.GetEventType().String() != "ptrace" {
 		return ""
 	}
+	if !ev.PTrace.Tracee.HasParent() {
+		return ""
+	}
+	if !ev.PTrace.Tracee.Parent.IsNotKworker() {
+		return ""
+	}
 	return ev.FieldHandlers.ResolvePackageVersion(ev, &ev.PTrace.Tracee.Parent.FileEvent)
 }
 
 // GetPtraceTraceeParentFilePath returns the value of the field, resolving if necessary
 func (ev *Event) GetPtraceTraceeParentFilePath() string {
 	if ev.GetEventType().String() != "ptrace" {
+		return ""
+	}
+	if !ev.PTrace.Tracee.HasParent() {
+		return ""
+	}
+	if !ev.PTrace.Tracee.Parent.IsNotKworker() {
 		return ""
 	}
 	return ev.FieldHandlers.ResolveFilePath(ev, &ev.PTrace.Tracee.Parent.FileEvent)
@@ -6908,12 +7883,24 @@ func (ev *Event) GetPtraceTraceeParentFileRights() int {
 	if ev.GetEventType().String() != "ptrace" {
 		return 0
 	}
+	if !ev.PTrace.Tracee.HasParent() {
+		return 0
+	}
+	if !ev.PTrace.Tracee.Parent.IsNotKworker() {
+		return 0
+	}
 	return ev.FieldHandlers.ResolveRights(ev, &ev.PTrace.Tracee.Parent.FileEvent.FileFields)
 }
 
 // GetPtraceTraceeParentFileUid returns the value of the field, resolving if necessary
 func (ev *Event) GetPtraceTraceeParentFileUid() uint32 {
 	if ev.GetEventType().String() != "ptrace" {
+		return 0
+	}
+	if !ev.PTrace.Tracee.HasParent() {
+		return 0
+	}
+	if !ev.PTrace.Tracee.Parent.IsNotKworker() {
 		return 0
 	}
 	return ev.PTrace.Tracee.Parent.FileEvent.FileFields.UID
@@ -6924,12 +7911,21 @@ func (ev *Event) GetPtraceTraceeParentFileUser() string {
 	if ev.GetEventType().String() != "ptrace" {
 		return ""
 	}
+	if !ev.PTrace.Tracee.HasParent() {
+		return ""
+	}
+	if !ev.PTrace.Tracee.Parent.IsNotKworker() {
+		return ""
+	}
 	return ev.FieldHandlers.ResolveFileFieldsUser(ev, &ev.PTrace.Tracee.Parent.FileEvent.FileFields)
 }
 
 // GetPtraceTraceeParentFsgid returns the value of the field, resolving if necessary
 func (ev *Event) GetPtraceTraceeParentFsgid() uint32 {
 	if ev.GetEventType().String() != "ptrace" {
+		return 0
+	}
+	if !ev.PTrace.Tracee.HasParent() {
 		return 0
 	}
 	return ev.PTrace.Tracee.Parent.Credentials.FSGID
@@ -6940,12 +7936,18 @@ func (ev *Event) GetPtraceTraceeParentFsgroup() string {
 	if ev.GetEventType().String() != "ptrace" {
 		return ""
 	}
+	if !ev.PTrace.Tracee.HasParent() {
+		return ""
+	}
 	return ev.PTrace.Tracee.Parent.Credentials.FSGroup
 }
 
 // GetPtraceTraceeParentFsuid returns the value of the field, resolving if necessary
 func (ev *Event) GetPtraceTraceeParentFsuid() uint32 {
 	if ev.GetEventType().String() != "ptrace" {
+		return 0
+	}
+	if !ev.PTrace.Tracee.HasParent() {
 		return 0
 	}
 	return ev.PTrace.Tracee.Parent.Credentials.FSUID
@@ -6956,12 +7958,18 @@ func (ev *Event) GetPtraceTraceeParentFsuser() string {
 	if ev.GetEventType().String() != "ptrace" {
 		return ""
 	}
+	if !ev.PTrace.Tracee.HasParent() {
+		return ""
+	}
 	return ev.PTrace.Tracee.Parent.Credentials.FSUser
 }
 
 // GetPtraceTraceeParentGid returns the value of the field, resolving if necessary
 func (ev *Event) GetPtraceTraceeParentGid() uint32 {
 	if ev.GetEventType().String() != "ptrace" {
+		return 0
+	}
+	if !ev.PTrace.Tracee.HasParent() {
 		return 0
 	}
 	return ev.PTrace.Tracee.Parent.Credentials.GID
@@ -6972,12 +7980,21 @@ func (ev *Event) GetPtraceTraceeParentGroup() string {
 	if ev.GetEventType().String() != "ptrace" {
 		return ""
 	}
+	if !ev.PTrace.Tracee.HasParent() {
+		return ""
+	}
 	return ev.PTrace.Tracee.Parent.Credentials.Group
 }
 
 // GetPtraceTraceeParentInterpreterFileChangeTime returns the value of the field, resolving if necessary
 func (ev *Event) GetPtraceTraceeParentInterpreterFileChangeTime() uint64 {
 	if ev.GetEventType().String() != "ptrace" {
+		return 0
+	}
+	if !ev.PTrace.Tracee.HasParent() {
+		return 0
+	}
+	if !ev.PTrace.Tracee.Parent.HasInterpreter() {
 		return 0
 	}
 	return ev.PTrace.Tracee.Parent.LinuxBinprm.FileEvent.FileFields.CTime
@@ -6988,12 +8005,24 @@ func (ev *Event) GetPtraceTraceeParentInterpreterFileFilesystem() string {
 	if ev.GetEventType().String() != "ptrace" {
 		return ""
 	}
+	if !ev.PTrace.Tracee.HasParent() {
+		return ""
+	}
+	if !ev.PTrace.Tracee.Parent.HasInterpreter() {
+		return ""
+	}
 	return ev.FieldHandlers.ResolveFileFilesystem(ev, &ev.PTrace.Tracee.Parent.LinuxBinprm.FileEvent)
 }
 
 // GetPtraceTraceeParentInterpreterFileGid returns the value of the field, resolving if necessary
 func (ev *Event) GetPtraceTraceeParentInterpreterFileGid() uint32 {
 	if ev.GetEventType().String() != "ptrace" {
+		return 0
+	}
+	if !ev.PTrace.Tracee.HasParent() {
+		return 0
+	}
+	if !ev.PTrace.Tracee.Parent.HasInterpreter() {
 		return 0
 	}
 	return ev.PTrace.Tracee.Parent.LinuxBinprm.FileEvent.FileFields.GID
@@ -7004,12 +8033,24 @@ func (ev *Event) GetPtraceTraceeParentInterpreterFileGroup() string {
 	if ev.GetEventType().String() != "ptrace" {
 		return ""
 	}
+	if !ev.PTrace.Tracee.HasParent() {
+		return ""
+	}
+	if !ev.PTrace.Tracee.Parent.HasInterpreter() {
+		return ""
+	}
 	return ev.FieldHandlers.ResolveFileFieldsGroup(ev, &ev.PTrace.Tracee.Parent.LinuxBinprm.FileEvent.FileFields)
 }
 
 // GetPtraceTraceeParentInterpreterFileHashes returns the value of the field, resolving if necessary
 func (ev *Event) GetPtraceTraceeParentInterpreterFileHashes() []string {
 	if ev.GetEventType().String() != "ptrace" {
+		return []string{}
+	}
+	if !ev.PTrace.Tracee.HasParent() {
+		return []string{}
+	}
+	if !ev.PTrace.Tracee.Parent.HasInterpreter() {
 		return []string{}
 	}
 	return ev.FieldHandlers.ResolveHashesFromEvent(ev, &ev.PTrace.Tracee.Parent.LinuxBinprm.FileEvent)
@@ -7020,12 +8061,24 @@ func (ev *Event) GetPtraceTraceeParentInterpreterFileInUpperLayer() bool {
 	if ev.GetEventType().String() != "ptrace" {
 		return false
 	}
+	if !ev.PTrace.Tracee.HasParent() {
+		return false
+	}
+	if !ev.PTrace.Tracee.Parent.HasInterpreter() {
+		return false
+	}
 	return ev.FieldHandlers.ResolveFileFieldsInUpperLayer(ev, &ev.PTrace.Tracee.Parent.LinuxBinprm.FileEvent.FileFields)
 }
 
 // GetPtraceTraceeParentInterpreterFileInode returns the value of the field, resolving if necessary
 func (ev *Event) GetPtraceTraceeParentInterpreterFileInode() uint64 {
 	if ev.GetEventType().String() != "ptrace" {
+		return 0
+	}
+	if !ev.PTrace.Tracee.HasParent() {
+		return 0
+	}
+	if !ev.PTrace.Tracee.Parent.HasInterpreter() {
 		return 0
 	}
 	return ev.PTrace.Tracee.Parent.LinuxBinprm.FileEvent.FileFields.PathKey.Inode
@@ -7036,12 +8089,24 @@ func (ev *Event) GetPtraceTraceeParentInterpreterFileMode() uint16 {
 	if ev.GetEventType().String() != "ptrace" {
 		return 0
 	}
+	if !ev.PTrace.Tracee.HasParent() {
+		return 0
+	}
+	if !ev.PTrace.Tracee.Parent.HasInterpreter() {
+		return 0
+	}
 	return ev.PTrace.Tracee.Parent.LinuxBinprm.FileEvent.FileFields.Mode
 }
 
 // GetPtraceTraceeParentInterpreterFileModificationTime returns the value of the field, resolving if necessary
 func (ev *Event) GetPtraceTraceeParentInterpreterFileModificationTime() uint64 {
 	if ev.GetEventType().String() != "ptrace" {
+		return 0
+	}
+	if !ev.PTrace.Tracee.HasParent() {
+		return 0
+	}
+	if !ev.PTrace.Tracee.Parent.HasInterpreter() {
 		return 0
 	}
 	return ev.PTrace.Tracee.Parent.LinuxBinprm.FileEvent.FileFields.MTime
@@ -7052,12 +8117,24 @@ func (ev *Event) GetPtraceTraceeParentInterpreterFileMountId() uint32 {
 	if ev.GetEventType().String() != "ptrace" {
 		return 0
 	}
+	if !ev.PTrace.Tracee.HasParent() {
+		return 0
+	}
+	if !ev.PTrace.Tracee.Parent.HasInterpreter() {
+		return 0
+	}
 	return ev.PTrace.Tracee.Parent.LinuxBinprm.FileEvent.FileFields.PathKey.MountID
 }
 
 // GetPtraceTraceeParentInterpreterFileName returns the value of the field, resolving if necessary
 func (ev *Event) GetPtraceTraceeParentInterpreterFileName() string {
 	if ev.GetEventType().String() != "ptrace" {
+		return ""
+	}
+	if !ev.PTrace.Tracee.HasParent() {
+		return ""
+	}
+	if !ev.PTrace.Tracee.Parent.HasInterpreter() {
 		return ""
 	}
 	return ev.FieldHandlers.ResolveFileBasename(ev, &ev.PTrace.Tracee.Parent.LinuxBinprm.FileEvent)
@@ -7076,12 +8153,24 @@ func (ev *Event) GetPtraceTraceeParentInterpreterFilePackageName() string {
 	if ev.GetEventType().String() != "ptrace" {
 		return ""
 	}
+	if !ev.PTrace.Tracee.HasParent() {
+		return ""
+	}
+	if !ev.PTrace.Tracee.Parent.HasInterpreter() {
+		return ""
+	}
 	return ev.FieldHandlers.ResolvePackageName(ev, &ev.PTrace.Tracee.Parent.LinuxBinprm.FileEvent)
 }
 
 // GetPtraceTraceeParentInterpreterFilePackageSourceVersion returns the value of the field, resolving if necessary
 func (ev *Event) GetPtraceTraceeParentInterpreterFilePackageSourceVersion() string {
 	if ev.GetEventType().String() != "ptrace" {
+		return ""
+	}
+	if !ev.PTrace.Tracee.HasParent() {
+		return ""
+	}
+	if !ev.PTrace.Tracee.Parent.HasInterpreter() {
 		return ""
 	}
 	return ev.FieldHandlers.ResolvePackageSourceVersion(ev, &ev.PTrace.Tracee.Parent.LinuxBinprm.FileEvent)
@@ -7092,12 +8181,24 @@ func (ev *Event) GetPtraceTraceeParentInterpreterFilePackageVersion() string {
 	if ev.GetEventType().String() != "ptrace" {
 		return ""
 	}
+	if !ev.PTrace.Tracee.HasParent() {
+		return ""
+	}
+	if !ev.PTrace.Tracee.Parent.HasInterpreter() {
+		return ""
+	}
 	return ev.FieldHandlers.ResolvePackageVersion(ev, &ev.PTrace.Tracee.Parent.LinuxBinprm.FileEvent)
 }
 
 // GetPtraceTraceeParentInterpreterFilePath returns the value of the field, resolving if necessary
 func (ev *Event) GetPtraceTraceeParentInterpreterFilePath() string {
 	if ev.GetEventType().String() != "ptrace" {
+		return ""
+	}
+	if !ev.PTrace.Tracee.HasParent() {
+		return ""
+	}
+	if !ev.PTrace.Tracee.Parent.HasInterpreter() {
 		return ""
 	}
 	return ev.FieldHandlers.ResolveFilePath(ev, &ev.PTrace.Tracee.Parent.LinuxBinprm.FileEvent)
@@ -7116,12 +8217,24 @@ func (ev *Event) GetPtraceTraceeParentInterpreterFileRights() int {
 	if ev.GetEventType().String() != "ptrace" {
 		return 0
 	}
+	if !ev.PTrace.Tracee.HasParent() {
+		return 0
+	}
+	if !ev.PTrace.Tracee.Parent.HasInterpreter() {
+		return 0
+	}
 	return ev.FieldHandlers.ResolveRights(ev, &ev.PTrace.Tracee.Parent.LinuxBinprm.FileEvent.FileFields)
 }
 
 // GetPtraceTraceeParentInterpreterFileUid returns the value of the field, resolving if necessary
 func (ev *Event) GetPtraceTraceeParentInterpreterFileUid() uint32 {
 	if ev.GetEventType().String() != "ptrace" {
+		return 0
+	}
+	if !ev.PTrace.Tracee.HasParent() {
+		return 0
+	}
+	if !ev.PTrace.Tracee.Parent.HasInterpreter() {
 		return 0
 	}
 	return ev.PTrace.Tracee.Parent.LinuxBinprm.FileEvent.FileFields.UID
@@ -7132,12 +8245,21 @@ func (ev *Event) GetPtraceTraceeParentInterpreterFileUser() string {
 	if ev.GetEventType().String() != "ptrace" {
 		return ""
 	}
+	if !ev.PTrace.Tracee.HasParent() {
+		return ""
+	}
+	if !ev.PTrace.Tracee.Parent.HasInterpreter() {
+		return ""
+	}
 	return ev.FieldHandlers.ResolveFileFieldsUser(ev, &ev.PTrace.Tracee.Parent.LinuxBinprm.FileEvent.FileFields)
 }
 
 // GetPtraceTraceeParentIsKworker returns the value of the field, resolving if necessary
 func (ev *Event) GetPtraceTraceeParentIsKworker() bool {
 	if ev.GetEventType().String() != "ptrace" {
+		return false
+	}
+	if !ev.PTrace.Tracee.HasParent() {
 		return false
 	}
 	return ev.PTrace.Tracee.Parent.PIDContext.IsKworker
@@ -7148,12 +8270,18 @@ func (ev *Event) GetPtraceTraceeParentIsThread() bool {
 	if ev.GetEventType().String() != "ptrace" {
 		return false
 	}
+	if !ev.PTrace.Tracee.HasParent() {
+		return false
+	}
 	return ev.PTrace.Tracee.Parent.IsThread
 }
 
 // GetPtraceTraceeParentPid returns the value of the field, resolving if necessary
 func (ev *Event) GetPtraceTraceeParentPid() uint32 {
 	if ev.GetEventType().String() != "ptrace" {
+		return 0
+	}
+	if !ev.PTrace.Tracee.HasParent() {
 		return 0
 	}
 	return ev.PTrace.Tracee.Parent.PIDContext.Pid
@@ -7164,12 +8292,18 @@ func (ev *Event) GetPtraceTraceeParentPpid() uint32 {
 	if ev.GetEventType().String() != "ptrace" {
 		return 0
 	}
+	if !ev.PTrace.Tracee.HasParent() {
+		return 0
+	}
 	return ev.PTrace.Tracee.Parent.PPid
 }
 
 // GetPtraceTraceeParentTid returns the value of the field, resolving if necessary
 func (ev *Event) GetPtraceTraceeParentTid() uint32 {
 	if ev.GetEventType().String() != "ptrace" {
+		return 0
+	}
+	if !ev.PTrace.Tracee.HasParent() {
 		return 0
 	}
 	return ev.PTrace.Tracee.Parent.PIDContext.Tid
@@ -7180,6 +8314,9 @@ func (ev *Event) GetPtraceTraceeParentTtyName() string {
 	if ev.GetEventType().String() != "ptrace" {
 		return ""
 	}
+	if !ev.PTrace.Tracee.HasParent() {
+		return ""
+	}
 	return ev.PTrace.Tracee.Parent.TTYName
 }
 
@@ -7188,12 +8325,18 @@ func (ev *Event) GetPtraceTraceeParentUid() uint32 {
 	if ev.GetEventType().String() != "ptrace" {
 		return 0
 	}
+	if !ev.PTrace.Tracee.HasParent() {
+		return 0
+	}
 	return ev.PTrace.Tracee.Parent.Credentials.UID
 }
 
 // GetPtraceTraceeParentUser returns the value of the field, resolving if necessary
 func (ev *Event) GetPtraceTraceeParentUser() string {
 	if ev.GetEventType().String() != "ptrace" {
+		return ""
+	}
+	if !ev.PTrace.Tracee.HasParent() {
 		return ""
 	}
 	return ev.PTrace.Tracee.Parent.Credentials.User
@@ -8253,6 +9396,30 @@ func (ev *Event) GetSignalRetval() int64 {
 		return 0
 	}
 	return ev.Signal.SyscallEvent.Retval
+}
+
+// GetSignalTargetExecTime returns the value of the field, resolving if necessary
+func (ev *Event) GetSignalTargetExecTime() time.Time {
+	if ev.GetEventType().String() != "signal" {
+		return time.Time{}
+	}
+	return ev.Signal.Target.Process.ExecTime
+}
+
+// GetSignalTargetExitTime returns the value of the field, resolving if necessary
+func (ev *Event) GetSignalTargetExitTime() time.Time {
+	if ev.GetEventType().String() != "signal" {
+		return time.Time{}
+	}
+	return ev.Signal.Target.Process.ExitTime
+}
+
+// GetSignalTargetForkTime returns the value of the field, resolving if necessary
+func (ev *Event) GetSignalTargetForkTime() time.Time {
+	if ev.GetEventType().String() != "signal" {
+		return time.Time{}
+	}
+	return ev.Signal.Target.Process.ForkTime
 }
 
 // GetSignalTargetAncestorsArgs returns the value of the field, resolving if necessary
@@ -9700,12 +10867,18 @@ func (ev *Event) GetSignalTargetFileChangeTime() uint64 {
 	if ev.GetEventType().String() != "signal" {
 		return 0
 	}
+	if !ev.Signal.Target.Process.IsNotKworker() {
+		return 0
+	}
 	return ev.Signal.Target.Process.FileEvent.FileFields.CTime
 }
 
 // GetSignalTargetFileFilesystem returns the value of the field, resolving if necessary
 func (ev *Event) GetSignalTargetFileFilesystem() string {
 	if ev.GetEventType().String() != "signal" {
+		return ""
+	}
+	if !ev.Signal.Target.Process.IsNotKworker() {
 		return ""
 	}
 	return ev.FieldHandlers.ResolveFileFilesystem(ev, &ev.Signal.Target.Process.FileEvent)
@@ -9716,12 +10889,18 @@ func (ev *Event) GetSignalTargetFileGid() uint32 {
 	if ev.GetEventType().String() != "signal" {
 		return 0
 	}
+	if !ev.Signal.Target.Process.IsNotKworker() {
+		return 0
+	}
 	return ev.Signal.Target.Process.FileEvent.FileFields.GID
 }
 
 // GetSignalTargetFileGroup returns the value of the field, resolving if necessary
 func (ev *Event) GetSignalTargetFileGroup() string {
 	if ev.GetEventType().String() != "signal" {
+		return ""
+	}
+	if !ev.Signal.Target.Process.IsNotKworker() {
 		return ""
 	}
 	return ev.FieldHandlers.ResolveFileFieldsGroup(ev, &ev.Signal.Target.Process.FileEvent.FileFields)
@@ -9732,12 +10911,18 @@ func (ev *Event) GetSignalTargetFileHashes() []string {
 	if ev.GetEventType().String() != "signal" {
 		return []string{}
 	}
+	if !ev.Signal.Target.Process.IsNotKworker() {
+		return []string{}
+	}
 	return ev.FieldHandlers.ResolveHashesFromEvent(ev, &ev.Signal.Target.Process.FileEvent)
 }
 
 // GetSignalTargetFileInUpperLayer returns the value of the field, resolving if necessary
 func (ev *Event) GetSignalTargetFileInUpperLayer() bool {
 	if ev.GetEventType().String() != "signal" {
+		return false
+	}
+	if !ev.Signal.Target.Process.IsNotKworker() {
 		return false
 	}
 	return ev.FieldHandlers.ResolveFileFieldsInUpperLayer(ev, &ev.Signal.Target.Process.FileEvent.FileFields)
@@ -9748,12 +10933,18 @@ func (ev *Event) GetSignalTargetFileInode() uint64 {
 	if ev.GetEventType().String() != "signal" {
 		return 0
 	}
+	if !ev.Signal.Target.Process.IsNotKworker() {
+		return 0
+	}
 	return ev.Signal.Target.Process.FileEvent.FileFields.PathKey.Inode
 }
 
 // GetSignalTargetFileMode returns the value of the field, resolving if necessary
 func (ev *Event) GetSignalTargetFileMode() uint16 {
 	if ev.GetEventType().String() != "signal" {
+		return 0
+	}
+	if !ev.Signal.Target.Process.IsNotKworker() {
 		return 0
 	}
 	return ev.Signal.Target.Process.FileEvent.FileFields.Mode
@@ -9764,6 +10955,9 @@ func (ev *Event) GetSignalTargetFileModificationTime() uint64 {
 	if ev.GetEventType().String() != "signal" {
 		return 0
 	}
+	if !ev.Signal.Target.Process.IsNotKworker() {
+		return 0
+	}
 	return ev.Signal.Target.Process.FileEvent.FileFields.MTime
 }
 
@@ -9772,12 +10966,18 @@ func (ev *Event) GetSignalTargetFileMountId() uint32 {
 	if ev.GetEventType().String() != "signal" {
 		return 0
 	}
+	if !ev.Signal.Target.Process.IsNotKworker() {
+		return 0
+	}
 	return ev.Signal.Target.Process.FileEvent.FileFields.PathKey.MountID
 }
 
 // GetSignalTargetFileName returns the value of the field, resolving if necessary
 func (ev *Event) GetSignalTargetFileName() string {
 	if ev.GetEventType().String() != "signal" {
+		return ""
+	}
+	if !ev.Signal.Target.Process.IsNotKworker() {
 		return ""
 	}
 	return ev.FieldHandlers.ResolveFileBasename(ev, &ev.Signal.Target.Process.FileEvent)
@@ -9796,12 +10996,18 @@ func (ev *Event) GetSignalTargetFilePackageName() string {
 	if ev.GetEventType().String() != "signal" {
 		return ""
 	}
+	if !ev.Signal.Target.Process.IsNotKworker() {
+		return ""
+	}
 	return ev.FieldHandlers.ResolvePackageName(ev, &ev.Signal.Target.Process.FileEvent)
 }
 
 // GetSignalTargetFilePackageSourceVersion returns the value of the field, resolving if necessary
 func (ev *Event) GetSignalTargetFilePackageSourceVersion() string {
 	if ev.GetEventType().String() != "signal" {
+		return ""
+	}
+	if !ev.Signal.Target.Process.IsNotKworker() {
 		return ""
 	}
 	return ev.FieldHandlers.ResolvePackageSourceVersion(ev, &ev.Signal.Target.Process.FileEvent)
@@ -9812,12 +11018,18 @@ func (ev *Event) GetSignalTargetFilePackageVersion() string {
 	if ev.GetEventType().String() != "signal" {
 		return ""
 	}
+	if !ev.Signal.Target.Process.IsNotKworker() {
+		return ""
+	}
 	return ev.FieldHandlers.ResolvePackageVersion(ev, &ev.Signal.Target.Process.FileEvent)
 }
 
 // GetSignalTargetFilePath returns the value of the field, resolving if necessary
 func (ev *Event) GetSignalTargetFilePath() string {
 	if ev.GetEventType().String() != "signal" {
+		return ""
+	}
+	if !ev.Signal.Target.Process.IsNotKworker() {
 		return ""
 	}
 	return ev.FieldHandlers.ResolveFilePath(ev, &ev.Signal.Target.Process.FileEvent)
@@ -9836,6 +11048,9 @@ func (ev *Event) GetSignalTargetFileRights() int {
 	if ev.GetEventType().String() != "signal" {
 		return 0
 	}
+	if !ev.Signal.Target.Process.IsNotKworker() {
+		return 0
+	}
 	return ev.FieldHandlers.ResolveRights(ev, &ev.Signal.Target.Process.FileEvent.FileFields)
 }
 
@@ -9844,12 +11059,18 @@ func (ev *Event) GetSignalTargetFileUid() uint32 {
 	if ev.GetEventType().String() != "signal" {
 		return 0
 	}
+	if !ev.Signal.Target.Process.IsNotKworker() {
+		return 0
+	}
 	return ev.Signal.Target.Process.FileEvent.FileFields.UID
 }
 
 // GetSignalTargetFileUser returns the value of the field, resolving if necessary
 func (ev *Event) GetSignalTargetFileUser() string {
 	if ev.GetEventType().String() != "signal" {
+		return ""
+	}
+	if !ev.Signal.Target.Process.IsNotKworker() {
 		return ""
 	}
 	return ev.FieldHandlers.ResolveFileFieldsUser(ev, &ev.Signal.Target.Process.FileEvent.FileFields)
@@ -9908,12 +11129,18 @@ func (ev *Event) GetSignalTargetInterpreterFileChangeTime() uint64 {
 	if ev.GetEventType().String() != "signal" {
 		return 0
 	}
+	if !ev.Signal.Target.Process.HasInterpreter() {
+		return 0
+	}
 	return ev.Signal.Target.Process.LinuxBinprm.FileEvent.FileFields.CTime
 }
 
 // GetSignalTargetInterpreterFileFilesystem returns the value of the field, resolving if necessary
 func (ev *Event) GetSignalTargetInterpreterFileFilesystem() string {
 	if ev.GetEventType().String() != "signal" {
+		return ""
+	}
+	if !ev.Signal.Target.Process.HasInterpreter() {
 		return ""
 	}
 	return ev.FieldHandlers.ResolveFileFilesystem(ev, &ev.Signal.Target.Process.LinuxBinprm.FileEvent)
@@ -9924,12 +11151,18 @@ func (ev *Event) GetSignalTargetInterpreterFileGid() uint32 {
 	if ev.GetEventType().String() != "signal" {
 		return 0
 	}
+	if !ev.Signal.Target.Process.HasInterpreter() {
+		return 0
+	}
 	return ev.Signal.Target.Process.LinuxBinprm.FileEvent.FileFields.GID
 }
 
 // GetSignalTargetInterpreterFileGroup returns the value of the field, resolving if necessary
 func (ev *Event) GetSignalTargetInterpreterFileGroup() string {
 	if ev.GetEventType().String() != "signal" {
+		return ""
+	}
+	if !ev.Signal.Target.Process.HasInterpreter() {
 		return ""
 	}
 	return ev.FieldHandlers.ResolveFileFieldsGroup(ev, &ev.Signal.Target.Process.LinuxBinprm.FileEvent.FileFields)
@@ -9940,12 +11173,18 @@ func (ev *Event) GetSignalTargetInterpreterFileHashes() []string {
 	if ev.GetEventType().String() != "signal" {
 		return []string{}
 	}
+	if !ev.Signal.Target.Process.HasInterpreter() {
+		return []string{}
+	}
 	return ev.FieldHandlers.ResolveHashesFromEvent(ev, &ev.Signal.Target.Process.LinuxBinprm.FileEvent)
 }
 
 // GetSignalTargetInterpreterFileInUpperLayer returns the value of the field, resolving if necessary
 func (ev *Event) GetSignalTargetInterpreterFileInUpperLayer() bool {
 	if ev.GetEventType().String() != "signal" {
+		return false
+	}
+	if !ev.Signal.Target.Process.HasInterpreter() {
 		return false
 	}
 	return ev.FieldHandlers.ResolveFileFieldsInUpperLayer(ev, &ev.Signal.Target.Process.LinuxBinprm.FileEvent.FileFields)
@@ -9956,12 +11195,18 @@ func (ev *Event) GetSignalTargetInterpreterFileInode() uint64 {
 	if ev.GetEventType().String() != "signal" {
 		return 0
 	}
+	if !ev.Signal.Target.Process.HasInterpreter() {
+		return 0
+	}
 	return ev.Signal.Target.Process.LinuxBinprm.FileEvent.FileFields.PathKey.Inode
 }
 
 // GetSignalTargetInterpreterFileMode returns the value of the field, resolving if necessary
 func (ev *Event) GetSignalTargetInterpreterFileMode() uint16 {
 	if ev.GetEventType().String() != "signal" {
+		return 0
+	}
+	if !ev.Signal.Target.Process.HasInterpreter() {
 		return 0
 	}
 	return ev.Signal.Target.Process.LinuxBinprm.FileEvent.FileFields.Mode
@@ -9972,6 +11217,9 @@ func (ev *Event) GetSignalTargetInterpreterFileModificationTime() uint64 {
 	if ev.GetEventType().String() != "signal" {
 		return 0
 	}
+	if !ev.Signal.Target.Process.HasInterpreter() {
+		return 0
+	}
 	return ev.Signal.Target.Process.LinuxBinprm.FileEvent.FileFields.MTime
 }
 
@@ -9980,12 +11228,18 @@ func (ev *Event) GetSignalTargetInterpreterFileMountId() uint32 {
 	if ev.GetEventType().String() != "signal" {
 		return 0
 	}
+	if !ev.Signal.Target.Process.HasInterpreter() {
+		return 0
+	}
 	return ev.Signal.Target.Process.LinuxBinprm.FileEvent.FileFields.PathKey.MountID
 }
 
 // GetSignalTargetInterpreterFileName returns the value of the field, resolving if necessary
 func (ev *Event) GetSignalTargetInterpreterFileName() string {
 	if ev.GetEventType().String() != "signal" {
+		return ""
+	}
+	if !ev.Signal.Target.Process.HasInterpreter() {
 		return ""
 	}
 	return ev.FieldHandlers.ResolveFileBasename(ev, &ev.Signal.Target.Process.LinuxBinprm.FileEvent)
@@ -10004,12 +11258,18 @@ func (ev *Event) GetSignalTargetInterpreterFilePackageName() string {
 	if ev.GetEventType().String() != "signal" {
 		return ""
 	}
+	if !ev.Signal.Target.Process.HasInterpreter() {
+		return ""
+	}
 	return ev.FieldHandlers.ResolvePackageName(ev, &ev.Signal.Target.Process.LinuxBinprm.FileEvent)
 }
 
 // GetSignalTargetInterpreterFilePackageSourceVersion returns the value of the field, resolving if necessary
 func (ev *Event) GetSignalTargetInterpreterFilePackageSourceVersion() string {
 	if ev.GetEventType().String() != "signal" {
+		return ""
+	}
+	if !ev.Signal.Target.Process.HasInterpreter() {
 		return ""
 	}
 	return ev.FieldHandlers.ResolvePackageSourceVersion(ev, &ev.Signal.Target.Process.LinuxBinprm.FileEvent)
@@ -10020,12 +11280,18 @@ func (ev *Event) GetSignalTargetInterpreterFilePackageVersion() string {
 	if ev.GetEventType().String() != "signal" {
 		return ""
 	}
+	if !ev.Signal.Target.Process.HasInterpreter() {
+		return ""
+	}
 	return ev.FieldHandlers.ResolvePackageVersion(ev, &ev.Signal.Target.Process.LinuxBinprm.FileEvent)
 }
 
 // GetSignalTargetInterpreterFilePath returns the value of the field, resolving if necessary
 func (ev *Event) GetSignalTargetInterpreterFilePath() string {
 	if ev.GetEventType().String() != "signal" {
+		return ""
+	}
+	if !ev.Signal.Target.Process.HasInterpreter() {
 		return ""
 	}
 	return ev.FieldHandlers.ResolveFilePath(ev, &ev.Signal.Target.Process.LinuxBinprm.FileEvent)
@@ -10044,6 +11310,9 @@ func (ev *Event) GetSignalTargetInterpreterFileRights() int {
 	if ev.GetEventType().String() != "signal" {
 		return 0
 	}
+	if !ev.Signal.Target.Process.HasInterpreter() {
+		return 0
+	}
 	return ev.FieldHandlers.ResolveRights(ev, &ev.Signal.Target.Process.LinuxBinprm.FileEvent.FileFields)
 }
 
@@ -10052,12 +11321,18 @@ func (ev *Event) GetSignalTargetInterpreterFileUid() uint32 {
 	if ev.GetEventType().String() != "signal" {
 		return 0
 	}
+	if !ev.Signal.Target.Process.HasInterpreter() {
+		return 0
+	}
 	return ev.Signal.Target.Process.LinuxBinprm.FileEvent.FileFields.UID
 }
 
 // GetSignalTargetInterpreterFileUser returns the value of the field, resolving if necessary
 func (ev *Event) GetSignalTargetInterpreterFileUser() string {
 	if ev.GetEventType().String() != "signal" {
+		return ""
+	}
+	if !ev.Signal.Target.Process.HasInterpreter() {
 		return ""
 	}
 	return ev.FieldHandlers.ResolveFileFieldsUser(ev, &ev.Signal.Target.Process.LinuxBinprm.FileEvent.FileFields)
@@ -10084,12 +11359,18 @@ func (ev *Event) GetSignalTargetParentArgs() string {
 	if ev.GetEventType().String() != "signal" {
 		return ""
 	}
+	if !ev.Signal.Target.HasParent() {
+		return ""
+	}
 	return ev.FieldHandlers.ResolveProcessArgs(ev, ev.Signal.Target.Parent)
 }
 
 // GetSignalTargetParentArgsFlags returns the value of the field, resolving if necessary
 func (ev *Event) GetSignalTargetParentArgsFlags() []string {
 	if ev.GetEventType().String() != "signal" {
+		return []string{}
+	}
+	if !ev.Signal.Target.HasParent() {
 		return []string{}
 	}
 	return ev.FieldHandlers.ResolveProcessArgsFlags(ev, ev.Signal.Target.Parent)
@@ -10100,12 +11381,18 @@ func (ev *Event) GetSignalTargetParentArgsOptions() []string {
 	if ev.GetEventType().String() != "signal" {
 		return []string{}
 	}
+	if !ev.Signal.Target.HasParent() {
+		return []string{}
+	}
 	return ev.FieldHandlers.ResolveProcessArgsOptions(ev, ev.Signal.Target.Parent)
 }
 
 // GetSignalTargetParentArgsTruncated returns the value of the field, resolving if necessary
 func (ev *Event) GetSignalTargetParentArgsTruncated() bool {
 	if ev.GetEventType().String() != "signal" {
+		return false
+	}
+	if !ev.Signal.Target.HasParent() {
 		return false
 	}
 	return ev.FieldHandlers.ResolveProcessArgsTruncated(ev, ev.Signal.Target.Parent)
@@ -10116,12 +11403,18 @@ func (ev *Event) GetSignalTargetParentArgv() []string {
 	if ev.GetEventType().String() != "signal" {
 		return []string{}
 	}
+	if !ev.Signal.Target.HasParent() {
+		return []string{}
+	}
 	return ev.FieldHandlers.ResolveProcessArgv(ev, ev.Signal.Target.Parent)
 }
 
 // GetSignalTargetParentArgv0 returns the value of the field, resolving if necessary
 func (ev *Event) GetSignalTargetParentArgv0() string {
 	if ev.GetEventType().String() != "signal" {
+		return ""
+	}
+	if !ev.Signal.Target.HasParent() {
 		return ""
 	}
 	return ev.FieldHandlers.ResolveProcessArgv0(ev, ev.Signal.Target.Parent)
@@ -10132,12 +11425,18 @@ func (ev *Event) GetSignalTargetParentCapEffective() uint64 {
 	if ev.GetEventType().String() != "signal" {
 		return 0
 	}
+	if !ev.Signal.Target.HasParent() {
+		return 0
+	}
 	return ev.Signal.Target.Parent.Credentials.CapEffective
 }
 
 // GetSignalTargetParentCapPermitted returns the value of the field, resolving if necessary
 func (ev *Event) GetSignalTargetParentCapPermitted() uint64 {
 	if ev.GetEventType().String() != "signal" {
+		return 0
+	}
+	if !ev.Signal.Target.HasParent() {
 		return 0
 	}
 	return ev.Signal.Target.Parent.Credentials.CapPermitted
@@ -10148,12 +11447,18 @@ func (ev *Event) GetSignalTargetParentComm() string {
 	if ev.GetEventType().String() != "signal" {
 		return ""
 	}
+	if !ev.Signal.Target.HasParent() {
+		return ""
+	}
 	return ev.Signal.Target.Parent.Comm
 }
 
 // GetSignalTargetParentContainerId returns the value of the field, resolving if necessary
 func (ev *Event) GetSignalTargetParentContainerId() string {
 	if ev.GetEventType().String() != "signal" {
+		return ""
+	}
+	if !ev.Signal.Target.HasParent() {
 		return ""
 	}
 	return ev.Signal.Target.Parent.ContainerID
@@ -10164,12 +11469,18 @@ func (ev *Event) GetSignalTargetParentCreatedAt() int {
 	if ev.GetEventType().String() != "signal" {
 		return 0
 	}
+	if !ev.Signal.Target.HasParent() {
+		return 0
+	}
 	return ev.FieldHandlers.ResolveProcessCreatedAt(ev, ev.Signal.Target.Parent)
 }
 
 // GetSignalTargetParentEgid returns the value of the field, resolving if necessary
 func (ev *Event) GetSignalTargetParentEgid() uint32 {
 	if ev.GetEventType().String() != "signal" {
+		return 0
+	}
+	if !ev.Signal.Target.HasParent() {
 		return 0
 	}
 	return ev.Signal.Target.Parent.Credentials.EGID
@@ -10180,12 +11491,18 @@ func (ev *Event) GetSignalTargetParentEgroup() string {
 	if ev.GetEventType().String() != "signal" {
 		return ""
 	}
+	if !ev.Signal.Target.HasParent() {
+		return ""
+	}
 	return ev.Signal.Target.Parent.Credentials.EGroup
 }
 
 // GetSignalTargetParentEnvp returns the value of the field, resolving if necessary
 func (ev *Event) GetSignalTargetParentEnvp() []string {
 	if ev.GetEventType().String() != "signal" {
+		return []string{}
+	}
+	if !ev.Signal.Target.HasParent() {
 		return []string{}
 	}
 	return ev.FieldHandlers.ResolveProcessEnvp(ev, ev.Signal.Target.Parent)
@@ -10196,12 +11513,18 @@ func (ev *Event) GetSignalTargetParentEnvs() []string {
 	if ev.GetEventType().String() != "signal" {
 		return []string{}
 	}
+	if !ev.Signal.Target.HasParent() {
+		return []string{}
+	}
 	return ev.FieldHandlers.ResolveProcessEnvs(ev, ev.Signal.Target.Parent)
 }
 
 // GetSignalTargetParentEnvsTruncated returns the value of the field, resolving if necessary
 func (ev *Event) GetSignalTargetParentEnvsTruncated() bool {
 	if ev.GetEventType().String() != "signal" {
+		return false
+	}
+	if !ev.Signal.Target.HasParent() {
 		return false
 	}
 	return ev.FieldHandlers.ResolveProcessEnvsTruncated(ev, ev.Signal.Target.Parent)
@@ -10212,12 +11535,18 @@ func (ev *Event) GetSignalTargetParentEuid() uint32 {
 	if ev.GetEventType().String() != "signal" {
 		return 0
 	}
+	if !ev.Signal.Target.HasParent() {
+		return 0
+	}
 	return ev.Signal.Target.Parent.Credentials.EUID
 }
 
 // GetSignalTargetParentEuser returns the value of the field, resolving if necessary
 func (ev *Event) GetSignalTargetParentEuser() string {
 	if ev.GetEventType().String() != "signal" {
+		return ""
+	}
+	if !ev.Signal.Target.HasParent() {
 		return ""
 	}
 	return ev.Signal.Target.Parent.Credentials.EUser
@@ -10228,12 +11557,24 @@ func (ev *Event) GetSignalTargetParentFileChangeTime() uint64 {
 	if ev.GetEventType().String() != "signal" {
 		return 0
 	}
+	if !ev.Signal.Target.HasParent() {
+		return 0
+	}
+	if !ev.Signal.Target.Parent.IsNotKworker() {
+		return 0
+	}
 	return ev.Signal.Target.Parent.FileEvent.FileFields.CTime
 }
 
 // GetSignalTargetParentFileFilesystem returns the value of the field, resolving if necessary
 func (ev *Event) GetSignalTargetParentFileFilesystem() string {
 	if ev.GetEventType().String() != "signal" {
+		return ""
+	}
+	if !ev.Signal.Target.HasParent() {
+		return ""
+	}
+	if !ev.Signal.Target.Parent.IsNotKworker() {
 		return ""
 	}
 	return ev.FieldHandlers.ResolveFileFilesystem(ev, &ev.Signal.Target.Parent.FileEvent)
@@ -10244,12 +11585,24 @@ func (ev *Event) GetSignalTargetParentFileGid() uint32 {
 	if ev.GetEventType().String() != "signal" {
 		return 0
 	}
+	if !ev.Signal.Target.HasParent() {
+		return 0
+	}
+	if !ev.Signal.Target.Parent.IsNotKworker() {
+		return 0
+	}
 	return ev.Signal.Target.Parent.FileEvent.FileFields.GID
 }
 
 // GetSignalTargetParentFileGroup returns the value of the field, resolving if necessary
 func (ev *Event) GetSignalTargetParentFileGroup() string {
 	if ev.GetEventType().String() != "signal" {
+		return ""
+	}
+	if !ev.Signal.Target.HasParent() {
+		return ""
+	}
+	if !ev.Signal.Target.Parent.IsNotKworker() {
 		return ""
 	}
 	return ev.FieldHandlers.ResolveFileFieldsGroup(ev, &ev.Signal.Target.Parent.FileEvent.FileFields)
@@ -10260,12 +11613,24 @@ func (ev *Event) GetSignalTargetParentFileHashes() []string {
 	if ev.GetEventType().String() != "signal" {
 		return []string{}
 	}
+	if !ev.Signal.Target.HasParent() {
+		return []string{}
+	}
+	if !ev.Signal.Target.Parent.IsNotKworker() {
+		return []string{}
+	}
 	return ev.FieldHandlers.ResolveHashesFromEvent(ev, &ev.Signal.Target.Parent.FileEvent)
 }
 
 // GetSignalTargetParentFileInUpperLayer returns the value of the field, resolving if necessary
 func (ev *Event) GetSignalTargetParentFileInUpperLayer() bool {
 	if ev.GetEventType().String() != "signal" {
+		return false
+	}
+	if !ev.Signal.Target.HasParent() {
+		return false
+	}
+	if !ev.Signal.Target.Parent.IsNotKworker() {
 		return false
 	}
 	return ev.FieldHandlers.ResolveFileFieldsInUpperLayer(ev, &ev.Signal.Target.Parent.FileEvent.FileFields)
@@ -10276,12 +11641,24 @@ func (ev *Event) GetSignalTargetParentFileInode() uint64 {
 	if ev.GetEventType().String() != "signal" {
 		return 0
 	}
+	if !ev.Signal.Target.HasParent() {
+		return 0
+	}
+	if !ev.Signal.Target.Parent.IsNotKworker() {
+		return 0
+	}
 	return ev.Signal.Target.Parent.FileEvent.FileFields.PathKey.Inode
 }
 
 // GetSignalTargetParentFileMode returns the value of the field, resolving if necessary
 func (ev *Event) GetSignalTargetParentFileMode() uint16 {
 	if ev.GetEventType().String() != "signal" {
+		return 0
+	}
+	if !ev.Signal.Target.HasParent() {
+		return 0
+	}
+	if !ev.Signal.Target.Parent.IsNotKworker() {
 		return 0
 	}
 	return ev.Signal.Target.Parent.FileEvent.FileFields.Mode
@@ -10292,6 +11669,12 @@ func (ev *Event) GetSignalTargetParentFileModificationTime() uint64 {
 	if ev.GetEventType().String() != "signal" {
 		return 0
 	}
+	if !ev.Signal.Target.HasParent() {
+		return 0
+	}
+	if !ev.Signal.Target.Parent.IsNotKworker() {
+		return 0
+	}
 	return ev.Signal.Target.Parent.FileEvent.FileFields.MTime
 }
 
@@ -10300,12 +11683,24 @@ func (ev *Event) GetSignalTargetParentFileMountId() uint32 {
 	if ev.GetEventType().String() != "signal" {
 		return 0
 	}
+	if !ev.Signal.Target.HasParent() {
+		return 0
+	}
+	if !ev.Signal.Target.Parent.IsNotKworker() {
+		return 0
+	}
 	return ev.Signal.Target.Parent.FileEvent.FileFields.PathKey.MountID
 }
 
 // GetSignalTargetParentFileName returns the value of the field, resolving if necessary
 func (ev *Event) GetSignalTargetParentFileName() string {
 	if ev.GetEventType().String() != "signal" {
+		return ""
+	}
+	if !ev.Signal.Target.HasParent() {
+		return ""
+	}
+	if !ev.Signal.Target.Parent.IsNotKworker() {
 		return ""
 	}
 	return ev.FieldHandlers.ResolveFileBasename(ev, &ev.Signal.Target.Parent.FileEvent)
@@ -10324,12 +11719,24 @@ func (ev *Event) GetSignalTargetParentFilePackageName() string {
 	if ev.GetEventType().String() != "signal" {
 		return ""
 	}
+	if !ev.Signal.Target.HasParent() {
+		return ""
+	}
+	if !ev.Signal.Target.Parent.IsNotKworker() {
+		return ""
+	}
 	return ev.FieldHandlers.ResolvePackageName(ev, &ev.Signal.Target.Parent.FileEvent)
 }
 
 // GetSignalTargetParentFilePackageSourceVersion returns the value of the field, resolving if necessary
 func (ev *Event) GetSignalTargetParentFilePackageSourceVersion() string {
 	if ev.GetEventType().String() != "signal" {
+		return ""
+	}
+	if !ev.Signal.Target.HasParent() {
+		return ""
+	}
+	if !ev.Signal.Target.Parent.IsNotKworker() {
 		return ""
 	}
 	return ev.FieldHandlers.ResolvePackageSourceVersion(ev, &ev.Signal.Target.Parent.FileEvent)
@@ -10340,12 +11747,24 @@ func (ev *Event) GetSignalTargetParentFilePackageVersion() string {
 	if ev.GetEventType().String() != "signal" {
 		return ""
 	}
+	if !ev.Signal.Target.HasParent() {
+		return ""
+	}
+	if !ev.Signal.Target.Parent.IsNotKworker() {
+		return ""
+	}
 	return ev.FieldHandlers.ResolvePackageVersion(ev, &ev.Signal.Target.Parent.FileEvent)
 }
 
 // GetSignalTargetParentFilePath returns the value of the field, resolving if necessary
 func (ev *Event) GetSignalTargetParentFilePath() string {
 	if ev.GetEventType().String() != "signal" {
+		return ""
+	}
+	if !ev.Signal.Target.HasParent() {
+		return ""
+	}
+	if !ev.Signal.Target.Parent.IsNotKworker() {
 		return ""
 	}
 	return ev.FieldHandlers.ResolveFilePath(ev, &ev.Signal.Target.Parent.FileEvent)
@@ -10364,12 +11783,24 @@ func (ev *Event) GetSignalTargetParentFileRights() int {
 	if ev.GetEventType().String() != "signal" {
 		return 0
 	}
+	if !ev.Signal.Target.HasParent() {
+		return 0
+	}
+	if !ev.Signal.Target.Parent.IsNotKworker() {
+		return 0
+	}
 	return ev.FieldHandlers.ResolveRights(ev, &ev.Signal.Target.Parent.FileEvent.FileFields)
 }
 
 // GetSignalTargetParentFileUid returns the value of the field, resolving if necessary
 func (ev *Event) GetSignalTargetParentFileUid() uint32 {
 	if ev.GetEventType().String() != "signal" {
+		return 0
+	}
+	if !ev.Signal.Target.HasParent() {
+		return 0
+	}
+	if !ev.Signal.Target.Parent.IsNotKworker() {
 		return 0
 	}
 	return ev.Signal.Target.Parent.FileEvent.FileFields.UID
@@ -10380,12 +11811,21 @@ func (ev *Event) GetSignalTargetParentFileUser() string {
 	if ev.GetEventType().String() != "signal" {
 		return ""
 	}
+	if !ev.Signal.Target.HasParent() {
+		return ""
+	}
+	if !ev.Signal.Target.Parent.IsNotKworker() {
+		return ""
+	}
 	return ev.FieldHandlers.ResolveFileFieldsUser(ev, &ev.Signal.Target.Parent.FileEvent.FileFields)
 }
 
 // GetSignalTargetParentFsgid returns the value of the field, resolving if necessary
 func (ev *Event) GetSignalTargetParentFsgid() uint32 {
 	if ev.GetEventType().String() != "signal" {
+		return 0
+	}
+	if !ev.Signal.Target.HasParent() {
 		return 0
 	}
 	return ev.Signal.Target.Parent.Credentials.FSGID
@@ -10396,12 +11836,18 @@ func (ev *Event) GetSignalTargetParentFsgroup() string {
 	if ev.GetEventType().String() != "signal" {
 		return ""
 	}
+	if !ev.Signal.Target.HasParent() {
+		return ""
+	}
 	return ev.Signal.Target.Parent.Credentials.FSGroup
 }
 
 // GetSignalTargetParentFsuid returns the value of the field, resolving if necessary
 func (ev *Event) GetSignalTargetParentFsuid() uint32 {
 	if ev.GetEventType().String() != "signal" {
+		return 0
+	}
+	if !ev.Signal.Target.HasParent() {
 		return 0
 	}
 	return ev.Signal.Target.Parent.Credentials.FSUID
@@ -10412,12 +11858,18 @@ func (ev *Event) GetSignalTargetParentFsuser() string {
 	if ev.GetEventType().String() != "signal" {
 		return ""
 	}
+	if !ev.Signal.Target.HasParent() {
+		return ""
+	}
 	return ev.Signal.Target.Parent.Credentials.FSUser
 }
 
 // GetSignalTargetParentGid returns the value of the field, resolving if necessary
 func (ev *Event) GetSignalTargetParentGid() uint32 {
 	if ev.GetEventType().String() != "signal" {
+		return 0
+	}
+	if !ev.Signal.Target.HasParent() {
 		return 0
 	}
 	return ev.Signal.Target.Parent.Credentials.GID
@@ -10428,12 +11880,21 @@ func (ev *Event) GetSignalTargetParentGroup() string {
 	if ev.GetEventType().String() != "signal" {
 		return ""
 	}
+	if !ev.Signal.Target.HasParent() {
+		return ""
+	}
 	return ev.Signal.Target.Parent.Credentials.Group
 }
 
 // GetSignalTargetParentInterpreterFileChangeTime returns the value of the field, resolving if necessary
 func (ev *Event) GetSignalTargetParentInterpreterFileChangeTime() uint64 {
 	if ev.GetEventType().String() != "signal" {
+		return 0
+	}
+	if !ev.Signal.Target.HasParent() {
+		return 0
+	}
+	if !ev.Signal.Target.Parent.HasInterpreter() {
 		return 0
 	}
 	return ev.Signal.Target.Parent.LinuxBinprm.FileEvent.FileFields.CTime
@@ -10444,12 +11905,24 @@ func (ev *Event) GetSignalTargetParentInterpreterFileFilesystem() string {
 	if ev.GetEventType().String() != "signal" {
 		return ""
 	}
+	if !ev.Signal.Target.HasParent() {
+		return ""
+	}
+	if !ev.Signal.Target.Parent.HasInterpreter() {
+		return ""
+	}
 	return ev.FieldHandlers.ResolveFileFilesystem(ev, &ev.Signal.Target.Parent.LinuxBinprm.FileEvent)
 }
 
 // GetSignalTargetParentInterpreterFileGid returns the value of the field, resolving if necessary
 func (ev *Event) GetSignalTargetParentInterpreterFileGid() uint32 {
 	if ev.GetEventType().String() != "signal" {
+		return 0
+	}
+	if !ev.Signal.Target.HasParent() {
+		return 0
+	}
+	if !ev.Signal.Target.Parent.HasInterpreter() {
 		return 0
 	}
 	return ev.Signal.Target.Parent.LinuxBinprm.FileEvent.FileFields.GID
@@ -10460,12 +11933,24 @@ func (ev *Event) GetSignalTargetParentInterpreterFileGroup() string {
 	if ev.GetEventType().String() != "signal" {
 		return ""
 	}
+	if !ev.Signal.Target.HasParent() {
+		return ""
+	}
+	if !ev.Signal.Target.Parent.HasInterpreter() {
+		return ""
+	}
 	return ev.FieldHandlers.ResolveFileFieldsGroup(ev, &ev.Signal.Target.Parent.LinuxBinprm.FileEvent.FileFields)
 }
 
 // GetSignalTargetParentInterpreterFileHashes returns the value of the field, resolving if necessary
 func (ev *Event) GetSignalTargetParentInterpreterFileHashes() []string {
 	if ev.GetEventType().String() != "signal" {
+		return []string{}
+	}
+	if !ev.Signal.Target.HasParent() {
+		return []string{}
+	}
+	if !ev.Signal.Target.Parent.HasInterpreter() {
 		return []string{}
 	}
 	return ev.FieldHandlers.ResolveHashesFromEvent(ev, &ev.Signal.Target.Parent.LinuxBinprm.FileEvent)
@@ -10476,12 +11961,24 @@ func (ev *Event) GetSignalTargetParentInterpreterFileInUpperLayer() bool {
 	if ev.GetEventType().String() != "signal" {
 		return false
 	}
+	if !ev.Signal.Target.HasParent() {
+		return false
+	}
+	if !ev.Signal.Target.Parent.HasInterpreter() {
+		return false
+	}
 	return ev.FieldHandlers.ResolveFileFieldsInUpperLayer(ev, &ev.Signal.Target.Parent.LinuxBinprm.FileEvent.FileFields)
 }
 
 // GetSignalTargetParentInterpreterFileInode returns the value of the field, resolving if necessary
 func (ev *Event) GetSignalTargetParentInterpreterFileInode() uint64 {
 	if ev.GetEventType().String() != "signal" {
+		return 0
+	}
+	if !ev.Signal.Target.HasParent() {
+		return 0
+	}
+	if !ev.Signal.Target.Parent.HasInterpreter() {
 		return 0
 	}
 	return ev.Signal.Target.Parent.LinuxBinprm.FileEvent.FileFields.PathKey.Inode
@@ -10492,12 +11989,24 @@ func (ev *Event) GetSignalTargetParentInterpreterFileMode() uint16 {
 	if ev.GetEventType().String() != "signal" {
 		return 0
 	}
+	if !ev.Signal.Target.HasParent() {
+		return 0
+	}
+	if !ev.Signal.Target.Parent.HasInterpreter() {
+		return 0
+	}
 	return ev.Signal.Target.Parent.LinuxBinprm.FileEvent.FileFields.Mode
 }
 
 // GetSignalTargetParentInterpreterFileModificationTime returns the value of the field, resolving if necessary
 func (ev *Event) GetSignalTargetParentInterpreterFileModificationTime() uint64 {
 	if ev.GetEventType().String() != "signal" {
+		return 0
+	}
+	if !ev.Signal.Target.HasParent() {
+		return 0
+	}
+	if !ev.Signal.Target.Parent.HasInterpreter() {
 		return 0
 	}
 	return ev.Signal.Target.Parent.LinuxBinprm.FileEvent.FileFields.MTime
@@ -10508,12 +12017,24 @@ func (ev *Event) GetSignalTargetParentInterpreterFileMountId() uint32 {
 	if ev.GetEventType().String() != "signal" {
 		return 0
 	}
+	if !ev.Signal.Target.HasParent() {
+		return 0
+	}
+	if !ev.Signal.Target.Parent.HasInterpreter() {
+		return 0
+	}
 	return ev.Signal.Target.Parent.LinuxBinprm.FileEvent.FileFields.PathKey.MountID
 }
 
 // GetSignalTargetParentInterpreterFileName returns the value of the field, resolving if necessary
 func (ev *Event) GetSignalTargetParentInterpreterFileName() string {
 	if ev.GetEventType().String() != "signal" {
+		return ""
+	}
+	if !ev.Signal.Target.HasParent() {
+		return ""
+	}
+	if !ev.Signal.Target.Parent.HasInterpreter() {
 		return ""
 	}
 	return ev.FieldHandlers.ResolveFileBasename(ev, &ev.Signal.Target.Parent.LinuxBinprm.FileEvent)
@@ -10532,12 +12053,24 @@ func (ev *Event) GetSignalTargetParentInterpreterFilePackageName() string {
 	if ev.GetEventType().String() != "signal" {
 		return ""
 	}
+	if !ev.Signal.Target.HasParent() {
+		return ""
+	}
+	if !ev.Signal.Target.Parent.HasInterpreter() {
+		return ""
+	}
 	return ev.FieldHandlers.ResolvePackageName(ev, &ev.Signal.Target.Parent.LinuxBinprm.FileEvent)
 }
 
 // GetSignalTargetParentInterpreterFilePackageSourceVersion returns the value of the field, resolving if necessary
 func (ev *Event) GetSignalTargetParentInterpreterFilePackageSourceVersion() string {
 	if ev.GetEventType().String() != "signal" {
+		return ""
+	}
+	if !ev.Signal.Target.HasParent() {
+		return ""
+	}
+	if !ev.Signal.Target.Parent.HasInterpreter() {
 		return ""
 	}
 	return ev.FieldHandlers.ResolvePackageSourceVersion(ev, &ev.Signal.Target.Parent.LinuxBinprm.FileEvent)
@@ -10548,12 +12081,24 @@ func (ev *Event) GetSignalTargetParentInterpreterFilePackageVersion() string {
 	if ev.GetEventType().String() != "signal" {
 		return ""
 	}
+	if !ev.Signal.Target.HasParent() {
+		return ""
+	}
+	if !ev.Signal.Target.Parent.HasInterpreter() {
+		return ""
+	}
 	return ev.FieldHandlers.ResolvePackageVersion(ev, &ev.Signal.Target.Parent.LinuxBinprm.FileEvent)
 }
 
 // GetSignalTargetParentInterpreterFilePath returns the value of the field, resolving if necessary
 func (ev *Event) GetSignalTargetParentInterpreterFilePath() string {
 	if ev.GetEventType().String() != "signal" {
+		return ""
+	}
+	if !ev.Signal.Target.HasParent() {
+		return ""
+	}
+	if !ev.Signal.Target.Parent.HasInterpreter() {
 		return ""
 	}
 	return ev.FieldHandlers.ResolveFilePath(ev, &ev.Signal.Target.Parent.LinuxBinprm.FileEvent)
@@ -10572,12 +12117,24 @@ func (ev *Event) GetSignalTargetParentInterpreterFileRights() int {
 	if ev.GetEventType().String() != "signal" {
 		return 0
 	}
+	if !ev.Signal.Target.HasParent() {
+		return 0
+	}
+	if !ev.Signal.Target.Parent.HasInterpreter() {
+		return 0
+	}
 	return ev.FieldHandlers.ResolveRights(ev, &ev.Signal.Target.Parent.LinuxBinprm.FileEvent.FileFields)
 }
 
 // GetSignalTargetParentInterpreterFileUid returns the value of the field, resolving if necessary
 func (ev *Event) GetSignalTargetParentInterpreterFileUid() uint32 {
 	if ev.GetEventType().String() != "signal" {
+		return 0
+	}
+	if !ev.Signal.Target.HasParent() {
+		return 0
+	}
+	if !ev.Signal.Target.Parent.HasInterpreter() {
 		return 0
 	}
 	return ev.Signal.Target.Parent.LinuxBinprm.FileEvent.FileFields.UID
@@ -10588,12 +12145,21 @@ func (ev *Event) GetSignalTargetParentInterpreterFileUser() string {
 	if ev.GetEventType().String() != "signal" {
 		return ""
 	}
+	if !ev.Signal.Target.HasParent() {
+		return ""
+	}
+	if !ev.Signal.Target.Parent.HasInterpreter() {
+		return ""
+	}
 	return ev.FieldHandlers.ResolveFileFieldsUser(ev, &ev.Signal.Target.Parent.LinuxBinprm.FileEvent.FileFields)
 }
 
 // GetSignalTargetParentIsKworker returns the value of the field, resolving if necessary
 func (ev *Event) GetSignalTargetParentIsKworker() bool {
 	if ev.GetEventType().String() != "signal" {
+		return false
+	}
+	if !ev.Signal.Target.HasParent() {
 		return false
 	}
 	return ev.Signal.Target.Parent.PIDContext.IsKworker
@@ -10604,12 +12170,18 @@ func (ev *Event) GetSignalTargetParentIsThread() bool {
 	if ev.GetEventType().String() != "signal" {
 		return false
 	}
+	if !ev.Signal.Target.HasParent() {
+		return false
+	}
 	return ev.Signal.Target.Parent.IsThread
 }
 
 // GetSignalTargetParentPid returns the value of the field, resolving if necessary
 func (ev *Event) GetSignalTargetParentPid() uint32 {
 	if ev.GetEventType().String() != "signal" {
+		return 0
+	}
+	if !ev.Signal.Target.HasParent() {
 		return 0
 	}
 	return ev.Signal.Target.Parent.PIDContext.Pid
@@ -10620,12 +12192,18 @@ func (ev *Event) GetSignalTargetParentPpid() uint32 {
 	if ev.GetEventType().String() != "signal" {
 		return 0
 	}
+	if !ev.Signal.Target.HasParent() {
+		return 0
+	}
 	return ev.Signal.Target.Parent.PPid
 }
 
 // GetSignalTargetParentTid returns the value of the field, resolving if necessary
 func (ev *Event) GetSignalTargetParentTid() uint32 {
 	if ev.GetEventType().String() != "signal" {
+		return 0
+	}
+	if !ev.Signal.Target.HasParent() {
 		return 0
 	}
 	return ev.Signal.Target.Parent.PIDContext.Tid
@@ -10636,6 +12214,9 @@ func (ev *Event) GetSignalTargetParentTtyName() string {
 	if ev.GetEventType().String() != "signal" {
 		return ""
 	}
+	if !ev.Signal.Target.HasParent() {
+		return ""
+	}
 	return ev.Signal.Target.Parent.TTYName
 }
 
@@ -10644,12 +12225,18 @@ func (ev *Event) GetSignalTargetParentUid() uint32 {
 	if ev.GetEventType().String() != "signal" {
 		return 0
 	}
+	if !ev.Signal.Target.HasParent() {
+		return 0
+	}
 	return ev.Signal.Target.Parent.Credentials.UID
 }
 
 // GetSignalTargetParentUser returns the value of the field, resolving if necessary
 func (ev *Event) GetSignalTargetParentUser() string {
 	if ev.GetEventType().String() != "signal" {
+		return ""
+	}
+	if !ev.Signal.Target.HasParent() {
 		return ""
 	}
 	return ev.Signal.Target.Parent.Credentials.User
