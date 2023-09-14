@@ -1262,6 +1262,7 @@ func InitConfig(config Config) {
 
 	// Language Detection
 	config.BindEnvAndSetDefault("language_detection.enabled", false)
+	config.BindEnvAndSetDefault("language_detection.client_period", "1m")
 
 	setupAPM(config)
 	SetupOTLP(config)
