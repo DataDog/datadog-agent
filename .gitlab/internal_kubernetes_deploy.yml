@@ -24,7 +24,7 @@ include:
     - source /root/.bashrc
     - export GITLAB_TOKEN=$(aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.gitlab_pipelines_scheduler_token --with-decryption --query "Parameter.Value" --out text)
 #    - inv pipeline.trigger-child-pipeline --project-name "DataDog/k8s-datadog-agent-ops" --git-ref "main" --variables "OPTION_AUTOMATIC_ROLLOUT,WORKFLOW,OPTION_PRE_SCRIPT,FILTER,SKIP_PLAN_CHECK,FORCE_DEPLOYMENT"
-    - postmessage "system-probe-ops" "Changelog test"
+#    - postmessage "system-probe-ops" "Changelog test"
 #    - .gitlab/scripts/generate_changelog.sh 76ead44c
 
 #internal_kubernetes_deploy_snowver:
@@ -51,13 +51,21 @@ internal_kubernetes_deploy_stripe:
     FILTER: "cluster.shortName =='stripe'"
 
 
-notify-on-success:
-  extends: .slack-notifier.on-success
+notify-slack:
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/slack-notifier:latest
+  needs:
+    - job: internal_kubernetes_deploy_stripe
   script:
-    - ./scripts/generate_changelog.sh 76ead44c
-    - git checkout da07054
-    - git tag stripe-staging
-    - git push origin stripe-staging
+    - .gitlab/scripts/generate_changelog.sh 76ead44c
 
-notify-on-failure:
-  extends: .slack-notifier.on-failure
+
+#notify-on-success:
+#  extends: .slack-notifier.on-success
+#  script:
+#    - ./scripts/generate_changelog.sh 76ead44c
+#    - git checkout da07054
+#    - git tag stripe-staging
+#    - git push origin stripe-staging
+#
+#notify-on-failure:
+#  extends: .slack-notifier.on-failure
