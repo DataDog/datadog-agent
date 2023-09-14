@@ -50,6 +50,8 @@ import (
 	logsAgent "github.com/DataDog/datadog-agent/comp/logs/agent"
 	"github.com/DataDog/datadog-agent/comp/metadata"
 	"github.com/DataDog/datadog-agent/comp/metadata/runner"
+	"github.com/DataDog/datadog-agent/comp/netflow"
+	"github.com/DataDog/datadog-agent/comp/netflow/server"
 	"github.com/DataDog/datadog-agent/comp/remote-config/rcclient"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/api/healthprobe"
@@ -65,7 +67,6 @@ import (
 	pkgMetadata "github.com/DataDog/datadog-agent/pkg/metadata"
 	"github.com/DataDog/datadog-agent/pkg/metadata/host"
 	"github.com/DataDog/datadog-agent/pkg/metadata/inventories"
-	"github.com/DataDog/datadog-agent/pkg/netflow"
 	"github.com/DataDog/datadog-agent/pkg/otlp"
 	"github.com/DataDog/datadog-agent/pkg/pidfile"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
@@ -181,6 +182,7 @@ func run(log log.Component,
 	sharedSerializer serializer.MetricSerializer,
 	cliParams *cliParams,
 	logsAgent util.Optional[logsAgent.Component],
+	_ server.Component,
 ) error {
 	defer func() {
 		stopAgent(cliParams, server)
@@ -256,6 +258,7 @@ func StartAgentWithDefaults(ctxChan <-chan context.Context) (<-chan error, error
 			logsAgent util.Optional[logsAgent.Component],
 			metadataRunner runner.Component,
 			sharedSerializer serializer.MetricSerializer,
+			_ server.Component,
 		) error {
 
 			defer StopAgentWithDefaults(server)
@@ -346,6 +349,7 @@ func getSharedFxOption() fx.Option {
 		}),
 		logs.Bundle,
 		metadata.Bundle,
+		netflow.Bundle,
 		// injecting the aggregator demultiplexer to FX until we migrate it to a proper component. This allows
 		// other already migrated components to request it.
 		fx.Provide(func(config config.Component, log log.Component, sharedForwarder defaultforwarder.Component) (*aggregator.AgentDemultiplexer, error) {
@@ -605,15 +609,6 @@ func startAgent(
 		}
 	}
 
-	// Start NetFlow server
-	// This must happen after LoadComponents is set up (via common.LoadComponents).
-	// netflow.StartServer uses AgentDemultiplexer, that uses ContextResolver, that uses the tagger (initialized by LoadComponents)
-	if netflow.IsEnabled(pkgconfig.Datadog) {
-		if err = netflow.StartServer(demux, pkgconfig.Datadog, log); err != nil {
-			log.Errorf("Failed to start NetFlow server: %s", err)
-		}
-	}
-
 	// load and run all configs in AD
 	common.AC.LoadAndRun(common.MainCtx)
 
@@ -668,7 +663,6 @@ func stopAgent(cliParams *cliParams, server dogstatsdServer.Component) {
 		common.MetadataScheduler.Stop()
 	}
 	traps.StopServer()
-	netflow.StopServer()
 	api.StopServer()
 	clcrunnerapi.StopCLCRunnerServer()
 	jmx.StopJmxfetch()

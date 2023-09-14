@@ -52,7 +52,7 @@ network_devices:
 
 	ctrl := gomock.NewController(t)
 	epForwarder := epforwarder.NewMockEventPlatformForwarder(ctrl)
-	server, err := NewNetflowServer(sender, epForwarder, config.Datadog, logger)
+	server, err := NewRunningNetflowServer(sender, epForwarder, config.Datadog, logger)
 	require.NoError(t, err, "cannot start Netflow Server")
 	assert.NotNil(t, server)
 
@@ -105,7 +105,7 @@ network_devices:
 
 	ctrl := gomock.NewController(t)
 	epForwarder := epforwarder.NewMockEventPlatformForwarder(ctrl)
-	server, err := NewNetflowServer(sender, epForwarder, config.Datadog, logger)
+	server, err := NewRunningNetflowServer(sender, epForwarder, config.Datadog, logger)
 	require.NoError(t, err, "cannot start Netflow Server")
 	assert.NotNil(t, server)
 
@@ -152,7 +152,7 @@ network_devices:
 
 	ctrl := gomock.NewController(t)
 	epForwarder := epforwarder.NewMockEventPlatformForwarder(ctrl)
-	server, err := NewNetflowServer(sender, epForwarder, config.Datadog, logger)
+	server, err := NewRunningNetflowServer(sender, epForwarder, config.Datadog, logger)
 	require.NoError(t, err, "cannot start Netflow Server")
 	assert.NotNil(t, server)
 
