@@ -48,7 +48,7 @@ func generateBackendJSON(output string) error {
 	if err != nil {
 		return err
 	}
-
+	schemaJSON = append(schemaJSON, byte('\n'))
 	return os.WriteFile(output, schemaJSON, 0664)
 }
 
