@@ -17,8 +17,8 @@ import (
 
 func validateAddr(t *testing.T, addr *agentmodel.Addr) {
 	require.NotEqual(t, 0, len(addr.Ip), "addr.Ip = 0")
-	require.NotEqual(t, 0, addr.Port, "addr.Port = 0")
-	require.Lessf(t, addr.Port, 65536, "addr.Port > 16bits %d", addr.Port)
+	require.GreaterOrEqualf(t, addr.Port, int32(1), "addr.Port < 1 %d", addr.Port)
+	require.Lessf(t, addr.Port, int32(65536), "addr.Port > 16bits %d", addr.Port)
 
 	require.NotNilf(t, net.ParseIP(addr.Ip), "IP address not valid %s", addr.Ip)
 }
