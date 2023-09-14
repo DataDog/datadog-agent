@@ -26,14 +26,17 @@ func (cr *CheckRun) name() string {
 	return cr.Check
 }
 
+// GetTags return the tags from a payload
 func (cr *CheckRun) GetTags() []string {
 	return cr.Tags
 }
 
+// GetCollectedTime return the time when the payload has been collected by the fakeintake server
 func (cr *CheckRun) GetCollectedTime() time.Time {
 	return cr.collectedTime
 }
 
+// ParseCheckRunPayload return the parsed checkRun from payload
 func ParseCheckRunPayload(payload api.Payload) (checks []*CheckRun, err error) {
 	enflated, err := enflate(payload.Data, payload.Encoding)
 	if err != nil {

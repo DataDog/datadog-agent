@@ -27,14 +27,17 @@ func (l *Log) name() string {
 	return l.Service
 }
 
+// GetTags return the tags from a payload
 func (l *Log) GetTags() []string {
 	return l.Tags
 }
 
+// GetCollectedTime return the time when the payload has been collected by the fakeintake server
 func (l *Log) GetCollectedTime() time.Time {
 	return l.collectedTime
 }
 
+// ParseLogPayload return the parsed logs from payload
 func ParseLogPayload(payload api.Payload) (logs []*Log, err error) {
 	if len(payload.Data) == 0 {
 		// logs can submit with empty data
