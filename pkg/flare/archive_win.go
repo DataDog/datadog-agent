@@ -19,7 +19,7 @@ import (
 
 	"golang.org/x/sys/windows"
 
-	flarehelpers "github.com/DataDog/datadog-agent/comp/core/flare/helpers"
+	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/winutil"
 )
@@ -40,7 +40,7 @@ const (
 	evtExportLogChannelPath uint32 = 0x1
 )
 
-func getCounterStrings(fb flarehelpers.FlareBuilder) error {
+func getCounterStrings(fb flaretypes.FlareBuilder) error {
 	return fb.AddFileFromFunc("counter_strings.txt",
 		func() ([]byte, error) {
 			bufferIncrement := uint32(1024)
@@ -80,7 +80,7 @@ func getCounterStrings(fb flarehelpers.FlareBuilder) error {
 	)
 }
 
-func getTypeperfData(fb flarehelpers.FlareBuilder) error {
+func getTypeperfData(fb flaretypes.FlareBuilder) error {
 	cancelctx, cancelfunc := context.WithTimeout(context.Background(), execTimeout)
 	defer cancelfunc()
 
@@ -96,7 +96,7 @@ func getTypeperfData(fb flarehelpers.FlareBuilder) error {
 	return fb.AddFile("typeperf.txt", out.Bytes())
 }
 
-func getLodctrOutput(fb flarehelpers.FlareBuilder) error {
+func getLodctrOutput(fb flaretypes.FlareBuilder) error {
 	cancelctx, cancelfunc := context.WithTimeout(context.Background(), execTimeout)
 	defer cancelfunc()
 
@@ -116,7 +116,7 @@ func getLodctrOutput(fb flarehelpers.FlareBuilder) error {
 }
 
 // getWindowsEventLogs exports Windows event logs.
-func getWindowsEventLogs(fb flarehelpers.FlareBuilder) error {
+func getWindowsEventLogs(fb flaretypes.FlareBuilder) error {
 	var err error
 
 	for eventLogChannel := range eventLogChannelsToExport {
@@ -143,7 +143,7 @@ func getWindowsEventLogs(fb flarehelpers.FlareBuilder) error {
 
 // exportWindowsEventLog exports one event log file to the temporary location.
 // destFileName might contain a path.
-func exportWindowsEventLog(fb flarehelpers.FlareBuilder, eventLogChannel, eventLogQuery, destFileName string) error {
+func exportWindowsEventLog(fb flaretypes.FlareBuilder, eventLogChannel, eventLogQuery, destFileName string) error {
 	// Put all event logs under "eventlog" folder
 	destFullFileName, err := fb.PrepareFilePath(filepath.Join("eventlog", destFileName))
 	if err != nil {
@@ -178,7 +178,7 @@ func exportWindowsEventLog(fb flarehelpers.FlareBuilder, eventLogChannel, eventL
 	return err
 }
 
-func getServiceStatus(fb flarehelpers.FlareBuilder) error {
+func getServiceStatus(fb flaretypes.FlareBuilder) error {
 	return fb.AddFileFromFunc(
 		"servicestatus.txt",
 		func() ([]byte, error) {
@@ -259,7 +259,7 @@ func getServiceStatus(fb flarehelpers.FlareBuilder) error {
 // The implementation is based on the invoking Windows built-in reg.exe command, which does all
 // heavy lifting (instead of relying on explicit and recursive Registry API calls).
 // More technical details can be found in the PR https://github.com/DataDog/datadog-agent/pull/11290
-func getDatadogRegistry(fb flarehelpers.FlareBuilder) error {
+func getDatadogRegistry(fb flaretypes.FlareBuilder) error {
 	// Generate raw exported registry file which we will scrub just in case
 	rawf, err := fb.PrepareFilePath("datadog-raw.reg")
 	if err != nil {
@@ -289,7 +289,7 @@ func getDatadogRegistry(fb flarehelpers.FlareBuilder) error {
 	return fb.AddFile("datadog.reg", data)
 }
 
-func getWindowsData(fb flarehelpers.FlareBuilder) {
+func getWindowsData(fb flaretypes.FlareBuilder) {
 	getTypeperfData(fb)     //nolint:errcheck
 	getLodctrOutput(fb)     //nolint:errcheck
 	getCounterStrings(fb)   //nolint:errcheck

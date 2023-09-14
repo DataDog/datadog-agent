@@ -471,8 +471,9 @@ func newDirectReporter(stopper startstop.Stopper) (common.RawReporter, error) {
 	}
 
 	runPath := pkgconfig.Datadog.GetString("runtime_security_config.run_path")
+	useSecRuntimeTrack := pkgconfig.SystemProbe.GetBool("runtime_security_config.use_secruntime_track")
 
-	endpoints, destinationsCtx, err := common.NewLogContextRuntime()
+	endpoints, destinationsCtx, err := common.NewLogContextRuntime(useSecRuntimeTrack)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create direct reported endpoints: %w", err)
 	}

@@ -28,9 +28,19 @@ func NewLogContextCompliance() (*logsconfig.Endpoints, *client.DestinationsConte
 
 // NewLogContextRuntime returns the context fields to send runtime (CWS) events to the intake
 // This function will only be used on Linux. The only platforms where the runtime agent runs
-func NewLogContextRuntime() (*logsconfig.Endpoints, *client.DestinationsContext, error) {
+func NewLogContextRuntime(useSecRuntimeTrack bool) (*logsconfig.Endpoints, *client.DestinationsContext, error) {
+	var (
+		trackType logsconfig.IntakeTrackType
+	)
+
+	if useSecRuntimeTrack {
+		trackType = "secruntime"
+	} else {
+		trackType = "logs"
+	}
+
 	logsRuntimeConfigKeys := logsconfig.NewLogsConfigKeys("runtime_security_config.endpoints.", pkgconfig.Datadog)
-	return NewLogContext(logsRuntimeConfigKeys, "runtime-security-http-intake.logs.", "logs", cwsIntakeOrigin, logsconfig.DefaultIntakeProtocol)
+	return NewLogContext(logsRuntimeConfigKeys, "runtime-security-http-intake.logs.", trackType, cwsIntakeOrigin, logsconfig.DefaultIntakeProtocol)
 }
 
 // NewLogContext returns the context fields to send events to the intake

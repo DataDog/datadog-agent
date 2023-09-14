@@ -126,7 +126,7 @@ func run(log log.Component, config config.Component, forwarder defaultforwarder.
 	// start the autoconfig, this will immediately run any configured check
 	common.AC.LoadAndRun(mainCtx)
 
-	if err = api.StartServer(); err != nil {
+	if err = api.StartServer(aggregator.GetSenderManager()); err != nil {
 		return log.Errorf("Error while starting agent API, exiting: %v", err)
 	}
 

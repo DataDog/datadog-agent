@@ -153,6 +153,9 @@ def stop(flavor)
     end
   end
   wait_until_service_stopped(service)
+  if result == nil || result == false
+      log_trace "datadog-agent" "stop"
+  end
   result
 end
 
@@ -171,6 +174,9 @@ def start(flavor)
     end
   end
   wait_until_service_started(service)
+  if result == nil || result == false
+      log_trace "datadog-agent" "start"
+  end
   result
 end
 
@@ -204,7 +210,30 @@ def restart(flavor)
       wait_until_service_started(service, 5)
     end
   end
+  if result == nil || result == false
+      log_trace "datadog-agent" "restart"
+  end
   result
+end
+
+def log_trace(flavor, action)
+  service = get_service_name(flavor)
+  if os == :windows
+    if action == "stop" || action == "restart"
+      system "wevtutil qe System /q:\"*[System[(EventID=7040) and (EventData[Data[@Name='param1']='#{service}'])]\""
+    end
+    if action == "start" || action == "restart"
+      system "wevtutil qe System /q:\"*[System[(EventID=7036) and (EventData[Data[@Name='param1']='#{service}'])]\""
+    end
+  else
+    if has_systemctl
+      system "sudo journalctl -u #{service} -xe --no-pager"
+    elsif has_upstart
+      system "sudo grep #{service} /var/log/upstart"
+    else
+      system "sudo grep #{service} /var/log/message"
+    end
+  end
 end
 
 def has_systemctl

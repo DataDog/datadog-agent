@@ -556,9 +556,6 @@ func TestPartial(t *testing.T) {
 		if err != nil {
 			t.Fatalf("error while evaluating `%s`: %s", test.Expr, err)
 		}
-		if err := rule.GenPartials(); err != nil {
-			t.Fatalf("error while evaluating `%s`: %s", test.Expr, err)
-		}
 
 		result, err := rule.PartialEval(ctx, test.Field)
 		if err != nil {
@@ -671,10 +668,6 @@ func TestMacroPartial(t *testing.T) {
 	rule, err := parseRule(expr, model, opts)
 	if err != nil {
 		t.Fatalf("error while evaluating `%s`: %s", expr, err)
-	}
-
-	if err := rule.GenPartials(); err != nil {
-		t.Fatalf("error while generating partials `%s`: %s", expr, err)
 	}
 
 	ctx := NewContext(event)
@@ -952,9 +945,6 @@ func TestRegisterPartial(t *testing.T) {
 
 		rule, err := parseRule(test.Expr, model, opts)
 		if err != nil {
-			t.Fatalf("error while evaluating `%s`: %s", test.Expr, err)
-		}
-		if err := rule.GenPartials(); err != nil {
 			t.Fatalf("error while evaluating `%s`: %s", test.Expr, err)
 		}
 
@@ -1334,9 +1324,6 @@ func TestOpOverridePartials(t *testing.T) {
 		if err != nil {
 			t.Fatalf("error while evaluating `%s`: %s", test.Expr, err)
 		}
-		if err := rule.GenPartials(); err != nil {
-			t.Fatalf("error while evaluating `%s`: %s", test.Expr, err)
-		}
 
 		result, err := rule.PartialEval(ctx, test.Field)
 		if err != nil {
@@ -1530,10 +1517,6 @@ func BenchmarkPartial(b *testing.B) {
 
 	pc := ast.NewParsingContext()
 	if err := rule.GenEvaluator(model, pc); err != nil {
-		b.Fatal(err)
-	}
-
-	if err := rule.GenPartials(); err != nil {
 		b.Fatal(err)
 	}
 
