@@ -182,6 +182,19 @@ supported Datadog intakes.
 
 
 
+## [comp/snmptraps](https://pkg.go.dev/github.com/DataDog/dd-agent-comp-experiments/comp/snmptraps) (Component Bundle)
+
+*Datadog Team*: network-device-monitoring
+
+Package snmptraps implements the a server that listens for SNMP trap data
+and sends it to the backend.
+
+### [comp/snmptraps/server](https://pkg.go.dev/github.com/DataDog/dd-agent-comp-experiments/comp/snmptraps/server)
+
+Package server implements a component that runs the traps server.
+It listens for SNMP trap messages on a configured port, parses and
+reformats them, and sends the resulting data to the backend.
+
 ## [comp/systray](https://pkg.go.dev/github.com/DataDog/dd-agent-comp-experiments/comp/systray) (Component Bundle)
 
 *Datadog Team*: windows-agent
