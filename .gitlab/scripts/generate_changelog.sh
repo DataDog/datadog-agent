@@ -27,8 +27,8 @@ do
   author_email=$(git log -n 1 --pretty=format:"%ae" "$commit_hash")
 
   # Fetch PR information using 'gh'
-  pr_info=$(gh search prs "$commit_hash" --repo 'DataDog/datadog-agent' --label 'component/system-probe' --merged --json 'title,url,author,number' --template "{{range .}}{{printf \"%v %v %v %v\" .title \"$author_email\" .author.login .url}}{{end}}")
-
+#  pr_info=$(gh search prs "$commit_hash" --repo 'DataDog/datadog-agent' --label 'component/system-probe' --merged --json 'title,url,author,number' --template "{{range .}}{{printf \"%v %v %v %v\" .title \"$author_email\" .author.login .url}}{{end}}")
+  pr_info="test"
   # Append PR info to changelog
   changelog+="$pr_info\n"
 
