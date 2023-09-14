@@ -80,3 +80,9 @@ func toProtocolType(protoNum uint8, layerBit uint16) ProtocolType {
 		return Unknown
 	}
 }
+
+type TlsProgramType C.tls_prog_t
+
+const (
+// Add TLS prog constants here
+)
