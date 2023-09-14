@@ -487,9 +487,12 @@ func (suite *ProviderTestSuite) TestHistogramFromSecondsToMicroseconds() {
 	suite.mockSender.AssertMetric(suite.T(), "Gauge", common.KubeletMetricsPrefix+"kubelet.runtime.operations.duration.sum", 1204396.2709999991, "", append(instanceTags, "operation_type:container_status"))
 }
 
+// assertMetricCallsMatch is a helper function which allows us to assert that, for a given test and a given set of expected
+// metrics, ONLY the expected metrics have been called, and ALL the expected metrics have been called.
 func (suite *ProviderTestSuite) assertMetricCallsMatch(t *testing.T, expectedMetrics []string) {
-	// TODO this is awful and ugly
+	// note: this is awful and ugly, but it works for now
 	var matchedAsserts []tmock.Call
+	// Make sure that every metric in the expectedMetrics slice has been called
 	for _, expectedMetric := range expectedMetrics {
 		matches := 0
 		for _, call := range suite.mockSender.Calls {
@@ -503,6 +506,8 @@ func (suite *ProviderTestSuite) assertMetricCallsMatch(t *testing.T, expectedMet
 			t.Errorf("expected metric %s to be called, but it was not", expectedMetric)
 		}
 	}
+	
+	// find out output any actual calls which exist which were not in the expected list
 	if len(matchedAsserts) != len(suite.mockSender.Calls) {
 		var calledWithArgs []string
 		for _, call := range suite.mockSender.Calls {

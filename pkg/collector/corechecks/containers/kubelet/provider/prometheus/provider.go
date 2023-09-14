@@ -27,8 +27,15 @@ import (
 
 const (
 	// TypeLabel is the special tag which signifies the type of the metric collected from Prometheus
-	TypeLabel             = "__type__"
+	TypeLabel = "__type__"
+	// NameLabel is the special tag which signifies the name of the metric collected from Prometheus
+	NameLabel             = "__name__"
 	microsecondsInSeconds = 1000000
+
+	metricTypeHistogram = "HISTOGRAM"
+	metricTypeSummary   = "SUMMARY"
+	metricTypeCounter   = "COUNTER"
+	metricTypeGauge     = "GAUGE"
 )
 
 // TransformerFunc outlines the function signature for any transformers which will be used with the prometheus Provider
@@ -163,11 +170,11 @@ func (p *Provider) Provide(kc kubelet.KubeUtilInterface, sender sender.Sender) e
 		if metric == nil {
 			continue
 		}
-		metricName := string(metric.Metric["__name__"])
+		metricName := string(metric.Metric[NameLabel])
 
 		// The parsing library we are using appends some suffixes to the metric name for samples in a histogram or summary,
 		// To ensure backwards compatibility, we will remove these
-		if metric.Metric[TypeLabel] == "SUMMARY" || metric.Metric[TypeLabel] == "HISTOGRAM" {
+		if metric.Metric[TypeLabel] == metricTypeSummary || metric.Metric[TypeLabel] == metricTypeHistogram {
 			if strings.HasSuffix(metricName, "_bucket") {
 				metricName = strings.TrimSuffix(metricName, "_bucket")
 			} else if strings.HasSuffix(metricName, "_count") {
@@ -218,36 +225,33 @@ func (p *Provider) SubmitMetric(metric *model.Sample, metricName string, sender 
 		return
 	}
 
-	// TODO constants
-	// TODO switch statement
-	if metricType == "HISTOGRAM" {
+	switch metricType {
+	case metricTypeHistogram:
 		p.submitHistogram(metric, metricName, sender)
-	} else if metricType == "SUMMARY" {
+	case metricTypeSummary:
 		p.submitSummary(metric, metricName, sender)
-	} else if metricType == "GAUGE" || metricType == "COUNTER" {
+	case metricTypeCounter, metricTypeGauge:
 		nameWithNamespace := p.metricNameWithNamespace(metricName)
 
 		tags := p.MetricTags(metric)
-		if metricType == "COUNTER" && p.Config.MonotonicCounter != nil && *p.Config.MonotonicCounter {
-			// TODO flush_first codepath
+		if metricType == metricTypeCounter && p.Config.MonotonicCounter != nil && *p.Config.MonotonicCounter {
 			sender.MonotonicCount(nameWithNamespace, float64(metric.Value), "", tags)
 		} else {
 			sender.Gauge(nameWithNamespace, float64(metric.Value), "", tags)
 
 			// Metric is a "counter" but legacy behavior has "send_as_monotonic" defaulted to False
 			// Submit metric as monotonic_count with appended name
-			if metricName == "COUNTER" && p.Config.MonotonicWithGauge {
+			if metricName == metricTypeCounter && p.Config.MonotonicWithGauge {
 				sender.MonotonicCount(nameWithNamespace+".total", float64(metric.Value), "", tags)
 			}
 		}
-	} else {
+	default:
 		log.Errorf("Metric type %s unsupported for metric %s.", metricType, metricName)
 	}
 }
 
 func (p *Provider) submitHistogram(metric *model.Sample, metricName string, sender sender.Sender) {
-	// TODO non_cumulative_buckets
-	sampleName := string(metric.Metric["__name__"])
+	sampleName := string(metric.Metric[NameLabel])
 	tags := p.MetricTags(metric)
 	nameWithNamespace := p.metricNameWithNamespace(metricName)
 	if strings.HasSuffix(sampleName, "_sum") && !p.Config.DistributionBuckets {
@@ -259,7 +263,7 @@ func (p *Provider) submitHistogram(metric *model.Sample, metricName string, send
 		p.sendDistributionCount(nameWithNamespace+".count", float64(metric.Value), "", tags, p.Config.DistributionCountsAsMonotonic, sender)
 	} else if p.Config.SendHistogramBuckets != nil && *p.Config.SendHistogramBuckets && strings.HasSuffix(sampleName, "_bucket") {
 		if p.Config.DistributionBuckets {
-			// TODO
+			log.Debug("'send_distribution_buckets' config value found, but is not currently supported")
 		} else if !strings.Contains(string(metric.Metric["le"]), "Inf") {
 			p.sendDistributionCount(nameWithNamespace+".count", float64(metric.Value), "", tags, p.Config.DistributionCountsAsMonotonic, sender)
 		}
@@ -267,7 +271,7 @@ func (p *Provider) submitHistogram(metric *model.Sample, metricName string, send
 }
 
 func (p *Provider) submitSummary(metric *model.Sample, metricName string, sender sender.Sender) {
-	sampleName := string(metric.Metric["__name__"])
+	sampleName := string(metric.Metric[NameLabel])
 	tags := p.MetricTags(metric)
 	nameWithNamespace := p.metricNameWithNamespace(metricName)
 	if strings.HasSuffix(sampleName, "_sum") {
@@ -295,7 +299,7 @@ func (p *Provider) sendDistributionCount(metric string, value float64, hostname 
 func (p *Provider) MetricTags(metric *model.Sample) []string {
 	tags := p.Config.Tags
 	for lName, lVal := range metric.Metric {
-		shouldExclude := lName == "__name__" || lName == TypeLabel
+		shouldExclude := lName == NameLabel || lName == TypeLabel
 		if shouldExclude {
 			continue
 		}
@@ -310,7 +314,6 @@ func (p *Provider) MetricTags(metric *model.Sample) []string {
 			continue
 		}
 
-		// TODO include_labels
 		tagName, exists := p.Config.LabelsMapper[string(lName)]
 		if !exists {
 			tagName = string(lName)
@@ -322,14 +325,14 @@ func (p *Provider) MetricTags(metric *model.Sample) []string {
 
 func (p *Provider) histogramConvertValues(metricName string, converter func(model.SampleValue) model.SampleValue) TransformerFunc {
 	return func(sample *model.Sample, s sender.Sender) {
-		sampleName := string(sample.Metric["__name__"])
+		sampleName := string(sample.Metric[NameLabel])
 		if strings.HasSuffix(sampleName, "_sum") {
 			sample.Value = converter(sample.Value)
 		} else if strings.HasSuffix(sampleName, "_bucket") && !strings.Contains(string(sample.Metric["le"]), "Inf") {
 			var le float64
 			var err error
 			if le, err = strconv.ParseFloat(string(sample.Metric["le"]), 64); err != nil {
-				// TODO log error?
+				log.Errorf("Unable to convert histogram bucket limit %v to a float for metric %s", sample.Metric["le"], sampleName)
 				return
 			}
 			le = float64(converter(model.SampleValue(le)))

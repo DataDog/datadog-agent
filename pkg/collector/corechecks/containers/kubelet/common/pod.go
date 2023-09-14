@@ -22,6 +22,10 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
 )
 
+const (
+	pvcKeyPrefix = "check/kubelet/pvc"
+)
+
 var (
 	volumeTagKeysToExclude = []string{"persistentvolumeclaim", "pod_phase"}
 )
@@ -29,7 +33,6 @@ var (
 // CachePodTagsByPVC stores the tags for a given pod in a global caching layer, indexed by pod namespace and persistent
 // volume name.
 func CachePodTagsByPVC(pod *kubelet.Pod) {
-	// TODO
 	podUID := kubelet.PodUIDToTaggerEntityName(pod.Metadata.UID)
 	tags, _ := tagger.Tag(podUID, collectors.OrchestratorCardinality)
 	if len(tags) == 0 {
@@ -54,9 +57,7 @@ func CachePodTagsByPVC(pod *kubelet.Pod) {
 		if v.PersistentVolumeClaim != nil {
 			pvcName := v.PersistentVolumeClaim.ClaimName
 			if pvcName != "" {
-				// TODO nil checks
-				// TODO cache key prefix
-				cache.Cache.Set(fmt.Sprintf("check/kubelet/pvc/%s/%s", pod.Metadata.Namespace, pvcName), filteredTags, 0)
+				cache.Cache.Set(fmt.Sprintf("%s/%s/%s", pvcKeyPrefix, pod.Metadata.Namespace, pvcName), filteredTags, 0)
 			}
 		}
 
@@ -67,7 +68,7 @@ func CachePodTagsByPVC(pod *kubelet.Pod) {
 			ephemeral := v.Ephemeral.VolumeClaimTemplate
 			volumeName := v.Name
 			if ephemeral != nil && volumeName != "" {
-				cache.Cache.Set(fmt.Sprintf("check/kubelet/pvc/%s/%s-%s", pod.Metadata.Namespace, pod.Metadata.Name, volumeName), filteredTags, 0)
+				cache.Cache.Set(fmt.Sprintf("%s/%s/%s-%s", pvcKeyPrefix, pod.Metadata.Namespace, pod.Metadata.Name, volumeName), filteredTags, 0)
 			}
 		}
 	}

@@ -129,10 +129,8 @@ func NewProvider(filter *containers.Filter, config *common.KubeletConfig, store 
 		transformers[k] = provider.appendPodTagsToVolumeMetrics
 	}
 
-	scraperConfig := &prometheus.ScraperConfig{}
-	// TODO probes
-	if kubeletConfig.ProbesMetricsEndpoint == nil || *kubeletConfig.ProbesMetricsEndpoint != "" {
-		scraperConfig.Path = "/metrics"
+	scraperConfig := &prometheus.ScraperConfig{
+		Path: "/metrics",
 	}
 
 	promProvider, err := prometheus.NewProvider(&kubeletConfig, transformers, scraperConfig)
@@ -144,7 +142,7 @@ func NewProvider(filter *containers.Filter, config *common.KubeletConfig, store 
 }
 
 func (p *Provider) sendAlwaysCounter(metric *model.Sample, sender sender.Sender) {
-	metricName := string(metric.Metric["__name__"])
+	metricName := string(metric.Metric[prometheus.NameLabel])
 	nameWithNamespace := common.KubeletMetricsPrefix + counterMetrics[metricName]
 
 	tags := p.MetricTags(metric)
@@ -152,12 +150,11 @@ func (p *Provider) sendAlwaysCounter(metric *model.Sample, sender sender.Sender)
 }
 
 func (p *Provider) appendPodTagsToVolumeMetrics(metric *model.Sample, sender sender.Sender) {
-	// TODO
 	// Store PV -> pod UID in cache for some amount of time in /pods provider
 	// Get pod UID from cache based on PV
 	// Compute tags based on pod UID (maybe these should be cached? they are cached in the python version)
 
-	metricName := string(metric.Metric["__name__"])
+	metricName := string(metric.Metric[prometheus.NameLabel])
 	metricNameWithNamespace := common.KubeletMetricsPrefix + volumeMetrics[metricName]
 	pvcName := metric.Metric["persistentvolumeclaim"]
 	namespace := metric.Metric["namespace"]
@@ -185,7 +182,7 @@ func (p *Provider) kubeletContainerLogFilesystemUsedBytes(metric *model.Sample, 
 }
 
 func (p *Provider) restClientLatency(metric *model.Sample, sender sender.Sender) {
-	metricName := string(metric.Metric["__name__"])
+	metricName := string(metric.Metric[prometheus.NameLabel])
 	if u, ok := metric.Metric["url"]; ok {
 		parsed, err := url.Parse(string(u))
 		if err != nil {
