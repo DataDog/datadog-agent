@@ -11,7 +11,7 @@ import (
 	"sync"
 	"time"
 
-	nettelemetry "github.com/DataDog/datadog-agent/pkg/network/telemetry"
+	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -33,11 +33,11 @@ const (
 )
 
 var statsTelemetry = struct {
-	processedStats *nettelemetry.StatCounterWrapper
-	droppedStats   *nettelemetry.StatCounterWrapper
+	processedStats telemetry.Counter
+	droppedStats   telemetry.Counter
 }{
-	nettelemetry.NewStatCounterWrapper(dnsStatKeeperModuleName, "processed_stats", []string{}, "Counter measuring the number of processed DNS stats"),
-	nettelemetry.NewStatCounterWrapper(dnsStatKeeperModuleName, "dropped_stats", []string{}, "Counter measuring the number of dropped DNS stats"),
+	telemetry.NewCounter(dnsStatKeeperModuleName, "processed_stats", []string{}, "Counter measuring the number of processed DNS stats"),
+	telemetry.NewCounter(dnsStatKeeperModuleName, "dropped_stats", []string{}, "Counter measuring the number of dropped DNS stats"),
 }
 
 type dnsPacketInfo struct {
@@ -226,7 +226,8 @@ func (d *dnsStatKeeper) removeExpiredStates(earliestTs time.Time) {
 			}
 			bytype, ok := allStats[v.question]
 			if !ok {
-				if statsTelemetry.processedStats.Load() >= d.maxStats {
+				if d.processedStats >= d.maxStats {
+					d.droppedStats++
 					statsTelemetry.droppedStats.Inc()
 					continue
 				}
@@ -234,6 +235,7 @@ func (d *dnsStatKeeper) removeExpiredStates(earliestTs time.Time) {
 			}
 			stats, ok := bytype[v.qtype]
 			if !ok {
+				d.processedStats++
 				statsTelemetry.processedStats.Inc()
 				stats.CountByRcode = make(map[uint32]uint32)
 			}
