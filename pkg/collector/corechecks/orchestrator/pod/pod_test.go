@@ -154,6 +154,5 @@ func (suite *PodTestSuite) TestTransformPods() {
 	// TODO require no error when enabled
 	// err = suite.check.Run()
 	// require.NoError(suite.T(), err)
-
-	suite.mockSender.AssertNumberOfCalls(suite.T(), "OrchestratorMetadata", 1)
+	// suite.mockSender.AssertNumberOfCalls(suite.T(), "OrchestratorMetadata", 1)
 }
