@@ -976,7 +976,7 @@ func newTestModule(t testing.TB, macroDefs []*rules.MacroDefinition, ruleDefs []
 	}
 
 	// listen to probe event
-	if err := testMod.probe.AddEventHandler(model.UnknownEventType, testMod); err != nil {
+	if err := testMod.probe.AddFullAccessEventHandler(model.UnknownEventType, testMod); err != nil {
 		return nil, err
 	}
 
@@ -1022,13 +1022,7 @@ func newTestModule(t testing.TB, macroDefs []*rules.MacroDefinition, ruleDefs []
 	return testMod, nil
 }
 
-func (tm *testModule) HandleEvent(incomingEvent interface{}) {
-	event, ok := incomingEvent.(*model.Event)
-	if !ok {
-		log.Error("Event is not a security model event")
-		return
-	}
-
+func (tm *testModule) HandleEvent(event *model.Event) {
 	tm.eventHandlers.RLock()
 	defer tm.eventHandlers.RUnlock()
 
