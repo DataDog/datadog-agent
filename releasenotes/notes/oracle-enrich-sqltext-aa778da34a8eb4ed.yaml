@@ -8,4 +8,4 @@
 ---
 enhancements:
   - |
-    Improve SQL text collection for self-managed installations. We are selecting text from `V$SQL` instead of `V$SQLSTATS`. If it isn't possible to query the text, we try to identify the context, such as parsing, or closing cursor, and put it in the SQL text.
+    Improve SQL text collection for self-managed installations. We are selecting text from `V$SQL` instead of `V$SQLSTATS`. If it isn't possible to query the text, we try to identify the context, such as parsing or closing cursor, and put it in the SQL text.
