@@ -276,11 +276,7 @@ end
 # creates required build directories
 dependency 'datadog-agent-prepare'
 
-# Linux-specific dependencies
-if linux?
-  dependency 'procps-ng'
-  dependency 'curl'
-end
+dependency 'agent-dependencies'
 
 # Datadog agent
 dependency 'datadog-agent'
@@ -289,21 +285,6 @@ dependency 'datadog-agent'
 if linux? && !heroku?
   dependency 'system-probe'
 end
-
-# Additional software
-if windows?
-  if ENV['WINDOWS_DDNPM_DRIVER'] and not ENV['WINDOWS_DDNPM_DRIVER'].empty?
-    dependency 'datadog-windows-filter-driver'
-  end
-  if ENV['WINDOWS_APMINJECT_MODULE'] and not ENV['WINDOWS_APMINJECT_MODULE'].empty?
-    dependency 'datadog-windows-apminject'
-  end
-  if ENV['WINDOWS_DDPROCMON_DRIVER'] and not ENV['WINDOWS_DDPROCMON_DRIVER'].empty?
-    dependency 'datadog-windows-procmon-driver'
-  end
-end
-# Bundled cacerts file (is this a good idea?)
-dependency 'cacerts'
 
 if osx?
   dependency 'datadog-agent-mac-app'
@@ -325,12 +306,6 @@ end
 # Include traps db file in snmp.d/traps_db/
 dependency 'snmp-traps'
 
-# External agents
-dependency 'jmxfetch'
-
-# version manifest file
-dependency 'version-manifest'
-
 # this dependency puts few files out of the omnibus install dir and move them
 # in the final destination. This way such files will be listed in the packages
 # manifest and owned by the package manager. This is the only point in the build
@@ -339,6 +314,19 @@ dependency 'version-manifest'
 # This must be the last dependency in the project.
 dependency 'datadog-agent-finalize'
 dependency 'datadog-cf-finalize'
+
+# Additional software
+if windows?
+  if ENV['WINDOWS_DDNPM_DRIVER'] and not ENV['WINDOWS_DDNPM_DRIVER'].empty?
+    dependency 'datadog-windows-filter-driver'
+  end
+  if ENV['WINDOWS_APMINJECT_MODULE'] and not ENV['WINDOWS_APMINJECT_MODULE'].empty?
+    dependency 'datadog-windows-apminject'
+  end
+  if ENV['WINDOWS_DDPROCMON_DRIVER'] and not ENV['WINDOWS_DDPROCMON_DRIVER'].empty?
+    dependency 'datadog-windows-procmon-driver'
+  end
+end
 
 if linux?
   extra_package_file '/etc/init/datadog-agent.conf'
