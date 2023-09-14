@@ -46,7 +46,7 @@ const (
 	rxBytesMetricName = "network.rx_bytes"
 )
 
-func report_metric[T float64 | uint64](senderFunc func(string, float64, string, []string),
+func reportMetric[T float64 | uint64](senderFunc func(string, float64, string, []string),
 	metricName string, value *T, tags []string) {
 	if value == nil {
 		return
@@ -56,22 +56,22 @@ func report_metric[T float64 | uint64](senderFunc func(string, float64, string, 
 	}
 }
 
-func report_fs_metric(sender sender.Sender,
+func reportFsMetric(sender sender.Sender,
 	fsStats *kubeletv1alpha1.FsStats,
 	metricPrefix string,
 	tags []string) {
 	if fsStats == nil {
 		return
 	}
-	report_metric(sender.Gauge,
+	reportMetric(sender.Gauge,
 		metricPrefix+"filesystem.usage",
 		fsStats.UsedBytes,
 		tags)
 	if fsStats.UsedBytes != nil && fsStats.CapacityBytes != nil && *fsStats.CapacityBytes != 0 {
-		usage_pct := float64(*fsStats.UsedBytes) / float64(*fsStats.CapacityBytes)
-		report_metric(sender.Gauge,
+		usagePct := float64(*fsStats.UsedBytes) / float64(*fsStats.CapacityBytes)
+		reportMetric(sender.Gauge,
 			metricPrefix+"filesystem.usage_pct",
-			&usage_pct,
+			&usagePct,
 			tags)
 	}
 }
@@ -123,21 +123,21 @@ func (p *Provider) Provide(kc kubelet.KubeUtilInterface, sender sender.Sender) e
 func (p *Provider) processSystemStats(sender sender.Sender,
 	statsSummary *kubeletv1alpha1.Summary) {
 	//System metrics
-	report_fs_metric(sender, statsSummary.Node.Fs, "node.", p.config.Tags)
+	reportFsMetric(sender, statsSummary.Node.Fs, "node.", p.config.Tags)
 	if statsSummary.Node.Runtime != nil {
-		report_fs_metric(sender, statsSummary.Node.Runtime.ImageFs, "node.image.", p.config.Tags)
+		reportFsMetric(sender, statsSummary.Node.Runtime.ImageFs, "node.image.", p.config.Tags)
 	}
 
 	for _, ctr := range statsSummary.Node.SystemContainers {
 		if ctr.Name == "runtime" || ctr.Name == "kubelet" {
 			if ctr.Memory != nil {
-				report_metric(sender.Gauge, ctr.Name+".memory.rss",
+				reportMetric(sender.Gauge, ctr.Name+".memory.rss",
 					ctr.Memory.RSSBytes, p.config.Tags)
-				report_metric(sender.Gauge, ctr.Name+".memory.usage",
+				reportMetric(sender.Gauge, ctr.Name+".memory.usage",
 					ctr.Memory.UsageBytes, p.config.Tags)
 			}
 			if ctr.CPU != nil {
-				report_metric(sender.Gauge, ctr.Name+".cpu.usage",
+				reportMetric(sender.Gauge, ctr.Name+".cpu.usage",
 					ctr.CPU.UsageNanoCores, p.config.Tags)
 			}
 		}
@@ -162,7 +162,7 @@ func (p *Provider) processPodStats(sender sender.Sender,
 	podTags = utils.ConcatenateTags(podTags, p.config.Tags)
 	ephemeralStorage := podStats.EphemeralStorage
 	if ephemeralStorage != nil {
-		report_metric(sender.Gauge, "ephemeral_storage.usage",
+		reportMetric(sender.Gauge, "ephemeral_storage.usage",
 			ephemeralStorage.UsedBytes, podTags)
 	}
 	if !useStatsAsSource {
@@ -181,11 +181,11 @@ func (p *Provider) processPodStats(sender sender.Sender,
 		pattern := &p.config.EnabledRates[i]
 		matched, error := regexp.MatchString(*pattern, txBytesMetricName)
 		if txBytes != nil && error == nil && matched {
-			report_metric(sender.Rate, txBytesMetricName, txBytes, podTags)
+			reportMetric(sender.Rate, txBytesMetricName, txBytes, podTags)
 		}
 		matched, error = regexp.MatchString(*pattern, rxBytesMetricName)
 		if rxBytes != nil && error == nil && matched {
-			report_metric(sender.Rate, rxBytesMetricName, rxBytes, podTags)
+			reportMetric(sender.Rate, rxBytesMetricName, rxBytes, podTags)
 		}
 	}
 }
@@ -234,12 +234,12 @@ func (p *Provider) processContainerStats(sender sender.Sender,
 		tags = utils.ConcatenateTags(tags, p.config.Tags)
 		//collecting metric
 		if containerStats.CPU != nil {
-			report_metric(sender.Rate, "cpu.usage.total", containerStats.CPU.UsageCoreNanoSeconds, tags)
+			reportMetric(sender.Rate, "cpu.usage.total", containerStats.CPU.UsageCoreNanoSeconds, tags)
 		}
 		if containerStats.Memory != nil {
-			report_metric(sender.Rate, "memory.working_set", containerStats.Memory.WorkingSetBytes, tags)
-			report_metric(sender.Rate, "memory.usage", containerStats.Memory.UsageBytes, tags)
+			reportMetric(sender.Rate, "memory.working_set", containerStats.Memory.WorkingSetBytes, tags)
+			reportMetric(sender.Rate, "memory.usage", containerStats.Memory.UsageBytes, tags)
 		}
-		report_fs_metric(sender, containerStats.Rootfs, "", tags)
+		reportFsMetric(sender, containerStats.Rootfs, "", tags)
 	}
 }
