@@ -186,7 +186,7 @@ def sync_source(ctx, vm_ls, source, target, ssh_key):
 
 
 @task
-def sync(ctx, stack=None, vms="", ssh_key=""):
+def sync(ctx, vms, stack=None, ssh_key=""):
     stack = check_and_get_stack(stack)
     if not stacks.stack_exists(stack):
         raise Exit(f"Stack {stack} does not exist. Please create with 'inv kmt.stack-create --stack=<name>'")
@@ -316,7 +316,7 @@ def copy_dependencies(ctx, stack, vms, ssh_key):
 
 
 @task
-def prepare(ctx, stack=None, arch=None, vms="", ssh_key="", rebuild_deps=False, packages=""):
+def prepare(ctx, vms, stack=None, arch=None, ssh_key="", rebuild_deps=False, packages=""):
     stack = check_and_get_stack(stack)
     if not stacks.stack_exists(stack):
         raise Exit(f"Stack {stack} does not exist. Please create with 'inv kmt.stack-create --stack=<name>'")
@@ -360,7 +360,7 @@ def prepare(ctx, stack=None, arch=None, vms="", ssh_key="", rebuild_deps=False, 
 
 
 @task
-def test(ctx, stack=None, packages="", run=None, retry=2, rebuild_deps=False, vms="", ssh_key="", go_version=GOVERSION):
+def test(ctx, vms, stack=None, packages="", run=None, retry=2, rebuild_deps=False, ssh_key="", go_version=GOVERSION):
     stack = check_and_get_stack(stack)
     if not stacks.stack_exists(stack):
         raise Exit(f"Stack {stack} does not exist. Please create with 'inv kmt.stack-create --stack=<name>'")
@@ -383,7 +383,7 @@ def test(ctx, stack=None, packages="", run=None, retry=2, rebuild_deps=False, vm
 
 
 @task
-def build(ctx, stack=None, vms="", ssh_key="", rebuild_deps=False):
+def build(ctx, vms, stack=None, ssh_key="", rebuild_deps=False):
     stack = check_and_get_stack(stack)
     if not stacks.stack_exists(stack):
         raise Exit(f"Stack {stack} does not exist. Please create with 'inv kmt.stack-create --stack=<name>'")
