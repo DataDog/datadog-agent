@@ -195,7 +195,7 @@ chunksLoop:
 	for _, chunk := range pkg.TracerPayload.Chunks {
 		for _, span := range chunk.Spans {
 			if strings.HasPrefix(span.Service, "00-") {
-				log.Errorf("INCIDENT-22455 In TraceWriter.addSpans (ID %d) payload %#v", span.TraceID, pkg)
+				log.Errorf("INCIDENT-22455 In TraceWriter.addSpans (ID %d) payload %#v", span.TraceID, span)
 				break chunksLoop
 			}
 		}

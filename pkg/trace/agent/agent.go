@@ -265,7 +265,7 @@ func (a *Agent) Process(p *api.Payload) {
 		}
 
 		if strings.HasPrefix(root.Service, "00-") {
-			log.Errorf("INCIDENT-22455 In ProcessFunc (ID %d): %#v", root.TraceID, p)
+			log.Errorf("INCIDENT-22455 In ProcessFunc (ID %d): %#v", root.TraceID, root)
 		}
 
 		if filteredByTags(root, a.conf.RequireTags, a.conf.RejectTags) {
