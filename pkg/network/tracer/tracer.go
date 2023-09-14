@@ -245,11 +245,7 @@ func newConntracker(cfg *config.Config, bpfTelemetry *nettelemetry.EBPFTelemetry
 	var err error
 
 	cmd := exec.Command("modprobe", "nf_conntrack_netlink")
-	err = cmd.Run()
-
-	if err != nil {
-		log.Warnf("error enabling probe nf_conntrack_netlink: %s", err)
-	} else {
+	if err = cmd.Run(); err == nil {
 		if c, err = NewEBPFConntracker(cfg, bpfTelemetry); err == nil {
 			return c, nil
 		}
