@@ -6,6 +6,7 @@
 package npm
 
 import (
+	"net"
 	"testing"
 
 	agentmodel "github.com/DataDog/agent-payload/v5/process"
@@ -14,16 +15,22 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func validateAddr(t *testing.T, addr *agentmodel.Addr) {
+	require.NotEqual(t, 0, len(addr.Ip), "addr.Ip = 0")
+	require.NotEqual(t, 0, addr.Port, "addr.Port = 0")
+	require.Lessf(t, addr.Port, 65536, "addr.Port > 16bits %d", addr.Port)
+
+	require.NotNilf(t, net.ParseIP(addr.Ip), "IP address not valid %s", addr.Ip)
+}
+
 func validateConnection(t *testing.T, c *agentmodel.Connection) {
 	require.NotZero(t, c.Pid, "Pid = 0")
 	require.NotZero(t, c.NetNS, "network namespace = 0")
 	require.NotNil(t, c.Laddr, "Laddr is nil")
 	require.NotNil(t, c.Raddr, "Raddr is nil")
 
-	require.NotEqual(t, 0, len(c.Laddr.Ip), "Laddr.Ip = 0")
-	require.NotEqual(t, 0, c.Laddr.Port, "Laddr.Port = 0")
-	require.NotEqual(t, 0, len(c.Raddr.Ip), "Raddr.Ip = 0")
-	require.NotEqual(t, 0, c.Raddr.Port, "Raddr.Port = 0")
+	validateAddr(t, c.Laddr)
+	validateAddr(t, c.Raddr)
 
 	// un-comment the line below when https://datadoghq.atlassian.net/browse/NPM-2958 will be fixed
 	// require.False(t, c.LastPacketsSent == 0 && c.LastPacketsReceived == 0, "connection with no packets")
