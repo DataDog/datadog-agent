@@ -506,7 +506,7 @@ func (suite *ProviderTestSuite) assertMetricCallsMatch(t *testing.T, expectedMet
 			t.Errorf("expected metric %s to be called, but it was not", expectedMetric)
 		}
 	}
-	
+
 	// find out output any actual calls which exist which were not in the expected list
 	if len(matchedAsserts) != len(suite.mockSender.Calls) {
 		var calledWithArgs []string
