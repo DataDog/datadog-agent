@@ -277,8 +277,9 @@ func runAgent(stopCh chan struct{}) (serverlessDaemon *daemon.Daemon, err error)
 		} else {
 			logsAgent, err := serverlessLogs.SetupLogAgent(logChannel, "AWS Logs", "lambda")
 			if err != nil {
-				serverlessDaemon.SetLogsAgent(logsAgent)
+				log.Errorf("Error setting up the logs agent: %s", err)
 			}
+			serverlessDaemon.SetLogsAgent(logsAgent)
 		}
 	}()
 
