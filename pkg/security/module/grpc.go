@@ -3,8 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build linux
-
+// Package module holds module related files
 package module
 
 import (
@@ -18,31 +17,40 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
 )
 
+// GRPCServer defines a gRPC server
 type GRPCServer struct {
 	server      *grpc.Server
 	netListener net.Listener
 	wg          sync.WaitGroup
-	socketPath  string
+	family      string
+	address     string
 }
 
-func NewGRPCServer(socketPath string) *GRPCServer {
+// NewGRPCServer returns a new gRPC server
+func NewGRPCServer(family string, address string) *GRPCServer {
 	// force socket cleanup of previous socket not cleanup
-	_ = os.Remove(socketPath)
+	if family == "unix" {
+		_ = os.Remove(address)
+	}
 
 	return &GRPCServer{
-		socketPath: socketPath,
-		server:     grpc.NewServer(),
+		family:  family,
+		address: address,
+		server:  grpc.NewServer(),
 	}
 }
 
+// Start the server
 func (g *GRPCServer) Start() error {
-	ln, err := net.Listen("unix", g.socketPath)
+	ln, err := net.Listen(g.family, g.address)
 	if err != nil {
 		return fmt.Errorf("unable to create runtime security socket: %w", err)
 	}
 
-	if err := os.Chmod(g.socketPath, 0700); err != nil {
-		return fmt.Errorf("unable to create runtime security socket: %w", err)
+	if g.family == "unix" {
+		if err := os.Chmod(g.address, 0700); err != nil {
+			return fmt.Errorf("unable to create runtime security socket: %w", err)
+		}
 	}
 
 	g.netListener = ln
@@ -59,6 +67,7 @@ func (g *GRPCServer) Start() error {
 	return nil
 }
 
+// Stop the server
 func (g *GRPCServer) Stop() {
 	if g.server != nil {
 		g.server.Stop()
@@ -66,7 +75,9 @@ func (g *GRPCServer) Stop() {
 
 	if g.netListener != nil {
 		g.netListener.Close()
-		os.Remove(g.socketPath)
+		if g.family == "unix" {
+			_ = os.Remove(g.address)
+		}
 	}
 
 	g.wg.Wait()

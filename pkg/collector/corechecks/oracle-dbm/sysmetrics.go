@@ -13,7 +13,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/oracle-dbm/common"
-	"github.com/DataDog/datadog-agent/pkg/trace/log"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 const SYSMETRICS_QUERY = `SELECT 
@@ -153,6 +153,19 @@ func (c *Check) SysMetrics() error {
 				c.sendMetric(sender, r, seenInGlobalMetrics)
 			}
 		}
+	}
+
+	var overAllocationCount float64
+	err = getWrapper(c, &overAllocationCount, "SELECT value FROM v$pgastat WHERE name = 'over allocation count'")
+	if err != nil {
+		return fmt.Errorf("failed to get PGA over allocation count: %w", err)
+	}
+	if c.previousPGAOverAllocationCount.valid {
+		v := overAllocationCount - c.previousPGAOverAllocationCount.value
+		sender.Gauge(fmt.Sprintf("%s.%s", common.IntegrationName, "pga_over_allocation_count"), v, "", c.tags)
+		c.previousPGAOverAllocationCount.value = overAllocationCount
+	} else {
+		c.previousPGAOverAllocationCount = pgaOverAllocationCount{value: overAllocationCount, valid: true}
 	}
 
 	sender.Commit()

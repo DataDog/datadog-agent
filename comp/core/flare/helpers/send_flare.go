@@ -17,7 +17,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/config"
+	configUtils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	hostnameUtil "github.com/DataDog/datadog-agent/pkg/util/hostname"
 	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
 	"github.com/DataDog/datadog-agent/pkg/version"
@@ -28,6 +28,7 @@ var (
 	httpTimeout       = time.Duration(60) * time.Second
 )
 
+// any modification to this struct should also be applied to datadog-agent/test/fakeintake/server/body.go
 type flareResponse struct {
 	CaseID int    `json:"case_id,omitempty"`
 	Error  string `json:"error,omitempty"`
@@ -201,8 +202,8 @@ func SendTo(archivePath, caseID, email, source, apiKey, url string) (string, err
 		hostname = "unknown"
 	}
 
-	apiKey = config.SanitizeAPIKey(apiKey)
-	baseURL, _ := config.AddAgentVersionToDomain(url, "flare")
+	apiKey = configUtils.SanitizeAPIKey(apiKey)
+	baseURL, _ := configUtils.AddAgentVersionToDomain(url, "flare")
 
 	transport := httputils.CreateHTTPTransport()
 	client := &http.Client{

@@ -21,14 +21,25 @@ import (
 // NewMockSender initiates the aggregator and returns a
 // functional mocked Sender for testing
 func NewMockSender(id checkid.ID) *MockSender {
-	mockSender := new(MockSender)
+	return NewMockSenderWithSenderManager(id, CreateDefaultDemultiplexer())
+}
 
+// CreateDefaultDemultiplexer creates a default demultiplexer for testing
+func CreateDefaultDemultiplexer() *aggregator.AgentDemultiplexer {
 	opts := aggregator.DefaultAgentDemultiplexerOptions()
 	opts.FlushInterval = 1 * time.Hour
 	opts.DontStartForwarders = true
 	log := log.NewTemporaryLoggerWithoutInit()
 	sharedForwarder := forwarder.NewDefaultForwarder(config.Datadog, log, forwarder.NewOptions(config.Datadog, log, nil))
-	mockSender.senderManager = aggregator.InitAndStartAgentDemultiplexer(log, sharedForwarder, opts, "")
+	return aggregator.InitAndStartAgentDemultiplexer(log, sharedForwarder, opts, "")
+
+}
+
+// NewMockSenderWithSenderManager returns a functional mocked Sender for testing
+func NewMockSenderWithSenderManager(id checkid.ID, senderManager sender.SenderManager) *MockSender {
+	mockSender := new(MockSender)
+
+	mockSender.senderManager = senderManager
 	SetSender(mockSender, id)
 
 	return mockSender
@@ -45,13 +56,14 @@ type MockSender struct {
 	senderManager sender.SenderManager
 }
 
-func (m *MockSender) SetSenderManager(senderManager sender.SenderManager) {
-	m.senderManager = senderManager
+// GetSenderManager returns the instance of sender.SenderManager
+func (m *MockSender) GetSenderManager() sender.SenderManager {
+	return m.senderManager
 }
 
 // SetupAcceptAll sets mock expectations to accept any call in the Sender interface
 func (m *MockSender) SetupAcceptAll() {
-	metricCalls := []string{"Rate", "Count", "MonotonicCount", "Counter", "Histogram", "Historate", "Gauge"}
+	metricCalls := []string{"Rate", "Count", "MonotonicCount", "Counter", "Histogram", "Historate", "Gauge", "Distribution"}
 	for _, call := range metricCalls {
 		m.On(call,
 			mock.AnythingOfType("string"),   // Metric

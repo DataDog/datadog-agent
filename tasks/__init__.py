@@ -15,7 +15,7 @@ from . import (
     docker_tasks,
     dogstatsd,
     epforwarder,
-    github,
+    github_tasks,
     kmt,
     msi,
     new_e2e_tests,
@@ -48,6 +48,7 @@ from .go import (
     reset,
     tidy_all,
 )
+from .show_linters_issues import show_linters_issues
 from .test import (
     codecov,
     download_tools,
@@ -67,6 +68,7 @@ from .test import (
     lint_teamassignment,
     test,
 )
+from .update_go import update_go
 from .utils import generate_config
 from .windows_resources import build_messagetable
 
@@ -92,6 +94,8 @@ ns.add_task(lint_milestone)
 ns.add_task(lint_filenames)
 ns.add_task(lint_python)
 ns.add_task(lint_go)
+ns.add_task(show_linters_issues)
+ns.add_task(update_go)
 ns.add_task(audit_tag_impact)
 ns.add_task(print_default_build_tags)
 ns.add_task(e2e_tests)
@@ -121,7 +125,7 @@ ns.add_collection(docker_tasks, "docker")
 ns.add_collection(dogstatsd)
 ns.add_collection(epforwarder)
 ns.add_collection(msi)
-ns.add_collection(github)
+ns.add_collection(github_tasks, "github")
 ns.add_collection(package)
 ns.add_collection(pipeline)
 ns.add_collection(pylauncher)

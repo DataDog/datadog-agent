@@ -46,6 +46,10 @@ func walkHash(data map[interface{}]interface{}, callback scrubCallback) {
 // walk will go through loaded yaml and call callback on every strings allowing
 // the callback to overwrite the string value
 func walk(data *interface{}, callback scrubCallback) {
+	if data == nil {
+		return
+	}
+
 	switch v := (*data).(type) {
 	case map[interface{}]interface{}:
 		walkHash(v, callback)
@@ -61,7 +65,7 @@ func (c *Scrubber) ScrubYaml(input []byte) ([]byte, error) {
 	err := yaml.Unmarshal(input, &data)
 
 	// if we can't load the yaml run the default scrubber on the input
-	if err == nil {
+	if len(input) != 0 && err == nil {
 		walk(data, func(key string, value interface{}) (bool, interface{}) {
 			for _, replacer := range c.singleLineReplacers {
 				if replacer.YAMLKeyRegex == nil {

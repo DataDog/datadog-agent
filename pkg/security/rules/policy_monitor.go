@@ -5,6 +5,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+// Package rules holds rules related files
 package rules
 
 import (
@@ -49,10 +50,12 @@ type PolicyMonitor struct {
 	perRuleMetricEnabled bool
 }
 
-// AddPolicies add policies to the monitor
-func (p *PolicyMonitor) AddPolicies(policies []*rules.Policy, mErrs *multierror.Error) {
+// SetPolicies add policies to the monitor
+func (p *PolicyMonitor) SetPolicies(policies []*rules.Policy, mErrs *multierror.Error) {
 	p.Lock()
 	defer p.Unlock()
+
+	p.policies = map[string]Policy{}
 
 	for _, policy := range policies {
 		p.policies[policy.Name] = Policy{Name: policy.Name, Source: policy.Source, Version: policy.Version}

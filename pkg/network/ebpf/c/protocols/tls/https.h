@@ -25,7 +25,9 @@
 #include "protocols/http/maps.h"
 #include "protocols/http/http.h"
 #include "protocols/tls/tags-types.h"
+#include "protocols/tls/native-tls-maps.h"
 #include "protocols/tls/go-tls-types.h"
+#include "protocols/tls/go-tls-maps.h"
 
 #define HTTPS_PORT 443
 
@@ -36,6 +38,8 @@ static __always_inline void classify_decrypted_payload(conn_tuple_t *t, void *bu
     if (!stack || is_protocol_layer_known(stack, LAYER_APPLICATION)) {
         return;
     }
+    // we're in the context of TLS hookpoints, thus the protocol is TLS.
+    set_protocol(stack, PROTOCOL_TLS);
 
     protocol_t proto = PROTOCOL_UNKNOWN;
     classify_protocol_for_dispatcher(&proto, t, buffer, len);
@@ -43,7 +47,6 @@ static __always_inline void classify_decrypted_payload(conn_tuple_t *t, void *bu
         return;
     }
 
-    set_protocol(stack, PROTOCOL_TLS);
     set_protocol(stack, proto);
 }
 
@@ -53,7 +56,7 @@ static __always_inline void https_process(conn_tuple_t *t, void *buffer, size_t 
     http_transaction_t http;
     bpf_memset(&http, 0, sizeof(http));
     bpf_memcpy(&http.tup, t, sizeof(conn_tuple_t));
-    read_into_buffer(http.request_fragment, buffer, len);
+    read_into_user_buffer_http(http.request_fragment, buffer);
     http_process(&http, NULL, tags);
     classify_decrypted_payload(&http.tup, http.request_fragment, len);
 }

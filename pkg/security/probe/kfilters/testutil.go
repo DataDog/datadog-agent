@@ -3,8 +3,9 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build linux && test
+//go:build linux
 
+// Package kfilters holds kfilters related files
 package kfilters
 
 import (
@@ -15,6 +16,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 )
 
+// AddRuleExpr adds a rule expression
 func AddRuleExpr(t testing.TB, rs *rules.RuleSet, exprs ...string) {
 	var ruleDefs []*rules.RuleDefinition
 

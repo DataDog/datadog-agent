@@ -15,6 +15,7 @@ import (
 	"github.com/cihub/seelog"
 	lru "github.com/hashicorp/golang-lru/v2"
 	"github.com/prometheus/client_golang/prometheus"
+	"go4.org/intern"
 
 	smodel "github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
@@ -50,7 +51,7 @@ var processCacheTelemetry = struct {
 type process struct {
 	Pid         uint32
 	Envs        map[string]string
-	ContainerID string
+	ContainerID *intern.Value
 	StartTime   int64
 	Expiry      int64
 }
@@ -96,8 +97,6 @@ func newProcessCache(maxProcs int, filteredEnvs []string) (*processCache, error)
 
 	var err error
 	pc.cache, err = lru.NewWithEvict(maxProcs, func(_ processCacheKey, p *process) {
-		processCacheTelemetry.cacheEvicts.Inc()
-
 		pl, _ := pc.cacheByPid[p.Pid]
 		if pl = pl.remove(p); len(pl) == 0 {
 			delete(pc.cacheByPid, p.Pid)
@@ -176,7 +175,7 @@ func (pc *processCache) processEvent(entry *smodel.ProcessContext) *process {
 	return &process{
 		Pid:         entry.Pid,
 		Envs:        envs,
-		ContainerID: entry.ContainerID,
+		ContainerID: intern.GetByString(entry.ContainerID),
 		StartTime:   entry.ExecTime.UnixNano(),
 	}
 }
@@ -226,7 +225,9 @@ func (pc *processCache) add(p *process) {
 	}
 
 	p.Expiry = time.Now().Add(defaultExpiry).Unix()
-	pc.cache.Add(processCacheKey{pid: p.Pid, startTime: p.StartTime}, p)
+	if evicted := pc.cache.Add(processCacheKey{pid: p.Pid, startTime: p.StartTime}, p); evicted {
+		processCacheTelemetry.cacheEvicts.Inc()
+	}
 	pl, _ := pc.cacheByPid[p.Pid]
 	pc.cacheByPid[p.Pid] = pl.update(p)
 }

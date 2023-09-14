@@ -25,7 +25,8 @@ type InitConfig struct {
 }
 
 type QuerySamplesConfig struct {
-	Enabled bool `yaml:"enabled"`
+	Enabled            bool `yaml:"enabled"`
+	IncludeAllSessions bool `yaml:"include_all_sessions"`
 }
 
 type QueryMetricsConfig struct {
@@ -53,7 +54,8 @@ type SharedMemoryConfig struct {
 }
 
 type ExecutionPlansConfig struct {
-	Enabled bool `yaml:"enabled"`
+	Enabled              bool `yaml:"enabled"`
+	LogUnobfuscatedPlans bool `yaml:"log_unobfuscated_plans"`
 }
 
 type AgentSQLTrace struct {
@@ -145,6 +147,8 @@ func NewCheckConfig(rawInstance integration.Data, rawInitConfig integration.Data
 	instance.Tablespaces.Enabled = true
 	instance.ProcessMemory.Enabled = true
 	instance.SharedMemory.Enabled = true
+
+	instance.ExecutionPlans.Enabled = true
 	// Defaults end
 
 	if err := yaml.Unmarshal(rawInstance, &instance); err != nil {
