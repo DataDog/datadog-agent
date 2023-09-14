@@ -184,8 +184,8 @@ func (series *Series) Append(serie *Serie) {
 
 // MarshalStrings converts the timeseries to a sorted slice of string slices
 func (series Series) MarshalStrings() ([]string, [][]string) {
-	var headers = []string{"Metric", "Type", "Timestamp", "Value", "Tags"}
-	var payload = make([][]string, len(series))
+	headers := []string{"Metric", "Type", "Timestamp", "Value", "Tags"}
+	payload := make([][]string, len(series))
 
 	for _, serie := range series {
 		payload = append(payload, []string{

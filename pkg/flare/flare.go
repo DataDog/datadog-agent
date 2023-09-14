@@ -14,5 +14,5 @@ import (
 // SendFlare sends a flare and returns the message returned by the backend. This entry point is deprecated in favor of
 // the 'Send' method of the flare component.
 func SendFlare(archivePath string, caseID string, email string, source string) (string, error) {
-	return helpers.SendTo(archivePath, caseID, email, source, config.Datadog.GetString("api_key"), utils.GetInfraEndpoint(config.Datadog))
+	return helpers.SendTo(archivePath, caseID, email, source, config.Datadog.GetString("api_key"), utils.GetInfraEndpoint(config.Datadog), config.Datadog)
 }

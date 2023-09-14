@@ -1,0 +1,23 @@
+dd_url: https://app.datadoghq.com
+api_key: xx
+hostname: mymachine
+use_dogstatsd: yes
+skip_ssl_validation: yes
+dogstatsd_port: 18125
+dogstatsd_non_local_traffic: yes
+otlp_config:
+  opencensus:
+    endpoint: 0.0.0.0:55678
+  receiver:
+    protocols:
+      grpc:
+        endpoint: localhost:43177
+      http:
+        endpoint: localhost:43188
+  traces:
+    internal_port: 50053
+apm_config:
+  remote_tagger: false
+  enabled: true
+  log_file: trace.log
+  receiver_port: 18126

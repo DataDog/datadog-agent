@@ -13,6 +13,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
+	"github.com/DataDog/datadog-agent/pkg/tagger"
 	"github.com/DataDog/datadog-agent/pkg/tagset"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -63,11 +64,22 @@ var (
 	expvarNoAggSamplesProcessedUnsupportedType = expvar.Int{}
 	expvarNoAggFlush                           = expvar.Int{}
 
-	tlmNoAggSamplesProcessed                = telemetry.NewCounter("no_aggregation", "processed", []string{"state"}, "Count the number of samples processed by the no-aggregation pipeline worker")
+	tlmNoAggSamplesProcessed = telemetry.NewCounter(
+		"no_aggregation",
+		"processed",
+		[]string{"state"},
+		"Count the number of samples processed by the no-aggregation pipeline worker",
+	)
 	tlmNoAggSamplesProcessedOk              = tlmNoAggSamplesProcessed.WithValues("ok")
-	tlmNoAggSamplesProcessedUnsupportedType = tlmNoAggSamplesProcessed.WithValues("unsupported_type")
+	tlmNoAggSamplesProcessedUnsupportedType = tlmNoAggSamplesProcessed.WithValues(
+		"unsupported_type",
+	)
 
-	tlmNoAggFlush = telemetry.NewSimpleCounter("no_aggregation", "flush", "Count the number of flushes done by the no-aggregation pipeline worker")
+	tlmNoAggFlush = telemetry.NewSimpleCounter(
+		"no_aggregation",
+		"flush",
+		"Count the number of flushes done by the no-aggregation pipeline worker",
+	)
 )
 
 func init() {
@@ -76,8 +88,12 @@ func init() {
 	noaggExpvars.Set("Flush", &expvarNoAggFlush)
 }
 
-func newNoAggregationStreamWorker(maxMetricsPerPayload int, metricSamplePool *metrics.MetricSamplePool,
-	serializer serializer.MetricSerializer, flushConfig FlushAndSerializeInParallel) *noAggregationStreamWorker {
+func newNoAggregationStreamWorker(
+	maxMetricsPerPayload int,
+	metricSamplePool *metrics.MetricSamplePool,
+	serializer serializer.MetricSerializer,
+	flushConfig FlushAndSerializeInParallel,
+) *noAggregationStreamWorker {
 	return &noAggregationStreamWorker{
 		serializer:           serializer,
 		flushConfig:          flushConfig,
@@ -89,12 +105,19 @@ func newNoAggregationStreamWorker(maxMetricsPerPayload int, metricSamplePool *me
 		taggerBuffer: tagset.NewHashlessTagsAccumulator(),
 		metricBuffer: tagset.NewHashlessTagsAccumulator(),
 
-		stopChan:    make(chan trigger),
-		samplesChan: make(chan metrics.MetricSampleBatch, config.Datadog.GetInt("dogstatsd_queue_size")),
+		stopChan: make(chan trigger),
+		samplesChan: make(
+			chan metrics.MetricSampleBatch,
+			config.Datadog.GetInt("dogstatsd_queue_size"),
+		),
 
 		// warning for the unsupported metric types should appear maximum 200 times
 		// every 5 minutes.
-		logThrottling: util.NewSimpleThrottler(200, 5*time.Minute, "Pausing the unsupported metric type warning message for 5m"),
+		logThrottling: util.NewSimpleThrottler(
+			200,
+			5*time.Minute,
+			"Pausing the unsupported metric type warning message for 5m",
+		),
 	}
 }
 
@@ -141,7 +164,12 @@ func (w *noAggregationStreamWorker) run() {
 	ticker := time.NewTicker(noAggWorkerStreamCheckFrequency)
 	defer ticker.Stop()
 	logPayloads := config.Datadog.GetBool("log_payloads")
-	w.seriesSink, w.sketchesSink = createIterableMetrics(w.flushConfig, w.serializer, logPayloads, false)
+	w.seriesSink, w.sketchesSink = createIterableMetrics(
+		w.flushConfig,
+		w.serializer,
+		logPayloads,
+		false,
+	)
 
 	stopped := false
 	var stopBlockChan chan struct{}
@@ -192,7 +220,7 @@ func (w *noAggregationStreamWorker) run() {
 							}
 
 							// enrich metric sample tags
-							sample.GetTags(w.taggerBuffer, w.metricBuffer)
+							sample.GetTags(w.taggerBuffer, w.metricBuffer, tagger.EnrichTags)
 							w.metricBuffer.AppendHashlessAccumulator(w.taggerBuffer)
 
 							// if the value is a rate, we have to account for the 10s interval
@@ -242,7 +270,12 @@ func (w *noAggregationStreamWorker) run() {
 			break
 		}
 
-		w.seriesSink, w.sketchesSink = createIterableMetrics(w.flushConfig, w.serializer, logPayloads, false)
+		w.seriesSink, w.sketchesSink = createIterableMetrics(
+			w.flushConfig,
+			w.serializer,
+			logPayloads,
+			false,
+		)
 	}
 
 	if stopBlockChan != nil {

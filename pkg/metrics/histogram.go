@@ -10,7 +10,7 @@ import (
 	"sort"
 	"strconv"
 
-	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/conf"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -75,14 +75,14 @@ func (h *histogramPercentilesConfig) percentiles() []int {
 }
 
 // NewHistogram returns a newly initialized histogram
-func NewHistogram(interval int64) *Histogram {
+func NewHistogram(interval int64, config conf.Config) *Histogram {
 	// we initialize default value on the first histogram creation
 	if defaultAggregates == nil {
-		defaultAggregates = config.Datadog.GetStringSlice("histogram_aggregates")
+		defaultAggregates = config.GetStringSlice("histogram_aggregates")
 	}
 	if defaultPercentiles == nil {
 		c := histogramPercentilesConfig{}
-		err := config.Datadog.Unmarshal(&c)
+		err := config.Unmarshal(&c)
 		if err != nil {
 			log.Errorf("Could not Unmarshal histogram configuration: %s", err)
 		} else {
