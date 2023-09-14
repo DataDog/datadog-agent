@@ -67,6 +67,40 @@ func TestProcessHTTPTransactions(t *testing.T) {
 	}
 }
 
+func BenchmarkProcessHTTPTransactions(b *testing.B) {
+	cfg := config.New()
+	cfg.MaxHTTPStatsBuffered = 100000
+	tel := NewTelemetry("http")
+	sk := NewStatkeeper(cfg, tel)
+
+	srcString := "1.1.1.1"
+	dstString := "2.2.2.2"
+	sourceIP := util.AddressFromString(srcString)
+	sourcePort := 1234
+	destIP := util.AddressFromString(dstString)
+	destPort := 8080
+
+	const numPaths = 10000
+	const uniqPaths = 50
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		for p := 0; p < numPaths; p++ {
+			b.StopTimer()
+			//we use subset of unique endpoints, but those will occur over and over again like in regular target application
+			path := "/testpath" + strconv.Itoa(p%uniqPaths)
+			//we simulate different conn tuples by increasing the port number
+			newSourcePort := sourcePort + (p % 30)
+			statusCode := (i%5 + 1) * 100
+			latency := time.Duration(i%5+1) * time.Millisecond
+			tx := generateIPv4HTTPTransaction(sourceIP, destIP, newSourcePort, destPort, path, statusCode, latency)
+			b.StartTimer()
+			sk.Process(tx)
+		}
+	}
+	b.StopTimer()
+}
+
 func BenchmarkProcessSameConn(b *testing.B) {
 	cfg := &config.Config{MaxHTTPStatsBuffered: 1000}
 	tel := NewTelemetry("http")
