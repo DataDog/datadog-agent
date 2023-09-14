@@ -46,20 +46,26 @@ func getConnectionsResponse() []byte {
 
 // getResponseFromURLPath returns the appropriate response body to HTTP request sent to 'urlPath'
 func getResponseFromURLPath(urlPath string) httpResponse {
-	var response httpResponse
-
-	switch urlPath {
-	case "/support/flare":
-		response = buildSuccessResponse(flareResponseBody{CaseID: 0, Error: ""})
-	case "/api/v1/connections":
-		response = httpResponse{
+	var defaultResponse = httpResponse{
+		statusCode:  http.StatusOK,
+		contentType: "application/json",
+		data:        errorResponseBody{Errors: []string{}},
+	}
+	responses := map[string]httpResponse{
+		"/support/flare": {
+			statusCode:  http.StatusOK,
+			contentType: "application/json",
+			data:        flareResponseBody{CaseID: 0, Error: ""},
+		},
+		"/api/v1/connections": {
 			statusCode:  http.StatusOK,
 			contentType: "application/x-protobuf",
-			body:        getConnectionsResponse(),
-		}
-	default:
-		response = buildSuccessResponse(errorResponseBody{Errors: []string{}})
+			data:        getConnectionsResponse(),
+		},
 	}
 
-	return response
+	if _, found := responses[urlPath]; !found {
+		return defaultResponse
+	}
+	return updateResponseFromData(responses[urlPath])
 }
