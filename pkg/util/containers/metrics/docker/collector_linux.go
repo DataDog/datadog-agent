@@ -47,8 +47,10 @@ func convertMemoryStats(memStats *types.MemoryStats) *provider.ContainerMemStats
 		Limit:      pointer.Ptr(float64(memStats.Limit)),
 		OOMEvents:  pointer.Ptr(float64(memStats.Failcnt)),
 		// keys are cgroupv1, cgroupv2
-		RSS:   getFieldFromMap(memStats.Stats, "total_rss", "anon"),
-		Cache: getFieldFromMap(memStats.Stats, "total_cache", "file"),
+		RSS:        getFieldFromMap(memStats.Stats, "total_rss", "anon"),
+		Cache:      getFieldFromMap(memStats.Stats, "total_cache", "file"),
+		Pgfault:    getFieldFromMap(memStats.Stats, "pgfault", "pgfault"),
+		Pgmajfault: getFieldFromMap(memStats.Stats, "pgmajfault", "pgmajfault"),
 	}
 
 	inactive_file := getFieldFromMap(memStats.Stats, "total_inactive_file", "inactive_file")
