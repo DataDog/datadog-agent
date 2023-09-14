@@ -282,7 +282,7 @@ func TestProvider_Provide(t *testing.T) {
 				OpenmetricsInstance: types.OpenmetricsInstance{
 					Tags: []string{"instance_tag:something"},
 				},
-				EnabledRates: []string{
+				EnabledRates: []string{ //default
 					"diskio.io_service_bytes.stats.total",
 					"network[\\.].._bytes",
 					"cpu[\\.].*[\\.]total"},

@@ -165,27 +165,27 @@ func (p *Provider) processPodStats(sender sender.Sender,
 		report_metric(sender.Gauge, "ephemeral_storage.usage",
 			ephemeralStorage.UsedBytes, podTags)
 	}
-	if useStatsAsSource == false {
+	if !useStatsAsSource {
 		return
 	}
 	podNetwork := podStats.Network
 	if podNetwork == nil {
 		return
 	}
-	var rx_bytes, tx_bytes *uint64
-	rx_bytes = podNetwork.InterfaceStats.RxBytes
-	tx_bytes = podNetwork.InterfaceStats.TxBytes
+	var rxBytes, txBytes *uint64
+	rxBytes = podNetwork.InterfaceStats.RxBytes
+	txBytes = podNetwork.InterfaceStats.TxBytes
 
 	// if config has "network.*"" in "enabled_rates"
 	for i, _ := range p.config.EnabledRates {
 		pattern := &p.config.EnabledRates[i]
 		matched, error := regexp.MatchString(*pattern, txBytesMetricName)
-		if tx_bytes != nil && error == nil && matched {
-			report_metric(sender.Rate, txBytesMetricName, tx_bytes, podTags)
+		if txBytes != nil && error == nil && matched {
+			report_metric(sender.Rate, txBytesMetricName, txBytes, podTags)
 		}
 		matched, error = regexp.MatchString(*pattern, rxBytesMetricName)
-		if rx_bytes != nil && error == nil && matched {
-			report_metric(sender.Rate, rxBytesMetricName, rx_bytes, podTags)
+		if rxBytes != nil && error == nil && matched {
+			report_metric(sender.Rate, rxBytesMetricName, rxBytes, podTags)
 		}
 	}
 }
@@ -197,7 +197,7 @@ func (p *Provider) processContainerStats(sender sender.Sender,
 	if podStats == nil ||
 		len(podStats.Containers) == 0 ||
 		podData == nil ||
-		useStatsAsSource == false {
+		!useStatsAsSource {
 		return
 	}
 	containerData := make(map[string]*workloadmeta.OrchestratorContainer)
