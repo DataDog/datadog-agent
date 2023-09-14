@@ -36,6 +36,13 @@ func newAgentCommandRunner(t *testing.T, executeAgentCmdWithError executeAgentCm
 }
 
 func (agent *AgentCommandRunner) executeCommand(command string, commandArgs ...AgentArgsOption) string {
+
+	output, err := agent.executeCommandWithError(command, commandArgs...)
+	require.NoError(agent.t, err)
+	return output
+}
+
+func (agent *AgentCommandRunner) executeCommandWithError(command string, commandArgs ...AgentArgsOption) (string, error) {
 	if !agent.isReady {
 		err := agent.waitForReadyTimeout(1 * time.Minute)
 		require.NoErrorf(agent.t, err, "the agent is not ready")
@@ -45,8 +52,7 @@ func (agent *AgentCommandRunner) executeCommand(command string, commandArgs ...A
 	arguments := []string{command}
 	arguments = append(arguments, args.Args...)
 	output, err := agent.executeAgentCmdWithError(arguments)
-	require.NoError(agent.t, err)
-	return output
+	return output, err
 }
 
 // Version runs version command returns the runtime Agent version
@@ -82,6 +88,16 @@ func (agent *AgentCommandRunner) ConfigCheck(commandArgs ...AgentArgsOption) str
 	return agent.executeCommand("configcheck", commandArgs...)
 }
 
+// Integration run integration command and returns the output
+func (agent *AgentCommandRunner) Integration(commandArgs ...AgentArgsOption) string {
+	return agent.executeCommand("integration", commandArgs...)
+}
+
+// IntegrationWithError run integration command and returns the output
+func (agent *AgentCommandRunner) IntegrationWithError(commandArgs ...AgentArgsOption) (string, error) {
+	return agent.executeCommandWithError("integration", commandArgs...)
+}
+
 // IsReady runs status command and returns true if the command returns a zero exit code.
 // This function should rarely be used.
 func (a *Agent) IsReady() bool {
@@ -102,6 +118,12 @@ func newStatus(s string) *Status {
 func (agent *AgentCommandRunner) Status(commandArgs ...AgentArgsOption) *Status {
 
 	return newStatus(agent.executeCommand("status", commandArgs...))
+}
+
+// StatusWithError runs status command and returns a Status struct and error
+func (agent *AgentCommandRunner) StatusWithError(commandArgs ...AgentArgsOption) (*Status, error) {
+	status, err := agent.executeCommandWithError("status", commandArgs...)
+	return newStatus(status), err
 }
 
 // WaitForReady blocks up to timeout waiting for agent to be ready.
