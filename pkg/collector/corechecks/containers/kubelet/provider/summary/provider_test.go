@@ -368,7 +368,3 @@ func setFakeStatsSummary(t *testing.T, kubeletMock *mock.KubeletMock, rc int, er
 		Error:        err,
 	}
 }
-
-func clearFakeStatsSummary(kubeletMock *mock.KubeletMock) {
-	delete(kubeletMock.MockReplies, "/stats/summary")
-}
