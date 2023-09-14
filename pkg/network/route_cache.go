@@ -84,7 +84,7 @@ var routeCacheTelemetry = struct {
 	telemetry.NewCounter(routerTelemetryModuleName, "if_cache_lookups", []string{}, "Counter measuring the number of interface cache lookups"),
 	telemetry.NewCounter(routerTelemetryModuleName, "if_cache_misses", []string{}, "Counter measuring the number of interface cache misses"),
 	telemetry.NewCounter(routerTelemetryModuleName, "if_cache_size", []string{}, "Counter measuring the size of the interface cache"),
-	telemetry.NewCounter(routerTelemetryModuleName, "if_cache_errors", []string{}, "Counter measuring the number of interface cache errors"),
+	telemetry.NewCounter(routerTelemetryModuleName, "if_cache_errors", []string{"error"}, "Counter measuring the number of interface cache errors"),
 }
 
 // RouteCache is the interface to a cache that stores routes for a given (source, destination, net ns) tuple
@@ -319,7 +319,7 @@ func (n *netlinkRouter) getInterface(srcAddress util.Address, srcIP net.IP, netn
 	routeCacheTelemetry.netlinkLookups.Inc()
 	routes, err := n.nlHandle.RouteGet(srcIP)
 	if err != nil {
-		_, _ = incWithTag(routeCacheTelemetry.netlinkErrors, err)
+		_, _ = CounterIncWithTag(routeCacheTelemetry.netlinkErrors, err)
 		log.Debugf("Error getting route via netlink %s: %s", srcIP, err)
 		return nil
 	} else if len(routes) != 1 {
@@ -330,7 +330,7 @@ func (n *netlinkRouter) getInterface(srcAddress util.Address, srcIP net.IP, netn
 
 	ifr, err := unix.NewIfreq("")
 	if err != nil {
-		_, _ = incWithTag(routeCacheTelemetry.ifCacheErrors, err)
+		_, _ = CounterIncWithTag(routeCacheTelemetry.ifCacheErrors, err)
 		return nil
 	}
 
@@ -339,12 +339,12 @@ func (n *netlinkRouter) getInterface(srcAddress util.Address, srcIP net.IP, netn
 	// necessary to make the subsequent request to
 	// get the link flags
 	if err = unix.IoctlIfreq(n.ioctlFD, unix.SIOCGIFNAME, ifr); err != nil {
-		_, _ = incWithTag(routeCacheTelemetry.ifCacheErrors, err)
+		_, _ = CounterIncWithTag(routeCacheTelemetry.ifCacheErrors, err)
 		log.Debugf("error getting interface name for link index %d, src ip %s: %s", routes[0].LinkIndex, srcIP, err)
 		return nil
 	}
 	if err = unix.IoctlIfreq(n.ioctlFD, unix.SIOCGIFFLAGS, ifr); err != nil {
-		_, _ = incWithTag(routeCacheTelemetry.ifCacheErrors, err)
+		_, _ = CounterIncWithTag(routeCacheTelemetry.ifCacheErrors, err)
 		log.Debugf("error getting interface flags for link index %d, src ip %s: %s", routes[0].LinkIndex, srcIP, err)
 		return nil
 	}
@@ -356,7 +356,8 @@ func (n *netlinkRouter) getInterface(srcAddress util.Address, srcIP net.IP, netn
 	return iff
 }
 
-func incWithTag(counter telemetry.Counter, err error) (errno syscall.Errno, ok bool) {
+// Adds error tag and increments counter
+func CounterIncWithTag(counter telemetry.Counter, err error) (errno syscall.Errno, ok bool) {
 	errno, ok = err.(syscall.Errno)
 	if !ok {
 		counter.Inc()
