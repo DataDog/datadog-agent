@@ -15,7 +15,6 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/system-probe/config"
 	"github.com/DataDog/datadog-agent/cmd/system-probe/utils"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/system/wincrashdetect/probe"
-	"github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"google.golang.org/grpc"
 )
@@ -26,7 +25,7 @@ var WinCrashProbe = module.Factory{
 	ConfigNamespaces: []string{"windows_crash_detection"},
 	Fn: func(cfg *config.Config) (module.Module, error) {
 		log.Infof("Starting the WinCrashProbe probe")
-		cp, err := probe.NewWinCrashProbe(ebpf.NewConfig())
+		cp, err := probe.NewWinCrashProbe(cfg)
 		if err != nil {
 			return nil, fmt.Errorf("unable to start the Windows Crash Detection probe: %w", err)
 		}
