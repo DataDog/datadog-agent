@@ -319,7 +319,7 @@ func (n *netlinkRouter) getInterface(srcAddress util.Address, srcIP net.IP, netn
 	routeCacheTelemetry.netlinkLookups.Inc()
 	routes, err := n.nlHandle.RouteGet(srcIP)
 	if err != nil {
-		_, _ = IncWithTag(routeCacheTelemetry.netlinkErrors, err)
+		_, _ = incWithTag(routeCacheTelemetry.netlinkErrors, err)
 		log.Debugf("Error getting route via netlink %s: %s", srcIP, err)
 		return nil
 	} else if len(routes) != 1 {
@@ -330,7 +330,7 @@ func (n *netlinkRouter) getInterface(srcAddress util.Address, srcIP net.IP, netn
 
 	ifr, err := unix.NewIfreq("")
 	if err != nil {
-		_, _ = IncWithTag(routeCacheTelemetry.ifCacheErrors, err)
+		_, _ = incWithTag(routeCacheTelemetry.ifCacheErrors, err)
 		return nil
 	}
 
@@ -339,12 +339,12 @@ func (n *netlinkRouter) getInterface(srcAddress util.Address, srcIP net.IP, netn
 	// necessary to make the subsequent request to
 	// get the link flags
 	if err = unix.IoctlIfreq(n.ioctlFD, unix.SIOCGIFNAME, ifr); err != nil {
-		_, _ = IncWithTag(routeCacheTelemetry.ifCacheErrors, err)
+		_, _ = incWithTag(routeCacheTelemetry.ifCacheErrors, err)
 		log.Debugf("error getting interface name for link index %d, src ip %s: %s", routes[0].LinkIndex, srcIP, err)
 		return nil
 	}
 	if err = unix.IoctlIfreq(n.ioctlFD, unix.SIOCGIFFLAGS, ifr); err != nil {
-		_, _ = IncWithTag(routeCacheTelemetry.ifCacheErrors, err)
+		_, _ = incWithTag(routeCacheTelemetry.ifCacheErrors, err)
 		log.Debugf("error getting interface flags for link index %d, src ip %s: %s", routes[0].LinkIndex, srcIP, err)
 		return nil
 	}
@@ -356,7 +356,7 @@ func (n *netlinkRouter) getInterface(srcAddress util.Address, srcIP net.IP, netn
 	return iff
 }
 
-func IncWithTag(counter telemetry.Counter, err error) (errno syscall.Errno, ok bool) {
+func incWithTag(counter telemetry.Counter, err error) (errno syscall.Errno, ok bool) {
 	errno, ok = err.(syscall.Errno)
 	if !ok {
 		counter.Inc()
