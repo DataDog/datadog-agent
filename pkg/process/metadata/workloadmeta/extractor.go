@@ -14,6 +14,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/languagedetection"
 	"github.com/DataDog/datadog-agent/pkg/languagedetection/languagemodels"
 	"github.com/DataDog/datadog-agent/pkg/process/procutil"
+	"github.com/DataDog/datadog-agent/pkg/process/status"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -55,9 +56,12 @@ type ProcessCacheDiff struct {
 }
 
 var (
-	cacheSizeGuage = telemetry.NewGauge(subsystem, "cache_size", nil, "The cache size for the workloadMetaExtractor")
-	oldDiffDropped = telemetry.NewSimpleCounter(subsystem, "diff_dropped", "The number of times a diff is removed from the queue due to the diffChan being full.")
-	diffChanFull   = telemetry.NewSimpleCounter(subsystem, "diff_chan_full", "The number of times the extractor was unable to write to the diffChan due to it being full. This should never happen.")
+	cacheSizeGauge = telemetry.NewGauge(
+		subsystem, "cache_size", nil, "The cache size for the WorkloadMetaExtractor")
+	staleDiffsCounter = telemetry.NewSimpleCounter(
+		subsystem, "stale_diffs", "The number of stale diffs discarded instead of consumed")
+	diffsDroppedCounter = telemetry.NewSimpleCounter(
+		subsystem, "diffs_dropped", "The number of diffs dropped due to channel contention")
 )
 
 // NewWorkloadMetaExtractor constructs the WorkloadMetaExtractor.
@@ -140,12 +144,12 @@ func (w *WorkloadMetaExtractor) Extract(procs map[int32]*procutil.Process) {
 	w.cacheVersion++
 	w.cacheMutex.Unlock()
 
-	// Drop previous cache diff if it hasn't been consumed yet
+	// Drop previous cache diff if it hasn't been consumed yet, it is now stale
 	select {
 	case <-w.diffChan:
 		// drop message
-		oldDiffDropped.Inc()
-		log.Debug("Dropping old process diff in WorkloadMetaExtractor")
+		staleDiffsCounter.Inc()
+		log.Debug("Discarding stale process diff in WorkloadMetaExtractor")
 		break
 	default:
 	}
@@ -161,8 +165,8 @@ func (w *WorkloadMetaExtractor) Extract(procs map[int32]*procutil.Process) {
 	case w.diffChan <- diff:
 		break
 	default:
-		diffChanFull.Inc()
-		log.Error("Dropping newer process diff in WorkloadMetaExtractor")
+		diffsDroppedCounter.Inc()
+		log.Error("Dropping process diff in WorkloadMetaExtractor")
 	}
 }
 
@@ -212,5 +216,11 @@ func (w *WorkloadMetaExtractor) ProcessCacheDiff() <-chan *ProcessCacheDiff {
 }
 
 func (w *WorkloadMetaExtractor) reportTelemetry() {
-	cacheSizeGuage.Set(float64(len(w.cache)))
+	cacheSize := len(w.cache)
+	cacheSizeGauge.Set(float64(cacheSize))
+	status.UpdateWlmExtractorStats(status.WlmExtractorStats{
+		CacheSize:    cacheSize,
+		StaleDiffs:   int64(staleDiffsCounter.Get()),
+		DiffsDropped: int64(diffsDroppedCounter.Get()),
+	})
 }
