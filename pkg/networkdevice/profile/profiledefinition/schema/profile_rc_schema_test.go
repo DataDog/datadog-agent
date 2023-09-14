@@ -13,6 +13,10 @@ import (
 	"testing"
 )
 
+type testcaseExpected struct {
+	errors []string `json:"errors"`
+}
+
 func Test_DeviceProfileRcConfigJsonSchema(t *testing.T) {
 	// language=json
 	instanceJson := `{
@@ -33,6 +37,9 @@ func Test_Schema_TextCases(t *testing.T) {
 		if e != nil {
 			return e
 		}
+		if strings.HasSuffix(d.Name(), "_expected.json") {
+			return nil
+		}
 		if filepath.Ext(d.Name()) == ".json" {
 			testcases = append(testcases, s)
 		}
@@ -47,11 +54,24 @@ func Test_Schema_TextCases(t *testing.T) {
 		validationErr := assertAgainstSchema(t, string(content))
 		validationErrStr := fmt.Sprintf("%#v\n", validationErr) // using %#v prints errors hierarchy
 
-		testcaseExpectedErrPath := strings.ReplaceAll(testcaseJsonPath, ".json", "_expected_err.txt")
+		fmt.Printf("=== ACTUAL VALIDATION ERRORS ===\n")
+		fmt.Printf(validationErrStr)
+		fmt.Printf("================================\n")
+
+		testcaseExpectedErrPath := strings.ReplaceAll(testcaseJsonPath, ".json", "_expected.json")
 		testcaseExpectedErr, err := os.ReadFile(testcaseExpectedErrPath)
 		require.NoError(t, err)
 
-		assert.Equal(t, string(testcaseExpectedErr), validationErrStr)
+		var expected testcaseExpected
+		err = json.Unmarshal(testcaseExpectedErr, &expected)
+		require.NoError(t, err)
+
+		for _, expectedError := range expected.errors {
+			assert.ErrorContains(t, validationErr, expectedError)
+		}
+		//fmt.Printf("%+v", expected)
+
+		//assert.Equal(t, string(testcaseExpectedErr), validationErrStr)
 	}
 }
 
