@@ -39,12 +39,10 @@
     -o /tmp/datadog-secret-backend-linux-386.tar.gz
 
     ## Windows (amd64)
-    Invoke-WebRequest https://github.com/rapdev-io/datadog-secret-backend/releases/latest/download/datadog-secret-backend-windows-amd64.zip ^
-    -OutFile 'C:\Program Files\rapdev-datadog\' 
+    Invoke-WebRequest https://github.com/rapdev-io/datadog-secret-backend/releases/latest/download/datadog-secret-backend-windows-amd64.zip -OutFile 'C:\Program Files\rapdev-datadog\datadog-secret-backend-windows-amd64.zip'
 
     ## Windows (386)
-    Invoke-WebRequest https://github.com/rapdev-io/datadog-secret-backend/releases/latest/download/datadog-secret-backend-windows-386.zip ^ 
-    -OutFile 'C:\Program Files\rapdev-datadog\'
+    Invoke-WebRequest https://github.com/rapdev-io/datadog-secret-backend/releases/latest/download/datadog-secret-backend-windows-386.zip -OutFile 'C:\Program Files\rapdev-datadog\datadog-secret-backend-windows-386.zip'
     ```
 
 3. Once you have the file from the github repo, you'll need to unzip it to get the executable:
@@ -55,8 +53,7 @@
     -C /etc/rapdev-datadog
 
     ## Windows (amd64, change end of filename to "386" if needed)
-    tar -xvzf 'C:\Program Files\rapdev-datadog\datadog-secret-backend-windows-amd64.tar.gz' ^
-    -C 'C:\Program Files\rapdev-datadog\'
+    Expand-Archive -LiteralPath 'C:\Program Files\rapdev-datadog\datadog-secret-backend-windows-amd64.zip' -DestinationPath 'C:\Program Files\rapdev-datadog\'
     ```
 
 4. (Optional) Remove the old tar'd file:
@@ -66,7 +63,7 @@
     rm /tmp/datadog-secret-backend-linux-amd64.tar.gz
 
     ## Windows
-    del /f 'C:\Program Files\rapdev-datadog\datadog-secret-backend-windows-amd64.tar.gz'
+    Remove-Item 'C:\Program Files\rapdev-datadog\datadog-secret-backend-windows-amd64.zip'
     ```
 
 5. Update the executable to have the required permissions. Datadog agent expects the executable to only be used by the `dd-agent` user for Linux and `ddagentuser` for Windows.
