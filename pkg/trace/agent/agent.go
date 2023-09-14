@@ -8,6 +8,7 @@ package agent
 import (
 	"context"
 	"runtime"
+	"strings"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/trace/remoteconfighandler"
@@ -261,6 +262,10 @@ func (a *Agent) Process(p *api.Payload) {
 			ts.SpansFiltered.Add(tracen)
 			p.RemoveChunk(i)
 			continue
+		}
+
+		if strings.HasPrefix(root.Service, "00-") {
+			log.Errorf("INCIDENT-22455 In ProcessFunc: #v", p)
 		}
 
 		if filteredByTags(root, a.conf.RequireTags, a.conf.RejectTags) {

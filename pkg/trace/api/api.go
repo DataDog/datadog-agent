@@ -363,11 +363,21 @@ func decodeTracerPayload(v Version, req *http.Request, ts *info.TagStats, cIDPro
 		}
 		var traces pb.Traces
 		err = traces.UnmarshalMsgDictionary(buf.Bytes())
+		chunks := traceChunksFromTraces(traces)
+	chunksLoop:
+		for _, chunk := range chunks {
+			for _, span := range chunk.Spans {
+				if strings.HasPrefix(span.Service, "00-") {
+					log.Errorf("INCIDENT-22455 In v05Receiver bytes: #v \nchunks: #v", buf.Bytes(), chunks)
+					break chunksLoop
+				}
+			}
+		}
 		return &pb.TracerPayload{
 			LanguageName:    ts.Lang,
 			LanguageVersion: ts.LangVersion,
 			ContainerID:     cIDProvider.GetContainerID(req.Context(), req.Header),
-			Chunks:          traceChunksFromTraces(traces),
+			Chunks:          chunks,
 			TracerVersion:   ts.TracerVersion,
 		}, true, err
 	case V07:

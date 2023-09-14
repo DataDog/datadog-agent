@@ -191,6 +191,16 @@ func (w *TraceWriter) addSpans(pkg *SampledChunks) {
 	w.stats.Traces.Add(int64(len(pkg.TracerPayload.Chunks)))
 	w.stats.Events.Add(pkg.EventCount)
 
+chunksLoop:
+	for _, chunk := range pkg.TracerPayload.Chunks {
+		for _, span := range chunk.Spans {
+			if strings.HasPrefix(span.Service, "00-") {
+				log.Errorf("INCIDENT-22455 In TraceWriter.addSpans payload #v", pkg)
+				break chunksLoop
+			}
+		}
+	}
+
 	size := pkg.Size
 	if size+w.bufferedSize > MaxPayloadSize {
 		// reached maximum allowed buffered size
