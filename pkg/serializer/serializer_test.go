@@ -40,7 +40,6 @@ var initialContentEncoding = compression.ContentEncoding
 
 func resetContentEncoding() {
 	compression.ContentEncoding = initialContentEncoding
-	initExtraHeaders(make(http.Header), make(http.Header))
 }
 
 func TestInitExtraHeadersNoopCompression(t *testing.T) {
@@ -49,7 +48,9 @@ func TestInitExtraHeadersNoopCompression(t *testing.T) {
 
 	jsonExtraHeaders := make(http.Header)
 	protobufExtraHeaders := make(http.Header)
-	initExtraHeaders(jsonExtraHeaders, protobufExtraHeaders)
+	jsonExtraHeadersWithCompression := make(http.Header)
+	protobufExtraHeadersWithCompression := make(http.Header)
+	initExtraHeaders(jsonExtraHeaders, protobufExtraHeaders, jsonExtraHeadersWithCompression, protobufExtraHeadersWithCompression)
 
 	expected := make(http.Header)
 	expected.Set("Content-Type", jsonContentType)
@@ -88,7 +89,9 @@ func TestInitExtraHeadersWithCompression(t *testing.T) {
 
 			jsonExtraHeaders := make(http.Header)
 			protobufExtraHeaders := make(http.Header)
-			initExtraHeaders(jsonExtraHeaders, protobufExtraHeaders)
+			jsonExtraHeadersWithCompression := make(http.Header)
+			protobufExtraHeadersWithCompression := make(http.Header)
+			initExtraHeaders(jsonExtraHeaders, protobufExtraHeaders, jsonExtraHeadersWithCompression, protobufExtraHeadersWithCompression)
 
 			expected := make(http.Header)
 			expected.Set("Content-Type", jsonContentType)
@@ -281,9 +284,14 @@ func TestSendV1Events(t *testing.T) {
 			originalCompressorKind := config.Datadog.GetString("serializer_compressor_kind")
 			config.Datadog.Set("serializer_compressor_kind", tc.kind)
 			defer config.Datadog.Set("serializer_compressor_kind", originalCompressorKind)
-			initExtraHeaders(make(http.Header), make(http.Header))
 
 			f := &forwarder.MockedForwarder{}
+
+			jsonExtraHeaders := make(http.Header)
+			protobufExtraHeaders := make(http.Header)
+			jsonExtraHeadersWithCompression := make(http.Header)
+			protobufExtraHeadersWithCompression := make(http.Header)
+			initExtraHeaders(jsonExtraHeaders, protobufExtraHeaders, jsonExtraHeadersWithCompression, protobufExtraHeadersWithCompression)
 
 			matcher := createJSONPayloadMatcher(`{"apiKey":"","events":{},"internalHostname"`)
 			f.On("SubmitV1Intake", matcher, jsonExtraHeadersWithCompression).Return(nil).Times(1)
@@ -321,7 +329,7 @@ func TestSendV1EventsCreateMarshalersBySourceType(t *testing.T) {
 				})
 			}
 
-			f.On("SubmitV1Intake", payloadsCountMatcher(1), jsonExtraHeadersWithCompression).Return(nil)
+			f.On("SubmitV1Intake", payloadsCountMatcher(1), s.jsonExtraHeadersWithCompression).Return(nil)
 			err := s.SendEvents(events)
 			assert.NoError(t, err)
 			f.AssertExpectations(t)
@@ -329,7 +337,7 @@ func TestSendV1EventsCreateMarshalersBySourceType(t *testing.T) {
 			config.Datadog.Set("serializer_max_payload_size", 20)
 			defer config.Datadog.Set("serializer_max_payload_size", nil)
 
-			f.On("SubmitV1Intake", payloadsCountMatcher(3), jsonExtraHeadersWithCompression).Return(nil)
+			f.On("SubmitV1Intake", payloadsCountMatcher(3), s.jsonExtraHeadersWithCompression).Return(nil)
 			err = s.SendEvents(events)
 			assert.NoError(t, err)
 			f.AssertExpectations(t)
@@ -350,7 +358,11 @@ func TestSendV1ServiceChecks(t *testing.T) {
 			defer config.Datadog.Set("serializer_compressor_kind", oldCompressorKind)
 			config.Datadog.Set("serializer_compressor_kind", tc.kind)
 			f := &forwarder.MockedForwarder{}
-			initExtraHeaders(make(http.Header), make(http.Header))
+			jsonExtraHeaders := make(http.Header)
+			protobufExtraHeaders := make(http.Header)
+			jsonExtraHeadersWithCompression := make(http.Header)
+			protobufExtraHeadersWithCompression := make(http.Header)
+			initExtraHeaders(jsonExtraHeaders, protobufExtraHeaders, jsonExtraHeadersWithCompression, protobufExtraHeadersWithCompression)
 			matcher := createJSONPayloadMatcher(`[{"check":"","host_name":"","timestamp":0,"status":0,"message":"","tags":null}]`)
 			f.On("SubmitV1CheckRuns", matcher, jsonExtraHeadersWithCompression).Return(nil).Times(1)
 			config.Datadog.Set("enable_service_checks_stream_payload_serialization", false)
@@ -377,7 +389,11 @@ func TestSendV1Series(t *testing.T) {
 			defer config.Datadog.Set("serializer_compressor_kind", oldCompressorKind)
 			config.Datadog.Set("serializer_compressor_kind", tc.kind)
 			f := &forwarder.MockedForwarder{}
-			initExtraHeaders(make(http.Header), make(http.Header))
+			jsonExtraHeaders := make(http.Header)
+			protobufExtraHeaders := make(http.Header)
+			jsonExtraHeadersWithCompression := make(http.Header)
+			protobufExtraHeadersWithCompression := make(http.Header)
+			initExtraHeaders(jsonExtraHeaders, protobufExtraHeaders, jsonExtraHeadersWithCompression, protobufExtraHeadersWithCompression)
 			matcher := createJSONBytesPayloadMatcher(`{"series":[]}`)
 
 			f.On("SubmitV1Series", matcher, jsonExtraHeadersWithCompression).Return(nil).Times(1)
@@ -413,7 +429,11 @@ func TestSendSeries(t *testing.T) {
 				5: 3
 				9: { 1: { 4: 10 }}
 			}`, tc.kind)
-			initExtraHeaders(make(http.Header), make(http.Header))
+			jsonExtraHeaders := make(http.Header)
+			protobufExtraHeaders := make(http.Header)
+			jsonExtraHeadersWithCompression := make(http.Header)
+			protobufExtraHeadersWithCompression := make(http.Header)
+			initExtraHeaders(jsonExtraHeaders, protobufExtraHeaders, jsonExtraHeadersWithCompression, protobufExtraHeadersWithCompression)
 			f.On("SubmitSeries", matcher, protobufExtraHeadersWithCompression).Return(nil).Times(1)
 			config.Datadog.Set("use_v2_api.series", true) // default value, but just to be sure
 
@@ -441,7 +461,11 @@ func TestSendSketch(t *testing.T) {
 			f := &forwarder.MockedForwarder{}
 
 			matcher := createProtoscopeMatcher(`2: {}`, tc.kind)
-			initExtraHeaders(make(http.Header), make(http.Header))
+			jsonExtraHeaders := make(http.Header)
+			protobufExtraHeaders := make(http.Header)
+			jsonExtraHeadersWithCompression := make(http.Header)
+			protobufExtraHeadersWithCompression := make(http.Header)
+			initExtraHeaders(jsonExtraHeaders, protobufExtraHeaders, jsonExtraHeadersWithCompression, protobufExtraHeadersWithCompression)
 			f.On("SubmitSketchSeries", matcher, protobufExtraHeadersWithCompression).Return(nil).Times(1)
 
 			s := NewSerializer(f, nil)
@@ -465,7 +489,11 @@ func TestSendMetadata(t *testing.T) {
 			defer config.Datadog.Set("serializer_compressor_kind", oldCompressorKind)
 			config.Datadog.Set("serializer_compressor_kind", tc.kind)
 			f := &forwarder.MockedForwarder{}
-			initExtraHeaders(make(http.Header), make(http.Header))
+			jsonExtraHeaders := make(http.Header)
+			protobufExtraHeaders := make(http.Header)
+			jsonExtraHeadersWithCompression := make(http.Header)
+			protobufExtraHeadersWithCompression := make(http.Header)
+			initExtraHeaders(jsonExtraHeaders, protobufExtraHeaders, jsonExtraHeadersWithCompression, protobufExtraHeadersWithCompression)
 			f.On("SubmitMetadata", jsonPayloads, jsonExtraHeadersWithCompression).Return(nil).Times(1)
 
 			s := NewSerializer(f, nil)
@@ -500,7 +528,11 @@ func TestSendProcessesMetadata(t *testing.T) {
 			defer config.Datadog.Set("serializer_compressor_kind", oldCompressorKind)
 			config.Datadog.Set("serializer_compressor_kind", tc.kind)
 			f := &forwarder.MockedForwarder{}
-			initExtraHeaders(make(http.Header), make(http.Header))
+			jsonExtraHeaders := make(http.Header)
+			protobufExtraHeaders := make(http.Header)
+			jsonExtraHeadersWithCompression := make(http.Header)
+			protobufExtraHeadersWithCompression := make(http.Header)
+			initExtraHeaders(jsonExtraHeaders, protobufExtraHeaders, jsonExtraHeadersWithCompression, protobufExtraHeadersWithCompression)
 			payload := []byte("\"test\"")
 			payloads, _ := mkPayloads(payload, true)
 			f.On("SubmitV1Intake", payloads, jsonExtraHeadersWithCompression).Return(nil).Times(1)
@@ -569,7 +601,7 @@ func TestSendWithDisabledKind(t *testing.T) {
 			f.AssertNotCalled(t, "SubmitSketchSeries")
 
 			// We never disable metadata
-			f.On("SubmitMetadata", jsonPayloads, jsonExtraHeadersWithCompression).Return(nil).Times(1)
+			f.On("SubmitMetadata", jsonPayloads, s.jsonExtraHeadersWithCompression).Return(nil).Times(1)
 			s.SendMetadata(payload)
 			f.AssertNumberOfCalls(t, "SubmitMetadata", 1) // called once for the metadata
 		})
