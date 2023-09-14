@@ -165,13 +165,10 @@ func NewTracer(config *config.Config, bpfTelemetry *errtelemetry.EBPFTelemetry) 
 		closedChannelSize = config.ClosedChannelSize
 	}
 	perfHandlerTCP := ddebpf.NewPerfHandler(closedChannelSize)
-	m := &manager.Manager{
-		DumpHandler: dumpMapsHandler,
-	}
-
+	var m *manager.Manager
 	var tracerType TracerType = TracerTypeFentry
 	var closeTracerFn func()
-	closeTracerFn, err := fentry.LoadTracer(config, m, mgrOptions, perfHandlerTCP)
+	m, closeTracerFn, err := fentry.LoadTracer(config, mgrOptions, perfHandlerTCP)
 	if err != nil && !errors.Is(err, fentry.ErrorNotSupported) {
 		// failed to load fentry tracer
 		return nil, err
@@ -181,7 +178,7 @@ func NewTracer(config *config.Config, bpfTelemetry *errtelemetry.EBPFTelemetry) 
 		// load the kprobe tracer
 		log.Info("fentry tracer not supported, falling back to kprobe tracer")
 		var kprobeTracerType kprobe.TracerType
-		closeTracerFn, kprobeTracerType, err = kprobe.LoadTracer(config, m, mgrOptions, perfHandlerTCP)
+		m, closeTracerFn, kprobeTracerType, err = kprobe.LoadTracer(config, mgrOptions, perfHandlerTCP)
 		if err != nil {
 			return nil, err
 		}
@@ -222,6 +219,8 @@ func NewTracer(config *config.Config, bpfTelemetry *errtelemetry.EBPFTelemetry) 
 		bpfTelemetry.MapErrMap = tr.GetMap(probes.MapErrTelemetryMap)
 		bpfTelemetry.HelperErrMap = tr.GetMap(probes.HelperErrTelemetryMap)
 	}
+
+	m.DumpHandler = dumpMapsHandler
 
 	if err := bpfTelemetry.RegisterEBPFTelemetry(m); err != nil {
 		tr.Stop()
