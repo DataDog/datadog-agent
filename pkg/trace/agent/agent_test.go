@@ -463,7 +463,7 @@ func TestProcess(t *testing.T) {
 		})
 		// setting writer.MaxPayloadSize to the size of 1 trace (+1 byte)
 		defer func(oldSize int) { writer.MaxPayloadSize = oldSize }(writer.MaxPayloadSize)
-		//minChunkSize := int(math.Min(math.Min(float64(tp.Chunks[0].Msgsize()), float64(tp.Chunks[1].Msgsize())), float64(tp.Chunks[2].Msgsize())))
+		// minChunkSize := int(math.Min(math.Min(float64(tp.Chunks[0].Msgsize()), float64(tp.Chunks[1].Msgsize())), float64(tp.Chunks[2].Msgsize())))
 		writer.MaxPayloadSize = 1
 		// and expecting it to result in 3 payloads
 		expectedPayloads := 3

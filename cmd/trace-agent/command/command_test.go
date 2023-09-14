@@ -20,7 +20,7 @@ func TestRootCommand(t *testing.T) {
 		// fxutil creates a "test" root-command, we need to call "trace-agent"
 		// to make sure our _actual_ root command is called.
 		[]string{"trace-agent", "--config", "PATH"},
-		run.Run, // root command by default calls run.Start
+		run.Start, // root command by default calls run.Run
 		func(cliParams *run.RunParams) {
 			require.Equal(t, "PATH", cliParams.ConfPath)
 		})

@@ -11,23 +11,22 @@ import (
 	"os/signal"
 	"syscall"
 
+	"github.com/DataDog/datadog-agent/pkg/trace/telemetry"
 	"github.com/spf13/cobra"
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/cmd/trace-agent/subcommands"
 	coreconfig "github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/trace"
+	"github.com/DataDog/datadog-agent/comp/trace/agent"
 	"github.com/DataDog/datadog-agent/comp/trace/config"
+	"github.com/DataDog/datadog-agent/pkg/trace/watchdog"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-type contextSupplier struct {
-	ctx context.Context
-}
-
 // MakeCommand returns the run subcommand for the 'trace-agent' command.
 func MakeCommand(globalParamsGetter func() *subcommands.GlobalParams) *cobra.Command {
-
 	cliParams := &RunParams{}
 	runCmd := &cobra.Command{
 		Use:   "run",
@@ -35,7 +34,7 @@ func MakeCommand(globalParamsGetter func() *subcommands.GlobalParams) *cobra.Com
 		Long:  `The Datadog trace-agent aggregates, samples, and forwards traces to datadog submitted by tracers loaded into your application.`,
 		RunE: func(*cobra.Command, []string) error {
 			cliParams.GlobalParams = globalParamsGetter()
-			return runTraceAgent(cliParams, cliParams.ConfPath)
+			return Run(cliParams, cliParams.ConfPath)
 		},
 	}
 
@@ -49,7 +48,7 @@ func setParamFlags(cmd *cobra.Command, cliParams *RunParams) {
 	cmd.PersistentFlags().StringVarP(&cliParams.CPUProfile, "cpu-profile", "l", "",
 		"enables CPU profiling and specifies profile path.")
 	cmd.PersistentFlags().StringVarP(&cliParams.MemProfile, "mem-profile", "m", "",
-		"enables memory profiling and specifies profilh.")
+		"enables memory profiling and specifies profile.")
 
 	setOSSpecificParamFlags(cmd, cliParams)
 }
@@ -58,13 +57,32 @@ func runFx(ctx context.Context, cliParams *RunParams, defaultConfPath string) er
 	if cliParams.ConfPath == "" {
 		cliParams.ConfPath = defaultConfPath
 	}
-	return fxutil.OneShot(Run,
-		fx.Supply(&contextSupplier{ctx: ctx}),
+	return fxutil.OneShot(Start,
+		fx.Supply(ctx),
 		fx.Supply(cliParams),
-		config.Module,
 		fx.Supply(coreconfig.NewAgentParamsWithSecrets(cliParams.ConfPath)),
+		// TODO(AIT-8301): Test this injection
+		fx.Provide(func(config config.Component) telemetry.TelemetryCollector {
+			return telemetry.NewCollector(config.Object())
+		}),
 		coreconfig.Module,
+		trace.Bundle,
 	)
+}
+
+func Start(ctx context.Context, cliParams *RunParams, config config.Component, telemetryCollector telemetry.TelemetryCollector, ag agent.Component) error {
+	// Main context passed to components
+	ctx, cancelFunc := context.WithCancel(ctx)
+
+	// Handle stops properly
+	go func() {
+		defer watchdog.LogOnPanic()
+		handleSignal(cancelFunc)
+	}()
+
+	traceCfg := config.Object()
+	apiConfigHandler := config.SetHandler()
+	return runAgent(ctx, cliParams, traceCfg, apiConfigHandler, telemetryCollector, ag)
 }
 
 // handleSignal closes a channel to exit cleanly from routines

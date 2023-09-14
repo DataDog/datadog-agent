@@ -12,22 +12,21 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/fx"
 
-	coreconfig "github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/comp/trace/config"
+	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
 // team: agent-apm
 
+// TODO(AIT-8301): Why are these tests green if not all elements are supplied?
 func TestBundleDependencies(t *testing.T) {
 	require.NoError(t, fx.ValidateApp(
 		// instantiate all of the core components, since this is not done
 		// automatically.
-		fx.Invoke(func(r config.Component) {}),
-		fx.Invoke(func(coreconfig.Component) {}),
+		fx.Supply(config.Params{}),
 		// supply the necessary parameters to populate the agent and trace
 		// configs in the agent.
-		fx.Supply(coreconfig.Params{}),
+		config.Module,
 		Bundle))
 }
 
@@ -41,11 +40,10 @@ func TestMockBundleDependencies(t *testing.T) {
 	config := fxutil.Test[config.Component](t, fx.Options(
 		// instantiate all of the core components, since this is not done
 		// automatically.
-		fx.Invoke(func(r config.Component) {}),
-		fx.Invoke(func(coreconfig.Component) {}),
+		fx.Supply(config.Params{}),
 		// supply the necessary parameters to populate the agent and trace
 		// configs in the agent.
-		fx.Supply(coreconfig.Params{}),
+		config.MockModule,
 		MockBundle,
 	))
 	cfg := config.Object()

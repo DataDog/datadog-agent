@@ -21,7 +21,6 @@ func TestBundleDependencies(t *testing.T) {
 		// automatically.
 		fx.Invoke(func(config.Component) {}),
 		fx.Invoke(func(log.Component) {}),
-
 		fx.Supply(BundleParams{}),
 		Bundle))
 }

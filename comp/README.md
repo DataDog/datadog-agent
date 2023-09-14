@@ -49,8 +49,6 @@ Package telemetry implements a component for all agent telemetry.
 
 *Datadog Team*: agent-metrics-logs
 
-
-
 ### [comp/dogstatsd/replay](https://pkg.go.dev/github.com/DataDog/dd-agent-comp-experiments/comp/dogstatsd/replay)
 
 Package server implements a component to run the dogstatsd capture/replay
@@ -76,8 +74,6 @@ Package defaultForwarder implements a component to send payloads to the backend
 ## [comp/logs](https://pkg.go.dev/github.com/DataDog/dd-agent-comp-experiments/comp/logs) (Component Bundle)
 
 *Datadog Team*: agent-metrics-logs
-
-
 
 ### [comp/logs/agent](https://pkg.go.dev/github.com/DataDog/dd-agent-comp-experiments/comp/logs/agent)
 
@@ -165,11 +161,7 @@ supported Datadog intakes.
 
 *Datadog Team*: remote-config
 
-
-
 ### [comp/remote-config/rcclient](https://pkg.go.dev/github.com/DataDog/dd-agent-comp-experiments/comp/remote-config/rcclient)
-
-
 
 ## [comp/systray](https://pkg.go.dev/github.com/DataDog/dd-agent-comp-experiments/comp/systray) (Component Bundle)
 

@@ -18,14 +18,13 @@ import (
 
 	"github.com/DataDog/datadog-agent/cmd/manager"
 	remotecfg "github.com/DataDog/datadog-agent/cmd/trace-agent/config/remote"
-	"github.com/DataDog/datadog-agent/comp/trace/config"
+	agentComponent "github.com/DataDog/datadog-agent/comp/trace/agent"
 	coreconfig "github.com/DataDog/datadog-agent/pkg/config"
 	rc "github.com/DataDog/datadog-agent/pkg/config/remote"
 	"github.com/DataDog/datadog-agent/pkg/pidfile"
 	"github.com/DataDog/datadog-agent/pkg/tagger"
 	"github.com/DataDog/datadog-agent/pkg/tagger/local"
 	"github.com/DataDog/datadog-agent/pkg/tagger/remote"
-	"github.com/DataDog/datadog-agent/pkg/trace/agent"
 	"github.com/DataDog/datadog-agent/pkg/trace/api"
 	tracecfg "github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/info"
@@ -53,16 +52,12 @@ to your datadog.yaml. Exiting...`
 // Stack depth of 3 since the `corelogger` struct adds a layer above the logger
 const stackDepth = 3
 
-// Run is the entrypoint of our code, which starts the agent.
-func runAgent(ctx context.Context, cliParams *RunParams, cfg config.Component) error {
-
-	tracecfg := cfg.Object()
+// runAgent is the entrypoint of our code, which starts the tracer agent.
+func runAgent(ctx context.Context, cliParams *RunParams, tracecfg *tracecfg.AgentConfig, apiConfigHandler http.Handler, telemetryCollector telemetry.TelemetryCollector, agent agentComponent.Component) error {
 	err := info.InitInfo(tracecfg) // for expvar & -info option
 	if err != nil {
 		return err
 	}
-
-	telemetryCollector := telemetry.NewCollector(tracecfg)
 
 	if err := coreconfig.SetupLogger(
 		coreconfig.LoggerName("TRACE"),
@@ -181,7 +176,7 @@ func runAgent(ctx context.Context, cliParams *RunParams, cfg config.Component) e
 	api.AttachEndpoint(api.Endpoint{
 		Pattern: "/config/set",
 		Handler: func(r *api.HTTPReceiver) http.Handler {
-			return cfg.SetHandler()
+			return apiConfigHandler
 		},
 	})
 
@@ -216,7 +211,7 @@ func runAgent(ctx context.Context, cliParams *RunParams, cfg config.Component) e
 			log.Infof("GOMEMLIMIT manually set to: %v", lim)
 		} else if tracecfg.MaxMemory > 0 {
 			// We have apm_config.max_memory, and no cgroup memory limit is in place.
-			//log.Infof("apm_config.max_memory: %vMiB", int64(tracecfg.MaxMemory)/(1024*1024))
+			// log.Infof("apm_config.max_memory: %vMiB", int64(tracecfg.MaxMemory)/(1024*1024))
 			finalmem := int64(tracecfg.MaxMemory * 0.9)
 			debug.SetMemoryLimit(finalmem)
 			log.Infof("apm_config.max_memory set to: %vMiB. Setting GOMEMLIMIT to 90%% of max: %vMiB", int64(tracecfg.MaxMemory)/(1024*1024), finalmem/(1024*1024))
@@ -228,7 +223,6 @@ func runAgent(ctx context.Context, cliParams *RunParams, cfg config.Component) e
 		log.Infof("Memory constrained by cgroup. GOMEMLIMIT is: %vMiB", cgmem/(1024*1024))
 	}
 
-	agnt := agent.NewAgent(ctx, tracecfg, telemetryCollector)
 	log.Infof("Trace agent running on host %s", tracecfg.Hostname)
 	if pcfg := profilingConfig(tracecfg); pcfg != nil {
 		if err := profiling.Start(*pcfg); err != nil {
@@ -242,7 +236,7 @@ func runAgent(ctx context.Context, cliParams *RunParams, cfg config.Component) e
 		time.Sleep(time.Second * 30)
 		telemetryCollector.SendStartupSuccess()
 	}()
-	agnt.Run()
+	agent.Run()
 
 	// collect memory profile
 	if cliParams.MemProfile != "" {
