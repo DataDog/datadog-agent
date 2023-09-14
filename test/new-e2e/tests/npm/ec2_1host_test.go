@@ -120,6 +120,8 @@ func (v *ec2VMSuite) TestFakeIntakeNPM_TCP_UDP_DNS() {
 
 		foundDNS := false
 		cnx.ForeachConnection(func(c *agentmodel.Connection, cc *agentmodel.CollectorConnections, hostname string) {
+			currentHostname = hostname
+			currentConnection = c
 			if len(c.DnsStatsByDomainOffsetByQueryType) > 0 {
 				foundDNS = true
 				printDNS(t, c, cc, hostname)
@@ -137,6 +139,8 @@ func (v *ec2VMSuite) TestFakeIntakeNPM_TCP_UDP_DNS() {
 		countConnections := make(map[string]*countCnx)
 
 		cnx.ForeachConnection(func(c *agentmodel.Connection, cc *agentmodel.CollectorConnections, hostname string) {
+			currentHostname = hostname
+			currentConnection = c
 			var count *countCnx
 			var found bool
 			if count, found = countConnections[hostname]; !found {
