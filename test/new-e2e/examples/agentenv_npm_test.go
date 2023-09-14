@@ -6,13 +6,12 @@
 package examples
 
 import (
-	"errors"
 	"testing"
 	"time"
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e"
 	"github.com/DataDog/test-infra-definitions/components/datadog/agentparams"
-	"github.com/cenkalti/backoff/v4"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
@@ -32,20 +31,14 @@ func TestVMSuiteEx6(t *testing.T) {
 func (v *vmSuiteEx6) Test1_FakeIntakeNPM() {
 	t := v.T()
 
-	err := backoff.Retry(func() error {
-
+	v.EventuallyWithT(func(c *assert.CollectT) {
 		v.Env().VM.Execute("curl http://httpbin.org/anything")
 
 		hostnameNetID, err := v.Env().Fakeintake.GetConnectionsNames()
-		if err != nil {
-			return err
-		}
-		if len(hostnameNetID) == 0 {
-			return errors.New("no connections yet")
-		}
+		require.NoError(c, err, "fakeintake GetConnectionsNames() error")
+
+		require.NotZero(c, len(hostnameNetID), "no connections yet")
 
 		t.Logf("hostname+networkID %v seen connections", hostnameNetID)
-		return nil
-	}, backoff.WithMaxRetries(backoff.NewConstantBackOff(time.Second), 60))
-	require.NoError(t, err)
+	}, 60*time.Second, time.Second, "")
 }
