@@ -111,6 +111,7 @@ type defaultResolver struct {
 
 	procsCache         []*process.Process
 	filesCache         []fileMeta
+	pkgsCache          map[string]*packageInfo
 	kubeClusterIDCache string
 
 	dockerCl     docker.CommonAPIClient
@@ -160,6 +161,7 @@ func (r *defaultResolver) Close() {
 
 	r.procsCache = nil
 	r.filesCache = nil
+	r.pkgsCache = nil
 	r.kubeClusterIDCache = ""
 }
 
@@ -228,6 +230,9 @@ func (r *defaultResolver) ResolveInputs(ctx context.Context, rule *Rule) (Resolv
 			resultType = "kubernetes"
 			result, err = r.resolveKubeApiserver(ctx, *spec.KubeApiserver)
 			kubernetesCluster = r.resolveKubeClusterID(ctx)
+		case spec.Package != nil:
+			resultType = "package"
+			result, err = r.resolvePackage(ctx, *spec.Package)
 		case spec.Constants != nil:
 			resultType = "constants"
 			result = *spec.Constants
@@ -465,10 +470,11 @@ func (r *defaultResolver) resolveProcess(ctx context.Context, spec InputSpecProc
 				return nil, err
 			}
 		}
+		exe, _ := p.Exe()
 		resolved = append(resolved, map[string]interface{}{
 			"name":    spec.Name,
 			"pid":     p.Pid,
-			"exe":     "",
+			"exe":     exe,
 			"cmdLine": cmdLine,
 			"flags":   parseCmdlineFlags(cmdLine),
 			"envs":    parseEnvironMap(envs, spec.Envs),
@@ -749,6 +755,75 @@ func (r *defaultResolver) resolveKubeApiserver(ctx context.Context, spec InputSp
 		})
 	}
 	return resolved, nil
+}
+
+const (
+	apkDb     = "/lib/apk/db/installed"
+	dpkgDb    = "/var/lib/dpkg/status"
+	dpkgDbDir = "/var/lib/dpkg/status.d"
+)
+
+var rpmDbs = []string{
+	"/usr/lib/sysimage/rpm/rpmdb.sqlite",
+	"/var/lib/rpm/rpmdb.sqlite",
+	"/usr/lib/sysimage/rpm/Packages.db",
+	"/var/lib/rpm/Packages.db",
+	"/usr/lib/sysimage/rpm/Packages",
+	"/var/lib/rpm/Packages",
+}
+
+func (r *defaultResolver) resolvePackage(ctx context.Context, spec InputSpecPackage) (pkg *packageInfo, err error) {
+	if len(spec.Names) == 0 {
+		return nil, nil
+	}
+
+	if r.pkgsCache != nil {
+		for _, name := range spec.Names {
+			if p, ok := r.pkgsCache[name]; ok {
+				return p, nil
+			}
+		}
+	}
+
+	defer func() {
+		if pkg != nil {
+			if r.pkgsCache == nil {
+				r.pkgsCache = make(map[string]*packageInfo)
+			}
+			r.pkgsCache[pkg.Name] = pkg
+		}
+	}()
+
+	// apk
+	apkPath := r.pathNormalizeToHostRoot(apkDb)
+	if pkg := findApkPackage(apkPath, spec.Names); pkg != nil {
+		return pkg, nil
+	}
+
+	// dpkg
+	dpkgPath := r.pathNormalizeToHostRoot(dpkgDb)
+	if pkg := findDpkgPackage(dpkgPath, spec.Names); pkg != nil {
+		return pkg, nil
+	}
+	dpkgDirPath := r.pathNormalizeToHostRoot(dpkgDbDir)
+	if files, _ := os.ReadDir(dpkgDirPath); len(files) > 0 {
+		for _, entry := range files {
+			dpkgPath := filepath.Join(dpkgDirPath, entry.Name())
+			if pkg := findDpkgPackage(dpkgPath, spec.Names); pkg != nil {
+				return pkg, nil
+			}
+		}
+	}
+
+	// rpm
+	for _, path := range rpmDbs {
+		rpmPath := r.pathNormalizeToHostRoot(path)
+		if pkg := findRpmPackage(rpmPath, spec.Names); pkg != nil {
+			return pkg, nil
+		}
+	}
+
+	return nil, nil
 }
 
 func parseCmdlineFlags(cmdline []string) map[string]string {
