@@ -3,8 +3,9 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build linux_bpf
+//go:build linux
 
+// Package utils contains common code shared across the USM codebase
 package utils
 
 import (
@@ -14,7 +15,18 @@ import (
 	otherutils "github.com/DataDog/datadog-agent/cmd/system-probe/utils"
 )
 
-func TracedProgramsEndpoint(w http.ResponseWriter, req *http.Request) {
+// TracedProgram represents an active uprobe-based program and its used
+// for the purposes of generating JSON content in our debugging endpoint
+type TracedProgram struct {
+	ProgramType string
+	FilePath    string
+	PIDs        []uint32
+}
+
+// TracedProgramsEndpoint generates a summary of all active uprobe-based
+// programs along with their file paths and PIDs.
+// This is used for debugging purposes only.
+func TracedProgramsEndpoint(w http.ResponseWriter, _ *http.Request) {
 	otherutils.WriteAsJSON(w, debugger.GetTracedPrograms())
 }
 
@@ -30,12 +42,6 @@ func (d *fileRegistryDebugger) Add(r *FileRegistry) {
 	defer d.mux.Unlock()
 
 	d.instances = append(d.instances, r)
-}
-
-type TracedProgram struct {
-	ProgramType string
-	FilePath    string
-	PIDs        []uint32
 }
 
 func (d *fileRegistryDebugger) GetTracedPrograms() []TracedProgram {
