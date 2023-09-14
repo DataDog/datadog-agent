@@ -6,6 +6,7 @@
 package clusteragent
 
 import (
+	"bytes"
 	"context"
 	"crypto/tls"
 	"encoding/json"
@@ -24,9 +25,11 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/clusterchecks/types"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/errors"
+	pbgo "github.com/DataDog/datadog-agent/pkg/proto/pbgo/process"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/retry"
 	"github.com/DataDog/datadog-agent/pkg/version"
+	"google.golang.org/protobuf/proto"
 )
 
 /*
@@ -36,15 +39,22 @@ Client to query the Datadog Cluster Agent (DCA) API.
 const (
 	authorizationHeaderKey = "Authorization"
 	// RealIPHeader refers to the cluster level check runner ip passed in the request headers
-	RealIPHeader = "X-Real-Ip"
+	RealIPHeader          = "X-Real-Ip"
+	languageDetectionPath = "api/v1/languagedetection"
 )
 
 var globalClusterAgentClient *DCAClient
 
 type metadataNames []string
 
+// LanguageDetectionClient defines the method to send a message to the Cluster-Agent
+type LanguageDetectionClient interface {
+	PostLanguageMetadata(ctx context.Context, data *pbgo.ParentLanguageAnnotationRequest) error
+}
+
 // DCAClientInterface  is required to query the API of Datadog cluster agent
 type DCAClientInterface interface {
+	LanguageDetectionClient
 	Version() version.Version
 	ClusterAgentAPIEndpoint() string
 
@@ -458,4 +468,16 @@ func (c *DCAClient) GetKubernetesClusterID() (string, error) {
 		return "", err
 	}
 	return clusterID, nil
+}
+
+// PostLanguageMetadata is called by the core-agent's language detection client
+func (c *DCAClient) PostLanguageMetadata(ctx context.Context, data *pbgo.ParentLanguageAnnotationRequest) error {
+	queryBody, err := proto.Marshal(data)
+	if err != nil {
+		return err
+	}
+
+	// https://host:port/api/v1/languagedetection}
+	err = c.doJSONQueryToLeader(ctx, languageDetectionPath, "POST", bytes.NewBuffer(queryBody), nil)
+	return err
 }
