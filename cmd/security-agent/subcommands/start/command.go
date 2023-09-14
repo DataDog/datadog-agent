@@ -345,17 +345,21 @@ func setupInternalProfiling(config config.Component) error {
 			}
 		}
 
+		tags := config.GetStringSlice(secAgentKey("internal_profiling.extra_tags"))
+		tags = append(tags, fmt.Sprintf("version:%v", v))
+
 		profSettings := profiling.Settings{
 			ProfilingURL:         site,
 			Env:                  config.GetString(secAgentKey("internal_profiling.env")),
 			Service:              "security-agent",
 			Period:               config.GetDuration(secAgentKey("internal_profiling.period")),
-			CPUDuration:          config.GetDuration("internal_profiling.cpu_duration"),
+			CPUDuration:          config.GetDuration(secAgentKey("internal_profiling.cpu_duration")),
 			MutexProfileFraction: config.GetInt(secAgentKey("internal_profiling.mutex_profile_fraction")),
 			BlockProfileRate:     config.GetInt(secAgentKey("internal_profiling.block_profile_rate")),
 			WithGoroutineProfile: config.GetBool(secAgentKey("internal_profiling.enable_goroutine_stacktraces")),
 			WithDeltaProfiles:    config.GetBool(secAgentKey("internal_profiling.delta_profiles")),
-			Tags:                 []string{fmt.Sprintf("version:%v", v)},
+			Socket:               config.GetString(secAgentKey("internal_profiling.unix_socket")),
+			Tags:                 tags,
 		}
 
 		return profiling.Start(profSettings)
