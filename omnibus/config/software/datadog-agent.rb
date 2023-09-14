@@ -16,6 +16,8 @@ dependency "yaml-cpp" if windows?
 
 dependency "openscap" if linux? and !arm7l? and !heroku? # Security-agent dependency, not needed for Heroku
 
+dependency 'datadog-agent-dependencies'
+
 source path: '..'
 relative_path 'src/github.com/DataDog/datadog-agent'
 
