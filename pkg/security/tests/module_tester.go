@@ -116,6 +116,8 @@ event_monitoring_config:
 
 runtime_security_config:
   enabled: {{ .RuntimeSecurityEnabled }}
+  remote_configuration:
+    enabled: false
   socket: /tmp/test-runtime-security.sock
   sbom:
     enabled: {{ .SBOMEnabled }}

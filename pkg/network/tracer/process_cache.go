@@ -88,8 +88,6 @@ func newProcessCache(maxProcs int, filteredEnvs []string) (*processCache, error)
 
 	var err error
 	pc.cache, err = lru.NewWithEvict(maxProcs, func(_ processCacheKey, p *events.Process) {
-		processCacheTelemetry.cacheEvicts.Inc()
-
 		pl, _ := pc.cacheByPid[p.Pid]
 		if pl = pl.remove(p); len(pl) == 0 {
 			delete(pc.cacheByPid, p.Pid)
@@ -209,7 +207,9 @@ func (pc *processCache) add(p *events.Process) {
 	}
 
 	p.Expiry = time.Now().Add(defaultExpiry).Unix()
-	pc.cache.Add(processCacheKey{pid: p.Pid, startTime: p.StartTime}, p)
+	if evicted := pc.cache.Add(processCacheKey{pid: p.Pid, startTime: p.StartTime}, p); evicted {
+		processCacheTelemetry.cacheEvicts.Inc()
+	}
 	pl, _ := pc.cacheByPid[p.Pid]
 	pc.cacheByPid[p.Pid] = pl.update(p)
 }
