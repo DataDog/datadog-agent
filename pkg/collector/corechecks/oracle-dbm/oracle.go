@@ -75,6 +75,7 @@ type StatementsCache struct {
 
 type pgaOverAllocationCount struct {
 	value float64
+	valid bool
 }
 
 type Check struct {
