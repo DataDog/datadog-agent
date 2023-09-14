@@ -150,7 +150,7 @@ int __attribute__((always_inline)) sys_xattr_ret(void *ctx, int retval, u64 even
 
     struct proc_cache_t *entry = fill_process_context(&event.process);
     fill_container_context(entry, &event.container);
-    fill_file_metadata(syscall->xattr.dentry, &event.file.metadata);
+    fill_file(syscall->xattr.dentry, &event.file);
     fill_span_context(&event.span);
 
     send_event(ctx, event_type, event);

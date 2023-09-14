@@ -156,15 +156,18 @@ func (c *Check) SysMetrics() error {
 	}
 
 	var overAllocationCount float64
-	err = c.db.Get(&overAllocationCount, "SELECT value FROM v$pgastat WHERE name = 'over allocation count'")
+	err = getWrapper(c, &overAllocationCount, "SELECT value FROM v$pgastat WHERE name = 'over allocation count'")
 	if err != nil {
 		return fmt.Errorf("failed to get PGA over allocation count: %w", err)
 	}
-	if c.previousAllocationCount != 0 {
-		v := overAllocationCount - c.previousAllocationCount
+
+	if c.previousPGAOverAllocationCount == (pgaOverAllocationCount{}) {
+		c.previousPGAOverAllocationCount = pgaOverAllocationCount{value: overAllocationCount}
+	} else {
+		v := overAllocationCount - c.previousPGAOverAllocationCount.value
 		sender.Gauge(fmt.Sprintf("%s.%s", common.IntegrationName, "pga_over_allocation_count"), v, "", c.tags)
+		c.previousPGAOverAllocationCount.value = overAllocationCount
 	}
-	c.previousAllocationCount = overAllocationCount
 
 	sender.Commit()
 	return nil
