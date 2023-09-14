@@ -11,6 +11,7 @@ import (
 	"errors"
 	_ "expvar" // Blank import used because this isn't directly used in this file
 	"fmt"
+	"github.com/DataDog/datadog-agent/comp/windows/winregistry"
 	"net/http"
 	_ "net/http/pprof" // Blank import used because this isn't directly used in this file
 	"os"
@@ -110,7 +111,6 @@ import (
 	_ "github.com/DataDog/datadog-agent/pkg/collector/corechecks/system/uptime"
 	_ "github.com/DataDog/datadog-agent/pkg/collector/corechecks/system/winkmem"
 	_ "github.com/DataDog/datadog-agent/pkg/collector/corechecks/system/winproc"
-	_ "github.com/DataDog/datadog-agent/pkg/collector/corechecks/system/winregistry"
 	_ "github.com/DataDog/datadog-agent/pkg/collector/corechecks/systemd"
 
 	// register metadata providers
@@ -143,6 +143,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				LogParams:            log.LogForDaemon(command.LoggerName, "log_file", path.DefaultLogFile),
 			}),
 			getSharedFxOption(),
+			winregistry.Module,
 		)
 	}
 
@@ -182,6 +183,7 @@ func run(log log.Component,
 	sharedSerializer serializer.MetricSerializer,
 	cliParams *cliParams,
 	logsAgent util.Optional[logsAgent.Component],
+	_ winregistry.Component,
 ) error {
 	defer func() {
 		stopAgent(cliParams, server)
@@ -257,6 +259,7 @@ func StartAgentWithDefaults(ctxChan <-chan context.Context) (<-chan error, error
 			logsAgent util.Optional[logsAgent.Component],
 			metadataRunner runner.Component,
 			sharedSerializer serializer.MetricSerializer,
+			_ winregistry.Component,
 		) error {
 
 			defer StopAgentWithDefaults(server)
@@ -290,6 +293,7 @@ func StartAgentWithDefaults(ctxChan <-chan context.Context) (<-chan error, error
 				LogParams:            log.LogForDaemon(command.LoggerName, "log_file", path.DefaultLogFile),
 			}),
 			getSharedFxOption(),
+			winregistry.Module,
 		)
 		// notify caller that fx.OneShot is done
 		errChan <- err

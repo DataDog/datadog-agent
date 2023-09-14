@@ -8,6 +8,7 @@
 package winregistry
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"github.com/DataDog/datadog-agent/comp/logs/agent"
@@ -15,6 +16,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
+	"github.com/DataDog/datadog-agent/pkg/util"
 	agentLog "github.com/DataDog/datadog-agent/pkg/util/log"
 	"go.uber.org/fx"
 	"io/fs"
@@ -34,6 +36,13 @@ const (
 	checkName   = "windows_registry" // this appears in the Agent Manager and Agent status
 	checkPrefix = "winregistry"      // This is the prefix used for all metrics emitted by this check
 )
+
+type dependencies struct {
+	fx.In
+
+	LogsComponent util.Optional[agent.Component] // Logs Agent component
+	Lifecycle     fx.Lifecycle
+}
 
 type subkeyCfg struct {
 	Name  string // The metric name of the registry value
@@ -71,10 +80,6 @@ type WindowsRegistryCheck struct {
 }
 
 func (c *WindowsRegistryCheck) Configure(senderManager sender.SenderManager, integrationConfigDigest uint64, data integration.Data, initConfig integration.Data, source string) error {
-	fx.Invoke(func(logsComponent agent.Component) {
-		c.logsComponent = logsComponent
-	})
-
 	c.origin = message.NewOrigin(sources.NewLogSource("Windows registry check", &logsConfig.LogsConfig{
 		Source: checkName,
 		//Service: "my_custom_service",
@@ -234,12 +239,19 @@ func (c *WindowsRegistryCheck) processRegistryKeyMetrics(sender sender.Sender, r
 	}
 }
 
-func windowsRegistryCheckFactory() check.Check {
-	return &WindowsRegistryCheck{
-		CheckBase: core.NewCheckBase(checkName),
+func newWindowsRegistry(deps dependencies) Component {
+	logs, _ := deps.LogsComponent.Get()
+	instance := &WindowsRegistryCheck{
+		logsComponent: logs,
+		CheckBase:     core.NewCheckBase(checkName),
 	}
-}
-
-func init() {
-	core.RegisterCheck(checkName, windowsRegistryCheckFactory)
+	deps.Lifecycle.Append(fx.Hook{
+		OnStart: func(ctx context.Context) error {
+			core.RegisterCheck(checkName, func() check.Check {
+				return instance
+			})
+			return nil
+		},
+	})
+	return instance
 }
