@@ -60,6 +60,11 @@ func EvaluateRegoRule(ctx context.Context, resolvedInputs ResolvedInputs, benchm
 		return nil, fmt.Errorf("could not build rego modules: %w", err)
 	}
 
+	input, err := regoast.InterfaceToValue(resolvedInputs)
+	if err != nil {
+		return nil, fmt.Errorf("could not create input value: %v", err)
+	}
+
 	var options []func(*rego.Rego)
 	for name, source := range modules {
 		options = append(options, rego.Module(name, source))
@@ -72,7 +77,7 @@ func EvaluateRegoRule(ctx context.Context, resolvedInputs ResolvedInputs, benchm
 			"http.send":   {},
 			"opa.runtime": {},
 		}),
-		rego.Input(resolvedInputs),
+		rego.ParsedInput(input),
 	)
 
 	log.Tracef("starting rego evaluation for rule=%s:%s", benchmark.FrameworkID, rule.ID)
@@ -147,15 +152,9 @@ func newCheckEventFromRegoResult(data interface{}, rule *Rule, resolvedInputs Re
 		event = NewCheckEvent(RegoEvaluator, result, eventData, resourceID, resourceType, rule, benchmark)
 	}
 
-	if containerID, _ := m["container_id"].(string); containerID != "" {
-		imageID, _ := m["image_id"].(string)
-		imageName, _ := m["image_name"].(string)
-		imageTag, _ := m["image_tag"].(string)
+	if containerID := resolvedInputs.GetContext().ContainerID; containerID != "" {
 		event.Container = &CheckContainerMeta{
 			ContainerID: containerID,
-			ImageID:     imageID,
-			ImageName:   imageName,
-			ImageTag:    imageTag,
 		}
 	}
 
@@ -194,9 +193,6 @@ raw_finding(status, resource_type, resource_id, event_data) = f {
 		"status": status,
 		"resource_type": resource_type,
 		"resource_id": resource_id,
-		"image_id": input.context.image_id,
-		"image_name": input.context.image_name,
-		"image_tag": input.context.image_tag,
 		"container_id": input.context.container_id,
 		"data": event_data,
 	}

@@ -1,0 +1,13 @@
+--- a/include/xxhash.h
++++ b/include/xxhash.h
+@@ -1549,6 +1549,10 @@ static void* XXH_memcpy(void* dest, const void* src, size_t size)
+ #  define XXH_ASSERT(c)   ((void)0)
+ #endif
+ 
++#ifndef static_assert
++#  define static_assert _Static_assert
++#endif
++
+ /* note: use after variable declarations */
+ #ifndef XXH_STATIC_ASSERT
+ #  if defined(__STDC_VERSION__) && (__STDC_VERSION__ >= 201112L)    /* C11 */

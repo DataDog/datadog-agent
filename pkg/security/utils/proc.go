@@ -5,6 +5,7 @@
 
 //go:build linux
 
+// Package utils holds utils related files
 package utils
 
 import (
@@ -204,6 +205,7 @@ func GetProcesses() ([]*process.Process, error) {
 	return processes, nil
 }
 
+// FilledProcess defines a filled process
 type FilledProcess struct {
 	Pid        int32
 	Ppid       int32
@@ -264,7 +266,8 @@ func GetFilledProcess(p *process.Process) (*FilledProcess, error) {
 	}, nil
 }
 
-const MAX_ENV_VARS_COLLECTED = 256
+// MaxEnvVarsCollected defines the max env vars collected
+const MaxEnvVarsCollected = 256
 
 func zeroSplitter(data []byte, atEOF bool) (advance int, token []byte, err error) {
 	for i := 0; i < len(data); i++ {
@@ -327,8 +330,8 @@ func EnvVars(priorityEnvsPrefixes []string, pid uint32) ([]string, bool, error) 
 		}
 	}
 
-	if envCounter > MAX_ENV_VARS_COLLECTED {
-		envCounter = MAX_ENV_VARS_COLLECTED
+	if envCounter > MaxEnvVarsCollected {
+		envCounter = MaxEnvVarsCollected
 	}
 
 	// second pass collecting
@@ -340,7 +343,7 @@ func EnvVars(priorityEnvsPrefixes []string, pid uint32) ([]string, bool, error) 
 	envs = append(envs, priorityEnvs...)
 
 	for scanner.Scan() {
-		if len(envs) >= MAX_ENV_VARS_COLLECTED {
+		if len(envs) >= MaxEnvVarsCollected {
 			return envs, true, nil
 		}
 

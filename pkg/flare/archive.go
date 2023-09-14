@@ -20,7 +20,8 @@ import (
 	"strings"
 	"time"
 
-	flarehelpers "github.com/DataDog/datadog-agent/comp/core/flare/helpers"
+	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
+	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/api/security"
 	apiutil "github.com/DataDog/datadog-agent/pkg/api/util"
 	"github.com/DataDog/datadog-agent/pkg/config"
@@ -49,7 +50,7 @@ type searchPaths map[string]string
 
 // CompleteFlare packages up the files with an already created builder. This is aimed to be used by the flare
 // component while we migrate to a component architecture.
-func CompleteFlare(fb flarehelpers.FlareBuilder) error {
+func CompleteFlare(fb flaretypes.FlareBuilder, senderManager sender.SenderManager) error {
 	/** WARNING
 	 *
 	 * When adding data to flares, carefully analyze what is being added and ensure that it contains no credentials
@@ -88,7 +89,7 @@ func CompleteFlare(fb flarehelpers.FlareBuilder) error {
 	fb.AddFileFromFunc("process_agent_runtime_config_dump.yaml", getProcessAgentFullConfig)
 	fb.AddFileFromFunc("runtime_config_dump.yaml", func() ([]byte, error) { return yaml.Marshal(config.Datadog.AllSettings()) })
 	fb.AddFileFromFunc("system_probe_runtime_config_dump.yaml", func() ([]byte, error) { return yaml.Marshal(config.SystemProbe.AllSettings()) })
-	fb.AddFileFromFunc("diagnose.log", getDiagnoses)
+	fb.AddFileFromFunc("diagnose.log", func() ([]byte, error) { return getDiagnoses(senderManager) })
 	fb.AddFileFromFunc("secrets.log", getSecrets)
 	fb.AddFileFromFunc("envvars.log", getEnvVars)
 	fb.AddFileFromFunc("metadata_inventories.json", inventories.GetLastPayload)
@@ -120,11 +121,11 @@ func CompleteFlare(fb flarehelpers.FlareBuilder) error {
 	return nil
 }
 
-func getVersionHistory(fb flarehelpers.FlareBuilder) {
+func getVersionHistory(fb flaretypes.FlareBuilder) {
 	fb.CopyFile(filepath.Join(config.Datadog.GetString("run_path"), "version-history.json"))
 }
 
-func getRegistryJSON(fb flarehelpers.FlareBuilder) {
+func getRegistryJSON(fb flaretypes.FlareBuilder) {
 	fb.CopyFile(filepath.Join(config.Datadog.GetString("logs_config.run_path"), "registry.json"))
 }
 
@@ -141,7 +142,7 @@ func getMetadataV5() ([]byte, error) {
 	return data, nil
 }
 
-func getLogFiles(fb flarehelpers.FlareBuilder, logFileDir string) {
+func getLogFiles(fb flaretypes.FlareBuilder, logFileDir string) {
 	log.Flush()
 
 	fb.CopyDirToWithoutScrubbing(filepath.Dir(logFileDir), "logs", func(path string) bool {
@@ -152,7 +153,7 @@ func getLogFiles(fb flarehelpers.FlareBuilder, logFileDir string) {
 	})
 }
 
-func getExpVar(fb flarehelpers.FlareBuilder) error {
+func getExpVar(fb flaretypes.FlareBuilder) error {
 	variables := make(map[string]interface{})
 	expvar.Do(func(kv expvar.KeyValue) {
 		variable := make(map[string]interface{})
@@ -223,7 +224,7 @@ func getProcessAgentFullConfig() ([]byte, error) {
 	return cfgB, nil
 }
 
-func getConfigFiles(fb flarehelpers.FlareBuilder, confSearchPaths map[string]string) {
+func getConfigFiles(fb flaretypes.FlareBuilder, confSearchPaths map[string]string) {
 	for prefix, filePath := range confSearchPaths {
 		fb.CopyDirTo(filePath, filepath.Join("etc", "confd", prefix), func(path string) bool {
 			// ignore .example file
@@ -265,7 +266,7 @@ func getSecrets() ([]byte, error) {
 	return functionOutputToBytes(fct), nil
 }
 
-func getProcessChecks(fb flarehelpers.FlareBuilder, getAddressPort func() (url string, err error)) {
+func getProcessChecks(fb flaretypes.FlareBuilder, getAddressPort func() (url string, err error)) {
 	addressPort, err := getAddressPort()
 	if err != nil {
 		log.Errorf("Could not zip process agent checks: wrong configuration to connect to process-agent: %s", err.Error())
@@ -295,7 +296,7 @@ func getProcessChecks(fb flarehelpers.FlareBuilder, getAddressPort func() (url s
 	getCheck("process_discovery", "process_config.process_discovery.enabled")
 }
 
-func getDiagnoses() ([]byte, error) {
+func getDiagnoses(senderManager sender.SenderManager) ([]byte, error) {
 	fct := func(w io.Writer) error {
 		// Run agent diagnose command to be verbose and remote. If Agent is running small performance hit
 		// since this code will get diagnoses using Agent’s local port listener (instead of calling a
@@ -307,7 +308,7 @@ func getDiagnoses() ([]byte, error) {
 			RunLocal: false,
 		}
 
-		return diagnose.RunStdOut(w, diagCfg)
+		return diagnose.RunStdOut(w, diagCfg, senderManager)
 	}
 
 	return functionOutputToBytes(fct), nil

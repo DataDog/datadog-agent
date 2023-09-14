@@ -292,10 +292,10 @@ func TestCollection(t *testing.T) {
 					j++
 				}
 				close(doneCh)
+				mockStore.Unsubscribe(ch)
 			}()
 
 			<-doneCh
-			mockStore.Unsubscribe(ch)
 
 			// wait that the store gets populated
 			time.Sleep(time.Second)

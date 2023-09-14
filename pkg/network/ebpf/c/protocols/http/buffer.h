@@ -12,26 +12,22 @@
 #include "protocols/http/types.h"
 #include "protocols/read_into_buffer.h"
 
-// This function reads a constant number of bytes into the fragment buffer of the http
-// transaction object, and returns the number of bytes of the valid data. The number of
-// bytes are used in userspace to zero out the garbage we may have read into the buffer.
-//
-// This function is used for the uprobe-based HTTPS monitoring (eg. OpenSSL, GnuTLS etc)
-static __always_inline void read_into_buffer(char *buffer, char *data, size_t data_size) {
-    bpf_memset(buffer, 0, HTTP_BUFFER_SIZE);
+#define PAGESIZE 4096
 
-    // we read HTTP_BUFFER_SIZE-1 bytes to ensure that the string is always null terminated
-    if (bpf_probe_read_user_with_telemetry(buffer, HTTP_BUFFER_SIZE - 1, data) < 0) {
-// note: arm64 bpf_probe_read_user() could page fault if the HTTP_BUFFER_SIZE overlap a page
-#pragma unroll(HTTP_BUFFER_SIZE - 1)
-        for (int i = 0; i < HTTP_BUFFER_SIZE - 1; i++) {
-            bpf_probe_read_user(&buffer[i], 1, &data[i]);
-            if (buffer[i] == 0) {
-                return;
-            }
-        }
-    }
-}
+#define READ_INTO_USER_BUFFER(name, total_size)                                                                         \
+    static __always_inline void read_into_user_buffer_##name(char *dst, char *src) {                                    \
+        bpf_memset(dst, 0, total_size);                                                                                 \
+        long ret = bpf_probe_read_user_with_telemetry(dst, total_size, src);                                            \
+        if (ret >= 0) {                                                                                                 \
+            return;                                                                                                     \
+        }                                                                                                               \
+        const __u64 read_size_until_end_of_page = PAGESIZE - ((__u64)src % PAGESIZE);                                   \
+        const __u64 size_to_read = read_size_until_end_of_page < total_size ? read_size_until_end_of_page : total_size; \
+        bpf_probe_read_user_with_telemetry(dst, size_to_read, src);                                                     \
+        return;                                                                                                         \
+    }                                                                                                                   \
+
+READ_INTO_USER_BUFFER(http, HTTP_BUFFER_SIZE)
 
 READ_INTO_BUFFER(skb, HTTP_BUFFER_SIZE, BLK_SIZE)
 
