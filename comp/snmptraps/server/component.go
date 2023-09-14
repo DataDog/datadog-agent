@@ -13,6 +13,8 @@ import (
 
 	"go.uber.org/fx"
 
+	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/snmp/traps"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -35,23 +37,46 @@ var Module = fxutil.Component(
 type server struct {
 	hostname string
 	demux    *aggregator.AgentDemultiplexer
+	conf     config.Component
+	logger   log.Component
 }
 
 func (s *server) Start() error {
-	return traps.StartServer(s.hostname, s.demux)
+	return traps.StartServer(s.hostname, s.demux, s.conf, s.logger)
 }
 
 func (s *server) Stop() {
 	traps.StopServer()
 }
 
-func newServer(demux *aggregator.AgentDemultiplexer) (Component, error) {
+type dependencies struct {
+	fx.In
+	Demux  *aggregator.AgentDemultiplexer
+	Conf   config.Component
+	Logger log.Component
+}
+
+func newServer(lc fx.Lifecycle, dep dependencies) (Component, error) {
 	name, err := hostname.Get(context.Background())
 	if err != nil {
 		return nil, err
 	}
-	return &server{
+	s := &server{
 		hostname: name,
-		demux:    demux,
-	}, nil
+		demux:    dep.Demux,
+		conf:     dep.Conf,
+		logger:   dep.Logger,
+	}
+	if traps.IsEnabled(dep.Conf) {
+		lc.Append(fx.Hook{
+			OnStart: func(ctx context.Context) error {
+				return s.Start()
+			},
+			OnStop: func(ctx context.Context) error {
+				s.Stop()
+				return nil
+			},
+		})
+	}
+	return s, nil
 }
