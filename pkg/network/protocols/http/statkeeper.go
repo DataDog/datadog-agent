@@ -105,7 +105,7 @@ func (h *StatKeeper) add(tx Transaction) {
 	}
 
 	key := NewKeyWithConnection(tx.ConnTuple(), path, fullPath, tx.Method())
-	stats, ok := h.stats[*key]
+	stats, ok := h.stats[key]
 	if !ok {
 		if len(h.stats) >= h.maxEntries {
 			h.telemetry.dropped.Add(1)
@@ -113,7 +113,7 @@ func (h *StatKeeper) add(tx Transaction) {
 		}
 		h.telemetry.aggregations.Add(1)
 		stats = NewRequestStats(h.enableStatusCodeAggregation)
-		h.stats[*key] = stats
+		h.stats[key] = stats
 	}
 
 	stats.AddRequest(tx.StatusCode(), latency, tx.StaticTags(), tx.DynamicTags())

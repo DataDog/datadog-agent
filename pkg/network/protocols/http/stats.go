@@ -90,8 +90,8 @@ func NewKey(saddr, daddr util.Address, sport, dport uint16, path []byte, fullPat
 }
 
 // NewKeyWithConnection generates a new Key with a given connection tuple
-func NewKeyWithConnection(connKey types.ConnectionKey, path []byte, fullPath bool, method Method) *Key {
-	return &Key{
+func NewKeyWithConnection(connKey types.ConnectionKey, path []byte, fullPath bool, method Method) Key {
+	return Key{
 		ConnectionKey: connKey,
 		Path: Path{
 			Content:  intern.Interner.Get(path),
