@@ -45,8 +45,6 @@ var (
 	// used to serialize to protobuf
 	AgentPayloadVersion string
 
-	jsonExtraHeaders                    http.Header
-	protobufExtraHeaders                http.Header
 	jsonExtraHeadersWithCompression     http.Header
 	protobufExtraHeadersWithCompression http.Header
 
@@ -58,13 +56,11 @@ var (
 func init() {
 	expvars.Set("SendEventsErrItemTooBigs", &expvarsSendEventsErrItemTooBigs)
 	expvars.Set("SendEventsErrItemTooBigsFallback", &expvarsSendEventsErrItemTooBigsFallback)
-	initExtraHeaders()
 }
 
 // initExtraHeaders initializes the global extraHeaders variables.
 // Not part of the `init` function body to ease testing
-func initExtraHeaders() {
-	jsonExtraHeaders = make(http.Header)
+func initExtraHeaders(jsonExtraHeaders, protobufExtraHeaders http.Header) {
 	jsonExtraHeaders.Set("Content-Type", jsonContentType)
 
 	jsonExtraHeadersWithCompression = make(http.Header)
@@ -72,7 +68,6 @@ func initExtraHeaders() {
 		jsonExtraHeadersWithCompression.Set(k, jsonExtraHeaders.Get(k))
 	}
 
-	protobufExtraHeaders = make(http.Header)
 	protobufExtraHeaders.Set("Content-Type", protobufContentType)
 	protobufExtraHeaders.Set(payloadVersionHTTPHeader, AgentPayloadVersion)
 
@@ -82,8 +77,10 @@ func initExtraHeaders() {
 	}
 
 	if compression.ContentEncoding != "" {
-		jsonExtraHeadersWithCompression.Set("Content-Encoding", compression.ContentEncoding)
-		protobufExtraHeadersWithCompression.Set("Content-Encoding", compression.ContentEncoding)
+		kind := config.Datadog.GetString("serializer_compressor_kind")
+		contentEncoding := getContentEncoding(kind)
+		jsonExtraHeadersWithCompression.Set("Content-Encoding", contentEncoding)
+		protobufExtraHeadersWithCompression.Set("Content-Encoding", contentEncoding)
 	}
 }
 
@@ -111,6 +108,8 @@ type Serializer struct {
 	orchestratorForwarder forwarder.Forwarder
 
 	seriesJSONPayloadBuilder *stream.JSONPayloadBuilder
+	jsonExtraHeaders         http.Header
+	protobufExtraHeaders     http.Header
 
 	// Those variables allow users to blacklist any kind of payload
 	// from being sent by the agent. This was introduced for
@@ -145,7 +144,10 @@ func NewSerializer(forwarder, orchestratorForwarder forwarder.Forwarder) *Serial
 		enableServiceChecksJSONStream: stream.Available && config.Datadog.GetBool("enable_service_checks_stream_payload_serialization"),
 		enableEventsJSONStream:        stream.Available && config.Datadog.GetBool("enable_events_stream_payload_serialization"),
 		enableSketchProtobufStream:    stream.Available && config.Datadog.GetBool("enable_sketch_stream_payload_serialization"),
+		jsonExtraHeaders:              make(http.Header),
+		protobufExtraHeaders:          make(http.Header),
 	}
+	initExtraHeaders(s.jsonExtraHeaders, s.protobufExtraHeaders)
 
 	if !s.enableEvents {
 		log.Warn("event payloads are disabled: all events will be dropped")
@@ -187,6 +189,9 @@ func (s Serializer) serializePayloadJSON(payload marshaler.JSONMarshaler, compre
 	if compress {
 		extraHeaders = jsonExtraHeadersWithCompression
 	} else {
+		jsonExtraHeaders := make(http.Header)
+		protobufExtraHeaders := make(http.Header)
+		initExtraHeaders(jsonExtraHeaders, protobufExtraHeaders)
 		extraHeaders = jsonExtraHeaders
 	}
 
@@ -198,6 +203,9 @@ func (s Serializer) serializePayloadProto(payload marshaler.ProtoMarshaler, comp
 	if compress {
 		extraHeaders = protobufExtraHeadersWithCompression
 	} else {
+		jsonExtraHeaders := make(http.Header)
+		protobufExtraHeaders := make(http.Header)
+		initExtraHeaders(jsonExtraHeaders, protobufExtraHeaders)
 		extraHeaders = protobufExtraHeaders
 	}
 	return s.serializePayloadInternal(payload, compress, extraHeaders, split.ProtoMarshalFct)
@@ -502,4 +510,11 @@ func makeOrchestratorPayloads(msg types.ProcessMessageBody, hostName, clusterID 
 	}
 	payloads := []*[]byte{&body}
 	return transaction.NewBytesPayloadsWithoutMetaData(payloads), extraHeaders, nil
+}
+
+func getContentEncoding(compressorKind string) string {
+	if compressorKind == "zlib" {
+		return "deflate"
+	}
+	return "zstd"
 }
