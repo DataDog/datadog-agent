@@ -38,7 +38,7 @@ func logSafeURLString(url *url.URL) string {
 // config, accounting for defaults and deprecated configuration parameters.
 //
 // The returned result is one of the `tls.VersionTLSxxx` constants.
-func minTLSVersionFromConfig(cfg conf.Config) uint16 {
+func minTLSVersionFromConfig(cfg conf.ConfigReader) uint16 {
 	var min uint16
 	minTLSVersion := cfg.GetString("min_tls_version")
 	switch strings.ToLower(minTLSVersion) {
@@ -60,7 +60,7 @@ func minTLSVersionFromConfig(cfg conf.Config) uint16 {
 }
 
 // CreateHTTPTransport creates an *http.Transport for use in the agent
-func CreateHTTPTransport(cfg conf.Config) *http.Transport {
+func CreateHTTPTransport(cfg conf.ConfigReader) *http.Transport {
 	// It’s OK to reuse the same file for all the http.Transport objects we create
 	// because all the writes to that file are protected by a global mutex.
 	// See https://github.com/golang/go/blob/go1.17.3/src/crypto/tls/common.go#L1316-L1318
@@ -114,7 +114,7 @@ func CreateHTTPTransport(cfg conf.Config) *http.Transport {
 
 // GetProxyTransportFunc return a proxy function for a http.Transport that
 // would return the right proxy depending on the configuration.
-func GetProxyTransportFunc(p *conf.Proxy, cfg conf.Config) func(*http.Request) (*url.URL, error) {
+func GetProxyTransportFunc(p *conf.Proxy, cfg conf.ConfigReader) func(*http.Request) (*url.URL, error) {
 	proxyConfig := &httpproxy.Config{
 		HTTPProxy:  p.HTTP,
 		HTTPSProxy: p.HTTPS,

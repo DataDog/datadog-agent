@@ -74,7 +74,7 @@ func NewWorker(
 
 // NewHTTPClient creates a new http.Client
 func NewHTTPClient(config config.Component) *http.Client {
-	transport := httputils.CreateHTTPTransport(config.Datadog)
+	transport := httputils.CreateHTTPTransport(config)
 
 	return &http.Client{
 		Timeout:   config.GetDuration("forwarder_timeout") * time.Second,

@@ -11,11 +11,13 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/DataDog/datadog-agent/pkg/conf"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
@@ -60,8 +62,9 @@ func TestFlareHasRightForm(t *testing.T) {
 	caseID := "12345"
 	email := "dev@datadoghq.com"
 	source := ""
+	c := conf.NewConfig("DD", "test", strings.NewReplacer(".", "_"))
 
-	_, err := SendTo(archivePath, caseID, email, source, "abcdef", ddURL)
+	_, err := SendTo(archivePath, caseID, email, source, "abcdef", ddURL, c)
 
 	assert.Nil(t, err)
 
