@@ -41,6 +41,7 @@ type ContainerCheck struct {
 	containerProvider proccontainers.ContainerProvider
 	lastRates         map[string]*proccontainers.ContainerRateMetrics
 	networkID         string
+	checkInitTime     int64
 
 	containerFailedLogLimit *util.LogLimit
 
@@ -51,6 +52,7 @@ type ContainerCheck struct {
 func (c *ContainerCheck) Init(_ *SysProbeConfig, info *HostInfo) error {
 	c.containerProvider = proccontainers.GetSharedContainerProvider()
 	c.hostInfo = info
+	c.checkInitTime = time.Now().Unix()
 
 	networkID, err := cloudproviders.GetNetworkID(context.TODO())
 	if err != nil {
@@ -125,6 +127,7 @@ func (c *ContainerCheck) Run(nextGroupID func() int32, options *RunOptions) (Run
 			GroupId:           groupID,
 			GroupSize:         int32(groupSize),
 			ContainerHostType: c.hostInfo.ContainerHostType,
+			AgentStartTime:    c.checkInitTime,
 		})
 	}
 
