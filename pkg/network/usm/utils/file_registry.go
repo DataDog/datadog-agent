@@ -262,10 +262,11 @@ type registration struct {
 	telemetry *registryTelemetry
 
 	// Note about the motivation for this field:
-	// a registration is tied to a PathIdentifier which is a global "identifier"
-	// to a file (dev, inode). Multiple file paths can point to the same
-	// underlying (dev, inode), so the `pathSample` here happens to be simply
-	// *one* of these file paths and use this mostly for debugging purposes
+	// a registration is tied to a PathIdentifier which is basically a global
+	// identifier to a file (dev, inode). Multiple file paths can point to the
+	// same underlying (dev, inode), so the `sampleFilePath` here happens to be
+	// simply *one* of these file paths and we use this only for debugging
+	// purposes.
 	sampleFilePath string
 }
 
