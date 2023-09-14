@@ -43,16 +43,16 @@ const (
 	MaxSQLFullTextVSQLStats = 1000
 )
 
-type HostingCode string
+type hostingCode string
 
 const (
-	SelfManaged HostingCode = "self-managed"
-	Rds         HostingCode = "RDS"
-	Oci         HostingCode = "OCI"
+	selfManaged hostingCode = "self-managed"
+	rds         hostingCode = "RDS"
+	oci         hostingCode = "OCI"
 )
 
 type HostingType struct {
-	value HostingCode
+	value hostingCode
 	valid bool
 }
 

@@ -98,7 +98,7 @@ func (c *Check) Connect() (*sqlx.DB, error) {
 	}
 
 	if !c.hostingType.valid {
-		ht := HostingType{value: SelfManaged, valid: false}
+		ht := HostingType{value: selfManaged, valid: false}
 
 		// Is RDS?
 		if c.filePath == "" {
@@ -109,7 +109,7 @@ func (c *Check) Connect() (*sqlx.DB, error) {
 				return nil, fmt.Errorf("failed to query path: %w", err)
 			}
 			if path == "/rdsdbdata" {
-				ht.value = Rds
+				ht.value = rds
 			}
 		}
 
@@ -124,7 +124,7 @@ func (c *Check) Connect() (*sqlx.DB, error) {
 			c.connectedToPdb = true
 		}
 
-		if ht.value == SelfManaged {
+		if ht.value == selfManaged {
 			var cloudRows int
 			if c.connectedToPdb {
 				r := db.QueryRow("select 1 from v$pdbs where cloud_identity like '%oraclecloud%' and rownum = 1")
@@ -141,7 +141,7 @@ func (c *Check) Connect() (*sqlx.DB, error) {
 				}
 			}
 			if cloudRows == 1 {
-				ht.value = Oci
+				ht.value = oci
 			}
 		}
 		c.tags = append(c.tags, fmt.Sprintf("hosting_type:%s", ht.value))

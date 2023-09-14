@@ -52,10 +52,10 @@ func handlePrivilegeError(c *Check, err error) (bool, error) {
 		return isPrivilegeError, err
 	}
 
-	links := map[HostingCode]string{
-		SelfManaged: "https://docs.datadoghq.com/database_monitoring/setup_oracle/selfhosted/#grant-permissions",
-		Rds:         "https://docs.datadoghq.com/database_monitoring/setup_oracle/rds/#grant-permissions",
-		Oci:         "https://docs.datadoghq.com/database_monitoring/setup_oracle/autonomous_database/#grant-permissions",
+	links := map[hostingCode]string{
+		selfManaged: "https://docs.datadoghq.com/database_monitoring/setup_oracle/selfhosted/#grant-permissions",
+		rds:         "https://docs.datadoghq.com/database_monitoring/setup_oracle/rds/#grant-permissions",
+		oci:         "https://docs.datadoghq.com/database_monitoring/setup_oracle/autonomous_database/#grant-permissions",
 	}
 	link := links[c.hostingType.value]
 	isPrivilegeError = true
