@@ -367,7 +367,7 @@ func decodeTracerPayload(v Version, req *http.Request, ts *info.TagStats, cIDPro
 	chunksLoop:
 		for _, chunk := range chunks {
 			for _, span := range chunk.Spans {
-				if strings.HasPrefix(span.Service, "00-") {
+				if span != nil && strings.HasPrefix(span.Service, "00-") {
 					log.Errorf("INCIDENT-22455 In v05Receiver (ID %d) bytes: %#v \nspan: %#v", span.TraceID, buf.Bytes(), span)
 					break chunksLoop
 				}
