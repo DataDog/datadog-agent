@@ -99,13 +99,13 @@ func reconnectOnConnectionError(c *Check, db **sqlx.DB, err error) {
 	if !isConnectionError(err) {
 		return
 	}
-	log.Debugf("Reconnecting")
+	log.Debugf("%s Reconnecting", c.logPrompt)
 	if *db != nil {
 		closeDatabase(c, *db)
 	}
 	*db, err = c.Connect()
 	if err != nil {
-		log.Errorf("failed to reconnect %s", err)
+		log.Errorf("%s failed to reconnect %s", c.logPrompt, err)
 		closeDatabase(c, *db)
 	}
 }

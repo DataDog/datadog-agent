@@ -107,12 +107,13 @@ type Check struct {
 	planEmitted                             *cache.Cache
 	previousPGAOverAllocationCount          pgaOverAllocationCount
 	hostingType
+	logPrompt string
 }
 
 func handleServiceCheck(c *Check, err error) {
 	sender, errSender := c.GetSender()
 	if errSender != nil {
-		log.Errorf("failed to get sender for service check %s", err)
+		log.Errorf("%s failed to get sender for service check %s", c.logPrompt, err)
 	}
 
 	message := ""
@@ -121,7 +122,7 @@ func handleServiceCheck(c *Check, err error) {
 		status = servicecheck.ServiceCheckOK
 	} else {
 		status = servicecheck.ServiceCheckCritical
-		log.Errorf("failed to connect: %s", err)
+		log.Errorf("%s failed to connect: %s", c.logPrompt, err)
 	}
 	sender.ServiceCheck("oracle.can_connect", status, "", c.tags, message)
 	sender.Commit()
@@ -148,7 +149,7 @@ func (c *Check) Run() error {
 		if db == nil {
 			c.Teardown()
 			handleServiceCheck(c, fmt.Errorf("empty connection"))
-			return fmt.Errorf("empty connection")
+			return fmt.Errorf("%s empty connection", c.logPrompt)
 		}
 		c.db = db
 	}
@@ -156,7 +157,7 @@ func (c *Check) Run() error {
 	if c.driver == "oracle" && c.connection == nil {
 		conn, err := connectGoOra(c)
 		if err != nil {
-			return fmt.Errorf("failed to connect with go-ora %w", err)
+			return fmt.Errorf("%s failed to connect with go-ora %w", c.logPrompt, err)
 		}
 		c.connection = conn
 	}
@@ -175,16 +176,16 @@ func (c *Check) Run() error {
 				handleServiceCheck(c, nil)
 			}
 			closeDatabase(c, db)
-			return fmt.Errorf("failed to collect os stats %w", err)
+			return fmt.Errorf("%s failed to collect os stats %w", c.logPrompt, err)
 		} else {
 			handleServiceCheck(c, nil)
 		}
 
 		if c.config.SysMetrics.Enabled {
-			log.Trace("Entered sysmetrics")
+			log.Debugf("%s Entered sysmetrics", c.logPrompt)
 			err := c.SysMetrics()
 			if err != nil {
-				return fmt.Errorf("failed to collect sysmetrics %w", err)
+				return fmt.Errorf("%s failed to collect sysmetrics %w", c.logPrompt, err)
 			}
 		}
 		if c.config.Tablespaces.Enabled {
@@ -202,7 +203,7 @@ func (c *Check) Run() error {
 		if len(c.config.CustomQueries) > 0 {
 			err := c.CustomQueries()
 			if err != nil {
-				log.Errorf("failed to execute custom queries %s", err)
+				log.Errorf("%s failed to execute custom queries %s", c.logPrompt, err)
 			}
 		}
 	}
@@ -231,13 +232,13 @@ func (c *Check) Run() error {
 	}
 
 	if c.config.AgentSQLTrace.Enabled {
-		log.Tracef("Traced runs %d", c.sqlTraceRunsCount)
+		log.Debugf("%s Traced runs %d", c.logPrompt, c.sqlTraceRunsCount)
 		c.sqlTraceRunsCount++
 		if c.sqlTraceRunsCount >= c.config.AgentSQLTrace.TracedRuns {
 			c.config.AgentSQLTrace.Enabled = false
 			_, err := c.db.Exec("BEGIN dbms_monitor.session_trace_disable; END;")
 			if err != nil {
-				log.Errorf("failed to stop SQL trace: %v", err)
+				log.Errorf("%s failed to stop SQL trace: %v", c.logPrompt, err)
 			}
 			c.db.SetMaxOpenConns(MAX_OPEN_CONNECTIONS)
 		}
@@ -333,7 +334,7 @@ func (c *Check) GetObfuscatedStatement(o *obfuscate.Obfuscator, statement string
 		}, nil
 	} else {
 		if c.config.InstanceConfig.LogUnobfuscatedQueries {
-			log.Error(fmt.Sprintf("Obfuscation error for SQL: %s", statement))
+			log.Errorf("%s Obfuscation error for SQL: %s", c.logPrompt, statement)
 		}
 		return common.ObfuscatedStatement{Statement: statement}, err
 	}

@@ -179,7 +179,7 @@ func NewCheckConfig(rawInstance integration.Data, rawInitConfig integration.Data
 		InitConfig:     initCfg,
 	}
 
-	log.Debugf("Oracle config: %s", c.String())
+	log.Debugf("%s@%d/%s Oracle config: %s", instance.Server, instance.Port, instance.ServiceName, c.String())
 
 	return c, nil
 }

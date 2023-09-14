@@ -57,7 +57,7 @@ func (c *Check) Connect() (*sqlx.DB, error) {
 	}
 	c.driver = oracleDriver
 
-	log.Infof("driver: %s", oracleDriver)
+	log.Infof("%s driver: %s", c.logPrompt, oracleDriver)
 
 	db, err := sqlx.Open(oracleDriver, connStr)
 	if err != nil {
@@ -97,6 +97,8 @@ func (c *Check) Connect() (*sqlx.DB, error) {
 		c.tags = append(c.tags, fmt.Sprintf("host:%s", c.dbHostname), fmt.Sprintf("oracle_version:%s", c.dbVersion))
 	}
 
+	c.logPrompt = fmt.Sprintf("%s:%s> ", c.cdbName, c.dbHostname)
+
 	if !c.hostingType.valid {
 		ht := hostingType{value: selfManaged, valid: false}
 
@@ -112,48 +114,39 @@ func (c *Check) Connect() (*sqlx.DB, error) {
 				ht.value = rds
 			}
 		}
+	}
 
-		// Check if PDB
-		r := db.QueryRow("select decode(sys_context('USERENV','CON_ID'),1,'CDB','PDB') TYPE from DUAL")
-		var connectionType string
-		err = r.Scan(&connectionType)
+	r := db.QueryRow("select decode(sys_context('USERENV','CON_ID'),1,'CDB','PDB') TYPE from DUAL")
+	var connectionType string
+	err = r.Scan(&connectionType)
+	if err != nil {
+		return nil, fmt.Errorf("failed to query connection type: %w", err)
+	}
+	var cloudRows int
+	if connectionType == "PDB" {
+		c.connectedToPdb = true
+		r := db.QueryRow("select 1 from v$pdbs where cloud_identity like '%oraclecloud%' and rownum = 1")
+		err := r.Scan(&cloudRows)
 		if err != nil {
-			return nil, fmt.Errorf("failed to query connection type: %w", err)
+			log.Errorf("failed to query v$pdbs: %s", err)
 		}
-		if connectionType == "PDB" {
-			c.connectedToPdb = true
-		}
-
-		if ht.value == selfManaged {
-			var cloudRows int
-			if c.connectedToPdb {
-				r := db.QueryRow("select 1 from v$pdbs where cloud_identity like '%oraclecloud%' and rownum = 1")
-				err := r.Scan(&cloudRows)
-				if err != nil {
-					log.Errorf("failed to query v$pdbs: %s", err)
-				}
-				if cloudRows == 1 {
-					r := db.QueryRow("select 1 from cdb_services where name like '%oraclecloud%' and rownum = 1")
-					err := r.Scan(&cloudRows)
-					if err != nil {
-						log.Errorf("failed to query cdb_services: %s", err)
-					}
-				}
-			}
-			if cloudRows == 1 {
-				ht.value = oci
+		if cloudRows == 1 {
+			r := db.QueryRow("select 1 from cdb_services where name like '%oraclecloud%' and rownum = 1")
+			err := r.Scan(&cloudRows)
+			if err != nil {
+				log.Errorf("failed to query cdb_services: %s", err)
 			}
 		}
-		c.tags = append(c.tags, fmt.Sprintf("hosting_type:%s", ht.value))
-		ht.valid = true
-		c.hostingType = ht
+	}
+	if cloudRows == 1 {
+		c.isOracleCloud = true
 	}
 
 	if c.config.AgentSQLTrace.Enabled {
 		db.SetMaxOpenConns(1)
 		_, err := db.Exec("ALTER SESSION SET tracefile_identifier='DDAGENT'")
 		if err != nil {
-			log.Warnf("failed to set tracefile_identifier: %v", err)
+			log.Warnf("%s failed to set tracefile_identifier: %v", c.logPrompt, err)
 		}
 
 		/* We are concatenating values instead of passing parameters, because there seems to be a problem
@@ -163,10 +156,10 @@ func (c *Check) Connect() (*sqlx.DB, error) {
 		binds := assertBool(c.config.AgentSQLTrace.Binds)
 		waits := assertBool(c.config.AgentSQLTrace.Waits)
 		setEventsStatement := fmt.Sprintf("BEGIN dbms_monitor.session_trace_enable (binds => %t, waits => %t); END;", binds, waits)
-		log.Trace("trace statement: %s", setEventsStatement)
+		log.Trace("%s trace statement: %s", c.logPrompt, setEventsStatement)
 		_, err = db.Exec(setEventsStatement)
 		if err != nil {
-			log.Errorf("failed to set SQL trace: %v", err)
+			log.Errorf("%s failed to set SQL trace: %v", c.logPrompt, err)
 		}
 		if c.config.AgentSQLTrace.TracedRuns == 0 {
 			c.config.AgentSQLTrace.TracedRuns = DEFAULT_SQL_TRACED_RUNS
@@ -179,7 +172,7 @@ func (c *Check) Connect() (*sqlx.DB, error) {
 func closeDatabase(c *Check, db *sqlx.DB) {
 	if db != nil {
 		if err := db.Close(); err != nil {
-			log.Warnf("failed to close oracle connection | server=[%s]: %s", c.config.Server, err.Error())
+			log.Warnf("%s failed to close oracle connection: %s", c.logPrompt, err.Error())
 		}
 	}
 }
@@ -203,6 +196,6 @@ func closeGoOraConnection(c *Check) {
 	}
 	err := c.connection.Close()
 	if err != nil {
-		log.Warnf("failed to close go-ora connection | server=[%s]: %s", c.config.Server, err.Error())
+		log.Warnf("%s failed to close go-ora connection: %s", c.logPrompt, err.Error())
 	}
 }

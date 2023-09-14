@@ -9,6 +9,7 @@ package oracle
 
 import (
 	"fmt"
+
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/oracle-dbm/common"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	go_ora "github.com/sijms/go-ora/v2"
@@ -32,13 +33,13 @@ func getFullSQLText(c *Check, SQLStatement *string, key string, value string) er
 			if !isConnectionError(err) {
 				return err
 			}
-			log.Debugf("Reconnecting")
+			log.Debugf("%s Reconnecting", c.logPrompt)
 			if c.connection != nil {
 				closeGoOraConnection(c)
 			}
 			conn, errConnect := connectGoOra(c)
 			if errConnect != nil {
-				log.Errorf("failed to reconnect %s", err)
+				log.Errorf("%s failed to reconnect %s", c.logPrompt, err)
 				closeGoOraConnection(c)
 			} else {
 				c.connection = conn
