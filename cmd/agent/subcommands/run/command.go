@@ -60,6 +60,7 @@ import (
 	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/config/remote/data"
 	remoteconfig "github.com/DataDog/datadog-agent/pkg/config/remote/service"
+	langCl "github.com/DataDog/datadog-agent/pkg/languagedetection/client"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	adScheduler "github.com/DataDog/datadog-agent/pkg/logs/schedulers/ad"
 	pkgMetadata "github.com/DataDog/datadog-agent/pkg/metadata"
@@ -80,6 +81,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/installinfo"
 	pkglog "github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/version"
+	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
 
 	// runtime init routines
 	ddruntime "github.com/DataDog/datadog-agent/pkg/runtime"
@@ -628,6 +630,13 @@ func startAgent(
 
 	if err := pkgMetadata.SetupInventories(common.MetadataScheduler, common.Coll); err != nil {
 		return err
+	}
+
+	if pkgconfig.Datadog.GetBool("cluster_agent.enabled") && pkgconfig.Datadog.GetBool("enabled") {
+		go func() {
+			cl := langCl.NewClient(common.MainCtx, pkgconfig.Datadog, workloadmeta.GetGlobalStore(), nil)
+			cl.StreamLanguages()
+		}()
 	}
 
 	// start dependent services
