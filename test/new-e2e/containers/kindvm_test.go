@@ -13,8 +13,8 @@ import (
 	"testing"
 
 	fakeintake "github.com/DataDog/datadog-agent/test/fakeintake/client"
-	"github.com/DataDog/datadog-agent/test/new-e2e/runner"
-	"github.com/DataDog/datadog-agent/test/new-e2e/utils/infra"
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/runner"
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/infra"
 	"github.com/DataDog/test-infra-definitions/scenarios/aws/kindvm"
 	"github.com/pulumi/pulumi/sdk/v3/go/auto"
 	"github.com/stretchr/testify/require"
@@ -37,12 +37,12 @@ func TestKindSuite(t *testing.T) {
 		"ddtestworkload:deploy": auto.ConfigValue{Value: "true"},
 	}
 
+	_, stackOutput, err := infra.GetStackManager().GetStack(ctx, "kind-cluster", stackConfig, kindvm.Run, false)
+	require.NoError(t, err)
+
 	t.Cleanup(func() {
 		infra.GetStackManager().DeleteStack(ctx, "kind-cluster")
 	})
-
-	_, stackOutput, err := infra.GetStackManager().GetStack(ctx, "kind-cluster", stackConfig, kindvm.Run, false)
-	require.NoError(t, err)
 
 	fakeintakeHost := stackOutput.Outputs["fakeintake-host"].Value.(string)
 	kubeconfig := stackOutput.Outputs["kubeconfig"].Value.(string)

@@ -10,6 +10,7 @@ package usm
 import (
 	"fmt"
 	"math"
+	"time"
 
 	"github.com/cilium/ebpf"
 	"golang.org/x/sys/unix"
@@ -53,7 +54,9 @@ type ebpfProgram struct {
 	enabledProtocols  []protocols.Protocol
 	disabledProtocols []*protocols.ProtocolSpec
 
-	buildMode buildMode
+	// Used for connection_protocol data expiration
+	mapCleaner *ddebpf.MapCleaner
+	buildMode  buildMode
 }
 
 type probeResolver interface {
@@ -85,9 +88,12 @@ type probeResolver interface {
 type buildMode string
 
 const (
-	Prebuilt        buildMode = "prebuilt"
+	// Prebuilt mode
+	Prebuilt buildMode = "prebuilt"
+	// RuntimeCompiled mode
 	RuntimeCompiled buildMode = "runtime-compilation"
-	CORE            buildMode = "CO-RE"
+	// CORE mode
+	CORE buildMode = "CO-RE"
 )
 
 type subprogram interface {
@@ -99,15 +105,10 @@ type subprogram interface {
 	Stop()
 }
 
-func newEBPFProgram(c *config.Config, connectionProtocolMap *ebpf.Map, bpfTelemetry *errtelemetry.EBPFTelemetry) (*ebpfProgram, error) {
+func newEBPFProgram(c *config.Config, sockFD, connectionProtocolMap *ebpf.Map, bpfTelemetry *errtelemetry.EBPFTelemetry) (*ebpfProgram, error) {
 	mgr := &manager.Manager{
 		Maps: []*manager.Map{
-			{Name: sslSockByCtxMap},
 			{Name: protocols.ProtocolDispatcherProgramsMap},
-			{Name: "ssl_read_args"},
-			{Name: "bio_new_socket_args"},
-			{Name: "fd_by_ssl_bio"},
-			{Name: "ssl_ctx_by_pid_tgid"},
 			{Name: connectionStatesMap},
 		},
 		Probes: []*manager.Probe{
@@ -137,7 +138,7 @@ func newEBPFProgram(c *config.Config, connectionProtocolMap *ebpf.Map, bpfTeleme
 	subprograms := make([]subprogram, 0, 1)
 	var tailCalls []manager.TailCallRoute
 
-	goTLSProg := newGoTLSProgram(c)
+	goTLSProg := newGoTLSProgram(c, sockFD)
 	subprogramProbesResolvers = append(subprogramProbesResolvers, goTLSProg)
 	if goTLSProg != nil {
 		subprograms = append(subprograms, goTLSProg)
@@ -208,7 +209,14 @@ func (e *ebpfProgram) Init() error {
 }
 
 func (e *ebpfProgram) Start() error {
-	err := e.Manager.Start()
+	mapCleaner, err := e.setupMapCleaner()
+	if err != nil {
+		log.Errorf("error creating map cleaner: %s", err)
+	} else {
+		e.mapCleaner = mapCleaner
+	}
+
+	err = e.Manager.Start()
 	if err != nil {
 		return err
 	}
@@ -226,6 +234,7 @@ func (e *ebpfProgram) Start() error {
 }
 
 func (e *ebpfProgram) Close() error {
+	e.mapCleaner.Stop()
 	for _, s := range e.subprograms {
 		s.Stop()
 	}
@@ -274,7 +283,6 @@ func (e *ebpfProgram) init(buf bytecode.AssetReader, options manager.Options) er
 
 	options.MapSpecEditors = map[string]manager.MapSpecEditor{
 		connectionStatesMap: {
-			Type:       ebpf.Hash,
 			MaxEntries: e.cfg.MaxTrackedConnections,
 			EditorFlag: manager.EditMaxEntries,
 		},
@@ -286,7 +294,6 @@ func (e *ebpfProgram) init(buf bytecode.AssetReader, options manager.Options) er
 		options.MapEditors[probes.ConnectionProtocolMap] = e.connectionProtocolMap
 	} else {
 		options.MapSpecEditors[probes.ConnectionProtocolMap] = manager.MapSpecEditor{
-			Type:       ebpf.Hash,
 			MaxEntries: e.cfg.MaxTrackedConnections,
 			EditorFlag: manager.EditMaxEntries,
 		}
@@ -332,9 +339,8 @@ func (e *ebpfProgram) init(buf bytecode.AssetReader, options manager.Options) er
 	// Add excluded functions from disabled protocols
 	for _, p := range e.disabledProtocols {
 		for _, m := range p.Maps {
-			// Unused maps still needs to have a non-zero size
+			// Unused maps still need to have a non-zero size
 			options.MapSpecEditors[m.Name] = manager.MapSpecEditor{
-				Type:       ebpf.Hash,
 				MaxEntries: uint32(1),
 				EditorFlag: manager.EditMaxEntries,
 			}
@@ -352,6 +358,29 @@ func (e *ebpfProgram) init(buf bytecode.AssetReader, options manager.Options) er
 	}
 
 	return e.InitWithOptions(buf, options)
+}
+
+const connProtoTTL = 3 * time.Minute
+const connProtoCleaningInterval = 5 * time.Minute
+
+func (e *ebpfProgram) setupMapCleaner() (*ddebpf.MapCleaner, error) {
+	mapCleaner, err := ddebpf.NewMapCleaner(e.connectionProtocolMap, new(netebpf.ConnTuple), new(netebpf.ProtocolStackWrapper))
+	if err != nil {
+		return nil, err
+	}
+
+	ttl := connProtoTTL.Nanoseconds()
+	mapCleaner.Clean(connProtoCleaningInterval, func(now int64, key, val interface{}) bool {
+		protoStack, ok := val.(*netebpf.ProtocolStackWrapper)
+		if !ok {
+			return false
+		}
+
+		updated := int64(protoStack.Updated)
+		return (now - updated) > ttl
+	})
+
+	return mapCleaner, nil
 }
 
 func getAssetName(module string, debug bool) string {

@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"go.uber.org/atomic"
+	"google.golang.org/grpc"
 
 	"github.com/DataDog/datadog-agent/cmd/system-probe/api/module"
 	"github.com/DataDog/datadog-agent/cmd/system-probe/config"
@@ -53,6 +54,11 @@ func (o *oomKillModule) Register(httpMux *module.Router) error {
 		utils.WriteAsJSON(w, stats)
 	}))
 
+	return nil
+}
+
+// RegisterGRPC register to system probe gRPC server
+func (o *oomKillModule) RegisterGRPC(_ grpc.ServiceRegistrar) error {
 	return nil
 }
 

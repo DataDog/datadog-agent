@@ -1,85 +1,56 @@
-// This file is licensed under the MIT License.
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright © 2015 Kentaro Kuribayashi <kentarok@gmail.com>
-// Copyright 2014-present Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
-package main
+package gohai
 
 import (
-	"encoding/json"
-	"net"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 )
 
-func TestSelectedCollectors_String(t *testing.T) {
-	sc := &SelectedCollectors{
-		"foo": struct{}{},
-		"bar": struct{}{},
-	}
-	assert.Equal(t, "[bar foo]", sc.String())
+func TestGetPayload(t *testing.T) {
+	gohai := GetPayload(false)
+
+	assert.NotNil(t, gohai.Gohai.CPU)
+	assert.NotNil(t, gohai.Gohai.FileSystem)
+	assert.NotNil(t, gohai.Gohai.Memory)
+	assert.NotNil(t, gohai.Gohai.Network)
+	assert.NotNil(t, gohai.Gohai.Platform)
 }
 
-// gohaiPayload defines the format we expect the gohai information
-// to be in.
-// Any change to this datastructure should be notified to the backend
-// team to ensure compatibility.
-type gohaiPayload struct {
-	Network struct {
-		Interfaces []struct {
-			Ipv4        []string `json:"ipv4"`
-			Ipv6        []string `json:"ipv6"`
-			Ipv6Network string   `json:"ipv6-network"`
-			Macaddress  string   `json:"macaddress"`
-			Name        string   `json:"name"`
-			Ipv4Network string   `json:"ipv4-network"`
-		} `json:"interfaces"`
-		Ipaddress   string `json:"ipaddress"`
-		Ipaddressv6 string `json:"ipaddressv6"`
-		Macaddress  string `json:"macaddress"`
-	} `json:"network"`
+func TestGetPayloadContainerized(t *testing.T) {
+	t.Setenv("DOCKER_DD_AGENT", "true")
+
+	detectDocker0()
+	oldDocker0Detected := docker0Detected
+	docker0Detected = false
+	defer func() { docker0Detected = oldDocker0Detected }()
+
+	gohai := GetPayload(true)
+
+	assert.NotNil(t, gohai.Gohai.CPU)
+	assert.NotNil(t, gohai.Gohai.FileSystem)
+	assert.NotNil(t, gohai.Gohai.Memory)
+	assert.Nil(t, gohai.Gohai.Network)
+	assert.NotNil(t, gohai.Gohai.Platform)
 }
 
-func TestGohaiSerialization(t *testing.T) {
-	gohai, err := Collect()
+func TestGetPayloadContainerizedWithDocker0(t *testing.T) {
+	t.Setenv("DOCKER_DD_AGENT", "true")
 
-	assert.NoError(t, err)
+	detectDocker0()
+	oldDocker0Detected := docker0Detected
+	docker0Detected = true
+	defer func() { docker0Detected = oldDocker0Detected }()
 
-	gohaiJSON, err := json.Marshal(gohai)
-	assert.NoError(t, err)
+	gohai := GetPayload(false)
 
-	var payload gohaiPayload
-	assert.NoError(t, json.Unmarshal(gohaiJSON, &payload))
-
-	if assert.NotEmpty(t, payload.Network.Interfaces) {
-		for _, itf := range payload.Network.Interfaces {
-			assert.NotEmpty(t, itf.Name)
-			// Some interfaces don't have MacAddresses
-			//assert.NotEmpty(t, itf.Macaddress)
-
-			if len(itf.Ipv4) == 0 && len(itf.Ipv6) == 0 {
-				// Disabled interfaces won't have any IP address
-				continue
-			}
-			if len(itf.Ipv4) == 0 {
-				assert.NotEmpty(t, itf.Ipv6)
-				assert.NotEmpty(t, itf.Ipv6Network)
-				for _, ip := range itf.Ipv6 {
-					assert.NotNil(t, net.ParseIP(ip))
-				}
-			} else {
-				assert.NotEmpty(t, itf.Ipv4)
-				assert.NotEmpty(t, itf.Ipv4Network)
-				for _, ip := range itf.Ipv4 {
-					assert.NotNil(t, net.ParseIP(ip))
-				}
-			}
-		}
-	}
-	assert.NotEmpty(t, payload.Network.Ipaddress)
-	assert.NotNil(t, net.ParseIP(payload.Network.Ipaddress))
-	// Ipaddressv6 *can* be empty
-	// assert.NotEmpty(t, payload.Network.Ipaddressv6)
-	assert.NotEmpty(t, payload.Network.Macaddress)
+	assert.NotNil(t, gohai.Gohai.CPU)
+	assert.NotNil(t, gohai.Gohai.FileSystem)
+	assert.NotNil(t, gohai.Gohai.Memory)
+	assert.NotNil(t, gohai.Gohai.Network)
+	assert.NotNil(t, gohai.Gohai.Platform)
 }

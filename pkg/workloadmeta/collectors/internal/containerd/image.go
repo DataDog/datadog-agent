@@ -22,8 +22,8 @@ import (
 	containerdevents "github.com/containerd/containerd/events"
 	"github.com/containerd/containerd/images"
 	"github.com/containerd/containerd/namespaces"
-	"github.com/gogo/protobuf/proto"
 	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
+	"google.golang.org/protobuf/proto"
 )
 
 const imageTopicPrefix = "/images/"
@@ -174,7 +174,7 @@ func (c *collector) handleImageEvent(ctx context.Context, containerdEvent *conta
 	switch containerdEvent.Topic {
 	case imageCreationTopic:
 		event := &events.ImageCreate{}
-		if err := proto.Unmarshal(containerdEvent.Event.Value, event); err != nil {
+		if err := proto.Unmarshal(containerdEvent.Event.GetValue(), event); err != nil {
 			return fmt.Errorf("error unmarshaling containerd event: %w", err)
 		}
 
@@ -182,7 +182,7 @@ func (c *collector) handleImageEvent(ctx context.Context, containerdEvent *conta
 
 	case imageUpdateTopic:
 		event := &events.ImageUpdate{}
-		if err := proto.Unmarshal(containerdEvent.Event.Value, event); err != nil {
+		if err := proto.Unmarshal(containerdEvent.Event.GetValue(), event); err != nil {
 			return fmt.Errorf("error unmarshaling containerd event: %w", err)
 		}
 
@@ -192,7 +192,7 @@ func (c *collector) handleImageEvent(ctx context.Context, containerdEvent *conta
 		c.handleImagesMut.Lock()
 
 		event := &events.ImageDelete{}
-		if err := proto.Unmarshal(containerdEvent.Event.Value, event); err != nil {
+		if err := proto.Unmarshal(containerdEvent.Event.GetValue(), event); err != nil {
 			c.handleImagesMut.Unlock()
 			return fmt.Errorf("error unmarshaling containerd event: %w", err)
 		}
@@ -297,7 +297,7 @@ func (c *collector) notifyEventForImage(ctx context.Context, namespace string, i
 		}
 	}
 
-	var totalSizeBytes int64 = 0
+	totalSizeBytes := manifest.Config.Size
 	for _, layer := range manifest.Layers {
 		totalSizeBytes += layer.Size
 	}

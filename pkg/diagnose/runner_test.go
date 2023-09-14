@@ -6,40 +6,28 @@
 package diagnose
 
 import (
-	"bytes"
-	"errors"
-	"regexp"
 	"testing"
 
+	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
+	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/diagnose/diagnosis"
 
 	"github.com/stretchr/testify/assert"
 )
 
-func TestConnectivityAutodiscovery(t *testing.T) {
-
-	diagnosis.RegisterMetadataAvail("failing", func() error { return errors.New("fail") })
-	diagnosis.RegisterMetadataAvail("succeeding", func() error { return nil })
-
-	w := &bytes.Buffer{}
-	RunMetadataAvail(w)
-
-	result := w.String()
-	assert.Contains(t, result, "=== Running failing diagnosis ===\n===> FAIL")
-	assert.Contains(t, result, "=== Running succeeding diagnosis ===\n===> PASS")
-}
-
 func TestDiagnoseAllBasicRegAndRunNoDiagnoses(t *testing.T) {
 
-	diagnosis.Register("TestDiagnoseAllBasicRegAndRunNoDiagnoses", func(cfg diagnosis.Config) []diagnosis.Diagnosis {
+	diagnosis.Register("TestDiagnoseAllBasicRegAndRunNoDiagnoses", func(cfg diagnosis.Config, senderManager sender.SenderManager) []diagnosis.Diagnosis {
 		return nil
 	})
 
-	re, _ := regexp.Compile("TestDiagnoseAllBasicRegAndRunNoDiagnoses")
 	diagCfg := diagnosis.Config{
-		Include: []*regexp.Regexp{re},
+		Include:  []string{"TestDiagnoseAllBasicRegAndRunNoDiagnoses"},
+		RunLocal: true,
 	}
-	diagnoses := RunAll(diagCfg)
+	senderManager := mocksender.CreateDefaultDemultiplexer()
+	diagnoses, err := Run(diagCfg, senderManager)
+	assert.NoError(t, err)
 	assert.Len(t, diagnoses, 0)
 }
 
@@ -52,7 +40,7 @@ func TestDiagnoseAllBasicRegAndRunSomeDiagnosis(t *testing.T) {
 			Category:    "Category_foo",
 			Description: "Description_foo",
 			Remediation: "Remediation_foo",
-			RawError:    errors.New("Error_foo"),
+			RawError:    "Error_foo",
 		},
 		{
 			Result:      diagnosis.DiagnosisFail,
@@ -60,35 +48,38 @@ func TestDiagnoseAllBasicRegAndRunSomeDiagnosis(t *testing.T) {
 			Category:    "Category_bar",
 			Description: "Description_bar",
 			Remediation: "Remediation_bar",
-			RawError:    errors.New("Error_bar"),
+			RawError:    "Error_bar",
 		},
 	}
 
-	diagnosis.Register("TestDiagnoseAllBasicRegAndRunSomeDiagnosis-a", func(cfg diagnosis.Config) []diagnosis.Diagnosis {
+	diagnosis.Register("TestDiagnoseAllBasicRegAndRunSomeDiagnosis-a", func(cfg diagnosis.Config, senderManager sender.SenderManager) []diagnosis.Diagnosis {
 		return inDiagnoses
 	})
 
-	diagnosis.Register("TestDiagnoseAllBasicRegAndRunSomeDiagnosis-b", func(cfg diagnosis.Config) []diagnosis.Diagnosis {
+	diagnosis.Register("TestDiagnoseAllBasicRegAndRunSomeDiagnosis-b", func(cfg diagnosis.Config, senderManager sender.SenderManager) []diagnosis.Diagnosis {
 		return inDiagnoses
 	})
 
 	// Include and run
-	reInclude, _ := regexp.Compile("TestDiagnoseAllBasicRegAndRunSomeDiagnosis")
 	diagCfgInclude := diagnosis.Config{
-		Include: []*regexp.Regexp{reInclude},
+		Include:  []string{"TestDiagnoseAllBasicRegAndRunSomeDiagnosis"},
+		RunLocal: true,
 	}
-	outSuitesDiagnosesInclude := RunAll(diagCfgInclude)
+	senderManager := mocksender.CreateDefaultDemultiplexer()
+	outSuitesDiagnosesInclude, err := Run(diagCfgInclude, senderManager)
+	assert.NoError(t, err)
 	assert.Len(t, outSuitesDiagnosesInclude, 2)
 	assert.Equal(t, outSuitesDiagnosesInclude[0].SuiteDiagnoses, inDiagnoses)
 	assert.Equal(t, outSuitesDiagnosesInclude[1].SuiteDiagnoses, inDiagnoses)
 
 	// Include and Exclude and run
-	reExclude, _ := regexp.Compile("TestDiagnoseAllBasicRegAndRunSomeDiagnosis-a")
 	diagCfgIncludeExclude := diagnosis.Config{
-		Include: []*regexp.Regexp{reInclude},
-		Exclude: []*regexp.Regexp{reExclude},
+		Include:  []string{"TestDiagnoseAllBasicRegAndRunSomeDiagnosis"},
+		Exclude:  []string{"TestDiagnoseAllBasicRegAndRunSomeDiagnosis-a"},
+		RunLocal: true,
 	}
-	outSuitesDiagnosesIncludeExclude := RunAll(diagCfgIncludeExclude)
+	outSuitesDiagnosesIncludeExclude, err := Run(diagCfgIncludeExclude, senderManager)
+	assert.NoError(t, err)
 	assert.Len(t, outSuitesDiagnosesIncludeExclude, 1)
 	assert.Equal(t, outSuitesDiagnosesIncludeExclude[0].SuiteDiagnoses, inDiagnoses)
 	assert.Equal(t, outSuitesDiagnosesIncludeExclude[0].SuiteName, "TestDiagnoseAllBasicRegAndRunSomeDiagnosis-b")

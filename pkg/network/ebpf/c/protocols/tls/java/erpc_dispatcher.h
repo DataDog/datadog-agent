@@ -1,5 +1,5 @@
-#ifndef _ERPC_DISPATCHER_H
-#define _ERPC_DISPATCHER_H
+#ifndef __ERPC_DISPATCHER_H
+#define __ERPC_DISPATCHER_H
 
 #include "bpf_helpers.h"
 #include "protocols/tls/java/types.h"
@@ -46,4 +46,13 @@ static void __always_inline handle_erpc_request(struct pt_regs *ctx) {
     bpf_tail_call_compat(ctx, &java_tls_erpc_handlers, op);
 }
 
-#endif // _ERPC_DISPATCHER_H
+SEC("kprobe/do_vfs_ioctl")
+int kprobe__do_vfs_ioctl(struct pt_regs *ctx) {
+    if (is_usm_erpc_request(ctx)) {
+        handle_erpc_request(ctx);
+    }
+
+    return 0;
+}
+
+#endif // __ERPC_DISPATCHER_H

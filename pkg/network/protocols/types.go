@@ -18,6 +18,7 @@ const (
 	AMQP
 	Redis
 	MySQL
+	GRPC
 )
 
 func (p ProtocolType) String() string {
@@ -42,6 +43,8 @@ func (p ProtocolType) String() string {
 		return "Redis"
 	case MySQL:
 		return "MySQL"
+	case GRPC:
+		return "gRPC"
 	default:
 		// shouldn't happen
 		return "Invalid"
@@ -70,4 +73,9 @@ func (s *Stack) MergeWith(other Stack) {
 
 func (s *Stack) Contains(proto ProtocolType) bool {
 	return s.Api == proto || s.Application == proto || s.Encryption == proto
+}
+
+// IsUnknown returns true if all protocol types are `Unknown`
+func (s *Stack) IsUnknown() bool {
+	return s.Api == Unknown && s.Application == Unknown && s.Encryption == Unknown
 }

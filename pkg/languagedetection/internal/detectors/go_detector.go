@@ -16,7 +16,7 @@ import (
 	dderrors "github.com/DataDog/datadog-agent/pkg/errors"
 	"github.com/DataDog/datadog-agent/pkg/languagedetection/languagemodels"
 	"github.com/DataDog/datadog-agent/pkg/network/go/binversion"
-	"github.com/DataDog/datadog-agent/pkg/process/util"
+	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 )
 
 type GoDetector struct {
@@ -24,7 +24,7 @@ type GoDetector struct {
 }
 
 func NewGoDetector() GoDetector {
-	return GoDetector{hostProc: util.HostProc()}
+	return GoDetector{hostProc: kernel.ProcFSRoot()}
 }
 
 // DetectLanguage allows for detecting if a process is a go process, and its version.

@@ -17,22 +17,22 @@ import (
 
 	"github.com/DataDog/ebpf-manager/tracefs"
 
-	flarehelpers "github.com/DataDog/datadog-agent/comp/core/flare/helpers"
+	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
 	"github.com/DataDog/datadog-agent/pkg/config"
 )
 
-func addSystemProbePlatformSpecificEntries(fb flarehelpers.FlareBuilder) {
+func addSystemProbePlatformSpecificEntries(fb flaretypes.FlareBuilder) {
 	sysprobeSocketLocation := config.SystemProbe.GetString("system_probe_config.sysprobe_socket")
 	if sysprobeSocketLocation != "" {
 		fb.RegisterDirPerm(filepath.Dir(sysprobeSocketLocation))
 	}
 }
 
-func getLinuxKernelSymbols(fb flarehelpers.FlareBuilder) error {
+func getLinuxKernelSymbols(fb flaretypes.FlareBuilder) error {
 	return fb.CopyFile("/proc/kallsyms")
 }
 
-func getLinuxKprobeEvents(fb flarehelpers.FlareBuilder) error {
+func getLinuxKprobeEvents(fb flaretypes.FlareBuilder) error {
 	traceFSPath, err := tracefs.Root()
 	if err != nil {
 		return err
@@ -40,7 +40,7 @@ func getLinuxKprobeEvents(fb flarehelpers.FlareBuilder) error {
 	return fb.CopyFile(filepath.Join(traceFSPath, "kprobe_events"))
 }
 
-func getLinuxPid1MountInfo(fb flarehelpers.FlareBuilder) error {
+func getLinuxPid1MountInfo(fb flaretypes.FlareBuilder) error {
 	return fb.CopyFile("/proc/1/mountinfo")
 }
 
@@ -88,7 +88,7 @@ func parseDmesg(buffer []byte) (string, error) {
 	return result, nil
 }
 
-func getLinuxDmesg(fb flarehelpers.FlareBuilder) error {
+func getLinuxDmesg(fb flaretypes.FlareBuilder) error {
 	dmesg, err := readAllDmesg()
 	if err != nil {
 		return err
@@ -102,7 +102,7 @@ func getLinuxDmesg(fb flarehelpers.FlareBuilder) error {
 	return fb.AddFile("dmesg", []byte(content))
 }
 
-func getLinuxTracingAvailableEvents(fb flarehelpers.FlareBuilder) error {
+func getLinuxTracingAvailableEvents(fb flaretypes.FlareBuilder) error {
 	traceFSPath, err := tracefs.Root()
 	if err != nil {
 		return err
@@ -110,7 +110,7 @@ func getLinuxTracingAvailableEvents(fb flarehelpers.FlareBuilder) error {
 	return fb.CopyFile(filepath.Join(traceFSPath, "available_events"))
 }
 
-func getLinuxTracingAvailableFilterFunctions(fb flarehelpers.FlareBuilder) error {
+func getLinuxTracingAvailableFilterFunctions(fb flaretypes.FlareBuilder) error {
 	traceFSPath, err := tracefs.Root()
 	if err != nil {
 		return err

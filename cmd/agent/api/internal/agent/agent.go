@@ -28,9 +28,12 @@ import (
 	dogstatsdServer "github.com/DataDog/datadog-agent/comp/dogstatsd/server"
 	dogstatsdDebug "github.com/DataDog/datadog-agent/comp/dogstatsd/serverDebug"
 	logsAgent "github.com/DataDog/datadog-agent/comp/logs/agent"
+	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	settingshttp "github.com/DataDog/datadog-agent/pkg/config/settings/http"
+	"github.com/DataDog/datadog-agent/pkg/diagnose"
+	"github.com/DataDog/datadog-agent/pkg/diagnose/diagnosis"
 	"github.com/DataDog/datadog-agent/pkg/epforwarder"
 	"github.com/DataDog/datadog-agent/pkg/logs/diagnostic"
 	"github.com/DataDog/datadog-agent/pkg/metadata/inventories"
@@ -55,6 +58,7 @@ func SetupHandlers(
 	server dogstatsdServer.Component,
 	serverDebug dogstatsdDebug.Component,
 	logsAgent util.Optional[logsAgent.Component],
+	senderManager sender.SenderManager,
 ) *mux.Router {
 
 	r.HandleFunc("/version", common.GetVersion).Methods("GET")
@@ -78,6 +82,7 @@ func SetupHandlers(
 	r.HandleFunc("/workload-list", getWorkloadList).Methods("GET")
 	r.HandleFunc("/secrets", secretInfo).Methods("GET")
 	r.HandleFunc("/metadata/{payload}", metadataPayload).Methods("GET")
+	r.HandleFunc("/diagnose", func(w http.ResponseWriter, r *http.Request) { getDiagnose(w, r, senderManager) }).Methods("POST")
 
 	// Some agent subcommands do not provide these dependencies (such as JMX)
 	if server != nil && serverDebug != nil {
@@ -458,6 +463,46 @@ func metadataPayload(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Write(scrubbed)
+}
+
+func getDiagnose(w http.ResponseWriter, r *http.Request, senderManager sender.SenderManager) {
+	var diagCfg diagnosis.Config
+
+	// Read parameters
+	if r.Body != http.NoBody {
+		body, err := io.ReadAll(r.Body)
+		if err != nil {
+			http.Error(w, log.Errorf("Error while reading HTTP request body: %s", err).Error(), 500)
+			return
+		}
+
+		if err := json.Unmarshal(body, &diagCfg); err != nil {
+			http.Error(w, log.Errorf("Error while unmarshaling JSON from request body: %s", err).Error(), 500)
+			return
+		}
+	}
+
+	// Reset the `server_timeout` deadline for this connection as running diagnose code in Agent process can take some time
+	conn := GetConnection(r)
+	_ = conn.SetDeadline(time.Time{})
+
+	// Indicate that we are already running in Agent process (and flip RunLocal)
+	diagCfg.RunningInAgentProcess = true
+	diagCfg.RunLocal = true
+
+	// Get diagnoses via API
+	diagnoses, err := diagnose.Run(diagCfg, senderManager)
+	if err != nil {
+		setJSONError(w, log.Errorf("Running diagnose in Agent process failed: %s", err), 500)
+		return
+	}
+
+	// Serizalize diagnoses (and implicitly write result to the response)
+	w.Header().Set("Content-Type", "application/json")
+	err = json.NewEncoder(w).Encode(diagnoses)
+	if err != nil {
+		setJSONError(w, log.Errorf("Unable to marshal config check response: %s", err), 500)
+	}
 }
 
 // max returns the maximum value between a and b.

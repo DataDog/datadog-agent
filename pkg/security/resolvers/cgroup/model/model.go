@@ -5,6 +5,7 @@
 
 //go:build linux
 
+// Package model holds model related files
 package model
 
 import (
@@ -19,7 +20,7 @@ import (
 )
 
 var (
-	ErrNoImageProvided = errors.New("no image name provided")
+	ErrNoImageProvided = errors.New("no image name provided") // ErrNoImageProvided is returned when no image name is provided
 )
 
 // WorkloadSelector is a selector used to uniquely indentify the image of a workload

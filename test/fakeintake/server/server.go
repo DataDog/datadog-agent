@@ -31,16 +31,18 @@ import (
 )
 
 type Server struct {
-	mu        sync.RWMutex
 	server    http.Server
 	ready     chan bool
 	clock     clock.Clock
 	retention time.Duration
 	shutdown  chan struct{}
 
-	url string
+	urlMutex sync.RWMutex
+	url      string
 
-	payloadStore map[string][]api.Payload
+	storeMutex         sync.RWMutex
+	payloadStore       map[string][]api.Payload
+	payloadParsedStore PayloadParsedStore
 }
 
 // NewServer creates a new fake intake server and starts it on localhost:port
@@ -49,10 +51,12 @@ type Server struct {
 // If the port is 0, a port number is automatically chosen
 func NewServer(options ...func(*Server)) *Server {
 	fi := &Server{
-		mu:           sync.RWMutex{},
-		payloadStore: map[string][]api.Payload{},
-		clock:        clock.New(),
-		retention:    15 * time.Minute,
+		storeMutex:         sync.RWMutex{},
+		urlMutex:           sync.RWMutex{},
+		payloadStore:       map[string][]api.Payload{},
+		clock:              clock.New(),
+		payloadParsedStore: NewPayloadParsedStore(),
+		retention:          15 * time.Minute,
 	}
 
 	mux := http.NewServeMux()
@@ -142,7 +146,7 @@ func (fi *Server) Start() {
 
 			return
 		}
-		fi.url = "http://" + listener.Addr().String()
+		fi.setURL("http://" + listener.Addr().String())
 		// notify server is ready, if anybody is listening
 		if fi.ready != nil {
 			fi.ready <- true
@@ -159,7 +163,15 @@ func (fi *Server) Start() {
 }
 
 func (fi *Server) URL() string {
+	fi.urlMutex.RLock()
+	defer fi.urlMutex.RUnlock()
 	return fi.url
+}
+
+func (fi *Server) setURL(url string) {
+	fi.urlMutex.Lock()
+	defer fi.urlMutex.Unlock()
+	fi.url = url
 }
 
 func (fi *Server) IsRunning() bool {
@@ -168,22 +180,17 @@ func (fi *Server) IsRunning() bool {
 
 // Stop Gracefully stop the http server
 func (fi *Server) Stop() error {
-	defer close(fi.shutdown)
-
 	if !fi.IsRunning() {
 		return fmt.Errorf("server not running")
 	}
+	defer close(fi.shutdown)
 	err := fi.server.Shutdown(context.Background())
 	if err != nil {
 		return err
 	}
 
-	fi.url = ""
+	fi.setURL("")
 	return nil
-}
-
-type postPayloadResponse struct {
-	Errors []string `json:"errors"`
 }
 
 func (fi *Server) cleanUpPayloadsRoutine() {
@@ -200,9 +207,9 @@ func (fi *Server) cleanUpPayloadsRoutine() {
 }
 
 func (fi *Server) cleanUpPayloads() {
-	now := fi.clock.Now()
-	fi.mu.Lock()
-	defer fi.mu.Unlock()
+	now := fi.clock.Now().UTC()
+	fi.storeMutex.Lock()
+	defer fi.storeMutex.Unlock()
 	for route, payloads := range fi.payloadStore {
 		n := 0
 		for _, payload := range payloads {
@@ -217,15 +224,31 @@ func (fi *Server) cleanUpPayloads() {
 }
 func (fi *Server) handleDatadogRequest(w http.ResponseWriter, req *http.Request) {
 	if req == nil {
-		response := buildPostResponse(errors.New("invalid request, nil request"))
-		writeHttpResponse(w, response)
+		response := buildErrorResponse(errors.New("invalid request, nil request"))
+		writeHTTPResponse(w, response)
 		return
 	}
 
 	log.Printf("Handling Datadog %s request to %s, header %v", req.Method, req.URL.Path, req.Header)
 
 	if req.Method == http.MethodGet {
-		writeHttpResponse(w, httpResponse{
+		writeHTTPResponse(w, httpResponse{
+			statusCode: http.StatusOK,
+		})
+		return
+	}
+
+	// Datadog Agent sends a HEAD request to avoid redirect issue before sending the actual flare
+	if req.Method == http.MethodHead && req.URL.Path == "/support/flare" {
+		writeHTTPResponse(w, httpResponse{
+			statusCode: http.StatusOK,
+		})
+		return
+	}
+
+	// Datadog Agent sends a HEAD request to avoid redirect issue before sending the actual flare
+	if req.Method == http.MethodHead && req.URL.Path == "/support/flare" {
+		writeHTTPResponse(w, httpResponse{
 			statusCode: http.StatusOK,
 		})
 		return
@@ -233,131 +256,162 @@ func (fi *Server) handleDatadogRequest(w http.ResponseWriter, req *http.Request)
 
 	// from now on accept only POST requests
 	if req.Method != http.MethodPost {
-		response := buildPostResponse(fmt.Errorf("invalid request with route %s and method %s", req.URL.Path, req.Method))
-		writeHttpResponse(w, response)
+		response := buildErrorResponse(fmt.Errorf("invalid request with route %s and method %s", req.URL.Path, req.Method))
+		writeHTTPResponse(w, response)
 		return
 	}
 
 	if req.Body == nil {
-		response := buildPostResponse(errors.New("invalid request, nil body"))
-		writeHttpResponse(w, response)
+		response := buildErrorResponse(errors.New("invalid request, nil body"))
+		writeHTTPResponse(w, response)
 		return
 	}
 	payload, err := io.ReadAll(req.Body)
 	if err != nil {
-		response := buildPostResponse(err)
-		writeHttpResponse(w, response)
+		log.Printf("Error reading body: %v", err.Error())
+		response := buildErrorResponse(err)
+		writeHTTPResponse(w, response)
 		return
 	}
 
-	fi.safeAppendPayload(req.URL.Path, payload, req.Header.Get("Content-Encoding"))
-	response := buildPostResponse(nil)
-	writeHttpResponse(w, response)
+	// TODO: store all headers directly, and fetch Content-Type/Content-Encoding values when parsing
+	encoding := req.Header.Get("Content-Encoding")
+	if req.URL.Path == "/support/flare" {
+		encoding = req.Header.Get("Content-Type")
+	}
+
+	err = fi.safeAppendPayload(req.URL.Path, payload, encoding)
+	if err != nil {
+		log.Printf("Error caching payload: %v", err.Error())
+		response := buildErrorResponse(err)
+		writeHTTPResponse(w, response)
+		return
+	}
+
+	responseBody := getResponseBodyFromURLPath(req.URL.Path)
+	response := buildSuccessResponse(responseBody)
+	writeHTTPResponse(w, response)
 }
 
-func (fi *Server) handleFlushPayloads(w http.ResponseWriter, req *http.Request) {
+func (fi *Server) handleFlushPayloads(w http.ResponseWriter, _ *http.Request) {
 	fi.safeFlushPayloads()
 
 	// send response
-	writeHttpResponse(w, httpResponse{
+	writeHTTPResponse(w, httpResponse{
 		statusCode: http.StatusOK,
 	})
-}
-
-func buildPostResponse(responseError error) httpResponse {
-	ret := httpResponse{}
-
-	ret.contentType = "application/json"
-	ret.statusCode = http.StatusAccepted
-
-	resp := postPayloadResponse{}
-	if responseError != nil {
-		ret.statusCode = http.StatusBadRequest
-		resp.Errors = []string{responseError.Error()}
-	}
-	body, err := json.Marshal(resp)
-
-	if err != nil {
-		return httpResponse{
-			statusCode:  http.StatusInternalServerError,
-			contentType: "text/plain",
-			body:        []byte(err.Error()),
-		}
-	}
-
-	ret.body = body
-
-	return ret
 }
 
 func (fi *Server) handleGetPayloads(w http.ResponseWriter, req *http.Request) {
 	routes := req.URL.Query()["endpoint"]
 	if len(routes) == 0 {
-		writeHttpResponse(w, httpResponse{
+		writeHTTPResponse(w, httpResponse{
 			contentType: "text/plain",
 			statusCode:  http.StatusBadRequest,
 			body:        []byte("missing endpoint query parameter"),
 		})
 		return
 	}
+
 	// we could support multiple endpoints in the future
 	route := routes[0]
-	log.Printf("Handling GetPayload request for %s payloads", route)
-	payloads := fi.safeGetPayloads(route)
+	log.Printf("Handling GetPayload request for %s payloads.", route)
+	var jsonResp []byte
+	var err error
+	if req.URL.Query().Get("format") != "json" {
+		payloads := fi.safeGetRawPayloads(route)
 
-	// build response
-	resp := api.APIFakeIntakePayloadsGETResponse{
-		Payloads: payloads,
+		// build response
+		resp := api.APIFakeIntakePayloadsRawGETResponse{
+			Payloads: payloads,
+		}
+		jsonResp, err = json.Marshal(resp)
+	} else if fi.payloadParsedStore.IsRouteHandled(route) {
+		payloads, payloadErr := fi.safeGetJsonPayloads(route)
+		if payloadErr != nil {
+			writeHTTPResponse(w, httpResponse{
+				contentType: "text/plain",
+				statusCode:  http.StatusBadRequest,
+				body:        []byte(payloadErr.Error()),
+			})
+			return
+		}
+		// build response
+		resp := api.APIFakeIntakePayloadsJsonGETResponse{
+			Payloads: payloads,
+		}
+		jsonResp, err = json.Marshal(resp)
+	} else {
+		writeHTTPResponse(w, httpResponse{
+			contentType: "text/plain",
+			statusCode:  http.StatusBadRequest,
+			body:        []byte("invalid route parameter"),
+		})
+		return
 	}
-	jsonResp, err := json.Marshal(resp)
+
 	if err != nil {
-		writeHttpResponse(w, httpResponse{
+		writeHTTPResponse(w, httpResponse{
 			contentType: "text/plain",
 			statusCode:  http.StatusInternalServerError,
 			body:        []byte(err.Error()),
 		})
 		return
 	}
-
 	// send response
-	writeHttpResponse(w, httpResponse{
+	writeHTTPResponse(w, httpResponse{
 		contentType: "application/json",
 		statusCode:  http.StatusOK,
 		body:        jsonResp,
 	})
 }
 
-func (fi *Server) handleFakeHealth(w http.ResponseWriter, req *http.Request) {
-	writeHttpResponse(w, httpResponse{
+func (fi *Server) handleFakeHealth(w http.ResponseWriter, _ *http.Request) {
+	writeHTTPResponse(w, httpResponse{
 		statusCode: http.StatusOK,
 	})
 }
 
-func (fi *Server) safeAppendPayload(route string, data []byte, encoding string) {
-	fi.mu.Lock()
-	defer fi.mu.Unlock()
+func (fi *Server) safeAppendPayload(route string, data []byte, encoding string) error {
+	fi.storeMutex.Lock()
+	defer fi.storeMutex.Unlock()
 	if _, found := fi.payloadStore[route]; !found {
 		fi.payloadStore[route] = []api.Payload{}
 	}
-	fi.payloadStore[route] = append(fi.payloadStore[route], api.Payload{
-		Timestamp: fi.clock.Now(),
+	rawPayload := api.Payload{
+		Timestamp: fi.clock.Now().UTC(),
 		Data:      data,
 		Encoding:  encoding,
-	})
+	}
+	fi.payloadStore[route] = append(fi.payloadStore[route], rawPayload)
+	return fi.payloadParsedStore.parseAndAppend(rawPayload, route)
 }
 
-func (fi *Server) safeGetPayloads(route string) []api.Payload {
-	fi.mu.Lock()
-	defer fi.mu.Unlock()
+func (fi *Server) safeGetRawPayloads(route string) []api.Payload {
+	fi.storeMutex.Lock()
+	defer fi.storeMutex.Unlock()
 	payloads := make([]api.Payload, 0, len(fi.payloadStore[route]))
 	payloads = append(payloads, fi.payloadStore[route]...)
 	return payloads
 }
 
+func (fi *Server) safeGetJsonPayloads(route string) ([]api.ParsedPayload, error) {
+	fi.storeMutex.Lock()
+	defer fi.storeMutex.Unlock()
+	payload, err := fi.payloadParsedStore.getJSONPayload(route)
+	if err != nil {
+		return nil, err
+	}
+	payloads := make([]api.ParsedPayload, 0, len(payload))
+	payloads = append(payloads, payload...)
+	return payloads, err
+}
+
 func (fi *Server) safeFlushPayloads() {
-	fi.mu.Lock()
-	defer fi.mu.Unlock()
+	fi.storeMutex.Lock()
+	defer fi.storeMutex.Unlock()
 	fi.payloadStore = map[string][]api.Payload{}
+	fi.payloadParsedStore.Clean()
 }
 
 func (fi *Server) handleGetRouteStats(w http.ResponseWriter, req *http.Request) {
@@ -372,7 +426,7 @@ func (fi *Server) handleGetRouteStats(w http.ResponseWriter, req *http.Request) 
 	}
 	jsonResp, err := json.Marshal(resp)
 	if err != nil {
-		writeHttpResponse(w, httpResponse{
+		writeHTTPResponse(w, httpResponse{
 			contentType: "text/plain",
 			statusCode:  http.StatusInternalServerError,
 			body:        []byte(err.Error()),
@@ -381,7 +435,7 @@ func (fi *Server) handleGetRouteStats(w http.ResponseWriter, req *http.Request) 
 	}
 
 	// send response
-	writeHttpResponse(w, httpResponse{
+	writeHTTPResponse(w, httpResponse{
 		contentType: "application/json",
 		statusCode:  http.StatusOK,
 		body:        jsonResp,
@@ -390,8 +444,8 @@ func (fi *Server) handleGetRouteStats(w http.ResponseWriter, req *http.Request) 
 
 func (fi *Server) safeGetRouteStats() map[string]int {
 	routes := map[string]int{}
-	fi.mu.Lock()
-	defer fi.mu.Unlock()
+	fi.storeMutex.Lock()
+	defer fi.storeMutex.Unlock()
 	for route, payloads := range fi.payloadStore {
 		routes[route] = len(payloads)
 	}

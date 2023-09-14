@@ -5,6 +5,7 @@
 
 //go:build linux
 
+// Package probes holds probes related files
 package probes
 
 import manager "github.com/DataDog/ebpf-manager"
@@ -29,15 +30,12 @@ func getSELinuxProbes(fentry bool) []*manager.Probe {
 				EBPFFuncName: "hook_sel_commit_bools_write",
 			},
 		},
-	}
-
-	if !fentry {
-		selinuxProbes = append(selinuxProbes, &manager.Probe{
+		{
 			ProbeIdentificationPair: manager.ProbeIdentificationPair{
 				UID:          SecurityAgentUID,
 				EBPFFuncName: "hook_sel_write_disable",
 			},
-		})
+		},
 	}
 
 	return selinuxProbes

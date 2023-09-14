@@ -6,6 +6,7 @@
 package sender
 
 import (
+	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	"github.com/DataDog/datadog-agent/pkg/collector/check/stats"
 	"github.com/DataDog/datadog-agent/pkg/metrics/event"
 	"github.com/DataDog/datadog-agent/pkg/metrics/servicecheck"
@@ -24,6 +25,7 @@ type Sender interface {
 	Counter(metric string, value float64, hostname string, tags []string)
 	Histogram(metric string, value float64, hostname string, tags []string)
 	Historate(metric string, value float64, hostname string, tags []string)
+	Distribution(metric string, value float64, hostname string, tags []string)
 	ServiceCheck(checkName string, status servicecheck.ServiceCheckStatus, hostname string, tags []string, message string)
 	HistogramBucket(metric string, value int64, lowerBound, upperBound float64, monotonic bool, hostname string, tags []string, flushFirstValue bool)
 	Event(e event.Event)
@@ -36,4 +38,11 @@ type Sender interface {
 	FinalizeCheckServiceTag()
 	OrchestratorMetadata(msgs []types.ProcessMessageBody, clusterID string, nodeType int)
 	OrchestratorManifest(msgs []types.ProcessMessageBody, clusterID string)
+}
+
+type SenderManager interface {
+	GetSender(id checkid.ID) (Sender, error)
+	SetSender(Sender, checkid.ID) error
+	DestroySender(id checkid.ID)
+	GetDefaultSender() (Sender, error)
 }

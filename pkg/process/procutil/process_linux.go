@@ -23,7 +23,8 @@ import (
 
 	"go.uber.org/atomic"
 
-	"github.com/DataDog/datadog-agent/pkg/process/util"
+	"github.com/DataDog/datadog-agent/pkg/util/filesystem"
+	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -71,6 +72,15 @@ func WithReturnZeroPermStats(enabled bool) Option {
 	}
 }
 
+// WithProcFSRoot confiugres the procfs directory that the probe reads from
+func WithProcFSRoot(path string) Option {
+	return func(p Probe) {
+		if linuxProbe, ok := p.(*probe); ok {
+			linuxProbe.procRootLoc = path
+		}
+	}
+}
+
 // WithPermission configures if process collection should fetch fields
 // that require elevated permission or not
 func WithPermission(elevatedPermissions bool) Option {
@@ -108,7 +118,7 @@ type probe struct {
 
 // NewProcessProbe initializes a new Probe object
 func NewProcessProbe(options ...Option) Probe {
-	hostProc := util.HostProc()
+	hostProc := kernel.ProcFSRoot()
 	bootTime, err := bootTime(hostProc)
 	if err != nil {
 		log.Errorf("could not parse boot time: %s", err)
@@ -167,7 +177,7 @@ func (p *probe) StatsForPIDs(pids []int32, now time.Time) (map[int32]*Stats, err
 	statsByPID := make(map[int32]*Stats, len(pids))
 	for _, pid := range pids {
 		pathForPID := filepath.Join(p.procRootLoc, strconv.Itoa(int(pid)))
-		if !util.PathExists(pathForPID) {
+		if !filesystem.FileExists(pathForPID) {
 			log.Debugf("Unable to create new process %d, dir %s doesn't exist", pid, pathForPID)
 			continue
 		}
@@ -212,7 +222,7 @@ func (p *probe) ProcessesByPID(now time.Time, collectStats bool) (map[int32]*Pro
 	procsByPID := make(map[int32]*Process, len(pids))
 	for _, pid := range pids {
 		pathForPID := filepath.Join(p.procRootLoc, strconv.Itoa(int(pid)))
-		if !util.PathExists(pathForPID) {
+		if !filesystem.FileExists(pathForPID) {
 			log.Debugf("Unable to create new process %d, dir %s doesn't exist", pid, pathForPID)
 			continue
 		}
@@ -287,7 +297,7 @@ func (p *probe) StatsWithPermByPID(pids []int32) (map[int32]*StatsWithPerm, erro
 	statsByPID := make(map[int32]*StatsWithPerm, len(pids))
 	for _, pid := range pids {
 		pathForPID := filepath.Join(p.procRootLoc, strconv.Itoa(int(pid)))
-		if !util.PathExists(pathForPID) {
+		if !filesystem.FileExists(pathForPID) {
 			log.Debugf("Unable to create new process %d, dir %s doesn't exist", pid, pathForPID)
 			continue
 		}

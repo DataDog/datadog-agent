@@ -12,6 +12,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"strings"
 	"testing"
 	"time"
 
@@ -215,6 +216,8 @@ func TestProcessMessageValid(t *testing.T) {
 		Tags: metricTags,
 	}
 	lc := NewLambdaLogCollector(make(chan<- *config.ChannelMessage), demux, &tags, true, computeEnhancedMetrics, mockExecutionContext, func() {}, make(chan<- *LambdaInitMetric))
+	lc.invocationStartTime = time.Now()
+	lc.invocationEndTime = time.Now().Add(10 * time.Millisecond)
 
 	lc.processMessage(&message)
 
@@ -463,6 +466,8 @@ func TestProcessMessageShouldProcessLogTypePlatformReportOutOfMemory(t *testing.
 
 	lc := NewLambdaLogCollector(make(chan<- *config.ChannelMessage), demux, &tags, true, computeEnhancedMetrics, mockExecutionContext, func() {}, make(chan<- *LambdaInitMetric))
 	lc.lastRequestID = lastRequestID
+	lc.invocationStartTime = time.Now()
+	lc.invocationEndTime = time.Now().Add(10 * time.Millisecond)
 
 	go lc.processMessage(message)
 
@@ -750,6 +755,8 @@ func TestProcessMultipleLogMessagesTimeoutLogFromReportLog(t *testing.T) {
 		invocationStartTime: time.Now(),
 		invocationEndTime:   time.Now().Add(10 * time.Millisecond),
 	}
+	lc.invocationStartTime = time.Now()
+	lc.invocationEndTime = time.Now().Add(10 * time.Millisecond)
 
 	reportLogMessageOne := LambdaLogAPIMessage{
 		objectRecord: platformObjectRecord{
@@ -796,25 +803,31 @@ func TestProcessMultipleLogMessagesTimeoutLogFromReportLog(t *testing.T) {
 			createStringRecordForReportLog(lc.invocationStartTime, lc.invocationEndTime, &reportLogMessageTwo),
 		},
 	}
-	expectedErrors := map[string][]bool{
-		"myRequestID-1": {false, true},
-		"myRequestID-2": {false},
-	}
 
-	for reqId, logsSlice := range expectedLogs {
-		for i := 0; i < len(logsSlice); i++ {
-			select {
-			case received := <-logChannel:
-				assert.NotNil(t, received)
-				assert.Equal(t, "my-arn", received.Lambda.ARN)
-				assert.Equal(t, reqId, received.Lambda.RequestID)
-				assert.Equal(t, logsSlice[i], string(received.Content))
-				assert.Equal(t, expectedErrors[reqId][i], received.IsError)
-			case <-time.After(100 * time.Millisecond):
-				assert.Fail(t, "We should have received logs")
+	for i := 0; i < 3; i++ {
+		select {
+		case received := <-logChannel:
+			assert.NotNil(t, received)
+			logs := expectedLogs[received.Lambda.RequestID]
+			assert.NotEmpty(t, logs)
+			logMatch := false
+			for _, logString := range logs {
+				if logString == string(received.Content) {
+					logMatch = true
+				}
 			}
+			assert.True(t, logMatch)
+			assert.Equal(t, "my-arn", received.Lambda.ARN)
+			if strings.Contains(string(received.Content), "Task timed out") {
+				assert.True(t, received.IsError)
+			} else {
+				assert.False(t, received.IsError)
+			}
+		case <-time.After(100 * time.Millisecond):
+			assert.Fail(t, "We should have received logs")
 		}
 	}
+
 }
 
 func TestProcessLogMessagesOutOfMemoryError(t *testing.T) {
@@ -858,6 +871,54 @@ func TestProcessLogMessagesOutOfMemoryError(t *testing.T) {
 		assert.Equal(t, "my-arn", received.Lambda.ARN)
 		assert.Equal(t, "myRequestID", received.Lambda.RequestID)
 		assert.Equal(t, true, received.IsError)
+	case <-time.After(100 * time.Millisecond):
+		assert.Fail(t, "We should have received logs")
+	}
+}
+
+func TestProcessLogMessageLogsNoRequestID(t *testing.T) {
+
+	logChannel := make(chan *config.ChannelMessage)
+	orphanLogsChan := make(chan []LambdaLogAPIMessage, maxBufferedLogs)
+
+	mockExecutionContext := &executioncontext.ExecutionContext{}
+	mockExecutionContext.SetArnFromExtensionResponse("my-arn")
+
+	logCollection := &LambdaLogsCollector{
+		logsEnabled: true,
+		out:         logChannel,
+		extraTags: &Tags{
+			Tags: []string{"tag0:value0,tag1:value1"},
+		},
+		executionContext: mockExecutionContext,
+		orphanLogsChan:   orphanLogsChan,
+	}
+
+	logMessages := []LambdaLogAPIMessage{
+		{
+			stringRecord: "hi, log 0",
+		},
+		{
+			stringRecord: "hi, log 1",
+		},
+		{
+			stringRecord: "hi, log 2",
+		},
+	}
+	go logCollection.processLogMessages(logMessages)
+
+	select {
+	case <-logChannel:
+		assert.Fail(t, "We should not have received logs")
+	case <-time.After(100 * time.Millisecond):
+		// nothing to do here
+	}
+
+	select {
+	case received := <-orphanLogsChan:
+		for _, msg := range received {
+			assert.Equal(t, "", msg.objectRecord.requestID)
+		}
 	case <-time.After(100 * time.Millisecond):
 		assert.Fail(t, "We should have received logs")
 	}
@@ -1254,4 +1315,30 @@ func TestRuntimeMetricsMatchLogsProactiveInit(t *testing.T) {
 	expectedStringRecord := fmt.Sprintf("REPORT RequestId: 13dee504-0d50-4c86-8d82-efd20693afc9\tDuration: %.2f ms\tRuntime Duration: %.2f ms\tPost Runtime Duration: %.2f ms\tBilled Duration: 0 ms\tMemory Size: 0 MB\tMax Memory Used: 0 MB", durationMs, runtimeDurationMs, postRuntimeDurationMs)
 	assert.Equal(t, reportMessage.stringRecord, expectedStringRecord)
 	assert.Len(t, timedMetrics, 0)
+}
+
+func TestMultipleStartLogCollection(t *testing.T) {
+	log := fxutil.Test[log.Component](t, log.MockModule)
+	demux := aggregator.InitTestAgentDemultiplexerWithFlushInterval(log, time.Hour)
+	defer demux.Stop(false)
+
+	arn := "arn:aws:lambda:us-east-1:123456789012:function:test-function"
+	lastRequestID := "8286a188-ba32-4475-8077-530cd35c09a9"
+	metricTags := []string{"functionname:test-function"}
+	tags := Tags{
+		Tags: metricTags,
+	}
+	computeEnhancedMetrics := true
+
+	mockExecutionContext := &executioncontext.ExecutionContext{}
+	mockExecutionContext.SetFromInvocation(arn, lastRequestID)
+	lc := NewLambdaLogCollector(make(chan<- *config.ChannelMessage), demux, &tags, true, computeEnhancedMetrics, mockExecutionContext, func() {}, make(chan<- *LambdaInitMetric))
+
+	// start log collection multiple times
+	for i := 0; i < 5; i++ {
+		// due to process_once, we should only set the log collector's context once from the execution context
+		lc.Start()
+		mockExecutionContext.SetArnFromExtensionResponse(fmt.Sprintf("arn-%v", i))
+	}
+	assert.Equal(t, arn, lc.arn)
 }

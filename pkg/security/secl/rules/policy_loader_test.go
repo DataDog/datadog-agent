@@ -3,13 +3,15 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+// Package rules holds rules related files
 package rules
 
 import (
 	"fmt"
+	"testing"
+
 	"github.com/hashicorp/go-multierror"
 	"github.com/stretchr/testify/assert"
-	"testing"
 )
 
 // go test -v github.com/DataDog/datadog-agent/pkg/security/secl/rules --run="TestPolicyLoader_LoadPolicies"
@@ -469,13 +471,9 @@ func (d dummyDirProvider) LoadPolicies(_ []MacroFilter, _ []RuleFilter) ([]*Poli
 	return d.dummyLoadPoliciesFunc()
 }
 
-func (dummyDirProvider) SetOnNewPoliciesReadyCb(f func()) {
-	return
-}
+func (dummyDirProvider) SetOnNewPoliciesReadyCb(f func()) {}
 
-func (dummyDirProvider) Start() {
-	return
-}
+func (dummyDirProvider) Start() {}
 
 func (dummyDirProvider) Close() error {
 	return nil
@@ -493,13 +491,9 @@ func (d dummyRCProvider) LoadPolicies(_ []MacroFilter, _ []RuleFilter) ([]*Polic
 	return d.dummyLoadPoliciesFunc()
 }
 
-func (dummyRCProvider) SetOnNewPoliciesReadyCb(f func()) {
-	return
-}
+func (dummyRCProvider) SetOnNewPoliciesReadyCb(f func()) {}
 
-func (dummyRCProvider) Start() {
-	return
-}
+func (dummyRCProvider) Start() {}
 
 func (dummyRCProvider) Close() error {
 	return nil

@@ -17,7 +17,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
-	"github.com/DataDog/datadog-agent/pkg/collector/check/stats"
+	"github.com/DataDog/datadog-agent/pkg/collector/check/stub"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
@@ -30,9 +30,9 @@ type CollectorDemuxTestSuite struct {
 }
 
 func (suite *CollectorDemuxTestSuite) SetupTest() {
-	suite.c = NewCollector()
 	log := fxutil.Test[log.Component](suite.T(), log.MockModule)
 	suite.demux = aggregator.InitTestAgentDemultiplexerWithFlushInterval(log, 100*time.Hour)
+	suite.c = NewCollector(suite.demux)
 
 	suite.c.Start()
 }
@@ -52,17 +52,18 @@ func (suite *CollectorDemuxTestSuite) TestCancelledCheckCanSendMetrics() {
 	flop := make(chan struct{})
 
 	ch := &cancelledCheck{
-		flip: flip,
-		flop: flop,
+		flip:  flip,
+		flop:  flop,
+		demux: suite.demux,
 	}
 
-	sender, _ := aggregator.GetSender(ch.ID())
+	sender, _ := suite.demux.GetSender(ch.ID())
 	sender.DisableDefaultHostname(true)
 
 	suite.c.RunCheck(ch)
 
 	// Wait for Check#Run to start before cancelling the check: otherwise it may not run at all.
-	_ = <-flip
+	<-flip
 
 	err := suite.c.StopCheck(ch.ID())
 	assert.NoError(suite.T(), err)
@@ -71,7 +72,7 @@ func (suite *CollectorDemuxTestSuite) TestCancelledCheckCanSendMetrics() {
 
 	suite.waitForCancelledCheckMetrics()
 
-	newSender, err := aggregator.GetSender(ch.ID())
+	newSender, err := suite.demux.GetSender(ch.ID())
 	assert.Nil(suite.T(), err)
 	assert.NotEqual(suite.T(), sender, newSender) // GetSedner returns a new instance, which means the old sender was destroyed correctly.
 }
@@ -98,11 +99,12 @@ func (suite *CollectorDemuxTestSuite) TestCancelledCheckDestroysSender() {
 	flop := make(chan struct{})
 
 	ch := &cancelledCheck{
-		flip: flip,
-		flop: flop,
+		flip:  flip,
+		flop:  flop,
+		demux: suite.demux,
 	}
 
-	sender, _ := aggregator.GetSender(ch.ID())
+	sender, _ := suite.demux.GetSender(ch.ID())
 	sender.DisableDefaultHostname(true)
 
 	suite.c.RunCheck(ch)
@@ -114,7 +116,7 @@ func (suite *CollectorDemuxTestSuite) TestCancelledCheckDestroysSender() {
 
 	suite.waitForCancelledCheckMetrics()
 
-	newSender, err := aggregator.GetSender(ch.ID())
+	newSender, err := suite.demux.GetSender(ch.ID())
 	assert.Nil(suite.T(), err)
 	assert.NotEqual(suite.T(), sender, newSender) // GetSedner returns a new instance, which means the old sender was destroyed correctly.
 }
@@ -126,11 +128,12 @@ func (suite *CollectorDemuxTestSuite) TestRescheduledCheckReusesSampler() {
 	flop := make(chan struct{})
 
 	ch := &cancelledCheck{
-		flip: flip,
-		flop: flop,
+		flip:  flip,
+		flop:  flop,
+		demux: suite.demux,
 	}
 
-	sender, err := aggregator.GetSender(ch.ID())
+	sender, err := suite.demux.GetSender(ch.ID())
 	assert.NoError(suite.T(), err)
 	sender.DisableDefaultHostname(true)
 
@@ -150,13 +153,13 @@ func (suite *CollectorDemuxTestSuite) TestRescheduledCheckReusesSampler() {
 	}, time.Second, 10*time.Millisecond)
 
 	// create new sender and try registering sampler before flush
-	_, err = aggregator.GetSender(ch.ID())
+	_, err = suite.demux.GetSender(ch.ID())
 	assert.NoError(suite.T(), err)
 
 	// flush
 	suite.waitForCancelledCheckMetrics()
 
-	sender, _ = aggregator.GetSender(ch.ID())
+	sender, _ = suite.demux.GetSender(ch.ID())
 	sender.DisableDefaultHostname(true)
 
 	// Run the check again
@@ -174,16 +177,17 @@ func TestCollectorDemuxSuite(t *testing.T) {
 }
 
 type cancelledCheck struct {
-	stats.StubCheck
-	flip chan struct{}
-	flop chan struct{}
+	stub.StubCheck
+	flip  chan struct{}
+	flop  chan struct{}
+	demux *aggregator.TestAgentDemultiplexer
 }
 
 func (c *cancelledCheck) Run() error {
 	c.flip <- struct{}{}
 
 	<-c.flop
-	s, err := aggregator.GetSender(c.ID())
+	s, err := c.demux.GetSender(c.ID())
 	if err != nil {
 		return err
 	}

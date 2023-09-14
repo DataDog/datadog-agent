@@ -77,6 +77,11 @@ func (t *telemetryImpl) RegisterCollector(c prometheus.Collector) {
 	registry.MustRegister(c)
 }
 
+// UnregisterCollector unregisters a Collector with the prometheus registry
+func (t *telemetryImpl) UnregisterCollector(c prometheus.Collector) bool {
+	return registry.Unregister(c)
+}
+
 func (t *telemetryImpl) Meter(name string, opts ...metric.MeterOption) metric.Meter {
 	return t.meterProvider.Meter(name, opts...)
 }

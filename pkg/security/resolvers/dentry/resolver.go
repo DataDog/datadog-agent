@@ -5,6 +5,7 @@
 
 //go:build linux
 
+// Package dentry holds dentry related files
 package dentry
 
 import (
@@ -60,7 +61,7 @@ type Resolver struct {
 	erpcSegment           []byte
 	erpcSegmentSize       int
 	useBPFProgWriteUser   bool
-	erpcRequest           erpc.ERPCRequest
+	erpcRequest           erpc.Request
 	erpcStatsZero         []eRPCStats
 	numCPU                int
 	challenge             uint32
@@ -424,7 +425,9 @@ func (dr *Resolver) ResolveFromMap(pathKey model.PathKey, cache bool) (string, e
 		if depth > 0 {
 			dr.hitsCounters[entry].Add(depth)
 		}
-	} else {
+	}
+
+	if resolutionErr != nil {
 		dr.missCounters[entry].Inc()
 	}
 
@@ -586,7 +589,9 @@ func (dr *Resolver) ResolveFromERPC(pathKey model.PathKey, cache bool) (string, 
 		if depth > 0 {
 			dr.hitsCounters[entry].Add(depth)
 		}
-	} else {
+	}
+
+	if resolutionErr != nil {
 		dr.missCounters[entry].Inc()
 	}
 
@@ -779,7 +784,7 @@ func NewResolver(config *config.Config, statsdClient statsd.ClientInterface, e *
 		statsdClient:  statsdClient,
 		cache:         make(map[uint32]*lru.Cache[model.PathKey, *PathEntry]),
 		erpc:          e,
-		erpcRequest:   erpc.ERPCRequest{},
+		erpcRequest:   erpc.Request{},
 		erpcStatsZero: make([]eRPCStats, numCPU),
 		hitsCounters:  hitsCounters,
 		missCounters:  missCounters,

@@ -81,13 +81,13 @@ func GetValueFromPDU(pduVariable gosnmp.SnmpPDU) (interface{}, error) {
 
 // StandardTypeToString can be used to convert the output of `GetValueFromPDU` to a string
 func StandardTypeToString(value interface{}) (string, error) {
-	switch value.(type) {
+	switch value := value.(type) {
 	case float64:
-		return strconv.Itoa(int(value.(float64))), nil
+		return strconv.Itoa(int(value)), nil
 	case string:
-		return value.(string), nil
+		return value, nil
 	case []byte:
-		bytesValue := value.([]byte)
+		bytesValue := value
 		var strValue string
 		if !IsStringPrintable(bytesValue) {
 			// We hexify like Python/pysnmp impl (keep compatibility) if the value contains non ascii letters:

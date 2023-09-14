@@ -13,6 +13,7 @@ import (
 	_ "net/http/pprof"
 	"os"
 	"os/signal"
+	"os/user"
 	"syscall"
 	"time"
 
@@ -141,25 +142,74 @@ func run(log log.Component, config config.Component, telemetry telemetry.Compone
 }
 
 // StartSystemProbeWithDefaults is a temporary way for other packages to use startSystemProbe.
-func StartSystemProbeWithDefaults() error {
+// Starts the agent in the background and then returns.
+//
+// @ctxChan
+//   - After starting the agent the background goroutine waits for a context from
+//     this channel, then stops the agent when the context is cancelled.
+//
+// Returns an error channel that can be used to wait for the agent to stop and get the result.
+func StartSystemProbeWithDefaults(ctxChan <-chan context.Context) (<-chan error, error) {
+	errChan := make(chan error)
+
 	// run startSystemProbe in an app, so that the log and config components get initialized
-	return fxutil.OneShot(
-		func(log log.Component, config config.Component, telemetry telemetry.Component, sysprobeconfig sysprobeconfig.Component, rcclient rcclient.Component) error {
-			return startSystemProbe(&cliParams{GlobalParams: &command.GlobalParams{}}, log, telemetry, sysprobeconfig, rcclient)
-		},
-		// no config file path specification in this situation
-		fx.Supply(config.NewAgentParamsWithoutSecrets("", config.WithConfigMissingOK(true))),
-		fx.Supply(sysprobeconfig.NewParams(sysprobeconfig.WithSysProbeConfFilePath(""))),
-		fx.Supply(log.LogForDaemon("SYS-PROBE", "log_file", common.DefaultLogFile)),
-		rcclient.Module,
-		config.Module,
-		telemetry.Module,
-		sysprobeconfig.Module,
-		// use system-probe config instead of agent config for logging
-		fx.Provide(func(lc fx.Lifecycle, params log.Params, sysprobeconfig sysprobeconfig.Component) (log.Component, error) {
-			return log.NewLogger(lc, params, sysprobeconfig)
-		}),
-	)
+	go func() {
+		err := fxutil.OneShot(
+			func(log log.Component, config config.Component, telemetry telemetry.Component, sysprobeconfig sysprobeconfig.Component, rcclient rcclient.Component) error {
+				defer StopSystemProbeWithDefaults()
+				err := startSystemProbe(&cliParams{GlobalParams: &command.GlobalParams{}}, log, telemetry, sysprobeconfig, rcclient)
+				if err != nil {
+					return err
+				}
+
+				// notify outer that startAgent finished
+				errChan <- err
+				// wait for context
+				ctx := <-ctxChan
+
+				// Wait for stop signal
+				select {
+				case <-signals.Stopper:
+					log.Info("Received stop command, shutting down...")
+				case <-signals.ErrorStopper:
+					_ = log.Critical("The Agent has encountered an error, shutting down...")
+				case <-ctx.Done():
+					log.Info("Received stop from service manager, shutting down...")
+				}
+
+				return nil
+			},
+			// no config file path specification in this situation
+			fx.Supply(config.NewAgentParamsWithoutSecrets("", config.WithConfigMissingOK(true))),
+			fx.Supply(sysprobeconfig.NewParams(sysprobeconfig.WithSysProbeConfFilePath(""))),
+			fx.Supply(log.LogForDaemon("SYS-PROBE", "log_file", common.DefaultLogFile)),
+			rcclient.Module,
+			config.Module,
+			telemetry.Module,
+			sysprobeconfig.Module,
+			// use system-probe config instead of agent config for logging
+			fx.Provide(func(lc fx.Lifecycle, params log.Params, sysprobeconfig sysprobeconfig.Component) (log.Component, error) {
+				return log.NewLogger(lc, params, sysprobeconfig)
+			}),
+		)
+		// notify caller that fx.OneShot is done
+		errChan <- err
+	}()
+
+	// Wait for startSystemProbe to complete, or for an error
+	err := <-errChan
+	if err != nil {
+		// startSystemProbe or fx.OneShot failed, caller does not need errChan
+		return nil, err
+	}
+
+	// startSystemProbe succeeded. provide errChan to caller so they can wait for fxutil.OneShot to stop
+	return errChan, nil
+}
+
+// StopSystemProbeWithDefaults is a temporary way for other packages to use stopAgent.
+func StopSystemProbeWithDefaults() {
+	stopSystemProbe(&cliParams{GlobalParams: &command.GlobalParams{}})
 }
 
 // startSystemProbe Initializes the system-probe process
@@ -171,6 +221,7 @@ func startSystemProbe(cliParams *cliParams, log log.Component, telemetry telemet
 
 	log.Infof("starting system-probe v%v", version.AgentVersion)
 
+	logUserAndGroupID(log)
 	// Exit if system probe is disabled
 	if cfg.ExternalSystemProbe || !cfg.Enabled {
 		log.Info("system probe not enabled. exiting")
@@ -246,11 +297,6 @@ func startSystemProbe(cliParams *cliParams, log log.Component, telemetry telemet
 	return nil
 }
 
-// StopSystemProbeWithDefaults is a temporary way for other packages to use stopAgent.
-func StopSystemProbeWithDefaults() {
-	stopSystemProbe(&cliParams{GlobalParams: &command.GlobalParams{}})
-}
-
 // stopSystemProbe Tears down the system-probe process
 func stopSystemProbe(cliParams *cliParams) {
 	module.Close()
@@ -294,4 +340,21 @@ func setupInternalProfiling(cfg ddconfig.ConfigReader, configPrefix string, log 
 
 func isValidPort(port int) bool {
 	return port > 0 && port < 65536
+}
+
+func logUserAndGroupID(log log.Component) {
+	currentUser, err := user.Current()
+	if err != nil {
+		log.Warnf("error fetching current user: %s", err)
+		return
+	}
+	uid := currentUser.Uid
+	gid := currentUser.Gid
+	log.Infof("current user id/name: %s/%s", uid, currentUser.Name)
+	currentGroup, err := user.LookupGroupId(gid)
+	if err == nil {
+		log.Infof("current group id/name: %s/%s", gid, currentGroup.Name)
+	} else {
+		log.Warnf("unable to resolve group: %s", err)
+	}
 }

@@ -16,7 +16,9 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
+	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	"github.com/DataDog/datadog-agent/pkg/diagnose/diagnosis"
@@ -201,8 +203,7 @@ import "C"
 func testRunCheck(t *testing.T) {
 	rtloader = newMockRtLoaderPtr()
 	defer func() { rtloader = nil }()
-
-	check, err := NewPythonFakeCheck()
+	check, err := NewPythonFakeCheck(aggregator.NewNoOpSenderManager())
 	if !assert.Nil(t, err) {
 		return
 	}
@@ -229,8 +230,7 @@ func testRunCheck(t *testing.T) {
 func testRunCheckWithRuntimeNotInitializedError(t *testing.T) {
 	rtloader = newMockRtLoaderPtr()
 	defer func() { rtloader = nil }()
-
-	check, err := NewPythonFakeCheck()
+	check, err := NewPythonFakeCheck(aggregator.NewNoOpSenderManager())
 	if !assert.Nil(t, err) {
 		return
 	}
@@ -255,8 +255,7 @@ func testInitiCheckWithRuntimeNotInitialized(t *testing.T) {
 	rtloader = nil
 
 	C.reset_check_mock()
-
-	_, err := NewPythonFakeCheck()
+	_, err := NewPythonFakeCheck(aggregator.NewNoOpSenderManager())
 	if !assert.NotNil(t, err) {
 		return
 	}
@@ -278,8 +277,7 @@ func testInitiCheckWithRuntimeNotInitialized(t *testing.T) {
 func testCheckCancel(t *testing.T) {
 	rtloader = newMockRtLoaderPtr()
 	defer func() { rtloader = nil }()
-
-	check, err := NewPythonFakeCheck()
+	check, err := NewPythonFakeCheck(aggregator.NewNoOpSenderManager())
 	if !assert.Nil(t, err) {
 		return
 	}
@@ -316,7 +314,7 @@ func testCheckCancelWhenRuntimeUnloaded(t *testing.T) {
 	rtloader = newMockRtLoaderPtr()
 	defer func() { rtloader = nil }()
 
-	check, err := NewPythonFakeCheck()
+	check, err := NewPythonFakeCheck(aggregator.NewNoOpSenderManager())
 	if !assert.Nil(t, err) {
 		return
 	}
@@ -356,7 +354,7 @@ func testFinalizer(t *testing.T) {
 		pyDestroyLock.Unlock()
 	}()
 
-	check, err := NewPythonFakeCheck()
+	check, err := NewPythonFakeCheck(aggregator.NewNoOpSenderManager())
 	if !assert.Nil(t, err) {
 		return
 	}
@@ -400,7 +398,7 @@ func testFinalizerWhenRuntimeUnloaded(t *testing.T) {
 		pyDestroyLock.Unlock()
 	}()
 
-	check, err := NewPythonFakeCheck()
+	check, err := NewPythonFakeCheck(aggregator.NewNoOpSenderManager())
 	if !assert.Nil(t, err) {
 		return
 	}
@@ -440,7 +438,7 @@ func testRunErrorNil(t *testing.T) {
 	rtloader = newMockRtLoaderPtr()
 	defer func() { rtloader = nil }()
 
-	check, err := NewPythonFakeCheck()
+	check, err := NewPythonFakeCheck(aggregator.NewNoOpSenderManager())
 	if !assert.Nil(t, err) {
 		return
 	}
@@ -468,7 +466,7 @@ func testRunErrorReturn(t *testing.T) {
 	rtloader = newMockRtLoaderPtr()
 	defer func() { rtloader = nil }()
 
-	check, err := NewPythonFakeCheck()
+	check, err := NewPythonFakeCheck(aggregator.NewNoOpSenderManager())
 	if !assert.Nil(t, err) {
 		return
 	}
@@ -497,7 +495,7 @@ func testRun(t *testing.T) {
 	rtloader = newMockRtLoaderPtr()
 	defer func() { rtloader = nil }()
 
-	c, err := NewPythonFakeCheck()
+	c, err := NewPythonFakeCheck(sender.GetSenderManager())
 	if !assert.Nil(t, err) {
 		return
 	}
@@ -530,7 +528,7 @@ func testRunSimple(t *testing.T) {
 	rtloader = newMockRtLoaderPtr()
 	defer func() { rtloader = nil }()
 
-	c, err := NewPythonFakeCheck()
+	c, err := NewPythonFakeCheck(sender.GetSenderManager())
 	if !assert.Nil(t, err) {
 		return
 	}
@@ -560,7 +558,8 @@ func testConfigure(t *testing.T) {
 	rtloader = newMockRtLoaderPtr()
 	defer func() { rtloader = nil }()
 
-	c, err := NewPythonFakeCheck()
+	senderManager := mocksender.CreateDefaultDemultiplexer()
+	c, err := NewPythonFakeCheck(senderManager)
 	if !assert.Nil(t, err) {
 		return
 	}
@@ -571,7 +570,7 @@ func testConfigure(t *testing.T) {
 
 	C.get_check_return = 1
 	C.get_check_check = newMockPyObjectPtr()
-	err = c.Configure(integration.FakeConfigHash, integration.Data("{\"val\": 21}"), integration.Data("{\"val\": 21}"), "test")
+	err = c.Configure(senderManager, integration.FakeConfigHash, integration.Data("{\"val\": 21}"), integration.Data("{\"val\": 21}"), "test")
 	assert.Nil(t, err)
 
 	assert.Equal(t, c.class, C.get_check_py_class)
@@ -594,7 +593,8 @@ func testConfigureDeprecated(t *testing.T) {
 	rtloader = newMockRtLoaderPtr()
 	defer func() { rtloader = nil }()
 
-	c, err := NewPythonFakeCheck()
+	senderManager := mocksender.CreateDefaultDemultiplexer()
+	c, err := NewPythonFakeCheck(senderManager)
 	if !assert.Nil(t, err) {
 		return
 	}
@@ -606,7 +606,7 @@ func testConfigureDeprecated(t *testing.T) {
 	C.get_check_return = 0
 	C.get_check_deprecated_check = newMockPyObjectPtr()
 	C.get_check_deprecated_return = 1
-	err = c.Configure(integration.FakeConfigHash, integration.Data("{\"val\": 21}"), integration.Data("{\"val\": 21}"), "test")
+	err = c.Configure(senderManager, integration.FakeConfigHash, integration.Data("{\"val\": 21}"), integration.Data("{\"val\": 21}"), "test")
 	assert.Nil(t, err)
 
 	assert.Equal(t, c.class, C.get_check_py_class)
@@ -632,7 +632,7 @@ func testGetDiagnoses(t *testing.T) {
 	rtloader = newMockRtLoaderPtr()
 	defer func() { rtloader = nil }()
 
-	check, err := NewPythonFakeCheck()
+	check, err := NewPythonFakeCheck(aggregator.NewNoOpSenderManager())
 	if !assert.Nil(t, err) {
 		return
 	}
@@ -663,8 +663,8 @@ func testGetDiagnoses(t *testing.T) {
 	assert.NotNil(t, diagnoses)
 	assert.Equal(t, 2, len(diagnoses))
 
-	assert.Nil(t, diagnoses[0].RawError)
-	assert.NotNil(t, diagnoses[1].RawError)
+	assert.Zero(t, len(diagnoses[0].RawError))
+	assert.NotZero(t, len(diagnoses[1].RawError))
 
 	assert.Equal(t, diagnoses[0].Result, diagnosis.DiagnosisSuccess)
 	assert.NotZero(t, len(diagnoses[0].Name))
@@ -681,8 +681,9 @@ func testGetDiagnoses(t *testing.T) {
 	assert.Zero(t, len(diagnoses[1].Remediation))
 }
 
-func NewPythonFakeCheck() (*PythonCheck, error) {
-	c, err := NewPythonCheck("fake_check", nil)
+// NewPythonFakeCheck create a fake PythonCheck
+func NewPythonFakeCheck(senderManager sender.SenderManager) (*PythonCheck, error) {
+	c, err := NewPythonCheck(senderManager, "fake_check", nil)
 
 	// Remove check finalizer that may trigger race condition while testing
 	if err == nil {

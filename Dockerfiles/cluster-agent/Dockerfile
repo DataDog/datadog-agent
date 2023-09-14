@@ -1,11 +1,12 @@
 ########################################
 # Preparation stage: layout and chmods #
 ########################################
-
-FROM ubuntu:22.04 as builder
+ARG BASE_IMAGE_UBUNTU_VERSION=23.04
+ARG BASE_IMAGE_UBUNTU_NAME=lunar
+FROM ubuntu:$BASE_IMAGE_UBUNTU_VERSION as builder
 ARG TARGETARCH
-LABEL baseimage.os "ubuntu jammy LTS"
-LABEL baseimage.name "ubuntu:22.04"
+LABEL baseimage.os "ubuntu ${BASE_IMAGE_UBUNTU_NAME}"
+LABEL baseimage.name "ubuntu:${BASE_IMAGE_UBUNTU_VERSION}"
 # Can be used by Dependabot
 LABEL org.opencontainers.image.source "https://github.com/DataDog/datadog-agent"
 
@@ -37,9 +38,11 @@ RUN gcc -pipe -Wall -Wextra -O2 -shared -fPIC -Wl,--version-script=/tmp/nosys.sy
 # Actual docker image construction #
 ####################################
 
-FROM ubuntu:22.04
+FROM ubuntu:$BASE_IMAGE_UBUNTU_VERSION
 
 LABEL maintainer "Datadog <package@datadoghq.com>"
+LABEL baseimage.os "ubuntu ${BASE_IMAGE_UBUNTU_NAME}"
+LABEL baseimage.name "ubuntu:${BASE_IMAGE_UBUNTU_VERSION}"
 
 ARG CIBUILD
 # NOTE about APT mirrorlists:
@@ -63,7 +66,7 @@ ENV PATH="/opt/datadog-agent/bin/:$PATH" \
 
 RUN apt-get update \
     && apt full-upgrade -y \
-    && apt-get install --no-install-recommends -y ca-certificates curl libseccomp2 tzdata \
+    && apt-get install --no-install-recommends -y ca-certificates curl libseccomp2 tzdata adduser\
     && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
 
 COPY --from=builder /output /

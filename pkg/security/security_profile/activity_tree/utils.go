@@ -5,8 +5,9 @@
 
 //go:build linux
 
-package activity_tree
+package activitytree
 
+// ExtractFirstParent extracts first parent
 func ExtractFirstParent(path string) (string, int) {
 	if len(path) == 0 {
 		return "", 0

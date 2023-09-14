@@ -6,21 +6,21 @@
 package diagnose
 
 import (
+	"bytes"
+	"encoding/json"
 	"fmt"
 	"io"
 	"regexp"
 	"sort"
+	"strings"
 
+	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
+	"github.com/DataDog/datadog-agent/pkg/api/util"
+	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
+	_ "github.com/DataDog/datadog-agent/pkg/diagnose/connectivity" // no direct calls to connectivity but there is a callback
 	"github.com/DataDog/datadog-agent/pkg/diagnose/diagnosis"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
-
-	"github.com/cihub/seelog"
 	"github.com/fatih/color"
 )
-
-func init() {
-	diagnosis.Register("connectivity-datadog-autodiscovery", diagnoseMetadataAutodiscoveryConnectivity)
-}
 
 // Overall running statistics
 type counters struct {
@@ -29,6 +29,12 @@ type counters struct {
 	fail          int
 	warnings      int
 	unexpectedErr int
+}
+
+// diagnose suite filter
+type diagSuiteFilter struct {
+	include []*regexp.Regexp
+	exclude []*regexp.Regexp
 }
 
 // Output summary
@@ -105,7 +111,7 @@ func outputDiagnosis(w io.Writer, cfg diagnosis.Config, result string, diagnosis
 	}
 
 	// [Optional] Error
-	if d.RawError != nil {
+	if len(d.RawError) > 0 {
 		// Do not output error for diagnosis.DiagnosisSuccess unless verbose
 		if d.Result != diagnosis.DiagnosisSuccess || cfg.Verbose {
 			fmt.Fprintf(w, "  Error: %s\n", d.RawError)
@@ -123,7 +129,7 @@ func outputNewLineIfNeeded(w io.Writer, lastDot *bool) {
 }
 
 func outputSuiteIfNeeded(w io.Writer, suiteName string, suiteAlreadyReported *bool) {
-	if *suiteAlreadyReported == false {
+	if !*suiteAlreadyReported {
 		fmt.Fprintf(w, "==============\nSuite: %s\n", suiteName)
 		*suiteAlreadyReported = true
 	}
@@ -143,30 +149,73 @@ func matchRegExList(regexList []*regexp.Regexp, s string) bool {
 	return false
 }
 
+func strToRegexList(patterns []string) ([]*regexp.Regexp, error) {
+	if len(patterns) > 0 {
+		res := make([]*regexp.Regexp, 0)
+		for _, pattern := range patterns {
+			re, err := regexp.Compile(pattern)
+			if err != nil {
+				return nil, fmt.Errorf("failed to compile regex pattern %s: %s", pattern, err.Error())
+			}
+			res = append(res, re)
+		}
+		return res, nil
+	}
+	return nil, nil
+}
+
 // Currently used only to match Diagnose Suite name. In future will be
 // extended to diagnose name or category
-func matchConfigFilters(cfg diagnosis.Config, s string) bool {
-	if len(cfg.Include) > 0 && len(cfg.Exclude) > 0 {
-		return matchRegExList(cfg.Include, s) && !matchRegExList(cfg.Exclude, s)
-	} else if len(cfg.Include) > 0 {
-		return matchRegExList(cfg.Include, s)
-	} else if len(cfg.Exclude) > 0 {
-		return !matchRegExList(cfg.Exclude, s)
+func matchConfigFilters(filter diagSuiteFilter, s string) bool {
+	if len(filter.include) > 0 && len(filter.exclude) > 0 {
+		return matchRegExList(filter.include, s) && !matchRegExList(filter.exclude, s)
+	} else if len(filter.include) > 0 {
+		return matchRegExList(filter.include, s)
+	} else if len(filter.exclude) > 0 {
+		return !matchRegExList(filter.exclude, s)
 	}
 	return true
 }
 
-func getSortedDiagnoseSuites() []diagnosis.Suite {
+func getSortedAndFilteredDiagnoseSuites(diagCfg diagnosis.Config) ([]diagnosis.Suite, error) {
+
+	var filter diagSuiteFilter
+	var err error
+
+	if len(diagCfg.Include) > 0 {
+		filter.include, err = strToRegexList(diagCfg.Include)
+		if err != nil {
+			includes := strings.Join(diagCfg.Include, " ")
+			return nil, fmt.Errorf("invalid --include option value(s) provided (%s) compiled with error: %w", includes, err)
+		}
+	}
+
+	if len(diagCfg.Exclude) > 0 {
+		filter.exclude, err = strToRegexList(diagCfg.Exclude)
+		if err != nil {
+			excludes := strings.Join(diagCfg.Exclude, " ")
+			return nil, fmt.Errorf("invalid --exclude option value(s) provided (%s) compiled with error: %w", excludes, err)
+		}
+	}
+
 	sortedSuites := make([]diagnosis.Suite, len(diagnosis.Catalog))
 	copy(sortedSuites, diagnosis.Catalog)
 	sort.Slice(sortedSuites, func(i, j int) bool {
 		return sortedSuites[i].SuitName < sortedSuites[j].SuitName
 	})
-	return sortedSuites
+
+	var sortedFilteredSuites []diagnosis.Suite
+	for _, ds := range sortedSuites {
+		if matchConfigFilters(filter, ds.SuitName) {
+			sortedFilteredSuites = append(sortedFilteredSuites, ds)
+		}
+	}
+
+	return sortedFilteredSuites, nil
 }
 
-func getSuiteDiagnoses(ds diagnosis.Suite, diagCfg diagnosis.Config) []diagnosis.Diagnosis {
-	diagnoses := ds.Diagnose(diagCfg)
+func getSuiteDiagnoses(ds diagnosis.Suite, diagCfg diagnosis.Config, senderManager sender.SenderManager) []diagnosis.Diagnosis {
+	diagnoses := ds.Diagnose(diagCfg, senderManager)
 
 	// validate each diagnoses
 	for i, d := range diagnoses {
@@ -175,12 +224,12 @@ func getSuiteDiagnoses(ds diagnosis.Suite, diagCfg diagnosis.Config) []diagnosis
 			len(d.Name) == 0 ||
 			len(d.Diagnosis) == 0 {
 
-			if d.RawError != nil {
+			if len(d.RawError) > 0 {
 				// If error already reported, append to it
-				diagnoses[i].RawError = fmt.Errorf("required diagnosis fields are invalid. Result:%d, Name:%s, Diagnosis:%s. Reported Error: %s",
-					d.Result, d.Name, d.Diagnosis, d.RawError.Error())
+				diagnoses[i].RawError = fmt.Sprintf("required diagnosis fields are invalid. Result:%d, Name:%s, Diagnosis:%s. Reported Error: %s",
+					d.Result, d.Name, d.Diagnosis, d.RawError)
 			} else {
-				diagnoses[i].RawError = fmt.Errorf("required diagnosis fields are invalid. Result:%d, Name:%s, Diagnosis:%s", d.Result, d.Name, d.Diagnosis)
+				diagnoses[i].RawError = fmt.Sprintf("required diagnosis fields are invalid. Result:%d, Name:%s, Diagnosis:%s", d.Result, d.Name, d.Diagnosis)
 			}
 
 			diagnoses[i].Result = diagnosis.DiagnosisUnexpectedError
@@ -195,80 +244,138 @@ func getSuiteDiagnoses(ds diagnosis.Suite, diagCfg diagnosis.Config) []diagnosis
 
 // Enumerate registered Diagnose suites and get their diagnoses
 // for human consumption
-func ListAllStdOut(w io.Writer, diagCfg diagnosis.Config) {
+func ListStdOut(w io.Writer, diagCfg diagnosis.Config) {
 	if w != color.Output {
 		color.NoColor = true
 	}
 
-	sortedSuites := getSortedDiagnoseSuites()
-
 	fmt.Fprintf(w, "Diagnose suites ...\n")
+
+	sortedSuites, err := getSortedAndFilteredDiagnoseSuites(diagCfg)
+	if err != nil {
+		fmt.Fprintf(w, "Failed to get list of diagnose suites. Validate your command line options. Error: %s\n", err.Error())
+		return
+	}
 
 	count := 0
 	for _, ds := range sortedSuites {
-		// Is it filtered?
-		if matchConfigFilters(diagCfg, ds.SuitName) {
-			count++
-			fmt.Fprintf(w, "  %d. %s\n", count, ds.SuitName)
-		}
+		count++
+		fmt.Fprintf(w, "  %d. %s\n", count, ds.SuitName)
 	}
 }
 
 // Enumerate registered Diagnose suites and get their diagnoses
 // for structural output
-func RunAll(diagCfg diagnosis.Config) []diagnosis.Diagnoses {
-	// Filter Diagnose suite
-	var suites []diagnosis.Suite
-	for _, ds := range diagnosis.Catalog {
-		if matchConfigFilters(diagCfg, ds.SuitName) {
-			suites = append(suites, ds)
-		}
+func getDiagnosesFromCurrentProcess(diagCfg diagnosis.Config, senderManager sender.SenderManager) ([]diagnosis.Diagnoses, error) {
+	suites, err := getSortedAndFilteredDiagnoseSuites(diagCfg)
+	if err != nil {
+		return nil, err
 	}
 
-	var suiteDiagnoses []diagnosis.Diagnoses
+	var suitesDiagnoses []diagnosis.Diagnoses
 	for _, ds := range suites {
 		// Run particular diagnose
-		diagnoses := getSuiteDiagnoses(ds, diagCfg)
+		diagnoses := getSuiteDiagnoses(ds, diagCfg, senderManager)
 		if len(diagnoses) > 0 {
-			suiteDiagnoses = append(suiteDiagnoses, diagnosis.Diagnoses{
+			suitesDiagnoses = append(suitesDiagnoses, diagnosis.Diagnoses{
 				SuiteName:      ds.SuitName,
 				SuiteDiagnoses: diagnoses,
 			})
 		}
 	}
 
-	return suiteDiagnoses
+	return suitesDiagnoses, nil
+}
+
+func requestDiagnosesFromAgentProcess(diagCfg diagnosis.Config) ([]diagnosis.Diagnoses, error) {
+	// Get client to Agent's RPC call
+	c := util.GetClient(false)
+	ipcAddress, err := pkgconfig.GetIPCAddress()
+	if err != nil {
+		return nil, fmt.Errorf("error getting IPC address for the agent: %w", err)
+	}
+
+	// Make sure we have a session token (for privileged information)
+	if err = util.SetAuthToken(); err != nil {
+		return nil, fmt.Errorf("auth error: %w", err)
+	}
+
+	// Form call end-point
+	diagnoseUrl := fmt.Sprintf("https://%v:%v/agent/diagnose", ipcAddress, pkgconfig.Datadog.GetInt("cmd_port"))
+
+	// Serialized diag config to pass it to Agent execution context
+	var cfgSer []byte
+	if cfgSer, err = json.Marshal(diagCfg); err != nil {
+		return nil, fmt.Errorf("error while encoding diagnose configuration: %s", err)
+	}
+
+	// Run diagnose code inside Agent process
+	var response []byte
+	response, err = util.DoPost(c, diagnoseUrl, "application/json", bytes.NewBuffer(cfgSer))
+	if err != nil {
+		if response != nil && string(response) != "" {
+			return nil, fmt.Errorf("error getting diagnoses from running agent: %sn", string(response))
+		}
+		return nil, fmt.Errorf("the agent was unable to get diagnoses from running agent: %w", err)
+	}
+
+	// Deserialize results
+	var diagnoses []diagnosis.Diagnoses
+	err = json.NewDecoder(bytes.NewReader(response)).Decode(&diagnoses)
+	if err != nil {
+		return nil, fmt.Errorf("error while decoding diagnose results returned from Agent: %w", err)
+	}
+
+	return diagnoses, nil
+}
+
+// Run runs diagnoses.
+func Run(diagCfg diagnosis.Config, senderManager sender.SenderManager) ([]diagnosis.Diagnoses, error) {
+
+	// Make remote call to get diagnoses
+	if !diagCfg.RunLocal {
+		return requestDiagnosesFromAgentProcess(diagCfg)
+	}
+
+	// Collect local diagnoses
+	diagnoses, err := getDiagnosesFromCurrentProcess(diagCfg, senderManager)
+	if err != nil {
+		return nil, err
+	}
+
+	return diagnoses, nil
 }
 
 // Enumerate registered Diagnose suites and get their diagnoses
 // for human consumption
-func RunAllStdOut(w io.Writer, diagCfg diagnosis.Config) {
+func RunStdOut(w io.Writer, diagCfg diagnosis.Config, senderManager sender.SenderManager) error {
 	if w != color.Output {
 		color.NoColor = true
 	}
 
-	sortedSuites := getSortedDiagnoseSuites()
-
 	fmt.Fprintf(w, "=== Starting diagnose ===\n")
+
+	diagnoses, err := Run(diagCfg, senderManager)
+	if err != nil && !diagCfg.RunLocal {
+		fmt.Fprintln(w, color.YellowString(fmt.Sprintf("Error running diagnose in Agent process: %s", err)))
+		fmt.Fprintln(w, "Running diagnose command locally (may take extra time to run checks locally) ...")
+
+		// attempt to do so locally
+		diagCfg.RunLocal = true
+		diagnoses, err = Run(diagCfg, senderManager)
+	}
+
+	if err != nil {
+		fmt.Fprintln(w, color.RedString(fmt.Sprintf("Error running diagnose: %s", err)))
+		return err
+	}
 
 	var c counters
 
 	lastDot := false
-	for _, ds := range sortedSuites {
-		// Is it filtered?
-		if !matchConfigFilters(diagCfg, ds.SuitName) {
-			continue
-		}
-
-		// Run particular diagnose
-		diagnoses := getSuiteDiagnoses(ds, diagCfg)
-		if diagnoses == nil {
-			// No diagnoses are reported, move on to next Diagnose
-			continue
-		}
-
+	for _, ds := range diagnoses {
 		suiteAlreadyReported := false
-		for _, d := range diagnoses {
+		for _, d := range ds.SuiteDiagnoses {
 			c.increment(d.Result)
 
 			if d.Result == diagnosis.DiagnosisSuccess && !diagCfg.Verbose {
@@ -276,7 +383,7 @@ func RunAllStdOut(w io.Writer, diagCfg diagnosis.Config) {
 				continue
 			}
 
-			outputSuiteIfNeeded(w, ds.SuitName, &suiteAlreadyReported)
+			outputSuiteIfNeeded(w, ds.SuiteName, &suiteAlreadyReported)
 
 			outputNewLineIfNeeded(w, &lastDot)
 			outputDiagnosis(w, diagCfg, getDiagnosisResultForOutput(d.Result), c.total, d)
@@ -285,74 +392,6 @@ func RunAllStdOut(w io.Writer, diagCfg diagnosis.Config) {
 
 	outputNewLineIfNeeded(w, &lastDot)
 	c.summary(w)
-}
-
-func diagnoseMetadataAutodiscoveryConnectivity(cfg diagnosis.Config) []diagnosis.Diagnosis {
-	if len(diagnosis.MetadataAvailCatalog) == 0 {
-		return nil
-	}
-
-	var sortedDiagnosis []string
-	for name := range diagnosis.MetadataAvailCatalog {
-		sortedDiagnosis = append(sortedDiagnosis, name)
-	}
-	sort.Strings(sortedDiagnosis)
-
-	var diagnoses []diagnosis.Diagnosis
-	for _, name := range sortedDiagnosis {
-		err := diagnosis.MetadataAvailCatalog[name]()
-
-		// Will always add successful diagnosis because particular environment is auto-discovered
-		// and may not exist and or configured but knowing if we can or cannot connect to it
-		// could be still beneficial
-		var diagnosisString string
-		if err == nil {
-			diagnosisString = fmt.Sprintf("Successfully connected to %s environment", name)
-		} else {
-			diagnosisString = fmt.Sprintf("[Ignore if not applied] %s", err.Error())
-		}
-
-		diagnoses = append(diagnoses, diagnosis.Diagnosis{
-			Result:    diagnosis.DiagnosisSuccess,
-			Name:      name,
-			Diagnosis: diagnosisString,
-		})
-	}
-
-	return diagnoses
-}
-
-// Runs all registered metadata availability checks, output it in writer
-func RunMetadataAvail(w io.Writer) error {
-	if w != color.Output {
-		color.NoColor = true
-	}
-
-	// Use temporarily a custom logger to our Writer
-	customLogger, err := seelog.LoggerFromWriterWithMinLevelAndFormat(w, seelog.DebugLvl, "[%LEVEL] %FuncShort: %Msg - %Ns%n")
-	if err != nil {
-		return err
-	}
-	log.RegisterAdditionalLogger("diagnose", customLogger)
-	defer log.UnregisterAdditionalLogger("diagnose")
-
-	var sortedDiagnosis []string
-	for name := range diagnosis.MetadataAvailCatalog {
-		sortedDiagnosis = append(sortedDiagnosis, name)
-	}
-	sort.Strings(sortedDiagnosis)
-
-	for _, name := range sortedDiagnosis {
-		fmt.Fprintf(w, "=== Running %s diagnosis ===\n", color.BlueString(name))
-		err := diagnosis.MetadataAvailCatalog[name]()
-		statusString := color.GreenString("PASS")
-		if err != nil {
-			statusString = color.RedString("FAIL")
-			log.Infof("diagnosis error for %s: %v", name, err)
-		}
-		log.Flush()
-		fmt.Fprintf(w, "===> %s\n\n", statusString)
-	}
 
 	return nil
 }

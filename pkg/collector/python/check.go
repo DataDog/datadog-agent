@@ -17,7 +17,7 @@ import (
 
 	yaml "gopkg.in/yaml.v2"
 
-	"github.com/DataDog/datadog-agent/pkg/aggregator"
+	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/collector/check/defaults"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
@@ -40,6 +40,7 @@ import "C"
 
 // PythonCheck represents a Python check, implements `Check` interface
 type PythonCheck struct {
+	senderManager  sender.SenderManager
 	id             checkid.ID
 	version        string
 	instance       *C.rtloader_pyobject_t
@@ -53,14 +54,8 @@ type PythonCheck struct {
 	instanceConfig string
 }
 
-// Helper struct for deserializing Python diagnoses into diangosis.Diagnoses
-type diagnosisJSONSerWrap struct {
-	diagnosis.Diagnosis
-	RawError string
-}
-
 // NewPythonCheck conveniently creates a PythonCheck instance
-func NewPythonCheck(name string, class *C.rtloader_pyobject_t) (*PythonCheck, error) {
+func NewPythonCheck(senderManager sender.SenderManager, name string, class *C.rtloader_pyobject_t) (*PythonCheck, error) {
 	glock, err := newStickyLock()
 	if err != nil {
 		return nil, err
@@ -70,11 +65,12 @@ func NewPythonCheck(name string, class *C.rtloader_pyobject_t) (*PythonCheck, er
 	glock.unlock()
 
 	pyCheck := &PythonCheck{
-		ModuleName:   name,
-		class:        class,
-		interval:     defaults.DefaultCheckInterval,
-		lastWarnings: []error{},
-		telemetry:    utils.IsCheckTelemetryEnabled(name),
+		senderManager: senderManager,
+		ModuleName:    name,
+		class:         class,
+		interval:      defaults.DefaultCheckInterval,
+		lastWarnings:  []error{},
+		telemetry:     utils.IsCheckTelemetryEnabled(name),
 	}
 	runtime.SetFinalizer(pyCheck, pythonCheckFinalizer)
 
@@ -101,7 +97,7 @@ func (c *PythonCheck) runCheck(commitMetrics bool) error {
 	defer C.rtloader_free(rtloader, unsafe.Pointer(cResult))
 
 	if commitMetrics {
-		s, err := aggregator.GetSender(c.ID())
+		s, err := c.senderManager.GetSender(c.ID())
 		if err != nil {
 			return fmt.Errorf("Failed to retrieve a Sender instance: %v", err)
 		}
@@ -215,7 +211,7 @@ func (c *PythonCheck) getPythonWarnings(gstate *stickyLock) []error {
 }
 
 // Configure the Python check from YAML data
-func (c *PythonCheck) Configure(integrationConfigDigest uint64, data integration.Data, initConfig integration.Data, source string) error {
+func (c *PythonCheck) Configure(senderManager sender.SenderManager, integrationConfigDigest uint64, data integration.Data, initConfig integration.Data, source string) error {
 	// Generate check ID
 	c.id = checkid.BuildID(c.String(), integrationConfigDigest, data, initConfig)
 
@@ -227,7 +223,7 @@ func (c *PythonCheck) Configure(integrationConfigDigest uint64, data integration
 
 	// Set service for this check
 	if len(commonGlobalOptions.Service) > 0 {
-		s, err := aggregator.GetSender(c.id)
+		s, err := c.senderManager.GetSender(c.id)
 		if err != nil {
 			log.Errorf("failed to retrieve a sender for check %s: %s", string(c.id), err)
 		} else {
@@ -248,7 +244,7 @@ func (c *PythonCheck) Configure(integrationConfigDigest uint64, data integration
 
 	// Disable default hostname if specified
 	if commonOptions.EmptyDefaultHostname {
-		s, err := aggregator.GetSender(c.id)
+		s, err := c.senderManager.GetSender(c.id)
 		if err != nil {
 			log.Errorf("failed to retrieve a sender for check %s: %s", string(c.id), err)
 		} else {
@@ -258,7 +254,7 @@ func (c *PythonCheck) Configure(integrationConfigDigest uint64, data integration
 
 	// Set configured service for this check, overriding the one possibly defined globally
 	if len(commonOptions.Service) > 0 {
-		s, err := aggregator.GetSender(c.id)
+		s, err := c.senderManager.GetSender(c.id)
 		if err != nil {
 			log.Errorf("failed to retrieve a sender for check %s: %s", string(c.id), err)
 		} else {
@@ -305,7 +301,7 @@ func (c *PythonCheck) Configure(integrationConfigDigest uint64, data integration
 	c.source = source
 
 	// Add the possibly configured service as a tag for this check
-	s, err := aggregator.GetSender(c.id)
+	s, err := c.senderManager.GetSender(c.id)
 	if err != nil {
 		log.Errorf("failed to retrieve a sender for check %s: %s", string(c.id), err)
 	} else {
@@ -323,7 +319,7 @@ func (c *PythonCheck) Configure(integrationConfigDigest uint64, data integration
 
 // GetSenderStats returns the stats from the last run of the check
 func (c *PythonCheck) GetSenderStats() (stats.SenderStats, error) {
-	sender, err := aggregator.GetSender(c.ID())
+	sender, err := c.senderManager.GetSender(c.ID())
 	if err != nil {
 		return stats.SenderStats{}, fmt.Errorf("Failed to retrieve a Sender instance: %v", err)
 	}
@@ -363,30 +359,10 @@ func (c *PythonCheck) GetDiagnoses() ([]diagnosis.Diagnosis, error) {
 
 	// Deserialize it
 	strDiagnoses := C.GoString(pyDiagnoses)
-
-	var diagnosesWrap []diagnosisJSONSerWrap
-	err = json.Unmarshal([]byte(strDiagnoses), &diagnosesWrap)
+	var diagnoses []diagnosis.Diagnosis
+	err = json.Unmarshal([]byte(strDiagnoses), &diagnoses)
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse diagnoses JSON for %s: %s. JSON: %q", c.id, err, strDiagnoses)
-	}
-
-	if diagnosesWrap == nil || len(diagnosesWrap) == 0 {
-		return nil, nil
-	}
-
-	diagnoses := make([]diagnosis.Diagnosis, 0, len(diagnosesWrap))
-	for _, dw := range diagnosesWrap {
-		d := dw.Diagnosis
-
-		if len(d.Name) == 0 {
-			d.Name = c.String()
-		}
-
-		if len(dw.RawError) > 0 {
-			d.RawError = errors.New(dw.RawError)
-		}
-
-		diagnoses = append(diagnoses, d)
 	}
 
 	return diagnoses, nil

@@ -17,6 +17,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/config/utils"
+	configUtils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -42,14 +43,14 @@ func NewDatadogClient() (DatadogClient, error) {
 
 // NewDatadogSingleClient generates a new client to query metrics from Datadog
 func newDatadogSingleClient() (*datadog.Client, error) {
-	apiKey := config.SanitizeAPIKey(config.Datadog.GetString("external_metrics_provider.api_key"))
+	apiKey := configUtils.SanitizeAPIKey(config.Datadog.GetString("external_metrics_provider.api_key"))
 	if apiKey == "" {
-		apiKey = config.SanitizeAPIKey(config.Datadog.GetString("api_key"))
+		apiKey = configUtils.SanitizeAPIKey(config.Datadog.GetString("api_key"))
 	}
 
-	appKey := config.SanitizeAPIKey(config.Datadog.GetString("external_metrics_provider.app_key"))
+	appKey := configUtils.SanitizeAPIKey(config.Datadog.GetString("external_metrics_provider.app_key"))
 	if appKey == "" {
-		appKey = config.SanitizeAPIKey(config.Datadog.GetString("app_key"))
+		appKey = configUtils.SanitizeAPIKey(config.Datadog.GetString("app_key"))
 	}
 
 	// DATADOG_HOST used to be the only way to set the external metrics

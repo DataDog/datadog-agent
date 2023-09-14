@@ -8,7 +8,8 @@ from invoke.exceptions import Exit
 
 from .build_tags import filter_incompatible_tags, get_build_tags, get_default_build_tags
 from .flavor import AgentFlavor
-from .utils import REPO_PATH, bin_name, get_build_flags, get_version_numeric_only
+from .utils import REPO_PATH, bin_name, get_build_flags
+from .windows_resources import build_messagetable, build_rc, versioninfo_vars
 
 BIN_DIR = os.path.join(".", "bin", "process-agent")
 BIN_PATH = os.path.join(BIN_DIR, bin_name("process-agent"))
@@ -35,19 +36,17 @@ def build(
 
     # generate windows resources
     if sys.platform == 'win32':
-        windres_target = "pe-x86-64"
         if arch == "x86":
             env["GOARCH"] = "386"
-            windres_target = "pe-i386"
 
-        ver = get_version_numeric_only(ctx, major_version=major_version)
-        maj_ver, min_ver, patch_ver = ver.split(".")
-        resdir = os.path.join(".", "cmd", "process-agent", "windows_resources")
-
-        ctx.run(f"windmc --target {windres_target} -r {resdir} {resdir}/process-agent-msg.mc")
-
-        ctx.run(
-            f"windres --define MAJ_VER={maj_ver} --define MIN_VER={min_ver} --define PATCH_VER={patch_ver} -i cmd/process-agent/windows_resources/process-agent.rc --target {windres_target} -O coff -o cmd/process-agent/rsrc.syso"
+        build_messagetable(ctx, arch=arch)
+        vars = versioninfo_vars(ctx, major_version=major_version, python_runtimes=python_runtimes, arch=arch)
+        build_rc(
+            ctx,
+            "cmd/process-agent/windows_resources/process-agent.rc",
+            arch=arch,
+            vars=vars,
+            out="cmd/process-agent/rsrc.syso",
         )
 
     goenv = {}
