@@ -5,6 +5,7 @@
 
 //go:build linux
 
+// Package reorderer holds reorderer related files
 package reorderer
 
 import (

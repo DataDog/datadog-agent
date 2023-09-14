@@ -11,8 +11,10 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
+	"github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/pkg/netflow/common"
 	"github.com/DataDog/datadog-agent/pkg/netflow/portrollup"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
 // MockTimeNow mocks time.Now
@@ -30,6 +32,7 @@ func setMockTimeNow(newTime time.Time) {
 }
 
 func Test_flowAccumulator_add(t *testing.T) {
+	logger := fxutil.Test[log.Component](t, log.MockModule)
 	synFlag := uint32(2)
 	ackFlag := uint32(16)
 	synAckFlag := synFlag | ackFlag
@@ -79,7 +82,7 @@ func Test_flowAccumulator_add(t *testing.T) {
 	}
 
 	// When
-	acc := newFlowAccumulator(common.DefaultAggregatorFlushInterval, common.DefaultAggregatorFlushInterval, common.DefaultAggregatorPortRollupThreshold, false)
+	acc := newFlowAccumulator(common.DefaultAggregatorFlushInterval, common.DefaultAggregatorFlushInterval, common.DefaultAggregatorPortRollupThreshold, false, logger)
 	acc.add(flowA1)
 	acc.add(flowA2)
 	acc.add(flowB1)
@@ -102,6 +105,7 @@ func Test_flowAccumulator_add(t *testing.T) {
 }
 
 func Test_flowAccumulator_portRollUp(t *testing.T) {
+	logger := fxutil.Test[log.Component](t, log.MockModule)
 	synFlag := uint32(2)
 	ackFlag := uint32(16)
 	synAckFlag := synFlag | ackFlag
@@ -150,7 +154,7 @@ func Test_flowAccumulator_portRollUp(t *testing.T) {
 	}
 
 	// When
-	acc := newFlowAccumulator(common.DefaultAggregatorFlushInterval, common.DefaultAggregatorFlushInterval, 3, false)
+	acc := newFlowAccumulator(common.DefaultAggregatorFlushInterval, common.DefaultAggregatorFlushInterval, 3, false, logger)
 	acc.add(flowA1)
 	acc.add(flowA2)
 
@@ -204,6 +208,7 @@ func Test_flowAccumulator_portRollUp(t *testing.T) {
 }
 
 func Test_flowAccumulator_flush(t *testing.T) {
+	logger := fxutil.Test[log.Component](t, log.MockModule)
 	timeNow = MockTimeNow
 	zeroTime := time.Date(1, time.January, 1, 0, 0, 0, 0, time.UTC)
 	flushInterval := 60 * time.Second
@@ -225,7 +230,7 @@ func Test_flowAccumulator_flush(t *testing.T) {
 	}
 
 	// When
-	acc := newFlowAccumulator(flushInterval, flowContextTTL, common.DefaultAggregatorPortRollupThreshold, false)
+	acc := newFlowAccumulator(flushInterval, flowContextTTL, common.DefaultAggregatorPortRollupThreshold, false, logger)
 	acc.add(flow)
 
 	// Then

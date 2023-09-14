@@ -25,7 +25,8 @@ type InitConfig struct {
 }
 
 type QuerySamplesConfig struct {
-	Enabled bool `yaml:"enabled"`
+	Enabled            bool `yaml:"enabled"`
+	IncludeAllSessions bool `yaml:"include_all_sessions"`
 }
 
 type QueryMetricsConfig struct {
@@ -53,7 +54,8 @@ type SharedMemoryConfig struct {
 }
 
 type ExecutionPlansConfig struct {
-	Enabled bool `yaml:"enabled"`
+	Enabled              bool `yaml:"enabled"`
+	LogUnobfuscatedPlans bool `yaml:"log_unobfuscated_plans"`
 }
 
 type AgentSQLTrace struct {
@@ -126,9 +128,8 @@ func NewCheckConfig(rawInstance integration.Data, rawInitConfig integration.Data
 	initCfg := InitConfig{}
 
 	// Defaults begin
-	var DEFAULT_METRIC_COLLECTION_INTERVAL int64
-	DEFAULT_METRIC_COLLECTION_INTERVAL = 60
-	instance.MetricCollectionInterval = DEFAULT_METRIC_COLLECTION_INTERVAL
+	var defaultMetricCollectionInterval int64 = 60
+	instance.MetricCollectionInterval = defaultMetricCollectionInterval
 
 	instance.ObfuscatorOptions.DBMS = common.IntegrationName
 	instance.ObfuscatorOptions.TableNames = true
@@ -138,7 +139,7 @@ func NewCheckConfig(rawInstance integration.Data, rawInitConfig integration.Data
 	instance.QuerySamples.Enabled = true
 
 	instance.QueryMetrics.Enabled = true
-	instance.QueryMetrics.CollectionInterval = DEFAULT_METRIC_COLLECTION_INTERVAL
+	instance.QueryMetrics.CollectionInterval = defaultMetricCollectionInterval
 	instance.QueryMetrics.DBRowsLimit = 10000
 	instance.QueryMetrics.PlanCacheRetention = 15
 
@@ -146,6 +147,8 @@ func NewCheckConfig(rawInstance integration.Data, rawInitConfig integration.Data
 	instance.Tablespaces.Enabled = true
 	instance.ProcessMemory.Enabled = true
 	instance.SharedMemory.Enabled = true
+
+	instance.ExecutionPlans.Enabled = true
 	// Defaults end
 
 	if err := yaml.Unmarshal(rawInstance, &instance); err != nil {

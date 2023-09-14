@@ -62,7 +62,7 @@ int hook_vfs_unlink(ctx_t *ctx) {
     // we resolve all the information before the file is actually removed
     syscall->unlink.dentry = dentry;
     set_file_inode(dentry, &syscall->unlink.file, 1);
-    fill_file_metadata(dentry, &syscall->unlink.file.metadata);
+    fill_file(dentry, &syscall->unlink.file);
 
     if (filter_syscall(syscall, unlink_approvers)) {
         return mark_as_discarded(syscall);
@@ -88,24 +88,8 @@ int hook_vfs_unlink(ctx_t *ctx) {
     return 0;
 }
 
-SEC("kprobe/dr_unlink_callback")
-int kprobe_dr_unlink_callback(struct pt_regs *ctx) {
-    struct syscall_cache_t *syscall = peek_syscall(EVENT_UNLINK);
-    if (!syscall) {
-        return 0;
-    }
-
-    if (syscall->resolver.ret < 0) {
-        return mark_as_discarded(syscall);
-    }
-
-    return 0;
-}
-
-#ifdef USE_FENTRY
-
 TAIL_CALL_TARGET("dr_unlink_callback")
-int fentry_dr_unlink_callback(ctx_t *ctx) {
+int tail_call_target_dr_unlink_callback(ctx_t *ctx) {
     struct syscall_cache_t *syscall = peek_syscall(EVENT_UNLINK);
     if (!syscall) {
         return 0;
@@ -117,8 +101,6 @@ int fentry_dr_unlink_callback(ctx_t *ctx) {
 
     return 0;
 }
-
-#endif // USE_FENTRY
 
 int __attribute__((always_inline)) sys_unlink_ret(void *ctx, int retval) {
     struct syscall_cache_t *syscall = pop_syscall(EVENT_UNLINK);

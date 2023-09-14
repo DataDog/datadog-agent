@@ -15,13 +15,13 @@
 #
 
 name "libgpg-error"
-default_version "1.46"
+default_version "1.47"
 
 license "LGPL-2.1"
 license_file "COPYING.LIB"
 skip_transitive_dependency_licensing true
 
-version("1.46") { source sha256: "b7e11a64246bbe5ef37748de43b245abd72cfcd53c9ae5e7fc5ca59f1c81268d" }
+version("1.47") { source sha256: "9e3c670966b96ecc746c28c2c419541e3bcb787d1a73930f5e5f5e1bcbbb9bdb" }
 
 ship_source_offer true
 

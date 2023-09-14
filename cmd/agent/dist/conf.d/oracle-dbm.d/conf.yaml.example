@@ -122,10 +122,10 @@ instances:
   #
   # execution_plans:
 
-      ## @param enabled - boolean - optional - default: false
+      ## @param enabled - boolean - optional - default: true
       ## Enable collection of execution plans. Requires query metrics.
       #
-      # enabled: false
+      # enabled: true
 
   ## Configure how the SQL obfuscator behaves.
   ## Note: This option only applies when `dbm` is enabled.
@@ -198,7 +198,11 @@ instances:
     ## 3. tags (optional) - A list of tags to apply to each metric.
     ## 4. pdb (optional) - A PDB against which the query will be run. Default is CDB$ROOT.
                            The parameter can be defined on a self-managed instance, which
-                           connects to CDB.
+                           connects to CDB. The Agent needs to have `set container` privilege
+                           on the PDB where the custom query is running.
+
+    ## WARNING: Running custom queries may result in additional costs or fees assessed by Oracle.
+    
     # custom_queries:
     #   - query: SELECT foo, COUNT(*) FROM table.events GROUP BY foo
     #     columns:
@@ -207,10 +211,11 @@ instances:
     #     - name: event.total
     #       type: gauge
     #     tags:
-    #     - test:<INTEGRATION>
+    #     - test:tag_value_1
     #     pdb: <MYPDB>
 
-  ## Start SQL trace for agent queries
+  ## Start an SQL trace for Agent queries. This feature is only meant for Agent troubleshooting, and 
+  ## should normally be switched off.
   ## Requires execute the execute privilege on `dbms_monitor` to datadog user
   #
   # agent_sql_trace:

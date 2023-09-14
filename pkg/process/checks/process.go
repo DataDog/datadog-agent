@@ -145,7 +145,7 @@ func (p *ProcessCheck) Init(syscfg *SysProbeConfig, info *HostInfo) error {
 	if workloadmeta.Enabled(p.config) {
 		err = p.workloadMetaServer.Start()
 		if err != nil {
-			_ = log.Error("Failed to start the workloadmeta process entity gRPC server:", err)
+			return log.Error("Failed to start the workloadmeta process entity gRPC server:", err)
 		} else {
 			p.extractors = append(p.extractors, p.workloadMetaExtractor)
 		}
@@ -320,7 +320,7 @@ func (p *ProcessCheck) run(groupID int32, collectRealTime bool) (RunResult, erro
 
 	statsd.Client.Gauge("datadog.process.containers.host_count", float64(totalContainers), []string{}, 1) //nolint:errcheck
 	statsd.Client.Gauge("datadog.process.processes.host_count", float64(totalProcs), []string{}, 1)       //nolint:errcheck
-	log.Debugf("collected processes in %s", time.Now().Sub(start))
+	log.Debugf("collected processes in %s", time.Since(start))
 
 	return result, nil
 }
