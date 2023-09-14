@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-// package npm
+// Package npm for all NPM new E2E tests
 package npm
 
 import (
