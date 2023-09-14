@@ -331,13 +331,11 @@ func (c *Check) SampleSession() error {
 	var sessionRows []OracleActivityRow
 	sessionSamples := []OracleActivityRowDB{}
 	var activityQuery string
-	var maxSQLTextLength int
-	if c.isRDS || c.isOracleCloud {
-		activityQuery = ACTIVITY_QUERY_DIRECT
-		maxSQLTextLength = MaxSQLFullTextVSQL
-	} else {
+	maxSQLTextLength := MaxSQLFullTextVSQL
+	if c.hostingType.value == selfManaged {
 		activityQuery = ACTIVITY_QUERY
-		maxSQLTextLength = MaxSQLFullTextVSQLStats
+	} else {
+		activityQuery = ACTIVITY_QUERY_DIRECT
 	}
 
 	if c.config.QuerySamples.IncludeAllSessions {
