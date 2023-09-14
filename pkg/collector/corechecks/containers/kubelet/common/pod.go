@@ -26,6 +26,8 @@ var (
 	volumeTagKeysToExclude = []string{"persistentvolumeclaim", "pod_phase"}
 )
 
+// CachePodTagsByPVC stores the tags for a given pod in a global caching layer, indexed by pod namespace and persistent
+// volume name.
 func CachePodTagsByPVC(pod *kubelet.Pod) {
 	// TODO
 	podUID := kubelet.PodUIDToTaggerEntityName(pod.Metadata.UID)
@@ -71,10 +73,10 @@ func CachePodTagsByPVC(pod *kubelet.Pod) {
 	}
 }
 
-// GetContainerId returns the container ID from the workloadmeta.Store for a given set of metric labels.
+// GetContainerID returns the container ID from the workloadmeta.Store for a given set of metric labels.
 // It should only be called on a container-scoped metric. It returns an empty string if the container could not be
 // found, or if the container should be filtered out.
-func GetContainerId(store workloadmeta.Store, metric model.Metric, filter *containers.Filter) string {
+func GetContainerID(store workloadmeta.Store, metric model.Metric, filter *containers.Filter) string {
 	namespace := string(metric["namespace"])
 	podUID := string(metric["pod_uid"])
 	// k8s >= 1.16

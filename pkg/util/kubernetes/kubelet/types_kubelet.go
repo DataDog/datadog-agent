@@ -143,6 +143,7 @@ type EphemeralSpec struct {
 	VolumeClaimTemplate *VolumeClaimTemplateSpec `json:"volumeClaimTemplate,omitempty"`
 }
 
+// VolumeClaimTemplateSpec contains fields for unmarshalling a Pod.Spec.Volumes.Ephemeral.VolumeClaimTemplate
 type VolumeClaimTemplateSpec struct {
 	Metadata PodMetadata `json:"metadata,omitempty"`
 }

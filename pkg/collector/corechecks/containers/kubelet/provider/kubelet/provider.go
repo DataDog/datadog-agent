@@ -5,6 +5,9 @@
 
 //go:build kubelet
 
+/*
+Package kubelet exposes a metric provider to handle metrics exposed by the main /metrics kubelet endpoint
+*/
 package kubelet
 
 import (
@@ -92,6 +95,7 @@ type Provider struct {
 	prometheus.Provider
 }
 
+// NewProvider creates and returns a new Provider, configured based on the values passed in.
 func NewProvider(filter *containers.Filter, config *common.KubeletConfig, store workloadmeta.Store) (*Provider, error) {
 	// clone instance configuration so we can set our default metrics
 	kubeletConfig := *config
@@ -169,7 +173,7 @@ func (p *Provider) appendPodTagsToVolumeMetrics(metric *model.Sample, sender sen
 
 func (p *Provider) kubeletContainerLogFilesystemUsedBytes(metric *model.Sample, sender sender.Sender) {
 	metricName := common.KubeletMetricsPrefix + "kubelet.container.log_filesystem.used_bytes"
-	cID := common.GetContainerId(p.store, metric.Metric, p.filter)
+	cID := common.GetContainerID(p.store, metric.Metric, p.filter)
 
 	tags, _ := tagger.Tag(cID, collectors.HighCardinality)
 	if len(tags) == 0 {

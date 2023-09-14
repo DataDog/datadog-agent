@@ -26,6 +26,7 @@ import (
 )
 
 const (
+	// TypeLabel is the special tag which signifies the type of the metric collected from Prometheus
 	TypeLabel             = "__type__"
 	microsecondsInSeconds = 1000000
 )
@@ -204,6 +205,7 @@ func (p *Provider) Provide(kc kubelet.KubeUtilInterface, sender sender.Sender) e
 	return nil
 }
 
+// SubmitMetric forwards a given metric to the sender.Sender, using the passed in metricName as the name of the submitted metric.
 func (p *Provider) SubmitMetric(metric *model.Sample, metricName string, sender sender.Sender) {
 	metricType := metric.Metric[TypeLabel]
 
@@ -288,6 +290,8 @@ func (p *Provider) sendDistributionCount(metric string, value float64, hostname 
 	}
 }
 
+// MetricTags returns the slice of tags to be submitted for a given metric, looking at the existing metric labels and
+// filtering or transforming them based on config values set on the Provider.
 func (p *Provider) MetricTags(metric *model.Sample) []string {
 	tags := p.Config.Tags
 	for lName, lVal := range metric.Metric {
@@ -335,6 +339,8 @@ func (p *Provider) histogramConvertValues(metricName string, converter func(mode
 	}
 }
 
+// HistogramFromSecondsToMicroseconds is a predefined TransformerFunc which takes a value which is currently represented
+// as a second value, and transforms it to a microsecond value.
 func (p *Provider) HistogramFromSecondsToMicroseconds(metricName string) TransformerFunc {
 	return p.histogramConvertValues(metricName, func(value model.SampleValue) model.SampleValue {
 		return value * microsecondsInSeconds
