@@ -1,0 +1,9 @@
+features:
+  - |
+    The Node-Agent now transmits language metadata to the Cluster-Agent when ``language_detection.enabled`` is set to ``true``. 
+    The frequency of this data transfer is regulated by ``language_detection.client_period``.
+    Additionally, we have introduced monitoring for this feature, which includes the following:
+    - ``datadog.agent.language_detection_client_running`` without tags: This monitor tracks whether the client is operational.
+    - ``datadog.agent.language_detection_client_processed_events`` tagged by ``pod_language``, ``container_language``, and ``detected_language``: This monitor tracks the count of processed events for the specified pod, container and language.
+    - ``datadog.agent.language_detection_client_latency`` without tags: This monitor measures the delay (in seconds) when pulling data from the collectors.
+    - ``datadog.agent.language_detection_client_requests`` tagged by ``status``: This monitor tracks the total number of post requests sent from the language detection client to the Cluster-Agent.
