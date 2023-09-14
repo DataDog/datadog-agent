@@ -53,7 +53,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.48.0-rc.2
 	github.com/DataDog/datadog-go/v5 v5.3.0
 	github.com/DataDog/datadog-operator v1.1.0
-	github.com/DataDog/ebpf-manager v0.2.17-0.20230913121558-9392b13f68d8
+	github.com/DataDog/ebpf-manager v0.2.17-0.20230914142734-0eaff6b6fa1d
 	github.com/DataDog/go-libddwaf v1.0.0
 	github.com/DataDog/go-tuf v1.0.2-0.5.2
 	github.com/DataDog/gopsutil v1.2.2
