@@ -10,16 +10,22 @@ package winregistry
 import (
 	"errors"
 	"fmt"
-	"github.com/DataDog/datadog-agent/pkg/aggregator"
+	"github.com/DataDog/datadog-agent/comp/logs/agent"
+	logsConfig "github.com/DataDog/datadog-agent/comp/logs/agent/config"
+	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
+	"github.com/DataDog/datadog-agent/pkg/logs/message"
+	"github.com/DataDog/datadog-agent/pkg/logs/sources"
+	agentLog "github.com/DataDog/datadog-agent/pkg/util/log"
+	"go.uber.org/fx"
 	"io/fs"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"golang.org/x/sys/windows/registry"
 	"gopkg.in/yaml.v2"
 )
@@ -29,14 +35,14 @@ const (
 	checkPrefix = "winregistry"      // This is the prefix used for all metrics emitted by this check
 )
 
-type metricCfg struct {
-	Name     string
-	Mappings []map[string]float64 `yaml:"mapping"`
+type subkeyCfg struct {
+	Name  string // The metric name of the registry value
+	Value string // The registry key value
 }
 
 type registryKeyCfg struct {
-	Name    string
-	Metrics map[string]metricCfg
+	Name    string               // The metric name of the registry key
+	Subkeys map[string]subkeyCfg // The map key is the subkey name
 }
 
 type checkCfg struct {
@@ -44,7 +50,7 @@ type checkCfg struct {
 }
 
 // registryKey is the in-memory representation of the key to monitor
-// it's different from the regstryKeyCfg because we need to split the hive
+// it's different from the registryKeyCfg because we need to split the hive
 // from the keypath. It's easier to do this once during the Configure phase,
 // than every time the check runs.
 type registryKey struct {
@@ -52,18 +58,30 @@ type registryKey struct {
 	hive            registry.Key
 	keyPath         string
 	originalKeyPath string // keep the original keypath around, for logging errors
-	metrics         map[string]metricCfg
+	subkeys         map[string]subkeyCfg
 }
 
 // WindowsRegistryCheck contains the field for the WindowsRegistryCheck
 type WindowsRegistryCheck struct {
 	core.CheckBase
 	metrics.Gauge
-	registryKeys []registryKey
+	logsComponent agent.Component
+	registryKeys  []registryKey
+	origin        *message.Origin
 }
 
-func (c *WindowsRegistryCheck) Configure(integrationConfigDigest uint64, data integration.Data, initConfig integration.Data, source string) error {
-	err := c.CommonConfigure(integrationConfigDigest, initConfig, data, source)
+func (c *WindowsRegistryCheck) Configure(senderManager sender.SenderManager, integrationConfigDigest uint64, data integration.Data, initConfig integration.Data, source string) error {
+	fx.Invoke(func(logsComponent agent.Component) {
+		c.logsComponent = logsComponent
+	})
+
+	c.origin = message.NewOrigin(sources.NewLogSource("Windows registry check", &logsConfig.LogsConfig{
+		Source: checkName,
+		//Service: "my_custom_service",
+		//Tags:    []string{"foo:bar", "custom:log"},
+	}))
+
+	err := c.CommonConfigure(senderManager, integrationConfigDigest, initConfig, data, source)
 	if err != nil {
 		return err
 	}
@@ -85,7 +103,7 @@ func (c *WindowsRegistryCheck) Configure(integrationConfigDigest uint64, data in
 	for regKey, regKeyConfig := range conf.RegistryKeys {
 		splitKeypath := strings.Split(regKey, "\\")
 		if len(splitKeypath) < 2 {
-			return log.Errorf("the key %s is too short to be a valid key", regKey)
+			return agentLog.Errorf("the key %s is too short to be a valid key", regKey)
 		}
 
 		if hive, found := hiveMap[splitKeypath[0]]; found {
@@ -94,10 +112,10 @@ func (c *WindowsRegistryCheck) Configure(integrationConfigDigest uint64, data in
 				hive:            hive,
 				originalKeyPath: regKey,
 				keyPath:         strings.Join(splitKeypath[1:], "\\"),
-				metrics:         regKeyConfig.Metrics,
+				subkeys:         regKeyConfig.Subkeys,
 			})
 		} else {
-			return log.Errorf("unknown hive %s", splitKeypath[0])
+			return agentLog.Errorf("unknown hive %s", splitKeypath[0])
 		}
 	}
 
@@ -115,13 +133,13 @@ func (c *WindowsRegistryCheck) Run() error {
 		if err != nil {
 			if errors.Is(err, fs.ErrPermission) {
 				// Treat access denied as errors
-				log.Errorf("access denied while accessing key %s: %s", regKeyCfg.originalKeyPath, err)
+				c.errorf("access denied while accessing key %s: %s", regKeyCfg.originalKeyPath, err)
 			} else if errors.Is(err, registry.ErrNotExist) {
-				log.Warnf("key %s was not found: %s", regKeyCfg.originalKeyPath, err)
+				c.warnf("key %s was not found: %s", regKeyCfg.originalKeyPath, err)
 			}
 		} else {
 			// if err == nil the key was opened, so we need to close it after we are done.
-			processRegistryKeyMetrics(sender, regKey, regKeyCfg)
+			c.processRegistryKeyMetrics(sender, regKey, regKeyCfg)
 			regKey.Close()
 		}
 	}
@@ -129,15 +147,50 @@ func (c *WindowsRegistryCheck) Run() error {
 	return nil
 }
 
-func processRegistryKeyMetrics(sender aggregator.Sender, regKey registry.Key, regKeyCfg registryKey) {
-NextMetric:
-	for valueName, metric := range regKeyCfg.metrics {
+func (c *WindowsRegistryCheck) emitLog(m, status string) {
+	if !c.logsComponent.IsRunning() {
+		return
+	}
+	c.logsComponent.GetPipelineProvider().NextPipelineChan() <- message.NewMessage(
+		[]byte(m),
+		c.origin,
+		status,
+		time.Now().UnixNano(),
+	)
+}
+
+func (c *WindowsRegistryCheck) warnf(format string, params ...interface{}) {
+	if c.logsComponent.IsRunning() {
+		c.emitLog(fmt.Sprintf(format, params), "warn")
+	} else {
+		agentLog.Warnf(format, params)
+	}
+}
+
+func (c *WindowsRegistryCheck) infof(format string, params ...interface{}) {
+	if c.logsComponent.IsRunning() {
+		c.emitLog(fmt.Sprintf(format, params), "info")
+	} else {
+		agentLog.Infof(format, params)
+	}
+}
+
+func (c *WindowsRegistryCheck) errorf(format string, params ...interface{}) {
+	if c.logsComponent.IsRunning() {
+		c.emitLog(fmt.Sprintf(format, params), "error")
+	} else {
+		agentLog.Errorf(format, params)
+	}
+}
+
+func (c *WindowsRegistryCheck) processRegistryKeyMetrics(sender sender.Sender, regKey registry.Key, regKeyCfg registryKey) {
+	for valueName, subkey := range regKeyCfg.subkeys {
 		_, valueType, err := regKey.GetValue(valueName, nil)
-		gaugeName := fmt.Sprintf("%s.%s.%s", checkPrefix, regKeyCfg.name, metric.Name)
+		gaugeName := fmt.Sprintf("%s.%s.%s", checkPrefix, regKeyCfg.name, subkey.Name)
 		if errors.Is(err, registry.ErrNotExist) {
-			log.Warnf("value %s of key %s was not found: %s", valueName, regKeyCfg.name, err)
+			c.warnf("value %s of key %s was not found: %s", valueName, regKeyCfg.name, err)
 		} else if errors.Is(err, fs.ErrPermission) {
-			log.Errorf("access denied while accessing value %s of key %s: %s", valueName, regKeyCfg.originalKeyPath, err)
+			c.errorf("access denied while accessing value %s of key %s: %s", valueName, regKeyCfg.originalKeyPath, err)
 		} else if errors.Is(err, registry.ErrShortBuffer) || err == nil {
 			switch valueType {
 			case registry.DWORD:
@@ -145,33 +198,37 @@ NextMetric:
 			case registry.QWORD:
 				val, _, err := regKey.GetIntegerValue(valueName)
 				if err != nil {
-					log.Errorf("error accessing value %s of key %s: %s", valueName, regKeyCfg.originalKeyPath, err)
+					c.errorf("error accessing value %s of key %s: %s", valueName, regKeyCfg.originalKeyPath, err)
 					continue
 				}
 				sender.Gauge(gaugeName, float64(val), "", nil)
+				sVal := fmt.Sprintf("%f", float64(val))
+				if subkey.Value != sVal {
+					c.emitLog(fmt.Sprintf("%s\\%s changed from %s to %s", regKeyCfg.name, subkey.Name, subkey.Value, sVal), "info")
+					subkey.Value = sVal
+				}
 			case registry.SZ:
+				fallthrough
+			case registry.MULTI_SZ:
 				fallthrough
 			case registry.EXPAND_SZ: // Should we expand the references to environment variables ?
 				val, _, err := regKey.GetStringValue(valueName)
 				if err != nil {
-					log.Errorf("error accessing value %s of key %s: %s", valueName, regKeyCfg.originalKeyPath, err)
+					c.errorf("error accessing value %s of key %s: %s", valueName, regKeyCfg.originalKeyPath, err)
 					continue
 				}
-				// First try to parse the value into a float64
+				// Try to parse the value into a float64
 				if parsedVal, err := strconv.ParseFloat(val, 64); err == nil {
 					sender.Gauge(gaugeName, parsedVal, "", nil)
-				} else {
-					// Value can't be parsed, let's check the mappings
-					for _, mapping := range metric.Mappings {
-						if mappedValue, found := mapping[val]; found {
-							sender.Gauge(gaugeName, mappedValue, "", nil)
-							continue NextMetric
-						}
+					if subkey.Value != val {
+						c.emitLog(fmt.Sprintf("%s\\%s changed from %s to %s", regKeyCfg.name, subkey.Name, subkey.Value, val), "info")
+						subkey.Value = val
 					}
-					log.Warnf("no mapping found for value %s of key %s", valueName, regKeyCfg.originalKeyPath)
+				} else {
+					c.warnf("value %s of key %s cannot be parsed ", valueName, regKeyCfg.originalKeyPath)
 				}
 			default:
-				log.Warnf("unsupported data type of value %s for key %s: %d", valueName, regKeyCfg.originalKeyPath, valueType)
+				c.warnf("unsupported data type of value %s for key %s: %d", valueName, regKeyCfg.originalKeyPath, valueType)
 			}
 		}
 	}
