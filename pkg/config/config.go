@@ -1184,6 +1184,8 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("security_agent.internal_profiling.block_profile_rate", 0)
 	config.BindEnvAndSetDefault("security_agent.internal_profiling.enable_goroutine_stacktraces", false)
 	config.BindEnvAndSetDefault("security_agent.internal_profiling.delta_profiles", true)
+	config.BindEnvAndSetDefault("security_agent.internal_profiling.unix_socket", "")
+	config.BindEnvAndSetDefault("security_agent.internal_profiling.extra_tags", []string{})
 
 	// Datadog security agent (compliance)
 	config.BindEnvAndSetDefault("compliance_config.enabled", false)
