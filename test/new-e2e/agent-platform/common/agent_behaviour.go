@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+// Package common contains basic test operation for agent-platform tests
 package common
 
 import (
@@ -27,7 +28,8 @@ func CheckAgentBehaviour(t *testing.T, client *ExtendedClient) {
 		var statusOutputJSON map[string]any
 		result := false
 		for try := 0; try < 5 && !result; try++ {
-			json.Unmarshal([]byte(client.Env.Agent.Status(e2eClient.WithArgs([]string{"-j"})).Content), &statusOutputJSON)
+			err := json.Unmarshal([]byte(client.Env.Agent.Status(e2eClient.WithArgs([]string{"-j"})).Content), &statusOutputJSON)
+			require.NoError(tt, err)
 			if runnerStats, ok := statusOutputJSON["runnerStats"]; ok {
 				runnerStatsMap := runnerStats.(map[string]any)
 				if checks, ok := runnerStatsMap["Checks"]; ok {
@@ -185,7 +187,8 @@ func CheckCWSBehaviour(t *testing.T, client *ExtendedClient) {
 			if err == nil {
 				statusLines := strings.Split(status, "\n")
 				status = strings.Join(statusLines[1:], "\n")
-				json.Unmarshal([]byte(status), &statusOutputJSON)
+				err := json.Unmarshal([]byte(status), &statusOutputJSON)
+				require.NoError(tt, err)
 				if runtimeStatus, ok := statusOutputJSON["runtimeSecurityStatus"]; ok {
 					if connected, ok := runtimeStatus.(map[string]any)["connected"]; ok {
 						result = connected == true

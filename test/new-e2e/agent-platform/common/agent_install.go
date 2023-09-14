@@ -43,14 +43,16 @@ func CheckInstallationInstallScript(t *testing.T, client *ExtendedClient) {
 		var configJSON map[string]any
 		config := client.Env.VM.Execute("cat /etc/datadog-agent/datadog.yaml")
 
-		yaml.Unmarshal([]byte(config), &configJSON)
+		err := yaml.Unmarshal([]byte(config), &configJSON)
+		require.NoError(tt, err)
 		require.Equal(tt, configJSON["site"], "datadoghq.eu")
 	})
 
 	t.Run("install info file", func(tt *testing.T) {
 		var installInfoYaml map[string]map[string]string
 		installInfo := client.Env.VM.Execute("cat /etc/datadog-agent/install_info")
-		yaml.Unmarshal([]byte(installInfo), &installInfoYaml)
+		err := yaml.Unmarshal([]byte(installInfo), &installInfoYaml)
+		require.NoError(tt, err)
 		toolVersionRegex := regexp.MustCompile(`^install_script$`)
 		installerVersionRegex := regexp.MustCompile(`^install_script-\d+\.\d+\.\d+(.post)?$`)
 		installMethodJSON := installInfoYaml["install_method"]

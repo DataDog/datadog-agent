@@ -34,7 +34,10 @@ func TestInstallScript(t *testing.T) {
 	if err != nil {
 		panic(fmt.Sprintf("failed to read platform file: %v", err))
 	}
-	json.Unmarshal(platform, &platformJSON)
+	err = json.Unmarshal(platform, &platformJSON)
+	if err != nil {
+		panic(fmt.Sprintf("failed to umarshall platform file: %v", err))
+	}
 	osVersions := strings.Split(*osVersion, ",")
 
 	for _, osVers := range osVersions {
