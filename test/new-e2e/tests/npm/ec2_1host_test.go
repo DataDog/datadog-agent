@@ -151,7 +151,7 @@ func (v *ec2VMSuite) TestFakeIntakeNPM_TCP_UDP_DNS() {
 			case agentmodel.ConnectionType_udp:
 				count.UDP++
 			}
-			validateConnection(t, c)
+			validateConnection(t, c, cc, hostname)
 		})
 
 		totalConnections := countCnx{}

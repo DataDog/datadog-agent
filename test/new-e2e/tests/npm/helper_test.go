@@ -23,7 +23,7 @@ func validateAddr(t *testing.T, addr *agentmodel.Addr) {
 	require.NotNilf(t, net.ParseIP(addr.Ip), "IP address not valid %s", addr.Ip)
 }
 
-func validateConnection(t *testing.T, c *agentmodel.Connection) {
+func validateConnection(t *testing.T, c *agentmodel.Connection, cc *agentmodel.CollectorConnections, hostname string) {
 	require.NotZero(t, c.Pid, "Pid = 0")
 	require.NotZero(t, c.NetNS, "network namespace = 0")
 	require.NotNil(t, c.Laddr, "Laddr is nil")
@@ -42,12 +42,21 @@ func validateConnection(t *testing.T, c *agentmodel.Connection) {
 		validateUDPConnection(t, c)
 	}
 
-	validateDNSConnection(t, c)
+	validateDNSConnection(t, c, cc, hostname)
 }
 
-func validateDNSConnection(t *testing.T, c *agentmodel.Connection) {
-	if c.DnsFailedResponses > 0 || c.DnsSuccessfulResponses > 0 {
-		t.Logf(krpretty.Sprintf("DNS %# v", c))
+func validateDNSConnection(t *testing.T, c *agentmodel.Connection, cc *agentmodel.CollectorConnections, hostname string) {
+	if len(c.DnsStatsByDomainOffsetByQueryType) == 0 {
+		return
+	}
+	for domain, stats := range c.DnsStatsByDomainOffsetByQueryType {
+		for queryType, dnsstat := range stats.DnsStatsByQueryType {
+			domainName, err := cc.GetDNSNameByOffset(domain)
+			require.NoErrorf(t, err, "can't resolve domain tags on %s connection %s", hostname, krpretty.Sprint(c))
+			require.Greaterf(t, len(domainName), 0, "len(domainName) = 0 %s connection %s", hostname, krpretty.Sprint(c))
+			t.Logf("DNS %s query type %v %s", domainName, queryType, krpretty.Sprint(dnsstat))
+			t.Logf("connection to %s:%d", c.Raddr.Ip, c.Raddr.Port)
+		}
 	}
 }
 
