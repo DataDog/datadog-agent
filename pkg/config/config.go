@@ -1204,6 +1204,7 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("runtime_security_config.run_path", defaultRunPath)
 	config.BindEnvAndSetDefault("runtime_security_config.log_profiled_workloads", false)
 	config.BindEnvAndSetDefault("runtime_security_config.telemetry.ignore_dd_agent_containers", true)
+	config.BindEnvAndSetDefault("runtime_security_config.use_secruntime_track", false)
 	bindEnvAndSetLogsConfigKeys(config, "runtime_security_config.endpoints.")
 	bindEnvAndSetLogsConfigKeys(config, "runtime_security_config.activity_dump.remote_storage.endpoints.")
 

@@ -12,10 +12,10 @@ int __attribute__((always_inline)) trace__sys_execveat(ctx_t *ctx, const char **
         .type = EVENT_EXEC,
         .exec = {
             .args = {
-                .id = bpf_get_prandom_u32(),
+                .id = rand32(),
             },
             .envs = {
-                .id = bpf_get_prandom_u32(),
+                .id = rand32(),
             }
         }
     };
@@ -209,7 +209,7 @@ int sched_process_fork(struct _tracepoint_sched_process_fork *args) {
         event->pid_entry.credentials = parent_pid_entry->credentials;
 
         // fetch the parent proc cache entry
-        u32 on_stack_cookie = event->pid_entry.cookie;
+        u64 on_stack_cookie = event->pid_entry.cookie;
         struct proc_cache_t *parent_pc = get_proc_from_cookie(on_stack_cookie);
         if (parent_pc) {
             fill_container_context(parent_pc, &event->container);
@@ -627,7 +627,7 @@ int __attribute__((always_inline)) send_exec_event(ctx_t *ctx) {
         },
         .container = {},
     };
-    fill_file_metadata(syscall->exec.dentry, &pc.entry.executable.metadata);
+    fill_file(syscall->exec.dentry, &pc.entry.executable);
     bpf_get_current_comm(&pc.entry.comm, sizeof(pc.entry.comm));
 
     // select the previous cookie entry in cache of the current process
@@ -635,7 +635,7 @@ int __attribute__((always_inline)) send_exec_event(ctx_t *ctx) {
     struct pid_cache_t *fork_entry = (struct pid_cache_t *) bpf_map_lookup_elem(&pid_cache, &tgid);
     if (fork_entry) {
         // Fetch the parent proc cache entry
-        u32 parent_cookie = fork_entry->cookie;
+        u64 parent_cookie = fork_entry->cookie;
         struct proc_cache_t *parent_pc = get_proc_from_cookie(parent_cookie);
         if (parent_pc) {
             // inherit the parent container context
@@ -646,7 +646,7 @@ int __attribute__((always_inline)) send_exec_event(ctx_t *ctx) {
 
     // Insert new proc cache entry (Note: do not move the order of this block with the previous one, we need to inherit
     // the container ID before saving the entry in proc_cache. Modifying entry after insertion won't work.)
-    u32 cookie = bpf_get_prandom_u32();
+    u64 cookie = rand64();
     bpf_map_update_elem(&proc_cache, &cookie, &pc, BPF_ANY);
 
     // update pid <-> cookie mapping

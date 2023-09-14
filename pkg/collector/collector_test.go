@@ -84,7 +84,7 @@ type CollectorTestSuite struct {
 }
 
 func (suite *CollectorTestSuite) SetupTest() {
-	suite.c = NewCollector(aggregator.GetSenderManager())
+	suite.c = NewCollector(aggregator.NewNoOpSenderManager())
 	suite.c.Start()
 }
 
@@ -152,7 +152,7 @@ func (suite *CollectorTestSuite) TestGet() {
 	_, found := suite.c.get("bar")
 	assert.False(suite.T(), found)
 
-	suite.c.checks["bar"] = middleware.NewCheckWrapper(NewCheck(), aggregator.GetSenderManager())
+	suite.c.checks["bar"] = middleware.NewCheckWrapper(NewCheck(), aggregator.NewNoOpSenderManager())
 	_, found = suite.c.get("foo")
 	assert.False(suite.T(), found)
 	c, found := suite.c.get("bar")

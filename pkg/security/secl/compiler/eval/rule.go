@@ -7,6 +7,7 @@
 package eval
 
 import (
+	"errors"
 	"fmt"
 	"reflect"
 
@@ -97,12 +98,32 @@ func (r *Rule) GetFieldValues(field Field) []FieldValue {
 
 // PartialEval - Partial evaluation with the given Field
 func (r *Rule) PartialEval(ctx *Context, field Field) (bool, error) {
-	return r.evaluator.PartialEval(ctx, field)
+	result, err := r.evaluator.PartialEval(ctx, field)
+	if err == nil {
+		return result, nil
+	}
+
+	var errNotFound *ErrFieldNotFound
+	if errors.As(err, &errNotFound) {
+		if err = r.genPartials(field); err != nil {
+			return false, err
+		}
+		result, err = r.evaluator.PartialEval(ctx, field)
+	}
+	return result, err
 }
 
 // GetPartialEval - Returns the Partial RuleEvaluator for the given Field
 func (r *Rule) GetPartialEval(field Field) BoolEvalFnc {
-	return r.evaluator.partialEvals[field]
+	partial, exists := r.evaluator.partialEvals[field]
+	if !exists {
+		if err := r.genPartials(field); err != nil {
+			return nil
+		}
+		partial = r.evaluator.partialEvals[field]
+	}
+
+	return partial
 }
 
 // GetFields - Returns all the Field of the Rule including field of the Macro used
@@ -210,9 +231,12 @@ func (r *Rule) GenEvaluator(model Model, parsingCtx *ast.ParsingContext) error {
 	return nil
 }
 
-func (r *Rule) genMacroPartials() (map[Field]map[MacroID]*MacroEvaluator, error) {
+func (r *Rule) genMacroPartials(field Field) (map[Field]map[MacroID]*MacroEvaluator, error) {
 	partials := make(map[Field]map[MacroID]*MacroEvaluator)
-	for _, field := range r.GetFields() {
+	for _, f := range r.GetFields() {
+		if f != field {
+			continue
+		}
 		for _, macro := range r.Opts.MacroStore.List() {
 			var err error
 			var evaluator *MacroEvaluator
@@ -243,13 +267,17 @@ func (r *Rule) genMacroPartials() (map[Field]map[MacroID]*MacroEvaluator, error)
 }
 
 // GenPartials - Compiles and generates partial Evaluators
-func (r *Rule) GenPartials() error {
-	macroPartials, err := r.genMacroPartials()
+func (r *Rule) genPartials(field Field) error {
+	macroPartials, err := r.genMacroPartials(field)
 	if err != nil {
 		return err
 	}
 
-	for _, field := range r.GetFields() {
+	for _, f := range r.GetFields() {
+		if f != field {
+			continue
+		}
+
 		state := NewState(r.Model, field, macroPartials[field])
 		pEval, _, err := nodeToEvaluator(r.ast.BooleanExpression, r.Opts, state)
 		if err != nil {

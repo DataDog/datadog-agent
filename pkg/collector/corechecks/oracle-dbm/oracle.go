@@ -60,6 +60,10 @@ type StatementsCache struct {
 	forceMatchingSignatures map[string]StatementsCacheData
 }
 
+type pgaOverAllocationCount struct {
+	value float64
+}
+
 type Check struct {
 	core.CheckBase
 	config                                  *config.CheckConfig
@@ -89,7 +93,7 @@ type Check struct {
 	connectedToPdb                          bool
 	fqtEmitted                              *cache.Cache
 	planEmitted                             *cache.Cache
-	previousAllocationCount                 float64
+	previousPGAOverAllocationCount          pgaOverAllocationCount
 }
 
 func handleServiceCheck(c *Check, err error) {
@@ -182,6 +186,12 @@ func (c *Check) Run() error {
 				return err
 			}
 		}
+		if len(c.config.CustomQueries) > 0 {
+			err := c.CustomQueries()
+			if err != nil {
+				log.Errorf("failed to execute custom queries %s", err)
+			}
+		}
 	}
 
 	if c.dbmEnabled {
@@ -202,12 +212,6 @@ func (c *Check) Run() error {
 				err := c.SharedMemory()
 				if err != nil {
 					return err
-				}
-			}
-			if len(c.config.CustomQueries) > 0 {
-				err := c.CustomQueries()
-				if err != nil {
-					log.Errorf("failed to execute custom queries %s", err)
 				}
 			}
 		}
