@@ -3,6 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:generate go run ./main.go device_profile_rc_config_schema.json
+
 // Package main holds main related files
 package main
 
@@ -16,7 +18,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/networkdevice/profile/profiledefinition"
 )
 
-func generateBackendJSON(output string) error {
+func generateJsonSchema(output string) error {
 	schema := jsonschema.Reflect(&profiledefinition.DeviceProfileRcConfig{})
 	schemaJSON, err := json.MarshalIndent(schema, "", "  ")
 	if err != nil {
@@ -27,14 +29,12 @@ func generateBackendJSON(output string) error {
 }
 
 func main() {
-	var (
-		output string
-	)
+	var output string
 
-	flag.StringVar(&output, "output", "./device_profile_rc_config_schema.json", "Backend JSON schema generated file")
+	flag.StringVar(&output, "output", "./device_profile_rc_config_schema.json", "Generate JSON schema generated file")
 	flag.Parse()
 
-	if err := generateBackendJSON(output); err != nil {
+	if err := generateJsonSchema(output); err != nil {
 		panic(err)
 	}
 }
