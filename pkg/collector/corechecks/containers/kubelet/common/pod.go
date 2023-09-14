@@ -23,13 +23,13 @@ import (
 )
 
 var (
-	VOLUME_TAG_KEYS_TO_EXCLUDE = []string{"persistentvolumeclaim", "pod_phase"}
+	volumeTagKeysToExclude = []string{"persistentvolumeclaim", "pod_phase"}
 )
 
 func CachePodTagsByPVC(pod *kubelet.Pod) {
 	// TODO
-	podUid := kubelet.PodUIDToTaggerEntityName(pod.Metadata.UID)
-	tags, _ := tagger.Tag(podUid, collectors.OrchestratorCardinality)
+	podUID := kubelet.PodUIDToTaggerEntityName(pod.Metadata.UID)
+	tags, _ := tagger.Tag(podUID, collectors.OrchestratorCardinality)
 	if len(tags) == 0 {
 		return
 	}
@@ -37,8 +37,8 @@ func CachePodTagsByPVC(pod *kubelet.Pod) {
 	var filteredTags []string
 	for t := range tags {
 		omitTag := false
-		for i := range VOLUME_TAG_KEYS_TO_EXCLUDE {
-			if strings.HasPrefix(tags[t], VOLUME_TAG_KEYS_TO_EXCLUDE[i]+":") {
+		for i := range volumeTagKeysToExclude {
+			if strings.HasPrefix(tags[t], volumeTagKeysToExclude[i]+":") {
 				omitTag = true
 				break
 			}
@@ -76,7 +76,7 @@ func CachePodTagsByPVC(pod *kubelet.Pod) {
 // found, or if the container should be filtered out.
 func GetContainerId(store workloadmeta.Store, metric model.Metric, filter *containers.Filter) string {
 	namespace := string(metric["namespace"])
-	podUid := string(metric["pod_uid"])
+	podUID := string(metric["pod_uid"])
 	// k8s >= 1.16
 	containerName := string(metric["container"])
 	podName := string(metric["pod"])
@@ -88,11 +88,11 @@ func GetContainerId(store workloadmeta.Store, metric model.Metric, filter *conta
 		podName = string(metric["pod_name"])
 	}
 
-	pod, err := store.GetKubernetesPod(podUid)
+	pod, err := store.GetKubernetesPod(podUID)
 	if err != nil {
 		pod, err = store.GetKubernetesPodByName(podName, namespace)
 		if err != nil {
-			log.Debugf("pod not found for id:%s, name:%s, namespace:%s", podUid, podName, namespace)
+			log.Debugf("pod not found for id:%s, name:%s, namespace:%s", podUID, podName, namespace)
 			return ""
 		}
 	}
@@ -114,7 +114,7 @@ func GetContainerId(store workloadmeta.Store, metric model.Metric, filter *conta
 		return ""
 	}
 
-	cId := containers.BuildTaggerEntityName(container.ID)
+	cID := containers.BuildTaggerEntityName(container.ID)
 
-	return cId
+	return cID
 }

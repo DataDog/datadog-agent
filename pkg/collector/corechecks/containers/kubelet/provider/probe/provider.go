@@ -80,12 +80,12 @@ func (p *Provider) proberProbeTotal(metric *model.Sample, sender sender.Sender) 
 		return
 	}
 
-	cId := common.GetContainerId(p.store, metric.Metric, p.filter)
-	if cId == "" {
+	cID := common.GetContainerId(p.store, metric.Metric, p.filter)
+	if cID == "" {
 		return
 	}
 
-	tags, _ := tagger.Tag(cId, collectors.HighCardinality)
+	tags, _ := tagger.Tag(cID, collectors.HighCardinality)
 	if len(tags) == 0 {
 		return
 	}

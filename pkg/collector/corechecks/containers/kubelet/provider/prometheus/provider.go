@@ -26,8 +26,8 @@ import (
 )
 
 const (
-	TypeLabel   = "__type__"
-	MICROS_IN_S = 1000000
+	TypeLabel             = "__type__"
+	microsecondsInSeconds = 1000000
 )
 
 // TransformerFunc outlines the function signature for any transformers which will be used with the prometheus Provider
@@ -165,13 +165,13 @@ func (p *Provider) Provide(kc kubelet.KubeUtilInterface, sender sender.Sender) e
 		metricName := string(metric.Metric["__name__"])
 
 		// The parsing library we are using appends some suffixes to the metric name for samples in a histogram or summary,
-		// To ensure backwards compatability, we will remove these
+		// To ensure backwards compatibility, we will remove these
 		if metric.Metric[TypeLabel] == "SUMMARY" || metric.Metric[TypeLabel] == "HISTOGRAM" {
 			if strings.HasSuffix(metricName, "_bucket") {
 				metricName = strings.TrimSuffix(metricName, "_bucket")
 			} else if strings.HasSuffix(metricName, "_count") {
 				metricName = strings.TrimSuffix(metricName, "_count")
-			} else if strings.HasSuffix(metricName, "_sum") {
+			} else {
 				metricName = strings.TrimSuffix(metricName, "_sum")
 			}
 		}
@@ -288,14 +288,6 @@ func (p *Provider) sendDistributionCount(metric string, value float64, hostname 
 	}
 }
 
-func (p *Provider) getHostname(metric *model.Sample) string {
-	if hName, ok := metric.Metric[model.LabelName(p.Config.LabelToHostname)]; p.Config.LabelToHostname != "" && ok {
-		// TODO label_to_hostname_suffix
-		return string(hName)
-	}
-	return ""
-}
-
 func (p *Provider) MetricTags(metric *model.Sample) []string {
 	tags := p.Config.Tags
 	for lName, lVal := range metric.Metric {
@@ -345,7 +337,7 @@ func (p *Provider) histogramConvertValues(metricName string, converter func(mode
 
 func (p *Provider) HistogramFromSecondsToMicroseconds(metricName string) TransformerFunc {
 	return p.histogramConvertValues(metricName, func(value model.SampleValue) model.SampleValue {
-		return value * MICROS_IN_S
+		return value * microsecondsInSeconds
 	})
 }
 

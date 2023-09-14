@@ -9,7 +9,6 @@ package kubelet
 
 import (
 	"encoding/json"
-	"errors"
 	"fmt"
 	"os"
 	"reflect"
@@ -96,21 +95,7 @@ var (
 
 	instanceTags = []string{"instance_tag:something"}
 
-	EXPECTED_METRICS_PROMETHEUS = []string{
-		//common.KubeletMetricsPrefix + "cpu.load.10s.avg",
-		//common.KubeletMetricsPrefix + "cpu.system.total",
-		//common.KubeletMetricsPrefix + "cpu.user.total",
-		//common.KubeletMetricsPrefix + "cpu.cfs.periods",
-		//common.KubeletMetricsPrefix + "cpu.cfs.throttled.periods",
-		//common.KubeletMetricsPrefix + "cpu.cfs.throttled.seconds",
-		//common.KubeletMetricsPrefix + "memory.usage_pct",
-		//common.KubeletMetricsPrefix + "memory.sw_limit",
-		//common.KubeletMetricsPrefix + "network.rx_dropped",
-		//common.KubeletMetricsPrefix + "network.rx_errors",
-		//common.KubeletMetricsPrefix + "network.tx_dropped",
-		//common.KubeletMetricsPrefix + "network.tx_errors",
-		//common.KubeletMetricsPrefix + "io.write_bytes",
-		//common.KubeletMetricsPrefix + "io.read_bytes",
+	expectedMetricsPrometheus = []string{
 		common.KubeletMetricsPrefix + "apiserver.certificate.expiration.count",
 		common.KubeletMetricsPrefix + "apiserver.certificate.expiration.sum",
 		common.KubeletMetricsPrefix + "rest.client.requests",
@@ -143,7 +128,7 @@ var (
 		common.KubeletMetricsPrefix + "go_goroutines",
 	}
 
-	EXPECTED_METRICS_PROMETHEUS_1_14 = append(EXPECTED_METRICS_PROMETHEUS,
+	expectedMetricsPrometheus114 = append(expectedMetricsPrometheus,
 		common.KubeletMetricsPrefix+"kubelet.container.log_filesystem.used_bytes",
 		common.KubeletMetricsPrefix+"kubelet.pod.worker.duration.sum",
 		common.KubeletMetricsPrefix+"kubelet.pod.worker.duration.count",
@@ -153,27 +138,18 @@ var (
 		common.KubeletMetricsPrefix+"kubelet.pleg.relist_interval.sum",
 	)
 
-	EXPECTED_METRICS_PROMETHEUS_PRE_1_14 = append(EXPECTED_METRICS_PROMETHEUS,
+	expectedMetricsPrometheusPre114 = append(expectedMetricsPrometheus,
 		common.KubeletMetricsPrefix+"kubelet.network_plugin.latency.quantile",
 		common.KubeletMetricsPrefix+"kubelet.pod.start.duration.quantile",
 		common.KubeletMetricsPrefix+"kubelet.pod.worker.start.duration.quantile",
 	)
 
-	EXPECTED_METRICS_PROMETHEUS_1_21 = []string{
+	expectedMetricsPrometheus121 = []string{
 		common.KubeletMetricsPrefix + "apiserver.certificate.expiration.count",
 		common.KubeletMetricsPrefix + "apiserver.certificate.expiration.sum",
-		//common.KubeletMetricsPrefix + "containers.restarts",
-		//common.KubeletMetricsPrefix + "containers.running",
-		//common.KubeletMetricsPrefix + "cpu.capacity",
-		//common.KubeletMetricsPrefix + "cpu.limits",
-		//common.KubeletMetricsPrefix + "cpu.requests",
-		//common.KubeletMetricsPrefix + "ephemeral_storage.usage",
 		common.KubeletMetricsPrefix + "go_goroutines",
 		common.KubeletMetricsPrefix + "go_threads",
 		common.KubeletMetricsPrefix + "kubelet.container.log_filesystem.used_bytes",
-		//common.KubeletMetricsPrefix + "kubelet.cpu.usage",
-		//common.KubeletMetricsPrefix + "kubelet.memory.usage",
-		//common.KubeletMetricsPrefix + "kubelet.memory.rss",
 		common.KubeletMetricsPrefix + "kubelet.network_plugin.latency.count",
 		common.KubeletMetricsPrefix + "kubelet.network_plugin.latency.sum",
 		common.KubeletMetricsPrefix + "kubelet.pleg.discard_events",
@@ -190,21 +166,10 @@ var (
 		common.KubeletMetricsPrefix + "kubelet.runtime.operations",
 		common.KubeletMetricsPrefix + "kubelet.runtime.operations.duration.count",
 		common.KubeletMetricsPrefix + "kubelet.runtime.operations.duration.sum",
-		//common.KubeletMetricsPrefix + "memory.capacity",
-		//common.KubeletMetricsPrefix + "memory.limits",
-		//common.KubeletMetricsPrefix + "memory.requests",
-		//common.KubeletMetricsPrefix + "pods.running",
 		common.KubeletMetricsPrefix + "rest.client.latency.count",
 		common.KubeletMetricsPrefix + "rest.client.latency.sum",
 		common.KubeletMetricsPrefix + "rest.client.requests",
 		common.KubeletMetricsPrefix + "kubelet.evictions",
-		//common.KubeletMetricsPrefix + "runtime.cpu.usage",
-		//common.KubeletMetricsPrefix + "runtime.memory.usage",
-		//common.KubeletMetricsPrefix + "runtime.memory.rss",
-		//common.KubeletMetricsPrefix + "node.filesystem.usage",
-		//common.KubeletMetricsPrefix + "node.filesystem.usage_pct",
-		//common.KubeletMetricsPrefix + "node.image.filesystem.usage",
-		//common.KubeletMetricsPrefix + "node.image.filesystem.usage_pct",
 	}
 )
 
@@ -284,7 +249,7 @@ func (suite *ProviderTestSuite) TestExpectedMetricsShowUp() {
 				err:      nil,
 			},
 			want: want{
-				metrics: EXPECTED_METRICS_PROMETHEUS_PRE_1_14,
+				metrics: expectedMetricsPrometheusPre114,
 			},
 		},
 		{
@@ -295,7 +260,7 @@ func (suite *ProviderTestSuite) TestExpectedMetricsShowUp() {
 				err:      nil,
 			},
 			want: want{
-				metrics: EXPECTED_METRICS_PROMETHEUS_1_14,
+				metrics: expectedMetricsPrometheus114,
 			},
 		},
 		{
@@ -306,7 +271,7 @@ func (suite *ProviderTestSuite) TestExpectedMetricsShowUp() {
 				err:      nil,
 			},
 			want: want{
-				metrics: EXPECTED_METRICS_PROMETHEUS_1_21,
+				metrics: expectedMetricsPrometheus121,
 			},
 		},
 	}
@@ -342,6 +307,9 @@ func (suite *ProviderTestSuite) TestPodTagsOnPVCMetrics() {
 	}
 
 	err = suite.provider.Provide(kubeletMock, suite.mockSender)
+	if err != nil {
+		suite.T().Fatalf("unexpected error returned by call to provider.Provide: %v", err)
+	}
 
 	// pvc tags show up
 	podWithPVCTags := append(instanceTags, "persistentvolumeclaim:www-web-2", "namespace:default", "kube_namespace:default", "kube_service:nginx", "kube_stateful_set:web", "namespace:default")
@@ -382,6 +350,9 @@ func (suite *ProviderTestSuite) TestPVCMetricsExcludedByNamespace() {
 	}
 
 	err = suite.provider.Provide(kubeletMock, suite.mockSender)
+	if err != nil {
+		suite.T().Fatalf("unexpected error returned by call to provider.Provide: %v", err)
+	}
 
 	// pvc tags show up
 	podWithPVCTags := append(instanceTags, "persistentvolumeclaim:www-web-2", "namespace:default", "kube_namespace:default", "kube_service:nginx", "kube_stateful_set:web", "namespace:default")
@@ -417,6 +388,9 @@ func (suite *ProviderTestSuite) TestSendAlwaysCounter() {
 	}
 
 	err = suite.provider.Provide(kubeletMock, suite.mockSender)
+	if err != nil {
+		suite.T().Fatalf("unexpected error returned by call to provider.Provide: %v", err)
+	}
 
 	// expected counters show up
 	suite.mockSender.AssertMetric(suite.T(), "MonotonicCount", common.KubeletMetricsPrefix+"kubelet.evictions", 3, "", append(instanceTags, "eviction_signal:allocatableMemory.available"))
@@ -440,6 +414,9 @@ func (suite *ProviderTestSuite) TestKubeletContainerLogFilesystemUsedBytes() {
 	}
 
 	err = suite.provider.Provide(kubeletMock, suite.mockSender)
+	if err != nil {
+		suite.T().Fatalf("unexpected error returned by call to provider.Provide: %v", err)
+	}
 
 	// container id has tags, so container tags show up
 	suite.mockSender.AssertMetric(suite.T(), "Gauge", common.KubeletMetricsPrefix+"kubelet.container.log_filesystem.used_bytes", 5242822656, "", append(instanceTags, "kube_container_name:datadog-agent"))
@@ -460,6 +437,9 @@ func (suite *ProviderTestSuite) TestRestClientLatency() {
 	}
 
 	err = suite.provider.Provide(kubeletMock, suite.mockSender)
+	if err != nil {
+		suite.T().Fatalf("unexpected error returned by call to provider.Provide: %v", err)
+	}
 
 	// url is parsed
 	// note: there are so many metric points generated for this metric based on the input data, we are just going to focus on one
@@ -490,6 +470,9 @@ func (suite *ProviderTestSuite) TestHistogramFromSecondsToMicroseconds() {
 	}
 
 	err = suite.provider.Provide(kubeletMock, suite.mockSender)
+	if err != nil {
+		suite.T().Fatalf("unexpected error returned by call to provider.Provide: %v", err)
+	}
 
 	// upper_bound tag is transformed for buckets
 	suite.mockSender.AssertMetric(suite.T(), "Gauge", common.KubeletMetricsPrefix+"kubelet.network_plugin.latency.count", 14, "", append(instanceTags, "operation_type:get_pod_network_status", "upper_bound:5000.000000"))
@@ -549,7 +532,7 @@ func createKubeletMock(response endpointResponse) (*mock.KubeletMock, error) {
 	if response.filename != "" {
 		content, err = os.ReadFile(response.filename)
 		if err != nil {
-			return nil, errors.New(fmt.Sprintf("unable to read test file at: %s, err: %v", response.filename, err))
+			return nil, fmt.Errorf(fmt.Sprintf("unable to read test file at: %s, err: %v", response.filename, err))
 		}
 	}
 	kubeletMock.MockReplies["/metrics"] = &mock.HTTPReplyMock{
@@ -569,12 +552,12 @@ func storePopulatedFromFile(filename string) (*workloadmetatesting.Store, error)
 
 	podList, err := os.ReadFile(filename)
 	if err != nil {
-		return store, errors.New(fmt.Sprintf("unable to load pod list, err: %v", err))
+		return store, fmt.Errorf(fmt.Sprintf("unable to load pod list, err: %v", err))
 	}
 	var pods *kubelet.PodList
 	err = json.Unmarshal(podList, &pods)
 	if err != nil {
-		return store, errors.New(fmt.Sprintf("unable to load pod list, err: %v", err))
+		return store, fmt.Errorf(fmt.Sprintf("unable to load pod list, err: %v", err))
 	}
 
 	for _, pod := range pods.Items {

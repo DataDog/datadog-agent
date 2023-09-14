@@ -26,34 +26,32 @@ import (
 )
 
 var (
-	DEFAULT_GAUGES = map[string]string{
+	defaultGauges = map[string]string{
 		"rest_client_requests_total":     "rest.client.requests",
 		"go_threads":                     "go_threads",
 		"go_goroutines":                  "go_goroutines",
 		"kubelet_pleg_last_seen_seconds": "kubelet.pleg.last_seen",
 	}
 
-	DEPRECATED_GAUGES = map[string]string{
+	deprecatedGauges = map[string]string{
 		"kubelet_runtime_operations":        "kubelet.runtime.operations",
 		"kubelet_runtime_operations_errors": "kubelet.runtime.errors",
 		"kubelet_docker_operations":         "kubelet.docker.operations",
 		"kubelet_docker_operations_errors":  "kubelet.docker.errors",
 	}
 
-	NEW_1_14_GAUGES = map[string]string{
+	new114Gauges = map[string]string{
 		"kubelet_runtime_operations_total":        "kubelet.runtime.operations",
 		"kubelet_runtime_operations_errors_total": "kubelet.runtime.errors",
 	}
 
-	DEFAULT_HISTOGRAMS = map[string]string{
+	defaultHistograms = map[string]string{
 		"apiserver_client_certificate_expiration_seconds": "apiserver.certificate.expiration",
 		"kubelet_pleg_relist_duration_seconds":            "kubelet.pleg.relist_duration",
 		"kubelet_pleg_relist_interval_seconds":            "kubelet.pleg.relist_interval",
 	}
 
-	DEFAULT_SUMMARIES = map[string]string{}
-
-	DEPRECATED_SUMMARIES = map[string]string{
+	deprecatedSummaries = map[string]string{
 		"kubelet_network_plugin_operations_latency_microseconds": "kubelet.network_plugin.latency",
 		"kubelet_pod_start_latency_microseconds":                 "kubelet.pod.start.duration",
 		"kubelet_pod_worker_latency_microseconds":                "kubelet.pod.worker.duration",
@@ -62,9 +60,9 @@ var (
 		"kubelet_docker_operations_latency_microseconds":         "kubelet.docker.operations.duration",
 	}
 
-	NEW_1_14_SUMMARIES = map[string]string{}
+	new114Summaries = map[string]string{}
 
-	TRANSFORM_VALUE_HISTOGRAMS = map[string]string{
+	transformValuesHistogram = map[string]string{
 		"kubelet_network_plugin_operations_duration_seconds": "kubelet.network_plugin.latency",
 		"kubelet_pod_start_duration_seconds":                 "kubelet.pod.start.duration",
 		"kubelet_pod_worker_duration_seconds":                "kubelet.pod.worker.duration",
@@ -72,14 +70,12 @@ var (
 		"kubelet_runtime_operations_duration_seconds":        "kubelet.runtime.operations.duration",
 	}
 
-	DEFAULT_METRIC_LIMIT = 0
-
-	COUNTER_METRICS = map[string]string{
+	counterMetrics = map[string]string{
 		"kubelet_evictions":           "kubelet.evictions",
 		"kubelet_pleg_discard_events": "kubelet.pleg.discard_events",
 	}
 
-	VOLUME_METRICS = map[string]string{
+	volumeMetrics = map[string]string{
 		"kubelet_volume_stats_available_bytes": "kubelet.volume.stats.available_bytes",
 		"kubelet_volume_stats_capacity_bytes":  "kubelet.volume.stats.capacity_bytes",
 		"kubelet_volume_stats_used_bytes":      "kubelet.volume.stats.used_bytes",
@@ -101,13 +97,12 @@ func NewProvider(filter *containers.Filter, config *common.KubeletConfig, store 
 	kubeletConfig := *config
 
 	kubeletConfig.Metrics = []interface{}{
-		DEFAULT_GAUGES,
-		DEPRECATED_GAUGES,
-		NEW_1_14_GAUGES,
-		DEFAULT_HISTOGRAMS,
-		DEFAULT_SUMMARIES,
-		DEPRECATED_SUMMARIES,
-		NEW_1_14_SUMMARIES,
+		defaultGauges,
+		deprecatedGauges,
+		new114Gauges,
+		defaultHistograms,
+		deprecatedSummaries,
+		new114Summaries,
 	}
 
 	provider := &Provider{
@@ -120,13 +115,13 @@ func NewProvider(filter *containers.Filter, config *common.KubeletConfig, store 
 		"rest_client_request_latency_seconds":         provider.restClientLatency,
 		"rest_client_request_duration_seconds":        provider.restClientLatency,
 	}
-	for k := range COUNTER_METRICS {
+	for k := range counterMetrics {
 		transformers[k] = provider.sendAlwaysCounter
 	}
-	for k, v := range TRANSFORM_VALUE_HISTOGRAMS {
+	for k, v := range transformValuesHistogram {
 		transformers[k] = provider.HistogramFromSecondsToMicroseconds(v)
 	}
-	for k := range VOLUME_METRICS {
+	for k := range volumeMetrics {
 		transformers[k] = provider.appendPodTagsToVolumeMetrics
 	}
 
@@ -146,7 +141,7 @@ func NewProvider(filter *containers.Filter, config *common.KubeletConfig, store 
 
 func (p *Provider) sendAlwaysCounter(metric *model.Sample, sender sender.Sender) {
 	metricName := string(metric.Metric["__name__"])
-	nameWithNamespace := common.KubeletMetricsPrefix + COUNTER_METRICS[metricName]
+	nameWithNamespace := common.KubeletMetricsPrefix + counterMetrics[metricName]
 
 	tags := p.MetricTags(metric)
 	sender.MonotonicCount(nameWithNamespace, float64(metric.Value), "", tags)
@@ -159,7 +154,7 @@ func (p *Provider) appendPodTagsToVolumeMetrics(metric *model.Sample, sender sen
 	// Compute tags based on pod UID (maybe these should be cached? they are cached in the python version)
 
 	metricName := string(metric.Metric["__name__"])
-	metricNameWithNamespace := common.KubeletMetricsPrefix + VOLUME_METRICS[metricName]
+	metricNameWithNamespace := common.KubeletMetricsPrefix + volumeMetrics[metricName]
 	pvcName := metric.Metric["persistentvolumeclaim"]
 	namespace := metric.Metric["namespace"]
 	if pvcName == "" || namespace == "" || p.filter.IsExcluded(nil, "", "", string(namespace)) {
@@ -174,11 +169,11 @@ func (p *Provider) appendPodTagsToVolumeMetrics(metric *model.Sample, sender sen
 
 func (p *Provider) kubeletContainerLogFilesystemUsedBytes(metric *model.Sample, sender sender.Sender) {
 	metricName := common.KubeletMetricsPrefix + "kubelet.container.log_filesystem.used_bytes"
-	cId := common.GetContainerId(p.store, metric.Metric, p.filter)
+	cID := common.GetContainerId(p.store, metric.Metric, p.filter)
 
-	tags, _ := tagger.Tag(cId, collectors.HighCardinality)
+	tags, _ := tagger.Tag(cID, collectors.HighCardinality)
 	if len(tags) == 0 {
-		log.Debugf("Tags not found for container: %s/%s/%s:%s", metric.Metric["namespace"], metric.Metric["pod"], metric.Metric["container"], cId)
+		log.Debugf("Tags not found for container: %s/%s/%s:%s", metric.Metric["namespace"], metric.Metric["pod"], metric.Metric["container"], cID)
 	}
 	tags = utils.ConcatenateTags(tags, p.Config.Tags)
 
