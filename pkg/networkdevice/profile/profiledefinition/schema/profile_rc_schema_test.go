@@ -24,13 +24,13 @@ type testcaseExpected struct {
 
 func Test_DeviceProfileRcConfigJsonSchema(t *testing.T) {
 	// language=json
-	instanceJson := `{
+	instanceJSON := `{
 	"profile_definition": {
 		"name": "my-profile"
 	}
 }`
 
-	err := assertAgainstSchema(t, instanceJson)
+	err := assertAgainstSchema(t, instanceJSON)
 
 	fmt.Printf("%#v\n", err) // using %#v prints errors hierarchy
 	require.NoError(t, err)
@@ -52,9 +52,9 @@ func Test_Schema_TextCases(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	for _, testcaseJsonPath := range testcases {
-		t.Run(testcaseJsonPath, func(t *testing.T) {
-			content, err := os.ReadFile(testcaseJsonPath)
+	for _, testcaseJSONPath := range testcases {
+		t.Run(testcaseJSONPath, func(t *testing.T) {
+			content, err := os.ReadFile(testcaseJSONPath)
 			require.NoError(t, err)
 
 			validationErr := assertAgainstSchema(t, string(content))
@@ -62,12 +62,12 @@ func Test_Schema_TextCases(t *testing.T) {
 
 			if validationErr != nil {
 				// Print validation error to ease debugging tests
-				fmt.Printf("--- ACTUAL VALIDATION ERRORS --------------------------------------------\n")
-				fmt.Printf(validationErrStr)
-				fmt.Printf("-------------------------------------------------------------------------\n")
+				fmt.Print("--- ACTUAL VALIDATION ERRORS --------------------------------------------\n")
+				fmt.Print(validationErrStr)
+				fmt.Print("-------------------------------------------------------------------------\n")
 			}
 
-			testcaseExpectedErrPath := strings.ReplaceAll(testcaseJsonPath, ".json", "_exp.json")
+			testcaseExpectedErrPath := strings.ReplaceAll(testcaseJSONPath, ".json", "_exp.json")
 			testcaseExpectedErr, err := os.ReadFile(testcaseExpectedErrPath)
 			require.NoError(t, err)
 
@@ -85,12 +85,12 @@ func Test_Schema_TextCases(t *testing.T) {
 	}
 }
 
-func assertAgainstSchema(t *testing.T, instanceJson string) error {
+func assertAgainstSchema(t *testing.T, instanceJSON string) error {
 	sch, err := jsonschema.CompileString("schema.json", string(deviceProfileRcConfigJsonschema))
 	require.NoError(t, err)
 
 	var v interface{}
-	err = json.Unmarshal([]byte(instanceJson), &v)
+	err = json.Unmarshal([]byte(instanceJSON), &v)
 	require.NoError(t, err)
 
 	err = sch.Validate(v)
