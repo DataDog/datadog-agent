@@ -11,7 +11,7 @@ import (
 	"testing"
 )
 
-func TestGenerateJSONSchema(t *testing.T) {
+func TestGeneratedJSONSchemaIsInSync(t *testing.T) {
 	schemaJSON, err := GenerateJSONSchema()
 	require.NoError(t, err)
 
