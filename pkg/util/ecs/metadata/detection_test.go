@@ -32,8 +32,7 @@ func TestLocateECSHTTP(t *testing.T) {
 	)
 	require.Nil(t, err)
 
-	ts, _, err := ecsinterface.Start()
-	require.Nil(t, err)
+	ts := ecsinterface.Start()
 	defer ts.Close()
 
 	config.Datadog.SetDefault("ecs_agent_url", ts.URL)
@@ -56,8 +55,7 @@ func TestLocateECSHTTPFail(t *testing.T) {
 	ecsinterface, err := testutil.NewDummyECS()
 	require.Nil(t, err)
 
-	ts, _, err := ecsinterface.Start()
-	require.Nil(t, err)
+	ts := ecsinterface.Start()
 	defer ts.Close()
 
 	config.Datadog.SetDefault("ecs_agent_url", ts.URL)
