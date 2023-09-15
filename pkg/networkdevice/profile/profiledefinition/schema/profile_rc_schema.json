@@ -156,9 +156,6 @@
         "metric_tags": {
           "$ref": "#/$defs/MetricTagConfigList"
         },
-        "forced_type": {
-          "type": "string"
-        },
         "metric_type": {
           "type": "string"
         },

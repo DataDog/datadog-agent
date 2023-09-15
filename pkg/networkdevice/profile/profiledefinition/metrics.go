@@ -124,7 +124,7 @@ type MetricsConfig struct {
 	StaticTags []string            `yaml:"static_tags,omitempty" json:"static_tags,omitempty"`
 	MetricTags MetricTagConfigList `yaml:"metric_tags,omitempty" json:"metric_tags,omitempty"`
 
-	ForcedType ProfileMetricType `yaml:"forced_type,omitempty" json:"forced_type,omitempty"` // deprecated in favour of metric_type
+	ForcedType ProfileMetricType `yaml:"forced_type,omitempty" json:"forced_type,omitempty" jsonschema:"-"` // deprecated in favour of metric_type
 	MetricType ProfileMetricType `yaml:"metric_type,omitempty" json:"metric_type,omitempty"`
 
 	Options MetricsConfigOption `yaml:"options,omitempty" json:"options,omitempty"`
