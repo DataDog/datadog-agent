@@ -184,19 +184,19 @@ func NewCheckConfig(rawInstance integration.Data, rawInitConfig integration.Data
 	return c, nil
 }
 
-func GetLogPrompt(c *CheckConfig) string {
-	if c.TnsAlias {
+func GetLogPrompt(c InstanceConfig) string {
+	if c.TnsAlias != "" {
 		return c.TnsAlias
 	}
 
 	var p string
-	if c.Server {
+	if c.Server != "" {
 		p = c.Server
 	}
-	if c.Port {
+	if c.Port != 0 {
 		p = fmt.Sprintf("%s:%d", c.Port)
 	}
-	if c.ServiceName {
+	if c.ServiceName != "" {
 		p = fmt.Sprintf("%s/%s", c.ServiceName)
 	}
 	return p
