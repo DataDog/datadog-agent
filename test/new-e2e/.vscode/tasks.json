@@ -1,0 +1,35 @@
+
+{
+    // See https://go.microsoft.com/fwlink/?LinkId=733558
+    // for the documentation about the tasks.json format
+    "version": "2.0.0",
+    "tasks": [
+        {
+            "label": "aws-vault-wrap",
+            "type": "shell",
+            "command": "aws-vault export sso-agent-sandbox-account-admin > .vscode/aws-vault-wrap.env",
+            "presentation": {
+                "echo": false,
+                "reveal": "always",
+                "focus": false,
+                "panel": "shared",
+                "showReuseMessage": false,
+                "clear": false
+            }
+        },
+        {
+            "label": "clean-aws-vault-wrap",
+            "type": "shell",
+            "command": "echo '' > .vscode/aws-vault-wrap.env",
+            "presentation": {
+                "echo": false,
+                "reveal": "silent",
+                "focus": false,
+                "panel": "shared",
+                "showReuseMessage": false,
+                "clear": false,
+                "close": true
+            }
+        }
+    ]
+  }
