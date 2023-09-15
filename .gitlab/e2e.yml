@@ -226,7 +226,7 @@ new-e2e-language-detection-main:
   extends: .new_e2e_template
   rules: !reference [.on_main_and_no_skip_e2e]
   variables:
-    TARGETS: ./agent-platform/install_script_debian
+    TARGETS: ./agent-platform/install-script-debian
     TEAM: agent-platform
     EXTRAPARMS: --flags -osversion "debian-10,debian-11,debian-12"
 
