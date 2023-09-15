@@ -22,7 +22,15 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/trace/metrics"
 )
 
-const functionARNKey = "function_arn"
+const functionARNKeyTag = "function_arn"
+const originTag = "origin"
+
+type CloudResourceType string
+
+const (
+	awsLambda CloudResourceType = "AWS Lambda"
+	cloudRun  CloudResourceType = "GCP Cloud Run"
+)
 
 // telemetryMultiTransport sends HTTP requests to multiple targets using an
 // underlying http.RoundTripper. API keys are set separately for each target.
@@ -104,8 +112,17 @@ func (r *HTTPReceiver) telemetryProxyHandler() http.Handler {
 		if taskArn, ok := extractFargateTask(containerTags); ok {
 			req.Header.Set("dd-task-arn", taskArn)
 		}
-		if arn, ok := r.conf.GlobalTags[functionARNKey]; ok {
-			req.Header.Set("dd-function-arn", arn)
+		if arn, ok := r.conf.GlobalTags[functionARNKeyTag]; ok {
+			req.Header.Set("dd-cloud-resource-identifier", arn)
+			req.Header.Set("dd-cloud-resource-type", string(awsLambda))
+		}
+		if origin, ok := r.conf.GlobalTags[originTag]; ok {
+			if origin == "cloudrun" {
+				if service_name, found := r.conf.GlobalTags["service_name"]; found {
+					req.Header.Set("dd-cloud-resource-identifier", service_name)
+					req.Header.Set("dd-cloud-resource-type", string(cloudRun))
+				}
+			}
 		}
 	}
 	return &httputil.ReverseProxy{
