@@ -622,7 +622,7 @@ func startAgent(
 	if err := otelcollector.Start(); err != nil {
 		return err
 	}
-	// TODO: remove this once migrating the status package to components
+	// TODO: (components) remove this once migrating the status package to components
 	status.OTLPCollector = otelcollector
 
 	return nil
