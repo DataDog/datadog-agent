@@ -211,7 +211,7 @@ func (c *Client) processEvent(evBundle workloadmeta.EventBundle) {
 	close(evBundle.Ch)
 	log.Tracef("Processing %d events", len(evBundle.Events))
 	for _, event := range evBundle.Events {
-		if event.Entity.GetID().Kind == workloadmeta.KindProcess && event.Type == workloadmeta.EventTypeSet {
+		if event.Type == workloadmeta.EventTypeSet {
 			process := event.Entity.(*workloadmeta.Process)
 			if process.Language == nil {
 				continue
