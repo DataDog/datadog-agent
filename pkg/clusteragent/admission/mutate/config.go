@@ -93,7 +93,7 @@ func injectConfig(pod *corev1.Pod, _ string, _ dynamic.Interface) error {
 		return errors.New("cannot inject config into nil pod")
 	}
 
-	if !shouldInjectConf(pod) {
+	if !shouldInject(pod) {
 		return nil
 	}
 
