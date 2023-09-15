@@ -54,6 +54,7 @@ internal_kubernetes_deploy_stripe:
 notify-slack:
   stage: internal_kubernetes_deploy
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/slack-notifier:latest
+  tags: ["arch:amd64"]
   needs:
     - job: internal_kubernetes_deploy_stripe
   script:
