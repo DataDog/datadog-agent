@@ -3,15 +3,6 @@
   "$id": "https://github.com/DataDog/datadog-agent/pkg/networkdevice/profile/profiledefinition/device-profile-rc-config",
   "$ref": "#/$defs/DeviceProfileRcConfig",
   "$defs": {
-    "DeviceMeta": {
-      "properties": {
-        "vendor": {
-          "type": "string"
-        }
-      },
-      "additionalProperties": false,
-      "type": "object"
-    },
     "DeviceProfileRcConfig": {
       "properties": {
         "profile_definition": {
@@ -206,9 +197,6 @@
             "type": "string"
           },
           "type": "array"
-        },
-        "device": {
-          "$ref": "#/$defs/DeviceMeta"
         },
         "metadata": {
           "$ref": "#/$defs/MetadataConfig"

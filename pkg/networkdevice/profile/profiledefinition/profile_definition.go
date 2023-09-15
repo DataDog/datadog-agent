@@ -18,7 +18,7 @@ type ProfileDefinition struct {
 	Description  string            `yaml:"description,omitempty" json:"description,omitempty"`
 	SysObjectIds StringArray       `yaml:"sysobjectid,omitempty" json:"sysobjectid,omitempty"`
 	Extends      []string          `yaml:"extends,omitempty" json:"extends,omitempty"`
-	Device       DeviceMeta        `yaml:"device,omitempty" json:"device,omitempty"` // DEPRECATED
+	Device       DeviceMeta        `yaml:"device,omitempty" json:"device,omitempty" jsonschema:"-"` // DEPRECATED
 	Metadata     MetadataConfig    `yaml:"metadata,omitempty" json:"metadata,omitempty"`
 	MetricTags   []MetricTagConfig `yaml:"metric_tags,omitempty" json:"metric_tags,omitempty"`
 	StaticTags   []string          `yaml:"static_tags,omitempty" json:"static_tags,omitempty"`
