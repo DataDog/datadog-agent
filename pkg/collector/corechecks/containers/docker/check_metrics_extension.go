@@ -8,6 +8,7 @@
 package docker
 
 import (
+	"math"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
@@ -63,11 +64,55 @@ func (dn *dockerCustomMetricsExtension) Process(tags []string, container *worklo
 	}
 
 	if containerStats.CPU != nil {
-		dn.sender(dn.aggSender.Gauge, "docker.cpu.shares", containerStats.CPU.Shares, tags)
+		// Things to note about the "docker.cpu.shares" metric:
+		// - In cgroups v1 the metric that indicates how to share CPUs when
+		// there's contention is called shares. In v2 it's weight.
+		// - The idea is the same. The value of CPU shares and weight doesn't
+		// have any meaning by itself, it needs to be compared against the
+		// shares/weight of the other containers of the same host.
+		// - CPU shares and weight have different default values and different
+		// range of valid values. The range for shares is [2,262144], for weight
+		// it is [1,10000].
+		// - Even when using cgroups v2, the "docker run" command only accepts
+		// cpu shares as a parameter. "docker inspect" also shows shares. The
+		// formulas used to convert between shares and weights are these:
+		// https://github.com/kubernetes/kubernetes/blob/release-1.28/pkg/kubelet/cm/cgroup_manager_linux.go#L565
+		// - Because docker shows shares everywhere regardless of the cgroup
+		// version and "docker.cpu.shares" is a docker-specific metric, we think
+		// that it is less confusing to always report shares to match what
+		// the docker client reports.
+		// - "docker inspect" reports 0 shares when the container is created
+		// without specifying the number of shares. When that's the case, the
+		// default applies: 1024 for shares and 100 for weight.
+		// - The value emitted by the check is not exactly the same as in
+		// Docker because of the rounding applied in the conversions. Example:
+		//   - Run a container with 2048 shares in a system with cgroups v2.
+		//   - The 2048 shares are converted to weight in cgroups v2:
+		//     weight = (((shares - 2) * 9999) / 262142) + 1 = 79.04 (cgroups rounds to 79)
+		//   - This check converts the weight to shares again to report the same as in docker:
+		//     shares = (((weight - 1) * 262142) / 9999) + 2 = 2046.91 (will be rounded to 2047, instead of the original 2048).
+
+		var cpuShares float64
+		if containerStats.CPU.Shares != nil {
+			cpuShares = *containerStats.CPU.Shares
+		} else if containerStats.CPU.Weight != nil {
+			cpuShares = math.Round(cpuWeightToCPUShares(*containerStats.CPU.Weight))
+		}
+
+		// 0 is not a valid value for shares. cpuShares == 0 means that we
+		// couldn't collect the number of shares.
+		if cpuShares != 0 {
+			dn.sender(dn.aggSender.Gauge, "docker.cpu.shares", &cpuShares, tags)
+		}
 	}
 }
 
 // PostProcess is called once during each check run, after all calls to `Process`
 func (dn *dockerCustomMetricsExtension) PostProcess() {
 	// Nothing to do here
+}
+
+// From https://github.com/kubernetes/kubernetes/blob/release-1.28/pkg/kubelet/cm/cgroup_manager_linux.go#L571
+func cpuWeightToCPUShares(cpuWeight float64) float64 {
+	return (((cpuWeight - 1) * 262142) / 9999) + 2
 }
