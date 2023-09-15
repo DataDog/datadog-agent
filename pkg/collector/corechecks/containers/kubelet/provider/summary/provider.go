@@ -5,6 +5,7 @@
 
 //go:build kubelet
 
+// Package summary contains all metrics from the /stats/summary endpoint
 package summary
 
 import (
@@ -31,7 +32,7 @@ type Provider struct {
 	store  workloadmeta.Store
 }
 
-// Create a new provider by filter, config and workloadmeta
+// NewProvider is created by filter, config and workloadmeta
 func NewProvider(filter *containers.Filter,
 	config *common.KubeletConfig,
 	store workloadmeta.Store) *Provider {
@@ -77,7 +78,7 @@ func reportFsMetric(sender sender.Sender,
 	}
 }
 
-// Process metrics and report
+// Provide processes metrics and reports
 func (p *Provider) Provide(kc kubelet.KubeUtilInterface, sender sender.Sender) error {
 	statsSummary, err := kc.GetLocalStatsSummary(context.TODO())
 	if err != nil || statsSummary == nil {
@@ -93,7 +94,7 @@ func (p *Provider) Provide(kc kubelet.KubeUtilInterface, sender sender.Sender) e
 	} else {
 		useStatsAsSource = *p.config.UseStatsSummaryAsSource
 	}
-	for i, _ := range statsSummary.Pods {
+	for i := range statsSummary.Pods {
 		podStats := &statsSummary.Pods[i]
 		if len(podStats.Containers) == 0 {
 
@@ -179,7 +180,7 @@ func (p *Provider) processPodStats(sender sender.Sender,
 	txBytes = podNetwork.InterfaceStats.TxBytes
 
 	// if config has "network.*"" in "enabled_rates"
-	for i, _ := range p.config.EnabledRates {
+	for i := range p.config.EnabledRates {
 		pattern := &p.config.EnabledRates[i]
 		matched, error := regexp.MatchString(*pattern, txBytesMetricName)
 		if txBytes != nil && error == nil && matched {
@@ -203,10 +204,10 @@ func (p *Provider) processContainerStats(sender sender.Sender,
 		return
 	}
 	containerData := make(map[string]*workloadmeta.OrchestratorContainer)
-	for i, _ := range podData.Containers {
+	for i := range podData.Containers {
 		containerData[podData.Containers[i].Name] = &podData.Containers[i]
 	}
-	for idx, _ := range podStats.Containers {
+	for idx := range podStats.Containers {
 		containerStats := &podStats.Containers[idx]
 		containerName := containerStats.Name
 		if len(containerName) == 0 {
