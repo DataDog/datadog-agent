@@ -117,7 +117,7 @@ func (s *ReadEventsSuite) TestReadEvents() {
 	for i := uint(0); i < s.numEvents; i++ {
 		msg := <-msgChan
 		s.Require().NotEmpty(msg.Content, "Message must not be empty")
-		totalEvents += 1
+		totalEvents++
 	}
 	s.Require().Equal(s.numEvents, totalEvents, "Received %d/%d events", totalEvents, s.numEvents)
 }
@@ -148,7 +148,7 @@ func (s *ReadEventsSuite) TestCustomQuery() {
 	for i := uint(0); i < s.numEvents; i++ {
 		msg := <-msgChan
 		s.Require().NotEmpty(msg.Content, "Message must not be empty")
-		totalEvents += 1
+		totalEvents++
 	}
 	s.Require().Equal(s.numEvents, totalEvents, "Received %d/%d events", totalEvents, s.numEvents)
 }
@@ -172,7 +172,7 @@ func (s *ReadEventsSuite) TestRecoverFromBrokenSubscription() {
 	for i := uint(0); i < s.numEvents; i++ {
 		msg := <-msgChan
 		s.Require().NotEmpty(msg.Content, "Message must not be empty")
-		totalEvents += 1
+		totalEvents++
 	}
 	s.Require().Equal(s.numEvents, totalEvents, "Received %d/%d events", totalEvents, s.numEvents)
 
@@ -220,7 +220,7 @@ func (s *ReadEventsSuite) TestRecoverFromBrokenSubscription() {
 	for i := uint(0); i < s.numEvents; i++ {
 		msg := <-msgChan
 		s.Require().NotEmpty(msg.Content, "Message must not be empty")
-		totalEvents += 1
+		totalEvents++
 	}
 	s.Require().Equal(s.numEvents, totalEvents, "Received %d/%d events", totalEvents, s.numEvents)
 }
@@ -245,7 +245,7 @@ func (s *ReadEventsSuite) TestBookmarkNewTailer() {
 	for i := uint(0); i < s.numEvents; i++ {
 		msg := <-msgChan
 		s.Require().NotEmpty(msg.Content, "Message must not be empty")
-		totalEvents += 1
+		totalEvents++
 		bookmark = msg.Origin.Offset
 	}
 	s.Require().Equal(s.numEvents, totalEvents, "Received %d/%d events", totalEvents, s.numEvents)
@@ -267,7 +267,7 @@ func (s *ReadEventsSuite) TestBookmarkNewTailer() {
 	for i := uint(0); i < s.numEvents; i++ {
 		msg := <-msgChan
 		s.Require().NotEmpty(msg.Content, "Message must not be empty")
-		totalEvents += 1
+		totalEvents++
 	}
 	s.Require().Equal(s.numEvents, totalEvents, "Received %d/%d events", totalEvents, s.numEvents)
 
@@ -329,7 +329,7 @@ func BenchmarkReadEvents(b *testing.B) {
 					for i := uint(0); i < numEvents; i++ {
 						msg := <-msgChan
 						require.NotEmpty(b, msg.Content, "Message must not be empty")
-						totalEvents += 1
+						totalEvents++
 					}
 				}
 

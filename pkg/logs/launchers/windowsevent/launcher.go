@@ -17,12 +17,12 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/pipeline"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 	"github.com/DataDog/datadog-agent/pkg/logs/tailers"
-	tailer "github.com/DataDog/datadog-agent/pkg/logs/tailers/windowsevent"
+	"github.com/DataDog/datadog-agent/pkg/logs/tailers/windowsevent"
 	"github.com/DataDog/datadog-agent/pkg/util/startstop"
 	"github.com/DataDog/datadog-agent/pkg/util/winutil/eventlog/api"
 )
 
-type Tailer interface {
+type tailer interface {
 	Start(bookmark string)
 	startstop.Stoppable
 	Identifier() string
@@ -34,14 +34,14 @@ type Launcher struct {
 	sources          chan *sources.LogSource
 	pipelineProvider pipeline.Provider
 	registry         auditor.Registry
-	tailers          map[string]Tailer
+	tailers          map[string]tailer
 	stop             chan struct{}
 }
 
 // NewLauncher returns a new Launcher.
 func NewLauncher() *Launcher {
 	return &Launcher{
-		tailers: make(map[string]Tailer),
+		tailers: make(map[string]tailer),
 		stop:    make(chan struct{}),
 	}
 }
@@ -64,7 +64,7 @@ func (l *Launcher) run() {
 	for {
 		select {
 		case source := <-l.sources:
-			identifier := tailer.Identifier(source.Config.ChannelPath, source.Config.Query)
+			identifier := windowsevent.Identifier(source.Config.ChannelPath, source.Config.Query)
 			if _, exists := l.tailers[identifier]; exists {
 				// tailer already setup
 				continue
@@ -93,8 +93,8 @@ func (l *Launcher) Stop() {
 }
 
 // sanitizedConfig sets default values for the config
-func (l *Launcher) sanitizedConfig(sourceConfig *config.LogsConfig) *tailer.Config {
-	config := &tailer.Config{
+func (l *Launcher) sanitizedConfig(sourceConfig *config.LogsConfig) *windowsevent.Config {
+	config := &windowsevent.Config{
 		ChannelPath: sourceConfig.ChannelPath,
 		Query:       sourceConfig.Query,
 	}
@@ -105,15 +105,15 @@ func (l *Launcher) sanitizedConfig(sourceConfig *config.LogsConfig) *tailer.Conf
 }
 
 // setupTailer configures and starts a new tailer
-func (l *Launcher) setupTailer(source *sources.LogSource) (Tailer, error) {
+func (l *Launcher) setupTailer(source *sources.LogSource) (tailer, error) {
 	sanitizedConfig := l.sanitizedConfig(source.Config)
-	var t Tailer
+	var t tailer
 	if source.Config.Type == config.WindowsEventType {
-		config := &tailer.Config{
+		config := &windowsevent.Config{
 			ChannelPath: sanitizedConfig.ChannelPath,
 			Query:       sanitizedConfig.Query,
 		}
-		t = tailer.NewTailer(l.evtapi, source, config, l.pipelineProvider.NextPipelineChan())
+		t = windowsevent.NewTailer(l.evtapi, source, config, l.pipelineProvider.NextPipelineChan())
 	} else {
 		return nil, fmt.Errorf("unsupported type %s", source.Config.Type)
 	}

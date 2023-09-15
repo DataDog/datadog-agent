@@ -204,11 +204,11 @@ func (t *Tailer) eventLoop() {
 	for {
 		// if subscription is not running, try to start it with an exponential backoff
 		if !t.sub.Running() {
-			reset_backoff := backoff.NewExponentialBackOff()
-			reset_backoff.InitialInterval = 1 * time.Second
-			reset_backoff.MaxInterval = 1 * time.Minute
+			resetBackoff := backoff.NewExponentialBackOff()
+			resetBackoff.InitialInterval = 1 * time.Second
+			resetBackoff.MaxInterval = 1 * time.Minute
 			// retry never stops if MaxElapsedTime == 0
-			reset_backoff.MaxElapsedTime = 0
+			resetBackoff.MaxElapsedTime = 0
 			err := backoff.Retry(func() error {
 				err := t.sub.Start()
 				if err != nil {
@@ -224,7 +224,7 @@ func (t *Tailer) eventLoop() {
 				}
 				// subscription started!
 				return nil
-			}, reset_backoff)
+			}, resetBackoff)
 			if err != nil {
 				var permanent *backoff.PermanentError
 				if errors.As(err, &permanent) {
@@ -289,7 +289,7 @@ func (t *Tailer) handleEvent(eventRecordHandle evtapi.EventRecordHandle) {
 		msg.Origin.Offset = offset
 		t.sub.SetBookmark(t.bookmark)
 	} else {
-		log.Warnf("Failed to render bookmark: %v for event %s", richEvt.xmlEvent)
+		log.Warnf("Failed to render bookmark: %v for event %s", err, richEvt.xmlEvent)
 	}
 
 	t.source.RecordBytes(int64(len(msg.Content)))
