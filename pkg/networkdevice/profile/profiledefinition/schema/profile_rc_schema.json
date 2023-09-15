@@ -135,12 +135,6 @@
         "symbol": {
           "$ref": "#/$defs/SymbolConfig"
         },
-        "OID": {
-          "type": "string"
-        },
-        "name": {
-          "type": "string"
-        },
         "symbols": {
           "items": {
             "$ref": "#/$defs/SymbolConfig"

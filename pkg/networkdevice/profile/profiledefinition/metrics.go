@@ -115,8 +115,8 @@ type MetricsConfig struct {
 	Symbol SymbolConfig `yaml:"symbol,omitempty" json:"symbol,omitempty"`
 
 	// Legacy Symbol configs syntax
-	OID  string `yaml:"OID,omitempty" json:"OID,omitempty"`
-	Name string `yaml:"name,omitempty" json:"name,omitempty"`
+	OID  string `yaml:"OID,omitempty" json:"OID,omitempty" jsonschema:"-"`
+	Name string `yaml:"name,omitempty" json:"name,omitempty" jsonschema:"-"`
 
 	// Table configs
 	Symbols []SymbolConfig `yaml:"symbols,omitempty" json:"symbols,omitempty"`
