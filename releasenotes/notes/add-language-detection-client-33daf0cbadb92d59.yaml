@@ -1,6 +1,6 @@
 features:
   - |
-    The Node-Agent now transmits language metadata to the Cluster-Agent when ``language_detection.enabled`` is set to ``true``. 
+    The Core-Agent now transmits language metadata to the Cluster-Agent when ``language_detection.enabled`` is set to ``true``. 
     The frequency of this data transfer is regulated by ``language_detection.client_period``.
     Additionally, we have introduced monitoring for this feature, which includes the following:
     - ``datadog.agent.language_detection_client_running`` without tags: This monitor tracks whether the client is operational.
