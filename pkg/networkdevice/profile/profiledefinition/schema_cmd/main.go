@@ -21,7 +21,7 @@ func main() {
 	flag.StringVar(&output, "output", "../schema/profile_rc_schema.json", "Generate JSON schema generated file")
 	flag.Parse()
 
-	schemaJSON, err := schema.GenerateJsonSchema()
+	schemaJSON, err := schema.GenerateJSONSchema()
 	if err != nil {
 		panic(err)
 	}

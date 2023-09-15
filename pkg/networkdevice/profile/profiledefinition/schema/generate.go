@@ -11,8 +11,8 @@ import (
 	"github.com/invopop/jsonschema"
 )
 
-// GenerateJsonSchema generate jsonschema from profiledefinition.DeviceProfileRcConfig
-func GenerateJsonSchema() ([]byte, error) {
+// GenerateJSONSchema generate jsonschema from profiledefinition.DeviceProfileRcConfig
+func GenerateJSONSchema() ([]byte, error) {
 	reflector := jsonschema.Reflector{
 		AllowAdditionalProperties: false,
 	}

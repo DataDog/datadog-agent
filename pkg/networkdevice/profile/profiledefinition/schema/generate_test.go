@@ -17,8 +17,8 @@ var (
 	deviceProfileRcConfigJsonschema []byte
 )
 
-func TestGenerateJsonSchema(t *testing.T) {
-	schemaJSON, err := GenerateJsonSchema()
+func TestGenerateJSONSchema(t *testing.T) {
+	schemaJSON, err := GenerateJSONSchema()
 	require.NoError(t, err)
 
 	assert.Equal(t, string(deviceProfileRcConfigJsonschema), string(schemaJSON))
