@@ -7,7 +7,10 @@ import (
 )
 
 func GenerateJsonSchema() ([]byte, error) {
-	schema := jsonschema.Reflect(&profiledefinition.DeviceProfileRcConfig{})
+	reflector := jsonschema.Reflector{
+		AllowAdditionalProperties: false,
+	}
+	schema := reflector.Reflect(&profiledefinition.DeviceProfileRcConfig{})
 	schemaJSON, err := json.MarshalIndent(schema, "", "  ")
 	if err != nil {
 		return nil, err

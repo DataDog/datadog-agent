@@ -3,8 +3,6 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:generate go run ./main.go ../schema/profile_rc_schema.json
-
 // Package main holds main related files
 package main
 

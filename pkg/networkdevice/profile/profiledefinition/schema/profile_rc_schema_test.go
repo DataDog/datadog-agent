@@ -73,6 +73,9 @@ func Test_Schema_TextCases(t *testing.T) {
 			for _, expectedError := range expected.Errors {
 				assert.ErrorContains(t, validationErr, expectedError)
 			}
+			if len(expected.Errors) == 0 {
+				assert.NoError(t, validationErr)
+			}
 		})
 	}
 }

@@ -105,6 +105,12 @@ type MetricsConfigOption struct {
 
 // MetricsConfig holds configs for a metric
 type MetricsConfig struct {
+	// MIB the MIB used for this metric
+	MIB string `yaml:"MIB,omitempty" json:"MIB,omitempty"`
+
+	// Table the table OID
+	Table SymbolConfig `yaml:"table,omitempty" json:"table,omitempty"`
+
 	// Symbol configs
 	Symbol SymbolConfig `yaml:"symbol,omitempty" json:"symbol,omitempty"`
 

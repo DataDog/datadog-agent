@@ -135,6 +135,12 @@
     },
     "MetricsConfig": {
       "properties": {
+        "MIB": {
+          "type": "string"
+        },
+        "table": {
+          "$ref": "#/$defs/SymbolConfig"
+        },
         "symbol": {
           "$ref": "#/$defs/SymbolConfig"
         },
