@@ -88,8 +88,6 @@ type ProcessCheck struct {
 
 	notInitializedLogLimit *util.LogLimit
 
-	checkInitTime int64
-
 	// lastPIDs is []int32 that holds PIDs that the check fetched last time,
 	// will be reused by RT process collection to get stats
 	lastPIDs []int32
@@ -119,7 +117,6 @@ func (p *ProcessCheck) Init(syscfg *SysProbeConfig, info *HostInfo) error {
 	p.sysProbeConfig = syscfg
 	p.probe = newProcessProbe(p.config, procutil.WithPermission(syscfg.ProcessModuleEnabled))
 	p.containerProvider = proccontainers.GetSharedContainerProvider()
-	p.checkInitTime = time.Now().Unix()
 
 	p.notInitializedLogLimit = util.NewLogLimit(1, time.Minute*10)
 
@@ -280,7 +277,7 @@ func (p *ProcessCheck) run(groupID int32, collectRealTime bool) (RunResult, erro
 
 	connsRates := p.getLastConnRates()
 	procsByCtr := fmtProcesses(p.scrubber, p.disallowList, procs, p.lastProcs, pidToCid, cpuTimes[0], p.lastCPUTime, p.lastRun, connsRates, p.lookupIdProbe)
-	messages, totalProcs, totalContainers := createProcCtrMessages(p.hostInfo, procsByCtr, containers, p.maxBatchSize, p.maxBatchBytes, groupID, p.networkID, collectorProcHints, p.checkInitTime)
+	messages, totalProcs, totalContainers := createProcCtrMessages(p.hostInfo, procsByCtr, containers, p.maxBatchSize, p.maxBatchBytes, groupID, p.networkID, collectorProcHints)
 
 	// Store the last state for comparison on the next run.
 	// Note: not storing the filtered in case there are new processes that haven't had a chance to show up twice.
@@ -373,7 +370,6 @@ func createProcCtrMessages(
 	groupID int32,
 	networkID string,
 	hints int32,
-	agentStartTime int64,
 ) ([]model.MessageBody, int, int) {
 	collectorProcs, totalProcs, totalContainers := chunkProcessesAndContainers(procsByCtr, containers, maxBatchSize, maxBatchWeight)
 	// fill in GroupSize for each CollectorProc and convert them to final messages
@@ -388,7 +384,6 @@ func createProcCtrMessages(
 		m.GroupId = groupID
 		m.ContainerHostType = hostInfo.ContainerHostType
 		m.Hints = &model.CollectorProc_HintMask{HintMask: hints}
-		m.AgentStartTime = agentStartTime
 
 		messages = append(messages, m)
 	}
