@@ -15,6 +15,11 @@ import (
 
 // team: opentelemetry
 
+// TODO: This component can't use the fx lifecycle hooks for starting and stopping
+// because it depends on the logs agent component's log channel which isn't ready at
+// that time and can't be obtained. This needs to be addressed as an improvement
+// of the logs agent component.
+
 // Component specifies the interface implemented by the collector module.
 type Component interface {
 	Start() error
