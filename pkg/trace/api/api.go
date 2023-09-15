@@ -8,6 +8,7 @@ package api
 import (
 	"bytes"
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -358,7 +359,9 @@ func decodeTracerPayload(v Version, req *http.Request, ts *info.TagStats, cIDPro
 	case v05:
 		buf := getBuffer()
 		defer putBuffer(buf)
-		if _, err = io.Copy(buf, req.Body); err != nil {
+		safeCopy := &bytes.Buffer{}
+
+		if _, err = io.Copy(buf, io.TeeReader(req.Body, safeCopy)); err != nil {
 			return nil, false, err
 		}
 		var traces pb.Traces
@@ -368,7 +371,7 @@ func decodeTracerPayload(v Version, req *http.Request, ts *info.TagStats, cIDPro
 		for _, chunk := range chunks {
 			for _, span := range chunk.Spans {
 				if span != nil && strings.HasPrefix(span.Service, "00-") {
-					log.Errorf("INCIDENT-22455 In v05Receiver (ID %d) bytes: %#v \nspan: %#v", span.TraceID, buf.Bytes(), span)
+					log.Errorf("INCIDENT-22455 In v05Receiver (ID %d) bytes: %#v END BYTES, span: %#v", span.TraceID, base64.StdEncoding.EncodeToString(safeCopy.Bytes()), span)
 					break chunksLoop
 				}
 			}
