@@ -16,7 +16,7 @@ import (
 	"sort"
 	"strings"
 
-	flarehelpers "github.com/DataDog/datadog-agent/comp/core/flare/helpers"
+	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
 	"github.com/DataDog/datadog-agent/pkg/api/security"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	pbgo "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
@@ -28,7 +28,7 @@ import (
 	"google.golang.org/protobuf/types/known/emptypb"
 )
 
-func exportRemoteConfig(fb flarehelpers.FlareBuilder) error {
+func exportRemoteConfig(fb flaretypes.FlareBuilder) error {
 	// Dump the DB
 	if err := getRemoteConfigDB(fb); err != nil {
 		return err
@@ -78,7 +78,7 @@ func hashRCTargets(raw []byte) []byte {
 	return []byte(s)
 }
 
-func getRemoteConfigDB(fb flarehelpers.FlareBuilder) error {
+func getRemoteConfigDB(fb flaretypes.FlareBuilder) error {
 	dstPath, _ := fb.PrepareFilePath("remote-config.db")
 	tempPath, _ := fb.PrepareFilePath("remote-config.temp.db")
 	srcPath := filepath.Join(config.Datadog.GetString("run_path"), "remote-config.db")

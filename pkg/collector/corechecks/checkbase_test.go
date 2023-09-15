@@ -11,7 +11,6 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/collector/check/defaults"
@@ -39,13 +38,13 @@ func TestCommonConfigure(t *testing.T) {
 	}
 	mockSender := mocksender.NewMockSender(mycheck.ID())
 
-	err := mycheck.CommonConfigure(aggregator.GetSenderManager(), integration.FakeConfigHash, nil, []byte(defaultsInstance), "test")
+	err := mycheck.CommonConfigure(mockSender.GetSenderManager(), integration.FakeConfigHash, nil, []byte(defaultsInstance), "test")
 	assert.NoError(t, err)
 	assert.Equal(t, defaults.DefaultCheckInterval, mycheck.Interval())
 	mockSender.AssertNumberOfCalls(t, "DisableDefaultHostname", 0)
 
 	mockSender.On("DisableDefaultHostname", true).Return().Once()
-	err = mycheck.CommonConfigure(aggregator.GetSenderManager(), integration.FakeConfigHash, nil, []byte(customInstance), "test")
+	err = mycheck.CommonConfigure(mockSender.GetSenderManager(), integration.FakeConfigHash, nil, []byte(customInstance), "test")
 	assert.NoError(t, err)
 	assert.Equal(t, 60*time.Second, mycheck.Interval())
 	mycheck.BuildID(1, []byte(customInstance), []byte(initConfig))
@@ -63,7 +62,7 @@ func TestCommonConfigureCustomID(t *testing.T) {
 	mockSender := mocksender.NewMockSender(mycheck.ID())
 
 	mockSender.On("DisableDefaultHostname", true).Return().Once()
-	err := mycheck.CommonConfigure(aggregator.GetSenderManager(), integration.FakeConfigHash, nil, []byte(customInstance), "test")
+	err := mycheck.CommonConfigure(mockSender.GetSenderManager(), integration.FakeConfigHash, nil, []byte(customInstance), "test")
 	assert.NoError(t, err)
 	assert.Equal(t, 60*time.Second, mycheck.Interval())
 	mycheck.BuildID(1, []byte(customInstance), []byte(initConfig))

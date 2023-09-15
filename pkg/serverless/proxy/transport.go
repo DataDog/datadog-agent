@@ -7,6 +7,7 @@ package proxy
 
 import (
 	"bytes"
+	"context"
 	"errors"
 	"net/http"
 	"net/http/httputil"
@@ -30,7 +31,11 @@ func (p *proxyTransport) RoundTrip(request *http.Request) (*http.Response, error
 
 	response, err := http.DefaultTransport.RoundTrip(request)
 	if err != nil {
-		log.Error("could not forward the request", err)
+		if err == context.Canceled {
+			log.Debug("runtime api proxy: context cancelled:", request.Context().Err())
+		} else {
+			log.Error("runtime api proxy: could not forward the request", err)
+		}
 		return nil, err
 	}
 

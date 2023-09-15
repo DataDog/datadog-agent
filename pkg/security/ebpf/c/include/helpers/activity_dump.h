@@ -11,7 +11,7 @@
 #include "events.h"
 #include "process.h"
 
-__attribute__((always_inline)) struct activity_dump_config *lookup_or_delete_traced_pid(u32 pid, u64 now, u32 *cookie) {
+__attribute__((always_inline)) struct activity_dump_config *lookup_or_delete_traced_pid(u32 pid, u64 now, u64 *cookie) {
     if (cookie == NULL) {
         cookie = bpf_map_lookup_elem(&traced_pids, &pid);
     }
@@ -19,7 +19,7 @@ __attribute__((always_inline)) struct activity_dump_config *lookup_or_delete_tra
         return NULL;
     }
 
-    u32 cookie_val = *cookie; // for older kernels
+    u64 cookie_val = *cookie; // for older kernels
     struct activity_dump_config *config = bpf_map_lookup_elem(&activity_dumps_config, &cookie_val);
     if (config == NULL) {
         return NULL;
@@ -53,7 +53,7 @@ __attribute__((always_inline)) struct cgroup_tracing_event_t *get_cgroup_tracing
     return evt;
 }
 
-__attribute__((always_inline)) bool reserve_traced_cgroup_spot(char cgroup[CONTAINER_ID_LEN], u64 now, u32 cookie, struct activity_dump_config *config) {
+__attribute__((always_inline)) bool reserve_traced_cgroup_spot(char cgroup[CONTAINER_ID_LEN], u64 now, u64 cookie, struct activity_dump_config *config) {
     // insert dump config defaults
     u32 defaults_key = 0;
     struct activity_dump_config *defaults = bpf_map_lookup_elem(&activity_dump_config_defaults, &defaults_key);
@@ -84,8 +84,8 @@ __attribute__((always_inline)) bool reserve_traced_cgroup_spot(char cgroup[CONTA
     return true;
 }
 
-__attribute__((always_inline)) u32 trace_new_cgroup(void *ctx, u64 now, char cgroup[CONTAINER_ID_LEN]) {
-    u32 cookie = bpf_get_prandom_u32();
+__attribute__((always_inline)) u64 trace_new_cgroup(void *ctx, u64 now, char cgroup[CONTAINER_ID_LEN]) {
+    u64 cookie = rand64();
     struct activity_dump_config config = {};
 
     if (!reserve_traced_cgroup_spot(cgroup, now, cookie, &config)) {
@@ -108,14 +108,14 @@ __attribute__((always_inline)) u32 trace_new_cgroup(void *ctx, u64 now, char cgr
     return cookie;
 }
 
-__attribute__((always_inline)) u32 should_trace_new_process_comm(void *ctx, u64 now, u32 pid, char comm[TASK_COMM_LEN]) {
+__attribute__((always_inline)) u64 should_trace_new_process_comm(void *ctx, u64 now, u32 pid, char comm[TASK_COMM_LEN]) {
     // should we start tracing this comm ?
-    u32 *cookie = bpf_map_lookup_elem(&traced_comms, &comm[0]);
+    u64 *cookie = bpf_map_lookup_elem(&traced_comms, &comm[0]);
     if (cookie == NULL) {
         return 0;
     }
 
-    u32 cookie_val = *cookie;
+    u64 cookie_val = *cookie;
     struct activity_dump_config *config = bpf_map_lookup_elem(&activity_dumps_config, &cookie_val);
     if (config == NULL) {
         // this dump was stopped, delete comm entry
@@ -145,16 +145,16 @@ __attribute__((always_inline)) u32 should_trace_new_process_comm(void *ctx, u64 
     return cookie_val;
 }
 
-__attribute__((always_inline)) u32 should_trace_new_process_cgroup(void *ctx, u64 now, u32 pid, char cgroup[CONTAINER_ID_LEN]) {
+__attribute__((always_inline)) u64 should_trace_new_process_cgroup(void *ctx, u64 now, u32 pid, char cgroup[CONTAINER_ID_LEN]) {
     // should we start tracing this cgroup ?
     if (is_cgroup_activity_dumps_enabled() && cgroup[0] != 0) {
 
         // is this cgroup traced ?
-        u32 *cookie = bpf_map_lookup_elem(&traced_cgroups, &cgroup[0]);
+        u64 *cookie = bpf_map_lookup_elem(&traced_cgroups, &cgroup[0]);
 
         if (cookie) {
 
-            u32 cookie_val = *cookie;
+            u64 cookie_val = *cookie;
             struct activity_dump_config *config = bpf_map_lookup_elem(&activity_dumps_config, &cookie_val);
             if (config == NULL) {
                 // delete expired cgroup entry
@@ -200,7 +200,7 @@ __attribute__((always_inline)) u32 should_trace_new_process_cgroup(void *ctx, u6
             }
 
             // can we start tracing this cgroup ?
-            u32 cookie_val = trace_new_cgroup(ctx, now, cgroup);
+            u64 cookie_val = trace_new_cgroup(ctx, now, cgroup);
             if (cookie_val == 0) {
                 return 0;
             }
@@ -217,12 +217,12 @@ union container_id_comm_combo {
     char comm[TASK_COMM_LEN];
 };
 
-__attribute__((always_inline)) u32 should_trace_new_process(void *ctx, u64 now, u32 pid, char* cgroup_p, char* comm_p) {
+__attribute__((always_inline)) u64 should_trace_new_process(void *ctx, u64 now, u32 pid, char* cgroup_p, char* comm_p) {
     // prepare comm and cgroup (for compatibility with old kernels)
     union container_id_comm_combo buffer = {};
 
     bpf_probe_read(&buffer.container_id, sizeof(buffer.container_id), cgroup_p);
-    u32 cookie = should_trace_new_process_cgroup(ctx, now, pid, buffer.container_id);
+    u64 cookie = should_trace_new_process_cgroup(ctx, now, pid, buffer.container_id);
 
     // prioritize the cookie from the cgroup to the cookie from the comm
     if (!cookie) {
@@ -236,14 +236,14 @@ __attribute__((always_inline)) void inherit_traced_state(void *ctx, u32 ppid, u3
     u64 now = bpf_ktime_get_ns();
 
     // check if the parent is traced, update the child timeout if need be
-    u32 *ppid_cookie = bpf_map_lookup_elem(&traced_pids, &ppid);
+    u64 *ppid_cookie = bpf_map_lookup_elem(&traced_pids, &ppid);
     if (ppid_cookie == NULL) {
         // check if the current pid should be traced
         should_trace_new_process(ctx, now, pid, cgroup_p, comm_p);
         return;
     }
 
-    u32 cookie_val = *ppid_cookie;
+    u64 cookie_val = *ppid_cookie;
     struct activity_dump_config *config = bpf_map_lookup_elem(&activity_dumps_config, &cookie_val);
     if (config == NULL) {
         // delete expired entries
@@ -356,7 +356,7 @@ __attribute__((always_inline)) u8 activity_dump_rate_limiter_allow_increasing_dr
     return 0;
 }
 
-__attribute__((always_inline)) u8 activity_dump_rate_limiter_allow(struct activity_dump_config *config, u32 cookie, u64 now, u8 should_count) {
+__attribute__((always_inline)) u8 activity_dump_rate_limiter_allow(struct activity_dump_config *config, u64 cookie, u64 now, u8 should_count) {
     struct activity_dump_rate_limiter_ctx* rate_ctx_p = bpf_map_lookup_elem(&activity_dump_rate_limiters, &cookie);
     if (rate_ctx_p == NULL) {
         struct activity_dump_rate_limiter_ctx rate_ctx = {
@@ -398,7 +398,7 @@ __attribute__((always_inline)) u8 activity_dump_rate_limiter_allow(struct activi
 }
 
 __attribute__((always_inline)) u32 is_activity_dump_running(void *ctx, u32 pid, u64 now, u32 event_type) {
-    u32 cookie = 0;
+    u64 cookie = 0;
     struct activity_dump_config *config = NULL;
 
     struct proc_cache_t *pc = get_proc_cache(pid);

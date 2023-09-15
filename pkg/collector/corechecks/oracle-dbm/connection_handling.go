@@ -9,6 +9,7 @@ package oracle
 
 import (
 	"fmt"
+
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/jmoiron/sqlx"
 	go_ora "github.com/sijms/go-ora/v2"
@@ -60,10 +61,12 @@ func (c *Check) Connect() (*sqlx.DB, error) {
 
 	db, err := sqlx.Open(oracleDriver, connStr)
 	if err != nil {
+		_, err := handleRefusedConnection(c, db, err)
 		return nil, fmt.Errorf("failed to connect to oracle instance: %w", err)
 	}
 	err = db.Ping()
 	if err != nil {
+		_, err := handleRefusedConnection(c, db, err)
 		return nil, fmt.Errorf("failed to ping oracle instance: %w", err)
 	}
 
@@ -94,42 +97,56 @@ func (c *Check) Connect() (*sqlx.DB, error) {
 		c.tags = append(c.tags, fmt.Sprintf("host:%s", c.dbHostname), fmt.Sprintf("oracle_version:%s", c.dbVersion))
 	}
 
-	if c.filePath == "" {
-		r := db.QueryRow("SELECT SUBSTR(name, 1, 10) path FROM v$datafile WHERE rownum = 1")
-		var path string
-		err = r.Scan(&path)
-		if err != nil {
-			return nil, fmt.Errorf("failed to query path: %w", err)
-		}
-		if path == "/rdsdbdata" {
-			c.isRDS = true
-		}
-	}
+	if !c.hostingType.valid {
+		ht := hostingType{value: selfManaged, valid: false}
 
-	r := db.QueryRow("select decode(sys_context('USERENV','CON_ID'),1,'CDB','PDB') TYPE from DUAL")
-	var connectionType string
-	err = r.Scan(&connectionType)
-	if err != nil {
-		return nil, fmt.Errorf("failed to query connection type: %w", err)
-	}
-	var cloudRows int
-	if connectionType == "PDB" {
-		c.connectedToPdb = true
-		r := db.QueryRow("select 1 from v$pdbs where cloud_identity like '%oraclecloud%' and rownum = 1")
-		err := r.Scan(&cloudRows)
-		if err != nil {
-			log.Errorf("failed to query v$pdbs: %s", err)
-		}
-		if cloudRows == 1 {
-			r := db.QueryRow("select 1 from cdb_services where name like '%oraclecloud%' and rownum = 1")
-			err := r.Scan(&cloudRows)
+		// Is RDS?
+		if c.filePath == "" {
+			r := db.QueryRow("SELECT SUBSTR(name, 1, 10) path FROM v$datafile WHERE rownum = 1")
+			var path string
+			err = r.Scan(&path)
 			if err != nil {
-				log.Errorf("failed to query cdb_services: %s", err)
+				return nil, fmt.Errorf("failed to query path: %w", err)
+			}
+			if path == "/rdsdbdata" {
+				ht.value = rds
 			}
 		}
-	}
-	if cloudRows == 1 {
-		c.isOracleCloud = true
+
+		// Check if PDB
+		r := db.QueryRow("select decode(sys_context('USERENV','CON_ID'),1,'CDB','PDB') TYPE from DUAL")
+		var connectionType string
+		err = r.Scan(&connectionType)
+		if err != nil {
+			return nil, fmt.Errorf("failed to query connection type: %w", err)
+		}
+		if connectionType == "PDB" {
+			c.connectedToPdb = true
+		}
+
+		if ht.value == selfManaged {
+			var cloudRows int
+			if c.connectedToPdb {
+				r := db.QueryRow("select 1 from v$pdbs where cloud_identity like '%oraclecloud%' and rownum = 1")
+				err := r.Scan(&cloudRows)
+				if err != nil {
+					log.Errorf("failed to query v$pdbs: %s", err)
+				}
+				if cloudRows == 1 {
+					r := db.QueryRow("select 1 from cdb_services where name like '%oraclecloud%' and rownum = 1")
+					err := r.Scan(&cloudRows)
+					if err != nil {
+						log.Errorf("failed to query cdb_services: %s", err)
+					}
+				}
+			}
+			if cloudRows == 1 {
+				ht.value = oci
+			}
+		}
+		c.tags = append(c.tags, fmt.Sprintf("hosting_type:%s", ht.value))
+		ht.valid = true
+		c.hostingType = ht
 	}
 
 	if c.config.AgentSQLTrace.Enabled {
@@ -181,6 +198,9 @@ func connectGoOra(c *Check) (*go_ora.Connection, error) {
 }
 
 func closeGoOraConnection(c *Check) {
+	if c.connection == nil {
+		return
+	}
 	err := c.connection.Close()
 	if err != nil {
 		log.Warnf("failed to close go-ora connection | server=[%s]: %s", c.config.Server, err.Error())

@@ -252,6 +252,7 @@ func buildCPUStats(cgs *cgroups.CPUStats, parentCPUStatsRetriever func(parentCPU
 	convertField(cgs.System, &cs.System)
 	convertField(cgs.User, &cs.User)
 	convertField(cgs.Shares, &cs.Shares)
+	convertField(cgs.Weight, &cs.Weight)
 	convertField(cgs.ElapsedPeriods, &cs.ElapsedPeriods)
 	convertField(cgs.ThrottledPeriods, &cs.ThrottledPeriods)
 	convertField(cgs.ThrottledTime, &cs.ThrottledTime)

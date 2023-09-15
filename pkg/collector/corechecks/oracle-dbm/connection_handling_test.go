@@ -3,18 +3,15 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build !serverless
+//go:build oracle_test
 
-package logs
+package oracle
 
 import (
 	"testing"
-
-	"github.com/stretchr/testify/assert"
 )
 
-func TestBuildEndpoints(t *testing.T) {
-	endpoints, err := buildEndpoints()
-	assert.Nil(t, err)
-	assert.Equal(t, "agent-intake.logs.datadoghq.com", endpoints.Main.Host)
+func TestFailingConnection(t *testing.T) {
+	chk, _ := initCheck(t, "localhost", 1523, "a", "a", "a")
+	chk.Run()
 }

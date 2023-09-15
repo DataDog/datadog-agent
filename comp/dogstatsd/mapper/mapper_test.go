@@ -527,7 +527,7 @@ func getMapper(t *testing.T, configString string) (*MetricMapper, error) {
 		}),
 	))
 
-	err := cfg.(config.ConfigLoader).UnmarshalKey("dogstatsd_mapper_profiles", &profiles)
+	err := cfg.UnmarshalKey("dogstatsd_mapper_profiles", &profiles)
 	if err != nil {
 		return nil, err
 	}

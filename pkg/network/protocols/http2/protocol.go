@@ -10,7 +10,6 @@ package http2
 import (
 	"errors"
 	"fmt"
-	"math"
 	"strings"
 	"unsafe"
 
@@ -66,6 +65,15 @@ var Spec = &protocols.ProtocolSpec{
 		{
 			Name: http2IterationsTable,
 		},
+		{
+			Name: "http2_headers_to_process",
+		},
+		{
+			Name: "http2_stream_heap",
+		},
+		{
+			Name: "http2_ctx_heap",
+		},
 	},
 	TailCalls: []manager.TailCallRoute{
 		{
@@ -107,7 +115,7 @@ func (p *protocol) Name() string {
 }
 
 const (
-	mapSizeMinValue = 1024
+	mapSizeValue = 1024
 )
 
 // ConfigureOptions add the necessary options for http2 monitoring to work,
@@ -121,19 +129,16 @@ func (p *protocol) ConfigureOptions(mgr *manager.Manager, opts *manager.Options)
 		EditorFlag: manager.EditMaxEntries,
 	}
 
-	// Taking the max between fourth of p.cfg.MaxTrackedConnections to the default lower limit (1024), as it can
-	// introduce a major memory bump if we're using p.cfg.MaxTrackedConnections.
-	mapSize := uint32(math.Max(float64(p.cfg.MaxTrackedConnections)/4, mapSizeMinValue))
 	opts.MapSpecEditors[dynamicTable] = manager.MapSpecEditor{
-		MaxEntries: mapSize,
+		MaxEntries: mapSizeValue,
 		EditorFlag: manager.EditMaxEntries,
 	}
 	opts.MapSpecEditors[dynamicTableCounter] = manager.MapSpecEditor{
-		MaxEntries: mapSize,
+		MaxEntries: mapSizeValue,
 		EditorFlag: manager.EditMaxEntries,
 	}
 	opts.MapSpecEditors[http2IterationsTable] = manager.MapSpecEditor{
-		MaxEntries: mapSize,
+		MaxEntries: mapSizeValue,
 		EditorFlag: manager.EditMaxEntries,
 	}
 

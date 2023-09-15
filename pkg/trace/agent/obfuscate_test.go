@@ -100,7 +100,7 @@ func TestObfuscateDefaults(t *testing.T) {
 		agnt, stop := agentWithDefaults()
 		defer stop()
 		agnt.obfuscateSpan(span)
-		assert.Equal(t, query, span.Meta["sql.query"])
+		assert.Equal(t, "UPDATE users ( name ) SET ( ? )", span.Meta["sql.query"])
 		assert.Equal(t, "UPDATE users ( name ) SET ( ? )", span.Resource)
 	})
 }
@@ -248,61 +248,69 @@ func SQLSpan(query string) *pb.Span {
 
 func TestSQLResourceQuery(t *testing.T) {
 	assert := assert.New(t)
-	span := &pb.Span{
-		Resource: "SELECT * FROM users WHERE id = 42",
-		Type:     "sql",
-		Meta: map[string]string{
-			"sql.query": "SELECT * FROM users WHERE id = 42",
+	testCases := []*struct {
+		span *pb.Span
+	}{
+		{
+			&pb.Span{
+				Resource: "SELECT * FROM users WHERE id = 42",
+				Type:     "sql",
+			},
+		},
+		{
+			&pb.Span{
+				Resource: "SELECT * FROM users WHERE id = 42",
+				Type:     "sql",
+				Meta: map[string]string{ // ensure that any existing sql.query tag gets overwritten with obfuscated value
+					"sql.query": "SELECT * FROM users WHERE id = 42",
+				},
+			},
 		},
 	}
 
 	agnt, stop := agentWithDefaults()
 	defer stop()
-	agnt.obfuscateSpan(span)
-	assert.Equal("SELECT * FROM users WHERE id = ?", span.Resource)
-	assert.Equal("SELECT * FROM users WHERE id = 42", span.Meta["sql.query"])
-}
-
-func TestSQLResourceWithoutQuery(t *testing.T) {
-	assert := assert.New(t)
-	span := &pb.Span{
-		Resource: "SELECT * FROM users WHERE id = 42",
-		Type:     "sql",
+	for _, tc := range testCases {
+		agnt.obfuscateSpan(tc.span)
+		assert.Equal("SELECT * FROM users WHERE id = ?", tc.span.Resource)
+		assert.Equal("SELECT * FROM users WHERE id = ?", tc.span.Meta["sql.query"])
 	}
-
-	agnt, stop := agentWithDefaults()
-	defer stop()
-	agnt.obfuscateSpan(span)
-	assert.Equal("SELECT * FROM users WHERE id = ?", span.Resource)
-	assert.Equal("SELECT * FROM users WHERE id = ?", span.Meta["sql.query"])
 }
 
 func TestSQLResourceWithError(t *testing.T) {
 	assert := assert.New(t)
 	testCases := []*struct {
-		span pb.Span
+		span *pb.Span
 	}{
 		{
-			pb.Span{
+			&pb.Span{
+				Resource: "SELECT * FROM users WHERE id = '' AND '",
+				Type:     "sql",
+				Meta: map[string]string{ // ensure that any existing sql.query tag gets overwritten with obfuscated value
+					"sql.query": "SELECT * FROM users WHERE id = '' AND '",
+				},
+			},
+		},
+		{
+			&pb.Span{
 				Resource: "SELECT * FROM users WHERE id = '' AND '",
 				Type:     "sql",
 			},
 		},
 		{
-			pb.Span{
+			&pb.Span{
 				Resource: "INSERT INTO pages (id, name) VALUES (%(id0)s, %(name0)s), (%(id1)s, %(name1",
 				Type:     "sql",
 			},
 		},
 		{
-			pb.Span{
+			&pb.Span{
 				Resource: "INSERT INTO pages (id, name) VALUES (%(id0)s, %(name0)s), (%(id1)s, %(name1)",
 				Type:     "sql",
 			},
 		},
-
 		{
-			pb.Span{
+			&pb.Span{
 				Resource: `SELECT [b].[BlogId], [b].[Name]
 FROM [Blogs] AS [b
 ORDER BY [b].[Name]`,
@@ -314,7 +322,7 @@ ORDER BY [b].[Name]`,
 	agnt, stop := agentWithDefaults()
 	defer stop()
 	for _, tc := range testCases {
-		agnt.obfuscateSpan(&tc.span)
+		agnt.obfuscateSpan(tc.span)
 		assert.Equal("Non-parsable SQL query", tc.span.Resource)
 		assert.Equal("Non-parsable SQL query", tc.span.Meta["sql.query"])
 	}
