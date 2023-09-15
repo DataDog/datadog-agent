@@ -20,7 +20,7 @@ import (
 	"time"
 
 	"github.com/hashicorp/go-multierror"
-	easyjson "github.com/mailru/easyjson"
+	"github.com/mailru/easyjson"
 	"github.com/moby/sys/mountinfo"
 	"golang.org/x/exp/slices"
 	"golang.org/x/sys/unix"
@@ -36,7 +36,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/process/procutil"
 	"github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/ebpf"
-	kernel "github.com/DataDog/datadog-agent/pkg/security/ebpf/kernel"
+	"github.com/DataDog/datadog-agent/pkg/security/ebpf/kernel"
 	"github.com/DataDog/datadog-agent/pkg/security/ebpf/probes"
 	"github.com/DataDog/datadog-agent/pkg/security/events"
 	"github.com/DataDog/datadog-agent/pkg/security/metrics"
@@ -365,9 +365,7 @@ func (p *Probe) DispatchEvent(event *model.Event) {
 	}
 
 	// send wildcard events to handlers which need direct access to all the event fields
-	for _, handler := range p.fullAccessEventHandlers[model.UnknownEventType] {
-		handler.HandleEvent(event)
-	}
+	p.sendWildcardEvents(event)
 
 	// send specific event to handlers that make a copy of the event fields they need
 	p.sendSpecificEvent(event)
@@ -387,7 +385,12 @@ func (p *Probe) DispatchEvent(event *model.Event) {
 	p.monitor.ProcessEvent(event)
 }
 
-// send specific event
+func (p *Probe) sendWildcardEvents(event *model.Event) {
+	for _, handler := range p.fullAccessEventHandlers[model.UnknownEventType] {
+		handler.HandleEvent(event)
+	}
+}
+
 func (p *Probe) sendSpecificEvent(event *model.Event) {
 	for _, handler := range p.eventHandlers[event.GetEventType()] {
 		handler.HandleEvent(handler.Copy(event))
