@@ -11,6 +11,9 @@ curl -Lo gh.tar.gz https://github.com/cli/cli/releases/download/v2.34.0/gh_2.34.
     && rm -r gh_2.34.0_linux_amd64 \
     && gh --version
 
+echo -e "sha: \n"
+echo "$CI_COMMIT_SHORT_SHA"
+
 # Get the value of the Git tag "stripe_staging"
 old_agent_tag=$(git tag -l 'stripe_staging' | tail -n 1)
 

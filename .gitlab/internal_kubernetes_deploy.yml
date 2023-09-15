@@ -61,7 +61,8 @@ notify-slack:
     - export TEST_TOKEN="hello"
     - export GH_TOKEN=$(aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.github-oauth-token --with-decryption --query "Parameter.Value" --out text)
     - echo $GH_TOKEN
-    - export $TEST_TOKEN
+    - echo $TEST_TOKEN
+    - echo ${CI_COMMIT_SHORT_SHA}
     - .gitlab/scripts/generate_changelog.sh 76ead44c
 
 
