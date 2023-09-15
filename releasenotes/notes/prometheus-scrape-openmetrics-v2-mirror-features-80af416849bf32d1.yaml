@@ -1,0 +1,23 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+enhancements:
+  - |
+    prometheus_scrape: Adds support for multiple Openmetrics V2 features in the ``prometheus_scrape.checks[].configurations[]`` items :
+      * ``exclude_metrics_by_labels``
+      * ``cache_shared_labels``
+      * ``use_process_start_time``
+      * ``hostname_label``
+      * ``hostname_format``
+      * ``telemetry``
+      * ``ignore_connection_errors``
+      * ``request_size``
+      * ``persist_connections``
+      * ``allow_redirects``
+      * ``auth_token``
+    For the description of each option, refer to the sample configuration : https://github.com/DataDog/integrations-core/blob/master/openmetrics/datadog_checks/openmetrics/data/conf.yaml.example
