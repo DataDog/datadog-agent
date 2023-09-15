@@ -26,6 +26,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet"
 	"github.com/DataDog/datadog-agent/pkg/version"
 	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
+
+	pbgo "github.com/DataDog/datadog-agent/pkg/proto/pbgo/process"
 )
 
 type FakeDCAClient struct {
@@ -111,6 +113,10 @@ func (f *FakeDCAClient) GetKubernetesClusterID() (string, error) {
 }
 
 func (f *FakeDCAClient) GetCFAppsMetadataForNode(nodename string) (map[string][]string, error) {
+	panic("implement me")
+}
+
+func (f *FakeDCAClient) PostLanguageMetadata(ctx context.Context, request *pbgo.ParentLanguageAnnotationRequest) error {
 	panic("implement me")
 }
 
