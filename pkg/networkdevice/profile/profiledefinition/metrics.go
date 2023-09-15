@@ -78,10 +78,13 @@ type MetricTagConfig struct {
 
 	IndexTransform []MetricIndexTransform `yaml:"index_transform,omitempty" json:"index_transform,omitempty"`
 
+	// TODO: Convert to list
 	Mapping map[string]string `yaml:"mapping,omitempty" json:"mapping,omitempty"`
 
 	// Regex
-	Match   string            `yaml:"match,omitempty" json:"match,omitempty"`
+	Match string `yaml:"match,omitempty" json:"match,omitempty"`
+
+	// TODO: Convert to list
 	Tags    map[string]string `yaml:"tags,omitempty" json:"tags,omitempty"`
 	Pattern *regexp.Regexp    `yaml:"-" json:"-"`
 
