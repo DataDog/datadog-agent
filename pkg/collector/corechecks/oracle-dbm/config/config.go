@@ -184,6 +184,7 @@ func NewCheckConfig(rawInstance integration.Data, rawInitConfig integration.Data
 	return c, nil
 }
 
+// GetLogPrompt returns a config based prompt
 func GetLogPrompt(c InstanceConfig) string {
 	if c.TnsAlias != "" {
 		return c.TnsAlias
