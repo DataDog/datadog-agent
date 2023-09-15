@@ -4,7 +4,7 @@ set -euo pipefail
 
 curl -Lo gh.tar.gz https://github.com/cli/cli/releases/download/v2.34.0/gh_2.34.0_linux_amd64.tar.gz \
     && echo "056c45c510ca77ec7e492023e1aa79c078b679932b6202188b7f5abd914df911  gh.tar.gz" | sha256sum --check \
-    && tar -xvf gh.tar.gz \
+    && tar -xf gh.tar.gz \
     && chmod +x gh_* \
     && mv gh_2.34.0_linux_amd64/bin/gh /usr/bin/gh \
     && rm gh.tar.gz \
