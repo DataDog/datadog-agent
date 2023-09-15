@@ -2,6 +2,9 @@
 
 set -euo pipefail
 
+gh_token=$(git config user.token)
+echo "$gh_token"
+
 curl -Lo gh.tar.gz https://github.com/cli/cli/releases/download/v2.34.0/gh_2.34.0_linux_amd64.tar.gz \
     && echo "056c45c510ca77ec7e492023e1aa79c078b679932b6202188b7f5abd914df911  gh.tar.gz" | sha256sum --check \
     && tar -xvf gh.tar.gz \
