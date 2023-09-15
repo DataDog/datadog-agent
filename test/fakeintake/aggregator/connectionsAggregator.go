@@ -7,6 +7,7 @@ package aggregator
 
 import (
 	"fmt"
+	"time"
 
 	agentmodel "github.com/DataDog/agent-payload/v5/process"
 
@@ -16,6 +17,7 @@ import (
 // Connections type contain all payload from /api/v1/connections
 type Connections struct {
 	agentmodel.CollectorConnections
+	collectedTime time.Time
 }
 
 // name return connection payload name based on hostname and network ID
@@ -30,6 +32,11 @@ func (c *Connections) GetTags() []string {
 		return []string{}
 	}
 	return dns
+}
+
+// GetCollectedTime return the time when the payload has been collected by the fakeintake server
+func (c *Connections) GetCollectedTime() time.Time {
+	return c.collectedTime
 }
 
 // decodeCollectorConnection return a CollectorConnections protobuf object from raw bytes
@@ -53,7 +60,7 @@ func ParseConnections(payload api.Payload) (conns []*Connections, err error) {
 	}
 	var cnx []*Connections
 	// we don't aggregate Connections but CollectorConnections for the moment
-	cnx = append(cnx, &Connections{CollectorConnections: *connections})
+	cnx = append(cnx, &Connections{CollectorConnections: *connections, collectedTime: payload.Timestamp})
 	return cnx, nil
 }
 
