@@ -80,14 +80,6 @@
   # Kitchen tests on old OSes fail due a Rubygems API deprecation: https://blog.rubygems.org/2023/04/07/dependency-api-deprecation-delayed.html
   allow_failure: true
 
-.kitchen_test_ng_windows_npm_driver:
-  extends:
-    - .kitchen_test_ng_windows_npm_driver_base
-  variables:
-    KITCHEN_PLATFORM: "windows"
-    KITCHEN_OSVERS: "win2016,win2019,win2019cn,win2022"
-    DEFAULT_KITCHEN_OSVERS: "win2022"
-
 .kitchen_test_windows_npm_driver:
   extends:
     - .kitchen_test_windows_npm_driver_base
@@ -115,12 +107,6 @@
 # Kitchen: Test types (test suite * agent flavor + azure location)
 # -------------------------------
 
-.kitchen_test_ng_windows_installer_agent:
-  extends:
-    - .kitchen_test_ng_windows_installer
-    - .kitchen_datadog_agent_flavor
-    - .kitchen_azure_location_north_central_us
-
 .kitchen_test_windows_installer_agent:
   extends:
     - .kitchen_test_windows_installer
@@ -133,21 +119,9 @@
     - .kitchen_datadog_agent_flavor
     - .kitchen_azure_location_north_central_us
 
-.kitchen_test_ng_windows_installer_driver:
-  extends:
-    - .kitchen_test_ng_windows_npm_driver
-    - .kitchen_datadog_agent_flavor
-    - .kitchen_azure_location_north_central_us
-
 .kitchen_test_windows_installer_driver:
   extends:
     - .kitchen_test_windows_npm_driver
-    - .kitchen_datadog_agent_flavor
-    - .kitchen_azure_location_north_central_us
-
-.kitchen_test_ng_windows_installer_npm:
-  extends:
-    - .kitchen_test_ng_windows_npm_installer
     - .kitchen_datadog_agent_flavor
     - .kitchen_azure_location_north_central_us
 
@@ -187,23 +161,10 @@
 # Kitchen: final test matrix (test types * scenarios)
 # ----------------------------------------------
 
-kitchen_windows_ng_installer_npm_install_scenarios-a7:
-  extends:
-    - .kitchen_scenario_windows_a7
-    - .kitchen_test_ng_windows_installer_npm
-
 kitchen_windows_installer_npm_install_scenarios-a7:
   extends:
     - .kitchen_scenario_windows_a7
     - .kitchen_test_windows_installer_npm
-
-kitchen_windows_ng_installer_npm_driver-a7:
-  # Run NPM driver installer test on branches, on a reduced number of platforms
-  rules:
-    !reference [.on_default_kitchen_tests_a7]
-  extends:
-    - .kitchen_scenario_windows_a7
-    - .kitchen_test_ng_windows_installer_driver
 
 kitchen_windows_installer_npm_driver-a7:
   # Run NPM driver installer test on branches, on a reduced number of platforms
@@ -223,20 +184,10 @@ kitchen_windows_installer_agent-a6:
     - .kitchen_scenario_windows_a6
     - .kitchen_test_windows_installer_agent
 
-kitchen_windows_ng_installer_agent-a6:
-  extends:
-    - .kitchen_scenario_windows_a6
-    - .kitchen_test_ng_windows_installer_agent
-
 kitchen_windows_installer_agent-a7:
   extends:
     - .kitchen_scenario_windows_a7
     - .kitchen_test_windows_installer_agent
-
-kitchen_windows_ng_installer_agent-a7:
-  extends:
-    - .kitchen_scenario_windows_a7
-    - .kitchen_test_ng_windows_installer_agent
 
 kitchen_windows_chef_agent-a6:
   extends:
