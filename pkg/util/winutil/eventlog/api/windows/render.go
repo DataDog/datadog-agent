@@ -90,8 +90,8 @@ func (v *evtVariantValues) SID(index uint) (*windows.SID, error) {
 	}
 	t := C.EVT_VARIANT_TYPE_MASK & value.Type
 	if t == evtapi.EvtVarTypeSid {
-		orig_sid := (*windows.SID)(C.dataptr(value))
-		s, err := orig_sid.Copy()
+		origSid := (*windows.SID)(C.dataptr(value))
+		s, err := origSid.Copy()
 		if err != nil {
 			return nil, err
 		}

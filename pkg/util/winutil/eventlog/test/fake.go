@@ -7,55 +7,60 @@
 package eventlog_test
 
 import (
-	"testing"
-
 	"github.com/DataDog/datadog-agent/pkg/util/winutil/eventlog/api"
 	"github.com/DataDog/datadog-agent/pkg/util/winutil/eventlog/api/fake"
+)
+
+const (
+	// FakeAPIName identifies this API in GetAPITesterByName
+	FakeAPIName = "Fake"
 )
 
 // FakeAPITester uses a limited in-memory re-implementation of the Windows EventLog APIs
 // and provides utilities to the test framework that will simulate behavior and not make
 // any changes to the host system
 type FakeAPITester struct {
-	t           testing.TB
 	eventlogapi *fakeevtapi.API
 }
 
-func NewFakeAPITester(t testing.TB) *FakeAPITester {
+// NewFakeAPITester constructs a new API tester for a fake Windows Event Log API
+func NewFakeAPITester() *FakeAPITester {
 	var ti FakeAPITester
-	ti.t = t
 	ti.eventlogapi = fakeevtapi.New()
 	return &ti
 }
 
+// Name returns the name that identifies this tester for use by GetAPITesterByName
 func (ti *FakeAPITester) Name() string {
-	return "Fake"
+	return FakeAPIName
 }
 
-func (ti *FakeAPITester) T() testing.TB {
-	return ti.t
-}
-
+// API returns the fake API
 func (ti *FakeAPITester) API() evtapi.API {
 	return ti.eventlogapi
 }
 
+// InstallChannel adds a new event log
 func (ti *FakeAPITester) InstallChannel(channel string) error {
 	return ti.eventlogapi.AddEventLog(channel)
 }
 
+// RemoveChannel removes an event log
 func (ti *FakeAPITester) RemoveChannel(channel string) error {
 	return ti.eventlogapi.RemoveEventLog(channel)
 }
 
+// InstallSource adds a new source to an event log channel
 func (ti *FakeAPITester) InstallSource(channel string, source string) error {
 	return ti.eventlogapi.AddEventSource(channel, source)
 }
 
+// RemoveSource removes a source from an event log channel
 func (ti *FakeAPITester) RemoveSource(channel string, source string) error {
 	return ti.eventlogapi.RemoveEventSource(channel, source)
 }
 
+// GenerateEvents creates numEvents new event records
 func (ti *FakeAPITester) GenerateEvents(channelName string, numEvents uint) error {
 	return ti.eventlogapi.GenerateEvents(channelName, numEvents)
 }

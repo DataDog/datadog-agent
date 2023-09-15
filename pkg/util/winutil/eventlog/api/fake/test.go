@@ -14,6 +14,7 @@ import (
 
 // helpers for FakeAPITester
 
+// AddEventLog adds a new event log (channel) to the fake API
 func (api *API) AddEventLog(name string) error {
 	// does it exist
 	_, err := api.getEventLog(name)
@@ -25,6 +26,7 @@ func (api *API) AddEventLog(name string) error {
 	return nil
 }
 
+// RemoveEventLog removes an event log (channel) from the fake API
 func (api *API) RemoveEventLog(name string) error {
 	// Get event log
 	_, err := api.getEventLog(name)
@@ -35,6 +37,7 @@ func (api *API) RemoveEventLog(name string) error {
 	return nil
 }
 
+// AddEventSource adds a new source to an existing event log/channel
 func (api *API) AddEventSource(channel string, source string) error {
 	// Get event log
 	log, err := api.getEventLog(channel)
@@ -53,6 +56,7 @@ func (api *API) AddEventSource(channel string, source string) error {
 	return nil
 }
 
+// RemoveEventSource removes a source from a event log/channel
 func (api *API) RemoveEventSource(channel string, name string) error {
 	// Get event log
 	log, err := api.getEventLog(channel)
@@ -63,6 +67,8 @@ func (api *API) RemoveEventSource(channel string, name string) error {
 	return nil
 }
 
+// GenerateEvents writes @numEvents to the @sourceName event log source to help with
+// generating events for testing.
 func (api *API) GenerateEvents(sourceName string, numEvents uint) error {
 	// find the log the source is registered to
 	var eventLog *eventLog
@@ -81,7 +87,7 @@ func (api *API) GenerateEvents(sourceName string, numEvents uint) error {
 	sid, _ := windows.CreateWellKnownSid(windows.WinLocalSystemSid)
 
 	// Add junk events
-	for i := uint(0); i < numEvents; i += 1 {
+	for i := uint(0); i < numEvents; i++ {
 		_ = eventLog.reportEvent(api, windows.EVENTLOG_INFORMATION_TYPE,
 			0, 1000, sid, []string{"teststring1", "teststring2"}, []uint8("AABBCCDD"))
 	}

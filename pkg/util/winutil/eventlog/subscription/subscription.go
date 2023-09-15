@@ -4,6 +4,7 @@
 // Copyright 2023-present Datadog, Inc.
 //go:build windows
 
+// Package evtsubscribe provides helpers for reading Windows Event Logs with a Pull Subscription
 package evtsubscribe
 
 import (
@@ -18,10 +19,12 @@ import (
 )
 
 const (
-	// How many events to fetch per EvtNext call
-	DEFAULT_EVENT_BATCH_COUNT = 512
+	// DefaultEventBatchCount is the default number of events to fetch per EvtNext call
+	DefaultEventBatchCount = 512
 )
 
+// PullSubscription defines the interface for reading Windows Event Logs with a Pull Subscription
+// https://learn.microsoft.com/en-us/windows/win32/wes/subscribing-to-events#pull-subscriptions
 type PullSubscription interface {
 	// Start the event subscription
 	Start() error
@@ -91,6 +94,7 @@ type pullSubscription struct {
 	bookmark            evtbookmark.Bookmark
 }
 
+// PullSubscriptionOption type for option pattern for NewPullSubscription constructor
 type PullSubscriptionOption func(*pullSubscription)
 
 func newSubscriptionWaitEvent() (evtapi.WaitEventHandle, error) {
@@ -107,13 +111,13 @@ func newStopWaitEvent() (evtapi.WaitEventHandle, error) {
 	return evtapi.WaitEventHandle(hEvent), err
 }
 
-// func NewPullSubscription(log log.Component) *pullSubscription {
+// NewPullSubscription constructs a new PullSubscription
 func NewPullSubscription(channelPath, query string, options ...PullSubscriptionOption) *pullSubscription {
 	var q pullSubscription
 	q.subscriptionHandle = evtapi.EventResultSetHandle(0)
 	q.waitEventHandle = evtapi.WaitEventHandle(0)
 
-	q.eventBatchCount = DEFAULT_EVENT_BATCH_COUNT
+	q.eventBatchCount = DefaultEventBatchCount
 
 	q.channelPath = channelPath
 	q.query = query
@@ -127,7 +131,8 @@ func NewPullSubscription(channelPath, query string, options ...PullSubscriptionO
 	return &q
 }
 
-// Windows limits this to 1024
+// WithEventBatchCount sets how many event records are requested per EvtNext call.
+// Windows limits this to 1024.
 // https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-even6/65f22d62-5f0f-4306-85c4-50fb9e77075b
 func WithEventBatchCount(count uint) PullSubscriptionOption {
 	return func(q *pullSubscription) {
@@ -135,30 +140,42 @@ func WithEventBatchCount(count uint) PullSubscriptionOption {
 	}
 }
 
+// WithWindowsEventLogAPI sets the API implementation used by the subscription
 func WithWindowsEventLogAPI(api evtapi.API) PullSubscriptionOption {
 	return func(q *pullSubscription) {
 		q.eventLogAPI = api
 	}
 }
 
+// WithStartAfterBookmark sets the bookmark for the subscription.
+// The subscription will start reading the event log from the record identified by the bookmark.
+// The subscription will not automatically update the bookmark. The user should update the
+// bookmark to an event record returned from GetEvents() when it makes sense for the user.
+// https://learn.microsoft.com/en-us/windows/win32/wes/bookmarking-events
+// https://learn.microsoft.com/en-us/windows/win32/api/winevt/ne-winevt-evt_subscribe_flags
 func WithStartAfterBookmark(bookmark evtbookmark.Bookmark) PullSubscriptionOption {
 	return func(q *pullSubscription) {
 		q.SetBookmark(bookmark)
 	}
 }
 
+// WithStartAtOldestRecord will start the subscription from the oldest record in the event log.
+// https://learn.microsoft.com/en-us/windows/win32/api/winevt/ne-winevt-evt_subscribe_flags
 func WithStartAtOldestRecord() PullSubscriptionOption {
 	return func(q *pullSubscription) {
 		q.subscribeOriginFlag = evtapi.EvtSubscribeStartAtOldestRecord
 	}
 }
 
+// WithSubscribeFlags can be used to manually set EVT_SUBSCRIBE_FLAGS
+// https://learn.microsoft.com/en-us/windows/win32/api/winevt/ne-winevt-evt_subscribe_flags
 func WithSubscribeFlags(flags uint) PullSubscriptionOption {
 	return func(q *pullSubscription) {
 		q.subscribeFlags = flags
 	}
 }
 
+// WithNotifyEventsAvailable enables the EventsAvailable() channel
 func WithNotifyEventsAvailable() PullSubscriptionOption {
 	return func(q *pullSubscription) {
 		q.useNotifyChannel = true
