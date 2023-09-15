@@ -180,7 +180,8 @@ func (c *Client) flush() {
 		backoffPolicy := backoff.NewExpBackoffPolicy(minBackoffFactor, baseBackoffTime.Seconds(), maxBackoffTime.Seconds(), 0, false)
 		data.sendMetrics()
 		for {
-			if errorCount > maxError {
+			if errorCount >= maxError {
+				log.Errorf("failed to send language metadata after %d errors", errorCount)
 				return
 			}
 			var err error
@@ -195,7 +196,7 @@ func (c *Client) flush() {
 					Requests.Inc(StatusSuccess)
 					return
 				}
-				Requests.Add(1, StatusError)
+				Requests.Inc(StatusError)
 				errorCount = backoffPolicy.IncError(1)
 			case <-c.ctx.Done():
 				return
