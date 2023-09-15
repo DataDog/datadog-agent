@@ -59,12 +59,6 @@ func NewKubeletCheck(base core.CheckBase, instance *common.KubeletConfig) *Kubel
 }
 
 func initProviders(filter *containers.Filter, config *common.KubeletConfig) []Provider {
-	if len(config.EnabledRates) == 0 {
-		config.EnabledRates = []string{
-			"diskio.io_service_bytes.stats.total",
-			"network[\\.].._bytes",
-			"cpu[\\.].*[\\.]total"} //default metrics
-	}
 	podProvider := pod.NewProvider(filter, config)
 	// nodeProvider collects from the /spec endpoint, which was hidden by default in k8s 1.18 and removed in k8s 1.19.
 	// It is here for backwards compatibility.

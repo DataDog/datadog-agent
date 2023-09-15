@@ -13,6 +13,8 @@ import (
 	"regexp"
 	"runtime"
 
+	kubeletv1alpha1 "k8s.io/kubelet/pkg/apis/stats/v1alpha1"
+
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/containers/kubelet/common"
 	"github.com/DataDog/datadog-agent/pkg/tagger"
@@ -22,59 +24,58 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
-	kubeletv1alpha1 "k8s.io/kubelet/pkg/apis/stats/v1alpha1"
 )
-
-// Provider provides the data collected from the `/stats/summary` Kubelet endpoint
-type Provider struct {
-	filter *containers.Filter
-	config *common.KubeletConfig
-	store  workloadmeta.Store
-}
-
-// NewProvider is created by filter, config and workloadmeta
-func NewProvider(filter *containers.Filter,
-	config *common.KubeletConfig,
-	store workloadmeta.Store) *Provider {
-	return &Provider{
-		filter: filter,
-		config: config,
-		store:  store,
-	}
-}
 
 const (
 	txBytesMetricName = "network.tx_bytes"
 	rxBytesMetricName = "network.rx_bytes"
 )
 
-func reportMetric[T float64 | uint64](senderFunc func(string, float64, string, []string),
-	metricName string, value *T, tags []string) {
-	if value == nil {
-		return
-	}
-	if metricName != "" {
-		senderFunc(common.KubeletMetricsPrefix+metricName, float64(*value), "", tags)
-	}
+// Provider provides the data collected from the `/stats/summary` Kubelet endpoint
+type Provider struct {
+	filter           *containers.Filter
+	config           *common.KubeletConfig
+	store            workloadmeta.Store
+	rateFilterList   []*regexp.Regexp
+	useStatsAsSource bool
 }
 
-func reportFsMetric(sender sender.Sender,
-	fsStats *kubeletv1alpha1.FsStats,
-	metricPrefix string,
-	tags []string) {
-	if fsStats == nil {
-		return
+// NewProvider is created by filter, config and workloadmeta
+func NewProvider(filter *containers.Filter,
+	config *common.KubeletConfig,
+	store workloadmeta.Store) *Provider {
+	useStatsAsSource := false
+	if config.UseStatsSummaryAsSource == nil {
+		if runtime.GOOS == "windows" {
+			useStatsAsSource = true
+		}
+	} else {
+		useStatsAsSource = *config.UseStatsSummaryAsSource
 	}
-	reportMetric(sender.Gauge,
-		metricPrefix+"filesystem.usage",
-		fsStats.UsedBytes,
-		tags)
-	if fsStats.UsedBytes != nil && fsStats.CapacityBytes != nil && *fsStats.CapacityBytes != 0 {
-		usagePct := float64(*fsStats.UsedBytes) / float64(*fsStats.CapacityBytes)
-		reportMetric(sender.Gauge,
-			metricPrefix+"filesystem.usage_pct",
-			&usagePct,
-			tags)
+
+	rateFilterList := []*regexp.Regexp{
+		regexp.MustCompile("diskio.io_service_bytes.stats.total"),
+		regexp.MustCompile("network[\\.].._bytes"),
+		regexp.MustCompile("cpu[\\.].*[\\.]total"),
+	} //default enabled_rates
+	if len(config.EnabledRates) > 0 {
+		rateFilterList = []*regexp.Regexp{}
+		for i := range config.EnabledRates {
+			pat := &config.EnabledRates[i]
+			r, err := regexp.Compile(*pat)
+			if err == nil {
+				rateFilterList = append(rateFilterList, r)
+			} else {
+				log.Warnf("invalid regex found in enabled_rates '%s': %s", *pat, err)
+			}
+		}
+	}
+	return &Provider{
+		filter:           filter,
+		config:           config,
+		store:            store,
+		useStatsAsSource: useStatsAsSource,
+		rateFilterList:   rateFilterList,
 	}
 }
 
@@ -86,14 +87,6 @@ func (p *Provider) Provide(kc kubelet.KubeUtilInterface, sender sender.Sender) e
 	}
 
 	p.processSystemStats(sender, statsSummary)
-	useStatsAsSource := false
-	if p.config.UseStatsSummaryAsSource == nil {
-		if runtime.GOOS == "windows" {
-			useStatsAsSource = true
-		}
-	} else {
-		useStatsAsSource = *p.config.UseStatsSummaryAsSource
-	}
 	for i := range statsSummary.Pods {
 		podStats := &statsSummary.Pods[i]
 		if len(podStats.Containers) == 0 {
@@ -116,9 +109,9 @@ func (p *Provider) Provide(kc kubelet.KubeUtilInterface, sender sender.Sender) e
 			continue
 		}
 		if podData.Phase == "Running" {
-			p.processPodStats(sender, podStats, useStatsAsSource)
-			p.processContainerStats(sender, podStats, podData, useStatsAsSource)
+			p.processPodStats(sender, podStats)
 		}
+		p.processContainerStats(sender, podStats, podData)
 	}
 	return nil
 }
@@ -148,7 +141,7 @@ func (p *Provider) processSystemStats(sender sender.Sender,
 }
 
 func (p *Provider) processPodStats(sender sender.Sender,
-	podStats *kubeletv1alpha1.PodStats, useStatsAsSource bool) {
+	podStats *kubeletv1alpha1.PodStats) {
 	if podStats == nil {
 		return
 	}
@@ -168,7 +161,7 @@ func (p *Provider) processPodStats(sender sender.Sender,
 		reportMetric(sender.Gauge, "ephemeral_storage.usage",
 			ephemeralStorage.UsedBytes, podTags)
 	}
-	if !useStatsAsSource {
+	if !p.useStatsAsSource {
 		return
 	}
 	podNetwork := podStats.Network
@@ -179,15 +172,11 @@ func (p *Provider) processPodStats(sender sender.Sender,
 	rxBytes = podNetwork.InterfaceStats.RxBytes
 	txBytes = podNetwork.InterfaceStats.TxBytes
 
-	// if config has "network.*"" in "enabled_rates"
-	for i := range p.config.EnabledRates {
-		pattern := &p.config.EnabledRates[i]
-		matched, error := regexp.MatchString(*pattern, txBytesMetricName)
-		if txBytes != nil && error == nil && matched {
+	for _, r := range p.rateFilterList {
+		if txBytes != nil && r.MatchString(txBytesMetricName) {
 			reportMetric(sender.Rate, txBytesMetricName, txBytes, podTags)
 		}
-		matched, error = regexp.MatchString(*pattern, rxBytesMetricName)
-		if rxBytes != nil && error == nil && matched {
+		if rxBytes != nil && r.MatchString(rxBytesMetricName) {
 			reportMetric(sender.Rate, rxBytesMetricName, rxBytes, podTags)
 		}
 	}
@@ -195,12 +184,11 @@ func (p *Provider) processPodStats(sender sender.Sender,
 
 func (p *Provider) processContainerStats(sender sender.Sender,
 	podStats *kubeletv1alpha1.PodStats,
-	podData *workloadmeta.KubernetesPod,
-	useStatsAsSource bool) {
+	podData *workloadmeta.KubernetesPod) {
 	if podStats == nil ||
 		len(podStats.Containers) == 0 ||
 		podData == nil ||
-		!useStatsAsSource {
+		!p.useStatsAsSource {
 		return
 	}
 	containerData := make(map[string]*workloadmeta.OrchestratorContainer)
@@ -244,5 +232,35 @@ func (p *Provider) processContainerStats(sender sender.Sender,
 			reportMetric(sender.Rate, "memory.usage", containerStats.Memory.UsageBytes, tags)
 		}
 		reportFsMetric(sender, containerStats.Rootfs, "", tags)
+	}
+}
+
+func reportMetric[T float64 | uint64](senderFunc func(string, float64, string, []string),
+	metricName string, value *T, tags []string) {
+	if value == nil {
+		return
+	}
+	if metricName != "" {
+		senderFunc(common.KubeletMetricsPrefix+metricName, float64(*value), "", tags)
+	}
+}
+
+func reportFsMetric(sender sender.Sender,
+	fsStats *kubeletv1alpha1.FsStats,
+	metricPrefix string,
+	tags []string) {
+	if fsStats == nil {
+		return
+	}
+	reportMetric(sender.Gauge,
+		metricPrefix+"filesystem.usage",
+		fsStats.UsedBytes,
+		tags)
+	if fsStats.UsedBytes != nil && fsStats.CapacityBytes != nil && *fsStats.CapacityBytes != 0 {
+		usagePct := float64(*fsStats.UsedBytes) / float64(*fsStats.CapacityBytes)
+		reportMetric(sender.Gauge,
+			metricPrefix+"filesystem.usage_pct",
+			&usagePct,
+			tags)
 	}
 }
