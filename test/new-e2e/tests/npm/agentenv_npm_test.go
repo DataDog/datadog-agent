@@ -26,6 +26,8 @@ func TestVMSuiteEx6(t *testing.T) {
 func (v *vmSuiteEx6) Test1_FakeIntakeNPM() {
 	t := v.T()
 
+	// This loop waits for agent and system-probe to be ready, stated by
+	// checking we eventually receive a payload
 	v.EventuallyWithT(func(c *assert.CollectT) {
 		v.Env().VM.Execute("curl http://httpbin.org/anything")
 
