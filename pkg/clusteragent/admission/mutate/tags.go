@@ -59,11 +59,11 @@ func InjectTags(rawPod []byte, ns string, dc dynamic.Interface) ([]byte, error) 
 func injectTags(pod *corev1.Pod, ns string, dc dynamic.Interface) error {
 	var injected bool
 	defer func() {
-		metrics.MutationAttempts.Inc(metrics.TagsMutationType, strconv.FormatBool(injected))
+		metrics.MutationAttempts.Inc(metrics.TagsMutationType, strconv.FormatBool(injected), "")
 	}()
 
 	if pod == nil {
-		metrics.MutationErrors.Inc(metrics.TagsMutationType, "nil pod")
+		metrics.MutationErrors.Inc(metrics.TagsMutationType, "nil pod", "")
 		return errors.New("cannot inject tags into nil pod")
 	}
 
@@ -83,7 +83,7 @@ func injectTags(pod *corev1.Pod, ns string, dc dynamic.Interface) error {
 		if pod.GetNamespace() != "" {
 			ns = pod.GetNamespace()
 		} else {
-			metrics.MutationErrors.Inc(metrics.TagsMutationType, "empty namespace")
+			metrics.MutationErrors.Inc(metrics.TagsMutationType, "empty namespace", "")
 			return errors.New("cannot get standard tags from parent object: empty namespace")
 		}
 	}
@@ -96,7 +96,7 @@ func injectTags(pod *corev1.Pod, ns string, dc dynamic.Interface) error {
 
 	owner, err := getOwner(owners[0], ns, dc)
 	if err != nil {
-		metrics.MutationErrors.Inc(metrics.TagsMutationType, "cannot get owner")
+		metrics.MutationErrors.Inc(metrics.TagsMutationType, "cannot get owner", "")
 		return err
 	}
 

@@ -670,7 +670,8 @@ func StartRuntimeSecurity(log log.Component, config config.Component, hostname s
 	}
 	stopper.Add(agent)
 
-	endpoints, ctx, err := common.NewLogContextRuntime()
+	useSecRuntimeTrack := config.GetBool("runtime_security_config.use_secruntime_track")
+	endpoints, ctx, err := common.NewLogContextRuntime(useSecRuntimeTrack)
 	if err != nil {
 		_ = log.Error(err)
 	}

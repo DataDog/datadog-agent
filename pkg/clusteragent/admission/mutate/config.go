@@ -85,11 +85,11 @@ func InjectConfig(rawPod []byte, ns string, dc dynamic.Interface) ([]byte, error
 func injectConfig(pod *corev1.Pod, _ string, _ dynamic.Interface) error {
 	var injectedConfig, injectedEntity bool
 	defer func() {
-		metrics.MutationAttempts.Inc(metrics.ConfigMutationType, strconv.FormatBool(injectedConfig || injectedEntity))
+		metrics.MutationAttempts.Inc(metrics.ConfigMutationType, strconv.FormatBool(injectedConfig || injectedEntity), "")
 	}()
 
 	if pod == nil {
-		metrics.MutationErrors.Inc(metrics.ConfigMutationType, "nil pod")
+		metrics.MutationErrors.Inc(metrics.ConfigMutationType, "nil pod", "")
 		return errors.New("cannot inject config into nil pod")
 	}
 
@@ -110,7 +110,7 @@ func injectConfig(pod *corev1.Pod, _ string, _ dynamic.Interface) error {
 		injectedEnv = injectEnv(pod, dogstatsdURLSocketEnvVar) || injectedEnv
 		injectedConfig = injectedEnv || injectedVol
 	default:
-		metrics.MutationErrors.Inc(metrics.ConfigMutationType, "unknown mode")
+		metrics.MutationErrors.Inc(metrics.ConfigMutationType, "unknown mode", "")
 		return fmt.Errorf("invalid injection mode %q", mode)
 	}
 

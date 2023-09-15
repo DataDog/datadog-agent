@@ -761,7 +761,6 @@ func getUDP6Conn(flowi6 bool) (*net.UDPConn, error) {
 	for _, linkLocalAddr := range linkLocals {
 		conn, err = net.ListenUDP("udp6", linkLocalAddr)
 		if err == nil {
-			log.Warnf("offset guessing: local udp v6 conn: local addr %s", conn.LocalAddr())
 			return conn, err
 		}
 	}
