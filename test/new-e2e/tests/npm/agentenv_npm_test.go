@@ -12,7 +12,6 @@ import (
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e"
 	"github.com/DataDog/test-infra-definitions/components/datadog/agentparams"
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
 type vmSuiteEx6 struct {
@@ -26,16 +25,21 @@ func TestVMSuiteEx6(t *testing.T) {
 func (v *vmSuiteEx6) Test1_FakeIntakeNPM() {
 	t := v.T()
 
+	// force pulumi to deploy before running the test
+	v.Env().VM.Execute("curl http://httpbin.org/anything")
+
 	// This loop waits for agent and system-probe to be ready, stated by
 	// checking we eventually receive a payload
 	v.EventuallyWithT(func(c *assert.CollectT) {
 		v.Env().VM.Execute("curl http://httpbin.org/anything")
 
 		hostnameNetID, err := v.Env().Fakeintake.GetConnectionsNames()
-		require.NoError(c, err, "fakeintake GetConnectionsNames() error")
+		assert.NoError(c, err, "fakeintake GetConnectionsNames() error")
 
-		require.NotZero(c, len(hostnameNetID), "no connections yet")
+		assert.NotZero(c, len(hostnameNetID), "no connections yet")
 
-		t.Logf("hostname+networkID %v seen connections", hostnameNetID)
+		if len(hostnameNetID) > 0 {
+			t.Logf("hostname+networkID %v seen connections", hostnameNetID)
+		}
 	}, 60*time.Second, time.Second, "")
 }
