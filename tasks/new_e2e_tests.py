@@ -89,7 +89,7 @@ def run(
     cmd = f'gotestsum --format {gotestsum_format} '
     cmd += '{junit_file_flag} --packages="{packages}" -- -ldflags="-X {REPO_PATH}/test/new-e2e/containers.GitCommit={commit}" {verbose} -mod={go_mod} -vet=off -timeout {timeout} -tags {go_build_tags} {nocache} {run} {skip} {coverage_opt} {test_run_arg}'
     if osversion != "":
-        cmd += "-args -osversion {osversion} -test.parallel " + len(osversion.split(","))
+        cmd += "-args -osversion {osversion} -test.parallel " + str(len(osversion.split(",")))
     args = {
         "go_mod": "mod",
         "timeout": "4h",
