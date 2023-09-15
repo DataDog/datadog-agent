@@ -110,7 +110,7 @@ func newDestination(endpoint config.Endpoint,
 	maxConcurrentBackgroundSends int,
 	shouldRetry bool,
 	telemetryName string,
-	cfg conf.Config) *Destination {
+	cfg conf.ConfigReader) *Destination {
 
 	if maxConcurrentBackgroundSends <= 0 {
 		maxConcurrentBackgroundSends = 1
@@ -388,7 +388,7 @@ func buildURL(endpoint config.Endpoint) string {
 	return url.String()
 }
 
-func prepareCheckConnectivity(endpoint config.Endpoint, cfg conf.Config) (*client.DestinationsContext, *Destination) {
+func prepareCheckConnectivity(endpoint config.Endpoint, cfg conf.ConfigReader) (*client.DestinationsContext, *Destination) {
 	ctx := client.NewDestinationsContext()
 	// Lower the timeout to 5s because HTTP connectivity test is done synchronously during the agent bootstrap sequence
 	destination := newDestination(endpoint, JSONContentType, ctx, time.Second*5, 0, false, "", cfg)
@@ -402,7 +402,7 @@ func completeCheckConnectivity(ctx *client.DestinationsContext, destination *Des
 }
 
 // CheckConnectivity check if sending logs through HTTP works
-func CheckConnectivity(endpoint config.Endpoint, cfg conf.Config) config.HTTPConnectivity {
+func CheckConnectivity(endpoint config.Endpoint, cfg conf.ConfigReader) config.HTTPConnectivity {
 	log.Info("Checking HTTP connectivity...")
 	ctx, destination := prepareCheckConnectivity(endpoint, cfg)
 	log.Infof("Sending HTTP connectivity request to %s...", destination.url)

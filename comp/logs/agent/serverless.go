@@ -9,7 +9,7 @@ import (
 	"context"
 
 	logComponent "github.com/DataDog/datadog-agent/comp/core/log"
-	pkgConfig "github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/conf"
 	"github.com/DataDog/datadog-agent/pkg/logs/service"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 	"github.com/DataDog/datadog-agent/pkg/logs/tailers"
@@ -17,10 +17,10 @@ import (
 )
 
 // NewServerlessLogsAgent creates a new instance of the logs agent for serverless
-func NewServerlessLogsAgent() ServerlessLogsAgent {
+func NewServerlessLogsAgent(cfg conf.Config) ServerlessLogsAgent {
 	logsAgent := &agent{
 		log:     logComponent.NewTemporaryLoggerWithoutInit(),
-		config:  pkgConfig.Datadog,
+		config:  cfg,
 		started: atomic.NewBool(false),
 
 		sources:  sources.NewLogSources(),

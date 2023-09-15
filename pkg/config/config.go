@@ -49,20 +49,20 @@ const (
 	megaByte = 1024 * 1024
 
 	// DefaultBatchWait is the default HTTP batch wait in second for logs
-	DefaultBatchWait = 5
+	DefaultBatchWait = conf.DefaultBatchWait
 
 	// DefaultBatchMaxConcurrentSend is the default HTTP batch max concurrent send for logs
-	DefaultBatchMaxConcurrentSend = 0
+	DefaultBatchMaxConcurrentSend = conf.DefaultBatchMaxConcurrentSend
 
 	// DefaultBatchMaxSize is the default HTTP batch max size (maximum number of events in a single batch) for logs
-	DefaultBatchMaxSize = 1000
+	DefaultBatchMaxSize = conf.DefaultBatchMaxSize
 
 	// DefaultInputChanSize is the default input chan size for events
-	DefaultInputChanSize = 100
+	DefaultInputChanSize = conf.DefaultInputChanSize
 
 	// DefaultBatchMaxContentSize is the default HTTP batch max content size (before compression) for logs
 	// It is also the maximum possible size of a single event. Events exceeding this limit are dropped.
-	DefaultBatchMaxContentSize = 5000000
+	DefaultBatchMaxContentSize = conf.DefaultBatchMaxContentSize
 
 	// DefaultAuditorTTL is the default logs auditor TTL in hours
 	DefaultAuditorTTL = 23
@@ -74,16 +74,16 @@ const (
 	DefaultRuntimePoliciesDir = "/etc/datadog-agent/runtime-security.d"
 
 	// DefaultLogsSenderBackoffFactor is the default logs sender backoff randomness factor
-	DefaultLogsSenderBackoffFactor = 2.0
+	DefaultLogsSenderBackoffFactor = conf.DefaultLogsSenderBackoffFactor
 
 	// DefaultLogsSenderBackoffBase is the default logs sender base backoff time, seconds
-	DefaultLogsSenderBackoffBase = 1.0
+	DefaultLogsSenderBackoffBase = conf.DefaultLogsSenderBackoffBase
 
 	// DefaultLogsSenderBackoffMax is the default logs sender maximum backoff time, seconds
-	DefaultLogsSenderBackoffMax = 120.0
+	DefaultLogsSenderBackoffMax = conf.DefaultLogsSenderBackoffMax
 
 	// DefaultLogsSenderBackoffRecoveryInterval is the default logs sender backoff recovery interval
-	DefaultLogsSenderBackoffRecoveryInterval = 2
+	DefaultLogsSenderBackoffRecoveryInterval = conf.DefaultLogsSenderBackoffRecoveryInterval
 
 	// DefaultInventoriesMinInterval is the default value for inventories_min_interval, in seconds
 	DefaultInventoriesMinInterval = 5 * 60

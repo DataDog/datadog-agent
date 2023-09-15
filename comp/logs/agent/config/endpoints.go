@@ -9,7 +9,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/conf"
 )
 
 // EPIntakeVersion is the events platform intake API version
@@ -130,11 +130,11 @@ func NewEndpoints(main Endpoint, additionalEndpoints []Endpoint, useProto bool, 
 		Endpoints:              append([]Endpoint{main}, additionalEndpoints...),
 		UseProto:               useProto,
 		UseHTTP:                useHTTP,
-		BatchWait:              config.DefaultBatchWait,
-		BatchMaxConcurrentSend: config.DefaultBatchMaxConcurrentSend,
-		BatchMaxSize:           config.DefaultBatchMaxSize,
-		BatchMaxContentSize:    config.DefaultBatchMaxContentSize,
-		InputChanSize:          config.DefaultInputChanSize,
+		BatchWait:              conf.DefaultBatchWait,
+		BatchMaxConcurrentSend: conf.DefaultBatchMaxConcurrentSend,
+		BatchMaxSize:           conf.DefaultBatchMaxSize,
+		BatchMaxContentSize:    conf.DefaultBatchMaxContentSize,
+		InputChanSize:          conf.DefaultInputChanSize,
 	}
 }
 

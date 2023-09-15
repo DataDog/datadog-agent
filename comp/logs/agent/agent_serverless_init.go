@@ -9,7 +9,7 @@ package agent
 
 import (
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
-	pkgConfig "github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/conf"
 	"github.com/DataDog/datadog-agent/pkg/logs/auditor"
 	"github.com/DataDog/datadog-agent/pkg/logs/client"
 	"github.com/DataDog/datadog-agent/pkg/logs/diagnostic"
@@ -54,6 +54,6 @@ func (a *agent) SetupPipeline(
 }
 
 // buildEndpoints builds endpoints for the logs agent
-func buildEndpoints(coreConfig pkgConfig.ConfigReader) (*config.Endpoints, error) {
+func buildEndpoints(coreConfig conf.ConfigReader) (*config.Endpoints, error) {
 	return config.BuildServerlessEndpoints(coreConfig, intakeTrackType, config.DefaultIntakeProtocol)
 }
