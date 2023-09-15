@@ -51,7 +51,11 @@ issues:
     - path: pkg/util/containerd
       text: "name will be used as .* by other packages, and that stutters"
     # TODO: Needs manual update
-    - text: "package github.com/golang/protobuf/proto is deprecated: .*"
+    - text: "\"github.com/golang/protobuf/proto\" is deprecated"
+      linters: [staticcheck]
+    - text: "rand.Seed has been deprecated since Go 1.20"
+      linters: [staticcheck]
+    - text: "Temporary has been deprecated since Go 1.18"
       linters: [staticcheck]
 
   # We're enabling the revive and the gosimple linters on the whole codebase
@@ -99,7 +103,7 @@ linters-settings:
              # Actual issues that should be fixed eventually
              "-SA6002", # TODO: Fix sync.Pools
              "-SA4025", # TODO: Fix trace unit test
-             "-SA1019", "-SA4011", "-SA4031" # Disabling these to re-enable golanci-lint default tests
+             "-SA4011", "-SA4031" # Disabling these to re-enable golanci-lint default tests
             ]
   govet:
     settings:
