@@ -201,7 +201,7 @@ namespace WixSetup.Datadog
                 // Set custom output directory (WixSharp defaults to current directory)
                 project.OutDir = Environment.GetEnvironmentVariable("AGENT_MSI_OUTDIR");
             }
-            project.OutFileName = $"datadog-agent-ng-{_agentVersion.PackageVersion}-1-x86_64";
+            project.OutFileName = $"datadog-agent-{_agentVersion.PackageVersion}-1-x86_64";
             project.Package.AttributesDefinition = $"Comments={ProductComment}";
 
             // clear default media as we will add it via MediaTemplate
