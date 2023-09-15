@@ -35,6 +35,7 @@ type QueryMetricsConfig struct {
 	DBRowsLimit        int   `yaml:"db_rows_limit"`
 	PlanCacheRetention int   `yaml:"plan_cache_retention"`
 	DisableLastActive  bool  `yaml:"disable_last_active"`
+	Lookback           int64 `yaml:"lookback"`
 }
 
 type SysMetricsConfig struct {
