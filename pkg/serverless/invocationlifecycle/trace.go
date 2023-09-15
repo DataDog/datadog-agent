@@ -234,6 +234,7 @@ func InjectSpanID(executionContext *ExecutionStartInfo, headers http.Header) {
 func capturePayloadAsTags(payloadJSON map[string]interface{}, targetSpan *pb.Span, parentKey string, depth int, maxDepth int) {
 	if payloadJSON == nil {
 		targetSpan.Meta[parentKey] = ""
+		return
 	}
 	if depth >= maxDepth {
 		targetSpan.Meta[parentKey] = convertJSONToString(payloadJSON)
@@ -250,6 +251,10 @@ func capturePayloadAsTags(payloadJSON map[string]interface{}, targetSpan *pb.Spa
 func tagValByType(value interface{}, targetSpan *pb.Span, key string, depth int, maxDepth int) {
 	if value == nil {
 		targetSpan.Meta[key] = ""
+		return
+	}
+	if depth >= maxDepth {
+		targetSpan.Meta[key] = fmt.Sprintf("%v", value)
 		return
 	}
 	switch value := value.(type) {
