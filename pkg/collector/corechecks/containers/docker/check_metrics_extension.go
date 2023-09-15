@@ -98,7 +98,12 @@ func (dn *dockerCustomMetricsExtension) Process(tags []string, container *worklo
 		} else if containerStats.CPU.Weight != nil {
 			cpuShares = math.Round(cpuWeightToCPUShares(*containerStats.CPU.Weight))
 		}
-		dn.sender(dn.aggSender.Gauge, "docker.cpu.shares", &cpuShares, tags)
+
+		// 0 is not a valid value for shares. cpuShares == 0 means that we
+		// couldn't collect the number of shares.
+		if cpuShares != 0 {
+			dn.sender(dn.aggSender.Gauge, "docker.cpu.shares", &cpuShares, tags)
+		}
 	}
 }
 

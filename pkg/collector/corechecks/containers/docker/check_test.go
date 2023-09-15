@@ -298,6 +298,7 @@ func TestProcess_CPUSharesMetric(t *testing.T) {
 	containersMeta := []*workloadmeta.Container{
 		generic.CreateContainerMeta("docker", "cID100"),
 		generic.CreateContainerMeta("docker", "cID101"),
+		generic.CreateContainerMeta("docker", "cID102"),
 	}
 
 	containersStats := map[string]mock.ContainerEntry{
@@ -312,6 +313,13 @@ func TestProcess_CPUSharesMetric(t *testing.T) {
 			ContainerStats: &metrics.ContainerStats{
 				CPU: &metrics.ContainerCPUStats{
 					Weight: pointer.Ptr(100.0), // 2597 shares
+				},
+			},
+		},
+		"cID102": { // shares/weight not available
+			ContainerStats: &metrics.ContainerStats{
+				CPU: &metrics.ContainerCPUStats{
+					Total: pointer.Ptr(100.0),
 				},
 			},
 		},
@@ -336,4 +344,5 @@ func TestProcess_CPUSharesMetric(t *testing.T) {
 	mockSender.AssertMetricInRange(t, "Gauge", "docker.uptime", 0, 600, "", expectedTags)
 	mockSender.AssertMetric(t, "Gauge", "docker.cpu.shares", 1024, "", expectedTags)
 	mockSender.AssertMetric(t, "Gauge", "docker.cpu.shares", 2597, "", expectedTags)
+	mockSender.AssertNotCalled(t, "Gauge", "docker.cpu.shares", 0.0, "", mocksender.MatchTagsContains(expectedTags))
 }
