@@ -74,7 +74,7 @@ func createLog(t testing.TB, ti eventlog_test.APITester, channel string, source 
 	return nil
 }
 
-func startSubscription(t testing.TB, ti eventlog_test.APITester, channel string, options ...PullSubscriptionOption) (*pullSubscription, error) {
+func startSubscription(t testing.TB, ti eventlog_test.APITester, channel string, options ...PullSubscriptionOption) (PullSubscription, error) {
 	opts := []PullSubscriptionOption{WithWindowsEventLogAPI(ti.API())}
 	opts = append(opts, options...)
 
@@ -493,8 +493,11 @@ func (s *GetEventsTestSuite) TestHandleEarlyNotifyLoopExit() {
 	sub, err := startSubscription(s.T(), s.ti, s.channelPath, WithNotifyEventsAvailable())
 	require.NoError(s.T(), err)
 
+	// Need base type for this test
+	baseSub := sub.(*pullSubscription)
+
 	// set stop event to trigger notify loop to exit
-	windows.SetEvent(windows.Handle(sub.stopEventHandle))
+	windows.SetEvent(windows.Handle(baseSub.stopEventHandle))
 	require.NoError(s.T(), err)
 
 	// Eat the initial state
@@ -502,7 +505,7 @@ func (s *GetEventsTestSuite) TestHandleEarlyNotifyLoopExit() {
 	require.NoError(s.T(), err)
 
 	// wait for the loop to exit
-	sub.notifyEventsAvailableWaiter.Wait()
+	baseSub.notifyEventsAvailableWaiter.Wait()
 
 	// ensure the notify channel is closed
 	_, ok := <-sub.EventsAvailable()
