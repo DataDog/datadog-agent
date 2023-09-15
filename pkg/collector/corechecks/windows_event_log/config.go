@@ -25,6 +25,7 @@ const (
 	defaultConfigEventPriority = "normal"
 )
 
+// Config represents the Windows Event Log check configuration and its yaml marshalling
 type Config struct {
 	instance instanceConfig
 	init     initConfig

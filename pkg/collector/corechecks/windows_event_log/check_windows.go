@@ -16,7 +16,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
-	"github.com/DataDog/datadog-agent/pkg/collector/check"
+	agentCheck "github.com/DataDog/datadog-agent/pkg/collector/check"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
 	agentEvent "github.com/DataDog/datadog-agent/pkg/metrics/event"
 	"github.com/DataDog/datadog-agent/pkg/persistentcache"
@@ -35,6 +35,7 @@ const checkName = "windows_event_log"
 // https://docs.datadoghq.com/integrations/faq/list-of-api-source-attribute-value/
 const sourceTypeName = "event viewer"
 
+// Check defines a check that reads the Windows Event Log and submits Events
 type Check struct {
 	// check
 	core.CheckBase
@@ -391,6 +392,7 @@ func (c *Check) initSubscription() error {
 	return nil
 }
 
+// Configure processes the configuration for the check
 func (c *Check) Configure(senderManager sender.SenderManager, integrationConfigDigest uint64, data integration.Data, initConfig integration.Data, source string) error {
 	// common CoreCheck requirements
 	// This check supports multiple instances, BuildID must be called before CommonConfigure
@@ -467,6 +469,7 @@ func (c *Check) validateConfig() error {
 	return nil
 }
 
+// Cancel stops the check and releases resources
 func (c *Check) Cancel() {
 	if c.sub != nil {
 		c.sub.Stop()
@@ -481,7 +484,7 @@ func (c *Check) Cancel() {
 	}
 }
 
-func checkFactory() check.Check {
+func checkFactory() agentCheck.Check {
 	return &Check{
 		CheckBase: core.NewCheckBase(checkName),
 		evtapi:    winevtapi.New(),

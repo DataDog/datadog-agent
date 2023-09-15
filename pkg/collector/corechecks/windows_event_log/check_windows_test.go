@@ -15,7 +15,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
-	"github.com/DataDog/datadog-agent/pkg/config"
+	agentConfig "github.com/DataDog/datadog-agent/pkg/config"
 	agentEvent "github.com/DataDog/datadog-agent/pkg/metrics/event"
 	"github.com/DataDog/datadog-agent/pkg/util/winutil/eventlog/reporter"
 	"github.com/DataDog/datadog-agent/pkg/util/winutil/eventlog/test"
@@ -65,7 +65,7 @@ func (s *GetEventsTestSuite) testsetup() {
 	// create tmpdir to store bookmark. Necessary to isolate test runs from each other, otherwise
 	// they will load bookmarks from previous runs.
 	testDir := s.T().TempDir()
-	mockConfig := config.Mock(s.T())
+	mockConfig := agentConfig.Mock(s.T())
 	mockConfig.Set("run_path", testDir)
 }
 
@@ -745,7 +745,7 @@ func BenchmarkGetEvents(b *testing.B) {
 					continue
 				}
 				b.Run(fmt.Sprintf("%vAPI/%dEvents/%dBatch", tiName, v, batchCount), func(b *testing.B) {
-					mockConfig := config.Mock(b)
+					mockConfig := agentConfig.Mock(b)
 
 					// setup check
 					instanceConfig := []byte(fmt.Sprintf(`
