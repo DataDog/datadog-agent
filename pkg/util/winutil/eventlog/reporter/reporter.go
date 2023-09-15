@@ -17,7 +17,14 @@ import (
 
 // Reporter is an interface for writing an event to a Windows Event Log
 type Reporter interface {
-	ReportEvent() evtapi.EventBookmarkHandle
+	ReportEvent(
+		Type uint,
+		Category uint,
+		EventID uint,
+		UserSID *windows.SID,
+		Strings []string,
+		RawData []uint8,
+	) error
 	Close()
 }
 
@@ -26,8 +33,9 @@ type reporter struct {
 	logHandle   evtapi.EventSourceHandle
 }
 
-// New constructs a new Reporter
-func New(channelName string, api evtapi.API) (*reporter, error) {
+// New constructs a new Reporter.
+// Call Close() when done to release resources.
+func New(channelName string, api evtapi.API) (Reporter, error) {
 	var r reporter
 
 	if api == nil {

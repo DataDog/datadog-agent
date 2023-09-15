@@ -33,8 +33,9 @@ type bookmark struct {
 // Option type for option pattern for New bookmark constructor
 type Option func(*bookmark) error
 
-// New constructs a new Bookmark
-func New(options ...Option) (*bookmark, error) {
+// New constructs a new Bookmark.
+// Call Close() when done to release resources.
+func New(options ...Option) (Bookmark, error) {
 	var b bookmark
 
 	for _, o := range options {

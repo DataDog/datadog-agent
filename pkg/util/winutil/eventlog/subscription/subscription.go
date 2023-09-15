@@ -111,8 +111,9 @@ func newStopWaitEvent() (evtapi.WaitEventHandle, error) {
 	return evtapi.WaitEventHandle(hEvent), err
 }
 
-// NewPullSubscription constructs a new PullSubscription
-func NewPullSubscription(channelPath, query string, options ...PullSubscriptionOption) *pullSubscription {
+// NewPullSubscription constructs a new PullSubscription.
+// Call Stop() when done to release resources.
+func NewPullSubscription(channelPath, query string, options ...PullSubscriptionOption) PullSubscription {
 	var q pullSubscription
 	q.subscriptionHandle = evtapi.EventResultSetHandle(0)
 	q.waitEventHandle = evtapi.WaitEventHandle(0)
