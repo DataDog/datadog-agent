@@ -3,7 +3,6 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2023-present Datadog, Inc.
 //go:build windows
-// +build windows
 
 // Package evtlog defines a check that reads the Windows Event Log and submits Events
 package evtlog
