@@ -6,20 +6,14 @@
 package schema
 
 import (
-	_ "embed"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"testing"
-)
-
-var (
-	//go:embed profile_rc_schema.json
-	deviceProfileRcConfigJsonschema []byte
 )
 
 func TestGenerateJSONSchema(t *testing.T) {
 	schemaJSON, err := GenerateJSONSchema()
 	require.NoError(t, err)
 
-	assert.Equal(t, string(deviceProfileRcConfigJsonschema), string(schemaJSON))
+	assert.Equal(t, string(DeviceProfileRcConfigJsonschema), string(schemaJSON))
 }
