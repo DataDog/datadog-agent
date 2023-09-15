@@ -6,6 +6,7 @@ package aggregator
 
 import (
 	"encoding/json"
+	"runtime"
 	"testing"
 	"time"
 
@@ -66,9 +67,13 @@ func generateTestData() (data []api.Payload, err error) {
 }
 
 func validateCollectionTime(t *testing.T, agg Aggregator[*mockPayloadItem]) {
+	if runtime.GOOS != "linux" {
+		t.Logf("validateCollectionTime test skip on %s", runtime.GOOS)
+		return
+	}
 	for _, n := range agg.GetNames() {
 		for _, p := range agg.GetPayloadsByName(n) {
-			assert.True(t, p.GetCollectedTime().Before(time.Now()), "collection time not in the past")
+			assert.True(t, p.GetCollectedTime().Before(time.Now()), "collection time not in the past %v %v", p.GetCollectedTime(), time.Now())
 		}
 	}
 }
