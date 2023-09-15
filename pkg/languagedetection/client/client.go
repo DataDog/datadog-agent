@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+// Package client holds the client to send data to the Cluster-Agent
 package client
 
 import (
@@ -91,6 +92,12 @@ func (p *podDetails) getOrAddContainerDetails(containerName string) *languagesSe
 	return p.containersLanguages.containersLanguages[containerName]
 }
 
+type batch struct {
+	podDetails map[string]*podDetails
+}
+
+func newBatch() *batch { return &batch{make(map[string]*podDetails, 0)} }
+
 func (b *batch) getOrAddPodDetails(podName, podNamespace string, ownerRef *workloadmeta.KubernetesPodOwner) *podDetails {
 	if podDetails, ok := b.podDetails[podName]; ok {
 		return podDetails
@@ -104,12 +111,6 @@ func (b *batch) getOrAddPodDetails(podName, podNamespace string, ownerRef *workl
 	}
 	return b.podDetails[podName]
 }
-
-type batch struct {
-	podDetails map[string]*podDetails
-}
-
-func newBatch() *batch { return &batch{make(map[string]*podDetails, 0)} }
 
 func (b *batch) toProto() *pbgo.ParentLanguageAnnotationRequest {
 	res := &pbgo.ParentLanguageAnnotationRequest{}
