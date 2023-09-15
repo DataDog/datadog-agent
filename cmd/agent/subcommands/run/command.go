@@ -632,7 +632,7 @@ func startAgent(
 		return err
 	}
 
-	if pkgconfig.Datadog.GetBool("cluster_agent.enabled") && pkgconfig.Datadog.GetBool("enabled") {
+	if pkgconfig.Datadog.GetBool("cluster_agent.enabled") && pkgconfig.Datadog.GetBool("language_detection.enabled") {
 		go func() {
 			cl := langCl.NewClient(common.MainCtx, pkgconfig.Datadog, workloadmeta.GetGlobalStore(), nil)
 			cl.StreamLanguages()
