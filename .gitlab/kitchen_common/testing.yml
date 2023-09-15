@@ -49,7 +49,7 @@
     KITCHEN_EC2_INSTANCE_TYPE: "t4g.xlarge"
     CHEF_VERSION: 14.15.6
   extends:
-    - .kitchen_ec2_spot_instances
+    - .kitchen_ec2
 
 # Kitchen: agents
 # ---------------
@@ -220,7 +220,7 @@
   extends:
     - .kitchen_test_upgrade7
     - .kitchen_datadog_agent_flavor
-    - .kitchen_azure_location_west_central_us
+    - .kitchen_azure_location_south_central_us
     - .kitchen_ec2_location_us_east_1
 
 .kitchen_test_upgrade7_iot_agent:
