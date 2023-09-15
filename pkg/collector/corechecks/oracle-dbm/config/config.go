@@ -194,10 +194,10 @@ func GetLogPrompt(c InstanceConfig) string {
 		p = c.Server
 	}
 	if c.Port != 0 {
-		p = fmt.Sprintf("%s:%d", c.Port)
+		p = fmt.Sprintf("%s:%d", p, c.Port)
 	}
 	if c.ServiceName != "" {
-		p = fmt.Sprintf("%s/%s", c.ServiceName)
+		p = fmt.Sprintf("%s/%s", p, c.ServiceName)
 	}
 	return p
 }
