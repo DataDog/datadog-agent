@@ -8,12 +8,13 @@ package flare
 import (
 	"io"
 
+	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/diagnose"
 	"github.com/DataDog/datadog-agent/pkg/diagnose/diagnosis"
 )
 
 // GetClusterAgentDiagnose dumps the connectivity checks diagnose to the writer
-func GetClusterAgentDiagnose(w io.Writer) error {
+func GetClusterAgentDiagnose(w io.Writer, senderManager sender.SenderManager) error {
 	// Verbose:  true - to show details like if was done a while ago
 	// RunLocal: true - do not attept to run in actual running agent but
 	//                  may need to implement it in future
@@ -26,5 +27,5 @@ func GetClusterAgentDiagnose(w io.Writer) error {
 		RunLocal: true,
 		Include:  []string{"connectivity-datadog-autodiscovery"},
 	}
-	return diagnose.RunStdOut(w, diagCfg)
+	return diagnose.RunStdOut(w, diagCfg, senderManager)
 }

@@ -1184,6 +1184,8 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("security_agent.internal_profiling.block_profile_rate", 0)
 	config.BindEnvAndSetDefault("security_agent.internal_profiling.enable_goroutine_stacktraces", false)
 	config.BindEnvAndSetDefault("security_agent.internal_profiling.delta_profiles", true)
+	config.BindEnvAndSetDefault("security_agent.internal_profiling.unix_socket", "")
+	config.BindEnvAndSetDefault("security_agent.internal_profiling.extra_tags", []string{})
 
 	// Datadog security agent (compliance)
 	config.BindEnvAndSetDefault("compliance_config.enabled", false)
@@ -1204,6 +1206,7 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("runtime_security_config.run_path", defaultRunPath)
 	config.BindEnvAndSetDefault("runtime_security_config.log_profiled_workloads", false)
 	config.BindEnvAndSetDefault("runtime_security_config.telemetry.ignore_dd_agent_containers", true)
+	config.BindEnvAndSetDefault("runtime_security_config.use_secruntime_track", false)
 	bindEnvAndSetLogsConfigKeys(config, "runtime_security_config.endpoints.")
 	bindEnvAndSetLogsConfigKeys(config, "runtime_security_config.activity_dump.remote_storage.endpoints.")
 

@@ -5,11 +5,11 @@
 
 //go:build serverless
 
-package logs
+package agent
 
 import (
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
-	coreConfig "github.com/DataDog/datadog-agent/pkg/config"
+	pkgConfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/auditor"
 	"github.com/DataDog/datadog-agent/pkg/logs/client"
 	"github.com/DataDog/datadog-agent/pkg/logs/diagnostic"
@@ -17,9 +17,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/launchers/channel"
 	"github.com/DataDog/datadog-agent/pkg/logs/pipeline"
 	"github.com/DataDog/datadog-agent/pkg/logs/schedulers"
-	"github.com/DataDog/datadog-agent/pkg/logs/service"
-	"github.com/DataDog/datadog-agent/pkg/logs/sources"
-	"github.com/DataDog/datadog-agent/pkg/logs/tailers"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 )
 
@@ -30,36 +27,33 @@ import (
 // NewAgent returns a Logs Agent instance to run in a serverless environment.
 // The Serverless Logs Agent has only one input being the channel to receive the logs to process.
 // It is using a NullAuditor because we've nothing to do after having sent the logs to the intake.
-func NewAgent(sources *sources.LogSources, services *service.Services, tracker *tailers.TailerTracker, processingRules []*config.ProcessingRule, endpoints *config.Endpoints) *Agent {
+func (a *agent) SetupPipeline(
+	processingRules []*config.ProcessingRule,
+) {
 	health := health.RegisterLiveness("logs-agent")
 
 	diagnosticMessageReceiver := diagnostic.NewBufferedMessageReceiver(nil)
 
 	// setup the a null auditor, not tracking data in any registry
-	auditor := auditor.NewNullAuditor()
+	a.auditor = auditor.NewNullAuditor()
 	destinationsCtx := client.NewDestinationsContext()
 
 	// setup the pipeline provider that provides pairs of processor and sender
-	pipelineProvider := pipeline.NewServerlessProvider(config.NumberOfPipelines, auditor, processingRules, endpoints, destinationsCtx)
+	pipelineProvider := pipeline.NewServerlessProvider(config.NumberOfPipelines, a.auditor, processingRules, a.endpoints, destinationsCtx)
 
 	// setup the sole launcher for this agent
-	lnchrs := launchers.NewLaunchers(sources, pipelineProvider, auditor, tracker)
+	lnchrs := launchers.NewLaunchers(a.sources, pipelineProvider, a.auditor, a.tracker)
 	lnchrs.AddLauncher(channel.NewLauncher())
 
-	return &Agent{
-		sources:                   sources,
-		services:                  services,
-		schedulers:                schedulers.NewSchedulers(sources, services),
-		auditor:                   auditor,
-		destinationsCtx:           destinationsCtx,
-		pipelineProvider:          pipelineProvider,
-		launchers:                 lnchrs,
-		health:                    health,
-		diagnosticMessageReceiver: diagnosticMessageReceiver,
-	}
+	a.schedulers = schedulers.NewSchedulers(a.sources, a.services)
+	a.destinationsCtx = destinationsCtx
+	a.pipelineProvider = pipelineProvider
+	a.launchers = lnchrs
+	a.health = health
+	a.diagnosticMessageReceiver = diagnosticMessageReceiver
 }
 
 // buildEndpoints builds endpoints for the logs agent
-func buildEndpoints() (*config.Endpoints, error) {
-	return config.BuildServerlessEndpoints(coreConfig.Datadog, intakeTrackType, config.DefaultIntakeProtocol)
+func buildEndpoints(coreConfig pkgConfig.ConfigReader) (*config.Endpoints, error) {
+	return config.BuildServerlessEndpoints(coreConfig, intakeTrackType, config.DefaultIntakeProtocol)
 }
