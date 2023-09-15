@@ -27,6 +27,14 @@ func writeHTTPResponse(w http.ResponseWriter, response httpResponse) {
 	}
 }
 
+func buildErrorResponse(responseError error) httpResponse {
+	return updateResponseFromData(httpResponse{
+		statusCode:  http.StatusBadRequest,
+		contentType: "application/json",
+		data:        errorResponseBody{Errors: []string{responseError.Error()}},
+	})
+}
+
 func updateResponseFromData(r httpResponse) httpResponse {
 	if r.contentType == "application/json" {
 		bodyJSON, err := json.Marshal(r.data)
