@@ -46,7 +46,7 @@ func getFullSQLText(c *Check, SQLStatement *string, key string, value string) er
 			}
 			return fmt.Errorf("failed to query sql full text for %s = %s %s", key, value, err)
 		} else if sqlFullText.String == "" {
-			return fmt.Errorf("no rows for %s = %s", key, value)
+			return fmt.Infof("The SQL text for the statement %s = %s couldn't be fetched because the SQL was evicted from SQL cache (shared pool)", key, value)
 		}
 	}
 	return err
