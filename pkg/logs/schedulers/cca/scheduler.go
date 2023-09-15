@@ -10,7 +10,7 @@ import (
 
 	logsConfig "github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery"
-	coreConfig "github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/conf"
 	"github.com/DataDog/datadog-agent/pkg/logs/schedulers"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -22,21 +22,23 @@ type Scheduler struct {
 	ac *autodiscovery.AutoConfig
 	// added is closed when the source is added (for testing)
 	added chan struct{}
+	cfg   conf.Config
 }
 
 var _ schedulers.Scheduler = &Scheduler{}
 
 // New creates a new scheduler.
-func New(ac *autodiscovery.AutoConfig) schedulers.Scheduler {
+func New(ac *autodiscovery.AutoConfig, cfg conf.Config) schedulers.Scheduler {
 	return &Scheduler{
 		ac:    ac,
 		added: make(chan struct{}),
+		cfg:   cfg,
 	}
 }
 
 // Start implements schedulers.Scheduler#Start.
 func (s *Scheduler) Start(sourceMgr schedulers.SourceManager) {
-	if !coreConfig.Datadog.GetBool("logs_config.container_collect_all") {
+	if !s.cfg.GetBool("logs_config.container_collect_all") {
 		return
 	}
 	// source to collect all logs from all containers
@@ -51,7 +53,7 @@ func (s *Scheduler) Start(sourceMgr schedulers.SourceManager) {
 	// a hack!
 	go func() {
 		s.blockUntilAutoConfigRanOnce(
-			time.Millisecond * time.Duration(coreConfig.Datadog.GetInt("ac_load_timeout")))
+			time.Millisecond * time.Duration(s.cfg.GetInt("ac_load_timeout")))
 		log.Debug("Adding ContainerCollectAll source to the Logs Agent")
 		sourceMgr.AddSource(source)
 		close(s.added)

@@ -10,6 +10,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/conf"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -95,14 +96,17 @@ type chooser struct {
 
 	// dockerReady determines if dockerutil is ready, or how long to wait
 	dockerReady func() (bool, time.Duration)
+
+	cfg conf.Config
 }
 
 // NewChooser returns a new Chooser.
-func NewChooser() Chooser {
+func NewChooser(cfg conf.Config) Chooser {
 	return &chooser{
 		choice:       make(chan LogWhat, 1),
 		kubeletReady: kubernetesReady,
 		dockerReady:  dockerReady,
+		cfg:          cfg,
 	}
 }
 
@@ -163,7 +167,7 @@ func (ch *chooser) start() {
 
 // preferred returns the preferred LogWhat, based on configuration
 func (ch *chooser) preferred() LogWhat {
-	if config.Datadog.GetBool("logs_config.k8s_container_use_file") {
+	if ch.cfg.GetBool("logs_config.k8s_container_use_file") {
 		return LogPods
 	}
 	return LogContainers

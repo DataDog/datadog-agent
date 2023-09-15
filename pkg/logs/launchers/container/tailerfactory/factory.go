@@ -63,7 +63,7 @@ func New(sources *sources.LogSources, pipelineProvider pipeline.Provider, regist
 		pipelineProvider:  pipelineProvider,
 		registry:          registry,
 		workloadmetaStore: workloadmetaStore,
-		cop:               containersorpods.NewChooser(),
+		cop:               containersorpods.NewChooser(cfg),
 		cfg:               cfg,
 	}
 }
