@@ -1,8 +1,10 @@
-#ifndef __TLS_H
-#define __TLS_H
+#ifndef __NATIVE_TLS_H
+#define __NATIVE_TLS_H
 
 #include "ktypes.h"
 #include "bpf_builtins.h"
+
+#include "protocols/tls/native-tls-maps.h"
 
 SEC("uprobe/SSL_do_handshake")
 int uprobe__SSL_do_handshake(struct pt_regs *ctx) {

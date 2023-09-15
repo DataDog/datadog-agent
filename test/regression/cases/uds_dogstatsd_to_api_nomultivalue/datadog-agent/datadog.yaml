@@ -1,0 +1,14 @@
+api_key: 00000000000000000000000000000000
+auth_token_file_path: /tmp/agent-auth-token
+hostname: smp-regression
+
+dd_url: http://127.0.0.1:9092
+
+confd_path: /etc/datadog-agent/conf.d
+
+# Disable cloud detection. This stops the Agent from poking around the
+# execution environment & network. This is particularly important if the target
+# has network access.
+cloud_provider_metadata: []
+
+dogstatsd_socket: '/tmp/dsd.socket'

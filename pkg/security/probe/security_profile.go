@@ -6,6 +6,7 @@
 //go:build linux
 // +build linux
 
+// Package probe holds probe related files
 package probe
 
 import (

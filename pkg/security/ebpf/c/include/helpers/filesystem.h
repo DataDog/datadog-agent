@@ -121,16 +121,18 @@ void __attribute__((always_inline)) fill_resolver_mnt(void *ctx, struct syscall_
     pop_syscall(syscall->type);
 }
 
-void __attribute__((always_inline)) fill_file_metadata(struct dentry* dentry, struct file_metadata_t* file) {
+void __attribute__((always_inline)) fill_file(struct dentry* dentry, struct file_t* file) {
     struct inode *d_inode = get_dentry_inode(dentry);
 
-    bpf_probe_read(&file->nlink, sizeof(file->nlink), (void *)&d_inode->i_nlink);
-    bpf_probe_read(&file->mode, sizeof(file->mode), &d_inode->i_mode);
-    bpf_probe_read(&file->uid, sizeof(file->uid), &d_inode->i_uid);
-    bpf_probe_read(&file->gid, sizeof(file->gid), &d_inode->i_gid);
+    file->dev = get_dentry_dev(dentry);
 
-    bpf_probe_read(&file->ctime, sizeof(file->ctime), &d_inode->i_ctime);
-    bpf_probe_read(&file->mtime, sizeof(file->mtime), &d_inode->i_mtime);
+    bpf_probe_read(&file->metadata.nlink, sizeof(file->metadata.nlink), (void *)&d_inode->i_nlink);
+    bpf_probe_read(&file->metadata.mode, sizeof(file->metadata.mode), &d_inode->i_mode);
+    bpf_probe_read(&file->metadata.uid, sizeof(file->metadata.uid), &d_inode->i_uid);
+    bpf_probe_read(&file->metadata.gid, sizeof(file->metadata.gid), &d_inode->i_gid);
+
+    bpf_probe_read(&file->metadata.ctime, sizeof(file->metadata.ctime), &d_inode->i_ctime);
+    bpf_probe_read(&file->metadata.mtime, sizeof(file->metadata.mtime), &d_inode->i_mtime);
 }
 
 #define get_dentry_key_path(dentry, path) (struct path_key_t) { .ino = get_dentry_ino(dentry), .mount_id = get_path_mount_id(path) }

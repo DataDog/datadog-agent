@@ -5,6 +5,7 @@
 
 //go:build linux
 
+// Package kernel holds kernel related files
 package kernel
 
 import (

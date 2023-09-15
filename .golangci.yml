@@ -82,10 +82,16 @@ linters-settings:
       - sync/atomic: "Use go.uber.org/atomic instead; see docs/dev/atomics.md"
       - io/ioutil: "Deprecated since Go 1.16. Use package io or os instead."
       - github.com/golang/glog: "Crashes Windows nanoserver and significantly delays Agent startup on Windows Domain Controllers."
+      # IDE auto-imports often import `gotest.tools/assert` instead of `testify/assert` by default
+      # feel free to remove the following line if you really need it in several files as opposed to testify/assert
+      # note that if it's just for a single file, you can just add `//nolint:depguard` before the import
+      # the goal is just to limit the risk of accidental imports
+      - gotest.tools/assert: "Not really forbidden to use, but it is usually imported by mistake instead of github.com/stretchr/testify/assert"
+
   errcheck:
     # Disable warnings for `fmt`, `log` and `seelog` packages. Also ignore `Write` functions from `net/http` package.
     # Disable warnings for select Windows functions
-    ignore: fmt:.*,github.com/DataDog/datadog-agent/pkg/util/log:.*,github.com/DataDog/datadog-agent/comp/core/log:.*,github.com/cihub/seelog:.*,net/http:Write,github.com/DataDog/datadog-agent/pkg/trace/metrics:.*,github.com/DataDog/datadog-agent/pkg/collector/corechecks:Warnf?,golang.org/x/sys/windows:(CloseHandle|FreeLibrary|FreeSid|RegCloseKey|SetEvent|LocalFree),syscall:CloseHandle,golang.org/x/sys/windows/svc/mgr:Disconnect,golang.org/x/sys/windows/svc/debug:(Close|Error|Info|Warning),github.com/lxn/walk:Dispose,github.com/DataDog/datadog-agent/comp/core/flare/helpers:(AddFile.*|CopyDir.*|CopyFile.*),golang.org/x/sys/windows/registry:Close
+    ignore: fmt:.*,github.com/DataDog/datadog-agent/pkg/util/log:.*,github.com/DataDog/datadog-agent/comp/core/log:.*,github.com/cihub/seelog:.*,net/http:Write,github.com/DataDog/datadog-agent/pkg/trace/metrics:.*,github.com/DataDog/datadog-agent/pkg/collector/corechecks:Warnf?,golang.org/x/sys/windows:(CloseHandle|FreeLibrary|FreeSid|RegCloseKey|SetEvent|LocalFree),syscall:CloseHandle,golang.org/x/sys/windows/svc/mgr:Disconnect,golang.org/x/sys/windows/svc/debug:(Close|Error|Info|Warning),github.com/lxn/walk:Dispose,github.com/DataDog/datadog-agent/comp/core/flare/types:(AddFile.*|CopyDir.*|CopyFile.*),golang.org/x/sys/windows/registry:Close
   staticcheck:
     checks: ["all",
              "-ST1000", "-ST1003", "-ST1016", "-ST1020", "-ST1021", "-ST1022", # These ones are disabled by default on staticcheck

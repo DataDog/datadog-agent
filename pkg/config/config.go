@@ -15,7 +15,6 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
-	"regexp"
 	"runtime"
 	"strconv"
 	"strings"
@@ -26,7 +25,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/secrets"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname/validate"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/DataDog/datadog-agent/pkg/version"
 
 	"gopkg.in/yaml.v2"
 )
@@ -1206,6 +1204,7 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("runtime_security_config.run_path", defaultRunPath)
 	config.BindEnvAndSetDefault("runtime_security_config.log_profiled_workloads", false)
 	config.BindEnvAndSetDefault("runtime_security_config.telemetry.ignore_dd_agent_containers", true)
+	config.BindEnvAndSetDefault("runtime_security_config.use_secruntime_track", false)
 	bindEnvAndSetLogsConfigKeys(config, "runtime_security_config.endpoints.")
 	bindEnvAndSetLogsConfigKeys(config, "runtime_security_config.activity_dump.remote_storage.endpoints.")
 
@@ -1269,10 +1268,6 @@ func InitConfig(config Config) {
 	SetupOTLP(config)
 	setupProcesses(config)
 }
-
-// ddURLRegexp determines if an URL belongs to Datadog or not. If the URL belongs to Datadog it's prefixed with the Agent
-// version (see AddAgentVersionToDomain).
-var ddURLRegexp = regexp.MustCompile(`^app(\.[a-z]{2}\d)?\.(datad(oghq|0g)\.(com|eu)|ddog-gov\.com)$`)
 
 // LoadProxyFromEnv overrides the proxy settings with environment variables
 func LoadProxyFromEnv(config Config) {
@@ -1559,8 +1554,8 @@ func LoadDatadogCustom(config Config, origin string, loadSecret bool, additional
 		AddOverride("python_version", DefaultPython)
 	}
 
-	SanitizeAPIKeyConfig(config, "api_key")
-	SanitizeAPIKeyConfig(config, "logs_config.api_key")
+	sanitizeAPIKeyConfig(config, "api_key")
+	sanitizeAPIKeyConfig(config, "logs_config.api_key")
 	// setTracemallocEnabled *must* be called before setNumWorkers
 	warnings.TraceMallocEnabledWithPy2 = setTracemallocEnabled(config)
 	setNumWorkers(config)
@@ -1759,12 +1754,12 @@ func EnvVarAreSetAndNotEqual(lhsName string, rhsName string) bool {
 	return lhsIsSet && rhsIsSet && lhsValue != rhsValue
 }
 
-// SanitizeAPIKeyConfig strips newlines and other control characters from a given key.
-func SanitizeAPIKeyConfig(config Config, key string) {
+// sanitizeAPIKeyConfig strips newlines and other control characters from a given key.
+func sanitizeAPIKeyConfig(config Config, key string) {
 	if !config.IsKnown(key) {
 		return
 	}
-	config.Set(key, SanitizeAPIKey(config.GetString(key)))
+	config.Set(key, strings.TrimSpace(config.GetString(key)))
 }
 
 // sanitizeExternalMetricsProviderChunkSize ensures the value of `external_metrics_provider.chunk_size` is within an acceptable range
@@ -1782,11 +1777,6 @@ func sanitizeExternalMetricsProviderChunkSize(config Config) {
 		log.Warnf("external_metrics_provider.chunk_size has been set to %d, which is higher than the maximum allowed value %d. Using %d.", chunkSize, maxExternalMetricsProviderChunkSize, maxExternalMetricsProviderChunkSize)
 		config.Set("external_metrics_provider.chunk_size", maxExternalMetricsProviderChunkSize)
 	}
-}
-
-// SanitizeAPIKey strips newlines and other control characters from a given string.
-func SanitizeAPIKey(key string) string {
-	return strings.TrimSpace(key)
 }
 
 func bindEnvAndSetLogsConfigKeys(config Config, prefix string) {
@@ -1808,31 +1798,6 @@ func bindEnvAndSetLogsConfigKeys(config Config, prefix string) {
 	config.BindEnvAndSetDefault(prefix+"sender_recovery_interval", DefaultForwarderRecoveryInterval)
 	config.BindEnvAndSetDefault(prefix+"sender_recovery_reset", false)
 	config.BindEnvAndSetDefault(prefix+"use_v2_api", true)
-}
-
-// getDomainPrefix provides the right prefix for agent X.Y.Z
-func getDomainPrefix(app string) string {
-	v, _ := version.Agent()
-	return fmt.Sprintf("%d-%d-%d-%s.agent", v.Major, v.Minor, v.Patch, app)
-}
-
-// AddAgentVersionToDomain prefixes the domain with the agent version: X-Y-Z.domain
-func AddAgentVersionToDomain(DDURL string, app string) (string, error) {
-	u, err := url.Parse(DDURL)
-	if err != nil {
-		return "", err
-	}
-
-	// we don't update unknown URLs (ie: proxy or custom DD domain)
-	if !ddURLRegexp.MatchString(u.Host) {
-		return DDURL, nil
-	}
-
-	subdomain := strings.Split(u.Host, ".")[0]
-	newSubdomain := getDomainPrefix(app)
-
-	u.Host = strings.Replace(u.Host, subdomain, newSubdomain, 1)
-	return u.String(), nil
 }
 
 // IsCloudProviderEnabled checks the cloud provider family provided in
