@@ -62,7 +62,7 @@ Datadog Security Agent takes care of running compliance and security checks.`,
 	}
 
 	SecurityAgentCmd.PersistentFlags().StringArrayVarP(&globalParams.ConfigFilePaths, flags.CfgPath, "c", defaultSecurityAgentConfigFilePaths, "paths to yaml configuration files")
-	SecurityAgentCmd.PersistentFlags().StringVarP(&globalParams.SysProbeConfFilePath, flags.SysProbeConfig, "", defaultSysProbeConfPath, "path to system-probe.yaml config")
+	SecurityAgentCmd.PersistentFlags().StringVar(&globalParams.SysProbeConfFilePath, flags.SysProbeConfig, defaultSysProbeConfPath, "path to system-probe.yaml config")
 	SecurityAgentCmd.PersistentFlags().BoolVarP(&flagNoColor, flags.NoColor, "n", false, "disable color output")
 
 	for _, factory := range subcommandFactories {

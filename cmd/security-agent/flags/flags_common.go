@@ -9,9 +9,9 @@ package flags
 const (
 	// Global to security-agent
 
-	CfgPath        = "cfgpath"      // CfgPath start subcommand
-	SysProbeConfig = "system-probe" // SysProbeConfig start subcommand
-	NoColor        = "no-color"     // NoColor start subcommand
+	CfgPath        = "cfgpath"         // CfgPath start subcommand
+	SysProbeConfig = "sysprobe-config" // SysProbeConfig start subcommand
+	NoColor        = "no-color"        // NoColor start subcommand
 
 	// Start Subcommand
 
