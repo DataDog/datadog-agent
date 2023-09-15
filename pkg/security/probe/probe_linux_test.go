@@ -64,7 +64,7 @@ func BenchmarkSendSpecificEvent(b *testing.B) {
 
 		b.Run(tt.name, func(b *testing.B) {
 			for i := 0; i < b.N; i++ {
-				p.sendSpecificEvent(tt.args.event)
+				p.sendEventToSpecificEventTypeHandlers(tt.args.event)
 			}
 		})
 	}
