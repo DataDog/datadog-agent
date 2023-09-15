@@ -93,7 +93,7 @@ func resetSender(sender *mocksender.MockSender) {
 func (s *GetEventsTestSuite) newCheck(instanceConfig []byte, initConfig []byte) (*Check, error) {
 	check := new(Check)
 	check.evtapi = s.ti.API()
-	err := check.Configure(integration.FakeConfigHash, instanceConfig, initConfig, "test")
+	err := check.Configure(s.sender.GetSenderManager(), integration.FakeConfigHash, instanceConfig, initConfig, "test")
 	if !assert.NoError(s.T(), err) {
 		return nil, err
 	}
@@ -489,7 +489,7 @@ start: oldest
 
 			check := new(Check)
 			check.evtapi = s.ti.API()
-			err := check.Configure(integration.FakeConfigHash, instanceConfig, nil, "test")
+			err := check.Configure(s.sender.GetSenderManager(), integration.FakeConfigHash, instanceConfig, nil, "test")
 			require.ErrorContains(s.T(), err, tc.errorMatch)
 		})
 	}
@@ -766,7 +766,7 @@ payload_size: %d
 						// create check
 						check := new(Check)
 						check.evtapi = ti.API()
-						err = check.Configure(integration.FakeConfigHash, instanceConfig, nil, "test")
+						err = check.Configure(sender.GetSenderManager(), integration.FakeConfigHash, instanceConfig, nil, "test")
 						require.NoError(b, err)
 						mocksender.SetSender(sender, check.ID())
 						sender.On("Commit").Return()

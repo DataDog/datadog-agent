@@ -390,11 +390,11 @@ func (c *Check) initSubscription() error {
 	return nil
 }
 
-func (c *Check) Configure(integrationConfigDigest uint64, data integration.Data, initConfig integration.Data, source string) error {
+func (c *Check) Configure(senderManager sender.SenderManager, integrationConfigDigest uint64, data integration.Data, initConfig integration.Data, source string) error {
 	// common CoreCheck requirements
 	// This check supports multiple instances, BuildID must be called before CommonConfigure
 	c.BuildID(integrationConfigDigest, data, initConfig)
-	err := c.CommonConfigure(integrationConfigDigest, initConfig, data, source)
+	err := c.CommonConfigure(senderManager, integrationConfigDigest, initConfig, data, source)
 	if err != nil {
 		return fmt.Errorf("configuraiton error: %v", err)
 	}
