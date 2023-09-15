@@ -84,6 +84,12 @@ var javaTLSSpec = &protocols.ProtocolSpec{
 		{
 			Name: javaTLSConnectionsMap,
 		},
+		{
+			Name: javaDomainsToConnectionsMap,
+		},
+		{
+			Name: eRPCHandlersMap,
+		},
 	},
 	Probes: []*manager.Probe{
 		{

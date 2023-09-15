@@ -95,10 +95,6 @@ if osx?
 end
 
 if arm?
-  # Temporarily blacklist Aerospike until builder supports new dependency
-  blacklist_folders.push('aerospike')
-  blacklist_packages.push(/^aerospike==/)
-
   # This doesn't build on ARM
   blacklist_folders.push('ibm_ace')
   blacklist_folders.push('ibm_mq')

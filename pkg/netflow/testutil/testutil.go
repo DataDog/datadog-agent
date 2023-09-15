@@ -12,12 +12,13 @@ import (
 	_ "embed"
 	"encoding/json"
 	"fmt"
+	"net"
+	"testing"
+
 	"github.com/google/gopacket"
 	"github.com/google/gopacket/layers"
 	"github.com/google/gopacket/pcapgo"
 	"github.com/stretchr/testify/assert"
-	"net"
-	"testing"
 
 	"github.com/DataDog/datadog-agent/pkg/epforwarder"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"

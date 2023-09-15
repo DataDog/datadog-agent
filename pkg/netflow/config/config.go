@@ -8,7 +8,7 @@ package config
 import (
 	"fmt"
 
-	coreconfig "github.com/DataDog/datadog-agent/pkg/config"
+	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
 
 	"github.com/DataDog/datadog-agent/pkg/snmp/utils"
 
@@ -42,10 +42,10 @@ type ListenerConfig struct {
 }
 
 // ReadConfig builds and returns configuration from Agent configuration.
-func ReadConfig() (*NetflowConfig, error) {
+func ReadConfig(conf ddconfig.ConfigReader) (*NetflowConfig, error) {
 	var mainConfig NetflowConfig
 
-	err := coreconfig.Datadog.UnmarshalKey("network_devices.netflow", &mainConfig)
+	err := conf.UnmarshalKey("network_devices.netflow", &mainConfig)
 	if err != nil {
 		return nil, err
 	}
@@ -70,7 +70,7 @@ func ReadConfig() (*NetflowConfig, error) {
 			listenerConfig.Workers = 1
 		}
 		if listenerConfig.Namespace == "" {
-			listenerConfig.Namespace = coreconfig.Datadog.GetString("network_devices.namespace")
+			listenerConfig.Namespace = conf.GetString("network_devices.namespace")
 		}
 		normalizedNamespace, err := utils.NormalizeNamespace(listenerConfig.Namespace)
 		if err != nil {

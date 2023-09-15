@@ -15,6 +15,8 @@ import (
 	"path/filepath"
 
 	flarehelpers "github.com/DataDog/datadog-agent/comp/core/flare/helpers"
+	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
+	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	apiv1 "github.com/DataDog/datadog-agent/pkg/clusteragent/api/v1"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/custommetrics"
 	"github.com/DataDog/datadog-agent/pkg/config"
@@ -24,7 +26,7 @@ import (
 )
 
 // CreateDCAArchive packages up the files
-func CreateDCAArchive(local bool, distPath, logFilePath string) (string, error) {
+func CreateDCAArchive(local bool, distPath, logFilePath string, senderManager sender.SenderManager) (string, error) {
 	fb, err := flarehelpers.NewFlareBuilder(local)
 	if err != nil {
 		return "", err
@@ -35,11 +37,11 @@ func CreateDCAArchive(local bool, distPath, logFilePath string) (string, error) 
 		"dist": filepath.Join(distPath, "conf.d"),
 	}
 
-	createDCAArchive(fb, confSearchPaths, logFilePath)
+	createDCAArchive(fb, confSearchPaths, logFilePath, senderManager)
 	return fb.Save()
 }
 
-func createDCAArchive(fb flarehelpers.FlareBuilder, confSearchPaths map[string]string, logFilePath string) {
+func createDCAArchive(fb flaretypes.FlareBuilder, confSearchPaths map[string]string, logFilePath string, senderManager sender.SenderManager) {
 	// If the request against the API does not go through we don't collect the status log.
 	if fb.IsLocal() {
 		fb.AddFile("local", nil)
@@ -55,11 +57,11 @@ func createDCAArchive(fb flarehelpers.FlareBuilder, confSearchPaths map[string]s
 
 	getLogFiles(fb, logFilePath)
 	getConfigFiles(fb, confSearchPaths)
-	getClusterAgentConfigCheck(fb)   //nolint:errcheck
-	getExpVar(fb)                    //nolint:errcheck
-	getMetadataMap(fb)               //nolint:errcheck
-	getClusterAgentClusterChecks(fb) //nolint:errcheck
-	getClusterAgentDiagnose(fb)      //nolint:errcheck
+	getClusterAgentConfigCheck(fb)             //nolint:errcheck
+	getExpVar(fb)                              //nolint:errcheck
+	getMetadataMap(fb)                         //nolint:errcheck
+	getClusterAgentClusterChecks(fb)           //nolint:errcheck
+	getClusterAgentDiagnose(fb, senderManager) //nolint:errcheck
 	fb.AddFileFromFunc("agent-daemonset.yaml", getAgentDaemonSet)
 	fb.AddFileFromFunc("cluster-agent-deployment.yaml", getClusterAgentDeployment)
 	fb.AddFileFromFunc("helm-values.yaml", getHelmValues)
@@ -83,7 +85,7 @@ func QueryDCAMetrics() ([]byte, error) {
 	return io.ReadAll(r.Body)
 }
 
-func getMetadataMap(fb flarehelpers.FlareBuilder) error {
+func getMetadataMap(fb flaretypes.FlareBuilder) error {
 	metaList := apiv1.NewMetadataResponse()
 	cl, err := apiserver.GetAPIClient()
 	if err != nil {
@@ -109,7 +111,7 @@ func getMetadataMap(fb flarehelpers.FlareBuilder) error {
 	return fb.AddFile("cluster-agent-metadatamapper.log", []byte(str))
 }
 
-func getClusterAgentClusterChecks(fb flarehelpers.FlareBuilder) error {
+func getClusterAgentClusterChecks(fb flaretypes.FlareBuilder) error {
 	var b bytes.Buffer
 
 	writer := bufio.NewWriter(&b)
@@ -119,7 +121,7 @@ func getClusterAgentClusterChecks(fb flarehelpers.FlareBuilder) error {
 	return fb.AddFile("clusterchecks.log", b.Bytes())
 }
 
-func getHPAStatus(fb flarehelpers.FlareBuilder) error {
+func getHPAStatus(fb flaretypes.FlareBuilder) error {
 	stats := make(map[string]interface{})
 	apiCl, err := apiserver.GetAPIClient()
 	if err != nil {
@@ -140,7 +142,7 @@ func getHPAStatus(fb flarehelpers.FlareBuilder) error {
 	return fb.AddFile("custommetricsprovider.log", []byte(str))
 }
 
-func getClusterAgentConfigCheck(fb flarehelpers.FlareBuilder) error {
+func getClusterAgentConfigCheck(fb flaretypes.FlareBuilder) error {
 	var b bytes.Buffer
 
 	writer := bufio.NewWriter(&b)
@@ -150,11 +152,11 @@ func getClusterAgentConfigCheck(fb flarehelpers.FlareBuilder) error {
 	return fb.AddFile("config-check.log", b.Bytes())
 }
 
-func getClusterAgentDiagnose(fb flarehelpers.FlareBuilder) error {
+func getClusterAgentDiagnose(fb flaretypes.FlareBuilder, senderManager sender.SenderManager) error {
 	var b bytes.Buffer
 
 	writer := bufio.NewWriter(&b)
-	GetClusterAgentDiagnose(writer) //nolint:errcheck
+	GetClusterAgentDiagnose(writer, senderManager) //nolint:errcheck
 	writer.Flush()
 
 	return fb.AddFile("diagnose.log", b.Bytes())

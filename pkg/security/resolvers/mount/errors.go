@@ -5,6 +5,7 @@
 
 //go:build linux
 
+// Package mount holds mount related files
 package mount
 
 import (
@@ -19,7 +20,7 @@ var (
 	ErrMountLoop = errors.New("mount resolution loop")
 	// ErrMountPathEmpty is returned when the resolved mount path is empty
 	ErrMountPathEmpty = errors.New("mount resolution return empty path")
-	// ErrMountKernelID
+	// ErrMountKernelID is returned when it's not a critical error
 	ErrMountKernelID = errors.New("not a critical error")
 )
 

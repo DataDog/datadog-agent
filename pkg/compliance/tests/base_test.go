@@ -10,7 +10,7 @@ import (
 )
 
 func TestBase(t *testing.T) {
-	b := NewTestBench(t)
+	b := newTestBench(t)
 	defer b.Run()
 
 	b.AddRule("BadYamlSuiteInput").

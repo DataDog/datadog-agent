@@ -45,7 +45,7 @@ func assertFileContent(t *testing.T, fb *builder, expected string, path string) 
 	require.FileExists(t, path)
 	content, err := os.ReadFile(path)
 	require.NoError(t, err)
-	assert.Equal(t, []byte(expected), content)
+	assert.Equal(t, expected, string(content))
 }
 
 func getNewBuilder(t *testing.T) *builder {
@@ -169,6 +169,24 @@ instances:
 	assertFileContent(t, fb, redacted, "test.conf")
 }
 
+func TestAddFileYamlDetection(t *testing.T) {
+	fb := getNewBuilder(t)
+	defer fb.clean()
+
+	clear := []byte(`instances:
+- host: 127.0.0.1
+  token:
+    - abcdef
+    - abcdef
+    - abcdef`)
+	redacted := `instances:
+- host: 127.0.0.1
+  token: "********"`
+
+	fb.AddFile("test.yaml", clear)
+	assertFileContent(t, fb, redacted, "test.yaml")
+}
+
 func TestCopyFileTo(t *testing.T) {
 	fb := getNewBuilder(t)
 	defer fb.clean()
@@ -233,6 +251,32 @@ func TestCopyDirToWithoutScrubbing(t *testing.T) {
 	assertFileContent(t, fb, "some data\napi_key: 123456789006789009", filepath.Join("test", "test2"))
 	assert.NoFileExists(t, filepath.Join(fb.flareDir, "test", "depth1", "test3"))
 	assertFileContent(t, fb, "some data", filepath.Join("test", "depth1", "depth2", "test4"))
+}
+
+func TestCopyFileYamlDetection(t *testing.T) {
+	fb := getNewBuilder(t)
+	defer fb.clean()
+
+	input := []byte(`instances:
+- host: 127.0.0.1
+  token:
+    - abcdef
+    - abcdef
+    - abcdef`)
+	redacted := `instances:
+- host: 127.0.0.1
+  token: "********"`
+
+	path1 := filepath.Join(t.TempDir(), "test.yaml")
+	os.WriteFile(path1, []byte(input), os.ModePerm)
+	path2 := filepath.Join(t.TempDir(), "test.data")
+	os.WriteFile(path2, []byte(input), os.ModePerm)
+
+	assert.NoError(t, fb.CopyFile(path1))
+	assertFileContent(t, fb, redacted, "test.yaml")
+
+	assert.NoError(t, fb.CopyFileTo(path2, "test2.yaml"))
+	assertFileContent(t, fb, redacted, "test2.yaml")
 }
 
 func TestPrepareFilePath(t *testing.T) {
