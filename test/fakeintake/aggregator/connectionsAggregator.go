@@ -22,7 +22,7 @@ type Connections struct {
 
 // name return connection payload name based on hostname and network ID
 func (c *Connections) name() string {
-	return c.HostName + c.NetworkId
+	return c.HostName + "/" + c.NetworkId
 }
 
 // GetTags return tags connection
