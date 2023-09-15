@@ -2,6 +2,15 @@
 
 set -euo pipefail
 
+curl -Lo gh.tar.gz https://github.com/cli/cli/releases/download/v2.34.0/gh_2.34.0_linux_amd64.tar.gz \
+    && echo "056c45c510ca77ec7e492023e1aa79c078b679932b6202188b7f5abd914df911  gh.tar.gz" | sha256sum --check \
+    && tar -xvf gh.tar.gz \
+    && chmod +x gh_* \
+    && mv gh_2.34.0_linux_amd64/bin/gh /usr/bin/gh \
+    && rm gh.tar.gz \
+    && rm -r gh_2.34.0_linux_amd64 \
+    && gh --version
+
 # Get the value of the Git tag "stripe_staging"
 old_agent_tag=$(git tag -l 'stripe_staging' | tail -n 1)
 
@@ -27,13 +36,13 @@ do
   author_email=$(git log -n 1 --pretty=format:"%ae" "$commit_hash")
 
   # Fetch PR information using 'gh'
-#  pr_info=$(gh search prs "$commit_hash" --repo 'DataDog/datadog-agent' --label 'component/system-probe' --merged --json 'title,url,author,number' --template "{{range .}}{{printf \"%v %v %v %v\" .title \"$author_email\" .author.login .url}}{{end}}")
-  pr_info="test"
+  pr_info=$(gh search prs "$commit_hash" --repo 'DataDog/datadog-agent' --label 'component/system-probe' --merged --json 'title,url,author,number' --template "{{range .}}{{printf \"%v %v %v %v\" .title \"$author_email\" .author.login .url}}{{end}}")
   # Append PR info to changelog
   changelog+="$pr_info\n"
 
   # Convert email to Slack handle and store in the associative array
   if [ -n "$author_email" ]; then
+    echo "$author_email"
     slack_handle=$(echo "$author_email" | email2slackid || echo "")
     if [ -n "$slack_handle" ]; then
       email_to_slack["$author_email"]=$slack_handle
