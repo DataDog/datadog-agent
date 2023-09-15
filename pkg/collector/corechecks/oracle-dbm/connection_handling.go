@@ -57,6 +57,7 @@ func (c *Check) Connect() (*sqlx.DB, error) {
 	}
 	c.driver = oracleDriver
 
+	c.logPrompt = config.GetLogPrompt(c.config)
 	log.Infof("%s driver: %s", c.logPrompt, oracleDriver)
 
 	db, err := sqlx.Open(oracleDriver, connStr)
