@@ -43,15 +43,16 @@ type KubeServiceListener struct {
 	delService        chan<- Service
 	targetAllServices bool
 	m                 sync.RWMutex
-	metricsExcluded   bool
+	containerFilters  *containerFilters
 }
 
 // KubeServiceService represents a Kubernetes Service
 type KubeServiceService struct {
-	entity string
-	tags   []string
-	hosts  map[string]string
-	ports  []ContainerPort
+	entity          string
+	tags            []string
+	hosts           map[string]string
+	ports           []ContainerPort
+	metricsExcluded bool
 }
 
 // Make sure KubeServiceService implements the Service interface
@@ -93,11 +94,17 @@ func NewKubeServiceListener(conf Config) (ServiceListener, error) {
 		return nil, fmt.Errorf("cannot get service informer: %s", err)
 	}
 
+	containerFilters, err := newContainerFilters()
+	if err != nil {
+		return nil, err
+	}
+
 	return &KubeServiceListener{
 		services:          make(map[k8stypes.UID]Service),
 		informer:          servicesInformer,
 		promInclAnnot:     getPrometheusIncludeAnnotations(),
 		targetAllServices: conf.IsProviderEnabled(names.KubeServicesFileRegisterName),
+		containerFilters:  containerFilters,
 	}, nil
 }
 
@@ -235,6 +242,14 @@ func (l *KubeServiceListener) createService(ksvc *v1.Service) {
 
 	svc := processService(ksvc)
 
+	svc.metricsExcluded = l.containerFilters.IsExcluded(
+		containers.MetricsFilter,
+		ksvc.GetAnnotations(),
+		ksvc.Name,
+		"",
+		ksvc.Namespace,
+	)
+
 	l.m.Lock()
 	l.services[ksvc.UID] = svc
 	l.m.Unlock()
@@ -273,14 +288,6 @@ func processService(ksvc *v1.Service) *KubeServiceService {
 		// Port might not be specified in pod spec
 		log.Debugf("No ports found for service %s", ksvc.Name)
 	}
-
-	svc.metricsExcluded = svc.IsExcluded(
-		containers.MetricsFilter,
-		nil,
-		container.Name,
-		containerImg.RawName,
-		"",
-	)
 
 	return svc
 }
@@ -359,7 +366,7 @@ func (s *KubeServiceService) GetCheckNames(context.Context) []string {
 
 // HasFilter returns whether the kube service should not collect certain metrics
 // due to filtering applied by filter.
-func (s *service) HasFilter(filter containers.FilterType) bool {
+func (s *KubeServiceService) HasFilter(filter containers.FilterType) bool {
 	if filter == containers.MetricsFilter {
 		return s.metricsExcluded
 	} else {
