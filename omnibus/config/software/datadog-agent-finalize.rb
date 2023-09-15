@@ -36,7 +36,6 @@ build do
             #remove unneccessary copies caused by blanked copy of bin to #{install_dir} in datadog-agent recipe
             delete "#{install_dir}/bin/agent/libdatadog-agent-three.dll"
             delete "#{install_dir}/bin/agent/libdatadog-agent-two.dll"
-            delete "#{install_dir}/bin/agent/customaction.dll"
 
             # not sure where it's coming from, but we're being left with an `embedded` dir.
             # delete it

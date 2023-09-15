@@ -87,16 +87,6 @@ build do
     mkdir "#{install_dir}/scripts/"
   end
 
-  ## build the custom action library required for the install
-  if windows?
-    platform = windows_arch_i386? ? "x86" : "x64"
-    debug_customaction = ""
-    if ENV['DEBUG_CUSTOMACTION'] and not ENV['DEBUG_CUSTOMACTION'].empty?
-      debug_customaction = "--debug"
-    end
-    command "invoke -e customaction.build --major-version #{major_version_arg} #{debug_customaction} --arch=" + platform
-  end
-
   # move around bin and config files
   move 'bin/agent/dist/datadog.yaml', "#{conf_dir}/datadog.yaml.example"
   if linux? or (windows? and not windows_arch_i386? and ENV['WINDOWS_DDNPM_DRIVER'] and not ENV['WINDOWS_DDNPM_DRIVER'].empty?)
@@ -110,7 +100,6 @@ build do
     copy 'bin/agent/ddtray.exe', "#{install_dir}/bin/agent"
     copy 'bin/agent/dist', "#{install_dir}/bin/agent"
     mkdir Omnibus::Config.package_dir() unless Dir.exists?(Omnibus::Config.package_dir())
-    copy 'bin/agent/customaction*.pdb', "#{Omnibus::Config.package_dir()}/"
   end
 
   block do
