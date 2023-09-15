@@ -453,18 +453,36 @@ func (c *Check) SampleSession() error {
 		obfuscate := true
 		var hasRealSQLText bool
 		if sample.Statement.Valid && sample.Statement.String != "" && !previousSQL {
-
 			// If we captured the statement, we are assigning the value
 			statement = sample.Statement.String
+			hasRealSQLText = true
+		} else if previousSQL && sample.PrevSQLFullText.Valid && sample.PrevSQLFullText.String != "" {
+			statement = sample.PrevSQLFullText.String
+			hasRealSQLText = true
+		} else if (sample.OpFlags & 8) == 8 {
+			statement = "LOG ON/LOG OFF"
+			obfuscate = false
+		} else if commandName != "" {
+			statement = commandName
+		} else if sessionType == "BACKGROUND" {
+			statement = program
+			obfuscate = false
+		} else if sample.Module.Valid && sample.Module.String == "DBMS_SCHEDULER" {
+			statement = sample.Module.String
+			obfuscate = false
+		} else {
+			log.Debugf("activity sql text empty for %#v \n", sample)
+		}
 
+		if hasRealSQLText {
 			/*
-			 * If the statement length is 4000 characters, we are assuming that the statement was truncated,
+			 * If the statement length is maxSQLTextLength characters, we are assuming that the statement was truncated,
 			 * so we are trying to fetch it complete. The full statement is stored in a LOB, so we are calling
 			 * getFullSQLText which doesn't leak PGA memory
 			 */
-			if len(statement) == 4000 {
+			if len(statement) == maxSQLTextLength {
 				var fetchedStatement string
-				err = getFullSQLText(c, &fetchedStatement, "sql_id", sqlCurrentSQL.SQLID)
+				err = getFullSQLText(c, &fetchedStatement, "sql_id", sessionRow.SQLID)
 				if err != nil {
 					log.Warnf("failed to fetch full sql text for the current sql_id: %s", err)
 				}
@@ -472,56 +490,17 @@ func (c *Check) SampleSession() error {
 					statement = fetchedStatement
 				}
 			}
-
-			hasRealSQLText = true
-		} else if previousSQL {
-			if sample.PrevSQLFullText.Valid && sample.PrevSQLFullText.String != "" {
-				statement = sample.PrevSQLFullText.String
-				if len(statement) == maxSQLTextLength {
-					var fetchedStatement string
-					err = getFullSQLText(c, &fetchedStatement, "sql_id", sqlPrevSQL.SQLID)
-					if err != nil {
-						log.Warnf("failed to fetch full sql text for the previous sql_id (truncated text): %s", err)
-					}
-					if fetchedStatement != "" {
-						statement = fetchedStatement
-					}
-				}
-			} else {
-				/* The case where we got the previous sql but not the text. Happens when
-				 * a cursor with a short living explain plan was evicted from the shared pool.
-				 * We'll search for the text of a different cursor of the same SQL.
-				 */
-				if len(statement) == 4000 {
-					var fetchedStatement string
-					err = getFullSQLText(c, &fetchedStatement, "sql_id", sqlPrevSQL.SQLID)
-					if err != nil {
-						log.Warnf("failed to fetch full sql text for the previous sql_id: %s", err)
-					}
-					if fetchedStatement != "" {
-						statement = fetchedStatement
-					}
-				}
-				if statement != "" {
-					hasRealSQLText = true
-				}
-			}
-		} else if (sample.OpFlags & 8) == 8 {
-			statement = "LOG ON/LOG OFF"
-			obfuscate = false
-		} else if commandName != "" {
-			statement = commandName
-			//obfuscate = false
-		} else if sessionType == "BACKGROUND" {
-			statement = program
-			// The program name can contain an IP address
-			//obfuscate = false
-		} else if sample.Module.Valid && sample.Module.String == "DBMS_SCHEDULER" {
-			statement = sample.Module.String
-			obfuscate = false
 		} else {
-			log.Warnf("activity sql text empty for %#v \n", sample)
+			if (sample.OpFlags & 128) == 128 {
+				statement = fmt.Sprintf("%s IN HARD PARSE", statement)
+			} else if (sample.OpFlags & 16) == 16 {
+				statement = fmt.Sprintf("%s IN PARSE", statement)
+			}
+			if (sample.OpFlags & 65536) == 65536 {
+				statement = fmt.Sprintf("%s IN CURSOR CLOSING", statement)
+			}
 		}
+
 		if statement != "" && obfuscate {
 			obfuscatedStatement, err := c.GetObfuscatedStatement(o, statement)
 			sessionRow.Statement = obfuscatedStatement.Statement
@@ -530,23 +509,6 @@ func (c *Check) SampleSession() error {
 				sessionRow.Tables = obfuscatedStatement.Tables
 				sessionRow.Comments = obfuscatedStatement.Comments
 				sessionRow.QuerySignature = obfuscatedStatement.QuerySignature
-			}
-			if hasRealSQLText {
-				if sessionRow.OracleSQLRow.ForceMatchingSignature != 0 {
-					c.statementsCache.forceMatchingSignatures[strconv.FormatUint(sessionRow.OracleSQLRow.ForceMatchingSignature, 10)] = StatementsCacheData{
-						statement:      obfuscatedStatement.Statement,
-						querySignature: obfuscatedStatement.QuerySignature,
-						commands:       obfuscatedStatement.Commands,
-						tables:         obfuscatedStatement.Tables,
-					}
-				} else if sessionRow.OracleSQLRow.SQLID != "" {
-					c.statementsCache.SQLIDs[sessionRow.OracleSQLRow.SQLID] = StatementsCacheData{
-						statement:      obfuscatedStatement.Statement,
-						querySignature: obfuscatedStatement.QuerySignature,
-						commands:       obfuscatedStatement.Commands,
-						tables:         obfuscatedStatement.Tables,
-					}
-				}
 			}
 		} else {
 			sessionRow.Statement = statement
