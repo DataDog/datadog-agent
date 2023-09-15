@@ -7,6 +7,7 @@ package common
 
 import (
 	"github.com/DataDog/datadog-agent/pkg/config"
+	configUtils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
@@ -20,7 +21,7 @@ func GetPayload(hostname string) *Payload {
 		// olivier: I _think_ `APIKey` is only a legacy field, and
 		// is not actually used by the backend
 		AgentVersion:     version.AgentVersion,
-		APIKey:           config.SanitizeAPIKey(config.Datadog.GetString("api_key")),
+		APIKey:           configUtils.SanitizeAPIKey(config.Datadog.GetString("api_key")),
 		UUID:             getUUID(),
 		InternalHostname: hostname,
 	}

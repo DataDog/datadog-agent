@@ -26,6 +26,7 @@ replace (
 replace (
 	github.com/DataDog/datadog-agent/pkg/conf => ./pkg/conf
 	github.com/DataDog/datadog-agent/pkg/gohai => ./pkg/gohai
+	github.com/DataDog/datadog-agent/pkg/networkdevice/profile => ./pkg/networkdevice/profile
 	github.com/DataDog/datadog-agent/pkg/obfuscate => ./pkg/obfuscate
 	github.com/DataDog/datadog-agent/pkg/proto => ./pkg/proto
 	github.com/DataDog/datadog-agent/pkg/remoteconfig/state => ./pkg/remoteconfig/state
@@ -78,7 +79,7 @@ require (
 	github.com/aquasecurity/trivy-db v0.0.0-20230105123735-5ce110fc82e1
 	github.com/avast/retry-go/v4 v4.5.0
 	github.com/aws/aws-lambda-go v1.37.0
-	github.com/aws/aws-sdk-go v1.44.320
+	github.com/aws/aws-sdk-go v1.45.7
 	github.com/beevik/ntp v0.3.0
 	github.com/benbjohnson/clock v1.3.0
 	github.com/bhmj/jsonslice v0.0.0-20200323023432-92c3edaad8e2
@@ -128,11 +129,11 @@ require (
 	github.com/h2non/filetype v1.1.3
 	github.com/hashicorp/consul/api v1.24.0
 	github.com/hashicorp/go-multierror v1.1.1
-	github.com/hashicorp/golang-lru/v2 v2.0.5
+	github.com/hashicorp/golang-lru/v2 v2.0.6
 	github.com/hectane/go-acl v0.0.0-20190604041725-da78bae5fc95
 	github.com/iceber/iouring-go v0.0.0-20230403020409-002cfd2e2a90
 	github.com/imdario/mergo v0.3.16
-	github.com/invopop/jsonschema v0.7.0
+	github.com/invopop/jsonschema v0.8.0
 	github.com/itchyny/gojq v0.12.13
 	github.com/json-iterator/go v1.1.12
 	github.com/kardianos/osext v0.0.0-20190222173326-2bc1f35cddc0
@@ -210,12 +211,12 @@ require (
 	go4.org/netipx v0.0.0-20220812043211-3cc044ffd68d
 	golang.org/x/arch v0.5.0
 	golang.org/x/exp v0.0.0-20230711023510-fffb14384f22
-	golang.org/x/net v0.14.0
+	golang.org/x/net v0.15.0
 	golang.org/x/sync v0.3.0
 	golang.org/x/sys v0.12.0
 	golang.org/x/text v0.13.0
 	golang.org/x/time v0.3.0
-	golang.org/x/tools v0.12.0
+	golang.org/x/tools v0.13.0
 	golang.org/x/xerrors v0.0.0-20220907171357-04be3eba64a2
 	google.golang.org/genproto v0.0.0-20230706204954-ccb25ca9f130 // indirect
 	google.golang.org/grpc v1.57.0
@@ -225,7 +226,6 @@ require (
 	gopkg.in/yaml.v2 v2.4.0
 	gopkg.in/yaml.v3 v3.0.1
 	gopkg.in/zorkian/go-datadog-api.v2 v2.30.0
-	gotest.tools v2.2.0+incompatible
 	k8s.io/api v0.27.2
 	k8s.io/apiextensions-apiserver v0.27.2
 	k8s.io/apimachinery v0.27.2
@@ -299,20 +299,20 @@ require (
 	github.com/armon/go-metrics v0.4.1 // indirect
 	github.com/asaskevich/govalidator v0.0.0-20230301143203-a9d515a09cc2 // indirect
 	github.com/awalterschulze/gographviz v2.0.3+incompatible // indirect
-	github.com/aws/aws-sdk-go-v2 v1.18.1
+	github.com/aws/aws-sdk-go-v2 v1.21.0
 	github.com/aws/aws-sdk-go-v2/config v1.18.27 // indirect
-	github.com/aws/aws-sdk-go-v2/credentials v1.13.26
-	github.com/aws/aws-sdk-go-v2/feature/ec2/imds v1.13.4 // indirect
-	github.com/aws/aws-sdk-go-v2/internal/configsources v1.1.34 // indirect
-	github.com/aws/aws-sdk-go-v2/internal/endpoints/v2 v2.4.28 // indirect
+	github.com/aws/aws-sdk-go-v2/credentials v1.13.37
+	github.com/aws/aws-sdk-go-v2/feature/ec2/imds v1.13.11 // indirect
+	github.com/aws/aws-sdk-go-v2/internal/configsources v1.1.41 // indirect
+	github.com/aws/aws-sdk-go-v2/internal/endpoints/v2 v2.4.35 // indirect
 	github.com/aws/aws-sdk-go-v2/internal/ini v1.3.35 // indirect
 	github.com/aws/aws-sdk-go-v2/service/ebs v1.15.19 // indirect
-	github.com/aws/aws-sdk-go-v2/service/ec2 v1.63.1
-	github.com/aws/aws-sdk-go-v2/service/internal/presigned-url v1.9.28 // indirect
-	github.com/aws/aws-sdk-go-v2/service/sso v1.12.12 // indirect
-	github.com/aws/aws-sdk-go-v2/service/ssooidc v1.14.12 // indirect
-	github.com/aws/aws-sdk-go-v2/service/sts v1.19.2 // indirect
-	github.com/aws/smithy-go v1.13.5 // indirect
+	github.com/aws/aws-sdk-go-v2/service/ec2 v1.118.0
+	github.com/aws/aws-sdk-go-v2/service/internal/presigned-url v1.9.35 // indirect
+	github.com/aws/aws-sdk-go-v2/service/sso v1.13.6 // indirect
+	github.com/aws/aws-sdk-go-v2/service/ssooidc v1.15.6 // indirect
+	github.com/aws/aws-sdk-go-v2/service/sts v1.21.5 // indirect
+	github.com/aws/smithy-go v1.14.2 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/bmizerany/pat v0.0.0-20170815010413-6226ea591a40 // indirect
 	github.com/briandowns/spinner v1.12.0 // indirect
@@ -405,7 +405,7 @@ require (
 	github.com/knqyf263/go-apk-version v0.0.0-20200609155635-041fdbb8563f // indirect
 	github.com/knqyf263/go-deb-version v0.0.0-20190517075300-09fca494f03d // indirect
 	github.com/knqyf263/go-rpm-version v0.0.0-20220614171824-631e686d1075 // indirect
-	github.com/knqyf263/go-rpmdb v0.0.0-20221030142135-919c8a52f04f // indirect
+	github.com/knqyf263/go-rpmdb v0.0.0-20221030142135-919c8a52f04f
 	github.com/knqyf263/nested v0.0.1 // indirect
 	github.com/liamg/jfather v0.0.7 // indirect
 	github.com/libp2p/go-reuseport v0.2.0 // indirect
@@ -524,10 +524,10 @@ require (
 	go.opentelemetry.io/otel/sdk/metric v0.39.0
 	go.opentelemetry.io/otel/trace v1.16.0 // indirect
 	go.opentelemetry.io/proto/otlp v0.19.0 // indirect
-	golang.org/x/crypto v0.12.0 // indirect
+	golang.org/x/crypto v0.13.0 // indirect
 	golang.org/x/mod v0.12.0
 	golang.org/x/oauth2 v0.10.0 // indirect
-	golang.org/x/term v0.11.0 // indirect
+	golang.org/x/term v0.12.0 // indirect
 	gonum.org/v1/gonum v0.14.0 // indirect
 	google.golang.org/api v0.134.0 // indirect
 	google.golang.org/appengine v1.6.7 // indirect
@@ -559,8 +559,10 @@ require (
 require github.com/lorenzosaino/go-sysctl v0.3.1
 
 require (
-	github.com/DataDog/agent-payload/v5 v5.0.94
+	github.com/DATA-DOG/go-sqlmock v1.5.0
+	github.com/DataDog/agent-payload/v5 v5.0.96
 	github.com/DataDog/datadog-agent/pkg/conf v0.0.0-00010101000000-000000000000
+	github.com/DataDog/datadog-agent/pkg/networkdevice/profile v0.0.0-20230913122404-c12f437d52a4
 	github.com/DataDog/datadog-agent/pkg/proto v0.48.0-rc.2
 	github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/logs v0.8.0
 	github.com/aquasecurity/trivy v0.0.0-00010101000000-000000000000

@@ -10,6 +10,7 @@ import (
 	"time"
 
 	coreConfig "github.com/DataDog/datadog-agent/pkg/config"
+	configUtils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -122,9 +123,9 @@ func (l *LogsConfigKeys) hasAdditionalEndpoints() bool {
 // getLogsAPIKey provides the dd api key used by the main logs agent sender.
 func (l *LogsConfigKeys) getLogsAPIKey() string {
 	if configKey := l.getConfigKey("api_key"); l.isSetAndNotEmpty(configKey) {
-		return coreConfig.SanitizeAPIKey(l.getConfig().GetString(configKey))
+		return configUtils.SanitizeAPIKey(l.getConfig().GetString(configKey))
 	}
-	return coreConfig.SanitizeAPIKey(l.getConfig().GetString("api_key"))
+	return configUtils.SanitizeAPIKey(l.getConfig().GetString("api_key"))
 }
 
 func (l *LogsConfigKeys) connectionResetInterval() time.Duration {

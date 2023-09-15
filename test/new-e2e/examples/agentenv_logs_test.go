@@ -7,8 +7,6 @@ package examples
 
 import (
 	_ "embed"
-	"errors"
-	"fmt"
 	"time"
 
 	"testing"
@@ -21,9 +19,8 @@ import (
 	"github.com/DataDog/test-infra-definitions/scenarios/aws"
 	"github.com/DataDog/test-infra-definitions/scenarios/aws/vm/ec2params"
 	"github.com/DataDog/test-infra-definitions/scenarios/aws/vm/ec2vm"
-	"github.com/cenkalti/backoff/v4"
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
-	"github.com/stretchr/testify/require"
+	"github.com/stretchr/testify/assert"
 )
 
 type vmFakeintakeSuite struct {
@@ -69,48 +66,25 @@ func TestE2EVMFakeintakeSuite(t *testing.T) {
 }
 
 func (s *vmFakeintakeSuite) TestLogs() {
-	t := s.T()
 	fakeintake := s.Env().Fakeintake
 	// part 1: no logs
-	err := backoff.Retry(func() error {
+	s.EventuallyWithT(func(c *assert.CollectT) {
 		logs, err := fakeintake.FilterLogs("custom_logs")
-		if err != nil {
-			return err
-		}
-		if len(logs) != 0 {
-			return errors.New("logs received while none expected")
-		}
-		return nil
-	}, backoff.WithMaxRetries(backoff.NewConstantBackOff(500*time.Millisecond), 60))
+		assert.NoError(c, err)
+		assert.Equal(c, len(logs), 0, "logs received while none expected")
+	}, 5*time.Minute, 10*time.Second)
 	// part 2: generate logs
-	require.NoError(t, err)
-	_, err = s.Env().VM.ExecuteWithError("echo 'totoro' > /tmp/test.log")
-	require.NoError(t, err)
+	s.Env().VM.Execute("echo 'totoro' > /tmp/test.log")
 	// part 3: there should be logs
-	err = backoff.Retry(func() error {
+	s.EventuallyWithT(func(c *assert.CollectT) {
 		names, err := fakeintake.GetLogServiceNames()
-		if err != nil {
-			return err
-		}
-		if len(names) == 0 {
-			return errors.New("no logs received")
-		}
+		assert.NoError(c, err)
+		assert.Greater(c, len(names), 0, "no logs received")
 		logs, err := fakeintake.FilterLogs("custom_logs")
-		if err != nil {
-			return err
-		}
-		if len(logs) != 1 {
-			return errors.New("no logs received")
-		}
+		assert.NoError(c, err)
+		assert.Equal(c, len(logs), 1, "expecting 1 log from 'custom_logs'")
 		logs, err = fakeintake.FilterLogs("custom_logs", fi.WithMessageContaining("totoro"))
-		if err != nil {
-			return err
-		}
-		if len(logs) != 1 {
-			return fmt.Errorf("received %v logs with 'tororo', expecting 1", len(logs))
-		}
-		return nil
-	}, backoff.WithMaxRetries(backoff.NewConstantBackOff(500*time.Millisecond), 60))
-
-	require.NoError(t, err)
+		assert.NoError(c, err)
+		assert.Equal(c, len(logs), 1, "expecting 1 log from 'custom_logs' with 'totoro' content")
+	}, 5*time.Minute, 10*time.Second)
 }

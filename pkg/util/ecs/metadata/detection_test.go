@@ -9,7 +9,6 @@ package metadata
 
 import (
 	"context"
-	"fmt"
 	"testing"
 	"time"
 
@@ -33,14 +32,14 @@ func TestLocateECSHTTP(t *testing.T) {
 	)
 	require.Nil(t, err)
 
-	ts, ecsAgentPort, err := ecsinterface.Start()
+	ts, _, err := ecsinterface.Start()
 	require.Nil(t, err)
 	defer ts.Close()
 
-	config.Datadog.SetDefault("ecs_agent_url", fmt.Sprintf("http://localhost:%d/", ecsAgentPort))
+	config.Datadog.SetDefault("ecs_agent_url", ts.URL)
 
 	_, err = newAutodetectedClientV1()
-	assert.Nil(err)
+	require.NoError(t, err)
 
 	select {
 	case r := <-ecsinterface.Requests:
@@ -57,14 +56,14 @@ func TestLocateECSHTTPFail(t *testing.T) {
 	ecsinterface, err := testutil.NewDummyECS()
 	require.Nil(t, err)
 
-	ts, ecsAgentPort, err := ecsinterface.Start()
+	ts, _, err := ecsinterface.Start()
 	require.Nil(t, err)
 	defer ts.Close()
 
-	config.Datadog.SetDefault("ecs_agent_url", fmt.Sprintf("http://localhost:%d/", ecsAgentPort))
+	config.Datadog.SetDefault("ecs_agent_url", ts.URL)
 
 	_, err = newAutodetectedClientV1()
-	assert.NotNil(err)
+	require.Error(t, err)
 
 	select {
 	case r := <-ecsinterface.Requests:

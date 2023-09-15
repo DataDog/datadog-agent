@@ -8,7 +8,6 @@
 package tests
 
 import (
-	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -20,7 +19,7 @@ import (
 func TestSnapshotReplay(t *testing.T) {
 	ruleDef := &rules.RuleDefinition{
 		ID:         "test_rule_snapshot_replay",
-		Expression: fmt.Sprintf(`exec.comm in ["testsuite"]`),
+		Expression: "exec.comm in [\"testsuite\"]",
 	}
 
 	var gotEvent bool

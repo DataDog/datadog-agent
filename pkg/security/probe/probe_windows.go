@@ -5,6 +5,7 @@
 
 //go:build windows
 
+// Package probe holds probe related files
 package probe
 
 import (
