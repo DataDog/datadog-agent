@@ -56,7 +56,7 @@ static __always_inline void https_process(conn_tuple_t *t, void *buffer, size_t 
     http_transaction_t http;
     bpf_memset(&http, 0, sizeof(http));
     bpf_memcpy(&http.tup, t, sizeof(conn_tuple_t));
-    read_into_buffer(http.request_fragment, buffer, len);
+    read_into_user_buffer_http(http.request_fragment, buffer);
     http_process(&http, NULL, tags);
     classify_decrypted_payload(&http.tup, http.request_fragment, len);
 }

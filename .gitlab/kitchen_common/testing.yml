@@ -239,7 +239,7 @@
   extends:
     - .kitchen_test_upgrade7
     - .kitchen_datadog_agent_flavor
-    - .kitchen_azure_location_west_central_us
+    - .kitchen_azure_location_south_central_us
     - .kitchen_ec2_location_us_east_1
 
 .kitchen_test_upgrade7_iot_agent:
