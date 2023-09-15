@@ -263,6 +263,9 @@ func uint32ArrayFromIPv6(ip net.IP) (addr [4]uint32, err error) {
 	return
 }
 
+// IPv6LinkLocalPrefix is only exposed for testing purposes
+var IPv6LinkLocalPrefix = "fe80::"
+
 func GetIPv6LinkLocalAddress() ([]*net.UDPAddr, error) {
 	ints, err := net.Interfaces()
 	if err != nil {
@@ -279,7 +282,7 @@ func GetIPv6LinkLocalAddress() ([]*net.UDPAddr, error) {
 			continue
 		}
 		for _, a := range addrs {
-			if strings.HasPrefix(a.String(), "fe80::") && !strings.HasPrefix(i.Name, "dummy") {
+			if strings.HasPrefix(a.String(), IPv6LinkLocalPrefix) && !strings.HasPrefix(i.Name, "dummy") {
 				// this address *may* have CIDR notation
 				if ar, _, err := net.ParseCIDR(a.String()); err == nil {
 					udpAddrs = append(udpAddrs, &net.UDPAddr{IP: ar, Zone: i.Name})
