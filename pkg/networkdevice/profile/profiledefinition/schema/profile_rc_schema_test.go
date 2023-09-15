@@ -38,7 +38,7 @@ func Test_DeviceProfileRcConfigJsonSchema(t *testing.T) {
 
 func Test_Schema_TextCases(t *testing.T) {
 	var testcases []string
-	err := filepath.WalkDir("./schema_testcases", func(s string, d fs.DirEntry, e error) error {
+	err := filepath.WalkDir("./testcases", func(s string, d fs.DirEntry, e error) error {
 		if e != nil {
 			return e
 		}
