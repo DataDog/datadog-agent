@@ -8,6 +8,7 @@ package main
 
 import (
 	"flag"
+	"fmt"
 	"github.com/DataDog/datadog-agent/pkg/networkdevice/profile/profiledefinition/schema"
 	"os"
 )
@@ -29,4 +30,6 @@ func main() {
 	if err != nil {
 		panic(err)
 	}
+
+	fmt.Printf("File generated at %s\n", output)
 }
