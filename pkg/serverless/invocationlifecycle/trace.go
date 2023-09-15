@@ -232,6 +232,9 @@ func InjectSpanID(executionContext *ExecutionStartInfo, headers http.Header) {
 }
 
 func capturePayloadAsTags(value interface{}, targetSpan *pb.Span, key string, depth int, maxDepth int) {
+	if key == "" {
+		return
+	}
 	if value == nil {
 		targetSpan.Meta[key] = ""
 		return
@@ -264,10 +267,7 @@ func capturePayloadAsTags(value interface{}, targetSpan *pb.Span, key string, de
 		}
 	case map[string]interface{}:
 		for innerKey, value := range value {
-			if key != "" {
-				innerKey = key + "." + innerKey
-			}
-			capturePayloadAsTags(value, targetSpan, innerKey, depth+1, maxDepth)
+			capturePayloadAsTags(value, targetSpan, key+"."+innerKey, depth+1, maxDepth)
 		}
 	case []interface{}:
 		for i, innerValue := range value {
