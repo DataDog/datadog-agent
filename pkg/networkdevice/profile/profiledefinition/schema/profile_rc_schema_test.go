@@ -54,6 +54,14 @@ func Test_Schema_TextCases(t *testing.T) {
 
 			validationErr := assertAgainstSchema(t, string(content))
 
+			if validationErr != nil {
+				// Print validation error to ease debugging tests
+				validationErrStr := fmt.Sprintf("%#v\n", validationErr) // using %#v prints errors hierarchy
+				fmt.Printf("--- ACTUAL VALIDATION ERRORS --------------------------------------------\n")
+				fmt.Printf(validationErrStr)
+				fmt.Printf("-------------------------------------------------------------------------\n")
+			}
+
 			testcaseExpectedErrPath := strings.ReplaceAll(testcaseJsonPath, ".json", "_expected.json")
 			testcaseExpectedErr, err := os.ReadFile(testcaseExpectedErrPath)
 			require.NoError(t, err)
