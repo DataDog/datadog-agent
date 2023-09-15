@@ -64,7 +64,6 @@
 
 /.gitlab/deploy_dca.yml                             @DataDog/container-integrations @DataDog/agent-platform
 
-# @DataDog/windows-agent owns the vcpkg job
 /.gitlab/deps_build.yml                              @DataDog/ebpf-platform @DataDog/agent-platform @DataDog/windows-agent
 /.gitlab/windows_python_build.yml                    @DataDog/windows-agent
 
