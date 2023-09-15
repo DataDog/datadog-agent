@@ -752,7 +752,7 @@ func (d KubernetesDeployment) String(verbose bool) string {
 			}
 			_, _ = langSb.WriteString(string(lang.Name))
 		}
-		_, _ = fmt.Fprintln(&sb, fmt.Sprintf("%s=>Languages:[%s]", container, langSb.String()))
+		_, _ = fmt.Fprintf(&sb, "%s=>Languages:[%s]", container, langSb.String())
 	}
 
 	return sb.String()

@@ -71,7 +71,7 @@ func Test_DeploymentsFakeKubernetesClient(t *testing.T) {
 			},
 		},
 	}
-	TestFakeHelper(t, createResource, newDeploymentStore, expected)
+	testFakeHelper(t, createResource, newDeploymentStore, expected)
 }
 
 func Test_Deployment_FilteredOut(t *testing.T) {
@@ -107,5 +107,5 @@ func Test_Deployment_FilteredOut(t *testing.T) {
 			},
 		},
 	}
-	TestFakeHelper(t, createResource, newDeploymentStore, expected)
+	testFakeHelper(t, createResource, newDeploymentStore, expected)
 }

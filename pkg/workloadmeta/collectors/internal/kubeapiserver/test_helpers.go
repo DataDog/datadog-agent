@@ -18,7 +18,7 @@ import (
 
 const dummySubscriber = "dummy-subscriber"
 
-func TestFakeHelper(t *testing.T, createResource func(*fake.Clientset) error, newStore storeGenerator, expected []workloadmeta.EventBundle) {
+func testFakeHelper(t *testing.T, createResource func(*fake.Clientset) error, newStore storeGenerator, expected []workloadmeta.EventBundle) {
 	// Create a fake client to mock API calls.
 	client := fake.NewSimpleClientset()
 

@@ -5,6 +5,7 @@
 
 //go:build kubeapiserver
 
+// Package kubeapiserver contains the collector that collects data metadata from the API server.
 package kubeapiserver
 
 import (
