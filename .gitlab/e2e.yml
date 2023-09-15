@@ -218,7 +218,7 @@ new-e2e-agent-platform-install-script-debian:
   rules: !reference [.on_dev_branch_manual]
   needs: []
   variables:
-    TARGETS: ./agent-platform/install_script_debian
+    TARGETS: ./agent-platform/install-script-debian
     TEAM: agent-platform
     EXTRAPARMS: --flags -osversion "debian-10,debian-11,debian-12"
 
