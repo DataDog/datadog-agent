@@ -19,7 +19,7 @@ var (
 )
 
 var (
-	// Running tracks it the language detection client is running.
+	// Running tracks if the language detection client is running.
 	Running = telemetry.NewSimpleGaugeWithOpts(
 		subsystem,
 		"running",
