@@ -181,17 +181,11 @@ func (c MyAPIClient) CreateCWSAgentRule(name string, msg string, secl string) (*
 // DeleteSignalRule deletes a signal rule
 func (c MyAPIClient) DeleteSignalRule(ruleID string) error {
 	_, err := c.api.SecurityMonitoringApi.DeleteSecurityMonitoringRule(c.ctx, ruleID)
-	if err != nil {
-		return err
-	}
-	return nil
+	return err
 }
 
 // DeleteAgentRule deletes an agent rule
 func (c MyAPIClient) DeleteAgentRule(ruleID string) error {
 	_, err := c.api.CloudWorkloadSecurityApi.DeleteCloudWorkloadSecurityAgentRule(c.ctx, ruleID)
-	if err != nil {
-		return err
-	}
-	return nil
+	return err
 }
