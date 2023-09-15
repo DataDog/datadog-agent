@@ -42,7 +42,7 @@ func Test_Schema_TextCases(t *testing.T) {
 		if e != nil {
 			return e
 		}
-		if strings.HasSuffix(d.Name(), "_expected.json") {
+		if strings.HasSuffix(d.Name(), "_exp.json") {
 			return nil
 		}
 		if filepath.Ext(d.Name()) == ".json" {
@@ -67,7 +67,7 @@ func Test_Schema_TextCases(t *testing.T) {
 				fmt.Printf("-------------------------------------------------------------------------\n")
 			}
 
-			testcaseExpectedErrPath := strings.ReplaceAll(testcaseJsonPath, ".json", "_expected.json")
+			testcaseExpectedErrPath := strings.ReplaceAll(testcaseJsonPath, ".json", "_exp.json")
 			testcaseExpectedErr, err := os.ReadFile(testcaseExpectedErrPath)
 			require.NoError(t, err)
 
