@@ -57,36 +57,7 @@
   script:
     - export LAST_STABLE_VERSION=$(cd ../.. && invoke release.get-release-json-value "last_stable::$AGENT_MAJOR_VERSION")
     - tasks/run-test-kitchen.sh windows-install-test $AGENT_MAJOR_VERSION
-  # Rollback tests fail on OG installer
-  allow_failure: true
-
-# Base test for Next Gen installer - only difference with the standard one
-# is that we override the WINDOWS_AGENT_FILE name.
-.kitchen_test_ng_windows_installer:
-  extends:
-    - .kitchen_test_windows_installer
-  script:
-    - export WINDOWS_AGENT_FILE=datadog-agent-ng-$(cd ../.. && inv agent.version --url-safe --major-version $AGENT_MAJOR_VERSION)-1-x86_64
-    - export LAST_STABLE_VERSION=$(cd ../.. && invoke release.get-release-json-value "last_stable::$AGENT_MAJOR_VERSION")
-    - export NG_INSTALLER=true
-    - echo $WINDOWS_AGENT_FILE
-    - tasks/run-test-kitchen.sh windows-install-test $AGENT_MAJOR_VERSION
   allow_failure: false
-
-# Base test for Next Gen installer with NPM - only difference with the standard one
-# is that we override the WINDOWS_AGENT_FILE name.
-.kitchen_test_ng_windows_npm_driver_base:
-  extends:
-    - .kitchen_azure_x64
-  before_script:  # test all of the kernels to make sure the driver loads and runs properly
-    - export WINDOWS_AGENT_FILE=datadog-agent-ng-$(inv agent.version --url-safe --major-version $AGENT_MAJOR_VERSION)-1-x86_64
-    - if [ $AGENT_MAJOR_VERSION == "7" ]; then export WINDOWS_TESTING_S3_BUCKET=$WINDOWS_TESTING_S3_BUCKET_A7; else export WINDOWS_TESTING_S3_BUCKET=$WINDOWS_TESTING_S3_BUCKET_A6; fi
-    - if [ $AGENT_MAJOR_VERSION == "7" ]; then export RELEASE_VERSION=$RELEASE_VERSION_7; else export RELEASE_VERSION=$RELEASE_VERSION_6; fi
-    - export WINDOWS_DDNPM_DRIVER=$(inv release.get-release-json-value "$RELEASE_VERSION::WINDOWS_DDNPM_DRIVER")
-    - cd $DD_AGENT_TESTING_DIR
-    - tasks/kitchen_setup.sh
-  script:
-    - tasks/run-test-kitchen.sh windows-npmdriver $AGENT_MAJOR_VERSION
 
 .kitchen_test_windows_npm_driver_base:
   extends:
@@ -124,25 +95,6 @@
     KITCHEN_PLATFORM: "windows"
     KITCHEN_OSVERS: "win2016,win2019,win2019cn,win2022"
     DEFAULT_KITCHEN_OSVERS: "win2022"
-
-# Base test for Next Gen installer with NPM - only difference with the standard one
-# is that we override the WINDOWS_AGENT_FILE name.
-.kitchen_test_ng_windows_npm_installer:
-  extends:
-    - .kitchen_azure_x64
-  variables:
-    KITCHEN_PLATFORM: "windows"
-    KITCHEN_OSVERS: "win2016"
-  before_script:  # Use only 2016 and 2019 for testing that we upgrade properly and don't install the driver when not specified
-    - export WINDOWS_AGENT_FILE=datadog-agent-ng-$(inv agent.version --url-safe --major-version $AGENT_MAJOR_VERSION)-1-x86_64
-    - if [ $AGENT_MAJOR_VERSION == "7" ]; then export WINDOWS_TESTING_S3_BUCKET=$WINDOWS_TESTING_S3_BUCKET_A7; else export WINDOWS_TESTING_S3_BUCKET=$WINDOWS_TESTING_S3_BUCKET_A6; fi
-    - if [ $AGENT_MAJOR_VERSION == "7" ]; then export RELEASE_VERSION=$RELEASE_VERSION_7; else export RELEASE_VERSION=$RELEASE_VERSION_6; fi
-    - export WINDOWS_DDNPM_DRIVER=$(inv release.get-release-json-value "$RELEASE_VERSION::WINDOWS_DDNPM_DRIVER")
-    - cd $DD_AGENT_TESTING_DIR
-    - tasks/kitchen_setup.sh
-  script:
-    - export LAST_STABLE_VERSION=$(cd ../.. && invoke release.get-release-json-value "last_stable::$AGENT_MAJOR_VERSION")
-    - tasks/run-test-kitchen.sh windows-npm-test $AGENT_MAJOR_VERSION
 
 .kitchen_test_windows_npm_installer:
   extends:
