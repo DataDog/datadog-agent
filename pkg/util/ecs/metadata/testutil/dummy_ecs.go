@@ -9,9 +9,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
-	"net/url"
 	"os"
-	"strconv"
 )
 
 // DummyECS allows tests to mock ECS metadata server responses
@@ -78,15 +76,6 @@ func (d *DummyECS) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 }
 
 // Start starts the HTTP server
-func (d *DummyECS) Start() (*httptest.Server, int, error) {
-	ts := httptest.NewServer(d)
-	ecsAgentURL, err := url.Parse(ts.URL)
-	if err != nil {
-		return nil, 0, err
-	}
-	ecsAgentPort, err := strconv.Atoi(ecsAgentURL.Port())
-	if err != nil {
-		return nil, 0, err
-	}
-	return ts, ecsAgentPort, nil
+func (d *DummyECS) Start() *httptest.Server {
+	return httptest.NewServer(d)
 }
