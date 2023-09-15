@@ -8,7 +8,7 @@
 ---
 enhancements:
   - |
-    prometheus_scrape: Adds support for multiple Openmetrics V2 features in the ``prometheus_scrape.checks[].configurations[]`` items :
+    prometheus_scrape: Adds support for multiple OpenMetrics V2 features in the ``prometheus_scrape.checks[].configurations[]`` items:
       * ``exclude_metrics_by_labels``
       * ``cache_shared_labels``
       * ``use_process_start_time``
