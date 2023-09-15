@@ -6,7 +6,6 @@
 package cws
 
 import (
-	"encoding/json"
 	"errors"
 	"fmt"
 	"strings"
@@ -17,6 +16,7 @@ import (
 	"github.com/cenkalti/backoff"
 )
 
+// WaitAgentLogs waits for the agent log corresponding to the pattern
 func WaitAgentLogs(vm *client.VM, agentName string, pattern string) error {
 	err := backoff.Retry(func() error {
 		output, err := vm.ExecuteWithError(fmt.Sprintf("cat /var/log/datadog/%s.log", agentName))
@@ -31,7 +31,8 @@ func WaitAgentLogs(vm *client.VM, agentName string, pattern string) error {
 	return err
 }
 
-func WaitAppLogs(apiClient MyApiClient, query string) (*datadog.LogAttributes, error) {
+// WaitAppLogs waits for the app log corresponding to the query
+func WaitAppLogs(apiClient MyAPIClient, query string) (*datadog.LogAttributes, error) {
 	var resp *datadog.LogAttributes
 	err := backoff.Retry(func() error {
 		tmpResp, err := apiClient.GetAppLog(query)
@@ -40,7 +41,6 @@ func WaitAppLogs(apiClient MyApiClient, query string) (*datadog.LogAttributes, e
 		}
 		if len(tmpResp.Data) > 0 {
 			resp = tmpResp.Data[0].Attributes
-			json.Marshal(resp)
 			return nil
 		}
 		return errors.New("no log found")
@@ -48,7 +48,8 @@ func WaitAppLogs(apiClient MyApiClient, query string) (*datadog.LogAttributes, e
 	return resp, err
 }
 
-func WaitAppSignal(apiClient MyApiClient, query string) (*datadog.SecurityMonitoringSignalAttributes, error) {
+// WaitAppSignal waits for the signal corresponding to the query
+func WaitAppSignal(apiClient MyAPIClient, query string) (*datadog.SecurityMonitoringSignalAttributes, error) {
 	var resp *datadog.SecurityMonitoringSignalAttributes
 	err := backoff.Retry(func() error {
 		tmpResp, err := apiClient.GetAppSignal(query)
@@ -57,7 +58,6 @@ func WaitAppSignal(apiClient MyApiClient, query string) (*datadog.SecurityMonito
 		}
 		if len(tmpResp.Data) > 0 {
 			resp = tmpResp.Data[0].Attributes
-			json.Marshal(resp)
 			return nil
 		}
 		return errors.New("no log found")

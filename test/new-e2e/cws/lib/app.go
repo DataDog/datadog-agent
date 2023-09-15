@@ -14,22 +14,14 @@ import (
 	"github.com/DataDog/datadog-api-client-go/api/v2/datadog"
 )
 
-type myApiClient interface {
-	GetAppLog(string) (*datadog.LogsListResponse, error)
-	GetAppSignal(string) (*datadog.SecurityMonitoringSignalsListResponse, error)
-	CreateCWSSignalRule(string, string, string, []string) (*datadog.SecurityMonitoringRuleResponse, error)
-	CreateCWSAgentRule(string, string, string) (*datadog.CloudWorkloadSecurityAgentRuleResponse, error)
-	DeleteSignalRule(string) error
-	DeleteAgentRule(string) error
-	DownloadPolicies() (string, error)
-}
-
-type MyApiClient struct {
+// MyAPIClient represents the datadog API context
+type MyAPIClient struct {
 	api *datadog.APIClient
 	ctx context.Context
 }
 
-func NewApiClient() MyApiClient {
+// NewAPIClient initialise a client with the API and APP keys
+func NewAPIClient() MyAPIClient {
 	apiKey, _ := runner.GetProfile().SecretStore().Get(parameters.APIKey)
 	appKey, _ := runner.GetProfile().SecretStore().Get(parameters.APPKey)
 	ctx := context.WithValue(
@@ -47,14 +39,15 @@ func NewApiClient() MyApiClient {
 
 	cfg := datadog.NewConfiguration()
 
-	apiClient := MyApiClient{
+	apiClient := MyAPIClient{
 		api: datadog.NewAPIClient(cfg),
 		ctx: ctx,
 	}
 	return apiClient
 }
 
-func (c MyApiClient) GetAppLog(query string) (*datadog.LogsListResponse, error) {
+// GetAppLog returns the logs corresponding to the query
+func (c MyAPIClient) GetAppLog(query string) (*datadog.LogsListResponse, error) {
 	sort := datadog.LOGSSORT_TIMESTAMP_ASCENDING
 
 	body := datadog.LogsListRequest{
@@ -80,7 +73,8 @@ func (c MyApiClient) GetAppLog(query string) (*datadog.LogsListResponse, error) 
 	return &result, nil
 }
 
-func (c MyApiClient) GetAppSignal(query string) (*datadog.SecurityMonitoringSignalsListResponse, error) {
+// GetAppSignal returns the signal corresponding to the query
+func (c MyAPIClient) GetAppSignal(query string) (*datadog.SecurityMonitoringSignalsListResponse, error) {
 	now := time.Now().UTC()
 	queryFrom := now.Add(-15 * time.Minute)
 	sort := datadog.SECURITYMONITORINGSIGNALSSORT_TIMESTAMP_ASCENDING
@@ -109,7 +103,8 @@ func (c MyApiClient) GetAppSignal(query string) (*datadog.SecurityMonitoringSign
 	return &result, nil
 }
 
-func (c MyApiClient) CreateCwsSignalRule(name string, msg string, agentRuleID string, tags []string) (*datadog.SecurityMonitoringRuleResponse, error) {
+// CreateCwsSignalRule creates a cws signal rule
+func (c MyAPIClient) CreateCwsSignalRule(name string, msg string, agentRuleID string, tags []string) (*datadog.SecurityMonitoringRuleResponse, error) {
 	if tags == nil {
 		tags = []string{}
 	}
@@ -160,7 +155,8 @@ func (c MyApiClient) CreateCwsSignalRule(name string, msg string, agentRuleID st
 	return &response, nil
 }
 
-func (c MyApiClient) CreateCWSAgentRule(name string, msg string, secl string) (*datadog.CloudWorkloadSecurityAgentRuleResponse, error) {
+// CreateCWSAgentRule creates a cws agent rule
+func (c MyAPIClient) CreateCWSAgentRule(name string, msg string, secl string) (*datadog.CloudWorkloadSecurityAgentRuleResponse, error) {
 
 	body := datadog.CloudWorkloadSecurityAgentRuleCreateRequest{
 		Data: datadog.CloudWorkloadSecurityAgentRuleCreateData{
@@ -182,16 +178,18 @@ func (c MyApiClient) CreateCWSAgentRule(name string, msg string, secl string) (*
 	return &response, nil
 }
 
-func (c MyApiClient) DeleteSignalRule(ruleId string) error {
-	_, err := c.api.SecurityMonitoringApi.DeleteSecurityMonitoringRule(c.ctx, ruleId)
+// DeleteSignalRule deletes a signal rule
+func (c MyAPIClient) DeleteSignalRule(ruleID string) error {
+	_, err := c.api.SecurityMonitoringApi.DeleteSecurityMonitoringRule(c.ctx, ruleID)
 	if err != nil {
 		return err
 	}
 	return nil
 }
 
-func (c MyApiClient) DeleteAgentRule(ruleId string) error {
-	_, err := c.api.CloudWorkloadSecurityApi.DeleteCloudWorkloadSecurityAgentRule(c.ctx, ruleId)
+// DeleteAgentRule deletes an agent rule
+func (c MyAPIClient) DeleteAgentRule(ruleID string) error {
+	_, err := c.api.CloudWorkloadSecurityApi.DeleteCloudWorkloadSecurityAgentRule(c.ctx, ruleID)
 	if err != nil {
 		return err
 	}

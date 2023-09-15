@@ -6,8 +6,15 @@
 package cws
 
 const (
-	SECURITY_START_LOG  = "Successfully connected to the runtime security module"
-	SYS_PROBE_START_LOG = "runtime security started"
-	SEC_AGENT_PATH      = "/opt/datadog-agent/embedded/bin/security-agent"
-	POLICIES_PATH       = "/etc/datadog-agent/runtime-security.d/default.policy"
+	// SecurityStartLog is the log corresponding to a successful start of the security-agent
+	SecurityStartLog = "Successfully connected to the runtime security module"
+
+	// SystemProbeStartLog is the log corresponding to a successful start of the system-probe
+	SystemProbeStartLog = "runtime security started"
+
+	// SecurityAgentPath is the path of the security-agent binary
+	SecurityAgentPath = "/opt/datadog-agent/embedded/bin/security-agent"
+
+	// PoliciesPath is the path of the default runtime security policies
+	PoliciesPath = "/etc/datadog-agent/runtime-security.d/default.policy"
 )
