@@ -53,10 +53,10 @@ func Test_Schema_TextCases(t *testing.T) {
 			require.NoError(t, err)
 
 			validationErr := assertAgainstSchema(t, string(content))
+			validationErrStr := fmt.Sprintf("%#v\n", validationErr) // using %#v prints errors hierarchy
 
 			if validationErr != nil {
 				// Print validation error to ease debugging tests
-				validationErrStr := fmt.Sprintf("%#v\n", validationErr) // using %#v prints errors hierarchy
 				fmt.Printf("--- ACTUAL VALIDATION ERRORS --------------------------------------------\n")
 				fmt.Printf(validationErrStr)
 				fmt.Printf("-------------------------------------------------------------------------\n")
@@ -71,7 +71,7 @@ func Test_Schema_TextCases(t *testing.T) {
 			require.NoError(t, err)
 
 			for _, expectedError := range expected.Errors {
-				assert.ErrorContains(t, validationErr, expectedError)
+				assert.Contains(t, validationErrStr, expectedError)
 			}
 			if len(expected.Errors) == 0 {
 				assert.NoError(t, validationErr)

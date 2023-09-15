@@ -1,0 +1,6 @@
+{
+  "errors": [
+    "expected string, but got number",
+    "additionalProperties 'unknown_field' not allowed"
+  ]
+}
