@@ -55,8 +55,8 @@ func NewProvider(filter *containers.Filter,
 
 	rateFilterList := []*regexp.Regexp{
 		regexp.MustCompile("diskio.io_service_bytes.stats.total"),
-		regexp.MustCompile("network[\\.].._bytes"),
-		regexp.MustCompile("cpu[\\.].*[\\.]total"),
+		regexp.MustCompile("network[.].._bytes"),
+		regexp.MustCompile("cpu[.].*[.]total"),
 	} //default enabled_rates
 	if len(config.EnabledRates) > 0 {
 		rateFilterList = []*regexp.Regexp{}
