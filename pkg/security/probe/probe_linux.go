@@ -753,7 +753,7 @@ func (p *Probe) handleEvent(CPU int, data []byte) {
 			pce = p.resolvers.ProcessResolver.Resolve(event.PTrace.PID, event.PTrace.PID, 0, false)
 		}
 		if pce == nil {
-			pce = model.NewEmptyProcessCacheEntry(event.PTrace.PID, event.PTrace.PID, false)
+			pce = model.NewPlaceholderProcessCacheEntry(event.PTrace.PID, event.PTrace.PID, false)
 		}
 		event.PTrace.Tracee = &pce.ProcessContext
 	case model.MMapEventType:
@@ -798,7 +798,7 @@ func (p *Probe) handleEvent(CPU int, data []byte) {
 			pce = p.resolvers.ProcessResolver.Resolve(event.Signal.PID, event.Signal.PID, 0, false)
 		}
 		if pce == nil {
-			pce = model.NewEmptyProcessCacheEntry(event.Signal.PID, event.Signal.PID, false)
+			pce = model.NewPlaceholderProcessCacheEntry(event.Signal.PID, event.Signal.PID, false)
 		}
 		event.Signal.Target = &pce.ProcessContext
 	case model.SpliceEventType:
