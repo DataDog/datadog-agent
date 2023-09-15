@@ -1,6 +1,6 @@
 ---
 .integration_tests_windows_base:
-  stage: source_test
+  stage: integration_test
   needs: ["go_deps", "go_tools_deps", "build_vcpkg_deps"]
   tags: ["runner:windows-docker", "windowsversion:1809"]
   before_script:
