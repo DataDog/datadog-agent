@@ -1,6 +1,0 @@
-# build files
-Debug/
-x64/
-.vs/
-
-*.vcxproj.user

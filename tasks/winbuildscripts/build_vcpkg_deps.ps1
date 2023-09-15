@@ -1,2 +1,0 @@
-C:\vcpkg\vcpkg.exe --version
-C:\vcpkg\vcpkg.exe install  --x-wait-for-lock --triplet "x64-windows-static" --vcpkg-root "C:\vcpkg\scripts\buildsystems\msbuild\..\..\..\\" "--x-manifest-root=C:\mnt\tools\windows\install-help\cal\\" "--x-install-root=C:\vcpkg\scripts\buildsystems\msbuild\..\..\..\installed\\" --feature-flags=versions
