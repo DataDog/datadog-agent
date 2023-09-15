@@ -4,6 +4,7 @@
 // Copyright 2023-present Datadog, Inc.
 //go:build windows
 
+// Package evtapi defines the interface and common types for interacting with the Windows Event Log API from Golang
 package evtapi
 
 import (
@@ -12,9 +13,11 @@ import (
 	"golang.org/x/sys/windows"
 )
 
+//revive:disable:var-naming These names are intended to match the Windows API names
+
+// EVT_SUBSCRIBE_FLAGS
+// https://learn.microsoft.com/en-us/windows/win32/api/winevt/ne-winevt-evt_subscribe_flags
 const (
-	// EVT_SUBSCRIBE_FLAGS
-	// https://learn.microsoft.com/en-us/windows/win32/api/winevt/ne-winevt-evt_subscribe_flags
 	EvtSubscribeToFutureEvents      = 1
 	EvtSubscribeStartAtOldestRecord = 2
 	EvtSubscribeStartAfterBookmark  = 3
@@ -23,25 +26,25 @@ const (
 	EvtSubscribeStrict              = 0x10000
 )
 
+// EVT_RENDER_CONTEXT_FLAGS
+// https://learn.microsoft.com/en-us/windows/win32/api/winevt/ne-winevt-evt_render_context_flags
 const (
-	// EVT_RENDER_CONTEXT_FLAGS
-	// https://learn.microsoft.com/en-us/windows/win32/api/winevt/ne-winevt-evt_render_context_flags
 	EvtRenderContextValues = iota
 	EvtRenderContextSystem
 	EvtRenderContextUser
 )
 
+// EVT_RENDER_FLAGS
+// https://learn.microsoft.com/en-us/windows/win32/api/winevt/ne-winevt-evt_render_flags
 const (
-	// EVT_RENDER_FLAGS
-	// https://learn.microsoft.com/en-us/windows/win32/api/winevt/ne-winevt-evt_render_flags
 	EvtRenderEventValues = iota
 	EvtRenderEventXml
 	EvtRenderBookmark
 )
 
+// EVT_VARIANT_TYPE
+// https://learn.microsoft.com/en-us/windows/win32/api/winevt/ne-winevt-evt_variant_type
 const (
-	// EVT_VARIANT_TYPE
-	// https://learn.microsoft.com/en-us/windows/win32/api/winevt/ne-winevt-evt_variant_type
 	EvtVarTypeNull       = 0
 	EvtVarTypeString     = 1
 	EvtVarTypeAnsiString = 2
@@ -68,9 +71,9 @@ const (
 	EvtVarTypeEvtXml     = 35
 )
 
+// EVT_SYSTEM_PROPERTY_ID
+// https://learn.microsoft.com/en-us/windows/win32/api/winevt/ne-winevt-evt_system_property_id
 const (
-	// EVT_SYSTEM_PROPERTY_ID
-	// https://learn.microsoft.com/en-us/windows/win32/api/winevt/ne-winevt-evt_system_property_id
 	EvtSystemProviderName = iota
 	EvtSystemProviderGuid
 	EvtSystemEventID
@@ -92,9 +95,9 @@ const (
 	EvtSystemPropertyIdEND
 )
 
+// EVT_FORMAT_MESSAGE_FLAGS
+// https://learn.microsoft.com/en-us/windows/win32/api/winevt/ne-winevt-evt_format_message_flags
 const (
-	// EVT_FORMAT_MESSAGE_FLAGS
-	// https://learn.microsoft.com/en-us/windows/win32/api/winevt/ne-winevt-evt_format_message_flags
 	EvtFormatMessageEvent = iota + 1
 	EvtFormatMessageLevel
 	EvtFormatMessageTask
@@ -106,29 +109,32 @@ const (
 	EvtFormatMessageXml
 )
 
-// Returned from EvtQuery and EvtSubscribe
+//revive:enable:var-naming
+
+// EventResultSetHandle is a typed windows.Handle returned from EvtQuery and EvtSubscribe
 type EventResultSetHandle windows.Handle
 
-// Returned from EvtNext
+// EventRecordHandle is a typed windows.Handle returned from EvtNext
 type EventRecordHandle windows.Handle
 
-// Returned from EvtCreateBookmark
+// EventBookmarkHandle is a typed windows.Handle returned from EvtCreateBookmark
 type EventBookmarkHandle windows.Handle
 
-// Returned from EvtCreateRenderContext
+// EventRenderContextHandle is a typed windows.Handle returned from EvtCreateRenderContext
 type EventRenderContextHandle windows.Handle
 
-// Returned from EvtOpenPublisherMetadata
+// EventPublisherMetadataHandle is a typed windows.Handle returned from EvtOpenPublisherMetadata
 type EventPublisherMetadataHandle windows.Handle
 
-// Returned from RegisterEventSource
+// EventSourceHandle is a typed windows.Handle returned from RegisterEventSource
 type EventSourceHandle windows.Handle
 
-// Returned from CreateEvent
+// WaitEventHandle is a typed windows.Handle returned from CreateEvent
 type WaitEventHandle windows.Handle
 
+// API is an interface for Windows Event Log API methods
+// https://learn.microsoft.com/en-us/windows/win32/wes/windows-event-log-functions
 type API interface {
-	// Windows Event Log API methods
 	EvtSubscribe(
 		SignalEvent WaitEventHandle,
 		ChannelPath string,
@@ -153,18 +159,18 @@ type API interface {
 	// Note: Must call .Close() on the return value when done using it
 	EvtRenderEventValues(Context EventRenderContextHandle, Fragment EventRecordHandle) (EvtVariantValues, error)
 
-	EvtCreateBookmark(BookmarkXml string) (EventBookmarkHandle, error)
+	EvtCreateBookmark(BookmarkXML string) (EventBookmarkHandle, error)
 
 	EvtUpdateBookmark(Bookmark EventBookmarkHandle, Event EventRecordHandle) error
 
 	EvtOpenPublisherMetadata(
-		PublisherId string,
+		PublisherID string,
 		LogFilePath string) (EventPublisherMetadataHandle, error)
 
 	EvtFormatMessage(
 		PublisherMetadata EventPublisherMetadataHandle,
 		Event EventRecordHandle,
-		MessageId uint,
+		MessageID uint,
 		Values EvtVariantValues,
 		Flags uint) (string, error)
 
@@ -185,6 +191,8 @@ type API interface {
 		RawData []uint8) error
 }
 
+// EventRecord is a light wrapper around EventRecordHandle for now.
+// In the future it may contain other fields to assist in event rendering.
 type EventRecord struct {
 	EventRecordHandle EventRecordHandle
 }
@@ -217,23 +225,31 @@ type EvtVariantValues interface {
 	Close()
 }
 
+//
 // Helpful wrappers for custom types
+//
+
+// EvtCloseResultSet closes EventResultSetHandle
 func EvtCloseResultSet(api API, h EventResultSetHandle) {
 	api.EvtClose(windows.Handle(h))
 }
 
+// EvtCloseBookmark closes EventBookmarkHandle
 func EvtCloseBookmark(api API, h EventBookmarkHandle) {
 	api.EvtClose(windows.Handle(h))
 }
 
+// EvtCloseRecord closes EventRecordHandle
 func EvtCloseRecord(api API, h EventRecordHandle) {
 	api.EvtClose(windows.Handle(h))
 }
 
+// EvtCloseRenderContext closes EventRenderContextHandle
 func EvtCloseRenderContext(api API, h EventRenderContextHandle) {
 	api.EvtClose(windows.Handle(h))
 }
 
+// EvtClosePublisherMetadata closes EventPublisherMetadataHandle
 func EvtClosePublisherMetadata(api API, h EventPublisherMetadataHandle) {
 	api.EvtClose(windows.Handle(h))
 }

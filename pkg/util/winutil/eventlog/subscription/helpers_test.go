@@ -21,33 +21,27 @@ func ReadNumEventsWithNotify(t testing.TB, ti eventlog_test.APITester, sub PullS
 
 	count := uint(0)
 eventLoop:
-	for {
-		select {
-		case _, ok := <-sub.EventsAvailable():
-			if !ok {
-				break eventLoop
+	for range sub.EventsAvailable() {
+		for {
+			events, err := sub.GetEvents()
+			if !assert.NoError(t, err, "GetEvents should not return an error") {
+				return nil, fmt.Errorf("GetEvents returned error: %v", err)
 			}
-			for {
-				events, err := sub.GetEvents()
-				if !assert.NoError(t, err, "GetEvents should not return an error") {
-					return nil, fmt.Errorf("GetEvents returned error: %v", err)
+			if count == numEvents {
+				if !assert.Nil(t, events, "events should be nil when count is reached") {
+					return nil, fmt.Errorf("events should be nil when count is reached")
 				}
-				if count == numEvents {
-					if !assert.Nil(t, events, "events should be nil when count is reached") {
-						return nil, fmt.Errorf("events should be nil when count is reached")
-					}
-				} else {
-					if !assert.NotNil(t, events, "events should not be nil if count is not reached %v/%v", count, numEvents) {
-						return nil, fmt.Errorf("events should not be nil")
-					}
+			} else {
+				if !assert.NotNil(t, events, "events should not be nil if count is not reached %v/%v", count, numEvents) {
+					return nil, fmt.Errorf("events should not be nil")
 				}
-				if events != nil {
-					eventRecords = append(eventRecords, events...)
-					count += uint(len(events))
-				}
-				if count >= numEvents {
-					break eventLoop
-				}
+			}
+			if events != nil {
+				eventRecords = append(eventRecords, events...)
+				count += uint(len(events))
+			}
+			if count >= numEvents {
+				break eventLoop
 			}
 		}
 	}

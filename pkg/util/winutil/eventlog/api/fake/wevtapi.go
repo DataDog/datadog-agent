@@ -4,6 +4,9 @@
 // Copyright 2023-present Datadog, Inc.
 //go:build windows
 
+// Package fakeevtapi is a fake implementation of the Windows Event Log API intended to be used in tests.
+// It does not make any Windows Event Log API calls.
+// Event rendering is not implemented.
 package fakeevtapi
 
 import (
@@ -20,6 +23,8 @@ import (
 
 // Fake Windows APIs that implement evtapi.API
 
+// EvtSubscribe fake
+// https://learn.microsoft.com/en-us/windows/win32/api/winevt/nf-winevt-evtsubscribe
 func (api *API) EvtSubscribe(
 	SignalEvent evtapi.WaitEventHandle,
 	ChannelPath string,
@@ -90,6 +95,8 @@ func (api *API) EvtSubscribe(
 	return sub.handle, nil
 }
 
+// EvtNext fake
+// https://learn.microsoft.com/en-us/windows/win32/api/winevt/nf-winevt-evtnext
 func (api *API) EvtNext(
 	Session evtapi.EventResultSetHandle,
 	EventsArray []evtapi.EventRecordHandle,
@@ -133,6 +140,8 @@ func (api *API) EvtNext(
 	return eventHandles, nil
 }
 
+// EvtClose fake
+// https://learn.microsoft.com/en-us/windows/win32/api/winevt/nf-winevt-evtclose
 func (api *API) EvtClose(h windows.Handle) {
 	// is handle an event?
 	event, err := api.getEventRecordByHandle(evtapi.EventRecordHandle(h))
@@ -154,8 +163,10 @@ func (api *API) EvtClose(h windows.Handle) {
 	}
 }
 
-// EvtRenderEventXmlText renders EvtRenderEventXml
+// EvtRenderEventXml is a fake of EvtRender with EvtRenderEventXml
 // https://learn.microsoft.com/en-us/windows/win32/api/winevt/nf-winevt-evtrender
+//
+//revive:disable-next-line:var-naming Name is intended to match the Windows API name
 func (api *API) EvtRenderEventXml(Fragment evtapi.EventRecordHandle) ([]uint16, error) {
 	// get event object
 	event, err := api.getEventRecordByHandle(Fragment)
@@ -206,12 +217,15 @@ func (api *API) EvtRenderEventXml(Fragment evtapi.EventRecordHandle) ([]uint16, 
 	return res, nil
 }
 
-// EvtRenderEventXmlText renders EvtRenderEventBookmark
+// EvtRenderBookmark is a fake of EvtRender with EvtRenderEventBookmark
+// not implemented.
 // https://learn.microsoft.com/en-us/windows/win32/api/winevt/nf-winevt-evtrender
 func (api *API) EvtRenderBookmark(Fragment evtapi.EventBookmarkHandle) ([]uint16, error) {
 	return nil, fmt.Errorf("not implemented")
 }
 
+// RegisterEventSource fake
+// https://learn.microsoft.com/en-us/windows/win32/api/winbase/nf-winbase-registereventsourcew
 func (api *API) RegisterEventSource(SourceName string) (evtapi.EventSourceHandle, error) {
 	// find the log the source is registered to
 	for _, log := range api.eventLogs {
@@ -226,6 +240,8 @@ func (api *API) RegisterEventSource(SourceName string) (evtapi.EventSourceHandle
 	return evtapi.EventSourceHandle(0), fmt.Errorf("Event source %s not found", SourceName)
 }
 
+// DeregisterEventSource fake
+// https://learn.microsoft.com/en-us/windows/win32/api/winbase/nf-winbase-deregistereventsource
 func (api *API) DeregisterEventSource(sourceHandle evtapi.EventSourceHandle) error {
 	_, err := api.getEventSourceByHandle(sourceHandle)
 	if err != nil {
@@ -235,6 +251,8 @@ func (api *API) DeregisterEventSource(sourceHandle evtapi.EventSourceHandle) err
 	return nil
 }
 
+// ReportEvent fake
+// https://learn.microsoft.com/en-us/windows/win32/api/winbase/nf-winbase-reporteventw
 func (api *API) ReportEvent(
 	EventLog evtapi.EventSourceHandle,
 	Type uint,
@@ -262,6 +280,7 @@ func (api *API) ReportEvent(
 	return nil
 }
 
+// EvtClearLog fake
 // https://learn.microsoft.com/en-us/windows/win32/api/winevt/nf-winevt-evtclearlog
 func (api *API) EvtClearLog(ChannelPath string) error {
 	// Ensure eventlog exists
@@ -276,8 +295,9 @@ func (api *API) EvtClearLog(ChannelPath string) error {
 	return nil
 }
 
+// EvtCreateBookmark fake
 // https://learn.microsoft.com/en-us/windows/win32/api/winevt/nf-winevt-evtcreatebookmark
-func (api *API) EvtCreateBookmark(BookmarkXml string) (evtapi.EventBookmarkHandle, error) {
+func (api *API) EvtCreateBookmark(BookmarkXML string) (evtapi.EventBookmarkHandle, error) {
 	var b bookmark
 
 	// TODO: parse Xml to get record ID
@@ -287,6 +307,7 @@ func (api *API) EvtCreateBookmark(BookmarkXml string) (evtapi.EventBookmarkHandl
 	return evtapi.EventBookmarkHandle(b.handle), nil
 }
 
+// EvtUpdateBookmark fake
 // https://learn.microsoft.com/en-us/windows/win32/api/winevt/nf-winevt-evtupdatebookmark
 func (api *API) EvtUpdateBookmark(Bookmark evtapi.EventBookmarkHandle, Event evtapi.EventRecordHandle) error {
 	// Get bookmark
@@ -307,24 +328,35 @@ func (api *API) EvtUpdateBookmark(Bookmark evtapi.EventBookmarkHandle, Event evt
 	return nil
 }
 
+// EvtCreateRenderContext fake
+// not implemented.
+// https://learn.microsoft.com/en-us/windows/win32/api/winevt/nf-winevt-evtcreaterendercontext
 func (api *API) EvtCreateRenderContext(ValuePaths []string, Flags uint) (evtapi.EventRenderContextHandle, error) {
 	return evtapi.EventRenderContextHandle(0), fmt.Errorf("not implemented")
 }
 
+// EvtRenderEventValues is a fake of EvtRender with EvtRenderEventValues
+// https://learn.microsoft.com/en-us/windows/win32/api/winevt/nf-winevt-evtrender
 func (api *API) EvtRenderEventValues(Context evtapi.EventRenderContextHandle, Fragment evtapi.EventRecordHandle) (evtapi.EvtVariantValues, error) {
 	return nil, fmt.Errorf("not implemented")
 }
 
+// EvtOpenPublisherMetadata fake
+// not implemented.
+// https://learn.microsoft.com/en-us/windows/win32/api/winevt/nf-winevt-evtopenpublishermetadata
 func (api *API) EvtOpenPublisherMetadata(
-	PublisherId string,
+	PublisherID string,
 	LogFilePath string) (evtapi.EventPublisherMetadataHandle, error) {
 	return evtapi.EventPublisherMetadataHandle(0), fmt.Errorf("not implemented")
 }
 
+// EvtFormatMessage fake
+// not implemented.
+// https://learn.microsoft.com/en-us/windows/win32/api/winevt/nf-winevt-evtformatmessage
 func (api *API) EvtFormatMessage(
 	PublisherMetadata evtapi.EventPublisherMetadataHandle,
 	Event evtapi.EventRecordHandle,
-	MessageId uint,
+	MessageID uint,
 	Values evtapi.EvtVariantValues,
 	Flags uint) (string, error) {
 	return "", fmt.Errorf("not implemented")

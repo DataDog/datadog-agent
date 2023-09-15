@@ -4,6 +4,7 @@
 // Copyright 2023-present Datadog, Inc.
 //go:build windows
 
+// Package evtbookmark provides helpers for working with Windows Event Log Bookmarks
 package evtbookmark
 
 import (
@@ -14,6 +15,8 @@ import (
 	"golang.org/x/sys/windows"
 )
 
+// Bookmark is an interface for handling Windows Event Log Bookmarks
+// https://learn.microsoft.com/en-us/windows/win32/wes/bookmarking-events
 type Bookmark interface {
 	Handle() evtapi.EventBookmarkHandle
 	Update(evtapi.EventRecordHandle) error
@@ -27,8 +30,10 @@ type bookmark struct {
 	bookmarkHandle evtapi.EventBookmarkHandle
 }
 
+// Option type for option pattern for New bookmark constructor
 type Option func(*bookmark) error
 
+// New constructs a new Bookmark
 func New(options ...Option) (*bookmark, error) {
 	var b bookmark
 
@@ -54,6 +59,7 @@ func New(options ...Option) (*bookmark, error) {
 	return &b, nil
 }
 
+// WithWindowsEventLogAPI sets the API implementation used by the bookmark
 func WithWindowsEventLogAPI(api evtapi.API) Option {
 	return func(b *bookmark) error {
 		b.eventLogAPI = api
@@ -61,6 +67,7 @@ func WithWindowsEventLogAPI(api evtapi.API) Option {
 	}
 }
 
+// FromFile loads a rendered bookmark from a file path
 func FromFile(bookmarkPath string) Option {
 	return func(b *bookmark) error {
 		if b.eventLogAPI == nil {
@@ -78,6 +85,7 @@ func FromFile(bookmarkPath string) Option {
 	}
 }
 
+// FromXML loads a rendered bookmark
 func FromXML(bookmarkXML string) Option {
 	return func(b *bookmark) error {
 		if b.eventLogAPI == nil {
@@ -96,10 +104,12 @@ func FromXML(bookmarkXML string) Option {
 	}
 }
 
+// Handle returns the Windows API handle of the bookmark
 func (b *bookmark) Handle() evtapi.EventBookmarkHandle {
 	return b.bookmarkHandle
 }
 
+// Update the bookmark to the position of the event record for eventHandle
 func (b *bookmark) Update(eventHandle evtapi.EventRecordHandle) error {
 	if b.eventLogAPI == nil {
 		return fmt.Errorf("event log API not set")
@@ -110,6 +120,7 @@ func (b *bookmark) Update(eventHandle evtapi.EventRecordHandle) error {
 	return b.eventLogAPI.EvtUpdateBookmark(b.bookmarkHandle, eventHandle)
 }
 
+// Render the bookmark to an XML string
 func (b *bookmark) Render() (string, error) {
 	if b.eventLogAPI == nil {
 		return "", fmt.Errorf("event log API not set")
@@ -121,7 +132,7 @@ func (b *bookmark) Render() (string, error) {
 	buf, err := b.eventLogAPI.EvtRenderBookmark(b.bookmarkHandle)
 	if err != nil {
 		return "", err
-	} else if buf == nil || len(buf) == 0 {
+	} else if len(buf) == 0 {
 		return "", fmt.Errorf("Bookmark is empty")
 	}
 
@@ -129,6 +140,7 @@ func (b *bookmark) Render() (string, error) {
 	return windows.UTF16ToString(buf), nil
 }
 
+// Close this bookmark and release resources used.
 func (b *bookmark) Close() {
 	if b.eventLogAPI == nil {
 		return

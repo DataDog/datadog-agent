@@ -8,7 +8,6 @@ package eventlog_test
 
 import (
 	"fmt"
-	"testing"
 
 	"golang.org/x/sys/windows"
 	"golang.org/x/sys/windows/registry"
@@ -19,35 +18,36 @@ import (
 
 const (
 	eventLogRootKey = `SYSTEM\CurrentControlSet\Services\EventLog`
+	// WindowsAPIName identifies this API in GetAPITesterByName
+	WindowsAPIName = "Windows"
 )
 
 // WindowsAPITester uses the real Windows EventLog APIs
 // and provides utilities to the test framework that will modify
 // the host system (e.g. install event log source, generate events).
 type WindowsAPITester struct {
-	t           testing.TB
 	eventlogapi *winevtapi.API
 }
 
-func NewWindowsAPITester(t testing.TB) *WindowsAPITester {
+// NewWindowsAPITester constructs a new API tester for the Windows Event Log API
+func NewWindowsAPITester() *WindowsAPITester {
 	var ti WindowsAPITester
-	ti.t = t
 	ti.eventlogapi = winevtapi.New()
 	return &ti
 }
 
+// Name returns the name that identifies this tester for use by GetAPITesterByName
 func (ti *WindowsAPITester) Name() string {
-	return "Windows"
+	return WindowsAPIName
 }
 
-func (ti *WindowsAPITester) T() testing.TB {
-	return ti.t
-}
-
+// API returns the Windows API
 func (ti *WindowsAPITester) API() evtapi.API {
 	return ti.eventlogapi
 }
 
+// InstallChannel adds a new event log.
+// New event logs are created by creating registry keys.
 func (ti *WindowsAPITester) InstallChannel(channel string) error {
 	// Open EventLog registry key
 	rootKey, err := registry.OpenKey(registry.LOCAL_MACHINE, channelRootKey(), registry.CREATE_SUB_KEY)
@@ -73,6 +73,10 @@ func (ti *WindowsAPITester) InstallChannel(channel string) error {
 	return nil
 }
 
+// InstallSource adds a new source to an event log.
+// New sources are created by creating registry keys.
+// eventcreate.exe is used for the EventMessageFile because it has a generic message
+// format that enables EvtFormatMessage to succeed
 func (ti *WindowsAPITester) InstallSource(channel string, source string) error {
 	// Open channel key
 	channelKey, err := registry.OpenKey(registry.LOCAL_MACHINE, channelRegistryKey(channel), registry.CREATE_SUB_KEY)
@@ -88,7 +92,6 @@ func (ti *WindowsAPITester) InstallSource(channel string, source string) error {
 	}
 	defer sourceKey.Close()
 
-	// eventcreate.exe is used because it has a generic message format that enabled EvtFormatMessage to succeed
 	err = sourceKey.SetExpandStringValue("EventMessageFile", `%SystemRoot%\System32\eventcreate.exe`)
 	if err != nil {
 		return err
@@ -101,6 +104,8 @@ func (ti *WindowsAPITester) InstallSource(channel string, source string) error {
 	return nil
 }
 
+// RemoveChannel removes an event log.
+// Event logs are removed by deleting registry keys.
 func (ti *WindowsAPITester) RemoveChannel(channel string) error {
 	// Open EventLog registry key
 	rootKey, err := registry.OpenKey(registry.LOCAL_MACHINE, channelRootKey(), registry.CREATE_SUB_KEY)
@@ -113,6 +118,8 @@ func (ti *WindowsAPITester) RemoveChannel(channel string) error {
 	return registry.DeleteKey(rootKey, channel)
 }
 
+// RemoveSource removes a source from an event log channel.
+// Sources are removed by deleting registry keys.
 func (ti *WindowsAPITester) RemoveSource(channel string, source string) error {
 	// Open channel key
 	channelKey, err := registry.OpenKey(registry.LOCAL_MACHINE, channelRegistryKey(channel), registry.CREATE_SUB_KEY)
@@ -125,6 +132,7 @@ func (ti *WindowsAPITester) RemoveSource(channel string, source string) error {
 	return registry.DeleteKey(channelKey, source)
 }
 
+// GenerateEvents creates numEvents new event records
 func (ti *WindowsAPITester) GenerateEvents(channelName string, numEvents uint) error {
 
 	sourceHandle, err := ti.eventlogapi.RegisterEventSource(channelName)
@@ -137,7 +145,7 @@ func (ti *WindowsAPITester) GenerateEvents(channelName string, numEvents uint) e
 	// Use LocalSystem for the SID
 	sid, _ := windows.CreateWellKnownSid(windows.WinLocalSystemSid)
 
-	for i := uint(0); i < numEvents; i += 1 {
+	for i := uint(0); i < numEvents; i++ {
 		err := ti.eventlogapi.ReportEvent(
 			sourceHandle,
 			windows.EVENTLOG_INFORMATION_TYPE,

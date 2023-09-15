@@ -88,7 +88,6 @@ outerLoop:
 			}
 		}
 	}
-
 }
 
 // Example usage of the eventlog utility library to render the entire event as XML

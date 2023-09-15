@@ -39,14 +39,18 @@ var (
 	reportEvent           = advapi32.NewProc("ReportEventW")
 )
 
+// API implements Golang wrappers for Windows Event Log API methods
+// https://learn.microsoft.com/en-us/windows/win32/wes/windows-event-log-functions
 type API struct{}
 
+// New returns a new Windows Event Log API
 func New() *API {
 	var api API
 	return &api
 }
 
-// Pass returned handle to EvtClose
+// EvtSubscribe wrapper.
+// Must pass the returned handle to EvtClose when finished using the handle.
 // https://learn.microsoft.com/en-us/windows/win32/api/winevt/nf-winevt-evtsubscribe
 func (api *API) EvtSubscribe(
 	SignalEvent evtapi.WaitEventHandle,
@@ -83,7 +87,8 @@ func (api *API) EvtSubscribe(
 	return evtapi.EventResultSetHandle(r1), nil
 }
 
-// Must call EvtClose on every handle returned
+// EvtNext wrapper.
+// Must pass on every handle returned to EvtClose when finished using the handle.
 // https://learn.microsoft.com/en-us/windows/win32/api/winevt/nf-winevt-evtnext
 func (api *API) EvtNext(
 	Session evtapi.EventResultSetHandle,
@@ -92,7 +97,6 @@ func (api *API) EvtNext(
 	Timeout uint) ([]evtapi.EventRecordHandle, error) {
 
 	var Returned uint32
-	Returned = 0
 
 	// Fill array
 	r1, _, lastErr := evtNext.Call(
@@ -113,6 +117,7 @@ func (api *API) EvtNext(
 	return EventsArray[:Returned], nil
 }
 
+// EvtClose wrapper
 // https://learn.microsoft.com/en-us/windows/win32/api/winevt/nf-winevt-evtclose
 func (api *API) EvtClose(h windows.Handle) {
 	if h != windows.Handle(0) {
@@ -120,16 +125,17 @@ func (api *API) EvtClose(h windows.Handle) {
 	}
 }
 
+// EvtCreateBookmark wrapper
 // https://learn.microsoft.com/en-us/windows/win32/api/winevt/nf-winevt-evtcreatebookmark
-func (api *API) EvtCreateBookmark(BookmarkXml string) (evtapi.EventBookmarkHandle, error) {
-	var bookmarkXml *uint16
+func (api *API) EvtCreateBookmark(BookmarkXML string) (evtapi.EventBookmarkHandle, error) {
+	var bookmarkXML *uint16
 
-	bookmarkXml, err := winutil.UTF16PtrOrNilFromString(BookmarkXml)
+	bookmarkXML, err := winutil.UTF16PtrOrNilFromString(BookmarkXML)
 	if err != nil {
 		return evtapi.EventBookmarkHandle(0), err
 	}
 
-	r1, _, lastErr := evtCreateBookmark.Call(uintptr(unsafe.Pointer(bookmarkXml)))
+	r1, _, lastErr := evtCreateBookmark.Call(uintptr(unsafe.Pointer(bookmarkXML)))
 	// EvtCreateBookmark returns NULL on error
 	if r1 == 0 {
 		return evtapi.EventBookmarkHandle(0), lastErr
@@ -138,6 +144,7 @@ func (api *API) EvtCreateBookmark(BookmarkXml string) (evtapi.EventBookmarkHandl
 	return evtapi.EventBookmarkHandle(r1), nil
 }
 
+// EvtUpdateBookmark wrapper
 // https://learn.microsoft.com/en-us/windows/win32/api/winevt/nf-winevt-evtupdatebookmark
 func (api *API) EvtUpdateBookmark(Bookmark evtapi.EventBookmarkHandle, Event evtapi.EventRecordHandle) error {
 	r1, _, lastErr := evtUpdateBookmark.Call(uintptr(Bookmark), uintptr(Event))
@@ -149,6 +156,7 @@ func (api *API) EvtUpdateBookmark(Bookmark evtapi.EventBookmarkHandle, Event evt
 	return nil
 }
 
+// EvtCreateRenderContext wrapper
 // https://learn.microsoft.com/en-us/windows/win32/api/winevt/nf-winevt-evtcreaterendercontext
 func (api *API) EvtCreateRenderContext(ValuePaths []string, Flags uint) (evtapi.EventRenderContextHandle, error) {
 	var err error
@@ -232,18 +240,21 @@ func evtRenderText(
 	return Buffer, nil
 }
 
-// EvtRenderEventXmlText renders EvtRenderEventXml
+// EvtRenderEventXml wraps EvtRender with EvtRenderEventXml
 // https://learn.microsoft.com/en-us/windows/win32/api/winevt/nf-winevt-evtrender
+//
+//revive:disable-next-line:var-naming Name is intended to match the Windows API name
 func (api *API) EvtRenderEventXml(Fragment evtapi.EventRecordHandle) ([]uint16, error) {
 	return evtRenderText(windows.Handle(Fragment), evtapi.EvtRenderEventXml)
 }
 
-// EvtRenderEventXmlText renders EvtRenderBookmark
+// EvtRenderBookmark wraps EvtRender with EvtRenderBookmark
 // https://learn.microsoft.com/en-us/windows/win32/api/winevt/nf-winevt-evtrender
 func (api *API) EvtRenderBookmark(Fragment evtapi.EventBookmarkHandle) ([]uint16, error) {
 	return evtRenderText(windows.Handle(Fragment), evtapi.EvtRenderBookmark)
 }
 
+// RegisterEventSource wrapper
 // https://learn.microsoft.com/en-us/windows/win32/api/winbase/nf-winbase-registereventsourcew
 func (api *API) RegisterEventSource(SourceName string) (evtapi.EventSourceHandle, error) {
 	sourceName, err := winutil.UTF16PtrOrNilFromString(SourceName)
@@ -262,6 +273,7 @@ func (api *API) RegisterEventSource(SourceName string) (evtapi.EventSourceHandle
 	return evtapi.EventSourceHandle(r1), nil
 }
 
+// DeregisterEventSource wrapper
 // https://learn.microsoft.com/en-us/windows/win32/api/winbase/nf-winbase-deregistereventsource
 func (api *API) DeregisterEventSource(EventLog evtapi.EventSourceHandle) error {
 	r1, _, lastErr := deregisterEventSource.Call(uintptr(EventLog))
@@ -273,6 +285,7 @@ func (api *API) DeregisterEventSource(EventLog evtapi.EventSourceHandle) error {
 	return nil
 }
 
+// ReportEvent wrapper
 // https://learn.microsoft.com/en-us/windows/win32/api/winbase/nf-winbase-reporteventw
 func (api *API) ReportEvent(
 	EventLog evtapi.EventSourceHandle,
@@ -321,6 +334,7 @@ func (api *API) ReportEvent(
 	return nil
 }
 
+// EvtClearLog wrapper
 // https://learn.microsoft.com/en-us/windows/win32/api/winevt/nf-winevt-evtclearlog
 func (api *API) EvtClearLog(ChannelPath string) error {
 	channelPath, err := winutil.UTF16PtrOrNilFromString(ChannelPath)
@@ -341,11 +355,13 @@ func (api *API) EvtClearLog(ChannelPath string) error {
 	return nil
 }
 
+// EvtOpenPublisherMetadata wrapper
+// https://learn.microsoft.com/en-us/windows/win32/api/winevt/nf-winevt-evtopenpublishermetadata
 func (api *API) EvtOpenPublisherMetadata(
-	PublisherId string,
+	PublisherID string,
 	LogFilePath string) (evtapi.EventPublisherMetadataHandle, error) {
 
-	publisherId, err := windows.UTF16PtrFromString(PublisherId)
+	publisherID, err := windows.UTF16PtrFromString(PublisherID)
 	if err != nil {
 		return evtapi.EventPublisherMetadataHandle(0), err
 	}
@@ -357,7 +373,7 @@ func (api *API) EvtOpenPublisherMetadata(
 
 	r1, _, lastErr := evtOpenPublisherMetadata.Call(
 		uintptr(0), // local computer only
-		uintptr(unsafe.Pointer(publisherId)),
+		uintptr(unsafe.Pointer(publisherID)),
 		uintptr(unsafe.Pointer(logFilePath)),
 		uintptr(0), // use current locale
 		uintptr(0)) // reserved must be 0
@@ -369,10 +385,12 @@ func (api *API) EvtOpenPublisherMetadata(
 	return evtapi.EventPublisherMetadataHandle(r1), nil
 }
 
+// EvtFormatMessage wrapper
+// https://learn.microsoft.com/en-us/windows/win32/api/winevt/nf-winevt-evtformatmessage
 func (api *API) EvtFormatMessage(
 	PublisherMetadata evtapi.EventPublisherMetadataHandle,
 	Event evtapi.EventRecordHandle,
-	MessageId uint,
+	MessageID uint,
 	Values evtapi.EvtVariantValues,
 	Flags uint) (string, error) {
 
@@ -381,7 +399,7 @@ func (api *API) EvtFormatMessage(
 	r1, _, lastErr := evtFormatMessage.Call(
 		uintptr(PublisherMetadata),
 		uintptr(Event),
-		uintptr(MessageId),
+		uintptr(MessageID),
 		uintptr(0),
 		uintptr(0),
 		uintptr(Flags),
@@ -403,7 +421,7 @@ func (api *API) EvtFormatMessage(
 	r1, _, lastErr = evtFormatMessage.Call(
 		uintptr(PublisherMetadata),
 		uintptr(Event),
-		uintptr(MessageId),
+		uintptr(MessageID),
 		uintptr(0),
 		uintptr(0),
 		uintptr(Flags),

@@ -151,8 +151,8 @@ func BenchmarkTestGetEventHandles(b *testing.B) {
 				}
 				// TODO: Use b.Elapsed in go1.20
 				elapsed := time.Since(startTime)
-				total_events := float64(v) * float64(b.N)
-				b.Logf("%.2f events/s (%.3fs)", total_events/elapsed.Seconds(), elapsed.Seconds())
+				totalEvents := float64(v) * float64(b.N)
+				b.Logf("%.2f events/s (%.3fs)", totalEvents/elapsed.Seconds(), elapsed.Seconds())
 			})
 		}
 	}
@@ -230,8 +230,8 @@ func BenchmarkTestRenderEventXml(b *testing.B) {
 				}
 				// TODO: Use b.Elapsed in go1.20
 				elapsed := time.Since(startTime)
-				total_events := float64(v) * float64(b.N)
-				b.Logf("%.2f events/s (%.3fs)", total_events/elapsed.Seconds(), elapsed.Seconds())
+				totalEvents := float64(v) * float64(b.N)
+				b.Logf("%.2f events/s (%.3fs)", totalEvents/elapsed.Seconds(), elapsed.Seconds())
 			})
 		}
 	}
@@ -276,8 +276,8 @@ func BenchmarkTestFormatEventMessage(b *testing.B) {
 				}
 				// TODO: Use b.Elapsed in go1.20
 				elapsed := time.Since(startTime)
-				total_events := float64(v) * float64(b.N)
-				b.Logf("%.2f events/s (%.3fs)", total_events/elapsed.Seconds(), elapsed.Seconds())
+				totalEvents := float64(v) * float64(b.N)
+				b.Logf("%.2f events/s (%.3fs)", totalEvents/elapsed.Seconds(), elapsed.Seconds())
 			})
 		}
 	}

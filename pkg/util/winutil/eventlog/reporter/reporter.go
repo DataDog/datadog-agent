@@ -4,6 +4,7 @@
 // Copyright 2023-present Datadog, Inc.
 //go:build windows
 
+// Package evtreporter provides helpers for writing events to the Windows Event Log
 package evtreporter
 
 import (
@@ -14,6 +15,7 @@ import (
 	"golang.org/x/sys/windows"
 )
 
+// Reporter is an interface for writing an event to a Windows Event Log
 type Reporter interface {
 	ReportEvent() evtapi.EventBookmarkHandle
 	Close()
@@ -24,6 +26,7 @@ type reporter struct {
 	logHandle   evtapi.EventSourceHandle
 }
 
+// New constructs a new Reporter
 func New(channelName string, api evtapi.API) (*reporter, error) {
 	var r reporter
 

@@ -17,6 +17,9 @@ import (
 
 // backing datastructures for the Fake API
 
+// API is a fake implementation of the Windows Event Log API intended to be used in tests.
+// It does not make any Windows Event Log API calls.
+// Event rendering is not implemented.
 type API struct {
 	eventLogs map[string]*eventLog
 
@@ -73,6 +76,7 @@ type bookmark struct {
 	eventRecordID uint
 }
 
+// New returns a new Windows Event Log API fake
 func New() *API {
 	var api API
 
