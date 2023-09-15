@@ -199,7 +199,7 @@ func isApmInstrumentationEnabled(namespace string) bool {
 
 // shouldInject returns true if Admission Controller should inject standard tags, APM configs and APM libraries
 func shouldInject(pod *corev1.Pod) bool {
-	// If a pod explicitely sets the label admission.datadoghq.com/enabled, make a decision based on its value
+	// If a pod explicitly sets the label admission.datadoghq.com/enabled, make a decision based on its value
 	if val, found := pod.GetLabels()[admCommon.EnabledLabelKey]; found {
 		switch val {
 		case "true":
