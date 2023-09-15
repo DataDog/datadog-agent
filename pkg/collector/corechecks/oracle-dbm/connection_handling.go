@@ -113,50 +113,52 @@ func (c *Check) Connect() (*sqlx.DB, error) {
 	}
 
 	// determine hosting type
-	ht := hostingType{value: selfManaged, valid: false}
-
-	// is RDS?
 	if !c.hostingType.valid {
-		// Is RDS?
-		if c.filePath == "" {
-			r := db.QueryRow("SELECT SUBSTR(name, 1, 10) path FROM v$datafile WHERE rownum = 1")
-			var path string
-			err = r.Scan(&path)
-			if err != nil {
-				return nil, fmt.Errorf("failed to query path: %w", err)
-			}
-			if path == "/rdsdbdata" {
-				ht.value = rds
-			}
-		}
-	}
+		ht := hostingType{value: selfManaged, valid: false}
 
-	// is OCI?
-	if ht.value == selfManaged {
-		var cloudRows int
-		if connectionType == "PDB" {
-			c.connectedToPdb = true
-			r := db.QueryRow("select 1 from v$pdbs where cloud_identity like '%oraclecloud%' and rownum = 1")
-			err := r.Scan(&cloudRows)
-			if err != nil {
-				log.Errorf("failed to query v$pdbs: %s", err)
-			}
-			if cloudRows == 1 {
-				r := db.QueryRow("select 1 from cdb_services where name like '%oraclecloud%' and rownum = 1")
-				err := r.Scan(&cloudRows)
+		// is RDS?
+		if ht.value == selfManaged {
+			// Is RDS?
+			if c.filePath == "" {
+				r := db.QueryRow("SELECT SUBSTR(name, 1, 10) path FROM v$datafile WHERE rownum = 1")
+				var path string
+				err = r.Scan(&path)
 				if err != nil {
-					log.Errorf("failed to query cdb_services: %s", err)
+					return nil, fmt.Errorf("failed to query path: %w", err)
+				}
+				if path == "/rdsdbdata" {
+					ht.value = rds
 				}
 			}
 		}
-		if cloudRows == 1 {
-			ht.value = oci
-		}
-	}
 
-	c.tags = append(c.tags, fmt.Sprintf("hosting_type:%s", ht.value))
-	ht.valid = true
-	c.hostingType = ht
+		// is OCI?
+		if ht.value == selfManaged {
+			var cloudRows int
+			if connectionType == "PDB" {
+				c.connectedToPdb = true
+				r := db.QueryRow("select 1 from v$pdbs where cloud_identity like '%oraclecloud%' and rownum = 1")
+				err := r.Scan(&cloudRows)
+				if err != nil {
+					log.Errorf("failed to query v$pdbs: %s", err)
+				}
+				if cloudRows == 1 {
+					r := db.QueryRow("select 1 from cdb_services where name like '%oraclecloud%' and rownum = 1")
+					err := r.Scan(&cloudRows)
+					if err != nil {
+						log.Errorf("failed to query cdb_services: %s", err)
+					}
+				}
+			}
+			if cloudRows == 1 {
+				ht.value = oci
+			}
+		}
+
+		c.tags = append(c.tags, fmt.Sprintf("hosting_type:%s", ht.value))
+		ht.valid = true
+		c.hostingType = ht
+	}
 
 	if c.config.AgentSQLTrace.Enabled {
 		db.SetMaxOpenConns(1)
