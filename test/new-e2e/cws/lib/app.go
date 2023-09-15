@@ -9,8 +9,8 @@ import (
 	"context"
 	"time"
 
-	"github.com/DataDog/datadog-agent/test/new-e2e/runner"
-	"github.com/DataDog/datadog-agent/test/new-e2e/runner/parameters"
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/runner"
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/runner/parameters"
 	"github.com/DataDog/datadog-api-client-go/api/v2/datadog"
 )
 
