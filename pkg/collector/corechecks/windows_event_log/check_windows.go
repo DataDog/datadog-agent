@@ -13,11 +13,11 @@ import (
 	"regexp"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/aggregator"
+	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
-	"github.com/DataDog/datadog-agent/pkg/metrics"
+	agentEvent "github.com/DataDog/datadog-agent/pkg/metrics/event"
 	"github.com/DataDog/datadog-agent/pkg/persistentcache"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 	"github.com/DataDog/datadog-agent/pkg/util/winutil/eventlog/api"
@@ -43,7 +43,7 @@ type Check struct {
 	excluded_messages []*regexp.Regexp
 
 	// event metrics
-	event_priority metrics.EventPriority
+	event_priority agentEvent.EventPriority
 
 	// event log
 	sub                 evtsubscribe.PullSubscription
@@ -77,7 +77,7 @@ func (c *Check) Run() error {
 	return nil
 }
 
-func (c *Check) fetchEvents(sender aggregator.Sender) error {
+func (c *Check) fetchEvents(sender sender.Sender) error {
 	var lastEvent *evtapi.EventRecord
 	eventsSinceLastBookmark := 0
 
@@ -135,9 +135,9 @@ func (c *Check) fetchEvents(sender aggregator.Sender) error {
 	return nil
 }
 
-func (c *Check) submitEvent(sender aggregator.Sender, event *evtapi.EventRecord) error {
+func (c *Check) submitEvent(sender sender.Sender, event *evtapi.EventRecord) error {
 	// Base event
-	ddevent := metrics.Event{
+	ddevent := agentEvent.Event{
 		Priority:       c.event_priority,
 		SourceTypeName: sourceTypeName,
 		Tags:           []string{},
@@ -186,7 +186,7 @@ func (c *Check) updateBookmark(event *evtapi.EventRecord) error {
 	return nil
 }
 
-func alertTypeFromLevel(level uint64) (metrics.EventAlertType, error) {
+func alertTypeFromLevel(level uint64) (agentEvent.EventAlertType, error) {
 	// https://docs.microsoft.com/en-us/windows/win32/wes/eventmanifestschema-leveltype-complextype#remarks
 	// https://learn.microsoft.com/en-us/windows/win32/wes/eventmanifestschema-eventdefinitiontype-complextype#attributes
 	// > If you do not specify a level, the event descriptor will contain a zero for level.
@@ -205,13 +205,13 @@ func alertTypeFromLevel(level uint64) (metrics.EventAlertType, error) {
 	case 5:
 		alertType = "info"
 	default:
-		return metrics.EventAlertTypeInfo, fmt.Errorf("invalid event level: '%d'", level)
+		return agentEvent.EventAlertTypeInfo, fmt.Errorf("invalid event level: '%d'", level)
 	}
 
-	return metrics.GetAlertTypeFromString(alertType)
+	return agentEvent.GetAlertTypeFromString(alertType)
 }
 
-func (c *Check) renderEventValues(winevent *evtapi.EventRecord, ddevent *metrics.Event) error {
+func (c *Check) renderEventValues(winevent *evtapi.EventRecord, ddevent *agentEvent.Event) error {
 	// Render the values
 	vals, err := c.evtapi.EvtRenderEventValues(c.systemRenderContext, winevent.EventRecordHandle)
 	if err != nil {
@@ -241,7 +241,7 @@ func (c *Check) renderEventValues(winevent *evtapi.EventRecord, ddevent *metrics
 		alertType, err := alertTypeFromLevel(level)
 		if err != nil {
 			// if not a valid level, default to error
-			alertType, err = metrics.GetAlertTypeFromString("error")
+			alertType, err = agentEvent.GetAlertTypeFromString("error")
 		}
 		if err == nil {
 			ddevent.AlertType = alertType
@@ -286,7 +286,7 @@ func (c *Check) renderEventValues(winevent *evtapi.EventRecord, ddevent *metrics
 	return nil
 }
 
-func (c *Check) renderEventMessage(providerName string, winevent *evtapi.EventRecord, ddevent *metrics.Event) error {
+func (c *Check) renderEventMessage(providerName string, winevent *evtapi.EventRecord, ddevent *agentEvent.Event) error {
 	pm, err := c.evtapi.EvtOpenPublisherMetadata(providerName, "")
 	if err != nil {
 		return err
@@ -432,7 +432,7 @@ func compileRegexPatterns(patterns []string) ([]*regexp.Regexp, error) {
 
 func (c *Check) validateConfig() error {
 	var err error
-	c.event_priority, err = metrics.GetEventPriorityFromString(*c.config.instance.Event_priority)
+	c.event_priority, err = agentEvent.GetEventPriorityFromString(*c.config.instance.Event_priority)
 	if err != nil {
 		return fmt.Errorf("invalid instance config `event_priority`: %v", err)
 	}

@@ -16,7 +16,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/metrics"
+	agentEvent "github.com/DataDog/datadog-agent/pkg/metrics/event"
 	"github.com/DataDog/datadog-agent/pkg/util/winutil/eventlog/reporter"
 	"github.com/DataDog/datadog-agent/pkg/util/winutil/eventlog/test"
 
@@ -302,7 +302,7 @@ func (s *GetEventsTestSuite) TestLevels() {
 		s.Run(tc.name, func() {
 			defer resetSender(s.sender)
 
-			alertType, err := metrics.GetAlertTypeFromString(tc.alertType)
+			alertType, err := agentEvent.GetAlertTypeFromString(tc.alertType)
 			require.NoError(s.T(), err)
 
 			instanceConfig := []byte(fmt.Sprintf(`
@@ -320,7 +320,7 @@ start: now
 			require.NoError(s.T(), err)
 
 			s.sender.On("Commit").Return().Once()
-			s.sender.On("Event", mock.MatchedBy(func(e metrics.Event) bool {
+			s.sender.On("Event", mock.MatchedBy(func(e agentEvent.Event) bool {
 				return e.AlertType == alertType
 			})).Once()
 
@@ -351,7 +351,7 @@ func (s *GetEventsTestSuite) TestPriority() {
 		s.Run(tc.name, func() {
 			defer resetSender(s.sender)
 
-			eventPriority, err := metrics.GetEventPriorityFromString(tc.eventPriority)
+			eventPriority, err := agentEvent.GetEventPriorityFromString(tc.eventPriority)
 			require.NoError(s.T(), err)
 
 			instanceConfig := []byte(fmt.Sprintf(`
@@ -373,7 +373,7 @@ start: now
 			require.NoError(s.T(), err)
 
 			s.sender.On("Commit").Return().Once()
-			s.sender.On("Event", mock.MatchedBy(func(e metrics.Event) bool {
+			s.sender.On("Event", mock.MatchedBy(func(e agentEvent.Event) bool {
 				return e.Priority == eventPriority
 			})).Once()
 
@@ -410,7 +410,7 @@ query: |
 	matchstring := "match this string"
 	nomatchstring := "should not match"
 	s.sender.On("Commit").Return().Once()
-	s.sender.On("Event", mock.MatchedBy(func(e metrics.Event) bool {
+	s.sender.On("Event", mock.MatchedBy(func(e agentEvent.Event) bool {
 		return assert.Contains(s.T(), e.Text, matchstring, "reported events should match EventID=1000")
 	})).Once()
 
@@ -452,7 +452,7 @@ filters:
 	matchstring := "match this string"
 	nomatchstring := "should not match"
 	s.sender.On("Commit").Return().Once()
-	s.sender.On("Event", mock.MatchedBy(func(e metrics.Event) bool {
+	s.sender.On("Event", mock.MatchedBy(func(e agentEvent.Event) bool {
 		return assert.Contains(s.T(), e.Text, matchstring, "reported events should match EventID=1000")
 	})).Once()
 
@@ -515,7 +515,7 @@ included_messages:
 	matchstring := "match this string"
 	nomatchstring := "should not match"
 	s.sender.On("Commit").Return().Once()
-	s.sender.On("Event", mock.MatchedBy(func(e metrics.Event) bool {
+	s.sender.On("Event", mock.MatchedBy(func(e agentEvent.Event) bool {
 		return assert.Contains(s.T(), e.Text, matchstring, "should only report match string")
 	})).Once()
 
@@ -551,7 +551,7 @@ excluded_messages:
 	matchstring := "match this string"
 	nomatchstring := "should not match"
 	s.sender.On("Commit").Return().Once()
-	s.sender.On("Event", mock.MatchedBy(func(e metrics.Event) bool {
+	s.sender.On("Event", mock.MatchedBy(func(e agentEvent.Event) bool {
 		return assert.NotContains(s.T(), e.Text, matchstring, "should not report match string")
 	})).Once()
 
@@ -635,7 +635,7 @@ tag_event_id: %t
 			defer check.Cancel()
 
 			s.sender.On("Commit").Return().Once()
-			s.sender.On("Event", mock.MatchedBy(func(e metrics.Event) bool {
+			s.sender.On("Event", mock.MatchedBy(func(e agentEvent.Event) bool {
 				if tc.confval {
 					return assert.Contains(s.T(), e.Tags, tc.tag, "Tags should contain the event id")
 				}
@@ -695,7 +695,7 @@ tag_sid: %t
 			defer check.Cancel()
 
 			s.sender.On("Commit").Return().Once()
-			s.sender.On("Event", mock.MatchedBy(func(e metrics.Event) bool {
+			s.sender.On("Event", mock.MatchedBy(func(e agentEvent.Event) bool {
 				if tc.confval {
 					return assert.Contains(s.T(), e.Tags, tc.tag, "Tags should contain the sid/username")
 				}
