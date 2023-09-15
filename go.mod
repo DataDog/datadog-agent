@@ -25,6 +25,7 @@ replace (
 
 replace (
 	github.com/DataDog/datadog-agent/pkg/gohai => ./pkg/gohai
+	github.com/DataDog/datadog-agent/pkg/networkdevice/profile => ./pkg/networkdevice/profile
 	github.com/DataDog/datadog-agent/pkg/obfuscate => ./pkg/obfuscate
 	github.com/DataDog/datadog-agent/pkg/proto => ./pkg/proto
 	github.com/DataDog/datadog-agent/pkg/remoteconfig/state => ./pkg/remoteconfig/state
@@ -305,7 +306,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/internal/endpoints/v2 v2.4.35 // indirect
 	github.com/aws/aws-sdk-go-v2/internal/ini v1.3.35 // indirect
 	github.com/aws/aws-sdk-go-v2/service/ebs v1.15.19 // indirect
-	github.com/aws/aws-sdk-go-v2/service/ec2 v1.117.0
+	github.com/aws/aws-sdk-go-v2/service/ec2 v1.118.0
 	github.com/aws/aws-sdk-go-v2/service/internal/presigned-url v1.9.35 // indirect
 	github.com/aws/aws-sdk-go-v2/service/sso v1.13.6 // indirect
 	github.com/aws/aws-sdk-go-v2/service/ssooidc v1.15.6 // indirect
@@ -403,7 +404,7 @@ require (
 	github.com/knqyf263/go-apk-version v0.0.0-20200609155635-041fdbb8563f // indirect
 	github.com/knqyf263/go-deb-version v0.0.0-20190517075300-09fca494f03d // indirect
 	github.com/knqyf263/go-rpm-version v0.0.0-20220614171824-631e686d1075 // indirect
-	github.com/knqyf263/go-rpmdb v0.0.0-20221030142135-919c8a52f04f // indirect
+	github.com/knqyf263/go-rpmdb v0.0.0-20221030142135-919c8a52f04f
 	github.com/knqyf263/nested v0.0.1 // indirect
 	github.com/liamg/jfather v0.0.7 // indirect
 	github.com/libp2p/go-reuseport v0.2.0 // indirect
@@ -559,6 +560,7 @@ require github.com/lorenzosaino/go-sysctl v0.3.1
 require (
 	github.com/DATA-DOG/go-sqlmock v1.5.0
 	github.com/DataDog/agent-payload/v5 v5.0.96
+	github.com/DataDog/datadog-agent/pkg/networkdevice/profile v0.0.0-20230913122404-c12f437d52a4
 	github.com/DataDog/datadog-agent/pkg/proto v0.48.0-rc.2
 	github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/logs v0.8.0
 	github.com/aquasecurity/trivy v0.0.0-00010101000000-000000000000
