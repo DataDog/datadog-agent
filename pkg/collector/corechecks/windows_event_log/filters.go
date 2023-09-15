@@ -112,7 +112,7 @@ func logicJoinParts(parts []string, op string) string {
 	for _, part := range parts {
 		if len(part) > 0 {
 			newparts[i] = part
-			i += 1
+			i++
 		}
 	}
 	newparts = newparts[:i]

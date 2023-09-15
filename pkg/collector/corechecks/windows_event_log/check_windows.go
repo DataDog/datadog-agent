@@ -5,6 +5,7 @@
 //go:build windows
 // +build windows
 
+// Package evtlog defines a check that reads the Windows Event Log and submits Events
 package evtlog
 
 import (
@@ -39,11 +40,11 @@ type Check struct {
 	core.CheckBase
 	config *Config
 
-	included_messages []*regexp.Regexp
-	excluded_messages []*regexp.Regexp
+	includedMessages []*regexp.Regexp
+	excludedMessages []*regexp.Regexp
 
 	// event metrics
-	event_priority agentEvent.EventPriority
+	eventPriority agentEvent.EventPriority
 
 	// event log
 	sub                 evtsubscribe.PullSubscription
@@ -109,8 +110,8 @@ func (c *Check) fetchEvents(sender sender.Sender) error {
 			_ = c.submitEvent(sender, event)
 
 			// Update bookmark according to bookmark_frequency config
-			eventsSinceLastBookmark += 1
-			if *c.config.instance.Bookmark_frequency > 0 && eventsSinceLastBookmark >= *c.config.instance.Bookmark_frequency {
+			eventsSinceLastBookmark++
+			if *c.config.instance.BookmarkFrequency > 0 && eventsSinceLastBookmark >= *c.config.instance.BookmarkFrequency {
 				err = c.updateBookmark(event)
 				if err != nil {
 					c.Warnf("failed to save bookmark: %v", err)
@@ -138,7 +139,7 @@ func (c *Check) fetchEvents(sender sender.Sender) error {
 func (c *Check) submitEvent(sender sender.Sender, event *evtapi.EventRecord) error {
 	// Base event
 	ddevent := agentEvent.Event{
-		Priority:       c.event_priority,
+		Priority:       c.eventPriority,
 		SourceTypeName: sourceTypeName,
 		Tags:           []string{},
 	}
@@ -263,7 +264,7 @@ func (c *Check) renderEventValues(winevent *evtapi.EventRecord, ddevent *agentEv
 	}
 
 	// Optional: Tag EventID
-	if *c.config.instance.Tag_event_id {
+	if *c.config.instance.TagEventID {
 		eventid, err := vals.UInt(evtapi.EvtSystemEventID)
 		if err == nil {
 			tag := fmt.Sprintf("event_id:%d", eventid)
@@ -272,7 +273,7 @@ func (c *Check) renderEventValues(winevent *evtapi.EventRecord, ddevent *agentEv
 	}
 
 	// Optional: Tag SID
-	if *c.config.instance.Tag_sid {
+	if *c.config.instance.TagSID {
 		sid, err := vals.SID(evtapi.EvtSystemUserID)
 		if err == nil {
 			account, domain, _, err := sid.LookupAccount("")
@@ -304,8 +305,8 @@ func (c *Check) renderEventMessage(providerName string, winevent *evtapi.EventRe
 }
 
 func (c *Check) includeMessage(message string) bool {
-	if len(c.excluded_messages) > 0 {
-		for _, re := range c.excluded_messages {
+	if len(c.excludedMessages) > 0 {
+		for _, re := range c.excludedMessages {
 			if re.MatchString(message) {
 				// exclude takes precedence over include, so we can stop early
 				return false
@@ -313,9 +314,9 @@ func (c *Check) includeMessage(message string) bool {
 		}
 	}
 
-	if len(c.included_messages) > 0 {
+	if len(c.includedMessages) > 0 {
 		// include patterns given, message must match a pattern to be included
-		for _, re := range c.included_messages {
+		for _, re := range c.includedMessages {
 			if re.MatchString(message) {
 				return true
 			}
@@ -338,7 +339,7 @@ func (c *Check) initSubscription() error {
 	// Check persistent cache for bookmark
 	var bookmark evtbookmark.Bookmark
 	bookmarkXML := ""
-	if *c.config.instance.Bookmark_frequency > 0 {
+	if *c.config.instance.BookmarkFrequency > 0 {
 		bookmarkXML, err = persistentcache.Read(c.bookmarkPersistentCacheKey())
 		if err != nil {
 			// persistentcache.Read() does not return error if key does not exist
@@ -367,7 +368,7 @@ func (c *Check) initSubscription() error {
 	c.bookmark = bookmark
 
 	// Batch count
-	opts = append(opts, evtsubscribe.WithEventBatchCount(uint(*c.config.instance.Payload_size)))
+	opts = append(opts, evtsubscribe.WithEventBatchCount(uint(*c.config.instance.PayloadSize)))
 
 	// Create the subscription
 	c.sub = evtsubscribe.NewPullSubscription(
@@ -396,17 +397,17 @@ func (c *Check) Configure(senderManager sender.SenderManager, integrationConfigD
 	c.BuildID(integrationConfigDigest, data, initConfig)
 	err := c.CommonConfigure(senderManager, integrationConfigDigest, initConfig, data, source)
 	if err != nil {
-		return fmt.Errorf("configuraiton error: %v", err)
+		return fmt.Errorf("configuration error: %v", err)
 	}
 
 	// process configuration
-	c.config, err = UnmarshalConfig(data, initConfig)
+	c.config, err = unmarshalConfig(data, initConfig)
 	if err != nil {
-		return fmt.Errorf("configuraiton error: %v", err)
+		return fmt.Errorf("configuration error: %v", err)
 	}
 	err = c.validateConfig()
 	if err != nil {
-		return fmt.Errorf("configuraiton error: %v", err)
+		return fmt.Errorf("configuration error: %v", err)
 	}
 
 	// Start the event subscription
@@ -432,11 +433,11 @@ func compileRegexPatterns(patterns []string) ([]*regexp.Regexp, error) {
 
 func (c *Check) validateConfig() error {
 	var err error
-	c.event_priority, err = agentEvent.GetEventPriorityFromString(*c.config.instance.Event_priority)
+	c.eventPriority, err = agentEvent.GetEventPriorityFromString(*c.config.instance.EventPriority)
 	if err != nil {
 		return fmt.Errorf("invalid instance config `event_priority`: %v", err)
 	}
-	if *c.config.instance.Legacy_mode {
+	if *c.config.instance.LegacyMode {
 		return fmt.Errorf("unsupported configuration: legacy_mode: true")
 	}
 	if len(*c.config.instance.ChannelPath) == 0 {
@@ -449,15 +450,15 @@ func (c *Check) validateConfig() error {
 		return fmt.Errorf("invalid instance config `start`: '%s'", *c.config.instance.Start)
 	}
 
-	if c.config.instance.Included_messages != nil {
-		c.included_messages, err = compileRegexPatterns(c.config.instance.Included_messages)
+	if c.config.instance.IncludedMessages != nil {
+		c.includedMessages, err = compileRegexPatterns(c.config.instance.IncludedMessages)
 		if err != nil {
 			return fmt.Errorf("invalid instance config `included_messages`: %v", err)
 		}
 	}
 
-	if c.config.instance.Excluded_messages != nil {
-		c.excluded_messages, err = compileRegexPatterns(c.config.instance.Excluded_messages)
+	if c.config.instance.ExcludedMessages != nil {
+		c.excludedMessages, err = compileRegexPatterns(c.config.instance.ExcludedMessages)
 		if err != nil {
 			return fmt.Errorf("invalid instance config `excluded_messages`: %v", err)
 		}

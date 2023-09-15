@@ -16,29 +16,29 @@ import (
 
 func TestConfigPrecedence(t *testing.T) {
 	// values that are different from defaults to be used for testing
-	differentPayload_size := 5
-	differentBookmark_frequency := 7
-	differentTag_event_id := true
-	differentTag_sid := true
-	differentEvent_priority := "high"
-	assert.NotEqual(t, defaultConfigPayload_size, differentPayload_size, "Default payload_size changed and test was not updated")
-	assert.NotEqual(t, defaultConfigTag_event_id, differentTag_event_id, "Default tag_event_id changed and test was not updated")
-	assert.NotEqual(t, defaultConfigTag_sid, differentTag_event_id, "Default tag_sid changed and test was not updated")
-	assert.NotEqual(t, defaultConfigEvent_priority, differentEvent_priority, "Default event_priority changed and test was not updated")
+	differentPayloadSize := 5
+	differentBookmarkFrequency := 7
+	differentTagEventID := true
+	differentTagSID := true
+	differentEventPriority := "high"
+	assert.NotEqual(t, defaultConfigPayloadSize, differentPayloadSize, "Default payload_size changed and test was not updated")
+	assert.NotEqual(t, defaultConfigTagEventID, differentTagEventID, "Default tag_event_id changed and test was not updated")
+	assert.NotEqual(t, defaultConfigTagSID, differentTagEventID, "Default tag_sid changed and test was not updated")
+	assert.NotEqual(t, defaultConfigEventPriority, differentEventPriority, "Default event_priority changed and test was not updated")
 
 	//
 	// Assert defaults are applied
 	//
-	config, err := UnmarshalConfig([]byte(""), []byte(""))
+	config, err := unmarshalConfig([]byte(""), []byte(""))
 	if assert.NoError(t, err) {
 		assert.Equal(t, *config.instance.Query, defaultConfigQuery)
 		assert.Equal(t, *config.instance.Start, defaultConfigStart)
 		assert.Equal(t, *config.instance.Timeout, defaultConfigTimeout)
-		assert.Equal(t, *config.instance.Payload_size, defaultConfigPayload_size)
-		assert.Equal(t, *config.instance.Bookmark_frequency, defaultConfigPayload_size)
-		assert.Equal(t, *config.instance.Tag_event_id, defaultConfigTag_event_id)
-		assert.Equal(t, *config.instance.Tag_sid, defaultConfigTag_sid)
-		assert.Equal(t, *config.instance.Event_priority, defaultConfigEvent_priority)
+		assert.Equal(t, *config.instance.PayloadSize, defaultConfigPayloadSize)
+		assert.Equal(t, *config.instance.BookmarkFrequency, defaultConfigPayloadSize)
+		assert.Equal(t, *config.instance.TagEventID, defaultConfigTagEventID)
+		assert.Equal(t, *config.instance.TagSID, defaultConfigTagSID)
+		assert.Equal(t, *config.instance.EventPriority, defaultConfigEventPriority)
 	}
 
 	//
@@ -46,11 +46,11 @@ func TestConfigPrecedence(t *testing.T) {
 	//
 	instanceConfig1 := []byte(fmt.Sprintf(`
 payload_size: %d
-`, differentPayload_size))
-	config, err = UnmarshalConfig(instanceConfig1, []byte(""))
+`, differentPayloadSize))
+	config, err = unmarshalConfig(instanceConfig1, []byte(""))
 	if assert.NoError(t, err) {
-		assert.Equal(t, *config.instance.Payload_size, differentPayload_size)
-		assert.Equal(t, *config.instance.Bookmark_frequency, differentPayload_size)
+		assert.Equal(t, *config.instance.PayloadSize, differentPayloadSize)
+		assert.Equal(t, *config.instance.BookmarkFrequency, differentPayloadSize)
 	}
 
 	//
@@ -59,11 +59,11 @@ payload_size: %d
 	instanceConfig2 := []byte(fmt.Sprintf(`
 payload_size: %d
 bookmark_frequency: %d
-`, differentPayload_size, differentBookmark_frequency))
-	config, err = UnmarshalConfig(instanceConfig2, []byte(""))
+`, differentPayloadSize, differentBookmarkFrequency))
+	config, err = unmarshalConfig(instanceConfig2, []byte(""))
 	if assert.NoError(t, err) {
-		assert.Equal(t, *config.instance.Payload_size, differentPayload_size)
-		assert.Equal(t, *config.instance.Bookmark_frequency, differentBookmark_frequency)
+		assert.Equal(t, *config.instance.PayloadSize, differentPayloadSize)
+		assert.Equal(t, *config.instance.BookmarkFrequency, differentBookmarkFrequency)
 	}
 
 	//
@@ -73,12 +73,12 @@ bookmark_frequency: %d
 tag_event_id: %v
 tag_sid: %v
 event_priority: %s
-`, differentTag_event_id, differentTag_sid, differentEvent_priority))
-	config, err = UnmarshalConfig([]byte(""), initConfig1)
+`, differentTagEventID, differentTagSID, differentEventPriority))
+	config, err = unmarshalConfig([]byte(""), initConfig1)
 	if assert.NoError(t, err) {
-		assert.Equal(t, *config.instance.Tag_event_id, differentTag_event_id)
-		assert.Equal(t, *config.instance.Tag_sid, differentTag_sid)
-		assert.Equal(t, *config.instance.Event_priority, differentEvent_priority)
+		assert.Equal(t, *config.instance.TagEventID, differentTagEventID)
+		assert.Equal(t, *config.instance.TagSID, differentTagSID)
+		assert.Equal(t, *config.instance.EventPriority, differentEventPriority)
 	}
 
 	//
@@ -88,23 +88,23 @@ event_priority: %s
 tag_event_id: %v
 tag_sid: %v
 event_priority: %v
-`, defaultConfigTag_event_id, defaultConfigTag_sid, defaultConfigEvent_priority))
-	config, err = UnmarshalConfig(instanceConfig3, initConfig1)
+`, defaultConfigTagEventID, defaultConfigTagSID, defaultConfigEventPriority))
+	config, err = unmarshalConfig(instanceConfig3, initConfig1)
 	if assert.NoError(t, err) {
-		assert.Equal(t, *config.instance.Tag_event_id, defaultConfigTag_event_id)
-		assert.Equal(t, *config.instance.Tag_sid, defaultConfigTag_sid)
-		assert.Equal(t, *config.instance.Event_priority, defaultConfigEvent_priority)
+		assert.Equal(t, *config.instance.TagEventID, defaultConfigTagEventID)
+		assert.Equal(t, *config.instance.TagSID, defaultConfigTagSID)
+		assert.Equal(t, *config.instance.EventPriority, defaultConfigEventPriority)
 	}
 
 	//
 	// Assert filter sets query when query isn't provided
 	//
-	instanceConfig4 := []byte(fmt.Sprintf(`
+	instanceConfig4 := []byte(`
 filters:
   id:
   - 1000
-`))
-	config, err = UnmarshalConfig(instanceConfig4, []byte(""))
+`)
+	config, err = unmarshalConfig(instanceConfig4, []byte(""))
 	if assert.NoError(t, err) {
 		assert.Equal(t, *config.instance.Query, "*[System[EventID=1000]]")
 	}
@@ -112,13 +112,13 @@ filters:
 	//
 	// Assert query overrides filter
 	//
-	instanceConfig5 := []byte(fmt.Sprintf(`
+	instanceConfig5 := []byte(`
 query: banana
 filters:
   id:
   - 1000
-`))
-	config, err = UnmarshalConfig(instanceConfig5, []byte(""))
+`)
+	config, err = unmarshalConfig(instanceConfig5, []byte(""))
 	if assert.NoError(t, err) {
 		assert.Equal(t, *config.instance.Query, "banana")
 	}

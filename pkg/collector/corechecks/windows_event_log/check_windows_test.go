@@ -125,7 +125,7 @@ func countEvents(check *Check, senderEventCall *mock.Call, numEvents uint) uint 
 	prevEventsCollected := uint(0)
 	if numEvents > 0 {
 		senderEventCall.Run(func(args mock.Arguments) {
-			eventsCollected += 1
+			eventsCollected++
 		})
 	} else {
 		senderEventCall.Unset()
@@ -384,7 +384,7 @@ start: now
 	}
 }
 
-// Tests that the Event Query configuration value succesfully filters event records
+// Tests that the Event Query configuration value successfully filters event records
 func (s *GetEventsTestSuite) TestGetEventsWithQuery() {
 	reporter, err := evtreporter.New(s.eventSource, s.ti.API())
 	require.NoError(s.T(), err)
@@ -426,7 +426,7 @@ query: |
 	s.sender.AssertExpectations(s.T())
 }
 
-// Tests that the Event Query configuration value succesfully filters event records
+// Tests that the Event Query configuration value successfully filters event records
 func (s *GetEventsTestSuite) TestGetEventsWithFilters() {
 	reporter, err := evtreporter.New(s.eventSource, s.ti.API())
 	require.NoError(s.T(), err)
@@ -606,10 +606,10 @@ excluded_messages:
 // Tests that the tag_event_id configuration option results in an event_id tag
 func (s *GetEventsTestSuite) TestGetEventsWithTagEventID() {
 	tests := []struct {
-		name     string
-		confval  bool
-		tag      string
-		event_id uint
+		name    string
+		confval bool
+		tag     string
+		eventID uint
 	}{
 		{"disabled", false, "", 1000},
 		{"enabled", true, "event_id:1000", 1000},
@@ -646,7 +646,7 @@ tag_event_id: %t
 				return res
 			})).Once()
 
-			err = reporter.ReportEvent(windows.EVENTLOG_INFORMATION_TYPE, 0, tc.event_id, nil, []string{"teststring"}, nil)
+			err = reporter.ReportEvent(windows.EVENTLOG_INFORMATION_TYPE, 0, tc.eventID, nil, []string{"teststring"}, nil)
 			s.Require().NoError(err)
 
 			check.Run()
@@ -725,8 +725,8 @@ func BenchmarkGetEvents(b *testing.B) {
 
 	sender := mocksender.NewMockSender("")
 
-	bench_startTime := time.Now()
-	bench_total_events := uint(0)
+	benchmarkStartTime := time.Now()
+	benchmarkTotalEvents := uint(0)
 	for _, tiName := range testerNames {
 		for _, v := range numEvents {
 			// setup log
@@ -758,7 +758,7 @@ payload_size: %d
 					// read the log b.N times
 					b.ResetTimer()
 					startTime := time.Now()
-					total_events := uint(0)
+					totalEvents := uint(0)
 					for i := 0; i < b.N; i++ {
 						// create tmpdir to store bookmark
 						testDir := b.TempDir()
@@ -772,7 +772,7 @@ payload_size: %d
 						sender.On("Commit").Return()
 						senderEventCall := sender.On("Event", mock.Anything)
 						// read all the events
-						total_events += countEvents(check, senderEventCall, v)
+						totalEvents += countEvents(check, senderEventCall, v)
 						// clean shutdown the check and reset the mock sender expecations
 						check.Cancel()
 						resetSender(sender)
@@ -780,13 +780,13 @@ payload_size: %d
 
 					// TODO: Use b.Elapsed in go1.20
 					elapsed := time.Since(startTime)
-					b.Logf("%.2f events/s (%.3fs) N=%d", float64(total_events)/elapsed.Seconds(), elapsed.Seconds(), b.N)
-					bench_total_events += total_events
+					b.Logf("%.2f events/s (%.3fs) N=%d", float64(totalEvents)/elapsed.Seconds(), elapsed.Seconds(), b.N)
+					benchmarkTotalEvents += totalEvents
 				})
 			}
 		}
 	}
 
-	elapsed := time.Since(bench_startTime)
-	b.Logf("Benchmark total: %d events %.2f events/s (%.3fs)", bench_total_events, float64(bench_total_events)/elapsed.Seconds(), elapsed.Seconds())
+	elapsed := time.Since(benchmarkStartTime)
+	b.Logf("Benchmark total: %d events %.2f events/s (%.3fs)", benchmarkTotalEvents, float64(benchmarkTotalEvents)/elapsed.Seconds(), elapsed.Seconds())
 }

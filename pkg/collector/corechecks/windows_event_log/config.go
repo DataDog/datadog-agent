@@ -16,13 +16,13 @@ import (
 )
 
 const (
-	defaultConfigQuery          = "*"
-	defaultConfigStart          = "now"
-	defaultConfigTimeout        = 5
-	defaultConfigPayload_size   = 10
-	defaultConfigTag_event_id   = false
-	defaultConfigTag_sid        = false
-	defaultConfigEvent_priority = "normal"
+	defaultConfigQuery         = "*"
+	defaultConfigStart         = "now"
+	defaultConfigTimeout       = 5
+	defaultConfigPayloadSize   = 10
+	defaultConfigTagEventID    = false
+	defaultConfigTagSID        = false
+	defaultConfigEventPriority = "normal"
 )
 
 type Config struct {
@@ -31,19 +31,19 @@ type Config struct {
 }
 
 type instanceConfig struct {
-	ChannelPath        *string        `yaml:"path"`
-	Query              *string        `yaml:"query"`
-	Start              *string        `yaml:"start"`
-	Timeout            *int           `yaml:"timeout"`
-	Payload_size       *int           `yaml:"payload_size"`
-	Bookmark_frequency *int           `yaml:"bookmark_frequency"`
-	Legacy_mode        *bool          `yaml:"legacy_mode"`
-	Event_priority     *string        `yaml:"event_priority"`
-	Tag_event_id       *bool          `yaml:"tag_event_id"`
-	Tag_sid            *bool          `yaml:"tag_sid"`
-	Filters            *filtersConfig `yaml:"filters"`
-	Included_messages  []string       `yaml:"included_messages"`
-	Excluded_messages  []string       `yaml:"excluded_messages"`
+	ChannelPath       *string        `yaml:"path"`
+	Query             *string        `yaml:"query"`
+	Start             *string        `yaml:"start"`
+	Timeout           *int           `yaml:"timeout"`
+	PayloadSize       *int           `yaml:"payload_size"`
+	BookmarkFrequency *int           `yaml:"bookmark_frequency"`
+	LegacyMode        *bool          `yaml:"legacy_mode"`
+	EventPriority     *string        `yaml:"event_priority"`
+	TagEventID        *bool          `yaml:"tag_event_id"`
+	TagSID            *bool          `yaml:"tag_sid"`
+	Filters           *filtersConfig `yaml:"filters"`
+	IncludedMessages  []string       `yaml:"included_messages"`
+	ExcludedMessages  []string       `yaml:"excluded_messages"`
 }
 
 type filtersConfig struct {
@@ -53,9 +53,9 @@ type filtersConfig struct {
 }
 
 type initConfig struct {
-	Tag_event_id   *bool   `yaml:"tag_event_id"`
-	Tag_sid        *bool   `yaml:"tag_sid"`
-	Event_priority *string `yaml:"event_priority"`
+	TagEventID    *bool   `yaml:"tag_event_id"`
+	TagSID        *bool   `yaml:"tag_sid"`
+	EventPriority *string `yaml:"event_priority"`
 }
 
 func (f *filtersConfig) Sources() []string {
@@ -68,7 +68,7 @@ func (f *filtersConfig) IDs() []int {
 	return f.IDList
 }
 
-func UnmarshalConfig(instance integration.Data, initConfig integration.Data) (*Config, error) {
+func unmarshalConfig(instance integration.Data, initConfig integration.Data) (*Config, error) {
 	var c Config
 
 	err := c.unmarshal(instance, initConfig)
@@ -76,7 +76,10 @@ func UnmarshalConfig(instance integration.Data, initConfig integration.Data) (*C
 		return nil, fmt.Errorf("yaml parsing error: %v", err)
 	}
 
-	c.genQuery()
+	err = c.genQuery()
+	if err != nil {
+		return nil, fmt.Errorf("error generating query from filters: %v", err)
+	}
 
 	c.setDefaults()
 
@@ -137,43 +140,43 @@ func (c *Config) setDefaults() {
 		c.instance.Timeout = &def
 	}
 
-	if c.instance.Payload_size == nil {
-		def := defaultConfigPayload_size
-		c.instance.Payload_size = &def
+	if c.instance.PayloadSize == nil {
+		def := defaultConfigPayloadSize
+		c.instance.PayloadSize = &def
 	}
 
-	if c.instance.Bookmark_frequency == nil {
-		def := *c.instance.Payload_size
-		c.instance.Bookmark_frequency = &def
+	if c.instance.BookmarkFrequency == nil {
+		def := *c.instance.PayloadSize
+		c.instance.BookmarkFrequency = &def
 	}
 
-	if c.instance.Legacy_mode == nil {
+	if c.instance.LegacyMode == nil {
 		def := false
-		c.instance.Legacy_mode = &def
+		c.instance.LegacyMode = &def
 	}
 
 	// instance fields with initConfig defaults
-	if c.instance.Tag_event_id == nil {
-		def := defaultConfigTag_event_id
-		if c.init.Tag_event_id != nil {
-			def = *c.init.Tag_event_id
+	if c.instance.TagEventID == nil {
+		def := defaultConfigTagEventID
+		if c.init.TagEventID != nil {
+			def = *c.init.TagEventID
 		}
-		c.instance.Tag_event_id = &def
+		c.instance.TagEventID = &def
 	}
 
-	if c.instance.Tag_sid == nil {
-		def := defaultConfigTag_sid
-		if c.init.Tag_sid != nil {
-			def = *c.init.Tag_sid
+	if c.instance.TagSID == nil {
+		def := defaultConfigTagSID
+		if c.init.TagSID != nil {
+			def = *c.init.TagSID
 		}
-		c.instance.Tag_sid = &def
+		c.instance.TagSID = &def
 	}
 
-	if c.instance.Event_priority == nil {
-		def := defaultConfigEvent_priority
-		if c.init.Event_priority != nil {
-			def = *c.init.Event_priority
+	if c.instance.EventPriority == nil {
+		def := defaultConfigEventPriority
+		if c.init.EventPriority != nil {
+			def = *c.init.EventPriority
 		}
-		c.instance.Event_priority = &def
+		c.instance.EventPriority = &def
 	}
 }
