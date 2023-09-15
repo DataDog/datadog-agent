@@ -11,7 +11,6 @@ import (
 	"fmt"
 	"net/http"
 	"os"
-	"reflect"
 	"regexp"
 	"strconv"
 	"time"
@@ -232,34 +231,52 @@ func InjectSpanID(executionContext *ExecutionStartInfo, headers http.Header) {
 	}
 }
 
-func capturePayloadAsTags(payloadJSON map[string]interface{}, targetSpan *pb.Span, currentKey string, depth int, maxDepth int) {
+func capturePayloadAsTags(payloadJSON map[string]interface{}, targetSpan *pb.Span, parentKey string, depth int, maxDepth int) {
 	if payloadJSON == nil {
-		targetSpan.Meta[currentKey] = "<nil>"
+		targetSpan.Meta[parentKey] = ""
 	}
 	if depth >= maxDepth {
-		targetSpan.Meta[currentKey] = convertJSONToString(payloadJSON)
+		targetSpan.Meta[parentKey] = convertJSONToString(payloadJSON)
 		return
 	}
 	for key, value := range payloadJSON {
-		if currentKey != "" {
-			key = currentKey + "." + key
+		if parentKey != "" {
+			key = parentKey + "." + key
 		}
-		if value == nil {
-			targetSpan.Meta[currentKey] = "<nil>"
-			return
+		tagValByType(value, targetSpan, key, depth, maxDepth)
+	}
+}
+
+func tagValByType(value interface{}, targetSpan *pb.Span, key string, depth int, maxDepth int) {
+	if value == nil {
+		targetSpan.Meta[key] = ""
+		return
+	}
+	switch value := value.(type) {
+	case string:
+		var innerPayloadJSON map[string]interface{}
+		err := json.Unmarshal([]byte(value), &innerPayloadJSON)
+		if err != nil {
+			targetSpan.Meta[key] = fmt.Sprintf("%v", value)
+		} else {
+			capturePayloadAsTags(innerPayloadJSON, targetSpan, key, depth+1, maxDepth)
 		}
-		switch value := value.(type) {
-		case map[string]interface{}:
-			capturePayloadAsTags(value, targetSpan, key, depth+1, maxDepth)
-		default:
-			if reflect.TypeOf(value).Kind() == reflect.Slice {
-				for i := 0; i < reflect.ValueOf(value).Len(); i++ {
-					targetSpan.Meta[key+"."+strconv.Itoa(i)] = fmt.Sprintf("%v", reflect.ValueOf(value).Index(i))
-				}
-			} else {
-				targetSpan.Meta[key] = fmt.Sprintf("%v", value)
-			}
+	case []byte:
+		var innerPayloadJSON map[string]interface{}
+		err := json.Unmarshal(value, &innerPayloadJSON)
+		if err != nil {
+			targetSpan.Meta[key] = fmt.Sprintf("%v", value)
+		} else {
+			capturePayloadAsTags(innerPayloadJSON, targetSpan, key, depth+1, maxDepth)
 		}
+	case map[string]interface{}:
+		capturePayloadAsTags(value, targetSpan, key, depth+1, maxDepth)
+	case []interface{}:
+		for i, innerValue := range value {
+			tagValByType(innerValue, targetSpan, key+"."+strconv.Itoa(i), depth+1, maxDepth)
+		}
+	default:
+		targetSpan.Meta[key] = fmt.Sprintf("%v", value)
 	}
 }
 
