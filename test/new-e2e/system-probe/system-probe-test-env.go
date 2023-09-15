@@ -21,7 +21,6 @@ import (
 
 	"github.com/DataDog/test-infra-definitions/scenarios/aws/microVMs/microvms"
 	"github.com/sethvargo/go-retry"
-	"golang.org/x/crypto/ssh/terminal"
 	"golang.org/x/term"
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/runner"
@@ -107,7 +106,7 @@ func GetEnv(key, fallback string) string {
 
 func credentials() (string, error) {
 	var fd int
-	if terminal.IsTerminal(syscall.Stdin) {
+	if term.IsTerminal(syscall.Stdin) {
 		fd = syscall.Stdin
 	} else {
 		tty, err := os.Open("/dev/tty")
