@@ -48,27 +48,24 @@ func Test_Schema_TextCases(t *testing.T) {
 	require.NoError(t, err)
 
 	for _, testcaseJsonPath := range testcases {
-		content, err := os.ReadFile(testcaseJsonPath)
-		require.NoError(t, err)
+		t.Run(testcaseJsonPath, func(t *testing.T) {
+			content, err := os.ReadFile(testcaseJsonPath)
+			require.NoError(t, err)
 
-		validationErr := assertAgainstSchema(t, string(content))
-		validationErrStr := fmt.Sprintf("%#v\n", validationErr) // using %#v prints errors hierarchy
+			validationErr := assertAgainstSchema(t, string(content))
 
-		fmt.Printf("=== ACTUAL VALIDATION ERRORS ===\n")
-		fmt.Printf(validationErrStr)
-		fmt.Printf("================================\n")
+			testcaseExpectedErrPath := strings.ReplaceAll(testcaseJsonPath, ".json", "_expected.json")
+			testcaseExpectedErr, err := os.ReadFile(testcaseExpectedErrPath)
+			require.NoError(t, err)
 
-		testcaseExpectedErrPath := strings.ReplaceAll(testcaseJsonPath, ".json", "_expected.json")
-		testcaseExpectedErr, err := os.ReadFile(testcaseExpectedErrPath)
-		require.NoError(t, err)
+			var expected testcaseExpected
+			err = json.Unmarshal(testcaseExpectedErr, &expected)
+			require.NoError(t, err)
 
-		var expected testcaseExpected
-		err = json.Unmarshal(testcaseExpectedErr, &expected)
-		require.NoError(t, err)
-
-		for _, expectedError := range expected.Errors {
-			assert.ErrorContains(t, validationErr, expectedError)
-		}
+			for _, expectedError := range expected.Errors {
+				assert.ErrorContains(t, validationErr, expectedError)
+			}
+		})
 	}
 }
 
