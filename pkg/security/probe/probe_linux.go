@@ -364,11 +364,11 @@ func (p *Probe) DispatchEvent(event *model.Event) {
 		p.profileManagers.securityProfileManager.LookupEventInProfiles(event)
 	}
 
-	// send wildcard events to handlers which need direct access to all the event fields
-	p.sendWildcardEvents(event)
+	// send event to wildcard handlers, like the CWS rule engine, first
+	p.sendEventToWildcardHandlers(event)
 
-	// send specific event to handlers that make a copy of the event fields they need
-	p.sendSpecificEvent(event)
+	// send event to specific event handlers, like the event monitor consumers, subsequently
+	p.sendEventToSpecificEventTypeHandlers(event)
 
 	// handle anomaly detections
 	if event.IsAnomalyDetectionEvent() {
@@ -385,13 +385,13 @@ func (p *Probe) DispatchEvent(event *model.Event) {
 	p.monitor.ProcessEvent(event)
 }
 
-func (p *Probe) sendWildcardEvents(event *model.Event) {
+func (p *Probe) sendEventToWildcardHandlers(event *model.Event) {
 	for _, handler := range p.fullAccessEventHandlers[model.UnknownEventType] {
 		handler.HandleEvent(event)
 	}
 }
 
-func (p *Probe) sendSpecificEvent(event *model.Event) {
+func (p *Probe) sendEventToSpecificEventTypeHandlers(event *model.Event) {
 	for _, handler := range p.eventHandlers[event.GetEventType()] {
 		handler.HandleEvent(handler.Copy(event))
 	}
