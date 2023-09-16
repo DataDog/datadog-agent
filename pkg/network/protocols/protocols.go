@@ -16,7 +16,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 )
 
-// Programs maps used for tail valls
+// Programs maps used for tail calls
 const (
 	ProtocolDispatcherProgramsMap = "protocols_progs"
 	TLSDispatcherProgramsMap      = "tls_process_progs"
