@@ -27,11 +27,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
 )
 
-// FullAccessEventHandler represents a handler for events sent by the probe that needs access to all the fields in the SECL model
-type FullAccessEventHandler interface {
-	HandleEvent(event *model.Event)
-}
-
 // EventHandler represents a handler for events sent by the probe. This handler makes a copy of the event upon receipt
 type EventHandler interface {
 	HandleEvent(event interface{})
@@ -64,9 +59,8 @@ type Probe struct {
 	scrubber *procutil.DataScrubber
 
 	// Events section
-	fullAccessEventHandlers [model.MaxAllEventType][]FullAccessEventHandler
-	eventHandlers           [model.MaxAllEventType][]EventHandler
-	customEventHandlers     [model.MaxAllEventType][]CustomEventHandler
+	eventHandlers       [model.MaxAllEventType][]EventHandler
+	customEventHandlers [model.MaxAllEventType][]CustomEventHandler
 
 	discarderRateLimiter *rate.Limiter
 	// internals
@@ -80,20 +74,13 @@ func (p *Probe) GetResolvers() *resolvers.Resolvers {
 	return p.resolvers
 }
 
-// AddEventHandler sets a probe event handler
+// AddEventHandler set the probe event handler
 func (p *Probe) AddEventHandler(eventType model.EventType, handler EventHandler) error {
 	if eventType >= model.MaxAllEventType {
 		return errors.New("unsupported event type")
 	}
 
 	p.eventHandlers[eventType] = append(p.eventHandlers[eventType], handler)
-
-	return nil
-}
-
-// AddFullAccessEventHandler sets a probe event handler for the UnknownEventType which requires access to all the struct fields
-func (p *Probe) AddFullAccessEventHandler(handler FullAccessEventHandler) error {
-	p.fullAccessEventHandlers[model.UnknownEventType] = append(p.fullAccessEventHandlers[model.UnknownEventType], handler)
 
 	return nil
 }

@@ -386,8 +386,8 @@ func (p *Probe) DispatchEvent(event *model.Event) {
 }
 
 func (p *Probe) sendEventToWildcardHandlers(event *model.Event) {
-	for _, handler := range p.fullAccessEventHandlers[model.UnknownEventType] {
-		handler.HandleEvent(event)
+	for _, handler := range p.eventHandlers[model.UnknownEventType] {
+		handler.HandleEvent(handler.Copy(event))
 	}
 }
 

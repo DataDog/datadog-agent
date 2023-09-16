@@ -109,12 +109,12 @@ func (p *Probe) DispatchEvent(event *model.Event) {
 
 	// send wildcard first
 	for _, handler := range p.eventHandlers[model.UnknownEventType] {
-		handler.HandleEvent(event)
+		handler.HandleEvent(handler.Copy(event))
 	}
 
 	// send specific event
 	for _, handler := range p.eventHandlers[event.GetEventType()] {
-		handler.HandleEvent(event)
+		handler.HandleEvent(handler.Copy(event))
 	}
 
 }
