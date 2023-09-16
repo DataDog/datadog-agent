@@ -28,6 +28,7 @@
     }                                                                                                                   \
 
 READ_INTO_USER_BUFFER(http, HTTP_BUFFER_SIZE)
+READ_INTO_USER_BUFFER(classification, CLASSIFICATION_MAX_BUFFER)
 
 READ_INTO_BUFFER(skb, HTTP_BUFFER_SIZE, BLK_SIZE)
 
