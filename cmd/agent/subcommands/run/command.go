@@ -33,6 +33,11 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/agent/gui"
 	"github.com/DataDog/datadog-agent/cmd/agent/subcommands/run/internal/clcrunnerapi"
 	"github.com/DataDog/datadog-agent/cmd/manager"
+
+	// checks implemented as components
+	"github.com/DataDog/datadog-agent/comp/checks/agentcrashdetect"
+
+	// core components
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/flare"
@@ -56,6 +61,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/otelcol"
 	otelcollector "github.com/DataDog/datadog-agent/comp/otelcol/collector"
 	"github.com/DataDog/datadog-agent/comp/remote-config/rcclient"
+	comptraceconfig "github.com/DataDog/datadog-agent/comp/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/api/healthprobe"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/providers"
@@ -145,6 +151,8 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				LogParams:            log.LogForDaemon(command.LoggerName, "log_file", path.DefaultLogFile),
 			}),
 			getSharedFxOption(),
+			agentcrashdetect.Module,
+			comptraceconfig.Module,
 		)
 	}
 
@@ -186,6 +194,8 @@ func run(log log.Component,
 	logsAgent util.Optional[logsAgent.Component],
 	otelcollector otelcollector.Component,
 	_ netflowServer.Component,
+	_ agentcrashdetect.Component,
+	_ comptraceconfig.Component,
 ) error {
 	defer func() {
 		stopAgent(cliParams, server)
@@ -263,6 +273,8 @@ func StartAgentWithDefaults(ctxChan <-chan context.Context) (<-chan error, error
 			sharedSerializer serializer.MetricSerializer,
 			otelcollector otelcollector.Component,
 			_ netflowServer.Component,
+			_ agentcrashdetect.Component,
+			_ comptraceconfig.Component,
 		) error {
 
 			defer StopAgentWithDefaults(server)
@@ -296,6 +308,8 @@ func StartAgentWithDefaults(ctxChan <-chan context.Context) (<-chan error, error
 				LogParams:            log.LogForDaemon(command.LoggerName, "log_file", path.DefaultLogFile),
 			}),
 			getSharedFxOption(),
+			agentcrashdetect.Module,
+			comptraceconfig.Module,
 		)
 		// notify caller that fx.OneShot is done
 		errChan <- err
