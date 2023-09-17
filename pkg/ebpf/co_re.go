@@ -36,7 +36,7 @@ func LoadCOREAsset(cfg *Config, filename string, startFn func(bytecode.AssetRead
 	if btfData == nil {
 		return fmt.Errorf("could not find BTF data on host")
 	}
-	defer KernelSpecFlushCache()
+	defer ReleaseKernelSpecCache()
 
 	buf, err := bytecode.GetReader(filepath.Join(cfg.BPFDir, "co-re"), filename)
 	if err != nil {
