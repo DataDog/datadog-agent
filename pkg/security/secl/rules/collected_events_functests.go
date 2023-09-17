@@ -5,9 +5,11 @@
 
 //go:build functionaltests
 
+// Package rules holds rules related files
 package rules
 
 import (
+	"errors"
 	"sync"
 
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
@@ -21,6 +23,7 @@ type EventCollector struct {
 func (ec *EventCollector) CollectEvent(rs *RuleSet, event eval.Event, result bool) {
 	ec.Lock()
 	defer ec.Unlock()
+	var fieldNotSupportedError *eval.ErrNotSupported
 
 	eventType := event.GetType()
 	collectedEvent := CollectedEvent{
@@ -41,8 +44,11 @@ func (ec *EventCollector) CollectEvent(rs *RuleSet, event eval.Event, result boo
 
 		value, err := event.GetFieldValue(field)
 		if err != nil {
-			rs.logger.Errorf("failed to get value for %s: %v", field, err)
-			continue
+			// GetFieldValue returns the default type value with ErrNotSupported in case the field Check test fails
+			if !errors.As(err, &fieldNotSupportedError) {
+				rs.logger.Errorf("failed to get value for %s: %v", field, err)
+				continue
+			}
 		}
 
 		collectedEvent.Fields[field] = value

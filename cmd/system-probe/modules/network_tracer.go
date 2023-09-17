@@ -83,7 +83,7 @@ type networkTracer struct {
 	done         chan struct{}
 	restartTimer *time.Timer
 
-	connectionserver.UnsafeSystemProbeServer
+	connectionserver.UnsafeNetworkTracerServer
 	maxConnsPerMessage int
 	runCounter         *atomic.Uint64
 }
@@ -102,7 +102,7 @@ func min(a, b int) int {
 
 // GetConnections function that establishes a streaming RPC connection to retrieve and continuously stream information
 // about the current connections in the system.
-func (nt *networkTracer) GetConnections(req *connectionserver.GetConnectionsRequest, s2 connectionserver.SystemProbe_GetConnectionsServer) error {
+func (nt *networkTracer) GetConnections(req *connectionserver.GetConnectionsRequest, s2 connectionserver.NetworkTracer_GetConnectionsServer) error {
 	start := time.Now()
 	id := req.GetClientID()
 	cs, err := nt.tracer.GetActiveConnections(id)
@@ -149,8 +149,8 @@ func (nt *networkTracer) GetConnections(req *connectionserver.GetConnectionsRequ
 }
 
 // RegisterGRPC register system probe grpc server
-func (nt *networkTracer) RegisterGRPC(server *grpc.Server) error {
-	connectionserver.RegisterSystemProbeServer(server, nt)
+func (nt *networkTracer) RegisterGRPC(server grpc.ServiceRegistrar) error {
+	connectionserver.RegisterNetworkTracerServer(server, nt)
 	return nil
 }
 

@@ -23,10 +23,13 @@ import (
 type Evaluator string
 
 const (
-	RegoEvaluator  Evaluator = "rego"
+	// RegoEvaluator uses the rego engine to evaluate a check.
+	RegoEvaluator Evaluator = "rego"
+	// XCCDFEvaluator uses OpenSCAP to evaluate a check.
 	XCCDFEvaluator Evaluator = "xccdf"
 )
 
+// CheckResult lists the different states of a check result.
 type CheckResult string
 
 const (
@@ -43,6 +46,8 @@ const (
 	CheckSkipped CheckResult = "skipped"
 )
 
+// CheckStatus is used to store the last current status of each rule inside
+// our compliance agent.
 type CheckStatus struct {
 	RuleID      string
 	Name        string
@@ -52,6 +57,14 @@ type CheckStatus struct {
 	Source      string
 	InitError   error
 	LastEvent   *CheckEvent
+}
+
+// CheckContainerMeta holds metadata related to the container that has been checked.
+type CheckContainerMeta struct {
+	ContainerID string `json:"container_id"`
+	ImageID     string `json:"image_id"`
+	ImageName   string `json:"image_name"`
+	ImageTag    string `json:"image_tag"`
 }
 
 // CheckEvent is the data structure sent to the backend as a result of a rule
@@ -66,12 +79,14 @@ type CheckEvent struct {
 	Result       CheckResult            `json:"result,omitempty"`
 	ResourceType string                 `json:"resource_type,omitempty"`
 	ResourceID   string                 `json:"resource_id,omitempty"`
+	Container    *CheckContainerMeta    `json:"container,omitempty"`
 	Tags         []string               `json:"tags"`
 	Data         map[string]interface{} `json:"data"`
 
 	errReason error `json:"-"`
 }
 
+// ResourceLog is the data structure holding a resource configuration data.
 type ResourceLog struct {
 	AgentVersion string      `json:"agent_version,omitempty"`
 	ExpireAt     time.Time   `json:"expire_at,omitempty"`
@@ -94,6 +109,8 @@ func (e *CheckEvent) String() string {
 	return s
 }
 
+// NewCheckError returns a CheckEvent with error status and associated error
+// reason.
 func NewCheckError(
 	evaluator Evaluator,
 	errReason error,
@@ -118,6 +135,7 @@ func NewCheckError(
 	}
 }
 
+// NewCheckEvent returns a CheckEvent with given status.
 func NewCheckEvent(
 	evaluator Evaluator,
 	result CheckResult,
@@ -141,6 +159,7 @@ func NewCheckEvent(
 	}
 }
 
+// NewCheckSkipped returns a CheckEvent with skipped status.
 func NewCheckSkipped(
 	evaluator Evaluator,
 	skipReason error,
@@ -161,6 +180,7 @@ func NewCheckSkipped(
 	}
 }
 
+// NewResourceLog returns a ResourceLog.
 func NewResourceLog(resourceID, resourceType string, resource interface{}) *ResourceLog {
 	expireAt := time.Now().Add(1 * time.Hour).UTC().Truncate(1 * time.Second)
 	return &ResourceLog{
@@ -172,15 +192,21 @@ func NewResourceLog(resourceID, resourceType string, resource interface{}) *Reso
 	}
 }
 
+// RuleScope defines the different context in which the rule is allowed to run.
 type RuleScope string
 
 const (
-	Unscoped               RuleScope = "none"
-	DockerScope            RuleScope = "docker"
-	KubernetesNodeScope    RuleScope = "kubernetesNode"
+	// Unscoped scope used when no particular scope is required
+	Unscoped RuleScope = "none"
+	// DockerScope used for rules requiring a Docker daemon running.
+	DockerScope RuleScope = "docker"
+	// KubernetesNodeScope used for rules requireing a kubelet process running.
+	KubernetesNodeScope RuleScope = "kubernetesNode"
+	// KubernetesClusterScope used for rules requireing a kube-apiserver process running.
 	KubernetesClusterScope RuleScope = "kubernetesCluster"
 )
 
+// RuleFilter defines a function type that can be used to filter rules.
 type RuleFilter func(*Rule) bool
 
 // Rule defines a list of inputs against which we can evaluate properties. It
@@ -207,6 +233,7 @@ type (
 		Audit         *InputSpecAudit         `yaml:"audit,omitempty" json:"audit,omitempty"`
 		Docker        *InputSpecDocker        `yaml:"docker,omitempty" json:"docker,omitempty"`
 		KubeApiserver *InputSpecKubeapiserver `yaml:"kubeApiserver,omitempty" json:"kubeApiserver,omitempty"`
+		Package       *InputSpecPackage       `yaml:"package,omitempty" json:"package,omitempty"`
 		XCCDF         *InputSpecXCCDF         `yaml:"xccdf,omitempty" json:"xccdf,omitempty"`
 		Constants     *InputSpecConstants     `yaml:"constants,omitempty" json:"constants,omitempty"`
 
@@ -214,29 +241,36 @@ type (
 		Type    string `yaml:"type,omitempty" json:"type,omitempty"`
 	}
 
+	// InputSpecFile describes the spec to resolve file informations.
 	InputSpecFile struct {
 		Path   string `yaml:"path" json:"path"`
 		Glob   string `yaml:"glob" json:"glob"`
 		Parser string `yaml:"parser,omitempty" json:"parser,omitempty"`
 	}
 
+	// InputSpecProcess describes the spec to resolve process informations.
 	InputSpecProcess struct {
 		Name string   `yaml:"name" json:"name"`
 		Envs []string `yaml:"envs,omitempty" json:"envs,omitempty"`
 	}
 
+	// InputSpecGroup describes the spec to resolve a unix group informations.
 	InputSpecGroup struct {
 		Name string `yaml:"name" json:"name"`
 	}
 
+	// InputSpecAudit describes the spec to resolve a Linux Audit informations.
 	InputSpecAudit struct {
 		Path string `yaml:"path" json:"path"`
 	}
 
+	// InputSpecDocker describes the spec to resolve a Docker resource informations.
 	InputSpecDocker struct {
 		Kind string `yaml:"kind" json:"kind"`
 	}
 
+	// InputSpecKubeapiserver describes the spec to resolve a Kubernetes
+	// resource information from from kube-apiserver.
 	InputSpecKubeapiserver struct {
 		Kind          string `yaml:"kind" json:"kind"`
 		Version       string `yaml:"version,omitempty" json:"version,omitempty"`
@@ -250,6 +284,13 @@ type (
 		} `yaml:"apiRequest" json:"apiRequest"`
 	}
 
+	// InputSpecPackage defines the names of the software packages that need
+	// to be resolved
+	InputSpecPackage struct {
+		Names []string `yaml:"names" json:"names"`
+	}
+
+	// InputSpecXCCDF describes the spec to resolve a XCCDF evaluation result.
 	InputSpecXCCDF struct {
 		Name    string   `yaml:"name" json:"name"`
 		Profile string   `yaml:"profile" json:"profile"`
@@ -257,13 +298,56 @@ type (
 		Rules   []string `yaml:"rules,omitempty" json:"rules,omitempty"`
 	}
 
+	// InputSpecConstants can be used to pass constants data to the evaluator.
 	InputSpecConstants map[string]interface{}
 )
 
-// ResolvedInputs is the generic data structure that is returned by a Resolver.
+// ResolvingContext is part of the resolved inputs data that should be passed
+// as the "context" field in the rego evaluator input. Note that because of the
+// way rego bails when dereferencing an undefined key, we do not mark any json
+// tag as "omitempty".
+type ResolvingContext struct {
+	RuleID            string                `json:"ruleID"`
+	Hostname          string                `json:"hostname"`
+	KubernetesCluster string                `json:"kubernetes_cluster"`
+	ContainerID       string                `json:"container_id"`
+	InputSpecs        map[string]*InputSpec `json:"input"`
+}
+
+// ResolvedInputs is the generic data structure that is returned by a Resolver and
+// passed to the rego evaluator.
+//
+// Ideally if Go did support inline JSON struct tag, this type would be:
+// see https://github.com/golang/go/issues/6213
+//
+//	struct {
+//		Context  *ResolvingContext      `json:"context"`
+//		Resolved map[string]interface{} `json:",inline"`
+//	}
 type ResolvedInputs map[string]interface{}
 
-// Benchmarks represents a set of rules that have a common identity, typically
+// GetContext returns the ResolvingContext associated with this resolved
+// inputs.
+func (r ResolvedInputs) GetContext() *ResolvingContext {
+	c := r["context"].(ResolvingContext)
+	return &c
+}
+
+// NewResolvedInputs builds a ResolvedInputs map from the given resolving
+// context and generic resolved data.
+func NewResolvedInputs(resolvingContext ResolvingContext, resolved map[string]interface{}) (ResolvedInputs, error) {
+	ri := make(ResolvedInputs, len(resolved)+1)
+	for k, v := range resolved {
+		if k == "context" {
+			return nil, fmt.Errorf("NewResolvedInputs: \"context\" is a reserved keyword")
+		}
+		ri[k] = v
+	}
+	ri["context"] = resolvingContext
+	return ri, nil
+}
+
+// Benchmark represents a set of rules that have a common identity, typically
 // part of the same framework. It holds metadata that are shared between these
 // rules. Rules of a same Benchmark are typically run together.
 type Benchmark struct {
@@ -280,14 +364,17 @@ type Benchmark struct {
 	} `yaml:"schema,omitempty" json:"schema,omitempty"`
 }
 
+// IsRego returns true if the rule is a rego rule.
 func (r *Rule) IsRego() bool {
 	return !r.IsXCCDF()
 }
 
+// IsXCCDF returns true if the rule is a XCCDF / OpenSCAP rule.
 func (r *Rule) IsXCCDF() bool {
 	return len(r.InputSpecs) == 1 && r.InputSpecs[0].XCCDF != nil
 }
 
+// HasScope tests if the rule has the given scope.
 func (r *Rule) HasScope(scope RuleScope) bool {
 	for _, s := range r.Scopes {
 		if s == scope {
@@ -297,6 +384,7 @@ func (r *Rule) HasScope(scope RuleScope) bool {
 	return false
 }
 
+// Valid is a validation check required for InputSpec to be executed.
 func (i *InputSpec) Valid() error {
 	// NOTE(jinroh): the current semantics allow to specify the result type as
 	// an "array". Here we enforce that the specified result type is
@@ -316,6 +404,9 @@ func (i *InputSpec) Valid() error {
 	return nil
 }
 
+// Valid is a validation check required for a Benchmark to be considered valid
+// and be executed. It checks that all rules and input specs are actually
+// valid.
 func (b *Benchmark) Valid() error {
 	if len(b.Rules) == 0 {
 		return fmt.Errorf("bad benchmark: empty rule set")

@@ -5,6 +5,7 @@
 
 //go:build linux || windows
 
+// Package probe holds probe related files
 package probe
 
 import (
@@ -16,6 +17,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 )
 
+// FieldHandlers defines a field handlers
 type FieldHandlers struct {
 	resolvers *resolvers.Resolvers
 }
@@ -115,7 +117,7 @@ func (fh *FieldHandlers) ResolveContainerTags(ev *model.Event, e *model.Containe
 // ResolveProcessCacheEntry queries the ProcessResolver to retrieve the ProcessContext of the event
 func (fh *FieldHandlers) ResolveProcessCacheEntry(ev *model.Event) (*model.ProcessCacheEntry, bool) {
 	if ev.PIDContext.IsKworker {
-		return model.NewEmptyProcessCacheEntry(ev.PIDContext.Pid, ev.PIDContext.Tid, true), false
+		return model.GetPlaceholderProcessCacheEntry(ev.PIDContext.Pid, ev.PIDContext.Tid, true), false
 	}
 
 	if ev.ProcessCacheEntry == nil && ev.PIDContext.Pid != 0 {
@@ -123,7 +125,7 @@ func (fh *FieldHandlers) ResolveProcessCacheEntry(ev *model.Event) (*model.Proce
 	}
 
 	if ev.ProcessCacheEntry == nil {
-		ev.ProcessCacheEntry = model.NewEmptyProcessCacheEntry(ev.PIDContext.Pid, ev.PIDContext.Tid, false)
+		ev.ProcessCacheEntry = model.GetPlaceholderProcessCacheEntry(ev.PIDContext.Pid, ev.PIDContext.Tid, false)
 		return ev.ProcessCacheEntry, false
 	}
 

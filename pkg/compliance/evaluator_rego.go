@@ -60,6 +60,11 @@ func EvaluateRegoRule(ctx context.Context, resolvedInputs ResolvedInputs, benchm
 		return nil, fmt.Errorf("could not build rego modules: %w", err)
 	}
 
+	input, err := regoast.InterfaceToValue(resolvedInputs)
+	if err != nil {
+		return nil, fmt.Errorf("could not create input value: %v", err)
+	}
+
 	var options []func(*rego.Rego)
 	for name, source := range modules {
 		options = append(options, rego.Module(name, source))
@@ -72,7 +77,7 @@ func EvaluateRegoRule(ctx context.Context, resolvedInputs ResolvedInputs, benchm
 			"http.send":   {},
 			"opa.runtime": {},
 		}),
-		rego.Input(resolvedInputs),
+		rego.ParsedInput(input),
 	)
 
 	log.Tracef("starting rego evaluation for rule=%s:%s", benchmark.FrameworkID, rule.ID)
@@ -139,10 +144,21 @@ func newCheckEventFromRegoResult(data interface{}, rule *Rule, resolvedInputs Re
 	eventData, _ := m["data"].(map[string]interface{})
 	resourceID, _ := m["resource_id"].(string)
 	resourceType, _ := m["resource_type"].(string)
+
+	var event *CheckEvent
 	if errReason != nil {
-		return NewCheckError(RegoEvaluator, errReason, resourceID, resourceType, rule, benchmark)
+		event = NewCheckError(RegoEvaluator, errReason, resourceID, resourceType, rule, benchmark)
+	} else {
+		event = NewCheckEvent(RegoEvaluator, result, eventData, resourceID, resourceType, rule, benchmark)
 	}
-	return NewCheckEvent(RegoEvaluator, result, eventData, resourceID, resourceType, rule, benchmark)
+
+	if containerID := resolvedInputs.GetContext().ContainerID; containerID != "" {
+		event.Container = &CheckContainerMeta{
+			ContainerID: containerID,
+		}
+	}
+
+	return event
 }
 
 func buildRegoModules(rootDir string, rule *Rule) (map[string]string, error) {
@@ -177,6 +193,7 @@ raw_finding(status, resource_type, resource_id, event_data) = f {
 		"status": status,
 		"resource_type": resource_type,
 		"resource_id": resource_id,
+		"container_id": input.context.container_id,
 		"data": event_data,
 	}
 }

@@ -3,8 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build linux
-
+// Package rules holds rules related files
 package rules
 
 import (
@@ -12,10 +11,7 @@ import (
 	json "encoding/json"
 	"errors"
 	"fmt"
-	"os"
-	"os/signal"
 	"sync"
-	"syscall"
 	"time"
 
 	"github.com/DataDog/datadog-go/v5/statsd"
@@ -37,10 +33,13 @@ import (
 )
 
 const (
+	// ProbeEvaluationRuleSetTagValue defines the probe evaluation rule-set tag value
 	ProbeEvaluationRuleSetTagValue = "probe_evaluation"
-	ThreatScoreRuleSetTagValue     = "threat_score"
+	// ThreatScoreRuleSetTagValue defines the threat-score rule-set tag value
+	ThreatScoreRuleSetTagValue = "threat_score"
 )
 
+// RuleEngine defines a rule engine
 type RuleEngine struct {
 	sync.RWMutex
 	config                    *config.RuntimeSecurityConfig
@@ -56,16 +55,17 @@ type RuleEngine struct {
 	policyLoader              *rules.PolicyLoader
 	policyOpts                rules.PolicyLoaderOpts
 	policyMonitor             *PolicyMonitor
-	sighupChan                chan os.Signal
 	statsdClient              statsd.ClientInterface
 	eventSender               events.EventSender
 	rulesetListeners          []rules.RuleSetListener
 }
 
+// APIServer defines the API server
 type APIServer interface {
 	Apply([]string)
 }
 
+// NewRuleEngine returns a new rule engine
 func NewRuleEngine(evm *eventmonitor.EventMonitor, config *config.RuntimeSecurityConfig, probe *probe.Probe, rateLimiter *events.RateLimiter, apiServer APIServer, sender events.EventSender, statsdClient statsd.ClientInterface, rulesetListeners ...rules.RuleSetListener) (*RuleEngine, error) {
 	engine := &RuleEngine{
 		probe:                     probe,
@@ -78,7 +78,6 @@ func NewRuleEngine(evm *eventmonitor.EventMonitor, config *config.RuntimeSecurit
 		currentRuleSet:            new(atomic.Value),
 		currentThreatScoreRuleSet: new(atomic.Value),
 		policyLoader:              rules.NewPolicyLoader(),
-		sighupChan:                make(chan os.Signal, 1),
 		statsdClient:              statsdClient,
 		rulesetListeners:          rulesetListeners,
 	}
@@ -91,7 +90,8 @@ func NewRuleEngine(evm *eventmonitor.EventMonitor, config *config.RuntimeSecurit
 	return engine, nil
 }
 
-func (e *RuleEngine) Start(ctx context.Context, wg *sync.WaitGroup) error {
+// Start the rule engine
+func (e *RuleEngine) Start(ctx context.Context, reloadChan <-chan struct{}, wg *sync.WaitGroup) error {
 	// monitor policies
 	if e.config.PolicyMonitorEnabled {
 		e.policyMonitor.Start(ctx)
@@ -129,13 +129,11 @@ func (e *RuleEngine) Start(ctx context.Context, wg *sync.WaitGroup) error {
 		return fmt.Errorf("failed to load policies: %s", err)
 	}
 
-	signal.Notify(e.sighupChan, syscall.SIGHUP)
-
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
 
-		for range e.sighupChan {
+		for range reloadChan {
 			if err := e.ReloadPolicies(); err != nil {
 				seclog.Errorf("failed to reload policies: %s", err)
 			}
@@ -349,10 +347,8 @@ func (e *RuleEngine) RuleMatch(rule *rules.Rule, event eval.Event) bool {
 	return true
 }
 
+// Stop stops the rule engine
 func (e *RuleEngine) Stop() {
-	signal.Stop(e.sighupChan)
-	close(e.sighupChan)
-
 	for _, provider := range e.policyProviders {
 		_ = provider.Close()
 	}
@@ -446,6 +442,7 @@ func (e *RuleEngine) HandleEvent(event *model.Event) {
 	}
 }
 
+// StopEventCollector stops the event collector
 func (e *RuleEngine) StopEventCollector() []rules.CollectedEvent {
 	return e.GetRuleSet().StopEventCollector()
 }

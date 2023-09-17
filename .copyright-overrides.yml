@@ -159,6 +159,7 @@ github.com/dgraph-io/badger:
  - "Copyright 2019 Dgraph Labs, Inc. and Contributors"
  - "Copyright 2020 Dgraph Labs, Inc. and Contributors"
  - "Copyright 2021 Dgraph Labs, Inc. and Contributors"
+github.com/mostynb/go-grpc-compression: "Copyright 2023 Mostyn Bramley-Moore."
 
 # These have large AUTHORS/CONTRIBUTORS files but attribute copyright as a group
 github.com/aptly-dev/aptly: Copyright 2013-2015 aptly authors. All rights reserved.
@@ -169,6 +170,7 @@ github.com/shuLhan/go-bindata: Copyright 2018 The go-bindata Authors. All rights
 github.com/lxn/walk: Copyright (c) 2010 The Walk Authors. All rights reserved.
 github.com/lxn/win: Copyright (c) 2010 The win Authors. All rights reserved.
 github.com/klauspost/compress/snappy: Copyright (c) 2011 The Snappy-Go Authors. All rights reserved.
+github.com/klauspost/compress/s2: ["Copyright (c) 2011 The Snappy-Go Authors. All rights reserved.", "Copyright (c) 2019 Klaus Post. All rights reserved."]
 github.com/golang/snappy: Copyright (c) 2011 The Snappy-Go Authors. All rights reserved.
 github.com/shirou/w32: Copyright (c) 2010-2012 The w32 Authors. All rights reserved.
 github.com/gogo/protobuf: ["Copyright (c) 2013, The GoGo Authors. All rights reserved.", "Copyright 2010 The Go Authors.  All rights reserved."]
@@ -201,6 +203,7 @@ github.com/aquasecurity/go-pep440-version: Copyright (c) 2020 Teppei Fukuda (knq
 github.com/aquasecurity/go-version: Copyright (c) 2020 Teppei Fukuda (knqyf263)
 github.com/spdx/tools-golang: Copyright (c) 2018 The Authors
 github.com/google/flatbuffers: Copyright (c) 2014 Google
+github.com/gocomply/scap: "CC0 1.0 Universal"
 
 # The Copyright information is not contained in the LICENSE file, but it can be found in other
 # files in the package, such as:

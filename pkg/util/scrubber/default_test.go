@@ -76,6 +76,22 @@ func TestConfigScrubbedYaml(t *testing.T) {
 	assert.Equal(t, trimmedOutput, trimmedCleaned)
 }
 
+func TestEmptyYaml(t *testing.T) {
+	cleaned, err := ScrubYaml(nil)
+	require.Nil(t, err)
+	assert.Equal(t, "", string(cleaned))
+
+	cleaned, err = ScrubYaml([]byte(""))
+	require.Nil(t, err)
+	assert.Equal(t, "", string(cleaned))
+}
+
+func TestEmptyYamlString(t *testing.T) {
+	cleaned, err := ScrubYamlString("")
+	require.Nil(t, err)
+	assert.Equal(t, "", string(cleaned))
+}
+
 func TestConfigStripApiKey(t *testing.T) {
 	assertClean(t,
 		`api_key: aaaaaaaaaaaaaaaaaaaaaaaaaaaabbbb`,

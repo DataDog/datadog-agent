@@ -10,7 +10,7 @@ import (
 	"regexp"
 	"strings"
 
-	flarehelpers "github.com/DataDog/datadog-agent/comp/core/flare/helpers"
+	"github.com/DataDog/datadog-agent/comp/core/flare/types"
 )
 
 var (
@@ -22,7 +22,7 @@ func getFirstSuffix(s string) string {
 	return filepath.Ext(strings.TrimSuffix(s, filepath.Ext(s)))
 }
 
-func (f *flare) collectLogsFiles(fb flarehelpers.FlareBuilder) error {
+func (f *flare) collectLogsFiles(fb types.FlareBuilder) error {
 	logFile := f.config.GetString("log_file")
 	if logFile == "" {
 		logFile = f.params.defaultLogFile
@@ -52,7 +52,7 @@ func (f *flare) collectLogsFiles(fb flarehelpers.FlareBuilder) error {
 	return nil
 }
 
-func (f *flare) collectConfigFiles(fb flarehelpers.FlareBuilder) error {
+func (f *flare) collectConfigFiles(fb types.FlareBuilder) error {
 	confSearchPaths := map[string]string{
 		"":        f.config.GetString("confd_path"),
 		"dist":    filepath.Join(f.params.distPath, "conf.d"),

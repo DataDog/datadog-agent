@@ -1,5 +1,5 @@
 syntax = "proto3";
-package datadog.test.v1;
+package datadog.agent.systemprobe;
 
 option go_package = "/connectionserver"; // golang
 
@@ -12,6 +12,6 @@ message GetConnectionsRequest {
   string clientID = 1;
 }
 
-service SystemProbe {
+service NetworkTracer {
   rpc GetConnections(GetConnectionsRequest) returns (stream Connection);
 }

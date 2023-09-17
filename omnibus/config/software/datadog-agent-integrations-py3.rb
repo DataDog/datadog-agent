@@ -95,10 +95,6 @@ if osx?
 end
 
 if arm?
-  # Temporarily blacklist Aerospike until builder supports new dependency
-  blacklist_folders.push('aerospike')
-  blacklist_packages.push(/^aerospike==/)
-
   # This doesn't build on ARM
   blacklist_folders.push('ibm_ace')
   blacklist_folders.push('ibm_mq')
@@ -117,6 +113,12 @@ end
 # build
 if arm? || !_64_bit? || (windows? && windows_arch_i386?)
   blacklist_packages.push(/^orjson==/)
+end
+
+if linux?
+  # We need to use cython<3.0.0 to build oracledb
+  dependency 'oracledb-py3'
+  blacklist_packages.push(/^oracledb==/)
 end
 
 final_constraints_file = 'final_constraints-py3.txt'

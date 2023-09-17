@@ -28,6 +28,6 @@ type Factory struct {
 type Module interface {
 	GetStats() map[string]interface{}
 	Register(*Router) error
-	RegisterGRPC(*grpc.Server) error
+	RegisterGRPC(grpc.ServiceRegistrar) error
 	Close()
 }
