@@ -64,8 +64,9 @@ func TestHandleKubePod(t *testing.T) {
 	store := fxutil.Test[workloadmeta.Mock](t, fx.Options(
 		log.MockModule,
 		config.MockModule,
-		workloadmeta.MockModule,
+		fx.Supply(workloadmeta.NewParams()),
 		fx.Supply(context.Background()),
+		workloadmeta.MockModule,
 	))
 
 	store.Set(&workloadmeta.Container{
@@ -474,6 +475,7 @@ func TestHandleECSTask(t *testing.T) {
 	store := fxutil.Test[workloadmeta.Mock](t, fx.Options(
 		log.MockModule,
 		config.MockModule,
+		fx.Supply(workloadmeta.NewParams()),
 		workloadmeta.MockModule,
 	))
 
@@ -1172,6 +1174,7 @@ func TestHandleDelete(t *testing.T) {
 	store := fxutil.Test[workloadmeta.Mock](t, fx.Options(
 		log.MockModule,
 		config.MockModule,
+		fx.Supply(workloadmeta.NewParams()),
 		workloadmeta.MockModule,
 	))
 
@@ -1253,6 +1256,7 @@ func TestHandlePodWithDeletedContainer(t *testing.T) {
 		store: fxutil.Test[workloadmeta.Mock](t, fx.Options(
 			log.MockModule,
 			config.MockModule,
+			fx.Supply(workloadmeta.NewParams()),
 			workloadmeta.MockModule,
 		)),
 		children: map[string]map[string]struct{}{

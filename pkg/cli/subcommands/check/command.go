@@ -179,7 +179,7 @@ func MakeCommand(globalParamsGetter func() GlobalParams) *cobra.Command {
 	return cmd
 }
 
-func run(config config.Component, cliParams *cliParams, wmeta workloadmeta.Component, demultiplexer demultiplexer.Component) error {
+func run(config config.Component, cliParams *cliParams, demultiplexer demultiplexer.Component, _ workloadmeta.Component) error {
 	previousIntegrationTracing := false
 	previousIntegrationTracingExhaustive := false
 	if cliParams.generateIntegrationTraces {
@@ -201,7 +201,7 @@ func run(config config.Component, cliParams *cliParams, wmeta workloadmeta.Compo
 		return nil
 	}
 
-	common.LoadComponents(context.Background(), demultiplexer, wmeta, pkgconfig.Datadog.GetString("confd_path"))
+	common.LoadComponents(context.Background(), demultiplexer, pkgconfig.Datadog.GetString("confd_path"))
 	common.AC.LoadAndRun(context.Background())
 
 	// Create the CheckScheduler, but do not attach it to

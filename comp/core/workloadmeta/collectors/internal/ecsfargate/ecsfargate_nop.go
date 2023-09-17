@@ -5,10 +5,12 @@
 
 //go:build !docker
 
+// Package ecsfargate provides the docker collector for workloadmeta
 package ecsfargate
 
 import "go.uber.org/fx"
 
+// GetFxOptions returns the FX framework options for the collector
 func GetFxOptions() fx.Option {
 	return nil
 }

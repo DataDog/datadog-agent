@@ -46,8 +46,8 @@ func newWorkloadMetaMock(deps dependencies) Mock {
 	return mock
 }
 
-func (s *workloadmetamock) GetContainer(id string) (*Container, error) {
-	entity, err := s.getEntityByKind(KindContainer, id)
+func (w *workloadmetamock) GetContainer(id string) (*Container, error) {
+	entity, err := w.getEntityByKind(KindContainer, id)
 	if err != nil {
 		return nil, err
 	}

@@ -23,8 +23,9 @@ func TestLifecycle(t *testing.T) {
 	_ = fxutil.Test[Component](t, fx.Options(
 		Module,
 		core.MockBundle,
-		workloadmeta.Module,
 		fx.Supply(context.Background()),
+		fx.Supply(workloadmeta.NewParams()),
+		workloadmeta.Module,
 	))
 
 	assert.Eventually(t, func() bool {

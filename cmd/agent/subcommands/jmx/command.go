@@ -28,6 +28,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
+	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/cli/standalone"
 	"github.com/DataDog/datadog-agent/pkg/collector"
@@ -102,7 +103,9 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 			diagnosesendermanagerimpl.Module,
 			// workloadmeta setup
 			collectors.GetCatalog(),
-			fx.Supply(workloadmeta.NewParams()),
+			fx.Supply(workloadmeta.Params{
+				InitHelper: common.GetWorkloadmetaInit(),
+			}),
 			workloadmeta.Module,
 		)
 	}
@@ -247,7 +250,9 @@ func runJmxCommandConsole(config config.Component, cliParams *cliParams, wmeta w
 	if err != nil {
 		return err
 	}
-	common.LoadComponents(context.Background(), senderManager, wmeta, config.GetString("confd_path"))
+	// The Autoconfig instance setup happens in the workloadmeta start hook
+	// create and setup the Collector and others.
+	common.LoadComponents(context.Background(), senderManager, config.GetString("confd_path"))
 	common.AC.LoadAndRun(context.Background())
 
 	// Create the CheckScheduler, but do not attach it to
@@ -269,7 +274,7 @@ func runJmxCommandConsole(config config.Component, cliParams *cliParams, wmeta w
 		return err
 	}
 
-	err = standalone.ExecJMXCommandConsole(cliParams.command, cliParams.cliSelectedChecks, cliParams.jmxLogLevel, allConfigs, wmeta, aggregator.GetSenderManager())
+	err = standalone.ExecJMXCommandConsole(cliParams.command, cliParams.cliSelectedChecks, cliParams.jmxLogLevel, allConfigs, wmeta, diagnoseSendermanager)
 
 	if runtime.GOOS == "windows" {
 		standalone.PrintWindowsUserWarning("jmx")

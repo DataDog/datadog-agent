@@ -27,6 +27,7 @@ func TestTagBuilder(t *testing.T) {
 	store := fxutil.Test[workloadmeta.Mock](t, fx.Options(
 		core.MockBundle,
 		fx.Supply(context.Background()),
+		fx.Supply(workloadmeta.NewParams()),
 		workloadmeta.MockModuleV2,
 	))
 	tagger := NewTagger(store)

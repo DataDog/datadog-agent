@@ -43,6 +43,7 @@ type collector struct {
 	expireFreq time.Duration
 }
 
+// NewCollector returns a kubelet CollectorProvider that instantiates its collector
 func NewCollector() (workloadmeta.CollectorProvider, error) {
 	return workloadmeta.CollectorProvider{
 		Collector: &collector{
@@ -52,6 +53,7 @@ func NewCollector() (workloadmeta.CollectorProvider, error) {
 	}, nil
 }
 
+// GetFxOptions returns the FX framework options for the collector
 func GetFxOptions() fx.Option {
 	return fx.Provide(NewCollector)
 }
@@ -98,6 +100,10 @@ func (c *collector) Pull(ctx context.Context) error {
 
 func (c *collector) GetID() string {
 	return c.id
+}
+
+func (c *collector) GetTargetCatalog() workloadmeta.AgentType {
+	return c.catalog
 }
 
 func (c *collector) parsePods(pods []*kubelet.Pod) []workloadmeta.CollectorEvent {

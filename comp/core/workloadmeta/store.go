@@ -156,7 +156,7 @@ func (w *workloadmeta) Subscribe(name string, priority SubscriberPriority, filte
 
 	// notifyChannel should not wait when doing the first subscription, as
 	// the subscriber is not ready to receive events yet
-	s.notifyChannel(sub.name, sub.ch, events, false)
+	w.notifyChannel(sub.name, sub.ch, events, false)
 
 	w.subscribersMut.Lock()
 	defer w.subscribersMut.Unlock()
@@ -537,8 +537,8 @@ func (w *workloadmeta) pull(ctx context.Context) {
 				telemetry.PullErrors.Inc(id)
 			}
 
-			s.ongoingPullsMut.Lock()
-			pullDuration := time.Since(s.ongoingPulls[id])
+			w.ongoingPullsMut.Lock()
+			pullDuration := time.Since(w.ongoingPulls[id])
 			telemetry.PullDuration.Observe(pullDuration.Seconds(), id)
 			w.ongoingPulls[id] = time.Time{}
 			w.ongoingPullsMut.Unlock()
@@ -674,7 +674,7 @@ func (w *workloadmeta) handleEvents(evs []CollectorEvent) {
 			continue
 		}
 
-		s.notifyChannel(sub.name, sub.ch, evs, true)
+		w.notifyChannel(sub.name, sub.ch, evs, true)
 	}
 }
 
@@ -725,14 +725,14 @@ func (w *workloadmeta) unsubscribeAll() {
 	telemetry.Subscribers.Set(0)
 }
 
-func (s *store) notifyChannel(name string, ch chan EventBundle, events []Event, wait bool) {
+func (w *workloadmeta) notifyChannel(name string, ch chan EventBundle, events []Event, wait bool) {
 	bundle := EventBundle{
 		Ch:     make(chan struct{}),
 		Events: events,
 	}
-	s.subscribersMut.Lock()
+	w.subscribersMut.Lock()
 	ch <- bundle
-	s.subscribersMut.Unlock()
+	w.subscribersMut.Unlock()
 
 	if wait {
 		timer := time.NewTimer(eventBundleChTimeout)

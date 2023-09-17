@@ -20,7 +20,7 @@ import (
 	"google.golang.org/grpc/credentials/insecure"
 
 	"github.com/DataDog/datadog-agent/comp/core"
-	corecomp "github.com/DataDog/datadog-agent/comp/core/config"
+	compcfg "github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors"
 	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
@@ -84,8 +84,9 @@ func setUpCollectorTest(t *testing.T) *collectorTest {
 
 	store := fxutil.Test[workloadmeta.Mock](t, fx.Options(
 		core.MockBundle,
-		fx.Replace(corecomp.MockParams{Overrides: overrides}),
+		fx.Replace(compcfg.MockParams{Overrides: overrides}),
 		fx.Supply(context.Background()),
+		fx.Supply(workloadmeta.NewParams()),
 		collectors.GetCatalog(),
 		workloadmeta.MockModuleV2,
 	))

@@ -51,6 +51,7 @@ type Collector struct {
 	collectionClock clock.Clock
 }
 
+// Start will start the collector
 func (c *Collector) Start(ctx context.Context, store workloadmeta.Component) error {
 	err := c.grpcServer.Start()
 	if err != nil {

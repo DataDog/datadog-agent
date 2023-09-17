@@ -25,12 +25,17 @@ type Collector interface {
 
 	// Returns the identifier for the respective component.
 	GetID() string
+
+	// Get the expected catalog
+	GetTargetCatalog() AgentType
 }
 
+// CollectorProvider is the collector fx value group
 type CollectorProvider struct {
 	fx.Out
 
 	Collector Collector `group:"workloadmeta"`
 }
 
+// CollectorList is an array of Collectors
 type CollectorList []Collector

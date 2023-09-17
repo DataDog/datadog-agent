@@ -5,8 +5,10 @@
 
 package workloadmeta
 
+// Params provides the kind of agent we're instantiating workloadmeta for
 type Params struct {
-	AgentType AgentType
+	AgentType  AgentType
+	InitHelper InitHelper
 }
 
 // NewParams creates a Params struct with the default NodeAgent configuration

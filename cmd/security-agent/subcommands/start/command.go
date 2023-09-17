@@ -22,6 +22,7 @@ import (
 
 	ddgostatsd "github.com/DataDog/datadog-go/v5/statsd"
 
+	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	"github.com/DataDog/datadog-agent/cmd/manager"
 	"github.com/DataDog/datadog-agent/cmd/security-agent/api"
 	"github.com/DataDog/datadog-agent/cmd/security-agent/command"
@@ -106,7 +107,10 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 						catalog = workloadmeta.Remote
 					}
 
-					return workloadmeta.Params{AgentType: catalog}
+					return workloadmeta.Params{
+						AgentType:  catalog,
+						InitHelper: common.GetWorkloadmetaInit(),
+					}
 				}),
 			)
 		},

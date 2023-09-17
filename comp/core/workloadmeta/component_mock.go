@@ -7,7 +7,6 @@
 // +build test
 
 // Package workloadmeta ... /* TODO: detailed doc comment for the component */
-
 package workloadmeta
 
 import (

@@ -56,6 +56,7 @@ type streamHandler struct {
 	config.Config
 }
 
+// NewCollector returns a CollectorProvider to build a remote workloadmeta collector, and an error if any.
 func NewCollector() (workloadmeta.CollectorProvider, error) {
 	return workloadmeta.CollectorProvider{
 		Collector: &remote.GenericCollector{
@@ -66,6 +67,7 @@ func NewCollector() (workloadmeta.CollectorProvider, error) {
 	}, nil
 }
 
+// GetFxOptions returns the FX framework options for the collector
 func GetFxOptions() fx.Option {
 	return fx.Provide(NewCollector)
 }

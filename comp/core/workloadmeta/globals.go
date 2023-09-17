@@ -16,14 +16,17 @@ type metaStore struct {
 
 var globalStore metaStore
 
+// SetGlobalStore sets the global workloadmeta instance
 func SetGlobalStore(w Component) {
 	globalStore.Set(w)
 }
 
+// GetGlobalStore returns the global workloadmeta instance
 func GetGlobalStore() Component {
 	return globalStore.Get()
 }
 
+// Set sets the workloadmeta component instance in the global `metaStore` in a threadsafe manner
 func (m *metaStore) Set(w Component) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
@@ -31,6 +34,7 @@ func (m *metaStore) Set(w Component) {
 	m.wmeta = w
 }
 
+// Reset resets the workloadmeta component instance in the global `metaStore` to nil in a threadsafe manner
 func (m *metaStore) Reset() {
 	m.mu.Lock()
 	defer m.mu.Unlock()
@@ -38,6 +42,7 @@ func (m *metaStore) Reset() {
 	m.wmeta = nil
 }
 
+// Get grabs the workloadmeta component instance in the global `metaStore` variable.
 func (m *metaStore) Get() Component {
 	m.mu.RLock()
 	defer m.mu.RUnlock()

@@ -82,7 +82,7 @@ type GenericCollector struct {
 	Insecure bool // for testing
 }
 
-// Start starts the collector.
+// Start starts the generic collector
 func (c *GenericCollector) Start(ctx context.Context, store workloadmeta.Component) error {
 	if !c.StreamHandler.IsEnabled() {
 		return fmt.Errorf("collector %s is not enabled", c.CollectorID)
@@ -229,6 +229,12 @@ func (c *GenericCollector) Run() {
 	}
 }
 
+// GetID gets the identifier for the generic collector
 func (c *GenericCollector) GetID() string {
 	return c.CollectorID
+}
+
+// GetTargetCatalog gets the catalog this collector should target
+func (c *GenericCollector) GetTargetCatalog() workloadmeta.AgentType {
+	return c.Catalog
 }

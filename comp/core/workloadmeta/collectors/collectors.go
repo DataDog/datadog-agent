@@ -24,6 +24,7 @@ import (
 	"go.uber.org/fx"
 )
 
+// GetCatalog returns the set of FX options to populate the catalog
 func GetCatalog() fx.Option {
 	options := []fx.Option{
 		cf_container.GetFxOptions(),

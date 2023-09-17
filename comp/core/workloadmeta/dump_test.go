@@ -22,6 +22,7 @@ func TestDump(t *testing.T) {
 		log.MockModule,
 		config.MockModule,
 		fx.Supply(context.Background()),
+		fx.Supply(NewParams()),
 	))
 
 	s := newWorkloadMeta(deps).(*workloadmeta)

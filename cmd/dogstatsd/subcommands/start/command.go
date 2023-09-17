@@ -225,7 +225,7 @@ func RunDogstatsd(ctx context.Context, cliParams *CLIParams, config config.Compo
 	// container tagging initialisation if origin detection is on
 	if config.GetBool("dogstatsd_origin_detection") {
 
-		tagger.SetDefaultTagger(local.NewTagger(wmeta))
+		tagger.SetDefaultTagger(local.NewTagger(components.WorkloadMeta))
 		if err := tagger.Init(ctx); err != nil {
 			log.Errorf("failed to start the tagger: %s", err)
 		}

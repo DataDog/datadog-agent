@@ -5,10 +5,12 @@
 
 //go:build !kubelet
 
+// Package kubelet provides the docker collector for workloadmeta
 package kubelet
 
 import "go.uber.org/fx"
 
+// GetFxOptions returns the FX framework options for the collector
 func GetFxOptions() fx.Option {
 	return nil
 }

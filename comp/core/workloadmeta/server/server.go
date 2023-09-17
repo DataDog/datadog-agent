@@ -23,7 +23,7 @@ const (
 	workloadmetaKeepAliveInterval = 9 * time.Minute
 )
 
-// NewServer returns a new Server
+// NewServer returns a new server with a workloadmeta instance
 func NewServer(store workloadmeta.Component) *Server {
 	return &Server{
 		wmeta: store,

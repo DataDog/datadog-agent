@@ -8,6 +8,7 @@
 package probe
 
 import (
+	"context"
 	"errors"
 	"os"
 	"reflect"
@@ -15,8 +16,11 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"go.uber.org/fx"
 
+	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
+	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/common/types"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
@@ -25,6 +29,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/tagger"
 	"github.com/DataDog/datadog-agent/pkg/tagger/local"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet/mock"
 )
 
@@ -259,9 +264,9 @@ func TestProvider_Provide(t *testing.T) {
 			//                    component.
 			store := fxutil.Test[workloadmeta.Mock](t, fx.Options(
 				core.MockBundle,
-				fx.Replace(corecomp.MockParams{Overrides: overrides}),
 				fx.Supply(context.Background()),
 				collectors.GetCatalog(),
+				fx.Supply(workloadmeta.NewParams()),
 				workloadmeta.MockModuleV2,
 			))
 

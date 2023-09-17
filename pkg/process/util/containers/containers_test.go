@@ -43,6 +43,7 @@ func TestGetContainers(t *testing.T) {
 	metadataProvider := fxutil.Test[workloadmeta.Mock](t, fx.Options(
 		core.MockBundle,
 		fx.Supply(context.Background()),
+		fx.Supply(workloadmeta.NewParams()),
 		workloadmeta.MockModule,
 	))
 

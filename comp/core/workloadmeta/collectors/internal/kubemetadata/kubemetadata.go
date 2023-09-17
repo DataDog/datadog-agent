@@ -52,6 +52,7 @@ type collector struct {
 	collectNamespaceLabels bool
 }
 
+// NewCollector returns a CollectorProvider to build a kubemetadata collector, and an error if any.
 func NewCollector() (workloadmeta.CollectorProvider, error) {
 	return workloadmeta.CollectorProvider{
 		Collector: &collector{
@@ -62,6 +63,7 @@ func NewCollector() (workloadmeta.CollectorProvider, error) {
 	}, nil
 }
 
+// GetFxOptions returns the FX framework options for the collector
 func GetFxOptions() fx.Option {
 	return fx.Provide(NewCollector)
 }
@@ -173,6 +175,9 @@ func (c *collector) Pull(ctx context.Context) error {
 
 func (c *collector) GetID() string {
 	return c.id
+}
+func (c *collector) GetTargetCatalog() workloadmeta.AgentType {
+	return c.catalog
 }
 
 // parsePods returns collection events based on a given podlist.

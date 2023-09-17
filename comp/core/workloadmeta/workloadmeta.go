@@ -39,6 +39,10 @@ type workloadmeta struct {
 	ongoingPulls    map[string]time.Time // collector ID => time when last pull started
 }
 
+// InitHelper this should be provided as a helper to allow passing the component into
+// the inithook for additional start-time configutation.
+type InitHelper func(context.Context, Component) error
+
 type dependencies struct {
 	fx.In
 
@@ -48,13 +52,18 @@ type dependencies struct {
 	Log     log.Component
 	Config  config.Component
 	Catalog CollectorList `group:"workloadmeta"`
+
+	Params Params
 }
 
 func newWorkloadMeta(deps dependencies) Component {
 
 	candidates := make(map[string]Collector)
 	for _, c := range deps.Catalog {
-		candidates[c.GetID()] = c
+		// TODO(components): the catalog should only get the expected collectors
+		if c.GetTargetCatalog() != deps.Params.AgentType {
+			candidates[c.GetID()] = c
+		}
 	}
 
 	wm := &workloadmeta{
@@ -71,9 +80,10 @@ func newWorkloadMeta(deps dependencies) Component {
 	// TODO: we probably need something here
 	deps.Lc.Append(fx.Hook{OnStart: func(c context.Context) error {
 		// create and setup the Autoconfig instance
-		// wm.Start(deps.Ctx)
+		if deps.Params.InitHelper != nil {
+			return deps.Params.InitHelper(c, wm)
+		}
 		wm.Start(c)
-
 		return nil
 	}})
 	deps.Lc.Append(fx.Hook{OnStop: func(context.Context) error {

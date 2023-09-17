@@ -5,14 +5,16 @@
 
 //go:build test
 
+//revive:disable:var-naming
 package process_collector
+
+//revive:enable:var-naming
 
 import (
 	"context"
 	"net"
 	"os"
 	"strconv"
-	"strings"
 	"testing"
 	"time"
 
@@ -237,12 +239,16 @@ func TestCollection(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			overrides := map[string]interface{}{
 				"workloadmeta.remote_process_collector.enabled": true,
+				"language_detection.enabled":                    true,
 			}
 
 			mockStore := fxutil.Test[workloadmeta.Mock](t, fx.Options(
 				core.MockBundle,
 				fx.Replace(config.MockParams{Overrides: overrides}),
 				fx.Supply(context.Background()),
+				fx.Supply(workloadmeta.Params{
+					AgentType: workloadmeta.Remote,
+				}),
 				fx.Provide(NewCollector),
 				workloadmeta.MockModuleV2,
 			))
@@ -272,8 +278,8 @@ func TestCollection(t *testing.T) {
 			// gRPC client (core agent)
 			collector := &remote.GenericCollector{
 				StreamHandler: &streamHandler{
-					Config: mockConfig,
-					port:   port,
+					ConfigReader: mockStore.GetConfig(),
+					port:         port,
 				},
 				Insecure: true,
 			}

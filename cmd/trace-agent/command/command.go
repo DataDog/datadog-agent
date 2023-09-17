@@ -16,6 +16,7 @@ import (
 )
 
 const (
+	// LoggerName is the application logger identifier
 	LoggerName = "TRACE"
 )
 

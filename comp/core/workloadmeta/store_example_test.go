@@ -20,6 +20,7 @@ func TestExampleStoreSubscribe(t *testing.T) {
 	deps := fxutil.Test[dependencies](t, fx.Options(
 		log.MockModule,
 		config.MockModule,
+		fx.Supply(NewParams()),
 	))
 
 	s := newWorkloadMeta(deps).(*workloadmeta)

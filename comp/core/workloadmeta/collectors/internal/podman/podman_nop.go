@@ -5,12 +5,14 @@
 
 //go:build !podman
 
+// Package podman provides the docker collector for workloadmeta
 package podman
 
 import (
 	"go.uber.org/fx"
 )
 
+// GetFxOptions returns the FX framework options for the collector
 func GetFxOptions() fx.Option {
 	return nil
 }

@@ -76,6 +76,7 @@ func mockContainerProvider(t *testing.T) proccontainers.ContainerProvider {
 	metadataProvider := fxutil.Test[workloadmeta.Mock](t, fx.Options(
 		core.MockBundle,
 		fx.Supply(context.Background()),
+		fx.Supply(workloadmeta.NewParams()),
 		workloadmeta.MockModule,
 	))
 
