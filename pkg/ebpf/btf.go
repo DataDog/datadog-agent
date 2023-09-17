@@ -144,6 +144,9 @@ func GetKernelSpec() (*btf.Spec, error) {
 		return kernelSpecCache.spec, nil
 	}
 
+	// re-sync refCount
+	kernelSpecCache.refCount = 0
+
 	spec, err := btf.LoadKernelSpec()
 	if err != nil {
 		return nil, err
