@@ -102,7 +102,7 @@ func prepareConfig(c corecompcfg.Component) (*config.AgentConfig, error) {
 	orch := fargate.GetOrchestrator() // Needs to be after loading config, because it relies on feature auto-detection
 	cfg.FargateOrchestrator = config.FargateOrchestratorName(orch)
 	if p := coreconfig.Datadog.GetProxies(); p != nil {
-		cfg.Proxy = httputils.GetProxyTransportFunc(p)
+		cfg.Proxy = httputils.GetProxyTransportFunc(p, coreconfig.Datadog)
 	}
 	if coreconfig.IsRemoteConfigEnabled(coreConfigObject) && coreConfigObject.GetBool("remote_configuration.apm_sampling.enabled") {
 		client, err := remote.NewGRPCClient(
