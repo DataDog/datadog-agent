@@ -144,7 +144,7 @@ func (c *ConnectionsCheck) runGRPC() (*model.Connections, error) {
 		return nil, fmt.Errorf("unable to dial with context to grpc server due to: %v", err)
 	}
 	defer conn.Close()
-	client := connectionserver.NewSystemProbeClient(conn)
+	client := connectionserver.NewNetworkTracerClient(conn)
 
 	request := &connectionserver.GetConnectionsRequest{
 		ClientID: c.tracerClientID,
