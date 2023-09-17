@@ -13,6 +13,7 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"sync"
 
 	"github.com/DataDog/gopsutil/host"
 	"github.com/cilium/ebpf/btf"
@@ -40,7 +41,7 @@ func GetBTF(userProvidedBtfPath, bpfDir string) (*btf.Spec, COREResult) {
 	}
 	log.Debugf("couldn't find BTF in embedded collection: %s", err)
 
-	btfSpec, err = btf.LoadKernelSpec()
+	btfSpec, err = GetKernelSpec()
 	if err == nil {
 		log.Debugf("loaded BTF from default kernel location")
 		return btfSpec, successDefaultBTF
@@ -124,4 +125,41 @@ func loadBTFFrom(path string) (*btf.Spec, error) {
 	defer data.Close()
 
 	return btf.LoadSpecFromReader(data)
+}
+
+var kernelSpecCache struct {
+	sync.Mutex
+	userCount int
+	spec      *btf.Spec
+}
+
+func GetKernelSpec() (*btf.Spec, error) {
+	kernelSpecCache.Lock()
+	defer kernelSpecCache.Unlock()
+
+	if kernelSpecCache.spec != nil {
+		kernelSpecCache.userCount++
+		return kernelSpecCache.spec, nil
+	}
+
+	spec, err := btf.LoadKernelSpec()
+	if err != nil {
+		return nil, err
+	}
+
+	kernelSpecCache.spec = spec
+	kernelSpecCache.userCount = 1
+	return spec, nil
+}
+
+func KernelSpecFlushCache() {
+	kernelSpecCache.Lock()
+	defer kernelSpecCache.Unlock()
+
+	kernelSpecCache.userCount--
+
+	if kernelSpecCache.userCount <= 0 {
+		kernelSpecCache.spec = nil
+		btf.FlushKernelSpec()
+	}
 }
