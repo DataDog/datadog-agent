@@ -14,9 +14,6 @@ import (
 	"time"
 
 	model "github.com/DataDog/agent-payload/v5/process"
-	"github.com/cihub/seelog"
-	"google.golang.org/grpc"
-
 	sysconfig "github.com/DataDog/datadog-agent/cmd/system-probe/config"
 	hostMetadataUtils "github.com/DataDog/datadog-agent/comp/metadata/host/utils"
 	"github.com/DataDog/datadog-agent/pkg/config"
@@ -27,10 +24,10 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/process/net"
 	"github.com/DataDog/datadog-agent/pkg/process/net/resolver"
 	putil "github.com/DataDog/datadog-agent/pkg/process/util"
-	"github.com/DataDog/datadog-agent/pkg/proto/connectionserver"
 	"github.com/DataDog/datadog-agent/pkg/util/cloudproviders"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/subscriptions"
+	"github.com/cihub/seelog"
 )
 
 var (
@@ -132,74 +129,6 @@ func (c *ConnectionsCheck) Realtime() bool { return false }
 // ShouldSaveLastRun indicates if the output from the last run should be saved for use in flares
 func (c *ConnectionsCheck) ShouldSaveLastRun() bool { return false }
 
-const maxGRPCServerMessage = 100 * 1024 * 1024
-
-func (c *ConnectionsCheck) runGRPC() (*model.Connections, error) {
-	// Create a context with a timeout of 10 seconds
-	timedContext, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	// the second parameter is unused because we use a custom  dialer that has the state to see the address.
-	conn, err := net.GetRemoteGRPCSysProbeConnection(timedContext, c.syscfg.SocketAddress)
-	cancel()
-	if err != nil {
-		return nil, fmt.Errorf("unable to dial with context to grpc server due to: %v", err)
-	}
-	defer conn.Close()
-	client := connectionserver.NewNetworkTracerClient(conn)
-
-	request := &connectionserver.GetConnectionsRequest{
-		ClientID: c.tracerClientID,
-	}
-
-	timedContext, cancel = context.WithTimeout(context.Background(), 30*time.Second)
-	defer cancel()
-	connectionsStream, err := client.GetConnections(timedContext, request, grpc.MaxCallRecvMsgSize(maxGRPCServerMessage))
-	if err != nil {
-		return nil, fmt.Errorf("unable to get connections from grpc server due to: %v", err)
-	}
-
-	unmarshaler := netEncoding.GetUnmarshaler(netEncoding.ContentTypeProtobuf)
-	outcome := new(model.Connections)
-
-	for {
-		currentStreamStartTime := time.Now()
-		res, err := connectionsStream.Recv()
-		if errors.Is(err, io.EOF) {
-			break
-		}
-		if err != nil {
-			return nil, fmt.Errorf("unable to get response from grpc server due to: %v", err)
-		}
-
-		batch, err := unmarshaler.Unmarshal(res.Data)
-		if err != nil {
-			return nil, fmt.Errorf("unable to unmarshal response due to: %v", err)
-		}
-		if log.ShouldLog(seelog.DebugLvl) {
-			log.Debugf("[grpc] received %d connections in a batch (%v)", len(batch.Conns), time.Since(currentStreamStartTime))
-		}
-		if len(batch.Conns) > 0 {
-			outcome.Conns = append(outcome.Conns, batch.Conns...)
-		}
-		if batch.AgentConfiguration != nil {
-			log.Debugf("[grpc] got unique batch")
-			// All other fields are being sent in a single (last) chunk, so we have to just copy them.
-			outcome.Dns = batch.Dns
-			outcome.ConnTelemetry = batch.ConnTelemetry
-			outcome.Domains = batch.Domains
-			outcome.Routes = batch.Routes
-			outcome.CompilationTelemetryByAsset = batch.CompilationTelemetryByAsset
-			outcome.AgentConfiguration = batch.AgentConfiguration
-			outcome.Tags = batch.Tags
-			outcome.ConnTelemetryMap = batch.ConnTelemetryMap
-			outcome.KernelHeaderFetchResult = batch.KernelHeaderFetchResult
-			outcome.CORETelemetryByAsset = batch.CORETelemetryByAsset
-			outcome.PrebuiltEBPFAssets = batch.PrebuiltEBPFAssets
-		}
-		netEncoding.ConnsToPool(batch)
-	}
-	return outcome, nil
-}
-
 // Run runs the ConnectionsCheck to collect the active network connections
 // and any closed network connections since the last Run.
 // For each connection we'll return a `model.Connection`
@@ -212,9 +141,12 @@ func (c *ConnectionsCheck) Run(nextGroupID func() int32, _ *RunOptions) (RunResu
 	var conns *model.Connections
 	// Pulling all connections
 	if c.syscfg.GRPCServerEnabled {
-		// For gRPC - we're pulling the connections from the batches and accumulating all together.
-		conns, err = c.runGRPC()
+		conns, err = c.getConnectionsWS()
 		if err != nil {
+			// If the tracer is not initialized, or still not initialized, then we want to exit without error'ing
+			if err == ebpf.ErrNotImplemented || err == ErrTracerStillNotInitialized {
+				return nil, nil
+			}
 			return nil, err
 		}
 	} else {
@@ -258,6 +190,61 @@ func (c *ConnectionsCheck) getConnections() (*model.Connections, error) {
 		return nil, ErrTracerStillNotInitialized
 	}
 	return tu.GetConnections(c.tracerClientID)
+}
+
+func (c *ConnectionsCheck) getConnectionsWS() (*model.Connections, error) {
+	urrl := fmt.Sprintf("ws://unix/%s/ws-connections?client_id=%s", string(sysconfig.NetworkTracerModule), c.tracerClientID)
+	conn, _, err := net.GetSystemProbeWSDialer(c.syscfg.SocketAddress).Dial(urrl, nil)
+	if err != nil {
+		// handle error
+		return nil, err
+	}
+	defer conn.Close()
+
+	unmarshaler := netEncoding.GetUnmarshaler(netEncoding.ContentTypeProtobuf)
+	outcome := new(model.Connections)
+
+	for {
+		currentStreamStartTime := time.Now()
+		_, res, err := conn.ReadMessage()
+		if err == nil && len(res) == 0 {
+			break
+		}
+		if errors.Is(err, io.EOF) {
+			break
+		}
+		if err != nil {
+			return nil, fmt.Errorf("unable to get response from grpc server due to: %v", err)
+		}
+
+		batch, err := unmarshaler.Unmarshal(res)
+		if err != nil {
+			return nil, fmt.Errorf("unable to unmarshal response due to: %v", err)
+		}
+		if log.ShouldLog(seelog.DebugLvl) {
+			log.Debugf("[grpc] received %d connections in a batch (%v)", len(batch.Conns), time.Since(currentStreamStartTime))
+		}
+		if len(batch.Conns) > 0 {
+			outcome.Conns = append(outcome.Conns, batch.Conns...)
+		}
+		if batch.AgentConfiguration != nil {
+			log.Debugf("[grpc] got unique batch")
+			// All other fields are being sent in a single (last) chunk, so we have to just copy them.
+			outcome.Dns = batch.Dns
+			outcome.ConnTelemetry = batch.ConnTelemetry
+			outcome.Domains = batch.Domains
+			outcome.Routes = batch.Routes
+			outcome.CompilationTelemetryByAsset = batch.CompilationTelemetryByAsset
+			outcome.AgentConfiguration = batch.AgentConfiguration
+			outcome.Tags = batch.Tags
+			outcome.ConnTelemetryMap = batch.ConnTelemetryMap
+			outcome.KernelHeaderFetchResult = batch.KernelHeaderFetchResult
+			outcome.CORETelemetryByAsset = batch.CORETelemetryByAsset
+			outcome.PrebuiltEBPFAssets = batch.PrebuiltEBPFAssets
+		}
+		netEncoding.ConnsToPool(batch)
+	}
+	return outcome, nil
 }
 
 func (c *ConnectionsCheck) notifyProcessConnRates(config config.ConfigReader, conns *model.Connections) {

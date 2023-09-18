@@ -12,6 +12,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"github.com/gorilla/websocket"
 	"io"
 	"net"
 	"net/http"
@@ -19,9 +20,6 @@ import (
 	"time"
 
 	model "github.com/DataDog/agent-payload/v5/process"
-	"google.golang.org/grpc"
-	"google.golang.org/grpc/backoff"
-	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/protobuf/proto"
 
 	"github.com/DataDog/datadog-agent/pkg/languagedetection/languagemodels"
@@ -286,33 +284,13 @@ func (r *RemoteSysProbeUtil) init() error {
 	return nil
 }
 
-var defaultBackoffConfig = backoff.Config{
-	BaseDelay:  30 * time.Second,
-	Multiplier: 1.1,
-	Jitter:     0.2,
-	MaxDelay:   5 * time.Minute,
-}
-
-// GetRemoteGRPCSysProbeConnection returns a new gRPC client connection to system-probe.
-func GetRemoteGRPCSysProbeConnection(ctx context.Context, path string) (*grpc.ClientConn, error) {
-	err := CheckPath(path)
-	if err != nil {
-		return nil, fmt.Errorf("error setting up remote grpc system probe util, %v", err)
-	}
-
-	opts := []grpc.DialOption{
-		grpc.WithContextDialer(func(_ context.Context, _ string) (net.Conn, error) {
+// GetSystemProbeWSDialer returns ws dialer.
+func GetSystemProbeWSDialer(path string) *websocket.Dialer {
+	return &websocket.Dialer{
+		NetDialContext: func(_ context.Context, _, _ string) (net.Conn, error) {
 			return net.Dial(netType, path)
-		}),
-		grpc.WithTransportCredentials(insecure.NewCredentials()),
-		grpc.WithConnectParams(grpc.ConnectParams{Backoff: defaultBackoffConfig}),
-		grpc.WithBlock(),
+		},
+		Proxy:            http.ProxyFromEnvironment,
+		HandshakeTimeout: time.Second,
 	}
-
-	// the second parameter is unused because we use a custom dialer that has the address.
-	conn, err := grpc.DialContext(ctx, "unused", opts...)
-	if err != nil {
-		return nil, fmt.Errorf("system probe grpc init error: %s", err)
-	}
-	return conn, err
 }
