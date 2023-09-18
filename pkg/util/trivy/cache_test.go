@@ -218,11 +218,15 @@ func TestCustomBoltCache_DiskSizeLimit(t *testing.T) {
 func TestCustomBoltCache_GarbageCollector(t *testing.T) {
 	// Create a workload meta global store containing two images with a distinct artifactID/blobs and a shared blob
 
-	// FIXME(components): these tests are broken until they adopt the new
-	//                    workloadmeta component testing logic.
-	//                    This should probably rely on a mock instance...
-	globalStore := workloadmeta.CreateGlobalStore(workloadmeta.NodeAgentCatalog)
-	globalStore.Start(context.TODO())
+	workloadmetaStore := fxutil.Test[workloadmeta.Component](t, fx.Options(
+		log.MockModule,
+		config.MockModule,
+		fx.Supply(context.Background()),
+		fx.Supply(workloadmeta.NewParams()),
+		collectors.GetCatalog(),
+		workloadmeta.MockModuleV2,
+	))
+
 	image1 := &workloadmeta.ContainerImageMetadata{
 		EntityID: workloadmeta.EntityID{
 			Kind: workloadmeta.KindContainerImageMetadata,

@@ -14,6 +14,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
+	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
@@ -22,6 +23,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/pipeline"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 	dockerutilPkg "github.com/DataDog/datadog-agent/pkg/util/docker"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/pointer"
 )
 
@@ -189,9 +191,13 @@ func TestMakeK8sSource(t *testing.T) {
 	require.NoError(t, os.WriteFile(filename, []byte("{}"), 0o666))
 	wildcard := filepath.Join(dir, "*.log")
 
-	// FIXME(components): this test is broken until it adopts the actual mock workloadmeta component
-	//                    and testing infra.
-	store := workloadmeta.NewMockStore()
+	store := fxutil.Test[workloadmeta.Component](t, fx.Options(
+		log.MockModule,
+		config.MockModule,
+		fx.Supply(context.Background()),
+		fx.Supply(workloadmeta.NewParams()),
+		workloadmeta.MockModuleV2,
+	))
 	pod, container := makeTestPod()
 	store.SetEntity(pod)
 	store.SetEntity(container)
@@ -242,12 +248,18 @@ func TestMakeK8sSource_pod_not_found(t *testing.T) {
 	require.NoError(t, os.MkdirAll(filepath.Dir(p), 0o777))
 	require.NoError(t, os.WriteFile(p, []byte("{}"), 0o666))
 
+	workloadmetaStore := fxutil.Test[workloadmeta.Component](t, fx.Options(
+		log.MockModule,
+		config.MockModule,
+		fx.Supply(context.Background()),
+		fx.Supply(workloadmeta.NewParams()),
+		workloadmeta.MockModuleV2,
+	))
+
 	tf := &factory{
-		pipelineProvider: pipeline.NewMockProvider(),
-		cop:              containersorpods.NewDecidedChooser(containersorpods.LogPods),
-		// FIXME(components): this test is broken until it adopts the actual mock workloadmeta component
-		//                    and testing infra.
-		workloadmetaStore: workloadmeta.NewMockStore(),
+		pipelineProvider:  pipeline.NewMockProvider(),
+		cop:               containersorpods.NewDecidedChooser(containersorpods.LogPods),
+		workloadmetaStore: workloadmetaStore,
 	}
 	source := sources.NewLogSource("test", &config.LogsConfig{
 		Type:       "docker",

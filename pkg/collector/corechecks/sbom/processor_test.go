@@ -19,15 +19,19 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"go.uber.org/atomic"
+	"go.uber.org/fx"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/durationpb"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
+	configcomp "github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/epforwarder"
 	sbomscanner "github.com/DataDog/datadog-agent/pkg/sbom/scanner"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 	"github.com/DataDog/datadog-agent/pkg/util/pointer"
 )
@@ -598,8 +602,10 @@ func TestProcessEvents(t *testing.T) {
 			// FIXME(components): use actual workloadmeta mock component here instead.
 			workloadmetaStore := fxutil.Test[workloadmeta.Component](t, fx.Options(
 				log.MockModule,
-				config.MockModule,
-				workloadmeta.MockModule,
+				configcomp.MockModule,
+				fx.Supply(context.Background()),
+				fx.Supply(workloadmeta.NewParams()),
+				workloadmeta.MockModuleV2,
 			))
 
 			sender := mocksender.NewMockSender("")
