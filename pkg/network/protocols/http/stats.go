@@ -72,7 +72,7 @@ type Path struct {
 type Key struct {
 	// this field order is intentional to help the GC pointer tracking
 	Path Path
-	types.ConnectionKey
+	*types.ConnectionKey
 	Method Method
 }
 

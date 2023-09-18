@@ -17,8 +17,8 @@ import (
 
 // USMConnectionIndex provides a generic container for USM data pre-aggregated by connection
 type USMConnectionIndex[K comparable, V any] struct {
-	lookupFn func(network.ConnectionStats, map[types.ConnectionKey]*USMConnectionData[K, V]) *USMConnectionData[K, V]
-	data     map[types.ConnectionKey]*USMConnectionData[K, V]
+	lookupFn func(network.ConnectionStats, map[*types.ConnectionKey]*USMConnectionData[K, V]) *USMConnectionData[K, V]
+	data     map[*types.ConnectionKey]*USMConnectionData[K, V]
 	protocol string
 	once     sync.Once
 }
@@ -43,7 +43,7 @@ type USMKeyValue[K comparable, V any] struct {
 // GroupByConnection generates a `USMConnectionIndex` from a generic `map[K]V` data structure.
 // In addition to the `data` argument the caller must provide a `keyGen` function that
 // essentially translates `K` to a `types.ConnectionKey` and a `protocol` name.
-func GroupByConnection[K comparable, V any](protocol string, data map[K]V, keyGen func(K) types.ConnectionKey) *USMConnectionIndex[K, V] {
+func GroupByConnection[K comparable, V any](protocol string, data map[K]V, keyGen func(K) *types.ConnectionKey) *USMConnectionIndex[K, V] {
 	byConnection := &USMConnectionIndex[K, V]{
 		protocol: protocol,
 		lookupFn: USMLookup[K, V],
@@ -51,7 +51,7 @@ func GroupByConnection[K comparable, V any](protocol string, data map[K]V, keyGe
 
 	// The map intended to calculate how many entries we actually need in byConnection.data, and for each entry
 	// how many elements it has in it.
-	entriesSizeMap := make(map[types.ConnectionKey]int)
+	entriesSizeMap := make(map[*types.ConnectionKey]int)
 
 	// In the first pass we instantiate the map and calculate the number of
 	// USM aggregation objects per connection
@@ -59,7 +59,7 @@ func GroupByConnection[K comparable, V any](protocol string, data map[K]V, keyGe
 		entriesSizeMap[keyGen(key)]++
 	}
 
-	byConnection.data = make(map[types.ConnectionKey]*USMConnectionData[K, V], len(entriesSizeMap))
+	byConnection.data = make(map[*types.ConnectionKey]*USMConnectionData[K, V], len(entriesSizeMap))
 
 	// In the second pass we create a slice for each `USMConnectionData` entry
 	// in the map using the pre-determined sizes from the previous iteration and

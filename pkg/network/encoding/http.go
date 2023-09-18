@@ -28,7 +28,7 @@ func newHTTPEncoder(httpPayloads map[http.Key]*http.RequestStats) *httpEncoder {
 
 	return &httpEncoder{
 		httpAggregationsBuilder: model.NewHTTPAggregationsBuilder(nil),
-		byConnection: GroupByConnection("http", httpPayloads, func(key http.Key) types.ConnectionKey {
+		byConnection: GroupByConnection("http", httpPayloads, func(key http.Key) *types.ConnectionKey {
 			return key.ConnectionKey
 		}),
 	}

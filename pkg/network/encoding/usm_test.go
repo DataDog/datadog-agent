@@ -6,6 +6,7 @@
 package encoding
 
 import (
+	"runtime"
 	"testing"
 
 	"github.com/DataDog/datadog-agent/pkg/network"
@@ -73,7 +74,7 @@ func TestGroupByConnection(t *testing.T) {
 		key4: val4,
 	}
 
-	byConnection := GroupByConnection("http", data, func(httpKey http.Key) types.ConnectionKey {
+	byConnection := GroupByConnection("http", data, func(httpKey http.Key) *types.ConnectionKey {
 		return httpKey.ConnectionKey
 	})
 
@@ -115,4 +116,19 @@ func keyValueExists[K, V comparable](connectionData *USMConnectionData[K, V], ke
 		}
 		return false
 	}
+}
+
+func BenchmarkGroupByConnection(b *testing.B) {
+	payload := generateBenchMarkPayload(100, 100)
+	conn := payload.Conns[0]
+	b.ResetTimer()
+	b.ReportAllocs()
+	var h *httpEncoder
+	for i := 0; i < b.N; i++ {
+		byConnection := GroupByConnection("http", payload.HTTP, func(httpKey http.Key) *types.ConnectionKey {
+			return httpKey.ConnectionKey
+		})
+		_ = byConnection.Find(conn)
+	}
+	runtime.KeepAlive(h)
 }

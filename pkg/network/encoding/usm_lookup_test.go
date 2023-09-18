@@ -29,7 +29,7 @@ func TestUSMLookup(t *testing.T) {
 		// We only want to make sure that this object is returned during lookups
 		val := new(USMConnectionData[struct{}, any])
 
-		data := make(map[types.ConnectionKey]*USMConnectionData[struct{}, any])
+		data := make(map[*types.ConnectionKey]*USMConnectionData[struct{}, any])
 		data[key] = val
 
 		// Assert that c1 and c2 (which are symmetrical) "link" to the same aggregation
@@ -59,7 +59,7 @@ func TestUSMLookup(t *testing.T) {
 		)
 
 		val := new(USMConnectionData[struct{}, any])
-		data := make(map[types.ConnectionKey]*USMConnectionData[struct{}, any])
+		data := make(map[*types.ConnectionKey]*USMConnectionData[struct{}, any])
 		data[key] = val
 
 		// Assert that c1 and c2 (which are symmetrical) "link" to the same aggregation

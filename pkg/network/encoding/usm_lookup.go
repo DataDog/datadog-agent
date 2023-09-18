@@ -14,7 +14,7 @@ import (
 
 // USMLookup determines the strategy for associating a given connection to USM
 // In the context of Linux we may perform up to 4 lookups as described below
-func USMLookup[K comparable, V any](c network.ConnectionStats, data map[types.ConnectionKey]*USMConnectionData[K, V]) *USMConnectionData[K, V] {
+func USMLookup[K comparable, V any](c network.ConnectionStats, data map[*types.ConnectionKey]*USMConnectionData[K, V]) *USMConnectionData[K, V] {
 	var connectionData *USMConnectionData[K, V]
 
 	// WithKey will attempt 4 lookups in total
@@ -23,7 +23,7 @@ func USMLookup[K comparable, V any](c network.ConnectionStats, data map[types.Co
 	// 3) (translated(A), translated(B))
 	// 3) (translated(B), translated(A))
 	// The callback API is used to avoid allocating a slice of all pre-computed keys
-	network.WithKey(c, func(key types.ConnectionKey) (stopIteration bool) {
+	network.WithKey(c, func(key *types.ConnectionKey) (stopIteration bool) {
 		val, ok := data[key]
 		if !ok {
 			return false
