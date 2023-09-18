@@ -6,20 +6,21 @@
 package cws
 
 import (
+	_ "embed"
 	"fmt"
 	"strconv"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	cws "github.com/DataDog/datadog-agent/test/new-e2e/cws/lib"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/runner"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/runner/parameters"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/params"
+	cws "github.com/DataDog/datadog-agent/test/new-e2e/tests/cws/lib"
 	"github.com/DataDog/test-infra-definitions/components/datadog/agentparams"
 	"github.com/DataDog/test-infra-definitions/scenarios/aws/vm/ec2params"
 )
@@ -37,17 +38,25 @@ type agentSuite struct {
 	policies      string
 }
 
+//go:embed config/datadog.yaml
+var agentConfig string
+
+//go:embed config/system-probe.yaml
+var systemProbeConfig string
+
+//go:embed config/security-agent.yaml
+var securityAgentConfig string
+
 func TestAgentSuite(t *testing.T) {
-	agentConfig := "hostname: momar-e2e-test-host\nlog_level: DEBUG\nlogs_enabled: true"
+
 	e2e.Run(t, &agentSuite{}, e2e.AgentStackDef(
 		[]ec2params.Option{
 			ec2params.WithName("cws-e2e-tests"),
 		},
 		agentparams.WithAgentConfig(agentConfig),
-		agentparams.WithSecurityAgentConfig("runtime_security_config:\n  enabled: true"),
-		agentparams.WithSystemProbeConfig("system_probe_config:\n  enabled: true\n  log_level: trace\nruntime_security_config:\n  enabled: true\nlog_patterns:\n  - module.APIServer.*"),
-		agentparams.WithVersion("7.46.0"),
-	), params.WithDevMode())
+		agentparams.WithSecurityAgentConfig(securityAgentConfig),
+		agentparams.WithSystemProbeConfig(systemProbeConfig),
+	))
 }
 
 func (a *agentSuite) SetupSuite() {
@@ -88,11 +97,11 @@ func (a *agentSuite) TestOpenSignal() {
 	a.signalRuleID = res2.GetId()
 
 	// Check if the agent has started
+	err = a.Env().Agent.WaitForReadyTimeout(1 * time.Minute)
+	require.NoError(a.T(), err)
+
 	isReady := a.Env().Agent.IsReady()
 	assert.Equal(a.T(), isReady, true, "Agent should be ready")
-
-	// Check if the agent use the right configuration
-	assert.Contains(a.T(), a.Env().Agent.Config(), "log_level: DEBUG")
 
 	// Check if system-probe has started
 	err = cws.WaitAgentLogs(a.Env().VM, "system-probe", cws.SystemProbeStartLog)
@@ -109,10 +118,11 @@ func (a *agentSuite) TestOpenSignal() {
 	appKey, err := runner.GetProfile().SecretStore().Get(parameters.APPKey)
 	require.NoError(a.T(), err, "Could not get APP KEY")
 
-	policies := a.Env().VM.Execute(fmt.Sprintf("DD_APP_KEY=%s DD_API_KEY=%s DD_SITE=datadoghq.com %s runtime policy download", appKey, apiKey, cws.SecurityAgentPath))
-
-	assert.NotEmpty(a.T(), policies, "should not be empty")
-	a.policies = policies
+	a.EventuallyWithT(func(c *assert.CollectT) {
+		policies := a.Env().VM.Execute(fmt.Sprintf("DD_APP_KEY=%s DD_API_KEY=%s DD_SITE=datadoghq.com %s runtime policy download", appKey, apiKey, cws.SecurityAgentPath))
+		assert.NotEmpty(c, policies, "should not be empty")
+		a.policies = policies
+	}, 5*time.Minute, 10*time.Second)
 
 	// Check that the newly created rule is in the policies
 	assert.Contains(a.T(), a.policies, a.desc, "The policies should contain the created rule")

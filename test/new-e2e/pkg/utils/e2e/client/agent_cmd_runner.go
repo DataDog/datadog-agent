@@ -37,7 +37,7 @@ func newAgentCommandRunner(t *testing.T, executeAgentCmdWithError executeAgentCm
 
 func (agent *AgentCommandRunner) executeCommand(command string, commandArgs ...AgentArgsOption) string {
 	if !agent.isReady {
-		err := agent.waitForReadyTimeout(1 * time.Minute)
+		err := agent.WaitForReadyTimeout(1 * time.Minute)
 		require.NoErrorf(agent.t, err, "the agent is not ready")
 		agent.isReady = true
 	}
@@ -104,10 +104,10 @@ func (agent *AgentCommandRunner) Status(commandArgs ...AgentArgsOption) *Status 
 	return newStatus(agent.executeCommand("status", commandArgs...))
 }
 
-// WaitForReady blocks up to timeout waiting for agent to be ready.
+// WaitForReadyTimeout blocks up to timeout waiting for agent to be ready.
 // Retries every 100 ms up to timeout.
 // Returns error on failure.
-func (agent *AgentCommandRunner) waitForReadyTimeout(timeout time.Duration) error {
+func (agent *AgentCommandRunner) WaitForReadyTimeout(timeout time.Duration) error {
 	interval := 100 * time.Millisecond
 	maxRetries := timeout.Milliseconds() / interval.Milliseconds()
 	err := backoff.Retry(func() error {
