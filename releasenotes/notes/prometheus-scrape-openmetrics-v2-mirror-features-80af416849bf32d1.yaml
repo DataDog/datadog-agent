@@ -10,6 +10,7 @@ enhancements:
   - |
     prometheus_scrape: Adds support for multiple Openmetrics V2 features in the ``prometheus_scrape.checks[].configurations[]`` items :
       * ``exclude_metrics_by_labels``
+      * ``raw_line_filters``
       * ``cache_shared_labels``
       * ``use_process_start_time``
       * ``hostname_label``
@@ -17,6 +18,7 @@ enhancements:
       * ``telemetry``
       * ``ignore_connection_errors``
       * ``request_size``
+      * ``log_requests``
       * ``persist_connections``
       * ``allow_redirects``
       * ``auth_token``
