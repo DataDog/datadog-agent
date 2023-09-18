@@ -47,6 +47,7 @@ const (
 	parserTailCall       = "socket__http2_frames_parser"
 	eventStream          = "http2"
 	tlsEntryTailCall     = "uprobe__http2_tls_entry"
+	tlsParserTailCall    = "uprobe__http2_tls_frames_parser"
 )
 
 var Spec = &protocols.ProtocolSpec{
@@ -86,17 +87,24 @@ var Spec = &protocols.ProtocolSpec{
 			},
 		},
 		{
-			ProgArrayName: protocols.TlsDispatcherProgramsMap,
-			Key:           uint32(protocols.TlsProgramHTTP2),
+			ProgArrayName: protocols.ProtocolDispatcherProgramsMap,
+			Key:           uint32(protocols.ProgramHTTP2FrameParser),
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				EBPFFuncName: parserTailCall,
+			},
+		},
+		{
+			ProgArrayName: protocols.TLSDispatcherProgramsMap,
+			Key:           uint32(protocols.TLSProgramHTTP2),
 			ProbeIdentificationPair: manager.ProbeIdentificationPair{
 				EBPFFuncName: tlsEntryTailCall,
 			},
 		},
 		{
-			ProgArrayName: protocols.ProtocolDispatcherProgramsMap,
-			Key:           uint32(protocols.ProgramHTTP2FrameParser),
+			ProgArrayName: protocols.TLSDispatcherProgramsMap,
+			Key:           uint32(protocols.TLSProgramHTTP2FramesParser),
 			ProbeIdentificationPair: manager.ProbeIdentificationPair{
-				EBPFFuncName: parserTailCall,
+				EBPFFuncName: tlsParserTailCall,
 			},
 		},
 	},

@@ -84,5 +84,6 @@ func toProtocolType(protoNum uint8, layerBit uint16) ProtocolType {
 type TlsProgramType C.tls_prog_t
 
 const (
-	TlsProgramHTTP2 ProgramType = C.TLS_PROG_HTTP2
+	TLSProgramHTTP2             ProgramType = C.TLS_PROG_HTTP2
+	TLSProgramHTTP2FramesParser ProgramType = C.TLS_PROG_HTTP2_FRAMES_PARSER
 )

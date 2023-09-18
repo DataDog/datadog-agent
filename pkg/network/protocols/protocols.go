@@ -18,7 +18,7 @@ import (
 
 const (
 	ProtocolDispatcherProgramsMap = "protocols_progs"
-	TlsDispatcherProgramsMap      = "tls_process_progs"
+	TLSDispatcherProgramsMap      = "tls_process_progs"
 )
 
 // Protocol is the interface that represents a protocol supported by USM.
