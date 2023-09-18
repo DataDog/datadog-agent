@@ -13,6 +13,7 @@ import (
 	"fmt"
 	"net"
 	"net/http"
+	"path/filepath"
 	"testing"
 	"time"
 
@@ -87,47 +88,56 @@ func TestHTTPReceiverStart(t *testing.T) {
 	old := log.SetLogger(log.NewBufferLogger(&logs))
 	defer log.SetLogger(old)
 
-	for name, tt := range map[string]struct {
-		port   int      // receiver port
-		socket string   // socket
-		out    []string // expected log output (uses strings.Contains)
-	}{
-		"off": {
-			out: []string{"HTTP Server is off: all listeners are disabled"},
+	for name, setup := range map[string]func() (int, string, []string){
+		"off": func() (int, string, []string) {
+			return 0, "", []string{"HTTP Server is off: all listeners are disabled"}
 		},
-		"tcp": {
-			port: 8129,
-			out: []string{
-				"Listening for traces at http://localhost:8129",
-			},
+		"tcp": func() (int, string, []string) {
+			port := freeTCPPort()
+			return port, "", []string{fmt.Sprintf("Listening for traces at http://localhost:%d", port)}
 		},
-		"uds": {
-			socket: "/tmp/agent.sock",
-			out: []string{
+		"uds": func() (int, string, []string) {
+			socket := filepath.Join(t.TempDir(), "agent.sock")
+			return 0, socket, []string{
 				"HTTP receiver disabled by config (apm_config.receiver_port: 0)",
-				"Listening for traces at unix:///tmp/agent.sock",
-			},
+				fmt.Sprintf("Listening for traces at unix://%s", socket),
+			}
 		},
-		"both": {
-			port:   8129,
-			socket: "/tmp/agent.sock",
-			out: []string{
-				"Listening for traces at http://localhost:8129",
-				"Listening for traces at unix:///tmp/agent.sock",
-			},
+		"both": func() (int, string, []string) {
+			port := freeTCPPort()
+			socket := filepath.Join(t.TempDir(), "agent.sock")
+			return port, socket, []string{
+				fmt.Sprintf("Listening for traces at http://localhost:%d", port),
+				fmt.Sprintf("Listening for traces at unix://%s", socket),
+			}
 		},
 	} {
 		t.Run(name, func(t *testing.T) {
 			logs.Reset()
 			cfg := config.New()
-			cfg.ReceiverPort = tt.port
-			cfg.ReceiverSocket = tt.socket
+			port, socket, out := setup()
+			cfg.ReceiverPort = port
+			cfg.ReceiverSocket = socket
 			r := newTestReceiverFromConfig(cfg)
 			r.Start()
 			defer r.Stop()
-			for _, l := range tt.out {
+			for _, l := range out {
 				assert.Contains(t, logs.String(), l)
 			}
 		})
 	}
+}
+
+// freePort returns a random and free TCP port.
+func freeTCPPort() int {
+	addr, err := net.ResolveTCPAddr("tcp", "127.0.0.1:0")
+	if err != nil {
+		panic(fmt.Sprintf("couldn't resolve address: %s", err))
+	}
+	l, err := net.ListenTCP("tcp", addr)
+	if err != nil {
+		panic(fmt.Sprintf("couldn't listen: %s", err))
+	}
+	defer l.Close()
+	return l.Addr().(*net.TCPAddr).Port
 }
