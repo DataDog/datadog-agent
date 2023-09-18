@@ -300,12 +300,12 @@ func (p *Probe) Setup() error {
 // Start plays the snapshot data and then start the event stream
 func (p *Probe) Start() error {
 	// Apply rules to the snapshotted data before starting the event stream to avoid concurrency issues
-	p.PlaySnapshot()
+	p.playSnapshot()
 	return p.eventStream.Start(&p.wg)
 }
 
-// PlaySnapshot plays a snapshot
-func (p *Probe) PlaySnapshot() {
+// playSnapshot plays a snapshot
+func (p *Probe) playSnapshot() {
 	// Get the snapshotted data
 	var events []*model.Event
 
@@ -1208,6 +1208,8 @@ func (p *Probe) FlushDiscarders() error {
 // Snapshot runs the different snapshot functions of the resolvers that
 // require to sync with the current state of the system
 func (p *Probe) Snapshot() error {
+	// the snapshot for the read of a lot of file which can allocate a lot of memory.
+	defer runtime.GC()
 	return p.resolvers.Snapshot()
 }
 
