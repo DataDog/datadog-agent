@@ -13,6 +13,8 @@ import (
 	"sort"
 	"time"
 
+	"github.com/cihub/seelog"
+
 	model "github.com/DataDog/agent-payload/v5/process"
 	sysconfig "github.com/DataDog/datadog-agent/cmd/system-probe/config"
 	hostMetadataUtils "github.com/DataDog/datadog-agent/comp/metadata/host/utils"
@@ -27,7 +29,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/cloudproviders"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/subscriptions"
-	"github.com/cihub/seelog"
 )
 
 var (

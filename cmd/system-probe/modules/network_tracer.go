@@ -11,13 +11,16 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/gorilla/websocket"
 	"math"
 	"net/http"
 	"os"
 	"runtime"
 	"strings"
 	"time"
+
+	"github.com/gorilla/websocket"
+	"go.uber.org/atomic"
+	"google.golang.org/grpc"
 
 	"github.com/DataDog/datadog-agent/cmd/system-probe/api/module"
 	"github.com/DataDog/datadog-agent/cmd/system-probe/config"
@@ -31,8 +34,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/tracer"
 	"github.com/DataDog/datadog-agent/pkg/process/statsd"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"go.uber.org/atomic"
-	"google.golang.org/grpc"
 )
 
 // ErrSysprobeUnsupported is the unsupported error prefix, for error-class matching from callers
@@ -114,7 +115,7 @@ func (nt *networkTracer) StreamConnections(runCounter *atomic.Uint64, reqID, con
 	if nt.restartTimer != nil {
 		nt.restartTimer.Reset(inactivityRestartDuration)
 	}
-	logRequests2(reqID, runCounter.Inc(), len(cs.Conns), start)
+	logRequests(reqID, "/ws-connections", runCounter.Inc(), len(cs.Conns), start)
 
 	// As long as there are connections, we divide them into batches and subsequently send all the batches
 	// via a gRPC stream to the process agent. The size of each batch is determined by the value of maxConnsPerMessage.
@@ -164,7 +165,7 @@ func (nt *networkTracer) Register(httpMux *module.Router) error {
 			nt.restartTimer.Reset(inactivityRestartDuration)
 		}
 		count := runCounter.Inc()
-		logRequests(id, count, len(cs.Conns), start)
+		logRequests(id, "/connections", count, len(cs.Conns), start)
 	}))
 
 	httpMux.HandleFunc("/ws-connections", utils.WithConcurrencyLimit(utils.DefaultMaxConcurrentRequests, func(w http.ResponseWriter, req *http.Request) {
@@ -341,20 +342,9 @@ func (nt *networkTracer) Close() {
 	nt.tracer.Stop()
 }
 
-func logRequests2(client string, count uint64, connectionsCount int, start time.Time) {
-	args := []interface{}{client, count, connectionsCount, time.Since(start)}
-	msg := "Got request on /ws-connections?client_id=%s (count: %d): retrieved %d connections in %s"
-	switch {
-	case count <= 5, count%20 == 0:
-		log.Infof(msg, args...)
-	default:
-		log.Debugf(msg, args...)
-	}
-}
-
-func logRequests(client string, count uint64, connectionsCount int, start time.Time) {
-	args := []interface{}{client, count, connectionsCount, time.Since(start)}
-	msg := "Got request on /connections?client_id=%s (count: %d): retrieved %d connections in %s"
+func logRequests(client, endpoint string, count uint64, connectionsCount int, start time.Time) {
+	args := []interface{}{endpoint, client, count, connectionsCount, time.Since(start)}
+	msg := "Got request on %s?client_id=%s (count: %d): retrieved %d connections in %s"
 	switch {
 	case count <= 5, count%20 == 0:
 		log.Infof(msg, args...)
