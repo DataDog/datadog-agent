@@ -50,11 +50,15 @@ issues:
       text: "name will be used as .* by other packages, and that stutters"
     - path: pkg/util/containerd
       text: "name will be used as .* by other packages, and that stutters"
-    # TODO: Needs manual update
+    # Should be replaced by google.golang.org/protobuf but is not a drop-in replacement
     - text: "\"github.com/golang/protobuf/proto\" is deprecated"
       linters: [staticcheck]
+    # Can't rely on getting the same elements after calling Seed because dependencies could be using
+    # it too. Should be replaced by using a local source, but there are too many uses in the repo.
     - text: "rand.Seed has been deprecated since Go 1.20"
       linters: [staticcheck]
+    # net.Error.Temporary() isn't properly defined and was thus deprecated.
+    # We are using it and it's not clear how to replace it.
     - text: "Temporary has been deprecated since Go 1.18"
       linters: [staticcheck]
 
