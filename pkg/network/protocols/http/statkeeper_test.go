@@ -160,7 +160,7 @@ func TestPathProcessing(t *testing.T) {
 
 		require.Len(t, stats, 1)
 		for key := range stats {
-			assert.Equal(t, "/foobar", key.Path.Content)
+			assert.Equal(t, "/foobar", key.Path.Content.Get())
 		}
 	})
 
