@@ -52,7 +52,8 @@ func buildMetricsMap(cfg PipelineConfig) (*confmap.Conf, error) {
 	}
 	return baseMap, err
 }
-func buildLogsMap() (*confmap.Conf, error) {
+
+func buildLogsMap(_ PipelineConfig) (*confmap.Conf, error) {
 	baseMap, err := configutils.NewMapFromYAMLString(defaultLogsConfig)
 	if err != nil {
 		return nil, err
@@ -85,7 +86,7 @@ func buildMap(cfg PipelineConfig) (*confmap.Conf, error) {
 		errs = append(errs, err)
 	}
 	if cfg.LogsEnabled {
-		logsMap, err := buildLogsMap()
+		logsMap, err := buildLogsMap(cfg)
 		errs = append(errs, err)
 
 		err = retMap.Merge(logsMap)
