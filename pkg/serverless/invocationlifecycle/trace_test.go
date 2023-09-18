@@ -478,25 +478,28 @@ func TestCapturePayloadAsTags(t *testing.T) {
 		"innerJSONString": `{"key5":"value5","age":42}`,
 		"innerJSONBytes":  []byte(`{"key6":"value6","age":21}`),
 	}
+	expectingResultMap := map[string]string{
+		"test.key1":                          "value1",
+		"test.key2.key3":                     "3",
+		"test.key2.key4":                     "true",
+		"test.key2.keylist.0":                "1",
+		"test.key2.keylist.1":                "2",
+		"test.key2.keylist.2":                "3",
+		"test.key2.keylist.3":                "four",
+		"test.key2.keylist.4":                "5.5",
+		"test.key2.keylist.5.keyInsideSlice": "val7",
+		"test.key2.keylist.5.age":            "84",
+		"test.innerJSONString.key5":          "value5",
+		"test.innerJSONString.age":           "42",
+		"test.innerJSONBytes.key6":           "value6",
+		"test.innerJSONBytes.age":            "21",
+	}
 	metaMap := make(map[string]string)
 	executionSpan := &pb.Span{
 		Meta: metaMap,
 	}
 	capturePayloadAsTags(nestedMap, executionSpan, "test", 0, 10)
-	assert.Equal(t, "value1", executionSpan.Meta["test.key1"])
-	assert.Equal(t, "3", executionSpan.Meta["test.key2.key3"])
-	assert.Equal(t, "true", executionSpan.Meta["test.key2.key4"])
-	assert.Equal(t, "1", executionSpan.Meta["test.key2.keylist.0"])
-	assert.Equal(t, "2", executionSpan.Meta["test.key2.keylist.1"])
-	assert.Equal(t, "3", executionSpan.Meta["test.key2.keylist.2"])
-	assert.Equal(t, "four", executionSpan.Meta["test.key2.keylist.3"])
-	assert.Equal(t, "5.5", executionSpan.Meta["test.key2.keylist.4"])
-	assert.Equal(t, "val7", executionSpan.Meta["test.key2.keylist.5.keyInsideSlice"])
-	assert.Equal(t, "84", executionSpan.Meta["test.key2.keylist.5.age"])
-	assert.Equal(t, "value5", executionSpan.Meta["test.innerJSONString.key5"])
-	assert.Equal(t, "42", executionSpan.Meta["test.innerJSONString.age"])
-	assert.Equal(t, "value6", executionSpan.Meta["test.innerJSONBytes.key6"])
-	assert.Equal(t, "21", executionSpan.Meta["test.innerJSONBytes.age"])
+	assert.Equal(t, executionSpan.Meta, expectingResultMap)
 }
 
 func TestCapturePayloadAsTagsMaxDepth(t *testing.T) {
@@ -510,15 +513,18 @@ func TestCapturePayloadAsTagsMaxDepth(t *testing.T) {
 		},
 		"key5": "value5",
 	}
+	expectingResultMap := map[string]string{
+		"test.key1":      "value1",
+		"test.key2.key3": "{\"nestedKey\":\"nestedVal\"}",
+		"test.key2.key4": "true",
+		"test.key5":      "value5",
+	}
 	metaMap := make(map[string]string)
 	executionSpan := &pb.Span{
 		Meta: metaMap,
 	}
 	capturePayloadAsTags(nestedMap, executionSpan, "test", 0, 2)
-	assert.Equal(t, "value1", executionSpan.Meta["test.key1"])
-	assert.Equal(t, "{\"nestedKey\":\"nestedVal\"}", executionSpan.Meta["test.key2.key3"])
-	assert.Equal(t, "true", executionSpan.Meta["test.key2.key4"])
-	assert.Equal(t, "value5", executionSpan.Meta["test.key5"])
+	assert.Equal(t, executionSpan.Meta, expectingResultMap)
 }
 
 func TestCapturePayloadAsTagsNilCases(t *testing.T) {
@@ -528,13 +534,20 @@ func TestCapturePayloadAsTagsNilCases(t *testing.T) {
 			"key3": nil,
 			"key4": true,
 		},
+		"emptyMap":  map[string]interface{}{},
+		"emptyList": []interface{}{},
+	}
+	expectingResultMap := map[string]string{
+		"test.key1":      "",
+		"test.key2.key3": "",
+		"test.key2.key4": "true",
+		"test.emptyMap":  "{}",
+		"test.emptyList": "[]",
 	}
 	metaMap := make(map[string]string)
 	executionSpan := &pb.Span{
 		Meta: metaMap,
 	}
-	capturePayloadAsTags(testMap, executionSpan, "test", 0, 2)
-	assert.Equal(t, "", executionSpan.Meta["test.key1"])
-	assert.Equal(t, "", executionSpan.Meta["test.key2.key3"])
-	assert.Equal(t, "true", executionSpan.Meta["test.key2.key4"])
+	capturePayloadAsTags(testMap, executionSpan, "test", 0, 10)
+	assert.Equal(t, executionSpan.Meta, expectingResultMap)
 }

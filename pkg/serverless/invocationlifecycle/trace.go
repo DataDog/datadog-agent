@@ -125,7 +125,7 @@ func endExecutionSpan(executionContext *ExecutionStartInfo, triggerTags map[stri
 	}
 	captureLambdaPayloadEnabled := config.Datadog.GetBool("capture_lambda_payload")
 	if captureLambdaPayloadEnabled {
-		capturePayloadMaxDepth := config.Datadog.GetInt("capture_payload_max_depth")
+		capturePayloadMaxDepth := config.Datadog.GetInt("capture_lambda_payload_max_depth")
 		requestPayloadJSON := make(map[string]interface{})
 		if err := json.Unmarshal(executionContext.requestPayload, &requestPayloadJSON); err != nil {
 			log.Debugf("[lifecycle] Failed to parse request payload: %v", err)
@@ -266,10 +266,18 @@ func capturePayloadAsTags(value interface{}, targetSpan *pb.Span, key string, de
 			capturePayloadAsTags(innerPayloadJSON, targetSpan, key, depth, maxDepth)
 		}
 	case map[string]interface{}:
+		if len(value) == 0 {
+			targetSpan.Meta[key] = "{}"
+			return
+		}
 		for innerKey, value := range value {
 			capturePayloadAsTags(value, targetSpan, key+"."+innerKey, depth+1, maxDepth)
 		}
 	case []interface{}:
+		if len(value) == 0 {
+			targetSpan.Meta[key] = "[]"
+			return
+		}
 		for i, innerValue := range value {
 			capturePayloadAsTags(innerValue, targetSpan, key+"."+strconv.Itoa(i), depth+1, maxDepth)
 		}
