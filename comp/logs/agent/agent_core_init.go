@@ -30,7 +30,6 @@ import (
 // NewAgent returns a new Logs Agent
 func (a *agent) SetupPipeline(
 	processingRules []*config.ProcessingRule,
-	cfg conf.Config,
 ) {
 	health := health.RegisterLiveness("logs-agent")
 
@@ -43,7 +42,7 @@ func (a *agent) SetupPipeline(
 	diagnosticMessageReceiver := diagnostic.NewBufferedMessageReceiver(nil)
 
 	// setup the pipeline provider that provides pairs of processor and sender
-	pipelineProvider := pipeline.NewProvider(config.NumberOfPipelines, auditor, diagnosticMessageReceiver, processingRules, a.endpoints, destinationsCtx, cfg)
+	pipelineProvider := pipeline.NewProvider(config.NumberOfPipelines, auditor, diagnosticMessageReceiver, processingRules, a.endpoints, destinationsCtx, a.cfg)
 
 	// setup the launchers
 	lnchrs := launchers.NewLaunchers(a.sources, pipelineProvider, auditor, a.tracker)
@@ -53,10 +52,10 @@ func (a *agent) SetupPipeline(
 		a.config.GetBool("logs_config.validate_pod_container_id"),
 		time.Duration(a.config.GetFloat64("logs_config.file_scan_period")*float64(time.Second)),
 		a.config.GetString("logs_config.file_wildcard_selection_mode"),
-		cfg))
-	lnchrs.AddLauncher(listener.NewLauncher(a.config.GetInt("logs_config.frame_size"), cfg))
+		a.cfg))
+	lnchrs.AddLauncher(listener.NewLauncher(a.config.GetInt("logs_config.frame_size"), a.cfg))
 	lnchrs.AddLauncher(journald.NewLauncher())
-	lnchrs.AddLauncher(windowsevent.NewLauncher(cfg))
+	lnchrs.AddLauncher(windowsevent.NewLauncher(a.cfg))
 	lnchrs.AddLauncher(container.NewLauncher(a.sources))
 
 	a.schedulers = schedulers.NewSchedulers(a.sources, a.services)

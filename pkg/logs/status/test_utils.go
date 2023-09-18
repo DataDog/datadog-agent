@@ -9,14 +9,14 @@ import (
 	"go.uber.org/atomic"
 
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
-	pkgConfig "github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/conf"
 	"github.com/DataDog/datadog-agent/pkg/logs/metrics"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 	"github.com/DataDog/datadog-agent/pkg/logs/tailers"
 )
 
 // InitStatus initialize a status builder
-func InitStatus(coreConfig pkgConfig.ConfigReader, sources *sources.LogSources) {
+func InitStatus(coreConfig conf.ConfigReader, sources *sources.LogSources) {
 	var isRunning = atomic.NewBool(true)
 	tracker := tailers.NewTailerTracker()
 	endpoints, _ := config.BuildEndpoints(coreConfig, config.HTTPConnectivityFailure, "test-track", "test-proto", "test-source")

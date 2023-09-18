@@ -32,7 +32,7 @@ type Tailer struct {
 }
 
 // NewTailer returns a new Tailer
-func NewTailer(source *sources.LogSource, conn net.Conn, outputChan chan *message.Message, read func(*Tailer) ([]byte, error), cfg conf.Config) *Tailer {
+func NewTailer(source *sources.LogSource, conn net.Conn, outputChan chan *message.Message, read func(*Tailer) ([]byte, error), cfg conf.ConfigReader) *Tailer {
 	return &Tailer{
 		source:     source,
 		Conn:       conn,

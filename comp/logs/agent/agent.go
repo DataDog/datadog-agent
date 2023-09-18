@@ -56,26 +56,26 @@ type dependencies struct {
 // a description of its operation.
 type agent struct {
 	log    logcomp.Component
-	config conf.ConfigReader
+	config conf.ConfigReader //
 
 	sources                   *sources.LogSources
 	services                  *service.Services
-	endpoints                 *config.Endpoints
+	endpoints                 *config.Endpoints //
 	tracker                   *tailers.TailerTracker
 	schedulers                *schedulers.Schedulers
-	auditor                   auditor.Auditor
-	destinationsCtx           *client.DestinationsContext
-	pipelineProvider          pipeline.Provider
+	auditor                   auditor.Auditor             //
+	destinationsCtx           *client.DestinationsContext //
+	pipelineProvider          pipeline.Provider           //
 	launchers                 *launchers.Launchers
 	health                    *health.Handle
 	diagnosticMessageReceiver *diagnostic.BufferedMessageReceiver
-	cfg                       conf.Config
+	cfg                       conf.ConfigReader
 
 	// started is true if the logs agent is running
 	started *atomic.Bool
 }
 
-func newLogsAgent(deps dependencies) util.Optional[Component] {
+func newLogsAgent(deps dependencies, cfg conf.ConfigReader) util.Optional[Component] {
 	if deps.Config.GetBool("logs_enabled") || deps.Config.GetBool("log_enabled") {
 		if deps.Config.GetBool("log_enabled") {
 			deps.Log.Warn(`"log_enabled" is deprecated, use "logs_enabled" instead`)
@@ -89,6 +89,7 @@ func newLogsAgent(deps dependencies) util.Optional[Component] {
 			sources:  sources.NewLogSources(),
 			services: service.NewServices(),
 			tracker:  tailers.NewTailerTracker(),
+			cfg:      cfg,
 		}
 		deps.Lc.Append(fx.Hook{
 			OnStart: logsAgent.start,
@@ -150,7 +151,7 @@ func (a *agent) setupAgent() error {
 		status.AddGlobalWarning(invalidProcessingRules, multiLineWarning)
 	}
 
-	a.SetupPipeline(processingRules, a.cfg)
+	a.SetupPipeline(processingRules)
 	return nil
 }
 

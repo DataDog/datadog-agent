@@ -17,7 +17,7 @@ import (
 )
 
 // NewServerlessLogsAgent creates a new instance of the logs agent for serverless
-func NewServerlessLogsAgent(cfg conf.Config) ServerlessLogsAgent {
+func NewServerlessLogsAgent(cfg conf.ConfigReader) ServerlessLogsAgent {
 	logsAgent := &agent{
 		log:     logComponent.NewTemporaryLoggerWithoutInit(),
 		config:  cfg,

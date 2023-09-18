@@ -97,11 +97,11 @@ type chooser struct {
 	// dockerReady determines if dockerutil is ready, or how long to wait
 	dockerReady func() (bool, time.Duration)
 
-	cfg conf.Config
+	cfg conf.ConfigReader
 }
 
 // NewChooser returns a new Chooser.
-func NewChooser(cfg conf.Config) Chooser {
+func NewChooser(cfg conf.ConfigReader) Chooser {
 	return &chooser{
 		choice:       make(chan LogWhat, 1),
 		kubeletReady: kubernetesReady,

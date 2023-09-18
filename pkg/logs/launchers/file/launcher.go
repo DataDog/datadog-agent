@@ -48,11 +48,11 @@ type Launcher struct {
 	// Feature flag defaulting to false, use `logs_config.validate_pod_container_id`.
 	validatePodContainerID bool
 	scanPeriod             time.Duration
-	cfg                    conf.Config
+	cfg                    conf.ConfigReader
 }
 
 // NewLauncher returns a new launcher.
-func NewLauncher(tailingLimit int, tailerSleepDuration time.Duration, validatePodContainerID bool, scanPeriod time.Duration, wildcardMode string, cfg conf.Config) *Launcher {
+func NewLauncher(tailingLimit int, tailerSleepDuration time.Duration, validatePodContainerID bool, scanPeriod time.Duration, wildcardMode string, cfg conf.ConfigReader) *Launcher {
 
 	var wildcardStrategy fileprovider.WildcardSelectionStrategy
 	switch wildcardMode {

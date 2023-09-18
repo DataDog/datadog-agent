@@ -33,12 +33,12 @@ type provider struct {
 }
 
 // NewProvider returns a new Provider.
-func NewProvider(entityID string, cfg conf.Config) Provider {
+func NewProvider(entityID string, cfg conf.ConfigReader) Provider {
 	return newProviderWithClock(entityID, clock.New(), cfg)
 }
 
 // newProviderWithClock returns a new provider using the given clock.
-func newProviderWithClock(entityID string, clock clock.Clock, cfg conf.Config) Provider {
+func newProviderWithClock(entityID string, clock clock.Clock, cfg conf.ConfigReader) Provider {
 	p := &provider{
 		entityID:             entityID,
 		taggerWarmupDuration: config.TaggerWarmupDuration(cfg),

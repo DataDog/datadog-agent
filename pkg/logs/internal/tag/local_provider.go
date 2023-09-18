@@ -25,12 +25,12 @@ type localProvider struct {
 }
 
 // NewLocalProvider returns a new local Provider.
-func NewLocalProvider(t []string, cfg conf.Config) Provider {
+func NewLocalProvider(t []string, cfg conf.ConfigReader) Provider {
 	return newLocalProviderWithClock(t, clock.New(), cfg)
 }
 
 // newLocalProviderWithClock returns a provider using the given clock.
-func newLocalProviderWithClock(t []string, clock clock.Clock, cfg conf.Config) Provider {
+func newLocalProviderWithClock(t []string, clock clock.Clock, cfg conf.ConfigReader) Provider {
 	p := &localProvider{
 		tags:         t,
 		expectedTags: t,

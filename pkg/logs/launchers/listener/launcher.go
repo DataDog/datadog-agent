@@ -24,11 +24,11 @@ type Launcher struct {
 	udpSources       chan *sources.LogSource
 	listeners        []startstop.StartStoppable
 	stop             chan struct{}
-	cfg              conf.Config
+	cfg              conf.ConfigReader
 }
 
 // NewLauncher returns an initialized Launcher
-func NewLauncher(frameSize int, cfg conf.Config) *Launcher {
+func NewLauncher(frameSize int, cfg conf.ConfigReader) *Launcher {
 	return &Launcher{
 		frameSize: frameSize,
 		stop:      make(chan struct{}),

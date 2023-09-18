@@ -30,11 +30,11 @@ type TCPListener struct {
 	tailers          []*tailer.Tailer
 	mu               sync.Mutex
 	stop             chan struct{}
-	cfg              conf.Config
+	cfg              conf.ConfigReader
 }
 
 // NewTCPListener returns an initialized TCPListener
-func NewTCPListener(pipelineProvider pipeline.Provider, source *sources.LogSource, frameSize int, cfg conf.Config) *TCPListener {
+func NewTCPListener(pipelineProvider pipeline.Provider, source *sources.LogSource, frameSize int, cfg conf.ConfigReader) *TCPListener {
 	var idleTimeout time.Duration
 	if source.Config.IdleTimeout != "" {
 		var err error

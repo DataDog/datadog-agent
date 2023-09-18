@@ -22,13 +22,13 @@ type Scheduler struct {
 	ac *autodiscovery.AutoConfig
 	// added is closed when the source is added (for testing)
 	added chan struct{}
-	cfg   conf.Config
+	cfg   conf.ConfigReader
 }
 
 var _ schedulers.Scheduler = &Scheduler{}
 
 // New creates a new scheduler.
-func New(ac *autodiscovery.AutoConfig, cfg conf.Config) schedulers.Scheduler {
+func New(ac *autodiscovery.AutoConfig, cfg conf.ConfigReader) schedulers.Scheduler {
 	return &Scheduler{
 		ac:    ac,
 		added: make(chan struct{}),

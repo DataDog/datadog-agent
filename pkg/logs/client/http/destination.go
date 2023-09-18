@@ -91,7 +91,7 @@ func NewDestination(endpoint config.Endpoint,
 	maxConcurrentBackgroundSends int,
 	shouldRetry bool,
 	telemetryName string,
-	cfg conf.Config) *Destination {
+	cfg conf.ConfigReader) *Destination {
 
 	return newDestination(endpoint,
 		contentType,
@@ -415,7 +415,7 @@ func CheckConnectivity(endpoint config.Endpoint, cfg conf.ConfigReader) config.H
 	return err == nil
 }
 
-func CheckConnectivityDiagnose(endpoint config.Endpoint, cfg conf.Config) (url string, err error) {
+func CheckConnectivityDiagnose(endpoint config.Endpoint, cfg conf.ConfigReader) (url string, err error) {
 	ctx, destination := prepareCheckConnectivity(endpoint, cfg)
 	return destination.url, completeCheckConnectivity(ctx, destination)
 }

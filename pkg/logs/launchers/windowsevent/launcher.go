@@ -25,11 +25,11 @@ type Launcher struct {
 	pipelineProvider pipeline.Provider
 	tailers          map[string]*tailer.Tailer
 	stop             chan struct{}
-	cfg              conf.Config
+	cfg              conf.ConfigReader
 }
 
 // NewLauncher returns a new Launcher.
-func NewLauncher(cfg conf.Config) *Launcher {
+func NewLauncher(cfg conf.ConfigReader) *Launcher {
 	return &Launcher{
 		tailers: make(map[string]*tailer.Tailer),
 		stop:    make(chan struct{}),

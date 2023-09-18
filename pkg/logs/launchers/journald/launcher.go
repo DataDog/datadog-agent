@@ -57,7 +57,7 @@ func NewLauncherWithFactory(journalFactory tailer.JournalFactory) *Launcher {
 }
 
 // Start starts the launcher.
-func (l *Launcher) Start(sourceProvider launchers.SourceProvider, pipelineProvider pipeline.Provider, registry auditor.Registry, tracker *tailers.TailerTracker, cfg conf.Config) {
+func (l *Launcher) Start(sourceProvider launchers.SourceProvider, pipelineProvider pipeline.Provider, registry auditor.Registry, tracker *tailers.TailerTracker, cfg conf.ConfigReader) {
 	l.sources = sourceProvider.GetAddedForType(config.JournaldType)
 	l.pipelineProvider = pipelineProvider
 	l.registry = registry

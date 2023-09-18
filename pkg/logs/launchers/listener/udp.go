@@ -34,11 +34,11 @@ type UDPListener struct {
 	source           *sources.LogSource
 	frameSize        int
 	tailer           *tailer.Tailer
-	cfg              conf.Config
+	cfg              conf.ConfigReader
 }
 
 // NewUDPListener returns an initialized UDPListener
-func NewUDPListener(pipelineProvider pipeline.Provider, source *sources.LogSource, frameSize int, cfg conf.Config) *UDPListener {
+func NewUDPListener(pipelineProvider pipeline.Provider, source *sources.LogSource, frameSize int, cfg conf.ConfigReader) *UDPListener {
 	return &UDPListener{
 		pipelineProvider: pipelineProvider,
 		source:           source,

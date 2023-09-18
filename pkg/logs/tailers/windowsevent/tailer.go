@@ -69,7 +69,7 @@ type Tailer struct {
 }
 
 // NewTailer returns a new tailer.
-func NewTailer(source *sources.LogSource, config *Config, outputChan chan *message.Message, cfg conf.Config) *Tailer {
+func NewTailer(source *sources.LogSource, config *Config, outputChan chan *message.Message, cfg conf.ConfigReader) *Tailer {
 	return &Tailer{
 		source:     source,
 		config:     config,

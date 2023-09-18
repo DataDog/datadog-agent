@@ -21,12 +21,12 @@ import (
 )
 
 // NewDecoderFromSource creates a new decoder from a log source
-func NewDecoderFromSource(source *sources.ReplaceableSource, tailerInfo *status.InfoRegistry, cfg conf.Config) *Decoder {
+func NewDecoderFromSource(source *sources.ReplaceableSource, tailerInfo *status.InfoRegistry, cfg conf.ConfigReader) *Decoder {
 	return NewDecoderFromSourceWithPattern(source, nil, tailerInfo, cfg)
 }
 
 // NewDecoderFromSourceWithPattern creates a new decoder from a log source with a multiline pattern
-func NewDecoderFromSourceWithPattern(source *sources.ReplaceableSource, multiLinePattern *regexp.Regexp, tailerInfo *status.InfoRegistry, cfg conf.Config) *Decoder {
+func NewDecoderFromSourceWithPattern(source *sources.ReplaceableSource, multiLinePattern *regexp.Regexp, tailerInfo *status.InfoRegistry, cfg conf.ConfigReader) *Decoder {
 
 	// TODO: remove those checks and add to source a reference to a tagProvider and a lineParser.
 	var lineParser parsers.Parser

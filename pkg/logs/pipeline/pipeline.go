@@ -37,7 +37,7 @@ func NewPipeline(outputChan chan *message.Payload,
 	diagnosticMessageReceiver diagnostic.MessageReceiver,
 	serverless bool,
 	pipelineID int,
-	cfg conf.Config) *Pipeline {
+	cfg conf.ConfigReader) *Pipeline {
 
 	mainDestinations := getDestinations(endpoints, destinationsContext, pipelineID, cfg)
 
@@ -93,7 +93,7 @@ func (p *Pipeline) Flush(ctx context.Context) {
 	p.processor.Flush(ctx) // flush messages in the processor into the sender
 }
 
-func getDestinations(endpoints *config.Endpoints, destinationsContext *client.DestinationsContext, pipelineID int, cfg conf.Config) *client.Destinations {
+func getDestinations(endpoints *config.Endpoints, destinationsContext *client.DestinationsContext, pipelineID int, cfg conf.ConfigReader) *client.Destinations {
 	reliable := []client.Destination{}
 	additionals := []client.Destination{}
 

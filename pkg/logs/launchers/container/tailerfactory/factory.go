@@ -51,13 +51,13 @@ type factory struct {
 	// dockerutil memoizes a DockerUtil instance; fetch this with getDockerUtil().
 	dockerutil *dockerutilPkg.DockerUtil
 
-	cfg conf.Config
+	cfg conf.ConfigReader
 }
 
 var _ Factory = (*factory)(nil)
 
 // New creates a new Factory.
-func New(sources *sources.LogSources, pipelineProvider pipeline.Provider, registry auditor.Registry, workloadmetaStore workloadmeta.Store, cfg conf.Config) Factory {
+func New(sources *sources.LogSources, pipelineProvider pipeline.Provider, registry auditor.Registry, workloadmetaStore workloadmeta.Store, cfg conf.ConfigReader) Factory {
 	return &factory{
 		sources:           sources,
 		pipelineProvider:  pipelineProvider,

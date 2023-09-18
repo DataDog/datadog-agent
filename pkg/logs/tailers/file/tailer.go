@@ -138,7 +138,7 @@ type TailerOptions struct {
 //
 // The Tailer must poll for content in the file.  The `sleepDuration` parameter
 // specifies how long the tailer should wait between polls.
-func NewTailer(opts *TailerOptions, cfg conf.Config) *Tailer {
+func NewTailer(opts *TailerOptions, cfg conf.ConfigReader) *Tailer {
 	var tagProvider tag.Provider
 	if opts.File.Source.Config().Identifier != "" {
 		tagProvider = tag.NewProvider(containers.BuildTaggerEntityName(opts.File.Source.Config().Identifier), cfg)
@@ -197,7 +197,7 @@ func addToTailerInfo(k, m string, tailerInfo *status.InfoRegistry) {
 
 // NewRotatedTailer creates a new tailer that replaces this one, writing
 // messages to the same channel but using an updated file and decoder.
-func (t *Tailer) NewRotatedTailer(file *File, decoder *decoder.Decoder, info *status.InfoRegistry, cfg conf.Config) *Tailer {
+func (t *Tailer) NewRotatedTailer(file *File, decoder *decoder.Decoder, info *status.InfoRegistry, cfg conf.ConfigReader) *Tailer {
 	options := &TailerOptions{
 		OutputChan:    t.outputChan,
 		File:          file,
