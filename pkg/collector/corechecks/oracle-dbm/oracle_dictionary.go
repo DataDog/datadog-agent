@@ -32,7 +32,7 @@ func getFullSQLText(c *Check, SQLStatement *string, key string, value string) er
 		var sqlFullText go_ora.Clob
 		sql = fmt.Sprintf("BEGIN SELECT /* DD */ sql_fulltext INTO :sql_fulltext FROM v$sql WHERE %s = :v AND rownum = 1; END;", key)
 		_, err = c.connection.Exec(sql, go_ora.Out{Dest: &sqlFullText, Size: 8000}, value)
-		if err == nil && sqlFullText.Valid && sqlFullText.String != "" {
+		if err == nil && sqlFullText.String != "" {
 			*SQLStatement = sqlFullText.String
 		} else if err != nil {
 			if !isConnectionError(err) {
