@@ -16,6 +16,8 @@
       ]
     },
     "KeyValue": {
+<<<<<<< HEAD
+=======
       "properties": {
         "key": {
           "type": "string"
@@ -38,36 +40,41 @@
       "type": "array"
     },
     "MetadataField": {
+>>>>>>> bd330fd227 (Add MappingArray)
       "properties": {
-        "field": {
+        "key": {
           "type": "string"
-        },
-        "symbol": {
-          "$ref": "#/$defs/SymbolConfig"
-        },
-        "symbols": {
-          "items": {
-            "$ref": "#/$defs/SymbolConfig"
-          },
-          "type": "array"
         },
         "value": {
           "type": "string"
         }
       },
       "additionalProperties": false,
-      "type": "object"
+      "type": "object",
+      "required": [
+        "key",
+        "value"
+      ]
+    },
+    "MappingArray": {
+      "items": {
+        "$ref": "#/$defs/KeyValue"
+      },
+      "type": "array"
     },
     "MetadataResourceConfig": {
       "properties": {
         "resource_type": {
           "type": "string"
+<<<<<<< HEAD
+=======
         },
         "fields": {
-          "items": {
+          "additionalProperties": {
             "$ref": "#/$defs/MetadataField"
           },
-          "type": "array"
+          "type": "object"
+>>>>>>> bd330fd227 (Add MappingArray)
         },
         "id_tags": {
           "$ref": "#/$defs/MetricTagConfigList"
@@ -76,8 +83,12 @@
       "additionalProperties": false,
       "type": "object",
       "required": [
+<<<<<<< HEAD
+        "resource_type"
+=======
         "resource_type",
         "fields"
+>>>>>>> bd330fd227 (Add MappingArray)
       ]
     },
     "MetricIndexTransform": {
