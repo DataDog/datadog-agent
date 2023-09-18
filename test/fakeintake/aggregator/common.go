@@ -11,6 +11,7 @@ import (
 	"compress/zlib"
 	"io"
 	"sort"
+	"time"
 
 	"github.com/DataDog/datadog-agent/test/fakeintake/api"
 )
@@ -18,6 +19,7 @@ import (
 type PayloadItem interface {
 	name() string
 	GetTags() []string
+	GetCollectedTime() time.Time
 }
 
 type parseFunc[P PayloadItem] func(payload api.Payload) (items []P, err error)
@@ -39,6 +41,7 @@ func newAggregator[P PayloadItem](parse parseFunc[P]) Aggregator[P] {
 	}
 }
 
+// UnmarshallPayloads aggregate the payloads
 func (agg *Aggregator[P]) UnmarshallPayloads(payloads []api.Payload) error {
 	// reset map
 	agg.Reset()
@@ -59,11 +62,13 @@ func (agg *Aggregator[P]) UnmarshallPayloads(payloads []api.Payload) error {
 	return nil
 }
 
+// ContainsPayloadName return true if name match one of the payloads
 func (agg *Aggregator[P]) ContainsPayloadName(name string) bool {
 	_, found := agg.payloadsByName[name]
 	return found
 }
 
+// ContainsPayloadNameAndTags return true if the payload name exist and on of the payloads contains all the tags
 func (agg *Aggregator[P]) ContainsPayloadNameAndTags(name string, tags []string) bool {
 	payloads, found := agg.payloadsByName[name]
 	if !found {
@@ -79,6 +84,7 @@ func (agg *Aggregator[P]) ContainsPayloadNameAndTags(name string, tags []string)
 	return false
 }
 
+// GetNames return the names of the payloads
 func (agg *Aggregator[P]) GetNames() []string {
 	names := []string{}
 	for name := range agg.payloadsByName {
@@ -113,14 +119,17 @@ func getReadCloserForEncoding(payload []byte, encoding string) (rc io.ReadCloser
 	return rc, err
 }
 
+// GetPayloadsByName return the payloads for the resource name
 func (agg *Aggregator[P]) GetPayloadsByName(name string) []P {
 	return agg.payloadsByName[name]
 }
 
+// Reset the aggregation
 func (agg *Aggregator[P]) Reset() {
 	agg.payloadsByName = map[string][]P{}
 }
 
+// FilterByTags return the payloads that match all the tags
 func FilterByTags[P PayloadItem](payloads []P, tags []string) []P {
 	ret := []P{}
 	for _, p := range payloads {
@@ -131,6 +140,7 @@ func FilterByTags[P PayloadItem](payloads []P, tags []string) []P {
 	return ret
 }
 
+// AreTagsSubsetOfOtherTags return true is all tags are in otherTags
 func AreTagsSubsetOfOtherTags(tags, otherTags []string) bool {
 	otherTagsSet := tagsToSet(otherTags)
 	for _, tag := range tags {
