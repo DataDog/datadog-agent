@@ -13,7 +13,6 @@ import (
 	"strings"
 	"sync"
 	"time"
-	"unicode"
 
 	"github.com/gorilla/mux"
 	"google.golang.org/grpc"
@@ -250,29 +249,16 @@ func (s *systemProbeGRPCServer) RegisterService(desc *grpc.ServiceDesc, impl int
 }
 
 // NameFromGRPCServiceName extracts a system-probe module name from the gRPC service name.
-// It expects a prefix of `datadog.agent.systemprobe.` and then the pascal cased version of the module name.
+// It expects a form of `datadog.agent.systemprobe.<module_name>.ServiceName`.
 func NameFromGRPCServiceName(service string) string {
 	prefix := "datadog.agent.systemprobe."
 	if !strings.HasPrefix(service, prefix) {
 		return ""
 	}
 	s := strings.TrimPrefix(service, prefix)
-	// we are expecting a pascal case service name, so convert it to snake case to match system-probe module names
-	return toSnakeCase(s)
-}
-
-func toSnakeCase(s string) string {
-	var sb strings.Builder
-	sb.Grow(len(s))
-	for i, r := range s {
-		if unicode.IsUpper(r) {
-			if i > 0 {
-				sb.WriteRune('_')
-			}
-			sb.WriteRune(unicode.ToLower(r))
-		} else {
-			sb.WriteRune(r)
-		}
+	mod, _, ok := strings.Cut(s, ".")
+	if !ok {
+		return ""
 	}
-	return sb.String()
+	return mod
 }
