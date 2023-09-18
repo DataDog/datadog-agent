@@ -27,9 +27,11 @@ func NewPayloadParsedStore() PayloadParsedStore {
 	parser.parserMap["/api/v2/logs"] = parser.getLogPayLoadJSON
 	parser.parserMap["/api/v2/series"] = parser.getMetricPayLoadJSON
 	parser.parserMap["/api/v1/check_run"] = parser.getCheckRunPayLoadJSON
+	parser.parserMap["/api/v1/connections"] = parser.getConnectionsPayLoadProtobuf
 	parser.payloadJSONStore["/api/v2/logs"] = []api.ParsedPayload{}
 	parser.payloadJSONStore["/api/v2/series"] = []api.ParsedPayload{}
 	parser.payloadJSONStore["/api/v1/check_run"] = []api.ParsedPayload{}
+	parser.payloadJSONStore["/api/v1/connections"] = []api.ParsedPayload{}
 	return parser
 }
 
@@ -59,8 +61,11 @@ func (fi *PayloadParsedStore) getCheckRunPayLoadJSON(payload api.Payload) (inter
 	return aggregator.ParseCheckRunPayload(payload)
 }
 
-func (fi *PayloadParsedStore) parseAndAppend(payload api.Payload, route string) error {
+func (fi *PayloadParsedStore) getConnectionsPayLoadProtobuf(payload api.Payload) (interface{}, error) {
+	return aggregator.ParseConnections(payload)
+}
 
+func (fi *PayloadParsedStore) parseAndAppend(payload api.Payload, route string) error {
 	parsedPayload := api.ParsedPayload{
 		Timestamp: payload.Timestamp,
 		Data:      "",
