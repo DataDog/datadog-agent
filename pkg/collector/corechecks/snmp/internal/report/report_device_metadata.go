@@ -18,6 +18,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	devicemetadata "github.com/DataDog/datadog-agent/pkg/networkdevice/metadata"
+	"github.com/DataDog/datadog-agent/pkg/networkdevice/profile/profiledefinition"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/common"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/checkconfig"
@@ -113,7 +114,7 @@ func computeInterfaceStatus(adminStatus common.IfAdminStatus, operStatus common.
 	return common.InterfaceStatus_Down
 }
 
-func buildMetadataStore(metadataConfigs checkconfig.MetadataConfig, values *valuestore.ResultValueStore) *metadata.Store {
+func buildMetadataStore(metadataConfigs profiledefinition.MetadataConfig, values *valuestore.ResultValueStore) *metadata.Store {
 	metadataStore := metadata.NewMetadataStore()
 	if values == nil {
 		return metadataStore
@@ -123,13 +124,13 @@ func buildMetadataStore(metadataConfigs checkconfig.MetadataConfig, values *valu
 		for fieldName, field := range metadataConfig.Fields {
 			fieldFullName := resourceName + "." + fieldName
 
-			var symbols []checkconfig.SymbolConfig
+			var symbols []profiledefinition.SymbolConfig
 			if field.Symbol.OID != "" {
 				symbols = append(symbols, field.Symbol)
 			}
 			symbols = append(symbols, field.Symbols...)
 
-			if checkconfig.IsMetadataResourceWithScalarOids(resourceName) {
+			if profiledefinition.IsMetadataResourceWithScalarOids(resourceName) {
 				for _, symbol := range symbols {
 					if metadataStore.ScalarFieldHasValue(fieldFullName) {
 						break

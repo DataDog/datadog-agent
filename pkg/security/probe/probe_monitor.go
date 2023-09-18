@@ -5,6 +5,7 @@
 
 //go:build linux
 
+// Package probe holds probe related files
 package probe
 
 import (
@@ -27,12 +28,12 @@ import (
 type Monitor struct {
 	probe *Probe
 
-	eventStreamMonitor *eventstream.EventStreamMonitor
-	runtimeMonitor     *runtime.RuntimeMonitor
-	discarderMonitor   *discarder.DiscarderMonitor
-	cgroupsMonitor     *cgroups.CgroupsMonitor
-	approverMonitor    *approver.ApproverMonitor
-	syscallsMonitor    *syscalls.SyscallsMonitor
+	eventStreamMonitor *eventstream.Monitor
+	runtimeMonitor     *runtime.Monitor
+	discarderMonitor   *discarder.Monitor
+	cgroupsMonitor     *cgroups.Monitor
+	approverMonitor    *approver.Monitor
+	syscallsMonitor    *syscalls.Monitor
 }
 
 // NewMonitor returns a new instance of a ProbeMonitor
@@ -75,8 +76,8 @@ func (m *Monitor) Init() error {
 	return nil
 }
 
-// GetPerfBufferMonitor returns the perf buffer monitor
-func (m *Monitor) GetEventStreamMonitor() *eventstream.EventStreamMonitor {
+// GetEventStreamMonitor returns the perf buffer monitor
+func (m *Monitor) GetEventStreamMonitor() *eventstream.Monitor {
 	return m.eventStreamMonitor
 }
 

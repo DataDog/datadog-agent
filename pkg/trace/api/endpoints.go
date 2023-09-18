@@ -122,7 +122,11 @@ var endpoints = []Endpoint{
 	},
 	{
 		Pattern: "/debugger/v1/input",
-		Handler: func(r *HTTPReceiver) http.Handler { return r.debuggerProxyHandler() },
+		Handler: func(r *HTTPReceiver) http.Handler { return r.debuggerLogsProxyHandler() },
+	},
+	{
+		Pattern: "/debugger/v1/diagnostics",
+		Handler: func(r *HTTPReceiver) http.Handler { return r.debuggerDiagnosticsProxyHandler() },
 	},
 	{
 		Pattern: "/symdb/v1/input",

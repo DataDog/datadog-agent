@@ -57,7 +57,7 @@ func (t *tcpQueueLengthModule) Register(httpMux *module.Router) error {
 }
 
 // RegisterGRPC register to system probe gRPC server
-func (t *tcpQueueLengthModule) RegisterGRPC(_ *grpc.Server) error {
+func (t *tcpQueueLengthModule) RegisterGRPC(_ grpc.ServiceRegistrar) error {
 	return nil
 }
 

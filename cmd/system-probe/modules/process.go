@@ -91,7 +91,7 @@ func (t *process) Register(httpMux *module.Router) error {
 }
 
 // RegisterGRPC register to system probe gRPC server
-func (t *process) RegisterGRPC(_ *grpc.Server) error {
+func (t *process) RegisterGRPC(_ grpc.ServiceRegistrar) error {
 	return nil
 }
 

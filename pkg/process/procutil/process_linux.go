@@ -72,6 +72,15 @@ func WithReturnZeroPermStats(enabled bool) Option {
 	}
 }
 
+// WithProcFSRoot confiugres the procfs directory that the probe reads from
+func WithProcFSRoot(path string) Option {
+	return func(p Probe) {
+		if linuxProbe, ok := p.(*probe); ok {
+			linuxProbe.procRootLoc = path
+		}
+	}
+}
+
 // WithPermission configures if process collection should fetch fields
 // that require elevated permission or not
 func WithPermission(elevatedPermissions bool) Option {

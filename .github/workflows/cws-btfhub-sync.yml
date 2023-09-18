@@ -30,15 +30,12 @@ jobs:
         with:
           python-version: '3.9'
           cache: 'pip'
+      - run: pip install -r requirements.txt
 
       - name: Install go
         uses: actions/setup-go@v4
         with:
           go-version-file: '.go-version'
-
-      - name: Install python requirements
-        run: |
-          pip install -r requirements.txt
 
       - name: Install go deps
         run: |
