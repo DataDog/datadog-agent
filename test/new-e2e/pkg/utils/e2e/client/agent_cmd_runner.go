@@ -35,8 +35,7 @@ func newAgentCommandRunner(t *testing.T, executeAgentCmdWithError executeAgentCm
 	return agent
 }
 
-// Execute a command on the agent after confirming the agent is ready
-func (agent *AgentCommandRunner) executeCommand(command string, commandArgs ...AgentArgsOption) (string, error) {
+func (agent *AgentCommandRunner) executeCommand(command string, commandArgs ...AgentArgsOption) string {
 	if !agent.isReady {
 		err := agent.waitForReadyTimeout(1 * time.Minute)
 		require.NoErrorf(agent.t, err, "the agent is not ready")
@@ -46,28 +45,24 @@ func (agent *AgentCommandRunner) executeCommand(command string, commandArgs ...A
 	arguments := []string{command}
 	arguments = append(arguments, args.Args...)
 	output, err := agent.executeAgentCmdWithError(arguments)
-	return output, err
+	require.NoError(agent.t, err)
+	return output
 }
 
 // Version runs version command returns the runtime Agent version
 func (agent *AgentCommandRunner) Version(commandArgs ...AgentArgsOption) string {
-	output, err := agent.executeCommand("version", commandArgs...)
-	require.NoError(agent.t, err)
-	return output
-}
-
-// Config runs config command and returns the runtime agent config
-func (agent *AgentCommandRunner) Config(commandArgs ...AgentArgsOption) string {
-	output, err := agent.executeCommand("config", commandArgs...)
-	require.NoError(agent.t, err)
-	return output
+	return agent.executeCommand("version", commandArgs...)
 }
 
 // Hostname runs hostname command and returns the runtime Agent hostname
 func (agent *AgentCommandRunner) Hostname(commandArgs ...AgentArgsOption) string {
-	output, err := agent.executeCommand("hostname", commandArgs...)
-	require.NoError(agent.t, err)
+	output := agent.executeCommand("hostname", commandArgs...)
 	return strings.Trim(output, "\n")
+}
+
+// Config runs config command and returns the runtime agent config
+func (agent *AgentCommandRunner) Config(commandArgs ...AgentArgsOption) string {
+	return agent.executeCommand("config", commandArgs...)
 }
 
 // Flare runs flare command and returns the output. You should use the FakeIntake client to fetch the flare archive
@@ -77,22 +72,19 @@ func (agent *AgentCommandRunner) Flare(commandArgs ...AgentArgsOption) string {
 
 // Health runs health command and returns the runtime agent health
 func (agent *AgentCommandRunner) Health() (string, error) {
-	output, err := agent.executeCommand("health")
+	arguments := []string{"health"}
+	output, err := agent.executeAgentCmdWithError(arguments)
 	return output, err
 }
 
 // ConfigCheck runs configcheck command and returns the runtime agent configcheck
 func (agent *AgentCommandRunner) ConfigCheck(commandArgs ...AgentArgsOption) string {
-	output, err := agent.executeCommand("configcheck", commandArgs...)
-	require.NoError(agent.t, err)
-	return output
+	return agent.executeCommand("configcheck", commandArgs...)
 }
 
 // Secret runs the secret command
 func (agent *AgentCommandRunner) Secret(commandArgs ...AgentArgsOption) string {
-	output, err := agent.executeCommand("secret", commandArgs...)
-	require.NoError(agent.t, err)
-	return output
+	return agent.executeCommand("secret", commandArgs...)
 }
 
 // IsReady runs status command and returns true if the command returns a zero exit code.
@@ -113,9 +105,8 @@ func newStatus(s string) *Status {
 
 // Status runs status command and returns a Status struct
 func (agent *AgentCommandRunner) Status(commandArgs ...AgentArgsOption) *Status {
-	output, err := agent.executeCommand("status", commandArgs...)
-	require.NoError(agent.t, err)
-	return newStatus(output)
+
+	return newStatus(agent.executeCommand("status", commandArgs...))
 }
 
 // WaitForReady blocks up to timeout waiting for agent to be ready.
