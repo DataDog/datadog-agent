@@ -13,13 +13,12 @@ import (
 	"golang.org/x/exp/slices"
 )
 
-// offset, size tuple
 type offsetRange struct {
 	Offset uint64
 	Size   uint64
 }
 
-// ranges must be sorted by starting offset
+// skipOverlaps returns the next valid offset and a boolean indicating if there was any overlap detected.
 func skipOverlaps(offset uint64, ranges []offsetRange) (uint64, bool) {
 	overlapped := false
 StartOver:
@@ -29,6 +28,8 @@ StartOver:
 			if r.Offset <= offset && offset < next {
 				offset = next
 				overlapped = true
+				// completely redo the inner loop
+				// you must have no overlaps to return from the function
 				continue StartOver
 			}
 		}
