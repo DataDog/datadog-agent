@@ -43,6 +43,19 @@ const (
 	MaxSQLFullTextVSQLStats = 1000
 )
 
+type hostingCode string
+
+const (
+	selfManaged hostingCode = "self-managed"
+	rds         hostingCode = "RDS"
+	oci         hostingCode = "OCI"
+)
+
+type hostingType struct {
+	value hostingCode
+	valid bool
+}
+
 // The structure is filled by activity sampling and serves as a filter for query metrics
 type StatementsFilter struct {
 	SQLIDs                  map[string]int
@@ -58,6 +71,11 @@ type StatementsCacheData struct {
 type StatementsCache struct {
 	SQLIDs                  map[string]StatementsCacheData
 	forceMatchingSignatures map[string]StatementsCacheData
+}
+
+type pgaOverAllocationCount struct {
+	value float64
+	valid bool
 }
 
 type Check struct {
@@ -83,13 +101,12 @@ type Check struct {
 	metricLastRun                           time.Time
 	statementsLastRun                       time.Time
 	filePath                                string
-	isRDS                                   bool
-	isOracleCloud                           bool
 	sqlTraceRunsCount                       int
 	connectedToPdb                          bool
 	fqtEmitted                              *cache.Cache
 	planEmitted                             *cache.Cache
-	previousAllocationCount                 float64
+	previousPGAOverAllocationCount          pgaOverAllocationCount
+	hostingType
 }
 
 func handleServiceCheck(c *Check, err error) {
@@ -182,6 +199,12 @@ func (c *Check) Run() error {
 				return err
 			}
 		}
+		if len(c.config.CustomQueries) > 0 {
+			err := c.CustomQueries()
+			if err != nil {
+				log.Errorf("failed to execute custom queries %s", err)
+			}
+		}
 	}
 
 	if c.dbmEnabled {
@@ -202,12 +225,6 @@ func (c *Check) Run() error {
 				err := c.SharedMemory()
 				if err != nil {
 					return err
-				}
-			}
-			if len(c.config.CustomQueries) > 0 {
-				err := c.CustomQueries()
-				if err != nil {
-					log.Errorf("failed to execute custom queries %s", err)
 				}
 			}
 		}

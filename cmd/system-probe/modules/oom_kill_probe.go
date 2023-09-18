@@ -58,7 +58,7 @@ func (o *oomKillModule) Register(httpMux *module.Router) error {
 }
 
 // RegisterGRPC register to system probe gRPC server
-func (o *oomKillModule) RegisterGRPC(_ *grpc.Server) error {
+func (o *oomKillModule) RegisterGRPC(_ grpc.ServiceRegistrar) error {
 	return nil
 }
 

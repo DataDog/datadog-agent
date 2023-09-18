@@ -15,6 +15,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
+
 	"github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/tests/statsdclient"
@@ -37,10 +39,11 @@ func TestResolver_ComputeHashes(t *testing.T) {
 	client := statsdclient.NewStatsdClient()
 	pid := uint32(os.Getpid())
 	tests := []struct {
-		name   string
-		config *config.RuntimeSecurityConfig
-		args   args
-		want   []string
+		name          string
+		config        *config.RuntimeSecurityConfig
+		args          args
+		want          []string
+		wantHashState model.HashState
 	}{
 		{
 			name: "event_type/ok",
@@ -70,13 +73,14 @@ func TestResolver_ComputeHashes(t *testing.T) {
 					PathnameStr:           "/tmp/hash_test",
 					IsPathnameStrResolved: true,
 				},
-				fileSize: 0,
+				fileSize: 10,
 			},
 			want: []string{
-				"sha1:da39a3ee5e6b4b0d3255bfef95601890afd80709",
-				"sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-				"md5:d41d8cd98f00b204e9800998ecf8427e",
+				"sha1:3495ff69d34671d1e15b33a63c1379fdedd3a32a",
+				"sha256:bf2cb58a68f684d95a3b78ef8f661c9a4e5b09e82cc8f9cc88cce90528caeb27",
+				"md5:e09c80c42fda55f9d992e59ca6b3307d",
 			},
+			wantHashState: model.Done,
 		},
 		{
 			name: "event_type/event_type_not_hashed",
@@ -108,7 +112,8 @@ func TestResolver_ComputeHashes(t *testing.T) {
 				},
 				fileSize: 0,
 			},
-			want: []string{},
+			want:          []string{},
+			wantHashState: model.EventTypeNotConfigured,
 		},
 		{
 			name: "max_file_size/ok",
@@ -145,6 +150,7 @@ func TestResolver_ComputeHashes(t *testing.T) {
 				"sha256:2edc986847e209b4016e141a6dc8716d3207350f416969382d431539bf292e4a",
 				"md5:c9a34cfc85d982698c6ac89f76071abd",
 			},
+			wantHashState: model.Done,
 		},
 		{
 			name: "max_file_size/file_too_big",
@@ -176,7 +182,8 @@ func TestResolver_ComputeHashes(t *testing.T) {
 				},
 				fileSize: 1<<10 + 1,
 			},
-			want: []string{},
+			want:          []string{},
+			wantHashState: model.FileTooBig,
 		},
 		{
 			name: "rate_limit",
@@ -208,7 +215,8 @@ func TestResolver_ComputeHashes(t *testing.T) {
 				},
 				fileSize: 1,
 			},
-			want: []string{},
+			want:          []string{},
+			wantHashState: model.HashWasRateLimited,
 		},
 	}
 	for _, tt := range tests {
@@ -232,6 +240,7 @@ func TestResolver_ComputeHashes(t *testing.T) {
 			if !reflect.DeepEqual(strings.Join(got, "-"), strings.Join(tt.want, "-")) {
 				t.Errorf("ComputeHashes() = %v, want %v", got, tt.want)
 			}
+			assert.Equal(t, tt.wantHashState, tt.args.file.HashState, "invalid output hash state")
 		})
 	}
 

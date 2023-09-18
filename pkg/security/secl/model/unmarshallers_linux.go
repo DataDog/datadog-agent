@@ -185,7 +185,7 @@ func (e *Process) UnmarshalProcEntryBinary(data []byte) (int, error) {
 
 // UnmarshalPidCacheBinary unmarshalls Unmarshal pid_cache_t
 func (e *Process) UnmarshalPidCacheBinary(data []byte) (int, error) {
-	const size = 64
+	const size = 72
 	if len(data) < size {
 		return 0, ErrNotEnoughData
 	}
@@ -193,28 +193,30 @@ func (e *Process) UnmarshalPidCacheBinary(data []byte) (int, error) {
 	var read int
 
 	// Unmarshal pid_cache_t
-	cookie := ByteOrder.Uint32(data[0:4])
+	cookie := ByteOrder.Uint64(data[0:8])
 	if cookie > 0 {
 		e.Cookie = cookie
 	}
-	e.PPid = ByteOrder.Uint32(data[4:8])
+	e.PPid = ByteOrder.Uint32(data[8:12])
 
-	e.ForkTime = unmarshalTime(data[8:16])
-	e.ExitTime = unmarshalTime(data[16:24])
+	// padding
+
+	e.ForkTime = unmarshalTime(data[16:24])
+	e.ExitTime = unmarshalTime(data[24:32])
 
 	// Unmarshal the credentials contained in pid_cache_t
-	read, err := UnmarshalBinary(data[24:], &e.Credentials)
+	read, err := UnmarshalBinary(data[32:], &e.Credentials)
 	if err != nil {
 		return 0, err
 	}
-	read += 24
+	read += 32
 
 	return validateReadSize(size, read)
 }
 
 // UnmarshalBinary unmarshalls a binary representation of itself
 func (e *Process) UnmarshalBinary(data []byte) (int, error) {
-	const size = 256 // size of struct exec_event_t starting from process_entry_t, inclusive
+	const size = 264 // size of struct exec_event_t starting from process_entry_t, inclusive
 	if len(data) < size {
 		return 0, ErrNotEnoughData
 	}
@@ -338,16 +340,14 @@ func (e *FileFields) UnmarshalBinary(data []byte) (int, error) {
 	}
 	data = data[n:]
 
-	e.Flags = int32(ByteOrder.Uint32(data[0:4]))
+	e.Device = ByteOrder.Uint32(data[0:4])
 
-	// +4 for padding
+	e.Flags = int32(ByteOrder.Uint32(data[4:8]))
 
 	e.UID = ByteOrder.Uint32(data[8:12])
 	e.GID = ByteOrder.Uint32(data[12:16])
 	e.NLink = ByteOrder.Uint32(data[16:20])
 	e.Mode = ByteOrder.Uint16(data[20:22])
-
-	// +2 for padding
 
 	timeSec := ByteOrder.Uint64(data[24:32])
 	timeNsec := ByteOrder.Uint64(data[32:40])
@@ -884,8 +884,8 @@ func (e *CgroupTracingEvent) UnmarshalBinary(data []byte) (int, error) {
 		return 0, ErrNotEnoughData
 	}
 
-	e.ConfigCookie = ByteOrder.Uint32(data[cursor : cursor+4])
-	return cursor + 4, nil
+	e.ConfigCookie = ByteOrder.Uint64(data[cursor : cursor+8])
+	return cursor + 8, nil
 }
 
 // EventUnmarshalBinary unmarshals a binary representation of itself

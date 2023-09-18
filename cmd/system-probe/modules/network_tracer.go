@@ -87,7 +87,7 @@ func (nt *networkTracer) GetStats() map[string]interface{} {
 }
 
 // RegisterGRPC register system probe grpc server
-func (nt *networkTracer) RegisterGRPC(_ *grpc.Server) error {
+func (nt *networkTracer) RegisterGRPC(_ grpc.ServiceRegistrar) error {
 	return nil
 }
 

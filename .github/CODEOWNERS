@@ -196,6 +196,7 @@
 # The following is managed by `inv lint-components` -- DO NOT EDIT
 # BEGIN COMPONENTS
 /comp @DataDog/agent-shared-components
+/comp/aggregator @DataDog/agent-shared-components
 /comp/core @DataDog/agent-shared-components
 /comp/dogstatsd @DataDog/agent-metrics-logs
 /comp/forwarder @DataDog/agent-shared-components
@@ -277,7 +278,8 @@
 /pkg/config/environment*.go             @DataDog/container-integrations @DataDog/container-app
 /pkg/config/log*.go                     @Datadog/agent-platform
 /pkg/config/process*.go                 @DataDog/processes
-/pkg/config/system_probe.go             @DataDog/ebpf-platform @DataDog/agent-security
+/pkg/config/system_probe.go             @DataDog/ebpf-platform
+/pkg/config/system_probe_cws.go         @DataDog/agent-security
 /pkg/config/remote/                     @DataDog/remote-config
 /pkg/config/remote/meta/                @DataDog/remote-config @DataDog/software-integrity-and-trust
 /pkg/containerlifecycle/                @Datadog/container-integrations
@@ -390,6 +392,7 @@
 /tasks/                                 @DataDog/agent-platform
 /tasks/msi.py                           @DataDog/windows-agent
 /tasks/agent.py                         @DataDog/agent-shared-components
+/tasks/update_go.py                     @DataDog/agent-shared-components
 /tasks/cluster_agent_cloudfoundry.py    @DataDog/platform-integrations
 /tasks/new_e2e_tests.py                 @DataDog/agent-e2e-testing
 /tasks/process_agent.py                 @DataDog/processes
