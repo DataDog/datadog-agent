@@ -30,28 +30,28 @@ type SecurityProfileManagers struct {
 }
 
 // NewSecurityProfileManagers returns a new manager object
-func NewSecurityProfileManagers(probe *Probe) (*SecurityProfileManagers, error) {
+func NewSecurityProfileManagers[T any](p *Probe[T]) (*SecurityProfileManagers, error) {
 	managers := SecurityProfileManagers{
-		config: probe.Config,
+		config: p.Config,
 	}
 
-	if probe.IsActivityDumpEnabled() {
-		activityDumpManager, err := dump.NewActivityDumpManager(probe.Config, probe.StatsdClient, func() *model.Event { return NewEvent(probe.fieldHandlers) }, probe.resolvers, probe.kernelVersion, probe.Manager)
+	if p.IsActivityDumpEnabled() {
+		activityDumpManager, err := dump.NewActivityDumpManager(p.Config, p.StatsdClient, func() *model.Event { return NewEvent(p.fieldHandlers) }, p.resolvers, p.kernelVersion, p.Manager)
 		if err != nil {
 			return nil, fmt.Errorf("couldn't create the activity dump manager: %w", err)
 		}
 		managers.activityDumpManager = activityDumpManager
 	}
 
-	if probe.IsSecurityProfileEnabled() {
-		securityProfileManager, err := profile.NewSecurityProfileManager(probe.Config, probe.StatsdClient, probe.resolvers, probe.Manager)
+	if p.IsSecurityProfileEnabled() {
+		securityProfileManager, err := profile.NewSecurityProfileManager(p.Config, p.StatsdClient, p.resolvers, p.Manager)
 		if err != nil {
 			return nil, fmt.Errorf("couldn't create the security profile manager: %w", err)
 		}
 		managers.securityProfileManager = securityProfileManager
 	}
 
-	if probe.IsActivityDumpEnabled() && probe.IsSecurityProfileEnabled() {
+	if p.IsActivityDumpEnabled() && p.IsSecurityProfileEnabled() {
 		managers.activityDumpManager.SetSecurityProfileManager(managers.securityProfileManager)
 		managers.securityProfileManager.SetActivityDumpManager(managers.activityDumpManager)
 	}

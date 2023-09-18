@@ -14,6 +14,8 @@ import (
 
 	"go.uber.org/atomic"
 
+	"github.com/hashicorp/go-multierror"
+
 	"github.com/DataDog/datadog-agent/pkg/security/probe"
 	"github.com/DataDog/datadog-agent/pkg/security/proto/api"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
@@ -21,7 +23,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 	"github.com/DataDog/datadog-agent/pkg/security/serializers"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/hashicorp/go-multierror"
 )
 
 // EventPredicate defines a self test event validation predicate
@@ -57,7 +58,7 @@ type SelfTester struct {
 var _ rules.PolicyProvider = (*SelfTester)(nil)
 
 // NewSelfTester returns a new SelfTester, enabled or not
-func NewSelfTester(probe *probe.Probe) (*SelfTester, error) {
+func NewSelfTester(p *Probe[T].Probe) (*SelfTester, error) {
 	s := &SelfTester{
 		waitingForEvent: atomic.NewBool(false),
 		eventChan:       make(chan selfTestEvent, 10),

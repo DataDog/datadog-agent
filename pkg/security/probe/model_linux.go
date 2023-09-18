@@ -15,17 +15,17 @@ import (
 )
 
 // NewModel returns a new model with some extra field validation
-func NewModel(probe *Probe) *model.Model {
+func NewModel[T any](p *Probe[T]) *model.Model {
 	return &model.Model{
 		ExtraValidateFieldFnc: func(field eval.Field, fieldValue eval.FieldValue) error {
 			switch field {
 			case "bpf.map.name":
-				if offset, found := probe.constantOffsets[constantfetch.OffsetNameBPFMapStructName]; !found || offset == constantfetch.ErrorSentinel {
+				if offset, found := p.constantOffsets[constantfetch.OffsetNameBPFMapStructName]; !found || offset == constantfetch.ErrorSentinel {
 					return fmt.Errorf("%s is not available on this kernel version", field)
 				}
 
 			case "bpf.prog.name":
-				if offset, found := probe.constantOffsets[constantfetch.OffsetNameBPFProgAuxStructName]; !found || offset == constantfetch.ErrorSentinel {
+				if offset, found := p.constantOffsets[constantfetch.OffsetNameBPFProgAuxStructName]; !found || offset == constantfetch.ErrorSentinel {
 					return fmt.Errorf("%s is not available on this kernel version", field)
 				}
 			}

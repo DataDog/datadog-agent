@@ -11,6 +11,6 @@ import (
 )
 
 // NewModel returns a new model with some extra field validation
-func NewModel(probe *Probe) *model.Model {
+func NewModel(p *Probe[T]) *model.Model {
 	return &model.Model{}
 }
