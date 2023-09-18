@@ -18,7 +18,6 @@ import (
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/params"
 	"github.com/DataDog/test-infra-definitions/components/datadog/agentparams"
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
 const NPMsystemProbeConfig = `
@@ -65,8 +64,8 @@ func (v *ec2VMSuite) TestFakeIntakeNPM() {
 		v.Env().VM.Execute("curl http://www.datadoghq.com")
 
 		hostnameNetID, err := v.Env().Fakeintake.GetConnectionsNames()
-		require.NoError(c, err, "GetConnectionsNames() errors")
-		require.NotZero(c, len(hostnameNetID), "no connections yet")
+		assert.NoError(c, err, "GetConnectionsNames() errors")
+		assert.NotZero(c, len(hostnameNetID), "no connections yet")
 		targetHostnameNetID = hostnameNetID[0]
 
 		t.Logf("hostname+networkID %v seen connections", hostnameNetID)
@@ -75,12 +74,18 @@ func (v *ec2VMSuite) TestFakeIntakeNPM() {
 	// looking for 3 payloads and check if the last 2 have a span of 30s +/- 500ms
 	v.EventuallyWithT(func(c *assert.CollectT) {
 		cnx, err := v.Env().Fakeintake.GetConnections()
-		require.NoError(t, err)
+		assert.NoError(t, err)
 
-		payloadsTimestamp := cnx.GetCollectedTimeByName(targetHostnameNetID)
-		require.Greater(c, len(payloadsTimestamp), 2, "not enough payloads")
+		assert.Greater(c, len(cnx.GetPayloadsByName(targetHostnameNetID)), 2, "not enough payloads")
+		if len(cnx.GetPayloadsByName(targetHostnameNetID)) < 3 {
+			return
+		}
 
-		dt := float64(payloadsTimestamp[2].Sub(payloadsTimestamp[1])) / float64(time.Second)
+		var payloadsTimestamps []time.Time
+		for _, cc := range cnx.GetPayloadsByName(targetHostnameNetID) {
+			payloadsTimestamps = append(payloadsTimestamps, cc.GetCollectedTime())
+		}
+		dt := float64(payloadsTimestamps[2].Sub(payloadsTimestamps[1])) / float64(time.Second)
 		t.Logf("hostname+networkID %v diff time %f seconds", targetHostnameNetID, dt)
 
 		// we want the test fail now, not retrying on the next payloads
@@ -102,7 +107,7 @@ func (v *ec2VMSuite) TestFakeIntakeNPM_TCP_UDP_DNS() {
 		v.Env().VM.Execute("dig @8.8.8.8 www.google.ch")
 
 		cnx, err := v.Env().Fakeintake.GetConnections()
-		require.NoError(c, err)
+		assert.NoError(c, err)
 
 		var currentHostname string
 		var currentConnection *agentmodel.Connection
@@ -121,7 +126,7 @@ func (v *ec2VMSuite) TestFakeIntakeNPM_TCP_UDP_DNS() {
 				printDNS(t, c, cc, hostname)
 			}
 		})
-		require.True(c, foundDNS, "DNS not found")
+		assert.True(c, foundDNS, "DNS not found")
 
 		type countCnx struct {
 			hit int
