@@ -5,16 +5,18 @@
 
 //go:build windows
 
+// Package winregistry defines the winregistry check
 package winregistry
 
 import (
 	"errors"
 	"fmt"
-	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
-	"github.com/DataDog/datadog-agent/pkg/util"
 	"io/fs"
 	"strconv"
 	"strings"
+
+	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
+	"github.com/DataDog/datadog-agent/pkg/util"
 
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
@@ -63,6 +65,7 @@ type WindowsRegistryCheck struct {
 	registryKeys []registryKey
 }
 
+// Configure reads the config and setups the check
 func (c *WindowsRegistryCheck) Configure(senderManager sender.SenderManager, integrationConfigDigest uint64, data integration.Data, initConfig integration.Data, source string) error {
 	err := c.CommonConfigure(senderManager, integrationConfigDigest, initConfig, data, source)
 	if err != nil {
@@ -90,7 +93,7 @@ func (c *WindowsRegistryCheck) Configure(senderManager sender.SenderManager, int
 		}
 
 		if len(regKeyConfig.Name) == 0 {
-			log.Warnf("the key %s does not have a metric name %s, skipping", regKey)
+			log.Warnf("the key %s does not have a metric name, skipping", regKey)
 			continue
 		}
 
@@ -118,6 +121,7 @@ func (c *WindowsRegistryCheck) Configure(senderManager sender.SenderManager, int
 	return nil
 }
 
+// Run runs the check
 func (c *WindowsRegistryCheck) Run() error {
 	sender, err := c.GetSender()
 	if err != nil {
