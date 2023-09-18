@@ -16,7 +16,7 @@ import (
 
 type MockEventHandler struct{}
 
-func (MockEventHandler) HandleEvent(incomingEvent interface{}) {
+func (MockEventHandler) HandleEvent(incomingEvent any) {
 	event, ok := incomingEvent.(*model.Event)
 	if !ok {
 		seclog.Errorf("Event is not a security model event")
@@ -34,7 +34,7 @@ func (MockEventHandler) HandleEvent(incomingEvent interface{}) {
 	}
 }
 
-func (MockEventHandler) Copy(incomingEvent *model.Event) interface{} {
+func (MockEventHandler) Copy(incomingEvent *model.Event) any {
 	return incomingEvent
 }
 

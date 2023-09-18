@@ -68,7 +68,7 @@ func (fc *FakeEventConsumer) GetExecCount() int {
 	return fc.exec
 }
 
-func (fc *FakeEventConsumer) HandleEvent(incomingEvent interface{}) {
+func (fc *FakeEventConsumer) HandleEvent(incomingEvent any) {
 	event, ok := incomingEvent.(*model.Event)
 	if !ok {
 		log.Error("Event is not a security model event")
@@ -89,7 +89,7 @@ func (fc *FakeEventConsumer) HandleEvent(incomingEvent interface{}) {
 }
 
 // Copy is no-op function used to satisfy the EventHandler interface
-func (fc *FakeEventConsumer) Copy(incomingEvent *model.Event) interface{} {
+func (fc *FakeEventConsumer) Copy(incomingEvent *model.Event) any {
 	return incomingEvent
 }
 

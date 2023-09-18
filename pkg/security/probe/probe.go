@@ -34,8 +34,8 @@ type FullAccessEventHandler interface {
 
 // EventHandler represents a handler for events sent by the probe. This handler makes a copy of the event upon receipt
 type EventHandler interface {
-	HandleEvent(event interface{})
-	Copy(_ *model.Event) interface{}
+	HandleEvent(event any)
+	Copy(_ *model.Event) any
 }
 
 // CustomEventHandler represents an handler for the custom events sent by the probe

@@ -76,7 +76,7 @@ func (p *ProcessConsumer) SendStats() {
 }
 
 // HandleEvent implement the event monitor EventHandler interface
-func (p *ProcessConsumer) HandleEvent(event interface{}) {
+func (p *ProcessConsumer) HandleEvent(event any) {
 	e, ok := event.(*model.ProcessEvent)
 	if !ok {
 		log.Errorf("Event is not a Process Lifecycle Event")

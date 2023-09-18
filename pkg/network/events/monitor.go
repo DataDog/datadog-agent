@@ -78,7 +78,7 @@ func UnregisterHandler(handler ProcessEventHandler) {
 
 type eventHandlerWrapper struct{}
 
-func (h *eventHandlerWrapper) HandleEvent(ev interface{}) {
+func (h *eventHandlerWrapper) HandleEvent(ev any) {
 	if ev == nil {
 		log.Errorf("Received nil event")
 		return
@@ -97,7 +97,7 @@ func (h *eventHandlerWrapper) HandleEvent(ev interface{}) {
 }
 
 // Copy copies the necessary fields from the event received from the event monitor
-func (h *eventHandlerWrapper) Copy(ev *model.Event) interface{} {
+func (h *eventHandlerWrapper) Copy(ev *model.Event) any {
 	m := theMonitor.Load()
 	if m != nil {
 		ev.ResolveFields()
