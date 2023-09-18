@@ -43,11 +43,11 @@ func getTimeIfNotZero(t time.Time) *utils.EasyjsonTime {
 
 // MarshalEvent marshal the event
 func MarshalEvent(event *model.Event, probe *resolvers.Resolvers) ([]byte, error) {
-	s := NewEventSerializer(event, probe)
+	//s := NewEventSerializer(event, probe)
 	w := &jwriter.Writer{
 		Flags: jwriter.NilSliceAsEmpty | jwriter.NilMapAsEmpty,
 	}
-	s.MarshalEasyJSON(w)
+	//s.MarshalEasyJSON(w)
 	return w.BuildBytes()
 }
 

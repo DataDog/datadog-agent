@@ -667,3 +667,5 @@ exclude (
 	github.com/knadh/koanf/maps v0.1.1
 	github.com/knadh/koanf/providers/confmap v0.1.0
 )
+
+replace github.com/mailru/easyjson => github.com/safchain/easyjson v0.0.0-20231003111544-5963bb0ec786

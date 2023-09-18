@@ -4,13 +4,14 @@
 // Copyright 2016-present Datadog, Inc.
 
 // Package events holds events related files
-package events
+package rules
 
 import (
 	"fmt"
 	"sync"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/security/events"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
 
 	"github.com/DataDog/datadog-go/v5/statsd"
@@ -33,16 +34,16 @@ const (
 
 var (
 	defaultPerRuleLimiters = map[eval.RuleID]Limiter{
-		RulesetLoadedRuleID:             NewStdLimiter(rate.Inf, 1), // No limit on ruleset loaded
-		AbnormalPathRuleID:              NewStdLimiter(rate.Every(30*time.Second), 1),
-		NoProcessContextErrorRuleID:     NewStdLimiter(rate.Every(30*time.Second), 1),
-		BrokenProcessLineageErrorRuleID: NewStdLimiter(rate.Every(30*time.Second), 1),
+		events.RulesetLoadedRuleID:             NewStdLimiter(rate.Inf, 1), // No limit on ruleset loaded
+		events.AbnormalPathRuleID:              NewStdLimiter(rate.Every(30*time.Second), 1),
+		events.NoProcessContextErrorRuleID:     NewStdLimiter(rate.Every(30*time.Second), 1),
+		events.BrokenProcessLineageErrorRuleID: NewStdLimiter(rate.Every(30*time.Second), 1),
 	}
 )
 
 // Limiter defines a limiter interface
 type Limiter interface {
-	Allow(event Event) bool
+	Allow(event events.Event) bool
 	SwapStats() []utils.LimiterStat
 }
 
@@ -67,7 +68,7 @@ func NewStdLimiter(limit rate.Limit, burst int) *StdLimiter {
 }
 
 // Allow returns whether the event is allowed
-func (l *StdLimiter) Allow(_ Event) bool {
+func (l *StdLimiter) Allow(_ events.Event) bool {
 	if l.rateLimiter.Allow() {
 		l.allowed.Inc()
 		return true
@@ -93,7 +94,7 @@ type AnomalyDetectionLimiter struct {
 }
 
 // Allow returns whether the event is allowed
-func (al *AnomalyDetectionLimiter) Allow(event Event) bool {
+func (al *AnomalyDetectionLimiter) Allow(event events.Event) bool {
 	return al.limiter.Allow(event.GetWorkloadID())
 }
 
@@ -141,9 +142,9 @@ func (rl *RateLimiter) applyBaseLimitersFromDefault(limiters map[string]Limiter)
 	limiter, err := NewAnomalyDetectionLimiter(rl.config.AnomalyDetectionRateLimiterNumKeys, rl.config.AnomalyDetectionRateLimiterNumEventsAllowed, rl.config.AnomalyDetectionRateLimiterPeriod)
 	if err != nil {
 		// should never happen, fallback to std limiter
-		limiters[AnomalyDetectionRuleID] = NewStdLimiter(rate.Every(rl.config.AnomalyDetectionRateLimiterPeriod), rl.config.AnomalyDetectionRateLimiterNumEventsAllowed)
+		limiters[events.AnomalyDetectionRuleID] = NewStdLimiter(rate.Every(rl.config.AnomalyDetectionRateLimiterPeriod), rl.config.AnomalyDetectionRateLimiterNumEventsAllowed)
 	} else {
-		limiters[AnomalyDetectionRuleID] = limiter
+		limiters[events.AnomalyDetectionRuleID] = limiter
 	}
 }
 
@@ -173,7 +174,7 @@ func (rl *RateLimiter) Apply(ruleSet *rules.RuleSet, customRuleIDs []eval.RuleID
 }
 
 // Allow returns true if a specific rule shall be allowed to sent a new event
-func (rl *RateLimiter) Allow(ruleID string, event Event) bool {
+func (rl *RateLimiter) Allow(ruleID string, event events.Event) bool {
 	rl.RLock()
 	defer rl.RUnlock()
 

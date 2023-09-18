@@ -1,6 +1,6 @@
 //go:build windows
 
-package serializers
+package model
 
 import (
 	jlexer "github.com/mailru/easyjson/jlexer"

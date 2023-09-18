@@ -1,4 +1,4 @@
-//go:generate go run github.com/mailru/easyjson/easyjson -gen_build_flags=-mod=mod -no_std_marshalers -build_tags linux $GOFILE
+//go:generate easyjson -gen_build_flags=-mod=mod -no_std_marshalers -build_tags linux $GOFILE
 
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
@@ -16,6 +16,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 	"github.com/DataDog/datadog-agent/pkg/security/serializers"
+	smodel "github.com/DataDog/datadog-agent/pkg/security/serializers/model"
 	easyjson "github.com/mailru/easyjson"
 )
 
@@ -70,8 +71,8 @@ func errorToEventType(err error) model.EventType {
 // easyjson:json
 type AbnormalEvent struct {
 	events.CustomEventCommonFields
-	Event *serializers.EventSerializer `json:"triggering_event"`
-	Error string                       `json:"error"`
+	Event *smodel.EventSerializer `json:"triggering_event"`
+	Error string                  `json:"error"`
 }
 
 // NewAbnormalEvent returns the rule and a populated custom event for a abnormal event

@@ -1,7 +1,3 @@
-//go:generate go run github.com/mailru/easyjson/easyjson -gen_build_flags=-mod=mod -no_std_marshalers -build_tags linux $GOFILE
-//go:generate go run github.com/mailru/easyjson/easyjson -gen_build_flags=-mod=mod -no_std_marshalers -build_tags linux -output_filename serializers_base_linux_easyjson.go serializers_base.go
-//go:generate go run github.com/DataDog/datadog-agent/pkg/security/probe/doc_generator -output ../../../docs/cloud-workload-security/backend.schema.json
-
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
@@ -21,426 +17,11 @@ import (
 	sprocess "github.com/DataDog/datadog-agent/pkg/security/resolvers/process"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
-	"github.com/DataDog/datadog-agent/pkg/security/utils"
+	smodel "github.com/DataDog/datadog-agent/pkg/security/serializers/model"
 )
 
-// FileSerializer serializes a file to JSON
-// easyjson:json
-type FileSerializer struct {
-	// File path
-	Path string `json:"path,omitempty"`
-	// File basename
-	Name string `json:"name,omitempty"`
-	// Error message from path resolution
-	PathResolutionError string `json:"path_resolution_error,omitempty"`
-	// File inode number
-	Inode *uint64 `json:"inode,omitempty"`
-	// File mode
-	Mode *uint32 `json:"mode,omitempty"`
-	// Indicator of file OverlayFS layer
-	InUpperLayer *bool `json:"in_upper_layer,omitempty"`
-	// File mount ID
-	MountID *uint32 `json:"mount_id,omitempty"`
-	// File filesystem name
-	Filesystem string `json:"filesystem,omitempty"`
-	// File User ID
-	UID int64 `json:"uid"`
-	// File Group ID
-	GID int64 `json:"gid"`
-	// File user
-	User string `json:"user,omitempty"`
-	// File group
-	Group string `json:"group,omitempty"`
-	// File extended attribute name
-	XAttrName string `json:"attribute_name,omitempty"`
-	// File extended attribute namespace
-	XAttrNamespace string `json:"attribute_namespace,omitempty"`
-	// File flags
-	Flags []string `json:"flags,omitempty"`
-	// File access time
-	Atime *utils.EasyjsonTime `json:"access_time,omitempty"`
-	// File modified time
-	Mtime *utils.EasyjsonTime `json:"modification_time,omitempty"`
-	// File change time
-	Ctime *utils.EasyjsonTime `json:"change_time,omitempty"`
-	// System package name
-	PackageName string `json:"package_name,omitempty"`
-	// System package version
-	PackageVersion string `json:"package_version,omitempty"`
-	// List of cryptographic hashes of the file
-	Hashes []string `json:"hashes,omitempty"`
-	// State of the hashes or reason why they weren't computed
-	HashState string `json:"hash_state,omitempty"`
-}
-
-// UserContextSerializer serializes a user context to JSON
-// easyjson:json
-type UserContextSerializer struct {
-	// User name
-	User string `json:"id,omitempty"`
-	// Group name
-	Group string `json:"group,omitempty"`
-}
-
-// CredentialsSerializer serializes a set credentials to JSON
-// easyjson:json
-type CredentialsSerializer struct {
-	// User ID
-	UID int `json:"uid"`
-	// User name
-	User string `json:"user,omitempty"`
-	// Group ID
-	GID int `json:"gid"`
-	// Group name
-	Group string `json:"group,omitempty"`
-	// Effective User ID
-	EUID int `json:"euid"`
-	// Effective User name
-	EUser string `json:"euser,omitempty"`
-	// Effective Group ID
-	EGID int `json:"egid"`
-	// Effective Group name
-	EGroup string `json:"egroup,omitempty"`
-	// Filesystem User ID
-	FSUID int `json:"fsuid"`
-	// Filesystem User name
-	FSUser string `json:"fsuser,omitempty"`
-	// Filesystem Group ID
-	FSGID int `json:"fsgid"`
-	// Filesystem Group name
-	FSGroup string `json:"fsgroup,omitempty"`
-	// Effective Capability set
-	CapEffective []string `json:"cap_effective"`
-	// Permitted Capability set
-	CapPermitted []string `json:"cap_permitted"`
-}
-
-// SetuidSerializer serializes a setuid event
-// easyjson:json
-type SetuidSerializer struct {
-	// User ID
-	UID int `json:"uid"`
-	// User name
-	User string `json:"user,omitempty"`
-	// Effective User ID
-	EUID int `json:"euid"`
-	// Effective User name
-	EUser string `json:"euser,omitempty"`
-	// Filesystem User ID
-	FSUID int `json:"fsuid"`
-	// Filesystem User name
-	FSUser string `json:"fsuser,omitempty"`
-}
-
-// SetgidSerializer serializes a setgid event
-// easyjson:json
-type SetgidSerializer struct {
-	// Group ID
-	GID int `json:"gid"`
-	// Group name
-	Group string `json:"group,omitempty"`
-	// Effective Group ID
-	EGID int `json:"egid"`
-	// Effective Group name
-	EGroup string `json:"egroup,omitempty"`
-	// Filesystem Group ID
-	FSGID int `json:"fsgid"`
-	// Filesystem Group name
-	FSGroup string `json:"fsgroup,omitempty"`
-}
-
-// CapsetSerializer serializes a capset event
-// easyjson:json
-type CapsetSerializer struct {
-	// Effective Capability set
-	CapEffective []string `json:"cap_effective"`
-	// Permitted Capability set
-	CapPermitted []string `json:"cap_permitted"`
-}
-
-// ProcessCredentialsSerializer serializes the process credentials to JSON
-// easyjson:json
-type ProcessCredentialsSerializer struct {
-	*CredentialsSerializer
-	// Credentials after the operation
-	Destination interface{} `json:"destination,omitempty"`
-}
-
-// ProcessSerializer serializes a process to JSON
-// easyjson:json
-type ProcessSerializer struct {
-	// Process ID
-	Pid uint32 `json:"pid,omitempty"`
-	// Parent Process ID
-	PPid *uint32 `json:"ppid,omitempty"`
-	// Thread ID
-	Tid uint32 `json:"tid,omitempty"`
-	// User ID
-	UID int `json:"uid"`
-	// Group ID
-	GID int `json:"gid"`
-	// User name
-	User string `json:"user,omitempty"`
-	// Group name
-	Group string `json:"group,omitempty"`
-	// Description of an error in the path resolution
-	PathResolutionError string `json:"path_resolution_error,omitempty"`
-	// Command name
-	Comm string `json:"comm,omitempty"`
-	// TTY associated with the process
-	TTY string `json:"tty,omitempty"`
-	// Fork time of the process
-	ForkTime *utils.EasyjsonTime `json:"fork_time,omitempty"`
-	// Exec time of the process
-	ExecTime *utils.EasyjsonTime `json:"exec_time,omitempty"`
-	// Exit time of the process
-	ExitTime *utils.EasyjsonTime `json:"exit_time,omitempty"`
-	// Credentials associated with the process
-	Credentials *ProcessCredentialsSerializer `json:"credentials,omitempty"`
-	// File information of the executable
-	Executable *FileSerializer `json:"executable,omitempty"`
-	// File information of the interpreter
-	Interpreter *FileSerializer `json:"interpreter,omitempty"`
-	// Container context
-	Container *ContainerContextSerializer `json:"container,omitempty"`
-	// First command line argument
-	Argv0 string `json:"argv0,omitempty"`
-	// Command line arguments
-	Args []string `json:"args,omitempty"`
-	// Indicator of arguments truncation
-	ArgsTruncated bool `json:"args_truncated,omitempty"`
-	// Environment variables of the process
-	Envs []string `json:"envs,omitempty"`
-	// Indicator of environments variable truncation
-	EnvsTruncated bool `json:"envs_truncated,omitempty"`
-	// Indicates whether the process is considered a thread (that is, a child process that hasn't executed another program)
-	IsThread bool `json:"is_thread,omitempty"`
-	// Indicates whether the process is a kworker
-	IsKworker bool `json:"is_kworker,omitempty"`
-	// Indicates wether the process is an exec child of its parent
-	IsExecChild bool `json:"is_exec_child,omitempty"`
-	// Process source
-	Source string `json:"source,omitempty"`
-}
-
-// FileEventSerializer serializes a file event to JSON
-// easyjson:json
-type FileEventSerializer struct {
-	FileSerializer
-	// Target file information
-	Destination *FileSerializer `json:"destination,omitempty"`
-
-	// Specific to mount events
-
-	// New Mount ID
-	NewMountID uint32 `json:"new_mount_id,omitempty"`
-	// Device associated with the file
-	Device uint32 `json:"device,omitempty"`
-	// Filesystem type
-	FSType string `json:"fstype,omitempty"`
-}
-
-// SELinuxBoolChangeSerializer serializes a SELinux boolean change to JSON
-// easyjson:json
-type SELinuxBoolChangeSerializer struct {
-	// SELinux boolean name
-	Name string `json:"name,omitempty"`
-	// SELinux boolean state ('on' or 'off')
-	State string `json:"state,omitempty"`
-}
-
-// SELinuxEnforceStatusSerializer serializes a SELinux enforcement status change to JSON
-// easyjson:json
-type SELinuxEnforceStatusSerializer struct {
-	// SELinux enforcement status (one of 'enforcing', 'permissive' or 'disabled')
-	Status string `json:"status,omitempty"`
-}
-
-// SELinuxBoolCommitSerializer serializes a SELinux boolean commit to JSON
-// easyjson:json
-type SELinuxBoolCommitSerializer struct {
-	// SELinux boolean commit operation
-	State bool `json:"state,omitempty"`
-}
-
-// SELinuxEventSerializer serializes a SELinux context to JSON
-// easyjson:json
-type SELinuxEventSerializer struct {
-	// SELinux boolean operation
-	BoolChange *SELinuxBoolChangeSerializer `json:"bool,omitempty"`
-	// SELinux enforcement change
-	EnforceStatus *SELinuxEnforceStatusSerializer `json:"enforce,omitempty"`
-	// SELinux boolean commit
-	BoolCommit *SELinuxBoolCommitSerializer `json:"bool_commit,omitempty"`
-}
-
-// BPFMapSerializer serializes a BPF map to JSON
-// easyjson:json
-type BPFMapSerializer struct {
-	// Name of the BPF map
-	Name string `json:"name,omitempty"`
-	// Type of the BPF map
-	MapType string `json:"map_type,omitempty"`
-}
-
-// BPFProgramSerializer serializes a BPF map to JSON
-// easyjson:json
-type BPFProgramSerializer struct {
-	// Name of the BPF program
-	Name string `json:"name,omitempty"`
-	// Hash (sha1) of the BPF program
-	Tag string `json:"tag,omitempty"`
-	// Type of the BPF program
-	ProgramType string `json:"program_type,omitempty"`
-	// Attach type of the BPF program
-	AttachType string `json:"attach_type,omitempty"`
-	// List of helpers used by the BPF program
-	Helpers []string `json:"helpers,omitempty"`
-}
-
-// BPFEventSerializer serializes a BPF event to JSON
-// easyjson:json
-type BPFEventSerializer struct {
-	// BPF command
-	Cmd string `json:"cmd"`
-	// BPF map
-	Map *BPFMapSerializer `json:"map,omitempty"`
-	// BPF program
-	Program *BPFProgramSerializer `json:"program,omitempty"`
-}
-
-// MMapEventSerializer serializes a mmap event to JSON
-// easyjson:json
-type MMapEventSerializer struct {
-	// memory segment address
-	Address string `json:"address"`
-	// file offset
-	Offset uint64 `json:"offset"`
-	// memory segment length
-	Len uint32 `json:"length"`
-	// memory segment protection
-	Protection string `json:"protection"`
-	// memory segment flags
-	Flags string `json:"flags"`
-}
-
-// MProtectEventSerializer serializes a mmap event to JSON
-// easyjson:json
-type MProtectEventSerializer struct {
-	// memory segment start address
-	VMStart string `json:"vm_start"`
-	// memory segment end address
-	VMEnd string `json:"vm_end"`
-	// initial memory segment protection
-	VMProtection string `json:"vm_protection"`
-	// new memory segment protection
-	ReqProtection string `json:"req_protection"`
-}
-
-// PTraceEventSerializer serializes a mmap event to JSON
-// easyjson:json
-type PTraceEventSerializer struct {
-	// ptrace request
-	Request string `json:"request"`
-	// address at which the ptrace request was executed
-	Address string `json:"address"`
-	// process context of the tracee
-	Tracee *ProcessContextSerializer `json:"tracee,omitempty"`
-}
-
-// SignalEventSerializer serializes a signal event to JSON
-// easyjson:json
-type SignalEventSerializer struct {
-	// signal type
-	Type string `json:"type"`
-	// signal target pid
-	PID uint32 `json:"pid"`
-	// process context of the signal target
-	Target *ProcessContextSerializer `json:"target,omitempty"`
-}
-
-// NetworkDeviceSerializer serializes the network device context to JSON
-// easyjson:json
-type NetworkDeviceSerializer struct {
-	// netns is the interface ifindex
-	NetNS uint32 `json:"netns"`
-	// ifindex is the network interface ifindex
-	IfIndex uint32 `json:"ifindex"`
-	// ifname is the network interface name
-	IfName string `json:"ifname"`
-}
-
-// ModuleEventSerializer serializes a module event to JSON
-// easyjson:json
-type ModuleEventSerializer struct {
-	// module name
-	Name string `json:"name"`
-	// indicates if a module was loaded from memory, as opposed to a file
-	LoadedFromMemory *bool    `json:"loaded_from_memory,omitempty"`
-	Argv             []string `json:"argv,omitempty"`
-	ArgsTruncated    *bool    `json:"args_truncated,omitempty"`
-}
-
-// SpliceEventSerializer serializes a splice event to JSON
-// easyjson:json
-type SpliceEventSerializer struct {
-	// Entry flag of the fd_out pipe passed to the splice syscall
-	PipeEntryFlag string `json:"pipe_entry_flag"`
-	// Exit flag of the fd_out pipe passed to the splice syscall
-	PipeExitFlag string `json:"pipe_exit_flag"`
-}
-
-// BindEventSerializer serializes a bind event to JSON
-// easyjson:json
-type BindEventSerializer struct {
-	// Bound address (if any)
-	Addr IPPortFamilySerializer `json:"addr"`
-}
-
-// MountEventSerializer serializes a mount event to JSON
-// easyjson:json
-type MountEventSerializer struct {
-	MountPoint                     *FileSerializer `json:"mp,omitempty"`                    // Mount point file information
-	Root                           *FileSerializer `json:"root,omitempty"`                  // Root file information
-	MountID                        uint32          `json:"mount_id"`                        // Mount ID of the new mount
-	ParentMountID                  uint32          `json:"parent_mount_id"`                 // Mount ID of the parent mount
-	BindSrcMountID                 uint32          `json:"bind_src_mount_id"`               // Mount ID of the source of a bind mount
-	Device                         uint32          `json:"device"`                          // Device associated with the file
-	FSType                         string          `json:"fs_type,omitempty"`               // Filesystem type
-	MountPointPath                 string          `json:"mountpoint.path,omitempty"`       // Mount point path
-	MountSourcePath                string          `json:"source.path,omitempty"`           // Mount source path
-	MountPointPathResolutionError  string          `json:"mountpoint.path_error,omitempty"` // Mount point path error
-	MountSourcePathResolutionError string          `json:"source.path_error,omitempty"`     // Mount source path error
-}
-
-// AnomalyDetectionSyscallEventSerializer serializes an anomaly detection for a syscall event
-type AnomalyDetectionSyscallEventSerializer struct {
-	// Name of the syscall that triggered the anomaly detection event
-	Syscall string `json:"syscall"`
-}
-
-// EventSerializer serializes an event to JSON
-// easyjson:json
-type EventSerializer struct {
-	*BaseEventSerializer
-
-	*SELinuxEventSerializer                 `json:"selinux,omitempty"`
-	*BPFEventSerializer                     `json:"bpf,omitempty"`
-	*MMapEventSerializer                    `json:"mmap,omitempty"`
-	*MProtectEventSerializer                `json:"mprotect,omitempty"`
-	*PTraceEventSerializer                  `json:"ptrace,omitempty"`
-	*ModuleEventSerializer                  `json:"module,omitempty"`
-	*SignalEventSerializer                  `json:"signal,omitempty"`
-	*SpliceEventSerializer                  `json:"splice,omitempty"`
-	*DNSEventSerializer                     `json:"dns,omitempty"`
-	*BindEventSerializer                    `json:"bind,omitempty"`
-	*MountEventSerializer                   `json:"mount,omitempty"`
-	*AnomalyDetectionSyscallEventSerializer `json:"anomaly_detection_syscall,omitempty"`
-	*UserContextSerializer                  `json:"usr,omitempty"`
-}
-
-func newAnomalyDetectionSyscallEventSerializer(e *model.AnomalyDetectionSyscallEvent) *AnomalyDetectionSyscallEventSerializer {
-	return &AnomalyDetectionSyscallEventSerializer{
+func newAnomalyDetectionSyscallEventSerializer(e *model.AnomalyDetectionSyscallEvent) *smodel.AnomalyDetectionSyscallEventSerializer {
+	return &smodel.AnomalyDetectionSyscallEventSerializer{
 		Syscall: e.SyscallID.String(),
 	}
 }
@@ -454,14 +35,14 @@ func getInUpperLayer(f *model.FileFields) *bool {
 	return &upperLayer
 }
 
-func newFileSerializer(fe *model.FileEvent, e *model.Event, forceInode ...uint64) *FileSerializer {
+func newFileSerializer(fe *model.FileEvent, e *model.Event, forceInode ...uint64) *smodel.FileSerializer {
 	inode := fe.Inode
 	if len(forceInode) > 0 {
 		inode = forceInode[0]
 	}
 
 	mode := uint32(fe.FileFields.Mode)
-	fs := &FileSerializer{
+	fs := &smodel.FileSerializer{
 		Path:                e.FieldHandlers.ResolveFilePath(e, fe),
 		PathResolutionError: fe.GetPathResolutionError(),
 		Name:                e.FieldHandlers.ResolveFileBasename(e, fe),
@@ -488,8 +69,8 @@ func newFileSerializer(fe *model.FileEvent, e *model.Event, forceInode ...uint64
 	return fs
 }
 
-func newCredentialsSerializer(ce *model.Credentials) *CredentialsSerializer {
-	return &CredentialsSerializer{
+func newCredentialsSerializer(ce *model.Credentials) *smodel.CredentialsSerializer {
+	return &smodel.CredentialsSerializer{
 		UID:          int(ce.UID),
 		User:         ce.User,
 		EUID:         int(ce.EUID),
@@ -507,13 +88,13 @@ func newCredentialsSerializer(ce *model.Credentials) *CredentialsSerializer {
 	}
 }
 
-func newProcessSerializer(ps *model.Process, e *model.Event, resolvers *resolvers.Resolvers) *ProcessSerializer {
+func newProcessSerializer(ps *model.Process, e *model.Event, resolvers *resolvers.Resolvers) *smodel.ProcessSerializer {
 	if ps.IsNotKworker() {
 		argv, argvTruncated := resolvers.ProcessResolver.GetProcessArgvScrubbed(ps)
 		envs, EnvsTruncated := resolvers.ProcessResolver.GetProcessEnvs(ps)
 		argv0, _ := sprocess.GetProcessArgv0(ps)
 
-		psSerializer := &ProcessSerializer{
+		psSerializer := &smodel.ProcessSerializer{
 			ForkTime: getTimeIfNotZero(ps.ForkTime),
 			ExecTime: getTimeIfNotZero(ps.ExecTime),
 			ExitTime: getTimeIfNotZero(ps.ExitTime),
@@ -545,12 +126,12 @@ func newProcessSerializer(ps *model.Process, e *model.Event, resolvers *resolver
 		psSerializer.User = credsSerializer.User
 		psSerializer.GID = credsSerializer.GID
 		psSerializer.Group = credsSerializer.Group
-		psSerializer.Credentials = &ProcessCredentialsSerializer{
+		psSerializer.Credentials = &smodel.ProcessCredentialsSerializer{
 			CredentialsSerializer: credsSerializer,
 		}
 
 		if len(ps.ContainerID) != 0 {
-			psSerializer.Container = &ContainerContextSerializer{
+			psSerializer.Container = &smodel.ContainerContextSerializer{
 				ID: ps.ContainerID,
 			}
 			if cgroup, _ := resolvers.CGroupResolver.GetWorkload(ps.ContainerID); cgroup != nil {
@@ -559,43 +140,43 @@ func newProcessSerializer(ps *model.Process, e *model.Event, resolvers *resolver
 		}
 		return psSerializer
 	}
-	return &ProcessSerializer{
+	return &smodel.ProcessSerializer{
 		Pid:         ps.Pid,
 		Tid:         ps.Tid,
 		IsKworker:   ps.IsKworker,
 		IsExecChild: ps.IsExecChild,
 		Source:      model.ProcessSourceToString(ps.Source),
-		Credentials: &ProcessCredentialsSerializer{
-			CredentialsSerializer: &CredentialsSerializer{},
+		Credentials: &smodel.ProcessCredentialsSerializer{
+			CredentialsSerializer: &smodel.CredentialsSerializer{},
 		},
 	}
 }
 
-func newUserContextSerializer(e *model.Event) *UserContextSerializer {
-	return &UserContextSerializer{
+func newUserContextSerializer(e *model.Event) *smodel.UserContextSerializer {
+	return &smodel.UserContextSerializer{
 		User:  e.ProcessContext.User,
 		Group: e.ProcessContext.Group,
 	}
 }
 
-func newSELinuxSerializer(e *model.Event) *SELinuxEventSerializer {
+func newSELinuxSerializer(e *model.Event) *smodel.SELinuxEventSerializer {
 	switch e.SELinux.EventKind {
 	case model.SELinuxBoolChangeEventKind:
-		return &SELinuxEventSerializer{
-			BoolChange: &SELinuxBoolChangeSerializer{
+		return &smodel.SELinuxEventSerializer{
+			BoolChange: &smodel.SELinuxBoolChangeSerializer{
 				Name:  e.FieldHandlers.ResolveSELinuxBoolName(e, &e.SELinux),
 				State: e.SELinux.BoolChangeValue,
 			},
 		}
 	case model.SELinuxStatusChangeEventKind:
-		return &SELinuxEventSerializer{
-			EnforceStatus: &SELinuxEnforceStatusSerializer{
+		return &smodel.SELinuxEventSerializer{
+			EnforceStatus: &smodel.SELinuxEnforceStatusSerializer{
 				Status: e.SELinux.EnforceStatus,
 			},
 		}
 	case model.SELinuxBoolCommitEventKind:
-		return &SELinuxEventSerializer{
-			BoolCommit: &SELinuxBoolCommitSerializer{
+		return &smodel.SELinuxEventSerializer{
+			BoolCommit: &smodel.SELinuxBoolCommitSerializer{
 				State: e.SELinux.BoolCommitValue,
 			},
 		}
@@ -604,22 +185,22 @@ func newSELinuxSerializer(e *model.Event) *SELinuxEventSerializer {
 	}
 }
 
-func newBPFMapSerializer(e *model.Event) *BPFMapSerializer {
+func newBPFMapSerializer(e *model.Event) *smodel.BPFMapSerializer {
 	if e.BPF.Map.ID == 0 {
 		return nil
 	}
-	return &BPFMapSerializer{
+	return &smodel.BPFMapSerializer{
 		Name:    e.BPF.Map.Name,
 		MapType: model.BPFMapType(e.BPF.Map.Type).String(),
 	}
 }
 
-func newBPFProgramSerializer(e *model.Event) *BPFProgramSerializer {
+func newBPFProgramSerializer(e *model.Event) *smodel.BPFProgramSerializer {
 	if e.BPF.Program.ID == 0 {
 		return nil
 	}
 
-	return &BPFProgramSerializer{
+	return &smodel.BPFProgramSerializer{
 		Name:        e.BPF.Program.Name,
 		Tag:         e.BPF.Program.Tag,
 		ProgramType: model.BPFProgramType(e.BPF.Program.Type).String(),
@@ -628,16 +209,16 @@ func newBPFProgramSerializer(e *model.Event) *BPFProgramSerializer {
 	}
 }
 
-func newBPFEventSerializer(e *model.Event) *BPFEventSerializer {
-	return &BPFEventSerializer{
+func newBPFEventSerializer(e *model.Event) *smodel.BPFEventSerializer {
+	return &smodel.BPFEventSerializer{
 		Cmd:     model.BPFCmd(e.BPF.Cmd).String(),
 		Map:     newBPFMapSerializer(e),
 		Program: newBPFProgramSerializer(e),
 	}
 }
 
-func newMMapEventSerializer(e *model.Event) *MMapEventSerializer {
-	return &MMapEventSerializer{
+func newMMapEventSerializer(e *model.Event) *smodel.MMapEventSerializer {
+	return &smodel.MMapEventSerializer{
 		Address:    fmt.Sprintf("0x%x", e.MMap.Addr),
 		Offset:     e.MMap.Offset,
 		Len:        e.MMap.Len,
@@ -646,8 +227,8 @@ func newMMapEventSerializer(e *model.Event) *MMapEventSerializer {
 	}
 }
 
-func newMProtectEventSerializer(e *model.Event) *MProtectEventSerializer {
-	return &MProtectEventSerializer{
+func newMProtectEventSerializer(e *model.Event) *smodel.MProtectEventSerializer {
+	return &smodel.MProtectEventSerializer{
 		VMStart:       fmt.Sprintf("0x%x", e.MProtect.VMStart),
 		VMEnd:         fmt.Sprintf("0x%x", e.MProtect.VMEnd),
 		VMProtection:  model.VMFlag(e.MProtect.VMProtection).String(),
@@ -655,18 +236,18 @@ func newMProtectEventSerializer(e *model.Event) *MProtectEventSerializer {
 	}
 }
 
-func newPTraceEventSerializer(e *model.Event, resolvers *resolvers.Resolvers) *PTraceEventSerializer {
-	return &PTraceEventSerializer{
+func newPTraceEventSerializer(e *model.Event, resolvers *resolvers.Resolvers) *smodel.PTraceEventSerializer {
+	return &smodel.PTraceEventSerializer{
 		Request: model.PTraceRequest(e.PTrace.Request).String(),
 		Address: fmt.Sprintf("0x%x", e.PTrace.Address),
 		Tracee:  newProcessContextSerializer(e.PTrace.Tracee, e, resolvers),
 	}
 }
 
-func newLoadModuleEventSerializer(e *model.Event) *ModuleEventSerializer {
+func newLoadModuleEventSerializer(e *model.Event) *smodel.ModuleEventSerializer {
 	loadedFromMemory := e.LoadModule.LoadedFromMemory
 	argsTruncated := e.LoadModule.ArgsTruncated
-	return &ModuleEventSerializer{
+	return &smodel.ModuleEventSerializer{
 		Name:             e.LoadModule.Name,
 		LoadedFromMemory: &loadedFromMemory,
 		Argv:             e.FieldHandlers.ResolveModuleArgv(e, &e.LoadModule),
@@ -674,14 +255,14 @@ func newLoadModuleEventSerializer(e *model.Event) *ModuleEventSerializer {
 	}
 }
 
-func newUnloadModuleEventSerializer(e *model.Event) *ModuleEventSerializer {
-	return &ModuleEventSerializer{
+func newUnloadModuleEventSerializer(e *model.Event) *smodel.ModuleEventSerializer {
+	return &smodel.ModuleEventSerializer{
 		Name: e.UnloadModule.Name,
 	}
 }
 
-func newSignalEventSerializer(e *model.Event, resolvers *resolvers.Resolvers) *SignalEventSerializer {
-	ses := &SignalEventSerializer{
+func newSignalEventSerializer(e *model.Event, resolvers *resolvers.Resolvers) *smodel.SignalEventSerializer {
+	ses := &smodel.SignalEventSerializer{
 		Type:   model.Signal(e.Signal.Type).String(),
 		PID:    e.Signal.PID,
 		Target: newProcessContextSerializer(e.Signal.Target, e, resolvers),
@@ -689,22 +270,22 @@ func newSignalEventSerializer(e *model.Event, resolvers *resolvers.Resolvers) *S
 	return ses
 }
 
-func newSpliceEventSerializer(e *model.Event) *SpliceEventSerializer {
-	return &SpliceEventSerializer{
+func newSpliceEventSerializer(e *model.Event) *smodel.SpliceEventSerializer {
+	return &smodel.SpliceEventSerializer{
 		PipeEntryFlag: model.PipeBufFlag(e.Splice.PipeEntryFlag).String(),
 		PipeExitFlag:  model.PipeBufFlag(e.Splice.PipeExitFlag).String(),
 	}
 }
 
-func newBindEventSerializer(e *model.Event) *BindEventSerializer {
-	bes := &BindEventSerializer{
+func newBindEventSerializer(e *model.Event) *smodel.BindEventSerializer {
+	bes := &smodel.BindEventSerializer{
 		Addr: newIPPortFamilySerializer(&e.Bind.Addr,
 			model.AddressFamily(e.Bind.AddrFamily).String()),
 	}
 	return bes
 }
 
-func newMountEventSerializer(e *model.Event, resolvers *resolvers.Resolvers) *MountEventSerializer {
+func newMountEventSerializer(e *model.Event, resolvers *resolvers.Resolvers) *smodel.MountEventSerializer {
 	fh := e.FieldHandlers
 
 	src, srcErr := resolvers.PathResolver.ResolveMountRoot(e, &e.Mount.Mount)
@@ -712,13 +293,13 @@ func newMountEventSerializer(e *model.Event, resolvers *resolvers.Resolvers) *Mo
 	mountPointPath := fh.ResolveMountPointPath(e, &e.Mount)
 	mountSourcePath := fh.ResolveMountSourcePath(e, &e.Mount)
 
-	mountSerializer := &MountEventSerializer{
-		MountPoint: &FileSerializer{
+	mountSerializer := &smodel.MountEventSerializer{
+		MountPoint: &smodel.FileSerializer{
 			Path:    dst,
 			MountID: &e.Mount.ParentPathKey.MountID,
 			Inode:   &e.Mount.ParentPathKey.Inode,
 		},
-		Root: &FileSerializer{
+		Root: &smodel.FileSerializer{
 			Path:    src,
 			MountID: &e.Mount.RootPathKey.MountID,
 			Inode:   &e.Mount.RootPathKey.Inode,
@@ -749,8 +330,8 @@ func newMountEventSerializer(e *model.Event, resolvers *resolvers.Resolvers) *Mo
 	return mountSerializer
 }
 
-func newNetworkDeviceSerializer(e *model.Event) *NetworkDeviceSerializer {
-	return &NetworkDeviceSerializer{
+func newNetworkDeviceSerializer(e *model.Event) *smodel.NetworkDeviceSerializer {
+	return &smodel.NetworkDeviceSerializer{
 		NetNS:   e.NetworkContext.Device.NetNS,
 		IfIndex: e.NetworkContext.Device.IfIndex,
 		IfName:  e.FieldHandlers.ResolveNetworkDeviceIfName(e, &e.NetworkContext.Device),
@@ -769,12 +350,12 @@ func serializeOutcome(retval int64) string {
 	}
 }
 
-func newProcessContextSerializer(pc *model.ProcessContext, e *model.Event, resolvers *resolvers.Resolvers) *ProcessContextSerializer {
+func newProcessContextSerializer(pc *model.ProcessContext, e *model.Event, resolvers *resolvers.Resolvers) *smodel.ProcessContextSerializer {
 	if pc == nil || pc.Pid == 0 || e == nil {
 		return nil
 	}
 
-	ps := ProcessContextSerializer{
+	ps := smodel.ProcessContextSerializer{
 		ProcessSerializer: newProcessSerializer(&pc.Process, e, resolvers),
 	}
 
@@ -784,7 +365,7 @@ func newProcessContextSerializer(pc *model.ProcessContext, e *model.Event, resol
 	ptr := it.Front(ctx)
 
 	var ancestor *model.ProcessCacheEntry
-	var prev *ProcessSerializer
+	var prev *smodel.ProcessSerializer
 
 	first := true
 
@@ -815,8 +396,8 @@ func newProcessContextSerializer(pc *model.ProcessContext, e *model.Event, resol
 }
 
 // NewEventSerializer creates a new event serializer based on the event type
-func NewEventSerializer(event *model.Event, resolvers *resolvers.Resolvers) *EventSerializer {
-	s := &EventSerializer{
+func NewEventSerializer(event *model.Event, resolvers *resolvers.Resolvers) *smodel.EventSerializer {
+	s := &smodel.EventSerializer{
 		BaseEventSerializer:   NewBaseEventSerializer(event, resolvers),
 		UserContextSerializer: newUserContextSerializer(event),
 	}
@@ -827,7 +408,7 @@ func NewEventSerializer(event *model.Event, resolvers *resolvers.Resolvers) *Eve
 		if cgroup, _ := resolvers.CGroupResolver.GetWorkload(id); cgroup != nil {
 			creationTime = time.Unix(0, int64(cgroup.CreatedAt))
 		}
-		s.ContainerContextSerializer = &ContainerContextSerializer{
+		s.ContainerContextSerializer = &smodel.ContainerContextSerializer{
 			ID:        id,
 			CreatedAt: getTimeIfNotZero(creationTime),
 		}
@@ -837,17 +418,17 @@ func NewEventSerializer(event *model.Event, resolvers *resolvers.Resolvers) *Eve
 
 	switch eventType {
 	case model.FileChmodEventType:
-		s.FileEventSerializer = &FileEventSerializer{
+		s.FileEventSerializer = &smodel.FileEventSerializer{
 			FileSerializer: *newFileSerializer(&event.Chmod.File, event),
-			Destination: &FileSerializer{
+			Destination: &smodel.FileSerializer{
 				Mode: &event.Chmod.Mode,
 			},
 		}
 		s.EventContextSerializer.Outcome = serializeOutcome(event.Chmod.Retval)
 	case model.FileChownEventType:
-		s.FileEventSerializer = &FileEventSerializer{
+		s.FileEventSerializer = &smodel.FileEventSerializer{
 			FileSerializer: *newFileSerializer(&event.Chown.File, event),
-			Destination: &FileSerializer{
+			Destination: &smodel.FileSerializer{
 				UID: event.Chown.UID,
 				GID: event.Chown.GID,
 			},
@@ -855,18 +436,18 @@ func NewEventSerializer(event *model.Event, resolvers *resolvers.Resolvers) *Eve
 		s.EventContextSerializer.Outcome = serializeOutcome(event.Chown.Retval)
 	case model.FileLinkEventType:
 		// use the source inode as the target one is a fake inode
-		s.FileEventSerializer = &FileEventSerializer{
+		s.FileEventSerializer = &smodel.FileEventSerializer{
 			FileSerializer: *newFileSerializer(&event.Link.Source, event),
 			Destination:    newFileSerializer(&event.Link.Target, event, event.Link.Source.Inode),
 		}
 		s.EventContextSerializer.Outcome = serializeOutcome(event.Link.Retval)
 	case model.FileOpenEventType:
-		s.FileEventSerializer = &FileEventSerializer{
+		s.FileEventSerializer = &smodel.FileEventSerializer{
 			FileSerializer: *newFileSerializer(&event.Open.File, event),
 		}
 
 		if event.Open.Flags&syscall.O_CREAT > 0 {
-			s.FileEventSerializer.Destination = &FileSerializer{
+			s.FileEventSerializer.Destination = &smodel.FileSerializer{
 				Mode: &event.Open.Mode,
 			}
 		}
@@ -874,53 +455,53 @@ func NewEventSerializer(event *model.Event, resolvers *resolvers.Resolvers) *Eve
 		s.FileSerializer.Flags = model.OpenFlags(event.Open.Flags).StringArray()
 		s.EventContextSerializer.Outcome = serializeOutcome(event.Open.Retval)
 	case model.FileMkdirEventType:
-		s.FileEventSerializer = &FileEventSerializer{
+		s.FileEventSerializer = &smodel.FileEventSerializer{
 			FileSerializer: *newFileSerializer(&event.Mkdir.File, event),
-			Destination: &FileSerializer{
+			Destination: &smodel.FileSerializer{
 				Mode: &event.Mkdir.Mode,
 			},
 		}
 		s.EventContextSerializer.Outcome = serializeOutcome(event.Mkdir.Retval)
 	case model.FileRmdirEventType:
-		s.FileEventSerializer = &FileEventSerializer{
+		s.FileEventSerializer = &smodel.FileEventSerializer{
 			FileSerializer: *newFileSerializer(&event.Rmdir.File, event),
 		}
 		s.EventContextSerializer.Outcome = serializeOutcome(event.Rmdir.Retval)
 	case model.FileUnlinkEventType:
-		s.FileEventSerializer = &FileEventSerializer{
+		s.FileEventSerializer = &smodel.FileEventSerializer{
 			FileSerializer: *newFileSerializer(&event.Unlink.File, event),
 		}
 		s.FileSerializer.Flags = model.UnlinkFlags(event.Unlink.Flags).StringArray()
 		s.EventContextSerializer.Outcome = serializeOutcome(event.Unlink.Retval)
 	case model.FileRenameEventType:
 		// use the new inode as the old one is a fake inode
-		s.FileEventSerializer = &FileEventSerializer{
+		s.FileEventSerializer = &smodel.FileEventSerializer{
 			FileSerializer: *newFileSerializer(&event.Rename.Old, event, event.Rename.New.Inode),
 			Destination:    newFileSerializer(&event.Rename.New, event),
 		}
 		s.EventContextSerializer.Outcome = serializeOutcome(event.Rename.Retval)
 	case model.FileRemoveXAttrEventType:
-		s.FileEventSerializer = &FileEventSerializer{
+		s.FileEventSerializer = &smodel.FileEventSerializer{
 			FileSerializer: *newFileSerializer(&event.RemoveXAttr.File, event),
-			Destination: &FileSerializer{
+			Destination: &smodel.FileSerializer{
 				XAttrName:      event.FieldHandlers.ResolveXAttrName(event, &event.RemoveXAttr),
 				XAttrNamespace: event.FieldHandlers.ResolveXAttrNamespace(event, &event.RemoveXAttr),
 			},
 		}
 		s.EventContextSerializer.Outcome = serializeOutcome(event.RemoveXAttr.Retval)
 	case model.FileSetXAttrEventType:
-		s.FileEventSerializer = &FileEventSerializer{
+		s.FileEventSerializer = &smodel.FileEventSerializer{
 			FileSerializer: *newFileSerializer(&event.SetXAttr.File, event),
-			Destination: &FileSerializer{
+			Destination: &smodel.FileSerializer{
 				XAttrName:      event.FieldHandlers.ResolveXAttrName(event, &event.SetXAttr),
 				XAttrNamespace: event.FieldHandlers.ResolveXAttrNamespace(event, &event.SetXAttr),
 			},
 		}
 		s.EventContextSerializer.Outcome = serializeOutcome(event.SetXAttr.Retval)
 	case model.FileUtimesEventType:
-		s.FileEventSerializer = &FileEventSerializer{
+		s.FileEventSerializer = &smodel.FileEventSerializer{
 			FileSerializer: *newFileSerializer(&event.Utimes.File, event),
-			Destination: &FileSerializer{
+			Destination: &smodel.FileSerializer{
 				Atime: getTimeIfNotZero(event.Utimes.Atime),
 				Mtime: getTimeIfNotZero(event.Utimes.Mtime),
 			},
@@ -930,12 +511,12 @@ func NewEventSerializer(event *model.Event, resolvers *resolvers.Resolvers) *Eve
 		s.MountEventSerializer = newMountEventSerializer(event, resolvers)
 		s.EventContextSerializer.Outcome = serializeOutcome(event.Mount.Retval)
 	case model.FileUmountEventType:
-		s.FileEventSerializer = &FileEventSerializer{
+		s.FileEventSerializer = &smodel.FileEventSerializer{
 			NewMountID: event.Umount.MountID,
 		}
 		s.EventContextSerializer.Outcome = serializeOutcome(event.Umount.Retval)
 	case model.SetuidEventType:
-		s.ProcessContextSerializer.Credentials.Destination = &SetuidSerializer{
+		s.ProcessContextSerializer.Credentials.Destination = &smodel.SetuidSerializer{
 			UID:    int(event.SetUID.UID),
 			User:   event.FieldHandlers.ResolveSetuidUser(event, &event.SetUID),
 			EUID:   int(event.SetUID.EUID),
@@ -945,7 +526,7 @@ func NewEventSerializer(event *model.Event, resolvers *resolvers.Resolvers) *Eve
 		}
 		s.EventContextSerializer.Outcome = serializeOutcome(0)
 	case model.SetgidEventType:
-		s.ProcessContextSerializer.Credentials.Destination = &SetgidSerializer{
+		s.ProcessContextSerializer.Credentials.Destination = &smodel.SetgidSerializer{
 			GID:     int(event.SetGID.GID),
 			Group:   event.FieldHandlers.ResolveSetgidGroup(event, &event.SetGID),
 			EGID:    int(event.SetGID.EGID),
@@ -955,7 +536,7 @@ func NewEventSerializer(event *model.Event, resolvers *resolvers.Resolvers) *Eve
 		}
 		s.EventContextSerializer.Outcome = serializeOutcome(0)
 	case model.CapsetEventType:
-		s.ProcessContextSerializer.Credentials.Destination = &CapsetSerializer{
+		s.ProcessContextSerializer.Credentials.Destination = &smodel.CapsetSerializer{
 			CapEffective: model.KernelCapability(event.Capset.CapEffective).StringArray(),
 			CapPermitted: model.KernelCapability(event.Capset.CapPermitted).StringArray(),
 		}
@@ -964,7 +545,7 @@ func NewEventSerializer(event *model.Event, resolvers *resolvers.Resolvers) *Eve
 		s.EventContextSerializer.Outcome = serializeOutcome(0)
 	case model.SELinuxEventType:
 		s.EventContextSerializer.Outcome = serializeOutcome(0)
-		s.FileEventSerializer = &FileEventSerializer{
+		s.FileEventSerializer = &smodel.FileEventSerializer{
 			FileSerializer: *newFileSerializer(&event.SELinux.File, event),
 		}
 		s.SELinuxEventSerializer = newSELinuxSerializer(event)
@@ -974,7 +555,7 @@ func NewEventSerializer(event *model.Event, resolvers *resolvers.Resolvers) *Eve
 	case model.MMapEventType:
 		s.EventContextSerializer.Outcome = serializeOutcome(event.MMap.Retval)
 		if event.MMap.Flags&unix.MAP_ANONYMOUS == 0 {
-			s.FileEventSerializer = &FileEventSerializer{
+			s.FileEventSerializer = &smodel.FileEventSerializer{
 				FileSerializer: *newFileSerializer(&event.MMap.File, event),
 			}
 		}
@@ -988,7 +569,7 @@ func NewEventSerializer(event *model.Event, resolvers *resolvers.Resolvers) *Eve
 	case model.LoadModuleEventType:
 		s.EventContextSerializer.Outcome = serializeOutcome(event.LoadModule.Retval)
 		if !event.LoadModule.LoadedFromMemory {
-			s.FileEventSerializer = &FileEventSerializer{
+			s.FileEventSerializer = &smodel.FileEventSerializer{
 				FileSerializer: *newFileSerializer(&event.LoadModule.File, event),
 			}
 		}
@@ -1003,7 +584,7 @@ func NewEventSerializer(event *model.Event, resolvers *resolvers.Resolvers) *Eve
 		s.EventContextSerializer.Outcome = serializeOutcome(event.Splice.Retval)
 		s.SpliceEventSerializer = newSpliceEventSerializer(event)
 		if event.Splice.File.Inode != 0 {
-			s.FileEventSerializer = &FileEventSerializer{
+			s.FileEventSerializer = &smodel.FileEventSerializer{
 				FileSerializer: *newFileSerializer(&event.Splice.File, event),
 			}
 		}

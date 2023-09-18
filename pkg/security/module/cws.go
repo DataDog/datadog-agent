@@ -20,12 +20,13 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/metrics"
 	"github.com/DataDog/datadog-agent/pkg/security/probe"
 	"github.com/DataDog/datadog-agent/pkg/security/probe/selftests"
+	selfevent "github.com/DataDog/datadog-agent/pkg/security/probe/selftests/event"
 	"github.com/DataDog/datadog-agent/pkg/security/proto/api"
 	rulesmodule "github.com/DataDog/datadog-agent/pkg/security/rules"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
-	"github.com/DataDog/datadog-agent/pkg/security/serializers"
+	smodel "github.com/DataDog/datadog-agent/pkg/security/serializers/model"
 )
 
 // CWSConsumer represents the system-probe module for the runtime security agent
@@ -40,7 +41,7 @@ type CWSConsumer struct {
 	ctx           context.Context
 	cancelFnc     context.CancelFunc
 	apiServer     *APIServer
-	rateLimiter   *events.RateLimiter
+	rateLimiter   *rulesmodule.RateLimiter
 	sendStatsChan chan chan bool
 	eventSender   events.EventSender
 	grpcServer    *GRPCServer
@@ -68,7 +69,7 @@ func NewCWSConsumer(evm *eventmonitor.EventMonitor, config *config.RuntimeSecuri
 		ctx:           ctx,
 		cancelFnc:     cancelFnc,
 		apiServer:     NewAPIServer(config, evm.Probe, evm.StatsdClient, selfTester),
-		rateLimiter:   events.NewRateLimiter(config, evm.StatsdClient),
+		rateLimiter:   rulesmodule.NewRateLimiter(config, evm.StatsdClient),
 		sendStatsChan: make(chan chan bool, 1),
 		grpcServer:    NewGRPCServer(family, address),
 		selfTester:    selfTester,
@@ -190,7 +191,7 @@ func (c *CWSConsumer) RunSelfTest(sendLoadedReport bool) (bool, error) {
 }
 
 // ReportSelfTest reports to Datadog that a self test was performed
-func ReportSelfTest(sender events.EventSender, statsdClient statsd.ClientInterface, success []string, fails []string, testEvents map[string]*serializers.EventSerializer) {
+func ReportSelfTest(sender events.EventSender, statsdClient statsd.ClientInterface, success []string, fails []string, testEvents map[string]*smodel.EventSerializer) {
 	// send metric with number of success and fails
 	tags := []string{
 		fmt.Sprintf("success:%d", len(success)),
@@ -201,7 +202,7 @@ func ReportSelfTest(sender events.EventSender, statsdClient statsd.ClientInterfa
 	}
 
 	// send the custom event with the list of succeed and failed self tests
-	rule, event := selftests.NewSelfTestEvent(success, fails, testEvents)
+	rule, event := selfevent.NewSelfTestEvent(success, fails, testEvents)
 	sender.SendEvent(rule, event, nil, "")
 }
 

@@ -20,19 +20,20 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 	"github.com/DataDog/datadog-agent/pkg/security/serializers"
+	smodel "github.com/DataDog/datadog-agent/pkg/security/serializers/model"
 )
 
 var eventOnce sync.Once
-var eventSerializer *serializers.EventSerializer
+var eventSerializer *smodel.EventSerializer
 
-func fetchRealisticEventSerializer(tb testing.TB) *serializers.EventSerializer {
+func fetchRealisticEventSerializer(tb testing.TB) *smodel.EventSerializer {
 	eventOnce.Do(func() {
 		eventSerializer = fetchRealisticEventSerializerInner(tb)
 	})
 	return eventSerializer
 }
 
-func fetchRealisticEventSerializerInner(tb testing.TB) *serializers.EventSerializer {
+func fetchRealisticEventSerializerInner(tb testing.TB) *smodel.EventSerializer {
 	rule := &rules.RuleDefinition{
 		ID:         "test_rule",
 		Expression: `open.file.path == "{{.Root}}/test-open" && open.flags & O_CREAT != 0`,

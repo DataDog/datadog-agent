@@ -20,6 +20,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 	"github.com/DataDog/datadog-agent/pkg/security/serializers"
+	smodel "github.com/DataDog/datadog-agent/pkg/security/serializers/model"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/hashicorp/go-multierror"
 )
@@ -99,7 +100,7 @@ func (t *SelfTester) createTargetFile() error {
 }
 
 // RunSelfTest runs the self test and return the result
-func (t *SelfTester) RunSelfTest() ([]string, []string, map[string]*serializers.EventSerializer, error) {
+func (t *SelfTester) RunSelfTest() ([]string, []string, map[string]*smodel.EventSerializer, error) {
 	if err := t.BeginWaitingForEvent(); err != nil {
 		return nil, nil, nil, fmt.Errorf("failed to run self test: %w", err)
 	}
@@ -110,7 +111,7 @@ func (t *SelfTester) RunSelfTest() ([]string, []string, map[string]*serializers.
 	// launch the self tests
 	var success []string
 	var fails []string
-	testEvents := make(map[string]*serializers.EventSerializer)
+	testEvents := make(map[string]*smodel.EventSerializer)
 
 	for _, selftest := range FileSelfTests {
 		def := selftest.GetRuleDefinition(t.targetFilePath)
@@ -182,7 +183,7 @@ func (t *SelfTester) EndWaitingForEvent() {
 type selfTestEvent struct {
 	Type     string
 	Filepath string
-	Event    *serializers.EventSerializer
+	Event    *smodel.EventSerializer
 }
 
 // IsExpectedEvent sends an event to the tester
@@ -209,7 +210,7 @@ func (t *SelfTester) IsExpectedEvent(rule *rules.Rule, event eval.Event, p *prob
 	return false
 }
 
-func (t *SelfTester) expectEvent(predicate func(selfTestEvent) bool) (*serializers.EventSerializer, error) {
+func (t *SelfTester) expectEvent(predicate func(selfTestEvent) bool) (*smodel.EventSerializer, error) {
 	timer := time.After(3 * time.Second)
 	for {
 		select {

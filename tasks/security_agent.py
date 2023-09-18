@@ -571,33 +571,41 @@ def generate_cws_documentation(ctx, go_generate=False):
 def cws_go_generate(ctx):
     ctx.run("go install golang.org/x/tools/cmd/stringer")
     ctx.run("go install github.com/mailru/easyjson/easyjson")
-    ctx.run("go install github.com/DataDog/datadog-agent/pkg/security/secl/compiler/generators/accessors@v0.48.0-rc.2")
-    ctx.run("go install github.com/DataDog/datadog-agent/pkg/security/secl/compiler/generators/operators@v0.48.0-rc.2")
+    ctx.run("go install ./pkg/security/probe/doc_generator/...")
     with ctx.cd("./pkg/security/secl"):
+        ctx.run("go install ./compiler/generators/accessors/...")
+        ctx.run("go install ./compiler/generators/operators/...")
         ctx.run("go generate ./...")
         if sys.platform == "linux":
             ctx.run("GOOS=windows go generate ./...")
         elif sys.platform == "win32":
             ctx.run("GOOS=linux go generate ./...")
 
-    if sys.platform == "win32":
-        shutil.copy(
-            "./pkg/security/serializers/serializers_windows_easyjson.mock",
-            "./pkg/security/serializers/serializers_windows_easyjson.go",
-        )
-    else:
-        shutil.copy(
-            "./pkg/security/serializers/serializers_linux_easyjson.mock",
-            "./pkg/security/serializers/serializers_linux_easyjson.go",
-        )
+    shutil.copy(
+        "./pkg/security/serializers/model/model_windows_easyjson.mock",
+        "./pkg/security/serializers/model/model_windows_easyjson.go",
+    )
+    shutil.copy(
+        "./pkg/security/serializers/model/model_linux_easyjson.mock",
+        "./pkg/security/serializers/model/model_linux_easyjson.go",
+    )
 
+    if sys.platform == "linux":
         shutil.copy(
             "./pkg/security/security_profile/dump/activity_dump_easyjson.mock",
             "./pkg/security/security_profile/dump/activity_dump_easyjson.go",
         )
 
     ctx.run("go generate ./pkg/security/...")
+    if sys.platform == "linux":
+        ctx.run("GOOS=windows GEN_GOOS=linux go generate ./pkg/security/...")
+    elif sys.platform == "win32":
+        ctx.run("GOOS=linux GEN_GOOS=windows go generate ./pkg/security/...")
 
+    ctx.run("sed -i -e 's/linux_tmp/linux/' ./pkg/security/serializers/model/model_base_linux_easyjson.go")
+    ctx.run("sed -i -e 's/linux_tmp/linux/' ./pkg/security/serializers/model/model_linux_easyjson.go")
+    ctx.run("sed -i -e 's/windows_tmp/windows/' ./pkg/security/serializers/model/model_windows_easyjson.go")
+    ctx.run("sed -i -e 's/windows_tmp/windows/' ./pkg/security/serializers/model/model_base_windows_easyjson.go")
 
 @task
 def generate_syscall_table(ctx):

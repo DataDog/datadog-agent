@@ -6,7 +6,8 @@
 package hostname
 
 import (
-	"C"
+	"bytes"
+	"math"
 	"os"
 	"unsafe"
 
@@ -23,7 +24,11 @@ func getSystemFQDN() (string, error) {
 	if err != nil {
 		return "", err
 	}
-	namestring := C.GoString((*C.char)(unsafe.Pointer(he.Name)))
 
-	return namestring, nil
+	ptr := (*[math.MaxUint16]byte)(unsafe.Pointer(he.Name))
+	size := bytes.IndexByte(ptr[:], 0)
+	name := make([]byte, size)
+	copy(name, ptr[:])
+
+	return string(name), nil
 }
