@@ -86,7 +86,7 @@ func Test_Schema_TextCases(t *testing.T) {
 }
 
 func assertAgainstSchema(t *testing.T, instanceJSON string) error {
-	sch, err := jsonschema.CompileString("schema.json", string(DeviceProfileRcConfigJsonschema))
+	sch, err := jsonschema.CompileString("schema.json", string(GetDeviceProfileRcConfigJsonschema()))
 	require.NoError(t, err)
 
 	var v interface{}
