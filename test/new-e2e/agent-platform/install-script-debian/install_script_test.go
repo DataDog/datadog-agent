@@ -45,7 +45,7 @@ func TestInstallScript(t *testing.T) {
 		t.Run(fmt.Sprintf("test install script on %s", osVers), func(tt *testing.T) {
 			tt.Parallel()
 			fmt.Printf("Testing %s", osVers)
-			e2e.Run(tt, &installScriptSuite{}, e2e.AgentStackDef([]ec2params.Option{ec2params.WithImageName(platformJSON["debian"][osVers], e2eOs.AMD64Arch, ec2os.DebianOS)}, agentparams.WithAgentConfig("site: datadoghq.eu"), agentparams.WithVersion("7.47.0")), params.WithStackName(fmt.Sprintf("install-script-test-%v-%v", os.Getenv("CI_PIPELINE_ID"), osVers)))
+			e2e.Run(tt, &installScriptSuite{}, e2e.AgentStackDef([]ec2params.Option{ec2params.WithImageName(platformJSON["debian"][osVers], e2eOs.AMD64Arch, ec2os.DebianOS)}, agentparams.WithAgentConfig("site: datadoghq.eu")), params.WithStackName(fmt.Sprintf("install-script-test-%v-%v", os.Getenv("CI_PIPELINE_ID"), osVers)))
 		})
 	}
 
