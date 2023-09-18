@@ -11,6 +11,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/ebpf"
 )
 
+// PostRegisterCleanup is a function that will be called after modules are registered, it should run cleanup code
+// that is common to most system probe modules
 func PostRegisterCleanup() error {
 	ebpf.FlushKernelSpecCache()
 	return nil
