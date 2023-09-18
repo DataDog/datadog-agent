@@ -33,9 +33,9 @@ type FullAccessEventHandler interface {
 }
 
 // EventHandler represents a handler for events sent by the probe. This handler makes a copy of the event upon receipt
-type EventHandler interface {
-	HandleEvent(event any)
-	Copy(_ *model.Event) any
+type EventHandler[T any] interface {
+	HandleEvent(event T)
+	Copy(_ *model.Event) T
 }
 
 // CustomEventHandler represents an handler for the custom events sent by the probe
@@ -48,7 +48,7 @@ type NotifyDiscarderPushedCallback func(eventType string, event *model.Event, fi
 
 // Probe represents the runtime security eBPF probe in charge of
 // setting up the required kProbes and decoding events sent from the kernel
-type Probe struct {
+type Probe[T any] struct {
 	PlatformProbe
 
 	// Constants and configuration
@@ -65,7 +65,7 @@ type Probe struct {
 
 	// Events section
 	fullAccessEventHandlers [model.MaxAllEventType][]FullAccessEventHandler
-	eventHandlers           [model.MaxAllEventType][]EventHandler
+	eventHandlers           [model.MaxAllEventType][]EventHandler[T]
 	customEventHandlers     [model.MaxAllEventType][]CustomEventHandler
 
 	discarderRateLimiter *rate.Limiter

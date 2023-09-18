@@ -11,18 +11,11 @@ import (
 	"testing"
 
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
-	"github.com/DataDog/datadog-agent/pkg/security/seclog"
 )
 
 type MockEventHandler struct{}
 
-func (MockEventHandler) HandleEvent(incomingEvent any) {
-	event, ok := incomingEvent.(*model.Event)
-	if !ok {
-		seclog.Errorf("Event is not a security model event")
-		return
-	}
-
+func (MockEventHandler) HandleEvent(event *model.Event) {
 	// event already marked with an error, skip it
 	if event.Error != nil {
 		return
