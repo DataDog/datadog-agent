@@ -23,8 +23,6 @@ func TestAgentSecretSuite(t *testing.T) {
 }
 
 func (v *agentSecretSuite) TestAgentSecretNotEnabledByDefault() {
-	v.UpdateEnv(e2e.AgentStackDef(nil))
-
 	secret := v.Env().Agent.Secret()
 
 	assert.Contains(v.T(), secret, "No secret_backend_command set")
