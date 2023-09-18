@@ -34,6 +34,7 @@ import (
 	metricsserializer "github.com/DataDog/datadog-agent/pkg/serializer/internal/metrics"
 	"github.com/DataDog/datadog-agent/pkg/serializer/marshaler"
 	"github.com/DataDog/datadog-agent/pkg/util/compression"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 var initialContentEncoding = compression.ContentEncoding
@@ -142,7 +143,18 @@ func (p *testPayload) MarshalJSON() ([]byte, error) { return jsonString, nil }
 func (p *testPayload) Marshal() ([]byte, error)     { return protobufString, nil }
 func (p *testPayload) MarshalSplitCompress(bufferContext *marshaler.BufferContext) (transaction.BytesPayloads, error) {
 	payloads := transaction.BytesPayloads{}
-	payload, err := compression.Compress(protobufString)
+	kind := config.Datadog.GetString("serializer_compressor_kind")
+	var payload []byte
+	var err error
+	switch kind {
+	case "zstd":
+		log.Info("compressing metadata with zstd")
+		payload, err = zstd.Compress(nil, payload)
+	case "zlib":
+		payload, err = compression.Compress(payload)
+	default:
+		return nil, fmt.Errorf("invalid serailizer_compressor kind. use zstd or zlib")
+	}
 	if err != nil {
 		return nil, err
 	}
@@ -199,7 +211,15 @@ func mkPayloads(payload []byte, compress bool) (transaction.BytesPayloads, error
 	payloads := transaction.BytesPayloads{}
 	var err error
 	if compress {
-		payload, err = compression.Compress(payload)
+		kind := config.Datadog.GetString("serializer_compressor_kind")
+		switch kind {
+		case "zstd":
+			payload, err = zstd.Compress(nil, payload)
+		case "zlib":
+			payload, err = compression.Compress(payload)
+		default:
+			return nil, fmt.Errorf("invalid serializer_compressor_kind. use zstd or zlib")
+		}
 		if err != nil {
 			return nil, err
 		}
@@ -216,12 +236,22 @@ func createJSONPayloadMatcher(prefix string) interface{} {
 
 func doPayloadsMatch(payloads transaction.BytesPayloads, prefix string) bool {
 	for _, compressedPayload := range payloads {
-		if payload, err := compression.Decompress(compressedPayload.GetContent()); err != nil {
+		kind := config.Datadog.GetString("serializer_compressor_kind")
+		var payload []byte
+		var err error
+		switch kind {
+		case "zstd":
+			payload, err = zstd.Decompress(nil, compressedPayload.GetContent())
+		case "zlib":
+			payload, err = compression.Decompress(compressedPayload.GetContent())
+		default:
 			return false
-		} else {
-			if strings.HasPrefix(string(payload), prefix) {
-				return true
-			}
+		}
+		if err != nil {
+			return false
+		}
+		if strings.HasPrefix(string(payload), prefix) {
+			return true
 		}
 	}
 	return false
@@ -494,12 +524,16 @@ func TestSendMetadata(t *testing.T) {
 			jsonExtraHeadersWithCompression := make(http.Header)
 			protobufExtraHeadersWithCompression := make(http.Header)
 			initExtraHeaders(jsonExtraHeaders, protobufExtraHeaders, jsonExtraHeadersWithCompression, protobufExtraHeadersWithCompression)
+			jsonPayloads, err := mkPayloads(jsonString, true)
+			require.Nil(t, err)
+			protobufPayloads, err = mkPayloads(protobufString, true)
+			require.Nil(t, err)
 			f.On("SubmitMetadata", jsonPayloads, jsonExtraHeadersWithCompression).Return(nil).Times(1)
 
 			s := NewSerializer(f, nil)
 
 			payload := &testPayload{}
-			err := s.SendMetadata(payload)
+			err = s.SendMetadata(payload)
 			require.Nil(t, err)
 			f.AssertExpectations(t)
 

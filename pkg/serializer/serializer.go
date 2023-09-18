@@ -14,6 +14,8 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/DataDog/zstd"
+
 	forwarder "github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/transaction"
 	"github.com/DataDog/datadog-agent/pkg/config"
@@ -428,7 +430,17 @@ func (s *Serializer) SendProcessesMetadata(data interface{}) error {
 	if err != nil {
 		return fmt.Errorf("could not serialize processes metadata payload: %s", err)
 	}
-	compressedPayload, err := compression.Compress(payload)
+	kind := config.Datadog.GetString("serializer_compressor_kind")
+	var compressedPayload []byte
+	switch kind {
+	case "zstd":
+		log.Info("compressing metadata with zstd")
+		compressedPayload, err = zstd.Compress(nil, payload)
+	case "zlib":
+		compressedPayload, err = compression.Compress(payload)
+	default:
+		return fmt.Errorf("invalid serailizer_compressor_kind. use zstd or zlib")
+	}
 	if err != nil {
 		return fmt.Errorf("could not compress processes metadata payload: %s", err)
 	}

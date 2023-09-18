@@ -14,7 +14,10 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	"github.com/DataDog/zstd"
+
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/transaction"
+	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/metrics/event"
 	"github.com/DataDog/datadog-agent/pkg/metrics/servicecheck"
@@ -83,7 +86,14 @@ func testSplitPayloadsSeries(t *testing.T, numPoints int, compress bool) {
 		localPayload := payload.GetContent()
 
 		if compress {
-			localPayload, err = compression.Decompress(localPayload)
+			kind := config.Datadog.GetString("serializer_compressor_kind")
+			var err error
+			switch kind {
+			case "zstd":
+				localPayload, err = zstd.Decompress(nil, localPayload)
+			case "zlib":
+				localPayload, err = compression.Decompress(localPayload)
+			}
 			require.Nil(t, err)
 		}
 
@@ -193,7 +203,14 @@ func testSplitPayloadsEvents(t *testing.T, numPoints int, compress bool) {
 		var s map[string]interface{}
 		localPayload := payload.GetContent()
 		if compress {
-			localPayload, err = compression.Decompress(localPayload)
+			kind := config.Datadog.GetString("serializer_compressor_kind")
+			var err error
+			switch kind {
+			case "zstd":
+				localPayload, err = zstd.Decompress(nil, localPayload)
+			case "zlib":
+				localPayload, err = compression.Decompress(localPayload)
+			}
 			require.Nil(t, err)
 		}
 
@@ -258,7 +275,14 @@ func testSplitPayloadsServiceChecks(t *testing.T, numPoints int, compress bool) 
 		var s []interface{}
 		localPayload := payload.GetContent()
 		if compress {
-			localPayload, err = compression.Decompress(localPayload)
+			kind := config.Datadog.GetString("serializer_compressor_kind")
+			var err error
+			switch kind {
+			case "zstd":
+				localPayload, err = zstd.Decompress(nil, localPayload)
+			case "zlib":
+				localPayload, err = compression.Decompress(localPayload)
+			}
 			require.Nil(t, err)
 		}
 
