@@ -195,24 +195,24 @@ func TestEnableDataStreams(t *testing.T) {
 func TestEnableJavaTLSSupport(t *testing.T) {
 	t.Run("via YAML", func(t *testing.T) {
 		aconfig.ResetSystemProbeConfig(t)
-
-		_, err := sysconfig.New("./testdata/TestDDAgentConfigYamlAndSystemProbeConfig-EnableJavaTLS.yaml")
-		require.NoError(t, err)
-		cfg := New()
-
-		assert.True(t, cfg.EnableJavaTLSSupport)
+		cfg := configurationFromYAML(t, `
+service_monitoring_config:
+  tls:
+    java:
+      enabled: true
+`)
+		require.True(t, cfg.EnableJavaTLSSupport)
 	})
 
 	t.Run("via ENV variable", func(t *testing.T) {
 		aconfig.ResetSystemProbeConfig(t)
+		t.Setenv("DD_SERVICE_MONITORING_CONFIG_TLS_JAVA_ENABLED", "true")
 
-		t.Setenv("DD_SERVICE_MONITORING_CONFIG_JAVA_TLS_ENABLED", "true")
-		_, err := sysconfig.New("")
-		require.NoError(t, err)
 		cfg := New()
 
-		assert.True(t, cfg.EnableJavaTLSSupport)
+		require.True(t, cfg.EnableJavaTLSSupport)
 	})
+
 }
 
 func TestEnableHTTP2Monitoring(t *testing.T) {

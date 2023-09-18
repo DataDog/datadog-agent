@@ -472,7 +472,7 @@ func initializeConfig(cfg config.Config) {
 	SetAgentMetadata(AgentUSMEnabled, config.SystemProbe.GetBool("service_monitoring_config.enabled"))
 	SetAgentMetadata(AgentUSMKafkaEnabled, config.SystemProbe.GetBool("data_streams_config.enabled"))
 	SetAgentMetadata(AgentRemoteConfigEnabled, cfg.GetBool("remote_configuration.enabled"))
-	SetAgentMetadata(AgentUSMJavaTLSEnabled, config.SystemProbe.GetBool("service_monitoring_config.enable_java_tls_support"))
+	SetAgentMetadata(AgentUSMJavaTLSEnabled, config.SystemProbe.GetBool("service_monitoring_config.tls.java.enabled"))
 	SetAgentMetadata(AgentUSMHTTP2Enabled, config.SystemProbe.GetBool("service_monitoring_config.enable_http2_monitoring"))
 	SetAgentMetadata(AgentUSMIstioEnabled, config.SystemProbe.GetBool("service_monitoring_config.enable_istio_monitoring"))
 	SetAgentMetadata(AgentUSMHTTPStatsByStatusCodeEnabled, config.SystemProbe.GetBool("service_monitoring_config.enable_http_stats_by_status_code"))

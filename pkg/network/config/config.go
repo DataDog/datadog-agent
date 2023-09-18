@@ -21,7 +21,7 @@ const (
 	smNS   = "service_monitoring_config"
 	dsNS   = "data_streams_config"
 	evNS   = "event_monitoring_config"
-	smjtNS = smNS + ".java_tls"
+	smjtNS = smNS + ".tls.java"
 
 	defaultUDPTimeoutSeconds       = 30
 	defaultUDPStreamTimeoutSeconds = 120
