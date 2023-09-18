@@ -15,8 +15,6 @@ import (
 	"syscall"
 	"testing"
 
-	"github.com/DataDog/datadog-agent/pkg/util/intern"
-
 	"github.com/golang/protobuf/proto"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -802,7 +800,7 @@ func TestPooledObjectGarbageRegression(t *testing.T) {
 	for i := 0; i < 1000; i++ {
 		if (i % 2) == 0 {
 			httpKey.Path = http.Path{
-				Content:  intern.Interner.GetString(fmt.Sprintf("/path-%d", i)),
+				Content:  http.Interner.GetString(fmt.Sprintf("/path-%d", i)),
 				FullPath: true,
 			}
 			in.HTTP = map[http.Key]*http.RequestStats{httpKey: {}}
@@ -868,7 +866,7 @@ func TestPooledHTTP2ObjectGarbageRegression(t *testing.T) {
 	for i := 0; i < 1000; i++ {
 		if (i % 2) == 0 {
 			httpKey.Path = http.Path{
-				Content:  intern.Interner.GetString(fmt.Sprintf("/path-%d", i)),
+				Content:  http.Interner.GetString(fmt.Sprintf("/path-%d", i)),
 				FullPath: true,
 			}
 			in.HTTP2 = map[http.Key]*http.RequestStats{httpKey: {}}

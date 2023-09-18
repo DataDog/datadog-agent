@@ -10,8 +10,6 @@ import (
 	"runtime"
 	"testing"
 
-	"github.com/DataDog/datadog-agent/pkg/util/intern"
-
 	model "github.com/DataDog/agent-payload/v5/process"
 	"github.com/DataDog/sketches-go/ddsketch"
 	"github.com/DataDog/sketches-go/ddsketch/pb/sketchpb"
@@ -57,7 +55,7 @@ func testFormatHTTPStats(t *testing.T, aggregateByStatusCode bool) {
 
 	httpKey2 := httpKey1
 	httpKey2.Path = http.Path{
-		Content:  intern.Interner.GetString("/testpath-2"),
+		Content:  http.Interner.GetString("/testpath-2"),
 		FullPath: true,
 	}
 	httpStats2 := http.NewRequestStats(aggregateByStatusCode)

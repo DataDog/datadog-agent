@@ -14,6 +14,9 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
+// Interner is used to intern strings to save memory allocations.
+var Interner = intern.NewStringInterner()
+
 // Method is the type used to represent HTTP request methods
 type Method uint8
 
@@ -82,7 +85,7 @@ func NewKey(saddr, daddr util.Address, sport, dport uint16, path []byte, fullPat
 	return Key{
 		ConnectionKey: types.NewConnectionKey(saddr, daddr, sport, dport),
 		Path: Path{
-			Content:  intern.Interner.Get(path),
+			Content:  Interner.Get(path),
 			FullPath: fullPath,
 		},
 		Method: method,
@@ -94,7 +97,7 @@ func NewKeyWithConnection(connKey types.ConnectionKey, path []byte, fullPath boo
 	return Key{
 		ConnectionKey: connKey,
 		Path: Path{
-			Content:  intern.Interner.Get(path),
+			Content:  Interner.Get(path),
 			FullPath: fullPath,
 		},
 		Method: method,

@@ -46,8 +46,6 @@ import (
 	"unsafe"
 )
 
-var Interner = NewStringInterner()
-
 // A StringValue pointer is the handle to the underlying string value.
 // See Get how Value pointers may be used.
 type StringValue struct {

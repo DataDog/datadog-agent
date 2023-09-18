@@ -88,7 +88,7 @@ func BenchmarkProcessHTTPTransactions(b *testing.B) {
 		for p := 0; p < numPaths; p++ {
 			b.StopTimer()
 			//we use subset of unique endpoints, but those will occur over and over again like in regular target application
-			path := "/testpath" + strconv.Itoa(p%uniqPaths)
+			path := "/testpath/blablabla/dsadas/isdaasd/asdasadsadasd" + strconv.Itoa(p%uniqPaths)
 			//we simulate different conn tuples by increasing the port number
 			newSourcePort := sourcePort + (p % 30)
 			statusCode := (i%5 + 1) * 100
