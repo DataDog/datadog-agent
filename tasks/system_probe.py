@@ -536,6 +536,7 @@ def clean(
     ctx.run("go clean -cache")
 
 
+@task
 def build_sysprobe_binary(
     ctx,
     race=False,
