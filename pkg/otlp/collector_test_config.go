@@ -7,7 +7,9 @@
 
 package otlp
 
-import "github.com/DataDog/datadog-agent/pkg/otlp/internal/testutil"
+import (
+	"github.com/DataDog/datadog-agent/pkg/otlp/internal/testutil"
+)
 
 func getTestPipelineConfig() PipelineConfig {
 	return PipelineConfig{
