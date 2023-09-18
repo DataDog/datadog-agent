@@ -275,7 +275,7 @@ func (n *netlinkRouter) Route(source, dest util.Address, netns uint32) (Route, b
 		})
 
 	if err != nil {
-		errno, ok := CounterIncWithTag(routeCacheTelemetry.netlinkErrors, err)
+		errno, ok := counterIncWithTag(routeCacheTelemetry.netlinkErrors, err)
 		if iifIndex > 0 {
 			if ok && (errno == syscall.EINVAL || errno == syscall.ENODEV) {
 				// invalidate interface cache entry as this may have been the cause of the netlink error
@@ -317,7 +317,7 @@ func (n *netlinkRouter) getInterface(srcAddress util.Address, srcIP net.IP, netn
 	routeCacheTelemetry.netlinkLookups.Inc()
 	routes, err := n.nlHandle.RouteGet(srcIP)
 	if err != nil {
-		_, _ = CounterIncWithTag(routeCacheTelemetry.netlinkErrors, err)
+		_, _ = counterIncWithTag(routeCacheTelemetry.netlinkErrors, err)
 		log.Debugf("Error getting route via netlink %s: %s", srcIP, err)
 		return nil
 	} else if len(routes) != 1 {
@@ -328,7 +328,7 @@ func (n *netlinkRouter) getInterface(srcAddress util.Address, srcIP net.IP, netn
 
 	ifr, err := unix.NewIfreq("")
 	if err != nil {
-		_, _ = CounterIncWithTag(routeCacheTelemetry.ifCacheErrors, err)
+		_, _ = counterIncWithTag(routeCacheTelemetry.ifCacheErrors, err)
 		return nil
 	}
 
@@ -337,12 +337,12 @@ func (n *netlinkRouter) getInterface(srcAddress util.Address, srcIP net.IP, netn
 	// necessary to make the subsequent request to
 	// get the link flags
 	if err = unix.IoctlIfreq(n.ioctlFD, unix.SIOCGIFNAME, ifr); err != nil {
-		_, _ = CounterIncWithTag(routeCacheTelemetry.ifCacheErrors, err)
+		_, _ = counterIncWithTag(routeCacheTelemetry.ifCacheErrors, err)
 		log.Debugf("error getting interface name for link index %d, src ip %s: %s", routes[0].LinkIndex, srcIP, err)
 		return nil
 	}
 	if err = unix.IoctlIfreq(n.ioctlFD, unix.SIOCGIFFLAGS, ifr); err != nil {
-		_, _ = CounterIncWithTag(routeCacheTelemetry.ifCacheErrors, err)
+		_, _ = counterIncWithTag(routeCacheTelemetry.ifCacheErrors, err)
 		log.Debugf("error getting interface flags for link index %d, src ip %s: %s", routes[0].LinkIndex, srcIP, err)
 		return nil
 	}
