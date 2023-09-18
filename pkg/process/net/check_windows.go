@@ -16,7 +16,6 @@ import (
 
 	sysconfig "github.com/DataDog/datadog-agent/cmd/system-probe/config"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/system/wincrashdetect/probe"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 const (
@@ -36,7 +35,6 @@ func (r *RemoteSysProbeUtil) GetCheck(module sysconfig.ModuleName) (interface{},
 		// newly expected check names.
 	}
 	url := fmt.Sprintf(checksURL, r.path, module)
-	log.Infof("module %s trying url %s", module, url)
 	req, err := http.NewRequest("GET", url, nil)
 	if err != nil {
 		return nil, err

@@ -2,6 +2,7 @@
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2021-present Datadog, Inc.
+
 //go:build windows
 
 package probe
@@ -61,7 +62,7 @@ func (wcs *WinCrashStatus) getCurrentCrashSettings() error {
 	}
 	if v > uint64(DumpTypeAutomatic) {
 		// this should never happen.  Unexpected type
-		return fmt.Errorf("Unkknown dump type %d", v)
+		return fmt.Errorf("Unknown dump type %d", v)
 	}
 	wcs.Type = int(v)
 

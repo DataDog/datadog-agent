@@ -2,8 +2,8 @@
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2021-present Datadog, Inc.
+
 //go:build windows
-// +build windows
 
 package probe
 
@@ -102,7 +102,10 @@ func logLineCallbackGo(ctx *logCallbackContext, line string) {
 
 // this extra layer of indirection so that we can swap out test code which skips the actual debugger.
 func doReadCrashDump(filename string, ctx *logCallbackContext, exterr *uint32) error {
-	err := C.readCrashDump(C.CString(filename), unsafe.Pointer(ctx), (*C.long)(unsafe.Pointer(exterr)))
+	fnasCString := C.CString(filename)
+	err := C.readCrashDump(fnasCString, unsafe.Pointer(ctx), (*C.long)(unsafe.Pointer(exterr)))
+
+	C.free(unsafe.Pointer(fnasCString))
 
 	if err != C.RCD_NONE {
 		return fmt.Errorf("Error reading crash dump file %v", err)
