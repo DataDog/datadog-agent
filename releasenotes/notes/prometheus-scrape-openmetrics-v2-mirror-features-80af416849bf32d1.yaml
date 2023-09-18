@@ -8,7 +8,7 @@
 ---
 enhancements:
   - |
-    prometheus_scrape: Adds support for multiple Openmetrics V2 features in the ``prometheus_scrape.checks[].configurations[]`` items :
+    prometheus_scrape: Adds support for multiple OpenMetrics V2 features in the ``prometheus_scrape.checks[].configurations[]`` items:
       * ``exclude_metrics_by_labels``
       * ``raw_line_filters``
       * ``cache_shared_labels``
@@ -22,4 +22,4 @@ enhancements:
       * ``persist_connections``
       * ``allow_redirects``
       * ``auth_token``
-    For the description of each option, refer to the sample configuration : https://github.com/DataDog/integrations-core/blob/master/openmetrics/datadog_checks/openmetrics/data/conf.yaml.example
+    For a description of each option, refer to the sample configuration in https://github.com/DataDog/integrations-core/blob/master/openmetrics/datadog_checks/openmetrics/data/conf.yaml.example.
