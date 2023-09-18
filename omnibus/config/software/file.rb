@@ -15,7 +15,7 @@
 #
 
 name "file"
-default_version "5.44"
+default_version "5.45"
 
 dependency 'zlib'
 dependency 'bzip2'
@@ -25,7 +25,7 @@ license "BSD"
 license_file "COPYING"
 skip_transitive_dependency_licensing true
 
-version("5.44") { source sha256: "3751c7fba8dbc831cb8d7cc8aff21035459b8ce5155ef8b0880a27d028475f3b" }
+version("5.45") { source sha256: "fc97f51029bb0e2c9f4e3bffefdaf678f0e039ee872b9de5c002a6d09c784d82" }
 
 source url: "http://ftp.astron.com/pub/file/file-#{version}.tar.gz"
 

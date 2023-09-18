@@ -27,7 +27,7 @@ import (
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 
-	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/otlp/internal/serializerexporter"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
@@ -213,32 +213,17 @@ func (p *Pipeline) Stop() {
 	p.col.Shutdown()
 }
 
-// BuildAndStart builds and starts an OTLP pipeline
-func BuildAndStart(ctx context.Context, cfg config.Config, s serializer.MetricSerializer, logsAgentChannel chan *message.Message) (*Pipeline, error) {
-	p, err := NewPipelineFromAgentConfig(cfg, s, logsAgentChannel)
-	if err != nil {
-		return nil, err
-	}
-	go func() {
-		err := p.Run(ctx)
-		if err != nil {
-			pipelineError.Store(fmt.Errorf("Error running the OTLP pipeline: %w", err))
-			log.Errorf(pipelineError.Load().Error())
-		}
-	}()
-	return p, nil
-}
-
-func NewPipelineFromAgentConfig(cfg config.Config, s serializer.MetricSerializer, logsAgentChannel chan *message.Message) (*Pipeline, error) {
+// NewPipelineFromAgentConfig creates a new pipeline from the given agent configuration, metric serializer and logs channel. It returns
+// any potential failure.
+func NewPipelineFromAgentConfig(cfg config.Component, s serializer.MetricSerializer, logsAgentChannel chan *message.Message) (*Pipeline, error) {
 	pcfg, err := FromAgentConfig(cfg)
 	if err != nil {
 		pipelineError.Store(fmt.Errorf("config error: %w", err))
 		return nil, pipelineError.Load()
 	}
-	if err := checkAndUpdateCfg(pcfg, logsAgentChannel); err != nil {
+	if err := checkAndUpdateCfg(cfg, pcfg, logsAgentChannel); err != nil {
 		return nil, err
 	}
-
 	p, err := NewPipeline(pcfg, s, logsAgentChannel)
 	if err != nil {
 		pipelineError.Store(fmt.Errorf("failed to build pipeline: %w", err))
@@ -249,7 +234,7 @@ func NewPipelineFromAgentConfig(cfg config.Config, s serializer.MetricSerializer
 }
 
 // GetCollectorStatus get the collector status and error message (if there is one)
-func GetCollectorStatus(p *Pipeline) CollectorStatus {
+func (p *Pipeline) GetCollectorStatus() CollectorStatus {
 	statusMessage, errMessage := "Failed to start", ""
 	if p != nil {
 		statusMessage = p.col.GetState().String()

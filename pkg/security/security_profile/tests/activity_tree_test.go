@@ -83,7 +83,7 @@ func matchResultTree(at *activity_tree.ActivityTree, toMatch map[string][]string
 
 func craftFakeProcess(containerID string, test *testIteration) *model.ProcessCacheEntry {
 	// setting process
-	process := model.NewEmptyProcessCacheEntry(42, 42, false)
+	process := model.NewPlaceholderProcessCacheEntry(42, 42, false)
 	process.ContainerID = containerID
 	process.FileEvent.PathnameStr = test.processPath
 	process.FileEvent.BasenameStr = filepath.Base(test.processPath)
@@ -98,7 +98,7 @@ func craftFakeProcess(containerID string, test *testIteration) *model.ProcessCac
 	}
 
 	// setting process ancestor
-	process.Ancestor = model.NewEmptyProcessCacheEntry(41, 41, false)
+	process.Ancestor = model.NewPlaceholderProcessCacheEntry(41, 41, false)
 	process.Ancestor.ContainerID = containerID
 	process.Ancestor.FileEvent.PathnameStr = test.parentProcessPath
 	process.Ancestor.FileEvent.BasenameStr = filepath.Base(test.parentProcessPath)
@@ -119,9 +119,9 @@ func craftFakeProcess(containerID string, test *testIteration) *model.ProcessCac
 
 	// setting process granpa
 	if test.completeLineage {
-		process.Ancestor.Ancestor = model.NewEmptyProcessCacheEntry(1, 1, false)
+		process.Ancestor.Ancestor = model.NewPlaceholderProcessCacheEntry(1, 1, false)
 	} else {
-		process.Ancestor.Ancestor = model.NewEmptyProcessCacheEntry(40, 40, false)
+		process.Ancestor.Ancestor = model.NewPlaceholderProcessCacheEntry(40, 40, false)
 	}
 	process.Ancestor.Ancestor.FileEvent.PathnameStr = "/usr/bin/systemd"
 	process.Ancestor.Ancestor.FileEvent.BasenameStr = "systemd"

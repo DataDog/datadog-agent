@@ -15,7 +15,7 @@
 #
 
 name "xmlsec"
-default_version "1.2.37"
+default_version "1.3.1"
 
 license "MIT"
 license_file "Copyright"
@@ -28,15 +28,16 @@ dependency "libgcrypt"
 dependency "gnutls"
 dependency ENV["OMNIBUS_OPENSSL_SOFTWARE"] || "openssl"
 
-version("1.2.37") { source sha256: "5f8dfbcb6d1e56bddd0b5ec2e00a3d0ca5342a9f57c24dffde5c796b2be2871c" }
+version("1.3.1") { source sha256: "10f48384d4fd1afc05fea545b74fbf7c152582f0a895c189f164d55270400c63" }
 
-source url: "https://github.com/lsh123/xmlsec/releases/download/xmlsec-1_2_37/xmlsec1-#{version}.tar.gz"
+source url: "https://github.com/lsh123/xmlsec/releases/download/xmlsec_1_3_1/xmlsec1-#{version}.tar.gz"
 
 relative_path "xmlsec1-#{version}"
 
 build do
   env = with_standard_compiler_flags(with_embedded_path)
 
+  env["CC"] = "/opt/gcc-#{ENV['GCC_VERSION']}/bin/gcc"
   env["CFLAGS"] << " -fPIC"
   env["CFLAGS"] << " -std=c99"
 

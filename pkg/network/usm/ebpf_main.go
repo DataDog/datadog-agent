@@ -108,6 +108,7 @@ type subprogram interface {
 func newEBPFProgram(c *config.Config, sockFD, connectionProtocolMap *ebpf.Map, bpfTelemetry *errtelemetry.EBPFTelemetry) (*ebpfProgram, error) {
 	mgr := &manager.Manager{
 		Maps: []*manager.Map{
+			{Name: protocols.TLSDispatcherProgramsMap},
 			{Name: protocols.ProtocolDispatcherProgramsMap},
 			{Name: connectionStatesMap},
 		},

@@ -45,7 +45,8 @@ type ContainerCPUStats struct {
 	DefaultedLimit bool     // If Limit != nil, indicated if limit was explicit from container or defaulted to # of host CPUs
 
 	// Linux-only fields
-	Shares           *float64
+	Shares           *float64 // Available only in cgroups v1
+	Weight           *float64 // Available only in cgroups v2. Similar concept as shares but the default value and the range of valid values are different.
 	ElapsedPeriods   *float64
 	ThrottledPeriods *float64
 	ThrottledTime    *float64

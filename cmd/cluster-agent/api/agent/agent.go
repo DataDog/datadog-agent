@@ -20,6 +20,7 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	"github.com/DataDog/datadog-agent/cmd/agent/common/path"
 	"github.com/DataDog/datadog-agent/cmd/agent/common/signals"
+	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	settingshttp "github.com/DataDog/datadog-agent/pkg/config/settings/http"
@@ -35,10 +36,10 @@ import (
 )
 
 // SetupHandlers adds the specific handlers for cluster agent endpoints
-func SetupHandlers(r *mux.Router) {
+func SetupHandlers(r *mux.Router, senderManager sender.SenderManager) {
 	r.HandleFunc("/version", getVersion).Methods("GET")
 	r.HandleFunc("/hostname", getHostname).Methods("GET")
-	r.HandleFunc("/flare", makeFlare).Methods("POST")
+	r.HandleFunc("/flare", func(w http.ResponseWriter, r *http.Request) { makeFlare(w, r, senderManager) }).Methods("POST")
 	r.HandleFunc("/stop", stopAgent).Methods("POST")
 	r.HandleFunc("/status", getStatus).Methods("GET")
 	r.HandleFunc("/status/health", getHealth).Methods("GET")
@@ -124,14 +125,14 @@ func getHostname(w http.ResponseWriter, r *http.Request) {
 	w.Write(j)
 }
 
-func makeFlare(w http.ResponseWriter, r *http.Request) {
+func makeFlare(w http.ResponseWriter, r *http.Request, senderManager sender.SenderManager) {
 	log.Infof("Making a flare")
 	w.Header().Set("Content-Type", "application/json")
 	logFile := config.Datadog.GetString("log_file")
 	if logFile == "" {
 		logFile = path.DefaultDCALogFile
 	}
-	filePath, err := flare.CreateDCAArchive(false, path.GetDistPath(), logFile)
+	filePath, err := flare.CreateDCAArchive(false, path.GetDistPath(), logFile, senderManager)
 	if err != nil || filePath == "" {
 		if err != nil {
 			log.Errorf("The flare failed to be created: %s", err)

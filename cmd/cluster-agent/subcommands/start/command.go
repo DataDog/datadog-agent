@@ -162,7 +162,7 @@ func start(log log.Component, config config.Component, telemetry telemetry.Compo
 	}
 
 	// Starting server early to ease investigations
-	if err := api.StartServer(); err != nil {
+	if err := api.StartServer(aggregator.GetSenderManager()); err != nil {
 		return fmt.Errorf("Error while starting agent API, exiting: %v", err)
 	}
 

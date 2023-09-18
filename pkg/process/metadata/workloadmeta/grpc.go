@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/keepalive"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
@@ -55,6 +56,7 @@ func NewGRPCServer(config config.ConfigReader, extractor *WorkloadMetaExtractor)
 		config:    config,
 		extractor: extractor,
 		server: grpc.NewServer(
+			grpc.Creds(insecure.NewCredentials()),
 			grpc.KeepaliveParams(keepalive.ServerParameters{
 				Time: keepaliveInterval,
 			}),
