@@ -83,9 +83,9 @@ type Config struct {
 	// EnableKafkaMonitoring specifies whether the tracer should monitor Kafka traffic
 	EnableKafkaMonitoring bool
 
-	// EnableHTTPSMonitoring specifies whether the tracer should monitor HTTPS traffic
-	// Supported libraries: OpenSSL
-	EnableHTTPSMonitoring bool
+	// EnableNativeTLSMonitoring specifies whether the USM should monitor HTTPS traffic via native libraries.
+	// Supported libraries: OpenSSL, GnuTLS, LibCrypto.
+	EnableNativeTLSMonitoring bool
 
 	// EnableIstioMonitoring specifies whether USM should monitor Istio traffic
 	EnableIstioMonitoring bool
@@ -299,12 +299,12 @@ func New() *Config {
 
 		ProtocolClassificationEnabled: cfg.GetBool(join(netNS, "enable_protocol_classification")),
 
-		EnableHTTPMonitoring:  cfg.GetBool(join(smNS, "enable_http_monitoring")),
-		EnableHTTP2Monitoring: cfg.GetBool(join(smNS, "enable_http2_monitoring")),
-		EnableHTTPSMonitoring: cfg.GetBool(join(netNS, "enable_https_monitoring")),
-		EnableIstioMonitoring: cfg.GetBool(join(smNS, "enable_istio_monitoring")),
-		MaxHTTPStatsBuffered:  cfg.GetInt(join(smNS, "max_http_stats_buffered")),
-		MaxKafkaStatsBuffered: cfg.GetInt(join(smNS, "max_kafka_stats_buffered")),
+		EnableHTTPMonitoring:      cfg.GetBool(join(smNS, "enable_http_monitoring")),
+		EnableHTTP2Monitoring:     cfg.GetBool(join(smNS, "enable_http2_monitoring")),
+		EnableNativeTLSMonitoring: cfg.GetBool(join(smNS, "tls", "native", "enabled")),
+		EnableIstioMonitoring:     cfg.GetBool(join(smNS, "enable_istio_monitoring")),
+		MaxHTTPStatsBuffered:      cfg.GetInt(join(smNS, "max_http_stats_buffered")),
+		MaxKafkaStatsBuffered:     cfg.GetInt(join(smNS, "max_kafka_stats_buffered")),
 
 		MaxTrackedHTTPConnections: cfg.GetInt64(join(smNS, "max_tracked_http_connections")),
 		HTTPNotificationThreshold: cfg.GetInt64(join(smNS, "http_notification_threshold")),

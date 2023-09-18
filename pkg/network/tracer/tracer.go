@@ -143,7 +143,7 @@ func newTracer(cfg *config.Config) (_ *Tracer, reterr error) {
 			log.Warnf("%s. NPM is explicitly enabled, so system-probe will continue with only NPM features enabled.", errStr)
 			cfg.EnableHTTPMonitoring = false
 			cfg.EnableHTTP2Monitoring = false
-			cfg.EnableHTTPSMonitoring = false
+			cfg.EnableNativeTLSMonitoring = false
 		}
 
 		if !http2.Supported() {

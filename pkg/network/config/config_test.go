@@ -1256,6 +1256,84 @@ service_monitoring_config:
 	})
 }
 
+func TestUSMTLSNativeEnabled(t *testing.T) {
+	t.Run("via deprecated YAML", func(t *testing.T) {
+		aconfig.ResetSystemProbeConfig(t)
+		cfg := configurationFromYAML(t, `
+network_config:
+  enable_https_monitoring: true
+`)
+
+		require.True(t, cfg.EnableNativeTLSMonitoring)
+	})
+
+	t.Run("via deprecated ENV variable", func(t *testing.T) {
+		aconfig.ResetSystemProbeConfig(t)
+		t.Setenv("DD_SYSTEM_PROBE_NETWORK_ENABLE_HTTPS_MONITORING", "true")
+
+		cfg := New()
+
+		require.True(t, cfg.EnableNativeTLSMonitoring)
+	})
+
+	t.Run("via YAML", func(t *testing.T) {
+		aconfig.ResetSystemProbeConfig(t)
+		cfg := configurationFromYAML(t, `
+service_monitoring_config:
+  tls:
+    native:
+      enabled: true
+`)
+		require.True(t, cfg.EnableNativeTLSMonitoring)
+	})
+
+	t.Run("via ENV variable", func(t *testing.T) {
+		aconfig.ResetSystemProbeConfig(t)
+		t.Setenv("DD_SERVICE_MONITORING_CONFIG_TLS_NATIVE_ENABLED", "true")
+
+		cfg := New()
+
+		require.True(t, cfg.EnableNativeTLSMonitoring)
+	})
+
+	t.Run("Deprecated is enabled, new is disabled", func(t *testing.T) {
+		aconfig.ResetSystemProbeConfig(t)
+		t.Setenv("DD_SYSTEM_PROBE_NETWORK_ENABLE_HTTPS_MONITORING", "true")
+		t.Setenv("DD_SERVICE_MONITORING_CONFIG_TLS_NATIVE_ENABLED", "false")
+
+		cfg := New()
+
+		require.False(t, cfg.EnableNativeTLSMonitoring)
+	})
+
+	t.Run("Deprecated is disabled, new is enabled", func(t *testing.T) {
+		aconfig.ResetSystemProbeConfig(t)
+		t.Setenv("DD_SYSTEM_PROBE_NETWORK_ENABLE_HTTPS_MONITORING", "false")
+		t.Setenv("DD_SERVICE_MONITORING_CONFIG_TLS_NATIVE_ENABLED", "true")
+
+		cfg := New()
+
+		require.True(t, cfg.EnableNativeTLSMonitoring)
+	})
+
+	t.Run("Both enabled", func(t *testing.T) {
+		aconfig.ResetSystemProbeConfig(t)
+		// Setting a different value
+		t.Setenv("DD_SYSTEM_PROBE_NETWORK_ENABLE_HTTPS_MONITORING", "true")
+		t.Setenv("DD_SERVICE_MONITORING_CONFIG_TLS_NATIVE_ENABLED", "true")
+		cfg := New()
+
+		require.True(t, cfg.EnableNativeTLSMonitoring)
+	})
+
+	t.Run("Not enabled", func(t *testing.T) {
+		aconfig.ResetSystemProbeConfig(t)
+		cfg := New()
+		// Default value.
+		require.False(t, cfg.EnableNativeTLSMonitoring)
+	})
+}
+
 func configurationFromYAML(t *testing.T, yaml string) *Config {
 	f, err := os.CreateTemp("", "system-probe.*.yaml")
 	require.NoError(t, err)

@@ -468,7 +468,7 @@ func initializeConfig(cfg config.Config) {
 	SetAgentMetadata(AgentProcessesContainerEnabled, cfg.GetBool("process_config.container_collection.enabled"))
 	SetAgentMetadata(AgentNetworksEnabled, config.SystemProbe.GetBool("network_config.enabled"))
 	SetAgentMetadata(AgentNetworksHTTPEnabled, config.SystemProbe.GetBool("service_monitoring_config.enable_http_monitoring"))
-	SetAgentMetadata(AgentNetworksHTTPSEnabled, config.SystemProbe.GetBool("network_config.enable_https_monitoring"))
+	SetAgentMetadata(AgentNetworksHTTPSEnabled, config.SystemProbe.GetBool("service_monitoring_config.tls.native.enabled"))
 	SetAgentMetadata(AgentUSMEnabled, config.SystemProbe.GetBool("service_monitoring_config.enabled"))
 	SetAgentMetadata(AgentUSMKafkaEnabled, config.SystemProbe.GetBool("data_streams_config.enabled"))
 	SetAgentMetadata(AgentRemoteConfigEnabled, cfg.GetBool("remote_configuration.enabled"))

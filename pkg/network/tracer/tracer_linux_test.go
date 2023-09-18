@@ -1883,7 +1883,7 @@ func (s *TracerSuite) TestGetHelpersTelemetry() {
 
 	t.Setenv("DD_SYSTEM_PROBE_SERVICE_MONITORING_ENABLED", "true")
 	cfg := testConfig()
-	cfg.EnableHTTPSMonitoring = true
+	cfg.EnableNativeTLSMonitoring = true
 	cfg.EnableHTTPMonitoring = true
 	tr := setupTracer(t, cfg)
 
