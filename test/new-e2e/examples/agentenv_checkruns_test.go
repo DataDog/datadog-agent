@@ -20,7 +20,7 @@ type agentSuiteEx5 struct {
 }
 
 func TestAgentSuiteEx5(t *testing.T) {
-	e2e.Run(t, &agentSuiteEx5{}, e2e.FakeIntakeStackDef(nil))
+	e2e.Run(t, &agentSuiteEx5{}, e2e.FakeIntakeStackDef(nil, nil))
 }
 
 func (s *agentSuiteEx5) TestCheckRuns() {

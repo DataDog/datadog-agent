@@ -23,7 +23,7 @@ type agentSuiteEx6 struct {
 
 func TestAgentSuiteEx6(t *testing.T) {
 
-	e2e.Run(t, &agentSuiteEx6{}, e2e.AgentStackDef([]ec2params.Option{ec2params.WithOS(ec2os.UbuntuOS)}))
+	e2e.Run(t, &agentSuiteEx6{}, e2e.AgentStackDef(e2e.WithVMParams(ec2params.WithOS(ec2os.UbuntuOS))))
 }
 
 func (v *agentSuiteEx6) TestCopy() {
@@ -34,7 +34,7 @@ func (v *agentSuiteEx6) TestCopy() {
 
 	file, err := os.ReadFile(path.Join(testFolder, "hosts"))
 	require.NoError(v.T(), err)
-	v.UpdateEnv(e2e.AgentStackDef([]ec2params.Option{ec2params.WithOS(ec2os.UbuntuOS)}, agentparams.WithFile("/etc/hosts", string(file), true)))
+	v.UpdateEnv(e2e.AgentStackDef(e2e.WithVMParams(ec2params.WithOS(ec2os.UbuntuOS)), e2e.WithAgentParams(agentparams.WithFile("/etc/hosts", string(file), true))))
 
 	v.Env().VM.CopyFolder(path.Join(testFolder), "test")
 	v.Env().VM.CopyFile(path.Join(testFolder, "file-0"), "copied-file")

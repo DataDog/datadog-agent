@@ -52,9 +52,13 @@ func logsExampleStackDef(vmParams []ec2params.Option, agentParams ...agentparams
 			if err != nil {
 				return nil, err
 			}
+			agentClient, err := client.NewAgent(installer)
+			if err != nil {
+				return nil, err
+			}
 			return &e2e.FakeIntakeEnv{
 				VM:         client.NewVM(vm),
-				Agent:      client.NewAgent(installer),
+				Agent:      agentClient,
 				Fakeintake: client.NewFakeintake(fakeintakeExporter),
 			}, nil
 		},
