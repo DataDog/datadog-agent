@@ -4,7 +4,6 @@
 // Copyright 2014-present Datadog, Inc.
 
 //go:build linux || darwin
-// +build linux darwin
 
 package gops
 

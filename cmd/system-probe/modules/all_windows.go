@@ -10,10 +10,10 @@ package modules
 import (
 	"time"
 
-	"golang.org/x/sys/windows/svc/eventlog"
-
 	"github.com/DataDog/datadog-agent/cmd/system-probe/api/module"
 	"github.com/DataDog/datadog-agent/cmd/system-probe/config"
+	"github.com/DataDog/datadog-agent/pkg/util/winutil"
+	"github.com/DataDog/datadog-agent/pkg/util/winutil/messagestrings"
 )
 
 // All System Probe modules should register their factories here
@@ -22,15 +22,6 @@ var All = []module.Factory{
 	EventMonitor,
 }
 
-const (
-	msgSysprobeRestartInactivity = 0x8000000f
-)
-
 func inactivityEventLog(duration time.Duration) {
-	elog, err := eventlog.Open(config.ServiceName)
-	if err != nil {
-		return
-	}
-	defer elog.Close()
-	_ = elog.Warning(msgSysprobeRestartInactivity, duration.String())
+	winutil.LogEventViewer(config.ServiceName, messagestrings.MSG_SYSPROBE_RESTART_INACTIVITY, duration.String())
 }

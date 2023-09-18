@@ -7,7 +7,6 @@ package config
 
 import (
 	"fmt"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"testing"
@@ -171,83 +170,6 @@ func TestDDHostnameFileEnvVar(t *testing.T) {
 	testConfig := SetupConfFromYAML("")
 
 	assert.Equal(t, "somefile", testConfig.Get("hostname_file"))
-}
-
-func TestAddAgentVersionToDomain(t *testing.T) {
-	appVersionPrefix := getDomainPrefix("app")
-	flareVersionPrefix := getDomainPrefix("flare")
-
-	versionURLTests := []struct {
-		url                 string
-		expectedURL         string
-		shouldAppendVersion bool
-	}{
-		{ // US
-			"https://app.datadoghq.com",
-			".datadoghq.com",
-			true,
-		},
-		{ // EU
-			"https://app.datadoghq.eu",
-			".datadoghq.eu",
-			true,
-		},
-		{ // Gov
-			"https://app.ddog-gov.com",
-			".ddog-gov.com",
-			true,
-		},
-		{ // Additional site
-			"https://app.us2.datadoghq.com",
-			".us2.datadoghq.com",
-			true,
-		},
-		{ // arbitrary site
-			"https://app.xx9.datadoghq.com",
-			".xx9.datadoghq.com",
-			true,
-		},
-		{ // Custom DD URL: leave unchanged
-			"https://custom.datadoghq.com",
-			"custom.datadoghq.com",
-			false,
-		},
-		{ // Custom DD URL with 'agent' subdomain: leave unchanged
-			"https://custom.agent.datadoghq.com",
-			"custom.agent.datadoghq.com",
-			false,
-		},
-		{ // Custom DD URL: unclear if anyone is actually using such a URL, but for now leave unchanged
-			"https://app.custom.datadoghq.com",
-			"app.custom.datadoghq.com",
-			false,
-		},
-		{ // Custom top-level domain: unclear if anyone is actually using this, but for now leave unchanged
-			"https://app.datadoghq.internal",
-			"app.datadoghq.internal",
-			false,
-		},
-		{ // DD URL set to proxy, leave unchanged
-			"https://app.myproxy.com",
-			"app.myproxy.com",
-			false,
-		},
-	}
-
-	for _, testCase := range versionURLTests {
-		appURL, err := AddAgentVersionToDomain(testCase.url, "app")
-		require.Nil(t, err)
-		flareURL, err := AddAgentVersionToDomain(testCase.url, "flare")
-		require.Nil(t, err)
-
-		if testCase.shouldAppendVersion {
-			assert.Equal(t, "https://"+appVersionPrefix+testCase.expectedURL, appURL)
-			assert.Equal(t, "https://"+flareVersionPrefix+testCase.expectedURL, flareURL)
-		} else {
-			assert.Equal(t, "https://"+testCase.expectedURL, appURL)
-			assert.Equal(t, "https://"+testCase.expectedURL, flareURL)
-		}
-	}
 }
 
 func TestIsCloudProviderEnabled(t *testing.T) {
@@ -497,7 +419,7 @@ func TestProxy(t *testing.T) {
 			// config file is never set.
 			path := t.TempDir()
 			configPath := filepath.Join(path, "empty_conf.yaml")
-			ioutil.WriteFile(configPath, nil, 0600)
+			os.WriteFile(configPath, nil, 0600)
 			config.SetConfigFile(configPath)
 
 			if c.setup != nil {
@@ -516,19 +438,19 @@ func TestSanitizeAPIKeyConfig(t *testing.T) {
 	config := SetupConf()
 
 	config.Set("api_key", "foo")
-	SanitizeAPIKeyConfig(config, "api_key")
+	sanitizeAPIKeyConfig(config, "api_key")
 	assert.Equal(t, "foo", config.GetString("api_key"))
 
 	config.Set("api_key", "foo\n")
-	SanitizeAPIKeyConfig(config, "api_key")
+	sanitizeAPIKeyConfig(config, "api_key")
 	assert.Equal(t, "foo", config.GetString("api_key"))
 
 	config.Set("api_key", "foo\n\n")
-	SanitizeAPIKeyConfig(config, "api_key")
+	sanitizeAPIKeyConfig(config, "api_key")
 	assert.Equal(t, "foo", config.GetString("api_key"))
 
 	config.Set("api_key", " \n  foo   \n")
-	SanitizeAPIKeyConfig(config, "api_key")
+	sanitizeAPIKeyConfig(config, "api_key")
 	assert.Equal(t, "foo", config.GetString("api_key"))
 }
 
@@ -971,4 +893,13 @@ func TestIsRemoteConfigEnabled(t *testing.T) {
 	t.Setenv("DD_SITE", "ddog-gov.com")
 	testConfig = SetupConfFromYAML("")
 	require.False(t, IsRemoteConfigEnabled(testConfig))
+}
+
+func TestLanguageDetectionSettings(t *testing.T) {
+	testConfig := SetupConfFromYAML("")
+	require.False(t, testConfig.GetBool("language_detection.enabled"))
+
+	t.Setenv("DD_LANGUAGE_DETECTION_ENABLED", "true")
+	testConfig = SetupConfFromYAML("")
+	require.True(t, testConfig.GetBool("language_detection.enabled"))
 }

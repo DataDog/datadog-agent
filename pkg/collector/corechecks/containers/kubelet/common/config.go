@@ -9,6 +9,8 @@ package common
 
 import (
 	"gopkg.in/yaml.v2"
+
+	"github.com/DataDog/datadog-agent/pkg/autodiscovery/common/types"
 )
 
 const (
@@ -17,7 +19,8 @@ const (
 
 // KubeletConfig is the config of the Kubelet.
 type KubeletConfig struct {
-	Tags []string `yaml:"tags"`
+	ProbesMetricsEndpoint *string `yaml:"probes_metrics_endpoint,omitempty"`
+	types.OpenmetricsInstance
 }
 
 func (c *KubeletConfig) Parse(data []byte) error {

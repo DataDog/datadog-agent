@@ -1,6 +1,8 @@
-FROM ubuntu:22.04 AS baseimage
-LABEL baseimage.os "ubuntu jammy LTS"
-LABEL baseimage.name "ubuntu:22.04"
+ARG BASE_IMAGE_UBUNTU_VERSION=23.04
+ARG BASE_IMAGE_UBUNTU_NAME=lunar
+FROM ubuntu:$BASE_IMAGE_UBUNTU_VERSION AS baseimage
+LABEL baseimage.os "ubuntu ${BASE_IMAGE_UBUNTU_NAME}"
+LABEL baseimage.name "ubuntu:${BASE_IMAGE_UBUNTU_VERSION}"
 # Can be used by Dependabot
 LABEL org.opencontainers.image.source "https://github.com/DataDog/datadog-agent"
 
@@ -129,7 +131,7 @@ RUN apt full-upgrade -y \
   # this can be removed
   # Install libssl-dev as it's required by some Python checks and we rely on system version
   # Install libseccomp2 as required by `nosys-seccomp` wrapper
-  && apt install -y iproute2 libssl-dev libseccomp2 tzdata
+  && apt install -y iproute2 libssl-dev libseccomp2 tzdata adduser
 
 # Install openjdk-11-jre-headless on jmx flavor
 RUN if [ -n "$WITH_JMX" ]; then echo "Pulling openjdk-11 from testing" \

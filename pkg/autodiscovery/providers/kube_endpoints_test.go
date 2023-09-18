@@ -132,7 +132,7 @@ func TestParseKubeServiceAnnotationsForEndpoints(t *testing.T) {
 			},
 		},
 	} {
-		t.Run(fmt.Sprintf(""), func(t *testing.T) {
+		t.Run("", func(t *testing.T) {
 			cfgs := parseServiceAnnotationsForEndpoints([]*v1.Service{tc.service})
 			assert.EqualValues(t, tc.expectedOut, cfgs)
 		})
@@ -405,7 +405,7 @@ func TestInvalidateIfChangedService(t *testing.T) {
 			invalidate: true,
 		},
 	} {
-		t.Run(fmt.Sprintf(""), func(t *testing.T) {
+		t.Run("", func(t *testing.T) {
 			ctx := context.Background()
 			provider := &kubeEndpointsConfigProvider{upToDate: true}
 			provider.invalidateIfChangedService(tc.old, tc.obj)

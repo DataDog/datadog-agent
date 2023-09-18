@@ -50,6 +50,16 @@ func TestFormatProtocols(t *testing.T) {
 			},
 		},
 		{
+			name:     "grpc protocol",
+			protocol: protocols.Stack{Application: protocols.HTTP2, Api: protocols.GRPC},
+			want: &model.ProtocolStack{
+				Stack: []model.ProtocolType{
+					model.ProtocolType_protocolHTTP2,
+					model.ProtocolType_protocolGRPC,
+				},
+			},
+		},
+		{
 			name:     "tls protocol",
 			protocol: protocols.Stack{Encryption: protocols.TLS},
 			want: &model.ProtocolStack{

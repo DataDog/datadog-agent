@@ -19,7 +19,6 @@ import (
 
 // Mock Check implementation used for testing
 type mockCheck struct {
-	StubCheck
 	cfgSource string
 	id        checkid.ID
 	stringVal string

@@ -5,6 +5,7 @@
 
 //go:build linux
 
+// Package probe holds probe related files
 package probe
 
 import (
@@ -38,9 +39,11 @@ func TestProcessArgsFlags(t *testing.T) {
 				ArgsEntry: &argsEntry,
 			},
 		},
-		FieldHandlers: &FieldHandlers{
-			resolvers: &resolvers.Resolvers{
-				ProcessResolver: resolver,
+		BaseEvent: model.BaseEvent{
+			FieldHandlers: &FieldHandlers{
+				resolvers: &resolvers.Resolvers{
+					ProcessResolver: resolver,
+				},
 			},
 		},
 	}
@@ -99,9 +102,11 @@ func TestProcessArgsOptions(t *testing.T) {
 				ArgsEntry: &argsEntry,
 			},
 		},
-		FieldHandlers: &FieldHandlers{
-			resolvers: &resolvers.Resolvers{
-				ProcessResolver: resolver,
+		BaseEvent: model.BaseEvent{
+			FieldHandlers: &FieldHandlers{
+				resolvers: &resolvers.Resolvers{
+					ProcessResolver: resolver,
+				},
 			},
 		},
 	}

@@ -12,6 +12,7 @@ import (
 	"encoding/binary"
 	"fmt"
 	"os"
+	"strings"
 	"syscall"
 
 	"github.com/twmb/murmur3"
@@ -45,7 +46,8 @@ func (p *PathIdentifier) Key() string {
 	m := murmur3.Sum64(buffer)
 	bufferSum := make([]byte, 8)
 	binary.LittleEndian.PutUint64(bufferSum, m)
-	return base64.StdEncoding.EncodeToString(bufferSum)
+	// avoid '/' in filename used later by ebpf-manager to register uprobe
+	return strings.ReplaceAll(base64.StdEncoding.EncodeToString(bufferSum), "/", "@")
 }
 
 // NewPathIdentifier returns a new PathIdentifier instance

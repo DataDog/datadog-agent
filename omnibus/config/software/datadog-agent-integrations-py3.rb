@@ -95,10 +95,6 @@ if osx?
 end
 
 if arm?
-  # Temporarily blacklist Aerospike until builder supports new dependency
-  blacklist_folders.push('aerospike')
-  blacklist_packages.push(/^aerospike==/)
-
   # This doesn't build on ARM
   blacklist_folders.push('ibm_ace')
   blacklist_folders.push('ibm_mq')
@@ -185,13 +181,10 @@ build do
       "LD_RUN_PATH" => "#{install_dir}/embedded/lib -L/opt/mqm/lib64 -L/opt/mqm/lib",
       "PATH" => "#{install_dir}/embedded/bin:#{ENV['PATH']}",
     }
+
     win_build_env = {
       "PIP_FIND_LINKS" => "#{build_deps_dir}",
       "PIP_CONFIG_FILE" => "#{pip_config_file}",
-    }
-    # Some libraries (looking at you, aerospike-client-python) need EXT_CFLAGS instead of CFLAGS.
-    specific_build_env = {
-      "aerospike" => nix_build_env.merge({"EXT_CFLAGS" => nix_build_env["CFLAGS"] + " -std=gnu99"}),
     }
 
     # On Linux & Windows, specify the C99 standard explicitly to avoid issues while building some
@@ -210,6 +203,27 @@ build do
     if linux?
       nix_build_env["CC"] = "/opt/gcc-#{gcc_version}/bin/gcc"
       nix_build_env["CXX"] = "/opt/gcc-#{gcc_version}/bin/g++"
+    end
+
+    # Some libraries (looking at you, aerospike-client-python) need EXT_CFLAGS instead of CFLAGS.
+    specific_build_env = {
+      "aerospike" => nix_build_env.merge({"EXT_CFLAGS" => nix_build_env["CFLAGS"] + " -std=gnu99"}),
+    }
+
+    # We need to explicitly specify RUSTFLAGS for libssl and libcrypto
+    # See https://github.com/pyca/cryptography/issues/8614#issuecomment-1489366475
+    if redhat? && !arm?
+        specific_build_env["cryptography"] = nix_build_env.merge(
+            {
+                "RUSTFLAGS" => "-C link-arg=-Wl,-rpath,#{install_dir}/embedded/lib",
+                "PIP_NO_BINARY" => ":all:",
+                "OPENSSL_DIR" => "#{install_dir}/embedded/",
+                # We have a manually installed dependency (snowflake connector) that already installed cryptography (but without the flags)
+                # We force reinstall it from source to be sure we use the flag
+                "PIP_NO_CACHE_DIR" => "off",
+                "PIP_FORCE_REINSTALL" => "1",
+            }
+        )
     end
 
     #
@@ -523,6 +537,15 @@ build do
 
       # Run pip check to make sure the agent's python environment is clean, all the dependencies are compatible
       command "#{python} -m pip check"
+    end
+
+    block do
+      # Removing tests that don't need to be shipped in the embedded folder
+      if windows?
+        delete "#{python_3_embedded}/Lib/site-packages/Cryptodome/SelfTest/"
+      else
+        delete "#{install_dir}/embedded/lib/python3.9/site-packages/Cryptodome/SelfTest/"
+      end
     end
   end
 

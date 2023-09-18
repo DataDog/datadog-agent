@@ -88,6 +88,8 @@ The payload is a JSON dict with the following fields
     config option).
   - `feature_process_enabled` - **bool**: True if the Process Agent has process collection enabled
      (see: `process_config.process_collection.enabled` config option).
+  - `feature_process_language_detection_enabled` - **bool**: True if process language detection is enabled 
+     (see: `language_detection,enabled` config option).
   - `feature_processes_container_enabled` - **bool**: True if the Process Agent has container collection enabled
      (see: `process_config.container_collection.enabled`)
   - `feature_networks_enabled` - **bool**: True if the Network Performance Monitoring is enabled (see:

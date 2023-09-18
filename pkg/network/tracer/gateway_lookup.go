@@ -20,8 +20,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	nettelemetry "github.com/DataDog/datadog-agent/pkg/network/telemetry"
-	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/util/ec2"
+	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -128,7 +128,7 @@ func (g *gatewayLookup) Lookup(cs *network.ConnectionStats) *network.Via {
 
 		var s network.Subnet
 		var err error
-		err = util.WithNS(g.rootNetNs, func() error {
+		err = kernel.WithNS(g.rootNetNs, func() error {
 			var ifi *net.Interface
 			ifi, err = net.InterfaceByIndex(r.IfIndex)
 			if err != nil {

@@ -14,11 +14,10 @@ from invoke import task
 from invoke.exceptions import Exit
 
 from .build_tags import get_default_build_tags
-from .go import golangci_lint
+from .go import run_golangci_lint
 from .libs.ninja_syntax import NinjaWriter
 from .system_probe import (
     CURRENT_ARCH,
-    SBOM_TAG,
     build_cws_object_files,
     check_for_ninja,
     ninja_define_ebpf_compiler,
@@ -292,7 +291,7 @@ def build_functional_tests(
 
     build_tags = build_tags.split(",")
     build_tags.append("linux_bpf")
-    build_tags.append(SBOM_TAG)
+    build_tags.append("trivy")
     build_tags.append("containerd")
 
     if bundle_ebpf:
@@ -303,7 +302,12 @@ def build_functional_tests(
 
     if not skip_linters:
         targets = ['./pkg/security/tests']
-        golangci_lint(ctx, targets=targets, build_tags=build_tags, arch=arch)
+        results = run_golangci_lint(ctx, targets=targets, build_tags=build_tags, arch=arch)
+        for result in results:
+            # golangci exits with status 1 when it finds an issue
+            if result.exited != 0:
+                raise Exit(code=1)
+        print("golangci-lint found no issues")
 
     if race:
         build_flags += " -race"
@@ -550,12 +554,23 @@ def generate_cws_documentation(ctx, go_generate=False):
 def cws_go_generate(ctx):
     with ctx.cd("./pkg/security/secl"):
         ctx.run("go generate ./...")
-    ctx.run(
-        "cp ./pkg/security/serializers/serializers_easyjson.mock ./pkg/security/serializers/serializers_easyjson.go"
-    )
-    ctx.run(
-        "cp ./pkg/security/security_profile/dump/activity_dump_easyjson.mock ./pkg/security/security_profile/dump/activity_dump_easyjson.go"
-    )
+
+    if sys.platform == "win32":
+        shutil.copy(
+            "./pkg/security/serializers/serializers_windows_easyjson.mock",
+            "./pkg/security/serializers/serializers_windows_easyjson.go",
+        )
+    else:
+        shutil.copy(
+            "./pkg/security/serializers/serializers_linux_easyjson.mock",
+            "./pkg/security/serializers/serializers_linux_easyjson.go",
+        )
+
+        shutil.copy(
+            "./pkg/security/security_profile/dump/activity_dump_easyjson.mock",
+            "./pkg/security/security_profile/dump/activity_dump_easyjson.go",
+        )
+
     ctx.run("go generate ./pkg/security/...")
 
 

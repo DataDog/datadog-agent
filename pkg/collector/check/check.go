@@ -8,6 +8,7 @@ package check
 import (
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	"github.com/DataDog/datadog-agent/pkg/collector/check/stats"
@@ -27,7 +28,7 @@ type Check interface {
 	// String provides a printable version of the check name
 	String() string
 	// Configure configures the check
-	Configure(integrationConfigDigest uint64, config, initConfig integration.Data, source string) error
+	Configure(senderManger sender.SenderManager, integrationConfigDigest uint64, config, initConfig integration.Data, source string) error
 	// Interval returns the interval time for the check
 	Interval() time.Duration
 	// ID provides a unique identifier for every check instance

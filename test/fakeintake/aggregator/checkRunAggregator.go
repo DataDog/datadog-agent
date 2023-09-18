@@ -28,7 +28,7 @@ func (cr *CheckRun) GetTags() []string {
 	return cr.Tags
 }
 
-func parseCheckRunPayload(payload api.Payload) (checks []*CheckRun, err error) {
+func ParseCheckRunPayload(payload api.Payload) (checks []*CheckRun, err error) {
 	enflated, err := enflate(payload.Data, payload.Encoding)
 	if err != nil {
 		return nil, err
@@ -44,6 +44,6 @@ type CheckRunAggregator struct {
 
 func NewCheckRunAggregator() CheckRunAggregator {
 	return CheckRunAggregator{
-		Aggregator: newAggregator(parseCheckRunPayload),
+		Aggregator: newAggregator(ParseCheckRunPayload),
 	}
 }

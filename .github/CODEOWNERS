@@ -106,6 +106,7 @@
 /.gitlab/benchmarks/benchmarks.yml                   @DataDog/agent-apm
 
 /.gitlab/functional_test/regression_detector.yml     @DataDog/single-machine-performance
+/.gitlab/functional_test/workload_checks.yml         @DataDog/single-machine-performance
 
 /chocolatey/                            @DataDog/windows-agent
 
@@ -122,6 +123,7 @@
 /cmd/agent/subcommands/workloadlist     @DataDog/container-integrations
 /cmd/agent/subcommands/run/internal/clcrunnerapi/       @DataDog/container-integrations @DataDog/agent-shared-components
 /cmd/agent/windows                      @DataDog/windows-agent
+/cmd/agent/windows_resources            @DataDog/windows-agent
 /cmd/agent/dist/conf.d/container.d/     @DataDog/container-integrations
 /cmd/agent/dist/conf.d/containerd.d/    @DataDog/container-integrations
 /cmd/agent/dist/conf.d/container_image.d/      @DataDog/container-integrations
@@ -131,11 +133,7 @@
 /cmd/agent/dist/conf.d/oracle-dbm.d/conf.yaml.default @DataDog/database-monitoring
 /cmd/agent/dist/conf.d/sbom.d/          @DataDog/container-integrations
 /cmd/agent/dist/conf.d/snmp.d/          @DataDog/network-device-monitoring
-/cmd/agent/*.manifest                   @DataDog/agent-platform
-/cmd/agent/*.mc                         @DataDog/agent-platform
-/cmd/agent/*.rc                         @DataDog/agent-platform
 /cmd/agent/install*.sh                  @DataDog/agent-platform
-/cmd/agent/version.h                    @DataDog/agent-platform
 /cmd/agent/gui/views/private/js/apm.js                       @DataDog/agent-apm
 /cmd/cluster-agent/                     @DataDog/container-integrations
 /cmd/cluster-agent/commands/            @DataDog/container-integrations @DataDog/platform-integrations
@@ -226,6 +224,7 @@
 /pkg/serializer/                        @DataDog/agent-metrics-logs
 /pkg/serverless/                        @DataDog/serverless
 /pkg/status/                            @DataDog/agent-shared-components
+/pkg/status/templates/trace-agent.tmpl  @DataDog/agent-apm
 /pkg/status/templates/process-agent.tmpl    @DataDog/processes
 /pkg/telemetry/                         @DataDog/agent-shared-components
 /pkg/version/                           @DataDog/agent-shared-components
@@ -241,6 +240,7 @@
 /pkg/autodiscovery/providers/file*.go   @DataDog/agent-metrics-logs
 /pkg/autodiscovery/providers/config_reader*.go @DataDog/container-integrations @DataDog/agent-metrics-logs
 /pkg/autodiscovery/providers/cloudfoundry*.go  @DataDog/platform-integrations
+/pkg/autodiscovery/providers/remote_config*.go  @DataDog/remote-config
 /pkg/cloudfoundry                       @Datadog/platform-integrations
 /pkg/clusteragent/                      @DataDog/container-integrations
 /pkg/clusteragent/orchestrator/         @DataDog/container-app
@@ -279,7 +279,7 @@
 /pkg/config/process*.go                 @DataDog/processes
 /pkg/config/system_probe.go             @DataDog/ebpf-platform @DataDog/agent-security
 /pkg/config/remote/                     @DataDog/remote-config
-/pkg/config/remote/service/meta/        @DataDog/remote-config @DataDog/software-integrity-and-trust
+/pkg/config/remote/meta/                @DataDog/remote-config @DataDog/software-integrity-and-trust
 /pkg/containerlifecycle/                @Datadog/container-integrations
 /pkg/diagnose/                          @Datadog/container-integrations
 /pkg/diagnose/connectivity/             @DataDog/agent-shared-components
@@ -293,6 +293,7 @@
 /pkg/pidfile/                           @DataDog/agent-shared-components
 /pkg/persistentcache/                   @DataDog/agent-metrics-logs
 /pkg/proto/                             @DataDog/agent-shared-components
+/pkg/proto/connectionserver/            @DataDog/universal-service-monitoring @DataDog/Networks
 /pkg/proto/datadog/languagedetection    @DataDog/processes
 /pkg/remoteconfig/                      @DataDog/remote-config
 /pkg/runtime/                           @DataDog/agent-shared-components
@@ -399,6 +400,7 @@
 /tasks/security_agent.py                @DataDog/agent-security
 /tasks/systray.py                       @DataDog/windows-agent
 /tasks/winbuildscripts/                 @DataDog/windows-agent
+/tasks/windows_resources.py             @DataDog/windows-agent
 /test/                                  @DataDog/agent-platform
 /test/benchmarks/                       @DataDog/agent-metrics-logs
 /test/benchmarks/kubernetes_state/      @DataDog/container-integrations
@@ -430,6 +432,7 @@
 /test/fakeintake/                       @DataDog/agent-e2e-testing
 /test/new-e2e/                          @DataDog/agent-e2e-testing
 /test/new-e2e/agent-subcommands         @DataDog/agent-shared-components
+/test/new-e2e/language-detection        @DataDog/processes
 /test/new-e2e/ndm                       @DataDog/network-device-monitoring
 /test/new-e2e/scenarios/ndm             @DataDog/network-device-monitoring
 /test/new-e2e/system-probe              @DataDog/ebpf-platform
@@ -438,6 +441,7 @@
 /test/system/dogstatsd/                 @DataDog/agent-metrics-logs
 /test/benchmarks/apm_scripts/           @DataDog/agent-apm
 /test/regression/                       @DataDog/single-machine-performance
+/test/workload-checks/                  @DataDog/single-machine-performance
 
 /tools/                                 @DataDog/agent-platform
 /tools/ebpf/                            @DataDog/ebpf-platform

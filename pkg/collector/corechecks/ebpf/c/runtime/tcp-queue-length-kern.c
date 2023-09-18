@@ -113,5 +113,4 @@ int BPF_KRETPROBE(kretprobe__tcp_sendmsg) {
     return 0;
 }
 
-__u32 _version SEC("version") = 0xFFFFFFFE;
 char _license[] SEC("license") = "GPL";

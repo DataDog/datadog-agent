@@ -2,6 +2,52 @@
 Release Notes
 =============
 
+.. _Release Notes_7.47.0:
+
+7.47.0 / 6.47.0
+======
+
+.. _Release Notes_7.47.0_Upgrade Notes:
+
+Upgrade Notes
+-------------
+
+- Add support for leases in leader election which can be enabled by setting 
+  ``leader_election_default_resource`` to ``leases``, available since Kubernetes version 1.14. 
+  If this parameter is empty, leader election automatically detects if leases
+  are available and uses them.
+  Set ``leader_election_default_resource`` to ``configmap`` on clusters running
+  Kubernetes versions previous to 1.14.
+
+
+.. _Release Notes_7.47.0_New Features:
+
+New Features
+------------
+
+- Auto-instrumentation admission controller now automatically activates crash tracking for Java applications
+
+
+.. _Release Notes_7.47.0_Enhancement Notes:
+
+Enhancement Notes
+-----------------
+
+- Expose to cluster-agent HistogramBuckets and Events check stats.
+  It should help the cluster-agent to define a better cluster-checks
+  dispatching.
+
+
+.. _Release Notes_7.47.0_Bug Fixes:
+
+Bug Fixes
+---------
+
+- The Cluster Agent Admission Controller now injects DD_DOGSTATSD_URL when used in `socket` mode (default), allowing DogStatsD clients to work without configuration.
+
+- Fix persistent volume type for local volumes.
+
+
 .. _Release Notes_7.46.0:
 
 7.46.0 / 6.46.0

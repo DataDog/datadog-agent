@@ -5,51 +5,60 @@
 
 //go:build windows
 
+// Package process holds process related files
 package process
 
 import (
+	"path"
 	"strings"
 	"sync"
 
+	"github.com/DataDog/datadog-agent/pkg/process/procutil"
 	"github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-go/v5/statsd"
 )
 
-type Pid uint32
-type ProcessResolver struct {
+type Pid = uint32
+
+type Resolver struct {
 	maplock   sync.Mutex
 	processes map[Pid]*model.ProcessCacheEntry
-	opts      ProcessResolverOpts
+	opts      ResolverOpts
+	scrubber  *procutil.DataScrubber
 }
 
-// ProcessResolverOpts options of resolver
-type ProcessResolverOpts struct {
+// ResolverOpts options of resolver
+type ResolverOpts struct {
+	envsWithValue map[string]bool
 }
 
-// NewProcessResolver returns a new process resolver
-func NewResolver(config *config.Config, statsdClient statsd.ClientInterface,
-	opts ProcessResolverOpts) (*ProcessResolver, error) {
+// NewResolver returns a new process resolver
+func NewResolver(config *config.Config, statsdClient statsd.ClientInterface, scrubber *procutil.DataScrubber,
+	opts ResolverOpts) (*Resolver, error) {
 
-	p := &ProcessResolver{
+	p := &Resolver{
 		processes: make(map[Pid]*model.ProcessCacheEntry),
 		opts:      opts,
+		scrubber:  scrubber,
 	}
 
 	return p, nil
 }
 
-// NewProcessResolverOpts returns a new set of process resolver options
-func NewResolverOpts() ProcessResolverOpts {
-	return ProcessResolverOpts{}
+// NewResolverOpts returns a new set of process resolver options
+func NewResolverOpts() ResolverOpts {
+	return ResolverOpts{}
 }
 
-func (p *ProcessResolver) AddNewProcessEntry(pid Pid, file string, commandLine string) (*model.ProcessCacheEntry, error) {
-	e := model.NewEmptyProcessCacheEntry(uint32(pid), 0, false)
+func (p *Resolver) AddNewProcessEntry(pid Pid, file string, commandLine string) (*model.ProcessCacheEntry, error) {
+	e := model.NewProcessCacheEntry(nil)
 
 	e.Process.PIDContext.Pid = uint32(e.Pid)
 	e.Process.Argv0 = file
 	e.Process.Argv = strings.Split(commandLine, " ")
+	e.Process.FileEvent.PathnameStr = commandLine
+	e.Process.FileEvent.BasenameStr = path.Base(e.Process.FileEvent.PathnameStr)
 
 	// where do we put the file and the command line?
 	p.maplock.Lock()
@@ -58,7 +67,7 @@ func (p *ProcessResolver) AddNewProcessEntry(pid Pid, file string, commandLine s
 	return e, nil
 }
 
-func (p *ProcessResolver) GetProcessEntry(pid Pid) *model.ProcessCacheEntry {
+func (p *Resolver) GetProcessEntry(pid Pid) *model.ProcessCacheEntry {
 	p.maplock.Lock()
 	defer p.maplock.Unlock()
 	if e, ok := p.processes[pid]; ok {
@@ -67,10 +76,53 @@ func (p *ProcessResolver) GetProcessEntry(pid Pid) *model.ProcessCacheEntry {
 	return nil
 }
 
-func (p *ProcessResolver) DeleteProcessEntry(pid Pid) {
+func (p *Resolver) DeleteProcessEntry(pid Pid) {
 	p.maplock.Lock()
 	defer p.maplock.Unlock()
 	if _, ok := p.processes[pid]; ok {
 		delete(p.processes, pid)
 	}
+}
+
+// Resolve returns the cache entry for the given pid
+func (p *Resolver) Resolve(pid, tid uint32, inode uint64, useFallBack bool) *model.ProcessCacheEntry {
+	return p.GetProcessEntry(pid)
+}
+
+// GetProcessScrubbedArgv returns the scrubbed args of the event as an array
+func (p *Resolver) GetProcessScrubbedArgv(pr *model.Process) []string {
+	if pr.ScrubbedArgvResolved {
+		return pr.ScrubbedArgv
+	}
+
+	argv := pr.Argv
+	if p.scrubber != nil {
+		argv, _ = p.scrubber.ScrubCommand(argv)
+	}
+
+	pr.ScrubbedArgv = argv
+	pr.ScrubbedArgvResolved = true
+
+	return argv
+}
+
+// GetProcessEnvs returns the envs of the event
+func (p *Resolver) GetProcessEnvs(pr *model.Process) []string {
+	if pr.EnvsEntry == nil {
+		return pr.Envs
+	}
+
+	keys, _ := pr.EnvsEntry.FilterEnvs(p.opts.envsWithValue)
+	pr.Envs = keys
+	return pr.Envs
+}
+
+// GetProcessEnvp returns the envs of the event with their values
+func (p *Resolver) GetProcessEnvp(pr *model.Process) []string {
+	if pr.EnvsEntry == nil {
+		return pr.Envp
+	}
+
+	pr.Envp = pr.EnvsEntry.Values
+	return pr.Envp
 }

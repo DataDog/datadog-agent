@@ -132,7 +132,7 @@ func (s *streamHandler) IsEnabled() bool {
 	if flavor.GetFlavor() != flavor.DefaultAgent {
 		return false
 	}
-	return s.Config.GetBool("workloadmeta.remote_process_collector.enabled")
+	return s.Config.GetBool("language_detection.enabled")
 }
 
 func (s *streamHandler) NewClient(cc grpc.ClientConnInterface) remote.RemoteGrpcClient {

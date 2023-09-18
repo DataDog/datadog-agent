@@ -5,14 +5,13 @@
 
 //go:build linux
 
+// Package probes holds probes related files
 package probes
 
 import manager "github.com/DataDog/ebpf-manager"
 
-// ptraceProbes holds the list of probes used to track ptrace events
-var ptraceProbes []*manager.Probe
-
 func getPTraceProbes(fentry bool) []*manager.Probe {
+	var ptraceProbes []*manager.Probe
 	ptraceProbes = append(ptraceProbes, ExpandSyscallProbes(&manager.Probe{
 		ProbeIdentificationPair: manager.ProbeIdentificationPair{
 			UID: SecurityAgentUID,

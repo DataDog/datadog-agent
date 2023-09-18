@@ -15,6 +15,7 @@ import (
 	"github.com/cihub/seelog"
 	lru "github.com/hashicorp/golang-lru/v2"
 	"github.com/prometheus/client_golang/prometheus"
+	"go4.org/intern"
 
 	smodel "github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
@@ -50,7 +51,7 @@ var processCacheTelemetry = struct {
 type process struct {
 	Pid         uint32
 	Envs        map[string]string
-	ContainerID string
+	ContainerID *intern.Value
 	StartTime   int64
 	Expiry      int64
 }
@@ -125,7 +126,7 @@ func newProcessCache(maxProcs int, filteredEnvs []string) (*processCache, error)
 	return pc, nil
 }
 
-func (pc *processCache) handleProcessEvent(entry *smodel.ProcessContext) {
+func (pc *processCache) HandleProcessEvent(entry *smodel.ProcessContext) {
 
 	select {
 	case <-pc.stopped:
@@ -176,7 +177,7 @@ func (pc *processCache) processEvent(entry *smodel.ProcessContext) *process {
 	return &process{
 		Pid:         entry.Pid,
 		Envs:        envs,
-		ContainerID: entry.ContainerID,
+		ContainerID: intern.GetByString(entry.ContainerID),
 		StartTime:   entry.ExecTime.UnixNano(),
 	}
 }

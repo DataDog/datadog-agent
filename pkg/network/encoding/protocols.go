@@ -40,7 +40,7 @@ func formatProtocolStack(originalStack protocols.Stack, staticTags uint64) *mode
 		stack = addProtocol(stack, originalStack.Application)
 	}
 	if originalStack.Api != protocols.Unknown {
-		stack = addProtocol(stack, originalStack.Application)
+		stack = addProtocol(stack, originalStack.Api)
 	}
 
 	return &model.ProtocolStack{
@@ -65,6 +65,8 @@ func formatProtocol(proto protocols.ProtocolType) model.ProtocolType {
 	switch proto {
 	case protocols.Unknown:
 		return model.ProtocolType_protocolUnknown
+	case protocols.GRPC:
+		return model.ProtocolType_protocolGRPC
 	case protocols.HTTP:
 		return model.ProtocolType_protocolHTTP
 	case protocols.HTTP2:

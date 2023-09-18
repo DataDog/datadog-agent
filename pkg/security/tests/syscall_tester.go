@@ -5,6 +5,7 @@
 
 //go:build functionaltests
 
+// Package tests holds tests related files
 package tests
 
 import (
@@ -13,19 +14,12 @@ import (
 	"os"
 	"os/exec"
 	"testing"
-
-	"golang.org/x/sys/unix"
 )
 
 //go:embed syscall_tester/bin
 var syscallTesterFS embed.FS
 
 func loadSyscallTester(t *testing.T, test *testModule, binary string) (string, error) {
-	var uname unix.Utsname
-	if err := unix.Uname(&uname); err != nil {
-		return "", fmt.Errorf("couldn't resolve arch: %w", err)
-	}
-
 	testerBin, err := syscallTesterFS.ReadFile(fmt.Sprintf("syscall_tester/bin/%s", binary))
 	if err != nil {
 		return "", err

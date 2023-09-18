@@ -22,8 +22,8 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/process/util"
 	apicfg "github.com/DataDog/datadog-agent/pkg/process/util/api/config"
+	"github.com/DataDog/datadog-agent/pkg/util/filesystem"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
@@ -154,7 +154,7 @@ func publishEnabledChecks() interface{} {
 
 func publishContainerID() interface{} {
 	cgroupFile := "/proc/self/cgroup"
-	if !util.PathExists(cgroupFile) {
+	if !filesystem.FileExists(cgroupFile) {
 		return nil
 	}
 	f, err := os.Open(cgroupFile)
@@ -246,9 +246,10 @@ type StatusInfo struct {
 	LogFile                         string                 `json:"log_file"`
 	DropCheckPayloads               []string               `json:"drop_check_payloads"`
 	SystemProbeProcessModuleEnabled bool                   `json:"system_probe_process_module_enabled"`
+	LanguageDetectionEnabled        bool                   `json:"language_detection_enabled"`
 }
 
-func InitExpvars(config ddconfig.ConfigReader, telemetry telemetry.Component, hostname string, processModuleEnabled bool, eps []apicfg.Endpoint) {
+func InitExpvars(config ddconfig.ConfigReader, telemetry telemetry.Component, hostname string, processModuleEnabled, languageDetectionEnabled bool, eps []apicfg.Endpoint) {
 	infoOnce.Do(func() {
 		expvar.NewString("host").Set(hostname)
 		expvar.NewInt("pid").Set(int64(os.Getpid()))
@@ -274,6 +275,7 @@ func InitExpvars(config ddconfig.ConfigReader, telemetry telemetry.Component, ho
 		expvar.Publish("endpoints", expvar.Func(publishEndpoints(eps)))
 		expvar.Publish("drop_check_payloads", expvar.Func(publishDropCheckPayloads))
 		expvar.Publish("system_probe_process_module_enabled", publishBool(processModuleEnabled))
+		expvar.Publish("language_detection_enabled", publishBool(languageDetectionEnabled))
 	})
 
 	// Run a profile & telemetry server.

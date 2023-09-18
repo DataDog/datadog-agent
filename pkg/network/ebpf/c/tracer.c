@@ -37,6 +37,12 @@ int socket__classifier_dbs(struct __sk_buff *skb) {
     return 0;
 }
 
+SEC("socket/classifier_grpc")
+int socket__classifier_grpc(struct __sk_buff *skb) {
+    protocol_classifier_entrypoint_grpc(skb);
+    return 0;
+}
+
 SEC("kprobe/tcp_sendmsg")
 int kprobe__tcp_sendmsg(struct pt_regs *ctx) {
     u64 pid_tgid = bpf_get_current_pid_tgid();
@@ -1060,6 +1066,9 @@ int kretprobe__sockfd_lookup_light(struct pt_regs *ctx) {
 
     // For now let's only store information for TCP sockets
     struct socket *socket = (struct socket *)PT_REGS_RC(ctx);
+    if (!socket)
+        goto cleanup;
+
     enum sock_type sock_type = 0;
     bpf_probe_read_kernel_with_telemetry(&sock_type, sizeof(short), &socket->type);
 
@@ -1147,7 +1156,4 @@ int tracepoint__net__net_dev_queue(struct net_dev_queue_ctx* ctx) {
     return 0;
 }
 
-// This number will be interpreted by elf-loader to set the current running kernel version
-__u32 _version SEC("version") = 0xFFFFFFFE; // NOLINT(bugprone-reserved-identifier)
-
-char _license[] SEC("license") = "GPL"; // NOLINT(bugprone-reserved-identifier)
+char _license[] SEC("license") = "GPL";

@@ -15,7 +15,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/process/util"
+	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -34,7 +34,7 @@ var statusMap = map[ConnectionType]int64{
 func ReadInitialState(procRoot string, protocol ConnectionType, collectIPv6 bool) (map[PortMapping]uint32, error) {
 	start := time.Now()
 	defer func() {
-		log.Debugf("Read initial %s pid->port mapping in %s", protocol.String(), time.Now().Sub(start))
+		log.Debugf("Read initial %s pid->port mapping in %s", protocol.String(), time.Since(start))
 	}()
 
 	lp := strings.ToLower(protocol.String())
@@ -50,8 +50,8 @@ func ReadInitialState(procRoot string, protocol ConnectionType, collectIPv6 bool
 func readState(procRoot string, paths []string, status int64) (map[PortMapping]uint32, error) {
 	seen := make(map[uint32]struct{})
 	allports := make(map[PortMapping]uint32)
-	err := util.WithAllProcs(procRoot, func(pid int) error {
-		ns, err := util.GetNetNsInoFromPid(procRoot, pid)
+	err := kernel.WithAllProcs(procRoot, func(pid int) error {
+		ns, err := kernel.GetNetNsInoFromPid(procRoot, pid)
 		if err != nil {
 			if !errors.Is(err, os.ErrNotExist) {
 				log.Errorf("error getting net ns for pid %d: %s", pid, err)

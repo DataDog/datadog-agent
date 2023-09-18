@@ -30,9 +30,6 @@ const (
 	invalidEndpoints       = "invalid_endpoints"
 	intakeTrackType        = "logs"
 
-	// AgentJSONIntakeProtocol agent json protocol
-	AgentJSONIntakeProtocol = "agent-json"
-
 	// Log messages
 	multiLineWarning = "multi_line processing rules are not supported as global processing rules."
 )

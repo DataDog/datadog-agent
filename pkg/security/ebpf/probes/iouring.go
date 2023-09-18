@@ -5,13 +5,14 @@
 
 //go:build linux
 
+// Package probes holds probes related files
 package probes
 
 import manager "github.com/DataDog/ebpf-manager"
 
 // iouringProbes is the list of probes that are used for iouring monitoring
 func getIouringProbes(fentry bool) []*manager.Probe {
-	iouringProbes := []*manager.Probe{
+	return []*manager.Probe{
 		{
 			ProbeIdentificationPair: manager.ProbeIdentificationPair{
 				UID:          SecurityAgentUID,
@@ -29,16 +30,11 @@ func getIouringProbes(fentry bool) []*manager.Probe {
 				EBPFFuncName: "hook_io_allocate_scq_urings",
 			},
 		},
-	}
-
-	if !fentry {
-		iouringProbes = append(iouringProbes, &manager.Probe{
+		{
 			ProbeIdentificationPair: manager.ProbeIdentificationPair{
 				UID:          SecurityAgentUID,
 				EBPFFuncName: "hook_io_sq_offload_start",
 			},
-		})
+		},
 	}
-
-	return iouringProbes
 }

@@ -104,13 +104,16 @@ func (h *AutoscalersController) enableHPA(client kubernetes.Interface, informerF
 	}
 
 	informer := genericInformerFactory.Informer()
-	informer.AddEventHandler(
+	if _, err := informer.AddEventHandler(
 		cache.ResourceEventHandlerFuncs{
 			AddFunc:    h.addAutoscaler,
 			UpdateFunc: h.updateAutoscaler,
 			DeleteFunc: h.deleteAutoscaler,
 		},
-	)
+	); err != nil {
+		log.Errorf("error adding event handler to hpa informer: %s", err)
+		return
+	}
 
 	h.autoscalersLister = genericInformerFactory.Lister()
 	h.autoscalersListerSynced = informer.HasSynced

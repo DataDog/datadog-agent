@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+// Package eval holds eval related files
 package eval
 
 import (
@@ -39,7 +40,7 @@ type RuleEvaluator struct {
 	partialEvals map[Field]BoolEvalFnc
 }
 
-// Rule returns a new rule
+// NewRule returns a new rule
 func NewRule(id string, expression string, opts *Opts, tags ...string) *Rule {
 	if opts.MacroStore == nil {
 		opts.WithMacroStore(&MacroStore{})

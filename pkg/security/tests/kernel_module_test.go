@@ -5,6 +5,7 @@
 
 //go:build functionaltests
 
+// Package tests holds tests related files
 package tests
 
 import (
@@ -21,6 +22,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
+	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 )
 
 const (
@@ -47,11 +49,7 @@ func uncompressModule(xzModulePath string) error {
 
 func getModulePath(modulePathFmt string, t *testing.T) (string, bool) {
 	var wasCompressed bool
-	var buf unix.Utsname
-	if err := unix.Uname(&buf); err != nil {
-		t.Skipf("uname failed: %v", err)
-	}
-	release, err := model.UnmarshalString(buf.Release[:], 65)
+	release, err := kernel.Release()
 	if err != nil {
 		t.Skipf("couldn't parse uname release: %v", err)
 	}

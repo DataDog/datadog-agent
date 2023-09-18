@@ -3,13 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+// Package metrics holds metrics related files
 package metrics
-
-import (
-	"fmt"
-
-	dogstatsdServer "github.com/DataDog/datadog-agent/comp/dogstatsd/server"
-)
 
 var (
 	// MetricRuntimePrefix is the prefix of the metrics sent by the runtime security module
@@ -467,11 +462,6 @@ var (
 	// Tags: -
 	MetricRuntimeCgroupMemoryKmemLimitInBytes = newRuntimeMetric(".runtime_monitor.cgroup.memory.kmem_limit_in_bytes")
 )
-
-// SetTagsWithCardinality returns the array of tags and set the requested cardinality
-func SetTagsWithCardinality(cardinality string, tags ...string) []string {
-	return append(tags, fmt.Sprintf("%s:%s", dogstatsdServer.CardinalityTagPrefix, cardinality))
-}
 
 var (
 	// CacheTag is assigned to metrics related to userspace cache

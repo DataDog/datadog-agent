@@ -62,12 +62,13 @@ var errNoProtocols = errors.New("no protocol monitors were initialised")
 // * Consuming HTTP transaction "events" that are sent from Kernel space;
 // * Aggregating and emitting metrics based on the received HTTP transactions;
 type Monitor struct {
+	cfg *config.Config
+
 	enabledProtocols []protocols.Protocol
 
 	ebpfProgram *ebpfProgram
 
 	processMonitor *monitor.ProcessMonitor
-	httpTLSEnabled bool
 
 	// termination
 	closeFilterFn func()
@@ -86,7 +87,7 @@ func NewMonitor(c *config.Config, connectionProtocolMap, sockFD *ebpf.Map, bpfTe
 		}
 	}()
 
-	mgr, err := newEBPFProgram(c, connectionProtocolMap, bpfTelemetry)
+	mgr, err := newEBPFProgram(c, sockFD, connectionProtocolMap, bpfTelemetry)
 	if err != nil {
 		return nil, fmt.Errorf("error setting up ebpf program: %w", err)
 	}
@@ -126,11 +127,11 @@ func NewMonitor(c *config.Config, connectionProtocolMap, sockFD *ebpf.Map, bpfTe
 	state = Running
 
 	usmMonitor := &Monitor{
+		cfg:              c,
 		enabledProtocols: enabledProtocols,
 		ebpfProgram:      mgr,
 		closeFilterFn:    closeFilterFn,
 		processMonitor:   processMonitor,
-		httpTLSEnabled:   c.EnableHTTPSMonitoring,
 	}
 
 	usmMonitor.lastUpdateTime = atomic.NewInt64(time.Now().Unix())
@@ -150,13 +151,12 @@ func (m *Monitor) Start() error {
 		if err != nil {
 			if errors.Is(err, syscall.ENOMEM) {
 				err = fmt.Errorf("could not enable usm monitoring: not enough memory to attach http ebpf socket filter. please consider raising the limit via sysctl -w net.core.optmem_max=<LIMIT>")
+			} else {
+				err = fmt.Errorf("could not enable USM: %s", err)
 			}
 
 			m.Stop()
 
-			if err != nil {
-				err = fmt.Errorf("could not enable USM: %s", err)
-			}
 			startupError = err
 		}
 	}()
@@ -214,7 +214,7 @@ func (m *Monitor) Start() error {
 	}
 
 	// Need to explicitly save the error in `err` so the defer function could save the startup error.
-	if m.httpTLSEnabled {
+	if m.cfg.EnableHTTPSMonitoring || m.cfg.EnableGoTLSSupport || m.cfg.EnableJavaTLSSupport || m.cfg.EnableIstioMonitoring {
 		err = m.processMonitor.Initialize()
 	}
 

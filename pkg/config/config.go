@@ -15,7 +15,6 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
-	"regexp"
 	"runtime"
 	"strconv"
 	"strings"
@@ -26,7 +25,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/secrets"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname/validate"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/DataDog/datadog-agent/pkg/version"
 
 	"gopkg.in/yaml.v2"
 )
@@ -98,6 +96,10 @@ const (
 	// DefaultLocalProcessCollectorInterval is the interval at which processes are collected and sent to the workloadmeta
 	// in the core agent if the process check is disabled.
 	DefaultLocalProcessCollectorInterval = 1 * time.Minute
+
+	// DefaultMaxMessageSizeBytes is the default value for max_message_size_bytes
+	// If a log message is larger than this byte limit, the overflow bytes will be truncated.
+	DefaultMaxMessageSizeBytes = 256 * 1000
 )
 
 // Datadog is the global configuration object
@@ -173,25 +175,25 @@ func (l *Listeners) IsProviderEnabled(provider string) bool {
 
 // MappingProfile represent a group of mappings
 type MappingProfile struct {
-	Name     string          `mapstructure:"name" json:"name"`
-	Prefix   string          `mapstructure:"prefix" json:"prefix"`
-	Mappings []MetricMapping `mapstructure:"mappings" json:"mappings"`
+	Name     string          `mapstructure:"name" json:"name" yaml:"name"`
+	Prefix   string          `mapstructure:"prefix" json:"prefix" yaml:"prefix"`
+	Mappings []MetricMapping `mapstructure:"mappings" json:"mappings" yaml:"mappings"`
 }
 
 // MetricMapping represent one mapping rule
 type MetricMapping struct {
-	Match     string            `mapstructure:"match" json:"match"`
-	MatchType string            `mapstructure:"match_type" json:"match_type"`
-	Name      string            `mapstructure:"name" json:"name"`
-	Tags      map[string]string `mapstructure:"tags" json:"tags"`
+	Match     string            `mapstructure:"match" json:"match" yaml:"match"`
+	MatchType string            `mapstructure:"match_type" json:"match_type" yaml:"match_type"`
+	Name      string            `mapstructure:"name" json:"name" yaml:"name"`
+	Tags      map[string]string `mapstructure:"tags" json:"tags" yaml:"tags"`
 }
 
 // Endpoint represent a datadog endpoint
 type Endpoint struct {
-	Site   string `mapstructure:"site" json:"site"`
-	URL    string `mapstructure:"url" json:"url"`
-	APIKey string `mapstructure:"api_key" json:"api_key"`
-	APPKey string `mapstructure:"app_key" json:"app_key" `
+	Site   string `mapstructure:"site" json:"site" yaml:"site"`
+	URL    string `mapstructure:"url" json:"url" yaml:"url"`
+	APIKey string `mapstructure:"api_key" json:"api_key" yaml:"api_key"`
+	APPKey string `mapstructure:"app_key" json:"app_key" yaml:"app_key"`
 }
 
 // Warnings represent the warnings in the config
@@ -299,6 +301,7 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("remote_configuration.clients.cache_bypass_limit", 5)
 	// Remote config products
 	config.BindEnvAndSetDefault("remote_configuration.apm_sampling.enabled", true)
+	config.BindEnvAndSetDefault("remote_configuration.agent_integrations.enabled", false)
 
 	// Auto exit configuration
 	config.BindEnvAndSetDefault("auto_exit.validation_period", 60)
@@ -775,7 +778,7 @@ func InitConfig(config Config) {
 		"kube-env", "kubelet-config", "containerd-configure-sh", "startup-script", "shutdown-script",
 		"configure-sh", "sshKeys", "ssh-keys", "user-data", "cli-cert", "ipsec-cert", "ssl-cert", "google-container-manifest",
 		"bosh_settings", "windows-startup-script-ps1", "common-psm1", "k8s-node-setup-psm1", "serial-port-logging-enable",
-		"enable-oslogin", "disable-address-manager", "disable-legacy-endpoints", "windows-keys", "kubeconfig",
+		"enable-oslogin", "disable-address-manager", "disable-legacy-endpoints", "windows-keys", "kubeconfig", "gce-container-declaration",
 	})
 	config.BindEnvAndSetDefault("gce_send_project_id_tag", false)
 	config.BindEnvAndSetDefault("gce_metadata_timeout", 1000) // value in milliseconds
@@ -877,6 +880,8 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("logs_config.use_port_443", false)
 	// increase the read buffer size of the UDP sockets:
 	config.BindEnvAndSetDefault("logs_config.frame_size", 9000)
+	// maximum log message size in bytes
+	config.BindEnvAndSetDefault("logs_config.max_message_size_bytes", DefaultMaxMessageSizeBytes)
 
 	// increase the number of files that can be tailed in parallel:
 	if runtime.GOOS == "windows" || runtime.GOOS == "darwin" {
@@ -1015,6 +1020,8 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("cluster_checks.cluster_tag_name", "cluster_name")
 	config.BindEnvAndSetDefault("cluster_checks.extra_tags", []string{})
 	config.BindEnvAndSetDefault("cluster_checks.advanced_dispatching_enabled", false)
+	config.BindEnvAndSetDefault("cluster_checks.rebalance_with_utilization", false)        // Experimental. Subject to change. Uses the runners utilization to balance.
+	config.BindEnvAndSetDefault("cluster_checks.rebalance_min_percentage_improvement", 10) // Experimental. Subject to change. Rebalance only if the distribution found improves the current one by this.
 	config.BindEnvAndSetDefault("cluster_checks.clc_runners_port", 5005)
 	config.BindEnvAndSetDefault("cluster_checks.exclude_checks", []string{})
 
@@ -1113,7 +1120,6 @@ func InitConfig(config Config) {
 	bindEnvAndSetLogsConfigKeys(config, "container_image.")
 
 	// Remote process collector
-	config.BindEnvAndSetDefault("workloadmeta.remote_process_collector.enabled", false)
 	config.BindEnvAndSetDefault("workloadmeta.local_process_collector.collection_interval", DefaultLocalProcessCollectorInterval)
 
 	// SBOM configuration
@@ -1254,14 +1260,13 @@ func InitConfig(config Config) {
 	// Datadog Agent Manager System Tray
 	config.BindEnvAndSetDefault("system_tray.log_file", "")
 
+	// Language Detection
+	config.BindEnvAndSetDefault("language_detection.enabled", false)
+
 	setupAPM(config)
 	SetupOTLP(config)
 	setupProcesses(config)
 }
-
-// ddURLRegexp determines if an URL belongs to Datadog or not. If the URL belongs to Datadog it's prefixed with the Agent
-// version (see AddAgentVersionToDomain).
-var ddURLRegexp = regexp.MustCompile(`^app(\.[a-z]{2}\d)?\.(datad(oghq|0g)\.(com|eu)|ddog-gov\.com)$`)
 
 // LoadProxyFromEnv overrides the proxy settings with environment variables
 func LoadProxyFromEnv(config Config) {
@@ -1548,8 +1553,8 @@ func LoadDatadogCustom(config Config, origin string, loadSecret bool, additional
 		AddOverride("python_version", DefaultPython)
 	}
 
-	SanitizeAPIKeyConfig(config, "api_key")
-	SanitizeAPIKeyConfig(config, "logs_config.api_key")
+	sanitizeAPIKeyConfig(config, "api_key")
+	sanitizeAPIKeyConfig(config, "logs_config.api_key")
 	// setTracemallocEnabled *must* be called before setNumWorkers
 	warnings.TraceMallocEnabledWithPy2 = setTracemallocEnabled(config)
 	setNumWorkers(config)
@@ -1748,12 +1753,12 @@ func EnvVarAreSetAndNotEqual(lhsName string, rhsName string) bool {
 	return lhsIsSet && rhsIsSet && lhsValue != rhsValue
 }
 
-// SanitizeAPIKeyConfig strips newlines and other control characters from a given key.
-func SanitizeAPIKeyConfig(config Config, key string) {
+// sanitizeAPIKeyConfig strips newlines and other control characters from a given key.
+func sanitizeAPIKeyConfig(config Config, key string) {
 	if !config.IsKnown(key) {
 		return
 	}
-	config.Set(key, SanitizeAPIKey(config.GetString(key)))
+	config.Set(key, strings.TrimSpace(config.GetString(key)))
 }
 
 // sanitizeExternalMetricsProviderChunkSize ensures the value of `external_metrics_provider.chunk_size` is within an acceptable range
@@ -1771,11 +1776,6 @@ func sanitizeExternalMetricsProviderChunkSize(config Config) {
 		log.Warnf("external_metrics_provider.chunk_size has been set to %d, which is higher than the maximum allowed value %d. Using %d.", chunkSize, maxExternalMetricsProviderChunkSize, maxExternalMetricsProviderChunkSize)
 		config.Set("external_metrics_provider.chunk_size", maxExternalMetricsProviderChunkSize)
 	}
-}
-
-// SanitizeAPIKey strips newlines and other control characters from a given string.
-func SanitizeAPIKey(key string) string {
-	return strings.TrimSpace(key)
 }
 
 func bindEnvAndSetLogsConfigKeys(config Config, prefix string) {
@@ -1797,31 +1797,6 @@ func bindEnvAndSetLogsConfigKeys(config Config, prefix string) {
 	config.BindEnvAndSetDefault(prefix+"sender_recovery_interval", DefaultForwarderRecoveryInterval)
 	config.BindEnvAndSetDefault(prefix+"sender_recovery_reset", false)
 	config.BindEnvAndSetDefault(prefix+"use_v2_api", true)
-}
-
-// getDomainPrefix provides the right prefix for agent X.Y.Z
-func getDomainPrefix(app string) string {
-	v, _ := version.Agent()
-	return fmt.Sprintf("%d-%d-%d-%s.agent", v.Major, v.Minor, v.Patch, app)
-}
-
-// AddAgentVersionToDomain prefixes the domain with the agent version: X-Y-Z.domain
-func AddAgentVersionToDomain(DDURL string, app string) (string, error) {
-	u, err := url.Parse(DDURL)
-	if err != nil {
-		return "", err
-	}
-
-	// we don't update unknown URLs (ie: proxy or custom DD domain)
-	if !ddURLRegexp.MatchString(u.Host) {
-		return DDURL, nil
-	}
-
-	subdomain := strings.Split(u.Host, ".")[0]
-	newSubdomain := getDomainPrefix(app)
-
-	u.Host = strings.Replace(u.Host, subdomain, newSubdomain, 1)
-	return u.String(), nil
 }
 
 // IsCloudProviderEnabled checks the cloud provider family provided in

@@ -26,6 +26,4 @@ BPF_ARRAY_MAP(guessed_offsets, u32, 2)
 
 #pragma clang diagnostic pop
 
-__u32 _version SEC("version") = 0xFFFFFFFE;
-
 char LICENSE[] SEC("license") = "GPL";

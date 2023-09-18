@@ -8,7 +8,6 @@
 package executioncontext
 
 import (
-	"io/ioutil"
 	"os"
 	"testing"
 	"time"
@@ -64,6 +63,17 @@ func TestSetFromInvocationWarmStart(t *testing.T) {
 	assert.Equal(false, coldStartTags.IsColdStart)
 }
 
+func TestSetArnFromExtensionResponse(t *testing.T) {
+	assert := assert.New(t)
+
+	testArn := "arn:aws:lambda:us-east-1:123456789012:function:MY-SUPER-function"
+
+	ec := ExecutionContext{}
+	ec.SetArnFromExtensionResponse(testArn)
+
+	assert.Equal("arn:aws:lambda:us-east-1:123456789012:function:my-super-function", ec.arn)
+}
+
 func TestUpdateFromStartLog(t *testing.T) {
 	assert := assert.New(t)
 
@@ -77,7 +87,7 @@ func TestUpdateFromStartLog(t *testing.T) {
 func TestSaveAndRestoreFromFile(t *testing.T) {
 	assert := assert.New(t)
 
-	tempfile, err := ioutil.TempFile("/tmp", "dd-lambda-extension-cache-*.json")
+	tempfile, err := os.CreateTemp("/tmp", "dd-lambda-extension-cache-*.json")
 	assert.Nil(err)
 	defer os.Remove(tempfile.Name())
 

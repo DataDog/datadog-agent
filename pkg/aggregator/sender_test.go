@@ -444,6 +444,7 @@ func TestCheckSenderInterface(t *testing.T) {
 	s.sender.Counter("my.counter_metric", 1.0, "my-hostname", []string{"foo", "bar"})
 	s.sender.Histogram("my.histo_metric", 3.0, "my-hostname", []string{"foo", "bar"})
 	s.sender.HistogramBucket("my.histogram_bucket", 42, 1.0, 2.0, true, "my-hostname", []string{"foo", "bar"}, true)
+	s.sender.Distribution("my.distribution", 43.0, "my-hostname", []string{"foo", "bar"})
 	s.sender.Commit()
 	s.sender.ServiceCheck("my_service.can_connect", servicecheck.ServiceCheckOK, "my-hostname", []string{"foo", "bar"}, "message")
 	s.sender.EventPlatformEvent([]byte("raw-event"), "dbm-sample")
@@ -506,6 +507,11 @@ func TestCheckSenderInterface(t *testing.T) {
 	assert.Equal(t, "my-hostname", histogramBucket.bucket.Host)
 	assert.Equal(t, []string{"foo", "bar"}, histogramBucket.bucket.Tags)
 	assert.Equal(t, true, histogramBucket.bucket.FlushFirstValue)
+
+	distributionSample := (<-s.itemChan).(*senderMetricSample)
+	assert.EqualValues(t, checkID1, distributionSample.id)
+	assert.Equal(t, metrics.DistributionType, distributionSample.metricSample.Mtype)
+	assert.Equal(t, false, distributionSample.commit)
 
 	commitSenderSample := (<-s.itemChan).(*senderMetricSample)
 	assert.EqualValues(t, checkID1, commitSenderSample.id)
