@@ -129,8 +129,7 @@ func loadBTFFrom(path string) (*btf.Spec, error) {
 
 var kernelSpecCache struct {
 	sync.Mutex
-	refCount int
-	spec     *btf.Spec
+	spec *btf.Spec
 }
 
 // GetKernelSpec returns a possibly cached version of the running kernel BTF spec
@@ -140,12 +139,8 @@ func GetKernelSpec() (*btf.Spec, error) {
 	defer kernelSpecCache.Unlock()
 
 	if kernelSpecCache.spec != nil {
-		kernelSpecCache.refCount++
 		return kernelSpecCache.spec, nil
 	}
-
-	// re-sync refCount
-	kernelSpecCache.refCount = 0
 
 	spec, err := btf.LoadKernelSpec()
 	if err != nil {
@@ -153,21 +148,14 @@ func GetKernelSpec() (*btf.Spec, error) {
 	}
 
 	kernelSpecCache.spec = spec
-	kernelSpecCache.refCount = 1
 	return spec, nil
 }
 
-// ReleaseKernelSpecCache releases one handle on the kernel spec cache
-// possibly cleaning and flushing it if the caller was the last handler of this
-func ReleaseKernelSpecCache() {
+// FlushKernelSpecCache releases and flush the kernel spec cache
+func FlushKernelSpecCache() {
 	kernelSpecCache.Lock()
 	defer kernelSpecCache.Unlock()
 
-	kernelSpecCache.refCount--
-
-	if kernelSpecCache.refCount <= 0 {
-		kernelSpecCache.spec = nil
-		btf.FlushKernelSpec()
-		kernelSpecCache.refCount = 0
-	}
+	kernelSpecCache.spec = nil
+	btf.FlushKernelSpec()
 }
