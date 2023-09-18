@@ -282,9 +282,9 @@ func (n *netlinkRouter) Route(source, dest util.Address, netns uint32) (Route, b
 				n.removeInterface(source, netns)
 			}
 		}
-		log.Debugf("Error getting route via netlink for destination IP %s from source IP %s: %s", dstIP, srcIP, err)
+		log.Debugf("Error getting route via netlink with sourceIP %s, dest IP %s and interface index %d : %s", scrIP, dstIP, iifIndex, err)
 	} else if len(routes) != 1 {
-		log.Debugf("Did not get exactly one route for destingation IP %s from source IP %s, got %d routes", dstIP, srcIP, len(routes))
+		log.Debugf("Did not get exactly one route with sourceIP %s, dest IP %s and interface index %d, got %d routes", scrIP, dstIP, iifIndex, len(routes))
 		routeCacheTelemetry.netlinkMisses.Inc()
 	}
 	if err != nil || len(routes) != 1 {
