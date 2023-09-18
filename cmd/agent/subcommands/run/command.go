@@ -623,7 +623,7 @@ func startAgent(
 		return err
 	}
 	// TODO: (components) remove this once migrating the status package to components
-	status.OTLPCollector = otelcollector
+	status.SetOtelCollector(otelcollector)
 
 	return nil
 }

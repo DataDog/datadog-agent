@@ -13,19 +13,26 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/otlp"
 )
 
-// OTLPCollector holds an instance of any running collector.
+// otlpCollector holds an instance of any running collector.
 // It is assigned in cmd/agent/subcommands/run.go.(startAgent)
 // Will be nil otherwise!
-// TODO: remove once this package is migrated to components.
-var OTLPCollector collector.Component
+// TODO: (components) remove once this package is migrated to components.
+var otlpCollector collector.Component
+
+// SetOtelCollector registers the active OTLP Collector for status queries.
+// Warning, this function is not synchronised.
+// TODO: (components): remove this logic when this package is migrated.
+func SetOtelCollector(c collector.Component) {
+	otlpCollector = c
+}
 
 // GetOTLPStatus parses the otlp pipeline and its collector info to be sent to the frontend
 func GetOTLPStatus() map[string]interface{} {
 	status := make(map[string]interface{})
 	otlpIsEnabled := otlp.IsEnabled(config.Datadog)
 	var otlpCollectorStatus otlp.CollectorStatus
-	if otlpIsEnabled && OTLPCollector != nil {
-		otlpCollectorStatus = OTLPCollector.Status()
+	if otlpIsEnabled && otlpCollector != nil {
+		otlpCollectorStatus = otlpCollector.Status()
 	} else {
 		otlpCollectorStatus = otlp.CollectorStatus{Status: "Not running", ErrorMessage: ""}
 	}
