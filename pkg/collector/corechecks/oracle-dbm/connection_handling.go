@@ -10,6 +10,7 @@ package oracle
 import (
 	"fmt"
 
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/oracle-dbm/config"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/jmoiron/sqlx"
 	go_ora "github.com/sijms/go-ora/v2"
@@ -57,7 +58,8 @@ func (c *Check) Connect() (*sqlx.DB, error) {
 	}
 	c.driver = oracleDriver
 
-	log.Infof("driver: %s", oracleDriver)
+	c.logPrompt = config.GetLogPrompt(c.config.InstanceConfig)
+	log.Infof("%s driver: %s", c.logPrompt, oracleDriver)
 
 	db, err := sqlx.Open(oracleDriver, connStr)
 	if err != nil {
@@ -97,36 +99,44 @@ func (c *Check) Connect() (*sqlx.DB, error) {
 		c.tags = append(c.tags, fmt.Sprintf("host:%s", c.dbHostname), fmt.Sprintf("oracle_version:%s", c.dbVersion))
 	}
 
+	c.logPrompt = fmt.Sprintf("%s@%s> ", c.cdbName, c.dbHostname)
+
+	// Check if PDB
+	r := db.QueryRow("select decode(sys_context('USERENV','CON_ID'),1,'CDB','PDB') TYPE from DUAL")
+	var connectionType string
+	err = r.Scan(&connectionType)
+	if err != nil {
+		return nil, fmt.Errorf("failed to query connection type: %w", err)
+	}
+	if connectionType == "PDB" {
+		c.connectedToPdb = true
+	}
+
+	// determine hosting type
 	if !c.hostingType.valid {
 		ht := hostingType{value: selfManaged, valid: false}
 
-		// Is RDS?
-		if c.filePath == "" {
-			r := db.QueryRow("SELECT SUBSTR(name, 1, 10) path FROM v$datafile WHERE rownum = 1")
-			var path string
-			err = r.Scan(&path)
-			if err != nil {
-				return nil, fmt.Errorf("failed to query path: %w", err)
-			}
-			if path == "/rdsdbdata" {
-				ht.value = rds
+		// is RDS?
+		if ht.value == selfManaged {
+			// Is RDS?
+			if c.filePath == "" {
+				r := db.QueryRow("SELECT SUBSTR(name, 1, 10) path FROM v$datafile WHERE rownum = 1")
+				var path string
+				err = r.Scan(&path)
+				if err != nil {
+					return nil, fmt.Errorf("failed to query path: %w", err)
+				}
+				if path == "/rdsdbdata" {
+					ht.value = rds
+				}
 			}
 		}
 
-		// Check if PDB
-		r := db.QueryRow("select decode(sys_context('USERENV','CON_ID'),1,'CDB','PDB') TYPE from DUAL")
-		var connectionType string
-		err = r.Scan(&connectionType)
-		if err != nil {
-			return nil, fmt.Errorf("failed to query connection type: %w", err)
-		}
-		if connectionType == "PDB" {
-			c.connectedToPdb = true
-		}
-
+		// is OCI?
 		if ht.value == selfManaged {
 			var cloudRows int
-			if c.connectedToPdb {
+			if connectionType == "PDB" {
+				c.connectedToPdb = true
 				r := db.QueryRow("select 1 from v$pdbs where cloud_identity like '%oraclecloud%' and rownum = 1")
 				err := r.Scan(&cloudRows)
 				if err != nil {
@@ -144,6 +154,7 @@ func (c *Check) Connect() (*sqlx.DB, error) {
 				ht.value = oci
 			}
 		}
+
 		c.tags = append(c.tags, fmt.Sprintf("hosting_type:%s", ht.value))
 		ht.valid = true
 		c.hostingType = ht
@@ -153,7 +164,7 @@ func (c *Check) Connect() (*sqlx.DB, error) {
 		db.SetMaxOpenConns(1)
 		_, err := db.Exec("ALTER SESSION SET tracefile_identifier='DDAGENT'")
 		if err != nil {
-			log.Warnf("failed to set tracefile_identifier: %v", err)
+			log.Warnf("%s failed to set tracefile_identifier: %v", c.logPrompt, err)
 		}
 
 		/* We are concatenating values instead of passing parameters, because there seems to be a problem
@@ -163,10 +174,10 @@ func (c *Check) Connect() (*sqlx.DB, error) {
 		binds := assertBool(c.config.AgentSQLTrace.Binds)
 		waits := assertBool(c.config.AgentSQLTrace.Waits)
 		setEventsStatement := fmt.Sprintf("BEGIN dbms_monitor.session_trace_enable (binds => %t, waits => %t); END;", binds, waits)
-		log.Trace("trace statement: %s", setEventsStatement)
+		log.Trace("%s trace statement: %s", c.logPrompt, setEventsStatement)
 		_, err = db.Exec(setEventsStatement)
 		if err != nil {
-			log.Errorf("failed to set SQL trace: %v", err)
+			log.Errorf("%s failed to set SQL trace: %v", c.logPrompt, err)
 		}
 		if c.config.AgentSQLTrace.TracedRuns == 0 {
 			c.config.AgentSQLTrace.TracedRuns = DEFAULT_SQL_TRACED_RUNS
@@ -179,7 +190,7 @@ func (c *Check) Connect() (*sqlx.DB, error) {
 func closeDatabase(c *Check, db *sqlx.DB) {
 	if db != nil {
 		if err := db.Close(); err != nil {
-			log.Warnf("failed to close oracle connection | server=[%s]: %s", c.config.Server, err.Error())
+			log.Warnf("%s failed to close oracle connection: %s", c.logPrompt, err.Error())
 		}
 	}
 }
@@ -203,6 +214,6 @@ func closeGoOraConnection(c *Check) {
 	}
 	err := c.connection.Close()
 	if err != nil {
-		log.Warnf("failed to close go-ora connection | server=[%s]: %s", c.config.Server, err.Error())
+		log.Warnf("%s failed to close go-ora connection: %s", c.logPrompt, err.Error())
 	}
 }
