@@ -117,7 +117,7 @@ func (c *Check) sendMetric(s sender.Sender, r SysmetricsRowDB, seen map[string]b
 			value = value / 100
 		}
 		if !SYSMETRICS_COLS[r.MetricName].DBM || SYSMETRICS_COLS[r.MetricName].DBM && c.dbmEnabled {
-			log.Tracef("%s: %f", metric.DDmetric, value)
+			log.Debugf("%s %s: %f", c.logPrompt, metric.DDmetric, value)
 			s.Gauge(fmt.Sprintf("%s.%s", common.IntegrationName, metric.DDmetric), value, "", appendPDBTag(c.tags, r.PdbName))
 			seen[r.MetricName] = true
 		}

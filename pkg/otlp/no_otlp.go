@@ -8,12 +8,7 @@
 package otlp
 
 import (
-	"context"
-	"fmt"
-
 	"github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/logs/message"
-	"github.com/DataDog/datadog-agent/pkg/serializer"
 )
 
 // IsEnabled checks if OTLP pipeline is enabled in a given config.
@@ -31,8 +26,3 @@ type Pipeline struct{}
 
 // Stop the OTLP pipeline.
 func (p *Pipeline) Stop() {}
-
-// BuildAndStart builds and starts an OTLP pipeline
-func BuildAndStart(ctx context.Context, cfg config.Config, s serializer.MetricSerializer, logsAgentChannel chan *message.Message) (*Pipeline, error) {
-	return nil, fmt.Errorf("Agent was built without OTLP support")
-}

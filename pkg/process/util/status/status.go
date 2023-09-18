@@ -93,6 +93,9 @@ type ProcessExpvars struct {
 	DropCheckPayloads               []string            `json:"drop_check_payloads"`
 	SystemProbeProcessModuleEnabled bool                `json:"system_probe_process_module_enabled"`
 	LanguageDetectionEnabled        bool                `json:"language_detection_enabled"`
+	WlmExtractorCacheSize           int                 `json:"workloadmeta_extractor_cache_size"`
+	WlmExtractorStaleDiffs          int                 `json:"workloadmeta_extractor_stale_diffs"`
+	WlmExtractorDiffsDropped        int                 `json:"workloadmeta_extractor_diffs_dropped"`
 }
 
 // Status holds runtime information from process-agent

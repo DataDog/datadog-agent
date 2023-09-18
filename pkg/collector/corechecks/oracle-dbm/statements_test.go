@@ -68,7 +68,7 @@ func TestUInt64Binding(t *testing.T) {
 		var retValue int
 		err = chk.db.Get(&retValue, "SELECT COUNT(*) FROM v$sqlstats WHERE force_matching_signature IN (:1)", slice...)
 		if err != nil {
-			log.Fatalf("row error with driver %s %s", driver, err)
+			log.Fatalf("%S row error with driver %s %s", chk.logPrompt, driver, err)
 			return
 		}
 		assert.Equal(t, 1, retValue, "Testing IN slice uint64 overflow with driver %s", driver)
@@ -89,7 +89,7 @@ func TestUInt64Binding(t *testing.T) {
 			err = rows.Scan(&retValue)
 
 			if err != nil {
-				log.Fatalf("scan error %s", err)
+				log.Fatalf("%s scan error %s", chk.logPrompt, err)
 			}
 			assert.Equalf(t, retValue, 1, "IN uint64 with %s driver", driver)
 		}
