@@ -10,6 +10,7 @@ package tracer
 import (
 	"bufio"
 	"bytes"
+	"context"
 	"fmt"
 	"io"
 	"math"
@@ -1014,9 +1015,11 @@ func (s *TracerSuite) TestSelfConnect() {
 	tr := setupTracer(t, cfg)
 
 	started := make(chan struct{})
-	cmd := exec.Command("testdata/fork.py")
+	ctx, cancel := context.WithTimeout(context.Background(), 1*time.Minute)
+	cmd := exec.CommandContext(ctx, "testdata/fork.py")
 	stdOutReader, stdOutWriter := io.Pipe()
 	go func() {
+		defer cancel()
 		var stderr bytes.Buffer
 		cmd.Stderr = &stderr
 		cmd.Stdout = stdOutWriter
