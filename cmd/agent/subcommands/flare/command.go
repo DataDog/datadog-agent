@@ -29,6 +29,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/api/util"
 	apiutil "github.com/DataDog/datadog-agent/pkg/api/util"
 	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/config/settings"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/input"
 )
@@ -221,23 +222,21 @@ func makeFlare(flareComp flare.Component, log log.Component, config config.Compo
 			return fmt.Errorf("failed to initialize settings client: %w", err)
 		}
 
-		profilingOpts := flare.ProfilingOpts{
+		profilingOpts := settings.ProfilingOpts{
 			ProfileMutex:         cliParams.profileMutex,
 			ProfileMutexFraction: cliParams.profileMutexFraction,
 			ProfileBlocking:      cliParams.profileBlocking,
 			ProfileBlockingRate:  cliParams.profileBlockingRate,
 		}
 
-		resetPreviousSettings, err := flare.SetRuntimeProfilingSettings(profilingOpts, c)
+		err = settings.ExecWithRuntimeProfilingSettings(func() {
+			if profile, err = readProfileData(cliParams.profiling); err != nil {
+				fmt.Fprintln(color.Output, color.YellowString(fmt.Sprintf("Could not collect performance profile data: %s", err)))
+			}
+		}, profilingOpts, c)
 		if err != nil {
 			return err
 		}
-
-		if profile, err = readProfileData(cliParams.profiling); err != nil {
-			fmt.Fprintln(color.Output, color.YellowString(fmt.Sprintf("Could not collect performance profile data: %s", err)))
-		}
-
-		resetPreviousSettings()
 	} else if cliParams.profiling != -1 {
 		fmt.Fprintln(color.Output, color.RedString(fmt.Sprintf("Invalid value for profiling: %d. Please enter an integer of at least 30.", cliParams.profiling)))
 		return err

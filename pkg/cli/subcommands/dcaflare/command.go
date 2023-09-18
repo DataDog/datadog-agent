@@ -7,12 +7,12 @@ package dcaflare
 
 import (
 	"bytes"
+	"encoding/json"
 	"fmt"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/common/path"
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	flareComponent "github.com/DataDog/datadog-agent/comp/core/flare"
 	"github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/api/util"
@@ -158,23 +158,21 @@ func run(log log.Component, config config.Component, cliParams *cliParams) error
 			return fmt.Errorf("failed to initialize settings client: %v", err)
 		}
 
-		profilingOpts := flareComponent.ProfilingOpts{
+		profilingOpts := settings.ProfilingOpts{
 			ProfileMutex:         cliParams.profileMutex,
 			ProfileMutexFraction: cliParams.profileMutexFraction,
 			ProfileBlocking:      cliParams.profileBlocking,
 			ProfileBlockingRate:  cliParams.profileBlockingRate,
 		}
 
-		resetPreviousSettings, e := flareComponent.SetRuntimeProfilingSettings(profilingOpts, settingsClient)
+		e = settings.ExecWithRuntimeProfilingSettings(func() {
+			if profile, e = readProfileData(cliParams.profiling); e != nil {
+				fmt.Fprintln(color.Output, color.YellowString(fmt.Sprintf("Could not collect performance profile data: %s", e)))
+			}
+		}, profilingOpts, settingsClient)
 		if e != nil {
 			return e
 		}
-
-		if profile, e = readProfileData(cliParams.profiling); e != nil {
-			fmt.Fprintln(color.Output, color.YellowString(fmt.Sprintf("Could not collect performance profile data: %s", e)))
-		}
-
-		resetPreviousSettings()
 	} else if cliParams.profiling != -1 {
 		fmt.Fprintln(color.Output, color.RedString(fmt.Sprintf("Invalid value for profiling: %d. Please enter an integer of at least 30.", cliParams.profiling)))
 		return nil
@@ -184,7 +182,13 @@ func run(log log.Component, config config.Component, cliParams *cliParams) error
 		return e
 	}
 
-	r, e := util.DoPost(c, urlstr, "application/json", bytes.NewBuffer([]byte{}))
+	p, e := json.Marshal(profile)
+	if e != nil {
+		fmt.Fprintln(color.Output, color.RedString(fmt.Sprintf("Error while encoding profile: %s", e)))
+		return e
+	}
+
+	r, e := util.DoPost(c, urlstr, "application/json", bytes.NewBuffer(p))
 	var filePath string
 	if e != nil {
 		if r != nil && string(r) != "" {

@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package flare
+package settings
 
 import (
 	"fmt"
@@ -11,7 +11,6 @@ import (
 	"github.com/fatih/color"
 
 	"github.com/DataDog/datadog-agent/pkg/api/util"
-	"github.com/DataDog/datadog-agent/pkg/config/settings"
 )
 
 // ProfilingOpts defines the options used for profiling
@@ -22,32 +21,36 @@ type ProfilingOpts struct {
 	ProfileBlockingRate  int
 }
 
-// SetRuntimeProfilingSettings sets the runtime settings used for profiling
-func SetRuntimeProfilingSettings(opts ProfilingOpts, settingsClient settings.Client) (func(), error) {
+// ExecWithRuntimeProfilingSettings runs the callback func with the given runtime profiling settings
+func ExecWithRuntimeProfilingSettings(callback func(), opts ProfilingOpts, settingsClient Client) error {
 	if err := util.SetAuthToken(); err != nil {
-		return nil, fmt.Errorf("unable to set up authentication token: %v", err)
+		return fmt.Errorf("unable to set up authentication token: %v", err)
 	}
 
 	prev := make(map[string]interface{})
+	defer resetRuntimeProfilingSettings(prev, settingsClient)
+
 	if opts.ProfileMutex && opts.ProfileMutexFraction > 0 {
 		old, err := setRuntimeSetting(settingsClient, "runtime_mutex_profile_fraction", opts.ProfileMutexFraction)
 		if err != nil {
-			return nil, err
+			return err
 		}
 		prev["runtime_mutex_profile_fraction"] = old
 	}
 	if opts.ProfileBlocking && opts.ProfileBlockingRate > 0 {
 		old, err := setRuntimeSetting(settingsClient, "runtime_block_profile_rate", opts.ProfileBlockingRate)
 		if err != nil {
-			return nil, err
+			return err
 		}
 		prev["runtime_block_profile_rate"] = old
 	}
 
-	return func() { resetRuntimeProfilingSettings(prev, settingsClient) }, nil
+	callback()
+
+	return nil
 }
 
-func setRuntimeSetting(c settings.Client, name string, value int) (interface{}, error) {
+func setRuntimeSetting(c Client, name string, value int) (interface{}, error) {
 	fmt.Fprintln(color.Output, color.BlueString("Setting %s to %v", name, value))
 
 	oldVal, err := c.Get(name)
@@ -62,7 +65,7 @@ func setRuntimeSetting(c settings.Client, name string, value int) (interface{}, 
 	return oldVal, nil
 }
 
-func resetRuntimeProfilingSettings(prev map[string]interface{}, settingsClient settings.Client) {
+func resetRuntimeProfilingSettings(prev map[string]interface{}, settingsClient Client) {
 	if len(prev) == 0 {
 		return
 	}
