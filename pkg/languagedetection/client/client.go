@@ -120,7 +120,7 @@ func (b *batch) toProto() *pbgo.ParentLanguageAnnotationRequest {
 	return res
 }
 
-func (b *batch) sendMetrics() {
+func (b *batch) exposeMetrics() {
 	for podName, podDetails := range b.podDetails {
 		for containerName, languages := range podDetails.containersLanguages.containersLanguages {
 			for language := range languages.languages {
@@ -178,7 +178,7 @@ func (c *Client) flush() {
 		clock := clock.New()
 		errorCount := 0
 		backoffPolicy := backoff.NewExpBackoffPolicy(minBackoffFactor, baseBackoffTime.Seconds(), maxBackoffTime.Seconds(), 0, false)
-		data.sendMetrics()
+		data.exposeMetrics()
 		for {
 			if errorCount >= maxError {
 				log.Errorf("failed to send language metadata after %d errors", errorCount)
