@@ -976,7 +976,7 @@ func newTestModule(t testing.TB, macroDefs []*rules.MacroDefinition, ruleDefs []
 	}
 
 	// listen to probe event
-	if err := testMod.probe.AddEventHandler(model.UnknownEventType, testMod); err != nil {
+	if err := testMod.probe.AddFullAccessEventHandler(testMod); err != nil {
 		return nil, err
 	}
 
@@ -1022,24 +1022,13 @@ func newTestModule(t testing.TB, macroDefs []*rules.MacroDefinition, ruleDefs []
 	return testMod, nil
 }
 
-func (tm *testModule) HandleEvent(incomingEvent interface{}) {
-	event, ok := incomingEvent.(*model.Event)
-	if !ok {
-		log.Error("Event is not a security model event")
-		return
-	}
-
+func (tm *testModule) HandleEvent(event *model.Event) {
 	tm.eventHandlers.RLock()
 	defer tm.eventHandlers.RUnlock()
 
 	if tm.eventHandlers.onProbeEvent != nil {
 		tm.eventHandlers.onProbeEvent(event)
 	}
-}
-
-// Copy is no-op function used to satisfy the EventHandler interface
-func (tm *testModule) Copy(incomingEvent *model.Event) interface{} {
-	return incomingEvent
 }
 
 func (tm *testModule) HandleCustomEvent(rule *rules.Rule, event *events.CustomEvent) {}

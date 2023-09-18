@@ -83,7 +83,7 @@ func NewRuleEngine(evm *eventmonitor.EventMonitor, config *config.RuntimeSecurit
 	}
 
 	// register as event handler
-	if err := probe.AddEventHandler(model.UnknownEventType, engine); err != nil {
+	if err := probe.AddFullAccessEventHandler(engine); err != nil {
 		return nil, err
 	}
 
@@ -420,13 +420,7 @@ func (e *RuleEngine) SetRulesetLoadedCallback(cb func(es *rules.EvaluationSet, e
 }
 
 // HandleEvent is called by the probe when an event arrives from the kernel
-func (e *RuleEngine) HandleEvent(incomingEvent interface{}) {
-	event, ok := incomingEvent.(*model.Event)
-	if !ok {
-		seclog.Errorf("Event is not a security model event")
-		return
-	}
-
+func (e *RuleEngine) HandleEvent(event *model.Event) {
 	// event already marked with an error, skip it
 	if event.Error != nil {
 		return
@@ -446,11 +440,6 @@ func (e *RuleEngine) HandleEvent(incomingEvent interface{}) {
 			ruleSet.EvaluateDiscarders(event)
 		}
 	}
-}
-
-// Copy is no-op function used to satisfy the EventHandler interface
-func (e *RuleEngine) Copy(incomingEvent *model.Event) interface{} {
-	return incomingEvent
 }
 
 // StopEventCollector stops the event collector
