@@ -51,7 +51,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/metadata"
 	"github.com/DataDog/datadog-agent/comp/metadata/runner"
 	"github.com/DataDog/datadog-agent/comp/netflow"
-	"github.com/DataDog/datadog-agent/comp/netflow/server"
+	netflowServer "github.com/DataDog/datadog-agent/comp/netflow/server"
 	"github.com/DataDog/datadog-agent/comp/remote-config/rcclient"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/api/healthprobe"
@@ -182,7 +182,7 @@ func run(log log.Component,
 	sharedSerializer serializer.MetricSerializer,
 	cliParams *cliParams,
 	logsAgent util.Optional[logsAgent.Component],
-	_ server.Component,
+	_ netflowServer.Component,
 ) error {
 	defer func() {
 		stopAgent(cliParams, server)
@@ -258,7 +258,7 @@ func StartAgentWithDefaults(ctxChan <-chan context.Context) (<-chan error, error
 			logsAgent util.Optional[logsAgent.Component],
 			metadataRunner runner.Component,
 			sharedSerializer serializer.MetricSerializer,
-			_ server.Component,
+			_ netflowServer.Component,
 		) error {
 
 			defer StopAgentWithDefaults(server)
