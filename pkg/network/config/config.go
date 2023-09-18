@@ -302,7 +302,7 @@ func New() *Config {
 		EnableHTTPMonitoring:      cfg.GetBool(join(smNS, "enable_http_monitoring")),
 		EnableHTTP2Monitoring:     cfg.GetBool(join(smNS, "enable_http2_monitoring")),
 		EnableNativeTLSMonitoring: cfg.GetBool(join(smNS, "tls", "native", "enabled")),
-		EnableIstioMonitoring:     cfg.GetBool(join(smNS, "enable_istio_monitoring")),
+		EnableIstioMonitoring:     cfg.GetBool(join(smNS, "tls", "istio", "enabled")),
 		MaxHTTPStatsBuffered:      cfg.GetInt(join(smNS, "max_http_stats_buffered")),
 		MaxKafkaStatsBuffered:     cfg.GetInt(join(smNS, "max_kafka_stats_buffered")),
 

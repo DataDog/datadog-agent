@@ -1221,14 +1221,16 @@ func TestIstioMonitoring(t *testing.T) {
 		aconfig.ResetSystemProbeConfig(t)
 		cfg := configurationFromYAML(t, `
 service_monitoring_config:
-  enable_istio_monitoring: true
+  tls:
+    istio:
+      enabled: true
 `)
 		assert.True(t, cfg.EnableIstioMonitoring)
 	})
 
 	t.Run("via deprecated ENV variable", func(t *testing.T) {
 		aconfig.ResetSystemProbeConfig(t)
-		t.Setenv("DD_SERVICE_MONITORING_CONFIG_ENABLE_ISTIO_MONITORING", "true")
+		t.Setenv("DD_SERVICE_MONITORING_CONFIG_TLS_ISTIO_ENABLED", "true")
 
 		cfg := New()
 		assert.True(t, cfg.EnableIstioMonitoring)
