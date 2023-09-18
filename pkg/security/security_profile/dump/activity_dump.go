@@ -355,7 +355,7 @@ func (ad *ActivityDump) MatchesSelector(entry *model.ProcessCacheEntry) bool {
 
 // IsEventTypeValid returns true if the provided event type is traced by the activity dump
 func (ad *ActivityDump) IsEventTypeValid(event model.EventType) bool {
-	return slices.Contains[model.EventType](ad.LoadConfig.TracedEventTypes, event)
+	return slices.Contains(ad.LoadConfig.TracedEventTypes, event)
 }
 
 // NewProcessNodeCallback is a callback function used to propagate the fact that a new process node was added to the
