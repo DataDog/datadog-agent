@@ -17,6 +17,10 @@ import (
 )
 
 func getFullSQLText(c *Check, SQLStatement *string, key string, value string) error {
+	/*
+	 * Due to the Oracle bug "V$SQLSTATS.SQL_FULLTEXT does not show full of sql statements (Doc ID 2398100.1)
+	 * we must retrieve `sql_fulltext` from `v$sql`.
+	 */
 	var err error
 	var sql string
 	switch c.driver {

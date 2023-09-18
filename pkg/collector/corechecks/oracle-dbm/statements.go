@@ -663,16 +663,10 @@ func (c *Check) StatementMetrics() (int, error) {
 			queryRow := QueryRow{}
 			var SQLStatement string
 
-			if statementMetricRow.SQLTextLength == 1000 {
+			if statementMetricRow.SQLTextLength == MaxSQLFullTextVSQLStats {
 				err := getFullSQLText(c, &SQLStatement, "sql_id", statementMetricRow.SQLID)
 				if err != nil {
 					log.Errorf("%s failed to get the full text %s for sql_id %s", c.logPrompt, err, statementMetricRow.SQLID)
-				}
-				if SQLStatement == "" && statementMetricRow.ForceMatchingSignature != "" {
-					err := getFullSQLText(c, &SQLStatement, "force_matching_signature", statementMetricRow.ForceMatchingSignature)
-					if err != nil {
-						log.Errorf("%s failed to get the full text %s for force_matching_signature %s", c.logPrompt, err, statementMetricRow.ForceMatchingSignature)
-					}
 				}
 				if SQLStatement != "" {
 					statementMetricRow.SQLText = SQLStatement
