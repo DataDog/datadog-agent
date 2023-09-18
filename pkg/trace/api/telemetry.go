@@ -25,11 +25,20 @@ import (
 const functionARNKeyTag = "function_arn"
 const originTag = "origin"
 
-type CloudResourceType string
+type cloudResourceType string
+type cloudProvider string
 
 const (
-	awsLambda CloudResourceType = "AWS Lambda"
-	cloudRun  CloudResourceType = "GCP Cloud Run"
+	awsLambda                     cloudResourceType = "AWS Lambda"
+	cloudRun                      cloudResourceType = "GCP Cloud Run"
+	azureAppService               cloudResourceType = "Azure App Service"
+	azureContainerApp             cloudResourceType = "Azure Container App"
+	aws                           cloudProvider     = "AWS"
+	gcp                           cloudProvider     = "GCP"
+	azure                         cloudProvider     = "Azure"
+	cloudProviderHeader           string            = "dd-cloud-provider"
+	cloudResourceTypeHeader       string            = "dd-cloud-resource-type"
+	cloudResourceIdentifierHeader string            = "dd-cloud-resource-identifier"
 )
 
 // telemetryMultiTransport sends HTTP requests to multiple targets using an
@@ -110,17 +119,32 @@ func (r *HTTPReceiver) telemetryProxyHandler() http.Handler {
 			req.Header.Set("x-datadog-container-tags", containerTags)
 		}
 		if taskArn, ok := extractFargateTask(containerTags); ok {
+			req.Header.Set(cloudProviderHeader, string(aws))
 			req.Header.Set("dd-task-arn", taskArn)
 		}
 		if arn, ok := r.conf.GlobalTags[functionARNKeyTag]; ok {
-			req.Header.Set("dd-cloud-resource-identifier", arn)
-			req.Header.Set("dd-cloud-resource-type", string(awsLambda))
+			req.Header.Set(cloudProviderHeader, string(aws))
+			req.Header.Set(cloudResourceIdentifierHeader, arn)
+			req.Header.Set(cloudResourceTypeHeader, string(awsLambda))
 		}
 		if origin, ok := r.conf.GlobalTags[originTag]; ok {
 			if origin == "cloudrun" {
-				if service_name, found := r.conf.GlobalTags["service_name"]; found {
-					req.Header.Set("dd-cloud-resource-identifier", service_name)
-					req.Header.Set("dd-cloud-resource-type", string(cloudRun))
+				req.Header.Set(cloudProviderHeader, string(gcp))
+				req.Header.Set(cloudResourceTypeHeader, string(cloudRun))
+				if serviceName, found := r.conf.GlobalTags["service_name"]; found {
+					req.Header.Set(cloudResourceIdentifierHeader, serviceName)
+				}
+			} else if origin == "appservice" {
+				req.Header.Set(cloudProviderHeader, string(azure))
+				req.Header.Set(cloudResourceTypeHeader, string(azureAppService))
+				if appName, found := r.conf.GlobalTags["app_name"]; found {
+					req.Header.Set(cloudResourceIdentifierHeader, appName)
+				}
+			} else if origin == "containerapp" {
+				req.Header.Set(cloudProviderHeader, string(azure))
+				req.Header.Set(cloudResourceTypeHeader, string(azureContainerApp))
+				if appName, found := r.conf.GlobalTags["app_name"]; found {
+					req.Header.Set(cloudResourceIdentifierHeader, appName)
 				}
 			}
 		}
