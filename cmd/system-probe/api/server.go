@@ -54,6 +54,10 @@ func StartServer(cfg *config.Config, telemetry telemetry.Component) error {
 		return fmt.Errorf("failed to create system probe: %s", err)
 	}
 
+	if err := modules.PostRegisterCleanup(); err != nil {
+		log.Errorf("failed to run post-register cleanup callack: %v", err)
+	}
+
 	// Register stats endpoint
 	mux.HandleFunc("/debug/stats", utils.WithConcurrencyLimit(utils.DefaultMaxConcurrentRequests, func(w http.ResponseWriter, req *http.Request) {
 		utils.WriteAsJSON(w, module.GetStats())
