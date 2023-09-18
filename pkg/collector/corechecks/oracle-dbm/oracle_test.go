@@ -293,18 +293,3 @@ func TestSQLXIn(t *testing.T) {
 	}
 
 }
-
-func TestLargeUint64Binding(t *testing.T) {
-	largeUint64 := uint64(18446744073709551615)
-	//largeUint64 = 1
-	var result uint64
-	for _, driver := range DRIVERS {
-		db, _ := connectToDB(driver)
-		err := db.Get(&result, "SELECT n FROM T WHERE n = :1", largeUint64)
-		assert.NoError(t, err, "running test statement with %s driver", driver)
-		if err != nil {
-			continue
-		}
-		assert.Equal(t, result, largeUint64, "simple uint64 binding with %s driver", driver)
-	}
-}

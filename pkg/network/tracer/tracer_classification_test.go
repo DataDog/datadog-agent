@@ -1461,6 +1461,8 @@ func testHTTPProtocolClassification(t *testing.T, tr *Tracer, clientHost, target
 }
 
 func testHTTP2ProtocolClassification(t *testing.T, tr *Tracer, clientHost, targetHost, serverHost string) {
+	skipIfNotLinux(t, testContext{})
+
 	defaultDialer := &net.Dialer{
 		LocalAddr: &net.TCPAddr{
 			IP:   net.ParseIP(clientHost),
@@ -1529,8 +1531,6 @@ func testHTTP2ProtocolClassification(t *testing.T, tr *Tracer, clientHost, targe
 			name:    "http2 traffic using gRPC - unary call",
 			context: grpcContext,
 			postTracerSetup: func(t *testing.T, ctx testContext) {
-				skipIfNotLinux(t, ctx)
-
 				c, err := grpc.NewClient(ctx.targetAddress, grpc.Options{
 					CustomDialer: defaultDialer,
 				})
@@ -1546,8 +1546,6 @@ func testHTTP2ProtocolClassification(t *testing.T, tr *Tracer, clientHost, targe
 			name:    "http2 traffic using gRPC - stream call",
 			context: grpcContext,
 			postTracerSetup: func(t *testing.T, ctx testContext) {
-				skipIfNotLinux(t, ctx)
-
 				c, err := grpc.NewClient(ctx.targetAddress, grpc.Options{
 					CustomDialer: defaultDialer,
 				})
@@ -1556,6 +1554,42 @@ func testHTTP2ProtocolClassification(t *testing.T, tr *Tracer, clientHost, targe
 				timedContext, cancel := context.WithTimeout(context.Background(), defaultTimeout)
 				defer cancel()
 				require.NoError(t, c.HandleStream(timedContext, 5))
+			},
+			validation: validateProtocolConnection(&protocols.Stack{Application: protocols.HTTP2, Api: protocols.GRPC}),
+		},
+		{
+			// This test checks if the classifier can properly skip literal
+			// headers that are not useful to determine if gRPC is used.
+			name: "http2 traffic using gRPC - irrelevant literal headers",
+			context: testContext{
+				serverPort:    http2Port,
+				serverAddress: http2ServerAddress,
+				targetAddress: http2TargetAddress,
+			},
+			postTracerSetup: func(t *testing.T, ctx testContext) {
+				client := &nethttp.Client{
+					Transport: &http2.Transport{
+						AllowHTTP: true,
+						DialTLS: func(network, addr string, cfg *tls.Config) (net.Conn, error) {
+							return net.Dial(network, addr)
+						},
+					},
+				}
+
+				req, err := nethttp.NewRequest("POST", "http://"+ctx.targetAddress, bytes.NewReader([]byte("test")))
+				require.NoError(t, err)
+
+				// Add some literal headers that needs to be skipped by the
+				// classifier. Also adding a grpc content-type to emulate grpc
+				// traffic
+				req.Header.Add("someheader", "somevalue")
+				req.Header.Add("Content-type", "application/grpc")
+				req.Header.Add("someotherheader", "someothervalue")
+
+				resp, err := client.Do(req)
+				require.NoError(t, err)
+
+				resp.Body.Close()
 			},
 			validation: validateProtocolConnection(&protocols.Stack{Application: protocols.HTTP2, Api: protocols.GRPC}),
 		},

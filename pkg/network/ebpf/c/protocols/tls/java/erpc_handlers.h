@@ -52,8 +52,7 @@ int kprobe_handle_sync_payload(struct pt_regs *ctx) {
     bpf_map_update_elem(&java_tls_connections, &connection, &val, BPF_ANY);
     log_debug("[handle_sync_payload] handling tls request of size: %d for connection src addr: %llx; dst address %llx\n",
                 bytes_read, connection.saddr_l, connection.daddr_l);
-    https_process(&connection, bufferPtr, bytes_read, JAVA_TLS);
-    http_batch_flush(ctx);
+    tls_process(ctx, &connection, bufferPtr, bytes_read, JAVA_TLS);
     return 0;
 }
 
@@ -76,8 +75,9 @@ int kprobe_handle_close_connection(struct pt_regs *ctx) {
     // if the connection exists in our map, finalize it and remove from the map
     // otherwise just ignore
     if (exists != NULL){
-        https_finish(&connection);
+        // tls_finish can launch a tail call, thus cleanup should be done before.
         bpf_map_delete_elem(&java_tls_connections, &connection);
+        tls_finish(ctx, &connection);
     }
     return 0;
 }
@@ -134,8 +134,7 @@ int kprobe_handle_async_payload(struct pt_regs *ctx) {
     void* bufferPtr = GET_DATA_PTR(ctx);
 
     connection_by_peer_key_t peer_key ={0};
-    u64 pid_tgid = bpf_get_current_pid_tgid();
-    peer_key.pid = pid_tgid >> 32;
+    peer_key.pid = bpf_get_current_pid_tgid() >> 32;
 
     //read the peer tuple (domain string and port)
     if (0 != bpf_probe_read_user(&peer_key.peer, sizeof(peer_t), bufferPtr)){
@@ -174,8 +173,7 @@ int kprobe_handle_async_payload(struct pt_regs *ctx) {
                 bytes_read,
                 actual_connection->saddr_l,
                 actual_connection->daddr_l);
-    https_process(actual_connection, bufferPtr, bytes_read, JAVA_TLS);
-    http_batch_flush(ctx);
+    tls_process(ctx, actual_connection, bufferPtr, bytes_read, JAVA_TLS);
     return 0;
 }
 
