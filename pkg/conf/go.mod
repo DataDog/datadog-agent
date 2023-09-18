@@ -2,10 +2,14 @@ module github.com/DataDog/datadog-agent/pkg/conf
 
 go 1.20
 
-replace github.com/DataDog/datadog-agent/pkg/util/log => ../util/log/
+replace (
+	github.com/DataDog/datadog-agent/pkg/util/log => ../util/log/
+	github.com/DataDog/datadog-agent/pkg/version => ../version
+)
 
 require (
 	github.com/DataDog/datadog-agent/pkg/util/log v0.46.0
+	github.com/DataDog/datadog-agent/pkg/version v0.46.0
 	github.com/DataDog/viper v1.12.0
 	github.com/spf13/afero v1.9.5
 	github.com/spf13/pflag v1.0.5

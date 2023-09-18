@@ -5,6 +5,9 @@ import (
 )
 
 const (
+	// DefaultSite is the default site the Agent sends data to.
+	DefaultSite = "datadoghq.com"
+
 	// DefaultBatchWait is the default HTTP batch wait in second for logs
 	DefaultBatchWait = 5
 

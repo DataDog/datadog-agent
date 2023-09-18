@@ -10,7 +10,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/conf"
-	configUtils "github.com/DataDog/datadog-agent/pkg/config/utils"
+	configUtils "github.com/DataDog/datadog-agent/pkg/conf/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 

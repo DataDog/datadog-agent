@@ -12,9 +12,9 @@ import (
 	"github.com/stretchr/testify/suite"
 	"go.uber.org/fx"
 
-	"github.com/DataDog/datadog-agent/comp/core/config"
-	coreConfig "github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/config/utils"
+	"github.com/DataDog/datadog-agent/comp/core/config" // TODO: module
+	"github.com/DataDog/datadog-agent/pkg/conf/utils"
+	coreConfig "github.com/DataDog/datadog-agent/pkg/config" // TODO: module
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 

@@ -37,6 +37,8 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/util/log => ./pkg/util/log
 	github.com/DataDog/datadog-agent/pkg/util/pointer => ./pkg/util/pointer
 	github.com/DataDog/datadog-agent/pkg/util/scrubber => ./pkg/util/scrubber
+	github.com/DataDog/datadog-agent/pkg/version => ./pkg/version
+	github.com/DataDog/datadog-agent/pkg/util/fxutil => ./pkg/util/fxutil
 )
 
 require (
@@ -566,6 +568,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/logcomp v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/pkg/networkdevice/profile v0.0.0-20230913122404-c12f437d52a4
 	github.com/DataDog/datadog-agent/pkg/proto v0.48.0-rc.2
+	github.com/DataDog/datadog-agent/pkg/version v0.46.0
 	github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/logs v0.8.0
 	github.com/aquasecurity/trivy v0.0.0-00010101000000-000000000000
 	github.com/cloudfoundry-community/go-cfclient/v2 v2.0.1-0.20230503155151-3d15366c5820

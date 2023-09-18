@@ -33,7 +33,7 @@ import (
 const (
 
 	// DefaultSite is the default site the Agent sends data to.
-	DefaultSite = "datadoghq.com"
+	DefaultSite = conf.DefaultSite
 
 	// DefaultNumWorkers default number of workers for our check runner
 	DefaultNumWorkers = 4

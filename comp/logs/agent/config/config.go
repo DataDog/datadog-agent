@@ -8,15 +8,14 @@ package config
 import (
 	"encoding/json"
 	"fmt"
-	"github.com/DataDog/datadog-agent/pkg/conf"
 	"net"
 	"net/url"
 	"strconv"
 	"strings"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/config/utils"
-	configUtils "github.com/DataDog/datadog-agent/pkg/config/utils"
+	"github.com/DataDog/datadog-agent/pkg/conf"
+	configUtils "github.com/DataDog/datadog-agent/pkg/conf/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -165,7 +164,7 @@ func buildTCPEndpoints(coreConfig conf.ConfigReader, logsConfig *LogsConfigKeys)
 	} else {
 		// If no proxy is set, we default to 'logs_config.dd_url' if set, or to 'site'.
 		// if none of them is set, we default to the US agent endpoint.
-		main.Host = utils.GetMainEndpoint(coreConfig, tcpEndpointPrefix, logsConfig.getConfigKey("dd_url"))
+		main.Host = configUtils.GetMainEndpoint(coreConfig, tcpEndpointPrefix, logsConfig.getConfigKey("dd_url"))
 		if port, found := logsEndpoints[main.Host]; found {
 			main.Port = port
 		} else {
@@ -236,7 +235,7 @@ func BuildHTTPEndpointsWithConfig(coreConfig conf.ConfigReader, logsConfig *Logs
 		main.Port = port
 		main.UseSSL = useSSL
 	} else {
-		addr := utils.GetMainEndpoint(coreConfig, endpointPrefix, logsConfig.getConfigKey("dd_url"))
+		addr := configUtils.GetMainEndpoint(coreConfig, endpointPrefix, logsConfig.getConfigKey("dd_url"))
 		host, port, useSSL, err := parseAddressWithScheme(addr, logsConfig.devModeNoSSL(), parseAddressAsHost)
 		if err != nil {
 			return nil, fmt.Errorf("could not parse %s: %v", logsDDURL, err)
