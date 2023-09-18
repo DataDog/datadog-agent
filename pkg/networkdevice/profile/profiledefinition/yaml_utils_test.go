@@ -17,10 +17,6 @@ type MyStringArray struct {
 	SomeIds StringArray `yaml:"my_field"`
 }
 
-type MyMapping struct {
-	AMapping MappingArray `yaml:"my_mapping"`
-}
-
 func Test_metricTagConfig_UnmarshalYAML(t *testing.T) {
 	myStruct := MetricsConfig{}
 	expected := MetricsConfig{MetricTags: []MetricTagConfig{{Index: 3}}}
@@ -64,60 +60,6 @@ func TestStringArray_UnmarshalYAML_string(t *testing.T) {
 
 	yaml.Unmarshal([]byte(`
 my_field: aaa
-`), &myStruct)
-
-	assert.Equal(t, expected, myStruct)
-}
-
-func TestMappingArray_UnmarshalYAML_KeyValueArray(t *testing.T) {
-	myStruct := MyMapping{}
-	expected := MyMapping{
-		AMapping: MappingArray{
-			KeyValue{Key: "aaa", Value: "111"},
-			KeyValue{Key: "bbb", Value: "222"},
-		},
-	}
-
-	err := yaml.Unmarshal([]byte(`
-my_mapping:
- - key: aaa
-   value: 111
- - key: bbb
-   value: 222
-`), &myStruct)
-	assert.NoError(t, err)
-
-	assert.Equal(t, expected, myStruct)
-}
-
-func TestMappingArray_UnmarshalYAML_KeyValueArray_ErrorSameKeyUsedMultipleTime(t *testing.T) {
-	myStruct := MyMapping{}
-
-	err := yaml.Unmarshal([]byte(`
-my_mapping:
- - key: aaa
-   value: 111
- - key: bbb
-   value: 222
- - key: bbb
-   value: 333
-`), &myStruct)
-	assert.Error(t, err, "same key used multiple times: bbb")
-}
-
-func TestMappingArray_UnmarshalYAML_StringToStringMapping(t *testing.T) {
-	myStruct := MyMapping{}
-	expected := MyMapping{
-		AMapping: MappingArray{
-			KeyValue{Key: "aaa", Value: "111"},
-			KeyValue{Key: "bbb", Value: "222"},
-		},
-	}
-
-	yaml.Unmarshal([]byte(`
-my_mapping:
- aaa: 111
- bbb: 222
 `), &myStruct)
 
 	assert.Equal(t, expected, myStruct)

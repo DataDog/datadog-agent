@@ -39,12 +39,6 @@ const (
 	ProfileMetricTypePercent ProfileMetricType = "percent"
 )
 
-// KeyValue used to represent mapping
-type KeyValue struct {
-	Key   string `yaml:"key" json:"key"`
-	Value string `yaml:"value" json:"value"`
-}
-
 // SymbolConfig holds info for a single symbol/oid
 type SymbolConfig struct {
 	OID  string `yaml:"OID,omitempty" json:"OID,omitempty"`
@@ -84,15 +78,15 @@ type MetricTagConfig struct {
 
 	IndexTransform []MetricIndexTransform `yaml:"index_transform,omitempty" json:"index_transform,omitempty"`
 
-	// To represent string to string mapping we are using `MappingArray` since remote-config validation doesn't allow map[string]string
-	Mapping MappingArray `yaml:"mapping,omitempty" json:"mapping,omitempty"`
+	// TODO: Convert to list
+	Mapping map[string]string `yaml:"mapping,omitempty" json:"mapping,omitempty"`
 
 	// Regex
 	Match string `yaml:"match,omitempty" json:"match,omitempty"`
 
-	// To represent string to string mapping we are using `MappingArray` since remote-config validation doesn't allow map[string]string
-	Tags    MappingArray   `yaml:"tags,omitempty" json:"tags,omitempty"`
-	Pattern *regexp.Regexp `yaml:"-" json:"-"`
+	// TODO: Convert to list
+	Tags    map[string]string `yaml:"tags,omitempty" json:"tags,omitempty"`
+	Pattern *regexp.Regexp    `yaml:"-" json:"-"`
 
 	SymbolTag string `yaml:"-" json:"-"`
 }

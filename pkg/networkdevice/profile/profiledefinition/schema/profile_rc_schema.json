@@ -15,32 +15,37 @@
         "profile_definition"
       ]
     },
-    "KeyValue": {
+    "MetadataConfig": {
+      "additionalProperties": {
+        "$ref": "#/$defs/MetadataResourceConfig"
+      },
+      "type": "object"
+    },
+    "MetadataField": {
       "properties": {
-        "key": {
-          "type": "string"
+        "symbol": {
+          "$ref": "#/$defs/SymbolConfig"
+        },
+        "symbols": {
+          "items": {
+            "$ref": "#/$defs/SymbolConfig"
+          },
+          "type": "array"
         },
         "value": {
           "type": "string"
         }
       },
       "additionalProperties": false,
-      "type": "object",
-      "required": [
-        "key",
-        "value"
-      ]
-    },
-    "MappingArray": {
-      "items": {
-        "$ref": "#/$defs/KeyValue"
-      },
-      "type": "array"
+      "type": "object"
     },
     "MetadataResourceConfig": {
       "properties": {
-        "resource_type": {
-          "type": "string"
+        "fields": {
+          "additionalProperties": {
+            "$ref": "#/$defs/MetadataField"
+          },
+          "type": "object"
         },
         "id_tags": {
           "$ref": "#/$defs/MetricTagConfigList"
@@ -49,7 +54,7 @@
       "additionalProperties": false,
       "type": "object",
       "required": [
-        "resource_type"
+        "fields"
       ]
     },
     "MetricIndexTransform": {
@@ -92,13 +97,19 @@
           "type": "array"
         },
         "mapping": {
-          "$ref": "#/$defs/MappingArray"
+          "additionalProperties": {
+            "type": "string"
+          },
+          "type": "object"
         },
         "match": {
           "type": "string"
         },
         "tags": {
-          "$ref": "#/$defs/MappingArray"
+          "additionalProperties": {
+            "type": "string"
+          },
+          "type": "object"
         }
       },
       "additionalProperties": false,
@@ -179,10 +190,7 @@
           "type": "array"
         },
         "metadata": {
-          "items": {
-            "$ref": "#/$defs/MetadataResourceConfig"
-          },
-          "type": "array"
+          "$ref": "#/$defs/MetadataConfig"
         },
         "metric_tags": {
           "items": {
