@@ -47,7 +47,6 @@ func NewBTFConstantFetcherFromCurrentKernel() (*BTFConstantFetcher, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer ebpf.ReleaseKernelSpecCache()
 	return NewBTFConstantFetcherFromSpec(spec), nil
 }
 
