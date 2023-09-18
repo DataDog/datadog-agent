@@ -8,5 +8,5 @@
 ---
 deprecations:
   - |
-    service_monitoring_config.enable_go_tls_support is deprecated and replaced by service_monitoring_config.tls.go.enabled.
-    network_config.enable_https_monitoring is deprecated and replaced by service_monitoring_config.tls.native.enabled.
+    `service_monitoring_config.enable_go_tls_support` is deprecated and replaced by `service_monitoring_config.tls.go.enabled`.
+    `network_config.enable_https_monitoring` is deprecated and replaced by `service_monitoring_config.tls.native.enabled`.
