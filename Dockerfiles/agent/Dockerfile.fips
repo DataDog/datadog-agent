@@ -1,0 +1,67 @@
+# latest LTS
+FROM --platform=$BUILDPLATFORM ubuntu:20.04 AS build-stage
+
+ARG TARGETARCH
+ARG GO_VERSION=1.20.8
+ENV DEBIAN_FRONTEND=noninteractive
+ENV DATADOG_AGENT_EMBEDDED_PATH=/opt/datadog-agent/embedded
+
+RUN apt-get update && apt-get upgrade -y && \
+    # Common + Agent (Core/Trace/Process) dependencies
+    apt-get install -y build-essential apt-transport-https libsystemd-dev cmake sudo vim git curl procps ruby ruby-dev autoconf automake libtool libtool-bin gettext autopoint checkpolicy policycoreutils policycoreutils-python-utils bison pkg-config docker.io ninja-build \
+    # Python setup
+    python3 python3-dev python3-venv python3-pip
+
+RUN curl -sL https://storage.googleapis.com/golang/go${GO_VERSION}.linux-${TARGETARCH}.tar.gz | tar -C /usr/local -xz
+
+# GOPATH needs to be in /home/datadog because rtloader/CMakeLists.txt
+# makes some unfortunate assumptions
+ENV GOPATH="/home/datadog/go" \
+    GOROOT=/usr/local/go \
+    PATH="${PATH}:${GOPATH}/bin:/usr/local/go/bin"
+
+COPY ./requirements.txt ${GOPATH}/src/github.com/DataDog/datadog-agent/
+WORKDIR ${GOPATH}/src/github.com/DataDog/datadog-agent
+RUN pip3 install -r ${GOPATH}/src/github.com/DataDog/datadog-agent/requirements.txt
+
+#   ".": GoModule(".", targets=["./pkg", "./cmd", "./comp"],),
+#   "internal/tools": GoModule("internal/tools", condition=lambda: False, should_tag=False),
+#   "internal/tools/proto": GoModule("internal/tools/proto", condition=lambda: False, should_tag=False),
+#   "internal/tools/modparser": GoModule("internal/tools/modparser", condition=lambda: False, should_tag=False),
+#   "test/e2e/containers/otlp_sender": GoModule( "test/e2e/containers/otlp_sender", condition=lambda: False, should_tag=False),
+#   "test/new-e2e": GoModule( "test/new-e2e", independent=True, targets=["./pkg/runner", "./pkg/utils/e2e/client"], lint_targets=["."],),
+#   "test/fakeintake": GoModule("test/fakeintake", independent=True),
+#   "pkg/obfuscate": GoModule("pkg/obfuscate", independent=True),
+#   "pkg/gohai": GoModule("pkg/gohai", independent=True, importable=False),
+#   "pkg/proto": GoModule("pkg/proto", independent=True),
+#   "pkg/trace": GoModule("pkg/trace", independent=True),
+#   "pkg/security/secl": GoModule("pkg/security/secl", independent=True),
+#   "pkg/remoteconfig/state": GoModule("pkg/remoteconfig/state", independent=True),
+#   "pkg/util/cgroups": GoModule("pkg/util/cgroups", independent=True, condition=lambda: sys.platform == "linux"),
+#   "pkg/util/log": GoModule("pkg/util/log", independent=True),
+#   "pkg/util/pointer": GoModule("pkg/util/pointer", independent=True),
+#   "pkg/util/scrubber": GoModule("pkg/util/scrubber", independent=True),
+
+COPY go.mod go.sum ${GOPATH}/src/github.com/DataDog/datadog-agent/
+COPY .git/ ${GOPATH}/src/github.com/DataDog/datadog-agent/.git/
+COPY tasks/ ${GOPATH}/src/github.com/DataDog/datadog-agent/tasks/
+COPY pkg/ ${GOPATH}/src/github.com/DataDog/datadog-agent/pkg/
+COPY internal/ ${GOPATH}/src/github.com/DataDog/datadog-agent/internal/
+COPY test/ ${GOPATH}/src/github.com/DataDog/datadog-agent/test/
+WORKDIR ${GOPATH}/src/github.com/DataDog/datadog-agent
+RUN git config --global --add safe.directory /home/datadog/go/src/github.com/DataDog/datadog-agent
+RUN invoke install-tools
+RUN invoke deps
+
+COPY . ${GOPATH}/src/github.com/DataDog/datadog-agent/
+
+# there may be previous build artifacts from leaked CMake caches of rtloader if run on host
+RUN git clean -dfX ./rtloader/
+
+WORKDIR ${GOPATH}/src/github.com/DataDog/datadog-agent
+RUN CGO_ENABLED=1 GOEXPERIMENT=boringcrypto invoke agent.build --build-exclude=systemd
+
+
+FROM scratch AS export-stage
+COPY --from=build-stage /home/datadog/go/src/github.com/DataDog/datadog-agent/dev ./dev
+COPY --from=build-stage /home/datadog/go/src/github.com/DataDog/datadog-agent/bin/agent/agent ./bin/agent
