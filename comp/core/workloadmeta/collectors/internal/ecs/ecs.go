@@ -47,6 +47,7 @@ type resourceTags struct {
 	containerInstanceTags map[string]string
 }
 
+// NewCollector returns a new ecs collector provider and an error
 func NewCollector() (workloadmeta.CollectorProvider, error) {
 	return workloadmeta.CollectorProvider{
 		Collector: &collector{

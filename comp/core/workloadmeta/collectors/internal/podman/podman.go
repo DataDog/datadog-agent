@@ -20,6 +20,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/podman"
+
+	"go.uber.org/fx"
 )
 
 const (
@@ -32,12 +34,14 @@ type podmanClient interface {
 }
 
 type collector struct {
+	id      string
 	client  podmanClient
 	store   workloadmeta.Component
 	catalog workloadmeta.AgentType
 	seen    map[workloadmeta.EntityID]struct{}
 }
 
+// NewCollector returns a new podman collector provider and an error
 func NewCollector() (workloadmeta.CollectorProvider, error) {
 	return workloadmeta.CollectorProvider{
 		Collector: &collector{
@@ -103,10 +107,6 @@ func (c *collector) Pull(_ context.Context) error {
 
 func (c *collector) GetID() string {
 	return c.id
-}
-
-func (c *collector) GetTargetCatalog() workloadmeta.AgentType {
-	return c.catalog
 }
 
 func (c *collector) GetTargetCatalog() workloadmeta.AgentType {
