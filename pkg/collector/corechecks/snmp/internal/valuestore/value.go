@@ -10,15 +10,15 @@ import (
 	"regexp"
 	"strconv"
 
-	"github.com/DataDog/datadog-agent/pkg/snmp/gosnmplib"
+	"github.com/DataDog/datadog-agent/pkg/networkdevice/profile/profiledefinition"
 
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/checkconfig"
+	"github.com/DataDog/datadog-agent/pkg/snmp/gosnmplib"
 )
 
 // ResultValue represent a snmp value
 type ResultValue struct {
-	SubmissionType checkconfig.ProfileMetricType `json:"sub_type,omitempty"` // used when sending the metric
-	Value          interface{}                   `json:"value"`              // might be a `string`, `[]byte` or `float64` type
+	SubmissionType profiledefinition.ProfileMetricType `json:"sub_type,omitempty"` // used when sending the metric
+	Value          interface{}                         `json:"value"`              // might be a `string`, `[]byte` or `float64` type
 }
 
 // ToFloat64 converts value to float64
