@@ -513,5 +513,5 @@ func getContentEncoding(compressorKind string) string {
 	if compressorKind == "zlib" {
 		return "deflate"
 	}
-	return "zstd"
+	return "zstd1"
 }
