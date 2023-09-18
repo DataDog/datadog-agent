@@ -14,14 +14,9 @@ import (
 	"strings"
 	"time"
 
-<<<<<<< HEAD:comp/workloadmeta/collectors/internal/kubemetadata/kubemetadata.go
 	"k8s.io/apimachinery/pkg/util/sets"
 
-	"github.com/DataDog/datadog-agent/comp/workloadmeta"
-	"github.com/DataDog/datadog-agent/comp/workloadmeta/collectors"
-=======
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
->>>>>>> c98ba9c36e ([comp] workloadmeta: moving to core for now):comp/core/workloadmeta/collectors/internal/kubemetadata/kubemetadata.go
 	apiv1 "github.com/DataDog/datadog-agent/pkg/clusteragent/api/v1"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/errors"

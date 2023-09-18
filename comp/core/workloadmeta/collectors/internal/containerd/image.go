@@ -93,8 +93,8 @@ func (images *knownImages) addReference(imageName string, imageID string) {
 	if images.repoTagsByID[imageID] == nil {
 		images.repoTagsByID[imageID] = make(map[string]struct{})
 	}
+
 	images.repoTagsByID[imageID][imageName] = struct{}{}
-	return
 }
 
 func (images *knownImages) deleteReference(imageName string, imageID string) {

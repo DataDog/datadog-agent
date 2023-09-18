@@ -5,6 +5,7 @@
 
 //go:build containerd
 
+// containerd collector package
 package containerd
 
 import (

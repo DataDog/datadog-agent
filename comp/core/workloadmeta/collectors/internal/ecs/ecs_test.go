@@ -6,6 +6,7 @@
 //go:build docker
 // +build docker
 
+// ecs collector package
 package ecs
 
 import (
@@ -57,8 +58,8 @@ func (*fakev3or4EcsClient) GetTask(ctx context.Context) (*v3or4.Task, error) { /
 	return nil, errors.New("unimplemented")
 }
 
-func (c *fakev3or4EcsClient) GetTaskWithTags(ctx context.Context) (*v3or4.Task, error) {
-	return c.mockGetTaskWithTags(ctx)
+func (store *fakev3or4EcsClient) GetTaskWithTags(ctx context.Context) (*v3or4.Task, error) {
+	return store.mockGetTaskWithTags(ctx)
 }
 
 func (*fakev3or4EcsClient) GetContainer(ctx context.Context) (*v3or4.Container, error) { //nolint:revive // TODO fix revive unused-parameter

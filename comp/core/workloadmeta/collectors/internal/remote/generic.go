@@ -175,7 +175,7 @@ func (c *GenericCollector) startWorkloadmetaStream(maxElapsed time.Duration) err
 	}, expBackoff)
 }
 
-// Run runs the collector.
+// Run will run the generic collector streaming loop
 func (c *GenericCollector) Run() {
 	for {
 		select {
