@@ -168,5 +168,6 @@ func ReleaseKernelSpecCache() {
 	if kernelSpecCache.refCount <= 0 {
 		kernelSpecCache.spec = nil
 		btf.FlushKernelSpec()
+		kernelSpecCache.refCount = 0
 	}
 }
