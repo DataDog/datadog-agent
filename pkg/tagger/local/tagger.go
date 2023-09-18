@@ -11,6 +11,7 @@ import (
 	"sync"
 
 	"github.com/DataDog/datadog-agent/pkg/tagset"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
 
 	tagger_api "github.com/DataDog/datadog-agent/pkg/tagger/api"
@@ -85,6 +86,7 @@ func (t *Tagger) getTags(entity string, cardinality collectors.TagCardinality) (
 // AccumulateTagsFor appends tags for a given entity from the tagger to the TagsAccumulator
 func (t *Tagger) AccumulateTagsFor(entity string, cardinality collectors.TagCardinality, tb tagset.TagsAccumulator) error {
 	tags, err := t.getTags(entity, cardinality)
+	log.Errorf("New tags being added to entity %q: %q", entity, tags)
 	tb.AppendHashed(tags)
 	return err
 }

@@ -268,6 +268,7 @@ func EnrichTags(tb tagset.TagsAccumulator, udsOrigin string, clientOrigin string
 	cardinality := taggerCardinality(cardinalityName)
 
 	if udsOrigin != packets.NoOrigin {
+		log.Errorf("Origin is %q, new tags will be added", udsOrigin)
 		if err := AccumulateTagsFor(udsOrigin, cardinality, tb); err != nil {
 			log.Errorf(err.Error())
 		}

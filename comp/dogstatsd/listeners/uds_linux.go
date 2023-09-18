@@ -19,6 +19,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/cache"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/containers/metrics"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 const (
@@ -84,6 +85,7 @@ func processUDSOrigin(ancillary []byte) (int, string, error) {
 		return int(pid), packets.NoOrigin, err
 	}
 
+	log.Errorf("For pid %v, we found entity %q", pid, entity)
 	return int(pid), entity, nil
 }
 
@@ -103,12 +105,15 @@ func getEntityForPID(pid int32, capture bool) (string, error) {
 		if !capture {
 			cache.Cache.Set(key, entity, pidToEntityCacheDuration)
 		}
+		log.Errorf("Yes entity -- %q ", entity)
 		return entity, nil
 	case errNoContainerMatch:
+		log.Errorf("No entity -- ErrNoContainerMatch ")
 		// No runtime detected, cache the `packets.NoOrigin` result
 		cache.Cache.Set(key, packets.NoOrigin, pidToEntityCacheDuration)
 		return packets.NoOrigin, nil
 	default:
+		log.Errorf("No entity -- Other ")
 		// Other lookup error, retry next time
 		return packets.NoOrigin, err
 	}

@@ -196,6 +196,7 @@ func (l *UDSListener) Listen() {
 
 			// Extract container id from credentials
 			pid, container, taggingErr := processUDSOrigin(oobS[:oobn])
+			log.Errorf("UDS processed origin pid=%q container=%q taggingErr=%q", pid, container, taggingErr)
 
 			if capBuff != nil {
 				capBuff.Pb.Timestamp = time.Now().UnixNano()
