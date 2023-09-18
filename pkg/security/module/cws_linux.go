@@ -19,6 +19,13 @@ func UpdateEventMonitorOpts(opts *eventmonitor.Opts) {
 	opts.ProbeOpts.PathResolutionEnabled = true
 }
 
+// DisableRuntimeSecurity disables all the runtime security features
+func DisableRuntimeSecurity(config *config.Config) {
+	config.Probe.NetworkEnabled = false
+	config.RuntimeSecurity.ActivityDumpEnabled = false
+	config.RuntimeSecurity.SecurityProfileEnabled = false
+}
+
 // platform specific init function
 func (c *CWSConsumer) init(evm *eventmonitor.EventMonitor, config *config.RuntimeSecurityConfig, opts Opts) error {
 	// Activity dumps related
