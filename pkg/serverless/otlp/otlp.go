@@ -70,7 +70,7 @@ var (
 
 // state returns the current state of the underlying otel collector.
 func (o *ServerlessOTLPAgent) state() string {
-	return coreOtlp.GetCollectorStatus(o.pipeline).Status
+	return o.pipeline.GetCollectorStatus().Status
 }
 
 // Wait waits until the OTLP agent is running.

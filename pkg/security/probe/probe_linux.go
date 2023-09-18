@@ -19,9 +19,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/DataDog/ebpf-manager/tracefs"
 	"github.com/hashicorp/go-multierror"
-	easyjson "github.com/mailru/easyjson"
+	"github.com/mailru/easyjson"
 	"github.com/moby/sys/mountinfo"
 	"golang.org/x/exp/slices"
 	"golang.org/x/sys/unix"
@@ -29,6 +28,7 @@ import (
 	"gopkg.in/yaml.v3"
 
 	manager "github.com/DataDog/ebpf-manager"
+	"github.com/DataDog/ebpf-manager/tracefs"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/ebpf/probe/ebpfcheck"
 	aconfig "github.com/DataDog/datadog-agent/pkg/config"
@@ -36,7 +36,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/process/procutil"
 	"github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/ebpf"
-	kernel "github.com/DataDog/datadog-agent/pkg/security/ebpf/kernel"
+	"github.com/DataDog/datadog-agent/pkg/security/ebpf/kernel"
 	"github.com/DataDog/datadog-agent/pkg/security/ebpf/probes"
 	"github.com/DataDog/datadog-agent/pkg/security/events"
 	"github.com/DataDog/datadog-agent/pkg/security/metrics"
@@ -364,14 +364,11 @@ func (p *Probe) DispatchEvent(event *model.Event) {
 		p.profileManagers.securityProfileManager.LookupEventInProfiles(event)
 	}
 
-	// send wildcard first
-	for _, handler := range p.eventHandlers[model.UnknownEventType] {
-		handler.HandleEvent(event)
-	}
-	// send specific event
-	for _, handler := range p.eventHandlers[event.GetEventType()] {
-		handler.HandleEvent(event)
-	}
+	// send event to wildcard handlers, like the CWS rule engine, first
+	p.sendEventToWildcardHandlers(event)
+
+	// send event to specific event handlers, like the event monitor consumers, subsequently
+	p.sendEventToSpecificEventTypeHandlers(event)
 
 	// handle anomaly detections
 	if event.IsAnomalyDetectionEvent() {
@@ -386,6 +383,18 @@ func (p *Probe) DispatchEvent(event *model.Event) {
 		}
 	}
 	p.monitor.ProcessEvent(event)
+}
+
+func (p *Probe) sendEventToWildcardHandlers(event *model.Event) {
+	for _, handler := range p.eventHandlers[model.UnknownEventType] {
+		handler.HandleEvent(event)
+	}
+}
+
+func (p *Probe) sendEventToSpecificEventTypeHandlers(event *model.Event) {
+	for _, handler := range p.eventHandlers[event.GetEventType()] {
+		handler.HandleEvent(event)
+	}
 }
 
 // DispatchCustomEvent sends a custom event to the probe event handler
@@ -753,7 +762,7 @@ func (p *Probe) handleEvent(CPU int, data []byte) {
 			pce = p.resolvers.ProcessResolver.Resolve(event.PTrace.PID, event.PTrace.PID, 0, false)
 		}
 		if pce == nil {
-			pce = model.NewEmptyProcessCacheEntry(event.PTrace.PID, event.PTrace.PID, false)
+			pce = model.NewPlaceholderProcessCacheEntry(event.PTrace.PID, event.PTrace.PID, false)
 		}
 		event.PTrace.Tracee = &pce.ProcessContext
 	case model.MMapEventType:
@@ -798,7 +807,7 @@ func (p *Probe) handleEvent(CPU int, data []byte) {
 			pce = p.resolvers.ProcessResolver.Resolve(event.Signal.PID, event.Signal.PID, 0, false)
 		}
 		if pce == nil {
-			pce = model.NewEmptyProcessCacheEntry(event.Signal.PID, event.Signal.PID, false)
+			pce = model.NewPlaceholderProcessCacheEntry(event.Signal.PID, event.Signal.PID, false)
 		}
 		event.Signal.Target = &pce.ProcessContext
 	case model.SpliceEventType:
