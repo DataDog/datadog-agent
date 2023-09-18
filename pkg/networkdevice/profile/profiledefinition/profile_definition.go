@@ -14,15 +14,14 @@ type DeviceMeta struct {
 
 // ProfileDefinition is the root profile structure
 type ProfileDefinition struct {
-	Name         string                   `yaml:"name" json:"name"`
-	Description  string                   `yaml:"description,omitempty" json:"description,omitempty"`
-	SysObjectIds StringArray              `yaml:"sysobjectid,omitempty" json:"sysobjectid,omitempty"`
-	Extends      []string                 `yaml:"extends,omitempty" json:"extends,omitempty"`
-	Metadata     MetadataConfig           `yaml:"-" json:"-"` // TODO: Need custom UnmarshalYAML for backward compat
-	MetadataList []MetadataResourceConfig `yaml:"metadata,omitempty" json:"metadata,omitempty"`
-	MetricTags   []MetricTagConfig        `yaml:"metric_tags,omitempty" json:"metric_tags,omitempty"`
-	StaticTags   []string                 `yaml:"static_tags,omitempty" json:"static_tags,omitempty"`
-	Metrics      []MetricsConfig          `yaml:"metrics,omitempty" json:"metrics,omitempty"`
+	Name         string            `yaml:"name" json:"name"`
+	Description  string            `yaml:"description,omitempty" json:"description,omitempty"`
+	SysObjectIds StringArray       `yaml:"sysobjectid,omitempty" json:"sysobjectid,omitempty"`
+	Extends      []string          `yaml:"extends,omitempty" json:"extends,omitempty"`
+	MetadataList MetadataConfig    `yaml:"metadata,omitempty" json:"metadata,omitempty"`
+	MetricTags   []MetricTagConfig `yaml:"metric_tags,omitempty" json:"metric_tags,omitempty"`
+	StaticTags   []string          `yaml:"static_tags,omitempty" json:"static_tags,omitempty"`
+	Metrics      []MetricsConfig   `yaml:"metrics,omitempty" json:"metrics,omitempty"`
 
 	Device DeviceMeta `yaml:"device,omitempty" json:"device,omitempty" jsonschema:"-"` // DEPRECATED
 }

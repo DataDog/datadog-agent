@@ -11,6 +11,9 @@ const MetadataDeviceResource = "device"
 // MetadataConfig holds configs per resource type
 type MetadataConfig map[string]MetadataResourceConfig
 
+type MetadataFieldEntry struct {
+}
+
 // MetadataResourceConfig holds configs for a metadata resource
 type MetadataResourceConfig struct {
 	ResourceType string `yaml:"resource_type" json:"resource_type"`
