@@ -24,7 +24,7 @@ import (
 // the rule's rego program.
 func EvaluateRegoRule(ctx context.Context, resolvedInputs ResolvedInputs, benchmark *Benchmark, rule *Rule) []*CheckEvent {
 	wrapErr := func(errReason error) []*CheckEvent {
-		return []*CheckEvent{NewCheckError(RegoEvaluator, errReason, "", "", rule, benchmark)}
+		return []*CheckEvent{CheckEventFromError(RegoEvaluator, rule, benchmark, errReason)}
 	}
 
 	if !rule.IsRego() {

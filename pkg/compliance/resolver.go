@@ -46,10 +46,6 @@ import (
 // Rule.
 const inputsResolveTimeout = 5 * time.Second
 
-// ErrIncompatibleEnvironment is returns by the resolver to signal that the
-// given rule's inputs are not resolvable in the current environment.
-var ErrIncompatibleEnvironment = errors.New("environment not compatible this type of input")
-
 // DockerProvider is a function returning a Docker client.
 type DockerProvider func(context.Context) (docker.CommonAPIClient, error)
 

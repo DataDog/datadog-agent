@@ -10,7 +10,6 @@ package compliance
 
 import (
 	"context"
-	"errors"
 	"expvar"
 	"fmt"
 	"hash/fnv"
@@ -255,10 +254,8 @@ func (a *Agent) runRegoBenchmarks(ctx context.Context) {
 			resolver := NewResolver(ctx, a.opts.ResolverOptions)
 			for _, rule := range benchmark.Rules {
 				inputs, err := resolver.ResolveInputs(ctx, rule)
-				if errors.Is(err, ErrIncompatibleEnvironment) {
-					a.reportEvents(ctx, benchmark, NewCheckSkipped(RegoEvaluator, err, "", "", rule, benchmark))
-				} else if err != nil {
-					a.reportEvents(ctx, benchmark, NewCheckError(RegoEvaluator, err, "", "", rule, benchmark))
+				if err != nil {
+					a.reportEvents(ctx, benchmark, CheckEventFromError(RegoEvaluator, rule, benchmark, err))
 				} else {
 					events := EvaluateRegoRule(ctx, inputs, benchmark, rule)
 					a.reportEvents(ctx, benchmark, events...)

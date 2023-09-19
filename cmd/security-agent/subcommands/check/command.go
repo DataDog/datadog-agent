@@ -11,7 +11,6 @@ package check
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -198,10 +197,8 @@ func RunCheck(log log.Component, config config.Component, checkArgs *CliParams) 
 				ruleEvents = compliance.EvaluateXCCDFRule(context.Background(), hname, statsdClient, benchmark, rule)
 			case rule.IsRego():
 				inputs, err := resolver.ResolveInputs(context.Background(), rule)
-				if errors.Is(err, compliance.ErrIncompatibleEnvironment) {
-					ruleEvents = append(ruleEvents, compliance.NewCheckSkipped(compliance.RegoEvaluator, err, "", "", rule, benchmark))
-				} else if err != nil {
-					ruleEvents = append(ruleEvents, compliance.NewCheckError(compliance.RegoEvaluator, err, "", "", rule, benchmark))
+				if err != nil {
+					ruleEvents = append(ruleEvents, compliance.CheckEventFromError(compliance.RegoEvaluator, rule, benchmark, err))
 				} else {
 					ruleEvents = compliance.EvaluateRegoRule(context.Background(), inputs, benchmark, rule)
 				}
