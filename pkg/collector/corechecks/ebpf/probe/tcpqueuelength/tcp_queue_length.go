@@ -109,6 +109,7 @@ func (t *TCPQueueLengthTracer) Close() {
 	}
 }
 
+// GetAndFlush gets the stats
 func (t *TCPQueueLengthTracer) GetAndFlush() model.TCPQueueLengthStats {
 	nbCpus, err := kernel.PossibleCPUs()
 	if err != nil {

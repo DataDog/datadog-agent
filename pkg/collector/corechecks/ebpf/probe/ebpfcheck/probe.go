@@ -200,6 +200,7 @@ func (k *EBPFProbe) Close() {
 	}
 }
 
+// GetAndFlush gets the stats
 func (k *EBPFProbe) GetAndFlush() (results model.EBPFStats) {
 	if err := k.getMapStats(&results); err != nil {
 		log.Debugf("error getting map stats: %s", err)

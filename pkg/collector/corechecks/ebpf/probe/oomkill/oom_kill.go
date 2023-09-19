@@ -145,6 +145,7 @@ func (k *OOMKillProbe) Close() {
 	}
 }
 
+// GetAndFlush gets the stats
 func (k *OOMKillProbe) GetAndFlush() (results []model.OOMKillStats) {
 	var pid uint32
 	var stat C.struct_oom_stats
