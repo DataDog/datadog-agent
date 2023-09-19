@@ -33,6 +33,13 @@ type DeviceProfileRcConfig struct {
 	Profile ProfileDefinition `json:"profile_definition"`
 }
 
+// NewProfileDefinition creates a new ProfileDefinition
+func NewProfileDefinition() *ProfileDefinition {
+	p := &ProfileDefinition{}
+	p.Metadata = make(MetadataConfig)
+	return p
+}
+
 func (d DeviceProfileRcConfig) NormalizeInplaceForRc() {
 	for i := range d.Profile.Metrics {
 		metric := &d.Profile.Metrics[i]
@@ -101,11 +108,4 @@ func (d DeviceProfileRcConfig) NormalizeInplaceFromRc() {
 			}
 		}
 	}
-}
-
-// NewProfileDefinition creates a new ProfileDefinition
-func NewProfileDefinition() *ProfileDefinition {
-	p := &ProfileDefinition{}
-	p.Metadata = make(MetadataConfig)
-	return p
 }
