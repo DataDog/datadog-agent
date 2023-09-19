@@ -554,6 +554,7 @@ type KubernetesPod struct {
 	EntityMeta
 	Owners                     []KubernetesPodOwner
 	PersistentVolumeClaimNames []string
+	InitContainers             []OrchestratorContainer
 	Containers                 []OrchestratorContainer
 	Ready                      bool
 	Phase                      string
@@ -603,6 +604,13 @@ func (p KubernetesPod) String(verbose bool) string {
 		}
 	}
 
+	if len(p.InitContainers) > 0 {
+		_, _ = fmt.Fprintln(&sb, "----------- Init Containers -----------")
+		for _, c := range p.InitContainers {
+			_, _ = fmt.Fprint(&sb, c.String(verbose))
+		}
+	}
+
 	if len(p.Containers) > 0 {
 		_, _ = fmt.Fprintln(&sb, "----------- Containers -----------")
 		for _, c := range p.Containers {
@@ -634,6 +642,11 @@ func (p KubernetesPod) String(verbose bool) string {
 	}
 
 	return sb.String()
+}
+
+// GetAllContainers returns init containers and containers.
+func (p KubernetesPod) GetAllContainers() []OrchestratorContainer {
+	return append(p.InitContainers, p.Containers...)
 }
 
 var _ Entity = &KubernetesPod{}
