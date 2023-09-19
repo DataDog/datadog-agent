@@ -78,8 +78,8 @@ type EventConsumerPostProbeStartHandler interface {
 }
 
 // EventTypeHandler event type based handler
-type EventTypeHandler interface {
-	probe.EventHandler
+type EventTypeHandler[T probe.ProcessEvent] interface {
+	probe.EventHandler[T]
 }
 
 // Register the event monitoring module
@@ -97,7 +97,7 @@ func (m *EventMonitor) RegisterGRPC(_ grpc.ServiceRegistrar) error {
 }
 
 // AddEventTypeHandler registers an event handler
-func (m *EventMonitor) AddEventTypeHandler(eventType model.EventType, handler EventTypeHandler) error {
+func (m *EventMonitor) AddEventTypeHandler(eventType model.EventType, handler EventTypeHandler[probe.ProcessEvent]) error {
 	if !slices.Contains(allowedEventTypes, eventType) {
 		return errors.New("event type not allowed")
 	}

@@ -20,7 +20,6 @@ import (
 	sprobe "github.com/DataDog/datadog-agent/pkg/security/probe"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 var theMonitor atomic.Value
@@ -34,6 +33,10 @@ type Process struct {
 	ContainerID *intern.Value
 	StartTime   int64
 	Expiry      int64
+}
+
+func (p *Process) GetType() string {
+	return "NPM"
 }
 
 // Env returns the value of a environment variable
@@ -124,7 +127,7 @@ func (h *eventHandlerWrapper) HandleCustomEvent(rule *rules.Rule, event *events.
 var _eventHandlerWrapper = &eventHandlerWrapper{}
 
 // Handler returns an event handler to handle events from the runtime security module
-func Handler() sprobe.EventHandler {
+func Handler[T *Process]() sprobe.EventHandler[T] {
 	return _eventHandlerWrapper
 }
 
