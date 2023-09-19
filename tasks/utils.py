@@ -552,3 +552,14 @@ def timed(name=""):
     finally:
         end = time.time()
         print(f"{name} completed in {end-start:.2f}s")
+
+
+class stop_watch:
+    """Context manager that stores the duration of an operation"""
+
+    def __enter__(self):
+        self._begin = time.time()
+        return self
+
+    def __exit__(self, *_):
+        self.duration = time.time() - self._begin
