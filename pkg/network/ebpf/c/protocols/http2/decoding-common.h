@@ -95,6 +95,8 @@ static __always_inline void handle_end_of_stream(http2_stream_t *current_stream,
         return;
     }
 
+    log_debug("Got EndOfStream event");
+
     // response end of stream;
     current_stream->response_last_seen = bpf_ktime_get_ns();
     current_stream->tup = http2_stream_key_template->tup;

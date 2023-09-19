@@ -28,9 +28,9 @@ static __always_inline void http_begin_request(http_transaction_t *http, http_me
 
 static __always_inline void http_begin_response(http_transaction_t *http, const char *buffer) {
     u16 status_code = 0;
-    status_code += (buffer[HTTP_STATUS_OFFSET+0]-'0') * 100;
-    status_code += (buffer[HTTP_STATUS_OFFSET+1]-'0') * 10;
-    status_code += (buffer[HTTP_STATUS_OFFSET+2]-'0') * 1;
+    status_code += (buffer[HTTP_STATUS_OFFSET + 0] - '0') * 100;
+    status_code += (buffer[HTTP_STATUS_OFFSET + 1] - '0') * 10;
+    status_code += (buffer[HTTP_STATUS_OFFSET + 2] - '0') * 1;
     http->response_status_code = status_code;
     log_debug("http_begin_response: htx=%llx status=%d\n", http, status_code);
 }
@@ -38,32 +38,32 @@ static __always_inline void http_begin_response(http_transaction_t *http, const 
 static __always_inline void http_parse_data(char const *p, http_packet_t *packet_type, http_method_t *method) {
     if ((p[0] == 'H') && (p[1] == 'T') && (p[2] == 'T') && (p[3] == 'P')) {
         *packet_type = HTTP_RESPONSE;
-    } else if ((p[0] == 'G') && (p[1] == 'E') && (p[2] == 'T') && (p[3]  == ' ') && (p[4] == '/')) {
+    } else if ((p[0] == 'G') && (p[1] == 'E') && (p[2] == 'T') && (p[3] == ' ') && (p[4] == '/')) {
         *packet_type = HTTP_REQUEST;
         *method = HTTP_GET;
-    } else if ((p[0] == 'P') && (p[1] == 'O') && (p[2] == 'S') && (p[3] == 'T') && (p[4]  == ' ') && (p[5] == '/')) {
+    } else if ((p[0] == 'P') && (p[1] == 'O') && (p[2] == 'S') && (p[3] == 'T') && (p[4] == ' ') && (p[5] == '/')) {
         *packet_type = HTTP_REQUEST;
         *method = HTTP_POST;
-    } else if ((p[0] == 'P') && (p[1] == 'U') && (p[2] == 'T') && (p[3]  == ' ') && (p[4] == '/')) {
+    } else if ((p[0] == 'P') && (p[1] == 'U') && (p[2] == 'T') && (p[3] == ' ') && (p[4] == '/')) {
         *packet_type = HTTP_REQUEST;
         *method = HTTP_PUT;
-    } else if ((p[0] == 'D') && (p[1] == 'E') && (p[2] == 'L') && (p[3] == 'E') && (p[4] == 'T') && (p[5] == 'E') && (p[6]  == ' ') && (p[7] == '/')) {
+    } else if ((p[0] == 'D') && (p[1] == 'E') && (p[2] == 'L') && (p[3] == 'E') && (p[4] == 'T') && (p[5] == 'E') && (p[6] == ' ') && (p[7] == '/')) {
         *packet_type = HTTP_REQUEST;
         *method = HTTP_DELETE;
-    } else if ((p[0] == 'H') && (p[1] == 'E') && (p[2] == 'A') && (p[3] == 'D') && (p[4]  == ' ') && (p[5] == '/')) {
+    } else if ((p[0] == 'H') && (p[1] == 'E') && (p[2] == 'A') && (p[3] == 'D') && (p[4] == ' ') && (p[5] == '/')) {
         *packet_type = HTTP_REQUEST;
         *method = HTTP_HEAD;
-    } else if ((p[0] == 'O') && (p[1] == 'P') && (p[2] == 'T') && (p[3] == 'I') && (p[4] == 'O') && (p[5] == 'N') && (p[6] == 'S') && (p[7]  == ' ') && ((p[8] == '/') || (p[8] == '*'))) {
+    } else if ((p[0] == 'O') && (p[1] == 'P') && (p[2] == 'T') && (p[3] == 'I') && (p[4] == 'O') && (p[5] == 'N') && (p[6] == 'S') && (p[7] == ' ') && ((p[8] == '/') || (p[8] == '*'))) {
         *packet_type = HTTP_REQUEST;
         *method = HTTP_OPTIONS;
-    } else if ((p[0] == 'P') && (p[1] == 'A') && (p[2] == 'T') && (p[3] == 'C') && (p[4] == 'H') && (p[5]  == ' ') && (p[6] == '/')) {
+    } else if ((p[0] == 'P') && (p[1] == 'A') && (p[2] == 'T') && (p[3] == 'C') && (p[4] == 'H') && (p[5] == ' ') && (p[6] == '/')) {
         *packet_type = HTTP_REQUEST;
         *method = HTTP_PATCH;
     }
 }
 
 static __always_inline bool http_closed(skb_info_t *skb_info) {
-    return (skb_info && skb_info->tcp_flags&(TCPHDR_FIN|TCPHDR_RST));
+    return (skb_info && skb_info->tcp_flags & (TCPHDR_FIN | TCPHDR_RST));
 }
 
 // The purpose of http_seen_before is to is to avoid re-processing certain TCP segments.
@@ -118,7 +118,7 @@ static __always_inline http_transaction_t *http_fetch_state(http_transaction_t *
 //   2. We got a new response (packet_type == HTTP_RESPONSE) and the given transaction already contains a response
 static __always_inline bool http_should_flush_previous_state(http_transaction_t *http, http_packet_t packet_type) {
     return (packet_type == HTTP_REQUEST && (http->request_started || http->response_status_code)) ||
-        (packet_type == HTTP_RESPONSE && http->response_status_code);
+           (packet_type == HTTP_RESPONSE && http->response_status_code);
 }
 
 // http_process is responsible for parsing traffic and emitting events
@@ -165,9 +165,9 @@ static __always_inline void http_process(http_transaction_t *http_stack, skb_inf
 // this function is called by the socket-filter program to decide whether or not we should inspect
 // the contents of a certain packet, in order to avoid the cost of processing packets that are not
 // of interest such as empty ACKs, UDP data or encrypted traffic.
-static __always_inline bool http_allow_packet(http_transaction_t *http, struct __sk_buff* skb, skb_info_t *skb_info) {
+static __always_inline bool http_allow_packet(http_transaction_t *http, struct __sk_buff *skb, skb_info_t *skb_info) {
     // we're only interested in TCP traffic
-    if (!(http->tup.metadata&CONN_TYPE_TCP)) {
+    if (!(http->tup.metadata & CONN_TYPE_TCP)) {
         return false;
     }
 
@@ -175,14 +175,14 @@ static __always_inline bool http_allow_packet(http_transaction_t *http, struct _
     if (empty_payload || http->tup.sport == HTTPS_PORT || http->tup.dport == HTTPS_PORT) {
         // if the payload data is empty or encrypted packet, we only
         // process it if the packet represents a TCP termination
-        return skb_info->tcp_flags&(TCPHDR_FIN|TCPHDR_RST);
+        return skb_info->tcp_flags & (TCPHDR_FIN | TCPHDR_RST);
     }
 
     return true;
 }
 
 SEC("socket/http_filter")
-int socket__http_filter(struct __sk_buff* skb) {
+int socket__http_filter(struct __sk_buff *skb) {
     skb_info_t skb_info;
     http_transaction_t http;
     bpf_memset(&http, 0, sizeof(http));
@@ -199,6 +199,43 @@ int socket__http_filter(struct __sk_buff* skb) {
 
     read_into_buffer_skb((char *)http.request_fragment, skb, skb_info.data_off);
     http_process(&http, &skb_info, NO_TAGS);
+    return 0;
+}
+
+SEC("uprobe/http_process")
+int uprobe__http_process(struct pt_regs *ctx) {
+    const __u32 zero = 0;
+    tls_dispatcher_arguments_t *args = bpf_map_lookup_elem(&tls_dispatcher_arguments, &zero);
+    if (args == NULL) {
+        return 0;
+    }
+
+    http_transaction_t http;
+    bpf_memset(&http, 0, sizeof(http));
+    bpf_memcpy(&http.tup, &args->tup, sizeof(conn_tuple_t));
+    read_into_user_buffer_http(http.request_fragment, args->buf);
+    http_process(&http, NULL, args->tags);
+    http_batch_flush(ctx);
+
+    return 0;
+}
+
+SEC("uprobe/http_termination")
+int uprobe__http_termination(struct pt_regs *ctx) {
+    const __u32 zero = 0;
+    tls_dispatcher_arguments_t *args = bpf_map_lookup_elem(&tls_dispatcher_arguments, &zero);
+    if (args == NULL) {
+        return 0;
+    }
+
+    http_transaction_t http;
+    bpf_memset(&http, 0, sizeof(http));
+    bpf_memcpy(&http.tup, &args->tup, sizeof(conn_tuple_t));
+    skb_info_t skb_info = { 0 };
+    skb_info.tcp_flags |= TCPHDR_FIN;
+    http_process(&http, &skb_info, NO_TAGS);
+    http_batch_flush(ctx);
+
     return 0;
 }
 

@@ -125,12 +125,14 @@ func (e *Process) MarshalPidCache(data []byte) (int, error) {
 	if len(data) < 24 {
 		return 0, ErrNotEnoughSpace
 	}
-	ByteOrder.PutUint32(data[0:4], e.Cookie)
-	ByteOrder.PutUint32(data[4:8], e.PPid)
+	ByteOrder.PutUint64(data[0:8], e.Cookie)
+	ByteOrder.PutUint32(data[8:12], e.PPid)
 
-	marshalTime(data[8:16], e.ForkTime)
-	marshalTime(data[16:24], e.ExitTime)
-	written := 24
+	// padding
+
+	marshalTime(data[16:24], e.ForkTime)
+	marshalTime(data[24:32], e.ExitTime)
+	written := 32
 
 	n, err := MarshalBinary(data[written:], &e.Credentials)
 	if err != nil {

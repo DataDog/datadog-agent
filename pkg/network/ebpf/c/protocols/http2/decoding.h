@@ -406,11 +406,13 @@ int uprobe__http2_tls_entry(struct pt_regs *ctx) {
     log_debug("http2_tls_entry: after tail call");
     const u32 zero = 0;
 
-    http2_tls_info_t *info = bpf_map_lookup_elem(&http2_tls_info, &zero);
+    tls_dispatcher_arguments_t *info = bpf_map_lookup_elem(&tls_dispatcher_arguments, &zero);
     if (info == NULL) {
         log_debug("[http2_tls_entry] could not get tls info from map");
         return 0;
     }
+
+    log_debug("[http2_tls_entry] info: buf=%p, len=%lu, off=%lu", info->buf, info->len, info->off);
 
     // TODO: from tls_info: add bool from tls_finish to trigger this case
     //
@@ -443,7 +445,7 @@ int uprobe__http2_tls_entry(struct pt_regs *ctx) {
     // We have couple of interesting headers, launching tail calls to handle them.
     if (bpf_map_update_elem(&http2_tls_iterations, &zero, &iteration_value, BPF_ANY) >= 0) {
         // We managed to cache the iteration_value in the http2_iterations map.
-        bpf_tail_call_compat(ctx, &tls_process_progs, TLS_PROG_HTTP2_FRAMES_PARSER);
+        bpf_tail_call_compat(ctx, &tls_process_progs, TLS_HTTP2_FRAMES_PARSER);
     }
 
     return 0;
@@ -454,7 +456,7 @@ int uprobe__http2_tls_frames_parser(struct pt_regs *ctx) {
     log_debug("http2_tls_frames_parser: after tail call");
     const u32 zero = 0;
 
-    http2_tls_info_t *info = bpf_map_lookup_elem(&http2_tls_info, &zero);
+    tls_dispatcher_arguments_t *info = bpf_map_lookup_elem(&tls_dispatcher_arguments, &zero);
     if (info == NULL) {
         log_debug("[http2_tls_entry] could not get tls info from map");
         return 0;
@@ -483,21 +485,21 @@ int uprobe__http2_tls_frames_parser(struct pt_regs *ctx) {
 
     // create the http2 ctx for the current http2 frame.
     bpf_memset(http2_ctx, 0, sizeof(http2_ctx_t));
-    http2_ctx->http2_stream_key.tup = info->conn;
+    http2_ctx->http2_stream_key.tup = info->tup;
     normalize_tuple(&http2_ctx->http2_stream_key.tup);
-    http2_ctx->dynamic_index.tup = info->conn;
-    info->offset = current_frame.offset;
+    http2_ctx->dynamic_index.tup = info->tup;
+    info->off = current_frame.offset;
 
     parse_frame_tls(info, http2_ctx, &current_frame.frame);
-    if (info->offset >= info->len) {
+    if (info->off >= info->len) {
         goto exit;
     }
 
     /* // update the tail calls state when the http2 decoding part was completed successfully. */
-    /* tail_call_state->iteration += 1; */
-    /* if (tail_call_state->iteration < HTTP2_MAX_FRAMES_ITERATIONS && tail_call_state->iteration < tail_call_state->frames_count) { */
-    /*     bpf_tail_call_compat(skb, &protocols_progs, PROG_HTTP2_FRAME_PARSER); */
-    /* } */
+    tail_call_state->iteration += 1;
+    if (tail_call_state->iteration < HTTP2_MAX_FRAMES_ITERATIONS && tail_call_state->iteration < tail_call_state->frames_count) {
+        bpf_tail_call_compat(ctx, &tls_process_progs, TLS_HTTP2_FRAMES_PARSER);
+    }
 
 exit:
 

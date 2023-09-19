@@ -81,9 +81,17 @@ func toProtocolType(protoNum uint8, layerBit uint16) ProtocolType {
 	}
 }
 
-type TlsProgramType C.tls_prog_t
+// TLSProgramType is a C type to represent the eBPF programs used for tail calls
+// in TLS traffic decoding
+type TLSProgramType C.tls_prog_t
 
 const (
-	TLSProgramHTTP2             ProgramType = C.TLS_PROG_HTTP2
-	TLSProgramHTTP2FramesParser ProgramType = C.TLS_PROG_HTTP2_FRAMES_PARSER
+	// ProgramTLSHTTPProcess is tail call to process http traffic.
+	ProgramTLSHTTPProcess TLSProgramType = C.TLS_HTTP_PROCESS
+	// ProgramTLSHTTPTermination is tail call to process http termination.
+	ProgramTLSHTTPTermination TLSProgramType = C.TLS_HTTP_TERMINATION
+	// ProgramTLSHTTP2 is tail call to process http2 traffic.
+	ProgramTLSHTTP2 TLSProgramType = C.TLS_HTTP2_PROCESS
+	// ProgramTLSHTTP2FramesParser is tail call to process http2 frames.
+	ProgramTLSHTTP2FramesParser TLSProgramType = C.TLS_HTTP2_FRAMES_PARSER
 )

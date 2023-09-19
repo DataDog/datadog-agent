@@ -106,17 +106,28 @@ func (pc *ProcessCacheEntry) Equals(entry *ProcessCacheEntry) bool {
 		pc.EnvsEntry.Equals(entry.EnvsEntry))
 }
 
-// NewEmptyProcessCacheEntry returns an empty process cache entry for kworker events or failed process resolutions
-func NewEmptyProcessCacheEntry(pid uint32, tid uint32, isKworker bool) *ProcessCacheEntry {
-	entry := &ProcessCacheEntry{ProcessContext: ProcessContext{Process: Process{PIDContext: PIDContext{Pid: pid, Tid: tid, IsKworker: isKworker}}}}
-
+func (pc *ProcessCacheEntry) markFileEventAsResovled() {
 	// mark file path as resolved
-	entry.FileEvent.SetPathnameStr("")
-	entry.FileEvent.SetBasenameStr("")
+	pc.FileEvent.SetPathnameStr("")
+	pc.FileEvent.SetBasenameStr("")
 
 	// mark interpreter as resolved too
-	entry.LinuxBinprm.FileEvent.SetPathnameStr("")
-	entry.LinuxBinprm.FileEvent.SetBasenameStr("")
+	pc.LinuxBinprm.FileEvent.SetPathnameStr("")
+	pc.LinuxBinprm.FileEvent.SetBasenameStr("")
+}
 
+// NewPlaceholderProcessCacheEntry returns a new empty process cache entry for failed process resolutions
+func NewPlaceholderProcessCacheEntry(pid uint32, tid uint32, isKworker bool) *ProcessCacheEntry {
+	entry := &ProcessCacheEntry{ProcessContext: ProcessContext{Process: Process{PIDContext: PIDContext{Pid: pid, Tid: tid, IsKworker: isKworker}}}}
+	entry.markFileEventAsResovled()
 	return entry
+}
+
+// GetPlaceholderProcessCacheEntry returns an empty process cache entry for failed process resolutions
+func GetPlaceholderProcessCacheEntry(pid uint32, tid uint32, isKworker bool) *ProcessCacheEntry {
+	processContextZero.Pid = pid
+	processContextZero.Tid = tid
+	processContextZero.IsKworker = isKworker
+	processContextZero.markFileEventAsResovled()
+	return &processContextZero
 }

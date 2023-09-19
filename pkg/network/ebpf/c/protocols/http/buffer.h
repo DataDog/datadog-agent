@@ -28,6 +28,7 @@
     }
 
 READ_INTO_USER_BUFFER(http, HTTP_BUFFER_SIZE)
+READ_INTO_USER_BUFFER(classification, CLASSIFICATION_MAX_BUFFER)
 
 static __always_inline void read_into_buffer_classification(char *buffer, char *data, size_t data_size) {
     bpf_memset(buffer, 0, CLASSIFICATION_MAX_BUFFER);

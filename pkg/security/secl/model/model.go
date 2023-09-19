@@ -24,6 +24,7 @@ type Model struct {
 	ExtraValidateFieldFnc func(field eval.Field, fieldValue eval.FieldValue) error
 }
 
+var processContextZero = ProcessCacheEntry{}
 var eventZero = Event{BaseEvent: BaseEvent{ContainerContext: &ContainerContext{}}}
 var containerContextZero ContainerContext
 
@@ -410,12 +411,14 @@ const (
 	PathnameResolutionError
 	// FileTooBig means that the underlying file is larger than the hash resolver file size limit
 	FileTooBig
+	// FileEmpty means that the underlying file is empty
+	FileEmpty
+	// FileOpenError is a generic hash state to say that we couldn't open the file
+	FileOpenError
 	// EventTypeNotConfigured means that the event type prevents a hash from being computed
 	EventTypeNotConfigured
 	// HashWasRateLimited means that the hash will be tried again later, it was rate limited
 	HashWasRateLimited
-	// UnknownHashError means that we couldn't hash the file and we don't know why
-	UnknownHashError
 	// MaxHashState is used for initializations
 	MaxHashState
 )

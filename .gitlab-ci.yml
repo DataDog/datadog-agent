@@ -747,6 +747,7 @@ workflow:
     when: never
   - <<: *if_release_branch
     when: never
+  - when: on_success
 
 .on_main_or_release_branch_or_deploy_always:
   - <<: *if_deploy

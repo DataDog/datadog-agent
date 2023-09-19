@@ -144,8 +144,10 @@ typedef enum {
 
 typedef enum {
     TLS_PROG_UNKNOWN = 0,
-    TLS_PROG_HTTP2,
-    TLS_PROG_HTTP2_FRAMES_PARSER,
+    TLS_HTTP_PROCESS,
+    TLS_HTTP_TERMINATION,
+    TLS_HTTP2_PROCESS,
+    TLS_HTTP2_FRAMES_PARSER,
     TLS_PROG_MAX,
 } tls_prog_t;
 

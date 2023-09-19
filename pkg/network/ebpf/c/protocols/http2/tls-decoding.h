@@ -20,19 +20,19 @@ READ_INTO_USER_BUFFER(http2_frame_header, HTTP2_FRAME_HEADER_SIZE)
 READ_INTO_USER_BUFFER(http2_char, sizeof(__u8))
 READ_INTO_USER_BUFFER(path, HTTP2_MAX_PATH_LEN)
 
-static __always_inline void skip_preface_tls(http2_tls_info_t *info) {
-    if (info->offset + HTTP2_MARKER_SIZE <= info->len) {
+static __always_inline void skip_preface_tls(tls_dispatcher_arguments_t *info) {
+    if (info->off + HTTP2_MARKER_SIZE <= info->len) {
         char preface[HTTP2_MARKER_SIZE];
         bpf_memset((char *)preface, 0, HTTP2_MARKER_SIZE);
-        read_into_user_buffer_http2_preface(preface, info->buf + info->offset);
+        read_into_user_buffer_http2_preface(preface, info->buf + info->off);
         if (is_http2_preface(preface, HTTP2_MARKER_SIZE)) {
-            info->offset += HTTP2_MARKER_SIZE;
+            info->off += HTTP2_MARKER_SIZE;
         }
     }
 }
 
 // Similar to read_var_int_tls, but with a small optimization of getting the current character as input argument.
-static __always_inline bool read_var_int_with_given_current_char_tls(http2_tls_info_t *info, __u8 current_char_as_number, __u8 max_number_for_bits, __u8 *out) {
+static __always_inline bool read_var_int_with_given_current_char_tls(tls_dispatcher_arguments_t *info, __u8 current_char_as_number, __u8 max_number_for_bits, __u8 *out) {
     current_char_as_number &= max_number_for_bits;
 
     if (current_char_as_number < max_number_for_bits) {
@@ -40,11 +40,11 @@ static __always_inline bool read_var_int_with_given_current_char_tls(http2_tls_i
         return true;
     }
 
-    if (info->offset <= info->len) {
+    if (info->off <= info->len) {
         __u8 next_char = 0;
-        read_into_user_buffer_http2_char(&next_char, info->buf + info->offset);
+        read_into_user_buffer_http2_char(&next_char, info->buf + info->off);
         if ((next_char & 128) == 0) {
-            info->offset++;
+            info->off++;
             *out = current_char_as_number + next_char & 127;
             return true;
         }
@@ -60,18 +60,18 @@ static __always_inline bool read_var_int_with_given_current_char_tls(http2_tls_i
 // n must always be between 1 and 8.
 //
 // The returned remain buffer is either a smaller suffix of p, or err != nil.
-static __always_inline bool read_var_int_tls(http2_tls_info_t *info, __u8 max_number_for_bits, __u8 *out) {
-    if (info->offset > info->len) {
+static __always_inline bool read_var_int_tls(tls_dispatcher_arguments_t *info, __u8 max_number_for_bits, __u8 *out) {
+    if (info->off > info->len) {
         return false;
     }
     __u8 current_char_as_number = 0;
-    read_into_user_buffer_http2_char(&current_char_as_number, info->buf + info->offset);
-    info->offset++;
+    read_into_user_buffer_http2_char(&current_char_as_number, info->buf + info->off);
+    info->off++;
 
     return read_var_int_with_given_current_char_tls(info, current_char_as_number, max_number_for_bits, out);
 }
 
-static __always_inline __u8 find_relevant_headers_tls(http2_tls_info_t *info, http2_frame_with_offset *frames_array) {
+static __always_inline __u8 find_relevant_headers_tls(tls_dispatcher_arguments_t *info, http2_frame_with_offset *frames_array) {
     bool is_headers_frame, is_data_end_of_stream;
     __u8 interesting_frame_index = 0;
     struct http2_frame current_frame = {};
@@ -84,15 +84,15 @@ static __always_inline __u8 find_relevant_headers_tls(http2_tls_info_t *info, ht
 #pragma unroll(HTTP2_MAX_FRAMES_TO_FILTER)
     for (__u32 iteration = 0; iteration < HTTP2_MAX_FRAMES_TO_FILTER; ++iteration) {
         // Checking we can read HTTP2_FRAME_HEADER_SIZE from the skb.
-        if (info->offset + HTTP2_FRAME_HEADER_SIZE > info->len) {
+        if (info->off + HTTP2_FRAME_HEADER_SIZE > info->len) {
             break;
         }
         if (interesting_frame_index >= HTTP2_MAX_FRAMES_ITERATIONS) {
             break;
         }
 
-        read_into_user_buffer_http2_frame_header((char *)&current_frame, info->buf + info->offset);
-        info->offset += HTTP2_FRAME_HEADER_SIZE;
+        read_into_user_buffer_http2_frame_header((char *)&current_frame, info->buf + info->off);
+        info->off += HTTP2_FRAME_HEADER_SIZE;
         if (!format_http2_frame_header(&current_frame)) {
             break;
         }
@@ -104,10 +104,10 @@ static __always_inline __u8 find_relevant_headers_tls(http2_tls_info_t *info, ht
         is_data_end_of_stream = ((current_frame.flags & HTTP2_END_OF_STREAM) == HTTP2_END_OF_STREAM) && (current_frame.type == kDataFrame);
         if (is_headers_frame || is_data_end_of_stream) {
             frames_array[interesting_frame_index].frame = current_frame;
-            frames_array[interesting_frame_index].offset = info->offset;
+            frames_array[interesting_frame_index].offset = info->off;
             interesting_frame_index++;
         }
-        info->offset += current_frame.length;
+        info->off += current_frame.length;
     }
 
     return interesting_frame_index;
@@ -115,7 +115,7 @@ static __always_inline __u8 find_relevant_headers_tls(http2_tls_info_t *info, ht
 
 // parse_field_literal_tls handling the case when the key is part of the static table and the value is a dynamic string
 // which will be stored in the dynamic table.
-static __always_inline bool parse_field_literal_tls(http2_tls_info_t *info, http2_header_t *headers_to_process, __u8 index, __u64 global_dynamic_counter, __u8 *interesting_headers_counter) {
+static __always_inline bool parse_field_literal_tls(tls_dispatcher_arguments_t *info, http2_header_t *headers_to_process, __u8 index, __u64 global_dynamic_counter, __u8 *interesting_headers_counter) {
     __u8 str_len = 0;
     if (!read_var_int_tls(info, MAX_6_BITS, &str_len)) {
         return false;
@@ -123,7 +123,7 @@ static __always_inline bool parse_field_literal_tls(http2_tls_info_t *info, http
     // The key is new and inserted into the dynamic table. So we are skipping the new value.
 
     if (index == 0) {
-        info->offset += str_len;
+        info->off += str_len;
         str_len = 0;
         if (!read_var_int_tls(info, MAX_6_BITS, &str_len)) {
             return false;
@@ -135,43 +135,43 @@ static __always_inline bool parse_field_literal_tls(http2_tls_info_t *info, http
     }
 
     __u32 final_size = str_len < HTTP2_MAX_PATH_LEN ? str_len : HTTP2_MAX_PATH_LEN;
-    if (info->offset + final_size > info->len) {
+    if (info->off + final_size > info->len) {
         goto end;
     }
 
     headers_to_process->index = global_dynamic_counter - 1;
     headers_to_process->type = kNewDynamicHeader;
-    headers_to_process->new_dynamic_value_offset = info->offset;
+    headers_to_process->new_dynamic_value_offset = info->off;
     headers_to_process->new_dynamic_value_size = str_len;
     (*interesting_headers_counter)++;
 end:
-    info->offset += str_len;
+    info->off += str_len;
     return true;
 }
 
-static __always_inline __u8 filter_relevant_headers_tls(http2_tls_info_t *info, dynamic_table_index_t *dynamic_index, http2_header_t *headers_to_process, __u32 frame_length) {
+static __always_inline __u8 filter_relevant_headers_tls(tls_dispatcher_arguments_t *info, dynamic_table_index_t *dynamic_index, http2_header_t *headers_to_process, __u32 frame_length) {
     __u8 current_ch;
     __u8 interesting_headers = 0;
     http2_header_t *current_header;
-    const __u32 frame_end = info->offset + frame_length;
+    const __u32 frame_end = info->off + frame_length;
     const __u32 end = frame_end < info->len + 1 ? frame_end : info->len + 1;
     bool is_literal = false;
     bool is_indexed = false;
     __u8 max_bits = 0;
     __u8 index = 0;
 
-    __u64 *global_dynamic_counter = get_dynamic_counter(&info->conn);
+    __u64 *global_dynamic_counter = get_dynamic_counter(&info->tup);
     if (global_dynamic_counter == NULL) {
         return 0;
     }
 
 #pragma unroll(HTTP2_MAX_HEADERS_COUNT_FOR_FILTERING)
     for (__u8 headers_index = 0; headers_index < HTTP2_MAX_HEADERS_COUNT_FOR_FILTERING; ++headers_index) {
-        if (info->offset >= end) {
+        if (info->off >= end) {
             break;
         }
-        read_into_user_buffer_http2_char(&current_ch, info->buf + info->offset);
-        info->offset++;
+        read_into_user_buffer_http2_char(&current_ch, info->buf + info->off);
+        info->off++;
 
         is_indexed = (current_ch & 128) != 0;
         is_literal = (current_ch & 192) == 64;
@@ -215,7 +215,7 @@ static __always_inline __u8 filter_relevant_headers_tls(http2_tls_info_t *info, 
     return interesting_headers;
 }
 
-static __always_inline void process_headers_tls(http2_tls_info_t *info, dynamic_table_index_t *dynamic_index, http2_stream_t *current_stream, http2_header_t *headers_to_process, __u8 interesting_headers) {
+static __always_inline void process_headers_tls(tls_dispatcher_arguments_t *info, dynamic_table_index_t *dynamic_index, http2_stream_t *current_stream, http2_header_t *headers_to_process, __u8 interesting_headers) {
     http2_header_t *current_header;
     dynamic_table_entry_t dynamic_value = {};
 
@@ -263,7 +263,7 @@ static __always_inline void process_headers_tls(http2_tls_info_t *info, dynamic_
     }
 }
 
-static __always_inline void process_headers_frame_tls(http2_tls_info_t *info, http2_stream_t *current_stream, dynamic_table_index_t *dynamic_index, struct http2_frame *current_frame_header) {
+static __always_inline void process_headers_frame_tls(tls_dispatcher_arguments_t *info, http2_stream_t *current_stream, dynamic_table_index_t *dynamic_index, struct http2_frame *current_frame_header) {
     const __u32 zero = 0;
 
     // Allocating an array of headers, to hold all interesting headers from the frame.
@@ -279,18 +279,18 @@ static __always_inline void process_headers_frame_tls(http2_tls_info_t *info, ht
     }
 }
 
-static __always_inline void parse_frame_tls(http2_tls_info_t *info, http2_ctx_t *http2_ctx, struct http2_frame *current_frame) {
+static __always_inline void parse_frame_tls(tls_dispatcher_arguments_t *info, http2_ctx_t *http2_ctx, struct http2_frame *current_frame) {
     http2_ctx->http2_stream_key.stream_id = current_frame->stream_id;
     http2_stream_t *current_stream = http2_fetch_stream(&http2_ctx->http2_stream_key);
     if (current_stream == NULL) {
-        info->offset += current_frame->length;
+        info->off += current_frame->length;
         return;
     }
 
     if (current_frame->type == kHeadersFrame) {
         process_headers_frame_tls(info, current_stream, &http2_ctx->dynamic_index, current_frame);
     } else {
-        info->offset += current_frame->length;
+        info->off += current_frame->length;
     }
 
     if ((current_frame->flags & HTTP2_END_OF_STREAM) == HTTP2_END_OF_STREAM) {

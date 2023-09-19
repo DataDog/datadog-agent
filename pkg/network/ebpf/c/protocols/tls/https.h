@@ -1,7 +1,6 @@
 #ifndef __HTTPS_H
 #define __HTTPS_H
 
-#include "http2.h"
 #ifdef COMPILE_CORE
 #include "ktypes.h"
 #define MINORBITS  20
@@ -23,11 +22,12 @@
 #include "protocols/classification/dispatcher-maps.h"
 #include "protocols/http/buffer.h"
 #include "protocols/http/http.h"
-#include "protocols/tls/tags-types.h"
-#include "protocols/tls/native-tls-maps.h"
-#include "protocols/tls/go-tls-types.h"
+#include "protocols/http2/decoding.h"
 #include "protocols/tls/go-tls-maps.h"
-#include "protocols/tls/https-maps.h"
+#include "protocols/tls/go-tls-types.h"
+#include "protocols/tls/native-tls-maps.h"
+#include "protocols/tls/tags-types.h"
+#include "protocols/tls/tls-maps.h"
 
 #define HTTPS_PORT 443
 
@@ -60,67 +60,74 @@ static __always_inline void tls_process(struct pt_regs *ctx, conn_tuple_t *t, vo
     }
     log_debug("tls process entry");
 
-    char request_fragment[CLASSIFICATION_MAX_BUFFER];
-    bpf_memset(request_fragment, 0, sizeof(CLASSIFICATION_MAX_BUFFER));
-    read_into_buffer_classification(request_fragment, buffer_ptr, len);
-
-    classify_decrypted_payload(stack, t, request_fragment, len);
-
+    const __u32 zero = 0;
     protocol_t protocol = get_protocol_from_stack(stack, LAYER_APPLICATION);
-    http_transaction_t http;
-
-    switch (protocol) {
-    case PROTOCOL_HTTP:
-        bpf_memset(&http, 0, sizeof(http));
-        bpf_memcpy(&http.tup, t, sizeof(conn_tuple_t));
-        read_into_user_buffer_http(http.request_fragment, buffer_ptr);
-        http_process(&http, NULL, tags);
-        break;
-    case PROTOCOL_HTTP2:
-        log_debug("tls_process: http2 case (before tail call)");
-        const u32 zero = 0;
-
-        http2_tls_info_t *info = bpf_map_lookup_elem(&http2_tls_info, &zero);
-        if (info == NULL) {
-            log_debug("tls_process: http2: could not get tls info from map");
+    if (protocol == PROTOCOL_UNKNOWN) {
+        char *request_fragment = bpf_map_lookup_elem(&tls_classification_heap, &zero);
+        if (request_fragment == NULL) {
             return;
         }
+        read_into_user_buffer_classification(request_fragment, buffer_ptr);
 
-        info->conn = *t;
-        info->buf = buffer_ptr;
-        info->len = len;
-        info->offset = 0;
-
-        bpf_tail_call_compat(ctx, &tls_process_progs, TLS_PROG_HTTP2);
+        classify_decrypted_payload(stack, t, request_fragment, len);
+        protocol = get_protocol_from_stack(stack, LAYER_APPLICATION);
+    }
+    tls_prog_t prog;
+    switch (protocol) {
+    case PROTOCOL_HTTP:
+        prog = TLS_HTTP_PROCESS;
+        break;
+    case PROTOCOL_HTTP2:
+        prog = TLS_HTTP2_PROCESS;
         break;
     default:
         return;
     }
+
+    tls_dispatcher_arguments_t *args = bpf_map_lookup_elem(&tls_dispatcher_arguments, &zero);
+    if (args == NULL) {
+        log_debug("dispatcher failed to save arguments for tls tail call\n");
+        return;
+    }
+    bpf_memset(args, 0, sizeof(tls_dispatcher_arguments_t));
+    bpf_memcpy(&args->tup, t, sizeof(conn_tuple_t));
+    *args = (tls_dispatcher_arguments_t){
+        .buf = buffer_ptr,
+        .tags = tags,
+        .len = len,
+        .off = 0,
+    };
+    bpf_tail_call_compat(ctx, &tls_process_progs, prog);
 }
 
-static __always_inline void tls_finish(conn_tuple_t *t) {
+static __always_inline void tls_finish(struct pt_regs *ctx, conn_tuple_t *t) {
     protocol_stack_t *stack = get_protocol_stack(t);
     if (!stack) {
         return;
     }
 
+    tls_prog_t prog;
     protocol_t protocol = get_protocol_from_stack(stack, LAYER_APPLICATION);
-    http_transaction_t http;
     switch (protocol) {
     case PROTOCOL_HTTP:
-        bpf_memset(&http, 0, sizeof(http));
-        bpf_memcpy(&http.tup, t, sizeof(conn_tuple_t));
-
-        skb_info_t skb_info = { 0 };
-        skb_info.tcp_flags |= TCPHDR_FIN;
-        http_process(&http, &skb_info, NO_TAGS);
+        prog = TLS_HTTP_TERMINATION;
         break;
-    case PROTOCOL_HTTP2:
-        log_debug("http2 finish tls guy");
-        break;
+    /* case PROTOCOL_HTTP2: */
+    /*     prog = TLS_HTTP2_PROCESS; */
+    /*     break; */
     default:
         return;
     }
+
+    const __u32 zero = 0;
+    tls_dispatcher_arguments_t *args = bpf_map_lookup_elem(&tls_dispatcher_arguments, &zero);
+    if (args == NULL) {
+        log_debug("dispatcher failed to save arguments for tls tail call\n");
+        return;
+    }
+    bpf_memset(args, 0, sizeof(tls_dispatcher_arguments_t));
+    bpf_memcpy(&args->tup, t, sizeof(conn_tuple_t));
+    bpf_tail_call_compat(ctx, &tls_process_progs, prog);
 }
 
 static __always_inline conn_tuple_t *tup_from_ssl_ctx(void *ssl_ctx, u64 pid_tgid) {
