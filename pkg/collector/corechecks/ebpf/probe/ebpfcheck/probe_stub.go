@@ -9,6 +9,7 @@
 package ebpfcheck
 
 import (
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/ebpf/probe/ebpfcheck/model"
 	"github.com/DataDog/datadog-agent/pkg/ebpf"
 )
 
@@ -24,6 +25,6 @@ func NewEBPFProbe(cfg *ebpf.Config) (*EBPFProbe, error) {
 func (t *EBPFProbe) Close() {}
 
 // GetAndFlush is not implemented on non-linux systems
-func (t *EBPFProbe) GetAndFlush() EBPFStats {
-	return EBPFStats{}
+func (t *EBPFProbe) GetAndFlush() model.EBPFStats {
+	return model.EBPFStats{}
 }
