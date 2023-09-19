@@ -82,6 +82,11 @@ func (agent *AgentCommandRunner) ConfigCheck(commandArgs ...AgentArgsOption) str
 	return agent.executeCommand("configcheck", commandArgs...)
 }
 
+// Secret runs the secret command
+func (agent *AgentCommandRunner) Secret(commandArgs ...AgentArgsOption) string {
+	return agent.executeCommand("secret", commandArgs...)
+}
+
 // IsReady runs status command and returns true if the command returns a zero exit code.
 // This function should rarely be used.
 func (a *Agent) IsReady() bool {

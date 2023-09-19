@@ -91,15 +91,31 @@ type OpenmetricsInstance struct {
 	TagByEndpoint                 *bool                       `mapstructure:"tag_by_endpoint" yaml:"tag_by_endpoint,omitempty" json:"tag_by_endpoint,omitempty"`
 
 	// openmetrics v2 specific fields
-	OpenMetricsEndpoint              string                       `mapstructure:"openmetrics_endpoint" yaml:"openmetrics_endpoint,omitempty" json:"openmetrics_endpoint,omitempty"`                                           // Supersedes `prometheus_url`
-	ExcludeMetrics                   []string                     `mapstructure:"exclude_metrics" yaml:"exclude_metrics,omitempty" json:"exclude_metrics,omitempty"`                                                          // Supersedes `ignore_metrics`
-	RawPrefix                        string                       `mapstructure:"raw_metric_prefix" yaml:"raw_metric_prefix,omitempty" json:"raw_metric_prefix,omitempty"`                                                    // Supersedes `prometheus_metrics_prefix`
-	EnableHealthCheck                *bool                        `mapstructure:"enable_health_service_check" yaml:"enable_health_service_check,omitempty" json:"enable_health_service_check,omitempty"`                      // Supersedes `health_service_check`
-	RenameLabels                     map[string]string            `mapstructure:"rename_labels" yaml:"rename_labels,omitempty" json:"rename_labels,omitempty"`                                                                // Supersedes `labels_mapper`
-	ShareLabels                      map[string]ShareLabelsConfig `mapstructure:"share_labels" yaml:"share_labels,omitempty" json:"share_labels,omitempty"`                                                                   // Supersedes `label_joins`
-	CollectHistogramBuckets          *bool                        `mapstructure:"collect_histogram_buckets" yaml:"collect_histogram_buckets,omitempty" json:"collect_histogram_buckets,omitempty"`                            // Supersedes `send_histograms_buckets`
+	OpenMetricsEndpoint              string                       `mapstructure:"openmetrics_endpoint" yaml:"openmetrics_endpoint,omitempty" json:"openmetrics_endpoint,omitempty"`                // Supersedes `prometheus_url`
+	ExcludeMetrics                   []string                     `mapstructure:"exclude_metrics" yaml:"exclude_metrics,omitempty" json:"exclude_metrics,omitempty"`                               // Supersedes `ignore_metrics`
+	ExcludeMetricsByLabels           map[string]interface{}       `mapstructure:"exclude_metrics_by_labels" yaml:"exclude_metrics_by_labels,omitempty" json:"exclude_metrics_by_labels,omitempty"` // Supersedes `ignore_metrics_by_labels`
+	IncludeLabels                    []string                     `mapstructure:"include_labels" yaml:"include_labels,omitempty" json:"include_labels,omitempty"`
+	RawPrefix                        string                       `mapstructure:"raw_metric_prefix" yaml:"raw_metric_prefix,omitempty" json:"raw_metric_prefix,omitempty"`                               // Supersedes `prometheus_metrics_prefix`
+	EnableHealthCheck                *bool                        `mapstructure:"enable_health_service_check" yaml:"enable_health_service_check,omitempty" json:"enable_health_service_check,omitempty"` // Supersedes `health_service_check`
+	RenameLabels                     map[string]string            `mapstructure:"rename_labels" yaml:"rename_labels,omitempty" json:"rename_labels,omitempty"`                                           // Supersedes `labels_mapper`
+	ShareLabels                      map[string]ShareLabelsConfig `mapstructure:"share_labels" yaml:"share_labels,omitempty" json:"share_labels,omitempty"`                                              // Supersedes `label_joins`
+	CacheSharedLabels                bool                         `mapstructure:"cache_shared_labels" yaml:"cache_shared_labels,omitempty" json:"cache_shared_labels,omitempty"`
+	RawLineFilters                   []string                     `mapstructure:"raw_line_filters" yaml:"raw_line_filters,omitempty" json:"raw_line_filters,omitempty"`
+	CollectHistogramBuckets          *bool                        `mapstructure:"collect_histogram_buckets" yaml:"collect_histogram_buckets,omitempty" json:"collect_histogram_buckets,omitempty"` // Supersedes `send_histograms_buckets`
+	NonCumulativeHistogramBuckets    *bool                        `mapstructure:"non_cumulative_histogram_buckets" yaml:"non_cumulative_histogram_buckets,omitempty" json:"non_cumulative_histogram_buckets,omitempty"`
 	HistogramBucketsAsDistributions  bool                         `mapstructure:"histogram_buckets_as_distributions" yaml:"histogram_buckets_as_distributions,omitempty" json:"histogram_buckets_as_distributions,omitempty"` // Supersedes `send_distribution_buckets`
 	CollectCountersWithDistributions bool                         `mapstructure:"collect_counters_with_distributions" yaml:"collect_counters_with_distributions,omitempty" json:"collect_counters_with_distributions,omitempty"`
+	UseProcessStartTime              *bool                        `mapstructure:"use_process_start_time" yaml:"use_process_start_time,omitempty" json:"use_process_start_time,omitempty"`
+	HostnameLabel                    string                       `mapstructure:"hostname_label" yaml:"hostname_label,omitempty" json:"hostname_label,omitempty"`
+	HostnameFormat                   string                       `mapstructure:"hostname_format" yaml:"hostname_format,omitempty" json:"hostname_format,omitempty"`
+	CacheMetricWildcards             bool                         `mapstructure:"cache_metric_wildcards" yaml:"cache_metric_wildcards,omitempty" json:"cache_metric_wildcards,omitempty"`
+	Telemetry                        *bool                        `mapstructure:"telemetry" yaml:"telemetry,omitempty" json:"telemetry,omitempty"`
+	IgnoreConnectionErrors           *bool                        `mapstructure:"ignore_connection_errors" yaml:"ignore_connection_errors,omitempty" json:"ignore_connection_errors,omitempty"`
+	RequestSize                      int                          `mapstructure:"request_size" yaml:"request_size,omitempty" json:"request_size,omitempty"`
+	LogRequests                      *bool                        `mapstructure:"log_requests" yaml:"log_requests,omitempty" json:"log_requests,omitempty"`
+	PersistConnections               *bool                        `mapstructure:"persist_connections" yaml:"persist_connections,omitempty" json:"persist_connections,omitempty"`
+	AllowRedirects                   bool                         `mapstructure:"allow_redirects" yaml:"allow_redirects,omitempty" json:"allow_redirects,omitempty"`
+	AuthToken                        map[string]interface{}       `mapstructure:"auth_token" yaml:"auth_token,omitempty" json:"auth_token,omitempty"`
 }
 
 // LabelJoinsConfig contains the label join configuration fields
