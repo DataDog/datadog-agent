@@ -7,6 +7,7 @@ package compliance
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -190,6 +191,19 @@ func NewResourceLog(resourceID, resourceType string, resource interface{}) *Reso
 		ResourceID:   resourceID,
 		ResourceData: resource,
 	}
+}
+
+// ErrIncompatibleEnvironment is returns by the resolver to signal that the
+// given rule's inputs are not resolvable in the current environment.
+var ErrIncompatibleEnvironment = errors.New("environment not compatible this type of input")
+
+// CheckEventFromError wraps any error into a correct CheckEvent, detecting if
+// the underlying error should be marked as skipped or not.
+func CheckEventFromError(evaluator Evaluator, rule *Rule, benchmark *Benchmark, err error) *CheckEvent {
+	if errors.Is(err, ErrIncompatibleEnvironment) {
+		return NewCheckSkipped(evaluator, fmt.Errorf("skipping input resolution for rule=%s: %w", rule.ID, err), "", "", rule, benchmark)
+	}
+	return NewCheckError(evaluator, fmt.Errorf("input resolution error for rule=%s: %w", rule.ID, err), "", "", rule, benchmark)
 }
 
 // RuleScope defines the different context in which the rule is allowed to run.

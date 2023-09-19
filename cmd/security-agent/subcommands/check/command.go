@@ -198,7 +198,12 @@ func RunCheck(log log.Component, config config.Component, checkArgs *CliParams) 
 			case rule.IsXCCDF():
 				ruleEvents = compliance.EvaluateXCCDFRule(context.Background(), hname, statsdClient, benchmark, rule)
 			case rule.IsRego():
-				ruleEvents = compliance.ResolveAndEvaluateRegoRule(context.Background(), resolver, benchmark, rule)
+				inputs, err := resolver.ResolveInputs(context.Background(), rule)
+				if err != nil {
+					ruleEvents = append(ruleEvents, compliance.CheckEventFromError(compliance.RegoEvaluator, rule, benchmark, err))
+				} else {
+					ruleEvents = compliance.EvaluateRegoRule(context.Background(), inputs, benchmark, rule)
+				}
 			}
 			for _, event := range ruleEvents {
 				b, _ := json.MarshalIndent(event, "", "\t")
