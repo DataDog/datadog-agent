@@ -202,6 +202,7 @@
 /comp/forwarder @DataDog/agent-shared-components
 /comp/logs @DataDog/agent-metrics-logs
 /comp/metadata @DataDog/agent-shared-components
+/comp/otelcol @DataDog/opentelemetry
 /comp/process @DataDog/processes
 /comp/remote-config @DataDog/remote-config
 /comp/systray @DataDog/windows-agent
@@ -440,6 +441,7 @@
 /test/new-e2e/scenarios/ndm             @DataDog/network-device-monitoring
 /test/new-e2e/system-probe              @DataDog/ebpf-platform
 /test/new-e2e/scenarios/system-probe    @DataDog/ebpf-platform
+/test/new-e2e/tests/npm                 @DataDog/Networks
 /test/system/                           @DataDog/agent-shared-components
 /test/system/dogstatsd/                 @DataDog/agent-metrics-logs
 /test/benchmarks/apm_scripts/           @DataDog/agent-apm

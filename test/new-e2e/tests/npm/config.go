@@ -3,11 +3,14 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build !serverless
+// Package npm for all NPM new E2E tests
+package npm
 
-package common
+import (
+	_ "embed"
+)
 
-import "github.com/DataDog/datadog-agent/pkg/otlp"
-
-// OTLP is the global OTLP pipeline instance
-var OTLP *otlp.Pipeline
+// SystemProbeConfig define the embedded minimal configuration for NPM
+//
+//go:embed config/npm.yaml
+var SystemProbeConfig string

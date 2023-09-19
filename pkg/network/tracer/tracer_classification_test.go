@@ -1461,6 +1461,8 @@ func testHTTPProtocolClassification(t *testing.T, tr *Tracer, clientHost, target
 }
 
 func testHTTP2ProtocolClassification(t *testing.T, tr *Tracer, clientHost, targetHost, serverHost string) {
+	skipIfNotLinux(t, testContext{})
+
 	defaultDialer := &net.Dialer{
 		LocalAddr: &net.TCPAddr{
 			IP:   net.ParseIP(clientHost),
@@ -1529,8 +1531,6 @@ func testHTTP2ProtocolClassification(t *testing.T, tr *Tracer, clientHost, targe
 			name:    "http2 traffic using gRPC - unary call",
 			context: grpcContext,
 			postTracerSetup: func(t *testing.T, ctx testContext) {
-				skipIfNotLinux(t, ctx)
-
 				c, err := grpc.NewClient(ctx.targetAddress, grpc.Options{
 					CustomDialer: defaultDialer,
 				})
@@ -1546,8 +1546,6 @@ func testHTTP2ProtocolClassification(t *testing.T, tr *Tracer, clientHost, targe
 			name:    "http2 traffic using gRPC - stream call",
 			context: grpcContext,
 			postTracerSetup: func(t *testing.T, ctx testContext) {
-				skipIfNotLinux(t, ctx)
-
 				c, err := grpc.NewClient(ctx.targetAddress, grpc.Options{
 					CustomDialer: defaultDialer,
 				})

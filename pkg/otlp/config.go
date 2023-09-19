@@ -14,7 +14,8 @@ import (
 	"go.opentelemetry.io/collector/confmap"
 	"go.uber.org/multierr"
 
-	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/comp/core/config"
+	coreconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/mohae/deepcopy"
 )
 
@@ -26,8 +27,8 @@ func portToUint(v int) (port uint, err error) {
 	return
 }
 
-// readConfigSection from a config.Config object.
-func readConfigSection(cfg config.Config, section string) *confmap.Conf {
+// readConfigSection from a config.Component object.
+func readConfigSection(cfg config.Component, section string) *confmap.Conf {
 	// Viper doesn't work well when getting subsections, since it
 	// ignores environment variables and nil-but-present sections.
 	// To work around this, we do the following two steps:
@@ -67,23 +68,21 @@ func readConfigSection(cfg config.Config, section string) *confmap.Conf {
 }
 
 // FromAgentConfig builds a pipeline configuration from an Agent configuration.
-func FromAgentConfig(cfg config.Config) (PipelineConfig, error) {
+func FromAgentConfig(cfg config.Component) (PipelineConfig, error) {
 	var errs []error
-	otlpConfig := readConfigSection(cfg, config.OTLPReceiverSection)
-
-	tracePort, err := portToUint(cfg.GetInt(config.OTLPTracePort))
+	otlpConfig := readConfigSection(cfg, coreconfig.OTLPReceiverSection)
+	tracePort, err := portToUint(cfg.GetInt(coreconfig.OTLPTracePort))
 	if err != nil {
 		errs = append(errs, fmt.Errorf("internal trace port is invalid: %w", err))
 	}
-
-	metricsEnabled := cfg.GetBool(config.OTLPMetricsEnabled)
-	tracesEnabled := cfg.GetBool(config.OTLPTracesEnabled)
-	logsEnabled := cfg.GetBool(config.OTLPLogsEnabled)
+	metricsEnabled := cfg.GetBool(coreconfig.OTLPMetricsEnabled)
+	tracesEnabled := cfg.GetBool(coreconfig.OTLPTracesEnabled)
+	logsEnabled := cfg.GetBool(coreconfig.OTLPLogsEnabled)
 	if !metricsEnabled && !tracesEnabled && !logsEnabled {
 		errs = append(errs, fmt.Errorf("at least one OTLP signal needs to be enabled"))
 	}
-	metricsConfig := readConfigSection(cfg, config.OTLPMetrics)
-	debugConfig := readConfigSection(cfg, config.OTLPDebug)
+	metricsConfig := readConfigSection(cfg, coreconfig.OTLPMetrics)
+	debugConfig := readConfigSection(cfg, coreconfig.OTLPDebug)
 
 	return PipelineConfig{
 		OTLPReceiverConfig: otlpConfig.ToStringMap(),
@@ -97,17 +96,22 @@ func FromAgentConfig(cfg config.Config) (PipelineConfig, error) {
 }
 
 // IsEnabled checks if OTLP pipeline is enabled in a given config.
-func IsEnabled(cfg config.Config) bool {
-	return hasSection(cfg, config.OTLPReceiverSubSectionKey)
+func IsEnabled(cfg config.Component) bool {
+	return hasSection(cfg, coreconfig.OTLPReceiverSubSectionKey)
 }
 
-func hasSection(cfg config.Config, section string) bool {
+// HasLogsSectionEnabled checks if OTLP logs are explicitly enabled in a given config.
+func HasLogsSectionEnabled(cfg config.Component) bool {
+	return hasSection(cfg, coreconfig.OTLPLogsEnabled) && cfg.GetBool(coreconfig.OTLPLogsEnabled)
+}
+
+func hasSection(cfg config.Component, section string) bool {
 	// HACK: We want to mark as enabled if the section is present, even if empty, so that we get errors
 	// from unmarshaling/validation done by the Collector code.
 	//
 	// IsSet won't work here: it will return false if the section is present but empty.
 	// To work around this, we check if the receiver key is present in the string map, which does the 'correct' thing.
-	_, ok := readConfigSection(cfg, config.OTLPSection).ToStringMap()[section]
+	_, ok := readConfigSection(cfg, coreconfig.OTLPSection).ToStringMap()[section]
 	return ok
 }
 

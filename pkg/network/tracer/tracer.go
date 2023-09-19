@@ -336,9 +336,9 @@ func (t *Tracer) addProcessInfo(c *network.ConnectionStats) {
 		c.Tags[k+":"+v] = struct{}{}
 	}
 
-	addTag("env", p.Envs["DD_ENV"])
-	addTag("version", p.Envs["DD_VERSION"])
-	addTag("service", p.Envs["DD_SERVICE"])
+	addTag("env", p.Env("DD_ENV"))
+	addTag("version", p.Env("DD_VERSION"))
+	addTag("service", p.Env("DD_SERVICE"))
 
 	containerID := p.ContainerID.Get().(string)
 	if containerID != "" {
