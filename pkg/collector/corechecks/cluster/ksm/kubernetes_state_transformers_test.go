@@ -1169,7 +1169,7 @@ func Test_containerLastTerminatedReasonTransformer(t *testing.T) {
 		s.SetupAcceptAll()
 		t.Run(tt.name, func(t *testing.T) {
 			currentTime := time.Now()
-			containerTerminatedReasonTransformer(s, tt.args.name, tt.args.metric, tt.args.hostname, tt.args.tags, currentTime)
+			containerLastTerminatedReasonTransformer(s, tt.args.name, tt.args.metric, tt.args.hostname, tt.args.tags, currentTime)
 			if tt.expected != nil {
 				s.AssertMetric(t, "Gauge", tt.expected.name, tt.expected.val, tt.args.hostname, tt.args.tags)
 				s.AssertNumberOfCalls(t, "Gauge", 1)
