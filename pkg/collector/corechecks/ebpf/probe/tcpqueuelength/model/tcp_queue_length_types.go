@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+// Package model is the types for the TCP Queue Length check
 package model
 
 // TCPQueueLengthStatsKey is the type of the `TCPQueueLengthStats` map key: the container ID
