@@ -97,8 +97,10 @@
           "type": "array"
         },
         "mapping": {
-          "additionalProperties": {
-            "type": "string"
+          "patternProperties": {
+            "^\\d+$": {
+              "type": "string"
+            }
           },
           "type": "object"
         },

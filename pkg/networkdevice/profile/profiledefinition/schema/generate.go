@@ -9,12 +9,16 @@ import (
 	"encoding/json"
 	"github.com/DataDog/datadog-agent/pkg/networkdevice/profile/profiledefinition"
 	"github.com/invopop/jsonschema"
+	"reflect"
 )
+
+const MappingKeyPattern = "^\\d+$"
 
 // GenerateJSONSchema generate jsonschema from profiledefinition.DeviceProfileRcConfig
 func GenerateJSONSchema() ([]byte, error) {
 	reflector := jsonschema.Reflector{
 		AllowAdditionalProperties: false,
+		Mapper:                    jsonTypeMapper,
 	}
 	schema := reflector.Reflect(&profiledefinition.DeviceProfileRcConfig{})
 	schemaJSON, err := json.MarshalIndent(schema, "", "  ")
@@ -23,4 +27,27 @@ func GenerateJSONSchema() ([]byte, error) {
 	}
 	schemaJSON = append(schemaJSON, byte('\n'))
 	return schemaJSON, nil
+}
+
+func jsonTypeMapper(ty reflect.Type) *jsonschema.Schema {
+	if ty == reflect.TypeOf(profiledefinition.ValueMapping{}) {
+		return &jsonschema.Schema{
+			Type: "object",
+			PatternProperties: map[string]*jsonschema.Schema{
+				MappingKeyPattern: {
+					Type: "string",
+				},
+			},
+		}
+	} else if ty == reflect.TypeOf(profiledefinition.ValueMapping{}) {
+		return &jsonschema.Schema{
+			Type: "object",
+			PatternProperties: map[string]*jsonschema.Schema{
+				MappingKeyPattern: {
+					Type: "string",
+				},
+			},
+		}
+	}
+	return nil
 }

@@ -39,6 +39,9 @@ const (
 	ProfileMetricTypePercent ProfileMetricType = "percent"
 )
 
+type ValueMapping map[string]string
+type TagsInterpolation map[string]string
+
 // SymbolConfig holds info for a single symbol/oid
 type SymbolConfig struct {
 	OID  string `yaml:"OID,omitempty" json:"OID,omitempty"`
@@ -78,7 +81,7 @@ type MetricTagConfig struct {
 
 	IndexTransform []MetricIndexTransform `yaml:"index_transform,omitempty" json:"index_transform,omitempty"`
 
-	Mapping map[string]string `yaml:"mapping,omitempty" json:"mapping,omitempty"`
+	Mapping ValueMapping `yaml:"mapping,omitempty" json:"mapping,omitempty" jsonschema:"patternProperties"`
 
 	// Regex
 	Match   string            `yaml:"match,omitempty" json:"match,omitempty"`
