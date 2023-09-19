@@ -36,7 +36,7 @@ func setOSSpecificParamFlags(cmd *cobra.Command, cliParams *RunParams) {
 		"runs the trace-agent in debug mode.")
 }
 
-func Run(cliParams *RunParams, defaultConfPath string) error {
+func runTraceAgent(cliParams *RunParams, defaultConfPath string) error {
 	if !cliParams.Foreground {
 		if servicemain.RunningAsWindowsService() {
 			servicemain.Run(&service{cliParams: cliParams, defaultConfPath: defaultConfPath})

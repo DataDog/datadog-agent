@@ -26,6 +26,6 @@ type RunParams struct {
 
 func setOSSpecificParamFlags(cmd *cobra.Command, cliParams *RunParams) {}
 
-func Run(cliParams *RunParams, defaultConfPath string) error {
+func runTraceAgent(cliParams *RunParams, defaultConfPath string) error {
 	return runFx(cliParams, defaultConfPath)
 }
