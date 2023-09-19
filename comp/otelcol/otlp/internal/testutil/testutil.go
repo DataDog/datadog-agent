@@ -54,7 +54,7 @@ type JSONLogs []map[string]any
 var (
 	// TestLogTime is the default time used for tests.
 	TestLogTime = time.Date(2020, 2, 11, 20, 26, 13, 789, time.UTC)
-	// TestLogTime is the default timestamp used for tests.
+	// TestLogTimestamp is the default timestamp used for tests.
 	TestLogTimestamp = pcommon.NewTimestampFromTime(TestLogTime)
 )
 
