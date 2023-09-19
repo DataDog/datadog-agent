@@ -11,7 +11,7 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/DataDog/datadog-agent/pkg/otlp/internal/logsagentexporter"
+	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/internal/logsagentexporter"
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/exporter"
 	"go.opentelemetry.io/collector/exporter/loggingexporter"
@@ -28,8 +28,8 @@ import (
 	"go.uber.org/zap/zapcore"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/internal/serializerexporter"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
-	"github.com/DataDog/datadog-agent/pkg/otlp/internal/serializerexporter"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
