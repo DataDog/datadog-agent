@@ -16,10 +16,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logcomp"
 	"github.com/DataDog/datadog-agent/pkg/logs/auditor"
 	"github.com/DataDog/datadog-agent/pkg/logs/client"
-	"github.com/DataDog/datadog-agent/pkg/logs/metrics"
 	"github.com/DataDog/datadog-agent/pkg/logs/pipeline"
-	"github.com/DataDog/datadog-agent/pkg/logs/status"
-	"github.com/DataDog/datadog-agent/pkg/metadata/inventories"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/startstop"
@@ -115,24 +112,15 @@ func (a *agent) start(context.Context) error {
 }
 
 func (a *agent) setupAgent() error {
-
-	status.CurrentTransport = status.TransportTCP
-	if a.endpoints.UseHTTP {
-		status.CurrentTransport = status.TransportHTTP
-	}
-	inventories.SetAgentMetadata(inventories.AgentLogsTransport, status.CurrentTransport)
-
 	// setup global processing rules
 	processingRules, err := config.GlobalProcessingRules(a.config)
 	if err != nil {
 		message := fmt.Sprintf("Invalid processing rules: %v", err)
-		status.AddGlobalError(invalidProcessingRules, message)
 		return errors.New(message)
 	}
 
 	if config.HasMultiLineRule(processingRules) {
 		a.log.Warn(multiLineWarning)
-		status.AddGlobalWarning(invalidProcessingRules, multiLineWarning)
 	}
 
 	a.SetupPipeline(processingRules)
@@ -144,8 +132,6 @@ func (a *agent) setupAgent() error {
 func (a *agent) startPipeline() {
 	a.started.Store(true)
 
-	status.Init(a.started, a.endpoints, nil, nil, metrics.LogsExpvars)
-
 	starter := startstop.NewStarter(
 		a.destinationsCtx,
 		a.auditor,
@@ -156,8 +142,6 @@ func (a *agent) startPipeline() {
 
 func (a *agent) stop(context.Context) error {
 	a.log.Info("Stopping logs-agent")
-
-	status.Clear()
 
 	stopper := startstop.NewSerialStopper(
 		a.pipelineProvider,
