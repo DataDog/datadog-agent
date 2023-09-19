@@ -311,6 +311,8 @@ func runAgent(stopCh chan struct{}) (serverlessDaemon *daemon.Daemon, err error)
 		// to detect the finished request spans and run the complete AppSec
 		// monitoring logic, and ultimately adding the AppSec events to them.
 		ta.ModifySpan = appsecProxyProcessor.WrapSpanModifier(serverlessDaemon.ExecutionContext, ta.ModifySpan)
+		// Set the default rate limiting to 1 trace/min to limit non ASM related traces as much as possible.
+		// In case of ASM event, the trace priority will be set to manual keep
 		if appsec.IsStandalone() {
 			ta.PrioritySampler.UpdateTargetTPS(1. / 60)
 		}
