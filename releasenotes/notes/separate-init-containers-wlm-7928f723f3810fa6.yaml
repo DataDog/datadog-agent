@@ -1,3 +1,3 @@
 enhancements:
   - |
-    separate `init-containers` from `containers` in the `KubernetesPod` structure of workloadmeta.
+    Separate `init-containers` from `containers` in the `KubernetesPod` structure of workloadmeta.
