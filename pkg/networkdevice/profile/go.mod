@@ -4,7 +4,7 @@ go 1.20
 
 require (
 	github.com/invopop/jsonschema v0.8.0
-	github.com/mohae/deepcopy v0.0.0-20170929034955-c48cc78d4826
+	github.com/mohae/deepcopy v0.0.0-20170603005431-491d3605edfb
 	github.com/santhosh-tekuri/jsonschema/v5 v5.3.1
 	github.com/stretchr/testify v1.8.4
 	gopkg.in/yaml.v2 v2.4.0
