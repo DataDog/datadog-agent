@@ -179,7 +179,7 @@ func TestProcessCollector(t *testing.T) {
 	evt = resp.SetEvents[0]
 	assert.EqualValues(t, 1, evt.Pid)
 	assert.EqualValues(t, 1, evt.CreationTime)
-	assert.Equal(t, testCid, evt.ContainerId)
+	assert.Equal(t, testCid, evt.ContainerID)
 }
 
 // Assert that the collector is only enabled if the process check is disabled and

@@ -8,6 +8,7 @@
 package tailerfactory
 
 import (
+	"context"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -16,6 +17,8 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/fx"
 
+	compConfig "github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	coreConfig "github.com/DataDog/datadog-agent/pkg/config"
@@ -191,16 +194,16 @@ func TestMakeK8sSource(t *testing.T) {
 	require.NoError(t, os.WriteFile(filename, []byte("{}"), 0o666))
 	wildcard := filepath.Join(dir, "*.log")
 
-	store := fxutil.Test[workloadmeta.Component](t, fx.Options(
+	store := fxutil.Test[workloadmeta.Mock](t, fx.Options(
 		log.MockModule,
-		config.MockModule,
+		compConfig.MockModule,
 		fx.Supply(context.Background()),
 		fx.Supply(workloadmeta.NewParams()),
 		workloadmeta.MockModuleV2,
 	))
 	pod, container := makeTestPod()
-	store.SetEntity(pod)
-	store.SetEntity(container)
+	store.Set(pod)
+	store.Set(container)
 
 	tf := &factory{
 		pipelineProvider:  pipeline.NewMockProvider(),
@@ -248,9 +251,9 @@ func TestMakeK8sSource_pod_not_found(t *testing.T) {
 	require.NoError(t, os.MkdirAll(filepath.Dir(p), 0o777))
 	require.NoError(t, os.WriteFile(p, []byte("{}"), 0o666))
 
-	workloadmetaStore := fxutil.Test[workloadmeta.Component](t, fx.Options(
+	workloadmetaStore := fxutil.Test[workloadmeta.Mock](t, fx.Options(
 		log.MockModule,
-		config.MockModule,
+		compConfig.MockModule,
 		fx.Supply(context.Background()),
 		fx.Supply(workloadmeta.NewParams()),
 		workloadmeta.MockModuleV2,

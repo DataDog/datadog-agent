@@ -8,6 +8,7 @@
 package containerd
 
 import (
+	"context"
 	"testing"
 	"time"
 
@@ -279,7 +280,7 @@ func TestGetContainerStats_Containerd(t *testing.T) {
 
 			// The container needs to exist in the workloadmeta store and have a
 			// namespace.
-			workloadmetaStore := fxutil.Test[workloadmeta.Component](t, fx.Options(
+			workloadmetaStore := fxutil.Test[workloadmeta.Mock](t, fx.Options(
 				log.MockModule,
 				config.MockModule,
 				fx.Supply(context.Background()),
@@ -382,7 +383,7 @@ func TestGetContainerNetworkStats_Containerd(t *testing.T) {
 
 			// The container needs to exist in the workloadmeta store and have a
 			// namespace.
-			workloadmetaStore := fxutil.Test[workloadmeta.Component](t, fx.Options(
+			workloadmetaStore := fxutil.Test[workloadmeta.Mock](t, fx.Options(
 				log.MockModule,
 				config.MockModule,
 				fx.Supply(context.Background()),
