@@ -11,7 +11,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	coreConfig "github.com/DataDog/datadog-agent/pkg/config"
+	coreConfig "github.com/DataDog/datadog-agent/pkg/conf"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/stretchr/testify/suite"
 	"go.uber.org/fx"
