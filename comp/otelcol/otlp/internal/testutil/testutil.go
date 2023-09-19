@@ -52,22 +52,27 @@ func LoadConfig(path string) (config.Config, error) {
 type JSONLogs []map[string]any
 
 var (
-	TestLogTime      = time.Date(2020, 2, 11, 20, 26, 13, 789, time.UTC)
+	// TestLogTime is the default time used for tests.
+	TestLogTime = time.Date(2020, 2, 11, 20, 26, 13, 789, time.UTC)
+	// TestLogTimestamp is the default timestamp used for tests.
 	TestLogTimestamp = pcommon.NewTimestampFromTime(TestLogTime)
 )
 
+// GenerateLogsOneEmptyResourceLogs generates one empty logs structure.
 func GenerateLogsOneEmptyResourceLogs() plog.Logs {
 	ld := plog.NewLogs()
 	ld.ResourceLogs().AppendEmpty()
 	return ld
 }
 
+// GenerateLogsNoLogRecords generates a logs structure with one entry.
 func GenerateLogsNoLogRecords() plog.Logs {
 	ld := GenerateLogsOneEmptyResourceLogs()
 	ld.ResourceLogs().At(0).Resource().Attributes().PutStr("resource-attr", "resource-attr-val-1")
 	return ld
 }
 
+// GenerateLogsOneEmptyLogRecord generates a log structure with one empty record.
 func GenerateLogsOneEmptyLogRecord() plog.Logs {
 	ld := GenerateLogsNoLogRecords()
 	rs0 := ld.ResourceLogs().At(0)
@@ -75,6 +80,7 @@ func GenerateLogsOneEmptyLogRecord() plog.Logs {
 	return ld
 }
 
+// GenerateLogsOneLogRecordNoResource generates a logs structure with one record and no resource.
 func GenerateLogsOneLogRecordNoResource() plog.Logs {
 	ld := GenerateLogsOneEmptyResourceLogs()
 	rs0 := ld.ResourceLogs().At(0)
@@ -82,12 +88,15 @@ func GenerateLogsOneLogRecordNoResource() plog.Logs {
 	return ld
 }
 
+// GenerateLogsOneLogRecord generates a logs structure with one record.
 func GenerateLogsOneLogRecord() plog.Logs {
 	ld := GenerateLogsOneEmptyLogRecord()
 	fillLogOne(ld.ResourceLogs().At(0).ScopeLogs().At(0).LogRecords().At(0))
 	return ld
 }
 
+// GenerateLogsTwoLogRecordsSameResource generates a logs structure with two log records sharding
+// the same resource.
 func GenerateLogsTwoLogRecordsSameResource() plog.Logs {
 	ld := GenerateLogsOneEmptyLogRecord()
 	logs := ld.ResourceLogs().At(0).ScopeLogs().At(0).LogRecords()
