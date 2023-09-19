@@ -190,8 +190,8 @@ func TestAWSFargate(t *testing.T) {
 
 	srv := assertingServer(t, func(req *http.Request, body []byte) error {
 		assert.Equal("AWS", req.Header.Get("DD-Cloud-Provider"))
-		assert.Equal("", req.Header.Get("DD-Cloud-Resource-Type"))
-		assert.Equal("", req.Header.Get("DD-Cloud-Resource-Identifier"))
+		assert.Equal("AWS Fargate", req.Header.Get("DD-Cloud-Resource-Type"))
+		assert.Equal("test_ARN", req.Header.Get("DD-Cloud-Resource-Identifier"))
 
 		endpointCalled.Inc()
 		return nil

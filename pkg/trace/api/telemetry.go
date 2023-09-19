@@ -30,6 +30,7 @@ type cloudProvider string
 
 const (
 	awsLambda                     cloudResourceType = "AWS Lambda"
+	awsFargate                    cloudResourceType = "AWS Fargate"
 	cloudRun                      cloudResourceType = "GCP Cloud Run"
 	azureAppService               cloudResourceType = "Azure App Service"
 	azureContainerApp             cloudResourceType = "Azure Container App"
@@ -118,14 +119,14 @@ func (r *HTTPReceiver) telemetryProxyHandler() http.Handler {
 		if containerTags != "" {
 			req.Header.Set("x-datadog-container-tags", containerTags)
 		}
-		if taskArn, ok := extractFargateTask(containerTags); ok {
-			req.Header.Set(cloudProviderHeader, string(aws))
-			req.Header.Set("dd-task-arn", taskArn)
-		}
 		if arn, ok := r.conf.GlobalTags[functionARNKeyTag]; ok {
 			req.Header.Set(cloudProviderHeader, string(aws))
-			req.Header.Set(cloudResourceIdentifierHeader, arn)
 			req.Header.Set(cloudResourceTypeHeader, string(awsLambda))
+			req.Header.Set(cloudResourceIdentifierHeader, arn)
+		} else if taskArn, ok := extractFargateTask(containerTags); ok {
+			req.Header.Set(cloudProviderHeader, string(aws))
+			req.Header.Set(cloudResourceTypeHeader, string(awsFargate))
+			req.Header.Set(cloudResourceIdentifierHeader, taskArn)
 		}
 		if origin, ok := r.conf.GlobalTags[originTag]; ok {
 			if origin == "cloudrun" {
