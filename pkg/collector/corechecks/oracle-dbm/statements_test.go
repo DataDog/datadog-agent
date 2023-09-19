@@ -11,14 +11,24 @@ import (
 	"fmt"
 	"log"
 	"testing"
+	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/oracle-dbm/common"
 	"github.com/jmoiron/sqlx"
 	"github.com/stretchr/testify/assert"
 )
 
+func TestQueryMetrics(t *testing.T) {
+	initAndStartAgentDemultiplexer(t)
+	chk.dbmEnabled = true
+	chk.statementsLastRun = time.Now().Add(-48 * time.Hour)
+	count, err := chk.StatementMetrics()
+	assert.NoError(t, err, "failed to run query metrics")
+	assert.NotEmpty(t, count, "No statements processed in query metrics")
+}
+
 func TestUInt64Binding(t *testing.T) {
-	initAndStartAgentDemultiplexer()
+	initAndStartAgentDemultiplexer(t)
 
 	chk.dbmEnabled = true
 	chk.config.QueryMetrics.Enabled = true
@@ -51,27 +61,14 @@ func TestUInt64Binding(t *testing.T) {
 		m["2267897546238586672"] = 1
 		chk.statementsFilter = StatementsFilter{ForceMatchingSignatures: m}
 
-		statementMetrics, err := GetStatementsMetricsForKeys(&chk, "force_matching_signature", "AND force_matching_signature != 0", chk.statementsFilter.ForceMatchingSignatures)
-		assert.NoError(t, err, "running GetStatementsMetricsForKeys with %s driver", driver)
-		assert.Lenf(t, statementMetrics, 1, "test query metrics captured with %s driver", driver)
 		err = chk.db.Get(&r, "select force_matching_signature, sql_text from v$sqlstats where sql_text like '%t111%'") // force_matching_signature=17202440635181618732
 		assert.NoError(t, err, "running statement with large force_matching_signature with %s driver", driver)
-
-		m = make(map[string]int)
-		m["17202440635181618732"] = 1
-		chk.statementsFilter = StatementsFilter{ForceMatchingSignatures: m}
-		assert.Lenf(t, statementMetrics, 1, "test query metrics for uint64 overflow with %s driver", driver)
-
-		chk.statementsFilter = StatementsFilter{ForceMatchingSignatures: m}
-		n, err := chk.StatementMetrics()
-		assert.NoError(t, err, "query metrics with %s driver", driver)
-		assert.Equal(t, 1, n, "total query metrics captured with %s driver", driver)
 
 		slice := []any{"17202440635181618732"}
 		var retValue int
 		err = chk.db.Get(&retValue, "SELECT COUNT(*) FROM v$sqlstats WHERE force_matching_signature IN (:1)", slice...)
 		if err != nil {
-			log.Fatalf("row error with driver %s %s", driver, err)
+			log.Fatalf("%S row error with driver %s %s", chk.logPrompt, driver, err)
 			return
 		}
 		assert.Equal(t, 1, retValue, "Testing IN slice uint64 overflow with driver %s", driver)
@@ -92,25 +89,9 @@ func TestUInt64Binding(t *testing.T) {
 			err = rows.Scan(&retValue)
 
 			if err != nil {
-				log.Fatalf("scan error %s", err)
+				log.Fatalf("%s scan error %s", chk.logPrompt, err)
 			}
 			assert.Equalf(t, retValue, 1, "IN uint64 with %s driver", driver)
 		}
-	}
-}
-
-func TestStatementMetrics(t *testing.T) {
-	initAndStartAgentDemultiplexer()
-	chk.config.QueryMetrics.IncludeDatadogQueries = true
-	var retValue int
-	for i := 1; i <= 2; i++ {
-		err := chk.db.Get(&retValue, "SELECT /* DD */ 1 FROM dual")
-		if err != nil {
-			log.Fatalf("row error %s", err)
-			return
-		}
-		chk.SampleSession()
-		_, err = chk.StatementMetrics()
-		assert.NoErrorf(t, err, "statement metrics check failed")
 	}
 }

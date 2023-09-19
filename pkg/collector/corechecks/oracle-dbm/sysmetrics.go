@@ -13,14 +13,13 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/oracle-dbm/common"
-	"github.com/DataDog/datadog-agent/pkg/trace/log"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 const SYSMETRICS_QUERY = `SELECT 
 	metric_name,
 	value, 
 	metric_unit, 
-	--(end_time - begin_time)*24*3600 interval_length,
 	name pdb_name 
   FROM %s s, v$containers c 
   WHERE s.con_id = c.con_id(+)`
@@ -118,7 +117,7 @@ func (c *Check) sendMetric(s sender.Sender, r SysmetricsRowDB, seen map[string]b
 			value = value / 100
 		}
 		if !SYSMETRICS_COLS[r.MetricName].DBM || SYSMETRICS_COLS[r.MetricName].DBM && c.dbmEnabled {
-			log.Tracef("%s: %f", metric.DDmetric, value)
+			log.Debugf("%s %s: %f", c.logPrompt, metric.DDmetric, value)
 			s.Gauge(fmt.Sprintf("%s.%s", common.IntegrationName, metric.DDmetric), value, "", appendPDBTag(c.tags, r.PdbName))
 			seen[r.MetricName] = true
 		}
@@ -154,6 +153,19 @@ func (c *Check) SysMetrics() error {
 				c.sendMetric(sender, r, seenInGlobalMetrics)
 			}
 		}
+	}
+
+	var overAllocationCount float64
+	err = getWrapper(c, &overAllocationCount, "SELECT value FROM v$pgastat WHERE name = 'over allocation count'")
+	if err != nil {
+		return fmt.Errorf("failed to get PGA over allocation count: %w", err)
+	}
+	if c.previousPGAOverAllocationCount.valid {
+		v := overAllocationCount - c.previousPGAOverAllocationCount.value
+		sender.Gauge(fmt.Sprintf("%s.%s", common.IntegrationName, "pga_over_allocation_count"), v, "", c.tags)
+		c.previousPGAOverAllocationCount.value = overAllocationCount
+	} else {
+		c.previousPGAOverAllocationCount = pgaOverAllocationCount{value: overAllocationCount, valid: true}
 	}
 
 	sender.Commit()
