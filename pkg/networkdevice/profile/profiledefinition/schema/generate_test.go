@@ -15,5 +15,5 @@ func TestGenerateJSONSchemaIsInSync(t *testing.T) {
 	schemaJSON, err := GenerateJSONSchema()
 	require.NoError(t, err)
 
-	assert.Equal(t, string(GetDeviceProfileRcConfigJsonschema()), string(schemaJSON))
+	assert.JSONEq(t, string(GetDeviceProfileRcConfigJsonschema()), string(schemaJSON))
 }
