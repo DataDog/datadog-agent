@@ -5,6 +5,8 @@
 
 package profiledefinition
 
+import "sort"
+
 // DeviceMeta holds device related static metadata
 // DEPRECATED in favour of profile metadata syntax
 type DeviceMeta struct {
@@ -29,6 +31,76 @@ type ProfileDefinition struct {
 // DeviceProfileRcConfig represent the profile stored in remote config.
 type DeviceProfileRcConfig struct {
 	Profile ProfileDefinition `json:"profile_definition"`
+}
+
+func (d DeviceProfileRcConfig) NormalizeInplaceForRc() {
+	for i := range d.Profile.Metrics {
+		metric := &d.Profile.Metrics[i]
+		for j := range metric.MetricTags {
+			metricTag := &metric.MetricTags[j]
+			// Normalize Mapping
+			if len(metricTag.Mapping) > 0 {
+				metricTag.MappingList = []KeyValue{}
+				var keys []string
+				for key := range metricTag.Mapping {
+					keys = append(keys, key)
+				}
+				sort.Strings(keys)
+				for _, key := range keys {
+					val := metricTag.Mapping[key]
+					metricTag.MappingList = append(metricTag.MappingList, KeyValue{
+						Key:   key,
+						Value: val,
+					})
+				}
+				metricTag.Mapping = nil
+			}
+
+			// Normalize Tags
+			if len(metricTag.Tags) > 0 {
+				metricTag.TagsList = []KeyValue{}
+				var keys []string
+				for key := range metricTag.Tags {
+					keys = append(keys, key)
+				}
+				sort.Strings(keys)
+				for _, key := range keys {
+					val := metricTag.Tags[key]
+					metricTag.TagsList = append(metricTag.TagsList, KeyValue{
+						Key:   key,
+						Value: val,
+					})
+				}
+				metricTag.Tags = nil
+			}
+		}
+	}
+}
+
+func (d DeviceProfileRcConfig) NormalizeInplaceFromRc() {
+	for i := range d.Profile.Metrics {
+		metric := &d.Profile.Metrics[i]
+		for j := range metric.MetricTags {
+			metricTag := &metric.MetricTags[j]
+			// Normalize Mapping
+			if len(metricTag.MappingList) > 0 {
+				metricTag.Mapping = map[string]string{}
+				for _, entry := range metricTag.MappingList {
+					metricTag.Mapping[entry.Key] = entry.Value
+				}
+				metricTag.MappingList = nil
+			}
+
+			// Normalize Tags
+			if len(metricTag.TagsList) > 0 {
+				metricTag.Tags = map[string]string{}
+				for _, entry := range metricTag.TagsList {
+					metricTag.Tags[entry.Key] = entry.Value
+				}
+				metricTag.TagsList = nil
+			}
+		}
+	}
 }
 
 // NewProfileDefinition creates a new ProfileDefinition
