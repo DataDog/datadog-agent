@@ -10,6 +10,7 @@ package compliance
 
 import (
 	"context"
+	"errors"
 	"expvar"
 	"fmt"
 	"hash/fnv"
@@ -250,10 +251,19 @@ func (a *Agent) runRegoBenchmarks(ctx context.Context) {
 			if sleepAborted(ctx, time.After(randomJitter(seed, a.opts.RunJitterMax))) {
 				return
 			}
+
 			resolver := NewResolver(ctx, a.opts.ResolverOptions)
 			for _, rule := range benchmark.Rules {
-				events := ResolveAndEvaluateRegoRule(ctx, resolver, benchmark, rule)
-				a.reportEvents(ctx, benchmark, events)
+				inputs, err := resolver.ResolveInputs(ctx, rule)
+				if errors.Is(err, ErrIncompatibleEnvironment) {
+					a.reportEvents(ctx, benchmark, NewCheckSkipped(RegoEvaluator, err, "", "", rule, benchmark))
+				} else if err != nil {
+					a.reportEvents(ctx, benchmark, NewCheckError(RegoEvaluator, err, "", "", rule, benchmark))
+				} else {
+					events := EvaluateRegoRule(ctx, inputs, benchmark, rule)
+					a.reportEvents(ctx, benchmark, events...)
+				}
+
 				if sleepAborted(ctx, throttler.C) {
 					resolver.Close()
 					return
@@ -298,7 +308,7 @@ func (a *Agent) runXCCDFBenchmarks(ctx context.Context) {
 			}
 			for _, rule := range benchmark.Rules {
 				events := EvaluateXCCDFRule(ctx, a.opts.Hostname, a.opts.StatsdClient, benchmark, rule)
-				a.reportEvents(ctx, benchmark, events)
+				a.reportEvents(ctx, benchmark, events...)
 				if sleepAborted(ctx, throttler.C) {
 					return
 				}
@@ -361,7 +371,7 @@ func (a *Agent) runAptConfigurationExport(ctx context.Context) {
 	}
 }
 
-func (a *Agent) reportEvents(ctx context.Context, benchmark *Benchmark, events []*CheckEvent) {
+func (a *Agent) reportEvents(ctx context.Context, benchmark *Benchmark, events ...*CheckEvent) {
 	store := workloadmeta.GetGlobalStore()
 	for _, event := range events {
 		a.updateEvent(event)

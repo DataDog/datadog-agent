@@ -11,6 +11,7 @@ package check
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -196,7 +197,14 @@ func RunCheck(log log.Component, config config.Component, checkArgs *CliParams) 
 			case rule.IsXCCDF():
 				ruleEvents = compliance.EvaluateXCCDFRule(context.Background(), hname, statsdClient, benchmark, rule)
 			case rule.IsRego():
-				ruleEvents = compliance.ResolveAndEvaluateRegoRule(context.Background(), resolver, benchmark, rule)
+				inputs, err := resolver.ResolveInputs(context.Background(), rule)
+				if errors.Is(err, compliance.ErrIncompatibleEnvironment) {
+					ruleEvents = append(ruleEvents, compliance.NewCheckSkipped(compliance.RegoEvaluator, err, "", "", rule, benchmark))
+				} else if err != nil {
+					ruleEvents = append(ruleEvents, compliance.NewCheckError(compliance.RegoEvaluator, err, "", "", rule, benchmark))
+				} else {
+					ruleEvents = compliance.EvaluateRegoRule(context.Background(), inputs, benchmark, rule)
+				}
 			}
 			for _, event := range ruleEvents {
 				b, _ := json.MarshalIndent(event, "", "\t")
