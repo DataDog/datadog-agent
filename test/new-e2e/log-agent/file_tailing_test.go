@@ -10,6 +10,7 @@ import (
 
 	fi "github.com/DataDog/datadog-agent/test/fakeintake/client"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e"
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/params"
 	"github.com/DataDog/test-infra-definitions/components/datadog/agentparams"
 	"github.com/DataDog/test-infra-definitions/scenarios/aws/vm/ec2params"
 	"github.com/cenkalti/backoff/v4"
@@ -44,7 +45,7 @@ func logsExampleStackDef(vmParams []ec2params.Option, agentParams ...agentparams
 
 // TestE2EVMFakeintakeSuite runs the E2E test suite for the log agent with a VM and fake intake.
 func TestE2EVMFakeintakeSuite(t *testing.T) {
-	e2e.Run(t, &vmFakeintakeSuite{}, logsExampleStackDef(nil))
+	e2e.Run(t, &vmFakeintakeSuite{}, logsExampleStackDef(nil), params.WithDevMode())
 }
 
 func (s *vmFakeintakeSuite) TestLogCollection() {
@@ -71,6 +72,7 @@ func (s *vmFakeintakeSuite) TestLogCollection() {
 	// part 2: generate logs
 	_, err = s.Env().VM.ExecuteWithError("sudo chmod 777 /var/log/hello-world.log")
 	require.NoErrorf(t, err, "Failed to change log file permissions")
+
 	err = generateLog(s, t, "hello-world")
 	require.NoErrorf(t, err, "Failed to generate logs")
 
@@ -95,10 +97,9 @@ func (s *vmFakeintakeSuite) TestLogPermission() {
 		if strings.Contains(statusOutput, "Status: OK") {
 			return errors.New("log file is unexpectedly accessible")
 		} else if strings.Contains(statusOutput, "permission denied") {
-			t.Logf("Log file correctly inaccessible.")
+			require.True(t, strings.Contains(statusOutput, "permission denied"), "Log file correctly inaccessible")
 			return nil
 		} else {
-			// If the status is neither "OK" nor "permission denied", log the unexpected status for debugging
 			t.Logf("Unexpected agent status: \n%s", statusOutput)
 			return errors.New("unexpected agent status")
 		}
@@ -112,7 +113,7 @@ func (s *vmFakeintakeSuite) TestLogPermission() {
 	s.Env().VM.Execute("sudo service datadog-agent restart")
 
 	err2 := generateLog(s, s.T(), "hello-world")
-	require.NoErrorf(t, err2, "Failed to generate logs") // Appending logs this time.
+	require.NoErrorf(t, err2, "Failed to generate logs")
 
 	// Check the Agent status
 	err3 := backoff.Retry(func() error {
@@ -121,7 +122,7 @@ func (s *vmFakeintakeSuite) TestLogPermission() {
 			return fmt.Errorf("Issue running agent status: %s", err)
 		}
 		if strings.Contains(statusOutput, "Status: OK") {
-			t.Log("Agent is collecting logs with expected permission")
+			require.True(t, strings.Contains(statusOutput, "Status: OK"), "Agent is collecting logs with expected permission")
 			return nil
 		} else {
 			return fmt.Errorf("Expecting log file to be accessible but it is inaccessible instead")
