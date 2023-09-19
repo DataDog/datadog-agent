@@ -44,31 +44,37 @@
         },
         "value": {
           "type": "string"
-        }
-      },
-      "additionalProperties": false,
-      "type": "object"
-    },
-    "MetadataResourceConfig": {
-      "properties": {
-        "fields": {
-          "additionalProperties": {
-            "$ref": "#/$defs/MetadataField"
-          },
-          "type": "object"
         },
-        "id_tags": {
-          "$ref": "#/$defs/MetricTagConfigList"
-        },
-        "resource_type": {
+        "field_name": {
           "type": "string"
         }
       },
       "additionalProperties": false,
       "type": "object",
       "required": [
-        "fields",
-        "resource_type"
+        "field_name"
+      ]
+    },
+    "MetadataResourceConfig": {
+      "properties": {
+        "id_tags": {
+          "$ref": "#/$defs/MetricTagConfigList"
+        },
+        "resource_type": {
+          "type": "string"
+        },
+        "fields_list": {
+          "items": {
+            "$ref": "#/$defs/MetadataField"
+          },
+          "type": "array"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "resource_type",
+        "fields_list"
       ]
     },
     "MetricIndexTransform": {

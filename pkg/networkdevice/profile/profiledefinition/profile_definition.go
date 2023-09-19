@@ -100,6 +100,24 @@ func (d *DeviceProfileRcConfig) NormalizeInplaceForRc() {
 		}
 		d.Profile.Metadata = nil
 	}
+
+	for i := range d.Profile.MetadataList {
+		metadata := &d.Profile.MetadataList[i]
+		if len(metadata.Fields) > 0 {
+			metadata.FieldsList = []MetadataField{}
+			var fieldNames []string
+			for fieldName := range metadata.Fields {
+				fieldNames = append(fieldNames, fieldName)
+			}
+			sort.Strings(fieldNames)
+			for _, key := range fieldNames {
+				fieldConfig := metadata.Fields[key]
+				fieldConfig.FieldName = key
+				metadata.FieldsList = append(metadata.FieldsList, fieldConfig)
+			}
+			metadata.Fields = nil
+		}
+	}
 }
 
 func (d *DeviceProfileRcConfig) NormalizeInplaceFromRc() {
@@ -134,5 +152,18 @@ func (d *DeviceProfileRcConfig) NormalizeInplaceFromRc() {
 			d.Profile.Metadata[resourceType] = item
 		}
 		d.Profile.MetadataList = nil
+	}
+	for key := range d.Profile.Metadata {
+		metadata := d.Profile.Metadata[key]
+		if len(metadata.FieldsList) > 0 {
+			metadata.Fields = make(map[string]MetadataField)
+			for _, field := range metadata.FieldsList {
+				fieldName := field.FieldName
+				field.FieldName = ""
+				metadata.Fields[fieldName] = field
+			}
+			metadata.FieldsList = nil
+		}
+		d.Profile.Metadata[key] = metadata
 	}
 }

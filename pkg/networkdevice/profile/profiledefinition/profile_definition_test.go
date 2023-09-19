@@ -57,9 +57,10 @@ func TestDeviceProfileRcConfig_NormalizeInplaceForRc(t *testing.T) {
 			MetadataList: []MetadataResourceConfig{
 				{
 					ResourceType: "device",
-					Fields: map[string]MetadataField{
-						"name": {
-							Value: "my-device",
+					FieldsList: []MetadataField{
+						{
+							Value:     "my-device",
+							FieldName: "name",
 						},
 					},
 				},
@@ -121,9 +122,10 @@ func TestDeviceProfileRcConfig_NormalizeInplaceFromRc(t *testing.T) {
 			MetadataList: []MetadataResourceConfig{
 				{
 					ResourceType: "device",
-					Fields: map[string]MetadataField{
-						"name": {
-							Value: "my-device",
+					FieldsList: []MetadataField{
+						{
+							Value:     "my-device",
+							FieldName: "name",
 						},
 					},
 				},
