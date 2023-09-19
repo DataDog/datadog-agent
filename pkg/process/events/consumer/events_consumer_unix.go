@@ -8,8 +8,6 @@
 package consumer
 
 import (
-	"time"
-
 	"github.com/DataDog/datadog-agent/pkg/process/events/model"
 	smodel "github.com/DataDog/datadog-agent/pkg/security/secl/model"
 )
@@ -45,7 +43,7 @@ func (p *ProcessConsumer) Copy(event *smodel.Event) any {
 		//ExecTime:       entry.ExecTime,
 		//ExitTime:       entry.ExitTime,
 		//ExitCode:       event.Exit.Code,
-		CollectionTime: time.Unix(0, int64(event.GetEventTimestamp())),
+		CollectionTime: event.GetTimestamp(),
 		Pid:            event.GetProcessPid(),
 		ContainerID:    event.GetContainerId(),
 		Ppid:           event.GetProcessPpid(),
@@ -55,9 +53,9 @@ func (p *ProcessConsumer) Copy(event *smodel.Event) any {
 		Group:          event.GetProcessGroup(),
 		Exe:            event.GetExecFilePath(),
 		Cmdline:        cmdline,
-		ForkTime:       time.Unix(0, int64(event.GetExecCreatedAt())), // TODO: investigate all assigments of forkTime
-		ExecTime:       time.Unix(0, int64(event.GetExecCreatedAt())), // TODO: investigate truncation
-		ExitTime:       time.Unix(0, int64(event.GetExitCreatedAt())),
+		ForkTime:       event.GetProcessForkTime(), // TODO: investigate all assigments of forkTime
+		ExecTime:       event.GetProcessExecTime(), // TODO: investigate truncation
+		ExitTime:       event.GetProcessExitTime(),
 		ExitCode:       event.GetExitCode(),
 	}
 }

@@ -15,6 +15,11 @@ import (
 	"time"
 )
 
+// GetTimestamp returns the value of the field, resolving if necessary
+func (ev *Event) GetTimestamp() time.Time {
+	return ev.FieldHandlers.ResolveEventTime(ev)
+}
+
 // GetBindAddrFamily returns the value of the field, resolving if necessary
 func (ev *Event) GetBindAddrFamily() uint16 {
 	if ev.GetEventType().String() != "bind" {

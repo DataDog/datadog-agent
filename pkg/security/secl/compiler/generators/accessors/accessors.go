@@ -268,7 +268,7 @@ func handleFieldWithHandler(module *common.Module, field seclField, aliasPrefix,
 		log.Printf("event type not specified for field: %s", prefixedFieldName)
 	}
 
-	module.Fields[alias] = &common.StructField{
+	newStructField := &common.StructField{
 		Prefix:           prefix,
 		Name:             prefixedFieldName,
 		BasicType:        origTypeToBasicType(fieldType),
@@ -288,6 +288,12 @@ func handleFieldWithHandler(module *common.Module, field seclField, aliasPrefix,
 		Check:            field.check,
 		Alias:            alias,
 		AliasPrefix:      aliasPrefix,
+	}
+
+	if field.gettersOnly {
+		module.GettersOnlyFields[alias] = newStructField
+	} else {
+		module.Fields[alias] = newStructField
 	}
 
 	if field.lengthField {

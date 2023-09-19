@@ -111,7 +111,7 @@ func (ev *Event) Get{{$pascalCaseName}}() {{ $accessorReturnType }} {
             {{end}}
 
             {{$Prefix := $Field.Prefix}}
-            {{ if not $Prefix }}
+            {{ if or (eq $Field.Handler "ResolveEventTime") (not $Prefix) }}
                 {{$Return = print "ev.FieldHandlers." $Field.Handler "(ev)"}}
             {{- else if $Field.IsLength }}
                 {{$Return = print "len(ev.FieldHandlers." $Field.Handler "(ev, " $Ptr "ev." $Prefix "))"}}
