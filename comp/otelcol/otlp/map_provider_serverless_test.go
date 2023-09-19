@@ -15,7 +15,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/collector/confmap"
 
-	"github.com/DataDog/datadog-agent/pkg/otlp/internal/testutil"
+	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/internal/testutil"
 )
 
 func TestNewMap(t *testing.T) {

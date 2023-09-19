@@ -13,7 +13,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/DataDog/datadog-agent/pkg/otlp/internal/testutil"
+	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/internal/testutil"
 )
 
 func TestIsEnabled(t *testing.T) {

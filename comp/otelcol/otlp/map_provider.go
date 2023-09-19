@@ -15,7 +15,7 @@ import (
 	"go.opentelemetry.io/collector/otelcol"
 	"go.uber.org/multierr"
 
-	"github.com/DataDog/datadog-agent/pkg/otlp/internal/configutils"
+	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/internal/configutils"
 )
 
 // buildKey creates a key for referencing a nested field.
