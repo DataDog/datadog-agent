@@ -514,11 +514,19 @@ func (c *Check) StatementMetrics() (int, error) {
 		} else {
 			sql = queryForceMatchingSignatureLastActive
 		}
+
+		var lookback int64
+		if c.config.QueryMetrics.Lookback != 0 {
+			lookback = c.config.QueryMetrics.Lookback
+		} else {
+			lookback = 2 * c.config.QueryMetrics.CollectionInterval
+		}
+
 		err := selectWrapper(
 			c,
 			&statementMetrics,
 			sql,
-			2*c.config.QueryMetrics.CollectionInterval,
+			lookback,
 			c.config.QueryMetrics.DBRowsLimit,
 		)
 		if err != nil {
