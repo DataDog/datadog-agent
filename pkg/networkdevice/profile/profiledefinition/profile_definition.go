@@ -5,7 +5,11 @@
 
 package profiledefinition
 
-import "sort"
+import (
+	"sort"
+
+	"github.com/mohae/deepcopy"
+)
 
 // DeviceMeta holds device related static metadata
 // DEPRECATED in favour of profile metadata syntax
@@ -43,11 +47,18 @@ func NewProfileDefinition() *ProfileDefinition {
 	return p
 }
 
+// DeepCopy make a deepcopy
+func (d *DeviceProfileRcConfig) DeepCopy() *DeviceProfileRcConfig {
+	newProfile := deepcopy.Copy(*d).(DeviceProfileRcConfig)
+	return &newProfile
+}
+
 // NormalizeInplaceForRc will normalize the device profile in-place to make it suitable for RC
 // This operation is opposite to NormalizeInplaceForAgent
-func (d *DeviceProfileRcConfig) NormalizeInplaceForRc() {
-	for i := range d.Profile.Metrics {
-		metric := &d.Profile.Metrics[i]
+func (d *DeviceProfileRcConfig) NormalizeInplaceForRc() *DeviceProfileRcConfig {
+	newProfile := d.DeepCopy()
+	for i := range newProfile.Profile.Metrics {
+		metric := &newProfile.Profile.Metrics[i]
 		for j := range metric.MetricTags {
 			metricTag := &metric.MetricTags[j]
 			// Normalize Mapping
@@ -88,23 +99,23 @@ func (d *DeviceProfileRcConfig) NormalizeInplaceForRc() {
 		}
 	}
 
-	if len(d.Profile.Metadata) > 0 {
-		d.Profile.MetadataList = []MetadataResourceConfig{}
+	if len(newProfile.Profile.Metadata) > 0 {
+		newProfile.Profile.MetadataList = []MetadataResourceConfig{}
 		var metaResourceKeys []string
-		for metaResource := range d.Profile.Metadata {
+		for metaResource := range newProfile.Profile.Metadata {
 			metaResourceKeys = append(metaResourceKeys, metaResource)
 		}
 		sort.Strings(metaResourceKeys)
 		for _, key := range metaResourceKeys {
-			metadataConfig := d.Profile.Metadata[key]
+			metadataConfig := newProfile.Profile.Metadata[key]
 			metadataConfig.ResourceType = key
-			d.Profile.MetadataList = append(d.Profile.MetadataList, metadataConfig)
+			newProfile.Profile.MetadataList = append(newProfile.Profile.MetadataList, metadataConfig)
 		}
-		d.Profile.Metadata = nil
+		newProfile.Profile.Metadata = nil
 	}
 
-	for i := range d.Profile.MetadataList {
-		metadata := &d.Profile.MetadataList[i]
+	for i := range newProfile.Profile.MetadataList {
+		metadata := &newProfile.Profile.MetadataList[i]
 		if len(metadata.Fields) > 0 {
 			metadata.FieldsList = []MetadataField{}
 			var fieldNames []string
@@ -120,13 +131,15 @@ func (d *DeviceProfileRcConfig) NormalizeInplaceForRc() {
 			metadata.Fields = nil
 		}
 	}
+	return newProfile
 }
 
 // NormalizeInplaceForAgent will normalize the device profile in-place to make it suitable for Agent
 // This operation is opposite to NormalizeInplaceForRc
-func (d *DeviceProfileRcConfig) NormalizeInplaceForAgent() {
-	for i := range d.Profile.Metrics {
-		metric := &d.Profile.Metrics[i]
+func (d *DeviceProfileRcConfig) NormalizeInplaceForAgent() *DeviceProfileRcConfig {
+	newProfile := d.DeepCopy()
+	for i := range newProfile.Profile.Metrics {
+		metric := &newProfile.Profile.Metrics[i]
 		for j := range metric.MetricTags {
 			metricTag := &metric.MetricTags[j]
 			// Normalize Mapping
@@ -148,17 +161,17 @@ func (d *DeviceProfileRcConfig) NormalizeInplaceForAgent() {
 			}
 		}
 	}
-	if len(d.Profile.MetadataList) > 0 {
-		d.Profile.Metadata = make(MetadataConfig)
-		for _, item := range d.Profile.MetadataList {
+	if len(newProfile.Profile.MetadataList) > 0 {
+		newProfile.Profile.Metadata = make(MetadataConfig)
+		for _, item := range newProfile.Profile.MetadataList {
 			resourceType := item.ResourceType
 			item.ResourceType = ""
-			d.Profile.Metadata[resourceType] = item
+			newProfile.Profile.Metadata[resourceType] = item
 		}
-		d.Profile.MetadataList = nil
+		newProfile.Profile.MetadataList = nil
 	}
-	for key := range d.Profile.Metadata {
-		metadata := d.Profile.Metadata[key]
+	for key := range newProfile.Profile.Metadata {
+		metadata := newProfile.Profile.Metadata[key]
 		if len(metadata.FieldsList) > 0 {
 			metadata.Fields = make(map[string]MetadataField)
 			for _, field := range metadata.FieldsList {
@@ -168,6 +181,7 @@ func (d *DeviceProfileRcConfig) NormalizeInplaceForAgent() {
 			}
 			metadata.FieldsList = nil
 		}
-		d.Profile.Metadata[key] = metadata
+		newProfile.Profile.Metadata[key] = metadata
 	}
+	return newProfile
 }

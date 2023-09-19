@@ -11,7 +11,7 @@ import (
 )
 
 func TestDeviceProfileRcConfig_NormalizeInplaceForRc(t *testing.T) {
-	profile := DeviceProfileRcConfig{
+	profile := &DeviceProfileRcConfig{
 		Profile: ProfileDefinition{
 			Metadata: MetadataConfig{
 				"device": MetadataResourceConfig{
@@ -57,7 +57,7 @@ func TestDeviceProfileRcConfig_NormalizeInplaceForRc(t *testing.T) {
 			},
 		},
 	}
-	expectedProfile := DeviceProfileRcConfig{
+	expectedProfile := &DeviceProfileRcConfig{
 		Profile: ProfileDefinition{
 			MetadataList: []MetadataResourceConfig{
 				{
@@ -117,12 +117,12 @@ func TestDeviceProfileRcConfig_NormalizeInplaceForRc(t *testing.T) {
 			},
 		},
 	}
-	profile.NormalizeInplaceForRc()
-	assert.Equal(t, expectedProfile, profile)
+	newProfile := profile.NormalizeInplaceForRc()
+	assert.Equal(t, expectedProfile, newProfile)
 }
 
 func TestDeviceProfileRcConfig_NormalizeInplaceFromRc(t *testing.T) {
-	profile := DeviceProfileRcConfig{
+	profile := &DeviceProfileRcConfig{
 		Profile: ProfileDefinition{
 			MetadataList: []MetadataResourceConfig{
 				{
@@ -182,7 +182,7 @@ func TestDeviceProfileRcConfig_NormalizeInplaceFromRc(t *testing.T) {
 			},
 		},
 	}
-	expectedProfile := DeviceProfileRcConfig{
+	expectedProfile := &DeviceProfileRcConfig{
 		Profile: ProfileDefinition{
 			Metadata: MetadataConfig{
 				"device": MetadataResourceConfig{
@@ -228,6 +228,6 @@ func TestDeviceProfileRcConfig_NormalizeInplaceFromRc(t *testing.T) {
 			},
 		},
 	}
-	profile.NormalizeInplaceForAgent()
-	assert.Equal(t, expectedProfile, profile)
+	newProfile := profile.NormalizeInplaceForAgent()
+	assert.Equal(t, expectedProfile, newProfile)
 }
