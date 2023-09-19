@@ -478,6 +478,6 @@ func (c *DCAClient) PostLanguageMetadata(ctx context.Context, data *pbgo.ParentL
 	}
 
 	// https://host:port/api/v1/languagedetection}
-	err = c.doJSONQueryToLeader(ctx, languageDetectionPath, "POST", bytes.NewBuffer(queryBody), nil)
+	err = c.doJSONQuery(ctx, languageDetectionPath, "POST", bytes.NewBuffer(queryBody), nil)
 	return err
 }
