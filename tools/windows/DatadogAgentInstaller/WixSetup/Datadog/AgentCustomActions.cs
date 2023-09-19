@@ -24,6 +24,8 @@ namespace WixSetup.Datadog
 
         public ManagedAction WriteInstallState { get; }
 
+        public ManagedAction UninstallWriteInstallState { get; }
+
         public ManagedAction ProcessDdAgentUserCredentials { get; }
 
         public ManagedAction ProcessDdAgentUserCredentialsUI { get; }
@@ -476,6 +478,22 @@ namespace WixSetup.Datadog
                 }
                 .SetProperties("DDAGENTUSER_PROCESSED_DOMAIN=[DDAGENTUSER_PROCESSED_DOMAIN], " +
                                "DDAGENTUSER_PROCESSED_NAME=[DDAGENTUSER_PROCESSED_NAME]");
+
+            UninstallWriteInstallState = new CustomAction<InstallStateCustomActions>(
+                    new Id(nameof(UninstallWriteInstallState)),
+                    InstallStateCustomActions.UninstallWriteInstallState,
+                    Return.check,
+                    // Since this CA removes registry values it must run before the built-in RemoveRegistryValues
+                    // so that the built-in registry keys can be removed if they are empty.
+                    When.Before,
+                    Step.RemoveRegistryValues,
+                    // Run only on full uninstall
+                    Conditions.Uninstalling
+                )
+                {
+                    Execute = Execute.deferred,
+                    Impersonate = false
+                };
         }
     }
 }
