@@ -27,6 +27,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/log"
+	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
 	"github.com/DataDog/datadog-agent/pkg/compliance"
 	"github.com/DataDog/datadog-agent/pkg/compliance/k8sconfig"
 	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
@@ -56,8 +57,9 @@ type CliParams struct {
 func SecurityAgentCommands(globalParams *command.GlobalParams) []*cobra.Command {
 	return commandsWrapped(func() core.BundleParams {
 		return core.BundleParams{
-			ConfigParams: config.NewSecurityAgentParams(globalParams.ConfigFilePaths),
-			LogParams:    log.LogForOneShot(command.LoggerName, "info", true),
+			ConfigParams:         config.NewSecurityAgentParams(globalParams.ConfigFilePaths),
+			SysprobeConfigParams: sysprobeconfig.NewParams(sysprobeconfig.WithSysProbeConfFilePath(globalParams.SysProbeConfFilePath)),
+			LogParams:            log.LogForOneShot(command.LoggerName, "info", true),
 		}
 	})
 }
