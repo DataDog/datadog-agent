@@ -6,7 +6,7 @@
 //go:build test
 // +build test
 
-// Package workloadmeta ... /* TODO: detailed doc comment for the component */
+// Package workloadmeta provides the workloadmeta component for the Datadog Agent
 package workloadmeta
 
 import (

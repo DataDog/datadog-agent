@@ -5,7 +5,7 @@
 
 //go:build !kubelet
 
-// Package kubelet provides the docker collector for workloadmeta
+// Package kubelet provides the kubelet colletor for workloadmeta
 package kubelet
 
 import "go.uber.org/fx"

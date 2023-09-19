@@ -5,7 +5,7 @@
 
 //go:build !docker
 
-// Package ecs provides the docker collector for workloadmeta
+// Package ecs provides the ecs colletor for workloadmeta
 package ecs
 
 import "go.uber.org/fx"

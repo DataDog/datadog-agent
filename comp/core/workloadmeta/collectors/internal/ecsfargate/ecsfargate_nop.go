@@ -5,7 +5,7 @@
 
 //go:build !docker
 
-// Package ecsfargate provides the docker collector for workloadmeta
+// Package ecsfargate provides the ecsfargate colletor for workloadmeta
 package ecsfargate
 
 import "go.uber.org/fx"

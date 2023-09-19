@@ -5,7 +5,7 @@
 
 //go:build !kubeapiserver
 
-// Package kubeapiserver provides the docker collector for workloadmeta
+// Package kubeapiserver provides the kubeapiserver colletor for workloadmeta
 package kubeapiserver
 
 import "go.uber.org/fx"
