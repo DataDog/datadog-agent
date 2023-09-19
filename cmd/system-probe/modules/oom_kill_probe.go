@@ -18,7 +18,7 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/system-probe/api/module"
 	"github.com/DataDog/datadog-agent/cmd/system-probe/config"
 	"github.com/DataDog/datadog-agent/cmd/system-probe/utils"
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/ebpf/probe"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/ebpf/probe/oomkill"
 	"github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -29,7 +29,7 @@ var OOMKillProbe = module.Factory{
 	ConfigNamespaces: []string{},
 	Fn: func(cfg *config.Config) (module.Module, error) {
 		log.Infof("Starting the OOM Kill probe")
-		okp, err := probe.NewOOMKillProbe(ebpf.NewConfig())
+		okp, err := oomkill.NewOOMKillProbe(ebpf.NewConfig())
 		if err != nil {
 			return nil, fmt.Errorf("unable to start the OOM kill probe: %w", err)
 		}
@@ -43,7 +43,7 @@ var OOMKillProbe = module.Factory{
 var _ module.Module = &oomKillModule{}
 
 type oomKillModule struct {
-	*probe.OOMKillProbe
+	*oomkill.OOMKillProbe
 	lastCheck *atomic.Int64
 }
 

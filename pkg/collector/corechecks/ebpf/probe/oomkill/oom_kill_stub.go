@@ -5,9 +5,10 @@
 
 //go:build !linux_bpf
 
-package probe
+package oomkill
 
 import (
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/ebpf/probe/oomkill/model"
 	"github.com/DataDog/datadog-agent/pkg/ebpf"
 )
 
@@ -23,11 +24,11 @@ func NewOOMKillProbe(cfg *ebpf.Config) (*OOMKillProbe, error) {
 func (t *OOMKillProbe) Close() {}
 
 // Get is not implemented on non-linux systems
-func (t *OOMKillProbe) Get() []OOMKillStats {
+func (t *OOMKillProbe) Get() []model.OOMKillStats {
 	return nil
 }
 
 // GetAndFlush is not implemented on non-linux systems
-func (t *OOMKillProbe) GetAndFlush() []OOMKillStats {
+func (t *OOMKillProbe) GetAndFlush() []model.OOMKillStats {
 	return nil
 }

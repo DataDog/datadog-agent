@@ -8,7 +8,7 @@
 //go:generate $GOPATH/bin/include_headers pkg/collector/corechecks/ebpf/c/runtime/oom-kill-kern.c pkg/ebpf/bytecode/build/runtime/oom-kill.c pkg/ebpf/c
 //go:generate $GOPATH/bin/integrity pkg/ebpf/bytecode/build/runtime/oom-kill.c pkg/ebpf/bytecode/runtime/oom-kill.go runtime
 
-package probe
+package oomkill
 
 import (
 	"fmt"
@@ -21,6 +21,7 @@ import (
 	bpflib "github.com/cilium/ebpf"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/ebpf/probe/ebpfcheck"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/ebpf/probe/oomkill/model"
 	"github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode/runtime"
@@ -31,8 +32,8 @@ import (
 
 /*
 #include <string.h>
-#include "../c/runtime/oom-kill-kern-user.h"
-#cgo CFLAGS: -I "${SRCDIR}/../../../../ebpf/c"
+#include "../../c/runtime/oom-kill-kern-user.h"
+#cgo CFLAGS: -I "${SRCDIR}/../../../../../ebpf/c"
 */
 import "C"
 
@@ -143,7 +144,7 @@ func (k *OOMKillProbe) Close() {
 	}
 }
 
-func (k *OOMKillProbe) GetAndFlush() (results []OOMKillStats) {
+func (k *OOMKillProbe) GetAndFlush() (results []model.OOMKillStats) {
 	var pid uint32
 	var stat C.struct_oom_stats
 	it := k.oomMap.Iterate()
@@ -164,7 +165,7 @@ func (k *OOMKillProbe) GetAndFlush() (results []OOMKillStats) {
 	return results
 }
 
-func convertStats(in C.struct_oom_stats) (out OOMKillStats) {
+func convertStats(in C.struct_oom_stats) (out model.OOMKillStats) {
 	out.CgroupName = C.GoString(&in.cgroup_name[0])
 	out.Pid = uint32(in.pid)
 	out.TPid = uint32(in.tpid)

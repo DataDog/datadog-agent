@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package ebpfcheck
+package model
 
 import (
 	"time"
@@ -20,18 +20,18 @@ type EBPFStats struct {
 
 // EBPFMapStats are the basic statistics for ebpf maps
 type EBPFMapStats struct {
+	ID         uint32
 	Name       string
 	Module     string
 	RSS        uint64
 	MaxSize    uint64
 	MaxEntries uint32
 	Type       ebpf.MapType
-
-	id uint32
 }
 
 // EBPFProgramStats are the basic statistics for ebpf programs
 type EBPFProgramStats struct {
+	ID              uint32
 	Name            string
 	Module          string
 	Tag             string
@@ -42,8 +42,6 @@ type EBPFProgramStats struct {
 	VerifiedInsns   uint32
 	Runtime         time.Duration
 	Type            ebpf.ProgramType
-
-	id uint32
 }
 
 // EBPFMmapStats is the detailed statistics for mmap-ed regions

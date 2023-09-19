@@ -8,7 +8,7 @@
 //go:generate $GOPATH/bin/include_headers pkg/collector/corechecks/ebpf/c/runtime/tcp-queue-length-kern.c pkg/ebpf/bytecode/build/runtime/tcp-queue-length.c pkg/ebpf/c
 //go:generate $GOPATH/bin/integrity pkg/ebpf/bytecode/build/runtime/tcp-queue-length.c pkg/ebpf/bytecode/runtime/tcp-queue-length.go runtime
 
-package probe
+package tcpqueuelength
 
 import (
 	"fmt"
@@ -21,6 +21,7 @@ import (
 	bpflib "github.com/cilium/ebpf"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/ebpf/probe/ebpfcheck"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/ebpf/probe/tcpqueuelength/model"
 	"github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode/runtime"
@@ -107,14 +108,14 @@ func (t *TCPQueueLengthTracer) Close() {
 	}
 }
 
-func (t *TCPQueueLengthTracer) GetAndFlush() TCPQueueLengthStats {
+func (t *TCPQueueLengthTracer) GetAndFlush() model.TCPQueueLengthStats {
 	nbCpus, err := kernel.PossibleCPUs()
 	if err != nil {
 		log.Errorf("Failed to get online CPUs: %v", err)
-		return TCPQueueLengthStats{}
+		return model.TCPQueueLengthStats{}
 	}
 
-	result := make(TCPQueueLengthStats)
+	result := make(model.TCPQueueLengthStats)
 
 	var statsKey StructStatsKey
 	var keys []StructStatsKey
@@ -122,7 +123,7 @@ func (t *TCPQueueLengthTracer) GetAndFlush() TCPQueueLengthStats {
 	it := t.statsMap.Iterate()
 	for it.Next(unsafe.Pointer(&statsKey), &statsValue) {
 		cgroupName := string(statsKey.Cgroup[:])
-		max := TCPQueueLengthStatsValue{}
+		max := model.TCPQueueLengthStatsValue{}
 		for cpu := 0; cpu < nbCpus; cpu++ {
 			if statsValue[cpu].Read_buffer_max_usage > max.ReadBufferMaxUsage {
 				max.ReadBufferMaxUsage = statsValue[cpu].Read_buffer_max_usage

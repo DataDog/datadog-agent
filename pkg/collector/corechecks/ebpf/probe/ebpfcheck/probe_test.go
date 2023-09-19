@@ -20,6 +20,7 @@ import (
 	"github.com/cilium/ebpf/rlimit"
 	"github.com/stretchr/testify/require"
 
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/ebpf/probe/ebpfcheck/model"
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/ebpftest"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
@@ -57,7 +58,7 @@ func TestEBPFPerfBufferLength(t *testing.T) {
 		require.NoError(t, err)
 		t.Cleanup(func() { _ = rdr.Close() })
 
-		var result EBPFPerfBufferStats
+		var result model.EBPFPerfBufferStats
 		require.Eventually(t, func() bool {
 			stats := probe.GetAndFlush()
 			for _, s := range stats.PerfBuffers {

@@ -5,9 +5,10 @@
 
 //go:build !linux_bpf
 
-package probe
+package tcpqueuelength
 
 import (
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/ebpf/probe/tcpqueuelength/model"
 	"github.com/DataDog/datadog-agent/pkg/ebpf"
 )
 
@@ -23,11 +24,11 @@ func NewTCPQueueLengthTracer(cfg *ebpf.Config) (*TCPQueueLengthTracer, error) {
 func (t *TCPQueueLengthTracer) Close() {}
 
 // Get is not implemented on non-linux systems
-func (t *TCPQueueLengthTracer) Get() []TCPQueueLengthStats {
+func (t *TCPQueueLengthTracer) Get() []model.TCPQueueLengthStats {
 	return nil
 }
 
 // GetAndFlush is not implemented on non-linux systems
-func (t *TCPQueueLengthTracer) GetAndFlush() []TCPQueueLengthStats {
+func (t *TCPQueueLengthTracer) GetAndFlush() []model.TCPQueueLengthStats {
 	return nil
 }

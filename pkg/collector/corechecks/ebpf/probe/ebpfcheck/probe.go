@@ -28,6 +28,7 @@ import (
 	"golang.org/x/exp/slices"
 	"golang.org/x/sys/unix"
 
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/ebpf/probe/ebpfcheck/model"
 	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode"
@@ -198,7 +199,7 @@ func (k *EBPFProbe) Close() {
 	}
 }
 
-func (k *EBPFProbe) GetAndFlush() (results EBPFStats) {
+func (k *EBPFProbe) GetAndFlush() (results model.EBPFStats) {
 	if err := k.getMapStats(&results); err != nil {
 		log.Debugf("error getting map stats: %s", err)
 		return
@@ -210,7 +211,7 @@ func (k *EBPFProbe) GetAndFlush() (results EBPFStats) {
 	return
 }
 
-func (k *EBPFProbe) getProgramStats(stats *EBPFStats) error {
+func (k *EBPFProbe) getProgramStats(stats *model.EBPFStats) error {
 	var err error
 	progid := ebpf.ProgramID(0)
 	for progid, err = ebpf.ProgramGetNextID(progid); err == nil; progid, err = ebpf.ProgramGetNextID(progid) {
@@ -241,8 +242,8 @@ func (k *EBPFProbe) getProgramStats(stats *EBPFStats) error {
 		mappingLock.RUnlock()
 
 		tag := hex.EncodeToString(info.Tag[:])
-		ps := EBPFProgramStats{
-			id:              uint32(progid),
+		ps := model.EBPFProgramStats{
+			ID:              uint32(progid),
 			Name:            name,
 			Module:          module,
 			Tag:             tag,
@@ -258,18 +259,18 @@ func (k *EBPFProbe) getProgramStats(stats *EBPFStats) error {
 	}
 
 	log.Debugf("found %d programs", len(stats.Programs))
-	stats.deduplicateProgramNames()
+	deduplicateProgramNames(stats)
 	for _, ps := range stats.Programs {
-		log.Debugf("%s(%d) => %s", ps.Name, ps.id, ps.Type.String())
+		log.Debugf("%s(%d) => %s", ps.Name, ps.ID, ps.Type.String())
 	}
 
 	return nil
 }
 
-func (k *EBPFProbe) getMapStats(stats *EBPFStats) error {
+func (k *EBPFProbe) getMapStats(stats *model.EBPFStats) error {
 	var err error
 	mapCount := 0
-	ebpfmaps := make(map[string]*EBPFMapStats)
+	ebpfmaps := make(map[string]*model.EBPFMapStats)
 	defer maps.Clear(ebpfmaps)
 
 	mapid := ebpf.MapID(0)
@@ -302,8 +303,8 @@ func (k *EBPFProbe) getMapStats(stats *EBPFStats) error {
 		}
 		mappingLock.RUnlock()
 
-		baseMapStats := EBPFMapStats{
-			id:         uint32(mapid),
+		baseMapStats := model.EBPFMapStats{
+			ID:         uint32(mapid),
 			Name:       name,
 			Module:     module,
 			Type:       info.Type,
@@ -313,7 +314,7 @@ func (k *EBPFProbe) getMapStats(stats *EBPFStats) error {
 
 		switch info.Type {
 		case ebpf.PerfEventArray:
-			mapStats := EBPFPerfBufferStats{EBPFMapStats: baseMapStats}
+			mapStats := model.EBPFPerfBufferStats{EBPFMapStats: baseMapStats}
 			err := perfBufferMemoryUsage(&mapStats, info, k)
 			if err != nil {
 				log.Debug(err.Error())
@@ -348,12 +349,12 @@ func (k *EBPFProbe) getMapStats(stats *EBPFStats) error {
 	}
 
 	log.Debugf("found %d maps", mapCount)
-	stats.deduplicateMapNames()
+	deduplicateMapNames(stats)
 	for _, mp := range stats.Maps {
-		log.Debugf("%s(%d) => max=%d rss=%d", mp.Name, mp.id, mp.MaxSize, mp.RSS)
+		log.Debugf("%s(%d) => max=%d rss=%d", mp.Name, mp.ID, mp.MaxSize, mp.RSS)
 	}
 	for _, mp := range stats.PerfBuffers {
-		log.Debugf("%s(%d) => max=%d rss=%d", mp.Name, mp.id, mp.MaxSize, mp.RSS)
+		log.Debugf("%s(%d) => max=%d rss=%d", mp.Name, mp.ID, mp.MaxSize, mp.RSS)
 	}
 
 	return nil
@@ -423,7 +424,7 @@ func hashMapMemoryUsage(info *ebpf.MapInfo, nrCPUS uint64) (max uint64, rss uint
 	return usage, usage
 }
 
-func perfBufferMemoryUsage(mapStats *EBPFPerfBufferStats, info *ebpf.MapInfo, k *EBPFProbe) error {
+func perfBufferMemoryUsage(mapStats *model.EBPFPerfBufferStats, info *ebpf.MapInfo, k *EBPFProbe) error {
 	mapStats.MaxSize, mapStats.RSS = arrayMemoryUsage(info, uint64(k.nrcpus))
 
 	mapid, _ := info.ID()
@@ -442,9 +443,9 @@ func perfBufferMemoryUsage(mapStats *EBPFPerfBufferStats, info *ebpf.MapInfo, k 
 		}
 		log.Debugf("map_id=%d cpu=%d len=%d addr=%x", mapid, i, region.Len, region.Addr)
 		mapStats.MaxSize += region.Len
-		mapStats.CPUBuffers = append(mapStats.CPUBuffers, EBPFCPUPerfBufferStats{
+		mapStats.CPUBuffers = append(mapStats.CPUBuffers, model.EBPFCPUPerfBufferStats{
 			CPU: i,
-			EBPFMmapStats: EBPFMmapStats{
+			EBPFMmapStats: model.EBPFMmapStats{
 				Size: region.Len,
 				Addr: uintptr(region.Addr),
 			},
@@ -490,7 +491,7 @@ var (
 	ringbufPgOff = offsetConsumerInRingbuf >> pageShift
 )
 
-func ringBufferMemoryUsage(mapStats *EBPFMapStats, info *ebpf.MapInfo, k *EBPFProbe) error {
+func ringBufferMemoryUsage(mapStats *model.EBPFMapStats, info *ebpf.MapInfo, k *EBPFProbe) error {
 	mapStats.MaxSize = uint64(sizeofBpfRingBuf)
 	numEntries := uint64(info.MaxEntries)
 	numMetaPages := ringbufPgOff + ringbufPosPages
@@ -531,7 +532,7 @@ func (k *EBPFProbe) getMmapRSS(mapid uint32, addrs []uintptr) (map[uintptr]uint6
 }
 
 func matchProcessRSS(pid int, addrs []uintptr) (map[uintptr]uint64, error) {
-	smaps, err := os.Open(kernel.HostProc(strconv.Itoa(int(pid)), "smaps"))
+	smaps, err := os.Open(kernel.HostProc(strconv.Itoa(pid), "smaps"))
 	if err != nil {
 		return nil, fmt.Errorf("smaps open: %s", err)
 	}
