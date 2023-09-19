@@ -39,16 +39,15 @@ const (
 )
 
 var (
-	modelFile                  string
-	typesFile                  string
-	pkgname                    string
-	output                     string
-	perFieldAccessorsOutput    string
-	gettersOnlyAccessorsOutput string
-	verbose                    bool
-	docOutput                  string
-	fieldHandlersOutput        string
-	buildTags                  string
+	modelFile               string
+	typesFile               string
+	pkgname                 string
+	output                  string
+	perFieldAccessorsOutput string
+	verbose                 bool
+	docOutput               string
+	fieldHandlersOutput     string
+	buildTags               string
 )
 
 // AstFiles defines ast files
@@ -78,8 +77,8 @@ func (af *AstFiles) GetSpecs() []ast.Spec {
 			}
 
 			var genaccessors bool
-			for _, doc := range decl.Doc.List {
-				if strings.Contains(doc.Text, "genaccessors") {
+			for _, document := range decl.Doc.List {
+				if strings.Contains(document.Text, "genaccessors") {
 					genaccessors = true
 					break
 				}
@@ -292,7 +291,7 @@ func handleFieldWithHandler(module *common.Module, field seclField, aliasPrefix,
 	}
 
 	if field.lengthField {
-		var lengthField common.StructField = *module.Fields[alias]
+		var lengthField = *module.Fields[alias]
 		lengthField.IsLength = true
 		lengthField.Name += ".length"
 		lengthField.OrigType = "int"
@@ -713,15 +712,15 @@ func formatBuildTags(buildTags string) []string {
 }
 
 func newField(allFields map[string]*common.StructField, field *common.StructField) string {
-	var path, result string
+	var fieldPath, result string
 	for _, node := range strings.Split(field.Name, ".") {
-		if path != "" {
-			path += "." + node
+		if fieldPath != "" {
+			fieldPath += "." + node
 		} else {
-			path = node
+			fieldPath = node
 		}
 
-		if field, ok := allFields[path]; ok {
+		if field, ok := allFields[fieldPath]; ok {
 			if field.IsOrigTypePtr {
 				result += fmt.Sprintf("if ev.%s == nil { ev.%s = &%s{} }\n", field.Name, field.Name, field.OrigType)
 			}

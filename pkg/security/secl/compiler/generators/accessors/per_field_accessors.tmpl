@@ -121,7 +121,7 @@ func (ev *Event) Get{{$pascalCaseName}}() {{ $accessorReturnType }} {
         {{end}}
 
         {{ if ($Field.IsArray) }}
-            fieldCopy := make([]string, len( {{$Return}} ))
+            fieldCopy := make({{$accessorReturnType}}, len( {{$Return}} ))
             copy(fieldCopy, {{$Return}})
             return fieldCopy
         {{ else }}

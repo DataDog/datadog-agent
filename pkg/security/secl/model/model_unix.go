@@ -6,7 +6,7 @@
 //go:build unix
 // +build unix
 
-//go:generate go run github.com/DataDog/datadog-agent/pkg/security/secl/compiler/generators/accessors -types-file model.go -verbose
+//go:generate go run github.com/DataDog/datadog-agent/pkg/security/secl/compiler/generators/accessors -types-file model.go
 
 // Package model holds model related files
 package model
@@ -248,14 +248,14 @@ type Credentials struct {
 
 // Equals returns if both credentials are equal
 func (c *Credentials) Equals(o *Credentials) bool {
-	return (c.UID == o.UID &&
+	return c.UID == o.UID &&
 		c.GID == o.GID &&
 		c.EUID == o.EUID &&
 		c.EGID == o.EGID &&
 		c.FSUID == o.FSUID &&
 		c.FSGID == o.FSGID &&
 		c.CapEffective == o.CapEffective &&
-		c.CapPermitted == o.CapPermitted)
+		c.CapPermitted == o.CapPermitted
 }
 
 // SetSpan sets the span
