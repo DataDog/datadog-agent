@@ -29,9 +29,8 @@ type dependencies struct {
 	Lc         fx.Lifecycle
 	Shutdowner fx.Shutdowner
 
-	Params             *Params
-	Config             config.Component
-	TelemetryCollector telemetry.TelemetryCollector
+	Params *Params
+	Config config.Component
 }
 
 type agent struct {
@@ -46,19 +45,21 @@ type agent struct {
 }
 
 func newAgent(deps dependencies) Component {
+	telemetryCollector := telemetry.NewCollector(deps.Config.Object())
+
 	// Several related non-components require a shared context to gracefully stop.
 	ctx, cancel := context.WithCancel(context.Background())
 	ag := &agent{
 		Agent: pkgagent.NewAgent(
 			ctx,
 			deps.Config.Object(),
-			deps.TelemetryCollector,
+			telemetryCollector,
 		),
 		cancel:             cancel,
 		config:             deps.Config,
 		params:             deps.Params,
 		shutter:            deps.Shutdowner,
-		telemetryCollector: deps.TelemetryCollector,
+		telemetryCollector: telemetryCollector,
 	}
 
 	deps.Lc.Append(fx.Hook{OnStart: ag.start, OnStop: ag.stop})
