@@ -104,11 +104,11 @@ func (a *agentSuite) TestOpenSignal() {
 	assert.Equal(a.T(), isReady, true, "Agent should be ready")
 
 	// Check if system-probe has started
-	err = cws.WaitAgentLogs(a.Env().VM, "system-probe", cws.SystemProbeStartLog)
+	err = a.Env().Agent.WaitAgentLogs("system-probe", cws.SystemProbeStartLog)
 	require.NoError(a.T(), err, "system-probe could not start")
 
 	// Check if security-agent has started
-	err = cws.WaitAgentLogs(a.Env().VM, "security-agent", cws.SecurityStartLog)
+	err = a.Env().Agent.WaitAgentLogs("security-agent", cws.SecurityStartLog)
 	require.NoError(a.T(), err, "security-agent could not start")
 
 	// Download policies
@@ -147,7 +147,7 @@ func (a *agentSuite) TestOpenSignal() {
 	a.Env().VM.Execute(fmt.Sprintf("touch %s", a.filename))
 
 	// Check agent event
-	err = cws.WaitAgentLogs(a.Env().VM, "security-agent", "Successfully posted payload to")
+	err = a.Env().Agent.WaitAgentLogs("security-agent", "Successfully posted payload to")
 	require.NoError(a.T(), err, "could not send payload")
 
 	// Check app signal

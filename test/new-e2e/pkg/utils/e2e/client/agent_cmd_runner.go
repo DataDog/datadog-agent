@@ -7,6 +7,7 @@ package client
 
 import (
 	"errors"
+	"fmt"
 	"strings"
 	"testing"
 	"time"
@@ -117,5 +118,24 @@ func (agent *AgentCommandRunner) WaitForReadyTimeout(timeout time.Duration) erro
 		}
 		return nil
 	}, backoff.WithMaxRetries(backoff.NewConstantBackOff(interval), uint64(maxRetries)))
+	return err
+}
+
+// WaitAgentLogs waits for the agent log corresponding to the pattern
+// agent-name can be: datadog-agent, system-probe, security-agent
+// pattern: is the log that we are looking for
+// Retries every 500 ms up to timeout.
+// Returns error on failure.
+func (a *Agent) WaitAgentLogs(agentName string, pattern string) error {
+	err := backoff.Retry(func() error {
+		output, err := a.vmClient.ExecuteWithError(fmt.Sprintf("cat /var/log/datadog/%s.log", agentName))
+		if err != nil {
+			return err
+		}
+		if strings.Contains(output, pattern) {
+			return nil
+		}
+		return errors.New("no log found")
+	}, backoff.WithMaxRetries(backoff.NewConstantBackOff(500*time.Millisecond), 60))
 	return err
 }

@@ -7,29 +7,11 @@ package cws
 
 import (
 	"errors"
-	"fmt"
-	"strings"
 	"time"
 
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client"
 	"github.com/DataDog/datadog-api-client-go/api/v2/datadog"
 	"github.com/cenkalti/backoff"
 )
-
-// WaitAgentLogs waits for the agent log corresponding to the pattern
-func WaitAgentLogs(vm *client.VM, agentName string, pattern string) error {
-	err := backoff.Retry(func() error {
-		output, err := vm.ExecuteWithError(fmt.Sprintf("cat /var/log/datadog/%s.log", agentName))
-		if err != nil {
-			return err
-		}
-		if strings.Contains(output, pattern) {
-			return nil
-		}
-		return errors.New("no log found")
-	}, backoff.WithMaxRetries(backoff.NewConstantBackOff(500*time.Millisecond), 60))
-	return err
-}
 
 // WaitAppLogs waits for the app log corresponding to the query
 func WaitAppLogs(apiClient MyAPIClient, query string) (*datadog.LogAttributes, error) {

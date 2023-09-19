@@ -49,7 +49,7 @@ require (
 require (
 	dario.cat/mergo v1.0.0 // indirect
 	github.com/DataDog/mmh3 v0.0.0-20200805151601-30884ca2197a // indirect
-	github.com/DataDog/zstd v1.4.8 // indirect
+	github.com/DataDog/zstd v1.5.0 // indirect
 	github.com/DataDog/zstd_0 v0.0.0-20210310093942-586c1286621f // indirect
 	github.com/Masterminds/semver v1.5.0 // indirect
 	github.com/Microsoft/go-winio v0.6.1 // indirect
