@@ -10,7 +10,7 @@ import (
 	"testing"
 )
 
-func TestDeviceProfileRcConfig_NormalizeInplaceForRc(t *testing.T) {
+func TestDeviceProfileRcConfig_NormalizeForRc(t *testing.T) {
 	profile := &DeviceProfileRcConfig{
 		Profile: ProfileDefinition{
 			Metadata: MetadataConfig{
@@ -117,11 +117,11 @@ func TestDeviceProfileRcConfig_NormalizeInplaceForRc(t *testing.T) {
 			},
 		},
 	}
-	newProfile := profile.NormalizeInplaceForRc()
+	newProfile := profile.NormalizeForRc()
 	assert.Equal(t, expectedProfile, newProfile)
 }
 
-func TestDeviceProfileRcConfig_NormalizeInplaceFromRc(t *testing.T) {
+func TestDeviceProfileRcConfig_NormalizeForAgent(t *testing.T) {
 	profile := &DeviceProfileRcConfig{
 		Profile: ProfileDefinition{
 			MetadataList: []MetadataResourceConfig{
@@ -228,6 +228,6 @@ func TestDeviceProfileRcConfig_NormalizeInplaceFromRc(t *testing.T) {
 			},
 		},
 	}
-	newProfile := profile.NormalizeInplaceForAgent()
+	newProfile := profile.NormalizeForAgent()
 	assert.Equal(t, expectedProfile, newProfile)
 }

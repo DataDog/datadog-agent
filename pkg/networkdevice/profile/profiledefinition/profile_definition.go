@@ -53,9 +53,9 @@ func (d *DeviceProfileRcConfig) DeepCopy() *DeviceProfileRcConfig {
 	return &newProfile
 }
 
-// NormalizeInplaceForRc will normalize the device profile in-place to make it suitable for RC
-// This operation is opposite to NormalizeInplaceForAgent
-func (d *DeviceProfileRcConfig) NormalizeInplaceForRc() *DeviceProfileRcConfig {
+// NormalizeForRc will normalize the device profile in-place to make it suitable for RC
+// This operation is opposite to NormalizeForAgent
+func (d *DeviceProfileRcConfig) NormalizeForRc() *DeviceProfileRcConfig {
 	newProfile := d.DeepCopy()
 	for i := range newProfile.Profile.Metrics {
 		metric := &newProfile.Profile.Metrics[i]
@@ -134,9 +134,9 @@ func (d *DeviceProfileRcConfig) NormalizeInplaceForRc() *DeviceProfileRcConfig {
 	return newProfile
 }
 
-// NormalizeInplaceForAgent will normalize the device profile in-place to make it suitable for Agent
-// This operation is opposite to NormalizeInplaceForRc
-func (d *DeviceProfileRcConfig) NormalizeInplaceForAgent() *DeviceProfileRcConfig {
+// NormalizeForAgent will normalize the device profile in-place to make it suitable for Agent
+// This operation is opposite to NormalizeForRc
+func (d *DeviceProfileRcConfig) NormalizeForAgent() *DeviceProfileRcConfig {
 	newProfile := d.DeepCopy()
 	for i := range newProfile.Profile.Metrics {
 		metric := &newProfile.Profile.Metrics[i]
