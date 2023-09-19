@@ -18,6 +18,8 @@ import (
 	"github.com/cilium/ebpf"
 	"go.uber.org/atomic"
 
+	"github.com/DataDog/ebpf-manager/tracefs"
+
 	coretelemetry "github.com/DataDog/datadog-agent/comp/core/telemetry"
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode/runtime"
@@ -39,7 +41,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/DataDog/ebpf-manager/tracefs"
 )
 
 const defaultUDPConnTimeoutNanoSeconds = uint64(time.Duration(120) * time.Second)
@@ -242,8 +243,12 @@ func newConntracker(cfg *config.Config, bpfTelemetry *nettelemetry.EBPFTelemetry
 
 	var c netlink.Conntracker
 	var err error
-	if c, err = NewEBPFConntracker(cfg, bpfTelemetry); err == nil {
-		return c, nil
+	// retry creation of ebpf conntracker 3 times in case the module is not loaded on the host yet
+	for i := 0; i < 3; i++ {
+		if c, err = NewEBPFConntracker(cfg, bpfTelemetry); err == nil {
+			return c, nil
+		}
+		time.Sleep(1 * time.Second)
 	}
 
 	if cfg.AllowNetlinkConntrackerFallback {
