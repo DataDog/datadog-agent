@@ -18,7 +18,6 @@ import (
 
 	"github.com/DataDog/datadog-go/v5/statsd"
 	lib "github.com/cilium/ebpf"
-	lru "github.com/hashicorp/golang-lru/v2"
 	"go.uber.org/atomic"
 	"golang.org/x/sys/unix"
 
@@ -56,7 +55,7 @@ type Resolver struct {
 	erpcStats             [2]*lib.Map
 	bufferSelector        *lib.Map
 	activeERPCStatsBuffer uint32
-	cache                 *lru.Cache[model.PathKey, *PathEntry]
+	cache                 *betterCache[model.PathKey, *PathEntry]
 	erpc                  *erpc.ERPC
 	erpcSegment           []byte
 	erpcSegmentSize       int
@@ -177,12 +176,9 @@ func (dr *Resolver) sendERPCStats() error {
 
 // DelCacheEntries removes all the entries belonging to a mountID
 func (dr *Resolver) DelCacheEntries(mountID uint32) {
-	// TODO(paulcacheux): this is really bad for now
-	for _, key := range dr.cache.Keys() {
-		if key.MountID == mountID {
-			dr.cache.Remove(key)
-		}
-	}
+	dr.cache.FilterByKeys(func(key model.PathKey) bool {
+		return key.MountID == mountID
+	})
 }
 
 func (dr *Resolver) lookupInodeFromCache(pathKey model.PathKey) (*PathEntry, error) {
@@ -766,7 +762,7 @@ func NewResolver(config *config.Config, statsdClient statsd.ClientInterface, e *
 		return nil, fmt.Errorf("couldn't fetch the host CPU count: %w", err)
 	}
 
-	cache, err := lru.New[model.PathKey, *PathEntry](config.DentryCacheSize * 2048)
+	cache, err := newBetterCache[model.PathKey, *PathEntry](config.DentryCacheSize * 2048)
 	if err != nil {
 		return nil, fmt.Errorf("couldn't create the dentry cache: %w", err)
 	}
