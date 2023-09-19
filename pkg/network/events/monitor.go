@@ -102,8 +102,11 @@ func (h *eventHandlerWrapper) Copy(ev *model.Event) any {
 	if m != nil {
 		ev.ResolveFields()
 
-		envCopy := make([]string, len(ev.ProcessContext.EnvsEntry.Values))
-		copy(envCopy, ev.ProcessContext.EnvsEntry.Values)
+		var envCopy []string
+		if envsEntry := ev.ProcessContext.EnvsEntry; envsEntry != nil {
+			envCopy = make([]string, len(envsEntry.Values))
+			copy(envCopy, envsEntry.Values)
+		}
 
 		return &Process{
 			Pid:         ev.ProcessContext.Pid,
