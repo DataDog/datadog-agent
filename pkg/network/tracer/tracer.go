@@ -243,7 +243,7 @@ func newConntracker(cfg *config.Config, bpfTelemetry *nettelemetry.EBPFTelemetry
 
 	var c netlink.Conntracker
 	var err error
-	// retry creation of ebpf conntracker 3 times in case the module is not loaded on the host yet
+	// try creating ebpf conntracker 3 times in case the module is not loaded on the host yet
 	for i := 0; i < 3; i++ {
 		if c, err = NewEBPFConntracker(cfg, bpfTelemetry); err == nil {
 			return c, nil
