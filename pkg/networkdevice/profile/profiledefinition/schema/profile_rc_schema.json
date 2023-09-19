@@ -121,11 +121,11 @@
         "match": {
           "type": "string"
         },
-        "tags": {
-          "additionalProperties": {
-            "type": "string"
+        "tags_list": {
+          "items": {
+            "$ref": "#/$defs/KeyValue"
           },
-          "type": "object"
+          "type": "array"
         }
       },
       "additionalProperties": false,
