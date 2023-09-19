@@ -50,13 +50,13 @@ func recordedResponse(t *testing.T, rec *httptest.ResponseRecorder) string {
 	return string(responseBody)
 }
 
-func getTestConfig(endpointUrl string) *config.AgentConfig {
+func getTestConfig(endpointURL string) *config.AgentConfig {
 	cfg := config.New()
 	cfg.Endpoints[0].APIKey = "test_apikey"
 	cfg.TelemetryConfig.Enabled = true
 	cfg.TelemetryConfig.Endpoints = []*config.Endpoint{{
 		APIKey: "test_apikey",
-		Host:   endpointUrl,
+		Host:   endpointURL,
 	}}
 	cfg.Hostname = "test_hostname"
 	cfg.SkipSSLValidation = true
@@ -173,14 +173,14 @@ func TestAzureContainerApp(t *testing.T) {
 	assert.Equal(uint64(1), endpointCalled.Load())
 }
 
-type testContainerIdProvider struct{}
+type testContainerIDProvider struct{}
 
 // NewIDProvider initializes an IDProvider instance, in non-linux environments the procRoot arg is unused.
-func getTestContainerIdProvider() testContainerIdProvider {
-	return testContainerIdProvider{}
+func getTestContainerIDProvider() testContainerIDProvider {
+	return testContainerIDProvider{}
 }
 
-func (_ testContainerIdProvider) GetContainerID(_ context.Context, _ http.Header) string {
+func (testContainerIDProvider) GetContainerID(_ context.Context, _ http.Header) string {
 	return "test_container_id"
 }
 
@@ -203,7 +203,7 @@ func TestAWSFargate(t *testing.T) {
 		return []string{"task_arn:test_ARN"}, nil
 	}
 	recv := newTestReceiverFromConfig(cfg)
-	recv.containerIDProvider = getTestContainerIdProvider()
+	recv.containerIDProvider = getTestContainerIDProvider()
 	recv.buildMux().ServeHTTP(rec, req)
 
 	assert.Equal("OK", recordedResponse(t, rec))
