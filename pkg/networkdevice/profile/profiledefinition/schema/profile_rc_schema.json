@@ -31,12 +31,6 @@
         "value"
       ]
     },
-    "MetadataConfig": {
-      "additionalProperties": {
-        "$ref": "#/$defs/MetadataResourceConfig"
-      },
-      "type": "object"
-    },
     "MetadataField": {
       "properties": {
         "symbol": {
@@ -65,12 +59,16 @@
         },
         "id_tags": {
           "$ref": "#/$defs/MetricTagConfigList"
+        },
+        "resource_type": {
+          "type": "string"
         }
       },
       "additionalProperties": false,
       "type": "object",
       "required": [
-        "fields"
+        "fields",
+        "resource_type"
       ]
     },
     "MetricIndexTransform": {
@@ -205,9 +203,6 @@
           },
           "type": "array"
         },
-        "metadata": {
-          "$ref": "#/$defs/MetadataConfig"
-        },
         "metric_tags": {
           "items": {
             "$ref": "#/$defs/MetricTagConfig"
@@ -223,6 +218,12 @@
         "metrics": {
           "items": {
             "$ref": "#/$defs/MetricsConfig"
+          },
+          "type": "array"
+        },
+        "metadata_list": {
+          "items": {
+            "$ref": "#/$defs/MetadataResourceConfig"
           },
           "type": "array"
         }
