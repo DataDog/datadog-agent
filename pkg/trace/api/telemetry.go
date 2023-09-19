@@ -129,19 +129,20 @@ func (r *HTTPReceiver) telemetryProxyHandler() http.Handler {
 			req.Header.Set(cloudResourceIdentifierHeader, taskArn)
 		}
 		if origin, ok := r.conf.GlobalTags[originTag]; ok {
-			if origin == "cloudrun" {
+			switch origin {
+			case "cloudrun":
 				req.Header.Set(cloudProviderHeader, string(gcp))
 				req.Header.Set(cloudResourceTypeHeader, string(cloudRun))
 				if serviceName, found := r.conf.GlobalTags["service_name"]; found {
 					req.Header.Set(cloudResourceIdentifierHeader, serviceName)
 				}
-			} else if origin == "appservice" {
+			case "appservice":
 				req.Header.Set(cloudProviderHeader, string(azure))
 				req.Header.Set(cloudResourceTypeHeader, string(azureAppService))
 				if appName, found := r.conf.GlobalTags["app_name"]; found {
 					req.Header.Set(cloudResourceIdentifierHeader, appName)
 				}
-			} else if origin == "containerapp" {
+			case "containerapp":
 				req.Header.Set(cloudProviderHeader, string(azure))
 				req.Header.Set(cloudResourceTypeHeader, string(azureContainerApp))
 				if appName, found := r.conf.GlobalTags["app_name"]; found {
