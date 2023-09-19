@@ -223,7 +223,7 @@ func GetChecksByNameForConfigs(checkName string, configs []integration.Config) [
 		return checks
 	}
 	// try to also match `FooCheck` if `foo` was passed
-	titled := cases.Title(language.English).String(checkName)
+	titled := cases.Title(language.English, cases.NoLower).String(checkName)
 	titleCheck := fmt.Sprintf("%s%s", titled, "Check")
 
 	for _, c := range checkScheduler.GetChecksFromConfigs(configs, false) {

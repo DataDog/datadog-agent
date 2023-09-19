@@ -412,7 +412,7 @@ func printKomponentCode(komp *komponent) string {
 		}
 	}
 
-	titled := cases.Title(language.English).String(komp.name)
+	titled := cases.Title(language.English, cases.NoLower).String(komp.name)
 	goStructName := strings.ReplaceAll(titled, "-", "")
 	s := ""
 	s += fmt.Sprintf("type K8s%sConfig struct {\n", goStructName)
@@ -558,7 +558,7 @@ func downloadKubeComponentAndExtractFlags(componentName, componentVersion string
 }
 
 func toGoField(s string) string {
-	caser := cases.Title(language.English)
+	caser := cases.Title(language.English, cases.NoLower)
 	return strings.ReplaceAll(caser.String(s), "-", "")
 }
 

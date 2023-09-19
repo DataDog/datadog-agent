@@ -198,7 +198,7 @@ func formatTitle(title string) string {
 	title = strings.Join(words, " ")
 
 	// Capitalize the first letter
-	return cases.Title(language.English).String(title)
+	return cases.Title(language.English, cases.NoLower).String(title)
 }
 
 func status(check map[string]interface{}) string {

@@ -71,7 +71,7 @@ func genIntegrity(inputFile, outputFile, pkg string) error {
 
 	base := filepath.Base(inputFile)
 
-	caser := cases.Title(language.English)
+	caser := cases.Title(language.English, cases.NoLower)
 	name := sanitizeFilename(caser.String(strings.TrimSuffix(base, filepath.Ext(base))))
 
 	imports := ""
