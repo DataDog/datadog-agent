@@ -186,6 +186,12 @@ func validateEnrichMetricTag(metricTag *profiledefinition.MetricTagConfig) []str
 			errors = append(errors, fmt.Sprintf("`tags` mapping must be provided if `match` (`%s`) is defined", metricTag.Match))
 		}
 	}
+	if len(metricTag.Mapping) > 0 && len(metricTag.MappingList) > 0 {
+		errors = append(errors, fmt.Sprintf("Mapping and MappingList cannot be used at the same time : %#v", metricTag))
+	}
+	if len(metricTag.Tags) > 0 && len(metricTag.TagsList) > 0 {
+		errors = append(errors, fmt.Sprintf("Tags and TagsList cannot be used at the same time : %#v", metricTag))
+	}
 	if len(metricTag.Mapping) > 0 && metricTag.Tag == "" {
 		log.Warnf("``tag` must be provided if `mapping` (`%s`) is defined", metricTag.Mapping)
 	}

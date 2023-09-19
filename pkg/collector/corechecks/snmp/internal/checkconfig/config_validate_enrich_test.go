@@ -230,6 +230,72 @@ func Test_ValidateEnrichMetrics(t *testing.T) {
 			},
 		},
 		{
+			name: "mapping and mapping_list cannot be used at the same time",
+			metrics: []profiledefinition.MetricsConfig{
+				{
+					Symbols: []profiledefinition.SymbolConfig{
+						{
+							OID:  "1.2",
+							Name: "abc",
+						},
+					},
+					MetricTags: profiledefinition.MetricTagConfigList{
+						profiledefinition.MetricTagConfig{
+							Column: profiledefinition.SymbolConfig{
+								OID:  "1.2.3",
+								Name: "abc",
+							},
+							Mapping: map[string]string{
+								"a": "b",
+							},
+							MappingList: []profiledefinition.KeyValue{
+								{
+									Key:   "1",
+									Value: "2",
+								},
+							},
+						},
+					},
+				},
+			},
+			expectedErrors: []string{
+				"Mapping and MappingList cannot be used at the same time",
+			},
+		},
+		{
+			name: "tags and tags_list cannot be used at the same time",
+			metrics: []profiledefinition.MetricsConfig{
+				{
+					Symbols: []profiledefinition.SymbolConfig{
+						{
+							OID:  "1.2",
+							Name: "abc",
+						},
+					},
+					MetricTags: profiledefinition.MetricTagConfigList{
+						profiledefinition.MetricTagConfig{
+							Column: profiledefinition.SymbolConfig{
+								OID:  "1.2.3",
+								Name: "abc",
+							},
+							Tags: map[string]string{
+								"a": "b",
+							},
+							TagsList: []profiledefinition.KeyValue{
+								{
+									Key:   "1",
+									Value: "2",
+								},
+							},
+						},
+					},
+				},
+			},
+			expectedErrors: []string{
+				"Tags and TagsList cannot be used at the same time",
+			},
+		},
+		{
 			name: "match cannot compile regex",
 			metrics: []profiledefinition.MetricsConfig{
 				{
