@@ -8,21 +8,20 @@
 package selftests
 
 import (
-	"github.com/hashicorp/go-multierror"
-
 	"github.com/DataDog/datadog-agent/pkg/security/probe"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 	"github.com/DataDog/datadog-agent/pkg/security/serializers"
+	"github.com/hashicorp/go-multierror"
 )
 
 // SelfTester represents all the state needed to conduct rule injection test at startup
 type SelfTester struct {
-	p *Probe[T].Probe
+	probe *probe.Probe
 }
 
 // NewSelfTester returns a new SelfTester, enabled or not
-func NewSelfTester(p *Probe[T].Probe) (*SelfTester, error) {
+func NewSelfTester(probe *probe.Probe) (*SelfTester, error) {
 	return &SelfTester{
 		probe: probe,
 	}, nil

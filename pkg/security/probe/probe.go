@@ -76,12 +76,12 @@ type Probe[T any] struct {
 }
 
 // GetResolvers returns the resolvers of Probe
-func (p *Probe[T]) GetResolvers() *resolvers.Resolvers {
+func (p *Probe) GetResolvers() *resolvers.Resolvers {
 	return p.resolvers
 }
 
 // AddEventHandler sets a probe event handler
-func (p *Probe[T]) AddEventHandler(eventType model.EventType, handler EventHandler[T]) error {
+func (p *Probe) AddEventHandler(eventType model.EventType, handler EventHandler) error {
 	if eventType >= model.MaxAllEventType {
 		return errors.New("unsupported event type")
 	}
@@ -92,14 +92,14 @@ func (p *Probe[T]) AddEventHandler(eventType model.EventType, handler EventHandl
 }
 
 // AddFullAccessEventHandler sets a probe event handler for the UnknownEventType which requires access to all the struct fields
-func (p *Probe[T]) AddFullAccessEventHandler(handler FullAccessEventHandler) error {
+func (p *Probe) AddFullAccessEventHandler(handler FullAccessEventHandler) error {
 	p.fullAccessEventHandlers[model.UnknownEventType] = append(p.fullAccessEventHandlers[model.UnknownEventType], handler)
 
 	return nil
 }
 
 // AddCustomEventHandler set the probe event handler
-func (p *Probe[T]) AddCustomEventHandler(eventType model.EventType, handler CustomEventHandler) error {
+func (p *Probe) AddCustomEventHandler(eventType model.EventType, handler CustomEventHandler) error {
 	if eventType >= model.MaxAllEventType {
 		return errors.New("unsupported event type")
 	}
@@ -109,24 +109,24 @@ func (p *Probe[T]) AddCustomEventHandler(eventType model.EventType, handler Cust
 	return nil
 }
 
-func (p *Probe[T]) zeroEvent() *model.Event {
+func (p *Probe) zeroEvent() *model.Event {
 	p.event.Zero()
 	p.event.FieldHandlers = p.fieldHandlers
 	return p.event
 }
 
 // StatsPollingInterval returns the stats polling interval
-func (p *Probe[T]) StatsPollingInterval() time.Duration {
+func (p *Probe) StatsPollingInterval() time.Duration {
 	return p.Config.Probe.StatsPollingInterval
 }
 
 // GetEventTags returns the event tags
-func (p *Probe[T]) GetEventTags(containerID string) []string {
+func (p *Probe) GetEventTags(containerID string) []string {
 	return p.GetResolvers().TagsResolver.Resolve(containerID)
 }
 
 // GetService returns the service name from the process tree
-func (p *Probe[T]) GetService(ev *model.Event) string {
+func (p *Probe) GetService(ev *model.Event) string {
 	if service := ev.FieldHandlers.GetProcessService(ev); service != "" {
 		return service
 	}
@@ -134,7 +134,7 @@ func (p *Probe[T]) GetService(ev *model.Event) string {
 }
 
 // NewEvaluationSet returns a new evaluation set with rule sets tagged by the passed-in tag values for the "ruleset" tag key
-func (p *Probe[T]) NewEvaluationSet(eventTypeEnabled map[eval.EventType]bool, ruleSetTagValues []string) (*rules.EvaluationSet, error) {
+func (p *Probe) NewEvaluationSet(eventTypeEnabled map[eval.EventType]bool, ruleSetTagValues []string) (*rules.EvaluationSet, error) {
 	var ruleSetsToInclude []*rules.RuleSet
 	for _, ruleSetTagValue := range ruleSetTagValues {
 		ruleOpts, evalOpts := rules.NewEvalOpts(eventTypeEnabled)
@@ -162,21 +162,21 @@ func (p *Probe[T]) NewEvaluationSet(eventTypeEnabled map[eval.EventType]bool, ru
 }
 
 // IsNetworkEnabled returns whether network is enabled
-func (p *Probe[T]) IsNetworkEnabled() bool {
+func (p *Probe) IsNetworkEnabled() bool {
 	return p.Config.Probe.NetworkEnabled
 }
 
 // IsActivityDumpEnabled returns whether activity dump is enabled
-func (p *Probe[T]) IsActivityDumpEnabled() bool {
+func (p *Probe) IsActivityDumpEnabled() bool {
 	return p.Config.RuntimeSecurity.ActivityDumpEnabled
 }
 
 // IsActivityDumpTagRulesEnabled returns whether rule tags is enabled for activity dumps
-func (p *Probe[T]) IsActivityDumpTagRulesEnabled() bool {
+func (p *Probe) IsActivityDumpTagRulesEnabled() bool {
 	return p.Config.RuntimeSecurity.ActivityDumpTagRulesEnabled
 }
 
 // IsSecurityProfileEnabled returns whether security profile is enabled
-func (p *Probe[T]) IsSecurityProfileEnabled() bool {
+func (p *Probe) IsSecurityProfileEnabled() bool {
 	return p.Config.RuntimeSecurity.SecurityProfileEnabled
 }
