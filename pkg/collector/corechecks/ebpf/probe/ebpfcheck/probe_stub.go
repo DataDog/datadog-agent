@@ -5,6 +5,7 @@
 
 //go:build !linux_bpf
 
+// Package ebpfcheck is the system-probe side of the eBPF check
 package ebpfcheck
 
 import (

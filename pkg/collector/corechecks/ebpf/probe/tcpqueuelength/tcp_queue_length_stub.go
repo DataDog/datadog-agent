@@ -5,6 +5,7 @@
 
 //go:build !linux_bpf
 
+// Package tcpqueuelength is the system-probe side of the TCP Queue Length check
 package tcpqueuelength
 
 import (

@@ -5,6 +5,7 @@
 
 //go:build !linux_bpf
 
+// Package oomkill is the system-probe side of the OOM Kill check
 package oomkill
 
 import (
