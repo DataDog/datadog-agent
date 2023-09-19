@@ -24,7 +24,8 @@ import (
 // the rule's rego program.
 func EvaluateRegoRule(ctx context.Context, resolvedInputs ResolvedInputs, benchmark *Benchmark, rule *Rule) []*CheckEvent {
 	wrapErr := func(errReason error) []*CheckEvent {
-		return []*CheckEvent{CheckEventFromError(RegoEvaluator, rule, benchmark, errReason)}
+		err := fmt.Errorf("rego eval error for rule=%s: %w", rule.ID, errReason)
+		return []*CheckEvent{NewCheckError(RegoEvaluator, err, "", "", rule, benchmark)}
 	}
 
 	if !rule.IsRego() {
@@ -41,7 +42,7 @@ func EvaluateRegoRule(ctx context.Context, resolvedInputs ResolvedInputs, benchm
 
 	input, err := regoast.InterfaceToValue(resolvedInputs)
 	if err != nil {
-		return wrapErr(fmt.Errorf("could not create input value: %v", err))
+		return wrapErr(fmt.Errorf("could not create input value: %w", err))
 	}
 
 	var options []func(*rego.Rego)
@@ -63,7 +64,7 @@ func EvaluateRegoRule(ctx context.Context, resolvedInputs ResolvedInputs, benchm
 	r := rego.New(options...)
 	rSet, err := r.Eval(ctx)
 	if err != nil {
-		return wrapErr(fmt.Errorf("rego eval: %w", err))
+		return wrapErr(err)
 	}
 	if len(rSet) == 0 || len(rSet[0].Expressions) == 0 {
 		return wrapErr(fmt.Errorf("empty results set"))
