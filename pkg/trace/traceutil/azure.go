@@ -37,7 +37,7 @@ const (
 	appService = "app"
 )
 
-var appServicesTags map[string]string
+var appServicesTags map[string]string //TODO: make this actually cache?
 
 func GetAppServicesTags() map[string]string {
 	if appServicesTags != nil {

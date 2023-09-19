@@ -1111,13 +1111,13 @@ func TestSample(t *testing.T) {
 		}
 		t.Run(name, func(t *testing.T) {
 			before := tt.trace.TraceChunk.ShallowCopy()
-			_, keep, sampled := a.sample(now, info.NewReceiverStats().GetTagStats(info.Tags{}), &tt.trace)
+			_, keep, sampled := a.traceSampling(now, info.NewReceiverStats().GetTagStats(info.Tags{}), &tt.trace)
 			assert.Equal(t, tt.keep, keep)
 			assert.Equal(t, tt.dropped, sampled.TraceChunk.DroppedTrace)
 			assert.Equal(t, before, tt.trace.TraceChunk) // make sure tt.trace.TraceChunk didn't change
 			cfg.Features["error_rare_sample_tracer_drop"] = struct{}{}
 			defer delete(cfg.Features, "error_rare_sample_tracer_drop")
-			_, keep, sampled = a.sample(now, info.NewReceiverStats().GetTagStats(info.Tags{}), &tt.trace)
+			_, keep, sampled = a.traceSampling(now, info.NewReceiverStats().GetTagStats(info.Tags{}), &tt.trace)
 			assert.Equal(t, tt.keepWithFeature, keep)
 			assert.Equal(t, before, tt.trace.TraceChunk) // make sure tt.trace.TraceChunk didn't change
 			assert.Equal(t, tt.dropped, sampled.TraceChunk.DroppedTrace)
@@ -1749,7 +1749,7 @@ func TestSampleWithPriorityNone(t *testing.T) {
 	}
 	// before := traceutil.CopyTraceChunk(pt.TraceChunk)
 	before := pt.TraceChunk.ShallowCopy()
-	numEvents, keep, sampled := agnt.sample(time.Now(), info.NewReceiverStats().GetTagStats(info.Tags{}), &pt)
+	numEvents, keep, sampled := agnt.traceSampling(time.Now(), info.NewReceiverStats().GetTagStats(info.Tags{}), &pt)
 	assert.True(t, keep) // Score Sampler should keep the trace.
 	assert.False(t, sampled.TraceChunk.DroppedTrace)
 	assert.Equal(t, before, pt.TraceChunk)

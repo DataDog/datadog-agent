@@ -230,7 +230,7 @@ func (a *Agent) Process(p *api.Payload) {
 	now := time.Now()
 	defer timing.Since("datadog.trace_agent.internal.process_payload_ms", now)
 	ts := p.Source
-	ss := new(writer.SampledChunks)
+	sampledChunks := new(writer.SampledChunks)
 	statsInput := stats.NewStatsInput(len(p.TracerPayload.Chunks), p.TracerPayload.ContainerID, p.ClientComputedStats, a.conf)
 
 	p.TracerPayload.Env = traceutil.NormalizeTag(p.TracerPayload.Env)
@@ -257,7 +257,7 @@ func (a *Agent) Process(p *api.Payload) {
 
 		// Root span is used to carry some trace-level metadata, such as sampling rate and priority.
 		root := traceutil.GetRoot(chunk.Spans)
-		normalizeChunk(chunk, root)
+		setChunkAttributesFromRoot(chunk, root)
 		if !a.Blacklister.Allows(root) {
 			log.Debugf("Trace rejected by ignore resources rules. root: %v", root)
 			ts.TracesFiltered.Inc()
@@ -306,23 +306,14 @@ func (a *Agent) Process(p *api.Payload) {
 			traceutil.ComputeTopLevel(chunk.Spans)
 		}
 
-		if p.TracerPayload.Hostname == "" {
-			// Older tracers set tracer hostname in the root span.
-			p.TracerPayload.Hostname = root.Meta[tagHostname]
-		}
-		if p.TracerPayload.Env == "" {
-			p.TracerPayload.Env = traceutil.GetEnv(root, chunk)
-		}
-		if p.TracerPayload.AppVersion == "" {
-			p.TracerPayload.AppVersion = traceutil.GetAppVersion(root, chunk)
-		}
+		a.setPayloadAttributes(p, root, chunk)
 
 		pt := processedTrace(p, chunk, root)
 		if !p.ClientComputedStats {
 			statsInput.Traces = append(statsInput.Traces, *pt.Clone())
 		}
 
-		numEvents, keep, sampled := a.sample(now, ts, pt)
+		numEvents, keep, sampled := a.traceSampling(now, ts, pt)
 		if !keep {
 			// numEvents doesn't need to be updated since single spans are not
 			// used with App Analytics, e.g. aren't tagged with _dd.analyzed,
@@ -344,28 +335,41 @@ func (a *Agent) Process(p *api.Payload) {
 		p.ReplaceChunk(i, sampled.TraceChunk)
 
 		if !sampled.TraceChunk.DroppedTrace {
-			ss.SpanCount += int64(len(sampled.TraceChunk.Spans))
+			sampledChunks.SpanCount += int64(len(sampled.TraceChunk.Spans))
 		}
-		ss.EventCount += numEvents
-		ss.Size += sampled.TraceChunk.Msgsize()
+		sampledChunks.EventCount += numEvents
+		sampledChunks.Size += sampled.TraceChunk.Msgsize()
 		i++
 
-		if ss.Size > writer.MaxPayloadSize {
+		if sampledChunks.Size > writer.MaxPayloadSize {
 			// payload size is getting big; split and flush what we have so far
-			ss.TracerPayload = p.TracerPayload.Cut(i)
+			sampledChunks.TracerPayload = p.TracerPayload.Cut(i)
 			i = 0
-			ss.TracerPayload.Chunks = newChunksArray(ss.TracerPayload.Chunks)
-			a.TraceWriter.In <- ss
-			ss = new(writer.SampledChunks)
+			sampledChunks.TracerPayload.Chunks = newChunksArray(sampledChunks.TracerPayload.Chunks)
+			a.TraceWriter.In <- sampledChunks
+			sampledChunks = new(writer.SampledChunks)
 		}
 	}
-	ss.TracerPayload = p.TracerPayload
-	ss.TracerPayload.Chunks = newChunksArray(p.TracerPayload.Chunks)
-	if ss.Size > 0 {
-		a.TraceWriter.In <- ss
+	sampledChunks.TracerPayload = p.TracerPayload
+	sampledChunks.TracerPayload.Chunks = newChunksArray(p.TracerPayload.Chunks)
+	if sampledChunks.Size > 0 {
+		a.TraceWriter.In <- sampledChunks
 	}
 	if len(statsInput.Traces) > 0 {
 		a.Concentrator.In <- statsInput
+	}
+}
+
+func (a *Agent) setPayloadAttributes(p *api.Payload, root *pb.Span, chunk *pb.TraceChunk) {
+	if p.TracerPayload.Hostname == "" {
+		// Older tracers set tracer hostname in the root span.
+		p.TracerPayload.Hostname = root.Meta[tagHostname]
+	}
+	if p.TracerPayload.Env == "" {
+		p.TracerPayload.Env = traceutil.GetEnv(root, chunk)
+	}
+	if p.TracerPayload.AppVersion == "" {
+		p.TracerPayload.AppVersion = traceutil.GetAppVersion(root, chunk)
 	}
 }
 
@@ -484,10 +488,10 @@ func isManualUserDrop(priority sampler.SamplingPriority, pt *traceutil.Processed
 	return dm == manualSampling
 }
 
-// sample reports the number of events found in pt and whether the chunk should be kept as a trace.
-// sample does a semi-deep copy of pt to avoid making accidental changes to which spans are in the trace.
+// traceSampling reports the number of events found in pt and whether the chunk should be kept as a trace.
+// traceSampling does a semi-deep copy of pt to avoid making accidental changes to which spans are in the trace.
 // But any changes made directly to the spans, such as setting tags, etc. is not allowed.
-func (a *Agent) sample(now time.Time, ts *info.TagStats, pt *traceutil.ProcessedTrace) (numEvents int64, keep bool, retPt *traceutil.ProcessedTrace) {
+func (a *Agent) traceSampling(now time.Time, ts *info.TagStats, pt *traceutil.ProcessedTrace) (numEvents int64, keep bool, retPt *traceutil.ProcessedTrace) {
 	pt = pt.Clone()
 	priority, hasPriority := sampler.GetSamplingPriority(pt.TraceChunk)
 

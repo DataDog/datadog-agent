@@ -83,6 +83,8 @@ func (p *Processor) Process(pt *traceutil.ProcessedTrace) (numEvents, numExtract
 		}
 		numEvents++
 	}
+	//TODO: we can NOT modify `pt` and then we don't need to clone it i think (BIG WIN)
+	//TODO: Add an integration test for sampling + analytics events to verify no change in behavior
 	if pt.TraceChunk.DroppedTrace {
 		// we are not keeping anything out of this trace, except the events
 		pt.TraceChunk.Spans = events
