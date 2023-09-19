@@ -17,8 +17,6 @@ import (
 // newMock exported mock builder to allow modifying mocks that might be
 // supplied in tests and used for dep injection.
 func newMock(deps dependencies, t testing.TB) (Component, error) {
-	// injected Agent config should be a mock
-
 	traceCfg, err := setupConfig(deps, "apikey")
 	if err != nil {
 		return nil, err

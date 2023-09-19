@@ -11,10 +11,7 @@ import (
 	"go.uber.org/fx"
 )
 
-type Component interface {
-	// Run starts the tracer agent.
-	Run()
-}
+type Component interface{}
 
 var Module = fxutil.Component(
 	fx.Provide(newAgent),

@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package run
+package agent
 
 import (
 	"context"
@@ -13,15 +13,12 @@ import (
 	"os"
 	"runtime"
 	"runtime/debug"
-	"runtime/pprof"
 	"time"
 
 	"github.com/DataDog/datadog-agent/cmd/manager"
 	remotecfg "github.com/DataDog/datadog-agent/cmd/trace-agent/config/remote"
-	agentComponent "github.com/DataDog/datadog-agent/comp/trace/agent"
 	coreconfig "github.com/DataDog/datadog-agent/pkg/config"
 	rc "github.com/DataDog/datadog-agent/pkg/config/remote"
-	"github.com/DataDog/datadog-agent/pkg/pidfile"
 	"github.com/DataDog/datadog-agent/pkg/tagger"
 	"github.com/DataDog/datadog-agent/pkg/tagger/local"
 	"github.com/DataDog/datadog-agent/pkg/tagger/remote"
@@ -52,8 +49,8 @@ to your datadog.yaml. Exiting...`
 // Stack depth of 3 since the `corelogger` struct adds a layer above the logger
 const stackDepth = 3
 
-// runAgent is the entrypoint of our code, which starts the tracer agent.
-func runAgent(ctx context.Context, cliParams *RunParams, tracecfg *tracecfg.AgentConfig, apiConfigHandler http.Handler, telemetryCollector telemetry.TelemetryCollector, agent agentComponent.Component) error {
+// runAgentSidekicks is the entrypoint for running non-components that run along the agent.
+func runAgentSidekicks(ctx context.Context, tracecfg *tracecfg.AgentConfig, apiConfigHandler http.Handler, telemetryCollector telemetry.TelemetryCollector) error {
 	err := info.InitInfo(tracecfg) // for expvar & -info option
 	if err != nil {
 		return err
@@ -81,28 +78,6 @@ func runAgent(ctx context.Context, cliParams *RunParams, tracecfg *tracecfg.Agen
 	}
 
 	defer watchdog.LogOnPanic()
-
-	if cliParams.CPUProfile != "" {
-		f, err := os.Create(cliParams.CPUProfile)
-		if err != nil {
-			log.Error(err)
-		}
-		pprof.StartCPUProfile(f) //nolint:errcheck
-		log.Info("CPU profiling started...")
-		defer pprof.StopCPUProfile()
-	}
-
-	if cliParams.PIDFilePath != "" {
-		err := pidfile.WritePID(cliParams.PIDFilePath)
-		if err != nil {
-			telemetryCollector.SendStartupError(telemetry.CantWritePIDFile, err)
-			log.Criticalf("Error writing PID file, exiting: %v", err)
-			os.Exit(1)
-		}
-
-		log.Infof("PID '%d' written to PID file '%s'", os.Getpid(), cliParams.PIDFilePath)
-		defer os.Remove(cliParams.PIDFilePath)
-	}
 
 	if err := util.SetupCoreDump(coreconfig.Datadog); err != nil {
 		log.Warnf("Can't setup core dumps: %v, core dumps might not be available after a crash", err)
@@ -236,24 +211,6 @@ func runAgent(ctx context.Context, cliParams *RunParams, tracecfg *tracecfg.Agen
 		time.Sleep(time.Second * 30)
 		telemetryCollector.SendStartupSuccess()
 	}()
-	agent.Run()
-
-	// collect memory profile
-	if cliParams.MemProfile != "" {
-		f, err := os.Create(cliParams.MemProfile)
-		if err != nil {
-			log.Error("Could not create memory profile: ", err)
-		}
-
-		// get up-to-date statistics
-		runtime.GC()
-		// Not using WriteHeapProfile but instead calling WriteTo to
-		// make sure we pass debug=1 and resolve pointers to names.
-		if err := pprof.Lookup("heap").WriteTo(f, 1); err != nil {
-			log.Error("Could not write memory profile: ", err)
-		}
-		f.Close()
-	}
 
 	return nil
 }

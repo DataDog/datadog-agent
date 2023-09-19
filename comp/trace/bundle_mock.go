@@ -16,9 +16,10 @@
 package trace
 
 import (
-	coreconfig "github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/comp/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
+
+	"github.com/DataDog/datadog-agent/comp/trace/agent"
+	"github.com/DataDog/datadog-agent/comp/trace/config"
 )
 
 // team: agent-apm
@@ -26,5 +27,5 @@ import (
 // MockBundle defines the fx options for this bundle.
 var MockBundle = fxutil.Bundle(
 	config.MockModule,
-	coreconfig.MockModule,
+	agent.MockModule,
 )

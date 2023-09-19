@@ -8,8 +8,6 @@
 package run
 
 import (
-	"context"
-
 	"github.com/spf13/cobra"
 
 	"github.com/DataDog/datadog-agent/cmd/trace-agent/subcommands"
@@ -18,13 +16,8 @@ import (
 
 type RunParams struct {
 	*subcommands.GlobalParams
+	*trace.Params
 
-	// PIDFilePath contains the value of the --pidfile flag.
-	PIDFilePath string
-	// CPUProfile contains the value for the --cpu-profile flag.
-	CPUProfile string
-	// MemProfile contains the value for the --mem-profile flag.
-	MemProfile string
 	// Foreground contains the value for the --foreground flag.
 	Foreground bool
 	// Debug contains the value for the --debug flag.
@@ -45,7 +38,5 @@ func Run(cliParams *RunParams, defaultConfPath string) error {
 			return nil
 		}
 	}
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-	return runFx(ctx, cliParams, defaultConfPath)
+	return runFx(cliParams, defaultConfPath)
 }
