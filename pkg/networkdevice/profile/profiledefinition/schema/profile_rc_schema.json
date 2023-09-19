@@ -15,6 +15,22 @@
         "profile_definition"
       ]
     },
+    "KeyValue": {
+      "properties": {
+        "key": {
+          "type": "string"
+        },
+        "value": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "key",
+        "value"
+      ]
+    },
     "MetadataConfig": {
       "additionalProperties": {
         "$ref": "#/$defs/MetadataResourceConfig"
@@ -96,20 +112,20 @@
           },
           "type": "array"
         },
-        "mapping": {
-          "additionalProperties": {
-            "type": "string"
+        "mapping_list": {
+          "items": {
+            "$ref": "#/$defs/KeyValue"
           },
-          "type": "object"
+          "type": "array"
         },
         "match": {
           "type": "string"
         },
-        "tags": {
-          "additionalProperties": {
-            "type": "string"
+        "tags_list": {
+          "items": {
+            "$ref": "#/$defs/KeyValue"
           },
-          "type": "object"
+          "type": "array"
         }
       },
       "additionalProperties": false,
