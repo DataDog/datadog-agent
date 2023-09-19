@@ -15,9 +15,19 @@
         "profile_definition"
       ]
     },
+    "FieldsConfig": {
+      "patternProperties": {
+        "^[a-z]$": {
+          "$ref": "#/$defs/MetadataField"
+        }
+      },
+      "type": "object"
+    },
     "MetadataConfig": {
-      "additionalProperties": {
-        "$ref": "#/$defs/MetadataResourceConfig"
+      "patternProperties": {
+        "^device|interface$": {
+          "$ref": "#/$defs/MetadataResourceConfig"
+        }
       },
       "type": "object"
     },
@@ -42,10 +52,7 @@
     "MetadataResourceConfig": {
       "properties": {
         "fields": {
-          "additionalProperties": {
-            "$ref": "#/$defs/MetadataField"
-          },
-          "type": "object"
+          "$ref": "#/$defs/FieldsConfig"
         },
         "id_tags": {
           "$ref": "#/$defs/MetricTagConfigList"
@@ -97,23 +104,13 @@
           "type": "array"
         },
         "mapping": {
-          "patternProperties": {
-            "^\\d+$": {
-              "type": "string"
-            }
-          },
-          "type": "object"
+          "$ref": "#/$defs/ValueMapping"
         },
         "match": {
           "type": "string"
         },
         "tags": {
-          "patternProperties": {
-            "^[A-Za-z0-9-_]+$": {
-              "type": "string"
-            }
-          },
-          "type": "object"
+          "$ref": "#/$defs/TagsMapping"
         }
       },
       "additionalProperties": false,
@@ -258,6 +255,22 @@
         }
       },
       "additionalProperties": false,
+      "type": "object"
+    },
+    "TagsMapping": {
+      "patternProperties": {
+        "^[A-Za-z0-9-_]+$": {
+          "type": "string"
+        }
+      },
+      "type": "object"
+    },
+    "ValueMapping": {
+      "patternProperties": {
+        "^\\d+$": {
+          "type": "string"
+        }
+      },
       "type": "object"
     }
   }

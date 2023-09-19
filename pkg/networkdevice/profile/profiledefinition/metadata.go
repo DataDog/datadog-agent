@@ -11,10 +11,13 @@ const MetadataDeviceResource = "device"
 // MetadataConfig holds configs per resource type
 type MetadataConfig map[string]MetadataResourceConfig
 
+// FieldsConfig holds configs for each field
+type FieldsConfig map[string]MetadataField
+
 // MetadataResourceConfig holds configs for a metadata resource
 type MetadataResourceConfig struct {
-	Fields map[string]MetadataField `yaml:"fields" json:"fields"`
-	IDTags MetricTagConfigList      `yaml:"id_tags,omitempty" json:"id_tags,omitempty"`
+	Fields FieldsConfig        `yaml:"fields" json:"fields"`
+	IDTags MetricTagConfigList `yaml:"id_tags,omitempty" json:"id_tags,omitempty"`
 }
 
 // MetadataField holds configs for a metadata field
