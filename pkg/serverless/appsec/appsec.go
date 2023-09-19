@@ -8,6 +8,7 @@
 package appsec
 
 import (
+	"encoding/json"
 	"time"
 
 	"github.com/DataDog/appsec-internal-go/appsec"
@@ -70,7 +71,11 @@ func newAppSec() (*AppSec, error) {
 		return nil, err
 	}
 
-	handle, err := waf.NewHandle([]byte(appsec.StaticRecommendedRules), cfg.obfuscator.KeyRegex, cfg.obfuscator.ValueRegex)
+	var rules map[string]any
+	if err := json.Unmarshal([]byte(appsec.StaticRecommendedRules), &rules); err != nil {
+		return nil, err
+	}
+	handle, err := waf.NewHandle(rules, cfg.obfuscator.KeyRegex, cfg.obfuscator.ValueRegex)
 	if err != nil {
 		return nil, err
 	}
