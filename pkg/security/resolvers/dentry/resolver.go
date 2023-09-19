@@ -177,7 +177,12 @@ func (dr *Resolver) sendERPCStats() error {
 
 // DelCacheEntries removes all the entries belonging to a mountID
 func (dr *Resolver) DelCacheEntries(mountID uint32) {
-	// delete(dr.cache, mountID)
+	// TODO(paulcacheux): this is really bad for now
+	for _, key := range dr.cache.Keys() {
+		if key.MountID == mountID {
+			dr.cache.Remove(key)
+		}
+	}
 }
 
 func (dr *Resolver) lookupInodeFromCache(pathKey model.PathKey) (*PathEntry, error) {
