@@ -8,6 +8,15 @@ import (
 func TestDeviceProfileRcConfig_NormalizeInplaceForRc(t *testing.T) {
 	profile := DeviceProfileRcConfig{
 		Profile: ProfileDefinition{
+			Metadata: MetadataConfig{
+				"device": MetadataResourceConfig{
+					Fields: map[string]MetadataField{
+						"name": {
+							Value: "my-device",
+						},
+					},
+				},
+			},
 			Metrics: []MetricsConfig{
 				{
 					Symbols: []SymbolConfig{
@@ -45,6 +54,16 @@ func TestDeviceProfileRcConfig_NormalizeInplaceForRc(t *testing.T) {
 	}
 	expectedProfile := DeviceProfileRcConfig{
 		Profile: ProfileDefinition{
+			MetadataList: []MetadataResourceConfig{
+				{
+					ResourceType: "device",
+					Fields: map[string]MetadataField{
+						"name": {
+							Value: "my-device",
+						},
+					},
+				},
+			},
 			Metrics: []MetricsConfig{
 				{
 					Symbols: []SymbolConfig{
@@ -99,6 +118,16 @@ func TestDeviceProfileRcConfig_NormalizeInplaceForRc(t *testing.T) {
 func TestDeviceProfileRcConfig_NormalizeInplaceFromRc(t *testing.T) {
 	profile := DeviceProfileRcConfig{
 		Profile: ProfileDefinition{
+			MetadataList: []MetadataResourceConfig{
+				{
+					ResourceType: "device",
+					Fields: map[string]MetadataField{
+						"name": {
+							Value: "my-device",
+						},
+					},
+				},
+			},
 			Metrics: []MetricsConfig{
 				{
 					Symbols: []SymbolConfig{
@@ -147,8 +176,16 @@ func TestDeviceProfileRcConfig_NormalizeInplaceFromRc(t *testing.T) {
 		},
 	}
 	expectedProfile := DeviceProfileRcConfig{
-
 		Profile: ProfileDefinition{
+			Metadata: MetadataConfig{
+				"device": MetadataResourceConfig{
+					Fields: map[string]MetadataField{
+						"name": {
+							Value: "my-device",
+						},
+					},
+				},
+			},
 			Metrics: []MetricsConfig{
 				{
 					Symbols: []SymbolConfig{

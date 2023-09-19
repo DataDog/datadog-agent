@@ -20,12 +20,15 @@ type ProfileDefinition struct {
 	Description  string            `yaml:"description,omitempty" json:"description,omitempty"`
 	SysObjectIds StringArray       `yaml:"sysobjectid,omitempty" json:"sysobjectid,omitempty"`
 	Extends      []string          `yaml:"extends,omitempty" json:"extends,omitempty"`
-	Metadata     MetadataConfig    `yaml:"metadata,omitempty" json:"metadata,omitempty"`
+	Metadata     MetadataConfig    `yaml:"metadata,omitempty" json:"metadata,omitempty" jsonschema:"-"`
 	MetricTags   []MetricTagConfig `yaml:"metric_tags,omitempty" json:"metric_tags,omitempty"`
 	StaticTags   []string          `yaml:"static_tags,omitempty" json:"static_tags,omitempty"`
 	Metrics      []MetricsConfig   `yaml:"metrics,omitempty" json:"metrics,omitempty"`
 
 	Device DeviceMeta `yaml:"device,omitempty" json:"device,omitempty" jsonschema:"-"` // DEPRECATED
+
+	// Used to convert into RC format (list instead of map)
+	MetadataList []MetadataResourceConfig `yaml:"-" json:"metadata_list,omitempty"`
 }
 
 // DeviceProfileRcConfig represent the profile stored in remote config.
@@ -40,7 +43,7 @@ func NewProfileDefinition() *ProfileDefinition {
 	return p
 }
 
-func (d DeviceProfileRcConfig) NormalizeInplaceForRc() {
+func (d *DeviceProfileRcConfig) NormalizeInplaceForRc() {
 	for i := range d.Profile.Metrics {
 		metric := &d.Profile.Metrics[i]
 		for j := range metric.MetricTags {
@@ -82,9 +85,24 @@ func (d DeviceProfileRcConfig) NormalizeInplaceForRc() {
 			}
 		}
 	}
+
+	if len(d.Profile.Metadata) > 0 {
+		d.Profile.MetadataList = []MetadataResourceConfig{}
+		var metaResourceKeys []string
+		for metaResource := range d.Profile.Metadata {
+			metaResourceKeys = append(metaResourceKeys, metaResource)
+		}
+		sort.Strings(metaResourceKeys)
+		for _, key := range metaResourceKeys {
+			metadataConfig := d.Profile.Metadata[key]
+			metadataConfig.ResourceType = key
+			d.Profile.MetadataList = append(d.Profile.MetadataList, metadataConfig)
+		}
+		d.Profile.Metadata = nil
+	}
 }
 
-func (d DeviceProfileRcConfig) NormalizeInplaceFromRc() {
+func (d *DeviceProfileRcConfig) NormalizeInplaceFromRc() {
 	for i := range d.Profile.Metrics {
 		metric := &d.Profile.Metrics[i]
 		for j := range metric.MetricTags {
@@ -107,5 +125,14 @@ func (d DeviceProfileRcConfig) NormalizeInplaceFromRc() {
 				metricTag.TagsList = nil
 			}
 		}
+	}
+	if len(d.Profile.MetadataList) > 0 {
+		d.Profile.Metadata = make(MetadataConfig)
+		for _, item := range d.Profile.MetadataList {
+			resourceType := item.ResourceType
+			item.ResourceType = ""
+			d.Profile.Metadata[resourceType] = item
+		}
+		d.Profile.MetadataList = nil
 	}
 }

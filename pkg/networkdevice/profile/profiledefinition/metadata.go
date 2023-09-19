@@ -15,6 +15,9 @@ type MetadataConfig map[string]MetadataResourceConfig
 type MetadataResourceConfig struct {
 	Fields map[string]MetadataField `yaml:"fields" json:"fields"`
 	IDTags MetricTagConfigList      `yaml:"id_tags,omitempty" json:"id_tags,omitempty"`
+
+	// Use for RC list conversion
+	ResourceType string `yaml:"-" json:"resource_type"`
 }
 
 // MetadataField holds configs for a metadata field
