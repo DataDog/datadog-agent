@@ -290,7 +290,8 @@ func GetSystemProbeWSDialer(path string) *websocket.Dialer {
 		NetDialContext: func(_ context.Context, _, _ string) (net.Conn, error) {
 			return net.Dial(netType, path)
 		},
-		Proxy:            http.ProxyFromEnvironment,
-		HandshakeTimeout: time.Second,
+		Proxy:             http.ProxyFromEnvironment,
+		HandshakeTimeout:  time.Second,
+		EnableCompression: true,
 	}
 }

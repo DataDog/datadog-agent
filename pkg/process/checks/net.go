@@ -10,6 +10,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net/http"
 	"sort"
 	"time"
 
@@ -195,7 +196,9 @@ func (c *ConnectionsCheck) getConnections() (*model.Connections, error) {
 
 func (c *ConnectionsCheck) getConnectionsWS() (*model.Connections, error) {
 	urrl := fmt.Sprintf("ws://unix/%s/ws-connections?client_id=%s", string(sysconfig.NetworkTracerModule), c.tracerClientID)
-	conn, _, err := net.GetSystemProbeWSDialer(c.syscfg.SocketAddress).Dial(urrl, nil)
+	header := http.Header{}
+	header.Set("Accept", "application/protobuf")
+	conn, _, err := net.GetSystemProbeWSDialer(c.syscfg.SocketAddress).Dial(urrl, header)
 	if err != nil {
 		// handle error
 		return nil, err

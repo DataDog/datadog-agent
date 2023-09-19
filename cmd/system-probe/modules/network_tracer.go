@@ -16,6 +16,7 @@ import (
 	"os"
 	"runtime"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/gorilla/websocket"
@@ -168,8 +169,11 @@ func (nt *networkTracer) Register(httpMux *module.Router) error {
 		logRequests(id, "/connections", count, len(cs.Conns), start)
 	}))
 
+	upgrader := websocket.Upgrader{
+		WriteBufferPool:   &sync.Pool{},
+		EnableCompression: true,
+	}
 	httpMux.HandleFunc("/ws-connections", utils.WithConcurrencyLimit(utils.DefaultMaxConcurrentRequests, func(w http.ResponseWriter, req *http.Request) {
-		upgrader := websocket.Upgrader{}
 		c, err := upgrader.Upgrade(w, req, nil)
 		if err != nil {
 			log.Errorf("unable to upgrade connection to WS: %s", err)
