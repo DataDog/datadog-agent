@@ -223,6 +223,6 @@ func TestDeviceProfileRcConfig_NormalizeInplaceFromRc(t *testing.T) {
 			},
 		},
 	}
-	profile.NormalizeInplaceFromRc()
+	profile.NormalizeInplaceForAgent()
 	assert.Equal(t, expectedProfile, profile)
 }

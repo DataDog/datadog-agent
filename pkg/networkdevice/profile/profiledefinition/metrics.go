@@ -40,6 +40,7 @@ const (
 )
 
 // KeyValue used to represent mapping
+// Used for RC compatibility (map to list)
 type KeyValue struct {
 	Key   string `yaml:"key" json:"key"`
 	Value string `yaml:"value" json:"value"`
@@ -85,19 +86,17 @@ type MetricTagConfig struct {
 	IndexTransform []MetricIndexTransform `yaml:"index_transform,omitempty" json:"index_transform,omitempty"`
 
 	Mapping map[string]string `yaml:"mapping,omitempty" json:"-" jsonschema:"-"`
-	// MappingList []KeyValue is an alternative to Mapping to workaround limitation in jsonschema
-	// related to the use of map[string]X that leads to additionalProperties .
-	MappingList []KeyValue `yaml:"-" json:"mapping_list,omitempty"`
 
 	// Regex
 	Match   string            `yaml:"match,omitempty" json:"match,omitempty"`
 	Pattern *regexp.Regexp    `yaml:"-" json:"-"`
 	Tags    map[string]string `yaml:"tags,omitempty" json:"-" jsonschema:"-"`
-	// TagsList []KeyValue is an alternative to Tags to workaround limitation in jsonschema
-	// related to the use of map[string]X that leads to additionalProperties .
-	TagsList []KeyValue `yaml:"-" json:"tags_list,omitempty"`
 
 	SymbolTag string `yaml:"-" json:"-"`
+
+	// Used for RC compatibility (map to list)
+	MappingList []KeyValue `yaml:"-" json:"mapping_list,omitempty"`
+	TagsList    []KeyValue `yaml:"-" json:"tags_list,omitempty"`
 }
 
 // MetricTagConfigList holds configs for a list of metric tags

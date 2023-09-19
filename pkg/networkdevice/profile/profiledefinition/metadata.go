@@ -16,7 +16,7 @@ type MetadataResourceConfig struct {
 	Fields map[string]MetadataField `yaml:"fields" json:"fields" jsonschema:"-"`
 	IDTags MetricTagConfigList      `yaml:"id_tags,omitempty" json:"id_tags,omitempty"`
 
-	// Use for RC list conversion
+	// Used for RC compatibility (map to list)
 	ResourceType string          `yaml:"-" json:"resource_type"`
 	FieldsList   []MetadataField `yaml:"-" json:"fields_list"`
 }
@@ -27,7 +27,7 @@ type MetadataField struct {
 	Symbols []SymbolConfig `yaml:"symbols,omitempty" json:"symbols,omitempty"`
 	Value   string         `yaml:"value,omitempty" json:"value,omitempty"`
 
-	// Use for RC list conversion
+	// Used for RC compatibility (map to list)
 	FieldName string `yaml:"-" json:"field_name"`
 }
 
