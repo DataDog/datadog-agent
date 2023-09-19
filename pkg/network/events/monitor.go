@@ -100,19 +100,11 @@ func (h *eventHandlerWrapper) HandleEvent(ev any) {
 func (h *eventHandlerWrapper) Copy(ev *model.Event) any {
 	m := theMonitor.Load()
 	if m != nil {
-		ev.ResolveFields()
-
-		var envCopy []string
-		if envsEntry := ev.ProcessContext.EnvsEntry; envsEntry != nil {
-			envCopy = make([]string, len(envsEntry.Values))
-			copy(envCopy, envsEntry.Values)
-		}
-
 		return &Process{
-			Pid:         ev.ProcessContext.Pid,
-			ContainerID: intern.GetByString(ev.ProcessContext.ContainerID),
-			StartTime:   ev.ProcessContext.ExecTime.UnixNano(),
-			Envs:        envCopy,
+			Pid:         ev.GetProcessPid(),
+			ContainerID: intern.GetByString(ev.GetContainerId()),
+			StartTime:   ev.GetProcessExecTime().UnixNano(),
+			Envs:        ev.GetProcessEnvs(), // TODO, don't resolve twice in GetProcessEnvs. TODO: Verify that Process.EnvEntry and Process.Envs are the same
 		}
 	}
 
