@@ -47,7 +47,7 @@ type KubeEndpointsListener struct {
 	delService         chan<- Service
 	targetAllEndpoints bool
 	m                  sync.RWMutex
-	metricsExcluded    bool
+	containerFilters  *containerFilters
 }
 
 // KubeEndpointService represents an endpoint in a Kubernetes Endpoints
@@ -56,6 +56,7 @@ type KubeEndpointService struct {
 	tags   []string
 	hosts  map[string]string
 	ports  []ContainerPort
+	metricsExcluded bool
 }
 
 // Make sure KubeEndpointService implements the Service interface
@@ -83,6 +84,11 @@ func NewKubeEndpointsListener(conf Config) (ServiceListener, error) {
 		return nil, fmt.Errorf("cannot get service informer: %s", err)
 	}
 
+	containerFilters, err := newContainerFilters()
+	if err != nil {
+		return nil, err
+	}
+
 	return &KubeEndpointsListener{
 		endpoints:          make(map[k8stypes.UID][]*KubeEndpointService),
 		endpointsInformer:  endpointsInformer,
@@ -91,6 +97,7 @@ func NewKubeEndpointsListener(conf Config) (ServiceListener, error) {
 		serviceLister:      serviceInformer.Lister(),
 		promInclAnnot:      getPrometheusIncludeAnnotations(),
 		targetAllEndpoints: conf.IsProviderEnabled(names.KubeEndpointsFileRegisterName),
+		containerFilters: containerFilters,
 	}, nil
 }
 
@@ -308,6 +315,15 @@ func (l *KubeEndpointsListener) createService(kep *v1.Endpoints, checkServiceAnn
 
 	eps := processEndpoints(kep, tags)
 
+	eps.metricsExcluded = l.containerFilters.IsExcluded(
+		containers.MetricsFilter,
+		kep.GetAnnotations(),
+		kep.Name,
+		"",
+		kep.Namespace,
+	)
+
+
 	l.m.Lock()
 	l.endpoints[kep.UID] = eps
 	l.m.Unlock()
@@ -457,7 +473,7 @@ func (s *KubeEndpointService) GetCheckNames(context.Context) []string {
 
 // HasFilter returns whether the kube service should not collect certain metrics
 // due to filtering applied by filter.
-func (s *service) HasFilter(filter containers.FilterType) bool {
+func (s *KubeEndpointService) HasFilter(filter containers.FilterType) bool {
 	if filter == containers.MetricsFilter {
 		return s.metricsExcluded
 	} else {
