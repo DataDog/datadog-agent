@@ -12,6 +12,7 @@ import (
 	"math/rand"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 )
 
@@ -24,6 +25,14 @@ type Strategy interface {
 	Failure(t time.Time)
 	Success()
 }
+
+type retryState struct {
+	lastFail time.Time
+	retries  uint64
+	lock     sync.Mutex
+}
+
+var globalRetryState = retryState{}
 
 // Moment represents at which moment we're asking the flush strategy if we
 // should flush or not.
@@ -76,7 +85,7 @@ func (s *AtTheEnd) String() string { return "end" }
 
 // ShouldFlush returns true if this strategy want to flush at the given moment.
 func (s *AtTheEnd) ShouldFlush(moment Moment, t time.Time) bool {
-	if shouldWaitBackoff(t) {
+	if globalRetryState.shouldWaitBackoff(t) {
 		return false
 	}
 	return moment == Stopping
@@ -84,12 +93,12 @@ func (s *AtTheEnd) ShouldFlush(moment Moment, t time.Time) bool {
 
 // Failure modify state to keep track of failure
 func (s *AtTheEnd) Failure(t time.Time) {
-	incrementFailure(t)
+	globalRetryState.incrementFailure(t)
 }
 
 // Success reset the state when a flush is successful
 func (s *AtTheEnd) Success() {
-	reset()
+	globalRetryState.reset()
 }
 
 // Periodically is the strategy flushing at least every N [nano/micro/milli]seconds
@@ -110,7 +119,7 @@ func (s *Periodically) String() string {
 
 // ShouldFlush returns true if this strategy want to flush at the given moment.
 func (s *Periodically) ShouldFlush(moment Moment, t time.Time) bool {
-	if moment == Starting && !shouldWaitBackoff(t) {
+	if moment == Starting && !globalRetryState.shouldWaitBackoff(t) {
 		// Periodically strategy will not flush anyway if the s.interval didn't pass
 		if s.lastFlush.Add(s.interval).Before(t) {
 			s.lastFlush = t
@@ -122,38 +131,41 @@ func (s *Periodically) ShouldFlush(moment Moment, t time.Time) bool {
 
 // Failure modify state to keep track of failure
 func (s *Periodically) Failure(t time.Time) {
-	incrementFailure(t)
+	globalRetryState.incrementFailure(t)
 }
 
 // Success reset the state when a flush is successful
 func (s *Periodically) Success() {
-	reset()
+	globalRetryState.reset()
 }
 
-var lastFail time.Time
-var retries uint64
-
-func shouldWaitBackoff(now time.Time) bool {
-	if retries > 0 {
-		maxRetryBackoff := math.Min(float64(retries), 10) // no need to go higher and risk overflow in the power op
+func (r *retryState) shouldWaitBackoff(now time.Time) bool {
+	r.lock.Lock()
+	defer r.lock.Unlock()
+	if r.retries > 0 {
+		maxRetryBackoff := math.Min(float64(r.retries), 10) // no need to go higher and risk overflow in the power op
 		spreadRetrySeconds := float64(rand.Int31n(1_000)) / 1_000
 		ignoreWindowSeconds := int(math.Min(math.Pow(2, maxRetryBackoff)+spreadRetrySeconds, maxBackoffRetrySeconds))
 
-		whenAcceptingFlush := lastFail.Add(time.Duration(ignoreWindowSeconds * 1e9))
+		whenAcceptingFlush := r.lastFail.Add(time.Duration(ignoreWindowSeconds * 1e9))
 
 		timeLeft := int(math.Max(float64(whenAcceptingFlush.Second()-now.Second()), 0))
 
-		log.Debugf("Flush failed %d times, flushes will be prevented for %d seconds (%d left)", retries, ignoreWindowSeconds, timeLeft)
+		log.Debugf("Flush failed %d times, flushes will be prevented for %d seconds (%d left)", r.retries, ignoreWindowSeconds, timeLeft)
 		return now.Before(whenAcceptingFlush)
 	}
 	return false
 }
 
-func incrementFailure(t time.Time) {
-	retries++
-	lastFail = t
+func (r *retryState) incrementFailure(t time.Time) {
+	r.lock.Lock()
+	defer r.lock.Unlock()
+	r.retries++
+	r.lastFail = t
 }
 
-func reset() {
-	retries = 0
+func (r *retryState) reset() {
+	r.lock.Lock()
+	defer r.lock.Unlock()
+	r.retries = 0
 }

@@ -174,8 +174,6 @@ func (d *Daemon) HandleRuntimeDone() {
 
 // ShouldFlush indicated whether or a flush is needed
 func (d *Daemon) ShouldFlush(moment flush.Moment) bool {
-	d.FlushLock.Lock()
-	defer d.FlushLock.Unlock()
 	return d.flushStrategy.ShouldFlush(moment, time.Now())
 }
 
