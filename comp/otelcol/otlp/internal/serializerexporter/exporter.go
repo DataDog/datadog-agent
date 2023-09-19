@@ -3,6 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+// Package serializerexporter contains the impleemntation of an exporter which is able
+// to serialize OTLP Metrics to an agent demultiplexer.
 package serializerexporter
 
 import (
