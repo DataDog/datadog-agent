@@ -44,6 +44,7 @@ def split_junitxml(xml_path, codeowners, output_dir):
     """
     tree = ET.parse(xml_path)
     output_xmls = {}
+    jira_cache = {}  # To save calls to jira as children tests share the same card
 
     flem = tree.find("flavor")
     flavor = flem.text if flem else AgentFlavor.base.name
@@ -69,6 +70,12 @@ def split_junitxml(xml_path, codeowners, output_dir):
         except KeyError:
             xml = ET.ElementTree(ET.Element("testsuites"))
             output_xmls[main_owner] = xml
+        # Add reference to the test jira card for each failed test case, if any
+        jira_project = GITHUB_JIRA_MAP.get(f"{CODEOWNERS_ORG_PREFIX}{main_owner}".casefold(), DEFAULT_JIRA_PROJECT)
+        for test_case in suite.iter("testcase"):
+            if any(child.tag == "failure" for child in test_case):
+                jira_card = retrieve_jira_card(test_case, jira_project, jira_cache)
+                test_case.attrib["jira_card"] = jira_card
         xml.getroot().append(suite)
 
     for owner, xml in output_xmls.items():
@@ -108,9 +115,6 @@ def upload_junitxmls(output_dir, owners, flavor, xmlfile_name, additional_tags=N
             "--tags",
             f"jira_project:{jira_project}",
         ]
-        jira_card = retrieve_jira_card(junit_file_path)
-        if jira_card:
-            args.extend(["--tags", f"jira_card:{jira_card}"])
         if additional_tags and "upload_option.os_version_from_name" in additional_tags:
             additional_tags.remove("upload_option.os_version_from_name")
             additional_tags.append("--tags")
@@ -252,43 +256,43 @@ def repack_macos_junit_tar(infile, outfile):
             outfp.add(os.path.join(tempd, f), arcname=f)
 
 
-def retrieve_jira_card(xmlfile_path):
+def retrieve_jira_card(test_case, jira_project, jira_cache):
     """
     Search in jira if a card already exist for the given testsuite
     """
     from jira import JIRA
 
-    fake_jira_card = "XYZ-123"
-    tree = ET.parse(xmlfile_path)
+    jira_card = "XYZ-123"
     try:
         jira_token = os.environ["JIRA_TOKEN"]
+        auth = ("robot-jira-agentplatform@datadoghq.com", jira_token)
     except KeyError:
         print("Failed to retrieve jira token in environment, won't retrieve jira cards")
         # See https://app.datadoghq.com/workflow/42375aaf-9a77-4b93-ad51-9a5f524b570d
-        print(f"Junit jira ticket {fake_jira_card}")
-        return fake_jira_card
+        print(f"Junit jira ticket {jira_card}")
+        return jira_card
 
-    auth = ("robot-jira-agentplatform@datadoghq.com", jira_token)
-    j = JIRA(basic_auth=auth, server="https://datadoghq.atlassian.net/")
-    test_suites = list(tree.iter("testsuite"))
-    if len(test_suites) > 1:
-        message = f"Found several test suites in a single junit file: {[x.attrib['name'] for x in test_suites]}"
-        print(message)
-    suite_name = test_suites[0].attrib["name"]
-    search_query = f'project = "CI Improvement" and summary ~ "{suite_name}" and status != Done'
-    try:
-        issues = j.search_issues(search_query)
-    except Exception as e:
-        # Catch whatever issue from jira api and send an information handled in the wokflow
-        # See https://app.datadoghq.com/workflow/42375aaf-9a77-4b93-ad51-9a5f524b570d
-        print(e)
-        print(f"Junit jira ticket {fake_jira_card}")
-        return fake_jira_card
-    if len(issues) == 0:
-        print("Junit jira ticket empty")
-        return ""
-    elif len(issues) > 1:
-        message = f"Found several jira issues for the test suite {suite_name}: {[x.key for x in issues]}"
-        print(message)
-    print(f"Junit jira ticket {issues[0].key}")
-    return issues[0].key
+    # Keep only the parent test name (remove all after the first '/' in test_case name)
+    test_name = f"{test_case.attrib['classname']}/{test_case.attrib['name'].split('/')[0]}"
+    if test_name in jira_cache:
+        jira_card = jira_cache[test_name]
+    else:
+        try:
+            j = JIRA(basic_auth=auth, server="https://datadoghq.atlassian.net/")
+            project = j.project(jira_project)
+            search_query = f'project = "{project.name}" and summary ~ "{test_name}" and status != Done'
+            issues = j.search_issues(search_query)
+            if len(issues) == 0:
+                jira_card = ""
+            else:  # One or more ticket retrieved: take the oldest = last one as search return in id decreasing order
+                jira_card = issues[-1].key
+                if len(issues) > 1:
+                    message = f"Found several jira issues for the test {test_name}: {[x.key for x in issues]}"
+                    print(message)
+            jira_cache[test_name] = jira_card  # do not forget to update the cache
+        except Exception as e:
+            # Catch whatever issue from jira api and send an information, XYZ-123, handled in the wokflow
+            # See https://app.datadoghq.com/workflow/42375aaf-9a77-4b93-ad51-9a5f524b570d
+            print(e)
+    print(f"Attach {jira_card} to failed {test_name}")
+    return jira_card
