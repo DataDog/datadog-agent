@@ -63,6 +63,7 @@ build do
     "-DENABLE_PERL=OFF",
     "-DENABLE_PYTHON3=OFF",
     "-DWITH_PCRE2=ON",
+    "-DENABLE_TESTS=OFF",
     "-DACL_INCLUDE_DIR:PATH=#{install_dir}/embedded/include",
     "-DACL_LIBRARY:FILEPATH=#{install_dir}/embedded/lib/libacl.so",
     "-DAPTPKG_INCLUDE_DIR:PATH=#{install_dir}/embedded/include",
