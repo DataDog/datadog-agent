@@ -56,7 +56,7 @@ type Resolver struct {
 	erpcStats             [2]*lib.Map
 	bufferSelector        *lib.Map
 	activeERPCStatsBuffer uint32
-	cache                 map[uint32]*lru.Cache[model.PathKey, *PathEntry]
+	cache                 *lru.Cache[model.PathKey, *PathEntry]
 	erpc                  *erpc.ERPC
 	erpcSegment           []byte
 	erpcSegmentSize       int
@@ -177,16 +177,11 @@ func (dr *Resolver) sendERPCStats() error {
 
 // DelCacheEntries removes all the entries belonging to a mountID
 func (dr *Resolver) DelCacheEntries(mountID uint32) {
-	delete(dr.cache, mountID)
+	// delete(dr.cache, mountID)
 }
 
 func (dr *Resolver) lookupInodeFromCache(pathKey model.PathKey) (*PathEntry, error) {
-	entries, exists := dr.cache[pathKey.MountID]
-	if !exists {
-		return nil, ErrEntryNotFound
-	}
-
-	entry, exists := entries.Get(pathKey)
+	entry, exists := dr.cache.Get(pathKey)
 	if !exists {
 		return nil, ErrEntryNotFound
 	}
@@ -196,21 +191,8 @@ func (dr *Resolver) lookupInodeFromCache(pathKey model.PathKey) (*PathEntry, err
 
 // We need to cache inode by inode instead of caching the whole path in order to be
 // able to invalidate the whole path if one of its element got rename or removed.
-func (dr *Resolver) cacheInode(key model.PathKey, path *PathEntry) error {
-	entries, exists := dr.cache[key.MountID]
-	if !exists {
-		var err error
-
-		entries, err = lru.New[model.PathKey, *PathEntry](dr.config.DentryCacheSize)
-		if err != nil {
-			return err
-		}
-		dr.cache[key.MountID] = entries
-	}
-
-	entries.Add(key, path)
-
-	return nil
+func (dr *Resolver) cacheInode(key model.PathKey, path *PathEntry) {
+	dr.cache.Add(key, path)
 }
 
 // ResolveNameFromCache returns the name
@@ -265,7 +247,7 @@ func (dr *Resolver) ResolveNameFromMap(pathKey model.PathKey) (string, error) {
 	if !IsFakeInode(pathKey.Inode) {
 		cacheEntry := newPathEntry(pathLeaf.Parent, name)
 
-		_ = dr.cacheInode(pathKey, cacheEntry)
+		dr.cacheInode(pathKey, cacheEntry)
 	}
 
 	return name, nil
@@ -507,7 +489,7 @@ func (dr *Resolver) cacheEntries(keys []model.PathKey, entries []*PathEntry) err
 			cacheEntry.Parent = keys[i+1]
 		}
 
-		_ = dr.cacheInode(k, cacheEntry)
+		dr.cacheInode(k, cacheEntry)
 	}
 
 	return nil
@@ -779,10 +761,15 @@ func NewResolver(config *config.Config, statsdClient statsd.ClientInterface, e *
 		return nil, fmt.Errorf("couldn't fetch the host CPU count: %w", err)
 	}
 
+	cache, err := lru.New[model.PathKey, *PathEntry](config.DentryCacheSize * 2048)
+	if err != nil {
+		return nil, fmt.Errorf("couldn't create the dentry cache: %w", err)
+	}
+
 	return &Resolver{
 		config:        config,
 		statsdClient:  statsdClient,
-		cache:         make(map[uint32]*lru.Cache[model.PathKey, *PathEntry]),
+		cache:         cache,
 		erpc:          e,
 		erpcRequest:   erpc.Request{},
 		erpcStatsZero: make([]eRPCStats, numCPU),
