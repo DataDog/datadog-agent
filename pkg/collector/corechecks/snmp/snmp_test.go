@@ -919,6 +919,13 @@ profiles:
       "prefixlen": 24
     }
   ],
+  "diagnoses": [
+    {
+      "resource_type": "device",
+      "resource_id": "default:1.2.3.4",
+      "diagnoses": null
+    }
+  ],
   "collect_timestamp":946684800
 }
 `, version.AgentVersion))
@@ -1553,6 +1560,19 @@ tags:
       "prefixlen": 24
     }
   ],
+  "diagnoses": [
+    {
+      "resource_type": "device",
+      "resource_id": "default:1.2.3.4",
+      "diagnoses": [
+        {
+          "severity": "error",
+          "message": "Agent failed to detect a profile for this network device.",
+          "code": "SNMP_FAILED_TO_DETECT_PROFILE"
+        }
+      ]
+    }
+  ],
   "collect_timestamp":946684800
 }
 `, version.AgentVersion))
@@ -1642,6 +1662,24 @@ tags:
       "status": 2,
       "subnet": "127.0.0.0/30"
     }
+  ],
+  "diagnoses": [
+	{
+	  "resource_type": "device",
+	  "resource_id": "default:1.2.3.5",
+	  "diagnoses": [
+		{
+		  "severity": "error",
+		  "message": "Agent failed to poll this network device. Check the authentication method and ensure the agent can ping it.",
+		  "code": "SNMP_FAILED_TO_POLL_DEVICE"
+		},
+		{
+		  "severity": "error",
+		  "message": "Agent failed to detect a profile for this network device.",
+		  "code": "SNMP_FAILED_TO_DETECT_PROFILE"
+		}
+	  ]
+	}
   ],
   "collect_timestamp":946684800
 }
@@ -1972,9 +2010,16 @@ metric_tags:
       "prefixlen": 24
     }
   ],
+  "diagnoses": [
+    {
+      "resource_type": "device",
+      "resource_id": "%s",
+      "diagnoses": null
+    }
+  ],
   "collect_timestamp":946684800
 }
-`, deviceData.deviceID, deviceData.ipAddress, version.AgentVersion, deviceData.ipAddress, deviceData.ipAddress, deviceData.deviceID, deviceData.deviceID, deviceData.deviceID, deviceData.deviceID))
+`, deviceData.deviceID, deviceData.ipAddress, version.AgentVersion, deviceData.ipAddress, deviceData.ipAddress, deviceData.deviceID, deviceData.deviceID, deviceData.deviceID, deviceData.deviceID, deviceData.deviceID))
 		compactEvent := new(bytes.Buffer)
 		err = json.Compact(compactEvent, event)
 		assert.NoError(t, err)
