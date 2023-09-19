@@ -84,7 +84,9 @@ func (ev *Event) GetBpfProgHelpers() []uint32 {
 	if ev.GetEventType().String() != "bpf" {
 		return []uint32{}
 	}
-	return ev.BPF.Program.Helpers
+	fieldCopy := make([]uint32, len(ev.BPF.Program.Helpers))
+	copy(fieldCopy, ev.BPF.Program.Helpers)
+	return fieldCopy
 }
 
 // GetBpfProgName returns the value of the field, resolving if necessary
@@ -188,7 +190,9 @@ func (ev *Event) GetChmodFileHashes() []string {
 	if ev.GetEventType().String() != "chmod" {
 		return []string{}
 	}
-	return ev.FieldHandlers.ResolveHashesFromEvent(ev, &ev.Chmod.File)
+	fieldCopy := make([]string, len(ev.FieldHandlers.ResolveHashesFromEvent(ev, &ev.Chmod.File)))
+	copy(fieldCopy, ev.FieldHandlers.ResolveHashesFromEvent(ev, &ev.Chmod.File))
+	return fieldCopy
 }
 
 // GetChmodFileInUpperLayer returns the value of the field, resolving if necessary
@@ -388,7 +392,9 @@ func (ev *Event) GetChownFileHashes() []string {
 	if ev.GetEventType().String() != "chown" {
 		return []string{}
 	}
-	return ev.FieldHandlers.ResolveHashesFromEvent(ev, &ev.Chown.File)
+	fieldCopy := make([]string, len(ev.FieldHandlers.ResolveHashesFromEvent(ev, &ev.Chown.File)))
+	copy(fieldCopy, ev.FieldHandlers.ResolveHashesFromEvent(ev, &ev.Chown.File))
+	return fieldCopy
 }
 
 // GetChownFileInUpperLayer returns the value of the field, resolving if necessary
@@ -531,7 +537,9 @@ func (ev *Event) GetContainerId() string {
 
 // GetContainerTags returns the value of the field, resolving if necessary
 func (ev *Event) GetContainerTags() []string {
-	return ev.FieldHandlers.ResolveContainerTags(ev, ev.BaseEvent.ContainerContext)
+	fieldCopy := make([]string, len(ev.FieldHandlers.ResolveContainerTags(ev, ev.BaseEvent.ContainerContext)))
+	copy(fieldCopy, ev.FieldHandlers.ResolveContainerTags(ev, ev.BaseEvent.ContainerContext))
+	return fieldCopy
 }
 
 // GetDnsId returns the value of the field, resolving if necessary
@@ -637,7 +645,9 @@ func (ev *Event) GetExecArgsFlags() []string {
 	if ev.GetEventType().String() != "exec" {
 		return []string{}
 	}
-	return ev.FieldHandlers.ResolveProcessArgsFlags(ev, ev.Exec.Process)
+	fieldCopy := make([]string, len(ev.FieldHandlers.ResolveProcessArgsFlags(ev, ev.Exec.Process)))
+	copy(fieldCopy, ev.FieldHandlers.ResolveProcessArgsFlags(ev, ev.Exec.Process))
+	return fieldCopy
 }
 
 // GetExecArgsOptions returns the value of the field, resolving if necessary
@@ -645,7 +655,9 @@ func (ev *Event) GetExecArgsOptions() []string {
 	if ev.GetEventType().String() != "exec" {
 		return []string{}
 	}
-	return ev.FieldHandlers.ResolveProcessArgsOptions(ev, ev.Exec.Process)
+	fieldCopy := make([]string, len(ev.FieldHandlers.ResolveProcessArgsOptions(ev, ev.Exec.Process)))
+	copy(fieldCopy, ev.FieldHandlers.ResolveProcessArgsOptions(ev, ev.Exec.Process))
+	return fieldCopy
 }
 
 // GetExecArgsTruncated returns the value of the field, resolving if necessary
@@ -661,7 +673,9 @@ func (ev *Event) GetExecArgv() []string {
 	if ev.GetEventType().String() != "exec" {
 		return []string{}
 	}
-	return ev.FieldHandlers.ResolveProcessArgv(ev, ev.Exec.Process)
+	fieldCopy := make([]string, len(ev.FieldHandlers.ResolveProcessArgv(ev, ev.Exec.Process)))
+	copy(fieldCopy, ev.FieldHandlers.ResolveProcessArgv(ev, ev.Exec.Process))
+	return fieldCopy
 }
 
 // GetExecArgv0 returns the value of the field, resolving if necessary
@@ -733,7 +747,9 @@ func (ev *Event) GetExecEnvp() []string {
 	if ev.GetEventType().String() != "exec" {
 		return []string{}
 	}
-	return ev.FieldHandlers.ResolveProcessEnvp(ev, ev.Exec.Process)
+	fieldCopy := make([]string, len(ev.FieldHandlers.ResolveProcessEnvp(ev, ev.Exec.Process)))
+	copy(fieldCopy, ev.FieldHandlers.ResolveProcessEnvp(ev, ev.Exec.Process))
+	return fieldCopy
 }
 
 // GetExecEnvs returns the value of the field, resolving if necessary
@@ -741,7 +757,9 @@ func (ev *Event) GetExecEnvs() []string {
 	if ev.GetEventType().String() != "exec" {
 		return []string{}
 	}
-	return ev.FieldHandlers.ResolveProcessEnvs(ev, ev.Exec.Process)
+	fieldCopy := make([]string, len(ev.FieldHandlers.ResolveProcessEnvs(ev, ev.Exec.Process)))
+	copy(fieldCopy, ev.FieldHandlers.ResolveProcessEnvs(ev, ev.Exec.Process))
+	return fieldCopy
 }
 
 // GetExecEnvsTruncated returns the value of the field, resolving if necessary
@@ -820,7 +838,9 @@ func (ev *Event) GetExecFileHashes() []string {
 	if !ev.Exec.Process.IsNotKworker() {
 		return []string{}
 	}
-	return ev.FieldHandlers.ResolveHashesFromEvent(ev, &ev.Exec.Process.FileEvent)
+	fieldCopy := make([]string, len(ev.FieldHandlers.ResolveHashesFromEvent(ev, &ev.Exec.Process.FileEvent)))
+	copy(fieldCopy, ev.FieldHandlers.ResolveHashesFromEvent(ev, &ev.Exec.Process.FileEvent))
+	return fieldCopy
 }
 
 // GetExecFileInUpperLayer returns the value of the field, resolving if necessary
@@ -1082,7 +1102,9 @@ func (ev *Event) GetExecInterpreterFileHashes() []string {
 	if !ev.Exec.Process.HasInterpreter() {
 		return []string{}
 	}
-	return ev.FieldHandlers.ResolveHashesFromEvent(ev, &ev.Exec.Process.LinuxBinprm.FileEvent)
+	fieldCopy := make([]string, len(ev.FieldHandlers.ResolveHashesFromEvent(ev, &ev.Exec.Process.LinuxBinprm.FileEvent)))
+	copy(fieldCopy, ev.FieldHandlers.ResolveHashesFromEvent(ev, &ev.Exec.Process.LinuxBinprm.FileEvent))
+	return fieldCopy
 }
 
 // GetExecInterpreterFileInUpperLayer returns the value of the field, resolving if necessary
@@ -1345,7 +1367,9 @@ func (ev *Event) GetExitArgsFlags() []string {
 	if ev.GetEventType().String() != "exit" {
 		return []string{}
 	}
-	return ev.FieldHandlers.ResolveProcessArgsFlags(ev, ev.Exit.Process)
+	fieldCopy := make([]string, len(ev.FieldHandlers.ResolveProcessArgsFlags(ev, ev.Exit.Process)))
+	copy(fieldCopy, ev.FieldHandlers.ResolveProcessArgsFlags(ev, ev.Exit.Process))
+	return fieldCopy
 }
 
 // GetExitArgsOptions returns the value of the field, resolving if necessary
@@ -1353,7 +1377,9 @@ func (ev *Event) GetExitArgsOptions() []string {
 	if ev.GetEventType().String() != "exit" {
 		return []string{}
 	}
-	return ev.FieldHandlers.ResolveProcessArgsOptions(ev, ev.Exit.Process)
+	fieldCopy := make([]string, len(ev.FieldHandlers.ResolveProcessArgsOptions(ev, ev.Exit.Process)))
+	copy(fieldCopy, ev.FieldHandlers.ResolveProcessArgsOptions(ev, ev.Exit.Process))
+	return fieldCopy
 }
 
 // GetExitArgsTruncated returns the value of the field, resolving if necessary
@@ -1369,7 +1395,9 @@ func (ev *Event) GetExitArgv() []string {
 	if ev.GetEventType().String() != "exit" {
 		return []string{}
 	}
-	return ev.FieldHandlers.ResolveProcessArgv(ev, ev.Exit.Process)
+	fieldCopy := make([]string, len(ev.FieldHandlers.ResolveProcessArgv(ev, ev.Exit.Process)))
+	copy(fieldCopy, ev.FieldHandlers.ResolveProcessArgv(ev, ev.Exit.Process))
+	return fieldCopy
 }
 
 // GetExitArgv0 returns the value of the field, resolving if necessary
@@ -1457,7 +1485,9 @@ func (ev *Event) GetExitEnvp() []string {
 	if ev.GetEventType().String() != "exit" {
 		return []string{}
 	}
-	return ev.FieldHandlers.ResolveProcessEnvp(ev, ev.Exit.Process)
+	fieldCopy := make([]string, len(ev.FieldHandlers.ResolveProcessEnvp(ev, ev.Exit.Process)))
+	copy(fieldCopy, ev.FieldHandlers.ResolveProcessEnvp(ev, ev.Exit.Process))
+	return fieldCopy
 }
 
 // GetExitEnvs returns the value of the field, resolving if necessary
@@ -1465,7 +1495,9 @@ func (ev *Event) GetExitEnvs() []string {
 	if ev.GetEventType().String() != "exit" {
 		return []string{}
 	}
-	return ev.FieldHandlers.ResolveProcessEnvs(ev, ev.Exit.Process)
+	fieldCopy := make([]string, len(ev.FieldHandlers.ResolveProcessEnvs(ev, ev.Exit.Process)))
+	copy(fieldCopy, ev.FieldHandlers.ResolveProcessEnvs(ev, ev.Exit.Process))
+	return fieldCopy
 }
 
 // GetExitEnvsTruncated returns the value of the field, resolving if necessary
@@ -1544,7 +1576,9 @@ func (ev *Event) GetExitFileHashes() []string {
 	if !ev.Exit.Process.IsNotKworker() {
 		return []string{}
 	}
-	return ev.FieldHandlers.ResolveHashesFromEvent(ev, &ev.Exit.Process.FileEvent)
+	fieldCopy := make([]string, len(ev.FieldHandlers.ResolveHashesFromEvent(ev, &ev.Exit.Process.FileEvent)))
+	copy(fieldCopy, ev.FieldHandlers.ResolveHashesFromEvent(ev, &ev.Exit.Process.FileEvent))
+	return fieldCopy
 }
 
 // GetExitFileInUpperLayer returns the value of the field, resolving if necessary
@@ -1806,7 +1840,9 @@ func (ev *Event) GetExitInterpreterFileHashes() []string {
 	if !ev.Exit.Process.HasInterpreter() {
 		return []string{}
 	}
-	return ev.FieldHandlers.ResolveHashesFromEvent(ev, &ev.Exit.Process.LinuxBinprm.FileEvent)
+	fieldCopy := make([]string, len(ev.FieldHandlers.ResolveHashesFromEvent(ev, &ev.Exit.Process.LinuxBinprm.FileEvent)))
+	copy(fieldCopy, ev.FieldHandlers.ResolveHashesFromEvent(ev, &ev.Exit.Process.LinuxBinprm.FileEvent))
+	return fieldCopy
 }
 
 // GetExitInterpreterFileInUpperLayer returns the value of the field, resolving if necessary
@@ -2077,7 +2113,9 @@ func (ev *Event) GetLinkFileDestinationHashes() []string {
 	if ev.GetEventType().String() != "link" {
 		return []string{}
 	}
-	return ev.FieldHandlers.ResolveHashesFromEvent(ev, &ev.Link.Target)
+	fieldCopy := make([]string, len(ev.FieldHandlers.ResolveHashesFromEvent(ev, &ev.Link.Target)))
+	copy(fieldCopy, ev.FieldHandlers.ResolveHashesFromEvent(ev, &ev.Link.Target))
+	return fieldCopy
 }
 
 // GetLinkFileDestinationInUpperLayer returns the value of the field, resolving if necessary
@@ -2229,7 +2267,9 @@ func (ev *Event) GetLinkFileHashes() []string {
 	if ev.GetEventType().String() != "link" {
 		return []string{}
 	}
-	return ev.FieldHandlers.ResolveHashesFromEvent(ev, &ev.Link.Source)
+	fieldCopy := make([]string, len(ev.FieldHandlers.ResolveHashesFromEvent(ev, &ev.Link.Source)))
+	copy(fieldCopy, ev.FieldHandlers.ResolveHashesFromEvent(ev, &ev.Link.Source))
+	return fieldCopy
 }
 
 // GetLinkFileInUpperLayer returns the value of the field, resolving if necessary
@@ -2381,7 +2421,9 @@ func (ev *Event) GetLoadModuleArgv() []string {
 	if ev.GetEventType().String() != "load_module" {
 		return []string{}
 	}
-	return ev.FieldHandlers.ResolveModuleArgv(ev, &ev.LoadModule)
+	fieldCopy := make([]string, len(ev.FieldHandlers.ResolveModuleArgv(ev, &ev.LoadModule)))
+	copy(fieldCopy, ev.FieldHandlers.ResolveModuleArgv(ev, &ev.LoadModule))
+	return fieldCopy
 }
 
 // GetLoadModuleFileChangeTime returns the value of the field, resolving if necessary
@@ -2421,7 +2463,9 @@ func (ev *Event) GetLoadModuleFileHashes() []string {
 	if ev.GetEventType().String() != "load_module" {
 		return []string{}
 	}
-	return ev.FieldHandlers.ResolveHashesFromEvent(ev, &ev.LoadModule.File)
+	fieldCopy := make([]string, len(ev.FieldHandlers.ResolveHashesFromEvent(ev, &ev.LoadModule.File)))
+	copy(fieldCopy, ev.FieldHandlers.ResolveHashesFromEvent(ev, &ev.LoadModule.File))
+	return fieldCopy
 }
 
 // GetLoadModuleFileInUpperLayer returns the value of the field, resolving if necessary
@@ -2621,7 +2665,9 @@ func (ev *Event) GetMkdirFileHashes() []string {
 	if ev.GetEventType().String() != "mkdir" {
 		return []string{}
 	}
-	return ev.FieldHandlers.ResolveHashesFromEvent(ev, &ev.Mkdir.File)
+	fieldCopy := make([]string, len(ev.FieldHandlers.ResolveHashesFromEvent(ev, &ev.Mkdir.File)))
+	copy(fieldCopy, ev.FieldHandlers.ResolveHashesFromEvent(ev, &ev.Mkdir.File))
+	return fieldCopy
 }
 
 // GetMkdirFileInUpperLayer returns the value of the field, resolving if necessary
@@ -2789,7 +2835,9 @@ func (ev *Event) GetMmapFileHashes() []string {
 	if ev.GetEventType().String() != "mmap" {
 		return []string{}
 	}
-	return ev.FieldHandlers.ResolveHashesFromEvent(ev, &ev.MMap.File)
+	fieldCopy := make([]string, len(ev.FieldHandlers.ResolveHashesFromEvent(ev, &ev.MMap.File)))
+	copy(fieldCopy, ev.FieldHandlers.ResolveHashesFromEvent(ev, &ev.MMap.File))
+	return fieldCopy
 }
 
 // GetMmapFileInUpperLayer returns the value of the field, resolving if necessary
@@ -3109,7 +3157,9 @@ func (ev *Event) GetOpenFileHashes() []string {
 	if ev.GetEventType().String() != "open" {
 		return []string{}
 	}
-	return ev.FieldHandlers.ResolveHashesFromEvent(ev, &ev.Open.File)
+	fieldCopy := make([]string, len(ev.FieldHandlers.ResolveHashesFromEvent(ev, &ev.Open.File)))
+	copy(fieldCopy, ev.FieldHandlers.ResolveHashesFromEvent(ev, &ev.Open.File))
+	return fieldCopy
 }
 
 // GetOpenFileInUpperLayer returns the value of the field, resolving if necessary
@@ -4350,12 +4400,16 @@ func (ev *Event) GetProcessArgs() string {
 
 // GetProcessArgsFlags returns the value of the field, resolving if necessary
 func (ev *Event) GetProcessArgsFlags() []string {
-	return ev.FieldHandlers.ResolveProcessArgsFlags(ev, &ev.BaseEvent.ProcessContext.Process)
+	fieldCopy := make([]string, len(ev.FieldHandlers.ResolveProcessArgsFlags(ev, &ev.BaseEvent.ProcessContext.Process)))
+	copy(fieldCopy, ev.FieldHandlers.ResolveProcessArgsFlags(ev, &ev.BaseEvent.ProcessContext.Process))
+	return fieldCopy
 }
 
 // GetProcessArgsOptions returns the value of the field, resolving if necessary
 func (ev *Event) GetProcessArgsOptions() []string {
-	return ev.FieldHandlers.ResolveProcessArgsOptions(ev, &ev.BaseEvent.ProcessContext.Process)
+	fieldCopy := make([]string, len(ev.FieldHandlers.ResolveProcessArgsOptions(ev, &ev.BaseEvent.ProcessContext.Process)))
+	copy(fieldCopy, ev.FieldHandlers.ResolveProcessArgsOptions(ev, &ev.BaseEvent.ProcessContext.Process))
+	return fieldCopy
 }
 
 // GetProcessArgsTruncated returns the value of the field, resolving if necessary
@@ -4365,7 +4419,9 @@ func (ev *Event) GetProcessArgsTruncated() bool {
 
 // GetProcessArgv returns the value of the field, resolving if necessary
 func (ev *Event) GetProcessArgv() []string {
-	return ev.FieldHandlers.ResolveProcessArgv(ev, &ev.BaseEvent.ProcessContext.Process)
+	fieldCopy := make([]string, len(ev.FieldHandlers.ResolveProcessArgv(ev, &ev.BaseEvent.ProcessContext.Process)))
+	copy(fieldCopy, ev.FieldHandlers.ResolveProcessArgv(ev, &ev.BaseEvent.ProcessContext.Process))
+	return fieldCopy
 }
 
 // GetProcessArgv0 returns the value of the field, resolving if necessary
@@ -4410,12 +4466,16 @@ func (ev *Event) GetProcessEgroup() string {
 
 // GetProcessEnvp returns the value of the field, resolving if necessary
 func (ev *Event) GetProcessEnvp() []string {
-	return ev.FieldHandlers.ResolveProcessEnvp(ev, &ev.BaseEvent.ProcessContext.Process)
+	fieldCopy := make([]string, len(ev.FieldHandlers.ResolveProcessEnvp(ev, &ev.BaseEvent.ProcessContext.Process)))
+	copy(fieldCopy, ev.FieldHandlers.ResolveProcessEnvp(ev, &ev.BaseEvent.ProcessContext.Process))
+	return fieldCopy
 }
 
 // GetProcessEnvs returns the value of the field, resolving if necessary
 func (ev *Event) GetProcessEnvs() []string {
-	return ev.FieldHandlers.ResolveProcessEnvs(ev, &ev.BaseEvent.ProcessContext.Process)
+	fieldCopy := make([]string, len(ev.FieldHandlers.ResolveProcessEnvs(ev, &ev.BaseEvent.ProcessContext.Process)))
+	copy(fieldCopy, ev.FieldHandlers.ResolveProcessEnvs(ev, &ev.BaseEvent.ProcessContext.Process))
+	return fieldCopy
 }
 
 // GetProcessEnvsTruncated returns the value of the field, resolving if necessary
@@ -4470,7 +4530,9 @@ func (ev *Event) GetProcessFileHashes() []string {
 	if !ev.BaseEvent.ProcessContext.Process.IsNotKworker() {
 		return []string{}
 	}
-	return ev.FieldHandlers.ResolveHashesFromEvent(ev, &ev.BaseEvent.ProcessContext.Process.FileEvent)
+	fieldCopy := make([]string, len(ev.FieldHandlers.ResolveHashesFromEvent(ev, &ev.BaseEvent.ProcessContext.Process.FileEvent)))
+	copy(fieldCopy, ev.FieldHandlers.ResolveHashesFromEvent(ev, &ev.BaseEvent.ProcessContext.Process.FileEvent))
+	return fieldCopy
 }
 
 // GetProcessFileInUpperLayer returns the value of the field, resolving if necessary
@@ -4654,7 +4716,9 @@ func (ev *Event) GetProcessInterpreterFileHashes() []string {
 	if !ev.BaseEvent.ProcessContext.Process.HasInterpreter() {
 		return []string{}
 	}
-	return ev.FieldHandlers.ResolveHashesFromEvent(ev, &ev.BaseEvent.ProcessContext.Process.LinuxBinprm.FileEvent)
+	fieldCopy := make([]string, len(ev.FieldHandlers.ResolveHashesFromEvent(ev, &ev.BaseEvent.ProcessContext.Process.LinuxBinprm.FileEvent)))
+	copy(fieldCopy, ev.FieldHandlers.ResolveHashesFromEvent(ev, &ev.BaseEvent.ProcessContext.Process.LinuxBinprm.FileEvent))
+	return fieldCopy
 }
 
 // GetProcessInterpreterFileInUpperLayer returns the value of the field, resolving if necessary
@@ -4794,7 +4858,9 @@ func (ev *Event) GetProcessParentArgsFlags() []string {
 	if !ev.BaseEvent.ProcessContext.HasParent() {
 		return []string{}
 	}
-	return ev.FieldHandlers.ResolveProcessArgsFlags(ev, ev.BaseEvent.ProcessContext.Parent)
+	fieldCopy := make([]string, len(ev.FieldHandlers.ResolveProcessArgsFlags(ev, ev.BaseEvent.ProcessContext.Parent)))
+	copy(fieldCopy, ev.FieldHandlers.ResolveProcessArgsFlags(ev, ev.BaseEvent.ProcessContext.Parent))
+	return fieldCopy
 }
 
 // GetProcessParentArgsOptions returns the value of the field, resolving if necessary
@@ -4802,7 +4868,9 @@ func (ev *Event) GetProcessParentArgsOptions() []string {
 	if !ev.BaseEvent.ProcessContext.HasParent() {
 		return []string{}
 	}
-	return ev.FieldHandlers.ResolveProcessArgsOptions(ev, ev.BaseEvent.ProcessContext.Parent)
+	fieldCopy := make([]string, len(ev.FieldHandlers.ResolveProcessArgsOptions(ev, ev.BaseEvent.ProcessContext.Parent)))
+	copy(fieldCopy, ev.FieldHandlers.ResolveProcessArgsOptions(ev, ev.BaseEvent.ProcessContext.Parent))
+	return fieldCopy
 }
 
 // GetProcessParentArgsTruncated returns the value of the field, resolving if necessary
@@ -4818,7 +4886,9 @@ func (ev *Event) GetProcessParentArgv() []string {
 	if !ev.BaseEvent.ProcessContext.HasParent() {
 		return []string{}
 	}
-	return ev.FieldHandlers.ResolveProcessArgv(ev, ev.BaseEvent.ProcessContext.Parent)
+	fieldCopy := make([]string, len(ev.FieldHandlers.ResolveProcessArgv(ev, ev.BaseEvent.ProcessContext.Parent)))
+	copy(fieldCopy, ev.FieldHandlers.ResolveProcessArgv(ev, ev.BaseEvent.ProcessContext.Parent))
+	return fieldCopy
 }
 
 // GetProcessParentArgv0 returns the value of the field, resolving if necessary
@@ -4890,7 +4960,9 @@ func (ev *Event) GetProcessParentEnvp() []string {
 	if !ev.BaseEvent.ProcessContext.HasParent() {
 		return []string{}
 	}
-	return ev.FieldHandlers.ResolveProcessEnvp(ev, ev.BaseEvent.ProcessContext.Parent)
+	fieldCopy := make([]string, len(ev.FieldHandlers.ResolveProcessEnvp(ev, ev.BaseEvent.ProcessContext.Parent)))
+	copy(fieldCopy, ev.FieldHandlers.ResolveProcessEnvp(ev, ev.BaseEvent.ProcessContext.Parent))
+	return fieldCopy
 }
 
 // GetProcessParentEnvs returns the value of the field, resolving if necessary
@@ -4898,7 +4970,9 @@ func (ev *Event) GetProcessParentEnvs() []string {
 	if !ev.BaseEvent.ProcessContext.HasParent() {
 		return []string{}
 	}
-	return ev.FieldHandlers.ResolveProcessEnvs(ev, ev.BaseEvent.ProcessContext.Parent)
+	fieldCopy := make([]string, len(ev.FieldHandlers.ResolveProcessEnvs(ev, ev.BaseEvent.ProcessContext.Parent)))
+	copy(fieldCopy, ev.FieldHandlers.ResolveProcessEnvs(ev, ev.BaseEvent.ProcessContext.Parent))
+	return fieldCopy
 }
 
 // GetProcessParentEnvsTruncated returns the value of the field, resolving if necessary
@@ -4977,7 +5051,9 @@ func (ev *Event) GetProcessParentFileHashes() []string {
 	if !ev.BaseEvent.ProcessContext.Parent.IsNotKworker() {
 		return []string{}
 	}
-	return ev.FieldHandlers.ResolveHashesFromEvent(ev, &ev.BaseEvent.ProcessContext.Parent.FileEvent)
+	fieldCopy := make([]string, len(ev.FieldHandlers.ResolveHashesFromEvent(ev, &ev.BaseEvent.ProcessContext.Parent.FileEvent)))
+	copy(fieldCopy, ev.FieldHandlers.ResolveHashesFromEvent(ev, &ev.BaseEvent.ProcessContext.Parent.FileEvent))
+	return fieldCopy
 }
 
 // GetProcessParentFileInUpperLayer returns the value of the field, resolving if necessary
@@ -5233,7 +5309,9 @@ func (ev *Event) GetProcessParentInterpreterFileHashes() []string {
 	if !ev.BaseEvent.ProcessContext.Parent.HasInterpreter() {
 		return []string{}
 	}
-	return ev.FieldHandlers.ResolveHashesFromEvent(ev, &ev.BaseEvent.ProcessContext.Parent.LinuxBinprm.FileEvent)
+	fieldCopy := make([]string, len(ev.FieldHandlers.ResolveHashesFromEvent(ev, &ev.BaseEvent.ProcessContext.Parent.LinuxBinprm.FileEvent)))
+	copy(fieldCopy, ev.FieldHandlers.ResolveHashesFromEvent(ev, &ev.BaseEvent.ProcessContext.Parent.LinuxBinprm.FileEvent))
+	return fieldCopy
 }
 
 // GetProcessParentInterpreterFileInUpperLayer returns the value of the field, resolving if necessary
@@ -6832,7 +6910,9 @@ func (ev *Event) GetPtraceTraceeArgsFlags() []string {
 	if ev.GetEventType().String() != "ptrace" {
 		return []string{}
 	}
-	return ev.FieldHandlers.ResolveProcessArgsFlags(ev, &ev.PTrace.Tracee.Process)
+	fieldCopy := make([]string, len(ev.FieldHandlers.ResolveProcessArgsFlags(ev, &ev.PTrace.Tracee.Process)))
+	copy(fieldCopy, ev.FieldHandlers.ResolveProcessArgsFlags(ev, &ev.PTrace.Tracee.Process))
+	return fieldCopy
 }
 
 // GetPtraceTraceeArgsOptions returns the value of the field, resolving if necessary
@@ -6840,7 +6920,9 @@ func (ev *Event) GetPtraceTraceeArgsOptions() []string {
 	if ev.GetEventType().String() != "ptrace" {
 		return []string{}
 	}
-	return ev.FieldHandlers.ResolveProcessArgsOptions(ev, &ev.PTrace.Tracee.Process)
+	fieldCopy := make([]string, len(ev.FieldHandlers.ResolveProcessArgsOptions(ev, &ev.PTrace.Tracee.Process)))
+	copy(fieldCopy, ev.FieldHandlers.ResolveProcessArgsOptions(ev, &ev.PTrace.Tracee.Process))
+	return fieldCopy
 }
 
 // GetPtraceTraceeArgsTruncated returns the value of the field, resolving if necessary
@@ -6856,7 +6938,9 @@ func (ev *Event) GetPtraceTraceeArgv() []string {
 	if ev.GetEventType().String() != "ptrace" {
 		return []string{}
 	}
-	return ev.FieldHandlers.ResolveProcessArgv(ev, &ev.PTrace.Tracee.Process)
+	fieldCopy := make([]string, len(ev.FieldHandlers.ResolveProcessArgv(ev, &ev.PTrace.Tracee.Process)))
+	copy(fieldCopy, ev.FieldHandlers.ResolveProcessArgv(ev, &ev.PTrace.Tracee.Process))
+	return fieldCopy
 }
 
 // GetPtraceTraceeArgv0 returns the value of the field, resolving if necessary
@@ -6928,7 +7012,9 @@ func (ev *Event) GetPtraceTraceeEnvp() []string {
 	if ev.GetEventType().String() != "ptrace" {
 		return []string{}
 	}
-	return ev.FieldHandlers.ResolveProcessEnvp(ev, &ev.PTrace.Tracee.Process)
+	fieldCopy := make([]string, len(ev.FieldHandlers.ResolveProcessEnvp(ev, &ev.PTrace.Tracee.Process)))
+	copy(fieldCopy, ev.FieldHandlers.ResolveProcessEnvp(ev, &ev.PTrace.Tracee.Process))
+	return fieldCopy
 }
 
 // GetPtraceTraceeEnvs returns the value of the field, resolving if necessary
@@ -6936,7 +7022,9 @@ func (ev *Event) GetPtraceTraceeEnvs() []string {
 	if ev.GetEventType().String() != "ptrace" {
 		return []string{}
 	}
-	return ev.FieldHandlers.ResolveProcessEnvs(ev, &ev.PTrace.Tracee.Process)
+	fieldCopy := make([]string, len(ev.FieldHandlers.ResolveProcessEnvs(ev, &ev.PTrace.Tracee.Process)))
+	copy(fieldCopy, ev.FieldHandlers.ResolveProcessEnvs(ev, &ev.PTrace.Tracee.Process))
+	return fieldCopy
 }
 
 // GetPtraceTraceeEnvsTruncated returns the value of the field, resolving if necessary
@@ -7015,7 +7103,9 @@ func (ev *Event) GetPtraceTraceeFileHashes() []string {
 	if !ev.PTrace.Tracee.Process.IsNotKworker() {
 		return []string{}
 	}
-	return ev.FieldHandlers.ResolveHashesFromEvent(ev, &ev.PTrace.Tracee.Process.FileEvent)
+	fieldCopy := make([]string, len(ev.FieldHandlers.ResolveHashesFromEvent(ev, &ev.PTrace.Tracee.Process.FileEvent)))
+	copy(fieldCopy, ev.FieldHandlers.ResolveHashesFromEvent(ev, &ev.PTrace.Tracee.Process.FileEvent))
+	return fieldCopy
 }
 
 // GetPtraceTraceeFileInUpperLayer returns the value of the field, resolving if necessary
@@ -7277,7 +7367,9 @@ func (ev *Event) GetPtraceTraceeInterpreterFileHashes() []string {
 	if !ev.PTrace.Tracee.Process.HasInterpreter() {
 		return []string{}
 	}
-	return ev.FieldHandlers.ResolveHashesFromEvent(ev, &ev.PTrace.Tracee.Process.LinuxBinprm.FileEvent)
+	fieldCopy := make([]string, len(ev.FieldHandlers.ResolveHashesFromEvent(ev, &ev.PTrace.Tracee.Process.LinuxBinprm.FileEvent)))
+	copy(fieldCopy, ev.FieldHandlers.ResolveHashesFromEvent(ev, &ev.PTrace.Tracee.Process.LinuxBinprm.FileEvent))
+	return fieldCopy
 }
 
 // GetPtraceTraceeInterpreterFileInUpperLayer returns the value of the field, resolving if necessary
@@ -7474,7 +7566,9 @@ func (ev *Event) GetPtraceTraceeParentArgsFlags() []string {
 	if !ev.PTrace.Tracee.HasParent() {
 		return []string{}
 	}
-	return ev.FieldHandlers.ResolveProcessArgsFlags(ev, ev.PTrace.Tracee.Parent)
+	fieldCopy := make([]string, len(ev.FieldHandlers.ResolveProcessArgsFlags(ev, ev.PTrace.Tracee.Parent)))
+	copy(fieldCopy, ev.FieldHandlers.ResolveProcessArgsFlags(ev, ev.PTrace.Tracee.Parent))
+	return fieldCopy
 }
 
 // GetPtraceTraceeParentArgsOptions returns the value of the field, resolving if necessary
@@ -7485,7 +7579,9 @@ func (ev *Event) GetPtraceTraceeParentArgsOptions() []string {
 	if !ev.PTrace.Tracee.HasParent() {
 		return []string{}
 	}
-	return ev.FieldHandlers.ResolveProcessArgsOptions(ev, ev.PTrace.Tracee.Parent)
+	fieldCopy := make([]string, len(ev.FieldHandlers.ResolveProcessArgsOptions(ev, ev.PTrace.Tracee.Parent)))
+	copy(fieldCopy, ev.FieldHandlers.ResolveProcessArgsOptions(ev, ev.PTrace.Tracee.Parent))
+	return fieldCopy
 }
 
 // GetPtraceTraceeParentArgsTruncated returns the value of the field, resolving if necessary
@@ -7507,7 +7603,9 @@ func (ev *Event) GetPtraceTraceeParentArgv() []string {
 	if !ev.PTrace.Tracee.HasParent() {
 		return []string{}
 	}
-	return ev.FieldHandlers.ResolveProcessArgv(ev, ev.PTrace.Tracee.Parent)
+	fieldCopy := make([]string, len(ev.FieldHandlers.ResolveProcessArgv(ev, ev.PTrace.Tracee.Parent)))
+	copy(fieldCopy, ev.FieldHandlers.ResolveProcessArgv(ev, ev.PTrace.Tracee.Parent))
+	return fieldCopy
 }
 
 // GetPtraceTraceeParentArgv0 returns the value of the field, resolving if necessary
@@ -7606,7 +7704,9 @@ func (ev *Event) GetPtraceTraceeParentEnvp() []string {
 	if !ev.PTrace.Tracee.HasParent() {
 		return []string{}
 	}
-	return ev.FieldHandlers.ResolveProcessEnvp(ev, ev.PTrace.Tracee.Parent)
+	fieldCopy := make([]string, len(ev.FieldHandlers.ResolveProcessEnvp(ev, ev.PTrace.Tracee.Parent)))
+	copy(fieldCopy, ev.FieldHandlers.ResolveProcessEnvp(ev, ev.PTrace.Tracee.Parent))
+	return fieldCopy
 }
 
 // GetPtraceTraceeParentEnvs returns the value of the field, resolving if necessary
@@ -7617,7 +7717,9 @@ func (ev *Event) GetPtraceTraceeParentEnvs() []string {
 	if !ev.PTrace.Tracee.HasParent() {
 		return []string{}
 	}
-	return ev.FieldHandlers.ResolveProcessEnvs(ev, ev.PTrace.Tracee.Parent)
+	fieldCopy := make([]string, len(ev.FieldHandlers.ResolveProcessEnvs(ev, ev.PTrace.Tracee.Parent)))
+	copy(fieldCopy, ev.FieldHandlers.ResolveProcessEnvs(ev, ev.PTrace.Tracee.Parent))
+	return fieldCopy
 }
 
 // GetPtraceTraceeParentEnvsTruncated returns the value of the field, resolving if necessary
@@ -7720,7 +7822,9 @@ func (ev *Event) GetPtraceTraceeParentFileHashes() []string {
 	if !ev.PTrace.Tracee.Parent.IsNotKworker() {
 		return []string{}
 	}
-	return ev.FieldHandlers.ResolveHashesFromEvent(ev, &ev.PTrace.Tracee.Parent.FileEvent)
+	fieldCopy := make([]string, len(ev.FieldHandlers.ResolveHashesFromEvent(ev, &ev.PTrace.Tracee.Parent.FileEvent)))
+	copy(fieldCopy, ev.FieldHandlers.ResolveHashesFromEvent(ev, &ev.PTrace.Tracee.Parent.FileEvent))
+	return fieldCopy
 }
 
 // GetPtraceTraceeParentFileInUpperLayer returns the value of the field, resolving if necessary
@@ -8054,7 +8158,9 @@ func (ev *Event) GetPtraceTraceeParentInterpreterFileHashes() []string {
 	if !ev.PTrace.Tracee.Parent.HasInterpreter() {
 		return []string{}
 	}
-	return ev.FieldHandlers.ResolveHashesFromEvent(ev, &ev.PTrace.Tracee.Parent.LinuxBinprm.FileEvent)
+	fieldCopy := make([]string, len(ev.FieldHandlers.ResolveHashesFromEvent(ev, &ev.PTrace.Tracee.Parent.LinuxBinprm.FileEvent)))
+	copy(fieldCopy, ev.FieldHandlers.ResolveHashesFromEvent(ev, &ev.PTrace.Tracee.Parent.LinuxBinprm.FileEvent))
+	return fieldCopy
 }
 
 // GetPtraceTraceeParentInterpreterFileInUpperLayer returns the value of the field, resolving if necessary
@@ -8444,7 +8550,9 @@ func (ev *Event) GetRemovexattrFileHashes() []string {
 	if ev.GetEventType().String() != "removexattr" {
 		return []string{}
 	}
-	return ev.FieldHandlers.ResolveHashesFromEvent(ev, &ev.RemoveXAttr.File)
+	fieldCopy := make([]string, len(ev.FieldHandlers.ResolveHashesFromEvent(ev, &ev.RemoveXAttr.File)))
+	copy(fieldCopy, ev.FieldHandlers.ResolveHashesFromEvent(ev, &ev.RemoveXAttr.File))
+	return fieldCopy
 }
 
 // GetRemovexattrFileInUpperLayer returns the value of the field, resolving if necessary
@@ -8620,7 +8728,9 @@ func (ev *Event) GetRenameFileDestinationHashes() []string {
 	if ev.GetEventType().String() != "rename" {
 		return []string{}
 	}
-	return ev.FieldHandlers.ResolveHashesFromEvent(ev, &ev.Rename.New)
+	fieldCopy := make([]string, len(ev.FieldHandlers.ResolveHashesFromEvent(ev, &ev.Rename.New)))
+	copy(fieldCopy, ev.FieldHandlers.ResolveHashesFromEvent(ev, &ev.Rename.New))
+	return fieldCopy
 }
 
 // GetRenameFileDestinationInUpperLayer returns the value of the field, resolving if necessary
@@ -8772,7 +8882,9 @@ func (ev *Event) GetRenameFileHashes() []string {
 	if ev.GetEventType().String() != "rename" {
 		return []string{}
 	}
-	return ev.FieldHandlers.ResolveHashesFromEvent(ev, &ev.Rename.Old)
+	fieldCopy := make([]string, len(ev.FieldHandlers.ResolveHashesFromEvent(ev, &ev.Rename.Old)))
+	copy(fieldCopy, ev.FieldHandlers.ResolveHashesFromEvent(ev, &ev.Rename.Old))
+	return fieldCopy
 }
 
 // GetRenameFileInUpperLayer returns the value of the field, resolving if necessary
@@ -8940,7 +9052,9 @@ func (ev *Event) GetRmdirFileHashes() []string {
 	if ev.GetEventType().String() != "rmdir" {
 		return []string{}
 	}
-	return ev.FieldHandlers.ResolveHashesFromEvent(ev, &ev.Rmdir.File)
+	fieldCopy := make([]string, len(ev.FieldHandlers.ResolveHashesFromEvent(ev, &ev.Rmdir.File)))
+	copy(fieldCopy, ev.FieldHandlers.ResolveHashesFromEvent(ev, &ev.Rmdir.File))
+	return fieldCopy
 }
 
 // GetRmdirFileInUpperLayer returns the value of the field, resolving if necessary
@@ -9252,7 +9366,9 @@ func (ev *Event) GetSetxattrFileHashes() []string {
 	if ev.GetEventType().String() != "setxattr" {
 		return []string{}
 	}
-	return ev.FieldHandlers.ResolveHashesFromEvent(ev, &ev.SetXAttr.File)
+	fieldCopy := make([]string, len(ev.FieldHandlers.ResolveHashesFromEvent(ev, &ev.SetXAttr.File)))
+	copy(fieldCopy, ev.FieldHandlers.ResolveHashesFromEvent(ev, &ev.SetXAttr.File))
+	return fieldCopy
 }
 
 // GetSetxattrFileInUpperLayer returns the value of the field, resolving if necessary
@@ -10732,7 +10848,9 @@ func (ev *Event) GetSignalTargetArgsFlags() []string {
 	if ev.GetEventType().String() != "signal" {
 		return []string{}
 	}
-	return ev.FieldHandlers.ResolveProcessArgsFlags(ev, &ev.Signal.Target.Process)
+	fieldCopy := make([]string, len(ev.FieldHandlers.ResolveProcessArgsFlags(ev, &ev.Signal.Target.Process)))
+	copy(fieldCopy, ev.FieldHandlers.ResolveProcessArgsFlags(ev, &ev.Signal.Target.Process))
+	return fieldCopy
 }
 
 // GetSignalTargetArgsOptions returns the value of the field, resolving if necessary
@@ -10740,7 +10858,9 @@ func (ev *Event) GetSignalTargetArgsOptions() []string {
 	if ev.GetEventType().String() != "signal" {
 		return []string{}
 	}
-	return ev.FieldHandlers.ResolveProcessArgsOptions(ev, &ev.Signal.Target.Process)
+	fieldCopy := make([]string, len(ev.FieldHandlers.ResolveProcessArgsOptions(ev, &ev.Signal.Target.Process)))
+	copy(fieldCopy, ev.FieldHandlers.ResolveProcessArgsOptions(ev, &ev.Signal.Target.Process))
+	return fieldCopy
 }
 
 // GetSignalTargetArgsTruncated returns the value of the field, resolving if necessary
@@ -10756,7 +10876,9 @@ func (ev *Event) GetSignalTargetArgv() []string {
 	if ev.GetEventType().String() != "signal" {
 		return []string{}
 	}
-	return ev.FieldHandlers.ResolveProcessArgv(ev, &ev.Signal.Target.Process)
+	fieldCopy := make([]string, len(ev.FieldHandlers.ResolveProcessArgv(ev, &ev.Signal.Target.Process)))
+	copy(fieldCopy, ev.FieldHandlers.ResolveProcessArgv(ev, &ev.Signal.Target.Process))
+	return fieldCopy
 }
 
 // GetSignalTargetArgv0 returns the value of the field, resolving if necessary
@@ -10828,7 +10950,9 @@ func (ev *Event) GetSignalTargetEnvp() []string {
 	if ev.GetEventType().String() != "signal" {
 		return []string{}
 	}
-	return ev.FieldHandlers.ResolveProcessEnvp(ev, &ev.Signal.Target.Process)
+	fieldCopy := make([]string, len(ev.FieldHandlers.ResolveProcessEnvp(ev, &ev.Signal.Target.Process)))
+	copy(fieldCopy, ev.FieldHandlers.ResolveProcessEnvp(ev, &ev.Signal.Target.Process))
+	return fieldCopy
 }
 
 // GetSignalTargetEnvs returns the value of the field, resolving if necessary
@@ -10836,7 +10960,9 @@ func (ev *Event) GetSignalTargetEnvs() []string {
 	if ev.GetEventType().String() != "signal" {
 		return []string{}
 	}
-	return ev.FieldHandlers.ResolveProcessEnvs(ev, &ev.Signal.Target.Process)
+	fieldCopy := make([]string, len(ev.FieldHandlers.ResolveProcessEnvs(ev, &ev.Signal.Target.Process)))
+	copy(fieldCopy, ev.FieldHandlers.ResolveProcessEnvs(ev, &ev.Signal.Target.Process))
+	return fieldCopy
 }
 
 // GetSignalTargetEnvsTruncated returns the value of the field, resolving if necessary
@@ -10915,7 +11041,9 @@ func (ev *Event) GetSignalTargetFileHashes() []string {
 	if !ev.Signal.Target.Process.IsNotKworker() {
 		return []string{}
 	}
-	return ev.FieldHandlers.ResolveHashesFromEvent(ev, &ev.Signal.Target.Process.FileEvent)
+	fieldCopy := make([]string, len(ev.FieldHandlers.ResolveHashesFromEvent(ev, &ev.Signal.Target.Process.FileEvent)))
+	copy(fieldCopy, ev.FieldHandlers.ResolveHashesFromEvent(ev, &ev.Signal.Target.Process.FileEvent))
+	return fieldCopy
 }
 
 // GetSignalTargetFileInUpperLayer returns the value of the field, resolving if necessary
@@ -11177,7 +11305,9 @@ func (ev *Event) GetSignalTargetInterpreterFileHashes() []string {
 	if !ev.Signal.Target.Process.HasInterpreter() {
 		return []string{}
 	}
-	return ev.FieldHandlers.ResolveHashesFromEvent(ev, &ev.Signal.Target.Process.LinuxBinprm.FileEvent)
+	fieldCopy := make([]string, len(ev.FieldHandlers.ResolveHashesFromEvent(ev, &ev.Signal.Target.Process.LinuxBinprm.FileEvent)))
+	copy(fieldCopy, ev.FieldHandlers.ResolveHashesFromEvent(ev, &ev.Signal.Target.Process.LinuxBinprm.FileEvent))
+	return fieldCopy
 }
 
 // GetSignalTargetInterpreterFileInUpperLayer returns the value of the field, resolving if necessary
@@ -11374,7 +11504,9 @@ func (ev *Event) GetSignalTargetParentArgsFlags() []string {
 	if !ev.Signal.Target.HasParent() {
 		return []string{}
 	}
-	return ev.FieldHandlers.ResolveProcessArgsFlags(ev, ev.Signal.Target.Parent)
+	fieldCopy := make([]string, len(ev.FieldHandlers.ResolveProcessArgsFlags(ev, ev.Signal.Target.Parent)))
+	copy(fieldCopy, ev.FieldHandlers.ResolveProcessArgsFlags(ev, ev.Signal.Target.Parent))
+	return fieldCopy
 }
 
 // GetSignalTargetParentArgsOptions returns the value of the field, resolving if necessary
@@ -11385,7 +11517,9 @@ func (ev *Event) GetSignalTargetParentArgsOptions() []string {
 	if !ev.Signal.Target.HasParent() {
 		return []string{}
 	}
-	return ev.FieldHandlers.ResolveProcessArgsOptions(ev, ev.Signal.Target.Parent)
+	fieldCopy := make([]string, len(ev.FieldHandlers.ResolveProcessArgsOptions(ev, ev.Signal.Target.Parent)))
+	copy(fieldCopy, ev.FieldHandlers.ResolveProcessArgsOptions(ev, ev.Signal.Target.Parent))
+	return fieldCopy
 }
 
 // GetSignalTargetParentArgsTruncated returns the value of the field, resolving if necessary
@@ -11407,7 +11541,9 @@ func (ev *Event) GetSignalTargetParentArgv() []string {
 	if !ev.Signal.Target.HasParent() {
 		return []string{}
 	}
-	return ev.FieldHandlers.ResolveProcessArgv(ev, ev.Signal.Target.Parent)
+	fieldCopy := make([]string, len(ev.FieldHandlers.ResolveProcessArgv(ev, ev.Signal.Target.Parent)))
+	copy(fieldCopy, ev.FieldHandlers.ResolveProcessArgv(ev, ev.Signal.Target.Parent))
+	return fieldCopy
 }
 
 // GetSignalTargetParentArgv0 returns the value of the field, resolving if necessary
@@ -11506,7 +11642,9 @@ func (ev *Event) GetSignalTargetParentEnvp() []string {
 	if !ev.Signal.Target.HasParent() {
 		return []string{}
 	}
-	return ev.FieldHandlers.ResolveProcessEnvp(ev, ev.Signal.Target.Parent)
+	fieldCopy := make([]string, len(ev.FieldHandlers.ResolveProcessEnvp(ev, ev.Signal.Target.Parent)))
+	copy(fieldCopy, ev.FieldHandlers.ResolveProcessEnvp(ev, ev.Signal.Target.Parent))
+	return fieldCopy
 }
 
 // GetSignalTargetParentEnvs returns the value of the field, resolving if necessary
@@ -11517,7 +11655,9 @@ func (ev *Event) GetSignalTargetParentEnvs() []string {
 	if !ev.Signal.Target.HasParent() {
 		return []string{}
 	}
-	return ev.FieldHandlers.ResolveProcessEnvs(ev, ev.Signal.Target.Parent)
+	fieldCopy := make([]string, len(ev.FieldHandlers.ResolveProcessEnvs(ev, ev.Signal.Target.Parent)))
+	copy(fieldCopy, ev.FieldHandlers.ResolveProcessEnvs(ev, ev.Signal.Target.Parent))
+	return fieldCopy
 }
 
 // GetSignalTargetParentEnvsTruncated returns the value of the field, resolving if necessary
@@ -11620,7 +11760,9 @@ func (ev *Event) GetSignalTargetParentFileHashes() []string {
 	if !ev.Signal.Target.Parent.IsNotKworker() {
 		return []string{}
 	}
-	return ev.FieldHandlers.ResolveHashesFromEvent(ev, &ev.Signal.Target.Parent.FileEvent)
+	fieldCopy := make([]string, len(ev.FieldHandlers.ResolveHashesFromEvent(ev, &ev.Signal.Target.Parent.FileEvent)))
+	copy(fieldCopy, ev.FieldHandlers.ResolveHashesFromEvent(ev, &ev.Signal.Target.Parent.FileEvent))
+	return fieldCopy
 }
 
 // GetSignalTargetParentFileInUpperLayer returns the value of the field, resolving if necessary
@@ -11954,7 +12096,9 @@ func (ev *Event) GetSignalTargetParentInterpreterFileHashes() []string {
 	if !ev.Signal.Target.Parent.HasInterpreter() {
 		return []string{}
 	}
-	return ev.FieldHandlers.ResolveHashesFromEvent(ev, &ev.Signal.Target.Parent.LinuxBinprm.FileEvent)
+	fieldCopy := make([]string, len(ev.FieldHandlers.ResolveHashesFromEvent(ev, &ev.Signal.Target.Parent.LinuxBinprm.FileEvent)))
+	copy(fieldCopy, ev.FieldHandlers.ResolveHashesFromEvent(ev, &ev.Signal.Target.Parent.LinuxBinprm.FileEvent))
+	return fieldCopy
 }
 
 // GetSignalTargetParentInterpreterFileInUpperLayer returns the value of the field, resolving if necessary
@@ -12336,7 +12480,9 @@ func (ev *Event) GetSpliceFileHashes() []string {
 	if ev.GetEventType().String() != "splice" {
 		return []string{}
 	}
-	return ev.FieldHandlers.ResolveHashesFromEvent(ev, &ev.Splice.File)
+	fieldCopy := make([]string, len(ev.FieldHandlers.ResolveHashesFromEvent(ev, &ev.Splice.File)))
+	copy(fieldCopy, ev.FieldHandlers.ResolveHashesFromEvent(ev, &ev.Splice.File))
+	return fieldCopy
 }
 
 // GetSpliceFileInUpperLayer returns the value of the field, resolving if necessary
@@ -12520,7 +12666,9 @@ func (ev *Event) GetUnlinkFileHashes() []string {
 	if ev.GetEventType().String() != "unlink" {
 		return []string{}
 	}
-	return ev.FieldHandlers.ResolveHashesFromEvent(ev, &ev.Unlink.File)
+	fieldCopy := make([]string, len(ev.FieldHandlers.ResolveHashesFromEvent(ev, &ev.Unlink.File)))
+	copy(fieldCopy, ev.FieldHandlers.ResolveHashesFromEvent(ev, &ev.Unlink.File))
+	return fieldCopy
 }
 
 // GetUnlinkFileInUpperLayer returns the value of the field, resolving if necessary
@@ -12712,7 +12860,9 @@ func (ev *Event) GetUtimesFileHashes() []string {
 	if ev.GetEventType().String() != "utimes" {
 		return []string{}
 	}
-	return ev.FieldHandlers.ResolveHashesFromEvent(ev, &ev.Utimes.File)
+	fieldCopy := make([]string, len(ev.FieldHandlers.ResolveHashesFromEvent(ev, &ev.Utimes.File)))
+	copy(fieldCopy, ev.FieldHandlers.ResolveHashesFromEvent(ev, &ev.Utimes.File))
+	return fieldCopy
 }
 
 // GetUtimesFileInUpperLayer returns the value of the field, resolving if necessary
