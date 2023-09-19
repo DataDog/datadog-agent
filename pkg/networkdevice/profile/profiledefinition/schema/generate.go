@@ -13,6 +13,7 @@ import (
 )
 
 const MappingKeyPattern = "^\\d+$"
+const TagKeyPattern = "^[A-Za-z0-9-_]+$"
 
 // GenerateJSONSchema generate jsonschema from profiledefinition.DeviceProfileRcConfig
 func GenerateJSONSchema() ([]byte, error) {
@@ -39,11 +40,11 @@ func jsonTypeMapper(ty reflect.Type) *jsonschema.Schema {
 				},
 			},
 		}
-	} else if ty == reflect.TypeOf(profiledefinition.ValueMapping{}) {
+	} else if ty == reflect.TypeOf(profiledefinition.TagsMapping{}) {
 		return &jsonschema.Schema{
 			Type: "object",
 			PatternProperties: map[string]*jsonschema.Schema{
-				MappingKeyPattern: {
+				TagKeyPattern: {
 					Type: "string",
 				},
 			},

@@ -108,8 +108,10 @@
           "type": "string"
         },
         "tags": {
-          "additionalProperties": {
-            "type": "string"
+          "patternProperties": {
+            "^[A-Za-z0-9-_]+$": {
+              "type": "string"
+            }
           },
           "type": "object"
         }

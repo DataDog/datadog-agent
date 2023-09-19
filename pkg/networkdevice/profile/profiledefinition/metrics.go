@@ -40,7 +40,7 @@ const (
 )
 
 type ValueMapping map[string]string
-type TagsInterpolation map[string]string
+type TagsMapping map[string]string
 
 // SymbolConfig holds info for a single symbol/oid
 type SymbolConfig struct {
@@ -84,9 +84,9 @@ type MetricTagConfig struct {
 	Mapping ValueMapping `yaml:"mapping,omitempty" json:"mapping,omitempty" jsonschema:"patternProperties"`
 
 	// Regex
-	Match   string            `yaml:"match,omitempty" json:"match,omitempty"`
-	Tags    map[string]string `yaml:"tags,omitempty" json:"tags,omitempty"`
-	Pattern *regexp.Regexp    `yaml:"-" json:"-"`
+	Match   string         `yaml:"match,omitempty" json:"match,omitempty"`
+	Tags    TagsMapping    `yaml:"tags,omitempty" json:"tags,omitempty"`
+	Pattern *regexp.Regexp `yaml:"-" json:"-"`
 
 	SymbolTag string `yaml:"-" json:"-"`
 }
