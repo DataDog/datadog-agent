@@ -170,7 +170,7 @@ func (resolver *Resolver) ComputeHashes(eventType model.EventType, process *mode
 	}
 
 	// check if the resolver is allowed to hash this event type
-	if !slices.Contains[model.EventType](resolver.opts.EventTypes, eventType) {
+	if !slices.Contains(resolver.opts.EventTypes, eventType) {
 		file.HashState = model.EventTypeNotConfigured
 		resolver.hashMiss[eventType][model.EventTypeNotConfigured].Inc()
 		return nil
