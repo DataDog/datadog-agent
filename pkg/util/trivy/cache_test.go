@@ -321,7 +321,8 @@ func TestCustomBoltCache_GarbageCollector(t *testing.T) {
 	time.Sleep(time.Second)
 
 	// Check that only artifact "key2" and "blob2" were removed
-	_, err = cache.GetArtifact("key2")
+	blobby, err := cache.GetArtifact("key2")
+	t.Logf("The blob is: %v + the error here is: %v", blobby, err)
 	require.Error(t, err)
 
 	_, err = cache.GetBlob("blob2")
