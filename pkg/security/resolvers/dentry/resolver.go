@@ -56,7 +56,7 @@ type Resolver struct {
 	erpcStats             [2]*lib.Map
 	bufferSelector        *lib.Map
 	activeERPCStatsBuffer uint32
-	cache                 map[uint32]*lru.Cache[model.PathKey, *PathEntry]
+	cache                 map[uint32]*lru.Cache[model.PathKey, PathEntry]
 	erpc                  *erpc.ERPC
 	erpcSegment           []byte
 	erpcSegmentSize       int
@@ -180,15 +180,15 @@ func (dr *Resolver) DelCacheEntries(mountID uint32) {
 	delete(dr.cache, mountID)
 }
 
-func (dr *Resolver) lookupInodeFromCache(pathKey model.PathKey) (*PathEntry, error) {
+func (dr *Resolver) lookupInodeFromCache(pathKey model.PathKey) (PathEntry, error) {
 	entries, exists := dr.cache[pathKey.MountID]
 	if !exists {
-		return nil, ErrEntryNotFound
+		return PathEntry{}, ErrEntryNotFound
 	}
 
 	entry, exists := entries.Get(pathKey)
 	if !exists {
-		return nil, ErrEntryNotFound
+		return PathEntry{}, ErrEntryNotFound
 	}
 
 	return entry, nil
@@ -196,12 +196,12 @@ func (dr *Resolver) lookupInodeFromCache(pathKey model.PathKey) (*PathEntry, err
 
 // We need to cache inode by inode instead of caching the whole path in order to be
 // able to invalidate the whole path if one of its element got rename or removed.
-func (dr *Resolver) cacheInode(key model.PathKey, path *PathEntry) error {
+func (dr *Resolver) cacheInode(key model.PathKey, path PathEntry) error {
 	entries, exists := dr.cache[key.MountID]
 	if !exists {
 		var err error
 
-		entries, err = lru.New[model.PathKey, *PathEntry](dr.config.DentryCacheSize)
+		entries, err = lru.New[model.PathKey, PathEntry](dr.config.DentryCacheSize)
 		if err != nil {
 			return err
 		}
@@ -238,8 +238,8 @@ func (dr *Resolver) lookupInodeFromMap(pathKey model.PathKey) (model.PathLeaf, e
 	return pathLeaf, nil
 }
 
-func newPathEntry(parent model.PathKey, name string) *PathEntry {
-	return &PathEntry{
+func newPathEntry(parent model.PathKey, name string) PathEntry {
+	return PathEntry{
 		Parent: parent,
 		Name:   name,
 	}
@@ -289,7 +289,7 @@ func (dr *Resolver) ResolveName(pathKey model.PathKey) string {
 
 // ResolveFromCache resolves path from the cache
 func (dr *Resolver) ResolveFromCache(pathKey model.PathKey) (string, error) {
-	var path *PathEntry
+	var path PathEntry
 	var err error
 	depth := int64(0)
 	filenameParts := make([]string, 0, 128)
@@ -352,7 +352,7 @@ func computeFilenameFromParts(parts []string) string {
 
 // ResolveFromMap resolves the path of the provided inode / mount id / path id
 func (dr *Resolver) ResolveFromMap(pathKey model.PathKey, cache bool) (string, error) {
-	var cacheEntry *PathEntry
+	var cacheEntry PathEntry
 	var resolutionErr error
 	var name string
 	var pathLeaf model.PathLeaf
@@ -365,7 +365,7 @@ func (dr *Resolver) ResolveFromMap(pathKey model.PathKey, cache bool) (string, e
 	depth := int64(0)
 
 	var keys []model.PathKey
-	var entries []*PathEntry
+	var entries []PathEntry
 
 	filenameParts := make([]string, 0, 128)
 
@@ -494,8 +494,8 @@ func (dr *Resolver) ResolveNameFromERPC(pathKey model.PathKey) (string, error) {
 	return seg, nil
 }
 
-func (dr *Resolver) cacheEntries(keys []model.PathKey, entries []*PathEntry) error {
-	var cacheEntry *PathEntry
+func (dr *Resolver) cacheEntries(keys []model.PathKey, entries []PathEntry) error {
+	var cacheEntry PathEntry
 
 	if len(keys) != len(entries) {
 		return errors.New("out of bound")
@@ -532,7 +532,7 @@ func (dr *Resolver) ResolveFromERPC(pathKey model.PathKey, cache bool) (string, 
 	}
 
 	var keys []model.PathKey
-	var entries []*PathEntry
+	var entries []PathEntry
 
 	filenameParts := make([]string, 0, 128)
 
@@ -782,7 +782,7 @@ func NewResolver(config *config.Config, statsdClient statsd.ClientInterface, e *
 	return &Resolver{
 		config:        config,
 		statsdClient:  statsdClient,
-		cache:         make(map[uint32]*lru.Cache[model.PathKey, *PathEntry]),
+		cache:         make(map[uint32]*lru.Cache[model.PathKey, PathEntry]),
 		erpc:          e,
 		erpcRequest:   erpc.Request{},
 		erpcStatsZero: make([]eRPCStats, numCPU),
