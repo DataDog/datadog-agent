@@ -4,7 +4,6 @@ Agent namespaced tasks
 
 
 import ast
-import datetime
 import glob
 import os
 import platform
@@ -36,6 +35,7 @@ from .utils import (
     get_version,
     has_both_python,
     load_release_versions,
+    timed,
 )
 from .windows_resources import build_messagetable, build_rc, versioninfo_vars
 
@@ -629,14 +629,9 @@ def omnibus_build(
     Build the Agent packages with Omnibus Installer.
     """
     flavor = AgentFlavor[flavor]
-    deps_elapsed = None
-    bundle_elapsed = None
-    omnibus_elapsed = None
     if not skip_deps:
-        deps_start = datetime.datetime.now()
-        deps(ctx)
-        deps_end = datetime.datetime.now()
-        deps_elapsed = deps_end - deps_start
+        with timed(quiet=True) as deps_elapsed:
+            deps(ctx)
 
     # base dir (can be overridden through env vars, command line takes precedence)
     base_dir = base_dir or os.environ.get("OMNIBUS_BASE_DIR")
@@ -675,32 +670,28 @@ def omnibus_build(
     with open(pip_config_file, 'w') as f:
         f.write(pip_index_url)
 
-    bundle_start = datetime.datetime.now()
-    bundle_install_omnibus(ctx, gem_path, env)
-    bundle_done = datetime.datetime.now()
-    bundle_elapsed = bundle_done - bundle_start
+    with timed(quiet=True) as bundle_elapsed:
+        bundle_install_omnibus(ctx, gem_path, env)
 
-    omnibus_start = datetime.datetime.now()
-    omnibus_run_task(
-        ctx=ctx,
-        task="build",
-        target_project=target_project,
-        base_dir=base_dir,
-        env=env,
-        omnibus_s3_cache=omnibus_s3_cache,
-        log_level=log_level,
-    )
-    omnibus_done = datetime.datetime.now()
-    omnibus_elapsed = omnibus_done - omnibus_start
+    with timed(quiet=True) as omnibus_elapsed:
+        omnibus_run_task(
+            ctx=ctx,
+            task="build",
+            target_project=target_project,
+            base_dir=base_dir,
+            env=env,
+            omnibus_s3_cache=omnibus_s3_cache,
+            log_level=log_level,
+        )
 
     # Delete the temporary pip.conf file once the build is done
     os.remove(pip_config_file)
 
     print("Build component timing:")
     if not skip_deps:
-        print(f"Deps:    {deps_elapsed}")
-    print(f"Bundle:  {bundle_elapsed}")
-    print(f"Omnibus: {omnibus_elapsed}")
+        print(f"Deps:    {deps_elapsed.duration}")
+    print(f"Bundle:  {bundle_elapsed.duration}")
+    print(f"Omnibus: {omnibus_elapsed.duration}")
 
 
 @task

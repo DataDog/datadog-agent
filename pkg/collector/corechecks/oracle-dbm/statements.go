@@ -965,11 +965,6 @@ func (c *Check) StatementMetrics() (int, error) {
 	}
 	sender.Commit()
 
-	c.statementsFilter.SQLIDs = nil
-	c.statementsFilter.ForceMatchingSignatures = nil
-	c.statementsCache.SQLIDs = nil
-	c.statementsCache.forceMatchingSignatures = nil
-
 	if planErrors > 0 {
 		return SQLCount, fmt.Errorf("SQL statements processed: %d, plan errors: %d", SQLCount, planErrors)
 	}
