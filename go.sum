@@ -471,8 +471,6 @@ github.com/cri-o/ocicni v0.4.0/go.mod h1:/L2k9zk6l2O1FbE4xY1qTqSWJBqobOvsoYlkghI
 github.com/cyphar/filepath-securejoin v0.2.3/go.mod h1:aPGpWjXOXUn2NCNjFvBE6aRxGGx79pTxQpKOJNYHHl4=
 github.com/cyphar/filepath-securejoin v0.2.4 h1:Ugdm7cg7i6ZK6x3xDF1oEu1nfkyfH53EtKeQYTC3kyg=
 github.com/cyphar/filepath-securejoin v0.2.4/go.mod h1:aPGpWjXOXUn2NCNjFvBE6aRxGGx79pTxQpKOJNYHHl4=
-github.com/datadog/kube-state-metrics/v2 v2.2.2-0.20230217083638-a9a9c0ff16f4 h1:ykrwvGAIsQrMVxl1YD2u23C62q/wsdPiSdWo8EUMRk0=
-github.com/datadog/kube-state-metrics/v2 v2.2.2-0.20230217083638-a9a9c0ff16f4/go.mod h1:1XUV6TkXSy78Ds3QKe5k/6J+YzqB/KZnc3uGTmCAwMo=
 github.com/davecgh/go-spew v1.1.0/go.mod h1:J7Y8YcW2NihsgmVo/mv3lAwl/skON4iLHjSsI+c5H38=
 github.com/davecgh/go-spew v1.1.1/go.mod h1:J7Y8YcW2NihsgmVo/mv3lAwl/skON4iLHjSsI+c5H38=
 github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc h1:U9qPSI2PIWSS1VwoXQT9A3Wy9MM3WgvqSxFWenqJduM=
@@ -2411,8 +2409,6 @@ k8s.io/apimachinery v0.27.6 h1:mGU8jmBq5o8mWBov+mLjdTBcU+etTE19waies4AQ6NE=
 k8s.io/apimachinery v0.27.6/go.mod h1:XNfZ6xklnMCOGGFNqXG7bUrQCoR04dh/E7FprV6pb+E=
 k8s.io/apiserver v0.27.6 h1:r/eHN8r3lG2buggHrVMy++kKhHlHn1HWSX1dqDtes54=
 k8s.io/apiserver v0.27.6/go.mod h1:Xeo9OEXn2kDLK5pqspjdXQx7YKgDyKSpwIB4p0BmpAQ=
-k8s.io/autoscaler/vertical-pod-autoscaler v0.12.0 h1:cy8LoXSl5GkTNJDTx3ZCS143f9Ai7gqnGkoUxPlGSmI=
-k8s.io/autoscaler/vertical-pod-autoscaler v0.12.0/go.mod h1:LraL5kR2xX7jb4VMCG6/tUH4I75uRHlnzC0VWQHcyWk=
 k8s.io/autoscaler/vertical-pod-autoscaler v0.13.0 h1:pH6AsxeBZcyX6KBqcnl7SPIJqbN1d59RrEBuIE6Rq6c=
 k8s.io/autoscaler/vertical-pod-autoscaler v0.13.0/go.mod h1:LraL5kR2xX7jb4VMCG6/tUH4I75uRHlnzC0VWQHcyWk=
 k8s.io/cli-runtime v0.25.3 h1:Zs7P7l7db/5J+KDePOVtDlArAa9pZXaDinGWGZl0aM8=
