@@ -25,9 +25,9 @@ func TestBundleDependencies(t *testing.T) {
 	require.NoError(t, fx.ValidateApp(
 		// instantiate all of the core components, since this is not done
 		// automatically.
-		config.Module,
-		fx.Supply(coreconfig.Params{}),
 		coreconfig.Module,
+		fx.Supply(coreconfig.Params{}),
+		config.Module,
 		fx.Supply(&pkgconfig.AgentConfig{}),
 		fx.Supply(agent.Params{}),
 		Bundle))
@@ -41,8 +41,8 @@ func TestMockBundleDependencies(t *testing.T) {
 	defer func() { os.Unsetenv("DD_DD_URL") }()
 
 	config := fxutil.Test[config.Component](t, fx.Options(
-		fx.Supply(coreconfig.Params{}),
 		coreconfig.MockModule,
+		fx.Supply(coreconfig.Params{}),
 		config.MockModule,
 		fx.Supply(agent.Params{}),
 		MockBundle,
