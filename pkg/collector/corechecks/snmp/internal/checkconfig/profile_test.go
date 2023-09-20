@@ -62,7 +62,7 @@ func fixtureProfileDefinitionMap() profileConfigMap {
 				MetricTags: []profiledefinition.MetricTagConfig{
 					{
 						OID:     "1.3.6.1.2.1.1.5.0",
-						Name:    "sysName",
+						Symbol:  "sysName",
 						Match:   "(\\w)(\\w+)",
 						Pattern: regexp.MustCompile(`(\w)(\w+)`),
 						Tags: map[string]string{
@@ -71,7 +71,7 @@ func fixtureProfileDefinitionMap() profileConfigMap {
 							"suffix":   "\\2",
 						},
 					},
-					{Tag: "snmp_host", Index: 0x0, Column: profiledefinition.SymbolConfig{OID: "", Name: ""}, OID: "1.3.6.1.2.1.1.5.0", Name: "sysName"},
+					{Tag: "snmp_host", Index: 0x0, Column: profiledefinition.SymbolConfig{OID: "", Name: ""}, OID: "1.3.6.1.2.1.1.5.0", Symbol: "sysName"},
 				},
 				Metadata: profiledefinition.MetadataConfig{
 					"device": {
@@ -177,7 +177,7 @@ func fixtureProfileDefinitionMap() profileConfigMap {
 				},
 				MetricTags: []profiledefinition.MetricTagConfig{
 					{Tag: "snmp_host2", Column: profiledefinition.SymbolConfig{OID: "1.3.6.1.2.1.1.5.0", Name: "sysName"}},
-					{Tag: "unknown_symbol", OID: "1.3.6.1.2.1.1.999.0", Name: "unknownSymbol"},
+					{Tag: "unknown_symbol", OID: "1.3.6.1.2.1.1.999.0", Symbol: "unknownSymbol"},
 				},
 				Metadata: profiledefinition.MetadataConfig{},
 			},
@@ -553,9 +553,9 @@ func Test_mergeProfileDefinition(t *testing.T) {
 		},
 		MetricTags: []profiledefinition.MetricTagConfig{
 			{
-				Tag:  "tag1",
-				OID:  "2.1",
-				Name: "tagName1",
+				Tag:    "tag1",
+				OID:    "2.1",
+				Symbol: "tagName1",
 			},
 		},
 		Metadata: profiledefinition.MetadataConfig{
@@ -601,9 +601,9 @@ func Test_mergeProfileDefinition(t *testing.T) {
 		},
 		MetricTags: []profiledefinition.MetricTagConfig{
 			{
-				Tag:  "tag2",
-				OID:  "2.2",
-				Name: "tagName2",
+				Tag:    "tag2",
+				OID:    "2.2",
+				Symbol: "tagName2",
 			},
 		},
 		Metadata: profiledefinition.MetadataConfig{
@@ -655,14 +655,14 @@ func Test_mergeProfileDefinition(t *testing.T) {
 				},
 				MetricTags: []profiledefinition.MetricTagConfig{
 					{
-						Tag:  "tag2",
-						OID:  "2.2",
-						Name: "tagName2",
+						Tag:    "tag2",
+						OID:    "2.2",
+						Symbol: "tagName2",
 					},
 					{
-						Tag:  "tag1",
-						OID:  "2.1",
-						Name: "tagName1",
+						Tag:    "tag1",
+						OID:    "2.1",
+						Symbol: "tagName1",
 					},
 				},
 				Metadata: profiledefinition.MetadataConfig{
@@ -731,9 +731,9 @@ func Test_mergeProfileDefinition(t *testing.T) {
 				},
 				MetricTags: []profiledefinition.MetricTagConfig{
 					{
-						Tag:  "tag2",
-						OID:  "2.2",
-						Name: "tagName2",
+						Tag:    "tag2",
+						OID:    "2.2",
+						Symbol: "tagName2",
 					},
 				},
 				Metadata: profiledefinition.MetadataConfig{
@@ -779,9 +779,9 @@ func Test_mergeProfileDefinition(t *testing.T) {
 				},
 				MetricTags: []profiledefinition.MetricTagConfig{
 					{
-						Tag:  "tag1",
-						OID:  "2.1",
-						Name: "tagName1",
+						Tag:    "tag1",
+						OID:    "2.1",
+						Symbol: "tagName1",
 					},
 				},
 				Metadata: profiledefinition.MetadataConfig{
