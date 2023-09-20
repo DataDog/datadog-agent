@@ -14,6 +14,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/avast/retry-go/v4"
 	"github.com/cihub/seelog"
 	"github.com/cilium/ebpf"
 	"go.uber.org/atomic"
@@ -243,12 +244,18 @@ func newConntracker(cfg *config.Config, bpfTelemetry *nettelemetry.EBPFTelemetry
 
 	var c netlink.Conntracker
 	var err error
+
 	// try creating ebpf conntracker 3 times in case the module is not loaded on the host yet
-	for i := 0; i < 3; i++ {
-		if c, err = NewEBPFConntracker(cfg, bpfTelemetry); err == nil {
-			return c, nil
-		}
-		time.Sleep(1 * time.Second)
+	err = retry.Do(
+		func() error {
+			c, err = NewEBPFConntracker(cfg, bpfTelemetry)
+			return err
+		},
+		retry.Attempts(3),
+		retry.Delay(1*time.Second),
+	)
+	if err == nil {
+		return c, nil
 	}
 
 	if cfg.AllowNetlinkConntrackerFallback {
