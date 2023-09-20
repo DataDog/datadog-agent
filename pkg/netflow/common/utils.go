@@ -5,10 +5,6 @@
 
 package common
 
-import (
-	"net"
-)
-
 // MinUint64 returns the min of the two passed number
 func MinUint64(a uint64, b uint64) uint64 {
 	if a < b {
@@ -39,12 +35,4 @@ func MaxUint16(a uint16, b uint16) uint16 {
 		return a
 	}
 	return b
-}
-
-// IPBytesToString convert IP in []byte to string
-func IPBytesToString(ip []byte) string {
-	if len(ip) == 0 {
-		return ""
-	}
-	return net.IP(ip).String()
 }

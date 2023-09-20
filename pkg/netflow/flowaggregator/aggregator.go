@@ -25,6 +25,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/netflow/common"
 	"github.com/DataDog/datadog-agent/pkg/netflow/config"
+	"github.com/DataDog/datadog-agent/pkg/netflow/format"
 	"github.com/DataDog/datadog-agent/pkg/netflow/goflowlib"
 )
 
@@ -162,7 +163,7 @@ func (agg *FlowAggregator) sendExporterMetadata(flows []*common.Flow, flushTime 
 	orderedExporterIDs := make(map[string][]string)
 
 	for _, flow := range flows {
-		exporterIpAddress := common.IPBytesToString(flow.ExporterAddr)
+		exporterIpAddress := format.IPAddr(flow.ExporterAddr)
 		if exporterIpAddress == "" || strings.HasPrefix(exporterIpAddress, "?") {
 			agg.logger.Errorf("Invalid exporter Addr: %s", exporterIpAddress)
 			continue
