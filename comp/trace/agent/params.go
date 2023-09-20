@@ -5,6 +5,10 @@
 
 package agent
 
+// team: agent-apm
+
+// Params replicates the run.RunParams needed by the tracer agent.
+// This is required to avoid cyclic dependencies.
 type Params struct {
 	// PIDFilePath contains the value of the --pidfile flag.
 	PIDFilePath string
