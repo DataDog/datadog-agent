@@ -31,7 +31,7 @@ func TestRulesetLoaded(t *testing.T) {
 	}
 
 	probeMonitorOpts := testOpts{
-		nbPolicies: 1
+		nbPolicies: 1,
 	}
 	test, err := newTestModule(t, nil, []*rules.RuleDefinition{rule}, probeMonitorOpts)
 	if err != nil {
