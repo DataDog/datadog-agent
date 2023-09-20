@@ -73,8 +73,8 @@ type MetricTagConfig struct {
 	Column SymbolConfig `yaml:"column,omitempty" json:"column,omitempty"`
 
 	// Symbol config
-	OID  string `yaml:"OID,omitempty" json:"OID,omitempty"`
-	Name string `yaml:"symbol,omitempty" json:"symbol,omitempty"`
+	OID  string `yaml:"OID,omitempty" json:"OID,omitempty"`       // DEPRECATED
+	Name string `yaml:"symbol,omitempty" json:"symbol,omitempty"` // DEPRECATED symbol as string
 
 	IndexTransform []MetricIndexTransform `yaml:"index_transform,omitempty" json:"index_transform,omitempty"`
 
