@@ -254,7 +254,7 @@ type testOpts struct {
 	enableSBOM                          bool
 	preStartCallback                    func(test *testModule)
 	tagsResolver                        tags.Resolver
-	nbPolicies							int
+	nbPolicies                          int
 }
 
 func (s *stringSlice) String() string {
@@ -873,14 +873,16 @@ func newTestModule(t testing.TB, macroDefs []*rules.MacroDefinition, ruleDefs []
 	}
 
 	if opts.nbPolicies > 1 {
-		for i := 0; i < opts.nbPolicies; i++ {
+		for i := 1; i < opts.nbPolicies; i++ {
 			policyRuleDefs := make([]*rules.RuleDefinition, len(ruleDefs))
-			for i, _ := range ruleDefs {
-				ruleId := fmt.Sprintf(ruleDefs[i].ID, i)
-				ruleDefs[i].ID = ruleId
-				policyRuleDefs[i] = ruleDefs[i]
+			for j, rd := range ruleDefs {
+				ruleID := fmt.Sprintf(rd.ID+"_%d", j)
+				log.Infof("ruleID")
+				log.Infof(ruleID)
+				rd.ID = ruleID
+				policyRuleDefs[j] = rd
 			}
-			if _, err = setTestPolicy(st.root, macroDefs, policyRuleDefs, fmt.Sprintf("secagent-policy-%d.policy")); err != nil {
+			if _, err = setTestPolicy(st.root, macroDefs, policyRuleDefs, fmt.Sprintf("secagent-policy-%d.policy", i)); err != nil {
 				return nil, err
 			}
 		}

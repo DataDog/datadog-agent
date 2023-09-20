@@ -24,16 +24,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 )
 
-func TestRulesetLoaded(t *testing.T) {
-	rule := &rules.RuleDefinition{
-		ID:         "path_test",
-		Expression: `open.file.path == "/aaaaaaaaaaaaaaaaaaaaaaaaa" && open.flags & O_CREAT != 0`,
-	}
-
-	probeMonitorOpts := testOpts{
-		nbPolicies: 1,
-	}
-	test, err := newTestModule(t, nil, []*rules.RuleDefinition{rule}, probeMonitorOpts)
+func runRuleSetLoadedBaseTest(t *testing.T, ruleDefs []*rules.RuleDefinition, opts testOpts) {
+	test, err := newTestModule(t, nil, ruleDefs, opts)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -67,6 +59,30 @@ func TestRulesetLoaded(t *testing.T) {
 			t.Fatal(err)
 		}
 	})
+}
+
+func TestSeveralRulesetsLoaded(t *testing.T) {
+	rule := &rules.RuleDefinition{
+		ID:         "path_test",
+		Expression: `open.file.path == "/aaaaaaaaaaaaaaaaaaaaaaaaa" && open.flags & O_CREAT != 0`,
+	}
+
+	probeMonitorOpts := testOpts{
+		nbPolicies: 2,
+	}
+	runRuleSetLoadedBaseTest(t, []*rules.RuleDefinition{rule}, probeMonitorOpts)
+}
+
+func TestRulesetLoaded(t *testing.T) {
+	rule := &rules.RuleDefinition{
+		ID:         "path_test",
+		Expression: `open.file.path == "/aaaaaaaaaaaaaaaaaaaaaaaaa" && open.flags & O_CREAT != 0`,
+	}
+
+	probeMonitorOpts := testOpts{
+		nbPolicies: 1,
+	}
+	runRuleSetLoadedBaseTest(t, []*rules.RuleDefinition{rule}, probeMonitorOpts)
 }
 
 func truncatedParents(t *testing.T, opts testOpts) {
