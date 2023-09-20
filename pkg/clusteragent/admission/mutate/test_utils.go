@@ -119,7 +119,10 @@ func fakePodWithEnvFieldRefValue(name, envKey, path string) *corev1.Pod {
 }
 
 func fakePodWithNamespaceAndLabel(namespace, k, v string) *corev1.Pod {
-	return withNamespace(fakePodWithLabel(k, v), namespace)
+	pod := fakePodWithLabel(k, v)
+	pod.Namespace = namespace
+
+	return pod
 }
 
 func fakePodWithVolume(podName, volumeName, mountPath string) *corev1.Pod {
@@ -135,10 +138,5 @@ func fakePod(name string) *corev1.Pod {
 
 func withContainer(pod *corev1.Pod, nameSuffix string) *corev1.Pod {
 	pod.Spec.Containers = append(pod.Spec.Containers, corev1.Container{Name: pod.Name + nameSuffix})
-	return pod
-}
-
-func withNamespace(pod *corev1.Pod, namespace string) *corev1.Pod {
-	pod.Namespace = namespace
 	return pod
 }

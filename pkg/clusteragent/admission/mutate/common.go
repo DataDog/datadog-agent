@@ -20,6 +20,10 @@ import (
 	"k8s.io/client-go/dynamic"
 )
 
+const (
+	namespaceWithAlwaysDisabledInjections = "kube-system"
+)
+
 type mutateFunc func(*corev1.Pod, string, dynamic.Interface) error
 
 // mutate handles mutating pods and encoding and decoding admission
@@ -156,11 +160,28 @@ func containsVolumeMount(volumeMounts []corev1.VolumeMount, element corev1.Volum
 	return false
 }
 
+// shouldInject returns true if Admission Controller should inject standard tags, APM configs and APM libraries
+func shouldInject(pod *corev1.Pod) bool {
+	// If a pod explicitly sets the label admission.datadoghq.com/enabled, make a decision based on its value
+	if val, found := pod.GetLabels()[admCommon.EnabledLabelKey]; found {
+		switch val {
+		case "true":
+			return true
+		case "false":
+			return false
+		default:
+			log.Warnf("Invalid label value '%s=%s' on pod %s should be either 'true' or 'false', ignoring it", admCommon.EnabledLabelKey, val, podString(pod))
+		}
+	}
+
+	return IsApmInstrumentationEnabled(pod.GetNamespace()) || config.Datadog.GetBool("admission_controller.mutate_unlabelled")
+}
+
 // isApmInstrumentationEnabled indicates if Single Step Insstrumentation is enabled for the namespace in the cluster
 // Single Step Instrumentation is enabled if:
 //   - cluster-wide configuration `apm_config.instrumentation.enabled` is true and the namespace is not excluded via `apm_config.instrumentation.disabled_namespaces`
 //   - cluster-wide configuration `apm_config.instrumentation.enabled` is false and the namespace is whitelisted via `apm_config.instrumentation.disabled_namespaces`
-func isApmInstrumentationEnabled(namespace string) bool {
+func IsApmInstrumentationEnabled(namespace string) bool {
 	apmInstrumentationEnabled := config.Datadog.GetBool("apm_config.instrumentation.enabled")
 	isNsEnabled := apmInstrumentationEnabled
 
@@ -186,31 +207,19 @@ func isApmInstrumentationEnabled(namespace string) bool {
 	// Single Step Instrumentation for the namespace can override cluster-wide configuration
 	for _, ns := range apmEnabledNamespaces {
 		if ns == namespace {
-			isNsEnabled = true
+			return true
 		}
 	}
+
+	// Unless kube-system ns is explicitly enabled, always disable Single Step Instrumentation
+	if namespace == namespaceWithAlwaysDisabledInjections {
+		return false
+	}
+
 	for _, ns := range apmDisabledNamespaces {
 		if ns == namespace {
-			isNsEnabled = false
+			return false
 		}
 	}
 	return isNsEnabled
-}
-
-// shouldInject returns true if Admission Controller should inject standard tags, APM configs and APM libraries
-func shouldInject(pod *corev1.Pod) bool {
-	// If a pod explicitly sets the label admission.datadoghq.com/enabled, make a decision based on its value
-	if val, found := pod.GetLabels()[admCommon.EnabledLabelKey]; found {
-		switch val {
-		case "true":
-			return true
-		case "false":
-			return false
-		default:
-			log.Warnf("Invalid label value '%s=%s' on pod %s should be either 'true' or 'false', ignoring it", admCommon.EnabledLabelKey, val, podString(pod))
-			return false
-		}
-	}
-
-	return isApmInstrumentationEnabled(pod.GetNamespace()) || config.Datadog.GetBool("admission_controller.mutate_unlabelled")
 }
