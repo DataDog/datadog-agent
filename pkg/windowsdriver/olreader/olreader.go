@@ -140,6 +140,10 @@ func (olr *OverlappedReader) Stop() {
 	olr.wg.Wait()
 	olr.cleanBuffers()
 }
+
+func (olr *OverlappedReader) Ioctl(ioControlCode uint32, inBuffer *byte, inBufferSize uint32, outBuffer *byte, outBufferSize uint32, bytesReturned *uint32, overlapped *windows.Overlapped) (err error) {
+	return windows.DeviceIoControl(olr.h, ioControlCode, inBuffer, inBufferSize, outBuffer, outBufferSize, bytesReturned, overlapped)
+}
 func (olr *OverlappedReader) initiateReads() error {
 	for _, buf := range olr.buffers {
 		err := windows.ReadFile(olr.h, buf.data[:], nil, &(buf.ol))

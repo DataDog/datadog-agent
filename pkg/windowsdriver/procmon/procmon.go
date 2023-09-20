@@ -80,10 +80,33 @@ func (wp *WinProcmon) OnError(err error) {
 
 }
 func (wp *WinProcmon) Stop() {
+	wp.reader.Ioctl(ProcmonStopIOCTL,
+		nil, // inBuffer
+		0,
+		nil,
+		0,
+		nil,
+		nil)
 	wp.reader.Stop()
 }
 func (wp *WinProcmon) Start() error {
-	return wp.reader.Read()
+	err := wp.reader.Read()
+	if err != nil {
+		return err
+	}
+	// this will initiate the driver actually sending things up
+	// start grabbing notifications
+	err = wp.reader.Ioctl(ProcmonStartIOCTL,
+		nil, // inBuffer
+		0,
+		nil,
+		0,
+		nil,
+		nil)
+	if err != nil {
+		wp.reader.Stop()
+	}
+	return err
 }
 
 func decodeStruct(data []uint8, sz uint32) (t DDProcessNotifyType, pid uint64, imagefile, cmdline string, consumed uint32) {
