@@ -31,7 +31,7 @@ end
 default_version integrations_core_version
 
 # folder names containing integrations from -core that won't be packaged with the Agent
-blacklist_folders = [
+excluded_folders = [
   'datadog_checks_base',           # namespacing package for wheels (NOT AN INTEGRATION)
   'datadog_checks_dev',            # Development package, (NOT AN INTEGRATION)
   'datadog_checks_tests_helper',   # Testing and Development package, (NOT AN INTEGRATION)
@@ -39,45 +39,52 @@ blacklist_folders = [
 ]
 
 # package names of dependencies that won't be added to the Agent Python environment
-blacklist_packages = Array.new
+excluded_packages = Array.new
 
 # We build these manually
-blacklist_packages.push(/^snowflake-connector-python==/)
-blacklist_packages.push(/^confluent-kafka==/)
+excluded_packages.push(/^snowflake-connector-python==/)
+excluded_packages.push(/^confluent-kafka==/)
 
 if suse?
-  # Temporarily blacklist Aerospike until builder supports new dependency
-  blacklist_packages.push(/^aerospike==/)
-  blacklist_folders.push('aerospike')
+  # Temporarily exclude Aerospike until builder supports new dependency
+  excluded_packages.push(/^aerospike==/)
+  excluded_folders.push('aerospike')
 end
 
 if osx?
-  # Temporarily blacklist Aerospike until builder supports new dependency
-  blacklist_packages.push(/^aerospike==/)
-  blacklist_folders.push('aerospike')
-  blacklist_folders.push('teradata')
+  # Temporarily exclude Aerospike until builder supports new dependency
+  excluded_packages.push(/^aerospike==/)
+  excluded_folders.push('aerospike')
+  excluded_folders.push('teradata')
 end
 
 if arm?
   # This doesn't build on ARM
-  blacklist_folders.push('ibm_ace')
-  blacklist_folders.push('ibm_mq')
-  blacklist_packages.push(/^pymqi==/)
+  excluded_folders.push('ibm_ace')
+  excluded_folders.push('ibm_mq')
+  excluded_packages.push(/^pymqi==/)
 end
 
 if redhat? && !arm?
+<<<<<<< HEAD
   blacklist_packages.push(/^pydantic-core==/)
+=======
+  # RPM builds are done on CentOS 6 which is based on glibc v2.12 however newer libraries require v2.17, see:
+  # https://blog.rust-lang.org/2022/08/01/Increasing-glibc-kernel-requirements.html
+  dependency 'pydantic-core-py3'
+  excluded_packages.push(/^pydantic-core==/)
+>>>>>>> 884306d858 (omnibus: agent-integrations: use excluded instead of blacklist)
 end
 
 # _64_bit checks the kernel arch.  On windows, the builder is 64 bit
 # even when doing a 32 bit build.  Do a specific check for the 32 bit
 # build
 if arm? || !_64_bit? || (windows? && windows_arch_i386?)
-  blacklist_packages.push(/^orjson==/)
+  excluded_packages.push(/^orjson==/)
 end
 
 if linux?
-  blacklist_packages.push(/^oracledb==/)
+  excluded_packages.push(/^oracledb==/)
 end
 
 final_constraints_file = 'final_constraints-py3.txt'
@@ -204,7 +211,7 @@ build do
       compiled_reqs_file_path = "#{install_dir}/#{agent_requirements_file}"
     end
 
-    # Remove any blacklisted requirements from the static-environment req file
+    # Remove any excluded requirements from the static-environment req file
     requirements = Array.new
 
     # Creating a hash containing the requirements and requirements file path associated to every lib
@@ -225,8 +232,8 @@ build do
     end
 
     File.open("#{static_reqs_in_file}", 'r+').readlines().each do |line|
-      blacklist_packages.each do |blacklist_regex|
-        re = Regexp.new(blacklist_regex).freeze
+      excluded_packages.each do |package_regex|
+        re = Regexp.new(package_regex).freeze
         if re.match line
           next
         end
@@ -316,8 +323,8 @@ build do
     Dir.glob("#{project_dir}/*").each do |check_dir|
       check = check_dir.split('/').last
 
-      # do not install blacklisted integrations
-      next if !File.directory?("#{check_dir}") || blacklist_folders.include?(check)
+      # do not install excluded integrations
+      next if !File.directory?("#{check_dir}") || excluded_folders.include?(check)
 
       # If there is no manifest file, then we should assume the folder does not
       # contain a working check and move onto the next
