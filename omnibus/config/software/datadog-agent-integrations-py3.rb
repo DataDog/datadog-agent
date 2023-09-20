@@ -225,29 +225,26 @@ build do
     end
 
     File.open("#{static_reqs_in_file}", 'r+').readlines().each do |line|
-      blacklist_flag = false
       blacklist_packages.each do |blacklist_regex|
         re = Regexp.new(blacklist_regex).freeze
         if re.match line
-          blacklist_flag = true
+          next
         end
       end
 
-      if !blacklist_flag
-        # on non windows OS, we use the c version of the psycopg installation
-        if line.start_with?('psycopg[binary]') && !windows?
-          line.sub! 'psycopg[binary]', 'psycopg[c]'
-        end
-        # Keeping the custom env requirements lines apart to install them with a specific env
-        requirements_custom.each do |lib, lib_req|
-          if Regexp.new('^' + lib + '==').freeze.match line
-            lib_req["req_lines"].push(line)
-          end
-        end
-        # In any case we add the lib to the requirements files to avoid inconsistency in the installed versions
-        # For example if aerospike has dependency A>1.2.3 and a package in the big requirements file has A<1.2.3, the install process would succeed but the integration wouldn't work.
-        requirements.push(line)
+      # on non windows OS, we use the c version of the psycopg installation
+      if line.start_with?('psycopg[binary]') && !windows?
+        line.sub! 'psycopg[binary]', 'psycopg[c]'
       end
+      # Keeping the custom env requirements lines apart to install them with a specific env
+      requirements_custom.each do |lib, lib_req|
+        if Regexp.new('^' + lib + '==').freeze.match line
+          lib_req["req_lines"].push(line)
+        end
+      end
+      # In any case we add the lib to the requirements files to avoid inconsistency in the installed versions
+      # For example if aerospike has dependency A>1.2.3 and a package in the big requirements file has A<1.2.3, the install process would succeed but the integration wouldn't work.
+      requirements.push(line)
     end
 
     # Adding pympler for memory debug purposes
