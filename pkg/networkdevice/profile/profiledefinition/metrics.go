@@ -39,6 +39,9 @@ const (
 	ProfileMetricTypePercent ProfileMetricType = "percent"
 )
 
+// SymbolConfigCompat is used to deserialize string field or SymbolConfig.
+type SymbolConfigCompat SymbolConfig
+
 // SymbolConfig holds info for a single symbol/oid
 type SymbolConfig struct {
 	OID  string `yaml:"OID,omitempty" json:"OID,omitempty"`
@@ -73,8 +76,9 @@ type MetricTagConfig struct {
 	Column SymbolConfig `yaml:"column,omitempty" json:"column,omitempty"`
 
 	// Symbol config
-	OID    string `yaml:"OID,omitempty" json:"OID,omitempty"`       // DEPRECATED
-	Symbol string `yaml:"symbol,omitempty" json:"symbol,omitempty"` // DEPRECATED symbol as string
+	OID    string             `yaml:"OID,omitempty" json:"OID,omitempty"`       // DEPRECATED
+	Symbol SymbolConfigCompat `yaml:"symbol,omitempty" json:"symbol,omitempty"` // DEPRECATED symbol as string
+	//Symbol SymbolConfigCompat `yaml:"symbol,omitempty" json:"symbol,omitempty"` // DEPRECATED symbol as string
 
 	IndexTransform []MetricIndexTransform `yaml:"index_transform,omitempty" json:"index_transform,omitempty"`
 
