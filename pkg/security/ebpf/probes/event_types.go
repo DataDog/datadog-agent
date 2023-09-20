@@ -5,6 +5,7 @@
 
 //go:build linux
 
+// Package probes holds probes related files
 package probes
 
 import (
@@ -93,12 +94,12 @@ func GetSelectorsPerEventType(fentry bool) map[eval.EventType][]manager.ProbesSe
 				&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFFuncName: "sched_process_fork"}},
 				kprobeOrFentry("do_exit", fentry),
 				&manager.BestEffort{Selectors: []manager.ProbesSelector{
-					kprobeOrFentry("prepare_binprm", fentry, withSkipIfFentry(true)),
+					kprobeOrFentry("prepare_binprm", fentry),
 					kprobeOrFentry("bprm_execve", fentry),
-					kprobeOrFentry("security_bprm_check", fentry, withSkipIfFentry(true)),
+					kprobeOrFentry("security_bprm_check", fentry),
 				}},
 				kprobeOrFentry("setup_new_exec_interp", fentry),
-				kprobeOrFentry("setup_new_exec_args_envs", fentry, withUid(SecurityAgentUID+"_a")),
+				kprobeOrFentry("setup_new_exec_args_envs", fentry, withUID(SecurityAgentUID+"_a")),
 				kprobeOrFentry("setup_arg_pages", fentry),
 				kprobeOrFentry("mprotect_fixup", fentry),
 				kprobeOrFentry("exit_itimers", fentry),
@@ -113,15 +114,15 @@ func GetSelectorsPerEventType(fentry bool) map[eval.EventType][]manager.ProbesSe
 				kprobeOrFentry("cgroup1_procs_write", fentry),
 			}},
 			&manager.OneOf{Selectors: []manager.ProbesSelector{
-				kprobeOrFentry("_do_fork", fentry, withSkipIfFentry(true)),
-				kprobeOrFentry("do_fork", fentry, withSkipIfFentry(true)),
+				kprobeOrFentry("_do_fork", fentry),
+				kprobeOrFentry("do_fork", fentry),
 				kprobeOrFentry("kernel_clone", fentry),
 				kprobeOrFentry("kernel_thread", fentry),
 				kprobeOrFentry("user_mode_thread", fentry),
 			}},
 			&manager.OneOf{Selectors: []manager.ProbesSelector{
-				kprobeOrFentry("cgroup_tasks_write", fentry, withSkipIfFentry(true)),
-				kprobeOrFentry("cgroup1_tasks_write", fentry, withSkipIfFentry(true)),
+				kprobeOrFentry("cgroup_tasks_write", fentry),
+				kprobeOrFentry("cgroup1_tasks_write", fentry),
 			}},
 			&manager.OneOf{Selectors: ExpandSyscallProbesSelector(SecurityAgentUID, "execve", fentry, Entry|SupportFentry)},
 			&manager.BestEffort{Selectors: ExpandSyscallProbesSelector(SecurityAgentUID, "execveat", fentry, Entry|SupportFentry)},
@@ -170,7 +171,7 @@ func GetSelectorsPerEventType(fentry bool) map[eval.EventType][]manager.ProbesSe
 				&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFFuncName: "io_uring_create"}},
 				&manager.OneOf{Selectors: []manager.ProbesSelector{
 					kprobeOrFentry("io_allocate_scq_urings", fentry),
-					kprobeOrFentry("io_sq_offload_start", fentry, withSkipIfFentry(true)),
+					kprobeOrFentry("io_sq_offload_start", fentry),
 					kretprobeOrFexit("io_ring_ctx_alloc", fentry),
 				}},
 			}},
@@ -255,7 +256,7 @@ func GetSelectorsPerEventType(fentry bool) map[eval.EventType][]manager.ProbesSe
 			// selinux
 			// This needs to be best effort, as sel_write_disable is in the process of being removed
 			&manager.BestEffort{Selectors: []manager.ProbesSelector{
-				kprobeOrFentry("sel_write_disable", fentry, withSkipIfFentry(true)),
+				kprobeOrFentry("sel_write_disable", fentry),
 				kprobeOrFentry("sel_write_enforce", fentry),
 				kprobeOrFentry("sel_write_bool", fentry),
 				kprobeOrFentry("sel_commit_bools_write", fentry),
@@ -278,7 +279,7 @@ func GetSelectorsPerEventType(fentry bool) map[eval.EventType][]manager.ProbesSe
 			}},
 			&manager.OneOf{Selectors: []manager.ProbesSelector{
 				kprobeOrFentry("mnt_want_write_file", fentry),
-				kprobeOrFentry("mnt_want_write_file_path", fentry, withSkipIfFentry(true)),
+				kprobeOrFentry("mnt_want_write_file_path", fentry),
 			}},
 			&manager.OneOf{Selectors: ExpandSyscallProbesSelector(SecurityAgentUID, "chown", fentry, EntryAndExit|SupportFentry|SupportFexit)},
 			&manager.OneOf{Selectors: ExpandSyscallProbesSelector(SecurityAgentUID, "chown16", fentry, EntryAndExit|SupportFentry|SupportFexit)},
@@ -314,7 +315,7 @@ func GetSelectorsPerEventType(fentry bool) map[eval.EventType][]manager.ProbesSe
 			}},
 			&manager.OneOf{Selectors: []manager.ProbesSelector{
 				kprobeOrFentry("mnt_want_write_file", fentry),
-				kprobeOrFentry("mnt_want_write_file_path", fentry, withSkipIfFentry(true)),
+				kprobeOrFentry("mnt_want_write_file_path", fentry),
 			}},
 			&manager.OneOf{Selectors: ExpandSyscallProbesSelector(SecurityAgentUID, "removexattr", fentry, EntryAndExit|SupportFentry|SupportFexit)},
 			&manager.OneOf{Selectors: ExpandSyscallProbesSelector(SecurityAgentUID, "fremovexattr", fentry, EntryAndExit|SupportFentry|SupportFexit)},
@@ -329,7 +330,7 @@ func GetSelectorsPerEventType(fentry bool) map[eval.EventType][]manager.ProbesSe
 			}},
 			&manager.OneOf{Selectors: []manager.ProbesSelector{
 				kprobeOrFentry("mnt_want_write_file", fentry),
-				kprobeOrFentry("mnt_want_write_file_path", fentry, withSkipIfFentry(true)),
+				kprobeOrFentry("mnt_want_write_file_path", fentry),
 			}},
 			&manager.OneOf{Selectors: ExpandSyscallProbesSelector(SecurityAgentUID, "setxattr", fentry, EntryAndExit|SupportFentry|SupportFexit)},
 			&manager.OneOf{Selectors: ExpandSyscallProbesSelector(SecurityAgentUID, "fsetxattr", fentry, EntryAndExit|SupportFentry|SupportFexit)},
@@ -390,9 +391,12 @@ func GetSelectorsPerEventType(fentry bool) map[eval.EventType][]manager.ProbesSe
 			&manager.AllOf{Selectors: []manager.ProbesSelector{
 				&manager.OneOf{Selectors: []manager.ProbesSelector{
 					kprobeOrFentry("security_kernel_read_file", fentry),
-					kprobeOrFentry("security_kernel_module_from_file", fentry, withSkipIfFentry(true)),
+					kprobeOrFentry("security_kernel_module_from_file", fentry),
 				}},
-				&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFFuncName: "kprobe_parse_args"}},
+				&manager.OneOf{Selectors: []manager.ProbesSelector{
+					kprobeOrFentry("mod_sysfs_setup", fentry),
+					kprobeOrFentry("module_param_sysfs_setup", fentry),
+				}},
 			}},
 			&manager.BestEffort{Selectors: ExpandSyscallProbesSelector(SecurityAgentUID, "init_module", fentry, EntryAndExit|SupportFentry|SupportFexit)},
 			&manager.BestEffort{Selectors: ExpandSyscallProbesSelector(SecurityAgentUID, "finit_module", fentry, EntryAndExit|SupportFentry|SupportFexit)},

@@ -21,11 +21,13 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/metrics/servicecheck"
 	"github.com/DataDog/datadog-agent/pkg/version"
 
+	"github.com/DataDog/datadog-agent/pkg/networkdevice/profile/profiledefinition"
+	"github.com/DataDog/datadog-agent/pkg/snmp/gosnmplib"
+
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/common"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/checkconfig"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/report"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/session"
-	"github.com/DataDog/datadog-agent/pkg/snmp/gosnmplib"
 )
 
 func TestProfileWithSysObjectIdDetection(t *testing.T) {
@@ -313,27 +315,27 @@ collect_topology: false
 	expectedNextAutodetectMetricsTime := savedAutodetectMetricsTime.Add(time.Duration(deviceCk.config.DetectMetricsRefreshInterval) * time.Second)
 	assert.WithinDuration(t, expectedNextAutodetectMetricsTime, deviceCk.nextAutodetectMetrics, time.Second)
 
-	expectedMetrics := []checkconfig.MetricsConfig{
-		{Symbol: checkconfig.SymbolConfig{OID: "1.3.6.1.2.1.1.3.0", Name: "sysUpTimeInstance"}},
-		{Symbol: checkconfig.SymbolConfig{OID: "1.3.6.1.4.1.318.1.1.1.11.1.1.0", Name: "upsBasicStateOutputState"}, MetricType: "flag_stream", Options: checkconfig.MetricsConfigOption{Placement: 1, MetricSuffix: "OnLine"}},
-		{Symbol: checkconfig.SymbolConfig{OID: "1.3.6.1.4.1.318.1.1.1.11.1.1.0", Name: "upsBasicStateOutputState"}, MetricType: "flag_stream", Options: checkconfig.MetricsConfigOption{Placement: 2, MetricSuffix: "ReplaceBattery"}},
+	expectedMetrics := []profiledefinition.MetricsConfig{
+		{Symbol: profiledefinition.SymbolConfig{OID: "1.3.6.1.2.1.1.3.0", Name: "sysUpTimeInstance"}},
+		{Symbol: profiledefinition.SymbolConfig{OID: "1.3.6.1.4.1.318.1.1.1.11.1.1.0", Name: "upsBasicStateOutputState"}, MetricType: "flag_stream", Options: profiledefinition.MetricsConfigOption{Placement: 1, MetricSuffix: "OnLine"}},
+		{Symbol: profiledefinition.SymbolConfig{OID: "1.3.6.1.4.1.318.1.1.1.11.1.1.0", Name: "upsBasicStateOutputState"}, MetricType: "flag_stream", Options: profiledefinition.MetricsConfigOption{Placement: 2, MetricSuffix: "ReplaceBattery"}},
 		{
-			MetricType: checkconfig.ProfileMetricTypeMonotonicCount,
-			Symbols: []checkconfig.SymbolConfig{
+			MetricType: profiledefinition.ProfileMetricTypeMonotonicCount,
+			Symbols: []profiledefinition.SymbolConfig{
 				{OID: "1.3.6.1.2.1.2.2.1.14", Name: "ifInErrors", ScaleFactor: 0.5},
 				{OID: "1.3.6.1.2.1.2.2.1.13", Name: "ifInDiscards"},
 			},
-			MetricTags: []checkconfig.MetricTagConfig{
-				{Tag: "interface", Column: checkconfig.SymbolConfig{OID: "1.3.6.1.2.1.31.1.1.1.1", Name: "ifName"}},
-				{Tag: "interface_alias", Column: checkconfig.SymbolConfig{OID: "1.3.6.1.2.1.31.1.1.1.18", Name: "ifAlias"}},
-				{Tag: "mac_address", Column: checkconfig.SymbolConfig{OID: "1.3.6.1.2.1.2.2.1.6", Name: "ifPhysAddress", Format: "mac_address"}},
+			MetricTags: []profiledefinition.MetricTagConfig{
+				{Tag: "interface", Column: profiledefinition.SymbolConfig{OID: "1.3.6.1.2.1.31.1.1.1.1", Name: "ifName"}},
+				{Tag: "interface_alias", Column: profiledefinition.SymbolConfig{OID: "1.3.6.1.2.1.31.1.1.1.18", Name: "ifAlias"}},
+				{Tag: "mac_address", Column: profiledefinition.SymbolConfig{OID: "1.3.6.1.2.1.2.2.1.6", Name: "ifPhysAddress", Format: "mac_address"}},
 			},
 			StaticTags: []string{"table_static_tag:val"},
 		},
 	}
 
-	expectedMetricTags := []checkconfig.MetricTagConfig{
-		{Tag: "snmp_host2", Column: checkconfig.SymbolConfig{OID: "1.3.6.1.2.1.1.5.0", Name: "sysName"}},
+	expectedMetricTags := []profiledefinition.MetricTagConfig{
+		{Tag: "snmp_host2", Column: profiledefinition.SymbolConfig{OID: "1.3.6.1.2.1.1.5.0", Name: "sysName"}},
 		{
 			OID:   "1.3.6.1.2.1.1.5.0",
 			Name:  "sysName",
@@ -365,9 +367,9 @@ collect_topology: false
 
 	sender.AssertMetric(t, "Gauge", "snmp.sysStatMemoryTotal", float64(60), "", snmpTags)
 
-	expectedMetrics = append(expectedMetrics, checkconfig.MetricsConfig{
-		Symbol:     checkconfig.SymbolConfig{OID: "1.3.6.1.4.1.3375.2.1.1.2.1.44.0", Name: "sysStatMemoryTotal", ScaleFactor: 2},
-		MetricType: checkconfig.ProfileMetricTypeGauge,
+	expectedMetrics = append(expectedMetrics, profiledefinition.MetricsConfig{
+		Symbol:     profiledefinition.SymbolConfig{OID: "1.3.6.1.4.1.3375.2.1.1.2.1.44.0", Name: "sysStatMemoryTotal", ScaleFactor: 2},
+		MetricType: profiledefinition.ProfileMetricTypeGauge,
 	})
 	assert.ElementsMatch(t, expectedMetrics, deviceCk.config.Metrics)
 	assert.ElementsMatch(t, expectedMetricTags, deviceCk.config.MetricTags)
@@ -902,28 +904,28 @@ community_string: public
 
 	metricsConfigs, metricTagConfigs := deviceCk.detectAvailableMetrics()
 
-	expectedMetricsConfigs := []checkconfig.MetricsConfig{
+	expectedMetricsConfigs := []profiledefinition.MetricsConfig{
 		{
-			Symbol:     checkconfig.SymbolConfig{OID: "1.3.6.1.4.1.3375.2.1.1.2.1.44.0", Name: "sysStatMemoryTotal", ScaleFactor: 2},
-			MetricType: checkconfig.ProfileMetricTypeGauge,
+			Symbol:     profiledefinition.SymbolConfig{OID: "1.3.6.1.4.1.3375.2.1.1.2.1.44.0", Name: "sysStatMemoryTotal", ScaleFactor: 2},
+			MetricType: profiledefinition.ProfileMetricTypeGauge,
 		},
 		{
-			MetricType: checkconfig.ProfileMetricTypeMonotonicCount,
-			Symbols: []checkconfig.SymbolConfig{
+			MetricType: profiledefinition.ProfileMetricTypeMonotonicCount,
+			Symbols: []profiledefinition.SymbolConfig{
 				{OID: "1.3.6.1.2.1.2.2.1.14", Name: "ifInErrors", ScaleFactor: 0.5},
 				{OID: "1.3.6.1.2.1.2.2.1.13", Name: "ifInDiscards"},
 			},
-			MetricTags: []checkconfig.MetricTagConfig{
-				{Tag: "interface", Column: checkconfig.SymbolConfig{OID: "1.3.6.1.2.1.31.1.1.1.1", Name: "ifName"}},
-				{Tag: "interface_alias", Column: checkconfig.SymbolConfig{OID: "1.3.6.1.2.1.31.1.1.1.18", Name: "ifAlias"}},
-				{Tag: "mac_address", Column: checkconfig.SymbolConfig{OID: "1.3.6.1.2.1.2.2.1.6", Name: "ifPhysAddress", Format: "mac_address"}},
+			MetricTags: []profiledefinition.MetricTagConfig{
+				{Tag: "interface", Column: profiledefinition.SymbolConfig{OID: "1.3.6.1.2.1.31.1.1.1.1", Name: "ifName"}},
+				{Tag: "interface_alias", Column: profiledefinition.SymbolConfig{OID: "1.3.6.1.2.1.31.1.1.1.18", Name: "ifAlias"}},
+				{Tag: "mac_address", Column: profiledefinition.SymbolConfig{OID: "1.3.6.1.2.1.2.2.1.6", Name: "ifPhysAddress", Format: "mac_address"}},
 			},
 			StaticTags: []string{"table_static_tag:val"},
 		},
 	}
 	assert.ElementsMatch(t, expectedMetricsConfigs, metricsConfigs)
 
-	expectedMetricsTagConfigs := []checkconfig.MetricTagConfig{
+	expectedMetricsTagConfigs := []profiledefinition.MetricTagConfig{
 		{
 			OID:   "1.3.6.1.2.1.1.5.0",
 			Name:  "sysName",
@@ -935,7 +937,7 @@ community_string: public
 			},
 		},
 		{Tag: "snmp_host", OID: "1.3.6.1.2.1.1.5.0", Name: "sysName"},
-		{Tag: "snmp_host2", Column: checkconfig.SymbolConfig{OID: "1.3.6.1.2.1.1.5.0", Name: "sysName"}},
+		{Tag: "snmp_host2", Column: profiledefinition.SymbolConfig{OID: "1.3.6.1.2.1.1.5.0", Name: "sysName"}},
 	}
 
 	checkconfig.ValidateEnrichMetricTags(expectedMetricsTagConfigs)

@@ -5,6 +5,7 @@
 
 //go:build functionaltests || stresstests
 
+// Package tests holds tests related files
 package tests
 
 import (
@@ -56,7 +57,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
-	"github.com/DataDog/datadog-agent/pkg/security/security_profile/activity_tree"
+	activity_tree "github.com/DataDog/datadog-agent/pkg/security/security_profile/activity_tree"
 	"github.com/DataDog/datadog-agent/pkg/security/security_profile/dump"
 	"github.com/DataDog/datadog-agent/pkg/security/security_profile/profile"
 	"github.com/DataDog/datadog-agent/pkg/security/serializers"
@@ -115,6 +116,8 @@ event_monitoring_config:
 
 runtime_security_config:
   enabled: {{ .RuntimeSecurityEnabled }}
+  remote_configuration:
+    enabled: false
   socket: /tmp/test-runtime-security.sock
   sbom:
     enabled: {{ .SBOMEnabled }}
@@ -973,7 +976,7 @@ func newTestModule(t testing.TB, macroDefs []*rules.MacroDefinition, ruleDefs []
 	}
 
 	// listen to probe event
-	if err := testMod.probe.AddEventHandler(model.UnknownEventType, testMod); err != nil {
+	if err := testMod.probe.AddFullAccessEventHandler(testMod); err != nil {
 		return nil, err
 	}
 

@@ -151,20 +151,20 @@ variables:
   # To use images from datadog-agent-buildimages dev branches, set the corresponding
   # SUFFIX variable to _test_only
   DATADOG_AGENT_BUILDIMAGES_SUFFIX: ""
-  DATADOG_AGENT_BUILDIMAGES: v18868373-918b265
+  DATADOG_AGENT_BUILDIMAGES: v19979316-3aa3d4b
   DATADOG_AGENT_WINBUILDIMAGES_SUFFIX: ""
-  DATADOG_AGENT_WINBUILDIMAGES: v18868373-918b265
+  DATADOG_AGENT_WINBUILDIMAGES: v19979316-3aa3d4b
   DATADOG_AGENT_ARMBUILDIMAGES_SUFFIX: ""
-  DATADOG_AGENT_ARMBUILDIMAGES: v18868373-918b265
+  DATADOG_AGENT_ARMBUILDIMAGES: v19979316-3aa3d4b
   DATADOG_AGENT_SYSPROBE_BUILDIMAGES_SUFFIX: ""
-  DATADOG_AGENT_SYSPROBE_BUILDIMAGES: v18868373-918b265
+  DATADOG_AGENT_SYSPROBE_BUILDIMAGES: v19979316-3aa3d4b
   DATADOG_AGENT_KERNEL_MATRIX_TESTING_BUILDIMAGES_SUFFIX: ""
-  DATADOG_AGENT_KERNEL_MATRIX_TESTING_BUILDIMAGES: v18868373-918b265
+  DATADOG_AGENT_KERNEL_MATRIX_TESTING_BUILDIMAGES: v19979316-3aa3d4b
   DATADOG_AGENT_NIKOS_BUILDIMAGES_SUFFIX: ""
-  DATADOG_AGENT_NIKOS_BUILDIMAGES: v18868373-918b265
+  DATADOG_AGENT_NIKOS_BUILDIMAGES: v19979316-3aa3d4b
   DATADOG_AGENT_BTF_GEN_BUILDIMAGES_SUFFIX: ""
-  DATADOG_AGENT_BTF_GEN_BUILDIMAGES: v18868373-918b265
-  TEST_INFRA_DEFINITIONS_BUILDIMAGES: 713eba6ee3fe
+  DATADOG_AGENT_BTF_GEN_BUILDIMAGES: v19979316-3aa3d4b
+  TEST_INFRA_DEFINITIONS_BUILDIMAGES: f4f52d64a31e
   DATADOG_AGENT_BUILDERS: v19474930-fe4bcd9
 
   DATADOG_AGENT_EMBEDDED_PATH: /opt/datadog-agent/embedded
@@ -268,6 +268,9 @@ variables:
 
 .if_testing_cleanup: &if_testing_cleanup
   if: $TESTING_CLEANUP == "true"
+
+.if_not_e2e: &if_not_e2e
+  if: $RUN_KITCHEN_TESTS == "false"
 
 .if_deploy_on_beta_repo_branch: &if_deploy_on_beta_repo_branch
   if: $DEPLOY_AGENT == "true" && $BUCKET_BRANCH == "beta"
@@ -744,6 +747,7 @@ workflow:
     when: never
   - <<: *if_release_branch
     when: never
+  - when: on_success
 
 .on_main_or_release_branch_or_deploy_always:
   - <<: *if_deploy
@@ -846,6 +850,7 @@ workflow:
 
 .on_security_agent_changes_or_manual:
   - <<: *if_main_branch
+    allow_failure: true
   - changes:
       paths:
         - pkg/ebpf/**/*
@@ -909,3 +914,9 @@ workflow:
     when: always
   - when: manual
     allow_failure: true
+
+.on_main_and_no_skip_e2e:
+  - <<: *if_not_e2e
+    when: never
+  - <<: *if_main_branch
+    when: on_success

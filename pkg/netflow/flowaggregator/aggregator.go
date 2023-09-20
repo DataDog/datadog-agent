@@ -187,7 +187,7 @@ func (agg *FlowAggregator) sendExporterMetadata(flows []*common.Flow, flushTime 
 		for _, exporterId := range ids {
 			netflowExporters = append(netflowExporters, exporterMap[namespace][exporterId])
 		}
-		metadataPayloads := metadata.BatchPayloads(namespace, "", flushTime, metadata.PayloadMetadataBatchSize, nil, nil, nil, nil, netflowExporters)
+		metadataPayloads := metadata.BatchPayloads(namespace, "", flushTime, metadata.PayloadMetadataBatchSize, nil, nil, nil, nil, netflowExporters, nil)
 		for _, payload := range metadataPayloads {
 			payloadBytes, err := json.Marshal(payload)
 			if err != nil {

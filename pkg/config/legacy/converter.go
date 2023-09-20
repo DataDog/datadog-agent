@@ -13,6 +13,7 @@ import (
 	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
+	configUtils "github.com/DataDog/datadog-agent/pkg/config/utils"
 )
 
 // FromAgentConfig reads the old agentConfig configuration, converts and merges
@@ -245,7 +246,7 @@ func extractURLAPIKeys(agentConfig Config, converter *config.LegacyConfigConvert
 		converter.Set("dd_url", urls[0])
 	}
 
-	converter.Set("api_key", config.SanitizeAPIKey(keys[0]))
+	converter.Set("api_key", configUtils.SanitizeAPIKey(keys[0]))
 	if len(urls) == 1 {
 		return nil
 	}
@@ -258,7 +259,7 @@ func extractURLAPIKeys(agentConfig Config, converter *config.LegacyConfigConvert
 		if url == "" || keys[idx] == "" {
 			return fmt.Errorf("Found empty additional 'dd_url' or 'api_key'. Please check that you don't have any misplaced commas")
 		}
-		keys[idx] = config.SanitizeAPIKey(keys[idx])
+		keys[idx] = configUtils.SanitizeAPIKey(keys[idx])
 		additionalEndpoints[url] = append(additionalEndpoints[url], keys[idx])
 	}
 	converter.Set("additional_endpoints", additionalEndpoints)

@@ -604,7 +604,7 @@ def generate_btfhub_constants(ctx, archive_path, force_refresh=False):
     output_path = "./pkg/security/probe/constantfetch/btfhub/constants.json"
     force_refresh_opt = "-force-refresh" if force_refresh else ""
     ctx.run(
-        f"go run ./pkg/security/probe/constantfetch/btfhub/ -archive-root {archive_path} -output {output_path} {force_refresh_opt}",
+        f"go run -tags linux_bpf,btfhubsync ./pkg/security/probe/constantfetch/btfhub/ -archive-root {archive_path} -output {output_path} {force_refresh_opt}",
     )
 
 

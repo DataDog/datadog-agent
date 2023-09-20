@@ -7,6 +7,7 @@ package compliance
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -192,6 +193,19 @@ func NewResourceLog(resourceID, resourceType string, resource interface{}) *Reso
 	}
 }
 
+// ErrIncompatibleEnvironment is returns by the resolver to signal that the
+// given rule's inputs are not resolvable in the current environment.
+var ErrIncompatibleEnvironment = errors.New("environment not compatible this type of input")
+
+// CheckEventFromError wraps any error into a correct CheckEvent, detecting if
+// the underlying error should be marked as skipped or not.
+func CheckEventFromError(evaluator Evaluator, rule *Rule, benchmark *Benchmark, err error) *CheckEvent {
+	if errors.Is(err, ErrIncompatibleEnvironment) {
+		return NewCheckSkipped(evaluator, fmt.Errorf("skipping input resolution for rule=%s: %w", rule.ID, err), "", "", rule, benchmark)
+	}
+	return NewCheckError(evaluator, fmt.Errorf("input resolution error for rule=%s: %w", rule.ID, err), "", "", rule, benchmark)
+}
+
 // RuleScope defines the different context in which the rule is allowed to run.
 type RuleScope string
 
@@ -233,6 +247,7 @@ type (
 		Audit         *InputSpecAudit         `yaml:"audit,omitempty" json:"audit,omitempty"`
 		Docker        *InputSpecDocker        `yaml:"docker,omitempty" json:"docker,omitempty"`
 		KubeApiserver *InputSpecKubeapiserver `yaml:"kubeApiserver,omitempty" json:"kubeApiserver,omitempty"`
+		Package       *InputSpecPackage       `yaml:"package,omitempty" json:"package,omitempty"`
 		XCCDF         *InputSpecXCCDF         `yaml:"xccdf,omitempty" json:"xccdf,omitempty"`
 		Constants     *InputSpecConstants     `yaml:"constants,omitempty" json:"constants,omitempty"`
 
@@ -283,6 +298,12 @@ type (
 		} `yaml:"apiRequest" json:"apiRequest"`
 	}
 
+	// InputSpecPackage defines the names of the software packages that need
+	// to be resolved
+	InputSpecPackage struct {
+		Names []string `yaml:"names" json:"names"`
+	}
+
 	// InputSpecXCCDF describes the spec to resolve a XCCDF evaluation result.
 	InputSpecXCCDF struct {
 		Name    string   `yaml:"name" json:"name"`
@@ -295,8 +316,50 @@ type (
 	InputSpecConstants map[string]interface{}
 )
 
-// ResolvedInputs is the generic data structure that is returned by a Resolver.
+// ResolvingContext is part of the resolved inputs data that should be passed
+// as the "context" field in the rego evaluator input. Note that because of the
+// way rego bails when dereferencing an undefined key, we do not mark any json
+// tag as "omitempty".
+type ResolvingContext struct {
+	RuleID            string                `json:"ruleID"`
+	Hostname          string                `json:"hostname"`
+	KubernetesCluster string                `json:"kubernetes_cluster"`
+	ContainerID       string                `json:"container_id"`
+	InputSpecs        map[string]*InputSpec `json:"input"`
+}
+
+// ResolvedInputs is the generic data structure that is returned by a Resolver and
+// passed to the rego evaluator.
+//
+// Ideally if Go did support inline JSON struct tag, this type would be:
+// see https://github.com/golang/go/issues/6213
+//
+//	struct {
+//		Context  *ResolvingContext      `json:"context"`
+//		Resolved map[string]interface{} `json:",inline"`
+//	}
 type ResolvedInputs map[string]interface{}
+
+// GetContext returns the ResolvingContext associated with this resolved
+// inputs.
+func (r ResolvedInputs) GetContext() *ResolvingContext {
+	c := r["context"].(ResolvingContext)
+	return &c
+}
+
+// NewResolvedInputs builds a ResolvedInputs map from the given resolving
+// context and generic resolved data.
+func NewResolvedInputs(resolvingContext ResolvingContext, resolved map[string]interface{}) (ResolvedInputs, error) {
+	ri := make(ResolvedInputs, len(resolved)+1)
+	for k, v := range resolved {
+		if k == "context" {
+			return nil, fmt.Errorf("NewResolvedInputs: \"context\" is a reserved keyword")
+		}
+		ri[k] = v
+	}
+	ri["context"] = resolvingContext
+	return ri, nil
+}
 
 // Benchmark represents a set of rules that have a common identity, typically
 // part of the same framework. It holds metadata that are shared between these

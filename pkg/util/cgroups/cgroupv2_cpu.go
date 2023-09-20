@@ -38,7 +38,7 @@ func (c *cgroupV2) parseCPUController(stats *CPUStats) {
 		reportError(err)
 	}
 
-	if err := parseSingleUnsignedStat(c.fr, c.pathFor("cpu.weight"), &stats.Shares); err != nil {
+	if err := parseSingleUnsignedStat(c.fr, c.pathFor("cpu.weight"), &stats.Weight); err != nil {
 		reportError(err)
 	}
 

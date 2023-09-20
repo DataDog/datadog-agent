@@ -15,7 +15,6 @@ import (
 	"github.com/shirou/gopsutil/v3/disk"
 	"github.com/stretchr/testify/assert"
 
-	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 )
@@ -85,15 +84,14 @@ func TestIncrementWithOverflow(t *testing.T) {
 
 func TestIoStatsOverflow(t *testing.T) {
 	ioCheck := new(IOCheck)
-	ioCheck.Configure(aggregator.GetSenderManager(), integration.FakeConfigHash, nil, nil, "test")
+	mock := mocksender.NewMockSender(ioCheck.ID())
+	ioCheck.Configure(mock.GetSenderManager(), integration.FakeConfigHash, nil, nil, "test")
 	ioCheck.stats = lastStats
 	ioCheck.ts = 1000
 	ioCounters = func(names ...string) (map[string]disk.IOCountersStat, error) {
 		return currentStats, nil
 	}
 	swapMemory = SwapMemory
-
-	mock := mocksender.NewMockSender(ioCheck.ID())
 
 	mock.On("Rate", "system.io.r_s", 41.0, "", []string{"device:sda", "device_name:sda"}).Return().Times(1)
 	mock.On("Rate", "system.io.w_s", 41.0, "", []string{"device:sda", "device_name:sda"}).Return().Times(1)

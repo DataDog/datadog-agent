@@ -5,6 +5,7 @@
 
 //go:build linux
 
+// Package constantfetch holds constantfetch related files
 package constantfetch
 
 import (
@@ -126,8 +127,8 @@ func (f *FallbackConstantFetcher) appendRequest(id string) {
 		value = getLinuxBinPrmArgcOffset(f.kernelVersion)
 	case OffsetNameLinuxBinprmEnvc:
 		value = getLinuxBinPrmEnvcOffset(f.kernelVersion)
-	case OffsetNameVmAreaStructFlags:
-		value = getVmAreaStructFlagsOffset(f.kernelVersion)
+	case OffsetNameVMAreaStructFlags:
+		value = getVMAreaStructFlagsOffset(f.kernelVersion)
 	}
 	f.res[id] = value
 }
@@ -210,13 +211,7 @@ func getSizeOfStructInode(kv *kernel.Version) uint64 {
 }
 
 func getSuperBlockFlagsOffset(kv *kernel.Version) uint64 {
-	offset := uint64(80)
-
-	if kv.IsRH7Kernel() {
-		offset = 72
-	}
-
-	return offset
+	return uint64(80)
 }
 
 func getSuperBlockMagicOffset(kv *kernel.Version) uint64 {
@@ -919,7 +914,7 @@ func getLinuxBinPrmEnvcOffset(kv *kernel.Version) uint64 {
 	return offset
 }
 
-func getVmAreaStructFlagsOffset(kv *kernel.Version) uint64 {
+func getVMAreaStructFlagsOffset(kv *kernel.Version) uint64 {
 	switch {
 	case kv.IsAmazonLinux2023Kernel() && kv.IsInRangeCloseOpen(kernel.Kernel6_1, kernel.Kernel6_2):
 		return 32

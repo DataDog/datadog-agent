@@ -5,6 +5,7 @@
 
 //go:build linux
 
+// Package runtime holds runtime related files
 package runtime
 
 import (
@@ -47,6 +48,7 @@ import (
 	ddgostatsd "github.com/DataDog/datadog-go/v5/statsd"
 )
 
+// Commands returns the config commands
 func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 	runtimeCmd := &cobra.Command{
 		Use:   "runtime",
@@ -397,9 +399,8 @@ func checkPolicies(log log.Component, config config.Component, args *checkPolici
 		defer client.Close()
 
 		return checkPoliciesLoaded(client, os.Stdout)
-	} else {
-		return checkPoliciesLocal(args, os.Stdout)
 	}
+	return checkPoliciesLocal(args, os.Stdout)
 }
 
 func checkPoliciesLoaded(client secagent.SecurityModuleClientWrapper, writer io.Writer) error {
@@ -650,6 +651,7 @@ func reloadRuntimePolicies(log log.Component, config config.Component) error {
 	return nil
 }
 
+// StartRuntimeSecurity starts runtime security
 func StartRuntimeSecurity(log log.Component, config config.Component, hostname string, stopper startstop.Stopper, statsdClient *ddgostatsd.Client, senderManager sender.SenderManager) (*secagent.RuntimeSecurityAgent, error) {
 	enabled := config.GetBool("runtime_security_config.enabled")
 	if !enabled {
@@ -668,7 +670,8 @@ func StartRuntimeSecurity(log log.Component, config config.Component, hostname s
 	}
 	stopper.Add(agent)
 
-	endpoints, ctx, err := common.NewLogContextRuntime()
+	useSecRuntimeTrack := config.GetBool("runtime_security_config.use_secruntime_track")
+	endpoints, ctx, err := common.NewLogContextRuntime(useSecRuntimeTrack)
 	if err != nil {
 		_ = log.Error(err)
 	}

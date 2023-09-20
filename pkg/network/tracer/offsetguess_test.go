@@ -8,6 +8,7 @@
 package tracer
 
 import (
+	"fmt"
 	"math"
 	"net"
 	"testing"
@@ -24,6 +25,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode/runtime"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/ebpftest"
 	netebpf "github.com/DataDog/datadog-agent/pkg/network/ebpf"
+	nettestutil "github.com/DataDog/datadog-agent/pkg/network/testutil"
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/offsetguess"
 	"github.com/DataDog/datadog-agent/pkg/process/statsd"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
@@ -298,4 +300,28 @@ func testOffsetGuess(t *testing.T) {
 		require.NoError(t, mp.Lookup(unsafe.Pointer(&name), unsafe.Pointer(&offset)))
 		assert.Equal(t, offset, consts[o], "unexpected offset for %s", o)
 	}
+}
+
+func TestOffsetGuessPortIPv6Overlap(t *testing.T) {
+	ebpftest.TestBuildMode(t, ebpftest.RuntimeCompiled, "", func(t *testing.T) {
+		addrs, err := offsetguess.GetIPv6LinkLocalAddress()
+		require.NoError(t, err)
+
+		// force preference for the added prefix. 0x35 (53) = DNS port
+		const portMatchingPrefix = "fe80::35:"
+		oldPrefix := offsetguess.IPv6LinkLocalPrefix
+		t.Cleanup(func() { offsetguess.IPv6LinkLocalPrefix = oldPrefix })
+		offsetguess.IPv6LinkLocalPrefix = portMatchingPrefix
+
+		// add IPv6 link-local addresses with 0x35 (53) bytes to each interface
+		for i, addr := range addrs {
+			_, err := nettestutil.RunCommand(fmt.Sprintf("ip -6 addr add %s%d/64 dev %s scope link", portMatchingPrefix, i+1, addr.Zone))
+			require.NoError(t, err)
+			t.Cleanup(func() {
+				_, _ = nettestutil.RunCommand(fmt.Sprintf("ip -6 addr del %s%d/64 dev %s scope link", portMatchingPrefix, i+1, addr.Zone))
+			})
+		}
+
+		testOffsetGuess(t)
+	})
 }

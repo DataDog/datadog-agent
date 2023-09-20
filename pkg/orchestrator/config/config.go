@@ -17,6 +17,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/config/resolver"
 	"github.com/DataDog/datadog-agent/pkg/config/utils"
+	configUtils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/orchestrator/redact"
 	apicfg "github.com/DataDog/datadog-agent/pkg/process/util/api/config"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
@@ -83,7 +84,7 @@ func (oc *OrchestratorConfig) Load() error {
 	oc.OrchestratorEndpoints[0].Endpoint = URL
 
 	if key := "api_key"; config.Datadog.IsSet(key) {
-		oc.OrchestratorEndpoints[0].APIKey = config.SanitizeAPIKey(config.Datadog.GetString(key))
+		oc.OrchestratorEndpoints[0].APIKey = configUtils.SanitizeAPIKey(config.Datadog.GetString(key))
 	}
 
 	if err := extractOrchestratorAdditionalEndpoints(URL, &oc.OrchestratorEndpoints); err != nil {
@@ -140,7 +141,7 @@ func extractEndpoints(URL *url.URL, k string, endpoints *[]apicfg.Endpoint) erro
 		}
 		for _, k := range apiKeys {
 			*endpoints = append(*endpoints, apicfg.Endpoint{
-				APIKey:   config.SanitizeAPIKey(k),
+				APIKey:   configUtils.SanitizeAPIKey(k),
 				Endpoint: u,
 			})
 		}

@@ -241,6 +241,15 @@ var opensslSpec = &protocols.ProtocolSpec{
 			Name: "ssl_read_args",
 		},
 		{
+			Name: "ssl_read_ex_args",
+		},
+		{
+			Name: "ssl_write_args",
+		},
+		{
+			Name: "ssl_write_ex_args",
+		},
+		{
 			Name: "bio_new_socket_args",
 		},
 		{
@@ -403,7 +412,7 @@ type sslProgram struct {
 
 func newSSLProgramProtocolFactory(m *manager.Manager, sockFDMap *ebpf.Map, bpfTelemetry *errtelemetry.EBPFTelemetry) protocols.ProtocolFactory {
 	return func(c *config.Config) (protocols.Protocol, error) {
-		if (!c.EnableHTTPSMonitoring || !http.HTTPSSupported(c)) && !c.EnableIstioMonitoring {
+		if (!c.EnableNativeTLSMonitoring || !http.HTTPSSupported(c)) && !c.EnableIstioMonitoring {
 			return nil, nil
 		}
 
@@ -411,7 +420,7 @@ func newSSLProgramProtocolFactory(m *manager.Manager, sockFDMap *ebpf.Map, bpfTe
 			watcher *sharedlibraries.Watcher
 			err     error
 		)
-		if c.EnableHTTPSMonitoring && http.HTTPSSupported(c) {
+		if c.EnableNativeTLSMonitoring && http.HTTPSSupported(c) {
 			watcher, err = sharedlibraries.NewWatcher(c, bpfTelemetry,
 				sharedlibraries.Rule{
 					Re:           regexp.MustCompile(`libssl.so`),

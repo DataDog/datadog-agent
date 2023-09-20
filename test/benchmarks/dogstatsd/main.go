@@ -22,7 +22,6 @@ import (
 	log "github.com/cihub/seelog"
 	datadog "gopkg.in/zorkian/go-datadog-api.v2"
 
-	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/transaction"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/config"
@@ -79,7 +78,7 @@ func (f *forwarderBenchStub) SubmitV1Series(payloads transaction.BytesPayloads, 
 	f.computeStats(payloads)
 	return nil
 }
-func (f *forwarderBenchStub) SubmitV1Intake(payloads transaction.BytesPayloads, extraHeaders http.Header, priority forwarder.TransactionPriority) error {
+func (f *forwarderBenchStub) SubmitV1Intake(payloads transaction.BytesPayloads, extraHeaders http.Header, priority transaction.Priority) error {
 	f.computeStats(payloads)
 	return nil
 }
@@ -99,7 +98,7 @@ func (f *forwarderBenchStub) SubmitHostMetadata(payloads transaction.BytesPayloa
 	f.computeStats(payloads)
 	return nil
 }
-func (f *forwarderBenchStub) SubmitMetadata(payloads transaction.BytesPayloads, extraHeaders http.Header, priority forwarder.TransactionPriority) error {
+func (f *forwarderBenchStub) SubmitMetadata(payloads transaction.BytesPayloads, extraHeaders http.Header, priority transaction.Priority) error {
 	f.computeStats(payloads)
 	return nil
 }
