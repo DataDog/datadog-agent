@@ -13,7 +13,6 @@ import (
 	coreconfig "github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/trace"
 	"github.com/DataDog/datadog-agent/comp/trace/agent"
-	"github.com/DataDog/datadog-agent/comp/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
@@ -52,13 +51,13 @@ func runFx(cliParams *RunParams, defaultConfPath string) error {
 	}
 	return fxutil.Run(
 		fx.Supply(coreconfig.NewAgentParamsWithSecrets(cliParams.ConfPath)),
+		coreconfig.Module,
 		// Required to avoid cyclic imports.
 		fx.Supply(agent.Params{
 			CPUProfile:  cliParams.CPUProfile,
 			MemProfile:  cliParams.MemProfile,
 			PIDFilePath: cliParams.PIDFilePath,
 		}),
-		config.Module,
 		trace.Bundle,
 	)
 }
