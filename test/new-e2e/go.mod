@@ -20,7 +20,6 @@ require (
 	github.com/aws/aws-sdk-go-v2/config v1.18.37
 	github.com/aws/aws-sdk-go-v2/service/ssm v1.36.4
 	github.com/cenkalti/backoff v2.2.1+incompatible
-	github.com/cenkalti/backoff/v4 v4.2.1
 	github.com/fatih/color v1.13.0
 	github.com/pulumi/pulumi-command/sdk v0.7.2 // indirect
 	github.com/pulumi/pulumi/sdk/v3 v3.76.1
