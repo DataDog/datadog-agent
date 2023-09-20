@@ -89,7 +89,7 @@ func CompleteFlare(fb flaretypes.FlareBuilder, senderManager sender.SenderManage
 	fb.AddFileFromFunc("process_agent_runtime_config_dump.yaml", getProcessAgentFullConfig)
 	fb.AddFileFromFunc("runtime_config_dump.yaml", func() ([]byte, error) { return yaml.Marshal(config.Datadog.AllSettings()) })
 	fb.AddFileFromFunc("system_probe_runtime_config_dump.yaml", func() ([]byte, error) { return yaml.Marshal(config.SystemProbe.AllSettings()) })
-	fb.AddFileFromFunc("diagnose.log", func() ([]byte, error) { return getDiagnoses(senderManager) })
+	fb.AddFileFromFunc("diagnose.log", getDiagnoses(fb.IsLocal(), senderManager))
 	fb.AddFileFromFunc("secrets.log", getSecrets)
 	fb.AddFileFromFunc("envvars.log", getEnvVars)
 	fb.AddFileFromFunc("metadata_inventories.json", inventories.GetLastPayload)
@@ -296,7 +296,7 @@ func getProcessChecks(fb flaretypes.FlareBuilder, getAddressPort func() (url str
 	getCheck("process_discovery", "process_config.process_discovery.enabled")
 }
 
-func getDiagnoses(senderManager sender.SenderManager) ([]byte, error) {
+func getDiagnoses(isLocal bool, senderManager sender.SenderManager) func() ([]byte, error) {
 	fct := func(w io.Writer) error {
 		// Run agent diagnose command to be verbose and remote. If Agent is running small performance hit
 		// since this code will get diagnoses using Agent’s local port listener (instead of calling a
@@ -305,13 +305,13 @@ func getDiagnoses(senderManager sender.SenderManager) ([]byte, error) {
 		// connect to the running Agent).
 		diagCfg := diagnosis.Config{
 			Verbose:  true,
-			RunLocal: false,
+			RunLocal: isLocal,
 		}
 
 		return diagnose.RunStdOut(w, diagCfg, senderManager)
 	}
 
-	return functionOutputToBytes(fct), nil
+	return func() ([]byte, error) { return functionOutputToBytes(fct), nil }
 }
 
 func getConfigCheck() ([]byte, error) {
