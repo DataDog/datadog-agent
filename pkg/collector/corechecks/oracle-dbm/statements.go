@@ -707,39 +707,42 @@ func (c *Check) StatementMetrics() (int, error) {
 
 			oracleRows = append(oracleRows, oracleRow)
 
-			if c.fqtEmitted != nil {
-				if _, found := c.fqtEmitted.Get(queryRow.QuerySignature); !found {
-					FQTDBMetadata := FQTDBMetadata{Tables: queryRow.Tables, Commands: queryRow.Commands}
-					FQTDB := FQTDB{Instance: c.cdbName, QuerySignature: queryRow.QuerySignature, Statement: SQLStatement, FQTDBMetadata: FQTDBMetadata}
-					FQTDBOracle := FQTDBOracle{
-						CDBName: c.cdbName,
-					}
-					FQTPayload := FQTPayload{
-						Timestamp:    float64(time.Now().UnixMilli()),
-						Host:         c.dbHostname,
-						AgentVersion: c.agentVersion,
-						Source:       common.IntegrationName,
-						Tags:         c.tagsString,
-						DBMType:      "fqt",
-						FQTDB:        FQTDB,
-						FQTDBOracle:  FQTDBOracle,
-					}
-					FQTPayloadBytes, err := json.Marshal(FQTPayload)
-					if err != nil {
-						log.Errorf("%s Error marshalling fqt payload: %s", c.logPrompt, err)
-					}
-					log.Debugf("%s Query metrics fqt payload %s", c.logPrompt, string(FQTPayloadBytes))
-					sender.EventPlatformEvent(FQTPayloadBytes, "dbm-samples")
-					c.fqtEmitted.Set(queryRow.QuerySignature, "1", cache.DefaultExpiration)
+			if c.fqtEmitted == nil {
+				c.fqtEmitted = getFqtEmittedCache()
+			}
+
+			if _, found := c.fqtEmitted.Get(queryRow.QuerySignature); !found {
+				FQTDBMetadata := FQTDBMetadata{Tables: queryRow.Tables, Commands: queryRow.Commands}
+				FQTDB := FQTDB{Instance: c.cdbName, QuerySignature: queryRow.QuerySignature, Statement: SQLStatement, FQTDBMetadata: FQTDBMetadata}
+				FQTDBOracle := FQTDBOracle{
+					CDBName: c.cdbName,
 				}
-			} else {
-				log.Errorf("%s Internal error: fqtEmitted = nil. The check might have been restarted. Ignore if it doesn't appear anymore.", c.logPrompt)
+				FQTPayload := FQTPayload{
+					Timestamp:    float64(time.Now().UnixMilli()),
+					Host:         c.dbHostname,
+					AgentVersion: c.agentVersion,
+					Source:       common.IntegrationName,
+					Tags:         c.tagsString,
+					DBMType:      "fqt",
+					FQTDB:        FQTDB,
+					FQTDBOracle:  FQTDBOracle,
+				}
+				FQTPayloadBytes, err := json.Marshal(FQTPayload)
+				if err != nil {
+					log.Errorf("%s Error marshalling fqt payload: %s", c.logPrompt, err)
+				}
+				log.Debugf("%s Query metrics fqt payload %s", c.logPrompt, string(FQTPayloadBytes))
+				sender.EventPlatformEvent(FQTPayloadBytes, "dbm-samples")
+				c.fqtEmitted.Set(queryRow.QuerySignature, "1", cache.DefaultExpiration)
 			}
 
 			if c.config.ExecutionPlans.Enabled {
 				planCacheKey := strconv.FormatUint(statementMetricRow.PlanHashValue, 10)
+				if c.planEmitted == nil {
+					c.planEmitted = getPlanEmittedCache(c)
+				}
 				_, found := c.planEmitted.Get(planCacheKey)
-				if c.config.QueryMetrics.PlanCacheRetention == 0 || !found {
+				if c.config.ExecutionPlans.PlanCacheRetention == 0 || !found {
 					var planStepsPayload []PlanDefinition
 					var planStepsDB []PlanRows
 					var oraclePlan OraclePlan
