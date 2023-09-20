@@ -284,7 +284,7 @@ build do
     requirements.push("pympler==0.7")
 
     # Pinning setuptools-scm to 7.1.0 while we're fixing the CI (see https://gitlab.ddbuild.io/DataDog/datadog-agent/-/jobs/332672478)
-    if redhat?
+    if redhat? && !arm?
       requirements.push("setuptools-scm==7.1.0")
     end
 
