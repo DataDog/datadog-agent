@@ -42,7 +42,7 @@ func TestEBPFPerfBufferLength(t *testing.T) {
 
 		cfg := testConfig()
 
-		probe, err := NewEBPFProbe(cfg)
+		probe, err := NewProbe(cfg)
 		require.NoError(t, err)
 		t.Cleanup(probe.Close)
 

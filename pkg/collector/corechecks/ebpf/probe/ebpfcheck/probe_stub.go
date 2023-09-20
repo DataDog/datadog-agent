@@ -13,18 +13,18 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/ebpf"
 )
 
-// EBPFProbe is not implemented on non-linux systems
-type EBPFProbe struct{}
+// Probe is not implemented on non-linux systems
+type Probe struct{}
 
-// NewEBPFProbe is not implemented on non-linux systems
-func NewEBPFProbe(cfg *ebpf.Config) (*EBPFProbe, error) {
+// NewProbe is not implemented on non-linux systems
+func NewProbe(cfg *ebpf.Config) (*Probe, error) {
 	return nil, ebpf.ErrNotImplemented
 }
 
 // Close is not implemented on non-linux systems
-func (t *EBPFProbe) Close() {}
+func (t *Probe) Close() {}
 
 // GetAndFlush is not implemented on non-linux systems
-func (t *EBPFProbe) GetAndFlush() model.EBPFStats {
+func (t *Probe) GetAndFlush() model.EBPFStats {
 	return model.EBPFStats{}
 }

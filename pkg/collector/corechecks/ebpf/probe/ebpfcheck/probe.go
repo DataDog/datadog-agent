@@ -47,7 +47,7 @@ var minimumKernelVersion = kernel.VersionCode(5, 5, 0)
 
 const maxMapsTracked = 20
 
-type EBPFProbe struct {
+type Probe struct {
 	statsFD       io.Closer
 	coll          *ebpf.Collection
 	perfBufferMap *ebpf.Map
@@ -58,7 +58,7 @@ type EBPFProbe struct {
 	nrcpus uint32
 }
 
-func NewEBPFProbe(cfg *ddebpf.Config) (*EBPFProbe, error) {
+func NewProbe(cfg *ddebpf.Config) (*Probe, error) {
 	kv, err := kernel.HostVersion()
 	if err != nil {
 		return nil, fmt.Errorf("kernel version: %s", err)
@@ -67,7 +67,7 @@ func NewEBPFProbe(cfg *ddebpf.Config) (*EBPFProbe, error) {
 		return nil, fmt.Errorf("minimum kernel version %s not met, read %s", minimumKernelVersion, kv)
 	}
 
-	var probe *EBPFProbe
+	var probe *Probe
 	filename := "ebpf.o"
 	if cfg.BPFDebug {
 		filename = "ebpf-debug.o"
@@ -93,7 +93,7 @@ func NewEBPFProbe(cfg *ddebpf.Config) (*EBPFProbe, error) {
 	return probe, nil
 }
 
-func startEBPFCheck(buf bytecode.AssetReader, opts manager.Options) (*EBPFProbe, error) {
+func startEBPFCheck(buf bytecode.AssetReader, opts manager.Options) (*Probe, error) {
 	if err := rlimit.RemoveMemlock(); err != nil {
 		return nil, err
 	}
@@ -117,7 +117,7 @@ func startEBPFCheck(buf bytecode.AssetReader, opts manager.Options) (*EBPFProbe,
 		}
 	}
 
-	p := EBPFProbe{nrcpus: nrcpus}
+	p := Probe{nrcpus: nrcpus}
 	p.coll, err = ebpf.NewCollectionWithOptions(collSpec, opts.VerifierOptions)
 	if err != nil {
 		var ve *ebpf.VerifierError
@@ -137,7 +137,7 @@ func startEBPFCheck(buf bytecode.AssetReader, opts manager.Options) (*EBPFProbe,
 	return &p, nil
 }
 
-func (k *EBPFProbe) attach(collSpec *ebpf.CollectionSpec) (err error) {
+func (k *Probe) attach(collSpec *ebpf.CollectionSpec) (err error) {
 	defer func() {
 		// if anything fails, we need to close/detach everything
 		if err != nil {
@@ -187,7 +187,7 @@ func (k *EBPFProbe) attach(collSpec *ebpf.CollectionSpec) (err error) {
 	return nil
 }
 
-func (k *EBPFProbe) Close() {
+func (k *Probe) Close() {
 	RemoveNameMappingsCollection(k.coll)
 	for _, l := range k.links {
 		if err := l.Close(); err != nil {
@@ -201,7 +201,7 @@ func (k *EBPFProbe) Close() {
 }
 
 // GetAndFlush gets the stats
-func (k *EBPFProbe) GetAndFlush() (results model.EBPFStats) {
+func (k *Probe) GetAndFlush() (results model.EBPFStats) {
 	if err := k.getMapStats(&results); err != nil {
 		log.Debugf("error getting map stats: %s", err)
 		return
@@ -213,7 +213,7 @@ func (k *EBPFProbe) GetAndFlush() (results model.EBPFStats) {
 	return
 }
 
-func (k *EBPFProbe) getProgramStats(stats *model.EBPFStats) error {
+func (k *Probe) getProgramStats(stats *model.EBPFStats) error {
 	var err error
 	progid := ebpf.ProgramID(0)
 	for progid, err = ebpf.ProgramGetNextID(progid); err == nil; progid, err = ebpf.ProgramGetNextID(progid) {
@@ -269,7 +269,7 @@ func (k *EBPFProbe) getProgramStats(stats *model.EBPFStats) error {
 	return nil
 }
 
-func (k *EBPFProbe) getMapStats(stats *model.EBPFStats) error {
+func (k *Probe) getMapStats(stats *model.EBPFStats) error {
 	var err error
 	mapCount := 0
 	ebpfmaps := make(map[string]*model.EBPFMapStats)
@@ -426,7 +426,7 @@ func hashMapMemoryUsage(info *ebpf.MapInfo, nrCPUS uint64) (max uint64, rss uint
 	return usage, usage
 }
 
-func perfBufferMemoryUsage(mapStats *model.EBPFPerfBufferStats, info *ebpf.MapInfo, k *EBPFProbe) error {
+func perfBufferMemoryUsage(mapStats *model.EBPFPerfBufferStats, info *ebpf.MapInfo, k *Probe) error {
 	mapStats.MaxSize, mapStats.RSS = arrayMemoryUsage(info, uint64(k.nrcpus))
 
 	mapid, _ := info.ID()
@@ -493,7 +493,7 @@ var (
 	ringbufPgOff = offsetConsumerInRingbuf >> pageShift
 )
 
-func ringBufferMemoryUsage(mapStats *model.EBPFMapStats, info *ebpf.MapInfo, k *EBPFProbe) error {
+func ringBufferMemoryUsage(mapStats *model.EBPFMapStats, info *ebpf.MapInfo, k *Probe) error {
 	mapStats.MaxSize = uint64(sizeofBpfRingBuf)
 	numEntries := uint64(info.MaxEntries)
 	numMetaPages := ringbufPgOff + ringbufPosPages
@@ -523,7 +523,7 @@ func ringBufferMemoryUsage(mapStats *model.EBPFMapStats, info *ebpf.MapInfo, k *
 	return nil
 }
 
-func (k *EBPFProbe) getMmapRSS(mapid uint32, addrs []uintptr) (map[uintptr]uint64, error) {
+func (k *Probe) getMmapRSS(mapid uint32, addrs []uintptr) (map[uintptr]uint64, error) {
 	var pid uint32
 	if err := k.pidMap.Lookup(unsafe.Pointer(&mapid), unsafe.Pointer(&pid)); err != nil {
 		return nil, fmt.Errorf("pid map lookup: %s", err)
