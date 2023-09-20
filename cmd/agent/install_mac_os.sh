@@ -90,7 +90,6 @@ function prepare_dmg_file() {
         file_size=$(stat -f %z "$dmg_file_to_prepare")
     fi
 
-    
     if [[ "$file_owner" -ne 0 ]] || [[ "$file_permission" -ne 600 ]] || [[ "$file_size" -ne 0 ]]; then
         echo -e "\033[31mFailed to prepare datadog-agent dmg file\033[0m\n"
         exit 1;
@@ -461,4 +460,3 @@ If you ever want to stop the Agent, please use the the launchctl command.
 The Agent will start automatically at system startup.
 \033[0m"
 fi
-
