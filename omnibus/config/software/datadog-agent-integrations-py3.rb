@@ -283,6 +283,11 @@ build do
     # Adding pympler for memory debug purposes
     requirements.push("pympler==0.7")
 
+    # Pinning setuptools-scm to 7.1.0 while we're fixing the CI (see https://gitlab.ddbuild.io/DataDog/datadog-agent/-/jobs/332672478)
+    if redhat?
+      requirements.push("setuptools-scm==7.1.0")
+    end
+
     # Render the filtered requirements file
     erb source: "static_requirements.txt.erb",
         dest: "#{static_reqs_out_file}",
