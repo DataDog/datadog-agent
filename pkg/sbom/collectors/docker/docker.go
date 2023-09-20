@@ -52,12 +52,12 @@ type Collector struct {
 	trivyCollector *trivy.Collector
 }
 
-// CleanCache clean the cache
+// CleanCache cleans the cache
 func (c *Collector) CleanCache() error {
-	return c.trivyCollector.GetCacheCleaner().Clean()
+	return c.trivyCollector.CleanCache()
 }
 
-// Init initialize the collector
+// Init initializes the collector
 func (c *Collector) Init(cfg config.Config) error {
 	trivyCollector, err := trivy.GetGlobalCollector(cfg)
 	if err != nil {
