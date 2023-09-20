@@ -30,7 +30,9 @@ func TestRulesetLoaded(t *testing.T) {
 		Expression: `open.file.path == "/aaaaaaaaaaaaaaaaaaaaaaaaa" && open.flags & O_CREAT != 0`,
 	}
 
-	probeMonitorOpts := testOpts{}
+	probeMonitorOpts := testOpts{
+		nbPolicies: 1
+	}
 	test, err := newTestModule(t, nil, []*rules.RuleDefinition{rule}, probeMonitorOpts)
 	if err != nil {
 		t.Fatal(err)

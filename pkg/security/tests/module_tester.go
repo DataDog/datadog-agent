@@ -254,6 +254,7 @@ type testOpts struct {
 	enableSBOM                          bool
 	preStartCallback                    func(test *testModule)
 	tagsResolver                        tags.Resolver
+	nbPolicies							int
 }
 
 func (s *stringSlice) String() string {
@@ -673,44 +674,8 @@ func (tm *testModule) validateExecEvent(tb *testing.T, kind wrapperType, validat
 	}
 }
 
-func setTestPolicy(dir string, macros []*rules.MacroDefinition, rules []*rules.RuleDefinition) (string, error) {
-	testPolicyFile, err := os.Create(path.Join(dir, "secagent-policy.policy"))
-	if err != nil {
-		return "", err
-	}
-
-	fail := func(err error) error {
-		os.Remove(testPolicyFile.Name())
-		return err
-	}
-
-	tmpl, err := template.New("test-policy").Parse(testPolicy)
-	if err != nil {
-		return "", fail(err)
-	}
-
-	buffer := new(bytes.Buffer)
-	if err := tmpl.Execute(buffer, map[string]interface{}{
-		"Rules":  rules,
-		"Macros": macros,
-	}); err != nil {
-		return "", fail(err)
-	}
-
-	_, err = testPolicyFile.Write(buffer.Bytes())
-	if err != nil {
-		return "", fail(err)
-	}
-
-	if err := testPolicyFile.Close(); err != nil {
-		return "", fail(err)
-	}
-
-	return testPolicyFile.Name(), nil
-}
-
-func setTestPolicy2(dir string, macros []*rules.MacroDefinition, rules []*rules.RuleDefinition) (string, error) {
-	testPolicyFile, err := os.Create(path.Join(dir, "secagent-policy-2.policy"))
+func setTestPolicy(dir string, macros []*rules.MacroDefinition, rules []*rules.RuleDefinition, policyName string) (string, error) {
+	testPolicyFile, err := os.Create(path.Join(dir, policyName))
 	if err != nil {
 		return "", err
 	}
@@ -903,12 +868,22 @@ func newTestModule(t testing.TB, macroDefs []*rules.MacroDefinition, ruleDefs []
 		return nil, err
 	}
 
-	if _, err = setTestPolicy(st.root, macroDefs, ruleDefs); err != nil {
+	if _, err = setTestPolicy(st.root, macroDefs, ruleDefs, "secagent-policy.policy"); err != nil {
 		return nil, err
 	}
 
-	if _, err = setTestPolicy2(st.root, macroDefs, ruleDefs); err != nil {
-		return nil, err
+	if opts.nbPolicies > 1 {
+		for i := 0; i < opts.nbPolicies; i++ {
+			policyRuleDefs := make([]*rules.RuleDefinition, len(ruleDefs))
+			for i, _ := range ruleDefs {
+				ruleId := fmt.Sprintf(ruleDefs[i].ID, i)
+				ruleDefs[i].ID = ruleId
+				policyRuleDefs[i] = ruleDefs[i]
+			}
+			if _, err = setTestPolicy(st.root, macroDefs, policyRuleDefs, fmt.Sprintf("secagent-policy-%d.policy")); err != nil {
+				return nil, err
+			}
+		}
 	}
 
 	var cmdWrapper cmdWrapper
