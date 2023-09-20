@@ -33,49 +33,27 @@ const (
 
 // Provider provides the data collected from the `/stats/summary` Kubelet endpoint
 type Provider struct {
-	filter           *containers.Filter
-	config           *common.KubeletConfig
-	store            workloadmeta.Store
-	rateFilterList   []*regexp.Regexp
-	useStatsAsSource bool
+	filter                *containers.Filter
+	config                *common.KubeletConfig
+	store                 workloadmeta.Store
+	defaultRateFilterList []*regexp.Regexp
 }
 
 // NewProvider is created by filter, config and workloadmeta
 func NewProvider(filter *containers.Filter,
 	config *common.KubeletConfig,
 	store workloadmeta.Store) *Provider {
-	useStatsAsSource := false
-	if config.UseStatsSummaryAsSource == nil {
-		if runtime.GOOS == "windows" {
-			useStatsAsSource = true
-		}
-	} else {
-		useStatsAsSource = *config.UseStatsSummaryAsSource
-	}
-
-	rateFilterList := []*regexp.Regexp{
+	defaultRateFilterList := []*regexp.Regexp{
 		regexp.MustCompile("diskio[.]io_service_bytes[.]stats[.]total"),
 		regexp.MustCompile("network[.].._bytes"),
 		regexp.MustCompile("cpu[.].*[.]total"),
 	} //default enabled_rates
-	if len(config.EnabledRates) > 0 {
-		rateFilterList = []*regexp.Regexp{}
-		for i := range config.EnabledRates {
-			pat := &config.EnabledRates[i]
-			r, err := regexp.Compile(*pat)
-			if err == nil {
-				rateFilterList = append(rateFilterList, r)
-			} else {
-				log.Warnf("invalid regex found in enabled_rates '%s': %s", *pat, err)
-			}
-		}
-	}
+
 	return &Provider{
-		filter:           filter,
-		config:           config,
-		store:            store,
-		useStatsAsSource: useStatsAsSource,
-		rateFilterList:   rateFilterList,
+		filter:                filter,
+		config:                config,
+		store:                 store,
+		defaultRateFilterList: defaultRateFilterList,
 	}
 }
 
@@ -84,6 +62,29 @@ func (p *Provider) Provide(kc kubelet.KubeUtilInterface, sender sender.Sender) e
 	statsSummary, err := kc.GetLocalStatsSummary(context.TODO())
 	if err != nil || statsSummary == nil {
 		return err
+	}
+
+	var useStatsAsSource bool = false
+	if p.config.UseStatsSummaryAsSource == nil {
+		if runtime.GOOS == "windows" {
+			useStatsAsSource = true
+		}
+	} else {
+		useStatsAsSource = *p.config.UseStatsSummaryAsSource
+	}
+
+	rateFilterList := p.defaultRateFilterList
+	if len(p.config.EnabledRates) > 0 {
+		rateFilterList = []*regexp.Regexp{}
+		for i := range p.config.EnabledRates {
+			pat := &p.config.EnabledRates[i]
+			r, err := regexp.Compile(*pat)
+			if err == nil {
+				rateFilterList = append(rateFilterList, r)
+			} else {
+				log.Warnf("invalid regex found in enabled_rates '%s': %s", *pat, err)
+			}
+		}
 	}
 
 	p.processSystemStats(sender, statsSummary)
@@ -109,9 +110,9 @@ func (p *Provider) Provide(kc kubelet.KubeUtilInterface, sender sender.Sender) e
 			continue
 		}
 		if podData.Phase == "Running" {
-			p.processPodStats(sender, podStats)
+			p.processPodStats(sender, podStats, useStatsAsSource, rateFilterList)
 		}
-		p.processContainerStats(sender, podStats, podData)
+		p.processContainerStats(sender, podStats, podData, useStatsAsSource)
 	}
 	return nil
 }
@@ -141,7 +142,9 @@ func (p *Provider) processSystemStats(sender sender.Sender,
 }
 
 func (p *Provider) processPodStats(sender sender.Sender,
-	podStats *kubeletv1alpha1.PodStats) {
+	podStats *kubeletv1alpha1.PodStats,
+	useStatsAsSource bool,
+	rateFilterList []*regexp.Regexp) {
 	if podStats == nil {
 		return
 	}
@@ -161,7 +164,7 @@ func (p *Provider) processPodStats(sender sender.Sender,
 		reportMetric(sender.Gauge, "ephemeral_storage.usage",
 			ephemeralStorage.UsedBytes, podTags)
 	}
-	if !p.useStatsAsSource {
+	if !useStatsAsSource {
 		return
 	}
 	podNetwork := podStats.Network
@@ -172,7 +175,7 @@ func (p *Provider) processPodStats(sender sender.Sender,
 	rxBytes = podNetwork.InterfaceStats.RxBytes
 	txBytes = podNetwork.InterfaceStats.TxBytes
 
-	for _, r := range p.rateFilterList {
+	for _, r := range rateFilterList {
 		if txBytes != nil && r.MatchString(txBytesMetricName) {
 			reportMetric(sender.Rate, txBytesMetricName, txBytes, podTags)
 		}
@@ -184,11 +187,12 @@ func (p *Provider) processPodStats(sender sender.Sender,
 
 func (p *Provider) processContainerStats(sender sender.Sender,
 	podStats *kubeletv1alpha1.PodStats,
-	podData *workloadmeta.KubernetesPod) {
+	podData *workloadmeta.KubernetesPod,
+	useStatsAsSource bool) {
 	if podStats == nil ||
 		len(podStats.Containers) == 0 ||
 		podData == nil ||
-		!p.useStatsAsSource {
+		!useStatsAsSource {
 		return
 	}
 	containerData := make(map[string]*workloadmeta.OrchestratorContainer)
