@@ -160,6 +160,7 @@ github.com/dgraph-io/badger:
  - "Copyright 2020 Dgraph Labs, Inc. and Contributors"
  - "Copyright 2021 Dgraph Labs, Inc. and Contributors"
 github.com/mostynb/go-grpc-compression: "Copyright 2023 Mostyn Bramley-Moore."
+github.com/chainguard-dev/go-apk: "Copyright 2023 Chainguard, Inc."
 
 # These have large AUTHORS/CONTRIBUTORS files but attribute copyright as a group
 github.com/aptly-dev/aptly: Copyright 2013-2015 aptly authors. All rights reserved.
