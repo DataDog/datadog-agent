@@ -62,7 +62,7 @@ func (d *DeviceProfileRcConfig) ConvertToRcFormat() *DeviceProfileRcConfig {
 		metric := &newProfile.Profile.Metrics[i]
 		for j := range metric.MetricTags {
 			metricTag := &metric.MetricTags[j]
-			// Normalize Mapping
+			// Convert Mapping
 			if len(metricTag.Mapping) > 0 {
 				metricTag.MappingList = []KeyValue{}
 				var keys []string
@@ -80,7 +80,7 @@ func (d *DeviceProfileRcConfig) ConvertToRcFormat() *DeviceProfileRcConfig {
 				metricTag.Mapping = nil
 			}
 
-			// Normalize Tags
+			// Convert Tags
 			if len(metricTag.Tags) > 0 {
 				metricTag.TagsList = []KeyValue{}
 				var keys []string
@@ -144,7 +144,7 @@ func (d *DeviceProfileRcConfig) ConvertToAgentFormat() *DeviceProfileRcConfig {
 		metric := &newProfile.Profile.Metrics[i]
 		for j := range metric.MetricTags {
 			metricTag := &metric.MetricTags[j]
-			// Normalize Mapping
+			// Convert Mapping
 			if len(metricTag.MappingList) > 0 {
 				metricTag.Mapping = map[string]string{}
 				for _, entry := range metricTag.MappingList {
@@ -153,7 +153,7 @@ func (d *DeviceProfileRcConfig) ConvertToAgentFormat() *DeviceProfileRcConfig {
 				metricTag.MappingList = nil
 			}
 
-			// Normalize Tags
+			// Convert Tags
 			if len(metricTag.TagsList) > 0 {
 				metricTag.Tags = map[string]string{}
 				for _, entry := range metricTag.TagsList {
