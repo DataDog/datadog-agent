@@ -5,12 +5,14 @@ github.com/Azure/go-ansiterm v0.0.0-20210617225240-d185dfc1b5a1 h1:UQHMgLO+TxOEl
 github.com/BurntSushi/toml v0.3.1/go.mod h1:xHWCNGjB5oqiDr8zfno3MHue2Ht5sIBksp03qcyfWMU=
 github.com/DataDog/agent-payload/v5 v5.0.73 h1:fnCnAR+nWY+q//fBZSab4cDFFng0scPEfmLdl9ngmQY=
 github.com/DataDog/agent-payload/v5 v5.0.73/go.mod h1:oQZi1VZp1e3QvlSUX4iphZCpJaFepUxWq0hNXxihKBM=
+github.com/DataDog/datadog-api-client-go v1.16.0 h1:5jOZv1m98criCvYTa3qpW8Hzv301nbZX3K9yJtwGyWY=
+github.com/DataDog/datadog-api-client-go v1.16.0/go.mod h1:PgrP2ABuJWL3Auw2iEkemAJ/r72ghG4DQQmb5sgnKW4=
 github.com/DataDog/mmh3 v0.0.0-20200805151601-30884ca2197a h1:m9REhmyaWD5YJ0P53ygRHxKKo+KM+nw+zz0hEdKztMo=
 github.com/DataDog/mmh3 v0.0.0-20200805151601-30884ca2197a/go.mod h1:SvsjzyJlSg0rKsqYgdcFxeEVflx3ZNAyFfkUHP0TxXg=
 github.com/DataDog/test-infra-definitions v0.0.0-20230919144548-f4f52d64a31e h1:u3eKXw8hEwZxLCkspLiZhpDfSnVoOzppwHwDy5TuxLc=
 github.com/DataDog/test-infra-definitions v0.0.0-20230919144548-f4f52d64a31e/go.mod h1:UmA+qVnbzsxHlu3E9bEA9TpdFsO6n7alWbb120UNRrQ=
-github.com/DataDog/zstd v1.4.8 h1:Rpmta4xZ/MgZnriKNd24iZMhGpP5dvUcs/uqfBapKZY=
-github.com/DataDog/zstd v1.4.8/go.mod h1:g4AWEaM3yOg3HYfnJ3YIawPnVdXJh9QME85blwSAmyw=
+github.com/DataDog/zstd v1.5.0 h1:+K/VEwIAaPcHiMtQvpLD4lqW7f0Gk3xdYZmI1hD+CXo=
+github.com/DataDog/zstd v1.5.0/go.mod h1:g4AWEaM3yOg3HYfnJ3YIawPnVdXJh9QME85blwSAmyw=
 github.com/DataDog/zstd_0 v0.0.0-20210310093942-586c1286621f h1:5Vuo4niPKFkfwW55jV4vY0ih3VQ9RaQqeqY67fvRn8A=
 github.com/DataDog/zstd_0 v0.0.0-20210310093942-586c1286621f/go.mod h1:oXfOhM/Kr8OvqS6tVqJwxPBornV0yrx3bc+l0BDr7PQ=
 github.com/HdrHistogram/hdrhistogram-go v1.1.2 h1:5IcZpTvzydCQeHzK4Ef/D5rrSqwxob0t8PQPMybUNFM=
