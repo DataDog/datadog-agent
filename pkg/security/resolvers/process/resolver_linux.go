@@ -58,7 +58,8 @@ const (
 
 // ResolverOpts options of resolver
 type ResolverOpts struct {
-	envsWithValue map[string]bool
+	ttyFallbackEnabled bool
+	envsWithValue      map[string]bool
 }
 
 // Resolver resolved process context
@@ -1016,7 +1017,7 @@ func (p *Resolver) GetProcessEnvp(pr *model.Process) ([]string, bool) {
 
 // SetProcessTTY resolves TTY and cache the result
 func (p *Resolver) SetProcessTTY(pce *model.ProcessCacheEntry) string {
-	if pce.TTYName == "" {
+	if pce.TTYName == "" && p.opts.ttyFallbackEnabled {
 		tty := utils.PidTTY(pce.Pid)
 		pce.TTYName = tty
 	}
@@ -1371,6 +1372,12 @@ func (o *ResolverOpts) WithEnvsValue(envsWithValue []string) *ResolverOpts {
 	for _, envVar := range envsWithValue {
 		o.envsWithValue[envVar] = true
 	}
+	return o
+}
+
+// WithTTYFallbackEnabled enables the TTY fallback
+func (o *ResolverOpts) WithTTYFallbackEnabled() *ResolverOpts {
+	o.ttyFallbackEnabled = true
 	return o
 }
 
