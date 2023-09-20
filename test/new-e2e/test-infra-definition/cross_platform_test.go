@@ -21,7 +21,7 @@ type crossPlatformSuite struct {
 }
 
 func TestCrossPlatformSuite(t *testing.T) {
-	e2e.Run(t, &crossPlatformSuite{}, e2e.AgentStackDef(nil, nil))
+	e2e.Run(t, &crossPlatformSuite{}, e2e.AgentStackDef())
 }
 
 func (s *crossPlatformSuite) TestUbuntuOS() {

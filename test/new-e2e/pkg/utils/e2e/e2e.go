@@ -218,7 +218,7 @@
 //	}
 //
 //	func TestSingleEnvSuite(t *testing.T) {
-//		e2e.Run[e2e.AgentEnv](t, &singleEnvSuite{}, e2e.AgentStackDef(nil))
+//		e2e.Run[e2e.AgentEnv](t, &singleEnvSuite{}, e2e.AgentStackDef())
 //	}
 //
 //	func (suite *singleEnvSuite) Test1() {
@@ -255,17 +255,17 @@
 //	}
 //
 //	func TestMultipleEnvSuite(t *testing.T) {
-//		e2e.Run[e2e.AgentEnv](t, &multipleEnvSuite{}, e2e.AgentStackDef(nil))
+//		e2e.Run[e2e.AgentEnv](t, &multipleEnvSuite{}, e2e.AgentStackDef())
 //	}
 //
 //	func (suite *multipleEnvSuite) TestLogDebug() {
-//		suite.UpdateEnv(e2e.AgentStackDef(nil, agentparams.WithAgentConfig("log_level: debug")))
+//		suite.UpdateEnv(e2e.AgentStackDef(e2e.WithAgentParams(agentparams.WithAgentConfig("log_level: debug"))))
 //		config := suite.Env().Agent.Config()
 //		require.Contains(suite.T(), config, "log_level: debug")
 //	}
 //
 //	func (suite *multipleEnvSuite) TestLogInfo() {
-//		suite.UpdateEnv(e2e.AgentStackDef(nil, agentparams.WithAgentConfig("log_level: info")))
+//		suite.UpdateEnv(e2e.AgentStackDef(e2e.WithAgentParams(agentparams.WithAgentConfig("log_level: info"))))
 //		config := suite.Env().Agent.Config()
 //		require.Contains(suite.T(), config, "log_level: info")
 //	}
@@ -288,11 +288,11 @@
 //	}
 //
 //	func TestSubTestSuite(t *testing.T) {
-//		e2e.Run[e2e.AgentEnv](t, &subTestSuite{}, e2e.AgentStackDef(nil))
+//		e2e.Run[e2e.AgentEnv](t, &subTestSuite{}, e2e.AgentStackDef())
 //	}
 //
 //	func (suite *subTestSuite) TestLogDebug() {
-//		suite.UpdateEnv(e2e.AgentStackDef(nil, agentparams.WithAgentConfig("log_level: debug")))
+//		suite.UpdateEnv(e2e.AgentStackDef(e2e.WithAgentParams(agentparams.WithAgentConfig("log_level: debug"))))
 //		suite.T().Run("MySubTest1", func(t *testing.T) {
 //			// Sub test 1
 //		})
@@ -302,7 +302,7 @@
 //	}
 //
 //	func (suite *subTestSuite) TestLogInfo() {
-//		suite.UpdateEnv(e2e.AgentStackDef(nil, agentparams.WithAgentConfig("log_level: info")))
+//		suite.UpdateEnv(e2e.AgentStackDef(e2e.WithAgentParams(agentparams.WithAgentConfig("log_level: info"))))
 //		suite.T().Run("MySubTest1", func(t *testing.T) {
 //			// Sub test 1
 //		})

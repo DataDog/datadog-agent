@@ -22,7 +22,7 @@ type agentSuite struct {
 }
 
 func TestAgentSuite(t *testing.T) {
-	e2e.Run(t, &agentSuite{}, e2e.AgentStackDef(nil, nil))
+	e2e.Run(t, &agentSuite{}, e2e.AgentStackDef())
 }
 
 func (v *agentSuite) TestAgentCommandNoArg() {
@@ -69,7 +69,7 @@ func (v *agentSuite) TestWithTelemetry() {
 	status := v.Env().Agent.Status()
 	require.Contains(v.T(), status.Content, "go_expvar")
 
-	v.UpdateEnv(e2e.AgentStackDef(nil, nil))
+	v.UpdateEnv(e2e.AgentStackDef())
 	status = v.Env().Agent.Status()
 	require.NotContains(v.T(), status.Content, "go_expvar")
 }

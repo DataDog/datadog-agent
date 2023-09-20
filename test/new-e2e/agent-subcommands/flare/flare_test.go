@@ -23,7 +23,7 @@ type commandFlareSuite struct {
 }
 
 func TestFlareSuite(t *testing.T) {
-	e2e.Run(t, &commandFlareSuite{}, e2e.FakeIntakeStackDef(nil, nil))
+	e2e.Run(t, &commandFlareSuite{}, e2e.FakeIntakeStackDef())
 }
 
 func requestAgentFlareAndFetchFromFakeIntake(v *commandFlareSuite, flareArgs ...client.AgentArgsOption) flare.Flare {
@@ -36,7 +36,7 @@ func requestAgentFlareAndFetchFromFakeIntake(v *commandFlareSuite, flareArgs ...
 }
 
 func (v *commandFlareSuite) TestFlareDefaultFiles() {
-	v.UpdateEnv(e2e.FakeIntakeStackDef(nil, nil))
+	v.UpdateEnv(e2e.FakeIntakeStackDef())
 	flare := requestAgentFlareAndFetchFromFakeIntake(v, client.WithArgs([]string{"--email", "e2e@test.com", "--send"}))
 
 	assertFilesExist(v.T(), flare, defaultFlareFiles)

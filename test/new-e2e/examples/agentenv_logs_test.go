@@ -66,7 +66,7 @@ func logsExampleStackDef(vmParams []ec2params.Option, agentParams ...agentparams
 }
 
 func TestE2EVMFakeintakeSuite(t *testing.T) {
-	e2e.Run(t, &vmFakeintakeSuite{}, logsExampleStackDef(nil))
+	e2e.Run(t, &vmFakeintakeSuite{}, logsExampleStackDef())
 }
 
 func (s *vmFakeintakeSuite) TestLogs() {

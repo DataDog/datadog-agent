@@ -104,7 +104,7 @@ Config for instance ID: cpu:e331d61ed1323219
 
 // cpu, disk, file_handle, io, load, memory, network, ntp, uptime
 func (v *agentConfigCheckSuite) TestDefaultInstalledChecks() {
-	v.UpdateEnv(e2e.AgentStackDef(nil, nil))
+	v.UpdateEnv(e2e.AgentStackDef())
 
 	testChecks := []CheckConfigOutput{
 		{
