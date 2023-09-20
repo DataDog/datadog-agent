@@ -1,0 +1,301 @@
+{
+  "profile_definition": {
+    "name": "apc-ups",
+    "extends": [
+      "apc.yaml"
+    ],
+    "sysobjectid": [
+      "1.3.6.1.4.1.318.1.*"
+    ],
+    "metadata": {
+      "device": {
+        "fields": {
+          "version": {
+            "symbol": {
+              "OID": "1.3.6.1.4.1.318.1.1.1.1.2.1.0",
+              "name": "upsAdvIdentFirmwareRevision"
+            }
+          },
+          "product_name": {
+            "symbol": {
+              "OID": "1.3.6.1.4.1.318.1.1.1.1.1.1.0",
+              "name": "upsBasicIdentModel"
+            }
+          }
+        }
+      }
+    },
+    "metrics": [
+      {
+        "symbol": {
+          "OID": "1.3.6.1.4.1.318.1.1.1.2.2.5.0",
+          "name": "upsAdvBatteryNumOfBattPacks"
+        }
+      },
+      {
+        "symbol": {
+          "OID": "1.3.6.1.4.1.318.1.1.1.2.2.6.0",
+          "name": "upsAdvBatteryNumOfBadBattPacks"
+        }
+      },
+      {
+        "symbol": {
+          "OID": "1.3.6.1.4.1.318.1.1.1.2.2.4.0",
+          "name": "upsAdvBatteryReplaceIndicator"
+        }
+      },
+      {
+        "symbol": {
+          "OID": "1.3.6.1.4.1.318.1.1.1.2.2.3.0",
+          "name": "upsAdvBatteryRunTimeRemaining"
+        }
+      },
+      {
+        "symbol": {
+          "OID": "1.3.6.1.4.1.318.1.1.1.2.2.2.0",
+          "name": "upsAdvBatteryTemperature"
+        }
+      },
+      {
+        "symbol": {
+          "OID": "1.3.6.1.4.1.318.1.1.1.2.2.1.0",
+          "name": "upsAdvBatteryCapacity"
+        }
+      },
+      {
+        "symbol": {
+          "OID": "1.3.6.1.4.1.318.1.1.1.2.3.2.0",
+          "name": "upsHighPrecExtdBatteryTemperature"
+        }
+      },
+      {
+        "symbol": {
+          "OID": "1.3.6.1.4.1.318.1.1.1.3.2.1.0",
+          "name": "upsAdvInputLineVoltage"
+        }
+      },
+      {
+        "symbol": {
+          "OID": "1.3.6.1.4.1.318.1.1.1.3.2.4.0",
+          "name": "upsAdvInputFrequency"
+        }
+      },
+      {
+        "symbol": {
+          "OID": "1.3.6.1.4.1.318.1.1.1.3.3.4.0",
+          "name": "upsHighPrecInputFrequency"
+        }
+      },
+      {
+        "symbol": {
+          "OID": "1.3.6.1.4.1.318.1.1.1.3.3.1.0",
+          "name": "upsHighPrecInputLineVoltage"
+        }
+      },
+      {
+        "symbol": {
+          "OID": "1.3.6.1.4.1.318.1.1.1.4.3.4.0",
+          "name": "upsHighPrecOutputCurrent"
+        }
+      },
+      {
+        "symbol": {
+          "OID": "1.3.6.1.4.1.318.1.1.1.3.2.5.0",
+          "name": "upsAdvInputLineFailCause"
+        }
+      },
+      {
+        "symbol": {
+          "OID": "1.3.6.1.4.1.318.1.1.1.4.2.1.0",
+          "name": "upsAdvOutputVoltage"
+        }
+      },
+      {
+        "symbol": {
+          "OID": "1.3.6.1.4.1.318.1.1.1.4.2.2.0",
+          "name": "upsAdvOutputFrequency"
+        }
+      },
+      {
+        "symbol": {
+          "OID": "1.3.6.1.4.1.318.1.1.1.4.2.3.0",
+          "name": "upsAdvOutputLoad"
+        }
+      },
+      {
+        "symbol": {
+          "OID": "1.3.6.1.4.1.318.1.1.1.4.2.4.0",
+          "name": "upsAdvOutputCurrent"
+        }
+      },
+      {
+        "symbol": {
+          "OID": "1.3.6.1.4.1.318.1.1.1.4.2.8.0",
+          "name": "upsAdvOutputActivePower"
+        }
+      },
+      {
+        "symbol": {
+          "OID": "1.3.6.1.4.1.318.1.1.1.4.2.9.0",
+          "name": "upsAdvOutputApparentPower"
+        }
+      },
+      {
+        "symbol": {
+          "OID": "1.3.6.1.4.1.318.1.1.1.4.2.12.0",
+          "name": "upsAdvOutputEnergyUsage"
+        }
+      },
+      {
+        "symbol": {
+          "OID": "1.3.6.1.4.1.318.1.1.1.2.1.2.0",
+          "name": "upsBasicBatteryTimeOnBattery"
+        }
+      },
+      {
+        "symbol": {
+          "OID": "1.3.6.1.4.1.318.1.1.1.7.2.3.0",
+          "name": "upsAdvTestDiagnosticsResults"
+        }
+      },
+      {
+        "symbol": {
+          "OID": "1.3.6.1.4.1.318.1.1.1.11.1.1.0",
+          "name": "upsBasicStateOutputState"
+        },
+        "metric_type": "flag_stream",
+        "options": {
+          "placement": 4,
+          "metric_suffix": "OnLine"
+        }
+      },
+      {
+        "symbol": {
+          "OID": "1.3.6.1.4.1.318.1.1.1.11.1.1.0",
+          "name": "upsBasicStateOutputState"
+        },
+        "metric_type": "flag_stream",
+        "options": {
+          "placement": 5,
+          "metric_suffix": "ReplaceBattery"
+        }
+      },
+      {
+        "symbol": {
+          "OID": "1.3.6.1.4.1.318.1.1.1.11.1.1.0",
+          "name": "upsBasicStateOutputState"
+        },
+        "metric_type": "flag_stream",
+        "options": {
+          "placement": 8,
+          "metric_suffix": "AVRTrimActive"
+        }
+      },
+      {
+        "symbol": {
+          "OID": "1.3.6.1.4.1.318.1.1.1.11.1.1.0",
+          "name": "upsBasicStateOutputState"
+        },
+        "metric_type": "flag_stream",
+        "options": {
+          "placement": 11,
+          "metric_suffix": "BatteriesDischarged"
+        }
+      },
+      {
+        "symbol": {
+          "OID": "1.3.6.1.4.1.318.1.1.1.11.1.1.0",
+          "name": "upsBasicStateOutputState"
+        },
+        "metric_type": "flag_stream",
+        "options": {
+          "placement": 19,
+          "metric_suffix": "On"
+        }
+      },
+      {
+        "symbol": {
+          "OID": "1.3.6.1.4.1.318.1.1.1.11.1.1.0",
+          "name": "upsBasicStateOutputState"
+        },
+        "metric_type": "flag_stream",
+        "options": {
+          "placement": 30,
+          "metric_suffix": "LowBatteryOnBattery"
+        }
+      },
+      {
+        "symbol": {
+          "OID": "1.3.6.1.4.1.318.1.1.1.11.1.1.0",
+          "name": "upsBasicStateOutputState"
+        },
+        "metric_type": "flag_stream",
+        "options": {
+          "placement": 33,
+          "metric_suffix": "NoBatteriesAttached"
+        }
+      },
+      {
+        "symbols": [
+          {
+            "name": "upsOutletGroupStatus",
+            "constant_value_one": true
+          },
+          {
+            "OID": "1.3.6.1.4.1.318.1.1.1.12.1.2.1.3",
+            "name": "upsOutletGroupStatusGroupState"
+          }
+        ],
+        "metric_tags": [
+          {
+            "tag": "outlet_group_name",
+            "column": {
+              "OID": "1.3.6.1.4.1.318.1.1.1.12.1.2.1.2",
+              "name": "upsOutletGroupStatusName"
+            }
+          },
+          {
+            "tag": "ups_outlet_group_status_group_state",
+            "column": {
+              "OID": "1.3.6.1.4.1.318.1.1.1.12.1.2.1.3",
+              "name": "upsOutletGroupStatusGroupState"
+            },
+            "mapping": {
+              "1": "ups_outlet_group_status_on",
+              "2": "ups_outlet_group_status_off",
+              "3": "ups_outlet_group_status_unknown"
+            }
+          }
+        ]
+      },
+      {
+        "symbol": {
+          "OID": "1.3.6.1.4.1.318.1.1.25.1.2.1.6.0",
+          "name": "uioSensorStatusTemperatureDegC"
+        }
+      }
+    ],
+    "metric_tags": [
+      {
+        "tag": "model",
+        "OID": "1.3.6.1.4.1.318.1.1.1.1.1.1.0",
+        "symbol": "upsBasicIdentModel"
+      },
+      {
+        "tag": "serial_num",
+        "OID": "1.3.6.1.4.1.318.1.1.1.1.2.3.0",
+        "symbol": "upsAdvIdentSerialNumber"
+      },
+      {
+        "tag": "firmware_version",
+        "OID": "1.3.6.1.4.1.318.1.1.1.1.2.1.0",
+        "symbol": "upsAdvIdentFirmwareRevision"
+      },
+      {
+        "OID": "1.3.6.1.4.1.318.1.1.1.1.1.2.0",
+        "symbol": "upsBasicIdentName",
+        "tag": "ups_name"
+      }
+    ]
+  }
+}

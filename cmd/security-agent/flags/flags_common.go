@@ -7,11 +7,15 @@
 package flags
 
 const (
+	// Global to security-agent
+
+	CfgPath        = "cfgpath"         // CfgPath start subcommand
+	SysProbeConfig = "sysprobe-config" // SysProbeConfig start subcommand
+	NoColor        = "no-color"        // NoColor start subcommand
+
 	// Start Subcommand
 
-	CfgPath = "cfgpath"  // CfgPath start subcommand
-	NoColor = "no-color" // NoColor start subcommand
-	PidFile = "pidfile"  // PidFile start subcommand
+	PidFile = "pidfile" // PidFile start subcommand
 
 	// Status Subcommand
 

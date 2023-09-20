@@ -6,7 +6,6 @@
 package agentsubcommands
 
 import (
-	"fmt"
 	"testing"
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e"
@@ -44,8 +43,7 @@ func (v *agentHostnameSuite) TestAgentConfigHostnameVarOverride() {
 
 func (v *agentHostnameSuite) TestAgentConfigHostnameFileOverride() {
 	fileContent := "hostname.from.file"
-	v.Env().VM.Execute(fmt.Sprintf(`echo "%s" | tee /tmp/hostname`, fileContent))
-	v.UpdateEnv(e2e.AgentStackDef(nil, agentparams.WithAgentConfig("hostname_file: /tmp/hostname")))
+	v.UpdateEnv(e2e.AgentStackDef(nil, agentparams.WithFile("/tmp/var/hostname", fileContent, false), agentparams.WithAgentConfig("hostname_file: /tmp/var/hostname")))
 
 	hostname := v.Env().Agent.Hostname()
 	assert.Equal(v.T(), hostname, fileContent)
