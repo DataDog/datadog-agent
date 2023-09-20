@@ -683,6 +683,7 @@ func StartRuntimeSecurity(log log.Component, config config.Component, hostname s
 	agent.Start(reporter, endpoints)
 
 	log.Info("Datadog runtime security agent is now running")
+	log.Info("BOUM MFs")
 
 	return agent, nil
 }

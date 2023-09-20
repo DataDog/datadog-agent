@@ -250,11 +250,13 @@ def build_embed_syscall_tester(ctx, arch=CURRENT_ARCH, static=True):
         ninja_define_exe_compiler(nw)
 
         ninja_syscall_tester(nw, build_dir, static=static)
+        print(arch)
         if arch == "x64":
             ninja_syscall_x86_tester(nw, build_dir, static=static)
         ninja_ebpf_probe_syscall_tester(nw, go_dir)
 
     ctx.run(f"ninja -f {nf_path}")
+    print("arrivedhere")
     build_go_syscall_tester(ctx, build_dir)
 
 

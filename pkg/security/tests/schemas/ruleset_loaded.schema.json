@@ -3,8 +3,7 @@
     "$id": "ruleset_loaded.json",
     "type": "object",
     "properties": {
-        "policies": {
-            "type": "array",
+        "policy": {
             "items": {
                 "$ref": "#/$defs/policy"
             }
@@ -14,7 +13,7 @@
         }
     },
     "required": [
-        "policies",
+        "policy",
         "date"
     ],
     "$defs": {

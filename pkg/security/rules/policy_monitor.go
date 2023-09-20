@@ -136,13 +136,16 @@ type RuleSetLoadedReport struct {
 
 // ReportRuleSetLoaded reports to Datadog that new ruleset was loaded
 func ReportRuleSetLoaded(sender events.EventSender, statsdClient statsd.ClientInterface, ruleSets map[string]*rules.RuleSet, err *multierror.Error) {
-	rule, event := NewRuleSetLoadedEvent(ruleSets, err)
+	log.Info("about to create the ruleset_loaded event")
+	rule, events := NewRuleSetLoadedEvent(ruleSets, err)
 
 	if err := statsdClient.Count(metrics.MetricRuleSetLoaded, 1, []string{}, 1.0); err != nil {
 		log.Error(fmt.Errorf("failed to send ruleset_loaded metric: %w", err))
 	}
 
-	sender.SendEvent(rule, event, nil, "")
+	for _, event := range events {
+		sender.SendEvent(rule, event, nil, "")
+    }
 }
 
 // RuleState defines a loaded rule
@@ -169,7 +172,7 @@ type PolicyState struct {
 // easyjson:json
 type RulesetLoadedEvent struct {
 	events.CustomEventCommonFields
-	Policies []*PolicyState `json:"policies"`
+	Policy *PolicyState `json:"policy"`
 }
 
 // PolicyStateFromRuleDefinition returns a policy state based on the rule definition
@@ -194,7 +197,7 @@ func RuleStateFromDefinition(def *rules.RuleDefinition, status string, message s
 }
 
 // NewRuleSetLoadedEvent returns the rule (e.g. ruleset_loaded) and a populated custom event for a new_rules_loaded event
-func NewRuleSetLoadedEvent(ruleSets map[string]*rules.RuleSet, err *multierror.Error) (*rules.Rule, *events.CustomEvent) {
+func NewRuleSetLoadedEvent(ruleSets map[string]*rules.RuleSet, err *multierror.Error) (*rules.Rule, []*events.CustomEvent) {
 	mp := make(map[string]*PolicyState)
 
 	var policyState *PolicyState
@@ -230,16 +233,17 @@ func NewRuleSetLoadedEvent(ruleSets map[string]*rules.RuleSet, err *multierror.E
 		}
 	}
 
-	var policies []*PolicyState
+	var evts []*events.CustomEvent
 	for _, policy := range mp {
-		policies = append(policies, policy)
+		log.Info("about to create a new ruleset_loaded event mfs for policy : ", policy.Name)
+		evt := RulesetLoadedEvent{
+			Policy: policy,
+		}
+		evt.FillCustomEventCommonFields()
+		revt := events.NewCustomEvent(model.CustomRulesetLoadedEventType, evt)
+		evts = append(evts, revt)
 	}
 
-	evt := RulesetLoadedEvent{
-		Policies: policies,
-	}
-	evt.FillCustomEventCommonFields()
 
-	return events.NewCustomRule(events.RulesetLoadedRuleID, events.RulesetLoadedRuleDesc),
-		events.NewCustomEvent(model.CustomRulesetLoadedEventType, evt)
+	return events.NewCustomRule(events.RulesetLoadedRuleID, events.RulesetLoadedRuleDesc), evts
 }

@@ -10,6 +10,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/ast"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/hashicorp/go-multierror"
 )
 
@@ -79,6 +80,7 @@ func (es *EvaluationSet) LoadPolicies(loader *PolicyLoader, opts PolicyLoaderOpt
 	}
 
 	for _, policy := range policies {
+		log.Info("loop for policy: ", policy.Name)
 		for _, macro := range policy.Macros {
 			if existingMacro := macroIndex[macro.ID]; existingMacro != nil {
 				if err := existingMacro.MergeWith(macro); err != nil {
