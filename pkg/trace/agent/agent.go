@@ -186,9 +186,6 @@ func (a *Agent) work() {
 func (a *Agent) loop() {
 	<-a.ctx.Done()
 	log.Info("Exiting...")
-	if err := a.Receiver.Stop(); err != nil {
-		log.Error(err)
-	}
 	for _, stopper := range []interface{ Stop() }{
 		a.Concentrator,
 		a.ClientStatsAggregator,
@@ -206,6 +203,9 @@ func (a *Agent) loop() {
 		a.DebugServer,
 	} {
 		stopper.Stop()
+	}
+	if err := a.Receiver.Stop(); err != nil {
+		log.Error(err)
 	}
 }
 
