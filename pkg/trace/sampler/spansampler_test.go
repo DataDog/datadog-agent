@@ -18,7 +18,7 @@ import (
 )
 
 // TestNoTagNoTouch verifies that if none of the spans passed to
-// ApplySpanSampling have the span sampling tag, then ApplySpanSampling does not
+// GetSingleSpanSampledSpans have the span sampling tag, then GetSingleSpanSampledSpans does not
 // modify its argument at all.
 func TestNoTagNoTouch(t *testing.T) {
 	original := &pb.TraceChunk{
@@ -43,14 +43,14 @@ func TestNoTagNoTouch(t *testing.T) {
 	}
 
 	pt := &traceutil.ProcessedTrace{TraceChunk: original}
-	applied, sampled := ApplySpanSampling(pt)
+	applied, sampled := GetSingleSpanSampledSpans(pt)
 	assert.False(t, applied)
 	assert.True(t, proto.Equal(sampled.TraceChunk, original))
 }
 
 // TestTagCausesInPlaceFilterAndKeep verifies that the presence of a span
-// sampling tag in any of the spans passed to ApplySpanSampling causes the
-// argument of ApplySpanSampling to be modified in the following ways:
+// sampling tag in any of the spans passed to GetSingleSpanSampledSpans causes the
+// argument of GetSingleSpanSampledSpans to be modified in the following ways:
 //   - The chunk is filtered to contain only those spans that have the span
 //     sampling tag.
 //   - The chunk's sampling priority is PriorityUserKeep.
@@ -112,7 +112,7 @@ func TestTagCausesInPlaceFilterAndKeep(t *testing.T) {
 	}
 
 	pt := &traceutil.ProcessedTrace{TraceChunk: original}
-	applied, sampled := ApplySpanSampling(pt)
+	applied, sampled := GetSingleSpanSampledSpans(pt)
 	assert.True(t, applied)
 	assert.False(t, sampled.TraceChunk.DroppedTrace)
 	assert.Equal(t, int32(PriorityUserKeep), sampled.TraceChunk.Priority)
