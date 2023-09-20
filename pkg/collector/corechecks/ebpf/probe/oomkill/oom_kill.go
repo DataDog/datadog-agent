@@ -40,11 +40,13 @@ import "C"
 
 const oomMapName = "oom_stats"
 
+// Probe is the eBPF side of the OOM Kill check
 type Probe struct {
 	m      *manager.Manager
 	oomMap *bpflib.Map
 }
 
+// NewProbe creates a [Probe]
 func NewProbe(cfg *ebpf.Config) (*Probe, error) {
 	if cfg.EnableCORE {
 		probe, err := loadOOMKillCOREProbe(cfg)
@@ -138,6 +140,7 @@ func startOOMKillProbe(buf bytecode.AssetReader, managerOptions manager.Options)
 	}, nil
 }
 
+// Close releases all associated resources
 func (k *Probe) Close() {
 	ebpfcheck.RemoveNameMappings(k.m)
 	if err := k.m.Stop(manager.CleanAll); err != nil {

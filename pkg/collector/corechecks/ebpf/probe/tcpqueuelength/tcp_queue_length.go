@@ -35,11 +35,13 @@ const (
 	statsMapName = "tcp_queue_stats"
 )
 
+// Tracer is the eBPF side of the TCP Queue Length check
 type Tracer struct {
 	m        *manager.Manager
 	statsMap *bpflib.Map
 }
 
+// NewTracer creates a [Tracer]
 func NewTracer(cfg *ebpf.Config) (*Tracer, error) {
 	if cfg.EnableCORE {
 		probe, err := loadTCPQueueLengthCOREProbe(cfg)
@@ -102,6 +104,7 @@ func startTCPQueueLengthProbe(buf bytecode.AssetReader, managerOptions manager.O
 	}, nil
 }
 
+// Close releases all associated resources
 func (t *Tracer) Close() {
 	ebpfcheck.RemoveNameMappings(t.m)
 	if err := t.m.Stop(manager.CleanAll); err != nil {

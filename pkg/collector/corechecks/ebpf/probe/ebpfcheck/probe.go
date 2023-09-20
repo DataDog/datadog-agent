@@ -47,6 +47,7 @@ var minimumKernelVersion = kernel.VersionCode(5, 5, 0)
 
 const maxMapsTracked = 20
 
+// Probe is the eBPF side of the eBPF check
 type Probe struct {
 	statsFD       io.Closer
 	coll          *ebpf.Collection
@@ -58,6 +59,7 @@ type Probe struct {
 	nrcpus uint32
 }
 
+// NewProbe creates a [Probe]
 func NewProbe(cfg *ddebpf.Config) (*Probe, error) {
 	kv, err := kernel.HostVersion()
 	if err != nil {
@@ -187,6 +189,7 @@ func (k *Probe) attach(collSpec *ebpf.CollectionSpec) (err error) {
 	return nil
 }
 
+// Close releases all associated resources
 func (k *Probe) Close() {
 	RemoveNameMappingsCollection(k.coll)
 	for _, l := range k.links {
