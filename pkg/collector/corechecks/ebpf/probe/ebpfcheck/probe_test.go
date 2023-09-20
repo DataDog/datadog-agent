@@ -113,7 +113,7 @@ func TestMinMapSize(t *testing.T) {
 		cfg := testConfig()
 		const keySize, valueSize, maxEntries = 50, 150, 1000
 
-		probe, err := NewProbe(cfg)
+		probe, err := NewEBPFProbe(cfg)
 		require.NoError(t, err)
 		t.Cleanup(probe.Close)
 
@@ -142,13 +142,13 @@ func TestMinMapSize(t *testing.T) {
 		}
 
 		// wait until we have stats about all maps
-		var result []model.EBPFMapStats
+		var result []EBPFMapStats
 		require.Eventually(t, func() bool {
 			stats := probe.GetAndFlush()
 			t.Logf("%+v", stats.Maps)
 			for _, id := range ids {
-				if !slices.ContainsFunc(stats.Maps, func(stats model.EBPFMapStats) bool {
-					return stats.ID == uint32(id)
+				if !slices.ContainsFunc(stats.Maps, func(stats EBPFMapStats) bool {
+					return stats.id == uint32(id)
 				}) {
 					return false
 				}
@@ -159,8 +159,8 @@ func TestMinMapSize(t *testing.T) {
 
 		// assert max size is at least the naive map size
 		for _, mt := range mapTypes {
-			idx := slices.IndexFunc(result, func(stats model.EBPFMapStats) bool {
-				return stats.ID == uint32(ids[mt.typ])
+			idx := slices.IndexFunc(result, func(stats EBPFMapStats) bool {
+				return stats.id == uint32(ids[mt.typ])
 			})
 			typStats := result[idx]
 
