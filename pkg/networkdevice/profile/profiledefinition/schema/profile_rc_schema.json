@@ -1,0 +1,254 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/DataDog/datadog-agent/pkg/networkdevice/profile/profiledefinition/device-profile-rc-config",
+  "$ref": "#/$defs/DeviceProfileRcConfig",
+  "$defs": {
+    "DeviceProfileRcConfig": {
+      "properties": {
+        "profile_definition": {
+          "$ref": "#/$defs/ProfileDefinition"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "profile_definition"
+      ]
+    },
+    "MetadataConfig": {
+      "additionalProperties": {
+        "$ref": "#/$defs/MetadataResourceConfig"
+      },
+      "type": "object"
+    },
+    "MetadataField": {
+      "properties": {
+        "symbol": {
+          "$ref": "#/$defs/SymbolConfig"
+        },
+        "symbols": {
+          "items": {
+            "$ref": "#/$defs/SymbolConfig"
+          },
+          "type": "array"
+        },
+        "value": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
+    },
+    "MetadataResourceConfig": {
+      "properties": {
+        "fields": {
+          "additionalProperties": {
+            "$ref": "#/$defs/MetadataField"
+          },
+          "type": "object"
+        },
+        "id_tags": {
+          "$ref": "#/$defs/MetricTagConfigList"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "fields"
+      ]
+    },
+    "MetricIndexTransform": {
+      "properties": {
+        "start": {
+          "type": "integer"
+        },
+        "end": {
+          "type": "integer"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "start",
+        "end"
+      ]
+    },
+    "MetricTagConfig": {
+      "properties": {
+        "tag": {
+          "type": "string"
+        },
+        "index": {
+          "type": "integer"
+        },
+        "column": {
+          "$ref": "#/$defs/SymbolConfig"
+        },
+        "OID": {
+          "type": "string"
+        },
+        "symbol": {
+          "type": "string"
+        },
+        "index_transform": {
+          "items": {
+            "$ref": "#/$defs/MetricIndexTransform"
+          },
+          "type": "array"
+        },
+        "mapping": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "type": "object"
+        },
+        "match": {
+          "type": "string"
+        },
+        "tags": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "type": "object"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "tag"
+      ]
+    },
+    "MetricTagConfigList": {
+      "items": {
+        "$ref": "#/$defs/MetricTagConfig"
+      },
+      "type": "array"
+    },
+    "MetricsConfig": {
+      "properties": {
+        "symbol": {
+          "$ref": "#/$defs/SymbolConfig"
+        },
+        "symbols": {
+          "items": {
+            "$ref": "#/$defs/SymbolConfig"
+          },
+          "type": "array"
+        },
+        "static_tags": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "metric_tags": {
+          "$ref": "#/$defs/MetricTagConfigList"
+        },
+        "metric_type": {
+          "type": "string"
+        },
+        "options": {
+          "$ref": "#/$defs/MetricsConfigOption"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
+    },
+    "MetricsConfigOption": {
+      "properties": {
+        "placement": {
+          "type": "integer"
+        },
+        "metric_suffix": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
+    },
+    "ProfileDefinition": {
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "description": {
+          "type": "string"
+        },
+        "sysobjectid": {
+          "$ref": "#/$defs/StringArray"
+        },
+        "extends": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "metadata": {
+          "$ref": "#/$defs/MetadataConfig"
+        },
+        "metric_tags": {
+          "items": {
+            "$ref": "#/$defs/MetricTagConfig"
+          },
+          "type": "array"
+        },
+        "static_tags": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "metrics": {
+          "items": {
+            "$ref": "#/$defs/MetricsConfig"
+          },
+          "type": "array"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "name"
+      ]
+    },
+    "StringArray": {
+      "items": {
+        "type": "string"
+      },
+      "type": "array"
+    },
+    "SymbolConfig": {
+      "properties": {
+        "OID": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "extract_value": {
+          "type": "string"
+        },
+        "match_pattern": {
+          "type": "string"
+        },
+        "match_value": {
+          "type": "string"
+        },
+        "scale_factor": {
+          "type": "number"
+        },
+        "format": {
+          "type": "string"
+        },
+        "constant_value_one": {
+          "type": "boolean"
+        },
+        "metric_type": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
+    }
+  }
+}

@@ -15,13 +15,13 @@
 #
 
 name "libsepol"
-default_version "3.4"
+default_version "3.5"
 
 license "LGPL-2.1"
 license_file "COPYING"
 skip_transitive_dependency_licensing true
 
-version("3.4") { source sha256: "fc277ac5b52d59d2cd81eec8b1cccd450301d8b54d9dd48a993aea0577cf0336" }
+version("3.5") { source sha256: "78fdaf69924db780bac78546e43d9c44074bad798c2c415d0b9bb96d065ee8a2" }
 
 ship_source_offer true
 

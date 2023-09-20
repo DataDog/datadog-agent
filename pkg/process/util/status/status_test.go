@@ -67,6 +67,9 @@ func TestGetStatus(t *testing.T) {
 		PodQueueBytes:                   4 * 1024,
 		SystemProbeProcessModuleEnabled: true,
 		LanguageDetectionEnabled:        true,
+		WlmExtractorCacheSize:           36,
+		WlmExtractorStaleDiffs:          1,
+		WlmExtractorDiffsDropped:        2,
 	}
 
 	// Feature detection needs to run before host methods are called. During runtime, feature detection happens

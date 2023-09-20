@@ -23,7 +23,7 @@ func (m *Module) Close() {
 }
 
 // RegisterGRPC register to system probe gRPC server
-func (m *Module) RegisterGRPC(_ *grpc.Server) error {
+func (m *Module) RegisterGRPC(_ grpc.ServiceRegistrar) error {
 	return nil
 }
 

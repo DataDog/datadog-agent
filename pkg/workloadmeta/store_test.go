@@ -9,8 +9,7 @@ import (
 	"reflect"
 	"testing"
 
-	tassert "github.com/stretchr/testify/assert"
-	"gotest.tools/assert"
+	"github.com/stretchr/testify/assert"
 
 	"github.com/DataDog/datadog-agent/pkg/errors"
 	"github.com/DataDog/datadog-agent/pkg/languagedetection/languagemodels"
@@ -595,8 +594,8 @@ func TestSubscribe(t *testing.T) {
 			s.Unsubscribe(ch)
 
 			<-doneCh
-
-			assert.DeepEqual(t, tt.expected, actual)
+			assert.Equal(t, tt.expected, actual)
+			assert.Equal(t, tt.expected, actual)
 		})
 	}
 }
@@ -717,7 +716,7 @@ func TestListContainers(t *testing.T) {
 
 			containers := testStore.ListContainers()
 
-			assert.DeepEqual(t, test.expectedContainers, containers)
+			assert.Equal(t, test.expectedContainers, containers)
 		})
 	}
 }
@@ -760,7 +759,7 @@ func TestListContainersWithFilter(t *testing.T) {
 
 	runningContainers := testStore.ListContainersWithFilter(GetRunningContainers)
 
-	assert.DeepEqual(t, []*Container{runningContainer}, runningContainers)
+	assert.Equal(t, []*Container{runningContainer}, runningContainers)
 }
 
 func TestListProcesses(t *testing.T) {
@@ -801,7 +800,7 @@ func TestListProcesses(t *testing.T) {
 
 			processes := testStore.ListProcesses()
 
-			assert.DeepEqual(t, test.expectedProcesses, processes)
+			assert.Equal(t, test.expectedProcesses, processes)
 		})
 	}
 }
@@ -850,7 +849,7 @@ func TestListProcessesWithFilter(t *testing.T) {
 		}
 	})
 
-	assert.DeepEqual(t, []*Process{javaProcess}, retrievedProcesses)
+	assert.Equal(t, []*Process{javaProcess}, retrievedProcesses)
 }
 
 func TestListImages(t *testing.T) {
@@ -889,7 +888,7 @@ func TestListImages(t *testing.T) {
 			testStore := newTestStore()
 			testStore.handleEvents(test.preEvents)
 
-			assert.DeepEqual(t, test.expectedImages, testStore.ListImages())
+			assert.Equal(t, test.expectedImages, testStore.ListImages())
 		})
 	}
 }
@@ -939,8 +938,8 @@ func TestGetImage(t *testing.T) {
 			if test.expectsError {
 				assert.Error(t, err, errors.NewNotFound(string(KindContainerImageMetadata)).Error())
 			} else {
-				assert.NilError(t, err)
-				assert.DeepEqual(t, test.expectedImage, actualImage)
+				assert.NoError(t, err)
+				assert.Equal(t, test.expectedImage, actualImage)
 			}
 		})
 	}
@@ -1053,7 +1052,7 @@ func TestResetProcesses(t *testing.T) {
 			<-doneCh
 
 			processes := testStore.ListProcesses()
-			tassert.ElementsMatch(t, processes, test.newProcesses)
+			assert.ElementsMatch(t, processes, test.newProcesses)
 		})
 	}
 
@@ -1245,7 +1244,7 @@ func TestReset(t *testing.T) {
 
 			<-doneCh
 
-			assert.DeepEqual(t, test.expectedEventsReceived, actualEventsReceived)
+			assert.Equal(t, test.expectedEventsReceived, actualEventsReceived)
 		})
 	}
 }

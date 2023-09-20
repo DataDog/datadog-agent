@@ -116,6 +116,8 @@ event_monitoring_config:
 
 runtime_security_config:
   enabled: {{ .RuntimeSecurityEnabled }}
+  remote_configuration:
+    enabled: false
   socket: /tmp/test-runtime-security.sock
   sbom:
     enabled: {{ .SBOMEnabled }}
@@ -974,7 +976,7 @@ func newTestModule(t testing.TB, macroDefs []*rules.MacroDefinition, ruleDefs []
 	}
 
 	// listen to probe event
-	if err := testMod.probe.AddEventHandler(model.UnknownEventType, testMod); err != nil {
+	if err := testMod.probe.AddFullAccessEventHandler(testMod); err != nil {
 		return nil, err
 	}
 

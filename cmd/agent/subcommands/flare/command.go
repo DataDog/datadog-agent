@@ -217,16 +217,26 @@ func makeFlare(flareComp flare.Component, log log.Component, config config.Compo
 	}
 
 	if cliParams.profiling >= 30 {
-		resetPreviousSettings, err := setRuntimeProfilingSettings(cliParams)
+		c, err := common.NewSettingsClient()
+		if err != nil {
+			return fmt.Errorf("failed to initialize settings client: %w", err)
+		}
+
+		profilingOpts := settings.ProfilingOpts{
+			ProfileMutex:         cliParams.profileMutex,
+			ProfileMutexFraction: cliParams.profileMutexFraction,
+			ProfileBlocking:      cliParams.profileBlocking,
+			ProfileBlockingRate:  cliParams.profileBlockingRate,
+		}
+
+		err = settings.ExecWithRuntimeProfilingSettings(func() {
+			if profile, err = readProfileData(cliParams.profiling); err != nil {
+				fmt.Fprintln(color.Output, color.YellowString(fmt.Sprintf("Could not collect performance profile data: %s", err)))
+			}
+		}, profilingOpts, c)
 		if err != nil {
 			return err
 		}
-
-		if profile, err = readProfileData(cliParams.profiling); err != nil {
-			fmt.Fprintln(color.Output, color.YellowString(fmt.Sprintf("Could not collect performance profile data: %s", err)))
-		}
-
-		resetPreviousSettings()
 	} else if cliParams.profiling != -1 {
 		fmt.Fprintln(color.Output, color.RedString(fmt.Sprintf("Invalid value for profiling: %d. Please enter an integer of at least 30.", cliParams.profiling)))
 		return err
@@ -313,66 +323,4 @@ func createArchive(flareComp flare.Component, pdata flare.ProfileData, ipcError 
 	}
 
 	return filePath, nil
-}
-
-func setRuntimeProfilingSettings(cliParams *cliParams) (func(), error) {
-	c, err := common.NewSettingsClient()
-	if err != nil {
-		return nil, fmt.Errorf("failed to initialize settings client: %v", err)
-	}
-	if err := util.SetAuthToken(); err != nil {
-		return nil, fmt.Errorf("unable to set up authentication token: %v", err)
-	}
-
-	prev := make(map[string]interface{})
-	if cliParams.profileMutex && cliParams.profileMutexFraction > 0 {
-		old, err := setRuntimeSetting(c, "runtime_mutex_profile_fraction", cliParams.profileMutexFraction)
-		if err != nil {
-			return nil, err
-		}
-		prev["runtime_mutex_profile_fraction"] = old
-	}
-	if cliParams.profileBlocking && cliParams.profileBlockingRate > 0 {
-		old, err := setRuntimeSetting(c, "runtime_block_profile_rate", cliParams.profileBlockingRate)
-		if err != nil {
-			return nil, err
-		}
-		prev["runtime_block_profile_rate"] = old
-	}
-
-	return func() { resetRuntimeProfilingSettings(prev) }, nil
-}
-
-func setRuntimeSetting(c settings.Client, name string, value int) (interface{}, error) {
-	fmt.Fprintln(color.Output, color.BlueString("Setting %s to %v", name, value))
-
-	oldVal, err := c.Get(name)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get current value of %s: %v", name, err)
-	}
-
-	if _, err := c.Set(name, fmt.Sprint(value)); err != nil {
-		return nil, fmt.Errorf("failed to set %s to %v: %v", name, value, err)
-	}
-
-	return oldVal, nil
-}
-
-func resetRuntimeProfilingSettings(prev map[string]interface{}) {
-	if len(prev) == 0 {
-		return
-	}
-
-	c, err := common.NewSettingsClient()
-	if err != nil {
-		fmt.Fprintln(color.Output, color.RedString("Failed to restore runtime settings: %v", err))
-		return
-	}
-
-	for name, value := range prev {
-		fmt.Fprintln(color.Output, color.BlueString("Restoring %s to %v", name, value))
-		if _, err := c.Set(name, fmt.Sprint(value)); err != nil {
-			fmt.Fprintln(color.Output, color.RedString("Failed to restore previous value of %s: %v", name, err))
-		}
-	}
 }

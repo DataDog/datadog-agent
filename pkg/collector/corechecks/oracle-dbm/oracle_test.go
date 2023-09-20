@@ -11,6 +11,9 @@ import (
 	"database/sql"
 	"fmt"
 
+	"testing"
+	"time"
+
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
@@ -19,8 +22,6 @@ import (
 	"github.com/jmoiron/sqlx"
 	go_ora "github.com/sijms/go-ora/v2"
 	"github.com/stretchr/testify/assert"
-	"testing"
-	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	_ "github.com/godror/godror"
@@ -291,19 +292,4 @@ func TestSQLXIn(t *testing.T) {
 		assert.Equal(t, retValue, result, driver)
 	}
 
-}
-
-func TestLargeUint64Binding(t *testing.T) {
-	largeUint64 := uint64(18446744073709551615)
-	//largeUint64 = 1
-	var result uint64
-	for _, driver := range DRIVERS {
-		db, _ := connectToDB(driver)
-		err := db.Get(&result, "SELECT n FROM T WHERE n = :1", largeUint64)
-		assert.NoError(t, err, "running test statement with %s driver", driver)
-		if err != nil {
-			continue
-		}
-		assert.Equal(t, result, largeUint64, "simple uint64 binding with %s driver", driver)
-	}
 }

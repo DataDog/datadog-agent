@@ -15,7 +15,7 @@
 #
 
 name "util-linux"
-default_version "2.38.1"
+default_version "2.39.2"
 
 license "GPLv2"
 license_file "COPYING"
@@ -23,15 +23,17 @@ skip_transitive_dependency_licensing true
 
 ship_source_offer true
 
-version '2.38.1' do
-  source url: "https://mirrors.edge.kernel.org/pub/linux/utils/util-linux/v2.38/util-linux-#{version}.tar.gz",
-         sha256: '0820eb8eea90408047e3715424bc6be771417047f683950fecb4bdd2e2cbbc6e'
+version '2.39.2' do
+  source url: "https://mirrors.edge.kernel.org/pub/linux/utils/util-linux/v2.39/util-linux-#{version}.tar.gz",
+         sha256: 'c8e1a11dd5879a2788973c73589fbcf08606e85aeec095e516162495ead8ba68'
 end
 
 relative_path "util-linux-#{version}"
 
 build do
   env = with_standard_compiler_flags(with_embedded_path)
+
+  patch source: "static-assert.patch", env: env # define static_assert in xxhash.h, since it's not defined in our old glibc's assert.h
 
   configure_options = [
     "--disable-nls",
