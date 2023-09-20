@@ -136,7 +136,7 @@ type RuleSetLoadedReport struct {
 
 // ReportRuleSetLoaded reports to Datadog that new ruleset was loaded
 func ReportRuleSetLoaded(sender events.EventSender, statsdClient statsd.ClientInterface, ruleSets map[string]*rules.RuleSet, err *multierror.Error) {
-	rule, events := NewRuleSetLoadedEvent(ruleSets, err)
+	rule, events := NewRuleSetLoadedEvents(ruleSets, err)
 
 	if err := statsdClient.Count(metrics.MetricRuleSetLoaded, 1, []string{}, 1.0); err != nil {
 		log.Error(fmt.Errorf("failed to send ruleset_loaded metric: %w", err))
@@ -195,8 +195,8 @@ func RuleStateFromDefinition(def *rules.RuleDefinition, status string, message s
 	}
 }
 
-// NewRuleSetLoadedEvent returns the rule (e.g. ruleset_loaded) and a populated custom event for a new_rules_loaded event
-func NewRuleSetLoadedEvent(ruleSets map[string]*rules.RuleSet, err *multierror.Error) (*rules.Rule, []*events.CustomEvent) {
+// NewRuleSetLoadedEvents returns the rule (e.g. ruleset_loaded) and populated custom events from new ruleset_loaded events
+func NewRuleSetLoadedEvents(ruleSets map[string]*rules.RuleSet, err *multierror.Error) (*rules.Rule, []*events.CustomEvent) {
 	mp := make(map[string]*PolicyState)
 
 	var policyState *PolicyState
