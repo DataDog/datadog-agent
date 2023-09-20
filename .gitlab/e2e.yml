@@ -215,6 +215,7 @@ new-e2e-language-detection-main:
 new-e2e-cws-dev:
   extends: .new_e2e_template
   rules: !reference [.on_dev_branch_manual]
+  needs: []
   variables:
     TARGETS: ./tests/cws
   # Temporary, until we manage to stabilize those tests.
