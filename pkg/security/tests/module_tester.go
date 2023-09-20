@@ -709,6 +709,42 @@ func setTestPolicy(dir string, macros []*rules.MacroDefinition, rules []*rules.R
 	return testPolicyFile.Name(), nil
 }
 
+func setTestPolicy2(dir string, macros []*rules.MacroDefinition, rules []*rules.RuleDefinition) (string, error) {
+	testPolicyFile, err := os.Create(path.Join(dir, "secagent-policy-2.policy"))
+	if err != nil {
+		return "", err
+	}
+
+	fail := func(err error) error {
+		os.Remove(testPolicyFile.Name())
+		return err
+	}
+
+	tmpl, err := template.New("test-policy").Parse(testPolicy)
+	if err != nil {
+		return "", fail(err)
+	}
+
+	buffer := new(bytes.Buffer)
+	if err := tmpl.Execute(buffer, map[string]interface{}{
+		"Rules":  rules,
+		"Macros": macros,
+	}); err != nil {
+		return "", fail(err)
+	}
+
+	_, err = testPolicyFile.Write(buffer.Bytes())
+	if err != nil {
+		return "", fail(err)
+	}
+
+	if err := testPolicyFile.Close(); err != nil {
+		return "", fail(err)
+	}
+
+	return testPolicyFile.Name(), nil
+}
+
 func genTestConfigs(dir string, opts testOpts, testDir string) (*emconfig.Config, *secconfig.Config, error) {
 	tmpl, err := template.New("test-config").Parse(testConfig)
 	if err != nil {
@@ -868,6 +904,10 @@ func newTestModule(t testing.TB, macroDefs []*rules.MacroDefinition, ruleDefs []
 	}
 
 	if _, err = setTestPolicy(st.root, macroDefs, ruleDefs); err != nil {
+		return nil, err
+	}
+
+	if _, err = setTestPolicy2(st.root, macroDefs, ruleDefs); err != nil {
 		return nil, err
 	}
 
