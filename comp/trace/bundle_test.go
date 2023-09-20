@@ -15,7 +15,6 @@ import (
 
 	coreconfig "github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/trace/config"
-	pkgconfig "github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
@@ -28,7 +27,6 @@ func TestBundleDependencies(t *testing.T) {
 		coreconfig.Module,
 		fx.Supply(coreconfig.Params{}),
 		config.Module,
-		fx.Supply(&pkgconfig.AgentConfig{}),
 		fx.Supply(agent.Params{}),
 		Bundle))
 }
