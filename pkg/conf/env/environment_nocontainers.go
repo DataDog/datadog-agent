@@ -5,7 +5,7 @@
 
 //go:build !(linux || windows)
 
-package config
+package env
 
 // IsAnyContainerFeaturePresent checks if any of known container features is present
 func IsAnyContainerFeaturePresent() bool {

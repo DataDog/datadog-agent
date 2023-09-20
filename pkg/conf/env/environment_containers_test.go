@@ -5,7 +5,7 @@
 
 //go:build linux || windows
 
-package config
+package env
 
 import (
 	"testing"

@@ -51,7 +51,7 @@ func setupAutoDiscovery(confSearchPaths []string, metaScheduler *scheduler.MetaS
 
 	var extraEnvProviders []config.ConfigurationProviders
 	var extraEnvListeners []config.Listeners
-	if config.IsAutoconfigEnabled() && !config.IsCLCRunner() {
+	if config.IsAutoconfigEnabled(config.Datadog) && !config.IsCLCRunner() {
 		extraEnvProviders, extraEnvListeners = confad.DiscoverComponentsFromEnv()
 	}
 

@@ -9,7 +9,7 @@ package pdhutil
 import (
 	"fmt"
 
-	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/conf"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -111,12 +111,12 @@ type PdhEnglishMultiInstanceCounter struct {
 	verifyfn CounterInstanceVerify
 }
 
-func (counter *pdhCounter) ShouldInit() bool {
+func (counter *pdhCounter) ShouldInit(cfg conf.Config) bool {
 	if counter.handle != PDH_HCOUNTER(0) {
 		// already initialized
 		return false
 	}
-	var initFailLimit = config.Datadog.GetInt("windows_counter_init_failure_limit")
+	initFailLimit := cfg.GetInt("windows_counter_init_failure_limit")
 	if initFailLimit > 0 && counter.initFailCount >= initFailLimit {
 		counter.initError = fmt.Errorf("Counter exceeded the maximum number of failed initialization attempts. This error indicates that the Windows performance counter database may need to be rebuilt.")
 		// attempts exceeded
@@ -125,14 +125,14 @@ func (counter *pdhCounter) ShouldInit() bool {
 	return true
 }
 
-func (counter *pdhCounter) SetInitError(err error) error {
+func (counter *pdhCounter) SetInitError(err error, cfg conf.Config) error {
 	if err == nil {
 		counter.initError = nil
 		return nil
 	}
 
 	counter.initFailCount += 1
-	var initFailLimit = config.Datadog.GetInt("windows_counter_init_failure_limit")
+	initFailLimit := cfg.GetInt("windows_counter_init_failure_limit")
 	if initFailLimit > 0 && counter.initFailCount >= initFailLimit {
 		err = fmt.Errorf("%v. Counter exceeded the maximum number of failed initialization attempts", err)
 	} else if initFailLimit > 0 {
@@ -233,7 +233,7 @@ func (query *PdhQuery) AddEnglishMultiInstanceCounter(objectName string, counter
 // https://learn.microsoft.com/en-us/windows/win32/api/pdh/nf-pdh-pdhcollectquerydata
 func (query *PdhQuery) CollectQueryData() error {
 	// iterate each of the counters and try to add them to the query
-	var addedNewCounter = false
+	addedNewCounter := false
 	for _, counter := range query.counters {
 		if counter.ShouldInit() {
 			// refresh PDH object cache (refresh will only occur periodically)

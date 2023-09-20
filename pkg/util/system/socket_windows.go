@@ -5,34 +5,8 @@
 
 package system
 
-import (
-	"os"
-	"time"
-
-	"github.com/Microsoft/go-winio"
-)
+import "github.com/DataDog/datadog-agent/pkg/util/system/socket"
 
 // CheckSocketAvailable returns named pipe availability
 // as on Windows, sockets do not exist
-func CheckSocketAvailable(path string, timeout time.Duration) (bool, bool) {
-	if !checkSocketExists(path) {
-		return false, false
-	}
-
-	conn, err := winio.DialPipe(path, &timeout)
-	if err != nil {
-		return true, false
-	}
-
-	if conn != nil {
-		conn.Close()
-	}
-
-	return true, true
-}
-
-func checkSocketExists(path string) bool {
-	// On Windows there's not easy way to check if a path is a named pipe
-	_, err := os.Stat(path)
-	return err == nil
-}
+var CheckSocketAvailable = socket.CheckSocketAvailable

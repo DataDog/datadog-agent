@@ -8,48 +8,10 @@
 package system
 
 import (
-	"errors"
-	"net"
-	"os"
-	"time"
+	"github.com/DataDog/datadog-agent/pkg/util/system/socket"
 )
 
 // CheckSocketAvailable returns if a socket at path is available
 // first boolean returns if socket path exists
 // second boolean returns if socket is reachable
-func CheckSocketAvailable(path string, timeout time.Duration) (bool, bool) {
-	if !checkSocketExists(path) {
-		return false, false
-	}
-
-	// Assuming socket file exists (bind() done)
-	// -> but we don't have permission: permission denied
-	// -> but no process associated to socket anymore: connection refused
-	// -> but process did not call listen(): connection refused
-	// -> but process does not call accept(): no error
-	// We'll consider socket available in all cases except if permission is denied
-	// as if a path exists and we do have access, it's likely that a process will re-use it later.
-	conn, err := net.DialTimeout("unix", path, timeout)
-	if err != nil && errors.Is(err, os.ErrPermission) {
-		return true, false
-	}
-
-	if conn != nil {
-		conn.Close()
-	}
-
-	return true, true
-}
-
-func checkSocketExists(path string) bool {
-	f, err := os.Stat(path)
-	if err != nil {
-		return false
-	}
-
-	if f.Mode()&os.ModeSocket != 0 {
-		return true
-	}
-
-	return false
-}
+var CheckSocketAvailable = socket.CheckSocketAvailable

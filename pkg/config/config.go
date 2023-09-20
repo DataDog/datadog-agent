@@ -11,12 +11,10 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"net"
 	"net/url"
 	"os"
 	"path/filepath"
 	"runtime"
-	"strconv"
 	"strings"
 	"time"
 
@@ -25,6 +23,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/common/types"
 	"github.com/DataDog/datadog-agent/pkg/collector/check/defaults"
 	"github.com/DataDog/datadog-agent/pkg/conf"
+	"github.com/DataDog/datadog-agent/pkg/conf/env"
+	"github.com/DataDog/datadog-agent/pkg/config/load"
 	"github.com/DataDog/datadog-agent/pkg/secrets"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname/validate"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -394,7 +394,7 @@ func InitConfig(config Config) {
 	// Agent GUI access port
 	config.BindEnvAndSetDefault("GUI_port", defaultGuiPort)
 
-	if IsContainerized() {
+	if env.IsContainerized() {
 		// In serverless-containerized environments (e.g Fargate)
 		// it's impossible to mount host volumes.
 		// Make sure the host paths exist before setting-up the default values.
@@ -1268,97 +1268,7 @@ func InitConfig(config Config) {
 }
 
 // LoadProxyFromEnv overrides the proxy settings with environment variables
-func LoadProxyFromEnv(config Config) {
-	// Viper doesn't handle mixing nested variables from files and set
-	// manually.  If we manually set one of the sub value for "proxy" all
-	// other values from the conf file will be shadowed when using
-	// 'config.Get("proxy")'. For that reason we first get the value from
-	// the conf files, overwrite them with the env variables and reset
-	// everything.
-
-	// When FIPS proxy is enabled we ignore proxy setting to force data to the local proxy
-	if config.GetBool("fips.enabled") {
-		log.Infof("'fips.enabled' has been set to true. Ignoring proxy setting.")
-		return
-	}
-
-	lookupEnvCaseInsensitive := func(key string) (string, bool) {
-		value, found := os.LookupEnv(key)
-		if !found {
-			value, found = os.LookupEnv(strings.ToLower(key))
-		}
-		if found {
-			log.Infof("Found '%v' env var, using it for the Agent proxy settings", key)
-		}
-		return value, found
-	}
-
-	lookupEnv := func(key string) (string, bool) {
-		value, found := os.LookupEnv(key)
-		if found {
-			log.Infof("Found '%v' env var, using it for the Agent proxy settings", key)
-		}
-		return value, found
-	}
-
-	var isSet bool
-	p := &Proxy{}
-	if isSet = config.IsSet("proxy"); isSet {
-		if err := config.UnmarshalKey("proxy", p); err != nil {
-			isSet = false
-			log.Errorf("Could not load proxy setting from the configuration (ignoring): %s", err)
-		}
-	}
-
-	if HTTP, found := lookupEnv("DD_PROXY_HTTP"); found {
-		isSet = true
-		p.HTTP = HTTP
-	} else if HTTP, found := lookupEnvCaseInsensitive("HTTP_PROXY"); found {
-		isSet = true
-		p.HTTP = HTTP
-	}
-
-	if HTTPS, found := lookupEnv("DD_PROXY_HTTPS"); found {
-		isSet = true
-		p.HTTPS = HTTPS
-	} else if HTTPS, found := lookupEnvCaseInsensitive("HTTPS_PROXY"); found {
-		isSet = true
-		p.HTTPS = HTTPS
-	}
-
-	if noProxy, found := lookupEnv("DD_PROXY_NO_PROXY"); found {
-		isSet = true
-		p.NoProxy = strings.Split(noProxy, " ") // space-separated list, consistent with viper
-	} else if noProxy, found := lookupEnvCaseInsensitive("NO_PROXY"); found {
-		isSet = true
-		p.NoProxy = strings.Split(noProxy, ",") // comma-separated list, consistent with other tools that use the NO_PROXY env var
-	}
-
-	if !config.GetBool("use_proxy_for_cloud_metadata") {
-		log.Debugf("'use_proxy_for_cloud_metadata' is enabled: adding cloud provider URL to the no_proxy list")
-		isSet = true
-		p.NoProxy = append(p.NoProxy,
-			"169.254.169.254", // Azure, EC2, GCE
-			"100.100.100.200", // Alibaba
-		)
-	}
-
-	// We have to set each value individually so both config.Get("proxy")
-	// and config.Get("proxy.http") work
-	if isSet {
-		config.Set("proxy.http", p.HTTP)
-		config.Set("proxy.https", p.HTTPS)
-
-		// If this is set to an empty []string, viper will have a type conflict when merging
-		// this config during secrets resolution. It unmarshals empty yaml lists to type
-		// []interface{}, which will then conflict with type []string and fail to merge.
-		noProxy := make([]interface{}, len(p.NoProxy))
-		for idx := range p.NoProxy {
-			noProxy[idx] = p.NoProxy[idx]
-		}
-		config.Set("proxy.no_proxy", noProxy)
-	}
-}
+var LoadProxyFromEnv = load.LoadProxyFromEnv
 
 // Load reads configs files and initializes the config module
 func Load() (*Warnings, error) {
@@ -1387,125 +1297,6 @@ func Merge(configPaths []string) error {
 	return nil
 }
 
-func findUnknownKeys(config Config) []string {
-	var unknownKeys []string
-	knownKeys := config.GetKnownKeys()
-	loadedKeys := config.AllKeys()
-	for _, key := range loadedKeys {
-		if _, found := knownKeys[key]; !found {
-			// Check if any subkey terminated with a '.*' wildcard is marked as known
-			// e.g.: apm_config.* would match all sub-keys of apm_config
-			splitPath := strings.Split(key, ".")
-			for j := range splitPath {
-				subKey := strings.Join(splitPath[:j+1], ".") + ".*"
-				if _, found = knownKeys[subKey]; found {
-					break
-				}
-			}
-			if !found {
-				unknownKeys = append(unknownKeys, key)
-			}
-		}
-	}
-	return unknownKeys
-}
-
-func findUnexpectedUnicode(config Config) []string {
-	messages := make([]string, 0)
-	checkAndRecordString := func(str string, prefix string) {
-		if res := FindUnexpectedUnicode(str); len(res) != 0 {
-			for _, detected := range res {
-				msg := fmt.Sprintf("%s - Unexpected unicode %s codepoint '%U' detected at byte position %v", prefix, detected.reason, detected.codepoint, detected.position)
-				messages = append(messages, msg)
-			}
-		}
-	}
-
-	var visitElement func(string, interface{})
-	visitElement = func(key string, element interface{}) {
-		switch elementValue := element.(type) {
-		case string:
-			checkAndRecordString(elementValue, fmt.Sprintf("For key '%s', configuration value string '%s'", key, elementValue))
-		case []string:
-			for _, s := range elementValue {
-				checkAndRecordString(s, fmt.Sprintf("For key '%s', configuration value string '%s'", key, s))
-			}
-		case []interface{}:
-			for _, listItem := range elementValue {
-				visitElement(key, listItem)
-			}
-		}
-	}
-
-	allKeys := config.AllKeys()
-	for _, key := range allKeys {
-		checkAndRecordString(key, fmt.Sprintf("Configuration key string '%s'", key))
-		if unknownValue := config.Get(key); unknownValue != nil {
-			visitElement(key, unknownValue)
-		}
-	}
-
-	return messages
-}
-
-func findUnknownEnvVars(config Config, environ []string, additionalKnownEnvVars []string) []string {
-	var unknownVars []string
-
-	knownVars := map[string]struct{}{
-		// these variables are used by the agent, but not via the Config struct,
-		// so must be listed separately.
-		"DD_INSIDE_CI":      {},
-		"DD_PROXY_NO_PROXY": {},
-		"DD_PROXY_HTTP":     {},
-		"DD_PROXY_HTTPS":    {},
-		// these variables are used by serverless, but not via the Config struct
-		"DD_API_KEY_SECRET_ARN":        {},
-		"DD_DOTNET_TRACER_HOME":        {},
-		"DD_SERVERLESS_APPSEC_ENABLED": {},
-		"DD_SERVICE":                   {},
-		"DD_VERSION":                   {},
-		// this variable is used by CWS functional tests
-		"DD_TESTS_RUNTIME_COMPILED": {},
-		// this variable is used by the Kubernetes leader election mechanism
-		"DD_POD_NAME": {},
-	}
-	for _, key := range config.GetEnvVars() {
-		knownVars[key] = struct{}{}
-	}
-	for _, key := range additionalKnownEnvVars {
-		knownVars[key] = struct{}{}
-	}
-
-	for _, equality := range environ {
-		key := strings.SplitN(equality, "=", 2)[0]
-		if !strings.HasPrefix(key, "DD_") {
-			continue
-		}
-		if _, known := knownVars[key]; !known {
-			unknownVars = append(unknownVars, key)
-		}
-	}
-	return unknownVars
-}
-
-func useHostEtc(config Config) {
-	if IsContainerized() && pathExists("/host/etc") {
-		if !config.GetBool("ignore_host_etc") {
-			if val, isSet := os.LookupEnv("HOST_ETC"); !isSet {
-				// We want to detect the host distro informations instead of the one from the container.
-				// 'HOST_ETC' is used by some libraries like gopsutil and by the system-probe to
-				// download the right kernel headers.
-				os.Setenv("HOST_ETC", "/host/etc")
-				log.Debug("Setting environment variable HOST_ETC to '/host/etc'")
-			} else {
-				log.Debugf("'/host/etc' folder detected but HOST_ETC is already set to '%s', leaving it untouched", val)
-			}
-		} else {
-			log.Debug("/host/etc detected but ignored because 'ignore_host_etc' is set to true")
-		}
-	}
-}
-
 func checkConflictingOptions(config Config) error {
 	// Verify that either use_podman_logs OR docker_path_override are set since they conflict
 	if config.GetBool("logs_config.use_podman_logs") && config.IsSet("logs_config.docker_path_override") {
@@ -1516,196 +1307,14 @@ func checkConflictingOptions(config Config) error {
 	return nil
 }
 
-func LoadDatadogCustom(config Config, origin string, loadSecret bool, additionalKnownEnvVars []string) (*Warnings, error) {
-	// Feature detection running in a defer func as it always  need to run (whether config load has been successful or not)
-	// Because some Agents (e.g. trace-agent) will run even if config file does not exist
-	defer func() {
-		// Environment feature detection needs to run before applying override funcs
-		// as it may provide such overrides
-		detectFeatures()
-		applyOverrideFuncs(config)
-	}()
-
-	warnings, err := LoadCustom(config, origin, loadSecret, additionalKnownEnvVars)
-	if err != nil {
-		if errors.Is(err, os.ErrPermission) {
-			log.Warnf("Error loading config: %v (check config file permissions for dd-agent user)", err)
-		} else {
-			log.Warnf("Error loading config: %v", err)
-		}
-		return warnings, err
-	}
-
-	err = checkConflictingOptions(config)
-	if err != nil {
-		return warnings, err
-	}
-
-	// If this variable is set to true, we'll use DefaultPython for the Python version,
-	// ignoring the python_version configuration value.
-	if ForceDefaultPython == "true" && config.IsKnown("python_version") {
-		pv := config.GetString("python_version")
-		if pv != DefaultPython {
-			log.Warnf("Python version has been forced to %s", DefaultPython)
-		}
-
-		AddOverride("python_version", DefaultPython)
-	}
-
-	sanitizeAPIKeyConfig(config, "api_key")
-	sanitizeAPIKeyConfig(config, "logs_config.api_key")
-	// setTracemallocEnabled *must* be called before setNumWorkers
-	warnings.TraceMallocEnabledWithPy2 = setTracemallocEnabled(config)
-	setNumWorkers(config)
-	return warnings, setupFipsEndpoints(config)
-}
+var LoadDatadogCustom = load.LoadDatadogCustom
 
 // LoadCustom reads config into the provided config object
-func LoadCustom(config Config, origin string, loadSecret bool, additionalKnownEnvVars []string) (*Warnings, error) {
-	warnings := Warnings{}
-
-	if err := config.ReadInConfig(); err != nil {
-		if IsServerless() {
-			log.Debug("No config file detected, using environment variable based configuration only")
-			return &warnings, nil
-		}
-		return &warnings, err
-	}
-
-	for _, key := range findUnknownKeys(config) {
-		log.Warnf("Unknown key in config file: %v", key)
-	}
-
-	for _, v := range findUnknownEnvVars(config, os.Environ(), additionalKnownEnvVars) {
-		log.Warnf("Unknown environment variable: %v", v)
-	}
-
-	for _, warningMsg := range findUnexpectedUnicode(config) {
-		log.Warnf(warningMsg)
-	}
-
-	// We resolve proxy setting before secrets. This allows setting secrets through DD_PROXY_* env variables
-	LoadProxyFromEnv(config)
-
-	if loadSecret {
-		if err := ResolveSecrets(config, origin); err != nil {
-			return &warnings, err
-		}
-	}
-
-	// Verify 'DD_URL' and 'DD_DD_URL' conflicts
-	if EnvVarAreSetAndNotEqual("DD_DD_URL", "DD_URL") {
-		log.Warnf("'DD_URL' and 'DD_DD_URL' variables are both set in environment. Using 'DD_DD_URL' value")
-	}
-
-	useHostEtc(config)
-	return &warnings, nil
-}
+var LoadCustom = load.LoadCustom
 
 // setupFipsEndpoints overwrites the Agent endpoint for outgoing data to be sent to the local FIPS proxy. The local FIPS
 // proxy will be in charge of forwarding data to the Datadog backend following FIPS standard. Starting from
 // fips.port_range_start we will assign a dedicated port per product (metrics, logs, traces, ...).
-func setupFipsEndpoints(config Config) error {
-	// Each port is dedicated to a specific data type:
-	//
-	// port_range_start: HAProxy stats
-	// port_range_start + 1:  metrics
-	// port_range_start + 2:  traces
-	// port_range_start + 3:  profiles
-	// port_range_start + 4:  processes
-	// port_range_start + 5:  logs
-	// port_range_start + 6:  databases monitoring metrics
-	// port_range_start + 7:  databases monitoring samples
-	// port_range_start + 8:  network devices metadata
-	// port_range_start + 9:  network devices snmp traps (unused)
-	// port_range_start + 10: instrumentation telemetry
-	// port_range_start + 11: appsec events (unused)
-	// port_range_start + 12: orchestrator explorer
-	// port_range_start + 13: runtime security
-
-	if !config.GetBool("fips.enabled") {
-		log.Debug("FIPS mode is disabled")
-		return nil
-	}
-
-	const (
-		proxyStats                 = 0
-		metrics                    = 1
-		traces                     = 2
-		profiles                   = 3
-		processes                  = 4
-		logs                       = 5
-		databasesMonitoringMetrics = 6
-		databasesMonitoringSamples = 7
-		networkDevicesMetadata     = 8
-		networkDevicesSnmpTraps    = 9
-		instrumentationTelemetry   = 10
-		appsecEvents               = 11
-		orchestratorExplorer       = 12
-		runtimeSecurity            = 13
-	)
-
-	localAddress, err := isLocalAddress(config.GetString("fips.local_address"))
-	if err != nil {
-		return fmt.Errorf("fips.local_address: %s", err)
-	}
-
-	portRangeStart := config.GetInt("fips.port_range_start")
-	urlFor := func(port int) string { return net.JoinHostPort(localAddress, strconv.Itoa(portRangeStart+port)) }
-
-	log.Warnf("FIPS mode is enabled! All communication to DataDog will be routed to the local FIPS proxy on '%s' starting from port %d", localAddress, portRangeStart)
-
-	// Disabling proxy to make sure all data goes directly to the FIPS proxy
-	os.Unsetenv("HTTP_PROXY")
-	os.Unsetenv("HTTPS_PROXY")
-
-	// HTTP for now, will soon be updated to HTTPS
-	protocol := "http://"
-	if config.GetBool("fips.https") {
-		protocol = "https://"
-		config.Set("skip_ssl_validation", !config.GetBool("fips.tls_verify"))
-	}
-
-	// The following overwrites should be sync with the documentation for the fips.enabled config setting in the
-	// config_template.yaml
-
-	// Metrics
-	config.Set("dd_url", protocol+urlFor(metrics))
-
-	// Logs
-	setupFipsLogsConfig(config, "logs_config.", urlFor(logs))
-
-	// APM
-	config.Set("apm_config.apm_dd_url", protocol+urlFor(traces))
-	// Adding "/api/v2/profile" because it's not added to the 'apm_config.profiling_dd_url' value by the Agent
-	config.Set("apm_config.profiling_dd_url", protocol+urlFor(profiles)+"/api/v2/profile")
-	config.Set("apm_config.telemetry.dd_url", protocol+urlFor(instrumentationTelemetry))
-
-	// Processes
-	config.Set("process_config.process_dd_url", protocol+urlFor(processes))
-
-	// Database monitoring
-	config.Set("database_monitoring.metrics.dd_url", urlFor(databasesMonitoringMetrics))
-	config.Set("database_monitoring.activity.dd_url", urlFor(databasesMonitoringMetrics))
-	config.Set("database_monitoring.samples.dd_url", urlFor(databasesMonitoringSamples))
-
-	// Network devices
-	config.Set("network_devices.metadata.dd_url", urlFor(networkDevicesMetadata))
-
-	// Orchestrator Explorer
-	config.Set("orchestrator_explorer.orchestrator_dd_url", protocol+urlFor(orchestratorExplorer))
-
-	// CWS
-	setupFipsLogsConfig(config, "runtime_security_config.endpoints.", urlFor(runtimeSecurity))
-
-	return nil
-}
-
-func setupFipsLogsConfig(config Config, configPrefix string, url string) {
-	config.Set(configPrefix+"use_http", true)
-	config.Set(configPrefix+"logs_no_ssl", !config.GetBool("fips.https"))
-	config.Set(configPrefix+"logs_dd_url", url)
-}
 
 // ResolveSecrets merges all the secret values from origin into config. Secret values
 // are identified by a value of the form "ENC[key]" where key is the secret key.
@@ -1819,81 +1428,15 @@ func IsCloudProviderEnabled(cloudProviderName string) bool {
 	return false
 }
 
-func isLocalAddress(address string) (string, error) {
-	if address == "localhost" {
-		return address, nil
-	}
-	ip := net.ParseIP(address)
-	if ip == nil {
-		return "", fmt.Errorf("address was set to an invalid IP address: %s", address)
-	}
-	for _, cidr := range []string{
-		"127.0.0.0/8", // IPv4 loopback
-		"::1/128",     // IPv6 loopback
-	} {
-		_, block, err := net.ParseCIDR(cidr)
-		if err != nil {
-			return "", err
-		}
-		if block.Contains(ip) {
-			return address, nil
-		}
-	}
-	return "", fmt.Errorf("address was set to a non-loopback IP address: %s", address)
-}
-
 // GetIPCAddress returns the IPC address or an error if the address is not local
 func GetIPCAddress() (string, error) {
-	address, err := isLocalAddress(Datadog.GetString("ipc_address"))
-	if err != nil {
-		return "", fmt.Errorf("ipc_address: %s", err)
-	}
-	return address, nil
+	return conf.GetIPCAddress(Datadog)
 }
 
 // pathExists returns true if the given path exists
 func pathExists(path string) bool {
 	_, err := os.Stat(path)
 	return !os.IsNotExist(err)
-}
-
-// setTracemallocEnabled is a helper to get the effective tracemalloc
-// configuration.
-func setTracemallocEnabled(config Config) bool {
-	if !config.IsKnown("tracemalloc_debug") {
-		return false
-	}
-
-	pyVersion := config.GetString("python_version")
-	wTracemalloc := config.GetBool("tracemalloc_debug")
-	traceMallocEnabledWithPy2 := false
-	if pyVersion == "2" && wTracemalloc {
-		log.Warnf("Tracemalloc was enabled but unavailable with python version %q, disabling.", pyVersion)
-		wTracemalloc = false
-		traceMallocEnabledWithPy2 = true
-	}
-
-	// update config with the actual effective tracemalloc
-	config.Set("tracemalloc_debug", wTracemalloc)
-	return traceMallocEnabledWithPy2
-}
-
-// setNumWorkers is a helper to set the effective number of workers for
-// a given config.
-func setNumWorkers(config Config) {
-	if !config.IsKnown("check_runners") {
-		return
-	}
-
-	wTracemalloc := config.GetBool("tracemalloc_debug")
-	numWorkers := config.GetInt("check_runners")
-	if wTracemalloc {
-		log.Infof("Tracemalloc enabled, only one check runner enabled to run checks serially")
-		numWorkers = 1
-	}
-
-	// update config with the actual effective number of workers
-	config.Set("check_runners", numWorkers)
 }
 
 // GetDogstatsdMappingProfiles returns mapping profiles used in DogStatsD mapper

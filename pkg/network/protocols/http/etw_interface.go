@@ -12,8 +12,8 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/network/config"
+	"github.com/DataDog/datadog-agent/pkg/util/etw"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/DataDog/datadog-agent/pkg/util/winutil/etw"
 )
 
 type EtwInterface struct {
@@ -38,6 +38,7 @@ func (hei *EtwInterface) SetCapturedProtocols(http, https bool) {
 	hei.captureHTTPS = https
 	SetEnabledProtocols(http, https)
 }
+
 func (hei *EtwInterface) SetMaxFlows(maxFlows uint64) {
 	log.Debugf("Setting max flows in ETW http source to %v", maxFlows)
 	SetMaxFlows(maxFlows)

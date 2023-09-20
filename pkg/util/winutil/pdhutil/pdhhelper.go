@@ -14,11 +14,10 @@ import (
 	"time"
 	"unsafe"
 
+	"github.com/DataDog/datadog-agent/pkg/conf"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"go.uber.org/atomic"
 	"golang.org/x/sys/windows"
-
-	"github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 var (
@@ -52,7 +51,7 @@ var lock_lastPdhRefreshTime sync.Mutex
 // the PDH object cache is implicitly created/refreshed.
 var lastPdhRefreshTime = atomic.NewTime(time.Now())
 
-func refreshPdhObjectCache(forceRefresh bool) (didrefresh bool, err error) {
+func refreshPdhObjectCache(forceRefresh bool, cfg conf.Config) (didrefresh bool, err error) {
 	// Refresh the Windows internal PDH Object cache
 	//
 	// When forceRefresh=false, the cache is refreshed no more frequently
@@ -84,7 +83,7 @@ func refreshPdhObjectCache(forceRefresh bool) (didrefresh bool, err error) {
 
 	var len uint32
 
-	refresh_interval := config.Datadog.GetInt("windows_counter_refresh_interval")
+	refresh_interval := cfg.GetInt("windows_counter_refresh_interval")
 	if refresh_interval == 0 {
 		// refresh disabled
 		return false, nil
@@ -135,11 +134,12 @@ func refreshPdhObjectCache(forceRefresh bool) (didrefresh bool, err error) {
 	lastPdhRefreshTime.Store(time.Now())
 	return true, nil
 }
-func tryRefreshPdhObjectCache() (didrefresh bool, err error) {
+
+func tryRefreshPdhObjectCache(cfg conf.Config) (didrefresh bool, err error) {
 	// Attempt to refresh the Windows internal PDH Object cache
 	// may be skipped if cache was refreshed recently.
 	// see refreshPdhObjectCache() for details
-	return refreshPdhObjectCache(false)
+	return refreshPdhObjectCache(false, cfg)
 }
 
 type pdh_counter_path_elements struct {
@@ -164,6 +164,7 @@ func NewErrPdhInvalidInstance(message string) *ErrPdhInvalidInstance {
 func (e *ErrPdhInvalidInstance) Error() string {
 	return e.message
 }
+
 func pdhMakeCounterPath(machine string, object string, instance string, counter string) (path string, err error) {
 	var elems pdh_counter_path_elements
 
@@ -203,7 +204,6 @@ func pdhMakeCounterPath(machine string, object string, instance string, counter 
 	}
 	path = windows.UTF16ToString(buf)
 	return
-
 }
 
 func pdhGetFormattedCounterValueFloat(hCounter PDH_HCOUNTER) (val float64, err error) {
