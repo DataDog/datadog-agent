@@ -154,6 +154,7 @@ def clean(ctx, locks=True, stacks=False):
     if stacks:
         _clean_stacks(ctx)
 
+
 def _clean_locks():
     print("🧹 Clean up lock files")
     lock_dir = os.path.join(Path.home(), ".pulumi", "locks")
@@ -167,6 +168,7 @@ def _clean_locks():
                 print(f"🗑️ Deleted lock: {path}")
             elif os.path.isdir(path):
                 shutil.rmtree(path)
+
 
 def _clean_stacks(ctx: Context):
     print("🧹 Clean up stacks")
