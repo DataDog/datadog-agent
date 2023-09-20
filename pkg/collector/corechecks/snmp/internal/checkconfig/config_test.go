@@ -167,7 +167,7 @@ bulk_max_repetitions: 20
 			},
 			MetricTags: []profiledefinition.MetricTagConfig{
 				{Tag: "if_index", Index: 1},
-				{Tag: "if_desc", Column: profiledefinition.SymbolConfig{OID: "1.3.6.1.2.1.2.2.1.2", Name: "ifDescr"},
+				{Tag: "if_desc", Symbol: profiledefinition.SymbolConfig{OID: "1.3.6.1.2.1.2.2.1.2", Name: "ifDescr"},
 					IndexTransform: []profiledefinition.MetricIndexTransform{
 						{
 							Start: 1,
@@ -188,7 +188,7 @@ bulk_max_repetitions: 20
 					"16": "dns",
 				}},
 				{Tag: "if_type",
-					Column: profiledefinition.SymbolConfig{OID: "1.3.6.1.2.1.2.2.1.3", Name: "ifType"},
+					Symbol: profiledefinition.SymbolConfig{OID: "1.3.6.1.2.1.2.2.1.3", Name: "ifType"},
 					Mapping: map[string]string{
 						"1":  "other",
 						"2":  "regular1822",
@@ -197,7 +197,7 @@ bulk_max_repetitions: 20
 						"29": "ultra",
 					}},
 				{
-					Column: profiledefinition.SymbolConfig{
+					Symbol: profiledefinition.SymbolConfig{
 						Name: "cpiPduName",
 						OID:  "1.2.3.4.8.1.2",
 					},
@@ -1057,7 +1057,7 @@ func Test_snmpConfig_setProfile(t *testing.T) {
 			},
 			MetricTags: profiledefinition.MetricTagConfigList{
 				profiledefinition.MetricTagConfig{
-					Column: profiledefinition.SymbolConfig{
+					Symbol: profiledefinition.SymbolConfig{
 						OID: "1.2.3.4.7",
 					},
 				},
@@ -1070,7 +1070,7 @@ func Test_snmpConfig_setProfile(t *testing.T) {
 		},
 		Metrics: metrics,
 		MetricTags: []profiledefinition.MetricTagConfig{
-			{Tag: "interface", Column: profiledefinition.SymbolConfig{OID: "1.3.6.1.2.1.31.1.1.1.1", Name: "ifName"}},
+			{Tag: "interface", Symbol: profiledefinition.SymbolConfig{OID: "1.3.6.1.2.1.31.1.1.1.1", Name: "ifName"}},
 		},
 		Metadata: profiledefinition.MetadataConfig{
 			"device": {
@@ -1107,7 +1107,7 @@ func Test_snmpConfig_setProfile(t *testing.T) {
 				IDTags: profiledefinition.MetricTagConfigList{
 					{
 						Tag: "interface",
-						Column: profiledefinition.SymbolConfig{
+						Symbol: profiledefinition.SymbolConfig{
 							OID:  "1.3.6.1.2.1.31.1.1.1.1",
 							Name: "ifName",
 						},
@@ -1158,7 +1158,7 @@ func Test_snmpConfig_setProfile(t *testing.T) {
 				IDTags: profiledefinition.MetricTagConfigList{
 					{
 						Tag: "b-interface",
-						Column: profiledefinition.SymbolConfig{
+						Symbol: profiledefinition.SymbolConfig{
 							OID:  "2.3.4.5.6.7",
 							Name: "b-ifName",
 						},
@@ -1191,7 +1191,7 @@ func Test_snmpConfig_setProfile(t *testing.T) {
 	assert.Equal(t, profile1, *c.ProfileDef)
 	assert.Equal(t, metrics, c.Metrics)
 	assert.Equal(t, []profiledefinition.MetricTagConfig{
-		{Tag: "interface", Column: profiledefinition.SymbolConfig{OID: "1.3.6.1.2.1.31.1.1.1.1", Name: "ifName"}},
+		{Tag: "interface", Symbol: profiledefinition.SymbolConfig{OID: "1.3.6.1.2.1.31.1.1.1.1", Name: "ifName"}},
 	}, c.MetricTags)
 	assert.Equal(t, OidConfig{
 		ScalarOids: []string{"1.2.3.4.5"},

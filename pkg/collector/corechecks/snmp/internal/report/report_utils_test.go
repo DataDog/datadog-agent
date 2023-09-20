@@ -921,7 +921,7 @@ func Test_getContantMetricValues(t *testing.T) {
 		{
 			name: "One metric tag",
 			metricTags: profiledefinition.MetricTagConfigList{{
-				Column: profiledefinition.SymbolConfig{
+				Symbol: profiledefinition.SymbolConfig{
 					OID:  "1.2.3",
 					Name: "value",
 				},
@@ -949,14 +949,14 @@ func Test_getContantMetricValues(t *testing.T) {
 		{
 			name: "Two metric tags",
 			metricTags: profiledefinition.MetricTagConfigList{{
-				Column: profiledefinition.SymbolConfig{
+				Symbol: profiledefinition.SymbolConfig{
 					OID:  "1.2.3",
 					Name: "value",
 				},
 				Tag: "my_first_tag",
 			},
 				{
-					Column: profiledefinition.SymbolConfig{
+					Symbol: profiledefinition.SymbolConfig{
 						OID:  "1.2.4",
 						Name: "value",
 					},
@@ -986,14 +986,14 @@ func Test_getContantMetricValues(t *testing.T) {
 		{
 			name: "Two metric tags with index overlap",
 			metricTags: profiledefinition.MetricTagConfigList{{
-				Column: profiledefinition.SymbolConfig{
+				Symbol: profiledefinition.SymbolConfig{
 					OID:  "1.2.3",
 					Name: "value",
 				},
 				Tag: "my_first_tag",
 			},
 				{
-					Column: profiledefinition.SymbolConfig{
+					Symbol: profiledefinition.SymbolConfig{
 						OID:  "1.2.4",
 						Name: "value",
 					},
@@ -1029,14 +1029,14 @@ func Test_getContantMetricValues(t *testing.T) {
 		{
 			name: "Should ignore metric tags with index transform",
 			metricTags: profiledefinition.MetricTagConfigList{{
-				Column: profiledefinition.SymbolConfig{
+				Symbol: profiledefinition.SymbolConfig{
 					OID:  "1.2.3",
 					Name: "value",
 				},
 				Tag: "my_first_tag",
 			},
 				{
-					Column: profiledefinition.SymbolConfig{
+					Symbol: profiledefinition.SymbolConfig{
 						OID:  "1.2.4",
 						Name: "value",
 					},
@@ -1067,7 +1067,7 @@ func Test_getContantMetricValues(t *testing.T) {
 		{
 			name: "Value not found",
 			metricTags: profiledefinition.MetricTagConfigList{{
-				Column: profiledefinition.SymbolConfig{
+				Symbol: profiledefinition.SymbolConfig{
 					OID:  "1.2.3",
 					Name: "value",
 				},

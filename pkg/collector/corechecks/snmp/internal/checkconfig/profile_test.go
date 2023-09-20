@@ -43,9 +43,9 @@ func fixtureProfileDefinitionMap() profileConfigMap {
 				{OID: "1.3.6.1.2.1.2.2.1.13", Name: "ifInDiscards"},
 			},
 			MetricTags: []profiledefinition.MetricTagConfig{
-				{Tag: "interface", Column: profiledefinition.SymbolConfig{OID: "1.3.6.1.2.1.31.1.1.1.1", Name: "ifName"}},
-				{Tag: "interface_alias", Column: profiledefinition.SymbolConfig{OID: "1.3.6.1.2.1.31.1.1.1.18", Name: "ifAlias"}},
-				{Tag: "mac_address", Column: profiledefinition.SymbolConfig{OID: "1.3.6.1.2.1.2.2.1.6", Name: "ifPhysAddress", Format: "mac_address"}},
+				{Tag: "interface", Symbol: profiledefinition.SymbolConfig{OID: "1.3.6.1.2.1.31.1.1.1.1", Name: "ifName"}},
+				{Tag: "interface_alias", Symbol: profiledefinition.SymbolConfig{OID: "1.3.6.1.2.1.31.1.1.1.18", Name: "ifAlias"}},
+				{Tag: "mac_address", Symbol: profiledefinition.SymbolConfig{OID: "1.3.6.1.2.1.2.2.1.6", Name: "ifPhysAddress", Format: "mac_address"}},
 			},
 			StaticTags: []string{"table_static_tag:val"},
 		},
@@ -71,7 +71,7 @@ func fixtureProfileDefinitionMap() profileConfigMap {
 							"suffix":   "\\2",
 						},
 					},
-					{Tag: "snmp_host", Index: 0x0, Column: profiledefinition.SymbolConfig{OID: "", Name: ""}, OID: "1.3.6.1.2.1.1.5.0", Name: "sysName"},
+					{Tag: "snmp_host", Index: 0x0, Symbol: profiledefinition.SymbolConfig{OID: "", Name: ""}, OID: "1.3.6.1.2.1.1.5.0", Name: "sysName"},
 				},
 				Metadata: profiledefinition.MetadataConfig{
 					"device": {
@@ -151,14 +151,14 @@ func fixtureProfileDefinitionMap() profileConfigMap {
 						IDTags: profiledefinition.MetricTagConfigList{
 							{
 								Tag: "custom-tag",
-								Column: profiledefinition.SymbolConfig{
+								Symbol: profiledefinition.SymbolConfig{
 									OID:  "1.3.6.1.2.1.31.1.1.1.1",
 									Name: "ifAlias",
 								},
 							},
 							{
 								Tag: "interface",
-								Column: profiledefinition.SymbolConfig{
+								Symbol: profiledefinition.SymbolConfig{
 									OID:  "1.3.6.1.2.1.31.1.1.1.1",
 									Name: "ifName",
 								},
@@ -176,7 +176,7 @@ func fixtureProfileDefinitionMap() profileConfigMap {
 					{Symbol: profiledefinition.SymbolConfig{OID: "1.3.6.1.2.1.1.999.0", Name: "anotherMetric"}, MetricType: ""},
 				},
 				MetricTags: []profiledefinition.MetricTagConfig{
-					{Tag: "snmp_host2", Column: profiledefinition.SymbolConfig{OID: "1.3.6.1.2.1.1.5.0", Name: "sysName"}},
+					{Tag: "snmp_host2", Symbol: profiledefinition.SymbolConfig{OID: "1.3.6.1.2.1.1.5.0", Name: "sysName"}},
 					{Tag: "unknown_symbol", OID: "1.3.6.1.2.1.1.999.0", Name: "unknownSymbol"},
 				},
 				Metadata: profiledefinition.MetadataConfig{},
@@ -585,7 +585,7 @@ func Test_mergeProfileDefinition(t *testing.T) {
 				IDTags: profiledefinition.MetricTagConfigList{
 					{
 						Tag: "alias",
-						Column: profiledefinition.SymbolConfig{
+						Symbol: profiledefinition.SymbolConfig{
 							OID:  "1.3.6.1.2.1.31.1.1.1.1",
 							Name: "ifAlias",
 						},
@@ -629,7 +629,7 @@ func Test_mergeProfileDefinition(t *testing.T) {
 				IDTags: profiledefinition.MetricTagConfigList{
 					{
 						Tag: "interface",
-						Column: profiledefinition.SymbolConfig{
+						Symbol: profiledefinition.SymbolConfig{
 							OID:  "1.3.6.1.2.1.31.1.1.1.1",
 							Name: "ifName",
 						},
@@ -704,14 +704,14 @@ func Test_mergeProfileDefinition(t *testing.T) {
 						IDTags: profiledefinition.MetricTagConfigList{
 							{
 								Tag: "interface",
-								Column: profiledefinition.SymbolConfig{
+								Symbol: profiledefinition.SymbolConfig{
 									OID:  "1.3.6.1.2.1.31.1.1.1.1",
 									Name: "ifName",
 								},
 							},
 							{
 								Tag: "alias",
-								Column: profiledefinition.SymbolConfig{
+								Symbol: profiledefinition.SymbolConfig{
 									OID:  "1.3.6.1.2.1.31.1.1.1.1",
 									Name: "ifAlias",
 								},
@@ -759,7 +759,7 @@ func Test_mergeProfileDefinition(t *testing.T) {
 						IDTags: profiledefinition.MetricTagConfigList{
 							{
 								Tag: "interface",
-								Column: profiledefinition.SymbolConfig{
+								Symbol: profiledefinition.SymbolConfig{
 									OID:  "1.3.6.1.2.1.31.1.1.1.1",
 									Name: "ifName",
 								},
@@ -811,7 +811,7 @@ func Test_mergeProfileDefinition(t *testing.T) {
 						IDTags: profiledefinition.MetricTagConfigList{
 							{
 								Tag: "alias",
-								Column: profiledefinition.SymbolConfig{
+								Symbol: profiledefinition.SymbolConfig{
 									OID:  "1.3.6.1.2.1.31.1.1.1.1",
 									Name: "ifAlias",
 								},

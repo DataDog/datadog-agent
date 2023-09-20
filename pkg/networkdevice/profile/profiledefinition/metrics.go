@@ -70,7 +70,8 @@ type MetricTagConfig struct {
 	Index uint `yaml:"index,omitempty" json:"index,omitempty"`
 
 	// TODO: refactor to rename to `symbol` instead (keep backward compat with `column`)
-	Column SymbolConfig `yaml:"column,omitempty" json:"column,omitempty"`
+	Symbol SymbolConfig `yaml:"column,omitempty" json:"column,omitempty"`
+	//Symbol SymbolConfig `yaml:"symbol,omitempty" json:"symbol,omitempty"`
 
 	// Symbol config
 	OID  string `yaml:"OID,omitempty" json:"OID,omitempty"`
