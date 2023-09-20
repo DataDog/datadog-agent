@@ -36,9 +36,11 @@ type protocol struct {
 }
 
 const (
-	inFlightMap    = "http_in_flight"
-	filterTailCall = "socket__http_filter"
-	eventStream    = "http"
+	inFlightMap            = "http_in_flight"
+	filterTailCall         = "socket__http_filter"
+	tlsProcessTailCall     = "uprobe__http_process"
+	tlsTerminationTailCall = "uprobe__http_termination"
+	eventStream            = "http"
 )
 
 var Spec = &protocols.ProtocolSpec{
@@ -52,6 +54,20 @@ var Spec = &protocols.ProtocolSpec{
 			Key:           uint32(protocols.ProgramHTTP),
 			ProbeIdentificationPair: manager.ProbeIdentificationPair{
 				EBPFFuncName: filterTailCall,
+			},
+		},
+		{
+			ProgArrayName: protocols.TLSDispatcherProgramsMap,
+			Key:           uint32(protocols.ProgramTLSHTTPProcess),
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				EBPFFuncName: tlsProcessTailCall,
+			},
+		},
+		{
+			ProgArrayName: protocols.TLSDispatcherProgramsMap,
+			Key:           uint32(protocols.ProgramTLSHTTPTermination),
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				EBPFFuncName: tlsTerminationTailCall,
 			},
 		},
 	},

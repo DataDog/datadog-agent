@@ -51,14 +51,13 @@ func handlePrivilegeError(c *Check, err error) (bool, error) {
 	if !strings.Contains(err.Error(), "ORA-00942") {
 		return isPrivilegeError, err
 	}
-	var link string
-	if c.isRDS {
-		link = "https://docs.datadoghq.com/database_monitoring/setup_oracle/rds/#grant-permissions"
-	} else if c.isOracleCloud {
-		link = "https://docs.datadoghq.com/database_monitoring/setup_oracle/autonomous_database/#grant-permissions"
-	} else {
-		link = "https://docs.datadoghq.com/database_monitoring/setup_oracle/selfhosted/#grant-permissions"
+
+	links := map[hostingCode]string{
+		selfManaged: "https://docs.datadoghq.com/database_monitoring/setup_oracle/selfhosted/#grant-permissions",
+		rds:         "https://docs.datadoghq.com/database_monitoring/setup_oracle/rds/#grant-permissions",
+		oci:         "https://docs.datadoghq.com/database_monitoring/setup_oracle/autonomous_database/#grant-permissions",
 	}
+	link := links[c.hostingType.value]
 	isPrivilegeError = true
 	return isPrivilegeError, fmt.Errorf("Some privileges are missing. Execute the `grant` commands from %s . Error: %w", link, err)
 }
@@ -67,7 +66,7 @@ func isConnectionError(err error) bool {
 	if err == nil {
 		return false
 	}
-	connectionErrors := []string{"ORA-00028", "ORA-01012", "ORA-06413", "database is closed"}
+	connectionErrors := []string{"ORA-00028", "ORA-01012", "ORA-06413", "database is closed", "bad connection"}
 	for _, e := range connectionErrors {
 		if strings.Contains(err.Error(), e) {
 			return true
@@ -100,13 +99,13 @@ func reconnectOnConnectionError(c *Check, db **sqlx.DB, err error) {
 	if !isConnectionError(err) {
 		return
 	}
-	log.Debugf("Reconnecting")
+	log.Debugf("%s Reconnecting", c.logPrompt)
 	if *db != nil {
 		closeDatabase(c, *db)
 	}
 	*db, err = c.Connect()
 	if err != nil {
-		log.Errorf("failed to reconnect %s", err)
+		log.Errorf("%s failed to reconnect %s", c.logPrompt, err)
 		closeDatabase(c, *db)
 	}
 }

@@ -30,6 +30,8 @@ import (
 	"unicode"
 
 	"golang.org/x/exp/slices"
+	"golang.org/x/text/cases"
+	"golang.org/x/text/language"
 )
 
 var (
@@ -410,7 +412,8 @@ func printKomponentCode(komp *komponent) string {
 		}
 	}
 
-	goStructName := strings.ReplaceAll(strings.Title(komp.name), "-", "")
+	titled := cases.Title(language.English, cases.NoLower).String(komp.name)
+	goStructName := strings.ReplaceAll(titled, "-", "")
 	s := ""
 	s += fmt.Sprintf("type K8s%sConfig struct {\n", goStructName)
 	for _, c := range komp.confs {
@@ -555,7 +558,8 @@ func downloadKubeComponentAndExtractFlags(componentName, componentVersion string
 }
 
 func toGoField(s string) string {
-	return strings.ReplaceAll(strings.Title(s), "-", "")
+	caser := cases.Title(language.English, cases.NoLower)
+	return strings.ReplaceAll(caser.String(s), "-", "")
 }
 
 func toGoJSONTag(s string) string {

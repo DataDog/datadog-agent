@@ -384,7 +384,7 @@ func (c *WorkloadMetaCollector) handleKubePod(ev workloadmeta.Event) []*TagInfo 
 		},
 	}
 
-	for _, podContainer := range pod.Containers {
+	for _, podContainer := range pod.GetAllContainers() {
 		cTagInfo, err := c.extractTagsFromPodContainer(pod, podContainer, tags.Copy())
 		if err != nil {
 			log.Debugf("cannot extract tags from pod container: %s", err)

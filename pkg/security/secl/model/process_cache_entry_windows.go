@@ -5,7 +5,15 @@
 
 package model
 
-// NewEmptyProcessCacheEntry returns an empty process cache entry for kworker events or failed process resolutions
-func NewEmptyProcessCacheEntry(pid uint32, tid uint32, isKworker bool) *ProcessCacheEntry {
+// NewPlaceholderProcessCacheEntry returns an empty process cache entry for failed process resolutions
+func NewPlaceholderProcessCacheEntry(pid uint32, tid uint32, isKworker bool) *ProcessCacheEntry {
 	return &ProcessCacheEntry{ProcessContext: ProcessContext{Process: Process{PIDContext: PIDContext{Pid: pid, Tid: tid, IsKworker: isKworker}}}}
+}
+
+// GetPlaceholderProcessCacheEntry returns an empty process cache entry for failed process resolutions
+func GetPlaceholderProcessCacheEntry(pid uint32, tid uint32, isKworker bool) *ProcessCacheEntry {
+	processContextZero.Pid = pid
+	processContextZero.Tid = tid
+	processContextZero.IsKworker = isKworker
+	return &processContextZero
 }

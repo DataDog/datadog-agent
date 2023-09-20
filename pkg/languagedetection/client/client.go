@@ -64,9 +64,10 @@ func (c *languagesSet) toProto() []*pbgo.Language {
 }
 
 type podDetails struct {
-	namespace           string
-	containersLanguages *containerDetails
-	ownerRef            *workloadmeta.KubernetesPodOwner
+	namespace              string
+	containersLanguages    *containerDetails
+	initContainerLanguages *containerDetails
+	ownerRef               *workloadmeta.KubernetesPodOwner
 }
 
 func (p *podDetails) toProto(podName string) *pbgo.PodLanguageDetails {
@@ -78,11 +79,22 @@ func (p *podDetails) toProto(podName string) *pbgo.PodLanguageDetails {
 			Name: p.ownerRef.Name,
 			Kind: p.ownerRef.Kind,
 		},
-		ContainerDetails: p.containersLanguages.toProto(),
+		ContainerDetails:     p.containersLanguages.toProto(),
+		InitContainerDetails: p.initContainerLanguages.toProto(),
 	}
 }
 
-func (p *podDetails) getOrAddContainerDetails(containerName string) *languagesSet {
+func (p *podDetails) getOrAddContainerDetails(containerName string, isInitContainer bool) *languagesSet {
+	if isInitContainer {
+		if languagesSet, ok := p.initContainerLanguages.containersLanguages[containerName]; ok {
+			return languagesSet
+		}
+		p.initContainerLanguages.containersLanguages[containerName] = &languagesSet{
+			languages: make(map[string]struct{}),
+		}
+		return p.initContainerLanguages.containersLanguages[containerName]
+	}
+
 	if languagesSet, ok := p.containersLanguages.containersLanguages[containerName]; ok {
 		return languagesSet
 	}
@@ -105,6 +117,9 @@ func (b *batch) getOrAddPodDetails(podName, podNamespace string, ownerRef *workl
 	b.podDetails[podName] = &podDetails{
 		namespace: podNamespace,
 		containersLanguages: &containerDetails{
+			containersLanguages: make(map[string]*languagesSet),
+		},
+		initContainerLanguages: &containerDetails{
 			containersLanguages: make(map[string]*languagesSet),
 		},
 		ownerRef: ownerRef,
@@ -155,13 +170,19 @@ func NewClient(
 	}
 }
 
-func getContainerNameFromPod(cid string, pod *workloadmeta.KubernetesPod) (string, bool) {
+// getContainerNameFromPod returns the name of the container, if it is an init container and if it is found
+func getContainerNameFromPod(cid string, pod *workloadmeta.KubernetesPod) (string, bool, bool) {
 	for _, container := range pod.Containers {
 		if container.ID == cid {
-			return container.Name, true
+			return container.Name, false, true
 		}
 	}
-	return "", false
+	for _, container := range pod.InitContainers {
+		if container.ID == cid {
+			return container.Name, true, false
+		}
+	}
+	return "", false, false
 }
 
 func podHasOwner(pod *workloadmeta.KubernetesPod) bool {
@@ -222,15 +243,16 @@ func (c *Client) processEvent(evBundle workloadmeta.EventBundle) {
 				continue
 			}
 			if !podHasOwner(pod) {
+				log.Debug("pod %s has no owner, skipping %s", pod.Name, process.ID)
 				continue
 			}
-			containerName, ok := getContainerNameFromPod(process.ContainerId, pod)
+			containerName, isInitcontainer, ok := getContainerNameFromPod(process.ContainerId, pod)
 			if !ok {
 				log.Debug("container name not found for %s", process.ContainerId)
 				continue
 			}
 			podDetails := c.currentBatch.getOrAddPodDetails(pod.Name, pod.Namespace, &pod.Owners[0])
-			containerDetails := podDetails.getOrAddContainerDetails(containerName)
+			containerDetails := podDetails.getOrAddContainerDetails(containerName, isInitcontainer)
 			containerDetails.add(string(process.Language.Name))
 		}
 	}

@@ -50,6 +50,8 @@ import (
 	logsAgent "github.com/DataDog/datadog-agent/comp/logs/agent"
 	"github.com/DataDog/datadog-agent/comp/metadata"
 	"github.com/DataDog/datadog-agent/comp/metadata/runner"
+	"github.com/DataDog/datadog-agent/comp/otelcol"
+	otelcollector "github.com/DataDog/datadog-agent/comp/otelcol/collector"
 	"github.com/DataDog/datadog-agent/comp/remote-config/rcclient"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/api/healthprobe"
@@ -61,16 +63,14 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config/remote/data"
 	remoteconfig "github.com/DataDog/datadog-agent/pkg/config/remote/service"
 	langCl "github.com/DataDog/datadog-agent/pkg/languagedetection/client"
-	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	adScheduler "github.com/DataDog/datadog-agent/pkg/logs/schedulers/ad"
 	pkgMetadata "github.com/DataDog/datadog-agent/pkg/metadata"
 	"github.com/DataDog/datadog-agent/pkg/metadata/host"
-	"github.com/DataDog/datadog-agent/pkg/metadata/inventories"
 	"github.com/DataDog/datadog-agent/pkg/netflow"
-	"github.com/DataDog/datadog-agent/pkg/otlp"
 	"github.com/DataDog/datadog-agent/pkg/pidfile"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/snmp/traps"
+	"github.com/DataDog/datadog-agent/pkg/status"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 	pkgTelemetry "github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util"
@@ -183,6 +183,7 @@ func run(log log.Component,
 	sharedSerializer serializer.MetricSerializer,
 	cliParams *cliParams,
 	logsAgent util.Optional[logsAgent.Component],
+	otelcollector otelcollector.Component,
 ) error {
 	defer func() {
 		stopAgent(cliParams, server)
@@ -224,7 +225,7 @@ func run(log log.Component,
 		}
 	}()
 
-	if err := startAgent(cliParams, log, flare, telemetry, sysprobeconfig, server, capture, serverDebug, rcclient, logsAgent, forwarder, sharedSerializer); err != nil {
+	if err := startAgent(cliParams, log, flare, telemetry, sysprobeconfig, server, capture, serverDebug, rcclient, logsAgent, forwarder, sharedSerializer, otelcollector); err != nil {
 		return err
 	}
 
@@ -258,11 +259,12 @@ func StartAgentWithDefaults(ctxChan <-chan context.Context) (<-chan error, error
 			logsAgent util.Optional[logsAgent.Component],
 			metadataRunner runner.Component,
 			sharedSerializer serializer.MetricSerializer,
+			otelcollector otelcollector.Component,
 		) error {
 
 			defer StopAgentWithDefaults(server)
 
-			err := startAgent(&cliParams{GlobalParams: &command.GlobalParams{}}, log, flare, telemetry, sysprobeconfig, server, capture, serverDebug, rcclient, logsAgent, forwarder, sharedSerializer)
+			err := startAgent(&cliParams{GlobalParams: &command.GlobalParams{}}, log, flare, telemetry, sysprobeconfig, server, capture, serverDebug, rcclient, logsAgent, forwarder, sharedSerializer, otelcollector)
 			if err != nil {
 				return err
 			}
@@ -329,6 +331,7 @@ func getSharedFxOption() fx.Option {
 			return params
 		}),
 		dogstatsd.Bundle,
+		otelcol.Bundle,
 		rcclient.Module,
 
 		// TODO: (components) - some parts of the agent (such as the logs agent) implicitly depend on the global state
@@ -385,6 +388,7 @@ func startAgent(
 	logsAgent util.Optional[logsAgent.Component],
 	sharedForwarder defaultforwarder.Component,
 	sharedSerializer serializer.MetricSerializer,
+	otelcollector otelcollector.Component,
 ) error {
 
 	var err error
@@ -589,24 +593,6 @@ func startAgent(
 		}
 	}
 
-	// Start OTLP intake
-	otlpEnabled := otlp.IsEnabled(pkgconfig.Datadog)
-	inventories.SetAgentMetadata(inventories.AgentOTLPEnabled, otlpEnabled)
-
-	var pipelineChan chan *message.Message
-	if logsAgent, ok := logsAgent.Get(); ok {
-		pipelineChan = logsAgent.GetPipelineProvider().NextPipelineChan()
-	}
-	if otlpEnabled {
-		var err error
-		common.OTLP, err = otlp.BuildAndStart(common.MainCtx, pkgconfig.Datadog, sharedSerializer, pipelineChan)
-		if err != nil {
-			log.Errorf("Could not start OTLP: %s", err)
-		} else {
-			log.Debug("OTLP pipeline started")
-		}
-	}
-
 	// Start NetFlow server
 	// This must happen after LoadComponents is set up (via common.LoadComponents).
 	// netflow.StartServer uses AgentDemultiplexer, that uses ContextResolver, that uses the tagger (initialized by LoadComponents)
@@ -642,6 +628,12 @@ func startAgent(
 	// start dependent services
 	go startDependentServices()
 
+	if err := otelcollector.Start(); err != nil {
+		return err
+	}
+	// TODO: (components) remove this once migrating the status package to components
+	status.SetOtelCollector(otelcollector)
+
 	return nil
 }
 
@@ -667,9 +659,6 @@ func stopAgent(cliParams *cliParams, server dogstatsdServer.Component) {
 		}
 	}
 	server.Stop()
-	if common.OTLP != nil {
-		common.OTLP.Stop()
-	}
 	if common.AC != nil {
 		common.AC.Stop()
 	}

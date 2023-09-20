@@ -13,10 +13,21 @@ namespace Datadog.CustomActions.Native
                 _ => null
             };
 
-            return new RegistryKey(key.CreateSubKey(path));
+            key = key.CreateSubKey(path);
+            if (key == null)
+            {
+                return null;
+            }
+
+            return new RegistryKey(key);
         }
 
         public IRegistryKey OpenRegistryKey(Registries registry, string path)
+        {
+            return OpenRegistryKey(registry, path, false);
+        }
+
+        public IRegistryKey OpenRegistryKey(Registries registry, string path, bool writable)
         {
             var key = registry switch
             {
@@ -24,7 +35,13 @@ namespace Datadog.CustomActions.Native
                 _ => null
             };
 
-            return new RegistryKey(key.OpenSubKey(path));
+            key = key.OpenSubKey(path, writable);
+            if (key == null)
+            {
+                return null;
+            }
+
+            return new RegistryKey(key);
         }
     }
 }

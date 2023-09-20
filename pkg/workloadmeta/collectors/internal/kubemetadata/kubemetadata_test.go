@@ -236,7 +236,7 @@ func TestKubeMetadataCollector_getMetadata(t *testing.T) {
 				}},
 				metadataByNsPods: apiv1.NamespacesPodsStringsSet{
 					"test": apiv1.MapStringSet{
-						"pod-bar": sets.NewString("foo=bar"),
+						"pod-bar": sets.New("foo=bar"),
 					},
 				},
 			},
