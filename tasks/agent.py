@@ -35,7 +35,7 @@ from .utils import (
     get_version,
     has_both_python,
     load_release_versions,
-    stop_watch,
+    timed,
 )
 from .windows_resources import build_messagetable, build_rc, versioninfo_vars
 
@@ -630,7 +630,7 @@ def omnibus_build(
     """
     flavor = AgentFlavor[flavor]
     if not skip_deps:
-        with stop_watch() as deps_elapsed:
+        with timed(quiet=True) as deps_elapsed:
             deps(ctx)
 
     # base dir (can be overridden through env vars, command line takes precedence)
@@ -670,10 +670,10 @@ def omnibus_build(
     with open(pip_config_file, 'w') as f:
         f.write(pip_index_url)
 
-    with stop_watch() as bundle_elapsed:
+    with timed(quiet=True) as bundle_elapsed:
         bundle_install_omnibus(ctx, gem_path, env)
 
-    with stop_watch() as omnibus_elapsed:
+    with timed(quiet=True) as omnibus_elapsed:
         omnibus_run_task(
             ctx=ctx,
             task="build",
