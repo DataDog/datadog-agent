@@ -117,7 +117,7 @@ func (p *SecurityProfile) generateKernelSecurityProfileDefinition() [16]byte {
 }
 
 // MatchesSelector is used to control how an event should be added to a profile
-func (p *SecurityProfile) MatchesSelector(entry *model.ProcessCacheEntry) bool {
+func (p *SecurityProfile) MatchesSelector(entry *model.ProcessContext) bool {
 	for _, workload := range p.Instances {
 		if entry.ContainerID == workload.ID {
 			return true

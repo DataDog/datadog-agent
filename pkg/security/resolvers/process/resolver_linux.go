@@ -82,7 +82,6 @@ type Resolver struct {
 	execFileCacheMap *lib.Map
 	procCacheMap     *lib.Map
 	pidCacheMap      *lib.Map
-	cacheSize        *atomic.Int64
 	opts             ResolverOpts
 
 	// stats
@@ -132,12 +131,6 @@ func NewProcessCacheEntryPool(p *Resolver) *Pool {
 
 	pcep.pool.New = func() interface{} {
 		return model.NewProcessCacheEntry(func(pce *model.ProcessCacheEntry) {
-			if pce.Ancestor != nil {
-				pce.Ancestor.Release()
-			}
-
-			p.cacheSize.Dec()
-
 			pcep.Put(pce)
 		})
 	}
@@ -191,10 +184,6 @@ func (p *Resolver) CountBrokenLineage() {
 func (p *Resolver) SendStats() error {
 	if err := p.statsdClient.Gauge(metrics.MetricProcessResolverCacheSize, p.GetCacheSize(), []string{}, 1.0); err != nil {
 		return fmt.Errorf("failed to send process_resolver cache_size metric: %w", err)
-	}
-
-	if err := p.statsdClient.Gauge(metrics.MetricProcessResolverReferenceCount, p.GetEntryCacheSize(), []string{}, 1.0); err != nil {
-		return fmt.Errorf("failed to send process_resolver reference_count metric: %w", err)
 	}
 
 	for _, resolutionType := range metrics.AllTypesTags {
@@ -514,8 +503,6 @@ func (p *Resolver) insertEntry(entry, prev *model.ProcessCacheEntry, source uint
 	case model.ProcessCacheEntryFromProcFS:
 		p.addedEntriesFromProcFS.Inc()
 	}
-
-	p.cacheSize.Inc()
 }
 
 func (p *Resolver) insertForkEntry(entry *model.ProcessCacheEntry, source uint64) {
@@ -1221,7 +1208,7 @@ func (p *Resolver) syncCache(proc *process.Process, filledProc *utils.FilledProc
 	return entry, true
 }
 
-func (p *Resolver) dumpEntry(writer io.Writer, entry *model.ProcessCacheEntry, already map[string]bool, withArgs bool) {
+func (p *Resolver) dumpEntry(writer io.Writer, entry *model.ProcessContext, already map[string]bool, withArgs bool) {
 	for entry != nil {
 		label := fmt.Sprintf("%s:%d", entry.Comm, entry.Pid)
 		if _, exists := already[label]; !exists {
@@ -1273,7 +1260,7 @@ func (p *Resolver) Dump(withArgs bool) (string, error) {
 
 	already := make(map[string]bool)
 	for _, entry := range p.entryCache {
-		p.dumpEntry(dump, entry, already, withArgs)
+		p.dumpEntry(dump, &entry.ProcessContext, already, withArgs)
 	}
 
 	fmt.Fprintf(dump, `}`)
@@ -1291,23 +1278,18 @@ func (p *Resolver) GetCacheSize() float64 {
 	return float64(len(p.entryCache))
 }
 
-// GetEntryCacheSize returns the cache size of the process resolver
-func (p *Resolver) GetEntryCacheSize() float64 {
-	return float64(p.cacheSize.Load())
-}
-
 // SetState sets the process resolver state
 func (p *Resolver) SetState(state int64) {
 	p.state.Store(state)
 }
 
 // Walk iterates through the entire tree and call the provided callback on each entry
-func (p *Resolver) Walk(callback func(entry *model.ProcessCacheEntry)) {
+func (p *Resolver) Walk(callback func(entry *model.ProcessContext)) {
 	p.RLock()
 	defer p.RUnlock()
 
 	for _, entry := range p.entryCache {
-		callback(entry)
+		callback(&entry.ProcessContext)
 	}
 }
 
@@ -1331,7 +1313,6 @@ func NewResolver(manager *manager.Manager, config *config.Config, statsdClient s
 		argsEnvsCache:             argsEnvsCache,
 		state:                     atomic.NewInt64(Snapshotting),
 		hitsStats:                 map[string]*atomic.Int64{},
-		cacheSize:                 atomic.NewInt64(0),
 		missStats:                 atomic.NewInt64(0),
 		addedEntriesFromEvent:     atomic.NewInt64(0),
 		addedEntriesFromKernelMap: atomic.NewInt64(0),

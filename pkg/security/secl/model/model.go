@@ -179,7 +179,7 @@ type BaseEvent struct {
 
 	// internal usage
 	PIDContext        PIDContext         `field:"-" json:"-"`
-	ProcessCacheEntry *ProcessCacheEntry `field:"-" json:"-"`
+	ProcessCacheEntry *ProcessCacheEntry `field:"-" json:"-"` // TODO: remove
 
 	// mark event with having error
 	Error error `field:"-" json:"-"`
@@ -512,7 +512,7 @@ func NewProcessCacheEntry(onRelease func(_ *ProcessCacheEntry)) *ProcessCacheEnt
 
 // ProcessAncestorsIterator defines an iterator of ancestors
 type ProcessAncestorsIterator struct {
-	prev *ProcessCacheEntry
+	prev *ProcessContext
 }
 
 // Front returns the first element
@@ -544,8 +544,8 @@ func (p *ProcessContext) HasParent() bool {
 type ProcessContext struct {
 	Process
 
-	Parent   *Process           `field:"parent,opts:exposed_at_event_root_only,check:HasParent"`
-	Ancestor *ProcessCacheEntry `field:"ancestors,iterator:ProcessAncestorsIterator,check:IsNotKworker"`
+	Parent   *Process        `field:"parent,opts:exposed_at_event_root_only,check:HasParent"`
+	Ancestor *ProcessContext `field:"ancestors,iterator:ProcessAncestorsIterator,check:IsNotKworker"`
 }
 
 // ExitEvent represents a process exit event

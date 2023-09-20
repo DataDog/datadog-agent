@@ -54,12 +54,12 @@ func (pn *ProcessNode) getNodeLabel(args string) string {
 }
 
 // NewProcessNode returns a new ProcessNode instance
-func NewProcessNode(entry *model.ProcessCacheEntry, generationType NodeGenerationType, resolvers *resolvers.Resolvers) *ProcessNode {
+func NewProcessNode(entry *model.ProcessContext, generationType NodeGenerationType, resolvers *resolvers.Resolvers) *ProcessNode {
 	// call the callback to resolve additional fields before copying them
 	if resolvers != nil {
-		resolvers.HashResolver.ComputeHashes(model.ExecEventType, &entry.ProcessContext.Process, &entry.ProcessContext.FileEvent)
-		if entry.ProcessContext.HasInterpreter() {
-			resolvers.HashResolver.ComputeHashes(model.ExecEventType, &entry.ProcessContext.Process, &entry.ProcessContext.LinuxBinprm.FileEvent)
+		resolvers.HashResolver.ComputeHashes(model.ExecEventType, &entry.Process, &entry.FileEvent)
+		if entry.HasInterpreter() {
+			resolvers.HashResolver.ComputeHashes(model.ExecEventType, &entry.Process, &entry.LinuxBinprm.FileEvent)
 		}
 	}
 	return &ProcessNode{

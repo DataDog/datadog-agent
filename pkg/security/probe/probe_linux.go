@@ -309,16 +309,15 @@ func (p *Probe) PlaySnapshot() {
 	// Get the snapshotted data
 	var events []*model.Event
 
-	entryToEvent := func(entry *model.ProcessCacheEntry) {
+	entryToEvent := func(entry *model.ProcessContext) {
 		if entry.Source != model.ProcessCacheEntryFromSnapshot {
 			return
 		}
-		entry.Retain()
 		event := NewEvent(p.fieldHandlers)
 		event.Type = uint32(model.ExecEventType)
 		event.TimestampRaw = uint64(time.Now().UnixNano())
-		event.ProcessCacheEntry = entry
-		event.ProcessContext = &entry.ProcessContext
+		event.ProcessCacheEntry = &model.ProcessCacheEntry{ProcessContext: *entry}
+		event.ProcessContext = entry
 		event.Exec.Process = &entry.Process
 		event.ProcessContext.Process.ContainerID = entry.ContainerID
 
@@ -331,7 +330,6 @@ func (p *Probe) PlaySnapshot() {
 	p.GetResolvers().ProcessResolver.Walk(entryToEvent)
 	for _, event := range events {
 		p.DispatchEvent(event)
-		event.ProcessCacheEntry.Release()
 	}
 }
 

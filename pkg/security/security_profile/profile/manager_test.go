@@ -46,15 +46,14 @@ func craftFakeEvent(t0 time.Time, ti *testIteration, defaultContainerID string) 
 	event.Timestamp = t0.Add(ti.eventTimestampRaw)
 
 	// setting process
-	event.ProcessCacheEntry = model.NewPlaceholderProcessCacheEntry(42, 42, false)
-	event.ProcessCacheEntry.ContainerID = defaultContainerID
-	event.ProcessCacheEntry.FileEvent.PathnameStr = ti.eventProcessPath
-	event.ProcessCacheEntry.FileEvent.Inode = 42
-	event.ProcessCacheEntry.Args = "foo"
-	event.ProcessContext = &event.ProcessCacheEntry.ProcessContext
+	event.ProcessContext = &model.ProcessContext{Process: model.Process{PIDContext: model.PIDContext{Pid: 42, Tid: 42, IsKworker: false}}}
+	event.ProcessContext.ContainerID = defaultContainerID
+	event.ProcessContext.FileEvent.PathnameStr = ti.eventProcessPath
+	event.ProcessContext.FileEvent.Inode = 42
+	event.ProcessContext.Args = "foo"
 	switch ti.eventType {
 	case model.ExecEventType:
-		event.Exec.Process = &event.ProcessCacheEntry.ProcessContext.Process
+		event.Exec.Process = &event.ProcessContext.Process
 		break
 	case model.DNSEventType:
 		event.DNS.Name = ti.eventDNSReq
@@ -66,10 +65,10 @@ func craftFakeEvent(t0 time.Time, ti *testIteration, defaultContainerID string) 
 	}
 
 	// setting process ancestor
-	event.ProcessCacheEntry.Ancestor = model.NewPlaceholderProcessCacheEntry(1, 1, false)
-	event.ProcessCacheEntry.Ancestor.FileEvent.PathnameStr = "systemd"
-	event.ProcessCacheEntry.Ancestor.FileEvent.Inode = 41
-	event.ProcessCacheEntry.Ancestor.Args = "foo"
+	event.ProcessContext.Ancestor = &model.ProcessContext{Process: model.Process{PIDContext: model.PIDContext{Pid: 1, Tid: 1, IsKworker: false}}}
+	event.ProcessContext.Ancestor.FileEvent.PathnameStr = "systemd"
+	event.ProcessContext.Ancestor.FileEvent.Inode = 41
+	event.ProcessContext.Ancestor.Args = "foo"
 	return event
 }
 
