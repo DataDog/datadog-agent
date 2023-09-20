@@ -177,7 +177,7 @@ func shouldInject(pod *corev1.Pod) bool {
 	return IsApmInstrumentationEnabled(pod.GetNamespace()) || config.Datadog.GetBool("admission_controller.mutate_unlabelled")
 }
 
-// isApmInstrumentationEnabled indicates if Single Step Insstrumentation is enabled for the namespace in the cluster
+// IsApmInstrumentationEnabled indicates if Single Step Insstrumentation is enabled for the namespace in the cluster
 // Single Step Instrumentation is enabled if:
 //   - cluster-wide configuration `apm_config.instrumentation.enabled` is true and the namespace is not excluded via `apm_config.instrumentation.disabled_namespaces`
 //   - cluster-wide configuration `apm_config.instrumentation.enabled` is false and the namespace is whitelisted via `apm_config.instrumentation.disabled_namespaces`
