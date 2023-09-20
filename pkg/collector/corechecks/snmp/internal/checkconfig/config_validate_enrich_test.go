@@ -813,3 +813,5 @@ func Test_validateEnrichMetadata(t *testing.T) {
 		})
 	}
 }
+
+// TODO: Add test for ValidateEnrichMetricTags
