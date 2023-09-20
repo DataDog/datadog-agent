@@ -620,14 +620,14 @@ func (adm *ActivityDumpManager) SearchTracedProcessCacheEntryCallback(ad *Activi
 		defer ad.Unlock()
 
 		// check process lineage
-		if !entry.HasCompleteLineage() {
+		if !ad.MatchesSelector(entry) || !entry.HasCompleteLineage() {
 			return
 		}
 
 		// compute the list of ancestors, we need to start inserting them from the root
 		ancestors := []*model.ProcessCacheEntry{entry}
 		parent := activity_tree.GetNextAncestorBinaryOrArgv0(&entry.ProcessContext)
-		for parent != nil {
+		for parent != nil && ad.MatchesSelector(entry) {
 			ancestors = append([]*model.ProcessCacheEntry{parent}, ancestors...)
 			parent = activity_tree.GetNextAncestorBinaryOrArgv0(&parent.ProcessContext)
 		}
