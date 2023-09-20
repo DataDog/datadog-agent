@@ -7,5 +7,6 @@ BPF_PERCPU_ARRAY_MAP(kafka_heap, __u32, kafka_transaction_t, 1)
     It holds the last tcp sequence number for each connection.
    */
 BPF_HASH_MAP(kafka_last_tcp_seq_per_connection, conn_tuple_t, __u32, 0)
+BPF_HASH_MAP(new_kafka_last_tcp_seq_per_connection, usm_conn_tuple_t, __u32, 0)
 
 #endif

@@ -37,14 +37,18 @@ type protocol struct {
 }
 
 const (
-	inFlightMap          = "http2_in_flight"
-	dynamicTable         = "http2_dynamic_table"
-	dynamicTableCounter  = "http2_dynamic_counter_table"
-	http2IterationsTable = "http2_iterations"
-	staticTable          = "http2_static_table"
-	filterTailCall       = "socket__http2_filter"
-	parserTailCall       = "socket__http2_frames_parser"
-	eventStream          = "http2"
+	inFlightMap             = "http2_in_flight"
+	newInFlightMap          = "new_http2_in_flight"
+	dynamicTable            = "http2_dynamic_table"
+	newDynamicTable         = "new_http2_dynamic_table"
+	dynamicTableCounter     = "http2_dynamic_counter_table"
+	newDynamicTableCounter  = "new_http2_dynamic_counter_table"
+	http2IterationsTable    = "http2_iterations"
+	newHttp2IterationsTable = "new_http2_iterations"
+	staticTable             = "http2_static_table"
+	filterTailCall          = "socket__http2_filter"
+	parserTailCall          = "socket__http2_frames_parser"
+	eventStream             = "http2"
 )
 
 var Spec = &protocols.ProtocolSpec{
@@ -61,6 +65,9 @@ var Spec = &protocols.ProtocolSpec{
 		},
 		{
 			Name: dynamicTableCounter,
+		},
+		{
+			Name: newDynamicTableCounter,
 		},
 		{
 			Name: http2IterationsTable,
@@ -128,8 +135,16 @@ func (p *protocol) ConfigureOptions(mgr *manager.Manager, opts *manager.Options)
 		MaxEntries: p.cfg.MaxTrackedConnections,
 		EditorFlag: manager.EditMaxEntries,
 	}
+	opts.MapSpecEditors[newInFlightMap] = manager.MapSpecEditor{
+		MaxEntries: p.cfg.MaxTrackedConnections,
+		EditorFlag: manager.EditMaxEntries,
+	}
 
 	opts.MapSpecEditors[dynamicTable] = manager.MapSpecEditor{
+		MaxEntries: mapSizeValue,
+		EditorFlag: manager.EditMaxEntries,
+	}
+	opts.MapSpecEditors[newDynamicTable] = manager.MapSpecEditor{
 		MaxEntries: mapSizeValue,
 		EditorFlag: manager.EditMaxEntries,
 	}
@@ -137,11 +152,18 @@ func (p *protocol) ConfigureOptions(mgr *manager.Manager, opts *manager.Options)
 		MaxEntries: mapSizeValue,
 		EditorFlag: manager.EditMaxEntries,
 	}
+	opts.MapSpecEditors[newDynamicTableCounter] = manager.MapSpecEditor{
+		MaxEntries: mapSizeValue,
+		EditorFlag: manager.EditMaxEntries,
+	}
 	opts.MapSpecEditors[http2IterationsTable] = manager.MapSpecEditor{
 		MaxEntries: mapSizeValue,
 		EditorFlag: manager.EditMaxEntries,
 	}
-
+	opts.MapSpecEditors[newHttp2IterationsTable] = manager.MapSpecEditor{
+		MaxEntries: mapSizeValue,
+		EditorFlag: manager.EditMaxEntries,
+	}
 	utils.EnableOption(opts, "http2_monitoring_enabled")
 	// Configure event stream
 	events.Configure(eventStream, mgr, opts)

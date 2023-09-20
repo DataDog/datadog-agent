@@ -37,6 +37,7 @@ type protocol struct {
 
 const (
 	inFlightMap            = "http_in_flight"
+	newInFlightMap         = "new_http_in_flight"
 	filterTailCall         = "socket__http_filter"
 	tlsProcessTailCall     = "uprobe__http_process"
 	tlsTerminationTailCall = "uprobe__http_termination"
@@ -106,6 +107,10 @@ func (p *protocol) Name() string {
 // We also configure the http event stream with the manager and its options.
 func (p *protocol) ConfigureOptions(mgr *manager.Manager, opts *manager.Options) {
 	opts.MapSpecEditors[inFlightMap] = manager.MapSpecEditor{
+		MaxEntries: p.cfg.MaxTrackedConnections,
+		EditorFlag: manager.EditMaxEntries,
+	}
+	opts.MapSpecEditors[newInFlightMap] = manager.MapSpecEditor{
 		MaxEntries: p.cfg.MaxTrackedConnections,
 		EditorFlag: manager.EditMaxEntries,
 	}

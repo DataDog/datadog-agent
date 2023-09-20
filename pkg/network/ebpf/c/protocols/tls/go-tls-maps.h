@@ -22,5 +22,6 @@ BPF_LRU_MAP(go_tls_write_args, go_tls_function_args_key_t, go_tls_write_args_dat
    Map size is set to 1 as goTLS is optional, this will be overwritten to MaxTrackedConnections
    if goTLS is enabled. */
 BPF_HASH_MAP(conn_tup_by_go_tls_conn, __u32, conn_tuple_t, 1)
+BPF_HASH_MAP(new_conn_tup_by_go_tls_conn, __u32, usm_conn_tuple_t, 1)
 
 #endif //__GO_TLS_MAPS_H

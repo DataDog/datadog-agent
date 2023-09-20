@@ -32,10 +32,12 @@ import (
 )
 
 const (
-	agentUSMJar                 = "agent-usm.jar"
-	javaTLSConnectionsMap       = "java_tls_connections"
-	javaDomainsToConnectionsMap = "java_conn_tuple_by_peer"
-	eRPCHandlersMap             = "java_tls_erpc_handlers"
+	agentUSMJar                    = "agent-usm.jar"
+	javaTLSConnectionsMap          = "java_tls_connections"
+	javaDomainsToConnectionsMap    = "java_conn_tuple_by_peer"
+	newJavaTLSConnectionsMap       = "new_java_tls_connections"
+	newJavaDomainsToConnectionsMap = "new_java_conn_tuple_by_peer"
+	eRPCHandlersMap                = "java_tls_erpc_handlers"
 
 	doVfsIoctlKprobeName             = "kprobe__do_vfs_ioctl"
 	handleSyncPayloadKprobeName      = "kprobe_handle_sync_payload"
@@ -167,6 +169,14 @@ func (p *javaTLSProgram) ConfigureOptions(_ *manager.Manager, options *manager.O
 		EditorFlag: manager.EditMaxEntries,
 	}
 	options.MapSpecEditors[javaDomainsToConnectionsMap] = manager.MapSpecEditor{
+		MaxEntries: p.cfg.MaxTrackedConnections,
+		EditorFlag: manager.EditMaxEntries,
+	}
+	options.MapSpecEditors[newJavaTLSConnectionsMap] = manager.MapSpecEditor{
+		MaxEntries: p.cfg.MaxTrackedConnections,
+		EditorFlag: manager.EditMaxEntries,
+	}
+	options.MapSpecEditors[newJavaDomainsToConnectionsMap] = manager.MapSpecEditor{
 		MaxEntries: p.cfg.MaxTrackedConnections,
 		EditorFlag: manager.EditMaxEntries,
 	}

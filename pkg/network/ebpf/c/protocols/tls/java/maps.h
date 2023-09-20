@@ -12,11 +12,13 @@
    Map size is set to 1 as javaTLS is optional, this will be overwritten to MaxTrackedConnections
    if javaTLS is enabled. */
 BPF_HASH_MAP(java_tls_connections, conn_tuple_t, bool, 1)
+BPF_HASH_MAP(new_java_tls_connections, usm_conn_tuple_t, bool, 1)
 
 /* map to correlate peer domain and port with the actual conn_tuple
    Map size is set to 1 as javaTLS is optional, this will be overwritten to MaxTrackedConnections
    if javaTLS is enabled. */
 BPF_HASH_MAP(java_conn_tuple_by_peer, connection_by_peer_key_t, conn_tuple_t, 1)
+BPF_HASH_MAP(new_java_conn_tuple_by_peer, connection_by_peer_key_t, usm_conn_tuple_t, 1)
 
 /*
     Map used to store the sub programs used by eRPC mechanism

@@ -33,6 +33,7 @@ const (
 	dispatcherTailCall                       = "socket__protocol_dispatcher_kafka"
 	protocolDispatcherClassificationPrograms = "dispatcher_classification_progs"
 	kafkaLastTCPSeqPerConnectionMap          = "kafka_last_tcp_seq_per_connection"
+	newKafkaLastTCPSeqPerConnectionMap       = "new_kafka_last_tcp_seq_per_connection"
 	kafkaHeapMap                             = "kafka_heap"
 )
 
@@ -44,6 +45,9 @@ var Spec = &protocols.ProtocolSpec{
 		},
 		{
 			Name: kafkaLastTCPSeqPerConnectionMap,
+		},
+		{
+			Name: newKafkaLastTCPSeqPerConnectionMap,
 		},
 		{
 			Name: kafkaHeapMap,
@@ -90,6 +94,10 @@ func (p *protocol) Name() string {
 func (p *protocol) ConfigureOptions(mgr *manager.Manager, opts *manager.Options) {
 	events.Configure(eventStreamName, mgr, opts)
 	opts.MapSpecEditors[kafkaLastTCPSeqPerConnectionMap] = manager.MapSpecEditor{
+		MaxEntries: p.cfg.MaxTrackedConnections,
+		EditorFlag: manager.EditMaxEntries,
+	}
+	opts.MapSpecEditors[newKafkaLastTCPSeqPerConnectionMap] = manager.MapSpecEditor{
 		MaxEntries: p.cfg.MaxTrackedConnections,
 		EditorFlag: manager.EditMaxEntries,
 	}

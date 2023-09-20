@@ -24,6 +24,11 @@ typedef struct {
 } dispatcher_arguments_t;
 
 typedef struct {
+    usm_conn_tuple_t tup;
+    skb_info_t skb_info;
+} new_dispatcher_arguments_t;
+
+typedef struct {
     conn_tuple_t tup;
     __u64 tags;
     char *buffer_ptr;

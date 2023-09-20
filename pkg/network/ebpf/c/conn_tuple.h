@@ -36,4 +36,14 @@ typedef struct {
     __u32 metadata; // This is that big because it seems that we atleast need a 32-bit aligned struct
 } conn_tuple_t;
 
+typedef struct {
+    /* Using the type unsigned __int128 generates an error in the ebpf verifier */
+    __u64 saddr_h;
+    __u64 saddr_l;
+    __u64 daddr_h;
+    __u64 daddr_l;
+    __u16 sport;
+    __u16 dport;
+} usm_conn_tuple_t;
+
 #endif // __CONN_TUPLE_H

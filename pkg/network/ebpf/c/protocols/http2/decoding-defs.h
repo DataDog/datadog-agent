@@ -68,9 +68,19 @@ typedef struct {
 } dynamic_table_index_t;
 
 typedef struct {
+    __u64 index;
+    usm_conn_tuple_t tup;
+} new_dynamic_table_index_t;
+
+typedef struct {
     conn_tuple_t tup;
     __u32 stream_id;
 } http2_stream_key_t;
+
+typedef struct {
+    usm_conn_tuple_t tup;
+    __u32 stream_id;
+} new_http2_stream_key_t;
 
 typedef struct {
     conn_tuple_t tup;
@@ -86,9 +96,27 @@ typedef struct {
 } http2_stream_t;
 
 typedef struct {
+    usm_conn_tuple_t tup;
+    __u64 response_last_seen;
+    __u64 request_started;
+
+    __u16 response_status_code;
+    __u8 request_method;
+    __u8 path_size;
+    bool request_end_of_stream;
+
+    __u8 request_path[HTTP2_MAX_PATH_LEN] __attribute__((aligned(8)));
+} new_http2_stream_t;
+
+typedef struct {
     dynamic_table_index_t dynamic_index;
     http2_stream_key_t http2_stream_key;
 } http2_ctx_t;
+
+typedef struct {
+    new_dynamic_table_index_t dynamic_index;
+    new_http2_stream_key_t http2_stream_key;
+} new_http2_ctx_t;
 
 typedef enum
 {
