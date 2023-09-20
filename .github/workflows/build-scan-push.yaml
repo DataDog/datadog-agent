@@ -38,6 +38,7 @@ jobs:
     - name: Install Python requirements
       run: |
         pip install -r requirements.txt
+        pip install -r automate-prisma-issues/requirements.txt
 
     - name: Setup env variables
       run: |
