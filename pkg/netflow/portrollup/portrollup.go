@@ -3,6 +3,10 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2022-present Datadog, Inc.
 
+// Package portrollup provides a type for tracking observed connections
+// between ports on different devices and identifying when a port connects
+// to many different ports and so should have all traffic rolled up into a
+// single flow for reporting purposes.
 package portrollup
 
 import (
@@ -129,6 +133,7 @@ func (prs *EndpointPairPortRollupStore) IsEphemeral(sourceAddr []byte, destAddr 
 	return prs.IsEphemeralFromKeys(srcToDestKey, destToSrcKey)
 }
 
+// IsEphemeralFromKeys gets the ephemeral status of a link based on its keys.
 func (prs *EndpointPairPortRollupStore) IsEphemeralFromKeys(srcToDestKey string, destToSrcKey string) IsEphemeralStatus {
 	prs.storeMu.RLock()
 	sourceToDestPortCount := len(prs.curStore[srcToDestKey])
