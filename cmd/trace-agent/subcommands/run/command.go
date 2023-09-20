@@ -6,7 +6,6 @@
 package run
 
 import (
-	"github.com/DataDog/datadog-agent/comp/trace/config"
 	"github.com/spf13/cobra"
 	"go.uber.org/fx"
 
@@ -14,6 +13,7 @@ import (
 	coreconfig "github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/trace"
 	"github.com/DataDog/datadog-agent/comp/trace/agent"
+	"github.com/DataDog/datadog-agent/comp/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
