@@ -28,9 +28,8 @@ func testFakeHelper(t *testing.T, createResource func(*fake.Clientset) error, ne
 
 	// Use the fake client in kubeapiserver context.
 	wlm := workloadmeta.NewMockStore()
-	ctx := context.Background()
+	ctx := context.TODO()
 	store, _ := newStore(ctx, wlm, client)
-	assert.NoError(t, err)
 	stopStore := make(chan struct{})
 	go store.Run(stopStore)
 

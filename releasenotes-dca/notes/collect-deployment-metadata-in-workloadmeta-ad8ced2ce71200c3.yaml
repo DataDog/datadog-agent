@@ -1,4 +1,0 @@
-enhancements:
-  - |
-    Deployments metadata is now collected in workloadmeta when ``language_detection.enabled`` is set to ``true``.
-    Only deployments with Unified Service Tagging labels are collected.
