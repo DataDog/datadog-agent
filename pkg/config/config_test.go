@@ -664,6 +664,19 @@ logs_config:
 	assert.NotNil(t, err)
 }
 
+func TestUsePodmanLogs(t *testing.T) {
+	// If use_podman_logs is true and docker_path_override is not set, the config should not return an error
+	datadogYaml := `
+logs_config:
+  use_podman_logs: true
+`
+
+	config := SetupConfFromYAML(datadogYaml)
+	err := checkConflictingOptions(config)
+
+	assert.Nil(t, err)
+}
+
 func TestSetupFipsEndpoints(t *testing.T) {
 	datadogYaml := `
 dd_url: https://somehost:1234
