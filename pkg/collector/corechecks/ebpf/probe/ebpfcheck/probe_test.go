@@ -76,7 +76,8 @@ func TestEBPFPerfBufferLength(t *testing.T) {
 		}, 5*time.Second, 500*time.Millisecond, "failed to find perf buffer map")
 
 		// 4 is value size, 1 extra page for metadata
-		expected := (onlineCPUs * uint64(pageSize) * uint64(numPages+1)) + nrcpus*4 + sizeofBpfArray
+		valueSize := uint64(roundUpPow2(4, 8))
+		expected := (onlineCPUs * uint64(pageSize) * uint64(numPages+1)) + nrcpus*valueSize + sizeofBpfArray
 		if result.MaxSize != expected {
 			t.Fatalf("expected perf buffer size %d got %d", expected, result.MaxSize)
 		}
