@@ -634,7 +634,7 @@ func TestGetKubernetesDeployment(t *testing.T) {
 	})
 
 	_, err = s.GetKubernetesDeployment("datadog-cluster-agent")
-	assert.Equal(t, true, errors.IsNotFound(err))
+	assert.True(t, errors.IsNotFound(err))
 }
 
 func TestGetProcess(t *testing.T) {
