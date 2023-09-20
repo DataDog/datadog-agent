@@ -5,32 +5,18 @@
 
 package common
 
-// MinUint64 returns the min of the two passed number
-func MinUint64(a uint64, b uint64) uint64 {
+import "golang.org/x/exp/constraints"
+
+// Min returns the smaller of two items, for any ordered type.
+func Min[T constraints.Ordered](a T, b T) T {
 	if a < b {
 		return a
 	}
 	return b
 }
 
-// MaxUint64 returns the max of the two passed number
-func MaxUint64(a uint64, b uint64) uint64 {
-	if a > b {
-		return a
-	}
-	return b
-}
-
-// MaxUint32 returns the max of the two passed number
-func MaxUint32(a uint32, b uint32) uint32 {
-	if a > b {
-		return a
-	}
-	return b
-}
-
-// MaxUint16 returns the max of the two passed number
-func MaxUint16(a uint16, b uint16) uint16 {
+// Max returns the larger of two items, for any ordered type.
+func Max[T constraints.Ordered](a T, b T) T {
 	if a > b {
 		return a
 	}

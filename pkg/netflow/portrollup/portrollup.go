@@ -6,8 +6,9 @@
 package portrollup
 
 import (
-	"github.com/DataDog/datadog-agent/pkg/netflow/common"
 	"sync"
+
+	"github.com/DataDog/datadog-agent/pkg/netflow/common"
 )
 
 // EphemeralPort port number is represented by `-1` internally
@@ -115,7 +116,7 @@ func (prs *EndpointPairPortRollupStore) AddToStore(store map[string][]uint16, sr
 func (prs *EndpointPairPortRollupStore) GetPortCount(sourceAddr []byte, destAddr []byte, sourcePort uint16, destPort uint16) (uint16, bool) {
 	sourceToDestPortCount := prs.GetSourceToDestPortCount(sourceAddr, destAddr, sourcePort)
 	destToSourcePortCount := prs.GetDestToSourcePortCount(sourceAddr, destAddr, destPort)
-	portCount := common.MaxUint16(sourceToDestPortCount, destToSourcePortCount)
+	portCount := common.Max(sourceToDestPortCount, destToSourcePortCount)
 	isEphemeralSource := destToSourcePortCount > sourceToDestPortCount
 	return portCount, isEphemeralSource
 }
