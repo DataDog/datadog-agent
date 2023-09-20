@@ -65,6 +65,7 @@ func buildReceiverMap(cfg PipelineConfig) *confmap.Conf {
 	rcvs := map[string]interface{}{
 		"otlp": cfg.OTLPReceiverConfig,
 	}
+	rcvs["filelog"] = cfg.FileLogReceiverConfig
 	return confmap.NewFromStringMap(map[string]interface{}{"receivers": rcvs})
 }
 

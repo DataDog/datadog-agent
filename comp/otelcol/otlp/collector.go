@@ -13,7 +13,7 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/internal/logsagentexporter"
+	"github.com/open-telemetry/opentelemetry-collector-contrib/receiver/filelogreceiver"
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/exporter"
 	"go.opentelemetry.io/collector/exporter/loggingexporter"
@@ -30,6 +30,7 @@ import (
 	"go.uber.org/zap/zapcore"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/internal/logsagentexporter"
 	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/internal/serializerexporter"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
@@ -39,9 +40,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
-var (
-	pipelineError = atomic.NewError(nil)
-)
+var pipelineError = atomic.NewError(nil)
 
 func getComponents(s serializer.MetricSerializer, logsAgentChannel chan *message.Message) (
 	otelcol.Factories,
@@ -56,6 +55,7 @@ func getComponents(s serializer.MetricSerializer, logsAgentChannel chan *message
 
 	receivers, err := receiver.MakeFactoryMap(
 		otlpreceiver.NewFactory(),
+		filelogreceiver.NewFactory(),
 	)
 	if err != nil {
 		errs = append(errs, err)
@@ -68,7 +68,10 @@ func getComponents(s serializer.MetricSerializer, logsAgentChannel chan *message
 	}
 
 	if logsAgentChannel != nil {
-		exporterFactories = append(exporterFactories, logsagentexporter.NewFactory(logsAgentChannel))
+		exporterFactories = append(
+			exporterFactories,
+			logsagentexporter.NewFactory(logsAgentChannel),
+		)
 	}
 
 	exporters, err := exporter.MakeFactoryMap(exporterFactories...)
@@ -117,6 +120,8 @@ type PipelineConfig struct {
 	Debug map[string]interface{}
 	// Metrics contains configuration options for the serializer metrics exporter
 	Metrics map[string]interface{}
+
+	FileLogReceiverConfig map[string]interface{}
 }
 
 // valid values for debug log level.
@@ -157,7 +162,11 @@ type CollectorStatus struct {
 }
 
 // NewPipeline defines a new OTLP pipeline.
-func NewPipeline(cfg PipelineConfig, s serializer.MetricSerializer, logsAgentChannel chan *message.Message) (*Pipeline, error) {
+func NewPipeline(
+	cfg PipelineConfig,
+	s serializer.MetricSerializer,
+	logsAgentChannel chan *message.Message,
+) (*Pipeline, error) {
 	buildInfo, err := getBuildInfo()
 	if err != nil {
 		return nil, fmt.Errorf("failed to get build info: %w", err)
@@ -169,9 +178,10 @@ func NewPipeline(cfg PipelineConfig, s serializer.MetricSerializer, logsAgentCha
 	}
 
 	// Replace default core to use Agent logger
-	options := []zap.Option{zap.WrapCore(func(zapcore.Core) zapcore.Core {
-		return zapAgent.NewZapCore()
-	}),
+	options := []zap.Option{
+		zap.WrapCore(func(zapcore.Core) zapcore.Core {
+			return zapAgent.NewZapCore()
+		}),
 	}
 
 	configProvider, err := newMapProvider(cfg)
@@ -188,7 +198,6 @@ func NewPipeline(cfg PipelineConfig, s serializer.MetricSerializer, logsAgentCha
 		// see https://github.com/DataDog/datadog-agent/commit/3f4a78e5f2e276c8cdd90fa7e60455a2374d41d0
 		SkipSettingGRPCLogger: true,
 	})
-
 	if err != nil {
 		return nil, err
 	}
@@ -217,7 +226,11 @@ func (p *Pipeline) Stop() {
 
 // NewPipelineFromAgentConfig creates a new pipeline from the given agent configuration, metric serializer and logs channel. It returns
 // any potential failure.
-func NewPipelineFromAgentConfig(cfg config.Component, s serializer.MetricSerializer, logsAgentChannel chan *message.Message) (*Pipeline, error) {
+func NewPipelineFromAgentConfig(
+	cfg config.Component,
+	s serializer.MetricSerializer,
+	logsAgentChannel chan *message.Message,
+) (*Pipeline, error) {
 	pcfg, err := FromAgentConfig(cfg)
 	if err != nil {
 		pipelineError.Store(fmt.Errorf("config error: %w", err))

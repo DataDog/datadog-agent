@@ -7,20 +7,25 @@ package config
 
 // OTLP configuration paths.
 const (
-	OTLPSection               = "otlp_config"
-	OTLPTracesSubSectionKey   = "traces"
-	OTLPTracePort             = OTLPSection + "." + OTLPTracesSubSectionKey + ".internal_port"
-	OTLPTracesEnabled         = OTLPSection + "." + OTLPTracesSubSectionKey + ".enabled"
-	OTLPLogsSubSectionKey     = "logs"
-	OTLPLogsEnabled           = OTLPSection + "." + OTLPLogsSubSectionKey + ".enabled"
-	OTLPReceiverSubSectionKey = "receiver"
-	OTLPReceiverSection       = OTLPSection + "." + OTLPReceiverSubSectionKey
-	OTLPMetricsSubSectionKey  = "metrics"
-	OTLPMetrics               = OTLPSection + "." + OTLPMetricsSubSectionKey
-	OTLPMetricsEnabled        = OTLPSection + "." + OTLPMetricsSubSectionKey + ".enabled"
-	OTLPTagCardinalityKey     = OTLPMetrics + ".tag_cardinality"
-	OTLPDebugKey              = "debug"
-	OTLPDebug                 = OTLPSection + "." + OTLPDebugKey
+	OTLPSection                     = "otlp_config"
+	OTLPTracesSubSectionKey         = "traces"
+	OTLPTracePort                   = OTLPSection + "." + OTLPTracesSubSectionKey + ".internal_port"
+	OTLPTracesEnabled               = OTLPSection + "." + OTLPTracesSubSectionKey + ".enabled"
+	OTLPLogsSubSectionKey           = "logs"
+	OTLPLogsEnabled                 = OTLPSection + "." + OTLPLogsSubSectionKey + ".enabled"
+	OTLPReceiverSubSectionKey       = "receiver"
+	OTLPReceiverSection             = OTLPSection + "." + OTLPReceiverSubSectionKey
+	OTLPMetricsSubSectionKey        = "metrics"
+	OTLPMetrics                     = OTLPSection + "." + OTLPMetricsSubSectionKey
+	OTLPMetricsEnabled              = OTLPSection + "." + OTLPMetricsSubSectionKey + ".enabled"
+	OTLPTagCardinalityKey           = OTLPMetrics + ".tag_cardinality"
+	OTLPDebugKey                    = "debug"
+	OTLPDebug                       = OTLPSection + "." + OTLPDebugKey
+	OTLPFileLogSubSectionKey        = "filelog"
+	OTLPFileLogReceiverSection      = OTLPReceiverSection + "." + OTLPFileLogSubSectionKey
+	OTLPFileLogReceiverIncludeFiles = OTLPSection + "." + OTLPFileLogSubSectionKey + "." + "include"
+	OTLPFileLogReceiverStartAt      = OTLPSection + "." + OTLPFileLogSubSectionKey + "." + "start_at"
+	OTLPFileLogReceiverPollInterval = OTLPSection + "." + OTLPFileLogSubSectionKey + "." + "poll_interval"
 )
 
 // SetupOTLP related configuration.
@@ -68,8 +73,11 @@ func setupOTLPEnvironmentVariables(config Config) {
 	// Traces settings
 	config.BindEnvAndSetDefault("otlp_config.traces.span_name_remappings", map[string]string{})
 	config.BindEnv("otlp_config.traces.span_name_as_resource_name")
-	config.BindEnvAndSetDefault("otlp_config.traces.probabilistic_sampler.sampling_percentage", 100.,
-		"DD_OTLP_CONFIG_TRACES_PROBABILISTIC_SAMPLER_SAMPLING_PERCENTAGE")
+	config.BindEnvAndSetDefault(
+		"otlp_config.traces.probabilistic_sampler.sampling_percentage",
+		100.,
+		"DD_OTLP_CONFIG_TRACES_PROBABILISTIC_SAMPLER_SAMPLING_PERCENTAGE",
+	)
 
 	// HTTP settings
 	config.BindEnv(OTLPSection + ".receiver.protocols.http.endpoint")
@@ -87,6 +95,10 @@ func setupOTLPEnvironmentVariables(config Config) {
 	config.BindEnv(OTLPSection + ".metrics.histograms.send_aggregation_metrics")
 	config.BindEnv(OTLPSection + ".metrics.sums.cumulative_monotonic_mode")
 	config.BindEnv(OTLPSection + ".metrics.summaries.mode")
+
+	config.BindEnv(OTLPSection + ".filelog.include")
+	config.BindEnv(OTLPSection + ".filelog.start_at")
+	config.BindEnv(OTLPSection + ".filelog.poll_interval")
 
 	// Debug settings
 	config.BindEnv(OTLPSection + ".debug.loglevel") // Deprecated
