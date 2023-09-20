@@ -283,10 +283,6 @@ build do
     # Adding pympler for memory debug purposes
     requirements.push("pympler==0.7")
 
-    # Pinning setuptools-scm to 7.1.0 while we're fixing the CI (see https://gitlab.ddbuild.io/DataDog/datadog-agent/-/jobs/332672478)
-    if redhat? && !arm?
-      requirements.push("setuptools-scm==7.1.0")
-    end
 
     # Render the filtered requirements file
     erb source: "static_requirements.txt.erb",
@@ -345,6 +341,10 @@ build do
       # Then we install the rest (already installed libraries will be ignored) with the main flags
       command "#{python} -m pip install --no-deps --require-hashes -r #{windows_safe_path(install_dir)}\\#{agent_requirements_file}", :env => win_build_env
     else
+      # Pinning setuptools-scm to 7.1.0 while we're fixing the CI (see https://gitlab.ddbuild.io/DataDog/datadog-agent/-/jobs/332672478)
+      if redhat? && !arm?
+        command "#{python} -m pip install setuptools-scm==7.1.0", :env => nix_build_env
+      end
       # First we install the dependencies that need specific flags
       specific_build_env.each do |lib, env|
         command "#{python} -m pip install --no-deps --require-hashes -r #{install_dir}/agent_#{lib}_requirements-py3.txt", :env => env
