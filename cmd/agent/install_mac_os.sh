@@ -80,9 +80,17 @@ function prepare_dmg_file() {
     $sudo_cmd touch "$dmg_file_to_prepare"
     $sudo_cmd chmod 600 "$dmg_file_to_prepare"
 
-    file_owner=$(stat -c %u "$dmg_file_to_prepare")
-    file_permission=$(stat -c %a "$dmg_file_to_prepare")
-    file_size=$(stat -c %s "$dmg_file_to_prepare")
+    if stat --help >/dev/null 2>&1; then # Handle differences between GNU and BSD stat command
+        file_owner=$(stat -c %u "$dmg_file_to_prepare")
+        file_permission=$(stat -c %a "$dmg_file_to_prepare")
+        file_size=$(stat -c %s "$dmg_file_to_prepare")
+    else
+        file_owner=$(stat -f %u "$dmg_file_to_prepare")
+        file_permission=$(stat -f %OLp "$dmg_file_to_prepare")
+        file_size=$(stat -f %z "$dmg_file_to_prepare")
+    fi
+
+    
     if [[ "$file_owner" -ne 0 ]] || [[ "$file_permission" -ne 600 ]] || [[ "$file_size" -ne 0 ]]; then
         echo -e "\033[31mFailed to prepare datadog-agent dmg file\033[0m\n"
         exit 1;
@@ -453,3 +461,4 @@ If you ever want to stop the Agent, please use the the launchctl command.
 The Agent will start automatically at system startup.
 \033[0m"
 fi
+
