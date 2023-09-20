@@ -13,23 +13,23 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/ebpf"
 )
 
-// TCPQueueLengthTracer is not implemented on non-linux systems
-type TCPQueueLengthTracer struct{}
+// Tracer is not implemented on non-linux systems
+type Tracer struct{}
 
-// NewTCPQueueLengthTracer is not implemented on non-linux systems
-func NewTCPQueueLengthTracer(cfg *ebpf.Config) (*TCPQueueLengthTracer, error) {
+// NewTracer is not implemented on non-linux systems
+func NewTracer(cfg *ebpf.Config) (*Tracer, error) {
 	return nil, ebpf.ErrNotImplemented
 }
 
 // Close is not implemented on non-linux systems
-func (t *TCPQueueLengthTracer) Close() {}
+func (t *Tracer) Close() {}
 
 // Get is not implemented on non-linux systems
-func (t *TCPQueueLengthTracer) Get() []model.TCPQueueLengthStats {
+func (t *Tracer) Get() []model.TCPQueueLengthStats {
 	return nil
 }
 
 // GetAndFlush is not implemented on non-linux systems
-func (t *TCPQueueLengthTracer) GetAndFlush() []model.TCPQueueLengthStats {
+func (t *Tracer) GetAndFlush() []model.TCPQueueLengthStats {
 	return nil
 }

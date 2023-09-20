@@ -46,7 +46,7 @@ func TestTCPQueueLengthTracer(t *testing.T) {
 		}
 
 		cfg := ebpf.NewConfig()
-		tcpTracer, err := NewTCPQueueLengthTracer(cfg)
+		tcpTracer, err := NewTracer(cfg)
 		require.NoError(t, err)
 		t.Cleanup(tcpTracer.Close)
 
@@ -68,7 +68,7 @@ func TestTCPQueueLengthTracer(t *testing.T) {
 	})
 }
 
-func extractGlobalStats(t *testing.T, tracer *TCPQueueLengthTracer) model.TCPQueueLengthStatsValue {
+func extractGlobalStats(t *testing.T, tracer *Tracer) model.TCPQueueLengthStatsValue {
 	t.Helper()
 
 	stats := tracer.GetAndFlush()
