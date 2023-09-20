@@ -136,7 +136,6 @@ type RuleSetLoadedReport struct {
 
 // ReportRuleSetLoaded reports to Datadog that new ruleset was loaded
 func ReportRuleSetLoaded(sender events.EventSender, statsdClient statsd.ClientInterface, ruleSets map[string]*rules.RuleSet, err *multierror.Error) {
-	log.Info("about to create the ruleset_loaded event")
 	rule, events := NewRuleSetLoadedEvent(ruleSets, err)
 
 	if err := statsdClient.Count(metrics.MetricRuleSetLoaded, 1, []string{}, 1.0); err != nil {
@@ -235,7 +234,6 @@ func NewRuleSetLoadedEvent(ruleSets map[string]*rules.RuleSet, err *multierror.E
 
 	var evts []*events.CustomEvent
 	for _, policy := range mp {
-		log.Info("about to create a new ruleset_loaded event mfs for policy : ", policy.Name)
 		evt := RulesetLoadedEvent{
 			Policy: policy,
 		}

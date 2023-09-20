@@ -200,11 +200,6 @@ func (rs *RuleSet) GetRules() map[eval.RuleID]*Rule {
 	return rs.rules
 }
 
-// GetRSPolicies returns the policies of the RuleSt
-func (rs *RuleSet) GetRSPolicies() []*Policy {
-	return rs.policies
-}
-
 // GetRuleSetTag gets the value of the "ruleset" tag, which is the tag of the rules that belong in this rule set
 func (rs *RuleSet) GetRuleSetTag() eval.RuleSetTagValue {
 	return rs.opts.RuleSetTag[RuleSetTagKey]

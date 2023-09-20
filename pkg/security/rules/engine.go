@@ -21,7 +21,6 @@ import (
 	"github.com/DataDog/datadog-go/v5/statsd"
 	"github.com/hashicorp/go-multierror"
 	"go.uber.org/atomic"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	"github.com/DataDog/datadog-agent/pkg/eventmonitor"
 	"github.com/DataDog/datadog-agent/pkg/security/config"
@@ -199,9 +198,6 @@ func (e *RuleEngine) ReloadPolicies() error {
 // LoadPolicies loads the policies
 func (e *RuleEngine) LoadPolicies(policyProviders []rules.PolicyProvider, sendLoadedReport bool) error {
 	seclog.Infof("load policies")
-	log.Info("Loading the policies here")
-	log.Info("policy providers 0")
-	log.Info(policyProviders[0])
 	e.Lock()
 	defer e.Unlock()
 
@@ -274,8 +270,6 @@ func (e *RuleEngine) LoadPolicies(policyProviders []rules.PolicyProvider, sendLo
 	e.apiServer.Apply(ruleIDs)
 
 	if sendLoadedReport {
-		log.Info("Sending the ruleset_loaded report")
-		log.Info(evaluationSet.RuleSets[ThreatScoreRuleSetTagValue].GetRSPolicies()[0].Name)
 		ReportRuleSetLoaded(e.eventSender, e.statsdClient, evaluationSet.RuleSets, loadErrs) // Is it here that we send the ruleset_loaded event ?
 		e.policyMonitor.SetPolicies(evaluationSet.GetPolicies(), loadErrs)
 	}
@@ -285,17 +279,14 @@ func (e *RuleEngine) LoadPolicies(policyProviders []rules.PolicyProvider, sendLo
 
 func (e *RuleEngine) gatherPolicyProviders() []rules.PolicyProvider {
 	var policyProviders []rules.PolicyProvider
-	log.Info("Gathering policies providers")
 
 	// add remote config as config provider if enabled.
 	if e.config.RemoteConfigurationEnabled {
-		log.Info("Creating a RC provider")
 		rcPolicyProvider, err := rconfig.NewRCPolicyProvider()
 		if err != nil {
 			seclog.Errorf("will be unable to load remote policies: %s", err)
 		} else {
 			policyProviders = append(policyProviders, rcPolicyProvider)
-			log.Info("Appending a RC provider")
 		}
 	}
 

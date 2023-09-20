@@ -88,7 +88,6 @@ func (rsa *RuntimeSecurityAgent) Start(reporter common.RawReporter, endpoints *c
 	ctx, cancel := context.WithCancel(context.Background())
 	rsa.cancel = cancel
 
-	log.Info("Starting the goroutines of the secagents")
 	rsa.running.Store(true)
 	// Start the system-probe events listener
 	go rsa.StartEventListener()
