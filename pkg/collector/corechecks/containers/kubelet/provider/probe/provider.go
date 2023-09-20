@@ -88,7 +88,7 @@ func (p *Provider) proberProbeTotal(metric *model.Sample, sender sender.Sender) 
 	}
 
 	var container *workloadmeta.OrchestratorContainer
-	for _, c := range pod.Containers {
+	for _, c := range pod.GetAllContainers() {
 		if c.Name == containerName {
 			container = &c
 			break

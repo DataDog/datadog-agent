@@ -50,8 +50,16 @@ issues:
       text: "name will be used as .* by other packages, and that stutters"
     - path: pkg/util/containerd
       text: "name will be used as .* by other packages, and that stutters"
-    # TODO: Needs manual update
-    - text: "package github.com/golang/protobuf/proto is deprecated: .*"
+    # Should be replaced by google.golang.org/protobuf but is not a drop-in replacement
+    - text: "\"github.com/golang/protobuf/proto\" is deprecated"
+      linters: [staticcheck]
+    # Can't rely on getting the same elements after calling Seed because dependencies could be using
+    # it too. Should be replaced by using a local source, but there are too many uses in the repo.
+    - text: "rand.Seed has been deprecated since Go 1.20"
+      linters: [staticcheck]
+    # net.Error.Temporary() isn't properly defined and was thus deprecated.
+    # We are using it and it's not clear how to replace it.
+    - text: "Temporary has been deprecated since Go 1.18"
       linters: [staticcheck]
 
   # We're enabling the revive and the gosimple linters on the whole codebase
@@ -99,7 +107,7 @@ linters-settings:
              # Actual issues that should be fixed eventually
              "-SA6002", # TODO: Fix sync.Pools
              "-SA4025", # TODO: Fix trace unit test
-             "-SA1019", "-SA4011", "-SA4031" # Disabling these to re-enable golanci-lint default tests
+             "-SA4011", "-SA4031" # Disabling these to re-enable golanci-lint default tests
             ]
   govet:
     settings:

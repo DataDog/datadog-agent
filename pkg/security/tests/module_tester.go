@@ -942,6 +942,7 @@ func newTestModule(t testing.TB, macroDefs []*rules.MacroDefinition, ruleDefs []
 			DontDiscardRuntime:        true,
 			PathResolutionEnabled:     true,
 			SyscallsMapMonitorEnabled: true,
+			TTYFallbackEnabled:        true,
 		},
 	}
 	if opts.tagsResolver != nil {
