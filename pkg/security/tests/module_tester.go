@@ -221,6 +221,7 @@ const (
 	HostEnvironment = "host"
 	// DockerEnvironment for the docker container environment
 	DockerEnvironment = "docker"
+	testPolicyID      = "secagent-policy-%d.policy"
 )
 
 type testOpts struct {
@@ -254,7 +255,7 @@ type testOpts struct {
 	enableSBOM                          bool
 	preStartCallback                    func(test *testModule)
 	tagsResolver                        tags.Resolver
-	nbPolicies                          int
+	nbPoliciesToLoad                    int
 }
 
 func (s *stringSlice) String() string {
@@ -674,8 +675,8 @@ func (tm *testModule) validateExecEvent(tb *testing.T, kind wrapperType, validat
 	}
 }
 
-func setTestPolicy(dir string, macros []*rules.MacroDefinition, rules []*rules.RuleDefinition, policyName string) (string, error) {
-	testPolicyFile, err := os.Create(path.Join(dir, policyName))
+func setTestPolicy(dir string, macros []*rules.MacroDefinition, rules []*rules.RuleDefinition, policyID string) (string, error) {
+	testPolicyFile, err := os.Create(path.Join(dir, policyID))
 	if err != nil {
 		return "", err
 	}
@@ -868,21 +869,20 @@ func newTestModule(t testing.TB, macroDefs []*rules.MacroDefinition, ruleDefs []
 		return nil, err
 	}
 
-	if _, err = setTestPolicy(st.root, macroDefs, ruleDefs, "secagent-policy.policy"); err != nil {
+	if _, err = setTestPolicy(st.root, macroDefs, ruleDefs, fmt.Sprintf(testPolicyID, 0)); err != nil {
 		return nil, err
 	}
 
-	if opts.nbPolicies > 1 {
-		for i := 1; i < opts.nbPolicies; i++ {
-			policyRuleDefs := make([]*rules.RuleDefinition, len(ruleDefs))
-			for j, rd := range ruleDefs {
-				ruleID := fmt.Sprintf(rd.ID+"_%d", j)
-				log.Infof("ruleID")
-				log.Infof(ruleID)
-				rd.ID = ruleID
+	if opts.nbPoliciesToLoad > 1 {
+		for i := 1; i < opts.nbPoliciesToLoad; i++ {
+
+			// We need to modify slightly the ruleIDs to make them unique to the policy so no conflicts occur
+			policyRuleDefs := ruleDefs
+			for j, rd := range policyRuleDefs {
+				rd.ID = fmt.Sprintf(rd.ID+"_%d", j)
 				policyRuleDefs[j] = rd
 			}
-			if _, err = setTestPolicy(st.root, macroDefs, policyRuleDefs, fmt.Sprintf("secagent-policy-%d.policy", i)); err != nil {
+			if _, err = setTestPolicy(st.root, macroDefs, policyRuleDefs, fmt.Sprintf(testPolicyID, i)); err != nil {
 				return nil, err
 			}
 		}

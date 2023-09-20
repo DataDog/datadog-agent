@@ -68,7 +68,7 @@ func TestSeveralRulesetsLoaded(t *testing.T) {
 	}
 
 	probeMonitorOpts := testOpts{
-		nbPolicies: 2,
+		nbPoliciesToLoad: 2,
 	}
 	runRuleSetLoadedBaseTest(t, []*rules.RuleDefinition{rule}, probeMonitorOpts)
 }
@@ -80,7 +80,7 @@ func TestRulesetLoaded(t *testing.T) {
 	}
 
 	probeMonitorOpts := testOpts{
-		nbPolicies: 1,
+		nbPoliciesToLoad: 1,
 	}
 	runRuleSetLoadedBaseTest(t, []*rules.RuleDefinition{rule}, probeMonitorOpts)
 }
