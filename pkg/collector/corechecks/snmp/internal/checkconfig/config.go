@@ -706,7 +706,7 @@ func (c *CheckConfig) parseColumnOids(metrics []profiledefinition.MetricsConfig,
 			oids = append(oids, symbol.OID)
 		}
 		for _, metricTag := range metric.MetricTags {
-			oids = append(oids, metricTag.Symbol.OID)
+			oids = append(oids, metricTag.Column.OID)
 		}
 	}
 	if c.CollectDeviceMetadata {
@@ -721,7 +721,7 @@ func (c *CheckConfig) parseColumnOids(metrics []profiledefinition.MetricsConfig,
 				}
 			}
 			for _, tagConfig := range metadataConfig.IDTags {
-				oids = append(oids, tagConfig.Symbol.OID)
+				oids = append(oids, tagConfig.Column.OID)
 			}
 		}
 	}

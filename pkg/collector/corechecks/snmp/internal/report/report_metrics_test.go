@@ -384,7 +384,7 @@ func Test_metricSender_reportMetrics(t *testing.T) {
 				{Symbols: []profiledefinition.SymbolConfig{{Name: "constantMetric", ConstantValueOne: true}}, MetricTags: profiledefinition.MetricTagConfigList{
 					{
 						Tag:    "status",
-						Symbol: profiledefinition.SymbolConfig{Name: "status", OID: "1.2.3.4"},
+						Column: profiledefinition.SymbolConfig{Name: "status", OID: "1.2.3.4"},
 					},
 				}},
 			},
