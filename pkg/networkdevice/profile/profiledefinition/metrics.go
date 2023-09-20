@@ -94,7 +94,7 @@ type MetricTagConfig struct {
 
 	SymbolTag string `yaml:"-" json:"-"`
 
-	// Used for RC compatibility (map to list)
+	// Used in RC format (list instead of map)
 	MappingList []KeyValue `yaml:"-" json:"mapping_list,omitempty"`
 	TagsList    []KeyValue `yaml:"-" json:"tags_list,omitempty"`
 }

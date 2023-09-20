@@ -31,7 +31,7 @@ type ProfileDefinition struct {
 
 	Device DeviceMeta `yaml:"device,omitempty" json:"device,omitempty" jsonschema:"-"` // DEPRECATED
 
-	// Used to convert into RC format (list instead of map)
+	// Used in RC format (list instead of map)
 	MetadataList []MetadataResourceConfig `yaml:"-" json:"metadata_list,omitempty"`
 }
 
@@ -53,9 +53,10 @@ func (d *DeviceProfileRcConfig) DeepCopy() *DeviceProfileRcConfig {
 	return &newProfile
 }
 
-// NormalizeToRcFormat will normalize the device profile in-place to make it suitable for RC
-// This operation is opposite to NormalizeToAgentFormat
-func (d *DeviceProfileRcConfig) NormalizeToRcFormat() *DeviceProfileRcConfig {
+// ConvertToRcFormat will normalize the device profile in-place to make it suitable for RC
+// This operation is opposite to ConvertToAgentFormat
+// Profiles are converted into RC format before being stored in RC.
+func (d *DeviceProfileRcConfig) ConvertToRcFormat() *DeviceProfileRcConfig {
 	newProfile := d.DeepCopy()
 	for i := range newProfile.Profile.Metrics {
 		metric := &newProfile.Profile.Metrics[i]
@@ -134,9 +135,10 @@ func (d *DeviceProfileRcConfig) NormalizeToRcFormat() *DeviceProfileRcConfig {
 	return newProfile
 }
 
-// NormalizeToAgentFormat will normalize the device profile in-place to make it suitable for Agent
-// This operation is opposite to NormalizeToRcFormat
-func (d *DeviceProfileRcConfig) NormalizeToAgentFormat() *DeviceProfileRcConfig {
+// ConvertToAgentFormat will normalize the device profile in-place to make it suitable for Agent
+// This operation is opposite to ConvertToRcFormat.
+// After retrieved a Profile from RC, it should be converted into Agent Format to be used elsewhere.
+func (d *DeviceProfileRcConfig) ConvertToAgentFormat() *DeviceProfileRcConfig {
 	newProfile := d.DeepCopy()
 	for i := range newProfile.Profile.Metrics {
 		metric := &newProfile.Profile.Metrics[i]
