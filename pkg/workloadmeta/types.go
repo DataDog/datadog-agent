@@ -706,10 +706,11 @@ var _ Entity = &KubernetesNode{}
 // KubernetesDeployment is an Entity representing a Kubernetes Deployment.
 type KubernetesDeployment struct {
 	EntityID
-	Env                   string
-	Service               string
-	Version               string
-	LanguagesForContainer map[string][]languagemodels.Language
+	Env                    string
+	Service                string
+	Version                string
+	ContainerLanguages     map[string][]languagemodels.Language
+	InitContainerLanguages map[string][]languagemodels.Language
 }
 
 // GetID implements Entity#GetID.
@@ -744,17 +745,20 @@ func (d KubernetesDeployment) String(verbose bool) string {
 	_, _ = fmt.Fprintln(&sb, "Version :", d.Version)
 	_, _ = fmt.Fprintln(&sb, "----------- Languages -----------")
 
-	for container, languages := range d.LanguagesForContainer {
-		var langSb strings.Builder
-		for i, lang := range languages {
-			if i != 0 {
-				_, _ = langSb.WriteString(",")
+	langPrinter := func(m map[string][]languagemodels.Language, ctype string) {
+		for container, languages := range m {
+			var langSb strings.Builder
+			for i, lang := range languages {
+				if i != 0 {
+					_, _ = langSb.WriteString(",")
+				}
+				_, _ = langSb.WriteString(string(lang.Name))
 			}
-			_, _ = langSb.WriteString(string(lang.Name))
+			_, _ = fmt.Fprintf(&sb, "%s %s=>[%s]", ctype, container, langSb.String())
 		}
-		_, _ = fmt.Fprintf(&sb, "%s=>Languages:[%s]", container, langSb.String())
 	}
-
+	langPrinter(d.InitContainerLanguages, "InitContainer")
+	langPrinter(d.ContainerLanguages, "Container")
 	return sb.String()
 }
 

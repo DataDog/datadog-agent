@@ -47,7 +47,7 @@ type reflectorStore struct {
 
 // The filter is called in Replace/Add/Delete functions before the obj is parsed
 type reflectorStoreFilter interface {
-	filteredOut(obj metav1.Object) bool
+	filteredOut(workloadmeta.Entity) bool
 }
 
 // Add notifies the workloadmeta store with  an EventTypeSet for the given
@@ -59,7 +59,7 @@ func (r *reflectorStore) Add(obj interface{}) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	r.hasSynced = true
-	if r.filter != nil && r.filter.filteredOut(metaObj) {
+	if r.filter != nil && r.filter.filteredOut(entity) {
 		// Don't store the object in memory if it is filtered out
 		return nil
 	}
@@ -88,11 +88,11 @@ func (r *reflectorStore) Replace(list []interface{}, _ string) error {
 	entities := make([]entityUid, 0, len(list))
 
 	for _, obj := range list {
-		metaObj := obj.(metav1.Object)
-		if r.filter != nil && r.filter.filteredOut(metaObj) {
+		entity := r.parser.Parse(obj)
+		if r.filter != nil && r.filter.filteredOut(entity) {
 			continue
 		}
-		entities = append(entities, entityUid{r.parser.Parse(obj), metaObj.GetUID()})
+		entities = append(entities, entityUid{entity, obj.(metav1.Object).GetUID()})
 	}
 
 	r.mu.Lock()
@@ -160,7 +160,7 @@ func (r *reflectorStore) Delete(obj interface{}) error {
 	r.hasSynced = true
 	delete(r.seen, string(uid))
 
-	if r.filter != nil && r.filter.filteredOut(obj.(metav1.Object)) {
+	if r.filter != nil && r.filter.filteredOut(obj.(workloadmeta.Entity)) {
 		return nil
 	}
 
