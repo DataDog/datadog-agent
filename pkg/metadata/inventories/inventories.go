@@ -112,6 +112,7 @@ const (
 
 	// System Probe general config values
 	AgentSPOOMKillEnabled                AgentMetadataName = "feature_oom_kill_enabled"
+	AgentSPWinCrashEnabled               AgentMetadataName = "feature_windows_crash_detection_enabled"
 	AgentSPTCPQueueLengthEnabled         AgentMetadataName = "feature_tcp_queue_length_enabled"
 	AgentSPTelemetryEnabled              AgentMetadataName = "system_probe_telemetry_enabled"
 	AgentSPCOREEnabled                   AgentMetadataName = "system_probe_core_enabled"
@@ -489,6 +490,7 @@ func initializeConfig(cfg config.Config) {
 	// SystemProbe module level configuration
 	SetAgentMetadata(AgentSPTCPQueueLengthEnabled, config.SystemProbe.GetBool("system_probe_config.enable_tcp_queue_length"))
 	SetAgentMetadata(AgentSPOOMKillEnabled, config.SystemProbe.GetBool("system_probe_config.enable_oom_kill"))
+	SetAgentMetadata(AgentSPWinCrashEnabled, config.SystemProbe.GetBool("windows_crash_detection.enabled"))
 	SetAgentMetadata(AgentSPCOREEnabled, config.SystemProbe.GetBool("system_probe_config.enable_co_re"))
 	SetAgentMetadata(AgentSPRuntimeCompilationEnabled, config.SystemProbe.GetBool("system_probe_config.enable_runtime_compiler"))
 	SetAgentMetadata(AgentSPKernelHeadersDownloadEnabled, config.SystemProbe.GetBool("system_probe_config.enable_kernel_header_download"))
