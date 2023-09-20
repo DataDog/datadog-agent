@@ -144,7 +144,7 @@ func ReportRuleSetLoaded(sender events.EventSender, statsdClient statsd.ClientIn
 
 	for _, event := range events {
 		sender.SendEvent(rule, event, nil, "")
-    }
+	}
 }
 
 // RuleState defines a loaded rule
@@ -241,7 +241,6 @@ func NewRuleSetLoadedEvents(ruleSets map[string]*rules.RuleSet, err *multierror.
 		revt := events.NewCustomEvent(model.CustomRulesetLoadedEventType, evt)
 		evts = append(evts, revt)
 	}
-
 
 	return events.NewCustomRule(events.RulesetLoadedRuleID, events.RulesetLoadedRuleDesc), evts
 }
