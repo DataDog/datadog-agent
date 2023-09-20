@@ -50,7 +50,7 @@ func TestOOMKillProbe(t *testing.T) {
 		}
 
 		cfg := testConfig()
-		oomKillProbe, err := NewOOMKillProbe(cfg)
+		oomKillProbe, err := NewProbe(cfg)
 		if err != nil {
 			t.Fatal(err)
 		}

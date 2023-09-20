@@ -40,12 +40,12 @@ import "C"
 
 const oomMapName = "oom_stats"
 
-type OOMKillProbe struct {
+type Probe struct {
 	m      *manager.Manager
 	oomMap *bpflib.Map
 }
 
-func NewOOMKillProbe(cfg *ebpf.Config) (*OOMKillProbe, error) {
+func NewProbe(cfg *ebpf.Config) (*Probe, error) {
 	if cfg.EnableCORE {
 		probe, err := loadOOMKillCOREProbe(cfg)
 		if err == nil {
@@ -61,7 +61,7 @@ func NewOOMKillProbe(cfg *ebpf.Config) (*OOMKillProbe, error) {
 	return loadOOMKillRuntimeCompiledProbe(cfg)
 }
 
-func loadOOMKillCOREProbe(cfg *ebpf.Config) (*OOMKillProbe, error) {
+func loadOOMKillCOREProbe(cfg *ebpf.Config) (*Probe, error) {
 	kv, err := kernel.HostVersion()
 	if err != nil {
 		return nil, fmt.Errorf("error detecting kernel version: %s", err)
@@ -70,7 +70,7 @@ func loadOOMKillCOREProbe(cfg *ebpf.Config) (*OOMKillProbe, error) {
 		return nil, fmt.Errorf("detected kernel version %s, but oom-kill probe requires a kernel version of at least 4.9.0", kv)
 	}
 
-	var probe *OOMKillProbe
+	var probe *Probe
 	err = ebpf.LoadCOREAsset(cfg, "oom-kill.o", func(buf bytecode.AssetReader, opts manager.Options) error {
 		probe, err = startOOMKillProbe(buf, opts)
 		return err
@@ -83,7 +83,7 @@ func loadOOMKillCOREProbe(cfg *ebpf.Config) (*OOMKillProbe, error) {
 	return probe, nil
 }
 
-func loadOOMKillRuntimeCompiledProbe(cfg *ebpf.Config) (*OOMKillProbe, error) {
+func loadOOMKillRuntimeCompiledProbe(cfg *ebpf.Config) (*Probe, error) {
 	buf, err := runtime.OomKill.Compile(cfg, getCFlags(cfg), statsd.Client)
 	if err != nil {
 		return nil, err
@@ -101,7 +101,7 @@ func getCFlags(config *ebpf.Config) []string {
 	return cflags
 }
 
-func startOOMKillProbe(buf bytecode.AssetReader, managerOptions manager.Options) (*OOMKillProbe, error) {
+func startOOMKillProbe(buf bytecode.AssetReader, managerOptions manager.Options) (*Probe, error) {
 	m := &manager.Manager{
 		Probes: []*manager.Probe{
 			{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFFuncName: "kprobe__oom_kill_process", UID: "oom"}},
@@ -132,13 +132,13 @@ func startOOMKillProbe(buf bytecode.AssetReader, managerOptions manager.Options)
 	}
 	ebpfcheck.AddNameMappings(m, "oom_kill")
 
-	return &OOMKillProbe{
+	return &Probe{
 		m:      m,
 		oomMap: oomMap,
 	}, nil
 }
 
-func (k *OOMKillProbe) Close() {
+func (k *Probe) Close() {
 	ebpfcheck.RemoveNameMappings(k.m)
 	if err := k.m.Stop(manager.CleanAll); err != nil {
 		log.Errorf("error stopping OOM Kill: %s", err)
@@ -146,7 +146,7 @@ func (k *OOMKillProbe) Close() {
 }
 
 // GetAndFlush gets the stats
-func (k *OOMKillProbe) GetAndFlush() (results []model.OOMKillStats) {
+func (k *Probe) GetAndFlush() (results []model.OOMKillStats) {
 	var pid uint32
 	var stat C.struct_oom_stats
 	it := k.oomMap.Iterate()

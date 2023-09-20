@@ -13,23 +13,23 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/ebpf"
 )
 
-// OOMKillProbe is not implemented on non-linux systems
-type OOMKillProbe struct{}
+// Probe is not implemented on non-linux systems
+type Probe struct{}
 
-// NewOOMKillProbe is not implemented on non-linux systems
-func NewOOMKillProbe(cfg *ebpf.Config) (*OOMKillProbe, error) {
+// NewProbe is not implemented on non-linux systems
+func NewProbe(cfg *ebpf.Config) (*Probe, error) {
 	return nil, ebpf.ErrNotImplemented
 }
 
 // Close is not implemented on non-linux systems
-func (t *OOMKillProbe) Close() {}
+func (t *Probe) Close() {}
 
 // Get is not implemented on non-linux systems
-func (t *OOMKillProbe) Get() []model.OOMKillStats {
+func (t *Probe) Get() []model.OOMKillStats {
 	return nil
 }
 
 // GetAndFlush is not implemented on non-linux systems
-func (t *OOMKillProbe) GetAndFlush() []model.OOMKillStats {
+func (t *Probe) GetAndFlush() []model.OOMKillStats {
 	return nil
 }
