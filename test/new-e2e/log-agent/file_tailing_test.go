@@ -10,7 +10,6 @@ import (
 
 	fi "github.com/DataDog/datadog-agent/test/fakeintake/client"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/params"
 	"github.com/DataDog/test-infra-definitions/components/datadog/agentparams"
 	"github.com/DataDog/test-infra-definitions/scenarios/aws/vm/ec2params"
 	"github.com/cenkalti/backoff/v4"
@@ -45,7 +44,7 @@ func logsExampleStackDef(vmParams []ec2params.Option, agentParams ...agentparams
 
 // TestE2EVMFakeintakeSuite runs the E2E test suite for the log agent with a VM and fake intake.
 func TestE2EVMFakeintakeSuite(t *testing.T) {
-	e2e.Run(t, &vmFakeintakeSuite{}, logsExampleStackDef(nil), params.WithDevMode())
+	e2e.Run(t, &vmFakeintakeSuite{}, logsExampleStackDef(nil))
 }
 
 func (s *vmFakeintakeSuite) TestLogCollection() {

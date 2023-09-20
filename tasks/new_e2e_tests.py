@@ -154,39 +154,19 @@ def clean(ctx, locks=True, stacks=False):
     if stacks:
         _clean_stacks(ctx)
 
-
-# def _clean_locks():
-#     print("🧹 Clean up lock files")
-#     lock_dir = os.path.join(Path.home(), ".pulumi", "locks")
-
-#     for entry in os.listdir(Path(lock_dir)):
-#         subdir = os.path.join(lock_dir, entry)
-#         for filename in os.listdir(Path(subdir)):
-#             path = os.path.join(subdir, filename)
-#             if os.path.isfile(path) and filename.endswith(".json"):
-#                 os.remove(path)
-#                 print(f"🗑️ Deleted lock: {path}")
-#             elif os.path.isdir(path):
-#                 shutil.rmtree(path)
-
 def _clean_locks():
     print("🧹 Clean up lock files")
     lock_dir = os.path.join(Path.home(), ".pulumi", "locks")
 
-    for entry in os.listdir(lock_dir):
+    for entry in os.listdir(Path(lock_dir)):
         subdir = os.path.join(lock_dir, entry)
-        
-        # Check if the entry is a directory before listing its contents
-        if os.path.isdir(subdir):
-            for filename in os.listdir(subdir):
-                path = os.path.join(subdir, filename)
-                if os.path.isfile(path) and filename.endswith(".json"):
-                    os.remove(path)
-                    print(f"🗑️ Deleted lock: {path}")
-                elif os.path.isdir(path):
-                    shutil.rmtree(path)
-                    print(f"🗑️ Deleted directory: {path}")
-
+        for filename in os.listdir(Path(subdir)):
+            path = os.path.join(subdir, filename)
+            if os.path.isfile(path) and filename.endswith(".json"):
+                os.remove(path)
+                print(f"🗑️ Deleted lock: {path}")
+            elif os.path.isdir(path):
+                shutil.rmtree(path)
 
 def _clean_stacks(ctx: Context):
     print("🧹 Clean up stacks")
