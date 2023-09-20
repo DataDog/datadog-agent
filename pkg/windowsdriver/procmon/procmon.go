@@ -80,7 +80,10 @@ func (wp *WinProcmon) OnError(err error) {
 
 }
 func (wp *WinProcmon) Stop() {
-	wp.reader.Ioctl(ProcmonStopIOCTL,
+	// since we're stopping, if for some reason this ioctl fails, there's nothing we can
+	// do, we're on our way out.  Closing the handle will ultimately cause the same cleanup
+	// to happen.
+	_ = wp.reader.Ioctl(ProcmonStopIOCTL,
 		nil, // inBuffer
 		0,
 		nil,
