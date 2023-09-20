@@ -198,6 +198,7 @@ func (e *RuleEngine) ReloadPolicies() error {
 // LoadPolicies loads the policies
 func (e *RuleEngine) LoadPolicies(policyProviders []rules.PolicyProvider, sendLoadedReport bool) error {
 	seclog.Infof("load policies")
+
 	e.Lock()
 	defer e.Unlock()
 
@@ -270,7 +271,7 @@ func (e *RuleEngine) LoadPolicies(policyProviders []rules.PolicyProvider, sendLo
 	e.apiServer.Apply(ruleIDs)
 
 	if sendLoadedReport {
-		ReportRuleSetLoaded(e.eventSender, e.statsdClient, evaluationSet.RuleSets, loadErrs) // Is it here that we send the ruleset_loaded event ?
+		ReportRuleSetLoaded(e.eventSender, e.statsdClient, evaluationSet.RuleSets, loadErrs)
 		e.policyMonitor.SetPolicies(evaluationSet.GetPolicies(), loadErrs)
 	}
 
