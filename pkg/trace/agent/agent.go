@@ -180,6 +180,7 @@ func (a *Agent) work() {
 		}
 		a.Process(p)
 	}
+
 }
 
 func (a *Agent) loop() {

@@ -17,6 +17,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/cmd/manager"
 	remotecfg "github.com/DataDog/datadog-agent/cmd/trace-agent/config/remote"
+	"github.com/DataDog/datadog-agent/comp/trace/config"
 	coreconfig "github.com/DataDog/datadog-agent/pkg/config"
 	rc "github.com/DataDog/datadog-agent/pkg/config/remote"
 	"github.com/DataDog/datadog-agent/pkg/tagger"
@@ -50,7 +51,9 @@ to your datadog.yaml. Exiting...`
 const stackDepth = 3
 
 // runAgentSidekicks is the entrypoint for running non-components that run along the agent.
-func runAgentSidekicks(ctx context.Context, tracecfg *tracecfg.AgentConfig, apiConfigHandler http.Handler, telemetryCollector telemetry.TelemetryCollector) error {
+func runAgentSidekicks(ctx context.Context, cfg config.Component, telemetryCollector telemetry.TelemetryCollector) error {
+
+	tracecfg := cfg.Object()
 	err := info.InitInfo(tracecfg) // for expvar & -info option
 	if err != nil {
 		return err
@@ -151,7 +154,7 @@ func runAgentSidekicks(ctx context.Context, tracecfg *tracecfg.AgentConfig, apiC
 	api.AttachEndpoint(api.Endpoint{
 		Pattern: "/config/set",
 		Handler: func(r *api.HTTPReceiver) http.Handler {
-			return apiConfigHandler
+			return cfg.SetHandler()
 		},
 	})
 
@@ -186,7 +189,7 @@ func runAgentSidekicks(ctx context.Context, tracecfg *tracecfg.AgentConfig, apiC
 			log.Infof("GOMEMLIMIT manually set to: %v", lim)
 		} else if tracecfg.MaxMemory > 0 {
 			// We have apm_config.max_memory, and no cgroup memory limit is in place.
-			// log.Infof("apm_config.max_memory: %vMiB", int64(tracecfg.MaxMemory)/(1024*1024))
+			//log.Infof("apm_config.max_memory: %vMiB", int64(tracecfg.MaxMemory)/(1024*1024))
 			finalmem := int64(tracecfg.MaxMemory * 0.9)
 			debug.SetMemoryLimit(finalmem)
 			log.Infof("apm_config.max_memory set to: %vMiB. Setting GOMEMLIMIT to 90%% of max: %vMiB", int64(tracecfg.MaxMemory)/(1024*1024), finalmem/(1024*1024))
