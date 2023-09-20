@@ -32,11 +32,16 @@ import (
 
 // Get{{$pascalCaseName}} returns the value of the field, resolving if necessary
 func (ev *Event) Get{{$pascalCaseName}}() {{ $accessorReturnType }} {
+    {{ if and (ne $Field.Handler "ResolveAsync") (and (ne $Field.Handler "ResolveEventTimestamp") (ne $Field.Handler "ResolveEventTime")) }}
+        zeroValue := {{ GetDefaultValueOfType $accessorReturnType}}
+	{{ end }}
     {{if ne $Field.Event "*"}}
         if ev.GetEventType().String() != "{{$Field.Event}}" {
-            return {{ GetDefaultValueOfType $accessorReturnType}}
+            return zeroValue
         }
     {{end}}
+
+    {{$Field | GeneratePrefixNilChecks $.AllFields}}
 
     {{if $Field.Iterator}}
         var values {{ $accessorReturnType }}

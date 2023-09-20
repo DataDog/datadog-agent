@@ -736,6 +736,25 @@ func newField(allFields map[string]*common.StructField, field *common.StructFiel
 	return result
 }
 
+func generatePrefixNilChecks(allFields map[string]*common.StructField, field *common.StructField) string {
+	var fieldPath, result string
+	for _, node := range strings.Split(field.Name, ".") {
+		if fieldPath != "" {
+			fieldPath += "." + node
+		} else {
+			fieldPath = node
+		}
+
+		if field, ok := allFields[fieldPath]; ok {
+			if field.IsOrigTypePtr {
+				result += fmt.Sprintf("if ev.%s == nil { return zeroValue }\n", field.Name)
+			}
+		}
+	}
+
+	return result
+}
+
 func split(r rune) bool {
 	return r == '.' || r == '_'
 }
@@ -769,22 +788,22 @@ func getDefaultValueOfType(returnType string) string {
 		if isArray {
 			return "[]int64{}"
 		}
-		return "0"
+		return "int64(0)"
 	} else if baseType == "uint16" {
 		if isArray {
 			return "[]uint16{}"
 		}
-		return "0"
+		return "uint16(0)"
 	} else if baseType == "uint32" {
 		if isArray {
 			return "[]uint32{}"
 		}
-		return "0"
+		return "uint32(0)"
 	} else if baseType == "uint64" {
 		if isArray {
 			return "[]uint64{}"
 		}
-		return "0"
+		return "uint64(0)"
 	} else if baseType == "bool" {
 		if isArray {
 			return "[]bool{}"
@@ -923,17 +942,18 @@ func getHandlers(allFields map[string]*common.StructField) map[string]string {
 }
 
 var funcMap = map[string]interface{}{
-	"TrimPrefix":            strings.TrimPrefix,
-	"TrimSuffix":            strings.TrimSuffix,
-	"HasPrefix":             strings.HasPrefix,
-	"NewField":              newField,
-	"GetFieldHandler":       getFieldHandler,
-	"FieldADPrint":          fieldADPrint,
-	"GetChecks":             getChecks,
-	"GetHandlers":           getHandlers,
-	"PascalCaseFieldName":   pascalCaseFieldName,
-	"GetDefaultValueOfType": getDefaultValueOfType,
-	"CombineFieldMaps":      combineFieldMaps,
+	"TrimPrefix":              strings.TrimPrefix,
+	"TrimSuffix":              strings.TrimSuffix,
+	"HasPrefix":               strings.HasPrefix,
+	"NewField":                newField,
+	"GeneratePrefixNilChecks": generatePrefixNilChecks,
+	"GetFieldHandler":         getFieldHandler,
+	"FieldADPrint":            fieldADPrint,
+	"GetChecks":               getChecks,
+	"GetHandlers":             getHandlers,
+	"PascalCaseFieldName":     pascalCaseFieldName,
+	"GetDefaultValueOfType":   getDefaultValueOfType,
+	"CombineFieldMaps":        combineFieldMaps,
 }
 
 //go:embed accessors.tmpl
