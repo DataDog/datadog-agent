@@ -38,13 +38,13 @@ type agentSuite struct {
 	policies      string
 }
 
-//go:embed config/datadog.yaml
+//go:embed config/e2e-datadog.yaml
 var agentConfig string
 
-//go:embed config/system-probe.yaml
+//go:embed config/e2e-system-probe.yaml
 var systemProbeConfig string
 
-//go:embed config/security-agent.yaml
+//go:embed config/e2e-security-agent.yaml
 var securityAgentConfig string
 
 func TestAgentSuite(t *testing.T) {
@@ -60,6 +60,7 @@ func TestAgentSuite(t *testing.T) {
 }
 
 func (a *agentSuite) SetupSuite() {
+
 	// Create temporary directory
 	tempDir := a.Env().VM.Execute("mktemp -d")
 	a.dirname = strings.TrimSuffix(tempDir, "\n")
