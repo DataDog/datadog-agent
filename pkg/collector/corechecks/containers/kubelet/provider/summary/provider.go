@@ -64,7 +64,7 @@ func (p *Provider) Provide(kc kubelet.KubeUtilInterface, sender sender.Sender) e
 		return err
 	}
 
-	var useStatsAsSource bool = false
+	useStatsAsSource := false
 	if p.config.UseStatsSummaryAsSource == nil {
 		if runtime.GOOS == "windows" {
 			useStatsAsSource = true
