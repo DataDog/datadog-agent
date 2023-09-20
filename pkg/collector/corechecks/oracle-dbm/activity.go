@@ -288,7 +288,6 @@ func (c *Check) getSQLRow(SQLID sql.NullString, forceMatchingSignature *string, 
 	SQLRow := OracleSQLRow{}
 	if SQLID.Valid {
 		SQLRow.SQLID = SQLID.String
-		c.statementsFilter.SQLIDs[SQLID.String] = 1
 	} else {
 		SQLRow.SQLID = ""
 		return SQLRow, nil
@@ -299,7 +298,6 @@ func (c *Check) getSQLRow(SQLID sql.NullString, forceMatchingSignature *string, 
 			return SQLRow, fmt.Errorf("failed converting force_matching_signature to uint64 %w", err)
 		}
 		SQLRow.ForceMatchingSignature = forceMatchingSignatureUint64
-		c.statementsFilter.ForceMatchingSignatures[*forceMatchingSignature] = 1
 	} else {
 		SQLRow.ForceMatchingSignature = 0
 	}
@@ -314,19 +312,6 @@ func (c *Check) getSQLRow(SQLID sql.NullString, forceMatchingSignature *string, 
 
 func (c *Check) SampleSession() error {
 	start := time.Now()
-
-	if c.statementsFilter.SQLIDs == nil {
-		c.statementsFilter.SQLIDs = make(map[string]int)
-	}
-	if c.statementsFilter.ForceMatchingSignatures == nil {
-		c.statementsFilter.ForceMatchingSignatures = make(map[string]int)
-	}
-	if c.statementsCache.SQLIDs == nil {
-		c.statementsCache.SQLIDs = make(map[string]StatementsCacheData)
-	}
-	if c.statementsCache.forceMatchingSignatures == nil {
-		c.statementsCache.forceMatchingSignatures = make(map[string]StatementsCacheData)
-	}
 
 	var sessionRows []OracleActivityRow
 	sessionSamples := []OracleActivityRowDB{}
@@ -393,7 +378,7 @@ func (c *Check) SampleSession() error {
 		previousSQL := false
 		sqlCurrentSQL, err := c.getSQLRow(sample.SQLID, sample.ForceMatchingSignature, sample.SQLPlanHashValue, sample.SQLExecStart)
 		if err != nil {
-			log.Errorf("error getting SQL row %s", err)
+			log.Errorf("%s error getting SQL row %s", c.logPrompt, err)
 		}
 
 		var sqlPrevSQL OracleSQLRow
@@ -402,7 +387,7 @@ func (c *Check) SampleSession() error {
 		} else {
 			sqlPrevSQL, err = c.getSQLRow(sample.PrevSQLID, sample.PrevForceMatchingSignature, sample.PrevSQLPlanHashValue, sample.PrevSQLExecStart)
 			if err != nil {
-				log.Errorf("error getting SQL row %s", err)
+				log.Errorf("%s error getting SQL row %s", c.logPrompt, err)
 			}
 			if sqlPrevSQL.SQLID != "" {
 				sessionRow.OracleSQLRow = sqlPrevSQL
@@ -484,7 +469,7 @@ func (c *Check) SampleSession() error {
 				var fetchedStatement string
 				err = getFullSQLText(c, &fetchedStatement, "sql_id", sessionRow.SQLID)
 				if err != nil {
-					log.Warnf("failed to fetch full sql text for the current sql_id: %s", err)
+					log.Warnf("%s failed to fetch full sql text for the current sql_id: %s", c.logPrompt, err)
 				}
 				if fetchedStatement != "" {
 					statement = fetchedStatement
@@ -537,15 +522,15 @@ func (c *Check) SampleSession() error {
 
 	payloadBytes, err := json.Marshal(payload)
 	if err != nil {
-		log.Errorf("Error marshalling activity payload: %s", err)
+		log.Errorf("%s Error marshalling activity payload: %s", c.logPrompt, err)
 		return err
 	}
 
-	log.Tracef("Activity payload %s", strings.ReplaceAll(string(payloadBytes), "@", "XX"))
+	log.Debugf("%s Activity payload %s", c.logPrompt, strings.ReplaceAll(string(payloadBytes), "@", "XX"))
 
 	sender, err := c.GetSender()
 	if err != nil {
-		log.Errorf("GetSender SampleSession %s", string(payloadBytes))
+		log.Errorf("%s GetSender SampleSession %s", c.logPrompt, string(payloadBytes))
 		return err
 	}
 	sender.EventPlatformEvent(payloadBytes, "dbm-activity")

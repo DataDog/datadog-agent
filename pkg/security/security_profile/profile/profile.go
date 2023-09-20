@@ -128,7 +128,7 @@ func (p *SecurityProfile) MatchesSelector(entry *model.ProcessCacheEntry) bool {
 
 // IsEventTypeValid is used to control which event types should trigger anomaly detection alerts
 func (p *SecurityProfile) IsEventTypeValid(evtType model.EventType) bool {
-	return slices.Contains[model.EventType](p.anomalyDetectionEvents, evtType)
+	return slices.Contains(p.anomalyDetectionEvents, evtType)
 }
 
 // NewProcessNodeCallback is a callback function used to propagate the fact that a new process node was added to the activity tree

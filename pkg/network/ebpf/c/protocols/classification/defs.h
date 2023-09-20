@@ -143,7 +143,8 @@ typedef enum {
 
 typedef enum {
     TLS_PROG_UNKNOWN = 0,
-    // Add TLS uprobe tail calls here
+    TLS_HTTP_PROCESS,
+    TLS_HTTP_TERMINATION,
     TLS_PROG_MAX,
 } tls_prog_t;
 

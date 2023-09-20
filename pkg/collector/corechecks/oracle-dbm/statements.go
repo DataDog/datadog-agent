@@ -499,7 +499,7 @@ func (c *Check) StatementMetrics() (int, error) {
 
 	sender, err := c.GetSender()
 	if err != nil {
-		log.Errorf("GetSender statements metrics")
+		log.Errorf("%s GetSender statements metrics %s", c.logPrompt, err)
 		return 0, err
 	}
 
@@ -514,17 +514,25 @@ func (c *Check) StatementMetrics() (int, error) {
 		} else {
 			sql = queryForceMatchingSignatureLastActive
 		}
+
+		var lookback int64
+		if c.config.QueryMetrics.Lookback != 0 {
+			lookback = c.config.QueryMetrics.Lookback
+		} else {
+			lookback = 2 * c.config.QueryMetrics.CollectionInterval
+		}
+
 		err := selectWrapper(
 			c,
 			&statementMetrics,
 			sql,
-			2*c.config.QueryMetrics.CollectionInterval,
+			lookback,
 			c.config.QueryMetrics.DBRowsLimit,
 		)
 		if err != nil {
 			return 0, fmt.Errorf("error collecting statement metrics for force_matching_signature: %w %s", err, sql)
 		}
-		log.Tracef("number of collected metrics with force_matching_signature %+v", len(statementMetrics))
+		log.Debugf("%s number of collected metrics with force_matching_signature %+v", c.logPrompt, len(statementMetrics))
 
 		statementMetricsAll := make([]StatementMetricsDB, len(statementMetrics))
 		copy(statementMetricsAll, statementMetrics)
@@ -540,7 +548,7 @@ func (c *Check) StatementMetrics() (int, error) {
 		if err != nil {
 			return 0, fmt.Errorf("error collecting statement metrics for SQL_IDs: %w %s", err, sql)
 		}
-		log.Tracef("number of collected metrics with SQL_ID %+v", len(statementMetrics))
+		log.Debugf("%s number of collected metrics with SQL_ID %+v", c.logPrompt, len(statementMetrics))
 		statementMetricsAll = append(statementMetricsAll, statementMetrics...)
 		SQLCount = len(statementMetricsAll)
 
@@ -663,16 +671,10 @@ func (c *Check) StatementMetrics() (int, error) {
 			queryRow := QueryRow{}
 			var SQLStatement string
 
-			if statementMetricRow.SQLTextLength == 1000 {
+			if statementMetricRow.SQLTextLength == MaxSQLFullTextVSQLStats {
 				err := getFullSQLText(c, &SQLStatement, "sql_id", statementMetricRow.SQLID)
 				if err != nil {
-					log.Errorf("failed to get the full text %s for sql_id %s", err, statementMetricRow.SQLID)
-				}
-				if SQLStatement == "" && statementMetricRow.ForceMatchingSignature != "" {
-					err := getFullSQLText(c, &SQLStatement, "force_matching_signature", statementMetricRow.ForceMatchingSignature)
-					if err != nil {
-						log.Errorf("failed to get the full text %s for force_matching_signature %s", err, statementMetricRow.ForceMatchingSignature)
-					}
+					log.Errorf("%s failed to get the full text %s for sql_id %s", c.logPrompt, err, statementMetricRow.SQLID)
 				}
 				if SQLStatement != "" {
 					statementMetricRow.SQLText = SQLStatement
@@ -724,14 +726,14 @@ func (c *Check) StatementMetrics() (int, error) {
 					}
 					FQTPayloadBytes, err := json.Marshal(FQTPayload)
 					if err != nil {
-						log.Errorf("Error marshalling fqt payload: %s", err)
+						log.Errorf("%s Error marshalling fqt payload: %s", c.logPrompt, err)
 					}
-					log.Tracef("Query metrics fqt payload %s", string(FQTPayloadBytes))
+					log.Debugf("%s Query metrics fqt payload %s", c.logPrompt, string(FQTPayloadBytes))
 					sender.EventPlatformEvent(FQTPayloadBytes, "dbm-samples")
 					c.fqtEmitted.Set(queryRow.QuerySignature, "1", cache.DefaultExpiration)
 				}
 			} else {
-				log.Error("Internal error: fqtEmitted = nil. The check might have been restarted. Ignore if it doesn't appear anymore.")
+				log.Errorf("%s Internal error: fqtEmitted = nil. The check might have been restarted. Ignore if it doesn't appear anymore.", c.logPrompt)
 			}
 
 			if c.config.ExecutionPlans.Enabled {
@@ -813,7 +815,7 @@ func (c *Check) StatementMetrics() (int, error) {
 										if c.config.ExecutionPlans.LogUnobfuscatedPlans {
 											stepPayload.AccessPredicates = fmt.Sprintf("%s, unobfuscated filter: %s", stepPayload.AccessPredicates, stepRow.AccessPredicates.String)
 										}
-										log.Error(stepPayload.AccessPredicates)
+										log.Errorf("%s %s", c.logPrompt, stepPayload.AccessPredicates)
 									}
 								}
 								if stepRow.FilterPredicates.Valid {
@@ -825,7 +827,7 @@ func (c *Check) StatementMetrics() (int, error) {
 										if c.config.ExecutionPlans.LogUnobfuscatedPlans {
 											stepPayload.FilterPredicates = fmt.Sprintf("%s, unobfuscated filter: %s", stepPayload.FilterPredicates, stepRow.FilterPredicates.String)
 										}
-										log.Error(stepPayload.FilterPredicates)
+										log.Errorf("%s %s", c.logPrompt, stepPayload.FilterPredicates)
 									}
 								}
 								if stepRow.Projection.Valid {
@@ -906,18 +908,18 @@ func (c *Check) StatementMetrics() (int, error) {
 							}
 							planPayloadBytes, err := json.Marshal(planPayload)
 							if err != nil {
-								log.Errorf("Error marshalling plan payload: %s", err)
+								log.Errorf("%s Error marshalling plan payload: %s", c.logPrompt, err)
 							}
 
 							sender.EventPlatformEvent(planPayloadBytes, "dbm-samples")
-							log.Tracef("Plan payload %+v", string(planPayloadBytes))
+							log.Debugf("%s Plan payload %+v", c.logPrompt, string(planPayloadBytes))
 							c.planEmitted.Set(planCacheKey, "1", cache.DefaultExpiration)
 						} else {
-							log.Infof("Plan for SQL_ID %s and plan_hash_value: %d not found", statementMetricRow.SQLID, statementMetricRow.PlanHashValue)
+							log.Infof("%s Plan for SQL_ID %s and plan_hash_value: %d not found", c.logPrompt, statementMetricRow.SQLID, statementMetricRow.PlanHashValue)
 						}
 					} else {
 						planErrors++
-						log.Errorf("failed getting execution plan %s for SQL_ID: %s, plan_hash_value: %d", err, statementMetricRow.SQLID, statementMetricRow.PlanHashValue)
+						log.Errorf("%s failed getting execution plan %s for SQL_ID: %s, plan_hash_value: %d", c.logPrompt, err, statementMetricRow.SQLID, statementMetricRow.PlanHashValue)
 					}
 				}
 			}
@@ -950,11 +952,11 @@ func (c *Check) StatementMetrics() (int, error) {
 
 	payloadBytes, err := json.Marshal(payload)
 	if err != nil {
-		log.Errorf("Error marshalling query metrics payload: %s", err)
+		log.Errorf("%s Error marshalling query metrics payload: %s", c.logPrompt, err)
 		return 0, err
 	}
 
-	log.Tracef("Query metrics payload %s", strings.ReplaceAll(string(payloadBytes), "@", "XX"))
+	log.Debugf("%s Query metrics payload %s", c.logPrompt, strings.ReplaceAll(string(payloadBytes), "@", "XX"))
 
 	sender.EventPlatformEvent(payloadBytes, "dbm-metrics")
 	sender.Gauge("dd.oracle.statements_metrics.time_ms", float64(time.Since(start).Milliseconds()), "", c.tags)
@@ -962,11 +964,6 @@ func (c *Check) StatementMetrics() (int, error) {
 		sender.Gauge("dd.oracle.plan_errors.count", float64(planErrors), "", c.tags)
 	}
 	sender.Commit()
-
-	c.statementsFilter.SQLIDs = nil
-	c.statementsFilter.ForceMatchingSignatures = nil
-	c.statementsCache.SQLIDs = nil
-	c.statementsCache.forceMatchingSignatures = nil
 
 	if planErrors > 0 {
 		return SQLCount, fmt.Errorf("SQL statements processed: %d, plan errors: %d", SQLCount, planErrors)

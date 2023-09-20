@@ -43,6 +43,16 @@ instances:
   #
   # tns_admin: <TNS_ADMIN_DIR>
 
+  ## @param protocol - string - optional - default: true
+  ## The protocol to connect to the Oracle Database Server. Valid protocols include TCP and TCPS.
+  #
+  # protocol: TCP
+
+  ## @param protocol - string - optional
+  ## The directory containing Oracle wallet. Oracle wallet is used with TCPS protocol.
+  #
+  # wallet: <WALLET_DIR>>
+
   ## @param instant_client - boolean - optional
   ## Force using instant_client even when 'tns_alias' isn't used. This might be necessary
   ## for using some advanced Oracle SQLNet features which aren't supported by the 

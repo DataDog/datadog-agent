@@ -28,7 +28,7 @@ func NewEtwInterface(c *config.Config) *EtwInterface {
 	return &EtwInterface{
 		maxEntriesBuffered: c.MaxHTTPStatsBuffered,
 		DataChannel:        make(chan []WinHttpTransaction),
-		captureHTTPS:       c.EnableHTTPSMonitoring,
+		captureHTTPS:       c.EnableNativeTLSMonitoring,
 		captureHTTP:        c.EnableHTTPMonitoring,
 	}
 }
