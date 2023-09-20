@@ -24,7 +24,7 @@ def check_if_team_exists(team: str):
         print("[WARNING] No team entered. Displaying linters errors for all teams.\n")
 
 
-@task(iterable=['tested_os_and_arch'])
+@task(iterable=['platforms'])
 def show_linters_issues(
     ctx,
     filter_team: str = None,
