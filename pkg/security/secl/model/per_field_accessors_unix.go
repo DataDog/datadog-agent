@@ -89,8 +89,9 @@ func (ev *Event) GetBpfProgHelpers() []uint32 {
 	if ev.GetEventType().String() != "bpf" {
 		return []uint32{}
 	}
-	fieldCopy := make([]uint32, len(ev.BPF.Program.Helpers))
-	copy(fieldCopy, ev.BPF.Program.Helpers)
+	resolvedField := ev.BPF.Program.Helpers
+	fieldCopy := make([]uint32, len(resolvedField))
+	copy(fieldCopy, resolvedField)
 	return fieldCopy
 }
 
@@ -195,8 +196,9 @@ func (ev *Event) GetChmodFileHashes() []string {
 	if ev.GetEventType().String() != "chmod" {
 		return []string{}
 	}
-	fieldCopy := make([]string, len(ev.FieldHandlers.ResolveHashesFromEvent(ev, &ev.Chmod.File)))
-	copy(fieldCopy, ev.FieldHandlers.ResolveHashesFromEvent(ev, &ev.Chmod.File))
+	resolvedField := ev.FieldHandlers.ResolveHashesFromEvent(ev, &ev.Chmod.File)
+	fieldCopy := make([]string, len(resolvedField))
+	copy(fieldCopy, resolvedField)
 	return fieldCopy
 }
 
@@ -397,8 +399,9 @@ func (ev *Event) GetChownFileHashes() []string {
 	if ev.GetEventType().String() != "chown" {
 		return []string{}
 	}
-	fieldCopy := make([]string, len(ev.FieldHandlers.ResolveHashesFromEvent(ev, &ev.Chown.File)))
-	copy(fieldCopy, ev.FieldHandlers.ResolveHashesFromEvent(ev, &ev.Chown.File))
+	resolvedField := ev.FieldHandlers.ResolveHashesFromEvent(ev, &ev.Chown.File)
+	fieldCopy := make([]string, len(resolvedField))
+	copy(fieldCopy, resolvedField)
 	return fieldCopy
 }
 
@@ -542,8 +545,9 @@ func (ev *Event) GetContainerId() string {
 
 // GetContainerTags returns the value of the field, resolving if necessary
 func (ev *Event) GetContainerTags() []string {
-	fieldCopy := make([]string, len(ev.FieldHandlers.ResolveContainerTags(ev, ev.BaseEvent.ContainerContext)))
-	copy(fieldCopy, ev.FieldHandlers.ResolveContainerTags(ev, ev.BaseEvent.ContainerContext))
+	resolvedField := ev.FieldHandlers.ResolveContainerTags(ev, ev.BaseEvent.ContainerContext)
+	fieldCopy := make([]string, len(resolvedField))
+	copy(fieldCopy, resolvedField)
 	return fieldCopy
 }
 
@@ -650,8 +654,9 @@ func (ev *Event) GetExecArgsFlags() []string {
 	if ev.GetEventType().String() != "exec" {
 		return []string{}
 	}
-	fieldCopy := make([]string, len(ev.FieldHandlers.ResolveProcessArgsFlags(ev, ev.Exec.Process)))
-	copy(fieldCopy, ev.FieldHandlers.ResolveProcessArgsFlags(ev, ev.Exec.Process))
+	resolvedField := ev.FieldHandlers.ResolveProcessArgsFlags(ev, ev.Exec.Process)
+	fieldCopy := make([]string, len(resolvedField))
+	copy(fieldCopy, resolvedField)
 	return fieldCopy
 }
 
@@ -660,8 +665,9 @@ func (ev *Event) GetExecArgsOptions() []string {
 	if ev.GetEventType().String() != "exec" {
 		return []string{}
 	}
-	fieldCopy := make([]string, len(ev.FieldHandlers.ResolveProcessArgsOptions(ev, ev.Exec.Process)))
-	copy(fieldCopy, ev.FieldHandlers.ResolveProcessArgsOptions(ev, ev.Exec.Process))
+	resolvedField := ev.FieldHandlers.ResolveProcessArgsOptions(ev, ev.Exec.Process)
+	fieldCopy := make([]string, len(resolvedField))
+	copy(fieldCopy, resolvedField)
 	return fieldCopy
 }
 
@@ -678,8 +684,9 @@ func (ev *Event) GetExecArgv() []string {
 	if ev.GetEventType().String() != "exec" {
 		return []string{}
 	}
-	fieldCopy := make([]string, len(ev.FieldHandlers.ResolveProcessArgv(ev, ev.Exec.Process)))
-	copy(fieldCopy, ev.FieldHandlers.ResolveProcessArgv(ev, ev.Exec.Process))
+	resolvedField := ev.FieldHandlers.ResolveProcessArgv(ev, ev.Exec.Process)
+	fieldCopy := make([]string, len(resolvedField))
+	copy(fieldCopy, resolvedField)
 	return fieldCopy
 }
 
@@ -752,8 +759,9 @@ func (ev *Event) GetExecEnvp() []string {
 	if ev.GetEventType().String() != "exec" {
 		return []string{}
 	}
-	fieldCopy := make([]string, len(ev.FieldHandlers.ResolveProcessEnvp(ev, ev.Exec.Process)))
-	copy(fieldCopy, ev.FieldHandlers.ResolveProcessEnvp(ev, ev.Exec.Process))
+	resolvedField := ev.FieldHandlers.ResolveProcessEnvp(ev, ev.Exec.Process)
+	fieldCopy := make([]string, len(resolvedField))
+	copy(fieldCopy, resolvedField)
 	return fieldCopy
 }
 
@@ -762,8 +770,9 @@ func (ev *Event) GetExecEnvs() []string {
 	if ev.GetEventType().String() != "exec" {
 		return []string{}
 	}
-	fieldCopy := make([]string, len(ev.FieldHandlers.ResolveProcessEnvs(ev, ev.Exec.Process)))
-	copy(fieldCopy, ev.FieldHandlers.ResolveProcessEnvs(ev, ev.Exec.Process))
+	resolvedField := ev.FieldHandlers.ResolveProcessEnvs(ev, ev.Exec.Process)
+	fieldCopy := make([]string, len(resolvedField))
+	copy(fieldCopy, resolvedField)
 	return fieldCopy
 }
 
@@ -843,8 +852,9 @@ func (ev *Event) GetExecFileHashes() []string {
 	if !ev.Exec.Process.IsNotKworker() {
 		return []string{}
 	}
-	fieldCopy := make([]string, len(ev.FieldHandlers.ResolveHashesFromEvent(ev, &ev.Exec.Process.FileEvent)))
-	copy(fieldCopy, ev.FieldHandlers.ResolveHashesFromEvent(ev, &ev.Exec.Process.FileEvent))
+	resolvedField := ev.FieldHandlers.ResolveHashesFromEvent(ev, &ev.Exec.Process.FileEvent)
+	fieldCopy := make([]string, len(resolvedField))
+	copy(fieldCopy, resolvedField)
 	return fieldCopy
 }
 
@@ -1107,8 +1117,9 @@ func (ev *Event) GetExecInterpreterFileHashes() []string {
 	if !ev.Exec.Process.HasInterpreter() {
 		return []string{}
 	}
-	fieldCopy := make([]string, len(ev.FieldHandlers.ResolveHashesFromEvent(ev, &ev.Exec.Process.LinuxBinprm.FileEvent)))
-	copy(fieldCopy, ev.FieldHandlers.ResolveHashesFromEvent(ev, &ev.Exec.Process.LinuxBinprm.FileEvent))
+	resolvedField := ev.FieldHandlers.ResolveHashesFromEvent(ev, &ev.Exec.Process.LinuxBinprm.FileEvent)
+	fieldCopy := make([]string, len(resolvedField))
+	copy(fieldCopy, resolvedField)
 	return fieldCopy
 }
 
@@ -1372,8 +1383,9 @@ func (ev *Event) GetExitArgsFlags() []string {
 	if ev.GetEventType().String() != "exit" {
 		return []string{}
 	}
-	fieldCopy := make([]string, len(ev.FieldHandlers.ResolveProcessArgsFlags(ev, ev.Exit.Process)))
-	copy(fieldCopy, ev.FieldHandlers.ResolveProcessArgsFlags(ev, ev.Exit.Process))
+	resolvedField := ev.FieldHandlers.ResolveProcessArgsFlags(ev, ev.Exit.Process)
+	fieldCopy := make([]string, len(resolvedField))
+	copy(fieldCopy, resolvedField)
 	return fieldCopy
 }
 
@@ -1382,8 +1394,9 @@ func (ev *Event) GetExitArgsOptions() []string {
 	if ev.GetEventType().String() != "exit" {
 		return []string{}
 	}
-	fieldCopy := make([]string, len(ev.FieldHandlers.ResolveProcessArgsOptions(ev, ev.Exit.Process)))
-	copy(fieldCopy, ev.FieldHandlers.ResolveProcessArgsOptions(ev, ev.Exit.Process))
+	resolvedField := ev.FieldHandlers.ResolveProcessArgsOptions(ev, ev.Exit.Process)
+	fieldCopy := make([]string, len(resolvedField))
+	copy(fieldCopy, resolvedField)
 	return fieldCopy
 }
 
@@ -1400,8 +1413,9 @@ func (ev *Event) GetExitArgv() []string {
 	if ev.GetEventType().String() != "exit" {
 		return []string{}
 	}
-	fieldCopy := make([]string, len(ev.FieldHandlers.ResolveProcessArgv(ev, ev.Exit.Process)))
-	copy(fieldCopy, ev.FieldHandlers.ResolveProcessArgv(ev, ev.Exit.Process))
+	resolvedField := ev.FieldHandlers.ResolveProcessArgv(ev, ev.Exit.Process)
+	fieldCopy := make([]string, len(resolvedField))
+	copy(fieldCopy, resolvedField)
 	return fieldCopy
 }
 
@@ -1490,8 +1504,9 @@ func (ev *Event) GetExitEnvp() []string {
 	if ev.GetEventType().String() != "exit" {
 		return []string{}
 	}
-	fieldCopy := make([]string, len(ev.FieldHandlers.ResolveProcessEnvp(ev, ev.Exit.Process)))
-	copy(fieldCopy, ev.FieldHandlers.ResolveProcessEnvp(ev, ev.Exit.Process))
+	resolvedField := ev.FieldHandlers.ResolveProcessEnvp(ev, ev.Exit.Process)
+	fieldCopy := make([]string, len(resolvedField))
+	copy(fieldCopy, resolvedField)
 	return fieldCopy
 }
 
@@ -1500,8 +1515,9 @@ func (ev *Event) GetExitEnvs() []string {
 	if ev.GetEventType().String() != "exit" {
 		return []string{}
 	}
-	fieldCopy := make([]string, len(ev.FieldHandlers.ResolveProcessEnvs(ev, ev.Exit.Process)))
-	copy(fieldCopy, ev.FieldHandlers.ResolveProcessEnvs(ev, ev.Exit.Process))
+	resolvedField := ev.FieldHandlers.ResolveProcessEnvs(ev, ev.Exit.Process)
+	fieldCopy := make([]string, len(resolvedField))
+	copy(fieldCopy, resolvedField)
 	return fieldCopy
 }
 
@@ -1581,8 +1597,9 @@ func (ev *Event) GetExitFileHashes() []string {
 	if !ev.Exit.Process.IsNotKworker() {
 		return []string{}
 	}
-	fieldCopy := make([]string, len(ev.FieldHandlers.ResolveHashesFromEvent(ev, &ev.Exit.Process.FileEvent)))
-	copy(fieldCopy, ev.FieldHandlers.ResolveHashesFromEvent(ev, &ev.Exit.Process.FileEvent))
+	resolvedField := ev.FieldHandlers.ResolveHashesFromEvent(ev, &ev.Exit.Process.FileEvent)
+	fieldCopy := make([]string, len(resolvedField))
+	copy(fieldCopy, resolvedField)
 	return fieldCopy
 }
 
@@ -1845,8 +1862,9 @@ func (ev *Event) GetExitInterpreterFileHashes() []string {
 	if !ev.Exit.Process.HasInterpreter() {
 		return []string{}
 	}
-	fieldCopy := make([]string, len(ev.FieldHandlers.ResolveHashesFromEvent(ev, &ev.Exit.Process.LinuxBinprm.FileEvent)))
-	copy(fieldCopy, ev.FieldHandlers.ResolveHashesFromEvent(ev, &ev.Exit.Process.LinuxBinprm.FileEvent))
+	resolvedField := ev.FieldHandlers.ResolveHashesFromEvent(ev, &ev.Exit.Process.LinuxBinprm.FileEvent)
+	fieldCopy := make([]string, len(resolvedField))
+	copy(fieldCopy, resolvedField)
 	return fieldCopy
 }
 
@@ -2118,8 +2136,9 @@ func (ev *Event) GetLinkFileDestinationHashes() []string {
 	if ev.GetEventType().String() != "link" {
 		return []string{}
 	}
-	fieldCopy := make([]string, len(ev.FieldHandlers.ResolveHashesFromEvent(ev, &ev.Link.Target)))
-	copy(fieldCopy, ev.FieldHandlers.ResolveHashesFromEvent(ev, &ev.Link.Target))
+	resolvedField := ev.FieldHandlers.ResolveHashesFromEvent(ev, &ev.Link.Target)
+	fieldCopy := make([]string, len(resolvedField))
+	copy(fieldCopy, resolvedField)
 	return fieldCopy
 }
 
@@ -2272,8 +2291,9 @@ func (ev *Event) GetLinkFileHashes() []string {
 	if ev.GetEventType().String() != "link" {
 		return []string{}
 	}
-	fieldCopy := make([]string, len(ev.FieldHandlers.ResolveHashesFromEvent(ev, &ev.Link.Source)))
-	copy(fieldCopy, ev.FieldHandlers.ResolveHashesFromEvent(ev, &ev.Link.Source))
+	resolvedField := ev.FieldHandlers.ResolveHashesFromEvent(ev, &ev.Link.Source)
+	fieldCopy := make([]string, len(resolvedField))
+	copy(fieldCopy, resolvedField)
 	return fieldCopy
 }
 
@@ -2426,8 +2446,9 @@ func (ev *Event) GetLoadModuleArgv() []string {
 	if ev.GetEventType().String() != "load_module" {
 		return []string{}
 	}
-	fieldCopy := make([]string, len(ev.FieldHandlers.ResolveModuleArgv(ev, &ev.LoadModule)))
-	copy(fieldCopy, ev.FieldHandlers.ResolveModuleArgv(ev, &ev.LoadModule))
+	resolvedField := ev.FieldHandlers.ResolveModuleArgv(ev, &ev.LoadModule)
+	fieldCopy := make([]string, len(resolvedField))
+	copy(fieldCopy, resolvedField)
 	return fieldCopy
 }
 
@@ -2468,8 +2489,9 @@ func (ev *Event) GetLoadModuleFileHashes() []string {
 	if ev.GetEventType().String() != "load_module" {
 		return []string{}
 	}
-	fieldCopy := make([]string, len(ev.FieldHandlers.ResolveHashesFromEvent(ev, &ev.LoadModule.File)))
-	copy(fieldCopy, ev.FieldHandlers.ResolveHashesFromEvent(ev, &ev.LoadModule.File))
+	resolvedField := ev.FieldHandlers.ResolveHashesFromEvent(ev, &ev.LoadModule.File)
+	fieldCopy := make([]string, len(resolvedField))
+	copy(fieldCopy, resolvedField)
 	return fieldCopy
 }
 
@@ -2670,8 +2692,9 @@ func (ev *Event) GetMkdirFileHashes() []string {
 	if ev.GetEventType().String() != "mkdir" {
 		return []string{}
 	}
-	fieldCopy := make([]string, len(ev.FieldHandlers.ResolveHashesFromEvent(ev, &ev.Mkdir.File)))
-	copy(fieldCopy, ev.FieldHandlers.ResolveHashesFromEvent(ev, &ev.Mkdir.File))
+	resolvedField := ev.FieldHandlers.ResolveHashesFromEvent(ev, &ev.Mkdir.File)
+	fieldCopy := make([]string, len(resolvedField))
+	copy(fieldCopy, resolvedField)
 	return fieldCopy
 }
 
@@ -2840,8 +2863,9 @@ func (ev *Event) GetMmapFileHashes() []string {
 	if ev.GetEventType().String() != "mmap" {
 		return []string{}
 	}
-	fieldCopy := make([]string, len(ev.FieldHandlers.ResolveHashesFromEvent(ev, &ev.MMap.File)))
-	copy(fieldCopy, ev.FieldHandlers.ResolveHashesFromEvent(ev, &ev.MMap.File))
+	resolvedField := ev.FieldHandlers.ResolveHashesFromEvent(ev, &ev.MMap.File)
+	fieldCopy := make([]string, len(resolvedField))
+	copy(fieldCopy, resolvedField)
 	return fieldCopy
 }
 
@@ -3162,8 +3186,9 @@ func (ev *Event) GetOpenFileHashes() []string {
 	if ev.GetEventType().String() != "open" {
 		return []string{}
 	}
-	fieldCopy := make([]string, len(ev.FieldHandlers.ResolveHashesFromEvent(ev, &ev.Open.File)))
-	copy(fieldCopy, ev.FieldHandlers.ResolveHashesFromEvent(ev, &ev.Open.File))
+	resolvedField := ev.FieldHandlers.ResolveHashesFromEvent(ev, &ev.Open.File)
+	fieldCopy := make([]string, len(resolvedField))
+	copy(fieldCopy, resolvedField)
 	return fieldCopy
 }
 
@@ -4405,15 +4430,17 @@ func (ev *Event) GetProcessArgs() string {
 
 // GetProcessArgsFlags returns the value of the field, resolving if necessary
 func (ev *Event) GetProcessArgsFlags() []string {
-	fieldCopy := make([]string, len(ev.FieldHandlers.ResolveProcessArgsFlags(ev, &ev.BaseEvent.ProcessContext.Process)))
-	copy(fieldCopy, ev.FieldHandlers.ResolveProcessArgsFlags(ev, &ev.BaseEvent.ProcessContext.Process))
+	resolvedField := ev.FieldHandlers.ResolveProcessArgsFlags(ev, &ev.BaseEvent.ProcessContext.Process)
+	fieldCopy := make([]string, len(resolvedField))
+	copy(fieldCopy, resolvedField)
 	return fieldCopy
 }
 
 // GetProcessArgsOptions returns the value of the field, resolving if necessary
 func (ev *Event) GetProcessArgsOptions() []string {
-	fieldCopy := make([]string, len(ev.FieldHandlers.ResolveProcessArgsOptions(ev, &ev.BaseEvent.ProcessContext.Process)))
-	copy(fieldCopy, ev.FieldHandlers.ResolveProcessArgsOptions(ev, &ev.BaseEvent.ProcessContext.Process))
+	resolvedField := ev.FieldHandlers.ResolveProcessArgsOptions(ev, &ev.BaseEvent.ProcessContext.Process)
+	fieldCopy := make([]string, len(resolvedField))
+	copy(fieldCopy, resolvedField)
 	return fieldCopy
 }
 
@@ -4424,8 +4451,9 @@ func (ev *Event) GetProcessArgsTruncated() bool {
 
 // GetProcessArgv returns the value of the field, resolving if necessary
 func (ev *Event) GetProcessArgv() []string {
-	fieldCopy := make([]string, len(ev.FieldHandlers.ResolveProcessArgv(ev, &ev.BaseEvent.ProcessContext.Process)))
-	copy(fieldCopy, ev.FieldHandlers.ResolveProcessArgv(ev, &ev.BaseEvent.ProcessContext.Process))
+	resolvedField := ev.FieldHandlers.ResolveProcessArgv(ev, &ev.BaseEvent.ProcessContext.Process)
+	fieldCopy := make([]string, len(resolvedField))
+	copy(fieldCopy, resolvedField)
 	return fieldCopy
 }
 
@@ -4471,15 +4499,17 @@ func (ev *Event) GetProcessEgroup() string {
 
 // GetProcessEnvp returns the value of the field, resolving if necessary
 func (ev *Event) GetProcessEnvp() []string {
-	fieldCopy := make([]string, len(ev.FieldHandlers.ResolveProcessEnvp(ev, &ev.BaseEvent.ProcessContext.Process)))
-	copy(fieldCopy, ev.FieldHandlers.ResolveProcessEnvp(ev, &ev.BaseEvent.ProcessContext.Process))
+	resolvedField := ev.FieldHandlers.ResolveProcessEnvp(ev, &ev.BaseEvent.ProcessContext.Process)
+	fieldCopy := make([]string, len(resolvedField))
+	copy(fieldCopy, resolvedField)
 	return fieldCopy
 }
 
 // GetProcessEnvs returns the value of the field, resolving if necessary
 func (ev *Event) GetProcessEnvs() []string {
-	fieldCopy := make([]string, len(ev.FieldHandlers.ResolveProcessEnvs(ev, &ev.BaseEvent.ProcessContext.Process)))
-	copy(fieldCopy, ev.FieldHandlers.ResolveProcessEnvs(ev, &ev.BaseEvent.ProcessContext.Process))
+	resolvedField := ev.FieldHandlers.ResolveProcessEnvs(ev, &ev.BaseEvent.ProcessContext.Process)
+	fieldCopy := make([]string, len(resolvedField))
+	copy(fieldCopy, resolvedField)
 	return fieldCopy
 }
 
@@ -4535,8 +4565,9 @@ func (ev *Event) GetProcessFileHashes() []string {
 	if !ev.BaseEvent.ProcessContext.Process.IsNotKworker() {
 		return []string{}
 	}
-	fieldCopy := make([]string, len(ev.FieldHandlers.ResolveHashesFromEvent(ev, &ev.BaseEvent.ProcessContext.Process.FileEvent)))
-	copy(fieldCopy, ev.FieldHandlers.ResolveHashesFromEvent(ev, &ev.BaseEvent.ProcessContext.Process.FileEvent))
+	resolvedField := ev.FieldHandlers.ResolveHashesFromEvent(ev, &ev.BaseEvent.ProcessContext.Process.FileEvent)
+	fieldCopy := make([]string, len(resolvedField))
+	copy(fieldCopy, resolvedField)
 	return fieldCopy
 }
 
@@ -4721,8 +4752,9 @@ func (ev *Event) GetProcessInterpreterFileHashes() []string {
 	if !ev.BaseEvent.ProcessContext.Process.HasInterpreter() {
 		return []string{}
 	}
-	fieldCopy := make([]string, len(ev.FieldHandlers.ResolveHashesFromEvent(ev, &ev.BaseEvent.ProcessContext.Process.LinuxBinprm.FileEvent)))
-	copy(fieldCopy, ev.FieldHandlers.ResolveHashesFromEvent(ev, &ev.BaseEvent.ProcessContext.Process.LinuxBinprm.FileEvent))
+	resolvedField := ev.FieldHandlers.ResolveHashesFromEvent(ev, &ev.BaseEvent.ProcessContext.Process.LinuxBinprm.FileEvent)
+	fieldCopy := make([]string, len(resolvedField))
+	copy(fieldCopy, resolvedField)
 	return fieldCopy
 }
 
@@ -4863,8 +4895,9 @@ func (ev *Event) GetProcessParentArgsFlags() []string {
 	if !ev.BaseEvent.ProcessContext.HasParent() {
 		return []string{}
 	}
-	fieldCopy := make([]string, len(ev.FieldHandlers.ResolveProcessArgsFlags(ev, ev.BaseEvent.ProcessContext.Parent)))
-	copy(fieldCopy, ev.FieldHandlers.ResolveProcessArgsFlags(ev, ev.BaseEvent.ProcessContext.Parent))
+	resolvedField := ev.FieldHandlers.ResolveProcessArgsFlags(ev, ev.BaseEvent.ProcessContext.Parent)
+	fieldCopy := make([]string, len(resolvedField))
+	copy(fieldCopy, resolvedField)
 	return fieldCopy
 }
 
@@ -4873,8 +4906,9 @@ func (ev *Event) GetProcessParentArgsOptions() []string {
 	if !ev.BaseEvent.ProcessContext.HasParent() {
 		return []string{}
 	}
-	fieldCopy := make([]string, len(ev.FieldHandlers.ResolveProcessArgsOptions(ev, ev.BaseEvent.ProcessContext.Parent)))
-	copy(fieldCopy, ev.FieldHandlers.ResolveProcessArgsOptions(ev, ev.BaseEvent.ProcessContext.Parent))
+	resolvedField := ev.FieldHandlers.ResolveProcessArgsOptions(ev, ev.BaseEvent.ProcessContext.Parent)
+	fieldCopy := make([]string, len(resolvedField))
+	copy(fieldCopy, resolvedField)
 	return fieldCopy
 }
 
@@ -4891,8 +4925,9 @@ func (ev *Event) GetProcessParentArgv() []string {
 	if !ev.BaseEvent.ProcessContext.HasParent() {
 		return []string{}
 	}
-	fieldCopy := make([]string, len(ev.FieldHandlers.ResolveProcessArgv(ev, ev.BaseEvent.ProcessContext.Parent)))
-	copy(fieldCopy, ev.FieldHandlers.ResolveProcessArgv(ev, ev.BaseEvent.ProcessContext.Parent))
+	resolvedField := ev.FieldHandlers.ResolveProcessArgv(ev, ev.BaseEvent.ProcessContext.Parent)
+	fieldCopy := make([]string, len(resolvedField))
+	copy(fieldCopy, resolvedField)
 	return fieldCopy
 }
 
@@ -4965,8 +5000,9 @@ func (ev *Event) GetProcessParentEnvp() []string {
 	if !ev.BaseEvent.ProcessContext.HasParent() {
 		return []string{}
 	}
-	fieldCopy := make([]string, len(ev.FieldHandlers.ResolveProcessEnvp(ev, ev.BaseEvent.ProcessContext.Parent)))
-	copy(fieldCopy, ev.FieldHandlers.ResolveProcessEnvp(ev, ev.BaseEvent.ProcessContext.Parent))
+	resolvedField := ev.FieldHandlers.ResolveProcessEnvp(ev, ev.BaseEvent.ProcessContext.Parent)
+	fieldCopy := make([]string, len(resolvedField))
+	copy(fieldCopy, resolvedField)
 	return fieldCopy
 }
 
@@ -4975,8 +5011,9 @@ func (ev *Event) GetProcessParentEnvs() []string {
 	if !ev.BaseEvent.ProcessContext.HasParent() {
 		return []string{}
 	}
-	fieldCopy := make([]string, len(ev.FieldHandlers.ResolveProcessEnvs(ev, ev.BaseEvent.ProcessContext.Parent)))
-	copy(fieldCopy, ev.FieldHandlers.ResolveProcessEnvs(ev, ev.BaseEvent.ProcessContext.Parent))
+	resolvedField := ev.FieldHandlers.ResolveProcessEnvs(ev, ev.BaseEvent.ProcessContext.Parent)
+	fieldCopy := make([]string, len(resolvedField))
+	copy(fieldCopy, resolvedField)
 	return fieldCopy
 }
 
@@ -5056,8 +5093,9 @@ func (ev *Event) GetProcessParentFileHashes() []string {
 	if !ev.BaseEvent.ProcessContext.Parent.IsNotKworker() {
 		return []string{}
 	}
-	fieldCopy := make([]string, len(ev.FieldHandlers.ResolveHashesFromEvent(ev, &ev.BaseEvent.ProcessContext.Parent.FileEvent)))
-	copy(fieldCopy, ev.FieldHandlers.ResolveHashesFromEvent(ev, &ev.BaseEvent.ProcessContext.Parent.FileEvent))
+	resolvedField := ev.FieldHandlers.ResolveHashesFromEvent(ev, &ev.BaseEvent.ProcessContext.Parent.FileEvent)
+	fieldCopy := make([]string, len(resolvedField))
+	copy(fieldCopy, resolvedField)
 	return fieldCopy
 }
 
@@ -5314,8 +5352,9 @@ func (ev *Event) GetProcessParentInterpreterFileHashes() []string {
 	if !ev.BaseEvent.ProcessContext.Parent.HasInterpreter() {
 		return []string{}
 	}
-	fieldCopy := make([]string, len(ev.FieldHandlers.ResolveHashesFromEvent(ev, &ev.BaseEvent.ProcessContext.Parent.LinuxBinprm.FileEvent)))
-	copy(fieldCopy, ev.FieldHandlers.ResolveHashesFromEvent(ev, &ev.BaseEvent.ProcessContext.Parent.LinuxBinprm.FileEvent))
+	resolvedField := ev.FieldHandlers.ResolveHashesFromEvent(ev, &ev.BaseEvent.ProcessContext.Parent.LinuxBinprm.FileEvent)
+	fieldCopy := make([]string, len(resolvedField))
+	copy(fieldCopy, resolvedField)
 	return fieldCopy
 }
 
@@ -6915,8 +6954,9 @@ func (ev *Event) GetPtraceTraceeArgsFlags() []string {
 	if ev.GetEventType().String() != "ptrace" {
 		return []string{}
 	}
-	fieldCopy := make([]string, len(ev.FieldHandlers.ResolveProcessArgsFlags(ev, &ev.PTrace.Tracee.Process)))
-	copy(fieldCopy, ev.FieldHandlers.ResolveProcessArgsFlags(ev, &ev.PTrace.Tracee.Process))
+	resolvedField := ev.FieldHandlers.ResolveProcessArgsFlags(ev, &ev.PTrace.Tracee.Process)
+	fieldCopy := make([]string, len(resolvedField))
+	copy(fieldCopy, resolvedField)
 	return fieldCopy
 }
 
@@ -6925,8 +6965,9 @@ func (ev *Event) GetPtraceTraceeArgsOptions() []string {
 	if ev.GetEventType().String() != "ptrace" {
 		return []string{}
 	}
-	fieldCopy := make([]string, len(ev.FieldHandlers.ResolveProcessArgsOptions(ev, &ev.PTrace.Tracee.Process)))
-	copy(fieldCopy, ev.FieldHandlers.ResolveProcessArgsOptions(ev, &ev.PTrace.Tracee.Process))
+	resolvedField := ev.FieldHandlers.ResolveProcessArgsOptions(ev, &ev.PTrace.Tracee.Process)
+	fieldCopy := make([]string, len(resolvedField))
+	copy(fieldCopy, resolvedField)
 	return fieldCopy
 }
 
@@ -6943,8 +6984,9 @@ func (ev *Event) GetPtraceTraceeArgv() []string {
 	if ev.GetEventType().String() != "ptrace" {
 		return []string{}
 	}
-	fieldCopy := make([]string, len(ev.FieldHandlers.ResolveProcessArgv(ev, &ev.PTrace.Tracee.Process)))
-	copy(fieldCopy, ev.FieldHandlers.ResolveProcessArgv(ev, &ev.PTrace.Tracee.Process))
+	resolvedField := ev.FieldHandlers.ResolveProcessArgv(ev, &ev.PTrace.Tracee.Process)
+	fieldCopy := make([]string, len(resolvedField))
+	copy(fieldCopy, resolvedField)
 	return fieldCopy
 }
 
@@ -7017,8 +7059,9 @@ func (ev *Event) GetPtraceTraceeEnvp() []string {
 	if ev.GetEventType().String() != "ptrace" {
 		return []string{}
 	}
-	fieldCopy := make([]string, len(ev.FieldHandlers.ResolveProcessEnvp(ev, &ev.PTrace.Tracee.Process)))
-	copy(fieldCopy, ev.FieldHandlers.ResolveProcessEnvp(ev, &ev.PTrace.Tracee.Process))
+	resolvedField := ev.FieldHandlers.ResolveProcessEnvp(ev, &ev.PTrace.Tracee.Process)
+	fieldCopy := make([]string, len(resolvedField))
+	copy(fieldCopy, resolvedField)
 	return fieldCopy
 }
 
@@ -7027,8 +7070,9 @@ func (ev *Event) GetPtraceTraceeEnvs() []string {
 	if ev.GetEventType().String() != "ptrace" {
 		return []string{}
 	}
-	fieldCopy := make([]string, len(ev.FieldHandlers.ResolveProcessEnvs(ev, &ev.PTrace.Tracee.Process)))
-	copy(fieldCopy, ev.FieldHandlers.ResolveProcessEnvs(ev, &ev.PTrace.Tracee.Process))
+	resolvedField := ev.FieldHandlers.ResolveProcessEnvs(ev, &ev.PTrace.Tracee.Process)
+	fieldCopy := make([]string, len(resolvedField))
+	copy(fieldCopy, resolvedField)
 	return fieldCopy
 }
 
@@ -7108,8 +7152,9 @@ func (ev *Event) GetPtraceTraceeFileHashes() []string {
 	if !ev.PTrace.Tracee.Process.IsNotKworker() {
 		return []string{}
 	}
-	fieldCopy := make([]string, len(ev.FieldHandlers.ResolveHashesFromEvent(ev, &ev.PTrace.Tracee.Process.FileEvent)))
-	copy(fieldCopy, ev.FieldHandlers.ResolveHashesFromEvent(ev, &ev.PTrace.Tracee.Process.FileEvent))
+	resolvedField := ev.FieldHandlers.ResolveHashesFromEvent(ev, &ev.PTrace.Tracee.Process.FileEvent)
+	fieldCopy := make([]string, len(resolvedField))
+	copy(fieldCopy, resolvedField)
 	return fieldCopy
 }
 
@@ -7372,8 +7417,9 @@ func (ev *Event) GetPtraceTraceeInterpreterFileHashes() []string {
 	if !ev.PTrace.Tracee.Process.HasInterpreter() {
 		return []string{}
 	}
-	fieldCopy := make([]string, len(ev.FieldHandlers.ResolveHashesFromEvent(ev, &ev.PTrace.Tracee.Process.LinuxBinprm.FileEvent)))
-	copy(fieldCopy, ev.FieldHandlers.ResolveHashesFromEvent(ev, &ev.PTrace.Tracee.Process.LinuxBinprm.FileEvent))
+	resolvedField := ev.FieldHandlers.ResolveHashesFromEvent(ev, &ev.PTrace.Tracee.Process.LinuxBinprm.FileEvent)
+	fieldCopy := make([]string, len(resolvedField))
+	copy(fieldCopy, resolvedField)
 	return fieldCopy
 }
 
@@ -7571,8 +7617,9 @@ func (ev *Event) GetPtraceTraceeParentArgsFlags() []string {
 	if !ev.PTrace.Tracee.HasParent() {
 		return []string{}
 	}
-	fieldCopy := make([]string, len(ev.FieldHandlers.ResolveProcessArgsFlags(ev, ev.PTrace.Tracee.Parent)))
-	copy(fieldCopy, ev.FieldHandlers.ResolveProcessArgsFlags(ev, ev.PTrace.Tracee.Parent))
+	resolvedField := ev.FieldHandlers.ResolveProcessArgsFlags(ev, ev.PTrace.Tracee.Parent)
+	fieldCopy := make([]string, len(resolvedField))
+	copy(fieldCopy, resolvedField)
 	return fieldCopy
 }
 
@@ -7584,8 +7631,9 @@ func (ev *Event) GetPtraceTraceeParentArgsOptions() []string {
 	if !ev.PTrace.Tracee.HasParent() {
 		return []string{}
 	}
-	fieldCopy := make([]string, len(ev.FieldHandlers.ResolveProcessArgsOptions(ev, ev.PTrace.Tracee.Parent)))
-	copy(fieldCopy, ev.FieldHandlers.ResolveProcessArgsOptions(ev, ev.PTrace.Tracee.Parent))
+	resolvedField := ev.FieldHandlers.ResolveProcessArgsOptions(ev, ev.PTrace.Tracee.Parent)
+	fieldCopy := make([]string, len(resolvedField))
+	copy(fieldCopy, resolvedField)
 	return fieldCopy
 }
 
@@ -7608,8 +7656,9 @@ func (ev *Event) GetPtraceTraceeParentArgv() []string {
 	if !ev.PTrace.Tracee.HasParent() {
 		return []string{}
 	}
-	fieldCopy := make([]string, len(ev.FieldHandlers.ResolveProcessArgv(ev, ev.PTrace.Tracee.Parent)))
-	copy(fieldCopy, ev.FieldHandlers.ResolveProcessArgv(ev, ev.PTrace.Tracee.Parent))
+	resolvedField := ev.FieldHandlers.ResolveProcessArgv(ev, ev.PTrace.Tracee.Parent)
+	fieldCopy := make([]string, len(resolvedField))
+	copy(fieldCopy, resolvedField)
 	return fieldCopy
 }
 
@@ -7709,8 +7758,9 @@ func (ev *Event) GetPtraceTraceeParentEnvp() []string {
 	if !ev.PTrace.Tracee.HasParent() {
 		return []string{}
 	}
-	fieldCopy := make([]string, len(ev.FieldHandlers.ResolveProcessEnvp(ev, ev.PTrace.Tracee.Parent)))
-	copy(fieldCopy, ev.FieldHandlers.ResolveProcessEnvp(ev, ev.PTrace.Tracee.Parent))
+	resolvedField := ev.FieldHandlers.ResolveProcessEnvp(ev, ev.PTrace.Tracee.Parent)
+	fieldCopy := make([]string, len(resolvedField))
+	copy(fieldCopy, resolvedField)
 	return fieldCopy
 }
 
@@ -7722,8 +7772,9 @@ func (ev *Event) GetPtraceTraceeParentEnvs() []string {
 	if !ev.PTrace.Tracee.HasParent() {
 		return []string{}
 	}
-	fieldCopy := make([]string, len(ev.FieldHandlers.ResolveProcessEnvs(ev, ev.PTrace.Tracee.Parent)))
-	copy(fieldCopy, ev.FieldHandlers.ResolveProcessEnvs(ev, ev.PTrace.Tracee.Parent))
+	resolvedField := ev.FieldHandlers.ResolveProcessEnvs(ev, ev.PTrace.Tracee.Parent)
+	fieldCopy := make([]string, len(resolvedField))
+	copy(fieldCopy, resolvedField)
 	return fieldCopy
 }
 
@@ -7827,8 +7878,9 @@ func (ev *Event) GetPtraceTraceeParentFileHashes() []string {
 	if !ev.PTrace.Tracee.Parent.IsNotKworker() {
 		return []string{}
 	}
-	fieldCopy := make([]string, len(ev.FieldHandlers.ResolveHashesFromEvent(ev, &ev.PTrace.Tracee.Parent.FileEvent)))
-	copy(fieldCopy, ev.FieldHandlers.ResolveHashesFromEvent(ev, &ev.PTrace.Tracee.Parent.FileEvent))
+	resolvedField := ev.FieldHandlers.ResolveHashesFromEvent(ev, &ev.PTrace.Tracee.Parent.FileEvent)
+	fieldCopy := make([]string, len(resolvedField))
+	copy(fieldCopy, resolvedField)
 	return fieldCopy
 }
 
@@ -8163,8 +8215,9 @@ func (ev *Event) GetPtraceTraceeParentInterpreterFileHashes() []string {
 	if !ev.PTrace.Tracee.Parent.HasInterpreter() {
 		return []string{}
 	}
-	fieldCopy := make([]string, len(ev.FieldHandlers.ResolveHashesFromEvent(ev, &ev.PTrace.Tracee.Parent.LinuxBinprm.FileEvent)))
-	copy(fieldCopy, ev.FieldHandlers.ResolveHashesFromEvent(ev, &ev.PTrace.Tracee.Parent.LinuxBinprm.FileEvent))
+	resolvedField := ev.FieldHandlers.ResolveHashesFromEvent(ev, &ev.PTrace.Tracee.Parent.LinuxBinprm.FileEvent)
+	fieldCopy := make([]string, len(resolvedField))
+	copy(fieldCopy, resolvedField)
 	return fieldCopy
 }
 
@@ -8555,8 +8608,9 @@ func (ev *Event) GetRemovexattrFileHashes() []string {
 	if ev.GetEventType().String() != "removexattr" {
 		return []string{}
 	}
-	fieldCopy := make([]string, len(ev.FieldHandlers.ResolveHashesFromEvent(ev, &ev.RemoveXAttr.File)))
-	copy(fieldCopy, ev.FieldHandlers.ResolveHashesFromEvent(ev, &ev.RemoveXAttr.File))
+	resolvedField := ev.FieldHandlers.ResolveHashesFromEvent(ev, &ev.RemoveXAttr.File)
+	fieldCopy := make([]string, len(resolvedField))
+	copy(fieldCopy, resolvedField)
 	return fieldCopy
 }
 
@@ -8733,8 +8787,9 @@ func (ev *Event) GetRenameFileDestinationHashes() []string {
 	if ev.GetEventType().String() != "rename" {
 		return []string{}
 	}
-	fieldCopy := make([]string, len(ev.FieldHandlers.ResolveHashesFromEvent(ev, &ev.Rename.New)))
-	copy(fieldCopy, ev.FieldHandlers.ResolveHashesFromEvent(ev, &ev.Rename.New))
+	resolvedField := ev.FieldHandlers.ResolveHashesFromEvent(ev, &ev.Rename.New)
+	fieldCopy := make([]string, len(resolvedField))
+	copy(fieldCopy, resolvedField)
 	return fieldCopy
 }
 
@@ -8887,8 +8942,9 @@ func (ev *Event) GetRenameFileHashes() []string {
 	if ev.GetEventType().String() != "rename" {
 		return []string{}
 	}
-	fieldCopy := make([]string, len(ev.FieldHandlers.ResolveHashesFromEvent(ev, &ev.Rename.Old)))
-	copy(fieldCopy, ev.FieldHandlers.ResolveHashesFromEvent(ev, &ev.Rename.Old))
+	resolvedField := ev.FieldHandlers.ResolveHashesFromEvent(ev, &ev.Rename.Old)
+	fieldCopy := make([]string, len(resolvedField))
+	copy(fieldCopy, resolvedField)
 	return fieldCopy
 }
 
@@ -9057,8 +9113,9 @@ func (ev *Event) GetRmdirFileHashes() []string {
 	if ev.GetEventType().String() != "rmdir" {
 		return []string{}
 	}
-	fieldCopy := make([]string, len(ev.FieldHandlers.ResolveHashesFromEvent(ev, &ev.Rmdir.File)))
-	copy(fieldCopy, ev.FieldHandlers.ResolveHashesFromEvent(ev, &ev.Rmdir.File))
+	resolvedField := ev.FieldHandlers.ResolveHashesFromEvent(ev, &ev.Rmdir.File)
+	fieldCopy := make([]string, len(resolvedField))
+	copy(fieldCopy, resolvedField)
 	return fieldCopy
 }
 
@@ -9371,8 +9428,9 @@ func (ev *Event) GetSetxattrFileHashes() []string {
 	if ev.GetEventType().String() != "setxattr" {
 		return []string{}
 	}
-	fieldCopy := make([]string, len(ev.FieldHandlers.ResolveHashesFromEvent(ev, &ev.SetXAttr.File)))
-	copy(fieldCopy, ev.FieldHandlers.ResolveHashesFromEvent(ev, &ev.SetXAttr.File))
+	resolvedField := ev.FieldHandlers.ResolveHashesFromEvent(ev, &ev.SetXAttr.File)
+	fieldCopy := make([]string, len(resolvedField))
+	copy(fieldCopy, resolvedField)
 	return fieldCopy
 }
 
@@ -10853,8 +10911,9 @@ func (ev *Event) GetSignalTargetArgsFlags() []string {
 	if ev.GetEventType().String() != "signal" {
 		return []string{}
 	}
-	fieldCopy := make([]string, len(ev.FieldHandlers.ResolveProcessArgsFlags(ev, &ev.Signal.Target.Process)))
-	copy(fieldCopy, ev.FieldHandlers.ResolveProcessArgsFlags(ev, &ev.Signal.Target.Process))
+	resolvedField := ev.FieldHandlers.ResolveProcessArgsFlags(ev, &ev.Signal.Target.Process)
+	fieldCopy := make([]string, len(resolvedField))
+	copy(fieldCopy, resolvedField)
 	return fieldCopy
 }
 
@@ -10863,8 +10922,9 @@ func (ev *Event) GetSignalTargetArgsOptions() []string {
 	if ev.GetEventType().String() != "signal" {
 		return []string{}
 	}
-	fieldCopy := make([]string, len(ev.FieldHandlers.ResolveProcessArgsOptions(ev, &ev.Signal.Target.Process)))
-	copy(fieldCopy, ev.FieldHandlers.ResolveProcessArgsOptions(ev, &ev.Signal.Target.Process))
+	resolvedField := ev.FieldHandlers.ResolveProcessArgsOptions(ev, &ev.Signal.Target.Process)
+	fieldCopy := make([]string, len(resolvedField))
+	copy(fieldCopy, resolvedField)
 	return fieldCopy
 }
 
@@ -10881,8 +10941,9 @@ func (ev *Event) GetSignalTargetArgv() []string {
 	if ev.GetEventType().String() != "signal" {
 		return []string{}
 	}
-	fieldCopy := make([]string, len(ev.FieldHandlers.ResolveProcessArgv(ev, &ev.Signal.Target.Process)))
-	copy(fieldCopy, ev.FieldHandlers.ResolveProcessArgv(ev, &ev.Signal.Target.Process))
+	resolvedField := ev.FieldHandlers.ResolveProcessArgv(ev, &ev.Signal.Target.Process)
+	fieldCopy := make([]string, len(resolvedField))
+	copy(fieldCopy, resolvedField)
 	return fieldCopy
 }
 
@@ -10955,8 +11016,9 @@ func (ev *Event) GetSignalTargetEnvp() []string {
 	if ev.GetEventType().String() != "signal" {
 		return []string{}
 	}
-	fieldCopy := make([]string, len(ev.FieldHandlers.ResolveProcessEnvp(ev, &ev.Signal.Target.Process)))
-	copy(fieldCopy, ev.FieldHandlers.ResolveProcessEnvp(ev, &ev.Signal.Target.Process))
+	resolvedField := ev.FieldHandlers.ResolveProcessEnvp(ev, &ev.Signal.Target.Process)
+	fieldCopy := make([]string, len(resolvedField))
+	copy(fieldCopy, resolvedField)
 	return fieldCopy
 }
 
@@ -10965,8 +11027,9 @@ func (ev *Event) GetSignalTargetEnvs() []string {
 	if ev.GetEventType().String() != "signal" {
 		return []string{}
 	}
-	fieldCopy := make([]string, len(ev.FieldHandlers.ResolveProcessEnvs(ev, &ev.Signal.Target.Process)))
-	copy(fieldCopy, ev.FieldHandlers.ResolveProcessEnvs(ev, &ev.Signal.Target.Process))
+	resolvedField := ev.FieldHandlers.ResolveProcessEnvs(ev, &ev.Signal.Target.Process)
+	fieldCopy := make([]string, len(resolvedField))
+	copy(fieldCopy, resolvedField)
 	return fieldCopy
 }
 
@@ -11046,8 +11109,9 @@ func (ev *Event) GetSignalTargetFileHashes() []string {
 	if !ev.Signal.Target.Process.IsNotKworker() {
 		return []string{}
 	}
-	fieldCopy := make([]string, len(ev.FieldHandlers.ResolveHashesFromEvent(ev, &ev.Signal.Target.Process.FileEvent)))
-	copy(fieldCopy, ev.FieldHandlers.ResolveHashesFromEvent(ev, &ev.Signal.Target.Process.FileEvent))
+	resolvedField := ev.FieldHandlers.ResolveHashesFromEvent(ev, &ev.Signal.Target.Process.FileEvent)
+	fieldCopy := make([]string, len(resolvedField))
+	copy(fieldCopy, resolvedField)
 	return fieldCopy
 }
 
@@ -11310,8 +11374,9 @@ func (ev *Event) GetSignalTargetInterpreterFileHashes() []string {
 	if !ev.Signal.Target.Process.HasInterpreter() {
 		return []string{}
 	}
-	fieldCopy := make([]string, len(ev.FieldHandlers.ResolveHashesFromEvent(ev, &ev.Signal.Target.Process.LinuxBinprm.FileEvent)))
-	copy(fieldCopy, ev.FieldHandlers.ResolveHashesFromEvent(ev, &ev.Signal.Target.Process.LinuxBinprm.FileEvent))
+	resolvedField := ev.FieldHandlers.ResolveHashesFromEvent(ev, &ev.Signal.Target.Process.LinuxBinprm.FileEvent)
+	fieldCopy := make([]string, len(resolvedField))
+	copy(fieldCopy, resolvedField)
 	return fieldCopy
 }
 
@@ -11509,8 +11574,9 @@ func (ev *Event) GetSignalTargetParentArgsFlags() []string {
 	if !ev.Signal.Target.HasParent() {
 		return []string{}
 	}
-	fieldCopy := make([]string, len(ev.FieldHandlers.ResolveProcessArgsFlags(ev, ev.Signal.Target.Parent)))
-	copy(fieldCopy, ev.FieldHandlers.ResolveProcessArgsFlags(ev, ev.Signal.Target.Parent))
+	resolvedField := ev.FieldHandlers.ResolveProcessArgsFlags(ev, ev.Signal.Target.Parent)
+	fieldCopy := make([]string, len(resolvedField))
+	copy(fieldCopy, resolvedField)
 	return fieldCopy
 }
 
@@ -11522,8 +11588,9 @@ func (ev *Event) GetSignalTargetParentArgsOptions() []string {
 	if !ev.Signal.Target.HasParent() {
 		return []string{}
 	}
-	fieldCopy := make([]string, len(ev.FieldHandlers.ResolveProcessArgsOptions(ev, ev.Signal.Target.Parent)))
-	copy(fieldCopy, ev.FieldHandlers.ResolveProcessArgsOptions(ev, ev.Signal.Target.Parent))
+	resolvedField := ev.FieldHandlers.ResolveProcessArgsOptions(ev, ev.Signal.Target.Parent)
+	fieldCopy := make([]string, len(resolvedField))
+	copy(fieldCopy, resolvedField)
 	return fieldCopy
 }
 
@@ -11546,8 +11613,9 @@ func (ev *Event) GetSignalTargetParentArgv() []string {
 	if !ev.Signal.Target.HasParent() {
 		return []string{}
 	}
-	fieldCopy := make([]string, len(ev.FieldHandlers.ResolveProcessArgv(ev, ev.Signal.Target.Parent)))
-	copy(fieldCopy, ev.FieldHandlers.ResolveProcessArgv(ev, ev.Signal.Target.Parent))
+	resolvedField := ev.FieldHandlers.ResolveProcessArgv(ev, ev.Signal.Target.Parent)
+	fieldCopy := make([]string, len(resolvedField))
+	copy(fieldCopy, resolvedField)
 	return fieldCopy
 }
 
@@ -11647,8 +11715,9 @@ func (ev *Event) GetSignalTargetParentEnvp() []string {
 	if !ev.Signal.Target.HasParent() {
 		return []string{}
 	}
-	fieldCopy := make([]string, len(ev.FieldHandlers.ResolveProcessEnvp(ev, ev.Signal.Target.Parent)))
-	copy(fieldCopy, ev.FieldHandlers.ResolveProcessEnvp(ev, ev.Signal.Target.Parent))
+	resolvedField := ev.FieldHandlers.ResolveProcessEnvp(ev, ev.Signal.Target.Parent)
+	fieldCopy := make([]string, len(resolvedField))
+	copy(fieldCopy, resolvedField)
 	return fieldCopy
 }
 
@@ -11660,8 +11729,9 @@ func (ev *Event) GetSignalTargetParentEnvs() []string {
 	if !ev.Signal.Target.HasParent() {
 		return []string{}
 	}
-	fieldCopy := make([]string, len(ev.FieldHandlers.ResolveProcessEnvs(ev, ev.Signal.Target.Parent)))
-	copy(fieldCopy, ev.FieldHandlers.ResolveProcessEnvs(ev, ev.Signal.Target.Parent))
+	resolvedField := ev.FieldHandlers.ResolveProcessEnvs(ev, ev.Signal.Target.Parent)
+	fieldCopy := make([]string, len(resolvedField))
+	copy(fieldCopy, resolvedField)
 	return fieldCopy
 }
 
@@ -11765,8 +11835,9 @@ func (ev *Event) GetSignalTargetParentFileHashes() []string {
 	if !ev.Signal.Target.Parent.IsNotKworker() {
 		return []string{}
 	}
-	fieldCopy := make([]string, len(ev.FieldHandlers.ResolveHashesFromEvent(ev, &ev.Signal.Target.Parent.FileEvent)))
-	copy(fieldCopy, ev.FieldHandlers.ResolveHashesFromEvent(ev, &ev.Signal.Target.Parent.FileEvent))
+	resolvedField := ev.FieldHandlers.ResolveHashesFromEvent(ev, &ev.Signal.Target.Parent.FileEvent)
+	fieldCopy := make([]string, len(resolvedField))
+	copy(fieldCopy, resolvedField)
 	return fieldCopy
 }
 
@@ -12101,8 +12172,9 @@ func (ev *Event) GetSignalTargetParentInterpreterFileHashes() []string {
 	if !ev.Signal.Target.Parent.HasInterpreter() {
 		return []string{}
 	}
-	fieldCopy := make([]string, len(ev.FieldHandlers.ResolveHashesFromEvent(ev, &ev.Signal.Target.Parent.LinuxBinprm.FileEvent)))
-	copy(fieldCopy, ev.FieldHandlers.ResolveHashesFromEvent(ev, &ev.Signal.Target.Parent.LinuxBinprm.FileEvent))
+	resolvedField := ev.FieldHandlers.ResolveHashesFromEvent(ev, &ev.Signal.Target.Parent.LinuxBinprm.FileEvent)
+	fieldCopy := make([]string, len(resolvedField))
+	copy(fieldCopy, resolvedField)
 	return fieldCopy
 }
 
@@ -12485,8 +12557,9 @@ func (ev *Event) GetSpliceFileHashes() []string {
 	if ev.GetEventType().String() != "splice" {
 		return []string{}
 	}
-	fieldCopy := make([]string, len(ev.FieldHandlers.ResolveHashesFromEvent(ev, &ev.Splice.File)))
-	copy(fieldCopy, ev.FieldHandlers.ResolveHashesFromEvent(ev, &ev.Splice.File))
+	resolvedField := ev.FieldHandlers.ResolveHashesFromEvent(ev, &ev.Splice.File)
+	fieldCopy := make([]string, len(resolvedField))
+	copy(fieldCopy, resolvedField)
 	return fieldCopy
 }
 
@@ -12671,8 +12744,9 @@ func (ev *Event) GetUnlinkFileHashes() []string {
 	if ev.GetEventType().String() != "unlink" {
 		return []string{}
 	}
-	fieldCopy := make([]string, len(ev.FieldHandlers.ResolveHashesFromEvent(ev, &ev.Unlink.File)))
-	copy(fieldCopy, ev.FieldHandlers.ResolveHashesFromEvent(ev, &ev.Unlink.File))
+	resolvedField := ev.FieldHandlers.ResolveHashesFromEvent(ev, &ev.Unlink.File)
+	fieldCopy := make([]string, len(resolvedField))
+	copy(fieldCopy, resolvedField)
 	return fieldCopy
 }
 
@@ -12865,8 +12939,9 @@ func (ev *Event) GetUtimesFileHashes() []string {
 	if ev.GetEventType().String() != "utimes" {
 		return []string{}
 	}
-	fieldCopy := make([]string, len(ev.FieldHandlers.ResolveHashesFromEvent(ev, &ev.Utimes.File)))
-	copy(fieldCopy, ev.FieldHandlers.ResolveHashesFromEvent(ev, &ev.Utimes.File))
+	resolvedField := ev.FieldHandlers.ResolveHashesFromEvent(ev, &ev.Utimes.File)
+	fieldCopy := make([]string, len(resolvedField))
+	copy(fieldCopy, resolvedField)
 	return fieldCopy
 }
 
