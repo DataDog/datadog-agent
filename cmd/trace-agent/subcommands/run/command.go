@@ -6,6 +6,7 @@
 package run
 
 import (
+	"github.com/DataDog/datadog-agent/comp/trace/config"
 	"github.com/spf13/cobra"
 	"go.uber.org/fx"
 
@@ -52,6 +53,7 @@ func runFx(cliParams *RunParams, defaultConfPath string) error {
 	return fxutil.Run(
 		fx.Supply(coreconfig.NewAgentParamsWithSecrets(cliParams.ConfPath)),
 		coreconfig.Module,
+		config.Module,
 		// Required to avoid cyclic imports.
 		fx.Supply(agent.Params{
 			CPUProfile:  cliParams.CPUProfile,

@@ -15,6 +15,7 @@ import (
 
 	coreconfig "github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/trace/config"
+	pkgconfig "github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
@@ -24,8 +25,10 @@ func TestBundleDependencies(t *testing.T) {
 	require.NoError(t, fx.ValidateApp(
 		// instantiate all of the core components, since this is not done
 		// automatically.
+		config.Module,
 		fx.Supply(coreconfig.Params{}),
 		coreconfig.Module,
+		fx.Supply(&pkgconfig.AgentConfig{}),
 		fx.Supply(agent.Params{}),
 		Bundle))
 }
@@ -40,6 +43,7 @@ func TestMockBundleDependencies(t *testing.T) {
 	config := fxutil.Test[config.Component](t, fx.Options(
 		fx.Supply(coreconfig.Params{}),
 		coreconfig.MockModule,
+		config.MockModule,
 		fx.Supply(agent.Params{}),
 		MockBundle,
 	))
