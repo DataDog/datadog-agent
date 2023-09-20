@@ -260,10 +260,10 @@ func (t *Tailer) Stop() {
 // This is only used on UNIX.
 func (t *Tailer) StopAfterFileRotation() {
 	t.didFileRotate.Store(true)
-	bytesReadAtRotationTime := t.Source().BytesRead.Get()
+	bytesReadAtRotationTime := t.bytesRead.Get()
 	go func() {
 		time.Sleep(t.closeTimeout)
-		if newBytesRead := t.Source().BytesRead.Get() - bytesReadAtRotationTime; newBytesRead > 0 {
+		if newBytesRead := t.bytesRead.Get() - bytesReadAtRotationTime; newBytesRead > 0 {
 			log.Infof("After rotation close timeout (%s), an additional %d bytes were read from file %q", t.closeTimeout, newBytesRead, t.file.Path)
 			fileStat, err := t.osFile.Stat()
 			if err != nil {
