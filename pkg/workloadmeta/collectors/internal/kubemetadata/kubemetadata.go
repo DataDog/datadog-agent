@@ -13,6 +13,8 @@ import (
 	"strings"
 	"time"
 
+	"k8s.io/apimachinery/pkg/util/sets"
+
 	apiv1 "github.com/DataDog/datadog-agent/pkg/clusteragent/api/v1"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/errors"
@@ -254,7 +256,7 @@ func (c *collector) getMetadata(getPodMetaDataFromAPIServerFunc func(string, str
 
 	if metadataByNsPods != nil {
 		if data, ok := metadataByNsPods[po.Metadata.Namespace][po.Metadata.Name]; ok && data != nil {
-			return data.List(), nil
+			return sets.List(data), nil
 		}
 		return nil, nil
 	}
