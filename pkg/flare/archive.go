@@ -298,17 +298,19 @@ func getProcessChecks(fb flarehelpers.FlareBuilder, getAddressPort func() (url s
 	getCheck("process_discovery", "process_config.process_discovery.enabled")
 }
 
-func getDiagnoses(isLocal bool) func() ([]byte, error) {
+func getDiagnoses(isFlareLocal bool) func() ([]byte, error) {
 
 	fct := func(w io.Writer) error {
-		// Run agent diagnose command to be verbose and remote. If Agent is running small performance hit
-		// since this code will get diagnoses using Agent’s local port listener (instead of calling a
-		// function directly since the caller and callee are in the same process).However, the same code
-		// will continue to work well because agent diagnose command works locally as well (if it cannot
-		// connect to the running Agent).
+		// Run diagnose always "local" (in the host process that is)
 		diagCfg := diagnosis.Config{
 			Verbose:  true,
-			RunLocal: isLocal,
+			RunLocal: true,
+		}
+
+		// ... but when running within Agent some diagnose suites need to know
+		// that to run more optimally/differently by using existing in-memory objects
+		if !isFlareLocal {
+			diagCfg.RunningInAgentProcess = true
 		}
 
 		return diagnose.RunStdOut(w, diagCfg)
