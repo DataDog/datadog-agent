@@ -18,7 +18,9 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/metrics"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/pointer"
 
+	admCommon "github.com/DataDog/datadog-agent/pkg/clusteragent/admission/common"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	"k8s.io/client-go/dynamic"
@@ -101,6 +103,16 @@ func injectAutoInstrumentation(pod *corev1.Pod, _ string, _ dynamic.Interface) e
 		return errors.New("cannot inject lib into nil pod")
 	}
 
+	if IsApmInstrumentationEnabled(pod.Namespace) {
+		// if Single Step Instrumentation is enabled, pods can still opt out using the label
+		if pod.GetLabels()[admCommon.EnabledLabelKey] == "false" {
+			log.Debugf("Skipping single step instrumentation of pod %q due to label", podString(pod))
+			return nil
+		}
+	} else if !shouldInject(pod) {
+		log.Debugf("Skipping auto instrumentation of pod %q", podString(pod))
+		return nil
+	}
 	for _, lang := range supportedLanguages {
 		if containsInitContainer(pod, initContainerName(lang)) {
 			// The admission can be reinvocated for the same pod
@@ -112,6 +124,8 @@ func injectAutoInstrumentation(pod *corev1.Pod, _ string, _ dynamic.Interface) e
 
 	containerRegistry := config.Datadog.GetString("admission_controller.auto_instrumentation.container_registry")
 	libsToInject := extractLibInfo(pod, containerRegistry)
+
+	// if no library annotations were provided, inject all libraries as part of auto instrumentation
 	if len(libsToInject) == 0 {
 		libsToInject = injectAll(pod.Namespace, containerRegistry)
 		if len(libsToInject) == 0 {
@@ -137,7 +151,7 @@ func isNsTargeted(ns string) bool {
 
 func injectAll(ns, registry string) []libInfo {
 	libsToInject := []libInfo{}
-	if isNsTargeted(ns) {
+	if isNsTargeted(ns) || IsApmInstrumentationEnabled(ns) {
 		for _, lang := range supportedLanguages {
 			libsToInject = append(libsToInject, libInfo{
 				lang:  lang,
@@ -337,6 +351,17 @@ func injectAutoInstruConfig(pod *corev1.Pod, libsToInject []libInfo) error {
 
 	injectLibVolume(pod)
 
+	if IsApmInstrumentationEnabled(pod.Namespace) {
+		libConfig := basicConfig()
+		if name, err := getServiceNameFromPod(pod); err == nil {
+			// Set service name if it can be derived from a pod
+			libConfig.ServiceName = pointer.Ptr(name)
+		}
+		for _, env := range libConfig.ToEnvs() {
+			_ = injectEnv(pod, env)
+		}
+	}
+
 	return lastError
 }
 
@@ -425,6 +450,43 @@ func injectLibRequirements(pod *corev1.Pod, ctrName string, envVars []envVar) er
 	}
 
 	return nil
+}
+
+// Returns the name of Kubernetes resource that owns the pod
+func getServiceNameFromPod(pod *corev1.Pod) (string, error) {
+	ownerReferences := pod.ObjectMeta.OwnerReferences
+	if len(ownerReferences) != 1 {
+		return "", fmt.Errorf("pod should be owned by one resource; current owners: %v+", ownerReferences)
+	}
+
+	switch owner := ownerReferences[0]; owner.Kind {
+	case "StatefulSet":
+		fallthrough
+	case "Job":
+		fallthrough
+	case "CronJob":
+		fallthrough
+	case "DaemonSet":
+		return owner.Name, nil
+	case "ReplicaSet":
+		// Remove the suffix in ReplicaSet name to get Deployment name
+		return owner.Name[:strings.LastIndex(owner.Name, "-")], nil
+	}
+
+	return "", nil
+}
+
+// basicConfig returns the default tracing config to inject into application pods
+// when no other config has been provided.
+func basicConfig() common.LibConfig {
+	return common.LibConfig{
+		Tracing:             pointer.Ptr(true),
+		LogInjection:        pointer.Ptr(true),
+		HealthMetrics:       pointer.Ptr(true),
+		RuntimeMetrics:      pointer.Ptr(true),
+		TracingSamplingRate: pointer.Ptr(1.0),
+		TracingRateLimit:    pointer.Ptr(100),
+	}
 }
 
 // injectLibConfig injects additional library configuration extracted from pod annotations
