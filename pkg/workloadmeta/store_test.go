@@ -619,7 +619,7 @@ func TestGetKubernetesDeployment(t *testing.T) {
 	})
 
 	retrievedDeployment, err := s.GetKubernetesDeployment("datadog-cluster-agent")
-	assert.NilError(t, err)
+	assert.NoError(t, err)
 
 	if !reflect.DeepEqual(deployment, retrievedDeployment) {
 		t.Errorf("expected deployment %q to match the one in the store", retrievedDeployment.ID)
