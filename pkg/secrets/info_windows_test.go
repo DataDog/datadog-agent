@@ -49,6 +49,11 @@ func setupSecretCommmand(t *testing.T) {
 }
 
 func TestGetExecutablePermissionsSuccess(t *testing.T) {
+	// This test as well as TestGetExecutablePermissionsError test (see above) plus unit tests
+	// for Linux file will be moving to integration tests (see soon to be added _windows_integration_tests()
+	// and  _linux_integration_tests packages() functions)
+	t.Skip("skipping flaky Windows test (it hangs on execution of its PowerShell script in latest github environment)")
+
 	setupSecretCommmand(t)
 
 	res, err := getExecutablePermissions()
