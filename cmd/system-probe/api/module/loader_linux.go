@@ -3,17 +3,20 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build linux && linux_bpf
+//go:build linux_bpf
 
-package modules
+package module
 
 import (
+	"github.com/DataDog/datadog-agent/cmd/system-probe/config"
 	"github.com/DataDog/datadog-agent/pkg/ebpf"
 )
 
-// PostRegisterCleanup is a function that will be called after modules are registered, it should run cleanup code
-// that is common to most system probe modules
-func PostRegisterCleanup() error {
-	ebpf.FlushKernelSpecCache()
+func preRegister(_ *config.Config) error {
+	return ebpf.Setup(ebpf.NewConfig())
+}
+
+func postRegister(_ *config.Config) error {
+	ebpf.FlushBTF()
 	return nil
 }

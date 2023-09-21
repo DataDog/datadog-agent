@@ -37,12 +37,12 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-// TODO estimated minimum kernel version: 5.8/5.5
+// 5.16 for verified instruction count (reported if available)
+// 5.12 for recursion misses (reported if available)
 // 5.8 required for kernel stats (optional)
 // 5.5 for security_perf_event_open
 // 5.0 required for /proc/kallsyms BTF program full names
 // 4.15 required for map names from kernel
-// some detailed program statistics may require even higher kernel versions
 var minimumKernelVersion = kernel.VersionCode(5, 5, 0)
 
 const maxMapsTracked = 20
@@ -74,7 +74,7 @@ func NewProbe(cfg *ddebpf.Config) (*Probe, error) {
 	if cfg.BPFDebug {
 		filename = "ebpf-debug.o"
 	}
-	err = ddebpf.LoadCOREAsset(cfg, filename, func(buf bytecode.AssetReader, opts manager.Options) error {
+	err = ddebpf.LoadCOREAsset(filename, func(buf bytecode.AssetReader, opts manager.Options) error {
 		var err error
 		probe, err = startEBPFCheck(buf, opts)
 		return err
