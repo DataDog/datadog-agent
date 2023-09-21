@@ -12,8 +12,10 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"os"
 	"strings"
 	"sync"
+	"syscall"
 	"time"
 
 	"github.com/DataDog/datadog-go/v5/statsd"
@@ -104,6 +106,7 @@ type Resolver struct {
 	scannerChan    chan *SBOM
 	statsdClient   statsd.ClientInterface
 	sbomScanner    *sbomscanner.Scanner
+	hostRootDevice uint64
 
 	sbomGenerations       *atomic.Uint64
 	failedSBOMGenerations *atomic.Uint64
@@ -131,12 +134,23 @@ func NewSBOMResolver(c *config.RuntimeSecurityConfig, statsdClient statsd.Client
 		return nil, fmt.Errorf("couldn't create new SBOMResolver: %w", err)
 	}
 
+	hostProcRootPath := utils.ProcRootPath(1)
+	fi, err := os.Stat(hostProcRootPath)
+	if err != nil {
+		return nil, fmt.Errorf("stat failed for `%s`: couldn't stat host proc root path: %w", hostProcRootPath, err)
+	}
+	stat, ok := fi.Sys().(*syscall.Stat_t)
+	if !ok {
+		return nil, fmt.Errorf("stat failed for `%s`: couldn't stat host proc root path", hostProcRootPath)
+	}
+
 	resolver := &Resolver{
 		statsdClient:          statsdClient,
 		sboms:                 make(map[string]*SBOM),
 		sbomsCache:            sbomsCache,
 		scannerChan:           make(chan *SBOM, 100),
 		sbomScanner:           sbomScanner,
+		hostRootDevice:        stat.Dev,
 		sbomGenerations:       atomic.NewUint64(0),
 		sbomsCacheHit:         atomic.NewUint64(0),
 		sbomsCacheMiss:        atomic.NewUint64(0),
@@ -265,7 +279,22 @@ func (r *Resolver) analyzeWorkload(sbom *SBOM) error {
 			continue
 		}
 
-		lastErr = r.generateSBOM(utils.ProcRootPath(rootCandidatePID), sbom)
+		containerProcRootPath := utils.ProcRootPath(rootCandidatePID)
+		if sbom.ContainerID != "" {
+			fi, err := os.Stat(containerProcRootPath)
+			if err != nil {
+				return fmt.Errorf("stat failed for `%s`: couldn't stat container proc root path: %w", containerProcRootPath, err)
+			}
+			stat, ok := fi.Sys().(*syscall.Stat_t)
+			if !ok {
+				return fmt.Errorf("stat failed for `%s`: couldn't stat container proc root path", containerProcRootPath)
+			}
+			if stat.Dev == r.hostRootDevice {
+				return fmt.Errorf("couldn't generate sbom: container '%s' not yet ready", sbom.ContainerID)
+			}
+		}
+
+		lastErr = r.generateSBOM(containerProcRootPath, sbom)
 		if lastErr == nil {
 			scanned = true
 			break
