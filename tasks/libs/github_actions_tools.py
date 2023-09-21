@@ -67,10 +67,9 @@ def trigger_macos_workflow(
     gh = GithubAPI('DataDog/datadog-agent-macos-build')
     gh.trigger_workflow(workflow_name, github_action_ref, inputs)
 
-    # Thus the following hack: query the latest run for ref, wait until we get a non-completed run
-    # that started after we triggered the workflow.
-    # In practice, this should almost never be a problem, even if the Agent 6 and 7 jobs run at the
-    # same time, given that these two jobs will target different github_action_ref on RCs / releases.
+    # Thus the following hack: Send an id as input when creating a workflow on Github. The worklow will use the id and put it in the name of one of its jobs.
+    # We then fetch workflows and check if it contains the id in its job name.
+
     MAX_RETRIES = 10  # Retry up to 10 times
     for i in range(MAX_RETRIES):
         print(f"Fetching triggered workflow (try {i + 1}/{MAX_RETRIES})")
