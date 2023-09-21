@@ -31,7 +31,7 @@ var (
 	ProcessedEvents = telemetry.NewCounterWithOpts(
 		subsystem,
 		"processed_events",
-		[]string{"pod_language", "container_language", "detected_language"},
+		[]string{"scanned_pod", "scanned_container", "detected_language"},
 		"Number of events processed for the given pod, container and language",
 		commonOpts,
 	)
