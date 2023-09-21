@@ -123,7 +123,6 @@ func (v *ec2VMSuite) TestFakeIntakeNPM_TCP_UDP_DNS() {
 			currentConnection = c
 			if len(c.DnsStatsByDomainOffsetByQueryType) > 0 {
 				foundDNS = true
-				printDNS(t, c, cc, hostname)
 			}
 		})
 		assert.True(c, foundDNS, "DNS not found")
