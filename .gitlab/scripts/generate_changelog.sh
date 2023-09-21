@@ -41,5 +41,7 @@ do
   sleep 2
 done
 
+pwd
+
 echo -e "$changelog" > changelog.txt
 echo -e "$unique_emails" > unique_emails.txt
