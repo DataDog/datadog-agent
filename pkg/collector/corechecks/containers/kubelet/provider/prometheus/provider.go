@@ -45,12 +45,14 @@ type Provider struct {
 	ignoredMetricsRegex *regexp.Regexp
 }
 
+// ScraperConfig contains the configuration of the Prometheus scraper.
 type ScraperConfig struct {
 	Path string
 	// AllowNotFound determines whether the check should error out or just return nothing when a 404 status code is encountered
 	AllowNotFound bool
 }
 
+// NewProvider returns a new Provider.
 func NewProvider(config *common.KubeletConfig, transformers Transformers, scraperConfig *ScraperConfig) (Provider, error) {
 	if config == nil {
 		config = &common.KubeletConfig{}
@@ -121,6 +123,7 @@ func NewProvider(config *common.KubeletConfig, transformers Transformers, scrape
 	}, nil
 }
 
+// Provide sends the metrics collected.
 func (p *Provider) Provide(kc kubelet.KubeUtilInterface, sender sender.Sender) error {
 	// Collect raw data
 	data, status, err := kc.QueryKubelet(context.TODO(), p.ScraperConfig.Path)

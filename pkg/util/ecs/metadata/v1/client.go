@@ -29,6 +29,7 @@ const (
 	taskMetadataPath = "/tasks"
 )
 
+// Client is an interface for ECS metadata v1 API clients.
 type Client interface {
 	GetInstance(context.Context) (*Instance, error)
 	GetTasks(context.Context) ([]Task, error)

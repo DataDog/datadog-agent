@@ -71,6 +71,7 @@ func validateValue(val *int, valueRange *configValueRange) {
 	}
 }
 
+// Parse parses the configuration
 func (c *Config) Parse(data []byte) error {
 	if err := yaml.Unmarshal(data, c); err != nil {
 		return err

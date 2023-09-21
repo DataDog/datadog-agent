@@ -79,8 +79,6 @@ type ContainerdUtil struct {
 	connectionTimeout time.Duration
 }
 
-type ContainerdAccessor func() (ContainerdItf, error)
-
 // NewContainerdUtil creates the Containerd util containing the Containerd client and implementing the ContainerdItf
 // Errors are handled in the retrier.
 func NewContainerdUtil() (ContainerdItf, error) {
@@ -113,7 +111,7 @@ func NewContainerdUtil() (ContainerdItf, error) {
 	return containerdUtil, nil
 }
 
-// CheckConnectivity tries to connect to containerd api
+// RawClient tries to connect to containerd api
 func (c *ContainerdUtil) RawClient() *containerd.Client {
 	return c.cl
 }
@@ -373,6 +371,7 @@ func (c *ContainerdUtil) IsSandbox(namespace string, ctn containerd.Container) (
 	return labels["io.cri-containerd.kind"] == "sandbox", nil
 }
 
+// MountImage mounts the given image in the targetDir specified
 func (c *ContainerdUtil) MountImage(ctx context.Context, expiration time.Duration, namespace string, img containerd.Image, targetDir string) (func(context.Context) error, error) {
 	snapshotter := containerd.DefaultSnapshotter
 	ctx = namespaces.WithNamespace(ctx, namespace)

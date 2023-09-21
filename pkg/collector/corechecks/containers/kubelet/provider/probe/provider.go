@@ -28,6 +28,7 @@ type Provider struct {
 	prometheus.Provider
 }
 
+// NewProvider returns a new Provider
 func NewProvider(filter *containers.Filter, config *common.KubeletConfig, store workloadmeta.Store) (*Provider, error) {
 	provider := &Provider{
 		filter: filter,

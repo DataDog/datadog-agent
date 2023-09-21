@@ -14,6 +14,7 @@ import (
 )
 
 const (
+	// KubeletMetricsPrefix is the prefix included in the metrics emitted by the kubernetes_core check.
 	KubeletMetricsPrefix = "kubernetes_core."
 )
 
@@ -25,6 +26,7 @@ type KubeletConfig struct {
 	types.OpenmetricsInstance
 }
 
+// Parse parses the configuration.
 func (c *KubeletConfig) Parse(data []byte) error {
 	return yaml.Unmarshal(data, c)
 }
