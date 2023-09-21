@@ -58,7 +58,8 @@ const (
 
 // ResolverOpts options of resolver
 type ResolverOpts struct {
-	envsWithValue map[string]bool
+	ttyFallbackEnabled bool
+	envsWithValue      map[string]bool
 }
 
 // Resolver resolved process context
@@ -955,19 +956,18 @@ func GetProcessArgv0(pr *model.Process) (string, bool) {
 
 // GetProcessScrubbedArgv returns the scrubbed args of the event as an array
 func (p *Resolver) GetProcessScrubbedArgv(pr *model.Process) ([]string, bool) {
-	if pr.ScrubbedArgvResolved {
-		return pr.ScrubbedArgv, pr.ScrubbedArgsTruncated
+	if pr.ArgsEntry == nil || pr.ScrubbedArgvResolved {
+		return pr.Argv, pr.ArgsTruncated
 	}
 
 	argv, truncated := GetProcessArgv(pr)
 
-	if p.scrubber != nil {
+	if p.scrubber != nil && len(argv) > 0 {
+		// replace with the scrubbed version
 		argv, _ = p.scrubber.ScrubCommand(argv)
+		pr.ArgsEntry.Values = []string{pr.ArgsEntry.Values[0]}
+		pr.ArgsEntry.Values = append(pr.ArgsEntry.Values, argv...)
 	}
-
-	pr.ScrubbedArgv = argv
-	pr.ScrubbedArgsTruncated = truncated
-	pr.ScrubbedArgvResolved = true
 
 	return argv, truncated
 }
@@ -1016,7 +1016,7 @@ func (p *Resolver) GetProcessEnvp(pr *model.Process) ([]string, bool) {
 
 // SetProcessTTY resolves TTY and cache the result
 func (p *Resolver) SetProcessTTY(pce *model.ProcessCacheEntry) string {
-	if pce.TTYName == "" {
+	if pce.TTYName == "" && p.opts.ttyFallbackEnabled {
 		tty := utils.PidTTY(pce.Pid)
 		pce.TTYName = tty
 	}
@@ -1371,6 +1371,12 @@ func (o *ResolverOpts) WithEnvsValue(envsWithValue []string) *ResolverOpts {
 	for _, envVar := range envsWithValue {
 		o.envsWithValue[envVar] = true
 	}
+	return o
+}
+
+// WithTTYFallbackEnabled enables the TTY fallback
+func (o *ResolverOpts) WithTTYFallbackEnabled() *ResolverOpts {
+	o.ttyFallbackEnabled = true
 	return o
 }
 

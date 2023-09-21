@@ -5,6 +5,7 @@
 
 //go:build windows
 
+// Package utils is a compliance internal submodule implementing various utilies.
 package utils
 
 import "os"

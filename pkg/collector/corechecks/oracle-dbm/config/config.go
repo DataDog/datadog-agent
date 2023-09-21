@@ -33,7 +33,6 @@ type QueryMetricsConfig struct {
 	Enabled            bool  `yaml:"enabled"`
 	CollectionInterval int64 `yaml:"collection_interval"`
 	DBRowsLimit        int   `yaml:"db_rows_limit"`
-	PlanCacheRetention int   `yaml:"plan_cache_retention"`
 	DisableLastActive  bool  `yaml:"disable_last_active"`
 	Lookback           int64 `yaml:"lookback"`
 }
@@ -56,6 +55,7 @@ type SharedMemoryConfig struct {
 
 type ExecutionPlansConfig struct {
 	Enabled              bool `yaml:"enabled"`
+	PlanCacheRetention   int  `yaml:"plan_cache_retention"`
 	LogUnobfuscatedPlans bool `yaml:"log_unobfuscated_plans"`
 }
 
@@ -142,7 +142,8 @@ func NewCheckConfig(rawInstance integration.Data, rawInitConfig integration.Data
 	instance.QueryMetrics.Enabled = true
 	instance.QueryMetrics.CollectionInterval = defaultMetricCollectionInterval
 	instance.QueryMetrics.DBRowsLimit = 10000
-	instance.QueryMetrics.PlanCacheRetention = 15
+
+	instance.ExecutionPlans.PlanCacheRetention = 15
 
 	instance.SysMetrics.Enabled = true
 	instance.Tablespaces.Enabled = true

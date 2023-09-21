@@ -267,6 +267,7 @@
 /pkg/collector/corechecks/sbom/         @DataDog/container-integrations
 /pkg/collector/corechecks/snmp/         @DataDog/network-device-monitoring
 /pkg/collector/corechecks/system/                 @DataDog/agent-platform
+/pkg/collector/corechecks/system/wincrashdetect/  @DataDog/windows-kernel-integrations
 /pkg/collector/corechecks/system/**/*_windows*.go @DataDog/agent-platform @DataDog/windows-agent
 /pkg/collector/corechecks/system/winkmem/         @DataDog/windows-agent
 /pkg/collector/corechecks/system/winproc/         @DataDog/windows-agent

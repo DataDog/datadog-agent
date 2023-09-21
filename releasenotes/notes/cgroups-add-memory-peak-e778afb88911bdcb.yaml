@@ -8,4 +8,4 @@
 ---
 enhancements:
   - |
-    Added the ``container.memory.peak`` metric to the container check. It shows the maximum memory usage recorded since the container started.
+    Added the ``container.memory.usage.peak`` metric to the container check. It shows the maximum memory usage recorded since the container started.
