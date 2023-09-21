@@ -9,13 +9,14 @@ package hash
 import (
 	"crypto/md5"
 	"crypto/sha1"
-	"crypto/sha256"
 	"encoding/hex"
 	"errors"
 	"fmt"
 	"hash"
 	"io"
 	"os"
+
+	"github.com/minio/sha256-simd"
 
 	"github.com/DataDog/datadog-go/v5/statsd"
 	lru "github.com/hashicorp/golang-lru/v2"
