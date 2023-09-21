@@ -13,13 +13,7 @@ import (
 
 	fi "github.com/DataDog/datadog-agent/test/fakeintake/client"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client"
-	"github.com/DataDog/test-infra-definitions/components/datadog/agent"
 	"github.com/DataDog/test-infra-definitions/components/datadog/agentparams"
-	"github.com/DataDog/test-infra-definitions/scenarios/aws"
-	"github.com/DataDog/test-infra-definitions/scenarios/aws/vm/ec2params"
-	"github.com/DataDog/test-infra-definitions/scenarios/aws/vm/ec2vm"
-	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -27,42 +21,13 @@ type vmFakeintakeSuite struct {
 	e2e.Suite[e2e.FakeIntakeEnv]
 }
 
-func logsExampleStackDef(vmParams []ec2params.Option, agentParams ...agentparams.Option) *e2e.StackDefinition[e2e.FakeIntakeEnv] {
-	return e2e.EnvFactoryStackDef(
-		func(ctx *pulumi.Context) (*e2e.FakeIntakeEnv, error) {
-			vm, err := ec2vm.NewEc2VM(ctx, vmParams...)
-			if err != nil {
-				return nil, err
-			}
-
-			fakeintakeExporter, err := aws.NewEcsFakeintake(vm.GetAwsEnvironment())
-			if err != nil {
-				return nil, err
-			}
-
-			agentParams = append(agentParams, agentparams.WithFakeintake(fakeintakeExporter))
-			agentParams = append(agentParams, agentparams.WithIntegration("custom_logs.d", `logs:
-- type: file
-  path: "/tmp/test.log"
-  service: "custom_logs"
-  source: "custom"`))
-			agentParams = append(agentParams, agentparams.WithLogs())
-
-			installer, err := agent.NewInstaller(vm, agentParams...)
-			if err != nil {
-				return nil, err
-			}
-			return &e2e.FakeIntakeEnv{
-				VM:         client.NewVM(vm),
-				Agent:      client.NewAgent(installer),
-				Fakeintake: client.NewFakeintake(fakeintakeExporter),
-			}, nil
-		},
-	)
-}
+//go:embed testfixtures/custom_logs.yaml
+var customLogsConfig string
 
 func TestE2EVMFakeintakeSuite(t *testing.T) {
-	e2e.Run(t, &vmFakeintakeSuite{}, logsExampleStackDef(nil))
+	e2e.Run(t, &vmFakeintakeSuite{}, e2e.FakeIntakeStackDefWithDefaultVMAndAgentClient(
+		agentparams.WithIntegration("custom_logs.d", customLogsConfig), agentparams.WithLogs()),
+	)
 }
 
 func (s *vmFakeintakeSuite) TestLogs() {
