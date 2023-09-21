@@ -66,7 +66,11 @@ func TestClientFlush(t *testing.T) {
 	}
 	podName := "nginx"
 	client.currentBatch.podInfo[podName] = podInfo
-	client.flush()
+
+	// flush the batch as it is done in the client to find potential data races
+	data := client.currentBatch
+	go client.flush(data)
+	client.currentBatch = newBatch()
 	<-doneCh
 	assert.Equal(t, []*pbgo.ParentLanguageAnnotationRequest{
 		{
@@ -85,6 +89,8 @@ func TestClientFlush(t *testing.T) {
 			},
 		},
 	}, mockDCAClient.payload)
+	// make sure we didn't touch the current batch
+	assert.Equal(t, client.currentBatch, newBatch())
 }
 
 func TestClientProcessEvent(t *testing.T) {

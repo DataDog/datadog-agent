@@ -8,6 +8,7 @@ package client
 
 import (
 	"context"
+	"sync"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
@@ -142,11 +143,12 @@ func (b *batch) exposeMetrics() {
 
 // Client sends language information to the Cluster-Agent
 type Client struct {
-	ctx                        context.Context
-	cfg                        config.Config
-	store                      workloadmeta.Store
-	dcaLanguageDetectionClient clusteragent.LanguageDetectionClient
-	currentBatch               *batch
+	ctx             context.Context
+	cfg             config.Config
+	store           workloadmeta.Store
+	dcaClMutex      sync.Mutex
+	langDetectionCl clusteragent.LanguageDetectionClient
+	currentBatch    *batch
 }
 
 // NewClient creates a new Client
@@ -154,14 +156,15 @@ func NewClient(
 	ctx context.Context,
 	cfg config.Config,
 	store workloadmeta.Store,
-	dcaLanguageDetectionClient clusteragent.LanguageDetectionClient,
+	langDetectionCl clusteragent.LanguageDetectionClient,
 ) *Client {
 	return &Client{
-		ctx:                        ctx,
-		cfg:                        cfg,
-		store:                      store,
-		dcaLanguageDetectionClient: dcaLanguageDetectionClient,
-		currentBatch:               newBatch(),
+		ctx:             ctx,
+		cfg:             cfg,
+		store:           store,
+		dcaClMutex:      sync.Mutex{},
+		langDetectionCl: langDetectionCl,
+		currentBatch:    newBatch(),
 	}
 }
 
@@ -184,43 +187,44 @@ func podHasOwner(pod *workloadmeta.KubernetesPod) bool {
 	return pod.Owners != nil && len(pod.Owners) > 0
 }
 
-func (c *Client) flush() {
-	if len(c.currentBatch.podInfo) == 0 {
-		return
-	}
-	ch := make(chan *batch)
-	go func() {
-		data := <-ch
-		clock := clock.New()
-		errorCount := 0
-		backoffPolicy := backoff.NewExpBackoffPolicy(minBackoffFactor, baseBackoffTime.Seconds(), maxBackoffTime.Seconds(), 0, false)
-		data.exposeMetrics()
-		for {
-			if errorCount >= maxError {
-				log.Errorf("failed to send language metadata after %d errors", errorCount)
-				return
-			}
-			var err error
-			refreshInterval := backoffPolicy.GetBackoffDuration(errorCount)
-			select {
-			case <-clock.After(refreshInterval):
-				protoMessage := data.toProto()
-				t := time.Now()
-				err = c.dcaLanguageDetectionClient.PostLanguageMetadata(c.ctx, protoMessage)
-				if err == nil {
-					Latency.Observe(time.Since(t).Seconds())
-					Requests.Inc(StatusSuccess)
-					return
-				}
-				Requests.Inc(StatusError)
-				errorCount = backoffPolicy.IncError(1)
-			case <-c.ctx.Done():
-				return
-			}
+func (c *Client) flush(data *batch) {
+	c.dcaClMutex.Lock()
+	defer c.dcaClMutex.Unlock()
+	if c.langDetectionCl == nil {
+		dcaClient, err := clusteragent.GetClusterAgentClient()
+		if err != nil {
+			log.Errorf("failed to get dca client %s", err)
+			return
 		}
-	}()
-	ch <- c.currentBatch
-	c.currentBatch = newBatch()
+		c.langDetectionCl = dcaClient
+	}
+	clock := clock.New()
+	errorCount := 0
+	backoffPolicy := backoff.NewExpBackoffPolicy(minBackoffFactor, baseBackoffTime.Seconds(), maxBackoffTime.Seconds(), 0, false)
+	data.exposeMetrics()
+	for {
+		if errorCount >= maxError {
+			log.Errorf("failed to send language metadata after %d errors", errorCount)
+			return
+		}
+		var err error
+		refreshInterval := backoffPolicy.GetBackoffDuration(errorCount)
+		select {
+		case <-clock.After(refreshInterval):
+			protoMessage := data.toProto()
+			t := time.Now()
+			err = c.langDetectionCl.PostLanguageMetadata(c.ctx, protoMessage)
+			if err == nil {
+				Latency.Observe(time.Since(t).Seconds())
+				Requests.Inc(StatusSuccess)
+				return
+			}
+			Requests.Inc(StatusError)
+			errorCount = backoffPolicy.IncError(1)
+		case <-c.ctx.Done():
+			return
+		}
+	}
 }
 
 func (c *Client) processEvent(evBundle workloadmeta.EventBundle) {
@@ -279,15 +283,15 @@ func (c *Client) StreamLanguages() {
 		case eventBundle := <-processEventCh:
 			c.processEvent(eventBundle)
 		case <-periodicFlushTimer.C:
-			if c.dcaLanguageDetectionClient == nil {
-				dcaClient, err := clusteragent.GetClusterAgentClient()
-				if err != nil {
-					log.Errorf("failed to get dca client %s", err)
-					continue
-				}
-				c.dcaLanguageDetectionClient = dcaClient
+			// if batch is empty, do nothing
+			if len(c.currentBatch.podInfo) == 0 {
+				continue
 			}
-			c.flush()
+			// send the current batch to the cluster agent asynchronously so it doesn't block if an IO is slow
+			data := c.currentBatch
+			go c.flush(data)
+			// reset the current batch
+			c.currentBatch = newBatch()
 		case <-metricTicker.C:
 			Running.Set(1)
 		case <-c.ctx.Done():
