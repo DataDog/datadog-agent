@@ -3,7 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package probe
+// Package model is the types for the OOM Kill check
+package model
 
 // OOMKillStats contains the statistics of a given socket
 type OOMKillStats struct {

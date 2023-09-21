@@ -19,7 +19,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/ebpf/probe"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/ebpf/probe/tcpqueuelength/model"
 	dd_config "github.com/DataDog/datadog-agent/pkg/config"
 	process_net "github.com/DataDog/datadog-agent/pkg/process/net"
 	"github.com/DataDog/datadog-agent/pkg/tagger"
@@ -96,7 +96,7 @@ func (t *TCPQueueLengthCheck) Run() error {
 		return err
 	}
 
-	stats, ok := data.(probe.TCPQueueLengthStats)
+	stats, ok := data.(model.TCPQueueLengthStats)
 	if !ok {
 		return log.Errorf("Raw data has incorrect type")
 	}

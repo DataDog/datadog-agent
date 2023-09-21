@@ -23,6 +23,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"golang.org/x/exp/slices"
 
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/ebpf/probe/ebpfcheck/model"
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/ebpftest"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
@@ -44,7 +45,7 @@ func TestEBPFPerfBufferLength(t *testing.T) {
 
 		cfg := testConfig()
 
-		probe, err := NewEBPFProbe(cfg)
+		probe, err := NewProbe(cfg)
 		require.NoError(t, err)
 		t.Cleanup(probe.Close)
 
@@ -60,7 +61,7 @@ func TestEBPFPerfBufferLength(t *testing.T) {
 		require.NoError(t, err)
 		t.Cleanup(func() { _ = rdr.Close() })
 
-		var result EBPFPerfBufferStats
+		var result model.EBPFPerfBufferStats
 		require.Eventually(t, func() bool {
 			stats := probe.GetAndFlush()
 			for _, s := range stats.PerfBuffers {

@@ -5,29 +5,31 @@
 
 //go:build !linux_bpf
 
-package probe
+// Package tcpqueuelength is the system-probe side of the TCP Queue Length check
+package tcpqueuelength
 
 import (
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/ebpf/probe/tcpqueuelength/model"
 	"github.com/DataDog/datadog-agent/pkg/ebpf"
 )
 
-// OOMKillProbe is not implemented on non-linux systems
-type OOMKillProbe struct{}
+// Tracer is not implemented on non-linux systems
+type Tracer struct{}
 
-// NewOOMKillProbe is not implemented on non-linux systems
-func NewOOMKillProbe(cfg *ebpf.Config) (*OOMKillProbe, error) {
+// NewTracer is not implemented on non-linux systems
+func NewTracer(cfg *ebpf.Config) (*Tracer, error) {
 	return nil, ebpf.ErrNotImplemented
 }
 
 // Close is not implemented on non-linux systems
-func (t *OOMKillProbe) Close() {}
+func (t *Tracer) Close() {}
 
 // Get is not implemented on non-linux systems
-func (t *OOMKillProbe) Get() []OOMKillStats {
+func (t *Tracer) Get() []model.TCPQueueLengthStats {
 	return nil
 }
 
 // GetAndFlush is not implemented on non-linux systems
-func (t *OOMKillProbe) GetAndFlush() []OOMKillStats {
+func (t *Tracer) GetAndFlush() []model.TCPQueueLengthStats {
 	return nil
 }

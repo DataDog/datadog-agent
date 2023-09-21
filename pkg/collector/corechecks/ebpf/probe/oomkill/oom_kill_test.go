@@ -5,7 +5,7 @@
 
 //go:build linux_bpf
 
-package probe
+package oomkill
 
 import (
 	"context"
@@ -19,6 +19,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"golang.org/x/sys/unix"
 
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/ebpf/probe/oomkill/model"
 	"github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode/runtime"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/ebpftest"
@@ -49,7 +50,7 @@ func TestOOMKillProbe(t *testing.T) {
 		}
 
 		cfg := testConfig()
-		oomKillProbe, err := NewOOMKillProbe(cfg)
+		oomKillProbe, err := NewProbe(cfg)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -85,7 +86,7 @@ func TestOOMKillProbe(t *testing.T) {
 			require.Equal(t, 128+unix.SIGKILL, status.ExitStatus(), output)
 		}
 
-		var result OOMKillStats
+		var result model.OOMKillStats
 		require.Eventually(t, func() bool {
 			for _, r := range oomKillProbe.GetAndFlush() {
 				if r.TPid == uint32(cmd.Process.Pid) {
