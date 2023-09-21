@@ -18,7 +18,7 @@ import (
 
 const dummySubscriber = "dummy-subscriber"
 
-func testFakeHelper(t *testing.T, createResource func(*fake.Clientset) error, newStore storeGenerator, expected []workloadmeta.EventBundle) {
+func testCollectEvent(t *testing.T, createResource func(*fake.Clientset) error, newStore storeGenerator, expected []workloadmeta.EventBundle) {
 	// Create a fake client to mock API calls.
 	client := fake.NewSimpleClientset()
 
@@ -33,10 +33,11 @@ func testFakeHelper(t *testing.T, createResource func(*fake.Clientset) error, ne
 	// In that case, the first bundle is empty.
 	<-ch
 
-	// Creating a fake resource
+	// Creating a resource
 	err := createResource(client)
 	assert.NoError(t, err)
 
+	// Retrieving the resource in an event bundle
 	bundle := <-ch
 	close(bundle.Ch)
 	// nil the bundle's Ch so we can
