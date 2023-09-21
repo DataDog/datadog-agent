@@ -38,9 +38,9 @@ func NewReleaseLock(lockType string, ns string, name string, coreClient corev1.C
 			Client:     coreClient,
 			LockConfig: rlc,
 		}, nil
-	} else {
-		return rl.New(lockType, ns, name, coreClient, coordinationClient, rlc)
 	}
+
+	return rl.New(lockType, ns, name, coreClient, coordinationClient, rlc)
 }
 
 func (le *LeaderEngine) getCurrentLeaderLease() (string, error) {
@@ -82,9 +82,9 @@ func (le *LeaderEngine) getCurrentLeaderConfigMap() (string, error) {
 func (le *LeaderEngine) getCurrentLeader() (string, error) {
 	if le.lockType == rl.LeasesResourceLock {
 		return le.getCurrentLeaderLease()
-	} else {
-		return le.getCurrentLeaderConfigMap()
 	}
+
+	return le.getCurrentLeaderConfigMap()
 }
 
 func (le *LeaderEngine) CreateLeaderTokenIfNotExists() error {
