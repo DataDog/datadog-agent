@@ -58,6 +58,10 @@ func buildLogsMap(_ PipelineConfig) (*confmap.Conf, error) {
 	if err != nil {
 		return nil, err
 	}
+	smap := make(map[string]interface{})
+	smap[buildKey("service", "pipelines", "logs", "receivers")] = []interface{}{"otlp", "filelog"}
+	configMap := confmap.NewFromStringMap(smap)
+	baseMap.Merge(configMap)
 	return baseMap, err
 }
 
@@ -65,6 +69,7 @@ func buildReceiverMap(cfg PipelineConfig) *confmap.Conf {
 	rcvs := map[string]interface{}{
 		"otlp": cfg.OTLPReceiverConfig,
 	}
+	rcvs["filelog"] = cfg.FileLogReceiverConfig
 	return confmap.NewFromStringMap(map[string]interface{}{"receivers": rcvs})
 }
 

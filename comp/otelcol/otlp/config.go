@@ -11,12 +11,12 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/mohae/deepcopy"
 	"go.opentelemetry.io/collector/confmap"
 	"go.uber.org/multierr"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	coreconfig "github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/mohae/deepcopy"
 )
 
 func portToUint(v int) (port uint, err error) {
@@ -71,6 +71,7 @@ func readConfigSection(cfg config.Component, section string) *confmap.Conf {
 func FromAgentConfig(cfg config.Component) (PipelineConfig, error) {
 	var errs []error
 	otlpConfig := readConfigSection(cfg, coreconfig.OTLPReceiverSection)
+	filelogConfig := readConfigSection(cfg, coreconfig.OTLPFileLogReceiverSection)
 	tracePort, err := portToUint(cfg.GetInt(coreconfig.OTLPTracePort))
 	if err != nil {
 		errs = append(errs, fmt.Errorf("internal trace port is invalid: %w", err))
@@ -85,13 +86,14 @@ func FromAgentConfig(cfg config.Component) (PipelineConfig, error) {
 	debugConfig := readConfigSection(cfg, coreconfig.OTLPDebug)
 
 	return PipelineConfig{
-		OTLPReceiverConfig: otlpConfig.ToStringMap(),
-		TracePort:          tracePort,
-		MetricsEnabled:     metricsEnabled,
-		TracesEnabled:      tracesEnabled,
-		LogsEnabled:        logsEnabled,
-		Metrics:            metricsConfig.ToStringMap(),
-		Debug:              debugConfig.ToStringMap(),
+		OTLPReceiverConfig:    otlpConfig.ToStringMap(),
+		TracePort:             tracePort,
+		MetricsEnabled:        metricsEnabled,
+		TracesEnabled:         tracesEnabled,
+		LogsEnabled:           logsEnabled,
+		Metrics:               metricsConfig.ToStringMap(),
+		Debug:                 debugConfig.ToStringMap(),
+		FileLogReceiverConfig: filelogConfig.ToStringMap(),
 	}, multierr.Combine(errs...)
 }
 
