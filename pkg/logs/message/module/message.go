@@ -6,6 +6,7 @@
 package module
 
 import (
+	"context"
 	"time"
 )
 
@@ -32,6 +33,8 @@ type Message struct {
 	ParsingExtra
 	// Extra information for Serverless Logs messages
 	ServerlessExtra
+	// Function to retrieve host name
+	GetHostnameFunc GetHostnameFunc
 }
 
 // ParsingExtra ships extra information parsers want to make available
@@ -58,6 +61,10 @@ type Lambda struct {
 	ARN       string
 	RequestID string
 }
+
+// TODO: remove module here if this approach works for util/hostname
+// GetHostnameFunc defines the signature for a function to retrieve the hostname for the agent.
+type GetHostnameFunc func(ctx context.Context) (string, error)
 
 // GetStatus gets the status of the message.
 // if status is not set, StatusInfo will be returned.

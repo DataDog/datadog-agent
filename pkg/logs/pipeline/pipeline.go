@@ -37,7 +37,8 @@ func NewPipeline(outputChan chan *message.Payload,
 	diagnosticMessageReceiver diagnostic.MessageReceiver,
 	serverless bool,
 	pipelineID int,
-	cfg conf.ConfigReader) *Pipeline {
+	cfg conf.ConfigReader,
+	getHostnameFunc message.GetHostnameFunc) *Pipeline {
 
 	mainDestinations := getDestinations(endpoints, destinationsContext, pipelineID, cfg)
 
@@ -62,7 +63,7 @@ func NewPipeline(outputChan chan *message.Payload,
 	logsSender = sender.NewSender(senderInput, outputChan, mainDestinations, config.DestinationPayloadChanSize)
 
 	inputChan := make(chan *message.Message, config.ChanSize)
-	processor := processor.New(inputChan, strategyInput, processingRules, encoder, diagnosticMessageReceiver)
+	processor := processor.New(inputChan, strategyInput, processingRules, encoder, diagnosticMessageReceiver, getHostnameFunc)
 
 	return &Pipeline{
 		InputChan: inputChan,

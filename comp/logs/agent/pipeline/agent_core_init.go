@@ -34,7 +34,7 @@ func (a *agent) SetupPipeline(
 	destinationsCtx := client.NewDestinationsContext()
 
 	// setup the pipeline provider that provides pairs of processor and sender
-	pipelineProvider := pipeline.NewProvider(config.NumberOfPipelines, auditor, &diagnostic.NoopMessageReceiver{}, processingRules, a.endpoints, destinationsCtx, a.cfg)
+	pipelineProvider := pipeline.NewProvider(config.NumberOfPipelines, auditor, &diagnostic.NoopMessageReceiver{}, processingRules, a.endpoints, destinationsCtx, a.cfg, a.getHostnameFunc)
 
 	a.auditor = auditor
 	a.destinationsCtx = destinationsCtx

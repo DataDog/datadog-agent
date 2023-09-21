@@ -16,6 +16,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logcomp"
 	"github.com/DataDog/datadog-agent/pkg/logs/auditor"
 	"github.com/DataDog/datadog-agent/pkg/logs/client"
+	message "github.com/DataDog/datadog-agent/pkg/logs/message/module"
 	"github.com/DataDog/datadog-agent/pkg/logs/pipeline"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 	"github.com/DataDog/datadog-agent/pkg/util"
@@ -58,7 +59,8 @@ type agent struct {
 	health           *health.Handle
 
 	// started is true if the logs agent is running
-	started *atomic.Bool
+	started         *atomic.Bool
+	getHostnameFunc message.GetHostnameFunc
 }
 
 func newLogsAgent(deps dependencies, cfg conf.ConfigReader) util.Optional[Component] {

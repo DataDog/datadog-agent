@@ -6,12 +6,10 @@
 package message
 
 import (
-	"context"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/logs/message/module"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
-	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 )
 
 // Payload represents an encoded collection of messages ready to be sent to the intake
@@ -70,17 +68,3 @@ var GetStatus = (*module.Message).GetStatus
 
 // GetLatency returns the latency delta from ingestion time until now
 var GetLatency = (*module.Message).GetLatency
-
-// GetHostname returns the hostname to applied the given log message
-func GetHostname(m *Message) string {
-	if m.Lambda != nil {
-		return m.Lambda.ARN
-	}
-	hname, err := hostname.Get(context.TODO())
-	if err != nil {
-		// this scenario is not likely to happen since
-		// the agent cannot start without a hostname
-		hname = "unknown"
-	}
-	return hname
-}

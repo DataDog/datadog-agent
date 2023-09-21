@@ -19,12 +19,12 @@ var ProtoEncoder Encoder = &protoEncoder{}
 type protoEncoder struct{}
 
 // Encode encodes a message into a protobuf byte array.
-func (p *protoEncoder) Encode(msg *message.Message, redactedMsg []byte) ([]byte, error) {
+func (p *protoEncoder) Encode(msg *message.Message, redactedMsg []byte, hostname string) ([]byte, error) {
 	return (&pb.Log{
 		Message:   toValidUtf8(redactedMsg),
 		Status:    msg.GetStatus(),
 		Timestamp: time.Now().UTC().UnixNano(),
-		Hostname:  message.GetHostname(msg),
+		Hostname:  hostname,
 		Service:   msg.Origin.Service(),
 		Source:    msg.Origin.Source(),
 		Tags:      msg.Origin.Tags(),

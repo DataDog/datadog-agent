@@ -245,12 +245,7 @@ func (t *Tailer) tail() {
 			select {
 			case <-t.stop:
 				return
-			case t.decoder.InputChan <- message.NewMessage(
-				t.getContent(entry),
-				t.getOrigin(entry),
-				t.getStatus(entry),
-				time.Now().UnixNano(),
-			):
+			case t.decoder.InputChan <- message.NewMessage(t.getContent(entry), t.getOrigin(entry), t.getStatus(entry), time.Now().UnixNano()):
 			}
 		}
 	}

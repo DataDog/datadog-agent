@@ -23,7 +23,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 	"github.com/DataDog/datadog-agent/pkg/security/common"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
-	"github.com/DataDog/datadog-agent/pkg/util/hostname"
+	pkgHostname "github.com/DataDog/datadog-agent/pkg/util/hostname"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/startstop"
 )
@@ -38,7 +38,7 @@ type LogReporter struct {
 
 // NewLogReporter instantiates a new log LogReporter
 func NewLogReporter(stopper startstop.Stopper, sourceName, sourceType, runPath string, endpoints *config.Endpoints, dstcontext *client.DestinationsContext) (*LogReporter, error) {
-	hostname, err := hostname.Get(context.Background())
+	hostname, err := pkgHostname.Get(context.Background())
 	if err != nil || hostname == "" {
 		hostname = "unknown"
 	}
@@ -49,7 +49,7 @@ func NewLogReporter(stopper startstop.Stopper, sourceName, sourceType, runPath s
 	auditor.Start()
 
 	// setup the pipeline provider that provides pairs of processor and sender
-	pipelineProvider := pipeline.NewProvider(config.NumberOfPipelines, auditor, &diagnostic.NoopMessageReceiver{}, nil, endpoints, dstcontext)
+	pipelineProvider := pipeline.NewProvider(config.NumberOfPipelines, auditor, &diagnostic.NoopMessageReceiver{}, nil, endpoints, dstcontext, coreconfig.Datadog, pkgHostname.Get)
 	pipelineProvider.Start()
 
 	stopper.Add(pipelineProvider)

@@ -18,7 +18,7 @@ var RawEncoder Encoder = &rawEncoder{}
 
 type rawEncoder struct{}
 
-func (r *rawEncoder) Encode(msg *message.Message, redactedMsg []byte) ([]byte, error) {
+func (r *rawEncoder) Encode(msg *message.Message, redactedMsg []byte, hostname string) ([]byte, error) {
 
 	// if the first char is '<', we can assume it's already formatted as RFC5424, thus skip this step
 	// (for instance, using tcp forwarding. We don't want to override the hostname & co)
@@ -38,7 +38,7 @@ func (r *rawEncoder) Encode(msg *message.Message, redactedMsg []byte) ([]byte, e
 		extraContent = time.Now().UTC().AppendFormat(extraContent, config.DateFormat)
 		extraContent = append(extraContent, ' ')
 
-		extraContent = append(extraContent, []byte(message.GetHostname(msg))...)
+		extraContent = append(extraContent, []byte(hostname)...)
 		extraContent = append(extraContent, ' ')
 
 		// Service

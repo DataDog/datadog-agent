@@ -32,7 +32,7 @@ type jsonPayload struct {
 }
 
 // Encode encodes a message into a JSON byte array.
-func (j *jsonEncoder) Encode(msg *message.Message, redactedMsg []byte) ([]byte, error) {
+func (j *jsonEncoder) Encode(msg *message.Message, redactedMsg []byte, hostname string) ([]byte, error) {
 	ts := time.Now().UTC()
 	if !msg.ServerlessExtra.Timestamp.IsZero() {
 		ts = msg.ServerlessExtra.Timestamp
@@ -41,7 +41,7 @@ func (j *jsonEncoder) Encode(msg *message.Message, redactedMsg []byte) ([]byte, 
 		Message:   toValidUtf8(redactedMsg),
 		Status:    msg.GetStatus(),
 		Timestamp: ts.UnixNano() / nanoToMillis,
-		Hostname:  message.GetHostname(msg),
+		Hostname:  hostname,
 		Service:   msg.Origin.Service(),
 		Source:    msg.Origin.Source(),
 		Tags:      msg.Origin.TagsToString(),

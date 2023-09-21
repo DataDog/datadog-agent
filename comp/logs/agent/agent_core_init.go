@@ -25,6 +25,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/pipeline"
 	"github.com/DataDog/datadog-agent/pkg/logs/schedulers"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
+	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 )
 
 // NewAgent returns a new Logs Agent
@@ -42,7 +43,7 @@ func (a *agent) SetupPipeline(
 	diagnosticMessageReceiver := diagnostic.NewBufferedMessageReceiver(nil)
 
 	// setup the pipeline provider that provides pairs of processor and sender
-	pipelineProvider := pipeline.NewProvider(config.NumberOfPipelines, auditor, diagnosticMessageReceiver, processingRules, a.endpoints, destinationsCtx, a.cfg)
+	pipelineProvider := pipeline.NewProvider(config.NumberOfPipelines, auditor, diagnosticMessageReceiver, processingRules, a.endpoints, destinationsCtx, a.cfg, hostname.Get)
 
 	// setup the launchers
 	lnchrs := launchers.NewLaunchers(a.sources, pipelineProvider, auditor, a.tracker)

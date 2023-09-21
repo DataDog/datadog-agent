@@ -11,7 +11,7 @@ import (
 )
 
 // Origin represents the Origin of a message
-type Origin module.Origin
+type Origin = module.Origin
 
 // NewOrigin returns a new Origin
 func NewOrigin(source *sources.LogSource) *module.Origin {
