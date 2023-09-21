@@ -97,7 +97,7 @@ func (a *agentSuite) TestOpenSignal() {
 	require.NoError(a.T(), err, "Signal rule creation failed")
 	a.signalRuleID = res2.GetId()
 
-	// Check if the agent has
+	// Check if the agent is ready
 	isReady := a.Env().Agent.IsReady()
 	assert.Equal(a.T(), isReady, true, "Agent should be ready")
 
