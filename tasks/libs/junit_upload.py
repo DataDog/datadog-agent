@@ -78,18 +78,11 @@ def split_junitxml(xml_path, codeowners, output_dir):
     return list(output_xmls), flavor
 
 
-def upload_junitxmls(output_dir, owners, flavor, xmlfile_name, additional_tags=None, job_url="", job_env=None):
+def upload_junitxmls(output_dir, owners, flavor, xmlfile_name, process_env, additional_tags=None):
     """
     Upload all per-team split JUnit XMLs from given directory.
     """
     processes = []
-    process_env = os.environ.copy()
-    if job_url:
-        print(f"CI_JOB_URL={job_url}")
-        process_env["CI_JOB_URL"] = job_url
-    if job_env:
-        print("\n".join(f"{k}={v}" for k, v in job_env.items()))
-        process_env.update(job_env)
 
     for owner in owners:
         junit_file_path = os.path.join(output_dir, owner + ".xml")
@@ -153,23 +146,7 @@ def junit_upload_from_tgz(junit_tgz, codeowners_path=".github/CODEOWNERS"):
         if os.path.exists(tagsfile):
             with open(tagsfile) as tf:
                 tags = tf.read().split()
-        # read job url (see comment in produce_junit_tar)
-        job_url = None
-        urlfile = os.path.join(unpack_dir, JOB_URL_FILE_NAME)
-        if os.path.exists(urlfile):
-            with open(urlfile) as jf:
-                job_url = jf.read()
-
-        job_env = {}
-        envfile = os.path.join(unpack_dir, JOB_ENV_FILE_NAME)
-        if os.path.exists(envfile):
-            with open(envfile) as jf:
-                for line in jf:
-                    if not line.strip():
-                        continue
-                    key, val = line.strip().split('=', 1)
-                    job_env[key] = val
-
+        process_env = _update_environ(unpack_dir)
         # for each unpacked xml file, split it and submit all parts
         # NOTE: recursive=True is necessary for "**" to unpack into 0-n dirs, not just 1
         xmls = 0
@@ -180,7 +157,7 @@ def junit_upload_from_tgz(junit_tgz, codeowners_path=".github/CODEOWNERS"):
             xmls += 1
             with tempfile.TemporaryDirectory() as output_dir:
                 written_owners, flavor = split_junitxml(xmlfile, codeowners, output_dir)
-                upload_junitxmls(output_dir, written_owners, flavor, xmlfile.split("/")[-1], tags, job_url, job_env)
+                upload_junitxmls(output_dir, written_owners, flavor, xmlfile.split("/")[-1], process_env, tags)
         xmlcounts[junit_tgz] = xmls
 
     empty_tgzs = []
@@ -191,6 +168,34 @@ def junit_upload_from_tgz(junit_tgz, codeowners_path=".github/CODEOWNERS"):
 
     if empty_tgzs:
         raise Exit(f"No JUnit XML files for upload found in: {', '.join(empty_tgzs)}")
+
+
+def _update_environ(unpack_dir):
+    """
+    Add job_url and job_env to current env if any, for the junit upload command
+    """
+    process_env = os.environ.copy()
+    # read job url (see comment in produce_junit_tar)
+    job_url = None
+    urlfile = os.path.join(unpack_dir, JOB_URL_FILE_NAME)
+    if os.path.exists(urlfile):
+        with open(urlfile) as jf:
+            job_url = jf.read()
+        print(f"CI_JOB_URL={job_url}")
+        process_env["CI_JOB_URL"] = job_url
+
+    job_env = {}
+    envfile = os.path.join(unpack_dir, JOB_ENV_FILE_NAME)
+    if os.path.exists(envfile):
+        with open(envfile) as jf:
+            for line in jf:
+                if not line.strip():
+                    continue
+                key, val = line.strip().split('=', 1)
+                job_env[key] = val
+        print("\n".join(f"{k}={v}" for k, v in job_env.items()))
+        process_env.update(job_env)
+    return process_env
 
 
 def _normalize_architecture(architecture):
