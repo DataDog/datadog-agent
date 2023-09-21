@@ -34,14 +34,14 @@ type Agent struct {
 // NewAgent creates a new instance of an Agent connected to an [agent.Installer].
 //
 // [agent.Installer]: https://pkg.go.dev/github.com/DataDog/test-infra-definitions@main/components/datadog/agent#Installer
-func NewAgent(installer *agent.Installer, agentClientOptions ...agentclientparams.Option) (*Agent, error) {
+func NewAgent(installer *agent.Installer, agentClientOptions ...agentclientparams.Option) *Agent {
 	agentClientParams := agentclientparams.NewParams(agentClientOptions...)
 	agentInstance := &Agent{
 		os:                 installer.VM().GetOS(),
 		shouldWaitForReady: agentClientParams.ShouldWaitForReady,
 	}
 	agentInstance.UpResultDeserializer = NewUpResultDeserializer[agent.ClientData](installer, agentInstance)
-	return agentInstance, nil
+	return agentInstance
 }
 
 //lint:ignore U1000 Ignore unused function as this function is called using reflection

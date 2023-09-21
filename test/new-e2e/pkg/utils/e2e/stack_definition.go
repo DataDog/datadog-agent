@@ -90,11 +90,7 @@ type AgentStackDefParam struct {
 }
 
 func newAgentStackDefParam(options ...func(*AgentStackDefParam) error) (*AgentStackDefParam, error) {
-	params := &AgentStackDefParam{
-		vmParams:          []ec2params.Option{},
-		agentClientParams: []agentclientparams.Option{},
-		agentParams:       []agentparams.Option{},
-	}
+	params := &AgentStackDefParam{}
 	for _, o := range options {
 		err := o(params)
 		if err != nil {
@@ -158,16 +154,22 @@ func AgentStackDef(options ...func(*AgentStackDefParam) error) *StackDefinition[
 			if err != nil {
 				return nil, err
 			}
-			agentClient, err := client.NewAgent(installer, params.agentClientParams...)
-			if err != nil {
-				return nil, err
-			}
 			return &AgentEnv{
 				VM:    client.NewVM(vm),
-				Agent: agentClient,
+				Agent: client.NewAgent(installer, params.agentClientParams...),
 			}, nil
 		},
 	)
+}
+
+// AgentStackDefWithDefaultVMAndAgentClient creates a stack definition containing an Ubuntu virtual machine and an Agent.
+// The Agent is awaited at TestSuite setup time, any subtest runs with an healthy agent
+//
+// See [agent.Params] for available options.
+//
+// [agent.Params]: https://pkg.go.dev/github.com/DataDog/test-infra-definitions@main/components/datadog/agent#Params
+func AgentStackDefWithDefaultVMAndAgentClient(options ...agentparams.Option) *StackDefinition[AgentEnv] {
+	return AgentStackDef(WithAgentParams(options...))
 }
 
 // FakeIntakeEnv contains an environment with the Agent
@@ -211,17 +213,24 @@ func FakeIntakeStackDef(options ...func(*AgentStackDefParam) error) *StackDefini
 			if err != nil {
 				return nil, err
 			}
-			agentClient, err := client.NewAgent(installer, params.agentClientParams...)
-			if err != nil {
-				return nil, err
-			}
 			return &FakeIntakeEnv{
 				VM:         client.NewVM(vm),
-				Agent:      agentClient,
+				Agent:      client.NewAgent(installer, params.agentClientParams...),
 				Fakeintake: client.NewFakeintake(fakeintakeExporter),
 			}, nil
 		},
 	)
+}
+
+// FakeIntakeStackDefWithDefaultVMAndAgentClient creates a stack definition containing an Ubuntu virtual machine, an Agent
+// and a fake Datadog intake.
+// The Agent is awaited at TestSuite setup time, any subtest runs with an healthy agent
+//
+// See [agent.Params] for available options.
+//
+// [agent.Params]: https://pkg.go.dev/github.com/DataDog/test-infra-definitions@main/components/datadog/agent#Params
+func FakeIntakeStackDefWithDefaultVMAndAgentClient(options ...agentparams.Option) *StackDefinition[FakeIntakeEnv] {
+	return FakeIntakeStackDef(WithAgentParams(options...))
 }
 
 // DockerEnv contains an environment with Docker
