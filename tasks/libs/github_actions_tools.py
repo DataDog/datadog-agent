@@ -2,6 +2,7 @@ import os
 import re
 import sys
 import tempfile
+import uuid
 import zipfile
 from datetime import datetime
 from time import sleep
@@ -60,6 +61,9 @@ def trigger_macos_workflow(
 
     # The workflow trigger endpoint doesn't return anything. You need to fetch the workflow run id
     # by yourself.
+    workflow_id = str(uuid.uuid1())
+    inputs["id"] = workflow_id
+
     gh = GithubAPI('DataDog/datadog-agent-macos-build')
     gh.trigger_workflow(workflow_name, github_action_ref, inputs)
 
@@ -74,6 +78,21 @@ def trigger_macos_workflow(
         if run is not None and run.created_at is not None and run.created_at >= now:
             return run
 
+        recent_runs = gh.workflow_run_for_ref_after_date(workflow_name, github_action_ref, now)
+        for recent_run in recent_runs:
+            jobs = recent_run.jobs()
+            if len(jobs) >= 2:
+                workflow_id_job = jobs[0]  # Workflow Provider ID job is the first job in the workflow
+                if len(workflow_id_job["steps"]) > 2:
+                    id_steps = workflow_id_job["steps"][1]  # Step with the ID is the second one
+                    if id_steps["name"] == workflow_id:
+                        return recent_run
+                else:
+                    print("waiting for steps to be executed...")
+                    sleep(3)
+            else:
+                print("waiting for jobs to popup...")
+                sleep(3)
         sleep(5)
 
     # Something went wrong :(

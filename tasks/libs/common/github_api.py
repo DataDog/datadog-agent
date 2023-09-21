@@ -155,6 +155,15 @@ class GithubAPI:
         runs = workflow.get_runs(branch=ref)
         return max(runs, key=lambda run: run.created_at, default=None)
 
+    def workflow_run_for_ref_after_date(self, workflow_name, ref, oldest_date):
+        """
+        Gets all the workflow triggered after a given date
+        """
+        workflow = self._repository.get_workflow(workflow_name)
+        date_filter = f"%3E{oldest_date.strftime('%Y-%m-%dT%H:%M')}"
+        runs = workflow.get_run(create=date_filter, branch=ref)
+        return runs
+
     def _chose_auth(self):
         """
         Attempt to find a working authentication, in order:
