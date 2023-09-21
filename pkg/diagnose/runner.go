@@ -18,6 +18,7 @@ import (
 	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
 	_ "github.com/DataDog/datadog-agent/pkg/diagnose/connectivity" // no direct calls to connectivity but there is a callback
 	"github.com/DataDog/datadog-agent/pkg/diagnose/diagnosis"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/fatih/color"
 )
 
@@ -266,6 +267,8 @@ func ListStdOut(w io.Writer, diagCfg diagnosis.Config) {
 // Enumerate registered Diagnose suites and get their diagnoses
 // for structural output
 func getDiagnosesFromCurrentProcess(diagCfg diagnosis.Config) ([]diagnosis.Diagnoses, error) {
+	log.Info("Getting diagnoses from current process...")
+
 	suites, err := getSortedAndFilteredDiagnoseSuites(diagCfg)
 	if err != nil {
 		return nil, err
@@ -329,7 +332,6 @@ func requestDiagnosesFromAgentProcess(diagCfg diagnosis.Config) ([]diagnosis.Dia
 }
 
 func Run(diagCfg diagnosis.Config) ([]diagnosis.Diagnoses, error) {
-
 	// Make remote call to get diagnoses
 	if !diagCfg.RunLocal {
 		return requestDiagnosesFromAgentProcess(diagCfg)

@@ -464,10 +464,14 @@ func metadataPayload(w http.ResponseWriter, r *http.Request) {
 }
 
 func getDiagnose(w http.ResponseWriter, r *http.Request) {
+	log.Info("Starting remote diagnose...")
+
 	var diagCfg diagnosis.Config
 
 	// Read parameters
 	if r.Body != http.NoBody {
+		log.Info("Read diagnose parameters...")
+
 		body, err := io.ReadAll(r.Body)
 		if err != nil {
 			http.Error(w, log.Errorf("Error while reading HTTP request body: %s", err).Error(), 500)
@@ -489,11 +493,13 @@ func getDiagnose(w http.ResponseWriter, r *http.Request) {
 	diagCfg.RunLocal = true
 
 	// Get diagnoses via API
+	log.Info("Starting diagnose...")
 	diagnoses, err := diagnose.Run(diagCfg)
 	if err != nil {
 		setJSONError(w, log.Errorf("Running diagnose in Agent process failed: %s", err), 500)
 		return
 	}
+	log.Info("Completed diagnose without errors")
 
 	// Serizalize diagnoses (and implicitly write result to the response)
 	w.Header().Set("Content-Type", "application/json")
@@ -501,6 +507,8 @@ func getDiagnose(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		setJSONError(w, log.Errorf("Unable to marshal config check response: %s", err), 500)
 	}
+
+	log.Info("Completed diagnose report")
 }
 
 // max returns the maximum value between a and b.

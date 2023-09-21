@@ -301,6 +301,8 @@ func getProcessChecks(fb flarehelpers.FlareBuilder, getAddressPort func() (url s
 func getDiagnoses(isFlareLocal bool) func() ([]byte, error) {
 
 	fct := func(w io.Writer) error {
+		log.Info("Starting diagnose from flare command...")
+
 		// Run diagnose always "local" (in the host process that is)
 		diagCfg := diagnosis.Config{
 			Verbose:  true,
@@ -313,7 +315,11 @@ func getDiagnoses(isFlareLocal bool) func() ([]byte, error) {
 			diagCfg.RunningInAgentProcess = true
 		}
 
-		return diagnose.RunStdOut(w, diagCfg)
+		err := diagnose.RunStdOut(w, diagCfg)
+
+		log.Info("Completed diagnose from flare command")
+
+		return err
 	}
 
 	return func() ([]byte, error) { return functionOutputToBytes(fct), nil }

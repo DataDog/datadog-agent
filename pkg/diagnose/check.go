@@ -10,7 +10,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
-	"github.com/DataDog/datadog-agent/comp/core/log"
+	voidlogger "github.com/DataDog/datadog-agent/comp/core/log"
 	forwarder "github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/collector"
@@ -19,6 +19,7 @@ import (
 	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/diagnose/diagnosis"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 func init() {
@@ -63,21 +64,27 @@ func getInstanceDiagnoses(instance check.Check) []diagnosis.Diagnosis {
 }
 
 func diagnoseChecksInAgentProcess() []diagnosis.Diagnosis {
+	log.Info("Starting check diagnoses from Agent process...")
+
 	var diagnoses []diagnosis.Diagnosis
 
 	// get list of checks
+	log.Info("Getting checks...")
 	checks := common.Coll.GetChecks()
 
 	// get diagnoses from each
 	for _, ch := range checks {
+		log.Infof("Getting check %s instance diagnose...", ch.String())
 		instanceDiagnoses := getInstanceDiagnoses(ch)
 		diagnoses = append(diagnoses, instanceDiagnoses...)
 	}
 
+	log.Info("Completed check diagnoses from Agent process...")
 	return diagnoses
 }
 
 func diagnoseChecksInCLIProcess(diagCfg diagnosis.Config) []diagnosis.Diagnosis {
+	log.Info("Starting check diagnoses from CLI process...")
 	// other choices
 	// 	run() github.com\DataDog\datadog-agent\pkg\cli\subcommands\check\command.go
 	//  runCheck() github.com\DataDog\datadog-agent\cmd\agent\gui\checks.go
@@ -108,7 +115,7 @@ func diagnoseChecksInCLIProcess(diagCfg diagnosis.Config) []diagnosis.Diagnosis 
 	opts.DontStartForwarders = true
 	opts.UseNoopEventPlatformForwarder = true
 	opts.UseNoopOrchestratorForwarder = true
-	log := log.NewTemporaryLoggerWithoutInit()
+	log := voidlogger.NewTemporaryLoggerWithoutInit()
 
 	forwarder := forwarder.NewDefaultForwarder(config.Datadog, log, forwarder.NewOptions(config.Datadog, log, nil))
 	aggregator.InitAndStartAgentDemultiplexer(log, forwarder, opts, hostnameDetected)
@@ -150,6 +157,8 @@ func diagnoseChecksInCLIProcess(diagCfg diagnosis.Config) []diagnosis.Diagnosis 
 			diagnoses = append(diagnoses, instanceDiagnoses...)
 		}
 	}
+
+	log.Info("Completed check diagnoses from CLI process")
 
 	return diagnoses
 }
