@@ -118,21 +118,24 @@ func (rd *RuleDefinition) MergeWith(rd2 *RuleDefinition) error {
 
 // ActionDefinition describes a rule action section
 type ActionDefinition struct {
-	Set *SetDefinition `yaml:"set"`
+	Set              *SetDefinition              `yaml:"set"`
+	RefreshUserCache *RefreshUserCacheDefinition `yaml:"refresh_user_cache"`
 }
 
 // Check returns an error if the action in invalid
 func (a *ActionDefinition) Check() error {
-	if a.Set == nil {
-		return errors.New("missing 'set' section in action")
+	if a.Set == nil && a.RefreshUserCache == nil {
+		return errors.New("missing 'set' or 'refresh_user_cache' section in action")
 	}
 
-	if a.Set.Name == "" {
-		return errors.New("action name is empty")
-	}
+	if a.Set != nil {
+		if a.Set.Name == "" {
+			return errors.New("action name is empty")
+		}
 
-	if (a.Set.Value == nil && a.Set.Field == "") || (a.Set.Value != nil && a.Set.Field != "") {
-		return errors.New("either 'value' or 'field' must be specified")
+		if (a.Set.Value == nil && a.Set.Field == "") || (a.Set.Value != nil && a.Set.Field != "") {
+			return errors.New("either 'value' or 'field' must be specified")
+		}
 	}
 
 	return nil
@@ -148,6 +151,10 @@ type SetDefinition struct {
 	Field  string      `yaml:"field"`
 	Append bool        `yaml:"append"`
 	Scope  Scope       `yaml:"scope"`
+}
+
+// RefreshUserCacheDefinition describes the 'refresh_user_cache' section of a rule action
+type RefreshUserCacheDefinition struct {
 }
 
 // Rule describes a rule of a ruleset
