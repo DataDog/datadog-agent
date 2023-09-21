@@ -150,3 +150,41 @@ func FuzzObfuscateJSON(f *testing.F) {
 		o.obfuscate(b)
 	})
 }
+
+func TestObfuscateJSONConcurrently(t *testing.T) {
+	var (
+		cfg = &JSONConfig{
+			KeepValues: []string{"company_wallet_configuration_id"},
+		}
+		o        = newJSONObfuscator(cfg, &Obfuscator{})
+		rs       = make(chan string, 1)
+		in       = "{\"email\":\"dev@datadoghq.com\",\"company_wallet_configuration_id\":1}"
+		expected = "{\"email\":\"?\",\"company_wallet_configuration_id\":1}"
+	)
+	defer func() {
+		close(rs)
+	}()
+
+	// Concurrency issues were already reproducible at 100 times, but we leave this at 100K
+	// to stress test the obfuscator.
+	const times = 10000
+	for i := 0; i < times; i++ {
+		go func() {
+			defer func() {
+				if recover() != nil {
+					// ignore panic on closing rs
+				}
+			}()
+			rs <- obfuscateJSONString(in, o)
+		}()
+	}
+
+	for i := 0; i < times; i++ {
+		v := <-rs
+		if v == expected {
+			continue
+		}
+
+		t.Fatalf("mangled payload after obfuscation: %q", v)
+	}
+}
