@@ -207,9 +207,10 @@ func (fi *Server) cleanUpPayloadsRoutine() {
 }
 
 func (fi *Server) cleanUpPayloads() {
-	now := fi.clock.Now().UTC()
 	fi.storeMutex.Lock()
 	defer fi.storeMutex.Unlock()
+	log.Printf("Cleaning up payloads")
+	now := fi.clock.Now().UTC()
 	for route, payloads := range fi.payloadStore {
 		n := 0
 		for _, payload := range payloads {
