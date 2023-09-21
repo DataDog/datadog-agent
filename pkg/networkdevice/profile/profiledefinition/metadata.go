@@ -13,7 +13,7 @@ type MetadataConfig map[string]MetadataResourceConfig
 
 // MetadataResourceConfig holds configs for a metadata resource
 type MetadataResourceConfig struct {
-	Fields map[string]MetadataField `yaml:"fields,omitempty" json:"-" jsonschema:"-"`
+	Fields map[string]MetadataField `yaml:"fields,omitempty" json:"-" jsonschema:"-"`  // not exposed as json annotation since FieldsList is used instead
 	IDTags MetricTagConfigList      `yaml:"id_tags,omitempty" json:"-" jsonschema:"-"` // not exposed as json annotation since might be not useful for now
 
 	// Used in RC format (list instead of map)

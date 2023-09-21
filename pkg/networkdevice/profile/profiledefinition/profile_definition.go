@@ -25,7 +25,7 @@ type ProfileDefinition struct {
 	Description  string            `yaml:"description,omitempty" json:"description,omitempty"`
 	SysObjectIds StringArray       `yaml:"sysobjectid,omitempty" json:"sysobjectid,omitempty"`
 	Extends      []string          `yaml:"extends,omitempty" json:"extends,omitempty"`
-	Metadata     MetadataConfig    `yaml:"metadata,omitempty" json:"-" jsonschema:"-"`
+	Metadata     MetadataConfig    `yaml:"metadata,omitempty" json:"-" jsonschema:"-"` // not exposed as json annotation since MetadataList is used instead
 	MetricTags   []MetricTagConfig `yaml:"metric_tags,omitempty" json:"metric_tags,omitempty"`
 	StaticTags   []string          `yaml:"static_tags,omitempty" json:"static_tags,omitempty"`
 	Metrics      []MetricsConfig   `yaml:"metrics,omitempty" json:"metrics,omitempty"`
