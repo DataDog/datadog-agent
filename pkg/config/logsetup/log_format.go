@@ -11,22 +11,23 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/DataDog/datadog-agent/pkg/conf"
 	"github.com/cihub/seelog"
 )
 
 // buildCommonFormat returns the log common format seelog string
-func buildCommonFormat(loggerName LoggerName) string {
+func buildCommonFormat(loggerName LoggerName, cfg conf.ConfigReader) string {
 	if loggerName == "JMXFETCH" {
 		return `%Msg%n`
 	}
-	return fmt.Sprintf("%%Date(%s) | %s | %%LEVEL | (%%ShortFilePath:%%Line in %%FuncShort) | %%ExtraTextContext%%Msg%%n", getLogDateFormat(), loggerName)
+	return fmt.Sprintf("%%Date(%s) | %s | %%LEVEL | (%%ShortFilePath:%%Line in %%FuncShort) | %%ExtraTextContext%%Msg%%n", getLogDateFormat(cfg), loggerName)
 }
 
 // buildJSONFormat returns the log JSON format seelog string
-func buildJSONFormat(loggerName LoggerName) string {
+func buildJSONFormat(loggerName LoggerName, cfg conf.ConfigReader) string {
 	seelog.RegisterCustomFormatter("QuoteMsg", createQuoteMsgFormatter) //nolint:errcheck
 	if loggerName == "JMXFETCH" {
 		return `{"msg":%QuoteMsg}%n`
 	}
-	return fmt.Sprintf(`{"agent":"%s","time":"%%Date(%s)","level":"%%LEVEL","file":"%%ShortFilePath","line":"%%Line","func":"%%FuncShort","msg":%%QuoteMsg%%ExtraJSONContext}%%n`, strings.ToLower(string(loggerName)), getLogDateFormat())
+	return fmt.Sprintf(`{"agent":"%s","time":"%%Date(%s)","level":"%%LEVEL","file":"%%ShortFilePath","line":"%%Line","func":"%%FuncShort","msg":%%QuoteMsg%%ExtraJSONContext}%%n`, strings.ToLower(string(loggerName)), getLogDateFormat(cfg))
 }
