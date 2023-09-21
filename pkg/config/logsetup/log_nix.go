@@ -5,7 +5,7 @@
 
 //go:build linux || freebsd || netbsd || openbsd || solaris || dragonfly || darwin || aix
 
-package config
+package logsetup
 
 import "github.com/DataDog/datadog-agent/pkg/conf"
 

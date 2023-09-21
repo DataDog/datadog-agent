@@ -5,7 +5,7 @@
 
 //go:build serverless
 
-package config
+package logsetup
 
 import (
 	"fmt"

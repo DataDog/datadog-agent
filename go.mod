@@ -28,6 +28,7 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/aggregator/ckey => ./pkg/aggregator/ckey
 	github.com/DataDog/datadog-agent/pkg/conf => ./pkg/conf/
 	github.com/DataDog/datadog-agent/pkg/config/load => ./pkg/config/load/
+	github.com/DataDog/datadog-agent/pkg/config/logsetup => ./pkg/config/logsetup/
 
 	github.com/DataDog/datadog-agent/pkg/errors => ./pkg/errors/
 	github.com/DataDog/datadog-agent/pkg/gohai => ./pkg/gohai
@@ -586,6 +587,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/aggregator/ckey v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/pkg/conf v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/pkg/config/load v0.0.0-00010101000000-000000000000
+	github.com/DataDog/datadog-agent/pkg/config/logsetup v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/pkg/errors v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/pkg/metrics v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/pkg/metrics/event v0.0.0-00010101000000-000000000000
