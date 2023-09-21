@@ -167,7 +167,7 @@ func TestClientProcessEvent(t *testing.T) {
 		Language: &languagemodels.Language{
 			Name: "java",
 		},
-		ContainerId: "nginx-cont-id",
+		ContainerID: "nginx-cont-id",
 	}
 
 	initProcess := &workloadmeta.Process{
@@ -178,7 +178,7 @@ func TestClientProcessEvent(t *testing.T) {
 		Language: &languagemodels.Language{
 			Name: "go",
 		},
-		ContainerId: "init-nginx-cont-id",
+		ContainerID: "init-nginx-cont-id",
 	}
 
 	eventBundle := workloadmeta.EventBundle{
@@ -260,7 +260,7 @@ func TestClientProcessEvent(t *testing.T) {
 func TestGetContainerInfoFromPod(t *testing.T) {
 	tests := []struct {
 		name            string
-		containerID     string
+		ContainerID     string
 		pod             *workloadmeta.KubernetesPod
 		expectedName    string
 		isInitContainer bool
@@ -268,7 +268,7 @@ func TestGetContainerInfoFromPod(t *testing.T) {
 	}{
 		{
 			name:        "not found",
-			containerID: "cid",
+			ContainerID: "cid",
 			pod: &workloadmeta.KubernetesPod{
 				Containers: []workloadmeta.OrchestratorContainer{
 					{
@@ -289,7 +289,7 @@ func TestGetContainerInfoFromPod(t *testing.T) {
 		},
 		{
 			name:        "init container",
-			containerID: "java-id-2",
+			ContainerID: "java-id-2",
 			pod: &workloadmeta.KubernetesPod{
 				Containers: []workloadmeta.OrchestratorContainer{
 					{
@@ -310,7 +310,7 @@ func TestGetContainerInfoFromPod(t *testing.T) {
 		},
 		{
 			name:        "normal container",
-			containerID: "java-id",
+			ContainerID: "java-id",
 			pod: &workloadmeta.KubernetesPod{
 				Containers: []workloadmeta.OrchestratorContainer{
 					{
@@ -332,7 +332,7 @@ func TestGetContainerInfoFromPod(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			name, isInitContainer, ok := getContainerInfoFromPod(tt.containerID, tt.pod)
+			name, isInitContainer, ok := getContainerInfoFromPod(tt.ContainerID, tt.pod)
 			assert.Equal(t, tt.expectedName, name)
 			assert.Equal(t, tt.isInitContainer, isInitContainer)
 			assert.Equal(t, tt.found, ok)

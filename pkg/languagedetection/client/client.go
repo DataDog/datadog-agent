@@ -235,7 +235,7 @@ func (c *Client) processEvent(evBundle workloadmeta.EventBundle) {
 		if process.Language == nil {
 			continue
 		}
-		pod, err := c.store.GetKubernetesPodForContainer(process.ContainerId)
+		pod, err := c.store.GetKubernetesPodForContainer(process.ContainerID)
 		if err != nil {
 			log.Debug("skipping language detection for process %s", process.ID)
 			continue
@@ -244,9 +244,9 @@ func (c *Client) processEvent(evBundle workloadmeta.EventBundle) {
 			log.Debug("pod %s has no owner, skipping %s", pod.Name, process.ID)
 			continue
 		}
-		containerName, isInitcontainer, ok := getContainerInfoFromPod(process.ContainerId, pod)
+		containerName, isInitcontainer, ok := getContainerInfoFromPod(process.ContainerID, pod)
 		if !ok {
-			log.Debug("container name not found for %s", process.ContainerId)
+			log.Debug("container name not found for %s", process.ContainerID)
 			continue
 		}
 		podInfo := c.currentBatch.getOrAddPodInfo(pod.Name, pod.Namespace, &pod.Owners[0])
