@@ -45,6 +45,7 @@ type Opts struct {
 	PathResolutionEnabled bool
 	TagsResolver          tags.Resolver
 	UseRingBuffer         bool
+	TTYFallbackEnabled    bool
 }
 
 // Resolvers holds the list of the event attribute resolvers
@@ -131,6 +132,9 @@ func NewResolvers(config *config.Config, manager *manager.Manager, statsdClient 
 
 	processOpts := process.NewResolverOpts()
 	processOpts.WithEnvsValue(config.Probe.EnvsWithValue)
+	if opts.TTYFallbackEnabled {
+		processOpts.WithTTYFallbackEnabled()
+	}
 
 	processResolver, err := process.NewResolver(manager, config.Probe, statsdClient,
 		scrubber, containerResolver, mountResolver, cgroupsResolver, userGroupResolver, timeResolver, pathResolver, processOpts)

@@ -213,7 +213,7 @@ func (m *MetadataController) syncEndpoints(key string) error {
 
 // mapEndpoints matches pods to services via endpoint TargetRef objects. It supports Kubernetes 1.4+.
 func (m *MetadataController) mapEndpoints(endpoints *corev1.Endpoints) error {
-	nodeToPods := make(map[string]map[string]sets.String)
+	nodeToPods := make(map[string]map[string]sets.Set[string])
 
 	// Loop over the subsets to create a mapping of nodes to pods running on the node.
 	for _, subset := range endpoints.Subsets {
@@ -243,10 +243,10 @@ func (m *MetadataController) mapEndpoints(endpoints *corev1.Endpoints) error {
 			nodeName := *address.NodeName
 
 			if _, ok := nodeToPods[nodeName]; !ok {
-				nodeToPods[nodeName] = make(map[string]sets.String)
+				nodeToPods[nodeName] = make(map[string]sets.Set[string])
 			}
 			if _, ok := nodeToPods[nodeName][namespace]; !ok {
-				nodeToPods[nodeName][namespace] = sets.NewString()
+				nodeToPods[nodeName][namespace] = sets.New[string]()
 			}
 			nodeToPods[nodeName][namespace].Insert(podName)
 		}

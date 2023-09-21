@@ -9,8 +9,8 @@ package status
 
 import (
 	"github.com/DataDog/datadog-agent/comp/otelcol/collector"
+	"github.com/DataDog/datadog-agent/comp/otelcol/otlp"
 	"github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/otlp"
 )
 
 // otlpCollector holds an instance of any running collector.

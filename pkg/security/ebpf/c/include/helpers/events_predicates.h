@@ -28,4 +28,8 @@ int __attribute__((always_inline)) credentials_predicate(u64 type) {
     return type == EVENT_SETUID || type == EVENT_SETGID || type == EVENT_CAPSET;
 }
 
+int __attribute__((always_inline)) mountpoint_predicate(u64 type) {
+    return type == EVENT_MOUNT || type == EVENT_UNSHARE_MNTNS;
+}
+
 #endif
