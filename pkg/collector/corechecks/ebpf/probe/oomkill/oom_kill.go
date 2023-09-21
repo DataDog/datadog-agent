@@ -8,7 +8,8 @@
 //go:generate $GOPATH/bin/include_headers pkg/collector/corechecks/ebpf/c/runtime/oom-kill-kern.c pkg/ebpf/bytecode/build/runtime/oom-kill.c pkg/ebpf/c
 //go:generate $GOPATH/bin/integrity pkg/ebpf/bytecode/build/runtime/oom-kill.c pkg/ebpf/bytecode/runtime/oom-kill.go runtime
 
-package probe
+// Package oomkill is the system-probe side of the OOM Kill check
+package oomkill
 
 import (
 	"fmt"
@@ -21,6 +22,7 @@ import (
 	bpflib "github.com/cilium/ebpf"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/ebpf/probe/ebpfcheck"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/ebpf/probe/oomkill/model"
 	"github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode/runtime"
@@ -31,19 +33,21 @@ import (
 
 /*
 #include <string.h>
-#include "../c/runtime/oom-kill-kern-user.h"
-#cgo CFLAGS: -I "${SRCDIR}/../../../../ebpf/c"
+#include "../../c/runtime/oom-kill-kern-user.h"
+#cgo CFLAGS: -I "${SRCDIR}/../../../../../ebpf/c"
 */
 import "C"
 
 const oomMapName = "oom_stats"
 
-type OOMKillProbe struct {
+// Probe is the eBPF side of the OOM Kill check
+type Probe struct {
 	m      *manager.Manager
 	oomMap *bpflib.Map
 }
 
-func NewOOMKillProbe(cfg *ebpf.Config) (*OOMKillProbe, error) {
+// NewProbe creates a [Probe]
+func NewProbe(cfg *ebpf.Config) (*Probe, error) {
 	if cfg.EnableCORE {
 		probe, err := loadOOMKillCOREProbe(cfg)
 		if err == nil {
@@ -59,7 +63,7 @@ func NewOOMKillProbe(cfg *ebpf.Config) (*OOMKillProbe, error) {
 	return loadOOMKillRuntimeCompiledProbe(cfg)
 }
 
-func loadOOMKillCOREProbe(cfg *ebpf.Config) (*OOMKillProbe, error) {
+func loadOOMKillCOREProbe(cfg *ebpf.Config) (*Probe, error) {
 	kv, err := kernel.HostVersion()
 	if err != nil {
 		return nil, fmt.Errorf("error detecting kernel version: %s", err)
@@ -68,7 +72,7 @@ func loadOOMKillCOREProbe(cfg *ebpf.Config) (*OOMKillProbe, error) {
 		return nil, fmt.Errorf("detected kernel version %s, but oom-kill probe requires a kernel version of at least 4.9.0", kv)
 	}
 
-	var probe *OOMKillProbe
+	var probe *Probe
 	err = ebpf.LoadCOREAsset(cfg, "oom-kill.o", func(buf bytecode.AssetReader, opts manager.Options) error {
 		probe, err = startOOMKillProbe(buf, opts)
 		return err
@@ -81,7 +85,7 @@ func loadOOMKillCOREProbe(cfg *ebpf.Config) (*OOMKillProbe, error) {
 	return probe, nil
 }
 
-func loadOOMKillRuntimeCompiledProbe(cfg *ebpf.Config) (*OOMKillProbe, error) {
+func loadOOMKillRuntimeCompiledProbe(cfg *ebpf.Config) (*Probe, error) {
 	buf, err := runtime.OomKill.Compile(cfg, getCFlags(cfg), statsd.Client)
 	if err != nil {
 		return nil, err
@@ -99,7 +103,7 @@ func getCFlags(config *ebpf.Config) []string {
 	return cflags
 }
 
-func startOOMKillProbe(buf bytecode.AssetReader, managerOptions manager.Options) (*OOMKillProbe, error) {
+func startOOMKillProbe(buf bytecode.AssetReader, managerOptions manager.Options) (*Probe, error) {
 	m := &manager.Manager{
 		Probes: []*manager.Probe{
 			{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFFuncName: "kprobe__oom_kill_process", UID: "oom"}},
@@ -130,20 +134,22 @@ func startOOMKillProbe(buf bytecode.AssetReader, managerOptions manager.Options)
 	}
 	ebpfcheck.AddNameMappings(m, "oom_kill")
 
-	return &OOMKillProbe{
+	return &Probe{
 		m:      m,
 		oomMap: oomMap,
 	}, nil
 }
 
-func (k *OOMKillProbe) Close() {
+// Close releases all associated resources
+func (k *Probe) Close() {
 	ebpfcheck.RemoveNameMappings(k.m)
 	if err := k.m.Stop(manager.CleanAll); err != nil {
 		log.Errorf("error stopping OOM Kill: %s", err)
 	}
 }
 
-func (k *OOMKillProbe) GetAndFlush() (results []OOMKillStats) {
+// GetAndFlush gets the stats
+func (k *Probe) GetAndFlush() (results []model.OOMKillStats) {
 	var pid uint32
 	var stat C.struct_oom_stats
 	it := k.oomMap.Iterate()
@@ -164,7 +170,7 @@ func (k *OOMKillProbe) GetAndFlush() (results []OOMKillStats) {
 	return results
 }
 
-func convertStats(in C.struct_oom_stats) (out OOMKillStats) {
+func convertStats(in C.struct_oom_stats) (out model.OOMKillStats) {
 	out.CgroupName = C.GoString(&in.cgroup_name[0])
 	out.Pid = uint32(in.pid)
 	out.TPid = uint32(in.tpid)

@@ -8,7 +8,8 @@
 //go:generate $GOPATH/bin/include_headers pkg/collector/corechecks/ebpf/c/runtime/tcp-queue-length-kern.c pkg/ebpf/bytecode/build/runtime/tcp-queue-length.c pkg/ebpf/c
 //go:generate $GOPATH/bin/integrity pkg/ebpf/bytecode/build/runtime/tcp-queue-length.c pkg/ebpf/bytecode/runtime/tcp-queue-length.go runtime
 
-package probe
+// Package tcpqueuelength is the system-probe side of the TCP Queue Length check
+package tcpqueuelength
 
 import (
 	"fmt"
@@ -21,6 +22,7 @@ import (
 	bpflib "github.com/cilium/ebpf"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/ebpf/probe/ebpfcheck"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/ebpf/probe/tcpqueuelength/model"
 	"github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode/runtime"
@@ -33,12 +35,14 @@ const (
 	statsMapName = "tcp_queue_stats"
 )
 
-type TCPQueueLengthTracer struct {
+// Tracer is the eBPF side of the TCP Queue Length check
+type Tracer struct {
 	m        *manager.Manager
 	statsMap *bpflib.Map
 }
 
-func NewTCPQueueLengthTracer(cfg *ebpf.Config) (*TCPQueueLengthTracer, error) {
+// NewTracer creates a [Tracer]
+func NewTracer(cfg *ebpf.Config) (*Tracer, error) {
 	if cfg.EnableCORE {
 		probe, err := loadTCPQueueLengthCOREProbe(cfg)
 		if err != nil {
@@ -54,7 +58,7 @@ func NewTCPQueueLengthTracer(cfg *ebpf.Config) (*TCPQueueLengthTracer, error) {
 	return loadTCPQueueLengthRuntimeCompiledProbe(cfg)
 }
 
-func startTCPQueueLengthProbe(buf bytecode.AssetReader, managerOptions manager.Options) (*TCPQueueLengthTracer, error) {
+func startTCPQueueLengthProbe(buf bytecode.AssetReader, managerOptions manager.Options) (*Tracer, error) {
 	probes := []*manager.Probe{
 		{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFFuncName: "kprobe__tcp_recvmsg", UID: "tcpq"}},
 		{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFFuncName: "kretprobe__tcp_recvmsg", UID: "tcpq"}},
@@ -94,27 +98,29 @@ func startTCPQueueLengthProbe(buf bytecode.AssetReader, managerOptions manager.O
 	}
 	ebpfcheck.AddNameMappings(m, "tcp_queue_length")
 
-	return &TCPQueueLengthTracer{
+	return &Tracer{
 		m:        m,
 		statsMap: statsMap,
 	}, nil
 }
 
-func (t *TCPQueueLengthTracer) Close() {
+// Close releases all associated resources
+func (t *Tracer) Close() {
 	ebpfcheck.RemoveNameMappings(t.m)
 	if err := t.m.Stop(manager.CleanAll); err != nil {
 		log.Errorf("error stopping TCP Queue Length: %s", err)
 	}
 }
 
-func (t *TCPQueueLengthTracer) GetAndFlush() TCPQueueLengthStats {
+// GetAndFlush gets the stats
+func (t *Tracer) GetAndFlush() model.TCPQueueLengthStats {
 	nbCpus, err := kernel.PossibleCPUs()
 	if err != nil {
 		log.Errorf("Failed to get online CPUs: %v", err)
-		return TCPQueueLengthStats{}
+		return model.TCPQueueLengthStats{}
 	}
 
-	result := make(TCPQueueLengthStats)
+	result := make(model.TCPQueueLengthStats)
 
 	var statsKey StructStatsKey
 	var keys []StructStatsKey
@@ -122,7 +128,7 @@ func (t *TCPQueueLengthTracer) GetAndFlush() TCPQueueLengthStats {
 	it := t.statsMap.Iterate()
 	for it.Next(unsafe.Pointer(&statsKey), &statsValue) {
 		cgroupName := string(statsKey.Cgroup[:])
-		max := TCPQueueLengthStatsValue{}
+		max := model.TCPQueueLengthStatsValue{}
 		for cpu := 0; cpu < nbCpus; cpu++ {
 			if statsValue[cpu].Read_buffer_max_usage > max.ReadBufferMaxUsage {
 				max.ReadBufferMaxUsage = statsValue[cpu].Read_buffer_max_usage
@@ -146,7 +152,7 @@ func (t *TCPQueueLengthTracer) GetAndFlush() TCPQueueLengthStats {
 	return result
 }
 
-func loadTCPQueueLengthCOREProbe(cfg *ebpf.Config) (*TCPQueueLengthTracer, error) {
+func loadTCPQueueLengthCOREProbe(cfg *ebpf.Config) (*Tracer, error) {
 	kv, err := kernel.HostVersion()
 	if err != nil {
 		return nil, fmt.Errorf("error detecting kernel version: %s", err)
@@ -160,7 +166,7 @@ func loadTCPQueueLengthCOREProbe(cfg *ebpf.Config) (*TCPQueueLengthTracer, error
 		filename = "tcp-queue-length-debug.o"
 	}
 
-	var probe *TCPQueueLengthTracer
+	var probe *Tracer
 	err = ebpf.LoadCOREAsset(cfg, filename, func(buf bytecode.AssetReader, opts manager.Options) error {
 		probe, err = startTCPQueueLengthProbe(buf, opts)
 		return err
@@ -173,7 +179,7 @@ func loadTCPQueueLengthCOREProbe(cfg *ebpf.Config) (*TCPQueueLengthTracer, error
 	return probe, nil
 }
 
-func loadTCPQueueLengthRuntimeCompiledProbe(cfg *ebpf.Config) (*TCPQueueLengthTracer, error) {
+func loadTCPQueueLengthRuntimeCompiledProbe(cfg *ebpf.Config) (*Tracer, error) {
 	compiledOutput, err := runtime.TcpQueueLength.Compile(cfg, []string{"-g"}, statsd.Client)
 	if err != nil {
 		return nil, err
