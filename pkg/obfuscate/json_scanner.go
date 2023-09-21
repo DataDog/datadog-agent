@@ -53,9 +53,6 @@ type scanner struct {
 	// Error that happened, if any.
 	err error
 
-	// 1-byte redo (see undo method)
-	redo bool
-
 	// total bytes consumed, updated by decoder.Decode
 	bytes int64
 }
@@ -101,7 +98,6 @@ func (s *scanner) reset() {
 	s.step = stateBeginValue
 	s.parseState = s.parseState[0:0]
 	s.err = nil
-	s.redo = false
 	s.endTop = false
 }
 
@@ -133,14 +129,13 @@ func (s *scanner) pushParseState(p int) {
 // and updates s.step accordingly.
 func (s *scanner) popParseState() {
 	n := len(s.parseState) - 1
-	s.parseState = s.parseState[0:n]
-	s.redo = false
 	if n == 0 {
 		s.step = stateEndTop
 		s.endTop = true
-	} else {
-		s.step = stateEndValue
+		return
 	}
+	s.parseState = s.parseState[0:n]
+	s.step = stateEndValue
 }
 
 func isSpace(c byte) bool {
@@ -203,8 +198,8 @@ func stateBeginStringOrEmpty(s *scanner, c byte) int {
 	if c <= ' ' && isSpace(c) {
 		return scanSkipSpace
 	}
-	if c == '}' {
-		n := len(s.parseState)
+	n := len(s.parseState)
+	if c == '}' && n > 0 {
 		s.parseState[n-1] = parseObjectValue
 		return stateEndValue(s, c)
 	}
