@@ -962,7 +962,7 @@ type Process struct {
 	EntityMeta
 
 	NsPid        int32
-	ContainerId  string
+	ContainerID  string
 	CreationTime time.Time
 	Language     *languagemodels.Language
 }
@@ -997,7 +997,7 @@ func (p Process) String(verbose bool) string {
 	_, _ = fmt.Fprintln(&sb, "----------- Entity ID -----------")
 	_, _ = fmt.Fprintln(&sb, "PID:", p.EntityID.ID)
 	_, _ = fmt.Fprintln(&sb, "Namespace PID:", p.NsPid)
-	_, _ = fmt.Fprintln(&sb, "Container ID:", p.ContainerId)
+	_, _ = fmt.Fprintln(&sb, "Container ID:", p.ContainerID)
 	_, _ = fmt.Fprintln(&sb, "Creation time:", p.CreationTime)
 	_, _ = fmt.Fprintln(&sb, "Language:", p.Language.Name)
 
