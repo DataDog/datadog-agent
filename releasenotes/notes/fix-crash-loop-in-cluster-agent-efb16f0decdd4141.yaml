@@ -1,4 +1,4 @@
 ---
 fixes:
   - |
-    Fix a crash in the cluster agent when remote configuration is turned off
+    Fix a crash in the Cluster Agent when Remote Configuration is disabled
