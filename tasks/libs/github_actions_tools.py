@@ -51,6 +51,11 @@ def trigger_macos_workflow(
     if version_cache_file_content:
         inputs["version_cache"] = version_cache_file_content
 
+    # The workflow trigger endpoint doesn't return anything. You need to fetch the workflow run id
+    # by yourself.
+    workflow_id = str(uuid.uuid1())
+    inputs["id"] = workflow_id
+
     print(
         "Creating workflow on datadog-agent-macos-build on commit {} with args:\n{}".format(  # noqa: FS002
             github_action_ref, "\n".join([f"  - {k}: {inputs[k]}" for k in inputs])
@@ -59,13 +64,7 @@ def trigger_macos_workflow(
     # Hack: get current time to only fetch workflows that started after now.
     now = datetime.utcnow()
 
-    # The workflow trigger endpoint doesn't return anything. You need to fetch the workflow run id
-    # by yourself.
-    workflow_id = str(uuid.uuid1())
-    inputs["id"] = workflow_id
-
     gh = GithubAPI('DataDog/datadog-agent-macos-build')
-    print("Triggered workflow with id: ", workflow_id)
     gh.trigger_workflow(workflow_name, github_action_ref, inputs)
 
     # Thus the following hack: query the latest run for ref, wait until we get a non-completed run
