@@ -54,8 +54,8 @@ func (f *apiserviceFactory) Name() string {
 func (f *apiserviceFactory) MetricFamilyGenerators(allowAnnotationsList, allowLabelsList []string) []generator.FamilyGenerator {
 	return []generator.FamilyGenerator{
 		*generator.NewFamilyGeneratorWithStability(
-			descApiServiceAnnotationsName,
-			descApiServiceAnnotationsHelp,
+			descAPIServiceAnnotationsName,
+			descAPIServiceAnnotationsHelp,
 			metric.Gauge,
 			basemetrics.ALPHA,
 			"",
@@ -73,8 +73,8 @@ func (f *apiserviceFactory) MetricFamilyGenerators(allowAnnotationsList, allowLa
 			}),
 		),
 		*generator.NewFamilyGeneratorWithStability(
-			descApiServiceLabelsName,
-			descApiServiceLabelsHelp,
+			descAPIServiceLabelsName,
+			descAPIServiceLabelsHelp,
 			metric.Gauge,
 			basemetrics.ALPHA,
 			"",
