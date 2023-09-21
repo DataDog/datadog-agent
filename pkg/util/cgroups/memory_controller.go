@@ -87,7 +87,7 @@ func NewMemoryController(kind string, containerized bool, monitors ...MemoryMoni
 	case "systemd":
 		cgroupHierarchy = cgroupsv1.Systemd
 	case "v1":
-		cgroupHierarchy = cgroupsv1.V1
+		cgroupHierarchy = cgroupsv1.Default
 	default:
 		return nil, fmt.Errorf("unsupported cgroup hierarchy '%s'", kind)
 	}
@@ -96,7 +96,7 @@ func NewMemoryController(kind string, containerized bool, monitors ...MemoryMoni
 		cgroupHierarchy = hostHierarchy(cgroupHierarchy)
 	}
 
-	cgroup, err := cgroupsv1.Load(cgroupHierarchy, path)
+	cgroup, err := cgroupsv1.Load(path, cgroupsv1.WithHiearchy(cgroupHierarchy))
 	if err != nil {
 		return nil, fmt.Errorf("can't open memory cgroup: %w", err)
 	}
