@@ -11,7 +11,7 @@ replace (
 require (
 	github.com/DataDog/datadog-agent/pkg/util/log v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/pkg/util/system/socket v0.0.0-00010101000000-000000000000
-	github.com/DataDog/datadog-agent/pkg/version v0.46.0
+	github.com/DataDog/datadog-agent/pkg/version v0.0.0-00010101000000-000000000000
 	github.com/DataDog/viper v1.12.0
 	github.com/spf13/afero v1.9.5
 	github.com/spf13/pflag v1.0.5

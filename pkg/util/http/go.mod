@@ -5,18 +5,19 @@ go 1.20
 replace (
 	github.com/DataDog/datadog-agent/pkg/conf => ../../conf
 	github.com/DataDog/datadog-agent/pkg/util/log => ../../util/log
+	github.com/DataDog/datadog-agent/pkg/version => ../../../pkg/version
+	github.com/DataDog/datadog-agent/pkg/util/system/socket => ../../util/system/socket
 )
 
 require (
 	github.com/DataDog/datadog-agent/pkg/conf v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/pkg/util/log v0.0.0-00010101000000-000000000000
-	github.com/antonmedv/expr v1.15.1
 	github.com/stretchr/testify v1.8.4
 	golang.org/x/net v0.15.0
 )
 
 require (
-	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.47.0-rc.3 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.48.0-rc.2 // indirect
 	github.com/DataDog/viper v1.12.0 // indirect
 	github.com/cihub/seelog v0.0.0-20170130134532-f561c5e57575 // indirect
 	github.com/davecgh/go-spew v1.1.1 // indirect
