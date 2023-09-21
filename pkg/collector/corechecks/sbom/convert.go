@@ -22,17 +22,17 @@ import (
 func stringPtr(in string) *string {
 	if in == "" {
 		return nil
-	} else {
-		return &in
 	}
+
+	return &in
 }
 
 func strSliceDeref(in *[]string) []string {
 	if in == nil {
 		return nil
-	} else {
-		return *in
 	}
+
+	return *in
 }
 
 type inArrayElement interface {
@@ -847,9 +847,9 @@ func convertTimestamp(in string) *timestamppb.Timestamp {
 	ts, err := time.Parse(time.RFC3339, in)
 	if err != nil {
 		return nil
-	} else {
-		return timestamppb.New(ts)
 	}
+
+	return timestamppb.New(ts)
 }
 
 func convertDuration(in time.Duration) *durationpb.Duration {
