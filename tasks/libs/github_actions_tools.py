@@ -81,7 +81,7 @@ def trigger_macos_workflow(
         recent_runs = gh.workflow_run_for_ref_after_date(workflow_name, github_action_ref, now)
         for recent_run in recent_runs:
             jobs = recent_run.jobs()
-            if len(jobs) >= 2:
+            if jobs.totalCount() >= 2:
                 workflow_id_job = jobs[0]  # Workflow Provider ID job is the first job in the workflow
                 if len(workflow_id_job["steps"]) > 2:
                     id_steps = workflow_id_job["steps"][1]  # Step with the ID is the second one
