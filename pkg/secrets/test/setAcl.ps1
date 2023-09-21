@@ -43,7 +43,7 @@ if ($removeLocalSystem -eq $True) {
 
 # adding ACL for current user
 if ($addDDUser -eq $True) {
-    $ddCurrentUser = [System.Security.Principal.WindowsIdentity]::GetCurrent().Name
+    $ddCurrentUser = $Env:ComputerName + "\" + $Env:UserName
     $ddAcl = New-Object  system.security.accesscontrol.filesystemaccessrule($ddCurrentUser, "FullControl","Allow")
     $acl.SetAccessRule($ddAcl)
 }
