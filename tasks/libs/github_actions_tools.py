@@ -83,8 +83,8 @@ def trigger_macos_workflow(
             jobs = recent_run.jobs()
             if jobs.totalCount >= 2:
                 workflow_id_job = jobs[0]  # Workflow Provider ID job is the first job in the workflow
-                if len(workflow_id_job["steps"]) > 2:
-                    id_steps = workflow_id_job["steps"][1]  # Step with the ID is the second one
+                if len(workflow_id_job.steps) > 2:
+                    id_steps = workflow_id_job.steps[1]  # Step with the ID is the second one
                     if id_steps["name"] == workflow_id:
                         return recent_run
                 else:
