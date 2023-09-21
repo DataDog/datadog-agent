@@ -54,7 +54,7 @@
  	session->skip_rules = oscap_list_new();
  
  	_xccdf_session_reset_oval_agents_syschar(session);
-+	//_xccdf_session_reset_oval_agents_results(session);
++	_xccdf_session_reset_oval_agents_results(session);
  }
  
  const char *xccdf_session_get_filename(const struct xccdf_session *session)
