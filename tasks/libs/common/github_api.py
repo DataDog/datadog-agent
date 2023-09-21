@@ -160,9 +160,10 @@ class GithubAPI:
         Gets all the workflow triggered after a given date
         """
         workflow = self._repository.get_workflow(workflow_name)
-        date_filter = f"%3E{oldest_date.strftime('%Y-%m-%dT%H:%M')}"
-        runs = workflow.get_runs(create=date_filter, branch=ref)
-        return runs
+        runs = workflow.get_runs(branch=ref)
+        recent_runs = [run for run in runs if run.created_at > oldest_date]
+
+        return sorted(recent_runs, key=lambda run: run.created_at, reverse=True)
 
     def _chose_auth(self):
         """
