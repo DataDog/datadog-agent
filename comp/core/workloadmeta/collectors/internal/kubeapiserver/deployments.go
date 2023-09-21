@@ -20,9 +20,9 @@ import (
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/cache"
 
+	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/pkg/languagedetection/languagemodels"
 	ddkube "github.com/DataDog/datadog-agent/pkg/util/kubernetes"
-	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
 )
 
 var re = regexp.MustCompile(`apm\.datadoghq\.com\/(init)?\.?(.+?)\.languages`)
@@ -40,7 +40,7 @@ func (f *deploymentFilter) filteredOut(entity workloadmeta.Entity) bool {
 			len(deployment.ContainerLanguages) == 0)
 }
 
-func newDeploymentStore(ctx context.Context, wlm workloadmeta.Store, client kubernetes.Interface) (*cache.Reflector, *reflectorStore) {
+func newDeploymentStore(ctx context.Context, wlm workloadmeta.Component, client kubernetes.Interface) (*cache.Reflector, *reflectorStore) {
 	deploymentListerWatcher := &cache.ListWatch{
 		ListFunc: func(options metav1.ListOptions) (runtime.Object, error) {
 			return client.AppsV1().Deployments(metav1.NamespaceAll).List(ctx, options)
@@ -61,7 +61,7 @@ func newDeploymentStore(ctx context.Context, wlm workloadmeta.Store, client kube
 	return deploymentReflector, deploymentStore
 }
 
-func newDeploymentReflectorStore(wlmetaStore workloadmeta.Store) *reflectorStore {
+func newDeploymentReflectorStore(wlmetaStore workloadmeta.Component) *reflectorStore {
 	store := &reflectorStore{
 		wlmetaStore: wlmetaStore,
 		seen:        make(map[string]workloadmeta.EntityID),

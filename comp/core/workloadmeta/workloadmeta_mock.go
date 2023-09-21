@@ -171,6 +171,16 @@ func (w *workloadmetamock) GetKubernetesNode(id string) (*KubernetesNode, error)
 	return entity.(*KubernetesNode), nil
 }
 
+// GetKubernetesDeployment implements Component#GetKubernetesDeployment
+func (w *workloadmetamock) GetKubernetesDeployment(id string) (*KubernetesDeployment, error) {
+	entity, err := w.getEntityByKind(KindKubernetesDeployment, id)
+	if err != nil {
+		return nil, err
+	}
+
+	return entity.(*KubernetesDeployment), nil
+}
+
 // GetECSTask returns metadata about an ECS task.
 func (w *workloadmetamock) GetECSTask(id string) (*ECSTask, error) {
 	entity, err := w.getEntityByKind(KindECSTask, id)
@@ -312,8 +322,6 @@ type workloadMetaMockV2 struct {
 // newWorkloadMetaMockV2 returns a Mock
 func newWorkloadMetaMockV2(deps dependencies) Mock {
 	wm := newWorkloadMeta(deps)
-	// TODO(components): not sure if we should "disable" the collectors in the mock?
-	// wm.(*workloadmeta).candidates = nil
 
 	w := &workloadMetaMockV2{
 		workloadmeta: wm.(*workloadmeta),

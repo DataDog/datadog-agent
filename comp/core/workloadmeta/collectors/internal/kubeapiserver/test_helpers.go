@@ -12,8 +12,13 @@ import (
 	"testing"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
+	"github.com/DataDog/datadog-agent/comp/core"
+	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
+
 	"github.com/stretchr/testify/assert"
+	"go.uber.org/fx"
 	"k8s.io/client-go/kubernetes/fake"
 )
 
@@ -28,8 +33,21 @@ func testCollectEvent(t *testing.T, createResource func(*fake.Clientset) error, 
 	err := createResource(client)
 	assert.NoError(t, err)
 
-	// Start the reflector
-	wlm := workloadmeta.NewMockStore()
+	overrides := map[string]interface{}{
+		"cluster_agent.collect_kubernetes_tags": true,
+		"language_detection.enabled":            true,
+	}
+
+	wlm := fxutil.Test[workloadmeta.Mock](t, fx.Options(
+		core.MockBundle,
+		fx.Replace(config.MockParams{Overrides: overrides}),
+		fx.Supply(context.Background()),
+		fx.Supply(workloadmeta.NewParams()),
+		// GetFxOptions(),
+		workloadmeta.MockModuleV2,
+	))
+	wlm.Start(context.Background())
+
 	store, _ := newStore(context.TODO(), wlm, client)
 	stopStore := make(chan struct{})
 	go store.Run(stopStore)
@@ -37,6 +55,9 @@ func testCollectEvent(t *testing.T, createResource func(*fake.Clientset) error, 
 	// Subscribe to the kubeapiserver events. Two cases are possible:
 	// - The reflector has already populated wlm with the resource, in that case the first call to <-ch will contain the event
 	// - The reflector is still initializing. In that case the second call to <-ch will contain the event
+
+	// time.Sleep(5 * time.Second)
+
 	ch := wlm.Subscribe(dummySubscriber, workloadmeta.NormalPriority, nil)
 	var bundle workloadmeta.EventBundle
 	assert.Eventually(t, func() bool {
@@ -53,6 +74,12 @@ func testCollectEvent(t *testing.T, createResource func(*fake.Clientset) error, 
 			return false
 		}
 	}, 30*time.Second, 500*time.Millisecond)
+
+	// Retrieving the resource in an event bundle
+	bundle := <-ch
+	if bundle.Ch != nil {
+		close(bundle.Ch)
+	}
 
 	// nil the bundle's Ch so we can
 	// deep-equal just the events later

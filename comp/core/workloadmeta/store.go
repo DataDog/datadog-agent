@@ -330,8 +330,8 @@ func (w *workloadmeta) GetKubernetesNode(id string) (*KubernetesNode, error) {
 }
 
 // GetKubernetesDeployment implements Store#GetKubernetesDeployment
-func (s *store) GetKubernetesDeployment(id string) (*KubernetesDeployment, error) {
-	entity, err := s.getEntityByKind(KindKubernetesDeployment, id)
+func (w *workloadmeta) GetKubernetesDeployment(id string) (*KubernetesDeployment, error) {
+	entity, err := w.getEntityByKind(KindKubernetesDeployment, id)
 	if err != nil {
 		return nil, err
 	}
@@ -456,6 +456,11 @@ func (w *workloadmeta) startCandidatesWithRetry(ctx context.Context) error {
 	expBackoff.InitialInterval = retryCollectorInitialInterval
 	expBackoff.MaxInterval = retryCollectorMaxInterval
 	expBackoff.MaxElapsedTime = 0 // Don't stop trying
+
+	if len(w.candidates) == 0 {
+		// TODO: this should actually probably just be an error?
+		return nil
+	}
 
 	return backoff.Retry(func() error {
 		select {

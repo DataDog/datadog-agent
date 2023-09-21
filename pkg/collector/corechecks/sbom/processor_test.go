@@ -599,7 +599,6 @@ func TestProcessEvents(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			var SBOMsSent = atomic.NewInt32(0)
 
-			// FIXME(components): use actual workloadmeta mock component here instead.
 			workloadmetaStore := fxutil.Test[workloadmeta.Mock](t, fx.Options(
 				log.MockModule,
 				configcomp.MockModule,

@@ -627,14 +627,21 @@ func TestSubscribe(t *testing.T) {
 			s.Unsubscribe(ch)
 
 			<-doneCh
-			assert.Equal(t, tt.expected, actual)
-			assert.Equal(t, tt.expected, actual)
+			tassert.Equal(t, tt.expected, actual)
+			tassert.Equal(t, tt.expected, actual)
 		})
 	}
 }
 
 func TestGetKubernetesDeployment(t *testing.T) {
-	s := newTestStore()
+	deps := fxutil.Test[dependencies](t, fx.Options(
+		log.MockModule,
+		config.MockModule,
+		fx.Supply(context.Background()),
+		fx.Supply(NewParams()),
+	))
+
+	s := newWorkloadMeta(deps).(*workloadmeta)
 
 	deployment := &KubernetesDeployment{
 		EntityID: EntityID{
@@ -652,7 +659,7 @@ func TestGetKubernetesDeployment(t *testing.T) {
 	})
 
 	retrievedDeployment, err := s.GetKubernetesDeployment("datadog-cluster-agent")
-	assert.NoError(t, err)
+	tassert.NoError(t, err)
 
 	if !reflect.DeepEqual(deployment, retrievedDeployment) {
 		t.Errorf("expected deployment %q to match the one in the store", retrievedDeployment.ID)
@@ -667,7 +674,7 @@ func TestGetKubernetesDeployment(t *testing.T) {
 	})
 
 	_, err = s.GetKubernetesDeployment("datadog-cluster-agent")
-	assert.True(t, errors.IsNotFound(err))
+	tassert.True(t, errors.IsNotFound(err))
 }
 
 func TestGetProcess(t *testing.T) {
@@ -764,7 +771,7 @@ func TestListContainers(t *testing.T) {
 
 			containers := s.ListContainers()
 
-			assert.Equal(t, test.expectedContainers, containers)
+			tassert.Equal(t, test.expectedContainers, containers)
 		})
 	}
 }
@@ -814,7 +821,7 @@ func TestListContainersWithFilter(t *testing.T) {
 
 	runningContainers := s.ListContainersWithFilter(GetRunningContainers)
 
-	assert.Equal(t, []*Container{runningContainer}, runningContainers)
+	tassert.Equal(t, []*Container{runningContainer}, runningContainers)
 }
 
 func TestListProcesses(t *testing.T) {
@@ -863,7 +870,7 @@ func TestListProcesses(t *testing.T) {
 
 			processes := s.ListProcesses()
 
-			assert.Equal(t, test.expectedProcesses, processes)
+			tassert.Equal(t, test.expectedProcesses, processes)
 		})
 	}
 }
@@ -915,7 +922,7 @@ func TestListProcessesWithFilter(t *testing.T) {
 		return p.Language.Name == languagemodels.Java
 	})
 
-	assert.Equal(t, []*Process{javaProcess}, retrievedProcesses)
+	tassert.Equal(t, []*Process{javaProcess}, retrievedProcesses)
 }
 
 func TestGetKubernetesPodByName(t *testing.T) {
@@ -1127,10 +1134,10 @@ func TestGetImage(t *testing.T) {
 			actualImage, err := s.GetImage(test.imageID)
 
 			if test.expectsError {
-				assert.Error(t, err, errors.NewNotFound(string(KindContainerImageMetadata)).Error())
+				tassert.Error(t, err, errors.NewNotFound(string(KindContainerImageMetadata)).Error())
 			} else {
-				assert.NoError(t, err)
-				assert.Equal(t, test.expectedImage, actualImage)
+				tassert.NoError(t, err)
+				tassert.Equal(t, test.expectedImage, actualImage)
 			}
 		})
 	}
@@ -1449,7 +1456,7 @@ func TestReset(t *testing.T) {
 
 			<-doneCh
 
-			assert.Equal(t, test.expectedEventsReceived, actualEventsReceived)
+			tassert.Equal(t, test.expectedEventsReceived, actualEventsReceived)
 		})
 	}
 }
