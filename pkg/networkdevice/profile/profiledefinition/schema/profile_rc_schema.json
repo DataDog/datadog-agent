@@ -116,14 +116,14 @@
           },
           "type": "array"
         },
+        "match": {
+          "type": "string"
+        },
         "mapping_list": {
           "items": {
             "$ref": "#/$defs/KeyValue"
           },
           "type": "array"
-        },
-        "match": {
-          "type": "string"
         },
         "tags_list": {
           "items": {
