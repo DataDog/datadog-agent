@@ -44,7 +44,6 @@ func (v *agentHostnameSuite) TestAgentConfigHostnameVarOverride() {
 
 func (v *agentHostnameSuite) TestAgentConfigHostnameFileOverride() {
 	fileContent := "hostname.from.file"
-	v.Env().VM.Execute(fmt.Sprintf(`echo "%s" | tee /tmp/hostname`, fileContent))
 	v.UpdateEnv(e2e.AgentStackDef(e2e.WithAgentParams(agentparams.WithFile("/tmp/var/hostname", fileContent, false), agentparams.WithAgentConfig("hostname_file: /tmp/var/hostname"))))
 
 	hostname := v.Env().Agent.Hostname()
