@@ -106,16 +106,15 @@ func (c *Config) Addr() string {
 
 // BuildSNMPParams returns a valid GoSNMP params structure from configuration.
 func (c *Config) BuildSNMPParams(logger log.Component) (*gosnmp.GoSNMP, error) {
-	var snmpLogger gosnmp.Logger
-	if logger != nil {
-		snmpLogger = gosnmp.NewLogger(&trapLogger{logger: logger})
+	if logger == nil {
+		return nil, fmt.Errorf("NIL LOGGER?")
 	}
 	if len(c.Users) == 0 {
 		return &gosnmp.GoSNMP{
 			Port:      c.Port,
 			Transport: "udp",
 			Version:   gosnmp.Version2c, // No user configured, let's use Version2 which is enough and doesn't require setting up fake security data.
-			Logger:    snmpLogger,
+			Logger:    gosnmp.NewLogger(&trapLogger{logger: logger}),
 		}, nil
 	}
 	user := c.Users[0]
@@ -150,6 +149,6 @@ func (c *Config) BuildSNMPParams(logger log.Component) (*gosnmp.GoSNMP, error) {
 			PrivacyProtocol:          privProtocol,
 			PrivacyPassphrase:        user.PrivKey,
 		},
-		Logger: snmpLogger,
+		Logger: gosnmp.NewLogger(&trapLogger{logger: logger}),
 	}, nil
 }

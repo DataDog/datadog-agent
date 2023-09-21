@@ -13,6 +13,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/DataDog/datadog-agent/comp/core/log"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/gosnmp/gosnmp"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -117,7 +119,7 @@ func parsePort(addr string) (uint16, error) {
 }
 
 func sendTestV1GenericTrap(t *testing.T, trapConfig Config, community string) *gosnmp.GoSNMP {
-	params, err := trapConfig.BuildSNMPParams(nil)
+	params, err := trapConfig.BuildSNMPParams(fxutil.Test[log.Component](t, log.MockModule))
 	require.NoError(t, err)
 	params.Community = community
 	params.Timeout = 1 * time.Second // Must be non-zero when sending traps.
@@ -135,7 +137,7 @@ func sendTestV1GenericTrap(t *testing.T, trapConfig Config, community string) *g
 }
 
 func sendTestV1SpecificTrap(t *testing.T, trapConfig Config, community string) *gosnmp.GoSNMP {
-	params, err := trapConfig.BuildSNMPParams(nil)
+	params, err := trapConfig.BuildSNMPParams(fxutil.Test[log.Component](t, log.MockModule))
 	require.NoError(t, err)
 	params.Community = community
 	params.Timeout = 1 * time.Second // Must be non-zero when sending traps.
@@ -153,7 +155,7 @@ func sendTestV1SpecificTrap(t *testing.T, trapConfig Config, community string) *
 }
 
 func sendTestV2Trap(t *testing.T, trapConfig Config, community string) *gosnmp.GoSNMP {
-	params, err := trapConfig.BuildSNMPParams(nil)
+	params, err := trapConfig.BuildSNMPParams(fxutil.Test[log.Component](t, log.MockModule))
 	require.NoError(t, err)
 	params.Community = community
 	params.Timeout = 1 * time.Second // Must be non-zero when sending traps.
@@ -171,7 +173,7 @@ func sendTestV2Trap(t *testing.T, trapConfig Config, community string) *gosnmp.G
 }
 
 func sendTestV3Trap(t *testing.T, trapConfig Config, securityParams *gosnmp.UsmSecurityParameters) *gosnmp.GoSNMP {
-	params, err := trapConfig.BuildSNMPParams(nil)
+	params, err := trapConfig.BuildSNMPParams(fxutil.Test[log.Component](t, log.MockModule))
 	require.NoError(t, err)
 	params.MsgFlags = gosnmp.AuthPriv
 	params.SecurityParameters = securityParams
