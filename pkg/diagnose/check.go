@@ -19,6 +19,7 @@ import (
 	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/diagnose/diagnosis"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname"
+	pkglog "github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 func init() {
@@ -70,6 +71,10 @@ func diagnoseChecksInAgentProcess() []diagnosis.Diagnosis {
 
 	// get diagnoses from each
 	for _, ch := range checks {
+		if ch.Interval() == 0 {
+			pkglog.Infof("Ignoring long running check %s", ch.String())
+			continue
+		}
 		instanceDiagnoses := getInstanceDiagnoses(ch)
 		diagnoses = append(diagnoses, instanceDiagnoses...)
 	}
@@ -143,6 +148,10 @@ func diagnoseChecksInCLIProcess(diagCfg diagnosis.Config) []diagnosis.Diagnosis 
 		checkName := diagnoseConfig.Name
 		instances := collector.GetChecksByNameForConfigs(checkName, diagnoseConfigs)
 		for _, instance := range instances {
+			if instance.Interval() == 0 {
+				pkglog.Infof("Ignoring long running check %s", instance.String())
+				continue
+			}
 			instanceDiagnoses := getInstanceDiagnoses(instance)
 			diagnoses = append(diagnoses, instanceDiagnoses...)
 		}
