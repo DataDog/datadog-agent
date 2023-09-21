@@ -27,7 +27,7 @@ import (
 type NamespacesPodsStringsSet map[string]MapStringSet
 
 // MapStringSet maps a set of string by a string key
-type MapStringSet map[string]sets.String
+type MapStringSet map[string]sets.Set[string]
 
 /*
  TODO: we should replace the NamespacesPodsStringsSet struct by the following struct.
@@ -37,7 +37,7 @@ type NamespacesPodsStringsSet struct {
 }
 
 type PodsStringsSet struct {
-	Pods map[string]sets.String `json:"pods"`
+	Pods map[string]sets.Set[string] `json:"pods"`
 }
 */
 
@@ -58,7 +58,7 @@ func (m NamespacesPodsStringsSet) DeepCopy(old *NamespacesPodsStringsSet) Namesp
 		}
 		for pod, svcs := range val1 {
 			if _, ok := m[nsKey][pod]; !ok {
-				m[nsKey][pod] = sets.NewString()
+				m[nsKey][pod] = sets.New[string]()
 			}
 			m[nsKey][pod] = m[nsKey][pod].Union(svcs)
 		}
@@ -81,10 +81,10 @@ func (m NamespacesPodsStringsSet) Get(namespace, podName string) ([]string, bool
 // Set updates strings for a given namespace and pod name.
 func (m NamespacesPodsStringsSet) Set(namespace, podName string, strings ...string) {
 	if _, ok := m[namespace]; !ok {
-		m[namespace] = make(map[string]sets.String)
+		m[namespace] = make(map[string]sets.Set[string])
 	}
 	if _, ok := m[namespace][podName]; !ok {
-		m[namespace][podName] = sets.NewString()
+		m[namespace][podName] = sets.New[string]()
 	}
 	m[namespace][podName].Insert(strings...)
 }

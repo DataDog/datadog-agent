@@ -23,6 +23,7 @@ import (
 	manager "github.com/DataDog/ebpf-manager"
 	"github.com/cilium/ebpf"
 	"github.com/cilium/ebpf/link"
+	"github.com/cilium/ebpf/rlimit"
 	"golang.org/x/exp/maps"
 	"golang.org/x/exp/slices"
 	"golang.org/x/sys/unix"
@@ -91,6 +92,10 @@ func NewEBPFProbe(cfg *ddebpf.Config) (*EBPFProbe, error) {
 }
 
 func startEBPFCheck(buf bytecode.AssetReader, opts manager.Options) (*EBPFProbe, error) {
+	if err := rlimit.RemoveMemlock(); err != nil {
+		return nil, err
+	}
+
 	cpus, err := kernel.PossibleCPUs()
 	if err != nil {
 		return nil, fmt.Errorf("error getting possible cpus: %s", err)

@@ -288,7 +288,6 @@ func (c *Check) getSQLRow(SQLID sql.NullString, forceMatchingSignature *string, 
 	SQLRow := OracleSQLRow{}
 	if SQLID.Valid {
 		SQLRow.SQLID = SQLID.String
-		c.statementsFilter.SQLIDs[SQLID.String] = 1
 	} else {
 		SQLRow.SQLID = ""
 		return SQLRow, nil
@@ -299,7 +298,6 @@ func (c *Check) getSQLRow(SQLID sql.NullString, forceMatchingSignature *string, 
 			return SQLRow, fmt.Errorf("failed converting force_matching_signature to uint64 %w", err)
 		}
 		SQLRow.ForceMatchingSignature = forceMatchingSignatureUint64
-		c.statementsFilter.ForceMatchingSignatures[*forceMatchingSignature] = 1
 	} else {
 		SQLRow.ForceMatchingSignature = 0
 	}
@@ -314,19 +312,6 @@ func (c *Check) getSQLRow(SQLID sql.NullString, forceMatchingSignature *string, 
 
 func (c *Check) SampleSession() error {
 	start := time.Now()
-
-	if c.statementsFilter.SQLIDs == nil {
-		c.statementsFilter.SQLIDs = make(map[string]int)
-	}
-	if c.statementsFilter.ForceMatchingSignatures == nil {
-		c.statementsFilter.ForceMatchingSignatures = make(map[string]int)
-	}
-	if c.statementsCache.SQLIDs == nil {
-		c.statementsCache.SQLIDs = make(map[string]StatementsCacheData)
-	}
-	if c.statementsCache.forceMatchingSignatures == nil {
-		c.statementsCache.forceMatchingSignatures = make(map[string]StatementsCacheData)
-	}
 
 	var sessionRows []OracleActivityRow
 	sessionSamples := []OracleActivityRowDB{}

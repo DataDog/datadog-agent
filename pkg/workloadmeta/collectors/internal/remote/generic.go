@@ -16,6 +16,7 @@ import (
 	"github.com/pkg/errors"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
+	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/metadata"
 
 	"github.com/DataDog/datadog-agent/pkg/api/security"
@@ -90,7 +91,7 @@ func (c *GenericCollector) Start(ctx context.Context, store workloadmeta.Store) 
 
 	if c.Insecure {
 		// for test purposes
-		opts = append(opts, grpc.WithInsecure())
+		opts = append(opts, grpc.WithTransportCredentials(insecure.NewCredentials()))
 	} else {
 		// NOTE: we're using InsecureSkipVerify because the gRPC server only
 		// persists its TLS certs in memory, and we currently have no

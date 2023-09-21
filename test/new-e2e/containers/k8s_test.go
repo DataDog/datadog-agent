@@ -13,8 +13,6 @@ import (
 	"time"
 
 	"github.com/DataDog/agent-payload/v5/gogen"
-	"github.com/DataDog/datadog-agent/test/fakeintake/aggregator"
-	fakeintake "github.com/DataDog/datadog-agent/test/fakeintake/client"
 	"github.com/samber/lo"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/suite"
@@ -25,6 +23,9 @@ import (
 	"k8s.io/client-go/kubernetes/scheme"
 	restclient "k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/remotecommand"
+
+	"github.com/DataDog/datadog-agent/test/fakeintake/aggregator"
+	fakeintake "github.com/DataDog/datadog-agent/test/fakeintake/client"
 )
 
 var GitCommit string
@@ -440,7 +441,7 @@ func (suite *k8sSuite) podExec(namespace, pod, container string, cmd []string) (
 	}
 
 	var stdoutSb, stderrSb strings.Builder
-	err = exec.Stream(remotecommand.StreamOptions{
+	err = exec.StreamWithContext(context.Background(), remotecommand.StreamOptions{
 		Stdout: &stdoutSb,
 		Stderr: &stderrSb,
 	})
