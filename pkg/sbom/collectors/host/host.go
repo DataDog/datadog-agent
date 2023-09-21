@@ -43,8 +43,9 @@ type HostCollector struct {
 	trivyCollector *trivy.Collector
 }
 
+// CleanCache cleans the cache
 func (c *HostCollector) CleanCache() error {
-	return c.trivyCollector.GetCacheCleaner().Clean()
+	return c.trivyCollector.CleanCache()
 }
 
 func (c *HostCollector) Init(cfg config.Config) error {

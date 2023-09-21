@@ -82,10 +82,6 @@ func diagnoseChecksInCLIProcess(diagCfg diagnosis.Config) []diagnosis.Diagnosis 
 	// 	run() github.com\DataDog\datadog-agent\pkg\cli\subcommands\check\command.go
 	//  runCheck() github.com\DataDog\datadog-agent\cmd\agent\gui\checks.go
 
-	// Always disable SBOM collection in `check` command to avoid BoltDB flock issue
-	// and consuming CPU & Memory for asynchronous scans that would not be shown in `agent check` output.
-	pkgconfig.Datadog.Set("container_image_collection.sbom.enabled", "false")
-
 	hostnameDetected, err := hostname.Get(context.TODO())
 	if err != nil {
 		return []diagnosis.Diagnosis{
