@@ -222,6 +222,7 @@ build do
                 # We force reinstall it from source to be sure we use the flag
                 "PIP_NO_CACHE_DIR" => "off",
                 "PIP_FORCE_REINSTALL" => "1",
+                "PIP_NO_BUILD_ISOLATION" => "off"
             }
         )
     end
