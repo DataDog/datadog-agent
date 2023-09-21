@@ -70,8 +70,8 @@ func validateTCPConnection(t *testing.T, c *agentmodel.Connection) {
 
 		  	   require.NotZero(t, c.LastRetransmits, "LastRetransmits = 0")
 			   require.NotZero(t, c.LastTcpClosed, "LastTcpClosed = 0")
-			   require.NotZero(t, c.LastTcpEstablished, "LastTcpEstablished = 0")
 	*/
+	require.NotZero(t, c.LastTcpEstablished, "LastTcpEstablished = 0")
 
 	// un-comment the lines below when https://datadoghq.atlassian.net/browse/NPM-2958 will be fixed
 	// require.NotZero(t, c.Rtt, "Rtt = 0")
@@ -83,6 +83,7 @@ func validateUDPConnection(t *testing.T, c *agentmodel.Connection) {
 
 	require.Zero(t, c.Rtt, "Rtt != 0")
 	require.Zero(t, c.RttVar, "RttVar != 0")
+	require.Zero(t, c.LastRetransmits, "LastRetransmits != 0")
 
 	// we can this only for UDP connection as there are no empty payload packets
 	// technically possible but in reality no UDP protocol implement that
