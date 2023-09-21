@@ -88,7 +88,7 @@ require (
 	github.com/cihub/seelog v0.0.0-20170130134532-f561c5e57575
 	github.com/cilium/ebpf v0.11.0
 	github.com/clbanning/mxj v1.8.4
-	github.com/containerd/cgroups v1.1.0
+	github.com/containerd/cgroups v1.1.0 // indirect
 	github.com/containerd/containerd v1.7.4
 	github.com/containerd/typeurl v1.0.2
 	github.com/containernetworking/cni v1.1.2
@@ -565,6 +565,7 @@ require (
 	github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/logs v0.8.0
 	github.com/aquasecurity/trivy v0.0.0-00010101000000-000000000000
 	github.com/cloudfoundry-community/go-cfclient/v2 v2.0.1-0.20230503155151-3d15366c5820
+	github.com/containerd/cgroups/v3 v3.0.2
 	github.com/containerd/typeurl/v2 v2.1.1
 	github.com/gocomply/scap v0.1.2-0.20230531064509-55a00f73e8d6
 	github.com/godror/godror v0.37.0
@@ -584,7 +585,6 @@ require (
 	github.com/antlr/antlr4/runtime/Go/antlr v1.4.10 // indirect
 	github.com/blang/semver/v4 v4.0.0 // indirect
 	github.com/cloudflare/circl v1.3.3 // indirect
-	github.com/containerd/cgroups/v3 v3.0.2 // indirect
 	github.com/emicklei/go-restful/v3 v3.10.2 // indirect
 	github.com/evanphx/json-patch/v5 v5.6.0 // indirect
 	github.com/godror/knownpb v0.1.0 // indirect
