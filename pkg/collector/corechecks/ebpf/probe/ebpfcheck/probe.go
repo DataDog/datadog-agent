@@ -359,17 +359,17 @@ func (k *EBPFProbe) getMapStats(stats *EBPFStats) error {
 	return nil
 }
 
-const sizeofBpfArray = 320
+const sizeofBpfArray = 320 // struct bpf_array
 
 func arrayMemoryUsage(info *ebpf.MapInfo, nrCPUS uint64) (max uint64, rss uint64) {
-	perCPU := info.Type == ebpf.PerCPUArray
+	perCPU := isPerCPU(info.Type)
 	numEntries := uint64(info.MaxEntries)
-	elemSize := uint64(info.ValueSize)
+	elemSize := uint64(roundUpPow2(info.ValueSize, 8))
 
 	usage := uint64(sizeofBpfArray)
 
 	if perCPU {
-		usage += numEntries * uint64(unsafe.Sizeof(uintptr(0)))
+		usage += numEntries * sizeOfPointer
 		usage += numEntries * elemSize * nrCPUS
 	} else {
 		if info.Flags&unix.BPF_F_MMAPABLE > 0 {
@@ -383,22 +383,42 @@ func arrayMemoryUsage(info *ebpf.MapInfo, nrCPUS uint64) (max uint64, rss uint64
 	return usage, usage
 }
 
-const sizeofHtabElem = 48
-const sizeOfBucket = 16
+const sizeofHtab = uint64(704)    // struct bpf_htab
+const sizeofHtabElem = uint64(48) // struct htab_elem
+const sizeOfBucket = uint64(16)   // struct bucket
 const hashtabMapLockCount = 8
+const sizeOfPointer = uint64(unsafe.Sizeof(uintptr(0)))
+const sizeOfInt = uint64(unsafe.Sizeof(1))
+
+func isPerCPU(typ ebpf.MapType) bool {
+	switch typ {
+	case ebpf.PerCPUHash, ebpf.PerCPUArray, ebpf.LRUCPUHash:
+		return true
+	}
+	return false
+}
+
+func isLRU(typ ebpf.MapType) bool {
+	switch typ {
+	case ebpf.LRUHash, ebpf.LRUCPUHash:
+		return true
+	}
+	return false
+}
 
 func hashMapMemoryUsage(info *ebpf.MapInfo, nrCPUS uint64) (max uint64, rss uint64) {
 	valueSize := uint64(roundUpPow2(info.ValueSize, 8))
-	perCPU := info.Type == ebpf.PerCPUHash || info.Type == ebpf.LRUCPUHash
-	lru := info.Type == ebpf.LRUHash || info.Type == ebpf.LRUCPUHash
+	keySize := uint64(roundUpPow2(info.KeySize, 8))
+	perCPU := isPerCPU(info.Type)
+	lru := isLRU(info.Type)
 	//prealloc := (info.Flags & unix.BPF_F_NO_PREALLOC) == 0
 	hasExtraElems := !perCPU && !lru
 
 	nBuckets := uint64(roundUpNearestPow2(info.MaxEntries))
-	usage := uint64(sizeofHtabElem)
+	usage := sizeofHtab
 	usage += sizeOfBucket * nBuckets
 	// could we get the size of the locks more directly with BTF?
-	usage += uint64(unsafe.Sizeof(1)) * nrCPUS * hashtabMapLockCount
+	usage += sizeOfInt * nrCPUS * hashtabMapLockCount
 
 	// TODO proper support of non-preallocated maps, will require coordination with eBPF to read size (if possible)
 	//if prealloc {
@@ -407,12 +427,19 @@ func hashMapMemoryUsage(info *ebpf.MapInfo, nrCPUS uint64) (max uint64, rss uint
 	if hasExtraElems {
 		numEntries += nrCPUS
 	}
-	usage += uint64(info.KeySize) * numEntries
+
+	elemSize := sizeofHtabElem + keySize
+	if perCPU {
+		elemSize += sizeOfPointer
+	} else {
+		elemSize += valueSize
+	}
+	usage += elemSize * numEntries
 
 	if perCPU {
 		usage += valueSize * nrCPUS * numEntries
 	} else if !lru {
-		usage += sizeofHtabElem * nrCPUS
+		usage += sizeOfPointer * nrCPUS
 	}
 
 	//
