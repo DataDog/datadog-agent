@@ -59,9 +59,9 @@ func (l *ContainerListener) createContainerService(entity workloadmeta.Entity) {
 	var annotations map[string]string
 	var pod *workloadmeta.KubernetesPod
 	if findKubernetesInLabels(container.Labels) {
-		kube_pod, err := l.Store().GetKubernetesPodForContainer(container.ID)
+		kubePod, err := l.Store().GetKubernetesPodForContainer(container.ID)
 		if err == nil {
-			pod = kube_pod
+			pod = kubePod
 			annotations = pod.Annotations
 		} else {
 			log.Debugf("container %q belongs to a pod but was not found: %s", container.ID, err)

@@ -956,19 +956,18 @@ func GetProcessArgv0(pr *model.Process) (string, bool) {
 
 // GetProcessScrubbedArgv returns the scrubbed args of the event as an array
 func (p *Resolver) GetProcessScrubbedArgv(pr *model.Process) ([]string, bool) {
-	if pr.ScrubbedArgvResolved {
-		return pr.ScrubbedArgv, pr.ScrubbedArgsTruncated
+	if pr.ArgsEntry == nil || pr.ScrubbedArgvResolved {
+		return pr.Argv, pr.ArgsTruncated
 	}
 
 	argv, truncated := GetProcessArgv(pr)
 
-	if p.scrubber != nil {
+	if p.scrubber != nil && len(argv) > 0 {
+		// replace with the scrubbed version
 		argv, _ = p.scrubber.ScrubCommand(argv)
+		pr.ArgsEntry.Values = []string{pr.ArgsEntry.Values[0]}
+		pr.ArgsEntry.Values = append(pr.ArgsEntry.Values, argv...)
 	}
-
-	pr.ScrubbedArgv = argv
-	pr.ScrubbedArgsTruncated = truncated
-	pr.ScrubbedArgvResolved = true
 
 	return argv, truncated
 }

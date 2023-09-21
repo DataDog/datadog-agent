@@ -76,9 +76,16 @@ func getDentryResolverTailCallRoutes(ERPCDentryResolutionEnabled, supportMmapabl
 		},
 		{
 			ProgArrayName: dentryCallbackProgs,
-			Key:           DentryResolverMountCallbackKprobeKey,
+			Key:           DentryResolverMountStageOneCallbackKprobeKey,
 			ProbeIdentificationPair: manager.ProbeIdentificationPair{
-				EBPFFuncName: "tail_call_target_dr_mount_callback",
+				EBPFFuncName: "tail_call_target_dr_mount_stage_one_callback",
+			},
+		},
+		{
+			ProgArrayName: dentryCallbackProgs,
+			Key:           DentryResolverMountStageTwoCallbackKprobeKey,
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				EBPFFuncName: "tail_call_target_dr_mount_stage_two_callback",
 			},
 		},
 		{
@@ -130,20 +137,6 @@ func getDentryResolverTailCallRoutes(ERPCDentryResolutionEnabled, supportMmapabl
 				EBPFFuncName: "tail_call_target_dr_selinux_callback",
 			},
 		},
-		{
-			ProgArrayName: dentryCallbackProgs,
-			Key:           DentryResolverUnshareMntNSStageOneCallbackKprobeKey,
-			ProbeIdentificationPair: manager.ProbeIdentificationPair{
-				EBPFFuncName: "tail_call_target_dr_unshare_mntns_stage_one_callback",
-			},
-		},
-		{
-			ProgArrayName: dentryCallbackProgs,
-			Key:           DentryResolverUnshareMntNSStageTwoCallbackKprobeKey,
-			ProbeIdentificationPair: manager.ProbeIdentificationPair{
-				EBPFFuncName: "tail_call_target_dr_unshare_mntns_stage_two_callback",
-			},
-		},
 	}...)
 
 	routes = append(routes, []manager.TailCallRoute{
@@ -164,9 +157,16 @@ func getDentryResolverTailCallRoutes(ERPCDentryResolutionEnabled, supportMmapabl
 		},
 		{
 			ProgArrayName: "dentry_resolver_tracepoint_callbacks",
-			Key:           DentryResolverMountCallbackTracepointKey,
+			Key:           DentryResolverMountStageOneCallbackTracepointKey,
 			ProbeIdentificationPair: manager.ProbeIdentificationPair{
-				EBPFFuncName: "tracepoint_dr_mount_callback",
+				EBPFFuncName: "tracepoint_dr_mount_stage_one_callback",
+			},
+		},
+		{
+			ProgArrayName: "dentry_resolver_tracepoint_callbacks",
+			Key:           DentryResolverMountStageTwoCallbackTracepointKey,
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				EBPFFuncName: "tracepoint_dr_mount_stage_two_callback",
 			},
 		},
 		{
