@@ -253,7 +253,7 @@ func (t *Tracer) DebugDumpProcessCache(ctx context.Context) (interface{}, error)
 }
 
 func newUSMMonitor(c *config.Config, dh driver.Handle) usm.Monitor {
-	if !c.EnableHTTPMonitoring && !c.EnableHTTPSMonitoring {
+	if !c.EnableHTTPMonitoring && !c.EnableNativeTLSMonitoring {
 		return nil
 	}
 	log.Infof("http monitoring has been enabled")

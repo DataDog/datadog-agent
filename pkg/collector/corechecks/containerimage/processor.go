@@ -72,10 +72,10 @@ func (p *processor) processImage(img *workloadmeta.ContainerImageMetadata) {
 		log.Errorf("Could not retrieve tags for container image %s: %v", img.ID, err)
 	}
 
-	var lastCreated *timestamppb.Timestamp = nil
+	var lastCreated *timestamppb.Timestamp
 	layers := make([]*model.ContainerImage_ContainerImageLayer, 0, len(img.Layers))
 	for _, layer := range img.Layers {
-		var created *timestamppb.Timestamp = nil
+		var created *timestamppb.Timestamp
 		if layer.History.Created != nil {
 			created = timestamppb.New(*layer.History.Created)
 			lastCreated = created

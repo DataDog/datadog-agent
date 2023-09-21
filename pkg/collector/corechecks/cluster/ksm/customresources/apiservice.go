@@ -25,11 +25,11 @@ import (
 )
 
 var (
-	descApiServiceAnnotationsName     = "kube_apiservice_annotations"
-	descApiServiceAnnotationsHelp     = "Kubernetes annotations converted to Prometheus labels."
-	descApiServiceLabelsName          = "kube_apiservice_labels"
-	descApiServiceLabelsHelp          = "Kubernetes labels converted to Prometheus labels."
-	descApiServiceLabelsDefaultLabels = []string{"apiservice"}
+	descAPIServiceAnnotationsName     = "kube_apiservice_annotations"
+	descAPIServiceAnnotationsHelp     = "Kubernetes annotations converted to Prometheus labels."
+	descAPIServiceLabelsName          = "kube_apiservice_labels"
+	descAPIServiceLabelsHelp          = "Kubernetes labels converted to Prometheus labels."
+	descAPIServiceLabelsDefaultLabels = []string{"apiservice"}
 )
 
 // NewAPIServiceFactory returns a new APIService metric family generator factory.
@@ -142,7 +142,7 @@ func wrapAPIServiceFunc(f func(*v1.APIService) *metric.Family) func(interface{})
 		metricFamily := f(apiservice)
 
 		for _, m := range metricFamily.Metrics {
-			m.LabelKeys, m.LabelValues = mergeKeyValues(descApiServiceLabelsDefaultLabels, []string{apiservice.Name}, m.LabelKeys, m.LabelValues)
+			m.LabelKeys, m.LabelValues = mergeKeyValues(descAPIServiceLabelsDefaultLabels, []string{apiservice.Name}, m.LabelKeys, m.LabelValues)
 		}
 		return metricFamily
 	}
