@@ -220,7 +220,7 @@ func getResponse(ctx context.Context, url string) (string, error) {
 		return "", fmt.Errorf("cloud provider is disabled by configuration")
 	}
 
-	res, err := httputils.Get(ctx, url, map[string]string{"Metadata-Flavor": "Google"}, config.Datadog.GetDuration("gce_metadata_timeout")*time.Millisecond)
+	res, err := httputils.Get(ctx, url, map[string]string{"Metadata-Flavor": "Google"}, config.Datadog.GetDuration("gce_metadata_timeout")*time.Millisecond, config.Datadog)
 	if err != nil {
 		return "", fmt.Errorf("GCE metadata API error: %s", err)
 	}

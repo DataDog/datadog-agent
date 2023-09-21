@@ -175,13 +175,13 @@ func (d *Destination) Start(input chan *message.Payload, output chan *message.Pa
 }
 
 func (d *Destination) run(input chan *message.Payload, output chan *message.Payload, stopChan chan struct{}, isRetrying chan bool) {
-	var startIdle = time.Now()
+	startIdle := time.Now()
 
 	for p := range input {
 		idle := float64(time.Since(startIdle) / time.Millisecond)
 		d.expVars.AddFloat(expVarIdleMsMapKey, idle)
 		tlmIdle.Add(idle, d.telemetryName)
-		var startInUse = time.Now()
+		startInUse := time.Now()
 
 		d.sendConcurrent(p, output, isRetrying)
 
@@ -223,7 +223,6 @@ func (d *Destination) sendAndRetry(payload *message.Payload, output chan *messag
 		d.retryLock.Unlock()
 
 		err := d.unconditionalSend(payload)
-
 		if err != nil {
 			metrics.DestinationErrors.Add(1)
 			metrics.TlmDestinationErrors.Inc()
@@ -357,7 +356,7 @@ func httpClientFactory(timeout time.Duration) func() *http.Client {
 		return &http.Client{
 			Timeout: timeout,
 			// reusing core agent HTTP transport to benefit from proxy settings.
-			Transport: httputils.CreateHTTPTransport(),
+			Transport: httputils.CreateHTTPTransport(coreConfig.Datadog),
 		}
 	}
 }

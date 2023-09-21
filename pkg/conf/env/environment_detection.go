@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package config
+package env
 
 import (
 	"os"
@@ -13,6 +13,8 @@ import (
 	"sync"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+
+	"github.com/DataDog/datadog-agent/pkg/conf"
 )
 
 const (
@@ -74,7 +76,7 @@ func IsFeaturePresent(feature Feature) bool {
 }
 
 // IsAutoconfigEnabled returns if autoconfig from environment is activated or not
-func IsAutoconfigEnabled() bool {
+func IsAutoconfigEnabled(cfg conf.ConfigReader) bool {
 	// Usage of pure environment variables should be deprecated
 	for _, envVar := range []string{autoconfEnvironmentVariable, autoconfEnvironmentVariableWithTypo} {
 		if autoconfStr, found := os.LookupEnv(envVar); found {
@@ -89,13 +91,13 @@ func IsAutoconfigEnabled() bool {
 		}
 	}
 
-	return Datadog.GetBool("autoconfig_from_environment")
+	return cfg.GetBool("autoconfig_from_environment")
 }
 
 // DetectFeatures runs the feature detection.
 // We guarantee that Datadog configuration is entirely loaded (env + YAML)
 // before this function is called
-func detectFeatures() {
+func DetectFeatures(cfg conf.ConfigReader) {
 	featureLock.Lock()
 	defer featureLock.Unlock()
 
@@ -105,12 +107,12 @@ func detectFeatures() {
 	}
 
 	newFeatures := make(FeatureMap)
-	if IsAutoconfigEnabled() {
-		detectContainerFeatures(newFeatures)
-		excludedFeatures := Datadog.GetStringSlice("autoconfig_exclude_features")
+	if IsAutoconfigEnabled(cfg) {
+		detectContainerFeatures(newFeatures, cfg)
+		excludedFeatures := cfg.GetStringSlice("autoconfig_exclude_features")
 		excludeFeatures(newFeatures, excludedFeatures)
 
-		includedFeatures := Datadog.GetStringSlice("autoconfig_include_features")
+		includedFeatures := cfg.GetStringSlice("autoconfig_include_features")
 		for _, f := range includedFeatures {
 			f = strings.ToLower(f)
 			if _, found := knownFeatures[Feature(f)]; found {

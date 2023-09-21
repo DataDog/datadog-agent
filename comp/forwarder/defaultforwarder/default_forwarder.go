@@ -226,6 +226,7 @@ func NewDefaultForwarder(config config.Component, log log.Component, options *Op
 		internalState:    atomic.NewUint32(Stopped),
 		healthChecker: &forwarderHealth{
 			log:                   log,
+			config:                config,
 			domainResolvers:       options.DomainResolvers,
 			disableAPIKeyChecking: options.DisableAPIKeyChecking,
 			validationInterval:    options.APIKeyValidationInterval,
@@ -419,7 +420,6 @@ func (f *DefaultForwarder) Stop() {
 
 	f.healthChecker = nil
 	f.domainForwarders = map[string]*domainForwarder{}
-
 }
 
 // State returns the internal state of the forwarder (Started or Stopped)
@@ -580,7 +580,8 @@ func (f *DefaultForwarder) SubmitV1Intake(payload transaction.BytesPayloads, ext
 func (f *DefaultForwarder) submitV1IntakeWithTransactionsFactory(
 	payload transaction.BytesPayloads,
 	extra http.Header,
-	createHTTPTransactions func(endpoint transaction.Endpoint, payload transaction.BytesPayloads, extra http.Header) []*transaction.HTTPTransaction) error {
+	createHTTPTransactions func(endpoint transaction.Endpoint, payload transaction.BytesPayloads, extra http.Header) []*transaction.HTTPTransaction,
+) error {
 	transactions := createHTTPTransactions(endpoints.V1IntakeEndpoint, payload, extra)
 
 	// the intake endpoint requires the Content-Type header to be set

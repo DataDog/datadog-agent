@@ -7,6 +7,7 @@ package config
 
 import (
 	"github.com/DataDog/datadog-agent/pkg/conf"
+	"github.com/DataDog/datadog-agent/pkg/conf/env"
 )
 
 // Proxy represents the configuration for proxies in the agent
@@ -30,3 +31,37 @@ type ConfigLoader = conf.ConfigLoader
 type Config = conf.Config
 
 var NewConfig = conf.NewConfig
+
+var (
+	IsFeaturePresent             = env.IsFeaturePresent
+	IsECS                        = env.IsECS
+	IsKubernetes                 = env.IsKubernetes
+	IsECSFargate                 = env.IsECSFargate
+	IsServerless                 = env.IsServerless
+	IsContainerized              = env.IsContainerized
+	IsDockerRuntime              = env.IsDockerRuntime
+	GetEnvDefault                = env.GetEnvDefault
+	IsHostProcAvailable          = env.IsHostProcAvailable
+	IsHostSysAvailable           = env.IsHostSysAvailable
+	IsAnyContainerFeaturePresent = env.IsAnyContainerFeaturePresent
+	IsAutoconfigEnabled          = env.IsAutoconfigEnabled
+	GetDetectedFeatures          = env.GetDetectedFeatures
+)
+
+type (
+	Feature    = env.Feature
+	FeatureMap = env.FeatureMap
+)
+
+const (
+	ECSFargate               = env.ECSFargate
+	Podman                   = env.Podman
+	Docker                   = env.Docker
+	EKSFargate               = env.EKSFargate
+	ECSEC2                   = env.ECSEC2
+	Kubernetes               = env.Kubernetes
+	CloudFoundry             = env.CloudFoundry
+	Cri                      = env.Cri
+	Containerd               = env.Containerd
+	KubeOrchestratorExplorer = env.KubeOrchestratorExplorer
+)

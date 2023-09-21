@@ -134,9 +134,9 @@ import (
 	"unsafe"
 
 	"github.com/DataDog/datadog-agent/pkg/network/driver"
+	"github.com/DataDog/datadog-agent/pkg/util/etw"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/winutil"
-	"github.com/DataDog/datadog-agent/pkg/util/winutil/etw"
 )
 
 type Http struct {
@@ -209,10 +209,8 @@ const (
 	HttpServiceLogVeryVerbose
 )
 
-var (
-	// Should be controlled by config
-	HttpServiceLogVerbosity int = HttpServiceLogSummary
-)
+// Should be controlled by config
+var HttpServiceLogVerbosity int = HttpServiceLogSummary
 
 var (
 	httpServiceSubscribed bool = false
@@ -247,7 +245,6 @@ var (
 
 func init() {
 	initializeEtwHttpServiceSubscription()
-
 }
 
 func cleanupActivityIdViaConnOpen(connOpen *ConnOpen, activityId etw.DDGUID) {
@@ -295,7 +292,6 @@ func getHttpConnLink(activityId etw.DDGUID) (*HttpConnLink, bool) {
 }
 
 func completeReqRespTracking(eventInfo *etw.DDEtwEventInfo, httpConnLink *HttpConnLink) {
-
 	// Get connection
 	connOpen, connFound := connOpened[httpConnLink.connActivityId]
 	if !connFound {
@@ -860,7 +856,6 @@ func httpCallbackOnHTTPRequestTraceTaskRecvResp(eventInfo *etw.DDEtwEventInfo) {
 // -----------------------------------------------------------
 // HttpService ETW Event #16-17 (HTTPRequestTraceTaskSrvdFrmCache, HTTPRequestTraceTaskCachedNotModified)
 func httpCallbackOnHTTPRequestTraceTaskSrvdFrmCache(eventInfo *etw.DDEtwEventInfo) {
-
 	if HttpServiceLogVerbosity == HttpServiceLogVeryVerbose {
 		reportHttpCallbackEvents(eventInfo, true)
 	}
@@ -931,7 +926,6 @@ func httpCallbackOnHTTPRequestTraceTaskSrvdFrmCache(eventInfo *etw.DDEtwEventInf
 // -----------------------------------------------------------
 // HttpService ETW Event #25 (HTTPCacheTraceTaskAddedCacheEntry)
 func httpCallbackOnHTTPCacheTraceTaskAddedCacheEntry(eventInfo *etw.DDEtwEventInfo) {
-
 	if HttpServiceLogVerbosity == HttpServiceLogVeryVerbose {
 		reportHttpCallbackEvents(eventInfo, true)
 	}
@@ -1011,7 +1005,6 @@ func httpCallbackOnHTTPCacheTraceTaskAddedCacheEntry(eventInfo *etw.DDEtwEventIn
 // -----------------------------------------------------------
 // HttpService ETW Event #26 (HTTPCacheTraceTaskFlushedCache)
 func httpCallbackOnHTTPCacheTraceTaskFlushedCache(eventInfo *etw.DDEtwEventInfo) {
-
 	if HttpServiceLogVerbosity == HttpServiceLogVeryVerbose {
 		reportHttpCallbackEvents(eventInfo, true)
 	}
@@ -1069,7 +1062,6 @@ func httpCallbackOnHTTPCacheTraceTaskFlushedCache(eventInfo *etw.DDEtwEventInfo)
 // -----------------------------------------------------------
 // HttpService ETW Event #10-14 (HTTPRequestTraceTaskXXXSendXXX)
 func httpCallbackOnHTTPRequestTraceTaskSend(eventInfo *etw.DDEtwEventInfo) {
-
 	// We probably should use this event as a last event for a particular activity and use
 	// it to better measure duration is http procesing
 	if HttpServiceLogVerbosity == HttpServiceLogVeryVerbose {
@@ -1097,7 +1089,6 @@ func httpCallbackOnHttpSslConnEvent(eventInfo *etw.DDEtwEventInfo) {
 			} EVENT_PARAM_HttpService_HTTPTraceTaskConnCleanup;
 	*/
 	if !captureHTTPS {
-
 		if HttpServiceLogVerbosity != HttpServiceLogVeryVerbose {
 			// Drop it immediately ...
 			delete(connOpened, eventInfo.Event.ActivityId)
@@ -1111,6 +1102,7 @@ func httpCallbackOnHttpSslConnEvent(eventInfo *etw.DDEtwEventInfo) {
 		}
 	}
 }
+
 func reportHttpCallbackEvents(eventInfo *etw.DDEtwEventInfo, willBeProcessed bool) {
 	var processingStatus string
 	if willBeProcessed {
@@ -1171,7 +1163,6 @@ func etwHttpServiceSummary() {
 }
 
 func (hei *EtwInterface) OnEvent(eventInfo *etw.DDEtwEventInfo) {
-
 	// Total number of bytes transferred to kernel from HTTP.sys driver. 0x68 is ETW header size
 	transferedETWBytesTotal += (uint64(eventInfo.Event.UserDataLength) + 0x68)
 	transferedETWBytesPayload += uint64(eventInfo.Event.UserDataLength)
@@ -1275,11 +1266,12 @@ func (h *Http) String() string {
 	var output strings.Builder
 	output.WriteString("httpTX{")
 	output.WriteString("Method: '" + strconv.Itoa(int(h.Txn.RequestMethod)) + "', ")
-	//output.WriteString("Fragment: '" + hex.EncodeToString(tx.RequestFragment[:]) + "', ")
+	// output.WriteString("Fragment: '" + hex.EncodeToString(tx.RequestFragment[:]) + "', ")
 	output.WriteString("\n  Fragment: '" + string(h.RequestFragment[:]) + "', ")
 	output.WriteString("}")
 	return output.String()
 }
+
 func ReadHttpTx() (httpTxs []WinHttpTransaction, err error) {
 	if !httpServiceSubscribed {
 		return nil, errors.New("ETW HttpService is not currently subscribed")
@@ -1308,6 +1300,7 @@ func SetEnabledProtocols(http, https bool) {
 	captureHTTP = http
 	captureHTTPS = https
 }
+
 func (hei *EtwInterface) OnStart() {
 	initializeEtwHttpServiceSubscription()
 	httpServiceSubscribed = true

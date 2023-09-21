@@ -5,7 +5,7 @@
 
 //go:build linux || windows
 
-package config
+package env
 
 import (
 	"os"
@@ -15,7 +15,9 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/DataDog/datadog-agent/pkg/util/system"
+	"github.com/DataDog/datadog-agent/pkg/util/system/socket"
+
+	"github.com/DataDog/datadog-agent/pkg/conf"
 )
 
 const (
@@ -58,19 +60,19 @@ func IsAnyContainerFeaturePresent() bool {
 		IsFeaturePresent(Podman)
 }
 
-func detectContainerFeatures(features FeatureMap) {
-	detectKubernetes(features)
+func detectContainerFeatures(features FeatureMap, cfg conf.ConfigReader) {
+	detectKubernetes(features, cfg)
 	detectDocker(features)
-	detectContainerd(features)
-	detectAWSEnvironments(features)
-	detectCloudFoundry(features)
+	detectContainerd(features, cfg)
+	detectAWSEnvironments(features, cfg)
+	detectCloudFoundry(features, cfg)
 	detectPodman(features)
 }
 
-func detectKubernetes(features FeatureMap) {
+func detectKubernetes(features FeatureMap, cfg conf.ConfigReader) {
 	if IsKubernetes() {
 		features[Kubernetes] = struct{}{}
-		if Datadog.GetBool("orchestrator_explorer.enabled") {
+		if cfg.GetBool("orchestrator_explorer.enabled") {
 			features[KubeOrchestratorExplorer] = struct{}{}
 		}
 	}
@@ -81,7 +83,7 @@ func detectDocker(features FeatureMap) {
 		features[Docker] = struct{}{}
 	} else {
 		for _, defaultDockerSocketPath := range getDefaultDockerPaths() {
-			exists, reachable := system.CheckSocketAvailable(defaultDockerSocketPath, socketTimeout)
+			exists, reachable := socket.CheckSocketAvailable(defaultDockerSocketPath, socketTimeout)
 			if exists && !reachable {
 				log.Infof("Agent found Docker socket at: %s but socket not reachable (permissions?)", defaultDockerSocketPath)
 				continue
@@ -91,7 +93,7 @@ func detectDocker(features FeatureMap) {
 				features[Docker] = struct{}{}
 
 				// Even though it does not modify configuration, using the OverrideFunc mechanism for uniformity
-				AddOverrideFunc(func(Config) {
+				conf.AddOverrideFunc(func(conf.Config) {
 					os.Setenv("DOCKER_HOST", getDefaultDockerSocketType()+defaultDockerSocketPath)
 				})
 				break
@@ -100,13 +102,13 @@ func detectDocker(features FeatureMap) {
 	}
 }
 
-func detectContainerd(features FeatureMap) {
+func detectContainerd(features FeatureMap, cfg conf.ConfigReader) {
 	// CRI Socket - Do not automatically default socket path if the Agent runs in Docker
 	// as we'll very likely discover the containerd instance wrapped by Docker.
-	criSocket := Datadog.GetString("cri_socket_path")
+	criSocket := cfg.GetString("cri_socket_path")
 	if criSocket == "" && !IsDockerRuntime() {
 		for _, defaultCriPath := range getDefaultCriPaths() {
-			exists, reachable := system.CheckSocketAvailable(defaultCriPath, socketTimeout)
+			exists, reachable := socket.CheckSocketAvailable(defaultCriPath, socketTimeout)
 			if exists && !reachable {
 				log.Infof("Agent found cri socket at: %s but socket not reachable (permissions?)", defaultCriPath)
 				continue
@@ -114,7 +116,7 @@ func detectContainerd(features FeatureMap) {
 
 			if exists && reachable {
 				criSocket = defaultCriPath
-				AddOverride("cri_socket_path", defaultCriPath)
+				conf.AddOverride("cri_socket_path", defaultCriPath)
 				// Currently we do not support multiple CRI paths
 				break
 			}
@@ -132,7 +134,7 @@ func detectContainerd(features FeatureMap) {
 	}
 
 	// Merge containerd_namespace with containerd_namespaces
-	namespaces := merge(Datadog.GetStringSlice("containerd_namespaces"), Datadog.GetStringSlice("containerd_namespace"))
+	namespaces := merge(cfg.GetStringSlice("containerd_namespaces"), cfg.GetStringSlice("containerd_namespace"))
 
 	// Workaround: convert to []interface{}.
 	// The MergeConfigOverride func in "github.com/DataDog/viper" (tested in
@@ -146,8 +148,8 @@ func detectContainerd(features FeatureMap) {
 		convertedNamespaces[i] = namespace
 	}
 
-	AddOverride("containerd_namespace", convertedNamespaces)
-	AddOverride("containerd_namespaces", convertedNamespaces)
+	conf.AddOverride("containerd_namespace", convertedNamespaces)
+	conf.AddOverride("containerd_namespaces", convertedNamespaces)
 }
 
 func isCriSupported() bool {
@@ -156,13 +158,13 @@ func isCriSupported() bool {
 	return IsKubernetes()
 }
 
-func detectAWSEnvironments(features FeatureMap) {
+func detectAWSEnvironments(features FeatureMap, cfg conf.ConfigReader) {
 	if IsECSFargate() {
 		features[ECSFargate] = struct{}{}
 		return
 	}
 
-	if Datadog.GetBool("eks_fargate") {
+	if cfg.GetBool("eks_fargate") {
 		features[EKSFargate] = struct{}{}
 		features[Kubernetes] = struct{}{}
 		return
@@ -173,8 +175,8 @@ func detectAWSEnvironments(features FeatureMap) {
 	}
 }
 
-func detectCloudFoundry(features FeatureMap) {
-	if Datadog.GetBool("cloud_foundry") {
+func detectCloudFoundry(features FeatureMap, cfg conf.ConfigReader) {
+	if cfg.GetBool("cloud_foundry") {
 		features[CloudFoundry] = struct{}{}
 	}
 }

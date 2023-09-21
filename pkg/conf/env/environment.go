@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package config
+package env
 
 import (
 	"os"
@@ -90,4 +90,10 @@ func IsHostSysAvailable() bool {
 // IsServerless returns whether the Agent is running in a Lambda function
 func IsServerless() bool {
 	return os.Getenv("AWS_LAMBDA_FUNCTION_NAME") != ""
+}
+
+// pathExists returns true if the given path exists
+func pathExists(path string) bool {
+	_, err := os.Stat(path)
+	return !os.IsNotExist(err)
 }
