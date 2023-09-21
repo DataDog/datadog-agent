@@ -34,19 +34,30 @@ func TestClientFlush(t *testing.T) {
 	mockDCAClient := &MockDCAClient{doneCh: doneCh}
 	client := NewClient(context.Background(), nil, nil, mockDCAClient)
 
-	containerDetails := &containerDetails{
-		containersLanguages: map[string]*languagesSet{
-			"java": {
+	container := &containerInfo{
+		languages: map[string]*languagesSet{
+			"java-cont": {
 				languages: map[string]struct{}{
-					"Java": {},
+					"java": {},
 				},
 			},
 		},
 	}
 
-	podDetails := &podDetails{
-		namespace:           "default",
-		containersLanguages: containerDetails,
+	initContainer := &containerInfo{
+		languages: map[string]*languagesSet{
+			"go-cont": {
+				languages: map[string]struct{}{
+					"go": {},
+				},
+			},
+		},
+	}
+
+	podInfo := &podInfo{
+		namespace:         "default",
+		containerInfo:     container,
+		initContainerInfo: initContainer,
 		ownerRef: &workloadmeta.KubernetesPodOwner{
 			Name: "dummyrs",
 			Kind: "replicaset",
@@ -54,16 +65,17 @@ func TestClientFlush(t *testing.T) {
 		},
 	}
 	podName := "nginx"
-	client.currentBatch.podDetails[podName] = podDetails
+	client.currentBatch.podInfo[podName] = podInfo
 	client.flush()
 	<-doneCh
 	assert.Equal(t, []*pbgo.ParentLanguageAnnotationRequest{
 		{
 			PodDetails: []*pbgo.PodLanguageDetails{
 				{
-					Name:             podName,
-					Namespace:        podDetails.namespace,
-					ContainerDetails: podDetails.containersLanguages.toProto(),
+					Name:                 podName,
+					Namespace:            podInfo.namespace,
+					InitContainerDetails: podInfo.initContainerInfo.toProto(),
+					ContainerDetails:     podInfo.containerInfo.toProto(),
 					Ownerref: &pbgo.KubeOwnerInfo{
 						Name: "dummyrs",
 						Kind: "replicaset",
@@ -209,19 +221,19 @@ func TestClientProcessEvent(t *testing.T) {
 
 	client.processEvent(eventBundle)
 
-	assert.NotEmpty(t, client.currentBatch.podDetails)
+	assert.NotEmpty(t, client.currentBatch.podInfo)
 	assert.Equal(t,
-		map[string]*podDetails{
+		map[string]*podInfo{
 			"nginx-pod-name": {
 				namespace: "nginx-pod-namespace",
-				containersLanguages: &containerDetails{
+				containerInfo: &containerInfo{
 					map[string]*languagesSet{
 						"nginx-cont-name": {
 							languages: map[string]struct{}{"java": {}},
 						},
 					},
 				},
-				initContainerLanguages: &containerDetails{
+				initContainerInfo: &containerInfo{
 					map[string]*languagesSet{
 						"nginx-cont-name": {
 							languages: map[string]struct{}{"go": {}},
@@ -235,7 +247,7 @@ func TestClientProcessEvent(t *testing.T) {
 				},
 			},
 		},
-		client.currentBatch.podDetails,
+		client.currentBatch.podInfo,
 	)
 }
 

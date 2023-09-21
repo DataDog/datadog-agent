@@ -30,13 +30,13 @@ const (
 	maxBackoffTime   = 30 * time.Second
 )
 
-type containerDetails struct {
-	containersLanguages map[string]*languagesSet
+type containerInfo struct {
+	languages map[string]*languagesSet
 }
 
-func (c *containerDetails) toProto() []*pbgo.ContainerLanguageDetails {
-	res := make([]*pbgo.ContainerLanguageDetails, 0, len(c.containersLanguages))
-	for containerName, languageSet := range c.containersLanguages {
+func (c *containerInfo) toProto() []*pbgo.ContainerLanguageDetails {
+	res := make([]*pbgo.ContainerLanguageDetails, 0, len(c.languages))
+	for containerName, languageSet := range c.languages {
 		res = append(res, &pbgo.ContainerLanguageDetails{
 			ContainerName: containerName,
 			Languages:     languageSet.toProto(),
@@ -63,14 +63,14 @@ func (c *languagesSet) toProto() []*pbgo.Language {
 	return res
 }
 
-type podDetails struct {
-	namespace              string
-	containersLanguages    *containerDetails
-	initContainerLanguages *containerDetails
-	ownerRef               *workloadmeta.KubernetesPodOwner
+type podInfo struct {
+	namespace         string
+	containerInfo     *containerInfo
+	initContainerInfo *containerInfo
+	ownerRef          *workloadmeta.KubernetesPodOwner
 }
 
-func (p *podDetails) toProto(podName string) *pbgo.PodLanguageDetails {
+func (p *podInfo) toProto(podName string) *pbgo.PodLanguageDetails {
 	return &pbgo.PodLanguageDetails{
 		Name:      podName,
 		Namespace: p.namespace,
@@ -79,65 +79,60 @@ func (p *podDetails) toProto(podName string) *pbgo.PodLanguageDetails {
 			Name: p.ownerRef.Name,
 			Kind: p.ownerRef.Kind,
 		},
-		ContainerDetails:     p.containersLanguages.toProto(),
-		InitContainerDetails: p.initContainerLanguages.toProto(),
+		ContainerDetails:     p.containerInfo.toProto(),
+		InitContainerDetails: p.initContainerInfo.toProto(),
 	}
 }
 
-func (p *podDetails) getOrAddContainerDetails(containerName string, isInitContainer bool) *languagesSet {
+func (p *podInfo) getOrAddcontainerInfo(containerName string, isInitContainer bool) *languagesSet {
+	cInfo := p.containerInfo
 	if isInitContainer {
-		if languagesSet, ok := p.initContainerLanguages.containersLanguages[containerName]; ok {
-			return languagesSet
-		}
-		p.initContainerLanguages.containersLanguages[containerName] = &languagesSet{
-			languages: make(map[string]struct{}),
-		}
-		return p.initContainerLanguages.containersLanguages[containerName]
+		cInfo = p.initContainerInfo
 	}
 
-	if languagesSet, ok := p.containersLanguages.containersLanguages[containerName]; ok {
+	if languagesSet, ok := cInfo.languages[containerName]; ok {
 		return languagesSet
 	}
-	p.containersLanguages.containersLanguages[containerName] = &languagesSet{
+	cInfo.languages[containerName] = &languagesSet{
 		languages: make(map[string]struct{}),
 	}
-	return p.containersLanguages.containersLanguages[containerName]
+	return cInfo.languages[containerName]
 }
 
 type batch struct {
-	podDetails map[string]*podDetails
+	podInfo map[string]*podInfo
 }
 
-func newBatch() *batch { return &batch{make(map[string]*podDetails, 0)} }
+func newBatch() *batch { return &batch{make(map[string]*podInfo, 0)} }
 
-func (b *batch) getOrAddPodDetails(podName, podNamespace string, ownerRef *workloadmeta.KubernetesPodOwner) *podDetails {
-	if podDetails, ok := b.podDetails[podName]; ok {
-		return podDetails
+func (b *batch) getOrAddPodInfo(podName, podNamespace string, ownerRef *workloadmeta.KubernetesPodOwner) *podInfo {
+	if podInfo, ok := b.podInfo[podName]; ok {
+		return podInfo
 	}
-	b.podDetails[podName] = &podDetails{
+	b.podInfo[podName] = &podInfo{
 		namespace: podNamespace,
-		containersLanguages: &containerDetails{
-			containersLanguages: make(map[string]*languagesSet),
+		containerInfo: &containerInfo{
+			languages: make(map[string]*languagesSet),
 		},
-		initContainerLanguages: &containerDetails{
-			containersLanguages: make(map[string]*languagesSet),
+		initContainerInfo: &containerInfo{
+			languages: make(map[string]*languagesSet),
 		},
 		ownerRef: ownerRef,
 	}
-	return b.podDetails[podName]
+	return b.podInfo[podName]
 }
 
 func (b *batch) toProto() *pbgo.ParentLanguageAnnotationRequest {
 	res := &pbgo.ParentLanguageAnnotationRequest{}
-	for podName, language := range b.podDetails {
+	for podName, language := range b.podInfo {
 		res.PodDetails = append(res.PodDetails, language.toProto(podName))
 	}
 	return res
 }
 
 func (b *batch) exposeMetrics() {
-	for podName, podDetails := range b.podDetails {
-		for containerName, languages := range podDetails.containersLanguages.containersLanguages {
+	for podName, podInfo := range b.podInfo {
+		for containerName, languages := range podInfo.containerInfo.languages {
 			for language := range languages.languages {
 				ProcessedEvents.Inc(podName, containerName, language)
 			}
@@ -190,7 +185,7 @@ func podHasOwner(pod *workloadmeta.KubernetesPod) bool {
 }
 
 func (c *Client) flush() {
-	if len(c.currentBatch.podDetails) == 0 {
+	if len(c.currentBatch.podInfo) == 0 {
 		return
 	}
 	ch := make(chan *batch)
@@ -232,29 +227,27 @@ func (c *Client) processEvent(evBundle workloadmeta.EventBundle) {
 	close(evBundle.Ch)
 	log.Tracef("Processing %d events", len(evBundle.Events))
 	for _, event := range evBundle.Events {
-		if event.Type == workloadmeta.EventTypeSet {
-			process := event.Entity.(*workloadmeta.Process)
-			if process.Language == nil {
-				continue
-			}
-			pod, err := c.store.GetKubernetesPodForContainer(process.ContainerId)
-			if err != nil {
-				log.Debug("skipping language detection for process %s", process.ID)
-				continue
-			}
-			if !podHasOwner(pod) {
-				log.Debug("pod %s has no owner, skipping %s", pod.Name, process.ID)
-				continue
-			}
-			containerName, isInitcontainer, ok := getContainerInfoFromPod(process.ContainerId, pod)
-			if !ok {
-				log.Debug("container name not found for %s", process.ContainerId)
-				continue
-			}
-			podDetails := c.currentBatch.getOrAddPodDetails(pod.Name, pod.Namespace, &pod.Owners[0])
-			containerDetails := podDetails.getOrAddContainerDetails(containerName, isInitcontainer)
-			containerDetails.add(string(process.Language.Name))
+		process := event.Entity.(*workloadmeta.Process)
+		if process.Language == nil {
+			continue
 		}
+		pod, err := c.store.GetKubernetesPodForContainer(process.ContainerId)
+		if err != nil {
+			log.Debug("skipping language detection for process %s", process.ID)
+			continue
+		}
+		if !podHasOwner(pod) {
+			log.Debug("pod %s has no owner, skipping %s", pod.Name, process.ID)
+			continue
+		}
+		containerName, isInitcontainer, ok := getContainerInfoFromPod(process.ContainerId, pod)
+		if !ok {
+			log.Debug("container name not found for %s", process.ContainerId)
+			continue
+		}
+		podInfo := c.currentBatch.getOrAddPodInfo(pod.Name, pod.Namespace, &pod.Owners[0])
+		containerInfo := podInfo.getOrAddcontainerInfo(containerName, isInitcontainer)
+		containerInfo.add(string(process.Language.Name))
 	}
 }
 
