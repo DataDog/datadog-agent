@@ -50,16 +50,10 @@
         }
       },
       "additionalProperties": false,
-      "type": "object",
-      "required": [
-        "field_name"
-      ]
+      "type": "object"
     },
     "MetadataResourceConfig": {
       "properties": {
-        "id_tags": {
-          "$ref": "#/$defs/MetricTagConfigList"
-        },
         "resource_type": {
           "type": "string"
         },
@@ -71,11 +65,7 @@
         }
       },
       "additionalProperties": false,
-      "type": "object",
-      "required": [
-        "resource_type",
-        "fields_list"
-      ]
+      "type": "object"
     },
     "MetricIndexTransform": {
       "properties": {
@@ -161,31 +151,10 @@
           },
           "type": "array"
         },
-        "static_tags": {
-          "items": {
-            "type": "string"
-          },
-          "type": "array"
-        },
         "metric_tags": {
           "$ref": "#/$defs/MetricTagConfigList"
         },
         "metric_type": {
-          "type": "string"
-        },
-        "options": {
-          "$ref": "#/$defs/MetricsConfigOption"
-        }
-      },
-      "additionalProperties": false,
-      "type": "object"
-    },
-    "MetricsConfigOption": {
-      "properties": {
-        "placement": {
-          "type": "integer"
-        },
-        "metric_suffix": {
           "type": "string"
         }
       },
@@ -255,12 +224,6 @@
           "type": "string"
         },
         "extract_value": {
-          "type": "string"
-        },
-        "match_pattern": {
-          "type": "string"
-        },
-        "match_value": {
           "type": "string"
         },
         "scale_factor": {

@@ -54,8 +54,9 @@ type SymbolConfig struct {
 	ExtractValue         string         `yaml:"extract_value,omitempty" json:"extract_value,omitempty"`
 	ExtractValueCompiled *regexp.Regexp `yaml:"-" json:"-"`
 
-	MatchPattern         string         `yaml:"match_pattern,omitempty" json:"match_pattern,omitempty"`
-	MatchValue           string         `yaml:"match_value,omitempty" json:"match_value,omitempty"`
+	// MatchPattern and MatchValue are not exposed as json since the feature is similar to ExtractValue
+	MatchPattern         string         `yaml:"match_pattern,omitempty" json:"-"`
+	MatchValue           string         `yaml:"match_value,omitempty" json:"-"`
 	MatchPatternCompiled *regexp.Regexp `yaml:"-" json:"-"`
 
 	ScaleFactor      float64 `yaml:"scale_factor,omitempty" json:"scale_factor,omitempty"`
@@ -126,19 +127,20 @@ type MetricsConfig struct {
 	Symbol SymbolConfig `yaml:"symbol,omitempty" json:"symbol,omitempty"`
 
 	// Legacy Symbol configs syntax
-	OID  string `yaml:"OID,omitempty" json:"OID,omitempty" jsonschema:"-"`
-	Name string `yaml:"name,omitempty" json:"name,omitempty" jsonschema:"-"`
+	OID  string `yaml:"OID,omitempty" json:"-" jsonschema:"-"`
+	Name string `yaml:"name,omitempty" json:"-" jsonschema:"-"`
 
 	// Table configs
 	Symbols []SymbolConfig `yaml:"symbols,omitempty" json:"symbols,omitempty"`
 
-	StaticTags []string            `yaml:"static_tags,omitempty" json:"static_tags,omitempty"`
+	// StaticTags is not exposed as json since we can possibly implement this feature via MetricTags
+	StaticTags []string            `yaml:"static_tags,omitempty" json:"-"`
 	MetricTags MetricTagConfigList `yaml:"metric_tags,omitempty" json:"metric_tags,omitempty"`
 
-	ForcedType ProfileMetricType `yaml:"forced_type,omitempty" json:"forced_type,omitempty" jsonschema:"-"` // deprecated in favour of metric_type
+	ForcedType ProfileMetricType `yaml:"forced_type,omitempty" json:"-" jsonschema:"-"` // deprecated in favour of metric_type
 	MetricType ProfileMetricType `yaml:"metric_type,omitempty" json:"metric_type,omitempty"`
 
-	Options MetricsConfigOption `yaml:"options,omitempty" json:"options,omitempty"`
+	Options MetricsConfigOption `yaml:"options,omitempty" json:"-"`
 }
 
 // GetSymbolTags returns symbol tags

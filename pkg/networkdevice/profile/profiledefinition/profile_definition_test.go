@@ -284,14 +284,11 @@ func TestDeviceProfileRcConfig_UnmarshallFromRc_and_MarshallForRc(t *testing.T) 
 							}
 						]
 					}
-				],
-				"options": {}
+				]
 			}
 		],
-		"device": {},
 		"metadata_list": [
 			{
-				"fields": null,
 				"resource_type": "device",
 				"fields_list": [
 					{
@@ -362,4 +359,11 @@ func TestDeviceProfileRcConfig_UnmarshallFromRc_and_MarshallForRc(t *testing.T) 
 	newProfileAgentFormatBytes, err := agentFormatProfile.MarshallForRc()
 	assert.NoError(t, err)
 	assert.JSONEq(t, string(rcConfig), string(newProfileAgentFormatBytes))
+
+	// Test Unmarshall + Marshall
+	newProfileAgentFormat2, err := UnmarshallFromRc(rcConfig)
+	assert.NoError(t, err)
+	newProfileAgentFormatBytes2, err := newProfileAgentFormat2.MarshallForRc()
+	assert.NoError(t, err)
+	assert.JSONEq(t, string(rcConfig), string(newProfileAgentFormatBytes2))
 }

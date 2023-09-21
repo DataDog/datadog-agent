@@ -13,12 +13,12 @@ type MetadataConfig map[string]MetadataResourceConfig
 
 // MetadataResourceConfig holds configs for a metadata resource
 type MetadataResourceConfig struct {
-	Fields map[string]MetadataField `yaml:"fields" json:"fields" jsonschema:"-"`
-	IDTags MetricTagConfigList      `yaml:"id_tags,omitempty" json:"id_tags,omitempty"`
+	Fields map[string]MetadataField `yaml:"fields,omitempty" json:"-" jsonschema:"-"`
+	IDTags MetricTagConfigList      `yaml:"id_tags,omitempty" json:"-" jsonschema:"-"` // not exposed as json annotation since might be not useful for now
 
 	// Used in RC format (list instead of map)
-	ResourceType string          `yaml:"-" json:"resource_type"`
-	FieldsList   []MetadataField `yaml:"-" json:"fields_list"`
+	ResourceType string          `yaml:"-" json:"resource_type,omitempty"`
+	FieldsList   []MetadataField `yaml:"-" json:"fields_list,omitempty"`
 }
 
 // MetadataField holds configs for a metadata field
@@ -28,7 +28,7 @@ type MetadataField struct {
 	Value   string         `yaml:"value,omitempty" json:"value,omitempty"`
 
 	// Used in RC format (list instead of map)
-	FieldName string `yaml:"-" json:"field_name"`
+	FieldName string `yaml:"-" json:"field_name,omitempty"`
 }
 
 // NewMetadataResourceConfig returns a new metadata resource config
