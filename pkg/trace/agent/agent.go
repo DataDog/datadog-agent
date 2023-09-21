@@ -477,12 +477,12 @@ func isManualUserDrop(priority sampler.SamplingPriority, pt *traceutil.Processed
 
 // sample performs all sampling on the processedTrace modifying it as needed and returning if the trace should be kept and the number of events in the trace
 func (a *Agent) sample(now time.Time, ts *info.TagStats, pt *traceutil.ProcessedTrace) (keep bool, numEvents int) {
-	keep = a.traceSampling(now, ts, pt)
+	keep = a.traceSampling(now, ts, pt) //TODO: why do we have `keep` when the trace itself has a traceDropped field
 
 	events := a.getAnalyzedEvents(pt, ts)
 	if !keep {
 		// single span sampling
-		hadSSS := a.singleSpanSampling(pt)
+		hadSSS := sampler.SingleSpanSampling(pt)
 		if !hadSSS {
 			// If there were no single span sampled spans let's use the analytics events
 			// This is OK because SSS is a replacement for analytics events so both should not be configured
@@ -493,19 +493,6 @@ func (a *Agent) sample(now time.Time, ts *info.TagStats, pt *traceutil.Processed
 	}
 
 	return keep, len(events)
-}
-
-// singleSpanSampling does single span sampling on the trace, returning true if the trace was modified
-func (a *Agent) singleSpanSampling(pt *traceutil.ProcessedTrace) bool {
-	ssSpans := sampler.GetSingleSpanSampledSpans(pt)
-	if len(ssSpans) > 0 {
-		// Span sampling has kept some spans -> update the chunk
-		pt.TraceChunk.Spans = ssSpans
-		pt.TraceChunk.Priority = int32(sampler.PriorityUserKeep)
-		pt.TraceChunk.DroppedTrace = false
-		return true
-	}
-	return false
 }
 
 // traceSampling reports whether the chunk should be kept as a trace, setting "DroppedTrace" on the chunk
@@ -534,9 +521,9 @@ func (a *Agent) traceSampling(now time.Time, ts *info.TagStats, pt *traceutil.Pr
 
 // getAnalyzedEvents returns any sampled analytics events in the ProcessedTrace
 func (a *Agent) getAnalyzedEvents(pt *traceutil.ProcessedTrace, ts *info.TagStats) []*pb.Span {
-	numExtracted, events := a.EventProcessor.Process(pt)
+	numEvents, numExtracted, events := a.EventProcessor.Process(pt)
 	ts.EventsExtracted.Add(numExtracted)
-	ts.EventsSampled.Add(int64(len(events)))
+	ts.EventsSampled.Add(numEvents)
 	return events
 }
 

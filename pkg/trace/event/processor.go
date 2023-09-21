@@ -50,8 +50,11 @@ func (p *Processor) Stop() {
 }
 
 // Process takes a processed trace, extracts events from it and samples them, returning a collection of
-// sampled events along with the total count of extracted events.
-func (p *Processor) Process(pt *traceutil.ProcessedTrace) (numExtracted int64, events []*pb.Span) {
+// sampled events along with the total count of events.
+// numEvents is the number of sampled events found in the trace
+// numExtracted is the number of events found in the trace
+// events is the slice of sampled analytics events to keep (only has values if pt will be dropped)
+func (p *Processor) Process(pt *traceutil.ProcessedTrace) (numEvents, numExtracted int64, events []*pb.Span) {
 	clientSampleRate := sampler.GetClientRate(pt.Root)
 	preSampleRate := sampler.GetPreSampleRate(pt.Root)
 	priority := sampler.SamplingPriority(pt.TraceChunk.Priority)
@@ -80,8 +83,9 @@ func (p *Processor) Process(pt *traceutil.ProcessedTrace) (numExtracted int64, e
 		if pt.TraceChunk.DroppedTrace {
 			events = append(events, span)
 		}
+		numEvents++
 	}
-	return numExtracted, events
+	return numEvents, numExtracted, events
 }
 
 func (p *Processor) extract(span *pb.Span, priority sampler.SamplingPriority) (float64, bool) {

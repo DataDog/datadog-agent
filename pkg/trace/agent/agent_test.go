@@ -1343,7 +1343,7 @@ Loop:
 			TraceChunk: chunk,
 			Root:       root,
 		}
-		numEvents, _ := processor.Process(pt)
+		_, numEvents, _ := processor.Process(pt)
 		totalSampled += int(numEvents)
 
 		<-eventTicker.C
