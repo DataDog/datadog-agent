@@ -2,6 +2,34 @@
 Release Notes
 =============
 
+.. _Release Notes_7.47.1:
+
+7.47.1 / 6.47.1
+======
+
+.. _Release Notes_7.47.1_Prelude:
+
+Prelude
+-------
+
+Release on: 2023-09-21
+
+- Please refer to the `7.47.1 tag on integrations-core <https://github.com/DataDog/integrations-core/blob/master/AGENT_CHANGELOG.md#datadog-agent-version-7471>`_ for the list of changes on the Core Checks
+
+
+.. _Release Notes_7.47.1_Bug Fixes:
+
+Bug Fixes
+---------
+
+- Fixes issue with NPM driver restart failing with "File Not Found" error on Windows.
+
+- APM: The ``DD_APM_REPLACE_TAGS`` environment variable and ``apm_config.replace_tags`` setting now properly look for tags with numeric values.
+
+- Fix the issue introduced in `7.47.0` that causes the `SE_DACL_AUTO_INHERITED` flag to be removed from
+  the installation drive directory when the installer fails and rolls back.
+
+
 .. _Release Notes_7.47.0:
 
 7.47.0 / 6.47.0
