@@ -321,6 +321,11 @@ collect_topology: false
 		{Symbol: profiledefinition.SymbolConfig{OID: "1.3.6.1.4.1.318.1.1.1.11.1.1.0", Name: "upsBasicStateOutputState"}, MetricType: "flag_stream", Options: profiledefinition.MetricsConfigOption{Placement: 2, MetricSuffix: "ReplaceBattery"}},
 		{
 			MetricType: profiledefinition.ProfileMetricTypeMonotonicCount,
+			MIB:        "IF-MIB",
+			Table: profiledefinition.SymbolConfig{
+				OID:  "1.3.6.1.2.1.2.2",
+				Name: "ifTable",
+			},
 			Symbols: []profiledefinition.SymbolConfig{
 				{OID: "1.3.6.1.2.1.2.2.1.14", Name: "ifInErrors", ScaleFactor: 0.5},
 				{OID: "1.3.6.1.2.1.2.2.1.13", Name: "ifInDiscards"},
@@ -368,6 +373,7 @@ collect_topology: false
 	sender.AssertMetric(t, "Gauge", "snmp.sysStatMemoryTotal", float64(60), "", snmpTags)
 
 	expectedMetrics = append(expectedMetrics, profiledefinition.MetricsConfig{
+		MIB:        "F5-BIGIP-SYSTEM-MIB",
 		Symbol:     profiledefinition.SymbolConfig{OID: "1.3.6.1.4.1.3375.2.1.1.2.1.44.0", Name: "sysStatMemoryTotal", ScaleFactor: 2},
 		MetricType: profiledefinition.ProfileMetricTypeGauge,
 	})
@@ -906,10 +912,16 @@ community_string: public
 
 	expectedMetricsConfigs := []profiledefinition.MetricsConfig{
 		{
+			MIB:        "F5-BIGIP-SYSTEM-MIB",
 			Symbol:     profiledefinition.SymbolConfig{OID: "1.3.6.1.4.1.3375.2.1.1.2.1.44.0", Name: "sysStatMemoryTotal", ScaleFactor: 2},
 			MetricType: profiledefinition.ProfileMetricTypeGauge,
 		},
 		{
+			MIB: "IF-MIB",
+			Table: profiledefinition.SymbolConfig{
+				OID:  "1.3.6.1.2.1.2.2",
+				Name: "ifTable",
+			},
 			MetricType: profiledefinition.ProfileMetricTypeMonotonicCount,
 			Symbols: []profiledefinition.SymbolConfig{
 				{OID: "1.3.6.1.2.1.2.2.1.14", Name: "ifInErrors", ScaleFactor: 0.5},

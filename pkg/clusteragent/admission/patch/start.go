@@ -22,7 +22,7 @@ type ControllerContext struct {
 	K8sClient           kubernetes.Interface
 	RcClient            *remote.Client
 	ClusterName         string
-	ClusterId           string
+	ClusterID           string
 	StopCh              chan struct{}
 }
 
@@ -31,7 +31,7 @@ func StartControllers(ctx ControllerContext) error {
 	log.Info("Starting patch controllers")
 	telemetryCollector := telemetry.NewNoopCollector()
 	if ctx.RcClient != nil {
-		telemetryCollector = telemetry.NewCollector(ctx.RcClient.ID, ctx.ClusterId)
+		telemetryCollector = telemetry.NewCollector(ctx.RcClient.ID, ctx.ClusterID)
 	}
 	provider, err := newPatchProvider(ctx.RcClient, ctx.LeaderSubscribeFunc(), telemetryCollector, ctx.ClusterName)
 	if err != nil {

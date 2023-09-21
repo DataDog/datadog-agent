@@ -297,7 +297,7 @@ func start(log log.Component, config config.Component, telemetry telemetry.Compo
 				K8sClient:           apiCl.Cl,
 				RcClient:            rcClient,
 				ClusterName:         clusterName,
-				ClusterId:           clusterId,
+				ClusterID:           clusterId,
 				StopCh:              stopCh,
 			}
 			if err := admissionpatch.StartControllers(patchCtx); err != nil {

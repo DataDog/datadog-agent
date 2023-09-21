@@ -1,15 +1,17 @@
 --- a/src/OVAL/oval_agent.c
 +++ b/src/OVAL/oval_agent.c
-@@ -259,6 +259,15 @@ void oval_agent_reset_syschar(oval_agent_session_t * ag_sess) {
+@@ -259,6 +259,17 @@ void oval_agent_reset_syschar(oval_agent_session_t * ag_sess) {
  	oval_syschar_model_reset(ag_sess->sys_model);
  }
  
 +void oval_agent_reset_results(oval_agent_session_t * ag_sess) {
 +#if defined(OVAL_PROBES_ENABLED)
-+	oval_results_model_free(ag_sess->res_model);
-+	ag_sess->res_model = oval_results_model_new_with_probe_session(
-+			ag_sess->def_model, ag_sess->sys_models, ag_sess->psess);
-+	oval_probe_session_reinit(ag_sess->psess, ag_sess->sys_model);
++	if (ag_sess != NULL) {
++		oval_results_model_free(ag_sess->res_model);
++		ag_sess->res_model = oval_results_model_new_with_probe_session(
++				ag_sess->def_model, ag_sess->sys_models, ag_sess->psess);
++		oval_probe_session_reinit(ag_sess->psess, ag_sess->sys_model);
++	}
 +#endif
 +}
 +
