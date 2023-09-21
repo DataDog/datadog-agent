@@ -11,8 +11,16 @@
 package httpsec
 
 import (
+	"bytes"
 	"encoding/json"
+	"fmt"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"io"
+	"mime"
+	"mime/multipart"
 	"net/http"
+	"net/textproto"
+	"net/url"
 	"strings"
 )
 
@@ -65,24 +73,101 @@ func parseBody(headers map[string][]string, rawBody *string) (body interface{}) 
 	}
 	raw := []byte(*rawBody)
 
-	var ct string
-	if values, ok := headers["content-type"]; !ok {
-		return rawStr
-	} else if len(values) > 1 {
-		return rawStr
-	} else {
-		ct = values[0]
+	mimeHeaders := make(textproto.MIMEHeader, len(headers))
+	for key, values := range headers {
+		for _, value := range values {
+			mimeHeaders.Add(key, value)
+		}
 	}
 
-	switch ct {
+	result, err := tryParseBodyBytes(mimeHeaders, raw)
+	if err != nil {
+		log.Warnf("unable to parse request body: %w", err)
+		return rawStr
+	} else if result == nil {
+		return rawStr
+	}
+
+	return result
+}
+
+// / tryParseBodyBytes attempts to parse the raw data in `raw` according to the `headers`. Returns an error if parsing
+// / fails, and a `nil` body if no parsing strategy was found.
+func tryParseBodyBytes(headers textproto.MIMEHeader, raw []byte) (body interface{}, err error) {
+	var mediaType string
+	var params map[string]string
+
+	if value := headers.Get("content-type"); value == "" {
+		return nil, nil
+	} else {
+		mt, p, err := mime.ParseMediaType(value)
+		if err != nil {
+			return nil, err
+		}
+		mediaType = mt
+		params = p
+	}
+
+	switch mediaType {
 	case "application/json":
 		if err := json.Unmarshal(raw, &body); err != nil {
-			return rawStr
+			return nil, err
 		}
-		return body
+		return body, nil
+
+	case "application/x-www-form-urlencoded":
+		values, err := url.ParseQuery(string(raw))
+		if err != nil {
+			return nil, err
+		}
+		return map[string][]string(values), nil
+
+	case "multipart/form-data":
+		boundary, ok := params["boundary"]
+		if !ok {
+			return nil, fmt.Errorf("cannot parse a multipart/form-data payload without a boundary")
+		}
+		mr := multipart.NewReader(bytes.NewReader(raw), boundary)
+
+		data := make(map[string]any)
+		for {
+			part, err := mr.NextPart()
+			if err != nil {
+				if err == io.EOF {
+					break
+				}
+				return nil, err
+			}
+			defer part.Close()
+
+			partRawBody, err := io.ReadAll(part)
+			if err != nil {
+				return nil, err
+			}
+			partBody, err := tryParseBodyBytes(map[string][]string(part.Header), partRawBody)
+			if err != nil {
+				return nil, err
+			} else if partBody == nil {
+				partBody = string(partRawBody)
+			}
+
+			partData := map[string]any{
+				"data": partBody,
+			}
+
+			if filename := part.FileName(); filename != "" {
+				partData["filename"] = filename
+			}
+
+			data[part.FormName()] = partData
+		}
+		return data, nil
+
+	case "text/plain":
+		return string(raw), nil
 
 	default:
-		return rawStr
+		return nil, nil
 	}
 }
 
