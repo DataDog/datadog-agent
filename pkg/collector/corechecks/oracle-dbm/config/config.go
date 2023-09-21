@@ -25,7 +25,8 @@ type InitConfig struct {
 }
 
 type QuerySamplesConfig struct {
-	Enabled bool `yaml:"enabled"`
+	Enabled            bool `yaml:"enabled"`
+	IncludeAllSessions bool `yaml:"include_all_sessions"`
 }
 
 type QueryMetricsConfig struct {
@@ -34,6 +35,7 @@ type QueryMetricsConfig struct {
 	DBRowsLimit        int   `yaml:"db_rows_limit"`
 	PlanCacheRetention int   `yaml:"plan_cache_retention"`
 	DisableLastActive  bool  `yaml:"disable_last_active"`
+	Lookback           int64 `yaml:"lookback"`
 }
 
 type SysMetricsConfig struct {
@@ -53,7 +55,8 @@ type SharedMemoryConfig struct {
 }
 
 type ExecutionPlansConfig struct {
-	Enabled bool `yaml:"enabled"`
+	Enabled              bool `yaml:"enabled"`
+	LogUnobfuscatedPlans bool `yaml:"log_unobfuscated_plans"`
 }
 
 type AgentSQLTrace struct {
@@ -145,6 +148,8 @@ func NewCheckConfig(rawInstance integration.Data, rawInitConfig integration.Data
 	instance.Tablespaces.Enabled = true
 	instance.ProcessMemory.Enabled = true
 	instance.SharedMemory.Enabled = true
+
+	instance.ExecutionPlans.Enabled = true
 	// Defaults end
 
 	if err := yaml.Unmarshal(rawInstance, &instance); err != nil {
@@ -175,7 +180,26 @@ func NewCheckConfig(rawInstance integration.Data, rawInitConfig integration.Data
 		InitConfig:     initCfg,
 	}
 
-	log.Debugf("Oracle config: %s", c.String())
+	log.Debugf("%s@%d/%s Oracle config: %s", instance.Server, instance.Port, instance.ServiceName, c.String())
 
 	return c, nil
+}
+
+// GetLogPrompt returns a config based prompt
+func GetLogPrompt(c InstanceConfig) string {
+	if c.TnsAlias != "" {
+		return c.TnsAlias
+	}
+
+	var p string
+	if c.Server != "" {
+		p = c.Server
+	}
+	if c.Port != 0 {
+		p = fmt.Sprintf("%s:%d", p, c.Port)
+	}
+	if c.ServiceName != "" {
+		p = fmt.Sprintf("%s/%s", p, c.ServiceName)
+	}
+	return p
 }

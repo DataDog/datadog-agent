@@ -1,0 +1,14 @@
+optimization_goal: ingress_throughput
+erratic: false
+
+environment:
+  DD_TELEMETRY_ENABLED: true
+
+profiling_environment:
+  DD_INTERNAL_PROFILING_ENABLED: true
+  DD_INTERNAL_PROFILING_UNIX_SOCKET: /var/run/datadog/apm.socket
+  DD_INTERNAL_PROFILING_DELTA_PROFILES: true
+  DD_INTERNAL_PROFILING_ENABLE_GOROUTINE_STACKTRACES: true
+  DD_INTERNAL_PROFILING_EXTRA_TAGS: experiment:uds_dogstatsd_to_api_nomultivalue
+  DD_PROFILING_EXECUTION_TRACE_ENABLED: true
+  DD_PROFILING_EXECUTION_TRACE_PERIOD: 4m

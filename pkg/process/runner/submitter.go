@@ -78,6 +78,8 @@ type CheckSubmitter struct {
 
 	// Channel for notifying the submitter to enable/disable realtime mode
 	rtNotifierChan chan types.RTResponse
+
+	agentStartTime int64
 }
 
 func NewSubmitter(config config.Component, log log.Component, forwarders forwarders.Component, hostname string) (*CheckSubmitter, error) {
@@ -165,6 +167,8 @@ func NewSubmitter(config config.Component, log log.Component, forwarders forward
 
 		wg:   &sync.WaitGroup{},
 		exit: make(chan struct{}),
+
+		agentStartTime: time.Now().Unix(),
 	}, nil
 }
 
@@ -456,6 +460,7 @@ func (s *CheckSubmitter) messagesToCheckResult(start time.Time, name string, mes
 		extraHeaders.Set(headers.ProcessVersionHeader, agentVersion.GetNumber())
 		extraHeaders.Set(headers.ContainerCountHeader, strconv.Itoa(getContainerCount(m)))
 		extraHeaders.Set(headers.ContentTypeHeader, headers.ProtobufContentType)
+		extraHeaders.Set(headers.AgentStartTime, strconv.FormatInt(s.agentStartTime, 10))
 
 		if s.orchestrator.OrchestrationCollectionEnabled {
 			if cid, err := clustername.GetClusterID(); err == nil && cid != "" {

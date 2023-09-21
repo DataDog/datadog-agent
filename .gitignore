@@ -132,7 +132,7 @@ omnibus/resources/agent/msi/cal/packages/
 omnibus/files/sources
 omnibus/.tarball-version
 tools/windows/install-help/cal/packages/
-[Dd]ebug/
+./[Dd]ebug/
 [Rr]elease/
 
 # ebpf object files

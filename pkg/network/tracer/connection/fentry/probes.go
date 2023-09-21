@@ -20,8 +20,7 @@ const (
 	inetCskListenStop = "inet_csk_listen_stop_enter"
 
 	// tcpConnect traces the connect() system call
-	tcpConnect       = "tcp_connect"
-	tcpConnectReturn = "tcp_connect_exit"
+	tcpConnect = "tcp_connect"
 	// tcpFinishConnect traces tcp_finish_connect() kernel function. This is
 	// used to know when a TCP connection switches to the ESTABLISHED state
 	tcpFinishConnect = "tcp_finish_connect"
@@ -97,7 +96,6 @@ var programs = map[string]struct{}{
 	tcpClose:                  {},
 	tcpCloseReturn:            {},
 	tcpConnect:                {},
-	tcpConnectReturn:          {},
 	tcpFinishConnect:          {},
 	tcpRetransmit:             {},
 	tcpRetransmitRet:          {},
@@ -146,7 +144,6 @@ func enabledPrograms(c *config.Config) (map[string]struct{}, error) {
 		enableProgram(enabled, tcpClose)
 		enableProgram(enabled, tcpCloseReturn)
 		enableProgram(enabled, tcpConnect)
-		enableProgram(enabled, tcpConnectReturn)
 		enableProgram(enabled, tcpFinishConnect)
 		enableProgram(enabled, inetCskAcceptReturn)
 		enableProgram(enabled, inetCskListenStop)

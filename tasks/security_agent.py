@@ -555,17 +555,21 @@ def cws_go_generate(ctx):
     with ctx.cd("./pkg/security/secl"):
         ctx.run("go generate ./...")
 
-    # skip generation of serializer for windows
     if sys.platform == "win32":
-        return
+        shutil.copy(
+            "./pkg/security/serializers/serializers_windows_easyjson.mock",
+            "./pkg/security/serializers/serializers_windows_easyjson.go",
+        )
+    else:
+        shutil.copy(
+            "./pkg/security/serializers/serializers_linux_easyjson.mock",
+            "./pkg/security/serializers/serializers_linux_easyjson.go",
+        )
 
-    shutil.copy(
-        "./pkg/security/serializers/serializers_easyjson.mock", "./pkg/security/serializers/serializers_easyjson.go"
-    )
-    shutil.copy(
-        "./pkg/security/security_profile/dump/activity_dump_easyjson.mock",
-        "./pkg/security/security_profile/dump/activity_dump_easyjson.go",
-    )
+        shutil.copy(
+            "./pkg/security/security_profile/dump/activity_dump_easyjson.mock",
+            "./pkg/security/security_profile/dump/activity_dump_easyjson.go",
+        )
 
     ctx.run("go generate ./pkg/security/...")
 
@@ -600,7 +604,7 @@ def generate_btfhub_constants(ctx, archive_path, force_refresh=False):
     output_path = "./pkg/security/probe/constantfetch/btfhub/constants.json"
     force_refresh_opt = "-force-refresh" if force_refresh else ""
     ctx.run(
-        f"go run ./pkg/security/probe/constantfetch/btfhub/ -archive-root {archive_path} -output {output_path} {force_refresh_opt}",
+        f"go run -tags linux_bpf,btfhubsync ./pkg/security/probe/constantfetch/btfhub/ -archive-root {archive_path} -output {output_path} {force_refresh_opt}",
     )
 
 

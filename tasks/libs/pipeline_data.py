@@ -48,7 +48,7 @@ def get_failed_jobs(project_name, pipeline_id):
         }
 
         # Also exclude jobs allowed to fail
-        if final_status["status"] == "failed" and not final_status["allow_failure"]:
+        if final_status["status"] == "failed" and should_report_job(job_name, final_status["allow_failure"]):
             final_failed_jobs.append(final_status)
 
     return final_failed_jobs
@@ -130,3 +130,12 @@ def truncate_job_name(job_name, max_char_per_job=48):
     # We also want to avoid it being too long
     truncated_job_name = truncated_job_name[:max_char_per_job]
     return truncated_job_name
+
+
+# those jobs are `allow_failure: true` but still needs to be included
+# in fail reports
+jobs_allowed_to_fails_but_need_report = [re.compile(r'kitchen_test_security_agent.*')]
+
+
+def should_report_job(job_name, allow_failure):
+    return not allow_failure or any(pattern.fullmatch(job_name) for pattern in jobs_allowed_to_fails_but_need_report)

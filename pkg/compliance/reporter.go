@@ -28,6 +28,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/startstop"
 )
 
+// LogReporter is responsible for sending compliance logs to DataDog backends.
 type LogReporter struct {
 	logSource *sources.LogSource
 	logChan   chan *message.Message
@@ -85,10 +86,12 @@ func NewLogReporter(stopper startstop.Stopper, sourceName, sourceType, runPath s
 	}, nil
 }
 
+// Endpoints returns the endpoints associated with the log reporter.
 func (r *LogReporter) Endpoints() *config.Endpoints {
 	return r.endpoints
 }
 
+// ReportEvent should be used to send an event to the backend.
 func (r *LogReporter) ReportEvent(event interface{}) {
 	buf, err := json.Marshal(event)
 	if err != nil {

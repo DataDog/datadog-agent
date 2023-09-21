@@ -226,6 +226,12 @@ func disableCmdPort() {
 // runJmxCommandConsole sets up the common utils necessary for JMX, and executes the command
 // with the Console reporter
 func runJmxCommandConsole(log log.Component, config config.Component, cliParams *cliParams) error {
+	// Always disable SBOM collection in `jmx` command to avoid BoltDB flock issue
+	// and consuming CPU & Memory for asynchronous scans that would not be shown in `agent jmx` output.
+	pkgconfig.Datadog.Set("sbom.host.enabled", "false")
+	pkgconfig.Datadog.Set("sbom.container_image.enabled", "false")
+	pkgconfig.Datadog.Set("runtime_security_config.sbom.enabled", "false")
+
 	err := pkgconfig.SetupJMXLogger(cliParams.logFile, "", false, true, false)
 	if err != nil {
 		return fmt.Errorf("Unable to set up JMX logger: %v", err)
@@ -253,7 +259,7 @@ func runJmxCommandConsole(log log.Component, config config.Component, cliParams 
 		return err
 	}
 
-	err = standalone.ExecJMXCommandConsole(cliParams.command, cliParams.cliSelectedChecks, cliParams.jmxLogLevel, allConfigs)
+	err = standalone.ExecJMXCommandConsole(cliParams.command, cliParams.cliSelectedChecks, cliParams.jmxLogLevel, allConfigs, aggregator.GetSenderManager())
 
 	if runtime.GOOS == "windows" {
 		standalone.PrintWindowsUserWarning("jmx")

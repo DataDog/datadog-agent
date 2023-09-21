@@ -15,12 +15,10 @@ jobs:
           docker rmi $(docker image ls -aq) >/dev/null 2>&1
 
       - name: Checkout datadog-agent repository
-        uses: actions/checkout@v3
-        with:
-          ref: main
+        uses: actions/checkout@v4
 
       - name: Checkout btfhub-archive repository
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
         with:
           repository: aquasecurity/btfhub-archive
           path: dev/dist/archive
@@ -28,17 +26,14 @@ jobs:
       - name: Install python
         uses: actions/setup-python@v4
         with:
-          python-version: '3.8.14'
+          python-version: '3.9'
           cache: 'pip'
+      - run: pip install -r requirements.txt
 
       - name: Install go
         uses: actions/setup-go@v4
         with:
           go-version-file: '.go-version'
-
-      - name: Install python requirements
-        run: |
-          pip install -r requirements.txt
 
       - name: Install go deps
         run: |

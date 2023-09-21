@@ -23,12 +23,6 @@ BPF_HASH_MAP(tcp_stats, conn_tuple_t, tcp_stats_t, 0)
 */
 BPF_HASH_MAP(tcp_retransmits, conn_tuple_t, __u32, 0)
 
-/*
- * Hash map to hold arguments for tcp_connect to
- * access in the kretprobe for tcp_connect
-*/
-BPF_HASH_MAP(tcp_connect_args, __u64, struct sock *, 1024)
-
 /* Will hold the PIDs initiating TCP connections */
 BPF_HASH_MAP(tcp_ongoing_connect_pid, struct sock *, __u64, 1024)
 

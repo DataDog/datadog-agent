@@ -12,7 +12,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/cihub/seelog"
 	"github.com/vishvananda/netlink"
 	"go.uber.org/atomic"
 
@@ -248,14 +247,11 @@ func (pm *ProcessMonitor) mainEventLoop() {
 					pm.handleProcessExit(ev.ProcessPid)
 				}
 			}
-		case err, ok := <-pm.netlinkErrorsChannel:
+		case _, ok := <-pm.netlinkErrorsChannel:
 			if !ok {
 				return
 			}
 			pm.tel.restart.Add(1)
-			if log.ShouldLog(seelog.DebugLvl) {
-				log.Debugf("process monitor error: %s", err)
-			}
 
 			pm.netlinkDoneChannel <- struct{}{}
 			// Netlink might suffer from temporary errors (insufficient buffer for example). We're trying to recover

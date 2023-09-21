@@ -37,6 +37,7 @@ func (cr *CRHandlers) BuildManifestMessageBody(ctx *processors.ProcessorContext,
 	cm := ExtractModelManifests(ctx, resourceManifests, groupSize)
 	return &model.CollectorManifestCR{
 		Manifest: cm,
+		Tags:     append(ctx.Cfg.ExtraTags, ctx.ApiGroupVersionTag),
 	}
 }
 

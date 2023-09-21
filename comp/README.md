@@ -4,6 +4,16 @@
 This file lists all components defined in this repository, with their package summary.
 Click the links for more documentation.
 
+## [comp/aggregator](https://pkg.go.dev/github.com/DataDog/dd-agent-comp-experiments/comp/aggregator) (Component Bundle)
+
+*Datadog Team*: agent-shared-components
+
+Package aggregator implements the "aggregator" bundle,
+
+### [comp/aggregator/demultiplexer](https://pkg.go.dev/github.com/DataDog/dd-agent-comp-experiments/comp/aggregator/demultiplexer)
+
+Package demultiplexer defines the aggregator demultiplexer
+
 ## [comp/core](https://pkg.go.dev/github.com/DataDog/dd-agent-comp-experiments/comp/core) (Component Bundle)
 
 *Datadog Team*: agent-shared-components
@@ -87,6 +97,17 @@ Package runner implements a component to generate the 'resources' metadata paylo
 ### [comp/metadata/runner](https://pkg.go.dev/github.com/DataDog/dd-agent-comp-experiments/comp/metadata/runner)
 
 Package runner implements a component to generate metadata payload at the right interval.
+
+## [comp/otelcol](https://pkg.go.dev/github.com/DataDog/dd-agent-comp-experiments/comp/otelcol) (Component Bundle)
+
+*Datadog Team*: opentelemetry
+
+Package otelcol contains the OTLP ingest bundle pipeline to be included
+into the agent components.
+
+### [comp/otelcol/collector](https://pkg.go.dev/github.com/DataDog/dd-agent-comp-experiments/comp/otelcol/collector)
+
+Package collector implements the OpenTelemetry Collector component.
 
 ## [comp/process](https://pkg.go.dev/github.com/DataDog/dd-agent-comp-experiments/comp/process) (Component Bundle)
 

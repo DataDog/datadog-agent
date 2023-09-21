@@ -6,12 +6,16 @@
 package module
 
 import (
+	"context"
 	"errors"
 	"fmt"
+	"runtime/pprof"
+	"strings"
 	"sync"
 	"time"
 
 	"github.com/gorilla/mux"
+	"google.golang.org/grpc"
 
 	"github.com/DataDog/datadog-agent/cmd/system-probe/config"
 	"github.com/DataDog/datadog-agent/pkg/network/driver"
@@ -42,10 +46,25 @@ type loader struct {
 	closed  bool
 }
 
+func (l *loader) forEachModule(fn func(name string, mod Module)) {
+	for name, mod := range l.modules {
+		withModule(name, func() {
+			fn(string(name), mod)
+		})
+	}
+}
+
+func withModule(name config.ModuleName, fn func()) {
+	pprof.Do(context.Background(), pprof.Labels("module", string(name)), func(_ context.Context) {
+		fn()
+	})
+}
+
 // Register a set of modules, which involves:
 // * Initialization using the provided Factory;
 // * Registering the HTTP endpoints of each module;
-func Register(cfg *config.Config, httpMux *mux.Router, factories []Factory) error {
+// * Register the gRPC server;
+func Register(cfg *config.Config, httpMux *mux.Router, grpcServer *grpc.Server, factories []Factory) error {
 	if err := driver.Init(cfg); err != nil {
 		log.Warnf("Failed to load driver subsystem %v", err)
 	}
@@ -56,7 +75,11 @@ func Register(cfg *config.Config, httpMux *mux.Router, factories []Factory) erro
 			continue
 		}
 
-		module, err := factory.Fn(cfg)
+		var err error
+		var module Module
+		withModule(factory.Name, func() {
+			module, err = factory.Fn(cfg)
+		})
 
 		// In case a module failed to be started, do not make the whole `system-probe` abort.
 		// Let `system-probe` run the other modules.
@@ -77,6 +100,14 @@ func Register(cfg *config.Config, httpMux *mux.Router, factories []Factory) erro
 			l.errors[factory.Name] = err
 			log.Errorf("error registering HTTP endpoints for module %s: %s", factory.Name, err)
 			continue
+		}
+
+		if grpcServer != nil {
+			if err = module.RegisterGRPC(&systemProbeGRPCServer{sr: grpcServer, ns: factory.Name}); err != nil {
+				l.errors[factory.Name] = err
+				log.Errorf("error registering grpc endpoints for module %s: %s", factory.Name, err)
+				continue
+			}
 		}
 
 		l.routers[factory.Name] = subRouter
@@ -107,7 +138,7 @@ func makeSubrouter(r *mux.Router, namespace string) (*Router, error) {
 	if namespace == "" {
 		return nil, errors.New("module name not set")
 	}
-	return NewRouter(r.PathPrefix("/" + namespace).Subrouter()), nil
+	return NewRouter(namespace, r), nil
 }
 
 // GetStats returns the stats from all modules, namespaced by their names
@@ -130,9 +161,13 @@ func RestartModule(factory Factory) error {
 	if currentModule == nil {
 		return fmt.Errorf("module %s is not running", factory.Name)
 	}
-	currentModule.Close()
 
-	newModule, err := factory.Fn(l.cfg)
+	var newModule Module
+	var err error
+	withModule(factory.Name, func() {
+		currentModule.Close()
+		newModule, err = factory.Fn(l.cfg)
+	})
 	if err != nil {
 		l.errors[factory.Name] = err
 		return err
@@ -164,9 +199,9 @@ func Close() {
 	}
 
 	l.closed = true
-	for _, module := range l.modules {
-		module.Close()
-	}
+	l.forEachModule(func(_ string, mod Module) {
+		mod.Close()
+	})
 }
 
 func updateStats() {
@@ -183,9 +218,9 @@ func updateStats() {
 		}
 
 		l.stats = make(map[string]interface{})
-		for name, module := range l.modules {
-			l.stats[string(name)] = module.GetStats()
-		}
+		l.forEachModule(func(name string, mod Module) {
+			l.stats[name] = mod.GetStats()
+		})
 		for name, err := range l.errors {
 			l.stats[string(name)] = map[string]string{"Error": err.Error()}
 		}
@@ -198,4 +233,32 @@ func updateStats() {
 		then = now
 		now = <-ticker.C
 	}
+}
+
+type systemProbeGRPCServer struct {
+	sr grpc.ServiceRegistrar
+	ns config.ModuleName
+}
+
+func (s *systemProbeGRPCServer) RegisterService(desc *grpc.ServiceDesc, impl interface{}) {
+	modName := NameFromGRPCServiceName(desc.ServiceName)
+	if modName != string(s.ns) {
+		panic(fmt.Sprintf("module name `%s` from service name `%s` does not match `%s`", modName, desc.ServiceName, s.ns))
+	}
+	s.sr.RegisterService(desc, impl)
+}
+
+// NameFromGRPCServiceName extracts a system-probe module name from the gRPC service name.
+// It expects a form of `datadog.agent.systemprobe.<module_name>.ServiceName`.
+func NameFromGRPCServiceName(service string) string {
+	prefix := "datadog.agent.systemprobe."
+	if !strings.HasPrefix(service, prefix) {
+		return ""
+	}
+	s := strings.TrimPrefix(service, prefix)
+	mod, _, ok := strings.Cut(s, ".")
+	if !ok {
+		return ""
+	}
+	return mod
 }
