@@ -82,7 +82,7 @@ func parseBody(headers map[string][]string, rawBody *string) (body interface{}) 
 
 	result, err := tryParseBodyBytes(mimeHeaders, raw)
 	if err != nil {
-		log.Warnf("unable to parse request body: %w", err)
+		log.Warnf("unable to parse request body: %v", err)
 		return rawStr
 	} else if result == nil {
 		return rawStr

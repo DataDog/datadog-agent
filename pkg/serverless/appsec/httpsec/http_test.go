@@ -10,7 +10,7 @@ func TestParseBodyJson(t *testing.T) {
 	rawBody := "{ \"foo\": 1337 }"
 	payload := parseBody(
 		map[string][]string{
-			"content-type": []string{"application/json;charset=utf-8"},
+			"content-type": {"application/json;charset=utf-8"},
 		},
 		&rawBody,
 	)
@@ -24,7 +24,7 @@ func TestParseBodyUrlEncoded(t *testing.T) {
 	rawBody := "foo=1337&bar=b%20a%20z"
 	payload := parseBody(
 		map[string][]string{
-			"content-type": []string{"application/x-www-form-urlencoded"},
+			"content-type": {"application/x-www-form-urlencoded"},
 		},
 		&rawBody,
 	)
@@ -56,7 +56,7 @@ func TestParseBodyMultipartFormData(t *testing.T) {
 	)
 	payload := parseBody(
 		map[string][]string{
-			"content-type": []string{"multipart/form-data; boundary=B0UND4RY"},
+			"content-type": {"multipart/form-data; boundary=B0UND4RY"},
 		},
 		&rawBody,
 	)
