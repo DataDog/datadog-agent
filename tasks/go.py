@@ -2,7 +2,6 @@
 Golang related tasks go here
 """
 
-import datetime
 import glob
 import os
 import shutil
@@ -15,10 +14,32 @@ from invoke.exceptions import Exit
 from .build_tags import ALL_TAGS, UNIT_TEST_TAGS, get_default_build_tags
 from .licenses import get_licenses_list
 from .modules import DEFAULT_MODULES, generate_dummy_package
-from .utils import get_build_flags
+from .utils import get_build_flags, timed
+
+GOOS_MAPPING = {
+    "win32": "windows",
+    "linux": "linux",
+    "darwin": "darwin",
+}
+GOARCH_MAPPING = {
+    "x64": "amd64",
+    "x86": "386",
+    "arm64": "arm64",
+}
 
 
-def run_golangci_lint(ctx, targets, rtloader_root=None, build_tags=None, build="test", arch="x64", concurrency=None):
+def run_golangci_lint(
+    ctx,
+    targets,
+    rtloader_root=None,
+    build_tags=None,
+    build="test",
+    arch="x64",
+    concurrency=None,
+    timeout=None,
+    verbose=False,
+    golangci_lint_kwargs="",
+):
     if isinstance(targets, str):
         # when this function is called from the command line, targets are passed
         # as comma separated tokens in a string
@@ -32,14 +53,16 @@ def run_golangci_lint(ctx, targets, rtloader_root=None, build_tags=None, build="
     tags.extend(UNIT_TEST_TAGS)
 
     _, _, env = get_build_flags(ctx, rtloader_root=rtloader_root)
+    verbosity = "-v" if verbose else ""
     # we split targets to avoid going over the memory limit from circleCI
     results = []
     for target in targets:
         print(f"running golangci on {target}")
         concurrency_arg = "" if concurrency is None else f"--concurrency {concurrency}"
-        tags_arg = " ".join(set(tags))
+        tags_arg = " ".join(sorted(set(tags)))
+        timeout_arg_value = "25m0s" if not timeout else f"{timeout}m0s"
         result = ctx.run(
-            f'golangci-lint run --timeout 20m0s {concurrency_arg} --build-tags "{tags_arg}" {target}/...',
+            f'golangci-lint run {verbosity} --timeout {timeout_arg_value} {concurrency_arg} --build-tags "{tags_arg}" {golangci_lint_kwargs} {target}/...',
             env=env,
             warn=True,
         )
@@ -49,25 +72,19 @@ def run_golangci_lint(ctx, targets, rtloader_root=None, build_tags=None, build="
 
 
 @task
-def golangci_lint(ctx, targets, rtloader_root=None, build_tags=None, build="test", arch="x64", concurrency=None):
+def golangci_lint(
+    ctx, targets, rtloader_root=None, build_tags=None, build="test", arch="x64", concurrency=None  # noqa: U100
+):
     """
     Run golangci-lint on targets using .golangci.yml configuration.
 
     Example invocation:
         inv golangci-lint --targets=./pkg/collector/check,./pkg/aggregator
+    DEPRECATED
+    Please use inv lint-go instead
     """
-    results = run_golangci_lint(ctx, targets, rtloader_root, build_tags, build, arch, concurrency)
-
-    should_fail = False
-    for result in results:
-        # golangci exits with status 1 when it finds an issue
-        if result.exited != 0:
-            should_fail = True
-
-    if should_fail:
-        raise Exit(code=1)
-    else:
-        print("golangci-lint found no issues")
+    print("WARNING: golangci-lint task is deprecated, please migrate to lint-go task")
+    raise Exit(code=1)
 
 
 @task
@@ -77,13 +94,11 @@ def deps(ctx, verbose=False):
     """
 
     print("downloading dependencies")
-    start = datetime.datetime.now()
-    verbosity = ' -x' if verbose else ''
-    for mod in DEFAULT_MODULES.values():
-        with ctx.cd(mod.full_path()):
-            ctx.run(f"go mod download{verbosity}")
-    dep_done = datetime.datetime.now()
-    print(f"go mod download, elapsed: {dep_done - start}")
+    with timed("go mod download"):
+        verbosity = ' -x' if verbose else ''
+        for mod in DEFAULT_MODULES.values():
+            with ctx.cd(mod.full_path()):
+                ctx.run(f"go mod download{verbosity}")
 
 
 @task
@@ -93,26 +108,23 @@ def deps_vendored(ctx, verbose=False):
     """
 
     print("vendoring dependencies")
-    start = datetime.datetime.now()
-    verbosity = ' -v' if verbose else ''
+    with timed("go mod vendor"):
+        verbosity = ' -v' if verbose else ''
 
-    ctx.run(f"go mod vendor{verbosity}")
-    ctx.run(f"go mod tidy{verbosity} -compat=1.17")
+        ctx.run(f"go mod vendor{verbosity}")
+        ctx.run(f"go mod tidy{verbosity} -compat=1.17")
 
-    # "go mod vendor" doesn't copy files that aren't in a package: https://github.com/golang/go/issues/26366
-    # This breaks when deps include other files that are needed (eg: .java files from gomobile): https://github.com/golang/go/issues/43736
-    # For this reason, we need to use a 3rd party tool to copy these files.
-    # We won't need this if/when we change to non-vendored modules
-    ctx.run(f'modvendor -copy="**/*.c **/*.h **/*.proto **/*.java"{verbosity}')
+        # "go mod vendor" doesn't copy files that aren't in a package: https://github.com/golang/go/issues/26366
+        # This breaks when deps include other files that are needed (eg: .java files from gomobile): https://github.com/golang/go/issues/43736
+        # For this reason, we need to use a 3rd party tool to copy these files.
+        # We won't need this if/when we change to non-vendored modules
+        ctx.run(f'modvendor -copy="**/*.c **/*.h **/*.proto **/*.java"{verbosity}')
 
-    # If github.com/DataDog/datadog-agent gets vendored too - nuke it
-    # This may happen because of the introduction of nested modules
-    if os.path.exists('vendor/github.com/DataDog/datadog-agent'):
-        print("Removing vendored github.com/DataDog/datadog-agent")
-        shutil.rmtree('vendor/github.com/DataDog/datadog-agent')
-
-    dep_done = datetime.datetime.now()
-    print(f"go mod vendor, elapsed: {dep_done - start}")
+        # If github.com/DataDog/datadog-agent gets vendored too - nuke it
+        # This may happen because of the introduction of nested modules
+        if os.path.exists('vendor/github.com/DataDog/datadog-agent'):
+            print("Removing vendored github.com/DataDog/datadog-agent")
+            shutil.rmtree('vendor/github.com/DataDog/datadog-agent')
 
 
 @task
@@ -318,7 +330,7 @@ def generate_protobuf(ctx):
 
     # generate messagepack marshallers
     for pkg, files in msgp_targets.items():
-        for (src, io_gen) in files:
+        for src, io_gen in files:
             dst = os.path.splitext(os.path.basename(src))[0]  # .go
             dst = os.path.splitext(dst)[0]  # .pb
             ctx.run(f"msgp -file {pbgo_dir}/{pkg}/{src} -o={pbgo_dir}/{pkg}/{dst}_gen.go -io={io_gen}")
@@ -389,7 +401,7 @@ def tidy_all(ctx):
 @task
 def check_go_version(ctx):
     go_version_output = ctx.run('go version')
-    # result is like "go version go1.20.7 linux/amd64"
+    # result is like "go version go1.20.8 linux/amd64"
     running_go_version = go_version_output.stdout.split(' ')[2]
 
     with open(".go-version") as f:

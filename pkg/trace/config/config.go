@@ -446,6 +446,9 @@ type AgentConfig struct {
 	// DebuggerProxy contains the settings for the Live Debugger proxy.
 	DebuggerProxy DebuggerProxyConfig
 
+	// DebuggerDiagnosticsProxy contains the settings for the Live Debugger diagnostics proxy.
+	DebuggerDiagnosticsProxy DebuggerProxyConfig
+
 	// SymDBProxy contains the settings for the Symbol Database proxy.
 	SymDBProxy SymDBProxyConfig
 
@@ -478,7 +481,7 @@ type AgentConfig struct {
 type RemoteClient interface {
 	Close()
 	Start()
-	Subscribe(string, func(update map[string]state.RawConfig))
+	Subscribe(string, func(update map[string]state.RawConfig, applyStateCallback func(string, state.ApplyStatus)))
 	UpdateApplyStatus(cfgPath string, status state.ApplyStatus)
 }
 

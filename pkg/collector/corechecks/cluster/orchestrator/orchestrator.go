@@ -10,6 +10,7 @@ package orchestrator
 import (
 	"context"
 	"errors"
+	"fmt"
 	"math/rand"
 	"time"
 
@@ -129,7 +130,7 @@ func (o *OrchestratorCheck) Configure(senderManager sender.SenderManager, integr
 	// load instance level config
 	err = o.instance.parse(config)
 	if err != nil {
-		_ = log.Error("could not parse check instance config")
+		_ = log.Errorc("could not parse check instance config", orchestrator.ExtraLogContext...)
 		return err
 	}
 
@@ -172,7 +173,7 @@ func (o *OrchestratorCheck) Run() error {
 	if !o.isCLCRunner || !o.instance.LeaderSkip {
 		// Only run if Leader Election is enabled.
 		if !config.Datadog.GetBool("leader_election") {
-			return log.Error("Leader Election not enabled. The cluster-agent will not run the check.")
+			return log.Errorc("Leader Election not enabled. The cluster-agent will not run the check.", orchestrator.ExtraLogContext...)
 		}
 
 		leader, errLeader := cluster.RunLeaderElection()
@@ -197,7 +198,7 @@ func (o *OrchestratorCheck) Run() error {
 
 // Cancel cancels the orchestrator check
 func (o *OrchestratorCheck) Cancel() {
-	log.Infof("Shutting down informers used by the check '%s'", o.ID())
+	log.Infoc(fmt.Sprintf("Shutting down informers used by the check '%s'", o.ID()), orchestrator.ExtraLogContext...)
 	close(o.stopCh)
 }
 

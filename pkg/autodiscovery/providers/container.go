@@ -181,7 +181,7 @@ func (k *ContainerConfigProvider) generateConfig(e workloadmeta.Entity) ([]integ
 	case *workloadmeta.KubernetesPod:
 		containerIdentifiers := map[string]struct{}{}
 		containerNames := map[string]struct{}{}
-		for _, podContainer := range entity.Containers {
+		for _, podContainer := range entity.GetAllContainers() {
 			container, err := k.workloadmetaStore.GetContainer(podContainer.ID)
 			if err != nil {
 				log.Debugf("Pod %q has reference to non-existing container %q", entity.Name, podContainer.ID)

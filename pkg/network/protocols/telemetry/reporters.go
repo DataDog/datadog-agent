@@ -9,6 +9,7 @@ import (
 	"sync"
 
 	"github.com/DataDog/datadog-go/v5/statsd"
+	"k8s.io/apimachinery/pkg/util/sets"
 )
 
 // common prefix used across all statsd metric
@@ -28,7 +29,7 @@ func ReportStatsd() {
 	for _, metric := range metrics {
 		v := previousValues.ValueFor(metric)
 		base := metric.base()
-		tags := base.tags.List()
+		tags := sets.List(base.tags)
 		if _, ok := metric.(*Gauge); ok {
 			client.Gauge(statsdPrefix+base.name, float64(v), tags, 1.0) //nolint:errcheck
 			continue

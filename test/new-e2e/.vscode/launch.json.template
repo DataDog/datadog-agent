@@ -1,0 +1,14 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "agent-sandbox: test current file",
+            "type": "go",
+            "request": "launch",
+            "mode": "test",
+            "program": "${file}",
+            "preLaunchTask": "aws-vault-wrap",
+            "envFile": "{workspaceFolder}/aws-vault-wrap.env"
+        }
+    ]
+}

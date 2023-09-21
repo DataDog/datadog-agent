@@ -5,6 +5,7 @@
 
 //go:build linux
 
+// Package tests implements the test suite of our compliance package.
 package tests
 
 import (
@@ -20,7 +21,7 @@ func TestAuditInput(t *testing.T) {
 		t.Skipf("could not create audit client: %v", err)
 	}
 
-	b := NewTestBench(t).
+	b := newTestBench(t).
 		WithAuditClient(cl)
 	defer b.Run()
 

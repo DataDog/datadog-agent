@@ -233,6 +233,32 @@ const (
 // The constructor of SSLProgram requires more parameters than we provide in the general way, thus we need to have
 // a dynamic initialization.
 var opensslSpec = &protocols.ProtocolSpec{
+	Maps: []*manager.Map{
+		{
+			Name: sslSockByCtxMap,
+		},
+		{
+			Name: "ssl_read_args",
+		},
+		{
+			Name: "ssl_read_ex_args",
+		},
+		{
+			Name: "ssl_write_args",
+		},
+		{
+			Name: "ssl_write_ex_args",
+		},
+		{
+			Name: "bio_new_socket_args",
+		},
+		{
+			Name: "fd_by_ssl_bio",
+		},
+		{
+			Name: "ssl_ctx_by_pid_tgid",
+		},
+	},
 	Probes: []*manager.Probe{
 		{
 			ProbeIdentificationPair: manager.ProbeIdentificationPair{
@@ -386,7 +412,7 @@ type sslProgram struct {
 
 func newSSLProgramProtocolFactory(m *manager.Manager, sockFDMap *ebpf.Map, bpfTelemetry *errtelemetry.EBPFTelemetry) protocols.ProtocolFactory {
 	return func(c *config.Config) (protocols.Protocol, error) {
-		if (!c.EnableHTTPSMonitoring || !http.HTTPSSupported(c)) && !c.EnableIstioMonitoring {
+		if (!c.EnableNativeTLSMonitoring || !http.HTTPSSupported(c)) && !c.EnableIstioMonitoring {
 			return nil, nil
 		}
 
@@ -394,7 +420,7 @@ func newSSLProgramProtocolFactory(m *manager.Manager, sockFDMap *ebpf.Map, bpfTe
 			watcher *sharedlibraries.Watcher
 			err     error
 		)
-		if c.EnableHTTPSMonitoring && http.HTTPSSupported(c) {
+		if c.EnableNativeTLSMonitoring && http.HTTPSSupported(c) {
 			watcher, err = sharedlibraries.NewWatcher(c, bpfTelemetry,
 				sharedlibraries.Rule{
 					Re:           regexp.MustCompile(`libssl.so`),
@@ -443,7 +469,7 @@ func (o *sslProgram) ConfigureOptions(_ *manager.Manager, options *manager.Optio
 	options.MapEditors[probes.SockByPidFDMap] = o.sockFDMap
 }
 
-func (o *sslProgram) PreStart(*manager.Manager, protocols.BuildMode) error {
+func (o *sslProgram) PreStart(*manager.Manager) error {
 	o.watcher.Start()
 	o.istioMonitor.Start()
 	return nil

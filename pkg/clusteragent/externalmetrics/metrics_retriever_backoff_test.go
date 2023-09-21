@@ -37,7 +37,7 @@ func (p *mockedProcessorWithBackoff) UpdateExternalMetrics(emList map[string]cus
 func (p *mockedProcessorWithBackoff) QueryExternalMetric(queries []string, timeWindow time.Duration) (map[string]autoscalers.Point, error) {
 	p.extQueryCounter++
 	// Sort for slice comparison
-	sort.Sort(sort.StringSlice(queries))
+	sort.Strings(queries)
 	p.queryCapture = append(p.queryCapture, queries)
 	// Sort slices by first element, slices should be disjoint
 	sort.Slice(p.queryCapture, func(i, j int) bool {
@@ -46,10 +46,10 @@ func (p *mockedProcessorWithBackoff) QueryExternalMetric(queries []string, timeW
 
 	if p.errIndex == len(p.err)-1 {
 		return p.points, p.err[p.errIndex]
-	} else {
-		p.errIndex++
-		return p.points, p.err[p.errIndex]
 	}
+
+	p.errIndex++
+	return p.points, p.err[p.errIndex]
 }
 
 func (p *mockedProcessorWithBackoff) ProcessEMList(emList []custommetrics.ExternalMetricValue) map[string]custommetrics.ExternalMetricValue {

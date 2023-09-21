@@ -10,6 +10,7 @@ package tracer
 import (
 	"bufio"
 	"bytes"
+	"context"
 	"fmt"
 	"io"
 	"math"
@@ -1013,29 +1014,26 @@ func (s *TracerSuite) TestSelfConnect() {
 	cfg.TCPConnTimeout = 3 * time.Second
 	tr := setupTracer(t, cfg)
 
-	started := make(chan struct{})
-	cmd := exec.Command("testdata/fork.py")
-	stdOutReader, stdOutWriter := io.Pipe()
-	go func() {
-		var stderr bytes.Buffer
-		cmd.Stderr = &stderr
-		cmd.Stdout = stdOutWriter
-		err := cmd.Start()
-		close(started)
-		require.NoError(t, err)
+	ctx, cancel := context.WithTimeout(context.Background(), 1*time.Minute)
+	t.Cleanup(cancel)
+
+	cmd := exec.CommandContext(ctx, "testdata/fork.py")
+	var stderr bytes.Buffer
+	cmd.Stderr = &stderr
+	cmd.WaitDelay = 10 * time.Second
+	stdOutReader, err := cmd.StdoutPipe()
+	require.NoError(t, err)
+	require.NoError(t, cmd.Start())
+	t.Cleanup(func() {
+		cancel()
 		if err := cmd.Wait(); err != nil {
 			status := cmd.ProcessState.Sys().(syscall.WaitStatus)
-			require.Equal(t, syscall.SIGKILL, status.Signal(), "fork.py output: %s", stderr.String())
+			assert.Equal(t, syscall.SIGKILL, status.Signal(), "fork.py output: %s", stderr.String())
 		}
-	}()
-
-	<-started
-
-	defer cmd.Process.Kill()
+	})
 
 	portStr, err := bufio.NewReader(stdOutReader).ReadString('\n')
 	require.NoError(t, err, "error reading port from fork.py")
-	stdOutReader.Close()
 
 	port, err := strconv.ParseUint(strings.TrimSpace(portStr), 10, 16)
 	require.NoError(t, err, "could not convert %s to integer port", portStr)
@@ -1846,7 +1844,7 @@ func (s *TracerSuite) TestGetMapsTelemetry() {
 	err := exec.Command(cmd[0], cmd[1:]...).Run()
 	require.NoError(t, err)
 
-	stats, err := tr.GetStats()
+	stats, err := tr.getStats(bpfMapStats)
 	require.NoError(t, err)
 
 	mapsTelemetry, ok := stats[telemetry.EBPFMapTelemetryNS].(map[string]interface{})
@@ -1883,7 +1881,7 @@ func (s *TracerSuite) TestGetHelpersTelemetry() {
 
 	t.Setenv("DD_SYSTEM_PROBE_SERVICE_MONITORING_ENABLED", "true")
 	cfg := testConfig()
-	cfg.EnableHTTPSMonitoring = true
+	cfg.EnableNativeTLSMonitoring = true
 	cfg.EnableHTTPMonitoring = true
 	tr := setupTracer(t, cfg)
 
@@ -1904,7 +1902,7 @@ func (s *TracerSuite) TestGetHelpersTelemetry() {
 		syscall.Syscall(syscall.SYS_MUNMAP, uintptr(addr), uintptr(syscall.Getpagesize()), 0)
 	})
 
-	stats, err := tr.GetStats()
+	stats, err := tr.getStats(bpfHelperStats)
 	require.NoError(t, err)
 
 	helperTelemetry, ok := stats[telemetry.EBPFHelperTelemetryNS].(map[string]interface{})

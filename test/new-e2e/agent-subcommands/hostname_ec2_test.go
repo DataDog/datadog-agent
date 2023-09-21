@@ -6,11 +6,10 @@
 package agentsubcommands
 
 import (
-	"fmt"
 	"testing"
 
-	"github.com/DataDog/datadog-agent/test/new-e2e/utils/e2e"
-	"github.com/DataDog/datadog-agent/test/new-e2e/utils/e2e/client"
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e"
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client"
 	"github.com/DataDog/test-infra-definitions/components/datadog/agentparams"
 	"github.com/stretchr/testify/assert"
 )
@@ -31,8 +30,8 @@ func (v *agentHostnameSuite) TestAgentHostnameDefaultsToResourceId() {
 	hostname := v.Env().Agent.Hostname()
 
 	// Default configuration of hostname for EC2 instances is the resource-id
-	resourceId := metadata.Get("instance-id")
-	assert.Equal(v.T(), hostname, resourceId)
+	resourceID := metadata.Get("instance-id")
+	assert.Equal(v.T(), hostname, resourceID)
 }
 
 func (v *agentHostnameSuite) TestAgentConfigHostnameVarOverride() {
@@ -44,8 +43,7 @@ func (v *agentHostnameSuite) TestAgentConfigHostnameVarOverride() {
 
 func (v *agentHostnameSuite) TestAgentConfigHostnameFileOverride() {
 	fileContent := "hostname.from.file"
-	v.Env().VM.Execute(fmt.Sprintf(`echo "%s" | tee /tmp/hostname`, fileContent))
-	v.UpdateEnv(e2e.AgentStackDef(nil, agentparams.WithAgentConfig("hostname_file: /tmp/hostname")))
+	v.UpdateEnv(e2e.AgentStackDef(nil, agentparams.WithFile("/tmp/var/hostname", fileContent, false), agentparams.WithAgentConfig("hostname_file: /tmp/var/hostname")))
 
 	hostname := v.Env().Agent.Hostname()
 	assert.Equal(v.T(), hostname, fileContent)
@@ -77,6 +75,6 @@ func (v *agentHostnameSuite) TestAgentConfigPreferImdsv2() {
 	metadata := client.NewEC2Metadata(v.Env().VM)
 
 	hostname := v.Env().Agent.Hostname()
-	resourceId := metadata.Get("instance-id")
-	assert.Equal(v.T(), hostname, resourceId)
+	resourceID := metadata.Get("instance-id")
+	assert.Equal(v.T(), hostname, resourceID)
 }

@@ -44,6 +44,7 @@ def split_junitxml(xml_path, codeowners, output_dir):
     """
     tree = ET.parse(xml_path)
     output_xmls = {}
+    jira_cache = {}  # To save calls to jira as children tests share the same card
 
     flem = tree.find("flavor")
     flavor = flem.text if flem else AgentFlavor.base.name
@@ -69,6 +70,14 @@ def split_junitxml(xml_path, codeowners, output_dir):
         except KeyError:
             xml = ET.ElementTree(ET.Element("testsuites"))
             output_xmls[main_owner] = xml
+        # Add reference to the test jira card for each failed test case, if any
+        jira_project = GITHUB_JIRA_MAP.get(f"{CODEOWNERS_ORG_PREFIX}{main_owner}".casefold(), DEFAULT_JIRA_PROJECT)
+        for test_case in suite.iter("testcase"):
+            if any(child.tag == "failure" for child in test_case):
+                # Keep only the parent test name (remove all after the first '/' in test_case name)
+                test_name = f"{path}/{test_case.attrib['name'].split('/')[0]}"
+                jira_card = retrieve_jira_card(test_name, jira_project, jira_cache)
+                test_case.attrib["jira_card"] = jira_card
         xml.getroot().append(suite)
 
     for owner, xml in output_xmls.items():
@@ -92,6 +101,7 @@ def upload_junitxmls(output_dir, owners, flavor, xmlfile_name, additional_tags=N
         process_env.update(job_env)
 
     for owner in owners:
+        junit_file_path = os.path.join(output_dir, owner + ".xml")
         codeowner = CODEOWNERS_ORG_PREFIX + owner
         slack_channel = GITHUB_SLACK_MAP.get(codeowner.lower(), DEFAULT_SLACK_CHANNEL)[1:]
         jira_project = GITHUB_JIRA_MAP.get(codeowner.lower(), DEFAULT_JIRA_PROJECT)[0:]
@@ -117,7 +127,7 @@ def upload_junitxmls(output_dir, owners, flavor, xmlfile_name, additional_tags=N
 
         if additional_tags:
             args.extend(additional_tags)
-        args.append(os.path.join(output_dir, owner + ".xml"))
+        args.append(junit_file_path)
         processes.append(subprocess.Popen(DATADOG_CI_COMMAND + args, bufsize=-1, env=process_env))
     for process in processes:
         exit_code = process.wait()
@@ -246,3 +256,44 @@ def repack_macos_junit_tar(infile, outfile):
         # pack all files to a new tarball
         for f in os.listdir(tempd):
             outfp.add(os.path.join(tempd, f), arcname=f)
+
+
+def retrieve_jira_card(test_name, jira_project, jira_cache):
+    """
+    Search in jira if a card already exist for the given test
+    """
+    if test_name in jira_cache:
+        return jira_cache[test_name]
+
+    jira_card = ""
+    try:
+        jira_token = os.environ["JIRA_TOKEN"]
+        auth = ("robot-jira-agentplatform@datadoghq.com", jira_token)
+    except KeyError:
+        print(f"Failed to retrieve jira token in environment, won't retrieve jira cards, report {jira_card}")
+        jira_card = "ERROR-TOKEN"
+        # See https://app.datadoghq.com/workflow/42375aaf-9a77-4b93-ad51-9a5f524b570d
+        return jira_card
+
+    from jira import JIRA
+
+    try:
+        j = JIRA(basic_auth=auth, server="https://datadoghq.atlassian.net/")
+        project = j.project(jira_project)
+        search_query = f'project = "{project.name}" and summary ~ "{test_name}" and status != Done'
+        issues = j.search_issues(search_query)
+        if len(issues) == 0:
+            jira_card = ""
+        else:  # One or more ticket retrieved: take the oldest = last one as search return in id decreasing order
+            jira_card = issues[-1].key
+            if len(issues) > 1:
+                message = f"Found several jira issues for the test {test_name}: {[x.key for x in issues]}"
+                print(message)
+        jira_cache[test_name] = jira_card  # do not forget to update the cache
+    except Exception as e:
+        # Catch whatever issue from jira api and send an information, XYZ-123, handled in the wokflow
+        # See https://app.datadoghq.com/workflow/42375aaf-9a77-4b93-ad51-9a5f524b570d
+        jira_card = "ERROR-API"
+        print(e)
+    print(f"Attach {jira_card} to failed {test_name}")
+    return jira_card

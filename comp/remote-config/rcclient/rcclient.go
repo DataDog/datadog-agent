@@ -95,11 +95,11 @@ func (rc rcClient) SubscribeAgentTask() {
 	rc.client.Subscribe(state.ProductAgentTask, rc.agentTaskUpdateCallback)
 }
 
-func (rc rcClient) Subscribe(product data.Product, fn func(update map[string]state.RawConfig)) {
+func (rc rcClient) Subscribe(product data.Product, fn func(update map[string]state.RawConfig, applyStateCallback func(string, state.ApplyStatus))) {
 	rc.client.Subscribe(string(product), fn)
 }
 
-func (rc rcClient) agentConfigUpdateCallback(updates map[string]state.RawConfig) {
+func (rc rcClient) agentConfigUpdateCallback(updates map[string]state.RawConfig, applyStateCallback func(string, state.ApplyStatus)) {
 	mergedConfig, err := state.MergeRCAgentConfig(rc.client.UpdateApplyStatus, updates)
 	if err != nil {
 		return
@@ -164,9 +164,9 @@ func (rc rcClient) agentConfigUpdateCallback(updates map[string]state.RawConfig)
 	// Apply the new status to all configs
 	for cfgPath := range updates {
 		if err == nil {
-			rc.client.UpdateApplyStatus(cfgPath, state.ApplyStatus{State: state.ApplyStateAcknowledged})
+			applyStateCallback(cfgPath, state.ApplyStatus{State: state.ApplyStateAcknowledged})
 		} else {
-			rc.client.UpdateApplyStatus(cfgPath, state.ApplyStatus{
+			applyStateCallback(cfgPath, state.ApplyStatus{
 				State: state.ApplyStateError,
 				Error: err.Error(),
 			})
@@ -177,7 +177,7 @@ func (rc rcClient) agentConfigUpdateCallback(updates map[string]state.RawConfig)
 // agentTaskUpdateCallback is the callback function called when there is an AGENT_TASK config update
 // The RCClient can directly call back listeners, because there would be no way to send back
 // RCTE2 configuration applied state to RC backend.
-func (rc rcClient) agentTaskUpdateCallback(updates map[string]state.RawConfig) {
+func (rc rcClient) agentTaskUpdateCallback(updates map[string]state.RawConfig, applyStateCallback func(string, state.ApplyStatus)) {
 	rc.m.Lock()
 	defer rc.m.Unlock()
 	for configPath, c := range updates {
@@ -195,7 +195,7 @@ func (rc rcClient) agentTaskUpdateCallback(updates map[string]state.RawConfig) {
 			rc.taskProcessed[task.Config.UUID] = true
 
 			// Mark it as unack first
-			rc.client.UpdateApplyStatus(configPath, state.ApplyStatus{
+			applyStateCallback(configPath, state.ApplyStatus{
 				State: state.ApplyStateUnacknowledged,
 			})
 
@@ -216,17 +216,17 @@ func (rc rcClient) agentTaskUpdateCallback(updates map[string]state.RawConfig) {
 			}
 			if processed && err != nil {
 				// One failure
-				rc.client.UpdateApplyStatus(configPath, state.ApplyStatus{
+				applyStateCallback(configPath, state.ApplyStatus{
 					State: state.ApplyStateError,
 					Error: err.Error(),
 				})
 			} else if processed && err == nil {
 				// Only success
-				rc.client.UpdateApplyStatus(configPath, state.ApplyStatus{
+				applyStateCallback(configPath, state.ApplyStatus{
 					State: state.ApplyStateAcknowledged,
 				})
 			} else {
-				rc.client.UpdateApplyStatus(configPath, state.ApplyStatus{
+				applyStateCallback(configPath, state.ApplyStatus{
 					State: state.ApplyStateUnknown,
 				})
 			}

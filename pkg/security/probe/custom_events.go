@@ -7,6 +7,7 @@
 
 //go:build linux
 
+// Package probe holds probe related files
 package probe
 
 import (
@@ -73,7 +74,7 @@ type AbnormalEvent struct {
 	Error string                       `json:"error"`
 }
 
-// NewAbnormalPathEvent returns the rule and a populated custom event for a abnormal_path event
+// NewAbnormalEvent returns the rule and a populated custom event for a abnormal event
 func NewAbnormalEvent(id string, description string, event *model.Event, probe *Probe, err error) (*rules.Rule, *events.CustomEvent) {
 	marshalerCtor := func() easyjson.Marshaler {
 		evt := AbnormalEvent{

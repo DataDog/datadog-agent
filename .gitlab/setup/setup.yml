@@ -7,4 +7,5 @@ setup_agent_version:
     - source /root/.bashrc
     - inv -e agent.version --version-cached
     - $S3_CP_CMD $CI_PROJECT_DIR/agent-version.cache $S3_ARTIFACTS_URI/agent-version.cache
+  needs: []
 

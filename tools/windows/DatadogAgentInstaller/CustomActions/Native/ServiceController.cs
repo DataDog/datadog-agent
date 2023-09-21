@@ -93,6 +93,11 @@ namespace Datadog.CustomActions.Native
         public void StopService(string serviceName, TimeSpan timeout)
         {
             var svc = new System.ServiceProcess.ServiceController(serviceName);
+            // If service is starting, wait for it to finish
+            if (svc.Status == ServiceControllerStatus.StartPending)
+            {
+                _ = WaitForStatusChange(svc, ServiceControllerStatus.StartPending, timeout).Result;
+            }
             if (!(svc.Status == ServiceControllerStatus.Stopped || svc.Status == ServiceControllerStatus.StopPending))
             {
                 svc.Stop();
