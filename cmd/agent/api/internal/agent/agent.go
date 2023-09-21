@@ -486,7 +486,7 @@ func getDiagnose(w http.ResponseWriter, r *http.Request) {
 
 	// Reset the `server_timeout` deadline for this connection as running diagnose code in Agent process can take some time
 	conn := GetConnection(r)
-	_ = conn.SetDeadline(time.Time{})
+	_ = conn.SetDeadline(time.Now().Add(2 * time.Minute))
 
 	// Indicate that we are already running in Agent process (and flip RunLocal)
 	diagCfg.RunningInAgentProcess = true
