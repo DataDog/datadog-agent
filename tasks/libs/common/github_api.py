@@ -161,7 +161,7 @@ class GithubAPI:
         """
         workflow = self._repository.get_workflow(workflow_name)
         date_filter = f"%3E{oldest_date.strftime('%Y-%m-%dT%H:%M')}"
-        runs = workflow.get_run(create=date_filter, branch=ref)
+        runs = workflow.get_runs(create=date_filter, branch=ref)
         return runs
 
     def _chose_auth(self):
