@@ -599,7 +599,7 @@ func convertMetadata(in *cyclonedx.Metadata) *cyclonedx_v1_4.Metadata {
 		return nil
 	}
 
-	var licenses *cyclonedx_v1_4.LicenseChoice = nil
+	var licenses *cyclonedx_v1_4.LicenseChoice
 	if in.Licenses != nil && len(*in.Licenses) > 0 {
 		licenses = convertLicenseChoice(&(*in.Licenses)[0])
 	}
@@ -827,7 +827,7 @@ func convertSwid(in *cyclonedx.SWID) *cyclonedx_v1_4.Swid {
 		return nil
 	}
 
-	var tagVersion *int32 = nil
+	var tagVersion *int32
 	if in.TagVersion != nil {
 		tagVersion = pointer.Ptr(int32(*in.TagVersion))
 	}
