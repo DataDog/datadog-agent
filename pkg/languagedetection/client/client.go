@@ -170,8 +170,8 @@ func NewClient(
 	}
 }
 
-// getContainerNameFromPod returns the name of the container, if it is an init container and if it is found
-func getContainerNameFromPod(cid string, pod *workloadmeta.KubernetesPod) (string, bool, bool) {
+// getContainerInfoFromPod returns the name of the container, if it is an init container and if it is found
+func getContainerInfoFromPod(cid string, pod *workloadmeta.KubernetesPod) (string, bool, bool) {
 	for _, container := range pod.Containers {
 		if container.ID == cid {
 			return container.Name, false, true
@@ -179,7 +179,7 @@ func getContainerNameFromPod(cid string, pod *workloadmeta.KubernetesPod) (strin
 	}
 	for _, container := range pod.InitContainers {
 		if container.ID == cid {
-			return container.Name, true, false
+			return container.Name, true, true
 		}
 	}
 	return "", false, false
@@ -246,7 +246,7 @@ func (c *Client) processEvent(evBundle workloadmeta.EventBundle) {
 				log.Debug("pod %s has no owner, skipping %s", pod.Name, process.ID)
 				continue
 			}
-			containerName, isInitcontainer, ok := getContainerNameFromPod(process.ContainerId, pod)
+			containerName, isInitcontainer, ok := getContainerInfoFromPod(process.ContainerId, pod)
 			if !ok {
 				log.Debug("container name not found for %s", process.ContainerId)
 				continue
@@ -271,7 +271,7 @@ func (c *Client) StreamLanguages() {
 				workloadmeta.KindProcess,
 			},
 			workloadmeta.SourceAll,
-			workloadmeta.EventTypeAll,
+			workloadmeta.EventTypeSet,
 		),
 	)
 
@@ -296,7 +296,7 @@ func (c *Client) StreamLanguages() {
 			}
 			c.flush()
 		case <-metricTicker.C:
-			Running.Set(1.0)
+			Running.Set(1)
 		case <-c.ctx.Done():
 			return
 		}

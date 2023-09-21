@@ -97,6 +97,20 @@ func TestClientProcessEvent(t *testing.T) {
 		},
 	}
 
+	initContainer := &workloadmeta.Container{
+		EntityID: workloadmeta.EntityID{
+			ID:   "init-nginx-cont-id",
+			Kind: workloadmeta.KindContainer,
+		},
+		EntityMeta: workloadmeta.EntityMeta{
+			Name: "nginx-cont-name",
+		},
+		Owner: &workloadmeta.EntityID{
+			ID:   "nginx-pod-id",
+			Kind: workloadmeta.KindKubernetesPod,
+		},
+	}
+
 	pod := &workloadmeta.KubernetesPod{
 		EntityID: workloadmeta.EntityID{
 			ID:   "nginx-pod-id",
@@ -109,6 +123,12 @@ func TestClientProcessEvent(t *testing.T) {
 		Containers: []workloadmeta.OrchestratorContainer{
 			{
 				ID:   "nginx-cont-id",
+				Name: "nginx-cont-name",
+			},
+		},
+		InitContainers: []workloadmeta.OrchestratorContainer{
+			{
+				ID:   "init-nginx-cont-id",
 				Name: "nginx-cont-name",
 			},
 		},
@@ -132,8 +152,23 @@ func TestClientProcessEvent(t *testing.T) {
 		ContainerId: "nginx-cont-id",
 	}
 
+	initProcess := &workloadmeta.Process{
+		EntityID: workloadmeta.EntityID{
+			Kind: workloadmeta.KindProcess,
+			ID:   "123",
+		},
+		Language: &languagemodels.Language{
+			Name: "go",
+		},
+		ContainerId: "init-nginx-cont-id",
+	}
+
 	eventBundle := workloadmeta.EventBundle{
 		Events: []workloadmeta.Event{
+			{
+				Entity: initProcess,
+				Type:   workloadmeta.EventTypeSet,
+			},
 			{
 				Entity: process,
 				Type:   workloadmeta.EventTypeSet,
@@ -147,6 +182,16 @@ func TestClientProcessEvent(t *testing.T) {
 			Type:   workloadmeta.EventTypeSet,
 			Source: workloadmeta.SourceAll,
 			Entity: container,
+		},
+		{
+			Type:   workloadmeta.EventTypeSet,
+			Source: workloadmeta.SourceAll,
+			Entity: initContainer,
+		},
+		{
+			Type:   workloadmeta.EventTypeSet,
+			Source: workloadmeta.SourceAll,
+			Entity: initProcess,
 		},
 		{
 			Type:   workloadmeta.EventTypeSet,
@@ -165,34 +210,170 @@ func TestClientProcessEvent(t *testing.T) {
 	client.processEvent(eventBundle)
 
 	assert.NotEmpty(t, client.currentBatch.podDetails)
-}
-
-func TestGetContainerNameFromPod(t *testing.T) {
-	pod := &workloadmeta.KubernetesPod{
-		Containers: []workloadmeta.OrchestratorContainer{
-			{
-				ID:   "java-id",
-				Name: "java-name",
+	assert.Equal(t,
+		map[string]*podDetails{
+			"nginx-pod-name": {
+				namespace: "nginx-pod-namespace",
+				containersLanguages: &containerDetails{
+					map[string]*languagesSet{
+						"nginx-cont-name": {
+							languages: map[string]struct{}{"java": {}},
+						},
+					},
+				},
+				initContainerLanguages: &containerDetails{
+					map[string]*languagesSet{
+						"nginx-cont-name": {
+							languages: map[string]struct{}{"go": {}},
+						},
+					},
+				},
+				ownerRef: &workloadmeta.KubernetesPodOwner{
+					ID:   "nginx-replicaset-id",
+					Name: "nginx-replicaset-name",
+					Kind: "replicaset",
+				},
 			},
 		},
-	}
-	name, ok := getContainerNameFromPod("java-id", pod)
+		client.currentBatch.podDetails,
+	)
+}
 
-	assert.Equal(t, "java-name", name)
-	assert.True(t, ok)
+func TestGetContainerInfoFromPod(t *testing.T) {
+	tests := []struct {
+		name            string
+		containerID     string
+		pod             *workloadmeta.KubernetesPod
+		expectedName    string
+		isInitContainer bool
+		found           bool
+	}{
+		{
+			name:        "not found",
+			containerID: "cid",
+			pod: &workloadmeta.KubernetesPod{
+				Containers: []workloadmeta.OrchestratorContainer{
+					{
+						ID:   "java-id",
+						Name: "java-name",
+					},
+				},
+				InitContainers: []workloadmeta.OrchestratorContainer{
+					{
+						ID:   "java-id-2",
+						Name: "java-name",
+					},
+				},
+			},
+			expectedName:    "",
+			isInitContainer: false,
+			found:           false,
+		},
+		{
+			name:        "init container",
+			containerID: "java-id-2",
+			pod: &workloadmeta.KubernetesPod{
+				Containers: []workloadmeta.OrchestratorContainer{
+					{
+						ID:   "java-id",
+						Name: "java-name",
+					},
+				},
+				InitContainers: []workloadmeta.OrchestratorContainer{
+					{
+						ID:   "java-id-2",
+						Name: "java-name-2",
+					},
+				},
+			},
+			expectedName:    "java-name-2",
+			isInitContainer: true,
+			found:           true,
+		},
+		{
+			name:        "normal container",
+			containerID: "java-id",
+			pod: &workloadmeta.KubernetesPod{
+				Containers: []workloadmeta.OrchestratorContainer{
+					{
+						ID:   "java-id",
+						Name: "java-name",
+					},
+				},
+				InitContainers: []workloadmeta.OrchestratorContainer{
+					{
+						ID:   "java-id-2",
+						Name: "java-name-2",
+					},
+				},
+			},
+			expectedName:    "java-name",
+			isInitContainer: false,
+			found:           true,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			name, isInitContainer, ok := getContainerInfoFromPod(tt.containerID, tt.pod)
+			assert.Equal(t, tt.expectedName, name)
+			assert.Equal(t, tt.isInitContainer, isInitContainer)
+			assert.Equal(t, tt.found, ok)
+		})
+	}
 }
 
 func TestPodHasOwner(t *testing.T) {
-	pod := &workloadmeta.KubernetesPod{
-		Owners: []workloadmeta.KubernetesPodOwner{
-			{
-				ID:   "id",
-				Name: "name",
-				Kind: "kind",
+	tests := []struct {
+		name     string
+		pod      *workloadmeta.KubernetesPod
+		expected bool
+	}{
+		{
+			name: "has one owner",
+			pod: &workloadmeta.KubernetesPod{
+				Owners: []workloadmeta.KubernetesPodOwner{
+					{
+						ID:   "id",
+						Name: "name",
+						Kind: "kind",
+					},
+				},
 			},
+			expected: true,
+		},
+		{
+			name: "has two owners",
+			pod: &workloadmeta.KubernetesPod{
+				Owners: []workloadmeta.KubernetesPodOwner{
+					{
+						ID:   "id",
+						Name: "name",
+						Kind: "kind",
+					},
+					{
+						ID:   "id-2",
+						Name: "name-2",
+						Kind: "kind",
+					},
+				},
+			},
+			expected: true,
+		},
+		{
+			name:     "owner is nil",
+			pod:      &workloadmeta.KubernetesPod{},
+			expected: false,
+		},
+		{
+			name:     "owner is empty",
+			pod:      &workloadmeta.KubernetesPod{Owners: []workloadmeta.KubernetesPodOwner{}},
+			expected: false,
 		},
 	}
-	hasOwner := podHasOwner(pod)
-
-	assert.True(t, hasOwner)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			hasOwner := podHasOwner(tt.pod)
+			assert.Equal(t, tt.expected, hasOwner)
+		})
+	}
 }
