@@ -58,6 +58,11 @@ func buildLogsMap(_ PipelineConfig) (*confmap.Conf, error) {
 	if err != nil {
 		return nil, err
 	}
+	smap := make(map[string]interface{})
+	smap[buildKey("service", "pipelines", "traces", "receivers")] = []interface{}{"otlp", "filelog"}
+	configMap := confmap.NewFromStringMap(smap)
+	baseMap.Merge(configMap)
+	fmt.Printf("#### baseMap :%#v \n", baseMap)
 	return baseMap, err
 }
 
