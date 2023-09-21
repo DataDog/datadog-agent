@@ -80,6 +80,7 @@ build do
                 delete "#{install_dir}/embedded/bin/2to3"
                 link "#{install_dir}/embedded/bin/2to3-3.9", "#{install_dir}/embedded/bin/2to3"
             end
+            delete "#{install_dir}/embedded/lib/config_guess"
         end
 
         if linux?
