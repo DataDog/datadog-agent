@@ -283,6 +283,8 @@ func (e *RuleEngine) LoadPolicies(policyProviders []rules.PolicyProvider, sendLo
 func (e *RuleEngine) gatherPolicyProviders() []rules.PolicyProvider {
 	var policyProviders []rules.PolicyProvider
 
+	policyProviders = append(policyProviders, &BundledPolicyProvider{})
+
 	// add remote config as config provider if enabled.
 	if e.config.RemoteConfigurationEnabled {
 		rcPolicyProvider, err := rconfig.NewRCPolicyProvider()
