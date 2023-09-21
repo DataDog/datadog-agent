@@ -6,6 +6,7 @@
 package profiledefinition
 
 import (
+	"encoding/json"
 	"sort"
 
 	"github.com/mohae/deepcopy"
@@ -47,17 +48,36 @@ func NewProfileDefinition() *ProfileDefinition {
 	return p
 }
 
-// DeepCopy make a deepcopy
-func (d *DeviceProfileRcConfig) DeepCopy() *DeviceProfileRcConfig {
+// UnmarshallFromRc creates a new ProfileDefinition from RC Config []byte
+func UnmarshallFromRc(config []byte) (*DeviceProfileRcConfig, error) {
+	profile := &DeviceProfileRcConfig{}
+	err := json.Unmarshal(config, profile)
+	if err != nil {
+		return nil, err
+	}
+	return profile.convertToAgentFormat(), nil
+}
+
+// MarshallForRc to []byte for RC.
+func (d *DeviceProfileRcConfig) MarshallForRc() ([]byte, error) {
+	conf, err := json.Marshal(d.convertToRcFormat())
+	if err != nil {
+		return nil, err
+	}
+	return conf, nil
+}
+
+// deepCopy make a deepcopy
+func (d *DeviceProfileRcConfig) deepCopy() *DeviceProfileRcConfig {
 	newProfile := deepcopy.Copy(*d).(DeviceProfileRcConfig)
 	return &newProfile
 }
 
-// ConvertToRcFormat will normalize the device profile in-place to make it suitable for RC
-// This operation is opposite to ConvertToAgentFormat
+// convertToRcFormat will normalize the device profile in-place to make it suitable for RC
+// This operation is opposite to convertToAgentFormat
 // Profiles are converted into RC format before being stored in RC.
-func (d *DeviceProfileRcConfig) ConvertToRcFormat() *DeviceProfileRcConfig {
-	newProfile := d.DeepCopy()
+func (d *DeviceProfileRcConfig) convertToRcFormat() *DeviceProfileRcConfig {
+	newProfile := d.deepCopy()
 	for i := range newProfile.Profile.Metrics {
 		metric := &newProfile.Profile.Metrics[i]
 		for j := range metric.MetricTags {
@@ -135,11 +155,11 @@ func (d *DeviceProfileRcConfig) ConvertToRcFormat() *DeviceProfileRcConfig {
 	return newProfile
 }
 
-// ConvertToAgentFormat will normalize the device profile in-place to make it suitable for Agent
-// This operation is opposite to ConvertToRcFormat.
+// convertToAgentFormat will normalize the device profile in-place to make it suitable for Agent
+// This operation is opposite to convertToRcFormat.
 // After retrieved a Profile from RC, it should be converted into Agent Format to be used elsewhere.
-func (d *DeviceProfileRcConfig) ConvertToAgentFormat() *DeviceProfileRcConfig {
-	newProfile := d.DeepCopy()
+func (d *DeviceProfileRcConfig) convertToAgentFormat() *DeviceProfileRcConfig {
+	newProfile := d.deepCopy()
 	for i := range newProfile.Profile.Metrics {
 		metric := &newProfile.Profile.Metrics[i]
 		for j := range metric.MetricTags {

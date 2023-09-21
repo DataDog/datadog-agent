@@ -117,7 +117,7 @@ func TestDeviceProfileRcConfig_ConvertToRcFormat(t *testing.T) {
 			},
 		},
 	}
-	newProfile := profile.ConvertToRcFormat()
+	newProfile := profile.convertToRcFormat()
 	assert.Equal(t, expectedProfile, newProfile)
 }
 
@@ -228,6 +228,138 @@ func TestDeviceProfileRcConfig_ConvertToAgentFormat(t *testing.T) {
 			},
 		},
 	}
-	newProfile := profile.ConvertToAgentFormat()
+	newProfile := profile.convertToAgentFormat()
 	assert.Equal(t, expectedProfile, newProfile)
+}
+
+func TestDeviceProfileRcConfig_UnmarshallFromRc_and_MarshallForRc(t *testing.T) {
+	// language=json
+	rcConfig := []byte(`
+{
+	"profile_definition": {
+		"name": "",
+		"metrics": [
+			{
+				"table": {},
+				"symbol": {},
+				"symbols": [
+					{
+						"OID": "1.2.3",
+						"name": "aSymbol"
+					}
+				],
+				"metric_tags": [
+					{
+						"tag": "a-tag",
+						"column": {
+							"OID": "1.2.3",
+							"name": "aSymbol"
+						},
+						"mapping_list": [
+							{
+								"key": "1",
+								"value": "aa"
+							},
+							{
+								"key": "2",
+								"value": "bb"
+							}
+						]
+					},
+					{
+						"tag": "a-tag2",
+						"column": {
+							"OID": "1.2.3",
+							"name": "aSymbol"
+						},
+						"match": "(.*)(\\d+)",
+						"tags_list": [
+							{
+								"key": "tag1",
+								"value": "$1"
+							},
+							{
+								"key": "tag2",
+								"value": "$2"
+							}
+						]
+					}
+				],
+				"options": {}
+			}
+		],
+		"device": {},
+		"metadata_list": [
+			{
+				"fields": null,
+				"resource_type": "device",
+				"fields_list": [
+					{
+						"symbol": {},
+						"value": "my-device",
+						"field_name": "name"
+					}
+				]
+			}
+		]
+	}
+}`)
+	agentFormatProfile := &DeviceProfileRcConfig{
+		Profile: ProfileDefinition{
+			Metadata: MetadataConfig{
+				"device": MetadataResourceConfig{
+					Fields: map[string]MetadataField{
+						"name": {
+							Value: "my-device",
+						},
+					},
+				},
+			},
+			Metrics: []MetricsConfig{
+				{
+					Symbols: []SymbolConfig{
+						{
+							OID:  "1.2.3",
+							Name: "aSymbol",
+						},
+					},
+					MetricTags: MetricTagConfigList{
+						{
+							Tag: "a-tag",
+							Column: SymbolConfig{
+								OID:  "1.2.3",
+								Name: "aSymbol",
+							},
+							Mapping: map[string]string{
+								"1": "aa",
+								"2": "bb",
+							},
+						},
+						{
+							Tag: "a-tag2",
+							Column: SymbolConfig{
+								OID:  "1.2.3",
+								Name: "aSymbol",
+							},
+							Match: "(.*)(\\d+)",
+							Tags: map[string]string{
+								"tag1": "$1",
+								"tag2": "$2",
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	// Test Unmarshall
+	newProfileAgentFormat, err := UnmarshallFromRc(rcConfig)
+	assert.NoError(t, err)
+	assert.Equal(t, agentFormatProfile, newProfileAgentFormat)
+
+	// Test Marshall
+	newProfileAgentFormatBytes, err := agentFormatProfile.MarshallForRc()
+	assert.NoError(t, err)
+	assert.JSONEq(t, string(rcConfig), string(newProfileAgentFormatBytes))
 }
