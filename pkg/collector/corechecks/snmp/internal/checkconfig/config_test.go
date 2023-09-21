@@ -6,6 +6,7 @@
 package checkconfig
 
 import (
+	"encoding/json"
 	"regexp"
 	"testing"
 	"time"
@@ -159,6 +160,10 @@ bulk_max_repetitions: 20
 		}},
 		{Symbol: profiledefinition.SymbolConfig{OID: "1.3.6.1.4.1.318.1.1.1.11.1.1.0", Name: "upsBasicStateOutputState", ScaleFactor: 10}, MetricType: profiledefinition.ProfileMetricTypeFlagStream, Options: profiledefinition.MetricsConfigOption{Placement: 5, MetricSuffix: "ReplaceBattery"}},
 		{
+			Table: profiledefinition.SymbolConfig{
+				OID:  "1.3.6.1.2.1.2.2",
+				Name: "ifTable",
+			},
 			Symbols: []profiledefinition.SymbolConfig{
 				// ifInErrors defined in instance config with a different set of metric tags from the one defined
 				// in the imported profile
@@ -241,7 +246,9 @@ bulk_max_repetitions: 20
 		{Tag: "snmp_host", OID: "1.3.6.1.2.1.1.5.0", Name: "sysName"},
 	}
 
-	assert.Equal(t, expectedMetrics, config.Metrics)
+	expectedMetricsJSON, _ := json.MarshalIndent(expectedMetrics, "", "\t")
+	actualMetricsJSON, _ := json.MarshalIndent(config.Metrics, "", "\t")
+	assert.JSONEq(t, string(expectedMetricsJSON), string(actualMetricsJSON))
 	assert.Equal(t, expectedMetricTags, config.MetricTags)
 	assert.Equal(t, []string{"snmp_profile:f5-big-ip", "device_vendor:f5", "static_tag:from_profile_root", "static_tag:from_base_profile"}, config.ProfileTags)
 	assert.Equal(t, 1, len(config.Profiles))
@@ -356,7 +363,7 @@ profiles:
 	assert.Equal(t, []string{"device_namespace:default", "snmp_device:1.2.3.4"}, config.GetStaticTags())
 	metrics := []profiledefinition.MetricsConfig{
 		{Symbol: profiledefinition.SymbolConfig{OID: "1.3.6.1.2.1.1.3.0", Name: "sysUpTimeInstance"}},
-		{Symbol: profiledefinition.SymbolConfig{OID: "1.4.5", Name: "myMetric"}, MetricType: profiledefinition.ProfileMetricTypeGauge},
+		{MIB: "MY-PROFILE-MIB", Symbol: profiledefinition.SymbolConfig{OID: "1.4.5", Name: "myMetric"}, MetricType: profiledefinition.ProfileMetricTypeGauge},
 	}
 
 	metricsTags := []profiledefinition.MetricTagConfig{
