@@ -65,6 +65,7 @@ def trigger_macos_workflow(
     inputs["id"] = workflow_id
 
     gh = GithubAPI('DataDog/datadog-agent-macos-build')
+    print("Triggered workflow with id: ", workflow_id)
     gh.trigger_workflow(workflow_name, github_action_ref, inputs)
 
     # Thus the following hack: query the latest run for ref, wait until we get a non-completed run
