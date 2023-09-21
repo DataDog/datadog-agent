@@ -3,6 +3,7 @@
 
 #include "bpf_builtins.h"
 #include "bpf_helpers.h"
+#include "decoding-defs.h"
 #include "map-defs.h"
 #include "ip.h"
 
@@ -244,12 +245,20 @@ static __always_inline void process_headers(struct __sk_buff *skb, dynamic_table
                 break;
             }
 
-            if (current_header->index == kPOST || current_header->index == kGET){
+            if (current_header->index == kPOST || current_header->index == kGET) {
                 // TODO: mark request
                 current_stream->request_started = bpf_ktime_get_ns();
                 current_stream->request_method = *static_value;
             } else if (current_header->index >= k200 && current_header->index <= k500) {
                 current_stream->response_status_code = *static_value;
+            } else if (current_header->index == kEmptyPath) {
+                log_debug("[http2_debug] empty path");
+                current_stream->path_size = HTTP_ROOT_PATH_LEN;
+                bpf_memcpy(current_stream->request_path, HTTP_ROOT_PATH, HTTP_ROOT_PATH_LEN);
+            } else if (current_header->index == kIndexPath) {
+                log_debug("[http2_debug] index path");
+                current_stream->path_size = HTTP_INDEX_PATH_LEN;
+                bpf_memcpy(current_stream->request_path, HTTP_INDEX_PATH, HTTP_INDEX_PATH_LEN);
             }
             continue;
         }

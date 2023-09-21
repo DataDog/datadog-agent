@@ -40,8 +40,12 @@
 
 #define HTTP2_CONTENT_TYPE_IDX 31
 
-typedef enum
-{
+#define HTTP_ROOT_PATH "\x63"
+#define HTTP_ROOT_PATH_LEN (sizeof(HTTP_ROOT_PATH) - 1)
+#define HTTP_INDEX_PATH "\x60\xd5\x48\x5f\x2b\xce\x9a\x68"
+#define HTTP_INDEX_PATH_LEN (sizeof(HTTP_INDEX_PATH) - 1)
+
+typedef enum {
     kGET = 2,
     kPOST = 3,
     kEmptyPath = 4,
