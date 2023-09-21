@@ -232,7 +232,6 @@ func NewPipelineFromAgentConfig(
 	logsAgentChannel chan *message.Message,
 ) (*Pipeline, error) {
 	pcfg, err := FromAgentConfig(cfg)
-	fmt.Printf("### pcfg = %#v\n", pcfg)
 	if err != nil {
 		pipelineError.Store(fmt.Errorf("config error: %w", err))
 		return nil, pipelineError.Load()

@@ -22,7 +22,7 @@ const (
 	OTLPDebugKey                    = "debug"
 	OTLPDebug                       = OTLPSection + "." + OTLPDebugKey
 	OTLPFileLogSubSectionKey        = "filelog"
-	OTLPFileLogReceiverSection      = OTLPReceiverSection + "." + OTLPFileLogSubSectionKey
+	OTLPFileLogReceiverSection      = OTLPSection + "." + OTLPFileLogSubSectionKey
 	OTLPFileLogReceiverIncludeFiles = OTLPSection + "." + OTLPFileLogSubSectionKey + "." + "include"
 	OTLPFileLogReceiverStartAt      = OTLPSection + "." + OTLPFileLogSubSectionKey + "." + "start_at"
 	OTLPFileLogReceiverPollInterval = OTLPSection + "." + OTLPFileLogSubSectionKey + "." + "poll_interval"
