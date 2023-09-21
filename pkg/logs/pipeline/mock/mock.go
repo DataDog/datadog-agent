@@ -8,7 +8,7 @@ package mock
 import (
 	"context"
 
-	"github.com/DataDog/datadog-agent/pkg/logs/message"
+	message "github.com/DataDog/datadog-agent/pkg/logs/message/module"
 	"github.com/DataDog/datadog-agent/pkg/logs/pipeline"
 )
 

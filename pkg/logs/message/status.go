@@ -5,6 +5,8 @@
 
 package message
 
+import "github.com/DataDog/datadog-agent/pkg/logs/message/module"
+
 // Status values
 const (
 	StatusEmergency = "emergency"
@@ -13,7 +15,7 @@ const (
 	StatusError     = "error"
 	StatusWarning   = "warn"
 	StatusNotice    = "notice"
-	StatusInfo      = "info"
+	StatusInfo      = module.StatusInfo
 	StatusDebug     = "debug"
 )
 

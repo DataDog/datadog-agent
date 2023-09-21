@@ -38,7 +38,7 @@ func (r *rawEncoder) Encode(msg *message.Message, redactedMsg []byte) ([]byte, e
 		extraContent = time.Now().UTC().AppendFormat(extraContent, config.DateFormat)
 		extraContent = append(extraContent, ' ')
 
-		extraContent = append(extraContent, []byte(msg.GetHostname())...)
+		extraContent = append(extraContent, []byte(message.GetHostname(msg))...)
 		extraContent = append(extraContent, ' ')
 
 		// Service
