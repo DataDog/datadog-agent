@@ -47,6 +47,15 @@ type KeyValue struct {
 }
 
 // SymbolConfigCompat is used to deserialize string field or SymbolConfig.
+// For OID/Name to Symbol harmonization:
+// When users declare metric tag like:
+//
+//	metric_tags:
+//	  - OID: 1.2.3
+//	    name: aSymbol
+//
+// this will lead to OID stored as MetricTagConfig.OID  and name stored as MetricTagConfig.Symbol.Name
+// When this happens, in ValidateEnrichMetricTags we harmonize by moving MetricTagConfig.OID to MetricTagConfig.Symbol.OID.
 type SymbolConfigCompat SymbolConfig
 
 // SymbolConfig holds info for a single symbol/oid
