@@ -105,6 +105,7 @@ func (p *jsonObfuscator) obfuscate(data []byte) (string, error) {
 	keyBuf := make([]byte, 0, 10) // recording key token
 	valBuf := make([]byte, 0, 10) // recording value
 
+	out.Grow(len(data))
 	st.scan.reset()
 	for _, c := range data {
 		st.scan.bytes++
