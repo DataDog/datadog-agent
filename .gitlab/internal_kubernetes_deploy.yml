@@ -66,7 +66,7 @@ notify-slack:
       while IFS= read -r email; do
         results+=$(email2slackid "$email" || echo "$email")
       done < unique_emails.txt
-      postmessage "Unique Authors: $(printf " %s" "${results[@]}")"
+      echo "Unique Authors: $(printf " %s" "${results[@]}")"
       git checkout ${CI_COMMIT_SHORT_SHA}
       #    - git tag stripe_staging
       #    - git push origin stripe_staging
