@@ -72,6 +72,7 @@ type Client struct {
 // NewClient creates a new fake intake client
 // fakeIntakeURL: the host of the fake Datadog intake server
 func NewClient(fakeIntakeURL string) *Client {
+	//fmt.Printf("Creating new client with url %s\n", fakeIntakeURL)
 	return &Client{
 		fakeIntakeURL:      strings.TrimSuffix(fakeIntakeURL, "/"),
 		metricAggregator:   aggregator.NewMetricAggregator(),
@@ -120,24 +121,16 @@ func (c *Client) GetLatestFlare() (flare.Flare, error) {
 }
 
 func (c *Client) getFakePayloads(endpoint string) (rawPayloads []api.Payload, err error) {
-	var resp *http.Response
-	b := backoff.NewExponentialBackOff()
-	b.MaxElapsedTime = 1 * time.Minute
+	var body []byte
 	err = backoff.Retry(func() error {
 		tmpResp, err := http.Get(fmt.Sprintf("%s/fakeintake/payloads?endpoint=%s", c.fakeIntakeURL, endpoint))
-		if err != nil {
+		if err != nil || tmpResp.StatusCode != http.StatusOK {
 			return err
 		}
-		resp = tmpResp
-		return nil
-	}, backoff.WithMaxRetries(b, 4))
-
-	if err != nil || resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("error querying fake payloads, status code %s", resp.Status)
-	}
-
-	defer resp.Body.Close()
-	body, err := io.ReadAll(resp.Body)
+		defer tmpResp.Body.Close()
+		body, err = io.ReadAll(tmpResp.Body)
+		return err
+	}, backoff.WithMaxRetries(backoff.NewConstantBackOff(5*time.Second), 4))
 	if err != nil {
 		return nil, err
 	}
