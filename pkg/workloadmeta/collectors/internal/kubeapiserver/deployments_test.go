@@ -226,7 +226,7 @@ func Test_DeploymentsFakeKubernetesClient(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			testFakeHelper(t, tt.createResource, newDeploymentStore, tt.expected)
+			testCollectEvent(t, tt.createResource, newDeploymentStore, tt.expected)
 		})
 	}
 }
