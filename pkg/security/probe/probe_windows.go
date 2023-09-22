@@ -208,3 +208,8 @@ func (p *Probe) OnNewDiscarder(rs *rules.RuleSet, ev *model.Event, field eval.Fi
 func (p *Probe) ApplyRuleSet(rs *rules.RuleSet) (*kfilters.ApplyRuleSetReport, error) {
 	return kfilters.NewApplyRuleSetReport(p.Config.Probe, rs)
 }
+
+// FlushDiscarders invalidates all the discarders
+func (p *Probe) FlushDiscarders() error {
+	return nil
+}

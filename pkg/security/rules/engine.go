@@ -249,13 +249,17 @@ func (e *RuleEngine) LoadPolicies(policyProviders []rules.PolicyProvider, sendLo
 	}
 
 	if probeEvaluationRuleSet != nil {
-		e.currentRuleSet.Store(probeEvaluationRuleSet)
-		ruleIDs = append(ruleIDs, probeEvaluationRuleSet.ListRuleIDs()...)
-
 		// analyze the ruleset, push probe evaluation rule sets to the kernel and generate the policy report
 		report, err := e.probe.ApplyRuleSet(probeEvaluationRuleSet)
 		if err != nil {
 			return err
+		}
+
+		e.currentRuleSet.Store(probeEvaluationRuleSet)
+		ruleIDs = append(ruleIDs, probeEvaluationRuleSet.ListRuleIDs()...)
+
+		if err := e.probe.FlushDiscarders(); err != nil {
+			return fmt.Errorf("failed to flush discarders: %w", err)
 		}
 
 		content, _ := json.Marshal(report)
