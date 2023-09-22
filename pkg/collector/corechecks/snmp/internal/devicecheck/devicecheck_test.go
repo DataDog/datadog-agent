@@ -342,8 +342,7 @@ collect_topology: false
 	expectedMetricTags := []profiledefinition.MetricTagConfig{
 		{Tag: "snmp_host2", Column: profiledefinition.SymbolConfig{OID: "1.3.6.1.2.1.1.5.0", Name: "sysName"}},
 		{
-			OID:    "1.3.6.1.2.1.1.5.0",
-			Symbol: profiledefinition.SymbolConfigCompat{Name: "sysName"},
+			Symbol: profiledefinition.SymbolConfigCompat{OID: "1.3.6.1.2.1.1.5.0", Name: "sysName"},
 			Match:  "(\\w)(\\w+)",
 			Tags: map[string]string{
 				"prefix":   "\\1",
@@ -351,7 +350,7 @@ collect_topology: false
 				"some_tag": "some_tag_value",
 			},
 		},
-		{Tag: "snmp_host", OID: "1.3.6.1.2.1.1.5.0", Symbol: profiledefinition.SymbolConfigCompat{Name: "sysName"}},
+		{Tag: "snmp_host", Symbol: profiledefinition.SymbolConfigCompat{OID: "1.3.6.1.2.1.1.5.0", Name: "sysName"}},
 	}
 	checkconfig.ValidateEnrichMetrics(expectedMetrics)
 	checkconfig.ValidateEnrichMetricTags(expectedMetricTags)
@@ -939,8 +938,7 @@ community_string: public
 
 	expectedMetricsTagConfigs := []profiledefinition.MetricTagConfig{
 		{
-			OID:    "1.3.6.1.2.1.1.5.0",
-			Symbol: profiledefinition.SymbolConfigCompat{Name: "sysName"},
+			Symbol: profiledefinition.SymbolConfigCompat{OID: "1.3.6.1.2.1.1.5.0", Name: "sysName"},
 			Match:  "(\\w)(\\w+)",
 			Tags: map[string]string{
 				"some_tag": "some_tag_value",
@@ -948,7 +946,7 @@ community_string: public
 				"suffix":   "\\2",
 			},
 		},
-		{Tag: "snmp_host", OID: "1.3.6.1.2.1.1.5.0", Symbol: profiledefinition.SymbolConfigCompat{Name: "sysName"}},
+		{Tag: "snmp_host", Symbol: profiledefinition.SymbolConfigCompat{OID: "1.3.6.1.2.1.1.5.0", Name: "sysName"}},
 		{Tag: "snmp_host2", Column: profiledefinition.SymbolConfig{OID: "1.3.6.1.2.1.1.5.0", Name: "sysName"}},
 	}
 

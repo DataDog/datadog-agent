@@ -85,7 +85,7 @@ func (ms *MetricSender) GetCheckInstanceMetricTags(metricTags []profiledefinitio
 
 	for _, metricTag := range metricTags {
 		// TODO: Support extract value see II-635
-		value, err := values.GetScalarValue(metricTag.OID)
+		value, err := values.GetScalarValue(metricTag.Symbol.OID)
 		if err != nil {
 			continue
 		}

@@ -302,7 +302,7 @@ func (d *DeviceCheck) detectAvailableMetrics() ([]profiledefinition.MetricsConfi
 			}
 		}
 		for _, metricTag := range profileConfig.Definition.MetricTags {
-			if root.LeafExist(metricTag.OID) || root.LeafExist(metricTag.Column.OID) {
+			if root.LeafExist(metricTag.Symbol.OID) || root.LeafExist(metricTag.Column.OID) {
 				if metricTag.Tag != "" {
 					if alreadyGlobalTags[metricTag.Tag] {
 						continue
