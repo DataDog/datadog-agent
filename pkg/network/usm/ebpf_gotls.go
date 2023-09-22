@@ -118,6 +118,14 @@ type runningBinary struct {
 	// Reference counter for the number of currently running processes for
 	// this binary.
 	processCount int32
+
+	// Note about the motivation for this field:
+	// a registration is tied to a PathIdentifier which is basically a global
+	// identifier to a file (dev, inode). Multiple file paths can point to the
+	// same underlying (dev, inode), so the `sampleFilePath` here happens to be
+	// simply *one* of these file paths and we use this only for debugging
+	// purposes.
+	sampleFilePath string
 }
 
 // GoTLSProgram contains implementation for go-TLS.
@@ -265,6 +273,10 @@ func (p *GoTLSProgram) Start() {
 		return
 	}
 
+	// Add self to the debugger so we can inspect internal state of this
+	// FileRegistry using our debugging endpoint
+	utils.Debugger.Add(p)
+
 	p.procMonitor.monitor = monitor.GetProcessMonitor()
 	p.procMonitor.cleanupExec = p.procMonitor.monitor.SubscribeExec(p.handleProcessStart)
 	p.procMonitor.cleanupExit = p.procMonitor.monitor.SubscribeExit(p.handleProcessStop)
@@ -328,12 +340,12 @@ func (p *GoTLSProgram) handleProcessStart(pid pid) {
 	pidAsStr := strconv.FormatUint(uint64(pid), 10)
 	exePath := filepath.Join(p.procRoot, pidAsStr, "exe")
 
-	binPath, err := os.Readlink(exePath)
+	linkedPath, err := os.Readlink(exePath)
 	if err != nil {
 		// We receive the Exec event, /proc could be slow to update
 		end := time.Now().Add(10 * time.Millisecond)
 		for end.After(time.Now()) {
-			binPath, err = os.Readlink(exePath)
+			linkedPath, err = os.Readlink(exePath)
 			if err == nil {
 				break
 			}
@@ -347,15 +359,15 @@ func (p *GoTLSProgram) handleProcessStart(pid pid) {
 	}
 
 	// Check if the process is datadog's internal process, if so, we don't want to hook the process.
-	if internalProcessRegex.MatchString(binPath) {
+	if internalProcessRegex.MatchString(linkedPath) {
 		if log.ShouldLog(seelog.DebugLvl) {
-			log.Debugf("ignoring pid %d, as it is an internal datadog component (%q)", pid, binPath)
+			log.Debugf("ignoring pid %d, as it is an internal datadog component (%q)", pid, linkedPath)
 		}
 		return
 	}
 
 	// Getting the full path in the process' namespace.
-	binPath = filepath.Join(p.procRoot, pidAsStr, "root", binPath)
+	binPath := filepath.Join(p.procRoot, pidAsStr, "root", linkedPath)
 
 	var stat syscall.Stat_t
 	if err = syscall.Stat(binPath, &stat); err != nil {
@@ -377,7 +389,7 @@ func (p *GoTLSProgram) handleProcessStart(pid pid) {
 		}
 	}
 
-	oldProcCount, bin, err := p.registerProcess(binID, pid, stat.Mtim)
+	oldProcCount, bin, err := p.registerProcess(binID, pid, stat.Mtim, linkedPath)
 	if err != nil {
 		log.Warnf("could not register new process (%d) with binary %q: %s", pid, binPath, err)
 		return
@@ -460,15 +472,16 @@ func (p *GoTLSProgram) hookNewBinary(binID binaryID, binPath string, pid pid, bi
 	log.Debugf("attached hooks on %s (%v) in %s", binPath, binID, elapsed)
 }
 
-func (p *GoTLSProgram) registerProcess(binID binaryID, pid pid, mTime syscall.Timespec) (int32, *runningBinary, error) {
+func (p *GoTLSProgram) registerProcess(binID binaryID, pid pid, mTime syscall.Timespec, binPath string) (int32, *runningBinary, error) {
 	p.lock.Lock()
 	defer p.lock.Unlock()
 
 	bin, found := p.binaries[binID]
 	if !found {
 		bin = &runningBinary{
-			binID: binID,
-			mTime: mTime,
+			binID:          binID,
+			mTime:          mTime,
+			sampleFilePath: binPath,
 		}
 		p.binaries[binID] = bin
 	} else if mTime != bin.mTime {
@@ -616,4 +629,27 @@ func (p *GoTLSProgram) detachHooks(probeIDs []manager.ProbeIdentificationPair) {
 			log.Errorf("failed detaching hook %s: %s", probeID.UID, err)
 		}
 	}
+}
+
+// GetTracedPrograms returns all traced programs for go TLS.
+func (p *GoTLSProgram) GetTracedPrograms() []utils.TracedProgram {
+	p.lock.RLock()
+	defer p.lock.RUnlock()
+
+	traced := make([]utils.TracedProgram, 0, len(p.binaries))
+	binIDToPID := make(map[binaryID][]uint32, len(p.binaries))
+	for pid, binID := range p.processes {
+		if _, ok := binIDToPID[binID]; !ok {
+			binIDToPID[binID] = make([]uint32, 0, p.binaries[binID].processCount)
+		}
+		binIDToPID[binID] = append(binIDToPID[binID], pid)
+	}
+	for binID, runningBinary := range p.binaries {
+		traced = append(traced, utils.TracedProgram{
+			ProgramType: "go-tls",
+			FilePath:    runningBinary.sampleFilePath,
+			PIDs:        binIDToPID[binID],
+		})
+	}
+	return traced
 }

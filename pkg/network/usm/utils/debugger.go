@@ -23,28 +23,37 @@ type TracedProgram struct {
 	PIDs        []uint32
 }
 
+// BinaryTracer is an interface to be used by the debugger.
+type BinaryTracer interface {
+	GetTracedPrograms() []TracedProgram
+}
+
 // TracedProgramsEndpoint generates a summary of all active uprobe-based
 // programs along with their file paths and PIDs.
 // This is used for debugging purposes only.
 func TracedProgramsEndpoint(w http.ResponseWriter, _ *http.Request) {
-	otherutils.WriteAsJSON(w, debugger.GetTracedPrograms())
+	otherutils.WriteAsJSON(w, Debugger.GetTracedPrograms())
 }
 
-var debugger *fileRegistryDebugger
+// Debugger is a tool to expose at runtime all traced binary for USM.
+var Debugger *binaryTracerDebugger
 
-type fileRegistryDebugger struct {
+type binaryTracerDebugger struct {
 	mux       sync.Mutex
-	instances []*FileRegistry
+	instances []BinaryTracer
 }
 
-func (d *fileRegistryDebugger) Add(r *FileRegistry) {
+// Add saves the given binary tracer in a list to later access for getting
+// a list of its traced binaries.
+func (d *binaryTracerDebugger) Add(b BinaryTracer) {
 	d.mux.Lock()
 	defer d.mux.Unlock()
 
-	d.instances = append(d.instances, r)
+	d.instances = append(d.instances, b)
 }
 
-func (d *fileRegistryDebugger) GetTracedPrograms() []TracedProgram {
+// GetTracedPrograms returns all traced programs from all registered tracers.
+func (d *binaryTracerDebugger) GetTracedPrograms() []TracedProgram {
 	d.mux.Lock()
 	defer d.mux.Unlock()
 
@@ -53,45 +62,12 @@ func (d *fileRegistryDebugger) GetTracedPrograms() []TracedProgram {
 	// Iterate over each `FileRegistry` instance:
 	// Examples of this would be: "shared_libraries", "istio", "goTLS" etc
 	for _, registry := range d.instances {
-		programType := registry.telemetry.programName
-		tracedProgramsByID := make(map[PathIdentifier]*TracedProgram)
-
-		registry.m.Lock()
-		// First, "aggregate" PathIDs by PIDs
-		for pid, pathSet := range registry.byPID {
-			for pathID := range pathSet {
-				tracedProgram, ok := tracedProgramsByID[pathID]
-				if !ok {
-					tracedProgram = new(TracedProgram)
-					tracedProgramsByID[pathID] = tracedProgram
-				}
-
-				tracedProgram.PIDs = append(tracedProgram.PIDs, pid)
-			}
-		}
-
-		// Then, enhance each PathID with a sample file path and the program type
-		for pathID, program := range tracedProgramsByID {
-			registration, ok := registry.byID[pathID]
-			if !ok {
-				continue
-			}
-
-			program.ProgramType = programType
-			program.FilePath = registration.sampleFilePath
-		}
-		registry.m.Unlock()
-
-		// Finally, add everything to a slice that is transformed in JSON
-		// content by the endpoint handler
-		for _, program := range tracedProgramsByID {
-			all = append(all, *program)
-		}
+		all = append(all, registry.GetTracedPrograms()...)
 	}
 
 	return all
 }
 
 func init() {
-	debugger = new(fileRegistryDebugger)
+	Debugger = new(binaryTracerDebugger)
 }

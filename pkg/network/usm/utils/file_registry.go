@@ -94,7 +94,7 @@ func NewFileRegistry(programName string) *FileRegistry {
 
 	// Add self to the debugger so we can inspect internal state of this
 	// FileRegistry using our debugging endpoint
-	debugger.Add(r)
+	Debugger.Add(r)
 
 	return r
 }
@@ -243,6 +243,49 @@ func (r *FileRegistry) Clear() {
 		reg.unregisterPath(pathID)
 	}
 	r.stopped = true
+}
+
+// GetTracedPrograms returns all traced programs for the file registry.
+func (r *FileRegistry) GetTracedPrograms() []TracedProgram {
+	var all []TracedProgram
+
+	// Iterate over each `FileRegistry` instance:
+	// Examples of this would be: "shared_libraries", "istio"
+	tracedProgramsByID := make(map[PathIdentifier]*TracedProgram)
+
+	r.m.Lock()
+	// First, "aggregate" PathIDs by PIDs
+	for pid, pathSet := range r.byPID {
+		for pathID := range pathSet {
+			tracedProgram, ok := tracedProgramsByID[pathID]
+			if !ok {
+				tracedProgram = new(TracedProgram)
+				tracedProgramsByID[pathID] = tracedProgram
+			}
+
+			tracedProgram.PIDs = append(tracedProgram.PIDs, pid)
+		}
+	}
+
+	// Then, enhance each PathID with a sample file path and the program type
+	for pathID, program := range tracedProgramsByID {
+		registration, ok := r.byID[pathID]
+		if !ok {
+			continue
+		}
+
+		program.ProgramType = r.telemetry.programName
+		program.FilePath = registration.sampleFilePath
+	}
+	r.m.Unlock()
+
+	// Finally, add everything to a slice that is transformed in JSON
+	// content by the endpoint handler
+	for _, program := range tracedProgramsByID {
+		all = append(all, *program)
+	}
+
+	return all
 }
 
 func (r *FileRegistry) newRegistration(sampleFilePath string, deactivationCB callback) *registration {
