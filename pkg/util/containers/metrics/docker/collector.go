@@ -81,6 +81,7 @@ func (d *dockerCollector) GetContainerStats(containerNS, containerID string, cac
 
 	// Try to collect the container's PIDs via Docker API, if we can't spec() will fill in the entry PID
 	outStats.PID.PIDs, err = d.pids(containerID)
+	log.Errorf("Retrieved %d pids for container %q. Pids: %v", len(outStats.PID.PIDs), containerID, outStats.PID.PIDs)
 	if err != nil {
 		log.Warnf("Unable to collect container's PIDs via Docker API, PID list will be incomplete, cid: %s, err: %v", containerID, err)
 	}
@@ -183,8 +184,10 @@ func (d *dockerCollector) refreshPIDCache(currentTime time.Time, cacheValidity t
 
 	// Full refresh
 	containers := d.metadataStore.ListContainers()
+	log.Errorf("Did a full PID refresh, found %d containers: %v", len(containers), containers)
 
 	for _, container := range containers {
+		log.Errorf("For container ID %q I found pid %d. Runtime is %v", container.ID, container.PID, container.Runtime)
 		if container.Runtime == workloadmeta.ContainerRuntimeDocker && container.PID != 0 {
 			d.pidCache.Store(currentTime, strconv.Itoa(container.PID), container.ID, nil)
 		}
