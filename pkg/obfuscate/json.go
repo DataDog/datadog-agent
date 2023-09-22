@@ -6,6 +6,7 @@
 package obfuscate
 
 import (
+	"bytes"
 	"strconv"
 	"strings"
 )
