@@ -1,7 +1,7 @@
 ---
 enhancements:
   - |
-    Improved performance and memory consumption, both halved on average.
+    APM: Improved performance and memory consumption in obfuscation, both halved on average.
 fixes:
   - |
-    Concurrency issue at high volumes fixed.
+    APM: Concurrency issue at high volumes fixed in obfuscation.
