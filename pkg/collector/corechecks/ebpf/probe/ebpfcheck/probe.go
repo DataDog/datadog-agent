@@ -560,8 +560,8 @@ func ringBufferMemoryUsage(mapStats *model.EBPFMapStats, info *ebpf.MapInfo, k *
 		// default RSS to MaxSize in case of error
 		mapStats.RSS = mapStats.MaxSize
 	} else {
-		for i, size := range rss {
-			log.Debugf("ring buffer map_id=%d idx=%d rss=%d", mapid, i, size)
+		for addr, size := range rss {
+			log.Debugf("ring buffer map_id=%d addr=%x rss=%d", mapid, addr, size)
 			mapStats.RSS += size
 		}
 	}
