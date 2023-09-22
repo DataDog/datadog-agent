@@ -5,7 +5,7 @@
 
 //go:build linux_bpf
 
-package probe
+package tcpqueuelength
 
 import (
 	"net"
@@ -15,12 +15,15 @@ import (
 	"github.com/stretchr/testify/require"
 	"golang.org/x/sync/errgroup"
 
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/ebpf/probe/tcpqueuelength/model"
 	"github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode/runtime"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/ebpftest"
 	"github.com/DataDog/datadog-agent/pkg/process/statsd"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 )
+
+var kv = kernel.MustHostVersion()
 
 func TestTCPQueueLengthCompile(t *testing.T) {
 	ebpftest.TestBuildMode(t, ebpftest.RuntimeCompiled, "", func(t *testing.T) {
@@ -43,7 +46,7 @@ func TestTCPQueueLengthTracer(t *testing.T) {
 		}
 
 		cfg := ebpf.NewConfig()
-		tcpTracer, err := NewTCPQueueLengthTracer(cfg)
+		tcpTracer, err := NewTracer(cfg)
 		require.NoError(t, err)
 		t.Cleanup(tcpTracer.Close)
 
@@ -65,7 +68,7 @@ func TestTCPQueueLengthTracer(t *testing.T) {
 	})
 }
 
-func extractGlobalStats(t *testing.T, tracer *TCPQueueLengthTracer) TCPQueueLengthStatsValue {
+func extractGlobalStats(t *testing.T, tracer *Tracer) model.TCPQueueLengthStatsValue {
 	t.Helper()
 
 	stats := tracer.GetAndFlush()
@@ -73,7 +76,7 @@ func extractGlobalStats(t *testing.T, tracer *TCPQueueLengthTracer) TCPQueueLeng
 		t.Error("failed to get and flush stats")
 	}
 
-	globalStats := TCPQueueLengthStatsValue{}
+	globalStats := model.TCPQueueLengthStatsValue{}
 
 	for cgroup, cgroupStats := range stats {
 		t.Logf("%s: read=%d write=%d", cgroup, cgroupStats.ReadBufferMaxUsage, cgroupStats.WriteBufferMaxUsage)

@@ -5,10 +5,10 @@
 
 //go:build ignore
 
-package probe
+package tcpqueuelength
 
 /*
-#include "../c/runtime/tcp-queue-length-kern-user.h"
+#include "../../c/runtime/tcp-queue-length-kern-user.h"
 */
 import "C"
 

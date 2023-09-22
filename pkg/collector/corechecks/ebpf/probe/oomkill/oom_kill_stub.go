@@ -5,29 +5,31 @@
 
 //go:build !linux_bpf
 
-package probe
+// Package oomkill is the system-probe side of the OOM Kill check
+package oomkill
 
 import (
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/ebpf/probe/oomkill/model"
 	"github.com/DataDog/datadog-agent/pkg/ebpf"
 )
 
-// TCPQueueLengthTracer is not implemented on non-linux systems
-type TCPQueueLengthTracer struct{}
+// Probe is not implemented on non-linux systems
+type Probe struct{}
 
-// NewTCPQueueLengthTracer is not implemented on non-linux systems
-func NewTCPQueueLengthTracer(cfg *ebpf.Config) (*TCPQueueLengthTracer, error) {
+// NewProbe is not implemented on non-linux systems
+func NewProbe(cfg *ebpf.Config) (*Probe, error) {
 	return nil, ebpf.ErrNotImplemented
 }
 
 // Close is not implemented on non-linux systems
-func (t *TCPQueueLengthTracer) Close() {}
+func (t *Probe) Close() {}
 
 // Get is not implemented on non-linux systems
-func (t *TCPQueueLengthTracer) Get() []TCPQueueLengthStats {
+func (t *Probe) Get() []model.OOMKillStats {
 	return nil
 }
 
 // GetAndFlush is not implemented on non-linux systems
-func (t *TCPQueueLengthTracer) GetAndFlush() []TCPQueueLengthStats {
+func (t *Probe) GetAndFlush() []model.OOMKillStats {
 	return nil
 }

@@ -24,7 +24,6 @@ import (
 
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/client-go/dynamic"
 )
@@ -35,6 +34,14 @@ var labelsToEnv = map[string]string{
 	kubernetes.EnvTagLabelKey:     kubernetes.EnvTagEnvVar,
 	kubernetes.ServiceTagLabelKey: kubernetes.ServiceTagEnvVar,
 	kubernetes.VersionTagLabelKey: kubernetes.VersionTagEnvVar,
+}
+
+type owner struct {
+	name            string
+	namespace       string
+	kind            string
+	labels          map[string]string
+	ownerReferences []metav1.OwnerReference
 }
 
 // ownerInfo wraps the information needed to get pod's owner object
@@ -100,8 +107,8 @@ func injectTags(pod *corev1.Pod, ns string, dc dynamic.Interface) error {
 		return err
 	}
 
-	log.Debugf("Looking for standard labels on '%s/%s' - kind '%s' owner of pod %s", owner.GetNamespace(), owner.GetName(), owner.GetKind(), podString(pod))
-	_, injected = injectTagsFromLabels(owner.GetLabels(), pod)
+	log.Debugf("Looking for standard labels on '%s/%s' - kind '%s' owner of pod %s", owner.namespace, owner.name, owner.kind, podString(pod))
+	_, injected = injectTagsFromLabels(owner.labels, pod)
 
 	return nil
 }
@@ -148,7 +155,7 @@ func getOwnerInfo(owner metav1.OwnerReference) (*ownerInfo, error) {
 
 // getOwner returns the object of the pod's owner
 // If the owner is a replicaset it returns the corresponding deployment
-func getOwner(owner metav1.OwnerReference, ns string, dc dynamic.Interface) (*unstructured.Unstructured, error) {
+func getOwner(owner metav1.OwnerReference, ns string, dc dynamic.Interface) (*owner, error) {
 	ownerInfo, err := getOwnerInfo(owner)
 	if err != nil {
 		return nil, err
@@ -160,8 +167,8 @@ func getOwner(owner metav1.OwnerReference, ns string, dc dynamic.Interface) (*un
 	}
 
 	// Try to discover standard labels from the deployment object if the owner is a replicaset
-	if obj.GetKind() == "ReplicaSet" && len(obj.GetOwnerReferences()) > 0 {
-		rsOwnerInfo, err := getOwnerInfo(obj.GetOwnerReferences()[0])
+	if obj.kind == "ReplicaSet" && len(obj.ownerReferences) > 0 {
+		rsOwnerInfo, err := getOwnerInfo(obj.ownerReferences[0])
 		if err != nil {
 			return nil, err
 		}
@@ -173,18 +180,15 @@ func getOwner(owner metav1.OwnerReference, ns string, dc dynamic.Interface) (*un
 }
 
 // getAndCacheOwner tries to fetch the owner object from cache before querying the api server
-func getAndCacheOwner(info *ownerInfo, ns string, dc dynamic.Interface) (*unstructured.Unstructured, error) {
+func getAndCacheOwner(info *ownerInfo, ns string, dc dynamic.Interface) (*owner, error) {
 	infoID := info.buildID(ns)
-	var ownerObj *unstructured.Unstructured
-
 	if cachedObj, hit := cache.Cache.Get(infoID); hit {
 		metrics.GetOwnerCacheHit.Inc(info.gvr.Resource)
-		var valid bool
-		ownerObj, valid = cachedObj.(*unstructured.Unstructured)
+		owner, valid := cachedObj.(*owner)
 		if !valid {
 			log.Debugf("Invalid owner object for '%s', forcing a cache miss", infoID)
 		} else {
-			return ownerObj, nil
+			return owner, nil
 		}
 	}
 
@@ -195,6 +199,14 @@ func getAndCacheOwner(info *ownerInfo, ns string, dc dynamic.Interface) (*unstru
 		return nil, err
 	}
 
-	cache.Cache.Set(infoID, ownerObj, ownerCacheTTL)
-	return ownerObj, nil
+	owner := &owner{
+		name:            ownerObj.GetName(),
+		kind:            ownerObj.GetKind(),
+		namespace:       ownerObj.GetNamespace(),
+		labels:          ownerObj.GetLabels(),
+		ownerReferences: ownerObj.GetOwnerReferences(),
+	}
+
+	cache.Cache.Set(infoID, owner, ownerCacheTTL)
+	return owner, nil
 }

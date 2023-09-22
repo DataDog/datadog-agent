@@ -153,7 +153,7 @@ func Unmarshal(payload []byte) (map[string]interface{}, error) {
 }
 
 func isAPIGatewayEvent(event map[string]interface{}) bool {
-	return json.GetNestedValue(event, "requestcontext", "stage") != nil &&
+	return json.GetNestedValue(event, "requestcontext") != nil &&
 		json.GetNestedValue(event, "httpmethod") != nil &&
 		json.GetNestedValue(event, "resource") != nil
 }
