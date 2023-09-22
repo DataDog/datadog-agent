@@ -104,8 +104,8 @@ func checkRights(filename string, allowGroupExec bool) error {
 func getACL(filename string) (*winutil.ACL, error) {
 	var fileDacl *winutil.ACL
 	err := winutil.GetNamedSecurityInfo(filename,
-		winutil.SE_FILE_OBJECT,
-		winutil.DACL_SECURITY_INFORMATION,
+		windows.SE_FILE_OBJECT,
+		windows.DACL_SECURITY_INFORMATION,
 		nil,
 		nil,
 		&fileDacl,

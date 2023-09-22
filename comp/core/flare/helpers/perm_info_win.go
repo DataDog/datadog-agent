@@ -49,8 +49,8 @@ func getFileDacl(fileName string) (*winutil.ACL, winutil.ACL_SIZE_INFORMATION, e
 	var aclInfo winutil.ACL_SIZE_INFORMATION
 	var fileDacl *winutil.ACL
 	err := winutil.GetNamedSecurityInfo(fileName,
-		winutil.SE_FILE_OBJECT,
-		winutil.DACL_SECURITY_INFORMATION,
+		windows.SE_FILE_OBJECT,
+		windows.DACL_SECURITY_INFORMATION,
 		nil,
 		nil,
 		&fileDacl,
