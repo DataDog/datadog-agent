@@ -150,6 +150,8 @@ def clean(ctx, locks=True, stacks=False):
 
     if locks:
         _clean_locks()
+        if not stacks:
+            print("If you still have issues, try running with -s option to clean up stacks")
 
     if stacks:
         _clean_stacks(ctx)
