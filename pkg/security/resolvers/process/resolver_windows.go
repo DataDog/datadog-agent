@@ -25,8 +25,10 @@ import (
 	"github.com/DataDog/datadog-go/v5/statsd"
 )
 
+// Pid PID type
 type Pid = uint32
 
+// Resolver defines a resolver
 type Resolver struct {
 	sync.RWMutex
 	processes    map[Pid]*model.ProcessCacheEntry
@@ -101,6 +103,7 @@ func (p *Resolver) DeleteEntry(pid uint32, exitTime time.Time) {
 	p.deleteEntry(pid, exitTime)
 }
 
+// AddNewEntry add a new process entry to the cache
 func (p *Resolver) AddNewEntry(pid uint32, ppid uint32, file string, commandLine string) (*model.ProcessCacheEntry, error) {
 	e := p.processCacheEntryPool.Get()
 	e.PIDContext.Pid = pid
@@ -116,6 +119,7 @@ func (p *Resolver) AddNewEntry(pid uint32, ppid uint32, file string, commandLine
 	return e, nil
 }
 
+// GetEntry returns the process entry for the given pid
 func (p *Resolver) GetEntry(pid Pid) *model.ProcessCacheEntry {
 	p.Lock()
 	defer p.Unlock()
@@ -130,7 +134,7 @@ func (p *Resolver) Resolve(pid, tid uint32, inode uint64, useFallBack bool) *mod
 	return p.GetEntry(pid)
 }
 
-// GetProcessEnvs returns the envs of the event
+// GetEnvs returns the envs of the event
 func (p *Resolver) GetEnvs(pr *model.Process) []string {
 	if pr.EnvsEntry == nil {
 		return pr.Envs
@@ -141,7 +145,7 @@ func (p *Resolver) GetEnvs(pr *model.Process) []string {
 	return pr.Envs
 }
 
-// GetProcessEnvp returns the envs of the event with their values
+// GetEnvp returns the envs of the event with their values
 func (p *Resolver) GetEnvp(pr *model.Process) []string {
 	if pr.EnvsEntry == nil {
 		return pr.Envp

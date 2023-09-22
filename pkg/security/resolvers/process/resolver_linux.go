@@ -86,7 +86,7 @@ type Resolver struct {
 	opts             ResolverOpts
 
 	// stats
-	cacheSize        *atomic.Int64
+	cacheSize                 *atomic.Int64
 	hitsStats                 map[string]*atomic.Int64
 	missStats                 *atomic.Int64
 	addedEntriesFromEvent     *atomic.Int64
