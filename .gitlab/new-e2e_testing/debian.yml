@@ -11,6 +11,7 @@
   needs: ["deploy_deb_testing-a7_x64"]
 
 new-e2e-agent-platform-install-script-debian:
+  stage: kitchen_testing
   extends: 
     - .new_e2e_template
     - .new-e2e_os_debian
