@@ -44,9 +44,9 @@ build do
       "--disable-nls",
       "--enable-pic"
     ]
-  
+
     configure(*configure_options, env: env)
-  
+
     make "-j #{workers}", env: env
     make "install", env: env
   end
