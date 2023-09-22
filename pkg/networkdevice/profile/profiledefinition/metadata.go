@@ -17,7 +17,7 @@ type MetadataResourceConfig struct {
 	IDTags MetricTagConfigList      `yaml:"id_tags,omitempty" json:"-" jsonschema:"-"` // not exposed as json annotation since might be not useful for now
 
 	// Used in RC format (list instead of map)
-	ResourceType string          `yaml:"-" json:"resource_type,omitempty"`
+	ResourceType string          `yaml:"-" json:"-"`
 	FieldsList   []MetadataField `yaml:"-" json:"fields_list,omitempty"`
 }
 

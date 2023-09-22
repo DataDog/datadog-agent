@@ -35,7 +35,7 @@ type ProfileDefinition struct {
 	Device DeviceMeta `yaml:"device,omitempty" json:"-" jsonschema:"-"` // DEPRECATED
 
 	// Used in RC format (list instead of map)
-	MetadataList []MetadataResourceConfig `yaml:"-" json:"metadata_list,omitempty"`
+	MetadataList []MetadataResourceConfig `yaml:"-" json:"-"`
 }
 
 // DeviceProfileRcConfig represent the profile stored in remote config.
@@ -73,18 +73,25 @@ func (d *DeviceProfileRcConfigCustom) UnmarshalJSON(data []byte) error {
 		json.Unmarshal(*deviceProfileRcConfig["profile_definition"], &profileDefinition)
 		fmt.Println(profileDefinition)
 		if profileDefinition["metadata_list"] != nil {
-			[]MetadataResourceConfig
-			profileDefinition["metadata_list"]
+			var metadataResourceConfigList []*json.RawMessage
+			json.Unmarshal(*profileDefinition["metadata_list"], &metadataResourceConfigList)
+
+			profile.Profile.Metadata = make(MetadataConfig)
+			for _, metadataResourceConfigRaw := range metadataResourceConfigList {
+				var metadataResourceConfigRawMap map[string]*json.RawMessage
+				json.Unmarshal(*metadataResourceConfigRaw, &metadataResourceConfigRawMap)
+				var resourceType string
+				json.Unmarshal(*metadataResourceConfigRawMap["resource_type"], &resourceType)
+				var metadataResourceConfig MetadataResourceConfig
+				json.Unmarshal(*metadataResourceConfigRaw, &metadataResourceConfig)
+				profile.Profile.Metadata[resourceType] = metadataResourceConfig
+			}
+			fmt.Println(metadataResourceConfigList)
+
 		}
 	}
-	//var mappingList []KeyValue
-	//if err := json.Unmarshal(data, &mappingList); err != nil {
-	//	return err
-	//}
-	// Map old structure to new structure.
-	//*t = map[string]string{
-	//	"aa": "bb",
-	//}
+	//profile.Profile.MetadataList = nil
+	*d = DeviceProfileRcConfigCustom(profile)
 	return nil
 }
 
@@ -97,7 +104,7 @@ func UnmarshallFromRc(config []byte) (*DeviceProfileRcConfig, error) {
 		return nil, err
 	}
 	newProfile := DeviceProfileRcConfig(*profile)
-	return newProfile.convertToAgentFormat(), nil
+	return &newProfile, nil
 }
 
 // MarshallForRc to []byte for RC.

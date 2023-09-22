@@ -301,52 +301,65 @@ func TestDeviceProfileRcConfig_UnmarshallFromRc_and_MarshallForRc(t *testing.T) 
 		]
 	}
 }`)
+	// language=json
+	rcConfig = []byte(`
+{
+	"profile_definition": {
+		"name": "my-profile-name",
+		"metadata_list": [
+			{
+				"resource_type": "device"
+            }
+		]
+	}
+}`)
 	agentFormatProfile := &DeviceProfileRcConfig{
 		Profile: ProfileDefinition{
+			Name: "my-profile-name",
 			Metadata: MetadataConfig{
 				"device": MetadataResourceConfig{
-					Fields: map[string]MetadataField{
-						"name": {
-							Value: "my-device",
-						},
-					},
+					//Fields: map[string]MetadataField{
+					//	"name": {
+					//		Value: "my-device",
+					//	},
+					//},
 				},
 			},
-			Metrics: []MetricsConfig{
-				{
-					Symbols: []SymbolConfig{
-						{
-							OID:  "1.2.3",
-							Name: "aSymbol",
-						},
-					},
-					MetricTags: MetricTagConfigList{
-						{
-							Tag: "a-tag",
-							Column: SymbolConfig{
-								OID:  "1.2.3",
-								Name: "aSymbol",
-							},
-							Mapping: map[string]string{
-								"1": "aa",
-								"2": "bb",
-							},
-						},
-						{
-							Tag: "a-tag2",
-							Column: SymbolConfig{
-								OID:  "1.2.3",
-								Name: "aSymbol",
-							},
-							Match: "(.*)(\\d+)",
-							Tags: map[string]string{
-								"tag1": "$1",
-								"tag2": "$2",
-							},
-						},
-					},
-				},
-			},
+			//Metrics: []MetricsConfig{
+			//	{
+			//		Symbols: []SymbolConfig{
+			//			{
+			//				OID:  "1.2.3",
+			//				Name: "aSymbol",
+			//			},
+			//		},
+			//		MetricTags: MetricTagConfigList{
+			//			{
+			//				Tag: "a-tag",
+			//				Column: SymbolConfig{
+			//					OID:  "1.2.3",
+			//					Name: "aSymbol",
+			//				},
+			//				Mapping: map[string]string{
+			//					"1": "aa",
+			//					"2": "bb",
+			//				},
+			//			},
+			//			{
+			//				Tag: "a-tag2",
+			//				Column: SymbolConfig{
+			//					OID:  "1.2.3",
+			//					Name: "aSymbol",
+			//				},
+			//				Match: "(.*)(\\d+)",
+			//				Tags: map[string]string{
+			//					"tag1": "$1",
+			//					"tag2": "$2",
+			//				},
+			//			},
+			//		},
+			//	},
+			//},
 		},
 	}
 
