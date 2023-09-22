@@ -62,6 +62,7 @@ func (e *EbpfEvent) Incomplete() bool {
 	return e.Http.Request_started == 0 || e.Http.Response_status_code == 0
 }
 
+// ConnTuple returns a `types.ConnectionKey` for the transaction
 func (e *EbpfEvent) ConnTuple() types.ConnectionKey {
 	return types.ConnectionKey{
 		SrcIPHigh: e.Tuple.Saddr_h,
@@ -73,30 +74,37 @@ func (e *EbpfEvent) ConnTuple() types.ConnectionKey {
 	}
 }
 
+// Method returns the HTTP method of the HTTP transaction
 func (e *EbpfEvent) Method() Method {
 	return Method(e.Http.Request_method)
 }
 
+// StatusCode returns the status code of the HTTP transaction
 func (e *EbpfEvent) StatusCode() uint16 {
 	return e.Http.Response_status_code
 }
 
+// SetStatusCode of the underlying HTTP transaction
 func (e *EbpfEvent) SetStatusCode(code uint16) {
 	e.Http.Response_status_code = code
 }
 
+// ResponseLastSeen returns the timestamp of the last captured segment of the HTTP transaction
 func (e *EbpfEvent) ResponseLastSeen() uint64 {
 	return e.Http.Response_last_seen
 }
 
+// SetResponseLastSeen of the HTTP transaction
 func (e *EbpfEvent) SetResponseLastSeen(lastSeen uint64) {
 	e.Http.Response_last_seen = lastSeen
-
 }
+
+// RequestStarted returns the timestamp of the first segment of the HTTP transaction
 func (e *EbpfEvent) RequestStarted() uint64 {
 	return e.Http.Request_started
 }
 
+// SetRequestMethod of the underlying HTTP transaction
 func (e *EbpfEvent) SetRequestMethod(m Method) {
 	e.Http.Request_method = uint8(m)
 }
@@ -107,10 +115,12 @@ func (e *EbpfEvent) StaticTags() uint64 {
 	return e.Http.Tags
 }
 
+// DynamicTags returns the dynamic tags associated to the HTTP trasnaction
 func (e *EbpfEvent) DynamicTags() []string {
 	return nil
 }
 
+// String returns a string representation of the underlying event
 func (e *EbpfEvent) String() string {
 	var output strings.Builder
 	output.WriteString("ebpfTx{")
