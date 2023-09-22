@@ -337,6 +337,8 @@ func (k *Probe) getMapStats(stats *model.EBPFStats) error {
 			baseMapStats.MaxSize, baseMapStats.RSS = hashMapMemoryUsage(info, uint64(k.nrcpus))
 		case ebpf.Array, ebpf.PerCPUArray, ebpf.ProgramArray, ebpf.CGroupArray, ebpf.ArrayOfMaps:
 			baseMapStats.MaxSize, baseMapStats.RSS = arrayMemoryUsage(info, uint64(k.nrcpus))
+		case ebpf.LPMTrie:
+			baseMapStats.MaxSize, baseMapStats.RSS = trieMemoryUsage(info, uint64(k.nrcpus))
 		// TODO other map types
 		//case ebpf.Stack:
 		//case ebpf.ReusePortSockArray:
@@ -454,6 +456,17 @@ func hashMapMemoryUsage(info *ebpf.MapInfo, nrCPUS uint64) (max uint64, rss uint
 	//}
 
 	return usage, usage
+}
+
+const sizeofLPMTrieNode = 40          // struct lpm_trie_node
+const offsetOfDataInBPFLPMTrieKey = 4 // offsetof(struct bpf_lpm_trie_key, data)
+
+func trieMemoryUsage(info *ebpf.MapInfo, _ uint64) (max uint64, rss uint64) {
+	dataSize := uint64(info.KeySize) - offsetOfDataInBPFLPMTrieKey
+	elemSize := sizeofLPMTrieNode + dataSize + uint64(info.ValueSize)
+	size := elemSize * uint64(info.MaxEntries)
+	// accurate RSS would require knowing the number of entries in the trie
+	return size, size
 }
 
 func perfBufferMemoryUsage(mapStats *model.EBPFPerfBufferStats, info *ebpf.MapInfo, k *Probe) error {
