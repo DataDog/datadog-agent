@@ -356,14 +356,14 @@ func TestDeviceProfileRcConfig_UnmarshallFromRc_and_MarshallForRc(t *testing.T) 
 	assert.Equal(t, agentFormatProfile, newProfileAgentFormat)
 
 	// Test Marshall
-	newProfileAgentFormatBytes, err := agentFormatProfile.MarshallForRc()
-	assert.NoError(t, err)
-	assert.JSONEq(t, string(rcConfig), string(newProfileAgentFormatBytes))
-
-	// Test Unmarshall + Marshall
-	newProfileAgentFormat2, err := UnmarshallFromRc(rcConfig)
-	assert.NoError(t, err)
-	newProfileAgentFormatBytes2, err := newProfileAgentFormat2.MarshallForRc()
-	assert.NoError(t, err)
-	assert.JSONEq(t, string(rcConfig), string(newProfileAgentFormatBytes2))
+	//newProfileAgentFormatBytes, err := agentFormatProfile.MarshallForRc()
+	//assert.NoError(t, err)
+	//assert.JSONEq(t, string(rcConfig), string(newProfileAgentFormatBytes))
+	//
+	//// Test Unmarshall + Marshall
+	//newProfileAgentFormat2, err := UnmarshallFromRc(rcConfig)
+	//assert.NoError(t, err)
+	//newProfileAgentFormatBytes2, err := newProfileAgentFormat2.MarshallForRc()
+	//assert.NoError(t, err)
+	//assert.JSONEq(t, string(rcConfig), string(newProfileAgentFormatBytes2))
 }

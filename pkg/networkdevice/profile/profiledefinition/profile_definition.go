@@ -6,7 +6,9 @@
 package profiledefinition
 
 import (
+	"bytes"
 	"encoding/json"
+	"fmt"
 	"sort"
 
 	"github.com/mohae/deepcopy"
@@ -48,14 +50,54 @@ func NewProfileDefinition() *ProfileDefinition {
 	return p
 }
 
+type DeviceProfileRcConfigCustom DeviceProfileRcConfig
+
+func (d *DeviceProfileRcConfigCustom) UnmarshalJSON(data []byte) error {
+	profile := DeviceProfileRcConfig{}
+	err := json.Unmarshal(data, &profile)
+	if err != nil {
+		return err
+	}
+
+	var deviceProfileRcConfig map[string]*json.RawMessage
+	err = json.Unmarshal(data, &deviceProfileRcConfig)
+	if err != nil {
+		return err
+	}
+
+	profileDef := deviceProfileRcConfig["profile_definition"]
+	fmt.Println(deviceProfileRcConfig)
+	fmt.Println(profileDef)
+	if deviceProfileRcConfig["profile_definition"] != nil {
+		var profileDefinition map[string]*json.RawMessage
+		json.Unmarshal(*deviceProfileRcConfig["profile_definition"], &profileDefinition)
+		fmt.Println(profileDefinition)
+		if profileDefinition["metadata_list"] != nil {
+			[]MetadataResourceConfig
+			profileDefinition["metadata_list"]
+		}
+	}
+	//var mappingList []KeyValue
+	//if err := json.Unmarshal(data, &mappingList); err != nil {
+	//	return err
+	//}
+	// Map old structure to new structure.
+	//*t = map[string]string{
+	//	"aa": "bb",
+	//}
+	return nil
+}
+
 // UnmarshallFromRc creates a new ProfileDefinition from RC Config []byte
 func UnmarshallFromRc(config []byte) (*DeviceProfileRcConfig, error) {
-	profile := &DeviceProfileRcConfig{}
-	err := json.Unmarshal(config, profile)
+	profile := &DeviceProfileRcConfigCustom{}
+	err := json.NewDecoder(bytes.NewReader(config)).Decode(&profile)
+	//err := json.Unmarshal(config, profile)
 	if err != nil {
 		return nil, err
 	}
-	return profile.convertToAgentFormat(), nil
+	newProfile := DeviceProfileRcConfig(*profile)
+	return newProfile.convertToAgentFormat(), nil
 }
 
 // MarshallForRc to []byte for RC.

@@ -6,6 +6,7 @@
 package profiledefinition
 
 import (
+	"encoding/json"
 	"regexp"
 )
 
@@ -70,6 +71,8 @@ type SymbolConfig struct {
 	MetricType ProfileMetricType `yaml:"metric_type,omitempty" json:"metric_type,omitempty"`
 }
 
+type MapStringToString map[string]string
+
 // MetricTagConfig holds metric tag info
 type MetricTagConfig struct {
 	Tag string `yaml:"tag" json:"tag"`
@@ -86,18 +89,30 @@ type MetricTagConfig struct {
 
 	IndexTransform []MetricIndexTransform `yaml:"index_transform,omitempty" json:"index_transform,omitempty"`
 
-	Mapping map[string]string `yaml:"mapping,omitempty" json:"-" jsonschema:"-"` // not exposed as json annotation since MappingList is used instead
+	Mapping MapStringToString `yaml:"mapping,omitempty" json:"-" jsonschema:"-"` // not exposed as json annotation since MappingList is used instead
 
 	// Regex
 	Match   string            `yaml:"match,omitempty" json:"match,omitempty"`
 	Pattern *regexp.Regexp    `yaml:"-" json:"-"`
-	Tags    map[string]string `yaml:"tags,omitempty" json:"-" jsonschema:"-"` // not exposed as json annotation since TagsList is used instead
+	Tags    MapStringToString `yaml:"tags,omitempty" json:"-" jsonschema:"-"` // not exposed as json annotation since TagsList is used instead
 
 	SymbolTag string `yaml:"-" json:"-"`
 
 	// Used in RC format (list instead of map)
 	MappingList []KeyValue `yaml:"-" json:"mapping_list,omitempty"`
 	TagsList    []KeyValue `yaml:"-" json:"tags_list,omitempty"`
+}
+
+func (MapStringToString) UnmarshalJSON(data []byte) error {
+	var mappingList []KeyValue
+	if err := json.Unmarshal(data, &mappingList); err != nil {
+		return err
+	}
+	// Map old structure to new structure.
+	//*t = map[string]string{
+	//	"aa": "bb",
+	//}
+	return nil
 }
 
 // MetricTagConfigList holds configs for a list of metric tags
