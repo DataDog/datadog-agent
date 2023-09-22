@@ -92,7 +92,7 @@ type MetricTagConfig struct {
 	Column SymbolConfig `yaml:"column,omitempty" json:"column,omitempty" jsonschema:"-"` // DEPRECATED replaced by Symbol field
 
 	// Symbol config
-	OID string `yaml:"OID,omitempty" json:"OID,omitempty"  jsonschema:"-"` // DEPRECATED replaced by Symbol field
+	OID string `yaml:"OID,omitempty" json:"-"  jsonschema:"-"` // DEPRECATED replaced by Symbol field
 	// Using Symbol field below as string is deprecated
 	Symbol SymbolConfigCompat `yaml:"symbol,omitempty" json:"symbol,omitempty"`
 
