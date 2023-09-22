@@ -75,9 +75,12 @@ def trigger_macos_workflow(
         print(f"Fetching triggered workflow (try {i + 1}/{MAX_RETRIES})")
         recent_runs = gh.workflow_run_for_ref_after_date(workflow_name, github_action_ref, now)
         for recent_run in recent_runs:
+            print("Recent run found: ", recent_run)
             jobs = recent_run.jobs()
+            print("Jobs found: ", jobs)
             if jobs.totalCount >= 2:
                 workflow_id_job = jobs[0]  # Workflow Provider ID job is the first job in the workflow
+                print("Steps: ", workflow_id_job.steps)
                 if len(workflow_id_job.steps) > 2:
                     if any([step.name == workflow_id for step in workflow_id_job.steps]):
                         return recent_run
