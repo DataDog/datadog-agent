@@ -173,9 +173,21 @@ func (fh *FieldHandlers) ResolveProcessArgv(ev *model.Event, process *model.Proc
 	return argv
 }
 
+// ResolveProcessArgvScrubbed resolves the args of the event as an array
+func (fh *FieldHandlers) ResolveProcessArgvScrubbed(ev *model.Event, process *model.Process) []string {
+	argv, _ := fh.resolvers.ProcessResolver.GetProcessArgvScrubbed(process)
+	return argv
+}
+
 // ResolveProcessEnvp resolves the envp of the event as an array
 func (fh *FieldHandlers) ResolveProcessEnvp(ev *model.Event, process *model.Process) []string {
 	envp, _ := fh.resolvers.ProcessResolver.GetProcessEnvp(process)
+	return envp
+}
+
+// ResolveProcessEnvpScrubbed resolves the envp of the event as an array
+func (fh *FieldHandlers) ResolveProcessEnvpScrubbed(ev *model.Event, process *model.Process) []string {
+	envp, _ := fh.resolvers.ProcessResolver.GetProcessEnvpScrubbed(process)
 	return envp
 }
 

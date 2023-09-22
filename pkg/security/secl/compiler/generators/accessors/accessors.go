@@ -761,7 +761,7 @@ func split(r rune) bool {
 
 func pascalCaseFieldName(fieldName string) string {
 	chunks := strings.FieldsFunc(fieldName, split)
-	caser := cases.Title(language.Und, cases.NoLower)
+	caser := cases.Title(language.English, cases.NoLower)
 
 	for idx, chunk := range chunks {
 		newChunk := chunk
