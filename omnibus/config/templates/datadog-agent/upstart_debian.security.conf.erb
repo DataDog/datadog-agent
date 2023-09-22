@@ -19,7 +19,7 @@ pre-start script
 end script
 
 script
-  exec <%= install_dir %>/embedded/bin/security-agent start -c <%= etc_dir %>/datadog.yaml -c <%= etc_dir %>/security-agent.yaml -p <%= install_dir %>/run/security-agent.pid
+  exec <%= install_dir %>/embedded/bin/security-agent start -c <%= etc_dir %>/datadog.yaml -c <%= etc_dir %>/security-agent.yaml --sysprobe-config <%= etc_dir %>/system-probe.yaml -p <%= install_dir %>/run/security-agent.pid
 end script
 
 post-stop script

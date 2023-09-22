@@ -163,7 +163,7 @@ github_labels = ["team/containers"]
 exclude_members = ["vboulineau"]
 
 [teams."Container Ecosystems"]
-jira_project = "CONTECO"
+jira_project = "CECO"
 jira_issue_type = "Task"
 jira_statuses = [
   "To Do",
@@ -209,7 +209,7 @@ github_team = "processes"
 github_labels = ["team/processes"]
 
 [teams."Windows Agent"]
-jira_project = "WA"
+jira_project = "WINA"
 jira_issue_type = "QA Task"
 jira_statuses = [
   "To Do",
@@ -220,7 +220,7 @@ github_team = "windows-agent"
 github_labels = ["team/windows-agent"]
 
 [teams."Windows Kernel Integrations"]
-jira_project = "WKIT"
+jira_project = "WKINT"
 jira_issue_type = "Task"
 jira_statuses = [
   "To Do",
@@ -231,7 +231,7 @@ github_team = "windows-kernel-integrations"
 github_labels = ["team/windows-kernel-integrations"]
 
 [teams."Database Monitoring"]
-jira_project = "DBM"
+jira_project = "DBMON"
 jira_issue_type = "Task"
 jira_statuses = [
   "Eventually",

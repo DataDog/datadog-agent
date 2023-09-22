@@ -25,8 +25,9 @@ const (
 	smNS                         = "service_monitoring_config"
 	dsNS                         = "data_streams_config"
 	evNS                         = "event_monitoring_config"
-	smjtNS                       = smNS + ".java_tls"
+	smjtNS                       = smNS + ".tls.java"
 	diNS                         = "dynamic_instrumentation"
+	wcdNS                        = "windows_crash_detection"
 	defaultConnsMessageBatchSize = 600
 
 	// defaultSystemProbeBPFDir is the default path for eBPF programs
@@ -123,6 +124,8 @@ func InitSystemProbeConfig(cfg Config) {
 	cfg.BindEnvAndSetDefault(join(spNS, "internal_profiling.enable_goroutine_stacktraces"), false)
 	cfg.BindEnvAndSetDefault(join(spNS, "internal_profiling.delta_profiles"), true)
 	cfg.BindEnvAndSetDefault(join(spNS, "internal_profiling.custom_attributes"), []string{"module"})
+	cfg.BindEnvAndSetDefault(join(spNS, "internal_profiling.unix_socket"), "")
+	cfg.BindEnvAndSetDefault(join(spNS, "internal_profiling.extra_tags"), []string{})
 
 	cfg.BindEnvAndSetDefault(join(spNS, "memory_controller.enabled"), false)
 	cfg.BindEnvAndSetDefault(join(spNS, "memory_controller.hierarchy"), "v1")
@@ -199,12 +202,16 @@ func InitSystemProbeConfig(cfg Config) {
 	cfg.BindEnv(join(netNS, "enable_http_monitoring"), "DD_SYSTEM_PROBE_NETWORK_ENABLE_HTTP_MONITORING")
 	cfg.BindEnv(join(smNS, "enable_http_monitoring"))
 
+	// For backward compatibility
 	cfg.BindEnv(join(netNS, "enable_https_monitoring"), "DD_SYSTEM_PROBE_NETWORK_ENABLE_HTTPS_MONITORING")
+	cfg.BindEnv(join(smNS, "tls", "native", "enabled"))
 
+	// For backward compatibility
 	cfg.BindEnvAndSetDefault(join(smNS, "enable_go_tls_support"), false)
+	cfg.BindEnv(join(smNS, "tls", "go", "enabled"))
 
 	cfg.BindEnvAndSetDefault(join(smNS, "enable_http2_monitoring"), false)
-	cfg.BindEnvAndSetDefault(join(smNS, "enable_istio_monitoring"), false)
+	cfg.BindEnvAndSetDefault(join(smNS, "tls", "istio", "enabled"), false)
 	cfg.BindEnvAndSetDefault(join(smjtNS, "enabled"), false)
 	cfg.BindEnvAndSetDefault(join(smjtNS, "debug"), false)
 	cfg.BindEnvAndSetDefault(join(smjtNS, "args"), defaultServiceMonitoringJavaAgentArgs)
@@ -313,6 +320,9 @@ func InitSystemProbeConfig(cfg Config) {
 
 	// enable/disable use of root net namespace
 	cfg.BindEnvAndSetDefault(join(netNS, "enable_root_netns"), true)
+
+	// Windows crash detection
+	cfg.BindEnvAndSetDefault(join(wcdNS, "enabled"), false)
 
 	initCWSSystemProbeConfig(cfg)
 }

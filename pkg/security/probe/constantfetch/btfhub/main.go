@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build linux
+//go:build linux && linux_bpf
 
 // Package main holds main related files
 package main
@@ -60,7 +60,7 @@ func main() {
 		currentConstants, err := getCurrentConstants(constantOutputPath)
 		if err == nil && currentConstants.Commit != "" {
 			if currentConstants.Commit == archiveCommit {
-				fmt.Printf("already at most archive commit")
+				fmt.Printf("already at most recent archive commit")
 				return
 			}
 			preAllocHint = len(currentConstants.Kernels)

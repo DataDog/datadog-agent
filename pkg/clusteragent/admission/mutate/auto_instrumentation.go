@@ -45,8 +45,8 @@ const (
 	dotnetClrEnableProfilingKey   = "CORECLR_ENABLE_PROFILING"
 	dotnetClrEnableProfilingValue = "1"
 
-	dotnetClrProfilerIdKey   = "CORECLR_PROFILER"
-	dotnetClrProfilerIdValue = "{846F5F1C-F9AE-4B07-969E-05C26BC060D8}"
+	dotnetClrProfilerIDKey   = "CORECLR_PROFILER"
+	dotnetClrProfilerIDValue = "{846F5F1C-F9AE-4B07-969E-05C26BC060D8}"
 
 	dotnetClrProfilerPathKey   = "CORECLR_PROFILER_PATH"
 	dotnetClrProfilerPathValue = "/datadog-lib/Datadog.Trace.ClrProfiler.Native.so"
@@ -264,8 +264,8 @@ func injectAutoInstruConfig(pod *corev1.Pod, libsToInject []libInfo) error {
 					valFunc: identityValFunc(dotnetClrEnableProfilingValue),
 				},
 				{
-					key:     dotnetClrProfilerIdKey,
-					valFunc: identityValFunc(dotnetClrProfilerIdValue),
+					key:     dotnetClrProfilerIDKey,
+					valFunc: identityValFunc(dotnetClrProfilerIDValue),
 				},
 				{
 					key:     dotnetClrProfilerPathKey,

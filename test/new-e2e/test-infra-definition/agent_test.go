@@ -22,7 +22,7 @@ type agentSuite struct {
 }
 
 func TestAgentSuite(t *testing.T) {
-	e2e.Run(t, &agentSuite{}, e2e.AgentStackDef(nil))
+	e2e.Run(t, &agentSuite{}, e2e.AgentStackDef())
 }
 
 func (v *agentSuite) TestAgentCommandNoArg() {
@@ -54,7 +54,7 @@ func (v *agentSuite) TestWithAgentConfig() {
 		if param.useConfig {
 			agentParams = append(agentParams, agentparams.WithAgentConfig(param.config))
 		}
-		v.UpdateEnv(e2e.AgentStackDef(nil, agentParams...))
+		v.UpdateEnv(e2e.AgentStackDef(e2e.WithAgentParams(agentParams...)))
 		config := v.Env().Agent.Config()
 		re := regexp.MustCompile(`.*log_level:(.*)\n`)
 		matches := re.FindStringSubmatch(config)
@@ -64,12 +64,12 @@ func (v *agentSuite) TestWithAgentConfig() {
 }
 
 func (v *agentSuite) TestWithTelemetry() {
-	v.UpdateEnv(e2e.AgentStackDef(nil, agentparams.WithTelemetry()))
+	v.UpdateEnv(e2e.AgentStackDef(e2e.WithAgentParams(agentparams.WithTelemetry())))
 
 	status := v.Env().Agent.Status()
 	require.Contains(v.T(), status.Content, "go_expvar")
 
-	v.UpdateEnv(e2e.AgentStackDef(nil))
+	v.UpdateEnv(e2e.AgentStackDef())
 	status = v.Env().Agent.Status()
 	require.NotContains(v.T(), status.Content, "go_expvar")
 }
@@ -78,7 +78,7 @@ func (v *agentSuite) TestWithLogs() {
 	config := v.Env().Agent.Config()
 	require.Contains(v.T(), config, "logs_enabled: false")
 
-	v.UpdateEnv(e2e.AgentStackDef(nil, agentparams.WithLogs()))
+	v.UpdateEnv(e2e.AgentStackDef(e2e.WithAgentParams(agentparams.WithLogs())))
 	config = v.Env().Agent.Config()
 	require.Contains(v.T(), config, "logs_enabled: true")
 }

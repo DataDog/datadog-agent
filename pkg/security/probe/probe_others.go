@@ -38,6 +38,11 @@ func (p *Probe) AddEventHandler(eventType model.EventType, handler EventHandler)
 	return nil
 }
 
+// AddFullAccessEventHandler sets a probe event handler for the UnknownEventType which requires access to all the struct fields
+func (p *Probe) AddFullAccessEventHandler(handler EventHandler) error {
+	return nil
+}
+
 // AddCustomEventHandler set the probe event handler
 func (p *Probe) AddCustomEventHandler(eventType model.EventType, handler CustomEventHandler) error {
 	return nil

@@ -191,16 +191,8 @@ build do
             strip_exclude("*aerospike*")
 
             # Do not strip eBPF programs
-            strip_exclude("*tracer*")
-            strip_exclude("*offset-guess*")
-            strip_exclude("*usm*")
-            strip_exclude("*shared-libraries*")
-            strip_exclude("*runtime-security*")
-            strip_exclude("*dns*")
-            strip_exclude("*conntrack*")
-            strip_exclude("*oom-kill*")
-            strip_exclude("*tcp-queue-length*")
-            strip_exclude("*ebpf*")
+            strip_exclude("#{install_dir}/embedded/share/system-probe/ebpf/*.o")
+            strip_exclude("#{install_dir}/embedded/share/system-probe/ebpf/co-re/*.o")
         end
 
         if osx?

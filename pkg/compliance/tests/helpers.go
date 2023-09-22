@@ -262,7 +262,13 @@ func (c *assertedRule) run(t *testing.T, options compliance.ResolverOptions) {
 	defer resolver.Close()
 	benchmark := benchmarks[0]
 	for _, rule := range benchmark.Rules {
-		events := compliance.ResolveAndEvaluateRegoRule(ctx, resolver, benchmark, rule)
+		inputs, err := resolver.ResolveInputs(ctx, rule)
+		var events []*compliance.CheckEvent
+		if err != nil {
+			events = append(events, compliance.CheckEventFromError(compliance.RegoEvaluator, rule, benchmark, err))
+		} else {
+			events = compliance.EvaluateRegoRule(ctx, inputs, benchmark, rule)
+		}
 		if c.noEvent {
 			if len(events) > 0 {
 				for _, event := range events {

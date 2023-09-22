@@ -140,3 +140,13 @@ func BenchmarkObfuscateJSON(b *testing.B) {
 		})
 	}
 }
+
+func FuzzObfuscateJSON(f *testing.F) {
+	for _, s := range jsonSuite {
+		f.Add([]byte(s.In))
+	}
+	o := newJSONObfuscator(&JSONConfig{}, NewObfuscator(Config{}))
+	f.Fuzz(func(t *testing.T, b []byte) {
+		o.obfuscate(b)
+	})
+}
