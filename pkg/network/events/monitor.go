@@ -10,6 +10,7 @@ package events
 import (
 	"strings"
 	"sync"
+	"time"
 
 	"go.uber.org/atomic"
 	"go4.org/intern"
@@ -100,11 +101,20 @@ func (h *eventHandlerWrapper) HandleEvent(ev any) {
 func (h *eventHandlerWrapper) Copy(ev *model.Event) any {
 	m := theMonitor.Load()
 	if m != nil {
+		// If this consumer subscribes to more event types, this block will have to account for those additional event types
+		var processStartTime time.Time
+		if ev.GetEventType() == model.ExecEventType {
+			processStartTime = ev.GetProcessExecTime()
+		}
+		if ev.GetEventType() == model.ForkEventType {
+			processStartTime = ev.GetProcessForkTime()
+		}
+
 		return &Process{
 			Pid:         ev.GetProcessPid(),
 			ContainerID: intern.GetByString(ev.GetContainerId()),
-			StartTime:   ev.GetProcessExecTime().UnixNano(),
 			Envs:        ev.GetProcessEnvs(), // TODO, don't resolve twice in GetProcessEnvs. TODO: Verify that Process.EnvEntry and Process.Envs are the same
+			StartTime:   processStartTime.UnixNano(),
 		}
 	}
 
