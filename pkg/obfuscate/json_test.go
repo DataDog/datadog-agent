@@ -185,7 +185,6 @@ func TestObfuscateJSONConcurrently(t *testing.T) {
 		if v == expected {
 			continue
 		}
-
 		t.Fatalf("mangled payload after obfuscation: %q", v)
 	}
 }
