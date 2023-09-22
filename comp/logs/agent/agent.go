@@ -11,9 +11,9 @@ import (
 	"fmt"
 	"time"
 
+	configComponent "github.com/DataDog/datadog-agent/comp/core/config"
+	logComponent "github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
-	"github.com/DataDog/datadog-agent/pkg/conf"
-	"github.com/DataDog/datadog-agent/pkg/logcomp"
 	"github.com/DataDog/datadog-agent/pkg/logs/auditor"
 	"github.com/DataDog/datadog-agent/pkg/logs/client"
 	"github.com/DataDog/datadog-agent/pkg/logs/diagnostic"
@@ -47,35 +47,34 @@ type dependencies struct {
 	fx.In
 
 	Lc     fx.Lifecycle
-	Log    logcomp.Component
-	Config conf.Component
+	Log    logComponent.Component
+	Config configComponent.Component
 }
 
 // agent represents the data pipeline that collects, decodes,
 // processes and sends logs to the backend.  See the package README for
 // a description of its operation.
 type agent struct {
-	log    logcomp.Component
-	config conf.ConfigReader //
+	log    logComponent.Component
+	config configComponent.Component
 
 	sources                   *sources.LogSources
 	services                  *service.Services
-	endpoints                 *config.Endpoints //
+	endpoints                 *config.Endpoints
 	tracker                   *tailers.TailerTracker
 	schedulers                *schedulers.Schedulers
-	auditor                   auditor.Auditor             //
-	destinationsCtx           *client.DestinationsContext //
-	pipelineProvider          pipeline.Provider           //
+	auditor                   auditor.Auditor
+	destinationsCtx           *client.DestinationsContext
+	pipelineProvider          pipeline.Provider
 	launchers                 *launchers.Launchers
 	health                    *health.Handle
 	diagnosticMessageReceiver *diagnostic.BufferedMessageReceiver
-	cfg                       conf.ConfigReader
 
 	// started is true if the logs agent is running
 	started *atomic.Bool
 }
 
-func newLogsAgent(deps dependencies, cfg conf.ConfigReader) util.Optional[Component] {
+func newLogsAgent(deps dependencies) util.Optional[Component] {
 	if deps.Config.GetBool("logs_enabled") || deps.Config.GetBool("log_enabled") {
 		if deps.Config.GetBool("log_enabled") {
 			deps.Log.Warn(`"log_enabled" is deprecated, use "logs_enabled" instead`)
@@ -89,7 +88,6 @@ func newLogsAgent(deps dependencies, cfg conf.ConfigReader) util.Optional[Compon
 			sources:  sources.NewLogSources(),
 			services: service.NewServices(),
 			tracker:  tailers.NewTailerTracker(),
-			cfg:      cfg,
 		}
 		deps.Lc.Append(fx.Hook{
 			OnStart: logsAgent.start,

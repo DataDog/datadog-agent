@@ -52,11 +52,11 @@ type agent struct {
 	log    logcomp.Component
 	config conf.ConfigReader
 
-	endpoints        *config.Endpoints           //
-	auditor          auditor.Auditor             //
-	destinationsCtx  *client.DestinationsContext //
-	pipelineProvider pipeline.Provider           //
-	cfg              conf.ConfigReader
+	endpoints        *config.Endpoints
+	auditor          auditor.Auditor
+	destinationsCtx  *client.DestinationsContext
+	pipelineProvider pipeline.Provider
+	cfg              conf.ConfigReader // TODO: maybe remove this?
 	health           *health.Handle
 
 	// started is true if the logs agent is running

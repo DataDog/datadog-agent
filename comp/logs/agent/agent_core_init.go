@@ -8,10 +8,10 @@
 package agent
 
 import (
-	"github.com/DataDog/datadog-agent/pkg/conf"
 	"time"
 
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
+	"github.com/DataDog/datadog-agent/pkg/conf"
 	"github.com/DataDog/datadog-agent/pkg/logs/auditor"
 	"github.com/DataDog/datadog-agent/pkg/logs/client"
 	"github.com/DataDog/datadog-agent/pkg/logs/client/http"
@@ -44,7 +44,7 @@ func (a *agent) SetupPipeline(
 	diagnosticMessageReceiver := diagnostic.NewBufferedMessageReceiver(nil)
 
 	// setup the pipeline provider that provides pairs of processor and sender
-	pipelineProvider := pipeline.NewProvider(config.NumberOfPipelines, auditor, diagnosticMessageReceiver, processingRules, a.endpoints, destinationsCtx, a.cfg, hostname.Get, status.AddGlobalWarning, status.RemoveGlobalWarning)
+	pipelineProvider := pipeline.NewProvider(config.NumberOfPipelines, auditor, diagnosticMessageReceiver, processingRules, a.endpoints, destinationsCtx, a.config, hostname.Get, status.AddGlobalWarning, status.RemoveGlobalWarning)
 
 	// setup the launchers
 	lnchrs := launchers.NewLaunchers(a.sources, pipelineProvider, auditor, a.tracker)
@@ -54,10 +54,10 @@ func (a *agent) SetupPipeline(
 		a.config.GetBool("logs_config.validate_pod_container_id"),
 		time.Duration(a.config.GetFloat64("logs_config.file_scan_period")*float64(time.Second)),
 		a.config.GetString("logs_config.file_wildcard_selection_mode"),
-		a.cfg))
-	lnchrs.AddLauncher(listener.NewLauncher(a.config.GetInt("logs_config.frame_size"), a.cfg))
+		a.config))
+	lnchrs.AddLauncher(listener.NewLauncher(a.config.GetInt("logs_config.frame_size"), a.config))
 	lnchrs.AddLauncher(journald.NewLauncher())
-	lnchrs.AddLauncher(windowsevent.NewLauncher(a.cfg))
+	lnchrs.AddLauncher(windowsevent.NewLauncher(a.config))
 	lnchrs.AddLauncher(container.NewLauncher(a.sources))
 
 	a.schedulers = schedulers.NewSchedulers(a.sources, a.services)
