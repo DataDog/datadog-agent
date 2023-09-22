@@ -1358,10 +1358,6 @@ func (p *Probe) ApplyRuleSet(rs *rules.RuleSet) (*kfilters.ApplyRuleSetReport, e
 		}
 	}
 
-	if err := p.FlushDiscarders(); err != nil {
-		return nil, fmt.Errorf("failed to flush discarders: %w", err)
-	}
-
 	if err := p.updateProbes(rs.GetEventTypes(), false); err != nil {
 		return nil, fmt.Errorf("failed to select probes: %w", err)
 	}
