@@ -954,8 +954,8 @@ func GetProcessArgv0(pr *model.Process) (string, bool) {
 	return pr.Argv0, pr.ArgsTruncated
 }
 
-// GetProcessScrubbedArgv returns the scrubbed args of the event as an array
-func (p *Resolver) GetProcessScrubbedArgv(pr *model.Process) ([]string, bool) {
+// GetProcessArgvScrubbed returns the scrubbed args of the event as an array
+func (p *Resolver) GetProcessArgvScrubbed(pr *model.Process) ([]string, bool) {
 	if pr.ArgsEntry == nil || pr.ScrubbedArgvResolved {
 		return pr.Argv, pr.ArgsTruncated
 	}
@@ -1230,7 +1230,7 @@ func (p *Resolver) dumpEntry(writer io.Writer, entry *model.ProcessCacheEntry, a
 			}
 
 			if withArgs {
-				argv, _ := p.GetProcessScrubbedArgv(&entry.Process)
+				argv, _ := p.GetProcessArgvScrubbed(&entry.Process)
 				fmt.Fprintf(writer, `"%d:%s" [label="%s", comment="%s"];`, entry.Pid, entry.Comm, label, strings.Join(argv, " "))
 			} else {
 				fmt.Fprintf(writer, `"%d:%s" [label="%s"];`, entry.Pid, entry.Comm, label)

@@ -78,7 +78,7 @@ func newProcessSerializer(ps *model.Process, e *model.Event, resolvers *resolver
 		Pid:        ps.Pid,
 		PPid:       getUint32Pointer(&ps.PPid),
 		Executable: newFileSerializer(&ps.FileEvent, e),
-		Args:       resolvers.ProcessResolver.GetProcessScrubbedArgv(ps),
+		Args:       resolvers.ProcessResolver.GetProcessArgvScrubbed(ps),
 		Envs:       ps.Envs,
 	}
 

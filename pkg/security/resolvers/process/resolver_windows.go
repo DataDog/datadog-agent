@@ -13,10 +13,11 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/DataDog/datadog-go/v5/statsd"
+
 	"github.com/DataDog/datadog-agent/pkg/process/procutil"
 	"github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
-	"github.com/DataDog/datadog-go/v5/statsd"
 )
 
 type Pid = uint32
@@ -89,7 +90,7 @@ func (p *Resolver) Resolve(pid, tid uint32, inode uint64, useFallBack bool) *mod
 	return p.GetProcessEntry(pid)
 }
 
-// GetProcessScrubbedArgv returns the scrubbed args of the event as an array
+// GetProcessArgvScrubbed returns the scrubbed args of the event as an array
 func (p *Resolver) GetProcessScrubbedArgv(pr *model.Process) []string {
 	if pr.ScrubbedArgvResolved {
 		return pr.ScrubbedArgv
