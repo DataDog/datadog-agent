@@ -103,14 +103,14 @@ func injectAutoInstrumentation(pod *corev1.Pod, _ string, _ dynamic.Interface) e
 		return errors.New("cannot inject lib into nil pod")
 	}
 
-	if IsApmInstrumentationEnabled(pod.Namespace) {
+	if isApmInstrumentationEnabled(pod.Namespace) {
 		// if Single Step Instrumentation is enabled, pods can still opt out using the label
 		if pod.GetLabels()[admCommon.EnabledLabelKey] == "false" {
 			log.Debugf("Skipping single step instrumentation of pod %q due to label", podString(pod))
 			return nil
 		}
-	} else if !shouldInject(pod) {
-		log.Debugf("Skipping auto instrumentation of pod %q", podString(pod))
+	} else if !shouldMutatePod(pod) {
+		log.Debugf("Skipping auto instrumentation of pod %q because pod mutation is not allowed", podString(pod))
 		return nil
 	}
 	for _, lang := range supportedLanguages {
@@ -151,7 +151,7 @@ func isNsTargeted(ns string) bool {
 
 func injectAll(ns, registry string) []libInfo {
 	libsToInject := []libInfo{}
-	if isNsTargeted(ns) || IsApmInstrumentationEnabled(ns) {
+	if isNsTargeted(ns) || isApmInstrumentationEnabled(ns) {
 		for _, lang := range supportedLanguages {
 			libsToInject = append(libsToInject, libInfo{
 				lang:  lang,
@@ -351,7 +351,7 @@ func injectAutoInstruConfig(pod *corev1.Pod, libsToInject []libInfo) error {
 
 	injectLibVolume(pod)
 
-	if IsApmInstrumentationEnabled(pod.Namespace) {
+	if isApmInstrumentationEnabled(pod.Namespace) {
 		libConfig := basicConfig()
 		if name, err := getServiceNameFromPod(pod); err == nil {
 			// Set service name if it can be derived from a pod
