@@ -12,6 +12,7 @@ import (
 	"github.com/fatih/color"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
 )
 
 // WorkloadDumpResponse is used to dump the store content.
@@ -33,6 +34,9 @@ func (wdr WorkloadDumpResponse) Write(writer io.Writer) {
 
 	for kind, entities := range wdr.Entities {
 		for entity, info := range entities.Infos {
+			info = scrubMessage(info)
+			kind = scrubMessage(kind)
+			entity = scrubMessage(entity)
 			fmt.Fprintf(writer, "\n=== Entity %s %s ===\n", color.GreenString(kind), color.GreenString(entity))
 			fmt.Fprint(writer, info)
 			fmt.Fprintln(writer, "===")
@@ -100,4 +104,12 @@ func (s *store) Dump(verbose bool) WorkloadDumpResponse {
 	}
 
 	return workloadList
+}
+
+func scrubMessage(message string) string {
+	msgScrubbed, err := scrubber.ScrubBytes([]byte(message))
+	if err == nil {
+		return string(msgScrubbed)
+	}
+	return message
 }
