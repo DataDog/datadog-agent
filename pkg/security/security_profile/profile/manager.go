@@ -603,7 +603,7 @@ func (m *SecurityProfileManager) loadProfile(profile *SecurityProfile) error {
 
 	// push kernel space filters
 	if err := m.securityProfileSyscallsMap.Put(profile.profileCookie, profile.generateSyscallsFilters()); err != nil {
-		return fmt.Errorf("couldn't push syscalls filter: %w", err)
+		return fmt.Errorf("couldn't push syscalls filter (check map size limit ?): %w", err)
 	}
 
 	// TODO: load generated programs
@@ -627,7 +627,7 @@ func (m *SecurityProfileManager) unloadProfile(profile *SecurityProfile) {
 // linkProfile (thread unsafe) updates the kernel space mapping between a workload and its profile
 func (m *SecurityProfileManager) linkProfile(profile *SecurityProfile, workload *cgroupModel.CacheEntry) {
 	if err := m.securityProfileMap.Put([]byte(workload.ID), profile.generateKernelSecurityProfileDefinition()); err != nil {
-		seclog.Errorf("couldn't link workload %s (selector: %s) with profile %s: %v", workload.ID, workload.WorkloadSelector.String(), profile.Metadata.Name, err)
+		seclog.Errorf("couldn't link workload %s (selector: %s) with profile %s (check map size limit ?): %v", workload.ID, workload.WorkloadSelector.String(), profile.Metadata.Name, err)
 		return
 	}
 	seclog.Infof("workload %s (selector: %s) successfully linked to profile %s", workload.ID, workload.WorkloadSelector.String(), profile.Metadata.Name)
