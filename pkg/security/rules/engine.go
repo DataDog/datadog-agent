@@ -258,6 +258,10 @@ func (e *RuleEngine) LoadPolicies(policyProviders []rules.PolicyProvider, sendLo
 		e.currentRuleSet.Store(probeEvaluationRuleSet)
 		ruleIDs = append(ruleIDs, probeEvaluationRuleSet.ListRuleIDs()...)
 
+		if err := e.probe.FlushDiscarders(); err != nil {
+			return fmt.Errorf("failed to flush discarders: %w", err)
+		}
+
 		content, _ := json.Marshal(report)
 		seclog.Debugf("Policy report: %s", content)
 
