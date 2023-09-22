@@ -36,6 +36,8 @@ build do
     # needs to be removed.
     configure_options = [
         "--disable-obsolete-api",
+        "--disable-static",
+        "--enable-shared",
     ]
     configure(*configure_options, env: env)
     command "make -j #{workers}", env: env
