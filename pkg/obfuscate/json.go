@@ -118,20 +118,17 @@ func (p *jsonObfuscator) obfuscate(data []byte) (string, error) {
 			st.closures = append(st.closures, true)
 			st.setKey()
 			st.transformingValue = false
-
 		case scanBeginArray:
 			// array begins: [
 			st.closures = append(st.closures, false)
 			st.setKey()
 			st.transformingValue = false
-
 		case scanEndArray, scanEndObject:
 			// array or object closing
 			if n := len(st.closures) - 1; n > 0 {
 				st.closures = st.closures[:n]
 			}
 			fallthrough
-
 		case scanObjectValue, scanArrayValue:
 			// done scanning value
 			st.setKey()
@@ -149,7 +146,6 @@ func (p *jsonObfuscator) obfuscate(data []byte) (string, error) {
 			} else if st.keeping && depth < st.keepDepth {
 				st.keeping = false
 			}
-
 		case scanBeginLiteral, scanContinue:
 			// starting or continuing a literal
 			if st.transformingValue {
@@ -166,7 +162,6 @@ func (p *jsonObfuscator) obfuscate(data []byte) (string, error) {
 				}
 				continue
 			}
-
 		case scanObjectKey:
 			// done scanning key
 			k := string(bytes.Trim(keyBuf, `"`))
@@ -180,13 +175,10 @@ func (p *jsonObfuscator) obfuscate(data []byte) (string, error) {
 				// proceeds as usual
 				st.transformingValue = true
 			}
-
 			keyBuf = keyBuf[:0]
 			st.key = false
-
 		case scanSkipSpace:
 			continue
-
 		case scanError:
 			// we've encountered an error, mark that there might be more JSON
 			// using the ellipsis and return whatever we've managed to obfuscate
