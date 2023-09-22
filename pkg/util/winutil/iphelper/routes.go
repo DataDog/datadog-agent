@@ -71,13 +71,6 @@ type MIB_IPFORWARDROW struct {
 
 //revive:disable:var-naming Name is intended to match the Windows const name
 
-// Generic Windows interface consts
-const (
-	MAX_INTERFACE_NAME_LEN = 256
-	MAXLEN_PHYSADDR        = 8
-	MAXLEN_IFDESCR         = 256
-)
-
 // TCP_TABLE_CLASS enum
 //
 // https://learn.microsoft.com/en-us/windows/win32/api/iprtrmib/ne-iprtrmib-tcp_table_class
