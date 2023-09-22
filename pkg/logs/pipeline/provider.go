@@ -15,7 +15,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/auditor"
 	"github.com/DataDog/datadog-agent/pkg/logs/client"
 	diagnostic "github.com/DataDog/datadog-agent/pkg/logs/diagnostic/module"
-	message "github.com/DataDog/datadog-agent/pkg/logs/message/module"
+	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	status "github.com/DataDog/datadog-agent/pkg/logs/status/module"
 	"github.com/DataDog/datadog-agent/pkg/util/startstop"
 )

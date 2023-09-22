@@ -9,7 +9,7 @@ import (
 	"time"
 
 	"github.com/DataDog/agent-payload/v5/pb"
-	message "github.com/DataDog/datadog-agent/pkg/logs/message/module"
+	"github.com/DataDog/datadog-agent/pkg/logs/message"
 )
 
 // ProtoEncoder is a shared proto encoder.

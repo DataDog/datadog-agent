@@ -10,7 +10,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
-	message "github.com/DataDog/datadog-agent/pkg/logs/message/module"
+	"github.com/DataDog/datadog-agent/pkg/logs/message"
 )
 
 // RawEncoder is a shared raw encoder.

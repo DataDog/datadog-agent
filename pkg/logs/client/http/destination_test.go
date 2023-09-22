@@ -15,7 +15,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	"github.com/DataDog/datadog-agent/pkg/conf"
 	"github.com/DataDog/datadog-agent/pkg/logs/client"
-	message "github.com/DataDog/datadog-agent/pkg/logs/message/module"
+	"github.com/DataDog/datadog-agent/pkg/logs/message"
 )
 
 var cfg conf.ConfigReader

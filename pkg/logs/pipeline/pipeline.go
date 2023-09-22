@@ -16,7 +16,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/client/tcp"
 	diagnostic "github.com/DataDog/datadog-agent/pkg/logs/diagnostic/module"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/processor"
-	message "github.com/DataDog/datadog-agent/pkg/logs/message/module"
+	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/logs/sender"
 	status "github.com/DataDog/datadog-agent/pkg/logs/status/module"
 )

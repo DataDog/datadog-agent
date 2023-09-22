@@ -17,7 +17,7 @@ import (
 
 	"github.com/DataDog/agent-payload/v5/pb"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
-	message "github.com/DataDog/datadog-agent/pkg/logs/message/module"
+	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 )
 

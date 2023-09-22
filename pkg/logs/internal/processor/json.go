@@ -9,7 +9,7 @@ import (
 	"encoding/json"
 	"time"
 
-	message "github.com/DataDog/datadog-agent/pkg/logs/message/module"
+	"github.com/DataDog/datadog-agent/pkg/logs/message"
 )
 
 const nanoToMillis = 1000000

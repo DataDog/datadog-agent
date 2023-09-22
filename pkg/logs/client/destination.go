@@ -5,7 +5,7 @@
 
 package client
 
-import message "github.com/DataDog/datadog-agent/pkg/logs/message/module"
+import "github.com/DataDog/datadog-agent/pkg/logs/message"
 
 // Destination sends a payload to a specific endpoint over a given network protocol.
 type Destination interface {
