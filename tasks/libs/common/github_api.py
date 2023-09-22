@@ -147,14 +147,6 @@ class GithubAPI:
 
         return self.download_from_url(headers["location"], destination_dir, run.id)
 
-    def latest_workflow_run_for_ref(self, workflow_name, ref):
-        """
-        Gets latest workflow run for a given reference
-        """
-        workflow = self._repository.get_workflow(workflow_name)
-        runs = workflow.get_runs(branch=ref)
-        return max(runs, key=lambda run: run.created_at, default=None)
-
     def workflow_run_for_ref_after_date(self, workflow_name, ref, oldest_date):
         """
         Gets all the workflow triggered after a given date

@@ -73,10 +73,6 @@ def trigger_macos_workflow(
     MAX_RETRIES = 10  # Retry up to 10 times
     for i in range(MAX_RETRIES):
         print(f"Fetching triggered workflow (try {i + 1}/{MAX_RETRIES})")
-        run = gh.latest_workflow_run_for_ref(workflow_name, github_action_ref)
-        if run is not None and run.created_at is not None and run.created_at >= now:
-            return run
-
         recent_runs = gh.workflow_run_for_ref_after_date(workflow_name, github_action_ref, now)
         for recent_run in recent_runs:
             jobs = recent_run.jobs()
