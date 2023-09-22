@@ -137,5 +137,5 @@ func Test_PodsFakeKubernetesClient(t *testing.T) {
 			},
 		},
 	}
-	testFakeHelper(t, createResource, newPodStore, expected)
+	testCollectEvent(t, createResource, newPodStore, expected)
 }

@@ -18,33 +18,32 @@ import (
 
 const dummySubscriber = "dummy-subscriber"
 
-func testFakeHelper(t *testing.T, createResource func(*fake.Clientset) error, newStore storeGenerator, expected []workloadmeta.EventBundle) {
+func testCollectEvent(t *testing.T, createResource func(*fake.Clientset) error, newStore storeGenerator, expected []workloadmeta.EventBundle) {
 	// Create a fake client to mock API calls.
 	client := fake.NewSimpleClientset()
 
-	// Creating a fake deployment
-	err := createResource(client)
-	assert.NoError(t, err)
-
 	// Use the fake client in kubeapiserver context.
 	wlm := workloadmeta.NewMockStore()
-	ctx := context.TODO()
-	store, _ := newStore(ctx, wlm, client)
+	store, _ := newStore(context.TODO(), wlm, client)
 	stopStore := make(chan struct{})
 	go store.Run(stopStore)
 
 	ch := wlm.Subscribe(dummySubscriber, workloadmeta.NormalPriority, nil)
-
-	actual := []workloadmeta.EventBundle{}
 	// When Subscribe is called, the first Bundle contains events about the items currently in the store.
 	// In that case, the first bundle is empty.
 	<-ch
+
+	// Creating a resource
+	err := createResource(client)
+	assert.NoError(t, err)
+
+	// Retrieving the resource in an event bundle
 	bundle := <-ch
 	close(bundle.Ch)
 	// nil the bundle's Ch so we can
 	// deep-equal just the events later
 	bundle.Ch = nil
-	actual = append(actual, bundle)
+	actual := []workloadmeta.EventBundle{bundle}
 	close(stopStore)
 	wlm.Unsubscribe(ch)
 	assert.Equal(t, expected, actual)
