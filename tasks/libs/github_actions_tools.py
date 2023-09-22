@@ -77,12 +77,9 @@ def trigger_macos_workflow(
         for recent_run in recent_runs:
             jobs = recent_run.jobs()
             if jobs.totalCount >= 2:
-                flattened_step_list = []
                 for job in jobs:
-                    flattened_step_list += job.steps
-
-                if any([step.name == workflow_id for step in flattened_step_list]):
-                    return recent_run
+                    if any([step.name == workflow_id for step in job.steps]):
+                        return recent_run
             else:
                 print("waiting for jobs to popup...")
                 sleep(3)
