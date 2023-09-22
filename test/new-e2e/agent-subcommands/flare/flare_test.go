@@ -77,8 +77,8 @@ func (v *commandFlareSuite) TestFlareWithAllConfiguration() {
 
 	withFiles := []agentparams.Option{
 		// TODO: use dedicated functions when https://github.com/DataDog/test-infra-definitions/pull/309 is merged
-		agentparams.WithFile("/etc/datadog-agent/system-probe.yaml", string(systemProbeConfiguration), useSudo),
-		agentparams.WithFile("/etc/datadog-agent/security-agent.yaml", string(securityAgentConfiguration), useSudo),
+		agentparams.WithSystemProbeConfig(string(systemProbeConfiguration)),
+		agentparams.WithSecurityAgentConfig(string(securityAgentConfiguration)),
 		agentparams.WithFile(confdPath+"test.yaml", "dummy content", useSudo),
 		agentparams.WithFile(confdPath+"test.yml", "dummy content", useSudo),
 		agentparams.WithFile(confdPath+"test.yml.test", "dummy content", useSudo),
