@@ -535,6 +535,7 @@ core,github.com/aws/smithy-go/time,Apache-2.0,"Copyright Amazon.com, Inc. or its
 core,github.com/aws/smithy-go/transport/http,Apache-2.0,"Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved"
 core,github.com/aws/smithy-go/transport/http/internal/io,Apache-2.0,"Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved"
 core,github.com/aws/smithy-go/waiter,Apache-2.0,"Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved"
+core,github.com/bahlo/generic-list-go,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
 core,github.com/beevik/ntp,BSD-2-Clause,Anton Tolchanov (knyar) | Ask Bjørn Hansen (abh) | Brett Vickers (beevik) | Christopher Batey (chbatey) | Copyright 2015-2017 Brett Vickers. All rights reserved | Leonid Evdokimov (darkk) | Meng Zhuo (mengzhuo) | Mikhail Salosin (AlphaB)
 core,github.com/benbjohnson/clock,MIT,Copyright (c) 2014 Ben Johnson
 core,github.com/beorn7/perks/quantile,MIT,Copyright (C) 2013 Blake Mizerany
@@ -543,6 +544,7 @@ core,github.com/blabber/go-freebsd-sysctl/sysctl,0BSD,Copyright (c) 2014-2020 by
 core,github.com/blang/semver/v4,MIT,Copyright (c) 2014 Benedikt Lang <github at benediktlang.de>
 core,github.com/bmizerany/pat,MIT,"Copyright (C) 2012 by Keith Rarick, Blake Mizerany"
 core,github.com/briandowns/spinner,Apache-2.0,Copyright (c) 2022 Brian J. Downs
+core,github.com/buger/jsonparser,MIT,Copyright (c) 2016 Leonid Bugaev
 core,github.com/caarlos0/env/v6,MIT,Copyright (c) 2015-2022 Carlos Alexandro Becker
 core,github.com/cavaliergopher/grab/v3,BSD-3-Clause,Copyright (c) 2017 Ryan Armstrong. All rights reserved
 core,github.com/cavaliergopher/grab/v3/pkg/bps,BSD-3-Clause,Copyright (c) 2017 Ryan Armstrong. All rights reserved
@@ -1077,7 +1079,6 @@ core,github.com/hashicorp/serf/coordinate,MPL-2.0,"Copyright © 2014-2018 HashiC
 core,github.com/hectane/go-acl,MIT,Copyright (c) 2015 Nathan Osman
 core,github.com/hectane/go-acl/api,MIT,Copyright (c) 2015 Nathan Osman
 core,github.com/huandu/xstrings,MIT,Copyright (c) 2015 Huan Du
-core,github.com/iancoleman/orderedmap,MIT,Copyright (c) 2017 Ian Coleman
 core,github.com/ianlancetaylor/cgosymbolizer,BSD-3-Clause,"Copyright (C) 2012-2015 Free Software Foundation, Inc | Copyright (c) 2015 The Go Authors. All rights reserved"
 core,github.com/ianlancetaylor/demangle,BSD-3-Clause,Copyright (c) 2015 The Go Authors. All rights reserved
 core,github.com/imdario/mergo,BSD-3-Clause,Copyright (c) 2012 The Go Authors. All rights reserved | Copyright (c) 2013 Dario Castañé. All rights reserved
@@ -1491,6 +1492,7 @@ core,github.com/vmihailenco/tagparser/v2,BSD-2-Clause,Copyright (c) 2019 The git
 core,github.com/vmihailenco/tagparser/v2/internal,BSD-2-Clause,Copyright (c) 2019 The github.com/vmihailenco/tagparser Authors
 core,github.com/vmihailenco/tagparser/v2/internal/parser,BSD-2-Clause,Copyright (c) 2019 The github.com/vmihailenco/tagparser Authors
 core,github.com/wI2L/jsondiff,MIT,Copyright (c) 2020-2022 William Poussier <william.poussier@gmail.com>
+core,github.com/wk8/go-ordered-map/v2,Apache-2.0,Copyright 2023 Jean Rougé <wk8.github@gmail.com>
 core,github.com/xanzy/ssh-agent,Apache-2.0,"Copyright (c) 2014 David Mzareulyan | Copyright 2015, Sander van Harmelen"
 core,github.com/xdg-go/pbkdf2,Apache-2.0,Copyright 2021 by David A. Golden. All rights reserved
 core,github.com/xdg-go/scram,Apache-2.0,Copyright 2018 by David A. Golden. All rights reserved
