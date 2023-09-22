@@ -42,24 +42,18 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/cenkalti/backoff/v4"
 	"io"
 	"net/http"
 	"regexp"
 	"strings"
 	"time"
 
+	"github.com/cenkalti/backoff/v4"
+
 	"github.com/DataDog/datadog-agent/test/fakeintake/aggregator"
 	"github.com/DataDog/datadog-agent/test/fakeintake/api"
 	"github.com/DataDog/datadog-agent/test/fakeintake/client/flare"
 )
-
-var retrySchedule = []time.Duration{
-	1 * time.Second,
-	3 * time.Second,
-	9 * time.Second,
-	0 * time.Second,
-}
 
 type Client struct {
 	fakeIntakeURL string
