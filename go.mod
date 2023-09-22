@@ -33,6 +33,8 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/gohai => ./pkg/gohai
 	github.com/DataDog/datadog-agent/pkg/logcomp => ./pkg/logcomp
 	github.com/DataDog/datadog-agent/pkg/logs/internal/status => ./pkg/logs/internal/status
+	github.com/DataDog/datadog-agent/pkg/logs/metrics => ./pkg/logs/metrics
+	github.com/DataDog/datadog-agent/pkg/logs/status/module => ./pkg/logs/status/module
 	github.com/DataDog/datadog-agent/pkg/metrics => ./pkg/metrics
 	github.com/DataDog/datadog-agent/pkg/metrics/event => ./pkg/metrics/event
 	github.com/DataDog/datadog-agent/pkg/metrics/servicecheck => ./pkg/metrics/servicecheck/
@@ -57,6 +59,7 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/util/pointer => ./pkg/util/pointer
 	github.com/DataDog/datadog-agent/pkg/util/retry => ./pkg/util/retry/
 	github.com/DataDog/datadog-agent/pkg/util/scrubber => ./pkg/util/scrubber
+	github.com/DataDog/datadog-agent/pkg/util/stats_tracker => ./pkg/util/stats_tracker
 	github.com/DataDog/datadog-agent/pkg/util/system/socket => ./pkg/util/system/socket/
 	github.com/DataDog/datadog-agent/pkg/util/testutil => ./pkg/util/testutil/
 	github.com/DataDog/datadog-agent/pkg/util/util_sort => ./pkg/util/util_sort
@@ -595,6 +598,8 @@ require (
 	github.com/DataDog/datadog-agent/pkg/errors v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/pkg/logcomp v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/pkg/logs/internal/status v0.0.0-00010101000000-000000000000
+	github.com/DataDog/datadog-agent/pkg/logs/metrics v0.0.0-00010101000000-000000000000
+	github.com/DataDog/datadog-agent/pkg/logs/status/module v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/pkg/metrics v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/pkg/metrics/event v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/pkg/metrics/servicecheck v0.0.0-00010101000000-000000000000
@@ -611,6 +616,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/fxutil v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/pkg/util/http v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/pkg/util/retry v0.0.0-00010101000000-000000000000
+	github.com/DataDog/datadog-agent/pkg/util/stats_tracker v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/pkg/util/system/socket v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/pkg/util/testutil v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/pkg/util/util_sort v0.0.0-00010101000000-000000000000
