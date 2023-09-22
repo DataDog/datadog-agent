@@ -190,7 +190,7 @@ Package systray implements the Datadog Agent Manager System Tray
 
 ### [comp/systray/systray](https://pkg.go.dev/github.com/DataDog/dd-agent-comp-experiments/comp/systray/systray)
 
-Package systray
+Package systray provides a component for the system tray application
 
 ## [comp/trace](https://pkg.go.dev/github.com/DataDog/dd-agent-comp-experiments/comp/trace) (Component Bundle)
 
