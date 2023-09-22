@@ -45,6 +45,7 @@ type ActivityDumpHandler interface {
 // SecurityProfileManager is a generic interface used to communicate with the Security Profile manager
 type SecurityProfileManager interface {
 	FetchSilentWorkloads() map[cgroupModel.WorkloadSelector][]*cgroupModel.CacheEntry
+	OnLocalStorageCleanup(files []string)
 }
 
 // ActivityDumpManager is used to manage ActivityDumps
@@ -285,7 +286,7 @@ func NewActivityDumpManager(config *config.Config, statsdClient statsd.ClientInt
 		pathsReducer:           activity_tree.NewPathsReducer(),
 	}
 
-	adm.storage, err = NewActivityDumpStorageManager(config, statsdClient, adm)
+	adm.storage, err = NewActivityDumpStorageManager(config, statsdClient, adm, adm)
 	if err != nil {
 		return nil, fmt.Errorf("couldn't instantiate the activity dump storage manager: %w", err)
 	}
