@@ -47,6 +47,7 @@ type processor struct {
 	hostSBOM          bool
 	hostScanOpts      sbom.ScanOptions
 	hostname          string
+	telemetry         *imageTelemetry
 }
 
 func newProcessor(workloadmetaStore workloadmeta.Store, sender sender.Sender, maxNbItem int, maxRetentionTime time.Duration, hostSBOM bool) (*processor, error) {
@@ -80,6 +81,7 @@ func newProcessor(workloadmetaStore workloadmeta.Store, sender sender.Sender, ma
 		hostSBOM:          hostSBOM,
 		hostScanOpts:      hostScanOpts,
 		hostname:          hostname,
+		telemetry:         newImageTelemetry(sender),
 	}, nil
 }
 
@@ -91,12 +93,15 @@ func (p *processor) processContainerImagesEvents(evBundle workloadmeta.EventBund
 	for _, event := range evBundle.Events {
 		switch event.Entity.GetID().Kind {
 		case workloadmeta.KindContainerImageMetadata:
+			img := event.Entity.(*workloadmeta.ContainerImageMetadata)
 			switch event.Type {
 			case workloadmeta.EventTypeSet:
-				p.registerImage(event.Entity.(*workloadmeta.ContainerImageMetadata))
-				p.processImageSBOM(event.Entity.(*workloadmeta.ContainerImageMetadata))
+				p.telemetry.observeNewImage(img)
+				p.registerImage(img)
+				p.processImageSBOM(img)
 			case workloadmeta.EventTypeUnset:
-				p.unregisterImage(event.Entity.(*workloadmeta.ContainerImageMetadata))
+				p.telemetry.unobserveImage(img)
+				p.unregisterImage(img)
 				// Let the SBOM expire on back-end side
 			}
 		case workloadmeta.KindContainer:

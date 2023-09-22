@@ -1,0 +1,5 @@
+
+enhancements:
+  - |
+    Added the metric `datadog.agent.sbom_images`, tagged as `with_sbom`, to measure the number of images processed by the SBOM check both with and without SBOM.
+    This metric is consistently sent to Datadog whenever the SBOM check is enabled.
