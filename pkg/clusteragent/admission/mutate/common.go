@@ -160,6 +160,24 @@ func containsVolumeMount(volumeMounts []corev1.VolumeMount, element corev1.Volum
 	return false
 }
 
+// shouldMutatePod returns true if Admission Controller is allowed to mutate the pod
+// via pod label or mutateUnlabelled configuration
+func shouldMutatePod(pod *corev1.Pod) bool {
+	// If a pod explicitly sets the label admission.datadoghq.com/enabled, make a decision based on its value
+	if val, found := pod.GetLabels()[admCommon.EnabledLabelKey]; found {
+		switch val {
+		case "true":
+			return true
+		case "false":
+			return false
+		default:
+			log.Warnf("Invalid label value '%s=%s' on pod %s should be either 'true' or 'false', ignoring it", admCommon.EnabledLabelKey, val, podString(pod))
+		}
+	}
+
+	return config.Datadog.GetBool("admission_controller.mutate_unlabelled")
+}
+
 // shouldInject returns true if Admission Controller should inject standard tags, APM configs and APM libraries
 func shouldInject(pod *corev1.Pod) bool {
 	// If a pod explicitly sets the label admission.datadoghq.com/enabled, make a decision based on its value
@@ -174,14 +192,14 @@ func shouldInject(pod *corev1.Pod) bool {
 		}
 	}
 
-	return IsApmInstrumentationEnabled(pod.GetNamespace()) || config.Datadog.GetBool("admission_controller.mutate_unlabelled")
+	return isApmInstrumentationEnabled(pod.GetNamespace()) || config.Datadog.GetBool("admission_controller.mutate_unlabelled")
 }
 
-// IsApmInstrumentationEnabled indicates if Single Step Insstrumentation is enabled for the namespace in the cluster
+// isApmInstrumentationEnabled indicates if Single Step Insstrumentation is enabled for the namespace in the cluster
 // Single Step Instrumentation is enabled if:
 //   - cluster-wide configuration `apm_config.instrumentation.enabled` is true and the namespace is not excluded via `apm_config.instrumentation.disabled_namespaces`
 //   - cluster-wide configuration `apm_config.instrumentation.enabled` is false and the namespace is whitelisted via `apm_config.instrumentation.disabled_namespaces`
-func IsApmInstrumentationEnabled(namespace string) bool {
+func isApmInstrumentationEnabled(namespace string) bool {
 	apmInstrumentationEnabled := config.Datadog.GetBool("apm_config.instrumentation.enabled")
 	isNsEnabled := apmInstrumentationEnabled
 
