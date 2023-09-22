@@ -6,6 +6,9 @@ import traceback
 from collections import defaultdict
 from datetime import datetime
 
+import subprocess as sp
+from codeowners import CodeOwners
+
 import yaml
 from invoke import task
 from invoke.exceptions import Exit
@@ -42,6 +45,7 @@ from .utils import (
     nightly_entry_for,
     release_entry_for,
 )
+
 
 # Tasks to trigger pipelines
 
@@ -135,7 +139,7 @@ def workflow_rules(gitlab_file=".gitlab-ci.yml"):
 
 @task
 def trigger(
-    _, git_ref=DEFAULT_BRANCH, release_version_6="nightly", release_version_7="nightly-a7", repo_branch="nightly"
+        _, git_ref=DEFAULT_BRANCH, release_version_6="nightly", release_version_7="nightly-a7", repo_branch="nightly"
 ):
     """
     OBSOLETE: Trigger a deploy pipeline on the given git ref. Use pipeline.run with the --deploy option instead.
@@ -201,15 +205,15 @@ def auto_cancel_previous_pipelines(ctx):
 
 @task
 def run(
-    ctx,
-    git_ref=None,
-    here=False,
-    use_release_entries=False,
-    major_versions='6,7',
-    repo_branch="nightly",
-    deploy=False,
-    all_builds=True,
-    kitchen_tests=True,
+        ctx,
+        git_ref=None,
+        here=False,
+        use_release_entries=False,
+        major_versions='6,7',
+        repo_branch="nightly",
+        deploy=False,
+        all_builds=True,
+        kitchen_tests=True,
 ):
     """
     Run a pipeline on the given git ref (--git-ref <git ref>), or on the current branch if --here is given.
@@ -463,6 +467,69 @@ def trigger_child_pipeline(_, git_ref, project_name, variables="", follow=True):
         print("Child pipeline finished successfully")
 
 
+def get_codeowners():
+    with open(".github/CODEOWNERS", "r") as file:
+        data = file.read().rstrip()
+
+    return CodeOwners(data)
+
+
+def parse(commit_str):
+    lines = commit_str.split("\n")
+    title = lines[0]
+    url = "NO_URL"
+    pr_id_match = re.search(r".*\(#(\d+)\)", title)
+    if pr_id_match is not None:
+        url = "github.com/DataDog/datadog-agent/pull/{}".format(pr_id_match.group(1))
+    author = lines[1]
+    author_email = lines[2]
+    files = lines[3:]
+    return title, author, author_email, files, url  # Include author's email
+
+
+def is_system_probe(owners, files):
+    target = {("TEAM", "@DataDog/Networks"), ("TEAM", "@DataDog/universal-service-monitoring"),
+              ("TEAM", "@DataDog/ebpf-platform"), ("TEAM", "@DataDog/agent-security")}
+    for f in files:
+        match_teams = set(owners.of(f)) & target
+        if len(match_teams) != 0:
+            return True
+
+    return False
+
+
+@task
+def changelog(_, new_git_sha):
+    old_git_sha = sp.check_output(["git", "rev-list", "-n 1", "stripe_staging"]).decode().strip()
+    commits = (
+        sp.check_output(
+            ["git", "log", "{}..{}".format(old_git_sha, new_git_sha), "--pretty=format:%h"]
+        )
+        .decode()
+        .split("\n")
+    )
+    owners = get_codeowners()
+    messages = []
+    unique_emails = set()  # Store unique email addresses
+
+    for commit in commits:
+        # see https://git-scm.com/docs/pretty-formats for format string
+        commit_str = sp.check_output(
+            ["git", "show", "--name-only", "--pretty=format:%s%n%aN%n%aE", commit]
+        ).decode()
+        title, author, author_email, files, url = parse(commit_str)
+        if is_system_probe(owners, files):
+            message = "{} ({}) {} ({})".format(title, url, author, author_email)
+            messages.append(message)
+            unique_emails.add(author_email)  # Add the email to the unique set
+
+    with open("system_probe_commits.txt", "w") as file:
+        file.write("\n".join(messages))
+
+    with open("unique_emails.txt", "w") as file:
+        file.write("\n".join(unique_emails))
+
+
 @task
 def check_notify_teams(_):
     if check_for_missing_owners_slack_and_jira():
@@ -567,10 +634,10 @@ def send_stats(_, print_to_stdout=False):
                 timestamp=timestamp,
                 value=count,
                 tags=list(failure_tags)
-                + [
-                    "repository:datadog-agent",
-                    f"git_ref:{os.getenv('CI_COMMIT_REF_NAME')}",
-                ],
+                     + [
+                         "repository:datadog-agent",
+                         f"git_ref:{os.getenv('CI_COMMIT_REF_NAME')}",
+                     ],
             )
         )
 
