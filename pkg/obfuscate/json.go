@@ -37,7 +37,7 @@ func obfuscateJSONString(cmd string, obfuscator *jsonObfuscator) string {
 }
 
 type jsonObfuscator struct {
-	buffPool      sync.Pool       // pool for fixed-length buffers (50 showed to be the optimal running benchmarks with different lenghts)
+	buffPool      sync.Pool       // pool for fixed-length buffers (50 showed to be the optimal running benchmarks with different length)
 	statePool     sync.Pool       // pool for jsonObfuscatorState values
 	keepKeys      map[string]bool // the values for these keys will not be obfuscated
 	transformKeys map[string]bool // the values for these keys pass through the transformer
