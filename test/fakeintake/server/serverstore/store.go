@@ -63,7 +63,7 @@ func (s *Store) tryParseAndAppendPayload(rawPayload api.Payload, route string) e
 	return nil
 }
 
-// OlderThan removes payloads older than time
+// CleanUpPayloadsOlderThan removes payloads older than time
 func (s *Store) CleanUpPayloadsOlderThan(time time.Time) {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
@@ -100,8 +100,8 @@ func (s *Store) GetRawPayloads(route string) []api.Payload {
 	return payloads
 }
 
-// GetJsonPayloads returns payloads collected and parsed to json for route `route`
-func (s *Store) GetJsonPayloads(route string) []api.ParsedPayload {
+// GetJSONPayloads returns payloads collected and parsed to json for route `route`
+func (s *Store) GetJSONPayloads(route string) []api.ParsedPayload {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 	payloads := make([]api.ParsedPayload, 0, len(s.jsonPayloads[route]))

@@ -310,7 +310,7 @@ func (fi *Server) handleGetPayloads(w http.ResponseWriter, req *http.Request) {
 		}
 		jsonResp, err = json.Marshal(resp)
 	} else if serverstore.IsRouteHandled(route) {
-		payloads := fi.store.GetJsonPayloads(route)
+		payloads := fi.store.GetJSONPayloads(route)
 		// build response
 		resp := api.APIFakeIntakePayloadsJsonGETResponse{
 			Payloads: payloads,
