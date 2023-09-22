@@ -5,6 +5,7 @@
 
 //go:build kubelet
 
+// Package common provides types used by the Kubelet check.
 package common
 
 import (

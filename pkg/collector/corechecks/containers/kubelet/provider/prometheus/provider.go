@@ -5,6 +5,8 @@
 
 //go:build kubelet
 
+// Package prometheus implements data collection from a prometheus Kubelet
+// endpoint.
 package prometheus
 
 import (

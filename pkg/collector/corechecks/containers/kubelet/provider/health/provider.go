@@ -5,6 +5,8 @@
 
 //go:build kubelet
 
+// Package health is responsible for emitting the Kubelet check metrics that are
+// collected from the `/healthz` endpoint.
 package health
 
 import (

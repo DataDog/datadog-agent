@@ -5,6 +5,7 @@
 
 //go:build containerd
 
+// Package fake provides a fake containerd client to be used in tests.
 package fake
 
 import (

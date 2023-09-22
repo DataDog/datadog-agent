@@ -5,6 +5,8 @@
 
 //go:build kubelet
 
+// Package node is responsible for emitting the Kubelet check metrics that are
+// collected from the `/spec` endpoint.
 package node
 
 import (

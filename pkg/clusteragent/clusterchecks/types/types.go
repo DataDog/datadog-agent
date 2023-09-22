@@ -3,6 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+// Package types implements the types used by the Cluster checks dispatching
+// functionality.
 package types
 
 import (

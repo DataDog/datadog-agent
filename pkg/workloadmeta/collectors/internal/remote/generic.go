@@ -3,6 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+// Package remote implements a generic workloadmeta Collector that receives
+// events from a remote workloadmeta server.
 package remote
 
 import (
