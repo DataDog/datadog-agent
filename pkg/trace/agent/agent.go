@@ -477,15 +477,22 @@ func isManualUserDrop(priority sampler.SamplingPriority, pt *traceutil.Processed
 
 // sample performs all sampling on the processedTrace modifying it as needed and returning if the trace should be kept and the number of events in the trace
 func (a *Agent) sample(now time.Time, ts *info.TagStats, pt *traceutil.ProcessedTrace) (keep bool, numEvents int) {
-	keep = a.traceSampling(now, ts, pt) //TODO: why do we have `keep` when the trace itself has a traceDropped field
+	keep, skipAnalyticsEvents := a.traceSampling(now, ts, pt) //TODO: why do we have `keep` when the trace itself has a traceDropped field
 
-	events := a.getAnalyzedEvents(pt, ts)
+	var events []*pb.Span
+	if !skipAnalyticsEvents {
+		// We skip analytics events when a trace is marked as manual drop (aka priority -1)
+		// Note that we DON'T skip single span sampling. We only do this for historical
+		// reasons and analytics events are deprecated so hopefully this can all go away someday.
+		events = a.getAnalyzedEvents(pt, ts)
+	}
 	if !keep {
 		// single span sampling
 		hadSSS := sampler.SingleSpanSampling(pt)
 		if !hadSSS {
 			// If there were no single span sampled spans let's use the analytics events
 			// This is OK because SSS is a replacement for analytics events so both should not be configured
+			// And when analytics events are fully gone we can get rid of all this
 			pt.TraceChunk.Spans = events
 		} else if len(events) > 0 {
 			log.Warnf("Detected both analytics events AND single span sampling in the same trace, single span sampling wins.")
@@ -496,7 +503,7 @@ func (a *Agent) sample(now time.Time, ts *info.TagStats, pt *traceutil.Processed
 }
 
 // traceSampling reports whether the chunk should be kept as a trace, setting "DroppedTrace" on the chunk
-func (a *Agent) traceSampling(now time.Time, ts *info.TagStats, pt *traceutil.ProcessedTrace) bool {
+func (a *Agent) traceSampling(now time.Time, ts *info.TagStats, pt *traceutil.ProcessedTrace) (keep bool, skipAnalyticsEvents bool) {
 	priority, hasPriority := sampler.GetSamplingPriority(pt.TraceChunk)
 
 	if hasPriority {
@@ -506,17 +513,17 @@ func (a *Agent) traceSampling(now time.Time, ts *info.TagStats, pt *traceutil.Pr
 	}
 	if a.conf.HasFeature("error_rare_sample_tracer_drop") {
 		if isManualUserDrop(priority, pt) {
-			return false
+			return false, true
 		}
 	} else { // This path to be deleted once manualUserDrop detection is available on all tracers for P < 1.
 		if priority < 0 {
-			return false
+			return false, true
 		}
 	}
 	sampled := a.runSamplers(now, *pt, hasPriority)
 	pt.TraceChunk.DroppedTrace = !sampled
 
-	return sampled
+	return sampled, false
 }
 
 // getAnalyzedEvents returns any sampled analytics events in the ProcessedTrace

@@ -1087,7 +1087,7 @@ func TestSample(t *testing.T) {
 			keepWithFeature: true,
 			dropped:         false,
 		},
-		"autodrop-sampled": {
+		"autodrop-error-sampled": {
 			trace:           genSpan("", sampler.PriorityAutoDrop, 1),
 			keep:            true,
 			keepWithFeature: true,
@@ -1110,19 +1110,45 @@ func TestSample(t *testing.T) {
 			conf:              cfg,
 		}
 		t.Run(name, func(t *testing.T) {
-			// before := tt.trace.TraceChunk.ShallowCopy()
-			keep := a.traceSampling(now, info.NewReceiverStats().GetTagStats(info.Tags{}), &tt.trace)
+			keep, _ := a.traceSampling(now, info.NewReceiverStats().GetTagStats(info.Tags{}), &tt.trace)
 			assert.Equal(t, tt.keep, keep)
 			assert.Equal(t, tt.dropped, tt.trace.TraceChunk.DroppedTrace)
-			// assert.Equal(t, before, tt.trace.TraceChunk) // make sure tt.trace.TraceChunk didn't change
 			cfg.Features["error_rare_sample_tracer_drop"] = struct{}{}
 			defer delete(cfg.Features, "error_rare_sample_tracer_drop")
-			keep = a.traceSampling(now, info.NewReceiverStats().GetTagStats(info.Tags{}), &tt.trace)
+			keep, _ = a.traceSampling(now, info.NewReceiverStats().GetTagStats(info.Tags{}), &tt.trace)
 			assert.Equal(t, tt.keepWithFeature, keep)
-			// assert.Equal(t, before, tt.trace.TraceChunk) // make sure tt.trace.TraceChunk didn't change
 			assert.Equal(t, tt.dropped, tt.trace.TraceChunk.DroppedTrace)
 		})
 	}
+}
+
+func TestSampleManualUserDropNoAnalyticsEvents(t *testing.T) {
+	// This test exists to confirm previous behavior where we did not extract nor tag analytics events on
+	// user manual drop traces
+	now := time.Now()
+	cfg := &config.AgentConfig{TargetTPS: 5, ErrorTPS: 1000, Features: make(map[string]struct{}), MaxEPS: 1000}
+	root := &pb.Span{
+		Service:  "serv1",
+		Start:    now.UnixNano(),
+		Duration: (100 * time.Millisecond).Nanoseconds(),
+		Metrics:  map[string]float64{"_top_level": 1, "_dd1.sr.eausr": 1},
+		Error:    0, // If 1, the Error Sampler will keep the trace, if 0, it will not be sampled
+		Meta:     map[string]string{},
+	}
+	pt := traceutil.ProcessedTrace{TraceChunk: testutil.TraceChunkWithSpan(root), Root: root}
+	pt.TraceChunk.Priority = -1
+
+	a := &Agent{
+		NoPrioritySampler: sampler.NewNoPrioritySampler(cfg),
+		ErrorsSampler:     sampler.NewErrorsSampler(cfg),
+		PrioritySampler:   sampler.NewPrioritySampler(cfg, &sampler.DynamicConfig{}),
+		RareSampler:       sampler.NewRareSampler(config.New()),
+		EventProcessor:    newEventProcessor(cfg),
+		conf:              cfg,
+	}
+	keep, _ := a.sample(now, info.NewReceiverStats().GetTagStats(info.Tags{}), &pt)
+	assert.False(t, keep)
+	assert.Empty(t, pt.Root.Metrics["_dd.analyzed"])
 }
 
 func TestPartialSamplingFree(t *testing.T) {
