@@ -10,6 +10,7 @@ import (
 	"errors"
 	"fmt"
 	"reflect"
+	"sync"
 
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/ast"
 )
@@ -38,7 +39,8 @@ type RuleEvaluator struct {
 	EventTypes  []EventType
 	FieldValues map[Field][]FieldValue
 
-	partialEvals map[Field]BoolEvalFnc
+	partialEvalsLock sync.RWMutex
+	partialEvals     map[Field]BoolEvalFnc
 }
 
 // NewRule returns a new rule
@@ -60,6 +62,9 @@ func NewRule(id string, expression string, opts *Opts, tags ...string) *Rule {
 
 // PartialEval partially evaluation of the Rule with the given Field.
 func (r *RuleEvaluator) PartialEval(ctx *Context, field Field) (bool, error) {
+	r.partialEvalsLock.RLock()
+	defer r.partialEvalsLock.RUnlock()
+
 	eval, ok := r.partialEvals[field]
 	if !ok {
 		return false, &ErrFieldNotFound{Field: field}
@@ -69,6 +74,9 @@ func (r *RuleEvaluator) PartialEval(ctx *Context, field Field) (bool, error) {
 }
 
 func (r *RuleEvaluator) setPartial(field string, partialEval BoolEvalFnc) {
+	r.partialEvalsLock.Lock()
+	defer r.partialEvalsLock.Unlock()
+
 	if r.partialEvals == nil {
 		r.partialEvals = make(map[string]BoolEvalFnc)
 	}
@@ -115,7 +123,17 @@ func (r *Rule) PartialEval(ctx *Context, field Field) (bool, error) {
 
 // GetPartialEval - Returns the Partial RuleEvaluator for the given Field
 func (r *Rule) GetPartialEval(field Field) BoolEvalFnc {
+	r.evaluator.partialEvalsLock.RLock()
 	partial, exists := r.evaluator.partialEvals[field]
+	if exists {
+		r.evaluator.partialEvalsLock.RUnlock()
+		return partial
+	}
+
+	r.evaluator.partialEvalsLock.Lock()
+	defer r.evaluator.partialEvalsLock.Unlock()
+
+	partial, exists = r.evaluator.partialEvals[field]
 	if !exists {
 		if err := r.genPartials(field); err != nil {
 			return nil
