@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package config
+package configsetup
 
 import (
 	"fmt"
@@ -11,8 +11,15 @@ import (
 	"testing"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/conf"
 	"github.com/stretchr/testify/assert"
 )
+
+func SetupConf() conf.Config {
+	cfg := conf.NewConfig("datadog", "DD", strings.NewReplacer(".", "_"))
+	InitConfig(cfg)
+	return cfg
+}
 
 // TestProcessDefaults tests to ensure that the config has set process settings correctly
 func TestProcessDefaultConfig(t *testing.T) {
@@ -467,7 +474,7 @@ func TestEnvVarOverride(t *testing.T) {
 	})
 }
 
-func readCfgWithType(cfg Config, key, expType string) interface{} {
+func readCfgWithType(cfg conf.Config, key, expType string) interface{} {
 	switch expType {
 	case "stringSlice":
 		return cfg.GetStringSlice(key)
@@ -583,5 +590,4 @@ func TestProcConfigEnabledTransform(t *testing.T) {
 			assert.Equal(t, tc.expectedProcessCollection, cfg.GetBool("process_config.process_collection.enabled"))
 		})
 	}
-
 }

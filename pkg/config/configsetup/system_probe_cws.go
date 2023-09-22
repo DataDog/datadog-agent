@@ -3,9 +3,22 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package config
+package configsetup
 
-func initCWSSystemProbeConfig(cfg Config) {
+import (
+	"path/filepath"
+
+	"github.com/DataDog/datadog-agent/pkg/conf"
+)
+
+const
+// DefaultRuntimePoliciesDir is the default policies directory used by the runtime security module
+DefaultRuntimePoliciesDir = "/etc/datadog-agent/runtime-security.d"
+
+// DefaultSecurityProfilesDir is the default directory used to store Security Profiles by the runtime security module
+var DefaultSecurityProfilesDir = filepath.Join(defaultRunPath, "runtime-security", "profiles")
+
+func initCWSSystemProbeConfig(cfg conf.Config) {
 	// CWS - general config
 	cfg.BindEnvAndSetDefault("runtime_security_config.enabled", false)
 	cfg.BindEnvAndSetDefault("runtime_security_config.fim_enabled", false)

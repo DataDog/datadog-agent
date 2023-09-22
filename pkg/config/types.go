@@ -8,6 +8,7 @@ package config
 import (
 	"github.com/DataDog/datadog-agent/pkg/conf"
 	"github.com/DataDog/datadog-agent/pkg/conf/env"
+	"github.com/DataDog/datadog-agent/pkg/config/configsetup"
 )
 
 // Proxy represents the configuration for proxies in the agent
@@ -65,3 +66,12 @@ const (
 	Containerd               = env.Containerd
 	KubeOrchestratorExplorer = env.KubeOrchestratorExplorer
 )
+
+var (
+	StandardStatsdPrefixes  = configsetup.StandardStatsdPrefixes
+	StandardJMXIntegrations = configsetup.StandardJMXIntegrations
+)
+
+func GetProcessAPIAddressPort() (string, error) {
+	return configsetup.GetProcessAPIAddressPort(Datadog)
+}

@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package config
+package configsetup
 
 // StandardJMXIntegrations is the list of standard jmx integrations.
 // This list is used by the Agent to determine if an integration is JMXFetch-based,
