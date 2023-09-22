@@ -137,32 +137,13 @@ type SecurityProfileManager struct {
 	cacheHit         *atomic.Uint64
 	cacheMiss        *atomic.Uint64
 
-	eventFiltering map[eventFilteringEntry]*atomic.Uint64
-	pathsReducer   *activity_tree.PathsReducer
+	eventFiltering        map[eventFilteringEntry]*atomic.Uint64
+	pathsReducer          *activity_tree.PathsReducer
+	onLocalStorageCleanup func(files []string)
 }
 
 // NewSecurityProfileManager returns a new instance of SecurityProfileManager
 func NewSecurityProfileManager(config *config.Config, statsdClient statsd.ClientInterface, resolvers *resolvers.Resolvers, manager *manager.Manager) (*SecurityProfileManager, error) {
-	var providers []Provider
-
-	// instantiate directory provider
-	if len(config.RuntimeSecurity.SecurityProfileDir) != 0 {
-		dirProvider, err := NewDirectoryProvider(config.RuntimeSecurity.SecurityProfileDir, config.RuntimeSecurity.SecurityProfileWatchDir)
-		if err != nil {
-			return nil, fmt.Errorf("couldn't instantiate a new security profile directory provider: %w", err)
-		}
-		providers = append(providers, dirProvider)
-	}
-
-	// instantiate remote-config provider
-	if config.RuntimeSecurity.RemoteConfigurationEnabled && config.RuntimeSecurity.SecurityProfileRCEnabled {
-		rcProvider, err := rconfig.NewRCProfileProvider()
-		if err != nil {
-			return nil, fmt.Errorf("couldn't instantiate a new security profile remote-config provider: %w", err)
-		}
-		providers = append(providers, rcProvider)
-	}
-
 	profileCache, err := simplelru.NewLRU[cgroupModel.WorkloadSelector, *SecurityProfile](config.RuntimeSecurity.SecurityProfileCacheSize, nil)
 	if err != nil {
 		return nil, fmt.Errorf("couldn't create security profile cache: %w", err)
@@ -181,7 +162,6 @@ func NewSecurityProfileManager(config *config.Config, statsdClient statsd.Client
 	m := &SecurityProfileManager{
 		config:                     config,
 		statsdClient:               statsdClient,
-		providers:                  providers,
 		manager:                    manager,
 		securityProfileMap:         securityProfileMap,
 		securityProfileSyscallsMap: securityProfileSyscallsMap,
@@ -193,6 +173,26 @@ func NewSecurityProfileManager(config *config.Config, statsdClient statsd.Client
 		eventFiltering:             make(map[eventFilteringEntry]*atomic.Uint64),
 		pathsReducer:               activity_tree.NewPathsReducer(),
 	}
+
+	// instantiate directory provider
+	if len(config.RuntimeSecurity.SecurityProfileDir) != 0 {
+		dirProvider, err := NewDirectoryProvider(config.RuntimeSecurity.SecurityProfileDir, config.RuntimeSecurity.SecurityProfileWatchDir)
+		if err != nil {
+			return nil, fmt.Errorf("couldn't instantiate a new security profile directory provider: %w", err)
+		}
+		m.providers = append(m.providers, dirProvider)
+		m.onLocalStorageCleanup = dirProvider.OnLocalStorageCleanup
+	}
+
+	// instantiate remote-config provider
+	if config.RuntimeSecurity.RemoteConfigurationEnabled && config.RuntimeSecurity.SecurityProfileRCEnabled {
+		rcProvider, err := rconfig.NewRCProfileProvider()
+		if err != nil {
+			return nil, fmt.Errorf("couldn't instantiate a new security profile remote-config provider: %w", err)
+		}
+		m.providers = append(m.providers, rcProvider)
+	}
+
 	m.initMetricsMap()
 
 	// register the manager to the provider(s)
@@ -200,6 +200,13 @@ func NewSecurityProfileManager(config *config.Config, statsdClient statsd.Client
 		p.SetOnNewProfileCallback(m.OnNewProfileEvent)
 	}
 	return m, nil
+}
+
+// OnLocalStorageCleanup performs the necessary cleanup when the Activity Dump Manager local storage cleans up an entry
+func (m *SecurityProfileManager) OnLocalStorageCleanup(files []string) {
+	if m.onLocalStorageCleanup != nil {
+		m.onLocalStorageCleanup(files)
+	}
 }
 
 func (m *SecurityProfileManager) initMetricsMap() {
@@ -568,6 +575,13 @@ func (m *SecurityProfileManager) SendStats() error {
 			if err := m.statsdClient.Count(metrics.MetricSecurityProfileEventFiltering, int64(value), tags, 1.0); err != nil {
 				return fmt.Errorf("couldn't send MetricSecurityProfileEventFiltering metric: %w", err)
 			}
+		}
+	}
+
+	// Send metrics for profile profider
+	for _, provider := range m.providers {
+		if err := provider.SendStats(m.statsdClient); err != nil {
+			return err
 		}
 	}
 
