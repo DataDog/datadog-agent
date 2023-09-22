@@ -124,14 +124,8 @@ func injectAutoInstrumentation(pod *corev1.Pod, _ string, _ dynamic.Interface) e
 
 	containerRegistry := config.Datadog.GetString("admission_controller.auto_instrumentation.container_registry")
 	libsToInject := extractLibInfo(pod, containerRegistry)
-
-	// if no library annotations were provided, inject all libraries as part of auto instrumentation
 	if len(libsToInject) == 0 {
-		libsToInject = injectAll(pod.Namespace, containerRegistry)
-		if len(libsToInject) == 0 {
-			return nil
-		}
-		log.Debugf("Injecting all libraries into pod %q in namespace %q", podString(pod), pod.Namespace)
+		return nil
 	}
 
 	return injectAutoInstruConfig(pod, libsToInject)
@@ -149,14 +143,15 @@ func isNsTargeted(ns string) bool {
 	return false
 }
 
-func injectAll(ns, registry string) []libInfo {
-	libsToInject := []libInfo{}
+func injectAll(ns, registry string) map[string]libInfo {
+	libsToInject := make(map[string]libInfo)
 	if isNsTargeted(ns) || isApmInstrumentationEnabled(ns) {
 		for _, lang := range supportedLanguages {
-			libsToInject = append(libsToInject, libInfo{
+			libVersion := singleStepLibraryVersions(lang)
+			libsToInject[string(lang)] = libInfo{
 				lang:  lang,
-				image: fmt.Sprintf(imageFormat, registry, lang, "latest"),
-			})
+				image: fmt.Sprintf(imageFormat, registry, lang, libVersion),
+			}
 		}
 	}
 	return libsToInject
@@ -171,55 +166,33 @@ type libInfo struct {
 // extractLibInfo returns the language, the image,
 // and a boolean indicating whether the library should be injected into the pod
 func extractLibInfo(pod *corev1.Pod, containerRegistry string) []libInfo {
-	libInfoList := []libInfo{}
-	podAnnotations := pod.GetAnnotations()
-	for _, lang := range supportedLanguages {
-		customLibAnnotation := strings.ToLower(fmt.Sprintf(customLibAnnotationKeyFormat, lang))
-		if image, found := podAnnotations[customLibAnnotation]; found {
-			libInfoList = append(libInfoList, libInfo{
-				lang:  lang,
-				image: image,
-			})
-		}
+	libInfoMap := make(map[string]libInfo)
 
-		libVersionAnnotation := strings.ToLower(fmt.Sprintf(libVersionAnnotationKeyFormat, lang))
-		if version, found := podAnnotations[libVersionAnnotation]; found {
-			image := fmt.Sprintf("%s/dd-lib-%s-init:%s", containerRegistry, lang, version)
-			libInfoList = append(libInfoList, libInfo{
-				lang:  lang,
-				image: image,
-			})
-		}
-
-		for _, ctr := range pod.Spec.Containers {
-			customLibAnnotation := strings.ToLower(fmt.Sprintf(customLibAnnotationKeyCtrFormat, ctr.Name, lang))
-			if image, found := podAnnotations[customLibAnnotation]; found {
-				libInfoList = append(libInfoList, libInfo{
-					ctrName: ctr.Name,
-					lang:    lang,
-					image:   image,
-				})
-			}
-
-			libVersionAnnotation := strings.ToLower(fmt.Sprintf(libVersionAnnotationKeyCtrFormat, ctr.Name, lang))
-			if version, found := podAnnotations[libVersionAnnotation]; found {
-				image := fmt.Sprintf(imageFormat, containerRegistry, lang, version)
-				libInfoList = append(libInfoList, libInfo{
-					ctrName: ctr.Name,
-					lang:    lang,
-					image:   image,
-				})
-			}
+	// Inject all libraries if Single Step Instrumentation is enabled
+	if isApmInstrumentationEnabled(pod.Namespace) {
+		libInfoMap = injectAll(pod.Namespace, containerRegistry)
+		if len(libInfoMap) > 0 {
+			log.Debugf("Single Step Instrumentation: Injecting all libraries into pod %q in namespace %q", podString(pod), pod.Namespace)
 		}
 	}
 
+	// If admission.datadoghq.com/enabled: "true" or mutateUnlabelled is set,
+	// the library version specified via annotation on the Pod takes precedence
+	if shouldMutatePod(pod) {
+		libInfoMap = extractLibrariesFromAnnotations(pod, containerRegistry, libInfoMap)
+	}
+
+	libInfoList := []libInfo{}
+	for _, li := range libInfoMap {
+		libInfoList = append(libInfoList, li)
+	}
 	if len(libInfoList) == 0 {
 		// Inject all if admission.datadoghq.com/all-lib.version exists
 		// without any other language-specific annotations.
 		// This annotation is typically expected to be set via remote-config
 		// for batch instrumentation without language detection.
 		injectAllAnnotation := strings.ToLower(fmt.Sprintf(libVersionAnnotationKeyFormat, "all"))
-		if version, found := podAnnotations[injectAllAnnotation]; found {
+		if version, found := pod.Annotations[injectAllAnnotation]; found {
 			// This logic will be updated once we bundle all libs in
 			// one single init container. Versions will be supported by then.
 			if version != "latest" {
@@ -236,6 +209,78 @@ func extractLibInfo(pod *corev1.Pod, containerRegistry string) []libInfo {
 	}
 
 	return libInfoList
+}
+
+func extractLibrariesFromAnnotations(
+	pod *corev1.Pod,
+	registry string,
+	libInfoMap map[string]libInfo,
+) map[string]libInfo {
+	annotations := pod.Annotations
+	for _, lang := range supportedLanguages {
+		customLibAnnotation := strings.ToLower(fmt.Sprintf(customLibAnnotationKeyFormat, lang))
+		if image, found := annotations[customLibAnnotation]; found {
+			if li, ok := libInfoMap[string(lang)]; ok {
+				log.Debugf(
+					"Foud %s library annotation %s, will overwrite %s injected with Single Step Instrumentation",
+					string(lang), image, li.image,
+				)
+			}
+			libInfoMap[string(lang)] = libInfo{
+				lang:  lang,
+				image: image,
+			}
+		}
+
+		libVersionAnnotation := strings.ToLower(fmt.Sprintf(libVersionAnnotationKeyFormat, lang))
+		if version, found := annotations[libVersionAnnotation]; found {
+			image := fmt.Sprintf("%s/dd-lib-%s-init:%s", registry, lang, version)
+			if li, ok := libInfoMap[string(lang)]; ok {
+				log.Debugf(
+					"Foud %s library annotation for version %s, will overwrite %s injected with Single Step Instrumentation",
+					string(lang), version, li.image,
+				)
+			}
+			libInfoMap[string(lang)] = libInfo{
+				lang:  lang,
+				image: image,
+			}
+		}
+
+		for _, ctr := range pod.Spec.Containers {
+			customLibAnnotation := strings.ToLower(fmt.Sprintf(customLibAnnotationKeyCtrFormat, ctr.Name, lang))
+			if image, found := annotations[customLibAnnotation]; found {
+				if li, ok := libInfoMap[string(lang)]; ok {
+					log.Debugf(
+						"Foud %s library annotation %s, will overwrite %s injected with Single Step Instrumentation",
+						string(lang), image, li.image,
+					)
+				}
+				libInfoMap[string(lang)] = libInfo{
+					ctrName: ctr.Name,
+					lang:    lang,
+					image:   image,
+				}
+			}
+
+			libVersionAnnotation := strings.ToLower(fmt.Sprintf(libVersionAnnotationKeyCtrFormat, ctr.Name, lang))
+			if version, found := annotations[libVersionAnnotation]; found {
+				image := fmt.Sprintf(imageFormat, registry, lang, version)
+				if li, ok := libInfoMap[string(lang)]; ok {
+					log.Debugf(
+						"Foud %s library annotation for version %s, will overwrite %s injected with Single Step Instrumentation",
+						string(lang), version, li.image,
+					)
+				}
+				libInfoMap[string(lang)] = libInfo{
+					ctrName: ctr.Name,
+					lang:    lang,
+					image:   image,
+				}
+			}
+		}
+	}
+	return libInfoMap
 }
 
 func injectAutoInstruConfig(pod *corev1.Pod, libsToInject []libInfo) error {
@@ -486,6 +531,17 @@ func basicConfig() common.LibConfig {
 		RuntimeMetrics:      pointer.Ptr(true),
 		TracingSamplingRate: pointer.Ptr(1.0),
 		TracingRateLimit:    pointer.Ptr(100),
+	}
+}
+
+func singleStepLibraryVersions(lang language) string {
+	//libVersions := config.Datadog.GetString("admission_controller.auto_instrumentation.container_registry")
+	libVersions := config.Datadog.GetStringMapString("apm_config.instrumentation.lib_versions")
+	if version, ok := libVersions[string(lang)]; ok {
+		return version
+	} else {
+		log.Warnf("Library version is not specified for language %s. Use `latest` version.", lang)
+		return "latest"
 	}
 }
 

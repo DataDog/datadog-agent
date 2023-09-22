@@ -278,11 +278,13 @@ func assertLibReq(t *testing.T, pod *corev1.Pod, lang language, image, envKey, e
 }
 
 func TestExtractLibInfo(t *testing.T) {
+	var mockConfig *config.MockConfig
 	tests := []struct {
 		name                 string
 		pod                  *corev1.Pod
 		containerRegistry    string
 		expectedLibsToInject []libInfo
+		setupConfig          func()
 	}{
 		{
 			name:              "java",
@@ -472,12 +474,142 @@ func TestExtractLibInfo(t *testing.T) {
 					image: "registry/dd-lib-ruby-init:latest",
 				},
 			},
+			setupConfig: func() { mockConfig.Set("apm_config.instrumentation.enabled", false) },
+		},
+		{
+			name:              "single step instrumentation with no pinned versions",
+			pod:               fakePodWithNamespaceAndLabel("ns", "", ""),
+			containerRegistry: "registry",
+			expectedLibsToInject: []libInfo{
+				{
+					lang:  "java",
+					image: "registry/dd-lib-java-init:latest",
+				},
+				{
+					lang:  "js",
+					image: "registry/dd-lib-js-init:latest",
+				},
+				{
+					lang:  "python",
+					image: "registry/dd-lib-python-init:latest",
+				},
+				{
+					lang:  "dotnet",
+					image: "registry/dd-lib-dotnet-init:latest",
+				},
+				{
+					lang:  "ruby",
+					image: "registry/dd-lib-ruby-init:latest",
+				},
+			},
+			setupConfig: func() { mockConfig.Set("apm_config.instrumentation.enabled", true) },
+		},
+		{
+			name:              "single step instrumentation with pinned java version",
+			pod:               fakePodWithNamespaceAndLabel("ns", "", ""),
+			containerRegistry: "registry",
+			expectedLibsToInject: []libInfo{
+				{
+					lang:  "java",
+					image: "registry/dd-lib-java-init:v1.20.0",
+				},
+				{
+					lang:  "js",
+					image: "registry/dd-lib-js-init:latest",
+				},
+				{
+					lang:  "python",
+					image: "registry/dd-lib-python-init:latest",
+				},
+				{
+					lang:  "dotnet",
+					image: "registry/dd-lib-dotnet-init:latest",
+				},
+				{
+					lang:  "ruby",
+					image: "registry/dd-lib-ruby-init:latest",
+				},
+			},
+			setupConfig: func() {
+				mockConfig.Set("apm_config.instrumentation.enabled", true)
+				mockConfig.Set("apm_config.instrumentation.lib_versions", map[string]string{"java": "v1.20.0"})
+			},
+		},
+		{
+			name:              "single step instrumentation with pinned java and python versions",
+			pod:               fakePodWithNamespaceAndLabel("ns", "", ""),
+			containerRegistry: "registry",
+			expectedLibsToInject: []libInfo{
+				{
+					lang:  "java",
+					image: "registry/dd-lib-java-init:v1.20.0",
+				},
+				{
+					lang:  "js",
+					image: "registry/dd-lib-js-init:latest",
+				},
+				{
+					lang:  "python",
+					image: "registry/dd-lib-python-init:v1.19.0",
+				},
+				{
+					lang:  "dotnet",
+					image: "registry/dd-lib-dotnet-init:latest",
+				},
+				{
+					lang:  "ruby",
+					image: "registry/dd-lib-ruby-init:latest",
+				},
+			},
+			setupConfig: func() {
+				mockConfig.Set("apm_config.instrumentation.enabled", true)
+				mockConfig.Set("apm_config.instrumentation.lib_versions", map[string]string{"java": "v1.20.0", "python": "v1.19.0"})
+			},
+		},
+		{
+			name:              "single step instrumentation with pinned java version and java annotation",
+			pod:               fakePodWithAnnotation("admission.datadoghq.com/java-lib.version", "v1"),
+			containerRegistry: "registry",
+			expectedLibsToInject: []libInfo{
+				{
+					lang:  "java",
+					image: "registry/dd-lib-java-init:v1",
+				},
+				{
+					lang:  "js",
+					image: "registry/dd-lib-js-init:latest",
+				},
+				{
+					lang:  "python",
+					image: "registry/dd-lib-python-init:latest",
+				},
+				{
+					lang:  "dotnet",
+					image: "registry/dd-lib-dotnet-init:latest",
+				},
+				{
+					lang:  "ruby",
+					image: "registry/dd-lib-ruby-init:latest",
+				},
+			},
+			setupConfig: func() {
+				mockConfig.Set("apm_config.instrumentation.enabled", true)
+				mockConfig.Set("apm_config.instrumentation.lib_versions", map[string]string{"java": "v1.20.0"})
+				mockConfig.Set("admission_controller.mutate_unlabelled", true)
+			},
 		},
 	}
 	for _, tt := range tests {
+		//setupConfig:  func() { mockConfig.Set("apm_config.instrumentation.enabled", true) },
 		t.Run(tt.name, func(t *testing.T) {
+			mockConfig = config.Mock(nil)
+			mockConfig.Set("admission_controller.mutate_unlabelled", true)
+			if tt.setupConfig != nil {
+				tt.setupConfig()
+			}
 			libsToInject := extractLibInfo(tt.pod, tt.containerRegistry)
-			require.Equal(t, tt.expectedLibsToInject, libsToInject)
+			//require.Equal(t, tt.expectedLibsToInject, libsToInject)
+			require.ElementsMatch(t, tt.expectedLibsToInject, libsToInject)
 		})
 	}
 }
@@ -667,18 +799,18 @@ func expBasicConfig() []corev1.EnvVar {
 }
 
 func TestInjectAll(t *testing.T) {
-	wantAll := []libInfo{
-		{lang: java, image: "gcr.io/datadoghq/dd-lib-java-init:latest"},
-		{lang: js, image: "gcr.io/datadoghq/dd-lib-js-init:latest"},
-		{lang: python, image: "gcr.io/datadoghq/dd-lib-python-init:latest"},
-		{lang: dotnet, image: "gcr.io/datadoghq/dd-lib-dotnet-init:latest"},
-		{lang: ruby, image: "gcr.io/datadoghq/dd-lib-ruby-init:latest"},
+	wantAll := map[string]libInfo{
+		"java":   {lang: java, image: "gcr.io/datadoghq/dd-lib-java-init:latest"},
+		"js":     {lang: js, image: "gcr.io/datadoghq/dd-lib-js-init:latest"},
+		"python": {lang: python, image: "gcr.io/datadoghq/dd-lib-python-init:latest"},
+		"dotnet": {lang: dotnet, image: "gcr.io/datadoghq/dd-lib-dotnet-init:latest"},
+		"ruby":   {lang: ruby, image: "gcr.io/datadoghq/dd-lib-ruby-init:latest"},
 	}
 	tests := []struct {
 		name             string
 		ns               string
 		targetNamespaces []string
-		want             []libInfo
+		want             map[string]libInfo
 	}{
 		{
 			name:             "nominal",
@@ -696,13 +828,13 @@ func TestInjectAll(t *testing.T) {
 			name:             "no match",
 			ns:               "not-targeted",
 			targetNamespaces: []string{"foo", "bar"},
-			want:             []libInfo{},
+			want:             map[string]libInfo{},
 		},
 		{
 			name:             "empty target",
 			ns:               "targeted",
 			targetNamespaces: []string{},
-			want:             []libInfo{},
+			want:             map[string]libInfo{},
 		},
 	}
 	for _, tt := range tests {
