@@ -251,6 +251,7 @@ func TestDeviceProfileRcConfig_UnmarshallFromRc_and_MarshallForRc(t *testing.T) 
 				"metric_tags": [
 					{
 						"tag": "a-tag",
+						"symbol": {},
 						"column": {
 							"OID": "1.2.3",
 							"name": "aSymbol"
@@ -268,6 +269,7 @@ func TestDeviceProfileRcConfig_UnmarshallFromRc_and_MarshallForRc(t *testing.T) 
 					},
 					{
 						"tag": "a-tag2",
+						"symbol": {},
 						"column": {
 							"OID": "1.2.3",
 							"name": "aSymbol"
