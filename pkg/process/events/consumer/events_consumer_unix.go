@@ -14,6 +14,9 @@ import (
 
 // Copy copies the necessary fields from the event received from the event monitor
 func (p *ProcessConsumer) Copy(event *smodel.Event) any {
+	cmdline := []string{event.GetProcessArgv0()}
+	cmdline = append(cmdline, event.GetProcessArgv()...)
+
 	return &model.ProcessEvent{
 		EventType:      model.NewEventType(event.GetEventType().String()),
 		CollectionTime: event.GetTimestamp(),
@@ -25,9 +28,9 @@ func (p *ProcessConsumer) Copy(event *smodel.Event) any {
 		Username:       event.GetProcessUser(),
 		Group:          event.GetProcessGroup(),
 		Exe:            event.GetExecFilePath(),
-		Cmdline:        event.GetProcessArgv(),
-		ForkTime:       event.GetProcessForkTime(), // TODO: investigate all assignments of forkTime
-		ExecTime:       event.GetProcessExecTime(), // TODO: investigate truncation
+		Cmdline:        cmdline,
+		ForkTime:       event.GetProcessForkTime(),
+		ExecTime:       event.GetProcessExecTime(),
 		ExitTime:       event.GetProcessExitTime(),
 		ExitCode:       event.GetExitCode(),
 	}
