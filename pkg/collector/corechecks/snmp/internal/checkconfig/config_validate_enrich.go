@@ -175,6 +175,10 @@ func validateEnrichMetricTag(metricTag *profiledefinition.MetricTagConfig) []str
 	if metricTag.Column.OID != "" || metricTag.Column.Name != "" {
 		errors = append(errors, validateEnrichSymbol(&metricTag.Column, MetricTagSymbol)...)
 	}
+	if metricTag.OID != "" && metricTag.Symbol.OID != "" {
+		metricTag.Symbol.OID = metricTag.OID
+		metricTag.OID = ""
+	}
 	if metricTag.Match != "" {
 		pattern, err := regexp.Compile(metricTag.Match)
 		if err != nil {

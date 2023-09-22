@@ -46,6 +46,9 @@ type KeyValue struct {
 	Value string `yaml:"value" json:"value"`
 }
 
+// SymbolConfigCompat is used to deserialize string field or SymbolConfig.
+type SymbolConfigCompat SymbolConfig
+
 // SymbolConfig holds info for a single symbol/oid
 type SymbolConfig struct {
 	OID  string `yaml:"OID,omitempty" json:"OID,omitempty"`
@@ -77,12 +80,12 @@ type MetricTagConfig struct {
 	// Table config
 	Index uint `yaml:"index,omitempty" json:"index,omitempty"`
 
-	// TODO: refactor to rename to `symbol` instead (keep backward compat with `column`)
-	Column SymbolConfig `yaml:"column,omitempty" json:"column,omitempty"`
+	Column SymbolConfig `yaml:"column,omitempty" json:"column,omitempty"  jsonschema:"-"` // DEPRECATED replaced by Symbol field
 
 	// Symbol config
-	OID  string `yaml:"OID,omitempty" json:"OID,omitempty"`
-	Name string `yaml:"symbol,omitempty" json:"symbol,omitempty"`
+	OID string `yaml:"OID,omitempty" json:"OID,omitempty"  jsonschema:"-"` // DEPRECATED replaced by Symbol field
+	// Using Symbol field below as string is deprecated
+	Symbol SymbolConfigCompat `yaml:"symbol,omitempty" json:"symbol,omitempty"`
 
 	IndexTransform []MetricIndexTransform `yaml:"index_transform,omitempty" json:"index_transform,omitempty"`
 

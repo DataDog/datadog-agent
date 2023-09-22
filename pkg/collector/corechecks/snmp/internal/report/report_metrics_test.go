@@ -471,8 +471,8 @@ func Test_metricSender_getCheckInstanceMetricTags(t *testing.T) {
 		{
 			name: "no scalar oids found",
 			metricsTags: []profiledefinition.MetricTagConfig{
-				{Tag: "my_symbol", OID: "1.2.3", Name: "mySymbol"},
-				{Tag: "snmp_host", OID: "1.3.6.1.2.1.1.5.0", Name: "sysName"},
+				{Tag: "my_symbol", OID: "1.2.3", Symbol: profiledefinition.SymbolConfigCompat{Name: "mySymbol"}},
+				{Tag: "snmp_host", OID: "1.3.6.1.2.1.1.5.0", Symbol: profiledefinition.SymbolConfigCompat{Name: "sysName"}},
 			},
 			values:       &valuestore.ResultValueStore{},
 			expectedTags: []string{},
@@ -481,7 +481,7 @@ func Test_metricSender_getCheckInstanceMetricTags(t *testing.T) {
 		{
 			name: "report scalar tags with regex",
 			metricsTags: []profiledefinition.MetricTagConfig{
-				{OID: "1.2.3", Name: "mySymbol", Match: "^([a-zA-Z]+)([0-9]+)$", Tags: map[string]string{
+				{OID: "1.2.3", Symbol: profiledefinition.SymbolConfigCompat{Name: "mySymbol"}, Match: "^([a-zA-Z]+)([0-9]+)$", Tags: map[string]string{
 					"word":   "\\1",
 					"number": "\\2",
 				}},
@@ -499,7 +499,7 @@ func Test_metricSender_getCheckInstanceMetricTags(t *testing.T) {
 		{
 			name: "error converting tag value",
 			metricsTags: []profiledefinition.MetricTagConfig{
-				{Tag: "my_symbol", OID: "1.2.3", Name: "mySymbol"},
+				{Tag: "my_symbol", OID: "1.2.3", Symbol: profiledefinition.SymbolConfigCompat{Name: "mySymbol"}},
 			},
 			values: &valuestore.ResultValueStore{
 				ScalarValues: valuestore.ScalarResultValuesType{
@@ -515,7 +515,7 @@ func Test_metricSender_getCheckInstanceMetricTags(t *testing.T) {
 		{
 			name: "tag value mapping",
 			metricsTags: []profiledefinition.MetricTagConfig{
-				{Tag: "my_symbol", OID: "1.2.3", Name: "mySymbol", Mapping: map[string]string{"1": "one", "2": "two"}},
+				{Tag: "my_symbol", OID: "1.2.3", Symbol: profiledefinition.SymbolConfigCompat{Name: "mySymbol"}, Mapping: map[string]string{"1": "one", "2": "two"}},
 			},
 			values: &valuestore.ResultValueStore{
 				ScalarValues: valuestore.ScalarResultValuesType{
@@ -530,7 +530,7 @@ func Test_metricSender_getCheckInstanceMetricTags(t *testing.T) {
 		{
 			name: "invalid tag value mapping",
 			metricsTags: []profiledefinition.MetricTagConfig{
-				{Tag: "my_symbol", OID: "1.2.3", Name: "mySymbol", Mapping: map[string]string{"1": "one", "2": "two"}},
+				{Tag: "my_symbol", OID: "1.2.3", Symbol: profiledefinition.SymbolConfigCompat{Name: "mySymbol"}, Mapping: map[string]string{"1": "one", "2": "two"}},
 			},
 			values: &valuestore.ResultValueStore{
 				ScalarValues: valuestore.ScalarResultValuesType{
@@ -545,7 +545,7 @@ func Test_metricSender_getCheckInstanceMetricTags(t *testing.T) {
 		{
 			name: "empty tag value mapping",
 			metricsTags: []profiledefinition.MetricTagConfig{
-				{Tag: "my_symbol", OID: "1.2.3", Name: "mySymbol", Mapping: map[string]string{}},
+				{Tag: "my_symbol", OID: "1.2.3", Symbol: profiledefinition.SymbolConfigCompat{Name: "mySymbol"}, Mapping: map[string]string{}},
 			},
 			values: &valuestore.ResultValueStore{
 				ScalarValues: valuestore.ScalarResultValuesType{
