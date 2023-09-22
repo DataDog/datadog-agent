@@ -15,6 +15,8 @@ include:
   - /.gitlab/kitchen_deploy.yml
   - /.gitlab/kitchen_testing.yml
   - /.gitlab/kitchen_tests_upload.yml
+  - /.gitlab/new-e2e_testing.yml
+  - /.gitlab/new-e2e_common/testing.yml
   - /.gitlab/install_script_testing.yml
   - /.gitlab/pkg_metrics.yml
   - /.gitlab/container_build.yml
