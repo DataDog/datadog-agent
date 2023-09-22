@@ -32,7 +32,7 @@ func TestDeviceProfileRcConfig_ConvertToRcFormat(t *testing.T) {
 					},
 					MetricTags: MetricTagConfigList{
 						{
-							Column: SymbolConfig{
+							Symbol: SymbolConfigCompat{
 								OID:  "1.2.3",
 								Name: "aSymbol",
 							},
@@ -42,7 +42,7 @@ func TestDeviceProfileRcConfig_ConvertToRcFormat(t *testing.T) {
 							},
 						},
 						{
-							Column: SymbolConfig{
+							Symbol: SymbolConfigCompat{
 								OID:  "1.2.3",
 								Name: "aSymbol",
 							},
@@ -80,7 +80,7 @@ func TestDeviceProfileRcConfig_ConvertToRcFormat(t *testing.T) {
 					},
 					MetricTags: MetricTagConfigList{
 						{
-							Column: SymbolConfig{
+							Symbol: SymbolConfigCompat{
 								OID:  "1.2.3",
 								Name: "aSymbol",
 							},
@@ -96,7 +96,7 @@ func TestDeviceProfileRcConfig_ConvertToRcFormat(t *testing.T) {
 							},
 						},
 						{
-							Column: SymbolConfig{
+							Symbol: SymbolConfigCompat{
 								OID:  "1.2.3",
 								Name: "aSymbol",
 							},
@@ -145,7 +145,7 @@ func TestDeviceProfileRcConfig_ConvertToAgentFormat(t *testing.T) {
 					},
 					MetricTags: MetricTagConfigList{
 						{
-							Column: SymbolConfig{
+							Symbol: SymbolConfigCompat{
 								OID:  "1.2.3",
 								Name: "aSymbol",
 							},
@@ -161,7 +161,7 @@ func TestDeviceProfileRcConfig_ConvertToAgentFormat(t *testing.T) {
 							},
 						},
 						{
-							Column: SymbolConfig{
+							Symbol: SymbolConfigCompat{
 								OID:  "1.2.3",
 								Name: "aSymbol",
 							},
@@ -203,7 +203,7 @@ func TestDeviceProfileRcConfig_ConvertToAgentFormat(t *testing.T) {
 					},
 					MetricTags: MetricTagConfigList{
 						{
-							Column: SymbolConfig{
+							Symbol: SymbolConfigCompat{
 								OID:  "1.2.3",
 								Name: "aSymbol",
 							},
@@ -213,7 +213,7 @@ func TestDeviceProfileRcConfig_ConvertToAgentFormat(t *testing.T) {
 							},
 						},
 						{
-							Column: SymbolConfig{
+							Symbol: SymbolConfigCompat{
 								OID:  "1.2.3",
 								Name: "aSymbol",
 							},
@@ -251,8 +251,7 @@ func TestDeviceProfileRcConfig_UnmarshallFromRc_and_MarshallForRc(t *testing.T) 
 				"metric_tags": [
 					{
 						"tag": "a-tag",
-						"symbol": {},
-						"column": {
+						"symbol": {
 							"OID": "1.2.3",
 							"name": "aSymbol"
 						},
@@ -269,8 +268,7 @@ func TestDeviceProfileRcConfig_UnmarshallFromRc_and_MarshallForRc(t *testing.T) 
 					},
 					{
 						"tag": "a-tag2",
-						"symbol": {},
-						"column": {
+						"symbol": {
 							"OID": "1.2.3",
 							"name": "aSymbol"
 						},
@@ -325,7 +323,7 @@ func TestDeviceProfileRcConfig_UnmarshallFromRc_and_MarshallForRc(t *testing.T) 
 					MetricTags: MetricTagConfigList{
 						{
 							Tag: "a-tag",
-							Column: SymbolConfig{
+							Symbol: SymbolConfigCompat{
 								OID:  "1.2.3",
 								Name: "aSymbol",
 							},
@@ -336,7 +334,7 @@ func TestDeviceProfileRcConfig_UnmarshallFromRc_and_MarshallForRc(t *testing.T) 
 						},
 						{
 							Tag: "a-tag2",
-							Column: SymbolConfig{
+							Symbol: SymbolConfigCompat{
 								OID:  "1.2.3",
 								Name: "aSymbol",
 							},
