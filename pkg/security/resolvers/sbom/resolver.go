@@ -54,18 +54,15 @@ type SBOM struct {
 	Source      string
 	Service     string
 	ContainerID string
+	workloadKey string
 
 	deleted        *atomic.Bool
 	scanSuccessful *atomic.Bool
 	cgroup         *cgroupModel.CacheEntry
 }
 
-// getWorkloadKey (thread unsafe) returns a key to indentify the workload
-func (s *SBOM) getWorkloadKey() string {
-	if s.cgroup == nil {
-		return ""
-	}
-	return s.cgroup.WorkloadSelector.Image + ":" + s.cgroup.WorkloadSelector.Tag
+func getWorkloadKey(selector *cgroupModel.WorkloadSelector) string {
+	return selector.Image + ":" + selector.Tag
 }
 
 // IsComputed returns true if SBOM was successfully generated
@@ -85,12 +82,13 @@ func (s *SBOM) reset() {
 }
 
 // NewSBOM returns a new empty instance of SBOM
-func NewSBOM(host string, source string, id string, cgroup *cgroupModel.CacheEntry) (*SBOM, error) {
+func NewSBOM(host string, source string, id string, cgroup *cgroupModel.CacheEntry, workloadKey string) (*SBOM, error) {
 	return &SBOM{
 		files:          make(map[uint64]*Package),
 		Host:           host,
 		Source:         source,
 		ContainerID:    id,
+		workloadKey:    workloadKey,
 		deleted:        atomic.NewBool(false),
 		scanSuccessful: atomic.NewBool(false),
 		cgroup:         cgroup,
@@ -255,9 +253,8 @@ func (r *Resolver) analyzeWorkload(sbom *SBOM) error {
 	}
 
 	// bail out if the workload has been analyzed while queued up
-	sbomKey := sbom.getWorkloadKey()
 	r.sbomsCacheLock.RLock()
-	if r.sbomsCache.Contains(sbomKey) {
+	if r.sbomsCache.Contains(sbom.workloadKey) {
 		r.sbomsCacheLock.RUnlock()
 		return nil
 	}
@@ -335,7 +332,7 @@ func (r *Resolver) analyzeWorkload(sbom *SBOM) error {
 
 	// add to cache
 	r.sbomsCacheLock.Lock()
-	r.sbomsCache.Add(sbomKey, sbom)
+	r.sbomsCache.Add(sbom.workloadKey, sbom)
 	r.sbomsCacheLock.Unlock()
 
 	seclog.Infof("new sbom generated for '%s': %d files added", sbom.ContainerID, len(sbom.files))
@@ -365,8 +362,8 @@ func (r *Resolver) ResolvePackage(containerID string, file *model.FileEvent) *Pa
 
 // newWorkloadEntry (thread unsafe) creates a new SBOM entry for the sbom designated by the provided process cache
 // entry
-func (r *Resolver) newWorkloadEntry(id string, cgroup *cgroupModel.CacheEntry) (*SBOM, error) {
-	sbom, err := NewSBOM(r.hostname, r.source, id, cgroup)
+func (r *Resolver) newWorkloadEntry(id string, cgroup *cgroupModel.CacheEntry, workloadKey string) (*SBOM, error) {
+	sbom, err := NewSBOM(r.hostname, r.source, id, cgroup, workloadKey)
 	if err != nil {
 		return nil, err
 	}
@@ -389,15 +386,13 @@ func (r *Resolver) queueWorkload(sbom *SBOM) {
 	r.sbomsCacheLock.Lock()
 	defer r.sbomsCacheLock.Unlock()
 
-	if workloadKey := sbom.getWorkloadKey(); workloadKey != "" {
-		cachedSBOM, ok := r.sbomsCache.Get(workloadKey)
-		if ok {
-			// copy report and file cache (keeping a reference is fine, we won't be modifying the content)
-			sbom.files = cachedSBOM.files
-			sbom.report = cachedSBOM.report
-			r.sbomsCacheHit.Inc()
-			return
-		}
+	cachedSBOM, ok := r.sbomsCache.Get(sbom.workloadKey)
+	if ok {
+		// copy report and file cache (keeping a reference is fine, we won't be modifying the content)
+		sbom.files = cachedSBOM.files
+		sbom.report = cachedSBOM.report
+		r.sbomsCacheHit.Inc()
+		return
 	}
 	r.sbomsCacheMiss.Inc()
 
@@ -409,15 +404,15 @@ func (r *Resolver) queueWorkload(sbom *SBOM) {
 }
 
 // OnWorkloadSelectorResolvedEvent is used to handle the creation of a new cgroup with its resolved tags
-func (r *Resolver) OnWorkloadSelectorResolvedEvent(sbom *cgroupModel.CacheEntry) {
-	r.Retain(sbom.ID, sbom)
-}
-
-// Retain increments the reference counter of the SBOM of a sbom
-func (r *Resolver) Retain(id string, cgroup *cgroupModel.CacheEntry) {
+func (r *Resolver) OnWorkloadSelectorResolvedEvent(cgroup *cgroupModel.CacheEntry) {
 	r.sbomsLock.Lock()
 	defer r.sbomsLock.Unlock()
 
+	if cgroup == nil {
+		return
+	}
+
+	id := cgroup.ID
 	// We don't scan hosts for now
 	if len(id) == 0 {
 		return
@@ -425,7 +420,8 @@ func (r *Resolver) Retain(id string, cgroup *cgroupModel.CacheEntry) {
 
 	_, ok := r.sboms[id]
 	if !ok {
-		sbom, err := r.newWorkloadEntry(id, cgroup)
+		workloadKey := getWorkloadKey(cgroup.GetWorkloadSelectorCopy())
+		sbom, err := r.newWorkloadEntry(id, cgroup, workloadKey)
 		if err != nil {
 			seclog.Errorf("couldn't create new SBOM entry for sbom '%s': %v", id, err)
 		}
@@ -443,11 +439,11 @@ func (r *Resolver) GetWorkload(id string) *SBOM {
 }
 
 // OnCGroupDeletedEvent is used to handle a CGroupDeleted event
-func (r *Resolver) OnCGroupDeletedEvent(sbom *cgroupModel.CacheEntry) {
-	r.Delete(sbom.ID)
+func (r *Resolver) OnCGroupDeletedEvent(cgroup *cgroupModel.CacheEntry) {
+	r.Delete(cgroup.ID)
 }
 
-// Delete removes the SBOM of the provided cgroup
+// Delete removes the SBOM of the provided cgroup id
 func (r *Resolver) Delete(id string) {
 	sbom := r.GetWorkload(id)
 	if sbom == nil {
@@ -475,8 +471,8 @@ func (r *Resolver) deleteSBOM(sbom *SBOM) {
 		return
 	}
 
-	// compute sbom key before reset
-	sbomKey := sbom.getWorkloadKey()
+	// save the sbom key before reset
+	sbomKey := sbom.workloadKey
 
 	// cleanup and insert SBOM in cache
 	sbom.reset()

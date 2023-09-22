@@ -126,6 +126,17 @@ func (cgce *CacheEntry) SetTags(tags []string) {
 	}
 }
 
+// GetWorkloadSelector returns a copy of the workload selector of this cgroup
+func (cgce *CacheEntry) GetWorkloadSelectorCopy() *WorkloadSelector {
+	cgce.Lock()
+	defer cgce.Unlock()
+
+	return &WorkloadSelector{
+		Image: cgce.WorkloadSelector.Image,
+		Tag:   cgce.WorkloadSelector.Tag,
+	}
+}
+
 // NeedsTagsResolution returns true if this workload is missing its tags
 func (cgce *CacheEntry) NeedsTagsResolution() bool {
 	return len(cgce.ID) != 0 && !cgce.WorkloadSelector.IsReady()
