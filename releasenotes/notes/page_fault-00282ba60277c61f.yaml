@@ -10,7 +10,7 @@ enhancements:
   - |
     The `container` check reports two new metrics:
 
-      * ``container.memory.page_fault``
-      * ``container.memory.major_page_fault``
+      * ``container.memory.page_faults``
+      * ``container.memory.major_page_faults``
 
       to report the page fault counters per container.

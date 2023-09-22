@@ -171,8 +171,8 @@ func (p *Processor) processContainer(sender sender.Sender, tags []string, contai
 		p.sendMetric(sender.Gauge, "container.memory.commit.peak", containerStats.Memory.CommitPeakBytes, tags)
 		p.sendMetric(sender.Gauge, "container.memory.peak", containerStats.Memory.Peak, tags)
 		p.sendMetric(sender.Rate, "container.memory.partial_stall", containerStats.Memory.PartialStallTime, tags)
-		p.sendMetric(sender.Counter, "container.memory.page_fault", containerStats.Memory.Pgfault, tags)
-		p.sendMetric(sender.Counter, "container.memory.major_page_fault", containerStats.Memory.Pgmajfault, tags)
+		p.sendMetric(sender.Counter, "container.memory.page_faults", containerStats.Memory.Pgfault, tags)
+		p.sendMetric(sender.Counter, "container.memory.major_page_faults", containerStats.Memory.Pgmajfault, tags)
 	}
 
 	if containerStats.IO != nil {
