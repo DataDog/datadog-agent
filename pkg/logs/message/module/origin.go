@@ -20,6 +20,13 @@ type Origin struct {
 	tags       []string
 }
 
+// NewOrigin returns a new Origin
+func NewOrigin(source *sources.LogSource) *Origin {
+	return &Origin{
+		LogSource: source,
+	}
+}
+
 // Tags returns the tags of the origin.
 //
 // The returned slice must not be modified by the caller.

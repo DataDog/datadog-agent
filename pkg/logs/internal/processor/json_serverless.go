@@ -9,7 +9,7 @@ import (
 	"encoding/json"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/logs/message"
+	message "github.com/DataDog/datadog-agent/pkg/logs/message/module"
 )
 
 // JSONServerlessEncoder is a shared json encoder sending a struct message field

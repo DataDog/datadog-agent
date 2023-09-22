@@ -7,6 +7,7 @@ package module
 
 import (
 	"context"
+	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 	"time"
 )
 
@@ -60,6 +61,39 @@ type ServerlessExtra struct {
 type Lambda struct {
 	ARN       string
 	RequestID string
+}
+
+// NewMessageWithSource constructs message with content, status and log source.
+func NewMessageWithSource(content []byte, status string, source *sources.LogSource, ingestionTimestamp int64) *Message {
+	return NewMessage(content, NewOrigin(source), status, ingestionTimestamp)
+}
+
+// TODO: could do hostname getter if hostname migration is too hard
+// NewMessage constructs message with content, status, origin and the ingestion timestamp.
+func NewMessage(content []byte, origin *Origin, status string, ingestionTimestamp int64) *Message {
+	return &Message{
+		Content:            content,
+		Origin:             origin,
+		Status:             status,
+		IngestionTimestamp: ingestionTimestamp,
+	}
+}
+
+// NewMessageFromLambda construts a message with content, status, origin and with the given timestamp and Lambda metadata
+func NewMessageFromLambda(content []byte, origin *Origin, status string, utcTime time.Time, ARN, reqID string, ingestionTimestamp int64) *Message {
+	return &Message{
+		Content:            content,
+		Origin:             origin,
+		Status:             status,
+		IngestionTimestamp: ingestionTimestamp,
+		ServerlessExtra: ServerlessExtra{
+			Timestamp: utcTime,
+			Lambda: &Lambda{
+				ARN:       ARN,
+				RequestID: reqID,
+			},
+		},
+	}
 }
 
 // TODO: remove module here if this approach works for util/hostname

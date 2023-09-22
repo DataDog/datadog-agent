@@ -10,9 +10,8 @@ import (
 	"sync"
 
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
-	"github.com/DataDog/datadog-agent/pkg/logs/diagnostic"
-	"github.com/DataDog/datadog-agent/pkg/logs/message"
-	messageModule "github.com/DataDog/datadog-agent/pkg/logs/message/module"
+	diagnostic "github.com/DataDog/datadog-agent/pkg/logs/diagnostic/module"
+	message "github.com/DataDog/datadog-agent/pkg/logs/message/module"
 	"github.com/DataDog/datadog-agent/pkg/logs/metrics"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -27,11 +26,11 @@ type Processor struct {
 	done                      chan struct{}
 	diagnosticMessageReceiver diagnostic.MessageReceiver
 	mu                        sync.Mutex
-	getHostnameFunc           messageModule.GetHostnameFunc
+	getHostnameFunc           message.GetHostnameFunc
 }
 
 // New returns an initialized Processor.
-func New(inputChan, outputChan chan *message.Message, processingRules []*config.ProcessingRule, encoder Encoder, diagnosticMessageReceiver diagnostic.MessageReceiver, getHostnameFunc messageModule.GetHostnameFunc) *Processor {
+func New(inputChan, outputChan chan *message.Message, processingRules []*config.ProcessingRule, encoder Encoder, diagnosticMessageReceiver diagnostic.MessageReceiver, getHostnameFunc message.GetHostnameFunc) *Processor {
 	return &Processor{
 		inputChan:                 inputChan,
 		outputChan:                outputChan,

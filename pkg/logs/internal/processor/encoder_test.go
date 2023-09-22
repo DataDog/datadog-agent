@@ -17,7 +17,7 @@ import (
 
 	"github.com/DataDog/agent-payload/v5/pb"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
-	"github.com/DataDog/datadog-agent/pkg/logs/message"
+	message "github.com/DataDog/datadog-agent/pkg/logs/message/module"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 )
 
@@ -39,7 +39,7 @@ func TestRawEncoder(t *testing.T) {
 
 	redactedMessage := "redacted"
 
-	raw, err := RawEncoder.Encode(msg, []byte(redactedMessage))
+	raw, err := RawEncoder.Encode(msg, []byte(redactedMessage), "unknown")
 	assert.Nil(t, err)
 
 	day := time.Now().UTC().Format("2006-01-02")
@@ -69,7 +69,7 @@ func TestRawEncoderDefaults(t *testing.T) {
 
 	redactedMessage := "a"
 
-	raw, err := RawEncoder.Encode(msg, []byte(redactedMessage))
+	raw, err := RawEncoder.Encode(msg, []byte(redactedMessage), "unknown")
 	assert.Nil(t, err)
 
 	day := time.Now().UTC().Format("2006-01-02")
@@ -99,7 +99,7 @@ func TestRawEncoderEmpty(t *testing.T) {
 
 	redactedMessage := "foo"
 
-	raw, err := RawEncoder.Encode(msg, []byte(redactedMessage))
+	raw, err := RawEncoder.Encode(msg, []byte(redactedMessage), "unknown")
 	assert.Nil(t, err)
 	assert.Equal(t, redactedMessage, string(raw))
 
@@ -130,7 +130,7 @@ func TestProtoEncoder(t *testing.T) {
 
 	redactedMessage := "redacted"
 
-	proto, err := ProtoEncoder.Encode(msg, []byte(redactedMessage))
+	proto, err := ProtoEncoder.Encode(msg, []byte(redactedMessage), "unknown")
 	assert.Nil(t, err)
 
 	log := &pb.Log{}
@@ -160,7 +160,7 @@ func TestProtoEncoderEmpty(t *testing.T) {
 
 	redactedMessage := ""
 
-	raw, err := ProtoEncoder.Encode(msg, []byte(redactedMessage))
+	raw, err := ProtoEncoder.Encode(msg, []byte(redactedMessage), "unknown")
 	assert.Nil(t, err)
 
 	log := &pb.Log{}
@@ -183,7 +183,7 @@ func TestProtoEncoderHandleInvalidUTF8(t *testing.T) {
 	cfg := &config.LogsConfig{}
 	src := sources.NewLogSource("", cfg)
 	msg := newMessage([]byte(""), src, "")
-	encoded, err := ProtoEncoder.Encode(msg, []byte("a\xfez"))
+	encoded, err := ProtoEncoder.Encode(msg, []byte("a\xfez"), "unknown")
 	assert.NotNil(t, encoded)
 	assert.Nil(t, err)
 }
@@ -205,7 +205,7 @@ func TestJsonEncoder(t *testing.T) {
 
 	redactedMessage := "redacted"
 
-	jsonMessage, err := JSONEncoder.Encode(msg, []byte(redactedMessage))
+	jsonMessage, err := JSONEncoder.Encode(msg, []byte(redactedMessage), "unknown")
 	assert.Nil(t, err)
 
 	log := &jsonPayload{}
