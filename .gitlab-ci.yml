@@ -837,7 +837,7 @@ workflow:
   - <<: *if_kitchen
   - <<: *if_default_kitchen
     variables:
-      E2E_OSVERS: $DEFAULT_E2E_OSVERS
+      E2E_OSVERS: $E2E_BRANCH_OSVERS
 
 .on_default_kitchen_tests_a7_always:
   - <<: *if_not_version_7
