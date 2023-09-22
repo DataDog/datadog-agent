@@ -890,7 +890,7 @@ func (p *Resolver) SetProcessArgs(pce *model.ProcessCacheEntry) {
 	}
 }
 
-// GetProcessArgv returns the args of the event as an array
+// GetProcessArgv returns the unscrubbed args of the event as an array. Use with caution.
 func GetProcessArgv(pr *model.Process) ([]string, bool) {
 	if pr.ArgsEntry == nil {
 		return pr.Argv, pr.ArgsTruncated
@@ -968,7 +968,7 @@ func (p *Resolver) GetProcessEnvs(pr *model.Process) ([]string, bool) {
 	return pr.Envs, pr.EnvsTruncated
 }
 
-// GetProcessEnvp returns the envs of the event with their values
+// GetProcessEnvp returns the unscrubbed envs of the event with their values. Use with caution.
 func (p *Resolver) GetProcessEnvp(pr *model.Process) ([]string, bool) {
 	if pr.EnvsEntry == nil {
 		return pr.Envp, pr.EnvsTruncated
@@ -976,6 +976,19 @@ func (p *Resolver) GetProcessEnvp(pr *model.Process) ([]string, bool) {
 
 	pr.Envp = pr.EnvsEntry.Values
 	pr.EnvsTruncated = pr.EnvsTruncated || pr.EnvsEntry.Truncated
+	return pr.Envp, pr.EnvsTruncated
+}
+
+// GetProcessEnvpScrubbed returns the scrubbed envs of the event with their values
+func (p *Resolver) GetProcessEnvpScrubbed(pr *model.Process) ([]string, bool) {
+	envp, _ := p.GetProcessEnvp(pr)
+
+	if p.scrubber != nil && len(envp) > 0 {
+		envp, _ = p.scrubber.ScrubCommand(envp)
+	}
+
+	// TODO: keeping this replacement operation fits the pattern set up by GetProcessScrubbedArgv, but there's a question whether that pattern makes sense
+	pr.Envp = envp
 	return pr.Envp, pr.EnvsTruncated
 }
 

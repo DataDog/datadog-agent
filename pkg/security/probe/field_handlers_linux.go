@@ -191,7 +191,7 @@ func (fh *FieldHandlers) ResolveProcessEnvsTruncated(ev *model.Event, process *m
 	return truncated
 }
 
-// ResolveProcessEnvs resolves the envs of the event
+// ResolveProcessEnvs resolves the unscrubbed envs of the event. Use with caution.
 func (fh *FieldHandlers) ResolveProcessEnvs(ev *model.Event, process *model.Process) []string {
 	envs, _ := fh.resolvers.ProcessResolver.GetProcessEnvs(process)
 	return envs

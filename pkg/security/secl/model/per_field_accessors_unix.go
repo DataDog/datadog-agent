@@ -4294,7 +4294,7 @@ func (ev *Event) GetProcessAncestorsArgv() []string {
 	ptr := iterator.Front(ctx)
 	for ptr != nil {
 		element := (*ProcessCacheEntry)(ptr)
-		result := ev.FieldHandlers.ResolveProcessArgv(ev, &element.ProcessContext.Process)
+		result := ev.FieldHandlers.ResolveProcessArgvScrubbed(ev, &element.ProcessContext.Process)
 		values = append(values, result...)
 		ptr = iterator.Next()
 	}
@@ -4492,7 +4492,7 @@ func (ev *Event) GetProcessAncestorsEnvp() []string {
 	ptr := iterator.Front(ctx)
 	for ptr != nil {
 		element := (*ProcessCacheEntry)(ptr)
-		result := ev.FieldHandlers.ResolveProcessEnvp(ev, &element.ProcessContext.Process)
+		result := ev.FieldHandlers.ResolveProcessEnvpScrubbed(ev, &element.ProcessContext.Process)
 		values = append(values, result...)
 		ptr = iterator.Next()
 	}
@@ -7921,7 +7921,7 @@ func (ev *Event) GetPtraceTraceeAncestorsArgv() []string {
 	ptr := iterator.Front(ctx)
 	for ptr != nil {
 		element := (*ProcessCacheEntry)(ptr)
-		result := ev.FieldHandlers.ResolveProcessArgv(ev, &element.ProcessContext.Process)
+		result := ev.FieldHandlers.ResolveProcessArgvScrubbed(ev, &element.ProcessContext.Process)
 		values = append(values, result...)
 		ptr = iterator.Next()
 	}
@@ -8146,7 +8146,7 @@ func (ev *Event) GetPtraceTraceeAncestorsEnvp() []string {
 	ptr := iterator.Front(ctx)
 	for ptr != nil {
 		element := (*ProcessCacheEntry)(ptr)
-		result := ev.FieldHandlers.ResolveProcessEnvp(ev, &element.ProcessContext.Process)
+		result := ev.FieldHandlers.ResolveProcessEnvpScrubbed(ev, &element.ProcessContext.Process)
 		values = append(values, result...)
 		ptr = iterator.Next()
 	}
@@ -13312,7 +13312,7 @@ func (ev *Event) GetSignalTargetAncestorsArgv() []string {
 	ptr := iterator.Front(ctx)
 	for ptr != nil {
 		element := (*ProcessCacheEntry)(ptr)
-		result := ev.FieldHandlers.ResolveProcessArgv(ev, &element.ProcessContext.Process)
+		result := ev.FieldHandlers.ResolveProcessArgvScrubbed(ev, &element.ProcessContext.Process)
 		values = append(values, result...)
 		ptr = iterator.Next()
 	}
@@ -13537,7 +13537,7 @@ func (ev *Event) GetSignalTargetAncestorsEnvp() []string {
 	ptr := iterator.Front(ctx)
 	for ptr != nil {
 		element := (*ProcessCacheEntry)(ptr)
-		result := ev.FieldHandlers.ResolveProcessEnvp(ev, &element.ProcessContext.Process)
+		result := ev.FieldHandlers.ResolveProcessEnvpScrubbed(ev, &element.ProcessContext.Process)
 		values = append(values, result...)
 		ptr = iterator.Next()
 	}

@@ -65,7 +65,11 @@ func (ev *Event) Get{{$pascalCaseName}}() {{ $accessorReturnType }} {
             {{if $Field.Handler}}
                 {{$SubName = $Field.Iterator.Name | TrimPrefix $Field.Prefix}}
                 {{$Handler := $Field.Iterator.Name | TrimPrefix $Field.Handler}}
-                {{$Return = print "ev.FieldHandlers." $Handler "(ev, &element" $SubName ")"}}
+				{{ if NeedScrubbed $Name }}
+                    {{$Return = print "ev.FieldHandlers." $Handler "Scrubbed(ev, &element" $SubName ")"}}
+                {{ else }}
+                    {{$Return = print "ev.FieldHandlers." $Handler "(ev, &element" $SubName ")"}}
+                {{ end }}
             {{end}}
 
             {{if $Field.IsLength}}

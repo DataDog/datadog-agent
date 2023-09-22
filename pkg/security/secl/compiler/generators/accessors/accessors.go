@@ -827,6 +827,14 @@ func getDefaultValueOfType(returnType string) string {
 	}
 }
 
+func needScrubbed(fieldName string) bool {
+	loweredFieldName := strings.ToLower(fieldName)
+	if strings.Contains(loweredFieldName, "envp") || (strings.Contains(loweredFieldName, "argv") && !strings.Contains(loweredFieldName, "argv0")) {
+		return true
+	}
+	return false
+}
+
 func combineFieldMaps(map1 map[string]*common.StructField, map2 map[string]*common.StructField) map[string]*common.StructField {
 	combined := make(map[string]*common.StructField)
 	for k, v := range map1 {
@@ -953,6 +961,7 @@ var funcMap = map[string]interface{}{
 	"GetHandlers":             getHandlers,
 	"PascalCaseFieldName":     pascalCaseFieldName,
 	"GetDefaultValueOfType":   getDefaultValueOfType,
+	"NeedScrubbed":            needScrubbed,
 	"CombineFieldMaps":        combineFieldMaps,
 }
 
