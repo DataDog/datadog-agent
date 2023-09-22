@@ -13,7 +13,7 @@ import (
 	"sync"
 
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
-	coreConfig "github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/conf"
 	"github.com/DataDog/datadog-agent/pkg/logs/client"
 )
 
@@ -35,12 +35,12 @@ type TestServer struct {
 }
 
 // NewTestServer creates a new test server
-func NewTestServer(statusCode int) *TestServer {
-	return NewTestServerWithOptions(statusCode, 0, true, nil)
+func NewTestServer(statusCode int, cfg conf.ConfigReader) *TestServer {
+	return NewTestServerWithOptions(statusCode, 0, true, nil, cfg)
 }
 
 // NewTestServerWithOptions creates a new test server with concurrency and response control
-func NewTestServerWithOptions(statusCode int, senders int, retryDestination bool, respondChan chan int) *TestServer {
+func NewTestServerWithOptions(statusCode int, senders int, retryDestination bool, respondChan chan int, cfg conf.ConfigReader) *TestServer {
 	statusCodeContainer := &StatusCodeContainer{statusCode: statusCode}
 	var request http.Request
 	var mu = sync.Mutex{}
@@ -82,7 +82,7 @@ func NewTestServerWithOptions(statusCode int, senders int, retryDestination bool
 		BackoffMax:       10,
 		RecoveryInterval: 1,
 	}
-	dest := NewDestination(endpoint, JSONContentType, destCtx, senders, retryDestination, "test", coreConfig.Datadog)
+	dest := NewDestination(endpoint, JSONContentType, destCtx, senders, retryDestination, "test", cfg)
 	return &TestServer{
 		httpServer:          ts,
 		DestCtx:             destCtx,

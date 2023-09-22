@@ -16,6 +16,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/client"
 	diagnostic "github.com/DataDog/datadog-agent/pkg/logs/diagnostic/module"
 	message "github.com/DataDog/datadog-agent/pkg/logs/message/module"
+	status "github.com/DataDog/datadog-agent/pkg/logs/status/module"
 	"github.com/DataDog/datadog-agent/pkg/util/startstop"
 )
 
@@ -43,18 +44,20 @@ type provider struct {
 
 	serverless bool
 
-	cfg             conf.ConfigReader
-	getHostnameFunc message.GetHostnameFunc
+	cfg                       conf.ConfigReader
+	getHostnameFunc           message.GetHostnameFunc
+	statusAddGlobalWarning    status.AddGlobalWarning
+	statusRemoveGlobalWarning status.RemoveGlobalWarning
 }
 
 // NewProvider returns a new Provider
-func NewProvider(numberOfPipelines int, auditor auditor.Auditor, diagnosticMessageReceiver diagnostic.MessageReceiver, processingRules []*config.ProcessingRule, endpoints *config.Endpoints, destinationsContext *client.DestinationsContext, cfg conf.ConfigReader, getHostnameFunc message.GetHostnameFunc) Provider {
-	return newProvider(numberOfPipelines, auditor, diagnosticMessageReceiver, processingRules, endpoints, destinationsContext, false, cfg, getHostnameFunc)
+func NewProvider(numberOfPipelines int, auditor auditor.Auditor, diagnosticMessageReceiver diagnostic.MessageReceiver, processingRules []*config.ProcessingRule, endpoints *config.Endpoints, destinationsContext *client.DestinationsContext, cfg conf.ConfigReader, getHostnameFunc message.GetHostnameFunc, statusAddGlobalWarning status.AddGlobalWarning, statusRemoveGlobalWarning status.RemoveGlobalWarning) Provider {
+	return newProvider(numberOfPipelines, auditor, diagnosticMessageReceiver, processingRules, endpoints, destinationsContext, false, cfg, getHostnameFunc, statusAddGlobalWarning, statusRemoveGlobalWarning)
 }
 
 // NewServerlessProvider returns a new Provider in serverless mode
-func NewServerlessProvider(numberOfPipelines int, auditor auditor.Auditor, processingRules []*config.ProcessingRule, endpoints *config.Endpoints, destinationsContext *client.DestinationsContext, cfg conf.ConfigReader, getHostnameFunc message.GetHostnameFunc) Provider {
-	return newProvider(numberOfPipelines, auditor, &diagnostic.NoopMessageReceiver{}, processingRules, endpoints, destinationsContext, true, cfg, getHostnameFunc)
+func NewServerlessProvider(numberOfPipelines int, auditor auditor.Auditor, processingRules []*config.ProcessingRule, endpoints *config.Endpoints, destinationsContext *client.DestinationsContext, cfg conf.ConfigReader, getHostnameFunc message.GetHostnameFunc, statusAddGlobalWarning status.AddGlobalWarning, statusRemoveGlobalWarning status.RemoveGlobalWarning) Provider {
+	return newProvider(numberOfPipelines, auditor, &diagnostic.NoopMessageReceiver{}, processingRules, endpoints, destinationsContext, true, cfg, getHostnameFunc, statusAddGlobalWarning, statusRemoveGlobalWarning)
 }
 
 // NewMockProvider creates a new provider that will not provide any pipelines.
@@ -62,7 +65,7 @@ func NewMockProvider() Provider {
 	return &provider{}
 }
 
-func newProvider(numberOfPipelines int, auditor auditor.Auditor, diagnosticMessageReceiver diagnostic.MessageReceiver, processingRules []*config.ProcessingRule, endpoints *config.Endpoints, destinationsContext *client.DestinationsContext, serverless bool, cfg conf.ConfigReader, getHostnameFunc message.GetHostnameFunc) Provider {
+func newProvider(numberOfPipelines int, auditor auditor.Auditor, diagnosticMessageReceiver diagnostic.MessageReceiver, processingRules []*config.ProcessingRule, endpoints *config.Endpoints, destinationsContext *client.DestinationsContext, serverless bool, cfg conf.ConfigReader, getHostnameFunc message.GetHostnameFunc, statusAddGlobalWarning status.AddGlobalWarning, statusRemoveGlobalWarning status.RemoveGlobalWarning) Provider {
 	return &provider{
 		numberOfPipelines:         numberOfPipelines,
 		auditor:                   auditor,
@@ -75,6 +78,8 @@ func newProvider(numberOfPipelines int, auditor auditor.Auditor, diagnosticMessa
 		serverless:                serverless,
 		cfg:                       cfg,
 		getHostnameFunc:           getHostnameFunc,
+		statusAddGlobalWarning:    statusAddGlobalWarning,
+		statusRemoveGlobalWarning: statusRemoveGlobalWarning,
 	}
 }
 
@@ -84,7 +89,7 @@ func (p *provider) Start() {
 	p.outputChan = p.auditor.Channel()
 
 	for i := 0; i < p.numberOfPipelines; i++ {
-		pipeline := NewPipeline(p.outputChan, p.processingRules, p.endpoints, p.destinationsContext, p.diagnosticMessageReceiver, p.serverless, i, p.cfg, p.getHostnameFunc)
+		pipeline := NewPipeline(p.outputChan, p.processingRules, p.endpoints, p.destinationsContext, p.diagnosticMessageReceiver, p.serverless, i, p.cfg, p.getHostnameFunc, p.statusAddGlobalWarning, p.statusRemoveGlobalWarning)
 		pipeline.Start()
 		p.pipelines = append(p.pipelines, pipeline)
 	}

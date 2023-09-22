@@ -7,5 +7,44 @@ package module
 
 // Status values
 const (
-	StatusInfo = "info"
+	StatusEmergency = "emergency"
+	StatusAlert     = "alert"
+	StatusCritical  = "critical"
+	StatusError     = "error"
+	StatusWarning   = "warn"
+	StatusNotice    = "notice"
+	StatusInfo      = "info"
+	StatusDebug     = "debug"
 )
+
+// Syslog severity levels
+var (
+	SevEmergency = []byte("<40>")
+	SevAlert     = []byte("<41>")
+	SevCritical  = []byte("<42>")
+	SevError     = []byte("<43>")
+	SevWarning   = []byte("<44>")
+	SevNotice    = []byte("<45>")
+	SevInfo      = []byte("<46>")
+	SevDebug     = []byte("<47>")
+)
+
+// statusSeverityMapping represents the 1:1 mapping between statuses and severities.
+var statusSeverityMapping = map[string][]byte{
+	StatusEmergency: SevEmergency,
+	StatusAlert:     SevAlert,
+	StatusCritical:  SevCritical,
+	StatusError:     SevError,
+	StatusWarning:   SevWarning,
+	StatusNotice:    SevNotice,
+	StatusInfo:      SevInfo,
+	StatusDebug:     SevDebug,
+}
+
+// StatusToSeverity transforms a severity into a status.
+func StatusToSeverity(status string) []byte {
+	if sev, exists := statusSeverityMapping[status]; exists {
+		return sev
+	}
+	return SevInfo
+}

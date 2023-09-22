@@ -7,16 +7,22 @@ package http
 
 import (
 	"errors"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 
-	coreConfig "github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/logs/client"
-	"github.com/DataDog/datadog-agent/pkg/logs/message"
-
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
+	"github.com/DataDog/datadog-agent/pkg/conf"
+	"github.com/DataDog/datadog-agent/pkg/logs/client"
+	message "github.com/DataDog/datadog-agent/pkg/logs/message/module"
 )
+
+var cfg conf.ConfigReader
+
+func init() {
+	cfg = conf.NewConfig("test", "DD", strings.NewReplacer(".", "_"))
+}
 
 func TestBuildURLShouldReturnHTTPSWithUseSSL(t *testing.T) {
 	url := buildURL(config.Endpoint{
@@ -58,7 +64,7 @@ func TestBuildURLShouldReturnAddressForVersion2(t *testing.T) {
 }
 
 func TestDestinationSend200(t *testing.T) {
-	server := NewTestServer(200)
+	server := NewTestServer(200, cfg)
 	input := make(chan *message.Payload)
 	output := make(chan *message.Payload)
 	server.Destination.Start(input, output, nil)
@@ -84,7 +90,7 @@ func TestNoRetries(t *testing.T) {
 }
 
 func testNoRetry(t *testing.T, statusCode int) {
-	server := NewTestServer(statusCode)
+	server := NewTestServer(statusCode, cfg)
 	input := make(chan *message.Payload)
 	output := make(chan *message.Payload)
 	server.Destination.Start(input, output, nil)
@@ -101,7 +107,7 @@ func testNoRetry(t *testing.T, statusCode int) {
 
 func retryTest(t *testing.T, statusCode int) {
 	respondChan := make(chan int)
-	server := NewTestServerWithOptions(statusCode, 0, true, respondChan)
+	server := NewTestServerWithOptions(statusCode, 0, true, respondChan, cfg)
 	input := make(chan *message.Payload)
 	output := make(chan *message.Payload)
 	isRetrying := make(chan bool, 1)
@@ -130,7 +136,7 @@ func retryTest(t *testing.T, statusCode int) {
 
 func TestDestinationContextCancel(t *testing.T) {
 	respondChan := make(chan int)
-	server := NewTestServerWithOptions(429, 0, true, respondChan)
+	server := NewTestServerWithOptions(429, 0, true, respondChan, cfg)
 	input := make(chan *message.Payload)
 	output := make(chan *message.Payload)
 	isRetrying := make(chan bool, 1)
@@ -154,15 +160,16 @@ func TestDestinationContextCancel(t *testing.T) {
 }
 
 func TestConnectivityCheck(t *testing.T) {
+	c := conf.NewConfig("test", "DD", strings.NewReplacer(".", "_"))
 	// Connectivity is ok when server return 200
-	server := NewTestServer(200)
-	connectivity := CheckConnectivity(server.Endpoint)
+	server := NewTestServer(200, cfg)
+	connectivity := CheckConnectivity(server.Endpoint, c)
 	assert.Equal(t, config.HTTPConnectivitySuccess, connectivity)
 	server.Stop()
 
 	// Connectivity is ok when server return 500
-	server = NewTestServer(500)
-	connectivity = CheckConnectivity(server.Endpoint)
+	server = NewTestServer(500, cfg)
+	connectivity = CheckConnectivity(server.Endpoint, c)
 	assert.Equal(t, config.HTTPConnectivityFailure, connectivity)
 	server.Stop()
 }
@@ -174,7 +181,7 @@ func TestErrorToTag(t *testing.T) {
 }
 
 func TestDestinationSendsV2Protocol(t *testing.T) {
-	server := NewTestServer(200)
+	server := NewTestServer(200, cfg)
 	defer server.httpServer.Close()
 
 	server.Destination.protocol = "test-proto"
@@ -184,7 +191,7 @@ func TestDestinationSendsV2Protocol(t *testing.T) {
 }
 
 func TestDestinationDoesntSendEmptyV2Protocol(t *testing.T) {
-	server := NewTestServer(200)
+	server := NewTestServer(200, cfg)
 	defer server.httpServer.Close()
 
 	err := server.Destination.unconditionalSend(&message.Payload{Encoded: []byte("payload")})
@@ -195,7 +202,7 @@ func TestDestinationDoesntSendEmptyV2Protocol(t *testing.T) {
 func TestDestinationConcurrentSends(t *testing.T) {
 	// make the server return 500, so the payloads get stuck retrying
 	respondChan := make(chan int)
-	server := NewTestServerWithOptions(500, 2, true, respondChan)
+	server := NewTestServerWithOptions(500, 2, true, respondChan, cfg)
 	input := make(chan *message.Payload)
 	output := make(chan *message.Payload, 10)
 	server.Destination.Start(input, output, nil)
@@ -249,7 +256,7 @@ func TestDestinationConcurrentSends(t *testing.T) {
 func TestDestinationConcurrentSendsShutdownIsHandled(t *testing.T) {
 	// make the server return 500, so the payloads get stuck retrying
 	respondChan := make(chan int)
-	server := NewTestServerWithOptions(500, 2, true, respondChan)
+	server := NewTestServerWithOptions(500, 2, true, respondChan, cfg)
 	input := make(chan *message.Payload)
 	output := make(chan *message.Payload, 10)
 
@@ -296,7 +303,7 @@ func TestDestinationConcurrentSendsShutdownIsHandled(t *testing.T) {
 
 func TestBackoffDelayEnabled(t *testing.T) {
 	respondChan := make(chan int)
-	server := NewTestServerWithOptions(500, 0, true, respondChan)
+	server := NewTestServerWithOptions(500, 0, true, respondChan, cfg)
 	input := make(chan *message.Payload)
 	output := make(chan *message.Payload)
 	isRetrying := make(chan bool, 1)
@@ -312,7 +319,7 @@ func TestBackoffDelayEnabled(t *testing.T) {
 
 func TestBackoffDelayDisabled(t *testing.T) {
 	respondChan := make(chan int)
-	server := NewTestServerWithOptions(500, 0, false, respondChan)
+	server := NewTestServerWithOptions(500, 0, false, respondChan, cfg)
 	input := make(chan *message.Payload)
 	output := make(chan *message.Payload)
 	isRetrying := make(chan bool, 1)
@@ -328,7 +335,7 @@ func TestBackoffDelayDisabled(t *testing.T) {
 func TestBackoffShouldBeConstantServerless(t *testing.T) {
 	dest := NewDestination(config.Endpoint{
 		Origin: "lambda-extension",
-	}, "", nil, 0, true, "")
+	}, "", nil, 0, true, "", cfg)
 
-	assert.Equal(t, dest.backoff.GetBackoffDuration(0), coreConfig.Datadog.GetDuration("serverless.constant_backoff_interval"))
+	assert.Equal(t, dest.backoff.GetBackoffDuration(0), cfg.GetDuration("serverless.constant_backoff_interval"))
 }

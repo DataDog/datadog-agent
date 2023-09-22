@@ -18,6 +18,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/processor"
 	message "github.com/DataDog/datadog-agent/pkg/logs/message/module"
 	"github.com/DataDog/datadog-agent/pkg/logs/sender"
+	status "github.com/DataDog/datadog-agent/pkg/logs/status/module"
 )
 
 // Pipeline processes and sends messages to the backend
@@ -38,9 +39,11 @@ func NewPipeline(outputChan chan *message.Payload,
 	serverless bool,
 	pipelineID int,
 	cfg conf.ConfigReader,
-	getHostnameFunc message.GetHostnameFunc) *Pipeline {
+	getHostnameFunc message.GetHostnameFunc,
+	statusAddGlobalWarning status.AddGlobalWarning,
+	statusRemoveGlobalWarning status.RemoveGlobalWarning) *Pipeline {
 
-	mainDestinations := getDestinations(endpoints, destinationsContext, pipelineID, cfg)
+	mainDestinations := getDestinations(endpoints, destinationsContext, pipelineID, cfg, statusAddGlobalWarning, statusRemoveGlobalWarning)
 
 	strategyInput := make(chan *message.Message, config.ChanSize)
 	senderInput := make(chan *message.Payload, 1) // Only buffer 1 message since payloads can be large
@@ -94,7 +97,7 @@ func (p *Pipeline) Flush(ctx context.Context) {
 	p.processor.Flush(ctx) // flush messages in the processor into the sender
 }
 
-func getDestinations(endpoints *config.Endpoints, destinationsContext *client.DestinationsContext, pipelineID int, cfg conf.ConfigReader) *client.Destinations {
+func getDestinations(endpoints *config.Endpoints, destinationsContext *client.DestinationsContext, pipelineID int, cfg conf.ConfigReader, statusAddGlobalWarning status.AddGlobalWarning, statusRemoveGlobalWarning status.RemoveGlobalWarning) *client.Destinations {
 	reliable := []client.Destination{}
 	additionals := []client.Destination{}
 
@@ -110,10 +113,10 @@ func getDestinations(endpoints *config.Endpoints, destinationsContext *client.De
 		return client.NewDestinations(reliable, additionals)
 	}
 	for _, endpoint := range endpoints.GetReliableEndpoints() {
-		reliable = append(reliable, tcp.NewDestination(endpoint, endpoints.UseProto, destinationsContext, true))
+		reliable = append(reliable, tcp.NewDestination(endpoint, endpoints.UseProto, destinationsContext, true, statusAddGlobalWarning, statusRemoveGlobalWarning))
 	}
 	for _, endpoint := range endpoints.GetUnReliableEndpoints() {
-		additionals = append(additionals, tcp.NewDestination(endpoint, endpoints.UseProto, destinationsContext, false))
+		additionals = append(additionals, tcp.NewDestination(endpoint, endpoints.UseProto, destinationsContext, false, statusAddGlobalWarning, statusRemoveGlobalWarning))
 	}
 	return client.NewDestinations(reliable, additionals)
 }

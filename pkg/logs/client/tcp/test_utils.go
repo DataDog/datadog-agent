@@ -10,6 +10,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/client"
+	status "github.com/DataDog/datadog-agent/pkg/logs/status/module"
 )
 
 // AddrToHostPort converts a net.Addr to a (string, int).
@@ -30,6 +31,6 @@ func AddrToEndPoint(addr net.Addr) config.Endpoint {
 }
 
 // AddrToDestination creates a Destination from an Addr
-func AddrToDestination(addr net.Addr, ctx *client.DestinationsContext) *Destination {
-	return NewDestination(AddrToEndPoint(addr), true, ctx, true)
+func AddrToDestination(addr net.Addr, ctx *client.DestinationsContext, statusAddGlobalWarning status.AddGlobalWarning, statusRemoveGlobalWarning status.RemoveGlobalWarning) *Destination {
+	return NewDestination(AddrToEndPoint(addr), true, ctx, true, statusAddGlobalWarning, statusRemoveGlobalWarning)
 }
