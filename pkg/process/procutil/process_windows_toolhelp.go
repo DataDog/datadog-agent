@@ -266,6 +266,9 @@ func (cp *cachedProcess) close() {
 
 // GetParentPid looks up the parent process given a pid
 func GetParentPid(pid uint32) (uint32, error) {
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+
 	var pe32 w32.PROCESSENTRY32
 	pe32.DwSize = uint32(unsafe.Sizeof(pe32))
 
