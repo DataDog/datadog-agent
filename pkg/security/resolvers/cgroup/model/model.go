@@ -126,7 +126,7 @@ func (cgce *CacheEntry) SetTags(tags []string) {
 	}
 }
 
-// GetWorkloadSelector returns a copy of the workload selector of this cgroup
+// GetWorkloadSelectorCopy returns a copy of the workload selector of this cgroup
 func (cgce *CacheEntry) GetWorkloadSelectorCopy() *WorkloadSelector {
 	cgce.Lock()
 	defer cgce.Unlock()
