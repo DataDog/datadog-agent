@@ -365,7 +365,7 @@ func (s *KubeServiceService) GetCheckNames(context.Context) []string {
 }
 
 // HasFilter returns whether the kube service should not collect certain metrics
-// due to filtering applied by filter.
+// due to filtering applied.
 func (s *KubeServiceService) HasFilter(filter containers.FilterType) bool {
 	if filter == containers.MetricsFilter {
 		return s.metricsExcluded

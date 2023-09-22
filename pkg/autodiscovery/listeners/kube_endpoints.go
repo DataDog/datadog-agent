@@ -47,15 +47,15 @@ type KubeEndpointsListener struct {
 	delService         chan<- Service
 	targetAllEndpoints bool
 	m                  sync.RWMutex
-	containerFilters  *containerFilters
+	containerFilters   *containerFilters
 }
 
 // KubeEndpointService represents an endpoint in a Kubernetes Endpoints
 type KubeEndpointService struct {
-	entity string
-	tags   []string
-	hosts  map[string]string
-	ports  []ContainerPort
+	entity          string
+	tags            []string
+	hosts           map[string]string
+	ports           []ContainerPort
 	metricsExcluded bool
 }
 
@@ -97,7 +97,7 @@ func NewKubeEndpointsListener(conf Config) (ServiceListener, error) {
 		serviceLister:      serviceInformer.Lister(),
 		promInclAnnot:      getPrometheusIncludeAnnotations(),
 		targetAllEndpoints: conf.IsProviderEnabled(names.KubeEndpointsFileRegisterName),
-		containerFilters: containerFilters,
+		containerFilters:   containerFilters,
 	}, nil
 }
 
@@ -315,14 +315,15 @@ func (l *KubeEndpointsListener) createService(kep *v1.Endpoints, checkServiceAnn
 
 	eps := processEndpoints(kep, tags)
 
-	eps.metricsExcluded = l.containerFilters.IsExcluded(
-		containers.MetricsFilter,
-		kep.GetAnnotations(),
-		kep.Name,
-		"",
-		kep.Namespace,
-	)
-
+	for i := 0; i < len(eps); i++ {
+		eps[i].metricsExcluded = l.containerFilters.IsExcluded(
+			containers.MetricsFilter,
+			kep.GetAnnotations(),
+			kep.Name,
+			"",
+			kep.Namespace,
+		)
+	}
 
 	l.m.Lock()
 	l.endpoints[kep.UID] = eps
@@ -471,8 +472,8 @@ func (s *KubeEndpointService) GetCheckNames(context.Context) []string {
 	return nil
 }
 
-// HasFilter returns whether the kube service should not collect certain metrics
-// due to filtering applied by filter.
+// HasFilter returns whether the kube endpoint should not collect certain metrics
+// due to filtering applied.
 func (s *KubeEndpointService) HasFilter(filter containers.FilterType) bool {
 	if filter == containers.MetricsFilter {
 		return s.metricsExcluded
