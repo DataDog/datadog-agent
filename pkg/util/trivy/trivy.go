@@ -13,6 +13,7 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"sync"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
@@ -59,13 +60,13 @@ type CollectorConfig struct {
 
 // Collector uses trivy to generate a SBOM
 type Collector struct {
-	config       CollectorConfig
-	cache        cache.Cache
-	cacheCleaner CacheCleaner
-	detector     local.OspkgDetector
-	dbConfig     db.Config
-	vulnClient   vulnerability.Client
-	marshaler    *cyclonedx.Marshaler
+	config           CollectorConfig
+	cacheInitialized sync.Once
+	cache            cache.Cache
+	cacheCleaner     CacheCleaner
+	detector         local.OspkgDetector
+	vulnClient       vulnerability.Client
+	marshaler        *cyclonedx.Marshaler
 }
 
 var globalCollector *Collector
@@ -158,20 +159,11 @@ func NewCollector(cfg config.Config) (*Collector, error) {
 	config := defaultCollectorConfig(cfg.GetString("sbom.cache_directory"))
 	config.ClearCacheOnClose = cfg.GetBool("sbom.clear_cache_on_exit")
 
-	dbConfig := db.Config{}
-	fanalCache, cacheCleaner, err := config.CacheProvider()
-	if err != nil {
-		return nil, err
-	}
-
 	return &Collector{
-		config:       config,
-		cache:        fanalCache,
-		cacheCleaner: cacheCleaner,
-		detector:     ospkg.Detector{},
-		dbConfig:     dbConfig,
-		vulnClient:   vulnerability.NewClient(dbConfig),
-		marshaler:    cyclonedx.NewMarshaler(""),
+		config:     config,
+		detector:   ospkg.Detector{},
+		vulnClient: vulnerability.NewClient(db.Config{}),
+		marshaler:  cyclonedx.NewMarshaler(""),
 	}, nil
 }
 
@@ -190,6 +182,10 @@ func GetGlobalCollector(cfg config.Config) (*Collector, error) {
 }
 
 func (c *Collector) Close() error {
+	if c.cache == nil {
+		return nil
+	}
+
 	if c.config.ClearCacheOnClose {
 		if err := c.cache.Clear(); err != nil {
 			return fmt.Errorf("error when clearing trivy cache: %w", err)
@@ -199,8 +195,25 @@ func (c *Collector) Close() error {
 	return c.cache.Close()
 }
 
-func (c *Collector) GetCacheCleaner() CacheCleaner {
-	return c.cacheCleaner
+// CleanCache cleans the cache
+func (c *Collector) CleanCache() error {
+	if c.cacheCleaner != nil {
+		return c.cacheCleaner.Clean()
+	}
+	return nil
+}
+
+func (c *Collector) getCache() (cache.Cache, CacheCleaner, error) {
+	var err error
+	c.cacheInitialized.Do(func() {
+		c.cache, c.cacheCleaner, err = c.config.CacheProvider()
+	})
+
+	if err != nil {
+		return nil, nil, err
+	}
+
+	return c.cache, c.cacheCleaner, nil
 }
 
 func (c *Collector) ScanDockerImage(ctx context.Context, imgMeta *workloadmeta.ContainerImageMetadata, client client.ImageAPIClient, scanOptions sbom.ScanOptions) (sbom.Report, error) {
@@ -262,7 +275,11 @@ func (c *Collector) ScanContainerdImageFromFilesystem(ctx context.Context, imgMe
 }
 
 func (c *Collector) scanFilesystem(ctx context.Context, path string, imgMeta *workloadmeta.ContainerImageMetadata, scanOptions sbom.ScanOptions) (sbom.Report, error) {
-	cache := c.cache
+	cache, _, err := c.getCache()
+	if err != nil {
+		return nil, err
+	}
+
 	if scanOptions.NoCache {
 		cache = &memoryCache{}
 	}
@@ -311,12 +328,17 @@ func (c *Collector) scan(ctx context.Context, artifact artifact.Artifact, applie
 }
 
 func (c *Collector) scanImage(ctx context.Context, fanalImage ftypes.Image, imgMeta *workloadmeta.ContainerImageMetadata, scanOptions sbom.ScanOptions) (sbom.Report, error) {
-	imageArtifact, err := image2.NewArtifact(fanalImage, c.cache, getDefaultArtifactOption("", scanOptions))
+	cache, _, err := c.getCache()
+	if err != nil {
+		return nil, err
+	}
+
+	imageArtifact, err := image2.NewArtifact(fanalImage, cache, getDefaultArtifactOption("", scanOptions))
 	if err != nil {
 		return nil, fmt.Errorf("unable to create artifact from image, err: %w", err)
 	}
 
-	bom, err := c.scan(ctx, imageArtifact, applier.NewApplier(c.cache), imgMeta)
+	bom, err := c.scan(ctx, imageArtifact, applier.NewApplier(cache), imgMeta)
 	if err != nil {
 		return nil, fmt.Errorf("unable to marshal report to sbom format, err: %w", err)
 	}

@@ -54,8 +54,9 @@ type ContainerdCollector struct {
 	trivyCollector *trivy.Collector
 }
 
+// CleanCache cleans the cache
 func (c *ContainerdCollector) CleanCache() error {
-	return c.trivyCollector.GetCacheCleaner().Clean()
+	return c.trivyCollector.CleanCache()
 }
 
 func (c *ContainerdCollector) Init(cfg config.Config) error {
