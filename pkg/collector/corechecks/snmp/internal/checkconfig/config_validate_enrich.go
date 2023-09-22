@@ -173,6 +173,9 @@ func validateEnrichSymbol(symbol *profiledefinition.SymbolConfig, symbolContext 
 func validateEnrichMetricTag(metricTag *profiledefinition.MetricTagConfig) []string {
 	var errors []string
 	if metricTag.Column.OID != "" || metricTag.Column.Name != "" {
+		if metricTag.Symbol.OID != "" || metricTag.Symbol.Name != "" {
+			errors = append(errors, validateEnrichSymbol(&metricTag.Symbol, MetricTagSymbol)...)
+		}
 		errors = append(errors, validateEnrichSymbol(&metricTag.Column, MetricTagSymbol)...)
 	}
 

@@ -79,7 +79,7 @@ var LegacyMetadataConfig = profiledefinition.MetadataConfig{
 		IDTags: profiledefinition.MetricTagConfigList{
 			{
 				Tag: "interface",
-				Column: profiledefinition.SymbolConfig{
+				Symbol: profiledefinition.SymbolConfigCompat{
 					OID:  "1.3.6.1.2.1.31.1.1.1.1",
 					Name: "ifName",
 				},
