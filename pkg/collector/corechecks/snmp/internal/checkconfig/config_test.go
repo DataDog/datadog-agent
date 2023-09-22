@@ -1063,7 +1063,8 @@ func Test_snmpConfig_setProfile(t *testing.T) {
 			MetricTags: profiledefinition.MetricTagConfigList{
 				profiledefinition.MetricTagConfig{
 					Symbol: profiledefinition.SymbolConfigCompat{
-						OID: "1.2.3.4.7",
+						OID:  "1.2.3.4.7",
+						Name: "aSymbol",
 					},
 				},
 			},
@@ -1075,7 +1076,7 @@ func Test_snmpConfig_setProfile(t *testing.T) {
 		},
 		Metrics: metrics,
 		MetricTags: []profiledefinition.MetricTagConfig{
-			{Tag: "interface", Symbol: profiledefinition.SymbolConfigCompat{OID: "1.3.6.1.2.1.31.1.1.1.1", Name: "ifName"}},
+			{Tag: "aGlobalTag", Symbol: profiledefinition.SymbolConfigCompat{OID: "1.3.6.1.2.1.9999.0", Name: "ifName"}},
 		},
 		Metadata: profiledefinition.MetadataConfig{
 			"device": {
@@ -1131,13 +1132,13 @@ func Test_snmpConfig_setProfile(t *testing.T) {
 		Metadata: profiledefinition.MetadataConfig{
 			"device": {
 				Fields: map[string]profiledefinition.MetadataField{
-					"b-description": {
+					"description": {
 						Symbol: profiledefinition.SymbolConfig{
 							OID:  "2.3.4.5.6.3",
-							Name: "sysDescr",
+							Name: "sysDescr2",
 						},
 					},
-					"b-name": {
+					"name": {
 						Symbols: []profiledefinition.SymbolConfig{
 							{
 								OID:  "2.3.4.5.6.4",
@@ -1174,6 +1175,11 @@ func Test_snmpConfig_setProfile(t *testing.T) {
 		SysObjectIds: profiledefinition.StringArray{"1.3.6.1.4.1.3375.2.1.3.4.*"},
 	}
 
+	errors := validateEnrichProfileDefinition(&profile1)
+	assert.Len(t, errors, 0)
+	errors = validateEnrichProfileDefinition(&profile2)
+	assert.Len(t, errors, 0)
+
 	mockProfiles := profileConfigMap{
 		"profile1": profileConfig{
 			Definition: profile1,
@@ -1196,10 +1202,10 @@ func Test_snmpConfig_setProfile(t *testing.T) {
 	assert.Equal(t, profile1, *c.ProfileDef)
 	assert.Equal(t, metrics, c.Metrics)
 	assert.Equal(t, []profiledefinition.MetricTagConfig{
-		{Tag: "interface", Symbol: profiledefinition.SymbolConfigCompat{OID: "1.3.6.1.2.1.31.1.1.1.1", Name: "ifName"}},
+		{Tag: "aGlobalTag", Symbol: profiledefinition.SymbolConfigCompat{OID: "1.3.6.1.2.1.9999.0", Name: "ifName"}},
 	}, c.MetricTags)
 	assert.Equal(t, OidConfig{
-		ScalarOids: []string{"1.2.3.4.5"},
+		ScalarOids: []string{"1.2.3.4.5", "1.3.6.1.2.1.9999.0"},
 		ColumnOids: []string{"1.2.3.4.6", "1.2.3.4.7"},
 	}, c.OidConfig)
 	assert.Equal(t, []string{"snmp_profile:profile1", "device_vendor:a-vendor"}, c.ProfileTags)
@@ -1218,6 +1224,7 @@ func Test_snmpConfig_setProfile(t *testing.T) {
 			"1.3.6.1.2.1.1.99.1.0",
 			"1.3.6.1.2.1.1.99.2.0",
 			"1.3.6.1.2.1.1.99.3.0",
+			"1.3.6.1.2.1.9999.0",
 		},
 		ColumnOids: []string{
 			"1.2.3.4.6",
@@ -1236,6 +1243,7 @@ func Test_snmpConfig_setProfile(t *testing.T) {
 	assert.Equal(t, OidConfig{
 		ScalarOids: []string{
 			"1.2.3.4.5",
+			"1.3.6.1.2.1.9999.0",
 		},
 		ColumnOids: []string{
 			"1.2.3.4.6",
@@ -1261,6 +1269,7 @@ func Test_snmpConfig_setProfile(t *testing.T) {
 			"1.3.6.1.2.1.1.99.1.0",
 			"1.3.6.1.2.1.1.99.2.0",
 			"1.3.6.1.2.1.1.99.3.0",
+			"1.3.6.1.2.1.9999.0",
 			"3.1",
 			"3.2",
 		},

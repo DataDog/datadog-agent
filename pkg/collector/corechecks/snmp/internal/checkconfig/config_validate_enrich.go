@@ -173,10 +173,9 @@ func validateEnrichSymbol(symbol *profiledefinition.SymbolConfig, symbolContext 
 func validateEnrichMetricTag(metricTag *profiledefinition.MetricTagConfig) []string {
 	var errors []string
 	if metricTag.Column.OID != "" || metricTag.Column.Name != "" {
-		if metricTag.Symbol.OID != "" || metricTag.Symbol.Name != "" {
-			errors = append(errors, validateEnrichSymbol(&metricTag.Symbol, MetricTagSymbol)...)
-		}
-		errors = append(errors, validateEnrichSymbol(&metricTag.Column, MetricTagSymbol)...)
+		// TODO: Improve validation
+		metricTag.Symbol = profiledefinition.SymbolConfigCompat(metricTag.Column)
+		metricTag.Column = profiledefinition.SymbolConfig{} // clear Column
 	}
 
 	// OID/Name to Symbol harmonization:
@@ -192,6 +191,11 @@ func validateEnrichMetricTag(metricTag *profiledefinition.MetricTagConfig) []str
 	if metricTag.OID != "" && metricTag.Symbol.OID == "" {
 		metricTag.Symbol.OID = metricTag.OID
 		metricTag.OID = ""
+	}
+	if metricTag.Symbol.OID != "" || metricTag.Symbol.Name != "" {
+		symbol := profiledefinition.SymbolConfig(metricTag.Symbol)
+		errors = append(errors, validateEnrichSymbol(&symbol, MetricTagSymbol)...)
+		metricTag.Symbol = profiledefinition.SymbolConfigCompat(symbol)
 	}
 
 	if metricTag.Match != "" {

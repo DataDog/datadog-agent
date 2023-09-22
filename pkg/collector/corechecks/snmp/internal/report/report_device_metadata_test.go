@@ -307,7 +307,7 @@ func Test_metricSender_reportNetworkDeviceMetadata_withDeviceInterfacesAndDiagno
 				},
 				IDTags: profiledefinition.MetricTagConfigList{
 					profiledefinition.MetricTagConfig{
-						Symbol: profiledefinition.SymbolConfig{
+						Symbol: profiledefinition.SymbolConfigCompat{
 							OID:  "1.3.6.1.2.1.31.1.1.1.1",
 							Name: "interface",
 						},

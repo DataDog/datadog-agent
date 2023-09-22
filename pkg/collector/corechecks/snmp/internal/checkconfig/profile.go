@@ -120,16 +120,21 @@ func loadProfiles(pConfig profileConfigMap) (profileConfigMap, error) {
 			}
 			profConfig.Definition = *profDefinition
 		}
-		profiledefinition.NormalizeMetrics(profConfig.Definition.Metrics)
-		errors := validateEnrichMetadata(profConfig.Definition.Metadata)
-		errors = append(errors, ValidateEnrichMetrics(profConfig.Definition.Metrics)...)
-		errors = append(errors, ValidateEnrichMetricTags(profConfig.Definition.MetricTags)...)
+		errors := validateEnrichProfileDefinition(&profConfig.Definition)
 		if len(errors) > 0 {
 			return nil, fmt.Errorf("validation errors: %s", strings.Join(errors, "\n"))
 		}
 		profiles[name] = profConfig
 	}
 	return profiles, nil
+}
+
+func validateEnrichProfileDefinition(profileDef *profiledefinition.ProfileDefinition) []string {
+	profiledefinition.NormalizeMetrics(profileDef.Metrics)
+	errors := validateEnrichMetadata(profileDef.Metadata)
+	errors = append(errors, ValidateEnrichMetrics(profileDef.Metrics)...)
+	errors = append(errors, ValidateEnrichMetricTags(profileDef.MetricTags)...)
+	return errors
 }
 
 func readProfileDefinition(definitionFile string) (*profiledefinition.ProfileDefinition, error) {
