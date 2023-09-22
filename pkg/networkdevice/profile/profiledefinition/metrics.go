@@ -89,7 +89,7 @@ type MetricTagConfig struct {
 	// Table config
 	Index uint `yaml:"index,omitempty" json:"index,omitempty"`
 
-	Column SymbolConfig `yaml:"column,omitempty" json:"column,omitempty"` // DEPRECATED replaced by Symbol field
+	Column SymbolConfig `yaml:"column,omitempty" json:"column,omitempty" jsonschema:"-"` // DEPRECATED replaced by Symbol field
 
 	// Symbol config
 	OID string `yaml:"OID,omitempty" json:"OID,omitempty"  jsonschema:"-"` // DEPRECATED replaced by Symbol field

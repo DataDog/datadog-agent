@@ -91,9 +91,6 @@
         "index": {
           "type": "integer"
         },
-        "column": {
-          "$ref": "#/$defs/SymbolConfig"
-        },
         "symbol": {
           "$ref": "#/$defs/SymbolConfigCompat"
         },
