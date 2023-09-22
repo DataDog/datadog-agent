@@ -23,32 +23,42 @@ import (
 )
 
 var osVersion = flag.String("osversion", "", "os version to test")
+var platform = flag.String("platform", "", "platform to test")
+var cwsSupportedOsVersion = flag.String("cws-supported-osversion", "", "list of os where CWS is supported")
 
 type installScriptSuite struct {
 	e2e.Suite[e2e.AgentEnv]
+	cwsSupported bool
 }
 
 func TestInstallScript(t *testing.T) {
 	platformJSON := map[string]map[string]string{}
-	platform, err := os.ReadFile("../platforms.json")
+	platformFileContent, err := os.ReadFile("../platforms.json")
 	if err != nil {
 		panic(fmt.Sprintf("failed to read platform file: %v", err))
 	}
-	err = json.Unmarshal(platform, &platformJSON)
+	err = json.Unmarshal(platformFileContent, &platformJSON)
 	if err != nil {
 		panic(fmt.Sprintf("failed to umarshall platform file: %v", err))
 	}
 	osVersions := strings.Split(*osVersion, ",")
+	cwsSupportedOsVersionList := strings.Split(*cwsSupportedOsVersion, ",")
 
 	for _, osVers := range osVersions {
 		osVers := osVers
+		cwsSupported := false
+		for _, cwsSupportedOs := range cwsSupportedOsVersionList {
+			if cwsSupportedOs == osVers {
+				cwsSupported = true
+			}
+		}
+
 		t.Run(fmt.Sprintf("test install script on %s", osVers), func(tt *testing.T) {
 			tt.Parallel()
 			fmt.Printf("Testing %s", osVers)
-			e2e.Run(tt, &installScriptSuite{}, e2e.AgentStackDef([]ec2params.Option{ec2params.WithImageName(platformJSON["debian"][osVers], e2eOs.AMD64Arch, ec2os.DebianOS)}, agentparams.WithAgentConfig("site: datadoghq.eu")), params.WithStackName(fmt.Sprintf("install-script-test-%v-%v", os.Getenv("CI_PIPELINE_ID"), osVers)))
+			e2e.Run(tt, &installScriptSuite{cwsSupported: cwsSupported}, e2e.AgentStackDef(e2e.WithVMParams(ec2params.WithImageName(platformJSON[*platform][osVers], e2eOs.AMD64Arch, ec2os.DebianOS)), e2e.WithAgentParams(agentparams.WithAgentConfig("site: datadoghq.eu"))), params.WithStackName(fmt.Sprintf("install-script-test-%v-%v", os.Getenv("CI_PIPELINE_ID"), osVers)))
 		})
 	}
-
 }
 
 func (is *installScriptSuite) TestInstallAgent() {
@@ -63,7 +73,9 @@ func (is *installScriptSuite) TestInstallAgent() {
 	common.CheckAgentPython(is.T(), client, "3")
 	common.CheckApmEnabled(is.T(), client)
 	common.CheckApmDisabled(is.T(), client)
-	common.CheckCWSBehaviour(is.T(), client)
+	if is.cwsSupported {
+		common.CheckCWSBehaviour(is.T(), client)
+	}
 	common.CheckInstallationInstallScript(is.T(), client)
 	common.CheckUninstallation(is.T(), client)
 

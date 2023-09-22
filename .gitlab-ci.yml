@@ -831,6 +831,14 @@ workflow:
     variables:
       KITCHEN_OSVERS: $DEFAULT_KITCHEN_OSVERS
 
+.on_default_new-e2e_tests_a7:
+  - <<: *if_not_version_7
+    when: never
+  - <<: *if_kitchen
+  - <<: *if_default_kitchen
+    variables:
+      E2E_OSVERS: $DEFAULT_E2E_OSVERS
+
 .on_default_kitchen_tests_a7_always:
   - <<: *if_not_version_7
     when: never

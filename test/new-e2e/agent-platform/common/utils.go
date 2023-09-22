@@ -11,6 +11,8 @@ import (
 	"strings"
 	"time"
 
+	pkgmanager "github.com/DataDog/datadog-agent/test/new-e2e/agent-platform/common/pkg-manager"
+	svcmanager "github.com/DataDog/datadog-agent/test/new-e2e/agent-platform/common/svc-manager"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e"
 	e2eClient "github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client"
 	"gopkg.in/yaml.v2"
@@ -24,34 +26,23 @@ type ServiceManager interface {
 	Restart(service string) (string, error)
 }
 
-// NewClientFromEnv create a an ExtendedClient from Agent Env, includes svcManager and pkgManager to write agent-platform tests
-func NewClientFromEnv(env *e2e.AgentEnv) *ExtendedClient {
-	svcManager := getServiceManager(env)
-	pkgManager := getPackageManager(env)
-	return &ExtendedClient{
-		Env:        env,
-		SvcManager: svcManager,
-		PkgManager: pkgManager,
-	}
+// PackageManager generic interface
+type PackageManager interface {
+	Remove(pkg string) (string, error)
 }
 
 func getServiceManager(env *e2e.AgentEnv) ServiceManager {
 	if _, err := env.VM.ExecuteWithError("systemctl --version"); err == nil {
-		return &SystemCtlSvcManager{env}
+		return svcmanager.NewSystemctlSvcManager(env)
 	}
 	return nil
 }
 
 func getPackageManager(env *e2e.AgentEnv) PackageManager {
 	if _, err := env.VM.ExecuteWithError("apt-get --version"); err == nil {
-		return &AptPackageManager{env}
+		return pkgmanager.NewAptPackageManager(env)
 	}
 	return nil
-}
-
-// PackageManager generic interface
-type PackageManager interface {
-	Remove(pkg string) (string, error)
 }
 
 // ExtendedClient contain the Agent Env and SvcManager and PkgManager for tests
@@ -61,39 +52,15 @@ type ExtendedClient struct {
 	PkgManager PackageManager
 }
 
-// SystemCtlSvcManager struct for the Systemctl service manager
-type SystemCtlSvcManager struct {
-	env *e2e.AgentEnv
-}
-
-// Status returns status from systemctl
-func (s *SystemCtlSvcManager) Status(service string) (string, error) {
-	return s.env.VM.ExecuteWithError(fmt.Sprintf("systemctl status --no-pager %s.service", service))
-}
-
-// Stop executes stop command from stystemctl
-func (s *SystemCtlSvcManager) Stop(service string) (string, error) {
-	return s.env.VM.ExecuteWithError(fmt.Sprintf("sudo systemctl stop %s.service", service))
-}
-
-// Start executes start command from systemctl
-func (s *SystemCtlSvcManager) Start(service string) (string, error) {
-	return s.env.VM.ExecuteWithError(fmt.Sprintf("sudo systemctl start %s.service", service))
-}
-
-// Restart executes restart command from systemctl
-func (s *SystemCtlSvcManager) Restart(service string) (string, error) {
-	return s.env.VM.ExecuteWithError(fmt.Sprintf("sudo systemctl restart %s.service", service))
-}
-
-// AptPackageManager struct for Apt package manager
-type AptPackageManager struct {
-	env *e2e.AgentEnv
-}
-
-// Remove call remove from apt
-func (s *AptPackageManager) Remove(pkg string) (string, error) {
-	return s.env.VM.ExecuteWithError(fmt.Sprintf("sudo apt-get remove -q -y %s", pkg))
+// NewClientFromEnv create a an ExtendedClient from Agent Env, includes svcManager and pkgManager to write agent-platform tests
+func NewClientFromEnv(env *e2e.AgentEnv) *ExtendedClient {
+	svcManager := getServiceManager(env)
+	pkgManager := getPackageManager(env)
+	return &ExtendedClient{
+		Env:        env,
+		SvcManager: svcManager,
+		PkgManager: pkgManager,
+	}
 }
 
 // CheckPortBound check if the port is currently bound, use netstat or ss
