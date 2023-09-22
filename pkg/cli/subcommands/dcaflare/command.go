@@ -123,7 +123,7 @@ func run(log log.Component, config config.Component, cliParams *cliParams) error
 		}
 	}
 
-	response, e := flare.SendFlare(filePath, cliParams.caseID, cliParams.email, helpers.FlareSource{SourceType: "local"})
+	response, e := flare.SendFlare(filePath, cliParams.caseID, cliParams.email, helpers.NewLocalFlareSource())
 	fmt.Println(response)
 	if e != nil {
 		return e

@@ -36,8 +36,23 @@ type flareResponse struct {
 
 // FlareSource has metadata about why the flare was sent
 type FlareSource struct {
-	SourceType string
-	RCTaskUUID string
+	sourceType string
+	rcTaskUUID string
+}
+
+// NewLocalFlareSource returns a flare source struct for local flares
+func NewLocalFlareSource() FlareSource {
+	return FlareSource{
+		sourceType: "local",
+	}
+}
+
+// NewRemoteConfigFlareSource returns a flare source struct for remote-config
+func NewRemoteConfigFlareSource(rcTaskUUID string) FlareSource {
+	return FlareSource{
+		sourceType: "local",
+		rcTaskUUID: rcTaskUUID,
+	}
 }
 
 func getFlareReader(multipartBoundary, archivePath, caseID, email, hostname string, source FlareSource) io.ReadCloser {
@@ -59,12 +74,12 @@ func getFlareReader(multipartBoundary, archivePath, caseID, email, hostname stri
 		if email != "" {
 			writer.WriteField("email", email) //nolint:errcheck
 		}
-		if source.SourceType != "" {
-			writer.WriteField("source", source.SourceType) //nolint:errcheck
+		if source.sourceType != "" {
+			writer.WriteField("source", source.sourceType) //nolint:errcheck
 		}
-		if source.RCTaskUUID != "" {
+		if source.rcTaskUUID != "" {
 			// UUID of the remote-config task sending the flare
-			writer.WriteField("rc_task_uuid", source.RCTaskUUID) //nolint:errcheck
+			writer.WriteField("rc_task_uuid", source.rcTaskUUID) //nolint:errcheck
 		}
 
 		p, err := writer.CreateFormFile("flare_file", filepath.Base(archivePath))

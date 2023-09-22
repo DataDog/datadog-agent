@@ -215,7 +215,7 @@ func requestFlare(s *systray, caseID, customerEmail string) (response string, e 
 
 	s.log.Warnf("%s is going to be uploaded to Datadog\n", filePath)
 
-	response, e = s.flare.Send(filePath, caseID, customerEmail, helpers.FlareSource{SourceType: "local"})
+	response, e = s.flare.Send(filePath, caseID, customerEmail, helpers.NewLocalFlareSource())
 	s.log.Debug(response)
 	if e != nil {
 		return
