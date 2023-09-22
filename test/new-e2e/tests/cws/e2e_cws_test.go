@@ -50,12 +50,12 @@ var securityAgentConfig string
 func TestAgentSuite(t *testing.T) {
 
 	e2e.Run(t, &agentSuite{}, e2e.AgentStackDef(
-		[]ec2params.Option{
-			ec2params.WithName("cws-e2e-tests"),
-		},
-		agentparams.WithAgentConfig(agentConfig),
-		agentparams.WithSecurityAgentConfig(securityAgentConfig),
-		agentparams.WithSystemProbeConfig(systemProbeConfig),
+		e2e.WithVMParams(ec2params.WithName("cws-e2e-tests")),
+		e2e.WithAgentParams(
+			agentparams.WithAgentConfig(agentConfig),
+			agentparams.WithSecurityAgentConfig(securityAgentConfig),
+			agentparams.WithSystemProbeConfig(systemProbeConfig),
+		),
 	))
 }
 
@@ -97,10 +97,7 @@ func (a *agentSuite) TestOpenSignal() {
 	require.NoError(a.T(), err, "Signal rule creation failed")
 	a.signalRuleID = res2.GetId()
 
-	// Check if the agent has started
-	err = a.Env().Agent.WaitForReadyTimeout(1 * time.Minute)
-	require.NoError(a.T(), err)
-
+	// Check if the agent is ready
 	isReady := a.Env().Agent.IsReady()
 	assert.Equal(a.T(), isReady, true, "Agent should be ready")
 

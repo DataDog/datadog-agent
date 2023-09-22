@@ -18,7 +18,7 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/system-probe/api/module"
 	"github.com/DataDog/datadog-agent/cmd/system-probe/config"
 	"github.com/DataDog/datadog-agent/cmd/system-probe/utils"
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/ebpf/probe"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/ebpf/probe/oomkill"
 	"github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -29,13 +29,13 @@ var OOMKillProbe = module.Factory{
 	ConfigNamespaces: []string{},
 	Fn: func(cfg *config.Config) (module.Module, error) {
 		log.Infof("Starting the OOM Kill probe")
-		okp, err := probe.NewOOMKillProbe(ebpf.NewConfig())
+		okp, err := oomkill.NewProbe(ebpf.NewConfig())
 		if err != nil {
 			return nil, fmt.Errorf("unable to start the OOM kill probe: %w", err)
 		}
 		return &oomKillModule{
-			OOMKillProbe: okp,
-			lastCheck:    atomic.NewInt64(0),
+			Probe:     okp,
+			lastCheck: atomic.NewInt64(0),
 		}, nil
 	},
 }
@@ -43,14 +43,14 @@ var OOMKillProbe = module.Factory{
 var _ module.Module = &oomKillModule{}
 
 type oomKillModule struct {
-	*probe.OOMKillProbe
+	*oomkill.Probe
 	lastCheck *atomic.Int64
 }
 
 func (o *oomKillModule) Register(httpMux *module.Router) error {
 	httpMux.HandleFunc("/check", utils.WithConcurrencyLimit(utils.DefaultMaxConcurrentRequests, func(w http.ResponseWriter, req *http.Request) {
 		o.lastCheck.Store(time.Now().Unix())
-		stats := o.OOMKillProbe.GetAndFlush()
+		stats := o.Probe.GetAndFlush()
 		utils.WriteAsJSON(w, stats)
 	}))
 

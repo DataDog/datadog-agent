@@ -147,7 +147,7 @@ func (b *Builder) WithAllowAnnotations(l map[string][]string) {
 
 // Build initializes and registers all enabled stores.
 // Returns metric writers.
-func (b *Builder) Build() []metricsstore.MetricsWriter {
+func (b *Builder) Build() metricsstore.MetricsWriterList {
 	return b.ksmBuilder.Build()
 }
 

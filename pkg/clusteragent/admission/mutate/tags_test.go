@@ -213,24 +213,25 @@ const (
 
 func TestGetAndCacheOwner(t *testing.T) {
 	ownerInfo := dummyInfo()
-	ownerObj := newUnstructuredWithSpec(map[string]interface{}{"foo": "bar"})
+	kubeObj := newUnstructuredWithSpec(map[string]interface{}{"foo": "bar"})
+	owner := newOwner(kubeObj)
 
 	// Cache hit
-	cache.Cache.Set(ownerInfo.buildID(testNamespace), ownerObj, ownerCacheTTL)
+	cache.Cache.Set(ownerInfo.buildID(testNamespace), owner, ownerCacheTTL)
 	dc := fake.NewSimpleDynamicClient(scheme)
 	obj, err := getAndCacheOwner(ownerInfo, testNamespace, dc)
 	assert.NoError(t, err)
 	assert.NotNil(t, obj)
-	assert.Equal(t, ownerObj, obj)
+	assert.Equal(t, owner, obj)
 	assert.Len(t, dc.Actions(), 0)
 	cache.Cache.Flush()
 
 	// Cache miss
-	dc = fake.NewSimpleDynamicClient(scheme, ownerObj)
+	dc = fake.NewSimpleDynamicClient(scheme, kubeObj)
 	obj, err = getAndCacheOwner(ownerInfo, testNamespace, dc)
 	assert.NoError(t, err)
 	assert.NotNil(t, obj)
-	assert.Equal(t, ownerObj, obj)
+	assert.Equal(t, owner, obj)
 	assert.Len(t, dc.Actions(), 1)
 	cachedObj, found := cache.Cache.Get(ownerInfo.buildID(testNamespace))
 	assert.True(t, found)
@@ -245,6 +246,16 @@ func dummyInfo() *ownerInfo {
 			Resource: testResource,
 			Version:  testVersion,
 		},
+	}
+}
+
+func newOwner(obj *unstructured.Unstructured) *owner {
+	return &owner{
+		name:            obj.GetName(),
+		namespace:       obj.GetNamespace(),
+		kind:            obj.GetKind(),
+		labels:          obj.GetLabels(),
+		ownerReferences: obj.GetOwnerReferences(),
 	}
 }
 

@@ -21,8 +21,8 @@ type agentSuiteEx4 struct {
 
 func TestVMSuiteEx4(t *testing.T) {
 	e2e.Run(t, &agentSuiteEx4{}, e2e.AgentStackDef(
-		[]ec2params.Option{ec2params.WithOS(ec2os.UbuntuOS)},
-		agentparams.WithAgentConfig("log_level: debug"),
+		e2e.WithVMParams(ec2params.WithOS(ec2os.UbuntuOS)),
+		e2e.WithAgentParams(agentparams.WithAgentConfig("log_level: debug")),
 	))
 }
 
@@ -31,9 +31,9 @@ func (v *agentSuiteEx4) TestLogDebug() {
 }
 
 func (v *agentSuiteEx4) TestLogInfo() {
-	v.UpdateEnv(e2e.AgentStackDef(
-		[]ec2params.Option{ec2params.WithOS(ec2os.UbuntuOS)},
-		agentparams.WithAgentConfig("log_level: info"),
+	v.UpdateEnv(e2e.AgentStackDef(e2e.WithVMParams(
+		ec2params.WithOS(ec2os.UbuntuOS)),
+		e2e.WithAgentParams(agentparams.WithAgentConfig("log_level: info")),
 	))
 	assert.Contains(v.T(), v.Env().Agent.Config(), "log_level: info")
 }
