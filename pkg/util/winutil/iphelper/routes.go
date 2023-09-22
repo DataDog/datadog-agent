@@ -15,6 +15,7 @@ import (
 	"golang.org/x/sys/windows"
 )
 
+//revive:disable:var-naming Name is intended to match the Windows API name
 var (
 	modiphelper = windows.NewLazyDLL("Iphlpapi.dll")
 
@@ -22,6 +23,10 @@ var (
 	procGetIpForwardTable   = modiphelper.NewProc("GetIpForwardTable")
 	procGetIfTable          = modiphelper.NewProc("GetIfTable")
 )
+
+//revive:enable:var-naming (API)
+
+//revive:disable:var-naming Name is intended to match the Windows type name
 
 // MIB_TCPROW_OWNER_PID is the matching structure for the IPHelper structure
 // of the same name. Fields documented
@@ -62,12 +67,6 @@ type MIB_IPFORWARDROW struct {
 	DwForwardMetric5   uint32
 }
 
-const (
-	MAX_INTERFACE_NAME_LEN = 256
-	MAXLEN_PHYSADDR        = 8
-	MAXLEN_IFDESCR         = 256
-)
-
 // MIB_IFROW is the matching structure for the IPHelper structure of the same
 // name, it defines a physical interface
 // https://docs.microsoft.com/en-us/windows/win32/api/ifmib/ns-ifmib-mib_ifrow
@@ -98,6 +97,20 @@ type MIB_IFROW struct {
 	BDescr            [MAXLEN_IFDESCR]byte
 }
 
+//revive:enable:var-naming (type)
+
+//revive:disable:var-naming Name is intended to match the Windows const name
+
+// Generic Windows interface consts
+const (
+	MAX_INTERFACE_NAME_LEN = 256
+	MAXLEN_PHYSADDR        = 8
+	MAXLEN_IFDESCR         = 256
+)
+
+// TCP_TABLE_CLASS enum
+//
+// https://learn.microsoft.com/en-us/windows/win32/api/iprtrmib/ne-iprtrmib-tcp_table_class
 const (
 	TCP_TABLE_BASIC_LISTENER           = uint32(0)
 	TCP_TABLE_BASIC_CONNECTIONS        = uint32(1)
@@ -109,6 +122,8 @@ const (
 	TCP_TABLE_OWNER_MODULE_CONNECTIONS = uint32(7)
 	TCP_TABLE_OWNER_MODULE_ALL         = uint32(8)
 )
+
+//revive:enable:var-naming (const)
 
 // GetIPv4RouteTable returns a list of the current ipv4 routes.
 func GetIPv4RouteTable() (table []MIB_IPFORWARDROW, err error) {
@@ -139,6 +154,10 @@ func GetIPv4RouteTable() (table []MIB_IPFORWARDROW, err error) {
 }
 
 // GetExtendedTcpV4Table returns a list of ipv4 tcp connections indexed by owning PID
+//
+// https://learn.microsoft.com/en-us/windows/win32/api/iphlpapi/nf-iphlpapi-getextendedtcptable
+//
+//revive:disable-next-line:var-naming Name is intended to match the Windows API name
 func GetExtendedTcpV4Table() (table map[uint32][]MIB_TCPROW_OWNER_PID, err error) {
 	var size uint32
 	var rawtableentry uintptr

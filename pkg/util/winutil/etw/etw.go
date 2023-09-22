@@ -19,6 +19,7 @@ void etwCallbackC(DD_ETW_EVENT_INFO* eventInfo);
 */
 import "C"
 
+// Subscriber defines the interface for subscribing to ETW events
 type Subscriber interface {
 	OnStart()
 	OnStop()
@@ -26,24 +27,27 @@ type Subscriber interface {
 }
 
 var (
-	subscribers = make(map[EtwProviderType]Subscriber)
+	subscribers = make(map[ProviderType]Subscriber)
 )
 
-type EtwProviderType uint64
+// ProviderType identifies an ETW provider
+type ProviderType uint64
 
+// Supported ProviderTypes
 const (
-	EtwProviderHttpService EtwProviderType = 1 << iota
+	EtwProviderHTTPService ProviderType = 1 << iota
 )
 
+// Etw trace flags
 const (
 	EtwTraceFlagDefault uint64 = 0
 	EtwTraceFlagAsync   uint64 = 1 << iota
 )
 
-func providersToNativeProviders(etwProviders EtwProviderType) C.int64_t {
-	var etwNativeProviders C.int64_t = 0
+func providersToNativeProviders(etwProviders ProviderType) C.int64_t {
+	var etwNativeProviders C.int64_t
 
-	if (etwProviders & EtwProviderHttpService) == EtwProviderHttpService {
+	if (etwProviders & EtwProviderHTTPService) == EtwProviderHTTPService {
 		etwNativeProviders |= C.DD_ETW_TRACE_PROVIDER_HttpService
 	}
 
@@ -55,7 +59,7 @@ func flagsToNativeFlags(etwFlags uint64) C.int64_t {
 		return 0
 	}
 
-	var etwNativeFlags C.int64_t = 0
+	var etwNativeFlags C.int64_t
 
 	if (etwFlags & EtwTraceFlagAsync) == EtwTraceFlagAsync {
 		etwNativeFlags |= C.DD_ETW_TRACE_FLAG_ASYNC_EVENTS
@@ -64,15 +68,15 @@ func flagsToNativeFlags(etwFlags uint64) C.int64_t {
 	return etwNativeFlags
 }
 
-func isHttpServiceSubscriptionEnabled(etwProviders EtwProviderType) bool {
-	return (etwProviders & EtwProviderHttpService) == EtwProviderHttpService
+func isHTTPServiceSubscriptionEnabled(etwProviders ProviderType) bool {
+	return (etwProviders & EtwProviderHTTPService) == EtwProviderHTTPService
 }
 
 //export etwCallbackC
 func etwCallbackC(eventInfo *C.DD_ETW_EVENT_INFO) {
 	switch eventInfo.provider {
 	case C.DD_ETW_TRACE_PROVIDER_HttpService:
-		if sub, ok := subscribers[EtwProviderHttpService]; ok {
+		if sub, ok := subscribers[EtwProviderHTTPService]; ok {
 			sub.OnEvent((*DDEtwEventInfo)(unsafe.Pointer(eventInfo)))
 		}
 	}
@@ -86,9 +90,9 @@ func etwCallbackC(eventInfo *C.DD_ETW_EVENT_INFO) {
 //
 // to add additional tracing will require ability to start, stop, add and remove specific
 // tracing types
-func StartEtw(subscriptionName string, etwProviders EtwProviderType, sub Subscriber) error {
+func StartEtw(subscriptionName string, etwProviders ProviderType, sub Subscriber) error {
 
-	if isHttpServiceSubscriptionEnabled(etwProviders) {
+	if isHTTPServiceSubscriptionEnabled(etwProviders) {
 		subscribers[etwProviders] = sub
 		sub.OnStart()
 	}
@@ -99,7 +103,7 @@ func StartEtw(subscriptionName string, etwProviders EtwProviderType, sub Subscri
 		flagsToNativeFlags(0),
 		(C.ETW_EVENT_CALLBACK)(unsafe.Pointer(C.etwCallbackC)))
 
-	if isHttpServiceSubscriptionEnabled(etwProviders) {
+	if isHTTPServiceSubscriptionEnabled(etwProviders) {
 		delete(subscribers, etwProviders)
 		sub.OnStop()
 
@@ -119,7 +123,7 @@ func StopEtw(subscriptionName string) {
 	if len(subscribers) != 0 {
 		C.StopEtwSubscription()
 
-		if sub, ok := subscribers[EtwProviderHttpService]; ok {
+		if sub, ok := subscribers[EtwProviderHTTPService]; ok {
 			sub.OnStop()
 		}
 
