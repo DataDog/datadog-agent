@@ -157,6 +157,8 @@ func (m *EBPFCheck) Run() error {
 
 	totalProgRSS := uint64(0)
 	moduleTotalProgRSS := make(map[string]uint64)
+	moduleTotalXlatedLen := make(map[string]uint64)
+	moduleTotalVerifiedCount := make(map[string]uint64)
 	for _, progInfo := range stats.Programs {
 		tags := []string{
 			"program_name:" + progInfo.Name,
@@ -172,7 +174,7 @@ func (m *EBPFCheck) Run() error {
 		}
 
 		gauges := map[string]float64{
-			"xlated_instruction_count":   float64(progInfo.XlatedProgLen),
+			"xlated_instruction_len":     float64(progInfo.XlatedProgLen),
 			"verified_instruction_count": float64(progInfo.VerifiedInsns),
 			"memory_rss":                 float64(progInfo.RSS),
 		}
@@ -187,6 +189,8 @@ func (m *EBPFCheck) Run() error {
 		}
 		totalProgRSS += progInfo.RSS
 		moduleTotalProgRSS[progInfo.Module] += progInfo.RSS
+		moduleTotalXlatedLen[progInfo.Module] += uint64(progInfo.XlatedProgLen)
+		moduleTotalVerifiedCount[progInfo.Module] += uint64(progInfo.VerifiedInsns)
 
 		monos := map[string]float64{
 			"runtime_ns":       float64(progInfo.Runtime.Nanoseconds()),
@@ -212,6 +216,16 @@ func (m *EBPFCheck) Run() error {
 	}
 	for mod, rss := range moduleTotalProgRSS {
 		sender.Gauge("ebpf.programs.memory_rss_permodule_total", float64(rss), "", []string{"module:" + mod})
+	}
+	for mod, xlatedLen := range moduleTotalXlatedLen {
+		if xlatedLen > 0 {
+			sender.Gauge("ebpf.programs.xlated_instruction_len_permodule_total", float64(xlatedLen), "", []string{"module:" + mod})
+		}
+	}
+	for mod, verifiedCount := range moduleTotalVerifiedCount {
+		if verifiedCount > 0 {
+			sender.Gauge("ebpf.programs.verified_instruction_count_permodule_total", float64(verifiedCount), "", []string{"module:" + mod})
+		}
 	}
 
 	sender.Commit()
