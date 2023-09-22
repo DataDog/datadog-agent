@@ -66,7 +66,7 @@ func NewSecurityAgentCommandStorageManager(cfg *config.Config) (*ActivityDumpSto
 		storages: make(map[config.StorageType]ActivityDumpStorage),
 	}
 
-	storage, err := NewActivityDumpLocalStorage(cfg)
+	storage, err := NewActivityDumpLocalStorage(cfg, nil)
 	if err != nil {
 		return nil, fmt.Errorf("couldn't instantiate storage: %w", err)
 	}
@@ -83,13 +83,13 @@ func NewSecurityAgentCommandStorageManager(cfg *config.Config) (*ActivityDumpSto
 }
 
 // NewActivityDumpStorageManager returns a new instance of ActivityDumpStorageManager
-func NewActivityDumpStorageManager(cfg *config.Config, statsdClient statsd.ClientInterface, handler ActivityDumpHandler) (*ActivityDumpStorageManager, error) {
+func NewActivityDumpStorageManager(cfg *config.Config, statsdClient statsd.ClientInterface, handler ActivityDumpHandler, m *ActivityDumpManager) (*ActivityDumpStorageManager, error) {
 	manager := &ActivityDumpStorageManager{
 		storages:     make(map[config.StorageType]ActivityDumpStorage),
 		statsdClient: statsdClient,
 	}
 
-	storage, err := NewActivityDumpLocalStorage(cfg)
+	storage, err := NewActivityDumpLocalStorage(cfg, m)
 	if err != nil {
 		return nil, fmt.Errorf("couldn't instantiate storage: %w", err)
 	}

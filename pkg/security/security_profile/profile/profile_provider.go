@@ -12,6 +12,8 @@ import (
 	"context"
 
 	proto "github.com/DataDog/agent-payload/v5/cws/dumpsv1"
+	"github.com/DataDog/datadog-go/v5/statsd"
+
 	cgroupModel "github.com/DataDog/datadog-agent/pkg/security/resolvers/cgroup/model"
 )
 
@@ -21,6 +23,8 @@ type Provider interface {
 	Start(ctx context.Context) error
 	// Stop closes the profile provider
 	Stop() error
+	// SendStats sends the metrics of the profile provider
+	SendStats(statsdClient statsd.ClientInterface) error
 
 	// UpdateWorkloadSelectors updates the selectors used to query profiles
 	UpdateWorkloadSelectors(selectors []cgroupModel.WorkloadSelector)
