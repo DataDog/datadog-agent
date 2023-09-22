@@ -1,4 +1,4 @@
-package logcomp
+package module
 
 // Component is the component type.
 type Component interface {

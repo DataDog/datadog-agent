@@ -17,14 +17,14 @@ package log
 import (
 	"go.uber.org/fx"
 
-	"github.com/DataDog/datadog-agent/pkg/logcomp"
+	logModule "github.com/DataDog/datadog-agent/comp/core/log/module"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
 // team: agent-shared-components
 
 // Component is the component type.
-type Component = logcomp.Component
+type Component = logModule.Component
 
 // Mock is the mocked component type.
 type Mock interface {

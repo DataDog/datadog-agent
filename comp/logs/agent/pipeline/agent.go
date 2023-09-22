@@ -11,9 +11,9 @@ import (
 	"fmt"
 	"time"
 
+	logModule "github.com/DataDog/datadog-agent/comp/core/log/module"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	"github.com/DataDog/datadog-agent/pkg/conf"
-	"github.com/DataDog/datadog-agent/pkg/logcomp"
 	"github.com/DataDog/datadog-agent/pkg/logs/auditor"
 	"github.com/DataDog/datadog-agent/pkg/logs/client"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
@@ -41,7 +41,7 @@ type dependencies struct {
 	fx.In
 
 	Lc     fx.Lifecycle
-	Log    logcomp.Component
+	Log    logModule.Component
 	Config conf.Component
 }
 
@@ -49,7 +49,7 @@ type dependencies struct {
 // processes and sends logs to the backend.  See the package README for
 // a description of its operation.
 type agent struct {
-	log    logcomp.Component
+	log    logModule.Component
 	config conf.ConfigReader
 
 	endpoints        *config.Endpoints

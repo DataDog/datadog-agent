@@ -24,6 +24,7 @@ replace (
 )
 
 replace (
+	github.com/DataDog/datadog-agent/comp/core/log/module => ./comp/core/log/module
 	github.com/DataDog/datadog-agent/comp/core/telemetry => ./comp/core/telemetry
 	github.com/DataDog/datadog-agent/pkg/aggregator/ckey => ./pkg/aggregator/ckey
 	github.com/DataDog/datadog-agent/pkg/conf => ./pkg/conf/
@@ -31,7 +32,6 @@ replace (
 
 	github.com/DataDog/datadog-agent/pkg/errors => ./pkg/errors/
 	github.com/DataDog/datadog-agent/pkg/gohai => ./pkg/gohai
-	github.com/DataDog/datadog-agent/pkg/logcomp => ./pkg/logcomp
 	github.com/DataDog/datadog-agent/pkg/logs/internal/status => ./pkg/logs/internal/status
 	github.com/DataDog/datadog-agent/pkg/logs/metrics => ./pkg/logs/metrics
 	github.com/DataDog/datadog-agent/pkg/logs/status/module => ./pkg/logs/status/module
@@ -594,12 +594,12 @@ require github.com/lorenzosaino/go-sysctl v0.3.1
 require (
 	github.com/DATA-DOG/go-sqlmock v1.5.0
 	github.com/DataDog/agent-payload/v5 v5.0.96
+	github.com/DataDog/datadog-agent/comp/core/log/module v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/comp/core/telemetry v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/pkg/aggregator/ckey v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/pkg/conf v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/pkg/config/load v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/pkg/errors v0.0.0-00010101000000-000000000000
-	github.com/DataDog/datadog-agent/pkg/logcomp v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/pkg/logs/internal/status v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/pkg/logs/metrics v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/pkg/logs/status/module v0.0.0-00010101000000-000000000000
