@@ -16,6 +16,7 @@ import (
 	procconsumer "github.com/DataDog/datadog-agent/pkg/process/events/consumer"
 	secconfig "github.com/DataDog/datadog-agent/pkg/security/config"
 	secmodule "github.com/DataDog/datadog-agent/pkg/security/module"
+	"github.com/DataDog/datadog-agent/pkg/security/probe"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -32,7 +33,11 @@ var EventMonitor = module.Factory{
 			return nil, module.ErrNotEnabled
 		}
 
-		opts := eventmonitor.Opts{}
+		opts := eventmonitor.Opts{
+			ProbeOpts: probe.Opts{
+				SyscallsMonitorEnabled: secconfig.Probe.SyscallsMonitorEnabled,
+			},
+		}
 		secmoduleOpts := secmodule.Opts{}
 
 		// adapt options
