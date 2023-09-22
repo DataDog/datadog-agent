@@ -22,4 +22,4 @@ new-e2e-agent-platform-install-script-debian:
   variables:
     TARGETS: ./agent-platform/install-script-debian
     TEAM: agent-platform
-    EXTRA_PARAMS: --osversion $E2E_OSVERS --platform $E2E_PLATFORM --cws-enabled-osversion $E2E_CWS_SUPPORTED_OSVERS
+    EXTRA_PARAMS: --osversion $E2E_OSVERS --platform $E2E_PLATFORM --cws-supported-osversion $E2E_CWS_SUPPORTED_OSVERS
