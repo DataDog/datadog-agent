@@ -287,7 +287,7 @@ func (r *Resolver) analyzeWorkload(sbom *SBOM) error {
 				return fmt.Errorf("stat failed for `%s`: couldn't stat container proc root path", containerProcRootPath)
 			}
 			if stat.Dev == r.hostRootDevice {
-				return fmt.Errorf("couldn't generate sbom: container '%s' not yet ready", sbom.ContainerID)
+				return fmt.Errorf("couldn't generate sbom: filesystem of container '%s' matches the host root filesystem", sbom.ContainerID)
 			}
 		}
 
