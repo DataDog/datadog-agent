@@ -1,0 +1,7 @@
+---
+enhancements:
+  - |
+    Improved performance and memory consumption, both halved on average.
+fixes:
+  - |
+    Concurrency issue at high volumes fixed.
