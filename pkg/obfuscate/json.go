@@ -169,7 +169,7 @@ func (p *jsonObfuscator) obfuscate(data []byte) (string, error) {
 		case scanObjectKey:
 			// done scanning key
 			k := string(bytes.Trim(keyBuf, `"`))
-			if !st.hasFlag(keepingFlag) && p.keepKeys[k] {
+			if !st.keeping && p.keepKeys[k] {
 				// we should not obfuscate values of this key
 				st.keeping = true
 				st.keepDepth = depth + 1
