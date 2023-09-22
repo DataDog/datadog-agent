@@ -52,14 +52,14 @@ type incompleteBuffer struct {
 }
 
 type txParts struct {
-	requests  []Transaction
-	responses []Transaction
+	requests  []*EbpfEvent
+	responses []*EbpfEvent
 }
 
 func newTXParts(requestCapacity, responseCapacity int) *txParts {
 	return &txParts{
-		requests:  make([]Transaction, 0, requestCapacity),
-		responses: make([]Transaction, 0, responseCapacity),
+		requests:  make([]*EbpfEvent, 0, requestCapacity),
+		responses: make([]*EbpfEvent, 0, responseCapacity),
 	}
 }
 
@@ -91,7 +91,7 @@ func (b *incompleteBuffer) Add(tx Transaction) {
 		b.data[key] = parts
 	}
 
-	// copy underlying httpTX value. this is now needed because these objects are
+	// copy underlying EbpfEvent value. this is now needed because these objects are
 	// now coming directly from pooled perf records
 	ebpfTX, ok := tx.(*EbpfEvent)
 	if !ok {
@@ -101,14 +101,13 @@ func (b *incompleteBuffer) Add(tx Transaction) {
 
 	ebpfTxCopy := new(EbpfEvent)
 	*ebpfTxCopy = *ebpfTX
-	tx = ebpfTxCopy
 
 	if tx.StatusCode() == 0 {
 		b.telemetry.joiner.requests.Add(1)
-		parts.requests = append(parts.requests, tx)
+		parts.requests = append(parts.requests, ebpfTxCopy)
 	} else {
 		b.telemetry.joiner.responses.Add(1)
-		parts.responses = append(parts.responses, tx)
+		parts.responses = append(parts.responses, ebpfTxCopy)
 	}
 }
 
@@ -131,15 +130,15 @@ func (b *incompleteBuffer) Flush(now time.Time) []Transaction {
 		for i < len(parts.requests) && j < len(parts.responses) {
 			request := parts.requests[i]
 			response := parts.responses[j]
-			if request.RequestStarted() > response.ResponseLastSeen() {
+			if request.Http.Request_started > response.Http.Response_last_seen {
 				b.telemetry.joiner.responsesDropped.Add(1)
 				j++
 				continue
 			}
 
 			// Merge response into request
-			request.SetStatusCode(response.StatusCode())
-			request.SetResponseLastSeen(response.ResponseLastSeen())
+			request.Http.Response_status_code = response.Http.Response_status_code
+			request.Http.Response_last_seen = response.Http.Response_last_seen
 			joined = append(joined, request)
 			i++
 			j++
@@ -172,23 +171,23 @@ func (b *incompleteBuffer) Flush(now time.Time) []Transaction {
 	return joined
 }
 
-func (b *incompleteBuffer) shouldKeep(tx Transaction, now int64) bool {
-	then := int64(tx.RequestStarted())
+func (b *incompleteBuffer) shouldKeep(tx *EbpfEvent, now int64) bool {
+	then := int64(tx.Http.Request_started)
 	return (now - then) < b.minAgeNano
 }
 
-type byRequestTime []Transaction
+type byRequestTime []*EbpfEvent
 
 func (rt byRequestTime) Len() int      { return len(rt) }
 func (rt byRequestTime) Swap(i, j int) { rt[i], rt[j] = rt[j], rt[i] }
 func (rt byRequestTime) Less(i, j int) bool {
-	return rt[i].RequestStarted() < rt[j].RequestStarted()
+	return rt[i].Http.Request_started < rt[j].Http.Request_started
 }
 
-type byResponseTime []Transaction
+type byResponseTime []*EbpfEvent
 
 func (rt byResponseTime) Len() int      { return len(rt) }
 func (rt byResponseTime) Swap(i, j int) { rt[i], rt[j] = rt[j], rt[i] }
 func (rt byResponseTime) Less(i, j int) bool {
-	return rt[i].ResponseLastSeen() < rt[j].ResponseLastSeen()
+	return rt[i].Http.Response_last_seen < rt[j].Http.Response_last_seen
 }

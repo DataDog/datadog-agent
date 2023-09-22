@@ -15,15 +15,10 @@ type Transaction interface {
 	RequestLatency() float64
 	ConnTuple() types.ConnectionKey
 	Method() Method
-	SetRequestMethod(Method)
 	StatusCode() uint16
-	SetStatusCode(uint16)
 	StaticTags() uint64
 	DynamicTags() []string
 	String() string
 	Incomplete() bool
 	Path(buffer []byte) ([]byte, bool)
-	ResponseLastSeen() uint64
-	SetResponseLastSeen(ls uint64)
-	RequestStarted() uint64
 }

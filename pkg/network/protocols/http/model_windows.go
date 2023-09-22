@@ -149,22 +149,3 @@ func (tx *WinHttpTransaction) Path(buffer []byte) ([]byte, bool) {
 	return buffer[:n], fullPath
 
 }
-func (tx *WinHttpTransaction) SetStatusCode(code uint16) {
-	tx.Txn.ResponseStatusCode = code
-}
-
-func (tx *WinHttpTransaction) ResponseLastSeen() uint64 {
-	return tx.Txn.ResponseLastSeen
-}
-
-func (tx *WinHttpTransaction) SetResponseLastSeen(ls uint64) {
-	tx.Txn.ResponseLastSeen = ls
-}
-
-func (tx *WinHttpTransaction) RequestStarted() uint64 {
-	return tx.Txn.RequestStarted
-}
-
-func (tx *WinHttpTransaction) SetRequestMethod(m Method) {
-	tx.Txn.RequestMethod = uint32(m)
-}

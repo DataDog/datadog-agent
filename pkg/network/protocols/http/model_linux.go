@@ -84,31 +84,6 @@ func (e *EbpfEvent) StatusCode() uint16 {
 	return e.Http.Response_status_code
 }
 
-// SetStatusCode of the underlying HTTP transaction
-func (e *EbpfEvent) SetStatusCode(code uint16) {
-	e.Http.Response_status_code = code
-}
-
-// ResponseLastSeen returns the timestamp of the last captured segment of the HTTP transaction
-func (e *EbpfEvent) ResponseLastSeen() uint64 {
-	return e.Http.Response_last_seen
-}
-
-// SetResponseLastSeen of the HTTP transaction
-func (e *EbpfEvent) SetResponseLastSeen(lastSeen uint64) {
-	e.Http.Response_last_seen = lastSeen
-}
-
-// RequestStarted returns the timestamp of the first segment of the HTTP transaction
-func (e *EbpfEvent) RequestStarted() uint64 {
-	return e.Http.Request_started
-}
-
-// SetRequestMethod of the underlying HTTP transaction
-func (e *EbpfEvent) SetRequestMethod(m Method) {
-	e.Http.Request_method = uint8(m)
-}
-
 // StaticTags returns an uint64 representing the tags bitfields
 // Tags are defined here : pkg/network/ebpf/kprobe_types.go
 func (e *EbpfEvent) StaticTags() uint64 {
