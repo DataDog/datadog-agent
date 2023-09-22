@@ -120,6 +120,13 @@ func loadProfiles(pConfig profileConfigMap) (profileConfigMap, error) {
 			}
 			profConfig.Definition = *profDefinition
 		}
+		profiledefinition.NormalizeMetrics(profConfig.Definition.Metrics)
+		errors := validateEnrichMetadata(profConfig.Definition.Metadata)
+		errors = append(errors, ValidateEnrichMetrics(profConfig.Definition.Metrics)...)
+		errors = append(errors, ValidateEnrichMetricTags(profConfig.Definition.MetricTags)...)
+		if len(errors) > 0 {
+			return nil, fmt.Errorf("validation errors: %s", strings.Join(errors, "\n"))
+		}
 		profiles[name] = profConfig
 	}
 	return profiles, nil
@@ -136,13 +143,6 @@ func readProfileDefinition(definitionFile string) (*profiledefinition.ProfileDef
 	err = yaml.Unmarshal(buf, profileDefinition)
 	if err != nil {
 		return nil, fmt.Errorf("failed to unmarshall %q: %v", filePath, err)
-	}
-	profiledefinition.NormalizeMetrics(profileDefinition.Metrics)
-	errors := validateEnrichMetadata(profileDefinition.Metadata)
-	errors = append(errors, ValidateEnrichMetrics(profileDefinition.Metrics)...)
-	errors = append(errors, ValidateEnrichMetricTags(profileDefinition.MetricTags)...)
-	if len(errors) > 0 {
-		return nil, fmt.Errorf("validation errors: %s", strings.Join(errors, "\n"))
 	}
 	return profileDefinition, nil
 }
