@@ -215,7 +215,7 @@ func (a *agent) stop(context.Context) error {
 		case <-c:
 		case <-timeout.C:
 			a.log.Warn("Force close of the Logs Agent, dumping the Go routines.")
-			if stack, err := util.GetGoRoutinesDump(); err != nil {
+			if stack, err := util.GetGoRoutinesDump(a.config); err != nil {
 				a.log.Warnf("can't get the Go routines dump: %s\n", err)
 			} else {
 				a.log.Warn(stack)
