@@ -68,21 +68,13 @@ if ohai["platform"] != "windows"
   end
 
 else
-  default_version "3.9.17-26e6052"
+  default_version "3.11.5"
   dependency "vc_redist_14"
+  
+  # note that startring with 3.7.3 on Windows, the zip should be created without the built-in pip
+  source :url => "https://dd-agent-omnibus.s3.amazonaws.com/python-windows-#{version}-x64.zip",
+         :sha256 => "459413FA5FEF4EA8D2183027F41BBCB8430C96222F976AC0FCE4F196CCD6CDEF".downcase
 
-  if windows_arch_i386?
-    dependency "vc_ucrt_redist"
-
-    source :url => "https://dd-agent-omnibus.s3.amazonaws.com/python-windows-#{version}-x86.zip",
-            :sha256 => "007FC4DB517599FB4DFF4D68FFA7C6B3BE9674F584AA513600A2539AF7CDD07B".downcase
-  else
-
-    # note that startring with 3.7.3 on Windows, the zip should be created without the built-in pip
-    source :url => "https://dd-agent-omnibus.s3.amazonaws.com/python-windows-#{version}-x64.zip",
-           :sha256 => "E6E38E5A6B768E9EF6E2F3F31448873657251B32B6CEB99B99D76BF47279A36D".downcase
-
-  end
   vcrt140_root = "#{Omnibus::Config.source_dir()}/vc_redist_140/expanded"
   build do
     # 2.0 is the license version here, not the python version
