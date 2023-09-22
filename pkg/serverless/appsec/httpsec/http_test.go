@@ -50,6 +50,11 @@ func TestParseBodyMultipartFormData(t *testing.T) {
 			"Content-Type: application/json",
 			"",
 			"{ \"foo\": 1337, \"bar\": \"baz\" }",
+			"--B0UND4RY",
+			"Content-Disposition: form-data; name=\"broken\"; filename=\"bad.json\"",
+			"Content-Type: application/vnd.api+json",
+			"",
+			"{ invalid: true }", // Intentionally not valid JSON
 			"--B0UND4RY--",
 			"",
 		}, "\r\n",
@@ -62,7 +67,7 @@ func TestParseBodyMultipartFormData(t *testing.T) {
 	)
 
 	require.Equal(t, map[string]any{
-		"foo":   map[string]any{"data": "1337"},
+		"foo":   map[string]any{"data": nil},
 		"file1": map[string]any{"filename": "a.txt", "data": "Content of a.txt.\r\n"},
 		"file2": map[string]any{
 			"filename": "a.json",
@@ -71,5 +76,6 @@ func TestParseBodyMultipartFormData(t *testing.T) {
 				"bar": "baz",
 			},
 		},
+		"broken": map[string]any{"filename": "bad.json", "data": nil},
 	}, payload)
 }

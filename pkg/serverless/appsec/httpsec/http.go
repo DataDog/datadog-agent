@@ -11,7 +11,6 @@
 package httpsec
 
 import (
-	"bytes"
 	"encoding/json"
 	"fmt"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -62,17 +61,14 @@ func makeContext(ctx *context, path *string, headers, queryParams map[string][]s
 	}
 }
 
-func parseBody(headers map[string][]string, rawBody *string) (body interface{}) {
+// parseBody attempts to parse the payload found in rawBody according to the presentation headers. Returns nil if the
+// request body could not be parsed (either due to an error, or because no suitable parsing strategy is implemented).
+func parseBody(headers map[string][]string, rawBody *string) (body any) {
 	if rawBody == nil {
 		return nil
 	}
 
-	rawStr := *rawBody
-	if rawStr == "" {
-		return rawStr
-	}
-	raw := []byte(*rawBody)
-
+	// textproto.MIMEHeader normalizes the header names, so we don't have to worry about text case.
 	mimeHeaders := make(textproto.MIMEHeader, len(headers))
 	for key, values := range headers {
 		for _, value := range values {
@@ -80,24 +76,22 @@ func parseBody(headers map[string][]string, rawBody *string) (body interface{}) 
 		}
 	}
 
-	result, err := tryParseBodyBytes(mimeHeaders, raw)
+	result, err := tryParseBody(mimeHeaders, *rawBody)
 	if err != nil {
 		log.Warnf("unable to parse request body: %v", err)
-		return rawStr
-	} else if result == nil {
-		return rawStr
+		return nil
 	}
 
 	return result
 }
 
-// / tryParseBodyBytes attempts to parse the raw data in `raw` according to the `headers`. Returns an error if parsing
-// / fails, and a `nil` body if no parsing strategy was found.
-func tryParseBodyBytes(headers textproto.MIMEHeader, raw []byte) (body interface{}, err error) {
+// / tryParseBody attempts to parse the raw data in raw according to the headers. Returns an error if parsing
+// / fails, and a nil body if no parsing strategy was found.
+func tryParseBody(headers textproto.MIMEHeader, raw string) (body any, err error) {
 	var mediaType string
 	var params map[string]string
 
-	if value := headers.Get("content-type"); value == "" {
+	if value := headers.Get("Content-Type"); value == "" {
 		return nil, nil
 	} else {
 		mt, p, err := mime.ParseMediaType(value)
@@ -109,14 +103,14 @@ func tryParseBodyBytes(headers textproto.MIMEHeader, raw []byte) (body interface
 	}
 
 	switch mediaType {
-	case "application/json":
-		if err := json.Unmarshal(raw, &body); err != nil {
+	case "application/json", "application/vnd.api+json":
+		if err := json.Unmarshal([]byte(raw), &body); err != nil {
 			return nil, err
 		}
 		return body, nil
 
 	case "application/x-www-form-urlencoded":
-		values, err := url.ParseQuery(string(raw))
+		values, err := url.ParseQuery(raw)
 		if err != nil {
 			return nil, err
 		}
@@ -127,7 +121,7 @@ func tryParseBodyBytes(headers textproto.MIMEHeader, raw []byte) (body interface
 		if !ok {
 			return nil, fmt.Errorf("cannot parse a multipart/form-data payload without a boundary")
 		}
-		mr := multipart.NewReader(bytes.NewReader(raw), boundary)
+		mr := multipart.NewReader(strings.NewReader(raw), boundary)
 
 		data := make(map[string]any)
 		for {
@@ -140,19 +134,18 @@ func tryParseBodyBytes(headers textproto.MIMEHeader, raw []byte) (body interface
 			}
 			defer part.Close()
 
+			partData := make(map[string]any, 2)
+
 			partRawBody, err := io.ReadAll(part)
 			if err != nil {
 				return nil, err
 			}
-			partBody, err := tryParseBodyBytes(map[string][]string(part.Header), partRawBody)
+			partBody, err := tryParseBody(map[string][]string(part.Header), string(partRawBody))
 			if err != nil {
-				return nil, err
-			} else if partBody == nil {
-				partBody = string(partRawBody)
-			}
-
-			partData := map[string]any{
-				"data": partBody,
+				log.Debugf("failed to parse multipart/form-data part: %v", err)
+				partData["data"] = nil
+			} else {
+				partData["data"] = partBody
 			}
 
 			if filename := part.FileName(); filename != "" {
@@ -164,7 +157,7 @@ func tryParseBodyBytes(headers textproto.MIMEHeader, raw []byte) (body interface
 		return data, nil
 
 	case "text/plain":
-		return string(raw), nil
+		return raw, nil
 
 	default:
 		return nil, nil
