@@ -13,6 +13,7 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
+	"sync"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -158,26 +159,26 @@ func TestObfuscateJSONConcurrently(t *testing.T) {
 		}
 		o        = newJSONObfuscator(cfg, &Obfuscator{})
 		rs       = make(chan string, 1)
-		in       = "{\"email\":\"dev@datadoghq.com\",\"company_wallet_configuration_id\":1}"
 		expected = "{\"email\":\"?\",\"company_wallet_configuration_id\":1}"
 	)
-	defer func() {
-		close(rs)
-	}()
 
-	// Concurrency issues were already reproducible at 100 times, but we leave this at 100K
+	// Concurrency issues were reproduced at 100 times, but we leave this at 100K
 	// to stress test the obfuscator.
-	const times = 10000
+	const times = 100000
+	var wg sync.WaitGroup
 	for i := 0; i < times; i++ {
+		wg.Add(1)
 		go func() {
-			defer func() {
-				if recover() != nil {
-					// ignore panic on closing rs
-				}
-			}()
+			defer wg.Done()
+			in := "{\"email\":\"dev@datadoghq.com\",\"company_wallet_configuration_id\":1}"
 			rs <- obfuscateJSONString(in, o)
 		}()
 	}
+
+	go func() {
+		wg.Wait()
+		close(rs)
+	}()
 
 	for i := 0; i < times; i++ {
 		v := <-rs
