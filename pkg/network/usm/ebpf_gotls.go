@@ -412,7 +412,7 @@ func (p *GoTLSProgram) hookNewBinary(binID utils.PathIdentifier, binPath string,
 		return
 	}
 
-	probeIDs, err := p.attachHooks(inspectionResult, binPath)
+	probeIDs, err := p.attachHooks(inspectionResult, binPath, binID)
 	if err != nil {
 		p.removeInspectionResultFromMap(binID)
 		err = fmt.Errorf("error while attaching hooks: %w", err)
@@ -506,12 +506,8 @@ func (p *GoTLSProgram) removeInspectionResultFromMap(binID utils.PathIdentifier)
 	}
 }
 
-func (p *GoTLSProgram) attachHooks(result *bininspect.Result, binPath string) (probeIDs []manager.ProbeIdentificationPair, err error) {
-	pathID, err := utils.NewPathIdentifier(binPath)
-	if err != nil {
-		return probeIDs, fmt.Errorf("can't create path identifier for path %s : %s", binPath, err)
-	}
-	uid := getUID(pathID)
+func (p *GoTLSProgram) attachHooks(result *bininspect.Result, binPath string, binID utils.PathIdentifier) (probeIDs []manager.ProbeIdentificationPair, err error) {
+	uid := getUID(binID)
 	defer func() {
 		if err != nil {
 			p.detachHooks(probeIDs)
