@@ -37,11 +37,3 @@ func TestMockProvide(t *testing.T) {
 	)
 	assert.Equal(t, "foo", s.GetSafe(context.Background()))
 }
-
-func TestMockSet(t *testing.T) {
-	s := fxutil.Test[Mock](t,
-		MockModule,
-	)
-	s.Set("bar")
-	assert.Equal(t, "bar", s.GetSafe(context.Background()))
-}

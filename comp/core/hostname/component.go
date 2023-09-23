@@ -27,12 +27,6 @@ type Component interface {
 	GetSafe(context.Context) string
 }
 
-// Mock implements mock-specific methods.
-type Mock interface {
-	Component
-	Set(string)
-}
-
 // Module defines the fx options for this component.
 var Module = fxutil.Component(
 	fx.Provide(newHostnameService),
@@ -44,7 +38,6 @@ var Module = fxutil.Component(
 var MockModule = fxutil.Component(
 	fx.Provide(
 		newMock,
-		func(m Mock) Component { return m },
 	),
 	fx.Supply(MockHostname("my-hostname")),
 )

@@ -15,7 +15,7 @@ type mockService struct {
 	name string
 }
 
-var _ Mock = (*mockService)(nil)
+var _ Component = (*mockService)(nil)
 
 func (m *mockService) Get(ctx context.Context) (string, error) {
 	return m.name, nil
@@ -41,6 +41,6 @@ func (m *mockService) GetWithProvider(ctx context.Context) (hostname.Data, error
 // Usage: fx.Replace(hostname.MockHostname("whatever"))
 type MockHostname string
 
-func newMock(name MockHostname) Mock {
+func newMock(name MockHostname) Component {
 	return &mockService{string(name)}
 }
