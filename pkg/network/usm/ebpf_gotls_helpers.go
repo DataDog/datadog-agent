@@ -15,7 +15,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/network/go/bininspect"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http/gotls"
-)
+) // TODO: Convert binID to goTLSBinaryID
 
 func inspectionResultToProbeData(result *bininspect.Result) (gotls.TlsOffsetsData, error) {
 	closeConnPointer, err := getConnPointer(result, bininspect.CloseGoTLSFunc)
