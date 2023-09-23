@@ -130,13 +130,6 @@ type GoTLSProgram struct {
 	// Path to the process/container's procfs
 	procRoot string
 
-	// Process monitor channels
-	procMonitor struct {
-		monitor     *monitor.ProcessMonitor
-		cleanupExec func()
-		cleanupExit func()
-	}
-
 	lock sync.RWMutex
 
 	// eBPF map holding the result of binary analysis, indexed by binaries'
@@ -265,9 +258,9 @@ func (p *GoTLSProgram) Start() {
 		return
 	}
 
-	p.procMonitor.monitor = monitor.GetProcessMonitor()
-	p.procMonitor.cleanupExec = p.procMonitor.monitor.SubscribeExec(p.handleProcessStart)
-	p.procMonitor.cleanupExit = p.procMonitor.monitor.SubscribeExit(p.unregisterProcess)
+	procMonitor := monitor.GetProcessMonitor()
+	cleanupExec := procMonitor.SubscribeExec(p.handleProcessStart)
+	cleanupExit := procMonitor.SubscribeExit(p.unregisterProcess)
 
 	p.wg.Add(1)
 	go func() {
@@ -275,6 +268,9 @@ func (p *GoTLSProgram) Start() {
 
 		defer func() {
 			processSync.Stop()
+			cleanupExec()
+			cleanupExit()
+			procMonitor.Stop()
 			p.wg.Done()
 		}()
 
@@ -304,15 +300,6 @@ func (p *GoTLSProgram) Stop() {
 	close(p.done)
 	// Waiting for the main event loop to finish.
 	p.wg.Wait()
-	if p.procMonitor.cleanupExec != nil {
-		p.procMonitor.cleanupExec()
-	}
-	if p.procMonitor.cleanupExit != nil {
-		p.procMonitor.cleanupExit()
-	}
-	if p.procMonitor.monitor != nil {
-		p.procMonitor.monitor.Stop()
-	}
 
 	// Finally, remove all hooks.
 	for pid := range p.processes {
