@@ -30,6 +30,10 @@ component temporarily wraps pkg/config.
 
 Package flare implements a component to generate flares from the agent.
 
+### [comp/core/hostname](https://pkg.go.dev/github.com/DataDog/dd-agent-comp-experiments/comp/core/hostname)
+
+Package hostname exposes hostname.Get() as a component.
+
 ### [comp/core/log](https://pkg.go.dev/github.com/DataDog/dd-agent-comp-experiments/comp/core/log)
 
 Package log implements a component to handle logging internal to the agent.
