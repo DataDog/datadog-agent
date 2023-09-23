@@ -102,6 +102,26 @@ Package runner implements a component to generate the 'resources' metadata paylo
 
 Package runner implements a component to generate metadata payload at the right interval.
 
+## [comp/ndmtmp](https://pkg.go.dev/github.com/DataDog/dd-agent-comp-experiments/comp/ndmtmp) (Component Bundle)
+
+*Datadog Team*: network-device-monitoring
+
+Package ndmtmp implements the "ndmtmp" bundle, which exposes the default
+sender.Sender and the event platform forwarder. This is a temporary module
+intended for ndm internal use until these pieces are properly componentized.
+
+### [comp/ndmtmp/aggregator](https://pkg.go.dev/github.com/DataDog/dd-agent-comp-experiments/comp/ndmtmp/aggregator)
+
+Package aggregator exposes the AgentDemultiplexer as a DemultiplexerWithAggregator
+
+### [comp/ndmtmp/forwarder](https://pkg.go.dev/github.com/DataDog/dd-agent-comp-experiments/comp/ndmtmp/forwarder)
+
+Package forwarder exposes the event platform forwarder for netflow.
+
+### [comp/ndmtmp/sender](https://pkg.go.dev/github.com/DataDog/dd-agent-comp-experiments/comp/ndmtmp/sender)
+
+Package sender exposes a Sender for netflow.
+
 ## [comp/otelcol](https://pkg.go.dev/github.com/DataDog/dd-agent-comp-experiments/comp/otelcol) (Component Bundle)
 
 *Datadog Team*: opentelemetry
