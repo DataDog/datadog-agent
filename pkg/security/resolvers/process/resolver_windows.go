@@ -91,7 +91,7 @@ func (p *Resolver) Resolve(pid, tid uint32, inode uint64, useFallBack bool) *mod
 }
 
 // GetProcessArgvScrubbed returns the scrubbed args of the event as an array
-func (p *Resolver) GetProcessScrubbedArgv(pr *model.Process) []string {
+func (p *Resolver) GetProcessArgvScrubbed(pr *model.Process) []string {
 	if pr.ScrubbedArgvResolved {
 		return pr.ScrubbedArgv
 	}
