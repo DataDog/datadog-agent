@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2022-present Datadog, Inc.
 
-package enrichment
+package format
 
 import (
 	"testing"
@@ -11,7 +11,7 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func TestFormatFCPFlags(t *testing.T) {
+func TestTCPFlags(t *testing.T) {
 	tests := []struct {
 		name          string
 		flags         uint32
@@ -60,7 +60,7 @@ func TestFormatFCPFlags(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			actualFlags := FormatFCPFlags(tt.flags)
+			actualFlags := TCPFlags(tt.flags)
 			assert.Equal(t, tt.expectedFlags, actualFlags)
 		})
 	}

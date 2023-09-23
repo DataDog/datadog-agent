@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2022-present Datadog, Inc.
 
-package enrichment
+package format
 
 import (
 	"testing"
@@ -11,10 +11,8 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func TestMapProtocol(t *testing.T) {
-	assert.Equal(t, "HOPOPT", MapIPProtocol(0))
-	assert.Equal(t, "ICMP", MapIPProtocol(1))
-	assert.Equal(t, "IPv4", MapIPProtocol(4))
-	assert.Equal(t, "IPv6", MapIPProtocol(41))
-	assert.Equal(t, "", MapIPProtocol(1000)) // invalid protocol number
+func TestDirection(t *testing.T) {
+	assert.Equal(t, "ingress", Direction(uint32(0)))
+	assert.Equal(t, "egress", Direction(uint32(1)))
+	assert.Equal(t, "ingress", Direction(uint32(99))) // invalid direction will default to ingress
 }

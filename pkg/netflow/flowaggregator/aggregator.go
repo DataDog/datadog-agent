@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2022-present Datadog, Inc.
 
+// Package flowaggregator defines tools for aggregating observed netflows.
 package flowaggregator
 
 import (
@@ -25,6 +26,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/netflow/common"
 	"github.com/DataDog/datadog-agent/pkg/netflow/config"
+	"github.com/DataDog/datadog-agent/pkg/netflow/format"
 	"github.com/DataDog/datadog-agent/pkg/netflow/goflowlib"
 )
 
@@ -48,19 +50,19 @@ type FlowAggregator struct {
 	goflowPrometheusGatherer     prometheus.Gatherer
 	TimeNowFunction              func() time.Time // Allows to mock time in tests
 
-	lastSequencePerExporter   map[SequenceDeltaKey]uint32
+	lastSequencePerExporter   map[sequenceDeltaKey]uint32
 	lastSequencePerExporterMu sync.Mutex
 
 	logger log.Component
 }
 
-type SequenceDeltaKey struct {
+type sequenceDeltaKey struct {
 	Namespace  string
 	ExporterIP string
 	FlowType   common.FlowType
 }
 
-type SequenceDeltaValue struct {
+type sequenceDeltaValue struct {
 	Delta        int64
 	LastSequence uint32
 	Reset        bool
@@ -94,7 +96,7 @@ func NewFlowAggregator(sender sender.Sender, epForwarder epforwarder.EventPlatfo
 		hostname:                     hostname,
 		goflowPrometheusGatherer:     prometheus.DefaultGatherer,
 		TimeNowFunction:              time.Now,
-		lastSequencePerExporter:      make(map[SequenceDeltaKey]uint32),
+		lastSequencePerExporter:      make(map[sequenceDeltaKey]uint32),
 		logger:                       logger,
 	}
 }
@@ -162,12 +164,12 @@ func (agg *FlowAggregator) sendExporterMetadata(flows []*common.Flow, flushTime 
 	orderedExporterIDs := make(map[string][]string)
 
 	for _, flow := range flows {
-		exporterIpAddress := common.IPBytesToString(flow.ExporterAddr)
-		if exporterIpAddress == "" || strings.HasPrefix(exporterIpAddress, "?") {
-			agg.logger.Errorf("Invalid exporter Addr: %s", exporterIpAddress)
+		exporterIPAddress := format.IPAddr(flow.ExporterAddr)
+		if exporterIPAddress == "" || strings.HasPrefix(exporterIPAddress, "?") {
+			agg.logger.Errorf("Invalid exporter Addr: %s", exporterIPAddress)
 			continue
 		}
-		exporterID := flow.Namespace + ":" + exporterIpAddress + ":" + string(flow.FlowType)
+		exporterID := flow.Namespace + ":" + exporterIPAddress + ":" + string(flow.FlowType)
 		if _, ok := exporterMap[flow.Namespace]; !ok {
 			exporterMap[flow.Namespace] = make(map[string]metadata.NetflowExporter)
 		}
@@ -177,15 +179,15 @@ func (agg *FlowAggregator) sendExporterMetadata(flows []*common.Flow, flushTime 
 		}
 		exporterMap[flow.Namespace][exporterID] = metadata.NetflowExporter{
 			ID:        exporterID,
-			IPAddress: exporterIpAddress,
+			IPAddress: exporterIPAddress,
 			FlowType:  string(flow.FlowType),
 		}
 		orderedExporterIDs[flow.Namespace] = append(orderedExporterIDs[flow.Namespace], exporterID)
 	}
 	for namespace, ids := range orderedExporterIDs {
 		var netflowExporters []metadata.NetflowExporter
-		for _, exporterId := range ids {
-			netflowExporters = append(netflowExporters, exporterMap[namespace][exporterId])
+		for _, exporterID := range ids {
+			netflowExporters = append(netflowExporters, exporterMap[namespace][exporterID])
 		}
 		metadataPayloads := metadata.BatchPayloads(namespace, "", flushTime, metadata.PayloadMetadataBatchSize, nil, nil, nil, nil, netflowExporters, nil)
 		for _, payload := range metadataPayloads {
@@ -291,10 +293,10 @@ func (agg *FlowAggregator) flush() int {
 // getSequenceDelta return the delta of current sequence number compared to previously saved sequence number
 // Since we track per exporterIP, the returned delta is only accurate when for the specific exporterIP there is
 // only one NetFlow9/IPFIX observation domain, NetFlow5 engineType/engineId, sFlow agent/subagent.
-func (agg *FlowAggregator) getSequenceDelta(flowsToFlush []*common.Flow) map[SequenceDeltaKey]SequenceDeltaValue {
-	maxSequencePerExporter := make(map[SequenceDeltaKey]uint32)
+func (agg *FlowAggregator) getSequenceDelta(flowsToFlush []*common.Flow) map[sequenceDeltaKey]sequenceDeltaValue {
+	maxSequencePerExporter := make(map[sequenceDeltaKey]uint32)
 	for _, flow := range flowsToFlush {
-		key := SequenceDeltaKey{
+		key := sequenceDeltaKey{
 			Namespace:  flow.Namespace,
 			ExporterIP: net.IP(flow.ExporterAddr).String(),
 			FlowType:   flow.FlowType,
@@ -303,7 +305,7 @@ func (agg *FlowAggregator) getSequenceDelta(flowsToFlush []*common.Flow) map[Seq
 			maxSequencePerExporter[key] = flow.SequenceNum
 		}
 	}
-	sequenceDeltaPerExporter := make(map[SequenceDeltaKey]SequenceDeltaValue)
+	sequenceDeltaPerExporter := make(map[sequenceDeltaKey]sequenceDeltaValue)
 
 	agg.lastSequencePerExporterMu.Lock()
 	defer agg.lastSequencePerExporterMu.Unlock()
@@ -316,7 +318,7 @@ func (agg *FlowAggregator) getSequenceDelta(flowsToFlush []*common.Flow) map[Seq
 		maxNegSeqDiff := maxNegativeSequenceDiffToReset[key.FlowType]
 		reset := delta < int64(maxNegSeqDiff)
 		agg.logger.Debugf("[getSequenceDelta] key=%s, seqnum=%d, delta=%d, last=%d, reset=%t", key, seqnum, delta, agg.lastSequencePerExporter[key], reset)
-		seqDeltaValue := SequenceDeltaValue{LastSequence: seqnum}
+		seqDeltaValue := sequenceDeltaValue{LastSequence: seqnum}
 		if reset { // sequence reset
 			seqDeltaValue.Delta = int64(seqnum)
 			seqDeltaValue.Reset = reset

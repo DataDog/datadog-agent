@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2022-present Datadog, Inc.
 
-package enrichment
+package format
 
 var protocolMap = map[uint32]string{
 	0:   "HOPOPT",
@@ -148,12 +148,8 @@ var protocolMap = map[uint32]string{
 	255: "Reserved",
 }
 
-// MapIPProtocol map Protocol number to human-readable IP Protocol keyword (name)
+// IPProtocol maps an IP protocol number to a standard name.
 // https://www.iana.org/assignments/protocol-numbers/protocol-numbers.xhtml
-func MapIPProtocol(protocolNumber uint32) string {
-	protoStr, ok := protocolMap[protocolNumber]
-	if !ok {
-		return ""
-	}
-	return protoStr
+func IPProtocol(protocolNumber uint32) string {
+	return protocolMap[protocolNumber]
 }

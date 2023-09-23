@@ -3,19 +3,18 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2022-present Datadog, Inc.
 
-package portrollup
+package format
 
 import (
-	"math"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 )
 
-func TestPortToString(t *testing.T) {
-	assert.Equal(t, "65535", PortToString(math.MaxUint16))
-	assert.Equal(t, "10", PortToString(10))
-	assert.Equal(t, "0", PortToString(0))
-	assert.Equal(t, "*", PortToString(-1))
-	assert.Equal(t, "invalid", PortToString(-10))
+func TestIPProtocol(t *testing.T) {
+	assert.Equal(t, "HOPOPT", IPProtocol(0))
+	assert.Equal(t, "ICMP", IPProtocol(1))
+	assert.Equal(t, "IPv4", IPProtocol(4))
+	assert.Equal(t, "IPv6", IPProtocol(41))
+	assert.Equal(t, "", IPProtocol(1000)) // invalid protocol number
 }
