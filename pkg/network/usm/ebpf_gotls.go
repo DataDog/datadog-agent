@@ -172,19 +172,16 @@ func newGoTLSProgram(c *config.Config, sockFD *ebpf.Map) *GoTLSProgram {
 		blockCache = nil
 	}
 
-	p := &GoTLSProgram{
-		done:       make(chan struct{}),
-		cfg:        c,
-		procRoot:   c.ProcRoot,
-		binaries:   make(map[binaryID]*runningBinary),
-		processes:  make(map[pid]binaryID),
-		blockCache: blockCache,
-		sockFDMap:  sockFD,
+	return &GoTLSProgram{
+		done:              make(chan struct{}),
+		cfg:               c,
+		procRoot:          c.ProcRoot,
+		binaries:          make(map[binaryID]*runningBinary),
+		processes:         make(map[pid]binaryID),
+		blockCache:        blockCache,
+		sockFDMap:         sockFD,
+		binAnalysisMetric: libtelemetry.NewCounter("gotls.analysis_time", libtelemetry.OptStatsd),
 	}
-
-	p.binAnalysisMetric = libtelemetry.NewCounter("gotls.analysis_time", libtelemetry.OptStatsd)
-
-	return p
 }
 
 // Name return the program's name.
