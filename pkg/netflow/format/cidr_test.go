@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2022-present Datadog, Inc.
 
-package enrichment
+package format
 
 import (
 	"net"
@@ -12,7 +12,7 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func TestFormatMask(t *testing.T) {
+func TestCIDR(t *testing.T) {
 	tests := []struct {
 		name                  string
 		ipAddr                []byte
@@ -82,7 +82,7 @@ func TestFormatMask(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			assert.Equalf(t, tt.expectedFormattedMask, FormatMask(tt.ipAddr, tt.maskRawValue), "FormatMask(%v, %v)", tt.ipAddr, tt.maskRawValue)
+			assert.Equalf(t, tt.expectedFormattedMask, CIDR(tt.ipAddr, tt.maskRawValue), "FormatMask(%v, %v)", tt.ipAddr, tt.maskRawValue)
 		})
 	}
 }

@@ -10,6 +10,7 @@ import (
 	"fmt"
 
 	"github.com/netsampler/goflow2/decoders/netflow/templates"
+	// install the in-memory template manager
 	_ "github.com/netsampler/goflow2/decoders/netflow/templates/memory"
 	"github.com/netsampler/goflow2/utils"
 
