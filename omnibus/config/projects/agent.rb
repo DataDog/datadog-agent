@@ -230,6 +230,11 @@ package :msi do
     include_apminject = "true"
   end
 
+  include_procmon = "false"
+  if not windows_arch_i386? and ENV['WINDOWS_DDPROCMON_DRIVER'] and not ENV['WINDOWS_DDPROCMON_DRIVER'].empty?
+    include_procmon = "true"
+  end
+
   additional_sign_files additional_sign_files_list
   parameters({
     'InstallDir' => install_dir,
@@ -240,7 +245,8 @@ package :msi do
     'IncludePython3' => "#{with_python_runtime? '3'}",
     'Platform' => "#{arch}",
     'IncludeSysprobe' => "#{include_sysprobe}",
-    'IncludeAPMInject' => "#{include_apminject}"
+    'IncludeAPMInject' => "#{include_apminject}",
+    'IncludeProcmon' => "#{include_procmon}"
   })
   # This block runs before harvesting with heat.exe
   # It runs in the scope of the packager, so all variables access are from the point-of-view of the packager.

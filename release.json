@@ -14,7 +14,11 @@
         "WINDOWS_DDNPM_DRIVER": "release-signed",
         "WINDOWS_DDNPM_VERSION": "2.5.2",
         "WINDOWS_DDNPM_SHASUM": "57a53c23e0b40da1e75094058498f9982dc80f6aa7feb5a1c8aece6e08292840",
-        "SECURITY_AGENT_POLICIES_VERSION": "master"
+        "SECURITY_AGENT_POLICIES_VERSION": "master",
+        "WINDOWS_APMINJECT_COMMENT": "The WINDOWS_DDPROCMON entries below should NOT be added to the release targets",
+        "WINDOWS_DDPROCMON_DRIVER": "testsigned",
+        "WINDOWS_DDPROCMON_VERSION": "0.1.1.git.18.90d597b",
+        "WINDOWS_DDPROCMON_SHASUM": "3f18bfd8a820fc2aaef6eedc373fd221833de6b291f317674f4ce34102cf8a38"
     },
     "nightly-a7": {
         "INTEGRATIONS_CORE_VERSION": "master",
@@ -26,7 +30,11 @@
         "WINDOWS_DDNPM_DRIVER": "release-signed",
         "WINDOWS_DDNPM_VERSION": "2.5.2",
         "WINDOWS_DDNPM_SHASUM": "57a53c23e0b40da1e75094058498f9982dc80f6aa7feb5a1c8aece6e08292840",
-        "SECURITY_AGENT_POLICIES_VERSION": "master"
+        "SECURITY_AGENT_POLICIES_VERSION": "master",
+        "WINDOWS_APMINJECT_COMMENT": "The WINDOWS_DDPROCMON entries below should NOT be added to the release targets",
+        "WINDOWS_DDPROCMON_DRIVER": "testsigned",
+        "WINDOWS_DDPROCMON_VERSION": "0.1.1.git.18.90d597b",
+        "WINDOWS_DDPROCMON_SHASUM": "3f18bfd8a820fc2aaef6eedc373fd221833de6b291f317674f4ce34102cf8a38"
     },
     "release-a6": {
         "INTEGRATIONS_CORE_VERSION": "7.48.0-rc.2",
