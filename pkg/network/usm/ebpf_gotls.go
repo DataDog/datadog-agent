@@ -273,7 +273,7 @@ func (p *GoTLSProgram) Start() {
 				processSet := make(map[uint32]struct{})
 				p.lock.RLock()
 				for pid := range p.processes {
-					processSet[uint32(pid)] = struct{}{}
+					processSet[pid] = struct{}{}
 				}
 				p.lock.RUnlock()
 
