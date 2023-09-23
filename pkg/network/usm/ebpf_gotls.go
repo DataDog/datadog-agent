@@ -267,7 +267,7 @@ func (p *GoTLSProgram) Start() {
 
 	p.procMonitor.monitor = monitor.GetProcessMonitor()
 	p.procMonitor.cleanupExec = p.procMonitor.monitor.SubscribeExec(p.handleProcessStart)
-	p.procMonitor.cleanupExit = p.procMonitor.monitor.SubscribeExit(p.handleProcessStop)
+	p.procMonitor.cleanupExit = p.procMonitor.monitor.SubscribeExit(p.unregisterProcess)
 
 	p.wg.Add(1)
 	go func() {
@@ -388,10 +388,6 @@ func (p *GoTLSProgram) handleProcessStart(pid pid) {
 		// are doing this.
 		go p.hookNewBinary(binID, binPath, pid, bin)
 	}
-}
-
-func (p *GoTLSProgram) handleProcessStop(pid pid) {
-	p.unregisterProcess(pid)
 }
 
 func (p *GoTLSProgram) hookNewBinary(binID binaryID, binPath string, pid pid, bin *runningBinary) {
