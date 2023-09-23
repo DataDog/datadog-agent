@@ -7,6 +7,7 @@ namespace Datadog.CustomActions
         public const string TraceAgentServiceName = "datadog-trace-agent";
         public const string ProcessAgentServiceName = "datadog-process-agent";
         public const string SystemProbeServiceName = "datadog-system-probe";
+        public const string SecurityAgentServiceName = "datadog-security-agent";
         public const string NpmServiceName = "ddnpm";
 
         // Key under HKLM that contains our options
