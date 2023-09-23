@@ -106,14 +106,8 @@ type binaryID = gotls.TlsBinaryId
 
 // runningBinary represents a binary currently being hooked
 type runningBinary struct {
-	// Inode number of the binary
-	binID binaryID
-
 	// IDs of the probes currently attached on the binary
 	probeIDs []manager.ProbeIdentificationPair
-
-	// Modification time of the hooked binary, at the time of hooking.
-	mTime syscall.Timespec
 
 	// Reference counter for the number of currently running processes for
 	// this binary.
@@ -364,7 +358,7 @@ func (p *GoTLSProgram) handleProcessStart(pid pid) {
 		}
 	}
 
-	oldProcCount, bin, err := p.registerProcess(binID, pid, stat.Mtim)
+	oldProcCount, bin, err := p.registerProcess(binID, pid)
 	if err != nil {
 		log.Warnf("could not register new process (%d) with binary %q: %s", pid, binPath, err)
 		return
@@ -443,19 +437,14 @@ func (p *GoTLSProgram) hookNewBinary(binID binaryID, binPath string, pid pid, bi
 	log.Debugf("attached hooks on %s (%v) in %s", binPath, binID, elapsed)
 }
 
-func (p *GoTLSProgram) registerProcess(binID binaryID, pid pid, mTime syscall.Timespec) (int32, *runningBinary, error) {
+func (p *GoTLSProgram) registerProcess(binID binaryID, pid pid) (int32, *runningBinary, error) {
 	p.lock.Lock()
 	defer p.lock.Unlock()
 
 	bin, found := p.binaries[binID]
 	if !found {
-		bin = &runningBinary{
-			binID: binID,
-			mTime: mTime,
-		}
+		bin = &runningBinary{}
 		p.binaries[binID] = bin
-	} else if mTime != bin.mTime {
-		return 0, nil, fmt.Errorf("binary has been modified since it has been hooked.")
 	}
 
 	old := bin.processCount
@@ -489,7 +478,7 @@ func (p *GoTLSProgram) unregisterProcess(pid pid) {
 	bin.processCount -= 1
 
 	if bin.processCount == 0 {
-		p.unhookBinary(bin)
+		p.unhookBinary(binID, bin.probeIDs)
 		delete(p.binaries, binID)
 	}
 }
@@ -580,16 +569,16 @@ func (p *GoTLSProgram) attachHooks(result *bininspect.Result, binPath string) (p
 
 	return
 }
-func (p *GoTLSProgram) unhookBinary(bin *runningBinary) {
-	if bin.probeIDs == nil {
+func (p *GoTLSProgram) unhookBinary(binID binaryID, probeIDs []manager.ProbeIdentificationPair) {
+	if len(probeIDs) == 0 {
 		// This binary was not hooked in the first place
 		return
 	}
 
-	p.detachHooks(bin.probeIDs)
-	p.removeInspectionResultFromMap(bin.binID)
+	p.detachHooks(probeIDs)
+	p.removeInspectionResultFromMap(binID)
 
-	log.Debugf("detached hooks on ino %v", bin.binID)
+	log.Debugf("detached hooks on ino %v", binID)
 }
 
 func (p *GoTLSProgram) detachHooks(probeIDs []manager.ProbeIdentificationPair) {
