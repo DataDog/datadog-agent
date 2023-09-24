@@ -10,7 +10,7 @@ import (
 	"net/http"
 )
 
-func (lts *logTelemetrySender) addTelemetryHeaders(req *http.Request, apikey, bodylen string) error {
+func (lts *logTelemetrySender) addTelemetryHeaders(req *http.Request, apikey, bodylen string) {
 
 	req.Header.Add("DD-Api-Key", apikey)
 	req.Header.Add("Content-Type", "application/json")
@@ -20,5 +20,5 @@ func (lts *logTelemetrySender) addTelemetryHeaders(req *http.Request, apikey, bo
 	req.Header.Add("dd-client-library-language", "agent")
 	req.Header.Add("dd-client-library-version", "1.5") // should this be agent version?
 	req.Header.Add("datadog-container-id", "1")        // todo is this necessary?  likely not a container
-	return nil
+	return
 }

@@ -42,18 +42,18 @@ type logTelemetrySender struct {
 
 // LogEvent exported so it can be turned into json
 type LogEvent struct {
-	ApiVersion  string         `json:"api_version"`
+	APIVersion  string         `json:"api_version"`
 	RequestType string         `json:"request_type"` // should always be logs
 	TracerTime  int64          `json:"tracer_time"`  // unix timestamp (in seconds)
-	RuntimeId   string         `json:"runtime_id"`
-	SequenceId  int            `json:"seq_id"`
+	RuntimeID   string         `json:"runtime_id"`
+	SequenceID  int            `json:"seq_id"`
 	DebugFlag   bool           `json:"debug"`
 	Host        HostPayload    `json:"host"`
 	Payload     LogPayload     `json:"payload"`
 	Application LogApplication `json:"application"`
-	//	Host LogHost `json:"host"`
 }
 
+// HostPayload defines the host payload object
 type HostPayload struct {
 	Hostname      string `json:"hostname"`
 	OS            string `json:"os"`
@@ -62,24 +62,28 @@ type HostPayload struct {
 	KernelRelease string `json:"kernel_release"`
 	KernelVersion string `json:"kernel_version"`
 }
+
+// LogMessage defines the log message object
 type LogMessage struct {
 	Message string `json:"message"`
 	Level   string `json:"level"`
 }
+
+// LogPayload defines the log payload object
 type LogPayload struct {
 	Logs []LogMessage `json:"logs"`
 }
+
+// LogApplication defines the log application object
 type LogApplication struct {
 	ServiceName     string `json:"service_name"`
 	LanguageName    string `json:"language_name"`
 	LanguageVersion string `json:"language_version"`
 	TracerVersion   string `json:"tracer_version"`
 }
-type LogHost struct {
-}
 
 var (
-	msgSequenceId = int(1) // will increment on every send
+	msgSequenceID = int(1) // will increment on every send
 )
 
 // NewLogTelemetrySender returns either collector, or a noop implementation if instrumentation telemetry is disabled
@@ -109,10 +113,10 @@ func NewLogTelemetrySender(cfg *config.AgentConfig, svcname, langname string) Lo
 		cfg:                   cfg,
 		collectedStartupError: &atomic.Bool{},
 		logEvent: LogEvent{
-			ApiVersion:  "v2",
+			APIVersion:  "v2",
 			RequestType: "logs",
 			DebugFlag:   true,
-			RuntimeId:   info.HostID,
+			RuntimeID:   info.HostID,
 			Host: HostPayload{
 				Hostname:      info.Hostname,
 				OS:            info.OS,
@@ -132,12 +136,12 @@ func NewLogTelemetrySender(cfg *config.AgentConfig, svcname, langname string) Lo
 }
 
 func (lts *logTelemetrySender) formatMessage(level, message string) *LogEvent {
-	sq := msgSequenceId // todo, this is racy
-	msgSequenceId++
+	sq := msgSequenceID // todo, this is racy
+	msgSequenceID++
 
 	le := lts.logEvent // take all the prepoulated values.
 	le.TracerTime = time.Now().Unix()
-	le.SequenceId = sq
+	le.SequenceID = sq
 
 	lm := LogMessage{
 		Message: message,

@@ -15,9 +15,9 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func testCfg(serverUrl string) *config.AgentConfig {
+func testCfg(serverURL string) *config.AgentConfig {
 	cfg := config.New()
-	cfg.TelemetryConfig.Endpoints[0].Host = serverUrl
+	cfg.TelemetryConfig.Endpoints[0].Host = serverURL
 	cfg.TelemetryConfig.Enabled = true
 	return cfg
 }
