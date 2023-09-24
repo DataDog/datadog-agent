@@ -12,6 +12,7 @@ import (
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/core/hostname"
 	"github.com/DataDog/datadog-agent/comp/core/log"
 )
 
@@ -21,6 +22,7 @@ func TestBundleDependencies(t *testing.T) {
 		// automatically.
 		fx.Invoke(func(config.Component) {}),
 		fx.Invoke(func(log.Component) {}),
+		fx.Invoke(func(hostname.Component) {}),
 
 		fx.Supply(BundleParams{}),
 		Bundle))
@@ -34,6 +36,7 @@ func TestMockBundleDependencies(t *testing.T) {
 		// automatically.
 		fx.Invoke(func(config.Component) {}),
 		fx.Invoke(func(log.Component) {}),
+		fx.Invoke(func(hostname.Component) {}),
 
 		fx.Supply(BundleParams{}),
 		MockBundle))

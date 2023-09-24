@@ -446,6 +446,9 @@ type AgentConfig struct {
 	// DebuggerProxy contains the settings for the Live Debugger proxy.
 	DebuggerProxy DebuggerProxyConfig
 
+	// DebuggerDiagnosticsProxy contains the settings for the Live Debugger diagnostics proxy.
+	DebuggerDiagnosticsProxy DebuggerProxyConfig
+
 	// SymDBProxy contains the settings for the Symbol Database proxy.
 	SymDBProxy SymDBProxyConfig
 

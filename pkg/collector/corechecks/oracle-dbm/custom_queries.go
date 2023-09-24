@@ -9,10 +9,11 @@ package oracle
 
 import (
 	"fmt"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
-	godror "github.com/godror/godror"
 	"reflect"
 	"strconv"
+
+	"github.com/DataDog/datadog-agent/pkg/util/log"
+	godror "github.com/godror/godror"
 )
 
 type Method func(string, float64, string, []string)
@@ -76,7 +77,7 @@ func (c *Check) CustomQueries() error {
 			allErrors = concatenateError(allErrors, "Undefined metric_prefix for a custom query")
 			continue
 		}
-		log.Debugf("custom query configuration %v", q)
+		log.Debugf("%s custom query configuration %v", c.logPrompt, q)
 		var pdb string
 		if !c.connectedToPdb {
 			pdb = q.Pdb
@@ -165,7 +166,7 @@ func (c *Check) CustomQueries() error {
 			if len(q.Tags) > 0 {
 				tags = append(tags, q.Tags...)
 			}
-			log.Debugf("Appended queried tags to check tags %v", tags)
+			log.Debugf("%s Appended queried tags to check tags %v", c.logPrompt, tags)
 			for i := range metricsFromSingleRow {
 				metricsFromSingleRow[i].tags = make([]string, len(tags))
 				copy(metricsFromSingleRow[i].tags, tags)
@@ -177,7 +178,7 @@ func (c *Check) CustomQueries() error {
 			continue
 		}
 		for _, m := range metricRows {
-			log.Debugf("send metric %+v", m)
+			log.Debugf("%s send metric %+v", c.logPrompt, m)
 			m.method(m.name, m.value, "", m.tags)
 		}
 		sender.Commit()

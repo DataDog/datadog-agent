@@ -13,17 +13,21 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"path"
 	"path/filepath"
 	"sort"
 	"sync"
 	"time"
 
+	"github.com/DataDog/datadog-go/v5/statsd"
 	"github.com/fsnotify/fsnotify"
 	"github.com/skydive-project/go-debouncer"
 	"golang.org/x/exp/slices"
 
 	proto "github.com/DataDog/agent-payload/v5/cws/dumpsv1"
 
+	"github.com/DataDog/datadog-agent/pkg/security/config"
+	"github.com/DataDog/datadog-agent/pkg/security/metrics"
 	cgroupModel "github.com/DataDog/datadog-agent/pkg/security/resolvers/cgroup/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
@@ -35,7 +39,7 @@ var (
 	newFileDebounceDelay          = 2 * time.Second
 )
 
-const profileExtension = ".profile"
+var profileExtension = "." + config.Profile.String()
 
 // make sure the DirectoryProvider implements Provider
 var _ Provider = (*DirectoryProvider)(nil)
@@ -214,7 +218,7 @@ func (dp *DirectoryProvider) loadProfile(profilePath string) error {
 
 	// update profile mapping
 	if existingProfile, ok := dp.profileMapping[workloadSelector]; ok {
-		if existingProfile.version >= profile.Version {
+		if existingProfile.version > profile.Version {
 			seclog.Warnf("ignoring %s (version: %v status: %s): a more recent version of this profile already exists (existing version is %v)", profilePath, profile.Version, model.Status(profile.Status), existingProfile.version)
 			return nil
 		}
@@ -269,6 +273,30 @@ func (dp *DirectoryProvider) getProfiles() map[cgroupModel.WorkloadSelector]prof
 	dp.Lock()
 	defer dp.Unlock()
 	return dp.profileMapping
+}
+
+// OnLocalStorageCleanup removes the provided files from the entries of the directory provider
+func (dp *DirectoryProvider) OnLocalStorageCleanup(files []string) {
+	dp.Lock()
+	defer dp.Unlock()
+
+	fileMask := make(map[string]bool)
+	for _, file := range files {
+		if path.Ext(file) == profileExtension {
+			fileMask[file] = true
+		}
+	}
+
+	// iterate through the list of profiles and remove the entries that are about to be deleted from the file system
+	for selector, fsEntry := range dp.profileMapping {
+		if _, found := fileMask[fsEntry.path]; found {
+			delete(dp.profileMapping, selector)
+			delete(fileMask, fsEntry.path)
+			if len(fileMask) == 0 {
+				break
+			}
+		}
+	}
 }
 
 func (dp *DirectoryProvider) deleteProfile(selector cgroupModel.WorkloadSelector) {
@@ -355,4 +383,18 @@ func (dp *DirectoryProvider) watch(ctx context.Context) {
 			}
 		}
 	}()
+}
+
+// SendStats sends the metrics of the directory provider
+func (dp *DirectoryProvider) SendStats(client statsd.ClientInterface) error {
+	dp.Lock()
+	defer dp.Unlock()
+
+	if value := len(dp.profileMapping); value > 0 {
+		if err := client.Gauge(metrics.MetricSecurityProfileDirectoryProviderCount, float64(value), []string{}, 1.0); err != nil {
+			return fmt.Errorf("couldn't send %s metric: %w", metrics.MetricSecurityProfileDirectoryProviderCount, err)
+		}
+	}
+
+	return nil
 }

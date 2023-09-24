@@ -19,9 +19,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/DataDog/ebpf-manager/tracefs"
 	"github.com/hashicorp/go-multierror"
-	easyjson "github.com/mailru/easyjson"
+	"github.com/mailru/easyjson"
 	"github.com/moby/sys/mountinfo"
 	"golang.org/x/exp/slices"
 	"golang.org/x/sys/unix"
@@ -29,6 +28,7 @@ import (
 	"gopkg.in/yaml.v3"
 
 	manager "github.com/DataDog/ebpf-manager"
+	"github.com/DataDog/ebpf-manager/tracefs"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/ebpf/probe/ebpfcheck"
 	aconfig "github.com/DataDog/datadog-agent/pkg/config"
@@ -36,7 +36,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/process/procutil"
 	"github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/ebpf"
-	kernel "github.com/DataDog/datadog-agent/pkg/security/ebpf/kernel"
+	"github.com/DataDog/datadog-agent/pkg/security/ebpf/kernel"
 	"github.com/DataDog/datadog-agent/pkg/security/ebpf/probes"
 	"github.com/DataDog/datadog-agent/pkg/security/events"
 	"github.com/DataDog/datadog-agent/pkg/security/metrics"
@@ -364,14 +364,11 @@ func (p *Probe) DispatchEvent(event *model.Event) {
 		p.profileManagers.securityProfileManager.LookupEventInProfiles(event)
 	}
 
-	// send wildcard first
-	for _, handler := range p.eventHandlers[model.UnknownEventType] {
-		handler.HandleEvent(event)
-	}
-	// send specific event
-	for _, handler := range p.eventHandlers[event.GetEventType()] {
-		handler.HandleEvent(event)
-	}
+	// send event to wildcard handlers, like the CWS rule engine, first
+	p.sendEventToWildcardHandlers(event)
+
+	// send event to specific event handlers, like the event monitor consumers, subsequently
+	p.sendEventToSpecificEventTypeHandlers(event)
 
 	// handle anomaly detections
 	if event.IsAnomalyDetectionEvent() {
@@ -386,6 +383,18 @@ func (p *Probe) DispatchEvent(event *model.Event) {
 		}
 	}
 	p.monitor.ProcessEvent(event)
+}
+
+func (p *Probe) sendEventToWildcardHandlers(event *model.Event) {
+	for _, handler := range p.fullAccessEventHandlers[model.UnknownEventType] {
+		handler.HandleEvent(event)
+	}
+}
+
+func (p *Probe) sendEventToSpecificEventTypeHandlers(event *model.Event) {
+	for _, handler := range p.eventHandlers[event.GetEventType()] {
+		handler.HandleEvent(handler.Copy(event))
+	}
 }
 
 // DispatchCustomEvent sends a custom event to the probe event handler
@@ -581,7 +590,7 @@ func (p *Probe) handleEvent(CPU int, data []byte) {
 		// TODO: this should be moved in the resolver itself in order to handle the fallbacks
 		if event.Mount.GetFSType() == "nsfs" {
 			nsid := uint32(event.Mount.RootPathKey.Inode)
-			mountPath, err := p.resolvers.MountResolver.ResolveMountPath(event.Mount.MountID, event.PIDContext.Pid, event.ContainerContext.ID)
+			mountPath, err := p.resolvers.MountResolver.ResolveMountPath(event.Mount.MountID, event.Mount.Device, event.PIDContext.Pid, event.ContainerContext.ID)
 			if err != nil {
 				seclog.Debugf("failed to get mount path: %v", err)
 			} else {
@@ -597,7 +606,7 @@ func (p *Probe) handleEvent(CPU int, data []byte) {
 		}
 
 		// we can skip this error as this is for the umount only and there is no impact on the filepath resolution
-		mount, _ := p.resolvers.MountResolver.ResolveMount(event.Umount.MountID, event.PIDContext.Pid, event.ContainerContext.ID)
+		mount, _ := p.resolvers.MountResolver.ResolveMount(event.Umount.MountID, 0, event.PIDContext.Pid, event.ContainerContext.ID)
 		if mount != nil && mount.GetFSType() == "nsfs" {
 			nsid := uint32(mount.RootPathKey.Inode)
 			if namespace := p.resolvers.NamespaceResolver.ResolveNetworkNamespace(nsid); namespace != nil {
@@ -711,6 +720,9 @@ func (p *Probe) handleEvent(CPU int, data []byte) {
 		// The pid_cache kernel map has the exit_time but it's only accessed if there's a local miss
 		event.ProcessCacheEntry.Process.ExitTime = p.fieldHandlers.ResolveEventTime(event)
 		event.Exit.Process = &event.ProcessCacheEntry.Process
+
+		// update mount pid mapping
+		p.resolvers.MountResolver.DelPid(event.Exit.Pid)
 	case model.SetuidEventType:
 		if _, err = event.SetUID.UnmarshalBinary(data[offset:]); err != nil {
 			seclog.Errorf("failed to decode setuid event: %s (offset %d, len %d)", err, offset, len(data))
@@ -750,7 +762,7 @@ func (p *Probe) handleEvent(CPU int, data []byte) {
 			pce = p.resolvers.ProcessResolver.Resolve(event.PTrace.PID, event.PTrace.PID, 0, false)
 		}
 		if pce == nil {
-			pce = model.NewEmptyProcessCacheEntry(event.PTrace.PID, event.PTrace.PID, false)
+			pce = model.NewPlaceholderProcessCacheEntry(event.PTrace.PID, event.PTrace.PID, false)
 		}
 		event.PTrace.Tracee = &pce.ProcessContext
 	case model.MMapEventType:
@@ -795,7 +807,7 @@ func (p *Probe) handleEvent(CPU int, data []byte) {
 			pce = p.resolvers.ProcessResolver.Resolve(event.Signal.PID, event.Signal.PID, 0, false)
 		}
 		if pce == nil {
-			pce = model.NewEmptyProcessCacheEntry(event.Signal.PID, event.Signal.PID, false)
+			pce = model.NewPlaceholderProcessCacheEntry(event.Signal.PID, event.Signal.PID, false)
 		}
 		event.Signal.Target = &pce.ProcessContext
 	case model.SpliceEventType:
@@ -1300,7 +1312,7 @@ func (p *Probe) handleNewMount(ev *model.Event, m *model.Mount) error {
 	}
 
 	// Insert new mount point in cache, passing it a copy of the mount that we got from the event
-	if err := p.resolvers.MountResolver.Insert(*m); err != nil {
+	if err := p.resolvers.MountResolver.Insert(*m, 0); err != nil {
 		seclog.Errorf("failed to insert mount event: %v", err)
 		return err
 	}
@@ -1344,10 +1356,6 @@ func (p *Probe) ApplyRuleSet(rs *rules.RuleSet) (*kfilters.ApplyRuleSetReport, e
 		if err := p.SetApprovers(eventType, report.Approvers); err != nil {
 			return nil, err
 		}
-	}
-
-	if err := p.FlushDiscarders(); err != nil {
-		return nil, fmt.Errorf("failed to flush discarders: %w", err)
 	}
 
 	if err := p.updateProbes(rs.GetEventTypes(), false); err != nil {
@@ -1599,6 +1607,7 @@ func NewProbe(config *config.Config, opts Opts) (*Probe, error) {
 		PathResolutionEnabled: opts.PathResolutionEnabled,
 		TagsResolver:          opts.TagsResolver,
 		UseRingBuffer:         useRingBuffers,
+		TTYFallbackEnabled:    opts.TTYFallbackEnabled,
 	}
 	p.resolvers, err = resolvers.NewResolvers(config, p.Manager, p.StatsdClient, p.scrubber, p.Erpc, resolversOpts)
 	if err != nil {

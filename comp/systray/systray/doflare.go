@@ -141,7 +141,7 @@ func onFlare(s *systray) {
 	// pass data around.  Don't allow multiple dialogs to be displayed
 
 	// (in go1.18, this could be done with sync.Mutex#TryLock)
-	if !inProgress.CAS(false, true) {
+	if !inProgress.CompareAndSwap(false, true) {
 		s.log.Warn("Dialog already in progress, skipping")
 		return
 	}

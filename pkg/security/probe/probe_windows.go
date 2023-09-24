@@ -107,16 +107,24 @@ func (p *Probe) Start() error {
 // DispatchEvent sends an event to the probe event handler
 func (p *Probe) DispatchEvent(event *model.Event) {
 
-	// send wildcard first
-	for _, handler := range p.eventHandlers[model.UnknownEventType] {
+	// send event to wildcard handlers, like the CWS rule engine, first
+	p.sendEventToWildcardHandlers(event)
+
+	// send event to specific event handlers, like the event monitor consumers, subsequently
+	p.sendEventToSpecificEventTypeHandlers(event)
+
+}
+
+func (p *Probe) sendEventToWildcardHandlers(event *model.Event) {
+	for _, handler := range p.fullAccessEventHandlers[model.UnknownEventType] {
 		handler.HandleEvent(event)
 	}
+}
 
-	// send specific event
+func (p *Probe) sendEventToSpecificEventTypeHandlers(event *model.Event) {
 	for _, handler := range p.eventHandlers[event.GetEventType()] {
-		handler.HandleEvent(event)
+		handler.HandleEvent(handler.Copy(event))
 	}
-
 }
 
 // Snapshot runs the different snapshot functions of the resolvers that
@@ -199,4 +207,9 @@ func (p *Probe) OnNewDiscarder(rs *rules.RuleSet, ev *model.Event, field eval.Fi
 // ApplyRuleSet setup the probes for the provided set of rules and returns the policy report.
 func (p *Probe) ApplyRuleSet(rs *rules.RuleSet) (*kfilters.ApplyRuleSetReport, error) {
 	return kfilters.NewApplyRuleSetReport(p.Config.Probe, rs)
+}
+
+// FlushDiscarders invalidates all the discarders
+func (p *Probe) FlushDiscarders() error {
+	return nil
 }

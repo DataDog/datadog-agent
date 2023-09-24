@@ -169,7 +169,7 @@ func (p *Processor) processContainer(sender sender.Sender, tags []string, contai
 		p.sendMetric(sender.Gauge, "container.memory.working_set", containerStats.Memory.PrivateWorkingSet, tags) // Windows
 		p.sendMetric(sender.Gauge, "container.memory.commit", containerStats.Memory.CommitBytes, tags)
 		p.sendMetric(sender.Gauge, "container.memory.commit.peak", containerStats.Memory.CommitPeakBytes, tags)
-		p.sendMetric(sender.Gauge, "container.memory.peak", containerStats.Memory.Peak, tags)
+		p.sendMetric(sender.Gauge, "container.memory.usage.peak", containerStats.Memory.Peak, tags)
 		p.sendMetric(sender.Rate, "container.memory.partial_stall", containerStats.Memory.PartialStallTime, tags)
 	}
 

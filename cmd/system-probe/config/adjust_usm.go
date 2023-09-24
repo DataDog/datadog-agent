@@ -25,6 +25,8 @@ func adjustUSM(cfg config.Config) {
 	}
 
 	deprecateBool(cfg, netNS("enable_http_monitoring"), smNS("enable_http_monitoring"))
+	deprecateBool(cfg, netNS("enable_https_monitoring"), smNS("tls", "native", "enabled"))
+	deprecateBool(cfg, smNS("enable_go_tls_support"), smNS("tls", "go", "enabled"))
 	deprecateGeneric(cfg, netNS("http_replace_rules"), smNS("http_replace_rules"))
 	deprecateInt64(cfg, netNS("max_tracked_http_connections"), smNS("max_tracked_http_connections"))
 	applyDefault(cfg, smNS("max_tracked_http_connections"), 1024)

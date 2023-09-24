@@ -31,6 +31,9 @@ const (
 	ErrPathMustBeAbsolute = "all the path have to be absolute"            // ErrPathMustBeAbsolute tells when a path is not absolute
 	ErrPathDepthLimit     = "path depths have to be shorter than"         // ErrPathDepthLimit tells when a path is too long
 	ErrPathSegmentLimit   = "each segment of a path must be shorter than" // ErrPathSegmentLimit tells when a patch reached the segment limit
+
+	// SizeOfCookie size of cookie
+	SizeOfCookie = 8
 )
 
 // check that all path are absolute
@@ -303,7 +306,7 @@ type Process struct {
 
 	CreatedAt uint64 `field:"created_at,handler:ResolveProcessCreatedAt"` // SECLDoc[created_at] Definition:`Timestamp of the creation of the process`
 
-	Cookie uint32 `field:"-"`
+	Cookie uint64 `field:"-"`
 	PPid   uint32 `field:"ppid"` // SECLDoc[ppid] Definition:`Parent process ID`
 
 	// credentials_t section of pid_cache_t
@@ -329,10 +332,8 @@ type Process struct {
 	SymlinkBasenameStr string              `field:"-" json:"-"`
 
 	// cache version
-	ScrubbedArgvResolved  bool           `field:"-" json:"-"`
-	ScrubbedArgv          []string       `field:"-" json:"-"`
-	ScrubbedArgsTruncated bool           `field:"-" json:"-"`
-	Variables             eval.Variables `field:"-" json:"-"`
+	ScrubbedArgvResolved bool           `field:"-" json:"-"`
+	Variables            eval.Variables `field:"-" json:"-"`
 
 	IsThread    bool `field:"is_thread"` // SECLDoc[is_thread] Definition:`Indicates whether the process is considered a thread (that is, a child process that hasn't executed another program)`
 	IsExecChild bool `field:"-"`         // Indicates whether the process is an exec child of its parent
@@ -356,6 +357,8 @@ type FileFields struct {
 	MTime uint64 `field:"modification_time"`                             // SECLDoc[modification_time] Definition:`Modification time (mtime) of the file`
 
 	PathKey
+	Device uint32 `field:"-"`
+
 	InUpperLayer bool `field:"in_upper_layer,handler:ResolveFileFieldsInUpperLayer"` // SECLDoc[in_upper_layer] Definition:`Indicator of the file layer, for example, in an OverlayFS`
 
 	NLink uint32 `field:"-" json:"-"`
@@ -719,7 +722,7 @@ type SpliceEvent struct {
 type CgroupTracingEvent struct {
 	ContainerContext ContainerContext
 	Config           ActivityDumpLoadConfig
-	ConfigCookie     uint32
+	ConfigCookie     uint64
 }
 
 // ActivityDumpLoadConfig represents the load configuration of an activity dump

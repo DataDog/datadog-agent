@@ -16,8 +16,6 @@ jobs:
 
       - name: Checkout datadog-agent repository
         uses: actions/checkout@v4
-        with:
-          ref: main
 
       - name: Checkout btfhub-archive repository
         uses: actions/checkout@v4

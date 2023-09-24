@@ -15,7 +15,7 @@
 #
 
 name "rpm"
-default_version "4.18.0"
+default_version "4.18.1"
 
 license "LGPLv2"
 license_file "COPYING"
@@ -34,9 +34,9 @@ dependency "lua"
 
 ship_source_offer true
 
-version "4.18.0" do
+version "4.18.1" do
   source url: "http://ftp.rpm.org/releases/rpm-4.18.x/rpm-#{version}.tar.bz2",
-         sha256: "2a17152d7187ab30edf2c2fb586463bdf6388de7b5837480955659e5e9054554"
+         sha256: "37f3b42c0966941e2ad3f10fde3639824a6591d07197ba8fd0869ca0779e1f56"
 end
 
 relative_path "rpm-#{version}"
@@ -50,6 +50,10 @@ build do
 
   patch source: "0001-Include-fcntl.patch", env: env # fix build
   patch source: "rpmdb-no-create.patch", env: env # don't create db if it doesn't exist already
+
+  # Build fixes since 4.18.1.
+  patch source: "0417-Fix-compiler-error-on-clang.patch", env: env
+  patch source: "0418-Move-variable-to-nearest-available-scope.patch", env: env
 
   update_config_guess
   
