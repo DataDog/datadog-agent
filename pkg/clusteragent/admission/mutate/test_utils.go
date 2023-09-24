@@ -8,6 +8,8 @@
 package mutate
 
 import (
+	"github.com/DataDog/datadog-agent/pkg/config"
+	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
@@ -96,14 +98,39 @@ func fakePodWithAnnotation(k, v string) *corev1.Pod {
 	return withContainer(pod, "-container")
 }
 
-func fakePodWithAnnotations(as map[string]string) *corev1.Pod {
+func fakePodWithParent(ns string, as, ls map[string]string, es []corev1.EnvVar, parentKind, parentName string) *corev1.Pod {
 	pod := &corev1.Pod{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:        "pod",
-			Annotations: as,
+			Name:            "pod",
+			Namespace:       ns,
+			Annotations:     as,
+			Labels:          ls,
+			OwnerReferences: []metav1.OwnerReference{},
 		},
 	}
-	return withContainer(pod, "-container")
+	if parentKind == "deployment" {
+		deployment := &appsv1.Deployment{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      parentName,
+				Namespace: ns,
+			},
+		}
+		pod.ObjectMeta.OwnerReferences = append(pod.ObjectMeta.OwnerReferences, *metav1.NewControllerRef(deployment, appsv1.SchemeGroupVersion.WithKind("ReplicaSet")))
+	} else if parentKind == "persistentvolume" {
+		rs := &appsv1.ReplicaSet{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      parentName,
+				Namespace: ns,
+			},
+		}
+		pod.ObjectMeta.OwnerReferences = append(pod.ObjectMeta.OwnerReferences, *metav1.NewControllerRef(rs, appsv1.SchemeGroupVersion.WithKind("PersistentVolume")))
+	}
+
+	pod.Spec.Containers = append(pod.Spec.Containers, corev1.Container{
+		Name: pod.Name,
+		Env:  es,
+	})
+	return pod
 }
 
 func fakePodWithEnv(name, env string) *corev1.Pod {
@@ -132,4 +159,9 @@ func fakePod(name string) *corev1.Pod {
 func withContainer(pod *corev1.Pod, nameSuffix string) *corev1.Pod {
 	pod.Spec.Containers = append(pod.Spec.Containers, corev1.Container{Name: pod.Name + nameSuffix})
 	return pod
+}
+
+func resetMockConfig(c *config.MockConfig) {
+	c.Set("admission_controller.mutate_unlabelled", false)
+	c.Set("admission_controller.auto_instrumentation.apm_enabled", false)
 }

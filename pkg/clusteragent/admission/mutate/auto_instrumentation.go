@@ -11,6 +11,8 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/DataDog/datadog-agent/pkg/util/pointer"
+	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"strconv"
 	"strings"
 
@@ -19,6 +21,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
+	admCommon "github.com/DataDog/datadog-agent/pkg/clusteragent/admission/common"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	"k8s.io/client-go/dynamic"
@@ -96,9 +99,41 @@ func initContainerName(lang language) string {
 	return fmt.Sprintf("datadog-lib-%s-init", lang)
 }
 
+// getDeploymentReference returns the OwnerReference if it is a deployment Kind
+func getDeploymentReference(pod *corev1.Pod) *v1.OwnerReference {
+	ownerReferences := pod.ObjectMeta.OwnerReferences
+
+	for _, ownerRef := range ownerReferences {
+		if ownerRef.Kind == "ReplicaSet" {
+			return &ownerRef
+		}
+	}
+	return nil
+}
+
 func injectAutoInstrumentation(pod *corev1.Pod, _ string, _ dynamic.Interface) error {
 	if pod == nil {
 		return errors.New("cannot inject lib into nil pod")
+	}
+
+	if config.Datadog.GetBool("admission_controller.auto_instrumentation.apm_enabled") {
+		// Note that shouldMutatePod() is not used here since it checks the mutate_unlabelled
+		// setting which we want to ignore with this setting.
+		if deployment := getDeploymentReference(pod); deployment == nil {
+			log.Debugf("Skipping pod %q as it's not from a deployment", podString(pod))
+			return nil
+		}
+
+		// The way to opt-out of the automatic instrumentation is to set the enabled label to false.
+		if pod.GetLabels()[admCommon.EnabledLabelKey] == "false" {
+			log.Debugf("Skipping auto instrumentation of pod %q due to label", podString(pod))
+			return nil
+		}
+	} else {
+		if !shouldMutatePod(pod) {
+			log.Debugf("Skipping auto instrumentation of pod %q due to label", podString(pod))
+			return nil
+		}
 	}
 
 	for _, lang := range supportedLanguages {
@@ -124,6 +159,9 @@ func injectAutoInstrumentation(pod *corev1.Pod, _ string, _ dynamic.Interface) e
 }
 
 func isNsTargeted(ns string) bool {
+	if config.Datadog.GetBool("admission_controller.auto_instrumentation.apm_enabled") {
+		return true
+	}
 	if len(targetNamespaces) == 0 {
 		return false
 	}
@@ -337,6 +375,16 @@ func injectAutoInstruConfig(pod *corev1.Pod, libsToInject []libInfo) error {
 
 	injectLibVolume(pod)
 
+	// Try to inject any configuration defaults that have not already been injected as env vars.
+	if config.Datadog.GetBool("admission_controller.auto_instrumentation.apm_enabled") {
+		if deployment := getDeploymentReference(pod); deployment != nil {
+			libConfig := basicConfig()
+			libConfig.ServiceName = pointer.Ptr(deployment.Name)
+			for _, env := range libConfig.ToEnvs() {
+				_ = injectEnv(pod, env)
+			}
+		}
+	}
 	return lastError
 }
 
@@ -425,6 +473,19 @@ func injectLibRequirements(pod *corev1.Pod, ctrName string, envVars []envVar) er
 	}
 
 	return nil
+}
+
+// basicConfig returns the default tracing config to inject into application pods
+// when no other config has been provided.
+func basicConfig() common.LibConfig {
+	return common.LibConfig{
+		Tracing:             pointer.Ptr(true),
+		LogInjection:        pointer.Ptr(true),
+		HealthMetrics:       pointer.Ptr(true),
+		RuntimeMetrics:      pointer.Ptr(true),
+		TracingSamplingRate: pointer.Ptr(1.0),
+		TracingRateLimit:    pointer.Ptr(100),
+	}
 }
 
 // injectLibConfig injects additional library configuration extracted from pod annotations
