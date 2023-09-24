@@ -24,6 +24,7 @@ import (
 	"go.uber.org/atomic"
 )
 
+// LogTelemetrySender defines the interface for sending telemetry information
 type LogTelemetrySender interface {
 	SendLog(level, message string)
 }

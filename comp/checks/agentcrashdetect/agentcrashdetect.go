@@ -56,12 +56,14 @@ var (
 	baseKey = `SOFTWARE\Datadog\Datadog Agent\windows_agent_crash_reporting`
 )
 
-// Config is the configuration options for this check
+// WinCrashConfig is the configuration options for this check
 // it is exported so that the yaml parser can read it.
 type WinCrashConfig struct {
 	Enabled bool `yaml:"enabled"` // placeholder for config
 }
 
+// AgentCrashDetect is the core check object; it implements the core check interface
+// for running agent checks
 type AgentCrashDetect struct {
 	core.CheckBase
 	instance   *WinCrashConfig
@@ -71,17 +73,12 @@ type AgentCrashDetect struct {
 }
 
 type agentCrashComponent struct {
-	aconfig config.ConfigReader
 	tconfig *traceconfig.AgentConfig
-	//fx.Out
-	//Component
 }
 
 type dependencies struct {
 	fx.In
 
-	//TraceConfigComponent comptraceconfig.Component
-	//Config    configComponent.Component
 	TConfig   comptraceconfig.Component
 	Lifecycle fx.Lifecycle
 }

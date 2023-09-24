@@ -5,7 +5,7 @@
 
 //go:build windows
 
-// package crashreg provides shared helpers for recording crash detection state
+// Package crashreport provides shared helpers for recording crash detection state
 package crashreport
 
 import (
@@ -21,7 +21,7 @@ import (
 	"golang.org/x/sys/windows/registry"
 )
 
-// WinCrashRegistry is the helper object for getting/storing crash state
+// WinCrashReporter is the helper object for getting/storing crash state
 type WinCrashReporter struct {
 	hive             registry.Key
 	baseKey          string
@@ -95,6 +95,8 @@ func (wcr *WinCrashReporter) handleStartupError(err error) error {
 	}
 	return err
 }
+
+// CheckForCrash uses the system probe crash module to check for a crash
 func (wcr *WinCrashReporter) CheckForCrash() (*probe.WinCrashStatus, error) {
 	if wcr.hasRunOnce {
 		return nil, nil

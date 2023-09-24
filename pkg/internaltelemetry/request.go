@@ -20,5 +20,4 @@ func (lts *logTelemetrySender) addTelemetryHeaders(req *http.Request, apikey, bo
 	req.Header.Add("dd-client-library-language", "agent")
 	req.Header.Add("dd-client-library-version", "1.5") // should this be agent version?
 	req.Header.Add("datadog-container-id", "1")        // todo is this necessary?  likely not a container
-	return
 }
