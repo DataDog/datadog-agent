@@ -239,5 +239,6 @@ func isApmInstrumentationEnabled(namespace string) bool {
 			return false
 		}
 	}
+
 	return isNsEnabled
 }

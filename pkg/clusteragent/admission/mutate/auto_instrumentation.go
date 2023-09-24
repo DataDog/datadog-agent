@@ -144,10 +144,20 @@ func isNsTargeted(ns string) bool {
 }
 
 func injectAll(ns, registry string) map[string]libInfo {
-	libsToInject := make(map[string]libInfo)
+	libsToInject := map[string]libInfo{}
+	var libVersion string
 	if isNsTargeted(ns) || isApmInstrumentationEnabled(ns) {
+		singleStepLibraryVersions := config.Datadog.GetStringMapString("apm_config.instrumentation.lib_versions")
 		for _, lang := range supportedLanguages {
-			libVersion := singleStepLibraryVersions(lang)
+			libVersion = "latest"
+
+			// if Single Step Instrumentation enabled, check if some libarries have pinned versions
+			if isApmInstrumentationEnabled(ns) {
+				if version, ok := singleStepLibraryVersions[string(lang)]; ok {
+					log.Warnf("Library version %s is specified for language %s", version, string(lang))
+					libVersion = version
+				}
+			}
 			libsToInject[string(lang)] = libInfo{
 				lang:  lang,
 				image: fmt.Sprintf(imageFormat, registry, lang, libVersion),
@@ -166,7 +176,7 @@ type libInfo struct {
 // extractLibInfo returns the language, the image,
 // and a boolean indicating whether the library should be injected into the pod
 func extractLibInfo(pod *corev1.Pod, containerRegistry string) []libInfo {
-	libInfoMap := make(map[string]libInfo)
+	libInfoMap := map[string]libInfo{}
 
 	// Inject all libraries if Single Step Instrumentation is enabled
 	if isApmInstrumentationEnabled(pod.Namespace) {
@@ -531,17 +541,6 @@ func basicConfig() common.LibConfig {
 		RuntimeMetrics:      pointer.Ptr(true),
 		TracingSamplingRate: pointer.Ptr(1.0),
 		TracingRateLimit:    pointer.Ptr(100),
-	}
-}
-
-func singleStepLibraryVersions(lang language) string {
-	//libVersions := config.Datadog.GetString("admission_controller.auto_instrumentation.container_registry")
-	libVersions := config.Datadog.GetStringMapString("apm_config.instrumentation.lib_versions")
-	if version, ok := libVersions[string(lang)]; ok {
-		return version
-	} else {
-		log.Warnf("Library version is not specified for language %s. Use `latest` version.", lang)
-		return "latest"
 	}
 }
 

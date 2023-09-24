@@ -600,15 +600,13 @@ func TestExtractLibInfo(t *testing.T) {
 		},
 	}
 	for _, tt := range tests {
-		//setupConfig:  func() { mockConfig.Set("apm_config.instrumentation.enabled", true) },
 		t.Run(tt.name, func(t *testing.T) {
-			mockConfig = config.Mock(nil)
+			mockConfig = config.Mock(t)
 			mockConfig.Set("admission_controller.mutate_unlabelled", true)
 			if tt.setupConfig != nil {
 				tt.setupConfig()
 			}
 			libsToInject := extractLibInfo(tt.pod, tt.containerRegistry)
-			//require.Equal(t, tt.expectedLibsToInject, libsToInject)
 			require.ElementsMatch(t, tt.expectedLibsToInject, libsToInject)
 		})
 	}
@@ -1354,7 +1352,7 @@ func TestInjectAutoInstrumentation(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			mockConfig = config.Mock(nil)
+			mockConfig = config.Mock(t)
 			if tt.setupConfig != nil {
 				tt.setupConfig()
 			}
