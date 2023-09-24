@@ -133,8 +133,8 @@ func wafHealth() error {
 	if ok, err := waf.SupportsTarget(); !ok {
 		return err
 	}
-	ok, err := waf.Load()
-	if !ok {
+
+	if ok, err := waf.Load(); !ok {
 		return err
 	}
 	return nil
