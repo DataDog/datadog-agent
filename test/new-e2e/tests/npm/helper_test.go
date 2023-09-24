@@ -84,6 +84,7 @@ func validateUDPConnection(t *testing.T, c *agentmodel.Connection) {
 	require.Zero(t, c.Rtt, "Rtt != 0")
 	require.Zero(t, c.RttVar, "RttVar != 0")
 	require.Zero(t, c.LastRetransmits, "LastRetransmits != 0")
+	require.Zero(t, c.LastTcpEstablished, "LastTcpEstablished != 0")
 
 	// we can this only for UDP connection as there are no empty payload packets
 	// technically possible but in reality no UDP protocol implement that
