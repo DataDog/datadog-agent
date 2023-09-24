@@ -135,10 +135,13 @@ func (p *jsonObfuscator) obfuscate(data []byte) (string, error) {
 				if err != nil {
 					v = string(valBuf)
 				}
-				result := p.transformer(v)
-				out.WriteByte('"')
+				// the obfuscator retains quotes and there are cases where a value may include nested quotes (i.e. " "" ").
+				// for example, a SQL plan in the form of JSON will result in the following after obfuscation:
+				// 		"Filter":"( ( relname ~ ? :: text ) AND ( relkind = ANY ( ? :: "char" [] ) ) )"}]}]}
+				// this is invalid JSON, so we ensure that we have escape sequences by utilizing strconv.Quote(...):
+				// 		"Filter":"( ( relname ~ ? :: text ) AND ( relkind = ANY ( ? :: \"char\" [] ) ) )"}]}]}
+				result := strconv.Quote(p.transformer(v))
 				out.WriteString(result)
-				out.WriteByte('"')
 				p.transformingValue = false
 				valBuf = valBuf[:0]
 			} else if p.keeping && depth < p.keepDepth {
