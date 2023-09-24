@@ -409,13 +409,13 @@ func (p *GoTLSProgram) hookNewBinary(binID utils.PathIdentifier, binPath string,
 		return
 	}
 
-	if err = p.addInspectionResultToMap(binID, inspectionResult); err != nil {
+	if err = addInspectionResultToMap(p.offsetsDataMap, binID, inspectionResult); err != nil {
 		return
 	}
 
 	probeIDs, err := p.attachHooks(inspectionResult, binPath, binID)
 	if err != nil {
-		p.removeInspectionResultFromMap(binID)
+		removeInspectionResultFromMap(p.offsetsDataMap, binID)
 		err = fmt.Errorf("error while attaching hooks: %w", err)
 		return
 	}
@@ -476,7 +476,7 @@ func (p *GoTLSProgram) unregisterProcess(pid pid) {
 
 // addInspectionResultToMap runs a binary inspection and adds the result to the
 // map that's being read by the probes, indexed by the binary's inode number `ino`.
-func (p *GoTLSProgram) addInspectionResultToMap(binID utils.PathIdentifier, result *bininspect.Result) error {
+func addInspectionResultToMap(offsetsDataMap *ebpf.Map, binID utils.PathIdentifier, result *bininspect.Result) error {
 	offsetsData, err := inspectionResultToProbeData(result)
 	if err != nil {
 		return fmt.Errorf("error while parsing inspection result: %w", err)
@@ -487,22 +487,20 @@ func (p *GoTLSProgram) addInspectionResultToMap(binID utils.PathIdentifier, resu
 		Id_minor: unix.Minor(binID.Dev),
 		Ino:      binID.Inode,
 	}
-	err = p.offsetsDataMap.Put(unsafe.Pointer(key), unsafe.Pointer(&offsetsData))
-	if err != nil {
+	if err := offsetsDataMap.Put(unsafe.Pointer(key), unsafe.Pointer(&offsetsData)); err != nil {
 		return fmt.Errorf("could not write binary inspection result to map for binID %v: %w", binID, err)
 	}
 
 	return nil
 }
 
-func (p *GoTLSProgram) removeInspectionResultFromMap(binID utils.PathIdentifier) {
+func removeInspectionResultFromMap(offsetsDataMap *ebpf.Map, binID utils.PathIdentifier) {
 	key := &gotls.TlsBinaryId{
 		Id_major: unix.Major(binID.Dev),
 		Id_minor: unix.Minor(binID.Dev),
 		Ino:      binID.Inode,
 	}
-	err := p.offsetsDataMap.Delete(unsafe.Pointer(key))
-	if err != nil {
+	if err := offsetsDataMap.Delete(unsafe.Pointer(key)); err != nil {
 		log.Errorf("could not remove inspection result from map for ino %v: %s", binID, err)
 	}
 }
@@ -573,7 +571,7 @@ func (p *GoTLSProgram) unhookBinary(binID utils.PathIdentifier, probeIDs []manag
 	}
 
 	p.detachHooks(probeIDs)
-	p.removeInspectionResultFromMap(binID)
+	removeInspectionResultFromMap(p.offsetsDataMap, binID)
 
 	log.Debugf("detached hooks on ino %v", binID)
 }
