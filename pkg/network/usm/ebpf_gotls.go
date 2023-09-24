@@ -412,7 +412,7 @@ func (p *GoTLSProgram) hookNewBinary(binID utils.PathIdentifier, binPath string,
 		return
 	}
 
-	probeIDs, err := p.attachHooks(inspectionResult, binPath, binID)
+	probeIDs, err := attachHooks(p.manager, inspectionResult, binPath, binID)
 	if err != nil {
 		removeInspectionResultFromMap(p.offsetsDataMap, binID)
 		err = fmt.Errorf("error while attaching hooks: %w", err)
@@ -504,19 +504,20 @@ func removeInspectionResultFromMap(offsetsDataMap *ebpf.Map, binID utils.PathIde
 	}
 }
 
-func (p *GoTLSProgram) attachHooks(result *bininspect.Result, binPath string, binID utils.PathIdentifier) (probeIDs []manager.ProbeIdentificationPair, err error) {
+func attachHooks(mgr *errtelemetry.Manager, result *bininspect.Result, binPath string, binID utils.PathIdentifier) ([]manager.ProbeIdentificationPair, error) {
 	uid := getUID(binID)
+	probeIDs := make([]manager.ProbeIdentificationPair, 0)
+	var err error
 	defer func() {
 		if err != nil {
-			p.detachHooks(probeIDs)
+			detachHooks(mgr, probeIDs)
 		}
 	}()
 
 	for function, uprobes := range functionToProbes {
 		if functionsConfig[function].IncludeReturnLocations {
 			if uprobes.returnInfo == "" {
-				err = fmt.Errorf("function %q configured to include return locations but no return uprobes found in config", function)
-				return
+				return nil, fmt.Errorf("function %q configured to include return locations but no return uprobes found in config", function)
 			}
 			for i, offset := range result.Functions[function].ReturnLocations {
 				returnProbeID := manager.ProbeIdentificationPair{
@@ -530,10 +531,9 @@ func (p *GoTLSProgram) attachHooks(result *bininspect.Result, binPath string, bi
 					// so add the index to the binary UID to make an overall UID.
 					UprobeOffset: offset,
 				}
-				err = p.manager.AddHook("", newProbe)
-				if err != nil {
-					err = fmt.Errorf("could not add return hook to function %q in offset %d due to: %w", function, offset, err)
-					return
+
+				if err := mgr.AddHook("", newProbe); err != nil {
+					return nil, fmt.Errorf("could not add return hook to function %q in offset %d due to: %w", function, offset, err)
 				}
 				probeIDs = append(probeIDs, returnProbeID)
 				ebpfcheck.AddProgramNameMapping(newProbe.ID(), newProbe.EBPFFuncName, "usm_gotls")
@@ -551,33 +551,32 @@ func (p *GoTLSProgram) attachHooks(result *bininspect.Result, binPath string, bi
 				UprobeOffset:            result.Functions[function].EntryLocation,
 				ProbeIdentificationPair: probeID,
 			}
-			err = p.manager.AddHook("", newProbe)
-			if err != nil {
-				err = fmt.Errorf("could not add hook for %q in offset %d due to: %w", uprobes.functionInfo, result.Functions[function].EntryLocation, err)
-				return
+			if err := mgr.AddHook("", newProbe); err != nil {
+				return nil, fmt.Errorf("could not add hook for %q in offset %d due to: %w", uprobes.functionInfo, result.Functions[function].EntryLocation, err)
 			}
 			probeIDs = append(probeIDs, probeID)
 			ebpfcheck.AddProgramNameMapping(newProbe.ID(), newProbe.EBPFFuncName, "usm_gotls")
 		}
 	}
 
-	return
+	return probeIDs, nil
 }
+
 func (p *GoTLSProgram) unhookBinary(binID utils.PathIdentifier, probeIDs []manager.ProbeIdentificationPair) {
 	if len(probeIDs) == 0 {
 		// This binary was not hooked in the first place
 		return
 	}
 
-	p.detachHooks(probeIDs)
+	detachHooks(p.manager, probeIDs)
 	removeInspectionResultFromMap(p.offsetsDataMap, binID)
 
 	log.Debugf("detached hooks on ino %v", binID)
 }
 
-func (p *GoTLSProgram) detachHooks(probeIDs []manager.ProbeIdentificationPair) {
+func detachHooks(mgr *errtelemetry.Manager, probeIDs []manager.ProbeIdentificationPair) {
 	for _, probeID := range probeIDs {
-		err := p.manager.DetachHook(probeID)
+		err := mgr.DetachHook(probeID)
 		if err != nil {
 			log.Errorf("failed detaching hook %s: %s", probeID.UID, err)
 		}
