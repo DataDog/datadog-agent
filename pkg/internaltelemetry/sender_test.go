@@ -24,10 +24,12 @@ func testCfg(serverUrl string) *config.AgentConfig {
 
 func TestCrashParser(t *testing.T) {
 	cfg := testCfg("http://dummy")
-	lts := NewLogTelemetrySender(cfg)
+	lts := NewLogTelemetrySender(cfg, "testsvc", "go")
 	assert.NotNil(t, lts)
 
-	le := formatMessage("Error", "This is a test crash message")
+	ts, ok := lts.(*logTelemetrySender)
+	assert.True(t, ok)
+	le := ts.formatMessage("Error", "This is a test crash message")
 	assert.NotNil(t, le)
 	body, err := json.MarshalIndent(le, "", "  ")
 	assert.NoError(t, err)

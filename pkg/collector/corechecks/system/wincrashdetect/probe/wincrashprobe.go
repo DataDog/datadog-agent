@@ -123,3 +123,5 @@ func (wcs *WinCrashStatus) getCurrentCrashSettings() error {
 	}
 	return nil
 }
+
+

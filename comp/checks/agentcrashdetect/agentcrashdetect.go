@@ -9,6 +9,8 @@ package agentcrashdetect
 
 import (
 	"context"
+	"fmt"
+	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"go.uber.org/fx"
@@ -17,20 +19,15 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/system/wincrashdetect/probe"
 
-	//"github.com/DataDog/datadog-agent/pkg/collector/corechecks/system/wincrashdetect/probe"
-
-	//comptraceconfig "github.com/DataDog/datadog-agent/comp/trace/config"
 	comptraceconfig "github.com/DataDog/datadog-agent/comp/trace/config"
 
-	// configComponent "github.com/DataDog/datadog-agent/comp/core/config"
-
-	// "github.com/DataDog/datadog-agent/pkg/config"
-	//"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/internaltelemetry"
 	traceconfig "github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/DataDog/datadog-agent/pkg/util/retry"
+	"github.com/DataDog/datadog-agent/pkg/util/winutil/crashreport"
 	"golang.org/x/sys/windows/registry"
 	yaml "gopkg.in/yaml.v2"
 )
@@ -42,6 +39,17 @@ const (
 )
 
 var (
+	// crashdriver included for testing purposes
+	ddDrivers = map[string]struct{}{
+		"ddnpm":       struct{}{},
+		"crashdriver": struct{}{},
+	}
+	// system probe enabled flags indicating we should be enabled
+	enabledflags = []string{
+		"windows_crash_detection.enabled",
+		"network_config.enabled",
+		"service_monitoring_config.enabled",
+	}
 	// these are vars and not consts so that they can be overridden in
 	// the unit tests.
 	hive    = registry.LOCAL_MACHINE
@@ -56,14 +64,14 @@ type WinCrashConfig struct {
 
 type AgentCrashDetect struct {
 	core.CheckBase
-	instance         *WinCrashConfig
-	hasRunOnce       bool
-	startupWarnCount int
-	tconfig          *traceconfig.AgentConfig
+	instance   *WinCrashConfig
+	reporter   *crashreport.WinCrashReporter
+	npmEnabled bool
+	tconfig    *traceconfig.AgentConfig
 }
 
 type agentCrashComponent struct {
-	//aconfig config.ConfigReader
+	aconfig config.ConfigReader
 	tconfig *traceconfig.AgentConfig
 	//fx.Out
 	//Component
@@ -73,7 +81,7 @@ type dependencies struct {
 	fx.In
 
 	//TraceConfigComponent comptraceconfig.Component
-	//Config configComponent.Component
+	//Config    configComponent.Component
 	TConfig   comptraceconfig.Component
 	Lifecycle fx.Lifecycle
 }
@@ -86,69 +94,71 @@ func (c *WinCrashConfig) Parse(data []byte) error {
 	return yaml.Unmarshal(data, c)
 }
 
+// Configure accepts the configuration
 func (wcd *AgentCrashDetect) Configure(senderManager sender.SenderManager, integrationConfigDigest uint64, data integration.Data, initConfig integration.Data, source string) error {
 	err := wcd.CommonConfigure(senderManager, integrationConfigDigest, initConfig, data, source)
 	if err != nil {
 		return err
 	}
+	wcd.reporter, err = crashreport.NewWinCrashReporter(hive, baseKey)
+	if err != nil {
+		return err
+	}
+
+	// check to see if the wincrashdetect module is enabled.  If not, there's no point
+	// in even trying
+	for _, k := range enabledflags {
+		wcd.npmEnabled = config.SystemProbe.GetBool(k)
+		if wcd.npmEnabled {
+			break
+		}
+	}
+	if !wcd.npmEnabled {
+		return fmt.Errorf("Not enabling crash detection module: no relevant configurations enabled")
+	}
 
 	return wcd.instance.Parse(initConfig)
 }
 
-func (wcd *AgentCrashDetect) handleStartupError(err error) error {
-	if retry.IsErrWillRetry(err) {
-		wcd.startupWarnCount++
-		// this is an expected error, the check run will occur before the system probe
-		// comes up.  However, it should resolve.  If the number of these exceeds a
-		// given threshold, report as an error anyway
-		if wcd.startupWarnCount > maxStartupWarnings {
-			return err
-		}
-		return nil
-	}
-	return err
-}
+// Run is called on each check run.
+// we're only ever interested in reporting the same crash once.  The reporter.CheckForCrash()
+// will handle only reporting the same crash once, and will return nil, even if a crash
+// is present, if it's already been reported to this check.
 func (wcd *AgentCrashDetect) Run() error {
 
-	// only do this once; there's no point in doing it after the first one
-	if wcd.hasRunOnce {
-		log.Infof("check already run")
+	crash, err := wcd.reporter.CheckForCrash()
+	if err != nil {
+		return err
+	}
+	if crash == nil {
+		// no crash to send
 		return nil
 	}
 
-	/*
-	 * originally did this with a sync.once.  The problem is the check is run prior to the
-	 * system probe being successfully started.  This is OK; we just need to detect the BSOD
-	 * on first available run.
-	 *
-	 * so keep running the check until we are able to talk to system probe, after which
-	 * we don't need to run any more
-	 */
-	// for now send every thirty secs
-	//wcd.hasRunOnce = true
-
-	/*
-	 * send a test message
-	 */
+	// check to see if the crash is one of ours
+	offender := strings.Split(crash.Offender, "+")[0]
+	if _, ok := ddDrivers[offender]; !ok {
+		log.Infof("non-dd crash detected %s", offender)
+		// there was a crash, but not one of our drivers.  don't need to report
+		return nil
+	}
 
 	log.Infof("sending message")
-	lts := internaltelemetry.NewLogTelemetrySender(wcd.tconfig)
-	lts.SendLog("WARN", "test log telemetry message")
+	lts := internaltelemetry.NewLogTelemetrySender(wcd.tconfig, "ddnpm", "go")
+	lts.SendLog("WARN", formatText(crash))
 	return nil
 }
 
 func newAgentCrashComponent(deps dependencies) Component {
 	instance := &agentCrashComponent{}
-	//instance.aconfig = deps.Config.Object()
 	instance.tconfig = deps.TConfig.Object()
 	deps.Lifecycle.Append(fx.Hook{
 		OnStart: func(ctx context.Context) error {
 			core.RegisterCheck(crashDetectCheckName, func() check.Check {
 				checkInstance := &AgentCrashDetect{
-					CheckBase:  core.NewCheckBase(crashDetectCheckName),
-					instance:   &WinCrashConfig{},
-					hasRunOnce: false,
-					tconfig:    instance.tconfig,
+					CheckBase: core.NewCheckBase(crashDetectCheckName),
+					instance:  &WinCrashConfig{},
+					tconfig:   instance.tconfig,
 				}
 				return checkInstance
 			})
@@ -156,4 +166,12 @@ func newAgentCrashComponent(deps dependencies) Component {
 		},
 	})
 	return instance
+}
+
+func formatText(c *probe.WinCrashStatus) string {
+	baseString := `A system crash was detected.
+	The crash occurred at %s.
+	The offending moudule is %s.
+	The bugcheck code is %s`
+	return fmt.Sprintf(baseString, c.DateString, c.Offender, c.BugCheck)
 }

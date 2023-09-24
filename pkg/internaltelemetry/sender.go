@@ -16,8 +16,10 @@ import (
 	"strconv"
 	"time"
 
+	metadatautils "github.com/DataDog/datadog-agent/comp/metadata/host/utils"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/version"
 
 	"go.uber.org/atomic"
 )
@@ -33,6 +35,9 @@ type logTelemetrySender struct {
 	userAgent             string
 	cfg                   *config.AgentConfig
 	collectedStartupError *atomic.Bool
+
+	// we can pre-calculate the host payload structure at init time
+	logEvent LogEvent
 }
 
 // LogEvent exported so it can be turned into json
@@ -78,7 +83,7 @@ var (
 )
 
 // NewLogTelemetrySender returns either collector, or a noop implementation if instrumentation telemetry is disabled
-func NewLogTelemetrySender(cfg *config.AgentConfig) LogTelemetrySender {
+func NewLogTelemetrySender(cfg *config.AgentConfig, svcname, langname string) LogTelemetrySender {
 
 	var endpoints []config.Endpoint
 	for _, endpoint := range cfg.TelemetryConfig.Endpoints {
@@ -93,6 +98,9 @@ func NewLogTelemetrySender(cfg *config.AgentConfig) LogTelemetrySender {
 		endpoints = append(endpoints, endpointWithPath)
 	}
 
+	av, _ := version.Agent()
+	info := metadatautils.GetInformation()
+
 	return &logTelemetrySender{
 		client:    cfg.NewHTTPClient(),
 		endpoints: endpoints,
@@ -100,49 +108,49 @@ func NewLogTelemetrySender(cfg *config.AgentConfig) LogTelemetrySender {
 
 		cfg:                   cfg,
 		collectedStartupError: &atomic.Bool{},
+		logEvent: LogEvent{
+			ApiVersion:  "v2",
+			RequestType: "logs",
+			DebugFlag:   true,
+			RuntimeId:   info.HostID,
+			Host: HostPayload{
+				Hostname:      info.Hostname,
+				OS:            info.OS,
+				Arch:          info.KernelArch,
+				KernelName:    info.Platform,
+				KernelRelease: info.PlatformVersion,
+				KernelVersion: info.PlatformVersion,
+			},
+			Application: LogApplication{
+				ServiceName:     svcname,
+				LanguageName:    langname,
+				LanguageVersion: av.GetNumberAndPre(),
+				TracerVersion:   av.GetNumberAndPre(),
+			},
+		},
 	}
 }
 
-func formatMessage(level, message string) *LogEvent {
+func (lts *logTelemetrySender) formatMessage(level, message string) *LogEvent {
 	sq := msgSequenceId // todo, this is racy
 	msgSequenceId++
 
-	le := &LogEvent{
-		ApiVersion:  "v2",
-		RequestType: "logs",
-		TracerTime:  time.Now().Unix(),
-		DebugFlag:   true,
-		RuntimeId:   "a",
-		SequenceId:  sq,
-	}
-	h := HostPayload{
-		Hostname:      "WD-2016DBG", //todo
-		OS:            "windows",
-		Arch:          "x64",
-		KernelName:    "windows",
-		KernelRelease: "2016",
-		KernelVersion: "10.0.0.0",
-	}
+	le := lts.logEvent // take all the prepoulated values.
+	le.TracerTime = time.Now().Unix()
+	le.SequenceId = sq
+
 	lm := LogMessage{
 		Message: message,
 		Level:   level,
 	}
-	app := LogApplication{
-		ServiceName:     "ddnpm",
-		LanguageName:    "go", //"agent",
-		LanguageVersion: "1.20",
-		TracerVersion:   "7.49",
-	}
 	lp := LogPayload{}
 	lp.Logs = append(lp.Logs, lm)
 	le.Payload = lp
-	le.Application = app
-	le.Host = h
-	return le
+	return &le
 }
 func (lts *logTelemetrySender) SendLog(level, message string) {
 
-	le := formatMessage(level, message)
+	le := lts.formatMessage(level, message)
 	body, err := json.Marshal(le)
 	if err != nil {
 		return
