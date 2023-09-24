@@ -4,7 +4,7 @@
 // Copyright 2021-present Datadog, Inc.
 //go:build windows
 
-// package agentcrashdetect detects agent crashes and reports them
+// Package agentcrashdetect detects agent crashes and reports them
 package agentcrashdetect
 
 import (
