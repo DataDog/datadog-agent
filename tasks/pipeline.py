@@ -46,7 +46,6 @@ from .utils import (
     release_entry_for,
 )
 
-
 # Tasks to trigger pipelines
 
 
@@ -139,7 +138,7 @@ def workflow_rules(gitlab_file=".gitlab-ci.yml"):
 
 @task
 def trigger(
-        _, git_ref=DEFAULT_BRANCH, release_version_6="nightly", release_version_7="nightly-a7", repo_branch="nightly"
+    _, git_ref=DEFAULT_BRANCH, release_version_6="nightly", release_version_7="nightly-a7", repo_branch="nightly"
 ):
     """
     OBSOLETE: Trigger a deploy pipeline on the given git ref. Use pipeline.run with the --deploy option instead.
@@ -205,15 +204,15 @@ def auto_cancel_previous_pipelines(ctx):
 
 @task
 def run(
-        ctx,
-        git_ref=None,
-        here=False,
-        use_release_entries=False,
-        major_versions='6,7',
-        repo_branch="nightly",
-        deploy=False,
-        all_builds=True,
-        kitchen_tests=True,
+    ctx,
+    git_ref=None,
+    here=False,
+    use_release_entries=False,
+    major_versions='6,7',
+    repo_branch="nightly",
+    deploy=False,
+    all_builds=True,
+    kitchen_tests=True,
 ):
     """
     Run a pipeline on the given git ref (--git-ref <git ref>), or on the current branch if --here is given.
@@ -634,10 +633,10 @@ def send_stats(_, print_to_stdout=False):
                 timestamp=timestamp,
                 value=count,
                 tags=list(failure_tags)
-                     + [
-                         "repository:datadog-agent",
-                         f"git_ref:{os.getenv('CI_COMMIT_REF_NAME')}",
-                     ],
+                + [
+                    "repository:datadog-agent",
+                    f"git_ref:{os.getenv('CI_COMMIT_REF_NAME')}",
+                ],
             )
         )
 
