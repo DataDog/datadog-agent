@@ -330,7 +330,7 @@ def lint_fxutil_oneshot_test(_):
     for folder in folders:
         folder_path = pathlib.Path(folder)
         for file in folder_path.rglob("*.go"):
-            if str(file).endswith("_test.go") or str(file).endswith("main.go"):
+            if str(file).endswith("_test.go") or str(file).endswith("main.go") or str(file).endswith("main_windows.go"):
                 continue
 
             # The code in this file cannot be easily tested

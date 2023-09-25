@@ -33,7 +33,7 @@ from . import (
     vscode,
 )
 from .build_tags import audit_tag_impact, print_default_build_tags
-from .components import lint_fxutil_oneshot_test, lint_components
+from .components import lint_components, lint_fxutil_oneshot_test
 from .fuzz import fuzz
 from .go import (
     check_go_version,
