@@ -111,7 +111,7 @@ func setupOtlpAgent(metricAgent *metrics.ServerlessMetricAgent) {
 }
 
 func flushMetricsAgent(metricAgent *metrics.ServerlessMetricAgent) {
-	for range time.Tick(3 * time.Second) {
+	for range time.Tick(10 * time.Second) {
 		metricAgent.Flush()
 	}
 }
