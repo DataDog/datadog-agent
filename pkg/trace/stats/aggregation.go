@@ -107,7 +107,7 @@ func customTagKey(s *pb.Span, customTags []string) string {
 
 // NewAggregationFromGroup gets the Aggregation key of grouped stats.
 func NewAggregationFromGroup(g *pb.ClientGroupedStats) Aggregation {
-	return Aggregation{
+	agg := Aggregation{
 		BucketsAggregationKey: BucketsAggregationKey{
 			Resource:    g.Resource,
 			Service:     g.Service,
@@ -117,5 +117,9 @@ func NewAggregationFromGroup(g *pb.ClientGroupedStats) Aggregation {
 			StatusCode:  g.HTTPStatusCode,
 			Synthetics:  g.Synthetics,
 		},
+	}
+
+	if g.CustomTags != nil {
+		agg.CustomTagsKey = strings.Join(g.CustomTags, ",")
 	}
 }

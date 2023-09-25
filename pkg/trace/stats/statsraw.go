@@ -8,6 +8,7 @@ package stats
 import (
 	"math"
 	"math/rand"
+	"strings"
 
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	"github.com/DataDog/datadog-agent/pkg/trace/log"
@@ -60,6 +61,8 @@ func (s *groupedStats) export(a Aggregation) (*pb.ClientGroupedStats, error) {
 	if err != nil {
 		return &pb.ClientGroupedStats{}, err
 	}
+	splitCustomTags := strings.Split(string(a.CustomTagsKey), ",")
+
 	return &pb.ClientGroupedStats{
 		Service:        a.Service,
 		Name:           a.Name,
@@ -75,6 +78,7 @@ func (s *groupedStats) export(a Aggregation) (*pb.ClientGroupedStats, error) {
 		Synthetics:     a.Synthetics,
 		PeerService:    a.PeerService,
 		SpanKind:       a.SpanKind,
+		CustomTags:     splitCustomTags,
 	}, nil
 }
 
