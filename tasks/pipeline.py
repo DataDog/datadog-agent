@@ -7,7 +7,6 @@ from collections import defaultdict
 from datetime import datetime
 
 import subprocess as sp
-from codeowners import CodeOwners
 
 import yaml
 from invoke import task
@@ -20,7 +19,7 @@ from .libs.datadog_api import create_count, send_metrics
 from .libs.pipeline_data import get_failed_jobs
 from .libs.pipeline_notifications import (
     GITHUB_SLACK_MAP,
-    base_message,
+    read_owners,
     check_for_missing_owners_slack_and_jira,
     find_job_owners,
     get_failed_tests,
@@ -466,13 +465,6 @@ def trigger_child_pipeline(_, git_ref, project_name, variables="", follow=True):
         print("Child pipeline finished successfully")
 
 
-def get_codeowners():
-    with open(".github/CODEOWNERS", "r") as file:
-        data = file.read().rstrip()
-
-    return CodeOwners(data)
-
-
 def parse(commit_str):
     lines = commit_str.split("\n")
     title = lines[0]
@@ -507,7 +499,7 @@ def changelog(_, new_git_sha):
         .decode()
         .split("\n")
     )
-    owners = get_codeowners()
+    owners = read_owners(".github/CODEOWNERS")
     messages = []
     unique_emails = set()  # Store unique email addresses
 

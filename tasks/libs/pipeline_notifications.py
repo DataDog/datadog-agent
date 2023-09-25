@@ -80,7 +80,7 @@ def read_owners(owners_file):
     from codeowners import CodeOwners
 
     with open(owners_file, 'r') as f:
-        return CodeOwners(f.read())
+        return CodeOwners(f.read().rstrip())
 
 
 def check_for_missing_owners_slack_and_jira(print_missing_teams=True, owners_file=".github/CODEOWNERS"):
