@@ -24,6 +24,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/flare"
+	"github.com/DataDog/datadog-agent/comp/core/flare/helpers"
 	"github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
 	"github.com/DataDog/datadog-agent/pkg/api/util"
@@ -268,7 +269,7 @@ func makeFlare(flareComp flare.Component, log log.Component, config config.Compo
 		}
 	}
 
-	response, e := flareComp.Send(filePath, caseID, customerEmail, "local")
+	response, e := flareComp.Send(filePath, caseID, customerEmail, helpers.NewLocalFlareSource())
 	fmt.Println(response)
 	if e != nil {
 		return e

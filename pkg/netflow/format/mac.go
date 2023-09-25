@@ -3,15 +3,16 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2022-present Datadog, Inc.
 
-package enrichment
+package format
 
 import (
-	"testing"
-
-	"github.com/stretchr/testify/assert"
+	"encoding/binary"
+	"net"
 )
 
-func TestFormatMacAddress(t *testing.T) {
-	assert.Equal(t, "82:a5:6e:a5:aa:99", FormatMacAddress(uint64(143647037565593)))
-	assert.Equal(t, "00:00:00:00:00:00", FormatMacAddress(uint64(0)))
+// MacAddress formats a mac address as "xx:xx:xx:xx:xx:xx"
+func MacAddress(fieldValue uint64) string {
+	mac := make([]byte, 8)
+	binary.BigEndian.PutUint64(mac, fieldValue)
+	return net.HardwareAddr(mac[2:]).String()
 }

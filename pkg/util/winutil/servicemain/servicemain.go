@@ -5,6 +5,7 @@
 
 //go:build windows
 
+// Package servicemain provides Windows Service application helpers
 package servicemain
 
 import (
@@ -22,6 +23,7 @@ import (
 	"golang.org/x/sys/windows/svc"
 )
 
+// Service defines the interface that applications should implement to run as Windows Services
 type Service interface {
 	// Name() returns the string to be used as the source for event log records.
 	Name() string
@@ -47,7 +49,7 @@ type Service interface {
 	Run(ctx context.Context) error
 }
 
-// Return ErrCleanStopAfterInit from Service.Init() to report SERVICE_RUNNING and then exit without error after
+// ErrCleanStopAfterInit should be returned from Service.Init() to report SERVICE_RUNNING and then exit without error after
 // a delay. See runTimeExitGate for more information on why the delay is necessary.
 //
 // Example use case, the service detects that it is not configured and wishes to stop running, but does not want

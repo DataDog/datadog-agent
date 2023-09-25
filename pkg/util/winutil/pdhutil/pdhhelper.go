@@ -35,6 +35,9 @@ var (
 	procPdhGetFormattedCounterArray = modPdhDll.NewProc("PdhGetFormattedCounterArrayW")
 )
 
+// https://learn.microsoft.com/en-us/windows/win32/api/winperf/ns-winperf-perf_object_type
+//
+//revive:disable:var-naming Name is intended to match the Windows const name
 const (
 	// taken from winperf.h
 	PERF_DETAIL_NOVICE   = 100 // The uninformed can understand it
@@ -43,9 +46,11 @@ const (
 	PERF_DETAIL_WIZARD   = 400 // For the system designer
 )
 
+//revive:enable:var-naming (const)
+
 // Lock enforces no more than once forceRefresh=false
 // is running concurrently
-var lock_lastPdhRefreshTime sync.Mutex
+var lockLastPdhRefreshTime sync.Mutex
 
 // tracks last time a refresh was successful
 // initialize with process init time as that is when
@@ -84,11 +89,11 @@ func refreshPdhObjectCache(forceRefresh bool) (didrefresh bool, err error) {
 
 	var len uint32
 
-	refresh_interval := config.Datadog.GetInt("windows_counter_refresh_interval")
-	if refresh_interval == 0 {
+	refreshInterval := config.Datadog.GetInt("windows_counter_refresh_interval")
+	if refreshInterval == 0 {
 		// refresh disabled
 		return false, nil
-	} else if refresh_interval < 0 {
+	} else if refreshInterval < 0 {
 		// invalid value
 		e := "windows_counter_refresh_interval cannot be a negative number"
 		log.Errorf(e)
@@ -101,11 +106,11 @@ func refreshPdhObjectCache(forceRefresh bool) (didrefresh bool, err error) {
 		// TODO: use TryLock in golang 1.18
 		//       we don't need to block here
 		//       worst case the counter is skipped again until next interval.
-		lock_lastPdhRefreshTime.Lock()
-		defer lock_lastPdhRefreshTime.Unlock()
+		lockLastPdhRefreshTime.Lock()
+		defer lockLastPdhRefreshTime.Unlock()
 		timenow := time.Now()
 		// time.Time.Sub() uses a monotonic clock
-		if int(timenow.Sub(lastPdhRefreshTime.Load()).Seconds()) < refresh_interval {
+		if int(timenow.Sub(lastPdhRefreshTime.Load()).Seconds()) < refreshInterval {
 			// too soon, skip refresh
 			return false, nil
 		}
@@ -142,7 +147,12 @@ func tryRefreshPdhObjectCache() (didrefresh bool, err error) {
 	return refreshPdhObjectCache(false)
 }
 
-type pdh_counter_path_elements struct {
+// PDH_COUNTER_PATH_ELEMENTS struct
+//
+// https://learn.microsoft.com/en-us/windows/win32/api/pdh/ns-pdh-pdh_counter_path_elements_w
+//
+//revive:disable:var-naming Name is intended to match the Windows type name
+type PDH_COUNTER_PATH_ELEMENTS struct {
 	ptrmachineString  uintptr
 	ptrobjectString   uintptr
 	ptrinstanceString uintptr
@@ -151,10 +161,12 @@ type pdh_counter_path_elements struct {
 	countername       uintptr
 }
 
+// ErrPdhInvalidInstance is returned when a counter instance is invalid
 type ErrPdhInvalidInstance struct {
 	message string
 }
 
+// NewErrPdhInvalidInstance creates a new ErrPdhInvalidInstance
 func NewErrPdhInvalidInstance(message string) *ErrPdhInvalidInstance {
 	return &ErrPdhInvalidInstance{
 		message: message,
@@ -165,7 +177,7 @@ func (e *ErrPdhInvalidInstance) Error() string {
 	return e.message
 }
 func pdhMakeCounterPath(machine string, object string, instance string, counter string) (path string, err error) {
-	var elems pdh_counter_path_elements
+	var elems PDH_COUNTER_PATH_ELEMENTS
 
 	if machine != "" {
 		elems.ptrmachineString = uintptr(unsafe.Pointer(windows.StringToUTF16Ptr(machine)))
@@ -197,7 +209,7 @@ func pdhMakeCounterPath(machine string, object string, instance string, counter 
 		uintptr(unsafe.Pointer(&buf[0])),
 		uintptr(unsafe.Pointer(&len)),
 		uintptr(0))
-	if r != ERROR_SUCCESS {
+	if windows.Errno(r) != windows.ERROR_SUCCESS {
 		err = fmt.Errorf("Failed to get path (%#x)", r)
 		return
 	}
@@ -215,7 +227,7 @@ func pdhGetFormattedCounterValueFloat(hCounter PDH_HCOUNTER) (val float64, err e
 		uintptr(PDH_FMT_DOUBLE),
 		uintptr(unsafe.Pointer(&lpdwType)),
 		uintptr(unsafe.Pointer(&pValue)))
-	if ERROR_SUCCESS != ret {
+	if windows.ERROR_SUCCESS != windows.Errno(ret) {
 		if ret == PDH_INVALID_DATA && pValue.CStatus == PDH_CSTATUS_NO_INSTANCE {
 			return 0, NewErrPdhInvalidInstance("Invalid counter instance")
 		}
@@ -231,7 +243,7 @@ func pdhGetFormattedCounterValueFloat(hCounter PDH_HCOUNTER) (val float64, err e
 // Instance uniqueness is normally done by the PDH provider, except in the case of the Process class where it is NOT
 // handled in order to maintain backwards compatibility.
 // https://learn.microsoft.com/en-us/windows/win32/perfctrs/handling-duplicate-instance-names
-func pdhGetFormattedCounterArray(hCounter PDH_HCOUNTER, format uint32) (out_items []PdhCounterValueItem, err error) {
+func pdhGetFormattedCounterArray(hCounter PDH_HCOUNTER, format uint32) (outItems []PdhCounterValueItem, err error) {
 	var buf []uint8
 	var bufLen uint32
 	var itemCount uint32
@@ -261,7 +273,7 @@ func pdhGetFormattedCounterArray(hCounter PDH_HCOUNTER, format uint32) (out_item
 		uintptr(unsafe.Pointer(&itemCount)),
 		uintptr(unsafe.Pointer(&buf[0])),
 	)
-	if r != ERROR_SUCCESS {
+	if windows.Errno(r) != windows.ERROR_SUCCESS {
 		return nil, fmt.Errorf("Error getting formatted counter array %#x", r)
 	}
 
@@ -328,11 +340,11 @@ func pdhGetFormattedCounterArray(hCounter PDH_HCOUNTER, format uint32) (out_item
 			value.Large = from.value.LargeValue
 		}
 
-		value_item := PdhCounterValueItem{
+		valueItem := PdhCounterValueItem{
 			instance: instance,
 			value:    value,
 		}
-		out_items = append(out_items, value_item)
+		outItems = append(outItems, valueItem)
 	}
-	return out_items, nil
+	return outItems, nil
 }
