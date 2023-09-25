@@ -62,19 +62,22 @@ notify-slack:
     - internal_kubernetes_deploy_stripe
   script:
     - |
-      echo "Unique Emails: $(cat unique_emails.txt)"
       results=()
       while IFS= read -r email; do
         result=$(echo "$email" | email2slackid || echo "$email")
+        if [ -z "$SLACK_AUTHOR" ]; then
+          echo "author not found"
+          result=$email
         results+=("$result")
         echo "Result for $email: $result"
         sleep 1
       done < unique_emails.txt
       echo "Results array: ${results[@]}"
-      postmessage "system-probe-ops" "$(cat system_probe_commits.txt)"
-      postmessage "system-probe-ops" "Unique Authors: $(printf " %s" "${results[@]}")"
-      specific_email="adam.karpowich@datadoghq.com"
-      echo "Result for specific email ($specific_email): $(echo "$specific_email" | email2slackid)"
+      {
+        cat system_probe_commits.txt
+        echo "Unique Authors: $(printf "<@%s>" "${results[@]}")"
+      } > slack_message.txt
+      postmessage "system-probe-ops" "$(cat slack_message.txt)"
       git checkout ${CI_COMMIT_SHORT_SHA}
       #    - git tag stripe_staging
       #    - git push origin stripe_staging
