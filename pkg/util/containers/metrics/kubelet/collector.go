@@ -218,8 +218,9 @@ func (kc *kubeletCollector) processStatsSummary(currentTime time.Time, statsSumm
 		}
 
 		// In stats/summary we only have container name, need to remap to CID
-		nameToCID := make(map[string]string, len(metaPod.Containers))
-		for _, metaContainer := range metaPod.Containers {
+		wlmContainers := metaPod.GetAllContainers()
+		nameToCID := make(map[string]string, len(wlmContainers))
+		for _, metaContainer := range wlmContainers {
 			nameToCID[metaContainer.Name] = metaContainer.ID
 		}
 

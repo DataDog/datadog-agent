@@ -7,10 +7,11 @@ package metadata
 
 import (
 	"fmt"
+	"testing"
+
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/common"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"testing"
 )
 
 func Test_batchPayloads(t *testing.T) {
@@ -42,9 +43,21 @@ func Test_batchPayloads(t *testing.T) {
 			FlowType:  "netflow5",
 		})
 	}
-	payloads := BatchPayloads("my-ns", "127.0.0.0/30", collectTime, 100, devices, interfaces, ipAddresses, topologyLinks, netflowExporters)
+	var diagnoses []DiagnosisMetadata
+	for i := 0; i < 100; i++ {
+		diagnoses = append(diagnoses, DiagnosisMetadata{
+			ResourceID:   fmt.Sprintf("default:1.2.3.%d", i),
+			ResourceType: "device",
+			Diagnoses: []Diagnosis{{
+				Code:     "TEST_DIAGNOSIS",
+				Severity: "warn",
+				Message:  "Test diagnosis",
+			}},
+		})
+	}
+	payloads := BatchPayloads("my-ns", "127.0.0.0/30", collectTime, 100, devices, interfaces, ipAddresses, topologyLinks, netflowExporters, diagnoses)
 
-	require.Len(t, payloads, 7)
+	require.Len(t, payloads, 8)
 
 	assert.Equal(t, "my-ns", payloads[0].Namespace)
 	assert.Equal(t, "127.0.0.0/30", payloads[0].Subnet)
@@ -81,9 +94,18 @@ func Test_batchPayloads(t *testing.T) {
 	assert.Equal(t, topologyLinks[49:100], payloads[5].Links)
 	assert.Equal(t, netflowExporters[:49], payloads[5].NetflowExporters)
 
-	assert.Equal(t, 0, len(payloads[6].Devices))
-	assert.Equal(t, 0, len(payloads[6].Interfaces))
-	assert.Equal(t, 0, len(payloads[6].Links))
-	assert.Equal(t, 51, len(payloads[6].NetflowExporters))
+	assert.Len(t, payloads[6].Devices, 0)
+	assert.Len(t, payloads[6].Interfaces, 0)
+	assert.Len(t, payloads[6].Links, 0)
+	assert.Len(t, payloads[6].NetflowExporters, 51)
 	assert.Equal(t, netflowExporters[49:100], payloads[6].NetflowExporters)
+	assert.Len(t, payloads[6].Diagnoses, 49)
+	assert.Equal(t, diagnoses[0:49], payloads[6].Diagnoses)
+
+	assert.Len(t, payloads[7].Devices, 0)
+	assert.Len(t, payloads[7].Interfaces, 0)
+	assert.Len(t, payloads[7].Links, 0)
+	assert.Len(t, payloads[7].NetflowExporters, 0)
+	assert.Len(t, payloads[7].Diagnoses, 51)
+	assert.Equal(t, diagnoses[49:100], payloads[7].Diagnoses)
 }

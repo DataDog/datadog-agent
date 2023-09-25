@@ -30,10 +30,10 @@ func DiscoverHPAGroupVersionResource(client kubernetes.Interface) (schema.GroupV
 	if err != nil {
 		if !discovery.IsGroupDiscoveryFailedError(err) {
 			return schema.GroupVersionResource{}, err
-		} else {
-			for group, apiGroupErr := range err.(*discovery.ErrGroupDiscoveryFailed).Groups {
-				log.Warnf("unable to perform resource discovery for group %s: %s", group, apiGroupErr)
-			}
+		}
+
+		for group, apiGroupErr := range err.(*discovery.ErrGroupDiscoveryFailed).Groups {
+			log.Warnf("unable to perform resource discovery for group %s: %s", group, apiGroupErr)
 		}
 	}
 

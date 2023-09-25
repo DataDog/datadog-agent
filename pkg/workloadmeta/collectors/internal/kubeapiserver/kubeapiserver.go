@@ -40,6 +40,10 @@ func storeGenerators(cfg config.Config) []storeGenerator {
 		generators = append(generators, newPodStore)
 	}
 
+	if cfg.GetBool("language_detection.enabled") {
+		generators = append(generators, newDeploymentStore)
+	}
+
 	return generators
 }
 

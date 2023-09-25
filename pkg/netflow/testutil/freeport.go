@@ -12,6 +12,7 @@ import (
 	"strconv"
 )
 
+// GetFreePort finds a free port to use for testing.
 func GetFreePort() uint16 {
 	var port uint16
 	for i := 0; i < 5; i++ {

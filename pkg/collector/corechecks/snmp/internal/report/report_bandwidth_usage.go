@@ -10,9 +10,9 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
+	"github.com/DataDog/datadog-agent/pkg/networkdevice/profile/profiledefinition"
 	"github.com/DataDog/datadog-agent/pkg/snmp/snmpintegration"
 
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/checkconfig"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/valuestore"
 )
 
@@ -29,7 +29,7 @@ const ifHighSpeedOID = "1.3.6.1.2.1.31.1.1.1.15"
 // sendInterfaceVolumeMetrics is responsible for handling special interface related metrics like:
 //   - bandwidth usage metric
 //   - if speed metrics based on custom interface speed and ifHighSpeed
-func (ms *MetricSender) sendInterfaceVolumeMetrics(symbol checkconfig.SymbolConfig, fullIndex string, values *valuestore.ResultValueStore, tags []string) {
+func (ms *MetricSender) sendInterfaceVolumeMetrics(symbol profiledefinition.SymbolConfig, fullIndex string, values *valuestore.ResultValueStore, tags []string) {
 	err := ms.sendBandwidthUsageMetric(symbol, fullIndex, values, tags)
 	if err != nil {
 		log.Debugf("failed to send bandwidth usage metric: %s", err)
@@ -56,7 +56,7 @@ per second). It is constant in time, can be overwritten by the system admin.
 It is the total available bandwidth.
 Bandwidth usage is evaluated as: ifHC[In|Out]Octets/ifHighSpeed and reported as *Rate*
 */
-func (ms *MetricSender) sendBandwidthUsageMetric(symbol checkconfig.SymbolConfig, fullIndex string, values *valuestore.ResultValueStore, tags []string) error {
+func (ms *MetricSender) sendBandwidthUsageMetric(symbol profiledefinition.SymbolConfig, fullIndex string, values *valuestore.ResultValueStore, tags []string) error {
 	usageName, ok := bandwidthMetricNameToUsage[symbol.Name]
 	if !ok {
 		return nil
@@ -98,18 +98,18 @@ func (ms *MetricSender) sendBandwidthUsageMetric(symbol checkconfig.SymbolConfig
 	usageValue := ((octetsFloatValue * 8) / (float64(ifSpeed))) * 100.0
 
 	sample := MetricSample{
-		value:      valuestore.ResultValue{SubmissionType: checkconfig.ProfileMetricTypeCounter, Value: usageValue},
+		value:      valuestore.ResultValue{SubmissionType: profiledefinition.ProfileMetricTypeCounter, Value: usageValue},
 		tags:       tags,
-		symbol:     checkconfig.SymbolConfig{Name: usageName + ".rate"},
-		forcedType: checkconfig.ProfileMetricTypeCounter,
-		options:    checkconfig.MetricsConfigOption{},
+		symbol:     profiledefinition.SymbolConfig{Name: usageName + ".rate"},
+		forcedType: profiledefinition.ProfileMetricTypeCounter,
+		options:    profiledefinition.MetricsConfigOption{},
 	}
 
 	ms.sendMetric(sample)
 	return nil
 }
 
-func (ms *MetricSender) sendIfSpeedMetrics(symbol checkconfig.SymbolConfig, fullIndex string, values *valuestore.ResultValueStore, tags []string) {
+func (ms *MetricSender) sendIfSpeedMetrics(symbol profiledefinition.SymbolConfig, fullIndex string, values *valuestore.ResultValueStore, tags []string) {
 	// We are piggybacking on presence of ifHCInOctets as a way to 1/ submit ifSpeed metrics only once, 2/ have corresponding fullIndex and 3/ tags.
 	// If needed, we can improve (at cost of complexity) by sending ifSpeed metrics based on presence of multiple metrics like ifHCInOctets/ifHCOutOctets/ifHighSpeed.
 	// I think it's reasonable for now, for simplify, to only rely on ifHCInOctets that should be present in the vast majority of cases.
@@ -147,9 +147,9 @@ func (ms *MetricSender) sendIfSpeedMetric(symbolName string, customSpeed uint64,
 	ms.sendMetric(MetricSample{
 		value:      valuestore.ResultValue{Value: float64(ifSpeed)},
 		tags:       newTags,
-		symbol:     checkconfig.SymbolConfig{Name: symbolName},
-		forcedType: checkconfig.ProfileMetricTypeGauge,
-		options:    checkconfig.MetricsConfigOption{},
+		symbol:     profiledefinition.SymbolConfig{Name: symbolName},
+		forcedType: profiledefinition.ProfileMetricTypeGauge,
+		options:    profiledefinition.MetricsConfigOption{},
 	})
 }
 

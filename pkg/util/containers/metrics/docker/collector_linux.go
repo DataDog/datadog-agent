@@ -53,9 +53,9 @@ func convertMemoryStats(memStats *types.MemoryStats) *provider.ContainerMemStats
 		Pgmajfault: getFieldFromMap(memStats.Stats, "pgmajfault", "pgmajfault"),
 	}
 
-	inactive_file := getFieldFromMap(memStats.Stats, "total_inactive_file", "inactive_file")
-	if inactive_file != nil {
-		containerMemStats.WorkingSet = pointer.Ptr(*containerMemStats.UsageTotal - *inactive_file)
+	inactiveFile := getFieldFromMap(memStats.Stats, "total_inactive_file", "inactive_file")
+	if inactiveFile != nil {
+		containerMemStats.WorkingSet = pointer.Ptr(*containerMemStats.UsageTotal - *inactiveFile)
 	}
 
 	// `kernel_stack` and `slab`, which are used to compute `KernelMemory` are available only with cgroup v2

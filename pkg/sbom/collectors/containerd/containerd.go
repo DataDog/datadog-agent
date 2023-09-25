@@ -61,7 +61,7 @@ type Collector struct {
 
 // CleanCache cleans the cache
 func (c *Collector) CleanCache() error {
-	return c.trivyCollector.GetCacheCleaner().Clean()
+	return c.trivyCollector.CleanCache()
 }
 
 // Init initializes the collector

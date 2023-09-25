@@ -24,7 +24,7 @@ type subcommandSuite struct {
 }
 
 func TestSubcommandSuite(t *testing.T) {
-	e2e.Run(t, &subcommandSuite{}, e2e.FakeIntakeStackDef(nil))
+	e2e.Run(t, &subcommandSuite{}, e2e.FakeIntakeStackDef())
 }
 
 // section contains the content status of a specific section (e.g. Forwarder)
@@ -68,7 +68,7 @@ type expectedSection struct {
 
 func (v *subcommandSuite) TestDefaultInstallStatus() {
 
-	v.UpdateEnv(e2e.FakeIntakeStackDef(nil))
+	v.UpdateEnv(e2e.FakeIntakeStackDef())
 
 	metadata := client.NewEC2Metadata(v.Env().VM)
 	resourceID := metadata.Get("instance-id")
@@ -186,7 +186,7 @@ func (v *subcommandSuite) TestDefaultInstallStatus() {
 
 func (v *subcommandSuite) TestFIPSProxyStatus() {
 
-	v.UpdateEnv(e2e.FakeIntakeStackDef(nil, agentparams.WithAgentConfig("fips.enabled: true")))
+	v.UpdateEnv(e2e.FakeIntakeStackDef(e2e.WithAgentParams(agentparams.WithAgentConfig("fips.enabled: true"))))
 	expectedSection := expectedSection{
 		name:            `Agent \(.*\)`,
 		shouldBePresent: true,
@@ -217,7 +217,7 @@ func verifySectionContent(t *testing.T, statusOutput string, section expectedSec
 }
 
 func (v *subcommandSuite) TestDefaultInstallHealthy() {
-	v.UpdateEnv(e2e.FakeIntakeStackDef(nil))
+	v.UpdateEnv(e2e.FakeIntakeStackDef())
 	interval := 1 * time.Second
 
 	var output string

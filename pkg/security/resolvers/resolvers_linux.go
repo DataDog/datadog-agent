@@ -45,6 +45,7 @@ type Opts struct {
 	PathResolutionEnabled bool
 	TagsResolver          tags.Resolver
 	UseRingBuffer         bool
+	TTYFallbackEnabled    bool
 }
 
 // Resolvers holds the list of the event attribute resolvers
@@ -116,7 +117,7 @@ func NewResolvers(config *config.Config, manager *manager.Manager, statsdClient 
 
 	// Force the use of redemption for now, as it seems that the kernel reference counter on mounts used to remove mounts is not working properly.
 	// This means that we can remove mount entries that are still in use.
-	mountResolver, err := mount.NewResolver(statsdClient, cgroupsResolver, mount.ResolverOpts{UseProcFS: true, UseRedemption: true})
+	mountResolver, err := mount.NewResolver(statsdClient, cgroupsResolver, mount.ResolverOpts{UseProcFS: true})
 	if err != nil {
 		return nil, err
 	}
@@ -131,6 +132,9 @@ func NewResolvers(config *config.Config, manager *manager.Manager, statsdClient 
 
 	processOpts := process.NewResolverOpts()
 	processOpts.WithEnvsValue(config.Probe.EnvsWithValue)
+	if opts.TTYFallbackEnabled {
+		processOpts.WithTTYFallbackEnabled()
+	}
 
 	processResolver, err := process.NewResolver(manager, config.Probe, statsdClient,
 		scrubber, containerResolver, mountResolver, cgroupsResolver, userGroupResolver, timeResolver, pathResolver, processOpts)
@@ -252,6 +256,7 @@ func (r *Resolvers) snapshot() error {
 			if !os.IsNotExist(err) {
 				log.Debugf("snapshot failed for %d: couldn't sync mount points: %s", proc.Pid, err)
 			}
+			continue
 		}
 
 		// Sync the process cache

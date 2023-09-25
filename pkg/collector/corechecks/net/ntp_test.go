@@ -61,8 +61,9 @@ func TestNTPOK(t *testing.T) {
 	defer func() { ntpQuery = ntp.QueryWithOptions }()
 
 	ntpCheck := new(NTPCheck)
-	ntpCheck.Configure(aggregator.GetSenderManager(), integration.FakeConfigHash, ntpCfg, ntpInitCfg, "test")
-	mockSender := mocksender.NewMockSender(ntpCheck.ID())
+	senderManager := mocksender.CreateDefaultDemultiplexer()
+	ntpCheck.Configure(senderManager, integration.FakeConfigHash, ntpCfg, ntpInitCfg, "test")
+	mockSender := mocksender.NewMockSenderWithSenderManager(ntpCheck.ID(), senderManager)
 
 	mockSender.On("Gauge", "ntp.offset", float64(21), "", []string(nil)).Return().Times(1)
 	mockSender.On("ServiceCheck",
@@ -90,9 +91,10 @@ func TestNTPCritical(t *testing.T) {
 	defer func() { ntpQuery = ntp.QueryWithOptions }()
 
 	ntpCheck := new(NTPCheck)
-	ntpCheck.Configure(aggregator.GetSenderManager(), integration.FakeConfigHash, ntpCfg, ntpInitCfg, "test")
+	senderManager := mocksender.CreateDefaultDemultiplexer()
+	ntpCheck.Configure(senderManager, integration.FakeConfigHash, ntpCfg, ntpInitCfg, "test")
 
-	mockSender := mocksender.NewMockSender(ntpCheck.ID())
+	mockSender := mocksender.NewMockSenderWithSenderManager(ntpCheck.ID(), senderManager)
 
 	mockSender.On("Gauge", "ntp.offset", float64(100), "", []string(nil)).Return().Times(1)
 	mockSender.On("ServiceCheck",
@@ -119,9 +121,10 @@ func TestNTPError(t *testing.T) {
 	defer func() { ntpQuery = ntp.QueryWithOptions }()
 
 	ntpCheck := new(NTPCheck)
-	ntpCheck.Configure(aggregator.GetSenderManager(), integration.FakeConfigHash, ntpCfg, ntpInitCfg, "test")
+	senderManager := mocksender.CreateDefaultDemultiplexer()
+	ntpCheck.Configure(senderManager, integration.FakeConfigHash, ntpCfg, ntpInitCfg, "test")
 
-	mockSender := mocksender.NewMockSender(ntpCheck.ID())
+	mockSender := mocksender.NewMockSenderWithSenderManager(ntpCheck.ID(), senderManager)
 	mockSender.On("ServiceCheck",
 		"ntp.in_sync",
 		servicecheck.ServiceCheckUnknown,
@@ -147,9 +150,10 @@ func TestNTPInvalid(t *testing.T) {
 	defer func() { ntpQuery = ntp.QueryWithOptions }()
 
 	ntpCheck := new(NTPCheck)
-	ntpCheck.Configure(aggregator.GetSenderManager(), integration.FakeConfigHash, ntpCfg, ntpInitCfg, "test")
+	senderManager := mocksender.CreateDefaultDemultiplexer()
+	ntpCheck.Configure(senderManager, integration.FakeConfigHash, ntpCfg, ntpInitCfg, "test")
 
-	mockSender := mocksender.NewMockSender(ntpCheck.ID())
+	mockSender := mocksender.NewMockSenderWithSenderManager(ntpCheck.ID(), senderManager)
 	mockSender.On("ServiceCheck",
 		"ntp.in_sync",
 		servicecheck.ServiceCheckUnknown,
@@ -176,9 +180,10 @@ func TestNTPNegativeOffsetCritical(t *testing.T) {
 	defer func() { ntpQuery = ntp.QueryWithOptions }()
 
 	ntpCheck := new(NTPCheck)
-	ntpCheck.Configure(aggregator.GetSenderManager(), integration.FakeConfigHash, ntpCfg, ntpInitCfg, "test")
+	senderManager := mocksender.CreateDefaultDemultiplexer()
+	ntpCheck.Configure(senderManager, integration.FakeConfigHash, ntpCfg, ntpInitCfg, "test")
 
-	mockSender := mocksender.NewMockSender(ntpCheck.ID())
+	mockSender := mocksender.NewMockSenderWithSenderManager(ntpCheck.ID(), senderManager)
 
 	mockSender.On("Gauge", "ntp.offset", float64(-100), "", []string(nil)).Return().Times(1)
 	mockSender.On("ServiceCheck",
@@ -217,9 +222,10 @@ hosts:
 	defer func() { ntpQuery = ntp.QueryWithOptions }()
 
 	ntpCheck := new(NTPCheck)
-	ntpCheck.Configure(aggregator.GetSenderManager(), integration.FakeConfigHash, ntpCfg, ntpInitCfg, "test")
+	senderManager := mocksender.CreateDefaultDemultiplexer()
+	ntpCheck.Configure(senderManager, integration.FakeConfigHash, ntpCfg, ntpInitCfg, "test")
 
-	mockSender := mocksender.NewMockSender(ntpCheck.ID())
+	mockSender := mocksender.NewMockSenderWithSenderManager(ntpCheck.ID(), senderManager)
 
 	mockSender.On("Gauge", "ntp.offset", float64(2), "", []string(nil)).Return().Times(1)
 	mockSender.On("ServiceCheck",
@@ -258,9 +264,10 @@ hosts:
 	defer func() { ntpQuery = ntp.QueryWithOptions }()
 
 	ntpCheck := new(NTPCheck)
-	ntpCheck.Configure(aggregator.GetSenderManager(), integration.FakeConfigHash, ntpCfg, ntpInitCfg, "test")
+	senderManager := mocksender.CreateDefaultDemultiplexer()
+	ntpCheck.Configure(senderManager, integration.FakeConfigHash, ntpCfg, ntpInitCfg, "test")
 
-	mockSender := mocksender.NewMockSender(ntpCheck.ID())
+	mockSender := mocksender.NewMockSenderWithSenderManager(ntpCheck.ID(), senderManager)
 
 	mockSender.On("Gauge", "ntp.offset", float64(400), "", []string(nil)).Return().Times(1)
 	mockSender.On("ServiceCheck",
@@ -289,7 +296,7 @@ hosts:
 `)
 
 	ntpCheck := new(NTPCheck)
-	ntpCheck.Configure(aggregator.GetSenderManager(), integration.FakeConfigHash, testedConfig, []byte(""), "test")
+	ntpCheck.Configure(aggregator.NewNoOpSenderManager(), integration.FakeConfigHash, testedConfig, []byte(""), "test")
 
 	assert.Equal(t, expectedHosts, ntpCheck.cfg.instance.Hosts)
 }
@@ -305,7 +312,7 @@ hosts:
 `)
 
 	ntpCheck := new(NTPCheck)
-	ntpCheck.Configure(aggregator.GetSenderManager(), integration.FakeConfigHash, testedConfig, []byte(""), "test")
+	ntpCheck.Configure(aggregator.NewNoOpSenderManager(), integration.FakeConfigHash, testedConfig, []byte(""), "test")
 
 	assert.Equal(t, expectedHosts, ntpCheck.cfg.instance.Hosts)
 }
@@ -317,7 +324,7 @@ host: time.dogo
 `)
 
 	ntpCheck := new(NTPCheck)
-	ntpCheck.Configure(aggregator.GetSenderManager(), integration.FakeConfigHash, testedConfig, []byte(""), "test")
+	ntpCheck.Configure(aggregator.NewNoOpSenderManager(), integration.FakeConfigHash, testedConfig, []byte(""), "test")
 
 	assert.Equal(t, expectedHosts, ntpCheck.cfg.instance.Hosts)
 }
@@ -331,7 +338,7 @@ hosts:
 `)
 
 	ntpCheck := new(NTPCheck)
-	ntpCheck.Configure(aggregator.GetSenderManager(), integration.FakeConfigHash, testedConfig, []byte(""), "test")
+	ntpCheck.Configure(aggregator.NewNoOpSenderManager(), integration.FakeConfigHash, testedConfig, []byte(""), "test")
 
 	assert.Equal(t, expectedHosts, ntpCheck.cfg.instance.Hosts)
 }
@@ -346,7 +353,7 @@ func TestDefaultHostConfig(t *testing.T) {
 	config.Datadog.Set("cloud_provider_metadata", []string{})
 
 	ntpCheck := new(NTPCheck)
-	ntpCheck.Configure(aggregator.GetSenderManager(), integration.FakeConfigHash, testedConfig, []byte(""), "test")
+	ntpCheck.Configure(aggregator.NewNoOpSenderManager(), integration.FakeConfigHash, testedConfig, []byte(""), "test")
 
 	assert.Equal(t, expectedHosts, ntpCheck.cfg.instance.Hosts)
 }
@@ -366,7 +373,7 @@ func TestNTPPortConfig(t *testing.T) {
 offset_threshold: 60
 port: %d
 `, expectedPort))
-	err := ntpCheck.Configure(aggregator.GetSenderManager(), integration.FakeConfigHash, ntpCfg, []byte(""), "test")
+	err := ntpCheck.Configure(aggregator.NewNoOpSenderManager(), integration.FakeConfigHash, ntpCfg, []byte(""), "test")
 	assert.Nil(t, err)
 
 	mockSender := mocksender.NewMockSender(ntpCheck.ID())
@@ -385,7 +392,7 @@ func TestNTPPortNotInt(t *testing.T) {
 offset_threshold: 60
 port: ntp`)
 
-	err := ntpCheck.Configure(aggregator.GetSenderManager(), integration.FakeConfigHash, ntpCfg, []byte(""), "test")
+	err := ntpCheck.Configure(aggregator.NewNoOpSenderManager(), integration.FakeConfigHash, ntpCfg, []byte(""), "test")
 	assert.EqualError(t, err, "yaml: unmarshal errors:\n  line 3: cannot unmarshal !!str `ntp` into int")
 }
 
