@@ -29,6 +29,7 @@ replace (
 	github.com/DataDog/datadog-agent/comp/core/log/module => ./comp/core/log/module
 	github.com/DataDog/datadog-agent/comp/core/telemetry => ./comp/core/telemetry
 	github.com/DataDog/datadog-agent/comp/logs/agent/config => ./comp/logs/agent/config
+	github.com/DataDog/datadog-agent/comp/logs/agent/pipeline => ./comp/logs/agent/pipeline
 	github.com/DataDog/datadog-agent/pkg/aggregator/ckey => ./pkg/aggregator/ckey
 	github.com/DataDog/datadog-agent/pkg/autodiscovery/common/types => ./pkg/autodiscovery/common/types/
 	github.com/DataDog/datadog-agent/pkg/collector/check/defaults => ./pkg/collector/check/defaults/
@@ -39,11 +40,15 @@ replace (
 
 	github.com/DataDog/datadog-agent/pkg/errors => ./pkg/errors/
 	github.com/DataDog/datadog-agent/pkg/gohai => ./pkg/gohai
+	github.com/DataDog/datadog-agent/pkg/logs/auditor => ./pkg/logs/auditor
 	github.com/DataDog/datadog-agent/pkg/logs/client => ./pkg/logs/client
+	github.com/DataDog/datadog-agent/pkg/logs/diagnostic/module => ./pkg/logs/diagnostic/module
+	github.com/DataDog/datadog-agent/pkg/logs/internal/processor => ./pkg/logs/internal/processor
 	github.com/DataDog/datadog-agent/pkg/logs/internal/status => ./pkg/logs/internal/status
 	github.com/DataDog/datadog-agent/pkg/logs/internal/util/test_utils => ./pkg/logs/internal/util/test_utils
 	github.com/DataDog/datadog-agent/pkg/logs/message => ./pkg/logs/message
 	github.com/DataDog/datadog-agent/pkg/logs/metrics => ./pkg/logs/metrics
+	github.com/DataDog/datadog-agent/pkg/logs/pipeline => ./pkg/logs/pipeline
 	github.com/DataDog/datadog-agent/pkg/logs/sender => ./pkg/logs/sender
 	github.com/DataDog/datadog-agent/pkg/logs/sources => ./pkg/logs/sources
 	github.com/DataDog/datadog-agent/pkg/logs/status/module => ./pkg/logs/status/module
@@ -620,14 +625,16 @@ require (
 	github.com/DataDog/datadog-agent/pkg/config/load v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/pkg/config/logsetup v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/pkg/errors v0.0.0-00010101000000-000000000000
+	github.com/DataDog/datadog-agent/pkg/logs/auditor v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/pkg/logs/client v0.0.0-00010101000000-000000000000
+	github.com/DataDog/datadog-agent/pkg/logs/diagnostic/module v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/pkg/logs/internal/status v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/pkg/logs/internal/util/test_utils v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/pkg/logs/message v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/pkg/logs/metrics v0.0.0-00010101000000-000000000000
+	github.com/DataDog/datadog-agent/pkg/logs/pipeline v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/pkg/logs/sender v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/pkg/logs/sources v0.0.0-00010101000000-000000000000
-	github.com/DataDog/datadog-agent/pkg/logs/status/module v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/pkg/metrics v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/pkg/metrics/event v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/pkg/metrics/servicecheck v0.0.0-00010101000000-000000000000
@@ -645,7 +652,6 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/fxutil v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/pkg/util/go_routines v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/pkg/util/http v0.0.0-00010101000000-000000000000
-	github.com/DataDog/datadog-agent/pkg/util/optional v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/pkg/util/retry v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/pkg/util/startstop v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/pkg/util/stats_tracker v0.0.0-00010101000000-000000000000
@@ -672,6 +678,8 @@ require (
 require (
 	github.com/AdaLogics/go-fuzz-headers v0.0.0-20230811130428-ced1acdcaa24 // indirect
 	github.com/AdamKorcz/go-118-fuzz-build v0.0.0-20230306123547-8075edf89bb0 // indirect
+	github.com/DataDog/datadog-agent/pkg/logs/internal/processor v0.0.0-00010101000000-000000000000 // indirect
+	github.com/DataDog/datadog-agent/pkg/logs/status/module v0.0.0-00010101000000-000000000000 // indirect
 	github.com/DataDog/datadog-api-client-go/v2 v2.13.0 // indirect
 	github.com/antlr/antlr4/runtime/Go/antlr v1.4.10 // indirect
 	github.com/blang/semver/v4 v4.0.0 // indirect
