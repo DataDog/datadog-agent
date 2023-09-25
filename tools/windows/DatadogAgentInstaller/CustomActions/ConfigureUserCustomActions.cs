@@ -625,7 +625,7 @@ namespace Datadog.CustomActions
         /// </summary>
         /// <param name="sid"></param>
         /// <param name="filePath"></param>
-        private void removeAgentAccess(SecurityIdentifier sid, string filePath)
+        private void RemoveAgentAccess(SecurityIdentifier sid, string filePath)
         {
             var fileSystemSecurity = _fileSystemServices.GetAccessControl(filePath, AccessControlSections.All);
             _session.Log(
@@ -702,7 +702,7 @@ namespace Datadog.CustomActions
                         {
                             if (_fileSystemServices.Exists(filePath))
                             {
-                                removeAgentAccess(securityIdentifier, filePath);
+                                RemoveAgentAccess(securityIdentifier, filePath);
                             }
                         }
                         catch (Exception e)

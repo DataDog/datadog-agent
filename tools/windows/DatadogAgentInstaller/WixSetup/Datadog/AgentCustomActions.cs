@@ -65,6 +65,7 @@ namespace WixSetup.Datadog
         public ManagedAction StartDDServices { get; }
 
         public ManagedAction StartDDServicesRollback { get; }
+        public ManagedAction RestoreDaclRollback { get; }
 
         /// <summary>
         /// Registers and sequences our custom actions
@@ -494,6 +495,21 @@ namespace WixSetup.Datadog
                     Execute = Execute.deferred,
                     Impersonate = false
                 };
+
+            // This custom action is required to address the SE_DACL_AUTOINHERITED flag
+            // from being cleared on %PROJECTLOCATION% on rollback.
+            // We place it before RemoveExistingProducts so that on an upgrade rollback we execute
+            // *after* the previous installation was restored.
+            RestoreDaclRollback = new CustomAction<RestoreDaclRollbackCustomAction>(
+                new Id(nameof(RestoreDaclRollback)),
+                RestoreDaclRollbackCustomAction.DoRollback,
+                Return.ignore,
+                When.Before,
+                Step.RemoveExistingProducts)
+                {
+                    Execute = Execute.rollback
+                }
+                .SetProperties("PROJECTLOCATION=[PROJECTLOCATION]");
         }
     }
 }
