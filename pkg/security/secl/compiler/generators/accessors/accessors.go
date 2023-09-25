@@ -829,7 +829,7 @@ func getDefaultValueOfType(returnType string) string {
 
 func needScrubbed(fieldName string) bool {
 	loweredFieldName := strings.ToLower(fieldName)
-	if strings.Contains(loweredFieldName, "envp") || (strings.Contains(loweredFieldName, "argv") && !strings.Contains(loweredFieldName, "argv0")) {
+	if (strings.Contains(loweredFieldName, "envp") || (strings.Contains(loweredFieldName, "argv") && !strings.Contains(loweredFieldName, "argv0"))) && !strings.Contains(loweredFieldName, "module") {
 		return true
 	}
 	return false
@@ -844,6 +844,13 @@ func combineFieldMaps(map1 map[string]*common.StructField, map2 map[string]*comm
 		combined[key] = value
 	}
 	return combined
+}
+
+func addSuffixToFuncPrototype(suffix string, prototype string) string {
+	chunks := strings.SplitN(prototype, "(", 3)
+	chunks = append(chunks[:1], append([]string{suffix, "("}, chunks[1:]...)...)
+
+	return strings.Join(chunks, "")
 }
 
 func getFieldHandler(allFields map[string]*common.StructField, field *common.StructField) string {
@@ -950,19 +957,20 @@ func getHandlers(allFields map[string]*common.StructField) map[string]string {
 }
 
 var funcMap = map[string]interface{}{
-	"TrimPrefix":              strings.TrimPrefix,
-	"TrimSuffix":              strings.TrimSuffix,
-	"HasPrefix":               strings.HasPrefix,
-	"NewField":                newField,
-	"GeneratePrefixNilChecks": generatePrefixNilChecks,
-	"GetFieldHandler":         getFieldHandler,
-	"FieldADPrint":            fieldADPrint,
-	"GetChecks":               getChecks,
-	"GetHandlers":             getHandlers,
-	"PascalCaseFieldName":     pascalCaseFieldName,
-	"GetDefaultValueOfType":   getDefaultValueOfType,
-	"NeedScrubbed":            needScrubbed,
-	"CombineFieldMaps":        combineFieldMaps,
+	"TrimPrefix":               strings.TrimPrefix,
+	"TrimSuffix":               strings.TrimSuffix,
+	"HasPrefix":                strings.HasPrefix,
+	"NewField":                 newField,
+	"GeneratePrefixNilChecks":  generatePrefixNilChecks,
+	"GetFieldHandler":          getFieldHandler,
+	"FieldADPrint":             fieldADPrint,
+	"GetChecks":                getChecks,
+	"GetHandlers":              getHandlers,
+	"PascalCaseFieldName":      pascalCaseFieldName,
+	"GetDefaultValueOfType":    getDefaultValueOfType,
+	"NeedScrubbed":             needScrubbed,
+	"CombineFieldMaps":         combineFieldMaps,
+	"AddSuffixToFuncPrototype": addSuffixToFuncPrototype,
 }
 
 //go:embed accessors.tmpl

@@ -922,9 +922,11 @@ type FieldHandlers interface {
 	ResolveProcessArgsOptions(ev *Event, e *Process) []string
 	ResolveProcessArgsTruncated(ev *Event, e *Process) bool
 	ResolveProcessArgv(ev *Event, e *Process) []string
+	ResolveProcessArgvScrubbed(ev *Event, e *Process) []string
 	ResolveProcessArgv0(ev *Event, e *Process) string
 	ResolveProcessCreatedAt(ev *Event, e *Process) int
 	ResolveProcessEnvp(ev *Event, e *Process) []string
+	ResolveProcessEnvpScrubbed(ev *Event, e *Process) []string
 	ResolveProcessEnvs(ev *Event, e *Process) []string
 	ResolveProcessEnvsTruncated(ev *Event, e *Process) bool
 	ResolveRights(ev *Event, e *FileFields) int
@@ -1011,11 +1013,17 @@ func (dfh *DefaultFieldHandlers) ResolveProcessArgsTruncated(ev *Event, e *Proce
 	return e.ArgsTruncated
 }
 func (dfh *DefaultFieldHandlers) ResolveProcessArgv(ev *Event, e *Process) []string { return e.Argv }
-func (dfh *DefaultFieldHandlers) ResolveProcessArgv0(ev *Event, e *Process) string  { return e.Argv0 }
+func (dfh *DefaultFieldHandlers) ResolveProcessArgvScrubbed(ev *Event, e *Process) []string {
+	return e.Argv
+}
+func (dfh *DefaultFieldHandlers) ResolveProcessArgv0(ev *Event, e *Process) string { return e.Argv0 }
 func (dfh *DefaultFieldHandlers) ResolveProcessCreatedAt(ev *Event, e *Process) int {
 	return int(e.CreatedAt)
 }
 func (dfh *DefaultFieldHandlers) ResolveProcessEnvp(ev *Event, e *Process) []string { return e.Envp }
+func (dfh *DefaultFieldHandlers) ResolveProcessEnvpScrubbed(ev *Event, e *Process) []string {
+	return e.Envp
+}
 func (dfh *DefaultFieldHandlers) ResolveProcessEnvs(ev *Event, e *Process) []string { return e.Envs }
 func (dfh *DefaultFieldHandlers) ResolveProcessEnvsTruncated(ev *Event, e *Process) bool {
 	return e.EnvsTruncated

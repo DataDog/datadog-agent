@@ -124,7 +124,9 @@ func (ev *Event) Get{{$pascalCaseName}}() {{ $accessorReturnType }} {
                 {{$Return = print "ev.FieldHandlers." $Field.Handler "(ev)"}}
             {{- else if $Field.IsLength }}
                 {{$Return = print "len(ev.FieldHandlers." $Field.Handler "(ev, " $Ptr "ev." $Prefix "))"}}
-            {{else}}
+            {{- else if NeedScrubbed $Field.Handler }}
+                {{$Return = print "ev.FieldHandlers." $Field.Handler "Scrubbed(ev, " $Ptr "ev." $Prefix ")"}}
+            {{ else }}
                 {{$Return = print "ev.FieldHandlers." $Field.Handler "(ev, " $Ptr "ev." $Prefix ")"}}
             {{end}}
         {{end}}

@@ -798,7 +798,7 @@ func (ev *Event) GetExecArgv() []string {
 	if ev.Exec.Process == nil {
 		return zeroValue
 	}
-	resolvedField := ev.FieldHandlers.ResolveProcessArgv(ev, ev.Exec.Process)
+	resolvedField := ev.FieldHandlers.ResolveProcessArgvScrubbed(ev, ev.Exec.Process)
 	fieldCopy := make([]string, len(resolvedField))
 	copy(fieldCopy, resolvedField)
 	return fieldCopy
@@ -909,7 +909,7 @@ func (ev *Event) GetExecEnvp() []string {
 	if ev.Exec.Process == nil {
 		return zeroValue
 	}
-	resolvedField := ev.FieldHandlers.ResolveProcessEnvp(ev, ev.Exec.Process)
+	resolvedField := ev.FieldHandlers.ResolveProcessEnvpScrubbed(ev, ev.Exec.Process)
 	fieldCopy := make([]string, len(resolvedField))
 	copy(fieldCopy, resolvedField)
 	return fieldCopy
@@ -1827,7 +1827,7 @@ func (ev *Event) GetExitArgv() []string {
 	if ev.Exit.Process == nil {
 		return zeroValue
 	}
-	resolvedField := ev.FieldHandlers.ResolveProcessArgv(ev, ev.Exit.Process)
+	resolvedField := ev.FieldHandlers.ResolveProcessArgvScrubbed(ev, ev.Exit.Process)
 	fieldCopy := make([]string, len(resolvedField))
 	copy(fieldCopy, resolvedField)
 	return fieldCopy
@@ -1956,7 +1956,7 @@ func (ev *Event) GetExitEnvp() []string {
 	if ev.Exit.Process == nil {
 		return zeroValue
 	}
-	resolvedField := ev.FieldHandlers.ResolveProcessEnvp(ev, ev.Exit.Process)
+	resolvedField := ev.FieldHandlers.ResolveProcessEnvpScrubbed(ev, ev.Exit.Process)
 	fieldCopy := make([]string, len(resolvedField))
 	copy(fieldCopy, resolvedField)
 	return fieldCopy
@@ -5823,7 +5823,7 @@ func (ev *Event) GetProcessArgv() []string {
 	if ev.BaseEvent.ProcessContext == nil {
 		return zeroValue
 	}
-	resolvedField := ev.FieldHandlers.ResolveProcessArgv(ev, &ev.BaseEvent.ProcessContext.Process)
+	resolvedField := ev.FieldHandlers.ResolveProcessArgvScrubbed(ev, &ev.BaseEvent.ProcessContext.Process)
 	fieldCopy := make([]string, len(resolvedField))
 	copy(fieldCopy, resolvedField)
 	return fieldCopy
@@ -5907,7 +5907,7 @@ func (ev *Event) GetProcessEnvp() []string {
 	if ev.BaseEvent.ProcessContext == nil {
 		return zeroValue
 	}
-	resolvedField := ev.FieldHandlers.ResolveProcessEnvp(ev, &ev.BaseEvent.ProcessContext.Process)
+	resolvedField := ev.FieldHandlers.ResolveProcessEnvpScrubbed(ev, &ev.BaseEvent.ProcessContext.Process)
 	fieldCopy := make([]string, len(resolvedField))
 	copy(fieldCopy, resolvedField)
 	return fieldCopy
@@ -6576,7 +6576,7 @@ func (ev *Event) GetProcessParentArgv() []string {
 	if !ev.BaseEvent.ProcessContext.HasParent() {
 		return []string{}
 	}
-	resolvedField := ev.FieldHandlers.ResolveProcessArgv(ev, ev.BaseEvent.ProcessContext.Parent)
+	resolvedField := ev.FieldHandlers.ResolveProcessArgvScrubbed(ev, ev.BaseEvent.ProcessContext.Parent)
 	fieldCopy := make([]string, len(resolvedField))
 	copy(fieldCopy, resolvedField)
 	return fieldCopy
@@ -6714,7 +6714,7 @@ func (ev *Event) GetProcessParentEnvp() []string {
 	if !ev.BaseEvent.ProcessContext.HasParent() {
 		return []string{}
 	}
-	resolvedField := ev.FieldHandlers.ResolveProcessEnvp(ev, ev.BaseEvent.ProcessContext.Parent)
+	resolvedField := ev.FieldHandlers.ResolveProcessEnvpScrubbed(ev, ev.BaseEvent.ProcessContext.Parent)
 	fieldCopy := make([]string, len(resolvedField))
 	copy(fieldCopy, resolvedField)
 	return fieldCopy
@@ -9666,7 +9666,7 @@ func (ev *Event) GetPtraceTraceeArgv() []string {
 	if ev.PTrace.Tracee == nil {
 		return zeroValue
 	}
-	resolvedField := ev.FieldHandlers.ResolveProcessArgv(ev, &ev.PTrace.Tracee.Process)
+	resolvedField := ev.FieldHandlers.ResolveProcessArgvScrubbed(ev, &ev.PTrace.Tracee.Process)
 	fieldCopy := make([]string, len(resolvedField))
 	copy(fieldCopy, resolvedField)
 	return fieldCopy
@@ -9777,7 +9777,7 @@ func (ev *Event) GetPtraceTraceeEnvp() []string {
 	if ev.PTrace.Tracee == nil {
 		return zeroValue
 	}
-	resolvedField := ev.FieldHandlers.ResolveProcessEnvp(ev, &ev.PTrace.Tracee.Process)
+	resolvedField := ev.FieldHandlers.ResolveProcessEnvpScrubbed(ev, &ev.PTrace.Tracee.Process)
 	fieldCopy := make([]string, len(resolvedField))
 	copy(fieldCopy, resolvedField)
 	return fieldCopy
@@ -10617,7 +10617,7 @@ func (ev *Event) GetPtraceTraceeParentArgv() []string {
 	if !ev.PTrace.Tracee.HasParent() {
 		return []string{}
 	}
-	resolvedField := ev.FieldHandlers.ResolveProcessArgv(ev, ev.PTrace.Tracee.Parent)
+	resolvedField := ev.FieldHandlers.ResolveProcessArgvScrubbed(ev, ev.PTrace.Tracee.Parent)
 	fieldCopy := make([]string, len(resolvedField))
 	copy(fieldCopy, resolvedField)
 	return fieldCopy
@@ -10782,7 +10782,7 @@ func (ev *Event) GetPtraceTraceeParentEnvp() []string {
 	if !ev.PTrace.Tracee.HasParent() {
 		return []string{}
 	}
-	resolvedField := ev.FieldHandlers.ResolveProcessEnvp(ev, ev.PTrace.Tracee.Parent)
+	resolvedField := ev.FieldHandlers.ResolveProcessEnvpScrubbed(ev, ev.PTrace.Tracee.Parent)
 	fieldCopy := make([]string, len(resolvedField))
 	copy(fieldCopy, resolvedField)
 	return fieldCopy
@@ -15057,7 +15057,7 @@ func (ev *Event) GetSignalTargetArgv() []string {
 	if ev.Signal.Target == nil {
 		return zeroValue
 	}
-	resolvedField := ev.FieldHandlers.ResolveProcessArgv(ev, &ev.Signal.Target.Process)
+	resolvedField := ev.FieldHandlers.ResolveProcessArgvScrubbed(ev, &ev.Signal.Target.Process)
 	fieldCopy := make([]string, len(resolvedField))
 	copy(fieldCopy, resolvedField)
 	return fieldCopy
@@ -15168,7 +15168,7 @@ func (ev *Event) GetSignalTargetEnvp() []string {
 	if ev.Signal.Target == nil {
 		return zeroValue
 	}
-	resolvedField := ev.FieldHandlers.ResolveProcessEnvp(ev, &ev.Signal.Target.Process)
+	resolvedField := ev.FieldHandlers.ResolveProcessEnvpScrubbed(ev, &ev.Signal.Target.Process)
 	fieldCopy := make([]string, len(resolvedField))
 	copy(fieldCopy, resolvedField)
 	return fieldCopy
@@ -16008,7 +16008,7 @@ func (ev *Event) GetSignalTargetParentArgv() []string {
 	if !ev.Signal.Target.HasParent() {
 		return []string{}
 	}
-	resolvedField := ev.FieldHandlers.ResolveProcessArgv(ev, ev.Signal.Target.Parent)
+	resolvedField := ev.FieldHandlers.ResolveProcessArgvScrubbed(ev, ev.Signal.Target.Parent)
 	fieldCopy := make([]string, len(resolvedField))
 	copy(fieldCopy, resolvedField)
 	return fieldCopy
@@ -16173,7 +16173,7 @@ func (ev *Event) GetSignalTargetParentEnvp() []string {
 	if !ev.Signal.Target.HasParent() {
 		return []string{}
 	}
-	resolvedField := ev.FieldHandlers.ResolveProcessEnvp(ev, ev.Signal.Target.Parent)
+	resolvedField := ev.FieldHandlers.ResolveProcessEnvpScrubbed(ev, ev.Signal.Target.Parent)
 	fieldCopy := make([]string, len(resolvedField))
 	copy(fieldCopy, resolvedField)
 	return fieldCopy
