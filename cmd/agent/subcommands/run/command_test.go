@@ -3,6 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build !windows
+
 package run
 
 import (
@@ -20,7 +22,7 @@ func TestCommand(t *testing.T) {
 	fxutil.TestOneShotSubcommand(t,
 		Commands(&command.GlobalParams{}),
 		[]string{"run"},
-		commonRun,
+		run,
 		func(cliParams *cliParams, coreParams core.BundleParams) {
 			require.Equal(t, true, coreParams.ConfigLoadSecrets())
 		})
@@ -31,7 +33,7 @@ func TestCommandPidfile(t *testing.T) {
 	fxutil.TestOneShotSubcommand(t,
 		Commands(&command.GlobalParams{}),
 		[]string{"run", "--pidfile", "/pid/file"},
-		commonRun,
+		run,
 		func(cliParams *cliParams, coreParams core.BundleParams) {
 			require.Equal(t, "/pid/file", cliParams.pidfilePath)
 			require.Equal(t, true, coreParams.ConfigLoadSecrets())
