@@ -28,6 +28,7 @@ replace (
 	github.com/DataDog/datadog-agent/comp/core/config => ./comp/core/config
 	github.com/DataDog/datadog-agent/comp/core/log/module => ./comp/core/log/module
 	github.com/DataDog/datadog-agent/comp/core/telemetry => ./comp/core/telemetry
+	github.com/DataDog/datadog-agent/comp/logs/agent/config => ./comp/logs/agent/config
 	github.com/DataDog/datadog-agent/pkg/aggregator/ckey => ./pkg/aggregator/ckey
 	github.com/DataDog/datadog-agent/pkg/autodiscovery/common/types => ./pkg/autodiscovery/common/types/
 	github.com/DataDog/datadog-agent/pkg/collector/check/defaults => ./pkg/collector/check/defaults/
@@ -38,8 +39,13 @@ replace (
 
 	github.com/DataDog/datadog-agent/pkg/errors => ./pkg/errors/
 	github.com/DataDog/datadog-agent/pkg/gohai => ./pkg/gohai
+	github.com/DataDog/datadog-agent/pkg/logs/client => ./pkg/logs/client
 	github.com/DataDog/datadog-agent/pkg/logs/internal/status => ./pkg/logs/internal/status
+	github.com/DataDog/datadog-agent/pkg/logs/internal/util/test_utils => ./pkg/logs/internal/util/test_utils
+	github.com/DataDog/datadog-agent/pkg/logs/message => ./pkg/logs/message
 	github.com/DataDog/datadog-agent/pkg/logs/metrics => ./pkg/logs/metrics
+	github.com/DataDog/datadog-agent/pkg/logs/sender => ./pkg/logs/sender
+	github.com/DataDog/datadog-agent/pkg/logs/sources => ./pkg/logs/sources
 	github.com/DataDog/datadog-agent/pkg/logs/status/module => ./pkg/logs/status/module
 	github.com/DataDog/datadog-agent/pkg/metrics => ./pkg/metrics
 	github.com/DataDog/datadog-agent/pkg/metrics/event => ./pkg/metrics/event
@@ -121,7 +127,7 @@ require (
 	github.com/aws/aws-lambda-go v1.37.0
 	github.com/aws/aws-sdk-go v1.45.7
 	github.com/beevik/ntp v0.3.0
-	github.com/benbjohnson/clock v1.3.0
+	github.com/benbjohnson/clock v1.3.5
 	github.com/bhmj/jsonslice v0.0.0-20200323023432-92c3edaad8e2
 	github.com/blabber/go-freebsd-sysctl v0.0.0-20201130114544-503969f39d8f
 	github.com/cenkalti/backoff v2.2.1+incompatible
@@ -605,6 +611,7 @@ require (
 	github.com/DataDog/datadog-agent/comp/core/config v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/comp/core/log/module v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/comp/core/telemetry v0.0.0-00010101000000-000000000000
+	github.com/DataDog/datadog-agent/comp/logs/agent/config v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/pkg/aggregator/ckey v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/pkg/autodiscovery/common/types v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/pkg/collector/check/defaults v0.0.0-00010101000000-000000000000
@@ -613,8 +620,13 @@ require (
 	github.com/DataDog/datadog-agent/pkg/config/load v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/pkg/config/logsetup v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/pkg/errors v0.0.0-00010101000000-000000000000
+	github.com/DataDog/datadog-agent/pkg/logs/client v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/pkg/logs/internal/status v0.0.0-00010101000000-000000000000
+	github.com/DataDog/datadog-agent/pkg/logs/internal/util/test_utils v0.0.0-00010101000000-000000000000
+	github.com/DataDog/datadog-agent/pkg/logs/message v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/pkg/logs/metrics v0.0.0-00010101000000-000000000000
+	github.com/DataDog/datadog-agent/pkg/logs/sender v0.0.0-00010101000000-000000000000
+	github.com/DataDog/datadog-agent/pkg/logs/sources v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/pkg/logs/status/module v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/pkg/metrics v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/pkg/metrics/event v0.0.0-00010101000000-000000000000
