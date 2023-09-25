@@ -2,22 +2,18 @@ package profiledefinition
 
 import (
 	"encoding/json"
-	"fmt"
 	"github.com/stretchr/testify/assert"
 	"testing"
 )
 
 func TestNewProfileDefinition(t *testing.T) {
-
 	// language=json
 	rcConfig := []byte(`
 {
 	"profile_definition": {
-		"name": "",
+		"name": "a-profile",
 		"metrics": [
 			{
-				"table": {},
-				"symbol": {},
 				"symbols": [
 					{
 						"OID": "1.2.3",
@@ -52,5 +48,34 @@ func TestNewProfileDefinition(t *testing.T) {
 
 	err := json.Unmarshal(rcConfig, &profile)
 	assert.NoError(t, err)
-	fmt.Printf("%+v", profile)
+
+	expectedProfile := DeviceProfileRcConfig{
+		Profile: ProfileDefinition{
+			Name: "a-profile",
+			Metrics: []MetricsConfig{
+				{
+					Symbols: []SymbolConfig{
+						{
+							OID:  "1.2.3",
+							Name: "aSymbol",
+						},
+					},
+					MetricTags: MetricTagConfigList{
+						{
+							Column: SymbolConfig{
+								OID:  "1.2.3",
+								Name: "aSymbol",
+							},
+							Tag: "a-tag",
+							Mapping: map[string]string{
+								"1": "aa",
+								"2": "bb",
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+	assert.Equal(t, expectedProfile, profile)
 }
