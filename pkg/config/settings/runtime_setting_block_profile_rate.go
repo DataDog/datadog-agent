@@ -14,11 +14,11 @@ import (
 type RuntimeBlockProfileRate struct {
 	Config       config.ConfigReaderWriter
 	ConfigPrefix string
-	source       Source
+	source       config.Source
 }
 
 func NewRuntimeBlockProfileRate() *RuntimeBlockProfileRate {
-	return &RuntimeBlockProfileRate{source: SourceDefault}
+	return &RuntimeBlockProfileRate{source: config.SourceDefault}
 }
 
 // Name returns the name of the runtime setting
@@ -45,7 +45,7 @@ func (r *RuntimeBlockProfileRate) Get() (interface{}, error) {
 }
 
 // Set changes the value of the runtime setting
-func (r *RuntimeBlockProfileRate) Set(value interface{}, source Source) error {
+func (r *RuntimeBlockProfileRate) Set(value interface{}, source config.Source) error {
 	rate, err := GetInt(value)
 	if err != nil {
 		return err
@@ -64,6 +64,7 @@ func (r *RuntimeBlockProfileRate) Set(value interface{}, source Source) error {
 	return err
 }
 
-func (r *RuntimeBlockProfileRate) GetSource() Source {
+// GetSource returns the current source of the corresponding runtime setting
+func (r *RuntimeBlockProfileRate) GetSource() config.Source {
 	return r.source
 }

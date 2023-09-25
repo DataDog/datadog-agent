@@ -13,6 +13,7 @@ import (
 	"github.com/gorilla/mux"
 	"gopkg.in/yaml.v2"
 
+	"github.com/DataDog/datadog-agent/pkg/config"
 	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/config/settings"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -145,7 +146,7 @@ func setConfigValue(w http.ResponseWriter, r *http.Request) {
 	_ = r.ParseForm()
 	value := html.UnescapeString(r.Form.Get("value"))
 
-	if err := settings.SetRuntimeSetting(setting, value, settings.SourceCLI); err != nil {
+	if err := settings.SetRuntimeSetting(setting, value, config.SourceRuntime); err != nil {
 		body, _ := json.Marshal(map[string]string{"error": err.Error()})
 		switch err.(type) {
 		case *settings.SettingNotFoundError:
