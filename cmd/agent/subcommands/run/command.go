@@ -50,6 +50,7 @@ import (
 	logsAgent "github.com/DataDog/datadog-agent/comp/logs/agent"
 	"github.com/DataDog/datadog-agent/comp/metadata"
 	"github.com/DataDog/datadog-agent/comp/metadata/runner"
+	"github.com/DataDog/datadog-agent/comp/ndmtmp"
 	"github.com/DataDog/datadog-agent/comp/netflow"
 	netflowServer "github.com/DataDog/datadog-agent/comp/netflow/server"
 	"github.com/DataDog/datadog-agent/comp/otelcol"
@@ -184,7 +185,7 @@ func run(log log.Component,
 	cliParams *cliParams,
 	logsAgent util.Optional[logsAgent.Component],
 	otelcollector otelcollector.Component,
-	_ netflowServer.Server,
+	_ netflowServer.Component,
 ) error {
 	defer func() {
 		stopAgent(cliParams, server)
@@ -261,7 +262,7 @@ func StartAgentWithDefaults(ctxChan <-chan context.Context) (<-chan error, error
 			metadataRunner runner.Component,
 			sharedSerializer serializer.MetricSerializer,
 			otelcollector otelcollector.Component,
-			_ netflowServer.Server,
+			_ netflowServer.Component,
 		) error {
 
 			defer StopAgentWithDefaults(server)
@@ -373,6 +374,7 @@ func getSharedFxOption() fx.Option {
 		fx.Provide(func(demux *aggregator.AgentDemultiplexer) serializer.MetricSerializer {
 			return demux.Serializer()
 		}),
+		ndmtmp.Bundle,
 		netflow.Bundle,
 	)
 }
