@@ -338,6 +338,7 @@ type AgentConfig struct {
 	ExtraAggregators       []string      // DEPRECATED
 	PeerServiceAggregation bool          // enables/disables stats aggregation for peer.service, used by Concentrator and ClientStatsAggregator
 	ComputeStatsBySpanKind bool          // enables/disables the computing of stats based on a span's `span.kind` field
+	CustomTags             []string      // additional tags to use for stats aggregation
 
 	// Sampler configuration
 	ExtraSampleRate float64
@@ -501,6 +502,9 @@ func New() *AgentConfig {
 		MaxCatalogEntries:   5000,
 
 		BucketInterval: time.Duration(10) * time.Second,
+
+		// TODO: Separate additional "defaults" from custom tags once aggregation keys are fully dynamic.
+		CustomTags: []string{"aws.s3.bucket"},
 
 		ExtraSampleRate: 1.0,
 		TargetTPS:       10,

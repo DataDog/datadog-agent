@@ -25,6 +25,7 @@ const (
 type Aggregation struct {
 	BucketsAggregationKey
 	PayloadAggregationKey
+	CustomTagsKey string
 }
 
 // BucketsAggregationKey specifies the key by which a bucket is aggregated.
@@ -66,7 +67,7 @@ func getStatusCode(s *pb.Span) uint32 {
 }
 
 // NewAggregationFromSpan creates a new aggregation from the provided span and env
-func NewAggregationFromSpan(s *pb.Span, origin string, aggKey PayloadAggregationKey, enablePeerSvcAgg bool) Aggregation {
+func NewAggregationFromSpan(s *pb.Span, origin string, aggKey PayloadAggregationKey, enablePeerSvcAgg bool, customTags []string) Aggregation {
 	synthetics := strings.HasPrefix(origin, tagSynthetics)
 	agg := Aggregation{
 		PayloadAggregationKey: aggKey,
@@ -83,7 +84,25 @@ func NewAggregationFromSpan(s *pb.Span, origin string, aggKey PayloadAggregation
 	if enablePeerSvcAgg {
 		agg.PeerService = s.Meta[tagPeerService]
 	}
+	agg.CustomTagsKey = customTagKey(s, customTags)
 	return agg
+}
+
+func customTagKey(s *pb.Span, customTags []string) string {
+	if len(customTags) == 0 {
+		return ""
+	}
+	// TODO: replace with strings.Builder?
+	key := ""
+	for i, t := range customTags {
+		if s.Meta[t] != "" {
+			key += t + ":" + s.Meta[t]
+			if i != len(customTags)-1 {
+				key += ","
+			}
+		}
+	}
+	return key
 }
 
 // NewAggregationFromGroup gets the Aggregation key of grouped stats.

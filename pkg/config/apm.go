@@ -54,6 +54,7 @@ func setupAPM(config Config) {
 	config.SetKnown("apm_config.watchdog_check_delay")
 	config.SetKnown("apm_config.sync_flushing")
 	config.SetKnown("apm_config.features")
+	config.SetKnown("apm_config.custom_tags")
 
 	bindVectorOptions(config, Traces)
 
@@ -161,6 +162,14 @@ func setupAPM(config Config) {
 		out, err := parseAnalyzedSpans(in)
 		if err != nil {
 			log.Errorf(`Bad format for "apm_config.analyzed_spans" it should be of the form \"service_name|operation_name=rate,other_service|other_operation=rate\", error: %v`, err)
+		}
+		return out
+	})
+
+	config.SetEnvKeyTransformer("apm_config.custom_tags", func(in string) interface{} {
+		var out []string
+		if err := json.Unmarshal([]byte(in), &out); err != nil {
+			log.Warnf(`"apm_config.custom_tags" can not be parsed: %v`, err)
 		}
 		return out
 	})
