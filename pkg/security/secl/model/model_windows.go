@@ -60,16 +60,12 @@ type Process struct {
 	ArgsEntry *ArgsEntry `field:"-" json:"-"`
 	EnvsEntry *EnvsEntry `field:"-" json:"-"`
 
-	Argv0 string   `field:"argv0"`                                                                                                                    // SECLDoc[argv0] Definition:`First argument of the process`
-	Args  string   `field:"args"`                                                                                                                     // SECLDoc[args] Definition:`Arguments of the process (as a string, excluding argv0)` Example:`exec.args == "-sV -p 22,53,110,143,4564 198.116.0-255.1-127"` Description:`Matches any process with these exact arguments.` Example:`exec.args =~ "* -F * http*"` Description:`Matches any process that has the "-F" argument anywhere before an argument starting with "http".`
-	Argv  []string `field:"argv; args_flags,handler:ResolveProcessArgsFlags,opts:helper; args_options,handler:ResolveProcessArgsOptions,opts:helper"` // SECLDoc[argv] Definition:`Arguments of the process (as an array, excluding argv0)` Example:`exec.argv in ["127.0.0.1"]` Description:`Matches any process that has this IP address as one of its arguments.` SECLDoc[args_flags] Definition:`Flags in the process arguments` Example:`exec.args_flags in ["s"] && exec.args_flags in ["V"]` Description:`Matches any process with both "-s" and "-V" flags in its arguments. Also matches "-sV".` SECLDoc[args_options] Definition:`Argument of the process as options` Example:`exec.args_options in ["p=0-1024"]` Description:`Matches any process that has either "-p 0-1024" or "--p=0-1024" in its arguments.`                                                                                                                    // SECLDoc[envs] Definition:`Environment variable names of the process`
-	Envs  []string `field:"envs,handler:ResolveProcessEnvs:100"`                                                                                      // SECLDoc[envs] Definition:`Environment variable names of the process`
-	Envp  []string `field:"envp,handler:ResolveProcessEnvp:100"`                                                                                      // SECLDoc[envp] Definition:`Environment variables of the process`                                                                                                                         // SECLDoc[envp] Definition:`Environment variables of the process`
+	Args string   `field:"args"`                                // SECLDoc[args] Definition:`Arguments of the process (as a string, excluding argv0)` Example:`exec.args == "-sV -p 22,53,110,143,4564 198.116.0-255.1-127"` Description:`Matches any process with these exact arguments.` Example:`exec.args =~ "* -F * http*"` Description:`Matches any process that has the "-F" argument anywhere before an argument starting with "http".`
+	Envs []string `field:"envs,handler:ResolveProcessEnvs:100"` // SECLDoc[envs] Definition:`Environment variable names of the process`
+	Envp []string `field:"envp,handler:ResolveProcessEnvp:100"` // SECLDoc[envp] Definition:`Environment variables of the process`                                                                                                                         // SECLDoc[envp] Definition:`Environment variables of the process`
 
 	// cache version
-	ScrubbedArgvResolved bool           `field:"-" json:"-"`
-	ScrubbedArgv         []string       `field:"-" json:"-"`
-	Variables            eval.Variables `field:"-" json:"-"`
+	Variables eval.Variables `field:"-" json:"-"`
 }
 
 // ExecEvent represents a exec event
