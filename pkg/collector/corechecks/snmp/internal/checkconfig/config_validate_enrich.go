@@ -194,5 +194,12 @@ func validateEnrichMetricTag(metricTag *profiledefinition.MetricTagConfig) []str
 			errors = append(errors, fmt.Sprintf("transform rule end should be greater than start. Invalid rule: %#v", transform))
 		}
 	}
+	if len(metricTag.MappingList) > 0 {
+		metricTag.Mapping = make(map[string]string)
+		for _, keyValue := range metricTag.MappingList {
+			metricTag.Mapping[keyValue.Key] = keyValue.Value
+		}
+		metricTag.MappingList = nil
+	}
 	return errors
 }

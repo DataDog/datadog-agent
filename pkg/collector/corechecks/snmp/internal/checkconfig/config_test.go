@@ -6,7 +6,6 @@
 package checkconfig
 
 import (
-	"encoding/json"
 	"regexp"
 	"testing"
 	"time"
@@ -111,6 +110,14 @@ metric_tags:
     mapping:
       1: one
       2: two
+  - OID: 1.2.3
+    symbol: mySymbol
+    tag: my_symbol_mapped_list
+    mapping:
+      - key: 1
+        value: one
+      - key: 2
+        value: two
   - OID: 1.2.3
     symbol: mySymbol
     match: '(\w)(\w+)'
@@ -222,6 +229,7 @@ bulk_max_repetitions: 20
 	expectedMetricTags := []profiledefinition.MetricTagConfig{
 		{Tag: "my_symbol", OID: "1.2.3", Name: "mySymbol"},
 		{Tag: "my_symbol_mapped", OID: "1.2.3", Name: "mySymbol", Mapping: map[string]string{"1": "one", "2": "two"}},
+		{Tag: "my_symbol_mapped_list", OID: "1.2.3", Name: "mySymbol", Mapping: map[string]string{"1": "one", "2": "two"}},
 		{
 			OID:     "1.2.3",
 			Name:    "mySymbol",
@@ -246,9 +254,7 @@ bulk_max_repetitions: 20
 		{Tag: "snmp_host", OID: "1.3.6.1.2.1.1.5.0", Name: "sysName"},
 	}
 
-	expectedMetricsJSON, _ := json.MarshalIndent(expectedMetrics, "", "\t")
-	actualMetricsJSON, _ := json.MarshalIndent(config.Metrics, "", "\t")
-	assert.JSONEq(t, string(expectedMetricsJSON), string(actualMetricsJSON))
+	assert.Equal(t, expectedMetrics, config.Metrics)
 	assert.Equal(t, expectedMetricTags, config.MetricTags)
 	assert.Equal(t, []string{"snmp_profile:f5-big-ip", "device_vendor:f5", "static_tag:from_profile_root", "static_tag:from_base_profile"}, config.ProfileTags)
 	assert.Equal(t, 1, len(config.Profiles))
