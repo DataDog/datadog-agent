@@ -20,7 +20,7 @@ func TestCommand(t *testing.T) {
 	fxutil.TestOneShotSubcommand(t,
 		Commands(&command.GlobalParams{}),
 		[]string{"run"},
-		run,
+		commonRun,
 		func(cliParams *cliParams, coreParams core.BundleParams) {
 			require.Equal(t, true, coreParams.ConfigLoadSecrets())
 		})
@@ -31,7 +31,7 @@ func TestCommandPidfile(t *testing.T) {
 	fxutil.TestOneShotSubcommand(t,
 		Commands(&command.GlobalParams{}),
 		[]string{"run", "--pidfile", "/pid/file"},
-		run,
+		commonRun,
 		func(cliParams *cliParams, coreParams core.BundleParams) {
 			require.Equal(t, "/pid/file", cliParams.pidfilePath)
 			require.Equal(t, true, coreParams.ConfigLoadSecrets())

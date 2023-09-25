@@ -14,7 +14,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
-// team: /* TODO: add team name */
+// team: windows-kernel-integrations
 
 // Component is the component type.
 type Component interface {

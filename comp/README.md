@@ -14,6 +14,18 @@ Package aggregator implements the "aggregator" bundle,
 
 Package demultiplexer defines the aggregator demultiplexer
 
+## [comp/checks](https://pkg.go.dev/github.com/DataDog/dd-agent-comp-experiments/comp/checks) (Component Bundle)
+
+*Datadog Team*: agent-shared-components
+
+Package checks implements the "checks" bundle, for all of the component based agent checks
+
+### [comp/checks/agentcrashdetect](https://pkg.go.dev/github.com/DataDog/dd-agent-comp-experiments/comp/checks/agentcrashdetect)
+
+*Datadog Team*: /* TODO
+
+Package agentcrashdetect ... /* TODO: detailed doc comment for the component */
+
 ## [comp/core](https://pkg.go.dev/github.com/DataDog/dd-agent-comp-experiments/comp/core) (Component Bundle)
 
 *Datadog Team*: agent-shared-components
