@@ -202,12 +202,12 @@ build do
       static_reqs_in_file = "#{windows_safe_path(project_dir)}\\datadog_checks_base\\datadog_checks\\base\\data\\#{agent_requirements_in}"
       static_reqs_out_folder = "#{windows_safe_path(project_dir)}\\"
       static_reqs_out_file = static_reqs_out_folder + filtered_agent_requirements_in
-      compiled_req_file_path = "#{windows_safe_path(install_dir)}\\#{agent_requirements_file}"
+      compiled_reqs_file_path = "#{windows_safe_path(install_dir)}\\#{agent_requirements_file}"
     else
       static_reqs_in_file = "#{project_dir}/datadog_checks_base/datadog_checks/base/data/#{agent_requirements_in}"
       static_reqs_out_folder = "#{project_dir}/"
       static_reqs_out_file = static_reqs_out_folder + filtered_agent_requirements_in
-      compiled_req_file_path = "#{install_dir}/#{agent_requirements_file}"
+      compiled_reqs_file_path = "#{install_dir}/#{agent_requirements_file}"
     end
 
     # Remove any blacklisted requirements from the static-environment req file
@@ -221,11 +221,11 @@ build do
     cwd = windows? ? "#{windows_safe_path(project_dir)}\\datadog_checks_base" : "#{project_dir}/datadog_checks_base"
 
     specific_build_env.each do |lib, env|
-      compiled_req_file_path = (windows? ? "#{windows_safe_path(install_dir)}\\" : "#{install_dir}/") + "agent_#{lib}_requirements-py2.txt"
+      lib_compiled_req_file_path = (windows? ? "#{windows_safe_path(install_dir)}\\" : "#{install_dir}/") + "agent_#{lib}_requirements-py2.txt"
       requirements_custom[lib] = {
         "req_lines" => Array.new,
         "req_file_path" => static_reqs_out_folder + lib + "-py2.in",
-        "compiled_req_file_path" => compiled_req_file_path
+        "compiled_req_file_path" => lib_compiled_req_file_path
       }
     end
 
@@ -280,7 +280,7 @@ build do
 
     command "#{python} -m pip wheel . --no-deps --no-index --wheel-dir=#{wheel_build_dir}", :env => build_env, :cwd => cwd
     command "#{python} -m pip install datadog_checks_base --no-deps --no-index --find-links=#{wheel_build_dir}"
-    command "#{python} -m piptools compile --generate-hashes --output-file #{compiled_req_file_path} #{static_reqs_out_file} " \
+    command "#{python} -m piptools compile --generate-hashes --output-file #{compiled_reqs_file_path} #{static_reqs_out_file} " \
       "--pip-args \"--retries #{pip_max_retries} --timeout #{pip_timeout}\"", :env => build_env
     # Pip-compiling seperately each lib that needs a custom build installation
     specific_build_env.each do |lib, env|
@@ -298,7 +298,7 @@ build do
     end
 
     # Then we install the rest (already installed libraries will be ignored) with the main flags
-    command "#{python} -m pip install --no-deps --require-hashes -r #{compiled_req_file_path}", :env => build_env
+    command "#{python} -m pip install --no-deps --require-hashes -r #{compiled_reqs_file_path}", :env => build_env
 
     #
     # Install Core integrations
