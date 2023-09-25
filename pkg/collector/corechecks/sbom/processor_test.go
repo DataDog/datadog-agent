@@ -406,12 +406,14 @@ func TestProcessEvents(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			var SBOMsSent = atomic.NewInt32(0)
-
 			fakeworkloadmeta := fakeworkloadmeta.NewStore()
 
 			sender := mocksender.NewMockSender("")
 			sender.On("EventPlatformEvent", mock.Anything, mock.Anything).Return().Run(func(_ mock.Arguments) {
 				SBOMsSent.Inc()
+			})
+			sender.On("Gauge", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return().Run(func(args mock.Arguments) {
+				assert.Equal(t, "datadog.agent.sbom_images", args[0].(string))
 			})
 
 			// Define a max size of 1 for the queue. With a size > 1, it's difficult to
@@ -453,6 +455,207 @@ func TestProcessEvents(t *testing.T) {
 				assert.Nil(t, err)
 				sender.AssertEventPlatformEvent(t, encoded, epforwarder.EventTypeContainerSBOM)
 			}
+		})
+	}
+}
+
+func TestTelemetry(t *testing.T) {
+	sbomGenerationTime := time.Now()
+
+	tests := []struct {
+		name           string
+		inputEvents    []workloadmeta.Event
+		expectedSBOM   float64
+		expectedImages float64
+	}{
+		{
+			name: "single set",
+			inputEvents: []workloadmeta.Event{
+				{
+					Type: workloadmeta.EventTypeSet,
+					Entity: &workloadmeta.ContainerImageMetadata{
+						EntityID: workloadmeta.EntityID{
+							Kind: workloadmeta.KindContainerImageMetadata,
+							ID:   "sha256:9634b84c45c6ad220c3d0d2305aaa5523e47d6d43649c9bbeda46ff010b4aacd",
+						},
+						RepoTags: []string{
+							"datadog/agent:7-rc",
+						},
+						RepoDigests: []string{
+							"datadog/agent@sha256:052f1fdf4f9a7117d36a1838ab60782829947683007c34b69d4991576375c409",
+						},
+						SBOM: &workloadmeta.SBOM{
+							CycloneDXBOM: &cyclonedx.BOM{
+								SpecVersion: cyclonedx.SpecVersion1_4,
+								Version:     42,
+								Components: &[]cyclonedx.Component{
+									{
+										Name: "Foo",
+									},
+								},
+							},
+							GenerationTime:     sbomGenerationTime,
+							GenerationDuration: 10 * time.Second,
+						},
+					},
+				},
+			},
+			expectedSBOM:   1,
+			expectedImages: 1,
+		},
+		{
+			name: "set sbom and remove it",
+			inputEvents: []workloadmeta.Event{
+				{
+					Type: workloadmeta.EventTypeSet,
+					Entity: &workloadmeta.ContainerImageMetadata{
+						EntityID: workloadmeta.EntityID{
+							Kind: workloadmeta.KindContainerImageMetadata,
+							ID:   "sha256:9634b84c45c6ad220c3d0d2305aaa5523e47d6d43649c9bbeda46ff010b4aacd",
+						},
+						RepoTags: []string{
+							"datadog/agent:7-rc",
+						},
+						RepoDigests: []string{
+							"datadog/agent@sha256:052f1fdf4f9a7117d36a1838ab60782829947683007c34b69d4991576375c409",
+						},
+						SBOM: &workloadmeta.SBOM{
+							CycloneDXBOM: &cyclonedx.BOM{
+								SpecVersion: cyclonedx.SpecVersion1_4,
+								Version:     42,
+								Components: &[]cyclonedx.Component{
+									{
+										Name: "Foo",
+									},
+								},
+							},
+							GenerationTime:     sbomGenerationTime,
+							GenerationDuration: 10 * time.Second,
+						},
+					},
+				},
+				{
+					Type: workloadmeta.EventTypeSet,
+					Entity: &workloadmeta.ContainerImageMetadata{
+						EntityID: workloadmeta.EntityID{
+							Kind: workloadmeta.KindContainerImageMetadata,
+							ID:   "sha256:9634b84c45c6ad220c3d0d2305aaa5523e47d6d43649c9bbeda46ff010b4aacd",
+						},
+						RepoTags: []string{
+							"datadog/agent:7-rc",
+						},
+						RepoDigests: []string{
+							"datadog/agent@sha256:052f1fdf4f9a7117d36a1838ab60782829947683007c34b69d4991576375c409",
+						},
+					},
+				},
+			},
+			expectedSBOM:   0,
+			expectedImages: 1,
+		},
+		{
+			name: "set image without sbom and add sbom later",
+			inputEvents: []workloadmeta.Event{
+				{
+					Type: workloadmeta.EventTypeSet,
+					Entity: &workloadmeta.ContainerImageMetadata{
+						EntityID: workloadmeta.EntityID{
+							Kind: workloadmeta.KindContainerImageMetadata,
+							ID:   "sha256:9634b84c45c6ad220c3d0d2305aaa5523e47d6d43649c9bbeda46ff010b4aacd",
+						},
+						RepoTags: []string{
+							"datadog/agent:7-rc",
+						},
+						RepoDigests: []string{
+							"datadog/agent@sha256:052f1fdf4f9a7117d36a1838ab60782829947683007c34b69d4991576375c409",
+						},
+					},
+				},
+				{
+					Type: workloadmeta.EventTypeSet,
+					Entity: &workloadmeta.ContainerImageMetadata{
+						EntityID: workloadmeta.EntityID{
+							Kind: workloadmeta.KindContainerImageMetadata,
+							ID:   "sha256:9634b84c45c6ad220c3d0d2305aaa5523e47d6d43649c9bbeda46ff010b4aacd",
+						},
+						RepoTags: []string{
+							"datadog/agent:7-rc",
+						},
+						RepoDigests: []string{
+							"datadog/agent@sha256:052f1fdf4f9a7117d36a1838ab60782829947683007c34b69d4991576375c409",
+						},
+						SBOM: &workloadmeta.SBOM{
+							CycloneDXBOM: &cyclonedx.BOM{
+								SpecVersion: cyclonedx.SpecVersion1_4,
+								Version:     42,
+								Components: &[]cyclonedx.Component{
+									{
+										Name: "Foo",
+									},
+								},
+							},
+							GenerationTime:     sbomGenerationTime,
+							GenerationDuration: 10 * time.Second,
+						},
+					},
+				},
+			},
+			expectedSBOM:   1,
+			expectedImages: 1,
+		},
+	}
+	cfg := config.Mock(nil)
+	cacheDir, err := os.MkdirTemp("", "sbom-cache")
+	assert.Nil(t, err)
+	defer os.RemoveAll(cacheDir)
+	cfg.Set("sbom.cache_directory", cacheDir)
+	cfg.Set("sbom.container_image.enabled", true)
+	_, err = sbomscanner.CreateGlobalScanner(cfg)
+	assert.Nil(t, err)
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			var SBOMsSent = atomic.NewInt32(0)
+			var commit = atomic.NewBool(false)
+
+			fakeworkloadmeta := fakeworkloadmeta.NewStore()
+
+			sender := mocksender.NewMockSender("")
+			sender.On("EventPlatformEvent", mock.Anything, mock.Anything).Return().Run(func(_ mock.Arguments) {
+				SBOMsSent.Inc()
+			})
+			sender.On("Gauge", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return().Run(func(args mock.Arguments) {
+				assert.Equal(t, "datadog.agent.sbom_images", args[0].(string))
+			})
+			sender.On("Commit").Return().Run(func(args mock.Arguments) {
+				commit.Store(true)
+			})
+
+			// Define a max size of 1 for the queue. With a size > 1, it's difficult to
+			// control the number of events sent on each call.
+			p, err := newProcessor(fakeworkloadmeta, sender, 1, 50*time.Millisecond, false)
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			for _, ev := range test.inputEvents {
+				switch ev.Type {
+				case workloadmeta.EventTypeSet:
+					fakeworkloadmeta.Set(ev.Entity)
+				case workloadmeta.EventTypeUnset:
+					fakeworkloadmeta.Unset(ev.Entity)
+				}
+			}
+
+			p.processContainerImagesEvents(workloadmeta.EventBundle{
+				Events: test.inputEvents,
+				Ch:     make(chan struct{}),
+			})
+
+			p.stop()
+			assert.Equal(t, test.expectedSBOM, p.telemetry.imageWithSBOMCount)
+			assert.Equal(t, test.expectedImages, p.telemetry.imageWithoutSBOMCount)
+			assert.Equal(t, true, commit.Load())
 		})
 	}
 }

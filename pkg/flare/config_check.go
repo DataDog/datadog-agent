@@ -148,6 +148,8 @@ func PrintConfig(w io.Writer, c integration.Config, checkName string) {
 		fmt.Fprintf(w, "%s:\n", color.BlueString("Log Config"))
 		printYaml(w, c.LogsConfig)
 	}
+	fmt.Fprintf(w, "%s:\n", color.BlueString("Filters"))
+
 	if c.IsTemplate() {
 		fmt.Fprintf(w, "%s:\n", color.BlueString("Auto-discovery IDs"))
 		for _, id := range c.ADIdentifiers {

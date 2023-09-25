@@ -64,7 +64,6 @@ func and(a, b bool) float64 {
 func updateCountForNewImage(t *imageTelemetry, newHasSBOM bool) {
 	if newHasSBOM {
 		t.imageWithSBOMCount++
-		return
 	}
 	t.imageWithoutSBOMCount++
 }
