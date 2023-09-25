@@ -30,6 +30,7 @@ func instrumentNode() {
 
 func instrumentJava() {
 	currJavaToolOptions := os.Getenv("JAVA_TOOL_OPTIONS")
+	os.Setenv("DD_RUNTIME_METRICS_ENABLED", "false")
 	os.Setenv("JAVA_TOOL_OPTIONS", addToString(currJavaToolOptions, " ", "-javaagent:/dd_tracer/java/dd-java-agent.jar"))
 }
 
