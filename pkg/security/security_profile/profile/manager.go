@@ -419,6 +419,8 @@ func (m *SecurityProfileManager) OnCGroupDeletedEvent(workload *cgroupModel.Cach
 func (m *SecurityProfileManager) ShouldDeleteProfile(profile *SecurityProfile) {
 	m.profilesLock.Lock()
 	defer m.profilesLock.Unlock()
+	m.pendingCacheLock.Lock()
+	defer m.pendingCacheLock.Unlock()
 	profile.Lock()
 	defer profile.Unlock()
 
@@ -448,8 +450,6 @@ func (m *SecurityProfileManager) ShouldDeleteProfile(profile *SecurityProfile) {
 	}
 
 	// add profile in cache
-	m.pendingCacheLock.Lock()
-	defer m.pendingCacheLock.Unlock()
 	m.pendingCache.Add(profile.selector, profile)
 }
 
@@ -470,6 +470,9 @@ func (m *SecurityProfileManager) OnNewProfileEvent(selector cgroupModel.Workload
 		return
 	}
 
+	m.pendingCacheLock.Lock()
+	defer m.pendingCacheLock.Unlock()
+
 	profile.Lock()
 	defer profile.Unlock()
 	profile.loadedInKernel = false
@@ -486,8 +489,6 @@ func (m *SecurityProfileManager) OnNewProfileEvent(selector cgroupModel.Workload
 
 	if !ok {
 		// insert in cache and leave
-		m.pendingCacheLock.Lock()
-		defer m.pendingCacheLock.Unlock()
 		m.pendingCache.Add(selector, profile)
 		return
 	}
@@ -519,8 +520,18 @@ func (m *SecurityProfileManager) incrementEventFilteringStat(eventType model.Eve
 
 // SendStats sends metrics about the Security Profile manager
 func (m *SecurityProfileManager) SendStats() error {
+	// Send metrics for profile provider first to prevent a deadlock with the call to "dp.onNewProfileCallback" on
+	// "m.profilesLock"
+	for _, provider := range m.providers {
+		if err := provider.SendStats(m.statsdClient); err != nil {
+			return err
+		}
+	}
+
 	m.profilesLock.Lock()
 	defer m.profilesLock.Unlock()
+	m.pendingCacheLock.Lock()
+	defer m.pendingCacheLock.Unlock()
 
 	profileStats := make(map[model.Status]map[bool]float64)
 	for _, profile := range m.profiles {
@@ -549,8 +560,6 @@ func (m *SecurityProfileManager) SendStats() error {
 		}
 	}
 
-	m.pendingCacheLock.Lock()
-	defer m.pendingCacheLock.Unlock()
 	if val := float64(m.pendingCache.Len()); val > 0 {
 		if err := m.statsdClient.Gauge(metrics.MetricSecurityProfileCacheLen, val, []string{}, 1.0); err != nil {
 			return fmt.Errorf("couldn't send MetricSecurityProfileCacheLen: %w", err)
@@ -575,13 +584,6 @@ func (m *SecurityProfileManager) SendStats() error {
 			if err := m.statsdClient.Count(metrics.MetricSecurityProfileEventFiltering, int64(value), tags, 1.0); err != nil {
 				return fmt.Errorf("couldn't send MetricSecurityProfileEventFiltering metric: %w", err)
 			}
-		}
-	}
-
-	// Send metrics for profile profider
-	for _, provider := range m.providers {
-		if err := provider.SendStats(m.statsdClient); err != nil {
-			return err
 		}
 	}
 
