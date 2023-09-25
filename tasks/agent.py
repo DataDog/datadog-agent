@@ -593,6 +593,9 @@ def bundle_install_omnibus(ctx, gem_path=None, env=None):
         except Exception:
             pass
 
+        # Trying to build aws-sdk with -std=c99
+        ctx.run("bundle config set --global build.aws-sdk --with-std=c99")
+
         cmd = "bundle install"
         if gem_path:
             cmd += f" --path {gem_path}"
