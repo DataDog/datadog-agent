@@ -39,6 +39,15 @@ const (
 	ProfileMetricTypePercent ProfileMetricType = "percent"
 )
 
+// KeyValue used to represent mapping
+// Used for RC compatibility (map to list)
+type KeyValue struct {
+	Key   string `yaml:"key" json:"key"`
+	Value string `yaml:"value" json:"value"`
+}
+
+type KeyValueList []KeyValue
+
 // SymbolConfig holds info for a single symbol/oid
 type SymbolConfig struct {
 	OID  string `yaml:"OID,omitempty" json:"OID,omitempty"`
@@ -78,7 +87,8 @@ type MetricTagConfig struct {
 
 	IndexTransform []MetricIndexTransform `yaml:"index_transform,omitempty" json:"index_transform,omitempty"`
 
-	Mapping map[string]string `yaml:"mapping,omitempty" json:"mapping,omitempty"`
+	MappingList KeyValueList      `yaml:"mapping,omitempty" json:"mapping,omitempty"`
+	Mapping     map[string]string `yaml:"-" json:"-"`
 
 	// Regex
 	Match   string            `yaml:"match,omitempty" json:"match,omitempty"`

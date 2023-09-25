@@ -45,3 +45,22 @@ func (mtcl *MetricTagConfigList) UnmarshalYAML(unmarshal func(interface{}) error
 	*mtcl = multi
 	return nil
 }
+
+// UnmarshalYAML unmarshalls KeyValueList
+func (ml *KeyValueList) UnmarshalYAML(unmarshal func(interface{}) error) error {
+	var kvList []KeyValue
+	err := unmarshal(&kvList)
+	if err != nil {
+		var mapping map[string]string
+		err := unmarshal(&mapping)
+		if err != nil {
+			return err
+		}
+		kvList = []KeyValue{}
+		for k, v := range mapping {
+			kvList = append(kvList, KeyValue{Key: k, Value: v})
+		}
+	}
+	*ml = kvList
+	return nil
+}
