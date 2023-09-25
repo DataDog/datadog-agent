@@ -223,29 +223,17 @@ var LoadProxyFromEnv = load.LoadProxyFromEnv
 
 // Load reads configs files and initializes the config module
 func Load() (*Warnings, error) {
-	return LoadDatadogCustom(Datadog, "datadog.yaml", true, SystemProbe.GetEnvVars())
+	return load.Load(Datadog, "datadog.yaml", SystemProbe.GetEnvVars())
 }
 
 // LoadWithoutSecret reads configs files, initializes the config module without decrypting any secrets
 func LoadWithoutSecret() (*Warnings, error) {
-	return LoadDatadogCustom(Datadog, "datadog.yaml", false, SystemProbe.GetEnvVars())
+	return load.LoadWithoutSecret(Datadog, "datadog.yaml", SystemProbe.GetEnvVars())
 }
 
 // Merge will merge additional configuration into an existing configuration
 func Merge(configPaths []string) error {
-	for _, configPath := range configPaths {
-		if f, err := os.Open(configPath); err == nil {
-			err = Datadog.MergeConfig(f)
-			_ = f.Close()
-			if err != nil {
-				return fmt.Errorf("error merging %s config file: %w", configPath, err)
-			}
-		} else {
-			log.Infof("no config exists at %s, ignoring...", configPath)
-		}
-	}
-
-	return nil
+	return conf.Merge(configPaths, Datadog)
 }
 
 func checkConflictingOptions(config Config) error {

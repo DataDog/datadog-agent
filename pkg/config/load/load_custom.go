@@ -10,6 +10,16 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
+// Load reads configs files and initializes the config module
+func Load(cfg conf.Config, origin string, additionalKnownEnvVars []string) (*conf.Warnings, error) {
+	return LoadDatadogCustom(cfg, origin, true, additionalKnownEnvVars)
+}
+
+// LoadWithoutSecret reads configs files, initializes the config module without decrypting any secrets
+func LoadWithoutSecret(cfg conf.Config, origin string, additionalKnownEnvVars []string) (*conf.Warnings, error) {
+	return LoadDatadogCustom(cfg, origin, false, additionalKnownEnvVars)
+}
+
 func LoadDatadogCustom(cfg conf.Config, origin string, loadSecret bool, additionalKnownEnvVars []string) (*conf.Warnings, error) {
 	// Feature detection running in a defer func as it always  need to run (whether config load has been successful or not)
 	// Because some Agents (e.g. trace-agent) will run even if config file does not exist

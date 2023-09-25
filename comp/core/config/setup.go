@@ -14,11 +14,12 @@ import (
 
 	"github.com/DataDog/viper"
 
-	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/conf"
+	"github.com/DataDog/datadog-agent/pkg/config/load"
 )
 
 // setupConfig is copied from cmd/agent/common/helpers.go.
-func setupConfig(deps configDependencies) (*config.Warnings, error) {
+func setupConfig(deps configDependencies, cfg conf.Config, origin string, additionalKnownEnvVars []string) (*conf.Warnings, error) {
 	p := deps.getParams()
 
 	confFilePath := p.ConfFilePath
@@ -28,31 +29,31 @@ func setupConfig(deps configDependencies) (*config.Warnings, error) {
 	defaultConfPath := p.defaultConfPath
 
 	if configName != "" {
-		config.Datadog.SetConfigName(configName)
+		cfg.SetConfigName(configName)
 	}
 
 	// set the paths where a config file is expected
 	if len(confFilePath) != 0 {
 		// if the configuration file path was supplied on the command line,
 		// add that first so it's first in line
-		config.Datadog.AddConfigPath(confFilePath)
+		cfg.AddConfigPath(confFilePath)
 		// If they set a config file directly, let's try to honor that
 		if strings.HasSuffix(confFilePath, ".yaml") || strings.HasSuffix(confFilePath, ".yml") {
-			config.Datadog.SetConfigFile(confFilePath)
+			cfg.SetConfigFile(confFilePath)
 		}
 	}
 	if defaultConfPath != "" {
-		config.Datadog.AddConfigPath(defaultConfPath)
+		cfg.AddConfigPath(defaultConfPath)
 	}
 
 	// load the configuration
 	var err error
-	var warnings *config.Warnings
+	var warnings *conf.Warnings
 
 	if withoutSecrets {
-		warnings, err = config.LoadWithoutSecret()
+		warnings, err = load.LoadWithoutSecret(cfg, origin, additionalKnownEnvVars)
 	} else {
-		warnings, err = config.Load()
+		warnings, err = load.Load(cfg, origin, additionalKnownEnvVars)
 	}
 	// If `!failOnMissingFile`, do not issue an error if we cannot find the default config file.
 	var e viper.ConfigFileNotFoundError
