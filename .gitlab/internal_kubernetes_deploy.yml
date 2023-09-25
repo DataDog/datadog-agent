@@ -67,11 +67,16 @@ notify-slack:
     - |
       postmessage "system-probe-ops" "$(cat system_probe_commits.txt)"
       while IFS= read -r email; do
-        results+=$(email2slackid "$email" || echo "$email")
+        echo "Processing email: $email"
+        result=$(email2slackid "$email" || echo "$email")
+        results+=("$result")
+        echo "Result for $email: $result"
       done < unique_emails.txt
       echo "$(cat unique_emails.txt)"
-      echo "Results: $(cat $results)"
+      echo "Results array: ${results[@]}"
       echo "Unique Authors: $(printf " %s" "${results[@]}")"
+      specific_email="adam.karpowich@datadoghq.com"
+      echo "Result for specific email ($specific_email): $(email2slackid "$specific_email")"
       git checkout ${CI_COMMIT_SHORT_SHA}
       #    - git tag stripe_staging
       #    - git push origin stripe_staging

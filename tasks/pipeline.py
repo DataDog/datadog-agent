@@ -515,7 +515,7 @@ def changelog(_, new_git_sha):
             unique_emails.add(author_email)  # Add the email to the unique set
 
     with open("system_probe_commits.txt", "w") as file:
-        file.write("Changelog for commit range: {} to {} \n".format(old_git_sha, new_git_sha))
+        file.write("Changelog for commit range: {} to {} \n".format(old_git_sha[:7], new_git_sha))
         file.write("\n".join(messages))
 
     with open("unique_emails.txt", "w") as file:
