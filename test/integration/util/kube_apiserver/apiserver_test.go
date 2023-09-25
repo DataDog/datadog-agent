@@ -57,7 +57,7 @@ func TestSuiteKube(t *testing.T) {
 	pwd, err := os.Getwd()
 	require.Nil(t, err)
 	s.kubeConfigPath = filepath.Join(pwd, "testdata", "kubeconfig.json")
-	mockConfig.Set("kubernetes_kubeconfig_path", s.kubeConfigPath)
+	mockConfig.Set("kubernetes_kubeconfig_path", s.kubeConfigPath, config.SourceDefault)
 	_, err = os.Stat(s.kubeConfigPath)
 	require.Nil(t, err, fmt.Sprintf("%v", err))
 
@@ -101,7 +101,7 @@ func (suite *testSuite) TestKubeEvents() {
 	lastList := time.Now()
 
 	// Init own client to write the events
-	mockConfig.Set("kubernetes_kubeconfig_path", suite.kubeConfigPath)
+	mockConfig.Set("kubernetes_kubeconfig_path", suite.kubeConfigPath, config.SourceDefault)
 	c, err := apiserver.GetAPIClient()
 
 	require.NoError(suite.T(), err)
@@ -169,7 +169,7 @@ func (suite *testSuite) TestHostnameProvider() {
 	mockConfig := config.Mock(nil)
 
 	// Init own client to write the events
-	mockConfig.Set("kubernetes_kubeconfig_path", suite.kubeConfigPath)
+	mockConfig.Set("kubernetes_kubeconfig_path", suite.kubeConfigPath, config.SourceDefault)
 	c, err := apiserver.GetAPIClient()
 
 	require.NoError(suite.T(), err)
@@ -193,9 +193,9 @@ func (suite *testSuite) TestHostnameProvider() {
 
 	// Testing hostname when a cluster name is set
 	testClusterName := "laika"
-	mockConfig.Set("cluster_name", testClusterName)
+	mockConfig.Set("cluster_name", testClusterName, config.SourceDefault)
 	clustername.ResetClusterName()
-	defer mockConfig.Set("cluster_name", "")
+	defer mockConfig.Set("cluster_name", "", config.SourceDefault)
 	defer clustername.ResetClusterName()
 
 	foundHost, err = kubernetes.GetKubeAPIServerHostname(ctx)

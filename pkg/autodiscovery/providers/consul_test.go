@@ -134,10 +134,10 @@ func TestConsulGetTemplates(t *testing.T) {
 	queryOptions = queryOptions.WithContext(ctx)
 
 	mockConfig := config.Mock(t)
-	mockConfig.Set("autoconf_template_dir", "/datadog/tpl")
+	mockConfig.Set("autoconf_template_dir", "/datadog/tpl", config.SourceDefault)
 
 	//Restore default
-	defer mockConfig.Set("autoconf_template_dir", "/datadog/check_configs")
+	defer mockConfig.Set("autoconf_template_dir", "/datadog/check_configs", config.SourceDefault)
 
 	kvNginxNames := &consul.KVPair{
 		Key:         "/datadog/tpl/nginx/check_names",
@@ -203,10 +203,10 @@ func TestConsulCollect(t *testing.T) {
 	queryOptions = queryOptions.WithContext(ctx)
 
 	mockConfig := config.Mock(t)
-	mockConfig.Set("autoconf_template_dir", "/datadog/tpl")
+	mockConfig.Set("autoconf_template_dir", "/datadog/tpl", config.SourceDefault)
 
 	//Restore default
-	defer mockConfig.Set("autoconf_template_dir", "/datadog/check_configs")
+	defer mockConfig.Set("autoconf_template_dir", "/datadog/check_configs", config.SourceDefault)
 
 	kv.On("Keys", "/datadog/tpl", "", queryOptions).Return([]string{
 		"/datadog/tpl/nginx/check_names",

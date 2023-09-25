@@ -48,13 +48,13 @@ func TestReadProfileData(t *testing.T) {
 	port := u.Port()
 
 	mockConfig := config.Mock(t)
-	mockConfig.Set("expvar_port", port)
-	mockConfig.Set("apm_config.enabled", true)
-	mockConfig.Set("apm_config.debug.port", port)
-	mockConfig.Set("apm_config.receiver_timeout", "10")
-	mockConfig.Set("process_config.expvar_port", port)
-	mockConfig.Set("security_agent.expvar_port", port)
-	mockConfig.Set("system_probe_config.debug_port", port)
+	mockConfig.Set("expvar_port", port, config.SourceDefault)
+	mockConfig.Set("apm_config.enabled", true, config.SourceDefault)
+	mockConfig.Set("apm_config.debug.port", port, config.SourceDefault)
+	mockConfig.Set("apm_config.receiver_timeout", "10", config.SourceDefault)
+	mockConfig.Set("process_config.expvar_port", port, config.SourceDefault)
+	mockConfig.Set("security_agent.expvar_port", port, config.SourceDefault)
+	mockConfig.Set("system_probe_config.debug_port", port, config.SourceDefault)
 
 	data, err := readProfileData(10)
 	require.NoError(t, err)
@@ -103,12 +103,12 @@ func TestReadProfileDataNoTraceAgent(t *testing.T) {
 
 	// We're not setting "apm_config.debug.port" on purpose
 	mockConfig := config.Mock(t)
-	mockConfig.Set("expvar_port", port)
-	mockConfig.Set("apm_config.enabled", true)
-	mockConfig.Set("apm_config.receiver_timeout", "10")
-	mockConfig.Set("process_config.expvar_port", port)
-	mockConfig.Set("security_agent.expvar_port", port)
-	mockConfig.Set("system_probe_config.debug_port", port)
+	mockConfig.Set("expvar_port", port, config.SourceDefault)
+	mockConfig.Set("apm_config.enabled", true, config.SourceDefault)
+	mockConfig.Set("apm_config.receiver_timeout", "10", config.SourceDefault)
+	mockConfig.Set("process_config.expvar_port", port, config.SourceDefault)
+	mockConfig.Set("security_agent.expvar_port", port, config.SourceDefault)
+	mockConfig.Set("system_probe_config.debug_port", port, config.SourceDefault)
 
 	data, err := readProfileData(10)
 	require.Error(t, err)
@@ -146,7 +146,7 @@ func TestReadProfileDataNoTraceAgent(t *testing.T) {
 func TestReadProfileDataErrors(t *testing.T) {
 	// We're not setting "apm_config.debug.port" on purpose
 	mockConfig := config.Mock(t)
-	mockConfig.Set("apm_config.enabled", true)
+	mockConfig.Set("apm_config.enabled", true, config.SourceDefault)
 
 	data, err := readProfileData(10)
 	require.Error(t, err)

@@ -18,7 +18,7 @@ func setupConfig(tags []string) (*config.MockConfig, time.Time) {
 	startTime := config.StartTime
 	config.StartTime = time.Now()
 
-	mockConfig.Set("tags", tags)
+	mockConfig.Set("tags", tags, config.SourceDefault)
 
 	return mockConfig, startTime
 }

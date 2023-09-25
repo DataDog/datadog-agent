@@ -63,13 +63,13 @@ func (suite *ConfigTestSuite) TestGlobalProcessingRulesShouldReturnNoRulesWithEm
 		err   error
 	)
 
-	suite.config.Set("logs_config.processing_rules", nil)
+	suite.config.Set("logs_config.processing_rules", nil, config.SourceDefault)
 
 	rules, err = GlobalProcessingRules(suite.config)
 	suite.Nil(err)
 	suite.Equal(0, len(rules))
 
-	suite.config.Set("logs_config.processing_rules", "")
+	suite.config.Set("logs_config.processing_rules", "", config.SourceDefault)
 
 	rules, err = GlobalProcessingRules(suite.config)
 	suite.Nil(err)
@@ -109,7 +109,7 @@ func (suite *ConfigTestSuite) TestGlobalProcessingRulesShouldReturnRulesWithVali
 		err   error
 	)
 
-	suite.config.Set("logs_config.processing_rules", `[{"type":"mask_sequences","name":"mask_api_keys","replace_placeholder":"****************************","pattern":"([A-Fa-f0-9]{28})"}]`)
+	suite.config.Set("logs_config.processing_rules", `[{"type":"mask_sequences","name":"mask_api_keys","replace_placeholder":"****************************","pattern":"([A-Fa-f0-9]{28})"}]`, config.SourceDefault)
 
 	rules, err = GlobalProcessingRules(suite.config)
 	suite.Nil(err)
@@ -129,7 +129,7 @@ func (suite *ConfigTestSuite) TestTaggerWarmupDuration() {
 	suite.Equal(0*time.Second, taggerWarmupDuration)
 
 	// override
-	suite.config.Set("logs_config.tagger_warmup_duration", 5)
+	suite.config.Set("logs_config.tagger_warmup_duration", 5, config.SourceDefault)
 	taggerWarmupDuration = TaggerWarmupDuration(suite.config)
 	suite.Equal(5*time.Second, taggerWarmupDuration)
 }
@@ -145,18 +145,18 @@ func (suite *ConfigTestSuite) TestMultipleHttpEndpointsEnvVar() {
 		{"api_key": "456", "host": "additional.endpoint.1", "port": 1234, "use_compression": true, "compression_level": 2},
 		{"api_key": "789", "host": "additional.endpoint.2", "port": 1234, "use_compression": true, "compression_level": 2}]`)
 
-	suite.config.Set("api_key", "123")
-	suite.config.Set("logs_config.batch_wait", 1)
-	suite.config.Set("logs_config.logs_dd_url", "agent-http-intake.logs.datadoghq.com:443")
-	suite.config.Set("logs_config.use_compression", true)
-	suite.config.Set("logs_config.compression_level", 6)
-	suite.config.Set("logs_config.logs_no_ssl", false)
-	suite.config.Set("logs_config.sender_backoff_factor", 3.0)
-	suite.config.Set("logs_config.sender_backoff_base", 1.0)
-	suite.config.Set("logs_config.sender_backoff_max", 2.0)
-	suite.config.Set("logs_config.sender_recovery_interval", 10)
-	suite.config.Set("logs_config.sender_recovery_reset", true)
-	suite.config.Set("logs_config.use_v2_api", false)
+	suite.config.Set("api_key", "123", config.SourceDefault)
+	suite.config.Set("logs_config.batch_wait", 1, config.SourceDefault)
+	suite.config.Set("logs_config.logs_dd_url", "agent-http-intake.logs.datadoghq.com:443", config.SourceDefault)
+	suite.config.Set("logs_config.use_compression", true, config.SourceDefault)
+	suite.config.Set("logs_config.compression_level", 6, config.SourceDefault)
+	suite.config.Set("logs_config.logs_no_ssl", false, config.SourceDefault)
+	suite.config.Set("logs_config.sender_backoff_factor", 3.0, config.SourceDefault)
+	suite.config.Set("logs_config.sender_backoff_base", 1.0, config.SourceDefault)
+	suite.config.Set("logs_config.sender_backoff_max", 2.0, config.SourceDefault)
+	suite.config.Set("logs_config.sender_recovery_interval", 10, config.SourceDefault)
+	suite.config.Set("logs_config.sender_recovery_reset", true, config.SourceDefault)
+	suite.config.Set("logs_config.use_v2_api", false, config.SourceDefault)
 
 	expectedMainEndpoint := Endpoint{
 		APIKey:           "123",
@@ -210,13 +210,13 @@ func (suite *ConfigTestSuite) TestMultipleHttpEndpointsEnvVar() {
 
 func (suite *ConfigTestSuite) TestMultipleTCPEndpointsEnvVar() {
 
-	suite.config.Set("logs_config.additional_endpoints", `[{"api_key": "456      \n", "host": "additional.endpoint", "port": 1234}]`)
+	suite.config.Set("logs_config.additional_endpoints", `[{"api_key": "456      \n", "host": "additional.endpoint", "port": 1234}]`, config.SourceDefault)
 
-	suite.config.Set("api_key", "123")
-	suite.config.Set("logs_config.logs_dd_url", "agent-http-intake.logs.datadoghq.com:443")
-	suite.config.Set("logs_config.logs_no_ssl", false)
-	suite.config.Set("logs_config.socks5_proxy_address", "proxy.test:3128")
-	suite.config.Set("logs_config.dev_mode_use_proto", true)
+	suite.config.Set("api_key", "123", config.SourceDefault)
+	suite.config.Set("logs_config.logs_dd_url", "agent-http-intake.logs.datadoghq.com:443", config.SourceDefault)
+	suite.config.Set("logs_config.logs_no_ssl", false, config.SourceDefault)
+	suite.config.Set("logs_config.socks5_proxy_address", "proxy.test:3128", config.SourceDefault)
+	suite.config.Set("logs_config.dev_mode_use_proto", true, config.SourceDefault)
 
 	expectedMainEndpoint := Endpoint{
 		APIKey:           "123",
@@ -245,13 +245,13 @@ func (suite *ConfigTestSuite) TestMultipleTCPEndpointsEnvVar() {
 }
 
 func (suite *ConfigTestSuite) TestMultipleHttpEndpointsInConfig() {
-	suite.config.Set("api_key", "123")
-	suite.config.Set("logs_config.batch_wait", 1)
-	suite.config.Set("logs_config.logs_dd_url", "agent-http-intake.logs.datadoghq.com:443")
-	suite.config.Set("logs_config.use_compression", true)
-	suite.config.Set("logs_config.compression_level", 6)
-	suite.config.Set("logs_config.logs_no_ssl", false)
-	suite.config.Set("logs_config.use_v2_api", false)
+	suite.config.Set("api_key", "123", config.SourceDefault)
+	suite.config.Set("logs_config.batch_wait", 1, config.SourceDefault)
+	suite.config.Set("logs_config.logs_dd_url", "agent-http-intake.logs.datadoghq.com:443", config.SourceDefault)
+	suite.config.Set("logs_config.use_compression", true, config.SourceDefault)
+	suite.config.Set("logs_config.compression_level", 6, config.SourceDefault)
+	suite.config.Set("logs_config.logs_no_ssl", false, config.SourceDefault)
+	suite.config.Set("logs_config.use_v2_api", false, config.SourceDefault)
 
 	endpointsInConfig := []map[string]interface{}{
 		{
@@ -267,7 +267,7 @@ func (suite *ConfigTestSuite) TestMultipleHttpEndpointsInConfig() {
 			"use_compression":   true,
 			"compression_level": 2},
 	}
-	suite.config.Set("logs_config.additional_endpoints", endpointsInConfig)
+	suite.config.Set("logs_config.additional_endpoints", endpointsInConfig, config.SourceDefault)
 
 	expectedMainEndpoint := Endpoint{
 		APIKey:           "123",
@@ -317,12 +317,12 @@ func (suite *ConfigTestSuite) TestMultipleHttpEndpointsInConfig() {
 }
 
 func (suite *ConfigTestSuite) TestMultipleHttpEndpointsInConfig2() {
-	suite.config.Set("api_key", "123")
-	suite.config.Set("logs_config.batch_wait", 1)
-	suite.config.Set("logs_config.logs_dd_url", "agent-http-intake.logs.datadoghq.com:443")
-	suite.config.Set("logs_config.use_compression", true)
-	suite.config.Set("logs_config.compression_level", 6)
-	suite.config.Set("logs_config.logs_no_ssl", false)
+	suite.config.Set("api_key", "123", config.SourceDefault)
+	suite.config.Set("logs_config.batch_wait", 1, config.SourceDefault)
+	suite.config.Set("logs_config.logs_dd_url", "agent-http-intake.logs.datadoghq.com:443", config.SourceDefault)
+	suite.config.Set("logs_config.use_compression", true, config.SourceDefault)
+	suite.config.Set("logs_config.compression_level", 6, config.SourceDefault)
+	suite.config.Set("logs_config.logs_no_ssl", false, config.SourceDefault)
 	endpointsInConfig := []map[string]interface{}{
 		{
 			"api_key":           "456     \n\n",
@@ -339,7 +339,7 @@ func (suite *ConfigTestSuite) TestMultipleHttpEndpointsInConfig2() {
 			"use_compression":   true,
 			"compression_level": 2},
 	}
-	suite.config.Set("logs_config.additional_endpoints", endpointsInConfig)
+	suite.config.Set("logs_config.additional_endpoints", endpointsInConfig, config.SourceDefault)
 
 	expectedMainEndpoint := Endpoint{
 		APIKey:           "123",
@@ -395,19 +395,19 @@ func (suite *ConfigTestSuite) TestMultipleHttpEndpointsInConfig2() {
 }
 
 func (suite *ConfigTestSuite) TestMultipleTCPEndpointsInConf() {
-	suite.config.Set("api_key", "123")
-	suite.config.Set("logs_config.logs_dd_url", "agent-http-intake.logs.datadoghq.com:443")
-	suite.config.Set("logs_config.logs_no_ssl", false)
-	suite.config.Set("logs_config.socks5_proxy_address", "proxy.test:3128")
-	suite.config.Set("logs_config.dev_mode_use_proto", true)
-	suite.config.Set("logs_config.dev_mode_use_proto", true)
+	suite.config.Set("api_key", "123", config.SourceDefault)
+	suite.config.Set("logs_config.logs_dd_url", "agent-http-intake.logs.datadoghq.com:443", config.SourceDefault)
+	suite.config.Set("logs_config.logs_no_ssl", false, config.SourceDefault)
+	suite.config.Set("logs_config.socks5_proxy_address", "proxy.test:3128", config.SourceDefault)
+	suite.config.Set("logs_config.dev_mode_use_proto", true, config.SourceDefault)
+	suite.config.Set("logs_config.dev_mode_use_proto", true, config.SourceDefault)
 	endpointsInConfig := []map[string]interface{}{
 		{
 			"api_key": "456",
 			"host":    "additional.endpoint",
 			"port":    1234},
 	}
-	suite.config.Set("logs_config.additional_endpoints", endpointsInConfig)
+	suite.config.Set("logs_config.additional_endpoints", endpointsInConfig, config.SourceDefault)
 
 	expectedMainEndpoint := Endpoint{
 		APIKey:           "123",
@@ -436,8 +436,8 @@ func (suite *ConfigTestSuite) TestMultipleTCPEndpointsInConf() {
 }
 
 func (suite *ConfigTestSuite) TestEndpointsSetLogsDDUrl() {
-	suite.config.Set("api_key", "123")
-	suite.config.Set("compliance_config.endpoints.logs_dd_url", "my-proxy:443")
+	suite.config.Set("api_key", "123", config.SourceDefault)
+	suite.config.Set("compliance_config.endpoints.logs_dd_url", "my-proxy:443", config.SourceDefault)
 
 	logsConfig := NewLogsConfigKeys("compliance_config.endpoints.", suite.config)
 	endpoints, err := BuildHTTPEndpointsWithConfig(suite.config, logsConfig, "default-intake.mydomain.", "test-track", "test-proto", "test-source")
@@ -477,11 +477,11 @@ func (suite *ConfigTestSuite) TestEndpointsSetLogsDDUrl() {
 }
 
 func (suite *ConfigTestSuite) TestEndpointsSetDDSite() {
-	suite.config.Set("api_key", "123")
+	suite.config.Set("api_key", "123", config.SourceDefault)
 
-	suite.config.Set("site", "mydomain.com")
-	suite.config.Set("compliance_config.endpoints_batch_wait", "mydomain.com")
-	suite.config.Set("compliance_config.endpoints.batch_wait", "10")
+	suite.config.Set("site", "mydomain.com", config.SourceDefault)
+	suite.config.Set("compliance_config.endpoints_batch_wait", "mydomain.com", config.SourceDefault)
+	suite.config.Set("compliance_config.endpoints.batch_wait", "10", config.SourceDefault)
 
 	logsConfig := NewLogsConfigKeys("compliance_config.endpoints.", suite.config)
 	endpoints, err := BuildHTTPEndpointsWithConfig(suite.config, logsConfig, "default-intake.logs.", "test-track", "test-proto", "test-source")
@@ -521,8 +521,8 @@ func (suite *ConfigTestSuite) TestEndpointsSetDDSite() {
 }
 
 func (suite *ConfigTestSuite) TestBuildServerlessEndpoints() {
-	suite.config.Set("api_key", "123")
-	suite.config.Set("logs_config.batch_wait", 1)
+	suite.config.Set("api_key", "123", config.SourceDefault)
+	suite.config.Set("logs_config.batch_wait", 1, config.SourceDefault)
 
 	main := Endpoint{
 		APIKey:           "123",
@@ -590,9 +590,9 @@ func getTestEndpoints(e Endpoint) *Endpoints {
 	}
 }
 func (suite *ConfigTestSuite) TestBuildEndpointsWithVectorHttpOverride() {
-	suite.config.Set("api_key", "123")
-	suite.config.Set("observability_pipelines_worker.logs.enabled", true)
-	suite.config.Set("observability_pipelines_worker.logs.url", "http://vector.host:8080/")
+	suite.config.Set("api_key", "123", config.SourceDefault)
+	suite.config.Set("observability_pipelines_worker.logs.enabled", true, config.SourceDefault)
+	suite.config.Set("observability_pipelines_worker.logs.url", "http://vector.host:8080/", config.SourceDefault)
 	endpoints, err := BuildHTTPEndpointsWithVectorOverride(suite.config, "test-track", "test-proto", "test-source")
 	suite.Nil(err)
 	expectedEndpoints := getTestEndpoints(getTestEndpoint("vector.host", 8080, false))
@@ -601,9 +601,9 @@ func (suite *ConfigTestSuite) TestBuildEndpointsWithVectorHttpOverride() {
 }
 
 func (suite *ConfigTestSuite) TestBuildEndpointsWithVectorHttpsOverride() {
-	suite.config.Set("api_key", "123")
-	suite.config.Set("observability_pipelines_worker.logs.enabled", true)
-	suite.config.Set("observability_pipelines_worker.logs.url", "https://vector.host:8443/")
+	suite.config.Set("api_key", "123", config.SourceDefault)
+	suite.config.Set("observability_pipelines_worker.logs.enabled", true, config.SourceDefault)
+	suite.config.Set("observability_pipelines_worker.logs.url", "https://vector.host:8443/", config.SourceDefault)
 	endpoints, err := BuildHTTPEndpointsWithVectorOverride(suite.config, "test-track", "test-proto", "test-source")
 	suite.Nil(err)
 	expectedEndpoints := getTestEndpoints(getTestEndpoint("vector.host", 8443, true))
@@ -612,9 +612,9 @@ func (suite *ConfigTestSuite) TestBuildEndpointsWithVectorHttpsOverride() {
 }
 
 func (suite *ConfigTestSuite) TestBuildEndpointsWithVectorHostAndPortOverride() {
-	suite.config.Set("api_key", "123")
-	suite.config.Set("observability_pipelines_worker.logs.enabled", true)
-	suite.config.Set("observability_pipelines_worker.logs.url", "observability_pipelines_worker.host:8443")
+	suite.config.Set("api_key", "123", config.SourceDefault)
+	suite.config.Set("observability_pipelines_worker.logs.enabled", true, config.SourceDefault)
+	suite.config.Set("observability_pipelines_worker.logs.url", "observability_pipelines_worker.host:8443", config.SourceDefault)
 	endpoints, err := BuildHTTPEndpointsWithVectorOverride(suite.config, "test-track", "test-proto", "test-source")
 	suite.Nil(err)
 	expectedEndpoints := getTestEndpoints(getTestEndpoint("observability_pipelines_worker.host", 8443, true))
@@ -623,10 +623,10 @@ func (suite *ConfigTestSuite) TestBuildEndpointsWithVectorHostAndPortOverride() 
 }
 
 func (suite *ConfigTestSuite) TestBuildEndpointsWithVectorHostAndPortNoSSLOverride() {
-	suite.config.Set("api_key", "123")
-	suite.config.Set("logs_config.logs_no_ssl", true)
-	suite.config.Set("observability_pipelines_worker.logs.enabled", true)
-	suite.config.Set("observability_pipelines_worker.logs.url", "observability_pipelines_worker.host:8443")
+	suite.config.Set("api_key", "123", config.SourceDefault)
+	suite.config.Set("logs_config.logs_no_ssl", true, config.SourceDefault)
+	suite.config.Set("observability_pipelines_worker.logs.enabled", true, config.SourceDefault)
+	suite.config.Set("observability_pipelines_worker.logs.url", "observability_pipelines_worker.host:8443", config.SourceDefault)
 	endpoints, err := BuildHTTPEndpointsWithVectorOverride(suite.config, "test-track", "test-proto", "test-source")
 	suite.Nil(err)
 	expectedEndpoints := getTestEndpoints(getTestEndpoint("observability_pipelines_worker.host", 8443, false))
@@ -635,10 +635,10 @@ func (suite *ConfigTestSuite) TestBuildEndpointsWithVectorHostAndPortNoSSLOverri
 }
 
 func (suite *ConfigTestSuite) TestBuildEndpointsWithoutVector() {
-	suite.config.Set("api_key", "123")
-	suite.config.Set("logs_config.logs_no_ssl", true)
-	suite.config.Set("observability_pipelines_worker.logs.enabled", true)
-	suite.config.Set("observability_pipelines_worker.logs.url", "observability_pipelines_worker.host:8443")
+	suite.config.Set("api_key", "123", config.SourceDefault)
+	suite.config.Set("logs_config.logs_no_ssl", true, config.SourceDefault)
+	suite.config.Set("observability_pipelines_worker.logs.enabled", true, config.SourceDefault)
+	suite.config.Set("observability_pipelines_worker.logs.url", "observability_pipelines_worker.host:8443", config.SourceDefault)
 	endpoints, err := BuildHTTPEndpoints(suite.config, "test-track", "test-proto", "test-source")
 	suite.Nil(err)
 	expectedEndpoints := getTestEndpoints(getTestEndpoint("agent-http-intake.logs.datadoghq.com", 0, true))
@@ -647,23 +647,23 @@ func (suite *ConfigTestSuite) TestBuildEndpointsWithoutVector() {
 }
 
 func (suite *ConfigTestSuite) TestEndpointsSetNonDefaultCustomConfigs() {
-	suite.config.Set("api_key", "123")
+	suite.config.Set("api_key", "123", config.SourceDefault)
 
-	suite.config.Set("network_devices.netflow.forwarder.use_compression", false)
-	suite.config.Set("network_devices.netflow.forwarder.compression_level", 10)
-	suite.config.Set("network_devices.netflow.forwarder.batch_wait", 10)
-	suite.config.Set("network_devices.netflow.forwarder.connection_reset_interval", 3)
-	suite.config.Set("network_devices.netflow.forwarder.logs_no_ssl", true)
-	suite.config.Set("network_devices.netflow.forwarder.batch_max_concurrent_send", 15)
-	suite.config.Set("network_devices.netflow.forwarder.batch_max_content_size", 6000000)
-	suite.config.Set("network_devices.netflow.forwarder.batch_max_size", 2000)
-	suite.config.Set("network_devices.netflow.forwarder.input_chan_size", 5000)
-	suite.config.Set("network_devices.netflow.forwarder.sender_backoff_factor", 4.0)
-	suite.config.Set("network_devices.netflow.forwarder.sender_backoff_base", 2.0)
-	suite.config.Set("network_devices.netflow.forwarder.sender_backoff_max", 150.0)
-	suite.config.Set("network_devices.netflow.forwarder.sender_recovery_interval", 5)
-	suite.config.Set("network_devices.netflow.forwarder.sender_recovery_reset", true)
-	suite.config.Set("network_devices.netflow.forwarder.use_v2_api", true)
+	suite.config.Set("network_devices.netflow.forwarder.use_compression", false, config.SourceDefault)
+	suite.config.Set("network_devices.netflow.forwarder.compression_level", 10, config.SourceDefault)
+	suite.config.Set("network_devices.netflow.forwarder.batch_wait", 10, config.SourceDefault)
+	suite.config.Set("network_devices.netflow.forwarder.connection_reset_interval", 3, config.SourceDefault)
+	suite.config.Set("network_devices.netflow.forwarder.logs_no_ssl", true, config.SourceDefault)
+	suite.config.Set("network_devices.netflow.forwarder.batch_max_concurrent_send", 15, config.SourceDefault)
+	suite.config.Set("network_devices.netflow.forwarder.batch_max_content_size", 6000000, config.SourceDefault)
+	suite.config.Set("network_devices.netflow.forwarder.batch_max_size", 2000, config.SourceDefault)
+	suite.config.Set("network_devices.netflow.forwarder.input_chan_size", 5000, config.SourceDefault)
+	suite.config.Set("network_devices.netflow.forwarder.sender_backoff_factor", 4.0, config.SourceDefault)
+	suite.config.Set("network_devices.netflow.forwarder.sender_backoff_base", 2.0, config.SourceDefault)
+	suite.config.Set("network_devices.netflow.forwarder.sender_backoff_max", 150.0, config.SourceDefault)
+	suite.config.Set("network_devices.netflow.forwarder.sender_recovery_interval", 5, config.SourceDefault)
+	suite.config.Set("network_devices.netflow.forwarder.sender_recovery_reset", true, config.SourceDefault)
+	suite.config.Set("network_devices.netflow.forwarder.use_v2_api", true, config.SourceDefault)
 
 	logsConfig := NewLogsConfigKeys("network_devices.netflow.forwarder.", suite.config)
 	endpoints, err := BuildHTTPEndpointsWithConfig(suite.config, logsConfig, "ndmflow-intake.", "ndmflow", "test-proto", "test-origin")
@@ -705,8 +705,8 @@ func (suite *ConfigTestSuite) TestEndpointsSetNonDefaultCustomConfigs() {
 }
 
 func (suite *ConfigTestSuite) TestEndpointsSetLogsDDUrlWithPrefix() {
-	suite.config.Set("api_key", "123")
-	suite.config.Set("compliance_config.endpoints.logs_dd_url", "https://my-proxy.com:443")
+	suite.config.Set("api_key", "123", config.SourceDefault)
+	suite.config.Set("compliance_config.endpoints.logs_dd_url", "https://my-proxy.com:443", config.SourceDefault)
 
 	logsConfig := NewLogsConfigKeys("compliance_config.endpoints.", suite.config)
 	endpoints, err := BuildHTTPEndpointsWithConfig(suite.config, logsConfig, "default-intake.mydomain.", "test-track", "test-proto", "test-source")
@@ -746,8 +746,8 @@ func (suite *ConfigTestSuite) TestEndpointsSetLogsDDUrlWithPrefix() {
 }
 
 func (suite *ConfigTestSuite) TestEndpointsSetDDUrlWithPrefix() {
-	suite.config.Set("api_key", "123")
-	suite.config.Set("compliance_config.endpoints.dd_url", "https://my-proxy.com:443")
+	suite.config.Set("api_key", "123", config.SourceDefault)
+	suite.config.Set("compliance_config.endpoints.dd_url", "https://my-proxy.com:443", config.SourceDefault)
 
 	logsConfig := NewLogsConfigKeys("compliance_config.endpoints.", suite.config)
 	endpoints, err := BuildHTTPEndpointsWithConfig(suite.config, logsConfig, "default-intake.mydomain.", "test-track", "test-proto", "test-source")

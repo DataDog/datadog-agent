@@ -30,7 +30,7 @@ func TestConcurrencySetGet(t *testing.T) {
 	go func() {
 		defer wg.Done()
 		for n := 0; n <= 1000; n++ {
-			config.Set("foo", "bar", SourceDefault)
+			config.Set("foo", "bar", SourceDefault, config.SourceDefault)
 		}
 	}()
 
@@ -186,7 +186,7 @@ test:
 	res = config.IsSectionSet("othertest")
 	assert.Equal(t, true, res)
 
-	config.Set("yetanothertest_key", "value", SourceDefault)
+	config.Set("yetanothertest_key", "value", SourceDefault, config.SourceDefault)
 	res = config.IsSectionSet("yetanothertest")
 	assert.Equal(t, false, res)
 }

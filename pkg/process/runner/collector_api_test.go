@@ -17,6 +17,7 @@ import (
 
 	"github.com/DataDog/agent-payload/v5/process"
 
+	"github.com/DataDog/datadog-agent/pkg/config"
 	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/process/checks"
 	"github.com/DataDog/datadog-agent/pkg/process/runner/endpoint"
@@ -35,39 +36,39 @@ func setProcessEndpointsForTest(config ddconfig.Config, eps ...apicfg.Endpoint) 
 	additionalEps := make(map[string][]string)
 	for i, ep := range eps {
 		if i == 0 {
-			config.Set("api_key", ep.APIKey)
-			config.Set("process_config.process_dd_url", ep.Endpoint)
+			config.Set("api_key", ep.APIKey, config.SourceDefault)
+			config.Set("process_config.process_dd_url", ep.Endpoint, config.SourceDefault)
 		} else {
 			additionalEps[ep.Endpoint.String()] = append(additionalEps[ep.Endpoint.String()], ep.APIKey)
 		}
 	}
-	config.Set("process_config.additional_endpoints", additionalEps)
+	config.Set("process_config.additional_endpoints", additionalEps, config.SourceDefault)
 }
 
 func setProcessEventsEndpointsForTest(config ddconfig.Config, eps ...apicfg.Endpoint) {
 	additionalEps := make(map[string][]string)
 	for i, ep := range eps {
 		if i == 0 {
-			config.Set("api_key", ep.APIKey)
-			config.Set("process_config.events_dd_url", ep.Endpoint)
+			config.Set("api_key", ep.APIKey, config.SourceDefault)
+			config.Set("process_config.events_dd_url", ep.Endpoint, config.SourceDefault)
 		} else {
 			additionalEps[ep.Endpoint.String()] = append(additionalEps[ep.Endpoint.String()], ep.APIKey)
 		}
 	}
-	config.Set("process_config.events_additional_endpoints", additionalEps)
+	config.Set("process_config.events_additional_endpoints", additionalEps, config.SourceDefault)
 }
 
 func setOrchestratorEndpointsForTest(config ddconfig.Config, eps ...apicfg.Endpoint) {
 	additionalEps := make(map[string][]string)
 	for i, ep := range eps {
 		if i == 0 {
-			config.Set("api_key", ep.APIKey)
-			config.Set("orchestrator_explorer.orchestrator_dd_url", ep.Endpoint)
+			config.Set("api_key", ep.APIKey, config.SourceDefault)
+			config.Set("orchestrator_explorer.orchestrator_dd_url", ep.Endpoint, config.SourceDefault)
 		} else {
 			additionalEps[ep.Endpoint.String()] = append(additionalEps[ep.Endpoint.String()], ep.APIKey)
 		}
 	}
-	config.Set("orchestrator_explorer.orchestrator_additional_endpoints", additionalEps)
+	config.Set("orchestrator_explorer.orchestrator_additional_endpoints", additionalEps, config.SourceDefault)
 }
 
 func TestSendConnectionsMessage(t *testing.T) {
@@ -463,7 +464,7 @@ func TestQueueSpaceNotAvailable(t *testing.T) {
 	}
 
 	mockConfig := ddconfig.Mock(t)
-	mockConfig.Set("process_config.process_queue_bytes", 1)
+	mockConfig.Set("process_config.process_queue_bytes", 1, config.SourceDefault)
 
 	runCollectorTest(t, check, &endpointConfig{ErrorCount: 1}, mockConfig, func(_ *CheckRunner, ep *mockEndpoint) {
 		select {
@@ -493,7 +494,7 @@ func TestQueueSpaceReleased(t *testing.T) {
 	}
 
 	mockConfig := ddconfig.Mock(t)
-	mockConfig.Set("process_config.process_queue_bytes", 50) // This should be enough for one message, but not both if the space isn't released
+	mockConfig.Set("process_config.process_queue_bytes", 50, config.SourceDefault) // This should be enough for one message, but not both if the space isn't released
 
 	runCollectorTest(t, check, &endpointConfig{ErrorCount: 1}, ddconfig.Mock(t), func(_ *CheckRunner, ep *mockEndpoint) {
 		req := <-ep.Requests

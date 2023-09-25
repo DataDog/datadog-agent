@@ -200,8 +200,8 @@ func TestGetPrometheusIncludeAnnotations(t *testing.T) {
 			err := mockConfig.UnmarshalKey("prometheus_scrape.checks", &originalChecks)
 			assert.NoError(t, err)
 
-			mockConfig.Set("prometheus_scrape.checks", tt.config)
-			defer mockConfig.Set("prometheus_scrape.checks", originalChecks)
+			mockConfig.Set("prometheus_scrape.checks", tt.config, config.SourceDefault)
+			defer mockConfig.Set("prometheus_scrape.checks", originalChecks, config.SourceDefault)
 
 			assert.EqualValues(t, tt.want, getPrometheusIncludeAnnotations())
 		})

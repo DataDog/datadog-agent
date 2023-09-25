@@ -237,7 +237,7 @@ func TestCollection(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			mockConfig := config.NewConfig("datadog", "DD", strings.NewReplacer(".", "_"))
-			mockConfig.Set("language_detection.enabled", true)
+			mockConfig.Set("language_detection.enabled", true, config.SourceDefault)
 			// remote process collector server (process agent)
 			server := &mockServer{
 				responses:       test.serverResponses,

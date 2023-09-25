@@ -14,6 +14,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
+	"github.com/DataDog/datadog-agent/pkg/config"
 	agentConfig "github.com/DataDog/datadog-agent/pkg/config"
 )
 
@@ -64,8 +65,8 @@ func TestNewStats(t *testing.T) {
 
 func TestNewStatsStateTelemetryIgnoredWhenGloballyDisabled(t *testing.T) {
 	mockConfig := agentConfig.Mock(t)
-	mockConfig.Set("telemetry.enabled", false)
-	mockConfig.Set("telemetry.checks", "*")
+	mockConfig.Set("telemetry.enabled", false, config.SourceDefault)
+	mockConfig.Set("telemetry.checks", "*", config.SourceDefault)
 
 	NewStats(newMockCheck())
 
@@ -82,8 +83,8 @@ func TestNewStatsStateTelemetryIgnoredWhenGloballyDisabled(t *testing.T) {
 
 func TestNewStatsStateTelemetryInitializedWhenGloballyEnabled(t *testing.T) {
 	mockConfig := agentConfig.Mock(t)
-	mockConfig.Set("telemetry.enabled", true)
-	mockConfig.Set("telemetry.checks", "*")
+	mockConfig.Set("telemetry.enabled", true, config.SourceDefault)
+	mockConfig.Set("telemetry.checks", "*", config.SourceDefault)
 
 	NewStats(newMockCheck())
 

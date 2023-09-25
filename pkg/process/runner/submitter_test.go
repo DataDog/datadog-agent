@@ -60,7 +60,7 @@ func TestNewCollectorQueueSize(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			mockConfig := ddconfig.Mock(t)
 			if tc.override {
-				mockConfig.Set("process_config.queue_size", tc.queueSize)
+				mockConfig.Set("process_config.queue_size", tc.queueSize, config.SourceDefault)
 			}
 			deps := newSubmitterDepsWithConfig(t, mockConfig)
 			c, err := NewSubmitter(mockConfig, deps.Log, deps.Forwarders, testHostName)
@@ -108,7 +108,7 @@ func TestNewCollectorRTQueueSize(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			mockConfig := ddconfig.Mock(t)
 			if tc.override {
-				mockConfig.Set("process_config.rt_queue_size", tc.queueSize)
+				mockConfig.Set("process_config.rt_queue_size", tc.queueSize, config.SourceDefault)
 			}
 			deps := newSubmitterDepsWithConfig(t, mockConfig)
 			c, err := NewSubmitter(mockConfig, deps.Log, deps.Forwarders, testHostName)
@@ -155,7 +155,7 @@ func TestNewCollectorProcessQueueBytes(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			mockConfig := ddconfig.Mock(t)
 			if tc.override {
-				mockConfig.Set("process_config.process_queue_bytes", tc.queueBytes)
+				mockConfig.Set("process_config.process_queue_bytes", tc.queueBytes, config.SourceDefault)
 			}
 			deps := newSubmitterDepsWithConfig(t, mockConfig)
 			s, err := NewSubmitter(mockConfig, deps.Log, deps.Forwarders, testHostName)

@@ -24,7 +24,7 @@ type MockConfig struct {
 
 // Set is used for setting configuration in tests
 func (c *MockConfig) Set(key string, value interface{}, source Source) {
-	c.Config.Set(key, value, source)
+	c.Config.Set(key, value, source, config.SourceDefault)
 }
 
 // Mock is creating and returning a mock config

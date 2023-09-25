@@ -185,7 +185,7 @@ func makeAnnotations(metricName string, labels map[string]string) map[string]str
 // TestupdateExternalMetrics checks the reconciliation between the local cache and the global store logic
 func TestUpdate(t *testing.T) {
 	mockConfig := config.Mock(t)
-	mockConfig.Set("kube_resources_namespace", "nsfoo")
+	mockConfig.Set("kube_resources_namespace", "nsfoo", config.SourceDefault)
 
 	name := custommetrics.GetConfigmapName()
 	store, client := newFakeConfigMapStore(t, "nsfoo", name, nil)
@@ -299,7 +299,7 @@ func TestUpdate(t *testing.T) {
 // TestAutoscalerController is an integration test of the AutoscalerController
 func TestAutoscalerController(t *testing.T) {
 	mockConfig := config.Mock(t)
-	mockConfig.Set("kube_resources_namespace", "nsfoo")
+	mockConfig.Set("kube_resources_namespace", "nsfoo", config.SourceDefault)
 
 	penTime := (int(time.Now().Unix()) - int(maxAge.Seconds()/2)) * 1000
 	name := custommetrics.GetConfigmapName()

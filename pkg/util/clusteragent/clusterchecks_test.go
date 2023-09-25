@@ -13,6 +13,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/clusterchecks/types"
+	"github.com/DataDog/datadog-agent/pkg/config"
 )
 
 var dummyStatusResponse = `{"isuptodate": true}`
@@ -40,7 +41,7 @@ func (suite *clusterAgentSuite) TestClusterChecksNominal() {
 	ts, p, err := dca.StartTLS()
 	require.NoError(suite.T(), err)
 	defer ts.Close()
-	mockConfig.Set("cluster_agent.url", fmt.Sprintf("https://127.0.0.1:%d", p))
+	mockConfig.Set("cluster_agent.url", fmt.Sprintf("https://127.0.0.1:%d", p), config.SourceDefault)
 
 	ca, err := GetClusterAgentClient()
 	require.NoError(suite.T(), err)
@@ -79,7 +80,7 @@ func (suite *clusterAgentSuite) TestClusterChecksWithServiceID() {
 	ts, p, err := dca.StartTLS()
 	require.NoError(suite.T(), err)
 	defer ts.Close()
-	mockConfig.Set("cluster_agent.url", fmt.Sprintf("https://127.0.0.1:%d", p))
+	mockConfig.Set("cluster_agent.url", fmt.Sprintf("https://127.0.0.1:%d", p), config.SourceDefault)
 
 	ca, err := GetClusterAgentClient()
 	require.NoError(suite.T(), err)
@@ -121,7 +122,7 @@ func (suite *clusterAgentSuite) TestClusterChecksRedirect() {
 	assert.Equal(suite.T(), follower.token, leader.token)
 
 	// Client will start at the follower
-	mockConfig.Set("cluster_agent.url", fmt.Sprintf("https://127.0.0.1:%d", p))
+	mockConfig.Set("cluster_agent.url", fmt.Sprintf("https://127.0.0.1:%d", p), config.SourceDefault)
 	ca, err := GetClusterAgentClient()
 	require.NoError(suite.T(), err)
 	ca.(*DCAClient).initLeaderClient()

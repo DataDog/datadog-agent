@@ -377,19 +377,19 @@ func TestSendProcessesMetadata(t *testing.T) {
 func TestSendWithDisabledKind(t *testing.T) {
 	mockConfig := config.Mock(t)
 
-	mockConfig.Set("enable_payloads.events", false)
-	mockConfig.Set("enable_payloads.series", false)
-	mockConfig.Set("enable_payloads.service_checks", false)
-	mockConfig.Set("enable_payloads.sketches", false)
-	mockConfig.Set("enable_payloads.json_to_v1_intake", false)
+	mockConfig.Set("enable_payloads.events", false, config.SourceDefault)
+	mockConfig.Set("enable_payloads.series", false, config.SourceDefault)
+	mockConfig.Set("enable_payloads.service_checks", false, config.SourceDefault)
+	mockConfig.Set("enable_payloads.sketches", false, config.SourceDefault)
+	mockConfig.Set("enable_payloads.json_to_v1_intake", false, config.SourceDefault)
 
 	// restore default values
 	defer func() {
-		mockConfig.Set("enable_payloads.events", true)
-		mockConfig.Set("enable_payloads.series", true)
-		mockConfig.Set("enable_payloads.service_checks", true)
-		mockConfig.Set("enable_payloads.sketches", true)
-		mockConfig.Set("enable_payloads.json_to_v1_intake", true)
+		mockConfig.Set("enable_payloads.events", true, config.SourceDefault)
+		mockConfig.Set("enable_payloads.series", true, config.SourceDefault)
+		mockConfig.Set("enable_payloads.service_checks", true, config.SourceDefault)
+		mockConfig.Set("enable_payloads.sketches", true, config.SourceDefault)
+		mockConfig.Set("enable_payloads.json_to_v1_intake", true, config.SourceDefault)
 	}()
 
 	f := &forwarder.MockedForwarder{}

@@ -31,16 +31,16 @@ func (suite *KubeletOrchestratorTestSuite) SetupTest() {
 
 	jsoniter.RegisterTypeDecoder("kubelet.PodList", nil)
 
-	mockConfig.Set("kubelet_client_crt", "")
-	mockConfig.Set("kubelet_client_key", "")
-	mockConfig.Set("kubelet_client_ca", "")
-	mockConfig.Set("kubelet_tls_verify", true)
-	mockConfig.Set("kubelet_auth_token_path", "")
-	mockConfig.Set("kubelet_wait_on_missing_container", 0)
-	mockConfig.Set("kubernetes_kubelet_host", "")
-	mockConfig.Set("kubernetes_http_kubelet_port", 10250)
-	mockConfig.Set("kubernetes_https_kubelet_port", 10255)
-	mockConfig.Set("kubernetes_pod_expiration_duration", 15*60)
+	mockConfig.Set("kubelet_client_crt", "", config.SourceDefault)
+	mockConfig.Set("kubelet_client_key", "", config.SourceDefault)
+	mockConfig.Set("kubelet_client_ca", "", config.SourceDefault)
+	mockConfig.Set("kubelet_tls_verify", true, config.SourceDefault)
+	mockConfig.Set("kubelet_auth_token_path", "", config.SourceDefault)
+	mockConfig.Set("kubelet_wait_on_missing_container", 0, config.SourceDefault)
+	mockConfig.Set("kubernetes_kubelet_host", "", config.SourceDefault)
+	mockConfig.Set("kubernetes_http_kubelet_port", 10250, config.SourceDefault)
+	mockConfig.Set("kubernetes_https_kubelet_port", 10255, config.SourceDefault)
+	mockConfig.Set("kubernetes_pod_expiration_duration", 15*60, config.SourceDefault)
 }
 
 func (suite *KubeletOrchestratorTestSuite) TestGetRawLocalPodList() {
@@ -53,10 +53,10 @@ func (suite *KubeletOrchestratorTestSuite) TestGetRawLocalPodList() {
 	require.Nil(suite.T(), err)
 	defer ts.Close()
 
-	mockConfig.Set("kubernetes_kubelet_host", "localhost")
-	mockConfig.Set("kubernetes_http_kubelet_port", kubeletPort)
-	mockConfig.Set("kubelet_tls_verify", false)
-	mockConfig.Set("kubelet_auth_token_path", "")
+	mockConfig.Set("kubernetes_kubelet_host", "localhost", config.SourceDefault)
+	mockConfig.Set("kubernetes_http_kubelet_port", kubeletPort, config.SourceDefault)
+	mockConfig.Set("kubelet_tls_verify", false, config.SourceDefault)
+	mockConfig.Set("kubelet_auth_token_path", "", config.SourceDefault)
 
 	kubeutil, err := GetKubeUtil()
 	require.Nil(suite.T(), err)

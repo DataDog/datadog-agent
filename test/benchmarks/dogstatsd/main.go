@@ -25,6 +25,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/transaction"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/dogstatsd"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 )
 
@@ -214,8 +215,8 @@ func main() {
 
 	var wg sync.WaitGroup
 
-	mockConfig.Set("dogstatsd_stats_enable", true)
-	mockConfig.Set("dogstatsd_stats_buffer", 100)
+	mockConfig.Set("dogstatsd_stats_enable", true, config.SourceDefault)
+	mockConfig.Set("dogstatsd_stats_buffer", 100, config.SourceDefault)
 	s := serializer.NewSerializer(f, nil)
 	aggr := aggregator.NewBufferedAggregator(s, nil, "localhost", aggregator.DefaultFlushInterval)
 	statsd, err := dogstatsd.NewServer(aggr.GetBufferedChannels(), false)

@@ -16,7 +16,7 @@ import (
 
 func TestGetPayload(t *testing.T) {
 	mockConfig := config.Mock(t)
-	mockConfig.Set("api_key", "foo")
+	mockConfig.Set("api_key", "foo", config.SourceDefault)
 
 	p := GetPayload("hostname")
 	assert.Equal(t, p.APIKey, "foo")

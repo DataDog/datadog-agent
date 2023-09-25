@@ -16,6 +16,7 @@ import (
 	model "github.com/DataDog/agent-payload/v5/process"
 
 	"github.com/DataDog/datadog-agent/comp/process/types"
+	"github.com/DataDog/datadog-agent/pkg/config"
 	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/process/checks"
 	checkmocks "github.com/DataDog/datadog-agent/pkg/process/checks/mocks"
@@ -125,7 +126,7 @@ func TestDisableRealTimeProcessCheck(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			mockConfig := ddconfig.Mock(t)
-			mockConfig.Set("process_config.disable_realtime_checks", tc.disableRealtime)
+			mockConfig.Set("process_config.disable_realtime_checks", tc.disableRealtime, config.SourceDefault)
 
 			assert := assert.New(t)
 			expectedChecks := []checks.Check{checks.NewProcessCheck(mockConfig)}

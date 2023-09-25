@@ -132,7 +132,7 @@ func TestGetHostname(t *testing.T) {
 	mockConfig := config.Mock(t)
 
 	for _, tt := range cases {
-		mockConfig.Set(hostnameStyleSetting, tt.style)
+		mockConfig.Set(hostnameStyleSetting, tt.style, config.SourceDefault)
 		hostname, err := getHostnameWithConfig(ctx, mockConfig)
 		assert.Equal(t, tt.value, hostname)
 		assert.Equal(t, tt.err, (err != nil))
@@ -159,7 +159,7 @@ func TestGetHostnameWithInvalidMetadata(t *testing.T) {
 
 		t.Run(fmt.Sprintf("with response '%s'", response), func(t *testing.T) {
 			for _, style := range styles {
-				mockConfig.Set(hostnameStyleSetting, style)
+				mockConfig.Set(hostnameStyleSetting, style, config.SourceDefault)
 				hostname, err := getHostnameWithConfig(ctx, mockConfig)
 				assert.Empty(t, hostname)
 				assert.NotNil(t, err)

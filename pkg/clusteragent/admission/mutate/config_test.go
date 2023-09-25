@@ -30,37 +30,37 @@ func Test_shouldInjectConf(t *testing.T) {
 		{
 			name:        "mutate unlabelled, no label",
 			pod:         fakePodWithLabel("", ""),
-			setupConfig: func() { mockConfig.Set("admission_controller.mutate_unlabelled", true) },
+			setupConfig: func() { mockConfig.Set("admission_controller.mutate_unlabelled", true, config.SourceDefault) },
 			want:        true,
 		},
 		{
 			name:        "mutate unlabelled, label enabled",
 			pod:         fakePodWithLabel("admission.datadoghq.com/enabled", "true"),
-			setupConfig: func() { mockConfig.Set("admission_controller.mutate_unlabelled", true) },
+			setupConfig: func() { mockConfig.Set("admission_controller.mutate_unlabelled", true, config.SourceDefault) },
 			want:        true,
 		},
 		{
 			name:        "mutate unlabelled, label disabled",
 			pod:         fakePodWithLabel("admission.datadoghq.com/enabled", "false"),
-			setupConfig: func() { mockConfig.Set("admission_controller.mutate_unlabelled", true) },
+			setupConfig: func() { mockConfig.Set("admission_controller.mutate_unlabelled", true, config.SourceDefault) },
 			want:        false,
 		},
 		{
 			name:        "no mutate unlabelled, no label",
 			pod:         fakePodWithLabel("", ""),
-			setupConfig: func() { mockConfig.Set("admission_controller.mutate_unlabelled", false) },
+			setupConfig: func() { mockConfig.Set("admission_controller.mutate_unlabelled", false, config.SourceDefault) },
 			want:        false,
 		},
 		{
 			name:        "no mutate unlabelled, label enabled",
 			pod:         fakePodWithLabel("admission.datadoghq.com/enabled", "true"),
-			setupConfig: func() { mockConfig.Set("admission_controller.mutate_unlabelled", false) },
+			setupConfig: func() { mockConfig.Set("admission_controller.mutate_unlabelled", false, config.SourceDefault) },
 			want:        true,
 		},
 		{
 			name:        "no mutate unlabelled, label disabled",
 			pod:         fakePodWithLabel("admission.datadoghq.com/enabled", "false"),
-			setupConfig: func() { mockConfig.Set("admission_controller.mutate_unlabelled", false) },
+			setupConfig: func() { mockConfig.Set("admission_controller.mutate_unlabelled", false, config.SourceDefault) },
 			want:        false,
 		},
 	}

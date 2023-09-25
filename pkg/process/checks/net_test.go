@@ -14,6 +14,7 @@ import (
 
 	model "github.com/DataDog/agent-payload/v5/process"
 
+	"github.com/DataDog/datadog-agent/pkg/config"
 	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/network/dns"
 	"github.com/DataDog/datadog-agent/pkg/process/metadata/parser"
@@ -614,7 +615,7 @@ func TestNetworkConnectionTagsWithService(t *testing.T) {
 		},
 	}
 	mockConfig := ddconfig.MockSystemProbe(t)
-	mockConfig.Set("service_monitoring_config.process_service_inference.enabled", true)
+	mockConfig.Set("service_monitoring_config.process_service_inference.enabled", true, config.SourceDefault)
 
 	maxConnsPerMessage := 1
 	ex := parser.NewServiceExtractor(ddconfig.MockSystemProbe(t))

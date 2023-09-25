@@ -9,6 +9,7 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -35,7 +36,7 @@ func (suite *clusterAgentSuite) TestEndpointsChecksNominal() {
 	ts, p, err := dca.StartTLS()
 	require.NoError(suite.T(), err)
 	defer ts.Close()
-	mockConfig.Set("cluster_agent.url", fmt.Sprintf("https://127.0.0.1:%d", p))
+	mockConfig.Set("cluster_agent.url", fmt.Sprintf("https://127.0.0.1:%d", p), config.SourceDefault)
 
 	ca, err := GetClusterAgentClient()
 	require.NoError(suite.T(), err)

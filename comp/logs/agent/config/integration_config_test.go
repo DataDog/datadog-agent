@@ -66,22 +66,22 @@ func TestAutoMultilineEnabled(t *testing.T) {
 		return &lc
 	}
 
-	mockConfig.Set("logs_config.auto_multi_line_detection", false)
+	mockConfig.Set("logs_config.auto_multi_line_detection", false, config.SourceDefault)
 	assert.False(t, decode(`{"auto_multi_line_detection":false}`).AutoMultiLineEnabled(mockConfig))
 
-	mockConfig.Set("logs_config.auto_multi_line_detection", true)
+	mockConfig.Set("logs_config.auto_multi_line_detection", true, config.SourceDefault)
 	assert.False(t, decode(`{"auto_multi_line_detection":false}`).AutoMultiLineEnabled(mockConfig))
 
-	mockConfig.Set("logs_config.auto_multi_line_detection", true)
+	mockConfig.Set("logs_config.auto_multi_line_detection", true, config.SourceDefault)
 	assert.True(t, decode(`{}`).AutoMultiLineEnabled(mockConfig))
 
-	mockConfig.Set("logs_config.auto_multi_line_detection", false)
+	mockConfig.Set("logs_config.auto_multi_line_detection", false, config.SourceDefault)
 	assert.True(t, decode(`{"auto_multi_line_detection":true}`).AutoMultiLineEnabled(mockConfig))
 
-	mockConfig.Set("logs_config.auto_multi_line_detection", true)
+	mockConfig.Set("logs_config.auto_multi_line_detection", true, config.SourceDefault)
 	assert.True(t, decode(`{"auto_multi_line_detection":true}`).AutoMultiLineEnabled(mockConfig))
 
-	mockConfig.Set("logs_config.auto_multi_line_detection", false)
+	mockConfig.Set("logs_config.auto_multi_line_detection", false, config.SourceDefault)
 	assert.False(t, decode(`{}`).AutoMultiLineEnabled(mockConfig))
 
 }

@@ -182,11 +182,11 @@ func (suite *ProviderTestSuite) SetupTest() {
 	require.Nil(suite.T(), err)
 	suite.testServer = ts
 
-	mockConfig.Set("kubernetes_kubelet_host", "127.0.0.1")
-	mockConfig.Set("kubernetes_http_kubelet_port", kubeletPort)
-	mockConfig.Set("kubernetes_https_kubelet_port", kubeletPort)
-	mockConfig.Set("kubelet_tls_verify", false)
-	mockConfig.Set("kubelet_auth_token_path", "")
+	mockConfig.Set("kubernetes_kubelet_host", "127.0.0.1", config.SourceDefault)
+	mockConfig.Set("kubernetes_http_kubelet_port", kubeletPort, config.SourceDefault)
+	mockConfig.Set("kubernetes_https_kubelet_port", kubeletPort, config.SourceDefault)
+	mockConfig.Set("kubelet_tls_verify", false, config.SourceDefault)
+	mockConfig.Set("kubelet_auth_token_path", "", config.SourceDefault)
 
 	kubeutil, _ := kubelet.GetKubeUtilWithRetrier()
 	require.NotNil(suite.T(), kubeutil)

@@ -287,7 +287,7 @@ func TestCreateHTTPTransactionsWithOverrides(t *testing.T) {
 
 func TestArbitraryTagsHTTPHeader(t *testing.T) {
 	mockConfig := config.Mock(t)
-	mockConfig.Set("allow_arbitrary_tags", true)
+	mockConfig.Set("allow_arbitrary_tags", true, config.SourceDefault)
 
 	log := fxutil.Test[log.Component](t, log.MockModule)
 	forwarder := NewDefaultForwarder(mockConfig, log, NewOptionsWithResolvers(mockConfig, log, resolver.NewSingleDomainResolvers(keysPerDomains)))
@@ -363,7 +363,7 @@ func TestForwarderEndtoEnd(t *testing.T) {
 		w.WriteHeader(http.StatusOK)
 	}))
 	mockConfig := config.Mock(t)
-	mockConfig.Set("dd_url", ts.URL)
+	mockConfig.Set("dd_url", ts.URL, config.SourceDefault)
 
 	log := fxutil.Test[log.Component](t, log.MockModule)
 	f := NewDefaultForwarder(mockConfig, log, NewOptionsWithResolvers(mockConfig, log, resolver.NewSingleDomainResolvers(map[string][]string{ts.URL: {"api_key1", "api_key2"}, "invalid": {}, "invalid2": nil})))
@@ -419,7 +419,7 @@ func TestTransactionEventHandlers(t *testing.T) {
 	}))
 	defer ts.Close()
 	mockConfig := config.Mock(t)
-	mockConfig.Set("dd_url", ts.URL)
+	mockConfig.Set("dd_url", ts.URL, config.SourceDefault)
 
 	log := fxutil.Test[log.Component](t, log.MockModule)
 	f := NewDefaultForwarder(mockConfig, log, NewOptionsWithResolvers(mockConfig, log, resolver.NewSingleDomainResolvers(map[string][]string{ts.URL: {"api_key1"}})))
@@ -474,7 +474,7 @@ func TestTransactionEventHandlersOnRetry(t *testing.T) {
 	defer ts.Close()
 
 	mockConfig := config.Mock(t)
-	mockConfig.Set("dd_url", ts.URL)
+	mockConfig.Set("dd_url", ts.URL, config.SourceDefault)
 
 	log := fxutil.Test[log.Component](t, log.MockModule)
 	f := NewDefaultForwarder(mockConfig, log, NewOptionsWithResolvers(mockConfig, log, resolver.NewSingleDomainResolvers(map[string][]string{ts.URL: {"api_key1"}})))
@@ -525,7 +525,7 @@ func TestTransactionEventHandlersNotRetryable(t *testing.T) {
 	defer ts.Close()
 
 	mockConfig := config.Mock(t)
-	mockConfig.Set("dd_url", ts.URL)
+	mockConfig.Set("dd_url", ts.URL, config.SourceDefault)
 
 	log := fxutil.Test[log.Component](t, log.MockModule)
 	f := NewDefaultForwarder(mockConfig, log, NewOptionsWithResolvers(mockConfig, log, resolver.NewSingleDomainResolvers(map[string][]string{ts.URL: {"api_key1"}})))
@@ -575,8 +575,8 @@ func TestProcessLikePayloadResponseTimeout(t *testing.T) {
 	responseTimeout := defaultResponseTimeout
 
 	defaultResponseTimeout = 5 * time.Second
-	mockConfig.Set("dd_url", ts.URL)
-	mockConfig.Set("forwarder_num_workers", 0) // Set the number of workers to 0 so the txn goes nowhere
+	mockConfig.Set("dd_url", ts.URL, config.SourceDefault)
+	mockConfig.Set("forwarder_num_workers", 0, config.SourceDefault) // Set the number of workers to 0 so the txn goes nowhere
 	defer func() {
 		defaultResponseTimeout = responseTimeout
 	}()

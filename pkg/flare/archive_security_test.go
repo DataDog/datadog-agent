@@ -22,7 +22,7 @@ import (
 func TestCreateSecurityAgentArchive(t *testing.T) {
 	common.SetupConfigWithWarnings("./test", "")
 	mockConfig := config.Mock(t)
-	mockConfig.Set("compliance_config.dir", "./test/compliance.d")
+	mockConfig.Set("compliance_config.dir", "./test/compliance.d", config.SourceDefault)
 	logFilePath := "./test/logs/agent.log"
 
 	// Mock getLinuxKernelSymbols. It can take a long time to scrub when creating a flare.

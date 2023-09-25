@@ -165,12 +165,12 @@ func TestCreateHTTPTransport(t *testing.T) {
 	setupTest(t)
 
 	mockConfig := config.Mock(t)
-	mockConfig.Set("skip_ssl_validation", false)
+	mockConfig.Set("skip_ssl_validation", false, config.SourceDefault)
 	transport := CreateHTTPTransport()
 	assert.False(t, transport.TLSClientConfig.InsecureSkipVerify)
 	assert.Equal(t, transport.TLSClientConfig.MinVersion, uint16(tls.VersionTLS12))
 
-	mockConfig.Set("skip_ssl_validation", true)
+	mockConfig.Set("skip_ssl_validation", true, config.SourceDefault)
 	transport = CreateHTTPTransport()
 	assert.True(t, transport.TLSClientConfig.InsecureSkipVerify)
 	assert.Equal(t, transport.TLSClientConfig.MinVersion, uint16(tls.VersionTLS12))

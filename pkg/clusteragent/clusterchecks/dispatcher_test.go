@@ -436,7 +436,7 @@ func TestPatchConfiguration(t *testing.T) {
 	initialDigest := checkConfig.Digest()
 
 	mockConfig := config.Mock(t)
-	mockConfig.Set("cluster_name", "testing")
+	mockConfig.Set("cluster_name", "testing", config.SourceDefault)
 	clustername.ResetClusterName()
 	dispatcher := newDispatcher()
 
@@ -473,7 +473,7 @@ func TestPatchEndpointsConfiguration(t *testing.T) {
 	}
 
 	mockConfig := config.Mock(t)
-	mockConfig.Set("cluster_name", "testing")
+	mockConfig.Set("cluster_name", "testing", config.SourceDefault)
 	clustername.ResetClusterName()
 	dispatcher := newDispatcher()
 
@@ -511,9 +511,9 @@ func TestExtraTags(t *testing.T) {
 	} {
 		t.Run("", func(t *testing.T) {
 			mockConfig := config.Mock(t)
-			mockConfig.Set("cluster_checks.extra_tags", tc.extraTagsConfig)
-			mockConfig.Set("cluster_name", tc.clusterNameConfig)
-			mockConfig.Set("cluster_checks.cluster_tag_name", tc.tagNameConfig)
+			mockConfig.Set("cluster_checks.extra_tags", tc.extraTagsConfig, config.SourceDefault)
+			mockConfig.Set("cluster_name", tc.clusterNameConfig, config.SourceDefault)
+			mockConfig.Set("cluster_checks.cluster_tag_name", tc.tagNameConfig, config.SourceDefault)
 
 			clustername.ResetClusterName()
 			dispatcher := newDispatcher()
@@ -597,7 +597,7 @@ func (d *dummyClientStruct) GetRunnerWorkers(IP string) (types.Workers, error) {
 
 func TestUpdateRunnersStats(t *testing.T) {
 	mockConfig := config.Mock(t)
-	mockConfig.Set("cluster_checks.rebalance_with_utilization", true)
+	mockConfig.Set("cluster_checks.rebalance_with_utilization", true, config.SourceDefault)
 
 	dispatcher := newDispatcher()
 	status := types.NodeStatus{LastChange: 10}

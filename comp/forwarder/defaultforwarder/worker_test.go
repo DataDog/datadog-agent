@@ -41,7 +41,7 @@ func TestNewNoSSLWorker(t *testing.T) {
 	requeue := make(chan transaction.Transaction)
 
 	mockConfig := config.Mock(t)
-	mockConfig.Set("skip_ssl_validation", true)
+	mockConfig.Set("skip_ssl_validation", true, config.SourceDefault)
 	log := fxutil.Test[log.Component](t, log.MockModule)
 	w := NewWorker(mockConfig, log, highPrio, lowPrio, requeue, newBlockedEndpoints(mockConfig, log), &PointSuccessfullySentMock{})
 	assert.True(t, w.Client.Transport.(*http.Transport).TLSClientConfig.InsecureSkipVerify)

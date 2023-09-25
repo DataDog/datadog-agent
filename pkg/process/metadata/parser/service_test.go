@@ -10,6 +10,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
+	"github.com/DataDog/datadog-agent/pkg/config"
 	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/process/procutil"
 )
@@ -122,8 +123,8 @@ func TestExtractServiceMetadata(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			mockConfig := ddconfig.MockSystemProbe(t)
-			mockConfig.Set("service_monitoring_config.process_service_inference.enabled", true)
-			mockConfig.Set("service_monitoring_config.process_service_inference.use_windows_service_name", true)
+			mockConfig.Set("service_monitoring_config.process_service_inference.enabled", true, config.SourceDefault)
+			mockConfig.Set("service_monitoring_config.process_service_inference.use_windows_service_name", true, config.SourceDefault)
 
 			proc := procutil.Process{
 				Pid:     1,
@@ -140,7 +141,7 @@ func TestExtractServiceMetadata(t *testing.T) {
 
 func TestExtractServiceMetadataDisabled(t *testing.T) {
 	mockConfig := ddconfig.Mock(t)
-	mockConfig.Set("service_monitoring_config.process_service_inference.enabled", false)
+	mockConfig.Set("service_monitoring_config.process_service_inference.enabled", false, config.SourceDefault)
 
 	proc := procutil.Process{
 		Pid:     1,

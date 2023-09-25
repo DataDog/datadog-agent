@@ -57,8 +57,8 @@ func TestFilterFunctionTags(t *testing.T) {
 	}
 
 	mockConfig := config.Mock(t)
-	mockConfig.Set("tags", []string{"tag1:value1"})
-	mockConfig.Set("extra_tags", []string{"extra:tag"})
+	mockConfig.Set("tags", []string{"tag1:value1"}, config.SourceDefault)
+	mockConfig.Set("extra_tags", []string{"extra:tag"}, config.SourceDefault)
 
 	filteredTags := FilterFunctionTags(tagsToFilter)
 

@@ -77,8 +77,8 @@ func TestMarshalJSON(t *testing.T) {
 
 	mockConfig := config.Mock(t)
 	oldName := mockConfig.GetString("hostname")
-	defer mockConfig.Set("hostname", oldName)
-	mockConfig.Set("hostname", "test-hostname")
+	defer mockConfig.Set("hostname", oldName, config.SourceDefault)
+	mockConfig.Set("hostname", "test-hostname", config.SourceDefault)
 
 	payload, err := events.MarshalJSON()
 	assert.Nil(t, err)
@@ -97,8 +97,8 @@ func TestMarshalJSONOmittedFields(t *testing.T) {
 
 	mockConfig := config.Mock(t)
 	oldName := mockConfig.GetString("hostname")
-	defer mockConfig.Set("hostname", oldName)
-	mockConfig.Set("hostname", "test-hostname")
+	defer mockConfig.Set("hostname", oldName, config.SourceDefault)
+	mockConfig.Set("hostname", "test-hostname", config.SourceDefault)
 
 	payload, err := events.MarshalJSON()
 	assert.Nil(t, err)
