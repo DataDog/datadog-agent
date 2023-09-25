@@ -189,6 +189,7 @@ func (c *WorkloadMetaCollector) handleContainer(ev workloadmeta.Event) []*TagInf
 	tags.AddLow("image_name", image.Name)
 	tags.AddLow("short_image", image.ShortName)
 	tags.AddLow("image_tag", image.Tag)
+	tags.AddLow("image_id", image.ID)
 
 	if container.Runtime == workloadmeta.ContainerRuntimeDocker {
 		if image.Tag != "" {
@@ -383,7 +384,7 @@ func (c *WorkloadMetaCollector) handleKubePod(ev workloadmeta.Event) []*TagInfo 
 		},
 	}
 
-	for _, podContainer := range pod.Containers {
+	for _, podContainer := range pod.GetAllContainers() {
 		cTagInfo, err := c.extractTagsFromPodContainer(pod, podContainer, tags.Copy())
 		if err != nil {
 			log.Debugf("cannot extract tags from pod container: %s", err)

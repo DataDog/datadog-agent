@@ -102,6 +102,8 @@ def download_rootfs(ctx, rootfs_dir, backup_dir, revert=False):
         with os.fdopen(fd, 'w') as tmp:
             for f in to_download:
                 info(f"[+] {f} needs to be downloaded")
+                # remove this file
+                ctx.run(f"rm -f {os.path.join(rootfs_dir, f)}")
                 # download package entry
                 tmp.write(url_base + f + "\n")
                 tmp.write(f" dir={rootfs_dir}\n")

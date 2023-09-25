@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2022-present Datadog, Inc.
 
+// Package flowaggregator defines tools for aggregating observed netflows.
 package flowaggregator
 
 import (
@@ -15,16 +16,17 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"go.uber.org/atomic"
 
+	"github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/epforwarder"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	"github.com/DataDog/datadog-agent/pkg/networkdevice/metadata"
 
 	"github.com/DataDog/datadog-agent/pkg/netflow/common"
 	"github.com/DataDog/datadog-agent/pkg/netflow/config"
+	"github.com/DataDog/datadog-agent/pkg/netflow/format"
 	"github.com/DataDog/datadog-agent/pkg/netflow/goflowlib"
 )
 
@@ -48,17 +50,19 @@ type FlowAggregator struct {
 	goflowPrometheusGatherer     prometheus.Gatherer
 	TimeNowFunction              func() time.Time // Allows to mock time in tests
 
-	lastSequencePerExporter   map[SequenceDeltaKey]uint32
+	lastSequencePerExporter   map[sequenceDeltaKey]uint32
 	lastSequencePerExporterMu sync.Mutex
+
+	logger log.Component
 }
 
-type SequenceDeltaKey struct {
+type sequenceDeltaKey struct {
 	Namespace  string
 	ExporterIP string
 	FlowType   common.FlowType
 }
 
-type SequenceDeltaValue struct {
+type sequenceDeltaValue struct {
 	Delta        int64
 	LastSequence uint32
 	Reset        bool
@@ -73,13 +77,13 @@ var maxNegativeSequenceDiffToReset = map[common.FlowType]int{
 }
 
 // NewFlowAggregator returns a new FlowAggregator
-func NewFlowAggregator(sender sender.Sender, epForwarder epforwarder.EventPlatformForwarder, config *config.NetflowConfig, hostname string) *FlowAggregator {
+func NewFlowAggregator(sender sender.Sender, epForwarder epforwarder.EventPlatformForwarder, config *config.NetflowConfig, hostname string, logger log.Component) *FlowAggregator {
 	flushInterval := time.Duration(config.AggregatorFlushInterval) * time.Second
 	flowContextTTL := time.Duration(config.AggregatorFlowContextTTL) * time.Second
 	rollupTrackerRefreshInterval := time.Duration(config.AggregatorRollupTrackerRefreshInterval) * time.Second
 	return &FlowAggregator{
 		flowIn:                       make(chan *common.Flow, config.AggregatorBufferSize),
-		flowAcc:                      newFlowAccumulator(flushInterval, flowContextTTL, config.AggregatorPortRollupThreshold, config.AggregatorPortRollupDisabled),
+		flowAcc:                      newFlowAccumulator(flushInterval, flowContextTTL, config.AggregatorPortRollupThreshold, config.AggregatorPortRollupDisabled, logger),
 		flushFlowsToSendInterval:     flushFlowsToSendInterval,
 		rollupTrackerRefreshInterval: rollupTrackerRefreshInterval,
 		sender:                       sender,
@@ -92,13 +96,14 @@ func NewFlowAggregator(sender sender.Sender, epForwarder epforwarder.EventPlatfo
 		hostname:                     hostname,
 		goflowPrometheusGatherer:     prometheus.DefaultGatherer,
 		TimeNowFunction:              time.Now,
-		lastSequencePerExporter:      make(map[SequenceDeltaKey]uint32),
+		lastSequencePerExporter:      make(map[sequenceDeltaKey]uint32),
+		logger:                       logger,
 	}
 }
 
 // Start will start the FlowAggregator worker
 func (agg *FlowAggregator) Start() {
-	log.Info("Flow Aggregator started")
+	agg.logger.Info("Flow Aggregator started")
 	go agg.run()
 	agg.flushLoop() // blocking call
 }
@@ -119,7 +124,7 @@ func (agg *FlowAggregator) run() {
 	for {
 		select {
 		case <-agg.stopChan:
-			log.Info("Stopping aggregator")
+			agg.logger.Info("Stopping aggregator")
 			agg.runDone <- struct{}{}
 			return
 		case flow := <-agg.flowIn:
@@ -134,17 +139,17 @@ func (agg *FlowAggregator) sendFlows(flows []*common.Flow, flushTime time.Time) 
 		flowPayload := buildPayload(flow, agg.hostname, flushTime)
 		payloadBytes, err := json.Marshal(flowPayload)
 		if err != nil {
-			log.Errorf("Error marshalling device metadata: %s", err)
+			agg.logger.Errorf("Error marshalling device metadata: %s", err)
 			continue
 		}
 
-		log.Tracef("flushed flow: %s", string(payloadBytes))
+		agg.logger.Tracef("flushed flow: %s", string(payloadBytes))
 
 		m := &message.Message{Content: payloadBytes}
 		err = agg.epForwarder.SendEventPlatformEventBlocking(m, epforwarder.EventTypeNetworkDevicesNetFlow)
 		if err != nil {
 			// at the moment, SendEventPlatformEventBlocking can only fail if the event type is invalid
-			log.Errorf("Error sending to event platform forwarder: %s", err)
+			agg.logger.Errorf("Error sending to event platform forwarder: %s", err)
 			continue
 		}
 	}
@@ -159,12 +164,12 @@ func (agg *FlowAggregator) sendExporterMetadata(flows []*common.Flow, flushTime 
 	orderedExporterIDs := make(map[string][]string)
 
 	for _, flow := range flows {
-		exporterIpAddress := common.IPBytesToString(flow.ExporterAddr)
-		if exporterIpAddress == "" || strings.HasPrefix(exporterIpAddress, "?") {
-			log.Errorf("Invalid exporter Addr: %s", exporterIpAddress)
+		exporterIPAddress := format.IPAddr(flow.ExporterAddr)
+		if exporterIPAddress == "" || strings.HasPrefix(exporterIPAddress, "?") {
+			agg.logger.Errorf("Invalid exporter Addr: %s", exporterIPAddress)
 			continue
 		}
-		exporterID := flow.Namespace + ":" + exporterIpAddress + ":" + string(flow.FlowType)
+		exporterID := flow.Namespace + ":" + exporterIPAddress + ":" + string(flow.FlowType)
 		if _, ok := exporterMap[flow.Namespace]; !ok {
 			exporterMap[flow.Namespace] = make(map[string]metadata.NetflowExporter)
 		}
@@ -174,28 +179,28 @@ func (agg *FlowAggregator) sendExporterMetadata(flows []*common.Flow, flushTime 
 		}
 		exporterMap[flow.Namespace][exporterID] = metadata.NetflowExporter{
 			ID:        exporterID,
-			IPAddress: exporterIpAddress,
+			IPAddress: exporterIPAddress,
 			FlowType:  string(flow.FlowType),
 		}
 		orderedExporterIDs[flow.Namespace] = append(orderedExporterIDs[flow.Namespace], exporterID)
 	}
 	for namespace, ids := range orderedExporterIDs {
 		var netflowExporters []metadata.NetflowExporter
-		for _, exporterId := range ids {
-			netflowExporters = append(netflowExporters, exporterMap[namespace][exporterId])
+		for _, exporterID := range ids {
+			netflowExporters = append(netflowExporters, exporterMap[namespace][exporterID])
 		}
-		metadataPayloads := metadata.BatchPayloads(namespace, "", flushTime, metadata.PayloadMetadataBatchSize, nil, nil, nil, nil, netflowExporters)
+		metadataPayloads := metadata.BatchPayloads(namespace, "", flushTime, metadata.PayloadMetadataBatchSize, nil, nil, nil, nil, netflowExporters, nil)
 		for _, payload := range metadataPayloads {
 			payloadBytes, err := json.Marshal(payload)
 			if err != nil {
-				log.Errorf("Error marshalling device metadata: %s", err)
+				agg.logger.Errorf("Error marshalling device metadata: %s", err)
 				continue
 			}
-			log.Debugf("netflow exporter metadata payload: %s", string(payloadBytes))
+			agg.logger.Debugf("netflow exporter metadata payload: %s", string(payloadBytes))
 			m := &message.Message{Content: payloadBytes}
 			err = agg.epForwarder.SendEventPlatformEventBlocking(m, epforwarder.EventTypeNetworkDevicesMetadata)
 			if err != nil {
-				log.Errorf("Error sending event platform event for netflow exporter metadata: %s", err)
+				agg.logger.Errorf("Error sending event platform event for netflow exporter metadata: %s", err)
 			}
 		}
 	}
@@ -207,7 +212,7 @@ func (agg *FlowAggregator) flushLoop() {
 	if agg.flushFlowsToSendInterval > 0 {
 		flushFlowsToSendTicker = time.NewTicker(agg.flushFlowsToSendInterval).C
 	} else {
-		log.Debug("flushFlowsToSendInterval set to 0: will never flush automatically")
+		agg.logger.Debug("flushFlowsToSendInterval set to 0: will never flush automatically")
 	}
 
 	rollupTrackersRefresh := time.NewTicker(agg.rollupTrackerRefreshInterval).C
@@ -245,7 +250,7 @@ func (agg *FlowAggregator) flush() int {
 	flowsContexts := agg.flowAcc.getFlowContextCount()
 	flushTime := agg.TimeNowFunction()
 	flowsToFlush := agg.flowAcc.flush()
-	log.Debugf("Flushing %d flows to the forwarder (flush_duration=%d, flow_contexts_before_flush=%d)", len(flowsToFlush), time.Since(flushTime).Milliseconds(), flowsContexts)
+	agg.logger.Debugf("Flushing %d flows to the forwarder (flush_duration=%d, flow_contexts_before_flush=%d)", len(flowsToFlush), time.Since(flushTime).Milliseconds(), flowsContexts)
 
 	sequenceDeltaPerExporter := agg.getSequenceDelta(flowsToFlush)
 	for key, seqDelta := range sequenceDeltaPerExporter {
@@ -276,7 +281,7 @@ func (agg *FlowAggregator) flush() int {
 
 	err := agg.submitCollectorMetrics()
 	if err != nil {
-		log.Warnf("error submitting collector metrics: %s", err)
+		agg.logger.Warnf("error submitting collector metrics: %s", err)
 	}
 
 	// We increase `flushedFlowCount` at the end to be sure that the metrics are submitted before hand.
@@ -288,10 +293,10 @@ func (agg *FlowAggregator) flush() int {
 // getSequenceDelta return the delta of current sequence number compared to previously saved sequence number
 // Since we track per exporterIP, the returned delta is only accurate when for the specific exporterIP there is
 // only one NetFlow9/IPFIX observation domain, NetFlow5 engineType/engineId, sFlow agent/subagent.
-func (agg *FlowAggregator) getSequenceDelta(flowsToFlush []*common.Flow) map[SequenceDeltaKey]SequenceDeltaValue {
-	maxSequencePerExporter := make(map[SequenceDeltaKey]uint32)
+func (agg *FlowAggregator) getSequenceDelta(flowsToFlush []*common.Flow) map[sequenceDeltaKey]sequenceDeltaValue {
+	maxSequencePerExporter := make(map[sequenceDeltaKey]uint32)
 	for _, flow := range flowsToFlush {
-		key := SequenceDeltaKey{
+		key := sequenceDeltaKey{
 			Namespace:  flow.Namespace,
 			ExporterIP: net.IP(flow.ExporterAddr).String(),
 			FlowType:   flow.FlowType,
@@ -300,7 +305,7 @@ func (agg *FlowAggregator) getSequenceDelta(flowsToFlush []*common.Flow) map[Seq
 			maxSequencePerExporter[key] = flow.SequenceNum
 		}
 	}
-	sequenceDeltaPerExporter := make(map[SequenceDeltaKey]SequenceDeltaValue)
+	sequenceDeltaPerExporter := make(map[sequenceDeltaKey]sequenceDeltaValue)
 
 	agg.lastSequencePerExporterMu.Lock()
 	defer agg.lastSequencePerExporterMu.Unlock()
@@ -312,8 +317,8 @@ func (agg *FlowAggregator) getSequenceDelta(flowsToFlush []*common.Flow) map[Seq
 		}
 		maxNegSeqDiff := maxNegativeSequenceDiffToReset[key.FlowType]
 		reset := delta < int64(maxNegSeqDiff)
-		log.Debugf("[getSequenceDelta] key=%s, seqnum=%d, delta=%d, last=%d, reset=%t", key, seqnum, delta, agg.lastSequencePerExporter[key], reset)
-		seqDeltaValue := SequenceDeltaValue{LastSequence: seqnum}
+		agg.logger.Debugf("[getSequenceDelta] key=%s, seqnum=%d, delta=%d, last=%d, reset=%t", key, seqnum, delta, agg.lastSequencePerExporter[key], reset)
+		seqDeltaValue := sequenceDeltaValue{LastSequence: seqnum}
 		if reset { // sequence reset
 			seqDeltaValue.Delta = int64(seqnum)
 			seqDeltaValue.Reset = reset
@@ -330,7 +335,7 @@ func (agg *FlowAggregator) getSequenceDelta(flowsToFlush []*common.Flow) map[Seq
 }
 
 func (agg *FlowAggregator) rollupTrackersRefresh() {
-	log.Debugf("Rollup tracker refresh: use new store as current store")
+	agg.logger.Debugf("Rollup tracker refresh: use new store as current store")
 	agg.flowAcc.portRollup.UseNewStoreAsCurrentStore()
 }
 
@@ -341,10 +346,10 @@ func (agg *FlowAggregator) submitCollectorMetrics() error {
 	}
 	for _, metricFamily := range promMetrics {
 		for _, metric := range metricFamily.Metric {
-			log.Tracef("Collector metric `%s`: type=`%v` value=`%v`, label=`%v`", metricFamily.GetName(), metricFamily.GetType().String(), metric.GetCounter().GetValue(), metric.GetLabel())
+			agg.logger.Tracef("Collector metric `%s`: type=`%v` value=`%v`, label=`%v`", metricFamily.GetName(), metricFamily.GetType().String(), metric.GetCounter().GetValue(), metric.GetLabel())
 			metricType, name, value, tags, err := goflowlib.ConvertMetric(metric, metricFamily)
 			if err != nil {
-				log.Tracef("Error converting prometheus metric: %s", err)
+				agg.logger.Tracef("Error converting prometheus metric: %s", err)
 				continue
 			}
 			switch metricType {
@@ -353,7 +358,7 @@ func (agg *FlowAggregator) submitCollectorMetrics() error {
 			case metrics.MonotonicCountType:
 				agg.sender.MonotonicCount(metricPrefix+name, value, "", tags)
 			default:
-				log.Debugf("cannot submit unsupported type %s", metricType.String())
+				agg.logger.Debugf("cannot submit unsupported type %s", metricType.String())
 			}
 		}
 	}

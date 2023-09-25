@@ -342,10 +342,10 @@ func discoverResources(client discovery.DiscoveryInterface) ([]*v1.APIResourceLi
 	if err != nil {
 		if !discovery.IsGroupDiscoveryFailedError(err) {
 			return nil, fmt.Errorf("unable to perform resource discovery: %s", err)
-		} else {
-			for group, apiGroupErr := range err.(*discovery.ErrGroupDiscoveryFailed).Groups {
-				log.Warnf("unable to perform resource discovery for group %s: %s", group, apiGroupErr)
-			}
+		}
+
+		for group, apiGroupErr := range err.(*discovery.ErrGroupDiscoveryFailed).Groups {
+			log.Warnf("unable to perform resource discovery for group %s: %s", group, apiGroupErr)
 		}
 	}
 	return resources, nil
@@ -443,9 +443,7 @@ func manageResourcesReplacement(c *apiserver.APIClient, factories []customresour
 			}
 
 			for _, apiResource := range resource.APIResources {
-				if _, ok := resourceReplacement[apiResource.Kind]; ok {
-					delete(resourceReplacement, apiResource.Kind)
-				}
+				delete(resourceReplacement, apiResource.Kind)
 			}
 		}
 	}

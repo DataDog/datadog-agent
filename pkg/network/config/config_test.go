@@ -64,27 +64,6 @@ func TestDisablingProtocolClassification(t *testing.T) {
 	})
 }
 
-func TestEnableGoTLSSupport(t *testing.T) {
-	t.Run("via YAML", func(t *testing.T) {
-		aconfig.ResetSystemProbeConfig(t)
-		_, err := sysconfig.New("./testdata/TestDDAgentConfigYamlAndSystemProbeConfig-EnableGoTLS.yaml")
-		require.NoError(t, err)
-		cfg := New()
-
-		assert.True(t, cfg.EnableGoTLSSupport)
-	})
-
-	t.Run("via ENV variable", func(t *testing.T) {
-		aconfig.ResetSystemProbeConfig(t)
-		t.Setenv("DD_SERVICE_MONITORING_CONFIG_ENABLE_GO_TLS_SUPPORT", "true")
-		_, err := sysconfig.New("")
-		require.NoError(t, err)
-		cfg := New()
-
-		assert.True(t, cfg.EnableGoTLSSupport)
-	})
-}
-
 func TestEnableHTTPStatsByStatusCode(t *testing.T) {
 	t.Run("via YAML", func(t *testing.T) {
 		aconfig.ResetSystemProbeConfig(t)
@@ -216,24 +195,24 @@ func TestEnableDataStreams(t *testing.T) {
 func TestEnableJavaTLSSupport(t *testing.T) {
 	t.Run("via YAML", func(t *testing.T) {
 		aconfig.ResetSystemProbeConfig(t)
-
-		_, err := sysconfig.New("./testdata/TestDDAgentConfigYamlAndSystemProbeConfig-EnableJavaTLS.yaml")
-		require.NoError(t, err)
-		cfg := New()
-
-		assert.True(t, cfg.EnableJavaTLSSupport)
+		cfg := configurationFromYAML(t, `
+service_monitoring_config:
+  tls:
+    java:
+      enabled: true
+`)
+		require.True(t, cfg.EnableJavaTLSSupport)
 	})
 
 	t.Run("via ENV variable", func(t *testing.T) {
 		aconfig.ResetSystemProbeConfig(t)
+		t.Setenv("DD_SERVICE_MONITORING_CONFIG_TLS_JAVA_ENABLED", "true")
 
-		t.Setenv("DD_SERVICE_MONITORING_CONFIG_JAVA_TLS_ENABLED", "true")
-		_, err := sysconfig.New("")
-		require.NoError(t, err)
 		cfg := New()
 
-		assert.True(t, cfg.EnableJavaTLSSupport)
+		require.True(t, cfg.EnableJavaTLSSupport)
 	})
+
 }
 
 func TestEnableHTTP2Monitoring(t *testing.T) {
@@ -1242,17 +1221,175 @@ func TestIstioMonitoring(t *testing.T) {
 		aconfig.ResetSystemProbeConfig(t)
 		cfg := configurationFromYAML(t, `
 service_monitoring_config:
-  enable_istio_monitoring: true
+  tls:
+    istio:
+      enabled: true
 `)
 		assert.True(t, cfg.EnableIstioMonitoring)
 	})
 
 	t.Run("via deprecated ENV variable", func(t *testing.T) {
 		aconfig.ResetSystemProbeConfig(t)
-		t.Setenv("DD_SERVICE_MONITORING_CONFIG_ENABLE_ISTIO_MONITORING", "true")
+		t.Setenv("DD_SERVICE_MONITORING_CONFIG_TLS_ISTIO_ENABLED", "true")
 
 		cfg := New()
 		assert.True(t, cfg.EnableIstioMonitoring)
+	})
+}
+
+func TestUSMTLSNativeEnabled(t *testing.T) {
+	t.Run("via deprecated YAML", func(t *testing.T) {
+		aconfig.ResetSystemProbeConfig(t)
+		cfg := configurationFromYAML(t, `
+network_config:
+  enable_https_monitoring: true
+`)
+
+		require.True(t, cfg.EnableNativeTLSMonitoring)
+	})
+
+	t.Run("via deprecated ENV variable", func(t *testing.T) {
+		aconfig.ResetSystemProbeConfig(t)
+		t.Setenv("DD_SYSTEM_PROBE_NETWORK_ENABLE_HTTPS_MONITORING", "true")
+
+		cfg := New()
+
+		require.True(t, cfg.EnableNativeTLSMonitoring)
+	})
+
+	t.Run("via YAML", func(t *testing.T) {
+		aconfig.ResetSystemProbeConfig(t)
+		cfg := configurationFromYAML(t, `
+service_monitoring_config:
+  tls:
+    native:
+      enabled: true
+`)
+		require.True(t, cfg.EnableNativeTLSMonitoring)
+	})
+
+	t.Run("via ENV variable", func(t *testing.T) {
+		aconfig.ResetSystemProbeConfig(t)
+		t.Setenv("DD_SERVICE_MONITORING_CONFIG_TLS_NATIVE_ENABLED", "true")
+
+		cfg := New()
+
+		require.True(t, cfg.EnableNativeTLSMonitoring)
+	})
+
+	t.Run("Deprecated is enabled, new is disabled", func(t *testing.T) {
+		aconfig.ResetSystemProbeConfig(t)
+		t.Setenv("DD_SYSTEM_PROBE_NETWORK_ENABLE_HTTPS_MONITORING", "true")
+		t.Setenv("DD_SERVICE_MONITORING_CONFIG_TLS_NATIVE_ENABLED", "false")
+
+		cfg := New()
+
+		require.False(t, cfg.EnableNativeTLSMonitoring)
+	})
+
+	t.Run("Deprecated is disabled, new is enabled", func(t *testing.T) {
+		aconfig.ResetSystemProbeConfig(t)
+		t.Setenv("DD_SYSTEM_PROBE_NETWORK_ENABLE_HTTPS_MONITORING", "false")
+		t.Setenv("DD_SERVICE_MONITORING_CONFIG_TLS_NATIVE_ENABLED", "true")
+
+		cfg := New()
+
+		require.True(t, cfg.EnableNativeTLSMonitoring)
+	})
+
+	t.Run("Both enabled", func(t *testing.T) {
+		aconfig.ResetSystemProbeConfig(t)
+		// Setting a different value
+		t.Setenv("DD_SYSTEM_PROBE_NETWORK_ENABLE_HTTPS_MONITORING", "true")
+		t.Setenv("DD_SERVICE_MONITORING_CONFIG_TLS_NATIVE_ENABLED", "true")
+		cfg := New()
+
+		require.True(t, cfg.EnableNativeTLSMonitoring)
+	})
+
+	t.Run("Not enabled", func(t *testing.T) {
+		aconfig.ResetSystemProbeConfig(t)
+		cfg := New()
+		// Default value.
+		require.False(t, cfg.EnableNativeTLSMonitoring)
+	})
+}
+
+func TestUSMTLSGoEnabled(t *testing.T) {
+	t.Run("via deprecated YAML", func(t *testing.T) {
+		aconfig.ResetSystemProbeConfig(t)
+		cfg := configurationFromYAML(t, `
+service_monitoring_config:
+  enable_go_tls_support: true
+`)
+
+		require.True(t, cfg.EnableGoTLSSupport)
+	})
+
+	t.Run("via deprecated ENV variable", func(t *testing.T) {
+		aconfig.ResetSystemProbeConfig(t)
+		t.Setenv("DD_SERVICE_MONITORING_CONFIG_ENABLE_GO_TLS_SUPPORT", "true")
+
+		cfg := New()
+
+		require.True(t, cfg.EnableGoTLSSupport)
+	})
+
+	t.Run("via YAML", func(t *testing.T) {
+		aconfig.ResetSystemProbeConfig(t)
+		cfg := configurationFromYAML(t, `
+service_monitoring_config:
+  tls:
+    go:
+      enabled: true
+`)
+		require.True(t, cfg.EnableGoTLSSupport)
+	})
+
+	t.Run("via ENV variable", func(t *testing.T) {
+		aconfig.ResetSystemProbeConfig(t)
+		t.Setenv("DD_SERVICE_MONITORING_CONFIG_TLS_GO_ENABLED", "true")
+
+		cfg := New()
+
+		require.True(t, cfg.EnableGoTLSSupport)
+	})
+
+	t.Run("Deprecated is enabled, new is disabled", func(t *testing.T) {
+		aconfig.ResetSystemProbeConfig(t)
+		t.Setenv("DD_SERVICE_MONITORING_CONFIG_ENABLE_GO_TLS_SUPPORT", "true")
+		t.Setenv("DD_SERVICE_MONITORING_CONFIG_TLS_GO_ENABLED", "false")
+
+		cfg := New()
+
+		require.False(t, cfg.EnableGoTLSSupport)
+	})
+
+	t.Run("Deprecated is disabled, new is enabled", func(t *testing.T) {
+		aconfig.ResetSystemProbeConfig(t)
+		t.Setenv("DD_SERVICE_MONITORING_CONFIG_ENABLE_GO_TLS_SUPPORT", "false")
+		t.Setenv("DD_SERVICE_MONITORING_CONFIG_TLS_GO_ENABLED", "true")
+
+		cfg := New()
+
+		require.True(t, cfg.EnableGoTLSSupport)
+	})
+
+	t.Run("Both enabled", func(t *testing.T) {
+		aconfig.ResetSystemProbeConfig(t)
+		// Setting a different value
+		t.Setenv("DD_SERVICE_MONITORING_CONFIG_ENABLE_GO_TLS_SUPPORT", "true")
+		t.Setenv("DD_SERVICE_MONITORING_CONFIG_TLS_GO_ENABLED", "true")
+		cfg := New()
+
+		require.True(t, cfg.EnableGoTLSSupport)
+	})
+
+	t.Run("Not enabled", func(t *testing.T) {
+		aconfig.ResetSystemProbeConfig(t)
+		cfg := New()
+		// Default value.
+		require.False(t, cfg.EnableGoTLSSupport)
 	})
 }
 

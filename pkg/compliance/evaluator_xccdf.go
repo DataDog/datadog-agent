@@ -34,6 +34,7 @@ const (
 )
 
 const (
+	//revive:disable
 	XCCDF_RESULT_PASS = iota + 1
 	XCCDF_RESULT_FAIL
 	XCCDF_RESULT_ERROR
@@ -41,6 +42,7 @@ const (
 	XCCDF_RESULT_NOT_APPLICABLE
 	XCCDF_RESULT_NOT_CHECKED
 	XCCDF_RESULT_NOT_SELECTED
+	//revive:enable
 )
 
 type oscapIORule struct {
@@ -81,10 +83,10 @@ func getOSCAPIODefaultBinPath() (string, error) {
 func newOSCAPIO(file string) *oscapIO {
 	return &oscapIO{
 		File:     file,
-		RuleCh:   make(chan *oscapIORule, 0),
-		ResultCh: make(chan *oscapIOResult, 0),
-		ErrorCh:  make(chan error, 0),
-		DoneCh:   make(chan bool, 0),
+		RuleCh:   make(chan *oscapIORule),
+		ResultCh: make(chan *oscapIOResult),
+		ErrorCh:  make(chan error),
+		DoneCh:   make(chan bool),
 	}
 }
 
@@ -231,7 +233,7 @@ func (p *oscapIO) Run(ctx context.Context) error {
 	}()
 
 	if err := cmd.Wait(); err != nil {
-		log.Warnf("process exited: %v", err)
+		log.Debugf("process exited: %v", err)
 		return err
 	}
 
@@ -241,7 +243,7 @@ func (p *oscapIO) Run(ctx context.Context) error {
 func (p *oscapIO) Stop() {
 	oscapIOsMu.Lock()
 	defer oscapIOsMu.Unlock()
-	oscapIOs[p.File] = nil
+	delete(oscapIOs, p.File)
 	close(p.DoneCh)
 }
 
@@ -252,6 +254,7 @@ func (p *oscapIO) Kill() error {
 	return nil
 }
 
+// EvaluateXCCDFRule evaluates the given rule using OpenSCAP tool.
 func EvaluateXCCDFRule(ctx context.Context, hostname string, statsdClient *statsd.Client, benchmark *Benchmark, rule *Rule) []*CheckEvent {
 	if !rule.IsXCCDF() {
 		log.Errorf("given rule is not an XCCDF rule %s", rule.ID)
@@ -270,7 +273,7 @@ func evaluateXCCDFRule(ctx context.Context, hostname string, statsdClient *stats
 		go func() {
 			err := p.Run(ctx)
 			if err != nil {
-				log.Warnf("Run: %v", err)
+				log.Debugf("Run: %v", err)
 			}
 		}()
 	}
@@ -311,7 +314,7 @@ func evaluateXCCDFRule(ctx context.Context, hostname string, statsdClient *stats
 			log.Warnf("timed out waiting for expected results for rule %s", reqs[i].Rule)
 			// If no result has been received, it's likely for the oscap-io process to be stuck, so we kill it.
 			oscapIOsMu.Lock()
-			oscapIOs[p.File] = nil
+			delete(oscapIOs, p.File)
 			oscapIOsMu.Unlock()
 			err := p.Kill()
 			if err != nil {
@@ -360,4 +363,38 @@ func evaluateXCCDFRule(ctx context.Context, hostname string, statsdClient *stats
 	}
 
 	return events
+}
+
+// FinishXCCDFBenchmark finishes an XCCDF benchmark by terminating the oscap-io processes.
+func FinishXCCDFBenchmark(ctx context.Context, benchmark *Benchmark) {
+	oscapIOsMu.Lock()
+	defer oscapIOsMu.Unlock()
+
+	if len(oscapIOs) == 0 {
+		// No oscap-io process is running.
+		return
+	}
+
+	for _, rule := range benchmark.Rules {
+		if !rule.IsXCCDF() {
+			continue
+		}
+		if len(benchmark.Rules[0].InputSpecs) == 0 {
+			continue
+		}
+		file := filepath.Join(benchmark.dirname, rule.InputSpecs[0].XCCDF.Name)
+		p := oscapIOs[file]
+		if p == nil {
+			continue
+		}
+		delete(oscapIOs, file)
+		err := p.Kill()
+		if err != nil {
+			log.Warnf("failed to kill process: %v", err)
+		}
+		if len(oscapIOs) == 0 {
+			// If no oscap-io process is running, we don't have to loop through every rules.
+			return
+		}
+	}
 }

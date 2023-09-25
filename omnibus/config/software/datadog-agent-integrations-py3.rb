@@ -95,10 +95,6 @@ if osx?
 end
 
 if arm?
-  # Temporarily blacklist Aerospike until builder supports new dependency
-  blacklist_folders.push('aerospike')
-  blacklist_packages.push(/^aerospike==/)
-
   # This doesn't build on ARM
   blacklist_folders.push('ibm_ace')
   blacklist_folders.push('ibm_mq')
@@ -220,7 +216,6 @@ build do
         specific_build_env["cryptography"] = nix_build_env.merge(
             {
                 "RUSTFLAGS" => "-C link-arg=-Wl,-rpath,#{install_dir}/embedded/lib",
-                "PIP_NO_BINARY" => ":all:",
                 "OPENSSL_DIR" => "#{install_dir}/embedded/",
                 # We have a manually installed dependency (snowflake connector) that already installed cryptography (but without the flags)
                 # We force reinstall it from source to be sure we use the flag
@@ -541,6 +536,15 @@ build do
 
       # Run pip check to make sure the agent's python environment is clean, all the dependencies are compatible
       command "#{python} -m pip check"
+    end
+
+    block do
+      # Removing tests that don't need to be shipped in the embedded folder
+      if windows?
+        delete "#{python_3_embedded}/Lib/site-packages/Cryptodome/SelfTest/"
+      else
+        delete "#{install_dir}/embedded/lib/python3.9/site-packages/Cryptodome/SelfTest/"
+      end
     end
   end
 

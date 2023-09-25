@@ -5,6 +5,7 @@
 
 //go:build linux && !trivy
 
+// Package sbom holds sbom related files
 package sbom
 
 import (

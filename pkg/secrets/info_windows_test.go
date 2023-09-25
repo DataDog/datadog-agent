@@ -19,6 +19,10 @@ import (
 )
 
 func TestGetExecutablePermissionsError(t *testing.T) {
+	// This test plus unit tests for Linux file will be moving to integration tests
+	// (in soon to be added _windows_integration_tests() and _linux_integration_tests() functions)
+	t.Skip("skipping flaky Windows test (it hangs on execution of its PowerShell script in latest github environment)")
+
 	secretBackendCommand = "some_command"
 	t.Cleanup(resetPackageVars)
 
@@ -49,6 +53,10 @@ func setupSecretCommmand(t *testing.T) {
 }
 
 func TestGetExecutablePermissionsSuccess(t *testing.T) {
+	// This test plus unit tests for Linux file will be moving to integration tests
+	// (in soon to be added _windows_integration_tests() and _linux_integration_tests() functions)
+	t.Skip("skipping flaky Windows test (it hangs on execution of its PowerShell script in latest github environment)")
+
 	setupSecretCommmand(t)
 
 	res, err := getExecutablePermissions()

@@ -36,9 +36,11 @@ type protocol struct {
 }
 
 const (
-	inFlightMap    = "http_in_flight"
-	filterTailCall = "socket__http_filter"
-	eventStream    = "http"
+	inFlightMap            = "http_in_flight"
+	filterTailCall         = "socket__http_filter"
+	tlsProcessTailCall     = "uprobe__http_process"
+	tlsTerminationTailCall = "uprobe__http_termination"
+	eventStream            = "http"
 )
 
 var Spec = &protocols.ProtocolSpec{
@@ -52,6 +54,20 @@ var Spec = &protocols.ProtocolSpec{
 			Key:           uint32(protocols.ProgramHTTP),
 			ProbeIdentificationPair: manager.ProbeIdentificationPair{
 				EBPFFuncName: filterTailCall,
+			},
+		},
+		{
+			ProgArrayName: protocols.TLSDispatcherProgramsMap,
+			Key:           uint32(protocols.ProgramTLSHTTPProcess),
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				EBPFFuncName: tlsProcessTailCall,
+			},
+		},
+		{
+			ProgArrayName: protocols.TLSDispatcherProgramsMap,
+			Key:           uint32(protocols.ProgramTLSHTTPTermination),
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				EBPFFuncName: tlsTerminationTailCall,
 			},
 		},
 	},
@@ -90,7 +106,6 @@ func (p *protocol) Name() string {
 // We also configure the http event stream with the manager and its options.
 func (p *protocol) ConfigureOptions(mgr *manager.Manager, opts *manager.Options) {
 	opts.MapSpecEditors[inFlightMap] = manager.MapSpecEditor{
-		Type:       ebpf.Hash,
 		MaxEntries: p.cfg.MaxTrackedConnections,
 		EditorFlag: manager.EditMaxEntries,
 	}
@@ -99,7 +114,7 @@ func (p *protocol) ConfigureOptions(mgr *manager.Manager, opts *manager.Options)
 	events.Configure(eventStream, mgr, opts)
 }
 
-func (p *protocol) PreStart(mgr *manager.Manager, _ protocols.BuildMode) (err error) {
+func (p *protocol) PreStart(mgr *manager.Manager) (err error) {
 	p.eventsConsumer, err = events.NewConsumer(
 		"http",
 		mgr,

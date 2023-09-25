@@ -91,6 +91,13 @@ namespace Datadog.CustomActions
         /// </summary>
         private void ConfigureUserGroups()
         {
+            if (_nativeMethods.IsReadOnlyDomainController())
+            {
+                _session.Log("Host is a Read-Only Domain controller, user cannot be added to groups by the installer." +
+                             " Install will continue, agent may not function properly if user has not been added to these groups.");
+                return;
+            }
+
             _nativeMethods.AddToGroup(_ddAgentUserSID, WellKnownSidType.BuiltinPerformanceMonitoringUsersSid);
             // Builtin\Event Log Readers
             _nativeMethods.AddToGroup(_ddAgentUserSID, new SecurityIdentifier("S-1-5-32-573"));
@@ -173,6 +180,10 @@ namespace Datadog.CustomActions
             {
                 using var subkey =
                     _registryServices.OpenRegistryKey(Registries.LocalMachine, Constants.DatadogAgentRegistryKey);
+                if (subkey == null)
+                {
+                    throw new Exception("Datadog registry key does not exist");
+                }
                 var domain = subkey.GetValue("installedDomain")?.ToString();
                 var user = subkey.GetValue("installedUser")?.ToString();
                 if (string.IsNullOrEmpty(domain) || string.IsNullOrEmpty(user))
