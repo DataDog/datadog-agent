@@ -76,8 +76,9 @@ notify-slack:
       echo "Results array: ${results[@]}"
       {
         cat system_probe_commits.txt
-        echo "Unique Authors: $(printf "<@%s>" "${results[@]}")"
+        echo "$(printf "<@%s>" "U049LRNEE01")"
       } > slack_message.txt
+#        echo "$(printf "<@%s>" "${results[@]}")"
       postmessage "system-probe-ops" "$(cat slack_message.txt)"
       git checkout ${CI_COMMIT_SHORT_SHA}
       #    - git tag stripe_staging

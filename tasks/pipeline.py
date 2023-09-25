@@ -517,6 +517,7 @@ def changelog(_, new_git_sha):
     with open("system_probe_commits.txt", "w") as file:
         file.write("Changelog for commit range: `{}` to `{}` \n".format(old_git_sha[:7], new_git_sha))
         file.write("\n".join(messages))
+        file.write("\n:wave: Authors, please check relevant dashboards for issues: ")
 
     with open("unique_emails.txt", "w") as file:
         file.write("\n".join(unique_emails))
