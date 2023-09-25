@@ -38,8 +38,8 @@ func checkRights(filename string, allowGroupExec bool) error {
 		return fmt.Errorf("could not query ACLs for '%s': %s", filename, err)
 	}
 
-	var aclSizeInfo winutil.AclSizeInformation
-	err = winutil.GetAclInformation(fileDacl, &aclSizeInfo, winutil.AclSizeInformationEnum)
+	var aclSizeInfo winutil.ACL_SIZE_INFORMATION
+	err = winutil.GetAclInformation(fileDacl, &aclSizeInfo, winutil.AclSizeInformation)
 	if err != nil {
 		return fmt.Errorf("could not query ACLs for '%s': %s", filename, err)
 	}
@@ -65,7 +65,7 @@ func checkRights(filename string, allowGroupExec bool) error {
 
 	bSecretUserExplicitlyAllowed := false
 	for i := uint32(0); i < aclSizeInfo.AceCount; i++ {
-		var pAce *winutil.AccessAllowedAce
+		var pAce *winutil.ACCESS_ALLOWED_ACE
 		if err := winutil.GetAce(fileDacl, i, &pAce); err != nil {
 			return fmt.Errorf("could not query a ACE on '%s': %s", filename, err)
 		}
@@ -101,11 +101,11 @@ func checkRights(filename string, allowGroupExec bool) error {
 }
 
 // getACL retrieves the DACL for the file at filename path
-func getACL(filename string) (*winutil.Acl, error) {
-	var fileDacl *winutil.Acl
+func getACL(filename string) (*winutil.ACL, error) {
+	var fileDacl *winutil.ACL
 	err := winutil.GetNamedSecurityInfo(filename,
-		winutil.SE_FILE_OBJECT,
-		winutil.DACL_SECURITY_INFORMATION,
+		windows.SE_FILE_OBJECT,
+		windows.DACL_SECURITY_INFORMATION,
 		nil,
 		nil,
 		&fileDacl,

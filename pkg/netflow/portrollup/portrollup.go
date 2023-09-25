@@ -3,11 +3,16 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2022-present Datadog, Inc.
 
+// Package portrollup provides a type for tracking observed connections
+// between ports on different devices and identifying when a port connects
+// to many different ports and so should have all traffic rolled up into a
+// single flow for reporting purposes.
 package portrollup
 
 import (
-	"github.com/DataDog/datadog-agent/pkg/netflow/common"
 	"sync"
+
+	"github.com/DataDog/datadog-agent/pkg/netflow/common"
 )
 
 // EphemeralPort port number is represented by `-1` internally
@@ -115,7 +120,7 @@ func (prs *EndpointPairPortRollupStore) AddToStore(store map[string][]uint16, sr
 func (prs *EndpointPairPortRollupStore) GetPortCount(sourceAddr []byte, destAddr []byte, sourcePort uint16, destPort uint16) (uint16, bool) {
 	sourceToDestPortCount := prs.GetSourceToDestPortCount(sourceAddr, destAddr, sourcePort)
 	destToSourcePortCount := prs.GetDestToSourcePortCount(sourceAddr, destAddr, destPort)
-	portCount := common.MaxUint16(sourceToDestPortCount, destToSourcePortCount)
+	portCount := common.Max(sourceToDestPortCount, destToSourcePortCount)
 	isEphemeralSource := destToSourcePortCount > sourceToDestPortCount
 	return portCount, isEphemeralSource
 }
@@ -128,6 +133,7 @@ func (prs *EndpointPairPortRollupStore) IsEphemeral(sourceAddr []byte, destAddr 
 	return prs.IsEphemeralFromKeys(srcToDestKey, destToSrcKey)
 }
 
+// IsEphemeralFromKeys gets the ephemeral status of a link based on its keys.
 func (prs *EndpointPairPortRollupStore) IsEphemeralFromKeys(srcToDestKey string, destToSrcKey string) IsEphemeralStatus {
 	prs.storeMu.RLock()
 	sourceToDestPortCount := len(prs.curStore[srcToDestKey])

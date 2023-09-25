@@ -6,6 +6,7 @@
 package api
 
 import (
+	"context"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -49,6 +50,20 @@ func recordedResponse(t *testing.T, rec *httptest.ResponseRecorder) string {
 	return string(responseBody)
 }
 
+func getTestConfig(endpointURL string) *config.AgentConfig {
+	cfg := config.New()
+	cfg.Endpoints[0].APIKey = "test_apikey"
+	cfg.TelemetryConfig.Enabled = true
+	cfg.TelemetryConfig.Endpoints = []*config.Endpoint{{
+		APIKey: "test_apikey",
+		Host:   endpointURL,
+	}}
+	cfg.Hostname = "test_hostname"
+	cfg.SkipSSLValidation = true
+	cfg.DefaultEnv = "test_env"
+	return cfg
+}
+
 func TestTelemetryBasicProxyRequest(t *testing.T) {
 	endpointCalled := atomic.NewUint64(0)
 	assert := assert.New(t)
@@ -58,7 +73,9 @@ func TestTelemetryBasicProxyRequest(t *testing.T) {
 		assert.Equal("test_apikey", req.Header.Get("DD-API-KEY"))
 		assert.Equal("test_hostname", req.Header.Get("DD-Agent-Hostname"))
 		assert.Equal("test_env", req.Header.Get("DD-Agent-Env"))
-		assert.Equal("test_ARN", req.Header.Get("DD-Function-ARN"))
+		assert.Equal("AWS", req.Header.Get("DD-Cloud-Provider"))
+		assert.Equal("AWS Lambda", req.Header.Get("DD-Cloud-Resource-Type"))
+		assert.Equal("test_ARN", req.Header.Get("DD-Cloud-Resource-Identifier"))
 		assert.Equal("/path", req.URL.Path)
 		assert.Equal("", req.Header.Get("User-Agent"))
 		assert.Regexp(regexp.MustCompile("trace-agent.*"), req.Header.Get("Via"))
@@ -68,23 +85,129 @@ func TestTelemetryBasicProxyRequest(t *testing.T) {
 	})
 
 	req, rec := newRequestRecorder(t)
-	cfg := config.New()
-	cfg.Endpoints[0].APIKey = "test_apikey"
-	cfg.TelemetryConfig.Enabled = true
-	cfg.TelemetryConfig.Endpoints = []*config.Endpoint{{
-		APIKey: "test_apikey",
-		Host:   srv.URL,
-	}}
-	cfg.Hostname = "test_hostname"
-	cfg.SkipSSLValidation = true
-	cfg.DefaultEnv = "test_env"
-	cfg.GlobalTags[functionARNKey] = "test_ARN"
+	cfg := getTestConfig(srv.URL)
+	cfg.GlobalTags[functionARNKeyTag] = "test_ARN"
 	recv := newTestReceiverFromConfig(cfg)
 	recv.buildMux().ServeHTTP(rec, req)
 
 	assert.Equal("OK", recordedResponse(t, rec))
 	assert.Equal(uint64(1), endpointCalled.Load())
 
+}
+
+func TestGoogleCloudRun(t *testing.T) {
+	endpointCalled := atomic.NewUint64(0)
+	assert := assert.New(t)
+
+	srv := assertingServer(t, func(req *http.Request, body []byte) error {
+		assert.Equal("GCP", req.Header.Get("DD-Cloud-Provider"))
+		assert.Equal("GCP Cloud Run", req.Header.Get("DD-Cloud-Resource-Type"))
+		assert.Equal("test_service", req.Header.Get("DD-Cloud-Resource-Identifier"))
+
+		endpointCalled.Inc()
+		return nil
+	})
+
+	req, rec := newRequestRecorder(t)
+	cfg := getTestConfig(srv.URL)
+	cfg.GlobalTags["service_name"] = "test_service"
+	cfg.GlobalTags["origin"] = "cloudrun"
+	recv := newTestReceiverFromConfig(cfg)
+	recv.buildMux().ServeHTTP(rec, req)
+
+	assert.Equal("OK", recordedResponse(t, rec))
+	assert.Equal(uint64(1), endpointCalled.Load())
+}
+
+func TestAzureAppService(t *testing.T) {
+	endpointCalled := atomic.NewUint64(0)
+	assert := assert.New(t)
+
+	srv := assertingServer(t, func(req *http.Request, body []byte) error {
+		assert.Equal("Azure", req.Header.Get("DD-Cloud-Provider"))
+		assert.Equal("Azure App Service", req.Header.Get("DD-Cloud-Resource-Type"))
+		assert.Equal("test_app", req.Header.Get("DD-Cloud-Resource-Identifier"))
+		assert.Equal("/path", req.URL.Path)
+		assert.Equal("", req.Header.Get("User-Agent"))
+		assert.Regexp(regexp.MustCompile("trace-agent.*"), req.Header.Get("Via"))
+
+		endpointCalled.Inc()
+		return nil
+	})
+
+	req, rec := newRequestRecorder(t)
+	cfg := getTestConfig(srv.URL)
+	cfg.GlobalTags["app_name"] = "test_app"
+	cfg.GlobalTags["origin"] = "appservice"
+	recv := newTestReceiverFromConfig(cfg)
+	recv.buildMux().ServeHTTP(rec, req)
+
+	assert.Equal("OK", recordedResponse(t, rec))
+	assert.Equal(uint64(1), endpointCalled.Load())
+}
+
+func TestAzureContainerApp(t *testing.T) {
+	endpointCalled := atomic.NewUint64(0)
+	assert := assert.New(t)
+
+	srv := assertingServer(t, func(req *http.Request, body []byte) error {
+		assert.Equal("Azure", req.Header.Get("DD-Cloud-Provider"))
+		assert.Equal("Azure Container App", req.Header.Get("DD-Cloud-Resource-Type"))
+		assert.Equal("test_app", req.Header.Get("DD-Cloud-Resource-Identifier"))
+		assert.Equal("/path", req.URL.Path)
+		assert.Equal("", req.Header.Get("User-Agent"))
+		assert.Regexp(regexp.MustCompile("trace-agent.*"), req.Header.Get("Via"))
+
+		endpointCalled.Inc()
+		return nil
+	})
+
+	req, rec := newRequestRecorder(t)
+	cfg := getTestConfig(srv.URL)
+	cfg.GlobalTags["app_name"] = "test_app"
+	cfg.GlobalTags["origin"] = "containerapp"
+	recv := newTestReceiverFromConfig(cfg)
+	recv.buildMux().ServeHTTP(rec, req)
+
+	assert.Equal("OK", recordedResponse(t, rec))
+	assert.Equal(uint64(1), endpointCalled.Load())
+}
+
+type testContainerIDProvider struct{}
+
+// NewIDProvider initializes an IDProvider instance, in non-linux environments the procRoot arg is unused.
+func getTestContainerIDProvider() testContainerIDProvider {
+	return testContainerIDProvider{}
+}
+
+func (testContainerIDProvider) GetContainerID(_ context.Context, _ http.Header) string {
+	return "test_container_id"
+}
+
+func TestAWSFargate(t *testing.T) {
+	endpointCalled := atomic.NewUint64(0)
+	assert := assert.New(t)
+
+	srv := assertingServer(t, func(req *http.Request, body []byte) error {
+		assert.Equal("AWS", req.Header.Get("DD-Cloud-Provider"))
+		assert.Equal("AWS Fargate", req.Header.Get("DD-Cloud-Resource-Type"))
+		assert.Equal("test_ARN", req.Header.Get("DD-Cloud-Resource-Identifier"))
+
+		endpointCalled.Inc()
+		return nil
+	})
+
+	req, rec := newRequestRecorder(t)
+	cfg := getTestConfig(srv.URL)
+	cfg.ContainerTags = func(cid string) ([]string, error) {
+		return []string{"task_arn:test_ARN"}, nil
+	}
+	recv := newTestReceiverFromConfig(cfg)
+	recv.containerIDProvider = getTestContainerIDProvider()
+	recv.buildMux().ServeHTTP(rec, req)
+
+	assert.Equal("OK", recordedResponse(t, rec))
+	assert.Equal(uint64(1), endpointCalled.Load())
 }
 
 func TestTelemetryProxyMultipleEndpoints(t *testing.T) {
@@ -98,7 +221,9 @@ func TestTelemetryProxyMultipleEndpoints(t *testing.T) {
 		assert.Equal("test_apikey_1", req.Header.Get("DD-API-KEY"))
 		assert.Equal("test_hostname", req.Header.Get("DD-Agent-Hostname"))
 		assert.Equal("test_env", req.Header.Get("DD-Agent-Env"))
-		assert.Equal("test_ARN", req.Header.Get("DD-Function-ARN"))
+		assert.Equal("AWS", req.Header.Get("DD-Cloud-Provider"))
+		assert.Equal("AWS Lambda", req.Header.Get("DD-Cloud-Resource-Type"))
+		assert.Equal("test_ARN", req.Header.Get("DD-Cloud-Resource-Identifier"))
 
 		endpointCalled.Add(2)
 		return nil
@@ -110,15 +235,16 @@ func TestTelemetryProxyMultipleEndpoints(t *testing.T) {
 		assert.Equal("test_apikey_2", req.Header.Get("DD-API-KEY"))
 		assert.Equal("test_hostname", req.Header.Get("DD-Agent-Hostname"))
 		assert.Equal("test_env", req.Header.Get("DD-Agent-Env"))
-		assert.Equal("test_ARN", req.Header.Get("DD-Function-ARN"))
+		assert.Equal("AWS", req.Header.Get("DD-Cloud-Provider"))
+		assert.Equal("AWS Lambda", req.Header.Get("DD-Cloud-Resource-Type"))
+		assert.Equal("test_ARN", req.Header.Get("DD-Cloud-Resource-Identifier"))
 
 		endpointCalled.Add(3)
 		return nil
 	})
 
-	cfg := config.New()
+	cfg := getTestConfig(mainBackend.URL)
 	cfg.Endpoints[0].APIKey = "test_apikey_1"
-	cfg.TelemetryConfig.Enabled = true
 	cfg.TelemetryConfig.Endpoints = []*config.Endpoint{{
 		APIKey: "test_apikey_1",
 		Host:   mainBackend.URL,
@@ -129,10 +255,8 @@ func TestTelemetryProxyMultipleEndpoints(t *testing.T) {
 		APIKey: "test_apikey_2",
 		Host:   additionalBackend.URL + "/",
 	}}
-	cfg.Hostname = "test_hostname"
-	cfg.SkipSSLValidation = true
 	cfg.DefaultEnv = "test_env"
-	cfg.GlobalTags[functionARNKey] = "test_ARN"
+	cfg.GlobalTags[functionARNKeyTag] = "test_ARN"
 
 	req, rec := newRequestRecorder(t)
 	recv := newTestReceiverFromConfig(cfg)

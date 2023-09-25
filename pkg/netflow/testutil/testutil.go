@@ -5,6 +5,8 @@
 
 //go:build test
 
+// Package testutil provides some utilities for integration testing portions of
+// the netflow tooling.
 package testutil
 
 import (
@@ -35,6 +37,7 @@ var netflow9pcapng []byte
 //go:embed pcap_recordings/sflow.pcapng
 var sflowpcapng []byte
 
+// SendUDPPacket sends data to a local port over UDP.
 func SendUDPPacket(port uint16, data []byte) error {
 	udpConn, err := net.Dial("udp", fmt.Sprintf("127.0.0.1:%d", port))
 	if err != nil {
@@ -45,6 +48,8 @@ func SendUDPPacket(port uint16, data []byte) error {
 	return err
 }
 
+// ExpectNetflow5Payloads expects the payloads that should result from our
+// recorded pcap files.
 func ExpectNetflow5Payloads(t *testing.T, mockEpForwrader *epforwarder.MockEventPlatformForwarder) {
 	events := [][]byte{
 		[]byte(`
@@ -155,7 +160,8 @@ func ExpectNetflow5Payloads(t *testing.T, mockEpForwrader *epforwarder.MockEvent
 	}
 }
 
-func GetPacketFromPcap(pcapdata []byte, layer gopacket.Decoder, packetIndex int) ([]byte, error) {
+// GetPacketFromPCAP parses PCAP data into an actual packet.
+func GetPacketFromPCAP(pcapdata []byte, layer gopacket.Decoder, packetIndex int) ([]byte, error) {
 	reader := bytes.NewReader(pcapdata)
 
 	r, err := pcapgo.NewNgReader(reader, pcapgo.DefaultNgReaderOptions)
@@ -179,14 +185,17 @@ func GetPacketFromPcap(pcapdata []byte, layer gopacket.Decoder, packetIndex int)
 	}
 }
 
+// GetNetFlow5Packet parses our saved netflow5 packet.
 func GetNetFlow5Packet() ([]byte, error) {
-	return GetPacketFromPcap(netflow5pcapng, layers.LayerTypeLoopback, 0)
+	return GetPacketFromPCAP(netflow5pcapng, layers.LayerTypeLoopback, 0)
 }
 
+// GetNetFlow9Packet parses our saved netflow9 packet.
 func GetNetFlow9Packet() ([]byte, error) {
-	return GetPacketFromPcap(netflow9pcapng, layers.LayerTypeLoopback, 0)
+	return GetPacketFromPCAP(netflow9pcapng, layers.LayerTypeLoopback, 0)
 }
 
+// GetSFlow5Packet parses our saved sflow5 packet.
 func GetSFlow5Packet() ([]byte, error) {
-	return GetPacketFromPcap(sflowpcapng, layers.LayerTypeEthernet, 1)
+	return GetPacketFromPCAP(sflowpcapng, layers.LayerTypeEthernet, 1)
 }

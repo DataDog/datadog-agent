@@ -48,6 +48,7 @@ func (ev *Event) resolveFields(forADs bool) {
 	}
 	// resolve event specific fields
 	switch ev.GetEventType().String() {
+	case "dns":
 	case "exec":
 		_ = ev.FieldHandlers.ResolveFilePath(ev, &ev.Exec.Process.FileEvent)
 		_ = ev.FieldHandlers.ResolveFileBasename(ev, &ev.Exec.Process.FileEvent)
@@ -70,8 +71,6 @@ type FieldHandlers interface {
 	ResolveEventTimestamp(ev *Event, e *BaseEvent) int
 	ResolveFileBasename(ev *Event, e *FileEvent) string
 	ResolveFilePath(ev *Event, e *FileEvent) string
-	ResolveProcessArgsFlags(ev *Event, e *Process) []string
-	ResolveProcessArgsOptions(ev *Event, e *Process) []string
 	ResolveProcessCreatedAt(ev *Event, e *Process) int
 	ResolveProcessEnvp(ev *Event, e *Process) []string
 	ResolveProcessEnvs(ev *Event, e *Process) []string
@@ -97,12 +96,6 @@ func (dfh *DefaultFieldHandlers) ResolveFileBasename(ev *Event, e *FileEvent) st
 }
 func (dfh *DefaultFieldHandlers) ResolveFilePath(ev *Event, e *FileEvent) string {
 	return e.PathnameStr
-}
-func (dfh *DefaultFieldHandlers) ResolveProcessArgsFlags(ev *Event, e *Process) []string {
-	return e.Argv
-}
-func (dfh *DefaultFieldHandlers) ResolveProcessArgsOptions(ev *Event, e *Process) []string {
-	return e.Argv
 }
 func (dfh *DefaultFieldHandlers) ResolveProcessCreatedAt(ev *Event, e *Process) int {
 	return int(e.CreatedAt)
