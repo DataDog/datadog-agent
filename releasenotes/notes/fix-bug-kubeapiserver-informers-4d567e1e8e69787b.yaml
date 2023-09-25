@@ -1,0 +1,4 @@
+fixes:
+  - |
+    Resolved an issue in ``workloadmeta`` where informers were not accurately capturing all nodes, pods, or deployments.
+
