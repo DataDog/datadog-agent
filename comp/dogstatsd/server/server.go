@@ -8,11 +8,17 @@ package server
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"expvar"
 	"fmt"
 	"net"
+	"os"
+	"path"
+	"runtime"
+	"runtime/pprof"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	configComponent "github.com/DataDog/datadog-agent/comp/core/config"
@@ -139,6 +145,82 @@ type server struct {
 	originTelemetry bool
 
 	enrichConfig enrichConfig
+
+	nrEvents, nrServiceChecks, nrMetricSamples uint64
+}
+
+type profileMetadata struct {
+	Name          string `json:"name"`
+	Timestamp     string `json:"timestamp"`
+	Interval      string `json:"interval"`
+	Events        uint64 `json:"eventCount"`
+	ServiceChecks uint64 `json:"serviceCheckCount"`
+	MetricSamples uint64 `json:"metricSampleCount"`
+}
+
+func (s *server) dumpProfiles() {
+	var interval time.Duration
+	var prefix string
+	var dest string
+	if configs := strings.Split(os.Getenv("DD_SELF_PROFILE_MEM"), ","); len(configs) != 3 {
+		return
+	} else {
+		prefix = configs[0]
+		var err error
+		interval, err = time.ParseDuration(configs[1])
+		if err != nil {
+			_, _ = fmt.Fprintf(os.Stderr, "Failed to parse duration %s: %s\n", configs[1], err)
+			return
+		}
+		if interval < 1*time.Minute {
+			_, _ = fmt.Fprintf(os.Stderr, "Parsed duration (%s) was too small, making it 1 minute\n", interval)
+			interval = time.Minute
+		}
+		dest = configs[2]
+	}
+	var priorEvents, priorServiceChecks, priorMetricSamples uint64 = 0, 0, 0
+	for {
+		time.Sleep(interval)
+		timestamp := time.Now().String()
+		metadataFname := path.Join(dest, fmt.Sprintf("%s-%s.json", prefix, timestamp))
+		profileFname := path.Join(dest, fmt.Sprintf("%s-%s.pprof", prefix, timestamp))
+		nrEvents := atomic.LoadUint64(&s.nrEvents)
+		nrServiceChecks := atomic.LoadUint64(&s.nrServiceChecks)
+		nrMetricSamples := atomic.LoadUint64(&s.nrMetricSamples)
+		metadata := profileMetadata{
+			Name:          prefix,
+			Timestamp:     timestamp,
+			Interval:      interval.String(),
+			Events:        nrEvents - priorEvents,
+			ServiceChecks: nrServiceChecks - priorServiceChecks,
+			MetricSamples: nrMetricSamples - priorMetricSamples,
+		}
+		priorEvents, priorServiceChecks, priorMetricSamples = nrEvents, nrServiceChecks, nrMetricSamples
+
+		if marshalled, err := json.Marshal(metadata); err == nil {
+			err := os.WriteFile(metadataFname, marshalled, 0644)
+			if err != nil {
+				_, _ = fmt.Fprintf(os.Stderr, "Failed to write json: %s\n", err)
+				continue
+			}
+		} else {
+			_, _ = fmt.Fprintf(os.Stderr, "Failed to marshal json: %s\n", err)
+		}
+
+		f, err := os.Create(profileFname)
+		if err != nil {
+			_, _ = fmt.Fprintf(os.Stderr, "Could not create memory profile: %s\n", err)
+			continue
+		}
+		runtime.GC() // get up-to-date statistics
+		if err := pprof.WriteHeapProfile(f); err != nil {
+			_, _ = fmt.Fprintf(os.Stderr, "Could not write memory profile: %s\n", err)
+		}
+		if err = f.Close(); err != nil {
+			_, _ = fmt.Fprintf(os.Stderr, "Could not close memory profile: %s\n", err)
+		}
+	}
+
 }
 
 func initTelemetry(cfg config.ConfigReader, logger logComponent.Component) {
@@ -407,6 +489,8 @@ func (s *server) Start(demultiplexer aggregator.Demultiplexer) error {
 			s.mapper = mapperInstance
 		}
 	}
+
+	go s.dumpProfiles()
 	return nil
 }
 
@@ -593,6 +677,7 @@ func (s *server) parsePackets(batcher *batcher, parser *parser, packets []*packe
 					s.errLog("Dogstatsd: error parsing service check '%q': %s", message, err)
 					continue
 				}
+				atomic.AddUint64(&s.nrServiceChecks, 1)
 				batcher.appendServiceCheck(serviceCheck)
 			case eventType:
 				event, err := s.parseEventMessage(parser, message, packet.Origin)
@@ -600,6 +685,7 @@ func (s *server) parsePackets(batcher *batcher, parser *parser, packets []*packe
 					s.errLog("Dogstatsd: error parsing event '%q': %s", message, err)
 					continue
 				}
+				atomic.AddUint64(&s.nrEvents, 1)
 				batcher.appendEvent(event)
 			case metricSampleType:
 				var err error
@@ -628,6 +714,8 @@ func (s *server) parsePackets(batcher *batcher, parser *parser, packets []*packe
 						batcher.appendSample(*distSample)
 					}
 				}
+				atomic.AddUint64(&s.nrMetricSamples, uint64(len(samples)))
+
 			}
 		}
 		s.sharedPacketPoolManager.Put(packet)

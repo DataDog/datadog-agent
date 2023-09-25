@@ -81,10 +81,13 @@ func (cr *contextResolver) trackContext(metricSampleContext metrics.MetricSample
 		}
 
 		mtype := metricSampleContext.GetMetricType()
+		// split these out for easier memory analysis
+		tagTags := cr.tagsCache.Insert(taggerKey, cr.taggerBuffer)
+		metTags := cr.tagsCache.Insert(metricKey, cr.metricBuffer)
 		cr.contextsByKey[contextKey] = &Context{
 			Name:       metricSampleContext.GetName(),
-			taggerTags: cr.tagsCache.Insert(taggerKey, cr.taggerBuffer),
-			metricTags: cr.tagsCache.Insert(metricKey, cr.metricBuffer),
+			taggerTags: tagTags,
+			metricTags: metTags,
 			Host:       metricSampleContext.GetHost(),
 			mtype:      mtype,
 			noIndex:    metricSampleContext.IsNoIndex(),
