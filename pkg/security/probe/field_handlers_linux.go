@@ -167,13 +167,13 @@ func (fh *FieldHandlers) ResolveProcessArgs(ev *model.Event, process *model.Proc
 	return strings.Join(fh.ResolveProcessArgv(ev, process), " ")
 }
 
-// ResolveProcessArgv resolves the args of the event as an array
+// ResolveProcessArgv resolves the unscrubbed args of the process as an array. Use with caution.
 func (fh *FieldHandlers) ResolveProcessArgv(ev *model.Event, process *model.Process) []string {
 	argv, _ := sprocess.GetProcessArgv(process)
 	return argv
 }
 
-// ResolveProcessArgvScrubbed resolves the args of the event as an array
+// ResolveProcessArgvScrubbed resolves the args of the process as an array
 func (fh *FieldHandlers) ResolveProcessArgvScrubbed(ev *model.Event, process *model.Process) []string {
 	argv, _ := fh.resolvers.ProcessResolver.GetProcessArgvScrubbed(process)
 	return argv
@@ -383,7 +383,7 @@ func (fh *FieldHandlers) ResolvePackageSourceVersion(ev *model.Event, f *model.F
 	return f.PkgSrcVersion
 }
 
-// ResolveModuleArgv resolves the args of the event as an array
+// ResolveModuleArgv resolves the unscrubbed args of the module as an array. Use with caution.
 func (fh *FieldHandlers) ResolveModuleArgv(ev *model.Event, module *model.LoadModuleEvent) []string {
 	// strings.Split return [""] if args is empty, so we do a manual check before
 	if len(module.Args) == 0 {
