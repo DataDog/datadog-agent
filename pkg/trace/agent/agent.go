@@ -477,7 +477,10 @@ func isManualUserDrop(priority sampler.SamplingPriority, pt *traceutil.Processed
 
 // sample performs all sampling on the processedTrace modifying it as needed and returning if the trace should be kept and the number of events in the trace
 func (a *Agent) sample(now time.Time, ts *info.TagStats, pt *traceutil.ProcessedTrace) (keep bool, numEvents int) {
-	keep, skipAnalyticsEvents := a.traceSampling(now, ts, pt) //TODO: why do we have `keep` when the trace itself has a traceDropped field
+	// We have a `keep` that is different from pt's `DroppedTrace` field as `DroppedTrace` will be sent to intake.
+	// For example: We want to maintain the overall trace level sampling decision for a trace with Analytics Events
+	// where a trace might be marked as DroppedTrace true, but we still sent analytics events in that ProcessedTrace.
+	keep, skipAnalyticsEvents := a.traceSampling(now, ts, pt)
 
 	var events []*pb.Span
 	if !skipAnalyticsEvents {
