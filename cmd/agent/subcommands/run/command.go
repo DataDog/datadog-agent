@@ -261,6 +261,7 @@ func StartAgentWithDefaults(ctxChan <-chan context.Context) (<-chan error, error
 			metadataRunner runner.Component,
 			sharedSerializer serializer.MetricSerializer,
 			otelcollector otelcollector.Component,
+			_ netflowServer.Server,
 		) error {
 
 			defer StopAgentWithDefaults(server)
@@ -391,7 +392,6 @@ func startAgent(
 	sharedForwarder defaultforwarder.Component,
 	sharedSerializer serializer.MetricSerializer,
 	otelcollector otelcollector.Component,
-	_ netflowServer.Server,
 ) error {
 
 	var err error
