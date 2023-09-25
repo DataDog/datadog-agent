@@ -20,6 +20,26 @@ import (
 	"github.com/spf13/pflag"
 )
 
+// Source stores what edits a setting as a string
+type Source string
+
+// The default source is set as an empty string so that if the source isn't properly initialized, it is considered SourceDefault
+const (
+	SourceDefault Source = ""
+	SourceYaml    Source = "yaml"
+	SourceEnvVar  Source = "env-var"
+	SourceSelf    Source = "self-config"
+	SourceRC      Source = "remote-config"
+	SourceRuntime Source = "runtime"
+)
+
+func (s Source) String() string {
+	if s == SourceDefault {
+		return "default"
+	}
+	return string(s)
+}
+
 // safeConfig implements Config:
 // - wraps viper with a safety lock
 // - implements the additional DDHelpers

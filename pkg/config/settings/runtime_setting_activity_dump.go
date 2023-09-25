@@ -22,7 +22,7 @@ const (
 // ActivityDumpRuntimeSetting wraps operations to change activity dumps settings at runtime
 type ActivityDumpRuntimeSetting struct {
 	ConfigKey string
-	source    Source
+	source    config.Source
 }
 
 // Description returns the runtime setting's description
@@ -52,7 +52,7 @@ func (l *ActivityDumpRuntimeSetting) setMaxDumpSize(v interface{}) {
 }
 
 // Set changes the value of the runtime setting
-func (l *ActivityDumpRuntimeSetting) Set(v interface{}, source Source) error {
+func (l *ActivityDumpRuntimeSetting) Set(v interface{}, source config.Source) error {
 	val := v.(string)
 	log.Infof("ActivityDumpRuntimeSetting Set %s = %s\n", l.ConfigKey, val)
 
@@ -69,6 +69,7 @@ func (l *ActivityDumpRuntimeSetting) Set(v interface{}, source Source) error {
 	return nil
 }
 
-func (l *ActivityDumpRuntimeSetting) GetSource() Source {
+// GetSource returns the current source of the corresponding runtime setting
+func (l *ActivityDumpRuntimeSetting) GetSource() config.Source {
 	return l.source
 }

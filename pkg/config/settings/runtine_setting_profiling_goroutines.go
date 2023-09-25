@@ -13,11 +13,11 @@ import (
 type ProfilingGoroutines struct {
 	Config       config.ConfigReaderWriter
 	ConfigPrefix string
-	source       Source
+	source       config.Source
 }
 
 func NewProfilingGoroutines() *ProfilingGoroutines {
-	return &ProfilingGoroutines{source: SourceDefault}
+	return &ProfilingGoroutines{source: config.SourceDefault}
 }
 
 // Name returns the name of the runtime setting
@@ -45,7 +45,7 @@ func (r *ProfilingGoroutines) Get() (interface{}, error) {
 }
 
 // Set changes the value of the runtime setting
-func (r *ProfilingGoroutines) Set(value interface{}, source Source) error {
+func (r *ProfilingGoroutines) Set(value interface{}, source config.Source) error {
 	enabled, err := GetBool(value)
 	if err != nil {
 		return err
@@ -61,6 +61,7 @@ func (r *ProfilingGoroutines) Set(value interface{}, source Source) error {
 	return nil
 }
 
-func (r *ProfilingGoroutines) GetSource() Source {
+// GetSource returns the current source of the corresponding runtime setting
+func (r *ProfilingGoroutines) GetSource() config.Source {
 	return r.source
 }
