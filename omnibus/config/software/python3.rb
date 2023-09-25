@@ -73,7 +73,7 @@ else
   
   # note that startring with 3.7.3 on Windows, the zip should be created without the built-in pip
   source :url => "https://dd-agent-omnibus.s3.amazonaws.com/python-windows-#{version}-amd64.zip",
-         :sha256 => "459413FA5FEF4EA8D2183027F41BBCB8430C96222F976AC0FCE4F196CCD6CDEF".downcase
+         :sha256 => "1BD44AC628CF39C61FF037C715B05D5E9A2980C2049031F73CF291F90E95A0F3".downcase
 
   vcrt140_root = "#{Omnibus::Config.source_dir()}/vc_redist_140/expanded"
   build do
