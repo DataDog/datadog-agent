@@ -477,9 +477,8 @@ func (s *KubeEndpointService) GetCheckNames(context.Context) []string {
 func (s *KubeEndpointService) HasFilter(filter containers.FilterType) bool {
 	if filter == containers.MetricsFilter {
 		return s.metricsExcluded
-	} else {
-		return false
 	}
+	return false
 }
 
 // GetExtraConfig isn't supported
