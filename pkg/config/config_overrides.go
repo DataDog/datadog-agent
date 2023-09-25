@@ -42,7 +42,7 @@ func applyOverrideFuncs(config Config) {
 func applyOverrideVars(config Config) {
 	for k, v := range overrideVars {
 		if config.IsKnown(k) {
-			config.Set(k, v, SourceEnvVar, config.SourceDefault)
+			config.Set(k, v, SourceEnvVar)
 		}
 	}
 }
