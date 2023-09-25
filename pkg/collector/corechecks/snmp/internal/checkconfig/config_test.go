@@ -6,6 +6,7 @@
 package checkconfig
 
 import (
+	"github.com/stretchr/testify/require"
 	"regexp"
 	"testing"
 	"time"
@@ -144,7 +145,7 @@ bulk_max_repetitions: 20
 `)
 	config, err := NewCheckConfig(rawInstanceConfig, rawInitConfig)
 
-	assert.Nil(t, err)
+	require.NoError(t, err)
 	assert.Equal(t, 10, config.OidBatchSize)
 	assert.Equal(t, uint32(20), config.BulkMaxRepetitions)
 	assert.Equal(t, "1.2.3.4", config.IPAddress)

@@ -125,10 +125,7 @@
           "type": "string"
         },
         "tags": {
-          "additionalProperties": {
-            "type": "string"
-          },
-          "type": "object"
+          "$ref": "#/$defs/KeyValueList"
         }
       },
       "additionalProperties": false,

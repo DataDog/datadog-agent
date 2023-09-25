@@ -175,6 +175,20 @@ func validateEnrichMetricTag(metricTag *profiledefinition.MetricTagConfig) []str
 	if metricTag.Column.OID != "" || metricTag.Column.Name != "" {
 		errors = append(errors, validateEnrichSymbol(&metricTag.Column, MetricTagSymbol)...)
 	}
+	if len(metricTag.MappingList) > 0 {
+		metricTag.Mapping = make(map[string]string)
+		for _, keyValue := range metricTag.MappingList {
+			metricTag.Mapping[keyValue.Key] = keyValue.Value
+		}
+		metricTag.MappingList = nil
+	}
+	if len(metricTag.TagsList) > 0 {
+		metricTag.Tags = make(map[string]string)
+		for _, keyValue := range metricTag.TagsList {
+			metricTag.Tags[keyValue.Key] = keyValue.Value
+		}
+		metricTag.TagsList = nil
+	}
 	if metricTag.Match != "" {
 		pattern, err := regexp.Compile(metricTag.Match)
 		if err != nil {
@@ -193,13 +207,6 @@ func validateEnrichMetricTag(metricTag *profiledefinition.MetricTagConfig) []str
 		if transform.Start > transform.End {
 			errors = append(errors, fmt.Sprintf("transform rule end should be greater than start. Invalid rule: %#v", transform))
 		}
-	}
-	if len(metricTag.MappingList) > 0 {
-		metricTag.Mapping = make(map[string]string)
-		for _, keyValue := range metricTag.MappingList {
-			metricTag.Mapping[keyValue.Key] = keyValue.Value
-		}
-		metricTag.MappingList = nil
 	}
 	return errors
 }
