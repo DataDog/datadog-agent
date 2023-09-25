@@ -12,7 +12,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/DataDog/datadog-agent/pkg/aggregator"
+	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
@@ -62,7 +62,7 @@ func TestLoaderCatalog(t *testing.T) {
 	RegisterLoader(20, factory1)
 	RegisterLoader(10, factory2)
 	RegisterLoader(30, factory3)
-	senderManager := aggregator.GetSenderManager()
+	senderManager := mocksender.CreateDefaultDemultiplexer()
 	require.Len(t, LoaderCatalog(senderManager), 2)
 	assert.Equal(t, l1, LoaderCatalog(senderManager)[1])
 	assert.Equal(t, l2, LoaderCatalog(senderManager)[0])

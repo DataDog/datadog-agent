@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+// Package probe holds probe related files
 package probe
 
 import (
@@ -13,6 +14,7 @@ import (
 
 	sprocess "github.com/DataDog/datadog-agent/pkg/security/resolvers/process"
 
+	"github.com/DataDog/datadog-agent/pkg/security/secl/args"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 )
 
@@ -47,7 +49,7 @@ func (fh *FieldHandlers) ResolveFileFilesystem(ev *model.Event, f *model.FileEve
 		if f.IsFileless() {
 			f.Filesystem = model.TmpFS
 		} else {
-			fs, err := fh.resolvers.MountResolver.ResolveFilesystem(f.FileFields.MountID, ev.PIDContext.Pid, ev.ContainerContext.ID)
+			fs, err := fh.resolvers.MountResolver.ResolveFilesystem(f.FileFields.MountID, f.FileFields.Device, ev.PIDContext.Pid, ev.ContainerContext.ID)
 			if err != nil {
 				ev.SetPathResolutionError(f, err)
 			}
@@ -55,6 +57,16 @@ func (fh *FieldHandlers) ResolveFileFilesystem(ev *model.Event, f *model.FileEve
 		}
 	}
 	return f.Filesystem
+}
+
+// ResolveProcessArgsFlags resolves the arguments flags of the event
+func (fh *FieldHandlers) ResolveProcessArgsFlags(ev *model.Event, process *model.Process) (flags []string) {
+	return args.ParseProcessFlags(fh.ResolveProcessArgv(ev, process))
+}
+
+// ResolveProcessArgsOptions resolves the arguments options of the event
+func (fh *FieldHandlers) ResolveProcessArgsOptions(ev *model.Event, process *model.Process) (options []string) {
+	return args.ParseProcessOptions(fh.ResolveProcessArgv(ev, process))
 }
 
 // ResolveFileFieldsInUpperLayer resolves whether the file is in an upper layer
@@ -81,9 +93,10 @@ func (fh *FieldHandlers) ResolveXAttrNamespace(ev *model.Event, e *model.SetXAtt
 	return e.Namespace
 }
 
+// ResolveMountPointPath resolves a mount point path
 func (fh *FieldHandlers) ResolveMountPointPath(ev *model.Event, e *model.MountEvent) string {
 	if len(e.MountPointPath) == 0 {
-		mountPointPath, err := fh.resolvers.MountResolver.ResolveMountPath(e.MountID, ev.PIDContext.Pid, ev.ContainerContext.ID)
+		mountPointPath, err := fh.resolvers.MountResolver.ResolveMountPath(e.MountID, 0, ev.PIDContext.Pid, ev.ContainerContext.ID)
 		if err != nil {
 			e.MountPointPathResolutionError = err
 			return ""
@@ -93,9 +106,10 @@ func (fh *FieldHandlers) ResolveMountPointPath(ev *model.Event, e *model.MountEv
 	return e.MountPointPath
 }
 
+// ResolveMountSourcePath resolves a mount source path
 func (fh *FieldHandlers) ResolveMountSourcePath(ev *model.Event, e *model.MountEvent) string {
 	if e.BindSrcMountID != 0 && len(e.MountSourcePath) == 0 {
-		bindSourceMountPath, err := fh.resolvers.MountResolver.ResolveMountPath(e.BindSrcMountID, ev.PIDContext.Pid, ev.ContainerContext.ID)
+		bindSourceMountPath, err := fh.resolvers.MountResolver.ResolveMountPath(e.BindSrcMountID, 0, ev.PIDContext.Pid, ev.ContainerContext.ID)
 		if err != nil {
 			e.MountSourcePathResolutionError = err
 			return ""
@@ -247,7 +261,7 @@ func (fh *FieldHandlers) ResolveSELinuxBoolName(ev *model.Event, e *model.SELinu
 func (fh *FieldHandlers) GetProcessCacheEntry(ev *model.Event) (*model.ProcessCacheEntry, bool) {
 	ev.ProcessCacheEntry = fh.resolvers.ProcessResolver.Resolve(ev.PIDContext.Pid, ev.PIDContext.Tid, ev.PIDContext.ExecInode, false)
 	if ev.ProcessCacheEntry == nil {
-		ev.ProcessCacheEntry = model.NewEmptyProcessCacheEntry(ev.PIDContext.Pid, ev.PIDContext.Tid, false)
+		ev.ProcessCacheEntry = model.GetPlaceholderProcessCacheEntry(ev.PIDContext.Pid, ev.PIDContext.Tid, false)
 		return ev.ProcessCacheEntry, false
 	}
 	return ev.ProcessCacheEntry, true

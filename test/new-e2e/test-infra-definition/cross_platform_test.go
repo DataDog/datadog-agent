@@ -21,7 +21,7 @@ type crossPlatformSuite struct {
 }
 
 func TestCrossPlatformSuite(t *testing.T) {
-	e2e.Run(t, &crossPlatformSuite{}, e2e.AgentStackDef(nil))
+	e2e.Run(t, &crossPlatformSuite{}, e2e.AgentStackDef())
 }
 
 func (s *crossPlatformSuite) TestUbuntuOS() {
@@ -57,7 +57,7 @@ func (s *crossPlatformSuite) TestOtherOSES() {
 
 func (s *crossPlatformSuite) subTestInstallAgent(os ec2os.Type) {
 	s.T().Run(fmt.Sprintf("Test install agent %v", os), func(t *testing.T) {
-		s.UpdateEnv(e2e.AgentStackDef([]ec2params.Option{ec2params.WithOS(os)}))
+		s.UpdateEnv(e2e.AgentStackDef(e2e.WithVMParams(ec2params.WithOS(os))))
 		output := s.Env().Agent.Status().Content
 		require.Contains(s.T(), output, "Agent start")
 	})
@@ -72,7 +72,7 @@ func (s *crossPlatformSuite) subTestInstallAgentVersion(os ec2os.Type) {
 		{"7.46.0~rc.2-1", "Agent 7.46.0-rc.2"},
 	} {
 		s.T().Run("Test install agent version "+data.version, func(t *testing.T) {
-			s.UpdateEnv(e2e.AgentStackDef([]ec2params.Option{ec2params.WithOS(os)}, agentparams.WithVersion(data.version)))
+			s.UpdateEnv(e2e.AgentStackDef(e2e.WithVMParams(ec2params.WithOS(os)), e2e.WithAgentParams(agentparams.WithVersion(data.version))))
 
 			version := s.Env().Agent.Version()
 			require.Contains(s.T(), version, data.agentVersion)

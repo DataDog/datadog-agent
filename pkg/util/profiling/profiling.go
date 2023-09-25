@@ -67,6 +67,14 @@ func Start(settings Settings) error {
 		options = append(options, profiler.BlockProfileRate(settings.BlockProfileRate))
 	}
 
+	if len(settings.CustomAttributes) > 0 {
+		customContextTags := make([]string, len(settings.CustomAttributes))
+		for _, customAttribute := range settings.CustomAttributes {
+			customContextTags = append(customContextTags, "ddprof.custom_ctx:"+customAttribute)
+		}
+		options = append(options, profiler.WithTags(customContextTags...))
+	}
+
 	err := profiler.Start(options...)
 
 	if err == nil {

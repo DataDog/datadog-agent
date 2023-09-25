@@ -1,0 +1,21 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+security:
+  - |
+    APM: In order to improve the default customer experience regarding
+    sensitive data, the Agent now obfuscates database statements within
+    span metadata by default. This includes MongoDB queries,
+    ElasticSearch request bodies, and raw commands from Redis and
+    MemCached. Previously, this setting was off by default.
+    This update could have performance implications, or obfuscate data that
+    is not sensitive, and can be disabled or configured through the
+    `obfuscation` options within the `apm_config`, or with the
+    environment variables prefixed with `DD_APM_OBFUSCATION`. Please read the
+    [Data Security documentation for full details](https://docs.datadoghq.com/tracing/configure_data_security/#trace-obfuscation).
+

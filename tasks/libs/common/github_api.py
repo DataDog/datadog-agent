@@ -119,30 +119,43 @@ class GithubAPI:
         """
         Downloads the artifact identified by artifact_id to destination_dir.
         """
+        url = artifact.archive_download_url
+
+        return self.download_from_url(url, destination_dir, destination_file=artifact.id)
+
+    def download_from_url(self, url, destination_dir, destination_file):
         import requests
 
         headers = {
             "Authorization": f'{self._auth.token_type} {self._auth.token}',
             "Accept": "application/vnd.github.v3+json",
         }
-
-        url = artifact.archive_download_url
         # Retrying this request if needed is handled by the caller
         with requests.get(url, headers=headers, stream=True) as r:
             r.raise_for_status()
-            zip_target_path = os.path.join(destination_dir, f"{artifact.id}.zip")
+            zip_target_path = os.path.join(destination_dir, f"{destination_file}.zip")
             with open(zip_target_path, "wb") as f:
                 for chunk in r.iter_content(chunk_size=8192):
                     f.write(chunk)
         return zip_target_path
 
-    def latest_workflow_run_for_ref(self, workflow_name, ref):
+    def download_logs(self, run_id, destination_dir):
+
+        run = self._repository.get_workflow_run(run_id)
+        logs_url = run.logs_url
+        _, headers, _ = run._requester.requestJson("GET", logs_url)
+
+        return self.download_from_url(headers["location"], destination_dir, run.id)
+
+    def workflow_run_for_ref_after_date(self, workflow_name, ref, oldest_date):
         """
-        Gets latest workflow run for a given reference
+        Gets all the workflow triggered after a given date
         """
         workflow = self._repository.get_workflow(workflow_name)
         runs = workflow.get_runs(branch=ref)
-        return max(runs, key=lambda run: run.created_at, default=None)
+        recent_runs = [run for run in runs if run.created_at > oldest_date]
+
+        return sorted(recent_runs, key=lambda run: run.created_at, reverse=True)
 
     def _chose_auth(self):
         """
@@ -170,11 +183,16 @@ class GithubAPI:
             return appAuth.get_installation_auth(int(installation_id))
         if platform.system() == "Darwin":
             try:
-                output = subprocess.check_output(
-                    ['security', 'find-generic-password', '-a', os.environ["USER"], '-s', 'GITHUB_TOKEN', '-w']
+                output = (
+                    subprocess.check_output(
+                        ['security', 'find-generic-password', '-a', os.environ["USER"], '-s', 'GITHUB_TOKEN', '-w']
+                    )
+                    .decode()
+                    .strip()
                 )
+
                 if output:
-                    return Auth.Token(output.strip())
+                    return Auth.Token(output)
             except subprocess.CalledProcessError:
                 print("GITHUB_TOKEN not found in keychain...")
                 pass

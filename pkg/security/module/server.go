@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+// Package module holds module related files
 package module
 
 import (
@@ -427,10 +428,12 @@ func (a *APIServer) Apply(ruleIDs []rules.RuleID) {
 	}
 }
 
+// Stop stops the API server
 func (a *APIServer) Stop() {
 	a.stopper.Stop()
 }
 
+// SetCWSConsumer sets the CWS consumer
 func (a *APIServer) SetCWSConsumer(consumer *CWSConsumer) {
 	a.cwsConsumer = consumer
 }
@@ -468,8 +471,9 @@ func newDirectReporter(stopper startstop.Stopper) (common.RawReporter, error) {
 	}
 
 	runPath := pkgconfig.Datadog.GetString("runtime_security_config.run_path")
+	useSecRuntimeTrack := pkgconfig.SystemProbe.GetBool("runtime_security_config.use_secruntime_track")
 
-	endpoints, destinationsCtx, err := common.NewLogContextRuntime()
+	endpoints, destinationsCtx, err := common.NewLogContextRuntime(useSecRuntimeTrack)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create direct reported endpoints: %w", err)
 	}

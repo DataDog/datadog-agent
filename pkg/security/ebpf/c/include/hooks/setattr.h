@@ -28,7 +28,7 @@ int hook_security_inode_setattr(ctx_t *ctx) {
         iattr = (struct iattr *)param2;
     }
 
-    fill_file_metadata(dentry, &syscall->setattr.file.metadata);
+    fill_file(dentry, &syscall->setattr.file);
 
     if (iattr != NULL) {
         int valid;
@@ -47,6 +47,11 @@ int hook_security_inode_setattr(ctx_t *ctx) {
     }
 
     if (syscall->setattr.file.path_key.ino) {
+        return 0;
+    }
+
+    if (is_non_mountable_dentry(dentry)) {
+        pop_syscall_with(security_inode_predicate);
         return 0;
     }
 

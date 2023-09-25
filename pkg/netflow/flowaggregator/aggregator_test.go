@@ -3,6 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2022-present Datadog, Inc.
 
+//go:build test
+
 package flowaggregator
 
 import (
@@ -26,10 +28,12 @@ import (
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 
+	"github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 	"github.com/DataDog/datadog-agent/pkg/epforwarder"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
+	ddlog "github.com/DataDog/datadog-agent/pkg/util/log"
 
 	"github.com/DataDog/datadog-agent/pkg/networkdevice/metadata"
 
@@ -157,8 +161,9 @@ func TestAggregator(t *testing.T) {
 
 	epForwarder.EXPECT().SendEventPlatformEventBlocking(&message.Message{Content: compactEvent.Bytes()}, "network-devices-netflow").Return(nil).Times(1)
 	epForwarder.EXPECT().SendEventPlatformEventBlocking(&message.Message{Content: compactMetadataEvent.Bytes()}, "network-devices-metadata").Return(nil).Times(1)
+	logger := fxutil.Test[log.Component](t, log.MockModule)
 
-	aggregator := NewFlowAggregator(sender, epForwarder, &conf, "my-hostname")
+	aggregator := NewFlowAggregator(sender, epForwarder, &conf, "my-hostname", logger)
 	aggregator.flushFlowsToSendInterval = 1 * time.Second
 	aggregator.TimeNowFunction = func() time.Time {
 		return flushTime
@@ -257,7 +262,8 @@ func TestAggregator_withMockPayload(t *testing.T) {
 
 	epForwarder.EXPECT().SendEventPlatformEventBlocking(&message.Message{Content: compactMetadataEvent.Bytes()}, "network-devices-metadata").Return(nil).Times(1)
 
-	aggregator := NewFlowAggregator(sender, epForwarder, &conf, "my-hostname")
+	logger := fxutil.Test[log.Component](t, log.MockModule)
+	aggregator := NewFlowAggregator(sender, epForwarder, &conf, "my-hostname", logger)
 	aggregator.flushFlowsToSendInterval = 1 * time.Second
 	aggregator.TimeNowFunction = func() time.Time {
 		return flushTime
@@ -274,7 +280,7 @@ func TestAggregator_withMockPayload(t *testing.T) {
 		stoppedFlushLoop <- struct{}{}
 	}()
 
-	flowState, err := goflowlib.StartFlowRoutine(common.TypeNetFlow5, "127.0.0.1", port, 1, "default", aggregator.GetFlowInChan())
+	flowState, err := goflowlib.StartFlowRoutine(common.TypeNetFlow5, "127.0.0.1", port, 1, "default", aggregator.GetFlowInChan(), logger)
 	assert.NoError(t, err)
 
 	time.Sleep(100 * time.Millisecond) // wait to make sure goflow listener is started before sending
@@ -312,12 +318,13 @@ func TestAggregator_withMockPayload(t *testing.T) {
 
 func TestFlowAggregator_flush_submitCollectorMetrics_error(t *testing.T) {
 	// 1/ Arrange
+	logger := fxutil.Test[log.Component](t, log.MockModule)
 	var b bytes.Buffer
 	w := bufio.NewWriter(&b)
 
 	l, err := seelog.LoggerFromWriterWithMinLevelAndFormat(w, seelog.DebugLvl, "[%LEVEL] %FuncShort: %Msg")
-	assert.Nil(t, err)
-	log.SetupLogger(l, "debug")
+	require.NoError(t, err)
+	ddlog.SetupLogger(l, "debug")
 
 	sender := mocksender.NewMockSender("")
 	sender.On("Gauge", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
@@ -344,7 +351,7 @@ func TestFlowAggregator_flush_submitCollectorMetrics_error(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	epForwarder := epforwarder.NewMockEventPlatformForwarder(ctrl)
 
-	aggregator := NewFlowAggregator(sender, epForwarder, &conf, "my-hostname")
+	aggregator := NewFlowAggregator(sender, epForwarder, &conf, "my-hostname", logger)
 	aggregator.goflowPrometheusGatherer = prometheus.GathererFunc(func() ([]*promClient.MetricFamily, error) {
 		return nil, fmt.Errorf("some prometheus gatherer error")
 	})
@@ -382,8 +389,9 @@ func TestFlowAggregator_submitCollectorMetrics(t *testing.T) {
 
 	ctrl := gomock.NewController(t)
 	epForwarder := epforwarder.NewMockEventPlatformForwarder(ctrl)
+	logger := fxutil.Test[log.Component](t, log.MockModule)
 
-	aggregator := NewFlowAggregator(sender, epForwarder, &conf, "my-hostname")
+	aggregator := NewFlowAggregator(sender, epForwarder, &conf, "my-hostname", logger)
 	aggregator.goflowPrometheusGatherer = prometheus.GathererFunc(func() ([]*promClient.MetricFamily, error) {
 		return []*promClient.MetricFamily{
 			{
@@ -457,8 +465,9 @@ func TestFlowAggregator_submitCollectorMetrics_error(t *testing.T) {
 
 	ctrl := gomock.NewController(t)
 	epForwarder := epforwarder.NewMockEventPlatformForwarder(ctrl)
+	logger := fxutil.Test[log.Component](t, log.MockModule)
 
-	aggregator := NewFlowAggregator(sender, epForwarder, &conf, "my-hostname")
+	aggregator := NewFlowAggregator(sender, epForwarder, &conf, "my-hostname", logger)
 	aggregator.goflowPrometheusGatherer = prometheus.GathererFunc(func() ([]*promClient.MetricFamily, error) {
 		return nil, fmt.Errorf("some prometheus gatherer error")
 	})
@@ -490,8 +499,9 @@ func TestFlowAggregator_sendExporterMetadata_multiplePayloads(t *testing.T) {
 
 	ctrl := gomock.NewController(t)
 	epForwarder := epforwarder.NewMockEventPlatformForwarder(ctrl)
+	logger := fxutil.Test[log.Component](t, log.MockModule)
 
-	aggregator := NewFlowAggregator(sender, epForwarder, &conf, "my-hostname")
+	aggregator := NewFlowAggregator(sender, epForwarder, &conf, "my-hostname", logger)
 
 	var flows []*common.Flow
 	for i := 1; i <= 250; i++ {
@@ -573,8 +583,9 @@ func TestFlowAggregator_sendExporterMetadata_noPayloads(t *testing.T) {
 
 	ctrl := gomock.NewController(t)
 	epForwarder := epforwarder.NewMockEventPlatformForwarder(ctrl)
+	logger := fxutil.Test[log.Component](t, log.MockModule)
 
-	aggregator := NewFlowAggregator(sender, epForwarder, &conf, "my-hostname")
+	aggregator := NewFlowAggregator(sender, epForwarder, &conf, "my-hostname", logger)
 
 	var flows []*common.Flow
 	now := time.Unix(1681295467, 0)
@@ -605,7 +616,8 @@ func TestFlowAggregator_sendExporterMetadata_invalidIPIgnored(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	epForwarder := epforwarder.NewMockEventPlatformForwarder(ctrl)
 
-	aggregator := NewFlowAggregator(sender, epForwarder, &conf, "my-hostname")
+	logger := fxutil.Test[log.Component](t, log.MockModule)
+	aggregator := NewFlowAggregator(sender, epForwarder, &conf, "my-hostname", logger)
 
 	now := time.Unix(1681295467, 0)
 	flows := []*common.Flow{
@@ -688,7 +700,8 @@ func TestFlowAggregator_sendExporterMetadata_multipleNamespaces(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	epForwarder := epforwarder.NewMockEventPlatformForwarder(ctrl)
 
-	aggregator := NewFlowAggregator(sender, epForwarder, &conf, "my-hostname")
+	logger := fxutil.Test[log.Component](t, log.MockModule)
+	aggregator := NewFlowAggregator(sender, epForwarder, &conf, "my-hostname", logger)
 
 	now := time.Unix(1681295467, 0)
 	flows := []*common.Flow{
@@ -789,8 +802,9 @@ func TestFlowAggregator_sendExporterMetadata_singleExporterIpWithMultipleFlowTyp
 
 	ctrl := gomock.NewController(t)
 	epForwarder := epforwarder.NewMockEventPlatformForwarder(ctrl)
+	logger := fxutil.Test[log.Component](t, log.MockModule)
 
-	aggregator := NewFlowAggregator(sender, epForwarder, &conf, "my-hostname")
+	aggregator := NewFlowAggregator(sender, epForwarder, &conf, "my-hostname", logger)
 
 	now := time.Unix(1681295467, 0)
 	flows := []*common.Flow{
@@ -857,9 +871,10 @@ func TestFlowAggregator_sendExporterMetadata_singleExporterIpWithMultipleFlowTyp
 }
 
 func TestFlowAggregator_getSequenceDelta(t *testing.T) {
+	logger := fxutil.Test[log.Component](t, log.MockModule)
 	type round struct {
 		flowsToFlush          []*common.Flow
-		expectedSequenceDelta map[SequenceDeltaKey]SequenceDeltaValue
+		expectedSequenceDelta map[sequenceDeltaKey]sequenceDeltaValue
 	}
 	tests := []struct {
 		name   string
@@ -889,7 +904,7 @@ func TestFlowAggregator_getSequenceDelta(t *testing.T) {
 							FlowType:     common.TypeNetFlow5,
 						},
 					},
-					expectedSequenceDelta: map[SequenceDeltaKey]SequenceDeltaValue{
+					expectedSequenceDelta: map[sequenceDeltaKey]sequenceDeltaValue{
 						{FlowType: common.TypeNetFlow5, Namespace: "ns1", ExporterIP: "127.0.0.11"}: {LastSequence: 20, Delta: 0},
 						{FlowType: common.TypeNetFlow5, Namespace: "ns2", ExporterIP: "127.0.0.11"}: {LastSequence: 30, Delta: 0},
 					},
@@ -915,7 +930,7 @@ func TestFlowAggregator_getSequenceDelta(t *testing.T) {
 							FlowType:     common.TypeNetFlow5,
 						},
 					},
-					expectedSequenceDelta: map[SequenceDeltaKey]SequenceDeltaValue{
+					expectedSequenceDelta: map[sequenceDeltaKey]sequenceDeltaValue{
 						{FlowType: common.TypeNetFlow5, Namespace: "ns1", ExporterIP: "127.0.0.11"}: {LastSequence: 40, Delta: 20},
 						{FlowType: common.TypeNetFlow5, Namespace: "ns2", ExporterIP: "127.0.0.11"}: {LastSequence: 60, Delta: 30},
 					},
@@ -934,7 +949,7 @@ func TestFlowAggregator_getSequenceDelta(t *testing.T) {
 							FlowType:     common.TypeNetFlow5,
 						},
 					},
-					expectedSequenceDelta: map[SequenceDeltaKey]SequenceDeltaValue{
+					expectedSequenceDelta: map[sequenceDeltaKey]sequenceDeltaValue{
 						{FlowType: common.TypeNetFlow5, Namespace: "ns1", ExporterIP: "127.0.0.11"}: {LastSequence: 10000, Delta: 0},
 					},
 				},
@@ -947,7 +962,7 @@ func TestFlowAggregator_getSequenceDelta(t *testing.T) {
 							FlowType:     common.TypeNetFlow5,
 						},
 					},
-					expectedSequenceDelta: map[SequenceDeltaKey]SequenceDeltaValue{
+					expectedSequenceDelta: map[sequenceDeltaKey]sequenceDeltaValue{
 						{FlowType: common.TypeNetFlow5, Namespace: "ns1", ExporterIP: "127.0.0.11"}: {LastSequence: 100, Delta: 100, Reset: true},
 					},
 				},
@@ -965,7 +980,7 @@ func TestFlowAggregator_getSequenceDelta(t *testing.T) {
 							FlowType:     common.TypeNetFlow5,
 						},
 					},
-					expectedSequenceDelta: map[SequenceDeltaKey]SequenceDeltaValue{
+					expectedSequenceDelta: map[sequenceDeltaKey]sequenceDeltaValue{
 						{FlowType: common.TypeNetFlow5, Namespace: "ns1", ExporterIP: "127.0.0.11"}: {LastSequence: 10000, Delta: 0},
 					},
 				},
@@ -978,7 +993,7 @@ func TestFlowAggregator_getSequenceDelta(t *testing.T) {
 							FlowType:     common.TypeNetFlow5,
 						},
 					},
-					expectedSequenceDelta: map[SequenceDeltaKey]SequenceDeltaValue{
+					expectedSequenceDelta: map[sequenceDeltaKey]sequenceDeltaValue{
 						{FlowType: common.TypeNetFlow5, Namespace: "ns1", ExporterIP: "127.0.0.11"}: {LastSequence: 8900, Delta: 8900, Reset: true},
 					},
 				},
@@ -991,7 +1006,7 @@ func TestFlowAggregator_getSequenceDelta(t *testing.T) {
 							FlowType:     common.TypeNetFlow5,
 						},
 					},
-					expectedSequenceDelta: map[SequenceDeltaKey]SequenceDeltaValue{
+					expectedSequenceDelta: map[sequenceDeltaKey]sequenceDeltaValue{
 						{FlowType: common.TypeNetFlow5, Namespace: "ns1", ExporterIP: "127.0.0.11"}: {LastSequence: 8500, Delta: 0},
 					},
 				},
@@ -1009,7 +1024,7 @@ func TestFlowAggregator_getSequenceDelta(t *testing.T) {
 							FlowType:     common.TypeSFlow5,
 						},
 					},
-					expectedSequenceDelta: map[SequenceDeltaKey]SequenceDeltaValue{
+					expectedSequenceDelta: map[sequenceDeltaKey]sequenceDeltaValue{
 						{FlowType: common.TypeSFlow5, Namespace: "ns1", ExporterIP: "127.0.0.11"}: {LastSequence: 10000, Delta: 0},
 					},
 				},
@@ -1022,7 +1037,7 @@ func TestFlowAggregator_getSequenceDelta(t *testing.T) {
 							FlowType:     common.TypeSFlow5,
 						},
 					},
-					expectedSequenceDelta: map[SequenceDeltaKey]SequenceDeltaValue{
+					expectedSequenceDelta: map[sequenceDeltaKey]sequenceDeltaValue{
 						{FlowType: common.TypeSFlow5, Namespace: "ns1", ExporterIP: "127.0.0.11"}: {LastSequence: 8900, Delta: 8900, Reset: true},
 					},
 				},
@@ -1035,7 +1050,7 @@ func TestFlowAggregator_getSequenceDelta(t *testing.T) {
 							FlowType:     common.TypeSFlow5,
 						},
 					},
-					expectedSequenceDelta: map[SequenceDeltaKey]SequenceDeltaValue{
+					expectedSequenceDelta: map[sequenceDeltaKey]sequenceDeltaValue{
 						{FlowType: common.TypeSFlow5, Namespace: "ns1", ExporterIP: "127.0.0.11"}: {LastSequence: 8500, Delta: 0},
 					},
 				},
@@ -1053,7 +1068,7 @@ func TestFlowAggregator_getSequenceDelta(t *testing.T) {
 							FlowType:     common.TypeNetFlow9,
 						},
 					},
-					expectedSequenceDelta: map[SequenceDeltaKey]SequenceDeltaValue{
+					expectedSequenceDelta: map[sequenceDeltaKey]sequenceDeltaValue{
 						{FlowType: common.TypeNetFlow9, Namespace: "ns1", ExporterIP: "127.0.0.11"}: {LastSequence: 10000, Delta: 0},
 					},
 				},
@@ -1066,7 +1081,7 @@ func TestFlowAggregator_getSequenceDelta(t *testing.T) {
 							FlowType:     common.TypeNetFlow9,
 						},
 					},
-					expectedSequenceDelta: map[SequenceDeltaKey]SequenceDeltaValue{
+					expectedSequenceDelta: map[sequenceDeltaKey]sequenceDeltaValue{
 						{FlowType: common.TypeNetFlow9, Namespace: "ns1", ExporterIP: "127.0.0.11"}: {LastSequence: 9800, Delta: 9800, Reset: true},
 					},
 				},
@@ -1079,7 +1094,7 @@ func TestFlowAggregator_getSequenceDelta(t *testing.T) {
 							FlowType:     common.TypeNetFlow9,
 						},
 					},
-					expectedSequenceDelta: map[SequenceDeltaKey]SequenceDeltaValue{
+					expectedSequenceDelta: map[sequenceDeltaKey]sequenceDeltaValue{
 						{FlowType: common.TypeNetFlow9, Namespace: "ns1", ExporterIP: "127.0.0.11"}: {LastSequence: 9750, Delta: 0},
 					},
 				},
@@ -1097,7 +1112,7 @@ func TestFlowAggregator_getSequenceDelta(t *testing.T) {
 							FlowType:     common.TypeIPFIX,
 						},
 					},
-					expectedSequenceDelta: map[SequenceDeltaKey]SequenceDeltaValue{
+					expectedSequenceDelta: map[sequenceDeltaKey]sequenceDeltaValue{
 						{FlowType: common.TypeIPFIX, Namespace: "ns1", ExporterIP: "127.0.0.11"}: {LastSequence: 10000, Delta: 0},
 					},
 				},
@@ -1110,7 +1125,7 @@ func TestFlowAggregator_getSequenceDelta(t *testing.T) {
 							FlowType:     common.TypeIPFIX,
 						},
 					},
-					expectedSequenceDelta: map[SequenceDeltaKey]SequenceDeltaValue{
+					expectedSequenceDelta: map[sequenceDeltaKey]sequenceDeltaValue{
 						{FlowType: common.TypeIPFIX, Namespace: "ns1", ExporterIP: "127.0.0.11"}: {LastSequence: 9800, Delta: 9800, Reset: true},
 					},
 				},
@@ -1123,7 +1138,7 @@ func TestFlowAggregator_getSequenceDelta(t *testing.T) {
 							FlowType:     common.TypeIPFIX,
 						},
 					},
-					expectedSequenceDelta: map[SequenceDeltaKey]SequenceDeltaValue{
+					expectedSequenceDelta: map[sequenceDeltaKey]sequenceDeltaValue{
 						{FlowType: common.TypeIPFIX, Namespace: "ns1", ExporterIP: "127.0.0.11"}: {LastSequence: 9750, Delta: 0},
 					},
 				},
@@ -1140,7 +1155,7 @@ func TestFlowAggregator_getSequenceDelta(t *testing.T) {
 				AggregatorPortRollupThreshold:          10,
 				AggregatorRollupTrackerRefreshInterval: 3600,
 			}
-			agg := NewFlowAggregator(sender, nil, &conf, "my-hostname")
+			agg := NewFlowAggregator(sender, nil, &conf, "my-hostname", logger)
 			for roundNum, testRound := range tt.rounds {
 				assert.Equal(t, testRound.expectedSequenceDelta, agg.getSequenceDelta(testRound.flowsToFlush), fmt.Sprintf("Test Round %d", roundNum))
 			}

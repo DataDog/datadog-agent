@@ -76,7 +76,7 @@ func (p *Provider) Provide(kc kubelet.KubeUtilInterface, sender sender.Sender) e
 				// no container ID means we could not find the matching container status for this container, which will make fetching tags difficult.
 				continue
 			}
-			cId, err := kubelet.KubeContainerIDToTaggerEntityID(cStatus.ID)
+			cID, err := kubelet.KubeContainerIDToTaggerEntityID(cStatus.ID)
 			if err != nil {
 				// could not correctly parse container ID
 				continue
@@ -90,15 +90,15 @@ func (p *Provider) Provide(kc kubelet.KubeUtilInterface, sender sender.Sender) e
 					break
 				}
 			}
-			runningAggregator.recordContainer(p, pod, &cStatus, cId)
+			runningAggregator.recordContainer(p, pod, &cStatus, cID)
 
 			// don't exclude filtered containers from aggregation, but filter them out from other reported metrics
 			if p.filter.IsExcluded(pod.Metadata.Annotations, cStatus.Name, cStatus.Image, pod.Metadata.Namespace) {
 				continue
 			}
 
-			p.generateContainerSpecMetrics(sender, pod, &container, &cStatus, cId)
-			p.generateContainerStatusMetrics(sender, pod, &container, &cStatus, cId)
+			p.generateContainerSpecMetrics(sender, pod, &container, &cStatus, cID)
+			p.generateContainerStatusMetrics(sender, pod, &container, &cStatus, cID)
 		}
 		runningAggregator.recordPod(p, pod)
 	}
@@ -107,12 +107,12 @@ func (p *Provider) Provide(kc kubelet.KubeUtilInterface, sender sender.Sender) e
 	return nil
 }
 
-func (p *Provider) generateContainerSpecMetrics(sender sender.Sender, pod *kubelet.Pod, container *kubelet.ContainerSpec, cStatus *kubelet.ContainerStatus, containerId string) {
+func (p *Provider) generateContainerSpecMetrics(sender sender.Sender, pod *kubelet.Pod, container *kubelet.ContainerSpec, cStatus *kubelet.ContainerStatus, containerID string) {
 	if pod.Status.Phase != "Running" && pod.Status.Phase != "Pending" {
 		return
 	}
 
-	tags, _ := tagger.Tag(containerId, collectors.HighCardinality)
+	tags, _ := tagger.Tag(containerID, collectors.HighCardinality)
 	if len(tags) == 0 {
 		return
 	}
@@ -130,12 +130,12 @@ func (p *Provider) generateContainerSpecMetrics(sender sender.Sender, pod *kubel
 	}
 }
 
-func (p *Provider) generateContainerStatusMetrics(sender sender.Sender, pod *kubelet.Pod, container *kubelet.ContainerSpec, cStatus *kubelet.ContainerStatus, containerId string) {
+func (p *Provider) generateContainerStatusMetrics(sender sender.Sender, pod *kubelet.Pod, container *kubelet.ContainerSpec, cStatus *kubelet.ContainerStatus, containerID string) {
 	if pod.Metadata.UID == "" || pod.Metadata.Name == "" {
 		return
 	}
 
-	tags, _ := tagger.Tag(containerId, collectors.OrchestratorCardinality)
+	tags, _ := tagger.Tag(containerID, collectors.OrchestratorCardinality)
 	if len(tags) == 0 {
 		return
 	}
@@ -173,17 +173,17 @@ func newRunningAggregator() *runningAggregator {
 	}
 }
 
-func (r *runningAggregator) recordContainer(p *Provider, pod *kubelet.Pod, cStatus *kubelet.ContainerStatus, containerId string) {
+func (r *runningAggregator) recordContainer(p *Provider, pod *kubelet.Pod, cStatus *kubelet.ContainerStatus, containerID string) {
 	if cStatus.State.Running == nil || time.Time.IsZero(cStatus.State.Running.StartedAt) {
 		return
 	}
 	r.podHasRunningContainers[pod.Metadata.UID] = true
-	tags, _ := tagger.Tag(containerId, collectors.LowCardinality)
+	tags, _ := tagger.Tag(containerID, collectors.LowCardinality)
 	if len(tags) == 0 {
 		return
 	}
 	hashTags := generateTagHash(tags)
-	r.runningContainersCounter[hashTags] += 1
+	r.runningContainersCounter[hashTags]++
 	if _, ok := r.runningContainersTags[hashTags]; !ok {
 		r.runningContainersTags[hashTags] = utils.ConcatenateTags(tags, p.config.Tags)
 	}
@@ -193,17 +193,17 @@ func (r *runningAggregator) recordPod(p *Provider, pod *kubelet.Pod) {
 	if !r.podHasRunningContainers[pod.Metadata.UID] {
 		return
 	}
-	podId := pod.Metadata.UID
-	if podId == "" {
+	podID := pod.Metadata.UID
+	if podID == "" {
 		log.Debug("skipping pod with no uid")
 		return
 	}
-	tags, _ := tagger.Tag(fmt.Sprintf("kubernetes_pod_uid://%s", podId), collectors.LowCardinality)
+	tags, _ := tagger.Tag(fmt.Sprintf("kubernetes_pod_uid://%s", podID), collectors.LowCardinality)
 	if len(tags) == 0 {
 		return
 	}
 	hashTags := generateTagHash(tags)
-	r.runningPodsCounter[hashTags] += 1
+	r.runningPodsCounter[hashTags]++
 	if _, ok := r.runningPodsTags[hashTags]; !ok {
 		r.runningPodsTags[hashTags] = utils.ConcatenateTags(tags, p.config.Tags)
 	}
