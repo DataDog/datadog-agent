@@ -15,6 +15,12 @@
         "profile_definition"
       ]
     },
+    "JSONListMap[string]": {
+      "additionalProperties": {
+        "type": "string"
+      },
+      "type": "object"
+    },
     "MetadataConfig": {
       "additionalProperties": {
         "$ref": "#/$defs/MetadataResourceConfig"
@@ -97,19 +103,13 @@
           "type": "array"
         },
         "mapping": {
-          "additionalProperties": {
-            "type": "string"
-          },
-          "type": "object"
+          "$ref": "#/$defs/JSONListMap[string]"
         },
         "match": {
           "type": "string"
         },
         "tags": {
-          "additionalProperties": {
-            "type": "string"
-          },
-          "type": "object"
+          "$ref": "#/$defs/JSONListMap[string]"
         }
       },
       "additionalProperties": false,
