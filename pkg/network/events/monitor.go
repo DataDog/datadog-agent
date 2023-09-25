@@ -113,8 +113,8 @@ func (h *eventHandlerWrapper) Copy(ev *model.Event) any {
 		return &Process{
 			Pid:         ev.GetProcessPid(),
 			ContainerID: intern.GetByString(ev.GetContainerId()),
-			Envs:        ev.GetProcessEnvs(), // TODO, don't resolve twice in GetProcessEnvs. TODO: Verify that Process.EnvEntry and Process.Envs are the same
 			StartTime:   processStartTime.UnixNano(),
+			Envs:        ev.GetProcessEnvp(),
 		}
 	}
 
