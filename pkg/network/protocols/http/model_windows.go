@@ -70,8 +70,8 @@ func (tx *WinHttpTransaction) RequestLatency() float64 {
 	return requestLatency(tx.Txn.ResponseLastSeen, tx.Txn.RequestStarted)
 }
 
-func (tx *WinHttpTransaction) ConnTuple() types.ConnectionKey {
-	return types.ConnectionKey{
+func (tx *WinHttpTransaction) ConnTuple() *types.ConnectionKey {
+	return &types.ConnectionKey{
 		SrcIPHigh: srcIPHigh(&tx.Txn.Tup),
 		SrcIPLow:  srcIPLow(&tx.Txn.Tup),
 		DstIPHigh: dstIPHigh(&tx.Txn.Tup),

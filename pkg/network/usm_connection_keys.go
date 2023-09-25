@@ -19,13 +19,13 @@ import (
 // Each ConnectionStats object contains both the source and destination addresses, as well as an IPTranslation object that stores the original addresses in the event that the connection is NAT'd.
 // This function generates all relevant combinations of connection keys: [(source, dest), (dest, source), (NAT'd source, NAT'd dest), (NAT'd dest, NAT'd source)].
 // This is necessary to handle all possible scenarios for connections originating from the USM module (i.e., whether they are NAT'd or not, and whether they use TLS).
-func ConnectionKeysFromConnectionStats(connectionStats ConnectionStats) []types.ConnectionKey {
+func ConnectionKeysFromConnectionStats(connectionStats ConnectionStats) []*types.ConnectionKey {
 	hasTranslation := connectionStats.IPTranslation != nil
 	connectionKeysCount := 2
 	if hasTranslation {
 		connectionKeysCount = 4
 	}
-	connectionKeys := make([]types.ConnectionKey, connectionKeysCount)
+	connectionKeys := make([]*types.ConnectionKey, connectionKeysCount)
 	// USM data is always indexed as (client, server), but we don't know which is the remote
 	// and which is the local address. To account for this, we'll construct 2 possible
 	// connection keys and check for both of them in the aggregations map.
@@ -51,7 +51,7 @@ func ConnectionKeysFromConnectionStats(connectionStats ConnectionStats) []types.
 // 4) (dst, src) NAT
 // In addition to that, we do a best-effort to call `f` in the order that most
 // likely to succeed early (see comment below)
-func WithKey(connectionStats ConnectionStats, f func(key types.ConnectionKey) (stop bool)) {
+func WithKey(connectionStats ConnectionStats, f func(key *types.ConnectionKey) (stop bool)) {
 	var (
 		clientIP, serverIP, clientIPNAT, serverIPNAT         util.Address
 		clientPort, serverPort, clientPortNAT, serverPortNAT uint16

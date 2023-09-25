@@ -21,10 +21,10 @@ type ConnectionKey struct {
 }
 
 // NewConnectionKey generates a new ConnectionKey
-func NewConnectionKey(saddr, daddr util.Address, sport, dport uint16) ConnectionKey {
+func NewConnectionKey(saddr, daddr util.Address, sport, dport uint16) *ConnectionKey {
 	saddrl, saddrh := util.ToLowHigh(saddr)
 	daddrl, daddrh := util.ToLowHigh(daddr)
-	return ConnectionKey{
+	return &ConnectionKey{
 		SrcIPHigh: saddrh,
 		SrcIPLow:  saddrl,
 		SrcPort:   sport,

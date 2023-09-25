@@ -383,7 +383,7 @@ func generateBenchMarkPayload(sourcePortsMax, destPortsMax uint16) network.Conne
 
 	payload := network.Connections{
 		BufferedData: network.BufferedData{
-			Conns: make([]network.ConnectionStats, sourcePortsMax*destPortsMax),
+			Conns: make([]network.ConnectionStats, uint32(sourcePortsMax)*uint32(destPortsMax)),
 		},
 		HTTP: make(map[http.Key]*http.RequestStats),
 	}
@@ -397,7 +397,7 @@ func generateBenchMarkPayload(sourcePortsMax, destPortsMax uint16) network.Conne
 
 	for sport := uint16(0); sport < sourcePortsMax; sport++ {
 		for dport := uint16(0); dport < destPortsMax; dport++ {
-			index := sport*sourcePortsMax + dport
+			index := uint32(sport)*uint32(sourcePortsMax) + uint32(dport)
 
 			payload.Conns[index].Dest = localhost
 			payload.Conns[index].Source = localhost

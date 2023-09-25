@@ -44,7 +44,7 @@ func newKafkaEncoder(kafkaPayloads map[kafka.Key]*kafka.RequestStat) *kafkaEncod
 			// `GetKafkaAggregations`
 			KafkaAggregations: make([]*model.KafkaAggregation, 0, 10),
 		},
-		byConnection: GroupByConnection("kafka", kafkaPayloads, func(key kafka.Key) types.ConnectionKey {
+		byConnection: GroupByConnection("kafka", kafkaPayloads, func(key kafka.Key) *types.ConnectionKey {
 			return key.ConnectionKey
 		}),
 	}

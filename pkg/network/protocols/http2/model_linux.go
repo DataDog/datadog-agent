@@ -53,8 +53,8 @@ func (tx *EbpfTx) Incomplete() bool {
 	return tx.Request_started == 0 || tx.Response_last_seen == 0 || tx.StatusCode() == 0 || tx.Path_size == 0 || tx.Method() == http.MethodUnknown
 }
 
-func (tx *EbpfTx) ConnTuple() types.ConnectionKey {
-	return types.ConnectionKey{
+func (tx *EbpfTx) ConnTuple() *types.ConnectionKey {
+	return &types.ConnectionKey{
 		SrcIPHigh: tx.Tup.Saddr_h,
 		SrcIPLow:  tx.Tup.Saddr_l,
 		DstIPHigh: tx.Tup.Daddr_h,

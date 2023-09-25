@@ -13,7 +13,7 @@ import (
 
 type Transaction interface {
 	RequestLatency() float64
-	ConnTuple() types.ConnectionKey
+	ConnTuple() *types.ConnectionKey
 	Method() Method
 	SetRequestMethod(Method)
 	StatusCode() uint16

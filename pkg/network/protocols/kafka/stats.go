@@ -20,7 +20,7 @@ type Key struct {
 	RequestAPIKey  uint16
 	RequestVersion uint16
 	TopicName      string
-	types.ConnectionKey
+	*types.ConnectionKey
 }
 
 // NewKey generates a new Key

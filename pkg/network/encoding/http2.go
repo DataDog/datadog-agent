@@ -55,7 +55,7 @@ func newHTTP2Encoder(http2Payloads map[http.Key]*http.RequestStats) *http2Encode
 	}
 
 	return &http2Encoder{
-		byConnection: GroupByConnection("http2", http2Payloads, func(key http.Key) types.ConnectionKey {
+		byConnection: GroupByConnection("http2", http2Payloads, func(key http.Key) *types.ConnectionKey {
 			return key.ConnectionKey
 		}),
 		aggregations: new(model.HTTP2Aggregations),
