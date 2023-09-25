@@ -1,0 +1,14 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+enhancements:
+  - |
+    Agents are now built with Go ``1.20.8``.
+security:
+  - |
+    Fix ``CVE-2023-39320``, ``CVE-2023-39318``, ``CVE-2023-39319``, and ``CVE-2023-39321``.

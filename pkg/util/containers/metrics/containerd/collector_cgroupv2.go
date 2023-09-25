@@ -11,7 +11,7 @@ import (
 	"fmt"
 	"time"
 
-	v2 "github.com/containerd/cgroups/v2/stats"
+	v2 "github.com/containerd/cgroups/v3/cgroup2/stats"
 
 	"github.com/DataDog/datadog-agent/pkg/util/containers/metrics/provider"
 	"github.com/DataDog/datadog-agent/pkg/util/pointer"

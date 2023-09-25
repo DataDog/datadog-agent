@@ -141,8 +141,8 @@ func testKafkaProtocolParsing(t *testing.T) {
 						kgo.ConsumeTopics(topicName),
 					},
 				})
-				ctx.extras["client"] = client
 				require.NoError(t, err)
+				ctx.extras["client"] = client
 				require.NoError(t, client.CreateTopic(topicName))
 
 				record := &kgo.Record{Topic: topicName, Value: []byte("Hello Kafka!")}
@@ -191,8 +191,8 @@ func testKafkaProtocolParsing(t *testing.T) {
 						kgo.ClientID(""),
 					},
 				})
-				ctx.extras["client"] = client
 				require.NoError(t, err)
+				ctx.extras["client"] = client
 				require.NoError(t, client.CreateTopic(topicName))
 
 				record := &kgo.Record{Topic: topicName, Value: []byte("Hello Kafka!")}
@@ -233,8 +233,8 @@ func testKafkaProtocolParsing(t *testing.T) {
 						kgo.ClientID(""),
 					},
 				})
-				ctx.extras["client"] = client
 				require.NoError(t, err)
+				ctx.extras["client"] = client
 				require.NoError(t, client.CreateTopic(topicName))
 
 				numberOfIterations := 1000
@@ -277,8 +277,8 @@ func testKafkaProtocolParsing(t *testing.T) {
 						kgo.ClientID(""),
 					},
 				})
-				ctx.extras["client"] = client
 				require.NoError(t, err)
+				ctx.extras["client"] = client
 				require.NoError(t, client.CreateTopic(topicName))
 
 				record := &kgo.Record{Topic: topicName, Value: []byte("Hello Kafka!")}
@@ -372,8 +372,8 @@ func testKafkaProtocolParsing(t *testing.T) {
 						kgo.ClientID(""),
 					},
 				})
-				ctx.extras["client"] = client
 				require.NoError(t, err)
+				ctx.extras["client"] = client
 				require.NoError(t, client.CreateTopic(topicName))
 
 				record := &kgo.Record{Topic: topicName, Value: []byte("Hello Kafka!")}

@@ -49,8 +49,6 @@ func (s *Server) StreamEntities(in *pb.WorkloadmetaStreamRequest, out pb.AgentSe
 		case eventBundle := <-workloadmetaEventsChannel:
 			close(eventBundle.Ch)
 
-			ticker.Reset(workloadmetaKeepAliveInterval)
-
 			var protobufEvents []*pb.WorkloadmetaEvent
 
 			for _, event := range eventBundle.Events {
@@ -78,6 +76,8 @@ func (s *Server) StreamEntities(in *pb.WorkloadmetaStreamRequest, out pb.AgentSe
 					telemetry.RemoteServerErrors.Inc()
 					return err
 				}
+
+				ticker.Reset(workloadmetaKeepAliveInterval)
 			}
 		case <-out.Context().Done():
 			return nil

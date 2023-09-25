@@ -1,3 +1,0 @@
-service_monitoring_config:
-  java_tls:
-    enabled: true

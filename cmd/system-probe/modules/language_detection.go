@@ -47,7 +47,7 @@ func (l *languageDetectionModule) Register(router *module.Router) error {
 }
 
 // RegisterGRPC register to system probe gRPC server
-func (l *languageDetectionModule) RegisterGRPC(_ *grpc.Server) error {
+func (l *languageDetectionModule) RegisterGRPC(_ grpc.ServiceRegistrar) error {
 	return nil
 }
 

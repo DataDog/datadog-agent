@@ -26,6 +26,7 @@ import (
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/config/utils"
+	configUtils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/diagnose/diagnosis"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -89,7 +90,7 @@ func (c *APMCheck) run() error {
 	hname, _ := hostname.Get(context.TODO())
 
 	env := os.Environ()
-	env = append(env, fmt.Sprintf("DD_API_KEY=%s", config.SanitizeAPIKey(config.Datadog.GetString("api_key"))))
+	env = append(env, fmt.Sprintf("DD_API_KEY=%s", configUtils.SanitizeAPIKey(config.Datadog.GetString("api_key"))))
 	env = append(env, fmt.Sprintf("DD_HOSTNAME=%s", hname))
 	env = append(env, fmt.Sprintf("DD_DOGSTATSD_PORT=%s", config.Datadog.GetString("dogstatsd_port")))
 	env = append(env, fmt.Sprintf("DD_LOG_LEVEL=%s", config.Datadog.GetString("log_level")))

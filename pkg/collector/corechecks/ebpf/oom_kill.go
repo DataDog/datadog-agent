@@ -22,7 +22,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/ebpf/probe"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/ebpf/probe/oomkill/model"
 	dd_config "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/metrics/event"
 	process_net "github.com/DataDog/datadog-agent/pkg/process/net"
@@ -102,7 +102,7 @@ func (m *OOMKillCheck) Run() error {
 
 	triggerType := ""
 	triggerTypeText := ""
-	oomkillStats, ok := data.([]probe.OOMKillStats)
+	oomkillStats, ok := data.([]model.OOMKillStats)
 	if !ok {
 		return log.Errorf("Raw data has incorrect type")
 	}

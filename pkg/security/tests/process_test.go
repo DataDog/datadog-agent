@@ -34,6 +34,7 @@ import (
 	"github.com/syndtr/gocapability/capability"
 	"golang.org/x/sys/unix"
 
+	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
@@ -1871,7 +1872,9 @@ EOF
 
 echo "Back to bash"`, python, python),
 			check: func(event *model.Event) {
-				assertFieldEqual(t, event, "exec.interpreter.file.name", "", "wrong interpreter file name")
+				var fieldNotSupportedError *eval.ErrNotSupported
+				_, err := event.GetFieldValue("exec.interpreter.file.name")
+				assert.ErrorAs(t, err, &fieldNotSupportedError, "exec event shouldn't have an interpreter")
 				assertFieldEqual(t, event, "process.parent.file.name", "regularExec.sh", "wrong process parent file name")
 				assertFieldStringArrayIndexedOneOf(t, event, "process.ancestors.file.name", 0, []string{"regularExec.sh"}, "ancestor file name not an option")
 			},
@@ -1895,7 +1898,9 @@ __HERE__
 
 echo "Back to bash"`, python, python, python),
 			check: func(event *model.Event) {
-				assertFieldEqual(t, event, "exec.interpreter.file.name", "", "wrong interpreter file name")
+				var fieldNotSupportedError *eval.ErrNotSupported
+				_, err := event.GetFieldValue("exec.interpreter.file.name")
+				assert.ErrorAs(t, err, &fieldNotSupportedError, "exec event shouldn't have an interpreter")
 				assertFieldEqual(t, event, "process.parent.file.name", "regularExecWithInterpreterRule.sh", "wrong process parent file name")
 				assertFieldStringArrayIndexedOneOf(t, event, "process.ancestors.file.name", 0, []string{"regularExecWithInterpreterRule.sh"}, "ancestor file name not an option")
 			},

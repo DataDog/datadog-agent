@@ -25,6 +25,8 @@ type Opts struct {
 	TagsResolver tags.Resolver
 	// SyscallsMapMonitorEnabled enable syscalls map monitor
 	SyscallsMapMonitorEnabled bool
+	// TTYFallbackEnabled enable the tty procfs fallback
+	TTYFallbackEnabled bool
 }
 
 func (o *Opts) normalize() {

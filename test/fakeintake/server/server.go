@@ -276,7 +276,7 @@ func (fi *Server) handleDatadogRequest(w http.ResponseWriter, req *http.Request)
 
 	// TODO: store all headers directly, and fetch Content-Type/Content-Encoding values when parsing
 	encoding := req.Header.Get("Content-Encoding")
-	if req.URL.Path == "/support/flare" {
+	if req.URL.Path == "/support/flare" || encoding == "" {
 		encoding = req.Header.Get("Content-Type")
 	}
 
@@ -288,8 +288,7 @@ func (fi *Server) handleDatadogRequest(w http.ResponseWriter, req *http.Request)
 		return
 	}
 
-	responseBody := getResponseBodyFromURLPath(req.URL.Path)
-	response := buildSuccessResponse(responseBody)
+	response := getResponseFromURLPath(req.URL.Path)
 	writeHTTPResponse(w, response)
 }
 

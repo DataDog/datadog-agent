@@ -18,6 +18,8 @@ import (
 	clientset "k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/cache"
+	"k8s.io/component-base/metrics"
+	basemetrics "k8s.io/component-base/metrics"
 	"k8s.io/kube-state-metrics/v2/pkg/constant"
 	"k8s.io/kube-state-metrics/v2/pkg/customresource"
 	"k8s.io/kube-state-metrics/v2/pkg/metric"
@@ -53,19 +55,21 @@ func (f *extendedNodeFactory) MetricFamilyGenerators(allowAnnotationsList, allow
 	// type, as the default KSM offering explicitly filters out anything that is prefixed with "kubernetes.io/"
 	// More information can be found here: https://github.com/kubernetes/kube-state-metrics/issues/2027
 	return []generator.FamilyGenerator{
-		*generator.NewFamilyGenerator(
+		*generator.NewFamilyGeneratorWithStability(
 			"kube_node_status_extended_capacity",
 			"The capacity for different additional resources of a node, which otherwise might have been filtered out by kube-state-metrics.",
 			metric.Gauge,
+			basemetrics.ALPHA,
 			"",
 			wrapNodeFunc(func(n *v1.Node) *metric.Family {
 				return f.customResourceGenerator(n.Status.Capacity)
 			}),
 		),
-		*generator.NewFamilyGenerator(
+		*generator.NewFamilyGeneratorWithStability(
 			"kube_node_status_extended_allocatable",
 			"The allocatable for different additional resources of a node that are available for scheduling, which otherwise might have been filtered out by kube-state-metrics.",
 			metric.Gauge,
+			metrics.ALPHA,
 			"",
 			wrapNodeFunc(func(n *v1.Node) *metric.Family {
 				return f.customResourceGenerator(n.Status.Allocatable)

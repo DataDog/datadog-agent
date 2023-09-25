@@ -21,12 +21,12 @@ import (
 	"time"
 
 	corecompcfg "github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/otelcol/otlp"
 	coreconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/config/remote"
 	"github.com/DataDog/datadog-agent/pkg/config/remote/data"
 	"github.com/DataDog/datadog-agent/pkg/config/utils"
 	configUtils "github.com/DataDog/datadog-agent/pkg/config/utils"
-	"github.com/DataDog/datadog-agent/pkg/otlp"
 	pbgo "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
 	"github.com/DataDog/datadog-agent/pkg/tagger"
 	"github.com/DataDog/datadog-agent/pkg/tagger/collectors"
@@ -139,7 +139,7 @@ func appendEndpoints(endpoints []*config.Endpoint, cfgKey string) []*config.Endp
 			continue
 		}
 		for _, key := range keys {
-			endpoints = append(endpoints, &config.Endpoint{Host: url, APIKey: coreconfig.SanitizeAPIKey(key)})
+			endpoints = append(endpoints, &config.Endpoint{Host: url, APIKey: configUtils.SanitizeAPIKey(key)})
 		}
 	}
 	return endpoints
@@ -150,7 +150,7 @@ func applyDatadogConfig(c *config.AgentConfig, core corecompcfg.Component) error
 		c.Endpoints = []*config.Endpoint{{}}
 	}
 	if core.IsSet("api_key") {
-		c.Endpoints[0].APIKey = coreconfig.SanitizeAPIKey(coreconfig.Datadog.GetString("api_key"))
+		c.Endpoints[0].APIKey = configUtils.SanitizeAPIKey(coreconfig.Datadog.GetString("api_key"))
 	}
 	if core.IsSet("hostname") {
 		c.Hostname = core.GetString("hostname")
@@ -572,7 +572,7 @@ func applyDatadogConfig(c *config.AgentConfig, core corecompcfg.Component) error
 func loadDeprecatedValues(c *config.AgentConfig) error {
 	cfg := coreconfig.Datadog
 	if cfg.IsSet("apm_config.api_key") {
-		c.Endpoints[0].APIKey = coreconfig.SanitizeAPIKey(cfg.GetString("apm_config.api_key"))
+		c.Endpoints[0].APIKey = configUtils.SanitizeAPIKey(cfg.GetString("apm_config.api_key"))
 	}
 	if cfg.IsSet("apm_config.log_throttling") {
 		c.LogThrottling = cfg.GetBool("apm_config.log_throttling")

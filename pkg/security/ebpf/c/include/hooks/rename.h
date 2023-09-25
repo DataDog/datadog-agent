@@ -67,7 +67,7 @@ int hook_vfs_rename(ctx_t *ctx) {
     syscall->rename.src_dentry = src_dentry;
     syscall->rename.target_dentry = target_dentry;
 
-    fill_file_metadata(src_dentry, &syscall->rename.src_file.metadata);
+    fill_file(src_dentry, &syscall->rename.src_file);
     syscall->rename.target_file.metadata = syscall->rename.src_file.metadata;
     if (is_overlayfs(src_dentry)) {
         syscall->rename.target_file.flags |= UPPER_LAYER;
