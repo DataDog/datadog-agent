@@ -14,24 +14,33 @@ import (
 
 // Copy copies the necessary fields from the event received from the event monitor
 func (p *ProcessConsumer) Copy(event *smodel.Event) any {
-	cmdline := []string{event.GetProcessArgv0()}
-	cmdline = append(cmdline, event.GetProcessArgv()...)
+	// Force resolution of all event fields before exposing it through the API server
+	event.ResolveFields()
+	event.ResolveEventTime()
+
+	entry := event.ProcessContext
+
+	var cmdline []string
+	if entry.ArgsEntry != nil {
+		// ignore if the args have been truncated
+		cmdline = entry.ArgsEntry.Values
+	}
 
 	return &model.ProcessEvent{
 		EventType:      model.NewEventType(event.GetEventType().String()),
-		CollectionTime: event.GetTimestamp(),
-		Pid:            event.GetProcessPid(),
-		ContainerID:    event.GetContainerId(),
-		Ppid:           event.GetProcessPpid(),
-		UID:            event.GetProcessUid(),
-		GID:            event.GetProcessGid(),
-		Username:       event.GetProcessUser(),
-		Group:          event.GetProcessGroup(),
-		Exe:            event.GetExecFilePath(),
+		CollectionTime: event.Timestamp,
+		Pid:            entry.Pid,
+		ContainerID:    entry.ContainerID,
+		Ppid:           entry.PPid,
+		UID:            entry.UID,
+		GID:            entry.GID,
+		Username:       entry.User,
+		Group:          entry.Group,
+		Exe:            entry.FileEvent.PathnameStr, // FileEvent is not a pointer, so it can be directly accessed
 		Cmdline:        cmdline,
-		ForkTime:       event.GetProcessForkTime(),
-		ExecTime:       event.GetProcessExecTime(),
-		ExitTime:       event.GetProcessExitTime(),
-		ExitCode:       event.GetExitCode(),
+		ForkTime:       entry.ForkTime,
+		ExecTime:       entry.ExecTime,
+		ExitTime:       entry.ExitTime,
+		ExitCode:       event.Exit.Code,
 	}
 }
