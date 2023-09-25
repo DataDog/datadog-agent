@@ -490,15 +490,14 @@ func (a *Agent) sample(now time.Time, ts *info.TagStats, pt *traceutil.Processed
 		events = a.getAnalyzedEvents(pt, ts)
 	}
 	if !keep {
-		// single span sampling
-		hadSSS := sampler.SingleSpanSampling(pt)
-		if !hadSSS {
-			// If there were no single span sampled spans let's use the analytics events
+		modified := sampler.SingleSpanSampling(pt)
+		if !modified {
+			// If there were no sampled spans, and we're not keeping the trace, let's use the analytics events
 			// This is OK because SSS is a replacement for analytics events so both should not be configured
 			// And when analytics events are fully gone we can get rid of all this
 			pt.TraceChunk.Spans = events
 		} else if len(events) > 0 {
-			log.Warnf("Detected both analytics events AND single span sampling in the same trace, single span sampling wins.")
+			log.Warnf("Detected both analytics events AND single span sampling in the same trace. Single span sampling wins because App Analytics is deprecated.")
 		}
 	}
 
