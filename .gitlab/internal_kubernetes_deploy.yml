@@ -65,9 +65,10 @@ notify-slack:
       results=()
       while IFS= read -r email; do
         result=$(echo "$email" | email2slackid || echo "$email")
-        if [ -z "$SLACK_AUTHOR" ]; then
+        if [ -z "$result" ]; then
           echo "author not found"
           result=$email
+        fi
         results+=("$result")
         echo "Result for $email: $result"
         sleep 1
