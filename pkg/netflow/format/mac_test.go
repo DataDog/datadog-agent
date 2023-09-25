@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2022-present Datadog, Inc.
 
-package enrichment
+package format
 
 import (
 	"testing"
@@ -11,8 +11,7 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func TestRemapDirection(t *testing.T) {
-	assert.Equal(t, "ingress", RemapDirection(uint32(0)))
-	assert.Equal(t, "egress", RemapDirection(uint32(1)))
-	assert.Equal(t, "ingress", RemapDirection(uint32(99))) // invalid direction will default to ingress
+func TestMacAddress(t *testing.T) {
+	assert.Equal(t, "82:a5:6e:a5:aa:99", MacAddress(uint64(143647037565593)))
+	assert.Equal(t, "00:00:00:00:00:00", MacAddress(uint64(0)))
 }

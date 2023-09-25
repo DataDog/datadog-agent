@@ -18,6 +18,7 @@ import (
 	"sync"
 	"syscall"
 	"time"
+	"unsafe"
 
 	"github.com/cihub/seelog"
 	"github.com/cilium/ebpf"
@@ -519,7 +520,7 @@ func (p *GoTLSProgram) addInspectionResultToMap(binID binaryID, result *bininspe
 		return fmt.Errorf("error while parsing inspection result: %w", err)
 	}
 
-	err = p.offsetsDataMap.Put(binID, offsetsData)
+	err = p.offsetsDataMap.Put(unsafe.Pointer(&binID), unsafe.Pointer(&offsetsData))
 	if err != nil {
 		return fmt.Errorf("could not write binary inspection result to map for binID %v: %w", binID, err)
 	}
@@ -528,7 +529,7 @@ func (p *GoTLSProgram) addInspectionResultToMap(binID binaryID, result *bininspe
 }
 
 func (p *GoTLSProgram) removeInspectionResultFromMap(binID binaryID) {
-	err := p.offsetsDataMap.Delete(binID)
+	err := p.offsetsDataMap.Delete(unsafe.Pointer(&binID))
 	if err != nil {
 		log.Errorf("could not remove inspection result from map for ino %v: %s", binID, err)
 	}

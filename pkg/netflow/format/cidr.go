@@ -3,16 +3,17 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2022-present Datadog, Inc.
 
-package enrichment
+package format
 
 import (
 	"net"
 	"strconv"
 )
 
-// FormatMask formats mask raw value (uint32) into CIDR format (e.g. `192.1.128.64/26`)
-func FormatMask(ipAddr []byte, maskRawValue uint32) string {
-	maskSuffix := "/" + strconv.Itoa(int(maskRawValue))
+// CIDR formats an IP and number of bits in CIDR format (e.g. `192.1.128.64/26`).
+// ones should be the number of ones in the bitmask, e.g. 26 in the example above.
+func CIDR(ipAddr []byte, ones uint32) string {
+	maskSuffix := "/" + strconv.Itoa(int(ones))
 
 	ip := net.IP(ipAddr)
 	if ip == nil {
@@ -28,7 +29,7 @@ func FormatMask(ipAddr []byte, maskRawValue uint32) string {
 		maskBitsLen = 128
 	}
 
-	mask := net.CIDRMask(int(maskRawValue), maskBitsLen)
+	mask := net.CIDRMask(int(ones), maskBitsLen)
 	if mask == nil {
 		return maskSuffix
 	}

@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2022-present Datadog, Inc.
 
-package enrichment
+package format
 
 // Currently mapping only IPv4 and IPv6 since those are the main case defined in goflow2
 //   - For NetFlow5/9/IPFIX, ether type can take other values if dataLinkFrameSection is defined.
@@ -17,9 +17,9 @@ var etherTypeMap = map[uint32]string{
 	0x86DD: "IPv6",
 }
 
-// MapEtherType map Ether Type number to human-readable Ether Type name
+// EtherType formats an Ether Type number as a human-readable name.
 // https://www.iana.org/assignments/ieee-802-numbers/ieee-802-numbers.xhtml
-func MapEtherType(etherTypeNumber uint32) string {
+func EtherType(etherTypeNumber uint32) string {
 	protoStr, ok := etherTypeMap[etherTypeNumber]
 	if !ok {
 		return ""

@@ -10,12 +10,14 @@ package procmon
 import (
 	"unsafe"
 
+	"github.com/DataDog/datadog-agent/pkg/process/procutil"
 	"github.com/DataDog/datadog-agent/pkg/util/winutil"
 	"github.com/DataDog/datadog-agent/pkg/windowsdriver/olreader"
 )
 
 type ProcessStartNotification struct {
 	Pid       uint64
+	PPid      uint64
 	ImageFile string
 	CmdLine   string
 }
@@ -61,8 +63,18 @@ func (wp *WinProcmon) OnData(data []uint8) {
 		t, pid, img, cmd, used := decodeStruct(data[consumed:], returnedsize-consumed)
 		consumed += used
 		if t == ProcmonNotifyStart {
+
+			// for now, calculate PPID here in user mode.
+			// by calculating here, we can replace with kernel mode later and no
+			// downstream code will have to change
+			// TODO.  Add parent pid
+			ppid, err := procutil.GetParentPid(uint32(pid))
+			if err != nil {
+				ppid = 0
+			}
 			s := &ProcessStartNotification{
 				Pid:       pid,
+				PPid:      uint64(ppid),
 				ImageFile: img,
 				CmdLine:   cmd,
 			}

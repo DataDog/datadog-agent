@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2022-present Datadog, Inc.
 
-package enrichment
+package format
 
 var tcpFlagsMapping = map[uint32]string{
 	1:  "FIN",
@@ -14,8 +14,8 @@ var tcpFlagsMapping = map[uint32]string{
 	32: "URG",
 }
 
-// FormatFCPFlags format TCP Flags from bitmask to strings
-func FormatFCPFlags(flags uint32) []string {
+// TCPFlags formats a TCP bitmask as a set of strings.
+func TCPFlags(flags uint32) []string {
 	var strFlags []string
 	flag := uint32(1)
 	for {
