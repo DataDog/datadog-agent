@@ -22,14 +22,8 @@ import (
 	pkglog "github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-const (
-	IDD_DIALOG1     = 101
-	IDC_TICKET_EDIT = 1001
-	IDC_EMAIL_EDIT  = 1002
-)
-
 var (
-	validemail = regexp.MustCompile("^[\\w-\\.]+@([\\w-]+\\.)+[\\w-]{2,4}$")
+	validemail = regexp.MustCompile(`^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$`)
 	moduser32  = windows.NewLazyDLL("user32.dll")
 
 	procGetDlgItem       = moduser32.NewProc("GetDlgItem")
@@ -113,7 +107,6 @@ func dialogProc(hwnd win.HWND, msg uint32, wParam, lParam uintptr) (result uintp
 					}
 				}
 			}
-			break
 		case win.IDOK:
 			buf := make([]uint16, 256)
 
