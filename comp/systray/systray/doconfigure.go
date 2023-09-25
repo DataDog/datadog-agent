@@ -22,8 +22,8 @@ func onConfigure(s *systray) {
 	if err != nil {
 		s.log.Warnf("Failed to launch gui %v", err)
 	}
-	return
 }
+
 func doConfigure(s *systray) error {
 
 	guiPort := s.config.GetString("GUI_port")

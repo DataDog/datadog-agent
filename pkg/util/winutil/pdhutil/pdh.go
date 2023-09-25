@@ -4,6 +4,7 @@
 // Copyright 2016-present Datadog, Inc.
 //go:build windows
 
+// Package pdhutil provides the Windows PDH API
 package pdhutil
 
 import (
@@ -12,12 +13,11 @@ import (
 	"golang.org/x/sys/windows"
 )
 
-type (
-	PDH_HQUERY   windows.Handle
-	PDH_HCOUNTER windows.Handle
-)
+//revive:disable:var-naming Name is intended to match the Windows const name
 
 // PDH error codes.  Taken from latest PDHMSH.h in Windows SDK
+//
+// https://learn.microsoft.com/en-us/windows/win32/perfctrs/pdh-error-codes
 const (
 
 	//
@@ -128,10 +128,10 @@ const (
 	PERF_DETAIL_COSTLY   = uint32(0x00010000)
 	PERF_DETAIL_STANDARD = uint32(0x0000FFFF)
 )
-const (
-	ERROR_SUCCESS = 0
-)
 
+//revive:enable:var-naming (const)
+
+// English counters for the Process counterset
 const (
 	CounterAllProcessPctProcessorTime   = `\Process(*)\% Processor Time`
 	CounterAllProcessPctUserTime        = `\Process(*)\% User Time`
@@ -163,6 +163,14 @@ const (
 	CounterAllProcessWorkingSetPrivate  = `\Process(*)\Working Set - Private`
 )
 
+//revive:disable:var-naming Name is intended to match the Windows type name
+type (
+	// PDH_HQUERY is a handle to a PDH query
+	PDH_HQUERY windows.Handle
+	// PDH_HCOUNTER is a handle to a PDH counter
+	PDH_HCOUNTER windows.Handle
+)
+
 // PDH_FMT_COUNTERVALUE_ITEM_LONG structure contains the instance name and formatted value of a PDH_FMT_COUNTERVALUE_LONG counter.
 type PDH_FMT_COUNTERVALUE_ITEM_LONG struct {
 	szName *uint8
@@ -180,6 +188,8 @@ type PDH_FMT_COUNTERVALUE_ITEM_DOUBLE struct {
 	szName *uint8
 	value  PDH_FMT_COUNTERVALUE_DOUBLE
 }
+
+//revive:enable:var-naming (type)
 
 // PdhOpenQuery Creates a new query that is used to manage the collection of performance data.
 /*
