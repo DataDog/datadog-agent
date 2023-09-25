@@ -135,18 +135,6 @@ func (p *Resolver) Resolve(pid, tid uint32, inode uint64, useFallBack bool) *mod
 	return p.GetEntry(pid)
 }
 
-// GetProcessArgvScrubbed returns the scrubbed args of the event as an array
-func (p *Resolver) GetProcessArgvScrubbed(pr *model.Process) []string {
-	if pr.ScrubbedArgvResolved {
-		return pr.ScrubbedArgv
-	}
-
-	argv := pr.Argv
-	if p.scrubber != nil {
-		argv, _ = p.scrubber.ScrubCommand(argv)
-	}
-}
-
 // GetEnvs returns the envs of the event
 func (p *Resolver) GetEnvs(pr *model.Process) []string {
 	if pr.EnvsEntry == nil {
