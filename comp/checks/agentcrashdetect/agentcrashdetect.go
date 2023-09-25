@@ -42,8 +42,8 @@ const (
 var (
 	// crashdriver included for testing purposes
 	ddDrivers = map[string]struct{}{
-		"ddnpm":       struct{}{},
-		"crashdriver": struct{}{},
+		"ddnpm":       {},
+		"crashdriver": {},
 	}
 	// system probe enabled flags indicating we should be enabled
 	enabledflags = []string{
