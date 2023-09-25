@@ -1104,7 +1104,7 @@ func (p *Probe) updateProbes(ruleEventTypes []eval.EventType, useSnapshotProbes 
 		for _, id := range selector.GetProbesIdentificationPairList() {
 			var exists bool
 			for _, selectedID := range selectedIDs {
-				if selectedID.Matches(id) {
+				if selectedID == id {
 					exists = true
 				}
 			}
