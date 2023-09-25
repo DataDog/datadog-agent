@@ -97,6 +97,19 @@ func ValidateEnrichMetrics(metrics []profiledefinition.MetricsConfig) []string {
 	return errors
 }
 
+// validateEnrichProfileDefinition will validate profile definition and enrich it.
+func validateEnrichProfileDefinition(profile *profiledefinition.ProfileDefinition) []string {
+	profile.Metadata = make(profiledefinition.MetadataConfig)
+	if len(profile.MetadataRes.Device.Fields) > 0 {
+		profile.Metadata["device"] = profile.MetadataRes.Device
+	}
+	if len(profile.MetadataRes.Interface.Fields) > 0 {
+		profile.Metadata["interface"] = profile.MetadataRes.Interface
+	}
+	profile.MetadataRes = profiledefinition.MetadataConfigStruct{}
+	return nil
+}
+
 // validateEnrichMetadata will validate MetadataConfig and enrich it.
 func validateEnrichMetadata(metadata profiledefinition.MetadataConfig) []string {
 	var errors []string

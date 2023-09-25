@@ -138,7 +138,8 @@ func readProfileDefinition(definitionFile string) (*profiledefinition.ProfileDef
 		return nil, fmt.Errorf("failed to unmarshall %q: %v", filePath, err)
 	}
 	profiledefinition.NormalizeMetrics(profileDefinition.Metrics)
-	errors := validateEnrichMetadata(profileDefinition.Metadata)
+	errors := validateEnrichProfileDefinition(profileDefinition)
+	errors = validateEnrichMetadata(profileDefinition.Metadata)
 	errors = append(errors, ValidateEnrichMetrics(profileDefinition.Metrics)...)
 	errors = append(errors, ValidateEnrichMetricTags(profileDefinition.MetricTags)...)
 	if len(errors) > 0 {
