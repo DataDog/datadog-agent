@@ -39,8 +39,8 @@ dmitri.shuralyov.com/gpu/mtl v0.0.0-20190408044501-666a987793e9/go.mod h1:H6x//7
 github.com/BurntSushi/toml v0.3.1 h1:WXkYYl6Yr3qBf1K79EBnL4mak0OimBfB0XUf9Vl28OQ=
 github.com/BurntSushi/toml v0.3.1/go.mod h1:xHWCNGjB5oqiDr8zfno3MHue2Ht5sIBksp03qcyfWMU=
 github.com/BurntSushi/xgb v0.0.0-20160522181843-27f122750802/go.mod h1:IVnqGOEym/WlBOVXweHU+Q+/VP0lqqI8lqeDx9IjBqo=
-github.com/DataDog/datadog-agent/pkg/util/scrubber v0.47.0-rc.3 h1:gAL3HM+Tg5S0MLBjv5K8+elDJS6COf+9Io9dVh7EwYc=
-github.com/DataDog/datadog-agent/pkg/util/scrubber v0.47.0-rc.3/go.mod h1:Whfh1SJOwtp2YvDUNzqw/jmSbGOOso+HJHOEJULh1+M=
+github.com/DataDog/datadog-agent/pkg/util/scrubber v0.48.0-rc.2 h1:9IqSYTrAf/o2CFMRcFX+14yaxgUfCS61uYUe7l79MbQ=
+github.com/DataDog/datadog-agent/pkg/util/scrubber v0.48.0-rc.2/go.mod h1:EOGgNrSPskIxY3+KgCl+yEggMjrGqrA2oL5va+/p2jM=
 github.com/DataDog/opentelemetry-mapping-go/pkg/internal/sketchtest v0.7.1 h1:O/AafNJVhMY2Ko81VDmBBATjoMkvvUUPRVi5sIlvfu4=
 github.com/DataDog/opentelemetry-mapping-go/pkg/quantile v0.7.1 h1:eC41nVeyBYIKABisjR/RlT5Gy1zWyNCGlx+zeD3L6QM=
 github.com/DataDog/opentelemetry-mapping-go/pkg/quantile v0.7.1/go.mod h1:IPF+YQzxuCQSGTCzqOSYrQKFw1K3JRu4FcbGzte8NMY=

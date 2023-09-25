@@ -1,4 +1,4 @@
-//go:build linux || freebsd || netbsd || openbsd || solaris || dragonfly || darwin || aix
+//go:build linux || freebsd || netbsd || openbsd || solaris || dragonfly || aix
 
 package logsetup
 

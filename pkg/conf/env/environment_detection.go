@@ -108,7 +108,7 @@ func DetectFeatures(cfg conf.ConfigReader) {
 
 	newFeatures := make(FeatureMap)
 	if IsAutoconfigEnabled(cfg) {
-		detectContainerFeatures(newFeatures, cfg)
+		detectContainerFeatures(newFeatures)
 		excludedFeatures := cfg.GetStringSlice("autoconfig_exclude_features")
 		excludeFeatures(newFeatures, excludedFeatures)
 

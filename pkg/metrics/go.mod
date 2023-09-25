@@ -11,6 +11,7 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/util/buf => ../util/buf/
 	github.com/DataDog/datadog-agent/pkg/util/fxutil => ../util/fxutil/
 	github.com/DataDog/datadog-agent/pkg/util/log => ../util/log/
+	github.com/DataDog/datadog-agent/pkg/util/system/socket => ../util/system/socket
 	github.com/DataDog/datadog-agent/pkg/util/util_sort => ../util/util_sort/
 
 )
@@ -30,7 +31,7 @@ require (
 require (
 	github.com/DataDog/datadog-agent/comp/core/telemetry v0.0.0-00010101000000-000000000000 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/fxutil v0.0.0-00010101000000-000000000000 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.47.0-rc.3 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.48.0-rc.2 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/util_sort v0.0.0-00010101000000-000000000000 // indirect
 	github.com/DataDog/sketches-go v1.4.2 // indirect
 	github.com/DataDog/viper v1.12.0 // indirect
