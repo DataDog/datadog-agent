@@ -1,13 +1,14 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-present Datadog, Inc.
+// Copyright 2023-present Datadog, Inc.
+
+//go:build kubeapiserver
 
 package v1
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -33,10 +34,15 @@ const (
 	maximumWaitForAPIServer = 10 * time.Second
 )
 
-// Install language detection endpoints
+// InstallLanguageDetectionEndpoints installs language detection endpoints
 func InstallLanguageDetectionEndpoints(r *mux.Router) {
 	r.HandleFunc("/languagedetection", api.WithTelemetryWrapper("setDetectedLanguages", setDetectedLanguages)).Methods("POST")
 }
+
+const (
+	kindDeployment string = "deployment"
+	kindReplicaset string = "replicaset"
+)
 
 // ownerInfo maintains the information about a Kubernetes resource owner.
 type ownerInfo struct {
@@ -45,13 +51,13 @@ type ownerInfo struct {
 	kind      string
 }
 
-// NewOwnerInfo initializes a new ownerInfo structure with the provided arguments.
+// newOwnerInfo initializes a new ownerInfo structure with the provided arguments.
 // If the "kind" is given as "replicaset", it returns the info of the parent deployment
 // and the name will be parsed for the Deployment of the ReplicaSet.
-func NewOwnerInfo(name string, namespace string, kind string) *ownerInfo {
+func newOwnerInfo(name string, namespace string, kind string) *ownerInfo {
 
-	if kind == "replicaset" {
-		kind = "deployment"
+	if kind == kindReplicaset {
+		kind = kindDeployment
 		name = kubernetes.ParseDeploymentForReplicaSet(name)
 	}
 
@@ -66,18 +72,20 @@ func NewOwnerInfo(name string, namespace string, kind string) *ownerInfo {
 // Currently supports only "Deployment" type
 // Returns an error for unsupported types
 func (o *ownerInfo) getGVR() (*schema.GroupVersionResource, error) {
-	if o.kind == "deployment" {
+	if o.kind == kindDeployment {
 		return &schema.GroupVersionResource{
 			Group:    "apps",
 			Version:  "v1",
 			Resource: fmt.Sprintf("%ss", o.kind),
 		}, nil
 	}
-	return &schema.GroupVersionResource{}, errors.New(fmt.Sprintf("unsupported owner kind %s", o.kind))
+	return &schema.GroupVersionResource{}, fmt.Errorf("unsupported owner kind %s", o.kind)
 }
 
+// OwnersLanguages maps an owner to the detected languages of each container
 type OwnersLanguages map[ownerInfo]*languagedetection.ContainersLanguages
 
+// LanguagePatcherInterface is an interface the behaviour of the patcher used to patch language annotations to pod owners
 type LanguagePatcherInterface interface {
 	getContainersLanguagesFromPodDetail(podDetail *pbgo.PodLanguageDetails) *languagedetection.ContainersLanguages
 	getOwnersLanguages(requestData *pbgo.ParentLanguageAnnotationRequest) *OwnersLanguages
@@ -90,8 +98,8 @@ type languagePatcher struct {
 	k8sClient dynamic.Interface
 }
 
-// Initializes a new patcher with a dynamic k8s client
-func NewLanguagePatcher() (*languagePatcher, error) {
+// newLanguagePatcher initializes and returns a new patcher with a dynamic k8s client
+func newLanguagePatcher() (*languagePatcher, error) {
 	apiCtx, apiCancel := context.WithTimeout(context.Background(), maximumWaitForAPIServer)
 	defer apiCancel()
 	apiCl, err := apiserver.WaitForAPIClient(apiCtx)
@@ -116,6 +124,16 @@ func (lp *languagePatcher) getContainersLanguagesFromPodDetail(podDetail *pbgo.P
 			containerslanguages.Add(container, language.Name)
 		}
 	}
+
+	// Handle Init Containers separately
+	for _, containerLanguageDetails := range podDetail.InitContainerDetails {
+		container := fmt.Sprintf("init.%s", containerLanguageDetails.ContainerName)
+		languages := containerLanguageDetails.Languages
+		for _, language := range languages {
+			containerslanguages.Add(container, language.Name)
+		}
+	}
+
 	return containerslanguages
 }
 
@@ -128,7 +146,7 @@ func (lp *languagePatcher) getOwnersLanguages(requestData *pbgo.ParentLanguageAn
 	for _, podDetail := range podDetails {
 		ns := podDetail.Namespace
 		ownerRef := podDetail.Ownerref
-		ownerinfo := *NewOwnerInfo(ownerRef.Name, ns, ownerRef.Kind)
+		ownerinfo := *newOwnerInfo(ownerRef.Name, ns, ownerRef.Kind)
 		ownerslanguages[ownerinfo] = lp.getContainersLanguagesFromPodDetail(podDetail)
 	}
 
@@ -200,9 +218,9 @@ func (lp *languagePatcher) patchOwner(ownerinfo *ownerInfo, containerslanguages 
 	if retryErr != nil {
 		FailedPatches.Inc(ownerinfo.kind, ownerinfo.name, ownerinfo.namespace)
 		return fmt.Errorf("Failed to update owner: %v", retryErr)
-	} else {
-		SuccessPatches.Inc(ownerinfo.kind, ownerinfo.name, ownerinfo.namespace)
 	}
+
+	SuccessPatches.Inc(ownerinfo.kind, ownerinfo.name, ownerinfo.namespace)
 
 	return nil
 }
@@ -237,7 +255,7 @@ func setDetectedLanguages(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Failed to unmarshal request body", http.StatusBadRequest)
 	}
 
-	lp, err := NewLanguagePatcher()
+	lp, err := newLanguagePatcher()
 
 	if err != nil {
 		ErrorResponses.Inc()

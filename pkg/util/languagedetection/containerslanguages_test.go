@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-present Datadog, Inc.
+// Copyright 2023-present Datadog, Inc.
 
 package languagedetection
 
@@ -98,18 +98,19 @@ func TestTotalLanguages(t *testing.T) {
 
 func TestParseAnnotations(t *testing.T) {
 	mockAnnotations := map[string]string{
-		"apm.datadoghq.com/cont-1.languages": "java,cpp,python",
-		"apm.datadoghq.com/cont-2.languages": "javascript,cpp,golang",
-		"annotationkey1":                     "annotationvalue1",
-		"annotationkey2":                     "annotationvalue2",
+		"apm.datadoghq.com/cont-1.languages":      "java,cpp,python",
+		"apm.datadoghq.com/cont-2.languages":      "javascript,cpp,golang",
+		"apm.datadoghq.com/init.cont-3.languages": "python,java",
+		"annotationkey1":                          "annotationvalue1",
+		"annotationkey2":                          "annotationvalue2",
 	}
 
 	containerslanguages := NewContainersLanguages()
 
 	containerslanguages.ParseAnnotations(mockAnnotations)
 
-	// Test that two containers languagesets were added
-	assert.Equal(t, 2, len(containerslanguages.Languages))
+	// Test that three containers languagesets were added
+	assert.Equal(t, 3, len(containerslanguages.Languages))
 
 	expectedlanguages1 := map[string]struct{}{
 		"java":   {},
@@ -123,8 +124,14 @@ func TestParseAnnotations(t *testing.T) {
 		"golang":     {},
 	}
 
+	expectedlanguages3 := map[string]struct{}{
+		"python": {},
+		"java":   {},
+	}
+
 	assert.Equal(t, expectedlanguages1, containerslanguages.Languages["cont-1"].languages)
 	assert.Equal(t, expectedlanguages2, containerslanguages.Languages["cont-2"].languages)
+	assert.Equal(t, expectedlanguages3, containerslanguages.Languages["init.cont-3"].languages)
 }
 
 func TestToAnnotations(t *testing.T) {
@@ -144,13 +151,20 @@ func TestToAnnotations(t *testing.T) {
 					"javascript": {},
 				},
 			},
+			"init.launcher": {
+				languages: map[string]struct{}{
+					"bash": {},
+					"cpp":  {},
+				},
+			},
 		},
 	}
 
 	actualAnnotations := containerslanguages.ToAnnotations()
 	expectedAnnotations := map[string]string{
-		"apm.datadoghq.com/wordpress.languages": "javascript,php",
-		"apm.datadoghq.com/server.languages":    "cpp,javascript,python",
+		"apm.datadoghq.com/wordpress.languages":     "javascript,php",
+		"apm.datadoghq.com/server.languages":        "cpp,javascript,python",
+		"apm.datadoghq.com/init.launcher.languages": "bash,cpp",
 	}
 
 	assert.Equal(t, expectedAnnotations, actualAnnotations)

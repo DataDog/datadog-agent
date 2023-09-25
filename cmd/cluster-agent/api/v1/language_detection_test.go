@@ -1,7 +1,9 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-present Datadog, Inc.
+// Copyright 2023-present Datadog, Inc.
+
+//go:build kubeapiserver
 
 package v1
 
@@ -99,6 +101,22 @@ func TestGetOwnersLanguages(t *testing.T) {
 				},
 			},
 		},
+		InitContainerDetails: []*pbgo.ContainerLanguageDetails{
+			{
+				ContainerName: "container-3",
+				Languages: []*pbgo.Language{
+					{Name: "java"},
+					{Name: "cpp"},
+				},
+			},
+			{
+				ContainerName: "container-4",
+				Languages: []*pbgo.Language{
+					{Name: "java"},
+					{Name: "python"},
+				},
+			},
+		},
 		Ownerref: &pbgo.KubeOwnerInfo{
 			Id:   "dummyId-1",
 			Kind: "replicaset",
@@ -111,7 +129,7 @@ func TestGetOwnersLanguages(t *testing.T) {
 		Name:      "pod-b",
 		ContainerDetails: []*pbgo.ContainerLanguageDetails{
 			{
-				ContainerName: "container-3",
+				ContainerName: "container-5",
 				Languages: []*pbgo.Language{
 					{Name: "python"},
 					{Name: "cpp"},
@@ -119,10 +137,26 @@ func TestGetOwnersLanguages(t *testing.T) {
 				},
 			},
 			{
-				ContainerName: "container-4",
+				ContainerName: "container-6",
 				Languages: []*pbgo.Language{
 					{Name: "java"},
 					{Name: "ruby"},
+				},
+			},
+		},
+		InitContainerDetails: []*pbgo.ContainerLanguageDetails{
+			{
+				ContainerName: "container-7",
+				Languages: []*pbgo.Language{
+					{Name: "java"},
+					{Name: "cpp"},
+				},
+			},
+			{
+				ContainerName: "container-8",
+				Languages: []*pbgo.Language{
+					{Name: "java"},
+					{Name: "python"},
 				},
 			},
 		},
@@ -144,15 +178,19 @@ func TestGetOwnersLanguages(t *testing.T) {
 
 	expectedContainersLanguagesA.Parse("container-1", "java,cpp,go")
 	expectedContainersLanguagesA.Parse("container-2", "java,python")
+	expectedContainersLanguagesA.Parse("init.container-3", "java,cpp")
+	expectedContainersLanguagesA.Parse("init.container-4", "java,python")
 
 	expectedContainersLanguagesB := languagedetection.NewContainersLanguages()
 
-	expectedContainersLanguagesB.Parse("container-3", "python,cpp,go")
-	expectedContainersLanguagesB.Parse("container-4", "java,ruby")
+	expectedContainersLanguagesB.Parse("container-5", "python,cpp,go")
+	expectedContainersLanguagesB.Parse("container-6", "java,ruby")
+	expectedContainersLanguagesB.Parse("init.container-7", "java,cpp")
+	expectedContainersLanguagesB.Parse("init.container-8", "java,python")
 
 	expectedOwnersLanguages := &OwnersLanguages{
-		*NewOwnerInfo("dummyrs-1", "default", "deployment"): expectedContainersLanguagesA,
-		*NewOwnerInfo("dummyrs-2", "custom", "deployment"):  expectedContainersLanguagesB,
+		*newOwnerInfo("dummyrs-1", "default", "deployment"): expectedContainersLanguagesA,
+		*newOwnerInfo("dummyrs-2", "custom", "deployment"):  expectedContainersLanguagesB,
 	}
 
 	actualOwnersLanguages := lp.getOwnersLanguages(mockRequestData)
@@ -225,7 +263,7 @@ func TestPatchOwner(t *testing.T) {
 	ns := "test-namespace"
 	gvr := schema.GroupVersionResource{Group: "apps", Version: "v1", Resource: "deployments"}
 
-	ownerinfo := NewOwnerInfo(deploymentName, ns, "deployment")
+	ownerinfo := newOwnerInfo(deploymentName, ns, "deployment")
 
 	mockContainersLanguages := languagedetection.NewContainersLanguages()
 	mockContainersLanguages.Parse("container-1", "cpp,java,python")
@@ -290,7 +328,7 @@ func TestPatchAllOwners(t *testing.T) {
 	// Mock definition for deployment A
 	deploymentAName := "test-deployment-A"
 	nsA := "test-namespace-A"
-	ownerAinfo := NewOwnerInfo(deploymentAName, nsA, "deployment")
+	ownerAinfo := newOwnerInfo(deploymentAName, nsA, "deployment")
 
 	// Define mock containers languages for deployment A
 	mockContainersLanguagesA := languagedetection.NewContainersLanguages()
@@ -302,7 +340,7 @@ func TestPatchAllOwners(t *testing.T) {
 	// Mock definition for deployment B
 	deploymentBName := "test-deployment-B"
 	nsB := "test-namespace-B"
-	ownerBinfo := NewOwnerInfo(deploymentBName, nsB, "deployment")
+	ownerBinfo := newOwnerInfo(deploymentBName, nsB, "deployment")
 
 	// Define mock containers languages for deployment B
 	mockContainersLanguagesB := languagedetection.NewContainersLanguages()

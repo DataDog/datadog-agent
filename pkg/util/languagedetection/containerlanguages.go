@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-present Datadog, Inc.
+// Copyright 2023-present Datadog, Inc.
 
 package languagedetection
 
@@ -12,24 +12,26 @@ import (
 
 var re = regexp.MustCompile(`apm\.datadoghq\.com\/(init)?\.?(.+?)\.languages`)
 
+// ContainersLanguagesInterface is an interface defining the behavior of mapping containers to language sets
 type ContainersLanguagesInterface interface {
 	Parse(containerName string, languageNames string)
 	Add(containerName string, languageName string)
 	TotalLanguages() int
 }
 
-// TODO handle the case of init containers
+// ContainersLanguages implements ContainersLanguagesInterface and maps container name to language set
 type ContainersLanguages struct {
 	Languages map[string]*LanguageSet
 }
 
+// NewContainersLanguages initializes and returns a new ContainersLanguages object
 func NewContainersLanguages() *ContainersLanguages {
 	return &ContainersLanguages{
 		Languages: make(map[string]*LanguageSet),
 	}
 }
 
-// Parses a comma-separated string of language names and adds them to the specified container
+// Parse parses a comma-separated string of language names and adds them to the specified container
 func (containerslanguages *ContainersLanguages) Parse(containerName string, languageNames string) {
 	_, found := containerslanguages.Languages[containerName]
 
@@ -40,7 +42,7 @@ func (containerslanguages *ContainersLanguages) Parse(containerName string, lang
 	containerslanguages.Languages[containerName].Parse(languageNames)
 }
 
-// Adds a language to the specified container
+// Add adds a language to the specified container
 func (containerslanguages *ContainersLanguages) Add(containerName string, languageName string) {
 	_, found := containerslanguages.Languages[containerName]
 
@@ -51,7 +53,7 @@ func (containerslanguages *ContainersLanguages) Add(containerName string, langua
 	containerslanguages.Languages[containerName].Add(languageName)
 }
 
-// Gets the total number of languages that are added to all containers
+// TotalLanguages gets the total number of languages that are added to all containers
 func (containerslanguages *ContainersLanguages) TotalLanguages() int {
 	numberOfLanguages := 0
 
@@ -62,7 +64,7 @@ func (containerslanguages *ContainersLanguages) TotalLanguages() int {
 	return numberOfLanguages
 }
 
-// Updates the containers languages based on existing language annotations
+// ParseAnnotations updates the containers languages based on existing language annotations
 func (containerslanguages *ContainersLanguages) ParseAnnotations(annotations map[string]string) {
 
 	for annotation, languages := range annotations {
@@ -71,11 +73,19 @@ func (containerslanguages *ContainersLanguages) ParseAnnotations(annotations map
 		if len(matches) != 3 {
 			continue
 		}
-		containerslanguages.Parse(matches[2], languages)
+
+		containerName := matches[2]
+
+		// matches[1] matches "init"
+		if matches[1] != "" {
+			containerName = fmt.Sprintf("init.%s", containerName)
+		}
+
+		containerslanguages.Parse(containerName, languages)
 	}
 }
 
-// Converts the containers languages into language annotations map
+// ToAnnotations converts the containers languages into language annotations map
 func (containerslanguages *ContainersLanguages) ToAnnotations() map[string]string {
 	annotations := make(map[string]string)
 

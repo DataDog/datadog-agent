@@ -2709,6 +2709,7 @@ core,k8s.io/client-go/util/connrotation,Apache-2.0,Copyright 2014 The Kubernetes
 core,k8s.io/client-go/util/flowcontrol,Apache-2.0,Copyright 2014 The Kubernetes Authors.
 core,k8s.io/client-go/util/homedir,Apache-2.0,Copyright 2014 The Kubernetes Authors.
 core,k8s.io/client-go/util/keyutil,Apache-2.0,Copyright 2014 The Kubernetes Authors.
+core,k8s.io/client-go/util/retry,Apache-2.0,Copyright 2014 The Kubernetes Authors.
 core,k8s.io/client-go/util/workqueue,Apache-2.0,Copyright 2014 The Kubernetes Authors.
 core,k8s.io/component-base/cli/flag,Apache-2.0,Copyright 2014 The Kubernetes Authors.
 core,k8s.io/component-base/config,Apache-2.0,Copyright 2014 The Kubernetes Authors.
