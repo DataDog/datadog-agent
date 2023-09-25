@@ -11,17 +11,17 @@ import (
 
 	"go.uber.org/fx"
 
-	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/conf"
 )
 
 // cfg implements the Component.
 type cfg struct {
 	// this component is currently implementing a thin wrapper around pkg/config,
 	// and uses globals in that package.
-	config.Config
+	conf.Config
 
 	// warnings are the warnings generated during setup
-	warnings *config.Warnings
+	warnings *conf.Warnings
 }
 
 type configDependencies interface {
@@ -42,7 +42,7 @@ func (d dependencies) getParams() *Params {
 //
 //	will then become obsolete - ts should not be created
 //	directly in this fashion.
-func NewServerlessConfig(path string) (Component, error) {
+func NewServerlessConfig(path string, config conf.Config, origin string, additionalKnownEnvVars []string) (Component, error) {
 	options := []func(*Params){WithConfigName("serverless"), WithConfigLoadSecrets(true)}
 
 	_, err := os.Stat(path)
@@ -54,20 +54,20 @@ func NewServerlessConfig(path string) (Component, error) {
 	}
 
 	d := dependencies{Params: NewParams(path, options...)}
-	return newConfig(d)
+	return newConfig(d, config, origin, additionalKnownEnvVars)
 }
 
-func newConfig(deps dependencies) (Component, error) {
-	warnings, err := setupConfig(deps)
+func newConfig(deps dependencies, config conf.Config, origin string, additionalKnownEnvVars []string) (Component, error) {
+	warnings, err := setupConfig(deps, config, origin, additionalKnownEnvVars)
 	returnErrFct := func(e error) (Component, error) {
 		if e != nil && deps.Params.ignoreErrors {
 			if warnings == nil {
-				warnings = &config.Warnings{}
+				warnings = &conf.Warnings{}
 			}
 			warnings.Err = e
 			e = nil
 		}
-		return &cfg{Config: config.Datadog, warnings: warnings}, e
+		return &cfg{Config: config, warnings: warnings}, e
 	}
 
 	if err != nil {
@@ -75,18 +75,18 @@ func newConfig(deps dependencies) (Component, error) {
 	}
 
 	if deps.Params.configLoadSecurityAgent {
-		if err := config.Merge(deps.Params.securityAgentConfigFilePaths); err != nil {
+		if err := conf.Merge(deps.Params.securityAgentConfigFilePaths, config); err != nil {
 			return returnErrFct(err)
 		}
 	}
 
-	return &cfg{Config: config.Datadog, warnings: warnings}, nil
+	return &cfg{Config: config, warnings: warnings}, nil
 }
 
-func (c *cfg) Warnings() *config.Warnings {
+func (c *cfg) Warnings() *conf.Warnings {
 	return c.warnings
 }
 
-func (c *cfg) Object() config.ConfigReader {
+func (c *cfg) Object() conf.ConfigReader {
 	return c.Config
 }

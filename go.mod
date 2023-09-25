@@ -25,10 +25,16 @@ replace (
 
 replace (
 	github.com/DataDog/datadog-agent/comp/core/log/module => ./comp/core/log/module
+	github.com/DataDog/datadog-agent/cmd/agent/common/path => ./cmd/agent/common/path
+	github.com/DataDog/datadog-agent/comp/core/config => ./comp/core/config
 	github.com/DataDog/datadog-agent/comp/core/telemetry => ./comp/core/telemetry
 	github.com/DataDog/datadog-agent/pkg/aggregator/ckey => ./pkg/aggregator/ckey
+	github.com/DataDog/datadog-agent/pkg/autodiscovery/common/types => ./pkg/autodiscovery/common/types/
+	github.com/DataDog/datadog-agent/pkg/collector/check/defaults => ./pkg/collector/check/defaults/
 	github.com/DataDog/datadog-agent/pkg/conf => ./pkg/conf/
+	github.com/DataDog/datadog-agent/pkg/config/configsetup => ./pkg/config/configsetup/
 	github.com/DataDog/datadog-agent/pkg/config/load => ./pkg/config/load/
+	github.com/DataDog/datadog-agent/pkg/config/logsetup => ./pkg/config/logsetup/
 
 	github.com/DataDog/datadog-agent/pkg/errors => ./pkg/errors/
 	github.com/DataDog/datadog-agent/pkg/gohai => ./pkg/gohai
@@ -52,6 +58,7 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/util/buf => ./pkg/util/buf
 	github.com/DataDog/datadog-agent/pkg/util/cache => ./pkg/util/cache
 	github.com/DataDog/datadog-agent/pkg/util/cgroups => ./pkg/util/cgroups
+	github.com/DataDog/datadog-agent/pkg/util/executable => ./pkg/util/executable/
 	github.com/DataDog/datadog-agent/pkg/util/filesystem => ./pkg/util/filesystem/
 	github.com/DataDog/datadog-agent/pkg/util/fxutil => ./pkg/util/fxutil
 	github.com/DataDog/datadog-agent/pkg/util/go_routines => ./pkg/util/go_routines
@@ -169,7 +176,7 @@ require (
 	github.com/invopop/jsonschema v0.8.0
 	github.com/itchyny/gojq v0.12.13
 	github.com/json-iterator/go v1.1.12
-	github.com/kardianos/osext v0.0.0-20190222173326-2bc1f35cddc0
+	github.com/kardianos/osext v0.0.0-20190222173326-2bc1f35cddc0 // indirect
 	github.com/lxn/walk v0.0.0-20210112085537-c389da54e794
 	github.com/lxn/win v0.0.0-20210218163916-a377121e959e
 	github.com/mailru/easyjson v0.7.7
@@ -595,10 +602,16 @@ require (
 	github.com/DATA-DOG/go-sqlmock v1.5.0
 	github.com/DataDog/agent-payload/v5 v5.0.96
 	github.com/DataDog/datadog-agent/comp/core/log/module v0.0.0-00010101000000-000000000000
+	github.com/DataDog/datadog-agent/cmd/agent/common/path v0.0.0-00010101000000-000000000000
+	github.com/DataDog/datadog-agent/comp/core/config v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/comp/core/telemetry v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/pkg/aggregator/ckey v0.0.0-00010101000000-000000000000
+	github.com/DataDog/datadog-agent/pkg/autodiscovery/common/types v0.0.0-00010101000000-000000000000
+	github.com/DataDog/datadog-agent/pkg/collector/check/defaults v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/pkg/conf v0.0.0-00010101000000-000000000000
+	github.com/DataDog/datadog-agent/pkg/config/configsetup v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/pkg/config/load v0.0.0-00010101000000-000000000000
+	github.com/DataDog/datadog-agent/pkg/config/logsetup v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/pkg/errors v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/pkg/logs/internal/status v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/pkg/logs/metrics v0.0.0-00010101000000-000000000000
@@ -615,6 +628,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/backoff v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/pkg/util/buf v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/pkg/util/cache v0.0.0-00010101000000-000000000000
+	github.com/DataDog/datadog-agent/pkg/util/executable v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/pkg/util/filesystem v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/pkg/util/fxutil v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/pkg/util/go_routines v0.0.0-00010101000000-000000000000
@@ -626,6 +640,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/system/socket v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/pkg/util/testutil v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/pkg/util/util_sort v0.0.0-00010101000000-000000000000
+	github.com/DataDog/datadog-agent/pkg/util/winutil v0.36.1
 	github.com/DataDog/datadog-agent/pkg/util/winutil v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/pkg/version v0.0.0-00010101000000-000000000000
 	github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/logs v0.8.0

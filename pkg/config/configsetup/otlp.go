@@ -3,7 +3,9 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2021-present Datadog, Inc.
 
-package config
+package configsetup
+
+import "github.com/DataDog/datadog-agent/pkg/conf"
 
 // OTLP configuration paths.
 const (
@@ -24,7 +26,7 @@ const (
 )
 
 // SetupOTLP related configuration.
-func SetupOTLP(config Config) {
+func SetupOTLP(config conf.Config) {
 	config.BindEnvAndSetDefault(OTLPTracePort, 5003)
 	config.BindEnvAndSetDefault(OTLPMetricsEnabled, true)
 	config.BindEnvAndSetDefault(OTLPTracesEnabled, true)
@@ -55,7 +57,7 @@ func SetupOTLP(config Config) {
 // since we get the configuration through GetStringMap
 //
 // We are missing TLS settings: since some of them need more work to work right they are not included here.
-func setupOTLPEnvironmentVariables(config Config) {
+func setupOTLPEnvironmentVariables(config conf.Config) {
 	// gRPC settings
 	config.BindEnv(OTLPSection + ".receiver.protocols.grpc.endpoint")
 	config.BindEnv(OTLPSection + ".receiver.protocols.grpc.transport")

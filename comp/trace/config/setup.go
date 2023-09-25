@@ -22,6 +22,7 @@ import (
 
 	corecompcfg "github.com/DataDog/datadog-agent/comp/core/config"
 	coreconfig "github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/config/configsetup"
 	"github.com/DataDog/datadog-agent/pkg/config/remote"
 	"github.com/DataDog/datadog-agent/pkg/config/remote/data"
 	"github.com/DataDog/datadog-agent/pkg/config/utils"
@@ -322,7 +323,7 @@ func applyDatadogConfig(c *config.AgentConfig, core corecompcfg.Component) error
 
 	var grpcPort int
 	if otlp.IsEnabled(coreconfig.Datadog) {
-		grpcPort = core.GetInt(coreconfig.OTLPTracePort)
+		grpcPort = core.GetInt(configsetup.OTLPTracePort)
 	}
 	c.OTLPReceiver = &config.OTLP{
 		BindHost:               c.ReceiverHost,

@@ -11,11 +11,12 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/mohae/deepcopy"
 	"go.opentelemetry.io/collector/confmap"
 	"go.uber.org/multierr"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/mohae/deepcopy"
+	"github.com/DataDog/datadog-agent/pkg/config/configsetup"
 )
 
 func portToUint(v int) (port uint, err error) {
@@ -69,21 +70,21 @@ func readConfigSection(cfg config.Config, section string) *confmap.Conf {
 // FromAgentConfig builds a pipeline configuration from an Agent configuration.
 func FromAgentConfig(cfg config.Config) (PipelineConfig, error) {
 	var errs []error
-	otlpConfig := readConfigSection(cfg, config.OTLPReceiverSection)
+	otlpConfig := readConfigSection(cfg, configsetup.OTLPReceiverSection)
 
-	tracePort, err := portToUint(cfg.GetInt(config.OTLPTracePort))
+	tracePort, err := portToUint(cfg.GetInt(configsetup.OTLPTracePort))
 	if err != nil {
 		errs = append(errs, fmt.Errorf("internal trace port is invalid: %w", err))
 	}
 
-	metricsEnabled := cfg.GetBool(config.OTLPMetricsEnabled)
-	tracesEnabled := cfg.GetBool(config.OTLPTracesEnabled)
-	logsEnabled := cfg.GetBool(config.OTLPLogsEnabled)
+	metricsEnabled := cfg.GetBool(configsetup.OTLPMetricsEnabled)
+	tracesEnabled := cfg.GetBool(configsetup.OTLPTracesEnabled)
+	logsEnabled := cfg.GetBool(configsetup.OTLPLogsEnabled)
 	if !metricsEnabled && !tracesEnabled && !logsEnabled {
 		errs = append(errs, fmt.Errorf("at least one OTLP signal needs to be enabled"))
 	}
-	metricsConfig := readConfigSection(cfg, config.OTLPMetrics)
-	debugConfig := readConfigSection(cfg, config.OTLPDebug)
+	metricsConfig := readConfigSection(cfg, configsetup.OTLPMetrics)
+	debugConfig := readConfigSection(cfg, configsetup.OTLPDebug)
 
 	return PipelineConfig{
 		OTLPReceiverConfig: otlpConfig.ToStringMap(),
@@ -98,7 +99,7 @@ func FromAgentConfig(cfg config.Config) (PipelineConfig, error) {
 
 // IsEnabled checks if OTLP pipeline is enabled in a given config.
 func IsEnabled(cfg config.Config) bool {
-	return hasSection(cfg, config.OTLPReceiverSubSectionKey)
+	return hasSection(cfg, configsetup.OTLPReceiverSubSectionKey)
 }
 
 func hasSection(cfg config.Config, section string) bool {
@@ -107,7 +108,7 @@ func hasSection(cfg config.Config, section string) bool {
 	//
 	// IsSet won't work here: it will return false if the section is present but empty.
 	// To work around this, we check if the receiver key is present in the string map, which does the 'correct' thing.
-	_, ok := readConfigSection(cfg, config.OTLPSection).ToStringMap()[section]
+	_, ok := readConfigSection(cfg, configsetup.OTLPSection).ToStringMap()[section]
 	return ok
 }
 

@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package config
+package logsetup
 
 import (
 	"bufio"
@@ -13,7 +13,7 @@ import (
 	"github.com/cihub/seelog"
 	"github.com/stretchr/testify/assert"
 
-	seelogCfg "github.com/DataDog/datadog-agent/pkg/config/internal/seelog"
+	seelogCfg "github.com/DataDog/datadog-agent/pkg/config/logsetup/internal/seelog"
 )
 
 func TestExtractShortPathFromFullPath(t *testing.T) {

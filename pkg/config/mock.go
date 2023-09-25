@@ -9,6 +9,8 @@ import (
 	"strings"
 	"sync"
 	"testing"
+
+	"github.com/DataDog/datadog-agent/pkg/config/configsetup"
 )
 
 var (
@@ -53,7 +55,7 @@ func Mock(t *testing.T) *MockConfig {
 	// Configure Datadog global configuration
 	Datadog = NewConfig("datadog", "DD", strings.NewReplacer(".", "_"))
 	// Configuration defaults
-	InitConfig(Datadog)
+	configsetup.InitConfig(Datadog)
 	return &MockConfig{Datadog}
 }
 
@@ -83,6 +85,6 @@ func MockSystemProbe(t *testing.T) *MockConfig {
 	// Configure Datadog global configuration
 	SystemProbe = NewConfig("system-probe", "DD", strings.NewReplacer(".", "_"))
 	// Configuration defaults
-	InitSystemProbeConfig(SystemProbe)
+	configsetup.InitSystemProbeConfig(SystemProbe)
 	return &MockConfig{SystemProbe}
 }

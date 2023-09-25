@@ -3,12 +3,13 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build linux || freebsd || netbsd || openbsd || solaris || dragonfly || darwin || aix
+package logsetup
 
-package config
+import (
+	"github.com/DataDog/datadog-agent/pkg/util/log"
+)
 
-// GetSyslogURI returns the configured/default syslog uri.
-// Returns an empty string when syslog is disabled.
+// GetSyslogURI returns the configured/default syslog uri
 func GetSyslogURI() string {
 	return GetSyslogURIFromConfig(Datadog)
 }
@@ -16,15 +17,9 @@ func GetSyslogURI() string {
 // GetSyslogURIFromConfig is like GetSyslogURI but reads from the provided config
 func GetSyslogURIFromConfig(cfg Config) string {
 	enabled := cfg.GetBool("log_to_syslog")
-	uri := cfg.GetString("syslog_uri")
 
-	if !enabled {
-		return ""
+	if enabled {
+		log.Infof("logging to syslog is not available on windows.")
 	}
-
-	if uri == "" {
-		return defaultSyslogURI
-	}
-
-	return uri
+	return ""
 }

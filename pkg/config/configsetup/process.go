@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package config
+package configsetup
 
 import (
 	"net"
@@ -12,6 +12,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/conf"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -87,7 +88,7 @@ var processesAddOverrideOnce sync.Once
 
 // procBindEnvAndSetDefault is a helper function that generates both "DD_PROCESS_CONFIG_" and "DD_PROCESS_AGENT_" prefixes from a key.
 // We need this helper function because the standard BindEnvAndSetDefault can only generate one prefix from a key.
-func procBindEnvAndSetDefault(config Config, key string, val interface{}) {
+func procBindEnvAndSetDefault(config conf.Config, key string, val interface{}) {
 	// Uppercase, replace "." with "_" and add "DD_" prefix to key so that we follow the same environment
 	// variable convention as the core agent.
 	processConfigKey := "DD_" + strings.Replace(strings.ToUpper(key), ".", "_", -1)
@@ -99,14 +100,14 @@ func procBindEnvAndSetDefault(config Config, key string, val interface{}) {
 
 // procBindEnv is a helper function that generates both "DD_PROCESS_CONFIG_" and "DD_PROCESS_AGENT_" prefixes from a key, but does not set a default.
 // We need this helper function because the standard BindEnv can only generate one prefix from a key.
-func procBindEnv(config Config, key string) {
+func procBindEnv(config conf.Config, key string) {
 	processConfigKey := "DD_" + strings.Replace(strings.ToUpper(key), ".", "_", -1)
 	processAgentKey := strings.Replace(processConfigKey, "PROCESS_CONFIG", "PROCESS_AGENT", 1)
 
 	config.BindEnv(key, processConfigKey, processAgentKey)
 }
 
-func setupProcesses(config Config) {
+func setupProcesses(config conf.Config) {
 	// "process_config.enabled" is deprecated. We must still be able to detect if it is present, to know if we should use it
 	// or container_collection.enabled and process_collection.enabled.
 	procBindEnv(config, "process_config.enabled")
@@ -205,12 +206,12 @@ func setupProcesses(config Config) {
 	procBindEnvAndSetDefault(config, "process_config.language_detection.grpc_port", DefaultProcessEntityStreamPort)
 
 	processesAddOverrideOnce.Do(func() {
-		AddOverrideFunc(loadProcessTransforms)
+		conf.AddOverrideFunc(loadProcessTransforms)
 	})
 }
 
 // loadProcessTransforms loads transforms associated with process config settings.
-func loadProcessTransforms(config Config) {
+func loadProcessTransforms(config conf.Config) {
 	if config.IsSet("process_config.enabled") {
 		log.Info("process_config.enabled is deprecated, use process_config.container_collection.enabled " +
 			"and process_config.process_collection.enabled instead, " +
@@ -230,13 +231,13 @@ func loadProcessTransforms(config Config) {
 }
 
 // GetProcessAPIAddressPort returns the API endpoint of the process agent
-func GetProcessAPIAddressPort() (string, error) {
-	address, err := GetIPCAddress()
+func GetProcessAPIAddressPort(config conf.Config) (string, error) {
+	address, err := conf.GetIPCAddress(config)
 	if err != nil {
 		return "", err
 	}
 
-	port := Datadog.GetInt("process_config.cmd_port")
+	port := config.GetInt("process_config.cmd_port")
 	if port <= 0 {
 		log.Warnf("Invalid process_config.cmd_port -- %d, using default port %d", port, DefaultProcessCmdPort)
 		port = DefaultProcessCmdPort
