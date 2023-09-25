@@ -70,6 +70,7 @@ notify-slack:
         results+=$(email2slackid "$email" || echo "$email")
       done < unique_emails.txt
       echo "$(cat unique_emails.txt)"
+      echo "Results: $(cat $results)"
       echo "Unique Authors: $(printf " %s" "${results[@]}")"
       git checkout ${CI_COMMIT_SHORT_SHA}
       #    - git tag stripe_staging
