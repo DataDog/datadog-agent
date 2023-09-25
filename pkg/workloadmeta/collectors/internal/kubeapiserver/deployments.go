@@ -56,7 +56,7 @@ func newDeploymentStore(ctx context.Context, wlm workloadmeta.Store, client kube
 		deploymentListerWatcher,
 		&appsv1.Deployment{},
 		deploymentStore,
-		noResync,
+		resync,
 	)
 	return deploymentReflector, deploymentStore
 }
