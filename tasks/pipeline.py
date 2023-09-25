@@ -510,7 +510,7 @@ def changelog(_, new_git_sha):
         ).decode()
         title, author, author_email, files, url = parse(commit_str)
         if is_system_probe(owners, files):
-            message = "{} (<{}|PR Link>) {}".format(title, url, author)
+            message = "{} (< {} |PR Link>) {}".format(title, url, author)
             messages.append(message)
             unique_emails.add(author_email)  # Add the email to the unique set
 
