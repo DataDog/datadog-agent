@@ -71,7 +71,8 @@ notify-slack:
         sleep 1
       done < unique_emails.txt
       echo "Results array: ${results[@]}"
-      postmessage "system-probe-ops" "$(cat system_probe_commits.txt) /n Unique Authors: ${results[@]}"
+      postmessage "system-probe-ops" "$(cat system_probe_commits.txt)"
+      postmessage "Unique Authors: $(printf " %s" "${results[@]}")"
       specific_email="adam.karpowich@datadoghq.com"
       echo "Result for specific email ($specific_email): $(echo "$specific_email" | email2slackid)"
       git checkout ${CI_COMMIT_SHORT_SHA}
