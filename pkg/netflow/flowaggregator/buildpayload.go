@@ -9,9 +9,8 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/netflow/common"
-	"github.com/DataDog/datadog-agent/pkg/netflow/enrichment"
+	"github.com/DataDog/datadog-agent/pkg/netflow/format"
 	"github.com/DataDog/datadog-agent/pkg/netflow/payload"
-	"github.com/DataDog/datadog-agent/pkg/netflow/portrollup"
 )
 
 func buildPayload(aggFlow *common.Flow, hostname string, flushTime time.Time) payload.FlowPayload {
@@ -20,30 +19,30 @@ func buildPayload(aggFlow *common.Flow, hostname string, flushTime time.Time) pa
 		FlushTimestamp: flushTime.UnixMilli(),
 		FlowType:       string(aggFlow.FlowType),
 		SamplingRate:   aggFlow.SamplingRate,
-		Direction:      enrichment.RemapDirection(aggFlow.Direction),
+		Direction:      format.Direction(aggFlow.Direction),
 		Device: payload.Device{
 			Namespace: aggFlow.Namespace,
 		},
 		Exporter: payload.Exporter{
-			IP: common.IPBytesToString(aggFlow.ExporterAddr),
+			IP: format.IPAddr(aggFlow.ExporterAddr),
 		},
 		Start:      aggFlow.StartTimestamp,
 		End:        aggFlow.EndTimestamp,
 		Bytes:      aggFlow.Bytes,
 		Packets:    aggFlow.Packets,
-		EtherType:  enrichment.MapEtherType(aggFlow.EtherType),
-		IPProtocol: enrichment.MapIPProtocol(aggFlow.IPProtocol),
+		EtherType:  format.EtherType(aggFlow.EtherType),
+		IPProtocol: format.IPProtocol(aggFlow.IPProtocol),
 		Source: payload.Endpoint{
-			IP:   common.IPBytesToString(aggFlow.SrcAddr),
-			Port: portrollup.PortToString(aggFlow.SrcPort),
-			Mac:  enrichment.FormatMacAddress(aggFlow.SrcMac),
-			Mask: enrichment.FormatMask(aggFlow.SrcAddr, aggFlow.SrcMask),
+			IP:   format.IPAddr(aggFlow.SrcAddr),
+			Port: format.Port(aggFlow.SrcPort),
+			Mac:  format.MacAddress(aggFlow.SrcMac),
+			Mask: format.CIDR(aggFlow.SrcAddr, aggFlow.SrcMask),
 		},
 		Destination: payload.Endpoint{
-			IP:   common.IPBytesToString(aggFlow.DstAddr),
-			Port: portrollup.PortToString(aggFlow.DstPort),
-			Mac:  enrichment.FormatMacAddress(aggFlow.DstMac),
-			Mask: enrichment.FormatMask(aggFlow.DstAddr, aggFlow.DstMask),
+			IP:   format.IPAddr(aggFlow.DstAddr),
+			Port: format.Port(aggFlow.DstPort),
+			Mac:  format.MacAddress(aggFlow.DstMac),
+			Mask: format.CIDR(aggFlow.DstAddr, aggFlow.DstMask),
 		},
 		Ingress: payload.ObservationPoint{
 			Interface: payload.Interface{
@@ -56,9 +55,9 @@ func buildPayload(aggFlow *common.Flow, hostname string, flushTime time.Time) pa
 			},
 		},
 		Host:     hostname,
-		TCPFlags: enrichment.FormatFCPFlags(aggFlow.TCPFlags),
+		TCPFlags: format.TCPFlags(aggFlow.TCPFlags),
 		NextHop: payload.NextHop{
-			IP: common.IPBytesToString(aggFlow.NextHop),
+			IP: format.IPAddr(aggFlow.NextHop),
 		},
 	}
 }
