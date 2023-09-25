@@ -7,6 +7,8 @@ include:
 
 .internal_kubernetes_deploy:
   stage: internal_kubernetes_deploy
+  artifacts:
+    untracked: true
   rules:
   - if: $FORCE_K8S_DEPLOYMENT == "true"
     when: always
@@ -59,6 +61,8 @@ notify-slack:
   tags: ["arch:amd64"]
   needs:
     - job: internal_kubernetes_deploy_stripe
+  dependencies:
+    - internal_kubernetes_deploy_stripe
   script:
     - |
       pwd
