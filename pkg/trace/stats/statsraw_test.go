@@ -6,9 +6,11 @@
 package stats
 
 import (
+	"fmt"
 	"testing"
+	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/trace/pb"
+	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 
 	"github.com/stretchr/testify/assert"
 )
@@ -344,4 +346,38 @@ var benchSpans = []*pb.Span{
 		Metrics:  map[string]float64{"payloads": 0.3779600143407876, "loops": 0.20498295768971775, "size": 0.7947128947983215, "rowcount": 0.7478115781577667},
 		Type:     "lamar",
 	},
+}
+
+const roundMask int64 = 1 << 10
+
+func oldNSTimestampToFloat(ns int64) float64 {
+	var shift uint
+	for ns > roundMask {
+		ns = ns >> 1
+		shift++
+	}
+	return float64(ns << shift)
+}
+
+func TestNSTimestampToFloat(t *testing.T) {
+	ns := []int64{
+		int64(1066789584153112 - 1066789583298779), // kernel boot time values
+		int64(0),
+		int64(1),
+		int64(1066789584153112),
+		int64(time.Hour * 24 * 3650), // 10 year
+		int64(time.Now().UnixNano()),
+		int64(0x000000000000ffff),
+		int64(1023),
+		int64(1024),
+		int64(1025),
+		//^int64(0), this can't be used here because float64 have only 52 bits of mantissa
+		// and filter(float(int64)) will difference due to roundup than float(filter(int64))
+		int64(0x001fffffffffffff),
+		^int64(0x001fffffffffffff), // ~584 years
+	}
+
+	for _, n := range ns {
+		assert.Equal(t, oldNSTimestampToFloat(n), nsTimestampToFloat(n), "uint64 10 bits mantissa truncation failed "+fmt.Sprintf("%d 0x%x", n, n))
+	}
 }

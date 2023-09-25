@@ -22,7 +22,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/api/security"
 	"github.com/DataDog/datadog-agent/pkg/config"
-	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo"
+	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
 	tagger_api "github.com/DataDog/datadog-agent/pkg/tagger/api"
 	"github.com/DataDog/datadog-agent/pkg/tagger/collectors"
 	"github.com/DataDog/datadog-agent/pkg/tagger/telemetry"

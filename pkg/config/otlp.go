@@ -11,6 +11,8 @@ const (
 	OTLPTracesSubSectionKey   = "traces"
 	OTLPTracePort             = OTLPSection + "." + OTLPTracesSubSectionKey + ".internal_port"
 	OTLPTracesEnabled         = OTLPSection + "." + OTLPTracesSubSectionKey + ".enabled"
+	OTLPLogsSubSectionKey     = "logs"
+	OTLPLogsEnabled           = OTLPSection + "." + OTLPLogsSubSectionKey + ".enabled"
 	OTLPReceiverSubSectionKey = "receiver"
 	OTLPReceiverSection       = OTLPSection + "." + OTLPReceiverSubSectionKey
 	OTLPMetricsSubSectionKey  = "metrics"
@@ -26,9 +28,10 @@ func SetupOTLP(config Config) {
 	config.BindEnvAndSetDefault(OTLPTracePort, 5003)
 	config.BindEnvAndSetDefault(OTLPMetricsEnabled, true)
 	config.BindEnvAndSetDefault(OTLPTracesEnabled, true)
+	config.BindEnvAndSetDefault(OTLPLogsEnabled, false)
 
 	// NOTE: This only partially works.
-	// The environment variable is also manually checked in pkg/otlp/config.go
+	// The environment variable is also manually checked in comp/otelcol/otlp/config.go
 	config.BindEnvAndSetDefault(OTLPTagCardinalityKey, "low", "DD_OTLP_TAG_CARDINALITY")
 
 	config.SetKnown(OTLPMetrics)
@@ -65,7 +68,8 @@ func setupOTLPEnvironmentVariables(config Config) {
 	// Traces settings
 	config.BindEnvAndSetDefault("otlp_config.traces.span_name_remappings", map[string]string{})
 	config.BindEnv("otlp_config.traces.span_name_as_resource_name")
-	config.BindEnvAndSetDefault("otlp_config.traces.probabilistic_sampler.sampling_percentage", 100.)
+	config.BindEnvAndSetDefault("otlp_config.traces.probabilistic_sampler.sampling_percentage", 100.,
+		"DD_OTLP_CONFIG_TRACES_PROBABILISTIC_SAMPLER_SAMPLING_PERCENTAGE")
 
 	// HTTP settings
 	config.BindEnv(OTLPSection + ".receiver.protocols.http.endpoint")

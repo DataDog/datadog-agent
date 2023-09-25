@@ -8,7 +8,7 @@ metrics:
   table:
     OID: 1.3.6.1.2.1.2.2
     name: ifTable
-  forced_type: monotonic_count
+  metric_type: monotonic_count
   symbols:
   - OID: 1.3.6.1.2.1.2.2.1.14
     name: ifInErrors

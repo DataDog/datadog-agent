@@ -16,11 +16,16 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 )
 
-const ProtocolDispatcherProgramsMap = "protocols_progs"
+// Programs maps used for tail calls
+const (
+	ProtocolDispatcherProgramsMap = "protocols_progs"
+	TLSDispatcherProgramsMap      = "tls_process_progs"
+)
 
-// EbpfProgram is the interface that represents an eBPF program and provides
-// methods used to manage its lifetime and initialisation.
-type EbpfProgram interface {
+// Protocol is the interface that represents a protocol supported by USM.
+//
+// Represents an eBPF program and provides methods used to manage its lifetime and initialisation.
+type Protocol interface {
 	// ConfigureOptions configures the provided Manager and Options structs with
 	// additional options necessary for the program to work, such as options
 	// depending on configuration values.
@@ -45,6 +50,13 @@ type EbpfProgram interface {
 	// DumpMaps dumps the content of the map represented by mapName &
 	// currentMap, if it used by the eBPF program, to output.
 	DumpMaps(output *strings.Builder, mapName string, currentMap *ebpf.Map)
+
+	// Name returns the protocol name.
+	Name() string
+
+	// GetStats returns the latest monitoring stats from a protocol
+	// implementation.
+	GetStats() *ProtocolStats
 }
 
 // ProtocolStats is a "tuple" struct that represents monitoring data from a
@@ -55,21 +67,10 @@ type ProtocolStats struct {
 	Stats interface{}
 }
 
-// Protocol is the interface that represents a protocol supported by USM.
-//
-// Protocol extends EbpfProgram, and provides an additional method, GetStats, to
-// get monitoring stats from that protocol monitoring.
-type Protocol interface {
-	EbpfProgram
-
-	// GetStats returns the latest monitoring stats from a protocol
-	// implementation.
-	GetStats() *ProtocolStats
-}
-
-type protocolFactory func(*config.Config) (Protocol, error)
+type ProtocolFactory func(*config.Config) (Protocol, error)
 type ProtocolSpec struct {
-	Factory   protocolFactory
+	Factory   ProtocolFactory
 	Maps      []*manager.Map
+	Probes    []*manager.Probe
 	TailCalls []manager.TailCallRoute
 }

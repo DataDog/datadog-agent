@@ -3,66 +3,84 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+// Package flags holds flags related files
 package flags
 
 const (
+	// Global to security-agent
+
+	CfgPath        = "cfgpath"         // CfgPath start subcommand
+	SysProbeConfig = "sysprobe-config" // SysProbeConfig start subcommand
+	NoColor        = "no-color"        // NoColor start subcommand
+
 	// Start Subcommand
-	// CfgPath defines the cfgpath flag
-	CfgPath = "cfgpath"
-	NoColor = "no-color"
-	PidFile = "pidfile"
+
+	PidFile = "pidfile" // PidFile start subcommand
 
 	// Status Subcommand
-	JSON       = "json"
-	PrettyJSON = "pretty-json"
-	File       = "file" // Also for check subcommand
+
+	JSON       = "json"        // JSON status subcommand
+	PrettyJSON = "pretty-json" // PrettyJSON status subcommand
+	File       = "file"        // File status subcommand
 
 	// Flare Subcommand
-	Email = "email"
-	Send  = "send"
+
+	Email = "email" // Email flare subcommand
+	Send  = "send"  // Send flare subcommand
 
 	// Runtime Subcommand
-	PoliciesDir        = "policies-dir"
-	EventFile          = "event-file"
-	Debug              = "debug"
-	Check              = "check"
-	OutputPath         = "output-path"
-	WithArgs           = "with-args"
-	SnapshotInterfaces = "snapshot-interfaces"
-	RuleID             = "rule-id" // Also for compliance subcommand
+
+	PoliciesDir        = "policies-dir"        // PoliciesDir runtime subcommand
+	EventFile          = "event-file"          // EventFile runtime subcommand
+	Debug              = "debug"               // Debug runtime subcommand
+	Check              = "check"               // Check runtime subcommand
+	OutputPath         = "output-path"         // OutputPath runtime subcommand
+	WithArgs           = "with-args"           // WithArgs runtime subcommand
+	SnapshotInterfaces = "snapshot-interfaces" // SnapshotInterfaces runtime subcommand
+	RuleID             = "rule-id"             // RuleID Also for compliance subcommand
+
+	// Runtime Policy Check Subcommand
+
+	EvaluateLoadedPolicies = "loaded-policies" // EvaluateLoadedPolicies policy check subcommand
 
 	// Runtime Activity Dump Subcommand
-	Name              = "name"
-	ContainerID       = "containerID"
-	Comm              = "comm"
-	Timeout           = "timeout"
-	DifferentiateArgs = "differentiate-args"
-	Output            = "output" // TODO: unify with OutputPath
-	Compression       = "compression"
-	Format            = "format"
-	RemoteCompression = "remote-compression"
-	RemoteFormat      = "remote-format"
-	Input             = "input"
-	Remote            = "remote"
+
+	Name              = "name"               // Name activity dump subcommand
+	ContainerID       = "containerID"        // ContainerID activity dump subcommand
+	Comm              = "comm"               // Comm activity dump subcommand
+	Timeout           = "timeout"            // Timeout activity dump subcommand
+	DifferentiateArgs = "differentiate-args" // DifferentiateArgs activity dump subcommand
+	Output            = "output"             // Output TODO: unify with OutputPath
+	Compression       = "compression"        // Compression activity dump subcommand
+	Format            = "format"             // Format activity dump subcommand
+	RemoteCompression = "remote-compression" // RemoteCompression activity dump subcommand
+	RemoteFormat      = "remote-format"      // RemoteFormat activity dump subcommand
+	Input             = "input"              // Input activity dump subcommand
+	Remote            = "remote"             // Remote activity dump subcommand
+	Origin            = "origin"             // Origin activity dump subcommand
+	Target            = "target"             // Target activity dump subcommand
 
 	// Security Profile Subcommand
-	SecurityProfileInput = "input"
-	IncludeCache         = "include-cache"
-	ImageName            = "name"
-	ImageTag             = "tag"
+
+	SecurityProfileInput = "input"         // SecurityProfileInput security profile subcommand
+	IncludeCache         = "include-cache" // IncludeCache security profile subcommand
+	ImageName            = "name"          // ImageName security profile subcommand
+	ImageTag             = "tag"           // ImageTag security profile subcommand
 
 	// Compliance Subcommand
-	SourceType   = "source-type"
-	SourceName   = "source-name"
-	ResourceID   = "resource-id"
-	ResourceType = "resource-type"
-	Tags         = "tags"
-	Data         = "data"
+
+	SourceType   = "source-type"   // SourceType compliance subcommand
+	SourceName   = "source-name"   // SourceName compliance subcommand
+	ResourceID   = "resource-id"   // ResourceID compliance subcommand
+	ResourceType = "resource-type" // ResourceType compliance subcommand
+	Tags         = "tags"          // Tags compliance subcommand
+	Data         = "data"          // Data compliance subcommand
 
 	// Check Subcommand
-	Framework         = "framework"
-	Verbose           = "verbose"
-	Report            = "report"
-	OverrideRegoInput = "override-rego-input"
-	DumpReports       = "dump-reports" // TODO: Unify with OutputPath
+
+	Framework         = "framework"           // Framework check subcommand
+	Verbose           = "verbose"             // Verbose check subcommand
+	Report            = "report"              // Report check subcommand
+	OverrideRegoInput = "override-rego-input" // OverrideRegoInput check subcommand
+	DumpReports       = "dump-reports"        // DumpReports TODO: Unify with OutputPath
 )

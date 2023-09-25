@@ -16,7 +16,9 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/serverless-init/log"
 	"github.com/DataDog/datadog-agent/cmd/serverless-init/metric"
 	"github.com/DataDog/datadog-agent/cmd/serverless-init/tag"
+	logsAgent "github.com/DataDog/datadog-agent/comp/logs/agent"
 	"github.com/DataDog/datadog-agent/pkg/config"
+	configUtils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/serverless/metrics"
 	"github.com/DataDog/datadog-agent/pkg/serverless/otlp"
 	"github.com/DataDog/datadog-agent/pkg/serverless/random"
@@ -27,18 +29,20 @@ import (
 
 const (
 	datadogConfigPath = "/var/task/datadog.yaml"
+	logLevelEnvVar    = "DD_LOG_LEVEL"
+	loggerName        = "SERVERLESS_INIT"
 )
 
 func main() {
 	if len(os.Args) < 2 {
 		panic("[datadog init process] invalid argument count, did you forget to set CMD ?")
 	} else {
-		cloudService, logConfig, traceAgent, metricAgent := setup()
-		initcontainer.Run(cloudService, logConfig, metricAgent, traceAgent, os.Args[1:])
+		cloudService, logConfig, traceAgent, metricAgent, logsAgent := setup()
+		initcontainer.Run(cloudService, logConfig, metricAgent, traceAgent, logsAgent, os.Args[1:])
 	}
 }
 
-func setup() (cloudservice.CloudService, *log.Config, *trace.ServerlessTraceAgent, *metrics.ServerlessMetricAgent) {
+func setup() (cloudservice.CloudService, *log.Config, *trace.ServerlessTraceAgent, *metrics.ServerlessMetricAgent, logsAgent.ServerlessLogsAgent) {
 	// load proxy settings
 	setupProxy()
 
@@ -48,12 +52,16 @@ func setup() (cloudservice.CloudService, *log.Config, *trace.ServerlessTraceAgen
 	// and exit right away.
 	_ = cloudService.Init()
 
-	tags := tags.MergeWithOverwrite(tags.ArrayToMap(config.GetGlobalConfiguredTags(false)), cloudService.GetTags())
+	tags := tags.MergeWithOverwrite(tags.ArrayToMap(configUtils.GetConfiguredTags(config.Datadog, false)), cloudService.GetTags())
 	origin := cloudService.GetOrigin()
 	prefix := cloudService.GetPrefix()
 
 	logConfig := log.CreateConfig(origin)
-	log.SetupLog(logConfig, tags)
+	logsAgent := log.SetupLog(logConfig, tags)
+
+	// Disable remote configuration for now as it just spams the debug logs
+	// and provides no value.
+	os.Setenv("DD_REMOTE_CONFIGURATION_ENABLED", "false")
 
 	// The datadog-agent requires Load to be called or it could
 	// panic down the line.
@@ -71,7 +79,7 @@ func setup() (cloudservice.CloudService, *log.Config, *trace.ServerlessTraceAgen
 	setupOtlpAgent(metricAgent)
 
 	go flushMetricsAgent(metricAgent)
-	return cloudService, logConfig, traceAgent, metricAgent
+	return cloudService, logConfig, traceAgent, metricAgent, logsAgent
 }
 
 func setupTraceAgent(traceAgent *trace.ServerlessTraceAgent, tags map[string]string) {

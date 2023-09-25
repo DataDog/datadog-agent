@@ -5,7 +5,8 @@
 
 //go:build linux
 
-package activity_tree
+// Package activitytree holds activitytree related files
+package activitytree
 
 import (
 	"fmt"
@@ -18,8 +19,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 )
 
-// ActivityTreeStats represents the node counts in an activity dump
-type ActivityTreeStats struct {
+// Stats represents the node counts in an activity dump
+type Stats struct {
 	ProcessNodes int64
 	FileNodes    int64
 	DNSNodes     int64
@@ -30,8 +31,9 @@ type ActivityTreeStats struct {
 	droppedCount   map[model.EventType]map[NodeDroppedReason]*atomic.Uint64
 }
 
-func NewActivityTreeNodeStats() *ActivityTreeStats {
-	ats := &ActivityTreeStats{
+// NewActivityTreeNodeStats returns a new activity tree stats
+func NewActivityTreeNodeStats() *Stats {
+	ats := &Stats{
 		processedCount: make(map[model.EventType]*atomic.Uint64),
 		addedCount:     make(map[model.EventType]map[NodeGenerationType]*atomic.Uint64),
 		droppedCount:   make(map[model.EventType]map[NodeDroppedReason]*atomic.Uint64),
@@ -41,6 +43,7 @@ func NewActivityTreeNodeStats() *ActivityTreeStats {
 	for i := model.EventType(0); i < model.MaxKernelEventType; i++ {
 		ats.processedCount[i] = atomic.NewUint64(0)
 		ats.addedCount[i] = map[NodeGenerationType]*atomic.Uint64{
+			Unknown:        atomic.NewUint64(0),
 			Runtime:        atomic.NewUint64(0),
 			Snapshot:       atomic.NewUint64(0),
 			ProfileDrift:   atomic.NewUint64(0),
@@ -56,7 +59,7 @@ func NewActivityTreeNodeStats() *ActivityTreeStats {
 }
 
 // ApproximateSize returns an approximation of the size of the tree
-func (stats *ActivityTreeStats) ApproximateSize() int64 {
+func (stats *Stats) ApproximateSize() int64 {
 	var total int64
 	total += stats.ProcessNodes * int64(unsafe.Sizeof(ProcessNode{})) // 1024
 	total += stats.FileNodes * int64(unsafe.Sizeof(FileNode{}))       // 80
@@ -66,7 +69,7 @@ func (stats *ActivityTreeStats) ApproximateSize() int64 {
 }
 
 // SendStats sends metrics to Datadog
-func (stats *ActivityTreeStats) SendStats(client statsd.ClientInterface, treeType string) error {
+func (stats *Stats) SendStats(client statsd.ClientInterface, treeType string) error {
 	treeTypeTag := fmt.Sprintf("tree_type:%s", treeType)
 
 	for evtType, count := range stats.processedCount {

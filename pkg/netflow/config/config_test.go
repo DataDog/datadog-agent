@@ -54,6 +54,7 @@ network_devices:
           zz
 `,
 			expectedConfig: NetflowConfig{
+				Enabled:                                true,
 				StopTimeout:                            10,
 				AggregatorBufferSize:                   20,
 				AggregatorFlushInterval:                30,
@@ -91,6 +92,7 @@ network_devices:
       - flow_type: netflow9
 `,
 			expectedConfig: NetflowConfig{
+				Enabled:                                true,
 				StopTimeout:                            5,
 				AggregatorBufferSize:                   10000,
 				AggregatorFlushInterval:                300,
@@ -120,6 +122,7 @@ network_devices:
       - flow_type: netflow9
 `,
 			expectedConfig: NetflowConfig{
+				Enabled:                                true,
 				StopTimeout:                            5,
 				AggregatorBufferSize:                   10000,
 				AggregatorFlushInterval:                50,
@@ -168,7 +171,7 @@ network_devices:
 			err := config.Datadog.ReadConfig(strings.NewReader(tt.configYaml))
 			require.NoError(t, err)
 
-			readConfig, err := ReadConfig()
+			readConfig, err := ReadConfig(config.Datadog)
 			if tt.expectedError != "" {
 				assert.ErrorContains(t, err, tt.expectedError)
 				assert.Nil(t, readConfig)

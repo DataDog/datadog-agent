@@ -10,15 +10,16 @@ package orchestrator
 import (
 	"context"
 	"errors"
+	"fmt"
 	"math/rand"
 	"time"
 
-	"go.uber.org/atomic"
-
+	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/collectors"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/orchestrator"
 	orchcfg "github.com/DataDog/datadog-agent/pkg/orchestrator/config"
@@ -26,12 +27,20 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/clustername"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
+	"go.uber.org/atomic"
 	"gopkg.in/yaml.v2"
+	"k8s.io/apiextensions-apiserver/pkg/client/informers/externalversions"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/fields"
+	vpai "k8s.io/autoscaler/vertical-pod-autoscaler/pkg/client/informers/externalversions"
+	"k8s.io/client-go/dynamic/dynamicinformer"
+	"k8s.io/client-go/informers"
 )
 
 const (
 	maximumWaitForAPIServer = 10 * time.Second
 	collectionInterval      = 10 * time.Second
+	defaultResyncInterval   = 300 * time.Second
 )
 
 func init() {
@@ -62,14 +71,15 @@ func (c *OrchestratorInstance) parse(data []byte) error {
 // OrchestratorCheck wraps the config and the informers needed to run the check
 type OrchestratorCheck struct {
 	core.CheckBase
-	orchestratorConfig *orchcfg.OrchestratorConfig
-	instance           *OrchestratorInstance
-	collectorBundle    *CollectorBundle
-	stopCh             chan struct{}
-	clusterID          string
-	groupID            *atomic.Int32
-	isCLCRunner        bool
-	apiClient          *apiserver.APIClient
+	orchestratorConfig          *orchcfg.OrchestratorConfig
+	instance                    *OrchestratorInstance
+	collectorBundle             *CollectorBundle
+	stopCh                      chan struct{}
+	clusterID                   string
+	groupID                     *atomic.Int32
+	isCLCRunner                 bool
+	apiClient                   *apiserver.APIClient
+	orchestratorInformerFactory *collectors.OrchestratorInformerFactory
 }
 
 func newOrchestratorCheck(base core.CheckBase, instance *OrchestratorInstance) *OrchestratorCheck {
@@ -97,10 +107,10 @@ func (o *OrchestratorCheck) Interval() time.Duration {
 }
 
 // Configure configures the orchestrator check
-func (o *OrchestratorCheck) Configure(integrationConfigDigest uint64, config, initConfig integration.Data, source string) error {
+func (o *OrchestratorCheck) Configure(senderManager sender.SenderManager, integrationConfigDigest uint64, config, initConfig integration.Data, source string) error {
 	o.BuildID(integrationConfigDigest, config, initConfig)
 
-	err := o.CommonConfigure(integrationConfigDigest, initConfig, config, source)
+	err := o.CommonConfigure(senderManager, integrationConfigDigest, initConfig, config, source)
 	if err != nil {
 		return err
 	}
@@ -120,7 +130,7 @@ func (o *OrchestratorCheck) Configure(integrationConfigDigest uint64, config, in
 	// load instance level config
 	err = o.instance.parse(config)
 	if err != nil {
-		_ = log.Error("could not parse check instance config")
+		_ = log.Errorc("could not parse check instance config", orchestrator.ExtraLogContext...)
 		return err
 	}
 
@@ -140,6 +150,8 @@ func (o *OrchestratorCheck) Configure(integrationConfigDigest uint64, config, in
 	if err != nil {
 		return err
 	}
+
+	o.orchestratorInformerFactory = getOrchestratorInformerFactory(o.apiClient)
 
 	// Create a new bundle for the check.
 	o.collectorBundle = NewCollectorBundle(o)
@@ -161,7 +173,7 @@ func (o *OrchestratorCheck) Run() error {
 	if !o.isCLCRunner || !o.instance.LeaderSkip {
 		// Only run if Leader Election is enabled.
 		if !config.Datadog.GetBool("leader_election") {
-			return log.Error("Leader Election not enabled. The cluster-agent will not run the check.")
+			return log.Errorc("Leader Election not enabled. The cluster-agent will not run the check.", orchestrator.ExtraLogContext...)
 		}
 
 		leader, errLeader := cluster.RunLeaderElection()
@@ -186,6 +198,21 @@ func (o *OrchestratorCheck) Run() error {
 
 // Cancel cancels the orchestrator check
 func (o *OrchestratorCheck) Cancel() {
-	log.Infof("Shutting down informers used by the check '%s'", o.ID())
+	log.Infoc(fmt.Sprintf("Shutting down informers used by the check '%s'", o.ID()), orchestrator.ExtraLogContext...)
 	close(o.stopCh)
+}
+
+func getOrchestratorInformerFactory(apiClient *apiserver.APIClient) *collectors.OrchestratorInformerFactory {
+	of := &collectors.OrchestratorInformerFactory{
+		InformerFactory:        informers.NewSharedInformerFactory(apiClient.Cl, defaultResyncInterval),
+		CRDInformerFactory:     externalversions.NewSharedInformerFactory(apiClient.CRDClient, defaultResyncInterval),
+		DynamicInformerFactory: dynamicinformer.NewDynamicSharedInformerFactory(apiClient.DynamicCl, defaultResyncInterval),
+		VPAInformerFactory:     vpai.NewSharedInformerFactory(apiClient.VPAClient, defaultResyncInterval),
+	}
+
+	tweakListOptions := func(options *metav1.ListOptions) {
+		options.FieldSelector = fields.OneTermEqualSelector("spec.nodeName", "").String()
+	}
+	of.UnassignedPodInformerFactory = informers.NewSharedInformerFactoryWithOptions(apiClient.Cl, defaultResyncInterval, informers.WithTweakListOptions(tweakListOptions))
+	return of
 }

@@ -7,6 +7,7 @@
 package winutil
 
 import (
+	pkglog "github.com/DataDog/datadog-agent/pkg/util/log"
 	"golang.org/x/sys/windows/svc/eventlog"
 )
 
@@ -18,6 +19,7 @@ import (
 func LogEventViewer(servicename string, msgnum uint32, arg string) {
 	elog, err := eventlog.Open(servicename)
 	if err != nil {
+		pkglog.Errorf("error opening event log with source %v: %v", servicename, err)
 		return
 	}
 	defer elog.Close()

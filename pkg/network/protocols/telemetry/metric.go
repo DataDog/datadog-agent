@@ -6,120 +6,101 @@
 package telemetry
 
 import (
-	"encoding/json"
 	"strings"
 
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"go.uber.org/atomic"
+	"k8s.io/apimachinery/pkg/util/sets"
 )
 
-// Metric represents a named piece of telemetry
-type Metric struct {
-	name  string
-	tags  []string
-	opts  []string
-	value *atomic.Int64
-
-	// metrics of type OptMonotonic use this value
-	// when Delta() is called
-	prevValue *atomic.Int64
+// Counter is a cumulative metric that grows monotonically
+type Counter struct {
+	*metricBase
 }
 
-// NewMetric returns a new `Metric` instance
-func NewMetric(name string, tagsAndOptions ...string) *Metric {
+// NewCounter returns a new metric of type `Counter`
+func NewCounter(name string, tagsAndOptions ...string) *Counter {
+	c := &Counter{
+		newMetricBase(name, tagsAndOptions),
+	}
+
+	return globalRegistry.FindOrCreate(c).(*Counter)
+}
+
+// Add value atomically
+func (c *Counter) Add(v int64) {
+	if v < 0 {
+		// Counters are always monotonic so we don't allow negative numbers. We
+		// could enforce this by using an unsigned type, but that would make the
+		// API a little bit more cumbersome to use.
+		return
+	}
+
+	c.value.Add(v)
+}
+
+func (c *Counter) base() *metricBase {
+	return c.metricBase
+}
+
+// Gauge is a metric that represents a numerical value that can arbitrarily go up and down
+type Gauge struct {
+	*metricBase
+}
+
+// NewGauge returns a new metric of type `Gauge`
+func NewGauge(name string, tagsAndOptions ...string) *Gauge {
+	c := &Gauge{
+		newMetricBase(name, tagsAndOptions),
+	}
+
+	return globalRegistry.FindOrCreate(c).(*Gauge)
+}
+
+// Set value atomically
+func (g *Gauge) Set(v int64) {
+	g.value.Store(v)
+}
+
+// Add value atomically
+func (g *Gauge) Add(v int64) {
+	g.value.Add(v)
+}
+
+func (g *Gauge) base() *metricBase {
+	return g.metricBase
+}
+
+type metricBase struct {
+	name  string
+	tags  sets.Set[string]
+	opts  sets.Set[string]
+	value *atomic.Int64
+}
+
+func newMetricBase(name string, tagsAndOptions []string) *metricBase {
 	tags, opts := splitTagsAndOptions(tagsAndOptions)
-	m := &Metric{
+
+	return &metricBase{
 		name:  name,
 		value: atomic.NewInt64(0),
 		tags:  tags,
 		opts:  opts,
 	}
-
-	if contains(OptMonotonic, m.opts) {
-		m.prevValue = atomic.NewInt64(0)
-	}
-
-	globalRegistry.Lock()
-	defer globalRegistry.Unlock()
-	// Ensure we only have one intance per (name, tags). If there is an existing
-	// `Metric` instance matching the params we simply return it. For now we're
-	// doing a brute-force search here because calls to `NewMetric` are almost
-	// always restriced to program initialization
-	for _, other := range globalRegistry.metrics {
-		if other.isEqual(m) {
-			return other
-		}
-	}
-
-	globalRegistry.metrics = append(globalRegistry.metrics, m)
-	return m
 }
 
 // Name of the `Metric` (including tags)
-func (m *Metric) Name() string {
-	return strings.Join(append([]string{m.name}, m.tags...), ",")
-}
-
-// Set value atomically
-func (m *Metric) Set(v int64) {
-	m.value.Store(v)
-}
-
-// Add value atomically
-func (m *Metric) Add(v int64) {
-	m.value.Add(v)
+func (m *metricBase) Name() string {
+	return strings.Join(append([]string{m.name}, sets.List(m.tags)...), ",")
 }
 
 // Get value atomically
-func (m *Metric) Get() int64 {
+func (m *metricBase) Get() int64 {
 	return m.value.Load()
 }
 
-// Swap value atomically
-func (m *Metric) Swap(v int64) int64 {
-	return m.value.Swap(v)
-}
-
-// Delta returns the difference between the current value and the previous one
-func (m *Metric) Delta() int64 {
-	if m.prevValue == nil {
-		// indicates misuse of the library
-		log.Errorf("metric %s was not instantiated with telemetry.OptMonotonic", m.name)
-		return 0
-	}
-
-	current := m.value.Load()
-	previous := m.prevValue.Swap(current)
-	return current - previous
-}
-
-// MarshalJSON returns a json representation of the current `Metric`. We
-// implement our own method so we don't need to export the fields.
-// This is mostly inteded for serving a list of the existing
-// metrics under /network_tracer/debug/telemetry endpoint
-func (m *Metric) MarshalJSON() ([]byte, error) {
-	return json.Marshal(struct {
-		Name string
-		Tags []string `json:",omitempty"`
-		Opts []string
-	}{
-		Name: m.name,
-		Tags: m.tags,
-		Opts: m.opts,
-	})
-}
-
-func (m *Metric) isEqual(other *Metric) bool {
-	if m.name != other.name || len(m.tags) != len(other.tags) {
-		return false
-	}
-
-	// Tags are always sorted
-	for i := range m.tags {
-		if m.tags[i] != other.tags[i] {
-			return false
-		}
-	}
-
-	return true
+// metric is the private interface shared by `Counter` and `Gauge`
+// the base() method simply returns the embedded `*metricBase` struct
+// which is all we need in the internal code that has to deal with both types
+type metric interface {
+	base() *metricBase
 }

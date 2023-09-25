@@ -6,8 +6,8 @@
 package config
 
 import (
+	"os"
 	"strings"
-	"testing"
 
 	"go.uber.org/fx"
 
@@ -24,16 +24,37 @@ type cfg struct {
 	warnings *config.Warnings
 }
 
+type configDependencies interface {
+	getParams() *Params
+}
+
 type dependencies struct {
 	fx.In
 
 	Params Params
 }
 
-type mockDependencies struct {
-	fx.In
+func (d dependencies) getParams() *Params {
+	return &d.Params
+}
 
-	Params MockParams
+// TODO: serverless must be eventually migrated to fx, this workaround
+//
+//	will then become obsolete - ts should not be created
+//	directly in this fashion.
+func NewServerlessConfig(path string) (Component, error) {
+	options := []func(*Params){WithConfigName("serverless"), WithConfigLoadSecrets(true)}
+
+	_, err := os.Stat(path)
+	if os.IsNotExist(err) &&
+		(strings.HasSuffix(path, ".yaml") || strings.HasSuffix(path, ".yml")) {
+		options = append(options, WithConfigMissingOK(true))
+	} else if !os.IsNotExist(err) {
+		options = append(options, WithConfFilePath(path))
+	}
+
+	d := dependencies{Params: NewParams(path, options...)}
+	return newConfig(d)
 }
 
 func newConfig(deps dependencies) (Component, error) {
@@ -66,37 +87,6 @@ func (c *cfg) Warnings() *config.Warnings {
 	return c.warnings
 }
 
-func newMock(deps mockDependencies, t testing.TB) (Component, error) {
-	backupConfig := config.NewConfig("", "", strings.NewReplacer())
-	backupConfig.CopyConfig(config.Datadog)
-
-	config.Datadog.CopyConfig(config.NewConfig("mock", "XXXX", strings.NewReplacer()))
-
-	// call InitConfig to set defaults.
-	config.InitConfig(config.Datadog)
-
-	if deps.Params.ConfigYaml != "" {
-		config.Datadog.SetConfigType("yaml")
-		err := config.Datadog.ReadConfig(strings.NewReader(deps.Params.ConfigYaml))
-		if err != nil {
-			// The YAML was invalid, fail initialization of the mock config.
-			return nil, err
-		}
-	}
-
-	// Overrides are explicit and will take precedence over any other
-	// setting
-	for k, v := range deps.Params.Overrides {
-		config.Datadog.Set(k, v)
-	}
-
-	c := &cfg{
-		Config:   config.Datadog,
-		warnings: &config.Warnings{},
-	}
-
-	// swap the existing config back at the end of the test.
-	t.Cleanup(func() { config.Datadog.CopyConfig(backupConfig) })
-
-	return c, nil
+func (c *cfg) Object() config.ConfigReader {
+	return c.Config
 }

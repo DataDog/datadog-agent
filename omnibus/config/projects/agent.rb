@@ -3,7 +3,6 @@
 # This product includes software developed at Datadog (https:#www.datadoghq.com/).
 # Copyright 2016-present Datadog, Inc.
 require "./lib/ostools.rb"
-
 flavor = ENV['AGENT_FLAVOR']
 
 if flavor.nil? || flavor == 'base'
@@ -64,7 +63,7 @@ else
   end
 
   if debian?
-    runtime_recommended_dependency 'datadog-signing-keys (>= 1:1.1.0)'
+    runtime_recommended_dependency 'datadog-signing-keys (>= 1:1.3.1)'
   end
 
   if osx?
@@ -74,6 +73,8 @@ else
     if ENV['HARDENED_RUNTIME_MAC'] == 'true'
       entitlements_file "#{files_path}/macos/Entitlements.plist"
     end
+  else
+    conflict 'datadog-iot-agent'
   end
 end
 
@@ -166,6 +167,10 @@ package :zip do
     if ENV['SIGN_PFX']
       signing_identity_file "#{ENV['SIGN_PFX']}", password: "#{ENV['SIGN_PFX_PW']}", algorithm: "SHA256"
     end
+    if ENV['SIGN_WINDOWS_DD_WCS']
+      dd_wcssign true
+    end
+  
   end
 end
 
@@ -210,6 +215,10 @@ package :msi do
   if ENV['SIGN_PFX']
     signing_identity_file "#{ENV['SIGN_PFX']}", password: "#{ENV['SIGN_PFX_PW']}", algorithm: "SHA256"
   end
+  if ENV['SIGN_WINDOWS_DD_WCS']
+    dd_wcssign true
+  end
+
   include_sysprobe = "false"
   if not windows_arch_i386? and ENV['WINDOWS_DDNPM_DRIVER'] and not ENV['WINDOWS_DDNPM_DRIVER'].empty?
     include_sysprobe = "true"
@@ -373,6 +382,25 @@ exclude '\.git*'
 exclude 'bundler\/git'
 
 if windows?
+  FORBIDDEN_SYMBOLS = [
+    "github.com/golang/glog"
+  ]
+  
+  raise_if_forbidden_symbol_found = Proc.new { |symbols|
+    FORBIDDEN_SYMBOLS.each do |fs|
+      count = symbols.scan(fs).count()
+      if count > 0
+        raise ForbiddenSymbolsFoundError.new("#{fs} should not be present in the Agent binary but #{count} was found")
+      end
+    end
+  }
+
+  # Check the exported symbols from the binary
+  inspect_binary("#{Omnibus::Config.source_dir()}\\datadog-agent\\src\\github.com\\DataDog\\datadog-agent\\bin\\agent\\agent.exe", &raise_if_forbidden_symbol_found)
+  inspect_binary("#{Omnibus::Config.source_dir()}\\datadog-agent\\src\\github.com\\DataDog\\datadog-agent\\bin\\agent\\trace-agent.exe", &raise_if_forbidden_symbol_found)
+  inspect_binary("#{Omnibus::Config.source_dir()}\\datadog-agent\\src\\github.com\\DataDog\\datadog-agent\\bin\\agent\\process-agent.exe", &raise_if_forbidden_symbol_found)
+  inspect_binary("#{Omnibus::Config.source_dir()}\\datadog-agent\\src\\github.com\\DataDog\\datadog-agent\\bin\\agent\\system-probe.exe", &raise_if_forbidden_symbol_found)
+
   #
   # For Windows build, files need to be stripped must be specified here.
   #
@@ -382,6 +410,7 @@ if windows?
   windows_symbol_stripping_file "#{Omnibus::Config.source_dir()}\\datadog-agent\\src\\github.com\\DataDog\\datadog-agent\\bin\\agent\\process-agent.exe"
   windows_symbol_stripping_file "#{Omnibus::Config.source_dir()}\\datadog-agent\\src\\github.com\\DataDog\\datadog-agent\\bin\\agent\\trace-agent.exe"
   windows_symbol_stripping_file "#{Omnibus::Config.source_dir()}\\datadog-agent\\src\\github.com\\DataDog\\datadog-agent\\bin\\agent\\agent.exe"
+  windows_symbol_stripping_file "#{Omnibus::Config.source_dir()}\\datadog-agent\\src\\github.com\\DataDog\\datadog-agent\\bin\\agent\\system-probe.exe"
 end
 
 if linux? or windows?

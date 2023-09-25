@@ -38,6 +38,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/cli/standalone"
 	"github.com/DataDog/datadog-agent/pkg/collector"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
+	"github.com/DataDog/datadog-agent/pkg/collector/check/stats"
 	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/metadata/inventories"
 	"github.com/DataDog/datadog-agent/pkg/status"
@@ -180,12 +181,6 @@ func run(log log.Component, config config.Component, sysprobeconfig sysprobeconf
 		return nil
 	}
 
-	// Always disable SBOM collection in `check` command to avoid BoltDB flock issue
-	// and consuming CPU & Memory for asynchronous scans that would not be shown in `agent check` output.
-	pkgconfig.Datadog.Set("sbom.host.enabled", "false")
-	pkgconfig.Datadog.Set("sbom.container_image.enabled", "false")
-	pkgconfig.Datadog.Set("runtime_security_config.sbom.enabled", "false")
-
 	hostnameDetected, err := hostname.Get(context.TODO())
 	if err != nil {
 		fmt.Printf("Cannot get hostname, exiting: %v\n", err)
@@ -199,12 +194,12 @@ func run(log log.Component, config config.Component, sysprobeconfig sysprobeconf
 	opts.UseNoopOrchestratorForwarder = true
 	demux := aggregator.InitAndStartAgentDemultiplexer(log, forwarder, opts, hostnameDetected)
 
-	common.LoadComponents(context.Background(), pkgconfig.Datadog.GetString("confd_path"))
+	common.LoadComponents(context.Background(), aggregator.GetSenderManager(), pkgconfig.Datadog.GetString("confd_path"))
 	common.AC.LoadAndRun(context.Background())
 
 	// Create the CheckScheduler, but do not attach it to
 	// AutoDiscovery.  NOTE: we do not start common.Coll, either.
-	collector.InitCheckScheduler(common.Coll)
+	collector.InitCheckScheduler(common.Coll, aggregator.GetSenderManager())
 
 	waitCtx, cancelTimeout := context.WithTimeout(
 		context.Background(), time.Duration(cliParams.discoveryTimeout)*time.Second)
@@ -228,11 +223,11 @@ func run(log log.Component, config config.Component, sysprobeconfig sysprobeconf
 			fmt.Println("Please consider using the 'jmx' command instead of 'check jmx'")
 			selectedChecks := []string{cliParams.checkName}
 			if cliParams.checkRate {
-				if err := standalone.ExecJmxListWithRateMetricsJSON(selectedChecks, config.GetString("log_level"), allConfigs); err != nil {
+				if err := standalone.ExecJmxListWithRateMetricsJSON(selectedChecks, config.GetString("log_level"), allConfigs, aggregator.GetSenderManager()); err != nil {
 					return fmt.Errorf("while running the jmx check: %v", err)
 				}
 			} else {
-				if err := standalone.ExecJmxListWithMetricsJSON(selectedChecks, config.GetString("log_level"), allConfigs); err != nil {
+				if err := standalone.ExecJmxListWithMetricsJSON(selectedChecks, config.GetString("log_level"), allConfigs, aggregator.GetSenderManager()); err != nil {
 					return fmt.Errorf("while running the jmx check: %v", err)
 				}
 			}
@@ -339,22 +334,22 @@ func run(log log.Component, config config.Component, sysprobeconfig sysprobeconf
 	if len(cs) == 0 {
 		for check, error := range autodiscovery.GetConfigErrors() {
 			if cliParams.checkName == check {
-				fmt.Fprintln(color.Output, fmt.Sprintf("\n%s: invalid config for %s: %s", color.RedString("Error"), color.YellowString(check), error))
+				fmt.Fprintf(color.Output, "\n%s: invalid config for %s: %s\n", color.RedString("Error"), color.YellowString(check), error)
 			}
 		}
 		for check, errors := range collector.GetLoaderErrors() {
 			if cliParams.checkName == check {
-				fmt.Fprintln(color.Output, fmt.Sprintf("\n%s: could not load %s:", color.RedString("Error"), color.YellowString(cliParams.checkName)))
+				fmt.Fprintf(color.Output, "\n%s: could not load %s:\n", color.RedString("Error"), color.YellowString(cliParams.checkName))
 				for loader, error := range errors {
-					fmt.Fprintln(color.Output, fmt.Sprintf("* %s: %s", color.YellowString(loader), error))
+					fmt.Fprintf(color.Output, "* %s: %s\n", color.YellowString(loader), error)
 				}
 			}
 		}
 		for check, warnings := range autodiscovery.GetResolveWarnings() {
 			if cliParams.checkName == check {
-				fmt.Fprintln(color.Output, fmt.Sprintf("\n%s: could not resolve %s config:", color.YellowString("Warning"), color.YellowString(check)))
+				fmt.Fprintf(color.Output, "\n%s: could not resolve %s config:\n", color.YellowString("Warning"), color.YellowString(check))
 				for _, warning := range warnings {
-					fmt.Fprintln(color.Output, fmt.Sprintf("* %s", warning))
+					fmt.Fprintf(color.Output, "* %s\n", warning)
 				}
 			}
 		}
@@ -508,8 +503,8 @@ func run(log log.Component, config config.Component, sysprobeconfig sysprobeconf
 	return nil
 }
 
-func runCheck(cliParams *cliParams, c check.Check, demux aggregator.Demultiplexer) *check.Stats {
-	s := check.NewStats(c)
+func runCheck(cliParams *cliParams, c check.Check, demux aggregator.Demultiplexer) *stats.Stats {
+	s := stats.NewStats(c)
 	times := cliParams.checkTimes
 	pause := cliParams.checkPause
 	if cliParams.checkRate {
@@ -557,7 +552,7 @@ func writeCheckToFile(checkName string, checkFileOutput *bytes.Buffer) {
 }
 
 func singleCheckRun(cliParams *cliParams) bool {
-	return cliParams.checkRate == false && cliParams.checkTimes < 2
+	return !cliParams.checkRate && cliParams.checkTimes < 2
 }
 
 func createHiddenStringFlag(cmd *cobra.Command, p *string, name string, value string, usage string) {

@@ -21,6 +21,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/compliance/metrics"
+	"github.com/DataDog/datadog-agent/pkg/compliance/scap"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/executable"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -29,6 +30,11 @@ import (
 )
 
 const (
+	enableSysChar = false
+)
+
+const (
+	//revive:disable
 	XCCDF_RESULT_PASS = iota + 1
 	XCCDF_RESULT_FAIL
 	XCCDF_RESULT_ERROR
@@ -36,6 +42,7 @@ const (
 	XCCDF_RESULT_NOT_APPLICABLE
 	XCCDF_RESULT_NOT_CHECKED
 	XCCDF_RESULT_NOT_SELECTED
+	//revive:enable
 )
 
 type oscapIORule struct {
@@ -46,6 +53,7 @@ type oscapIORule struct {
 type oscapIOResult struct {
 	Rule   string
 	Result int
+	Data   map[string]interface{}
 }
 
 var (
@@ -59,6 +67,7 @@ type oscapIO struct {
 	RuleCh   chan *oscapIORule
 	ResultCh chan *oscapIOResult
 	ErrorCh  chan error
+	DoneCh   chan bool
 }
 
 // From pkg/collector/corechecks/embed/process_agent.go.
@@ -74,9 +83,10 @@ func getOSCAPIODefaultBinPath() (string, error) {
 func newOSCAPIO(file string) *oscapIO {
 	return &oscapIO{
 		File:     file,
-		RuleCh:   make(chan *oscapIORule, 0),
-		ResultCh: make(chan *oscapIOResult, 0),
-		ErrorCh:  make(chan error, 0),
+		RuleCh:   make(chan *oscapIORule),
+		ResultCh: make(chan *oscapIOResult),
+		ErrorCh:  make(chan error),
+		DoneCh:   make(chan bool),
 	}
 }
 
@@ -94,6 +104,9 @@ func (p *oscapIO) Run(ctx context.Context) error {
 	}
 
 	args := []string{}
+	if enableSysChar {
+		args = append(args, "-syschar")
+	}
 	args = append(args, p.File)
 
 	binPath, err := getOSCAPIODefaultBinPath()
@@ -129,13 +142,27 @@ func (p *oscapIO) Run(ctx context.Context) error {
 		return err
 	}
 
-	scanner := bufio.NewScanner(stdout)
+	r := bufio.NewReader(stdout)
 	go func() {
-		for scanner.Scan() {
-			log.Debugf("<- %s", scanner.Text())
-			line := strings.Split(scanner.Text(), " ")
+		for {
+			s, err := r.ReadString('\n')
+			if err != nil {
+				if err == io.EOF {
+					break
+				}
+				p.ErrorCh <- fmt.Errorf("error reading line: '%v'", s)
+				continue
+			}
+			s = strings.TrimRight(s, "\n")
+
+			if s == "" {
+				continue
+			}
+
+			log.Debugf("<- %s", s)
+			line := strings.Split(s, " ")
 			if len(line) != 2 {
-				p.ErrorCh <- fmt.Errorf("invalid output: %v", line)
+				p.ErrorCh <- fmt.Errorf("invalid output: '%v'", line)
 				continue
 			}
 			result, err := strconv.Atoi(line[1])
@@ -143,7 +170,26 @@ func (p *oscapIO) Run(ctx context.Context) error {
 				p.ErrorCh <- fmt.Errorf("strconv.Atoi '%s': %v", line[1], err)
 				continue
 			}
-			p.ResultCh <- &oscapIOResult{Rule: line[0], Result: result}
+
+			data := make(map[string]interface{}, 0)
+
+			if enableSysChar {
+				doc, err := scap.ReadDocument(r)
+				if err != nil {
+					p.ErrorCh <- fmt.Errorf("scap.ReadDocument: %v", err)
+					continue
+				}
+
+				syschar, err := scap.SysChar(doc)
+				if err != nil {
+					p.ErrorCh <- fmt.Errorf("scap.SysChar: %v", err)
+					continue
+				}
+
+				data["system_characteristics"] = syschar
+			}
+
+			p.ResultCh <- &oscapIOResult{Rule: line[0], Result: result, Data: data}
 		}
 	}()
 
@@ -154,23 +200,40 @@ func (p *oscapIO) Run(ctx context.Context) error {
 		}
 	}()
 
+	// Stop oscap-io process after 60 minutes of inactivity.
+	timeout := 60 * time.Minute
+
 	go func() {
+		t := time.NewTimer(timeout)
 		for {
-			rule := <-p.RuleCh
-			if rule == nil {
+			select {
+			case <-p.DoneCh:
+				// The oscap-io process has been terminated.
 				return
-			}
-			log.Debugf("-> %s %s\n", rule.Profile, rule.Rule)
-			_, err := io.WriteString(stdin, rule.Profile+" "+rule.Rule+"\n")
-			if err != nil {
-				log.Warnf("error writing string '%s %s': %v", rule.Profile, rule.Rule, err)
+			case <-t.C:
+				log.Warnf("oscap-io has been inactive for %s; exiting", timeout)
+				err := p.Kill()
+				if err != nil {
+					log.Warnf("failed to kill process: %v", err)
+				}
 				return
+			case rule := <-p.RuleCh:
+				if rule == nil {
+					return
+				}
+				log.Debugf("-> %s %s\n", rule.Profile, rule.Rule)
+				_, err := io.WriteString(stdin, rule.Profile+" "+rule.Rule+"\n")
+				if err != nil {
+					log.Warnf("error writing string '%s %s': %v", rule.Profile, rule.Rule, err)
+					return
+				}
+				t.Reset(timeout)
 			}
 		}
 	}()
 
 	if err := cmd.Wait(); err != nil {
-		log.Warnf("process exited: %v", err)
+		log.Debugf("process exited: %v", err)
 		return err
 	}
 
@@ -180,12 +243,18 @@ func (p *oscapIO) Run(ctx context.Context) error {
 func (p *oscapIO) Stop() {
 	oscapIOsMu.Lock()
 	defer oscapIOsMu.Unlock()
-	oscapIOs[p.File] = nil
-	close(p.RuleCh)
-	close(p.ResultCh)
-	close(p.ErrorCh)
+	delete(oscapIOs, p.File)
+	close(p.DoneCh)
 }
 
+func (p *oscapIO) Kill() error {
+	if err := p.cmd.Process.Kill(); err != nil {
+		return err
+	}
+	return nil
+}
+
+// EvaluateXCCDFRule evaluates the given rule using OpenSCAP tool.
 func EvaluateXCCDFRule(ctx context.Context, hostname string, statsdClient *statsd.Client, benchmark *Benchmark, rule *Rule) []*CheckEvent {
 	if !rule.IsXCCDF() {
 		log.Errorf("given rule is not an XCCDF rule %s", rule.ID)
@@ -204,7 +273,7 @@ func evaluateXCCDFRule(ctx context.Context, hostname string, statsdClient *stats
 		go func() {
 			err := p.Run(ctx)
 			if err != nil {
-				log.Warnf("Run: %v", err)
+				log.Debugf("Run: %v", err)
 			}
 		}()
 	}
@@ -224,6 +293,13 @@ func evaluateXCCDFRule(ctx context.Context, hostname string, statsdClient *stats
 		select {
 		case <-ctx.Done():
 			return nil
+		case <-p.DoneCh:
+			// The oscap-io process has been terminated.
+			for _, req := range reqs {
+				log.Warnf("dropping rule '%s %s'", req.Profile, req.Rule)
+			}
+			close(p.RuleCh)
+			return nil
 		case p.RuleCh <- req:
 		}
 	}
@@ -235,7 +311,16 @@ func evaluateXCCDFRule(ctx context.Context, hostname string, statsdClient *stats
 		case <-ctx.Done():
 			return nil
 		case <-c:
-			log.Warnf("timed out waiting for expected results")
+			log.Warnf("timed out waiting for expected results for rule %s", reqs[i].Rule)
+			// If no result has been received, it's likely for the oscap-io process to be stuck, so we kill it.
+			oscapIOsMu.Lock()
+			delete(oscapIOs, p.File)
+			oscapIOsMu.Unlock()
+			err := p.Kill()
+			if err != nil {
+				log.Warnf("failed to kill process: %v", err)
+			}
+			return nil
 		case err := <-p.ErrorCh:
 			log.Warnf("error: %v", err)
 			events = append(events, NewCheckError(XCCDFEvaluator, err, hostname, "host", rule, benchmark))
@@ -246,9 +331,9 @@ func evaluateXCCDFRule(ctx context.Context, hostname string, statsdClient *stats
 			var event *CheckEvent
 			switch ruleResult.Result {
 			case XCCDF_RESULT_PASS:
-				event = NewCheckEvent(XCCDFEvaluator, CheckPassed, nil, hostname, "host", rule, benchmark)
+				event = NewCheckEvent(XCCDFEvaluator, CheckPassed, ruleResult.Data, hostname, "host", rule, benchmark)
 			case XCCDF_RESULT_FAIL:
-				event = NewCheckEvent(XCCDFEvaluator, CheckFailed, nil, hostname, "host", rule, benchmark)
+				event = NewCheckEvent(XCCDFEvaluator, CheckFailed, ruleResult.Data, hostname, "host", rule, benchmark)
 			case XCCDF_RESULT_ERROR, XCCDF_RESULT_UNKNOWN:
 				errReason := fmt.Errorf("XCCDF_RESULT_ERROR")
 				event = NewCheckError(XCCDFEvaluator, errReason, hostname, "host", rule, benchmark)
@@ -278,4 +363,38 @@ func evaluateXCCDFRule(ctx context.Context, hostname string, statsdClient *stats
 	}
 
 	return events
+}
+
+// FinishXCCDFBenchmark finishes an XCCDF benchmark by terminating the oscap-io processes.
+func FinishXCCDFBenchmark(ctx context.Context, benchmark *Benchmark) {
+	oscapIOsMu.Lock()
+	defer oscapIOsMu.Unlock()
+
+	if len(oscapIOs) == 0 {
+		// No oscap-io process is running.
+		return
+	}
+
+	for _, rule := range benchmark.Rules {
+		if !rule.IsXCCDF() {
+			continue
+		}
+		if len(benchmark.Rules[0].InputSpecs) == 0 {
+			continue
+		}
+		file := filepath.Join(benchmark.dirname, rule.InputSpecs[0].XCCDF.Name)
+		p := oscapIOs[file]
+		if p == nil {
+			continue
+		}
+		delete(oscapIOs, file)
+		err := p.Kill()
+		if err != nil {
+			log.Warnf("failed to kill process: %v", err)
+		}
+		if len(oscapIOs) == 0 {
+			// If no oscap-io process is running, we don't have to loop through every rules.
+			return
+		}
+	}
 }

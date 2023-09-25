@@ -58,7 +58,7 @@ func (c *JobCollector) Informer() cache.SharedInformer {
 
 // Init is used to initialize the collector.
 func (c *JobCollector) Init(rcfg *collectors.CollectorRunConfig) {
-	c.informer = rcfg.APIClient.InformerFactory.Batch().V1().Jobs()
+	c.informer = rcfg.OrchestratorInformerFactory.InformerFactory.Batch().V1().Jobs()
 	c.lister = c.informer.Lister()
 }
 

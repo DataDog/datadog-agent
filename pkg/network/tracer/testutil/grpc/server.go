@@ -228,7 +228,7 @@ func NewServer(addr string) (*Server, error) {
 
 	server := &Server{
 		Address:    lis.Addr().String(),
-		grpcSrv:    grpc.NewServer(),
+		grpcSrv:    grpc.NewServer(grpc.MaxRecvMsgSize(100*1024*1024), grpc.MaxSendMsgSize(100*1024*1024)),
 		lis:        lis,
 		routeNotes: make(map[string][]*routeguide.RouteNote),
 	}

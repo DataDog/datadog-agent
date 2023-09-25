@@ -7,44 +7,40 @@ package memory
 
 import (
 	"fmt"
-	"os/exec"
-	"regexp"
-	"strconv"
-	"strings"
+	"unsafe"
 
 	"github.com/DataDog/datadog-agent/pkg/gohai/utils"
+	"golang.org/x/sys/unix"
 )
 
 func getTotalBytes() (uint64, error) {
-	out, err := exec.Command("sysctl", "-n", "hw.memsize").Output()
-	if err != nil {
-		return 0, fmt.Errorf("sysctl: %w", err)
-	}
-
-	v := strings.Trim(string(out), "\n")
-	mem, e := strconv.ParseUint(v, 10, 64)
-	if e != nil {
-		return 0, fmt.Errorf("could not parse memory size: %w", e)
-	}
-
-	return mem, nil // mem is in bytes
+	return unix.SysctlUint64("hw.memsize")
 }
 
 func getTotalSwapKb() (uint64, error) {
-	out, err := exec.Command("sysctl", "-n", "vm.swapusage").Output()
-	if err != nil {
-		return 0, fmt.Errorf("sysctl: %w", err)
+	// see struct xsw_usage defined in sys/sysctl.h
+	type xswUsage struct {
+		xsuTotal     uint64
+		xsuAvail     uint64
+		xsuUsed      uint64
+		xsuPagesize  uint32
+		xsuEncrypted bool
 	}
 
-	swap := regexp.MustCompile("total = ").Split(string(out), 2)[1]
-	v := strings.Split(swap, " ")[0]
-	idx := strings.IndexAny(v, ",.") // depending on the locale either a comma or dot is used
-	swapTotal, err := strconv.ParseUint(v[0:idx], 10, 64)
+	// sysctl returns an xsw_usage struct, so we use the raw variant
+	// and then cast the result
+	value, err := unix.SysctlRaw("vm.swapusage")
 	if err != nil {
-		return 0, fmt.Errorf("could not parse swap size: %w", err)
+		return 0, err
 	}
 
-	return swapTotal * 1024, nil // swapTotal is in mb
+	xswSize := unsafe.Sizeof(xswUsage{})
+	if uintptr(len(value)) != xswSize {
+		return 0, fmt.Errorf("sysctl should return %d bytes but returned %d", xswSize, len(value))
+	}
+
+	xsw := (*xswUsage)(unsafe.Pointer(&value[0]))
+	return xsw.xsuTotal / 1024, nil // xsuTotal is in bytes
 }
 
 func (info *Info) fillMemoryInfo() {

@@ -6,10 +6,12 @@
 package log
 
 import (
+	"bytes"
+	"strings"
 	"testing"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/logs/config"
+	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -28,6 +30,96 @@ func TestCustomWriterUnbuffered(t *testing.T) {
 	select {
 	case message := <-config.channel:
 		assert.Equal(t, []byte("log line\nlog line\n"), message.Content)
+		numMessages++
+	case <-time.After(100 * time.Millisecond):
+		t.FailNow()
+	}
+
+	assert.Equal(t, 1, numMessages)
+}
+
+func TestCustomWriterShouldBuffer(t *testing.T) {
+	// Custom writer should buffer log chunks not ending in a newline when isEnabled: true
+	testContentChunk1 := []byte("this is")
+	testContentChunk2 := []byte(" a log line\n")
+	config := &Config{
+		channel:   make(chan *config.ChannelMessage, 2),
+		isEnabled: true,
+	}
+	cw := &CustomWriter{
+		LogConfig:    config,
+		LineBuffer:   bytes.Buffer{},
+		ShouldBuffer: true,
+	}
+	go func() {
+		cw.Write(testContentChunk1)
+		cw.Write(testContentChunk2)
+	}()
+
+	numMessages := 0
+	select {
+	case message := <-config.channel:
+		assert.Equal(t, []byte("this is a log line\n"), message.Content)
+		numMessages++
+	case <-time.After(100 * time.Millisecond):
+		t.FailNow()
+	}
+
+	assert.Equal(t, 1, numMessages)
+}
+
+func TestCustomWriterPreventBufferOverflow(t *testing.T) {
+	testMaxBufferSize := 5
+
+	testContentChunk1 := []byte(strings.Repeat("a", testMaxBufferSize))
+	testContentChunk2 := []byte("b\n")
+	config := &Config{
+		channel:   make(chan *config.ChannelMessage, 2),
+		isEnabled: true,
+	}
+	cw := &CustomWriter{
+		LogConfig:    config,
+		LineBuffer:   bytes.Buffer{},
+		ShouldBuffer: true,
+	}
+
+	go func() {
+		cw.writeWithMaxBufferSize(testContentChunk1, testMaxBufferSize)
+		cw.writeWithMaxBufferSize(testContentChunk2, testMaxBufferSize)
+	}()
+
+	var messages [][]byte
+
+	for i := 0; i < 2; i++ {
+		select {
+		case message := <-config.channel:
+			messages = append(messages, message.Content)
+		case <-time.After(100 * time.Millisecond):
+			t.FailNow()
+		}
+	}
+
+	assert.Equal(t, 2, len(messages))
+	assert.Equal(t, []byte(strings.Repeat("a", testMaxBufferSize)), messages[0])
+	assert.Equal(t, []byte("b\n"), messages[1])
+}
+
+func TestCustomWriterLogChunkTruncation(t *testing.T) {
+	testMaxBufferSize := 5
+
+	testContent := []byte(strings.Repeat("a", testMaxBufferSize+1))
+	config := &Config{
+		channel:   make(chan *config.ChannelMessage, 2),
+		isEnabled: true,
+	}
+	cw := &CustomWriter{
+		LogConfig: config,
+	}
+	go cw.writeWithMaxBufferSize(testContent, testMaxBufferSize)
+	numMessages := 0
+	select {
+	case message := <-config.channel:
+		assert.Equal(t, []byte(strings.Repeat("a", testMaxBufferSize)), message.Content)
 		numMessages++
 	case <-time.After(100 * time.Millisecond):
 		t.FailNow()
@@ -91,7 +183,6 @@ func TestCreateConfig(t *testing.T) {
 	config := CreateConfig("fake-origin")
 	assert.Equal(t, 5*time.Second, config.FlushTimeout)
 	assert.Equal(t, "fake-origin", config.source)
-	assert.Equal(t, "DD_LOG_AGENT", string(config.loggerName))
 }
 
 func TestCreateConfigWithSource(t *testing.T) {
@@ -99,7 +190,6 @@ func TestCreateConfigWithSource(t *testing.T) {
 	config := CreateConfig("cloudrun")
 	assert.Equal(t, 5*time.Second, config.FlushTimeout)
 	assert.Equal(t, "python", config.source)
-	assert.Equal(t, "DD_LOG_AGENT", string(config.loggerName))
 }
 
 func TestIsEnabledTrue(t *testing.T) {

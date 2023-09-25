@@ -22,7 +22,25 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/trace/metrics"
 )
 
-const functionARNKey = "function_arn"
+const functionARNKeyTag = "function_arn"
+const originTag = "origin"
+
+type cloudResourceType string
+type cloudProvider string
+
+const (
+	awsLambda                     cloudResourceType = "AWS Lambda"
+	awsFargate                    cloudResourceType = "AWS Fargate"
+	cloudRun                      cloudResourceType = "GCP Cloud Run"
+	azureAppService               cloudResourceType = "Azure App Service"
+	azureContainerApp             cloudResourceType = "Azure Container App"
+	aws                           cloudProvider     = "AWS"
+	gcp                           cloudProvider     = "GCP"
+	azure                         cloudProvider     = "Azure"
+	cloudProviderHeader           string            = "dd-cloud-provider"
+	cloudResourceTypeHeader       string            = "dd-cloud-resource-type"
+	cloudResourceIdentifierHeader string            = "dd-cloud-resource-identifier"
+)
 
 // telemetryMultiTransport sends HTTP requests to multiple targets using an
 // underlying http.RoundTripper. API keys are set separately for each target.
@@ -101,11 +119,36 @@ func (r *HTTPReceiver) telemetryProxyHandler() http.Handler {
 		if containerTags != "" {
 			req.Header.Set("x-datadog-container-tags", containerTags)
 		}
-		if taskArn, ok := extractFargateTask(containerTags); ok {
-			req.Header.Set("dd-task-arn", taskArn)
+		if arn, ok := r.conf.GlobalTags[functionARNKeyTag]; ok {
+			req.Header.Set(cloudProviderHeader, string(aws))
+			req.Header.Set(cloudResourceTypeHeader, string(awsLambda))
+			req.Header.Set(cloudResourceIdentifierHeader, arn)
+		} else if taskArn, ok := extractFargateTask(containerTags); ok {
+			req.Header.Set(cloudProviderHeader, string(aws))
+			req.Header.Set(cloudResourceTypeHeader, string(awsFargate))
+			req.Header.Set(cloudResourceIdentifierHeader, taskArn)
 		}
-		if arn, ok := r.conf.GlobalTags[functionARNKey]; ok {
-			req.Header.Set("dd-function-arn", arn)
+		if origin, ok := r.conf.GlobalTags[originTag]; ok {
+			switch origin {
+			case "cloudrun":
+				req.Header.Set(cloudProviderHeader, string(gcp))
+				req.Header.Set(cloudResourceTypeHeader, string(cloudRun))
+				if serviceName, found := r.conf.GlobalTags["service_name"]; found {
+					req.Header.Set(cloudResourceIdentifierHeader, serviceName)
+				}
+			case "appservice":
+				req.Header.Set(cloudProviderHeader, string(azure))
+				req.Header.Set(cloudResourceTypeHeader, string(azureAppService))
+				if appName, found := r.conf.GlobalTags["app_name"]; found {
+					req.Header.Set(cloudResourceIdentifierHeader, appName)
+				}
+			case "containerapp":
+				req.Header.Set(cloudProviderHeader, string(azure))
+				req.Header.Set(cloudResourceTypeHeader, string(azureContainerApp))
+				if appName, found := r.conf.GlobalTags["app_name"]; found {
+					req.Header.Set(cloudResourceIdentifierHeader, appName)
+				}
+			}
 		}
 	}
 	return &httputil.ReverseProxy{

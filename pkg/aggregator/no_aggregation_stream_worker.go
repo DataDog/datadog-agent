@@ -195,6 +195,11 @@ func (w *noAggregationStreamWorker) run() {
 							sample.GetTags(w.taggerBuffer, w.metricBuffer)
 							w.metricBuffer.AppendHashlessAccumulator(w.taggerBuffer)
 
+							// if the value is a rate, we have to account for the 10s interval
+							if mtype == metrics.APIRateType {
+								sample.Value /= bucketSize
+							}
+
 							// turns this metric sample into a serie
 							var serie metrics.Serie
 							serie.Name = sample.Name
@@ -202,8 +207,7 @@ func (w *noAggregationStreamWorker) run() {
 							serie.Tags = tagset.CompositeTagsFromSlice(w.metricBuffer.Copy())
 							serie.Host = sample.Host
 							serie.MType = mtype
-							// ignored by the intake when late but mimic dogstatsd traffic here anyway
-							serie.Interval = 10
+							serie.Interval = bucketSize
 							w.seriesSink.Append(&serie)
 
 							w.taggerBuffer.Reset()
@@ -255,7 +259,7 @@ func metricSampleAPIType(m metrics.MetricSample) (metrics.APIMetricType, bool) {
 	case metrics.GaugeType:
 		return metrics.APIGaugeType, true
 	case metrics.CounterType:
-		return metrics.APICountType, true
+		return metrics.APIRateType, true
 	case metrics.RateType:
 		return metrics.APIRateType, true
 	default:

@@ -3,6 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2022-present Datadog, Inc.
 
+// Package goflowlib provides converters between the goflow library and the
+// types used internally for netflow at Datadog.
 package goflowlib
 
 import (

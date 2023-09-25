@@ -14,7 +14,9 @@ import (
 	"net/http"
 
 	sysconfig "github.com/DataDog/datadog-agent/cmd/system-probe/config"
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/ebpf/probe"
+	ebpfcheck "github.com/DataDog/datadog-agent/pkg/collector/corechecks/ebpf/probe/ebpfcheck/model"
+	oomkill "github.com/DataDog/datadog-agent/pkg/collector/corechecks/ebpf/probe/oomkill/model"
+	tcpqueuelength "github.com/DataDog/datadog-agent/pkg/collector/corechecks/ebpf/probe/tcpqueuelength/model"
 )
 
 const (
@@ -43,14 +45,21 @@ func (r *RemoteSysProbeUtil) GetCheck(module sysconfig.ModuleName) (interface{},
 	}
 
 	if module == sysconfig.TCPQueueLengthTracerModule {
-		var stats probe.TCPQueueLengthStats
+		var stats tcpqueuelength.TCPQueueLengthStats
 		err = json.Unmarshal(body, &stats)
 		if err != nil {
 			return nil, err
 		}
 		return stats, nil
 	} else if module == sysconfig.OOMKillProbeModule {
-		var stats []probe.OOMKillStats
+		var stats []oomkill.OOMKillStats
+		err = json.Unmarshal(body, &stats)
+		if err != nil {
+			return nil, err
+		}
+		return stats, nil
+	} else if module == sysconfig.EBPFModule {
+		var stats ebpfcheck.EBPFStats
 		err = json.Unmarshal(body, &stats)
 		if err != nil {
 			return nil, err
@@ -58,5 +67,5 @@ func (r *RemoteSysProbeUtil) GetCheck(module sysconfig.ModuleName) (interface{},
 		return stats, nil
 	}
 
-	return nil, fmt.Errorf("Invalid check name: %s", module)
+	return nil, fmt.Errorf("invalid check name: %s", module)
 }

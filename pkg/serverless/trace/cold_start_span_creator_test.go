@@ -14,12 +14,12 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
+	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	"github.com/DataDog/datadog-agent/pkg/serverless/random"
 
 	serverlessLog "github.com/DataDog/datadog-agent/pkg/serverless/logs"
 	"github.com/DataDog/datadog-agent/pkg/trace/agent"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
-	"github.com/DataDog/datadog-agent/pkg/trace/pb"
 	"github.com/DataDog/datadog-agent/pkg/trace/telemetry"
 )
 

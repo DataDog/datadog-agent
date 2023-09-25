@@ -16,25 +16,28 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
+	hostMetadataUtils "github.com/DataDog/datadog-agent/comp/metadata/host/utils"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/clusterchecks"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/custommetrics"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/externalmetrics"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/orchestrator"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
+	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
+	checkstats "github.com/DataDog/datadog-agent/pkg/collector/check/stats"
+	"github.com/DataDog/datadog-agent/pkg/collector/python"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/config/utils"
-	"github.com/DataDog/datadog-agent/pkg/logs"
+	logsStatus "github.com/DataDog/datadog-agent/pkg/logs/status"
 	"github.com/DataDog/datadog-agent/pkg/metadata/host"
 	"github.com/DataDog/datadog-agent/pkg/snmp/traps"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname"
+	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/version"
-
-	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
 )
 
 var timeFormat = "2006-01-02 15:04:05.999 MST"
@@ -53,14 +56,14 @@ func GetStatus(verbose bool) (map[string]interface{}, error) {
 	hostTags = append(hostTags, metadata.HostTags.GoogleCloudPlatform...)
 	stats["hostTags"] = hostTags
 
-	pythonVersion := host.GetPythonVersion()
+	pythonVersion := python.GetPythonVersion()
 	stats["python_version"] = strings.Split(pythonVersion, " ")[0]
-	stats["hostinfo"] = host.GetStatusInformation()
+	stats["hostinfo"] = hostMetadataUtils.GetInformation()
 
 	stats["JMXStatus"] = GetJMXStatus()
 	stats["JMXStartupError"] = GetJMXStartupError()
 
-	stats["logsStats"] = logs.GetStatus(verbose)
+	stats["logsStats"] = logsStatus.Get(verbose)
 
 	stats["otlp"] = GetOTLPStatus()
 
@@ -82,12 +85,10 @@ func GetStatus(verbose bool) (map[string]interface{}, error) {
 	stats["processAgentStatus"] = GetProcessAgentStatus()
 
 	if !config.Datadog.GetBool("no_proxy_nonexact_match") {
-		httputils.NoProxyMapMutex.Lock()
-		stats["TransportWarnings"] = len(httputils.NoProxyIgnoredWarningMap)+len(httputils.NoProxyUsedInFuture)+len(httputils.NoProxyChanged) > 0
-		stats["NoProxyIgnoredWarningMap"] = httputils.NoProxyIgnoredWarningMap
-		stats["NoProxyUsedInFuture"] = httputils.NoProxyUsedInFuture
-		stats["NoProxyChanged"] = httputils.NoProxyChanged
-		httputils.NoProxyMapMutex.Unlock()
+		stats["TransportWarnings"] = httputils.GetNumberOfWarnings() > 0
+		stats["NoProxyIgnoredWarningMap"] = httputils.GetProxyIgnoredWarnings()
+		stats["NoProxyUsedInFuture"] = httputils.GetProxyUsedInFutureWarnings()
+		stats["NoProxyChanged"] = httputils.GetProxyIgnoredWarnings()
 	}
 
 	if config.IsContainerized() {
@@ -98,6 +99,7 @@ func GetStatus(verbose bool) (map[string]interface{}, error) {
 		stats["filterErrors"] = containers.GetFilterErrors()
 	}
 
+	stats["remoteConfiguration"] = getRemoteConfigStatus()
 	return stats, nil
 }
 
@@ -122,14 +124,14 @@ func GetAndFormatStatus() ([]byte, error) {
 }
 
 // GetCheckStatusJSON gets the status of a single check as JSON
-func GetCheckStatusJSON(c check.Check, cs *check.Stats) ([]byte, error) {
+func GetCheckStatusJSON(c check.Check, cs *checkstats.Stats) ([]byte, error) {
 	s, err := GetStatus(false)
 	if err != nil {
 		return nil, err
 	}
 	checks := s["runnerStats"].(map[string]interface{})["Checks"].(map[string]interface{})
-	checks[c.String()] = make(map[check.ID]interface{})
-	checks[c.String()].(map[check.ID]interface{})[c.ID()] = cs
+	checks[c.String()] = make(map[checkid.ID]interface{})
+	checks[c.String()].(map[checkid.ID]interface{})[c.ID()] = cs
 
 	statusJSON, err := json.Marshal(s)
 	if err != nil {
@@ -140,7 +142,7 @@ func GetCheckStatusJSON(c check.Check, cs *check.Stats) ([]byte, error) {
 }
 
 // GetCheckStatus gets the status of a single check as human-readable text
-func GetCheckStatus(c check.Check, cs *check.Stats) ([]byte, error) {
+func GetCheckStatus(c check.Check, cs *checkstats.Stats) ([]byte, error) {
 	statusJSON, err := GetCheckStatusJSON(c, cs)
 	if err != nil {
 		return nil, err
@@ -164,7 +166,7 @@ func GetDCAStatus(verbose bool) (map[string]interface{}, error) {
 	stats["config"] = getDCAPartialConfig()
 	stats["leaderelection"] = getLeaderElectionDetails()
 
-	stats["logsStats"] = logs.GetStatus(verbose)
+	stats["logsStats"] = logsStatus.Get(verbose)
 
 	endpointsInfos, err := getEndpointsInfos()
 	if endpointsInfos != nil && err == nil {
@@ -299,6 +301,26 @@ func getEndpointsInfos() (map[string]interface{}, error) {
 	return endpointsInfos, nil
 }
 
+// getRemoteConfigStatus return the current status of remote config
+func getRemoteConfigStatus() map[string]interface{} {
+	status := make(map[string]interface{})
+
+	if config.IsRemoteConfigEnabled(config.Datadog) && expvar.Get("remoteConfigStatus") != nil {
+		remoteConfigStatusJSON := expvar.Get("remoteConfigStatus").String()
+		json.Unmarshal([]byte(remoteConfigStatusJSON), &status) //nolint:errcheck
+	} else {
+		if !config.Datadog.GetBool("remote_configuration.enabled") {
+			status["disabledReason"] = "it is explicitly disabled in the agent configuration. (`remote_configuration.enabled: false`)"
+		} else if config.Datadog.GetBool("fips.enabled") {
+			status["disabledReason"] = "it is not supported when FIPS is enabled. (`fips.enabled: true`)"
+		} else if config.Datadog.GetString("site") == "ddog-gov.com" {
+			status["disabledReason"] = "it is not supported on GovCloud. (`site: \"ddog-gov.com\"`)"
+		}
+	}
+
+	return status
+}
+
 // getCommonStatus grabs the status from expvar and puts it into a map.
 // It gets the status elements common to all Agent flavors.
 func getCommonStatus() (map[string]interface{}, error) {
@@ -356,7 +378,7 @@ func expvarStats(stats map[string]interface{}) (map[string]interface{}, error) {
 	aggregatorStats := make(map[string]interface{})
 	json.Unmarshal(aggregatorStatsJSON, &aggregatorStats) //nolint:errcheck
 	stats["aggregatorStats"] = aggregatorStats
-	s, err := check.TranslateEventPlatformEventTypes(stats["aggregatorStats"])
+	s, err := checkstats.TranslateEventPlatformEventTypes(stats["aggregatorStats"])
 	if err != nil {
 		log.Debugf("failed to translate event platform event types in aggregatorStats: %s", err.Error())
 	} else {

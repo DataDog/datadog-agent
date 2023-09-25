@@ -13,7 +13,7 @@ import (
 	model "github.com/DataDog/agent-payload/v5/contlcycle"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
-	"github.com/DataDog/datadog-agent/pkg/collector/check"
+	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 
 	"github.com/stretchr/testify/mock"
 )
@@ -63,7 +63,7 @@ func TestProcessQueues(t *testing.T) {
 				podsQueue:       tt.podsQueue,
 			}
 
-			sender := mocksender.NewMockSender(check.ID(tt.name))
+			sender := mocksender.NewMockSender(checkid.ID(tt.name))
 			sender.On("EventPlatformEvent", mock.Anything, mock.Anything).Return()
 			p.sender = sender
 

@@ -3,8 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build linux
-
+// Package kfilters holds kfilters related files
 package kfilters
 
 import (
@@ -27,7 +26,7 @@ type ApplyRuleSetReport struct {
 	Policies map[string]*PolicyReport
 }
 
-// GetFilterReport returns filtering policy applied per event type
+// NewApplyRuleSetReport returns filtering policy applied per event type
 func NewApplyRuleSetReport(config *config.Config, rs *rules.RuleSet) (*ApplyRuleSetReport, error) {
 	policies := make(map[eval.EventType]*PolicyReport)
 

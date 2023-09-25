@@ -39,6 +39,7 @@ type NetworkDevicesMetadata struct {
 	IPAddresses      []IPAddressMetadata    `json:"ip_addresses,omitempty"`
 	Links            []TopologyLinkMetadata `json:"links,omitempty"`
 	NetflowExporters []NetflowExporter      `json:"netflow_exporters,omitempty"`
+	Diagnoses        []DiagnosisMetadata    `json:"diagnoses,omitempty"`
 	CollectTimestamp int64                  `json:"collect_timestamp"`
 }
 
@@ -63,19 +64,22 @@ type DeviceMetadata struct {
 	OsName       string       `json:"os_name,omitempty"`
 	OsVersion    string       `json:"os_version,omitempty"`
 	OsHostname   string       `json:"os_hostname,omitempty"`
+	Integration  string       `json:"integration,omitempty"` // indicates the source of the data SNMP, meraki_api, etc.
 }
 
 // InterfaceMetadata contains interface metadata
 type InterfaceMetadata struct {
-	DeviceID    string               `json:"device_id"`
-	IDTags      []string             `json:"id_tags"` // used to correlate with interface metrics
-	Index       int32                `json:"index"`   // IF-MIB ifIndex type is InterfaceIndex (Integer32 (1..2147483647))
-	Name        string               `json:"name,omitempty"`
-	Alias       string               `json:"alias,omitempty"`
-	Description string               `json:"description,omitempty"`
-	MacAddress  string               `json:"mac_address,omitempty"`
-	AdminStatus common.IfAdminStatus `json:"admin_status,omitempty"` // IF-MIB ifAdminStatus type is INTEGER
-	OperStatus  common.IfOperStatus  `json:"oper_status,omitempty"`  // IF-MIB ifOperStatus type is INTEGER
+	DeviceID      string               `json:"device_id"`
+	IDTags        []string             `json:"id_tags"` // used to correlate with interface metrics
+	Index         int32                `json:"index"`   // IF-MIB ifIndex type is InterfaceIndex (Integer32 (1..2147483647))
+	Name          string               `json:"name,omitempty"`
+	Alias         string               `json:"alias,omitempty"`
+	Description   string               `json:"description,omitempty"`
+	MacAddress    string               `json:"mac_address,omitempty"`
+	AdminStatus   common.IfAdminStatus `json:"admin_status,omitempty"`   // IF-MIB ifAdminStatus type is INTEGER
+	OperStatus    common.IfOperStatus  `json:"oper_status,omitempty"`    // IF-MIB ifOperStatus type is INTEGER
+	MerakiEnabled *bool                `json:"meraki_enabled,omitempty"` // enabled bool for Meraki devices, use a pointer to determine if the value was actually sent
+	MerakiStatus  string               `json:"meraki_status,omitempty"`  // status for Meraki devices
 }
 
 // IPAddressMetadata contains ip address metadata
@@ -122,4 +126,18 @@ type NetflowExporter struct {
 	ID        string `json:"id"` // used by backend as unique id (e.g. in cache)
 	IPAddress string `json:"ip_address"`
 	FlowType  string `json:"flow_type"`
+}
+
+// Diagnosis contain data for a diagnosis
+type Diagnosis struct {
+	Severity string `json:"severity"`
+	Message  string `json:"message"`
+	Code     string `json:"code"`
+}
+
+// DiagnosisMetadata contains diagnoses info
+type DiagnosisMetadata struct {
+	ResourceType string      `json:"resource_type"`
+	ResourceID   string      `json:"resource_id"`
+	Diagnoses    []Diagnosis `json:"diagnoses"`
 }

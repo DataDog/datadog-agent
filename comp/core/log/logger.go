@@ -15,6 +15,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/cihub/seelog"
 )
 
 // logger implements the component
@@ -72,13 +73,18 @@ func NewLogger(lc fx.Lifecycle, params Params, config config.LogConfig) (Compone
 
 // Until the log migration to component is done, we use *StackDepth to log. The log component add 1 layer to the call
 // stack and *StackDepth add another.
+//
+// We check the current log level to avoid calling Sprintf when it's not needed (Sprintf from Tracef uses a lot a CPU)
 
 // Trace implements Component#Trace.
 func (*logger) Trace(v ...interface{}) { log.TraceStackDepth(2, v...) }
 
 // Tracef implements Component#Tracef.
 func (*logger) Tracef(format string, params ...interface{}) {
-	log.TraceStackDepth(2, fmt.Sprintf(format, params...))
+	currentLevel, _ := log.GetLogLevel()
+	if currentLevel <= seelog.TraceLvl {
+		log.TraceStackDepth(2, fmt.Sprintf(format, params...))
+	}
 }
 
 // Debug implements Component#Debug.
@@ -86,7 +92,10 @@ func (*logger) Debug(v ...interface{}) { log.DebugStackDepth(2, v...) }
 
 // Debugf implements Component#Debugf.
 func (*logger) Debugf(format string, params ...interface{}) {
-	log.DebugStackDepth(2, fmt.Sprintf(format, params...))
+	currentLevel, _ := log.GetLogLevel()
+	if currentLevel <= seelog.DebugLvl {
+		log.DebugStackDepth(2, fmt.Sprintf(format, params...))
+	}
 }
 
 // Info implements Component#Info.
@@ -94,7 +103,10 @@ func (*logger) Info(v ...interface{}) { log.InfoStackDepth(2, v...) }
 
 // Infof implements Component#Infof.
 func (*logger) Infof(format string, params ...interface{}) {
-	log.InfoStackDepth(2, fmt.Sprintf(format, params...))
+	currentLevel, _ := log.GetLogLevel()
+	if currentLevel <= seelog.InfoLvl {
+		log.InfoStackDepth(2, fmt.Sprintf(format, params...))
+	}
 }
 
 // Warn implements Component#Warn.
@@ -102,6 +114,8 @@ func (*logger) Warn(v ...interface{}) error { return log.WarnStackDepth(2, v...)
 
 // Warnf implements Component#Warnf.
 func (*logger) Warnf(format string, params ...interface{}) error {
+	// no need to check the current log level since Sprintf will be called in all case to generate the returned
+	// error
 	return log.WarnStackDepth(2, fmt.Sprintf(format, params...))
 }
 
@@ -110,6 +124,8 @@ func (*logger) Error(v ...interface{}) error { return log.ErrorStackDepth(2, v..
 
 // Errorf implements Component#Errorf.
 func (*logger) Errorf(format string, params ...interface{}) error {
+	// no need to check the current log level since Sprintf will be called in all case to generate the returned
+	// error
 	return log.ErrorStackDepth(2, fmt.Sprintf(format, params...))
 }
 
@@ -118,6 +134,8 @@ func (*logger) Critical(v ...interface{}) error { return log.CriticalStackDepth(
 
 // Criticalf implements Component#Criticalf.
 func (*logger) Criticalf(format string, params ...interface{}) error {
+	// no need to check the current log level since Sprintf will be called in all case to generate the returned
+	// error
 	return log.CriticalStackDepth(2, fmt.Sprintf(format, params...))
 }
 

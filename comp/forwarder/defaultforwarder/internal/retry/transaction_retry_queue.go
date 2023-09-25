@@ -208,6 +208,20 @@ func (tc *TransactionRetryQueue) GetDiskSpaceUsed() int64 {
 	return 0
 }
 
+// FlushToDisk is called on shutdown and persists all transactions to disk. The normal limits
+// on capacity still apply, and the same rules are followed as during normal operation in terms
+// of which transactions are dropped and which are persisted.
+func (tc *TransactionRetryQueue) FlushToDisk() error {
+	if tc.optionalStorage == nil {
+		return nil
+	}
+	tc.mutex.RLock()
+	defer tc.mutex.RUnlock()
+
+	transactions := tc.extractTransactionsFromMemory(tc.GetMaxMemSizeInBytes())
+	return tc.optionalStorage.Store(transactions)
+}
+
 func (tc *TransactionRetryQueue) extractTransactionsForDisk(payloadSize int) [][]transaction.Transaction {
 	sizeInBytesToFlush := int(float64(tc.maxMemSizeInBytes) * tc.flushToStorageRatio)
 	var payloadsGroupToFlush [][]transaction.Transaction

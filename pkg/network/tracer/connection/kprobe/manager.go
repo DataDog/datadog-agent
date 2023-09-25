@@ -11,11 +11,10 @@ import (
 	"os"
 	"strings"
 
-	manager "github.com/DataDog/ebpf-manager"
-
 	"github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/ebpf/probes"
+	manager "github.com/DataDog/ebpf-manager"
 )
 
 const (
@@ -29,6 +28,7 @@ var mainProbes = []probes.ProbeFuncName{
 	probes.ProtocolClassifierEntrySocketFilter,
 	probes.ProtocolClassifierQueuesSocketFilter,
 	probes.ProtocolClassifierDBsSocketFilter,
+	probes.ProtocolClassifierGRPCSocketFilter,
 	probes.TCPSendMsg,
 	probes.TCPSendMsgReturn,
 	probes.TCPSendPage,
@@ -42,7 +42,6 @@ var mainProbes = []probes.ProbeFuncName{
 	probes.TCPCloseFlushReturn,
 	probes.TCPConnect,
 	probes.TCPFinishConnect,
-	probes.TCPSetState,
 	probes.IPMakeSkb,
 	probes.IPMakeSkbReturn,
 	probes.IP6MakeSkb,

@@ -5,6 +5,7 @@
 
 //go:build functionaltests
 
+// Package tests holds tests related files
 package tests
 
 import (
@@ -53,7 +54,7 @@ func BenchmarkProtobufEncoding(b *testing.B) {
 
 func BenchmarkProtoJSONEncoding(b *testing.B) {
 	runEncoding(b, func(ad *dump.ActivityDump) (*bytes.Buffer, error) {
-		return ad.EncodeJSON()
+		return ad.EncodeJSON("")
 	})
 }
 

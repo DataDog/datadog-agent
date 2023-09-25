@@ -10,44 +10,40 @@ import (
 	"strconv"
 	"testing"
 
-	"github.com/DataDog/go-libddwaf"
+	waf "github.com/DataDog/go-libddwaf"
+
 	"github.com/stretchr/testify/require"
 )
 
 func TestNew(t *testing.T) {
-	if err := waf.Health(); err != nil {
-		t.Skip("host not supported by appsec", err)
-	}
-
 	for _, appsecEnabled := range []bool{true, false} {
 		appsecEnabledStr := strconv.FormatBool(appsecEnabled)
-		for _, proxyEnabled := range []bool{true, false} {
-			proxyEnabledStr := strconv.FormatBool(proxyEnabled)
-			t.Run(fmt.Sprintf("new/%s/%s", appsecEnabledStr, proxyEnabledStr), func(t *testing.T) {
-				t.Setenv("DD_SERVERLESS_APPSEC_ENABLED", appsecEnabledStr)
-				t.Setenv("DD_EXPERIMENTAL_ENABLE_PROXY", proxyEnabledStr)
-				lp, pp, err := New()
-				switch {
-				case !appsecEnabled:
-					require.Nil(t, lp)
-					require.Nil(t, pp)
-				case proxyEnabled:
-					require.Nil(t, lp)
-					require.NotNil(t, pp)
-				case !proxyEnabled:
-					require.NotNil(t, lp)
-					require.Nil(t, pp)
-				default:
-					panic("unexpected case")
+		t.Run(fmt.Sprintf("DD_SERVERLESS_APPSEC_ENABLED=%s", appsecEnabledStr), func(t *testing.T) {
+			t.Setenv("DD_SERVERLESS_APPSEC_ENABLED", appsecEnabledStr)
+			lp, err := New()
+			if err := wafHealth(); err != nil {
+				if ok, _ := waf.SupportsTarget(); ok {
+					// host should be supported by appsec, error is unexpected
+					require.NoError(t, err)
+				} else {
+					// host not supported by appsec
+					require.Error(t, err)
 				}
-				require.NoError(t, err)
-			})
-		}
+				return
+			}
+
+			require.NoError(t, err)
+			if appsecEnabled {
+				require.NotNil(t, lp)
+			} else {
+				require.Nil(t, lp)
+			}
+		})
 	}
 }
 
 func TestMonitor(t *testing.T) {
-	if err := waf.Health(); err != nil {
+	if err := wafHealth(); err != nil {
 		t.Skip("host not supported by appsec", err)
 	}
 

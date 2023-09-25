@@ -120,7 +120,7 @@ func TestMeasuredListener(t *testing.T) {
 	defer testutil.WithStatsClient(stats)()
 
 	var mockln mockListener
-	ln := NewMeasuredListener(&mockln, "test-metric").(*measuredListener)
+	ln := NewMeasuredListener(&mockln, "test-metric", 1000).(*measuredListener)
 	mockln.SetSuccess()
 	ln.Accept()
 	ln.Accept()

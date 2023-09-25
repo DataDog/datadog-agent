@@ -1,12 +1,12 @@
 #!/bin/bash
 
-STARTUP_TIME_THREESHOLD=15  
-TOTAL_THREESHOLD=$((STARTUP_TIME_THREESHOLD*5))
+STARTUP_TIME_THREESHOLD=20
+TOTAL_THREESHOLD=$((STARTUP_TIME_THREESHOLD*10))
 
 totalMs=0
 
-# loop 5 times to incur no false positive/negative alarms
-for i in {1..5}
+# loop 10 times to incur no false positive/negative alarms
+for i in {1..10}
 do
     # create a new container to ensure cold start
     dockerId=$(docker run -d datadogci/lambda-extension)

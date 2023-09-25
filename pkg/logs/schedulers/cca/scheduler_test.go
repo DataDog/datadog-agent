@@ -8,12 +8,12 @@ package cca
 import (
 	"testing"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"gotest.tools/assert"
 
+	logsConfig "github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery"
 	coreConfig "github.com/DataDog/datadog-agent/pkg/config"
-	logsConfig "github.com/DataDog/datadog-agent/pkg/logs/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/schedulers"
 )
 

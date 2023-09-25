@@ -43,6 +43,16 @@ instances:
   #
   # tns_admin: <TNS_ADMIN_DIR>
 
+  ## @param protocol - string - optional - default: true
+  ## The protocol to connect to the Oracle Database Server. Valid protocols include TCP and TCPS.
+  #
+  # protocol: TCP
+
+  ## @param protocol - string - optional
+  ## The directory containing Oracle wallet. Oracle wallet is used with TCPS protocol.
+  #
+  # wallet: <WALLET_DIR>>
+
   ## @param instant_client - boolean - optional
   ## Force using instant_client even when 'tns_alias' isn't used. This might be necessary
   ## for using some advanced Oracle SQLNet features which aren't supported by the 
@@ -122,10 +132,10 @@ instances:
   #
   # execution_plans:
 
-      ## @param enabled - boolean - optional - default: false
+      ## @param enabled - boolean - optional - default: true
       ## Enable collection of execution plans. Requires query metrics.
       #
-      # enabled: false
+      # enabled: true
 
   ## Configure how the SQL obfuscator behaves.
   ## Note: This option only applies when `dbm` is enabled.
@@ -182,7 +192,40 @@ instances:
     #   - <KEY_1>:<VALUE_1>
     #   - <KEY_2>:<VALUE_2>
 
-  ## Start SQL trace for agent queries
+    ## @param custom_queries - list of mappings - optional
+    ## Each query must have 2 fields, and can have a third optional field:
+    ##
+    ## 1. query - The SQL to execute. It can be a simple statement or a multi-line script.
+    ##            Use the pipe `|` if you require a multi-line script.
+    ## 2. columns - The list representing each column, ordered sequentially from left to right.
+    ##              The number of columns must equal the number of columns returned in the query.
+    ##              There are 2 required pieces of data:
+    ##                a. name - The suffix to append to `<INTEGRATION>.` to form
+    ##                          the full metric name. If `type` is a `tag` type, this column is
+    ##                          considered a tag and applied to every
+    ##                          metric collected by this particular query.
+    ##                b. type - The submission method (gauge, monotonic_count, etc.) or tag.
+    ## 3. tags (optional) - A list of tags to apply to each metric.
+    ## 4. pdb (optional) - A PDB against which the query will be run. Default is CDB$ROOT.
+                           The parameter can be defined on a self-managed instance, which
+                           connects to CDB. The Agent needs to have `set container` privilege
+                           on the PDB where the custom query is running.
+
+    ## WARNING: Running custom queries may result in additional costs or fees assessed by Oracle.
+    
+    # custom_queries:
+    #   - query: SELECT foo, COUNT(*) FROM table.events GROUP BY foo
+    #     columns:
+    #     - name: foo
+    #       type: tag
+    #     - name: event.total
+    #       type: gauge
+    #     tags:
+    #     - test:tag_value_1
+    #     pdb: <MYPDB>
+
+  ## Start an SQL trace for Agent queries. This feature is only meant for Agent troubleshooting, and 
+  ## should normally be switched off.
   ## Requires execute the execute privilege on `dbms_monitor` to datadog user
   #
   # agent_sql_trace:

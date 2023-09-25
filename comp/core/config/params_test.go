@@ -22,7 +22,7 @@ func TestNewSecurityAgentParams(t *testing.T) {
 			name:  "no security agent config file paths",
 			input: []string{},
 			check: func(params Params) {
-				require.Equal(t, "", params.confFilePath)
+				require.Equal(t, "", params.ConfFilePath)
 				require.Equal(t, []string{}, params.securityAgentConfigFilePaths, "Security Agent Config File Paths not matching")
 			},
 		},
@@ -30,7 +30,7 @@ func TestNewSecurityAgentParams(t *testing.T) {
 			name:  "1 security agent config file path",
 			input: []string{"/etc/datadog-agent/security-agent.yaml"},
 			check: func(params Params) {
-				require.Equal(t, "/etc/datadog-agent/security-agent.yaml", params.confFilePath)
+				require.Equal(t, "/etc/datadog-agent/security-agent.yaml", params.ConfFilePath)
 				require.Equal(t, []string{"/etc/datadog-agent/security-agent.yaml"}, params.securityAgentConfigFilePaths, "Security Agent config file paths not matching")
 			},
 		},
@@ -38,7 +38,7 @@ func TestNewSecurityAgentParams(t *testing.T) {
 			name:  "more than 1 security agent config file paths",
 			input: []string{"/etc/datadog-agent/security-agent.yaml", "/etc/datadog-agent/other.yaml"},
 			check: func(params Params) {
-				require.Equal(t, "/etc/datadog-agent/security-agent.yaml", params.confFilePath)
+				require.Equal(t, "/etc/datadog-agent/security-agent.yaml", params.ConfFilePath)
 				require.Equal(t, []string{"/etc/datadog-agent/security-agent.yaml"}, params.securityAgentConfigFilePaths, "Security Agent config file paths not matching")
 			},
 		},

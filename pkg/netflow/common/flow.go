@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2022-present Datadog, Inc.
 
+// Package common provides a flow type and a few standard helpers.
 package common
 
 import (
@@ -86,9 +87,9 @@ func (f *Flow) AggregationHash() uint64 {
 // This method is used for hash collision detection.
 func IsEqualFlowContext(a Flow, b Flow) bool {
 	if a.Namespace == b.Namespace &&
-		bytes.Compare(a.ExporterAddr, b.ExporterAddr) == 0 &&
-		bytes.Compare(a.SrcAddr, b.SrcAddr) == 0 &&
-		bytes.Compare(a.DstAddr, b.DstAddr) == 0 &&
+		bytes.Equal(a.ExporterAddr, b.ExporterAddr) &&
+		bytes.Equal(a.SrcAddr, b.SrcAddr) &&
+		bytes.Equal(a.DstAddr, b.DstAddr) &&
 		a.SrcPort == b.SrcPort &&
 		a.DstPort == b.DstPort &&
 		a.IPProtocol == b.IPProtocol &&

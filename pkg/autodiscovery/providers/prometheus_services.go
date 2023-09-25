@@ -101,17 +101,21 @@ func NewPrometheusServicesConfigProvider(*config.ConfigurationProviders) (Config
 
 	p := newPromServicesProvider(checks, api, collectEndpoints)
 
-	servicesInformer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
+	if _, err := servicesInformer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
 		AddFunc:    p.invalidate,
 		UpdateFunc: p.invalidateIfChanged,
 		DeleteFunc: p.invalidate,
-	})
+	}); err != nil {
+		return nil, fmt.Errorf("cannot add event handler to services informer: %s", err)
+	}
 
 	if endpointsInformer != nil {
-		endpointsInformer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
+		if _, err := endpointsInformer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
 			AddFunc:    p.invalidateIfAddedEndpoints,
 			UpdateFunc: p.invalidateIfChangedEndpoints,
-		})
+		}); err != nil {
+			return nil, fmt.Errorf("cannot add event handler to endpoints informer: %s", err)
+		}
 	}
 	return p, nil
 }

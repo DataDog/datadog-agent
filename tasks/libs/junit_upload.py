@@ -2,6 +2,7 @@ import glob
 import io
 import os
 import platform
+import re
 import subprocess
 import tarfile
 import tempfile
@@ -10,12 +11,13 @@ import xml.etree.ElementTree as ET
 from invoke.exceptions import Exit
 
 from ..flavor import AgentFlavor
-from .pipeline_notifications import DEFAULT_SLACK_CHANNEL, GITHUB_SLACK_MAP
+from .pipeline_notifications import DEFAULT_JIRA_PROJECT, DEFAULT_SLACK_CHANNEL, GITHUB_JIRA_MAP, GITHUB_SLACK_MAP
 
 CODEOWNERS_ORG_PREFIX = "@DataDog/"
 REPO_NAME_PREFIX = "github.com/DataDog/datadog-agent/"
 DATADOG_CI_COMMAND = ["datadog-ci", "junit", "upload"]
 JOB_URL_FILE_NAME = "job_url.txt"
+JOB_ENV_FILE_NAME = "job_env.txt"
 TAGS_FILE_NAME = "tags.txt"
 
 
@@ -42,6 +44,7 @@ def split_junitxml(xml_path, codeowners, output_dir):
     """
     tree = ET.parse(xml_path)
     output_xmls = {}
+    jira_cache = {}  # To save calls to jira as children tests share the same card
 
     flem = tree.find("flavor")
     flavor = flem.text if flem else AgentFlavor.base.name
@@ -53,7 +56,12 @@ def split_junitxml(xml_path, codeowners, output_dir):
         # don't, so for determining ownership we append "/" temporarily.
         owners = codeowners.of(path + "/")
         if not owners:
-            main_owner = "none"
+            filepath = next(tree.iter("testcase")).attrib.get("file", None)
+            if filepath:
+                owners = codeowners.of(filepath)
+                main_owner = owners[0][1][len(CODEOWNERS_ORG_PREFIX) :]
+            else:
+                main_owner = "none"
         else:
             main_owner = owners[0][1][len(CODEOWNERS_ORG_PREFIX) :]
 
@@ -62,6 +70,14 @@ def split_junitxml(xml_path, codeowners, output_dir):
         except KeyError:
             xml = ET.ElementTree(ET.Element("testsuites"))
             output_xmls[main_owner] = xml
+        # Add reference to the test jira card for each failed test case, if any
+        jira_project = GITHUB_JIRA_MAP.get(f"{CODEOWNERS_ORG_PREFIX}{main_owner}".casefold(), DEFAULT_JIRA_PROJECT)
+        for test_case in suite.iter("testcase"):
+            if any(child.tag == "failure" for child in test_case):
+                # Keep only the parent test name (remove all after the first '/' in test_case name)
+                test_name = f"{path}/{test_case.attrib['name'].split('/')[0]}"
+                jira_card = retrieve_jira_card(test_name, jira_project, jira_cache)
+                test_case.attrib["jira_card"] = jira_card
         xml.getroot().append(suite)
 
     for owner, xml in output_xmls.items():
@@ -71,16 +87,17 @@ def split_junitxml(xml_path, codeowners, output_dir):
     return list(output_xmls), flavor
 
 
-def upload_junitxmls(output_dir, owners, flavor, additional_tags=None, job_url=""):
+def upload_junitxmls(output_dir, owners, flavor, xmlfile_name, process_env, additional_tags=None):
     """
     Upload all per-team split JUnit XMLs from given directory.
     """
     processes = []
-    process_env = os.environ.copy()
-    process_env["CI_JOB_URL"] = job_url
+
     for owner in owners:
+        junit_file_path = os.path.join(output_dir, owner + ".xml")
         codeowner = CODEOWNERS_ORG_PREFIX + owner
         slack_channel = GITHUB_SLACK_MAP.get(codeowner.lower(), DEFAULT_SLACK_CHANNEL)[1:]
+        jira_project = GITHUB_JIRA_MAP.get(codeowner.lower(), DEFAULT_JIRA_PROJECT)[0:]
         args = [
             "--service",
             "datadog-agent",
@@ -90,10 +107,20 @@ def upload_junitxmls(output_dir, owners, flavor, additional_tags=None, job_url="
             f"test.flavor:{flavor}",
             "--tags",
             f"slack_channel:{slack_channel}",
+            "--tags",
+            f"jira_project:{jira_project}",
         ]
+        if additional_tags and "upload_option.os_version_from_name" in additional_tags:
+            additional_tags.remove("upload_option.os_version_from_name")
+            additional_tags.append("--tags")
+            version_match = re.search(r"kitchen-rspec-([a-zA-Z0-9]+)-?([0-9-]*)-.*\.xml", xmlfile_name)
+            exact_version = version_match.group(1) + version_match.group(2).replace("-", ".")
+            additional_tags.append(f"version:{exact_version}")
+            print(additional_tags)
+
         if additional_tags:
             args.extend(additional_tags)
-        args.append(os.path.join(output_dir, owner + ".xml"))
+        args.append(junit_file_path)
         processes.append(subprocess.Popen(DATADOG_CI_COMMAND + args, bufsize=-1, env=process_env))
     for process in processes:
         exit_code = process.wait()
@@ -110,28 +137,33 @@ def junit_upload_from_tgz(junit_tgz, codeowners_path=".github/CODEOWNERS"):
     with open(codeowners_path) as f:
         codeowners = CodeOwners(f.read())
 
+    # handle weird kitchen bug where it places the tarball in a subdirectory of the same name
+    if os.path.isdir(junit_tgz):
+        junit_tgz = os.path.join(junit_tgz, os.path.basename(junit_tgz))
+
     xmlcounts = {}
     with tempfile.TemporaryDirectory() as unpack_dir:
         # unpack all files from archive
         with tarfile.open(junit_tgz) as tgz:
             tgz.extractall(path=unpack_dir)
         # read additional tags
+        tags = None
         tagsfile = os.path.join(unpack_dir, TAGS_FILE_NAME)
         if os.path.exists(tagsfile):
             with open(tagsfile) as tf:
                 tags = tf.read().split()
-        # read job url (see comment in produce_junit_tar)
-        with open(os.path.join(unpack_dir, JOB_URL_FILE_NAME)) as jf:
-            job_url = jf.read()
-
+        process_env = _update_environ(unpack_dir)
         # for each unpacked xml file, split it and submit all parts
         # NOTE: recursive=True is necessary for "**" to unpack into 0-n dirs, not just 1
         xmls = 0
         for xmlfile in glob.glob(f"{unpack_dir}/**/*.xml", recursive=True):
+            if not os.path.isfile(xmlfile):
+                print(f"[WARN] Matched folder named {xmlfile}")
+                continue
             xmls += 1
             with tempfile.TemporaryDirectory() as output_dir:
                 written_owners, flavor = split_junitxml(xmlfile, codeowners, output_dir)
-                upload_junitxmls(output_dir, written_owners, flavor, tags, job_url)
+                upload_junitxmls(output_dir, written_owners, flavor, xmlfile.split("/")[-1], process_env, tags)
         xmlcounts[junit_tgz] = xmls
 
     empty_tgzs = []
@@ -142,6 +174,34 @@ def junit_upload_from_tgz(junit_tgz, codeowners_path=".github/CODEOWNERS"):
 
     if empty_tgzs:
         raise Exit(f"No JUnit XML files for upload found in: {', '.join(empty_tgzs)}")
+
+
+def _update_environ(unpack_dir):
+    """
+    Add job_url and job_env to current env if any, for the junit upload command
+    """
+    process_env = os.environ.copy()
+    # read job url (see comment in produce_junit_tar)
+    job_url = None
+    urlfile = os.path.join(unpack_dir, JOB_URL_FILE_NAME)
+    if os.path.exists(urlfile):
+        with open(urlfile) as jf:
+            job_url = jf.read()
+        print(f"CI_JOB_URL={job_url}")
+        process_env["CI_JOB_URL"] = job_url
+
+    job_env = {}
+    envfile = os.path.join(unpack_dir, JOB_ENV_FILE_NAME)
+    if os.path.exists(envfile):
+        with open(envfile) as jf:
+            for line in jf:
+                if not line.strip():
+                    continue
+                key, val = line.strip().split('=', 1)
+                job_env[key] = val
+        print("\n".join(f"{k}={v}" for k, v in job_env.items()))
+        process_env.update(job_env)
+    return process_env
 
 
 def _normalize_architecture(architecture):
@@ -201,3 +261,44 @@ def repack_macos_junit_tar(infile, outfile):
         # pack all files to a new tarball
         for f in os.listdir(tempd):
             outfp.add(os.path.join(tempd, f), arcname=f)
+
+
+def retrieve_jira_card(test_name, jira_project, jira_cache):
+    """
+    Search in jira if a card already exist for the given test
+    """
+    if test_name in jira_cache:
+        return jira_cache[test_name]
+
+    jira_card = ""
+    try:
+        jira_token = os.environ["JIRA_TOKEN"]
+        auth = ("robot-jira-agentplatform@datadoghq.com", jira_token)
+    except KeyError:
+        print(f"Failed to retrieve jira token in environment, won't retrieve jira cards, report {jira_card}")
+        jira_card = "ERROR-TOKEN"
+        # See https://app.datadoghq.com/workflow/42375aaf-9a77-4b93-ad51-9a5f524b570d
+        return jira_card
+
+    from jira import JIRA
+
+    try:
+        j = JIRA(basic_auth=auth, server="https://datadoghq.atlassian.net/")
+        project = j.project(jira_project)
+        search_query = f'project = "{project.name}" and summary ~ "{test_name}" and status != Done'
+        issues = j.search_issues(search_query)
+        if len(issues) == 0:
+            jira_card = ""
+        else:  # One or more ticket retrieved: take the oldest = last one as search return in id decreasing order
+            jira_card = issues[-1].key
+            if len(issues) > 1:
+                message = f"Found several jira issues for the test {test_name}: {[x.key for x in issues]}"
+                print(message)
+        jira_cache[test_name] = jira_card  # do not forget to update the cache
+    except Exception as e:
+        # Catch whatever issue from jira api and send an information, XYZ-123, handled in the wokflow
+        # See https://app.datadoghq.com/workflow/42375aaf-9a77-4b93-ad51-9a5f524b570d
+        jira_card = "ERROR-API"
+        print(e)
+    print(f"Attach {jira_card} to failed {test_name}")
+    return jira_card

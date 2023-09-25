@@ -5,6 +5,7 @@
 
 //go:build linux
 
+// Package model holds model related files
 package model
 
 import (
@@ -18,6 +19,10 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
 )
 
+var (
+	ErrNoImageProvided = errors.New("no image name provided") // ErrNoImageProvided is returned when no image name is provided
+)
+
 // WorkloadSelector is a selector used to uniquely indentify the image of a workload
 type WorkloadSelector struct {
 	Image string
@@ -27,7 +32,7 @@ type WorkloadSelector struct {
 // NewWorkloadSelector returns an initialized instance of a WorkloadSelector
 func NewWorkloadSelector(image string, tag string) (WorkloadSelector, error) {
 	if image == "" {
-		return WorkloadSelector{}, errors.New("no image name provided")
+		return WorkloadSelector{}, ErrNoImageProvided
 	} else if tag == "" {
 		tag = "latest"
 	}

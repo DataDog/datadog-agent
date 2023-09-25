@@ -1,0 +1,3 @@
+hostname: momar-e2e-test-host
+log_level: DEBUG
+logs_enabled: true

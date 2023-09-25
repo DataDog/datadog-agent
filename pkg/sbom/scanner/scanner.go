@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+// Package scanner holds scanner related files
 package scanner
 
 import (
@@ -35,6 +36,7 @@ type scanRequest struct {
 	ch        chan<- sbom.ScanResult
 }
 
+// Scanner defines the scanner
 type Scanner struct {
 	startOnce sync.Once
 	running   bool
@@ -42,6 +44,7 @@ type Scanner struct {
 	disk      filesystem.Disk
 }
 
+// Scan performs a scan
 func (s *Scanner) Scan(request sbom.ScanRequest, opts sbom.ScanOptions, ch chan<- sbom.ScanResult) error {
 	collectorName := request.Collector()
 	collector := collectors.Collectors[collectorName]
@@ -125,16 +128,15 @@ func (s *Scanner) start(ctx context.Context) {
 				scanContext, cancel := context.WithTimeout(ctx, scanTimeout)
 				createdAt := time.Now()
 				scanResult := collector.Scan(scanContext, request.ScanRequest, request.opts)
-				if scanResult.Error != nil {
-					telemetry.SBOMFailures.Inc(request.Collector(), request.Type(), "scan")
-				}
-
 				generationDuration := time.Since(createdAt)
 				scanResult.CreatedAt = createdAt
 				scanResult.Duration = generationDuration
-
+				if scanResult.Error != nil {
+					telemetry.SBOMFailures.Inc(request.Collector(), request.Type(), "scan")
+				} else {
+					telemetry.SBOMGenerationDuration.Observe(generationDuration.Seconds(), request.Collector(), request.Type())
+				}
 				cancel()
-				telemetry.SBOMGenerationDuration.Observe(generationDuration.Seconds(), request.Collector(), request.Type())
 				sendResult(scanResult)
 				if request.opts.WaitAfter != 0 {
 					t := time.NewTimer(request.opts.WaitAfter)
@@ -149,6 +151,7 @@ func (s *Scanner) start(ctx context.Context) {
 	}()
 }
 
+// Start starts the scanner
 func (s *Scanner) Start(ctx context.Context) {
 	s.startOnce.Do(func() {
 		s.start(ctx)

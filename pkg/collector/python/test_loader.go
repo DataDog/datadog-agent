@@ -11,6 +11,7 @@ import (
 	"runtime"
 	"testing"
 
+	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 
 	"github.com/stretchr/testify/assert"
@@ -61,6 +62,34 @@ int get_attr_string(rtloader_t *rtloader, rtloader_pyobject_t *py_class, const c
 	return get_attr_string_return;
 }
 
+extern int get_check_return;
+extern int get_check_calls;
+extern rtloader_pyobject_t *get_check_py_class;
+extern const char *get_check_init_config;
+extern const char *get_check_instance;
+extern const char *get_check_check_id;
+extern const char *get_check_check_name;
+extern rtloader_pyobject_t *get_check_check;
+
+int get_check(rtloader_t *rtloader, rtloader_pyobject_t *py_class, const char *init_config, const char *instance,
+const char *check_id, const char *check_name, rtloader_pyobject_t **check);
+
+// get_check_deprecated MOCK
+
+extern int get_check_deprecated_calls;
+extern int get_check_deprecated_return;
+extern rtloader_pyobject_t *get_check_deprecated_py_class;
+extern const char *get_check_deprecated_init_config;
+extern const char *get_check_deprecated_instance;
+extern const char *get_check_deprecated_check_id;
+extern const char *get_check_deprecated_check_name;
+extern const char *get_check_deprecated_agent_config;
+extern rtloader_pyobject_t *get_check_deprecated_check;
+
+int get_check_deprecated(rtloader_t *rtloader, rtloader_pyobject_t *py_class, const char *init_config,
+const char *instance, const char *agent_config, const char *check_id, const char *check_name,
+rtloader_pyobject_t **check);
+
 void reset_loader_mock() {
 	get_class_calls = 0;
 	get_class_return = 0;
@@ -76,6 +105,24 @@ void reset_loader_mock() {
 	get_attr_string_py_class = NULL;
 	get_attr_string_attr_name = NULL;
 	get_attr_string_attr_value = NULL;
+
+	get_check_return = 0;
+	get_check_calls = 0;
+	get_check_py_class = NULL;
+	get_check_init_config = NULL;
+	get_check_instance = NULL;
+	get_check_check_id = NULL;
+	get_check_check_name = NULL;
+	get_check_check = NULL;
+	get_check_deprecated_calls = 0;
+	get_check_deprecated_return = 0;
+	get_check_deprecated_py_class = NULL;
+	get_check_deprecated_init_config = NULL;
+	get_check_deprecated_instance = NULL;
+	get_check_deprecated_check_id = NULL;
+	get_check_deprecated_check_name = NULL;
+	get_check_deprecated_agent_config = NULL;
+	get_check_deprecated_check = NULL;
 }
 */
 import "C"
@@ -91,8 +138,8 @@ func testLoadCustomCheck(t *testing.T) {
 
 	rtloader = newMockRtLoaderPtr()
 	defer func() { rtloader = nil }()
-
-	loader, err := NewPythonCheckLoader()
+	senderManager := mocksender.CreateDefaultDemultiplexer()
+	loader, err := NewPythonCheckLoader(senderManager)
 	assert.Nil(t, err)
 
 	// testing loading custom checks
@@ -100,8 +147,11 @@ func testLoadCustomCheck(t *testing.T) {
 	C.get_class_py_module = newMockPyObjectPtr()
 	C.get_class_py_class = newMockPyObjectPtr()
 	C.get_attr_string_return = 0
+	C.get_check_return = 0
+	C.get_check_deprecated_check = newMockPyObjectPtr()
+	C.get_check_deprecated_return = 1
 
-	check, err := loader.Load(conf, conf.Instances[0])
+	check, err := loader.Load(senderManager, conf, conf.Instances[0])
 	// Remove check finalizer that may trigger race condition while testing
 	runtime.SetFinalizer(check, nil)
 
@@ -125,7 +175,8 @@ func testLoadWheelCheck(t *testing.T) {
 	rtloader = newMockRtLoaderPtr()
 	defer func() { rtloader = nil }()
 
-	loader, err := NewPythonCheckLoader()
+	senderManager := mocksender.CreateDefaultDemultiplexer()
+	loader, err := NewPythonCheckLoader(senderManager)
 	assert.Nil(t, err)
 
 	// testing loading dd wheels
@@ -134,8 +185,11 @@ func testLoadWheelCheck(t *testing.T) {
 	C.get_class_dd_wheel_py_class = newMockPyObjectPtr()
 	C.get_attr_string_return = 1
 	C.get_attr_string_attr_value = C.CString("1.2.3")
+	C.get_check_return = 0
+	C.get_check_deprecated_check = newMockPyObjectPtr()
+	C.get_check_deprecated_return = 1
 
-	check, err := loader.Load(conf, conf.Instances[0])
+	check, err := loader.Load(senderManager, conf, conf.Instances[0])
 	// Remove check finalizer that may trigger race condition while testing
 	runtime.SetFinalizer(check, nil)
 

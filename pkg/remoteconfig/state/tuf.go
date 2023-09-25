@@ -30,7 +30,7 @@ func newTufRootsClient(root []byte) (*tufRootsClient, error) {
 	rootRemoteStore := &rootClientRemoteStore{}
 	rootClient := client.NewClient(rootLocalStore, rootRemoteStore)
 
-	err := rootClient.InitLocal(root)
+	err := rootClient.Init(root)
 	if err != nil {
 		return nil, err
 	}

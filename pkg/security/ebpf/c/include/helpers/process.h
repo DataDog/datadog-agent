@@ -41,7 +41,7 @@ void __attribute__((always_inline)) copy_pid_cache_except_exit_ts(struct pid_cac
     dst->credentials = src->credentials;
 }
 
-struct proc_cache_t __attribute__((always_inline)) *get_proc_from_cookie(u32 cookie) {
+struct proc_cache_t __attribute__((always_inline)) *get_proc_from_cookie(u64 cookie) {
     if (!cookie) {
         return NULL;
     }
@@ -128,7 +128,7 @@ u32 __attribute__((always_inline)) get_namespace_nr_from_task_struct(struct task
 }
 
 __attribute__((always_inline)) struct process_event_t *new_process_event(u8 is_fork) {
-    u32 key = 0;
+    u32 key = bpf_get_current_pid_tgid() % EVENT_GEN_SIZE;
     struct process_event_t *evt = bpf_map_lookup_elem(&process_event_gen, &key);
 
     if (evt) {

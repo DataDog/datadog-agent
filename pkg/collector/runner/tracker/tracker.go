@@ -9,6 +9,7 @@ import (
 	"sync"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
+	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 )
 
 // withCheckFunc is a closure you can run on a mutex-locked check
@@ -16,24 +17,24 @@ type withCheckFunc func(check.Check)
 
 // withRunningChecksFunc is a closure you can run on a mutex-locked list of
 // running checks
-type withRunningChecksFunc func(map[check.ID]check.Check)
+type withRunningChecksFunc func(map[checkid.ID]check.Check)
 
 // RunningChecksTracker is an object that keeps a thread-safe track of
 // all the running checks
 type RunningChecksTracker struct {
-	runningChecks map[check.ID]check.Check // The list of checks running
-	accessLock    sync.RWMutex             // To control races on runningChecks
+	runningChecks map[checkid.ID]check.Check // The list of checks running
+	accessLock    sync.RWMutex               // To control races on runningChecks
 }
 
 // NewRunningChecksTracker is a contructor for a RunningChecksTracker
 func NewRunningChecksTracker() *RunningChecksTracker {
 	return &RunningChecksTracker{
-		runningChecks: make(map[check.ID]check.Check),
+		runningChecks: make(map[checkid.ID]check.Check),
 	}
 }
 
 // Check returns a check in the running check list, if it can be found
-func (t *RunningChecksTracker) Check(id check.ID) (check.Check, bool) {
+func (t *RunningChecksTracker) Check(id checkid.ID) (check.Check, bool) {
 	t.accessLock.RLock()
 	defer t.accessLock.RUnlock()
 
@@ -57,7 +58,7 @@ func (t *RunningChecksTracker) AddCheck(check check.Check) bool {
 }
 
 // DeleteCheck removes a check from the list of running checks
-func (t *RunningChecksTracker) DeleteCheck(id check.ID) {
+func (t *RunningChecksTracker) DeleteCheck(id checkid.ID) {
 	t.accessLock.Lock()
 	defer t.accessLock.Unlock()
 
@@ -71,11 +72,11 @@ func (t *RunningChecksTracker) WithRunningChecks(closureFunc withRunningChecksFu
 }
 
 // RunningChecks returns a list of all the running checks
-func (t *RunningChecksTracker) RunningChecks() map[check.ID]check.Check {
+func (t *RunningChecksTracker) RunningChecks() map[checkid.ID]check.Check {
 	t.accessLock.RLock()
 	defer t.accessLock.RUnlock()
 
-	clone := make(map[check.ID]check.Check)
+	clone := make(map[checkid.ID]check.Check)
 	for key, val := range t.runningChecks {
 		clone[key] = val
 	}
@@ -85,7 +86,7 @@ func (t *RunningChecksTracker) RunningChecks() map[check.ID]check.Check {
 
 // WithCheck takes in a function to execute in the context of a locked
 // state of the checks tracker on a single check
-func (t *RunningChecksTracker) WithCheck(id check.ID, closureFunc withCheckFunc) bool {
+func (t *RunningChecksTracker) WithCheck(id checkid.ID, closureFunc withCheckFunc) bool {
 	t.accessLock.RLock()
 	defer t.accessLock.RUnlock()
 

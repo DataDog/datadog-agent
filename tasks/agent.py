@@ -4,7 +4,6 @@ Agent namespaced tasks
 
 
 import ast
-import datetime
 import glob
 import os
 import platform
@@ -21,10 +20,12 @@ from .build_tags import filter_incompatible_tags, get_build_tags, get_default_bu
 from .docker_tasks import pull_base_images
 from .flavor import AgentFlavor
 from .go import deps
+from .process_agent import build as process_agent_build
 from .rtloader import clean as rtloader_clean
 from .rtloader import install as rtloader_install
 from .rtloader import make as rtloader_make
 from .ssm import get_pfx_pass, get_signing_cert
+from .trace_agent import build as trace_agent_build
 from .utils import (
     REPO_PATH,
     bin_name,
@@ -32,11 +33,11 @@ from .utils import (
     generate_config,
     get_build_flags,
     get_version,
-    get_version_numeric_only,
-    get_win_py_runtime_var,
     has_both_python,
     load_release_versions,
+    timed,
 )
+from .windows_resources import build_messagetable, build_rc, versioninfo_vars
 
 # constants
 BIN_PATH = os.path.join(".", "bin", "agent")
@@ -68,7 +69,6 @@ AGENT_CORECHECKS = [
     "winkmem",
     "winproc",
     "jetson",
-    "openmetrics",
 ]
 
 IOT_AGENT_CORECHECKS = [
@@ -110,6 +110,7 @@ def build(
     exclude_rtloader=False,
     go_mod="mod",
     windows_sysprobe=False,
+    cmake_options='',
 ):
     """
     Build the agent. If the bits to include in the build are not specified,
@@ -123,7 +124,7 @@ def build(
     if not exclude_rtloader and not flavor.is_iot():
         # If embedded_path is set, we should give it to rtloader as it should install the headers/libs
         # in the embedded path folder because that's what is used in get_build_flags()
-        rtloader_make(ctx, python_runtimes=python_runtimes, install_prefix=embedded_path)
+        rtloader_make(ctx, python_runtimes=python_runtimes, install_prefix=embedded_path, cmake_options=cmake_options)
         rtloader_install(ctx)
 
     ldflags, gcflags, env = get_build_flags(
@@ -137,29 +138,21 @@ def build(
     )
 
     if sys.platform == 'win32':
-        py_runtime_var = get_win_py_runtime_var(python_runtimes)
-
-        windres_target = "pe-x86-64"
-
         # Important for x-compiling
         env["CGO_ENABLED"] = "1"
 
         if arch == "x86":
             env["GOARCH"] = "386"
-            windres_target = "pe-i386"
 
-        # This generates the manifest resource. The manifest resource is necessary for
-        # being able to load the ancient C-runtime that comes along with Python 2.7
-        # command = "rsrc -arch amd64 -manifest cmd/agent/agent.exe.manifest -o cmd/agent/rsrc.syso"
-        ver = get_version_numeric_only(ctx, major_version=major_version)
-        build_maj, build_min, build_patch = ver.split(".")
-
-        command = f"windmc --target {windres_target} -r cmd/agent cmd/agent/agentmsg.mc "
-        ctx.run(command, env=env)
-
-        command = f"windres --target {windres_target} --define {py_runtime_var}=1 --define MAJ_VER={build_maj} --define MIN_VER={build_min} --define PATCH_VER={build_patch} --define BUILD_ARCH_{arch}=1"
-        command += "-i cmd/agent/agent.rc -O coff -o cmd/agent/rsrc.syso"
-        ctx.run(command, env=env)
+        build_messagetable(ctx, arch=arch)
+        vars = versioninfo_vars(ctx, major_version=major_version, python_runtimes=python_runtimes, arch=arch)
+        build_rc(
+            ctx,
+            "cmd/agent/windows_resources/agent.rc",
+            arch=arch,
+            vars=vars,
+            out="cmd/agent/rsrc.syso",
+        )
 
     if flavor.is_iot():
         # Iot mode overrides whatever passed through `--build-exclude` and `--build-include`
@@ -281,6 +274,23 @@ def run(
 
 
 @task
+def exec(
+    ctx,
+    subcommand,
+    config_path=None,
+):
+    """
+    Execute 'agent <subcommand>' against the currently running Agent.
+
+    This works against an agent run via `inv agent.run`.
+    Basically this just simplifies creating the path for both the agent binary and config.
+    """
+    agent_bin = os.path.join(BIN_PATH, bin_name("agent"))
+    config_path = os.path.join(BIN_PATH, "dist", "datadog.yaml") if not config_path else config_path
+    ctx.run(f"{agent_bin} -c {config_path} {subcommand}")
+
+
+@task
 def system_tests(_):
     """
     Run the system testsuite.
@@ -327,10 +337,16 @@ def image_build(ctx, arch='amd64', base_dir="omnibus", python_version="2", skip_
 
 
 @task
-def hacky_dev_image_build(ctx, base_image=None, target_image="agent", push=False, signed_pull=False):
-    os.environ["DELVE"] = "1"
-    build(ctx)
-
+def hacky_dev_image_build(
+    ctx,
+    base_image=None,
+    target_image="agent",
+    target_tag="latest",
+    process_agent=False,
+    trace_agent=False,
+    push=False,
+    signed_pull=False,
+):
     if base_image is None:
         import requests
         import semver
@@ -348,6 +364,34 @@ def hacky_dev_image_build(ctx, base_image=None, target_image="agent", push=False
                 latest_release = ver
         base_image = f"gcr.io/datadoghq/agent:{latest_release}"
 
+    # Extract the python library of the docker image
+    with tempfile.TemporaryDirectory() as extracted_python_dir:
+        ctx.run(
+            f"docker run --rm '{base_image}' bash -c 'tar --create /opt/datadog-agent/embedded/{{bin,lib,include}}/*python*' | tar --directory '{extracted_python_dir}' --extract"
+        )
+
+        os.environ["DELVE"] = "1"
+        os.environ["LD_LIBRARY_PATH"] = (
+            os.environ.get("LD_LIBRARY_PATH", "") + f":{extracted_python_dir}/opt/datadog-agent/embedded/lib"
+        )
+        build(
+            ctx,
+            cmake_options=f'-DPython3_ROOT_DIR={extracted_python_dir}/opt/datadog-agent/embedded -DPython3_FIND_STRATEGY=LOCATION',
+        )
+        ctx.run(
+            f'perl -0777 -pe \'s|{extracted_python_dir}(/opt/datadog-agent/embedded/lib/python\\d+\\.\\d+/../..)|substr $1."\\0"x length$&,0,length$&|e or die "pattern not found"\' -i dev/lib/libdatadog-agent-three.so'
+        )
+        if process_agent:
+            process_agent_build(ctx)
+        if trace_agent:
+            trace_agent_build(ctx)
+
+    copy_extra_agents = ""
+    if process_agent:
+        copy_extra_agents += "COPY bin/process-agent/process-agent /opt/datadog-agent/embedded/bin/process-agent\n"
+    if trace_agent:
+        copy_extra_agents += "COPY bin/trace-agent/trace-agent /opt/datadog-agent/embedded/bin/trace-agent\n"
+
     with tempfile.NamedTemporaryFile(mode='w') as dockerfile:
         dockerfile.write(
             f'''FROM ubuntu:latest AS src
@@ -363,9 +407,13 @@ ENV DEBIAN_FRONTEND=noninteractive
 RUN apt-get update && \
     apt-get install -y patchelf
 
-COPY bin/agent/agent /opt/datadog-agent/bin/agent/agent
+COPY bin/agent/agent                            /opt/datadog-agent/bin/agent/agent
+COPY dev/lib/libdatadog-agent-rtloader.so.0.1.0 /opt/datadog-agent/embedded/lib/libdatadog-agent-rtloader.so.0.1.0
+COPY dev/lib/libdatadog-agent-three.so          /opt/datadog-agent/embedded/lib/libdatadog-agent-three.so
 
 RUN patchelf --set-rpath /opt/datadog-agent/embedded/lib /opt/datadog-agent/bin/agent/agent
+RUN patchelf --set-rpath /opt/datadog-agent/embedded/lib /opt/datadog-agent/embedded/lib/libdatadog-agent-rtloader.so.0.1.0
+RUN patchelf --set-rpath /opt/datadog-agent/embedded/lib /opt/datadog-agent/embedded/lib/libdatadog-agent-three.so
 
 FROM golang:latest AS dlv
 
@@ -382,7 +430,10 @@ ENV DELVE_PAGER=less
 
 COPY --from=dlv /go/bin/dlv /usr/local/bin/dlv
 COPY --from=src /usr/src/datadog-agent {os.getcwd()}
-COPY --from=bin /opt/datadog-agent/bin/agent/agent /opt/datadog-agent/bin/agent/agent
+COPY --from=bin /opt/datadog-agent/bin/agent/agent                                 /opt/datadog-agent/bin/agent/agent
+COPY --from=bin /opt/datadog-agent/embedded/lib/libdatadog-agent-rtloader.so.0.1.0 /opt/datadog-agent/embedded/lib/libdatadog-agent-rtloader.so.0.1.0
+COPY --from=bin /opt/datadog-agent/embedded/lib/libdatadog-agent-three.so          /opt/datadog-agent/embedded/lib/libdatadog-agent-three.so
+{copy_extra_agents}
 RUN agent completion bash > /usr/share/bash-completion/completions/agent
 
 ENV DD_SSLKEYLOGFILE=/tmp/sslkeylog.txt
@@ -390,13 +441,14 @@ ENV DD_SSLKEYLOGFILE=/tmp/sslkeylog.txt
         )
         dockerfile.flush()
 
+        target_image_name = f'{target_image}:{target_tag}'
         pull_env = {}
         if signed_pull:
             pull_env['DOCKER_CONTENT_TRUST'] = '1'
-        ctx.run(f'docker build -t {target_image} -f {dockerfile.name} .', env=pull_env)
+        ctx.run(f'docker build -t {target_image_name} -f {dockerfile.name} .', env=pull_env)
 
         if push:
-            ctx.run(f'docker push {target_image}')
+            ctx.run(f'docker push {target_image_name}')
 
 
 @task
@@ -493,6 +545,11 @@ def get_omnibus_env(
         env['SYSTEM_PROBE_BIN'] = system_probe_bin
     env['AGENT_FLAVOR'] = flavor.name
 
+    # We need to override the workers variable in omnibus build when running on Kubernetes runners,
+    # otherwise, ohai detect the number of CPU on the host and run the make jobs with all the CPU.
+    if os.environ.get('KUBERNETES_CPU_REQUEST'):
+        env['OMNIBUS_WORKERS_OVERRIDE'] = str(int(os.environ.get('KUBERNETES_CPU_REQUEST')) + 1)
+
     return env
 
 
@@ -572,14 +629,9 @@ def omnibus_build(
     Build the Agent packages with Omnibus Installer.
     """
     flavor = AgentFlavor[flavor]
-    deps_elapsed = None
-    bundle_elapsed = None
-    omnibus_elapsed = None
     if not skip_deps:
-        deps_start = datetime.datetime.now()
-        deps(ctx)
-        deps_end = datetime.datetime.now()
-        deps_elapsed = deps_end - deps_start
+        with timed(quiet=True) as deps_elapsed:
+            deps(ctx)
 
     # base dir (can be overridden through env vars, command line takes precedence)
     base_dir = base_dir or os.environ.get("OMNIBUS_BASE_DIR")
@@ -618,32 +670,28 @@ def omnibus_build(
     with open(pip_config_file, 'w') as f:
         f.write(pip_index_url)
 
-    bundle_start = datetime.datetime.now()
-    bundle_install_omnibus(ctx, gem_path, env)
-    bundle_done = datetime.datetime.now()
-    bundle_elapsed = bundle_done - bundle_start
+    with timed(quiet=True) as bundle_elapsed:
+        bundle_install_omnibus(ctx, gem_path, env)
 
-    omnibus_start = datetime.datetime.now()
-    omnibus_run_task(
-        ctx=ctx,
-        task="build",
-        target_project=target_project,
-        base_dir=base_dir,
-        env=env,
-        omnibus_s3_cache=omnibus_s3_cache,
-        log_level=log_level,
-    )
-    omnibus_done = datetime.datetime.now()
-    omnibus_elapsed = omnibus_done - omnibus_start
+    with timed(quiet=True) as omnibus_elapsed:
+        omnibus_run_task(
+            ctx=ctx,
+            task="build",
+            target_project=target_project,
+            base_dir=base_dir,
+            env=env,
+            omnibus_s3_cache=omnibus_s3_cache,
+            log_level=log_level,
+        )
 
     # Delete the temporary pip.conf file once the build is done
     os.remove(pip_config_file)
 
     print("Build component timing:")
     if not skip_deps:
-        print(f"Deps:    {deps_elapsed}")
-    print(f"Bundle:  {bundle_elapsed}")
-    print(f"Omnibus: {omnibus_elapsed}")
+        print(f"Deps:    {deps_elapsed.duration}")
+    print(f"Bundle:  {bundle_elapsed.duration}")
+    print(f"Omnibus: {omnibus_elapsed.duration}")
 
 
 @task

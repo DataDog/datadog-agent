@@ -6,6 +6,7 @@
 package check
 
 import (
+	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 )
 
@@ -15,5 +16,5 @@ import (
 // A single check is loaded for the given `instance` YAML.
 type Loader interface {
 	Name() string
-	Load(config integration.Config, instance integration.Data) (Check, error)
+	Load(senderManager sender.SenderManager, config integration.Config, instance integration.Data) (Check, error)
 }

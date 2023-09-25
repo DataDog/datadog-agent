@@ -11,10 +11,10 @@ import (
 
 	"go.uber.org/atomic"
 
-	"github.com/DataDog/datadog-agent/pkg/logs/config"
+	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/status"
-	"github.com/DataDog/datadog-agent/pkg/logs/internal/tailers"
 	sourcesPkg "github.com/DataDog/datadog-agent/pkg/logs/sources"
+	"github.com/DataDog/datadog-agent/pkg/logs/tailers"
 	"github.com/DataDog/datadog-agent/pkg/util"
 )
 

@@ -47,6 +47,8 @@ type DatadogMetricInternal struct {
 	Error                error
 	MaxAge               time.Duration
 	TimeWindow           time.Duration
+	Retries              int
+	RetryAfter           time.Time
 }
 
 // NewDatadogMetricInternal returns a `DatadogMetricInternal` object from a `DatadogMetric` CRD Object
@@ -63,6 +65,7 @@ func NewDatadogMetricInternal(id string, datadogMetric datadoghq.DatadogMetric) 
 		AutoscalerReferences: datadogMetric.Status.AutoscalerReferences,
 		MaxAge:               datadogMetric.Spec.MaxAge.Duration,
 		TimeWindow:           datadogMetric.Spec.TimeWindow.Duration,
+		Retries:              0,
 	}
 
 	if len(datadogMetric.Spec.ExternalMetricName) > 0 {
@@ -154,6 +157,16 @@ func (d *DatadogMetricInternal) UpdateFrom(current datadoghq.DatadogMetric) {
 	if d.shouldResolveQuery(currentSpec) {
 		d.resolveQuery(currentSpec.Query)
 	}
+
+	// Changing one of these fields may get `DatadogMetric` out of error state. To get query attempted
+	// right away we reset retry count and backoff.
+	if d.query != currentSpec.Query ||
+		d.MaxAge != currentSpec.MaxAge.Duration ||
+		d.TimeWindow != currentSpec.TimeWindow.Duration {
+		d.Retries = 0
+		d.RetryAfter = time.Time{}
+	}
+
 	d.query = currentSpec.Query
 	d.MaxAge = currentSpec.MaxAge.Duration
 	d.TimeWindow = currentSpec.TimeWindow.Duration

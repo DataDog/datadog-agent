@@ -31,10 +31,10 @@ When calling a provider we always:
 
 ### The current logic
 
-1. If `hostname` is set to a valid hostname we use it. If `hostname_force_config_as_canonical` is true and the hostname
+1. If `hostname` is set to a valid hostname we use it. If `hostname_force_config_as_canonical` is `false` and the hostname
    has the default prefixes used on EC2 we log a warning about non canonical hostname.
 2. If `hostname_file` is set to a valid, non-empty file we use it's content as hostname. If
-   `hostname_force_config_as_canonical` is true and the hostname has the default prefixes used on EC2 we log a warning
+   `hostname_force_config_as_canonical` is `false` and the hostname has the default prefixes used on EC2 we log a warning
    about non canonical hostname.
 3. If running on **Fargate**: we set an empty hostname as the idea of a host doesn't exist. We **DO NOT** set hostname
    provider in `goexpvar` and `inventories`

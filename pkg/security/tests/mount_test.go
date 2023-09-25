@@ -5,6 +5,7 @@
 
 //go:build functionaltests
 
+// Package tests holds tests related files
 package tests
 
 import (
@@ -322,7 +323,7 @@ func TestMountSnapshot(t *testing.T) {
 	defer bindMountB.unmount(0)
 
 	mountResolver := test.probe.GetResolvers().MountResolver
-	pid := uint32(utils.Getpid())
+	pid := utils.Getpid()
 
 	mounts, err := kernel.ParseMountInfoFile(int32(pid))
 	if err != nil {
@@ -333,17 +334,19 @@ func TestMountSnapshot(t *testing.T) {
 	time.Sleep(5 * time.Second)
 
 	checkSnapshotAndModelMatch := func(mntInfo *mountinfo.Info) {
-		mount, err := mountResolver.ResolveMount(uint32(mntInfo.ID), pid, "")
+		dev := utils.Mkdev(uint32(mntInfo.Major), uint32(mntInfo.Minor))
+
+		mount, err := mountResolver.ResolveMount(uint32(mntInfo.ID), dev, pid, "")
 		if err != nil {
 			t.Errorf(err.Error())
 			return
 		}
 		assert.Equal(t, uint32(mntInfo.ID), mount.MountID, "snapshot and model mount ID mismatch")
-		assert.Equal(t, uint32(mntInfo.Parent), mount.ParentMountID, "snapshot and model parent mount ID mismatch")
-		assert.Equal(t, uint32(unix.Mkdev(uint32(mntInfo.Major), uint32(mntInfo.Minor))), mount.Device, "snapshot and model device mismatch")
+		assert.Equal(t, uint32(mntInfo.Parent), mount.ParentPathKey.MountID, "snapshot and model parent mount ID mismatch")
+		assert.Equal(t, dev, mount.Device, "snapshot and model device mismatch")
 		assert.Equal(t, mntInfo.FSType, mount.FSType, "snapshot and model fstype mismatch")
 		assert.Equal(t, mntInfo.Root, mount.RootStr, "snapshot and model root mismatch")
-		mountPointPath, err := mountResolver.ResolveMountPath(mount.MountID, pid, "")
+		mountPointPath, err := mountResolver.ResolveMountPath(mount.MountID, dev, pid, "")
 		if err != nil {
 			t.Errorf("failed to resolve mountpoint path of mountpoint with id %d", mount.MountID)
 		}

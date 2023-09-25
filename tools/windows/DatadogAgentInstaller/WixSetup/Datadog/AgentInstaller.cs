@@ -38,7 +38,6 @@ namespace WixSetup.Datadog
         private readonly AgentFeatures _agentFeatures = new();
         private readonly AgentPython _agentPython = new();
         private readonly AgentVersion _agentVersion;
-        private readonly AgentSignature _agentSignature;
         private readonly AgentCustomActions _agentCustomActions = new();
         private readonly AgentInstallerUI _agentInstallerUi;
 
@@ -54,7 +53,6 @@ namespace WixSetup.Datadog
             }
 
             _agentBinaries = new AgentBinaries(BinSource, InstallerSource);
-            _agentSignature = new AgentSignature(this, _agentPython, _agentBinaries);
             _agentInstallerUi = new AgentInstallerUI(this, _agentCustomActions);
         }
 
@@ -116,13 +114,14 @@ namespace WixSetup.Datadog
                     RegistryHive.LocalMachine, @"Software\Datadog\Datadog Agent",
                     // Store these properties in the registry for retrieval by future
                     // installer runs via the ReadInstallState CA.
-                    new RegValue("InstallPath", "[PROJECTLOCATION]") { Win64 = true },
-                    new RegValue("ConfigRoot", "[APPLICATIONDATADIRECTORY]") { Win64 = true }
+                    // Must set KeyPath=yes to ensure WiX# doesn't automatically try to use the parent Directory as the KeyPath,
+                    // which can cause the directory to be added to the CreateFolder table.
+                    new RegValue("InstallPath", "[PROJECTLOCATION]") { Win64 = true, AttributesDefinition = "KeyPath=yes"},
+                    new RegValue("ConfigRoot", "[APPLICATIONDATADIRECTORY]") { Win64 = true, AttributesDefinition = "KeyPath=yes"}
                 )
                 {
                     Win64 = true
-                },
-                new RemoveRegistryKey(_agentFeatures.MainApplication, @"Software\Datadog\Datadog Agent")
+                }
             );
             project
                 .SetCustomActions(_agentCustomActions)
@@ -156,7 +155,7 @@ namespace WixSetup.Datadog
                 .AddDirectories(
                     CreateProgramFilesFolder(),
                     CreateAppDataFolder(),
-                    new Dir(@"%ProgramMenu%\Datadog",
+                    new Dir(new Id("ProgramMenuDatadog"), @"%ProgramMenu%\Datadog",
                         new ExeFileShortcut
                         {
                             Name = "Datadog Agent Manager",
@@ -164,8 +163,7 @@ namespace WixSetup.Datadog
                             Arguments = "\"--launch-gui\"",
                             WorkingDirectory = "AGENT",
                         }
-                    ),
-                    new Dir("logs")
+                    )
                 );
 
             project.SetNetFxPrerequisite(Condition.Net45_Installed,
@@ -198,8 +196,12 @@ namespace WixSetup.Datadog
             project.Codepage = "1252";
             project.InstallPrivileges = InstallPrivileges.elevated;
             project.LocalizationFile = "localization-en-us.wxl";
+            if (!string.IsNullOrEmpty(Environment.GetEnvironmentVariable("AGENT_MSI_OUTDIR")))
+            {
+                // Set custom output directory (WixSharp defaults to current directory)
+                project.OutDir = Environment.GetEnvironmentVariable("AGENT_MSI_OUTDIR");
+            }
             project.OutFileName = $"datadog-agent-ng-{_agentVersion.PackageVersion}-1-x86_64";
-            project.DigitalSignature = _agentSignature.Signature;
             project.Package.AttributesDefinition = $"Comments={ProductComment}";
 
             // clear default media as we will add it via MediaTemplate
@@ -211,12 +213,33 @@ namespace WixSetup.Datadog
                     .Select("Wix/Product")
                     .AddElement("MediaTemplate",
                         "CabinetTemplate=cab{0}.cab; CompressionLevel=high; EmbedCab=yes; MaximumUncompressedMediaSize=2");
+
+                // Windows Installer (MSI.dll) calls the obsolete SetFileSecurityW function during CreateFolder rollback,
+                // this causes directories in the CreateFolder table to have their SE_DACL_AUTO_INHERITED flag removed.
+                // Also, since folders created by CreateFolder aren't removed on uninstall then it can cause empty directories
+                // to be left behind on uninstall.
+                document.FindAll("CreateFolder")
+                    .ForEach(x => x.Remove());
+                document.FindAll("RemoveFolder")
+                    .ForEach(x => x.Remove());
+
+                // Wix# is auto-adding components for the following directories for some reason, which causes them to be placed
+                // in the CreateFolder table.
                 document
-                    .FindAll("RemoveFolder")
+                    .FindAll("Component")
                     .Where(x => x.HasAttribute("Id",
-                        value => value.StartsWith("APPLICATIONDATADIRECTORY") ||
-                                 value.StartsWith("EXAMPLECONFSLOCATION")))
+                        value => value.Equals("TARGETDIR") ||
+                                 value.Equals("ProgramFiles64Folder") ||
+                                 value.Equals("DatadogAppRoot")))
                     .Remove();
+                document
+                    .FindAll("ComponentRef")
+                    .Where(x => x.HasAttribute("Id",
+                        value => value.Equals("TARGETDIR") ||
+                                 value.Equals("ProgramFiles64Folder") ||
+                                 value.Equals("DatadogAppRoot")))
+                    .Remove();
+                // END TODO: Wix# adds these automatically
                 document
                     .FindAll("Component")
                     .Where(x => x.Parent.HasAttribute("Id",
@@ -264,7 +287,6 @@ namespace WixSetup.Datadog
             project.UI = WUI.WixUI_Common;
             project.CustomUI = _agentInstallerUi;
 
-            project.ResolveWildCards(pruneEmptyDirectories: true);
 
 #if DEBUG_PROPERTIES
             project.BeforeInstall += args =>
@@ -302,24 +324,25 @@ namespace WixSetup.Datadog
 
         private Dir CreateProgramFilesFolder()
         {
-            var targetBinFolder = CreateBinFolder();
-            var binFolder =
-                new Dir(new Id("PROJECTLOCATION"), "%ProgramFiles%\\Datadog\\Datadog Agent",
-                    targetBinFolder,
-                    new Dir("LICENSES",
-                        new Files($@"{InstallerSource}\LICENSES\*")
-                    ),
-                    new DirFiles($@"{InstallerSource}\LICENSE"),
-                    new DirFiles($@"{InstallerSource}\*.json"),
-                    new DirFiles($@"{InstallerSource}\*.txt"),
-                    new CompressedDir(this, "embedded3", $@"{InstallerSource}\embedded3")
-                );
+            var datadogAgentFolder = new InstallDir(new Id("PROJECTLOCATION"), "Datadog Agent",
+                CreateBinFolder(),
+                new Dir("LICENSES",
+                    new Files($@"{InstallerSource}\LICENSES\*")
+                ),
+                new DirFiles($@"{InstallerSource}\LICENSE"),
+                new DirFiles($@"{InstallerSource}\*.json"),
+                new DirFiles($@"{InstallerSource}\*.txt"),
+                new CompressedDir(this, "embedded3", $@"{InstallerSource}\embedded3"),
+                // Recursively delete/backup all files/folders in PROJECTLOCATION, they will be restored
+                // on rollback. By default WindowsInstller only removes the files it tracks, and embedded3 isn't tracked
+                new RemoveFolderEx { On = InstallEvent.uninstall, Property = "PROJECTLOCATION" }
+            );
             if (_agentPython.IncludePython2)
             {
-                binFolder.AddFile(new CompressedDir(this, "embedded2", $@"{InstallerSource}\embedded2"));
+                datadogAgentFolder.AddFile(new CompressedDir(this, "embedded2", $@"{InstallerSource}\embedded2"));
             }
 
-            return binFolder;
+            return new Dir(new Id("DatadogAppRoot"), "%ProgramFiles%\\Datadog", datadogAgentFolder);
         }
 
         private static PermissionEx DefaultPermissions()
@@ -435,12 +458,15 @@ namespace WixSetup.Datadog
 
             var targetBinFolder = new Dir(new Id("BIN"), "bin",
                 new WixSharp.File(_agentBinaries.Agent, agentService),
+                // Each EventSource must have KeyPath=yes to avoid having the parent directory placed in the CreateFolder table.
+                // The EventSource supports being a KeyPath.
+                // https://wixtoolset.org/docs/v3/xsd/util/eventsource/
                 new EventSource
                 {
                     Name = Constants.AgentServiceName,
                     Log = "Application",
                     EventMessageFile = $"[BIN]{Path.GetFileName(_agentBinaries.Agent)}",
-                    AttributesDefinition = "SupportsErrors=yes; SupportsInformationals=yes; SupportsWarnings=yes"
+                    AttributesDefinition = "SupportsErrors=yes; SupportsInformationals=yes; SupportsWarnings=yes; KeyPath=yes"
                 },
                 new WixSharp.File(_agentBinaries.LibDatadogAgentThree),
                 new Dir(new Id("AGENT"), "agent",
@@ -454,7 +480,7 @@ namespace WixSetup.Datadog
                         Name = Constants.ProcessAgentServiceName,
                         Log = "Application",
                         EventMessageFile = $"[AGENT]{Path.GetFileName(_agentBinaries.ProcessAgent)}",
-                        AttributesDefinition = "SupportsErrors=yes; SupportsInformationals=yes; SupportsWarnings=yes"
+                        AttributesDefinition = "SupportsErrors=yes; SupportsInformationals=yes; SupportsWarnings=yes; KeyPath=yes"
                     },
                     new WixSharp.File(_agentBinaries.SystemProbe, systemProbeService),
                     new EventSource
@@ -462,7 +488,7 @@ namespace WixSetup.Datadog
                         Name = Constants.SystemProbeServiceName,
                         Log = "Application",
                         EventMessageFile = $"[AGENT]{Path.GetFileName(_agentBinaries.SystemProbe)}",
-                        AttributesDefinition = "SupportsErrors=yes; SupportsInformationals=yes; SupportsWarnings=yes"
+                        AttributesDefinition = "SupportsErrors=yes; SupportsInformationals=yes; SupportsWarnings=yes; KeyPath=yes"
                     },
                     new WixSharp.File(_agentBinaries.TraceAgent, traceAgentService),
                     new EventSource
@@ -470,7 +496,7 @@ namespace WixSetup.Datadog
                         Name = Constants.TraceAgentServiceName,
                         Log = "Application",
                         EventMessageFile = $"[AGENT]{Path.GetFileName(_agentBinaries.TraceAgent)}",
-                        AttributesDefinition = "SupportsErrors=yes; SupportsInformationals=yes; SupportsWarnings=yes"
+                        AttributesDefinition = "SupportsErrors=yes; SupportsInformationals=yes; SupportsWarnings=yes; KeyPath=yes"
                     }
                 )
             );
@@ -487,6 +513,8 @@ namespace WixSetup.Datadog
             var appData = new Dir(new Id("APPLICATIONDATADIRECTORY"), "Datadog",
                 new DirFiles($@"{EtcSource}\*.yaml.example"),
                 new Dir("checks.d"),
+                new Dir("run"),
+                new Dir("logs"),
                 new Dir(new Id("EXAMPLECONFSLOCATION"), "conf.d",
                     new Files($@"{EtcSource}\extra_package_files\EXAMPLECONFSLOCATION\*")
                 ));

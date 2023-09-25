@@ -51,9 +51,9 @@ func convertMemoryStats(memStats *types.MemoryStats) *provider.ContainerMemStats
 		Cache: getFieldFromMap(memStats.Stats, "total_cache", "file"),
 	}
 
-	inactive_file := getFieldFromMap(memStats.Stats, "total_inactive_file", "inactive_file")
-	if inactive_file != nil {
-		containerMemStats.WorkingSet = pointer.Ptr(*containerMemStats.UsageTotal - *inactive_file)
+	inactiveFile := getFieldFromMap(memStats.Stats, "total_inactive_file", "inactive_file")
+	if inactiveFile != nil {
+		containerMemStats.WorkingSet = pointer.Ptr(*containerMemStats.UsageTotal - *inactiveFile)
 	}
 
 	// `kernel_stack` and `slab`, which are used to compute `KernelMemory` are available only with cgroup v2
@@ -156,6 +156,7 @@ func computeCPULimit(containerStats *provider.ContainerStats, spec *types.Contai
 		// If no limit is available, setting the limit to number of CPUs.
 		// Always reporting a limit allows to compute CPU % accurately.
 		cpuLimit = 100 * float64(systemutils.HostCPUCount())
+		containerStats.CPU.DefaultedLimit = true
 	}
 
 	containerStats.CPU.Limit = &cpuLimit

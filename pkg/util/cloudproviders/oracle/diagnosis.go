@@ -12,7 +12,7 @@ import (
 )
 
 func init() {
-	diagnosis.Register("OracleCloud Metadata availability", diagnose)
+	diagnosis.RegisterMetadataAvail("OracleCloud Metadata availability", diagnose)
 }
 
 // diagnose the oraclecloud metadata API availability

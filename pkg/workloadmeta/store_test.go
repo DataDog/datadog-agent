@@ -9,9 +9,10 @@ import (
 	"reflect"
 	"testing"
 
-	"gotest.tools/assert"
+	"github.com/stretchr/testify/assert"
 
 	"github.com/DataDog/datadog-agent/pkg/errors"
+	"github.com/DataDog/datadog-agent/pkg/languagedetection/languagemodels"
 )
 
 const (
@@ -593,10 +594,47 @@ func TestSubscribe(t *testing.T) {
 			s.Unsubscribe(ch)
 
 			<-doneCh
-
-			assert.DeepEqual(t, tt.expected, actual)
+			assert.Equal(t, tt.expected, actual)
+			assert.Equal(t, tt.expected, actual)
 		})
 	}
+}
+
+func TestGetKubernetesDeployment(t *testing.T) {
+	s := newTestStore()
+
+	deployment := &KubernetesDeployment{
+		EntityID: EntityID{
+			Kind: KindKubernetesDeployment,
+			ID:   "datadog-cluster-agent",
+		},
+	}
+
+	s.handleEvents([]CollectorEvent{
+		{
+			Type:   EventTypeSet,
+			Source: fooSource,
+			Entity: deployment,
+		},
+	})
+
+	retrievedDeployment, err := s.GetKubernetesDeployment("datadog-cluster-agent")
+	assert.NoError(t, err)
+
+	if !reflect.DeepEqual(deployment, retrievedDeployment) {
+		t.Errorf("expected deployment %q to match the one in the store", retrievedDeployment.ID)
+	}
+
+	s.handleEvents([]CollectorEvent{
+		{
+			Type:   EventTypeUnset,
+			Source: fooSource,
+			Entity: deployment,
+		},
+	})
+
+	_, err = s.GetKubernetesDeployment("datadog-cluster-agent")
+	assert.True(t, errors.IsNotFound(err))
 }
 
 func TestGetProcess(t *testing.T) {
@@ -678,7 +716,7 @@ func TestListContainers(t *testing.T) {
 
 			containers := testStore.ListContainers()
 
-			assert.DeepEqual(t, test.expectedContainers, containers)
+			assert.Equal(t, test.expectedContainers, containers)
 		})
 	}
 }
@@ -721,7 +759,7 @@ func TestListContainersWithFilter(t *testing.T) {
 
 	runningContainers := testStore.ListContainersWithFilter(GetRunningContainers)
 
-	assert.DeepEqual(t, []*Container{runningContainer}, runningContainers)
+	assert.Equal(t, []*Container{runningContainer}, runningContainers)
 }
 
 func TestListProcesses(t *testing.T) {
@@ -762,28 +800,30 @@ func TestListProcesses(t *testing.T) {
 
 			processes := testStore.ListProcesses()
 
-			assert.DeepEqual(t, test.expectedProcesses, processes)
+			assert.Equal(t, test.expectedProcesses, processes)
 		})
 	}
 }
 
 func TestListProcessesWithFilter(t *testing.T) {
-	java := "java"
-	golang := "golang"
 	javaProcess := &Process{
 		EntityID: EntityID{
 			Kind: KindProcess,
 			ID:   "123",
 		},
-		Language: &java,
+		Language: &languagemodels.Language{
+			Name: languagemodels.Java,
+		},
 	}
 
-	goProcess := &Process{
+	nodeProcess := &Process{
 		EntityID: EntityID{
 			Kind: KindProcess,
 			ID:   "2",
 		},
-		Language: &golang,
+		Language: &languagemodels.Language{
+			Name: languagemodels.Node,
+		},
 	}
 
 	testStore := newTestStore()
@@ -797,19 +837,15 @@ func TestListProcessesWithFilter(t *testing.T) {
 		{
 			Type:   EventTypeSet,
 			Source: fooSource,
-			Entity: goProcess,
+			Entity: nodeProcess,
 		},
 	})
 
 	retrievedProcesses := testStore.ListProcessesWithFilter(func(p *Process) bool {
-		if *p.Language == "java" {
-			return true
-		} else {
-			return false
-		}
+		return p.Language.Name == languagemodels.Java
 	})
 
-	assert.DeepEqual(t, []*Process{javaProcess}, retrievedProcesses)
+	assert.Equal(t, []*Process{javaProcess}, retrievedProcesses)
 }
 
 func TestListImages(t *testing.T) {
@@ -848,7 +884,7 @@ func TestListImages(t *testing.T) {
 			testStore := newTestStore()
 			testStore.handleEvents(test.preEvents)
 
-			assert.DeepEqual(t, test.expectedImages, testStore.ListImages())
+			assert.Equal(t, test.expectedImages, testStore.ListImages())
 		})
 	}
 }
@@ -898,11 +934,124 @@ func TestGetImage(t *testing.T) {
 			if test.expectsError {
 				assert.Error(t, err, errors.NewNotFound(string(KindContainerImageMetadata)).Error())
 			} else {
-				assert.NilError(t, err)
-				assert.DeepEqual(t, test.expectedImage, actualImage)
+				assert.NoError(t, err)
+				assert.Equal(t, test.expectedImage, actualImage)
 			}
 		})
 	}
+}
+
+func TestResetProcesses(t *testing.T) {
+	tests := []struct {
+		name         string
+		preEvents    []CollectorEvent
+		newProcesses []*Process
+	}{
+		{
+			name:      "initially empty",
+			preEvents: []CollectorEvent{},
+			newProcesses: []*Process{
+				{
+					EntityID: EntityID{
+						Kind: KindProcess,
+						ID:   "123",
+					},
+				},
+			},
+		},
+		{
+			name: "old process to be removed",
+			preEvents: []CollectorEvent{
+				{
+					Type:   EventTypeSet,
+					Source: SourceRemoteProcessCollector,
+					Entity: &Process{
+						EntityID: EntityID{
+							Kind: KindProcess,
+							ID:   "123",
+						},
+					},
+				},
+			},
+			newProcesses: []*Process{
+				{
+					EntityID: EntityID{
+						Kind: KindProcess,
+						ID:   "345",
+					},
+				},
+			},
+		},
+		{
+			name: "old process to be updated",
+			preEvents: []CollectorEvent{
+				{
+					Type:   EventTypeSet,
+					Source: SourceRemoteProcessCollector,
+					Entity: &Process{
+						EntityID: EntityID{
+							Kind: KindProcess,
+							ID:   "123",
+						},
+					},
+				},
+			},
+			newProcesses: []*Process{
+				{
+					EntityID: EntityID{
+						Kind: KindProcess,
+						ID:   "123",
+					},
+					NsPid: 345,
+				},
+				{
+					EntityID: EntityID{
+						Kind: KindProcess,
+						ID:   "12",
+					},
+				},
+			},
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			testStore := newTestStore()
+			testStore.handleEvents(test.preEvents)
+
+			ch := testStore.Subscribe(dummySubscriber, NormalPriority, nil)
+			doneCh := make(chan struct{})
+
+			go func() {
+				for bundle := range ch {
+					close(bundle.Ch)
+
+					// nil the bundle's Ch so we can deep-equal just the events
+					// later
+					bundle.Ch = nil
+				}
+
+				close(doneCh)
+			}()
+
+			entities := make([]Entity, len(test.newProcesses))
+			for i := range test.newProcesses {
+				entities[i] = test.newProcesses[i]
+			}
+			testStore.ResetProcesses(entities, SourceRemoteProcessCollector)
+			// Force handling of events generated by the reset
+			if len(testStore.eventCh) > 0 {
+				testStore.handleEvents(<-testStore.eventCh)
+			}
+
+			testStore.Unsubscribe(ch)
+
+			<-doneCh
+
+			processes := testStore.ListProcesses()
+			assert.ElementsMatch(t, processes, test.newProcesses)
+		})
+	}
+
 }
 
 func TestReset(t *testing.T) {
@@ -1091,7 +1240,7 @@ func TestReset(t *testing.T) {
 
 			<-doneCh
 
-			assert.DeepEqual(t, test.expectedEventsReceived, actualEventsReceived)
+			assert.Equal(t, test.expectedEventsReceived, actualEventsReceived)
 		})
 	}
 }
@@ -1110,7 +1259,6 @@ func TestNoDataRace(t *testing.T) {
 
 	go func() {
 		_, _ = s.GetContainer("456")
-		return
 	}()
 
 	s.handleEvents([]CollectorEvent{

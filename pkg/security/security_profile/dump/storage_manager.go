@@ -5,6 +5,7 @@
 
 //go:build linux
 
+// Package dump holds dump related files
 package dump
 
 import (
@@ -13,7 +14,7 @@ import (
 
 	"github.com/DataDog/datadog-go/v5/statsd"
 
-	"github.com/DataDog/datadog-agent/pkg/aggregator"
+	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/metrics"
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
@@ -26,7 +27,7 @@ type ActivityDumpStorage interface {
 	// Persist saves the provided buffer to the persistent storage
 	Persist(request config.StorageRequest, ad *ActivityDump, raw *bytes.Buffer) error
 	// SendTelemetry sends metrics using the provided metrics sender
-	SendTelemetry(sender aggregator.Sender)
+	SendTelemetry(sender sender.Sender)
 }
 
 // ActivityDumpStorageManager is used to manage activity dump storages
@@ -34,16 +35,16 @@ type ActivityDumpStorageManager struct {
 	statsdClient statsd.ClientInterface
 	storages     map[config.StorageType]ActivityDumpStorage
 
-	metricsSender aggregator.Sender
+	metricsSender sender.Sender
 }
 
 // NewSecurityAgentStorageManager returns a new instance of ActivityDumpStorageManager
-func NewSecurityAgentStorageManager() (*ActivityDumpStorageManager, error) {
+func NewSecurityAgentStorageManager(senderManager sender.SenderManager) (*ActivityDumpStorageManager, error) {
 	manager := &ActivityDumpStorageManager{
 		storages: make(map[config.StorageType]ActivityDumpStorage),
 	}
 
-	sender, err := aggregator.GetDefaultSender()
+	sender, err := senderManager.GetDefaultSender()
 	if err != nil {
 		return nil, err
 	}
@@ -65,7 +66,7 @@ func NewSecurityAgentCommandStorageManager(cfg *config.Config) (*ActivityDumpSto
 		storages: make(map[config.StorageType]ActivityDumpStorage),
 	}
 
-	storage, err := NewActivityDumpLocalStorage(cfg)
+	storage, err := NewActivityDumpLocalStorage(cfg, nil)
 	if err != nil {
 		return nil, fmt.Errorf("couldn't instantiate storage: %w", err)
 	}
@@ -82,13 +83,13 @@ func NewSecurityAgentCommandStorageManager(cfg *config.Config) (*ActivityDumpSto
 }
 
 // NewActivityDumpStorageManager returns a new instance of ActivityDumpStorageManager
-func NewActivityDumpStorageManager(cfg *config.Config, statsdClient statsd.ClientInterface, handler ActivityDumpHandler) (*ActivityDumpStorageManager, error) {
+func NewActivityDumpStorageManager(cfg *config.Config, statsdClient statsd.ClientInterface, handler ActivityDumpHandler, m *ActivityDumpManager) (*ActivityDumpStorageManager, error) {
 	manager := &ActivityDumpStorageManager{
 		storages:     make(map[config.StorageType]ActivityDumpStorage),
 		statsdClient: statsdClient,
 	}
 
-	storage, err := NewActivityDumpLocalStorage(cfg)
+	storage, err := NewActivityDumpLocalStorage(cfg, m)
 	if err != nil {
 		return nil, fmt.Errorf("couldn't instantiate storage: %w", err)
 	}

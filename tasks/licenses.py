@@ -100,7 +100,7 @@ def licenses_csv(licenses):
                 filtered_copyright.append(copyright)
             else:
                 print(
-                    f'copyright {copyright} was discarded because it contains invalid quotes. If you want to fix this discarded Copyright, you can modify the .copyright-overrides.yml file to fix the bad-quotes copyright'
+                    f'The copyright `{copyright}` of `{lic["component"]},{lic["package"]}` was discarded because its copyright contains invalid quotes. To fix the discarded copyright, modify `.copyright-overrides.yml` to fix the bad-quotes copyright'
                 )
         if len(copyright) == 0:
             copyright = "UNKNOWN"

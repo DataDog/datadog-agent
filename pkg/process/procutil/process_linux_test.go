@@ -40,13 +40,13 @@ func getProbeWithPermission(options ...Option) *probe {
 
 func TestGetActivePIDs(t *testing.T) {
 	t.Setenv("HOST_PROC", "resources/test_procfs/proc")
-
-	probe := getProbeWithPermission()
+	probe := getProbeWithPermission(WithProcFSRoot("resources/test_procfs/proc"))
 	defer probe.Close()
 
 	actual, err := probe.getActivePIDs()
 	assert.NoError(t, err)
 
+	t.Setenv("HOST_PROC", "resources/test_procfs/proc") // Used by gopsutil
 	expect, err := process.Pids()
 	assert.NoError(t, err)
 
@@ -105,9 +105,8 @@ func TestTrimAndSplitBytes(t *testing.T) {
 }
 
 func TestGetCmdlineTestFS(t *testing.T) {
-	t.Setenv("HOST_PROC", "resources/test_procfs/proc")
-
-	testGetCmdline(t)
+	t.Setenv("HOST_PROC", "resources/test_procfs/proc") // For gopsutil
+	testGetCmdline(t, WithProcFSRoot("resources/test_procfs/proc"))
 }
 
 func TestGetCmdlineLocalFS(t *testing.T) {
@@ -115,8 +114,8 @@ func TestGetCmdlineLocalFS(t *testing.T) {
 	testGetCmdline(t)
 }
 
-func testGetCmdline(t *testing.T) {
-	probe := getProbeWithPermission()
+func testGetCmdline(t *testing.T, probeOptions ...Option) {
+	probe := getProbeWithPermission(probeOptions...)
 	defer probe.Close()
 
 	pids, err := probe.getActivePIDs()
@@ -134,10 +133,19 @@ func testGetCmdline(t *testing.T) {
 	}
 }
 
+func TestGetCommandName(t *testing.T) {
+	probe := getProbeWithPermission(WithProcFSRoot("resources/test_procfs/proc/"))
+	defer probe.Close()
+
+	// Hardcode pid that has `comm` file set
+	pid := 3254
+	actual := probe.getCommandName(filepath.Join(probe.procRootLoc, strconv.Itoa(pid)))
+	assert.Equal(t, "ruby", actual)
+}
+
 func TestProcessesByPIDTestFS(t *testing.T) {
 	t.Setenv("HOST_PROC", "resources/test_procfs/proc/")
-
-	testProcessesByPID(t)
+	testProcessesByPID(t, WithProcFSRoot("resources/test_procfs/proc/"))
 }
 
 func TestProcessesByPIDLocalFS(t *testing.T) {
@@ -145,12 +153,12 @@ func TestProcessesByPIDLocalFS(t *testing.T) {
 	testProcessesByPID(t)
 }
 
-func testProcessesByPID(t *testing.T) {
+func testProcessesByPID(t *testing.T, probeOptions ...Option) {
 	// disable log output from gopsutil, the testFS doesn't have `cwd`, `fd` and `exe` dir setup,
 	// gopsutil print verbose debug log regarding this
 	seelog.UseLogger(seelog.Disabled)
 
-	probe := getProbeWithPermission()
+	probe := getProbeWithPermission(probeOptions...)
 	defer probe.Close()
 
 	expectedProcs, err := process.AllProcesses()
@@ -227,8 +235,7 @@ func compareStats(t *testing.T, st1, st2 *Stats) {
 
 func TestStatsForPIDsTestFS(t *testing.T) {
 	t.Setenv("HOST_PROC", "resources/test_procfs/proc/")
-
-	testStatsForPIDs(t)
+	testStatsForPIDs(t, WithProcFSRoot("resources/test_procfs/proc/"))
 }
 
 func TestStatsForPIDsLocalFS(t *testing.T) {
@@ -236,12 +243,12 @@ func TestStatsForPIDsLocalFS(t *testing.T) {
 	testStatsForPIDs(t)
 }
 
-func testStatsForPIDs(t *testing.T) {
+func testStatsForPIDs(t *testing.T, probeOptions ...Option) {
 	// disable log output from gopsutil, the testFS doesn't have `cwd`, `fd` and `exe` dir setup,
 	// gopsutil print verbose debug log regarding this
 	seelog.UseLogger(seelog.Disabled)
 
-	probe := getProbeWithPermission()
+	probe := getProbeWithPermission(probeOptions...)
 	defer probe.Close()
 
 	expectProcs, err := process.AllProcesses()
@@ -269,12 +276,10 @@ func testStatsForPIDs(t *testing.T) {
 }
 
 func TestMultipleProbes(t *testing.T) {
-	t.Setenv("HOST_PROC", "resources/test_procfs/proc/")
-
-	probe1 := getProbeWithPermission()
+	probe1 := getProbeWithPermission(WithProcFSRoot("resources/test_procfs/proc/"))
 	defer probe1.Close()
 
-	probe2 := getProbeWithPermission()
+	probe2 := getProbeWithPermission(WithProcFSRoot("resources/test_procfs/proc/"))
 	defer probe2.Close()
 
 	now := time.Now()
@@ -301,9 +306,7 @@ func TestMultipleProbes(t *testing.T) {
 }
 
 func TestProcfsChange(t *testing.T) {
-	t.Setenv("HOST_PROC", "resources/test_procfs/proc/")
-
-	probe := getProbeWithPermission()
+	probe := getProbeWithPermission(WithProcFSRoot("resources/test_procfs/proc"))
 	defer probe.Close()
 
 	now := time.Now()
@@ -478,8 +481,7 @@ func TestParseStatusLine(t *testing.T) {
 
 func TestParseStatusTestFS(t *testing.T) {
 	t.Setenv("HOST_PROC", "resources/test_procfs/proc/")
-
-	testParseStatus(t)
+	testParseStatus(t, WithProcFSRoot("resources/test_procfs/proc/"))
 }
 
 func TestParseStatusLocalFS(t *testing.T) {
@@ -487,8 +489,8 @@ func TestParseStatusLocalFS(t *testing.T) {
 	testParseStatus(t)
 }
 
-func testParseStatus(t *testing.T) {
-	probe := getProbeWithPermission()
+func testParseStatus(t *testing.T, probeOptions ...Option) {
+	probe := getProbeWithPermission(probeOptions...)
 	defer probe.Close()
 
 	pids, err := probe.getActivePIDs()
@@ -530,9 +532,7 @@ func testParseStatus(t *testing.T) {
 }
 
 func TestFillNsPidFromStatus(t *testing.T) {
-	t.Setenv("HOST_PROC", "resources/test_procfs/proc/")
-
-	probe := getProbeWithPermission()
+	probe := getProbeWithPermission(WithProcFSRoot("resources/test_procfs/proc/"))
 	defer probe.Close()
 
 	t.Run("Linux versions 4.1+", func(t *testing.T) {
@@ -611,8 +611,7 @@ func TestParseIOLine(t *testing.T) {
 
 func TestParseIOTestFS(t *testing.T) {
 	t.Setenv("HOST_PROC", "resources/test_procfs/proc/")
-
-	testParseIO(t)
+	testParseIO(t, WithProcFSRoot("resources/test_procfs/proc/"))
 }
 
 func TestParseIOLocalFS(t *testing.T) {
@@ -620,8 +619,8 @@ func TestParseIOLocalFS(t *testing.T) {
 	testParseIO(t)
 }
 
-func testParseIO(t *testing.T) {
-	probe := getProbeWithPermission()
+func testParseIO(t *testing.T, probeOptions ...Option) {
+	probe := getProbeWithPermission(probeOptions...)
 	defer probe.Close()
 
 	pids, err := probe.getActivePIDs()
@@ -660,11 +659,12 @@ func TestParseStatContent(t *testing.T) {
 	probe.bootTime.Store(1606181252)
 	now := time.Now()
 
-	for _, tc := range []struct {
-		line     []byte
-		expected *statInfo
+	testCases := []struct {
+		name           string
+		line           []byte
+		expected       *statInfo
+		isKernelThread bool
 	}{
-		// standard content
 		{
 			line: []byte("1 (systemd) S 0 1 1 0 -1 4194560 425768 306165945 70 4299 4890 2184 563120 375308 20 0 1 0 15 189849600 1541 18446744073709551615 94223912931328 94223914360080 140733806473072 140733806469312 140053573122579 0 671173123 4096 1260 1 0 0 17 0 0 0 155 0 0 94223914368000 942\n23914514184 94223918080000 140733806477086 140733806477133 140733806477133 140733806477283 0"),
 			expected: &statInfo{
@@ -677,9 +677,10 @@ func TestParseStatContent(t *testing.T) {
 				},
 				flags: 4194560,
 			},
+			isKernelThread: false,
 		},
-		// command line has brackets around
 		{
+			name: "command line has brackets around",
 			line: []byte("1 ((sd-pam)) S 0 1 1 0 -1 4194560 425768 306165945 70 4299 4890 2184 563120 375308 20 0 1 0 15 189849600 1541 18446744073709551615 94223912931328 94223914360080 140733806473072 140733806469312 140053573122579 0 671173123 4096 1260 1 0 0 17 0 0 0 155 0 0 94223914368000 942\n23914514184 94223918080000 140733806477086 140733806477133 140733806477133 140733806477283 0"),
 			expected: &statInfo{
 				ppid:       0,
@@ -691,9 +692,10 @@ func TestParseStatContent(t *testing.T) {
 				},
 				flags: 4194560,
 			},
+			isKernelThread: false,
 		},
-		// fields are separated by multiple white spaces
 		{
+			name: "fields are separated by multiple white spaces",
 			line: []byte("5  (kworker/0:0H)   S 2 0 0 0 -1   69238880 0 0  0 0  0 0 0 0 0  -20 1 0 17 0 0 18446744073709551615 0 0 0 0 0 0 0 2147483647 0 0 0 0 17 0 0 0 0 0 0 0 0 0 0 0 0 0 0"),
 			expected: &statInfo{
 				ppid:       2,
@@ -705,20 +707,38 @@ func TestParseStatContent(t *testing.T) {
 				},
 				flags: 69238880,
 			},
+			isKernelThread: true,
 		},
-	} {
-
-		actual := probe.parseStatContent(tc.line, &statInfo{cpuStat: &CPUTimesStat{}}, int32(1), now)
-		// nice value is fetched at the run time so we just assign the actual value for the sake for comparison
-		tc.expected.nice = actual.nice
-		assert.EqualValues(t, tc.expected, actual)
+		{
+			name: "flags are greater than int32",
+			line: []byte("44 (kintegrityd/0) S 2 0 0 0 -1 2216722496 0 0 0 0 0 0 0 0 20 0 1 0 31 0 0 18446744073709551615 0 0 0 0 0 0 0 2147483647 0 18446744071579499573 0 0 17 0 0 0 0 0 0"),
+			expected: &statInfo{
+				ppid:       2,
+				createTime: 1606181252000,
+				cpuStat: &CPUTimesStat{
+					User:      0,
+					System:    0,
+					Timestamp: now.Unix(),
+				},
+				flags: 2216722496,
+			},
+			isKernelThread: true,
+		},
+	}
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			actual := probe.parseStatContent(tc.line, &statInfo{cpuStat: &CPUTimesStat{}}, int32(1), now)
+			// nice value is fetched at the run time so we just assign the actual value for the sake for comparison
+			tc.expected.nice = actual.nice
+			assert.EqualValues(t, tc.expected, actual)
+			assert.Equal(t, tc.isKernelThread, isKernelThread(actual.flags))
+		})
 	}
 }
 
 func TestParseStatTestFS(t *testing.T) {
 	t.Setenv("HOST_PROC", "resources/test_procfs/proc/")
-
-	testParseStat(t)
+	testParseStat(t, WithProcFSRoot("resources/test_procfs/proc/"))
 }
 
 // TestParseStatLocalFS has to run on its own because gopsutil caches boot time,
@@ -729,8 +749,8 @@ func TestParseStatLocalFS(t *testing.T) {
 	testParseStat(t)
 }
 
-func testParseStat(t *testing.T) {
-	probe := getProbeWithPermission()
+func testParseStat(t *testing.T, probeOptions ...Option) {
+	probe := getProbeWithPermission(probeOptions...)
 	defer probe.Close()
 
 	pids, err := probe.getActivePIDs()
@@ -773,8 +793,7 @@ func TestBootTimeLocalFS(t *testing.T) {
 }
 
 func TestBootTimeRefresh(t *testing.T) {
-	t.Setenv("HOST_PROC", "resources/test_procfs/proc/")
-	probe := getProbeWithPermission(WithBootTimeRefreshInterval(500 * time.Millisecond))
+	probe := getProbeWithPermission(WithBootTimeRefreshInterval(500*time.Millisecond), WithProcFSRoot("resources/test_procfs/proc/"))
 	defer probe.Close()
 
 	assert.Equal(t, uint64(1606127264), probe.bootTime.Load())
@@ -793,8 +812,7 @@ func TestBootTimeRefresh(t *testing.T) {
 
 func TestParseStatmTestFS(t *testing.T) {
 	t.Setenv("HOST_PROC", "resources/test_procfs/proc/")
-
-	testParseStatm(t)
+	testParseStatm(t, WithProcFSRoot("resources/test_procfs/proc/"))
 }
 
 func TestParseStatmLocalFS(t *testing.T) {
@@ -802,8 +820,8 @@ func TestParseStatmLocalFS(t *testing.T) {
 	testParseStatm(t)
 }
 
-func testParseStatm(t *testing.T) {
-	probe := getProbeWithPermission()
+func testParseStatm(t *testing.T, probeOptions ...Option) {
+	probe := getProbeWithPermission(probeOptions...)
 	defer probe.Close()
 
 	pids, err := probe.getActivePIDs()
@@ -829,9 +847,7 @@ func testParseStatm(t *testing.T) {
 }
 
 func TestParseStatmStatusMatchTestFS(t *testing.T) {
-	t.Setenv("HOST_PROC", "resources/test_procfs/proc/")
-
-	testParseStatmStatusMatch(t)
+	testParseStatmStatusMatch(t, WithProcFSRoot("resources/test_procfs/proc/"))
 }
 
 func TestParseStatmStatusMatchLocalFS(t *testing.T) {
@@ -839,8 +855,8 @@ func TestParseStatmStatusMatchLocalFS(t *testing.T) {
 	testParseStatmStatusMatch(t)
 }
 
-func testParseStatmStatusMatch(t *testing.T) {
-	probe := getProbeWithPermission()
+func testParseStatmStatusMatch(t *testing.T, probeOptions ...Option) {
+	probe := getProbeWithPermission(probeOptions...)
 	defer probe.Close()
 
 	pids, err := probe.getActivePIDs()
@@ -911,12 +927,12 @@ func TestGetFDCountLocalFS(t *testing.T) {
 }
 
 func TestStatsWithPermByPID(t *testing.T) {
-	t.Setenv("HOST_PROC", "resources/zero_io")
 	// create a fd dir so that the FD collection doesn't return -1
-	os.Mkdir("resources/zero_io/3/fd", 0400)
-	defer os.Remove("resources/zero_io/3/fd")
+	err := os.Mkdir("resources/zero_io/3/fd", 0500)
+	t.Cleanup(func() { _ = os.Remove("resources/zero_io/3/fd") })
+	require.NoError(t, err)
 
-	probe := getProbeWithPermission()
+	probe := getProbeWithPermission(WithProcFSRoot("resources/zero_io"))
 	defer probe.Close()
 
 	WithReturnZeroPermStats(true)(probe)
@@ -933,9 +949,7 @@ func TestStatsWithPermByPID(t *testing.T) {
 }
 
 func TestStatsForPIDsAndPerm(t *testing.T) {
-	t.Setenv("HOST_PROC", "resources/test_procfs/proc")
-
-	probe := getProbeWithPermission()
+	probe := getProbeWithPermission(WithProcFSRoot("resources/test_procfs/proc"))
 	defer probe.Close()
 	stats, err := probe.StatsForPIDs([]int32{1}, time.Now())
 	require.NoError(t, err)
@@ -955,9 +969,8 @@ func TestStatsForPIDsAndPerm(t *testing.T) {
 }
 
 func TestProcessesByPIDsAndPerm(t *testing.T) {
-	t.Setenv("HOST_PROC", "resources/test_procfs/proc")
-
-	probe := getProbeWithPermission()
+	probe := getProbeWithPermission(WithProcFSRoot("resources/test_procfs/proc"))
+	probe.procRootLoc = "resources/test_procfs/proc"
 	defer probe.Close()
 	procs, err := probe.ProcessesByPID(time.Now(), true)
 	require.NoError(t, err)
@@ -1266,4 +1279,23 @@ func resetNiceValues(procs map[int32]*Process) {
 	for _, p := range procs {
 		p.Stats.Nice = 0
 	}
+}
+
+func BenchmarkGetFDCount(b *testing.B) {
+	probe := getProbe()
+	defer probe.Close()
+
+	for i := 0; i < 100; i++ {
+		f, err := os.Open("/proc/self/comm")
+		if err != nil {
+			b.Fatal(err)
+		}
+		defer f.Close()
+	}
+
+	b.Run("self_proc", func(b *testing.B) {
+		for i := 0; i < b.N; i++ {
+			_ = probe.getFDCount("/proc/self")
+		}
+	})
 }

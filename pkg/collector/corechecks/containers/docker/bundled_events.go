@@ -8,7 +8,7 @@
 package docker
 
 import (
-	"github.com/DataDog/datadog-agent/pkg/metrics"
+	"github.com/DataDog/datadog-agent/pkg/metrics/event"
 	"github.com/DataDog/datadog-agent/pkg/util/docker"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -33,11 +33,11 @@ type bundledTransformer struct {
 	filteredEventTypes map[string]struct{}
 }
 
-func (t *bundledTransformer) Transform(events []*docker.ContainerEvent) ([]metrics.Event, []error) {
+func (t *bundledTransformer) Transform(events []*docker.ContainerEvent) ([]event.Event, []error) {
 	var errs []error
 
 	bundles := t.aggregateEvents(events)
-	datadogEvs := make([]metrics.Event, 0, len(bundles))
+	datadogEvs := make([]event.Event, 0, len(bundles))
 
 	for _, bundle := range bundles {
 		ddEv, err := bundle.toDatadogEvent(t.hostname)

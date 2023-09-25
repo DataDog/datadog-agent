@@ -3,8 +3,9 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build linux
+//go:build linux || windows
 
+// Package runtime holds runtime related files
 package runtime
 
 import (
@@ -15,22 +16,21 @@ import (
 	"io"
 	"os"
 	"path"
-	"strings"
 	"time"
 
 	"github.com/spf13/cobra"
 	"go.uber.org/fx"
-
-	ddgostatsd "github.com/DataDog/datadog-go/v5/statsd"
 
 	"github.com/DataDog/datadog-agent/cmd/security-agent/command"
 	"github.com/DataDog/datadog-agent/cmd/security-agent/flags"
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/log"
+	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
 	secagent "github.com/DataDog/datadog-agent/pkg/security/agent"
 	"github.com/DataDog/datadog-agent/pkg/security/common"
+	secconfig "github.com/DataDog/datadog-agent/pkg/security/config"
 	pconfig "github.com/DataDog/datadog-agent/pkg/security/probe/config"
 	"github.com/DataDog/datadog-agent/pkg/security/probe/kfilters"
 	"github.com/DataDog/datadog-agent/pkg/security/proto/api"
@@ -44,77 +44,14 @@ import (
 	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
 	"github.com/DataDog/datadog-agent/pkg/util/startstop"
 	"github.com/DataDog/datadog-agent/pkg/version"
+	ddgostatsd "github.com/DataDog/datadog-go/v5/statsd"
 )
-
-func Commands(globalParams *command.GlobalParams) []*cobra.Command {
-	runtimeCmd := &cobra.Command{
-		Use:   "runtime",
-		Short: "runtime Agent utility commands",
-	}
-
-	runtimeCmd.AddCommand(commonPolicyCommands(globalParams)...)
-	runtimeCmd.AddCommand(selfTestCommands(globalParams)...)
-	runtimeCmd.AddCommand(activityDumpCommands(globalParams)...)
-	runtimeCmd.AddCommand(securityProfileCommands(globalParams)...)
-	runtimeCmd.AddCommand(processCacheCommands(globalParams)...)
-	runtimeCmd.AddCommand(networkNamespaceCommands(globalParams)...)
-	runtimeCmd.AddCommand(discardersCommands(globalParams)...)
-
-	// Deprecated
-	runtimeCmd.AddCommand(checkPoliciesCommands(globalParams)...)
-	runtimeCmd.AddCommand(reloadPoliciesCommands(globalParams)...)
-
-	return []*cobra.Command{runtimeCmd}
-}
 
 type checkPoliciesCliParams struct {
 	*command.GlobalParams
 
-	dir string
-}
-
-// checkPoliciesCommands is deprecated
-func checkPoliciesCommands(globalParams *command.GlobalParams) []*cobra.Command {
-	cliParams := &checkPoliciesCliParams{
-		GlobalParams: globalParams,
-	}
-
-	checkPoliciesCmd := &cobra.Command{
-		Use:   "check-policies",
-		Short: "check policies and return a report",
-		RunE: func(cmd *cobra.Command, args []string) error {
-			return fxutil.OneShot(checkPolicies,
-				fx.Supply(cliParams),
-				fx.Supply(core.BundleParams{
-					ConfigParams: config.NewSecurityAgentParams(globalParams.ConfigFilePaths),
-					LogParams:    log.LogForOneShot(command.LoggerName, "off", false)}),
-				core.Bundle,
-			)
-		},
-		Deprecated: "please use `security-agent runtime policy check` instead",
-	}
-
-	checkPoliciesCmd.Flags().StringVar(&cliParams.dir, flags.PoliciesDir, pkgconfig.DefaultRuntimePoliciesDir, "Path to policies directory")
-
-	return []*cobra.Command{checkPoliciesCmd}
-}
-
-// reloadPoliciesCommands is deprecated
-func reloadPoliciesCommands(globalParams *command.GlobalParams) []*cobra.Command {
-	reloadPoliciesCmd := &cobra.Command{
-		Use:   "reload",
-		Short: "Reload policies",
-		RunE: func(cmd *cobra.Command, args []string) error {
-			return fxutil.OneShot(reloadRuntimePolicies,
-				fx.Supply(core.BundleParams{
-					ConfigParams: config.NewSecurityAgentParams(globalParams.ConfigFilePaths),
-					LogParams:    log.LogForOneShot(command.LoggerName, "info", true)}),
-				core.Bundle,
-			)
-		},
-		Deprecated: "please use `security-agent runtime policy reload` instead",
-	}
-	return []*cobra.Command{reloadPoliciesCmd}
+	dir                      string
+	evaluateAllPolicySources bool
 }
 
 func commonPolicyCommands(globalParams *command.GlobalParams) []*cobra.Command {
@@ -189,6 +126,7 @@ func commonCheckPoliciesCommands(globalParams *command.GlobalParams) []*cobra.Co
 	}
 
 	commonCheckPoliciesCmd.Flags().StringVar(&cliParams.dir, flags.PoliciesDir, pkgconfig.DefaultRuntimePoliciesDir, "Path to policies directory")
+	commonCheckPoliciesCmd.Flags().BoolVar(&cliParams.evaluateAllPolicySources, flags.EvaluateLoadedPolicies, false, "Evaluate loaded policies")
 
 	return []*cobra.Command{commonCheckPoliciesCmd}
 }
@@ -397,29 +335,6 @@ func printStorageRequestMessage(prefix string, storage *api.StorageRequestMessag
 	fmt.Printf("%s  compression: %v\n", prefix, storage.GetCompression())
 }
 
-func printSecurityActivityDumpMessage(prefix string, msg *api.ActivityDumpMessage) {
-	fmt.Printf("%s- name: %s\n", prefix, msg.GetMetadata().GetName())
-	fmt.Printf("%s  start: %s\n", prefix, msg.GetMetadata().GetStart())
-	fmt.Printf("%s  timeout: %s\n", prefix, msg.GetMetadata().GetTimeout())
-	if len(msg.GetMetadata().GetComm()) > 0 {
-		fmt.Printf("%s  comm: %s\n", prefix, msg.GetMetadata().GetComm())
-	}
-	if len(msg.GetMetadata().GetContainerID()) > 0 {
-		fmt.Printf("%s  container ID: %s\n", prefix, msg.GetMetadata().GetContainerID())
-	}
-	if len(msg.GetTags()) > 0 {
-		fmt.Printf("%s  tags: %s\n", prefix, strings.Join(msg.GetTags(), ", "))
-	}
-	fmt.Printf("%s  differentiate args: %v\n", prefix, msg.GetMetadata().GetDifferentiateArgs())
-	printActivityTreeStats(prefix, msg.GetStats())
-	if len(msg.GetStorage()) > 0 {
-		fmt.Printf("%s  storage:\n", prefix)
-		for _, storage := range msg.GetStorage() {
-			printStorageRequestMessage(prefix+"\t", storage)
-		}
-	}
-}
-
 func newAgentVersionFilter() (*rules.AgentVersionFilter, error) {
 	agentVersion, err := utils.GetAgentSemverVersion()
 	if err != nil {
@@ -429,7 +344,44 @@ func newAgentVersionFilter() (*rules.AgentVersionFilter, error) {
 	return rules.NewAgentVersionFilter(agentVersion)
 }
 
-func checkPoliciesInner(policiesDir string) error {
+func checkPolicies(log log.Component, config config.Component, args *checkPoliciesCliParams) error {
+	if args.evaluateAllPolicySources {
+		client, err := secagent.NewRuntimeSecurityClient()
+		if err != nil {
+			return fmt.Errorf("unable to create a runtime security client instance: %w", err)
+		}
+		defer client.Close()
+
+		return checkPoliciesLoaded(client, os.Stdout)
+	}
+	return checkPoliciesLocal(args, os.Stdout)
+}
+
+func checkPoliciesLoaded(client secagent.SecurityModuleClientWrapper, writer io.Writer) error {
+	output, err := client.GetRuleSetReport()
+	if err != nil {
+		return fmt.Errorf("unable to send request to system-probe: %w", err)
+	}
+	if len(output.Error) > 0 {
+		return fmt.Errorf("get policies request failed: %s", output.Error)
+	}
+
+	transformedOutput := output.GetRuleSetReportMessage().FromProtoToKFiltersRuleSetReport()
+
+	content, _ := json.MarshalIndent(transformedOutput, "", "\t")
+	_, err = fmt.Fprintf(writer, "%s\n", string(content))
+	if err != nil {
+		return fmt.Errorf("unable to write out report: %w", err)
+	}
+
+	return nil
+}
+
+func newDefaultEvent() eval.Event {
+	return model.NewDefaultEvent()
+}
+
+func checkPoliciesLocal(args *checkPoliciesCliParams, writer io.Writer) error {
 	cfg := &pconfig.Config{
 		EnableKernelFilters: true,
 		EnableApprovers:     true,
@@ -458,14 +410,14 @@ func checkPoliciesInner(policiesDir string) error {
 		},
 	}
 
-	provider, err := rules.NewPoliciesDirProvider(policiesDir, false)
+	provider, err := rules.NewPoliciesDirProvider(args.dir, false)
 	if err != nil {
 		return err
 	}
 
 	loader := rules.NewPolicyLoader(provider)
 
-	ruleSet := rules.NewRuleSet(&model.Model{}, model.NewDefaultEvent, ruleOpts, evalOpts)
+	ruleSet := rules.NewRuleSet(&model.Model{}, newDefaultEvent, ruleOpts, evalOpts)
 	evaluationSet, err := rules.NewEvaluationSet([]*rules.RuleSet{ruleSet})
 	if err != nil {
 		return err
@@ -480,13 +432,12 @@ func checkPoliciesInner(policiesDir string) error {
 	}
 
 	content, _ := json.MarshalIndent(report, "", "\t")
-	fmt.Printf("%s\n", string(content))
+	_, err = fmt.Fprintf(writer, "%s\n", string(content))
+	if err != nil {
+		return fmt.Errorf("unable to write out report: %w", err)
+	}
 
 	return nil
-}
-
-func checkPolicies(log log.Component, config config.Component, args *checkPoliciesCliParams) error {
-	return checkPoliciesInner(args.dir)
 }
 
 // EvalReport defines a report of an evaluation
@@ -518,7 +469,7 @@ func eventDataFromJSON(file string) (eval.Event, error) {
 		return nil, err
 	}
 
-	kind := model.ParseEvalEventType(eventData.Type)
+	kind := secconfig.ParseEvalEventType(eventData.Type)
 	if kind == model.UnknownEventType {
 		return nil, errors.New("unknown event type")
 	}
@@ -579,7 +530,7 @@ func evalRule(log log.Component, config config.Component, evalArgs *evalCliParam
 
 	loader := rules.NewPolicyLoader(provider)
 
-	ruleSet := rules.NewRuleSet(&model.Model{}, model.NewDefaultEvent, ruleOpts, evalOpts)
+	ruleSet := rules.NewRuleSet(&model.Model{}, newDefaultEvent, ruleOpts, evalOpts)
 	evaluationSet, err := rules.NewEvaluationSet([]*rules.RuleSet{ruleSet})
 	if err != nil {
 		return err
@@ -654,24 +605,27 @@ func reloadRuntimePolicies(log log.Component, config config.Component) error {
 	return nil
 }
 
-func StartRuntimeSecurity(log log.Component, config config.Component, hostname string, stopper startstop.Stopper, statsdClient *ddgostatsd.Client) (*secagent.RuntimeSecurityAgent, error) {
+// StartRuntimeSecurity starts runtime security
+func StartRuntimeSecurity(log log.Component, config config.Component, hostname string, stopper startstop.Stopper, statsdClient *ddgostatsd.Client, senderManager sender.SenderManager) (*secagent.RuntimeSecurityAgent, error) {
 	enabled := config.GetBool("runtime_security_config.enabled")
 	if !enabled {
 		log.Info("Datadog runtime security agent disabled by config")
 		return nil, nil
 	}
 
-	logProfiledWorkloads := config.GetBool("runtime_security_config.log_profiled_workloads")
-
 	// start/stop order is important, agent need to be stopped first and started after all the others
 	// components
-	agent, err := secagent.NewRuntimeSecurityAgent(hostname, logProfiledWorkloads)
+	agent, err := secagent.NewRuntimeSecurityAgent(senderManager, hostname, secagent.RSAOptions{
+		LogProfiledWorkloads:    config.GetBool("runtime_security_config.log_profiled_workloads"),
+		IgnoreDDAgentContainers: config.GetBool("runtime_security_config.telemetry.ignore_dd_agent_containers"),
+	})
 	if err != nil {
 		return nil, fmt.Errorf("unable to create a runtime security agent instance: %w", err)
 	}
 	stopper.Add(agent)
 
-	endpoints, ctx, err := common.NewLogContextRuntime()
+	useSecRuntimeTrack := config.GetBool("runtime_security_config.use_secruntime_track")
+	endpoints, ctx, err := common.NewLogContextRuntime(useSecRuntimeTrack)
 	if err != nil {
 		_ = log.Error(err)
 	}
@@ -754,7 +708,7 @@ func downloadPolicy(log log.Component, config config.Component, downloadPolicyAr
 	}
 
 	if downloadPolicyArgs.check {
-		if err := checkPoliciesInner(tempDir); err != nil {
+		if err := checkPolicies(log, config, &checkPoliciesCliParams{dir: tempDir}); err != nil {
 			return err
 		}
 	}

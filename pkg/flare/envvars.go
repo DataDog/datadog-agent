@@ -95,6 +95,7 @@ var allowedEnvvarNames = []string{
 	"DD_APM_OBFUSCATION_MONGODB_KEEP_VALUES",
 	"DD_APM_OBFUSCATION_MONGODB_OBFUSCATE_SQL_VALUES",
 	"DD_APM_OBFUSCATION_REDIS_ENABLED",
+	"DD_APM_OBFUSCATION_REDIS_REMOVE_ALL_ARGS",
 	"DD_APM_OBFUSCATION_REMOVE_STACK_TRACES",
 	"DD_APM_OBFUSCATION_SQL_EXEC_PLAN_ENABLED",
 	"DD_APM_OBFUSCATION_SQL_EXEC_PLAN_KEEP_VALUES",
@@ -130,9 +131,7 @@ var allowedEnvvarNames = []string{
 
 func getAllowedEnvvars() []string {
 	allowed := allowedEnvvarNames
-	for _, envName := range config.Datadog.GetEnvVars() {
-		allowed = append(allowed, envName)
-	}
+	allowed = append(allowed, config.Datadog.GetEnvVars()...)
 	var found []string
 	for _, envvar := range os.Environ() {
 		parts := strings.SplitN(envvar, "=", 2)

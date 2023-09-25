@@ -59,7 +59,7 @@ func (c *NamespaceCollector) Informer() cache.SharedInformer {
 
 // Init is used to initialize the collector.
 func (c *NamespaceCollector) Init(rcfg *collectors.CollectorRunConfig) {
-	c.informer = rcfg.APIClient.InformerFactory.Core().V1().Namespaces()
+	c.informer = rcfg.OrchestratorInformerFactory.InformerFactory.Core().V1().Namespaces()
 	c.lister = c.informer.Lister()
 }
 

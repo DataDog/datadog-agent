@@ -22,7 +22,6 @@ const (
 // AgentError is an error intended for consumption by a datadog pkg; it can also be
 // reconstructed by clients from an error response. Public to allow easy type switches.
 type AgentError struct {
-	error
 	message     string
 	errorReason errorReason
 }

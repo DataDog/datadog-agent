@@ -73,7 +73,7 @@ func newDomainForwarder(
 func (f *domainForwarder) retryTransactions(retryBefore time.Time) {
 	// In case it takes more that flushInterval to sort and retry
 	// transactions we skip a retry.
-	if !f.isRetrying.CAS(false, true) {
+	if !f.isRetrying.CompareAndSwap(false, true) {
 		f.log.Errorf("The forwarder is still retrying Transaction: this should never happens, you might want to lower the 'forwarder_retry_queue_payloads_max_size'")
 		return
 	}
@@ -245,6 +245,14 @@ func (f *domainForwarder) Stop(purgeHighPrio bool) {
 	close(f.highPrio)
 	close(f.lowPrio)
 	close(f.requeuedTransaction)
+
+	for t := range f.requeuedTransaction {
+		f.requeueTransaction(t)
+	}
+	if err := f.retryQueue.FlushToDisk(); err != nil {
+		f.log.Errorf("Error when flushing the retry queue to disk: %v", err)
+	}
+
 	f.log.Info("domainForwarder stopped")
 	f.internalState = Stopped
 }

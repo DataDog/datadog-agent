@@ -5,6 +5,7 @@
 
 //go:build linux
 
+// Package probes holds probes related files
 package probes
 
 import (
@@ -28,8 +29,6 @@ const (
 )
 
 var (
-	// allProbes contain the list of all the probes of the runtime security module
-	allProbes []*manager.Probe
 	// EventsPerfRingBufferSize is the buffer size of the perf buffers used for events.
 	// PLEASE NOTE: for the perf ring buffer usage metrics to be accurate, the provided value must have the
 	// following form: (1 + 2^n) * pages. Checkout https://github.com/DataDog/ebpf for more.
@@ -54,38 +53,34 @@ func computeDefaultEventsRingBufferSize() uint32 {
 }
 
 // AllProbes returns the list of all the probes of the runtime security module
-func AllProbes() []*manager.Probe {
-	if len(allProbes) > 0 {
-		return allProbes
-	}
-
-	allProbes = append(allProbes, getAttrProbes()...)
-	allProbes = append(allProbes, getExecProbes()...)
-	allProbes = append(allProbes, getLinkProbe()...)
-	allProbes = append(allProbes, getMkdirProbes()...)
-	allProbes = append(allProbes, getMountProbes()...)
-	allProbes = append(allProbes, getOpenProbes()...)
-	allProbes = append(allProbes, getRenameProbes()...)
-	allProbes = append(allProbes, getRmdirProbe()...)
-	allProbes = append(allProbes, sharedProbes...)
-	allProbes = append(allProbes, iouringProbes...)
-	allProbes = append(allProbes, getUnlinkProbes()...)
-	allProbes = append(allProbes, getXattrProbes()...)
+func AllProbes(fentry bool) []*manager.Probe {
+	var allProbes []*manager.Probe
+	allProbes = append(allProbes, getAttrProbes(fentry)...)
+	allProbes = append(allProbes, getExecProbes(fentry)...)
+	allProbes = append(allProbes, getLinkProbe(fentry)...)
+	allProbes = append(allProbes, getMkdirProbes(fentry)...)
+	allProbes = append(allProbes, getMountProbes(fentry)...)
+	allProbes = append(allProbes, getOpenProbes(fentry)...)
+	allProbes = append(allProbes, getRenameProbes(fentry)...)
+	allProbes = append(allProbes, getRmdirProbe(fentry)...)
+	allProbes = append(allProbes, getSharedProbes(fentry)...)
+	allProbes = append(allProbes, getIouringProbes(fentry)...)
+	allProbes = append(allProbes, getUnlinkProbes(fentry)...)
+	allProbes = append(allProbes, getXattrProbes(fentry)...)
 	allProbes = append(allProbes, getIoctlProbes()...)
-	allProbes = append(allProbes, getSELinuxProbes()...)
-	allProbes = append(allProbes, getBPFProbes()...)
-	allProbes = append(allProbes, getPTraceProbes()...)
-	allProbes = append(allProbes, getMMapProbes()...)
-	allProbes = append(allProbes, getMProtectProbes()...)
-	allProbes = append(allProbes, getModuleProbes()...)
-	allProbes = append(allProbes, getSignalProbes()...)
-	allProbes = append(allProbes, getSpliceProbes()...)
+	allProbes = append(allProbes, getSELinuxProbes(fentry)...)
+	allProbes = append(allProbes, getBPFProbes(fentry)...)
+	allProbes = append(allProbes, getPTraceProbes(fentry)...)
+	allProbes = append(allProbes, getMMapProbes(fentry)...)
+	allProbes = append(allProbes, getMProtectProbes(fentry)...)
+	allProbes = append(allProbes, getModuleProbes(fentry)...)
+	allProbes = append(allProbes, getSignalProbes(fentry)...)
+	allProbes = append(allProbes, getSpliceProbes(fentry)...)
 	allProbes = append(allProbes, getFlowProbes()...)
 	allProbes = append(allProbes, getNetDeviceProbes()...)
 	allProbes = append(allProbes, GetTCProbes()...)
-	allProbes = append(allProbes, getBindProbes()...)
+	allProbes = append(allProbes, getBindProbes(fentry)...)
 	allProbes = append(allProbes, getSyscallMonitorProbes()...)
-	allProbes = append(allProbes, getPipeProbes()...)
 
 	allProbes = append(allProbes,
 		&manager.Probe{
@@ -98,7 +93,7 @@ func AllProbes() []*manager.Probe {
 		&manager.Probe{
 			ProbeIdentificationPair: manager.ProbeIdentificationPair{
 				UID:          SecurityAgentUID,
-				EBPFFuncName: "kprobe_security_inode_getattr",
+				EBPFFuncName: "hook_security_inode_getattr",
 			},
 		},
 	)
@@ -158,7 +153,7 @@ type MapSpecEditorOpts struct {
 func AllMapSpecEditors(numCPU int, opts MapSpecEditorOpts) map[string]manager.MapSpecEditor {
 	editors := map[string]manager.MapSpecEditor{
 		"syscalls": {
-			MaxEntries: getMaxEntries(numCPU, 2048, 8192),
+			MaxEntries: 8192,
 			EditorFlag: manager.EditMaxEntries,
 		},
 		"proc_cache": {
@@ -244,7 +239,7 @@ func AllRingBuffers() []*manager.RingBuffer {
 }
 
 // AllTailRoutes returns the list of all the tail call routes
-func AllTailRoutes(ERPCDentryResolutionEnabled, networkEnabled, supportMmapableMaps bool) []manager.TailCallRoute {
+func AllTailRoutes(ERPCDentryResolutionEnabled, networkEnabled, supportMmapableMaps bool, fentry bool) []manager.TailCallRoute {
 	var routes []manager.TailCallRoute
 
 	routes = append(routes, getExecTailCallRoutes()...)
@@ -260,9 +255,9 @@ func AllTailRoutes(ERPCDentryResolutionEnabled, networkEnabled, supportMmapableM
 // AllBPFProbeWriteUserProgramFunctions returns the list of program functions that use the bpf_probe_write_user helper
 func AllBPFProbeWriteUserProgramFunctions() []string {
 	return []string{
-		"kprobe_dentry_resolver_erpc_write_user",
-		"kprobe_dentry_resolver_parent_erpc_write_user",
-		"kprobe_dentry_resolver_segment_erpc_write_user",
+		"tail_call_target_dentry_resolver_erpc_write_user",
+		"tail_call_target_dentry_resolver_parent_erpc_write_user",
+		"tail_call_target_dentry_resolver_segment_erpc_write_user",
 	}
 }
 

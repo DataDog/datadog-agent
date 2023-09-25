@@ -10,69 +10,99 @@ package grpc
 import (
 	"context"
 	"fmt"
-	"strings"
+	"math/rand"
 	"testing"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/ebpf/ebpftest"
-	"github.com/DataDog/datadog-agent/pkg/util/kernel"
-
 	"github.com/stretchr/testify/require"
+	"github.com/stretchr/testify/suite"
 	"google.golang.org/grpc/metadata"
 
+	"github.com/DataDog/datadog-agent/pkg/ebpf/ebpftest"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
+	"github.com/DataDog/datadog-agent/pkg/network/protocols"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http"
+	"github.com/DataDog/datadog-agent/pkg/network/protocols/http2"
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/testutil/grpc"
 	"github.com/DataDog/datadog-agent/pkg/network/usm"
+	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 )
 
 const (
 	srvAddr = "127.0.0.1:5050"
 )
 
-func TestGRPCScenarios(t *testing.T) {
-	ebpftest.TestBuildModes(t, []ebpftest.BuildMode{ebpftest.Prebuilt, ebpftest.RuntimeCompiled, ebpftest.CORE}, "", testGRPCScenarios)
+var letterRunes = []rune("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ")
+
+func randStringRunes(n int) string {
+	b := make([]rune, n)
+	for i := range b {
+		b[i] = letterRunes[rand.Intn(len(letterRunes))]
+	}
+	return string(b)
 }
 
-func testGRPCScenarios(t *testing.T) {
-	cfg := config.New()
-	cfg.EnableHTTPMonitoring = true
-	cfg.EnableHTTP2Monitoring = true
+type USMgRPCSuite struct {
+	suite.Suite
+}
 
+func TestGRPCScenarios(t *testing.T) {
 	currKernelVersion, err := kernel.HostVersion()
 	require.NoError(t, err)
-	if currKernelVersion < http.MinimumKernelVersion {
-		t.Skipf("USM can not run on kernel before %v", http.MinimumKernelVersion)
+	if currKernelVersion < http2.MinimumKernelVersion {
+		t.Skipf("HTTP2 monitoring can not run on kernel before %v", http2.MinimumKernelVersion)
 	}
 
-	if currKernelVersion < http.HTTP2MinimumKernelVersion {
-		t.Skipf("HTTP2 monitoring can not run on kernel before %v", http.HTTP2MinimumKernelVersion)
+	rand.Seed(time.Now().UnixNano())
+
+	ebpftest.TestBuildModes(t, []ebpftest.BuildMode{ebpftest.Prebuilt, ebpftest.RuntimeCompiled, ebpftest.CORE}, "", func(t *testing.T) {
+		suite.Run(t, new(USMgRPCSuite))
+	})
+}
+
+func getClientsArray(t *testing.T, size int, options grpc.Options) []*grpc.Client {
+	res := make([]*grpc.Client, size)
+	for i := 0; i < size; i++ {
+		client, err := grpc.NewClient(srvAddr, options)
+		require.NoError(t, err)
+		t.Cleanup(client.Close)
+		res[i] = &client
 	}
 
-	s, err := grpc.NewServer(srvAddr)
+	return res
+}
+
+func getClientsIndex(index, totalCount int) int {
+	return index % totalCount
+}
+
+func (s *USMgRPCSuite) TestSimpleGRPCScenarios() {
+	t := s.T()
+	cfg := config.New()
+	cfg.EnableHTTP2Monitoring = true
+
+	srv, err := grpc.NewServer(srvAddr)
 	require.NoError(t, err)
-	s.Run()
-	t.Cleanup(s.Stop)
+	srv.Run()
+	t.Cleanup(srv.Stop)
+	defaultCtx := context.Background()
 
 	// c is a stream endpoint
 	// a + b are unary endpoints
 	tests := []struct {
 		name              string
-		runClients        func(t *testing.T, differentClients bool)
+		runClients        func(t *testing.T, clientsCount int)
 		expectedEndpoints map[http.Key]int
 		expectedError     bool
 	}{
 		{
 			name: "simple unary - multiple requests",
-			runClients: func(t *testing.T, _ bool) {
-				var client1 grpc.Client
-				var err error
-				client1, err = grpc.NewClient(srvAddr, grpc.Options{})
-				require.NoError(t, err)
+			runClients: func(t *testing.T, clientsCount int) {
+				clients := getClientsArray(t, clientsCount, grpc.Options{})
 
-				ctx := context.Background()
 				for i := 0; i < 1000; i++ {
-					require.NoError(t, client1.HandleUnary(ctx, "first"))
+					client := clients[getClientsIndex(i, clientsCount)]
+					require.NoError(t, client.HandleUnary(defaultCtx, "first"))
 				}
 			},
 			expectedEndpoints: map[http.Key]int{
@@ -81,51 +111,15 @@ func testGRPCScenarios(t *testing.T) {
 					Method: http.MethodPost,
 				}: 1000,
 			},
-			expectedError: false,
-		},
-		{
-			name: "unary, a->a->a",
-			runClients: func(t *testing.T, differentClients bool) {
-				var client1, client2 grpc.Client
-				var err error
-				client1, err = grpc.NewClient(srvAddr, grpc.Options{})
-				require.NoError(t, err)
-				client2 = client1
-				if differentClients {
-					client2, err = grpc.NewClient(srvAddr, grpc.Options{})
-					require.NoError(t, err)
-				}
-
-				ctx := context.Background()
-				require.NoError(t, client1.HandleUnary(ctx, "first"))
-				require.NoError(t, client2.HandleUnary(ctx, "second"))
-				require.NoError(t, client1.HandleUnary(ctx, "third"))
-			},
-			expectedEndpoints: map[http.Key]int{
-				{
-					Path:   http.Path{Content: "/helloworld.Greeter/SayHello"},
-					Method: http.MethodPost,
-				}: 3,
-			},
-			expectedError: false,
 		},
 		{
 			name: "unary, a->b->a",
-			runClients: func(t *testing.T, differentClients bool) {
-				var client1, client2 grpc.Client
-				var err error
-				client1, err = grpc.NewClient(srvAddr, grpc.Options{})
-				require.NoError(t, err)
-				client2 = client1
-				if differentClients {
-					client2, err = grpc.NewClient(srvAddr, grpc.Options{})
-					require.NoError(t, err)
-				}
+			runClients: func(t *testing.T, clientsCount int) {
+				clients := getClientsArray(t, clientsCount, grpc.Options{})
 
-				ctx := context.Background()
-				require.NoError(t, client1.HandleUnary(ctx, "first"))
-				require.NoError(t, client2.GetFeature(ctx, -746143763, 407838351))
-				require.NoError(t, client1.HandleUnary(ctx, "first"))
+				require.NoError(t, clients[getClientsIndex(0, clientsCount)].HandleUnary(defaultCtx, "first"))
+				require.NoError(t, clients[getClientsIndex(1, clientsCount)].GetFeature(defaultCtx, -746143763, 407838351))
+				require.NoError(t, clients[getClientsIndex(2, clientsCount)].HandleUnary(defaultCtx, "first"))
 			},
 			expectedEndpoints: map[http.Key]int{
 				{
@@ -137,26 +131,16 @@ func testGRPCScenarios(t *testing.T) {
 					Method: http.MethodPost,
 				}: 1,
 			},
-			expectedError: false,
 		},
 		{
 			name: "unary, a->b->a->b",
-			runClients: func(t *testing.T, differentClients bool) {
-				var client1, client2 grpc.Client
-				var err error
-				client1, err = grpc.NewClient(srvAddr, grpc.Options{})
-				require.NoError(t, err)
-				client2 = client1
-				if differentClients {
-					client2, err = grpc.NewClient(srvAddr, grpc.Options{})
-					require.NoError(t, err)
-				}
+			runClients: func(t *testing.T, clientsCount int) {
+				clients := getClientsArray(t, clientsCount, grpc.Options{})
 
-				ctx := context.Background()
-				require.NoError(t, client1.HandleUnary(ctx, "first"))
-				require.NoError(t, client2.GetFeature(ctx, -746143763, 407838351))
-				require.NoError(t, client1.HandleUnary(ctx, "third"))
-				require.NoError(t, client2.GetFeature(ctx, -743999179, 408122808))
+				require.NoError(t, clients[getClientsIndex(0, clientsCount)].HandleUnary(defaultCtx, "first"))
+				require.NoError(t, clients[getClientsIndex(1, clientsCount)].GetFeature(defaultCtx, -746143763, 407838351))
+				require.NoError(t, clients[getClientsIndex(2, clientsCount)].HandleUnary(defaultCtx, "third"))
+				require.NoError(t, clients[getClientsIndex(3, clientsCount)].GetFeature(defaultCtx, -743999179, 408122808))
 			},
 			expectedEndpoints: map[http.Key]int{
 				{
@@ -168,26 +152,16 @@ func testGRPCScenarios(t *testing.T) {
 					Method: http.MethodPost,
 				}: 2,
 			},
-			expectedError: false,
 		},
 		{
 			name: "unary, a->b->b->a",
-			runClients: func(t *testing.T, differentClients bool) {
-				var client1, client2 grpc.Client
-				var err error
-				client1, err = grpc.NewClient(srvAddr, grpc.Options{})
-				require.NoError(t, err)
-				client2 = client1
-				if differentClients {
-					client2, err = grpc.NewClient(srvAddr, grpc.Options{})
-					require.NoError(t, err)
-				}
+			runClients: func(t *testing.T, clientsCount int) {
+				clients := getClientsArray(t, clientsCount, grpc.Options{})
 
-				ctx := context.Background()
-				require.NoError(t, client1.HandleUnary(ctx, "first"))
-				require.NoError(t, client2.GetFeature(ctx, -746143763, 407838351))
-				require.NoError(t, client1.GetFeature(ctx, -743999179, 408122808))
-				require.NoError(t, client2.HandleUnary(ctx, "third"))
+				require.NoError(t, clients[getClientsIndex(0, clientsCount)].HandleUnary(defaultCtx, "first"))
+				require.NoError(t, clients[getClientsIndex(1, clientsCount)].GetFeature(defaultCtx, -746143763, 407838351))
+				require.NoError(t, clients[getClientsIndex(2, clientsCount)].GetFeature(defaultCtx, -743999179, 408122808))
+				require.NoError(t, clients[getClientsIndex(3, clientsCount)].HandleUnary(defaultCtx, "third"))
 			},
 			expectedEndpoints: map[http.Key]int{
 				{
@@ -199,102 +173,33 @@ func testGRPCScenarios(t *testing.T) {
 					Method: http.MethodPost,
 				}: 2,
 			},
-			expectedError: false,
-		},
-		{
-			name: "unary, a->b->b->a",
-			runClients: func(t *testing.T, differentClients bool) {
-				var client1, client2 grpc.Client
-				var err error
-				client1, err = grpc.NewClient(srvAddr, grpc.Options{})
-				require.NoError(t, err)
-				client2 = client1
-				if differentClients {
-					client2, err = grpc.NewClient(srvAddr, grpc.Options{})
-					require.NoError(t, err)
-				}
-
-				ctx := context.Background()
-				require.NoError(t, client1.HandleUnary(ctx, "first"))
-				require.NoError(t, client2.GetFeature(ctx, -746143763, 407838351))
-				require.NoError(t, client2.GetFeature(ctx, -743999179, 408122808))
-				require.NoError(t, client1.HandleUnary(ctx, "third"))
-			},
-			expectedEndpoints: map[http.Key]int{
-				{
-					Path:   http.Path{Content: "/helloworld.Greeter/SayHello"},
-					Method: http.MethodPost,
-				}: 2,
-				{
-					Path:   http.Path{Content: "/routeguide.RouteGuide/GetFeature"},
-					Method: http.MethodPost,
-				}: 2,
-			},
-			expectedError: false,
 		},
 		{
 			name: "stream, c",
-			runClients: func(t *testing.T, differentClients bool) {
-				var client1 grpc.Client
-				var err error
-				client1, err = grpc.NewClient(srvAddr, grpc.Options{})
-				require.NoError(t, err)
+			runClients: func(t *testing.T, clientsCount int) {
+				clients := getClientsArray(t, clientsCount, grpc.Options{})
 
-				ctx := context.Background()
-				require.NoError(t, client1.HandleStream(ctx, 10))
-			},
-			expectedEndpoints: map[http.Key]int{
-				{
-					Path:   http.Path{Content: "/protobuf.Math/Max"},
-					Method: http.MethodPost,
-				}: 1,
-			},
-			expectedError: false,
-		},
-		{
-			name: "stream, c->c->c",
-			runClients: func(t *testing.T, differentClients bool) {
-				var client1, client2 grpc.Client
-				var err error
-				client1, err = grpc.NewClient(srvAddr, grpc.Options{})
-				require.NoError(t, err)
-				client2 = client1
-				if differentClients {
-					client2, err = grpc.NewClient(srvAddr, grpc.Options{})
-					require.NoError(t, err)
+				for i := 0; i < 25; i++ {
+					client := clients[getClientsIndex(i, clientsCount)]
+					require.NoError(t, client.HandleStream(defaultCtx, 10))
 				}
-
-				ctx := context.Background()
-				require.NoError(t, client1.HandleStream(ctx, 10))
-				require.NoError(t, client2.HandleStream(ctx, 10))
-				require.NoError(t, client1.HandleStream(ctx, 10))
 			},
 			expectedEndpoints: map[http.Key]int{
 				{
 					Path:   http.Path{Content: "/protobuf.Math/Max"},
 					Method: http.MethodPost,
-				}: 3,
+				}: 25,
 			},
-			expectedError: false,
 		},
 		{
 			name: "mixed, c->b->c->b",
-			runClients: func(t *testing.T, differentClients bool) {
-				var client1, client2 grpc.Client
-				var err error
-				client1, err = grpc.NewClient(srvAddr, grpc.Options{})
-				require.NoError(t, err)
-				client2 = client1
-				if differentClients {
-					client2, err = grpc.NewClient(srvAddr, grpc.Options{})
-					require.NoError(t, err)
-				}
+			runClients: func(t *testing.T, clientsCount int) {
+				clients := getClientsArray(t, clientsCount, grpc.Options{})
 
-				ctx := context.Background()
-				require.NoError(t, client1.HandleStream(ctx, 10))
-				require.NoError(t, client2.HandleUnary(ctx, "first"))
-				require.NoError(t, client1.HandleStream(ctx, 10))
-				require.NoError(t, client2.HandleUnary(ctx, "second"))
+				require.NoError(t, clients[getClientsIndex(0, clientsCount)].HandleStream(defaultCtx, 10))
+				require.NoError(t, clients[getClientsIndex(1, clientsCount)].HandleUnary(defaultCtx, "first"))
+				require.NoError(t, clients[getClientsIndex(2, clientsCount)].HandleStream(defaultCtx, 10))
+				require.NoError(t, clients[getClientsIndex(3, clientsCount)].HandleUnary(defaultCtx, "second"))
 			},
 			expectedEndpoints: map[http.Key]int{
 				{
@@ -306,136 +211,11 @@ func testGRPCScenarios(t *testing.T) {
 					Method: http.MethodPost,
 				}: 2,
 			},
-			expectedError: false,
-		},
-		{
-			name: "mixed, c->b->c->b",
-			runClients: func(t *testing.T, differentClients bool) {
-				var client1, client2 grpc.Client
-				var err error
-				client1, err = grpc.NewClient(srvAddr, grpc.Options{})
-				require.NoError(t, err)
-				client2 = client1
-				if differentClients {
-					client2, err = grpc.NewClient(srvAddr, grpc.Options{})
-					require.NoError(t, err)
-				}
-
-				ctx := context.Background()
-				require.NoError(t, client1.HandleStream(ctx, 10))
-				require.NoError(t, client1.HandleUnary(ctx, "first"))
-				require.NoError(t, client2.HandleStream(ctx, 10))
-				require.NoError(t, client2.HandleUnary(ctx, "second"))
-			},
-			expectedEndpoints: map[http.Key]int{
-				{
-					Path:   http.Path{Content: "/protobuf.Math/Max"},
-					Method: http.MethodPost,
-				}: 2,
-				{
-					Path:   http.Path{Content: "/helloworld.Greeter/SayHello"},
-					Method: http.MethodPost,
-				}: 2,
-			},
-			expectedError: false,
-		},
-		{
-			name: "request with large body (1MB)",
-			runClients: func(t *testing.T, differentClients bool) {
-				var client1 grpc.Client
-				var err error
-				client1, err = grpc.NewClient(srvAddr, grpc.Options{})
-				require.NoError(t, err)
-
-				longName := strings.Repeat("1", 1024*1024)
-				ctx := context.Background()
-				require.NoError(t, client1.HandleUnary(ctx, longName))
-			},
-			expectedEndpoints: map[http.Key]int{
-				{
-					Path:   http.Path{Content: "/helloworld.Greeter/SayHello"},
-					Method: http.MethodPost,
-				}: 1,
-			},
-			expectedError: true,
-		},
-
-		{
-			name: "request with large body (1MB) -> b -> request with large body (1MB) -> b",
-			runClients: func(t *testing.T, differentClients bool) {
-				var client1, client2 grpc.Client
-				var err error
-				client1, err = grpc.NewClient(srvAddr, grpc.Options{})
-				require.NoError(t, err)
-				client2 = client1
-				if differentClients {
-					client2, err = grpc.NewClient(srvAddr, grpc.Options{})
-					require.NoError(t, err)
-				}
-
-				longName := strings.Repeat("1", 1024*1024)
-				ctx := context.Background()
-				require.NoError(t, client1.HandleUnary(ctx, longName))
-				require.NoError(t, client2.GetFeature(ctx, -746143763, 407838351))
-				require.NoError(t, client1.HandleUnary(ctx, longName))
-				require.NoError(t, client2.GetFeature(ctx, -743999179, 408122808))
-			},
-			expectedEndpoints: map[http.Key]int{
-				{
-					Path:   http.Path{Content: "/routeguide.RouteGuide/GetFeature"},
-					Method: http.MethodPost,
-				}: 2,
-				{
-					Path:   http.Path{Content: "/helloworld.Greeter/SayHello"},
-					Method: http.MethodPost,
-				}: 2,
-			},
-			expectedError: true,
-		},
-		{
-			name: "request with large body (1MB) -> b -> request with large body (1MB) -> b",
-			runClients: func(t *testing.T, differentClients bool) {
-				var client1, client2 grpc.Client
-				var err error
-				client1, err = grpc.NewClient(srvAddr, grpc.Options{})
-				require.NoError(t, err)
-				client2 = client1
-				if differentClients {
-					client2, err = grpc.NewClient(srvAddr, grpc.Options{})
-					require.NoError(t, err)
-				}
-
-				longName := strings.Repeat("1", 1024*1024)
-				ctx := context.Background()
-				require.NoError(t, client1.HandleUnary(ctx, longName))
-				require.NoError(t, client2.GetFeature(ctx, -746143763, 407838351))
-				require.NoError(t, client2.HandleUnary(ctx, longName))
-				require.NoError(t, client1.GetFeature(ctx, -743999179, 408122808))
-			},
-			expectedEndpoints: map[http.Key]int{
-				{
-					Path:   http.Path{Content: "/routeguide.RouteGuide/GetFeature"},
-					Method: http.MethodPost,
-				}: 2,
-				{
-					Path:   http.Path{Content: "/helloworld.Greeter/SayHello"},
-					Method: http.MethodPost,
-				}: 2,
-			},
-			expectedError: true,
 		},
 		{
 			name: "500 headers -> b -> 500 headers -> b",
-			runClients: func(t *testing.T, differentClients bool) {
-				var client1, client2 grpc.Client
-				var err error
-				client1, err = grpc.NewClient(srvAddr, grpc.Options{})
-				require.NoError(t, err)
-				client2 = client1
-				if differentClients {
-					client2, err = grpc.NewClient(srvAddr, grpc.Options{})
-					require.NoError(t, err)
-				}
+			runClients: func(t *testing.T, clientsCount int) {
+				clients := getClientsArray(t, clientsCount, grpc.Options{})
 
 				ctxWithoutHeaders := context.Background()
 				ctxWithHeaders := context.Background()
@@ -445,50 +225,11 @@ func testGRPCScenarios(t *testing.T) {
 				}
 				md := metadata.New(headers)
 				ctxWithHeaders = metadata.NewOutgoingContext(ctxWithHeaders, md)
-				longName := strings.Repeat("1", 1024*1024)
-				require.NoError(t, client1.HandleUnary(ctxWithHeaders, longName))
-				require.NoError(t, client2.GetFeature(ctxWithoutHeaders, -746143763, 407838351))
-				require.NoError(t, client1.HandleUnary(ctxWithHeaders, longName))
-				require.NoError(t, client2.GetFeature(ctxWithoutHeaders, -743999179, 408122808))
-			},
-			expectedEndpoints: map[http.Key]int{
-				{
-					Path:   http.Path{Content: "/routeguide.RouteGuide/GetFeature"},
-					Method: http.MethodPost,
-				}: 2,
-				{
-					Path:   http.Path{Content: "/helloworld.Greeter/SayHello"},
-					Method: http.MethodPost,
-				}: 2,
-			},
-			expectedError: true,
-		},
-		{
-			name: "500 headers -> b -> 500 headers -> b",
-			runClients: func(t *testing.T, differentClients bool) {
-				var client1, client2 grpc.Client
-				var err error
-				client1, err = grpc.NewClient(srvAddr, grpc.Options{})
-				require.NoError(t, err)
-				client2 = client1
-				if differentClients {
-					client2, err = grpc.NewClient(srvAddr, grpc.Options{})
-					require.NoError(t, err)
-				}
-
-				ctxWithoutHeaders := context.Background()
-				ctxWithHeaders := context.Background()
-				headers := make(map[string]string, 500)
-				for i := 1; i <= 500; i++ {
-					headers[fmt.Sprintf("header-%d", i)] = fmt.Sprintf("value-%d", i)
-				}
-				md := metadata.New(headers)
-				ctxWithHeaders = metadata.NewOutgoingContext(ctxWithHeaders, md)
-				longName := strings.Repeat("1", 1024*1024)
-				require.NoError(t, client1.HandleUnary(ctxWithHeaders, longName))
-				require.NoError(t, client2.GetFeature(ctxWithoutHeaders, -746143763, 407838351))
-				require.NoError(t, client2.HandleUnary(ctxWithHeaders, longName))
-				require.NoError(t, client1.GetFeature(ctxWithoutHeaders, -743999179, 408122808))
+				longName := randStringRunes(1024 * 1024)
+				require.NoError(t, clients[getClientsIndex(0, clientsCount)].HandleUnary(ctxWithHeaders, longName))
+				require.NoError(t, clients[getClientsIndex(1, clientsCount)].GetFeature(ctxWithoutHeaders, -746143763, 407838351))
+				require.NoError(t, clients[getClientsIndex(2, clientsCount)].HandleUnary(ctxWithHeaders, longName))
+				require.NoError(t, clients[getClientsIndex(3, clientsCount)].GetFeature(ctxWithoutHeaders, -743999179, 408122808))
 			},
 			expectedEndpoints: map[http.Key]int{
 				{
@@ -504,16 +245,8 @@ func testGRPCScenarios(t *testing.T) {
 		},
 		{
 			name: "duplicated headers -> b -> duplicated headers -> b",
-			runClients: func(t *testing.T, differentClients bool) {
-				var client1, client2 grpc.Client
-				var err error
-				client1, err = grpc.NewClient(srvAddr, grpc.Options{})
-				require.NoError(t, err)
-				client2 = client1
-				if differentClients {
-					client2, err = grpc.NewClient(srvAddr, grpc.Options{})
-					require.NoError(t, err)
-				}
+			runClients: func(t *testing.T, clientsCount int) {
+				clients := getClientsArray(t, clientsCount, grpc.Options{})
 
 				ctxWithoutHeaders := context.Background()
 				ctxWithHeaders := context.Background()
@@ -523,50 +256,11 @@ func testGRPCScenarios(t *testing.T) {
 				}
 				md := metadata.New(headers)
 				ctxWithHeaders = metadata.NewOutgoingContext(ctxWithHeaders, md)
-				longName := strings.Repeat("1", 1024*1024)
-				require.NoError(t, client1.HandleUnary(ctxWithHeaders, longName))
-				require.NoError(t, client2.GetFeature(ctxWithoutHeaders, -746143763, 407838351))
-				require.NoError(t, client1.HandleUnary(ctxWithHeaders, longName))
-				require.NoError(t, client2.GetFeature(ctxWithoutHeaders, -743999179, 408122808))
-			},
-			expectedEndpoints: map[http.Key]int{
-				{
-					Path:   http.Path{Content: "/routeguide.RouteGuide/GetFeature"},
-					Method: http.MethodPost,
-				}: 2,
-				{
-					Path:   http.Path{Content: "/helloworld.Greeter/SayHello"},
-					Method: http.MethodPost,
-				}: 2,
-			},
-			expectedError: true,
-		},
-		{
-			name: "duplicated headers -> b -> duplicated headers -> b",
-			runClients: func(t *testing.T, differentClients bool) {
-				var client1, client2 grpc.Client
-				var err error
-				client1, err = grpc.NewClient(srvAddr, grpc.Options{})
-				require.NoError(t, err)
-				client2 = client1
-				if differentClients {
-					client2, err = grpc.NewClient(srvAddr, grpc.Options{})
-					require.NoError(t, err)
-				}
-
-				ctxWithoutHeaders := context.Background()
-				ctxWithHeaders := context.Background()
-				headers := make(map[string]string, 20)
-				for i := 1; i <= 20; i++ {
-					headers[fmt.Sprintf("header-%d", i)] = fmt.Sprintf("value")
-				}
-				md := metadata.New(headers)
-				ctxWithHeaders = metadata.NewOutgoingContext(ctxWithHeaders, md)
-				longName := strings.Repeat("1", 1024*1024)
-				require.NoError(t, client1.HandleUnary(ctxWithHeaders, longName))
-				require.NoError(t, client2.GetFeature(ctxWithoutHeaders, -746143763, 407838351))
-				require.NoError(t, client2.HandleUnary(ctxWithHeaders, longName))
-				require.NoError(t, client1.GetFeature(ctxWithoutHeaders, -743999179, 408122808))
+				longName := randStringRunes(1024 * 1024)
+				require.NoError(t, clients[getClientsIndex(0, clientsCount)].HandleUnary(ctxWithHeaders, longName))
+				require.NoError(t, clients[getClientsIndex(0, clientsCount)].GetFeature(ctxWithoutHeaders, -746143763, 407838351))
+				require.NoError(t, clients[getClientsIndex(0, clientsCount)].HandleUnary(ctxWithHeaders, longName))
+				require.NoError(t, clients[getClientsIndex(0, clientsCount)].GetFeature(ctxWithoutHeaders, -743999179, 408122808))
 			},
 			expectedEndpoints: map[http.Key]int{
 				{
@@ -582,8 +276,8 @@ func testGRPCScenarios(t *testing.T) {
 		},
 	}
 	for _, tt := range tests {
-		for _, val := range []bool{false, true} {
-			testNameSuffix := fmt.Sprintf("-different clients - %v", val)
+		for _, clientCount := range []int{1, 2, 5} {
+			testNameSuffix := fmt.Sprintf("-different clients - %v", clientCount)
 			t.Run(tt.name+testNameSuffix, func(t *testing.T) {
 				// we are currently not supporting some edge cases:
 				// https://datadoghq.atlassian.net/browse/USMO-222
@@ -596,12 +290,17 @@ func testGRPCScenarios(t *testing.T) {
 				require.NoError(t, monitor.Start())
 				defer monitor.Stop()
 
-				tt.runClients(t, val)
+				tt.runClients(t, clientCount)
 
 				res := make(map[http.Key]int)
 				require.Eventually(t, func() bool {
-					stats := monitor.GetHTTP2Stats()
-					for key, stat := range stats {
+					stats := monitor.GetProtocolStats()
+					http2Stats, ok := stats[protocols.HTTP2]
+					if !ok {
+						return false
+					}
+					http2StatsTyped := http2Stats.(map[http.Key]*http.RequestStats)
+					for key, stat := range http2StatsTyped {
 						if key.DstPort == 5050 || key.SrcPort == 5050 {
 							count := stat.Data[200].Count
 							newKey := http.Key{
@@ -626,6 +325,134 @@ func testGRPCScenarios(t *testing.T) {
 							return false
 						}
 						if val != count {
+							return false
+						}
+					}
+
+					return true
+				}, time.Second*5, time.Millisecond*100, "%v != %v", res, tt.expectedEndpoints)
+			})
+		}
+	}
+}
+
+type captureRange struct {
+	lower int
+	upper int
+}
+
+func (s *USMgRPCSuite) TestLargeBodiesGRPCScenarios() {
+	t := s.T()
+	cfg := config.New()
+	cfg.EnableHTTP2Monitoring = true
+
+	srv, err := grpc.NewServer(srvAddr)
+	require.NoError(t, err)
+	srv.Run()
+	t.Cleanup(srv.Stop)
+	defaultCtx := context.Background()
+
+	// c is a stream endpoint
+	// a + b are unary endpoints
+	tests := []struct {
+		name              string
+		runClients        func(t *testing.T, clientsCount int)
+		expectedEndpoints map[http.Key]captureRange
+	}{
+		{
+			name: "request with large body (50MB)",
+			runClients: func(t *testing.T, clientsCount int) {
+				clients := getClientsArray(t, clientsCount, grpc.Options{})
+
+				for i := 0; i < 5; i++ {
+					longName := randStringRunes(50 * 1024 * 1024)
+					require.NoError(t, clients[getClientsIndex(i, clientsCount)].HandleUnary(defaultCtx, longName))
+				}
+			},
+			expectedEndpoints: map[http.Key]captureRange{
+				{
+					Path:   http.Path{Content: "/helloworld.Greeter/SayHello"},
+					Method: http.MethodPost,
+				}: {
+					lower: 4,
+					upper: 5,
+				},
+			},
+		},
+		{
+			name: "request with large body (5MB) -> b -> request with large body (5MB) -> b",
+			runClients: func(t *testing.T, clientsCount int) {
+				clients := getClientsArray(t, clientsCount, grpc.Options{})
+
+				longName := randStringRunes(5 * 1024 * 1024)
+
+				require.NoError(t, clients[getClientsIndex(0, clientsCount)].HandleUnary(defaultCtx, longName))
+				require.NoError(t, clients[getClientsIndex(1, clientsCount)].GetFeature(defaultCtx, -746143763, 407838351))
+				require.NoError(t, clients[getClientsIndex(2, clientsCount)].HandleUnary(defaultCtx, longName))
+				require.NoError(t, clients[getClientsIndex(3, clientsCount)].GetFeature(defaultCtx, -743999179, 408122808))
+			},
+			expectedEndpoints: map[http.Key]captureRange{
+				{
+					Path:   http.Path{Content: "/routeguide.RouteGuide/GetFeature"},
+					Method: http.MethodPost,
+				}: {
+					lower: 2,
+					upper: 2,
+				},
+				{
+					Path:   http.Path{Content: "/helloworld.Greeter/SayHello"},
+					Method: http.MethodPost,
+				}: {
+					lower: 1,
+					upper: 2,
+				},
+			},
+		},
+	}
+	for _, tt := range tests {
+		for _, clientCount := range []int{1, 2, 5} {
+			testNameSuffix := fmt.Sprintf("-different clients - %v", clientCount)
+			t.Run(tt.name+testNameSuffix, func(t *testing.T) {
+				monitor, err := usm.NewMonitor(cfg, nil, nil, nil)
+				require.NoError(t, err)
+				require.NoError(t, monitor.Start())
+				defer monitor.Stop()
+
+				tt.runClients(t, clientCount)
+
+				res := make(map[http.Key]int)
+				require.Eventually(t, func() bool {
+					stats := monitor.GetProtocolStats()
+					http2Stats, ok := stats[protocols.HTTP2]
+					if !ok {
+						return false
+					}
+					http2StatsTyped := http2Stats.(map[http.Key]*http.RequestStats)
+					for key, stat := range http2StatsTyped {
+						if key.DstPort == 5050 || key.SrcPort == 5050 {
+							count := stat.Data[200].Count
+							newKey := http.Key{
+								Path:   http.Path{Content: key.Path.Content},
+								Method: key.Method,
+							}
+							if _, ok := res[newKey]; !ok {
+								res[newKey] = count
+							} else {
+								res[newKey] += count
+							}
+						}
+					}
+
+					if len(res) != len(tt.expectedEndpoints) {
+						return false
+					}
+
+					for key, count := range res {
+						valRange, ok := tt.expectedEndpoints[key]
+						if !ok {
+							return false
+						}
+						if count < valRange.lower || count > valRange.upper {
 							return false
 						}
 					}

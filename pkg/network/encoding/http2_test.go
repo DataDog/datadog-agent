@@ -10,15 +10,29 @@ import (
 	"testing"
 
 	model "github.com/DataDog/agent-payload/v5/process"
+	"github.com/gogo/protobuf/proto"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
+	"github.com/stretchr/testify/suite"
 )
 
-func TestFormatHTTP2Stats(t *testing.T) {
+type HTTP2Suite struct {
+	suite.Suite
+}
+
+func TestHTTP2Stats(t *testing.T) {
+	if runtime.GOOS != "linux" {
+		t.Skip("the feature is only supported on linux.")
+	}
+	suite.Run(t, &HTTP2Suite{})
+}
+
+func (s *HTTP2Suite) TestFormatHTTP2Stats() {
+	t := s.T()
 	t.Run("status code", func(t *testing.T) {
 		testFormatHTTP2Stats(t, true)
 	})
@@ -75,7 +89,7 @@ func testFormatHTTP2Stats(t *testing.T, aggregateByStatusCode bool) {
 			httpKey2: http2Stats2,
 		},
 	}
-	out := &model.HTTPAggregations{
+	out := &model.HTTP2Aggregations{
 		EndpointAggregations: []*model.HTTPStats{
 			{
 				Path:              "/testpath-1",
@@ -98,15 +112,17 @@ func testFormatHTTP2Stats(t *testing.T, aggregateByStatusCode bool) {
 		out.EndpointAggregations[1].StatsByStatusCode[code] = &model.HTTPStats_Data{Count: 1, FirstLatencySample: 20, Latencies: nil}
 	}
 
-	http2Encoder := newHTTP2Encoder(in)
-	aggregations, tags, _ := http2Encoder.GetHTTP2AggregationsAndTags(in.Conns[0])
+	http2Encoder := newHTTP2Encoder(in.HTTP2)
+	aggregations, tags, _ := getHTTP2Aggregations(t, http2Encoder, in.Conns[0])
+
 	require.NotNil(t, aggregations)
 	assert.ElementsMatch(t, out.EndpointAggregations, aggregations.EndpointAggregations)
 
 	assert.Equal(t, uint64((1<<len(statusCodes))-1), tags)
 }
 
-func TestFormatHTTP2StatsByPath(t *testing.T) {
+func (s *HTTP2Suite) TestFormatHTTP2StatsByPath() {
+	t := s.T()
 	t.Run("status code", func(t *testing.T) {
 		testFormatHTTP2StatsByPath(t, true)
 	})
@@ -158,11 +174,11 @@ func testFormatHTTP2StatsByPath(t *testing.T, aggregateByStatusCode bool) {
 			key: http2ReqStats,
 		},
 	}
-	http2Encoder := newHTTP2Encoder(payload)
-	httpAggregations, tags, _ := http2Encoder.GetHTTP2AggregationsAndTags(payload.Conns[0])
+	http2Encoder := newHTTP2Encoder(payload.HTTP2)
+	http2Aggregations, tags, _ := getHTTP2Aggregations(t, http2Encoder, payload.Conns[0])
 
-	require.NotNil(t, httpAggregations)
-	endpointAggregations := httpAggregations.EndpointAggregations
+	require.NotNil(t, http2Aggregations)
+	endpointAggregations := http2Aggregations.EndpointAggregations
 	require.Len(t, endpointAggregations, 1)
 	assert.Equal(t, "/testpath", endpointAggregations[0].Path)
 	assert.Equal(t, model.HTTPMethod_Get, endpointAggregations[0].Method)
@@ -187,16 +203,17 @@ func testFormatHTTP2StatsByPath(t *testing.T, aggregateByStatusCode bool) {
 	assert.False(t, exists)
 }
 
-func TestIDCollisionRegressionHTTP2(t *testing.T) {
+func (s *HTTP2Suite) TestHTTP2IDCollisionRegression() {
+	t := s.T()
 	t.Run("status code", func(t *testing.T) {
-		testIDCollisionRegressionHTTP2(t, true)
+		testHTTP2IDCollisionRegression(t, true)
 	})
 	t.Run("status class", func(t *testing.T) {
-		testIDCollisionRegressionHTTP2(t, false)
+		testHTTP2IDCollisionRegression(t, false)
 	})
 }
 
-func testIDCollisionRegressionHTTP2(t *testing.T, aggregateByStatusCode bool) {
+func testHTTP2IDCollisionRegression(t *testing.T, aggregateByStatusCode bool) {
 	http2Stats := http.NewRequestStats(aggregateByStatusCode)
 	assert := assert.New(t)
 	connections := []network.ConnectionStats{
@@ -236,23 +253,23 @@ func testIDCollisionRegressionHTTP2(t *testing.T, aggregateByStatusCode bool) {
 		},
 	}
 
-	http2Encoder := newHTTP2Encoder(in)
+	http2Encoder := newHTTP2Encoder(in.HTTP2)
 
-	// assert that the first connection matching the HTTP data will get
+	// assert that the first connection matching the HTTP2 data will get
 	// back a non-nil result
-	aggregations, _, _ := http2Encoder.GetHTTP2AggregationsAndTags(connections[0])
-	assert.NotNil(aggregations)
+	aggregations, _, _ := getHTTP2Aggregations(t, http2Encoder, connections[0])
 	assert.Equal("/", aggregations.EndpointAggregations[0].Path)
 	assert.Equal(uint32(1), aggregations.EndpointAggregations[0].StatsByStatusCode[int32(http2Stats.NormalizeStatusCode(104))].Count)
 
 	// assert that the other connections sharing the same (source,destination)
-	// addresses but different PIDs *won't* be associated with the HTTP stats
+	// addresses but different PIDs *won't* be associated with the HTTP2 stats
 	// object
-	aggregations, _, _ = http2Encoder.GetHTTP2AggregationsAndTags(connections[1])
-	assert.Nil(aggregations)
+	http2Blob, _, _ := http2Encoder.GetHTTP2AggregationsAndTags(connections[1])
+	assert.Nil(http2Blob)
 }
 
-func TestHTTP2LocalhostScenario(t *testing.T) {
+func (s *HTTP2Suite) TestHTTP2LocalhostScenario() {
+	t := s.T()
 	t.Run("status code", func(t *testing.T) {
 		testHTTP2LocalhostScenario(t, true)
 	})
@@ -292,7 +309,6 @@ func testHTTP2LocalhostScenario(t *testing.T, aggregateByStatusCode bool) {
 		true,
 		http.MethodGet,
 	)
-
 	http2Stats.AddRequest(103, 1.0, 0, nil)
 
 	in := &network.Connections{
@@ -322,17 +338,26 @@ func testHTTP2LocalhostScenario(t *testing.T, aggregateByStatusCode bool) {
 
 		in.HTTP2[httpKeyWin] = http2Stats
 	}
-	http2Encoder := newHTTP2Encoder(in)
+	http2Encoder := newHTTP2Encoder(in.HTTP2)
 
 	// assert that both ends (client:server, server:client) of the connection
 	// will have HTTP2 stats
-	aggregations, _, _ := http2Encoder.GetHTTP2AggregationsAndTags(connections[0])
-	assert.NotNil(aggregations)
+	aggregations, _, _ := getHTTP2Aggregations(t, http2Encoder, in.Conns[0])
 	assert.Equal("/", aggregations.EndpointAggregations[0].Path)
 	assert.Equal(uint32(1), aggregations.EndpointAggregations[0].StatsByStatusCode[int32(http2Stats.NormalizeStatusCode(103))].Count)
 
-	aggregations, _, _ = http2Encoder.GetHTTP2AggregationsAndTags(connections[1])
-	assert.NotNil(aggregations)
+	aggregations, _, _ = getHTTP2Aggregations(t, http2Encoder, in.Conns[1])
 	assert.Equal("/", aggregations.EndpointAggregations[0].Path)
 	assert.Equal(uint32(1), aggregations.EndpointAggregations[0].StatsByStatusCode[int32(http2Stats.NormalizeStatusCode(103))].Count)
+}
+
+func getHTTP2Aggregations(t *testing.T, encoder *http2Encoder, c network.ConnectionStats) (*model.HTTP2Aggregations, uint64, map[string]struct{}) {
+	http2Blob, staticTags, dynamicTags := encoder.GetHTTP2AggregationsAndTags(c)
+	require.NotNil(t, http2Blob)
+
+	aggregations := new(model.HTTP2Aggregations)
+	err := proto.Unmarshal(http2Blob, aggregations)
+	require.NoError(t, err)
+
+	return aggregations, staticTags, dynamicTags
 }

@@ -5,6 +5,7 @@
 
 //go:build !linux && !windows
 
+// Package resolvers holds resolvers related files
 package resolvers
 
 import (
@@ -19,6 +20,5 @@ type Resolvers struct {
 
 // NewResolvers creates a new instance of Resolvers
 func NewResolvers(config *config.Config, statsdClient statsd.ClientInterface) (*Resolvers, error) {
-
 	return nil, fmt.Errorf("Not implemented on this platform")
 }

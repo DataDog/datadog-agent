@@ -12,9 +12,9 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
+	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	"github.com/DataDog/datadog-agent/pkg/serverless/trace/inferredspan"
 	"github.com/DataDog/datadog-agent/pkg/trace/api"
-	"github.com/DataDog/datadog-agent/pkg/trace/pb"
 	"github.com/DataDog/datadog-agent/pkg/trace/sampler"
 )
 
@@ -199,6 +199,105 @@ func TestStartExecutionSpanWithHeadersAndInferredSpan(t *testing.T) {
 
 	assert.NotEqual(t, 0, currentExecutionInfo.SpanID)
 }
+
+func TestEndExecutionSpanWithEmptyObjectRequestResponse(t *testing.T) {
+	currentExecutionInfo := &ExecutionStartInfo{}
+	t.Setenv(functionNameEnvVar, "TestFunction")
+	t.Setenv("DD_CAPTURE_LAMBDA_PAYLOAD", "true")
+	startTime := time.Now()
+
+	startDetails := &InvocationStartDetails{
+		StartTime:          startTime,
+		InvokeEventHeaders: LambdaInvokeEventHeaders{},
+	}
+	startExecutionSpan(currentExecutionInfo, nil, []byte("[]"), startDetails, false)
+
+	duration := 1 * time.Second
+	endTime := startTime.Add(duration)
+	var tracePayload *api.Payload
+	mockProcessTrace := func(payload *api.Payload) {
+		tracePayload = payload
+	}
+
+	endDetails := &InvocationEndDetails{
+		EndTime:            endTime,
+		IsError:            false,
+		RequestID:          "test-request-id",
+		ResponseRawPayload: []byte("{}"),
+		ColdStart:          true,
+		ProactiveInit:      false,
+		Runtime:            "dotnet6",
+	}
+
+	endExecutionSpan(currentExecutionInfo, make(map[string]string), nil, mockProcessTrace, endDetails)
+	executionSpan := tracePayload.TracerPayload.Chunks[0].Spans[0]
+	expectingResultMetaMap := map[string]string{
+		"request_id":        "test-request-id",
+		"cold_start":        "true",
+		"function.request":  "[]", // []byte("{}") => empty list in JSON => "[]"
+		"function.response": "{}", // []byte("{}") => empty map in JSON => "{}"
+		"language":          "dotnet",
+	}
+	assert.Equal(t, executionSpan.Meta, expectingResultMetaMap)
+	assert.Equal(t, "aws.lambda", executionSpan.Name)
+	assert.Equal(t, "aws.lambda", executionSpan.Service)
+	assert.Equal(t, "TestFunction", executionSpan.Resource)
+	assert.Equal(t, "serverless", executionSpan.Type)
+	assert.Equal(t, currentExecutionInfo.TraceID, executionSpan.TraceID)
+	assert.Equal(t, currentExecutionInfo.SpanID, executionSpan.SpanID)
+	assert.Equal(t, startTime.UnixNano(), executionSpan.Start)
+	assert.Equal(t, duration.Nanoseconds(), executionSpan.Duration)
+}
+
+func TestEndExecutionSpanWithNullRequestResponse(t *testing.T) {
+	currentExecutionInfo := &ExecutionStartInfo{}
+	t.Setenv(functionNameEnvVar, "TestFunction")
+	t.Setenv("DD_CAPTURE_LAMBDA_PAYLOAD", "true")
+	startTime := time.Now()
+
+	startDetails := &InvocationStartDetails{
+		StartTime:          startTime,
+		InvokeEventHeaders: LambdaInvokeEventHeaders{},
+	}
+	startExecutionSpan(currentExecutionInfo, nil, nil, startDetails, false)
+
+	duration := 1 * time.Second
+	endTime := startTime.Add(duration)
+	var tracePayload *api.Payload
+	mockProcessTrace := func(payload *api.Payload) {
+		tracePayload = payload
+	}
+
+	endDetails := &InvocationEndDetails{
+		EndTime:            endTime,
+		IsError:            false,
+		RequestID:          "test-request-id",
+		ResponseRawPayload: []byte(""),
+		ColdStart:          true,
+		ProactiveInit:      false,
+		Runtime:            "dotnet6",
+	}
+
+	endExecutionSpan(currentExecutionInfo, make(map[string]string), nil, mockProcessTrace, endDetails)
+	executionSpan := tracePayload.TracerPayload.Chunks[0].Spans[0]
+	expectingResultMetaMap := map[string]string{
+		"request_id":        "test-request-id",
+		"cold_start":        "true",
+		"function.request":  "", // nil => null in JSON => ""
+		"function.response": "", // []byte("") => null in JSON => ""
+		"language":          "dotnet",
+	}
+	assert.Equal(t, executionSpan.Meta, expectingResultMetaMap)
+	assert.Equal(t, "aws.lambda", executionSpan.Name)
+	assert.Equal(t, "aws.lambda", executionSpan.Service)
+	assert.Equal(t, "TestFunction", executionSpan.Resource)
+	assert.Equal(t, "serverless", executionSpan.Type)
+	assert.Equal(t, currentExecutionInfo.TraceID, executionSpan.TraceID)
+	assert.Equal(t, currentExecutionInfo.SpanID, executionSpan.SpanID)
+	assert.Equal(t, startTime.UnixNano(), executionSpan.Start)
+	assert.Equal(t, duration.Nanoseconds(), executionSpan.Duration)
+}
+
 func TestEndExecutionSpanWithNoError(t *testing.T) {
 	currentExecutionInfo := &ExecutionStartInfo{}
 	t.Setenv(functionNameEnvVar, "TestFunction")
@@ -224,17 +323,88 @@ func TestEndExecutionSpanWithNoError(t *testing.T) {
 		IsError:            false,
 		RequestID:          "test-request-id",
 		ResponseRawPayload: []byte(`{"response":"test response payload"}`),
+		ColdStart:          true,
+		ProactiveInit:      false,
+		Runtime:            "dotnet6",
 	}
 
 	endExecutionSpan(currentExecutionInfo, make(map[string]string), nil, mockProcessTrace, endDetails)
 	executionSpan := tracePayload.TracerPayload.Chunks[0].Spans[0]
+	expectingResultMetaMap := map[string]string{
+		"request_id":                "test-request-id",
+		"cold_start":                "true",
+		"function.request.resource": "/users/create",
+		"function.request.path":     "/users/create",
+		"function.request.headers.x-datadog-parent-id":         "1480558859903409531",
+		"function.request.headers.x-datadog-trace-id":          "5736943178450432258",
+		"function.request.headers.x-datadog-sampling-priority": "1",
+		"function.request.httpMethod":                          "GET",
+		"function.request.headers.Accept":                      "*/*",
+		"function.request.headers.Accept-Encoding":             "gzip",
+		"function.response.response":                           "test response payload",
+		"language":                                             "dotnet",
+	}
+	assert.Equal(t, executionSpan.Meta, expectingResultMetaMap)
 	assert.Equal(t, "aws.lambda", executionSpan.Name)
 	assert.Equal(t, "aws.lambda", executionSpan.Service)
 	assert.Equal(t, "TestFunction", executionSpan.Resource)
 	assert.Equal(t, "serverless", executionSpan.Type)
-	assert.Equal(t, "test-request-id", executionSpan.Meta["request_id"])
-	assert.Equal(t, testString, executionSpan.Meta["function.request"])
-	assert.Equal(t, `{"response":"test response payload"}`, executionSpan.Meta["function.response"])
+	assert.Equal(t, currentExecutionInfo.TraceID, executionSpan.TraceID)
+	assert.Equal(t, currentExecutionInfo.SpanID, executionSpan.SpanID)
+	assert.Equal(t, startTime.UnixNano(), executionSpan.Start)
+	assert.Equal(t, duration.Nanoseconds(), executionSpan.Duration)
+}
+
+func TestEndExecutionSpanProactInit(t *testing.T) {
+	currentExecutionInfo := &ExecutionStartInfo{}
+	t.Setenv(functionNameEnvVar, "TestFunction")
+	t.Setenv("DD_CAPTURE_LAMBDA_PAYLOAD", "true")
+	testString := `{"resource":"/users/create","path":"/users/create","httpMethod":"GET","headers":{"Accept":"*/*","Accept-Encoding":"gzip","x-datadog-parent-id":"1480558859903409531","x-datadog-sampling-priority":"1","x-datadog-trace-id":"5736943178450432258"}}`
+	startTime := time.Now()
+
+	startDetails := &InvocationStartDetails{
+		StartTime:          startTime,
+		InvokeEventHeaders: LambdaInvokeEventHeaders{},
+	}
+	startExecutionSpan(currentExecutionInfo, nil, []byte(testString), startDetails, false)
+
+	duration := 1 * time.Second
+	endTime := startTime.Add(duration)
+	var tracePayload *api.Payload
+	mockProcessTrace := func(payload *api.Payload) {
+		tracePayload = payload
+	}
+
+	endDetails := &InvocationEndDetails{
+		EndTime:            endTime,
+		IsError:            false,
+		RequestID:          "test-request-id",
+		ResponseRawPayload: []byte(`{"response":"test response payload"}`),
+		ColdStart:          false,
+		ProactiveInit:      true,
+	}
+
+	endExecutionSpan(currentExecutionInfo, make(map[string]string), nil, mockProcessTrace, endDetails)
+	executionSpan := tracePayload.TracerPayload.Chunks[0].Spans[0]
+	expectingResultMetaMap := map[string]string{
+		"request_id":                                           "test-request-id",
+		"cold_start":                                           "false",
+		"proactive_initialization":                             "true",
+		"function.request.resource":                            "/users/create",
+		"function.request.path":                                "/users/create",
+		"function.request.headers.x-datadog-parent-id":         "1480558859903409531",
+		"function.request.headers.x-datadog-trace-id":          "5736943178450432258",
+		"function.request.headers.x-datadog-sampling-priority": "1",
+		"function.request.httpMethod":                          "GET",
+		"function.request.headers.Accept":                      "*/*",
+		"function.request.headers.Accept-Encoding":             "gzip",
+		"function.response.response":                           "test response payload",
+	}
+	assert.Equal(t, executionSpan.Meta, expectingResultMetaMap)
+	assert.Equal(t, "aws.lambda", executionSpan.Name)
+	assert.Equal(t, "aws.lambda", executionSpan.Service)
+	assert.Equal(t, "TestFunction", executionSpan.Resource)
+	assert.Equal(t, "serverless", executionSpan.Type)
 	assert.Equal(t, currentExecutionInfo.TraceID, executionSpan.TraceID)
 	assert.Equal(t, currentExecutionInfo.SpanID, executionSpan.SpanID)
 	assert.Equal(t, startTime.UnixNano(), executionSpan.Start)
@@ -346,4 +516,145 @@ func TestParseLambdaPayload(t *testing.T) {
 	assert.Equal(t, []byte("{a}"), ParseLambdaPayload([]byte("a{a}a")))
 	assert.Equal(t, []byte("{"), ParseLambdaPayload([]byte("{")))
 	assert.Equal(t, []byte("}"), ParseLambdaPayload([]byte("}")))
+}
+
+func TestLanguageTag(t *testing.T) {
+	testCases := []struct {
+		runtime     string
+		expectedTag string
+	}{
+		{runtime: "dotnet6", expectedTag: "dotnet"},
+		{runtime: "java11", expectedTag: "java"},
+		{runtime: "ruby2.7", expectedTag: "ruby"},
+		{runtime: "go1.x", expectedTag: "go"},
+	}
+
+	for _, tc := range testCases {
+		currentExecutionInfo := &ExecutionStartInfo{}
+		t.Setenv(functionNameEnvVar, "TestFunction")
+		testString := `{"resource":"/users/create","path":"/users/create","httpMethod":"GET"}`
+
+		startTime := time.Now()
+		startDetails := &InvocationStartDetails{
+			StartTime:          startTime,
+			InvokeEventHeaders: LambdaInvokeEventHeaders{},
+		}
+		startExecutionSpan(currentExecutionInfo, nil, []byte(testString), startDetails, false)
+
+		duration := 1 * time.Second
+		endTime := startTime.Add(duration)
+		var tracePayload *api.Payload
+		mockProcessTrace := func(payload *api.Payload) {
+			tracePayload = payload
+		}
+
+		endDetails := &InvocationEndDetails{
+			EndTime:            endTime,
+			IsError:            false,
+			RequestID:          "test-request-id",
+			ResponseRawPayload: []byte(`{"response":"test response payload"}`),
+			ColdStart:          true,
+			ProactiveInit:      false,
+			Runtime:            tc.runtime, // add runtime
+		}
+
+		endExecutionSpan(currentExecutionInfo, make(map[string]string), nil, mockProcessTrace, endDetails)
+		executionSpan := tracePayload.TracerPayload.Chunks[0].Spans[0]
+		assert.Equal(t, "aws.lambda", executionSpan.Name)
+		assert.Equal(t, "aws.lambda", executionSpan.Service)
+		assert.Equal(t, "TestFunction", executionSpan.Resource)
+		assert.Equal(t, "serverless", executionSpan.Type)
+		assert.Equal(t, "test-request-id", executionSpan.Meta["request_id"])
+		assert.Equal(t, currentExecutionInfo.TraceID, executionSpan.TraceID)
+		assert.Equal(t, currentExecutionInfo.SpanID, executionSpan.SpanID)
+		assert.Equal(t, startTime.UnixNano(), executionSpan.Start)
+		assert.Equal(t, duration.Nanoseconds(), executionSpan.Duration)
+
+		assert.Equal(t, tc.expectedTag, executionSpan.Meta["language"]) // expected tag from runtime
+	}
+}
+
+func TestCapturePayloadAsTags(t *testing.T) {
+	nestedMap := map[string]interface{}{
+		"key1": "value1",
+		"key2": map[string]interface{}{
+			"key3":    3,
+			"key4":    true,
+			"keylist": []interface{}{1, 2, 3, "four", 5.5, `{"keyInsideSlice":"val7","age":84}`},
+		},
+		"innerJSONString": `{"key5":"value5","age":42}`,
+		"innerJSONBytes":  []byte(`{"key6":"value6","age":21}`),
+	}
+	expectingResultMap := map[string]string{
+		"test.key1":                          "value1",
+		"test.key2.key3":                     "3",
+		"test.key2.key4":                     "true",
+		"test.key2.keylist.0":                "1",
+		"test.key2.keylist.1":                "2",
+		"test.key2.keylist.2":                "3",
+		"test.key2.keylist.3":                "four",
+		"test.key2.keylist.4":                "5.5",
+		"test.key2.keylist.5.keyInsideSlice": "val7",
+		"test.key2.keylist.5.age":            "84",
+		"test.innerJSONString.key5":          "value5",
+		"test.innerJSONString.age":           "42",
+		"test.innerJSONBytes.key6":           "value6",
+		"test.innerJSONBytes.age":            "21",
+	}
+	metaMap := make(map[string]string)
+	executionSpan := &pb.Span{
+		Meta: metaMap,
+	}
+	capturePayloadAsTags(nestedMap, executionSpan, "test", 0, 10)
+	assert.Equal(t, executionSpan.Meta, expectingResultMap)
+}
+
+func TestCapturePayloadAsTagsMaxDepth(t *testing.T) {
+	nestedMap := map[string]interface{}{
+		"key1": "value1",
+		"key2": map[string]interface{}{
+			"key3": map[string]interface{}{
+				"nestedKey": "nestedVal",
+			},
+			"key4": true,
+		},
+		"key5": "value5",
+	}
+	expectingResultMap := map[string]string{
+		"test.key1":      "value1",
+		"test.key2.key3": "{\"nestedKey\":\"nestedVal\"}",
+		"test.key2.key4": "true",
+		"test.key5":      "value5",
+	}
+	metaMap := make(map[string]string)
+	executionSpan := &pb.Span{
+		Meta: metaMap,
+	}
+	capturePayloadAsTags(nestedMap, executionSpan, "test", 0, 2)
+	assert.Equal(t, executionSpan.Meta, expectingResultMap)
+}
+
+func TestCapturePayloadAsTagsNilCases(t *testing.T) {
+	testMap := map[string]interface{}{
+		"key1": nil,
+		"key2": map[string]interface{}{
+			"key3": nil,
+			"key4": true,
+		},
+		"emptyMap":  map[string]interface{}{},
+		"emptyList": []interface{}{},
+	}
+	expectingResultMap := map[string]string{
+		"test.key1":      "",
+		"test.key2.key3": "",
+		"test.key2.key4": "true",
+		"test.emptyMap":  "{}",
+		"test.emptyList": "[]",
+	}
+	metaMap := make(map[string]string)
+	executionSpan := &pb.Span{
+		Meta: metaMap,
+	}
+	capturePayloadAsTags(testMap, executionSpan, "test", 0, 10)
+	assert.Equal(t, executionSpan.Meta, expectingResultMap)
 }

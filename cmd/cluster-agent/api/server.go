@@ -29,10 +29,11 @@ import (
 
 	"github.com/DataDog/datadog-agent/cmd/cluster-agent/api/agent"
 	v1 "github.com/DataDog/datadog-agent/cmd/cluster-agent/api/v1"
+	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/api/security"
 	"github.com/DataDog/datadog-agent/pkg/api/util"
 	"github.com/DataDog/datadog-agent/pkg/config"
-	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo"
+	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
 	"github.com/DataDog/datadog-agent/pkg/tagger"
 	taggerserver "github.com/DataDog/datadog-agent/pkg/tagger/server"
 	grpcutil "github.com/DataDog/datadog-agent/pkg/util/grpc"
@@ -45,13 +46,13 @@ var (
 )
 
 // StartServer creates the router and starts the HTTP server
-func StartServer() error {
+func StartServer(senderManager sender.SenderManager) error {
 	// create the root HTTP router
 	router = mux.NewRouter()
 	apiRouter = router.PathPrefix("/api/v1").Subrouter()
 
 	// IPC REST API server
-	agent.SetupHandlers(router)
+	agent.SetupHandlers(router, senderManager)
 
 	// API V1 Metadata APIs
 	v1.InstallMetadataEndpoints(apiRouter)

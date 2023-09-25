@@ -5,6 +5,7 @@
 
 //go:build linux || windows
 
+// Package probe holds probe related files
 package probe
 
 import (
@@ -16,19 +17,25 @@ import (
 	"github.com/DataDog/datadog-go/v5/statsd"
 	"golang.org/x/time/rate"
 
+	"github.com/DataDog/datadog-agent/pkg/process/procutil"
 	"github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/events"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
+	"github.com/DataDog/datadog-agent/pkg/security/seclog"
 )
 
-var eventZero model.Event = model.Event{ContainerContext: &model.ContainerContext{}}
-var containerContextZero model.ContainerContext
-
-// EventHandler represents an handler for the events sent by the probe
-type EventHandler interface {
+// FullAccessEventHandler represents a handler for events sent by the probe that needs access to all the fields in the SECL model
+type FullAccessEventHandler interface {
 	HandleEvent(event *model.Event)
+}
+
+// EventHandler represents a handler for events sent by the probe. This handler makes a copy of the event upon receipt
+type EventHandler interface {
+	HandleEvent(event any)
+	Copy(_ *model.Event) any
 }
 
 // CustomEventHandler represents an handler for the custom events sent by the probe
@@ -53,9 +60,13 @@ type Probe struct {
 	cancelFnc    context.CancelFunc
 	wg           sync.WaitGroup
 
+	// internals
+	scrubber *procutil.DataScrubber
+
 	// Events section
-	eventHandlers       [model.MaxAllEventType][]EventHandler
-	customEventHandlers [model.MaxAllEventType][]CustomEventHandler
+	fullAccessEventHandlers [model.MaxAllEventType][]FullAccessEventHandler
+	eventHandlers           [model.MaxAllEventType][]EventHandler
+	customEventHandlers     [model.MaxAllEventType][]CustomEventHandler
 
 	discarderRateLimiter *rate.Limiter
 	// internals
@@ -69,13 +80,20 @@ func (p *Probe) GetResolvers() *resolvers.Resolvers {
 	return p.resolvers
 }
 
-// AddEventHandler set the probe event handler
+// AddEventHandler sets a probe event handler
 func (p *Probe) AddEventHandler(eventType model.EventType, handler EventHandler) error {
 	if eventType >= model.MaxAllEventType {
 		return errors.New("unsupported event type")
 	}
 
 	p.eventHandlers[eventType] = append(p.eventHandlers[eventType], handler)
+
+	return nil
+}
+
+// AddFullAccessEventHandler sets a probe event handler for the UnknownEventType which requires access to all the struct fields
+func (p *Probe) AddFullAccessEventHandler(handler FullAccessEventHandler) error {
+	p.fullAccessEventHandlers[model.UnknownEventType] = append(p.fullAccessEventHandlers[model.UnknownEventType], handler)
 
 	return nil
 }
@@ -92,19 +110,19 @@ func (p *Probe) AddCustomEventHandler(eventType model.EventType, handler CustomE
 }
 
 func (p *Probe) zeroEvent() *model.Event {
-	*p.event = eventZero
+	p.event.Zero()
 	p.event.FieldHandlers = p.fieldHandlers
-	*p.event.ContainerContext = containerContextZero
 	return p.event
 }
 
+// StatsPollingInterval returns the stats polling interval
 func (p *Probe) StatsPollingInterval() time.Duration {
 	return p.Config.Probe.StatsPollingInterval
 }
 
 // GetEventTags returns the event tags
-func (p *Probe) GetEventTags(ev *model.Event) []string {
-	return p.GetResolvers().TagsResolver.Resolve(ev.ContainerContext.ID)
+func (p *Probe) GetEventTags(containerID string) []string {
+	return p.GetResolvers().TagsResolver.Resolve(containerID)
 }
 
 // GetService returns the service name from the process tree
@@ -113,4 +131,52 @@ func (p *Probe) GetService(ev *model.Event) string {
 		return service
 	}
 	return p.Config.RuntimeSecurity.HostServiceName
+}
+
+// NewEvaluationSet returns a new evaluation set with rule sets tagged by the passed-in tag values for the "ruleset" tag key
+func (p *Probe) NewEvaluationSet(eventTypeEnabled map[eval.EventType]bool, ruleSetTagValues []string) (*rules.EvaluationSet, error) {
+	var ruleSetsToInclude []*rules.RuleSet
+	for _, ruleSetTagValue := range ruleSetTagValues {
+		ruleOpts, evalOpts := rules.NewEvalOpts(eventTypeEnabled)
+
+		ruleOpts.WithLogger(seclog.DefaultLogger)
+		ruleOpts.WithReservedRuleIDs(events.AllCustomRuleIDs())
+		if ruleSetTagValue == rules.DefaultRuleSetTagValue {
+			ruleOpts.WithSupportedDiscarders(SupportedDiscarders)
+		}
+
+		eventCtor := func() eval.Event {
+			return NewEvent(p.fieldHandlers)
+		}
+
+		rs := rules.NewRuleSet(NewModel(p), eventCtor, ruleOpts.WithRuleSetTag(ruleSetTagValue), evalOpts)
+		ruleSetsToInclude = append(ruleSetsToInclude, rs)
+	}
+
+	evaluationSet, err := rules.NewEvaluationSet(ruleSetsToInclude)
+	if err != nil {
+		return nil, err
+	}
+
+	return evaluationSet, nil
+}
+
+// IsNetworkEnabled returns whether network is enabled
+func (p *Probe) IsNetworkEnabled() bool {
+	return p.Config.Probe.NetworkEnabled
+}
+
+// IsActivityDumpEnabled returns whether activity dump is enabled
+func (p *Probe) IsActivityDumpEnabled() bool {
+	return p.Config.RuntimeSecurity.ActivityDumpEnabled
+}
+
+// IsActivityDumpTagRulesEnabled returns whether rule tags is enabled for activity dumps
+func (p *Probe) IsActivityDumpTagRulesEnabled() bool {
+	return p.Config.RuntimeSecurity.ActivityDumpTagRulesEnabled
+}
+
+// IsSecurityProfileEnabled returns whether security profile is enabled
+func (p *Probe) IsSecurityProfileEnabled() bool {
+	return p.Config.RuntimeSecurity.SecurityProfileEnabled
 }

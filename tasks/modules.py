@@ -14,9 +14,19 @@ class GoModule:
     If True, a check will run to ensure this is true.
     """
 
-    def __init__(self, path, targets=None, condition=lambda: True, should_tag=True, importable=True, independent=False):
+    def __init__(
+        self,
+        path,
+        targets=None,
+        condition=lambda: True,
+        should_tag=True,
+        importable=True,
+        independent=False,
+        lint_targets=None,
+    ):
         self.path = path
         self.targets = targets if targets else ["."]
+        self.lint_targets = lint_targets if lint_targets else self.targets
         self.condition = condition
         self.should_tag = should_tag
         # HACK: Workaround for modules that can be tested, but not imported (eg. gohai), because
@@ -133,10 +143,10 @@ DEFAULT_MODULES = {
     "test/new-e2e": GoModule(
         "test/new-e2e",
         independent=True,
-        should_tag=False,
-        targets=["./runner", "./utils/e2e/client"],
+        targets=["./pkg/runner", "./pkg/utils/e2e/client"],
+        lint_targets=["."],
     ),
-    "test/fakeintake": GoModule("test/fakeintake", independent=True, should_tag=False),
+    "test/fakeintake": GoModule("test/fakeintake", independent=True),
     "pkg/obfuscate": GoModule("pkg/obfuscate", independent=True),
     "pkg/gohai": GoModule("pkg/gohai", independent=True, importable=False),
     "pkg/proto": GoModule("pkg/proto", independent=True),
@@ -147,6 +157,7 @@ DEFAULT_MODULES = {
     "pkg/util/log": GoModule("pkg/util/log", independent=True),
     "pkg/util/pointer": GoModule("pkg/util/pointer", independent=True),
     "pkg/util/scrubber": GoModule("pkg/util/scrubber", independent=True),
+    "pkg/networkdevice/profile": GoModule("pkg/networkdevice/profile", independent=True),
 }
 
 MAIN_TEMPLATE = """package main

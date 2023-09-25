@@ -6,6 +6,8 @@
 
 #include "sockfd.h"
 
+#include "protocols/classification/common.h"
+
 #include "protocols/http/types.h"
 #include "protocols/http/maps.h"
 #include "protocols/http/usm-events.h"
@@ -108,8 +110,14 @@ static __always_inline http_transaction_t *http_fetch_state(http_transaction_t *
     return bpf_map_lookup_elem(&http_in_flight, &http->tup);
 }
 
+// Returns true if the given http transaction should be flushed to the user mode.
+// We flush a transaction if:
+//   1. We got a new request (packet_type == HTTP_REQUEST) and previously (in the given transaction) we had either a
+//      request (http->request_started != 0) or a response (http->response_status_code). This is equivalent to flush
+//      a transaction if we have a new request, and the given transaction is not clean.
+//   2. We got a new response (packet_type == HTTP_RESPONSE) and the given transaction already contains a response
 static __always_inline bool http_should_flush_previous_state(http_transaction_t *http, http_packet_t packet_type) {
-    return (packet_type == HTTP_REQUEST && http->request_started) ||
+    return (packet_type == HTTP_REQUEST && (http->request_started || http->response_status_code)) ||
         (packet_type == HTTP_RESPONSE && http->response_status_code);
 }
 
@@ -140,7 +148,9 @@ static __always_inline void http_process(http_transaction_t *http_stack, skb_inf
 
     http->tags |= tags;
 
-    if (http_responding(http)) {
+    // Only if we have a (L7/application-layer) payload we update the response_last_seen field
+    // This is to prevent things such as keep-alives adding up to the transaction latency
+    if (((skb_info && !is_payload_empty(skb_info)) || !skb_info) && http_responding(http)) {
         http->response_last_seen = bpf_ktime_get_ns();
     }
 
@@ -161,12 +171,8 @@ static __always_inline bool http_allow_packet(http_transaction_t *http, struct _
         return false;
     }
 
-    protocol_stack_t *stack = get_protocol_stack(&http->tup);
-    if (!stack) {
-        return false;
-    }
     bool empty_payload = skb_info->data_off == skb->len;
-    if (empty_payload || is_protocol_layer_known(stack, LAYER_ENCRYPTION)) {
+    if (empty_payload || http->tup.sport == HTTPS_PORT || http->tup.dport == HTTPS_PORT) {
         // if the payload data is empty or encrypted packet, we only
         // process it if the packet represents a TCP termination
         return skb_info->tcp_flags&(TCPHDR_FIN|TCPHDR_RST);
@@ -193,6 +199,43 @@ int socket__http_filter(struct __sk_buff* skb) {
 
     read_into_buffer_skb((char *)http.request_fragment, skb, skb_info.data_off);
     http_process(&http, &skb_info, NO_TAGS);
+    return 0;
+}
+
+SEC("uprobe/http_process")
+int uprobe__http_process(struct pt_regs *ctx) {
+    const __u32 zero = 0;
+    tls_dispatcher_arguments_t *args = bpf_map_lookup_elem(&tls_dispatcher_arguments, &zero);
+    if (args == NULL) {
+        return 0;
+    }
+
+    http_transaction_t http;
+    bpf_memset(&http, 0, sizeof(http));
+    bpf_memcpy(&http.tup, &args->tup, sizeof(conn_tuple_t));
+    read_into_user_buffer_http(http.request_fragment, args->buffer_ptr);
+    http_process(&http, NULL, args->tags);
+    http_batch_flush(ctx);
+
+    return 0;
+}
+
+SEC("uprobe/http_termination")
+int uprobe__http_termination(struct pt_regs *ctx) {
+    const __u32 zero = 0;
+    tls_dispatcher_arguments_t *args = bpf_map_lookup_elem(&tls_dispatcher_arguments, &zero);
+    if (args == NULL) {
+        return 0;
+    }
+
+    http_transaction_t http;
+    bpf_memset(&http, 0, sizeof(http));
+    bpf_memcpy(&http.tup, &args->tup, sizeof(conn_tuple_t));
+    skb_info_t skb_info = {0};
+    skb_info.tcp_flags |= TCPHDR_FIN;
+    http_process(&http, &skb_info, NO_TAGS);
+    http_batch_flush(ctx);
+
     return 0;
 }
 

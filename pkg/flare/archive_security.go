@@ -9,10 +9,14 @@ import (
 	"os"
 
 	flarehelpers "github.com/DataDog/datadog-agent/comp/core/flare/helpers"
+	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/status"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
+
+// for testing purpose
+var linuxKernelSymbols = getLinuxKernelSymbols
 
 // CreateSecurityAgentArchive packages up the files
 func CreateSecurityAgentArchive(local bool, logFilePath string, runtimeStatus, complianceStatus map[string]interface{}) (string, error) {
@@ -26,7 +30,7 @@ func CreateSecurityAgentArchive(local bool, logFilePath string, runtimeStatus, c
 }
 
 // createSecurityAgentArchive packages up the files
-func createSecurityAgentArchive(fb flarehelpers.FlareBuilder, logFilePath string, runtimeStatus, complianceStatus map[string]interface{}) {
+func createSecurityAgentArchive(fb flaretypes.FlareBuilder, logFilePath string, runtimeStatus, complianceStatus map[string]interface{}) {
 	// If the request against the API does not go through we don't collect the status log.
 	if fb.IsLocal() {
 		fb.AddFile("local", []byte(""))
@@ -48,7 +52,7 @@ func createSecurityAgentArchive(fb flarehelpers.FlareBuilder, logFilePath string
 	getRuntimeFiles(fb)    //nolint:errcheck
 	getExpVar(fb)          //nolint:errcheck
 	fb.AddFileFromFunc("envvars.log", getEnvVars)
-	getLinuxKernelSymbols(fb)                   //nolint:errcheck
+	linuxKernelSymbols(fb)                      //nolint:errcheck
 	getLinuxPid1MountInfo(fb)                   //nolint:errcheck
 	getLinuxDmesg(fb)                           //nolint:errcheck
 	getLinuxKprobeEvents(fb)                    //nolint:errcheck
@@ -56,7 +60,7 @@ func createSecurityAgentArchive(fb flarehelpers.FlareBuilder, logFilePath string
 	getLinuxTracingAvailableFilterFunctions(fb) //nolint:errcheck
 }
 
-func getComplianceFiles(fb flarehelpers.FlareBuilder) error {
+func getComplianceFiles(fb flaretypes.FlareBuilder) error {
 	compDir := config.Datadog.GetString("compliance_config.dir")
 
 	return fb.CopyDirTo(compDir, "compliance.d", func(path string) bool {
@@ -68,7 +72,7 @@ func getComplianceFiles(fb flarehelpers.FlareBuilder) error {
 	})
 }
 
-func getRuntimeFiles(fb flarehelpers.FlareBuilder) error {
+func getRuntimeFiles(fb flaretypes.FlareBuilder) error {
 	runtimeDir := config.SystemProbe.GetString("runtime_security_config.policies.dir")
 
 	return fb.CopyDirTo(runtimeDir, "runtime-security.d", func(path string) bool {

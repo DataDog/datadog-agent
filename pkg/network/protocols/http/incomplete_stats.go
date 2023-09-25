@@ -15,7 +15,10 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/types"
 )
 
-const defaultMinAge = 30 * time.Second
+const (
+	defaultMinAge    = 30 * time.Second
+	defaultArraySize = 5
+)
 
 // incompleteBuffer is responsible for buffering incomplete transactions
 // (eg. httpTX objects that have either only the request or response information)
@@ -49,14 +52,14 @@ type incompleteBuffer struct {
 }
 
 type txParts struct {
-	requests  []HttpTX
-	responses []HttpTX
+	requests  []Transaction
+	responses []Transaction
 }
 
-func newTXParts() *txParts {
+func newTXParts(requestCapacity, responseCapacity int) *txParts {
 	return &txParts{
-		requests:  make([]HttpTX, 0, 5),
-		responses: make([]HttpTX, 0, 5),
+		requests:  make([]Transaction, 0, requestCapacity),
+		responses: make([]Transaction, 0, responseCapacity),
 	}
 }
 
@@ -69,7 +72,7 @@ func newIncompleteBuffer(c *config.Config, telemetry *Telemetry) *incompleteBuff
 	}
 }
 
-func (b *incompleteBuffer) Add(tx HttpTX) {
+func (b *incompleteBuffer) Add(tx Transaction) {
 	connTuple := tx.ConnTuple()
 	key := types.ConnectionKey{
 		SrcIPHigh: connTuple.SrcIPHigh,
@@ -84,32 +87,34 @@ func (b *incompleteBuffer) Add(tx HttpTX) {
 			return
 		}
 
-		parts = newTXParts()
+		parts = newTXParts(defaultArraySize, defaultArraySize)
 		b.data[key] = parts
 	}
 
 	// copy underlying httpTX value. this is now needed because these objects are
 	// now coming directly from pooled perf records
-	ebpfTX, ok := tx.(*EbpfHttpTx)
+	ebpfTX, ok := tx.(*EbpfTx)
 	if !ok {
 		// should never happen
 		return
 	}
 
-	ebpfTxCopy := new(EbpfHttpTx)
+	ebpfTxCopy := new(EbpfTx)
 	*ebpfTxCopy = *ebpfTX
 	tx = ebpfTxCopy
 
 	if tx.StatusCode() == 0 {
+		b.telemetry.joiner.requests.Add(1)
 		parts.requests = append(parts.requests, tx)
 	} else {
+		b.telemetry.joiner.responses.Add(1)
 		parts.responses = append(parts.responses, tx)
 	}
 }
 
-func (b *incompleteBuffer) Flush(now time.Time) []HttpTX {
+func (b *incompleteBuffer) Flush(now time.Time) []Transaction {
 	var (
-		joined   []HttpTX
+		joined   []Transaction
 		previous = b.data
 		nowUnix  = now.UnixNano()
 	)
@@ -127,6 +132,7 @@ func (b *incompleteBuffer) Flush(now time.Time) []HttpTX {
 			request := parts.requests[i]
 			response := parts.responses[j]
 			if request.RequestStarted() > response.ResponseLastSeen() {
+				b.telemetry.joiner.responsesDropped.Add(1)
 				j++
 				continue
 			}
@@ -137,18 +143,28 @@ func (b *incompleteBuffer) Flush(now time.Time) []HttpTX {
 			joined = append(joined, request)
 			i++
 			j++
+			b.telemetry.joiner.requestJoined.Add(1)
 		}
 
 		// now that we have finished matching requests and responses
 		// we check if we should keep orphan requests a little longer
 		for i < len(parts.requests) {
 			if b.shouldKeep(parts.requests[i], nowUnix) {
-				keep := parts.requests[i:]
-				parts := newTXParts()
-				parts.requests = append(parts.requests, keep...)
-				b.data[key] = parts
+				// if `i` is 0, then we are keeping all requests and zeroing the responses.
+				// We're dropping the responses as either they are too old, or already matched to a request by the loop
+				// above.
+				if i == 0 {
+					b.data[key] = parts
+					b.data[key].responses = parts.responses[:0]
+				} else {
+					keep := parts.requests[i:]
+					parts := newTXParts(len(keep), defaultArraySize)
+					parts.requests = append(parts.requests, keep...)
+					b.data[key] = parts
+				}
 				break
 			}
+			b.telemetry.joiner.agedRequest.Add(1)
 			i++
 		}
 	}
@@ -156,12 +172,12 @@ func (b *incompleteBuffer) Flush(now time.Time) []HttpTX {
 	return joined
 }
 
-func (b *incompleteBuffer) shouldKeep(tx HttpTX, now int64) bool {
+func (b *incompleteBuffer) shouldKeep(tx Transaction, now int64) bool {
 	then := int64(tx.RequestStarted())
 	return (now - then) < b.minAgeNano
 }
 
-type byRequestTime []HttpTX
+type byRequestTime []Transaction
 
 func (rt byRequestTime) Len() int      { return len(rt) }
 func (rt byRequestTime) Swap(i, j int) { rt[i], rt[j] = rt[j], rt[i] }
@@ -169,7 +185,7 @@ func (rt byRequestTime) Less(i, j int) bool {
 	return rt[i].RequestStarted() < rt[j].RequestStarted()
 }
 
-type byResponseTime []HttpTX
+type byResponseTime []Transaction
 
 func (rt byResponseTime) Len() int      { return len(rt) }
 func (rt byResponseTime) Swap(i, j int) { rt[i], rt[j] = rt[j], rt[i] }

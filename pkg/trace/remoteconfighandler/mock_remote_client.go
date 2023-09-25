@@ -46,7 +46,7 @@ func (mr *MockRemoteClientMockRecorder) Close() *gomock.Call {
 }
 
 // Subscribe mocks base method.
-func (m *MockRemoteClient) Subscribe(arg0 string, arg1 func(map[string]state.RawConfig)) {
+func (m *MockRemoteClient) Subscribe(arg0 string, arg1 func(map[string]state.RawConfig, func(string, state.ApplyStatus))) {
 	m.ctrl.T.Helper()
 	m.ctrl.Call(m, "Subscribe", arg0, arg1)
 }
@@ -67,4 +67,16 @@ func (m *MockRemoteClient) Start() {
 func (mr *MockRemoteClientMockRecorder) Start() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Start", reflect.TypeOf((*MockRemoteClient)(nil).Start))
+}
+
+// UpdateApplyStatus mocks base method
+func (m *MockRemoteClient) UpdateApplyStatus(cfgPath string, status state.ApplyStatus) {
+	m.ctrl.T.Helper()
+	m.ctrl.Call(m, "UpdateApplyStatus")
+}
+
+// UpdateApplyStatus mocks base method
+func (mr *MockRemoteClientMockRecorder) UpdateApplyStatus(arg0 interface{}, arg1 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateApplyStatus", reflect.TypeOf((*MockRemoteClient)(nil).UpdateApplyStatus))
 }

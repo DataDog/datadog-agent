@@ -158,7 +158,7 @@ func generateRCTargetFileMeta(data []byte, version int64) data.TargetFileMeta {
 		panic(err)
 	}
 	custom := generateFileMetaCustom(version)
-	tfm.FileMeta.Custom = &custom
+	tfm.Custom = &custom
 
 	return tfm
 }

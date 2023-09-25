@@ -5,6 +5,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+// Package events holds events related files
 package events
 
 import "github.com/DataDog/datadog-agent/pkg/security/secl/rules"
@@ -28,6 +29,7 @@ type Signal struct {
 
 // Event is the interface that an event must implement to be sent to the backend
 type Event interface {
+	GetWorkloadID() string
 	GetTags() []string
 	GetType() string
 }

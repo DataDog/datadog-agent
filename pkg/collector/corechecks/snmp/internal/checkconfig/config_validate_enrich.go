@@ -7,8 +7,11 @@ package checkconfig
 
 import (
 	"fmt"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"regexp"
+
+	"github.com/DataDog/datadog-agent/pkg/util/log"
+
+	"github.com/DataDog/datadog-agent/pkg/networkdevice/profile/profiledefinition"
 )
 
 var validMetadataResources = map[string]map[string]bool{
@@ -46,7 +49,7 @@ const (
 )
 
 // ValidateEnrichMetricTags validates and enrich metric tags
-func ValidateEnrichMetricTags(metricTags []MetricTagConfig) []string {
+func ValidateEnrichMetricTags(metricTags []profiledefinition.MetricTagConfig) []string {
 	var errors []string
 	for i := range metricTags {
 		errors = append(errors, validateEnrichMetricTag(&metricTags[i])...)
@@ -57,7 +60,7 @@ func ValidateEnrichMetricTags(metricTags []MetricTagConfig) []string {
 // ValidateEnrichMetrics will validate MetricsConfig and enrich it.
 // Example of enrichment:
 // - storage of compiled regex pattern
-func ValidateEnrichMetrics(metrics []MetricsConfig) []string {
+func ValidateEnrichMetrics(metrics []profiledefinition.MetricsConfig) []string {
 	var errors []string
 	for i := range metrics {
 		metricConfig := &metrics[i]
@@ -75,7 +78,7 @@ func ValidateEnrichMetrics(metrics []MetricsConfig) []string {
 				errors = append(errors, validateEnrichSymbol(&metricConfig.Symbols[j], ColumnSymbol)...)
 			}
 			if len(metricConfig.MetricTags) == 0 {
-				errors = append(errors, fmt.Sprintf("column symbols %v doesn't have a 'metric_tags' section, all its metrics will use the same tags; "+
+				errors = append(errors, fmt.Sprintf("column symbols doesn't have a 'metric_tags' section (%+v), all its metrics will use the same tags; "+
 					"if the table has multiple rows, only one row will be submitted; "+
 					"please add at least one discriminating metric tag (such as a row index) "+
 					"to ensure metrics of all rows are submitted", metricConfig.Symbols))
@@ -85,12 +88,17 @@ func ValidateEnrichMetrics(metrics []MetricsConfig) []string {
 				errors = append(errors, validateEnrichMetricTag(metricTag)...)
 			}
 		}
+		// Setting forced_type value to metric_type value for backward compatibility
+		if metricConfig.MetricType == "" && metricConfig.ForcedType != "" {
+			metricConfig.MetricType = metricConfig.ForcedType
+		}
+		metricConfig.ForcedType = ""
 	}
 	return errors
 }
 
 // validateEnrichMetadata will validate MetadataConfig and enrich it.
-func validateEnrichMetadata(metadata MetadataConfig) []string {
+func validateEnrichMetadata(metadata profiledefinition.MetadataConfig) []string {
 	var errors []string
 	for resName := range metadata {
 		_, isValidRes := validMetadataResources[resName]
@@ -126,7 +134,7 @@ func validateEnrichMetadata(metadata MetadataConfig) []string {
 	return errors
 }
 
-func validateEnrichSymbol(symbol *SymbolConfig, symbolContext SymbolContext) []string {
+func validateEnrichSymbol(symbol *profiledefinition.SymbolConfig, symbolContext SymbolContext) []string {
 	var errors []string
 	if symbol.Name == "" {
 		errors = append(errors, fmt.Sprintf("symbol name missing: name=`%s` oid=`%s`", symbol.Name, symbol.OID))
@@ -155,11 +163,14 @@ func validateEnrichSymbol(symbol *SymbolConfig, symbolContext SymbolContext) []s
 		}
 	}
 	if symbolContext != ColumnSymbol && symbol.ConstantValueOne {
-		errors = append(errors, fmt.Sprintf("`constant_value_one` cannot be used outside of tables"))
+		errors = append(errors, "`constant_value_one` cannot be used outside of tables")
+	}
+	if (symbolContext != ColumnSymbol && symbolContext != ScalarSymbol) && symbol.MetricType != "" {
+		errors = append(errors, "`metric_type` cannot be used outside scalar/table metric symbols and metrics root")
 	}
 	return errors
 }
-func validateEnrichMetricTag(metricTag *MetricTagConfig) []string {
+func validateEnrichMetricTag(metricTag *profiledefinition.MetricTagConfig) []string {
 	var errors []string
 	if metricTag.Column.OID != "" || metricTag.Column.Name != "" {
 		errors = append(errors, validateEnrichSymbol(&metricTag.Column, MetricTagSymbol)...)
@@ -169,7 +180,7 @@ func validateEnrichMetricTag(metricTag *MetricTagConfig) []string {
 		if err != nil {
 			errors = append(errors, fmt.Sprintf("cannot compile `match` (`%s`): %s", metricTag.Match, err.Error()))
 		} else {
-			metricTag.pattern = pattern
+			metricTag.Pattern = pattern
 		}
 		if len(metricTag.Tags) == 0 {
 			errors = append(errors, fmt.Sprintf("`tags` mapping must be provided if `match` (`%s`) is defined", metricTag.Match))

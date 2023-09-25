@@ -24,16 +24,18 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
-	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	coreconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/metadata/externalhost"
-	"github.com/DataDog/datadog-agent/pkg/metrics"
+	"github.com/DataDog/datadog-agent/pkg/metrics/servicecheck"
 	"github.com/DataDog/datadog-agent/pkg/util/cache"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/version"
 
+	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/common"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/checkconfig"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/devicecheck"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/discovery"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/session"
 	"github.com/DataDog/datadog-agent/pkg/snmp/gosnmplib"
 )
@@ -63,7 +65,7 @@ func Test_Run_simpleCase(t *testing.T) {
 		return sess, nil
 	}
 	chk := Check{sessionFactory: sessionFactory}
-	aggregator.InitAndStartAgentDemultiplexer(deps.Log, deps.Forwarder, demuxOpts(), "")
+	senderManager := aggregator.InitAndStartAgentDemultiplexer(deps.Log, deps.Forwarder, demuxOpts(), "")
 
 	// language=yaml
 	rawInstanceConfig := []byte(`
@@ -105,10 +107,10 @@ tags:
   - "mytag:foo"
 `)
 
-	err := chk.Configure(integration.FakeConfigHash, rawInstanceConfig, []byte(``), "test")
+	err := chk.Configure(senderManager, integration.FakeConfigHash, rawInstanceConfig, []byte(``), "test")
 	assert.Nil(t, err)
 
-	sender := mocksender.NewMockSender(chk.ID()) // required to initiate aggregator
+	sender := mocksender.NewMockSenderWithSenderManager(chk.ID(), senderManager)
 	sender.On("Gauge", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
 	sender.On("MonotonicCount", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
 	sender.On("ServiceCheck", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
@@ -343,7 +345,7 @@ func Test_Run_customIfSpeed(t *testing.T) {
 	}
 	chk := Check{sessionFactory: sessionFactory}
 
-	aggregator.InitAndStartAgentDemultiplexer(deps.Log, deps.Forwarder, demuxOpts(), "")
+	senderManager := aggregator.InitAndStartAgentDemultiplexer(deps.Log, deps.Forwarder, demuxOpts(), "")
 
 	// language=yaml
 	rawInstanceConfig := []byte(`
@@ -359,7 +361,7 @@ metrics:
 - table:
     OID: 1.3.6.1.2.1.2.2
     name: ifTable
-  forced_type: monotonic_count_and_rate
+  metric_type: monotonic_count_and_rate
   symbols:
   - OID: 1.3.6.1.2.1.31.1.1.1.6
     name: ifHCInOctets
@@ -383,10 +385,10 @@ metrics:
     tag: interface
 `)
 
-	err := chk.Configure(integration.FakeConfigHash, rawInstanceConfig, []byte(``), "test")
+	err := chk.Configure(senderManager, integration.FakeConfigHash, rawInstanceConfig, []byte(``), "test")
 	assert.Nil(t, err)
 
-	sender := mocksender.NewMockSender(chk.ID()) // required to initiate aggregator
+	sender := mocksender.NewMockSenderWithSenderManager(chk.ID(), senderManager)
 	sender.SetupAcceptAll()
 
 	packet := gosnmp.SnmpPacket{
@@ -496,11 +498,11 @@ metrics:
     OID: 1.2.3.4.5.2
     name: SomeCounter64Metric
 `)
-
-	err := chk.Configure(integration.FakeConfigHash, rawInstanceConfig, []byte(``), "test")
+	senderManager := mocksender.CreateDefaultDemultiplexer()
+	err := chk.Configure(senderManager, integration.FakeConfigHash, rawInstanceConfig, []byte(``), "test")
 	assert.Nil(t, err)
 
-	sender := mocksender.NewMockSender(chk.ID()) // required to initiate aggregator
+	sender := mocksender.NewMockSenderWithSenderManager(chk.ID(), senderManager)
 	sender.On("Gauge", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
 	sender.On("MonotonicCount", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
 	sender.On("Rate", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
@@ -550,7 +552,7 @@ func TestProfile(t *testing.T) {
 	timeNow = common.MockTimeNow
 
 	deps := createDeps(t)
-	aggregator.InitAndStartAgentDemultiplexer(deps.Log, deps.Forwarder, demuxOpts(), "")
+	senderManager := aggregator.InitAndStartAgentDemultiplexer(deps.Log, deps.Forwarder, demuxOpts(), "")
 
 	checkconfig.SetConfdPathAndCleanProfiles()
 
@@ -579,10 +581,10 @@ profiles:
     definition_file: f5-big-ip.yaml
 `)
 
-	err := chk.Configure(integration.FakeConfigHash, rawInstanceConfig, rawInitConfig, "test")
+	err := chk.Configure(senderManager, integration.FakeConfigHash, rawInstanceConfig, rawInitConfig, "test")
 	assert.NoError(t, err)
 
-	sender := mocksender.NewMockSender(chk.ID()) // required to initiate aggregator
+	sender := mocksender.NewMockSenderWithSenderManager(chk.ID(), senderManager)
 	sender.On("Gauge", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
 	sender.On("MonotonicCount", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
 	sender.On("ServiceCheck", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
@@ -917,6 +919,13 @@ profiles:
       "prefixlen": 24
     }
   ],
+  "diagnoses": [
+    {
+      "resource_type": "device",
+      "resource_id": "default:1.2.3.4",
+      "diagnoses": null
+    }
+  ],
   "collect_timestamp":946684800
 }
 `, version.AgentVersion))
@@ -926,7 +935,7 @@ profiles:
 
 	sender.AssertEventPlatformEvent(t, compactEvent.Bytes(), "network-devices-metadata")
 
-	sender.AssertServiceCheck(t, "snmp.can_check", metrics.ServiceCheckOK, "", snmpTags, "")
+	sender.AssertServiceCheck(t, "snmp.can_check", servicecheck.ServiceCheckOK, "", snmpTags, "")
 }
 
 func TestServiceCheckFailures(t *testing.T) {
@@ -944,11 +953,11 @@ collect_device_metadata: false
 ip_address: 1.2.3.4
 community_string: public
 `)
-
-	err := chk.Configure(integration.FakeConfigHash, rawInstanceConfig, []byte(``), "test")
+	senderManager := mocksender.CreateDefaultDemultiplexer()
+	err := chk.Configure(senderManager, integration.FakeConfigHash, rawInstanceConfig, []byte(``), "test")
 	assert.Nil(t, err)
 
-	sender := mocksender.NewMockSender(chk.ID()) // required to initiate aggregator
+	sender := mocksender.NewMockSenderWithSenderManager(chk.ID(), senderManager)
 	sender.On("Gauge", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
 	sender.On("MonotonicCount", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
 	sender.On("ServiceCheck", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
@@ -962,7 +971,7 @@ community_string: public
 	sender.AssertMetric(t, "Gauge", "datadog.snmp.submitted_metrics", 0.0, "", snmpTags)
 	sender.AssertMetricTaggedWith(t, "Gauge", "datadog.snmp.check_duration", snmpTags)
 	sender.AssertMetricTaggedWith(t, "MonotonicCount", "datadog.snmp.check_interval", snmpTags)
-	sender.AssertServiceCheck(t, "snmp.can_check", metrics.ServiceCheckCritical, "", snmpTags, "snmp connection error: can't connect")
+	sender.AssertServiceCheck(t, "snmp.can_check", servicecheck.ServiceCheckCritical, "", snmpTags, "snmp connection error: can't connect")
 }
 
 func TestCheckID(t *testing.T) {
@@ -993,20 +1002,20 @@ network_address: 10.10.10.0/24
 community_string: abc
 namespace: nsSubnet
 `)
+	senderManager := mocksender.CreateDefaultDemultiplexer()
+	err := check1.Configure(senderManager, integration.FakeConfigHash, rawInstanceConfig1, []byte(``), "test")
+	assert.Nil(t, err)
+	err = check2.Configure(senderManager, integration.FakeConfigHash, rawInstanceConfig2, []byte(``), "test")
+	assert.Nil(t, err)
+	err = check3.Configure(senderManager, integration.FakeConfigHash, rawInstanceConfig3, []byte(``), "test")
+	assert.Nil(t, err)
+	err = checkSubnet.Configure(senderManager, integration.FakeConfigHash, rawInstanceConfigSubnet, []byte(``), "test")
+	assert.Nil(t, err)
 
-	err := check1.Configure(integration.FakeConfigHash, rawInstanceConfig1, []byte(``), "test")
-	assert.Nil(t, err)
-	err = check2.Configure(integration.FakeConfigHash, rawInstanceConfig2, []byte(``), "test")
-	assert.Nil(t, err)
-	err = check3.Configure(integration.FakeConfigHash, rawInstanceConfig3, []byte(``), "test")
-	assert.Nil(t, err)
-	err = checkSubnet.Configure(integration.FakeConfigHash, rawInstanceConfigSubnet, []byte(``), "test")
-	assert.Nil(t, err)
-
-	assert.Equal(t, check.ID("snmp:default:1.1.1.1:9d3f14dbaceba72d"), check1.ID())
-	assert.Equal(t, check.ID("snmp:default:2.2.2.2:9c51b342e7a4fdd5"), check2.ID())
-	assert.Equal(t, check.ID("snmp:ns3:3.3.3.3:7e1c698677986eca"), check3.ID())
-	assert.Equal(t, check.ID("snmp:nsSubnet:10.10.10.0/24:ae80a9e88fe6643e"), checkSubnet.ID())
+	assert.Equal(t, checkid.ID("snmp:default:1.1.1.1:9d3f14dbaceba72d"), check1.ID())
+	assert.Equal(t, checkid.ID("snmp:default:2.2.2.2:9c51b342e7a4fdd5"), check2.ID())
+	assert.Equal(t, checkid.ID("snmp:ns3:3.3.3.3:7e1c698677986eca"), check3.ID())
+	assert.Equal(t, checkid.ID("snmp:nsSubnet:10.10.10.0/24:ae80a9e88fe6643e"), checkSubnet.ID())
 	assert.NotEqual(t, check1.ID(), check2.ID())
 }
 
@@ -1098,7 +1107,6 @@ func TestCheck_Run(t *testing.T) {
 
 	tests := []struct {
 		name                     string
-		disableAggregator        bool
 		sessionConnError         error
 		sysObjectIDPacket        gosnmp.SnmpPacket
 		sysObjectIDError         error
@@ -1193,18 +1201,13 @@ ip_address: 1.2.3.4
 community_string: public
 namespace: '%s'
 `, tt.name))
+			deps := createDeps(t)
+			senderManager := aggregator.InitAndStartAgentDemultiplexer(deps.Log, deps.Forwarder, demuxOpts(), "")
 
-			err := chk.Configure(integration.FakeConfigHash, rawInstanceConfig, []byte(``), "test")
+			err := chk.Configure(senderManager, integration.FakeConfigHash, rawInstanceConfig, []byte(``), "test")
 			assert.Nil(t, err)
 
-			sender := new(mocksender.MockSender)
-
-			if !tt.disableAggregator {
-				deps := createDeps(t)
-				aggregator.InitAndStartAgentDemultiplexer(deps.Log, deps.Forwarder, demuxOpts(), "")
-			}
-
-			mocksender.SetSender(sender, chk.ID())
+			sender := mocksender.NewMockSenderWithSenderManager(chk.ID(), senderManager)
 
 			sess.On("GetNext", []string{"1.0"}).Return(&tt.reachableValuesPacket, tt.reachableGetNextError)
 			sess.On("Get", []string{"1.3.6.1.2.1.1.2.0"}).Return(&tt.sysObjectIDPacket, tt.sysObjectIDError)
@@ -1226,8 +1229,9 @@ namespace: '%s'
 			sender.AssertMetricTaggedWith(t, "Gauge", "datadog.snmp.check_duration", snmpTags)
 			sender.AssertMetricTaggedWith(t, "MonotonicCount", "datadog.snmp.check_interval", snmpTags)
 
-			sender.AssertServiceCheck(t, "snmp.can_check", metrics.ServiceCheckCritical, "", snmpTags, tt.expectedErr)
+			sender.AssertServiceCheck(t, "snmp.can_check", servicecheck.ServiceCheckCritical, "", snmpTags, tt.expectedErr)
 		})
+		break
 	}
 }
 
@@ -1251,13 +1255,11 @@ metrics:
     OID: 1.2.3
     name: myMetric
 `)
-
-	err := chk.Configure(integration.FakeConfigHash, rawInstanceConfig, []byte(``), "test")
+	senderManager := mocksender.CreateDefaultDemultiplexer()
+	err := chk.Configure(senderManager, integration.FakeConfigHash, rawInstanceConfig, []byte(``), "test")
 	assert.Nil(t, err)
 
-	sender := mocksender.NewMockSender(chk.ID()) // required to initiate aggregator
-
-	mocksender.SetSender(sender, chk.ID())
+	sender := mocksender.NewMockSenderWithSenderManager(chk.ID(), senderManager)
 
 	packet := gosnmp.SnmpPacket{
 		Variables: []gosnmp.SnmpPDU{},
@@ -1274,14 +1276,14 @@ metrics:
 	sender.AssertMetricTaggedWith(t, "Gauge", "datadog.snmp.check_duration", snmpTags)
 	sender.AssertMetricTaggedWith(t, "MonotonicCount", "datadog.snmp.check_interval", snmpTags)
 
-	sender.AssertServiceCheck(t, "snmp.can_check", metrics.ServiceCheckOK, "", snmpTags, "")
+	sender.AssertServiceCheck(t, "snmp.can_check", servicecheck.ServiceCheckOK, "", snmpTags, "")
 }
 
 func TestReportDeviceMetadataEvenOnProfileError(t *testing.T) {
 	timeNow = common.MockTimeNow
 
 	deps := createDeps(t)
-	aggregator.InitAndStartAgentDemultiplexer(deps.Log, deps.Forwarder, demuxOpts(), "")
+	senderManager := aggregator.InitAndStartAgentDemultiplexer(deps.Log, deps.Forwarder, demuxOpts(), "")
 	checkconfig.SetConfdPathAndCleanProfiles()
 
 	sess := session.CreateMockSession()
@@ -1303,10 +1305,10 @@ tags:
 	// language=yaml
 	rawInitConfig := []byte(``)
 
-	err := chk.Configure(integration.FakeConfigHash, rawInstanceConfig, rawInitConfig, "test")
+	err := chk.Configure(senderManager, integration.FakeConfigHash, rawInstanceConfig, rawInitConfig, "test")
 	assert.Nil(t, err)
 
-	sender := mocksender.NewMockSender(chk.ID()) // required to initiate aggregator
+	sender := mocksender.NewMockSenderWithSenderManager(chk.ID(), senderManager)
 	sender.On("Gauge", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
 	sender.On("MonotonicCount", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
 	sender.On("ServiceCheck", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
@@ -1558,6 +1560,19 @@ tags:
       "prefixlen": 24
     }
   ],
+  "diagnoses": [
+    {
+      "resource_type": "device",
+      "resource_id": "default:1.2.3.4",
+      "diagnoses": [
+        {
+          "severity": "error",
+          "message": "Agent failed to detect a profile for this network device.",
+          "code": "SNMP_FAILED_TO_DETECT_PROFILE"
+        }
+      ]
+    }
+  ],
   "collect_timestamp":946684800
 }
 `, version.AgentVersion))
@@ -1567,13 +1582,13 @@ tags:
 
 	sender.AssertEventPlatformEvent(t, compactEvent.Bytes(), "network-devices-metadata")
 
-	sender.AssertServiceCheck(t, "snmp.can_check", metrics.ServiceCheckCritical, "", snmpTags, "failed to autodetect profile: failed to fetch sysobjectid: cannot get sysobjectid: no value")
+	sender.AssertServiceCheck(t, "snmp.can_check", servicecheck.ServiceCheckCritical, "", snmpTags, "failed to autodetect profile: failed to fetch sysobjectid: cannot get sysobjectid: no value")
 }
 
 func TestReportDeviceMetadataWithFetchError(t *testing.T) {
 	timeNow = common.MockTimeNow
 	deps := createDeps(t)
-	aggregator.InitAndStartAgentDemultiplexer(deps.Log, deps.Forwarder, demuxOpts(), "")
+	senderManager := aggregator.InitAndStartAgentDemultiplexer(deps.Log, deps.Forwarder, demuxOpts(), "")
 
 	checkconfig.SetConfdPathAndCleanProfiles()
 
@@ -1594,10 +1609,10 @@ tags:
 	// language=yaml
 	rawInitConfig := []byte(``)
 
-	err := chk.Configure(integration.FakeConfigHash, rawInstanceConfig, rawInitConfig, "test")
+	err := chk.Configure(senderManager, integration.FakeConfigHash, rawInstanceConfig, rawInitConfig, "test")
 	assert.Nil(t, err)
 
-	sender := mocksender.NewMockSender(chk.ID()) // required to initiate aggregator
+	sender := mocksender.NewMockSenderWithSenderManager(chk.ID(), senderManager)
 	sender.On("Gauge", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
 	sender.On("MonotonicCount", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
 	sender.On("ServiceCheck", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
@@ -1648,6 +1663,24 @@ tags:
       "subnet": "127.0.0.0/30"
     }
   ],
+  "diagnoses": [
+	{
+	  "resource_type": "device",
+	  "resource_id": "default:1.2.3.5",
+	  "diagnoses": [
+		{
+		  "severity": "error",
+		  "message": "Agent failed to poll this network device. Check the authentication method and ensure the agent can ping it.",
+		  "code": "SNMP_FAILED_TO_POLL_DEVICE"
+		},
+		{
+		  "severity": "error",
+		  "message": "Agent failed to detect a profile for this network device.",
+		  "code": "SNMP_FAILED_TO_DETECT_PROFILE"
+		}
+	  ]
+	}
+  ],
   "collect_timestamp":946684800
 }
 `, version.AgentVersion))
@@ -1657,7 +1690,7 @@ tags:
 
 	sender.AssertEventPlatformEvent(t, compactEvent.Bytes(), "network-devices-metadata")
 
-	sender.AssertServiceCheck(t, "snmp.can_check", metrics.ServiceCheckCritical, "", snmpTags, expectedErrMsg)
+	sender.AssertServiceCheck(t, "snmp.can_check", servicecheck.ServiceCheckCritical, "", snmpTags, expectedErrMsg)
 }
 
 func TestDiscovery(t *testing.T) {
@@ -1669,7 +1702,7 @@ func TestDiscovery(t *testing.T) {
 		return sess, nil
 	}
 	chk := Check{sessionFactory: sessionFactory}
-	aggregator.InitAndStartAgentDemultiplexer(deps.Log, deps.Forwarder, demuxOpts(), "")
+	senderManager := aggregator.InitAndStartAgentDemultiplexer(deps.Log, deps.Forwarder, demuxOpts(), "")
 
 	// language=yaml
 	rawInstanceConfig := []byte(`
@@ -1704,14 +1737,14 @@ metric_tags:
 	sess.On("GetNext", []string{"1.0"}).Return(&gosnmplib.MockValidReachableGetNextPacket, nil)
 	sess.On("Get", []string{"1.3.6.1.2.1.1.2.0"}).Return(&discoveryPacket, nil)
 
-	err := chk.Configure(integration.FakeConfigHash, rawInstanceConfig, []byte(``), "test")
+	err := chk.Configure(senderManager, integration.FakeConfigHash, rawInstanceConfig, []byte(``), "test")
 	assert.Nil(t, err)
 
-	time.Sleep(100 * time.Millisecond)
-	devices := chk.discovery.GetDiscoveredDeviceConfigs()
-	assert.Equal(t, 4, len(devices))
-
-	sender := mocksender.NewMockSender(chk.ID()) // required to initiate aggregator
+	_, err = waitForDiscoveredDevices(chk.discovery, 4, 2*time.Second)
+	if err != nil {
+		t.Fatal(err)
+	}
+	sender := mocksender.NewMockSenderWithSenderManager(chk.ID(), senderManager)
 	sender.On("Gauge", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
 	sender.On("MonotonicCount", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
 	sender.On("ServiceCheck", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
@@ -1977,9 +2010,16 @@ metric_tags:
       "prefixlen": 24
     }
   ],
+  "diagnoses": [
+    {
+      "resource_type": "device",
+      "resource_id": "%s",
+      "diagnoses": null
+    }
+  ],
   "collect_timestamp":946684800
 }
-`, deviceData.deviceID, deviceData.ipAddress, version.AgentVersion, deviceData.ipAddress, deviceData.ipAddress, deviceData.deviceID, deviceData.deviceID, deviceData.deviceID, deviceData.deviceID))
+`, deviceData.deviceID, deviceData.ipAddress, version.AgentVersion, deviceData.ipAddress, deviceData.ipAddress, deviceData.deviceID, deviceData.deviceID, deviceData.deviceID, deviceData.deviceID, deviceData.deviceID))
 		compactEvent := new(bytes.Buffer)
 		err = json.Compact(compactEvent, event)
 		assert.NoError(t, err)
@@ -2002,7 +2042,7 @@ func TestDiscovery_CheckError(t *testing.T) {
 		return sess, nil
 	}
 	chk := Check{sessionFactory: sessionFactory, workerRunDeviceCheckErrors: atomic.NewUint64(0)}
-	aggregator.InitAndStartAgentDemultiplexer(deps.Log, deps.Forwarder, demuxOpts(), "")
+	senderManager := aggregator.InitAndStartAgentDemultiplexer(deps.Log, deps.Forwarder, demuxOpts(), "")
 
 	// language=yaml
 	rawInstanceConfig := []byte(`
@@ -2035,14 +2075,15 @@ metric_tags:
 	sess.On("GetNext", []string{"1.0"}).Return(&gosnmplib.MockValidReachableGetNextPacket, nil)
 	sess.On("Get", []string{"1.3.6.1.2.1.1.2.0"}).Return(&discoveryPacket, nil)
 
-	err := chk.Configure(integration.FakeConfigHash, rawInstanceConfig, []byte(``), "test")
+	err := chk.Configure(senderManager, integration.FakeConfigHash, rawInstanceConfig, []byte(``), "test")
 	assert.Nil(t, err)
 
-	time.Sleep(100 * time.Millisecond)
-	devices := chk.discovery.GetDiscoveredDeviceConfigs()
-	assert.Equal(t, 4, len(devices))
+	_, err = waitForDiscoveredDevices(chk.discovery, 4, 2*time.Second)
+	if err != nil {
+		t.Fatal(err)
+	}
 
-	sender := mocksender.NewMockSender(chk.ID()) // required to initiate aggregator
+	sender := mocksender.NewMockSenderWithSenderManager(chk.ID(), senderManager)
 	sender.On("Gauge", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
 	sender.On("MonotonicCount", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
 	sender.On("ServiceCheck", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
@@ -2079,7 +2120,7 @@ func TestDeviceIDAsHostname(t *testing.T) {
 	chk := Check{sessionFactory: sessionFactory}
 	coreconfig.Datadog.Set("hostname", "test-hostname")
 	coreconfig.Datadog.Set("tags", []string{"agent_tag1:val1", "agent_tag2:val2"})
-	aggregator.InitAndStartAgentDemultiplexer(deps.Log, deps.Forwarder, demuxOpts(), "")
+	senderManager := aggregator.InitAndStartAgentDemultiplexer(deps.Log, deps.Forwarder, demuxOpts(), "")
 
 	// language=yaml
 	rawInstanceConfig := []byte(`
@@ -2096,10 +2137,10 @@ metrics:
 use_device_id_as_hostname: true
 `)
 
-	err := chk.Configure(integration.FakeConfigHash, rawInstanceConfig, []byte(``), "test")
+	err := chk.Configure(senderManager, integration.FakeConfigHash, rawInstanceConfig, []byte(``), "test")
 	assert.Nil(t, err)
 
-	sender := mocksender.NewMockSender(chk.ID()) // required to initiate aggregator
+	sender := mocksender.NewMockSenderWithSenderManager(chk.ID(), senderManager)
 	sender.On("Gauge", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
 	sender.On("MonotonicCount", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
 	sender.On("ServiceCheck", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
@@ -2270,7 +2311,7 @@ func TestDiscoveryDeviceIDAsHostname(t *testing.T) {
 	chk := Check{sessionFactory: sessionFactory}
 
 	coreconfig.Datadog.Set("hostname", "my-hostname")
-	aggregator.InitAndStartAgentDemultiplexer(deps.Log, deps.Forwarder, demuxOpts(), "")
+	senderManager := aggregator.InitAndStartAgentDemultiplexer(deps.Log, deps.Forwarder, demuxOpts(), "")
 
 	// language=yaml
 	rawInstanceConfig := []byte(`
@@ -2301,14 +2342,15 @@ metrics:
 	}
 	sess.On("Get", []string{"1.3.6.1.2.1.1.2.0"}).Return(&discoveryPacket, nil)
 
-	err := chk.Configure(integration.FakeConfigHash, rawInstanceConfig, []byte(``), "test")
+	err := chk.Configure(senderManager, integration.FakeConfigHash, rawInstanceConfig, []byte(``), "test")
 	assert.Nil(t, err)
 
-	time.Sleep(100 * time.Millisecond)
-	devices := chk.discovery.GetDiscoveredDeviceConfigs()
-	assert.Equal(t, 4, len(devices))
+	_, err = waitForDiscoveredDevices(chk.discovery, 4, 2*time.Second)
+	if err != nil {
+		t.Fatal(err)
+	}
 
-	sender := mocksender.NewMockSender(chk.ID()) // required to initiate aggregator
+	sender := mocksender.NewMockSenderWithSenderManager(chk.ID(), senderManager)
 	sender.On("Gauge", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
 	sender.On("MonotonicCount", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
 	sender.On("ServiceCheck", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
@@ -2473,7 +2515,7 @@ func TestCheckCancel(t *testing.T) {
 	}
 	chk := Check{sessionFactory: sessionFactory}
 
-	aggregator.InitAndStartAgentDemultiplexer(deps.Log, deps.Forwarder, demuxOpts(), "")
+	senderManager := aggregator.InitAndStartAgentDemultiplexer(deps.Log, deps.Forwarder, demuxOpts(), "")
 
 	// language=yaml
 	rawInstanceConfig := []byte(`
@@ -2481,10 +2523,29 @@ ip_address: 1.2.3.4
 community_string: public
 `)
 
-	err := chk.Configure(integration.FakeConfigHash, rawInstanceConfig, []byte(``), "test")
+	err := chk.Configure(senderManager, integration.FakeConfigHash, rawInstanceConfig, []byte(``), "test")
 	assert.Nil(t, err)
 
 	// check Cancel does not panic when called with single check
 	// it shouldn't try to stop discovery
 	chk.Cancel()
+}
+
+// Wait for discovery to be completed
+func waitForDiscoveredDevices(discovery *discovery.Discovery, expectedDeviceCount int, timeout time.Duration) ([]*devicecheck.DeviceCheck, error) {
+	timeoutTimer := time.After(timeout)
+	tick := time.Tick(100 * time.Millisecond)
+
+	for {
+		select {
+		case <-timeoutTimer:
+			devices := discovery.GetDiscoveredDeviceConfigs()
+			return nil, fmt.Errorf("Discovery timed out, expecting %d devices but only %d found", expectedDeviceCount, len(devices))
+		case <-tick:
+			devices := discovery.GetDiscoveredDeviceConfigs()
+			if len(devices) == expectedDeviceCount {
+				return devices, nil
+			}
+		}
+	}
 }

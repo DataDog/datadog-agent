@@ -61,28 +61,32 @@ shared_examples "passes" do |bundle, env|
       # The json files are used to print failed tests at the end of the Gitlab job
       gotestsum_test2json_cmd = ["sudo", "-E",
         "/go/bin/gotestsum",
-        "--format", "pkgname",
+        "--format", "testname",
         "--junitfile", xmlpath,
         "--jsonfile", jsonpath,
         "--raw-command", "--",
         "/go/bin/test2json", "-t", "-p", "github.com/DataDog/datadog-agent/pkg/security/tests"
       ]
 
+      testsuite_args = ["-status-metrics", "-loglevel=debug", "-test.v", "-test.count=1"]
       if bundle == "docker"
-        cmd = gotestsum_test2json_cmd.concat(["docker", "exec", "-e", "DD_SYSTEM_PROBE_BPF_DIR=#{final_env["DD_SYSTEM_PROBE_BPF_DIR"]}",
-          "docker-testsuite", testsuite_file_path, "-status-metrics", "--env", "docker", "-test.v", "-test.count=1"])
+        testsuite_args.concat(["--env", "docker"])
+        gotestsum_test2json_cmd.concat(["docker", "exec", "-e", "DD_SYSTEM_PROBE_BPF_DIR=#{final_env["DD_SYSTEM_PROBE_BPF_DIR"]}",
+          "docker-testsuite"])
         output_line_tag = "d"
       else
-        cmd = gotestsum_test2json_cmd.concat([testsuite_file_path, "-status-metrics", "-test.v", "-test.count=1"])
         output_line_tag = "h"
 
         if bundle == "ad"
-          cmd.concat(["-test.run", "TestActivityDump"])
+          testsuite_args.concat(["-test.run", "TestActivityDump"])
           output_line_tag = "ad"
         end
       end
 
-      Open3.popen2e(final_env, *cmd) do |_, output, wait_thr|
+      gotestsum_test2json_cmd.concat([testsuite_file_path])
+      gotestsum_test2json_cmd.concat(testsuite_args)
+
+      Open3.popen2e(final_env, *gotestsum_test2json_cmd) do |_, output, wait_thr|
         check_output(output, wait_thr, output_line_tag)
       end
 
@@ -114,9 +118,23 @@ describe "security-agent" do
       }
       include_examples "passes", "host", env
     end
+  when "host-fentry"
+    context 'functional tests running directly on host (with fentry)' do
+      env = {
+        "DD_EVENT_MONITORING_CONFIG_EVENT_STREAM_USE_FENTRY" => "true"
+      }
+      include_examples "passes", "host", env
+    end
   when "docker"
     context 'functional test running inside a container' do
       env = {}
+      include_examples "passes", "docker", env
+    end
+  when "docker-fentry"
+    context 'functional tests running directly on docker (with fentry)' do
+      env = {
+        "DD_EVENT_MONITORING_CONFIG_EVENT_STREAM_USE_FENTRY" => "true"
+      }
       include_examples "passes", "docker", env
     end
   when "ad"

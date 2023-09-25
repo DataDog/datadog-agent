@@ -67,6 +67,7 @@ func TestBuildContainerMetrics(t *testing.T) {
 					Swap:         pointer.Ptr(uint64(0)),
 					SwapLimit:    pointer.Ptr(uint64(500)),
 					OOMEvents:    pointer.Ptr(uint64(10)),
+					Peak:         pointer.Ptr(uint64(1024)),
 					PSISome: cgroups.PSIStats{
 						Total: pointer.Ptr(uint64(97)),
 					},
@@ -119,6 +120,7 @@ func TestBuildContainerMetrics(t *testing.T) {
 					SwapLimit:        pointer.Ptr(500.0),
 					OOMEvents:        pointer.Ptr(10.0),
 					PartialStallTime: pointer.Ptr(97000.0),
+					Peak:             pointer.Ptr(1024.0),
 				},
 				IO: &provider.ContainerIOStats{
 					ReadBytes:        pointer.Ptr(100.0),
@@ -235,7 +237,8 @@ func TestBuildContainerMetrics(t *testing.T) {
 			},
 			wantStats: &provider.ContainerStats{
 				CPU: &provider.ContainerCPUStats{
-					Limit: pointer.Ptr(float64(utilsystem.HostCPUCount()) * 100),
+					Limit:          pointer.Ptr(float64(utilsystem.HostCPUCount()) * 100),
+					DefaultedLimit: true,
 				},
 				PID:    &provider.ContainerPIDStats{},
 				Memory: &provider.ContainerMemStats{},

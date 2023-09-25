@@ -24,20 +24,24 @@ import (
 	"net"
 	"net/http"
 	"sync"
+	"time"
 
 	"github.com/DataDog/datadog-agent/test/fakeintake/api"
+	"github.com/DataDog/datadog-agent/test/fakeintake/server/serverstore"
 	"github.com/benbjohnson/clock"
 )
 
 type Server struct {
-	mu     sync.RWMutex
-	server http.Server
-	ready  chan bool
-	clock  clock.Clock
+	server    http.Server
+	ready     chan bool
+	clock     clock.Clock
+	retention time.Duration
+	shutdown  chan struct{}
 
-	url string
+	urlMutex sync.RWMutex
+	url      string
 
-	payloadStore map[string][]api.Payload
+	store *serverstore.Store
 }
 
 // NewServer creates a new fake intake server and starts it on localhost:port
@@ -46,9 +50,10 @@ type Server struct {
 // If the port is 0, a port number is automatically chosen
 func NewServer(options ...func(*Server)) *Server {
 	fi := &Server{
-		mu:           sync.RWMutex{},
-		payloadStore: map[string][]api.Payload{},
-		clock:        clock.New(),
+		urlMutex:  sync.RWMutex{},
+		clock:     clock.New(),
+		retention: 15 * time.Minute,
+		store:     serverstore.NewStore(),
 	}
 
 	mux := http.NewServeMux()
@@ -74,7 +79,7 @@ func NewServer(options ...func(*Server)) *Server {
 // If the port is 0, a port number is automatically chosen
 func WithPort(port int) func(*Server) {
 	return func(fi *Server) {
-		if fi.URL() != "" {
+		if fi.IsRunning() {
 			log.Println("Fake intake is already running. Stop it and try again to change the port.")
 			return
 		}
@@ -85,7 +90,7 @@ func WithPort(port int) func(*Server) {
 // WithReadyChannel assign a boolean channel to get notified when the server is ready.
 func WithReadyChannel(ready chan bool) func(*Server) {
 	return func(fi *Server) {
-		if fi.URL() != "" {
+		if fi.IsRunning() {
 			log.Println("Fake intake is already running. Stop it and try again to change the ready channel.")
 			return
 		}
@@ -95,7 +100,7 @@ func WithReadyChannel(ready chan bool) func(*Server) {
 
 func WithClock(clock clock.Clock) func(*Server) {
 	return func(fi *Server) {
-		if fi.URL() != "" {
+		if fi.IsRunning() {
 			log.Println("Fake intake is already running. Stop it and try again to change the clock.")
 			return
 		}
@@ -103,76 +108,131 @@ func WithClock(clock clock.Clock) func(*Server) {
 	}
 }
 
+func WithRetention(retention time.Duration) func(*Server) {
+	return func(fi *Server) {
+		if fi.IsRunning() {
+			log.Println("Fake intake is already running. Stop it and try again to change the ready channel.")
+			return
+		}
+		fi.retention = retention
+	}
+}
+
 // Start Starts a fake intake server in a separate go-routine
 // Notifies when ready to the ready channel
 func (fi *Server) Start() {
-	if fi.URL() != "" {
-		log.Printf("Fake intake alredy running at %s", fi.URL())
+	if fi.IsRunning() {
+		log.Printf("Fake intake already running at %s", fi.URL())
 		if fi.ready != nil {
 			fi.ready <- true
 		}
 		return
 	}
-	go func() {
-		// explicitly creating a listener to get the actual port
-		// as http.Server.ListenAndServe hides this information
-		// https://github.com/golang/go/blob/go1.19.6/src/net/http/server.go#L2987-L3000
-		listener, err := net.Listen("tcp", fi.server.Addr)
-		if err != nil {
-			log.Printf("Error creating fake intake server at %s: %v", fi.server.Addr, err)
-
-			if fi.ready != nil {
-				fi.ready <- false
-			}
-
-			return
-		}
-		fi.url = "http://" + listener.Addr().String()
-		// notify server is ready, if anybody is listening
-		if fi.ready != nil {
-			fi.ready <- true
-		}
-		// server.Serve blocks and listens to requests
-		err = fi.server.Serve(listener)
-		if err != nil && err != http.ErrServerClosed {
-			log.Printf("Error creating fake intake server at %s: %v", listener.Addr().String(), err)
-			return
-		}
-	}()
+	fi.shutdown = make(chan struct{})
+	go fi.listenRoutine()
+	go fi.cleanUpPayloadsRoutine()
 }
 
 func (fi *Server) URL() string {
+	fi.urlMutex.RLock()
+	defer fi.urlMutex.RUnlock()
 	return fi.url
+}
+
+func (fi *Server) setURL(url string) {
+	fi.urlMutex.Lock()
+	defer fi.urlMutex.Unlock()
+	fi.url = url
+}
+
+func (fi *Server) IsRunning() bool {
+	return fi.URL() != ""
 }
 
 // Stop Gracefully stop the http server
 func (fi *Server) Stop() error {
-	if fi.URL() == "" {
+	if !fi.IsRunning() {
 		return fmt.Errorf("server not running")
 	}
+	defer close(fi.shutdown)
 	err := fi.server.Shutdown(context.Background())
 	if err != nil {
 		return err
 	}
-	fi.url = ""
+
+	fi.setURL("")
 	return nil
 }
 
-type postPayloadResponse struct {
-	Errors []string `json:"errors"`
+func (fi *Server) listenRoutine() {
+	// explicitly creating a listener to get the actual port
+	// as http.Server.ListenAndServe hides this information
+	// https://github.com/golang/go/blob/go1.19.6/src/net/http/server.go#L2987-L3000
+	listener, err := net.Listen("tcp", fi.server.Addr)
+	if err != nil {
+		log.Printf("Error creating fake intake server at %s: %v", fi.server.Addr, err)
+
+		if fi.ready != nil {
+			fi.ready <- false
+		}
+
+		return
+	}
+	fi.setURL("http://" + listener.Addr().String())
+	// notify server is ready, if anybody is listening
+	if fi.ready != nil {
+		fi.ready <- true
+	}
+	// server.Serve blocks and listens to requests
+	err = fi.server.Serve(listener)
+	if err != nil && err != http.ErrServerClosed {
+		log.Printf("Error listening at %s: %v", listener.Addr().String(), err)
+		return
+	}
+}
+
+func (fi *Server) cleanUpPayloadsRoutine() {
+	ticker := fi.clock.Ticker(1 * time.Minute)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-fi.shutdown:
+			return
+		case <-ticker.C:
+			now := fi.clock.Now()
+			retentionTimeAgo := now.Add(-fi.retention)
+			fi.store.CleanUpPayloadsOlderThan(retentionTimeAgo)
+		}
+	}
 }
 
 func (fi *Server) handleDatadogRequest(w http.ResponseWriter, req *http.Request) {
 	if req == nil {
-		response := buildPostResponse(errors.New("invalid request, nil request"))
-		writeHttpResponse(w, response)
+		response := buildErrorResponse(errors.New("invalid request, nil request"))
+		writeHTTPResponse(w, response)
 		return
 	}
 
 	log.Printf("Handling Datadog %s request to %s, header %v", req.Method, req.URL.Path, req.Header)
 
 	if req.Method == http.MethodGet {
-		writeHttpResponse(w, httpResponse{
+		writeHTTPResponse(w, httpResponse{
+			statusCode: http.StatusOK,
+		})
+		return
+	}
+
+	// Datadog Agent sends a HEAD request to avoid redirect issue before sending the actual flare
+	if req.Method == http.MethodHead && req.URL.Path == "/support/flare" {
+		writeHTTPResponse(w, httpResponse{
+			statusCode: http.StatusOK,
+		})
+		return
+	}
+
+	// Datadog Agent sends a HEAD request to avoid redirect issue before sending the actual flare
+	if req.Method == http.MethodHead && req.URL.Path == "/support/flare" {
+		writeHTTPResponse(w, httpResponse{
 			statusCode: http.StatusOK,
 		})
 		return
@@ -180,136 +240,116 @@ func (fi *Server) handleDatadogRequest(w http.ResponseWriter, req *http.Request)
 
 	// from now on accept only POST requests
 	if req.Method != http.MethodPost {
-		response := buildPostResponse(fmt.Errorf("invalid request with route %s and method %s", req.URL.Path, req.Method))
-		writeHttpResponse(w, response)
+		response := buildErrorResponse(fmt.Errorf("invalid request with route %s and method %s", req.URL.Path, req.Method))
+		writeHTTPResponse(w, response)
 		return
 	}
 
 	if req.Body == nil {
-		response := buildPostResponse(errors.New("invalid request, nil body"))
-		writeHttpResponse(w, response)
+		response := buildErrorResponse(errors.New("invalid request, nil body"))
+		writeHTTPResponse(w, response)
 		return
 	}
 	payload, err := io.ReadAll(req.Body)
 	if err != nil {
-		response := buildPostResponse(err)
-		writeHttpResponse(w, response)
+		log.Printf("Error reading body: %v", err.Error())
+		response := buildErrorResponse(err)
+		writeHTTPResponse(w, response)
 		return
 	}
 
-	fi.safeAppendPayload(req.URL.Path, payload, req.Header.Get("Content-Encoding"))
-	response := buildPostResponse(nil)
-	writeHttpResponse(w, response)
+	// TODO: store all headers directly, and fetch Content-Type/Content-Encoding values when parsing
+	encoding := req.Header.Get("Content-Encoding")
+	if req.URL.Path == "/support/flare" || encoding == "" {
+		encoding = req.Header.Get("Content-Type")
+	}
+
+	err = fi.store.AppendPayload(req.URL.Path, payload, encoding, fi.clock.Now().UTC())
+	if err != nil {
+		log.Printf("Error caching payload: %v", err.Error())
+		response := buildErrorResponse(err)
+		writeHTTPResponse(w, response)
+		return
+	}
+
+	response := getResponseFromURLPath(req.URL.Path)
+	writeHTTPResponse(w, response)
 }
 
-func (fi *Server) handleFlushPayloads(w http.ResponseWriter, req *http.Request) {
-	fi.safeFlushPayloads()
+func (fi *Server) handleFlushPayloads(w http.ResponseWriter, _ *http.Request) {
+	fi.store.Flush()
 
 	// send response
-	writeHttpResponse(w, httpResponse{
+	writeHTTPResponse(w, httpResponse{
 		statusCode: http.StatusOK,
 	})
-}
-
-func buildPostResponse(responseError error) httpResponse {
-	ret := httpResponse{}
-
-	ret.contentType = "application/json"
-	ret.statusCode = http.StatusAccepted
-
-	resp := postPayloadResponse{}
-	if responseError != nil {
-		ret.statusCode = http.StatusBadRequest
-		resp.Errors = []string{responseError.Error()}
-	}
-	body, err := json.Marshal(resp)
-
-	if err != nil {
-		return httpResponse{
-			statusCode:  http.StatusInternalServerError,
-			contentType: "text/plain",
-			body:        []byte(err.Error()),
-		}
-	}
-
-	ret.body = body
-
-	return ret
 }
 
 func (fi *Server) handleGetPayloads(w http.ResponseWriter, req *http.Request) {
 	routes := req.URL.Query()["endpoint"]
 	if len(routes) == 0 {
-		writeHttpResponse(w, httpResponse{
+		writeHTTPResponse(w, httpResponse{
 			contentType: "text/plain",
 			statusCode:  http.StatusBadRequest,
 			body:        []byte("missing endpoint query parameter"),
 		})
 		return
 	}
+
 	// we could support multiple endpoints in the future
 	route := routes[0]
-	log.Printf("Handling GetPayload request for %s payloads", route)
-	payloads := fi.safeGetPayloads(route)
+	log.Printf("Handling GetPayload request for %s payloads.", route)
+	var jsonResp []byte
+	var err error
+	if req.URL.Query().Get("format") != "json" {
+		payloads := fi.store.GetRawPayloads(route)
 
-	// build response
-	resp := api.APIFakeIntakePayloadsGETResponse{
-		Payloads: payloads,
+		// build response
+		resp := api.APIFakeIntakePayloadsRawGETResponse{
+			Payloads: payloads,
+		}
+		jsonResp, err = json.Marshal(resp)
+	} else if serverstore.IsRouteHandled(route) {
+		payloads := fi.store.GetJSONPayloads(route)
+		// build response
+		resp := api.APIFakeIntakePayloadsJsonGETResponse{
+			Payloads: payloads,
+		}
+		jsonResp, err = json.Marshal(resp)
+	} else {
+		writeHTTPResponse(w, httpResponse{
+			contentType: "text/plain",
+			statusCode:  http.StatusBadRequest,
+			body:        []byte("invalid route parameter"),
+		})
+		return
 	}
-	jsonResp, err := json.Marshal(resp)
+
 	if err != nil {
-		writeHttpResponse(w, httpResponse{
+		writeHTTPResponse(w, httpResponse{
 			contentType: "text/plain",
 			statusCode:  http.StatusInternalServerError,
 			body:        []byte(err.Error()),
 		})
 		return
 	}
-
 	// send response
-	writeHttpResponse(w, httpResponse{
+	writeHTTPResponse(w, httpResponse{
 		contentType: "application/json",
 		statusCode:  http.StatusOK,
 		body:        jsonResp,
 	})
 }
 
-func (fi *Server) handleFakeHealth(w http.ResponseWriter, req *http.Request) {
-	writeHttpResponse(w, httpResponse{
+func (fi *Server) handleFakeHealth(w http.ResponseWriter, _ *http.Request) {
+	writeHTTPResponse(w, httpResponse{
 		statusCode: http.StatusOK,
 	})
 }
 
-func (fi *Server) safeAppendPayload(route string, data []byte, encoding string) {
-	fi.mu.Lock()
-	defer fi.mu.Unlock()
-	if _, found := fi.payloadStore[route]; !found {
-		fi.payloadStore[route] = []api.Payload{}
-	}
-	fi.payloadStore[route] = append(fi.payloadStore[route], api.Payload{
-		Timestamp: fi.clock.Now(),
-		Data:      data,
-		Encoding:  encoding,
-	})
-}
-
-func (fi *Server) safeGetPayloads(route string) []api.Payload {
-	fi.mu.Lock()
-	defer fi.mu.Unlock()
-	payloads := make([]api.Payload, 0, len(fi.payloadStore[route]))
-	payloads = append(payloads, fi.payloadStore[route]...)
-	return payloads
-}
-
-func (fi *Server) safeFlushPayloads() {
-	fi.mu.Lock()
-	defer fi.mu.Unlock()
-	fi.payloadStore = map[string][]api.Payload{}
-}
-
 func (fi *Server) handleGetRouteStats(w http.ResponseWriter, req *http.Request) {
 	log.Print("Handling getRouteStats request")
-	routes := fi.safeGetRouteStats()
+	routes := fi.store.GetRouteStats()
 	// build response
 	resp := api.APIFakeIntakeRouteStatsGETResponse{
 		Routes: map[string]api.RouteStat{},
@@ -319,7 +359,7 @@ func (fi *Server) handleGetRouteStats(w http.ResponseWriter, req *http.Request) 
 	}
 	jsonResp, err := json.Marshal(resp)
 	if err != nil {
-		writeHttpResponse(w, httpResponse{
+		writeHTTPResponse(w, httpResponse{
 			contentType: "text/plain",
 			statusCode:  http.StatusInternalServerError,
 			body:        []byte(err.Error()),
@@ -328,19 +368,9 @@ func (fi *Server) handleGetRouteStats(w http.ResponseWriter, req *http.Request) 
 	}
 
 	// send response
-	writeHttpResponse(w, httpResponse{
+	writeHTTPResponse(w, httpResponse{
 		contentType: "application/json",
 		statusCode:  http.StatusOK,
 		body:        jsonResp,
 	})
-}
-
-func (fi *Server) safeGetRouteStats() map[string]int {
-	routes := map[string]int{}
-	fi.mu.Lock()
-	defer fi.mu.Unlock()
-	for route, payloads := range fi.payloadStore {
-		routes[route] = len(payloads)
-	}
-	return routes
 }

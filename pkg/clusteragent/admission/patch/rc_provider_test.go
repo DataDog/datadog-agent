@@ -9,6 +9,7 @@ package patch
 
 import (
 	"fmt"
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/telemetry"
 	"testing"
 
 	"github.com/DataDog/datadog-agent/pkg/config/remote"
@@ -38,7 +39,7 @@ func TestProcess(t *testing.T) {
 `
 		return []byte(fmt.Sprintf(base, cluster, kind))
 	}
-	rcp, err := newRemoteConfigProvider(&remote.Client{}, make(chan struct{}), "dev")
+	rcp, err := newRemoteConfigProvider(&remote.Client{}, make(chan struct{}), telemetry.NewNoopCollector(), "dev")
 	require.NoError(t, err)
 	notifs := rcp.subscribe(KindDeployment)
 	in := map[string]state.RawConfig{
@@ -47,7 +48,7 @@ func TestProcess(t *testing.T) {
 		"path3": {Config: genConfig("dev", "wrong")},        // kind mismatch
 		"path4": {Config: genConfig("wrong", "deployment")}, // cluster mismatch
 	}
-	rcp.process(in)
+	rcp.process(in, nil)
 	require.Len(t, notifs, 1)
 	pr := <-notifs
 	require.Equal(t, "17945471932432318983", pr.ID)

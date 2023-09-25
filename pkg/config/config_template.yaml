@@ -5,10 +5,17 @@
 
 ## @param api_key - string - required
 ## @env DD_API_KEY - string - required
-## The Datadog API key to associate your Agent's data with your organization.
-## Create a new API key here: https://app.datadoghq.com/account/settings
-#
+## The Datadog API key used by your Agent to submit metrics and events to Datadog.
+## Create a new API key here: https://app.datadoghq.com/organization-settings/api-keys .
+## Read more about API keys here: https://docs.datadoghq.com/account_management/api-app-keys/#api-keys .
 api_key:
+
+## @param app_key - string - optional
+## The application key used to access Datadog's programatic API.
+## Create a new application key here: https://app.datadoghq.com/organization-settings/application-keys .
+## Read more about application keys here: https://docs.datadoghq.com/account_management/api-app-keys/#application-keys .
+#
+# app_key:
 
 ## @param site - string - optional - default: datadoghq.com
 ## @env DD_SITE - string - optional - default: datadoghq.com
@@ -64,8 +71,8 @@ api_key:
 # sslkeylogfile: ""
 
 
-## @param min_tls_version - string - optional - default: "tlsv1.0"
-## @env DD_MIN_TLS_VERSION - string - optional - default: "tlsv1.0"
+## @param min_tls_version - string - optional - default: "tlsv1.2"
+## @env DD_MIN_TLS_VERSION - string - optional - default: "tlsv1.2"
 ## This option defines the minimum TLS version that will be used when
 ## submitting data to the Datadog intake specified in "site" or "dd_url".
 ## This parameter defaults to "tlsv1.2".
@@ -414,26 +421,36 @@ api_key:
 #
 # collect_gce_tags: true
 
-## @param exclude_gce_tags - list of strings - optional - default: ["kube-env", "kubelet-config", "containerd-configure-sh", "startup-script", "shutdown-script", "configure-sh", "sshKeys", "ssh-keys", "user-data", "cli-cert", "ipsec-cert", "ssl-cert", "google-container-manifest", "bosh_settings"]
-## @env DD_EXCLUDE_GCE_TAGS - space separated list of strings - optional - default: kube-env kubelet-config containerd-configure-sh startup-script shutdown-script configure-sh sshKeys ssh-keys user-data cli-cert ipsec-cert ssl-cert google-container-manifest bosh_settings
+## @param exclude_gce_tags - list of strings - optional - default: ["bosh_settings" ,"cli-cert" ,"common-psm1" ,"configure-sh" ,"containerd-configure-sh" ,"disable-address-manager" ,"disable-legacy-endpoints" ,"enable-oslogin" ,"gce-container-declaration" ,"google-container-manifest" ,"ipsec-cert" ,"k8s-node-setup-psm1" ,"kube-env" ,"kubeconfig" ,"kubelet-config" ,"serial-port-logging-enable" ,"shutdown-script" ,"ssh-keys" ,"sshKeys" ,"ssl-cert" ,"startup-script" ,"user-data" ,"windows-keys" ,"windows-startup-script-ps1"]
+## @env DD_EXCLUDE_GCE_TAGS - space separated list of strings - optional - default: bosh_settings cli-cert common-psm1 configure-sh containerd-configure-sh disable-address-manager disable-legacy-endpoints enable-oslogin gce-container-declaration google-container-manifest ipsec-cert k8s-node-setup-psm1 kube-env kubeconfig kubelet-config serial-port-logging-enable shutdown-script ssh-keys sshKeys ssl-cert startup-script user-data windows-keys windows-startup-script-ps1
 ## Google Cloud Engine metadata attribute to exclude from being converted into
 ## host tags -- only applicable when collect_gce_tags is true.
 #
 # exclude_gce_tags:
-#   - "kube-env"
-#   - "kubelet-config"
-#   - "containerd-configure-sh"
-#   - "startup-script"
-#   - "shutdown-script"
-#   - "configure-sh"
-#   - "sshKeys"
-#   - "ssh-keys"
-#   - "user-data"
-#   - "cli-cert"
-#   - "ipsec-cert"
-#   - "ssl-cert"
-#   - "google-container-manifest"
 #   - "bosh_settings"
+#   - "cli-cert"
+#   - "common-psm1"
+#   - "configure-sh"
+#   - "containerd-configure-sh"
+#   - "disable-address-manager"
+#   - "disable-legacy-endpoints"
+#   - "enable-oslogin"
+#   - "gce-container-declaration"
+#   - "google-container-manifest"
+#   - "ipsec-cert"
+#   - "k8s-node-setup-psm1"
+#   - "kube-env"
+#   - "kubeconfig"
+#   - "kubelet-config"
+#   - "serial-port-logging-enable"
+#   - "shutdown-script"
+#   - "ssh-keys"
+#   - "sshKeys"
+#   - "ssl-cert"
+#   - "startup-script"
+#   - "user-data"
+#   - "windows-keys"
+#   - "windows-startup-script-ps1"
 
 ## @param gce_send_project_id_tag - bool - optional - default: false
 ## @env DD_GCE_SEND_PROJECT_ID_TAG - bool - optional - default: false
@@ -486,14 +503,14 @@ api_key:
 #
 # use_proxy_for_cloud_metadata: false
 
-## @param inventories_configuration_enabled - boolean - optional - default: false
-## @env DD_INVENTORIES_CONFIGURATION_ENABLED - boolean - optional - default: false
-## The Agent can send its own configuration to Datadog to be displayed in the `Agent Configuration` section of the host
+## @param inventories_configuration_enabled - boolean - optional - default: true
+## @env DD_INVENTORIES_CONFIGURATION_ENABLED - boolean - optional - default: true
+## By default the Agent sends its own configuration to Datadog to be displayed in the `Agent Configuration` section of the host
 ## detail panel. See https://docs.datadoghq.com/infrastructure/list/#agent-configuration for more information.
 ##
 ## The Agent configuration is scrubbed of any sensitive information.
 #
-# inventories_configuration_enabled: false
+# inventories_configuration_enabled: true
 
 ## @param auto_exit - custom object - optional
 ## Configuration for the automatic exit mechanism: the Agent stops when some conditions are met.
@@ -1016,7 +1033,7 @@ api_key:
     # oid_batch_size: 5
 
     ## @param interface_configs - map - optional
-    ## This option is used to override interface inbound/outbound speed.
+    ## This option is used to override interface inbound/outbound speed and add interface tags
     ## Example:
     ## interface_configs:
     ##   "10.0.0.1":              # target device IP address
@@ -1024,6 +1041,9 @@ api_key:
     ##       match_value: "eth0"  # (required) the value to match
     ##       in_speed: 50         # (optional) inbound speed value in bits per sec, no value or 0 means no override
     ##       out_speed: 25        # (optional) outbound speed value in bits per sec, no value or 0 means no override
+    ##       tags:                # (optional) interface level tags
+    ##         - "testTagKey:testTagValue"
+    ##         - "tagKey2:tagValue2"
     #
     # interface_config:
     #   "10.0.0.1":
@@ -1040,6 +1060,12 @@ api_key:
     #       match_value: eth3
     #       in_speed: 50
     #       out_speed: 25
+    #   "10.0.0.3":
+    #     - match_field: name
+    #       match_value: eth4
+    #       tags:
+    #         - "monitored:true"
+    #         - "customKey:customValue"
 
 {{- if .InternalProfiling -}}
 ## @param profiling - custom object - optional
@@ -1127,7 +1153,7 @@ api_key:
   # force_use_http: true
 
   ## @param force_use_tcp - boolean - optional - default: false
-  ## @env DD_LOGS_FORCE_USE_TCP - boolean - optional - default: false
+  ## @env DD_LOGS_CONFIG_FORCE_USE_TCP - boolean - optional - default: false
   ## By default, logs are sent through HTTPS if possible, set this parameter
   ## to `true` to always send logs via TCP. If `use_http` is set to `true`, this parameter
   ## is ignored.
@@ -1182,7 +1208,15 @@ api_key:
   ## WARNING: `by_modification_time` is less performant than `by_name` and will trigger
   ## more disk I/O at the configured wildcard log paths.
   #
-  # file_wildcard_selection_mode: `by_name`
+  # file_wildcard_selection_mode: by_name
+
+  ## @param max_message_size_bytes - integer - optional - default: 256000
+  ## @env DD_LOGS_CONFIG_MAX_MESSAGE_SIZE_BYTES - integer - optional - default : 256000
+  ## The maximum size of single log message in bytes. If maxMessageSizeBytes exceeds 
+  ## the documented API limit of 1MB - any payloads larger than 1MB will be dropped by the intake.
+  # https://docs.datadoghq.com/api/latest/logs/
+  #
+  # max_message_size_bytes: 256000
 
 {{ end -}}
 {{- if .TraceAgent }}
@@ -1297,15 +1331,15 @@ api_key:
   #
   #     elasticsearch:
   ##        @param DD_APM_OBFUSCATION_ELASTICSEARCH_ENABLED - boolean - optional
-  ##        Enables obfuscation rules for spans of type "elasticsearch". Disabled by default.
+  ##        Enables obfuscation rules for spans of type "elasticsearch". Enabled by default.
   #         enabled: false
   ##        @param DD_APM_OBFUSCATION_ELASTICSEARCH_KEEP_VALUES - object - optional
   ##        List of keys that should not be obfuscated.
-  #         keep_values: 
+  #         keep_values:
   #             - client_id
   ##        @param DD_APM_OBFUSCATION_ELASTICSEARCH_OBFUSCATE_SQL_VALUES - boolean - optional
   ##        The set of keys for which their values will be passed through SQL obfuscation
-  #         obfuscate_sql_values: 
+  #         obfuscate_sql_values:
   #             - val1
   #
   #     http:
@@ -1318,16 +1352,16 @@ api_key:
   #
   #     memcached:
   ##        @param DD_APM_OBFUSCATION_MEMCACHED_ENABLED - boolean - optional
-  ##        Enables obfuscation rules for spans of type "memcached". Disabled by default.
+  ##        Enables obfuscation rules for spans of type "memcached". Enabled by default.
   #         enabled: false
   #
   #     mongodb:
   ##        @param DD_APM_OBFUSCATION_MONGODB_ENABLED - boolean - optional
-  ##        Enables obfuscation rules for spans of type "mongodb". Disabled by default.
+  ##        Enables obfuscation rules for spans of type "mongodb". Enabled by default.
   #         enabled: false
   ##        @param DD_APM_OBFUSCATION_MONGODB_KEEP_VALUES - object - optional
   ##        List of keys that should not be obfuscated.
-  #         keep_values: 
+  #         keep_values:
   #             - document_id
   ##        @param DD_APM_OBFUSCATION_MONGODB_OBFUSCATE_SQL_VALUES - object - optional
   ##        The set of keys for which their values will be passed through SQL obfuscation
@@ -1336,8 +1370,11 @@ api_key:
   #
   #     redis:
   ##        @param DD_APM_OBFUSCATION_REDIS_ENABLED - boolean - optional
-  ##        Enables obfuscation rules for spans of type "redis". Disabled by default.
+  ##        Enables obfuscation rules for spans of type "redis". Enabled by default.
   #         enabled: false
+  ##        @param DD_APM_OBFUSCATION_REDIS_REMOVE_ALL_ARGS - boolean - optional
+  ##        When true, replaces all arguments of a redis command with a single "?". Disabled by default.
+  #         remove_all_args: false
   #
   ##    @param DD_APM_OBFUSCATION_REMOVE_STACK_TRACES - boolean - optional
   ##    Enables removing stack traces to replace them with "?". Disabled by default.
@@ -1353,7 +1390,7 @@ api_key:
   #             - id1
   ##        @param DD_APM_SQL_EXEC_PLAN_OBFUSCATE_SQL_VALUES - boolean - optional
   ##        The set of keys for which their values will be passed through SQL obfuscation
-  #         obfuscate_sql_values: 
+  #         obfuscate_sql_values:
   #             - val1
   #
   #     sql_exec_plan_normalize:
@@ -1733,6 +1770,18 @@ api_key:
   ## The full path to the file where system-probe logs are written.
   #
   # log_file: /var/log/datadog/system-probe.log
+
+  ## @param langauge_detection - custom object - optional
+  ## Enter specific configurations for language detection
+  ## Uncomment this parameter and the one below to enable them.
+  #
+  # language_detection:
+
+    ## @param enabled - bool - optional - default: false
+    ## @env DD_SYSTEM_PROBE_CONFIG_LANGUAGE_DETECTION_ENABLED - bool - optional - default: false
+    ## [Beta] Enables language detection via binary analysis in the system probe.
+    #
+    # enabled: false
 
 {{- if .InternalProfiling -}}
   ## @param profiling - custom object - optional
@@ -2236,6 +2285,17 @@ api_key:
 ## this option is set.
 #
 # jmx_use_container_support: false
+
+## @param jmx_max_ram_percentage - float - optional - default: 25.0
+## @env DD_JMX_MAX_RAM_PERCENTAGE - float - optional - default: 25.0
+## When running in a container with jmx_use_container_support enabled, the JVM can
+## automatically declare the maximum heap size based off of a percentage of
+## total container allocated memory. This option is overwritten if
+## you use -Xmx to manually define the size of the heap. This option applies
+## to containers with a total memory limit greater than ~250mb. If
+## jmx_use_container_support is disabled this option has no effect.
+#
+# jmx_max_ram_percentage: 25.0
 
 ## @param jmx_log_file - string - optional
 ## @env DD_JMX_LOG_FILE - string - optional
@@ -3804,6 +3864,15 @@ api_key:
         #
         # cumulative_monotonic_mode: to_delta
 
+        ## @param initial_cumulative_monotonic_value - string - optional - default: auto
+        ## How to report the initial value for cumulative monotonic sums. Valid values are:
+        ##
+        ## - `auto` reports the initial value if its start timestamp is set and it happens after the process was started.
+        ## - `drop` always drops the initial value.
+        ## - `keep` always reports the initial value.
+        #
+        # initial_cumulative_monotonic_value: auto
+
     ## @param summaries - custom object - optional
     ## Configuration for OTLP Summaries.
     ## See https://docs.datadoghq.com/metrics/otlp/?tab=summary for more details.
@@ -3864,7 +3933,19 @@ api_key:
       #
       # sampling_percentage: 100
 
-  ## @param debug - custom object - optional
+  ## @param logs - custom object - optional
+  ## Logs-specific configuration for OTLP ingest in the Datadog Agent.
+  #
+  # logs:
+
+    ## @param enabled - boolean - optional - default: false
+    ## @env DD_OTLP_CONFIG_LOGS_ENABLED - boolean - optional - default: false
+    ## Set to true to enable logs support in the OTLP ingest endpoint.
+    ## To enable the OTLP ingest, the otlp_config.receiver section must be set.
+    #
+    # enabled: true
+
+## @param debug - custom object - optional
   ## Debug-specific configuration for OTLP ingest in the Datadog Agent.
   ## This template lists the most commonly used settings; see the OpenTelemetry Collector documentation
   ## for a full list of available settings:

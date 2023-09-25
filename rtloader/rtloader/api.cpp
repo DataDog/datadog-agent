@@ -327,6 +327,11 @@ char **get_checks_warnings(rtloader_t *rtloader, rtloader_pyobject_t *check)
     return AS_TYPE(RtLoader, rtloader)->getCheckWarnings(AS_TYPE(RtLoaderPyObject, check));
 }
 
+char *get_check_diagnoses(rtloader_t *rtloader, rtloader_pyobject_t *check)
+{
+    return AS_TYPE(RtLoader, rtloader)->getCheckDiagnoses(AS_TYPE(RtLoaderPyObject, check));
+}
+
 /*
  * error API
  */

@@ -14,7 +14,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
-	"github.com/DataDog/datadog-agent/pkg/collector/check"
+	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"go.uber.org/fx"
@@ -175,7 +175,7 @@ func TestDemuxSerializerCreated(t *testing.T) {
 
 func TestDemuxFlushAggregatorToSerializer(t *testing.T) {
 	require := require.New(t)
-	var defaultCheckID check.ID // empty check.ID is the default sender ID
+	var defaultCheckID checkid.ID // empty checkid.ID is the default sender ID
 
 	// default options should have created all forwarders except for the orchestrator
 	// forwarders since we're not in a cluster-agent environment

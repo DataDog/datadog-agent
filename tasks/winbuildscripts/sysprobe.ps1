@@ -9,8 +9,8 @@ if ($Env:TARGET_ARCH -eq "x64") {
 }
 & $Env:Python3_ROOT_DIR\python.exe -m  pip install -r requirements.txt
 
-$Env:BUILD_ROOT=(Get-Location).Path
-$Env:PATH="$Env:BUILD_ROOT\dev\lib;$Env:GOPATH\bin;$Env:Python2_ROOT_DIR;$Env:Python2_ROOT_DIR\Scripts;$Env:Python3_ROOT_DIR;$Env:Python3_ROOT_DIR\Scripts;$Env:PATH"
+$PROBE_BUILD_ROOT=(Get-Location).Path
+$Env:PATH="$PROBE_BUILD_ROOT\dev\lib;$Env:GOPATH\bin;$Env:Python2_ROOT_DIR;$Env:Python2_ROOT_DIR\Scripts;$Env:Python3_ROOT_DIR;$Env:Python3_ROOT_DIR\Scripts;$Env:PATH"
 
 & $Env:Python3_ROOT_DIR\python.exe -m pip install PyYAML==5.3.1
 & pip install awscli==1.19.112 --upgrade
@@ -23,18 +23,12 @@ $archflag = "x64"
 if ($Env:TARGET_ARCH -eq "x86") {
     $archflag = "x86"
 }
-& inv -e rtloader.make --python-runtimes="$Env:PY_RUNTIMES" --install-prefix=$Env:BUILD_ROOT\dev --cmake-options='-G \"Unix Makefiles\"' --arch $archflag
-$err = $LASTEXITCODE
-Write-Host Build result is $err
-if($err -ne 0){
-    Write-Host -ForegroundColor Red "rtloader make failed $err"
-    [Environment]::Exit($err)
-}
+& .\tasks\winbuildscripts\pre-go-build.ps1 -Architecture "$archflag" -PythonRuntimes "$Env:PY_RUNTIMES"
 
-& inv -e golangci-lint --build system-probe-unit-tests .\pkg
+& inv -e lint-go --build system-probe-unit-tests --targets .\pkg
 $err = $LASTEXITCODE
 if ($err -ne 0) {
-    Write-Host -ForegroundColor Red "golangci-lint failed $err"
+    Write-Host -ForegroundColor Red "lint-go failed $err"
     [Environment]::Exit($err)
 }
 

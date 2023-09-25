@@ -13,6 +13,7 @@ import (
 
 	yaml "gopkg.in/yaml.v2"
 
+	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
@@ -22,7 +23,8 @@ import (
 )
 
 const (
-	checkName = "sbom"
+	checkName    = "sbom"
+	metricPeriod = 15 * time.Minute
 )
 
 func init() {
@@ -38,44 +40,44 @@ type Config struct {
 }
 
 type configValueRange struct {
-	min      int
-	max      int
-	default_ int
+	min          int
+	max          int
+	defaultValue int
 }
 
 var /* const */ (
 	chunkSizeValueRange = &configValueRange{
-		min:      1,
-		max:      100,
-		default_: 1,
+		min:          1,
+		max:          100,
+		defaultValue: 1,
 	}
 
 	newSBOMMaxLatencySecondsValueRange = &configValueRange{
-		min:      1,   // 1 s
-		max:      300, // 5 min
-		default_: 30,  // 30 s
+		min:          1,   // 1 s
+		max:          300, // 5 min
+		defaultValue: 30,  // 30 s
 	}
 
 	containerPeriodicRefreshSecondsValueRange = &configValueRange{
-		min:      60,     // 1 min
-		max:      604800, // 1 week
-		default_: 3600,   // 1h
+		min:          60,     // 1 min
+		max:          604800, // 1 week
+		defaultValue: 3600,   // 1h
 	}
 
 	hostPeriodicRefreshSecondsValueRange = &configValueRange{
-		min:      60,        // 1 min
-		max:      604800,    // 1 week
-		default_: 3600 * 24, // 1h
+		min:          60,        // 1 min
+		max:          604800,    // 1 week
+		defaultValue: 3600 * 24, // 1h
 	}
 )
 
-func validateValue(val *int, range_ *configValueRange) {
+func validateValue(val *int, valueRange *configValueRange) {
 	if *val == 0 {
-		*val = range_.default_
-	} else if *val < range_.min {
-		*val = range_.min
-	} else if *val > range_.max {
-		*val = range_.max
+		*val = valueRange.defaultValue
+	} else if *val < valueRange.min {
+		*val = valueRange.min
+	} else if *val > valueRange.max {
+		*val = valueRange.max
 	}
 }
 
@@ -98,6 +100,7 @@ type Check struct {
 	workloadmetaStore workloadmeta.Store
 	instance          *Config
 	processor         *processor
+	sender            sender.Sender
 	stopCh            chan struct{}
 }
 
@@ -112,12 +115,12 @@ func CheckFactory() check.Check {
 }
 
 // Configure parses the check configuration and initializes the sbom check
-func (c *Check) Configure(integrationConfigDigest uint64, config, initConfig integration.Data, source string) error {
+func (c *Check) Configure(senderManager sender.SenderManager, integrationConfigDigest uint64, config, initConfig integration.Data, source string) error {
 	if !ddConfig.Datadog.GetBool("sbom.enabled") {
 		return errors.New("collection of SBOM is disabled")
 	}
 
-	if err := c.CommonConfigure(integrationConfigDigest, initConfig, config, source); err != nil {
+	if err := c.CommonConfigure(senderManager, integrationConfigDigest, initConfig, config, source); err != nil {
 		return err
 	}
 
@@ -129,6 +132,9 @@ func (c *Check) Configure(integrationConfigDigest uint64, config, initConfig int
 	if err != nil {
 		return err
 	}
+
+	c.sender = sender
+	sender.SetNoIndex(true)
 
 	c.processor, err = newProcessor(c.workloadmetaStore, sender, c.instance.ChunkSize, time.Duration(c.instance.NewSBOMMaxLatencySeconds)*time.Second, ddConfig.Datadog.GetBool("sbom.host.enabled"))
 	if err != nil {
@@ -159,11 +165,16 @@ func (c *Check) Run() error {
 	// Trigger an initial scan on host
 	c.processor.processHostRefresh()
 
+	c.sendUsageMetrics()
+
 	containerPeriodicRefreshTicker := time.NewTicker(time.Duration(c.instance.ContainerPeriodicRefreshSeconds) * time.Second)
 	defer containerPeriodicRefreshTicker.Stop()
 
 	hostPeriodicRefreshTicker := time.NewTicker(time.Duration(c.instance.HostPeriodicRefreshSeconds) * time.Second)
 	defer hostPeriodicRefreshTicker.Stop()
+
+	metricTicker := time.NewTicker(metricPeriod)
+	defer metricTicker.Stop()
 
 	for {
 		select {
@@ -173,11 +184,23 @@ func (c *Check) Run() error {
 			c.processor.processContainerImagesRefresh(c.workloadmetaStore.ListImages())
 		case <-hostPeriodicRefreshTicker.C:
 			c.processor.processHostRefresh()
+		case <-metricTicker.C:
+			c.sendUsageMetrics()
 		case <-c.stopCh:
 			c.processor.stop()
 			return nil
 		}
 	}
+}
+
+func (c *Check) sendUsageMetrics() {
+	c.sender.Count("datadog.agent.sbom.container_images.running", 1.0, "", nil)
+
+	if ddConfig.Datadog.GetBool("sbom.host.enabled") {
+		c.sender.Count("datadog.agent.sbom.hosts.running", 1.0, "", nil)
+	}
+
+	c.sender.Commit()
 }
 
 // Stop stops the sbom check

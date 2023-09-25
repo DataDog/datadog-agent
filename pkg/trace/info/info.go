@@ -26,7 +26,7 @@ import (
 
 var (
 	infoMu        sync.RWMutex
-	receiverStats []TagStats // only for the last minute
+	receiverStats = []TagStats{} // only for the last minute
 	languages     []string
 
 	// TODO: move from package globals to a clean single struct
@@ -38,7 +38,6 @@ var (
 	rateByService map[string]float64
 	// The rates by service with empty env values removed (As they are confusing to view for customers)
 	rateByServiceFiltered map[string]float64
-	rateLimiterStats      RateLimiterStats
 	start                 = time.Now()
 	once                  sync.Once
 	infoTmpl              *template.Template
@@ -76,9 +75,6 @@ const (
   {{ range $key, $value := .Status.RateByService }}
   Priority sampling rate for '{{ $key }}': {{percent $value}} %
   {{ end }}
-  {{if lt .Status.RateLimiter.TargetRate 1.0}}
-  WARNING: Rate-limiter keep percentage: {{percent .Status.RateLimiter.TargetRate}} %
-  {{end}}
 
   --- Writer stats (1 min) ---
 
@@ -177,32 +173,6 @@ func publishWatchdogInfo() interface{} {
 	return watchdogInfo
 }
 
-// RateLimiterStats contains rate limiting data. The public content
-// might be interesting for statistics, logging.
-type RateLimiterStats struct {
-	// TargetRate is the rate limiting rate that we are aiming for.
-	TargetRate float64
-	// RecentPayloadsSeen is the number of payloads that passed by.
-	RecentPayloadsSeen float64
-	// RecentTracesSeen is the number of traces that passed by.
-	RecentTracesSeen float64
-	// RecentTracesDropped is the number of traces that were dropped.
-	RecentTracesDropped float64
-}
-
-// UpdateRateLimiter updates internal stats about the rate limiting.
-func UpdateRateLimiter(ss RateLimiterStats) {
-	infoMu.Lock()
-	defer infoMu.Unlock()
-	rateLimiterStats = ss
-}
-
-func publishRateLimiterStats() interface{} {
-	infoMu.RLock()
-	defer infoMu.RUnlock()
-	return rateLimiterStats
-}
-
 func publishUptime() interface{} {
 	return int(time.Since(start) / time.Second)
 }
@@ -242,7 +212,6 @@ type StatusInfo struct {
 	TraceWriter   TraceWriterInfo    `json:"trace_writer"`
 	StatsWriter   StatsWriterInfo    `json:"stats_writer"`
 	Watchdog      watchdog.Info      `json:"watchdog"`
-	RateLimiter   RateLimiterStats   `json:"ratelimiter"`
 	Config        config.AgentConfig `json:"config"`
 }
 
@@ -360,7 +329,6 @@ func initInfo(conf *config.AgentConfig) error {
 	expvar.Publish("ratebyservice", expvar.Func(publishRateByService))
 	expvar.Publish("ratebyservice_filtered", expvar.Func(publishRateByServiceFiltered))
 	expvar.Publish("watchdog", expvar.Func(publishWatchdogInfo))
-	expvar.Publish("ratelimiter", expvar.Func(publishRateLimiterStats))
 
 	// copy the config to ensure we don't expose sensitive data such as API keys
 	c := *conf

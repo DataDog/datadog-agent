@@ -6,9 +6,10 @@
 package mocksender
 
 import (
-	"github.com/DataDog/datadog-agent/pkg/collector/check"
-	"github.com/DataDog/datadog-agent/pkg/metrics"
-	"github.com/DataDog/datadog-agent/pkg/serializer"
+	"github.com/DataDog/datadog-agent/pkg/collector/check/stats"
+	"github.com/DataDog/datadog-agent/pkg/metrics/event"
+	"github.com/DataDog/datadog-agent/pkg/metrics/servicecheck"
+	"github.com/DataDog/datadog-agent/pkg/serializer/types"
 )
 
 // Rate adds a rate type to the mock calls.
@@ -51,13 +52,18 @@ func (m *MockSender) Gauge(metric string, value float64, hostname string, tags [
 	m.Called(metric, value, hostname, tags)
 }
 
+// Distribution adds a distribution type to the mock calls.
+func (m *MockSender) Distribution(metric string, value float64, hostname string, tags []string) {
+	m.Called(metric, value, hostname, tags)
+}
+
 // GaugeNoIndex adds a gauge type to the mock calls that is not indexed.
 func (m *MockSender) GaugeNoIndex(metric string, value float64, hostname string, tags []string) {
 	m.Called(metric, value, hostname, tags)
 }
 
 // ServiceCheck enables the service check mock call.
-func (m *MockSender) ServiceCheck(checkName string, status metrics.ServiceCheckStatus, hostname string, tags []string, message string) {
+func (m *MockSender) ServiceCheck(checkName string, status servicecheck.ServiceCheckStatus, hostname string, tags []string, message string) {
 	m.Called(checkName, status, hostname, tags, message)
 }
 
@@ -67,7 +73,7 @@ func (m *MockSender) DisableDefaultHostname(d bool) {
 }
 
 // Event enables the event mock call.
-func (m *MockSender) Event(e metrics.Event) {
+func (m *MockSender) Event(e event.Event) {
 	m.Called(e)
 }
 
@@ -106,17 +112,17 @@ func (m *MockSender) FinalizeCheckServiceTag() {
 }
 
 // GetSenderStats enables the get metric stats mock call.
-func (m *MockSender) GetSenderStats() check.SenderStats {
+func (m *MockSender) GetSenderStats() stats.SenderStats {
 	m.Called()
-	return check.NewSenderStats()
+	return stats.NewSenderStats()
 }
 
 // OrchestratorMetadata submit orchestrator metadata messages
-func (m *MockSender) OrchestratorMetadata(msgs []serializer.ProcessMessageBody, clusterID string, nodeType int) {
+func (m *MockSender) OrchestratorMetadata(msgs []types.ProcessMessageBody, clusterID string, nodeType int) {
 	m.Called(msgs, clusterID, nodeType)
 }
 
 // OrchestratorManifest submit orchestrator manifest messages
-func (m *MockSender) OrchestratorManifest(msgs []serializer.ProcessMessageBody, clusterID string) {
+func (m *MockSender) OrchestratorManifest(msgs []types.ProcessMessageBody, clusterID string) {
 	m.Called(msgs, clusterID)
 }

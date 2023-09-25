@@ -16,7 +16,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/winutil/etw"
 )
 
-type HttpEtwInterface struct {
+type EtwInterface struct {
 	maxEntriesBuffered int
 	DataChannel        chan []WinHttpTransaction
 	eventLoopWG        sync.WaitGroup
@@ -24,37 +24,37 @@ type HttpEtwInterface struct {
 	captureHTTPS       bool
 }
 
-func NewHttpEtwInterface(c *config.Config) *HttpEtwInterface {
-	return &HttpEtwInterface{
+func NewEtwInterface(c *config.Config) *EtwInterface {
+	return &EtwInterface{
 		maxEntriesBuffered: c.MaxHTTPStatsBuffered,
 		DataChannel:        make(chan []WinHttpTransaction),
-		captureHTTPS:       c.EnableHTTPSMonitoring,
+		captureHTTPS:       c.EnableNativeTLSMonitoring,
 		captureHTTP:        c.EnableHTTPMonitoring,
 	}
 }
 
-func (hei *HttpEtwInterface) SetCapturedProtocols(http, https bool) {
+func (hei *EtwInterface) SetCapturedProtocols(http, https bool) {
 	hei.captureHTTP = http
 	hei.captureHTTPS = https
 	SetEnabledProtocols(http, https)
 }
-func (hei *HttpEtwInterface) SetMaxFlows(maxFlows uint64) {
+func (hei *EtwInterface) SetMaxFlows(maxFlows uint64) {
 	log.Debugf("Setting max flows in ETW http source to %v", maxFlows)
 	SetMaxFlows(maxFlows)
 }
 
-func (hei *HttpEtwInterface) SetMaxRequestBytes(maxRequestBytes uint64) {
+func (hei *EtwInterface) SetMaxRequestBytes(maxRequestBytes uint64) {
 	log.Debugf("Setting max request bytes in ETW http source to to %v", maxRequestBytes)
 	SetMaxRequestBytes(maxRequestBytes)
 }
 
-func (hei *HttpEtwInterface) StartReadingHttpFlows() {
+func (hei *EtwInterface) StartReadingHttpFlows() {
 	hei.eventLoopWG.Add(2)
 
 	startingEtwChan := make(chan struct{})
 
 	// Currently ETW needs be started on a separate thread
-	// becauise it is blocked until subscription is stopped
+	// because it is blocked until subscription is stopped
 	go func() {
 		defer hei.eventLoopWG.Done()
 
@@ -66,10 +66,10 @@ func (hei *HttpEtwInterface) StartReadingHttpFlows() {
 
 		startingEtwChan <- struct{}{}
 
-		err := etw.StartEtw("ddnpm-httpservice", etw.EtwProviderHttpService, hei)
+		err := etw.StartEtw("ddnpm-httpservice", etw.EtwProviderHTTPService, hei)
 
 		if err == nil {
-			log.Infof("ETW HttpService subscription copmpleted")
+			log.Infof("ETW HttpService subscription completed")
 		} else {
 			log.Errorf("ETW HttpService subscription failed with error %v", err)
 		}
@@ -112,7 +112,7 @@ func (hei *HttpEtwInterface) StartReadingHttpFlows() {
 	}()
 }
 
-func (hei *HttpEtwInterface) Close() {
+func (hei *EtwInterface) Close() {
 	etw.StopEtw("ddnpm-httpservice")
 
 	hei.eventLoopWG.Wait()

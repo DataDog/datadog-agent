@@ -6,8 +6,8 @@
 package traceutil
 
 import (
+	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	"github.com/DataDog/datadog-agent/pkg/trace/log"
-	"github.com/DataDog/datadog-agent/pkg/trace/pb"
 )
 
 const (
@@ -69,9 +69,7 @@ func GetRoot(t pb.Trace) *pb.Span {
 	}
 
 	for i := range t {
-		if _, ok := parentIDToChild[t[i].SpanID]; ok {
-			delete(parentIDToChild, t[i].SpanID)
-		}
+		delete(parentIDToChild, t[i].SpanID)
 	}
 
 	// Here, if the trace is valid, we should have len(parentIDToChild) == 1
@@ -79,7 +77,7 @@ func GetRoot(t pb.Trace) *pb.Span {
 		log.Debugf("Didn't reliably find the root span for traceID:%v", t[0].TraceID)
 	}
 
-	// Have a safe bahavior if that's not the case
+	// Have a safe behavior if that's not the case
 	// Pick the first span without its parent
 	for parentID := range parentIDToChild {
 		return parentIDToChild[parentID]

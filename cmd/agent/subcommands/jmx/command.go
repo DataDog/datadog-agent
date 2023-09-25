@@ -26,6 +26,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/log"
+	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/cli/standalone"
 	"github.com/DataDog/datadog-agent/pkg/collector"
@@ -225,17 +226,22 @@ func disableCmdPort() {
 // runJmxCommandConsole sets up the common utils necessary for JMX, and executes the command
 // with the Console reporter
 func runJmxCommandConsole(log log.Component, config config.Component, cliParams *cliParams) error {
+	// This prevents log-spam from "pkg/workloadmeta/collectors/internal/remote/process_collector/process_collector.go"
+	// It appears that this collector creates some contention in AD.
+	// Disabling it is both more efficient and gets rid of this log spam
+	pkgconfig.Datadog.Set("language_detection.enabled", "false")
+
 	err := pkgconfig.SetupJMXLogger(cliParams.logFile, "", false, true, false)
 	if err != nil {
 		return fmt.Errorf("Unable to set up JMX logger: %v", err)
 	}
 
-	common.LoadComponents(context.Background(), config.GetString("confd_path"))
+	common.LoadComponents(context.Background(), aggregator.GetSenderManager(), config.GetString("confd_path"))
 	common.AC.LoadAndRun(context.Background())
 
 	// Create the CheckScheduler, but do not attach it to
 	// AutoDiscovery.  NOTE: we do not start common.Coll, either.
-	collector.InitCheckScheduler(common.Coll)
+	collector.InitCheckScheduler(common.Coll, aggregator.GetSenderManager())
 
 	// if cliSelectedChecks is empty, then we want to fetch all check configs;
 	// otherwise, we fetch only the matching cehck configs.
@@ -252,7 +258,7 @@ func runJmxCommandConsole(log log.Component, config config.Component, cliParams 
 		return err
 	}
 
-	err = standalone.ExecJMXCommandConsole(cliParams.command, cliParams.cliSelectedChecks, cliParams.jmxLogLevel, allConfigs)
+	err = standalone.ExecJMXCommandConsole(cliParams.command, cliParams.cliSelectedChecks, cliParams.jmxLogLevel, allConfigs, aggregator.GetSenderManager())
 
 	if runtime.GOOS == "windows" {
 		standalone.PrintWindowsUserWarning("jmx")

@@ -8,7 +8,6 @@
 package secrets
 
 import (
-	"io/ioutil"
 	"os"
 	"os/exec"
 	"testing"
@@ -38,7 +37,7 @@ func TestWrongPath(t *testing.T) {
 }
 
 func TestSpaceInPath(t *testing.T) {
-	tmpDir, err := ioutil.TempDir("", "super temp")
+	tmpDir, err := os.MkdirTemp("", "super temp")
 	require.Nil(t, err)
 	defer os.Remove(tmpDir)
 	tmpFile, err := os.CreateTemp(tmpDir, "agent-collector-test")
@@ -48,71 +47,84 @@ func TestSpaceInPath(t *testing.T) {
 	require.Nil(t, checkRights(tmpFile.Name(), false))
 }
 
-func TestCheckRights(t *testing.T) {
-	// default options
-	allowGroupExec := false
-
+func TestCheckRightsDoesNotExists(t *testing.T) {
 	// file does not exist
-	require.NotNil(t, checkRights("/does not exists", allowGroupExec))
+	require.NotNil(t, checkRights("/does not exists", false))
+}
 
-	// missing current user
+func TestCheckRightsMissingCurrentUser(t *testing.T) {
 	tmpfile, err := os.CreateTemp("", "agent-collector-test")
 	require.Nil(t, err)
 	defer os.Remove(tmpfile.Name())
 
-	exec.Command("powershell", "test/setAcl.ps1",
+	err = exec.Command("powershell", "test/setAcl.ps1",
 		"-file", tmpfile.Name(),
 		"-removeAllUser", "1",
 		"-removeAdmin", "0",
 		"-removeLocalSystem", "0",
 		"-addDDuser", "0").Run()
-	assert.NotNil(t, checkRights(tmpfile.Name(), allowGroupExec))
+	require.NoError(t, err)
+	assert.NotNil(t, checkRights(tmpfile.Name(), false))
+}
 
-	// missing localSystem
-	tmpfile, err = os.CreateTemp("", "agent-collector-test")
+func TestCheckRightsMissingLocalSystem(t *testing.T) {
+	tmpfile, err := os.CreateTemp("", "agent-collector-test")
 	require.Nil(t, err)
 	defer os.Remove(tmpfile.Name())
-	exec.Command("powershell", "test/setAcl.ps1",
+
+	err = exec.Command("powershell", "test/setAcl.ps1",
 		"-file", tmpfile.Name(),
 		"-removeAllUser", "1",
 		"-removeAdmin", "0",
 		"-removeLocalSystem", "1",
 		"-addDDuser", "0").Run()
-	assert.NotNil(t, checkRights(tmpfile.Name(), allowGroupExec))
+	require.NoError(t, err)
+	assert.NotNil(t, checkRights(tmpfile.Name(), false))
+}
 
-	// missing Administrator
-	tmpfile, err = os.CreateTemp("", "agent-collector-test")
+func TestCheckRightsMissingAdministrator(t *testing.T) {
+	tmpfile, err := os.CreateTemp("", "agent-collector-test")
 	require.Nil(t, err)
 	defer os.Remove(tmpfile.Name())
-	exec.Command("powershell", "test/setAcl.ps1",
+
+	err = exec.Command("powershell", "test/setAcl.ps1",
 		"-file", tmpfile.Name(),
 		"-removeAllUser", "1",
 		"-removeAdmin", "1",
 		"-removeLocalSystem", "0",
 		"-addDDuser", "0").Run()
-	assert.NotNil(t, checkRights(tmpfile.Name(), allowGroupExec))
+	require.NoError(t, err)
+	assert.NotNil(t, checkRights(tmpfile.Name(), false))
+}
 
+func TestCheckRightsExtraRights(t *testing.T) {
 	// extra rights for someone else
-	tmpfile, err = os.CreateTemp("", "agent-collector-test")
+	tmpfile, err := os.CreateTemp("", "agent-collector-test")
 	require.Nil(t, err)
 	defer os.Remove(tmpfile.Name())
-	exec.Command("powershell", "test/setAcl.ps1",
+
+	err = exec.Command("powershell", "test/setAcl.ps1",
 		"-file", tmpfile.Name(),
 		"-removeAllUser", "0",
 		"-removeAdmin", "0",
 		"-removeLocalSystem", "0",
 		"-addDDuser", "1").Run()
-	assert.Nil(t, checkRights(tmpfile.Name(), allowGroupExec))
+	require.NoError(t, err)
+	assert.Nil(t, checkRights(tmpfile.Name(), false))
+}
 
+func TestCheckRightsMissingAdmingAndLocal(t *testing.T) {
 	// missing localSystem or Administrator
-	tmpfile, err = os.CreateTemp("", "agent-collector-test")
+	tmpfile, err := os.CreateTemp("", "agent-collector-test")
 	require.Nil(t, err)
 	defer os.Remove(tmpfile.Name())
-	exec.Command("powershell", "test/setAcl.ps1",
+
+	err = exec.Command("powershell", "test/setAcl.ps1",
 		"-file", tmpfile.Name(),
 		"-removeAllUser", "1",
 		"-removeAdmin", "0",
 		"-removeLocalSystem", "0",
 		"-addDDuser", "1").Run()
-	assert.Nil(t, checkRights(tmpfile.Name(), allowGroupExec))
+	require.NoError(t, err)
+	assert.Nil(t, checkRights(tmpfile.Name(), false))
 }

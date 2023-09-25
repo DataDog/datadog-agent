@@ -117,16 +117,16 @@ func run(log log.Component, config config.Component, forwarder defaultforwarder.
 	}
 
 	// create and setup the Autoconfig instance
-	common.LoadComponents(mainCtx, pkgconfig.Datadog.GetString("confd_path"))
+	common.LoadComponents(mainCtx, aggregator.GetSenderManager(), pkgconfig.Datadog.GetString("confd_path"))
 
 	// Set up check collector
-	common.AC.AddScheduler("check", collector.InitCheckScheduler(common.Coll), true)
+	common.AC.AddScheduler("check", collector.InitCheckScheduler(common.Coll, aggregator.GetSenderManager()), true)
 	common.Coll.Start()
 
 	// start the autoconfig, this will immediately run any configured check
 	common.AC.LoadAndRun(mainCtx)
 
-	if err = api.StartServer(); err != nil {
+	if err = api.StartServer(aggregator.GetSenderManager()); err != nil {
 		return log.Errorf("Error while starting agent API, exiting: %v", err)
 	}
 

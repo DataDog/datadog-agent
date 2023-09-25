@@ -77,6 +77,7 @@ func computeCPULimit(containerStats *provider.ContainerStats, spec *types.Contai
 		// If no limit is available, setting the limit to number of CPUs.
 		// Always reporting a limit allows to compute CPU % accurately.
 		cpuLimit = 100 * float64(system.HostCPUCount())
+		containerStats.CPU.DefaultedLimit = true
 	}
 
 	containerStats.CPU.Limit = &cpuLimit

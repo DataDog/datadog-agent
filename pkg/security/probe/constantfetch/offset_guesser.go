@@ -5,6 +5,7 @@
 
 //go:build linux && linux_bpf
 
+// Package constantfetch holds constantfetch related files
 package constantfetch
 
 import (
@@ -16,6 +17,7 @@ import (
 	manager "github.com/DataDog/ebpf-manager"
 	"golang.org/x/sys/unix"
 
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/ebpf/probe/ebpfcheck"
 	"github.com/DataDog/datadog-agent/pkg/security/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/security/ebpf/kernel"
 	"github.com/DataDog/datadog-agent/pkg/security/ebpf/probes"
@@ -34,13 +36,13 @@ var (
 		{
 			ProbeIdentificationPair: manager.ProbeIdentificationPair{
 				UID:          offsetGuesserUID,
-				EBPFFuncName: "kprobe_get_pid_task_numbers",
+				EBPFFuncName: "hook_get_pid_task_numbers",
 			},
 		},
 		{
 			ProbeIdentificationPair: manager.ProbeIdentificationPair{
 				UID:          offsetGuesserUID + "_a",
-				EBPFFuncName: "kprobe_get_pid_task_offset",
+				EBPFFuncName: "hook_get_pid_task_offset",
 			},
 		},
 	}
@@ -72,7 +74,7 @@ func (og *OffsetGuesser) String() string {
 }
 
 func (og *OffsetGuesser) guessPidNumbersOfsset() (uint64, error) {
-	if _, err := os.ReadFile(utils.StatusPath(int32(utils.Getpid()))); err != nil {
+	if _, err := os.ReadFile(utils.StatusPath(utils.Getpid())); err != nil {
 		return ErrorSentinel, err
 	}
 	offsetMap, found, err := og.manager.GetMap("guessed_offsets")
@@ -190,7 +192,10 @@ func (og *OffsetGuesser) FinishAndGetResults() (map[string]uint64, error) {
 		},
 	}
 
-	for _, probe := range probes.AllProbes() {
+	for _, probe := range probes.AllProbes(true) {
+		options.ExcludedFunctions = append(options.ExcludedFunctions, probe.ProbeIdentificationPair.EBPFFuncName)
+	}
+	for _, probe := range probes.AllProbes(false) {
 		options.ExcludedFunctions = append(options.ExcludedFunctions, probe.ProbeIdentificationPair.EBPFFuncName)
 	}
 	options.ExcludedFunctions = append(options.ExcludedFunctions, probes.GetAllTCProgramFunctions()...)
@@ -198,8 +203,10 @@ func (og *OffsetGuesser) FinishAndGetResults() (map[string]uint64, error) {
 	if err := og.manager.InitWithOptions(bytecodeReader, options); err != nil {
 		return og.res, err
 	}
+	ebpfcheck.AddNameMappings(og.manager, "cws_offsetguess")
 
 	if err := og.manager.Start(); err != nil {
+		ebpfcheck.RemoveNameMappings(og.manager)
 		return og.res, err
 	}
 
@@ -209,6 +216,7 @@ func (og *OffsetGuesser) FinishAndGetResults() (map[string]uint64, error) {
 		}
 	}
 
+	ebpfcheck.RemoveNameMappings(og.manager)
 	if err := og.manager.Stop(manager.CleanAll); err != nil {
 		return og.res, err
 	}

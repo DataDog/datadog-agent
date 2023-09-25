@@ -13,40 +13,57 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/log"
 	forwarder "github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
-	"github.com/DataDog/datadog-agent/pkg/collector/check"
+	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
+	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	"github.com/DataDog/datadog-agent/pkg/config"
 )
 
 // NewMockSender initiates the aggregator and returns a
 // functional mocked Sender for testing
-func NewMockSender(id check.ID) *MockSender {
-	mockSender := new(MockSender)
+func NewMockSender(id checkid.ID) *MockSender {
+	return NewMockSenderWithSenderManager(id, CreateDefaultDemultiplexer())
+}
 
+// CreateDefaultDemultiplexer creates a default demultiplexer for testing
+func CreateDefaultDemultiplexer() *aggregator.AgentDemultiplexer {
 	opts := aggregator.DefaultAgentDemultiplexerOptions()
 	opts.FlushInterval = 1 * time.Hour
 	opts.DontStartForwarders = true
 	log := log.NewTemporaryLoggerWithoutInit()
 	sharedForwarder := forwarder.NewDefaultForwarder(config.Datadog, log, forwarder.NewOptions(config.Datadog, log, nil))
-	aggregator.InitAndStartAgentDemultiplexer(log, sharedForwarder, opts, "")
+	return aggregator.InitAndStartAgentDemultiplexer(log, sharedForwarder, opts, "")
 
+}
+
+// NewMockSenderWithSenderManager returns a functional mocked Sender for testing
+func NewMockSenderWithSenderManager(id checkid.ID, senderManager sender.SenderManager) *MockSender {
+	mockSender := new(MockSender)
+
+	mockSender.senderManager = senderManager
 	SetSender(mockSender, id)
 
 	return mockSender
 }
 
 // SetSender sets passed sender with the passed ID.
-func SetSender(sender *MockSender, id check.ID) {
-	aggregator.SetSender(sender, id) //nolint:errcheck
+func SetSender(sender *MockSender, id checkid.ID) {
+	sender.senderManager.SetSender(sender, id) //nolint:errcheck
 }
 
 // MockSender allows mocking of the checks sender for unit testing
 type MockSender struct {
 	mock.Mock
+	senderManager sender.SenderManager
+}
+
+// GetSenderManager returns the instance of sender.SenderManager
+func (m *MockSender) GetSenderManager() sender.SenderManager {
+	return m.senderManager
 }
 
 // SetupAcceptAll sets mock expectations to accept any call in the Sender interface
 func (m *MockSender) SetupAcceptAll() {
-	metricCalls := []string{"Rate", "Count", "MonotonicCount", "Counter", "Histogram", "Historate", "Gauge"}
+	metricCalls := []string{"Rate", "Count", "MonotonicCount", "Counter", "Histogram", "Historate", "Gauge", "Distribution"}
 	for _, call := range metricCalls {
 		m.On(call,
 			mock.AnythingOfType("string"),   // Metric
@@ -63,13 +80,13 @@ func (m *MockSender) SetupAcceptAll() {
 		mock.AnythingOfType("bool"),     // FlushFirstValue
 	).Return()
 	m.On("ServiceCheck",
-		mock.AnythingOfType("string"),                     // checkName (e.g: docker.exit)
-		mock.AnythingOfType("metrics.ServiceCheckStatus"), // (e.g: metrics.ServiceCheckOK)
-		mock.AnythingOfType("string"),                     // Hostname
-		mock.AnythingOfType("[]string"),                   // Tags
-		mock.AnythingOfType("string"),                     // message
+		mock.AnythingOfType("string"),                          // checkName (e.g: docker.exit)
+		mock.AnythingOfType("servicecheck.ServiceCheckStatus"), // (e.g: servicecheck.ServiceCheckOK)
+		mock.AnythingOfType("string"),                          // Hostname
+		mock.AnythingOfType("[]string"),                        // Tags
+		mock.AnythingOfType("string"),                          // message
 	).Return()
-	m.On("Event", mock.AnythingOfType("metrics.Event")).Return()
+	m.On("Event", mock.AnythingOfType("event.Event")).Return()
 	// The second argument should have been `mock.AnythingOfType("[]byte")` instead of `mock.AnythingOfType("[]uint8")`
 	// See https://github.com/stretchr/testify/issues/387
 	m.On("EventPlatformEvent", mock.AnythingOfType("[]uint8"), mock.AnythingOfType("string")).Return()
@@ -83,7 +100,7 @@ func (m *MockSender) SetupAcceptAll() {
 		mock.AnythingOfType("[]string"), // tags
 		mock.AnythingOfType("bool"),     // FlushFirstValue
 	).Return()
-	m.On("GetSenderStats", mock.AnythingOfType("check.SenderStats")).Return()
+	m.On("GetSenderStats", mock.AnythingOfType("stats.SenderStats")).Return()
 	m.On("DisableDefaultHostname", mock.AnythingOfType("bool")).Return()
 	m.On("SetCheckCustomTags", mock.AnythingOfType("[]string")).Return()
 	m.On("SetCheckService", mock.AnythingOfType("string")).Return()

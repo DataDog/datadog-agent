@@ -5,6 +5,7 @@
 
 //go:build functionaltests
 
+// Package tests holds tests related files
 package tests
 
 import (
@@ -18,7 +19,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/ebpf/kernel"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
-	"github.com/DataDog/datadog-agent/pkg/security/security_profile/activity_tree"
+	activity_tree "github.com/DataDog/datadog-agent/pkg/security/security_profile/activity_tree"
 	activitydump "github.com/DataDog/datadog-agent/pkg/security/security_profile/dump"
 
 	"github.com/stretchr/testify/assert"
@@ -108,7 +109,6 @@ func TestActivityDumps(t *testing.T) {
 			if node.Process.Pid < node.Process.PPid {
 				t.Errorf("PID < PPID")
 			}
-			assert.Equal(t, false, node.Process.IsThread)
 			assert.Equal(t, uint64(0), node.Process.SpanID)
 			assert.Equal(t, uint64(0), node.Process.TraceID)
 			assert.Equal(t, "", node.Process.TTYName)

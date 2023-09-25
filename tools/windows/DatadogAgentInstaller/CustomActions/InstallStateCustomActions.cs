@@ -199,5 +199,45 @@ namespace Datadog.CustomActions
         {
             return new InstallStateCustomActions(new SessionWrapper(session)).WriteInstallState();
         }
+
+
+        /// <summary>
+        /// Uninstall CA that removes the changes from the WriteInstallState CA
+        /// </summary>
+        /// <remarks>
+        /// If these registry values are not removed then MSI won't remove the key.
+        /// </remarks>
+        public ActionResult UninstallWriteInstallState()
+        {
+            try
+            {
+                using var subkey =
+                    _registryServices.OpenRegistryKey(Registries.LocalMachine, Constants.DatadogAgentRegistryKey,
+                        writable: true);
+                if (subkey == null)
+                {
+                    // registry key does not exist, nothing to do
+                    _session.Log(
+                        $"Registry key HKLM\\{Constants.DatadogAgentRegistryKey} does not exist, there are no values to remove.");
+                    return ActionResult.Success;
+                }
+
+                subkey.DeleteValue("installedDomain");
+                subkey.DeleteValue("installedUser");
+            }
+            catch (Exception e)
+            {
+                _session.Log($"Error removing registry properties: {e}");
+                return ActionResult.Failure;
+            }
+
+            return ActionResult.Success;
+        }
+
+        [CustomAction]
+        public static ActionResult UninstallWriteInstallState(Session session)
+        {
+            return new InstallStateCustomActions(new SessionWrapper(session)).UninstallWriteInstallState();
+        }
     }
 }

@@ -7,17 +7,19 @@ if not exist c:\mnt\ goto nomntdir
 
 if NOT DEFINED PY_RUNTIMES set PY_RUNTIMES=%~1
 
-call %~p0extract-modcache.bat
-call %~p0extract-tools-modcache.bat
 
-mkdir \dev\go\src\github.com\DataDog\datadog-agent
-if not exist \dev\go\src\github.com\DataDog\datadog-agent exit /b 2
-cd \dev\go\src\github.com\DataDog\datadog-agent || exit /b 3
+set BUILD_ROOT=c:\buildroot
+mkdir %BUILD_ROOT%\datadog-agent
+if not exist %BUILD_ROOT%\datadog-agent exit /b 2
+cd %BUILD_ROOT%\datadog-agent || exit /b 3
 xcopy /e/s/h/q c:\mnt\*.* || exit /b 4
 
+call %BUILD_ROOT%\datadog-agent\tasks\winbuildscripts\extract-modcache.bat %BUILD_ROOT%\datadog-agent modcache
+call %BUILD_ROOT%\datadog-agent\tasks\winbuildscripts\extract-modcache.bat %BUILD_ROOT%\datadog-agent modcache_tools
 
-Powershell -C "c:\mnt\tasks\winbuildscripts\sysprobe.ps1" || exit /b 5
+
+Powershell -C "%BUILD_ROOT%\datadog-agent\tasks\winbuildscripts\sysprobe.ps1" || exit /b 5
 
 REM copy resulting packages to expected location for collection by gitlab.
 if not exist c:\mnt\test\kitchen\site-cookbooks\dd-system-probe-check\files\default\tests\ mkdir c:\mnt\test\kitchen\site-cookbooks\dd-system-probe-check\files\default\tests\ || exit /b 6
-xcopy /e/s/q \dev\go\src\github.com\DataDog\datadog-agent\test\kitchen\site-cookbooks\dd-system-probe-check\files\default\tests\*.* c:\mnt\test\kitchen\site-cookbooks\dd-system-probe-check\files\default\tests\ || exit /b 7
+xcopy /e/s/q %BUILD_ROOT%\datadog-agent\test\kitchen\site-cookbooks\dd-system-probe-check\files\default\tests\*.* c:\mnt\test\kitchen\site-cookbooks\dd-system-probe-check\files\default\tests\ || exit /b 7

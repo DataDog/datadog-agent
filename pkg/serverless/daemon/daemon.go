@@ -11,8 +11,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/logs"
-	logConfig "github.com/DataDog/datadog-agent/pkg/logs/config"
+	logsAgent "github.com/DataDog/datadog-agent/comp/logs/agent"
+	logConfig "github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	"github.com/DataDog/datadog-agent/pkg/serverless/executioncontext"
 	"github.com/DataDog/datadog-agent/pkg/serverless/flush"
 	"github.com/DataDog/datadog-agent/pkg/serverless/invocationlifecycle"
@@ -27,7 +27,7 @@ import (
 // ShutdownDelay is the amount of time we wait before shutting down the HTTP server
 // after we receive a Shutdown event. This allows time for the final log messages
 // to arrive from the Logs API.
-var ShutdownDelay time.Duration = 1 * time.Second
+var ShutdownDelay = 200 * time.Millisecond
 
 // FlushTimeout is the amount of time to wait for a flush to complete.
 const FlushTimeout time.Duration = 5 * time.Second
@@ -38,6 +38,8 @@ type Daemon struct {
 	mux        *http.ServeMux
 
 	MetricAgent *metrics.ServerlessMetricAgent
+
+	LogsAgent logsAgent.ServerlessLogsAgent
 
 	TraceAgent *trace.ServerlessTraceAgent
 
@@ -196,6 +198,11 @@ func (d *Daemon) SetStatsdServer(metricAgent *metrics.ServerlessMetricAgent) {
 	d.MetricAgent.SetExtraTags(d.ExtraTags.Tags)
 }
 
+// SetLogsAgent sets the logs agent instance running when it is ready.
+func (d *Daemon) SetLogsAgent(logsAgent logsAgent.ServerlessLogsAgent) {
+	d.LogsAgent = logsAgent
+}
+
 // SetTraceAgent sets the Agent instance for submitting traces
 func (d *Daemon) SetTraceAgent(traceAgent *trace.ServerlessTraceAgent) {
 	d.TraceAgent = traceAgent
@@ -240,7 +247,7 @@ func (d *Daemon) TriggerFlush(isLastFlushBeforeShutdown bool) {
 
 	timedOut := waitWithTimeout(&wg, FlushTimeout)
 	if timedOut {
-		log.Debug("Timed out while flushing, flush may be continued on next invocation")
+		log.Debug("Timed out while flushing")
 	} else {
 		log.Debug("Finished flushing")
 	}
@@ -285,7 +292,9 @@ func (d *Daemon) flushLogs(ctx context.Context, wg *sync.WaitGroup) {
 	d.logsFlushMutex.Lock()
 	flushStartTime := time.Now().Unix()
 	log.Debugf("Beginning logs flush at time %d", flushStartTime)
-	logs.Flush(ctx)
+	if d.LogsAgent != nil {
+		d.LogsAgent.Flush(ctx)
+	}
 	log.Debugf("Finished logs flush that was started at time %d", flushStartTime)
 	wg.Done()
 	d.logsFlushMutex.Unlock()
@@ -339,7 +348,9 @@ func (d *Daemon) Stop() {
 		d.OTLPAgent.Stop()
 	}
 
-	logs.Stop()
+	if d.LogsAgent != nil {
+		d.LogsAgent.Stop()
+	}
 	log.Debug("Serverless agent shutdown complete")
 }
 
@@ -390,6 +401,7 @@ func (d *Daemon) ComputeGlobalTags(configTags []string) {
 	if len(d.ExtraTags.Tags) == 0 {
 		ecs := d.ExecutionContext.GetCurrentState()
 		tagMap := tags.BuildTagMap(ecs.ARN, configTags)
+		d.ExecutionContext.UpdateRuntime(tagMap[tags.RuntimeKey])
 		tagArray := tags.BuildTagsFromMap(tagMap)
 		if d.MetricAgent != nil {
 			d.MetricAgent.SetExtraTags(tagArray)

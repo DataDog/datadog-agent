@@ -33,51 +33,6 @@
           "property_doc_link": "event-timestamp-doc"
         },
         {
-          "name": "network.destination.ip",
-          "definition": "IP address",
-          "property_doc_link": "common-ipportcontext-ip-doc"
-        },
-        {
-          "name": "network.destination.port",
-          "definition": "Port number",
-          "property_doc_link": "common-ipportcontext-port-doc"
-        },
-        {
-          "name": "network.device.ifindex",
-          "definition": "interface ifindex",
-          "property_doc_link": "network-device-ifindex-doc"
-        },
-        {
-          "name": "network.device.ifname",
-          "definition": "interface ifname",
-          "property_doc_link": "network-device-ifname-doc"
-        },
-        {
-          "name": "network.l3_protocol",
-          "definition": "l3 protocol of the network packet",
-          "property_doc_link": "network-l3_protocol-doc"
-        },
-        {
-          "name": "network.l4_protocol",
-          "definition": "l4 protocol of the network packet",
-          "property_doc_link": "network-l4_protocol-doc"
-        },
-        {
-          "name": "network.size",
-          "definition": "size in bytes of the network packet",
-          "property_doc_link": "network-size-doc"
-        },
-        {
-          "name": "network.source.ip",
-          "definition": "IP address",
-          "property_doc_link": "common-ipportcontext-ip-doc"
-        },
-        {
-          "name": "network.source.port",
-          "definition": "Port number",
-          "property_doc_link": "common-ipportcontext-port-doc"
-        },
-        {
           "name": "process.ancestors.args",
           "definition": "Arguments of the process (as a string, excluding argv0)",
           "property_doc_link": "common-process-args-doc"
@@ -169,7 +124,7 @@
         },
         {
           "name": "process.ancestors.file.change_time",
-          "definition": "Change time of the file",
+          "definition": "Change time (ctime) of the file",
           "property_doc_link": "common-filefields-change_time-doc"
         },
         {
@@ -188,6 +143,11 @@
           "property_doc_link": "common-filefields-group-doc"
         },
         {
+          "name": "process.ancestors.file.hashes",
+          "definition": "[Experimental] List of cryptographic hashes computed for this file",
+          "property_doc_link": "common-fileevent-hashes-doc"
+        },
+        {
           "name": "process.ancestors.file.in_upper_layer",
           "definition": "Indicator of the file layer, for example, in an OverlayFS",
           "property_doc_link": "common-filefields-in_upper_layer-doc"
@@ -204,7 +164,7 @@
         },
         {
           "name": "process.ancestors.file.modification_time",
-          "definition": "Modification time of the file",
+          "definition": "Modification time (mtime) of the file",
           "property_doc_link": "common-filefields-modification_time-doc"
         },
         {
@@ -294,7 +254,7 @@
         },
         {
           "name": "process.ancestors.interpreter.file.change_time",
-          "definition": "Change time of the file",
+          "definition": "Change time (ctime) of the file",
           "property_doc_link": "common-filefields-change_time-doc"
         },
         {
@@ -313,6 +273,11 @@
           "property_doc_link": "common-filefields-group-doc"
         },
         {
+          "name": "process.ancestors.interpreter.file.hashes",
+          "definition": "[Experimental] List of cryptographic hashes computed for this file",
+          "property_doc_link": "common-fileevent-hashes-doc"
+        },
+        {
           "name": "process.ancestors.interpreter.file.in_upper_layer",
           "definition": "Indicator of the file layer, for example, in an OverlayFS",
           "property_doc_link": "common-filefields-in_upper_layer-doc"
@@ -329,7 +294,7 @@
         },
         {
           "name": "process.ancestors.interpreter.file.modification_time",
-          "definition": "Modification time of the file",
+          "definition": "Modification time (mtime) of the file",
           "property_doc_link": "common-filefields-modification_time-doc"
         },
         {
@@ -519,7 +484,7 @@
         },
         {
           "name": "process.file.change_time",
-          "definition": "Change time of the file",
+          "definition": "Change time (ctime) of the file",
           "property_doc_link": "common-filefields-change_time-doc"
         },
         {
@@ -538,6 +503,11 @@
           "property_doc_link": "common-filefields-group-doc"
         },
         {
+          "name": "process.file.hashes",
+          "definition": "[Experimental] List of cryptographic hashes computed for this file",
+          "property_doc_link": "common-fileevent-hashes-doc"
+        },
+        {
           "name": "process.file.in_upper_layer",
           "definition": "Indicator of the file layer, for example, in an OverlayFS",
           "property_doc_link": "common-filefields-in_upper_layer-doc"
@@ -554,7 +524,7 @@
         },
         {
           "name": "process.file.modification_time",
-          "definition": "Modification time of the file",
+          "definition": "Modification time (mtime) of the file",
           "property_doc_link": "common-filefields-modification_time-doc"
         },
         {
@@ -644,7 +614,7 @@
         },
         {
           "name": "process.interpreter.file.change_time",
-          "definition": "Change time of the file",
+          "definition": "Change time (ctime) of the file",
           "property_doc_link": "common-filefields-change_time-doc"
         },
         {
@@ -663,6 +633,11 @@
           "property_doc_link": "common-filefields-group-doc"
         },
         {
+          "name": "process.interpreter.file.hashes",
+          "definition": "[Experimental] List of cryptographic hashes computed for this file",
+          "property_doc_link": "common-fileevent-hashes-doc"
+        },
+        {
           "name": "process.interpreter.file.in_upper_layer",
           "definition": "Indicator of the file layer, for example, in an OverlayFS",
           "property_doc_link": "common-filefields-in_upper_layer-doc"
@@ -679,7 +654,7 @@
         },
         {
           "name": "process.interpreter.file.modification_time",
-          "definition": "Modification time of the file",
+          "definition": "Modification time (mtime) of the file",
           "property_doc_link": "common-filefields-modification_time-doc"
         },
         {
@@ -839,7 +814,7 @@
         },
         {
           "name": "process.parent.file.change_time",
-          "definition": "Change time of the file",
+          "definition": "Change time (ctime) of the file",
           "property_doc_link": "common-filefields-change_time-doc"
         },
         {
@@ -858,6 +833,11 @@
           "property_doc_link": "common-filefields-group-doc"
         },
         {
+          "name": "process.parent.file.hashes",
+          "definition": "[Experimental] List of cryptographic hashes computed for this file",
+          "property_doc_link": "common-fileevent-hashes-doc"
+        },
+        {
           "name": "process.parent.file.in_upper_layer",
           "definition": "Indicator of the file layer, for example, in an OverlayFS",
           "property_doc_link": "common-filefields-in_upper_layer-doc"
@@ -874,7 +854,7 @@
         },
         {
           "name": "process.parent.file.modification_time",
-          "definition": "Modification time of the file",
+          "definition": "Modification time (mtime) of the file",
           "property_doc_link": "common-filefields-modification_time-doc"
         },
         {
@@ -964,7 +944,7 @@
         },
         {
           "name": "process.parent.interpreter.file.change_time",
-          "definition": "Change time of the file",
+          "definition": "Change time (ctime) of the file",
           "property_doc_link": "common-filefields-change_time-doc"
         },
         {
@@ -983,6 +963,11 @@
           "property_doc_link": "common-filefields-group-doc"
         },
         {
+          "name": "process.parent.interpreter.file.hashes",
+          "definition": "[Experimental] List of cryptographic hashes computed for this file",
+          "property_doc_link": "common-fileevent-hashes-doc"
+        },
+        {
           "name": "process.parent.interpreter.file.in_upper_layer",
           "definition": "Indicator of the file layer, for example, in an OverlayFS",
           "property_doc_link": "common-filefields-in_upper_layer-doc"
@@ -999,7 +984,7 @@
         },
         {
           "name": "process.parent.interpreter.file.modification_time",
-          "definition": "Modification time of the file",
+          "definition": "Modification time (mtime) of the file",
           "property_doc_link": "common-filefields-modification_time-doc"
         },
         {
@@ -1134,7 +1119,7 @@
       "definition": "A bind was executed",
       "type": "Network",
       "from_agent_version": "7.37",
-      "experimental": true,
+      "experimental": false,
       "properties": [
         {
           "name": "bind.addr.family",
@@ -1240,7 +1225,7 @@
       "properties": [
         {
           "name": "chmod.file.change_time",
-          "definition": "Change time of the file",
+          "definition": "Change time (ctime) of the file",
           "property_doc_link": "common-filefields-change_time-doc"
         },
         {
@@ -1269,6 +1254,11 @@
           "property_doc_link": "common-filefields-group-doc"
         },
         {
+          "name": "chmod.file.hashes",
+          "definition": "[Experimental] List of cryptographic hashes computed for this file",
+          "property_doc_link": "common-fileevent-hashes-doc"
+        },
+        {
           "name": "chmod.file.in_upper_layer",
           "definition": "Indicator of the file layer, for example, in an OverlayFS",
           "property_doc_link": "common-filefields-in_upper_layer-doc"
@@ -1285,7 +1275,7 @@
         },
         {
           "name": "chmod.file.modification_time",
-          "definition": "Modification time of the file",
+          "definition": "Modification time (mtime) of the file",
           "property_doc_link": "common-filefields-modification_time-doc"
         },
         {
@@ -1359,7 +1349,7 @@
       "properties": [
         {
           "name": "chown.file.change_time",
-          "definition": "Change time of the file",
+          "definition": "Change time (ctime) of the file",
           "property_doc_link": "common-filefields-change_time-doc"
         },
         {
@@ -1398,6 +1388,11 @@
           "property_doc_link": "common-filefields-group-doc"
         },
         {
+          "name": "chown.file.hashes",
+          "definition": "[Experimental] List of cryptographic hashes computed for this file",
+          "property_doc_link": "common-fileevent-hashes-doc"
+        },
+        {
           "name": "chown.file.in_upper_layer",
           "definition": "Indicator of the file layer, for example, in an OverlayFS",
           "property_doc_link": "common-filefields-in_upper_layer-doc"
@@ -1414,7 +1409,7 @@
         },
         {
           "name": "chown.file.modification_time",
-          "definition": "Modification time of the file",
+          "definition": "Modification time (mtime) of the file",
           "property_doc_link": "common-filefields-modification_time-doc"
         },
         {
@@ -1520,6 +1515,51 @@
           "name": "dns.question.type",
           "definition": "a two octet code which specifies the DNS question type",
           "property_doc_link": "dns-question-type-doc"
+        },
+        {
+          "name": "network.destination.ip",
+          "definition": "IP address",
+          "property_doc_link": "common-ipportcontext-ip-doc"
+        },
+        {
+          "name": "network.destination.port",
+          "definition": "Port number",
+          "property_doc_link": "common-ipportcontext-port-doc"
+        },
+        {
+          "name": "network.device.ifindex",
+          "definition": "interface ifindex",
+          "property_doc_link": "network-device-ifindex-doc"
+        },
+        {
+          "name": "network.device.ifname",
+          "definition": "interface ifname",
+          "property_doc_link": "network-device-ifname-doc"
+        },
+        {
+          "name": "network.l3_protocol",
+          "definition": "l3 protocol of the network packet",
+          "property_doc_link": "network-l3_protocol-doc"
+        },
+        {
+          "name": "network.l4_protocol",
+          "definition": "l4 protocol of the network packet",
+          "property_doc_link": "network-l4_protocol-doc"
+        },
+        {
+          "name": "network.size",
+          "definition": "size in bytes of the network packet",
+          "property_doc_link": "network-size-doc"
+        },
+        {
+          "name": "network.source.ip",
+          "definition": "IP address",
+          "property_doc_link": "common-ipportcontext-ip-doc"
+        },
+        {
+          "name": "network.source.port",
+          "definition": "Port number",
+          "property_doc_link": "common-ipportcontext-port-doc"
         }
       ]
     },
@@ -1622,7 +1662,7 @@
         },
         {
           "name": "exec.file.change_time",
-          "definition": "Change time of the file",
+          "definition": "Change time (ctime) of the file",
           "property_doc_link": "common-filefields-change_time-doc"
         },
         {
@@ -1641,6 +1681,11 @@
           "property_doc_link": "common-filefields-group-doc"
         },
         {
+          "name": "exec.file.hashes",
+          "definition": "[Experimental] List of cryptographic hashes computed for this file",
+          "property_doc_link": "common-fileevent-hashes-doc"
+        },
+        {
           "name": "exec.file.in_upper_layer",
           "definition": "Indicator of the file layer, for example, in an OverlayFS",
           "property_doc_link": "common-filefields-in_upper_layer-doc"
@@ -1657,7 +1702,7 @@
         },
         {
           "name": "exec.file.modification_time",
-          "definition": "Modification time of the file",
+          "definition": "Modification time (mtime) of the file",
           "property_doc_link": "common-filefields-modification_time-doc"
         },
         {
@@ -1747,7 +1792,7 @@
         },
         {
           "name": "exec.interpreter.file.change_time",
-          "definition": "Change time of the file",
+          "definition": "Change time (ctime) of the file",
           "property_doc_link": "common-filefields-change_time-doc"
         },
         {
@@ -1766,6 +1811,11 @@
           "property_doc_link": "common-filefields-group-doc"
         },
         {
+          "name": "exec.interpreter.file.hashes",
+          "definition": "[Experimental] List of cryptographic hashes computed for this file",
+          "property_doc_link": "common-fileevent-hashes-doc"
+        },
+        {
           "name": "exec.interpreter.file.in_upper_layer",
           "definition": "Indicator of the file layer, for example, in an OverlayFS",
           "property_doc_link": "common-filefields-in_upper_layer-doc"
@@ -1782,7 +1832,7 @@
         },
         {
           "name": "exec.interpreter.file.modification_time",
-          "definition": "Modification time of the file",
+          "definition": "Modification time (mtime) of the file",
           "property_doc_link": "common-filefields-modification_time-doc"
         },
         {
@@ -1991,7 +2041,7 @@
         },
         {
           "name": "exit.file.change_time",
-          "definition": "Change time of the file",
+          "definition": "Change time (ctime) of the file",
           "property_doc_link": "common-filefields-change_time-doc"
         },
         {
@@ -2010,6 +2060,11 @@
           "property_doc_link": "common-filefields-group-doc"
         },
         {
+          "name": "exit.file.hashes",
+          "definition": "[Experimental] List of cryptographic hashes computed for this file",
+          "property_doc_link": "common-fileevent-hashes-doc"
+        },
+        {
           "name": "exit.file.in_upper_layer",
           "definition": "Indicator of the file layer, for example, in an OverlayFS",
           "property_doc_link": "common-filefields-in_upper_layer-doc"
@@ -2026,7 +2081,7 @@
         },
         {
           "name": "exit.file.modification_time",
-          "definition": "Modification time of the file",
+          "definition": "Modification time (mtime) of the file",
           "property_doc_link": "common-filefields-modification_time-doc"
         },
         {
@@ -2116,7 +2171,7 @@
         },
         {
           "name": "exit.interpreter.file.change_time",
-          "definition": "Change time of the file",
+          "definition": "Change time (ctime) of the file",
           "property_doc_link": "common-filefields-change_time-doc"
         },
         {
@@ -2135,6 +2190,11 @@
           "property_doc_link": "common-filefields-group-doc"
         },
         {
+          "name": "exit.interpreter.file.hashes",
+          "definition": "[Experimental] List of cryptographic hashes computed for this file",
+          "property_doc_link": "common-fileevent-hashes-doc"
+        },
+        {
           "name": "exit.interpreter.file.in_upper_layer",
           "definition": "Indicator of the file layer, for example, in an OverlayFS",
           "property_doc_link": "common-filefields-in_upper_layer-doc"
@@ -2151,7 +2211,7 @@
         },
         {
           "name": "exit.interpreter.file.modification_time",
-          "definition": "Modification time of the file",
+          "definition": "Modification time (mtime) of the file",
           "property_doc_link": "common-filefields-modification_time-doc"
         },
         {
@@ -2260,12 +2320,12 @@
       "properties": [
         {
           "name": "link.file.change_time",
-          "definition": "Change time of the file",
+          "definition": "Change time (ctime) of the file",
           "property_doc_link": "common-filefields-change_time-doc"
         },
         {
           "name": "link.file.destination.change_time",
-          "definition": "Change time of the file",
+          "definition": "Change time (ctime) of the file",
           "property_doc_link": "common-filefields-change_time-doc"
         },
         {
@@ -2284,6 +2344,11 @@
           "property_doc_link": "common-filefields-group-doc"
         },
         {
+          "name": "link.file.destination.hashes",
+          "definition": "[Experimental] List of cryptographic hashes computed for this file",
+          "property_doc_link": "common-fileevent-hashes-doc"
+        },
+        {
           "name": "link.file.destination.in_upper_layer",
           "definition": "Indicator of the file layer, for example, in an OverlayFS",
           "property_doc_link": "common-filefields-in_upper_layer-doc"
@@ -2300,7 +2365,7 @@
         },
         {
           "name": "link.file.destination.modification_time",
-          "definition": "Modification time of the file",
+          "definition": "Modification time (mtime) of the file",
           "property_doc_link": "common-filefields-modification_time-doc"
         },
         {
@@ -2374,6 +2439,11 @@
           "property_doc_link": "common-filefields-group-doc"
         },
         {
+          "name": "link.file.hashes",
+          "definition": "[Experimental] List of cryptographic hashes computed for this file",
+          "property_doc_link": "common-fileevent-hashes-doc"
+        },
+        {
           "name": "link.file.in_upper_layer",
           "definition": "Indicator of the file layer, for example, in an OverlayFS",
           "property_doc_link": "common-filefields-in_upper_layer-doc"
@@ -2390,7 +2460,7 @@
         },
         {
           "name": "link.file.modification_time",
-          "definition": "Modification time of the file",
+          "definition": "Modification time (mtime) of the file",
           "property_doc_link": "common-filefields-modification_time-doc"
         },
         {
@@ -2479,7 +2549,7 @@
         },
         {
           "name": "load_module.file.change_time",
-          "definition": "Change time of the file",
+          "definition": "Change time (ctime) of the file",
           "property_doc_link": "common-filefields-change_time-doc"
         },
         {
@@ -2498,6 +2568,11 @@
           "property_doc_link": "common-filefields-group-doc"
         },
         {
+          "name": "load_module.file.hashes",
+          "definition": "[Experimental] List of cryptographic hashes computed for this file",
+          "property_doc_link": "common-fileevent-hashes-doc"
+        },
+        {
           "name": "load_module.file.in_upper_layer",
           "definition": "Indicator of the file layer, for example, in an OverlayFS",
           "property_doc_link": "common-filefields-in_upper_layer-doc"
@@ -2514,7 +2589,7 @@
         },
         {
           "name": "load_module.file.modification_time",
-          "definition": "Modification time of the file",
+          "definition": "Modification time (mtime) of the file",
           "property_doc_link": "common-filefields-modification_time-doc"
         },
         {
@@ -2598,7 +2673,7 @@
       "properties": [
         {
           "name": "mkdir.file.change_time",
-          "definition": "Change time of the file",
+          "definition": "Change time (ctime) of the file",
           "property_doc_link": "common-filefields-change_time-doc"
         },
         {
@@ -2627,6 +2702,11 @@
           "property_doc_link": "common-filefields-group-doc"
         },
         {
+          "name": "mkdir.file.hashes",
+          "definition": "[Experimental] List of cryptographic hashes computed for this file",
+          "property_doc_link": "common-fileevent-hashes-doc"
+        },
+        {
           "name": "mkdir.file.in_upper_layer",
           "definition": "Indicator of the file layer, for example, in an OverlayFS",
           "property_doc_link": "common-filefields-in_upper_layer-doc"
@@ -2643,7 +2723,7 @@
         },
         {
           "name": "mkdir.file.modification_time",
-          "definition": "Modification time of the file",
+          "definition": "Modification time (mtime) of the file",
           "property_doc_link": "common-filefields-modification_time-doc"
         },
         {
@@ -2717,7 +2797,7 @@
       "properties": [
         {
           "name": "mmap.file.change_time",
-          "definition": "Change time of the file",
+          "definition": "Change time (ctime) of the file",
           "property_doc_link": "common-filefields-change_time-doc"
         },
         {
@@ -2736,6 +2816,11 @@
           "property_doc_link": "common-filefields-group-doc"
         },
         {
+          "name": "mmap.file.hashes",
+          "definition": "[Experimental] List of cryptographic hashes computed for this file",
+          "property_doc_link": "common-fileevent-hashes-doc"
+        },
+        {
           "name": "mmap.file.in_upper_layer",
           "definition": "Indicator of the file layer, for example, in an OverlayFS",
           "property_doc_link": "common-filefields-in_upper_layer-doc"
@@ -2752,7 +2837,7 @@
         },
         {
           "name": "mmap.file.modification_time",
-          "definition": "Modification time of the file",
+          "definition": "Modification time (mtime) of the file",
           "property_doc_link": "common-filefields-modification_time-doc"
         },
         {
@@ -2889,7 +2974,7 @@
       "properties": [
         {
           "name": "open.file.change_time",
-          "definition": "Change time of the file",
+          "definition": "Change time (ctime) of the file",
           "property_doc_link": "common-filefields-change_time-doc"
         },
         {
@@ -2913,6 +2998,11 @@
           "property_doc_link": "common-filefields-group-doc"
         },
         {
+          "name": "open.file.hashes",
+          "definition": "[Experimental] List of cryptographic hashes computed for this file",
+          "property_doc_link": "common-fileevent-hashes-doc"
+        },
+        {
           "name": "open.file.in_upper_layer",
           "definition": "Indicator of the file layer, for example, in an OverlayFS",
           "property_doc_link": "common-filefields-in_upper_layer-doc"
@@ -2929,7 +3019,7 @@
         },
         {
           "name": "open.file.modification_time",
-          "definition": "Modification time of the file",
+          "definition": "Modification time (mtime) of the file",
           "property_doc_link": "common-filefields-modification_time-doc"
         },
         {
@@ -3108,7 +3198,7 @@
         },
         {
           "name": "ptrace.tracee.ancestors.file.change_time",
-          "definition": "Change time of the file",
+          "definition": "Change time (ctime) of the file",
           "property_doc_link": "common-filefields-change_time-doc"
         },
         {
@@ -3127,6 +3217,11 @@
           "property_doc_link": "common-filefields-group-doc"
         },
         {
+          "name": "ptrace.tracee.ancestors.file.hashes",
+          "definition": "[Experimental] List of cryptographic hashes computed for this file",
+          "property_doc_link": "common-fileevent-hashes-doc"
+        },
+        {
           "name": "ptrace.tracee.ancestors.file.in_upper_layer",
           "definition": "Indicator of the file layer, for example, in an OverlayFS",
           "property_doc_link": "common-filefields-in_upper_layer-doc"
@@ -3143,7 +3238,7 @@
         },
         {
           "name": "ptrace.tracee.ancestors.file.modification_time",
-          "definition": "Modification time of the file",
+          "definition": "Modification time (mtime) of the file",
           "property_doc_link": "common-filefields-modification_time-doc"
         },
         {
@@ -3233,7 +3328,7 @@
         },
         {
           "name": "ptrace.tracee.ancestors.interpreter.file.change_time",
-          "definition": "Change time of the file",
+          "definition": "Change time (ctime) of the file",
           "property_doc_link": "common-filefields-change_time-doc"
         },
         {
@@ -3252,6 +3347,11 @@
           "property_doc_link": "common-filefields-group-doc"
         },
         {
+          "name": "ptrace.tracee.ancestors.interpreter.file.hashes",
+          "definition": "[Experimental] List of cryptographic hashes computed for this file",
+          "property_doc_link": "common-fileevent-hashes-doc"
+        },
+        {
           "name": "ptrace.tracee.ancestors.interpreter.file.in_upper_layer",
           "definition": "Indicator of the file layer, for example, in an OverlayFS",
           "property_doc_link": "common-filefields-in_upper_layer-doc"
@@ -3268,7 +3368,7 @@
         },
         {
           "name": "ptrace.tracee.ancestors.interpreter.file.modification_time",
-          "definition": "Modification time of the file",
+          "definition": "Modification time (mtime) of the file",
           "property_doc_link": "common-filefields-modification_time-doc"
         },
         {
@@ -3458,7 +3558,7 @@
         },
         {
           "name": "ptrace.tracee.file.change_time",
-          "definition": "Change time of the file",
+          "definition": "Change time (ctime) of the file",
           "property_doc_link": "common-filefields-change_time-doc"
         },
         {
@@ -3477,6 +3577,11 @@
           "property_doc_link": "common-filefields-group-doc"
         },
         {
+          "name": "ptrace.tracee.file.hashes",
+          "definition": "[Experimental] List of cryptographic hashes computed for this file",
+          "property_doc_link": "common-fileevent-hashes-doc"
+        },
+        {
           "name": "ptrace.tracee.file.in_upper_layer",
           "definition": "Indicator of the file layer, for example, in an OverlayFS",
           "property_doc_link": "common-filefields-in_upper_layer-doc"
@@ -3493,7 +3598,7 @@
         },
         {
           "name": "ptrace.tracee.file.modification_time",
-          "definition": "Modification time of the file",
+          "definition": "Modification time (mtime) of the file",
           "property_doc_link": "common-filefields-modification_time-doc"
         },
         {
@@ -3583,7 +3688,7 @@
         },
         {
           "name": "ptrace.tracee.interpreter.file.change_time",
-          "definition": "Change time of the file",
+          "definition": "Change time (ctime) of the file",
           "property_doc_link": "common-filefields-change_time-doc"
         },
         {
@@ -3602,6 +3707,11 @@
           "property_doc_link": "common-filefields-group-doc"
         },
         {
+          "name": "ptrace.tracee.interpreter.file.hashes",
+          "definition": "[Experimental] List of cryptographic hashes computed for this file",
+          "property_doc_link": "common-fileevent-hashes-doc"
+        },
+        {
           "name": "ptrace.tracee.interpreter.file.in_upper_layer",
           "definition": "Indicator of the file layer, for example, in an OverlayFS",
           "property_doc_link": "common-filefields-in_upper_layer-doc"
@@ -3618,7 +3728,7 @@
         },
         {
           "name": "ptrace.tracee.interpreter.file.modification_time",
-          "definition": "Modification time of the file",
+          "definition": "Modification time (mtime) of the file",
           "property_doc_link": "common-filefields-modification_time-doc"
         },
         {
@@ -3778,7 +3888,7 @@
         },
         {
           "name": "ptrace.tracee.parent.file.change_time",
-          "definition": "Change time of the file",
+          "definition": "Change time (ctime) of the file",
           "property_doc_link": "common-filefields-change_time-doc"
         },
         {
@@ -3797,6 +3907,11 @@
           "property_doc_link": "common-filefields-group-doc"
         },
         {
+          "name": "ptrace.tracee.parent.file.hashes",
+          "definition": "[Experimental] List of cryptographic hashes computed for this file",
+          "property_doc_link": "common-fileevent-hashes-doc"
+        },
+        {
           "name": "ptrace.tracee.parent.file.in_upper_layer",
           "definition": "Indicator of the file layer, for example, in an OverlayFS",
           "property_doc_link": "common-filefields-in_upper_layer-doc"
@@ -3813,7 +3928,7 @@
         },
         {
           "name": "ptrace.tracee.parent.file.modification_time",
-          "definition": "Modification time of the file",
+          "definition": "Modification time (mtime) of the file",
           "property_doc_link": "common-filefields-modification_time-doc"
         },
         {
@@ -3903,7 +4018,7 @@
         },
         {
           "name": "ptrace.tracee.parent.interpreter.file.change_time",
-          "definition": "Change time of the file",
+          "definition": "Change time (ctime) of the file",
           "property_doc_link": "common-filefields-change_time-doc"
         },
         {
@@ -3922,6 +4037,11 @@
           "property_doc_link": "common-filefields-group-doc"
         },
         {
+          "name": "ptrace.tracee.parent.interpreter.file.hashes",
+          "definition": "[Experimental] List of cryptographic hashes computed for this file",
+          "property_doc_link": "common-fileevent-hashes-doc"
+        },
+        {
           "name": "ptrace.tracee.parent.interpreter.file.in_upper_layer",
           "definition": "Indicator of the file layer, for example, in an OverlayFS",
           "property_doc_link": "common-filefields-in_upper_layer-doc"
@@ -3938,7 +4058,7 @@
         },
         {
           "name": "ptrace.tracee.parent.interpreter.file.modification_time",
-          "definition": "Modification time of the file",
+          "definition": "Modification time (mtime) of the file",
           "property_doc_link": "common-filefields-modification_time-doc"
         },
         {
@@ -4077,7 +4197,7 @@
       "properties": [
         {
           "name": "removexattr.file.change_time",
-          "definition": "Change time of the file",
+          "definition": "Change time (ctime) of the file",
           "property_doc_link": "common-filefields-change_time-doc"
         },
         {
@@ -4106,6 +4226,11 @@
           "property_doc_link": "common-filefields-group-doc"
         },
         {
+          "name": "removexattr.file.hashes",
+          "definition": "[Experimental] List of cryptographic hashes computed for this file",
+          "property_doc_link": "common-fileevent-hashes-doc"
+        },
+        {
           "name": "removexattr.file.in_upper_layer",
           "definition": "Indicator of the file layer, for example, in an OverlayFS",
           "property_doc_link": "common-filefields-in_upper_layer-doc"
@@ -4122,7 +4247,7 @@
         },
         {
           "name": "removexattr.file.modification_time",
-          "definition": "Modification time of the file",
+          "definition": "Modification time (mtime) of the file",
           "property_doc_link": "common-filefields-modification_time-doc"
         },
         {
@@ -4196,12 +4321,12 @@
       "properties": [
         {
           "name": "rename.file.change_time",
-          "definition": "Change time of the file",
+          "definition": "Change time (ctime) of the file",
           "property_doc_link": "common-filefields-change_time-doc"
         },
         {
           "name": "rename.file.destination.change_time",
-          "definition": "Change time of the file",
+          "definition": "Change time (ctime) of the file",
           "property_doc_link": "common-filefields-change_time-doc"
         },
         {
@@ -4220,6 +4345,11 @@
           "property_doc_link": "common-filefields-group-doc"
         },
         {
+          "name": "rename.file.destination.hashes",
+          "definition": "[Experimental] List of cryptographic hashes computed for this file",
+          "property_doc_link": "common-fileevent-hashes-doc"
+        },
+        {
           "name": "rename.file.destination.in_upper_layer",
           "definition": "Indicator of the file layer, for example, in an OverlayFS",
           "property_doc_link": "common-filefields-in_upper_layer-doc"
@@ -4236,7 +4366,7 @@
         },
         {
           "name": "rename.file.destination.modification_time",
-          "definition": "Modification time of the file",
+          "definition": "Modification time (mtime) of the file",
           "property_doc_link": "common-filefields-modification_time-doc"
         },
         {
@@ -4310,6 +4440,11 @@
           "property_doc_link": "common-filefields-group-doc"
         },
         {
+          "name": "rename.file.hashes",
+          "definition": "[Experimental] List of cryptographic hashes computed for this file",
+          "property_doc_link": "common-fileevent-hashes-doc"
+        },
+        {
           "name": "rename.file.in_upper_layer",
           "definition": "Indicator of the file layer, for example, in an OverlayFS",
           "property_doc_link": "common-filefields-in_upper_layer-doc"
@@ -4326,7 +4461,7 @@
         },
         {
           "name": "rename.file.modification_time",
-          "definition": "Modification time of the file",
+          "definition": "Modification time (mtime) of the file",
           "property_doc_link": "common-filefields-modification_time-doc"
         },
         {
@@ -4400,7 +4535,7 @@
       "properties": [
         {
           "name": "rmdir.file.change_time",
-          "definition": "Change time of the file",
+          "definition": "Change time (ctime) of the file",
           "property_doc_link": "common-filefields-change_time-doc"
         },
         {
@@ -4419,6 +4554,11 @@
           "property_doc_link": "common-filefields-group-doc"
         },
         {
+          "name": "rmdir.file.hashes",
+          "definition": "[Experimental] List of cryptographic hashes computed for this file",
+          "property_doc_link": "common-fileevent-hashes-doc"
+        },
+        {
           "name": "rmdir.file.in_upper_layer",
           "definition": "Indicator of the file layer, for example, in an OverlayFS",
           "property_doc_link": "common-filefields-in_upper_layer-doc"
@@ -4435,7 +4575,7 @@
         },
         {
           "name": "rmdir.file.modification_time",
-          "definition": "Modification time of the file",
+          "definition": "Modification time (mtime) of the file",
           "property_doc_link": "common-filefields-modification_time-doc"
         },
         {
@@ -4616,7 +4756,7 @@
       "properties": [
         {
           "name": "setxattr.file.change_time",
-          "definition": "Change time of the file",
+          "definition": "Change time (ctime) of the file",
           "property_doc_link": "common-filefields-change_time-doc"
         },
         {
@@ -4645,6 +4785,11 @@
           "property_doc_link": "common-filefields-group-doc"
         },
         {
+          "name": "setxattr.file.hashes",
+          "definition": "[Experimental] List of cryptographic hashes computed for this file",
+          "property_doc_link": "common-fileevent-hashes-doc"
+        },
+        {
           "name": "setxattr.file.in_upper_layer",
           "definition": "Indicator of the file layer, for example, in an OverlayFS",
           "property_doc_link": "common-filefields-in_upper_layer-doc"
@@ -4661,7 +4806,7 @@
         },
         {
           "name": "setxattr.file.modification_time",
-          "definition": "Modification time of the file",
+          "definition": "Modification time (mtime) of the file",
           "property_doc_link": "common-filefields-modification_time-doc"
         },
         {
@@ -4835,7 +4980,7 @@
         },
         {
           "name": "signal.target.ancestors.file.change_time",
-          "definition": "Change time of the file",
+          "definition": "Change time (ctime) of the file",
           "property_doc_link": "common-filefields-change_time-doc"
         },
         {
@@ -4854,6 +4999,11 @@
           "property_doc_link": "common-filefields-group-doc"
         },
         {
+          "name": "signal.target.ancestors.file.hashes",
+          "definition": "[Experimental] List of cryptographic hashes computed for this file",
+          "property_doc_link": "common-fileevent-hashes-doc"
+        },
+        {
           "name": "signal.target.ancestors.file.in_upper_layer",
           "definition": "Indicator of the file layer, for example, in an OverlayFS",
           "property_doc_link": "common-filefields-in_upper_layer-doc"
@@ -4870,7 +5020,7 @@
         },
         {
           "name": "signal.target.ancestors.file.modification_time",
-          "definition": "Modification time of the file",
+          "definition": "Modification time (mtime) of the file",
           "property_doc_link": "common-filefields-modification_time-doc"
         },
         {
@@ -4960,7 +5110,7 @@
         },
         {
           "name": "signal.target.ancestors.interpreter.file.change_time",
-          "definition": "Change time of the file",
+          "definition": "Change time (ctime) of the file",
           "property_doc_link": "common-filefields-change_time-doc"
         },
         {
@@ -4979,6 +5129,11 @@
           "property_doc_link": "common-filefields-group-doc"
         },
         {
+          "name": "signal.target.ancestors.interpreter.file.hashes",
+          "definition": "[Experimental] List of cryptographic hashes computed for this file",
+          "property_doc_link": "common-fileevent-hashes-doc"
+        },
+        {
           "name": "signal.target.ancestors.interpreter.file.in_upper_layer",
           "definition": "Indicator of the file layer, for example, in an OverlayFS",
           "property_doc_link": "common-filefields-in_upper_layer-doc"
@@ -4995,7 +5150,7 @@
         },
         {
           "name": "signal.target.ancestors.interpreter.file.modification_time",
-          "definition": "Modification time of the file",
+          "definition": "Modification time (mtime) of the file",
           "property_doc_link": "common-filefields-modification_time-doc"
         },
         {
@@ -5185,7 +5340,7 @@
         },
         {
           "name": "signal.target.file.change_time",
-          "definition": "Change time of the file",
+          "definition": "Change time (ctime) of the file",
           "property_doc_link": "common-filefields-change_time-doc"
         },
         {
@@ -5204,6 +5359,11 @@
           "property_doc_link": "common-filefields-group-doc"
         },
         {
+          "name": "signal.target.file.hashes",
+          "definition": "[Experimental] List of cryptographic hashes computed for this file",
+          "property_doc_link": "common-fileevent-hashes-doc"
+        },
+        {
           "name": "signal.target.file.in_upper_layer",
           "definition": "Indicator of the file layer, for example, in an OverlayFS",
           "property_doc_link": "common-filefields-in_upper_layer-doc"
@@ -5220,7 +5380,7 @@
         },
         {
           "name": "signal.target.file.modification_time",
-          "definition": "Modification time of the file",
+          "definition": "Modification time (mtime) of the file",
           "property_doc_link": "common-filefields-modification_time-doc"
         },
         {
@@ -5310,7 +5470,7 @@
         },
         {
           "name": "signal.target.interpreter.file.change_time",
-          "definition": "Change time of the file",
+          "definition": "Change time (ctime) of the file",
           "property_doc_link": "common-filefields-change_time-doc"
         },
         {
@@ -5329,6 +5489,11 @@
           "property_doc_link": "common-filefields-group-doc"
         },
         {
+          "name": "signal.target.interpreter.file.hashes",
+          "definition": "[Experimental] List of cryptographic hashes computed for this file",
+          "property_doc_link": "common-fileevent-hashes-doc"
+        },
+        {
           "name": "signal.target.interpreter.file.in_upper_layer",
           "definition": "Indicator of the file layer, for example, in an OverlayFS",
           "property_doc_link": "common-filefields-in_upper_layer-doc"
@@ -5345,7 +5510,7 @@
         },
         {
           "name": "signal.target.interpreter.file.modification_time",
-          "definition": "Modification time of the file",
+          "definition": "Modification time (mtime) of the file",
           "property_doc_link": "common-filefields-modification_time-doc"
         },
         {
@@ -5505,7 +5670,7 @@
         },
         {
           "name": "signal.target.parent.file.change_time",
-          "definition": "Change time of the file",
+          "definition": "Change time (ctime) of the file",
           "property_doc_link": "common-filefields-change_time-doc"
         },
         {
@@ -5524,6 +5689,11 @@
           "property_doc_link": "common-filefields-group-doc"
         },
         {
+          "name": "signal.target.parent.file.hashes",
+          "definition": "[Experimental] List of cryptographic hashes computed for this file",
+          "property_doc_link": "common-fileevent-hashes-doc"
+        },
+        {
           "name": "signal.target.parent.file.in_upper_layer",
           "definition": "Indicator of the file layer, for example, in an OverlayFS",
           "property_doc_link": "common-filefields-in_upper_layer-doc"
@@ -5540,7 +5710,7 @@
         },
         {
           "name": "signal.target.parent.file.modification_time",
-          "definition": "Modification time of the file",
+          "definition": "Modification time (mtime) of the file",
           "property_doc_link": "common-filefields-modification_time-doc"
         },
         {
@@ -5630,7 +5800,7 @@
         },
         {
           "name": "signal.target.parent.interpreter.file.change_time",
-          "definition": "Change time of the file",
+          "definition": "Change time (ctime) of the file",
           "property_doc_link": "common-filefields-change_time-doc"
         },
         {
@@ -5649,6 +5819,11 @@
           "property_doc_link": "common-filefields-group-doc"
         },
         {
+          "name": "signal.target.parent.interpreter.file.hashes",
+          "definition": "[Experimental] List of cryptographic hashes computed for this file",
+          "property_doc_link": "common-fileevent-hashes-doc"
+        },
+        {
           "name": "signal.target.parent.interpreter.file.in_upper_layer",
           "definition": "Indicator of the file layer, for example, in an OverlayFS",
           "property_doc_link": "common-filefields-in_upper_layer-doc"
@@ -5665,7 +5840,7 @@
         },
         {
           "name": "signal.target.parent.interpreter.file.modification_time",
-          "definition": "Modification time of the file",
+          "definition": "Modification time (mtime) of the file",
           "property_doc_link": "common-filefields-modification_time-doc"
         },
         {
@@ -5809,7 +5984,7 @@
       "properties": [
         {
           "name": "splice.file.change_time",
-          "definition": "Change time of the file",
+          "definition": "Change time (ctime) of the file",
           "property_doc_link": "common-filefields-change_time-doc"
         },
         {
@@ -5828,6 +6003,11 @@
           "property_doc_link": "common-filefields-group-doc"
         },
         {
+          "name": "splice.file.hashes",
+          "definition": "[Experimental] List of cryptographic hashes computed for this file",
+          "property_doc_link": "common-fileevent-hashes-doc"
+        },
+        {
           "name": "splice.file.in_upper_layer",
           "definition": "Indicator of the file layer, for example, in an OverlayFS",
           "property_doc_link": "common-filefields-in_upper_layer-doc"
@@ -5844,7 +6024,7 @@
         },
         {
           "name": "splice.file.modification_time",
-          "definition": "Modification time of the file",
+          "definition": "Modification time (mtime) of the file",
           "property_doc_link": "common-filefields-modification_time-doc"
         },
         {
@@ -5928,7 +6108,7 @@
       "properties": [
         {
           "name": "unlink.file.change_time",
-          "definition": "Change time of the file",
+          "definition": "Change time (ctime) of the file",
           "property_doc_link": "common-filefields-change_time-doc"
         },
         {
@@ -5947,6 +6127,11 @@
           "property_doc_link": "common-filefields-group-doc"
         },
         {
+          "name": "unlink.file.hashes",
+          "definition": "[Experimental] List of cryptographic hashes computed for this file",
+          "property_doc_link": "common-fileevent-hashes-doc"
+        },
+        {
           "name": "unlink.file.in_upper_layer",
           "definition": "Indicator of the file layer, for example, in an OverlayFS",
           "property_doc_link": "common-filefields-in_upper_layer-doc"
@@ -5963,7 +6148,7 @@
         },
         {
           "name": "unlink.file.modification_time",
-          "definition": "Modification time of the file",
+          "definition": "Modification time (mtime) of the file",
           "property_doc_link": "common-filefields-modification_time-doc"
         },
         {
@@ -6061,7 +6246,7 @@
       "properties": [
         {
           "name": "utimes.file.change_time",
-          "definition": "Change time of the file",
+          "definition": "Change time (ctime) of the file",
           "property_doc_link": "common-filefields-change_time-doc"
         },
         {
@@ -6080,6 +6265,11 @@
           "property_doc_link": "common-filefields-group-doc"
         },
         {
+          "name": "utimes.file.hashes",
+          "definition": "[Experimental] List of cryptographic hashes computed for this file",
+          "property_doc_link": "common-fileevent-hashes-doc"
+        },
+        {
           "name": "utimes.file.in_upper_layer",
           "definition": "Indicator of the file layer, for example, in an OverlayFS",
           "property_doc_link": "common-filefields-in_upper_layer-doc"
@@ -6096,7 +6286,7 @@
         },
         {
           "name": "utimes.file.modification_time",
-          "definition": "Modification time of the file",
+          "definition": "Modification time (mtime) of the file",
           "property_doc_link": "common-filefields-modification_time-doc"
         },
         {
@@ -6367,7 +6557,7 @@
       "name": "*.change_time",
       "link": "common-filefields-change_time-doc",
       "type": "int",
-      "definition": "Change time of the file",
+      "definition": "Change time (ctime) of the file",
       "prefixes": [
         "chmod.file",
         "chown.file",
@@ -6938,6 +7128,55 @@
       "examples": []
     },
     {
+      "name": "*.hashes",
+      "link": "common-fileevent-hashes-doc",
+      "type": "string",
+      "definition": "[Experimental] List of cryptographic hashes computed for this file",
+      "prefixes": [
+        "chmod.file",
+        "chown.file",
+        "exec.file",
+        "exec.interpreter.file",
+        "exit.file",
+        "exit.interpreter.file",
+        "link.file",
+        "link.file.destination",
+        "load_module.file",
+        "mkdir.file",
+        "mmap.file",
+        "open.file",
+        "process.ancestors.file",
+        "process.ancestors.interpreter.file",
+        "process.file",
+        "process.interpreter.file",
+        "process.parent.file",
+        "process.parent.interpreter.file",
+        "ptrace.tracee.ancestors.file",
+        "ptrace.tracee.ancestors.interpreter.file",
+        "ptrace.tracee.file",
+        "ptrace.tracee.interpreter.file",
+        "ptrace.tracee.parent.file",
+        "ptrace.tracee.parent.interpreter.file",
+        "removexattr.file",
+        "rename.file",
+        "rename.file.destination",
+        "rmdir.file",
+        "setxattr.file",
+        "signal.target.ancestors.file",
+        "signal.target.ancestors.interpreter.file",
+        "signal.target.file",
+        "signal.target.interpreter.file",
+        "signal.target.parent.file",
+        "signal.target.parent.interpreter.file",
+        "splice.file",
+        "unlink.file",
+        "utimes.file"
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
       "name": "*.in_upper_layer",
       "link": "common-filefields-in_upper_layer-doc",
       "type": "bool",
@@ -7234,7 +7473,7 @@
       "name": "*.modification_time",
       "link": "common-filefields-modification_time-doc",
       "type": "int",
-      "definition": "Modification time of the file",
+      "definition": "Modification time (mtime) of the file",
       "prefixes": [
         "chmod.file",
         "chown.file",

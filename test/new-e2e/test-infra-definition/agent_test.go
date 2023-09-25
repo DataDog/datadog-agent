@@ -10,9 +10,11 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/DataDog/datadog-agent/test/new-e2e/utils/e2e"
-	"github.com/DataDog/datadog-agent/test/new-e2e/utils/e2e/client"
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e"
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client"
+	"github.com/DataDog/test-infra-definitions/components/datadog/agentparams"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 type agentSuite struct {
@@ -20,7 +22,7 @@ type agentSuite struct {
 }
 
 func TestAgentSuite(t *testing.T) {
-	e2e.Run(t, &agentSuite{}, e2e.AgentStackDef(nil))
+	e2e.Run(t, &agentSuite{}, e2e.AgentStackDef())
 }
 
 func (v *agentSuite) TestAgentCommandNoArg() {
@@ -32,9 +34,51 @@ func (v *agentSuite) TestAgentCommandNoArg() {
 }
 
 func (v *agentSuite) TestAgentCommandWithArg() {
-	err := v.Env().Agent.WaitForReady()
-	assert.NoError(v.T(), err)
-
-	status := v.Env().Agent.Status(client.WithArgs("-h"))
+	status := v.Env().Agent.Status(client.WithArgs([]string{"-h", "-n"}))
 	assert.Contains(v.T(), status.Content, "Use \"datadog-agent status [command] --help\" for more information about a command.")
+}
+
+func (v *agentSuite) TestWithAgentConfig() {
+	for _, param := range []struct {
+		useConfig      bool
+		config         string
+		expectedConfig string
+	}{
+		{true, "log_level: debug", "log_level: debug\n"},
+		{true, "", "log_level: info\n"},
+		{true, "log_level: warn", "log_level: warn\n"},
+		{true, "log_level: debug", "log_level: debug\n"},
+		{false, "", "log_level: info\n"},
+	} {
+		var agentParams []agentparams.Option
+		if param.useConfig {
+			agentParams = append(agentParams, agentparams.WithAgentConfig(param.config))
+		}
+		v.UpdateEnv(e2e.AgentStackDef(e2e.WithAgentParams(agentParams...)))
+		config := v.Env().Agent.Config()
+		re := regexp.MustCompile(`.*log_level:(.*)\n`)
+		matches := re.FindStringSubmatch(config)
+		require.NotEmpty(v.T(), matches)
+		require.Equal(v.T(), param.expectedConfig, matches[0])
+	}
+}
+
+func (v *agentSuite) TestWithTelemetry() {
+	v.UpdateEnv(e2e.AgentStackDef(e2e.WithAgentParams(agentparams.WithTelemetry())))
+
+	status := v.Env().Agent.Status()
+	require.Contains(v.T(), status.Content, "go_expvar")
+
+	v.UpdateEnv(e2e.AgentStackDef())
+	status = v.Env().Agent.Status()
+	require.NotContains(v.T(), status.Content, "go_expvar")
+}
+
+func (v *agentSuite) TestWithLogs() {
+	config := v.Env().Agent.Config()
+	require.Contains(v.T(), config, "logs_enabled: false")
+
+	v.UpdateEnv(e2e.AgentStackDef(e2e.WithAgentParams(agentparams.WithLogs())))
+	config = v.Env().Agent.Config()
+	require.Contains(v.T(), config, "logs_enabled: true")
 }

@@ -84,7 +84,7 @@ func GetServerGroupsAndResources() ([]*v1.APIGroup, []*v1.APIResourceList, error
 		// even though it might be incomplete due to discovery failures on other
 		// groups.
 		for group, apiGroupErr := range err.(*discovery.ErrGroupDiscoveryFailed).Groups {
-			log.Warnf("Resources for API group version %s could not be discovered: %s", group, apiGroupErr)
+			log.Warnc(fmt.Sprintf("Resources for API group version %s could not be discovered: %s", group, apiGroupErr), orchestrator.ExtraLogContext...)
 		}
 	}
 	return groups, resources, nil

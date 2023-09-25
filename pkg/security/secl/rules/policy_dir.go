@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+// Package rules holds rules related files
 package rules
 
 import (
@@ -16,8 +17,7 @@ import (
 )
 
 const (
-	policyExtension    = ".policy"
-	PolicyProviderType = "directoryPolicyProvider"
+	policyExtension = ".policy"
 )
 
 var _ PolicyProvider = (*PoliciesDirProvider)(nil)
@@ -49,7 +49,7 @@ func (p *PoliciesDirProvider) loadPolicy(filename string, macroFilters []MacroFi
 
 	name := filepath.Base(filename)
 
-	return LoadPolicy(name, "file", f, macroFilters, ruleFilters)
+	return LoadPolicy(name, PolicyProviderTypeDir, f, macroFilters, ruleFilters)
 }
 
 func (p *PoliciesDirProvider) getPolicyFiles() ([]string, error) {
@@ -202,6 +202,7 @@ func NewPoliciesDirProvider(policiesDir string, watch bool) (*PoliciesDirProvide
 	return p, nil
 }
 
+// Type returns the type of policy dir provider
 func (p *PoliciesDirProvider) Type() string {
-	return PolicyProviderType
+	return PolicyProviderTypeDir
 }

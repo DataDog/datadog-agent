@@ -735,6 +735,25 @@ func TestResolve(t *testing.T) {
 				ServiceID:     "a5901276aed1",
 			},
 		},
+		{
+			testName: "%% that is not a template variable delimiter",
+			svc: &dummyService{
+				ID:            "a5901276aed1",
+				ADIdentifiers: []string{"redis"},
+				Hosts:         map[string]string{"bridge": "127.0.0.1"},
+			},
+			tpl: integration.Config{
+				Name:          "cpu",
+				ADIdentifiers: []string{"redis"},
+				Instances:     []integration.Data{integration.Data("host: %%host%%\ntags:\n- password:\"complex%%password\"")},
+			},
+			out: integration.Config{
+				Name:          "cpu",
+				ADIdentifiers: []string{"redis"},
+				Instances:     []integration.Data{integration.Data("host: 127.0.0.1\ntags:\n- foo:bar\n- password:\"complex%%password\"\n")},
+				ServiceID:     "a5901276aed1",
+			},
+		},
 	}
 
 	for i, tc := range testCases {

@@ -3,17 +3,19 @@ Miscellaneous functions, no tasks here
 """
 
 
+import contextlib
 import json
 import os
 import re
 import sys
+import time
 from subprocess import check_output
+from types import SimpleNamespace
 
 from invoke import task
 from invoke.exceptions import Exit
 
 from .libs.common.color import color_message
-from .libs.common.remote_api import APIError
 
 # constants
 DEFAULT_BRANCH = "main"
@@ -511,7 +513,7 @@ def check_clean_branch_state(ctx, github, branch):
             code=1,
         )
 
-    if check_upstream_branch(github, branch):
+    if github.get_branch(branch) is not None:
         raise Exit(
             color_message(
                 f"The branch {branch} already exists upstream. Please remove it before trying again.",
@@ -541,16 +543,15 @@ def check_local_branch(ctx, branch):
     return matching_branch != "0"
 
 
-def check_upstream_branch(github, branch):
-    """
-    Checks if the given branch already exists in the upstream repository
-    """
+@contextlib.contextmanager
+def timed(name="", quiet=False):
+    """Context manager that prints how long it took"""
+    start = time.time()
+    res = SimpleNamespace()
+    print(f"{name}")
     try:
-        github_branch = github.get_branch(branch)
-    except APIError as e:
-        if e.status_code == 404:
-            return False
-        raise e
-
-    # Return True if the branch exists
-    return github_branch and github_branch.get('name', False)
+        yield res
+    finally:
+        res.duration = time.time() - start
+        if not quiet:
+            print(f"{name} completed in {res.duration:.2f}s")

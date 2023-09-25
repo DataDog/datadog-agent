@@ -1,0 +1,4 @@
+---
+features:
+  - |
+    Add support for the ``otlp_config.metrics.sums.initial_cumulative_monotonic_value`` setting.

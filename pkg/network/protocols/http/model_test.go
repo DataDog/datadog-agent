@@ -16,28 +16,28 @@ import (
 )
 
 func TestPath(t *testing.T) {
-	tx := EbpfHttpTx{
+	tx := EbpfTx{
 		Request_fragment: requestFragment(
 			[]byte("GET /foo/bar?var1=value HTTP/1.1\nHost: example.com\nUser-Agent: example-browser/1.0"),
 		),
 	}
 
-	b := make([]byte, HTTPBufferSize)
+	b := make([]byte, BufferSize)
 	path, fullPath := tx.Path(b)
 	assert.Equal(t, "/foo/bar", string(path))
 	assert.True(t, fullPath)
 }
 
 func TestMaximumLengthPath(t *testing.T) {
-	rep := strings.Repeat("a", HTTPBufferSize-6)
+	rep := strings.Repeat("a", BufferSize-6)
 	str := "GET /" + rep
 	str += "bc"
-	tx := EbpfHttpTx{
+	tx := EbpfTx{
 		Request_fragment: requestFragment(
 			[]byte(str),
 		),
 	}
-	b := make([]byte, HTTPBufferSize)
+	b := make([]byte, BufferSize)
 	path, fullPath := tx.Path(b)
 	expected := "/" + rep
 	expected = expected + "b"
@@ -47,14 +47,14 @@ func TestMaximumLengthPath(t *testing.T) {
 
 func TestFullPath(t *testing.T) {
 	prefix := "GET /"
-	rep := strings.Repeat("a", HTTPBufferSize-len(prefix)-1)
+	rep := strings.Repeat("a", BufferSize-len(prefix)-1)
 	str := prefix + rep + " "
-	tx := EbpfHttpTx{
+	tx := EbpfTx{
 		Request_fragment: requestFragment(
 			[]byte(str),
 		),
 	}
-	b := make([]byte, HTTPBufferSize)
+	b := make([]byte, BufferSize)
 	path, fullPath := tx.Path(b)
 	expected := "/" + rep
 	assert.Equal(t, expected, string(path))
@@ -62,7 +62,7 @@ func TestFullPath(t *testing.T) {
 }
 
 func TestPathHandlesNullTerminator(t *testing.T) {
-	tx := EbpfHttpTx{
+	tx := EbpfTx{
 		Request_fragment: requestFragment(
 			// This probably isn't a valid HTTP request
 			// (since it's missing a version before the end),
@@ -72,14 +72,14 @@ func TestPathHandlesNullTerminator(t *testing.T) {
 		),
 	}
 
-	b := make([]byte, HTTPBufferSize)
+	b := make([]byte, BufferSize)
 	path, fullPath := tx.Path(b)
 	assert.Equal(t, "/foo/", string(path))
 	assert.False(t, fullPath)
 }
 
 func TestLatency(t *testing.T) {
-	tx := EbpfHttpTx{
+	tx := EbpfTx{
 		Response_last_seen: 2e6,
 		Request_started:    1e6,
 	}
@@ -88,7 +88,7 @@ func TestLatency(t *testing.T) {
 }
 
 func BenchmarkPath(b *testing.B) {
-	tx := EbpfHttpTx{
+	tx := EbpfTx{
 		Request_fragment: requestFragment(
 			[]byte("GET /foo/bar?var1=value HTTP/1.1\nHost: example.com\nUser-Agent: example-browser/1.0"),
 		),
@@ -96,7 +96,7 @@ func BenchmarkPath(b *testing.B) {
 
 	b.ReportAllocs()
 	b.ResetTimer()
-	buf := make([]byte, HTTPBufferSize)
+	buf := make([]byte, BufferSize)
 	for i := 0; i < b.N; i++ {
 		_, _ = tx.Path(buf)
 	}

@@ -59,7 +59,7 @@ func (c *DaemonSetCollector) Informer() cache.SharedInformer {
 
 // Init is used to initialize the collector.
 func (c *DaemonSetCollector) Init(rcfg *collectors.CollectorRunConfig) {
-	c.informer = rcfg.APIClient.InformerFactory.Apps().V1().DaemonSets()
+	c.informer = rcfg.OrchestratorInformerFactory.InformerFactory.Apps().V1().DaemonSets()
 	c.lister = c.informer.Lister()
 }
 

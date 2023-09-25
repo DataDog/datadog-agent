@@ -74,7 +74,7 @@ func (f *metricsFixture) run(t *testing.T, testTime time.Time) {
 		points: f.queryResults,
 		err:    f.queryError,
 	}
-	metricsRetriever, err := NewMetricsRetriever(0, f.maxAge, &mockedProcessor, getIsLeaderFunction(true), &store)
+	metricsRetriever, err := NewMetricsRetriever(0, f.maxAge, &mockedProcessor, getIsLeaderFunction(true), &store, false)
 	assert.Nil(t, err)
 	metricsRetriever.retrieveMetricsValues()
 
