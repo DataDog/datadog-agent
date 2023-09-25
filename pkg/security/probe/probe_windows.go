@@ -216,10 +216,6 @@ func NewProbe(config *config.Config, opts Opts) (*Probe, error) {
 	return p, nil
 }
 
-// Does nothing if on windows
-func (p *Probe) PlaySnapshot() {
-}
-
 // OnNewDiscarder is called when a new discarder is found. We currently don't generate discarders on Windows.
 func (p *Probe) OnNewDiscarder(rs *rules.RuleSet, ev *model.Event, field eval.Field, eventType eval.EventType) {
 }
