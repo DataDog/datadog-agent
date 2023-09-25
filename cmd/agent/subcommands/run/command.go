@@ -51,6 +51,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/metadata"
 	"github.com/DataDog/datadog-agent/comp/metadata/runner"
 	"github.com/DataDog/datadog-agent/comp/netflow"
+	netflowServer "github.com/DataDog/datadog-agent/comp/netflow/server"
 	"github.com/DataDog/datadog-agent/comp/otelcol"
 	otelcollector "github.com/DataDog/datadog-agent/comp/otelcol/collector"
 	"github.com/DataDog/datadog-agent/comp/remote-config/rcclient"
@@ -183,6 +184,7 @@ func run(log log.Component,
 	cliParams *cliParams,
 	logsAgent util.Optional[logsAgent.Component],
 	otelcollector otelcollector.Component,
+	_ netflowServer.Server,
 ) error {
 	defer func() {
 		stopAgent(cliParams, server)
@@ -389,6 +391,7 @@ func startAgent(
 	sharedForwarder defaultforwarder.Component,
 	sharedSerializer serializer.MetricSerializer,
 	otelcollector otelcollector.Component,
+	_ netflowServer.Server,
 ) error {
 
 	var err error
