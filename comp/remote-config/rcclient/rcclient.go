@@ -13,6 +13,7 @@ import (
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/comp/core/log"
+	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/config/remote"
 	"github.com/DataDog/datadog-agent/pkg/config/remote/data"
 	"github.com/DataDog/datadog-agent/pkg/config/settings"
@@ -113,7 +114,7 @@ func (rc rcClient) agentConfigUpdateCallback(updates map[string]state.RawConfig,
 	}
 
 	switch source {
-	case settings.SourceDefault, settings.SourceConfig:
+	case config.SourceDefault, config.SourceSelf:
 		// If the log level had been set by default
 		// and if we receive an empty value for log level in the config
 		// then there is nothing to do
@@ -132,27 +133,27 @@ func (rc rcClient) agentConfigUpdateCallback(updates map[string]state.RawConfig,
 		rc.configState.FallbackLogLevel = newFallback.(string)
 		// Need to update the log level even if the level stays the same because we need to update the source
 		// Might be possible to add a check in deeper functions to avoid unnecessary work
-		err = settings.SetRuntimeSetting("log_level", mergedConfig.LogLevel, settings.SourceRC)
+		err = settings.SetRuntimeSetting("log_level", mergedConfig.LogLevel, config.SourceRC)
 
-	case settings.SourceRC:
+	case config.SourceRC:
 		// 2 possible situations:
 		//     - we want to change (once again) the log level through RC
 		//     - we want to fall back to the log level we had saved as fallback (in that case mergedConfig.LogLevel == "")
 		var newLevel string
-		var newSource settings.Source
+		var newSource config.Source
 		if len(mergedConfig.LogLevel) == 0 {
 			newLevel = rc.configState.FallbackLogLevel
-			// Regardless what the source was before RC override, we fallback to SourceConfig as it has now been changed by code
-			newSource = settings.SourceConfig
+			// Regardless what the source was before RC override, we fallback to SourceSelf as it has now been changed by code
+			newSource = config.SourceSelf
 			pkglog.Infof("Removing remote-config log level override, falling back to '%s'", newLevel)
 		} else {
 			newLevel = mergedConfig.LogLevel
-			newSource = settings.SourceRC
+			newSource = config.SourceRC
 			pkglog.Infof("Changing log level to '%s' through remote config", newLevel)
 		}
 		err = settings.SetRuntimeSetting("log_level", newLevel, newSource)
 
-	case settings.SourceCLI:
+	case config.SourceRuntime:
 		pkglog.Warnf("Remote config could not change the log level due to CLI override")
 		return
 

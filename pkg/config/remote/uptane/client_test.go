@@ -35,8 +35,8 @@ func getTestOrgUUIDFromId(orgID int) string {
 
 func TestClientState(t *testing.T) {
 	testRepository1 := newTestRepository(2, 1, nil, nil, nil)
-	config.Datadog.Set("remote_configuration.director_root", testRepository1.directorRoot)
-	config.Datadog.Set("remote_configuration.config_root", testRepository1.configRoot)
+	config.Datadog.Set("remote_configuration.director_root", testRepository1.directorRoot, config.SourceDefault)
+	config.Datadog.Set("remote_configuration.config_root", testRepository1.configRoot, config.SourceDefault)
 
 	db := getTestDB(t)
 	client1, err := NewClient(db, "testcachekey", getTestOrgUUIDProvider(2), WithOrgIDCheck(2))
@@ -98,8 +98,8 @@ func TestClientFullState(t *testing.T) {
 		"datadog/2/APM_SAMPLING/id/1": target1,
 	}
 	testRepository := newTestRepository(2, 1, configTargets, directorTargets, []*pbgo.File{{Path: "datadog/2/APM_SAMPLING/id/1", Raw: target1content}})
-	config.Datadog.Set("remote_configuration.director_root", testRepository.directorRoot)
-	config.Datadog.Set("remote_configuration.config_root", testRepository.configRoot)
+	config.Datadog.Set("remote_configuration.director_root", testRepository.directorRoot, config.SourceDefault)
+	config.Datadog.Set("remote_configuration.config_root", testRepository.configRoot, config.SourceDefault)
 
 	// Prepare
 	db := getTestDB(t)
@@ -136,8 +136,8 @@ func assertMetaVersion(t *testing.T, state map[string]MetaState, metaName string
 
 func TestClientVerifyTUF(t *testing.T) {
 	testRepository1 := newTestRepository(2, 1, nil, nil, nil)
-	config.Datadog.Set("remote_configuration.director_root", testRepository1.directorRoot)
-	config.Datadog.Set("remote_configuration.config_root", testRepository1.configRoot)
+	config.Datadog.Set("remote_configuration.director_root", testRepository1.directorRoot, config.SourceDefault)
+	config.Datadog.Set("remote_configuration.config_root", testRepository1.configRoot, config.SourceDefault)
 
 	db := getTestDB(t)
 
@@ -187,8 +187,8 @@ func TestClientVerifyUptane(t *testing.T) {
 	testRepositoryInvalid1 := newTestRepository(2, 1, configTargets2, directorTargets2, []*pbgo.File{{Path: "datadog/2/APM_SAMPLING/id/1", Raw: target1content}, {Path: "datadog/2/APM_SAMPLING/id/2", Raw: target2content}})
 	testRepositoryInvalid2 := newTestRepository(2, 1, configTargets3, directorTargets3, []*pbgo.File{{Path: "datadog/2/APM_SAMPLING/id/1", Raw: target3content}})
 
-	config.Datadog.Set("remote_configuration.director_root", testRepositoryValid.directorRoot)
-	config.Datadog.Set("remote_configuration.config_root", testRepositoryValid.configRoot)
+	config.Datadog.Set("remote_configuration.director_root", testRepositoryValid.directorRoot, config.SourceDefault)
+	config.Datadog.Set("remote_configuration.config_root", testRepositoryValid.configRoot, config.SourceDefault)
 	client1, err := NewClient(db, "testcachekey1", getTestOrgUUIDProvider(2), WithOrgIDCheck(2))
 	assert.NoError(t, err)
 	err = client1.Update(testRepositoryValid.toUpdate())
@@ -197,8 +197,8 @@ func TestClientVerifyUptane(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, target1content, targetFile)
 
-	config.Datadog.Set("remote_configuration.director_root", testRepositoryInvalid1.directorRoot)
-	config.Datadog.Set("remote_configuration.config_root", testRepositoryInvalid1.configRoot)
+	config.Datadog.Set("remote_configuration.director_root", testRepositoryInvalid1.directorRoot, config.SourceDefault)
+	config.Datadog.Set("remote_configuration.config_root", testRepositoryInvalid1.configRoot, config.SourceDefault)
 	client2, err := NewClient(db, "testcachekey2", getTestOrgUUIDProvider(2), WithOrgIDCheck(2))
 	assert.NoError(t, err)
 	err = client2.Update(testRepositoryInvalid1.toUpdate())
@@ -206,8 +206,8 @@ func TestClientVerifyUptane(t *testing.T) {
 	_, err = client1.TargetFile("datadog/2/APM_SAMPLING/id/2")
 	assert.Error(t, err)
 
-	config.Datadog.Set("remote_configuration.director_root", testRepositoryInvalid2.directorRoot)
-	config.Datadog.Set("remote_configuration.config_root", testRepositoryInvalid2.configRoot)
+	config.Datadog.Set("remote_configuration.director_root", testRepositoryInvalid2.directorRoot, config.SourceDefault)
+	config.Datadog.Set("remote_configuration.config_root", testRepositoryInvalid2.configRoot, config.SourceDefault)
 	client3, err := NewClient(db, "testcachekey3", getTestOrgUUIDProvider(2), WithOrgIDCheck(2))
 	assert.NoError(t, err)
 	err = client3.Update(testRepositoryInvalid2.toUpdate())
@@ -238,15 +238,15 @@ func TestClientVerifyOrgID(t *testing.T) {
 	testRepositoryValid := newTestRepository(2, 1, configTargets1, directorTargets1, []*pbgo.File{{Path: "datadog/2/APM_SAMPLING/id/1", Raw: target1content}})
 	testRepositoryInvalid := newTestRepository(2, 1, configTargets2, directorTargets2, []*pbgo.File{{Path: "datadog/3/APM_SAMPLING/id/1", Raw: target1content}})
 
-	config.Datadog.Set("remote_configuration.director_root", testRepositoryValid.directorRoot)
-	config.Datadog.Set("remote_configuration.config_root", testRepositoryValid.configRoot)
+	config.Datadog.Set("remote_configuration.director_root", testRepositoryValid.directorRoot, config.SourceDefault)
+	config.Datadog.Set("remote_configuration.config_root", testRepositoryValid.configRoot, config.SourceDefault)
 	client1, err := NewClient(db, "testcachekey1", getTestOrgUUIDProvider(2), WithOrgIDCheck(2))
 	assert.NoError(t, err)
 	err = client1.Update(testRepositoryValid.toUpdate())
 	assert.NoError(t, err)
 
-	config.Datadog.Set("remote_configuration.director_root", testRepositoryInvalid.directorRoot)
-	config.Datadog.Set("remote_configuration.config_root", testRepositoryInvalid.configRoot)
+	config.Datadog.Set("remote_configuration.director_root", testRepositoryInvalid.directorRoot, config.SourceDefault)
+	config.Datadog.Set("remote_configuration.config_root", testRepositoryInvalid.configRoot, config.SourceDefault)
 	client2, err := NewClient(db, "testcachekey2", getTestOrgUUIDProvider(2), WithOrgIDCheck(2))
 	assert.NoError(t, err)
 	err = client2.Update(testRepositoryInvalid.toUpdate())
@@ -271,24 +271,24 @@ func TestClientVerifyOrgUUID(t *testing.T) {
 	testRepositoryInvalid := newTestRepository(3, 1, configTargets, directorTargets, []*pbgo.File{{Path: "datadog/2/APM_SAMPLING/id/1", Raw: target1content}})
 
 	// Valid repository with an orgID and a UUID in the snapshot
-	config.Datadog.Set("remote_configuration.director_root", testRepositoryValid.directorRoot)
-	config.Datadog.Set("remote_configuration.config_root", testRepositoryValid.configRoot)
+	config.Datadog.Set("remote_configuration.director_root", testRepositoryValid.directorRoot, config.SourceDefault)
+	config.Datadog.Set("remote_configuration.config_root", testRepositoryValid.configRoot, config.SourceDefault)
 	client1, err := NewClient(db, "testcachekey1", getTestOrgUUIDProvider(2), WithOrgIDCheck(2))
 	assert.NoError(t, err)
 	err = client1.Update(testRepositoryValid.toUpdate())
 	assert.NoError(t, err)
 
 	// Valid repository with an orgID but no UUID in the snapshot
-	config.Datadog.Set("remote_configuration.director_root", testRepositoryValidNoUUID.directorRoot)
-	config.Datadog.Set("remote_configuration.config_root", testRepositoryValidNoUUID.configRoot)
+	config.Datadog.Set("remote_configuration.director_root", testRepositoryValidNoUUID.directorRoot, config.SourceDefault)
+	config.Datadog.Set("remote_configuration.config_root", testRepositoryValidNoUUID.configRoot, config.SourceDefault)
 	client2, err := NewClient(db, "testcachekey2", getTestOrgUUIDProvider(2), WithOrgIDCheck(2))
 	assert.NoError(t, err)
 	err = client2.Update(testRepositoryValidNoUUID.toUpdate())
 	assert.NoError(t, err)
 
 	// Invalid repository : receives snapshot with orgUUID for org 2, but is org 3
-	config.Datadog.Set("remote_configuration.director_root", testRepositoryInvalid.directorRoot)
-	config.Datadog.Set("remote_configuration.config_root", testRepositoryInvalid.configRoot)
+	config.Datadog.Set("remote_configuration.director_root", testRepositoryInvalid.directorRoot, config.SourceDefault)
+	config.Datadog.Set("remote_configuration.config_root", testRepositoryInvalid.configRoot, config.SourceDefault)
 	client3, err := NewClient(db, "testcachekey3", getTestOrgUUIDProvider(2), WithOrgIDCheck(2))
 	assert.NoError(t, err)
 	err = client3.Update(testRepositoryInvalid.toUpdate())

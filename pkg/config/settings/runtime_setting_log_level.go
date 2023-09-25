@@ -15,11 +15,11 @@ import (
 type LogLevelRuntimeSetting struct {
 	Config    config.ConfigReaderWriter
 	ConfigKey string
-	source    Source
+	source    config.Source
 }
 
 func NewLogLevelRuntimeSetting() *LogLevelRuntimeSetting {
-	return &LogLevelRuntimeSetting{source: SourceDefault}
+	return &LogLevelRuntimeSetting{source: config.SourceDefault}
 }
 
 // Description returns the runtime setting's description
@@ -46,12 +46,13 @@ func (l *LogLevelRuntimeSetting) Get() (interface{}, error) {
 	return level.String(), nil
 }
 
-func (l *LogLevelRuntimeSetting) GetSource() Source {
+// GetSource returns the current source of the setting
+func (l *LogLevelRuntimeSetting) GetSource() config.Source {
 	return l.source
 }
 
 // Set changes the value of the runtime setting
-func (l *LogLevelRuntimeSetting) Set(v interface{}, source Source) error {
+func (l *LogLevelRuntimeSetting) Set(v interface{}, source config.Source) error {
 	level := v.(string)
 
 	err := config.ChangeLogLevel(level)
@@ -69,7 +70,7 @@ func (l *LogLevelRuntimeSetting) Set(v interface{}, source Source) error {
 	if l.Config != nil {
 		cfg = l.Config
 	}
-	cfg.Set(key, level)
+	cfg.Set(key, level, source) // TODO jules.macret Since this make the source concept broader, update the specific case of log_level in RC override for Flare
 	// we trigger a new inventory metadata payload since the configuration was updated by the user.
 	inventories.Refresh()
 	return nil

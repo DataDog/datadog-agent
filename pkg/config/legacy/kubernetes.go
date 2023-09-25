@@ -146,51 +146,51 @@ func importKubernetesConfWithDeprec(src, dst string, overwrite bool, converter *
 	}
 
 	if instance.KubeletPort > 0 {
-		converter.Set("kubernetes_http_kubelet_port", instance.KubeletPort)
-		converter.Set("kubernetes_https_kubelet_port", instance.KubeletPort)
+		converter.Set("kubernetes_http_kubelet_port", instance.KubeletPort, config.SourceDefault)
+		converter.Set("kubernetes_https_kubelet_port", instance.KubeletPort, config.SourceDefault)
 	}
 	if len(instance.KubeletHost) > 0 {
-		converter.Set("kubernetes_kubelet_host", instance.KubeletHost)
+		converter.Set("kubernetes_kubelet_host", instance.KubeletHost, config.SourceDefault)
 	}
 	if len(instance.KubeletClientCrt) > 0 {
-		converter.Set("kubelet_client_crt", instance.KubeletClientCrt)
+		converter.Set("kubelet_client_crt", instance.KubeletClientCrt, config.SourceDefault)
 	}
 	if len(instance.KubeletClientKey) > 0 {
-		converter.Set("kubelet_client_key", instance.KubeletClientKey)
+		converter.Set("kubelet_client_key", instance.KubeletClientKey, config.SourceDefault)
 	}
 	if len(instance.KubeletCACert) > 0 {
-		converter.Set("kubelet_client_ca", instance.KubeletCACert)
+		converter.Set("kubelet_client_ca", instance.KubeletCACert, config.SourceDefault)
 	}
 	if len(instance.KubeletTokenPath) > 0 {
-		converter.Set("kubelet_auth_token_path", instance.KubeletTokenPath)
+		converter.Set("kubelet_auth_token_path", instance.KubeletTokenPath, config.SourceDefault)
 	}
 	if len(instance.NodeLabelsToTags) > 0 {
-		converter.Set("kubernetes_node_labels_as_tags", instance.NodeLabelsToTags)
+		converter.Set("kubernetes_node_labels_as_tags", instance.NodeLabelsToTags, config.SourceDefault)
 	}
 
 	// We need to verify the kubelet_tls_verify is actually present before
 	// changing the secure `true` default
 	if verify, err := strconv.ParseBool(instance.KubeletTLSVerify); err == nil {
-		converter.Set("kubelet_tls_verify", verify)
+		converter.Set("kubelet_tls_verify", verify, config.SourceDefault)
 	}
 
 	// Implicit default in Agent5 was true
 	if verify, err := strconv.ParseBool(instance.CollectServiceTags); err == nil {
-		converter.Set("kubernetes_collect_service_tags", verify)
+		converter.Set("kubernetes_collect_service_tags", verify, config.SourceDefault)
 	} else {
-		converter.Set("kubernetes_collect_service_tags", true)
+		converter.Set("kubernetes_collect_service_tags", true, config.SourceDefault)
 	}
 
 	// Temporarily in main datadog.yaml, will move to DCA
 	// Booleans are always imported as zero value is false
-	converter.Set("collect_kubernetes_events", instance.CollectEvents)
-	converter.Set("leader_election", instance.LeaderCandidate)
+	converter.Set("collect_kubernetes_events", instance.CollectEvents, config.SourceDefault)
+	converter.Set("leader_election", instance.LeaderCandidate, config.SourceDefault)
 
 	if instance.LeaderLeaseDuration > 0 {
-		converter.Set("leader_lease_duration", instance.LeaderLeaseDuration)
+		converter.Set("leader_lease_duration", instance.LeaderLeaseDuration, config.SourceDefault)
 	}
 	if instance.ServiceTagUpdateTag > 0 {
-		converter.Set("kubernetes_service_tag_update_freq", instance.ServiceTagUpdateTag)
+		converter.Set("kubernetes_service_tag_update_freq", instance.ServiceTagUpdateTag, config.SourceDefault)
 	}
 
 	// Deprecations

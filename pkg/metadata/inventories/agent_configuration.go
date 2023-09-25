@@ -46,3 +46,43 @@ func getFullAgentConfiguration() (string, error) {
 
 	return marshalAndScrub(config.Datadog.AllSettings())
 }
+
+func getYamlAgentConfiguration() (string, error) {
+	if !config.Datadog.GetBool("inventories_configuration_enabled") {
+		return "", fmt.Errorf("inventories_configuration_enabled is disabled")
+	}
+
+	return marshalAndScrub(config.Datadog.AllSettingsFromYaml())
+}
+
+func getEnvVarAgentConfiguration() (string, error) {
+	if !config.Datadog.GetBool("inventories_configuration_enabled") {
+		return "", fmt.Errorf("inventories_configuration_enabled is disabled")
+	}
+
+	return marshalAndScrub(config.Datadog.AllSettingsFromEnvVar())
+}
+
+func getSelfAgentConfiguration() (string, error) {
+	if !config.Datadog.GetBool("inventories_configuration_enabled") {
+		return "", fmt.Errorf("inventories_configuration_enabled is disabled")
+	}
+
+	return marshalAndScrub(config.Datadog.AllSettingsFromSelf())
+}
+
+func getRuntimeAgentConfiguration() (string, error) {
+	if !config.Datadog.GetBool("inventories_configuration_enabled") {
+		return "", fmt.Errorf("inventories_configuration_enabled is disabled")
+	}
+
+	return marshalAndScrub(config.Datadog.AllSettingsFromRuntime())
+}
+
+func getRemoteAgentConfiguration() (string, error) {
+	if !config.Datadog.GetBool("inventories_configuration_enabled") {
+		return "", fmt.Errorf("inventories_configuration_enabled is disabled")
+	}
+
+	return marshalAndScrub(config.Datadog.AllSettingsFromRemoteConfig())
+}

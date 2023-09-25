@@ -45,6 +45,11 @@ type ConfigReader interface {
 
 	AllSettings() map[string]interface{}
 	AllSettingsWithoutDefault() map[string]interface{}
+	AllSettingsFromYaml() map[string]interface{}
+	AllSettingsFromEnvVar() map[string]interface{}
+	AllSettingsFromSelf() map[string]interface{}
+	AllSettingsFromRuntime() map[string]interface{}
+	AllSettingsFromRemoteConfig() map[string]interface{}
 	AllKeys() []string
 
 	IsSet(key string) bool
@@ -75,7 +80,7 @@ type ConfigReader interface {
 }
 
 type ConfigWriter interface {
-	Set(key string, value interface{})
+	Set(key string, value interface{}, source Source)
 	CopyConfig(cfg Config)
 }
 

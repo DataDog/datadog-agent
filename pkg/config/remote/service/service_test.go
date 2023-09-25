@@ -108,13 +108,13 @@ var testRCKey = msgpgo.RemoteConfigKey{
 }
 
 func newTestService(t *testing.T, api *mockAPI, uptane *mockUptane, clock clock.Clock) *Service {
-	config.Datadog.Set("hostname", "test-hostname")
-	defer config.Datadog.Set("hostname", "")
+	config.Datadog.Set("hostname", "test-hostname", config.SourceDefault)
+	defer config.Datadog.Set("hostname", "", config.SourceDefault)
 
 	dir := t.TempDir()
-	config.Datadog.Set("run_path", dir)
+	config.Datadog.Set("run_path", dir, config.SourceDefault)
 	serializedKey, _ := testRCKey.MarshalMsg(nil)
-	config.Datadog.Set("remote_configuration.key", base32.StdEncoding.WithPadding(base32.NoPadding).EncodeToString(serializedKey))
+	config.Datadog.Set("remote_configuration.key", base32.StdEncoding.WithPadding(base32.NoPadding).EncodeToString(serializedKey), config.SourceDefault)
 	service, err := NewService()
 	t.Cleanup(func() { service.Stop() })
 	assert.NoError(t, err)

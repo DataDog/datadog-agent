@@ -174,30 +174,30 @@ func TestDDHostnameFileEnvVar(t *testing.T) {
 
 func TestIsCloudProviderEnabled(t *testing.T) {
 	holdValue := Datadog.Get("cloud_provider_metadata")
-	defer Datadog.Set("cloud_provider_metadata", holdValue)
+	defer Datadog.Set("cloud_provider_metadata", holdValue, SourceDefault)
 
-	Datadog.Set("cloud_provider_metadata", []string{"aws", "gcp", "azure", "alibaba", "tencent"})
+	Datadog.Set("cloud_provider_metadata", []string{"aws", "gcp", "azure", "alibaba", "tencent"}, SourceDefault)
 	assert.True(t, IsCloudProviderEnabled("AWS"))
 	assert.True(t, IsCloudProviderEnabled("GCP"))
 	assert.True(t, IsCloudProviderEnabled("Alibaba"))
 	assert.True(t, IsCloudProviderEnabled("Azure"))
 	assert.True(t, IsCloudProviderEnabled("Tencent"))
 
-	Datadog.Set("cloud_provider_metadata", []string{"aws"})
+	Datadog.Set("cloud_provider_metadata", []string{"aws"}, SourceDefault)
 	assert.True(t, IsCloudProviderEnabled("AWS"))
 	assert.False(t, IsCloudProviderEnabled("GCP"))
 	assert.False(t, IsCloudProviderEnabled("Alibaba"))
 	assert.False(t, IsCloudProviderEnabled("Azure"))
 	assert.False(t, IsCloudProviderEnabled("Tencent"))
 
-	Datadog.Set("cloud_provider_metadata", []string{"tencent"})
+	Datadog.Set("cloud_provider_metadata", []string{"tencent"}, SourceDefault)
 	assert.False(t, IsCloudProviderEnabled("AWS"))
 	assert.False(t, IsCloudProviderEnabled("GCP"))
 	assert.False(t, IsCloudProviderEnabled("Alibaba"))
 	assert.False(t, IsCloudProviderEnabled("Azure"))
 	assert.True(t, IsCloudProviderEnabled("Tencent"))
 
-	Datadog.Set("cloud_provider_metadata", []string{})
+	Datadog.Set("cloud_provider_metadata", []string{}, SourceDefault)
 	assert.False(t, IsCloudProviderEnabled("AWS"))
 	assert.False(t, IsCloudProviderEnabled("GCP"))
 	assert.False(t, IsCloudProviderEnabled("Alibaba"))
@@ -238,7 +238,7 @@ func TestProxy(t *testing.T) {
 		{
 			name: "from configuration",
 			setup: func(t *testing.T, config Config) {
-				config.Set("proxy", expectedProxy)
+				config.Set("proxy", expectedProxy, SourceDefault)
 			},
 			tests: func(t *testing.T, config Config) {
 				assert.Equal(t, expectedProxy, config.GetProxies())
@@ -305,8 +305,8 @@ func TestProxy(t *testing.T) {
 			name: "from UNIX env vars and conf",
 			setup: func(t *testing.T, config Config) {
 				t.Setenv("HTTP_PROXY", "http_env")
-				config.Set("proxy.no_proxy", []string{"d", "e", "f"})
-				config.Set("proxy.http", "http_conf")
+				config.Set("proxy.no_proxy", []string{"d", "e", "f"}, SourceDefault)
+				config.Set("proxy.http", "http_conf", SourceDefault)
 			},
 			tests: func(t *testing.T, config Config) {
 				assert.Equal(t,
@@ -322,8 +322,8 @@ func TestProxy(t *testing.T) {
 			name: "from DD env vars and conf",
 			setup: func(t *testing.T, config Config) {
 				t.Setenv("DD_PROXY_HTTP", "http_env")
-				config.Set("proxy.no_proxy", []string{"d", "e", "f"})
-				config.Set("proxy.http", "http_conf")
+				config.Set("proxy.no_proxy", []string{"d", "e", "f"}, SourceDefault)
+				config.Set("proxy.http", "http_conf", SourceDefault)
 			},
 			tests: func(t *testing.T, config Config) {
 				assert.Equal(t,
@@ -343,7 +343,7 @@ func TestProxy(t *testing.T) {
 				t.Setenv("HTTP_PROXY", "env_http_url")
 				t.Setenv("HTTPS_PROXY", "")
 				t.Setenv("NO_PROXY", "")
-				config.Set("proxy.https", "https_conf")
+				config.Set("proxy.https", "https_conf", SourceDefault)
 			},
 			tests: func(t *testing.T, config Config) {
 				assert.Equal(t,
@@ -413,7 +413,7 @@ func TestProxy(t *testing.T) {
 			unsetEnvForTest(t, "NO_PROXY")
 
 			config := SetupConf()
-			config.Set("use_proxy_for_cloud_metadata", c.proxyForCloudMetadata)
+			config.Set("use_proxy_for_cloud_metadata", c.proxyForCloudMetadata, SourceDefault)
 
 			// Viper.MergeConfigOverride, which is used when secrets is enabled, will silently fail if a
 			// config file is never set.
@@ -437,19 +437,19 @@ func TestProxy(t *testing.T) {
 func TestSanitizeAPIKeyConfig(t *testing.T) {
 	config := SetupConf()
 
-	config.Set("api_key", "foo")
+	config.Set("api_key", "foo", SourceDefault)
 	sanitizeAPIKeyConfig(config, "api_key")
 	assert.Equal(t, "foo", config.GetString("api_key"))
 
-	config.Set("api_key", "foo\n")
+	config.Set("api_key", "foo\n", SourceDefault)
 	sanitizeAPIKeyConfig(config, "api_key")
 	assert.Equal(t, "foo", config.GetString("api_key"))
 
-	config.Set("api_key", "foo\n\n")
+	config.Set("api_key", "foo\n\n", SourceDefault)
 	sanitizeAPIKeyConfig(config, "api_key")
 	assert.Equal(t, "foo", config.GetString("api_key"))
 
-	config.Set("api_key", " \n  foo   \n")
+	config.Set("api_key", " \n  foo   \n", SourceDefault)
 	sanitizeAPIKeyConfig(config, "api_key")
 	assert.Equal(t, "foo", config.GetString("api_key"))
 }
@@ -457,25 +457,25 @@ func TestSanitizeAPIKeyConfig(t *testing.T) {
 func TestNumWorkers(t *testing.T) {
 	config := SetupConf()
 
-	config.Set("python_version", "2")
-	config.Set("tracemalloc_debug", true)
-	config.Set("check_runners", 4)
+	config.Set("python_version", "2", SourceDefault)
+	config.Set("tracemalloc_debug", true, SourceDefault)
+	config.Set("check_runners", 4, SourceDefault)
 
 	setNumWorkers(config)
 	workers := config.GetInt("check_runners")
 	assert.Equal(t, workers, config.GetInt("check_runners"))
 
-	config.Set("tracemalloc_debug", false)
+	config.Set("tracemalloc_debug", false, SourceDefault)
 	setNumWorkers(config)
 	workers = config.GetInt("check_runners")
 	assert.Equal(t, workers, config.GetInt("check_runners"))
 
-	config.Set("python_version", "3")
+	config.Set("python_version", "3", SourceDefault)
 	setNumWorkers(config)
 	workers = config.GetInt("check_runners")
 	assert.Equal(t, workers, config.GetInt("check_runners"))
 
-	config.Set("tracemalloc_debug", true)
+	config.Set("tracemalloc_debug", true, SourceDefault)
 	setNumWorkers(config)
 	workers = config.GetInt("check_runners")
 	assert.Equal(t, workers, 1)
@@ -767,7 +767,7 @@ fips:
 
 	expectedHTTPURL = "https://" + expectedURL
 	testConfig = SetupConfFromYAML(datadogYamlFips)
-	testConfig.Set("skip_ssl_validation", false) // should be overridden by fips.tls_verify
+	testConfig.Set("skip_ssl_validation", false, SourceDefault) // should be overridden by fips.tls_verify
 	LoadProxyFromEnv(testConfig)
 	err = setupFipsEndpoints(testConfig)
 	require.NoError(t, err)
@@ -780,8 +780,8 @@ fips:
 	assert.Equal(t, true, testConfig.GetBool("skip_ssl_validation"))
 	assert.Nil(t, testConfig.GetProxies())
 
-	testConfig.Set("skip_ssl_validation", true) // should be overridden by fips.tls_verify
-	testConfig.Set("fips.tls_verify", true)
+	testConfig.Set("skip_ssl_validation", true, SourceDefault) // should be overridden by fips.tls_verify
+	testConfig.Set("fips.tls_verify", true, SourceDefault)
 	LoadProxyFromEnv(testConfig)
 	err = setupFipsEndpoints(testConfig)
 	require.NoError(t, err)

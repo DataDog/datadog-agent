@@ -143,7 +143,7 @@ func TestConvertKubernetes(t *testing.T) {
 	assert.Equal(t, 1200, config.Datadog.GetInt("leader_lease_duration"))
 	assert.Equal(t, 3000, config.Datadog.GetInt("kubernetes_service_tag_update_freq"))
 
-	configConverter.Set("kubelet_tls_verify", true)
+	configConverter.Set("kubelet_tls_verify", true, config.SourceDefault)
 	deprecations, err = importKubernetesConfWithDeprec(srcEmpty, dstEmpty, true, configConverter)
 	require.NoError(t, err)
 	assert.Equal(t, true, config.Datadog.GetBool("kubelet_tls_verify"))

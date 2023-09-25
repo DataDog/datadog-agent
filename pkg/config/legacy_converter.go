@@ -14,8 +14,8 @@ type LegacyConfigConverter struct {
 }
 
 // Set is used for setting configuration from A5 config
-func (c *LegacyConfigConverter) Set(key string, value interface{}) {
-	c.Config.Set(key, value)
+func (c *LegacyConfigConverter) Set(key string, value interface{}, source Source) {
+	c.Config.Set(key, value, source)
 }
 
 // NewConfigConverter is creating and returning a config converter

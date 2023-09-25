@@ -22,7 +22,7 @@ const (
 // ActivityDumpRuntimeSetting wraps operations to change activity dumps settings at runtime
 type ActivityDumpRuntimeSetting struct {
 	ConfigKey string
-	source    Source
+	source    config.Source
 }
 
 // Description returns the runtime setting's description
@@ -46,29 +46,30 @@ func (l *ActivityDumpRuntimeSetting) Get() (interface{}, error) {
 	return val, nil
 }
 
-func (l *ActivityDumpRuntimeSetting) setMaxDumpSize(v interface{}) {
+func (l *ActivityDumpRuntimeSetting) setMaxDumpSize(v interface{}, source config.Source) {
 	intVar, _ := strconv.Atoi(v.(string))
-	config.SystemProbe.Set(l.ConfigKey, intVar)
+	config.SystemProbe.Set(l.ConfigKey, intVar, source)
 }
 
 // Set changes the value of the runtime setting
-func (l *ActivityDumpRuntimeSetting) Set(v interface{}, source Source) error {
+func (l *ActivityDumpRuntimeSetting) Set(v interface{}, source config.Source) error {
 	val := v.(string)
 	log.Infof("ActivityDumpRuntimeSetting Set %s = %s\n", l.ConfigKey, val)
 
 	switch l.ConfigKey {
 	case MaxDumpSizeConfKey:
-		l.setMaxDumpSize(v)
+		l.setMaxDumpSize(v, source)
 	default:
 		return fmt.Errorf("Field %s does not exist", l.ConfigKey)
 	}
-	l.source = source
+	l.source = source // TODO jules.macret Do we still need to store the source here ??? nah
 
 	// we trigger a new inventory metadata payload since the configuration was updated by the user.
 	inventories.Refresh()
 	return nil
 }
 
-func (l *ActivityDumpRuntimeSetting) GetSource() Source {
+// GetSource returns the current source of the setting
+func (l *ActivityDumpRuntimeSetting) GetSource() config.Source {
 	return l.source
 }

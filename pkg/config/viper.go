@@ -20,11 +20,60 @@ import (
 	"github.com/spf13/pflag"
 )
 
+// Source stores the owners of a setting change in Viper
+type Source string
+
+// SourceDefault is set as an empty string so that if the source isn't properly initialized, it is considered SourceDefault
+const (
+	SourceDefault Source = ""
+	SourceSelf    Source = "self"
+	SourceYaml    Source = "YAML"
+	SourceEnvVar  Source = "ENV VAR"
+	SourceRC      Source = "remote-config"
+	SourceRuntime Source = "runtime"
+)
+
+func (s Source) String() string {
+	if s == SourceDefault {
+		return "default"
+	}
+	return string(s)
+}
+
+// We spawn one instance of Viper per source of configuration setting
+type viperSource struct {
+	yaml    *viper.Viper
+	envVar  *viper.Viper
+	self    *viper.Viper
+	runtime *viper.Viper
+	remote  *viper.Viper
+}
+
+func (vs *viperSource) setViperSource(key string, value interface{}, source Source) error {
+	// TODO jules.macret Do we also want to handle SourceDefault ???
+	switch source {
+	case SourceYaml:
+		vs.yaml.Set(key, value)
+	case SourceEnvVar:
+		vs.envVar.Set(key, value)
+	case SourceSelf:
+		vs.self.Set(key, value)
+	case SourceRC:
+		vs.remote.Set(key, value)
+	case SourceRuntime:
+		vs.runtime.Set(key, value)
+	default:
+		return fmt.Errorf("") // TODO jules.macret Write Error message
+	}
+	return nil
+}
+
 // safeConfig implements Config:
 // - wraps viper with a safety lock
 // - implements the additional DDHelpers
 type safeConfig struct {
 	*viper.Viper
+	*viperSource
 	sync.RWMutex
 	envPrefix      string
 	envKeyReplacer *strings.Replacer
@@ -39,10 +88,11 @@ type safeConfig struct {
 }
 
 // Set wraps Viper for concurrent access
-func (c *safeConfig) Set(key string, value interface{}) {
+func (c *safeConfig) Set(key string, value interface{}, source Source) {
 	c.Lock()
 	defer c.Unlock()
-	c.Viper.Set(key, value)
+	c.Viper.Set(key, value)                          // update the main Viper
+	c.viperSource.setViperSource(key, value, source) // update relevant instance of Viper to remember the source
 }
 
 // SetDefault wraps Viper for concurrent access
@@ -423,6 +473,56 @@ func (c *safeConfig) AllSettingsWithoutDefault() map[string]interface{} {
 	// AllSettingsWithoutDefault returns a fresh map, so the caller may do with it
 	// as they please without holding the lock.
 	return c.Viper.AllSettingsWithoutDefault()
+}
+
+// AllSettingsFromYaml wraps Viper for concurrent access
+func (c *safeConfig) AllSettingsFromYaml() map[string]interface{} {
+	c.Lock()
+	defer c.Unlock()
+
+	// AllSettingsFromYaml returns a fresh map, so the caller may do with it
+	// as they please without holding the lock.
+	return c.viperSource.yaml.AllSettingsWithoutDefault()
+}
+
+// AllSettingsFromEnvVar wraps Viper for concurrent access
+func (c *safeConfig) AllSettingsFromEnvVar() map[string]interface{} {
+	c.Lock()
+	defer c.Unlock()
+
+	// AllSettingsFromEnvVar returns a fresh map, so the caller may do with it
+	// as they please without holding the lock.
+	return c.viperSource.envVar.AllSettingsWithoutDefault()
+}
+
+// AllSettingsFromSelf wraps Viper for concurrent access
+func (c *safeConfig) AllSettingsFromSelf() map[string]interface{} {
+	c.Lock()
+	defer c.Unlock()
+
+	// AllSettingsFromSelf returns a fresh map, so the caller may do with it
+	// as they please without holding the lock.
+	return c.viperSource.self.AllSettingsWithoutDefault()
+}
+
+// AllSettingsFromRuntime wraps Viper for concurrent access
+func (c *safeConfig) AllSettingsFromRuntime() map[string]interface{} {
+	c.Lock()
+	defer c.Unlock()
+
+	// AllSettingsFromRuntime returns a fresh map, so the caller may do with it
+	// as they please without holding the lock.
+	return c.viperSource.runtime.AllSettingsWithoutDefault()
+}
+
+// AllSettingsFromRemoteConfig wraps Viper for concurrent access
+func (c *safeConfig) AllSettingsFromRemoteConfig() map[string]interface{} {
+	c.Lock()
+	defer c.Unlock()
+
+	// AllSettingsFromRemoteConfig returns a fresh map, so the caller may do with it
+	// as they please without holding the lock.
+	return c.viperSource.remote.AllSettingsWithoutDefault()
 }
 
 // AddConfigPath wraps Viper for concurrent access

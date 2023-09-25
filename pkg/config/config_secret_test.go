@@ -33,10 +33,10 @@ func TestProxyWithSecret(t *testing.T) {
 				secrets.InjectSecrets(t, "no_proxy_1_handle", "no_proxy_1")
 				secrets.InjectSecrets(t, "no_proxy_2_handle", "no_proxy_2")
 
-				config.Set("secret_backend_command", "some_command")
-				config.Set("proxy.http", "ENC[http_handle]")
-				config.Set("proxy.https", "ENC[https_handle]")
-				config.Set("proxy.no_proxy", []string{"ENC[no_proxy_1_handle]", "ENC[no_proxy_2_handle]"})
+				config.Set("secret_backend_command", "some_command", SourceDefault)
+				config.Set("proxy.http", "ENC[http_handle]", SourceDefault)
+				config.Set("proxy.https", "ENC[https_handle]", SourceDefault)
+				config.Set("proxy.no_proxy", []string{"ENC[no_proxy_1_handle]", "ENC[no_proxy_2_handle]"}, SourceDefault)
 			},
 			tests: func(t *testing.T, config Config) {
 				assert.Equal(t,
@@ -56,7 +56,7 @@ func TestProxyWithSecret(t *testing.T) {
 				secrets.InjectSecrets(t, "no_proxy_1_handle", "no_proxy_1")
 				secrets.InjectSecrets(t, "no_proxy_2_handle", "no_proxy_2")
 
-				config.Set("secret_backend_command", "some_command")
+				config.Set("secret_backend_command", "some_command", SourceDefault)
 				t.Setenv("DD_PROXY_HTTP", "ENC[http_handle]")
 				t.Setenv("DD_PROXY_HTTPS", "ENC[https_handle]")
 				t.Setenv("DD_PROXY_NO_PROXY", "ENC[no_proxy_1_handle] ENC[no_proxy_2_handle]")
@@ -79,7 +79,7 @@ func TestProxyWithSecret(t *testing.T) {
 				secrets.InjectSecrets(t, "no_proxy_1_handle", "no_proxy_1")
 				secrets.InjectSecrets(t, "no_proxy_2_handle", "no_proxy_2")
 
-				config.Set("secret_backend_command", "some_command")
+				config.Set("secret_backend_command", "some_command", SourceDefault)
 				t.Setenv("HTTP_PROXY", "ENC[http_handle]")
 				t.Setenv("HTTPS_PROXY", "ENC[https_handle]")
 				t.Setenv("NO_PROXY", "ENC[no_proxy_1_handle],ENC[no_proxy_2_handle]")
@@ -103,7 +103,7 @@ func TestProxyWithSecret(t *testing.T) {
 			unsetEnvForTest(t, "NO_PROXY")
 
 			config := SetupConf()
-			config.Set("use_proxy_for_cloud_metadata", true)
+			config.Set("use_proxy_for_cloud_metadata", true, SourceDefault)
 
 			// Viper.MergeConfigOverride, which is used when secrets is enabled, will silently fail if a
 			// config file is never set.
