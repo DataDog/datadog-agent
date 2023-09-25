@@ -8,11 +8,14 @@
 package kubeapiserver
 
 import (
+	"bytes"
 	"context"
 	"testing"
+	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
 	"github.com/stretchr/testify/assert"
+	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes/fake"
 )
 
@@ -38,7 +41,19 @@ func testCollectEvent(t *testing.T, createResource func(*fake.Clientset) error, 
 	assert.NoError(t, err)
 
 	// Retrieving the resource in an event bundle
-	bundle := <-ch
+	var bundle workloadmeta.EventBundle
+	select {
+	case bundle = <-ch:
+	case <-time.After(1 * time.Minute):
+		t.Logf("spent more than one minute")
+		buf := new(bytes.Buffer)
+		wlm.Dump(true).Write(buf)
+		t.Logf("workloadmeta: %s", buf.String())
+		v, err := client.AppsV1().Deployments("test-namespace").List(context.TODO(), v1.ListOptions{})
+		t.Logf("list deployments: %v %v", v, err)
+		panic("test failed")
+	}
+
 	close(bundle.Ch)
 	// nil the bundle's Ch so we can
 	// deep-equal just the events later
