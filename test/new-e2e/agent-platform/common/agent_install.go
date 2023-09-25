@@ -53,7 +53,7 @@ func CheckInstallationInstallScript(t *testing.T, client *ExtendedClient) {
 		installInfo := client.Env.VM.Execute("cat /etc/datadog-agent/install_info")
 		err := yaml.Unmarshal([]byte(installInfo), &installInfoYaml)
 		require.NoError(tt, err)
-		toolVersionRegex := regexp.MustCompile(`^install_script$`)
+		toolVersionRegex := regexp.MustCompile(`^install_script_agent\d+$`)
 		installerVersionRegex := regexp.MustCompile(`^install_script-\d+\.\d+\.\d+(.post)?$`)
 		installMethodJSON := installInfoYaml["install_method"]
 
