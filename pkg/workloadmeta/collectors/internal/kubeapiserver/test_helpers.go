@@ -10,6 +10,7 @@ package kubeapiserver
 import (
 	"context"
 	"testing"
+	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
 	"github.com/stretchr/testify/assert"
@@ -24,7 +25,7 @@ func testCollectEvent(t *testing.T, createResource func(*fake.Clientset) error, 
 
 	// Use the fake client in kubeapiserver context.
 	wlm := workloadmeta.NewMockStore()
-	store, _ := newStore(context.TODO(), wlm, client)
+	store, _ := newStore(context.TODO(), wlm, client, 1*time.Second)
 	stopStore := make(chan struct{})
 	go store.Run(stopStore)
 

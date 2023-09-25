@@ -12,6 +12,7 @@ import (
 	"context"
 	"regexp"
 	"strings"
+	"time"
 
 	appsv1 "k8s.io/api/apps/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -39,7 +40,7 @@ func (f *deploymentFilter) filteredOut(entity workloadmeta.Entity) bool {
 		len(deployment.ContainerLanguages) == 0
 }
 
-func newDeploymentStore(ctx context.Context, wlm workloadmeta.Store, client kubernetes.Interface) (*cache.Reflector, *reflectorStore) {
+func newDeploymentStore(ctx context.Context, wlm workloadmeta.Store, client kubernetes.Interface, resync time.Duration) (*cache.Reflector, *reflectorStore) {
 	deploymentListerWatcher := &cache.ListWatch{
 		ListFunc: func(options metav1.ListOptions) (runtime.Object, error) {
 			return client.AppsV1().Deployments(metav1.NamespaceAll).List(ctx, options)

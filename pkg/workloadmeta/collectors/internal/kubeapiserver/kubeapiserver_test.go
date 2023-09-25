@@ -74,7 +74,7 @@ func TestStoreGenerators(t *testing.T) {
 func collectResultStoreGenerator(funcs []storeGenerator) []*reflectorStore {
 	var stores []*reflectorStore
 	for _, f := range funcs {
-		_, s := f(nil, nil, nil)
+		_, s := f(nil, nil, nil, 0)
 		stores = append(stores, s)
 	}
 	return stores

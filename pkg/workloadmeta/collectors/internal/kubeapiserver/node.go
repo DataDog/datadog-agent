@@ -9,6 +9,7 @@ package kubeapiserver
 
 import (
 	"context"
+	"time"
 
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -21,7 +22,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
 )
 
-func newNodeStore(ctx context.Context, wlm workloadmeta.Store, client kubernetes.Interface) (*cache.Reflector, *reflectorStore) {
+func newNodeStore(ctx context.Context, wlm workloadmeta.Store, client kubernetes.Interface, resync time.Duration) (*cache.Reflector, *reflectorStore) {
 	nodeListerWatcher := &cache.ListWatch{
 		ListFunc: func(options metav1.ListOptions) (runtime.Object, error) {
 			return client.CoreV1().Nodes().List(ctx, options)
@@ -37,7 +38,7 @@ func newNodeStore(ctx context.Context, wlm workloadmeta.Store, client kubernetes
 		nodeListerWatcher,
 		&corev1.Node{},
 		nodeStore,
-		noResync,
+		resync,
 	)
 	log.Debug("node reflector enabled")
 	return nodeReflector, nodeStore

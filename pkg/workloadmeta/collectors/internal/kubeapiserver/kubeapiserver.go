@@ -25,13 +25,13 @@ import (
 const (
 	collectorID   = "kubeapiserver"
 	componentName = "workloadmeta-kubeapiserver"
-	noResync      = time.Duration(0)
+	resync        = 5 * time.Minute
 )
 
 type collector struct{}
 
 // storeGenerator returns a new store specific to a given resource
-type storeGenerator func(context.Context, workloadmeta.Store, kubernetes.Interface) (*cache.Reflector, *reflectorStore)
+type storeGenerator func(context.Context, workloadmeta.Store, kubernetes.Interface, time.Duration) (*cache.Reflector, *reflectorStore)
 
 func storeGenerators(cfg config.Config) []storeGenerator {
 	generators := []storeGenerator{newNodeStore}
@@ -63,7 +63,7 @@ func (c *collector) Start(ctx context.Context, wlmetaStore workloadmeta.Store) e
 	client := apiserverClient.Cl
 
 	for _, storeBuilder := range storeGenerators(config.Datadog) {
-		reflector, store := storeBuilder(ctx, wlmetaStore, client)
+		reflector, store := storeBuilder(ctx, wlmetaStore, client, resync)
 		objectStores = append(objectStores, store)
 		go reflector.Run(ctx.Done())
 	}

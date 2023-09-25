@@ -10,6 +10,7 @@ package kubeapiserver
 import (
 	"context"
 	"regexp"
+	"time"
 
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -23,7 +24,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
 )
 
-func newPodStore(ctx context.Context, wlm workloadmeta.Store, client kubernetes.Interface) (*cache.Reflector, *reflectorStore) {
+func newPodStore(ctx context.Context, wlm workloadmeta.Store, client kubernetes.Interface, resync time.Duration) (*cache.Reflector, *reflectorStore) {
 	podListerWatcher := &cache.ListWatch{
 		ListFunc: func(options metav1.ListOptions) (runtime.Object, error) {
 			return client.CoreV1().Pods(metav1.NamespaceAll).List(ctx, options)
@@ -39,7 +40,7 @@ func newPodStore(ctx context.Context, wlm workloadmeta.Store, client kubernetes.
 		podListerWatcher,
 		&corev1.Pod{},
 		podStore,
-		noResync,
+		resync,
 	)
 	log.Debug("pod reflector enabled")
 	return podReflector, podStore
