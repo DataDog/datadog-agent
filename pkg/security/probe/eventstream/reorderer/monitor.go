@@ -5,6 +5,7 @@
 
 //go:build linux
 
+// Package reorderer holds reorderer related files
 package reorderer
 
 import (
@@ -16,16 +17,16 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/metrics"
 )
 
-// ReordererMonitor represents a reorderer monitor
-type ReordererMonitor struct {
+// Monitor represents a reorderer monitor
+type Monitor struct {
 	ctx          context.Context
 	statsdClient statsd.ClientInterface
 	reOrderer    *ReOrderer
 }
 
 // NewReOrderMonitor instantiates a new reorder statistics counter
-func NewReOrderMonitor(ctx context.Context, statsdClient statsd.ClientInterface, reOrderer *ReOrderer) (*ReordererMonitor, error) {
-	return &ReordererMonitor{
+func NewReOrderMonitor(ctx context.Context, statsdClient statsd.ClientInterface, reOrderer *ReOrderer) (*Monitor, error) {
+	return &Monitor{
 		ctx:          ctx,
 		statsdClient: statsdClient,
 		reOrderer:    reOrderer,
@@ -33,7 +34,7 @@ func NewReOrderMonitor(ctx context.Context, statsdClient statsd.ClientInterface,
 }
 
 // Start the reorderer monitor
-func (r *ReordererMonitor) Start(wg *sync.WaitGroup) {
+func (r *Monitor) Start(wg *sync.WaitGroup) {
 	defer wg.Done()
 
 	for {

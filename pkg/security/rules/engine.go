@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+// Package rules holds rules related files
 package rules
 
 import (
@@ -32,10 +33,13 @@ import (
 )
 
 const (
+	// ProbeEvaluationRuleSetTagValue defines the probe evaluation rule-set tag value
 	ProbeEvaluationRuleSetTagValue = "probe_evaluation"
-	ThreatScoreRuleSetTagValue     = "threat_score"
+	// ThreatScoreRuleSetTagValue defines the threat-score rule-set tag value
+	ThreatScoreRuleSetTagValue = "threat_score"
 )
 
+// RuleEngine defines a rule engine
 type RuleEngine struct {
 	sync.RWMutex
 	config                    *config.RuntimeSecurityConfig
@@ -56,10 +60,12 @@ type RuleEngine struct {
 	rulesetListeners          []rules.RuleSetListener
 }
 
+// APIServer defines the API server
 type APIServer interface {
 	Apply([]string)
 }
 
+// NewRuleEngine returns a new rule engine
 func NewRuleEngine(evm *eventmonitor.EventMonitor, config *config.RuntimeSecurityConfig, probe *probe.Probe, rateLimiter *events.RateLimiter, apiServer APIServer, sender events.EventSender, statsdClient statsd.ClientInterface, rulesetListeners ...rules.RuleSetListener) (*RuleEngine, error) {
 	engine := &RuleEngine{
 		probe:                     probe,
@@ -77,7 +83,7 @@ func NewRuleEngine(evm *eventmonitor.EventMonitor, config *config.RuntimeSecurit
 	}
 
 	// register as event handler
-	if err := probe.AddEventHandler(model.UnknownEventType, engine); err != nil {
+	if err := probe.AddFullAccessEventHandler(engine); err != nil {
 		return nil, err
 	}
 
@@ -243,13 +249,17 @@ func (e *RuleEngine) LoadPolicies(policyProviders []rules.PolicyProvider, sendLo
 	}
 
 	if probeEvaluationRuleSet != nil {
-		e.currentRuleSet.Store(probeEvaluationRuleSet)
-		ruleIDs = append(ruleIDs, probeEvaluationRuleSet.ListRuleIDs()...)
-
 		// analyze the ruleset, push probe evaluation rule sets to the kernel and generate the policy report
 		report, err := e.probe.ApplyRuleSet(probeEvaluationRuleSet)
 		if err != nil {
 			return err
+		}
+
+		e.currentRuleSet.Store(probeEvaluationRuleSet)
+		ruleIDs = append(ruleIDs, probeEvaluationRuleSet.ListRuleIDs()...)
+
+		if err := e.probe.FlushDiscarders(); err != nil {
+			return fmt.Errorf("failed to flush discarders: %w", err)
 		}
 
 		content, _ := json.Marshal(report)
@@ -341,6 +351,7 @@ func (e *RuleEngine) RuleMatch(rule *rules.Rule, event eval.Event) bool {
 	return true
 }
 
+// Stop stops the rule engine
 func (e *RuleEngine) Stop() {
 	for _, provider := range e.policyProviders {
 		_ = provider.Close()
@@ -435,6 +446,7 @@ func (e *RuleEngine) HandleEvent(event *model.Event) {
 	}
 }
 
+// StopEventCollector stops the event collector
 func (e *RuleEngine) StopEventCollector() []rules.CollectedEvent {
 	return e.GetRuleSet().StopEventCollector()
 }

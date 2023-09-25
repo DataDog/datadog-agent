@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+// Package rules holds rules related files
 package rules
 
 import (
@@ -264,10 +265,6 @@ func (rs *RuleSet) AddRules(parsingContext *ast.ParsingContext, rules []*RuleDef
 		if _, err := rs.AddRule(parsingContext, ruleDef); err != nil {
 			result = multierror.Append(result, err)
 		}
-	}
-
-	if err := rs.generatePartials(); err != nil {
-		result = multierror.Append(result, fmt.Errorf("couldn't generate partials for rule: %w", err))
 	}
 
 	return result
@@ -735,21 +732,7 @@ NewFields:
 	}
 }
 
-// generatePartials generates the partials of the ruleset. A partial is a boolean evalution function that only depends
-// on one field. The goal of partial is to determine if a rule depends on a specific field, so that we can decide if
-// we should create an in-kernel filter for that field.
-func (rs *RuleSet) generatePartials() error {
-	// Compute the partials of each rule
-	for _, bucket := range rs.eventRuleBuckets {
-		for _, rule := range bucket.GetRules() {
-			if err := rule.GenPartials(); err != nil {
-				return err
-			}
-		}
-	}
-	return nil
-}
-
+// StopEventCollector stops the event collector
 func (rs *RuleSet) StopEventCollector() []CollectedEvent {
 	return rs.eventCollector.Stop()
 }

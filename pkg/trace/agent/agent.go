@@ -186,6 +186,10 @@ func (a *Agent) work() {
 func (a *Agent) loop() {
 	<-a.ctx.Done()
 	log.Info("Exiting...")
+
+	// Stop OTLPReceiver before Receiver to avoid sending to closed channel
+	a.OTLPReceiver.Stop()
+
 	if err := a.Receiver.Stop(); err != nil {
 		log.Error(err)
 	}
@@ -199,7 +203,6 @@ func (a *Agent) loop() {
 		a.NoPrioritySampler,
 		a.RareSampler,
 		a.EventProcessor,
-		a.OTLPReceiver,
 		a.obfuscator,
 		a.obfuscator,
 		a.cardObfuscator,

@@ -33,21 +33,32 @@ var MAX_OPEN_CONNECTIONS = 10
 var DEFAULT_SQL_TRACED_RUNS = 10
 var DB_TIMEOUT = "20000"
 
-// The structure is filled by activity sampling and serves as a filter for query metrics
-type StatementsFilter struct {
-	SQLIDs                  map[string]int
-	ForceMatchingSignatures map[string]int
+const (
+	// MaxSQLFullTextVSQL is SQL_FULLTEXT size in V$SQL
+	MaxSQLFullTextVSQL = 4000
+
+	// MaxSQLFullTextVSQLStats is SQL_FULLTEXT size in V$SQLSTATS. The column is defined as VARCHAR2(4000)
+	// but due to the Oracle bug "27760729 : V$SQLSTAT.SQL_FULLTEXT DOES NOT SHOW COMPLETE SQL STMT";
+	// it contains only the first 1000 characters
+	MaxSQLFullTextVSQLStats = 1000
+)
+
+type hostingCode string
+
+const (
+	selfManaged hostingCode = "self-managed"
+	rds         hostingCode = "RDS"
+	oci         hostingCode = "OCI"
+)
+
+type hostingType struct {
+	value hostingCode
+	valid bool
 }
 
-type StatementsCacheData struct {
-	statement      string
-	querySignature string
-	tables         []string
-	commands       []string
-}
-type StatementsCache struct {
-	SQLIDs                  map[string]StatementsCacheData
-	forceMatchingSignatures map[string]StatementsCacheData
+type pgaOverAllocationCount struct {
+	value float64
+	valid bool
 }
 
 type Check struct {
@@ -55,16 +66,13 @@ type Check struct {
 	config                                  *config.CheckConfig
 	db                                      *sqlx.DB
 	dbCustomQueries                         *sqlx.DB
+	connection                              *go_ora.Connection
 	dbmEnabled                              bool
 	agentVersion                            string
 	checkInterval                           float64
 	tags                                    []string
 	tagsString                              string
 	cdbName                                 string
-	statementsFilter                        StatementsFilter
-	statementsCache                         StatementsCache
-	DDstatementsCache                       StatementsCache
-	DDPrevStatementsCache                   StatementsCache
 	statementMetricsMonotonicCountsPrevious map[StatementMetricsKeyDB]StatementMetricsMonotonicCountDB
 	dbHostname                              string
 	dbVersion                               string
@@ -72,19 +80,19 @@ type Check struct {
 	metricLastRun                           time.Time
 	statementsLastRun                       time.Time
 	filePath                                string
-	isRDS                                   bool
-	isOracleCloud                           bool
 	sqlTraceRunsCount                       int
 	connectedToPdb                          bool
 	fqtEmitted                              *cache.Cache
 	planEmitted                             *cache.Cache
-	previousAllocationCount                 float64
+	previousPGAOverAllocationCount          pgaOverAllocationCount
+	hostingType
+	logPrompt string
 }
 
 func handleServiceCheck(c *Check, err error) {
 	sender, errSender := c.GetSender()
 	if errSender != nil {
-		log.Errorf("failed to get sender for service check %s", err)
+		log.Errorf("%s failed to get sender for service check %s", c.logPrompt, err)
 	}
 
 	message := ""
@@ -93,7 +101,7 @@ func handleServiceCheck(c *Check, err error) {
 		status = servicecheck.ServiceCheckOK
 	} else {
 		status = servicecheck.ServiceCheckCritical
-		log.Errorf("failed to connect: %s", err)
+		log.Errorf("%s failed to connect: %s", c.logPrompt, err)
 	}
 	sender.ServiceCheck("oracle.can_connect", status, "", c.tags, message)
 	sender.Commit()
@@ -120,9 +128,17 @@ func (c *Check) Run() error {
 		if db == nil {
 			c.Teardown()
 			handleServiceCheck(c, fmt.Errorf("empty connection"))
-			return fmt.Errorf("empty connection")
+			return fmt.Errorf("%s empty connection", c.logPrompt)
 		}
 		c.db = db
+	}
+
+	if c.driver == "oracle" && c.connection == nil {
+		conn, err := connectGoOra(c)
+		if err != nil {
+			return fmt.Errorf("%s failed to connect with go-ora %w", c.logPrompt, err)
+		}
+		c.connection = conn
 	}
 
 	metricIntervalExpired := checkIntervalExpired(&c.metricLastRun, c.config.MetricCollectionInterval)
@@ -138,19 +154,17 @@ func (c *Check) Run() error {
 			} else {
 				handleServiceCheck(c, nil)
 			}
-			if errClosing := CloseDatabaseConnection(db); err != nil {
-				log.Errorf("Error closing connection %s", errClosing)
-			}
-			return fmt.Errorf("failed to collect os stats %w", err)
+			closeDatabase(c, db)
+			return fmt.Errorf("%s failed to collect os stats %w", c.logPrompt, err)
 		} else {
 			handleServiceCheck(c, nil)
 		}
 
 		if c.config.SysMetrics.Enabled {
-			log.Trace("Entered sysmetrics")
+			log.Debugf("%s Entered sysmetrics", c.logPrompt)
 			err := c.SysMetrics()
 			if err != nil {
-				return fmt.Errorf("failed to collect sysmetrics %w", err)
+				return fmt.Errorf("%s failed to collect sysmetrics %w", c.logPrompt, err)
 			}
 		}
 		if c.config.Tablespaces.Enabled {
@@ -163,6 +177,12 @@ func (c *Check) Run() error {
 			err := c.ProcessMemory()
 			if err != nil {
 				return err
+			}
+		}
+		if len(c.config.CustomQueries) > 0 {
+			err := c.CustomQueries()
+			if err != nil {
+				log.Errorf("%s failed to execute custom queries %s", c.logPrompt, err)
 			}
 		}
 	}
@@ -187,168 +207,22 @@ func (c *Check) Run() error {
 					return err
 				}
 			}
-			if len(c.config.CustomQueries) > 0 {
-				err := c.CustomQueries()
-				if err != nil {
-					log.Errorf("failed to execute custom queries %s", err)
-				}
-			}
 		}
 	}
 
 	if c.config.AgentSQLTrace.Enabled {
-		log.Tracef("Traced runs %d", c.sqlTraceRunsCount)
+		log.Debugf("%s Traced runs %d", c.logPrompt, c.sqlTraceRunsCount)
 		c.sqlTraceRunsCount++
 		if c.sqlTraceRunsCount >= c.config.AgentSQLTrace.TracedRuns {
 			c.config.AgentSQLTrace.Enabled = false
 			_, err := c.db.Exec("BEGIN dbms_monitor.session_trace_disable; END;")
 			if err != nil {
-				log.Errorf("failed to stop SQL trace: %v", err)
+				log.Errorf("%s failed to stop SQL trace: %v", c.logPrompt, err)
 			}
 			c.db.SetMaxOpenConns(MAX_OPEN_CONNECTIONS)
 		}
 	}
 	return nil
-}
-
-// Connect establishes a connection to an Oracle instance and returns an open connection to the database.
-func (c *Check) Connect() (*sqlx.DB, error) {
-
-	var connStr string
-	var oracleDriver string
-	if c.config.TnsAlias != "" {
-		connStr = fmt.Sprintf(`user="%s" password="%s" connectString="%s"`, c.config.Username, c.config.Password, c.config.TnsAlias)
-		oracleDriver = "godror"
-	} else {
-		//godror ezconnect string
-		if c.config.InstanceConfig.InstantClient {
-			oracleDriver = "godror"
-			protocolString := ""
-			walletString := ""
-			if c.config.Protocol == "TCPS" {
-				protocolString = "tcps://"
-				if c.config.Wallet != "" {
-					walletString = fmt.Sprintf("?wallet_location=%s", c.config.Wallet)
-				}
-			}
-			connStr = fmt.Sprintf(`user="%s" password="%s" connectString="%s%s:%d/%s%s"`, c.config.Username, c.config.Password, protocolString, c.config.Server, c.config.Port, c.config.ServiceName, walletString)
-		} else {
-			oracleDriver = "oracle"
-			connectionOptions := map[string]string{"TIMEOUT": DB_TIMEOUT}
-			if c.config.Protocol == "TCPS" {
-				connectionOptions["SSL"] = "TRUE"
-				if c.config.Wallet != "" {
-					connectionOptions["WALLET"] = c.config.Wallet
-				}
-			}
-			connStr = go_ora.BuildUrl(c.config.Server, c.config.Port, c.config.ServiceName, c.config.Username, c.config.Password, connectionOptions)
-			// https://github.com/jmoiron/sqlx/issues/854#issuecomment-1504070464
-			sqlx.BindDriver("oracle", sqlx.NAMED)
-		}
-	}
-	c.driver = oracleDriver
-
-	log.Infof("driver: %s", oracleDriver)
-
-	db, err := sqlx.Open(oracleDriver, connStr)
-	if err != nil {
-		return nil, fmt.Errorf("failed to connect to oracle instance: %w", err)
-	}
-	err = db.Ping()
-	if err != nil {
-		return nil, fmt.Errorf("failed to ping oracle instance: %w", err)
-	}
-
-	db.SetMaxOpenConns(MAX_OPEN_CONNECTIONS)
-
-	if c.cdbName == "" {
-		row := db.QueryRow("SELECT /* DD */ lower(name) FROM v$database")
-		err = row.Scan(&c.cdbName)
-		if err != nil {
-			return nil, fmt.Errorf("failed to query db name: %w", err)
-		}
-		c.tags = append(c.tags, fmt.Sprintf("cdb:%s", c.cdbName))
-	}
-
-	if c.dbHostname == "" || c.dbVersion == "" {
-		// host_name is null on Oracle Autonomous Database
-		row := db.QueryRow("SELECT /* DD */ nvl(host_name, instance_name), version_full FROM v$instance")
-		var dbHostname string
-		err = row.Scan(&dbHostname, &c.dbVersion)
-		if err != nil {
-			return nil, fmt.Errorf("failed to query hostname and version: %w", err)
-		}
-		if c.config.ReportedHostname != "" {
-			c.dbHostname = c.config.ReportedHostname
-		} else {
-			c.dbHostname = dbHostname
-		}
-		c.tags = append(c.tags, fmt.Sprintf("host:%s", c.dbHostname), fmt.Sprintf("oracle_version:%s", c.dbVersion))
-	}
-
-	if c.filePath == "" {
-		r := db.QueryRow("SELECT SUBSTR(name, 1, 10) path FROM v$datafile WHERE rownum = 1")
-		var path string
-		err = r.Scan(&path)
-		if err != nil {
-			return nil, fmt.Errorf("failed to query path: %w", err)
-		}
-		if path == "/rdsdbdata" {
-			c.isRDS = true
-		}
-	}
-
-	r := db.QueryRow("select decode(sys_context('USERENV','CON_ID'),1,'CDB','PDB') TYPE from DUAL")
-	var connectionType string
-	err = r.Scan(&connectionType)
-	if err != nil {
-		return nil, fmt.Errorf("failed to query connection type: %w", err)
-	}
-	var cloudRows int
-	if connectionType == "PDB" {
-		c.connectedToPdb = true
-		r := db.QueryRow("select 1 from v$pdbs where cloud_identity like '%oraclecloud%' and rownum = 1")
-		err := r.Scan(&cloudRows)
-		if err != nil {
-			log.Errorf("failed to query v$pdbs: %s", err)
-		}
-		if cloudRows == 1 {
-			r := db.QueryRow("select 1 from cdb_services where name like '%oraclecloud%' and rownum = 1")
-			err := r.Scan(&cloudRows)
-			if err != nil {
-				log.Errorf("failed to query cdb_services: %s", err)
-			}
-		}
-	}
-	if cloudRows == 1 {
-		c.isOracleCloud = true
-	}
-
-	if c.config.AgentSQLTrace.Enabled {
-		db.SetMaxOpenConns(1)
-		_, err := db.Exec("ALTER SESSION SET tracefile_identifier='DDAGENT'")
-		if err != nil {
-			log.Warnf("failed to set tracefile_identifier: %v", err)
-		}
-
-		/* We are concatenating values instead of passing parameters, because there seems to be a problem
-		 * in go-ora with passing bool parameters to PL/SQL. As a mitigation, we are asserting that the
-		 * parameters are bool
-		 */
-		binds := assertBool(c.config.AgentSQLTrace.Binds)
-		waits := assertBool(c.config.AgentSQLTrace.Waits)
-		setEventsStatement := fmt.Sprintf("BEGIN dbms_monitor.session_trace_enable (binds => %t, waits => %t); END;", binds, waits)
-		log.Trace("trace statement: %s", setEventsStatement)
-		_, err = db.Exec(setEventsStatement)
-		if err != nil {
-			log.Errorf("failed to set SQL trace: %v", err)
-		}
-		if c.config.AgentSQLTrace.TracedRuns == 0 {
-			c.config.AgentSQLTrace.TracedRuns = DEFAULT_SQL_TRACED_RUNS
-		}
-	}
-
-	return db, nil
 }
 
 func assertBool(val bool) bool {
@@ -357,22 +231,10 @@ func assertBool(val bool) bool {
 
 // Teardown cleans up resources used throughout the check.
 func (c *Check) Teardown() {
-	if c.db != nil {
-		if err := c.db.Close(); err != nil {
-			log.Warnf("failed to close oracle connection | server=[%s]: %s", c.config.Server, err.Error())
-		}
-	}
-	c.fqtEmitted = nil
-	c.planEmitted = nil
-}
-
-func CloseDatabaseConnection(db *sqlx.DB) error {
-	if db != nil {
-		if err := db.Close(); err != nil {
-			return fmt.Errorf("failed to close oracle connection: %s", err)
-		}
-	}
-	return nil
+	log.Infof("%s Teardown", c.logPrompt)
+	closeDatabase(c, c.db)
+	closeDatabase(c, c.dbCustomQueries)
+	closeGoOraConnection(c)
 }
 
 // Configure configures the Oracle check.
@@ -418,13 +280,8 @@ func (c *Check) Configure(senderManager sender.SenderManager, integrationConfigD
 
 	c.tagsString = strings.Join(c.tags, ",")
 
-	c.fqtEmitted = cache.New(60*time.Minute, 10*time.Minute)
-
-	var planCacheRetention = c.config.QueryMetrics.PlanCacheRetention
-	if planCacheRetention == 0 {
-		planCacheRetention = 1
-	}
-	c.planEmitted = cache.New(time.Duration(planCacheRetention)*time.Minute, 10*time.Minute)
+	c.fqtEmitted = getFqtEmittedCache()
+	c.planEmitted = getPlanEmittedCache(c)
 
 	return nil
 }
@@ -449,7 +306,7 @@ func (c *Check) GetObfuscatedStatement(o *obfuscate.Obfuscator, statement string
 		}, nil
 	} else {
 		if c.config.InstanceConfig.LogUnobfuscatedQueries {
-			log.Error(fmt.Sprintf("Obfuscation error for SQL: %s", statement))
+			log.Errorf("%s Obfuscation error for SQL: %s", c.logPrompt, statement)
 		}
 		return common.ObfuscatedStatement{Statement: statement}, err
 	}
@@ -464,41 +321,4 @@ func appendPDBTag(tags []string, pdb sql.NullString) []string {
 		return tags
 	}
 	return append(tags, "pdb:"+strings.ToLower(pdb.String))
-}
-
-func selectWrapper[T any](c *Check, s T, sql string, binds ...interface{}) error {
-	err := c.db.Select(s, sql, binds...)
-	reconnectOnConnectionError(c, &c.db, err)
-	return err
-}
-
-func reconnectOnConnectionError(c *Check, db **sqlx.DB, err error) {
-	if err == nil {
-		return
-	}
-	errors := []string{"ORA-00028", "ORA-01012", "ORA-06413", "database is closed"}
-	var isError bool
-	for _, e := range errors {
-		if strings.Contains(err.Error(), e) {
-			isError = true
-			break
-		}
-	}
-	if !isError {
-		return
-	}
-	log.Tracef("Reconnecting")
-	*db, err = c.Connect()
-	if err != nil {
-		log.Errorf("failed to reconnect %s", err)
-		closeDatabase(c, *db)
-	}
-}
-
-func closeDatabase(c *Check, db *sqlx.DB) {
-	if db != nil {
-		if err := db.Close(); err != nil {
-			log.Warnf("failed to close oracle connection | server=[%s]: %s", c.config.Server, err.Error())
-		}
-	}
 }

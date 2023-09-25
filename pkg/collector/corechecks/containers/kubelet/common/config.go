@@ -19,7 +19,9 @@ const (
 
 // KubeletConfig is the config of the Kubelet.
 type KubeletConfig struct {
-	ProbesMetricsEndpoint *string `yaml:"probes_metrics_endpoint,omitempty"`
+	ProbesMetricsEndpoint   *string  `yaml:"probes_metrics_endpoint,omitempty"`
+	EnabledRates            []string `yaml:"enabled_rates,omitempty"`
+	UseStatsSummaryAsSource *bool    `yaml:"use_stats_summary_as_source,omitempty"`
 	types.OpenmetricsInstance
 }
 

@@ -111,6 +111,7 @@ func (l *ProfilingRuntimeSetting) Set(v interface{}, source Source) error {
 			WithGoroutineProfile: cfg.GetBool(l.ConfigPrefix + "internal_profiling.enable_goroutine_stacktraces"),
 			WithDeltaProfiles:    cfg.GetBool(l.ConfigPrefix + "internal_profiling.delta_profiles"),
 			Tags:                 tags,
+			CustomAttributes:     cfg.GetStringSlice(l.ConfigPrefix + "internal_profiling.custom_attributes"),
 		}
 		err := profiling.Start(settings)
 		if err == nil {

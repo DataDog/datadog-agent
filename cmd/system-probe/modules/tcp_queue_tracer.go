@@ -18,7 +18,7 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/system-probe/api/module"
 	"github.com/DataDog/datadog-agent/cmd/system-probe/config"
 	"github.com/DataDog/datadog-agent/cmd/system-probe/utils"
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/ebpf/probe"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/ebpf/probe/tcpqueuelength"
 	"github.com/DataDog/datadog-agent/pkg/ebpf"
 )
 
@@ -27,14 +27,14 @@ var TCPQueueLength = module.Factory{
 	Name:             config.TCPQueueLengthTracerModule,
 	ConfigNamespaces: []string{},
 	Fn: func(cfg *config.Config) (module.Module, error) {
-		t, err := probe.NewTCPQueueLengthTracer(ebpf.NewConfig())
+		t, err := tcpqueuelength.NewTracer(ebpf.NewConfig())
 		if err != nil {
 			return nil, fmt.Errorf("unable to start the TCP queue length tracer: %w", err)
 		}
 
 		return &tcpQueueLengthModule{
-			TCPQueueLengthTracer: t,
-			lastCheck:            atomic.NewInt64(0),
+			Tracer:    t,
+			lastCheck: atomic.NewInt64(0),
 		}, nil
 	},
 }
@@ -42,14 +42,14 @@ var TCPQueueLength = module.Factory{
 var _ module.Module = &tcpQueueLengthModule{}
 
 type tcpQueueLengthModule struct {
-	*probe.TCPQueueLengthTracer
+	*tcpqueuelength.Tracer
 	lastCheck *atomic.Int64
 }
 
 func (t *tcpQueueLengthModule) Register(httpMux *module.Router) error {
 	httpMux.HandleFunc("/check", func(w http.ResponseWriter, req *http.Request) {
 		t.lastCheck.Store(time.Now().Unix())
-		stats := t.TCPQueueLengthTracer.GetAndFlush()
+		stats := t.Tracer.GetAndFlush()
 		utils.WriteAsJSON(w, stats)
 	})
 
@@ -57,7 +57,7 @@ func (t *tcpQueueLengthModule) Register(httpMux *module.Router) error {
 }
 
 // RegisterGRPC register to system probe gRPC server
-func (t *tcpQueueLengthModule) RegisterGRPC(_ *grpc.Server) error {
+func (t *tcpQueueLengthModule) RegisterGRPC(_ grpc.ServiceRegistrar) error {
 	return nil
 }
 

@@ -13,6 +13,7 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"sync"
 
 	"github.com/DataDog/gopsutil/host"
 	"github.com/cilium/ebpf/btf"
@@ -40,7 +41,7 @@ func GetBTF(userProvidedBtfPath, bpfDir string) (*btf.Spec, COREResult) {
 	}
 	log.Debugf("couldn't find BTF in embedded collection: %s", err)
 
-	btfSpec, err = btf.LoadKernelSpec()
+	btfSpec, err = GetKernelSpec()
 	if err == nil {
 		log.Debugf("loaded BTF from default kernel location")
 		return btfSpec, successDefaultBTF
@@ -124,4 +125,37 @@ func loadBTFFrom(path string) (*btf.Spec, error) {
 	defer data.Close()
 
 	return btf.LoadSpecFromReader(data)
+}
+
+var kernelSpecCache struct {
+	sync.Mutex
+	spec *btf.Spec
+}
+
+// GetKernelSpec returns a possibly cached version of the running kernel BTF spec
+// it's very important that the caller of this function does not modify the returned value
+func GetKernelSpec() (*btf.Spec, error) {
+	kernelSpecCache.Lock()
+	defer kernelSpecCache.Unlock()
+
+	if kernelSpecCache.spec != nil {
+		return kernelSpecCache.spec, nil
+	}
+
+	spec, err := btf.LoadKernelSpec()
+	if err != nil {
+		return nil, err
+	}
+
+	kernelSpecCache.spec = spec
+	return spec, nil
+}
+
+// FlushKernelSpecCache releases and flush the kernel spec cache
+func FlushKernelSpecCache() {
+	kernelSpecCache.Lock()
+	defer kernelSpecCache.Unlock()
+
+	kernelSpecCache.spec = nil
+	btf.FlushKernelSpec()
 }

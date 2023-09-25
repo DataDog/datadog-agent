@@ -202,4 +202,41 @@ int socket__http_filter(struct __sk_buff* skb) {
     return 0;
 }
 
+SEC("uprobe/http_process")
+int uprobe__http_process(struct pt_regs *ctx) {
+    const __u32 zero = 0;
+    tls_dispatcher_arguments_t *args = bpf_map_lookup_elem(&tls_dispatcher_arguments, &zero);
+    if (args == NULL) {
+        return 0;
+    }
+
+    http_transaction_t http;
+    bpf_memset(&http, 0, sizeof(http));
+    bpf_memcpy(&http.tup, &args->tup, sizeof(conn_tuple_t));
+    read_into_user_buffer_http(http.request_fragment, args->buffer_ptr);
+    http_process(&http, NULL, args->tags);
+    http_batch_flush(ctx);
+
+    return 0;
+}
+
+SEC("uprobe/http_termination")
+int uprobe__http_termination(struct pt_regs *ctx) {
+    const __u32 zero = 0;
+    tls_dispatcher_arguments_t *args = bpf_map_lookup_elem(&tls_dispatcher_arguments, &zero);
+    if (args == NULL) {
+        return 0;
+    }
+
+    http_transaction_t http;
+    bpf_memset(&http, 0, sizeof(http));
+    bpf_memcpy(&http.tup, &args->tup, sizeof(conn_tuple_t));
+    skb_info_t skb_info = {0};
+    skb_info.tcp_flags |= TCPHDR_FIN;
+    http_process(&http, &skb_info, NO_TAGS);
+    http_batch_flush(ctx);
+
+    return 0;
+}
+
 #endif

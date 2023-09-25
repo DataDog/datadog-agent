@@ -5,6 +5,7 @@
 
 //go:build !windows && kubeapiserver
 
+// Package check holds check related files
 package check
 
 import (
@@ -26,6 +27,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/log"
+	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
 	"github.com/DataDog/datadog-agent/pkg/compliance"
 	"github.com/DataDog/datadog-agent/pkg/compliance/k8sconfig"
 	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
@@ -51,15 +53,18 @@ type CliParams struct {
 	dumpReports       string
 }
 
+// SecurityAgentCommands returns the security agent commands
 func SecurityAgentCommands(globalParams *command.GlobalParams) []*cobra.Command {
 	return commandsWrapped(func() core.BundleParams {
 		return core.BundleParams{
-			ConfigParams: config.NewSecurityAgentParams(globalParams.ConfigFilePaths),
-			LogParams:    log.LogForOneShot(command.LoggerName, "info", true),
+			ConfigParams:         config.NewSecurityAgentParams(globalParams.ConfigFilePaths),
+			SysprobeConfigParams: sysprobeconfig.NewParams(sysprobeconfig.WithSysProbeConfFilePath(globalParams.SysProbeConfFilePath)),
+			LogParams:            log.LogForOneShot(command.LoggerName, "info", true),
 		}
 	})
 }
 
+// ClusterAgentCommands returns the cluster agent commands
 func ClusterAgentCommands(bundleParams core.BundleParams) []*cobra.Command {
 	return commandsWrapped(func() core.BundleParams {
 		return bundleParams
@@ -99,6 +104,7 @@ func commandsWrapped(bundleParamsFactory func() core.BundleParams) []*cobra.Comm
 	return []*cobra.Command{cmd}
 }
 
+// RunCheck runs a check
 func RunCheck(log log.Component, config config.Component, checkArgs *CliParams) error {
 	hname, err := hostname.Get(context.TODO())
 	if err != nil {
@@ -192,7 +198,12 @@ func RunCheck(log log.Component, config config.Component, checkArgs *CliParams) 
 			case rule.IsXCCDF():
 				ruleEvents = compliance.EvaluateXCCDFRule(context.Background(), hname, statsdClient, benchmark, rule)
 			case rule.IsRego():
-				ruleEvents = compliance.ResolveAndEvaluateRegoRule(context.Background(), resolver, benchmark, rule)
+				inputs, err := resolver.ResolveInputs(context.Background(), rule)
+				if err != nil {
+					ruleEvents = append(ruleEvents, compliance.CheckEventFromError(compliance.RegoEvaluator, rule, benchmark, err))
+				} else {
+					ruleEvents = compliance.EvaluateRegoRule(context.Background(), inputs, benchmark, rule)
+				}
 			}
 			for _, event := range ruleEvents {
 				b, _ := json.MarshalIndent(event, "", "\t")

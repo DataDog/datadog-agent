@@ -5,12 +5,13 @@
 
 //go:build linux
 
+// Package time holds time related files
 package time
 
 import (
 	"time"
 
-	_ "unsafe"
+	_ "unsafe" // unsafe import to call nanotime() which should be 2x quick than time.Now()
 
 	"github.com/shirou/gopsutil/v3/host"
 )

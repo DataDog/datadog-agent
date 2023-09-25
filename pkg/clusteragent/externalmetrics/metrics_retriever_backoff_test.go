@@ -46,10 +46,10 @@ func (p *mockedProcessorWithBackoff) QueryExternalMetric(queries []string, timeW
 
 	if p.errIndex == len(p.err)-1 {
 		return p.points, p.err[p.errIndex]
-	} else {
-		p.errIndex++
-		return p.points, p.err[p.errIndex]
 	}
+
+	p.errIndex++
+	return p.points, p.err[p.errIndex]
 }
 
 func (p *mockedProcessorWithBackoff) ProcessEMList(emList []custommetrics.ExternalMetricValue) map[string]custommetrics.ExternalMetricValue {
