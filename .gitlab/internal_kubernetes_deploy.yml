@@ -65,12 +65,11 @@ notify-slack:
     - internal_kubernetes_deploy_stripe
   script:
     - |
-      pwd
-      ls -la
       postmessage "system-probe-ops" "$(cat system_probe_commits.txt)"
       while IFS= read -r email; do
         results+=$(email2slackid "$email" || echo "$email")
       done < unique_emails.txt
+      echo "$(cat unique_emails.txt)"
       echo "Unique Authors: $(printf " %s" "${results[@]}")"
       git checkout ${CI_COMMIT_SHORT_SHA}
       #    - git tag stripe_staging
