@@ -26,6 +26,7 @@ include:
 #    - inv pipeline.trigger-child-pipeline --project-name "DataDog/k8s-datadog-agent-ops" --git-ref "main" --variables "OPTION_AUTOMATIC_ROLLOUT,WORKFLOW,OPTION_PRE_SCRIPT,FILTER,SKIP_PLAN_CHECK,FORCE_DEPLOYMENT"
 #    - export GH_TOKEN=$(aws ssm get-parameter --region us-east-1 --name github.user.datadog-compute-robot --with-decryption --query "Parameter.Value" --out text)
 #    - .gitlab/scripts/generate_changelog.sh
+    - python3 -m pip install -r tasks/libs/requirements-notifications.txt
     - inv pipeline.changelog ${CI_COMMIT_SHORT_SHA}
 
 #internal_kubernetes_deploy_snowver:
