@@ -184,6 +184,10 @@ func (p *GoTLSProgram) ConfigureOptions(options *manager.Options) {
 		options.MapEditors = make(map[string]*ebpf.Map)
 	}
 
+	options.MapSpecEditors[probes.SockByPidFDMap] = manager.MapSpecEditor{
+		MaxEntries: p.cfg.MaxTrackedConnections,
+		EditorFlag: manager.EditMaxEntries,
+	}
 	options.MapEditors[probes.SockByPidFDMap] = p.sockFDMap
 }
 
