@@ -40,11 +40,7 @@ type ProcessSerializer struct {
 	// Container context
 	Container *ContainerContextSerializer `json:"container,omitempty"`
 	// Command line arguments
-	Args []string `json:"args,omitempty"`
-	// Environment variables of the process
-	Envs []string `json:"envs,omitempty"`
-	// Process source
-	Source string `json:"source,omitempty"`
+	Args string `json:"args,omitempty"`
 }
 
 // FileEventSerializer serializes a file event to JSON
@@ -78,8 +74,7 @@ func newProcessSerializer(ps *model.Process, e *model.Event, resolvers *resolver
 		Pid:        ps.Pid,
 		PPid:       getUint32Pointer(&ps.PPid),
 		Executable: newFileSerializer(&ps.FileEvent, e),
-		Args:       resolvers.ProcessResolver.GetProcessScrubbedArgv(ps),
-		Envs:       ps.Envs,
+		Args:       ps.Args,
 	}
 
 	if len(ps.ContainerID) != 0 {
@@ -108,9 +103,6 @@ func newProcessContextSerializer(pc *model.ProcessContext, e *model.Event, resol
 	it := &model.ProcessAncestorsIterator{}
 	ptr := it.Front(ctx)
 
-	var ancestor *model.ProcessCacheEntry
-	var prev *ProcessSerializer
-
 	first := true
 
 	for ptr != nil {
@@ -123,13 +115,6 @@ func newProcessContextSerializer(pc *model.ProcessContext, e *model.Event, resol
 			ps.Parent = s
 		}
 		first = false
-
-		// dedup args/envs
-		if ancestor != nil && ancestor.ArgsEntry == pce.ArgsEntry {
-			prev.Args, prev.Envs = prev.Args[0:0], prev.Envs[0:0]
-		}
-		ancestor = pce
-		prev = s
 
 		ptr = it.Next()
 	}
