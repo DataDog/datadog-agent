@@ -35,8 +35,6 @@ func (wdr WorkloadDumpResponse) Write(writer io.Writer) {
 	for kind, entities := range wdr.Entities {
 		for entity, info := range entities.Infos {
 			info = scrubMessage(info)
-			kind = scrubMessage(kind)
-			entity = scrubMessage(entity)
 			fmt.Fprintf(writer, "\n=== Entity %s %s ===\n", color.GreenString(kind), color.GreenString(entity))
 			fmt.Fprint(writer, info)
 			fmt.Fprintln(writer, "===")

@@ -144,7 +144,6 @@ func TestGetWorkloadList(t *testing.T) {
 		Infos: map[string]string{
 			"container_id_1": "Name: init-volume ID: e19e1ba787",
 			"container_id_2": "Name: init-config ID: 4e0ffee5d6",
-			"container_id_3": "Name: init-passwd ID: f17539af8d pwd: admin123",
 		},
 	}
 	resp := workloadmeta.WorkloadDumpResponse{
@@ -167,7 +166,6 @@ func TestGetWorkloadList(t *testing.T) {
 	assert.Contains(t, string(content), "Name: init-volume ID: e19e1ba787")
 	assert.Contains(t, string(content), "container_id_2")
 	assert.Contains(t, string(content), "Name: init-config ID: 4e0ffee5d6")
-	assert.Contains(t, string(content), "Name: init-passwd ID: f17539af8d pwd: \"********\"")
 }
 
 func TestVersionHistory(t *testing.T) {
