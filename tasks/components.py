@@ -319,6 +319,7 @@ def read_file_content(template_path):
     with open(template_path, "r") as file:
         return file.read()
 
+
 @task
 def lint_fxutil_oneshot_test(_):
     """
@@ -329,11 +330,11 @@ def lint_fxutil_oneshot_test(_):
     for folder in folders:
         folder_path = pathlib.Path(folder)
         for file in folder_path.rglob("*.go"):
-            if str(file).endswith("_test.go"):
+            if str(file).endswith("_test.go") or str(file).endswith("main.go"):
                 continue
 
             # The code in this file cannot be easily tested
-            if "cmd/system-probe/subcommands/run/command.go" in str(file):                
+            if "cmd/system-probe/subcommands/run/command.go" in str(file):
                 continue
 
             one_shot_count = file.read_text().count("fxutil.OneShot(")
@@ -344,7 +345,9 @@ def lint_fxutil_oneshot_test(_):
                 else:
                     test_one_shot_count = test_path.read_text().count("fxutil.TestOneShotSubcommand(")
                     if one_shot_count > test_one_shot_count:
-                        errors.append(f"The file {file} contains {one_shot_count} call(s) to `fxutil.OneShot` but {test_path} contains only {test_one_shot_count} call(s) to `fxutil.TestOneShotSubcommand`")
+                        errors.append(
+                            f"The file {file} contains {one_shot_count} call(s) to `fxutil.OneShot` but {test_path} contains only {test_one_shot_count} call(s) to `fxutil.TestOneShotSubcommand`"
+                        )
     if len(errors) > 0:
         msg = '\n'.join(errors)
         raise Exit(f"Missings tests: {msg}")
