@@ -43,6 +43,7 @@ func runRuleSetLoadedBaseTest(t *testing.T, ruleDefs []*rules.RuleDefinition, op
 	t.Run("ruleset_loaded", func(t *testing.T) {
 		count := test.statsdClient.Get(key)
 		assert.Zero(t, count)
+		countPoliciesLoaded := 0
 
 		err = test.GetCustomEventSent(t, func() error {
 			// force a reload
@@ -54,7 +55,11 @@ func runRuleSetLoadedBaseTest(t *testing.T, ruleDefs []*rules.RuleDefinition, op
 
 			assert.Equal(t, count+1, test.statsdClient.Get(key))
 
-			return validateRuleSetLoadedSchema(t, customEvent)
+			countPoliciesLoaded = countPoliciesLoaded + 1
+
+			allPoliciesLoaded := int(countPoliciesLoaded) == opts.nbPoliciesToLoad
+
+			return validateRuleSetLoadedSchema(t, customEvent) && allPoliciesLoaded
 		}, 20*time.Second, model.CustomRulesetLoadedEventType)
 		if err != nil {
 			t.Fatal(err)
