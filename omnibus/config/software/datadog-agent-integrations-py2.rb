@@ -277,7 +277,6 @@ build do
 
     # Use pip-compile to create the final requirements file. Notice when we invoke `pip` through `python -m pip <...>`,
     # there's no need to refer to `pip`, the interpreter will pick the right script.
-
     command "#{python} -m pip wheel . --no-deps --no-index --wheel-dir=#{wheel_build_dir}", :env => build_env, :cwd => cwd
     command "#{python} -m pip install datadog_checks_base --no-deps --no-index --find-links=#{wheel_build_dir}"
     command "#{python} -m piptools compile --generate-hashes --output-file #{compiled_reqs_file_path} #{static_reqs_out_file} " \

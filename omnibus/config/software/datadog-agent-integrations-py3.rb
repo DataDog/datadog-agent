@@ -326,7 +326,6 @@ build do
       "--pip-args \"--retries #{pip_max_retries} --timeout #{pip_timeout}\"", :env => env
     end
 
-
     #
     # Install static-environment requirements that the Agent and all checks will use
     #
