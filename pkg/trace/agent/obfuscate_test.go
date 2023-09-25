@@ -224,8 +224,22 @@ func TestObfuscateConfig(t *testing.T) {
 		"memcached",
 		"memcached.command",
 		"set key 0 0 0\r\nvalue",
+		"set ? 0 0 0",
+		&config.ObfuscationConfig{Memcached: obfuscate.MemcachedConfig{
+			Enabled:   true,
+			RemoveKey: true,
+		}},
+	))
+
+	t.Run("memcached/remove_key_args_disabled", testConfig(
+		"memcached",
+		"memcached.command",
+		"set key 0 0 0\r\nvalue",
 		"set key 0 0 0",
-		&config.ObfuscationConfig{Memcached: config.Enablable{Enabled: true}},
+		&config.ObfuscationConfig{Memcached: obfuscate.MemcachedConfig{
+			Enabled:   true,
+			RemoveKey: false,
+		}},
 	))
 
 	t.Run("memcached/disabled", testConfig(

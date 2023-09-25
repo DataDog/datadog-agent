@@ -85,6 +85,9 @@ type Config struct {
 	// Redis holds the obfuscation settings for Redis commands.
 	Redis RedisConfig
 
+	// Memcached holds the obfuscation settings for Memcached commands.
+	Memcached MemcachedConfig
+
 	// Statsd specifies the statsd client to use for reporting metrics.
 	Statsd StatsClient
 
@@ -163,6 +166,16 @@ type RedisConfig struct {
 	// RemoveAllArgs specifies whether all arguments to a given Redis
 	// command should be obfuscated.
 	RemoveAllArgs bool `mapstructure:"remove_all_args"`
+}
+
+// MemcachedConfig holds the configuration settings for Memcached obfuscation
+type MemcachedConfig struct {
+	// Enabled specifies whether this feature should be enabled.
+	Enabled bool `mapstructure:"enabled"`
+
+	// RemoveKeyArgs specifies whether the key argument of a given Redis
+	// command should be obfuscated.
+	RemoveKey bool `mapstructure:"remove_key"`
 }
 
 // JSONConfig holds the obfuscation configuration for sensitive
