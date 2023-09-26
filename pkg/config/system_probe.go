@@ -312,6 +312,7 @@ func InitSystemProbeConfig(cfg Config) {
 	eventMonitorBindEnv(cfg, join(evNS, "runtime_compilation.compiled_constants_enabled"))
 	eventMonitorBindEnvAndSetDefault(cfg, join(evNS, "network.enabled"), true)
 	eventMonitorBindEnvAndSetDefault(cfg, join(evNS, "events_stats.polling_interval"), 20)
+	eventMonitorBindEnvAndSetDefault(cfg, join(evNS, "syscalls_monitor.enabled"), false)
 	cfg.BindEnvAndSetDefault(join(evNS, "socket"), "/opt/datadog-agent/run/event-monitor.sock")
 	cfg.BindEnvAndSetDefault(join(evNS, "event_server.burst"), 40)
 
