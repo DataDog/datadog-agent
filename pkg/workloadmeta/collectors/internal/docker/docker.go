@@ -195,7 +195,7 @@ func (c *collector) generateEventsFromImageList(ctx context.Context) error {
 		}
 
 		event := workloadmeta.CollectorEvent{
-			Source: workloadmeta.SourceRuntime,
+			Source: workloadmeta.SourceCLI,
 			Type:   workloadmeta.EventTypeSet,
 			Entity: imgMetadata,
 		}
@@ -223,7 +223,7 @@ func (c *collector) handleContainerEvent(ctx context.Context, ev *docker.Contain
 
 func (c *collector) buildCollectorEvent(ctx context.Context, ev *docker.ContainerEvent) (workloadmeta.CollectorEvent, error) {
 	event := workloadmeta.CollectorEvent{
-		Source: workloadmeta.SourceRuntime,
+		Source: workloadmeta.SourceCLI,
 	}
 
 	entityID := workloadmeta.EntityID{
@@ -510,7 +510,7 @@ func (c *collector) handleImageEvent(ctx context.Context, event *docker.ImageEve
 		}
 
 		workloadmetaEvent := workloadmeta.CollectorEvent{
-			Source: workloadmeta.SourceRuntime,
+			Source: workloadmeta.SourceCLI,
 			Type:   workloadmeta.EventTypeSet,
 			Entity: imgMetadata,
 		}
@@ -518,7 +518,7 @@ func (c *collector) handleImageEvent(ctx context.Context, event *docker.ImageEve
 		c.store.Notify([]workloadmeta.CollectorEvent{workloadmetaEvent})
 	case docker.ImageEventActionDelete:
 		workloadmetaEvent := workloadmeta.CollectorEvent{
-			Source: workloadmeta.SourceRuntime,
+			Source: workloadmeta.SourceCLI,
 			Type:   workloadmeta.EventTypeUnset,
 			Entity: &workloadmeta.ContainerImageMetadata{
 				EntityID: workloadmeta.EntityID{

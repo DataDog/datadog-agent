@@ -395,6 +395,6 @@ func TestWorkloadmetaFilterFromProtoFilter(t *testing.T) {
 	assert.False(t, resultFilter.MatchKind(workloadmeta.KindKubernetesPod))
 	assert.False(t, resultFilter.MatchKind(workloadmeta.KindECSTask))
 
-	assert.Equal(t, workloadmeta.SourceRuntime, resultFilter.Source())
+	assert.Equal(t, workloadmeta.SourceCLI, resultFilter.Source())
 	assert.Equal(t, workloadmeta.EventTypeSet, resultFilter.EventType())
 }

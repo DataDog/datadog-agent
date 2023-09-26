@@ -104,7 +104,7 @@ func (c *collector) parseTask(task *v2.Task) []workloadmeta.CollectorEvent {
 
 	events = append(events, containerEvents...)
 	events = append(events, workloadmeta.CollectorEvent{
-		Source: workloadmeta.SourceRuntime,
+		Source: workloadmeta.SourceCLI,
 		Type:   workloadmeta.EventTypeSet,
 		Entity: entity,
 	})
@@ -127,7 +127,7 @@ func (c *collector) parseTask(task *v2.Task) []workloadmeta.CollectorEvent {
 
 		events = append(events, workloadmeta.CollectorEvent{
 			Type:   workloadmeta.EventTypeUnset,
-			Source: workloadmeta.SourceRuntime,
+			Source: workloadmeta.SourceCLI,
 			Entity: entity,
 		})
 	}
@@ -188,7 +188,7 @@ func (c *collector) parseTaskContainers(
 		}
 
 		events = append(events, workloadmeta.CollectorEvent{
-			Source: workloadmeta.SourceRuntime,
+			Source: workloadmeta.SourceCLI,
 			Type:   workloadmeta.EventTypeSet,
 			Entity: &workloadmeta.Container{
 				EntityID: entityID,

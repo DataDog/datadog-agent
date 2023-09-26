@@ -25,12 +25,12 @@ type Source string
 
 // The default source is set as an empty string so that if the source isn't properly initialized, it is considered SourceDefault
 const (
-	SourceDefault Source = ""
+	SourceDefault Source = "default"
 	SourceYaml    Source = "yaml"
-	SourceEnvVar  Source = "env-var"
+	SourceEnvVar  Source = "environment-variable"
 	SourceSelf    Source = "self-config"
 	SourceRC      Source = "remote-config"
-	SourceRuntime Source = "runtime"
+	SourceCLI     Source = "cli"
 )
 
 func (s Source) String() string {

@@ -105,7 +105,7 @@ func TestAgentConfigCallback(t *testing.T) {
 
 	// -----------------
 	// Test scenario #2: log level was changed by the user BEFORE Agent Flare request
-	mockSettings.source = config.SourceRuntime
+	mockSettings.source = config.SourceCLI
 	structRC.agentConfigUpdateCallback(map[string]state.RawConfig{
 		"datadog/2/AGENT_CONFIG/layer1/configname":              layerStartFlare,
 		"datadog/2/AGENT_CONFIG/configuration_order/configname": configOrder,
@@ -113,7 +113,7 @@ func TestAgentConfigCallback(t *testing.T) {
 	// Log level should still be "info" because it was enforced by the user
 	assert.Equal(t, "info", mockSettings.logLevel)
 	// Source should still be CLI as it has priority over RC
-	assert.Equal(t, config.SourceRuntime, mockSettings.source)
+	assert.Equal(t, config.SourceCLI, mockSettings.source)
 
 	// -----------------
 	// Test scenario #3: log level is changed by the user DURING the Agent Flare request
@@ -125,11 +125,11 @@ func TestAgentConfigCallback(t *testing.T) {
 	assert.Equal(t, "debug", mockSettings.logLevel)
 	assert.Equal(t, config.SourceRC, mockSettings.source)
 
-	mockSettings.source = config.SourceRuntime
+	mockSettings.source = config.SourceCLI
 	structRC.agentConfigUpdateCallback(map[string]state.RawConfig{
 		"datadog/2/AGENT_CONFIG/layer1/configname":              layerEndFlare,
 		"datadog/2/AGENT_CONFIG/configuration_order/configname": configOrder,
 	}, applyEmpty)
 	assert.Equal(t, "debug", mockSettings.logLevel)
-	assert.Equal(t, config.SourceRuntime, mockSettings.source)
+	assert.Equal(t, config.SourceCLI, mockSettings.source)
 }

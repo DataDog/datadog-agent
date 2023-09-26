@@ -152,11 +152,11 @@ const (
 	// as its only meant to be used in filters.
 	SourceAll Source = ""
 
-	// SourceRuntime represents entities detected by the container runtime
+	// SourceCLI represents entities detected by the container runtime
 	// running on the node, collecting lower level information about
 	// containers. `docker`, `containerd`, `podman` and `ecs_fargate` use
 	// this source.
-	SourceRuntime Source = "runtime"
+	SourceCLI Source = "runtime"
 
 	// SourceNodeOrchestrator represents entities detected by the node
 	// agent from an orchestrator. `kubelet` and `ecs` use this.

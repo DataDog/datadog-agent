@@ -119,7 +119,7 @@ func TestBuildCollectorEvent(t *testing.T) {
 			},
 			expectedEvent: workloadmeta.CollectorEvent{
 				Type:   workloadmeta.EventTypeSet,
-				Source: workloadmeta.SourceRuntime,
+				Source: workloadmeta.SourceCLI,
 				Entity: &workloadMetaContainer,
 			},
 		},
@@ -134,7 +134,7 @@ func TestBuildCollectorEvent(t *testing.T) {
 			},
 			expectedEvent: workloadmeta.CollectorEvent{
 				Type:   workloadmeta.EventTypeSet,
-				Source: workloadmeta.SourceRuntime,
+				Source: workloadmeta.SourceCLI,
 				Entity: &workloadMetaContainer,
 			},
 		},
@@ -149,7 +149,7 @@ func TestBuildCollectorEvent(t *testing.T) {
 			},
 			expectedEvent: workloadmeta.CollectorEvent{
 				Type:   workloadmeta.EventTypeUnset,
-				Source: workloadmeta.SourceRuntime,
+				Source: workloadmeta.SourceCLI,
 				Entity: &workloadmeta.Container{
 					EntityID: workloadmeta.EntityID{
 						Kind: workloadmeta.KindContainer,
@@ -186,7 +186,7 @@ func TestBuildCollectorEvent(t *testing.T) {
 			},
 			expectedEvent: workloadmeta.CollectorEvent{
 				Type:   workloadmeta.EventTypeSet,
-				Source: workloadmeta.SourceRuntime,
+				Source: workloadmeta.SourceCLI,
 				Entity: &workloadMetaContainer,
 			},
 		},
@@ -201,7 +201,7 @@ func TestBuildCollectorEvent(t *testing.T) {
 			},
 			expectedEvent: workloadmeta.CollectorEvent{
 				Type:   workloadmeta.EventTypeSet,
-				Source: workloadmeta.SourceRuntime,
+				Source: workloadmeta.SourceCLI,
 				Entity: &workloadMetaContainer,
 			},
 		},
@@ -216,7 +216,7 @@ func TestBuildCollectorEvent(t *testing.T) {
 			},
 			expectedEvent: workloadmeta.CollectorEvent{
 				Type:   workloadmeta.EventTypeSet,
-				Source: workloadmeta.SourceRuntime,
+				Source: workloadmeta.SourceCLI,
 				Entity: &workloadMetaContainer,
 			},
 		},
@@ -231,7 +231,7 @@ func TestBuildCollectorEvent(t *testing.T) {
 			},
 			expectedEvent: workloadmeta.CollectorEvent{
 				Type:   workloadmeta.EventTypeSet,
-				Source: workloadmeta.SourceRuntime,
+				Source: workloadmeta.SourceCLI,
 				Entity: &workloadMetaContainer,
 			},
 		},
@@ -246,7 +246,7 @@ func TestBuildCollectorEvent(t *testing.T) {
 			},
 			expectedEvent: workloadmeta.CollectorEvent{
 				Type:   workloadmeta.EventTypeSet,
-				Source: workloadmeta.SourceRuntime,
+				Source: workloadmeta.SourceCLI,
 				Entity: &workloadMetaContainer,
 			},
 		},
@@ -261,7 +261,7 @@ func TestBuildCollectorEvent(t *testing.T) {
 			},
 			expectedEvent: workloadmeta.CollectorEvent{
 				Type:   workloadmeta.EventTypeSet,
-				Source: workloadmeta.SourceRuntime,
+				Source: workloadmeta.SourceCLI,
 				Entity: &workloadMetaContainer,
 			},
 		},
