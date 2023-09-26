@@ -15,6 +15,7 @@ type KeyValue struct {
 // KeyValueList is a list of mapping key values
 type KeyValueList []KeyValue
 
+// ToMap convert KeyValueList to map[string]string
 func (kvl *KeyValueList) ToMap() map[string]string {
 	mapping := make(map[string]string)
 	for _, item := range *kvl {
