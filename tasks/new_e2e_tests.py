@@ -190,7 +190,7 @@ def _get_existing_stacks(ctx: Context) -> List[str]:
     # running in temp dir as this is where datadog-agent test
     # stacks are stored
     with ctx.cd(tempfile.gettempdir()):
-        output = ctx.run("pulumi stack ls --all", pty=True)
+        output = ctx.run("PULUMI_SKIP_UPDATE_CHECK=true pulumi stack ls --all", pty=True)
         if output is None or not output:
             return []
         lines = output.stdout.splitlines()
@@ -208,18 +208,29 @@ def _destroy_stack(ctx: Context, stack_name: str):
     # stacks are stored. It is expected to fail on stacks existing locally
     # with resources removed by agent-sandbox clean up job
     with ctx.cd(tempfile.gettempdir()):
-        ctx.run(f"pulumi destroy --stack {stack_name} --yes --remove --skip-preview", pty=True)
+        ret = ctx.run(
+            f"PULUMI_SKIP_UPDATE_CHECK=true pulumi destroy --stack {stack_name} --yes --remove --skip-preview",
+            pty=True,
+            warn=True,
+        )
+        if ret is not None and ret.exited != 0:
+            # run with refresh on first destroy attempt failure
+            ctx.run(
+                f"PULUMI_SKIP_UPDATE_CHECK=true pulumi destroy --stack {stack_name} -r --yes --remove --skip-preview",
+                pty=True,
+                warn=True,
+            )
 
 
 def _remove_stack(ctx: Context, stack_name: str):
     # running in temp dir as this is where datadog-agent test
     # stacks are stored
     with ctx.cd(tempfile.gettempdir()):
-        ctx.run(f"pulumi stack rm --force --yes --stack {stack_name}", pty=True)
+        ctx.run(f"PULUMI_SKIP_UPDATE_CHECK=true pulumi stack rm --force --yes --stack {stack_name}", pty=True)
 
 
 def _get_pulumi_about(ctx: Context) -> dict:
-    output = ctx.run("pulumi about --json", pty=True, hide=True)
+    output = ctx.run("PULUMI_SKIP_UPDATE_CHECK=true pulumi about --json", pty=True, hide=True)
     if output is None or not output:
         return ""
     return json.loads(output.stdout)
