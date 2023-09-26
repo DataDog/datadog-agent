@@ -545,10 +545,7 @@ func Test_metricSender_getCheckInstanceMetricTags(t *testing.T) {
 		{
 			name: "empty tag value mapping",
 			metricsTags: []profiledefinition.MetricTagConfig{
-				{Tag: "my_symbol", OID: "1.2.3", Name: "mySymbol", Mapping: profiledefinition.KeyValueList{
-					{Key: "1", Value: "one"},
-					{Key: "2", Value: "two"},
-				}},
+				{Tag: "my_symbol", OID: "1.2.3", Name: "mySymbol", Mapping: profiledefinition.KeyValueList{}},
 			},
 			values: &valuestore.ResultValueStore{
 				ScalarValues: valuestore.ScalarResultValuesType{
@@ -557,7 +554,7 @@ func Test_metricSender_getCheckInstanceMetricTags(t *testing.T) {
 					},
 				},
 			},
-			expectedTags: nil,
+			expectedTags: []string{"my_symbol:3"},
 			expectedLogs: []logCount{},
 		},
 	}
