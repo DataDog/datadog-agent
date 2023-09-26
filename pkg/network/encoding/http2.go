@@ -66,7 +66,7 @@ func (e *http2Encoder) encodeData(connectionData *USMConnectionData[http.Key, *h
 			key := kvPair.Key
 			stats := kvPair.Value
 
-			http2StatsBuilder.SetPath(key.Path.Content)
+			http2StatsBuilder.SetPath(key.Path.Content.Get())
 			http2StatsBuilder.SetFullPath(key.Path.FullPath)
 			http2StatsBuilder.SetMethod(uint64(model.HTTPMethod(key.Method)))
 
