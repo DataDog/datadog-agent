@@ -39,5 +39,14 @@ func jsonTypeMapper(ty reflect.Type) *jsonschema.Schema {
 		schema.Version = ""
 		return schema
 	}
+	if ty == reflect.TypeOf(profiledefinition.JSONListMap[profiledefinition.MetadataResourceConfig]{}) {
+		r := jsonschema.Reflector{
+			DoNotReference:            true,
+			AllowAdditionalProperties: false,
+		}
+		schema := r.Reflect([]profiledefinition.MapItem[profiledefinition.MetadataResourceConfig]{})
+		schema.Version = ""
+		return schema
+	}
 	return nil
 }

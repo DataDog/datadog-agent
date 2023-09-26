@@ -9,7 +9,7 @@ package profiledefinition
 const MetadataDeviceResource = "device"
 
 // MetadataConfig holds configs per resource type
-type MetadataConfig map[string]MetadataResourceConfig
+type MetadataConfig JSONListMap[MetadataResourceConfig]
 
 // MetadataResourceConfig holds configs for a metadata resource
 type MetadataResourceConfig struct {
