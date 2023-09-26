@@ -30,25 +30,24 @@ func GenerateJSONSchema() ([]byte, error) {
 }
 
 func jsonTypeMapper(ty reflect.Type) *jsonschema.Schema {
+	var schema *jsonschema.Schema
+	if ty == reflect.TypeOf(profiledefinition.JSONListMap[string]{}) {
+		schema = reflectType([]profiledefinition.MapItem[string]{})
+	} else if ty == reflect.TypeOf(profiledefinition.JSONListMap[profiledefinition.MetadataResourceConfig]{}) {
+		schema = reflectType([]profiledefinition.MapItem[profiledefinition.MetadataResourceConfig]{})
+	} else if ty == reflect.TypeOf(profiledefinition.JSONListMap[profiledefinition.MetadataField]{}) {
+		schema = reflectType([]profiledefinition.MapItem[profiledefinition.MetadataField]{})
+	}
+	return schema
+}
+
+func reflectType(t interface{}) *jsonschema.Schema {
 	reflector := jsonschema.Reflector{
 		DoNotReference:            true,
 		AllowAdditionalProperties: false,
 		Mapper:                    jsonTypeMapper,
 	}
-	if ty == reflect.TypeOf(profiledefinition.JSONListMap[string]{}) {
-		schema := reflector.Reflect([]profiledefinition.MapItem[string]{})
-		schema.Version = ""
-		return schema
-	}
-	if ty == reflect.TypeOf(profiledefinition.JSONListMap[profiledefinition.MetadataResourceConfig]{}) {
-		schema := reflector.Reflect([]profiledefinition.MapItem[profiledefinition.MetadataResourceConfig]{})
-		schema.Version = ""
-		return schema
-	}
-	if ty == reflect.TypeOf(profiledefinition.JSONListMap[profiledefinition.MetadataField]{}) {
-		schema := reflector.Reflect([]profiledefinition.MapItem[profiledefinition.MetadataField]{})
-		schema.Version = ""
-		return schema
-	}
-	return nil
+	schema := reflector.Reflect(t)
+	schema.Version = ""
+	return schema
 }
