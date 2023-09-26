@@ -28,7 +28,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-func NewReleaseLock(lockType string, ns string, name string, coreClient corev1.CoreV1Interface, coordinationClient clientcoord.CoordinationV1Interface, rlc rl.ResourceLockConfig) (rl.Interface, error) {
+func newReleaseLock(lockType string, ns string, name string, coreClient corev1.CoreV1Interface, coordinationClient clientcoord.CoordinationV1Interface, rlc rl.ResourceLockConfig) (rl.Interface, error) {
 	if lockType == configmaplock.ConfigMapsResourceLock {
 		return &configmaplock.ConfigMapLock{
 			ConfigMapMeta: metav1.ObjectMeta{
@@ -87,7 +87,7 @@ func (le *LeaderEngine) getCurrentLeader() (string, error) {
 	return le.getCurrentLeaderConfigMap()
 }
 
-func (le *LeaderEngine) CreateLeaderTokenIfNotExists() error {
+func (le *LeaderEngine) createLeaderTokenIfNotExists() error {
 	if le.lockType == rl.LeasesResourceLock {
 		_, err := le.coordClient.Leases(le.LeaderNamespace).Get(context.TODO(), le.LeaseName, metav1.GetOptions{})
 
@@ -135,7 +135,7 @@ func (le *LeaderEngine) CreateLeaderTokenIfNotExists() error {
 // If `namespace`/`election` does not exist, it is created.
 func (le *LeaderEngine) newElection() (*ld.LeaderElector, error) {
 	// We first want to check if the ConfigMap the Leader Election is based on exists.
-	if err := le.CreateLeaderTokenIfNotExists(); err != nil {
+	if err := le.createLeaderTokenIfNotExists(); err != nil {
 		return nil, err
 	}
 
@@ -176,7 +176,7 @@ func (le *LeaderEngine) newElection() (*ld.LeaderElector, error) {
 		EventRecorder: evRec,
 	}
 
-	leaderElectorInterface, err := NewReleaseLock(
+	leaderElectorInterface, err := newReleaseLock(
 		le.lockType,
 		le.LeaderNamespace,
 		le.LeaseName,

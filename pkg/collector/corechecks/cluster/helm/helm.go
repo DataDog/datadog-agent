@@ -169,6 +169,7 @@ func (hc *HelmCheck) Run() error {
 	return nil
 }
 
+// Cancel cancels the check
 func (hc *HelmCheck) Cancel() {
 	close(hc.informersStopCh)
 }

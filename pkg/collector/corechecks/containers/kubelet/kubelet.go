@@ -26,7 +26,7 @@ import (
 )
 
 const (
-	KubeletCheckName = "kubelet_core"
+	kubeletCheckName = "kubelet_core"
 )
 
 // Provider provides the metrics related to a given Kubelet endpoint
@@ -82,9 +82,10 @@ func initProviders(filter *containers.Filter, config *common.KubeletConfig) []Pr
 
 // KubeletFactory returns a new KubeletCheck
 func KubeletFactory() check.Check {
-	return NewKubeletCheck(core.NewCheckBase(KubeletCheckName), &common.KubeletConfig{})
+	return NewKubeletCheck(core.NewCheckBase(kubeletCheckName), &common.KubeletConfig{})
 }
 
+// Configure configures the check
 func (k *KubeletCheck) Configure(senderManager sender.SenderManager, integrationConfigDigest uint64, config, initConfig integration.Data, source string) error {
 	err := k.CommonConfigure(senderManager, integrationConfigDigest, initConfig, config, source)
 	if err != nil {
@@ -99,6 +100,7 @@ func (k *KubeletCheck) Configure(senderManager sender.SenderManager, integration
 	return nil
 }
 
+// Run runs the check
 func (k *KubeletCheck) Run() error {
 	sender, err := k.GetSender()
 	if err != nil {
@@ -124,5 +126,5 @@ func (k *KubeletCheck) Run() error {
 }
 
 func init() {
-	core.RegisterCheck(KubeletCheckName, KubeletFactory)
+	core.RegisterCheck(kubeletCheckName, KubeletFactory)
 }

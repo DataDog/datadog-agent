@@ -32,6 +32,7 @@ const (
 	taskMetadataWithTagsPath = "/taskWithTags"
 )
 
+// Client is an interface for ECS metadata v3 and v4 API clients.
 type Client interface {
 	GetTask(ctx context.Context) (*Task, error)
 	GetContainer(ctx context.Context) (*Container, error)

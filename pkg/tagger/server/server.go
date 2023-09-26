@@ -27,10 +27,12 @@ const (
 	streamKeepAliveInterval = 9 * time.Minute
 )
 
+// Server is a grpc server that streams tagger entities
 type Server struct {
 	tagger tagger.Tagger
 }
 
+// NewServer returns a new Server
 func NewServer(t tagger.Tagger) *Server {
 	return &Server{
 		tagger: t,
