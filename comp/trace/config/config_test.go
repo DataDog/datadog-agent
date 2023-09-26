@@ -1697,9 +1697,9 @@ func TestLoadEnv(t *testing.T) {
 		assert.True(t, cfg.Obfuscation.Memcached.Enabled)
 	})
 
-	env = "DD_APM_OBFUSCATION_MEMCACHED_REMOVE_KEY"
+	env = "DD_APM_OBFUSCATION_MEMCACHED_KEEP_COMMAND"
 	t.Run(env, func(t *testing.T) {
-		t.Setenv(env, "false")
+		t.Setenv(env, "true")
 
 		c := fxutil.Test[Component](t, fx.Options(
 			corecomp.MockModule,
@@ -1714,8 +1714,8 @@ func TestLoadEnv(t *testing.T) {
 		assert.NotNil(t, cfg)
 		assert.True(t, coreconfig.Datadog.GetBool("apm_config.obfuscation.memcached.enabled"))
 		assert.True(t, cfg.Obfuscation.Memcached.Enabled)
-		assert.False(t, coreconfig.Datadog.GetBool("apm_config.obfuscation.memcached.remove_key"))
-		assert.False(t, cfg.Obfuscation.Memcached.KeepCommand)
+		assert.True(t, coreconfig.Datadog.GetBool("apm_config.obfuscation.memcached.keep_command"))
+		assert.True(t, cfg.Obfuscation.Memcached.KeepCommand)
 	})
 
 	env = "DD_APM_OBFUSCATION_MONGODB_ENABLED"
