@@ -1535,7 +1535,7 @@ func NewProbe(config *config.Config, opts Opts) (*Probe, error) {
 		},
 		manager.ConstantEditor{
 			Name:  "monitor_syscalls_map_enabled",
-			Value: utils.BoolTouint64(opts.SyscallsMapMonitorEnabled),
+			Value: utils.BoolTouint64(opts.SyscallsMonitorEnabled),
 		},
 	)
 

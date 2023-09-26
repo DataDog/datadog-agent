@@ -1391,7 +1391,7 @@ func testHTTPStats(t *testing.T, aggregateByStatusCode bool) {
 		DPort:  80,
 	}
 
-	key := http.NewKey(c.Source, c.Dest, c.SPort, c.DPort, "/testpath", true, http.MethodGet)
+	key := http.NewKey(c.Source, c.Dest, c.SPort, c.DPort, []byte("/testpath"), true, http.MethodGet)
 
 	httpStats := make(map[http.Key]*http.RequestStats)
 	httpStats[key] = http.NewRequestStats(aggregateByStatusCode)
@@ -1429,7 +1429,7 @@ func testHTTP2Stats(t *testing.T, aggregateByStatusCode bool) {
 	}
 
 	getStats := func(path string) map[protocols.ProtocolType]interface{} {
-		key := http.NewKey(c.Source, c.Dest, c.SPort, c.DPort, path, true, http.MethodGet)
+		key := http.NewKey(c.Source, c.Dest, c.SPort, c.DPort, []byte(path), true, http.MethodGet)
 
 		http2Stats := make(map[http.Key]*http.RequestStats)
 		http2Stats[key] = http.NewRequestStats(aggregateByStatusCode)
@@ -1471,7 +1471,7 @@ func testHTTPStatsWithMultipleClients(t *testing.T, aggregateByStatusCode bool) 
 
 	getStats := func(path string) map[protocols.ProtocolType]interface{} {
 		httpStats := make(map[http.Key]*http.RequestStats)
-		key := http.NewKey(c.Source, c.Dest, c.SPort, c.DPort, path, true, http.MethodGet)
+		key := http.NewKey(c.Source, c.Dest, c.SPort, c.DPort, []byte(path), true, http.MethodGet)
 		httpStats[key] = http.NewRequestStats(aggregateByStatusCode)
 
 		usmStats := make(map[protocols.ProtocolType]interface{})
@@ -1543,7 +1543,7 @@ func testHTTP2StatsWithMultipleClients(t *testing.T, aggregateByStatusCode bool)
 
 	getStats := func(path string) map[protocols.ProtocolType]interface{} {
 		http2Stats := make(map[http.Key]*http.RequestStats)
-		key := http.NewKey(c.Source, c.Dest, c.SPort, c.DPort, path, true, http.MethodGet)
+		key := http.NewKey(c.Source, c.Dest, c.SPort, c.DPort, []byte(path), true, http.MethodGet)
 		http2Stats[key] = http.NewRequestStats(aggregateByStatusCode)
 
 		usmStats := make(map[protocols.ProtocolType]interface{})
