@@ -3,6 +3,15 @@
   "$id": "https://github.com/DataDog/datadog-agent/pkg/networkdevice/profile/profiledefinition/device-profile-rc-config",
   "$ref": "#/$defs/DeviceProfileRcConfig",
   "$defs": {
+    "DeviceMeta": {
+      "properties": {
+        "vendor": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
+    },
     "DeviceProfileRcConfig": {
       "properties": {
         "profile_definition": {
@@ -36,48 +45,6 @@
         "$ref": "#/$defs/KeyValue"
       },
       "type": "array"
-    },
-    "MetadataConfig": {
-      "additionalProperties": {
-        "$ref": "#/$defs/MetadataResourceConfig"
-      },
-      "type": "object"
-    },
-    "MetadataField": {
-      "properties": {
-        "symbol": {
-          "$ref": "#/$defs/SymbolConfig"
-        },
-        "symbols": {
-          "items": {
-            "$ref": "#/$defs/SymbolConfig"
-          },
-          "type": "array"
-        },
-        "value": {
-          "type": "string"
-        }
-      },
-      "additionalProperties": false,
-      "type": "object"
-    },
-    "MetadataResourceConfig": {
-      "properties": {
-        "fields": {
-          "additionalProperties": {
-            "$ref": "#/$defs/MetadataField"
-          },
-          "type": "object"
-        },
-        "id_tags": {
-          "$ref": "#/$defs/MetricTagConfigList"
-        }
-      },
-      "additionalProperties": false,
-      "type": "object",
-      "required": [
-        "fields"
-      ]
     },
     "MetricIndexTransform": {
       "properties": {
@@ -205,9 +172,6 @@
           },
           "type": "array"
         },
-        "metadata": {
-          "$ref": "#/$defs/MetadataConfig"
-        },
         "metric_tags": {
           "items": {
             "$ref": "#/$defs/MetricTagConfig"
@@ -225,6 +189,9 @@
             "$ref": "#/$defs/MetricsConfig"
           },
           "type": "array"
+        },
+        "device": {
+          "$ref": "#/$defs/DeviceMeta"
         }
       },
       "additionalProperties": false,
