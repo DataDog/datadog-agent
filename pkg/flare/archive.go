@@ -88,7 +88,7 @@ func CompleteFlare(fb flarehelpers.FlareBuilder) error {
 	fb.AddFileFromFunc("process_agent_runtime_config_dump.yaml", getProcessAgentFullConfig)
 	fb.AddFileFromFunc("runtime_config_dump.yaml", func() ([]byte, error) { return yaml.Marshal(config.Datadog.AllSettings()) })
 	fb.AddFileFromFunc("system_probe_runtime_config_dump.yaml", func() ([]byte, error) { return yaml.Marshal(config.SystemProbe.AllSettings()) })
-	fb.AddFileFromFunc("diagnose.log", getDiagnoses)
+	fb.AddFileFromFunc("diagnose.log", getDiagnoses(fb.IsLocal()))
 	fb.AddFileFromFunc("secrets.log", getSecrets)
 	fb.AddFileFromFunc("envvars.log", getEnvVars)
 	fb.AddFileFromFunc("metadata_inventories.json", inventories.GetLastPayload)
@@ -298,22 +298,25 @@ func getProcessChecks(fb flarehelpers.FlareBuilder, getAddressPort func() (url s
 	getCheck("process_discovery", "process_config.process_discovery.enabled")
 }
 
-func getDiagnoses() ([]byte, error) {
+func getDiagnoses(isFlareLocal bool) func() ([]byte, error) {
+
 	fct := func(w io.Writer) error {
-		// Run agent diagnose command to be verbose and remote. If Agent is running small performance hit
-		// since this code will get diagnoses using Agent’s local port listener (instead of calling a
-		// function directly since the caller and callee are in the same process).However, the same code
-		// will continue to work well because agent diagnose command works locally as well (if it cannot
-		// connect to the running Agent).
+		// Run diagnose always "local" (in the host process that is)
 		diagCfg := diagnosis.Config{
 			Verbose:  true,
-			RunLocal: false,
+			RunLocal: true,
+		}
+
+		// ... but when running within Agent some diagnose suites need to know
+		// that to run more optimally/differently by using existing in-memory objects
+		if !isFlareLocal {
+			diagCfg.RunningInAgentProcess = true
 		}
 
 		return diagnose.RunStdOut(w, diagCfg)
 	}
 
-	return functionOutputToBytes(fct), nil
+	return func() ([]byte, error) { return functionOutputToBytes(fct), nil }
 }
 
 func getConfigCheck() ([]byte, error) {
