@@ -122,4 +122,5 @@ func NewAggregationFromGroup(g *pb.ClientGroupedStats) Aggregation {
 	if g.CustomTags != nil {
 		agg.CustomTagsKey = strings.Join(g.CustomTags, ",")
 	}
+	return agg
 }
