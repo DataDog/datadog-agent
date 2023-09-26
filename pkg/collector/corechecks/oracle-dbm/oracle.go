@@ -56,23 +56,6 @@ type hostingType struct {
 	valid bool
 }
 
-// The structure is filled by activity sampling and serves as a filter for query metrics
-type StatementsFilter struct {
-	SQLIDs                  map[string]int
-	ForceMatchingSignatures map[string]int
-}
-
-type StatementsCacheData struct {
-	statement      string
-	querySignature string
-	tables         []string
-	commands       []string
-}
-type StatementsCache struct {
-	SQLIDs                  map[string]StatementsCacheData
-	forceMatchingSignatures map[string]StatementsCacheData
-}
-
 type pgaOverAllocationCount struct {
 	value float64
 	valid bool
@@ -90,10 +73,6 @@ type Check struct {
 	tags                                    []string
 	tagsString                              string
 	cdbName                                 string
-	statementsFilter                        StatementsFilter
-	statementsCache                         StatementsCache
-	DDstatementsCache                       StatementsCache
-	DDPrevStatementsCache                   StatementsCache
 	statementMetricsMonotonicCountsPrevious map[StatementMetricsKeyDB]StatementMetricsMonotonicCountDB
 	dbHostname                              string
 	dbVersion                               string
@@ -252,12 +231,10 @@ func assertBool(val bool) bool {
 
 // Teardown cleans up resources used throughout the check.
 func (c *Check) Teardown() {
+	log.Infof("%s Teardown", c.logPrompt)
 	closeDatabase(c, c.db)
 	closeDatabase(c, c.dbCustomQueries)
 	closeGoOraConnection(c)
-
-	c.fqtEmitted = nil
-	c.planEmitted = nil
 }
 
 // Configure configures the Oracle check.
@@ -303,13 +280,8 @@ func (c *Check) Configure(senderManager sender.SenderManager, integrationConfigD
 
 	c.tagsString = strings.Join(c.tags, ",")
 
-	c.fqtEmitted = cache.New(60*time.Minute, 10*time.Minute)
-
-	var planCacheRetention = c.config.QueryMetrics.PlanCacheRetention
-	if planCacheRetention == 0 {
-		planCacheRetention = 1
-	}
-	c.planEmitted = cache.New(time.Duration(planCacheRetention)*time.Minute, 10*time.Minute)
+	c.fqtEmitted = getFqtEmittedCache()
+	c.planEmitted = getPlanEmittedCache(c)
 
 	return nil
 }

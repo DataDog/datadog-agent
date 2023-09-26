@@ -1,5 +1,5 @@
 {
-	"commit": "284ac4716deffba952a6441fe549f9e9f59005f9",
+	"commit": "f2ee8fa3e99823554589e3c7fb1c3c73df38129a",
 	"constants": [
 		{
 			"binprm_file_offset": 168,
@@ -7683,6 +7683,20 @@
 			"distrib": "amzn",
 			"version": "2",
 			"arch": "arm64",
+			"uname_release": "4.14.322-244.539.amzn2.aarch64",
+			"cindex": 3
+		},
+		{
+			"distrib": "amzn",
+			"version": "2",
+			"arch": "arm64",
+			"uname_release": "4.14.322-246.539.amzn2.aarch64",
+			"cindex": 3
+		},
+		{
+			"distrib": "amzn",
+			"version": "2",
+			"arch": "arm64",
 			"uname_release": "4.14.77-80.57.amzn2.aarch64",
 			"cindex": 4
 		},
@@ -8300,6 +8314,20 @@
 			"version": "2",
 			"arch": "x86_64",
 			"uname_release": "4.14.322-244.536.amzn2.x86_64",
+			"cindex": 7
+		},
+		{
+			"distrib": "amzn",
+			"version": "2",
+			"arch": "x86_64",
+			"uname_release": "4.14.322-244.539.amzn2.x86_64",
+			"cindex": 7
+		},
+		{
+			"distrib": "amzn",
+			"version": "2",
+			"arch": "x86_64",
+			"uname_release": "4.14.322-246.539.amzn2.x86_64",
 			"cindex": 7
 		},
 		{
@@ -9707,6 +9735,13 @@
 			"version": "7",
 			"arch": "x86_64",
 			"uname_release": "3.10.0-1160.95.1.el7.x86_64",
+			"cindex": 33
+		},
+		{
+			"distrib": "centos",
+			"version": "7",
+			"arch": "x86_64",
+			"uname_release": "3.10.0-1160.99.1.el7.x86_64",
 			"cindex": 33
 		},
 		{
@@ -12773,6 +12808,13 @@
 			"version": "7",
 			"arch": "arm64",
 			"uname_release": "4.14.35-2047.529.3.1.el7uek.aarch64",
+			"cindex": 77
+		},
+		{
+			"distrib": "ol",
+			"version": "7",
+			"arch": "arm64",
+			"uname_release": "4.14.35-2047.529.3.2.el7uek.aarch64",
 			"cindex": 77
 		},
 		{
@@ -17700,6 +17742,13 @@
 			"distrib": "ol",
 			"version": "7",
 			"arch": "x86_64",
+			"uname_release": "4.14.35-2047.529.3.2.el7uek.x86_64",
+			"cindex": 85
+		},
+		{
+			"distrib": "ol",
+			"version": "7",
+			"arch": "x86_64",
 			"uname_release": "4.14.35-2047.529.3.el7uek.x86_64",
 			"cindex": 85
 		},
@@ -19583,6 +19632,41 @@
 			"distrib": "rhel",
 			"version": "7",
 			"arch": "x86_64",
+			"uname_release": "3.10.0-1160.88.1.el7.x86_64",
+			"cindex": 33
+		},
+		{
+			"distrib": "rhel",
+			"version": "7",
+			"arch": "x86_64",
+			"uname_release": "3.10.0-1160.90.1.el7.x86_64",
+			"cindex": 33
+		},
+		{
+			"distrib": "rhel",
+			"version": "7",
+			"arch": "x86_64",
+			"uname_release": "3.10.0-1160.92.1.el7.x86_64",
+			"cindex": 33
+		},
+		{
+			"distrib": "rhel",
+			"version": "7",
+			"arch": "x86_64",
+			"uname_release": "3.10.0-1160.95.1.el7.x86_64",
+			"cindex": 33
+		},
+		{
+			"distrib": "rhel",
+			"version": "7",
+			"arch": "x86_64",
+			"uname_release": "3.10.0-1160.99.1.el7.x86_64",
+			"cindex": 33
+		},
+		{
+			"distrib": "rhel",
+			"version": "7",
+			"arch": "x86_64",
 			"uname_release": "3.10.0-1160.el7.x86_64",
 			"cindex": 33
 		},
@@ -20311,7 +20395,63 @@
 			"distrib": "sles",
 			"version": "12.5",
 			"arch": "x86_64",
+			"uname_release": "4.12.14-122.150.1-default",
+			"cindex": 91
+		},
+		{
+			"distrib": "sles",
+			"version": "12.5",
+			"arch": "x86_64",
+			"uname_release": "4.12.14-122.153.1-default",
+			"cindex": 91
+		},
+		{
+			"distrib": "sles",
+			"version": "12.5",
+			"arch": "x86_64",
+			"uname_release": "4.12.14-122.156.1-default",
+			"cindex": 91
+		},
+		{
+			"distrib": "sles",
+			"version": "12.5",
+			"arch": "x86_64",
+			"uname_release": "4.12.14-122.159.1-default",
+			"cindex": 91
+		},
+		{
+			"distrib": "sles",
+			"version": "12.5",
+			"arch": "x86_64",
+			"uname_release": "4.12.14-122.162.1-default",
+			"cindex": 91
+		},
+		{
+			"distrib": "sles",
+			"version": "12.5",
+			"arch": "x86_64",
+			"uname_release": "4.12.14-122.165.1-default",
+			"cindex": 91
+		},
+		{
+			"distrib": "sles",
+			"version": "12.5",
+			"arch": "x86_64",
 			"uname_release": "4.12.14-122.17.1-default",
+			"cindex": 91
+		},
+		{
+			"distrib": "sles",
+			"version": "12.5",
+			"arch": "x86_64",
+			"uname_release": "4.12.14-122.173.1-default",
+			"cindex": 91
+		},
+		{
+			"distrib": "sles",
+			"version": "12.5",
+			"arch": "x86_64",
+			"uname_release": "4.12.14-122.176.1-default",
 			"cindex": 91
 		},
 		{
@@ -20535,7 +20675,63 @@
 			"distrib": "sles",
 			"version": "12.5",
 			"arch": "x86_64",
+			"uname_release": "4.12.14-16.124.1-azure",
+			"cindex": 91
+		},
+		{
+			"distrib": "sles",
+			"version": "12.5",
+			"arch": "x86_64",
+			"uname_release": "4.12.14-16.127.1-azure",
+			"cindex": 91
+		},
+		{
+			"distrib": "sles",
+			"version": "12.5",
+			"arch": "x86_64",
 			"uname_release": "4.12.14-16.13.1-azure",
+			"cindex": 91
+		},
+		{
+			"distrib": "sles",
+			"version": "12.5",
+			"arch": "x86_64",
+			"uname_release": "4.12.14-16.130.1-azure",
+			"cindex": 91
+		},
+		{
+			"distrib": "sles",
+			"version": "12.5",
+			"arch": "x86_64",
+			"uname_release": "4.12.14-16.133.1-azure",
+			"cindex": 91
+		},
+		{
+			"distrib": "sles",
+			"version": "12.5",
+			"arch": "x86_64",
+			"uname_release": "4.12.14-16.136.1-azure",
+			"cindex": 91
+		},
+		{
+			"distrib": "sles",
+			"version": "12.5",
+			"arch": "x86_64",
+			"uname_release": "4.12.14-16.139.1-azure",
+			"cindex": 91
+		},
+		{
+			"distrib": "sles",
+			"version": "12.5",
+			"arch": "x86_64",
+			"uname_release": "4.12.14-16.146.1-azure",
+			"cindex": 91
+		},
+		{
+			"distrib": "sles",
+			"version": "12.5",
+			"arch": "x86_64",
+			"uname_release": "4.12.14-16.149.1-azure",
 			"cindex": 91
 		},
 		{

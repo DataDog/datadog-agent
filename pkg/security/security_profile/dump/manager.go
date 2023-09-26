@@ -45,6 +45,7 @@ type ActivityDumpHandler interface {
 // SecurityProfileManager is a generic interface used to communicate with the Security Profile manager
 type SecurityProfileManager interface {
 	FetchSilentWorkloads() map[cgroupModel.WorkloadSelector][]*cgroupModel.CacheEntry
+	OnLocalStorageCleanup(files []string)
 }
 
 // ActivityDumpManager is used to manage ActivityDumps
@@ -285,7 +286,7 @@ func NewActivityDumpManager(config *config.Config, statsdClient statsd.ClientInt
 		pathsReducer:           activity_tree.NewPathsReducer(),
 	}
 
-	adm.storage, err = NewActivityDumpStorageManager(config, statsdClient, adm)
+	adm.storage, err = NewActivityDumpStorageManager(config, statsdClient, adm, adm)
 	if err != nil {
 		return nil, fmt.Errorf("couldn't instantiate the activity dump storage manager: %w", err)
 	}
@@ -620,20 +621,20 @@ func (adm *ActivityDumpManager) SearchTracedProcessCacheEntryCallback(ad *Activi
 		defer ad.Unlock()
 
 		// check process lineage
-		if !entry.HasCompleteLineage() {
+		if !ad.MatchesSelector(entry) || !entry.HasCompleteLineage() {
 			return
 		}
 
 		// compute the list of ancestors, we need to start inserting them from the root
 		ancestors := []*model.ProcessCacheEntry{entry}
 		parent := activity_tree.GetNextAncestorBinaryOrArgv0(&entry.ProcessContext)
-		for parent != nil {
+		for parent != nil && ad.MatchesSelector(entry) {
 			ancestors = append([]*model.ProcessCacheEntry{parent}, ancestors...)
 			parent = activity_tree.GetNextAncestorBinaryOrArgv0(&parent.ProcessContext)
 		}
 
 		for _, parent = range ancestors {
-			_, _, _, err := ad.ActivityTree.CreateProcessNode(parent, nil, activity_tree.Snapshot, false, adm.resolvers)
+			_, _, err := ad.ActivityTree.CreateProcessNode(parent, activity_tree.Snapshot, false, adm.resolvers)
 			if err != nil {
 				// if one of the parents wasn't inserted, leave now
 				break

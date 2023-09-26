@@ -5,6 +5,7 @@
 
 //go:build kubeapiserver
 
+// Package metrics defines the telemetry of the Admission Controller.
 package metrics
 
 import (

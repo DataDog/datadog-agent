@@ -710,6 +710,13 @@ profiles:
             }
         }
   ],
+  "diagnoses": [
+    {
+      "resource_type": "device",
+      "resource_id": "profile-metadata:1.2.3.4",
+      "diagnoses": null
+    }
+  ],
   "collect_timestamp":946684800
 }
 `, version.AgentVersion))
@@ -1390,6 +1397,13 @@ profiles:
                 }
             }
         }
+  ],
+  "diagnoses": [
+    {
+      "resource_type": "device",
+      "resource_id": "profile-metadata:1.2.3.4",
+      "diagnoses": null
+    }
   ],
   "collect_timestamp":946684800
 }
@@ -2082,6 +2096,13 @@ profiles:
                 }
             }
         }
+  ],
+  "diagnoses": [
+    {
+      "resource_type": "device",
+      "resource_id": "profile-metadata:1.2.3.4",
+      "diagnoses": null
+    }
   ],
   "collect_timestamp":946684800
 }

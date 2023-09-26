@@ -11,11 +11,11 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"os/exec"
 	"sync"
 	"time"
 
 	"github.com/DataDog/ebpf-manager/tracefs"
+	"github.com/avast/retry-go/v4"
 	"github.com/cihub/seelog"
 	"github.com/cilium/ebpf"
 	"go.uber.org/atomic"
@@ -143,7 +143,7 @@ func newTracer(cfg *config.Config) (_ *Tracer, reterr error) {
 			log.Warnf("%s. NPM is explicitly enabled, so system-probe will continue with only NPM features enabled.", errStr)
 			cfg.EnableHTTPMonitoring = false
 			cfg.EnableHTTP2Monitoring = false
-			cfg.EnableHTTPSMonitoring = false
+			cfg.EnableNativeTLSMonitoring = false
 		}
 
 		if !http2.Supported() {
@@ -244,11 +244,17 @@ func newConntracker(cfg *config.Config, bpfTelemetry *nettelemetry.EBPFTelemetry
 	var c netlink.Conntracker
 	var err error
 
-	cmd := exec.Command("modprobe", "nf_conntrack_netlink")
-	if err = cmd.Run(); err == nil {
-		if c, err = NewEBPFConntracker(cfg, bpfTelemetry); err == nil {
-			return c, nil
-		}
+	// try creating ebpf conntracker 3 times in case the module is not loaded on the host yet
+	err = retry.Do(
+		func() error {
+			c, err = NewEBPFConntracker(cfg, bpfTelemetry)
+			return err
+		},
+		retry.Attempts(3),
+		retry.Delay(1*time.Second),
+	)
+	if err == nil {
+		return c, nil
 	}
 
 	if cfg.AllowNetlinkConntrackerFallback {
@@ -336,9 +342,9 @@ func (t *Tracer) addProcessInfo(c *network.ConnectionStats) {
 		c.Tags[k+":"+v] = struct{}{}
 	}
 
-	addTag("env", p.Envs["DD_ENV"])
-	addTag("version", p.Envs["DD_VERSION"])
-	addTag("service", p.Envs["DD_SERVICE"])
+	addTag("env", p.Env("DD_ENV"))
+	addTag("version", p.Env("DD_VERSION"))
+	addTag("service", p.Env("DD_SERVICE"))
 
 	containerID := p.ContainerID.Get().(string)
 	if containerID != "" {

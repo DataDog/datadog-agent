@@ -13,7 +13,6 @@ import (
 	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers"
-	"github.com/DataDog/datadog-agent/pkg/security/secl/args"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 )
 
@@ -130,16 +129,6 @@ func (fh *FieldHandlers) ResolveProcessCacheEntry(ev *model.Event) (*model.Proce
 	}
 
 	return ev.ProcessCacheEntry, true
-}
-
-// ResolveProcessArgsFlags resolves the arguments flags of the event
-func (fh *FieldHandlers) ResolveProcessArgsFlags(ev *model.Event, process *model.Process) (flags []string) {
-	return args.ParseProcessFlags(fh.ResolveProcessArgv(ev, process))
-}
-
-// ResolveProcessArgsOptions resolves the arguments options of the event
-func (fh *FieldHandlers) ResolveProcessArgsOptions(ev *model.Event, process *model.Process) (options []string) {
-	return args.ParseProcessOptions(fh.ResolveProcessArgv(ev, process))
 }
 
 // ResolveProcessCreatedAt resolves process creation time

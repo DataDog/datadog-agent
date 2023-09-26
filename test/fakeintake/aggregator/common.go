@@ -30,8 +30,9 @@ type Aggregator[P PayloadItem] struct {
 }
 
 const (
-	encodingGzip    = "gzip"
-	encodingDeflate = "deflate"
+	encodingGzip     = "gzip"
+	encodingDeflate  = "deflate"
+	encodingProtobuf = "protobuf"
 )
 
 func newAggregator[P PayloadItem](parse parseFunc[P]) Aggregator[P] {

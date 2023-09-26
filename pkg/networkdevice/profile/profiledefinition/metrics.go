@@ -105,12 +105,18 @@ type MetricsConfigOption struct {
 
 // MetricsConfig holds configs for a metric
 type MetricsConfig struct {
+	// MIB the MIB used for this metric
+	MIB string `yaml:"MIB,omitempty" json:"MIB,omitempty"`
+
+	// Table the table OID
+	Table SymbolConfig `yaml:"table,omitempty" json:"table,omitempty"`
+
 	// Symbol configs
 	Symbol SymbolConfig `yaml:"symbol,omitempty" json:"symbol,omitempty"`
 
 	// Legacy Symbol configs syntax
-	OID  string `yaml:"OID,omitempty" json:"OID,omitempty"`
-	Name string `yaml:"name,omitempty" json:"name,omitempty"`
+	OID  string `yaml:"OID,omitempty" json:"OID,omitempty" jsonschema:"-"`
+	Name string `yaml:"name,omitempty" json:"name,omitempty" jsonschema:"-"`
 
 	// Table configs
 	Symbols []SymbolConfig `yaml:"symbols,omitempty" json:"symbols,omitempty"`
@@ -118,7 +124,7 @@ type MetricsConfig struct {
 	StaticTags []string            `yaml:"static_tags,omitempty" json:"static_tags,omitempty"`
 	MetricTags MetricTagConfigList `yaml:"metric_tags,omitempty" json:"metric_tags,omitempty"`
 
-	ForcedType ProfileMetricType `yaml:"forced_type,omitempty" json:"forced_type,omitempty"` // deprecated in favour of metric_type
+	ForcedType ProfileMetricType `yaml:"forced_type,omitempty" json:"forced_type,omitempty" jsonschema:"-"` // deprecated in favour of metric_type
 	MetricType ProfileMetricType `yaml:"metric_type,omitempty" json:"metric_type,omitempty"`
 
 	Options MetricsConfigOption `yaml:"options,omitempty" json:"options,omitempty"`

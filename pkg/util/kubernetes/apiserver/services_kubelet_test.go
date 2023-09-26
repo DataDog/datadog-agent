@@ -84,7 +84,7 @@ func TestMapServices(t *testing.T) {
 				},
 			},
 			apiv1.NamespacesPodsStringsSet{
-				"foo": {"pod1_name": sets.NewString("svc1")},
+				"foo": {"pod1_name": sets.New("svc1")},
 			},
 		},
 		{
@@ -114,8 +114,8 @@ func TestMapServices(t *testing.T) {
 				},
 			},
 			apiv1.NamespacesPodsStringsSet{
-				"default": {"pod_name": sets.NewString("svc1")},
-				"other":   {"pod_name": sets.NewString("svc2")},
+				"default": {"pod_name": sets.New("svc1")},
+				"other":   {"pod_name": sets.New("svc2")},
 			},
 		},
 		{
@@ -162,8 +162,8 @@ func TestMapServices(t *testing.T) {
 			},
 			apiv1.NamespacesPodsStringsSet{
 				"foo": {
-					"pod1_name": sets.NewString("svc1", "svc3"),
-					"pod3_name": sets.NewString("svc2"),
+					"pod1_name": sets.New("svc1", "svc3"),
+					"pod3_name": sets.New("svc2"),
 				},
 			},
 		},
@@ -173,14 +173,14 @@ func TestMapServices(t *testing.T) {
 	// sure mapping does not affect unlisted services
 	expectedAggregatedMapping := apiv1.NamespacesPodsStringsSet{
 		"foo": {
-			"pod1_name": sets.NewString("svc1", "svc3"),
-			"pod3_name": sets.NewString("svc2"),
+			"pod1_name": sets.New("svc1", "svc3"),
+			"pod3_name": sets.New("svc2"),
 		},
 		"default": {
-			"pod_name": sets.NewString("svc1"),
+			"pod_name": sets.New("svc1"),
 		},
 		"other": {
-			"pod_name": sets.NewString("svc2"),
+			"pod_name": sets.New("svc2"),
 		},
 	}
 

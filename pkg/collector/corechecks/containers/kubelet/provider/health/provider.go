@@ -5,6 +5,8 @@
 
 //go:build kubelet
 
+// Package health is responsible for emitting the Kubelet check metrics that are
+// collected from the `/healthz` endpoint.
 package health
 
 import (
@@ -26,25 +28,27 @@ type Provider struct {
 	config *common.KubeletConfig
 }
 
+// NewProvider returns a new Provider
 func NewProvider(config *common.KubeletConfig) *Provider {
 	return &Provider{
 		config: config,
 	}
 }
 
+// Provide sends the service checks related to the `/healthz` Kubelet endpoint
 func (p *Provider) Provide(kc kubelet.KubeUtilInterface, sender sender.Sender) error {
-	service_check_base := common.KubeletMetricsPrefix + "kubelet.check"
+	serviceCheckBase := common.KubeletMetricsPrefix + "kubelet.check"
 	// Collect raw data
 	healthCheckRaw, responseCode, err := kc.QueryKubelet(context.TODO(), "/healthz?verbose")
 	if err != nil {
 		errMsg := fmt.Sprintf("Kubelet health check failed: %s", err)
-		sender.ServiceCheck(service_check_base, servicecheck.ServiceCheckCritical, "", p.config.Tags, errMsg)
+		sender.ServiceCheck(serviceCheckBase, servicecheck.ServiceCheckCritical, "", p.config.Tags, errMsg)
 		return err
 	}
 
 	scanner := bufio.NewScanner(bytes.NewReader(healthCheckRaw))
 	re, _ := regexp.Compile(`\[(.)\]([^\s]+) (.*)?`)
-	is_ok := responseCode == http.StatusOK
+	isOk := responseCode == http.StatusOK
 	for scanner.Scan() {
 		line := scanner.Text()
 		result := re.FindStringSubmatch(line)
@@ -53,24 +57,24 @@ func (p *Provider) Provide(kc kubelet.KubeUtilInterface, sender sender.Sender) e
 			continue
 		}
 		status := result[1]
-		service_check_name := service_check_base + "." + result[2]
+		serviceCheckName := serviceCheckBase + "." + result[2]
 		if status == "+" {
-			sender.ServiceCheck(service_check_name, servicecheck.ServiceCheckOK, "", p.config.Tags, "")
+			sender.ServiceCheck(serviceCheckName, servicecheck.ServiceCheckOK, "", p.config.Tags, "")
 		} else {
-			sender.ServiceCheck(service_check_name,
+			sender.ServiceCheck(serviceCheckName,
 				servicecheck.ServiceCheckCritical,
 				"",
 				p.config.Tags,
 				"")
-			is_ok = false
+			isOk = false
 		}
 	}
 	// Report metrics
-	if is_ok {
-		sender.ServiceCheck(service_check_base, servicecheck.ServiceCheckOK, "", p.config.Tags, "")
+	if isOk {
+		sender.ServiceCheck(serviceCheckBase, servicecheck.ServiceCheckOK, "", p.config.Tags, "")
 	} else {
 		msg := fmt.Sprintf("Kubelet health check failed, http response code = %d", responseCode)
-		sender.ServiceCheck(service_check_base, servicecheck.ServiceCheckCritical, "", p.config.Tags, msg)
+		sender.ServiceCheck(serviceCheckBase, servicecheck.ServiceCheckCritical, "", p.config.Tags, msg)
 	}
 	return nil
 }

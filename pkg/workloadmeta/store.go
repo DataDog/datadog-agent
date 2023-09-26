@@ -359,6 +359,16 @@ func (s *store) GetKubernetesNode(id string) (*KubernetesNode, error) {
 	return entity.(*KubernetesNode), nil
 }
 
+// GetKubernetesDeployment implements Store#GetKubernetesDeployment
+func (s *store) GetKubernetesDeployment(id string) (*KubernetesDeployment, error) {
+	entity, err := s.getEntityByKind(KindKubernetesDeployment, id)
+	if err != nil {
+		return nil, err
+	}
+
+	return entity.(*KubernetesDeployment), nil
+}
+
 // GetECSTask implements Store#GetECSTask
 func (s *store) GetECSTask(id string) (*ECSTask, error) {
 	entity, err := s.getEntityByKind(KindECSTask, id)
