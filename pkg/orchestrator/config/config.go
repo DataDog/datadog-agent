@@ -196,7 +196,7 @@ func setBoundedConfigIntValue(configKey string, upperBound int, setter func(v in
 	setter(val)
 }
 
-// IsOrchestratorEnabled checks if orchestrator explorer features are enabled, it returns the boolean and the cluster name
+// IsOrchestratorEnabled checks if orchestrator explorer features are enabled, it returns the boolean, the coreCheck flag and the cluster name
 func IsOrchestratorEnabled() (bool, bool, string) {
 	enabled := config.Datadog.GetBool(key(orchestratorNS, "enabled"))
 	var clusterName string
