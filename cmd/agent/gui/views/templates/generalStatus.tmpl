@@ -184,7 +184,11 @@
                 {{ $check -}}<br>
                 {{- range $instance := $instances }}
                   {{- range $k,$v := $instance }}
-                      {{ $k }} : {{ $v }}<br>
+                    - instance_name: {{ .instance_name }}<br>
+                      metric_count: {{ .metric_count }}<br>
+                      service_check_count: {{ .service_check_count }}<br>
+                      message: {{ .message }}<br>
+                      status: {{ .status }}<br>
                   {{- end -}}
                 {{- end -}}
               {{- end }}
@@ -199,11 +203,7 @@
                 {{ $check }}<br>
                 {{- range $instance := $instances }}
                   {{- range $k,$v := $instance }}
-                    - instance_name: {{ .instance_name }}<br>
-                      metric_count: {{ .metric_count }}<br>
-                      service_check_count: {{ .service_check_count }}<br>
-                      message: {{ .message }}<br>
-                      status: {{ .status }}<br>
+                    {{ $k }} : {{ $v }}<br>
                   {{- end -}}
                 {{- end -}}
               {{- end -}}
@@ -211,21 +211,6 @@
           </span>
         {{- end -}}
       {{- end -}}
-      {{- if .verbose }}
-      <span class="stat_subtitle">Internal JMXFetch Telemetry </span>
-        {{ with .JMXStatus }}
-          {{- if .checks.initialized_checks }}
-            {{- range $check,$instances := .checks.initialized_checks }}
-              {{- range $instance := $instances }}
-                - instance_name: {{ .instance_name }}<br>
-                  instance_bean_count: {{ .instance_bean_count }}<br>
-                  instance_attribute_count: {{ .instance_attribute_count }}<br>
-                  instance_metric_count: {{ .instance_metric_count }}<br>
-                {{- end -}}
-            {{- end }}
-          {{- end }}
-        {{- end }}
-      {{- end }}
     </span>
 
   </div>
