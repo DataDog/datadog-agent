@@ -162,7 +162,8 @@ new-e2e-containers-dev:
   rules: !reference [.on_dev_branch_manual]
   needs: []
   variables:
-    TARGETS: ./containers
+    TARGETS: ./tests/containers
+    TEAM: container-integrations
   parallel:
     matrix:
       - EXTRA_PARAMS: --run TestKindSuite
@@ -178,7 +179,8 @@ new-e2e-containers-main:
     - qa_main_dca
     - qa_main_dogstatsd
   variables:
-    TARGETS: ./containers
+    TARGETS: ./tests/containers
+    TEAM: container-integrations
   # Temporary, until we manage to stabilize those tests.
   allow_failure: true
 
@@ -188,12 +190,14 @@ new-e2e-agent-subcommands-dev:
   needs: []
   variables:
     TARGETS: ./agent-subcommands
+    TEAM: agent-shared-components
 
 new-e2e-agent-subcommands-main:
   extends: .new_e2e_template
   rules: !reference [.on_main_and_no_skip_e2e]
   variables:
     TARGETS: ./agent-subcommands
+    TEAM: agent-shared-components
   # Temporary, until we manage to stabilize those tests.
   allow_failure: true
 

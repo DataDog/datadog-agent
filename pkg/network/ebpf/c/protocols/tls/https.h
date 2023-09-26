@@ -32,7 +32,7 @@
 
 #define HTTPS_PORT 443
 
-static __always_inline void http_process(http_transaction_t *http_stack, skb_info_t *skb_info, __u64 tags);
+static __always_inline void http_process(http_event_t *event, skb_info_t *skb_info, __u64 tags);
 
 /* this function is called by all TLS hookpoints (OpenSSL, GnuTLS and GoTLS, JavaTLS) and */
 /* it's used for classify the subset of protocols that is supported by `classify_protocol_for_dispatcher` */

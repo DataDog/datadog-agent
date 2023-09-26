@@ -9,10 +9,11 @@ package runtime
 
 import (
 	"bytes"
+	"testing"
+
 	secagent "github.com/DataDog/datadog-agent/pkg/security/agent"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"testing"
 
 	"github.com/DataDog/datadog-agent/cmd/security-agent/command"
 	"github.com/DataDog/datadog-agent/comp/core"
@@ -122,4 +123,60 @@ func Test_checkPoliciesLoaded(t *testing.T) {
 			assert.Equal(t, tt.reportFromSysProbe, output.String())
 		})
 	}
+}
+
+func TestDumpProcessCacheCommand(t *testing.T) {
+	fxutil.TestOneShotSubcommand(t,
+		Commands(&command.GlobalParams{}),
+		[]string{"runtime", "process-cache", "dump"},
+		dumpProcessCache,
+		func() {})
+}
+
+func TestDumpNetworkNamespaceCommand(t *testing.T) {
+	fxutil.TestOneShotSubcommand(t,
+		Commands(&command.GlobalParams{}),
+		[]string{"runtime", "network-namespace", "dump"},
+		dumpNetworkNamespace,
+		func() {})
+}
+
+func TestDumpDiscardersCommand(t *testing.T) {
+	fxutil.TestOneShotSubcommand(t,
+		Commands(&command.GlobalParams{}),
+		[]string{"runtime", "discarders", "dump"},
+		dumpDiscarders,
+		func() {})
+}
+
+func TestEvalCommand(t *testing.T) {
+	fxutil.TestOneShotSubcommand(t,
+		Commands(&command.GlobalParams{}),
+		[]string{"runtime", "policy", "eval", "--rule-id=10", "--event-file=file"},
+		evalRule,
+		func() {})
+}
+
+func TestCheckPoliciesCommand(t *testing.T) {
+	fxutil.TestOneShotSubcommand(t,
+		Commands(&command.GlobalParams{}),
+		[]string{"runtime", "policy", "check"},
+		checkPolicies,
+		func() {})
+}
+
+func TestReloadRuntimePoliciesCommand(t *testing.T) {
+	fxutil.TestOneShotSubcommand(t,
+		Commands(&command.GlobalParams{}),
+		[]string{"runtime", "policy", "reload"},
+		reloadRuntimePolicies,
+		func() {})
+}
+
+func TestRunRuntimeSelfTestCommand(t *testing.T) {
+	fxutil.TestOneShotSubcommand(t,
+		Commands(&command.GlobalParams{}),
+		[]string{"runtime", "self-test"},
+		runRuntimeSelfTest,
+		func() {})
 }
