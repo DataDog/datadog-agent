@@ -9,4 +9,4 @@
 enhancements:
   - |
     JMXFetch internal telemetry is now included in the ``agent status`` output when
-    the verbose flag is supplied.
+    the verbose flag is included in the request.
