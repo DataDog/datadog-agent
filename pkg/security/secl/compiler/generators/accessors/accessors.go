@@ -829,7 +829,15 @@ func getDefaultValueOfType(returnType string) string {
 
 func needScrubbed(fieldName string) bool {
 	loweredFieldName := strings.ToLower(fieldName)
-	if (strings.Contains(loweredFieldName, "envp") || (strings.Contains(loweredFieldName, "argv") && !strings.Contains(loweredFieldName, "argv0"))) && !strings.Contains(loweredFieldName, "module") {
+	if (strings.Contains(loweredFieldName, "argv") && !strings.Contains(loweredFieldName, "argv0")) && !strings.Contains(loweredFieldName, "module") {
+		return true
+	}
+	return false
+}
+
+func needFiltered(fieldName string) bool {
+	loweredFieldName := strings.ToLower(fieldName)
+	if strings.Contains(loweredFieldName, "env") && !strings.Contains(loweredFieldName, "truncated") {
 		return true
 	}
 	return false
@@ -969,6 +977,7 @@ var funcMap = map[string]interface{}{
 	"PascalCaseFieldName":      pascalCaseFieldName,
 	"GetDefaultValueOfType":    getDefaultValueOfType,
 	"NeedScrubbed":             needScrubbed,
+	"NeedFiltered":             needFiltered,
 	"CombineFieldMaps":         combineFieldMaps,
 	"AddSuffixToFuncPrototype": addSuffixToFuncPrototype,
 }

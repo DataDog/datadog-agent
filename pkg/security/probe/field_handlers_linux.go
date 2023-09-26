@@ -185,12 +185,6 @@ func (fh *FieldHandlers) ResolveProcessEnvp(ev *model.Event, process *model.Proc
 	return envp
 }
 
-// ResolveProcessEnvpScrubbed resolves the envp of the event as an array
-func (fh *FieldHandlers) ResolveProcessEnvpScrubbed(ev *model.Event, process *model.Process) []string {
-	envp, _ := fh.resolvers.ProcessResolver.GetProcessEnvpScrubbed(process)
-	return envp
-}
-
 // ResolveProcessArgsTruncated returns whether the args are truncated
 func (fh *FieldHandlers) ResolveProcessArgsTruncated(ev *model.Event, process *model.Process) bool {
 	_, truncated := sprocess.GetProcessArgv(process)

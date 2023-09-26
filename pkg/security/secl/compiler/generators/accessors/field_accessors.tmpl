@@ -31,7 +31,7 @@ import (
 {{ end }}
 
 // Get{{$pascalCaseName}} returns the value of the field, resolving if necessary
-func (ev *Event) Get{{$pascalCaseName}}() {{ $accessorReturnType }} {
+func (ev *Event) Get{{$pascalCaseName}}{{if NeedFiltered $Field.Handler }}(desiredKeys map[string]bool){{else}}(){{end}} {{ $accessorReturnType }} {
     {{ if and (ne $Field.Handler "ResolveAsync") (and (ne $Field.Handler "ResolveEventTimestamp") (ne $Field.Handler "ResolveEventTime")) }}
         zeroValue := {{ GetDefaultValueOfType $accessorReturnType}}
 	{{ end }}
@@ -89,6 +89,9 @@ func (ev *Event) Get{{$pascalCaseName}}() {{ $accessorReturnType }} {
             {{if not $Field.GetArrayPrefix}}
             values = append(values, result)
             {{else}}
+            {{if NeedFiltered $Field.Handler }}
+                result = filterEnvs(result, desiredKeys)
+            {{ end }}
             values = append(values, result...)
             {{end}}
 
@@ -133,7 +136,10 @@ func (ev *Event) Get{{$pascalCaseName}}() {{ $accessorReturnType }} {
 
         {{ if ($Field.IsArray) }}
 		    resolvedField := {{$Return}}
-            fieldCopy := make({{$accessorReturnType}}, len(resolvedField))
+            {{if NeedFiltered $Field.Handler }}
+			    resolvedField = filterEnvs(resolvedField, desiredKeys)
+            {{ end }}
+			fieldCopy := make({{$accessorReturnType}}, len(resolvedField))
             copy(fieldCopy, resolvedField)
             return fieldCopy
         {{ else }}

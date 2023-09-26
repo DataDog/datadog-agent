@@ -78,6 +78,24 @@ func (p *EnvsEntry) FilterEnvs(envsWithValue map[string]bool) ([]string, bool) {
 	return p.filteredEnvs, p.Truncated
 }
 
+// FilterEnvs returns an array of environment variable key value pairs matching the desired keys
+func filterEnvs(allEnvs []string, desiredEnvs map[string]bool) []string {
+	if len(allEnvs) == 0 {
+		return nil
+	}
+
+	filteredEnvs := make([]string, 0, len(desiredEnvs))
+
+	for _, value := range allEnvs {
+		k, _, _ := strings.Cut(value, "=")
+		if desiredEnvs[k] {
+			filteredEnvs = append(filteredEnvs, value)
+		}
+	}
+
+	return filteredEnvs
+}
+
 func (p *EnvsEntry) toMap() {
 	if p.kv != nil {
 		return

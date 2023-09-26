@@ -901,7 +901,7 @@ func (ev *Event) GetExecEgroup() string {
 }
 
 // GetExecEnvp returns the value of the field, resolving if necessary
-func (ev *Event) GetExecEnvp() []string {
+func (ev *Event) GetExecEnvp(desiredKeys map[string]bool) []string {
 	zeroValue := []string{}
 	if ev.GetEventType().String() != "exec" {
 		return zeroValue
@@ -909,14 +909,15 @@ func (ev *Event) GetExecEnvp() []string {
 	if ev.Exec.Process == nil {
 		return zeroValue
 	}
-	resolvedField := ev.FieldHandlers.ResolveProcessEnvpScrubbed(ev, ev.Exec.Process)
+	resolvedField := ev.FieldHandlers.ResolveProcessEnvp(ev, ev.Exec.Process)
+	resolvedField = filterEnvs(resolvedField, desiredKeys)
 	fieldCopy := make([]string, len(resolvedField))
 	copy(fieldCopy, resolvedField)
 	return fieldCopy
 }
 
 // GetExecEnvs returns the value of the field, resolving if necessary
-func (ev *Event) GetExecEnvs() []string {
+func (ev *Event) GetExecEnvs(desiredKeys map[string]bool) []string {
 	zeroValue := []string{}
 	if ev.GetEventType().String() != "exec" {
 		return zeroValue
@@ -925,6 +926,7 @@ func (ev *Event) GetExecEnvs() []string {
 		return zeroValue
 	}
 	resolvedField := ev.FieldHandlers.ResolveProcessEnvs(ev, ev.Exec.Process)
+	resolvedField = filterEnvs(resolvedField, desiredKeys)
 	fieldCopy := make([]string, len(resolvedField))
 	copy(fieldCopy, resolvedField)
 	return fieldCopy
@@ -1948,7 +1950,7 @@ func (ev *Event) GetExitEgroup() string {
 }
 
 // GetExitEnvp returns the value of the field, resolving if necessary
-func (ev *Event) GetExitEnvp() []string {
+func (ev *Event) GetExitEnvp(desiredKeys map[string]bool) []string {
 	zeroValue := []string{}
 	if ev.GetEventType().String() != "exit" {
 		return zeroValue
@@ -1956,14 +1958,15 @@ func (ev *Event) GetExitEnvp() []string {
 	if ev.Exit.Process == nil {
 		return zeroValue
 	}
-	resolvedField := ev.FieldHandlers.ResolveProcessEnvpScrubbed(ev, ev.Exit.Process)
+	resolvedField := ev.FieldHandlers.ResolveProcessEnvp(ev, ev.Exit.Process)
+	resolvedField = filterEnvs(resolvedField, desiredKeys)
 	fieldCopy := make([]string, len(resolvedField))
 	copy(fieldCopy, resolvedField)
 	return fieldCopy
 }
 
 // GetExitEnvs returns the value of the field, resolving if necessary
-func (ev *Event) GetExitEnvs() []string {
+func (ev *Event) GetExitEnvs(desiredKeys map[string]bool) []string {
 	zeroValue := []string{}
 	if ev.GetEventType().String() != "exit" {
 		return zeroValue
@@ -1972,6 +1975,7 @@ func (ev *Event) GetExitEnvs() []string {
 		return zeroValue
 	}
 	resolvedField := ev.FieldHandlers.ResolveProcessEnvs(ev, ev.Exit.Process)
+	resolvedField = filterEnvs(resolvedField, desiredKeys)
 	fieldCopy := make([]string, len(resolvedField))
 	copy(fieldCopy, resolvedField)
 	return fieldCopy
@@ -4478,7 +4482,7 @@ func (ev *Event) GetProcessAncestorsEgroup() []string {
 }
 
 // GetProcessAncestorsEnvp returns the value of the field, resolving if necessary
-func (ev *Event) GetProcessAncestorsEnvp() []string {
+func (ev *Event) GetProcessAncestorsEnvp(desiredKeys map[string]bool) []string {
 	zeroValue := []string{}
 	if ev.BaseEvent.ProcessContext == nil {
 		return zeroValue
@@ -4492,7 +4496,8 @@ func (ev *Event) GetProcessAncestorsEnvp() []string {
 	ptr := iterator.Front(ctx)
 	for ptr != nil {
 		element := (*ProcessCacheEntry)(ptr)
-		result := ev.FieldHandlers.ResolveProcessEnvpScrubbed(ev, &element.ProcessContext.Process)
+		result := ev.FieldHandlers.ResolveProcessEnvp(ev, &element.ProcessContext.Process)
+		result = filterEnvs(result, desiredKeys)
 		values = append(values, result...)
 		ptr = iterator.Next()
 	}
@@ -4500,7 +4505,7 @@ func (ev *Event) GetProcessAncestorsEnvp() []string {
 }
 
 // GetProcessAncestorsEnvs returns the value of the field, resolving if necessary
-func (ev *Event) GetProcessAncestorsEnvs() []string {
+func (ev *Event) GetProcessAncestorsEnvs(desiredKeys map[string]bool) []string {
 	zeroValue := []string{}
 	if ev.BaseEvent.ProcessContext == nil {
 		return zeroValue
@@ -4515,6 +4520,7 @@ func (ev *Event) GetProcessAncestorsEnvs() []string {
 	for ptr != nil {
 		element := (*ProcessCacheEntry)(ptr)
 		result := ev.FieldHandlers.ResolveProcessEnvs(ev, &element.ProcessContext.Process)
+		result = filterEnvs(result, desiredKeys)
 		values = append(values, result...)
 		ptr = iterator.Next()
 	}
@@ -5902,24 +5908,26 @@ func (ev *Event) GetProcessEgroup() string {
 }
 
 // GetProcessEnvp returns the value of the field, resolving if necessary
-func (ev *Event) GetProcessEnvp() []string {
+func (ev *Event) GetProcessEnvp(desiredKeys map[string]bool) []string {
 	zeroValue := []string{}
 	if ev.BaseEvent.ProcessContext == nil {
 		return zeroValue
 	}
-	resolvedField := ev.FieldHandlers.ResolveProcessEnvpScrubbed(ev, &ev.BaseEvent.ProcessContext.Process)
+	resolvedField := ev.FieldHandlers.ResolveProcessEnvp(ev, &ev.BaseEvent.ProcessContext.Process)
+	resolvedField = filterEnvs(resolvedField, desiredKeys)
 	fieldCopy := make([]string, len(resolvedField))
 	copy(fieldCopy, resolvedField)
 	return fieldCopy
 }
 
 // GetProcessEnvs returns the value of the field, resolving if necessary
-func (ev *Event) GetProcessEnvs() []string {
+func (ev *Event) GetProcessEnvs(desiredKeys map[string]bool) []string {
 	zeroValue := []string{}
 	if ev.BaseEvent.ProcessContext == nil {
 		return zeroValue
 	}
 	resolvedField := ev.FieldHandlers.ResolveProcessEnvs(ev, &ev.BaseEvent.ProcessContext.Process)
+	resolvedField = filterEnvs(resolvedField, desiredKeys)
 	fieldCopy := make([]string, len(resolvedField))
 	copy(fieldCopy, resolvedField)
 	return fieldCopy
@@ -6703,7 +6711,7 @@ func (ev *Event) GetProcessParentEgroup() string {
 }
 
 // GetProcessParentEnvp returns the value of the field, resolving if necessary
-func (ev *Event) GetProcessParentEnvp() []string {
+func (ev *Event) GetProcessParentEnvp(desiredKeys map[string]bool) []string {
 	zeroValue := []string{}
 	if ev.BaseEvent.ProcessContext == nil {
 		return zeroValue
@@ -6714,14 +6722,15 @@ func (ev *Event) GetProcessParentEnvp() []string {
 	if !ev.BaseEvent.ProcessContext.HasParent() {
 		return []string{}
 	}
-	resolvedField := ev.FieldHandlers.ResolveProcessEnvpScrubbed(ev, ev.BaseEvent.ProcessContext.Parent)
+	resolvedField := ev.FieldHandlers.ResolveProcessEnvp(ev, ev.BaseEvent.ProcessContext.Parent)
+	resolvedField = filterEnvs(resolvedField, desiredKeys)
 	fieldCopy := make([]string, len(resolvedField))
 	copy(fieldCopy, resolvedField)
 	return fieldCopy
 }
 
 // GetProcessParentEnvs returns the value of the field, resolving if necessary
-func (ev *Event) GetProcessParentEnvs() []string {
+func (ev *Event) GetProcessParentEnvs(desiredKeys map[string]bool) []string {
 	zeroValue := []string{}
 	if ev.BaseEvent.ProcessContext == nil {
 		return zeroValue
@@ -6733,6 +6742,7 @@ func (ev *Event) GetProcessParentEnvs() []string {
 		return []string{}
 	}
 	resolvedField := ev.FieldHandlers.ResolveProcessEnvs(ev, ev.BaseEvent.ProcessContext.Parent)
+	resolvedField = filterEnvs(resolvedField, desiredKeys)
 	fieldCopy := make([]string, len(resolvedField))
 	copy(fieldCopy, resolvedField)
 	return fieldCopy
@@ -8129,7 +8139,7 @@ func (ev *Event) GetPtraceTraceeAncestorsEgroup() []string {
 }
 
 // GetPtraceTraceeAncestorsEnvp returns the value of the field, resolving if necessary
-func (ev *Event) GetPtraceTraceeAncestorsEnvp() []string {
+func (ev *Event) GetPtraceTraceeAncestorsEnvp(desiredKeys map[string]bool) []string {
 	zeroValue := []string{}
 	if ev.GetEventType().String() != "ptrace" {
 		return zeroValue
@@ -8146,7 +8156,8 @@ func (ev *Event) GetPtraceTraceeAncestorsEnvp() []string {
 	ptr := iterator.Front(ctx)
 	for ptr != nil {
 		element := (*ProcessCacheEntry)(ptr)
-		result := ev.FieldHandlers.ResolveProcessEnvpScrubbed(ev, &element.ProcessContext.Process)
+		result := ev.FieldHandlers.ResolveProcessEnvp(ev, &element.ProcessContext.Process)
+		result = filterEnvs(result, desiredKeys)
 		values = append(values, result...)
 		ptr = iterator.Next()
 	}
@@ -8154,7 +8165,7 @@ func (ev *Event) GetPtraceTraceeAncestorsEnvp() []string {
 }
 
 // GetPtraceTraceeAncestorsEnvs returns the value of the field, resolving if necessary
-func (ev *Event) GetPtraceTraceeAncestorsEnvs() []string {
+func (ev *Event) GetPtraceTraceeAncestorsEnvs(desiredKeys map[string]bool) []string {
 	zeroValue := []string{}
 	if ev.GetEventType().String() != "ptrace" {
 		return zeroValue
@@ -8172,6 +8183,7 @@ func (ev *Event) GetPtraceTraceeAncestorsEnvs() []string {
 	for ptr != nil {
 		element := (*ProcessCacheEntry)(ptr)
 		result := ev.FieldHandlers.ResolveProcessEnvs(ev, &element.ProcessContext.Process)
+		result = filterEnvs(result, desiredKeys)
 		values = append(values, result...)
 		ptr = iterator.Next()
 	}
@@ -9769,7 +9781,7 @@ func (ev *Event) GetPtraceTraceeEgroup() string {
 }
 
 // GetPtraceTraceeEnvp returns the value of the field, resolving if necessary
-func (ev *Event) GetPtraceTraceeEnvp() []string {
+func (ev *Event) GetPtraceTraceeEnvp(desiredKeys map[string]bool) []string {
 	zeroValue := []string{}
 	if ev.GetEventType().String() != "ptrace" {
 		return zeroValue
@@ -9777,14 +9789,15 @@ func (ev *Event) GetPtraceTraceeEnvp() []string {
 	if ev.PTrace.Tracee == nil {
 		return zeroValue
 	}
-	resolvedField := ev.FieldHandlers.ResolveProcessEnvpScrubbed(ev, &ev.PTrace.Tracee.Process)
+	resolvedField := ev.FieldHandlers.ResolveProcessEnvp(ev, &ev.PTrace.Tracee.Process)
+	resolvedField = filterEnvs(resolvedField, desiredKeys)
 	fieldCopy := make([]string, len(resolvedField))
 	copy(fieldCopy, resolvedField)
 	return fieldCopy
 }
 
 // GetPtraceTraceeEnvs returns the value of the field, resolving if necessary
-func (ev *Event) GetPtraceTraceeEnvs() []string {
+func (ev *Event) GetPtraceTraceeEnvs(desiredKeys map[string]bool) []string {
 	zeroValue := []string{}
 	if ev.GetEventType().String() != "ptrace" {
 		return zeroValue
@@ -9793,6 +9806,7 @@ func (ev *Event) GetPtraceTraceeEnvs() []string {
 		return zeroValue
 	}
 	resolvedField := ev.FieldHandlers.ResolveProcessEnvs(ev, &ev.PTrace.Tracee.Process)
+	resolvedField = filterEnvs(resolvedField, desiredKeys)
 	fieldCopy := make([]string, len(resolvedField))
 	copy(fieldCopy, resolvedField)
 	return fieldCopy
@@ -10768,7 +10782,7 @@ func (ev *Event) GetPtraceTraceeParentEgroup() string {
 }
 
 // GetPtraceTraceeParentEnvp returns the value of the field, resolving if necessary
-func (ev *Event) GetPtraceTraceeParentEnvp() []string {
+func (ev *Event) GetPtraceTraceeParentEnvp(desiredKeys map[string]bool) []string {
 	zeroValue := []string{}
 	if ev.GetEventType().String() != "ptrace" {
 		return zeroValue
@@ -10782,14 +10796,15 @@ func (ev *Event) GetPtraceTraceeParentEnvp() []string {
 	if !ev.PTrace.Tracee.HasParent() {
 		return []string{}
 	}
-	resolvedField := ev.FieldHandlers.ResolveProcessEnvpScrubbed(ev, ev.PTrace.Tracee.Parent)
+	resolvedField := ev.FieldHandlers.ResolveProcessEnvp(ev, ev.PTrace.Tracee.Parent)
+	resolvedField = filterEnvs(resolvedField, desiredKeys)
 	fieldCopy := make([]string, len(resolvedField))
 	copy(fieldCopy, resolvedField)
 	return fieldCopy
 }
 
 // GetPtraceTraceeParentEnvs returns the value of the field, resolving if necessary
-func (ev *Event) GetPtraceTraceeParentEnvs() []string {
+func (ev *Event) GetPtraceTraceeParentEnvs(desiredKeys map[string]bool) []string {
 	zeroValue := []string{}
 	if ev.GetEventType().String() != "ptrace" {
 		return zeroValue
@@ -10804,6 +10819,7 @@ func (ev *Event) GetPtraceTraceeParentEnvs() []string {
 		return []string{}
 	}
 	resolvedField := ev.FieldHandlers.ResolveProcessEnvs(ev, ev.PTrace.Tracee.Parent)
+	resolvedField = filterEnvs(resolvedField, desiredKeys)
 	fieldCopy := make([]string, len(resolvedField))
 	copy(fieldCopy, resolvedField)
 	return fieldCopy
@@ -13520,7 +13536,7 @@ func (ev *Event) GetSignalTargetAncestorsEgroup() []string {
 }
 
 // GetSignalTargetAncestorsEnvp returns the value of the field, resolving if necessary
-func (ev *Event) GetSignalTargetAncestorsEnvp() []string {
+func (ev *Event) GetSignalTargetAncestorsEnvp(desiredKeys map[string]bool) []string {
 	zeroValue := []string{}
 	if ev.GetEventType().String() != "signal" {
 		return zeroValue
@@ -13537,7 +13553,8 @@ func (ev *Event) GetSignalTargetAncestorsEnvp() []string {
 	ptr := iterator.Front(ctx)
 	for ptr != nil {
 		element := (*ProcessCacheEntry)(ptr)
-		result := ev.FieldHandlers.ResolveProcessEnvpScrubbed(ev, &element.ProcessContext.Process)
+		result := ev.FieldHandlers.ResolveProcessEnvp(ev, &element.ProcessContext.Process)
+		result = filterEnvs(result, desiredKeys)
 		values = append(values, result...)
 		ptr = iterator.Next()
 	}
@@ -13545,7 +13562,7 @@ func (ev *Event) GetSignalTargetAncestorsEnvp() []string {
 }
 
 // GetSignalTargetAncestorsEnvs returns the value of the field, resolving if necessary
-func (ev *Event) GetSignalTargetAncestorsEnvs() []string {
+func (ev *Event) GetSignalTargetAncestorsEnvs(desiredKeys map[string]bool) []string {
 	zeroValue := []string{}
 	if ev.GetEventType().String() != "signal" {
 		return zeroValue
@@ -13563,6 +13580,7 @@ func (ev *Event) GetSignalTargetAncestorsEnvs() []string {
 	for ptr != nil {
 		element := (*ProcessCacheEntry)(ptr)
 		result := ev.FieldHandlers.ResolveProcessEnvs(ev, &element.ProcessContext.Process)
+		result = filterEnvs(result, desiredKeys)
 		values = append(values, result...)
 		ptr = iterator.Next()
 	}
@@ -15160,7 +15178,7 @@ func (ev *Event) GetSignalTargetEgroup() string {
 }
 
 // GetSignalTargetEnvp returns the value of the field, resolving if necessary
-func (ev *Event) GetSignalTargetEnvp() []string {
+func (ev *Event) GetSignalTargetEnvp(desiredKeys map[string]bool) []string {
 	zeroValue := []string{}
 	if ev.GetEventType().String() != "signal" {
 		return zeroValue
@@ -15168,14 +15186,15 @@ func (ev *Event) GetSignalTargetEnvp() []string {
 	if ev.Signal.Target == nil {
 		return zeroValue
 	}
-	resolvedField := ev.FieldHandlers.ResolveProcessEnvpScrubbed(ev, &ev.Signal.Target.Process)
+	resolvedField := ev.FieldHandlers.ResolveProcessEnvp(ev, &ev.Signal.Target.Process)
+	resolvedField = filterEnvs(resolvedField, desiredKeys)
 	fieldCopy := make([]string, len(resolvedField))
 	copy(fieldCopy, resolvedField)
 	return fieldCopy
 }
 
 // GetSignalTargetEnvs returns the value of the field, resolving if necessary
-func (ev *Event) GetSignalTargetEnvs() []string {
+func (ev *Event) GetSignalTargetEnvs(desiredKeys map[string]bool) []string {
 	zeroValue := []string{}
 	if ev.GetEventType().String() != "signal" {
 		return zeroValue
@@ -15184,6 +15203,7 @@ func (ev *Event) GetSignalTargetEnvs() []string {
 		return zeroValue
 	}
 	resolvedField := ev.FieldHandlers.ResolveProcessEnvs(ev, &ev.Signal.Target.Process)
+	resolvedField = filterEnvs(resolvedField, desiredKeys)
 	fieldCopy := make([]string, len(resolvedField))
 	copy(fieldCopy, resolvedField)
 	return fieldCopy
@@ -16159,7 +16179,7 @@ func (ev *Event) GetSignalTargetParentEgroup() string {
 }
 
 // GetSignalTargetParentEnvp returns the value of the field, resolving if necessary
-func (ev *Event) GetSignalTargetParentEnvp() []string {
+func (ev *Event) GetSignalTargetParentEnvp(desiredKeys map[string]bool) []string {
 	zeroValue := []string{}
 	if ev.GetEventType().String() != "signal" {
 		return zeroValue
@@ -16173,14 +16193,15 @@ func (ev *Event) GetSignalTargetParentEnvp() []string {
 	if !ev.Signal.Target.HasParent() {
 		return []string{}
 	}
-	resolvedField := ev.FieldHandlers.ResolveProcessEnvpScrubbed(ev, ev.Signal.Target.Parent)
+	resolvedField := ev.FieldHandlers.ResolveProcessEnvp(ev, ev.Signal.Target.Parent)
+	resolvedField = filterEnvs(resolvedField, desiredKeys)
 	fieldCopy := make([]string, len(resolvedField))
 	copy(fieldCopy, resolvedField)
 	return fieldCopy
 }
 
 // GetSignalTargetParentEnvs returns the value of the field, resolving if necessary
-func (ev *Event) GetSignalTargetParentEnvs() []string {
+func (ev *Event) GetSignalTargetParentEnvs(desiredKeys map[string]bool) []string {
 	zeroValue := []string{}
 	if ev.GetEventType().String() != "signal" {
 		return zeroValue
@@ -16195,6 +16216,7 @@ func (ev *Event) GetSignalTargetParentEnvs() []string {
 		return []string{}
 	}
 	resolvedField := ev.FieldHandlers.ResolveProcessEnvs(ev, ev.Signal.Target.Parent)
+	resolvedField = filterEnvs(resolvedField, desiredKeys)
 	fieldCopy := make([]string, len(resolvedField))
 	copy(fieldCopy, resolvedField)
 	return fieldCopy

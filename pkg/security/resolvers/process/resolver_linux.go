@@ -979,19 +979,6 @@ func (p *Resolver) GetProcessEnvp(pr *model.Process) ([]string, bool) {
 	return pr.Envp, pr.EnvsTruncated
 }
 
-// GetProcessEnvpScrubbed returns the scrubbed envs of the event with their values
-func (p *Resolver) GetProcessEnvpScrubbed(pr *model.Process) ([]string, bool) {
-	envp, _ := p.GetProcessEnvp(pr)
-
-	if p.scrubber != nil && len(envp) > 0 {
-		envp, _ = p.scrubber.ScrubCommand(envp)
-	}
-
-	// TODO: keeping this replacement operation fits the pattern set up by GetProcessScrubbedArgv, but there's a question whether that pattern makes sense
-	pr.Envp = envp
-	return pr.Envp, pr.EnvsTruncated
-}
-
 // SetProcessTTY resolves TTY and cache the result
 func (p *Resolver) SetProcessTTY(pce *model.ProcessCacheEntry) string {
 	if pce.TTYName == "" && p.opts.ttyFallbackEnabled {
