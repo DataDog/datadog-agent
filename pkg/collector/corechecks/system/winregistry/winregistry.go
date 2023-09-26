@@ -5,6 +5,7 @@
 
 //go:build windows
 
+// Package winregistry defines the winregistry check
 package winregistry
 
 import (
@@ -26,18 +27,18 @@ import (
 )
 
 const (
-	checkName   = "windows_registry" // this appears in the Agent Manager and Agent status
+	checkName   = "windows_registry" // This appears in the Agent Manager and Agent status
 	checkPrefix = "winregistry"      // This is the prefix used for all metrics emitted by this check
 )
 
-type subkeyCfg struct {
+type registryValueCfg struct {
 	Name         string                 `yaml:"name"` // The metric name of the registry value
 	DefaultValue util.Optional[float64] `yaml:"default_value"`
 }
 
 type registryKeyCfg struct {
-	Name    string               `yaml:"name"`    // The metric name of the registry key
-	Subkeys map[string]subkeyCfg `yaml:"subkeys"` // The map key is the subkey name
+	Name           string                      `yaml:"name"`            // The metric name of the registry key
+	RegistryValues map[string]registryValueCfg `yaml:"registry_values"` // The map key is the registry value name
 }
 
 type checkCfg struct {
@@ -53,17 +54,22 @@ type registryKey struct {
 	hive            registry.Key
 	keyPath         string
 	originalKeyPath string // keep the original keypath around, for logging errors
-	subkeys         map[string]subkeyCfg
+	registryValues  map[string]registryValueCfg
 }
 
 // WindowsRegistryCheck contains the field for the WindowsRegistryCheck
 type WindowsRegistryCheck struct {
 	core.CheckBase
 	metrics.Gauge
-	registryKeys []registryKey
+	senderManager sender.SenderManager
+	sender        sender.Sender
+	registryKeys  []registryKey
 }
 
+// Configure reads the config and setups the check
 func (c *WindowsRegistryCheck) Configure(senderManager sender.SenderManager, integrationConfigDigest uint64, data integration.Data, initConfig integration.Data, source string) error {
+	c.senderManager = senderManager
+	c.BuildID(integrationConfigDigest, data, initConfig)
 	err := c.CommonConfigure(senderManager, integrationConfigDigest, initConfig, data, source)
 	if err != nil {
 		return err
@@ -84,46 +90,49 @@ func (c *WindowsRegistryCheck) Configure(senderManager sender.SenderManager, int
 	}
 
 	for regKey, regKeyConfig := range conf.RegistryKeys {
-		splitKeypath := strings.Split(regKey, "\\")
-		if len(splitKeypath) < 2 {
+		splitKeypath := strings.SplitN(regKey, "\\", 2)
+		if len(splitKeypath) != 2 {
 			return log.Errorf("the key %s is too short to be a valid key", regKey)
 		}
 
 		if len(regKeyConfig.Name) == 0 {
-			log.Warnf("the key %s does not have a metric name %s, skipping", regKey)
+			log.Warnf("the key %s does not have a metric name, skipping", regKey)
 			continue
 		}
 
 		if hive, found := hiveMap[splitKeypath[0]]; found {
-			subkeys := make(map[string]subkeyCfg)
-			for valueName, regKeyCfg := range regKeyConfig.Subkeys {
-				if len(regKeyCfg.Name) == 0 {
+			regValues := make(map[string]registryValueCfg)
+			for valueName, regValueCfg := range regKeyConfig.RegistryValues {
+				if len(regValueCfg.Name) == 0 {
 					log.Warnf("the subkey %s of %s does not have a metric name, skipping", valueName, regKey)
 				} else {
-					subkeys[valueName] = regKeyCfg
+					regValues[valueName] = regValueCfg
 				}
 			}
 			c.registryKeys = append(c.registryKeys, registryKey{
 				name:            regKeyConfig.Name,
 				hive:            hive,
 				originalKeyPath: regKey,
-				keyPath:         strings.Join(splitKeypath[1:], "\\"),
-				subkeys:         subkeys,
+				keyPath:         splitKeypath[1],
+				registryValues:  regValues,
 			})
 		} else {
 			return log.Errorf("unknown hive %s", splitKeypath[0])
 		}
 	}
 
+	c.sender, err = c.GetSender()
+	if err != nil {
+		log.Errorf("failed to retrieve a sender for check %s: %s", string(c.ID()), err)
+		return err
+	}
+	c.sender.FinalizeCheckServiceTag()
+
 	return nil
 }
 
+// Run runs the check
 func (c *WindowsRegistryCheck) Run() error {
-	sender, err := c.GetSender()
-	if err != nil {
-		return err
-	}
-
 	for _, regKeyCfg := range c.registryKeys {
 		regKey, err := registry.OpenKey(regKeyCfg.hive, regKeyCfg.keyPath, registry.QUERY_VALUE)
 		if err != nil {
@@ -132,27 +141,36 @@ func (c *WindowsRegistryCheck) Run() error {
 				log.Errorf("access denied while accessing key %s: %s", regKeyCfg.originalKeyPath, err)
 			} else if errors.Is(err, registry.ErrNotExist) {
 				log.Warnf("key %s was not found: %s", regKeyCfg.originalKeyPath, err)
+				// Process registryValues too so that we can emit missing values for each registryValues
+				processRegistryKeyMetrics(c.sender, regKey, regKeyCfg)
 			}
 		} else {
 			// if err == nil the key was opened, so we need to close it after we are done.
-			processRegistryKeyMetrics(sender, regKey, regKeyCfg)
+			processRegistryKeyMetrics(c.sender, regKey, regKeyCfg)
 			regKey.Close()
 		}
 	}
-	sender.Commit()
+	c.sender.Commit()
 	return nil
 }
 
 func processRegistryKeyMetrics(sender sender.Sender, regKey registry.Key, regKeyCfg registryKey) {
-	for valueName, subkey := range regKeyCfg.subkeys {
-		_, valueType, err := regKey.GetValue(valueName, nil)
-		gaugeName := fmt.Sprintf("%s.%s.%s", checkPrefix, regKeyCfg.name, subkey.Name)
+	for valueName, regValueCfg := range regKeyCfg.registryValues {
+		var err error
+		var valueType uint32
+		// regKey == 0 means parent key didn't exist, but we want to emit missing metric for each of its values
+		if regKey == 0 {
+			err = registry.ErrNotExist
+		} else {
+			_, valueType, err = regKey.GetValue(valueName, nil)
+		}
+		gaugeName := fmt.Sprintf("%s.%s.%s", checkPrefix, regKeyCfg.name, regValueCfg.Name)
 		if errors.Is(err, registry.ErrNotExist) {
 			log.Warnf("value %s of key %s was not found: %s", valueName, regKeyCfg.name, err)
-			trySendDefaultValue(sender, subkey, gaugeName)
+			trySendDefaultValue(sender, regValueCfg, gaugeName)
 		} else if errors.Is(err, fs.ErrPermission) {
 			log.Errorf("access denied while accessing value %s of key %s: %s", valueName, regKeyCfg.originalKeyPath, err)
-			trySendDefaultValue(sender, subkey, gaugeName)
+			trySendDefaultValue(sender, regValueCfg, gaugeName)
 		} else if errors.Is(err, registry.ErrShortBuffer) || err == nil {
 			switch valueType {
 			case registry.DWORD:
@@ -161,17 +179,20 @@ func processRegistryKeyMetrics(sender sender.Sender, regKey registry.Key, regKey
 				val, _, err := regKey.GetIntegerValue(valueName)
 				if err != nil {
 					log.Errorf("error accessing value %s of key %s: %s", valueName, regKeyCfg.originalKeyPath, err)
-					trySendDefaultValue(sender, subkey, gaugeName)
+					trySendDefaultValue(sender, regValueCfg, gaugeName)
 					continue
 				}
 				sender.Gauge(gaugeName, float64(val), "", nil)
 			case registry.SZ:
 				fallthrough
-			case registry.EXPAND_SZ: // Should we expand the references to environment variables ?
+			case registry.EXPAND_SZ:
 				val, _, err := regKey.GetStringValue(valueName)
+				if valueType == registry.EXPAND_SZ {
+					val, err = registry.ExpandString(val)
+				}
 				if err != nil {
 					log.Errorf("error accessing value %s of key %s: %s", valueName, regKeyCfg.originalKeyPath, err)
-					trySendDefaultValue(sender, subkey, gaugeName)
+					trySendDefaultValue(sender, regValueCfg, gaugeName)
 					continue
 				}
 				// First try to parse the value into a float64
@@ -179,18 +200,18 @@ func processRegistryKeyMetrics(sender sender.Sender, regKey registry.Key, regKey
 					sender.Gauge(gaugeName, parsedVal, "", nil)
 				} else {
 					log.Warnf("value %s of key %s cannot be parsed", valueName, regKeyCfg.originalKeyPath)
-					trySendDefaultValue(sender, subkey, gaugeName)
+					trySendDefaultValue(sender, regValueCfg, gaugeName)
 				}
 			default:
 				log.Warnf("unsupported data type of value %s for key %s: %d", valueName, regKeyCfg.originalKeyPath, valueType)
-				trySendDefaultValue(sender, subkey, gaugeName)
+				trySendDefaultValue(sender, regValueCfg, gaugeName)
 			}
 		}
 	}
 }
 
-func trySendDefaultValue(sender sender.Sender, subkey subkeyCfg, gaugeName string) {
-	if defaultVal, exists := subkey.DefaultValue.Get(); exists {
+func trySendDefaultValue(sender sender.Sender, regValueCfg registryValueCfg, gaugeName string) {
+	if defaultVal, exists := regValueCfg.DefaultValue.Get(); exists {
 		sender.Gauge(gaugeName, defaultVal, "", nil)
 	}
 }
