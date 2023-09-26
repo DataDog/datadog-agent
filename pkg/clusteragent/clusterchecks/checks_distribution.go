@@ -12,11 +12,13 @@ import (
 	"sort"
 )
 
+// CheckStatus represents the status of a check
 type CheckStatus struct {
 	WorkersNeeded float64
 	Runner        string
 }
 
+// RunnerStatus represents the status of a check runner
 type RunnerStatus struct {
 	Workers     int
 	WorkersUsed float64
