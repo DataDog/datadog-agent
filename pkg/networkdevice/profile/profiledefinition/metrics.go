@@ -47,7 +47,7 @@ type SymbolConfig struct {
 	ExtractValue         string         `yaml:"extract_value,omitempty" json:"extract_value,omitempty"`
 	ExtractValueCompiled *regexp.Regexp `yaml:"-" json:"-"`
 
-	// MatchPattern and MatchValue are not exposed as json since the feature is similar to ExtractValue
+	// MatchPattern/MatchValue are not exposed as json (UI) since ExtractValue can be used instead
 	MatchPattern         string         `yaml:"match_pattern,omitempty" json:"-"`
 	MatchValue           string         `yaml:"match_value,omitempty" json:"-"`
 	MatchPatternCompiled *regexp.Regexp `yaml:"-" json:"-"`
@@ -82,6 +82,7 @@ type MetricTagConfig struct {
 	Mapping map[string]string `yaml:"mapping,omitempty" json:"mapping,omitempty"`
 
 	// Regex
+	// Match/Tags are not exposed as json (UI) since ExtractValue can be used instead
 	Match   string            `yaml:"match,omitempty" json:"-"`
 	Tags    map[string]string `yaml:"tags,omitempty" json:"-"`
 	Pattern *regexp.Regexp    `yaml:"-" json:"-"`
@@ -122,12 +123,14 @@ type MetricsConfig struct {
 	// Table configs
 	Symbols []SymbolConfig `yaml:"symbols,omitempty" json:"symbols,omitempty"`
 
+	// `static_tags` is not exposed as json at the moment since we need to evaluate if we want to expose it via UI
 	StaticTags []string            `yaml:"static_tags,omitempty" json:"-"`
 	MetricTags MetricTagConfigList `yaml:"metric_tags,omitempty" json:"metric_tags,omitempty"`
 
 	ForcedType ProfileMetricType `yaml:"forced_type,omitempty" json:"forced_type,omitempty" jsonschema:"-"` // deprecated in favour of metric_type
 	MetricType ProfileMetricType `yaml:"metric_type,omitempty" json:"metric_type,omitempty"`
 
+	// `options` is not exposed as json at the moment since we need to evaluate if we want to expose it via UI
 	Options MetricsConfigOption `yaml:"options,omitempty" json:"-"`
 }
 
