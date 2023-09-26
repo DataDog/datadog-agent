@@ -47,7 +47,7 @@ func (l *languagesSet) add(language string) {
 }
 
 func (l *languagesSet) merge(lang *languagesSet) {
-	for language, _ := range lang.languages {
+	for language := range lang.languages {
 		l.add(language)
 	}
 }
