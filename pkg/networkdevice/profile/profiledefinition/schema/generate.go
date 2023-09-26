@@ -35,7 +35,9 @@ func jsonTypeMapper(ty reflect.Type) *jsonschema.Schema {
 			DoNotReference:            true,
 			AllowAdditionalProperties: false,
 		}
-		return r.Reflect([]profiledefinition.MapItem[string]{})
+		schema := r.Reflect([]profiledefinition.MapItem[string]{})
+		schema.Version = ""
+		return schema
 	}
 	return nil
 }
