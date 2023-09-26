@@ -16,6 +16,37 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/trace/traceutil"
 )
 
+// TestNoTagNoTouch verifies that if none of the spans passed to
+// ApplySpanSampling have the span sampling tag, then ApplySpanSampling does not
+// modify its argument at all.
+func TestNoTagNoTouch(t *testing.T) {
+	original := &pb.TraceChunk{
+		Spans: []*pb.Span{
+			{
+				Service:  "testsvc",
+				Name:     "parent",
+				TraceID:  1,
+				SpanID:   1,
+				Start:    time.Now().Add(-time.Second).UnixNano(),
+				Duration: time.Millisecond.Nanoseconds(),
+			},
+			{
+				Service:  "testsvc",
+				Name:     "child",
+				TraceID:  1,
+				SpanID:   2,
+				Start:    time.Now().Add(-time.Second).UnixNano(),
+				Duration: time.Millisecond.Nanoseconds(),
+			},
+		},
+	}
+
+	pt := &traceutil.ProcessedTrace{TraceChunk: original}
+	modified := SingleSpanSampling(pt)
+	assert.False(t, modified)
+	assert.True(t, proto.Equal(pt.TraceChunk, original))
+}
+
 // TestTagCausesInPlaceFilterAndKeep verifies that the presence of a span
 // sampling tag in any of the spans passed to GetSingleSpanSampledSpans causes the
 // argument of GetSingleSpanSampledSpans to be modified in the following ways:
