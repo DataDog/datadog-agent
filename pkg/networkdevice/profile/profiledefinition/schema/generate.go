@@ -33,7 +33,7 @@ func jsonTypeMapper(ty reflect.Type) *jsonschema.Schema {
 	var schema *jsonschema.Schema
 	if ty == reflect.TypeOf(profiledefinition.JSONListMap[string]{}) {
 		schema = reflectType([]profiledefinition.MapItem[string]{})
-	} else if ty == reflect.TypeOf(profiledefinition.JSONListMap[profiledefinition.MetadataResourceConfig]{}) {
+	} else if ty == reflect.TypeOf(profiledefinition.MetadataConfig{}) {
 		schema = reflectType([]profiledefinition.MapItem[profiledefinition.MetadataResourceConfig]{})
 	} else if ty == reflect.TypeOf(profiledefinition.JSONListMap[profiledefinition.MetadataField]{}) {
 		schema = reflectType([]profiledefinition.MapItem[profiledefinition.MetadataField]{})
