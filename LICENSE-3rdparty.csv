@@ -73,14 +73,11 @@ core,github.com/DataDog/datadog-operator/apis/utils,Apache-2.0,"Copyright 2016-2
 core,github.com/DataDog/datadog-operator/pkg/defaulting,Apache-2.0,"Copyright 2016-2020 Datadog, Inc"
 core,github.com/DataDog/datadog-operator/pkg/utils,Apache-2.0,"Copyright 2016-2020 Datadog, Inc"
 core,github.com/DataDog/ebpf-manager,MIT,Copyright (c) 2021 Authors of Datadog
+core,github.com/DataDog/ebpf-manager/internal,MIT,Copyright (c) 2021 Authors of Datadog
 core,github.com/DataDog/ebpf-manager/tracefs,MIT,Copyright (c) 2021 Authors of Datadog
 core,github.com/DataDog/extendeddaemonset/api/v1alpha1,Apache-2.0,"Copyright 2016-2020 Datadog, Inc"
 core,github.com/DataDog/go-libddwaf,Apache-2.0,"Copyright 2016-present Datadog, Inc"
-core,github.com/DataDog/go-libddwaf/include,Apache-2.0,"Copyright 2016-present Datadog, Inc"
-core,github.com/DataDog/go-libddwaf/lib/darwin-amd64,Apache-2.0,"Copyright 2016-present Datadog, Inc"
-core,github.com/DataDog/go-libddwaf/lib/darwin-arm64,Apache-2.0,"Copyright 2016-present Datadog, Inc"
-core,github.com/DataDog/go-libddwaf/lib/linux-amd64,Apache-2.0,"Copyright 2016-present Datadog, Inc"
-core,github.com/DataDog/go-libddwaf/lib/linux-arm64,Apache-2.0,"Copyright 2016-present Datadog, Inc"
+core,github.com/DataDog/go-libddwaf/internal/noopfree,Apache-2.0,"Copyright 2016-present Datadog, Inc"
 core,github.com/DataDog/go-tuf/client,BSD-3-Clause,"Copyright (c) 2014-2020 Prime Directive, Inc. All rights reserved"
 core,github.com/DataDog/go-tuf/data,BSD-3-Clause,"Copyright (c) 2014-2020 Prime Directive, Inc. All rights reserved"
 core,github.com/DataDog/go-tuf/internal/roles,BSD-3-Clause,"Copyright (c) 2014-2020 Prime Directive, Inc. All rights reserved"
@@ -95,7 +92,7 @@ core,github.com/DataDog/gopsutil/internal/common,BSD-3-Clause,"Copyright (c) 200
 core,github.com/DataDog/gopsutil/mem,BSD-3-Clause,"Copyright (c) 2009 The Go Authors. All rights reserved | Copyright (c) 2014, WAKAYAMA Shirou"
 core,github.com/DataDog/gopsutil/net,BSD-3-Clause,"Copyright (c) 2009 The Go Authors. All rights reserved | Copyright (c) 2014, WAKAYAMA Shirou"
 core,github.com/DataDog/gopsutil/process,BSD-3-Clause,"Copyright (c) 2009 The Go Authors. All rights reserved | Copyright (c) 2014, WAKAYAMA Shirou"
-core,github.com/DataDog/gostackparse,Apache-2.0,"Copyright (c) 2016-Present, Datadog <info@datadoghq.com> | Copyright 2016 Datadog, Inc"
+core,github.com/DataDog/gostackparse,Apache-2.0,"Copyright (c) 2021-Present, Datadog <info@datadoghq.com> | Copyright 2021 Datadog, Inc"
 core,github.com/DataDog/mmh3,MIT,"Copyright (c) 2017 Datadog, Inc."
 core,github.com/DataDog/nikos/apt,MIT,"Copyright (c) 2020-present Datadog, Inc"
 core,github.com/DataDog/nikos/cos,MIT,"Copyright (c) 2020-present Datadog, Inc"
@@ -535,6 +532,7 @@ core,github.com/aws/smithy-go/time,Apache-2.0,"Copyright Amazon.com, Inc. or its
 core,github.com/aws/smithy-go/transport/http,Apache-2.0,"Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved"
 core,github.com/aws/smithy-go/transport/http/internal/io,Apache-2.0,"Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved"
 core,github.com/aws/smithy-go/waiter,Apache-2.0,"Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved"
+core,github.com/bahlo/generic-list-go,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
 core,github.com/beevik/ntp,BSD-2-Clause,Anton Tolchanov (knyar) | Ask Bjørn Hansen (abh) | Brett Vickers (beevik) | Christopher Batey (chbatey) | Copyright 2015-2017 Brett Vickers. All rights reserved | Leonid Evdokimov (darkk) | Meng Zhuo (mengzhuo) | Mikhail Salosin (AlphaB)
 core,github.com/benbjohnson/clock,MIT,Copyright (c) 2014 Ben Johnson
 core,github.com/beorn7/perks/quantile,MIT,Copyright (C) 2013 Blake Mizerany
@@ -543,6 +541,7 @@ core,github.com/blabber/go-freebsd-sysctl/sysctl,0BSD,Copyright (c) 2014-2020 by
 core,github.com/blang/semver/v4,MIT,Copyright (c) 2014 Benedikt Lang <github at benediktlang.de>
 core,github.com/bmizerany/pat,MIT,"Copyright (C) 2012 by Keith Rarick, Blake Mizerany"
 core,github.com/briandowns/spinner,Apache-2.0,Copyright (c) 2022 Brian J. Downs
+core,github.com/buger/jsonparser,MIT,Copyright (c) 2016 Leonid Bugaev
 core,github.com/caarlos0/env/v6,MIT,Copyright (c) 2015-2022 Carlos Alexandro Becker
 core,github.com/cavaliergopher/grab/v3,BSD-3-Clause,Copyright (c) 2017 Ryan Armstrong. All rights reserved
 core,github.com/cavaliergopher/grab/v3/pkg/bps,BSD-3-Clause,Copyright (c) 2017 Ryan Armstrong. All rights reserved
@@ -578,9 +577,11 @@ core,github.com/cloudflare/circl/sign,BSD-3-Clause,Copyright (c) 2009 The Go Aut
 core,github.com/cloudflare/circl/sign/ed25519,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved | Copyright (c) 2019 Cloudflare. All rights reserved
 core,github.com/cloudflare/circl/sign/ed448,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved | Copyright (c) 2019 Cloudflare. All rights reserved
 core,github.com/cloudfoundry-community/go-cfclient/v2,MIT,Copyright (c) 2017 Long Nguyen
-core,github.com/containerd/cgroups,Apache-2.0,"Copyright 2012-2015 Docker, Inc."
 core,github.com/containerd/cgroups/stats/v1,Apache-2.0,"Copyright 2012-2015 Docker, Inc."
-core,github.com/containerd/cgroups/v2/stats,Apache-2.0,"Copyright 2012-2015 Docker, Inc."
+core,github.com/containerd/cgroups/v3,Apache-2.0,"Copyright 2012-2015 Docker, Inc."
+core,github.com/containerd/cgroups/v3/cgroup1,Apache-2.0,"Copyright 2012-2015 Docker, Inc."
+core,github.com/containerd/cgroups/v3/cgroup1/stats,Apache-2.0,"Copyright 2012-2015 Docker, Inc."
+core,github.com/containerd/cgroups/v3/cgroup2/stats,Apache-2.0,"Copyright 2012-2015 Docker, Inc."
 core,github.com/containerd/containerd,Apache-2.0,"Copyright 2012-2015 Docker, Inc."
 core,github.com/containerd/containerd/api/events,Apache-2.0,"Copyright 2012-2015 Docker, Inc."
 core,github.com/containerd/containerd/api/runtime/sandbox/v1,Apache-2.0,"Copyright 2012-2015 Docker, Inc."
@@ -734,6 +735,10 @@ core,github.com/dsnet/compress/internal,BSD-3-Clause,"Copyright © 2015, Joe Tsa
 core,github.com/dsnet/compress/internal/errors,BSD-3-Clause,"Copyright © 2015, Joe Tsai and The Go Authors. All rights reserved"
 core,github.com/dsnet/compress/internal/prefix,BSD-3-Clause,"Copyright © 2015, Joe Tsai and The Go Authors. All rights reserved"
 core,github.com/dustin/go-humanize,MIT,Copyright (c) 2005-2008  Dustin Sallings <dustin@spy.net>
+core,github.com/ebitengine/purego,Apache-2.0,Copyright 2022 The Ebitengine Authors
+core,github.com/ebitengine/purego/internal/cgo,Apache-2.0,Copyright 2022 The Ebitengine Authors
+core,github.com/ebitengine/purego/internal/fakecgo,Apache-2.0,Copyright 2022 The Ebitengine Authors
+core,github.com/ebitengine/purego/internal/strings,Apache-2.0,Copyright 2022 The Ebitengine Authors
 core,github.com/elastic/go-libaudit,Apache-2.0,Copyright 2017-2018 Elasticsearch B.V.
 core,github.com/elastic/go-libaudit/auparse,Apache-2.0,Copyright 2017-2018 Elasticsearch B.V.
 core,github.com/elastic/go-libaudit/rule,Apache-2.0,Copyright 2017-2018 Elasticsearch B.V.
@@ -1012,6 +1017,7 @@ core,github.com/google/s2a-go/internal/v2,Apache-2.0,Copyright (c) 2020 Google
 core,github.com/google/s2a-go/internal/v2/certverifier,Apache-2.0,Copyright (c) 2020 Google
 core,github.com/google/s2a-go/internal/v2/remotesigner,Apache-2.0,Copyright (c) 2020 Google
 core,github.com/google/s2a-go/internal/v2/tlsconfigstore,Apache-2.0,Copyright (c) 2020 Google
+core,github.com/google/s2a-go/retry,Apache-2.0,Copyright (c) 2020 Google
 core,github.com/google/s2a-go/stream,Apache-2.0,Copyright (c) 2020 Google
 core,github.com/google/uuid,BSD-3-Clause,"Copyright (c) 2009,2014 Google Inc. All rights reserved | Paul Borman <borman@google.com> | bmatsuo | cd1 | dansouza | dsymonds | jboverfelt | shawnps | theory | wallclockbuilder"
 core,github.com/google/wire,Apache-2.0,Chris Lewis <cflewis@google.com> <cflewis@golang.org> <c@chris.to> | Christina Austin <4240737+clausti@users.noreply.github.com> | Eno Compton <enocom@google.com> | Google LLC | Issac Trotts <issactrotts@google.com> <issac.trotts@gmail.com> | Kumbirai Tanekha <kumbirai.tanekha@gmail.com> | Oleg Kovalov <iamolegkovalov@gmail.com> | Robert van Gent <rvangent@google.com> <vangent@gmail.com> | Ross Light <light@google.com> <ross@zombiezen.com> | Tuo Shan <shantuo@google.com> <sturbo89@gmail.com> | Yoichiro Shimizu <budougumi0617@gmail.com> | Zachary Romero <zacromero3@gmail.com> | ktr <ktr@syfm.me>
@@ -1075,7 +1081,6 @@ core,github.com/hashicorp/serf/coordinate,MPL-2.0,"Copyright © 2014-2018 HashiC
 core,github.com/hectane/go-acl,MIT,Copyright (c) 2015 Nathan Osman
 core,github.com/hectane/go-acl/api,MIT,Copyright (c) 2015 Nathan Osman
 core,github.com/huandu/xstrings,MIT,Copyright (c) 2015 Huan Du
-core,github.com/iancoleman/orderedmap,MIT,Copyright (c) 2017 Ian Coleman
 core,github.com/ianlancetaylor/cgosymbolizer,BSD-3-Clause,"Copyright (C) 2012-2015 Free Software Foundation, Inc | Copyright (c) 2015 The Go Authors. All rights reserved"
 core,github.com/ianlancetaylor/demangle,BSD-3-Clause,Copyright (c) 2015 The Go Authors. All rights reserved
 core,github.com/imdario/mergo,BSD-3-Clause,Copyright (c) 2012 The Go Authors. All rights reserved | Copyright (c) 2013 Dario Castañé. All rights reserved
@@ -1183,7 +1188,7 @@ core,github.com/moby/sys/signal,Apache-2.0,Copyright (c) 2014-2018 The Docker & 
 core,github.com/modern-go/concurrent,Apache-2.0,Copyright (c) 2018 Tao Wen
 core,github.com/modern-go/reflect2,Apache-2.0,Copyright (c) 2018 Tao Wen
 core,github.com/mohae/deepcopy,MIT,Copyright (c) 2014 Joel
-core,github.com/montanaflynn/stats,MIT,Copyright (c) 2014-2015 Montana Flynn (https://anonfunction.com) | Copyright (c) 2014-2015 Montana Flynn <http://anonfunction.com>
+core,github.com/montanaflynn/stats,MIT,Copyright (c) 2014-2020 Montana Flynn (https://montanaflynn.com) | Copyright (c) 2014-2021 Montana Flynn (https://montanaflynn.com)
 core,github.com/mostynb/go-grpc-compression/internal/snappy,Apache-2.0,Copyright 2023 Mostyn Bramley-Moore.
 core,github.com/mostynb/go-grpc-compression/internal/zstd,Apache-2.0,Copyright 2023 Mostyn Bramley-Moore.
 core,github.com/mostynb/go-grpc-compression/nonclobbering/snappy,Apache-2.0,Copyright 2023 Mostyn Bramley-Moore.
@@ -1489,6 +1494,7 @@ core,github.com/vmihailenco/tagparser/v2,BSD-2-Clause,Copyright (c) 2019 The git
 core,github.com/vmihailenco/tagparser/v2/internal,BSD-2-Clause,Copyright (c) 2019 The github.com/vmihailenco/tagparser Authors
 core,github.com/vmihailenco/tagparser/v2/internal/parser,BSD-2-Clause,Copyright (c) 2019 The github.com/vmihailenco/tagparser Authors
 core,github.com/wI2L/jsondiff,MIT,Copyright (c) 2020-2022 William Poussier <william.poussier@gmail.com>
+core,github.com/wk8/go-ordered-map/v2,Apache-2.0,Copyright 2023 Jean Rougé <wk8.github@gmail.com>
 core,github.com/xanzy/ssh-agent,Apache-2.0,"Copyright (c) 2014 David Mzareulyan | Copyright 2015, Sander van Harmelen"
 core,github.com/xdg-go/pbkdf2,Apache-2.0,Copyright 2021 by David A. Golden. All rights reserved
 core,github.com/xdg-go/scram,Apache-2.0,Copyright 2018 by David A. Golden. All rights reserved
@@ -2060,7 +2066,6 @@ core,gopkg.in/DataDog/dd-trace-go.v1/internal/telemetry,Apache-2.0,"Copyright 20
 core,gopkg.in/DataDog/dd-trace-go.v1/internal/traceprof,Apache-2.0,"Copyright 2016-Present Datadog, Inc."
 core,gopkg.in/DataDog/dd-trace-go.v1/internal/version,Apache-2.0,"Copyright 2016-Present Datadog, Inc."
 core,gopkg.in/DataDog/dd-trace-go.v1/profiler,Apache-2.0,"Copyright 2016-Present Datadog, Inc."
-core,gopkg.in/DataDog/dd-trace-go.v1/profiler/internal,Apache-2.0,"Copyright 2016-Present Datadog, Inc."
 core,gopkg.in/DataDog/dd-trace-go.v1/profiler/internal/fastdelta,Apache-2.0,"Copyright 2016-Present Datadog, Inc."
 core,gopkg.in/DataDog/dd-trace-go.v1/profiler/internal/immutable,Apache-2.0,"Copyright 2016-Present Datadog, Inc."
 core,gopkg.in/DataDog/dd-trace-go.v1/profiler/internal/pproflite,Apache-2.0,"Copyright 2016-Present Datadog, Inc."
@@ -2172,6 +2177,8 @@ core,k8s.io/api/storage/v1beta1,Apache-2.0,Copyright 2014 The Kubernetes Authors
 core,k8s.io/apiextensions-apiserver/pkg/apis/apiextensions,Apache-2.0,Copyright 2014 The Kubernetes Authors.
 core,k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1,Apache-2.0,Copyright 2014 The Kubernetes Authors.
 core,k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1beta1,Apache-2.0,Copyright 2014 The Kubernetes Authors.
+core,k8s.io/apiextensions-apiserver/pkg/client/applyconfiguration/apiextensions/v1,Apache-2.0,Copyright 2014 The Kubernetes Authors.
+core,k8s.io/apiextensions-apiserver/pkg/client/applyconfiguration/apiextensions/v1beta1,Apache-2.0,Copyright 2014 The Kubernetes Authors.
 core,k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset,Apache-2.0,Copyright 2014 The Kubernetes Authors.
 core,k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset/scheme,Apache-2.0,Copyright 2014 The Kubernetes Authors.
 core,k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset/typed/apiextensions/v1,Apache-2.0,Copyright 2014 The Kubernetes Authors.

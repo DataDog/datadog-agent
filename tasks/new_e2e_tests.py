@@ -150,6 +150,8 @@ def clean(ctx, locks=True, stacks=False):
 
     if locks:
         _clean_locks()
+        if not stacks:
+            print("If you still have issues, try running with -s option to clean up stacks")
 
     if stacks:
         _clean_stacks(ctx)
@@ -171,9 +173,14 @@ def _clean_locks():
 
 
 def _clean_stacks(ctx: Context):
-    print("🧹 Clean up stacks")
+    print("🧹 Clean up stack")
     stacks = _get_existing_stacks(ctx)
 
+    for stack in stacks:
+        print(f"🗑️  Destroying stack {stack}")
+        _destroy_stack(ctx, stack)
+
+    stacks = _get_existing_stacks(ctx)
     for stack in stacks:
         print(f"🗑️ Cleaning up stack {stack}")
         _remove_stack(ctx, stack)
@@ -194,6 +201,13 @@ def _get_existing_stacks(ctx: Context) -> List[str]:
             print(f"Adding stack {stack_name}")
             e2e_stacks.append(stack_name)
         return e2e_stacks
+
+
+def _destroy_stack(ctx: Context, stack_name: str):
+    # running in temp dir as this is where datadog-agent test
+    # stacks are stored
+    with ctx.cd(tempfile.gettempdir()):
+        ctx.run(f"pulumi destroy --stack {stack_name} -r --yes --remove --skip-preview", pty=True)
 
 
 def _remove_stack(ctx: Context, stack_name: str):

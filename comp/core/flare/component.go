@@ -10,6 +10,7 @@
 package flare
 
 import (
+	"github.com/DataDog/datadog-agent/comp/core/flare/helpers"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"go.uber.org/fx"
 )
@@ -21,7 +22,7 @@ type Component interface {
 	// Create creates a new flare locally and returns the path to the flare file.
 	Create(pdata ProfileData, ipcError error) (string, error)
 	// Send sends a flare archive to Datadog.
-	Send(flarePath string, caseID string, email string, source string) (string, error)
+	Send(flarePath string, caseID string, email string, source helpers.FlareSource) (string, error)
 }
 
 // Module defines the fx options for this component.

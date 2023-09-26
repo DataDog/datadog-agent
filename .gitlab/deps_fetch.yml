@@ -11,12 +11,25 @@
   - mkdir -p $GOPATH/pkg/mod && tar xzf modcache_tools.tar.gz -C $GOPATH/pkg/mod
   - rm -f modcache_tools.tar.gz
 
+.cache_policy:
+  rules:
+  - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+    variables:
+      POLICY: pull-push
+  - if: $CI_COMMIT_BRANCH != $CI_DEFAULT_BRANCH
+    variables:
+      POLICY: pull
+
 go_deps:
   stage: deps_fetch
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
   tags: ["arch:amd64"]
   needs: ["setup_agent_version"]
+  extends: .cache_policy
   script:
+    # If the cache already contains the dependencies, don't redownload them
+    # but still provide the artifact that's expected for the other jobs to run
+    - if [ -f modcache.tar.gz  ]; then exit 0; fi
     - source /root/.bashrc
     - inv -e deps --verbose
     - cd $GOPATH/pkg/mod/ && tar czf $CI_PROJECT_DIR/modcache.tar.gz .
@@ -24,6 +37,13 @@ go_deps:
     expire_in: 1 day
     paths:
       - $CI_PROJECT_DIR/modcache.tar.gz
+  cache:
+    - key:
+        files:
+          - go.mod
+        prefix: "go_deps"
+      paths:
+        - modcache.tar.gz
   retry: 1
 
 go_tools_deps:
@@ -31,7 +51,9 @@ go_tools_deps:
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
   tags: ["arch:amd64"]
   needs: ["setup_agent_version"]
+  extends: .cache_policy
   script:
+    - if [ -f modcache_tools.tar.gz  ]; then exit 0; fi
     - source /root/.bashrc
     - inv -e download-tools
     - cd $GOPATH/pkg/mod/ && tar czf $CI_PROJECT_DIR/modcache_tools.tar.gz .
@@ -39,4 +61,11 @@ go_tools_deps:
     expire_in: 1 day
     paths:
       - $CI_PROJECT_DIR/modcache_tools.tar.gz
+  cache:
+    - key:
+        files:
+          - go.mod
+        prefix: "go_tools_deps"
+      paths:
+        - modcache_tools.tar.gz
   retry: 1

@@ -231,12 +231,10 @@ func assertBool(val bool) bool {
 
 // Teardown cleans up resources used throughout the check.
 func (c *Check) Teardown() {
+	log.Infof("%s Teardown", c.logPrompt)
 	closeDatabase(c, c.db)
 	closeDatabase(c, c.dbCustomQueries)
 	closeGoOraConnection(c)
-
-	c.fqtEmitted = nil
-	c.planEmitted = nil
 }
 
 // Configure configures the Oracle check.
@@ -282,13 +280,8 @@ func (c *Check) Configure(senderManager sender.SenderManager, integrationConfigD
 
 	c.tagsString = strings.Join(c.tags, ",")
 
-	c.fqtEmitted = cache.New(60*time.Minute, 10*time.Minute)
-
-	var planCacheRetention = c.config.QueryMetrics.PlanCacheRetention
-	if planCacheRetention == 0 {
-		planCacheRetention = 1
-	}
-	c.planEmitted = cache.New(time.Duration(planCacheRetention)*time.Minute, 10*time.Minute)
+	c.fqtEmitted = getFqtEmittedCache()
+	c.planEmitted = getPlanEmittedCache(c)
 
 	return nil
 }
