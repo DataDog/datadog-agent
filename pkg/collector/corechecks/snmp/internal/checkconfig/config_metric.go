@@ -34,7 +34,7 @@ func BuildMetricTagsFromValue(metricTag *profiledefinition.MetricTagConfig, valu
 			return tags
 		}
 		if metricTag.Pattern.MatchString(value) {
-			for key, val := range metricTag.Tags {
+			for key, val := range metricTag.Tags.ToMap() {
 				normalizedTemplate := normalizeRegexReplaceValue(val)
 				replacedVal := RegexReplaceValue(value, metricTag.Pattern, normalizedTemplate)
 				if replacedVal == "" {

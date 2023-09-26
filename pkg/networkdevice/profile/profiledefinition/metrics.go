@@ -91,10 +91,9 @@ type MetricTagConfig struct {
 	Mapping KeyValueList `yaml:"mapping,omitempty" json:"mapping,omitempty"`
 
 	// Regex
-	Match    string            `yaml:"match,omitempty" json:"match,omitempty"`
-	TagsList KeyValueList      `yaml:"tags,omitempty" json:"tags,omitempty"`
-	Tags     map[string]string `yaml:"-" json:"-"`
-	Pattern  *regexp.Regexp    `yaml:"-" json:"-"`
+	Match   string         `yaml:"match,omitempty" json:"match,omitempty"`
+	Tags    KeyValueList   `yaml:"tags,omitempty" json:"tags,omitempty"`
+	Pattern *regexp.Regexp `yaml:"-" json:"-"`
 
 	SymbolTag string `yaml:"-" json:"-"`
 }

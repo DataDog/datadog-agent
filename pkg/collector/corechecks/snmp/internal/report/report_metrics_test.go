@@ -481,9 +481,9 @@ func Test_metricSender_getCheckInstanceMetricTags(t *testing.T) {
 		{
 			name: "report scalar tags with regex",
 			metricsTags: []profiledefinition.MetricTagConfig{
-				{OID: "1.2.3", Name: "mySymbol", Match: "^([a-zA-Z]+)([0-9]+)$", Tags: map[string]string{
-					"word":   "\\1",
-					"number": "\\2",
+				{OID: "1.2.3", Name: "mySymbol", Match: "^([a-zA-Z]+)([0-9]+)$", Tags: profiledefinition.KeyValueList{
+					{Key: "word", Value: "\\1"},
+					{Key: "number", Value: "\\2"},
 				}},
 			},
 			values: &valuestore.ResultValueStore{
