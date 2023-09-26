@@ -205,9 +205,10 @@ def _get_existing_stacks(ctx: Context) -> List[str]:
 
 def _destroy_stack(ctx: Context, stack_name: str):
     # running in temp dir as this is where datadog-agent test
-    # stacks are stored
+    # stacks are stored. It is expected to fail on stacks existing locally
+    # with resources removed by agent-sandbox clean up job
     with ctx.cd(tempfile.gettempdir()):
-        ctx.run(f"pulumi destroy --stack {stack_name} -r --yes --remove --skip-preview", pty=True)
+        ctx.run(f"pulumi destroy --stack {stack_name} --yes --remove --skip-preview", pty=True)
 
 
 def _remove_stack(ctx: Context, stack_name: str):
