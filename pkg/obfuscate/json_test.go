@@ -13,6 +13,7 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
+	"sync"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -150,3 +151,43 @@ func FuzzObfuscateJSON(f *testing.F) {
 		o.obfuscate(b)
 	})
 }
+
+func BenchmarkObfuscateJSONConcurrently(b *testing.B) {
+	var (
+		cfg = &JSONConfig{
+			KeepValues: []string{"company_wallet_configuration_id"},
+		}
+		o        = newJSONObfuscator(cfg, &Obfuscator{})
+		expected = "{\"email\":\"?\",\"company_wallet_configuration_id\":1}"
+	)
+
+	b.ReportAllocs()
+	for i := 0; i < b.N; i++ {
+		rs := make(chan string, 1)
+
+		// Concurrency issues were reproduced at 100 times, but we leave this at 100K
+		// to stress test the obfuscator.
+		const times = 100000
+		var wg sync.WaitGroup
+		for i := 0; i < times; i++ {
+			wg.Add(1)
+			go func() {
+				defer wg.Done()
+				in := "{\"email\":\"dev@datadoghq.com\",\"company_wallet_configuration_id\":1}"
+				rs <- obfuscateJSONString(in, o)
+			}()
+		}
+
+		for i := 0; i < times; i++ {
+			v := <-rs
+			if v == expected {
+				continue
+			}
+			b.Fatalf("mangled payload after obfuscation: %q", v)
+		}
+
+		wg.Wait()
+		close(rs)
+	}
+}
+
