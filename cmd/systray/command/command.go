@@ -69,7 +69,7 @@ func MakeCommand() *cobra.Command {
 
 	// root command
 	cmd := &cobra.Command{
-		Use:          fmt.Sprintf("%s", os.Args[0]),
+		Use:          os.Args[0],
 		SilenceUsage: true,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			// Check if we are elevated and elevate if necessary. Elevation is required prior to component initialization

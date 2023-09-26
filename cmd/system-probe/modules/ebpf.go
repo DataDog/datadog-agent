@@ -29,12 +29,12 @@ var EBPFProbe = module.Factory{
 	ConfigNamespaces: []string{},
 	Fn: func(cfg *config.Config) (module.Module, error) {
 		log.Infof("Starting the ebpf probe")
-		okp, err := ebpfcheck.NewEBPFProbe(ebpf.NewConfig())
+		okp, err := ebpfcheck.NewProbe(ebpf.NewConfig())
 		if err != nil {
 			return nil, fmt.Errorf("unable to start the ebpf probe: %w", err)
 		}
 		return &ebpfModule{
-			EBPFProbe: okp,
+			Probe:     okp,
 			lastCheck: atomic.NewInt64(0),
 		}, nil
 	},
@@ -43,14 +43,14 @@ var EBPFProbe = module.Factory{
 var _ module.Module = &ebpfModule{}
 
 type ebpfModule struct {
-	*ebpfcheck.EBPFProbe
+	*ebpfcheck.Probe
 	lastCheck *atomic.Int64
 }
 
 func (o *ebpfModule) Register(httpMux *module.Router) error {
 	httpMux.HandleFunc("/check", utils.WithConcurrencyLimit(utils.DefaultMaxConcurrentRequests, func(w http.ResponseWriter, req *http.Request) {
 		o.lastCheck.Store(time.Now().Unix())
-		stats := o.EBPFProbe.GetAndFlush()
+		stats := o.Probe.GetAndFlush()
 		utils.WriteAsJSON(w, stats)
 	}))
 
@@ -64,6 +64,6 @@ func (o *ebpfModule) GetStats() map[string]interface{} {
 }
 
 // RegisterGRPC register to system probe gRPC server
-func (o *ebpfModule) RegisterGRPC(_ *grpc.Server) error {
+func (o *ebpfModule) RegisterGRPC(_ grpc.ServiceRegistrar) error {
 	return nil
 }

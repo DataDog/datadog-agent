@@ -107,7 +107,7 @@ func (s *USMgRPCSuite) TestSimpleGRPCScenarios() {
 			},
 			expectedEndpoints: map[http.Key]int{
 				{
-					Path:   http.Path{Content: "/helloworld.Greeter/SayHello"},
+					Path:   http.Path{Content: http.Interner.GetString("/helloworld.Greeter/SayHello")},
 					Method: http.MethodPost,
 				}: 1000,
 			},
@@ -123,11 +123,11 @@ func (s *USMgRPCSuite) TestSimpleGRPCScenarios() {
 			},
 			expectedEndpoints: map[http.Key]int{
 				{
-					Path:   http.Path{Content: "/helloworld.Greeter/SayHello"},
+					Path:   http.Path{Content: http.Interner.GetString("/helloworld.Greeter/SayHello")},
 					Method: http.MethodPost,
 				}: 2,
 				{
-					Path:   http.Path{Content: "/routeguide.RouteGuide/GetFeature"},
+					Path:   http.Path{Content: http.Interner.GetString("/routeguide.RouteGuide/GetFeature")},
 					Method: http.MethodPost,
 				}: 1,
 			},
@@ -144,11 +144,11 @@ func (s *USMgRPCSuite) TestSimpleGRPCScenarios() {
 			},
 			expectedEndpoints: map[http.Key]int{
 				{
-					Path:   http.Path{Content: "/helloworld.Greeter/SayHello"},
+					Path:   http.Path{Content: http.Interner.GetString("/helloworld.Greeter/SayHello")},
 					Method: http.MethodPost,
 				}: 2,
 				{
-					Path:   http.Path{Content: "/routeguide.RouteGuide/GetFeature"},
+					Path:   http.Path{Content: http.Interner.GetString("/routeguide.RouteGuide/GetFeature")},
 					Method: http.MethodPost,
 				}: 2,
 			},
@@ -165,11 +165,11 @@ func (s *USMgRPCSuite) TestSimpleGRPCScenarios() {
 			},
 			expectedEndpoints: map[http.Key]int{
 				{
-					Path:   http.Path{Content: "/helloworld.Greeter/SayHello"},
+					Path:   http.Path{Content: http.Interner.GetString("/helloworld.Greeter/SayHello")},
 					Method: http.MethodPost,
 				}: 2,
 				{
-					Path:   http.Path{Content: "/routeguide.RouteGuide/GetFeature"},
+					Path:   http.Path{Content: http.Interner.GetString("/routeguide.RouteGuide/GetFeature")},
 					Method: http.MethodPost,
 				}: 2,
 			},
@@ -186,7 +186,7 @@ func (s *USMgRPCSuite) TestSimpleGRPCScenarios() {
 			},
 			expectedEndpoints: map[http.Key]int{
 				{
-					Path:   http.Path{Content: "/protobuf.Math/Max"},
+					Path:   http.Path{Content: http.Interner.GetString("/protobuf.Math/Max")},
 					Method: http.MethodPost,
 				}: 25,
 			},
@@ -203,11 +203,11 @@ func (s *USMgRPCSuite) TestSimpleGRPCScenarios() {
 			},
 			expectedEndpoints: map[http.Key]int{
 				{
-					Path:   http.Path{Content: "/protobuf.Math/Max"},
+					Path:   http.Path{Content: http.Interner.GetString("/protobuf.Math/Max")},
 					Method: http.MethodPost,
 				}: 2,
 				{
-					Path:   http.Path{Content: "/helloworld.Greeter/SayHello"},
+					Path:   http.Path{Content: http.Interner.GetString("/helloworld.Greeter/SayHello")},
 					Method: http.MethodPost,
 				}: 2,
 			},
@@ -233,11 +233,11 @@ func (s *USMgRPCSuite) TestSimpleGRPCScenarios() {
 			},
 			expectedEndpoints: map[http.Key]int{
 				{
-					Path:   http.Path{Content: "/routeguide.RouteGuide/GetFeature"},
+					Path:   http.Path{Content: http.Interner.GetString("/routeguide.RouteGuide/GetFeature")},
 					Method: http.MethodPost,
 				}: 2,
 				{
-					Path:   http.Path{Content: "/helloworld.Greeter/SayHello"},
+					Path:   http.Path{Content: http.Interner.GetString("/helloworld.Greeter/SayHello")},
 					Method: http.MethodPost,
 				}: 2,
 			},
@@ -264,11 +264,11 @@ func (s *USMgRPCSuite) TestSimpleGRPCScenarios() {
 			},
 			expectedEndpoints: map[http.Key]int{
 				{
-					Path:   http.Path{Content: "/routeguide.RouteGuide/GetFeature"},
+					Path:   http.Path{Content: http.Interner.GetString("/routeguide.RouteGuide/GetFeature")},
 					Method: http.MethodPost,
 				}: 2,
 				{
-					Path:   http.Path{Content: "/helloworld.Greeter/SayHello"},
+					Path:   http.Path{Content: http.Interner.GetString("/helloworld.Greeter/SayHello")},
 					Method: http.MethodPost,
 				}: 2,
 			},
@@ -371,7 +371,7 @@ func (s *USMgRPCSuite) TestLargeBodiesGRPCScenarios() {
 			},
 			expectedEndpoints: map[http.Key]captureRange{
 				{
-					Path:   http.Path{Content: "/helloworld.Greeter/SayHello"},
+					Path:   http.Path{Content: http.Interner.GetString("/helloworld.Greeter/SayHello")},
 					Method: http.MethodPost,
 				}: {
 					lower: 4,
@@ -393,14 +393,14 @@ func (s *USMgRPCSuite) TestLargeBodiesGRPCScenarios() {
 			},
 			expectedEndpoints: map[http.Key]captureRange{
 				{
-					Path:   http.Path{Content: "/routeguide.RouteGuide/GetFeature"},
+					Path:   http.Path{Content: http.Interner.GetString("/routeguide.RouteGuide/GetFeature")},
 					Method: http.MethodPost,
 				}: {
 					lower: 2,
 					upper: 2,
 				},
 				{
-					Path:   http.Path{Content: "/helloworld.Greeter/SayHello"},
+					Path:   http.Path{Content: http.Interner.GetString("/helloworld.Greeter/SayHello")},
 					Method: http.MethodPost,
 				}: {
 					lower: 1,

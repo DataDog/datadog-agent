@@ -1,0 +1,5 @@
+logs:
+  - type: file
+    path: "/tmp/test.log"
+    service: "custom_logs"
+    source: "custom"

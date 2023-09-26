@@ -10,9 +10,10 @@ package http
 import (
 	"bytes"
 	"encoding/hex"
-	"github.com/DataDog/datadog-agent/pkg/network/protocols"
 	"strconv"
 	"strings"
+
+	"github.com/DataDog/datadog-agent/pkg/network/protocols"
 
 	"github.com/DataDog/datadog-agent/pkg/network/types"
 )
@@ -127,4 +128,8 @@ func requestFragment(fragment []byte) [BufferSize]byte {
 	var b [BufferSize]byte
 	copy(b[:], fragment)
 	return b
+}
+
+func isEncrypted(tx Transaction) bool {
+	return (tx.StaticTags() & (GnuTLS | OpenSSL | TLS | Java | Go)) > 0
 }

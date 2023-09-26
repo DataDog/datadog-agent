@@ -2,6 +2,7 @@ import os
 import re
 import sys
 import tempfile
+import uuid
 import zipfile
 from datetime import datetime
 from time import sleep
@@ -50,6 +51,11 @@ def trigger_macos_workflow(
     if version_cache_file_content:
         inputs["version_cache"] = version_cache_file_content
 
+    # The workflow trigger endpoint doesn't return anything. You need to fetch the workflow run id
+    # by yourself.
+    workflow_id = str(uuid.uuid1())
+    inputs["id"] = workflow_id
+
     print(
         "Creating workflow on datadog-agent-macos-build on commit {} with args:\n{}".format(  # noqa: FS002
             github_action_ref, "\n".join([f"  - {k}: {inputs[k]}" for k in inputs])
@@ -58,22 +64,25 @@ def trigger_macos_workflow(
     # Hack: get current time to only fetch workflows that started after now.
     now = datetime.utcnow()
 
-    # The workflow trigger endpoint doesn't return anything. You need to fetch the workflow run id
-    # by yourself.
     gh = GithubAPI('DataDog/datadog-agent-macos-build')
     gh.trigger_workflow(workflow_name, github_action_ref, inputs)
 
-    # Thus the following hack: query the latest run for ref, wait until we get a non-completed run
-    # that started after we triggered the workflow.
-    # In practice, this should almost never be a problem, even if the Agent 6 and 7 jobs run at the
-    # same time, given that these two jobs will target different github_action_ref on RCs / releases.
+    # Thus the following hack: Send an id as input when creating a workflow on Github. The worklow will use the id and put it in the name of one of its jobs.
+    # We then fetch workflows and check if it contains the id in its job name.
+
     MAX_RETRIES = 10  # Retry up to 10 times
     for i in range(MAX_RETRIES):
         print(f"Fetching triggered workflow (try {i + 1}/{MAX_RETRIES})")
-        run = gh.latest_workflow_run_for_ref(workflow_name, github_action_ref)
-        if run is not None and run.created_at is not None and run.created_at >= now:
-            return run
-
+        recent_runs = gh.workflow_run_for_ref_after_date(workflow_name, github_action_ref, now)
+        for recent_run in recent_runs:
+            jobs = recent_run.jobs()
+            if jobs.totalCount >= 2:
+                for job in jobs:
+                    if any([step.name == workflow_id for step in job.steps]):
+                        return recent_run
+            else:
+                print("waiting for jobs to popup...")
+                sleep(3)
         sleep(5)
 
     # Something went wrong :(

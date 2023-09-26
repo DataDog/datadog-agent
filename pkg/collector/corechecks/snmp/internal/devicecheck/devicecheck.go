@@ -22,6 +22,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	"github.com/DataDog/datadog-agent/pkg/networkdevice/metadata"
+	"github.com/DataDog/datadog-agent/pkg/networkdevice/profile/profiledefinition"
 	coresnmp "github.com/DataDog/datadog-agent/pkg/snmp"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/common"
@@ -30,6 +31,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/report"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/session"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/valuestore"
+	"github.com/DataDog/datadog-agent/pkg/diagnose/diagnosis"
+	"github.com/DataDog/datadog-agent/pkg/networkdevice/diagnoses"
 	"github.com/DataDog/datadog-agent/pkg/snmp/gosnmplib"
 )
 
@@ -39,6 +42,7 @@ const (
 	deviceReachableMetric   = "snmp.device.reachable"
 	deviceUnreachableMetric = "snmp.device.unreachable"
 	deviceHostnamePrefix    = "device:"
+	checkDurationThreshold  = 30 // Thirty seconds
 )
 
 // define timeNow as variable to make it possible to mock it during test
@@ -52,6 +56,7 @@ type DeviceCheck struct {
 	sessionCloseErrorCount *atomic.Uint64
 	savedDynamicTags       []string
 	nextAutodetectMetrics  time.Time
+	diagnoses              *diagnoses.Diagnoses
 }
 
 // NewDeviceCheck returns a new DeviceCheck
@@ -68,6 +73,7 @@ func NewDeviceCheck(config *checkconfig.CheckConfig, ipAddress string, sessionFa
 		session:                sess,
 		sessionCloseErrorCount: atomic.NewUint64(0),
 		nextAutodetectMetrics:  timeNow(),
+		diagnoses:              diagnoses.NewDeviceDiagnoses(newConfig.DeviceID),
 	}, nil
 }
 
@@ -132,13 +138,21 @@ func (d *DeviceCheck) Run(collectionTime time.Time) error {
 			deviceStatus = metadata.DeviceStatusUnreachable
 		}
 
+		checkDuration := time.Since(startTime).Seconds()
+
+		if checkDuration > checkDurationThreshold {
+			d.diagnoses.Add("warn", "SNMP_HIGH_CHECK_DURATION", fmt.Sprintf("Check duration is high for this device, last check took %.2f seconds.", checkDuration))
+		}
+
 		// We include instance tags to `deviceMetadataTags` since device metadata tags are not enriched with `checkSender.checkTags`.
 		// `checkSender.checkTags` are added for metrics, service checks, events only.
 		// Note that we don't add some extra tags like `service` tag that might be present in `checkSender.checkTags`.
 		deviceMetadataTags := append(common.CopyStrings(tags), d.config.InstanceTags...)
 		deviceMetadataTags = append(deviceMetadataTags, common.GetAgentVersionTag())
 
-		d.sender.ReportNetworkDeviceMetadata(d.config, values, deviceMetadataTags, collectionTime, deviceStatus)
+		deviceDiagnosis := d.diagnoses.Report()
+
+		d.sender.ReportNetworkDeviceMetadata(d.config, values, deviceMetadataTags, collectionTime, deviceStatus, deviceDiagnosis)
 	}
 
 	d.submitTelemetryMetrics(startTime, tags)
@@ -164,6 +178,7 @@ func (d *DeviceCheck) getValuesAndTags() (bool, []string, *valuestore.ResultValu
 	// Create connection
 	connErr := d.session.Connect()
 	if connErr != nil {
+		d.diagnoses.Add("error", "SNMP_FAILED_TO_OPEN_CONNECTION", "Agent failed to open connection.")
 		return false, tags, nil, fmt.Errorf("snmp connection error: %s", connErr)
 	}
 	defer func() {
@@ -178,6 +193,7 @@ func (d *DeviceCheck) getValuesAndTags() (bool, []string, *valuestore.ResultValu
 	getNextValue, err := d.session.GetNext([]string{coresnmp.DeviceReachableGetNextOid})
 	if err != nil {
 		deviceReachable = false
+		d.diagnoses.Add("error", "SNMP_FAILED_TO_POLL_DEVICE", "Agent failed to poll this network device. Check the authentication method and ensure the agent can ping it.")
 		checkErrors = append(checkErrors, fmt.Sprintf("check device reachable: failed: %s", err))
 	} else {
 		deviceReachable = true
@@ -188,6 +204,7 @@ func (d *DeviceCheck) getValuesAndTags() (bool, []string, *valuestore.ResultValu
 
 	err = d.detectMetricsToMonitor(d.session)
 	if err != nil {
+		d.diagnoses.Add("error", "SNMP_FAILED_TO_DETECT_PROFILE", "Agent failed to detect a profile for this network device.")
 		checkErrors = append(checkErrors, fmt.Sprintf("failed to autodetect profile: %s", err))
 	}
 
@@ -243,7 +260,7 @@ func (d *DeviceCheck) detectMetricsToMonitor(sess session.Session) error {
 	return nil
 }
 
-func (d *DeviceCheck) detectAvailableMetrics() ([]checkconfig.MetricsConfig, []checkconfig.MetricTagConfig) {
+func (d *DeviceCheck) detectAvailableMetrics() ([]profiledefinition.MetricsConfig, []profiledefinition.MetricTagConfig) {
 	fetchedOIDs := session.FetchAllOIDsUsingGetNext(d.session)
 	log.Debugf("fetched OIDs: %v", fetchedOIDs)
 
@@ -252,8 +269,8 @@ func (d *DeviceCheck) detectAvailableMetrics() ([]checkconfig.MetricsConfig, []c
 		root.DebugPrint()
 	}
 
-	var metricConfigs []checkconfig.MetricsConfig
-	var metricTagConfigs []checkconfig.MetricTagConfig
+	var metricConfigs []profiledefinition.MetricsConfig
+	var metricTagConfigs []profiledefinition.MetricTagConfig
 
 	// If a metric name has already been encountered, we won't try to add it again.
 	alreadySeenMetrics := make(map[string]bool)
@@ -272,7 +289,7 @@ func (d *DeviceCheck) detectAvailableMetrics() ([]checkconfig.MetricsConfig, []c
 					metricConfigs = append(metricConfigs, newMetricConfig)
 				}
 			} else if metricConfig.IsColumn() {
-				newMetricConfig.Symbols = []checkconfig.SymbolConfig{}
+				newMetricConfig.Symbols = []profiledefinition.SymbolConfig{}
 				for _, symbol := range metricConfig.Symbols {
 					if !alreadySeenMetrics[symbol.Name] && root.NonLeafNodeExist(symbol.OID) {
 						alreadySeenMetrics[symbol.Name] = true
@@ -323,4 +340,9 @@ func (d *DeviceCheck) submitTelemetryMetrics(startTime time.Time, tags []string)
 	d.sender.MonotonicCount("datadog.snmp.check_interval", time.Duration(startTime.UnixNano()).Seconds(), newTags)
 	d.sender.Gauge("datadog.snmp.check_duration", time.Since(startTime).Seconds(), newTags)
 	d.sender.Gauge("datadog.snmp.submitted_metrics", float64(d.sender.GetSubmittedMetrics()), newTags)
+}
+
+// GetDiagnoses collects diagnoses for diagnose CLI
+func (d *DeviceCheck) GetDiagnoses() []diagnosis.Diagnosis {
+	return d.diagnoses.ReportAsAgentDiagnoses()
 }

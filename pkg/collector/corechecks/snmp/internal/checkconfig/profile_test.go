@@ -15,15 +15,15 @@ import (
 	"testing"
 
 	"github.com/cihub/seelog"
-
-	"github.com/DataDog/datadog-agent/pkg/util/log"
-
 	assert "github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
+
+	"github.com/DataDog/datadog-agent/pkg/networkdevice/profile/profiledefinition"
 )
 
-func getMetricFromProfile(p profileDefinition, metricName string) *MetricsConfig {
+func getMetricFromProfile(p profiledefinition.ProfileDefinition, metricName string) *profiledefinition.MetricsConfig {
 	for _, m := range p.Metrics {
 		if m.Symbol.Name == metricName {
 			return &m
@@ -33,72 +33,77 @@ func getMetricFromProfile(p profileDefinition, metricName string) *MetricsConfig
 }
 
 func fixtureProfileDefinitionMap() profileConfigMap {
-	metrics := []MetricsConfig{
-		{Symbol: SymbolConfig{OID: "1.3.6.1.4.1.3375.2.1.1.2.1.44.0", Name: "sysStatMemoryTotal", ScaleFactor: 2}, MetricType: ProfileMetricTypeGauge},
-		{Symbol: SymbolConfig{OID: "1.3.6.1.4.1.3375.2.1.1.2.1.44.999", Name: "oldSyntax"}},
+	metrics := []profiledefinition.MetricsConfig{
+		{MIB: "F5-BIGIP-SYSTEM-MIB", Symbol: profiledefinition.SymbolConfig{OID: "1.3.6.1.4.1.3375.2.1.1.2.1.44.0", Name: "sysStatMemoryTotal", ScaleFactor: 2}, MetricType: profiledefinition.ProfileMetricTypeGauge},
+		{MIB: "F5-BIGIP-SYSTEM-MIB", Symbol: profiledefinition.SymbolConfig{OID: "1.3.6.1.4.1.3375.2.1.1.2.1.44.999", Name: "oldSyntax"}},
 		{
-			MetricType: ProfileMetricTypeMonotonicCount,
-			Symbols: []SymbolConfig{
+			MIB: "IF-MIB",
+			Table: profiledefinition.SymbolConfig{
+				OID:  "1.3.6.1.2.1.2.2",
+				Name: "ifTable",
+			},
+			MetricType: profiledefinition.ProfileMetricTypeMonotonicCount,
+			Symbols: []profiledefinition.SymbolConfig{
 				{OID: "1.3.6.1.2.1.2.2.1.14", Name: "ifInErrors", ScaleFactor: 0.5},
 				{OID: "1.3.6.1.2.1.2.2.1.13", Name: "ifInDiscards"},
 			},
-			MetricTags: []MetricTagConfig{
-				{Tag: "interface", Column: SymbolConfig{OID: "1.3.6.1.2.1.31.1.1.1.1", Name: "ifName"}},
-				{Tag: "interface_alias", Column: SymbolConfig{OID: "1.3.6.1.2.1.31.1.1.1.18", Name: "ifAlias"}},
-				{Tag: "mac_address", Column: SymbolConfig{OID: "1.3.6.1.2.1.2.2.1.6", Name: "ifPhysAddress", Format: "mac_address"}},
+			MetricTags: []profiledefinition.MetricTagConfig{
+				{Tag: "interface", Column: profiledefinition.SymbolConfig{OID: "1.3.6.1.2.1.31.1.1.1.1", Name: "ifName"}},
+				{Tag: "interface_alias", Column: profiledefinition.SymbolConfig{OID: "1.3.6.1.2.1.31.1.1.1.18", Name: "ifAlias"}},
+				{Tag: "mac_address", Column: profiledefinition.SymbolConfig{OID: "1.3.6.1.2.1.2.2.1.6", Name: "ifPhysAddress", Format: "mac_address"}},
 			},
 			StaticTags: []string{"table_static_tag:val"},
 		},
-		{Symbol: SymbolConfig{OID: "1.2.3.4.5", Name: "someMetric"}},
+		{MIB: "SOME-MIB", Symbol: profiledefinition.SymbolConfig{OID: "1.2.3.4.5", Name: "someMetric"}},
 	}
 	return profileConfigMap{
 		"f5-big-ip": profileConfig{
-			Definition: profileDefinition{
+			Definition: profiledefinition.ProfileDefinition{
 				Metrics:      metrics,
 				Extends:      []string{"_base.yaml", "_generic-if.yaml"},
-				Device:       DeviceMeta{Vendor: "f5"},
-				SysObjectIds: StringArray{"1.3.6.1.4.1.3375.2.1.3.4.*"},
+				Device:       profiledefinition.DeviceMeta{Vendor: "f5"},
+				SysObjectIds: profiledefinition.StringArray{"1.3.6.1.4.1.3375.2.1.3.4.*"},
 				StaticTags:   []string{"static_tag:from_profile_root", "static_tag:from_base_profile"},
-				MetricTags: []MetricTagConfig{
+				MetricTags: []profiledefinition.MetricTagConfig{
 					{
 						OID:     "1.3.6.1.2.1.1.5.0",
 						Name:    "sysName",
 						Match:   "(\\w)(\\w+)",
-						pattern: regexp.MustCompile(`(\w)(\w+)`),
+						Pattern: regexp.MustCompile(`(\w)(\w+)`),
 						Tags: map[string]string{
 							"some_tag": "some_tag_value",
 							"prefix":   "\\1",
 							"suffix":   "\\2",
 						},
 					},
-					{Tag: "snmp_host", Index: 0x0, Column: SymbolConfig{OID: "", Name: ""}, OID: "1.3.6.1.2.1.1.5.0", Name: "sysName"},
+					{Tag: "snmp_host", Index: 0x0, Column: profiledefinition.SymbolConfig{OID: "", Name: ""}, OID: "1.3.6.1.2.1.1.5.0", Name: "sysName"},
 				},
-				Metadata: MetadataConfig{
+				Metadata: profiledefinition.MetadataConfig{
 					"device": {
-						Fields: map[string]MetadataField{
+						Fields: map[string]profiledefinition.MetadataField{
 							"vendor": {
 								Value: "f5",
 							},
 							"description": {
-								Symbol: SymbolConfig{
+								Symbol: profiledefinition.SymbolConfig{
 									OID:  "1.3.6.1.2.1.1.1.0",
 									Name: "sysDescr",
 								},
 							},
 							"name": {
-								Symbol: SymbolConfig{
+								Symbol: profiledefinition.SymbolConfig{
 									OID:  "1.3.6.1.2.1.1.5.0",
 									Name: "sysName",
 								},
 							},
 							"serial_number": {
-								Symbol: SymbolConfig{
+								Symbol: profiledefinition.SymbolConfig{
 									OID:  "1.3.6.1.4.1.3375.2.1.3.3.3.0",
 									Name: "sysGeneralChassisSerialNum",
 								},
 							},
 							"sys_object_id": {
-								Symbol: SymbolConfig{
+								Symbol: profiledefinition.SymbolConfig{
 									OID:  "1.3.6.1.2.1.1.2.0",
 									Name: "sysObjectID",
 								},
@@ -106,22 +111,22 @@ func fixtureProfileDefinitionMap() profileConfigMap {
 						},
 					},
 					"interface": {
-						Fields: map[string]MetadataField{
+						Fields: map[string]profiledefinition.MetadataField{
 							"admin_status": {
-								Symbol: SymbolConfig{
+								Symbol: profiledefinition.SymbolConfig{
 
 									OID:  "1.3.6.1.2.1.2.2.1.7",
 									Name: "ifAdminStatus",
 								},
 							},
 							"alias": {
-								Symbol: SymbolConfig{
+								Symbol: profiledefinition.SymbolConfig{
 									OID:  "1.3.6.1.2.1.31.1.1.1.18",
 									Name: "ifAlias",
 								},
 							},
 							"description": {
-								Symbol: SymbolConfig{
+								Symbol: profiledefinition.SymbolConfig{
 									OID:                  "1.3.6.1.2.1.31.1.1.1.1",
 									Name:                 "ifName",
 									ExtractValue:         "(Row\\d)",
@@ -129,36 +134,36 @@ func fixtureProfileDefinitionMap() profileConfigMap {
 								},
 							},
 							"mac_address": {
-								Symbol: SymbolConfig{
+								Symbol: profiledefinition.SymbolConfig{
 									OID:    "1.3.6.1.2.1.2.2.1.6",
 									Name:   "ifPhysAddress",
 									Format: "mac_address",
 								},
 							},
 							"name": {
-								Symbol: SymbolConfig{
+								Symbol: profiledefinition.SymbolConfig{
 									OID:  "1.3.6.1.2.1.31.1.1.1.1",
 									Name: "ifName",
 								},
 							},
 							"oper_status": {
-								Symbol: SymbolConfig{
+								Symbol: profiledefinition.SymbolConfig{
 									OID:  "1.3.6.1.2.1.2.2.1.8",
 									Name: "ifOperStatus",
 								},
 							},
 						},
-						IDTags: MetricTagConfigList{
+						IDTags: profiledefinition.MetricTagConfigList{
 							{
 								Tag: "custom-tag",
-								Column: SymbolConfig{
+								Column: profiledefinition.SymbolConfig{
 									OID:  "1.3.6.1.2.1.31.1.1.1.1",
 									Name: "ifAlias",
 								},
 							},
 							{
 								Tag: "interface",
-								Column: SymbolConfig{
+								Column: profiledefinition.SymbolConfig{
 									OID:  "1.3.6.1.2.1.31.1.1.1.1",
 									Name: "ifName",
 								},
@@ -170,16 +175,16 @@ func fixtureProfileDefinitionMap() profileConfigMap {
 			isUserProfile: true,
 		},
 		"another_profile": profileConfig{
-			Definition: profileDefinition{
-				SysObjectIds: StringArray{"1.3.6.1.4.1.32473.1.1"},
-				Metrics: []MetricsConfig{
-					{Symbol: SymbolConfig{OID: "1.3.6.1.2.1.1.999.0", Name: "anotherMetric"}, MetricType: ""},
+			Definition: profiledefinition.ProfileDefinition{
+				SysObjectIds: profiledefinition.StringArray{"1.3.6.1.4.1.32473.1.1"},
+				Metrics: []profiledefinition.MetricsConfig{
+					{Symbol: profiledefinition.SymbolConfig{OID: "1.3.6.1.2.1.1.999.0", Name: "anotherMetric"}, MetricType: ""},
 				},
-				MetricTags: []MetricTagConfig{
-					{Tag: "snmp_host2", Column: SymbolConfig{OID: "1.3.6.1.2.1.1.5.0", Name: "sysName"}},
+				MetricTags: []profiledefinition.MetricTagConfig{
+					{Tag: "snmp_host2", Column: profiledefinition.SymbolConfig{OID: "1.3.6.1.2.1.1.5.0", Name: "sysName"}},
 					{Tag: "unknown_symbol", OID: "1.3.6.1.2.1.1.999.0", Name: "unknownSymbol"},
 				},
-				Metadata: MetadataConfig{},
+				Metadata: profiledefinition.MetadataConfig{},
 			},
 			isUserProfile: true,
 		},
@@ -339,7 +344,7 @@ func Test_loadProfiles(t *testing.T) {
 			}
 
 			for i, profile := range profiles {
-				normalizeMetrics(profile.Definition.Metrics)
+				profiledefinition.NormalizeMetrics(profile.Definition.Metrics)
 				profile.DefinitionFile = ""
 				profiles[i] = profile
 			}
@@ -534,7 +539,7 @@ func Test_loadDefaultProfiles_validAndInvalidProfiles(t *testing.T) {
 	defaultProfiles, err := loadDefaultProfiles()
 
 	for _, profile := range defaultProfiles {
-		normalizeMetrics(profile.Definition.Metrics)
+		profiledefinition.NormalizeMetrics(profile.Definition.Metrics)
 	}
 
 	w.Flush()
@@ -547,25 +552,25 @@ func Test_loadDefaultProfiles_validAndInvalidProfiles(t *testing.T) {
 }
 
 func Test_mergeProfileDefinition(t *testing.T) {
-	okBaseDefinition := profileDefinition{
-		Metrics: []MetricsConfig{
-			{Symbol: SymbolConfig{OID: "1.1", Name: "metric1"}, MetricType: ProfileMetricTypeGauge},
+	okBaseDefinition := profiledefinition.ProfileDefinition{
+		Metrics: []profiledefinition.MetricsConfig{
+			{Symbol: profiledefinition.SymbolConfig{OID: "1.1", Name: "metric1"}, MetricType: profiledefinition.ProfileMetricTypeGauge},
 		},
-		MetricTags: []MetricTagConfig{
+		MetricTags: []profiledefinition.MetricTagConfig{
 			{
 				Tag:  "tag1",
 				OID:  "2.1",
 				Name: "tagName1",
 			},
 		},
-		Metadata: MetadataConfig{
+		Metadata: profiledefinition.MetadataConfig{
 			"device": {
-				Fields: map[string]MetadataField{
+				Fields: map[string]profiledefinition.MetadataField{
 					"vendor": {
 						Value: "f5",
 					},
 					"description": {
-						Symbol: SymbolConfig{
+						Symbol: profiledefinition.SymbolConfig{
 							OID:  "1.3.6.1.2.1.1.1.0",
 							Name: "sysDescr",
 						},
@@ -573,19 +578,19 @@ func Test_mergeProfileDefinition(t *testing.T) {
 				},
 			},
 			"interface": {
-				Fields: map[string]MetadataField{
+				Fields: map[string]profiledefinition.MetadataField{
 					"admin_status": {
-						Symbol: SymbolConfig{
+						Symbol: profiledefinition.SymbolConfig{
 
 							OID:  "1.3.6.1.2.1.2.2.1.7",
 							Name: "ifAdminStatus",
 						},
 					},
 				},
-				IDTags: MetricTagConfigList{
+				IDTags: profiledefinition.MetricTagConfigList{
 					{
 						Tag: "alias",
-						Column: SymbolConfig{
+						Column: profiledefinition.SymbolConfig{
 							OID:  "1.3.6.1.2.1.31.1.1.1.1",
 							Name: "ifAlias",
 						},
@@ -594,23 +599,23 @@ func Test_mergeProfileDefinition(t *testing.T) {
 			},
 		},
 	}
-	emptyBaseDefinition := profileDefinition{}
-	okTargetDefinition := profileDefinition{
-		Metrics: []MetricsConfig{
-			{Symbol: SymbolConfig{OID: "1.2", Name: "metric2"}, MetricType: ProfileMetricTypeGauge},
+	emptyBaseDefinition := profiledefinition.ProfileDefinition{}
+	okTargetDefinition := profiledefinition.ProfileDefinition{
+		Metrics: []profiledefinition.MetricsConfig{
+			{Symbol: profiledefinition.SymbolConfig{OID: "1.2", Name: "metric2"}, MetricType: profiledefinition.ProfileMetricTypeGauge},
 		},
-		MetricTags: []MetricTagConfig{
+		MetricTags: []profiledefinition.MetricTagConfig{
 			{
 				Tag:  "tag2",
 				OID:  "2.2",
 				Name: "tagName2",
 			},
 		},
-		Metadata: MetadataConfig{
+		Metadata: profiledefinition.MetadataConfig{
 			"device": {
-				Fields: map[string]MetadataField{
+				Fields: map[string]profiledefinition.MetadataField{
 					"name": {
-						Symbol: SymbolConfig{
+						Symbol: profiledefinition.SymbolConfig{
 							OID:  "1.3.6.1.2.1.1.5.0",
 							Name: "sysName",
 						},
@@ -618,18 +623,18 @@ func Test_mergeProfileDefinition(t *testing.T) {
 				},
 			},
 			"interface": {
-				Fields: map[string]MetadataField{
+				Fields: map[string]profiledefinition.MetadataField{
 					"oper_status": {
-						Symbol: SymbolConfig{
+						Symbol: profiledefinition.SymbolConfig{
 							OID:  "1.3.6.1.2.1.2.2.1.8",
 							Name: "ifOperStatus",
 						},
 					},
 				},
-				IDTags: MetricTagConfigList{
+				IDTags: profiledefinition.MetricTagConfigList{
 					{
 						Tag: "interface",
-						Column: SymbolConfig{
+						Column: profiledefinition.SymbolConfig{
 							OID:  "1.3.6.1.2.1.31.1.1.1.1",
 							Name: "ifName",
 						},
@@ -640,20 +645,20 @@ func Test_mergeProfileDefinition(t *testing.T) {
 	}
 	tests := []struct {
 		name               string
-		targetDefinition   profileDefinition
-		baseDefinition     profileDefinition
-		expectedDefinition profileDefinition
+		targetDefinition   profiledefinition.ProfileDefinition
+		baseDefinition     profiledefinition.ProfileDefinition
+		expectedDefinition profiledefinition.ProfileDefinition
 	}{
 		{
 			name:             "merge case",
 			baseDefinition:   copyProfileDefinition(okBaseDefinition),
 			targetDefinition: copyProfileDefinition(okTargetDefinition),
-			expectedDefinition: profileDefinition{
-				Metrics: []MetricsConfig{
-					{Symbol: SymbolConfig{OID: "1.2", Name: "metric2"}, MetricType: ProfileMetricTypeGauge},
-					{Symbol: SymbolConfig{OID: "1.1", Name: "metric1"}, MetricType: ProfileMetricTypeGauge},
+			expectedDefinition: profiledefinition.ProfileDefinition{
+				Metrics: []profiledefinition.MetricsConfig{
+					{Symbol: profiledefinition.SymbolConfig{OID: "1.2", Name: "metric2"}, MetricType: profiledefinition.ProfileMetricTypeGauge},
+					{Symbol: profiledefinition.SymbolConfig{OID: "1.1", Name: "metric1"}, MetricType: profiledefinition.ProfileMetricTypeGauge},
 				},
-				MetricTags: []MetricTagConfig{
+				MetricTags: []profiledefinition.MetricTagConfig{
 					{
 						Tag:  "tag2",
 						OID:  "2.2",
@@ -665,20 +670,20 @@ func Test_mergeProfileDefinition(t *testing.T) {
 						Name: "tagName1",
 					},
 				},
-				Metadata: MetadataConfig{
+				Metadata: profiledefinition.MetadataConfig{
 					"device": {
-						Fields: map[string]MetadataField{
+						Fields: map[string]profiledefinition.MetadataField{
 							"vendor": {
 								Value: "f5",
 							},
 							"name": {
-								Symbol: SymbolConfig{
+								Symbol: profiledefinition.SymbolConfig{
 									OID:  "1.3.6.1.2.1.1.5.0",
 									Name: "sysName",
 								},
 							},
 							"description": {
-								Symbol: SymbolConfig{
+								Symbol: profiledefinition.SymbolConfig{
 									OID:  "1.3.6.1.2.1.1.1.0",
 									Name: "sysDescr",
 								},
@@ -686,32 +691,32 @@ func Test_mergeProfileDefinition(t *testing.T) {
 						},
 					},
 					"interface": {
-						Fields: map[string]MetadataField{
+						Fields: map[string]profiledefinition.MetadataField{
 							"oper_status": {
-								Symbol: SymbolConfig{
+								Symbol: profiledefinition.SymbolConfig{
 									OID:  "1.3.6.1.2.1.2.2.1.8",
 									Name: "ifOperStatus",
 								},
 							},
 							"admin_status": {
-								Symbol: SymbolConfig{
+								Symbol: profiledefinition.SymbolConfig{
 
 									OID:  "1.3.6.1.2.1.2.2.1.7",
 									Name: "ifAdminStatus",
 								},
 							},
 						},
-						IDTags: MetricTagConfigList{
+						IDTags: profiledefinition.MetricTagConfigList{
 							{
 								Tag: "interface",
-								Column: SymbolConfig{
+								Column: profiledefinition.SymbolConfig{
 									OID:  "1.3.6.1.2.1.31.1.1.1.1",
 									Name: "ifName",
 								},
 							},
 							{
 								Tag: "alias",
-								Column: SymbolConfig{
+								Column: profiledefinition.SymbolConfig{
 									OID:  "1.3.6.1.2.1.31.1.1.1.1",
 									Name: "ifAlias",
 								},
@@ -725,22 +730,22 @@ func Test_mergeProfileDefinition(t *testing.T) {
 			name:             "empty base definition",
 			baseDefinition:   copyProfileDefinition(emptyBaseDefinition),
 			targetDefinition: copyProfileDefinition(okTargetDefinition),
-			expectedDefinition: profileDefinition{
-				Metrics: []MetricsConfig{
-					{Symbol: SymbolConfig{OID: "1.2", Name: "metric2"}, MetricType: ProfileMetricTypeGauge},
+			expectedDefinition: profiledefinition.ProfileDefinition{
+				Metrics: []profiledefinition.MetricsConfig{
+					{Symbol: profiledefinition.SymbolConfig{OID: "1.2", Name: "metric2"}, MetricType: profiledefinition.ProfileMetricTypeGauge},
 				},
-				MetricTags: []MetricTagConfig{
+				MetricTags: []profiledefinition.MetricTagConfig{
 					{
 						Tag:  "tag2",
 						OID:  "2.2",
 						Name: "tagName2",
 					},
 				},
-				Metadata: MetadataConfig{
+				Metadata: profiledefinition.MetadataConfig{
 					"device": {
-						Fields: map[string]MetadataField{
+						Fields: map[string]profiledefinition.MetadataField{
 							"name": {
-								Symbol: SymbolConfig{
+								Symbol: profiledefinition.SymbolConfig{
 									OID:  "1.3.6.1.2.1.1.5.0",
 									Name: "sysName",
 								},
@@ -748,18 +753,18 @@ func Test_mergeProfileDefinition(t *testing.T) {
 						},
 					},
 					"interface": {
-						Fields: map[string]MetadataField{
+						Fields: map[string]profiledefinition.MetadataField{
 							"oper_status": {
-								Symbol: SymbolConfig{
+								Symbol: profiledefinition.SymbolConfig{
 									OID:  "1.3.6.1.2.1.2.2.1.8",
 									Name: "ifOperStatus",
 								},
 							},
 						},
-						IDTags: MetricTagConfigList{
+						IDTags: profiledefinition.MetricTagConfigList{
 							{
 								Tag: "interface",
-								Column: SymbolConfig{
+								Column: profiledefinition.SymbolConfig{
 									OID:  "1.3.6.1.2.1.31.1.1.1.1",
 									Name: "ifName",
 								},
@@ -773,25 +778,25 @@ func Test_mergeProfileDefinition(t *testing.T) {
 			name:             "empty taget definition",
 			baseDefinition:   copyProfileDefinition(okBaseDefinition),
 			targetDefinition: copyProfileDefinition(emptyBaseDefinition),
-			expectedDefinition: profileDefinition{
-				Metrics: []MetricsConfig{
-					{Symbol: SymbolConfig{OID: "1.1", Name: "metric1"}, MetricType: ProfileMetricTypeGauge},
+			expectedDefinition: profiledefinition.ProfileDefinition{
+				Metrics: []profiledefinition.MetricsConfig{
+					{Symbol: profiledefinition.SymbolConfig{OID: "1.1", Name: "metric1"}, MetricType: profiledefinition.ProfileMetricTypeGauge},
 				},
-				MetricTags: []MetricTagConfig{
+				MetricTags: []profiledefinition.MetricTagConfig{
 					{
 						Tag:  "tag1",
 						OID:  "2.1",
 						Name: "tagName1",
 					},
 				},
-				Metadata: MetadataConfig{
+				Metadata: profiledefinition.MetadataConfig{
 					"device": {
-						Fields: map[string]MetadataField{
+						Fields: map[string]profiledefinition.MetadataField{
 							"vendor": {
 								Value: "f5",
 							},
 							"description": {
-								Symbol: SymbolConfig{
+								Symbol: profiledefinition.SymbolConfig{
 									OID:  "1.3.6.1.2.1.1.1.0",
 									Name: "sysDescr",
 								},
@@ -799,19 +804,19 @@ func Test_mergeProfileDefinition(t *testing.T) {
 						},
 					},
 					"interface": {
-						Fields: map[string]MetadataField{
+						Fields: map[string]profiledefinition.MetadataField{
 							"admin_status": {
-								Symbol: SymbolConfig{
+								Symbol: profiledefinition.SymbolConfig{
 
 									OID:  "1.3.6.1.2.1.2.2.1.7",
 									Name: "ifAdminStatus",
 								},
 							},
 						},
-						IDTags: MetricTagConfigList{
+						IDTags: profiledefinition.MetricTagConfigList{
 							{
 								Tag: "alias",
-								Column: SymbolConfig{
+								Column: profiledefinition.SymbolConfig{
 									OID:  "1.3.6.1.2.1.31.1.1.1.1",
 									Name: "ifAlias",
 								},

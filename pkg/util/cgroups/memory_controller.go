@@ -13,7 +13,7 @@ import (
 	"syscall"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/containerd/cgroups"
+	cgroupsv1 "github.com/containerd/cgroups/v3/cgroup1"
 )
 
 const maxEpollEvents = 4
@@ -25,12 +25,12 @@ type MemoryController struct {
 }
 
 // MemoryMonitor creates a cgroup memory event
-type MemoryMonitor func(cgroup cgroups.Cgroup) (cgroups.MemoryEvent, func(), error)
+type MemoryMonitor func(cgroup cgroupsv1.Cgroup) (cgroupsv1.MemoryEvent, func(), error)
 
 // MemoryPercentageThresholdMonitor monitors memory usage above a specified percentage threshold
 func MemoryPercentageThresholdMonitor(cb func(), percentage uint64, swap bool) MemoryMonitor {
-	return func(cgroup cgroups.Cgroup) (cgroups.MemoryEvent, func(), error) {
-		metrics, err := cgroup.Stat(cgroups.IgnoreNotExist)
+	return func(cgroup cgroupsv1.Cgroup) (cgroupsv1.MemoryEvent, func(), error) {
+		metrics, err := cgroup.Stat(cgroupsv1.IgnoreNotExist)
 		if err != nil {
 			return nil, nil, fmt.Errorf("can't get cgroup metrics: %w", err)
 		}
@@ -39,30 +39,30 @@ func MemoryPercentageThresholdMonitor(cb func(), percentage uint64, swap bool) M
 			return nil, nil, fmt.Errorf("can't get cgroup memory metrics: %w", err)
 		}
 
-		return cgroups.MemoryThresholdEvent(metrics.Memory.Usage.Limit*percentage/100, swap), cb, nil
+		return cgroupsv1.MemoryThresholdEvent(metrics.Memory.Usage.Limit*percentage/100, swap), cb, nil
 	}
 }
 
 // MemoryThresholdMonitor monitors memory usage above a specified threshold
 func MemoryThresholdMonitor(cb func(), limit uint64, swap bool) MemoryMonitor {
-	return func(cgroup cgroups.Cgroup) (cgroups.MemoryEvent, func(), error) {
-		return cgroups.MemoryThresholdEvent(limit, swap), cb, nil
+	return func(cgroup cgroupsv1.Cgroup) (cgroupsv1.MemoryEvent, func(), error) {
+		return cgroupsv1.MemoryThresholdEvent(limit, swap), cb, nil
 	}
 }
 
 // MemoryPressureMonitor monitors memory pressure levels
 func MemoryPressureMonitor(cb func(), level string) MemoryMonitor {
-	return func(cgroup cgroups.Cgroup) (cgroups.MemoryEvent, func(), error) {
-		return cgroups.MemoryPressureEvent(cgroups.MemoryPressureLevel(level), cgroups.LocalMode), cb, nil
+	return func(cgroup cgroupsv1.Cgroup) (cgroupsv1.MemoryEvent, func(), error) {
+		return cgroupsv1.MemoryPressureEvent(cgroupsv1.MemoryPressureLevel(level), cgroupsv1.LocalMode), cb, nil
 	}
 }
 
 type hostSubsystem struct {
-	cgroups.Subsystem
+	cgroupsv1.Subsystem
 }
 
-func hostHierarchy(hierarchy cgroups.Hierarchy) cgroups.Hierarchy {
-	return func() ([]cgroups.Subsystem, error) {
+func hostHierarchy(hierarchy cgroupsv1.Hierarchy) cgroupsv1.Hierarchy {
+	return func() ([]cgroupsv1.Subsystem, error) {
 		subsystems, err := hierarchy()
 		if err != nil {
 			return nil, err
@@ -80,14 +80,14 @@ func hostHierarchy(hierarchy cgroups.Hierarchy) cgroups.Hierarchy {
 
 // NewMemoryController creates a new systemd cgroup based memory controller
 func NewMemoryController(kind string, containerized bool, monitors ...MemoryMonitor) (*MemoryController, error) {
-	path := cgroups.NestedPath("")
+	path := cgroupsv1.NestedPath("")
 
-	var cgroupHierarchy cgroups.Hierarchy
+	var cgroupHierarchy cgroupsv1.Hierarchy
 	switch kind {
 	case "systemd":
-		cgroupHierarchy = cgroups.Systemd
+		cgroupHierarchy = cgroupsv1.Systemd
 	case "v1":
-		cgroupHierarchy = cgroups.V1
+		cgroupHierarchy = cgroupsv1.Default
 	default:
 		return nil, fmt.Errorf("unsupported cgroup hierarchy '%s'", kind)
 	}
@@ -96,7 +96,7 @@ func NewMemoryController(kind string, containerized bool, monitors ...MemoryMoni
 		cgroupHierarchy = hostHierarchy(cgroupHierarchy)
 	}
 
-	cgroup, err := cgroups.Load(cgroupHierarchy, path)
+	cgroup, err := cgroupsv1.Load(path, cgroupsv1.WithHiearchy(cgroupHierarchy))
 	if err != nil {
 		return nil, fmt.Errorf("can't open memory cgroup: %w", err)
 	}

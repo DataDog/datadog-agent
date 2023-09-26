@@ -121,7 +121,7 @@ func TestWorkerInit(t *testing.T) {
 	pendingChecksChan := make(chan check.Check, 1)
 	mockShouldAddStatsFunc := func(id checkid.ID) bool { return true }
 
-	senderManager := aggregator.GetSenderManager()
+	senderManager := aggregator.NewNoOpSenderManager()
 	_, err := NewWorker(senderManager, 1, 2, nil, checksTracker, mockShouldAddStatsFunc)
 	require.NotNil(t, err)
 
@@ -150,7 +150,7 @@ func TestWorkerInitExpvarStats(t *testing.T) {
 		go func(idx int) {
 			defer wg.Done()
 
-			worker, err := NewWorker(aggregator.GetSenderManager(), 1, idx, pendingChecksChan, checksTracker, mockShouldAddStatsFunc)
+			worker, err := NewWorker(aggregator.NewNoOpSenderManager(), 1, idx, pendingChecksChan, checksTracker, mockShouldAddStatsFunc)
 			assert.Nil(t, err)
 
 			worker.Run()
@@ -172,7 +172,7 @@ func TestWorkerName(t *testing.T) {
 
 	for _, id := range []int{1, 100, 500} {
 		expectedName := fmt.Sprintf("worker_%d", id)
-		worker, err := NewWorker(aggregator.GetSenderManager(), 1, id, pendingChecksChan, checksTracker, mockShouldAddStatsFunc)
+		worker, err := NewWorker(aggregator.NewNoOpSenderManager(), 1, id, pendingChecksChan, checksTracker, mockShouldAddStatsFunc)
 		assert.Nil(t, err)
 		assert.NotNil(t, worker)
 
@@ -224,7 +224,7 @@ func TestWorker(t *testing.T) {
 	pendingChecksChan <- testCheck1
 	close(pendingChecksChan)
 
-	worker, err := NewWorker(aggregator.GetSenderManager(), 100, 200, pendingChecksChan, checksTracker, mockShouldAddStatsFunc)
+	worker, err := NewWorker(aggregator.NewNoOpSenderManager(), 100, 200, pendingChecksChan, checksTracker, mockShouldAddStatsFunc)
 	require.Nil(t, err)
 
 	wg.Add(1)
@@ -354,7 +354,7 @@ func TestWorkerErrorAndWarningHandling(t *testing.T) {
 	}
 	close(pendingChecksChan)
 
-	worker, err := NewWorker(aggregator.GetSenderManager(), 100, 200, pendingChecksChan, checksTracker, mockShouldAddStatsFunc)
+	worker, err := NewWorker(aggregator.NewNoOpSenderManager(), 100, 200, pendingChecksChan, checksTracker, mockShouldAddStatsFunc)
 	require.Nil(t, err)
 	AssertAsyncWorkerCount(t, 0)
 
@@ -399,7 +399,7 @@ func TestWorkerConcurrentCheckScheduling(t *testing.T) {
 	pendingChecksChan <- testCheck
 	close(pendingChecksChan)
 
-	worker, err := NewWorker(aggregator.GetSenderManager(), 100, 200, pendingChecksChan, checksTracker, mockShouldAddStatsFunc)
+	worker, err := NewWorker(aggregator.NewNoOpSenderManager(), 100, 200, pendingChecksChan, checksTracker, mockShouldAddStatsFunc)
 	require.Nil(t, err)
 
 	worker.Run()
@@ -453,7 +453,7 @@ func TestWorkerStatsAddition(t *testing.T) {
 	pendingChecksChan <- squelchedStatsCheck
 	close(pendingChecksChan)
 
-	worker, err := NewWorker(aggregator.GetSenderManager(), 100, 200, pendingChecksChan, checksTracker, shouldAddStatsFunc)
+	worker, err := NewWorker(aggregator.NewNoOpSenderManager(), 100, 200, pendingChecksChan, checksTracker, shouldAddStatsFunc)
 	require.Nil(t, err)
 
 	worker.Run()
