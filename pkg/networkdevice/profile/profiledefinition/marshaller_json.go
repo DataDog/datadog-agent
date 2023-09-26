@@ -10,8 +10,8 @@ type JSONListMap[T any] map[string]T
 
 // MapItem represent one map entry as list item
 type MapItem[T any] struct {
-	Key   string `json:"key"`
-	Value T      `json:"value"`
+	Key   string `json:"map_key"`
+	Value T      `json:"map_value"`
 }
 
 // MarshalJSON marshals to json

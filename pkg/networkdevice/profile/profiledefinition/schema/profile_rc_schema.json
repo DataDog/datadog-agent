@@ -57,18 +57,18 @@
         "mapping": {
           "items": {
             "properties": {
-              "key": {
+              "map_key": {
                 "type": "string"
               },
-              "value": {
+              "map_value": {
                 "type": "string"
               }
             },
             "additionalProperties": false,
             "type": "object",
             "required": [
-              "key",
-              "value"
+              "map_key",
+              "map_value"
             ]
           },
           "type": "array"
@@ -79,18 +79,18 @@
         "tags": {
           "items": {
             "properties": {
-              "key": {
+              "map_key": {
                 "type": "string"
               },
-              "value": {
+              "map_value": {
                 "type": "string"
               }
             },
             "additionalProperties": false,
             "type": "object",
             "required": [
-              "key",
-              "value"
+              "map_key",
+              "map_value"
             ]
           },
           "type": "array"
@@ -176,18 +176,18 @@
         "metadata": {
           "items": {
             "properties": {
-              "key": {
+              "map_key": {
                 "type": "string"
               },
-              "value": {
+              "map_value": {
                 "properties": {
                   "fields": {
                     "items": {
                       "properties": {
-                        "key": {
+                        "map_key": {
                           "type": "string"
                         },
-                        "value": {
+                        "map_value": {
                           "properties": {
                             "symbol": {
                               "properties": {
@@ -269,8 +269,8 @@
                       "additionalProperties": false,
                       "type": "object",
                       "required": [
-                        "key",
-                        "value"
+                        "map_key",
+                        "map_value"
                       ]
                     },
                     "type": "array"
@@ -345,18 +345,18 @@
                         "mapping": {
                           "items": {
                             "properties": {
-                              "key": {
+                              "map_key": {
                                 "type": "string"
                               },
-                              "value": {
+                              "map_value": {
                                 "type": "string"
                               }
                             },
                             "additionalProperties": false,
                             "type": "object",
                             "required": [
-                              "key",
-                              "value"
+                              "map_key",
+                              "map_value"
                             ]
                           },
                           "type": "array"
@@ -367,18 +367,18 @@
                         "tags": {
                           "items": {
                             "properties": {
-                              "key": {
+                              "map_key": {
                                 "type": "string"
                               },
-                              "value": {
+                              "map_value": {
                                 "type": "string"
                               }
                             },
                             "additionalProperties": false,
                             "type": "object",
                             "required": [
-                              "key",
-                              "value"
+                              "map_key",
+                              "map_value"
                             ]
                           },
                           "type": "array"
@@ -403,8 +403,8 @@
             "additionalProperties": false,
             "type": "object",
             "required": [
-              "key",
-              "value"
+              "map_key",
+              "map_value"
             ]
           },
           "type": "array"

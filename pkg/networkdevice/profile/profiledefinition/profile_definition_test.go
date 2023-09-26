@@ -35,12 +35,12 @@ func TestNewProfileDefinition(t *testing.T) {
 									},
 									"mapping": [
 										{
-											"key": "1",
-											"value": "aa"
+											"map_key": "1",
+											"map_value": "aa"
 										},
 										{
-											"key": "2",
-											"value": "bb"
+											"map_key": "2",
+											"map_value": "bb"
 										}
 									]
 								}
@@ -102,12 +102,12 @@ func TestNewProfileDefinition(t *testing.T) {
 									"match": "(\\d)(\\d)",
 									"tags": [
 										{
-											"key": "foo",
-											"value": "$1"
+											"map_key": "foo",
+											"map_value": "$1"
 										},
 										{
-											"key": "bar",
-											"value": "$2"
+											"map_key": "bar",
+											"map_value": "$2"
 										}
 									]
 								}
