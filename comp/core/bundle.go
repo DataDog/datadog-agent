@@ -16,6 +16,7 @@ import (
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/core/hostname"
 	"github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
@@ -34,4 +35,5 @@ var Bundle = fxutil.Bundle(
 	fx.Provide(func(params BundleParams) sysprobeconfig.Params { return params.SysprobeConfigParams }),
 	sysprobeconfig.Module,
 	telemetry.Module,
+	hostname.Module,
 )

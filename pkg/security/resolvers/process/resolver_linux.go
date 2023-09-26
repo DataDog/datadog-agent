@@ -58,7 +58,8 @@ const (
 
 // ResolverOpts options of resolver
 type ResolverOpts struct {
-	envsWithValue map[string]bool
+	ttyFallbackEnabled bool
+	envsWithValue      map[string]bool
 }
 
 // Resolver resolved process context
@@ -82,10 +83,10 @@ type Resolver struct {
 	execFileCacheMap *lib.Map
 	procCacheMap     *lib.Map
 	pidCacheMap      *lib.Map
-	cacheSize        *atomic.Int64
 	opts             ResolverOpts
 
 	// stats
+	cacheSize                 *atomic.Int64
 	hitsStats                 map[string]*atomic.Int64
 	missStats                 *atomic.Int64
 	addedEntriesFromEvent     *atomic.Int64
@@ -108,41 +109,6 @@ type Resolver struct {
 	procFallbackLimiter *utils.Limiter[uint32]
 
 	exitedQueue []uint32
-}
-
-// Pool defines a pool for process entry allocations
-type Pool struct {
-	pool *sync.Pool
-}
-
-// Get returns a cache entry
-func (p *Pool) Get() *model.ProcessCacheEntry {
-	return p.pool.Get().(*model.ProcessCacheEntry)
-}
-
-// Put returns a cache entry
-func (p *Pool) Put(pce *model.ProcessCacheEntry) {
-	pce.Reset()
-	p.pool.Put(pce)
-}
-
-// NewProcessCacheEntryPool returns a new Pool
-func NewProcessCacheEntryPool(p *Resolver) *Pool {
-	pcep := Pool{pool: &sync.Pool{}}
-
-	pcep.pool.New = func() interface{} {
-		return model.NewProcessCacheEntry(func(pce *model.ProcessCacheEntry) {
-			if pce.Ancestor != nil {
-				pce.Ancestor.Release()
-			}
-
-			p.cacheSize.Dec()
-
-			pcep.Put(pce)
-		})
-	}
-
-	return &pcep
 }
 
 // DequeueExited dequeue exited process
@@ -189,11 +155,11 @@ func (p *Resolver) CountBrokenLineage() {
 
 // SendStats sends process resolver metrics
 func (p *Resolver) SendStats() error {
-	if err := p.statsdClient.Gauge(metrics.MetricProcessResolverCacheSize, p.GetCacheSize(), []string{}, 1.0); err != nil {
+	if err := p.statsdClient.Gauge(metrics.MetricProcessResolverCacheSize, p.getCacheSize(), []string{}, 1.0); err != nil {
 		return fmt.Errorf("failed to send process_resolver cache_size metric: %w", err)
 	}
 
-	if err := p.statsdClient.Gauge(metrics.MetricProcessResolverReferenceCount, p.GetEntryCacheSize(), []string{}, 1.0); err != nil {
+	if err := p.statsdClient.Gauge(metrics.MetricProcessResolverReferenceCount, p.getEntryCacheSize(), []string{}, 1.0); err != nil {
 		return fmt.Errorf("failed to send process_resolver reference_count metric: %w", err)
 	}
 
@@ -953,21 +919,20 @@ func GetProcessArgv0(pr *model.Process) (string, bool) {
 	return pr.Argv0, pr.ArgsTruncated
 }
 
-// GetProcessScrubbedArgv returns the scrubbed args of the event as an array
-func (p *Resolver) GetProcessScrubbedArgv(pr *model.Process) ([]string, bool) {
-	if pr.ScrubbedArgvResolved {
-		return pr.ScrubbedArgv, pr.ScrubbedArgsTruncated
+// GetProcessArgvScrubbed returns the scrubbed args of the event as an array
+func (p *Resolver) GetProcessArgvScrubbed(pr *model.Process) ([]string, bool) {
+	if pr.ArgsEntry == nil || pr.ScrubbedArgvResolved {
+		return pr.Argv, pr.ArgsTruncated
 	}
 
 	argv, truncated := GetProcessArgv(pr)
 
-	if p.scrubber != nil {
+	if p.scrubber != nil && len(argv) > 0 {
+		// replace with the scrubbed version
 		argv, _ = p.scrubber.ScrubCommand(argv)
+		pr.ArgsEntry.Values = []string{pr.ArgsEntry.Values[0]}
+		pr.ArgsEntry.Values = append(pr.ArgsEntry.Values, argv...)
 	}
-
-	pr.ScrubbedArgv = argv
-	pr.ScrubbedArgsTruncated = truncated
-	pr.ScrubbedArgvResolved = true
 
 	return argv, truncated
 }
@@ -1016,7 +981,7 @@ func (p *Resolver) GetProcessEnvp(pr *model.Process) ([]string, bool) {
 
 // SetProcessTTY resolves TTY and cache the result
 func (p *Resolver) SetProcessTTY(pce *model.ProcessCacheEntry) string {
-	if pce.TTYName == "" {
+	if pce.TTYName == "" && p.opts.ttyFallbackEnabled {
 		tty := utils.PidTTY(pce.Pid)
 		pce.TTYName = tty
 	}
@@ -1230,7 +1195,7 @@ func (p *Resolver) dumpEntry(writer io.Writer, entry *model.ProcessCacheEntry, a
 			}
 
 			if withArgs {
-				argv, _ := p.GetProcessScrubbedArgv(&entry.Process)
+				argv, _ := p.GetProcessArgvScrubbed(&entry.Process)
 				fmt.Fprintf(writer, `"%d:%s" [label="%s", comment="%s"];`, entry.Pid, entry.Comm, label, strings.Join(argv, " "))
 			} else {
 				fmt.Fprintf(writer, `"%d:%s" [label="%s"];`, entry.Pid, entry.Comm, label)
@@ -1284,15 +1249,15 @@ func (p *Resolver) Dump(withArgs bool) (string, error) {
 	return dump.Name(), nil
 }
 
-// GetCacheSize returns the cache size of the process resolver
-func (p *Resolver) GetCacheSize() float64 {
+// getCacheSize returns the cache size of the process resolver
+func (p *Resolver) getCacheSize() float64 {
 	p.RLock()
 	defer p.RUnlock()
 	return float64(len(p.entryCache))
 }
 
-// GetEntryCacheSize returns the cache size of the process resolver
-func (p *Resolver) GetEntryCacheSize() float64 {
+// getEntryCacheSize returns the cache size of the process resolver
+func (p *Resolver) getEntryCacheSize() float64 {
 	return float64(p.cacheSize.Load())
 }
 
@@ -1371,6 +1336,12 @@ func (o *ResolverOpts) WithEnvsValue(envsWithValue []string) *ResolverOpts {
 	for _, envVar := range envsWithValue {
 		o.envsWithValue[envVar] = true
 	}
+	return o
+}
+
+// WithTTYFallbackEnabled enables the TTY fallback
+func (o *ResolverOpts) WithTTYFallbackEnabled() *ResolverOpts {
+	o.ttyFallbackEnabled = true
 	return o
 }
 

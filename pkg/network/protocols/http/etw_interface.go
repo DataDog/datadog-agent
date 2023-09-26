@@ -66,7 +66,7 @@ func (hei *EtwInterface) StartReadingHttpFlows() {
 
 		startingEtwChan <- struct{}{}
 
-		err := etw.StartEtw("ddnpm-httpservice", etw.EtwProviderHttpService, hei)
+		err := etw.StartEtw("ddnpm-httpservice", etw.EtwProviderHTTPService, hei)
 
 		if err == nil {
 			log.Infof("ETW HttpService subscription completed")

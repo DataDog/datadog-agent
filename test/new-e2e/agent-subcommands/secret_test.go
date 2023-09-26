@@ -19,7 +19,7 @@ type agentSecretSuite struct {
 }
 
 func TestAgentSecretSuite(t *testing.T) {
-	e2e.Run(t, &agentSecretSuite{}, e2e.AgentStackDef(nil))
+	e2e.Run(t, &agentSecretSuite{}, e2e.AgentStackDef())
 }
 
 func (v *agentSecretSuite) TestAgentSecretNotEnabledByDefault() {
@@ -29,7 +29,7 @@ func (v *agentSecretSuite) TestAgentSecretNotEnabledByDefault() {
 }
 
 func (v *agentSecretSuite) TestAgentSecretChecksExecutablePermissions() {
-	v.UpdateEnv(e2e.AgentStackDef(nil, agentparams.WithAgentConfig("secret_backend_command: /usr/bin/echo")))
+	v.UpdateEnv(e2e.AgentStackDef(e2e.WithAgentParams(agentparams.WithAgentConfig("secret_backend_command: /usr/bin/echo"))))
 
 	output := v.Env().Agent.Secret()
 
@@ -45,9 +45,9 @@ printf '{"alias_secret": {"value": "a_super_secret_string"}}\n'`
 host_aliases:
   - ENC[alias_secret]`
 
-	v.UpdateEnv(e2e.AgentStackDef(nil, agentparams.WithFile("/tmp/bin/secret.sh", secretScript, false)))
+	v.UpdateEnv(e2e.AgentStackDef(e2e.WithAgentParams(agentparams.WithFile("/tmp/bin/secret.sh", secretScript, false))))
 	v.Env().VM.Execute(`sudo sh -c "chown dd-agent:dd-agent /tmp/bin/secret.sh && chmod 700 /tmp/bin/secret.sh"`)
-	v.UpdateEnv(e2e.AgentStackDef(nil, agentparams.WithFile("/tmp/bin/secret.sh", secretScript, false), agentparams.WithAgentConfig(config)))
+	v.UpdateEnv(e2e.AgentStackDef(e2e.WithAgentParams(agentparams.WithFile("/tmp/bin/secret.sh", secretScript, false), agentparams.WithAgentConfig(config))))
 
 	output := v.Env().Agent.Secret()
 

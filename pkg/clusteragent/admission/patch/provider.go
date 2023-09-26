@@ -17,7 +17,7 @@ import (
 
 type patchProvider interface {
 	start(stopCh <-chan struct{})
-	subscribe(kind TargetObjKind) chan PatchRequest
+	subscribe(kind TargetObjKind) chan Request
 }
 
 func newPatchProvider(rcClient *remote.Client, isLeaderNotif <-chan struct{}, telemetryCollector telemetry.TelemetryCollector, clusterName string) (patchProvider, error) {

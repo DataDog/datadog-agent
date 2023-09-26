@@ -300,12 +300,12 @@ func (p *Probe) Setup() error {
 // Start plays the snapshot data and then start the event stream
 func (p *Probe) Start() error {
 	// Apply rules to the snapshotted data before starting the event stream to avoid concurrency issues
-	p.PlaySnapshot()
+	p.playSnapshot()
 	return p.eventStream.Start(&p.wg)
 }
 
-// PlaySnapshot plays a snapshot
-func (p *Probe) PlaySnapshot() {
+// playSnapshot plays a snapshot
+func (p *Probe) playSnapshot() {
 	// Get the snapshotted data
 	var events []*model.Event
 
@@ -1104,7 +1104,7 @@ func (p *Probe) updateProbes(ruleEventTypes []eval.EventType, useSnapshotProbes 
 		for _, id := range selector.GetProbesIdentificationPairList() {
 			var exists bool
 			for _, selectedID := range selectedIDs {
-				if selectedID.Matches(id) {
+				if selectedID == id {
 					exists = true
 				}
 			}
@@ -1208,6 +1208,8 @@ func (p *Probe) FlushDiscarders() error {
 // Snapshot runs the different snapshot functions of the resolvers that
 // require to sync with the current state of the system
 func (p *Probe) Snapshot() error {
+	// the snapshot for the read of a lot of file which can allocate a lot of memory.
+	defer runtime.GC()
 	return p.resolvers.Snapshot()
 }
 
@@ -1356,10 +1358,6 @@ func (p *Probe) ApplyRuleSet(rs *rules.RuleSet) (*kfilters.ApplyRuleSetReport, e
 		if err := p.SetApprovers(eventType, report.Approvers); err != nil {
 			return nil, err
 		}
-	}
-
-	if err := p.FlushDiscarders(); err != nil {
-		return nil, fmt.Errorf("failed to flush discarders: %w", err)
 	}
 
 	if err := p.updateProbes(rs.GetEventTypes(), false); err != nil {
@@ -1537,7 +1535,7 @@ func NewProbe(config *config.Config, opts Opts) (*Probe, error) {
 		},
 		manager.ConstantEditor{
 			Name:  "monitor_syscalls_map_enabled",
-			Value: utils.BoolTouint64(opts.SyscallsMapMonitorEnabled),
+			Value: utils.BoolTouint64(opts.SyscallsMonitorEnabled),
 		},
 	)
 
@@ -1611,6 +1609,7 @@ func NewProbe(config *config.Config, opts Opts) (*Probe, error) {
 		PathResolutionEnabled: opts.PathResolutionEnabled,
 		TagsResolver:          opts.TagsResolver,
 		UseRingBuffer:         useRingBuffers,
+		TTYFallbackEnabled:    opts.TTYFallbackEnabled,
 	}
 	p.resolvers, err = resolvers.NewResolvers(config, p.Manager, p.StatsdClient, p.scrubber, p.Erpc, resolversOpts)
 	if err != nil {

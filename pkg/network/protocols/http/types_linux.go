@@ -24,8 +24,11 @@ type SslReadArgs struct {
 	Buf *byte
 }
 
+type EbpfEvent struct {
+	Tuple ConnTuple
+	Http  EbpfTx
+}
 type EbpfTx struct {
-	Tup                  ConnTuple
 	Request_started      uint64
 	Response_last_seen   uint64
 	Tags                 uint64

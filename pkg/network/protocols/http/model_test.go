@@ -16,10 +16,12 @@ import (
 )
 
 func TestPath(t *testing.T) {
-	tx := EbpfTx{
-		Request_fragment: requestFragment(
-			[]byte("GET /foo/bar?var1=value HTTP/1.1\nHost: example.com\nUser-Agent: example-browser/1.0"),
-		),
+	tx := EbpfEvent{
+		Http: EbpfTx{
+			Request_fragment: requestFragment(
+				[]byte("GET /foo/bar?var1=value HTTP/1.1\nHost: example.com\nUser-Agent: example-browser/1.0"),
+			),
+		},
 	}
 
 	b := make([]byte, BufferSize)
@@ -32,10 +34,12 @@ func TestMaximumLengthPath(t *testing.T) {
 	rep := strings.Repeat("a", BufferSize-6)
 	str := "GET /" + rep
 	str += "bc"
-	tx := EbpfTx{
-		Request_fragment: requestFragment(
-			[]byte(str),
-		),
+	tx := EbpfEvent{
+		Http: EbpfTx{
+			Request_fragment: requestFragment(
+				[]byte(str),
+			),
+		},
 	}
 	b := make([]byte, BufferSize)
 	path, fullPath := tx.Path(b)
@@ -49,10 +53,12 @@ func TestFullPath(t *testing.T) {
 	prefix := "GET /"
 	rep := strings.Repeat("a", BufferSize-len(prefix)-1)
 	str := prefix + rep + " "
-	tx := EbpfTx{
-		Request_fragment: requestFragment(
-			[]byte(str),
-		),
+	tx := EbpfEvent{
+		Http: EbpfTx{
+			Request_fragment: requestFragment(
+				[]byte(str),
+			),
+		},
 	}
 	b := make([]byte, BufferSize)
 	path, fullPath := tx.Path(b)
@@ -62,14 +68,16 @@ func TestFullPath(t *testing.T) {
 }
 
 func TestPathHandlesNullTerminator(t *testing.T) {
-	tx := EbpfTx{
-		Request_fragment: requestFragment(
-			// This probably isn't a valid HTTP request
-			// (since it's missing a version before the end),
-			// but if the null byte isn't handled
-			// then the path becomes "/foo/\x00bar"
-			[]byte("GET /foo/\x00bar?var1=value HTTP/1.1\nHost: example.com\nUser-Agent: example-browser/1.0"),
-		),
+	tx := EbpfEvent{
+		Http: EbpfTx{
+			Request_fragment: requestFragment(
+				// This probably isn't a valid HTTP request
+				// (since it's missing a version before the end),
+				// but if the null byte isn't handled
+				// then the path becomes "/foo/\x00bar"
+				[]byte("GET /foo/\x00bar?var1=value HTTP/1.1\nHost: example.com\nUser-Agent: example-browser/1.0"),
+			),
+		},
 	}
 
 	b := make([]byte, BufferSize)
@@ -79,19 +87,23 @@ func TestPathHandlesNullTerminator(t *testing.T) {
 }
 
 func TestLatency(t *testing.T) {
-	tx := EbpfTx{
-		Response_last_seen: 2e6,
-		Request_started:    1e6,
+	tx := EbpfEvent{
+		Http: EbpfTx{
+			Response_last_seen: 2e6,
+			Request_started:    1e6,
+		},
 	}
 	// quantization brings it down
 	assert.Equal(t, 999424.0, tx.RequestLatency())
 }
 
 func BenchmarkPath(b *testing.B) {
-	tx := EbpfTx{
-		Request_fragment: requestFragment(
-			[]byte("GET /foo/bar?var1=value HTTP/1.1\nHost: example.com\nUser-Agent: example-browser/1.0"),
-		),
+	tx := EbpfEvent{
+		Http: EbpfTx{
+			Request_fragment: requestFragment(
+				[]byte("GET /foo/bar?var1=value HTTP/1.1\nHost: example.com\nUser-Agent: example-browser/1.0"),
+			),
+		},
 	}
 
 	b.ReportAllocs()

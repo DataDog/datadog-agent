@@ -6,19 +6,31 @@
 
 package pdhutil
 
-// Union specialization for double values
+// PDH_FMT_COUNTERVALUE_DOUBLE is a union specialization for double values
+//
+// https://learn.microsoft.com/en-us/windows/win32/api/pdh/ns-pdh-pdh_fmt_countervalue
+//
+//revive:disable-next-line:var-naming Name is intended to match the Windows type name
 type PDH_FMT_COUNTERVALUE_DOUBLE struct {
 	CStatus     uint32
 	DoubleValue float64
 }
 
-// Union specialization for 64 bit integer values
+// PDH_FMT_COUNTERVALUE_LARGE is a union specialization for 64 bit integer values
+//
+// https://learn.microsoft.com/en-us/windows/win32/api/pdh/ns-pdh-pdh_fmt_countervalue
+//
+//revive:disable-next-line:var-naming Name is intended to match the Windows type name
 type PDH_FMT_COUNTERVALUE_LARGE struct {
 	CStatus    uint32
 	LargeValue int64
 }
 
-// Union specialization for long values
+// PDH_FMT_COUNTERVALUE_LONG is a union specialization for long values
+//
+// https://learn.microsoft.com/en-us/windows/win32/api/pdh/ns-pdh-pdh_fmt_countervalue
+//
+//revive:disable-next-line:var-naming Name is intended to match the Windows type name
 type PDH_FMT_COUNTERVALUE_LONG struct {
 	CStatus   uint32
 	_         uint32 // intpadding

@@ -5,6 +5,7 @@
 
 //go:build kubeapiserver
 
+// Package helm implements the Helm cluster check.
 package helm
 
 import (
@@ -168,6 +169,7 @@ func (hc *HelmCheck) Run() error {
 	return nil
 }
 
+// Cancel cancels the check
 func (hc *HelmCheck) Cancel() {
 	close(hc.informersStopCh)
 }

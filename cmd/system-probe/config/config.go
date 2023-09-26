@@ -36,6 +36,7 @@ const (
 	DynamicInstrumentationModule ModuleName = "dynamic_instrumentation"
 	EBPFModule                   ModuleName = "ebpf"
 	LanguageDetectionModule      ModuleName = "language_detection"
+	WindowsCrashDetectModule     ModuleName = "windows_crash_detection"
 )
 
 // Config represents the configuration options for the system-probe
@@ -159,6 +160,17 @@ func load() (*Config, error) {
 	}
 	if cfg.GetBool("system_probe_config.language_detection.enabled") {
 		c.EnabledModules[LanguageDetectionModule] = struct{}{}
+	}
+
+	if cfg.GetBool(wcdNS("enabled")) {
+		c.EnabledModules[WindowsCrashDetectModule] = struct{}{}
+	}
+	if runtime.GOOS == "windows" {
+		if c.ModuleIsEnabled(NetworkTracerModule) {
+			// enable the windows crash detection module if the network tracer
+			// module is enabled, to allow the core agent to detect our own crash
+			c.EnabledModules[WindowsCrashDetectModule] = struct{}{}
+		}
 	}
 
 	c.Enabled = len(c.EnabledModules) > 0

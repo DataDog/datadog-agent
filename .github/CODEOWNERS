@@ -202,6 +202,7 @@
 /comp/forwarder @DataDog/agent-shared-components
 /comp/logs @DataDog/agent-metrics-logs
 /comp/metadata @DataDog/agent-shared-components
+/comp/ndmtmp @DataDog/network-device-monitoring
 /comp/otelcol @DataDog/opentelemetry
 /comp/process @DataDog/processes
 /comp/remote-config @DataDog/remote-config
@@ -267,6 +268,7 @@
 /pkg/collector/corechecks/sbom/         @DataDog/container-integrations
 /pkg/collector/corechecks/snmp/         @DataDog/network-device-monitoring
 /pkg/collector/corechecks/system/                 @DataDog/agent-platform
+/pkg/collector/corechecks/system/wincrashdetect/  @DataDog/windows-kernel-integrations
 /pkg/collector/corechecks/system/**/*_windows*.go @DataDog/agent-platform @DataDog/windows-agent
 /pkg/collector/corechecks/system/winkmem/         @DataDog/windows-agent
 /pkg/collector/corechecks/system/winproc/         @DataDog/windows-agent

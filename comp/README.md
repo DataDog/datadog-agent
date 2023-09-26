@@ -30,6 +30,10 @@ component temporarily wraps pkg/config.
 
 Package flare implements a component to generate flares from the agent.
 
+### [comp/core/hostname](https://pkg.go.dev/github.com/DataDog/dd-agent-comp-experiments/comp/core/hostname)
+
+Package hostname exposes hostname.Get() as a component.
+
 ### [comp/core/log](https://pkg.go.dev/github.com/DataDog/dd-agent-comp-experiments/comp/core/log)
 
 Package log implements a component to handle logging internal to the agent.
@@ -97,6 +101,26 @@ Package runner implements a component to generate the 'resources' metadata paylo
 ### [comp/metadata/runner](https://pkg.go.dev/github.com/DataDog/dd-agent-comp-experiments/comp/metadata/runner)
 
 Package runner implements a component to generate metadata payload at the right interval.
+
+## [comp/ndmtmp](https://pkg.go.dev/github.com/DataDog/dd-agent-comp-experiments/comp/ndmtmp) (Component Bundle)
+
+*Datadog Team*: network-device-monitoring
+
+Package ndmtmp implements the "ndmtmp" bundle, which exposes the default
+sender.Sender and the event platform forwarder. This is a temporary module
+intended for ndm internal use until these pieces are properly componentized.
+
+### [comp/ndmtmp/aggregator](https://pkg.go.dev/github.com/DataDog/dd-agent-comp-experiments/comp/ndmtmp/aggregator)
+
+Package aggregator exposes the AgentDemultiplexer as a DemultiplexerWithAggregator
+
+### [comp/ndmtmp/forwarder](https://pkg.go.dev/github.com/DataDog/dd-agent-comp-experiments/comp/ndmtmp/forwarder)
+
+Package forwarder exposes the event platform forwarder for netflow.
+
+### [comp/ndmtmp/sender](https://pkg.go.dev/github.com/DataDog/dd-agent-comp-experiments/comp/ndmtmp/sender)
+
+Package sender exposes a Sender for netflow.
 
 ## [comp/otelcol](https://pkg.go.dev/github.com/DataDog/dd-agent-comp-experiments/comp/otelcol) (Component Bundle)
 
@@ -190,7 +214,7 @@ Package systray implements the Datadog Agent Manager System Tray
 
 ### [comp/systray/systray](https://pkg.go.dev/github.com/DataDog/dd-agent-comp-experiments/comp/systray/systray)
 
-Package systray
+Package systray provides a component for the system tray application
 
 ## [comp/trace](https://pkg.go.dev/github.com/DataDog/dd-agent-comp-experiments/comp/trace) (Component Bundle)
 
