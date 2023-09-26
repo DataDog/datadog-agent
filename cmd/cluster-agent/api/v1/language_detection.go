@@ -36,7 +36,7 @@ const (
 
 // InstallLanguageDetectionEndpoints installs language detection endpoints
 func InstallLanguageDetectionEndpoints(r *mux.Router) {
-	r.HandleFunc("/languagedetection", api.WithTelemetryWrapper("setDetectedLanguages", setDetectedLanguages)).Methods("POST")
+	r.HandleFunc("/languagedetection", api.WithTelemetryWrapper("postDetectedLanguages", postDetectedLanguages)).Methods("POST")
 }
 
 const (
@@ -238,7 +238,7 @@ func (lp *languagePatcher) patchAllOwners(ownerslanguages *OwnersLanguages) {
 	}
 }
 
-func setDetectedLanguages(w http.ResponseWriter, r *http.Request) {
+func postDetectedLanguages(w http.ResponseWriter, r *http.Request) {
 	body, err := io.ReadAll(r.Body)
 	if err != nil {
 		ErrorResponses.Inc()
