@@ -1,0 +1,16 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+fixes:
+  - |
+    Bug fix for the error `ORA-06502: PL/SQL: numeric or value error: character string buffer too small` which was raised by the activity sampling.
+other:
+  - |
+    Add here every other information you want in the CHANGELOG that
+    don't fit in any other section. This section should rarely be
+    used.
