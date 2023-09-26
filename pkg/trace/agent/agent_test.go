@@ -782,7 +782,7 @@ func TestClientComputedTopLevel(t *testing.T) {
 }
 
 func TestFilteredByTags(t *testing.T) {
-	for name, tt := range map[string]struct {
+	for name, tt := range map[string]*struct {
 		require      []*config.Tag
 		reject       []*config.Tag
 		requireRegex []*config.TagRegex
