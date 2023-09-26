@@ -55,7 +55,7 @@ func (c *PodCheck) IsEnabled() bool {
 
 	// Do not run this check if we enabled the corecheck for pods
 	if coreCheck {
-		log.Info("Skipping pod check on processor agent")
+		log.Info("Skipping pod check on process agent")
 		return false
 	}
 
