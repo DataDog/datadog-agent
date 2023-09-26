@@ -5,6 +5,7 @@
 
 //go:build kubelet
 
+// Package kubelet implements the Kubelet check.
 package kubelet
 
 import (

@@ -5,6 +5,8 @@
 
 //go:build kubelet
 
+// Package pod is responsible for emitting the Kubelet check metrics that are
+// collected from the pod endpoints.
 package pod
 
 import (

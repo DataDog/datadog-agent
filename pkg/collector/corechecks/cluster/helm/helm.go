@@ -5,6 +5,7 @@
 
 //go:build kubeapiserver
 
+// Package helm implements the Helm cluster check.
 package helm
 
 import (

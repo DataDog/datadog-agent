@@ -5,6 +5,7 @@
 
 //go:build docker
 
+// Package v1 provides an ECS client for v1 of API.
 package v1
 
 import (

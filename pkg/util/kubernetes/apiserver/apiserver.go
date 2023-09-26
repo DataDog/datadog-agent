@@ -5,6 +5,7 @@
 
 //go:build kubeapiserver
 
+// Package apiserver provides an API client for the Kubernetes API server.
 package apiserver
 
 import (

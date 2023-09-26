@@ -5,6 +5,8 @@
 
 //go:build kubelet
 
+// Package probe is responsible for emitting the Kubelet check metrics that are
+// collected from the `/metrics/probes` endpoint.
 package probe
 
 import (

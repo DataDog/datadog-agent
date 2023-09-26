@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+// Package testing provides helpers used for testing the Workloadmeta component.
 package testing
 
 import (
