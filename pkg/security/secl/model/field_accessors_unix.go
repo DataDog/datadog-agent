@@ -15,11 +15,6 @@ import (
 	"time"
 )
 
-// GetTimestamp returns the value of the field, resolving if necessary
-func (ev *Event) GetTimestamp() time.Time {
-	return ev.FieldHandlers.ResolveEventTime(ev)
-}
-
 // GetBindAddrFamily returns the value of the field, resolving if necessary
 func (ev *Event) GetBindAddrFamily() uint16 {
 	zeroValue := uint16(0)
@@ -699,42 +694,6 @@ func (ev *Event) GetEventTimestamp() int {
 	return ev.FieldHandlers.ResolveEventTimestamp(ev, &ev.BaseEvent)
 }
 
-// GetExecExecTime returns the value of the field, resolving if necessary
-func (ev *Event) GetExecExecTime() time.Time {
-	zeroValue := time.Time{}
-	if ev.GetEventType().String() != "exec" {
-		return zeroValue
-	}
-	if ev.Exec.Process == nil {
-		return zeroValue
-	}
-	return ev.Exec.Process.ExecTime
-}
-
-// GetExecExitTime returns the value of the field, resolving if necessary
-func (ev *Event) GetExecExitTime() time.Time {
-	zeroValue := time.Time{}
-	if ev.GetEventType().String() != "exec" {
-		return zeroValue
-	}
-	if ev.Exec.Process == nil {
-		return zeroValue
-	}
-	return ev.Exec.Process.ExitTime
-}
-
-// GetExecForkTime returns the value of the field, resolving if necessary
-func (ev *Event) GetExecForkTime() time.Time {
-	zeroValue := time.Time{}
-	if ev.GetEventType().String() != "exec" {
-		return zeroValue
-	}
-	if ev.Exec.Process == nil {
-		return zeroValue
-	}
-	return ev.Exec.Process.ForkTime
-}
-
 // GetExecArgs returns the value of the field, resolving if necessary
 func (ev *Event) GetExecArgs() string {
 	zeroValue := ""
@@ -966,6 +925,30 @@ func (ev *Event) GetExecEuser() string {
 		return zeroValue
 	}
 	return ev.Exec.Process.Credentials.EUser
+}
+
+// GetExecExecTime returns the value of the field, resolving if necessary
+func (ev *Event) GetExecExecTime() time.Time {
+	zeroValue := time.Time{}
+	if ev.GetEventType().String() != "exec" {
+		return zeroValue
+	}
+	if ev.Exec.Process == nil {
+		return zeroValue
+	}
+	return ev.Exec.Process.ExecTime
+}
+
+// GetExecExitTime returns the value of the field, resolving if necessary
+func (ev *Event) GetExecExitTime() time.Time {
+	zeroValue := time.Time{}
+	if ev.GetEventType().String() != "exec" {
+		return zeroValue
+	}
+	if ev.Exec.Process == nil {
+		return zeroValue
+	}
+	return ev.Exec.Process.ExitTime
 }
 
 // GetExecFileChangeTime returns the value of the field, resolving if necessary
@@ -1263,6 +1246,18 @@ func (ev *Event) GetExecFileUser() string {
 		return ""
 	}
 	return ev.FieldHandlers.ResolveFileFieldsUser(ev, &ev.Exec.Process.FileEvent.FileFields)
+}
+
+// GetExecForkTime returns the value of the field, resolving if necessary
+func (ev *Event) GetExecForkTime() time.Time {
+	zeroValue := time.Time{}
+	if ev.GetEventType().String() != "exec" {
+		return zeroValue
+	}
+	if ev.Exec.Process == nil {
+		return zeroValue
+	}
+	return ev.Exec.Process.ForkTime
 }
 
 // GetExecFsgid returns the value of the field, resolving if necessary
@@ -1730,42 +1725,6 @@ func (ev *Event) GetExecUser() string {
 	return ev.Exec.Process.Credentials.User
 }
 
-// GetExitExecTime returns the value of the field, resolving if necessary
-func (ev *Event) GetExitExecTime() time.Time {
-	zeroValue := time.Time{}
-	if ev.GetEventType().String() != "exit" {
-		return zeroValue
-	}
-	if ev.Exit.Process == nil {
-		return zeroValue
-	}
-	return ev.Exit.Process.ExecTime
-}
-
-// GetExitExitTime returns the value of the field, resolving if necessary
-func (ev *Event) GetExitExitTime() time.Time {
-	zeroValue := time.Time{}
-	if ev.GetEventType().String() != "exit" {
-		return zeroValue
-	}
-	if ev.Exit.Process == nil {
-		return zeroValue
-	}
-	return ev.Exit.Process.ExitTime
-}
-
-// GetExitForkTime returns the value of the field, resolving if necessary
-func (ev *Event) GetExitForkTime() time.Time {
-	zeroValue := time.Time{}
-	if ev.GetEventType().String() != "exit" {
-		return zeroValue
-	}
-	if ev.Exit.Process == nil {
-		return zeroValue
-	}
-	return ev.Exit.Process.ForkTime
-}
-
 // GetExitArgs returns the value of the field, resolving if necessary
 func (ev *Event) GetExitArgs() string {
 	zeroValue := ""
@@ -2015,6 +1974,30 @@ func (ev *Event) GetExitEuser() string {
 		return zeroValue
 	}
 	return ev.Exit.Process.Credentials.EUser
+}
+
+// GetExitExecTime returns the value of the field, resolving if necessary
+func (ev *Event) GetExitExecTime() time.Time {
+	zeroValue := time.Time{}
+	if ev.GetEventType().String() != "exit" {
+		return zeroValue
+	}
+	if ev.Exit.Process == nil {
+		return zeroValue
+	}
+	return ev.Exit.Process.ExecTime
+}
+
+// GetExitExitTime returns the value of the field, resolving if necessary
+func (ev *Event) GetExitExitTime() time.Time {
+	zeroValue := time.Time{}
+	if ev.GetEventType().String() != "exit" {
+		return zeroValue
+	}
+	if ev.Exit.Process == nil {
+		return zeroValue
+	}
+	return ev.Exit.Process.ExitTime
 }
 
 // GetExitFileChangeTime returns the value of the field, resolving if necessary
@@ -2312,6 +2295,18 @@ func (ev *Event) GetExitFileUser() string {
 		return ""
 	}
 	return ev.FieldHandlers.ResolveFileFieldsUser(ev, &ev.Exit.Process.FileEvent.FileFields)
+}
+
+// GetExitForkTime returns the value of the field, resolving if necessary
+func (ev *Event) GetExitForkTime() time.Time {
+	zeroValue := time.Time{}
+	if ev.GetEventType().String() != "exit" {
+		return zeroValue
+	}
+	if ev.Exit.Process == nil {
+		return zeroValue
+	}
+	return ev.Exit.Process.ForkTime
 }
 
 // GetExitFsgid returns the value of the field, resolving if necessary
@@ -4168,33 +4163,6 @@ func (ev *Event) GetOpenRetval() int64 {
 	return ev.Open.SyscallEvent.Retval
 }
 
-// GetProcessExecTime returns the value of the field, resolving if necessary
-func (ev *Event) GetProcessExecTime() time.Time {
-	zeroValue := time.Time{}
-	if ev.BaseEvent.ProcessContext == nil {
-		return zeroValue
-	}
-	return ev.BaseEvent.ProcessContext.Process.ExecTime
-}
-
-// GetProcessExitTime returns the value of the field, resolving if necessary
-func (ev *Event) GetProcessExitTime() time.Time {
-	zeroValue := time.Time{}
-	if ev.BaseEvent.ProcessContext == nil {
-		return zeroValue
-	}
-	return ev.BaseEvent.ProcessContext.Process.ExitTime
-}
-
-// GetProcessForkTime returns the value of the field, resolving if necessary
-func (ev *Event) GetProcessForkTime() time.Time {
-	zeroValue := time.Time{}
-	if ev.BaseEvent.ProcessContext == nil {
-		return zeroValue
-	}
-	return ev.BaseEvent.ProcessContext.Process.ForkTime
-}
-
 // GetProcessAncestorsArgs returns the value of the field, resolving if necessary
 func (ev *Event) GetProcessAncestorsArgs() []string {
 	zeroValue := []string{}
@@ -5960,6 +5928,24 @@ func (ev *Event) GetProcessEuser() string {
 	return ev.BaseEvent.ProcessContext.Process.Credentials.EUser
 }
 
+// GetProcessExecTime returns the value of the field, resolving if necessary
+func (ev *Event) GetProcessExecTime() time.Time {
+	zeroValue := time.Time{}
+	if ev.BaseEvent.ProcessContext == nil {
+		return zeroValue
+	}
+	return ev.BaseEvent.ProcessContext.Process.ExecTime
+}
+
+// GetProcessExitTime returns the value of the field, resolving if necessary
+func (ev *Event) GetProcessExitTime() time.Time {
+	zeroValue := time.Time{}
+	if ev.BaseEvent.ProcessContext == nil {
+		return zeroValue
+	}
+	return ev.BaseEvent.ProcessContext.Process.ExitTime
+}
+
 // GetProcessFileChangeTime returns the value of the field, resolving if necessary
 func (ev *Event) GetProcessFileChangeTime() uint64 {
 	zeroValue := uint64(0)
@@ -6195,6 +6181,15 @@ func (ev *Event) GetProcessFileUser() string {
 		return ""
 	}
 	return ev.FieldHandlers.ResolveFileFieldsUser(ev, &ev.BaseEvent.ProcessContext.Process.FileEvent.FileFields)
+}
+
+// GetProcessForkTime returns the value of the field, resolving if necessary
+func (ev *Event) GetProcessForkTime() time.Time {
+	zeroValue := time.Time{}
+	if ev.BaseEvent.ProcessContext == nil {
+		return zeroValue
+	}
+	return ev.BaseEvent.ProcessContext.Process.ForkTime
 }
 
 // GetProcessFsgid returns the value of the field, resolving if necessary
@@ -7775,42 +7770,6 @@ func (ev *Event) GetPtraceRetval() int64 {
 		return zeroValue
 	}
 	return ev.PTrace.SyscallEvent.Retval
-}
-
-// GetPtraceTraceeExecTime returns the value of the field, resolving if necessary
-func (ev *Event) GetPtraceTraceeExecTime() time.Time {
-	zeroValue := time.Time{}
-	if ev.GetEventType().String() != "ptrace" {
-		return zeroValue
-	}
-	if ev.PTrace.Tracee == nil {
-		return zeroValue
-	}
-	return ev.PTrace.Tracee.Process.ExecTime
-}
-
-// GetPtraceTraceeExitTime returns the value of the field, resolving if necessary
-func (ev *Event) GetPtraceTraceeExitTime() time.Time {
-	zeroValue := time.Time{}
-	if ev.GetEventType().String() != "ptrace" {
-		return zeroValue
-	}
-	if ev.PTrace.Tracee == nil {
-		return zeroValue
-	}
-	return ev.PTrace.Tracee.Process.ExitTime
-}
-
-// GetPtraceTraceeForkTime returns the value of the field, resolving if necessary
-func (ev *Event) GetPtraceTraceeForkTime() time.Time {
-	zeroValue := time.Time{}
-	if ev.GetEventType().String() != "ptrace" {
-		return zeroValue
-	}
-	if ev.PTrace.Tracee == nil {
-		return zeroValue
-	}
-	return ev.PTrace.Tracee.Process.ForkTime
 }
 
 // GetPtraceTraceeAncestorsArgs returns the value of the field, resolving if necessary
@@ -9848,6 +9807,30 @@ func (ev *Event) GetPtraceTraceeEuser() string {
 	return ev.PTrace.Tracee.Process.Credentials.EUser
 }
 
+// GetPtraceTraceeExecTime returns the value of the field, resolving if necessary
+func (ev *Event) GetPtraceTraceeExecTime() time.Time {
+	zeroValue := time.Time{}
+	if ev.GetEventType().String() != "ptrace" {
+		return zeroValue
+	}
+	if ev.PTrace.Tracee == nil {
+		return zeroValue
+	}
+	return ev.PTrace.Tracee.Process.ExecTime
+}
+
+// GetPtraceTraceeExitTime returns the value of the field, resolving if necessary
+func (ev *Event) GetPtraceTraceeExitTime() time.Time {
+	zeroValue := time.Time{}
+	if ev.GetEventType().String() != "ptrace" {
+		return zeroValue
+	}
+	if ev.PTrace.Tracee == nil {
+		return zeroValue
+	}
+	return ev.PTrace.Tracee.Process.ExitTime
+}
+
 // GetPtraceTraceeFileChangeTime returns the value of the field, resolving if necessary
 func (ev *Event) GetPtraceTraceeFileChangeTime() uint64 {
 	zeroValue := uint64(0)
@@ -10143,6 +10126,18 @@ func (ev *Event) GetPtraceTraceeFileUser() string {
 		return ""
 	}
 	return ev.FieldHandlers.ResolveFileFieldsUser(ev, &ev.PTrace.Tracee.Process.FileEvent.FileFields)
+}
+
+// GetPtraceTraceeForkTime returns the value of the field, resolving if necessary
+func (ev *Event) GetPtraceTraceeForkTime() time.Time {
+	zeroValue := time.Time{}
+	if ev.GetEventType().String() != "ptrace" {
+		return zeroValue
+	}
+	if ev.PTrace.Tracee == nil {
+		return zeroValue
+	}
+	return ev.PTrace.Tracee.Process.ForkTime
 }
 
 // GetPtraceTraceeFsgid returns the value of the field, resolving if necessary
@@ -13174,42 +13169,6 @@ func (ev *Event) GetSignalRetval() int64 {
 	return ev.Signal.SyscallEvent.Retval
 }
 
-// GetSignalTargetExecTime returns the value of the field, resolving if necessary
-func (ev *Event) GetSignalTargetExecTime() time.Time {
-	zeroValue := time.Time{}
-	if ev.GetEventType().String() != "signal" {
-		return zeroValue
-	}
-	if ev.Signal.Target == nil {
-		return zeroValue
-	}
-	return ev.Signal.Target.Process.ExecTime
-}
-
-// GetSignalTargetExitTime returns the value of the field, resolving if necessary
-func (ev *Event) GetSignalTargetExitTime() time.Time {
-	zeroValue := time.Time{}
-	if ev.GetEventType().String() != "signal" {
-		return zeroValue
-	}
-	if ev.Signal.Target == nil {
-		return zeroValue
-	}
-	return ev.Signal.Target.Process.ExitTime
-}
-
-// GetSignalTargetForkTime returns the value of the field, resolving if necessary
-func (ev *Event) GetSignalTargetForkTime() time.Time {
-	zeroValue := time.Time{}
-	if ev.GetEventType().String() != "signal" {
-		return zeroValue
-	}
-	if ev.Signal.Target == nil {
-		return zeroValue
-	}
-	return ev.Signal.Target.Process.ForkTime
-}
-
 // GetSignalTargetAncestorsArgs returns the value of the field, resolving if necessary
 func (ev *Event) GetSignalTargetAncestorsArgs() []string {
 	zeroValue := []string{}
@@ -15245,6 +15204,30 @@ func (ev *Event) GetSignalTargetEuser() string {
 	return ev.Signal.Target.Process.Credentials.EUser
 }
 
+// GetSignalTargetExecTime returns the value of the field, resolving if necessary
+func (ev *Event) GetSignalTargetExecTime() time.Time {
+	zeroValue := time.Time{}
+	if ev.GetEventType().String() != "signal" {
+		return zeroValue
+	}
+	if ev.Signal.Target == nil {
+		return zeroValue
+	}
+	return ev.Signal.Target.Process.ExecTime
+}
+
+// GetSignalTargetExitTime returns the value of the field, resolving if necessary
+func (ev *Event) GetSignalTargetExitTime() time.Time {
+	zeroValue := time.Time{}
+	if ev.GetEventType().String() != "signal" {
+		return zeroValue
+	}
+	if ev.Signal.Target == nil {
+		return zeroValue
+	}
+	return ev.Signal.Target.Process.ExitTime
+}
+
 // GetSignalTargetFileChangeTime returns the value of the field, resolving if necessary
 func (ev *Event) GetSignalTargetFileChangeTime() uint64 {
 	zeroValue := uint64(0)
@@ -15540,6 +15523,18 @@ func (ev *Event) GetSignalTargetFileUser() string {
 		return ""
 	}
 	return ev.FieldHandlers.ResolveFileFieldsUser(ev, &ev.Signal.Target.Process.FileEvent.FileFields)
+}
+
+// GetSignalTargetForkTime returns the value of the field, resolving if necessary
+func (ev *Event) GetSignalTargetForkTime() time.Time {
+	zeroValue := time.Time{}
+	if ev.GetEventType().String() != "signal" {
+		return zeroValue
+	}
+	if ev.Signal.Target == nil {
+		return zeroValue
+	}
+	return ev.Signal.Target.Process.ForkTime
 }
 
 // GetSignalTargetFsgid returns the value of the field, resolving if necessary
@@ -17639,6 +17634,11 @@ func (ev *Event) GetSpliceRetval() int64 {
 		return zeroValue
 	}
 	return ev.Splice.SyscallEvent.Retval
+}
+
+// GetTimestamp returns the value of the field, resolving if necessary
+func (ev *Event) GetTimestamp() time.Time {
+	return ev.FieldHandlers.ResolveEventTime(ev)
 }
 
 // GetUnlinkFileChangeTime returns the value of the field, resolving if necessary

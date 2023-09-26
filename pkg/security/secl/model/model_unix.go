@@ -300,9 +300,9 @@ type Process struct {
 	LinuxBinprm LinuxBinprm `field:"interpreter,check:HasInterpreter"` // Script interpreter as identified by the shebang
 
 	// pid_cache_t
-	ForkTime time.Time `field:"ForkTime,opts:getters_only" json:"-"`
-	ExitTime time.Time `field:"ExitTime,opts:getters_only" json:"-"`
-	ExecTime time.Time `field:"ExecTime,opts:getters_only" json:"-"`
+	ForkTime time.Time `field:"fork_time,opts:getters_only" json:"-"`
+	ExitTime time.Time `field:"exit_time,opts:getters_only" json:"-"`
+	ExecTime time.Time `field:"exec_time,opts:getters_only" json:"-"`
 
 	// TODO: merge with ExecTime
 	CreatedAt uint64 `field:"created_at,handler:ResolveProcessCreatedAt"` // SECLDoc[created_at] Definition:`Timestamp of the creation of the process`
