@@ -7,11 +7,12 @@ package client
 
 import (
 	"context"
-	"strings"
+	"sync"
 	"testing"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/comp/core/log"
+	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/languagedetection/languagemodels"
 	pbgo "github.com/DataDog/datadog-agent/pkg/proto/pbgo/process"
 	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
@@ -32,7 +33,14 @@ func (m *MockDCAClient) PostLanguageMetadata(ctx context.Context, request *pbgo.
 func TestClientFlush(t *testing.T) {
 	doneCh := make(chan struct{})
 	mockDCAClient := &MockDCAClient{doneCh: doneCh}
-	client := NewClient(context.Background(), nil, nil, mockDCAClient)
+	client := &client{
+		ctx:             context.TODO(),
+		langDetectionCl: mockDCAClient,
+		flushPeriod:     time.Millisecond,
+		mutex:           sync.Mutex{},
+		telemetry:       newComponentTelemetry(telemetry.GetCompatComponent()),
+		currentBatch:    newBatch(),
+	}
 
 	container := &containerInfo{
 		languages: map[string]*languagesSet{
@@ -67,10 +75,8 @@ func TestClientFlush(t *testing.T) {
 	podName := "nginx"
 	client.currentBatch.podInfo[podName] = podInfo
 
-	// flush the batch as it is done in the client to find potential data races
-	data := client.currentBatch
-	go client.flush(data)
-	client.currentBatch = newBatch()
+	// flush the batch as it is done in the client
+	go client.startFlushing()
 	<-doneCh
 	assert.Equal(t, []*pbgo.ParentLanguageAnnotationRequest{
 		{
@@ -90,16 +96,22 @@ func TestClientFlush(t *testing.T) {
 		},
 	}, mockDCAClient.payload)
 	// make sure we didn't touch the current batch
+	client.mutex.Lock()
+	defer client.mutex.Unlock()
 	assert.Equal(t, client.currentBatch, newBatch())
 }
 
 func TestClientProcessEvent(t *testing.T) {
-	ctx := context.Background()
-	mockConfig := config.NewConfig("datadog", "DD", strings.NewReplacer(".", "_"))
-	mockConfig.Set("language_detection.client_period", time.Second)
-
 	mockStore := workloadmeta.NewMockStore()
-	client := NewClient(ctx, mockConfig, mockStore, &MockDCAClient{})
+	client := &client{
+		ctx:          context.TODO(),
+		logger:       log.NewTemporaryLoggerWithoutInit(),
+		flushPeriod:  time.Millisecond,
+		mutex:        sync.Mutex{},
+		telemetry:    newComponentTelemetry(telemetry.GetCompatComponent()),
+		currentBatch: newBatch(),
+		store:        mockStore,
+	}
 
 	container := &workloadmeta.Container{
 		EntityID: workloadmeta.EntityID{
