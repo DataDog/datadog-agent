@@ -1985,6 +1985,7 @@ core,google.golang.org/grpc/internal/grpclog,Apache-2.0,Copyright 2014 gRPC auth
 core,google.golang.org/grpc/internal/grpcrand,Apache-2.0,Copyright 2014 gRPC authors.
 core,google.golang.org/grpc/internal/grpcsync,Apache-2.0,Copyright 2014 gRPC authors.
 core,google.golang.org/grpc/internal/grpcutil,Apache-2.0,Copyright 2014 gRPC authors.
+core,google.golang.org/grpc/internal/idle,Apache-2.0,Copyright 2014 gRPC authors.
 core,google.golang.org/grpc/internal/metadata,Apache-2.0,Copyright 2014 gRPC authors.
 core,google.golang.org/grpc/internal/pretty,Apache-2.0,Copyright 2014 gRPC authors.
 core,google.golang.org/grpc/internal/resolver,Apache-2.0,Copyright 2014 gRPC authors.
