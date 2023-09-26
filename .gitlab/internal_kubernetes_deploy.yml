@@ -2,81 +2,64 @@
 # internal_kubernetes_deploy stage
 # Contains jobs to trigger a pipeline in our k8s-datadog-agent-ops repo
 
-.internal_kubernetes_deploy:
+.internal_kubernetes_deploy_experimental:
   stage: internal_kubernetes_deploy
   artifacts:
     untracked: true
   rules:
   - if: $FORCE_K8S_DEPLOYMENT == "true"
     when: always
-#  - if: $CI_COMMIT_BRANCH != "main"
-#    when: never
+  - if: $CI_COMMIT_BRANCH != "main"
+    when: never
   - !reference [.on_deploy_a7]
+  needs:
+    - job: docker_trigger_internal
+      artifacts: false
+    - job: docker_trigger_cluster_agent_internal
+      artifacts: false
+    - job: k8s-e2e-main # Currently only require container Argo workflow
+      artifacts: false
+      optional: true
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
   tags: ["arch:amd64"]
   variables:
     OPTION_AUTOMATIC_ROLLOUT: "true"
+    OPTION_PRE_SCRIPT: "patch-cluster-images-operator.sh snowver ${CI_COMMIT_REF_SLUG}-jmx-${CI_COMMIT_SHORT_SHA} ${CI_COMMIT_REF_SLUG}-${CI_COMMIT_SHORT_SHA}"
     SKIP_PLAN_CHECK: "true"
     WORKFLOW: "agents"
+    FILTER: "cluster.env == 'experimental' and cluster.shortName == 'snowver'"
     FORCE_DEPLOYMENT: "true"
   script:
     - source /root/.bashrc
     - export GITLAB_TOKEN=$(aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.gitlab_pipelines_scheduler_token --with-decryption --query "Parameter.Value" --out text)
-#    - inv pipeline.trigger-child-pipeline --project-name "DataDog/k8s-datadog-agent-ops" --git-ref "main" --variables "OPTION_AUTOMATIC_ROLLOUT,WORKFLOW,OPTION_PRE_SCRIPT,FILTER,SKIP_PLAN_CHECK,FORCE_DEPLOYMENT"
+    - inv pipeline.trigger-child-pipeline --project-name "DataDog/k8s-datadog-agent-ops" --git-ref "main" --variables "OPTION_AUTOMATIC_ROLLOUT,WORKFLOW,OPTION_PRE_SCRIPT,FILTER,SKIP_PLAN_CHECK,FORCE_DEPLOYMENT"
     - inv pipeline.changelog ${CI_COMMIT_SHORT_SHA}
-
-#internal_kubernetes_deploy_snowver:
-#  extends: .internal_kubernetes_deploy
-#  needs:
-#    - job: docker_trigger_internal
-#      artifacts: false
-#    - job: docker_trigger_cluster_agent_internal
-#      artifacts: false
-#    - job: k8s-e2e-main # Currently only require container Argo workflow
-#      artifacts: false
-#      optional: true
-#  variables:
-#    OPTION_PRE_SCRIPT: "patch-cluster-images-operator.sh snowver ${CI_COMMIT_REF_SLUG}-jmx-${CI_COMMIT_SHORT_SHA} ${CI_COMMIT_REF_SLUG}-${CI_COMMIT_SHORT_SHA}"
-#    FILTER: "cluster.shortName == 'snowver'"
-
-internal_kubernetes_deploy_stripe:
-  extends: .internal_kubernetes_deploy
-  needs:
-#    - job: internal_kubernetes_deploy_snowver
-  when: manual
-  variables:
-    OPTION_PRE_SCRIPT: "patch-cluster-images-operator.sh stripe ${CI_COMMIT_REF_SLUG}-jmx-${CI_COMMIT_SHORT_SHA} ${CI_COMMIT_REF_SLUG}-${CI_COMMIT_SHORT_SHA}"
-    FILTER: "cluster.shortName =='stripe'"
-
 
 notify-slack:
   stage: internal_kubernetes_deploy
   image: registry.ddbuild.io/slack-notifier:sdm
   tags: ["arch:amd64"]
   needs:
-    - job: internal_kubernetes_deploy_stripe
+    - job: internal_kubernetes_deploy
   dependencies:
     - internal_kubernetes_deploy_stripe
   script:
     - |
       results=()
       while IFS= read -r email; do
-        result=$(echo "$email" | email2slackid || echo "$email")
+        result=$(echo "$email" | email2slackid)
         if [ -z "$result" ]; then
-          echo "Author slackId not found"
           result=$email
         fi
         results+=("$result")
-        echo "Result for $email: $result"
         sleep 1
       done < unique_emails.txt
-      echo "Results array: ${results[@]}"
+      echo "Contributor list: ${results[@]}"
       {
         cat system_probe_commits.txt
-        echo "$(printf "<@%s>" "U049LRNEE01")"
+        echo "$(printf "<@%s>" "${results[@]}")"
       } > slack_message.txt
-      # echo "$(printf "<@%s>" "${results[@]}")"
       postmessage "system-probe-ops" "$(cat slack_message.txt)"
       git checkout ${CI_COMMIT_SHORT_SHA}
-      #    - git tag stripe_staging
-      #    - git push origin stripe_staging
+      git tag stripe_staging
+      git push origin stripe_staging

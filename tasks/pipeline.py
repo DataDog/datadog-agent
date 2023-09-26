@@ -19,6 +19,7 @@ from .libs.datadog_api import create_count, send_metrics
 from .libs.pipeline_data import get_failed_jobs
 from .libs.pipeline_notifications import (
     GITHUB_SLACK_MAP,
+    base_message,
     read_owners,
     check_for_missing_owners_slack_and_jira,
     find_job_owners,
