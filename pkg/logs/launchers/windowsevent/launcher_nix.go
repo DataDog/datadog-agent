@@ -5,6 +5,7 @@
 
 //go:build !windows
 
+// Package windowsevent is not supported on non-windows platforms
 package windowsevent
 
 import (
@@ -16,14 +17,18 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/tailers"
 )
 
+// Launcher is a stub for non-windows platforms
 type Launcher struct{}
 
+// Start is a stub for non-windows platforms
 func (l *Launcher) Start(sourceProvider launchers.SourceProvider, pipelineProvider pipeline.Provider, registry auditor.Registry, tracker *tailers.TailerTracker) {
 	log.Warn("windows event log not supported on this system")
 }
 
+// Stop is a stub for non-windows platforms
 func (t *Launcher) Stop() {}
 
+// NewLauncher is a stub for non-windows platforms
 func NewLauncher() *Launcher {
 	return &Launcher{}
 }

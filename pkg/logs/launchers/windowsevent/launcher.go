@@ -5,6 +5,7 @@
 
 //go:build windows
 
+// Package windowsevent launches tailers for the Windows event log
 package windowsevent
 
 import (
