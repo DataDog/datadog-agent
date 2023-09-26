@@ -78,7 +78,7 @@ func (c *collector) Pull(_ context.Context) error {
 
 		events = append(events, workloadmeta.CollectorEvent{
 			Type:   workloadmeta.EventTypeUnset,
-			Source: workloadmeta.SourceRuntime,
+			Source: workloadmeta.SourceCLI,
 			Entity: &workloadmeta.Container{
 				EntityID: seenID,
 			},
@@ -127,7 +127,7 @@ func convertToEvent(container *podman.Container) workloadmeta.CollectorEvent {
 
 	return workloadmeta.CollectorEvent{
 		Type:   eventType,
-		Source: workloadmeta.SourceRuntime,
+		Source: workloadmeta.SourceCLI,
 		Entity: &workloadmeta.Container{
 			EntityID: workloadmeta.EntityID{
 				Kind: workloadmeta.KindContainer,

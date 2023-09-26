@@ -490,7 +490,7 @@ func toWorkloadmetaSource(protoSource pb.WorkloadmetaSource) (workloadmeta.Sourc
 	case pb.WorkloadmetaSource_ALL:
 		return workloadmeta.SourceAll, nil
 	case pb.WorkloadmetaSource_RUNTIME:
-		return workloadmeta.SourceRuntime, nil
+		return workloadmeta.SourceCLI, nil
 	case pb.WorkloadmetaSource_NODE_ORCHESTRATOR:
 		return workloadmeta.SourceNodeOrchestrator, nil
 	case pb.WorkloadmetaSource_CLUSTER_ORCHESTRATOR:

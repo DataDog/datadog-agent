@@ -153,7 +153,7 @@ func (rc rcClient) agentConfigUpdateCallback(updates map[string]state.RawConfig,
 		}
 		err = settings.SetRuntimeSetting("log_level", newLevel, newSource)
 
-	case config.SourceRuntime:
+	case config.SourceCLI:
 		pkglog.Warnf("Remote config could not change the log level due to CLI override")
 		return
 

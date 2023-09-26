@@ -153,7 +153,7 @@ func TestPull(t *testing.T) {
 	expectedEvents := []workloadmeta.CollectorEvent{
 		{
 			Type:   workloadmeta.EventTypeSet,
-			Source: workloadmeta.SourceRuntime,
+			Source: workloadmeta.SourceCLI,
 			Entity: &workloadmeta.Container{
 				EntityID: workloadmeta.EntityID{
 					Kind: workloadmeta.KindContainer,
@@ -204,7 +204,7 @@ func TestPull(t *testing.T) {
 		},
 		{
 			Type:   workloadmeta.EventTypeSet,
-			Source: workloadmeta.SourceRuntime,
+			Source: workloadmeta.SourceCLI,
 			Entity: &workloadmeta.Container{
 				EntityID: workloadmeta.EntityID{
 					Kind: workloadmeta.KindContainer,

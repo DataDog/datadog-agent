@@ -22,7 +22,7 @@ type Filter struct {
 //
 // Similarly, only events for entities collected from the given source will be
 // delivered, and the entities in the events will contain data only from that
-// source.  For example, if source is SourceRuntime, then only events from the
+// source.  For example, if source is SourceCLI, then only events from the
 // runtime will be delivered, and they will not contain any additional metadata
 // from orchestrators or cluster orchestrators.  Use SourceAll to collect data
 // from all sources.

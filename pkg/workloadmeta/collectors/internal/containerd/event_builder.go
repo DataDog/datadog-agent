@@ -80,7 +80,7 @@ func createSetEvent(container containerd.Container, namespace string, containerd
 
 	return workloadmeta.CollectorEvent{
 		Type:   workloadmeta.EventTypeSet,
-		Source: workloadmeta.SourceRuntime,
+		Source: workloadmeta.SourceCLI,
 		Entity: &entity,
 	}, nil
 }
@@ -100,7 +100,7 @@ func createDeletionEvent(containerID string, exitInfo *exitInfo) workloadmeta.Co
 
 	return workloadmeta.CollectorEvent{
 		Type:   workloadmeta.EventTypeUnset,
-		Source: workloadmeta.SourceRuntime,
+		Source: workloadmeta.SourceCLI,
 		Entity: container,
 	}
 }
