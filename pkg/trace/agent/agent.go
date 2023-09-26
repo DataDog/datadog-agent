@@ -205,7 +205,6 @@ func (a *Agent) loop() {
 				a.EventProcessor,
 				a.OTLPReceiver,
 				a.obfuscator,
-				a.obfuscator,
 				a.cardObfuscator,
 				a.DebugServer,
 			} {
