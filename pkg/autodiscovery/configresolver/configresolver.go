@@ -41,14 +41,17 @@ var templateVariables = map[string]variableGetter{
 	"kube":     getAdditionalTplVariables,
 }
 
+// NoServiceError represents an error that indicates that there's a problem with a service
 type NoServiceError struct {
 	message string
 }
 
+// Error returns the error message
 func (n *NoServiceError) Error() string {
 	return n.message
 }
 
+// NewNoServiceError returns a new NoServiceError
 func NewNoServiceError(message string) *NoServiceError {
 	return &NoServiceError{
 		message: message,

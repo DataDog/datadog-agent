@@ -31,12 +31,14 @@ type Provider struct {
 	config *common.KubeletConfig
 }
 
+// NewProvider returns a new Provider
 func NewProvider(config *common.KubeletConfig) *Provider {
 	return &Provider{
 		config: config,
 	}
 }
 
+// Provide sends the metrics collected from the `/spec` Kubelet endpoint
 func (p *Provider) Provide(kc kubelet.KubeUtilInterface, sender sender.Sender) error {
 	// Collect raw data
 	nodeSpecRaw, responseCode, err := kc.QueryKubelet(context.TODO(), "/spec/")

@@ -92,11 +92,13 @@ type CLCRunnerStats struct {
 	LastExecFailed       bool `json:"LastExecFailed"`
 }
 
+// Workers is used to unmarshal the workers info of each CLC Runner
 type Workers struct {
 	Count     int                   `json:"Count"`
 	Instances map[string]WorkerInfo `json:"Instances"`
 }
 
+// WorkerInfo is used to unmarshal the utilization of each worker
 type WorkerInfo struct {
 	Utilization float64 `json:"Utilization"`
 }

@@ -255,6 +255,7 @@ func (s *Store) Reset(newEntities []workloadmeta.Entity, source workloadmeta.Sou
 	panic("not implemented")
 }
 
+// ResetProcesses is not implemented in the testing store.
 func (s *Store) ResetProcesses(newProcesses []workloadmeta.Entity, source workloadmeta.Source) {
 	panic("not implemented")
 }

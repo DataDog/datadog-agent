@@ -32,6 +32,7 @@ const (
 	containerStatsPath       = "/stats"
 )
 
+// Client is an interface for ECS metadata v2 API clients.
 type Client interface {
 	GetContainerStats(ctx context.Context, id string) (*ContainerStats, error)
 	GetTask(ctx context.Context) (*Task, error)

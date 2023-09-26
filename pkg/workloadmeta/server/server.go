@@ -23,12 +23,14 @@ const (
 	workloadmetaKeepAliveInterval = 9 * time.Minute
 )
 
+// NewServer returns a new Server
 func NewServer(store workloadmeta.Store) *Server {
 	return &Server{
 		store: store,
 	}
 }
 
+// Server is a grpc server that streams workloadmeta entities
 type Server struct {
 	store workloadmeta.Store
 }

@@ -35,23 +35,26 @@ const (
 
 var errWorkloadmetaStreamNotStarted = errors.New("workloadmeta stream not started")
 
-type RemoteGrpcClient interface {
-	// StreamEntites establishes the stream between the client and the remote gRPC server.
+// GrpcClient interface that represents a gRPC client for the remote workloadmeta.
+type GrpcClient interface {
+	// StreamEntities establishes the stream between the client and the remote gRPC server.
 	StreamEntities(ctx context.Context, opts ...grpc.CallOption) (Stream, error)
 }
 
+// Stream is an interface that represents a gRPC stream.
 type Stream interface {
 	// Recv returns a response of the gRPC server
 	Recv() (interface{}, error)
 }
 
+// StreamHandler is an interface that defines a gRPC stream handler.
 type StreamHandler interface {
 	// Port returns the targeted port
 	Port() int
 	// IsEnabled returns if the feature is enabled
 	IsEnabled() bool
 	// NewClient returns a client to connect to a remote gRPC server.
-	NewClient(cc grpc.ClientConnInterface) RemoteGrpcClient
+	NewClient(cc grpc.ClientConnInterface) GrpcClient
 	// HandleResponse handles a response from the remote gRPC server.
 	HandleResponse(response interface{}) ([]workloadmeta.CollectorEvent, error)
 	// HandleResync is called on resynchronization.
@@ -66,7 +69,7 @@ type GenericCollector struct {
 	store        workloadmeta.Store
 	resyncNeeded bool
 
-	client RemoteGrpcClient
+	client GrpcClient
 	stream Stream
 
 	streamCtx    context.Context
@@ -78,6 +81,7 @@ type GenericCollector struct {
 	Insecure bool // for testing
 }
 
+// Start starts the collector.
 func (c *GenericCollector) Start(ctx context.Context, store workloadmeta.Store) error {
 	if !c.StreamHandler.IsEnabled() {
 		return fmt.Errorf("collector %s is not enabled", c.CollectorID)
@@ -123,6 +127,7 @@ func (c *GenericCollector) Start(ctx context.Context, store workloadmeta.Store) 
 	return nil
 }
 
+// Pull does nothing in workloadmeta collectors.
 func (c *GenericCollector) Pull(context.Context) error {
 	return nil
 }
@@ -169,6 +174,7 @@ func (c *GenericCollector) startWorkloadmetaStream(maxElapsed time.Duration) err
 	}, expBackoff)
 }
 
+// Run runs the collector.
 func (c *GenericCollector) Run() {
 	for {
 		select {

@@ -686,6 +686,8 @@ func convertmetadataMapperBundleToAPI(input *metadataMapperBundle) *apiv1.Metada
 	return output
 }
 
+// GetARandomNodeName chooses a random node and returns its name. Returns an
+// error if there are no nodes or if there's an error listing them.
 func (c *APIClient) GetARandomNodeName(ctx context.Context) (string, error) {
 	nodeList, err := c.Cl.CoreV1().Nodes().List(ctx, metav1.ListOptions{
 		Limit: 1,
