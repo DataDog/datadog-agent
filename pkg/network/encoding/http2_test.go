@@ -264,8 +264,12 @@ func testHTTP2IDCollisionRegression(t *testing.T, aggregateByStatusCode bool) {
 	// assert that the other connections sharing the same (source,destination)
 	// addresses but different PIDs *won't* be associated with the HTTP2 stats
 	// object
-	http2Blob, _, _ := http2Encoder.GetHTTP2AggregationsAndTags(connections[1])
-	assert.Nil(http2Blob)
+	streamer := NewProtoTestStreamer[*model.Connection]()
+	http2Encoder.WriteHTTP2AggregationsAndTags(connections[1], model.NewConnectionBuilder(streamer))
+
+	var conn model.Connection
+	streamer.Unwrap(t, &conn)
+	assert.Empty(conn.Http2Aggregations)
 }
 
 func (s *HTTP2Suite) TestHTTP2LocalhostScenario() {
@@ -352,12 +356,15 @@ func testHTTP2LocalhostScenario(t *testing.T, aggregateByStatusCode bool) {
 }
 
 func getHTTP2Aggregations(t *testing.T, encoder *http2Encoder, c network.ConnectionStats) (*model.HTTP2Aggregations, uint64, map[string]struct{}) {
-	http2Blob, staticTags, dynamicTags := encoder.GetHTTP2AggregationsAndTags(c)
-	require.NotNil(t, http2Blob)
+	streamer := NewProtoTestStreamer[*model.Connection]()
+	staticTags, dynamicTags := encoder.WriteHTTP2AggregationsAndTags(c, model.NewConnectionBuilder(streamer))
 
-	aggregations := new(model.HTTP2Aggregations)
-	err := proto.Unmarshal(http2Blob, aggregations)
+	var conn model.Connection
+	streamer.Unwrap(t, &conn)
+
+	var aggregations model.HTTP2Aggregations
+	err := proto.Unmarshal(conn.Http2Aggregations, &aggregations)
 	require.NoError(t, err)
 
-	return aggregations, staticTags, dynamicTags
+	return &aggregations, staticTags, dynamicTags
 }
