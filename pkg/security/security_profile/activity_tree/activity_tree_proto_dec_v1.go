@@ -82,7 +82,7 @@ func protoDecodeProcessNode(p *adproto.ProcessInfo) model.Process {
 			Tid: p.Tid,
 		},
 		PPid:        p.Ppid,
-		Cookie:      p.Cookie,
+		Cookie:      p.Cookie64,
 		IsThread:    p.IsThread,
 		IsExecChild: p.IsExecChild,
 		FileEvent:   *protoDecodeFileEvent(p.File),
@@ -99,7 +99,6 @@ func protoDecodeProcessNode(p *adproto.ProcessInfo) model.Process {
 		Credentials: protoDecodeCredentials(p.Credentials),
 
 		Argv:          make([]string, len(p.Args)),
-		ScrubbedArgv:  make([]string, len(p.Args)),
 		Argv0:         p.Argv0,
 		ArgsTruncated: p.ArgsTruncated,
 
@@ -108,7 +107,6 @@ func protoDecodeProcessNode(p *adproto.ProcessInfo) model.Process {
 	}
 
 	copy(mp.Argv, p.Args)
-	copy(mp.ScrubbedArgv, p.Args)
 	copy(mp.Envs, p.Envs)
 	return mp
 }

@@ -224,7 +224,7 @@ single_machine_performance-nightly-amd64-a7:
   extends: .docker_publish_job_definition
   stage: dev_container_deploy
   rules:
-    - !reference [.if_scheduled_main]
+    !reference [.on_scheduled_main]
   needs:
     - docker_build_agent7
   variables:

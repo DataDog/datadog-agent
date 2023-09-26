@@ -10,6 +10,7 @@ import re
 import sys
 import time
 from subprocess import check_output
+from types import SimpleNamespace
 
 from invoke import task
 from invoke.exceptions import Exit
@@ -543,12 +544,14 @@ def check_local_branch(ctx, branch):
 
 
 @contextlib.contextmanager
-def timed(name=""):
+def timed(name="", quiet=False):
     """Context manager that prints how long it took"""
     start = time.time()
+    res = SimpleNamespace()
     print(f"{name}")
     try:
-        yield
+        yield res
     finally:
-        end = time.time()
-        print(f"{name} completed in {end-start:.2f}s")
+        res.duration = time.time() - start
+        if not quiet:
+            print(f"{name} completed in {res.duration:.2f}s")

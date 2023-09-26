@@ -98,7 +98,7 @@ func TestConvertEcsStats(t *testing.T) {
 				ecsStats: &v2.ContainerStats{
 					Timestamp: testTimeStr,
 					CPU:       v2.CPUStats{Usage: v2.CPUUsage{Total: 1137691504, Kernelmode: 80000000, Usermode: 810000000}},
-					Memory:    v2.MemStats{Usage: 6504448, Details: v2.DetailedMem{RSS: 4669440, Cache: 651264}},
+					Memory:    v2.MemStats{Usage: 6504448, Details: v2.DetailedMem{RSS: 4669440, Cache: 651264, PgFault: 42}},
 					IO: v2.IOStats{
 						BytesPerDeviceAndKind: []v2.OPStat{
 							{
@@ -178,6 +178,7 @@ func TestConvertEcsStats(t *testing.T) {
 					UsageTotal: pointer.Ptr(6504448.0),
 					RSS:        pointer.Ptr(4669440.0),
 					Cache:      pointer.Ptr(651264.0),
+					Pgfault:    pointer.Ptr(42.0),
 				},
 				IO: &provider.ContainerIOStats{
 					ReadBytes:       pointer.Ptr(638976.0),

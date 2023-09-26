@@ -3,6 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2022-present Datadog, Inc.
 
+//go:build test
+
 package flowaggregator
 
 import (
@@ -872,7 +874,7 @@ func TestFlowAggregator_getSequenceDelta(t *testing.T) {
 	logger := fxutil.Test[log.Component](t, log.MockModule)
 	type round struct {
 		flowsToFlush          []*common.Flow
-		expectedSequenceDelta map[SequenceDeltaKey]SequenceDeltaValue
+		expectedSequenceDelta map[sequenceDeltaKey]sequenceDeltaValue
 	}
 	tests := []struct {
 		name   string
@@ -902,7 +904,7 @@ func TestFlowAggregator_getSequenceDelta(t *testing.T) {
 							FlowType:     common.TypeNetFlow5,
 						},
 					},
-					expectedSequenceDelta: map[SequenceDeltaKey]SequenceDeltaValue{
+					expectedSequenceDelta: map[sequenceDeltaKey]sequenceDeltaValue{
 						{FlowType: common.TypeNetFlow5, Namespace: "ns1", ExporterIP: "127.0.0.11"}: {LastSequence: 20, Delta: 0},
 						{FlowType: common.TypeNetFlow5, Namespace: "ns2", ExporterIP: "127.0.0.11"}: {LastSequence: 30, Delta: 0},
 					},
@@ -928,7 +930,7 @@ func TestFlowAggregator_getSequenceDelta(t *testing.T) {
 							FlowType:     common.TypeNetFlow5,
 						},
 					},
-					expectedSequenceDelta: map[SequenceDeltaKey]SequenceDeltaValue{
+					expectedSequenceDelta: map[sequenceDeltaKey]sequenceDeltaValue{
 						{FlowType: common.TypeNetFlow5, Namespace: "ns1", ExporterIP: "127.0.0.11"}: {LastSequence: 40, Delta: 20},
 						{FlowType: common.TypeNetFlow5, Namespace: "ns2", ExporterIP: "127.0.0.11"}: {LastSequence: 60, Delta: 30},
 					},
@@ -947,7 +949,7 @@ func TestFlowAggregator_getSequenceDelta(t *testing.T) {
 							FlowType:     common.TypeNetFlow5,
 						},
 					},
-					expectedSequenceDelta: map[SequenceDeltaKey]SequenceDeltaValue{
+					expectedSequenceDelta: map[sequenceDeltaKey]sequenceDeltaValue{
 						{FlowType: common.TypeNetFlow5, Namespace: "ns1", ExporterIP: "127.0.0.11"}: {LastSequence: 10000, Delta: 0},
 					},
 				},
@@ -960,7 +962,7 @@ func TestFlowAggregator_getSequenceDelta(t *testing.T) {
 							FlowType:     common.TypeNetFlow5,
 						},
 					},
-					expectedSequenceDelta: map[SequenceDeltaKey]SequenceDeltaValue{
+					expectedSequenceDelta: map[sequenceDeltaKey]sequenceDeltaValue{
 						{FlowType: common.TypeNetFlow5, Namespace: "ns1", ExporterIP: "127.0.0.11"}: {LastSequence: 100, Delta: 100, Reset: true},
 					},
 				},
@@ -978,7 +980,7 @@ func TestFlowAggregator_getSequenceDelta(t *testing.T) {
 							FlowType:     common.TypeNetFlow5,
 						},
 					},
-					expectedSequenceDelta: map[SequenceDeltaKey]SequenceDeltaValue{
+					expectedSequenceDelta: map[sequenceDeltaKey]sequenceDeltaValue{
 						{FlowType: common.TypeNetFlow5, Namespace: "ns1", ExporterIP: "127.0.0.11"}: {LastSequence: 10000, Delta: 0},
 					},
 				},
@@ -991,7 +993,7 @@ func TestFlowAggregator_getSequenceDelta(t *testing.T) {
 							FlowType:     common.TypeNetFlow5,
 						},
 					},
-					expectedSequenceDelta: map[SequenceDeltaKey]SequenceDeltaValue{
+					expectedSequenceDelta: map[sequenceDeltaKey]sequenceDeltaValue{
 						{FlowType: common.TypeNetFlow5, Namespace: "ns1", ExporterIP: "127.0.0.11"}: {LastSequence: 8900, Delta: 8900, Reset: true},
 					},
 				},
@@ -1004,7 +1006,7 @@ func TestFlowAggregator_getSequenceDelta(t *testing.T) {
 							FlowType:     common.TypeNetFlow5,
 						},
 					},
-					expectedSequenceDelta: map[SequenceDeltaKey]SequenceDeltaValue{
+					expectedSequenceDelta: map[sequenceDeltaKey]sequenceDeltaValue{
 						{FlowType: common.TypeNetFlow5, Namespace: "ns1", ExporterIP: "127.0.0.11"}: {LastSequence: 8500, Delta: 0},
 					},
 				},
@@ -1022,7 +1024,7 @@ func TestFlowAggregator_getSequenceDelta(t *testing.T) {
 							FlowType:     common.TypeSFlow5,
 						},
 					},
-					expectedSequenceDelta: map[SequenceDeltaKey]SequenceDeltaValue{
+					expectedSequenceDelta: map[sequenceDeltaKey]sequenceDeltaValue{
 						{FlowType: common.TypeSFlow5, Namespace: "ns1", ExporterIP: "127.0.0.11"}: {LastSequence: 10000, Delta: 0},
 					},
 				},
@@ -1035,7 +1037,7 @@ func TestFlowAggregator_getSequenceDelta(t *testing.T) {
 							FlowType:     common.TypeSFlow5,
 						},
 					},
-					expectedSequenceDelta: map[SequenceDeltaKey]SequenceDeltaValue{
+					expectedSequenceDelta: map[sequenceDeltaKey]sequenceDeltaValue{
 						{FlowType: common.TypeSFlow5, Namespace: "ns1", ExporterIP: "127.0.0.11"}: {LastSequence: 8900, Delta: 8900, Reset: true},
 					},
 				},
@@ -1048,7 +1050,7 @@ func TestFlowAggregator_getSequenceDelta(t *testing.T) {
 							FlowType:     common.TypeSFlow5,
 						},
 					},
-					expectedSequenceDelta: map[SequenceDeltaKey]SequenceDeltaValue{
+					expectedSequenceDelta: map[sequenceDeltaKey]sequenceDeltaValue{
 						{FlowType: common.TypeSFlow5, Namespace: "ns1", ExporterIP: "127.0.0.11"}: {LastSequence: 8500, Delta: 0},
 					},
 				},
@@ -1066,7 +1068,7 @@ func TestFlowAggregator_getSequenceDelta(t *testing.T) {
 							FlowType:     common.TypeNetFlow9,
 						},
 					},
-					expectedSequenceDelta: map[SequenceDeltaKey]SequenceDeltaValue{
+					expectedSequenceDelta: map[sequenceDeltaKey]sequenceDeltaValue{
 						{FlowType: common.TypeNetFlow9, Namespace: "ns1", ExporterIP: "127.0.0.11"}: {LastSequence: 10000, Delta: 0},
 					},
 				},
@@ -1079,7 +1081,7 @@ func TestFlowAggregator_getSequenceDelta(t *testing.T) {
 							FlowType:     common.TypeNetFlow9,
 						},
 					},
-					expectedSequenceDelta: map[SequenceDeltaKey]SequenceDeltaValue{
+					expectedSequenceDelta: map[sequenceDeltaKey]sequenceDeltaValue{
 						{FlowType: common.TypeNetFlow9, Namespace: "ns1", ExporterIP: "127.0.0.11"}: {LastSequence: 9800, Delta: 9800, Reset: true},
 					},
 				},
@@ -1092,7 +1094,7 @@ func TestFlowAggregator_getSequenceDelta(t *testing.T) {
 							FlowType:     common.TypeNetFlow9,
 						},
 					},
-					expectedSequenceDelta: map[SequenceDeltaKey]SequenceDeltaValue{
+					expectedSequenceDelta: map[sequenceDeltaKey]sequenceDeltaValue{
 						{FlowType: common.TypeNetFlow9, Namespace: "ns1", ExporterIP: "127.0.0.11"}: {LastSequence: 9750, Delta: 0},
 					},
 				},
@@ -1110,7 +1112,7 @@ func TestFlowAggregator_getSequenceDelta(t *testing.T) {
 							FlowType:     common.TypeIPFIX,
 						},
 					},
-					expectedSequenceDelta: map[SequenceDeltaKey]SequenceDeltaValue{
+					expectedSequenceDelta: map[sequenceDeltaKey]sequenceDeltaValue{
 						{FlowType: common.TypeIPFIX, Namespace: "ns1", ExporterIP: "127.0.0.11"}: {LastSequence: 10000, Delta: 0},
 					},
 				},
@@ -1123,7 +1125,7 @@ func TestFlowAggregator_getSequenceDelta(t *testing.T) {
 							FlowType:     common.TypeIPFIX,
 						},
 					},
-					expectedSequenceDelta: map[SequenceDeltaKey]SequenceDeltaValue{
+					expectedSequenceDelta: map[sequenceDeltaKey]sequenceDeltaValue{
 						{FlowType: common.TypeIPFIX, Namespace: "ns1", ExporterIP: "127.0.0.11"}: {LastSequence: 9800, Delta: 9800, Reset: true},
 					},
 				},
@@ -1136,7 +1138,7 @@ func TestFlowAggregator_getSequenceDelta(t *testing.T) {
 							FlowType:     common.TypeIPFIX,
 						},
 					},
-					expectedSequenceDelta: map[SequenceDeltaKey]SequenceDeltaValue{
+					expectedSequenceDelta: map[sequenceDeltaKey]sequenceDeltaValue{
 						{FlowType: common.TypeIPFIX, Namespace: "ns1", ExporterIP: "127.0.0.11"}: {LastSequence: 9750, Delta: 0},
 					},
 				},
