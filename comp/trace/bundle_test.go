@@ -23,11 +23,15 @@ import (
 func TestBundleDependencies(t *testing.T) {
 	require.NoError(t, fx.ValidateApp(
 		// instantiate all of the core components, since this is not done
-		// automatically.
-		coreconfig.Module,
+		// automatically. Use fx.Invoke to make sure components are initialized
+		// and all the providers are called.
 		fx.Supply(coreconfig.Params{}),
+		fx.Invoke(func(_ coreconfig.Component) {}),
+		coreconfig.Module,
+		fx.Invoke(func(_ config.Component) {}),
 		config.Module,
-		fx.Supply(agent.Params{}),
+		fx.Supply(&agent.Params{}),
+		fx.Invoke(func(_ agent.Component) {}),
 		Bundle))
 }
 
@@ -38,14 +42,16 @@ func TestMockBundleDependencies(t *testing.T) {
 	os.Setenv("DD_DD_URL", "https://example.com")
 	defer func() { os.Unsetenv("DD_DD_URL") }()
 
-	config := fxutil.Test[config.Component](t, fx.Options(
-		coreconfig.MockModule,
+	cfg := fxutil.Test[config.Component](t, fx.Options(
 		fx.Supply(coreconfig.Params{}),
+		fx.Invoke(func(_ coreconfig.Component) {}),
+		coreconfig.MockModule,
+		fx.Invoke(func(_ config.Component) {}),
 		config.MockModule,
-		fx.Supply(agent.Params{}),
+		fx.Supply(&agent.Params{}),
+		fx.Invoke(func(_ agent.Component) {}),
 		MockBundle,
 	))
-	cfg := config.Object()
 
-	require.NotNil(t, cfg)
+	require.NotNil(t, cfg.Object())
 }
