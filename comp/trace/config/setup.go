@@ -444,12 +444,12 @@ func applyDatadogConfig(c *config.AgentConfig, core corecompcfg.Component) error
 		}
 	}
 
-
 	if coreconfig.Datadog.IsSet("apm_config.filter_tags_regex.require") {
 		tags := coreconfig.Datadog.GetStringSlice("apm_config.filter_tags_regex.require")
 		for _, tag := range tags {
 			splitTag := splitTagRegex(tag)
 			if containsKey(c.RequireTags, splitTag.K) {
+				// RequireTags already has this tag, so skip the regexp.
 				continue
 			}
 			c.RequireTagsRegex = append(c.RequireTagsRegex, splitTag)
@@ -460,6 +460,7 @@ func applyDatadogConfig(c *config.AgentConfig, core corecompcfg.Component) error
 		for _, tag := range tags {
 			splitTag := splitTagRegex(tag)
 			if containsKey(c.RejectTags, splitTag.K) {
+				// RejectTags already has this tag, so skip the regexp.
 				continue
 			}
 			c.RejectTagsRegex = append(c.RejectTagsRegex, splitTag)
@@ -738,7 +739,6 @@ func splitTagRegex(tag string) *config.TagRegex {
 	}
 	return kv
 }
-
 
 // validate validates if the current configuration is good for the agent to start with.
 func validate(c *config.AgentConfig, core corecompcfg.Component) error {
