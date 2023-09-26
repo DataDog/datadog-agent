@@ -92,7 +92,7 @@ core,github.com/DataDog/gopsutil/internal/common,BSD-3-Clause,"Copyright (c) 200
 core,github.com/DataDog/gopsutil/mem,BSD-3-Clause,"Copyright (c) 2009 The Go Authors. All rights reserved | Copyright (c) 2014, WAKAYAMA Shirou"
 core,github.com/DataDog/gopsutil/net,BSD-3-Clause,"Copyright (c) 2009 The Go Authors. All rights reserved | Copyright (c) 2014, WAKAYAMA Shirou"
 core,github.com/DataDog/gopsutil/process,BSD-3-Clause,"Copyright (c) 2009 The Go Authors. All rights reserved | Copyright (c) 2014, WAKAYAMA Shirou"
-core,github.com/DataDog/gostackparse,Apache-2.0,"Copyright (c) 2016-Present, Datadog <info@datadoghq.com> | Copyright 2016 Datadog, Inc"
+core,github.com/DataDog/gostackparse,Apache-2.0,"Copyright (c) 2021-Present, Datadog <info@datadoghq.com> | Copyright 2021 Datadog, Inc"
 core,github.com/DataDog/mmh3,MIT,"Copyright (c) 2017 Datadog, Inc."
 core,github.com/DataDog/nikos/apt,MIT,"Copyright (c) 2020-present Datadog, Inc"
 core,github.com/DataDog/nikos/cos,MIT,"Copyright (c) 2020-present Datadog, Inc"
@@ -1017,6 +1017,7 @@ core,github.com/google/s2a-go/internal/v2,Apache-2.0,Copyright (c) 2020 Google
 core,github.com/google/s2a-go/internal/v2/certverifier,Apache-2.0,Copyright (c) 2020 Google
 core,github.com/google/s2a-go/internal/v2/remotesigner,Apache-2.0,Copyright (c) 2020 Google
 core,github.com/google/s2a-go/internal/v2/tlsconfigstore,Apache-2.0,Copyright (c) 2020 Google
+core,github.com/google/s2a-go/retry,Apache-2.0,Copyright (c) 2020 Google
 core,github.com/google/s2a-go/stream,Apache-2.0,Copyright (c) 2020 Google
 core,github.com/google/uuid,BSD-3-Clause,"Copyright (c) 2009,2014 Google Inc. All rights reserved | Paul Borman <borman@google.com> | bmatsuo | cd1 | dansouza | dsymonds | jboverfelt | shawnps | theory | wallclockbuilder"
 core,github.com/google/wire,Apache-2.0,Chris Lewis <cflewis@google.com> <cflewis@golang.org> <c@chris.to> | Christina Austin <4240737+clausti@users.noreply.github.com> | Eno Compton <enocom@google.com> | Google LLC | Issac Trotts <issactrotts@google.com> <issac.trotts@gmail.com> | Kumbirai Tanekha <kumbirai.tanekha@gmail.com> | Oleg Kovalov <iamolegkovalov@gmail.com> | Robert van Gent <rvangent@google.com> <vangent@gmail.com> | Ross Light <light@google.com> <ross@zombiezen.com> | Tuo Shan <shantuo@google.com> <sturbo89@gmail.com> | Yoichiro Shimizu <budougumi0617@gmail.com> | Zachary Romero <zacromero3@gmail.com> | ktr <ktr@syfm.me>
@@ -1187,7 +1188,7 @@ core,github.com/moby/sys/signal,Apache-2.0,Copyright (c) 2014-2018 The Docker & 
 core,github.com/modern-go/concurrent,Apache-2.0,Copyright (c) 2018 Tao Wen
 core,github.com/modern-go/reflect2,Apache-2.0,Copyright (c) 2018 Tao Wen
 core,github.com/mohae/deepcopy,MIT,Copyright (c) 2014 Joel
-core,github.com/montanaflynn/stats,MIT,Copyright (c) 2014-2015 Montana Flynn (https://anonfunction.com) | Copyright (c) 2014-2015 Montana Flynn <http://anonfunction.com>
+core,github.com/montanaflynn/stats,MIT,Copyright (c) 2014-2020 Montana Flynn (https://montanaflynn.com) | Copyright (c) 2014-2021 Montana Flynn (https://montanaflynn.com)
 core,github.com/mostynb/go-grpc-compression/internal/snappy,Apache-2.0,Copyright 2023 Mostyn Bramley-Moore.
 core,github.com/mostynb/go-grpc-compression/internal/zstd,Apache-2.0,Copyright 2023 Mostyn Bramley-Moore.
 core,github.com/mostynb/go-grpc-compression/nonclobbering/snappy,Apache-2.0,Copyright 2023 Mostyn Bramley-Moore.
@@ -2065,7 +2066,6 @@ core,gopkg.in/DataDog/dd-trace-go.v1/internal/telemetry,Apache-2.0,"Copyright 20
 core,gopkg.in/DataDog/dd-trace-go.v1/internal/traceprof,Apache-2.0,"Copyright 2016-Present Datadog, Inc."
 core,gopkg.in/DataDog/dd-trace-go.v1/internal/version,Apache-2.0,"Copyright 2016-Present Datadog, Inc."
 core,gopkg.in/DataDog/dd-trace-go.v1/profiler,Apache-2.0,"Copyright 2016-Present Datadog, Inc."
-core,gopkg.in/DataDog/dd-trace-go.v1/profiler/internal,Apache-2.0,"Copyright 2016-Present Datadog, Inc."
 core,gopkg.in/DataDog/dd-trace-go.v1/profiler/internal/fastdelta,Apache-2.0,"Copyright 2016-Present Datadog, Inc."
 core,gopkg.in/DataDog/dd-trace-go.v1/profiler/internal/immutable,Apache-2.0,"Copyright 2016-Present Datadog, Inc."
 core,gopkg.in/DataDog/dd-trace-go.v1/profiler/internal/pproflite,Apache-2.0,"Copyright 2016-Present Datadog, Inc."
