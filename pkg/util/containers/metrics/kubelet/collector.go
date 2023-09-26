@@ -256,6 +256,8 @@ func convertContainerStats(kubeContainerStats *v1alpha1.ContainerStats, outConta
 		outContainerStats.Memory = &provider.ContainerMemStats{
 			UsageTotal: pointer.UIntPtrToFloatPtr(kubeContainerStats.Memory.UsageBytes),
 			RSS:        pointer.UIntPtrToFloatPtr(kubeContainerStats.Memory.RSSBytes),
+			Pgfault:    pointer.UIntPtrToFloatPtr(kubeContainerStats.Memory.PageFaults),
+			Pgmajfault: pointer.UIntPtrToFloatPtr(kubeContainerStats.Memory.MajorPageFaults),
 		}
 
 		// On Linux `RSS` is set. On Windows only `WorkingSetBytes` is set
