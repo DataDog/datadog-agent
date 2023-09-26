@@ -33,8 +33,8 @@ type QueryMetricsConfig struct {
 	Enabled            bool  `yaml:"enabled"`
 	CollectionInterval int64 `yaml:"collection_interval"`
 	DBRowsLimit        int   `yaml:"db_rows_limit"`
-	PlanCacheRetention int   `yaml:"plan_cache_retention"`
 	DisableLastActive  bool  `yaml:"disable_last_active"`
+	Lookback           int64 `yaml:"lookback"`
 }
 
 type SysMetricsConfig struct {
@@ -55,6 +55,7 @@ type SharedMemoryConfig struct {
 
 type ExecutionPlansConfig struct {
 	Enabled              bool `yaml:"enabled"`
+	PlanCacheRetention   int  `yaml:"plan_cache_retention"`
 	LogUnobfuscatedPlans bool `yaml:"log_unobfuscated_plans"`
 }
 
@@ -141,7 +142,8 @@ func NewCheckConfig(rawInstance integration.Data, rawInitConfig integration.Data
 	instance.QueryMetrics.Enabled = true
 	instance.QueryMetrics.CollectionInterval = defaultMetricCollectionInterval
 	instance.QueryMetrics.DBRowsLimit = 10000
-	instance.QueryMetrics.PlanCacheRetention = 15
+
+	instance.ExecutionPlans.PlanCacheRetention = 15
 
 	instance.SysMetrics.Enabled = true
 	instance.Tablespaces.Enabled = true
@@ -179,7 +181,27 @@ func NewCheckConfig(rawInstance integration.Data, rawInitConfig integration.Data
 		InitConfig:     initCfg,
 	}
 
-	log.Debugf("Oracle config: %s", c.String())
+	log.Debugf("%s@%d/%s Oracle config: %s", instance.Server, instance.Port, instance.ServiceName, c.String())
 
 	return c, nil
+}
+
+// GetLogPrompt returns a config based prompt
+func GetLogPrompt(c InstanceConfig) string {
+	if c.TnsAlias != "" {
+		return c.TnsAlias
+	}
+
+	var p string
+	if c.Server != "" {
+		p = c.Server
+	}
+	if c.Port != 0 {
+		p = fmt.Sprintf("%s:%d", p, c.Port)
+	}
+	if c.ServiceName != "" {
+		p = fmt.Sprintf("%s/%s", p, c.ServiceName)
+	}
+	p = fmt.Sprintf("%s>", p)
+	return p
 }

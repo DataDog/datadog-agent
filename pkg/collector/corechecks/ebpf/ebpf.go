@@ -5,6 +5,7 @@
 
 //go:build cgo && linux
 
+// Package ebpf contains all the ebpf-based checks.
 package ebpf
 
 import (
@@ -19,7 +20,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/ebpf/probe/ebpfcheck"
+	ebpfcheck "github.com/DataDog/datadog-agent/pkg/collector/corechecks/ebpf/probe/ebpfcheck/model"
 	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
 	processnet "github.com/DataDog/datadog-agent/pkg/process/net"
 	"github.com/DataDog/datadog-agent/pkg/util/log"

@@ -231,6 +231,7 @@ func convertMemoryStats(memStats *v2.MemStats) *provider.ContainerMemStats {
 		UsageTotal: pointer.Ptr(float64(memStats.Usage)),
 		RSS:        pointer.Ptr(float64(memStats.Details.RSS)),
 		Cache:      pointer.Ptr(float64(memStats.Details.Cache)),
+		Pgfault:    pointer.Ptr(float64(memStats.Details.PgFault)), // ECS returns only PgFault. Should it be mapped to pgfault or pgmajfault ?
 	}
 
 	if memStats.Limit > 0 && memStats.Limit < ecsUnsetMemoryLimit {

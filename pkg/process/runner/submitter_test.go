@@ -196,6 +196,7 @@ func TestCollectorMessagesToCheckResult(t *testing.T) {
 				headers.ContainerCountHeader: "3",
 				headers.ContentTypeHeader:    headers.ProtobufContentType,
 				headers.RequestIDHeader:      requestID,
+				headers.AgentStartTime:       strconv.Itoa(int(submitter.agentStartTime)),
 			},
 		},
 		{
@@ -211,6 +212,7 @@ func TestCollectorMessagesToCheckResult(t *testing.T) {
 				headers.ProcessVersionHeader: agentVersion.GetNumber(),
 				headers.ContainerCountHeader: "3",
 				headers.ContentTypeHeader:    headers.ProtobufContentType,
+				headers.AgentStartTime:       strconv.Itoa(int(submitter.agentStartTime)),
 			},
 		},
 		{
@@ -226,6 +228,7 @@ func TestCollectorMessagesToCheckResult(t *testing.T) {
 				headers.ProcessVersionHeader: agentVersion.GetNumber(),
 				headers.ContainerCountHeader: "2",
 				headers.ContentTypeHeader:    headers.ProtobufContentType,
+				headers.AgentStartTime:       strconv.Itoa(int(submitter.agentStartTime)),
 			},
 		},
 		{
@@ -241,6 +244,7 @@ func TestCollectorMessagesToCheckResult(t *testing.T) {
 				headers.ProcessVersionHeader: agentVersion.GetNumber(),
 				headers.ContainerCountHeader: "5",
 				headers.ContentTypeHeader:    headers.ProtobufContentType,
+				headers.AgentStartTime:       strconv.Itoa(int(submitter.agentStartTime)),
 			},
 		},
 		{
@@ -252,6 +256,7 @@ func TestCollectorMessagesToCheckResult(t *testing.T) {
 				headers.ProcessVersionHeader: agentVersion.GetNumber(),
 				headers.ContainerCountHeader: "0",
 				headers.ContentTypeHeader:    headers.ProtobufContentType,
+				headers.AgentStartTime:       strconv.Itoa(int(submitter.agentStartTime)),
 			},
 		},
 		{
@@ -265,6 +270,7 @@ func TestCollectorMessagesToCheckResult(t *testing.T) {
 				headers.ContentTypeHeader:      headers.ProtobufContentType,
 				headers.EVPOriginHeader:        "process-agent",
 				headers.EVPOriginVersionHeader: version.AgentVersion,
+				headers.AgentStartTime:         strconv.Itoa(int(submitter.agentStartTime)),
 			},
 		},
 	}

@@ -231,6 +231,8 @@ func buildMemoryStats(cgs *cgroups.MemoryStats) *provider.ContainerMemStats {
 	convertField(cgs.SwapLimit, &cs.SwapLimit)
 	convertField(cgs.OOMEvents, &cs.OOMEvents)
 	convertField(cgs.Peak, &cs.Peak)
+	convertField(cgs.Pgfault, &cs.Pgfault)
+	convertField(cgs.Pgmajfault, &cs.Pgmajfault)
 	convertFieldAndUnit(cgs.PSISome.Total, &cs.PartialStallTime, float64(time.Microsecond))
 
 	// Compute complex fields
@@ -252,6 +254,7 @@ func buildCPUStats(cgs *cgroups.CPUStats, parentCPUStatsRetriever func(parentCPU
 	convertField(cgs.System, &cs.System)
 	convertField(cgs.User, &cs.User)
 	convertField(cgs.Shares, &cs.Shares)
+	convertField(cgs.Weight, &cs.Weight)
 	convertField(cgs.ElapsedPeriods, &cs.ElapsedPeriods)
 	convertField(cgs.ThrottledPeriods, &cs.ThrottledPeriods)
 	convertField(cgs.ThrottledTime, &cs.ThrottledTime)

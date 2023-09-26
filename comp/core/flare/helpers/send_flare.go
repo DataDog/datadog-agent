@@ -34,7 +34,28 @@ type flareResponse struct {
 	Error  string `json:"error,omitempty"`
 }
 
-func getFlareReader(multipartBoundary, archivePath, caseID, email, hostname, source string) io.ReadCloser {
+// FlareSource has metadata about why the flare was sent
+type FlareSource struct {
+	sourceType string
+	rcTaskUUID string
+}
+
+// NewLocalFlareSource returns a flare source struct for local flares
+func NewLocalFlareSource() FlareSource {
+	return FlareSource{
+		sourceType: "local",
+	}
+}
+
+// NewRemoteConfigFlareSource returns a flare source struct for remote-config
+func NewRemoteConfigFlareSource(rcTaskUUID string) FlareSource {
+	return FlareSource{
+		sourceType: "local",
+		rcTaskUUID: rcTaskUUID,
+	}
+}
+
+func getFlareReader(multipartBoundary, archivePath, caseID, email, hostname string, source FlareSource) io.ReadCloser {
 	//No need to close the reader, http.Client does it for us
 	bodyReader, bodyWriter := io.Pipe()
 
@@ -53,8 +74,12 @@ func getFlareReader(multipartBoundary, archivePath, caseID, email, hostname, sou
 		if email != "" {
 			writer.WriteField("email", email) //nolint:errcheck
 		}
-		if source != "" {
-			writer.WriteField("source", source) //nolint:errcheck
+		if source.sourceType != "" {
+			writer.WriteField("source", source.sourceType) //nolint:errcheck
+		}
+		if source.rcTaskUUID != "" {
+			// UUID of the remote-config task sending the flare
+			writer.WriteField("rc_task_uuid", source.rcTaskUUID) //nolint:errcheck
 		}
 
 		p, err := writer.CreateFormFile("flare_file", filepath.Base(archivePath))
@@ -83,7 +108,7 @@ func getFlareReader(multipartBoundary, archivePath, caseID, email, hostname, sou
 	return bodyReader
 }
 
-func readAndPostFlareFile(archivePath, caseID, email, hostname, source, url string, client *http.Client) (*http.Response, error) {
+func readAndPostFlareFile(archivePath, caseID, email, hostname, url string, source FlareSource, client *http.Client) (*http.Response, error) {
 	// Having resolved the POST URL, we do not expect to see further redirects, so do not
 	// handle them.
 	client.CheckRedirect = func(req *http.Request, via []*http.Request) error {
@@ -196,7 +221,7 @@ func mkURL(baseURL string, caseID string, apiKey string) string {
 
 // SendTo sends a flare file to the backend. This is part of the "helpers" package while all the code is moved to
 // components. When possible use the "Send" method of the "flare" component instead.
-func SendTo(archivePath, caseID, email, source, apiKey, url string) (string, error) {
+func SendTo(archivePath, caseID, email, apiKey, url string, source FlareSource) (string, error) {
 	hostname, err := hostnameUtil.Get(context.TODO())
 	if err != nil {
 		hostname = "unknown"
@@ -218,7 +243,7 @@ func SendTo(archivePath, caseID, email, source, apiKey, url string) (string, err
 		return "", err
 	}
 
-	r, err := readAndPostFlareFile(archivePath, caseID, email, hostname, source, url, client)
+	r, err := readAndPostFlareFile(archivePath, caseID, email, hostname, url, source, client)
 	if err != nil {
 		return "", err
 	}

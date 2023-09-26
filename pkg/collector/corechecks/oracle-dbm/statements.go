@@ -21,143 +21,6 @@ import (
 	cache "github.com/patrickmn/go-cache"
 )
 
-/*
- * We are selecting from sql_fulltext instead of sql_text because sql_text doesn't preserve the new lines.
- * sql_fulltext, despite "full" in its name, truncates the text after the first 1000 characters.
- * For such statements, we will have to get the text from v$sql which has the complete text.
- */
-const QUERY_FMS_RANDOM = `SELECT /* DD_QM_FMS */ s.con_id con_id, c.name pdb_name, s.force_matching_signature, plan_hash_value, max(dbms_lob.substr(sql_fulltext, 1000, 1)) sql_text, max(length(sql_text)) sql_text_length, max(s.sql_id) sql_id, 
-	sum(parse_calls) as parse_calls,
-	sum(disk_reads) as disk_reads,
-	sum(direct_writes) as direct_writes,
-	sum(direct_reads) as direct_reads,
-	sum(buffer_gets) as buffer_gets,
-	sum(rows_processed) as rows_processed,
-	sum(serializable_aborts) as serializable_aborts,
-	sum(fetches) as fetches,
-	sum(executions) as executions,
-	sum(end_of_fetch_count) as end_of_fetch_count,
-	sum(loads) as loads,
-	sum(version_count) as version_count,
-	sum(invalidations) as invalidations,
-	sum(px_servers_executions) as px_servers_executions,
-	sum(cpu_time) as cpu_time,
-	sum(elapsed_time) as elapsed_time,
-	sum(application_wait_time) as application_wait_time,
-	sum(concurrency_wait_time) as concurrency_wait_time,
-	sum(cluster_wait_time) as cluster_wait_time,
-	sum(user_io_wait_time) as user_io_wait_time,
-	sum(plsql_exec_time) as plsql_exec_time,
-	sum(java_exec_time) as java_exec_time,
-	sum(sorts) as sorts,
-	sum(sharable_mem) as sharable_mem,
-	sum(typecheck_mem) as typecheck_mem,
-	sum(io_cell_offload_eligible_bytes) as io_cell_offload_eligible_bytes,
-	sum(io_interconnect_bytes) as io_interconnect_bytes,
-	sum(physical_read_requests) as physical_read_requests,
-	sum(physical_read_bytes) as physical_read_bytes,
-	sum(physical_write_requests) as physical_write_requests,
-	sum(physical_write_bytes) as physical_write_bytes,
-	sum(io_cell_uncompressed_bytes) as io_cell_uncompressed_bytes,
-	sum(io_cell_offload_returned_bytes) as io_cell_offload_returned_bytes,
-	sum(avoided_executions) as avoided_executions
-FROM v$sqlstats s, v$containers c 
-WHERE s.con_id = c.con_id (+) AND force_matching_signature != 0
-GROUP BY s.con_id, c.name, force_matching_signature, plan_hash_value 
-HAVING MAX (last_active_time) > sysdate - :seconds/24/60/60
-FETCH FIRST :limit ROWS ONLY`
-
-// queryForceMatchingSignatureLastActive Querying force_matching_signature = 0
-const queryForceMatchingSignatureLastActive = `SELECT /* DD_QM_FMS */ s.con_id con_id, c.name pdb_name, s.force_matching_signature, plan_hash_value, 
-	max(dbms_lob.substr(sql_fulltext, 1000, 1)) sql_text, max(length(sql_text)) sql_text_length, sq.sql_id,
-	sum(parse_calls) as parse_calls,
-	sum(disk_reads) as disk_reads,
-	sum(direct_writes) as direct_writes,
-	sum(direct_reads) as direct_reads,
-	sum(buffer_gets) as buffer_gets,
-	sum(rows_processed) as rows_processed,
-	sum(serializable_aborts) as serializable_aborts,
-	sum(fetches) as fetches,
-	sum(executions) as executions,
-	sum(end_of_fetch_count) as end_of_fetch_count,
-	sum(loads) as loads,
-	sum(version_count) as version_count,
-	sum(invalidations) as invalidations,
-	sum(px_servers_executions) as px_servers_executions,
-	sum(cpu_time) as cpu_time,
-	sum(elapsed_time) as elapsed_time,
-	sum(application_wait_time) as application_wait_time,
-	sum(concurrency_wait_time) as concurrency_wait_time,
-	sum(cluster_wait_time) as cluster_wait_time,
-	sum(user_io_wait_time) as user_io_wait_time,
-	sum(plsql_exec_time) as plsql_exec_time,
-	sum(java_exec_time) as java_exec_time,
-	sum(sorts) as sorts,
-	sum(sharable_mem) as sharable_mem,
-	sum(typecheck_mem) as typecheck_mem,
-	sum(io_cell_offload_eligible_bytes) as io_cell_offload_eligible_bytes,
-	sum(io_interconnect_bytes) as io_interconnect_bytes,
-	sum(physical_read_requests) as physical_read_requests,
-	sum(physical_read_bytes) as physical_read_bytes,
-	sum(physical_write_requests) as physical_write_requests,
-	sum(physical_write_bytes) as physical_write_bytes,
-	sum(io_cell_uncompressed_bytes) as io_cell_uncompressed_bytes,
-	sum(io_cell_offload_returned_bytes) as io_cell_offload_returned_bytes,
-	sum(avoided_executions) as avoided_executions
-FROM v$sqlstats s, v$containers c, ( 
-    SELECT * 
-    FROM ( 
-        SELECT force_matching_signature, sql_id, row_number ( ) over ( partition by force_matching_signature ORDER BY last_active_time DESC ) rowno
-    FROM v$sqlstats 
-    WHERE last_active_time > sysdate - :seconds/24/60/60 AND force_matching_signature != 0
-) 
-WHERE rowno = 1
-) sq 
-WHERE s.con_id = c.con_id (+) AND sq.force_matching_signature = s.force_matching_signature 
-GROUP BY s.con_id, c.name, s.force_matching_signature, plan_hash_value, sq.sql_id 
-FETCH FIRST :limit ROWS ONLY`
-
-// querySQLID force_matching_signature = 0
-const querySQLID = `SELECT /* DD_QM_SQLID */ s.con_id con_id, c.name pdb_name, sql_id, plan_hash_value, 
-	dbms_lob.substr(sql_fulltext, 1000, 1) sql_text, length(sql_text) sql_text_length, 
-	parse_calls,
-	disk_reads,
-	direct_writes,
-	direct_reads,
-	buffer_gets,
-	rows_processed,
-	serializable_aborts,
-	fetches,
-	executions,
-	end_of_fetch_count,
-	loads,
-	version_count,
-	invalidations,
-	px_servers_executions,
-	cpu_time,
-	elapsed_time,
-	application_wait_time,
-	concurrency_wait_time,
-	cluster_wait_time,
-	user_io_wait_time,
-	plsql_exec_time,
-	java_exec_time,
-	sorts,
-	sharable_mem,
-	typecheck_mem,
-	io_cell_offload_eligible_bytes,
-	io_interconnect_bytes,
-	physical_read_requests,
-	physical_read_bytes,
-	physical_write_requests,
-	physical_write_bytes,
-	io_cell_uncompressed_bytes,
-	io_cell_offload_returned_bytes,
-	avoided_executions
-FROM v$sqlstats s, v$containers c 
-WHERE s.con_id = c.con_id (+) AND last_active_time > sysdate - :seconds/24/60/60 AND force_matching_signature = 0
-FETCH FIRST :limit ROWS ONLY`
-
 // including sql_id for indexed access
 const PLAN_QUERY = `SELECT /* DD */
 	timestamp,
@@ -499,37 +362,46 @@ func (c *Check) StatementMetrics() (int, error) {
 
 	sender, err := c.GetSender()
 	if err != nil {
-		log.Errorf("GetSender statements metrics")
+		log.Errorf("%s GetSender statements metrics %s", c.logPrompt, err)
 		return 0, err
 	}
 
 	SQLCount := 0
 	var oracleRows []OracleRow
 	var planErrors uint16
+	queries := getStatementMetricsQueries(c)
 	if c.config.QueryMetrics.Enabled {
 		var statementMetrics []StatementMetricsDB
 		var sql string
 		if c.config.QueryMetrics.DisableLastActive {
-			sql = QUERY_FMS_RANDOM
+			sql = queries[fmsRandomQuery]
 		} else {
-			sql = queryForceMatchingSignatureLastActive
+			sql = queries[fmsLastActiveQuery]
 		}
+
+		var lookback int64
+		if c.config.QueryMetrics.Lookback != 0 {
+			lookback = c.config.QueryMetrics.Lookback
+		} else {
+			lookback = 2 * c.config.QueryMetrics.CollectionInterval
+		}
+
 		err := selectWrapper(
 			c,
 			&statementMetrics,
 			sql,
-			2*c.config.QueryMetrics.CollectionInterval,
+			lookback,
 			c.config.QueryMetrics.DBRowsLimit,
 		)
 		if err != nil {
 			return 0, fmt.Errorf("error collecting statement metrics for force_matching_signature: %w %s", err, sql)
 		}
-		log.Tracef("number of collected metrics with force_matching_signature %+v", len(statementMetrics))
+		log.Debugf("%s number of collected metrics with force_matching_signature %+v", c.logPrompt, len(statementMetrics))
 
 		statementMetricsAll := make([]StatementMetricsDB, len(statementMetrics))
 		copy(statementMetricsAll, statementMetrics)
 
-		sql = querySQLID
+		sql = queries[sqlIDQuery]
 		err = selectWrapper(
 			c,
 			&statementMetrics,
@@ -540,7 +412,7 @@ func (c *Check) StatementMetrics() (int, error) {
 		if err != nil {
 			return 0, fmt.Errorf("error collecting statement metrics for SQL_IDs: %w %s", err, sql)
 		}
-		log.Tracef("number of collected metrics with SQL_ID %+v", len(statementMetrics))
+		log.Debugf("%s number of collected metrics with SQL_ID %+v", c.logPrompt, len(statementMetrics))
 		statementMetricsAll = append(statementMetricsAll, statementMetrics...)
 		SQLCount = len(statementMetricsAll)
 
@@ -663,16 +535,10 @@ func (c *Check) StatementMetrics() (int, error) {
 			queryRow := QueryRow{}
 			var SQLStatement string
 
-			if statementMetricRow.SQLTextLength == 1000 {
+			if statementMetricRow.SQLTextLength == MaxSQLFullTextVSQLStats {
 				err := getFullSQLText(c, &SQLStatement, "sql_id", statementMetricRow.SQLID)
 				if err != nil {
-					log.Errorf("failed to get the full text %s for sql_id %s", err, statementMetricRow.SQLID)
-				}
-				if SQLStatement == "" && statementMetricRow.ForceMatchingSignature != "" {
-					err := getFullSQLText(c, &SQLStatement, "force_matching_signature", statementMetricRow.ForceMatchingSignature)
-					if err != nil {
-						log.Errorf("failed to get the full text %s for force_matching_signature %s", err, statementMetricRow.ForceMatchingSignature)
-					}
+					log.Errorf("%s failed to get the full text %s for sql_id %s", c.logPrompt, err, statementMetricRow.SQLID)
 				}
 				if SQLStatement != "" {
 					statementMetricRow.SQLText = SQLStatement
@@ -705,39 +571,42 @@ func (c *Check) StatementMetrics() (int, error) {
 
 			oracleRows = append(oracleRows, oracleRow)
 
-			if c.fqtEmitted != nil {
-				if _, found := c.fqtEmitted.Get(queryRow.QuerySignature); !found {
-					FQTDBMetadata := FQTDBMetadata{Tables: queryRow.Tables, Commands: queryRow.Commands}
-					FQTDB := FQTDB{Instance: c.cdbName, QuerySignature: queryRow.QuerySignature, Statement: SQLStatement, FQTDBMetadata: FQTDBMetadata}
-					FQTDBOracle := FQTDBOracle{
-						CDBName: c.cdbName,
-					}
-					FQTPayload := FQTPayload{
-						Timestamp:    float64(time.Now().UnixMilli()),
-						Host:         c.dbHostname,
-						AgentVersion: c.agentVersion,
-						Source:       common.IntegrationName,
-						Tags:         c.tagsString,
-						DBMType:      "fqt",
-						FQTDB:        FQTDB,
-						FQTDBOracle:  FQTDBOracle,
-					}
-					FQTPayloadBytes, err := json.Marshal(FQTPayload)
-					if err != nil {
-						log.Errorf("Error marshalling fqt payload: %s", err)
-					}
-					log.Tracef("Query metrics fqt payload %s", string(FQTPayloadBytes))
-					sender.EventPlatformEvent(FQTPayloadBytes, "dbm-samples")
-					c.fqtEmitted.Set(queryRow.QuerySignature, "1", cache.DefaultExpiration)
+			if c.fqtEmitted == nil {
+				c.fqtEmitted = getFqtEmittedCache()
+			}
+
+			if _, found := c.fqtEmitted.Get(queryRow.QuerySignature); !found {
+				FQTDBMetadata := FQTDBMetadata{Tables: queryRow.Tables, Commands: queryRow.Commands}
+				FQTDB := FQTDB{Instance: c.cdbName, QuerySignature: queryRow.QuerySignature, Statement: SQLStatement, FQTDBMetadata: FQTDBMetadata}
+				FQTDBOracle := FQTDBOracle{
+					CDBName: c.cdbName,
 				}
-			} else {
-				log.Error("Internal error: fqtEmitted = nil. The check might have been restarted. Ignore if it doesn't appear anymore.")
+				FQTPayload := FQTPayload{
+					Timestamp:    float64(time.Now().UnixMilli()),
+					Host:         c.dbHostname,
+					AgentVersion: c.agentVersion,
+					Source:       common.IntegrationName,
+					Tags:         c.tagsString,
+					DBMType:      "fqt",
+					FQTDB:        FQTDB,
+					FQTDBOracle:  FQTDBOracle,
+				}
+				FQTPayloadBytes, err := json.Marshal(FQTPayload)
+				if err != nil {
+					log.Errorf("%s Error marshalling fqt payload: %s", c.logPrompt, err)
+				}
+				log.Debugf("%s Query metrics fqt payload %s", c.logPrompt, string(FQTPayloadBytes))
+				sender.EventPlatformEvent(FQTPayloadBytes, "dbm-samples")
+				c.fqtEmitted.Set(queryRow.QuerySignature, "1", cache.DefaultExpiration)
 			}
 
 			if c.config.ExecutionPlans.Enabled {
 				planCacheKey := strconv.FormatUint(statementMetricRow.PlanHashValue, 10)
+				if c.planEmitted == nil {
+					c.planEmitted = getPlanEmittedCache(c)
+				}
 				_, found := c.planEmitted.Get(planCacheKey)
-				if c.config.QueryMetrics.PlanCacheRetention == 0 || !found {
+				if c.config.ExecutionPlans.PlanCacheRetention == 0 || !found {
 					var planStepsPayload []PlanDefinition
 					var planStepsDB []PlanRows
 					var oraclePlan OraclePlan
@@ -813,7 +682,7 @@ func (c *Check) StatementMetrics() (int, error) {
 										if c.config.ExecutionPlans.LogUnobfuscatedPlans {
 											stepPayload.AccessPredicates = fmt.Sprintf("%s, unobfuscated filter: %s", stepPayload.AccessPredicates, stepRow.AccessPredicates.String)
 										}
-										log.Error(stepPayload.AccessPredicates)
+										log.Errorf("%s %s", c.logPrompt, stepPayload.AccessPredicates)
 									}
 								}
 								if stepRow.FilterPredicates.Valid {
@@ -825,7 +694,7 @@ func (c *Check) StatementMetrics() (int, error) {
 										if c.config.ExecutionPlans.LogUnobfuscatedPlans {
 											stepPayload.FilterPredicates = fmt.Sprintf("%s, unobfuscated filter: %s", stepPayload.FilterPredicates, stepRow.FilterPredicates.String)
 										}
-										log.Error(stepPayload.FilterPredicates)
+										log.Errorf("%s %s", c.logPrompt, stepPayload.FilterPredicates)
 									}
 								}
 								if stepRow.Projection.Valid {
@@ -906,18 +775,18 @@ func (c *Check) StatementMetrics() (int, error) {
 							}
 							planPayloadBytes, err := json.Marshal(planPayload)
 							if err != nil {
-								log.Errorf("Error marshalling plan payload: %s", err)
+								log.Errorf("%s Error marshalling plan payload: %s", c.logPrompt, err)
 							}
 
 							sender.EventPlatformEvent(planPayloadBytes, "dbm-samples")
-							log.Tracef("Plan payload %+v", string(planPayloadBytes))
+							log.Debugf("%s Plan payload %+v", c.logPrompt, string(planPayloadBytes))
 							c.planEmitted.Set(planCacheKey, "1", cache.DefaultExpiration)
 						} else {
-							log.Infof("Plan for SQL_ID %s and plan_hash_value: %d not found", statementMetricRow.SQLID, statementMetricRow.PlanHashValue)
+							log.Infof("%s Plan for SQL_ID %s and plan_hash_value: %d not found", c.logPrompt, statementMetricRow.SQLID, statementMetricRow.PlanHashValue)
 						}
 					} else {
 						planErrors++
-						log.Errorf("failed getting execution plan %s for SQL_ID: %s, plan_hash_value: %d", err, statementMetricRow.SQLID, statementMetricRow.PlanHashValue)
+						log.Errorf("%s failed getting execution plan %s for SQL_ID: %s, plan_hash_value: %d", c.logPrompt, err, statementMetricRow.SQLID, statementMetricRow.PlanHashValue)
 					}
 				}
 			}
@@ -950,11 +819,11 @@ func (c *Check) StatementMetrics() (int, error) {
 
 	payloadBytes, err := json.Marshal(payload)
 	if err != nil {
-		log.Errorf("Error marshalling query metrics payload: %s", err)
+		log.Errorf("%s Error marshalling query metrics payload: %s", c.logPrompt, err)
 		return 0, err
 	}
 
-	log.Tracef("Query metrics payload %s", strings.ReplaceAll(string(payloadBytes), "@", "XX"))
+	log.Debugf("%s Query metrics payload %s", c.logPrompt, strings.ReplaceAll(string(payloadBytes), "@", "XX"))
 
 	sender.EventPlatformEvent(payloadBytes, "dbm-metrics")
 	sender.Gauge("dd.oracle.statements_metrics.time_ms", float64(time.Since(start).Milliseconds()), "", c.tags)
@@ -962,11 +831,6 @@ func (c *Check) StatementMetrics() (int, error) {
 		sender.Gauge("dd.oracle.plan_errors.count", float64(planErrors), "", c.tags)
 	}
 	sender.Commit()
-
-	c.statementsFilter.SQLIDs = nil
-	c.statementsFilter.ForceMatchingSignatures = nil
-	c.statementsCache.SQLIDs = nil
-	c.statementsCache.forceMatchingSignatures = nil
 
 	if planErrors > 0 {
 		return SQLCount, fmt.Errorf("SQL statements processed: %d, plan errors: %d", SQLCount, planErrors)

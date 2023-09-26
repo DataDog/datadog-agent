@@ -86,7 +86,7 @@ func (e *http2Encoder) encodeData(connectionData *USMConnectionData[http.Key, *h
 		stats := kvPair.Value
 
 		ms := http2StatsPool.Get().(*model.HTTPStats)
-		ms.Path = key.Path.Content
+		ms.Path = key.Path.Content.Get()
 		ms.FullPath = key.Path.FullPath
 		ms.Method = model.HTTPMethod(key.Method)
 		ms.StatsByStatusCode = e.getDataMap(stats.Data)

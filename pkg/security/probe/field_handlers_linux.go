@@ -14,6 +14,7 @@ import (
 
 	sprocess "github.com/DataDog/datadog-agent/pkg/security/resolvers/process"
 
+	"github.com/DataDog/datadog-agent/pkg/security/secl/args"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 )
 
@@ -56,6 +57,16 @@ func (fh *FieldHandlers) ResolveFileFilesystem(ev *model.Event, f *model.FileEve
 		}
 	}
 	return f.Filesystem
+}
+
+// ResolveProcessArgsFlags resolves the arguments flags of the event
+func (fh *FieldHandlers) ResolveProcessArgsFlags(ev *model.Event, process *model.Process) (flags []string) {
+	return args.ParseProcessFlags(fh.ResolveProcessArgv(ev, process))
+}
+
+// ResolveProcessArgsOptions resolves the arguments options of the event
+func (fh *FieldHandlers) ResolveProcessArgsOptions(ev *model.Event, process *model.Process) (options []string) {
+	return args.ParseProcessOptions(fh.ResolveProcessArgv(ev, process))
 }
 
 // ResolveFileFieldsInUpperLayer resolves whether the file is in an upper layer
@@ -250,7 +261,7 @@ func (fh *FieldHandlers) ResolveSELinuxBoolName(ev *model.Event, e *model.SELinu
 func (fh *FieldHandlers) GetProcessCacheEntry(ev *model.Event) (*model.ProcessCacheEntry, bool) {
 	ev.ProcessCacheEntry = fh.resolvers.ProcessResolver.Resolve(ev.PIDContext.Pid, ev.PIDContext.Tid, ev.PIDContext.ExecInode, false)
 	if ev.ProcessCacheEntry == nil {
-		ev.ProcessCacheEntry = model.NewEmptyProcessCacheEntry(ev.PIDContext.Pid, ev.PIDContext.Tid, false)
+		ev.ProcessCacheEntry = model.GetPlaceholderProcessCacheEntry(ev.PIDContext.Pid, ev.PIDContext.Tid, false)
 		return ev.ProcessCacheEntry, false
 	}
 	return ev.ProcessCacheEntry, true

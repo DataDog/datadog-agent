@@ -38,6 +38,11 @@ func (p *Probe) AddEventHandler(eventType model.EventType, handler EventHandler)
 	return nil
 }
 
+// AddFullAccessEventHandler sets a probe event handler for the UnknownEventType which requires access to all the struct fields
+func (p *Probe) AddFullAccessEventHandler(handler EventHandler) error {
+	return nil
+}
+
 // AddCustomEventHandler set the probe event handler
 func (p *Probe) AddCustomEventHandler(eventType model.EventType, handler CustomEventHandler) error {
 	return nil
@@ -84,5 +89,10 @@ func (p *Probe) StatsPollingInterval() time.Duration {
 
 // GetResolvers returns the resolvers of Probe
 func (p *Probe) GetResolvers() *resolvers.Resolvers {
+	return nil
+}
+
+// FlushDiscarders invalidates all the discarders
+func (p *Probe) FlushDiscarders() error {
 	return nil
 }

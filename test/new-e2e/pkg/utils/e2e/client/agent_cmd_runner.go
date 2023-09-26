@@ -7,6 +7,7 @@ package client
 
 import (
 	"errors"
+	"fmt"
 	"strings"
 	"testing"
 	"time"
@@ -36,11 +37,6 @@ func newAgentCommandRunner(t *testing.T, executeAgentCmdWithError executeAgentCm
 }
 
 func (agent *AgentCommandRunner) executeCommand(command string, commandArgs ...AgentArgsOption) string {
-	if !agent.isReady {
-		err := agent.waitForReadyTimeout(1 * time.Minute)
-		require.NoErrorf(agent.t, err, "the agent is not ready")
-		agent.isReady = true
-	}
 	args := newAgentArgs(commandArgs...)
 	arguments := []string{command}
 	arguments = append(arguments, args.Args...)
@@ -82,6 +78,11 @@ func (agent *AgentCommandRunner) ConfigCheck(commandArgs ...AgentArgsOption) str
 	return agent.executeCommand("configcheck", commandArgs...)
 }
 
+// Secret runs the secret command
+func (agent *AgentCommandRunner) Secret(commandArgs ...AgentArgsOption) string {
+	return agent.executeCommand("secret", commandArgs...)
+}
+
 // IsReady runs status command and returns true if the command returns a zero exit code.
 // This function should rarely be used.
 func (a *Agent) IsReady() bool {
@@ -104,7 +105,7 @@ func (agent *AgentCommandRunner) Status(commandArgs ...AgentArgsOption) *Status 
 	return newStatus(agent.executeCommand("status", commandArgs...))
 }
 
-// WaitForReady blocks up to timeout waiting for agent to be ready.
+// waitForReadyTimeout blocks up to timeout waiting for agent to be ready.
 // Retries every 100 ms up to timeout.
 // Returns error on failure.
 func (agent *AgentCommandRunner) waitForReadyTimeout(timeout time.Duration) error {
@@ -117,5 +118,24 @@ func (agent *AgentCommandRunner) waitForReadyTimeout(timeout time.Duration) erro
 		}
 		return nil
 	}, backoff.WithMaxRetries(backoff.NewConstantBackOff(interval), uint64(maxRetries)))
+	return err
+}
+
+// WaitAgentLogs waits for the agent log corresponding to the pattern
+// agent-name can be: datadog-agent, system-probe, security-agent
+// pattern: is the log that we are looking for
+// Retries every 500 ms up to timeout.
+// Returns error on failure.
+func (a *Agent) WaitAgentLogs(agentName string, pattern string) error {
+	err := backoff.Retry(func() error {
+		output, err := a.vmClient.ExecuteWithError(fmt.Sprintf("cat /var/log/datadog/%s.log", agentName))
+		if err != nil {
+			return err
+		}
+		if strings.Contains(output, pattern) {
+			return nil
+		}
+		return errors.New("no log found")
+	}, backoff.WithMaxRetries(backoff.NewConstantBackOff(500*time.Millisecond), 60))
 	return err
 }

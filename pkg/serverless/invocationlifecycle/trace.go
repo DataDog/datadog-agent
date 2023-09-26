@@ -125,8 +125,21 @@ func endExecutionSpan(executionContext *ExecutionStartInfo, triggerTags map[stri
 	}
 	captureLambdaPayloadEnabled := config.Datadog.GetBool("capture_lambda_payload")
 	if captureLambdaPayloadEnabled {
-		executionSpan.Meta["function.request"] = string(executionContext.requestPayload)
-		executionSpan.Meta["function.response"] = string(endDetails.ResponseRawPayload)
+		capturePayloadMaxDepth := config.Datadog.GetInt("capture_lambda_payload_max_depth")
+		requestPayloadJSON := make(map[string]interface{})
+		if err := json.Unmarshal(executionContext.requestPayload, &requestPayloadJSON); err != nil {
+			log.Debugf("[lifecycle] Failed to parse request payload: %v", err)
+			executionSpan.Meta["function.request"] = string(executionContext.requestPayload)
+		} else {
+			capturePayloadAsTags(requestPayloadJSON, executionSpan, "function.request", 0, capturePayloadMaxDepth)
+		}
+		responsePayloadJSON := make(map[string]interface{})
+		if err := json.Unmarshal(endDetails.ResponseRawPayload, &responsePayloadJSON); err != nil {
+			log.Debugf("[lifecycle] Failed to parse response payload: %v", err)
+			executionSpan.Meta["function.response"] = string(endDetails.ResponseRawPayload)
+		} else {
+			capturePayloadAsTags(responsePayloadJSON, executionSpan, "function.response", 0, capturePayloadMaxDepth)
+		}
 	}
 
 	if endDetails.IsError {
@@ -216,4 +229,67 @@ func InjectSpanID(executionContext *ExecutionStartInfo, headers http.Header) {
 		log.Debugf("injecting spanID = %v", value)
 		executionContext.SpanID = value
 	}
+}
+
+func capturePayloadAsTags(value interface{}, targetSpan *pb.Span, key string, depth int, maxDepth int) {
+	if key == "" {
+		return
+	}
+	if value == nil {
+		targetSpan.Meta[key] = ""
+		return
+	}
+	if depth >= maxDepth {
+		switch value := value.(type) {
+		case map[string]interface{}:
+			targetSpan.Meta[key] = convertJSONToString(value)
+		default:
+			targetSpan.Meta[key] = fmt.Sprintf("%v", value)
+		}
+		return
+	}
+	switch value := value.(type) {
+	case string:
+		var innerPayloadJSON map[string]interface{}
+		err := json.Unmarshal([]byte(value), &innerPayloadJSON)
+		if err != nil {
+			targetSpan.Meta[key] = fmt.Sprintf("%v", value)
+		} else {
+			capturePayloadAsTags(innerPayloadJSON, targetSpan, key, depth, maxDepth)
+		}
+	case []byte:
+		var innerPayloadJSON map[string]interface{}
+		err := json.Unmarshal(value, &innerPayloadJSON)
+		if err != nil {
+			targetSpan.Meta[key] = fmt.Sprintf("%v", value)
+		} else {
+			capturePayloadAsTags(innerPayloadJSON, targetSpan, key, depth, maxDepth)
+		}
+	case map[string]interface{}:
+		if len(value) == 0 {
+			targetSpan.Meta[key] = "{}"
+			return
+		}
+		for innerKey, value := range value {
+			capturePayloadAsTags(value, targetSpan, key+"."+innerKey, depth+1, maxDepth)
+		}
+	case []interface{}:
+		if len(value) == 0 {
+			targetSpan.Meta[key] = "[]"
+			return
+		}
+		for i, innerValue := range value {
+			capturePayloadAsTags(innerValue, targetSpan, key+"."+strconv.Itoa(i), depth+1, maxDepth)
+		}
+	default:
+		targetSpan.Meta[key] = fmt.Sprintf("%v", value)
+	}
+}
+
+func convertJSONToString(payloadJSON interface{}) string {
+	jsonData, err := json.Marshal(payloadJSON)
+	if err != nil {
+		return fmt.Sprintf("%v", payloadJSON)
+	}
+	return string(jsonData)
 }
