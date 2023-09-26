@@ -112,7 +112,7 @@ static __always_inline void cleanup_conn(void *ctx, conn_tuple_t *tup, struct so
     // We send the connection outside of a batch anyway. This is likely not as
     // frequent of a case to cause performance issues and avoid cases where
     // we drop whole connections, which impacts things USM connection matching.
-    bpf_perf_event_output(ctx, &conn_close_event, cpu, &conn, sizeof(conn));
+    bpf_ringbuf_output(&conn_close_event, &conn, sizeof(conn), 0);
 
     if (is_tcp) {
         increment_telemetry_count(unbatched_tcp_close);
@@ -139,7 +139,7 @@ static __always_inline void flush_conn_close_if_full(void *ctx) {
         batch_ptr->id++;
 
         // we cannot use the telemetry macro here because of stack size constraints
-        bpf_perf_event_output(ctx, &conn_close_event, cpu, &batch_copy, sizeof(batch_copy));
+        bpf_ringbuf_output(&conn_close_event, &batch_copy, sizeof(batch_copy), 0);
     }
 }
 
