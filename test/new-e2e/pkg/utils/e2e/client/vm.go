@@ -50,6 +50,6 @@ func (vm *VM) initService(t *testing.T, data *commonvm.ClientData) error {
 		}
 	}
 
-	vm.vmClient, err = newVMClient(t, privateSSHKey, &data.Connection, vm.os)
+	vm.vmClient, err = newVMClient(t, privateSSHKey, &data.Connection)
 	return err
 }
