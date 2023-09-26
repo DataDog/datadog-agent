@@ -94,12 +94,12 @@ func customTagKey(s *pb.Span, customTags []string) string {
 	}
 	// TODO: replace with strings.Builder?
 	key := ""
-	for i, t := range customTags {
+	for _, t := range customTags {
 		if s.Meta[t] != "" {
-			key += t + ":" + s.Meta[t]
-			if i != len(customTags)-1 {
+			if key != "" {
 				key += ","
 			}
+			key += t + ":" + s.Meta[t]
 		}
 	}
 	return key

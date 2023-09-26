@@ -84,6 +84,67 @@ func TestGrainWithPeerService(t *testing.T) {
 	})
 }
 
+func TestGrainWithCustomTags(t *testing.T) {
+	t.Run("partially present", func(t *testing.T) {
+		assert := assert.New(t)
+		s := pb.Span{
+			Service:  "thing",
+			Name:     "other",
+			Resource: "yo",
+			Meta:     map[string]string{"peer.service": "aws-s3", "aws.s3.bucket": "bucket-a"},
+		}
+		aggr := NewAggregationFromSpan(&s, "", PayloadAggregationKey{
+			Env:         "default",
+			Hostname:    "default",
+			ContainerID: "cid",
+		}, true, []string{"aws.s3.bucket", "db.instance", "db.system"})
+
+		assert.Equal(Aggregation{
+			PayloadAggregationKey: PayloadAggregationKey{
+				Env:         "default",
+				Hostname:    "default",
+				ContainerID: "cid",
+			},
+			BucketsAggregationKey: BucketsAggregationKey{
+				Service:     "thing",
+				Name:        "other",
+				Resource:    "yo",
+				PeerService: "aws-s3",
+			},
+			CustomTagsKey: "aws.s3.bucket:bucket-a",
+		}, aggr)
+	})
+	t.Run("all present", func(t *testing.T) {
+		assert := assert.New(t)
+		s := pb.Span{
+			Service:  "thing",
+			Name:     "other",
+			Resource: "yo",
+			Meta:     map[string]string{"peer.service": "aws-dynamodb", "db.instance": "dynamo.test.us1", "db.system": "dynamodb"},
+		}
+		aggr := NewAggregationFromSpan(&s, "", PayloadAggregationKey{
+			Env:         "default",
+			Hostname:    "default",
+			ContainerID: "cid",
+		}, true, []string{"db.instance", "db.system"})
+
+		assert.Equal(Aggregation{
+			PayloadAggregationKey: PayloadAggregationKey{
+				Env:         "default",
+				Hostname:    "default",
+				ContainerID: "cid",
+			},
+			BucketsAggregationKey: BucketsAggregationKey{
+				Service:     "thing",
+				Name:        "other",
+				Resource:    "yo",
+				PeerService: "aws-dynamodb",
+			},
+			CustomTagsKey: "db.instance:dynamo.test.us1,db.system:dynamodb",
+		}, aggr)
+	})
+}
+
 func TestGrainWithExtraTags(t *testing.T) {
 	assert := assert.New(t)
 	s := pb.Span{Service: "thing", Name: "other", Resource: "yo", Meta: map[string]string{tagStatusCode: "418"}}
