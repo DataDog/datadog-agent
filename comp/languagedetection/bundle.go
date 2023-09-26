@@ -12,7 +12,6 @@ import (
 )
 
 // team: container-integrations
-// TODO: can we set multiple teams ?
 
 // Bundle defines the fx options for this bundle.
 var Bundle = fxutil.Bundle(

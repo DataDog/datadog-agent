@@ -37,7 +37,7 @@ type dependencies struct {
 	Lc        fx.Lifecycle
 	Config    config.Component
 	Log       logComponent.Component
-	telemetry telemetry.Component
+	Telemetry telemetry.Component
 }
 
 // client sends language information to the Cluster-Agent
@@ -70,7 +70,7 @@ func newClient(
 		logger:       deps.Log,
 		flushPeriod:  deps.Config.GetDuration("language_detection.client_period"),
 		mutex:        sync.Mutex{},
-		telemetry:    newComponentTelemetry(deps.telemetry),
+		telemetry:    newComponentTelemetry(deps.Telemetry),
 		currentBatch: newBatch(),
 	}
 	deps.Lc.Append(fx.Hook{
