@@ -6,6 +6,7 @@
 package stats
 
 import (
+	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -48,7 +49,27 @@ type Concentrator struct {
 	agentVersion           string
 	peerSvcAggregation     bool // flag to enable peer.service aggregation
 	computeStatsBySpanKind bool // flag to enable computation of stats through checking the span.kind field
-	customTags             []string
+	extraTags              []string
+}
+
+// TODO: finish full list
+// PeerServiceEntityTags represents the full list of supplementary tags to describe a peer.service entity.
+var PeerServiceEntityTags = []string{"rpc.host", "grpc.host", "db.instance", "db.system", "kafka.topic"}
+
+func prepareExtraTags(tags ...string) []string {
+	if len(tags) == 0 {
+		return nil
+	}
+	etm := make(map[string]struct{})
+	for _, t := range tags {
+		etm[t] = struct{}{}
+	}
+	deduped := make([]string, 0, len(etm))
+	for t := range etm {
+		deduped = append(deduped, t)
+	}
+	sort.Strings(deduped)
+	return deduped
 }
 
 // NewConcentrator initializes a new concentrator ready to be started
@@ -70,7 +91,11 @@ func NewConcentrator(conf *config.AgentConfig, out chan *pb.StatsPayload, now ti
 		agentVersion:           conf.AgentVersion,
 		peerSvcAggregation:     conf.PeerServiceAggregation,
 		computeStatsBySpanKind: conf.ComputeStatsBySpanKind,
-		customTags:             conf.CustomTags,
+	}
+	if conf.PeerServiceAggregation {
+		c.extraTags = prepareExtraTags(append(PeerServiceEntityTags, conf.CustomTags...)...)
+	} else {
+		c.extraTags = prepareExtraTags(conf.CustomTags...)
 	}
 	return &c
 }
@@ -200,7 +225,7 @@ func (c *Concentrator) addNow(pt *traceutil.ProcessedTrace, containerID string) 
 			b = NewRawBucket(uint64(btime), uint64(c.bsize))
 			c.buckets[btime] = b
 		}
-		b.HandleSpan(s, weight, isTop, pt.TraceChunk.Origin, aggKey, c.peerSvcAggregation, c.customTags)
+		b.HandleSpan(s, weight, isTop, pt.TraceChunk.Origin, aggKey, c.peerSvcAggregation, c.extraTags)
 	}
 }
 

@@ -796,3 +796,31 @@ func TestComputeStatsForSpanKind(t *testing.T) {
 		assert.Equal(tc.res, computeStatsForSpanKind(tc.s))
 	}
 }
+
+func TestPrepareExtraTags(t *testing.T) {
+	type testCase struct {
+		input  []string
+		output []string
+	}
+
+	for _, tc := range []testCase{
+		{
+			input:  nil,
+			output: nil,
+		},
+		{
+			input:  []string{},
+			output: nil,
+		},
+		{
+			input:  []string{"a", "b"},
+			output: []string{"a", "b"},
+		},
+		{
+			input:  []string{"a", "a", "b"},
+			output: []string{"a", "b"},
+		},
+	} {
+		assert.Equal(t, tc.output, prepareExtraTags(tc.input...))
+	}
+}

@@ -16,7 +16,6 @@ import (
 	"os"
 	"os/exec"
 	"regexp"
-	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -225,20 +224,7 @@ func applyDatadogConfig(c *config.AgentConfig, core corecompcfg.Component) error
 	c.PeerServiceAggregation = core.GetBool("apm_config.peer_service_aggregation")
 	c.ComputeStatsBySpanKind = core.GetBool("apm_config.compute_stats_by_span_kind")
 	if core.IsSet("apm_config.custom_tags") {
-		// TODO: make func, test it separately
-		ct := coreconfig.Datadog.GetStringSlice("apm_config.custom_tags")
-		// Append all, dedupe, and sort so that custom tag key creation is consistent.
-		allTags := append(c.CustomTags, ct...)
-		ctm := make(map[string]struct{}, len(c.CustomTags))
-		for _, c := range allTags {
-			ctm[c] = struct{}{}
-		}
-		deduped := make([]string, 0, len(ctm))
-		for t := range ctm {
-			deduped = append(deduped, t)
-		}
-		sort.Strings(deduped)
-		c.CustomTags = deduped
+		c.CustomTags = core.GetStringSlice("apm_config.custom_tags")
 	}
 	if core.IsSet("apm_config.extra_sample_rate") {
 		c.ExtraSampleRate = core.GetFloat64("apm_config.extra_sample_rate")

@@ -111,7 +111,7 @@ func TestGrainWithCustomTags(t *testing.T) {
 				Resource:    "yo",
 				PeerService: "aws-s3",
 			},
-			CustomTagsKey: "aws.s3.bucket:bucket-a",
+			ExtraTagsKey: "aws.s3.bucket:bucket-a",
 		}, aggr)
 	})
 	t.Run("all present", func(t *testing.T) {
@@ -140,7 +140,7 @@ func TestGrainWithCustomTags(t *testing.T) {
 				Resource:    "yo",
 				PeerService: "aws-dynamodb",
 			},
-			CustomTagsKey: "db.instance:dynamo.test.us1,db.system:dynamodb",
+			ExtraTagsKey: "db.instance:dynamo.test.us1,db.system:dynamodb",
 		}, aggr)
 	})
 }

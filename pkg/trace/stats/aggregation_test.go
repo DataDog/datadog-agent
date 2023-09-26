@@ -129,7 +129,7 @@ func TestNewAggregationCustomTags(t *testing.T) {
 				Service: "a",
 				Meta:    map[string]string{"field1": "val1", "db.instance": "i-1234", "db.system": "postgres"},
 			},
-			Aggregation{BucketsAggregationKey: BucketsAggregationKey{Service: "a"}, CustomTagsKey: "db.instance:i-1234,db.system:postgres"},
+			Aggregation{BucketsAggregationKey: BucketsAggregationKey{Service: "a"}, ExtraTagsKey: "db.instance:i-1234,db.system:postgres"},
 		},
 	} {
 		assert.Equal(t, tt.res, NewAggregationFromSpan(tt.in, "", PayloadAggregationKey{}, true, customTags))

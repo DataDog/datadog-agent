@@ -25,7 +25,8 @@ const (
 type Aggregation struct {
 	BucketsAggregationKey
 	PayloadAggregationKey
-	CustomTagsKey string
+	// ExtraTagsKey is a comma-delimited string of all tag:value pairs for additional tags that should be used in stats aggregation.
+	ExtraTagsKey string
 }
 
 // BucketsAggregationKey specifies the key by which a bucket is aggregated.
@@ -67,7 +68,7 @@ func getStatusCode(s *pb.Span) uint32 {
 }
 
 // NewAggregationFromSpan creates a new aggregation from the provided span and env
-func NewAggregationFromSpan(s *pb.Span, origin string, aggKey PayloadAggregationKey, enablePeerSvcAgg bool, customTags []string) Aggregation {
+func NewAggregationFromSpan(s *pb.Span, origin string, aggKey PayloadAggregationKey, enablePeerSvcAgg bool, extraTags []string) Aggregation {
 	synthetics := strings.HasPrefix(origin, tagSynthetics)
 	agg := Aggregation{
 		PayloadAggregationKey: aggKey,
@@ -84,17 +85,17 @@ func NewAggregationFromSpan(s *pb.Span, origin string, aggKey PayloadAggregation
 	if enablePeerSvcAgg {
 		agg.PeerService = s.Meta[tagPeerService]
 	}
-	agg.CustomTagsKey = customTagKey(s, customTags)
+	agg.ExtraTagsKey = extraTagsKey(s, extraTags)
 	return agg
 }
 
-func customTagKey(s *pb.Span, customTags []string) string {
-	if len(customTags) == 0 {
+func extraTagsKey(s *pb.Span, extraTags []string) string {
+	if len(extraTags) == 0 {
 		return ""
 	}
 	// TODO: replace with strings.Builder?
 	key := ""
-	for _, t := range customTags {
+	for _, t := range extraTags {
 		if s.Meta[t] != "" {
 			if key != "" {
 				key += ","
@@ -119,8 +120,8 @@ func NewAggregationFromGroup(g *pb.ClientGroupedStats) Aggregation {
 		},
 	}
 
-	if g.CustomTags != nil {
-		agg.CustomTagsKey = strings.Join(g.CustomTags, ",")
+	if g.ExtraTags != nil {
+		agg.ExtraTagsKey = strings.Join(g.ExtraTags, ",")
 	}
 	return agg
 }

@@ -503,8 +503,7 @@ func New() *AgentConfig {
 
 		BucketInterval: time.Duration(10) * time.Second,
 
-		// TODO: Separate additional "defaults" from custom tags once aggregation keys are fully dynamic.
-		CustomTags: []string{"aws.s3.bucket"},
+		CustomTags: nil,
 
 		ExtraSampleRate: 1.0,
 		TargetTPS:       10,

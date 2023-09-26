@@ -305,11 +305,11 @@ func (m *ClientGroupedStats) MarshalToSizedBufferVT(dAtA []byte) (int, error) {
 		i -= len(m.unknownFields)
 		copy(dAtA[i:], m.unknownFields)
 	}
-	if len(m.CustomTags) > 0 {
-		for iNdEx := len(m.CustomTags) - 1; iNdEx >= 0; iNdEx-- {
-			i -= len(m.CustomTags[iNdEx])
-			copy(dAtA[i:], m.CustomTags[iNdEx])
-			i = encodeVarint(dAtA, i, uint64(len(m.CustomTags[iNdEx])))
+	if len(m.ExtraTags) > 0 {
+		for iNdEx := len(m.ExtraTags) - 1; iNdEx >= 0; iNdEx-- {
+			i -= len(m.ExtraTags[iNdEx])
+			copy(dAtA[i:], m.ExtraTags[iNdEx])
+			i = encodeVarint(dAtA, i, uint64(len(m.ExtraTags[iNdEx])))
 			i--
 			dAtA[i] = 0x1
 			i--
@@ -594,8 +594,8 @@ func (m *ClientGroupedStats) SizeVT() (n int) {
 	if l > 0 {
 		n += 1 + l + sov(uint64(l))
 	}
-	if len(m.CustomTags) > 0 {
-		for _, s := range m.CustomTags {
+	if len(m.ExtraTags) > 0 {
+		for _, s := range m.ExtraTags {
 			l = len(s)
 			n += 2 + l + sov(uint64(l))
 		}
@@ -1809,7 +1809,7 @@ func (m *ClientGroupedStats) UnmarshalVT(dAtA []byte) error {
 			iNdEx = postIndex
 		case 16:
 			if wireType != 2 {
-				return fmt.Errorf("proto: wrong wireType = %d for field CustomTags", wireType)
+				return fmt.Errorf("proto: wrong wireType = %d for field ExtraTags", wireType)
 			}
 			var stringLen uint64
 			for shift := uint(0); ; shift += 7 {
@@ -1837,7 +1837,7 @@ func (m *ClientGroupedStats) UnmarshalVT(dAtA []byte) error {
 			if postIndex > l {
 				return io.ErrUnexpectedEOF
 			}
-			m.CustomTags = append(m.CustomTags, string(dAtA[iNdEx:postIndex]))
+			m.ExtraTags = append(m.ExtraTags, string(dAtA[iNdEx:postIndex]))
 			iNdEx = postIndex
 		default:
 			iNdEx = preIndex
