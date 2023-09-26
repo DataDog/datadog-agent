@@ -22,14 +22,16 @@ func (o *Obfuscator) ObfuscateMemcachedString(cmd string) string {
 	if !o.opts.Memcached.RemoveKey {
 		return ret
 	}
-	// Remove the <key> from the command, assuming it's in the form
-	// "<method> <key> <flag> <ttl> <cas>"
-	spaces := strings.SplitN(ret, " ", 3)
-	if len(spaces) == 1 {
-		return ret
+	// Replace the <key> in the command with "?", assuming it's in the
+	// form "<method> <key> <flag> <ttl> <cas>". Do this by splitting into
+	// []string{"<method>", "<key>", "..the rest"} and recreating the
+	// string with ? instead of "<key>".
+	args := strings.SplitN(ret, " ", 3)
+	if len(args) == 1 {
+		return ret // just []string{"<method>"}
 	}
-	if len(spaces) == 2 {
-		return fmt.Sprintf("%v ?", spaces[0])
+	if len(args) == 2 {
+		return fmt.Sprintf("%v ?", args[0]) // just []string{"<method>", "<key>"}
 	}
-	return fmt.Sprintf("%v ? %v", spaces[0], spaces[2])
+	return fmt.Sprintf("%v ? %v", args[0], args[2])
 }
