@@ -7,14 +7,18 @@ package schema
 
 import (
 	"encoding/json"
-	"github.com/DataDog/datadog-agent/pkg/networkdevice/profile/profiledefinition"
+	"reflect"
+
 	"github.com/invopop/jsonschema"
+
+	"github.com/DataDog/datadog-agent/pkg/networkdevice/profile/profiledefinition"
 )
 
 // GenerateJSONSchema generate jsonschema from profiledefinition.DeviceProfileRcConfig
 func GenerateJSONSchema() ([]byte, error) {
 	reflector := jsonschema.Reflector{
 		AllowAdditionalProperties: false,
+		Mapper:                    jsonTypeMapper,
 	}
 	schema := reflector.Reflect(&profiledefinition.DeviceProfileRcConfig{})
 	schemaJSON, err := json.MarshalIndent(schema, "", "  ")
@@ -23,4 +27,15 @@ func GenerateJSONSchema() ([]byte, error) {
 	}
 	schemaJSON = append(schemaJSON, byte('\n'))
 	return schemaJSON, nil
+}
+
+func jsonTypeMapper(ty reflect.Type) *jsonschema.Schema {
+	if ty == reflect.TypeOf(profiledefinition.JSONListMap[string]{}) {
+		r := jsonschema.Reflector{
+			DoNotReference:            true,
+			AllowAdditionalProperties: false,
+		}
+		return r.Reflect([]profiledefinition.MapItem[string]{})
+	}
+	return nil
 }

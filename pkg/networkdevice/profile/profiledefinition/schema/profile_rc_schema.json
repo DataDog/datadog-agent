@@ -15,12 +15,6 @@
         "profile_definition"
       ]
     },
-    "JSONListMap[string]": {
-      "additionalProperties": {
-        "type": "string"
-      },
-      "type": "object"
-    },
     "MetadataConfig": {
       "additionalProperties": {
         "$ref": "#/$defs/MetadataResourceConfig"
@@ -103,13 +97,47 @@
           "type": "array"
         },
         "mapping": {
-          "$ref": "#/$defs/JSONListMap[string]"
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "items": {
+            "properties": {
+              "key": {
+                "type": "string"
+              },
+              "value": {
+                "type": "string"
+              }
+            },
+            "additionalProperties": false,
+            "type": "object",
+            "required": [
+              "key",
+              "value"
+            ]
+          },
+          "type": "array"
         },
         "match": {
           "type": "string"
         },
         "tags": {
-          "$ref": "#/$defs/JSONListMap[string]"
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "items": {
+            "properties": {
+              "key": {
+                "type": "string"
+              },
+              "value": {
+                "type": "string"
+              }
+            },
+            "additionalProperties": false,
+            "type": "object",
+            "required": [
+              "key",
+              "value"
+            ]
+          },
+          "type": "array"
         }
       },
       "additionalProperties": false,
