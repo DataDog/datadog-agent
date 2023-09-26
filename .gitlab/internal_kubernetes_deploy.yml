@@ -2,9 +2,6 @@
 # internal_kubernetes_deploy stage
 # Contains jobs to trigger a pipeline in our k8s-datadog-agent-ops repo
 
-include:
-  - remote: https://gitlab-templates.ddbuild.io/slack-notifier/v2/template.yml
-
 .internal_kubernetes_deploy:
   stage: internal_kubernetes_deploy
   artifacts:
@@ -44,7 +41,7 @@ include:
 
 internal_kubernetes_deploy_stripe:
   extends: .internal_kubernetes_deploy
-#  needs:
+  needs:
 #    - job: internal_kubernetes_deploy_snowver
   when: manual
   variables:
@@ -66,7 +63,7 @@ notify-slack:
       while IFS= read -r email; do
         result=$(echo "$email" | email2slackid || echo "$email")
         if [ -z "$result" ]; then
-          echo "author not found"
+          echo "Author slackId not found"
           result=$email
         fi
         results+=("$result")

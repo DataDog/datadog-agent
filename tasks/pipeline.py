@@ -501,7 +501,7 @@ def changelog(_, new_git_sha):
     )
     owners = read_owners(".github/CODEOWNERS")
     messages = []
-    unique_emails = set()  # Store unique email addresses
+    unique_emails = set()
 
     for commit in commits:
         # see https://git-scm.com/docs/pretty-formats for format string
@@ -512,7 +512,8 @@ def changelog(_, new_git_sha):
         if is_system_probe(owners, files):
             message = "{} ({}) {}".format(title, url, author)
             messages.append(message)
-            unique_emails.add(author_email)  # Add the email to the unique set
+            if "dependabot" not in author_email and "github-actions" not in author_email:
+                unique_emails.add(author_email)
 
     with open("system_probe_commits.txt", "w") as file:
         file.write("Changelog for commit range: `{}` to `{}` \n".format(old_git_sha[:7], new_git_sha))
