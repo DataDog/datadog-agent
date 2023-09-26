@@ -570,7 +570,7 @@ require (
 	github.com/jmoiron/sqlx v1.3.5
 	github.com/kr/pretty v0.3.1
 	github.com/protocolbuffers/protoscope v0.0.0-20221109213918-8e7a6aafa2c9
-	github.com/sijms/go-ora/v2 v2.7.6
+	github.com/sijms/go-ora/v2 v2.7.18
 	go.opentelemetry.io/collector/extension v0.84.0
 	go.opentelemetry.io/collector/processor v0.84.0
 	go4.org/intern v0.0.0-20230525184215-6c62f75575cb
