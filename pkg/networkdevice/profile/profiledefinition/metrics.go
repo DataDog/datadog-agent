@@ -46,6 +46,7 @@ type KeyValue struct {
 	Value string `yaml:"value" json:"value"`
 }
 
+// KeyValueList is a list of mapping key values
 type KeyValueList []KeyValue
 
 // SymbolConfig holds info for a single symbol/oid
