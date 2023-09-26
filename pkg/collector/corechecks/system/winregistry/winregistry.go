@@ -28,7 +28,7 @@ import (
 )
 
 const (
-	checkName   = "windows_registry" // this appears in the Agent Manager and Agent status
+	checkName   = "windows_registry" // This appears in the Agent Manager and Agent status
 	checkPrefix = "winregistry"      // This is the prefix used for all metrics emitted by this check
 )
 
