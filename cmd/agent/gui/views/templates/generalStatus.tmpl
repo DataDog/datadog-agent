@@ -199,7 +199,11 @@
                 {{ $check }}<br>
                 {{- range $instance := $instances }}
                   {{- range $k,$v := $instance }}
-                    {{ $k }} : {{ $v }}<br>
+                    - instance_name: {{ .instance_name }}<br>
+                      metric_count: {{ .metric_count }}<br>
+                      service_check_count: {{ .service_check_count }}<br>
+                      message: {{ .message }}<br>
+                      status: {{ .status }}<br>
                   {{- end -}}
                 {{- end -}}
               {{- end -}}
