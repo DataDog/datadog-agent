@@ -26,7 +26,7 @@ func (l *Launcher) Start(sourceProvider launchers.SourceProvider, pipelineProvid
 }
 
 // Stop is a stub for non-windows platforms
-func (t *Launcher) Stop() {}
+func (l *Launcher) Stop() {}
 
 // NewLauncher is a stub for non-windows platforms
 func NewLauncher() *Launcher {
