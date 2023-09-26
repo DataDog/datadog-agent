@@ -20,12 +20,13 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/DataDog/datadog-go/v5/statsd"
-	manager "github.com/DataDog/ebpf-manager"
 	lib "github.com/cilium/ebpf"
 	"github.com/hashicorp/golang-lru/v2/simplelru"
 	"github.com/shirou/gopsutil/v3/process"
 	"go.uber.org/atomic"
+
+	"github.com/DataDog/datadog-go/v5/statsd"
+	manager "github.com/DataDog/ebpf-manager"
 
 	"github.com/DataDog/datadog-agent/pkg/process/procutil"
 	"github.com/DataDog/datadog-agent/pkg/security/metrics"
@@ -51,7 +52,6 @@ const (
 const (
 	procResolveMaxDepth              = 16
 	maxParallelArgsEnvs              = 512 // == number of parallel starting processes
-	argsEnvsValueCacheSize           = 8192
 	numAllowedPIDsToResolvePerPeriod = 1
 	procFallbackLimiterPeriod        = 30 * time.Second // proc fallback period by pid
 )
@@ -252,7 +252,7 @@ type argsEnvsCacheEntry struct {
 	truncated bool
 }
 
-var argsEnvsInterner = utils.NewLRUStringInterner(argsEnvsValueCacheSize)
+var argsEnvsInterner = utils.NewStringInterner()
 
 func parseStringArray(data []byte) ([]string, bool) {
 	truncated := false
