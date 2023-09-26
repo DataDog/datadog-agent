@@ -53,13 +53,15 @@ func runFx(cliParams *RunParams, defaultConfPath string) error {
 	return fxutil.Run(
 		fx.Supply(coreconfig.NewAgentParamsWithSecrets(cliParams.ConfPath)),
 		coreconfig.Module,
+		fx.Invoke(func(_ config.Component) {}),
 		config.Module,
 		// Required to avoid cyclic imports.
-		fx.Supply(agent.Params{
+		fx.Supply(&agent.Params{
 			CPUProfile:  cliParams.CPUProfile,
 			MemProfile:  cliParams.MemProfile,
 			PIDFilePath: cliParams.PIDFilePath,
 		}),
 		trace.Bundle,
+		fx.Invoke(func(_ agent.Component) {}),
 	)
 }
