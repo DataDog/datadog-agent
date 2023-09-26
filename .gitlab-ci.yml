@@ -55,7 +55,6 @@ default:
 stages:
   - .pre
   - setup
-  - internal_kubernetes_deploy
   - maintenance_jobs
   - deps_build
   - deps_fetch
@@ -89,6 +88,7 @@ stages:
   - functional_test
   - functional_test_cleanup
   - functional_test_junit_upload
+  - internal_kubernetes_deploy
   - notify
 
 variables:
