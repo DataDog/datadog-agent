@@ -173,9 +173,9 @@ type MemcachedConfig struct {
 	// Enabled specifies whether this feature should be enabled.
 	Enabled bool `mapstructure:"enabled"`
 
-	// RemoveKeyArgs specifies whether the key argument of a given Redis
-	// command should be obfuscated.
-	RemoveKey bool `mapstructure:"remove_key"`
+	// KeepCommand specifies whether the command of a given Memcached
+	// query should be kept. If false, the entire tag is removed.
+	KeepCommand bool `mapstructure:"keep_command"`
 }
 
 // JSONConfig holds the obfuscation configuration for sensitive

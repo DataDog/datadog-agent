@@ -662,7 +662,7 @@ func TestFullYamlConfig(t *testing.T) {
 	assert.True(t, o.RemoveStackTraces)
 	assert.True(t, o.Redis.Enabled)
 	assert.True(t, o.Memcached.Enabled)
-	assert.False(t, o.Memcached.RemoveKey) // true by default, so ensure that it's overriden
+	assert.True(t, o.Memcached.KeepCommand)
 	assert.True(t, o.CreditCards.Enabled)
 	assert.True(t, o.CreditCards.Luhn)
 
@@ -1715,7 +1715,7 @@ func TestLoadEnv(t *testing.T) {
 		assert.True(t, coreconfig.Datadog.GetBool("apm_config.obfuscation.memcached.enabled"))
 		assert.True(t, cfg.Obfuscation.Memcached.Enabled)
 		assert.False(t, coreconfig.Datadog.GetBool("apm_config.obfuscation.memcached.remove_key"))
-		assert.False(t, cfg.Obfuscation.Memcached.RemoveKey)
+		assert.False(t, cfg.Obfuscation.Memcached.KeepCommand)
 	})
 
 	env = "DD_APM_OBFUSCATION_MONGODB_ENABLED"

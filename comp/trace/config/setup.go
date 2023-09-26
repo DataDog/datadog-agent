@@ -390,8 +390,8 @@ func applyDatadogConfig(c *config.AgentConfig, core corecompcfg.Component) error
 		if coreconfig.Datadog.IsSet("apm_config.obfuscation.memcached.enabled") {
 			c.Obfuscation.Memcached.Enabled = coreconfig.Datadog.GetBool("apm_config.obfuscation.memcached.enabled")
 		}
-		if coreconfig.Datadog.IsSet("apm_config.obfuscation.memcached.remove_key") {
-			c.Obfuscation.Memcached.RemoveKey = coreconfig.Datadog.GetBool("apm_config.obfuscation.memcached.remove_key")
+		if coreconfig.Datadog.IsSet("apm_config.obfuscation.memcached.keep_command") {
+			c.Obfuscation.Memcached.KeepCommand = coreconfig.Datadog.GetBool("apm_config.obfuscation.memcached.keep_command")
 		}
 		if coreconfig.Datadog.IsSet("apm_config.obfuscation.mongodb.enabled") {
 			c.Obfuscation.Mongo.Enabled = coreconfig.Datadog.GetBool("apm_config.obfuscation.mongodb.enabled")

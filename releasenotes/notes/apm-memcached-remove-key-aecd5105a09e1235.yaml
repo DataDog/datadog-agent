@@ -8,6 +8,7 @@
 ---
 security:
   - |
-    APM: The Agent now supports obfuscation of the Memcached command key by
-    default. This can be disabled with `DD_APM_OBFUSCATION_MEMCACHED_REMOVE_KEY`
-    or `apm_config.obfuscation.memcached.remove_key` in the datadog.yaml. 
+    APM: The Agent now obfuscates the entire Memcached command by
+    default. You can revert to the previous behavior where only the values
+    were obfuscated by setting `DD_APM_OBFUSCATION_MEMCACHED_KEEP_COMMAND=true`
+    or `apm_config.obfuscation.memcached.keep_command: true` in the datadog.yaml. 

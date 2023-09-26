@@ -11,76 +11,61 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func TestObfuscateMemcached(t *testing.T) {
+func TestObfuscateMemcachedKeepCommand(t *testing.T) {
 	for _, tt := range []struct {
-		in, out string
+		in, out     string
+		keepCommand bool
 	}{
 		{
 			"set mykey 0 60 5\r\nvalue",
 			"set mykey 0 60 5",
+			true,
 		},
 		{
 			"get mykey",
 			"get mykey",
+			true,
 		},
 		{
 			"add newkey 0 60 5\r\nvalue",
 			"add newkey 0 60 5",
+			true,
 		},
 		{
 			"add newkey 0 60 5\r\nvalue",
 			"add newkey 0 60 5",
+			true,
 		},
 		{
 			"decr mykey 5",
 			"decr mykey 5",
+			true,
 		},
-	} {
-		assert.Equal(t, tt.out, NewObfuscator(Config{}).ObfuscateMemcachedString(tt.in))
-	}
-}
-
-func TestObfuscateMemcachedRemoveKey(t *testing.T) {
-	for _, tt := range []struct {
-		in, out string
-	}{
 		{
 			"set mykey 0 60 5\r\nvalue",
-			"set ? 0 60 5",
+			"",
+			false,
 		},
 		{
 			"get mykey",
-			"get ?",
-		},
-		{
-			"add newkey 0 60 5\r\nvalue",
-			"add ? 0 60 5",
-		},
-		{
-			"add newkey 0 60 5\r\nvalue",
-			"add ? 0 60 5",
-		},
-		{
-			"decr mykey 5",
-			"decr ? 5",
-		},
-		{
-			"get get get",
-			"get ? get",
+			"",
+			false,
 		},
 		{
 			"get", // this is invalid, but it shouldn't crash
-			"get",
+			"",
+			false,
 		},
 		{
 			"get\r\nvalue", // this is invalid, but it shouldn't crash
-			"get",
+			"",
+			false,
 		},
 	} {
 		t.Run(tt.in, func(t *testing.T) {
 			assert.Equal(t, tt.out, NewObfuscator(Config{Memcached: MemcachedConfig{
-				Enabled:   true,
-				RemoveKey: true,
+				Enabled:     true,
+				KeepCommand: tt.keepCommand,
 			}}).ObfuscateMemcachedString(tt.in))
 		})
 	}
