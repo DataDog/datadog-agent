@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+// Package testing provides helpers used for testing the Workloadmeta component.
 package testing
 
 import (
@@ -254,6 +255,7 @@ func (s *Store) Reset(newEntities []workloadmeta.Entity, source workloadmeta.Sou
 	panic("not implemented")
 }
 
+// ResetProcesses is not implemented in the testing store.
 func (s *Store) ResetProcesses(newProcesses []workloadmeta.Entity, source workloadmeta.Source) {
 	panic("not implemented")
 }

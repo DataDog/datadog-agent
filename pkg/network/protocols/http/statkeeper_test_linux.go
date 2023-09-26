@@ -16,20 +16,20 @@ import (
 )
 
 func generateIPv4HTTPTransaction(source util.Address, dest util.Address, sourcePort int, destPort int, path string, code int, latency time.Duration) Transaction {
-	var tx EbpfTx
+	var event EbpfEvent
 
 	reqFragment := fmt.Sprintf("GET %s HTTP/1.1\nHost: example.com\nUser-Agent: example-browser/1.0", path)
 	latencyNS := uint64(uint64(latency))
-	tx.Request_started = 1
-	tx.Request_method = 1
-	tx.Response_last_seen = tx.Request_started + latencyNS
-	tx.Response_status_code = uint16(code)
-	tx.Request_fragment = requestFragment([]byte(reqFragment))
-	tx.Tup.Saddr_l = uint64(binary.LittleEndian.Uint32(source.Bytes()))
-	tx.Tup.Sport = uint16(sourcePort)
-	tx.Tup.Daddr_l = uint64(binary.LittleEndian.Uint32(dest.Bytes()))
-	tx.Tup.Dport = uint16(destPort)
-	tx.Tup.Metadata = 1
+	event.Http.Request_started = 1
+	event.Http.Request_method = 1
+	event.Http.Response_last_seen = event.Http.Request_started + latencyNS
+	event.Http.Response_status_code = uint16(code)
+	event.Http.Request_fragment = requestFragment([]byte(reqFragment))
+	event.Tuple.Saddr_l = uint64(binary.LittleEndian.Uint32(source.Bytes()))
+	event.Tuple.Sport = uint16(sourcePort)
+	event.Tuple.Daddr_l = uint64(binary.LittleEndian.Uint32(dest.Bytes()))
+	event.Tuple.Dport = uint16(destPort)
+	event.Tuple.Metadata = 1
 
-	return &tx
+	return &event
 }

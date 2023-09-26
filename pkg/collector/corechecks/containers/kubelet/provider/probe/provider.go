@@ -5,6 +5,8 @@
 
 //go:build kubelet
 
+// Package probe is responsible for emitting the Kubelet check metrics that are
+// collected from the `/metrics/probes` endpoint.
 package probe
 
 import (
@@ -28,6 +30,7 @@ type Provider struct {
 	prometheus.Provider
 }
 
+// NewProvider returns a new Provider
 func NewProvider(filter *containers.Filter, config *common.KubeletConfig, store workloadmeta.Store) (*Provider, error) {
 	provider := &Provider{
 		filter: filter,

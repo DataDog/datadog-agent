@@ -6,8 +6,10 @@
 package obfuscate
 
 import (
+	"bytes"
 	"strconv"
 	"strings"
+	"sync"
 )
 
 // ObfuscateMongoDBString obfuscates the given MongoDB JSON query.
@@ -35,18 +37,11 @@ func obfuscateJSONString(cmd string, obfuscator *jsonObfuscator) string {
 }
 
 type jsonObfuscator struct {
+	buffPool      sync.Pool       // pool for fixed-length buffers (50 showed to be the optimal running benchmarks with different length)
+	statePool     sync.Pool       // pool for jsonObfuscatorState values
 	keepKeys      map[string]bool // the values for these keys will not be obfuscated
 	transformKeys map[string]bool // the values for these keys pass through the transformer
 	transformer   func(string) string
-
-	scan     *scanner // scanner
-	closures []bool   // closure stack, true if object (e.g. {[{ => []bool{true, false, true})
-	key      bool     // true if scanning a key
-
-	wiped             bool // true if obfuscation string (`"?"`) was already written for current value
-	keeping           bool // true if not obfuscating
-	transformingValue bool // true if collecting the next literal for transformation
-	keepDepth         int  // the depth at which we've stopped obfuscating
 }
 
 func newJSONObfuscator(cfg *JSONConfig, o *Obfuscator) *jsonObfuscator {
@@ -66,11 +61,21 @@ func newJSONObfuscator(cfg *JSONConfig, o *Obfuscator) *jsonObfuscator {
 		}
 	}
 	return &jsonObfuscator{
-		closures:      []bool{},
 		keepKeys:      keepValue,
 		transformKeys: transformKeys,
 		transformer:   transformer,
-		scan:          &scanner{},
+		buffPool: sync.Pool{
+			New: func() any {
+				return new(bytes.Buffer)
+			},
+		},
+		statePool: sync.Pool{
+			New: func() any {
+				return &jsonObfuscatorState{
+					closures: []bool{},
+				}
+			},
+		},
 	}
 }
 
@@ -87,115 +92,138 @@ func sqlObfuscationTransformer(o *Obfuscator) func(string) string {
 	}
 }
 
+type jsonObfuscatorState struct {
+	scan              scanner // scanner
+	closures          []bool  // closure stack, true if object (e.g. {[{ => []bool{true, false, true})
+	keepDepth         int     // the depth at which we've stopped obfuscating
+	key               bool    // true if scanning a key
+	wiped             bool    // true if obfuscation string (`"?"`) was already written for current value
+	keeping           bool    // true if not obfuscating
+	transformingValue bool    // true if collecting the next literal for transformation
+}
+
+func (st *jsonObfuscatorState) reset() {
+	st.scan.reset()
+	st.closures = st.closures[0:0]
+	st.keepDepth = 0
+	st.key = false
+	st.wiped = false
+	st.keeping = false
+	st.transformingValue = false
+}
+
 // setKey verifies if we are currently scanning a key based on the current state
 // and updates the state accordingly. It must be called only after a closure or a
 // value scan has ended.
-func (p *jsonObfuscator) setKey() {
-	n := len(p.closures)
-	p.key = n == 0 || p.closures[n-1] // true if we are at top level or in an object
-	p.wiped = false
+func (st *jsonObfuscatorState) setKey() {
+	n := len(st.closures)
+	st.key = n == 0 || st.closures[n-1] // true if we are at top level or in an object
+	st.wiped = false
 }
 
 func (p *jsonObfuscator) obfuscate(data []byte) (string, error) {
+	if len(data) == 0 {
+		return "", nil
+	}
+
 	var out strings.Builder
+	st := p.statePool.Get().(*jsonObfuscatorState)
+	st.reset()
 
-	keyBuf := make([]byte, 0, 10) // recording key token
-	valBuf := make([]byte, 0, 10) // recording value
+	buf := p.buffPool.Get().(*bytes.Buffer) // recording current token
+	buf.Reset()
+	defer func() {
+		p.statePool.Put(st)
+		p.buffPool.Put(buf)
+	}()
 
-	p.scan.reset()
+	out.Grow(len(data))
+	buf.Grow(len(data) / 10) // Benchmarks show that the optimal point is a tenth of the data length.
 	for _, c := range data {
-		p.scan.bytes++
-		op := p.scan.step(p.scan, c)
-		depth := len(p.closures)
+		st.scan.bytes++
+		op := st.scan.step(&st.scan, c)
+		depth := len(st.closures)
 		switch op {
 		case scanBeginObject:
 			// object begins: {
-			p.closures = append(p.closures, true)
-			p.setKey()
-			p.transformingValue = false
-
+			st.closures = append(st.closures, true)
+			st.setKey()
+			st.transformingValue = false
 		case scanBeginArray:
 			// array begins: [
-			p.closures = append(p.closures, false)
-			p.setKey()
-			p.transformingValue = false
-
+			st.closures = append(st.closures, false)
+			st.setKey()
+			st.transformingValue = false
 		case scanEndArray, scanEndObject:
 			// array or object closing
-			if n := len(p.closures) - 1; n > 0 {
-				p.closures = p.closures[:n]
+			if n := len(st.closures) - 1; n > 0 {
+				st.closures = st.closures[:n]
 			}
 			fallthrough
-
 		case scanObjectValue, scanArrayValue:
 			// done scanning value
-			p.setKey()
-			if p.transformingValue && p.transformer != nil {
-				v, err := strconv.Unquote(string(valBuf))
+			st.setKey()
+			if st.transformingValue && p.transformer != nil {
+				v, err := strconv.Unquote(buf.String())
 				if err != nil {
-					v = string(valBuf)
+					v = buf.String()
 				}
 				result := p.transformer(v)
 				out.WriteByte('"')
 				out.WriteString(result)
 				out.WriteByte('"')
-				p.transformingValue = false
-				valBuf = valBuf[:0]
-			} else if p.keeping && depth < p.keepDepth {
-				p.keeping = false
+				st.transformingValue = false
+				buf.Reset()
+			} else if st.keeping && depth < st.keepDepth {
+				st.keeping = false
 			}
-
 		case scanBeginLiteral, scanContinue:
 			// starting or continuing a literal
-			if p.transformingValue {
-				valBuf = append(valBuf, c)
+			if st.transformingValue {
+				buf.WriteByte(c)
 				continue
-			} else if p.key {
+			} else if st.key {
 				// it's a key
-				keyBuf = append(keyBuf, c)
-			} else if !p.keeping {
+				buf.WriteByte(c)
+			} else if !st.keeping {
 				// it's a value we're not keeping
-				if !p.wiped {
-					out.Write([]byte(`"?"`))
-					p.wiped = true
+				if !st.wiped {
+					out.WriteString(`"?"`)
+					st.wiped = true
 				}
 				continue
 			}
-
 		case scanObjectKey:
 			// done scanning key
-			k := strings.Trim(string(keyBuf), `"`)
-			if !p.keeping && p.keepKeys[k] {
+			k := string(bytes.Trim(buf.Bytes(), `"`))
+			if !st.keeping && p.keepKeys[k] {
 				// we should not obfuscate values of this key
-				p.keeping = true
-				p.keepDepth = depth + 1
-			} else if !p.transformingValue && p.transformer != nil && p.transformKeys[k] {
+				st.keeping = true
+				st.keepDepth = depth + 1
+			} else if !st.transformingValue && p.transformer != nil && p.transformKeys[k] {
 				// the string value immediately following this key will be passed through the value transformer
 				// if anything other than a literal is found then sql obfuscation is stopped and json obfuscation
 				// proceeds as usual
-				p.transformingValue = true
+				st.transformingValue = true
 			}
-
-			keyBuf = keyBuf[:0]
-			p.key = false
-
+			buf.Reset()
+			st.key = false
 		case scanSkipSpace:
 			continue
-
 		case scanError:
 			// we've encountered an error, mark that there might be more JSON
 			// using the ellipsis and return whatever we've managed to obfuscate
 			// thus far.
-			out.Write([]byte("..."))
-			return out.String(), p.scan.err
+			out.WriteString("...")
+			return out.String(), st.scan.err
 		}
 		out.WriteByte(c)
 	}
-	if p.scan.eof() == scanError {
+	if st.scan.eof() == scanError {
 		// if an error occurred it's fine, simply add the ellipsis to indicate
 		// that the input has been truncated.
 		out.Write([]byte("..."))
-		return out.String(), p.scan.err
+		return out.String(), st.scan.err
 	}
 	return out.String(), nil
 }
