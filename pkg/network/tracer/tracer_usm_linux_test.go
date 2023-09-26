@@ -143,7 +143,7 @@ func testHTTPStats(t *testing.T, aggregateByStatusCode bool) {
 	require.Eventuallyf(t, func() bool {
 		payload := getConnections(t, tr)
 		for key, stats := range payload.HTTP {
-			if key.Method == http.MethodGet && key.Path.Content == "/test" && (key.SrcPort == 8080 || key.DstPort == 8080) {
+			if key.Method == http.MethodGet && key.Path.Content.Get() == "/test" && (key.SrcPort == 8080 || key.DstPort == 8080) {
 				currentStats := stats.Data[stats.NormalizeStatusCode(204)]
 				if currentStats != nil && currentStats.Count == 1 {
 					return true
@@ -318,7 +318,7 @@ func testHTTPSLibrary(t *testing.T, fetchCmd []string, prefetchLibs []string) {
 		allConnections = append(allConnections, payload.Conns...)
 		found := false
 		for key, stats := range payload.HTTP {
-			if key.Path.Content != "/200/foobar" {
+			if key.Path.Content.Get() != "/200/foobar" {
 				continue
 			}
 			req, exists := stats.Data[200]
@@ -562,7 +562,7 @@ func simpleGetRequestsGenerator(t *testing.T, targetAddr string) (*nethttp.Clien
 func isRequestIncluded(allStats map[http.Key]*http.RequestStats, req *nethttp.Request) bool {
 	expectedStatus := testutil.StatusFromPath(req.URL.Path)
 	for key, stats := range allStats {
-		if key.Path.Content != req.URL.Path {
+		if key.Path.Content.Get() != req.URL.Path {
 			continue
 		}
 		if requests, exists := stats.Data[expectedStatus]; exists && requests.Count > 0 {
@@ -882,7 +882,7 @@ func (s *USMSuite) TestJavaInjection() {
 				require.Eventuallyf(t, func() bool {
 					payload := getConnections(t, tr)
 					for key, stats := range payload.HTTP {
-						if key.Path.Content == "/200/anything/java-tls-request" {
+						if key.Path.Content.Get() == "/200/anything/java-tls-request" {
 							t.Log("path content found")
 							// socket filter is not supported on fentry tracer
 							if tr.ebpfTracer.Type() == connection.TracerTypeFentry {
@@ -1229,7 +1229,7 @@ func countRequestsOccurrences(t *testing.T, conns *network.Connections, reqs map
 			}
 
 			expectedStatus := testutil.StatusFromPath(req.URL.Path)
-			if key.Path.Content != req.URL.Path {
+			if key.Path.Content.Get() != req.URL.Path {
 				continue
 			}
 			if requests, exists := stats.Data[expectedStatus]; exists && requests.Count > 0 {
@@ -1327,7 +1327,7 @@ func testHTTPSClassification(t *testing.T, tr *Tracer, clientHost, targetHost, s
 
 					httpData := getConnections(t, tr).HTTP
 					for httpKey := range httpData {
-						if httpKey.Path.Content == resp.Request.URL.Path {
+						if httpKey.Path.Content.Get() == resp.Request.URL.Path {
 							return true
 						}
 					}

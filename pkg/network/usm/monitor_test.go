@@ -445,7 +445,7 @@ func (s *HTTPTestSuite) TestUnknownMethodRegression() {
 					t.Error("detected HTTP request with method unknown")
 				}
 				// we just want our requests
-				if strings.Contains(key.Path.Content, "/request-") &&
+				if strings.Contains(key.Path.Content.Get(), "/request-") &&
 					key.DstPort == 8080 &&
 					util.FromLowHigh(key.DstIPLow, key.DstIPHigh) == serverAddrIP {
 					requestsSum++
@@ -754,7 +754,7 @@ func countRequestOccurrences(allStats map[http.Key]*http.RequestStats, req *neth
 	expectedStatus := testutil.StatusFromPath(req.URL.Path)
 	occurrences := 0
 	for key, stats := range allStats {
-		if key.Path.Content != req.URL.Path {
+		if key.Path.Content.Get() != req.URL.Path {
 			continue
 		}
 		if requests, exists := stats.Data[expectedStatus]; exists && requests.Count > 0 {
