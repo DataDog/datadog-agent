@@ -57,7 +57,7 @@ type client struct {
 func newClient(
 	deps dependencies,
 ) Component {
-	if !deps.Config.GetBool("language_detection.enabled") {
+	if !deps.Config.GetBool("language_detection.enabled") || !deps.Config.GetBool("cluster_agent.enabled") {
 		return util.NewNoneOptional[Component]()
 	}
 
