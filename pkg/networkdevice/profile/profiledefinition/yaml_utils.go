@@ -56,8 +56,13 @@ func (ml *KeyValueList) UnmarshalYAML(unmarshal func(interface{}) error) error {
 		if err != nil {
 			return err
 		}
+		var keys []string
+		for k := range mapping {
+			keys = append(keys, k)
+		}
 		kvList = []KeyValue{}
-		for k, v := range mapping {
+		for _, k := range keys {
+			v := mapping[k]
 			kvList = append(kvList, KeyValue{Key: k, Value: v})
 		}
 	}

@@ -96,7 +96,7 @@ func getTagsFromMetricTagConfigList(mtcl profiledefinition.MetricTagConfigList, 
 				log.Debugf("error getting tags. index `%d` not found in indexes `%v`", metricTag.Index, indexes)
 				continue
 			}
-			tagValue, err := checkconfig.GetMappedValue(indexes[index], metricTag.Mapping)
+			tagValue, err := checkconfig.GetMappedValue(indexes[index], metricTag.Mapping.ToMap())
 			if err != nil {
 				log.Debugf("error getting tags. mapping for `%s` does not exist. mapping=`%v`, indexes=`%v`", indexes[index], metricTag.Mapping, indexes)
 				continue

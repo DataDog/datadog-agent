@@ -88,8 +88,7 @@ type MetricTagConfig struct {
 
 	IndexTransform []MetricIndexTransform `yaml:"index_transform,omitempty" json:"index_transform,omitempty"`
 
-	MappingList KeyValueList      `yaml:"mapping,omitempty" json:"mapping,omitempty"`
-	Mapping     map[string]string `yaml:"-" json:"-"`
+	Mapping KeyValueList `yaml:"mapping,omitempty" json:"mapping,omitempty"`
 
 	// Regex
 	Match    string            `yaml:"match,omitempty" json:"match,omitempty"`
@@ -159,6 +158,14 @@ func (m *MetricsConfig) IsColumn() bool {
 // IsScalar returns true if the metrics config define scalar metrics
 func (m *MetricsConfig) IsScalar() bool {
 	return m.Symbol.OID != "" && m.Symbol.Name != ""
+}
+
+func (kvl KeyValueList) ToMap() map[string]string {
+	mapping := make(map[string]string)
+	for _, item := range kvl {
+		mapping[item.Key] = item.Value
+	}
+	return mapping
 }
 
 // NormalizeMetrics converts legacy syntax to new syntax

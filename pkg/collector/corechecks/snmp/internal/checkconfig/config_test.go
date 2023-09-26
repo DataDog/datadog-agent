@@ -192,22 +192,22 @@ bulk_max_repetitions: 20
 						},
 					},
 				},
-				{Tag: "ipversion", Index: 1, Mapping: map[string]string{
-					"0":  "unknown",
-					"1":  "ipv4",
-					"2":  "ipv6",
-					"3":  "ipv4z",
-					"4":  "ipv6z",
-					"16": "dns",
+				{Tag: "ipversion", Index: 1, Mapping: profiledefinition.KeyValueList{
+					{Key: "0", Value: "unknown"},
+					{Key: "1", Value: "ipv4"},
+					{Key: "2", Value: "ipv6"},
+					{Key: "3", Value: "ipv4z"},
+					{Key: "4", Value: "ipv6z"},
+					{Key: "16", Value: "dns"},
 				}},
 				{Tag: "if_type",
 					Column: profiledefinition.SymbolConfig{OID: "1.3.6.1.2.1.2.2.1.3", Name: "ifType"},
-					Mapping: map[string]string{
-						"1":  "other",
-						"2":  "regular1822",
-						"3":  "hdh1822",
-						"4":  "ddn-x25",
-						"29": "ultra",
+					Mapping: profiledefinition.KeyValueList{
+						{Key: "1", Value: "other"},
+						{Key: "2", Value: "regular1822"},
+						{Key: "3", Value: "hdh1822"},
+						{Key: "4", Value: "ddn-x25"},
+						{Key: "29", Value: "ultra"},
 					}},
 				{
 					Column: profiledefinition.SymbolConfig{
@@ -229,8 +229,14 @@ bulk_max_repetitions: 20
 
 	expectedMetricTags := []profiledefinition.MetricTagConfig{
 		{Tag: "my_symbol", OID: "1.2.3", Name: "mySymbol"},
-		{Tag: "my_symbol_mapped", OID: "1.2.3", Name: "mySymbol", Mapping: map[string]string{"1": "one", "2": "two"}},
-		{Tag: "my_symbol_mapped_list", OID: "1.2.3", Name: "mySymbol", Mapping: map[string]string{"1": "one", "2": "two"}},
+		{Tag: "my_symbol_mapped", OID: "1.2.3", Name: "mySymbol", Mapping: profiledefinition.KeyValueList{
+			{Key: "1", Value: "one"},
+			{Key: "2", Value: "two"},
+		}},
+		{Tag: "my_symbol_mapped_list", OID: "1.2.3", Name: "mySymbol", Mapping: profiledefinition.KeyValueList{
+			{Key: "1", Value: "one"},
+			{Key: "2", Value: "two"},
+		}},
 		{
 			OID:     "1.2.3",
 			Name:    "mySymbol",

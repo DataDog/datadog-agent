@@ -19,7 +19,7 @@ func BuildMetricTagsFromValue(metricTag *profiledefinition.MetricTagConfig, valu
 	var tags []string
 	if metricTag.Tag != "" {
 		if len(metricTag.Mapping) > 0 {
-			mappedValue, err := GetMappedValue(value, metricTag.Mapping)
+			mappedValue, err := GetMappedValue(value, metricTag.Mapping.ToMap())
 			if err != nil {
 				log.Debugf("error getting tags. mapping for `%s` does not exist. mapping=`%v`", value, metricTag.Mapping)
 			} else {

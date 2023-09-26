@@ -566,9 +566,9 @@ func Test_ValidateEnrichMetrics(t *testing.T) {
 								OID:  "1.2",
 								Name: "abc",
 							},
-							Mapping: map[string]string{
-								"1": "abc",
-								"2": "def",
+							Mapping: profiledefinition.KeyValueList{
+								{Key: "1", Value: "abc"},
+								{Key: "2", Value: "def"},
 							},
 						},
 					},
