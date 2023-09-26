@@ -12,7 +12,6 @@ import (
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/clients"
 	"github.com/DataDog/test-infra-definitions/common/utils"
-	commonos "github.com/DataDog/test-infra-definitions/components/os"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/ssh"
 )

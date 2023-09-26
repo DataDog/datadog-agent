@@ -28,7 +28,7 @@ type VM struct {
 // NewVM creates a new instance of VM
 func NewVM(infraVM commonvm.VM) *VM {
 	vm := &VM{}
-	vm.os = infraVM.GetOS()
+	vm.OS = infraVM.GetOS()
 	vm.UpResultDeserializer = NewUpResultDeserializer[commonvm.ClientData](infraVM, vm)
 	return vm
 }
