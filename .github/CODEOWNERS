@@ -200,6 +200,7 @@
 /comp/core @DataDog/agent-shared-components
 /comp/dogstatsd @DataDog/agent-metrics-logs
 /comp/forwarder @DataDog/agent-shared-components
+/comp/languagedetection/client @DataDog/container-integrations
 /comp/logs @DataDog/agent-metrics-logs
 /comp/metadata @DataDog/agent-shared-components
 /comp/otelcol @DataDog/opentelemetry
@@ -325,7 +326,6 @@
 /pkg/util/intern/                       @DataDog/ebpf-platform
 /pkg/util/winutil/                      @DataDog/windows-agent
 /pkg/languagedetection                  @DataDog/processes @DataDog/universal-service-monitoring
-/pkg/languagedetection/client           @DataDog/processes @DataDog/universal-service-monitoring @DataDog/container-integrations
 /pkg/logs/                              @DataDog/agent-metrics-logs
 /pkg/process/                           @DataDog/processes
 /pkg/process/util/address*.go           @DataDog/Networks
