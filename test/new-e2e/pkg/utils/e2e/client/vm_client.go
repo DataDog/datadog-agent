@@ -19,7 +19,6 @@ import (
 
 type vmClient struct {
 	client *ssh.Client
-	os     commonos.OS
 	t      *testing.T
 }
 
