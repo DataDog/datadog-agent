@@ -10,7 +10,7 @@ package events
 import (
 	"testing"
 
-	"gotest.tools/assert"
+	"github.com/stretchr/testify/assert"
 )
 
 func TestOffsets(t *testing.T) {

@@ -116,6 +116,8 @@ event_monitoring_config:
 
 runtime_security_config:
   enabled: {{ .RuntimeSecurityEnabled }}
+  remote_configuration:
+    enabled: false
   socket: /tmp/test-runtime-security.sock
   sbom:
     enabled: {{ .SBOMEnabled }}
@@ -936,10 +938,11 @@ func newTestModule(t testing.TB, macroDefs []*rules.MacroDefinition, ruleDefs []
 	emopts := eventmonitor.Opts{
 		StatsdClient: statsdClient,
 		ProbeOpts: probe.Opts{
-			StatsdClient:              statsdClient,
-			DontDiscardRuntime:        true,
-			PathResolutionEnabled:     true,
-			SyscallsMapMonitorEnabled: true,
+			StatsdClient:           statsdClient,
+			DontDiscardRuntime:     true,
+			PathResolutionEnabled:  true,
+			SyscallsMonitorEnabled: true,
+			TTYFallbackEnabled:     true,
 		},
 	}
 	if opts.tagsResolver != nil {
@@ -974,7 +977,7 @@ func newTestModule(t testing.TB, macroDefs []*rules.MacroDefinition, ruleDefs []
 	}
 
 	// listen to probe event
-	if err := testMod.probe.AddEventHandler(model.UnknownEventType, testMod); err != nil {
+	if err := testMod.probe.AddFullAccessEventHandler(testMod); err != nil {
 		return nil, err
 	}
 

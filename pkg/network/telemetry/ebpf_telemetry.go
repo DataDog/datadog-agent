@@ -103,7 +103,7 @@ func (b *EBPFTelemetry) getMapsTelemetry(ch chan<- prometheus.Metric) map[string
 	t := make(map[string]interface{})
 
 	for m, k := range b.mapKeys {
-		err := b.MapErrMap.Lookup(&k, &val)
+		err := b.MapErrMap.Lookup(unsafe.Pointer(&k), unsafe.Pointer(&val))
 		if err != nil {
 			log.Debugf("failed to get telemetry for map:key %s:%d\n", m, k)
 			continue
@@ -136,7 +136,7 @@ func (b *EBPFTelemetry) getHelpersTelemetry(ch chan<- prometheus.Metric) map[str
 	helperTelemMap := make(map[string]interface{})
 
 	for probeName, k := range b.probeKeys {
-		err := b.HelperErrMap.Lookup(&k, &val)
+		err := b.HelperErrMap.Lookup(unsafe.Pointer(&k), unsafe.Pointer(&val))
 		if err != nil {
 			log.Debugf("failed to get telemetry for map:key %s:%d\n", probeName, k)
 			continue

@@ -162,7 +162,7 @@ func start(log log.Component, config config.Component, telemetry telemetry.Compo
 	}
 
 	// Starting server early to ease investigations
-	if err := api.StartServer(); err != nil {
+	if err := api.StartServer(aggregator.GetSenderManager()); err != nil {
 		return fmt.Errorf("Error while starting agent API, exiting: %v", err)
 	}
 
@@ -297,7 +297,7 @@ func start(log log.Component, config config.Component, telemetry telemetry.Compo
 				K8sClient:           apiCl.Cl,
 				RcClient:            rcClient,
 				ClusterName:         clusterName,
-				ClusterId:           clusterId,
+				ClusterID:           clusterId,
 				StopCh:              stopCh,
 			}
 			if err := admissionpatch.StartControllers(patchCtx); err != nil {

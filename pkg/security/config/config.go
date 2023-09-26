@@ -235,7 +235,7 @@ func NewRuntimeSecurityConfig() (*RuntimeSecurityConfig, error) {
 
 		SelfTestEnabled:            coreconfig.SystemProbe.GetBool("runtime_security_config.self_test.enabled"),
 		SelfTestSendReport:         coreconfig.SystemProbe.GetBool("runtime_security_config.self_test.send_report"),
-		RemoteConfigurationEnabled: coreconfig.SystemProbe.GetBool("runtime_security_config.remote_configuration.enabled"),
+		RemoteConfigurationEnabled: isRemoteConfigEnabled(),
 
 		// policy & ruleset
 		PoliciesDir:                 coreconfig.SystemProbe.GetString("runtime_security_config.policies.dir"),
@@ -323,6 +323,22 @@ func NewRuntimeSecurityConfig() (*RuntimeSecurityConfig, error) {
 // IsRuntimeEnabled returns true if any feature is enabled. Has to be applied in config package too
 func (c *RuntimeSecurityConfig) IsRuntimeEnabled() bool {
 	return c.RuntimeEnabled || c.FIMEnabled
+}
+
+// If RC is globally enabled, RC is enabled for CWS, unless the CWS-specific RC value is explicitly set to false
+func isRemoteConfigEnabled() bool {
+	// This value defaults to true
+	rcEnabledInSysprobeConfig := coreconfig.SystemProbe.GetBool("runtime_security_config.remote_configuration.enabled")
+
+	if !rcEnabledInSysprobeConfig {
+		return false
+	}
+
+	if coreconfig.IsRemoteConfigEnabled(coreconfig.Datadog) {
+		return true
+	}
+
+	return false
 }
 
 // GetAnomalyDetectionMinimumStablePeriod returns the minimum stable period for a given event type

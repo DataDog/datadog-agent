@@ -36,9 +36,11 @@ type protocol struct {
 }
 
 const (
-	inFlightMap    = "http_in_flight"
-	filterTailCall = "socket__http_filter"
-	eventStream    = "http"
+	inFlightMap            = "http_in_flight"
+	filterTailCall         = "socket__http_filter"
+	tlsProcessTailCall     = "uprobe__http_process"
+	tlsTerminationTailCall = "uprobe__http_termination"
+	eventStream            = "http"
 )
 
 var Spec = &protocols.ProtocolSpec{
@@ -52,6 +54,20 @@ var Spec = &protocols.ProtocolSpec{
 			Key:           uint32(protocols.ProgramHTTP),
 			ProbeIdentificationPair: manager.ProbeIdentificationPair{
 				EBPFFuncName: filterTailCall,
+			},
+		},
+		{
+			ProgArrayName: protocols.TLSDispatcherProgramsMap,
+			Key:           uint32(protocols.ProgramTLSHTTPProcess),
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				EBPFFuncName: tlsProcessTailCall,
+			},
+		},
+		{
+			ProgArrayName: protocols.TLSDispatcherProgramsMap,
+			Key:           uint32(protocols.ProgramTLSHTTPTermination),
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				EBPFFuncName: tlsTerminationTailCall,
 			},
 		},
 	},
@@ -147,7 +163,7 @@ func (p *protocol) DumpMaps(output *strings.Builder, mapName string, currentMap 
 }
 
 func (p *protocol) processHTTP(data []byte) {
-	tx := (*EbpfTx)(unsafe.Pointer(&data[0]))
+	tx := (*EbpfEvent)(unsafe.Pointer(&data[0]))
 	p.telemetry.Count(tx)
 	p.statkeeper.Process(tx)
 }
@@ -171,11 +187,11 @@ func (p *protocol) setupMapCleaner(mgr *manager.Manager) {
 			return false
 		}
 
-		if updated := int64(httpTxn.ResponseLastSeen()); updated > 0 {
+		if updated := int64(httpTxn.Response_last_seen); updated > 0 {
 			return (now - updated) > ttl
 		}
 
-		started := int64(httpTxn.RequestStarted())
+		started := int64(httpTxn.Request_started)
 		return started > 0 && (now-started) > ttl
 	})
 

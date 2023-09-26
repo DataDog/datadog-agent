@@ -7,6 +7,7 @@ package compliance
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -192,6 +193,19 @@ func NewResourceLog(resourceID, resourceType string, resource interface{}) *Reso
 	}
 }
 
+// ErrIncompatibleEnvironment is returns by the resolver to signal that the
+// given rule's inputs are not resolvable in the current environment.
+var ErrIncompatibleEnvironment = errors.New("environment not compatible this type of input")
+
+// CheckEventFromError wraps any error into a correct CheckEvent, detecting if
+// the underlying error should be marked as skipped or not.
+func CheckEventFromError(evaluator Evaluator, rule *Rule, benchmark *Benchmark, err error) *CheckEvent {
+	if errors.Is(err, ErrIncompatibleEnvironment) {
+		return NewCheckSkipped(evaluator, fmt.Errorf("skipping input resolution for rule=%s: %w", rule.ID, err), "", "", rule, benchmark)
+	}
+	return NewCheckError(evaluator, fmt.Errorf("input resolution error for rule=%s: %w", rule.ID, err), "", "", rule, benchmark)
+}
+
 // RuleScope defines the different context in which the rule is allowed to run.
 type RuleScope string
 
@@ -233,6 +247,7 @@ type (
 		Audit         *InputSpecAudit         `yaml:"audit,omitempty" json:"audit,omitempty"`
 		Docker        *InputSpecDocker        `yaml:"docker,omitempty" json:"docker,omitempty"`
 		KubeApiserver *InputSpecKubeapiserver `yaml:"kubeApiserver,omitempty" json:"kubeApiserver,omitempty"`
+		Package       *InputSpecPackage       `yaml:"package,omitempty" json:"package,omitempty"`
 		XCCDF         *InputSpecXCCDF         `yaml:"xccdf,omitempty" json:"xccdf,omitempty"`
 		Constants     *InputSpecConstants     `yaml:"constants,omitempty" json:"constants,omitempty"`
 
@@ -281,6 +296,12 @@ type (
 			Verb         string `yaml:"verb" json:"verb"`
 			ResourceName string `yaml:"resourceName,omitempty" json:"resourceName,omitempty"`
 		} `yaml:"apiRequest" json:"apiRequest"`
+	}
+
+	// InputSpecPackage defines the names of the software packages that need
+	// to be resolved
+	InputSpecPackage struct {
+		Names []string `yaml:"names" json:"names"`
 	}
 
 	// InputSpecXCCDF describes the spec to resolve a XCCDF evaluation result.

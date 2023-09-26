@@ -12,6 +12,7 @@ import (
 	"strings"
 
 	model "github.com/DataDog/agent-payload/v5/process"
+
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/transformers"
 
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
@@ -209,7 +210,7 @@ func findNodeRoles(nodeLabels map[string]string) []string {
 	labelNodeRolePrefix := "node-role.kubernetes.io/"
 	nodeLabelRole := "kubernetes.io/role"
 
-	roles := sets.NewString()
+	roles := sets.New[string]()
 	for k, v := range nodeLabels {
 		switch {
 		case strings.HasPrefix(k, labelNodeRolePrefix):
@@ -221,5 +222,5 @@ func findNodeRoles(nodeLabels map[string]string) []string {
 			roles.Insert(v)
 		}
 	}
-	return roles.List()
+	return sets.List(roles)
 }

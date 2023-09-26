@@ -36,7 +36,7 @@ func ParseProcessRoutes(procPath string, pid int) ([]NetworkRoute, error) {
 	for _, row := range routingTable {
 		itf := interfaceTable[row.DwForwardIfIndex]
 		netDest := NetworkRoute{
-			Interface: windows.UTF16ToString(itf.WszName[:]),
+			Interface: windows.UTF16ToString(itf.Name[:]),
 			Subnet:    uint64(row.DwForwardDest),
 			Mask:      uint64(row.DwForwardMask),
 			Gateway:   uint64(row.DwForwardNextHop),

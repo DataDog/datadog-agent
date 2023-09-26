@@ -9,5 +9,6 @@ namespace Datadog.CustomActions.Interfaces
         void SetAccessControl(RegistrySecurity registrySecurity);
         object GetValue(string name);
         void SetValue(string name, object value, RegistryValueKind kind);
+        void DeleteValue(string name);
     }
 }

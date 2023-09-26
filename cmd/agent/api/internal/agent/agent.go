@@ -28,6 +28,7 @@ import (
 	dogstatsdServer "github.com/DataDog/datadog-agent/comp/dogstatsd/server"
 	dogstatsdDebug "github.com/DataDog/datadog-agent/comp/dogstatsd/serverDebug"
 	logsAgent "github.com/DataDog/datadog-agent/comp/logs/agent"
+	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	settingshttp "github.com/DataDog/datadog-agent/pkg/config/settings/http"
@@ -57,6 +58,7 @@ func SetupHandlers(
 	server dogstatsdServer.Component,
 	serverDebug dogstatsdDebug.Component,
 	logsAgent util.Optional[logsAgent.Component],
+	senderManager sender.SenderManager,
 ) *mux.Router {
 
 	r.HandleFunc("/version", common.GetVersion).Methods("GET")
@@ -80,7 +82,7 @@ func SetupHandlers(
 	r.HandleFunc("/workload-list", getWorkloadList).Methods("GET")
 	r.HandleFunc("/secrets", secretInfo).Methods("GET")
 	r.HandleFunc("/metadata/{payload}", metadataPayload).Methods("GET")
-	r.HandleFunc("/diagnose", getDiagnose).Methods("POST")
+	r.HandleFunc("/diagnose", func(w http.ResponseWriter, r *http.Request) { getDiagnose(w, r, senderManager) }).Methods("POST")
 
 	// Some agent subcommands do not provide these dependencies (such as JMX)
 	if server != nil && serverDebug != nil {
@@ -463,7 +465,7 @@ func metadataPayload(w http.ResponseWriter, r *http.Request) {
 	w.Write(scrubbed)
 }
 
-func getDiagnose(w http.ResponseWriter, r *http.Request) {
+func getDiagnose(w http.ResponseWriter, r *http.Request, senderManager sender.SenderManager) {
 	var diagCfg diagnosis.Config
 
 	// Read parameters
@@ -489,7 +491,7 @@ func getDiagnose(w http.ResponseWriter, r *http.Request) {
 	diagCfg.RunLocal = true
 
 	// Get diagnoses via API
-	diagnoses, err := diagnose.Run(diagCfg)
+	diagnoses, err := diagnose.Run(diagCfg, senderManager)
 	if err != nil {
 		setJSONError(w, log.Errorf("Running diagnose in Agent process failed: %s", err), 500)
 		return

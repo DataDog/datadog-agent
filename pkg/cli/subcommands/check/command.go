@@ -181,12 +181,6 @@ func run(log log.Component, config config.Component, sysprobeconfig sysprobeconf
 		return nil
 	}
 
-	// Always disable SBOM collection in `check` command to avoid BoltDB flock issue
-	// and consuming CPU & Memory for asynchronous scans that would not be shown in `agent check` output.
-	pkgconfig.Datadog.Set("sbom.host.enabled", "false")
-	pkgconfig.Datadog.Set("sbom.container_image.enabled", "false")
-	pkgconfig.Datadog.Set("runtime_security_config.sbom.enabled", "false")
-
 	hostnameDetected, err := hostname.Get(context.TODO())
 	if err != nil {
 		fmt.Printf("Cannot get hostname, exiting: %v\n", err)
@@ -229,11 +223,11 @@ func run(log log.Component, config config.Component, sysprobeconfig sysprobeconf
 			fmt.Println("Please consider using the 'jmx' command instead of 'check jmx'")
 			selectedChecks := []string{cliParams.checkName}
 			if cliParams.checkRate {
-				if err := standalone.ExecJmxListWithRateMetricsJSON(selectedChecks, config.GetString("log_level"), allConfigs); err != nil {
+				if err := standalone.ExecJmxListWithRateMetricsJSON(selectedChecks, config.GetString("log_level"), allConfigs, aggregator.GetSenderManager()); err != nil {
 					return fmt.Errorf("while running the jmx check: %v", err)
 				}
 			} else {
-				if err := standalone.ExecJmxListWithMetricsJSON(selectedChecks, config.GetString("log_level"), allConfigs); err != nil {
+				if err := standalone.ExecJmxListWithMetricsJSON(selectedChecks, config.GetString("log_level"), allConfigs, aggregator.GetSenderManager()); err != nil {
 					return fmt.Errorf("while running the jmx check: %v", err)
 				}
 			}

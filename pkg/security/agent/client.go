@@ -10,6 +10,7 @@ import (
 	"context"
 	"errors"
 	"net"
+	"runtime"
 
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
@@ -188,6 +189,9 @@ func NewRuntimeSecurityClient() (*RuntimeSecurityClient, error) {
 		grpc.WithTransportCredentials(insecure.NewCredentials()),
 		grpc.WithDefaultCallOptions(grpc.CallContentSubtype(api.VTProtoCodecName)),
 		grpc.WithContextDialer(func(ctx context.Context, url string) (net.Conn, error) {
+			if runtime.GOOS == "windows" {
+				return net.Dial("tcp", url)
+			}
 			return net.Dial("unix", url)
 		}),
 	)

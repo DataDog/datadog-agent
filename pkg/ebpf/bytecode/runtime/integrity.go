@@ -17,6 +17,9 @@ import (
 	"runtime"
 	"strings"
 	"text/template"
+
+	"golang.org/x/text/cases"
+	"golang.org/x/text/language"
 )
 
 // This program is intended to be called from go generate.
@@ -67,7 +70,9 @@ func genIntegrity(inputFile, outputFile, pkg string) error {
 	defer f.Close()
 
 	base := filepath.Base(inputFile)
-	name := sanitizeFilename(strings.Title(strings.TrimSuffix(base, filepath.Ext(base))))
+
+	caser := cases.Title(language.English, cases.NoLower)
+	name := sanitizeFilename(caser.String(strings.TrimSuffix(base, filepath.Ext(base))))
 
 	imports := ""
 	packagePrefix := ""

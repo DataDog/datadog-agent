@@ -9,9 +9,11 @@ import (
 	"fmt"
 	"net"
 	"os"
+	"path"
 	"time"
 
 	"github.com/cenkalti/backoff"
+	"github.com/pkg/sftp"
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/crypto/ssh/agent"
 )
@@ -77,4 +79,79 @@ func ExecuteCommand(client *ssh.Client, command string) (string, error) {
 	stdout, err := session.CombinedOutput(command)
 
 	return string(stdout), err
+}
+
+// CopyFile create a sftp session and copy a single file to the remote host through SSH
+func CopyFile(client *ssh.Client, src string, dst string) error {
+
+	sftpClient, err := sftp.NewClient(client)
+	if err != nil {
+		return err
+	}
+	defer sftpClient.Close()
+
+	if err := copyFile(sftpClient, src, dst); err != nil {
+		return err
+	}
+	return nil
+}
+
+// CopyFolder create a sftp session and copy a folder to remote host through SSH
+func CopyFolder(client *ssh.Client, srcFolder string, dstFolder string) error {
+
+	sftpClient, err := sftp.NewClient(client)
+	if err != nil {
+		return err
+	}
+	defer sftpClient.Close()
+
+	return copyFolder(sftpClient, srcFolder, dstFolder)
+}
+
+func copyFolder(sftpClient *sftp.Client, srcFolder string, dstFolder string) error {
+
+	folderContent, err := os.ReadDir(srcFolder)
+	if err != nil {
+		return err
+	}
+
+	if err := sftpClient.MkdirAll(dstFolder); err != nil {
+		return err
+	}
+
+	for _, d := range folderContent {
+		if !d.IsDir() {
+			err := copyFile(sftpClient, path.Join(srcFolder, d.Name()), path.Join(dstFolder, d.Name()))
+			if err != nil {
+				return err
+			}
+		} else {
+			err = copyFolder(sftpClient, path.Join(srcFolder, d.Name()), path.Join(dstFolder, d.Name()))
+			if err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
+func copyFile(sftpClient *sftp.Client, src string, dst string) error {
+
+	srcFile, err := os.Open(src)
+	if err != nil {
+		return err
+	}
+	defer srcFile.Close()
+
+	dstFile, err := sftpClient.Create(dst)
+	if err != nil {
+		return err
+	}
+	defer dstFile.Close()
+
+	if _, err := dstFile.ReadFrom(srcFile); err != nil {
+		return err
+	}
+	return nil
+
 }
