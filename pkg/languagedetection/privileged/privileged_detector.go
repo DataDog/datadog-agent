@@ -5,7 +5,7 @@
 
 //go:build linux
 
-package languagedetection
+package privileged
 
 import (
 	"fmt"

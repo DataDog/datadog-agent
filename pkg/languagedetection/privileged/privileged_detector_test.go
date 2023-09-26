@@ -5,7 +5,7 @@
 
 //go:build linux && cgo
 
-package languagedetection
+package privileged
 
 import (
 	"os/exec"
