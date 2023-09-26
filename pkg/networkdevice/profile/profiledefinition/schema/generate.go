@@ -30,21 +30,23 @@ func GenerateJSONSchema() ([]byte, error) {
 }
 
 func jsonTypeMapper(ty reflect.Type) *jsonschema.Schema {
+	reflector := jsonschema.Reflector{
+		DoNotReference:            true,
+		AllowAdditionalProperties: false,
+		Mapper:                    jsonTypeMapper,
+	}
 	if ty == reflect.TypeOf(profiledefinition.JSONListMap[string]{}) {
-		r := jsonschema.Reflector{
-			DoNotReference:            true,
-			AllowAdditionalProperties: false,
-		}
-		schema := r.Reflect([]profiledefinition.MapItem[string]{})
+		schema := reflector.Reflect([]profiledefinition.MapItem[string]{})
 		schema.Version = ""
 		return schema
 	}
 	if ty == reflect.TypeOf(profiledefinition.JSONListMap[profiledefinition.MetadataResourceConfig]{}) {
-		r := jsonschema.Reflector{
-			DoNotReference:            true,
-			AllowAdditionalProperties: false,
-		}
-		schema := r.Reflect([]profiledefinition.MapItem[profiledefinition.MetadataResourceConfig]{})
+		schema := reflector.Reflect([]profiledefinition.MapItem[profiledefinition.MetadataResourceConfig]{})
+		schema.Version = ""
+		return schema
+	}
+	if ty == reflect.TypeOf(profiledefinition.JSONListMap[profiledefinition.MetadataField]{}) {
+		schema := reflector.Reflect([]profiledefinition.MapItem[profiledefinition.MetadataField]{})
 		schema.Version = ""
 		return schema
 	}

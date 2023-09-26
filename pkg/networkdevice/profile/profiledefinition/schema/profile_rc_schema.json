@@ -182,85 +182,98 @@
               "value": {
                 "properties": {
                   "fields": {
-                    "additionalProperties": {
+                    "items": {
                       "properties": {
-                        "symbol": {
+                        "key": {
+                          "type": "string"
+                        },
+                        "value": {
                           "properties": {
-                            "OID": {
-                              "type": "string"
+                            "symbol": {
+                              "properties": {
+                                "OID": {
+                                  "type": "string"
+                                },
+                                "name": {
+                                  "type": "string"
+                                },
+                                "extract_value": {
+                                  "type": "string"
+                                },
+                                "match_pattern": {
+                                  "type": "string"
+                                },
+                                "match_value": {
+                                  "type": "string"
+                                },
+                                "scale_factor": {
+                                  "type": "number"
+                                },
+                                "format": {
+                                  "type": "string"
+                                },
+                                "constant_value_one": {
+                                  "type": "boolean"
+                                },
+                                "metric_type": {
+                                  "type": "string"
+                                }
+                              },
+                              "additionalProperties": false,
+                              "type": "object"
                             },
-                            "name": {
-                              "type": "string"
+                            "symbols": {
+                              "items": {
+                                "properties": {
+                                  "OID": {
+                                    "type": "string"
+                                  },
+                                  "name": {
+                                    "type": "string"
+                                  },
+                                  "extract_value": {
+                                    "type": "string"
+                                  },
+                                  "match_pattern": {
+                                    "type": "string"
+                                  },
+                                  "match_value": {
+                                    "type": "string"
+                                  },
+                                  "scale_factor": {
+                                    "type": "number"
+                                  },
+                                  "format": {
+                                    "type": "string"
+                                  },
+                                  "constant_value_one": {
+                                    "type": "boolean"
+                                  },
+                                  "metric_type": {
+                                    "type": "string"
+                                  }
+                                },
+                                "additionalProperties": false,
+                                "type": "object"
+                              },
+                              "type": "array"
                             },
-                            "extract_value": {
-                              "type": "string"
-                            },
-                            "match_pattern": {
-                              "type": "string"
-                            },
-                            "match_value": {
-                              "type": "string"
-                            },
-                            "scale_factor": {
-                              "type": "number"
-                            },
-                            "format": {
-                              "type": "string"
-                            },
-                            "constant_value_one": {
-                              "type": "boolean"
-                            },
-                            "metric_type": {
+                            "value": {
                               "type": "string"
                             }
                           },
                           "additionalProperties": false,
                           "type": "object"
-                        },
-                        "symbols": {
-                          "items": {
-                            "properties": {
-                              "OID": {
-                                "type": "string"
-                              },
-                              "name": {
-                                "type": "string"
-                              },
-                              "extract_value": {
-                                "type": "string"
-                              },
-                              "match_pattern": {
-                                "type": "string"
-                              },
-                              "match_value": {
-                                "type": "string"
-                              },
-                              "scale_factor": {
-                                "type": "number"
-                              },
-                              "format": {
-                                "type": "string"
-                              },
-                              "constant_value_one": {
-                                "type": "boolean"
-                              },
-                              "metric_type": {
-                                "type": "string"
-                              }
-                            },
-                            "additionalProperties": false,
-                            "type": "object"
-                          },
-                          "type": "array"
-                        },
-                        "value": {
-                          "type": "string"
                         }
                       },
                       "additionalProperties": false,
-                      "type": "object"
+                      "type": "object",
+                      "required": [
+                        "key",
+                        "value"
+                      ]
                     },
-                    "type": "object"
+                    "type": "array"
                   },
                   "id_tags": {
                     "items": {
@@ -330,19 +343,45 @@
                           "type": "array"
                         },
                         "mapping": {
-                          "additionalProperties": {
-                            "type": "string"
+                          "items": {
+                            "properties": {
+                              "key": {
+                                "type": "string"
+                              },
+                              "value": {
+                                "type": "string"
+                              }
+                            },
+                            "additionalProperties": false,
+                            "type": "object",
+                            "required": [
+                              "key",
+                              "value"
+                            ]
                           },
-                          "type": "object"
+                          "type": "array"
                         },
                         "match": {
                           "type": "string"
                         },
                         "tags": {
-                          "additionalProperties": {
-                            "type": "string"
+                          "items": {
+                            "properties": {
+                              "key": {
+                                "type": "string"
+                              },
+                              "value": {
+                                "type": "string"
+                              }
+                            },
+                            "additionalProperties": false,
+                            "type": "object",
+                            "required": [
+                              "key",
+                              "value"
+                            ]
                           },
-                          "type": "object"
+                          "type": "array"
                         }
                       },
                       "additionalProperties": false,
