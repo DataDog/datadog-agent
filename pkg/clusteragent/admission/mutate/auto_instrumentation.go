@@ -5,6 +5,7 @@
 
 //go:build kubeapiserver
 
+// Package mutate implements the mutations needed by the auto-instrumentation feature.
 package mutate
 
 import (

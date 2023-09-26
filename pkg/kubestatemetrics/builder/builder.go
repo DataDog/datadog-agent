@@ -193,6 +193,7 @@ func GenerateStores[T any](
 	return stores
 }
 
+// GenerateStores is used to generate new Metrics Store for the given metric families
 func (b *Builder) GenerateStores(
 	metricFamilies []generator.FamilyGenerator,
 	expectedType interface{},

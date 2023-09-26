@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+// Package remote implements a remote Tagger.
 package remote
 
 import (
@@ -60,12 +61,14 @@ type Tagger struct {
 	telemetryTicker *time.Ticker
 }
 
+// Options contains the options needed to configure the remote tagger.
 type Options struct {
 	Target       string
 	TokenFetcher func() (string, error)
 	Disabled     bool
 }
 
+// NodeAgentOptions returns the tagger options used in the node agent.
 func NodeAgentOptions() (Options, error) {
 	return Options{
 		Target:       fmt.Sprintf(":%v", config.Datadog.GetInt("cmd_port")),
@@ -73,6 +76,7 @@ func NodeAgentOptions() (Options, error) {
 	}, nil
 }
 
+// CLCRunnerOptions returns the tagger options used in the CLC Runner.
 func CLCRunnerOptions() (Options, error) {
 	opts := Options{
 		Disabled: !config.Datadog.GetBool("clc_runner_remote_tagger_enabled"),

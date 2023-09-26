@@ -336,8 +336,9 @@ type Process struct {
 	ScrubbedArgvResolved bool           `field:"-" json:"-"`
 	Variables            eval.Variables `field:"-" json:"-"`
 
-	IsThread    bool `field:"is_thread"` // SECLDoc[is_thread] Definition:`Indicates whether the process is considered a thread (that is, a child process that hasn't executed another program)`
-	IsExecChild bool `field:"-"`         // Indicates whether the process is an exec child of its parent
+	IsThread        bool `field:"is_thread"` // SECLDoc[is_thread] Definition:`Indicates whether the process is considered a thread (that is, a child process that hasn't executed another program)`
+	IsExecChild     bool `field:"-"`         // Indicates whether the process is an exec child of its parent
+	IsParentMissing bool `field:"-"`         // Indicates the direct parent is missing
 
 	Source uint64 `field:"-" json:"-"`
 }
@@ -548,7 +549,7 @@ const (
 	ProcessCacheEntryFromUnknown   = iota // ProcessCacheEntryFromUnknown defines a process cache entry from unknown
 	ProcessCacheEntryFromEvent            // ProcessCacheEntryFromEvent defines a process cache entry from event
 	ProcessCacheEntryFromKernelMap        // ProcessCacheEntryFromKernelMap defines a process cache entry from kernel map
-	ProcessCacheEntryFromProcFS           // ProcessCacheEntryFromProcFS defines a process cache entry from procfs
+	ProcessCacheEntryFromProcFS           // ProcessCacheEntryFromProcFS defines a process cache entry from procfs. Note that some exec parent may be missing.
 	ProcessCacheEntryFromSnapshot         // ProcessCacheEntryFromSnapshot defines a process cache entry from snapshot
 )
 
