@@ -28,13 +28,13 @@ var LanguageDetectionModule = module.Factory{
 	ConfigNamespaces: []string{"language_detection"},
 	Fn: func(cfg *config.Config) (module.Module, error) {
 		return &languageDetectionModule{
-			languageDetector: privileged.NewPrivilegedLanguageDetector(),
+			languageDetector: privileged.NewLanguageDetector(),
 		}, nil
 	},
 }
 
 type languageDetectionModule struct {
-	languageDetector privileged.PrivilegedLanguageDetector
+	languageDetector privileged.LanguageDetector
 }
 
 func (l *languageDetectionModule) GetStats() map[string]interface{} {

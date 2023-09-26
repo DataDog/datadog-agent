@@ -53,7 +53,7 @@ func forkExecForTest(t *testing.T) *exec.Cmd {
 func TestPrivilegedDetectorCaching(t *testing.T) {
 	t.Run("cache entry does not exist", func(t *testing.T) {
 		cmd1 := cmdWrapper{forkExecForTest(t)}
-		d := NewPrivilegedLanguageDetector()
+		d := NewLanguageDetector()
 		d.DetectWithPrivileges([]languagemodels.Process{cmd1})
 
 		binID, err := d.getBinID(cmd1)
@@ -69,7 +69,7 @@ func TestPrivilegedDetectorCaching(t *testing.T) {
 			- `simplelru.LRUCache` is an external dependency; if the interface ever changed then the test would have to be fixed.
 		*/
 		cmd1 := cmdWrapper{forkExecForTest(t)}
-		d := NewPrivilegedLanguageDetector()
+		d := NewLanguageDetector()
 
 		binID, err := d.getBinID(cmd1)
 		require.NoError(t, err)
@@ -82,7 +82,7 @@ func TestPrivilegedDetectorCaching(t *testing.T) {
 
 func TestGetBinID(t *testing.T) {
 	cmd1, cmd2 := forkExecForTest(t), forkExecForTest(t)
-	d := NewPrivilegedLanguageDetector()
+	d := NewLanguageDetector()
 
 	// Assert cmd1 and cmd2 are not the same processes
 	assert.NotEqual(t, cmd1.Process.Pid, cmd2.Process.Pid)

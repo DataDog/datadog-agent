@@ -5,6 +5,10 @@
 
 //go:build linux
 
+// Package privileged implements language detection that relies on elevated permissions.
+//
+// An example of privileged language detection would be binary analysis, where the binary must be
+// inspected to determine the language it was compiled from.
 package privileged
 
 import (
@@ -29,32 +33,34 @@ var detectorsWithPrivilege = []languagemodels.Detector{
 }
 
 var (
-	PermissionDeniedWarningOnce = sync.Once{}
+	permissionDeniedWarningOnce = sync.Once{}
 )
 
 func handleDetectorError(err error) {
 	if os.IsPermission(err) {
-		PermissionDeniedWarningOnce.Do(func() {
-			log.Warnf("Attempted to detect language but permission was denied. Make sure the system probe is running as root and has CAP_PTRACE if it is running in a container.")
+		permissionDeniedWarningOnce.Do(func() {
+			log.Warnf("Attempted to detect language but permission was denied. Make sure the " +
+				"system probe is running as root and has CAP_PTRACE if it is running in a " +
+				"container.")
 		})
 	}
 }
 
-// PrivilegedLanguageDetector is a struct that is used by the system probe to run through the list of detectors that require
+// LanguageDetector is a struct that is used by the system probe to run through the list of detectors that require
 // elevated privileges to run.
 // It contains some extra state such as a cached hostProc value, as well as a cache for processes that reuse a binary
 // which has already been seen.
-type PrivilegedLanguageDetector struct {
+type LanguageDetector struct {
 	hostProc      string
 	binaryIDCache *simplelru.LRU[binaryID, languagemodels.Language]
 	detectors     []languagemodels.Detector
 }
 
-// NewPrivilegedLanguageDetector constructs a new PrivilegedLanguageDetector
-func NewPrivilegedLanguageDetector() PrivilegedLanguageDetector {
+// NewLanguageDetector constructs a new LanguageDetector
+func NewLanguageDetector() LanguageDetector {
 	lru, _ := simplelru.NewLRU[binaryID, languagemodels.Language](1000, nil) // Only errors if the size is negative, so it's safe to ignore
 
-	return PrivilegedLanguageDetector{
+	return LanguageDetector{
 		detectors:     detectorsWithPrivilege,
 		hostProc:      kernel.ProcFSRoot(),
 		binaryIDCache: lru,
@@ -62,7 +68,7 @@ func NewPrivilegedLanguageDetector() PrivilegedLanguageDetector {
 }
 
 // DetectWithPrivileges is used by the system probe to detect languages for languages that require binary analysis to detect.
-func (l *PrivilegedLanguageDetector) DetectWithPrivileges(procs []languagemodels.Process) []languagemodels.Language {
+func (l *LanguageDetector) DetectWithPrivileges(procs []languagemodels.Process) []languagemodels.Language {
 	languages := make([]languagemodels.Language, len(procs))
 	for i, proc := range procs {
 		bin, err := l.getBinID(proc)
@@ -99,7 +105,7 @@ func MockPrivilegedDetectors(t *testing.T, newDetectors []languagemodels.Detecto
 	detectorsWithPrivilege = newDetectors
 }
 
-func (l *PrivilegedLanguageDetector) getBinID(process languagemodels.Process) (binaryID, error) {
+func (l *LanguageDetector) getBinID(process languagemodels.Process) (binaryID, error) {
 	procPath := filepath.Join(l.hostProc, strconv.Itoa(int(process.GetPid())))
 	exePath := filepath.Join(procPath, "exe")
 	binPath, err := os.Readlink(exePath)
