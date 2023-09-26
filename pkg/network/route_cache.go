@@ -47,6 +47,7 @@ type routeCache struct {
 	cache  *lru.Cache
 	router Router
 	ttl    time.Duration
+	closed bool
 }
 
 const (
@@ -129,6 +130,7 @@ func (c *routeCache) Close() {
 
 	c.cache.Clear()
 	c.router.Close()
+	c.closed = true
 }
 
 func (c *routeCache) Get(source, dest util.Address, netns uint32) (Route, bool) {
@@ -137,6 +139,10 @@ func (c *routeCache) Get(source, dest util.Address, netns uint32) (Route, bool) 
 		routeCacheTelemetry.size.Set(float64(c.cache.Len()))
 		c.Unlock()
 	}()
+
+	if c.closed {
+		return Route{}, false
+	}
 
 	routeCacheTelemetry.lookups.Inc()
 	k := newRouteKey(source, dest, netns)
