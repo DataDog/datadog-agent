@@ -39,15 +39,15 @@ const (
 )
 
 var (
-	modelFile               string
-	typesFile               string
-	pkgname                 string
-	output                  string
-	perFieldAccessorsOutput string
-	verbose                 bool
-	docOutput               string
-	fieldHandlersOutput     string
-	buildTags               string
+	modelFile            string
+	typesFile            string
+	pkgname              string
+	output               string
+	verbose              bool
+	docOutput            string
+	fieldHandlersOutput  string
+	fieldAccessorsOutput string
+	buildTags            string
 )
 
 // AstFiles defines ast files
@@ -979,7 +979,7 @@ var accessorsTemplateCode string
 //go:embed field_handlers.tmpl
 var fieldHandlersTemplate string
 
-//go:embed per_field_accessors.tmpl
+//go:embed field_accessors.tmpl
 var perFieldAccessorsTemplate string
 
 func main() {
@@ -1006,7 +1006,7 @@ func main() {
 		panic(err)
 	}
 
-	if err := GenerateContent(perFieldAccessorsOutput, module, perFieldAccessorsTemplate); err != nil {
+	if err := GenerateContent(fieldAccessorsOutput, module, perFieldAccessorsTemplate); err != nil {
 		panic(err)
 	}
 }
@@ -1073,7 +1073,7 @@ func init() {
 	flag.StringVar(&typesFile, "types-file", os.Getenv("TYPESFILE"), "Go type file to use with the model file")
 	flag.StringVar(&pkgname, "package", pkgPrefix+"/"+os.Getenv("GOPACKAGE"), "Go package name")
 	flag.StringVar(&buildTags, "tags", "unix", "build tags used for parsing")
-	flag.StringVar(&perFieldAccessorsOutput, "per-field-accessors-output", "per_field_accessors_unix.go", "Generated per-field accessors output file")
+	flag.StringVar(&fieldAccessorsOutput, "field-accessors-output", "field_accessors_unix.go", "Generated per-field accessors output file")
 	flag.StringVar(&output, "output", "accessors_unix.go", "Go generated file")
 	flag.Parse()
 }

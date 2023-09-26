@@ -35,8 +35,8 @@ type Module struct {
 	SourcePkg         string
 	TargetPkg         string
 	BuildTags         []string
-	Fields            map[string]*StructField // only exposed fields by SECL
-	GettersOnlyFields map[string]*StructField
+	Fields            map[string]*StructField // Fields only contains fields that are exposed in SECL
+	GettersOnlyFields map[string]*StructField // GettersOnlyFields only contains fields that have generated getters but are not exposed in SECL
 	AllFields         map[string]*StructField
 	Iterators         map[string]*StructField
 	EventTypes        map[string]*EventTypeMetadata
