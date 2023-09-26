@@ -56,6 +56,7 @@ func newAgent(deps dependencies) Component {
 		),
 		cancel:             cancel,
 		config:             deps.Config,
+		ctx:                ctx,
 		params:             deps.Params,
 		shutdowner:         deps.Shutdowner,
 		telemetryCollector: telemetryCollector,

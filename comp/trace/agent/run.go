@@ -20,6 +20,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/trace/config"
 	coreconfig "github.com/DataDog/datadog-agent/pkg/config"
 	rc "github.com/DataDog/datadog-agent/pkg/config/remote"
+	agentrt "github.com/DataDog/datadog-agent/pkg/runtime"
 	"github.com/DataDog/datadog-agent/pkg/tagger"
 	"github.com/DataDog/datadog-agent/pkg/tagger/local"
 	"github.com/DataDog/datadog-agent/pkg/tagger/remote"
@@ -36,9 +37,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/profiling"
 	"github.com/DataDog/datadog-agent/pkg/version"
 	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
-
-	agentrt "github.com/DataDog/datadog-agent/pkg/runtime"
-
 	// register all workloadmeta collectors
 	_ "github.com/DataDog/datadog-agent/pkg/workloadmeta/collectors"
 )
