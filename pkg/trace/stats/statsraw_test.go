@@ -84,7 +84,7 @@ func TestGrainWithPeerService(t *testing.T) {
 	})
 }
 
-func TestGrainWithCustomTags(t *testing.T) {
+func TestGrainWithExtraTags(t *testing.T) {
 	t.Run("partially present", func(t *testing.T) {
 		assert := assert.New(t)
 		s := pb.Span{
@@ -145,7 +145,7 @@ func TestGrainWithCustomTags(t *testing.T) {
 	})
 }
 
-func TestGrainWithExtraTags(t *testing.T) {
+func TestGrainWithSynthetics(t *testing.T) {
 	assert := assert.New(t)
 	s := pb.Span{Service: "thing", Name: "other", Resource: "yo", Meta: map[string]string{tagStatusCode: "418"}}
 	aggr := NewAggregationFromSpan(&s, "synthetics-browser", PayloadAggregationKey{

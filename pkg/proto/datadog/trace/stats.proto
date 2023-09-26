@@ -72,5 +72,5 @@ message ClientGroupedStats {
 	uint64 topLevelHits = 13; // count of top level spans aggregated in the groupedstats
 	string peer_service = 14; // name of the remote service that the `service` communicated with
 	string span_kind = 15; // value of the span.kind tag on the span
-	repeated string extra_tags = 16; // Specifies extra tags to be used for stats aggregation
+	repeated string extra_tags = 16; // specifies extra tags to be used for stats aggregation
 }

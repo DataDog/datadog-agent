@@ -345,7 +345,7 @@ type ClientGroupedStats struct {
 	TopLevelHits   uint64   `protobuf:"varint,13,opt,name=topLevelHits,proto3" json:"topLevelHits,omitempty"`                 // count of top level spans aggregated in the groupedstats
 	PeerService    string   `protobuf:"bytes,14,opt,name=peer_service,json=peerService,proto3" json:"peer_service,omitempty"` // name of the remote service that the `service` communicated with
 	SpanKind       string   `protobuf:"bytes,15,opt,name=span_kind,json=spanKind,proto3" json:"span_kind,omitempty"`          // value of the span.kind tag on the span
-	ExtraTags      []string `protobuf:"bytes,16,rep,name=extra_tags,json=extraTags,proto3" json:"extra_tags,omitempty"`       // Specifies extra tags to be used for stats aggregation
+	ExtraTags      []string `protobuf:"bytes,16,rep,name=extra_tags,json=extraTags,proto3" json:"extra_tags,omitempty"`       // specifies extra tags to be used for stats aggregation
 }
 
 func (x *ClientGroupedStats) Reset() {
