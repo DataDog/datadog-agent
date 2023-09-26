@@ -1128,10 +1128,10 @@ func InitConfig(config Config) {
 
 	config.BindEnvAndSetDefault("sbom.cache_directory", filepath.Join(defaultRunPath, "sbom-agent"))
 	config.BindEnvAndSetDefault("sbom.clear_cache_on_exit", false)
-	config.BindEnvAndSetDefault("sbom.cache.enabled", false)
+	config.BindEnvAndSetDefault("sbom.cache.enabled", true)
 	config.BindEnvAndSetDefault("sbom.cache.max_disk_size", 1000*1000*100) // used by custom cache: max disk space used by cached objects. Not equal to max disk usage
-	config.BindEnvAndSetDefault("sbom.cache.max_cache_entries", 10000)     // used by custom cache keys stored in memory
-	config.BindEnvAndSetDefault("sbom.cache.clean_interval", "30m")        // used by custom cache.
+	config.BindEnvAndSetDefault("sbom.cache.max_cache_entries", 100000)    // used by custom cache keys stored in memory
+	config.BindEnvAndSetDefault("sbom.cache.clean_interval", "1h")         // used by custom cache.
 
 	// Container SBOM configuration
 	config.BindEnvAndSetDefault("sbom.container_image.enabled", false)
