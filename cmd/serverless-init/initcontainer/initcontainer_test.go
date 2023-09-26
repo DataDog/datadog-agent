@@ -11,6 +11,7 @@ import (
 	"testing"
 	"time"
 
+	logsAgent "github.com/DataDog/datadog-agent/comp/logs/agent"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -46,13 +47,19 @@ func (tfa *TestFlushableAgent) Flush() {
 func TestFlushSucess(t *testing.T) {
 	metricAgent := &TestFlushableAgent{}
 	traceAgent := &TestFlushableAgent{}
-	flush(100*time.Millisecond, metricAgent, traceAgent)
+	mockLogsAgent := logsAgent.NewMockServerlessLogsAgent()
+	flush(100*time.Millisecond, metricAgent, traceAgent, mockLogsAgent)
 	assert.Equal(t, true, metricAgent.hasBeenCalled)
+	assert.Equal(t, true, mockLogsAgent.DidFlush())
 }
 
 func TestFlushTimeout(t *testing.T) {
 	metricAgent := &TestTimeoutFlushableAgent{}
 	traceAgent := &TestTimeoutFlushableAgent{}
-	flush(100*time.Millisecond, metricAgent, traceAgent)
+	mockLogsAgent := logsAgent.NewMockServerlessLogsAgent()
+	mockLogsAgent.SetFlushDelay(time.Hour)
+
+	flush(100*time.Millisecond, metricAgent, traceAgent, mockLogsAgent)
 	assert.Equal(t, false, metricAgent.hasBeenCalled)
+	assert.Equal(t, false, mockLogsAgent.DidFlush())
 }

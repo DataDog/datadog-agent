@@ -13,7 +13,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/oracle-dbm/common"
-	"github.com/DataDog/datadog-agent/pkg/trace/log"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 const SYSMETRICS_QUERY = `SELECT 
@@ -117,7 +117,7 @@ func (c *Check) sendMetric(s sender.Sender, r SysmetricsRowDB, seen map[string]b
 			value = value / 100
 		}
 		if !SYSMETRICS_COLS[r.MetricName].DBM || SYSMETRICS_COLS[r.MetricName].DBM && c.dbmEnabled {
-			log.Tracef("%s: %f", metric.DDmetric, value)
+			log.Debugf("%s %s: %f", c.logPrompt, metric.DDmetric, value)
 			s.Gauge(fmt.Sprintf("%s.%s", common.IntegrationName, metric.DDmetric), value, "", appendPDBTag(c.tags, r.PdbName))
 			seen[r.MetricName] = true
 		}
@@ -160,11 +160,13 @@ func (c *Check) SysMetrics() error {
 	if err != nil {
 		return fmt.Errorf("failed to get PGA over allocation count: %w", err)
 	}
-	if c.previousAllocationCount != 0 {
-		v := overAllocationCount - c.previousAllocationCount
+	if c.previousPGAOverAllocationCount.valid {
+		v := overAllocationCount - c.previousPGAOverAllocationCount.value
 		sender.Gauge(fmt.Sprintf("%s.%s", common.IntegrationName, "pga_over_allocation_count"), v, "", c.tags)
+		c.previousPGAOverAllocationCount.value = overAllocationCount
+	} else {
+		c.previousPGAOverAllocationCount = pgaOverAllocationCount{value: overAllocationCount, valid: true}
 	}
-	c.previousAllocationCount = overAllocationCount
 
 	sender.Commit()
 	return nil

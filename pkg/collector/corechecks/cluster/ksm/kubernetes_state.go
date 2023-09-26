@@ -5,6 +5,7 @@
 
 //go:build kubeapiserver
 
+// Package ksm implements the Kubernetes State Core cluster check.
 package ksm
 
 import (
@@ -160,7 +161,7 @@ type KSMCheck struct {
 	metadataMetricsRegex *regexp.Regexp
 }
 
-// JoinsConfig contains the config parameters for label joins
+// JoinsConfigWithoutLabelsMapping contains the config parameters for label joins
 type JoinsConfigWithoutLabelsMapping struct {
 	// LabelsToMatch contains the labels that must
 	// match the labels of the targeted metric
@@ -342,10 +343,10 @@ func discoverResources(client discovery.DiscoveryInterface) ([]*v1.APIResourceLi
 	if err != nil {
 		if !discovery.IsGroupDiscoveryFailedError(err) {
 			return nil, fmt.Errorf("unable to perform resource discovery: %s", err)
-		} else {
-			for group, apiGroupErr := range err.(*discovery.ErrGroupDiscoveryFailed).Groups {
-				log.Warnf("unable to perform resource discovery for group %s: %s", group, apiGroupErr)
-			}
+		}
+
+		for group, apiGroupErr := range err.(*discovery.ErrGroupDiscoveryFailed).Groups {
+			log.Warnf("unable to perform resource discovery for group %s: %s", group, apiGroupErr)
 		}
 	}
 	return resources, nil

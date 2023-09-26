@@ -43,21 +43,17 @@ const (
 	MaxSQLFullTextVSQLStats = 1000
 )
 
-// The structure is filled by activity sampling and serves as a filter for query metrics
-type StatementsFilter struct {
-	SQLIDs                  map[string]int
-	ForceMatchingSignatures map[string]int
-}
+type hostingCode string
 
-type StatementsCacheData struct {
-	statement      string
-	querySignature string
-	tables         []string
-	commands       []string
-}
-type StatementsCache struct {
-	SQLIDs                  map[string]StatementsCacheData
-	forceMatchingSignatures map[string]StatementsCacheData
+const (
+	selfManaged hostingCode = "self-managed"
+	rds         hostingCode = "RDS"
+	oci         hostingCode = "OCI"
+)
+
+type pgaOverAllocationCount struct {
+	value float64
+	valid bool
 }
 
 type Check struct {
@@ -70,12 +66,9 @@ type Check struct {
 	agentVersion                            string
 	checkInterval                           float64
 	tags                                    []string
+	configTags                              []string
 	tagsString                              string
 	cdbName                                 string
-	statementsFilter                        StatementsFilter
-	statementsCache                         StatementsCache
-	DDstatementsCache                       StatementsCache
-	DDPrevStatementsCache                   StatementsCache
 	statementMetricsMonotonicCountsPrevious map[StatementMetricsKeyDB]StatementMetricsMonotonicCountDB
 	dbHostname                              string
 	dbVersion                               string
@@ -83,19 +76,20 @@ type Check struct {
 	metricLastRun                           time.Time
 	statementsLastRun                       time.Time
 	filePath                                string
-	isRDS                                   bool
-	isOracleCloud                           bool
 	sqlTraceRunsCount                       int
 	connectedToPdb                          bool
 	fqtEmitted                              *cache.Cache
 	planEmitted                             *cache.Cache
-	previousAllocationCount                 float64
+	previousPGAOverAllocationCount          pgaOverAllocationCount
+	hostingType                             hostingCode
+	logPrompt                               string
+	initialized                             bool
 }
 
 func handleServiceCheck(c *Check, err error) {
 	sender, errSender := c.GetSender()
 	if errSender != nil {
-		log.Errorf("failed to get sender for service check %s", err)
+		log.Errorf("%s failed to get sender for service check %s", c.logPrompt, err)
 	}
 
 	message := ""
@@ -104,7 +98,7 @@ func handleServiceCheck(c *Check, err error) {
 		status = servicecheck.ServiceCheckOK
 	} else {
 		status = servicecheck.ServiceCheckCritical
-		log.Errorf("failed to connect: %s", err)
+		log.Errorf("%s failed to connect: %s", c.logPrompt, err)
 	}
 	sender.ServiceCheck("oracle.can_connect", status, "", c.tags, message)
 	sender.Commit()
@@ -131,15 +125,22 @@ func (c *Check) Run() error {
 		if db == nil {
 			c.Teardown()
 			handleServiceCheck(c, fmt.Errorf("empty connection"))
-			return fmt.Errorf("empty connection")
+			return fmt.Errorf("%s empty connection", c.logPrompt)
 		}
 		c.db = db
+	}
+
+	if !c.initialized {
+		err := c.init()
+		if err != nil {
+			return fmt.Errorf("%s failed to initialize: %w", c.logPrompt, err)
+		}
 	}
 
 	if c.driver == "oracle" && c.connection == nil {
 		conn, err := connectGoOra(c)
 		if err != nil {
-			return fmt.Errorf("failed to connect with go-ora %w", err)
+			return fmt.Errorf("%s failed to connect with go-ora %w", c.logPrompt, err)
 		}
 		c.connection = conn
 	}
@@ -158,34 +159,34 @@ func (c *Check) Run() error {
 				handleServiceCheck(c, nil)
 			}
 			closeDatabase(c, db)
-			return fmt.Errorf("failed to collect os stats %w", err)
+			return fmt.Errorf("%s failed to collect os stats %w", c.logPrompt, err)
 		} else {
 			handleServiceCheck(c, nil)
 		}
 
 		if c.config.SysMetrics.Enabled {
-			log.Trace("Entered sysmetrics")
+			log.Debugf("%s Entered sysmetrics", c.logPrompt)
 			err := c.SysMetrics()
 			if err != nil {
-				return fmt.Errorf("failed to collect sysmetrics %w", err)
+				return fmt.Errorf("%s failed to collect sysmetrics %w", c.logPrompt, err)
 			}
 		}
 		if c.config.Tablespaces.Enabled {
 			err := c.Tablespaces()
 			if err != nil {
-				return err
+				return fmt.Errorf("%s %w", c.logPrompt, err)
 			}
 		}
 		if c.config.ProcessMemory.Enabled {
 			err := c.ProcessMemory()
 			if err != nil {
-				return err
+				return fmt.Errorf("%s %w", c.logPrompt, err)
 			}
 		}
 		if len(c.config.CustomQueries) > 0 {
 			err := c.CustomQueries()
 			if err != nil {
-				log.Errorf("failed to execute custom queries %s", err)
+				log.Errorf("%s failed to execute custom queries %s", c.logPrompt, err)
 			}
 		}
 	}
@@ -194,12 +195,12 @@ func (c *Check) Run() error {
 		if c.config.QuerySamples.Enabled {
 			err := c.SampleSession()
 			if err != nil {
-				return err
+				return fmt.Errorf("%s %w", c.logPrompt, err)
 			}
 			if c.config.QueryMetrics.Enabled {
 				_, err = c.StatementMetrics()
 				if err != nil {
-					return err
+					return fmt.Errorf("%s %w", c.logPrompt, err)
 				}
 			}
 		}
@@ -207,20 +208,20 @@ func (c *Check) Run() error {
 			if c.config.SharedMemory.Enabled {
 				err := c.SharedMemory()
 				if err != nil {
-					return err
+					return fmt.Errorf("%s %w", c.logPrompt, err)
 				}
 			}
 		}
 	}
 
 	if c.config.AgentSQLTrace.Enabled {
-		log.Tracef("Traced runs %d", c.sqlTraceRunsCount)
+		log.Debugf("%s Traced runs %d", c.logPrompt, c.sqlTraceRunsCount)
 		c.sqlTraceRunsCount++
 		if c.sqlTraceRunsCount >= c.config.AgentSQLTrace.TracedRuns {
 			c.config.AgentSQLTrace.Enabled = false
 			_, err := c.db.Exec("BEGIN dbms_monitor.session_trace_disable; END;")
 			if err != nil {
-				log.Errorf("failed to stop SQL trace: %v", err)
+				log.Errorf("%s failed to stop SQL trace: %v", c.logPrompt, err)
 			}
 			c.db.SetMaxOpenConns(MAX_OPEN_CONNECTIONS)
 		}
@@ -234,12 +235,10 @@ func assertBool(val bool) bool {
 
 // Teardown cleans up resources used throughout the check.
 func (c *Check) Teardown() {
+	log.Infof("%s Teardown", c.logPrompt)
 	closeDatabase(c, c.db)
 	closeDatabase(c, c.dbCustomQueries)
 	closeGoOraConnection(c)
-
-	c.fqtEmitted = nil
-	c.planEmitted = nil
 }
 
 // Configure configures the Oracle check.
@@ -266,32 +265,26 @@ func (c *Check) Configure(senderManager sender.SenderManager, integrationConfigD
 	c.agentVersion = agentVersion.GetNumberAndPre()
 
 	c.checkInterval = float64(c.config.InitConfig.MinCollectionInterval)
-	c.tags = make([]string, len(c.config.Tags))
-	copy(c.tags, c.config.Tags)
-	c.tags = append(c.tags, fmt.Sprintf("dbms:%s", common.IntegrationName), fmt.Sprintf("ddagentversion:%s", c.agentVersion))
-	c.tags = append(c.tags, fmt.Sprintf("dbm:%t", c.dbmEnabled))
+
+	tags := make([]string, len(c.config.Tags))
+
+	tags = append(tags, fmt.Sprintf("dbms:%s", common.IntegrationName), fmt.Sprintf("ddagentversion:%s", c.agentVersion))
+	tags = append(tags, fmt.Sprintf("dbm:%t", c.dbmEnabled))
 	if c.config.TnsAlias != "" {
-		c.tags = append(c.tags, fmt.Sprintf("tns-alias:%s", c.config.TnsAlias))
+		tags = append(tags, fmt.Sprintf("tns-alias:%s", c.config.TnsAlias))
 	}
 	if c.config.Port != 0 {
-		c.tags = append(c.tags, fmt.Sprintf("port:%d", c.config.Port))
+		tags = append(tags, fmt.Sprintf("port:%d", c.config.Port))
 	}
 	if c.config.Server != "" {
-		c.tags = append(c.tags, fmt.Sprintf("server:%s", c.config.Server))
+		tags = append(tags, fmt.Sprintf("server:%s", c.config.Server))
 	}
 	if c.config.ServiceName != "" {
-		c.tags = append(c.tags, fmt.Sprintf("service:%s", c.config.ServiceName))
+		tags = append(tags, fmt.Sprintf("service:%s", c.config.ServiceName))
 	}
+	copy(c.configTags, tags)
 
-	c.tagsString = strings.Join(c.tags, ",")
-
-	c.fqtEmitted = cache.New(60*time.Minute, 10*time.Minute)
-
-	var planCacheRetention = c.config.QueryMetrics.PlanCacheRetention
-	if planCacheRetention == 0 {
-		planCacheRetention = 1
-	}
-	c.planEmitted = cache.New(time.Duration(planCacheRetention)*time.Minute, 10*time.Minute)
+	c.logPrompt = config.GetLogPrompt(c.config.InstanceConfig)
 
 	return nil
 }
@@ -316,7 +309,7 @@ func (c *Check) GetObfuscatedStatement(o *obfuscate.Obfuscator, statement string
 		}, nil
 	} else {
 		if c.config.InstanceConfig.LogUnobfuscatedQueries {
-			log.Error(fmt.Sprintf("Obfuscation error for SQL: %s", statement))
+			log.Errorf("%s Obfuscation error for SQL: %s", c.logPrompt, statement)
 		}
 		return common.ObfuscatedStatement{Statement: statement}, err
 	}

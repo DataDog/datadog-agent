@@ -92,7 +92,7 @@ func (m *EventMonitor) Register(_ *module.Router) error {
 }
 
 // RegisterGRPC register to system probe gRPC server
-func (m *EventMonitor) RegisterGRPC(_ *grpc.Server) error {
+func (m *EventMonitor) RegisterGRPC(_ grpc.ServiceRegistrar) error {
 	return nil
 }
 

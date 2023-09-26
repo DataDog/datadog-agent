@@ -55,19 +55,21 @@ import (
 type Client struct {
 	fakeIntakeURL string
 
-	metricAggregator   aggregator.MetricAggregator
-	checkRunAggregator aggregator.CheckRunAggregator
-	logAggregator      aggregator.LogAggregator
+	metricAggregator     aggregator.MetricAggregator
+	checkRunAggregator   aggregator.CheckRunAggregator
+	logAggregator        aggregator.LogAggregator
+	connectionAggregator aggregator.ConnectionsAggregator
 }
 
 // NewClient creates a new fake intake client
 // fakeIntakeURL: the host of the fake Datadog intake server
 func NewClient(fakeIntakeURL string) *Client {
 	return &Client{
-		fakeIntakeURL:      strings.TrimSuffix(fakeIntakeURL, "/"),
-		metricAggregator:   aggregator.NewMetricAggregator(),
-		checkRunAggregator: aggregator.NewCheckRunAggregator(),
-		logAggregator:      aggregator.NewLogAggregator(),
+		fakeIntakeURL:        strings.TrimSuffix(fakeIntakeURL, "/"),
+		metricAggregator:     aggregator.NewMetricAggregator(),
+		checkRunAggregator:   aggregator.NewCheckRunAggregator(),
+		logAggregator:        aggregator.NewLogAggregator(),
+		connectionAggregator: aggregator.NewConnectionsAggregator(),
 	}
 }
 
@@ -93,6 +95,14 @@ func (c *Client) getLogs() error {
 		return err
 	}
 	return c.logAggregator.UnmarshallPayloads(payloads)
+}
+
+func (c *Client) getConnections() error {
+	payloads, err := c.getFakePayloads("/api/v1/connections")
+	if err != nil {
+		return err
+	}
+	return c.connectionAggregator.UnmarshallPayloads(payloads)
 }
 
 // GetLatestFlare queries the Fake Intake to fetch flares that were sent by a Datadog Agent and returns the latest flare as a Flare struct
@@ -360,4 +370,24 @@ func (c *Client) flushPayloads() error {
 		return fmt.Errorf("error code %v", resp.StatusCode)
 	}
 	return nil
+}
+
+// GetConnections fetches fakeintake on `/api/v1/connections` endpoint and returns
+// all received connections
+func (c *Client) GetConnections() (conns *aggregator.ConnectionsAggregator, err error) {
+	err = c.getConnections()
+	if err != nil {
+		return nil, err
+	}
+	return &c.connectionAggregator, nil
+}
+
+// GetConnectionsNames fetches fakeintake on `/api/v1/connections` endpoint and returns
+// all received connections from hostname+network_id
+func (c *Client) GetConnectionsNames() ([]string, error) {
+	err := c.getConnections()
+	if err != nil {
+		return []string{}, err
+	}
+	return c.connectionAggregator.GetNames(), nil
 }

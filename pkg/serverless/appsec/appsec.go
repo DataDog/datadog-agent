@@ -8,12 +8,13 @@
 package appsec
 
 import (
+	"encoding/json"
 	"time"
 
 	"github.com/DataDog/appsec-internal-go/appsec"
 	"github.com/DataDog/datadog-agent/pkg/serverless/appsec/httpsec"
 	"github.com/DataDog/datadog-agent/pkg/serverless/proxy"
-	"github.com/DataDog/go-libddwaf"
+	waf "github.com/DataDog/go-libddwaf"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -61,7 +62,7 @@ func newAppSec() (*AppSec, error) {
 	}
 
 	// Check if AppSec can actually run properly
-	if err := waf.Health(); err != nil {
+	if err := wafHealth(); err != nil {
 		return nil, err
 	}
 
@@ -70,7 +71,11 @@ func newAppSec() (*AppSec, error) {
 		return nil, err
 	}
 
-	handle, err := waf.NewHandle([]byte(appsec.StaticRecommendedRules), cfg.obfuscator.KeyRegex, cfg.obfuscator.ValueRegex)
+	var rules map[string]any
+	if err := json.Unmarshal([]byte(appsec.StaticRecommendedRules), &rules); err != nil {
+		return nil, err
+	}
+	handle, err := waf.NewHandle(rules, cfg.obfuscator.KeyRegex, cfg.obfuscator.ValueRegex)
 	if err != nil {
 		return nil, err
 	}
@@ -120,4 +125,17 @@ func (a *AppSec) Monitor(addresses map[string]interface{}) (events []byte) {
 		return nil
 	}
 	return events
+}
+
+// wafHealth is a simple test helper that returns the same thing as `waf.Health`
+// used to return in `go-libddwaf` prior to v1.4.0
+func wafHealth() error {
+	if ok, err := waf.SupportsTarget(); !ok {
+		return err
+	}
+
+	if ok, err := waf.Load(); !ok {
+		return err
+	}
+	return nil
 }
