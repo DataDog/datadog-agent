@@ -782,7 +782,7 @@ func TestClientComputedTopLevel(t *testing.T) {
 }
 
 func TestFilteredByTags(t *testing.T) {
-	for _, tt := range []struct {
+	for name, tt := range map[string]struct {
 		require      []*config.Tag
 		reject       []*config.Tag
 		requireRegex []*config.TagRegex
@@ -790,140 +790,140 @@ func TestFilteredByTags(t *testing.T) {
 		span         pb.Span
 		drop         bool
 	}{
-		{
+		"keep-span-with-tag-from-required-list": {
 			require: []*config.Tag{{K: "key", V: "val"}},
 			span:    pb.Span{Meta: map[string]string{"key": "val"}},
 			drop:    false,
 		},
-		{
+		"keep-span-with-tag-value-diff-rejected-list": {
 			reject: []*config.Tag{{K: "key", V: "val"}},
 			span:   pb.Span{Meta: map[string]string{"key": "val4"}},
 			drop:   false,
 		},
-		{
+		"keep-span-with-tag-diff-rejected-list": {
 			reject: []*config.Tag{{K: "something", V: "else"}},
 			span:   pb.Span{Meta: map[string]string{"key": "val"}},
 			drop:   false,
 		},
-		{
+		"keep-span-with-tag-from-required-list-and-tag-value-diff-rejected-list": {
 			require: []*config.Tag{{K: "something", V: "else"}},
 			reject:  []*config.Tag{{K: "bad-key", V: "bad-value"}},
 			span:    pb.Span{Meta: map[string]string{"something": "else", "bad-key": "other-value"}},
 			drop:    false,
 		},
-		{
+		"keep-span-with-tag-from-required-list-whithout-value-and-tag-value-diff-rejected-list": {
 			require: []*config.Tag{{K: "key", V: "value"}, {K: "key-only"}},
 			reject:  []*config.Tag{{K: "bad-key", V: "bad-value"}},
 			span:    pb.Span{Meta: map[string]string{"key": "value", "key-only": "but-also-value", "bad-key": "not-bad-value"}},
 			drop:    false,
 		},
-		{
+		"drop-span-with-tag-value-diff-required-list": {
 			require: []*config.Tag{{K: "key", V: "val"}},
 			span:    pb.Span{Meta: map[string]string{"key": "val2"}},
 			drop:    true,
 		},
-		{
+		"drop-span-with-tag-key-diff-required-list": {
 			require: []*config.Tag{{K: "something", V: "else"}},
 			span:    pb.Span{Meta: map[string]string{"key": "val"}},
 			drop:    true,
 		},
-		{
+		"drop-span-with-tag-from-rejected-list-without-value": {
 			require: []*config.Tag{{K: "valid"}, {K: "test"}},
 			reject:  []*config.Tag{{K: "test"}},
 			span:    pb.Span{Meta: map[string]string{"test": "random", "valid": "random"}},
 			drop:    true,
 		},
-		{
+		"drop-span-with-tag-value-diff-required-list-and-tag-from-rejected-list": {
 			require: []*config.Tag{{K: "valid-key", V: "valid-value"}, {K: "test"}},
 			reject:  []*config.Tag{{K: "test"}},
 			span:    pb.Span{Meta: map[string]string{"test": "random", "valid-key": "wrong-value"}},
 			drop:    true,
 		},
-		{
+		"drop-span-with-tag-value-from-rejected-list": {
 			reject: []*config.Tag{{K: "key", V: "val"}},
 			span:   pb.Span{Meta: map[string]string{"key": "val"}},
 			drop:   true,
 		},
-		{
+		"drop-span-with-tag-from-required-list-but-with-tag-from-rejected-list-without-value": {
 			require: []*config.Tag{{K: "something", V: "else"}, {K: "key-only"}},
 			reject:  []*config.Tag{{K: "bad-key", V: "bad-value"}, {K: "bad-key-only"}},
 			span:    pb.Span{Meta: map[string]string{"something": "else", "key-only": "but-also-value", "bad-key-only": "random"}},
 			drop:    true,
 		},
-		{
+		"drop-span-with-tag-from-rejected-regexp-list": {
 			require:      []*config.Tag{{K: "key", V: "valid"}},
 			requireRegex: []*config.TagRegex{{K: "something", V: regexp.MustCompile("^else[0-9]{1}$")}},
 			span:         pb.Span{Meta: map[string]string{"key": "valid", "something": "else11"}},
 			drop:         true,
 		},
-		{
+		"drop-span-with-tag-from-rejected-regexp-list-but-without-tag-from-rejected-list": {
 			reject:      []*config.Tag{{K: "test", V: "bad"}},
 			rejectRegex: []*config.TagRegex{{K: "bad-key", V: regexp.MustCompile("^bad-value$")}},
 			span:        pb.Span{Meta: map[string]string{"bad-key": "bad-value"}},
 			drop:        true,
 		},
-		{
+		"keep-span-with-tag-from-required-regexp-list": {
 			requireRegex: []*config.TagRegex{{K: "key", V: regexp.MustCompile("^val[0-9]{1}$")}},
 			span:         pb.Span{Meta: map[string]string{"key": "val1"}},
 			drop:         false,
 		},
-		{
+		"keep-span-with-tag-value-diff-rejected-regexp-list": {
 			rejectRegex: []*config.TagRegex{{K: "key", V: regexp.MustCompile("^val$")}},
 			span:        pb.Span{Meta: map[string]string{"key": "val4"}},
 			drop:        false,
 		},
-		{
+		"keep-span-with-tag-key-value-diff-rejected-regexp-list": {
 			rejectRegex: []*config.TagRegex{{K: "something", V: regexp.MustCompile("^else$")}},
 			span:        pb.Span{Meta: map[string]string{"key": "val"}},
 			drop:        false,
 		},
-		{
+		"keep-span-with-tag-from-required-regexp-list-and-tag-value-diff-rejected-regexp-list": {
 			requireRegex: []*config.TagRegex{{K: "something", V: regexp.MustCompile("^else$")}},
 			rejectRegex:  []*config.TagRegex{{K: "bad-key", V: regexp.MustCompile("^bad-value$")}},
 			span:         pb.Span{Meta: map[string]string{"something": "else", "bad-key": "other-value"}},
 			drop:         false,
 		},
-		{
+		"keep-span-with-tag-from-required-regexp-list-without-value-and-tag-value-diff-rejected-regexp-list": {
 			requireRegex: []*config.TagRegex{{K: "key", V: regexp.MustCompile("^value$")}, {K: "key-only"}},
 			rejectRegex:  []*config.TagRegex{{K: "bad-key", V: regexp.MustCompile("^bad-value$")}},
 			span:         pb.Span{Meta: map[string]string{"key": "value", "key-only": "but-also-value", "bad-key": "not-bad-value"}},
 			drop:         false,
 		},
-		{
+		"drop-span-with-tag-value-diff-required-regexp-list": {
 			requireRegex: []*config.TagRegex{{K: "key", V: regexp.MustCompile("^val$")}},
 			span:         pb.Span{Meta: map[string]string{"key": "val2"}},
 			drop:         true,
 		},
-		{
+		"drop-span-with-tag-key-diff-required-regexp-list": {
 			requireRegex: []*config.TagRegex{{K: "something", V: regexp.MustCompile("^else$")}},
 			span:         pb.Span{Meta: map[string]string{"key": "val"}},
 			drop:         true,
 		},
-		{
+		"drop-span-with-tag-from-rejected-regexp-list-without-value": {
 			requireRegex: []*config.TagRegex{{K: "valid"}, {K: "test"}},
 			rejectRegex:  []*config.TagRegex{{K: "test"}},
 			span:         pb.Span{Meta: map[string]string{"test": "random", "valid": "random"}},
 			drop:         true,
 		},
-		{
+		"drop-span-with-tag-value-diff-required-regexp-list-and-tag-from-required-regexp-list-without-value": {
 			requireRegex: []*config.TagRegex{{K: "valid-key", V: regexp.MustCompile("^valid-value$")}, {K: "test"}},
 			rejectRegex:  []*config.TagRegex{{K: "test"}},
 			span:         pb.Span{Meta: map[string]string{"test": "random", "valid-key": "wrong-value"}},
 			drop:         true,
 		},
-		{
+		"drop-span-with-tag-from-rejected-regexp-list-and-without-required-regexp-list": {
 			rejectRegex: []*config.TagRegex{{K: "key", V: regexp.MustCompile("^val$")}},
 			span:        pb.Span{Meta: map[string]string{"key": "val"}},
 			drop:        true,
 		},
-		{
+		"drop-span-with-tag-from-required-regexp-list-but-with-tag-from-rejected-regexp-list-without-value": {
 			requireRegex: []*config.TagRegex{{K: "something", V: regexp.MustCompile("^else$")}, {K: "key-only"}},
 			rejectRegex:  []*config.TagRegex{{K: "bad-key", V: regexp.MustCompile("^bad-value$")}, {K: "bad-key-only"}},
 			span:         pb.Span{Meta: map[string]string{"something": "else", "key-only": "but-also-value", "bad-key-only": "random"}},
 			drop:         true,
 		},
 	} {
-		t.Run("", func(t *testing.T) {
+		t.Run(name, func(t *testing.T) {
 			if filteredByTags(&tt.span, tt.require, tt.reject, tt.requireRegex, tt.rejectRegex) != tt.drop {
 				t.Fatal()
 			}
