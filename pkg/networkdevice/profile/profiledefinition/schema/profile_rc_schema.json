@@ -37,16 +37,10 @@
       },
       "type": "array"
     },
-    "MetadataConfigStruct": {
-      "properties": {
-        "device": {
-          "$ref": "#/$defs/MetadataResourceConfig"
-        },
-        "interface": {
-          "$ref": "#/$defs/MetadataResourceConfig"
-        }
+    "MetadataConfig": {
+      "additionalProperties": {
+        "$ref": "#/$defs/MetadataResourceConfig"
       },
-      "additionalProperties": false,
       "type": "object"
     },
     "MetadataField": {
@@ -212,7 +206,7 @@
           "type": "array"
         },
         "metadata": {
-          "$ref": "#/$defs/MetadataConfigStruct"
+          "$ref": "#/$defs/MetadataConfig"
         },
         "metric_tags": {
           "items": {
