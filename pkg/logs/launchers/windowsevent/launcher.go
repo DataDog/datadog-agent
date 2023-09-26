@@ -50,6 +50,7 @@ func NewLauncher() *Launcher {
 func (l *Launcher) Start(sourceProvider launchers.SourceProvider, pipelineProvider pipeline.Provider, registry auditor.Registry, tracker *tailers.TailerTracker) {
 	l.pipelineProvider = pipelineProvider
 	l.sources = sourceProvider.GetAddedForType(config.WindowsEventType)
+	l.registry = registry
 	availableChannels, err := EnumerateChannels()
 	if err != nil {
 		log.Debug("Could not list windows event log channels: ", err)
