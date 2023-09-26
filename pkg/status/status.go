@@ -48,7 +48,7 @@ func GetStatus(verbose bool) (map[string]interface{}, error) {
 	if err != nil {
 		return nil, err
 	}
-
+	stats["verbose"] = verbose
 	stats["config"] = getPartialConfig()
 	metadata := stats["metadata"].(*host.Payload)
 	hostTags := make([]string, 0, len(metadata.HostTags.System)+len(metadata.HostTags.GoogleCloudPlatform))

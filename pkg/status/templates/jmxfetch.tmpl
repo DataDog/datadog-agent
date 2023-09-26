@@ -30,14 +30,9 @@ JMXFetch
       {{- range $check,$instances := .checks.initialized_checks }}
     {{ $check -}}
         {{- range $instance := $instances }}
-    - instance_name: {{ .instance_name }}
-      instance_bean_count: {{ .instance_bean_count }}
-      instance_attribute_count: {{ .instance_attribute_count }}
-      instance_metric_count: {{ .instance_metric_count }}
-      metric_count: {{ .metric_count }}
-      service_check_count: {{ .service_check_count }}
-      message: {{ .message }}
-      status: {{ .status }}
+          {{- range $k,$v := $instance }}
+      {{ $k }} : {{ $v }}
+          {{- end -}}
         {{- end -}}
       {{- end }}
     {{- end }}
@@ -53,6 +48,22 @@ JMXFetch
       {{ $k }} : {{ $v }}
           {{- end }}
         {{- end }}
+      {{- end }}
+    {{- end }}
+  {{- end }}
+{{- end }}
+{{- if .verbose }}
+  {{ with .JMXStatus }}
+  Internal JMXFetch Telemetry
+  ===========================
+    {{- if .checks.initialized_checks }}
+      {{- range $check,$instances := .checks.initialized_checks }}
+        {{- range $instance := $instances }}
+    - instance_name: {{ .instance_name }}
+      instance_bean_count: {{ .instance_bean_count }}
+      instance_attribute_count: {{ .instance_attribute_count }}
+      instance_metric_count: {{ .instance_metric_count }}
+          {{- end -}}
       {{- end }}
     {{- end }}
   {{- end }}
