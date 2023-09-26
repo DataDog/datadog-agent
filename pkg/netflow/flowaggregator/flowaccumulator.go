@@ -136,9 +136,9 @@ func (f *flowAccumulator) add(flowToAdd *common.Flow) {
 		// accumulate flowToAdd with existing flow(s) with same hash
 		aggFlow.flow.Bytes += flowToAdd.Bytes
 		aggFlow.flow.Packets += flowToAdd.Packets
-		aggFlow.flow.StartTimestamp = common.MinUint64(aggFlow.flow.StartTimestamp, flowToAdd.StartTimestamp)
-		aggFlow.flow.EndTimestamp = common.MaxUint64(aggFlow.flow.EndTimestamp, flowToAdd.EndTimestamp)
-		aggFlow.flow.SequenceNum = common.MaxUint32(aggFlow.flow.SequenceNum, flowToAdd.SequenceNum)
+		aggFlow.flow.StartTimestamp = common.Min(aggFlow.flow.StartTimestamp, flowToAdd.StartTimestamp)
+		aggFlow.flow.EndTimestamp = common.Max(aggFlow.flow.EndTimestamp, flowToAdd.EndTimestamp)
+		aggFlow.flow.SequenceNum = common.Max(aggFlow.flow.SequenceNum, flowToAdd.SequenceNum)
 		aggFlow.flow.TCPFlags |= flowToAdd.TCPFlags
 	}
 	f.flows[aggHash] = aggFlow

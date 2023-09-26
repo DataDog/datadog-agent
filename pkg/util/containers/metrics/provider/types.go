@@ -28,6 +28,8 @@ type ContainerMemStats struct {
 	OOMEvents        *float64 // Number of events where memory allocation failed
 	PartialStallTime *float64 // Correspond to PSI Some total
 	Peak             *float64
+	Pgfault          *float64
+	Pgmajfault       *float64
 
 	// Windows-only fields
 	PrivateWorkingSet *float64
