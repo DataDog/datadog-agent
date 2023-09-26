@@ -5,6 +5,8 @@
 
 package profiledefinition
 
+import "sort"
+
 // StringArray is list of string with a yaml un-marshaller that support both array and string.
 // See test file for example usage.
 // Credit: https://github.com/go-yaml/yaml/issues/100#issuecomment-324964723
@@ -60,6 +62,7 @@ func (ml *KeyValueList) UnmarshalYAML(unmarshal func(interface{}) error) error {
 		for k := range mapping {
 			keys = append(keys, k)
 		}
+		sort.Strings(keys)
 		kvList = []KeyValue{}
 		for _, k := range keys {
 			v := mapping[k]

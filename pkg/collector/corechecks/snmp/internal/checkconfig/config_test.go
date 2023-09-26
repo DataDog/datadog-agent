@@ -195,19 +195,19 @@ bulk_max_repetitions: 20
 				{Tag: "ipversion", Index: 1, Mapping: profiledefinition.KeyValueList{
 					{Key: "0", Value: "unknown"},
 					{Key: "1", Value: "ipv4"},
+					{Key: "16", Value: "dns"},
 					{Key: "2", Value: "ipv6"},
 					{Key: "3", Value: "ipv4z"},
 					{Key: "4", Value: "ipv6z"},
-					{Key: "16", Value: "dns"},
 				}},
 				{Tag: "if_type",
 					Column: profiledefinition.SymbolConfig{OID: "1.3.6.1.2.1.2.2.1.3", Name: "ifType"},
 					Mapping: profiledefinition.KeyValueList{
 						{Key: "1", Value: "other"},
 						{Key: "2", Value: "regular1822"},
+						{Key: "29", Value: "ultra"},
 						{Key: "3", Value: "hdh1822"},
 						{Key: "4", Value: "ddn-x25"},
-						{Key: "29", Value: "ultra"},
 					}},
 				{
 					Column: profiledefinition.SymbolConfig{
