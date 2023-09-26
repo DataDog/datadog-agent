@@ -809,5 +809,5 @@ def trigger_build(ctx, branch_name=None, create_branch=False):
     answer = input("Do you want to trigger a pipeline (will also commit and push)? [Y/n]\n")
     if len(answer) == 0 or answer.casefold() == "y":
         ctx.run("git commit -m 'Update buildimages version'")
-        ctx.run(f"git push origin {branch_name}")
+        ctx.run(f"git push -o ci.skip origin {branch_name}")
         run(ctx, here=True)
