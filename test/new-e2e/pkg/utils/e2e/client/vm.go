@@ -12,6 +12,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/runner"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/runner/parameters"
+	commonos "github.com/DataDog/test-infra-definitions/components/os"
 	commonvm "github.com/DataDog/test-infra-definitions/components/vm"
 )
 
@@ -21,11 +22,13 @@ var _ clientService[commonvm.ClientData] = (*VM)(nil)
 type VM struct {
 	*UpResultDeserializer[commonvm.ClientData]
 	*vmClient
+	OS commonos.OS
 }
 
 // NewVM creates a new instance of VM
 func NewVM(infraVM commonvm.VM) *VM {
 	vm := &VM{}
+	vm.os = infraVM.GetOS()
 	vm.UpResultDeserializer = NewUpResultDeserializer[commonvm.ClientData](infraVM, vm)
 	return vm
 }
@@ -47,6 +50,6 @@ func (vm *VM) initService(t *testing.T, data *commonvm.ClientData) error {
 		}
 	}
 
-	vm.vmClient, err = newVMClient(t, privateSSHKey, &data.Connection)
+	vm.vmClient, err = newVMClient(t, privateSSHKey, &data.Connection, vm.os)
 	return err
 }
