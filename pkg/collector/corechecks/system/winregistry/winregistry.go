@@ -90,8 +90,8 @@ func (c *WindowsRegistryCheck) Configure(senderManager sender.SenderManager, int
 	}
 
 	for regKey, regKeyConfig := range conf.RegistryKeys {
-		splitKeypath := strings.Split(regKey, "\\")
-		if len(splitKeypath) < 2 {
+		splitKeypath := strings.SplitN(regKey, "\\", 2)
+		if len(splitKeypath) != 2 {
 			return log.Errorf("the key %s is too short to be a valid key", regKey)
 		}
 
@@ -113,7 +113,7 @@ func (c *WindowsRegistryCheck) Configure(senderManager sender.SenderManager, int
 				name:            regKeyConfig.Name,
 				hive:            hive,
 				originalKeyPath: regKey,
-				keyPath:         strings.Join(splitKeypath[1:], "\\"),
+				keyPath:         splitKeypath[1],
 				registryValues:  regValues,
 			})
 		} else {
