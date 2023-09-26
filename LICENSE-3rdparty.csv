@@ -1442,9 +1442,6 @@ core,github.com/syndtr/goleveldb/leveldb/table,BSD-2-Clause,Copyright 2012 Surya
 core,github.com/syndtr/goleveldb/leveldb/util,BSD-2-Clause,Copyright 2012 Suryandaru Triandana <syndtr@gmail.com>
 core,github.com/tchap/go-patricia/v2/patricia,MIT,Copyright (c) 2014 The AUTHORS | Ondřej Kupka <ondra.cap@gmail.com> | This is the complete list of go-patricia copyright holders:
 core,github.com/tedsuo/rata,MIT,Copyright (c) 2014 Ted Young
-core,github.com/tidwall/gjson,MIT,Copyright (c) 2016 Josh Baker
-core,github.com/tidwall/match,MIT,Copyright (c) 2016 Josh Baker
-core,github.com/tidwall/pretty,MIT,Copyright (c) 2017 Josh Baker
 core,github.com/tinylib/msgp,MIT,Copyright (c) 2009 The Go Authors (license at http://golang.org) where indicated | Copyright (c) 2014 Philip Hofer
 core,github.com/tinylib/msgp/gen,MIT,Copyright (c) 2009 The Go Authors (license at http://golang.org) where indicated | Copyright (c) 2014 Philip Hofer
 core,github.com/tinylib/msgp/msgp,MIT,Copyright (c) 2009 The Go Authors (license at http://golang.org) where indicated | Copyright (c) 2014 Philip Hofer
@@ -1493,7 +1490,7 @@ core,github.com/vmihailenco/msgpack/v5/msgpcode,BSD-2-Clause,Copyright (c) 2013 
 core,github.com/vmihailenco/tagparser/v2,BSD-2-Clause,Copyright (c) 2019 The github.com/vmihailenco/tagparser Authors
 core,github.com/vmihailenco/tagparser/v2/internal,BSD-2-Clause,Copyright (c) 2019 The github.com/vmihailenco/tagparser Authors
 core,github.com/vmihailenco/tagparser/v2/internal/parser,BSD-2-Clause,Copyright (c) 2019 The github.com/vmihailenco/tagparser Authors
-core,github.com/wI2L/jsondiff,MIT,Copyright (c) 2020-2022 William Poussier <william.poussier@gmail.com>
+core,github.com/wI2L/jsondiff,MIT,Copyright (c) 2020-2023 William Poussier <william.poussier@gmail.com>
 core,github.com/wk8/go-ordered-map/v2,Apache-2.0,Copyright 2023 Jean Rougé <wk8.github@gmail.com>
 core,github.com/xanzy/ssh-agent,Apache-2.0,"Copyright (c) 2014 David Mzareulyan | Copyright 2015, Sander van Harmelen"
 core,github.com/xdg-go/pbkdf2,Apache-2.0,Copyright 2021 by David A. Golden. All rights reserved
