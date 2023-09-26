@@ -48,6 +48,6 @@ func reflectType(t interface{}) *jsonschema.Schema {
 		Mapper:                    jsonTypeMapper,
 	}
 	schema := reflector.Reflect(t)
-	schema.Version = ""
+	schema.Version = "" // Unsetting Version helps avoid void nested $schema declaration e.g. "$schema": "https://json-schema.org/draft/2020-12/schema"
 	return schema
 }
