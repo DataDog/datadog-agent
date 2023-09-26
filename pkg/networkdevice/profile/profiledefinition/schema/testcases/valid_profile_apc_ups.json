@@ -308,6 +308,24 @@
                 "value": "ups_outlet_group_status_unknown"
               }
             ]
+          },
+          {
+            "tag": "ups_dummy_tag",
+            "column": {
+              "OID": "1.3.6.1.4.1.318.1.1.1.12.1.2.1.999",
+              "name": "upsOutletGroupStatusGroupState999"
+            },
+            "match": "(\\d+)/(\\d+)",
+            "tags": [
+              {
+                "key": "tag1",
+                "value": "$1"
+              },
+              {
+                "key": "tag2",
+                "value": "$2"
+              }
+            ]
           }
         ]
       },
