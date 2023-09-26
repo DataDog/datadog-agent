@@ -39,9 +39,8 @@ typedef enum
     HTTP_PATCH
 } http_method_t;
 
-// HTTP transaction information associated to a certain socket (tuple_t)
+// HTTP transaction information associated to a certain socket (conn_tuple_t)
 typedef struct {
-    conn_tuple_t tup;
     __u64 request_started;
     __u64 response_last_seen;
     __u64 tags;
@@ -52,6 +51,11 @@ typedef struct {
     __u8  request_method;
     char request_fragment[HTTP_BUFFER_SIZE] __attribute__ ((aligned (8)));
 } http_transaction_t;
+
+typedef struct {
+    conn_tuple_t tuple;
+    http_transaction_t http;
+} http_event_t;
 
 // OpenSSL types
 typedef struct {
