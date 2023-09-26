@@ -99,10 +99,6 @@ GROUP BY s.con_id, c.name, force_matching_signature, plan_hash_value
 HAVING MAX (last_active_time) > sysdate - :seconds/24/60/60
 FETCH FIRST :limit ROWS ONLY`
 
-func getQueryFmsRandom(c *Check) string {
-	return queryFmsRandom21c
-}
-
 // queryForceMatchingSignatureLastActive Querying force_matching_signature = 0
 const queryForceMatchingSignatureLastActive21c = `SELECT /* DD_QM_FMS */ s.con_id con_id, c.name pdb_name, s.force_matching_signature, plan_hash_value, 
  max(dbms_lob.substr(sql_fulltext, 1000, 1)) sql_text, max(length(sql_text)) sql_text_length, sq.sql_id,
@@ -201,10 +197,6 @@ WHERE s.con_id = c.con_id (+) AND sq.force_matching_signature = s.force_matching
 GROUP BY s.con_id, c.name, s.force_matching_signature, plan_hash_value, sq.sql_id 
 FETCH FIRST :limit ROWS ONLY`
 
-func getQueryForceMatchingSignatureLastActive(c *Check) string {
-	return queryForceMatchingSignatureLastActive21c
-}
-
 // querySQLID force_matching_signature = 0
 const querySQLID21c = `SELECT /* DD_QM_SQLID */ s.con_id con_id, c.name pdb_name, sql_id, plan_hash_value, 
  dbms_lob.substr(sql_fulltext, 1000, 1) sql_text, length(sql_text) sql_text_length, 
@@ -285,16 +277,12 @@ FROM v$sqlstats s, v$containers c
 WHERE s.con_id = c.con_id (+) AND last_active_time > sysdate - :seconds/24/60/60 AND force_matching_signature = 0
 FETCH FIRST :limit ROWS ONLY`
 
-func getQuerySQLID(c *Check) string {
-	return querySQLID21c
-}
-
 type statementMetricsQuery int
 
 const (
 	fmsRandomQuery statementMetricsQuery = iota
 	fmsLastActiveQuery
-	sqlIdQuery
+	sqlIDQuery
 )
 
 func getStatementMetricsQueries(c *Check) map[statementMetricsQuery]string {
@@ -314,11 +302,11 @@ func getStatementMetricsQueries(c *Check) map[statementMetricsQuery]string {
 	if comparisonError || parsedDbVersion.LessThan(v19) {
 		queries[fmsRandomQuery] = queryFmsRandom18c
 		queries[fmsLastActiveQuery] = queryForceMatchingSignatureLastActive18c
-		queries[sqlIdQuery] = querySQLID18c
+		queries[sqlIDQuery] = querySQLID18c
 	} else {
 		queries[fmsRandomQuery] = queryFmsRandom21c
 		queries[fmsLastActiveQuery] = queryForceMatchingSignatureLastActive21c
-		queries[sqlIdQuery] = querySQLID21c
+		queries[sqlIDQuery] = querySQLID21c
 	}
 	return queries
 }

@@ -35,7 +35,7 @@ func (c *Check) init() error {
 	var d vDatabase
 	err := getWrapper(c, &d, "SELECT /* DD */ lower(name) name, cdb FROM v$database")
 	if err != nil {
-		return fmt.Errorf("%s failed to query v$database: %w", err)
+		return fmt.Errorf("%s failed to query v$database: %w", c.logPrompt, err)
 	}
 	c.cdbName = d.Name
 	tags = append(tags, fmt.Sprintf("cdb:%s", c.cdbName))
@@ -48,7 +48,7 @@ func (c *Check) init() error {
 	// host_name is null on Oracle Autonomous Database
 	err = getWrapper(c, &i, "SELECT /* DD */ nvl(host_name, instance_name) host_name, version_full FROM v$instance")
 	if err != nil {
-		return fmt.Errorf("%s failed to query v$instance: %w", err)
+		return fmt.Errorf("%s failed to query v$instance: %w", c.logPrompt, err)
 	}
 	c.dbVersion = i.VersionFull
 	if c.config.ReportedHostname != "" {

@@ -401,7 +401,7 @@ func (c *Check) StatementMetrics() (int, error) {
 		statementMetricsAll := make([]StatementMetricsDB, len(statementMetrics))
 		copy(statementMetricsAll, statementMetrics)
 
-		sql = queries[sqlIdQuery]
+		sql = queries[sqlIDQuery]
 		err = selectWrapper(
 			c,
 			&statementMetrics,
