@@ -302,12 +302,12 @@ workflow:
         USE_CACHING_PROXY_RUBY: "false"
     - <<: *if_main_branch
       variables:
-        USE_CACHING_PROXY_PYTHON: "true"
-        USE_CACHING_PROXY_RUBY: "true"
+        USE_CACHING_PROXY_PYTHON: "false"
+        USE_CACHING_PROXY_RUBY: "false"
     - <<: *if_release_branch
       variables:
-        USE_CACHING_PROXY_PYTHON: "true"
-        USE_CACHING_PROXY_RUBY: "true"
+        USE_CACHING_PROXY_PYTHON: "false"
+        USE_CACHING_PROXY_RUBY: "false"
     - <<: *if_deploy
       variables:
         USE_CACHING_PROXY_PYTHON: "false"
