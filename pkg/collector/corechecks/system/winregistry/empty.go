@@ -6,7 +6,6 @@
 //go:build !windows
 
 // Package winregistry defines the winregistry check
-//
 package winregistry
 
 // Avoid the following error on non-supported platforms:
