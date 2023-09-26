@@ -20,6 +20,7 @@ type Collector interface {
 	Pull(context.Context) error
 }
 
+// CollectorCatalog is a collection of collectors
 type CollectorCatalog map[string]collectorFactory
 
 type collectorFactory func() Collector

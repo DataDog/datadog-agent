@@ -58,6 +58,8 @@ func TestGetContainerStats_Containerd(t *testing.T) {
 			Kernel: &v1.MemoryEntry{
 				Usage: 500,
 			},
+			PgFault:    2,
+			PgMajFault: 1,
 		},
 		Blkio: &v1.BlkIOStat{
 			IoServiceBytesRecursive: []*v1.BlkIOEntry{
@@ -134,6 +136,8 @@ func TestGetContainerStats_Containerd(t *testing.T) {
 			SwapUsage:    10,
 			Slab:         400,
 			KernelStack:  100,
+			Pgfault:      2,
+			Pgmajfault:   1,
 		},
 		Io: &v2.IOStat{
 			Usage: []*v2.IOEntry{
@@ -189,6 +193,8 @@ func TestGetContainerStats_Containerd(t *testing.T) {
 					RSS:          pointer.Ptr(100.0),
 					Cache:        pointer.Ptr(20.0),
 					Swap:         pointer.Ptr(10.0),
+					Pgfault:      pointer.Ptr(2.0),
+					Pgmajfault:   pointer.Ptr(1.0),
 				},
 				IO: &provider.ContainerIOStats{
 					ReadBytes:       pointer.Ptr(60.0),
@@ -237,6 +243,8 @@ func TestGetContainerStats_Containerd(t *testing.T) {
 					RSS:          pointer.Ptr(100.0),
 					Cache:        pointer.Ptr(20.0),
 					Swap:         pointer.Ptr(10.0),
+					Pgfault:      pointer.Ptr(2.0),
+					Pgmajfault:   pointer.Ptr(1.0),
 				},
 				IO: &provider.ContainerIOStats{
 					ReadBytes:       pointer.Ptr(60.0),

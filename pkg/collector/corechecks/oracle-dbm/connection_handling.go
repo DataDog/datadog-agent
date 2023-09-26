@@ -10,7 +10,6 @@ package oracle
 import (
 	"fmt"
 
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/oracle-dbm/config"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/jmoiron/sqlx"
 	go_ora "github.com/sijms/go-ora/v2"
@@ -58,7 +57,6 @@ func (c *Check) Connect() (*sqlx.DB, error) {
 	}
 	c.driver = oracleDriver
 
-	c.logPrompt = config.GetLogPrompt(c.config.InstanceConfig)
 	log.Infof("%s driver: %s", c.logPrompt, oracleDriver)
 
 	db, err := sqlx.Open(oracleDriver, connStr)
@@ -73,92 +71,6 @@ func (c *Check) Connect() (*sqlx.DB, error) {
 	}
 
 	db.SetMaxOpenConns(MAX_OPEN_CONNECTIONS)
-
-	if c.cdbName == "" {
-		row := db.QueryRow("SELECT /* DD */ lower(name) FROM v$database")
-		err = row.Scan(&c.cdbName)
-		if err != nil {
-			return nil, fmt.Errorf("failed to query db name: %w", err)
-		}
-		c.tags = append(c.tags, fmt.Sprintf("cdb:%s", c.cdbName))
-	}
-
-	if c.dbHostname == "" || c.dbVersion == "" {
-		// host_name is null on Oracle Autonomous Database
-		row := db.QueryRow("SELECT /* DD */ nvl(host_name, instance_name), version_full FROM v$instance")
-		var dbHostname string
-		err = row.Scan(&dbHostname, &c.dbVersion)
-		if err != nil {
-			return nil, fmt.Errorf("failed to query hostname and version: %w", err)
-		}
-		if c.config.ReportedHostname != "" {
-			c.dbHostname = c.config.ReportedHostname
-		} else {
-			c.dbHostname = dbHostname
-		}
-		c.tags = append(c.tags, fmt.Sprintf("host:%s", c.dbHostname), fmt.Sprintf("oracle_version:%s", c.dbVersion))
-	}
-
-	c.logPrompt = fmt.Sprintf("%s@%s> ", c.cdbName, c.dbHostname)
-
-	// Check if PDB
-	r := db.QueryRow("select decode(sys_context('USERENV','CON_ID'),1,'CDB','PDB') TYPE from DUAL")
-	var connectionType string
-	err = r.Scan(&connectionType)
-	if err != nil {
-		return nil, fmt.Errorf("failed to query connection type: %w", err)
-	}
-	if connectionType == "PDB" {
-		c.connectedToPdb = true
-	}
-
-	// determine hosting type
-	if !c.hostingType.valid {
-		ht := hostingType{value: selfManaged, valid: false}
-
-		// is RDS?
-		if ht.value == selfManaged {
-			// Is RDS?
-			if c.filePath == "" {
-				r := db.QueryRow("SELECT SUBSTR(name, 1, 10) path FROM v$datafile WHERE rownum = 1")
-				var path string
-				err = r.Scan(&path)
-				if err != nil {
-					return nil, fmt.Errorf("failed to query path: %w", err)
-				}
-				if path == "/rdsdbdata" {
-					ht.value = rds
-				}
-			}
-		}
-
-		// is OCI?
-		if ht.value == selfManaged {
-			var cloudRows int
-			if connectionType == "PDB" {
-				c.connectedToPdb = true
-				r := db.QueryRow("select 1 from v$pdbs where cloud_identity like '%oraclecloud%' and rownum = 1")
-				err := r.Scan(&cloudRows)
-				if err != nil {
-					log.Errorf("failed to query v$pdbs: %s", err)
-				}
-				if cloudRows == 1 {
-					r := db.QueryRow("select 1 from cdb_services where name like '%oraclecloud%' and rownum = 1")
-					err := r.Scan(&cloudRows)
-					if err != nil {
-						log.Errorf("failed to query cdb_services: %s", err)
-					}
-				}
-			}
-			if cloudRows == 1 {
-				ht.value = oci
-			}
-		}
-
-		c.tags = append(c.tags, fmt.Sprintf("hosting_type:%s", ht.value))
-		ht.valid = true
-		c.hostingType = ht
-	}
 
 	if c.config.AgentSQLTrace.Enabled {
 		db.SetMaxOpenConns(1)

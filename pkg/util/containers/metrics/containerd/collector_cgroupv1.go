@@ -59,8 +59,10 @@ func getMemoryStatsCgroupV1(memStat *v1.MemoryStat) *provider.ContainerMemStats 
 	}
 
 	res := provider.ContainerMemStats{
-		RSS:   pointer.Ptr(float64(memStat.RSS)),
-		Cache: pointer.Ptr(float64(memStat.Cache)),
+		RSS:        pointer.Ptr(float64(memStat.RSS)),
+		Cache:      pointer.Ptr(float64(memStat.Cache)),
+		Pgfault:    pointer.Ptr(float64(memStat.PgFault)),
+		Pgmajfault: pointer.Ptr(float64(memStat.PgMajFault)),
 	}
 
 	if memStat.Usage != nil {

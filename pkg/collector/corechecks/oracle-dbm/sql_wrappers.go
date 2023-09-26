@@ -57,7 +57,7 @@ func handlePrivilegeError(c *Check, err error) (bool, error) {
 		rds:         "https://docs.datadoghq.com/database_monitoring/setup_oracle/rds/#grant-permissions",
 		oci:         "https://docs.datadoghq.com/database_monitoring/setup_oracle/autonomous_database/#grant-permissions",
 	}
-	link := links[c.hostingType.value]
+	link := links[c.hostingType]
 	isPrivilegeError = true
 	return isPrivilegeError, fmt.Errorf("Some privileges are missing. Execute the `grant` commands from %s . Error: %w", link, err)
 }
