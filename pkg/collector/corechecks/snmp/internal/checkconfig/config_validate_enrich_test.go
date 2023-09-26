@@ -577,7 +577,7 @@ func Test_ValidateEnrichMetrics(t *testing.T) {
 			expectedErrors: []string{},
 			expectedLogs: []logCount{
 				{
-					"[WARN] validateEnrichMetricTag: ``tag` must be provided if `mapping` (`map[1:abc 2:def]`) is defined",
+					"[WARN] validateEnrichMetricTag: ``tag` must be provided if `mapping`",
 					1,
 				},
 			},
