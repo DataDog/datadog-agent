@@ -103,9 +103,19 @@ def count_lints_per_team(lints_per_linter, filter_linters: str = None):
             for lint in lints_per_linter[linter]:
                 lint_owner = get_owner(lint[0])
                 lints_count_per_team[lint_owner][linter] += 1
-    for lint_owner in lints_count_per_team:
-        lints_count_per_team[lint_owner] = dict(lints_count_per_team[lint_owner])
-    return dict(lints_count_per_team)
+    return lints_count_per_team
+
+
+def display_nb_lints_per_team(lints_count):
+    """
+    Nice display for the output of count_lints_per_team function.
+    """
+    output = ""
+    for lint_owner in lints_count:
+        output += f"> {lint_owner}\n"
+        for linter, linter_count in lints_count[lint_owner].items():
+            output += f"  - {linter}: {linter_count}\n"
+    return output
 
 
 def display_result(filtered_lints):
