@@ -25,9 +25,15 @@ build do
 
   if windows?
     pip = "#{windows_safe_path(python_3_embedded)}\\Scripts\\pip.exe"
+    build_env = {}
   else
     pip = "#{install_dir}/embedded/bin/pip3"
+    build_env = {
+      "CFLAGS" => "-I#{install_dir}/embedded/include",
+      "CXXFLAGS" => "-I#{install_dir}/embedded/include",
+      "LDFLAGS" => "-L#{install_dir}/embedded/lib",
+    }
   end
 
-  command "#{pip} install ."
+  command "#{pip} install .", :env => build_env
 end
