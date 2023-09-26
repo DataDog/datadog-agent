@@ -146,7 +146,7 @@ func newGoTLSProgram(c *config.Config, sockFD *ebpf.Map) *GoTLSProgram {
 		cfg:               c,
 		procRoot:          c.ProcRoot,
 		sockFDMap:         sockFD,
-		binAnalysisMetric: libtelemetry.NewCounter("gotls.analysis_time", libtelemetry.OptStatsd),
+		binAnalysisMetric: libtelemetry.NewCounter("usm.go-tls.analysis-time", libtelemetry.OptPrometheus),
 		registry:          utils.NewFileRegistry("go-tls"),
 	}
 }
