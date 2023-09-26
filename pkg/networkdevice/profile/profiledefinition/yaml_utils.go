@@ -49,7 +49,7 @@ func (mtcl *MetricTagConfigList) UnmarshalYAML(unmarshal func(interface{}) error
 }
 
 // UnmarshalYAML unmarshalls KeyValueList
-func (ml *KeyValueList) UnmarshalYAML(unmarshal func(interface{}) error) error {
+func (kvl *KeyValueList) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	var kvList []KeyValue
 	err := unmarshal(&kvList)
 	if err != nil {
@@ -69,6 +69,6 @@ func (ml *KeyValueList) UnmarshalYAML(unmarshal func(interface{}) error) error {
 			kvList = append(kvList, KeyValue{Key: k, Value: v})
 		}
 	}
-	*ml = kvList
+	*kvl = kvList
 	return nil
 }

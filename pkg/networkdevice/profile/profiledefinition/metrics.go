@@ -160,9 +160,9 @@ func (m *MetricsConfig) IsScalar() bool {
 	return m.Symbol.OID != "" && m.Symbol.Name != ""
 }
 
-func (kvl KeyValueList) ToMap() map[string]string {
+func (kvl *KeyValueList) ToMap() map[string]string {
 	mapping := make(map[string]string)
-	for _, item := range kvl {
+	for _, item := range *kvl {
 		mapping[item.Key] = item.Value
 	}
 	return mapping
