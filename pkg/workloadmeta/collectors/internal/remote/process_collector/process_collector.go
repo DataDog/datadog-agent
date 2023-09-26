@@ -3,6 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+// Package processcollector implements the remote process collector for
+// Workloadmeta.
 package processcollector
 
 import (

@@ -5,6 +5,7 @@
 
 //go:build containerd
 
+// Package containerd provides a containerd client.
 package containerd
 
 import (

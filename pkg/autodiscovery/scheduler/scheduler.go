@@ -3,6 +3,10 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+// Package scheduler provides the `Scheduler` interface that should be
+// implemented for any scheduler that wants to plug in `autodiscovery`. It also
+// defines the `MetaScheduler` which dispatches all instructions from
+// `autodiscovery` to all the registered schedulers.
 package scheduler
 
 import (

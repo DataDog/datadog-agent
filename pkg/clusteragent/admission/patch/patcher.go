@@ -5,12 +5,14 @@
 
 //go:build kubeapiserver
 
+// Package patch implements the patching of Kubernetes deployments.
 package patch
 
 import (
 	"context"
 	"encoding/json"
 	"fmt"
+
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/common"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/metrics"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/telemetry"

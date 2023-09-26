@@ -5,6 +5,7 @@
 
 //go:build cgo && linux
 
+// Package ebpf contains all the ebpf-based checks.
 package ebpf
 
 import (

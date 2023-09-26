@@ -5,6 +5,7 @@
 
 //go:build kubeapiserver
 
+// Package model implements the Datadog metric internal type.
 package model
 
 import (
