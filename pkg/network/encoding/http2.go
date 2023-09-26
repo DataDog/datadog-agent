@@ -35,7 +35,7 @@ func newHTTP2Encoder(http2Payloads map[http.Key]*http.RequestStats) *http2Encode
 	}
 }
 
-func (e *http2Encoder) GetHTTP2AggregationsAndTags(c network.ConnectionStats, builder *model.ConnectionBuilder) (uint64, map[string]struct{}) {
+func (e *http2Encoder) WriteHTTP2AggregationsAndTags(c network.ConnectionStats, builder *model.ConnectionBuilder) (uint64, map[string]struct{}) {
 	if e == nil {
 		return 0, nil
 	}
