@@ -190,4 +190,3 @@ func BenchmarkObfuscateJSONConcurrently(b *testing.B) {
 		close(rs)
 	}
 }
-
