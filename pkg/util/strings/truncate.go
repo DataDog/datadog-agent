@@ -10,8 +10,11 @@ const (
 	utf8MultiByteFlag      = 0b10000000
 	utf8MultiByteStartFlag = 0b11000000
 	utf8TwoByteFlag        = 0b11000000
+	utf8TwoByteMask        = 0b11100000
 	utf8ThreeByteFlag      = 0b11100000
+	utf8ThreeByteMask      = 0b11110000
 	utf8FourByteFlag       = 0b11110000
+	utf8FourByteMask       = 0b11111000
 )
 
 // TruncateUTF8 truncates the given string to make sure it uses less than limit bytes.
@@ -50,12 +53,18 @@ func TruncateUTF8(s string, limit int) string {
 		// last byte is a valid single byte character
 		return s
 	} else if s[limit-1]&utf8MultiByteStartFlag == utf8MultiByteStartFlag {
-		// last byte is start of a new multi-byte character
+		// last byte is start of a new multi-byte character (n bytes cut off)
 		return s[:limit-1]
-	} else if s[limit-2]&utf8ThreeByteFlag == utf8ThreeByteFlag {
+	} else if s[limit-2]&utf8TwoByteMask == utf8TwoByteFlag {
+		// last two bytes are a valid two byte character
+		return s
+	} else if s[limit-2]&utf8ThreeByteMask == utf8ThreeByteFlag {
 		// last two bytes are part of a three byte character (last byte cut off)
 		return s[:limit-2]
-	} else if s[limit-2]&utf8FourByteFlag == utf8FourByteFlag {
+	} else if s[limit-3]&utf8ThreeByteMask == utf8ThreeByteFlag {
+		// last three bytes are a valid three byte character
+		return s
+	} else if s[limit-3]&utf8FourByteMask == utf8FourByteFlag {
 		// last three bytes are part of a four byte character (last byte cut off)
 		return s[:limit-3]
 	}
