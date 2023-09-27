@@ -57,5 +57,5 @@ func run(log log.Component,
 }
 
 func getPlatformModules() fx.Option {
-	return nil
+	return fx.Options()
 }
