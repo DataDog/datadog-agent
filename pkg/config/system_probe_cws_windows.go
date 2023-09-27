@@ -4,11 +4,13 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build windows
+
 package config
 
 import (
 	"github.com/DataDog/datadog-agent/pkg/util/winutil"
 )
+
 func platformCWSConfig(cfg Config) {
 	programdata, err := winutil.GetProgramDataDir()
 	if err == nil {
