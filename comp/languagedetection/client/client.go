@@ -73,7 +73,6 @@ func newClient(
 		logger:       deps.Log,
 		flushPeriod:  deps.Config.GetDuration("language_detection.client_period"),
 		mutex:        sync.Mutex{},
-		store:        workloadmeta.GetGlobalStore(), // TODO(components): should be replaced by components
 		telemetry:    newComponentTelemetry(deps.Telemetry),
 		currentBatch: newBatch(),
 	}
@@ -131,6 +130,11 @@ func (c *client) start(_ context.Context) error {
 // run starts processing events and starts streaming
 func (c *client) run() {
 	defer c.logger.Infof("Shutting down language detection client")
+	// workloadmeta can't be initialized in the constructor or provided as a dependency until workloadmeta is refactored as a component
+	if c.store == nil {
+		c.store = workloadmeta.GetGlobalStore() // TODO(components): should be replaced by components
+	}
+
 	processEventCh := c.store.Subscribe(
 		subscriber,
 		workloadmeta.NormalPriority,
