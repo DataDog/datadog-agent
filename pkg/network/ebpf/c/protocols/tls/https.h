@@ -59,6 +59,15 @@ static __always_inline void tls_process(struct pt_regs *ctx, conn_tuple_t *t, vo
         return;
     }
     log_debug("tls process entry");
+    log_debug("[tls_process] conn tuple: saddr_h=%lu saddr_l=%lu",
+        t->saddr_h,
+        t->saddr_l);
+    log_debug("[tls_process] conn tuple: daddr_h=%lu daddr_l=%lu",
+        t->daddr_h,
+        t->daddr_l);
+    log_debug("[tls_process] conn tuple: sport=%u dport=%u",
+        t->sport,
+        t->dport);
 
     const __u32 zero = 0;
     protocol_t protocol = get_protocol_from_stack(stack, LAYER_APPLICATION);
@@ -89,14 +98,15 @@ static __always_inline void tls_process(struct pt_regs *ctx, conn_tuple_t *t, vo
         log_debug("dispatcher failed to save arguments for tls tail call\n");
         return;
     }
-    bpf_memset(args, 0, sizeof(tls_dispatcher_arguments_t));
-    bpf_memcpy(&args->tup, t, sizeof(conn_tuple_t));
+
     *args = (tls_dispatcher_arguments_t){
+        .tup = *t,
         .buf = buffer_ptr,
         .tags = tags,
         .len = len,
         .off = 0,
     };
+
     bpf_tail_call_compat(ctx, &tls_process_progs, prog);
 }
 

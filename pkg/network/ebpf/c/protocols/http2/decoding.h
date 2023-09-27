@@ -3,6 +3,7 @@
 
 #include "bpf_builtins.h"
 #include "bpf_helpers.h"
+#include "decoding-defs.h"
 #include "ip.h"
 #include "map-defs.h"
 
@@ -155,6 +156,7 @@ static __always_inline __u8 filter_relevant_headers(struct __sk_buff *skb, skb_i
             }
         }
     }
+    log_debug("[grpcplain] >> interesting headers: %d\n", interesting_headers);
 
     return interesting_headers;
 }
@@ -184,11 +186,11 @@ static __always_inline void process_headers(struct __sk_buff *skb, dynamic_table
             } else if (current_header->index >= k200 && current_header->index <= k500) {
                 current_stream->response_status_code = *static_value;
             } else if (current_header->index == kEmptyPath) {
-                log_debug("[http2_debug] empty path");
+                log_debug("[grpcplain] >>>> empty path");
                 current_stream->path_size = HTTP_ROOT_PATH_LEN;
                 bpf_memcpy(current_stream->request_path, HTTP_ROOT_PATH, HTTP_ROOT_PATH_LEN);
             } else if (current_header->index == kIndexPath) {
-                log_debug("[http2_debug] index path");
+                log_debug("[grpcplain] >>>> index path");
                 current_stream->path_size = HTTP_INDEX_PATH_LEN;
                 bpf_memcpy(current_stream->request_path, HTTP_INDEX_PATH, HTTP_INDEX_PATH_LEN);
             }
@@ -226,6 +228,7 @@ static __always_inline void process_headers_frame(struct __sk_buff *skb, http2_s
     bpf_memset(headers_to_process, 0, HTTP2_MAX_HEADERS_COUNT_FOR_PROCESSING * sizeof(http2_header_t));
 
     __u8 interesting_headers = filter_relevant_headers(skb, skb_info, tup, dynamic_index, headers_to_process, current_frame_header->length);
+    log_debug("[grpcplain] >> relevant headers %u", interesting_headers);
     if (interesting_headers > 0) {
         process_headers(skb, dynamic_index, current_stream, headers_to_process, interesting_headers);
     }
@@ -311,6 +314,16 @@ int socket__http2_filter(struct __sk_buff *skb) {
         return 0;
     }
 
+    log_debug("[http2_filter] conn tuple: saddr_h=%lu saddr_l=%lu",
+        dispatcher_args_copy.tup.saddr_h,
+        dispatcher_args_copy.tup.saddr_l);
+    log_debug("[http2_filter] conn tuple: daddr_h=%lu daddr_l=%lu",
+        dispatcher_args_copy.tup.daddr_h,
+        dispatcher_args_copy.tup.daddr_l);
+    log_debug("[http2_filter] conn tuple: sport=%u dport=%u",
+        dispatcher_args_copy.tup.sport,
+        dispatcher_args_copy.tup.dport);
+
     // If we detected a tcp termination we should stop processing the packet, and clear its dynamic table by deleting the counter.
     if (is_tcp_termination(&dispatcher_args_copy.skb_info)) {
         // Deleting the entry for the original tuple.
@@ -336,6 +349,7 @@ int socket__http2_filter(struct __sk_buff *skb) {
 
     // filter frames
     iteration_value.frames_count = find_relevant_headers(skb, &local_skb_info, iteration_value.frames_array);
+    log_debug("[grpcplain] > frames count: %d\n", iteration_value.frames_count);
     if (iteration_value.frames_count == 0) {
         return 0;
     }
@@ -411,7 +425,6 @@ delete_iteration:
 
 SEC("uprobe/http2_tls_entry")
 int uprobe__http2_tls_entry(struct pt_regs *ctx) {
-    log_debug("http2_tls_entry: after tail call");
     const u32 zero = 0;
 
     tls_dispatcher_arguments_t *info = bpf_map_lookup_elem(&tls_dispatcher_arguments, &zero);
@@ -420,7 +433,17 @@ int uprobe__http2_tls_entry(struct pt_regs *ctx) {
         return 0;
     }
 
-    log_debug("[http2_tls_entry] info: buf=%p, len=%lu, off=%lu", info->buf, info->len, info->off);
+    /* log_debug("[grpctls - info tup] conn tuple: saddr_h=%lu saddr_l=%lu", */
+    /*     info->tup.saddr_h, */
+    /*     info->tup.saddr_l); */
+    /* log_debug("[grpctls - info tup] conn tuple: daddr_h=%lu daddr_l=%lu", */
+    /*     info->tup.daddr_h, */
+    /*     info->tup.daddr_l); */
+    /* log_debug("[grpctls - info tup] conn tuple: sport=%u dport=%u", */
+    /*     info->tup.sport, */
+    /*     info->tup.dport); */
+
+    log_debug("[grpctls] --- info: buf=%p, len=%lu ---", info->buf, info->len);
 
     // TODO: from tls_info: add bool from tls_finish to trigger this case
     //
@@ -435,26 +458,42 @@ int uprobe__http2_tls_entry(struct pt_regs *ctx) {
     /*     return 0; */
     /* } */
 
-    // A single packet can contain multiple HTTP/2 frames, due to instruction limitations we have divided the
-    // processing into multiple tail calls, where each tail call process a single frame. We must have context when
-    // we are processing the frames, for example, to know how many bytes have we read in the packet, or it we reached
-    // to the maximum number of frames we can process. For that we are checking if the iteration context already exists.
-    // If not, creating a new one to be used for further processing
-    http2_tail_call_state_t iteration_value = {};
-    bpf_memset(iteration_value.frames_array, 0, HTTP2_MAX_FRAMES_ITERATIONS * sizeof(http2_frame_with_offset));
+    http2_tls_state_key_t key;
+    bpf_memset(&key, 0, sizeof(key));
 
-    // filter frames
-    iteration_value.frames_count = find_relevant_headers_tls(info, iteration_value.frames_array);
-    log_debug("[http2_tls_entry] frames count: %d\n", iteration_value.frames_count);
-    if (iteration_value.frames_count == 0) {
+    key.tup = info->tup;
+    key.length = info->len;
+    http2_tls_state_t *state = bpf_map_lookup_elem(&http2_tls_states, &key);
+    if (state) {
+        log_debug("[grpctls] state found");
+        if (state->should_skip) {
+            log_debug("[grpctls] should_skip true");
+            return 0;
+        }
+
+        bpf_tail_call_compat(ctx, &tls_process_progs, TLS_HTTP2_FRAMES_PARSER);
         return 0;
     }
 
-    // We have couple of interesting headers, launching tail calls to handle them.
-    if (bpf_map_update_elem(&http2_tls_iterations, &zero, &iteration_value, BPF_ANY) >= 0) {
-        // We managed to cache the iteration_value in the http2_iterations map.
-        bpf_tail_call_compat(ctx, &tls_process_progs, TLS_HTTP2_FRAMES_PARSER);
+    // filter frames
+    struct http2_frame header;
+    bool relevant = is_relevant_frame_tls(info, &header);
+    if (!relevant) {
+        log_debug("[grpctls] not relevant frame");
+        return 0;
     }
+
+    log_debug("[grpctls] relevant frame");
+
+    http2_tls_state_t new_state;
+    bpf_memset(&new_state, 0, sizeof(new_state));
+    new_state.should_skip = !relevant;
+    new_state.stream_id = header.stream_id;
+    new_state.frame_flags = header.flags;
+
+    key.length = header.length;
+
+    bpf_map_update_elem(&http2_tls_states, &key, &new_state, BPF_ANY);
 
     return 0;
 }
@@ -466,25 +505,20 @@ int uprobe__http2_tls_frames_parser(struct pt_regs *ctx) {
 
     tls_dispatcher_arguments_t *info = bpf_map_lookup_elem(&tls_dispatcher_arguments, &zero);
     if (info == NULL) {
-        log_debug("[http2_tls_entry] could not get tls info from map");
+        log_debug("[http2_tls_frames_parser] could not get tls info from map");
         return 0;
     }
 
-    // A single packet can contain multiple HTTP/2 frames, due to instruction limitations we have divided the
-    // processing into multiple tail calls, where each tail call process a single frame. We must have context when
-    // we are processing the frames, for example, to know how many bytes have we read in the packet, or it we reached
-    // to the maximum number of frames we can process. For that we are checking if the iteration context already exists.
-    // If not, creating a new one to be used for further processing
-    http2_tail_call_state_t *tail_call_state = bpf_map_lookup_elem(&http2_tls_iterations, &zero);
-    if (tail_call_state == NULL) {
-        // We didn't find the cached context, aborting.
-        return 0;
-    }
+    http2_tls_state_key_t key;
+    bpf_memset(&key, 0, sizeof(key));
 
-    if (tail_call_state->iteration >= HTTP2_MAX_FRAMES_ITERATIONS || tail_call_state->iteration >= tail_call_state->frames_count) {
+    key.tup = info->tup;
+    key.length = info->len;
+    http2_tls_state_t *state = bpf_map_lookup_elem(&http2_tls_states, &key);
+    if (!state) {
+        log_debug("[grpctls] could not get state from frame parser");
         goto exit;
     }
-    http2_frame_with_offset current_frame = tail_call_state->frames_array[tail_call_state->iteration];
 
     http2_ctx_t *http2_ctx = bpf_map_lookup_elem(&http2_ctx_heap, &zero);
     if (http2_ctx == NULL) {
@@ -496,21 +530,24 @@ int uprobe__http2_tls_frames_parser(struct pt_regs *ctx) {
     http2_ctx->http2_stream_key.tup = info->tup;
     normalize_tuple(&http2_ctx->http2_stream_key.tup);
     http2_ctx->dynamic_index.tup = info->tup;
-    info->off = current_frame.offset;
+    http2_ctx->http2_stream_key.stream_id = state->stream_id;
 
-    parse_frame_tls(info, http2_ctx, &current_frame.frame);
+    log_debug("[http2_tls_frames_parser] conn tuple: saddr_h=%lu saddr_l=%lu",
+        http2_ctx->http2_stream_key.tup.saddr_h,
+        http2_ctx->http2_stream_key.tup.saddr_l);
+    log_debug("[http2_tls_frames_parser] conn tuple: daddr_h=%lu daddr_l=%lu",
+        http2_ctx->http2_stream_key.tup.daddr_h,
+        http2_ctx->http2_stream_key.tup.daddr_l);
+    log_debug("[http2_tls_frames_parser] conn tuple: sport=%u dport=%u",
+        http2_ctx->http2_stream_key.tup.sport,
+        http2_ctx->http2_stream_key.tup.dport);
+
+    parse_frame_tls(info, http2_ctx, state->frame_flags);
     if (info->off >= info->len) {
         goto exit;
     }
 
-    /* // update the tail calls state when the http2 decoding part was completed successfully. */
-    tail_call_state->iteration += 1;
-    if (tail_call_state->iteration < HTTP2_MAX_FRAMES_ITERATIONS && tail_call_state->iteration < tail_call_state->frames_count) {
-        bpf_tail_call_compat(ctx, &tls_process_progs, TLS_HTTP2_FRAMES_PARSER);
-    }
-
 exit:
-
     return 0;
 }
 

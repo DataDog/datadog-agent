@@ -8,7 +8,8 @@
 // Maximum number of frames to be processed in a single TCP packet. That's also the number of tail calls we'll have.
 // NOTE: we may need to revisit this const if we need to capture more connections.
 #define HTTP2_MAX_FRAMES_ITERATIONS 10
-#define HTTP2_MAX_FRAMES_TO_FILTER  450
+/* #define HTTP2_MAX_FRAMES_TO_FILTER  450 */
+#define HTTP2_MAX_FRAMES_TO_FILTER 200
 
 // A limit of max headers which we process in the request/response.
 #define HTTP2_MAX_HEADERS_COUNT_FOR_FILTERING 20
@@ -40,9 +41,9 @@
 
 #define HTTP2_CONTENT_TYPE_IDX 31
 
-#define HTTP_ROOT_PATH      "\x63"
-#define HTTP_ROOT_PATH_LEN  (sizeof(HTTP_ROOT_PATH) - 1)
-#define HTTP_INDEX_PATH     "\x60\xd5\x48\x5f\x2b\xce\x9a\x68"
+#define HTTP_ROOT_PATH "\x63"
+#define HTTP_ROOT_PATH_LEN (sizeof(HTTP_ROOT_PATH) - 1)
+#define HTTP_INDEX_PATH "\x60\xd5\x48\x5f\x2b\xce\x9a\x68"
 #define HTTP_INDEX_PATH_LEN (sizeof(HTTP_INDEX_PATH) - 1)
 
 typedef enum {
@@ -117,5 +118,25 @@ typedef struct {
     __u8 frames_count;
     http2_frame_with_offset frames_array[HTTP2_MAX_FRAMES_ITERATIONS] __attribute__((aligned(8)));
 } http2_tail_call_state_t;
+
+// TLS
+
+// This is used as a key to get the state of an http2 TLS connection.
+typedef struct {
+    conn_tuple_t tup;
+    __u32 length;
+} http2_tls_state_key_t;
+
+typedef struct {
+    bool should_skip;
+    __u32 stream_id;
+    __u8 frame_flags;
+} http2_tls_state_t;
+
+typedef struct {
+    __u8 iteration;
+    __u8 frames_count;
+    http2_frame_with_offset frames_array[HTTP2_MAX_FRAMES_ITERATIONS] __attribute__((aligned(8)));
+} http2_tls_tail_call_state_t;
 
 #endif
