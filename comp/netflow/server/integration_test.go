@@ -57,11 +57,6 @@ func TestNetFlow_IntegrationTest_NetFlow5(t *testing.T) {
 		setTimeNow,
 	)).(*Server)
 
-	// Setup NetFlow Server
-	srv.FlowAgg.TimeNowFunction = func() time.Time {
-		return flushTime
-	}
-
 	// Set expectations
 	testutil.ExpectNetflow5Payloads(t, epForwarder)
 	epForwarder.EXPECT().SendEventPlatformEventBlocking(gomock.Any(), "network-devices-metadata").Return(nil).Times(1)
