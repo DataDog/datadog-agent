@@ -43,4 +43,5 @@ notify-slack:
   dependencies:
     - internal_kubernetes_deploy_experimental
   script:
+    - python3 -m pip install -r tasks/libs/requirements-notifications.txt
     - inv pipeline.post_changelog
