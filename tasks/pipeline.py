@@ -547,7 +547,7 @@ def post_changelog(ctx):
     ctx.run("git checkout $CI_COMMIT_SHORT_SHA")
     ctx.run("git tag changelog-nightly-staging-sha")
     ctx.run("git push origin changelog-nightly-staging-sha")
-    send_slack_message("system-probe-ops", "$(cat system_probe_commits.txt)")
+    send_slack_message("system-probe-ops", ctx.run("$(cat system_probe_commits.txt)"))
 
 
 @task
