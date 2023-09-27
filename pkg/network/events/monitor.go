@@ -114,7 +114,11 @@ func (h *eventHandlerWrapper) Copy(ev *model.Event) any {
 			Pid:         ev.GetProcessPid(),
 			ContainerID: intern.GetByString(ev.GetContainerId()),
 			StartTime:   processStartTime.UnixNano(),
-			Envs:        ev.GetProcessEnvp(),
+			Envs: ev.GetProcessEnvp(map[string]bool{
+				"DD_SERVICE": true,
+				"DD_VERSION": true,
+				"DD_ENV":     true,
+			}),
 		}
 	}
 
