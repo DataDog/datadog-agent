@@ -166,6 +166,10 @@ func evtRenderEventValues(Context evtapi.EventRenderContextHandle, Fragment evta
 		return nil, nil
 	}
 
+	if BufferUsed == 0 {
+		return nil, fmt.Errorf("evtRender returned buffer size 0")
+	}
+
 	// Allocate buffer space (BufferUsed is size in bytes)
 	//
 	// /*** MUST NOT USE GO MANAGED MEMORY ***\
@@ -182,7 +186,6 @@ func evtRenderEventValues(Context evtapi.EventRenderContextHandle, Fragment evta
 		uintptr(Fragment),
 		uintptr(Flags),
 		uintptr(BufferUsed),
-		// TODO: use unsafe.SliceData in go1.20
 		uintptr(Buffer),
 		uintptr(unsafe.Pointer(&BufferUsed)),
 		uintptr(unsafe.Pointer(&PropertyCount)))

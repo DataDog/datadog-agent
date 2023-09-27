@@ -98,12 +98,15 @@ func (api *API) EvtNext(
 
 	var Returned uint32
 
+	if len(EventsArray) == 0 {
+		return nil, fmt.Errorf("input EventsArray is empty")
+	}
+
 	// Fill array
 	r1, _, lastErr := evtNext.Call(
 		uintptr(Session),
 		uintptr(EventsSize),
-		// TODO: use unsafe.SliceData in go1.20
-		uintptr(unsafe.Pointer(&EventsArray[:1][0])),
+		uintptr(unsafe.Pointer(unsafe.SliceData(EventsArray))),
 		uintptr(Timeout),
 		uintptr(0), // reserved must be 0
 		uintptr(unsafe.Pointer(&Returned)))
@@ -171,14 +174,13 @@ func (api *API) EvtCreateRenderContext(ValuePaths []string, Flags uint) (evtapi.
 				return evtapi.EventRenderContextHandle(0), err
 			}
 		}
-		valuePathsPtr = unsafe.Pointer(&valuePaths[:1][0])
+		valuePathsPtr = unsafe.Pointer(unsafe.SliceData(valuePaths))
 	} else {
 		valuePathsPtr = nil
 	}
 
 	r1, _, lastErr := evtCreateRenderContext.Call(
 		uintptr(len(ValuePaths)),
-		// TODO: use unsafe.SliceData in go1.20
 		uintptr(valuePathsPtr),
 		uintptr(Flags))
 	// EvtCreateRenderContext returns NULL on error
@@ -219,6 +221,10 @@ func evtRenderText(
 		return nil, nil
 	}
 
+	if BufferUsed == 0 {
+		return nil, nil
+	}
+
 	// Allocate buffer space (BufferUsed is size in bytes)
 	Buffer := make([]uint16, BufferUsed/2)
 
@@ -228,8 +234,7 @@ func evtRenderText(
 		uintptr(Fragment),
 		uintptr(Flags),
 		uintptr(BufferUsed),
-		// TODO: use unsafe.SliceData in go1.20
-		uintptr(unsafe.Pointer(&Buffer[:1][0])),
+		uintptr(unsafe.Pointer(unsafe.SliceData(Buffer))),
 		uintptr(unsafe.Pointer(&BufferUsed)),
 		uintptr(unsafe.Pointer(&PropertyCount)))
 	// EvtRenders returns C FALSE (0) on error
@@ -306,11 +311,18 @@ func (api *API) ReportEvent(
 		}
 	}
 
+	var stringsPtr **uint16
+	if len(strings) == 0 {
+		stringsPtr = nil
+	} else {
+		stringsPtr = unsafe.SliceData(strings)
+	}
+
 	var rawData *uint8
 	if len(RawData) == 0 {
 		rawData = nil
 	} else {
-		rawData = &RawData[:1][0]
+		rawData = unsafe.SliceData(RawData)
 	}
 
 	r1, _, lastErr := reportEvent.Call(
@@ -322,9 +334,7 @@ func (api *API) ReportEvent(
 		uintptr(unsafe.Pointer(UserSID)),
 		uintptr(len(strings)),
 		uintptr(len(RawData)),
-		// TODO: use unsafe.SliceData in go1.20
-		uintptr(unsafe.Pointer(&strings[:1][0])),
-		// TODO: use unsafe.SliceData in go1.20
+		uintptr(unsafe.Pointer(stringsPtr)),
 		uintptr(unsafe.Pointer(rawData)))
 	// ReportEvent returns C FALSE (0) on error
 	if r1 == 0 {
@@ -415,6 +425,10 @@ func (api *API) EvtFormatMessage(
 		return "", nil
 	}
 
+	if BufferUsed == 0 {
+		return "", nil
+	}
+
 	// Allocate buffer space (BufferUsed is size in characters)
 	Buffer := make([]uint16, BufferUsed)
 
@@ -426,8 +440,7 @@ func (api *API) EvtFormatMessage(
 		uintptr(0),
 		uintptr(Flags),
 		uintptr(BufferUsed),
-		// TODO: use unsafe.SliceData in go1.20
-		uintptr(unsafe.Pointer(&Buffer[:1][0])),
+		uintptr(unsafe.Pointer(unsafe.SliceData(Buffer))),
 		uintptr(unsafe.Pointer(&BufferUsed)))
 	// EvtFormatMessage returns C FALSE (0) on error
 	if r1 == 0 {
