@@ -516,7 +516,7 @@ def changelog(ctx, new_git_sha):
 
     with open("system_probe_commits.txt", "w") as file:
         content = (
-            f"Changelog for commit range: `{old_git_sha[:7]}` to `{new_git_sha}`\n"
+            f"Changelog for commit range: `{old_git_sha}` to `{new_git_sha}`\n"
             + "\n".join(messages)
             + "\n:wave: Authors, please check relevant dashboards for issues: "
         )
@@ -528,6 +528,7 @@ def changelog(ctx, new_git_sha):
 
 @task
 def post_changelog(ctx, new_git_sha):
+    new_git_sha = new_git_sha[:7]
     results = []
     with open('unique_emails.txt', 'r') as email_file:
         for email in email_file:
@@ -547,7 +548,8 @@ def post_changelog(ctx, new_git_sha):
         commits_file.write('\n'.join(results))
 
     # ctx.run("git tag -d changelog-nightly-staging-sha")
-    # ctx.run(f"git checkout {new_git_sha}", hide=True)
+    print(f"tagging {new_git_sha}")
+    ctx.run(f"git checkout {new_git_sha}", hide=True)
     ctx.run(f"git tag -a changelog-nightly-staging-sha {new_git_sha}", hide=True)
     ctx.run("git push origin changelog-nightly-staging-sha", hide=True)
     send_slack_message("system-probe-ops", ctx.run("$(cat system_probe_commits.txt)").stout)
