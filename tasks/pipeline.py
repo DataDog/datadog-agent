@@ -496,6 +496,7 @@ def is_system_probe(owners, files):
 @task
 def changelog(ctx, new_git_sha):
     old_git_sha = ctx.run("git rev-list -n 1 changelog-nightly-staging-sha", hide=True).stdout.strip()
+    print(f"Generating changelog for commit range {old_git_sha} to {new_git_sha}")
     commits = (
         ctx.run(f"git log {old_git_sha}..{new_git_sha} --pretty=format:%h", hide=True).stdout.split("\n")
     )
@@ -506,9 +507,7 @@ def changelog(ctx, new_git_sha):
     for commit in commits:
         # see https://git-scm.com/docs/pretty-formats for format string
         commit_str = ctx.run(f"git show --name-only --pretty=format:%s%n%aN%n%aE {commit}", hide=True).stdout
-        print(f"parsing {commit}")
         title, author, author_email, files, url = parse(commit_str)
-        print(f"parsing complete {commit}")
         if is_system_probe(owners, files):
             message = f"{title} ({url}) {author}"
             messages.append(message)
@@ -528,7 +527,7 @@ def changelog(ctx, new_git_sha):
 
 
 @task
-def post_changelog(ctx):
+def post_changelog(ctx, new_git_sha):
     results = []
     with open('unique_emails.txt', 'r') as email_file:
         for email in email_file:
@@ -547,8 +546,9 @@ def post_changelog(ctx):
     with open('system_probe_commits.txt', 'a') as commits_file:
         commits_file.write('\n'.join(results))
 
-    ctx.run("git checkout $CI_COMMIT_SHORT_SHA", hide=True)
-    ctx.run("git tag changelog-nightly-staging-sha", hide=True)
+    # ctx.run("git tag -d changelog-nightly-staging-sha")
+    # ctx.run(f"git checkout {new_git_sha}", hide=True)
+    ctx.run(f"git tag -a changelog-nightly-staging-sha {new_git_sha}", hide=True)
     ctx.run("git push origin changelog-nightly-staging-sha", hide=True)
     send_slack_message("system-probe-ops", ctx.run("$(cat system_probe_commits.txt)").stout)
 
