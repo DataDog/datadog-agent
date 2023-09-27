@@ -11,8 +11,13 @@ import (
 	"encoding/gob"
 	"encoding/hex"
 
-	"github.com/DataDog/datadog-agent/pkg/snmp/traps/packet"
+	"github.com/DataDog/datadog-agent/comp/snmptraps/packet"
 )
+
+// newDummy creates a new dummy formatter.
+func newDummy() Component {
+	return &DummyFormatter{}
+}
 
 // DummyFormatter is a formatter that just hashes packets.
 type DummyFormatter struct{}

@@ -3,7 +3,6 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-// Package formatter provides tools for formatting SNMP traps.
 package formatter
 
 import (
@@ -18,6 +17,11 @@ import (
 	"github.com/gosnmp/gosnmp"
 
 	"github.com/DataDog/datadog-agent/comp/core/log"
+	"github.com/gosnmp/gosnmp"
+
+	"github.com/DataDog/datadog-agent/comp/core/log"
+	"github.com/DataDog/datadog-agent/comp/snmptraps/oidresolver"
+	"github.com/DataDog/datadog-agent/comp/snmptraps/packet"
 )
 
 const (
@@ -34,6 +38,7 @@ type Formatter interface {
 type JSONFormatter struct {
 	oidResolver oidresolver.OIDResolver
 	sender      sender.Sender
+	oidResolver oidresolver.Component
 	logger      log.Component
 }
 
@@ -54,9 +59,6 @@ const (
 
 // NewJSONFormatter creates a new JSONFormatter instance with an optional OIDResolver variable.
 func NewJSONFormatter(oidResolver oidresolver.OIDResolver, sender sender.Sender, logger log.Component) (JSONFormatter, error) {
-	if oidResolver == nil {
-		return JSONFormatter{}, fmt.Errorf("NewJSONFormatter called with a nil OIDResolver")
-	}
 	return JSONFormatter{oidResolver, sender, logger}, nil
 }
 

@@ -3,7 +3,6 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2022-present Datadog, Inc.
 
-// Package listener listens for SNMP messages, parses them, and publishes messages on a channel.
 package listener
 
 import (
@@ -13,13 +12,13 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
-	"github.com/DataDog/datadog-agent/pkg/snmp/traps/config"
-	"github.com/DataDog/datadog-agent/pkg/snmp/traps/packet"
-	"github.com/DataDog/datadog-agent/pkg/snmp/traps/status"
-
 	"github.com/gosnmp/gosnmp"
+	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/comp/core/log"
+	"github.com/DataDog/datadog-agent/comp/snmptraps/config"
+	"github.com/DataDog/datadog-agent/comp/snmptraps/packet"
+	"github.com/DataDog/datadog-agent/comp/snmptraps/status"
 )
 
 // TrapListener opens an UDP socket and put all received traps in a channel
@@ -30,30 +29,44 @@ type TrapListener struct {
 	listener      *gosnmp.TrapListener
 	errorsChannel chan error
 	logger        log.Component
-	status        status.Manager
+	status        status.Component
+}
+
+type dependencies struct {
+	fx.In
+	Config config.Component
+	sender sender.Sender
+	Logger log.Component
+	Status status.Component
 }
 
 // NewTrapListener creates a simple TrapListener instance but does not start it
-func NewTrapListener(config *config.TrapsConfig, sender sender.Sender, packets packet.PacketsChannel, logger log.Component, status status.Manager) (*TrapListener, error) {
+func NewTrapListener(dep dependencies) (Component, error) {
 	var err error
+	config := dep.Config.Get()
 	gosnmpListener := gosnmp.NewTrapListener()
-	gosnmpListener.Params, err = config.BuildSNMPParams(logger)
+	gosnmpListener.Params, err = config.BuildSNMPParams(dep.Logger)
 	if err != nil {
 		return nil, err
 	}
 	errorsChan := make(chan error, 1)
 	trapListener := &TrapListener{
 		config:        config,
-		sender:        sender,
-		packets:       packets,
+		sender:        dep.Sender,
+		packets:       make(packet.PacketsChannel, config.GetPacketChannelSize()),
 		listener:      gosnmpListener,
 		errorsChannel: errorsChan,
-		logger:        logger,
-		status:        status,
+		logger:        dep.Logger,
+		status:        dep.Status,
 	}
 
 	gosnmpListener.OnNewTrap = trapListener.receiveTrap
 	return trapListener, nil
+}
+
+// Packets returns the packets channel to which the listener publishes.
+func (t *TrapListener) Packets() packet.PacketsChannel {
+	return t.packets
 }
 
 // Start the TrapListener instance. Need to be manually Stopped
@@ -68,7 +81,6 @@ func (t *TrapListener) run() {
 	if err != nil {
 		t.errorsChannel <- err
 	}
-
 }
 
 func (t *TrapListener) blockUntilReady() error {

@@ -3,18 +3,18 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2022-present Datadog, Inc.
 
-// Package forwarder defines a type that receives trap data from the
-// listener, formats it properly, and sends it to the backend.
 package forwarder
 
 import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/comp/core/log"
-	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
+	"github.com/DataDog/datadog-agent/comp/ndmtmp/sender"
+	"github.com/DataDog/datadog-agent/comp/snmptraps/formatter"
+	"github.com/DataDog/datadog-agent/comp/snmptraps/listener"
+	"github.com/DataDog/datadog-agent/comp/snmptraps/packet"
 	"github.com/DataDog/datadog-agent/pkg/epforwarder"
-	"github.com/DataDog/datadog-agent/pkg/snmp/traps/formatter"
-	"github.com/DataDog/datadog-agent/pkg/snmp/traps/packet"
+	"go.uber.org/fx"
 )
 
 // TrapForwarder consumes from a trapsIn channel, format traps and send them as EventPlatformEvents
@@ -23,20 +23,28 @@ import (
 // give them to the epforwarder for sending it to Datadog.
 type TrapForwarder struct {
 	trapsIn   packet.PacketsChannel
-	formatter formatter.Formatter
-	sender    sender.Sender
+	formatter formatter.Component
+	sender    sender.Component
 	stopChan  chan struct{}
 	logger    log.Component
 }
 
+type dependencies struct {
+	fx.In
+	Formatter formatter.Component
+	Sender    sender.Component
+	Listener  listener.Component
+	Logger    log.Component
+}
+
 // NewTrapForwarder creates a simple TrapForwarder instance
-func NewTrapForwarder(formatter formatter.Formatter, sender sender.Sender, packets packet.PacketsChannel, logger log.Component) (*TrapForwarder, error) {
+func NewTrapForwarder(dep dependencies) (Component, error) {
 	return &TrapForwarder{
-		trapsIn:   packets,
-		formatter: formatter,
-		sender:    sender,
+		trapsIn:   dep.Listener.Packets(),
+		formatter: dep.Formatter,
+		sender:    dep.Sender,
 		stopChan:  make(chan struct{}, 1),
-		logger:    logger,
+		logger:    dep.Logger,
 	}, nil
 }
 

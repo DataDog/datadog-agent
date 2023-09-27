@@ -3,7 +3,6 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2020-present Datadog, Inc.
 
-// Package status exposes the expvars we use for status tracking.
 package status
 
 import (
@@ -24,16 +23,8 @@ func init() {
 	trapsExpvars.Set("PacketsAuthErrors", &trapsPacketsAuthErrors)
 }
 
-// Manager exposes the expvars we care about
-type Manager interface {
-	AddTrapsPackets(int64)
-	GetTrapsPackets() int64
-	AddTrapsPacketsAuthErrors(int64)
-	GetTrapsPacketsAuthErrors() int64
-}
-
-// New creates a new manager
-func New() Manager {
+// new creates a new component
+func new() Component {
 	return &manager{}
 }
 

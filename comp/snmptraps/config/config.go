@@ -3,7 +3,6 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2020-present Datadog, Inc.
 
-// Package config implements the configuration type for the traps server.
 package config
 
 import (
@@ -15,8 +14,8 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/log"
+	"github.com/DataDog/datadog-agent/comp/snmptraps/snmplog"
 	"github.com/DataDog/datadog-agent/pkg/snmp/gosnmplib"
-	"github.com/DataDog/datadog-agent/pkg/snmp/traps/snmplog"
 	"github.com/DataDog/datadog-agent/pkg/snmp/utils"
 )
 
@@ -50,10 +49,6 @@ func ReadConfig(host string, conf config.Component) (*TrapsConfig, error) {
 	if err != nil {
 		return nil, err
 	}
-
-	if !c.Enabled {
-		return nil, errors.New("traps listener is disabled")
-	}
 	if err := c.SetDefaults(host, conf.GetString("network_devices.namespace")); err != nil {
 		return c, err
 	}
@@ -79,7 +74,6 @@ func (c *TrapsConfig) SetDefaults(host string, namespace string) error {
 	if c.StopTimeout == 0 {
 		c.StopTimeout = defaultStopTimeout
 	}
-
 	if host == "" {
 		// Make sure to have at least some unique bytes for the authoritative engineID.
 		// Unlikely to happen since the agent cannot start without a hostname
@@ -163,4 +157,9 @@ func (c *TrapsConfig) BuildSNMPParams(logger log.Component) (*gosnmp.GoSNMP, err
 // GetPacketChannelSize returns the default size for the packets channel
 func (c *TrapsConfig) GetPacketChannelSize() int {
 	return packetsChanSize
+}
+
+// IsEnabled returns whether SNMP trap collection is enabled in the Agent configuration.
+func IsEnabled(conf config.Component) bool {
+	return conf.GetBool("network_devices.snmp_traps.enabled")
 }

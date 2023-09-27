@@ -3,7 +3,6 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2022-present Datadog, Inc.
 
-// Package oidresolver resolves OIDs to metadata about those OIDs.
 package oidresolver
 
 import (
@@ -20,6 +19,7 @@ import (
 
 	"gopkg.in/yaml.v2"
 
+	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/log"
 )
 
@@ -36,12 +36,6 @@ var nodesOIDThatShouldNeverMatch = []string{
 
 type unmarshaller func(data []byte, v interface{}) error
 
-// OIDResolver is a interface to get Trap and Variable metadata from OIDs
-type OIDResolver interface {
-	GetTrapMetadata(trapOID string) (TrapMetadata, error)
-	GetVariableMetadata(trapOID string, varOID string) (VariableMetadata, error)
-}
-
 // MultiFilesOIDResolver is an OIDResolver implementation that can be configured with multiple input files.
 // Trap OIDs conflicts are resolved using the name of the source file in alphabetical order and by giving
 // the less priority to Datadog's own database shipped with the agent.
@@ -51,6 +45,10 @@ type OIDResolver interface {
 type MultiFilesOIDResolver struct {
 	traps  TrapSpec
 	logger log.Component
+}
+
+func newResolver(conf config.Component, logger log.Component) (Component, error) {
+	return NewMultiFilesOIDResolver(conf.GetString("confd_path"), logger)
 }
 
 // NewMultiFilesOIDResolver creates a new MultiFilesOIDResolver instance by loading json or yaml files

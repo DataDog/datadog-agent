@@ -33,8 +33,8 @@ func (r MockResolver) GetVariableMetadata(string, varOid string) (VariableMetada
 }
 
 // NewMockResolver creates a mock resolver populated with fake data.
-func NewMockResolver() *MockResolver {
-	return &MockResolver{&dummyTrapDB}
+func NewMockResolver(content *TrapDBFileContent) Component {
+	return &MockResolver{content}
 }
 
 var dummyTrapDB = TrapDBFileContent{

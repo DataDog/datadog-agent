@@ -7,12 +7,12 @@ package status
 
 import "sync"
 
-// NewMock returns a Manager that uses plain internal values instead of expvars
-func NewMock() Manager {
+// newMock returns a Component that uses plain internal values instead of expvars
+func newMock() Component {
 	return &mockManager{}
 }
 
-// mockManager mocks a Manager using plain values (not expvars)
+// mockManager mocks a manager using plain values (not expvars)
 type mockManager struct {
 	trapsPackets, trapsPacketsAuthErrors int64
 	lock                                 sync.Mutex

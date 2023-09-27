@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2020-present Datadog, Inc.
+// Copyright 2022-present Datadog, Inc.
 
 //go:build !serverless
 
@@ -11,8 +11,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/snmp/traps/config"
-	"github.com/DataDog/datadog-agent/pkg/snmp/traps/packet"
+	"github.com/DataDog/datadog-agent/comp/snmptraps/config"
+	"github.com/DataDog/datadog-agent/comp/snmptraps/packet"
 	"github.com/gosnmp/gosnmp"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
