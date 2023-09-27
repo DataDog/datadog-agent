@@ -13,11 +13,11 @@ internal_kubernetes_deploy_experimental:
 #    when: never
   - !reference [.on_deploy_a7]
   needs:
-  - job: docker_trigger_internal
-    artifacts: false
-  - job: docker_trigger_cluster_agent_internal
-    artifacts: false
-  - job: k8s-e2e-main # Currently only require container Argo workflow
+#  - job: docker_trigger_internal
+#    artifacts: false
+#  - job: docker_trigger_cluster_agent_internal
+#    artifacts: false
+  - job: setup # Currently only require container Argo workflow
     artifacts: false
     optional: true
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
