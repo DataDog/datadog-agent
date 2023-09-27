@@ -480,8 +480,12 @@ def parse(commit_str):
 
 
 def is_system_probe(owners, files):
-    target = {("TEAM", "@DataDog/Networks"), ("TEAM", "@DataDog/universal-service-monitoring"),
-              ("TEAM", "@DataDog/ebpf-platform"), ("TEAM", "@DataDog/agent-security")}
+    target = {
+        ("TEAM", "@DataDog/Networks"),
+        ("TEAM", "@DataDog/universal-service-monitoring"),
+        ("TEAM", "@DataDog/ebpf-platform"),
+        ("TEAM", "@DataDog/agent-security"),
+    }
     for f in files:
         match_teams = set(owners.of(f)) & target
         if len(match_teams) != 0:
@@ -494,11 +498,7 @@ def is_system_probe(owners, files):
 def changelog(_, new_git_sha):
     old_git_sha = sp.check_output(["git", "rev-list", "-n 1", "changelog-nightly-staging-sha"]).decode().strip()
     commits = (
-        sp.check_output(
-            ["git", "log", f"{old_git_sha}..{new_git_sha}", "--pretty=format:%h"]
-        )
-        .decode()
-        .split("\n")
+        sp.check_output(["git", "log", f"{old_git_sha}..{new_git_sha}", "--pretty=format:%h"]).decode().split("\n")
     )
     owners = read_owners(".github/CODEOWNERS")
     messages = []
@@ -506,9 +506,7 @@ def changelog(_, new_git_sha):
 
     for commit in commits:
         # see https://git-scm.com/docs/pretty-formats for format string
-        commit_str = sp.check_output(
-            ["git", "show", "--name-only", "--pretty=format:%s%n%aN%n%aE", commit]
-        ).decode()
+        commit_str = sp.check_output(["git", "show", "--name-only", "--pretty=format:%s%n%aN%n%aE", commit]).decode()
         title, author, author_email, files, url = parse(commit_str)
         if is_system_probe(owners, files):
             message = f"{title} ({url}) {author}"
