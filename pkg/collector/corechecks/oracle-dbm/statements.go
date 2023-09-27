@@ -363,7 +363,7 @@ func handlePredicate(predicateType string, dbValue sql.NullString, payloadValue 
 			*payloadValue = fmt.Sprintf("%s obfuscation error", predicateType)
 			logEntry := fmt.Sprintf("%s %s for sql_id: %s, plan_hash_value: %d", c.logPrompt, *payloadValue, statement.SQLID, statement.PlanHashValue)
 			if c.config.ExecutionPlans.LogUnobfuscatedPlans {
-				logEntry = fmt.Sprintf("%s obfuscated filter: %s, unobfuscated filter: %s", logEntry, dbValue.String, payloadValue)
+				logEntry = fmt.Sprintf("%s unobfuscated filter: %s", logEntry, dbValue.String)
 			}
 			log.Error(logEntry)
 		}
