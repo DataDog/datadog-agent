@@ -334,12 +334,12 @@ build do
     specific_build_env.each do |lib, env|
       command "#{python} -m pip install --no-deps --require-hashes -r #{requirements_custom[lib]["compiled_req_file_path"]}", :env => env
       # Remove the file after use so it is not shipped
-      File.delete(requirements_custom[lib]["compiled_req_file_path"])
+      delete "#{requirements_custom[lib]["compiled_req_file_path"]}"
     end
     # Then we install the rest (already installed libraries will be ignored) with the main flags
     command "#{python} -m pip install --no-deps --require-hashes -r #{compiled_reqs_file_path}", :env => build_env
     # Remove the file after use so it is not shipped
-    File.delete(compiled_reqs_file_path)
+     delete "#{compiled_reqs_file_path}"
 
     #
     # Install Core integrations
