@@ -9,8 +9,3 @@
 fixes:
   - |
     Bug fix for `ORA-06502: PL/SQL: numeric or value error: character string buffer too small`. This error would occasionally appear during activity sampling.
-other:
-  - |
-    Add here every other information you want in the CHANGELOG that
-    don't fit in any other section. This section should rarely be
-    used.
