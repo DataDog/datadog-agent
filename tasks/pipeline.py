@@ -7,8 +7,6 @@ import traceback
 from collections import defaultdict
 from datetime import datetime
 
-import subprocess as sp
-
 import yaml
 from invoke import task
 from invoke.exceptions import Exit
@@ -534,7 +532,7 @@ def post_changelog(ctx):
     results = []
     with open('unique_emails.txt', 'r') as email_file:
         for email in email_file:
-            result = ctx.run(f"email2slackid ${email.strip()}")
+            result = ctx.run(f"email2slackid ${email.strip()}", hide=True)
             if not result:
                 result = email
             else:
@@ -549,9 +547,9 @@ def post_changelog(ctx):
     with open('system_probe_commits.txt', 'a') as commits_file:
         commits_file.write('\n'.join(results))
 
-    ctx.run("git checkout $CI_COMMIT_SHORT_SHA")
-    ctx.run("git tag changelog-nightly-staging-sha")
-    ctx.run("git push origin changelog-nightly-staging-sha")
+    ctx.run("git checkout $CI_COMMIT_SHORT_SHA", hide=True)
+    ctx.run("git tag changelog-nightly-staging-sha", hide=True)
+    ctx.run("git push origin changelog-nightly-staging-sha", hide=True)
     send_slack_message("system-probe-ops", ctx.run("$(cat system_probe_commits.txt)").stout)
 
 
