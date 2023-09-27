@@ -39,7 +39,6 @@ import (
 	kubemetav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	kubeunstructured "k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	kubeschema "k8s.io/apimachinery/pkg/runtime/schema"
-	kubeversion "k8s.io/apimachinery/pkg/version"
 	kubediscovery "k8s.io/client-go/discovery"
 	kubedynamic "k8s.io/client-go/dynamic"
 )
@@ -112,7 +111,7 @@ type defaultResolver struct {
 	filesCache         []fileMeta
 	pkgsCache          map[string]*packageInfo
 	kubeClusterIDCache string
-	kubeVersionCache   *kubeversion.Info
+	kubeResourcesCache *[]*kubemetav1.APIResourceList
 
 	dockerCl          docker.CommonAPIClient
 	kubernetesCl      kubedynamic.Interface
@@ -165,7 +164,7 @@ func (r *defaultResolver) Close() {
 	r.filesCache = nil
 	r.pkgsCache = nil
 	r.kubeClusterIDCache = ""
-	r.kubeVersionCache = nil
+	r.kubeResourcesCache = nil
 }
 
 func (r *defaultResolver) ResolveInputs(ctx context.Context, rule *Rule) (ResolvedInputs, error) {
@@ -694,22 +693,20 @@ func (r *defaultResolver) resolveKubeApiserver(ctx context.Context, spec InputSp
 	}
 
 	// podsecuritypolicies have been deprecated as part of Kubernetes v1.25
-	if spec.Kind == "podsecuritypolicies" {
-		serverVersion, err := r.resolveKubeServerVersion()
-		if err != nil {
-			return nil, fmt.Errorf("cannot resolve Kubeapiserver version: %w", err)
-		}
-		major, _ := strconv.Atoi(serverVersion.Major)
-		minor, _ := strconv.Atoi(serverVersion.Minor)
-		if major >= 1 && minor >= 25 {
-			return nil, ErrIncompatibleEnvironment
-		}
-	}
 
 	resourceSchema := kubeschema.GroupVersionResource{
 		Group:    spec.Group,
 		Resource: spec.Kind,
 		Version:  spec.Version,
+	}
+
+	resourceSupported, err := r.checkKubeServerResourceSupport(resourceSchema)
+	if err != nil {
+		return nil, fmt.Errorf("unable to check for Kube resource support:'%v', ns:'%s' err: %w",
+			resourceSchema, spec.Namespace, err)
+	}
+	if !resourceSupported {
+		return nil, ErrIncompatibleEnvironment
 	}
 
 	resourceDef := cl.Resource(resourceSchema)
@@ -759,15 +756,30 @@ func (r *defaultResolver) resolveKubeApiserver(ctx context.Context, spec InputSp
 	return resolved, nil
 }
 
-func (r *defaultResolver) resolveKubeServerVersion() (*kubeversion.Info, error) {
+func (r *defaultResolver) checkKubeServerResourceSupport(resourceSchema kubeschema.GroupVersionResource) (bool, error) {
 	if r.kubernetesDiscoCl == nil {
-		return nil, ErrIncompatibleEnvironment
+		return false, ErrIncompatibleEnvironment
 	}
-	var err error
-	if r.kubeVersionCache == nil {
-		r.kubeVersionCache, err = r.kubernetesDiscoCl.ServerVersion()
+
+	if r.kubeResourcesCache == nil {
+		_, resources, err := r.kubernetesDiscoCl.ServerGroupsAndResources()
+		if err != nil {
+			return false, fmt.Errorf("could not fetch kubernetes resources: %w", err)
+		}
+		r.kubeResourcesCache = &resources
 	}
-	return r.kubeVersionCache, err
+
+	groupVersion := resourceSchema.GroupVersion().String()
+	for _, list := range *r.kubeResourcesCache {
+		if groupVersion == list.GroupVersion {
+			for _, r := range list.APIResources {
+				if r.Name == resourceSchema.Resource {
+					return true, nil
+				}
+			}
+		}
+	}
+	return false, nil
 }
 
 const (
