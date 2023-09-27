@@ -475,7 +475,7 @@ def parse(commit_str):
     author = lines[1]
     author_email = lines[2]
     files = lines[3:]
-    return title, author, author_email, files, url  # Include author's email
+    return title, author, author_email, files, url
 
 
 def is_system_probe(owners, files):
@@ -539,7 +539,6 @@ def post_changelog(ctx, new_git_sha):
             results.append(result)
             time.sleep(1)
 
-    # Print the contributor list
     print(f'Contributor list: {results}')
 
     with open('system_probe_commits.txt', 'a') as commits_file:
@@ -548,8 +547,9 @@ def post_changelog(ctx, new_git_sha):
     print(f"tagging {new_git_sha}")
     ctx.run(f"git checkout {new_git_sha}", hide=True)
     ctx.run("git tag -d changelog-nightly-staging-sha", hide=True)
-    ctx.run(f"git tag changelog-nightly-staging-sha", hide=True)
+    ctx.run("git tag changelog-nightly-staging-sha", hide=True)
     # ctx.run("git push origin changelog-nightly-staging-sha", hide=True)
+    print(ctx.run("$(cat system_probe_commits.txt)").stout)
     send_slack_message("system-probe-ops", ctx.run("$(cat system_probe_commits.txt)").stout)
 
 
