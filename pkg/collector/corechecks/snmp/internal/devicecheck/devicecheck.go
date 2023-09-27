@@ -311,7 +311,7 @@ func (d *DeviceCheck) detectAvailableMetrics() ([]profiledefinition.MetricsConfi
 				} else {
 					// We don't add `metricTag` if any of the `metricTag.Tags` has already been encountered.
 					alreadyPresent := false
-					for tagKey := range metricTag.Tags.ToMap() {
+					for tagKey := range metricTag.Tags {
 						if alreadyGlobalTags[tagKey] {
 							alreadyPresent = true
 							break
@@ -320,7 +320,7 @@ func (d *DeviceCheck) detectAvailableMetrics() ([]profiledefinition.MetricsConfi
 					if alreadyPresent {
 						continue
 					}
-					for tagKey := range metricTag.Tags.ToMap() {
+					for tagKey := range metricTag.Tags {
 						alreadyGlobalTags[tagKey] = true
 					}
 				}

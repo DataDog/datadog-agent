@@ -246,8 +246,8 @@ func Test_ValidateEnrichMetrics(t *testing.T) {
 								Name: "abc",
 							},
 							Match: "([a-z)",
-							Tags: profiledefinition.KeyValueList{
-								{Key: "foo", Value: "bar"},
+							Tags: map[string]string{
+								"foo": "bar",
 							},
 						},
 					},
@@ -763,8 +763,8 @@ func Test_validateEnrichMetadata(t *testing.T) {
 								Name: "abc",
 							},
 							Match: "([a-z)",
-							Tags: profiledefinition.KeyValueList{
-								{Key: "foo", Value: "bar"},
+							Tags: map[string]string{
+								"foo": "bar",
 							},
 						},
 					},

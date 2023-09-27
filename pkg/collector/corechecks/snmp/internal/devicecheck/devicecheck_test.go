@@ -345,10 +345,10 @@ collect_topology: false
 			OID:   "1.3.6.1.2.1.1.5.0",
 			Name:  "sysName",
 			Match: "(\\w)(\\w+)",
-			Tags: profiledefinition.KeyValueList{
-				{Key: "prefix", Value: "\\1"},
-				{Key: "some_tag", Value: "some_tag_value"},
-				{Key: "suffix", Value: "\\2"},
+			Tags: map[string]string{
+				"prefix":   "\\1",
+				"suffix":   "\\2",
+				"some_tag": "some_tag_value",
 			},
 		},
 		{Tag: "snmp_host", OID: "1.3.6.1.2.1.1.5.0", Name: "sysName"},
@@ -942,10 +942,10 @@ community_string: public
 			OID:   "1.3.6.1.2.1.1.5.0",
 			Name:  "sysName",
 			Match: "(\\w)(\\w+)",
-			Tags: profiledefinition.KeyValueList{
-				{Key: "prefix", Value: "\\1"},
-				{Key: "some_tag", Value: "some_tag_value"},
-				{Key: "suffix", Value: "\\2"},
+			Tags: map[string]string{
+				"some_tag": "some_tag_value",
+				"prefix":   "\\1",
+				"suffix":   "\\2",
 			},
 		},
 		{Tag: "snmp_host", OID: "1.3.6.1.2.1.1.5.0", Name: "sysName"},
