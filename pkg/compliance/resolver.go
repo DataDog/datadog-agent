@@ -758,7 +758,7 @@ func (r *defaultResolver) resolveKubeApiserver(ctx context.Context, spec InputSp
 
 func (r *defaultResolver) checkKubeServerResourceSupport(resourceSchema kubeschema.GroupVersionResource) (bool, error) {
 	if r.kubernetesDiscoCl == nil {
-		return false, ErrIncompatibleEnvironment
+		return true, nil
 	}
 
 	if r.kubeResourcesCache == nil {
