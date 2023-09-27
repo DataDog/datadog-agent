@@ -507,7 +507,9 @@ def changelog(ctx, new_git_sha):
 
     for commit in commits:
         # see https://git-scm.com/docs/pretty-formats for format string
-        commit_str = ctx.run(f'git show --name-only --pretty=format:%s%n%aN%n%aE {commit}', capture=True).stdout.decode()
+        commit_str = ctx.run(
+            f'git show --name-only --pretty=format:%s%n%aN%n%aE {commit}', capture=True
+        ).stdout.decode()
         title, author, author_email, files, url = parse(commit_str)
         if is_system_probe(owners, files):
             message = f"{title} ({url}) {author}"
