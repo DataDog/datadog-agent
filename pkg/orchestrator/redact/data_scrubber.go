@@ -14,7 +14,9 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-const regexSensitiveParamInJSON = `(?P<before_value>"%s"\s*:\s*)(?P<value>("[^\"]+"))`
+// regexSensitiveParamInJSON is using non greedy operators in the value capture
+// group to work around missing support for look behind assertions in Go.
+const regexSensitiveParamInJSON = `(?P<before_value>"%s"\s*:\s*)(?P<value>".*?[^\\]+?")`
 
 var (
 	defaultSensitiveWords = []string{

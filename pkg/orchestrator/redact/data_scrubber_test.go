@@ -392,6 +392,9 @@ func setupSensitiveAnnotationsWithCustomWords() []annotationTestCaseCustomWord {
 		// subset of another string
 		{"hide_me", `{"dont_hide_me": "value"}`, `{"dont_hide_me": "value"}`},
 
+		// double quotes in value
+		{"hide_me", `{"hide_me": "\"tes\\\\"t\"1\\"234\""}`, `{"hide_me": "********"}`},
+
 		// special characters are escaped
 		{"a.+*?()|[]{}^$z", `{"a.+*?()|[]{}^$z": "test1234"}`, `{"a.+*?()|[]{}^$z": "********"}`},
 		{".*_hide_me", `{"dont_hide_me": "value"}`, `{"dont_hide_me": "value"}`},
