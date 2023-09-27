@@ -18,6 +18,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/languagedetection/languagemodels"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
+	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
 )
 
 // Store is a central storage of metadata about workloads. A workload is any
@@ -295,6 +296,12 @@ func (e EntityMeta) String(verbose bool) string {
 	_, _ = fmt.Fprintln(&sb, "Namespace:", e.Namespace)
 
 	if verbose {
+		for k, v := range e.Annotations {
+			scrubbed, err := scrubber.ScrubJSONString(v)
+			if err == nil {
+				e.Annotations[k] = scrubbed
+			}
+		}
 		_, _ = fmt.Fprintln(&sb, "Annotations:", mapToString(e.Annotations))
 		_, _ = fmt.Fprintln(&sb, "Labels:", mapToString(e.Labels))
 	}

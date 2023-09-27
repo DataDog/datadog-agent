@@ -12,15 +12,54 @@ import (
 	"encoding/json"
 )
 
+func walkJSONSlice(data []interface{}, callback scrubCallback) {
+	for _, k := range data {
+		switch v := k.(type) {
+		case map[string]interface{}:
+			walkJSONInterface(v, callback)
+		case []interface{}:
+			walkJSONSlice(v, callback)
+		}
+	}
+}
+
+func walkJSONInterface(data map[string]interface{}, callback scrubCallback) {
+	for k, v := range data {
+		if match, newValue := callback(k, v); match {
+			data[k] = newValue
+		}
+		switch v := data[k].(type) {
+		case map[string]interface{}:
+			walkJSONInterface(v, callback)
+		case []interface{}:
+			walkJSONSlice(v, callback)
+		}
+	}
+}
+
+// walk will go through loaded json and call callback on every strings allowing
+// the callback to overwrite the string value
+func walkJSON(data *interface{}, callback scrubCallback) {
+	if data == nil {
+		return
+	}
+	switch v := (*data).(type) {
+	case map[string]interface{}:
+		walkJSONInterface(v, callback)
+	case []interface{}:
+		walkJSONSlice(v, callback)
+	}
+}
+
 // ScrubJSON scrubs credentials from the given json by loading the data and scrubbing the
-// object instead of the serialized string. It calls the helper function walk in ScrubYaml
+// object instead of the serialized string.
 func (c *Scrubber) ScrubJSON(input []byte) ([]byte, error) {
 	var data *interface{}
 	err := json.Unmarshal(input, &data)
 
-	// if we can't load the yaml run the default scrubber on the input
+	// if we can't load the json run the default scrubber on the input
 	if len(input) != 0 && err == nil {
-		c.walk(data, func(key string, value interface{}) (bool, interface{}) {
+		walkJSON(data, func(key string, value interface{}) (bool, interface{}) {
 			for _, replacer := range c.singleLineReplacers {
 				if replacer.YAMLKeyRegex == nil {
 					continue

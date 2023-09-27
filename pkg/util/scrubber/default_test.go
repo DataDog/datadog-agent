@@ -6,6 +6,7 @@
 package scrubber
 
 import (
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"strings"
@@ -72,8 +73,31 @@ func TestConfigScrubbedYaml(t *testing.T) {
 	// We replace windows line break by linux so the tests pass on every OS
 	trimmedOutput := strings.TrimSpace(strings.Replace(string(outputConfData), "\r\n", "\n", -1))
 	trimmedCleaned := strings.TrimSpace(strings.Replace(string(cleaned), "\r\n", "\n", -1))
-
 	assert.Equal(t, trimmedOutput, trimmedCleaned)
+}
+
+func TestConfigScrubbedJson(t *testing.T) {
+	wd, _ := os.Getwd()
+
+	inputConf := filepath.Join(wd, "test", "config.json")
+	inputConfData, err := os.ReadFile(inputConf)
+	require.NoError(t, err)
+	cleaned, err := ScrubJSON([]byte(inputConfData))
+	require.Nil(t, err)
+	// First test that the a scrubbed json is still valid
+	var actualOutJSON interface{}
+	err = json.Unmarshal(cleaned, &actualOutJSON)
+	assert.NoError(t, err, "Could not load JSON configuration after being scrubbed")
+
+	outputConf := filepath.Join(wd, "test", "config_scrubbed.json")
+	outputConfData, err := os.ReadFile(outputConf)
+	require.NoError(t, err)
+	var expectedOutJSON interface{}
+	err = json.Unmarshal(outputConfData, &expectedOutJSON)
+	require.NoError(t, err)
+	outputConfData, err = json.Marshal(expectedOutJSON)
+	require.NoError(t, err)
+	assert.Equal(t, cleaned, outputConfData)
 }
 
 func TestEmptyYaml(t *testing.T) {

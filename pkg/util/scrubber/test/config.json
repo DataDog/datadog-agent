@@ -1,0 +1,18 @@
+{
+    "api_key": "aaaaaaaaaaaaaaaaaaaaaaaaaaaabbbb",
+    "api_key2": "aaaaaaaaaaaaaaaaaaaaaaaaaaaabbbb",
+    "api_key3": "aaaaaaaaaaaaaaaaaaaaaaaaaaaabbbb",
+    "app_key": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaabbbb",
+    "app_key2": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaabbbb",
+    "app_key3": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaabbbb",
+    "password": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaabbbb",
+    "fourth_token": true,
+    "multi_token": [
+        "a",
+        "b",
+        "c"
+    ],
+    "second_token": "123465749798",
+    "third_token": 123465749798,
+    "token": "some multi-line\ntoken with lot\nof data\n"
+}
