@@ -22,7 +22,6 @@ type Launcher struct{}
 
 // Start is a stub for non-windows platforms
 func (l *Launcher) Start(sourceProvider launchers.SourceProvider, pipelineProvider pipeline.Provider, registry auditor.Registry, tracker *tailers.TailerTracker) {
-	log.Warn("windows event log not supported on this system")
 }
 
 // Stop is a stub for non-windows platforms

@@ -37,7 +37,7 @@ const (
 	eventIDPath = "Event.System.EventID"
 	// Custom path, not a Microsoft path
 	eventIDQualifierPath = "Event.System.EventIDQualifier"
-	maxMessageBytes      = 1<<17 - 1 // 128 kB
+	maxMessageBytes      = 128 * 1024 // 128 kB
 	truncatedFlag        = "...TRUNCATED..."
 )
 
@@ -73,6 +73,10 @@ type Tailer struct {
 
 // NewTailer returns a new tailer.
 func NewTailer(evtapi evtapi.API, source *sources.LogSource, config *Config, outputChan chan *message.Message) *Tailer {
+	if evtapi == nil {
+		evtapi = winevtapi.New()
+	}
+
 	return &Tailer{
 		evtapi:     evtapi,
 		source:     source,
@@ -133,9 +137,7 @@ func (t *Tailer) forwardMessages() {
 
 // tail subscribes to the channel for the windows events
 func (t *Tailer) tail(bookmark string) {
-	if t.evtapi == nil {
-		t.evtapi = winevtapi.New()
-	}
+	defer close(t.done)
 
 	var err error
 
@@ -197,7 +199,6 @@ func (t *Tailer) tail(bookmark string) {
 
 	// wait for stop signal
 	t.eventLoop()
-	close(t.done)
 }
 
 func (t *Tailer) eventLoop() {
@@ -255,7 +256,7 @@ func (t *Tailer) eventLoop() {
 				}
 				if events == nil {
 					// no more events
-					log.Debugf("No more events")
+					log.Debug("No more events")
 					break
 				}
 				for _, eventRecord := range events {
@@ -304,7 +305,6 @@ func (t *Tailer) enrichEvent(event evtapi.EventRecordHandle) *richEvent {
 		return nil
 	}
 	xml := windows.UTF16ToString(xmlData)
-	log.Debug(xml)
 
 	vals, err := t.evtapi.EvtRenderEventValues(t.systemRenderContext, event)
 	if err != nil {
@@ -335,7 +335,7 @@ func (t *Tailer) enrichEvent(event evtapi.EventRecordHandle) *richEvent {
 
 	// Truncates the message. Messages with more than 128kB are likely to be bigger
 	// than 256kB when serialized and then dropped
-	if len(message) >= maxMessageBytes {
+	if len(message) > maxMessageBytes {
 		message = strings.TruncateUTF8(message, maxMessageBytes)
 		message = message + truncatedFlag
 	}

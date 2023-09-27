@@ -9,7 +9,6 @@
 package windowsevent
 
 import (
-	"fmt"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
@@ -20,7 +19,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/tailers"
 	"github.com/DataDog/datadog-agent/pkg/logs/tailers/windowsevent"
 	"github.com/DataDog/datadog-agent/pkg/util/startstop"
-	"github.com/DataDog/datadog-agent/pkg/util/winutil/eventlog/api"
 )
 
 type tailer interface {
@@ -31,7 +29,6 @@ type tailer interface {
 
 // Launcher is in charge of starting and stopping windows event logs tailers
 type Launcher struct {
-	evtapi           evtapi.API
 	sources          chan *sources.LogSource
 	pipelineProvider pipeline.Provider
 	registry         auditor.Registry
@@ -109,16 +106,11 @@ func (l *Launcher) sanitizedConfig(sourceConfig *config.LogsConfig) *windowseven
 // setupTailer configures and starts a new tailer
 func (l *Launcher) setupTailer(source *sources.LogSource) (tailer, error) {
 	sanitizedConfig := l.sanitizedConfig(source.Config)
-	var t tailer
-	if source.Config.Type == config.WindowsEventType {
-		config := &windowsevent.Config{
-			ChannelPath: sanitizedConfig.ChannelPath,
-			Query:       sanitizedConfig.Query,
-		}
-		t = windowsevent.NewTailer(l.evtapi, source, config, l.pipelineProvider.NextPipelineChan())
-	} else {
-		return nil, fmt.Errorf("unsupported type %s", source.Config.Type)
+	config := &windowsevent.Config{
+		ChannelPath: sanitizedConfig.ChannelPath,
+		Query:       sanitizedConfig.Query,
 	}
+	t := windowsevent.NewTailer(nil, source, config, l.pipelineProvider.NextPipelineChan())
 	bookmark := l.registry.GetOffset(t.Identifier())
 	t.Start(bookmark)
 	return t, nil
