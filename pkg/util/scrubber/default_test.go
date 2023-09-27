@@ -73,6 +73,7 @@ func TestConfigScrubbedYaml(t *testing.T) {
 	// We replace windows line break by linux so the tests pass on every OS
 	trimmedOutput := strings.TrimSpace(strings.Replace(string(outputConfData), "\r\n", "\n", -1))
 	trimmedCleaned := strings.TrimSpace(strings.Replace(string(cleaned), "\r\n", "\n", -1))
+
 	assert.Equal(t, trimmedOutput, trimmedCleaned)
 }
 
