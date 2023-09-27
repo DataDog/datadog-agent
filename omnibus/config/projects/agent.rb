@@ -152,25 +152,6 @@ package :zip do
       "#{Omnibus::Config.source_dir()}\\etc\\datadog-agent\\extra_package_files",
       "#{Omnibus::Config.source_dir()}\\cf-root"
     ]
-
-    # Always sign everything for binaries zip
-    # noinspection RubyLiteralArrayInspection
-    additional_sign_files [
-      "#{Omnibus::Config.source_dir()}\\cf-root\\bin\\agent\\process-agent.exe",
-      "#{Omnibus::Config.source_dir()}\\cf-root\\bin\\agent\\trace-agent.exe",
-      "#{Omnibus::Config.source_dir()}\\cf-root\\bin\\agent.exe",
-      "#{Omnibus::Config.source_dir()}\\cf-root\\bin\\libdatadog-agent-three.dll"
-    ]
-    if with_python_runtime? "2"
-      additional_sign_files << "#{Omnibus::Config.source_dir()}\\cf-root\\bin\\libdatadog-agent-two.dll"
-    end
-    if ENV['SIGN_PFX']
-      signing_identity_file "#{ENV['SIGN_PFX']}", password: "#{ENV['SIGN_PFX_PW']}", algorithm: "SHA256"
-    end
-    if ENV['SIGN_WINDOWS_DD_WCS']
-      dd_wcssign true
-    end
-  
   end
 end
 
@@ -305,10 +286,10 @@ if windows?
   }
 
   # Check the exported symbols from the binary
-  inspect_binary("#{Omnibus::Config.source_dir()}\\datadog-agent\\src\\github.com\\DataDog\\datadog-agent\\bin\\agent\\agent.exe", &raise_if_forbidden_symbol_found)
-  inspect_binary("#{Omnibus::Config.source_dir()}\\datadog-agent\\src\\github.com\\DataDog\\datadog-agent\\bin\\agent\\trace-agent.exe", &raise_if_forbidden_symbol_found)
-  inspect_binary("#{Omnibus::Config.source_dir()}\\datadog-agent\\src\\github.com\\DataDog\\datadog-agent\\bin\\agent\\process-agent.exe", &raise_if_forbidden_symbol_found)
-  inspect_binary("#{Omnibus::Config.source_dir()}\\datadog-agent\\src\\github.com\\DataDog\\datadog-agent\\bin\\agent\\system-probe.exe", &raise_if_forbidden_symbol_found)
+  inspect_binary("#{install_dir}\\bin\\agent\\agent.exe", &raise_if_forbidden_symbol_found)
+  inspect_binary("#{install_dir}\\bin\\agent\\trace-agent.exe", &raise_if_forbidden_symbol_found)
+  inspect_binary("#{install_dir}\\bin\\agent\\process-agent.exe", &raise_if_forbidden_symbol_found)
+  inspect_binary("#{install_dir}\\bin\\agent\\system-probe.exe", &raise_if_forbidden_symbol_found)
 
   #
   # For Windows build, files need to be stripped must be specified here.

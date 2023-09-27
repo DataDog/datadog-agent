@@ -29,31 +29,13 @@ build do
               move "#{install_dir}/etc/datadog-agent/system-probe.yaml.example", conf_dir_root, :force=>true
             end
             move "#{install_dir}/etc/datadog-agent/conf.d/*", conf_dir, :force=>true
-            delete "#{install_dir}/bin/agent/agent.exe"
-            # TODO why does this get generated at all
-            delete "#{install_dir}/bin/agent/agent.exe~"
 
-            #remove unneccessary copies caused by blanked copy of bin to #{install_dir} in datadog-agent recipe
-            delete "#{install_dir}/bin/agent/libdatadog-agent-three.dll"
-            delete "#{install_dir}/bin/agent/libdatadog-agent-two.dll"
-
-            # not sure where it's coming from, but we're being left with an `embedded` dir.
-            # delete it
-            delete "#{install_dir}/embedded"
-
-            # remove the config files for the subservices; they'll be started
-            # based on the config file
-            delete "#{conf_dir}/apm.yaml.default"
-            delete "#{conf_dir}/process_agent.yaml.default"
-            # load isn't supported by windows
-            delete "#{conf_dir}/load.d"
-
-            # cleanup clutter
-            delete "#{install_dir}/etc"
-            delete "#{install_dir}/bin/agent/dist/conf.d"
-            delete "#{install_dir}/bin/agent/dist/*.conf*"
-            delete "#{install_dir}/bin/agent/dist/*.yaml"
-            command "del /q /s #{windows_safe_path(install_dir)}\\*.pyc"
+            if ENV['SIGN_WINDOWS_DD_WCS']
+                puts "signing files"
+                #Dir["#{Omnibus::Config.source_dir()}" + "/**/*.{exe,dll}"].each do |signfile|
+                #  sign_package(signfile)
+                #end
+            end
 
         end
 

@@ -65,7 +65,7 @@ build do
     end
     command "inv -e rtloader.clean"
     command "inv -e rtloader.make --python-runtimes #{py_runtimes_arg} --install-prefix \"#{windows_safe_path(python_2_embedded)}\" --cmake-options \"-G \\\"Unix Makefiles\\\"\" --arch #{platform}", :env => env
-    command "mv rtloader/bin/*.dll  #{Omnibus::Config.source_dir()}/datadog-agent/src/github.com/DataDog/datadog-agent/bin/agent/"
+    command "mv rtloader/bin/*.dll  #{install_dir}/bin/agent/"
     command "inv -e agent.build --exclude-rtloader --python-runtimes #{py_runtimes_arg} --major-version #{major_version_arg} --rebuild --no-development --embedded-path=#{install_dir}/embedded --arch #{platform} #{do_windows_sysprobe} --flavor #{flavor_arg}", env: env
     command "inv -e systray.build --major-version #{major_version_arg} --rebuild --arch #{platform}", env: env
   else
@@ -98,6 +98,7 @@ build do
     copy 'bin/agent', "#{install_dir}/bin/"
   else
     copy 'bin/agent/ddtray.exe', "#{install_dir}/bin/agent"
+    copy 'bin/agent/agent.exe', "#{install_dir}/bin/agent"
     copy 'bin/agent/dist', "#{install_dir}/bin/agent"
     mkdir Omnibus::Config.package_dir() unless Dir.exists?(Omnibus::Config.package_dir())
   end
@@ -109,7 +110,7 @@ build do
     command "invoke trace-agent.build --python-runtimes #{py_runtimes_arg} --major-version #{major_version_arg} --arch #{platform} --flavor #{flavor_arg}", :env => env
 
     if windows?
-      copy 'bin/trace-agent/trace-agent.exe', "#{Omnibus::Config.source_dir()}/datadog-agent/src/github.com/DataDog/datadog-agent/bin/agent"
+      copy 'bin/trace-agent/trace-agent.exe', "#{install_dir}/bin/agent"
     else
       copy 'bin/trace-agent/trace-agent', "#{install_dir}/embedded/bin"
     end
@@ -120,13 +121,13 @@ build do
     # Build the process-agent with the correct go version for windows
     command "invoke -e process-agent.build --python-runtimes #{py_runtimes_arg} --major-version #{major_version_arg} --arch #{platform} --flavor #{flavor_arg}", :env => env
 
-    copy 'bin/process-agent/process-agent.exe', "#{Omnibus::Config.source_dir()}/datadog-agent/src/github.com/DataDog/datadog-agent/bin/agent"
+    copy 'bin/process-agent/process-agent.exe', "#{install_dir}/bin/agent"
 
     unless windows_arch_i386?
       if ENV['WINDOWS_DDNPM_DRIVER'] and not ENV['WINDOWS_DDNPM_DRIVER'].empty?
         ## don't bother with system probe build on x86.
         command "invoke -e system-probe.build --windows"
-        copy 'bin/system-probe/system-probe.exe', "#{Omnibus::Config.source_dir()}/datadog-agent/src/github.com/DataDog/datadog-agent/bin/agent"
+        copy 'bin/system-probe/system-probe.exe', "#{install_dir}/bin/agent"
       end
     end
   else
