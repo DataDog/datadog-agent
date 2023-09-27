@@ -931,6 +931,44 @@ func TestFilteredByTags(t *testing.T) {
 	}
 }
 
+func BenchmarkFilteredByTags(b *testing.B) {
+	type FilteredByTagTestData struct {
+		require      []*config.Tag
+		reject       []*config.Tag
+		requireRegex []*config.TagRegex
+		rejectRegex  []*config.TagRegex
+		span         pb.Span
+	}
+
+	b.Run("FilteredByTags", func(b *testing.B) {
+		tt := FilteredByTagTestData{
+			require: []*config.Tag{{K: "key1", V: "val1"}, {K: "key2", V: "val2"}},
+			reject:  []*config.Tag{{K: "key3", V: "val3"}},
+			span:    pb.Span{Meta: map[string]string{"key1": "val1", "key2": "val2"}},
+		}
+
+		runTraceFilteringBenchmark(b, &tt.span, tt.require, tt.reject, tt.requireRegex, tt.rejectRegex)
+	})
+
+	b.Run("FilteredByRegexTags", func(b *testing.B) {
+		tt := FilteredByTagTestData{
+			requireRegex: []*config.TagRegex{{K: "key1", V: regexp.MustCompile("^val1$")}, {K: "key2", V: regexp.MustCompile("^val2$")}},
+			rejectRegex:  []*config.TagRegex{{K: "key3", V: regexp.MustCompile("^val3$")}},
+			span:         pb.Span{Meta: map[string]string{"key1": "val1", "key2": "val2"}},
+		}
+
+		runTraceFilteringBenchmark(b, &tt.span, tt.require, tt.reject, tt.requireRegex, tt.rejectRegex)
+	})
+}
+
+func runTraceFilteringBenchmark(b *testing.B, root *pb.Span, require []*config.Tag, reject []*config.Tag, requireRegex []*config.TagRegex, rejectRegex []*config.TagRegex) {
+	b.ResetTimer()
+
+	for i := 0; i < b.N; i++ {
+		filteredByTags(root, require, reject, requireRegex, rejectRegex)
+	}
+}
+
 func TestClientComputedStats(t *testing.T) {
 	cfg := config.New()
 	cfg.Endpoints[0].APIKey = "test"
@@ -1474,7 +1512,7 @@ func BenchmarkAgentTraceProcessingWithFiltering(b *testing.B) {
 }
 
 // worst case scenario: spans are tested against multiple rules without any match.
-// this means we won't compesate the overhead of filtering by dropping traces
+// this means we won't compesate the overhead of TestFilteredByTagsing by dropping traces
 func BenchmarkAgentTraceProcessingWithWorstCaseFiltering(b *testing.B) {
 	c := config.New()
 	c.Endpoints[0].APIKey = "test"
