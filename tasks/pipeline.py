@@ -497,9 +497,7 @@ def is_system_probe(owners, files):
 def changelog(ctx, new_git_sha):
     old_git_sha = ctx.run("git rev-list -n 1 changelog-nightly-staging-sha", hide=True).stdout.strip()
     print(f"Generating changelog for commit range {old_git_sha} to {new_git_sha}")
-    commits = (
-        ctx.run(f"git log {old_git_sha}..{new_git_sha} --pretty=format:%h", hide=True).stdout.split("\n")
-    )
+    commits = ctx.run(f"git log {old_git_sha}..{new_git_sha} --pretty=format:%h", hide=True).stdout.split("\n")
     owners = read_owners(".github/CODEOWNERS")
     messages = []
     unique_emails = set()
@@ -551,7 +549,7 @@ def post_changelog(ctx, new_git_sha):
     ctx.run(f"git checkout {new_git_sha}", hide=True)
     ctx.run("git tag -d changelog-nightly-staging-sha", hide=True)
     ctx.run(f"git tag changelog-nightly-staging-sha", hide=True)
-    ctx.run("git push origin changelog-nightly-staging-sha", hide=True)
+    # ctx.run("git push origin changelog-nightly-staging-sha", hide=True)
     send_slack_message("system-probe-ops", ctx.run("$(cat system_probe_commits.txt)").stout)
 
 
