@@ -113,14 +113,6 @@ metric_tags:
       2: two
   - OID: 1.2.3
     symbol: mySymbol
-    tag: my_symbol_mapped_list
-    mapping:
-      - key: 1
-        value: one
-      - key: 2
-        value: two
-  - OID: 1.2.3
-    symbol: mySymbol
     match: '(\w)(\w+)'
     tags:
       prefix: '\1'
@@ -230,10 +222,6 @@ bulk_max_repetitions: 20
 	expectedMetricTags := []profiledefinition.MetricTagConfig{
 		{Tag: "my_symbol", OID: "1.2.3", Name: "mySymbol"},
 		{Tag: "my_symbol_mapped", OID: "1.2.3", Name: "mySymbol", Mapping: profiledefinition.KeyValueList{
-			{Key: "1", Value: "one"},
-			{Key: "2", Value: "two"},
-		}},
-		{Tag: "my_symbol_mapped_list", OID: "1.2.3", Name: "mySymbol", Mapping: profiledefinition.KeyValueList{
 			{Key: "1", Value: "one"},
 			{Key: "2", Value: "two"},
 		}},

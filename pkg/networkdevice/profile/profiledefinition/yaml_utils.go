@@ -51,23 +51,22 @@ func (mtcl *MetricTagConfigList) UnmarshalYAML(unmarshal func(interface{}) error
 // UnmarshalYAML unmarshalls KeyValueList
 func (kvl *KeyValueList) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	var kvList []KeyValue
-	err := unmarshal(&kvList)
+	var mapping map[string]string
+
+	err := unmarshal(&mapping)
 	if err != nil {
-		var mapping map[string]string
-		err := unmarshal(&mapping)
-		if err != nil {
-			return err
-		}
-		var keys []string
-		for k := range mapping {
-			keys = append(keys, k)
-		}
-		sort.Strings(keys)
-		kvList = []KeyValue{}
-		for _, k := range keys {
-			v := mapping[k]
-			kvList = append(kvList, KeyValue{Key: k, Value: v})
-		}
+		return err
+	}
+
+	var keys []string
+	for k := range mapping {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+
+	for _, k := range keys {
+		v := mapping[k]
+		kvList = append(kvList, KeyValue{Key: k, Value: v})
 	}
 	*kvl = kvList
 	return nil

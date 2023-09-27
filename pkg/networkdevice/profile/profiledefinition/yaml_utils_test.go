@@ -90,16 +90,8 @@ my_kv_list:
 	assert.Equal(t, expected, myStruct)
 }
 
-func TestKeyValueList_UnmarshalYAML_listKeyValue(t *testing.T) {
+func TestKeyValueList_UnmarshalYAML_listKeyValue_listNotAllowedInYaml(t *testing.T) {
 	myStruct := MyKeyValueList{}
-	expected := MyKeyValueList{KvListField: KeyValueList{
-		{
-			Key: "1", Value: "aaa",
-		},
-		{
-			Key: "2", Value: "bbb",
-		},
-	}}
 
 	err := yaml.Unmarshal([]byte(`
 my_kv_list:
@@ -108,7 +100,5 @@ my_kv_list:
  - key: 2
    value: bbb
 `), &myStruct)
-	assert.NoError(t, err)
-
-	assert.Equal(t, expected, myStruct)
+	assert.ErrorContains(t, err, "cannot unmarshal !!seq into map[string]string")
 }
