@@ -22,13 +22,7 @@ import (
 
 const (
 	subscriber          = "language_detection_client"
-	runningMetricPeriod = 1 * time.Minute
-
-	minBackoffFactor = 2.0
-	baseBackoffTime  = 1.0 * time.Second
-	recoveryInterval = 2 * time.Second
-	maxError         = 10
-	maxBackoffTime   = 30 * time.Second
+	runningMetricPeriod = 15 * time.Minute
 )
 
 type dependencies struct {
