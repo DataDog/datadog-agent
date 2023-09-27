@@ -80,6 +80,8 @@
 /.gitlab/functional_test/system_probe.yml            @DataDog/ebpf-platform @DataDog/agent-platform
 /.gitlab/functional_test_cleanup.yml                 @DataDog/agent-security @DataDog/ebpf-platform @DataDog/agent-platform
 
+/.gitlab/integration_test/windows.yml                @DataDog/agent-platform @DataDog/windows-agent
+
 /.gitlab/kernel_version_testing                      @DataDog/ebpf-platform
 
 /.gitlab/container_build/                            @DataDog/container-integrations @DataDog/agent-platform
@@ -327,6 +329,8 @@
 /pkg/util/winutil/                      @DataDog/windows-agent
 /pkg/languagedetection                  @DataDog/processes @DataDog/universal-service-monitoring
 /pkg/logs/                              @DataDog/agent-metrics-logs
+/pkg/logs/launchers/windowsevent        @DataDog/agent-metrics-logs @DataDog/windows-agent
+/pkg/logs/tailers/windowsevent          @DataDog/agent-metrics-logs @DataDog/windows-agent
 /pkg/process/                           @DataDog/processes
 /pkg/process/util/address*.go           @DataDog/Networks
 /pkg/process/util/netns*.go             @DataDog/Networks
