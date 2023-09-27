@@ -24,6 +24,7 @@ func TestTruncateString(t *testing.T) {
 	assert.Equal(t, "", TruncateUTF8("肋", 2))
 	// Testing 4 character split
 	assert.Equal(t, "🠠", TruncateUTF8("🠠a", 4))
+	assert.Equal(t, "", TruncateUTF8("🠠a", 2))
 	// Testing 3 character split
 	assert.Equal(t, "⃠⃠", TruncateUTF8("⃠⃠a", 6))
 	// Testing 2 character split
