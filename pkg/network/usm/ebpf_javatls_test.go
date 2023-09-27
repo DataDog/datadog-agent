@@ -180,10 +180,10 @@ func TestJavaInjection(t *testing.T) {
 			tt.preTracerSetup(t, tt.context)
 			javaTLSProg, err := newJavaTLSProgram(cfg)
 			require.NoError(t, err)
+			require.NoError(t, javaTLSProg.PreStart(nil))
 			t.Cleanup(func() {
 				javaTLSProg.Stop(nil)
 			})
-			require.NoError(t, javaTLSProg.PreStart(nil))
 			require.NoError(t, javaTLSProg.(*javaTLSProgram).processMonitor.Initialize())
 
 			tt.postTracerSetup(t, tt.context)
