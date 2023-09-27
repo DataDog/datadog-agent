@@ -1931,7 +1931,7 @@ api_key:
 {{- if (eq .OS "windows")}}
     ## @param dir - string - default: %ProgramData%\Datadog\runtime-security.d
     ## @env DD_RUNTIME_SECURITY_CONFIG_POLICIES_DIR - string - default: /etc/datadog-agent/runtime-security.d
-    ## Path from where the policy files will be loaded
+    ## Path from where the policy files are loaded
     #
     # dir: c:\ProgramData\Datadog\runtime-security.d
 {{else}}
