@@ -54,7 +54,6 @@ func (c *Check) init() error {
 	c.dbVersion = i.VersionFull
 	if c.config.ReportedHostname != "" {
 		c.dbHostname = c.config.ReportedHostname
-		tags = append(tags, fmt.Sprintf("reported_hostname:%s", c.config.ReportedHostname))
 	} else {
 		if i.HostName.Valid {
 			c.dbHostname = i.HostName.String

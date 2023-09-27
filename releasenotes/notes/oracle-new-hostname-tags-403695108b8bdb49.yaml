@@ -8,4 +8,4 @@
 ---
 enhancements:
   - |
-    Adding `reported_hostname` and `real_hostname` tags.
+    Adding `real_hostname` tag.
