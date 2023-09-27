@@ -317,7 +317,7 @@ func (c *Check) SampleSession() error {
 	sessionSamples := []OracleActivityRowDB{}
 	var activityQuery string
 	maxSQLTextLength := MaxSQLFullTextVSQL
-	if c.hostingType.value == selfManaged {
+	if c.hostingType == selfManaged {
 		activityQuery = ACTIVITY_QUERY
 	} else {
 		activityQuery = ACTIVITY_QUERY_DIRECT

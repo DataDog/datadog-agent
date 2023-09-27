@@ -5,6 +5,7 @@
 
 //go:build kubeapiserver
 
+// Package kubeapiserver implements the kubeapiserver Workloadmeta collector.
 package kubeapiserver
 
 import (

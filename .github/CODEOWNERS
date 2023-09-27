@@ -442,6 +442,7 @@
 /test/new-e2e/scenarios/ndm             @DataDog/network-device-monitoring
 /test/new-e2e/system-probe              @DataDog/ebpf-platform
 /test/new-e2e/scenarios/system-probe    @DataDog/ebpf-platform
+/test/new-e2e/tests/containers          @DataDog/container-integrations
 /test/new-e2e/tests/npm                 @DataDog/Networks
 /test/system/                           @DataDog/agent-shared-components
 /test/system/dogstatsd/                 @DataDog/agent-metrics-logs

@@ -5,6 +5,7 @@
 
 //go:build kubeapiserver
 
+// Package certificate provides helpers to work with Kubernetes secrets.
 package certificate
 
 import (

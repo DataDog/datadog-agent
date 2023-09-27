@@ -5,6 +5,7 @@
 
 //go:build kubelet
 
+// Package kubelet implements the kubelet Workloadmeta collector.
 package kubelet
 
 import (

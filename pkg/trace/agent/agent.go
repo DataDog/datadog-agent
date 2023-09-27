@@ -204,7 +204,6 @@ func (a *Agent) loop() {
 		a.RareSampler,
 		a.EventProcessor,
 		a.obfuscator,
-		a.obfuscator,
 		a.cardObfuscator,
 		a.DebugServer,
 	} {

@@ -222,12 +222,12 @@ func (k *Probe) getProgramStats(stats *model.EBPFStats) error {
 	for progid, err = ebpf.ProgramGetNextID(progid); err == nil; progid, err = ebpf.ProgramGetNextID(progid) {
 		pr, err := ebpf.NewProgramFromID(progid)
 		if err != nil {
-			log.Debugf("unable to get program %d: %s", progid, err)
+			log.Debugf("unable to get program prog_id=%d: %s", progid, err)
 			continue
 		}
 		var info ProgInfo
 		if err := ProgObjInfo(uint32(pr.FD()), &info); err != nil {
-			log.Debugf("error getting program info %d: %s", progid, err)
+			log.Debugf("error getting program info prog_id=%d: %s", progid, err)
 			continue
 		}
 
@@ -266,7 +266,7 @@ func (k *Probe) getProgramStats(stats *model.EBPFStats) error {
 	log.Debugf("found %d programs", len(stats.Programs))
 	deduplicateProgramNames(stats)
 	for _, ps := range stats.Programs {
-		log.Debugf("%s(%d) => %s", ps.Name, ps.ID, ps.Type.String())
+		log.Debugf("name=%s prog_id=%d type=%s", ps.Name, ps.ID, ps.Type.String())
 	}
 
 	return nil
@@ -282,7 +282,7 @@ func (k *Probe) getMapStats(stats *model.EBPFStats) error {
 	for mapid, err = ebpf.MapGetNextID(mapid); err == nil; mapid, err = ebpf.MapGetNextID(mapid) {
 		mp, err := ebpf.NewMapFromID(mapid)
 		if err != nil {
-			log.Debugf("unable to get map %d: %s", mapid, err)
+			log.Debugf("unable to get map map_id=%d: %s", mapid, err)
 			continue
 		}
 		mapCount++
@@ -291,7 +291,7 @@ func (k *Probe) getMapStats(stats *model.EBPFStats) error {
 		// we could maybe avoid the duplicate call by doing the id->fd->info chain ourselves
 		info, err := mp.Info()
 		if err != nil {
-			log.Debugf("error getting map info %d: %s", mapid, err)
+			log.Debugf("error getting map info map_id=%d: %s", mapid, err)
 			continue
 		}
 		name := info.Name
@@ -337,6 +337,8 @@ func (k *Probe) getMapStats(stats *model.EBPFStats) error {
 			baseMapStats.MaxSize, baseMapStats.RSS = hashMapMemoryUsage(info, uint64(k.nrcpus))
 		case ebpf.Array, ebpf.PerCPUArray, ebpf.ProgramArray, ebpf.CGroupArray, ebpf.ArrayOfMaps:
 			baseMapStats.MaxSize, baseMapStats.RSS = arrayMemoryUsage(info, uint64(k.nrcpus))
+		case ebpf.LPMTrie:
+			baseMapStats.MaxSize, baseMapStats.RSS = trieMemoryUsage(info, uint64(k.nrcpus))
 		// TODO other map types
 		//case ebpf.Stack:
 		//case ebpf.ReusePortSockArray:
@@ -356,10 +358,10 @@ func (k *Probe) getMapStats(stats *model.EBPFStats) error {
 	log.Debugf("found %d maps", mapCount)
 	deduplicateMapNames(stats)
 	for _, mp := range stats.Maps {
-		log.Debugf("%s(%d) => max=%d rss=%d", mp.Name, mp.ID, mp.MaxSize, mp.RSS)
+		log.Debugf("name=%s map_id=%d max=%d rss=%d type=%s", mp.Name, mp.ID, mp.MaxSize, mp.RSS, mp.Type)
 	}
 	for _, mp := range stats.PerfBuffers {
-		log.Debugf("%s(%d) => max=%d rss=%d", mp.Name, mp.ID, mp.MaxSize, mp.RSS)
+		log.Debugf("name=%s map_id=%d max=%d rss=%d type=%s", mp.Name, mp.ID, mp.MaxSize, mp.RSS, mp.Type)
 	}
 
 	return nil
@@ -456,6 +458,17 @@ func hashMapMemoryUsage(info *ebpf.MapInfo, nrCPUS uint64) (max uint64, rss uint
 	return usage, usage
 }
 
+const sizeofLPMTrieNode = 40          // struct lpm_trie_node
+const offsetOfDataInBPFLPMTrieKey = 4 // offsetof(struct bpf_lpm_trie_key, data)
+
+func trieMemoryUsage(info *ebpf.MapInfo, _ uint64) (max uint64, rss uint64) {
+	dataSize := uint64(info.KeySize) - offsetOfDataInBPFLPMTrieKey
+	elemSize := sizeofLPMTrieNode + dataSize + uint64(info.ValueSize)
+	size := elemSize * uint64(info.MaxEntries)
+	// accurate RSS would require knowing the number of entries in the trie
+	return size, size
+}
+
 func perfBufferMemoryUsage(mapStats *model.EBPFPerfBufferStats, info *ebpf.MapInfo, k *Probe) error {
 	mapStats.MaxSize, mapStats.RSS = arrayMemoryUsage(info, uint64(k.nrcpus))
 
@@ -484,13 +497,14 @@ func perfBufferMemoryUsage(mapStats *model.EBPFPerfBufferStats, info *ebpf.MapIn
 		})
 	}
 
+	log.Debugf("map_id=%d num_cpus=%d", mapid, len(mapStats.CPUBuffers))
 	addrs := make([]uintptr, 0, len(mapStats.CPUBuffers))
 	for _, b := range mapStats.CPUBuffers {
 		addrs = append(addrs, b.Addr)
 	}
 	rssMap, err := k.getMmapRSS(uint32(mapid), addrs)
 	if err != nil {
-		log.Debugf("error getting mmap data id=%d: %s", mapid, err)
+		log.Debugf("error getting mmap data map_id=%d: %s", mapid, err)
 		// default RSS to MaxSize in case of error
 		mapStats.RSS = mapStats.MaxSize
 		for i := range mapStats.CPUBuffers {
@@ -503,9 +517,9 @@ func perfBufferMemoryUsage(mapStats *model.EBPFPerfBufferStats, info *ebpf.MapIn
 			if rss, ok := rssMap[cpub.Addr]; ok {
 				cpub.RSS = rss
 				mapStats.RSS += rss
-				log.Debugf("perf buffer id=%d cpu=%d rss=%d", mapid, cpub.CPU, cpub.RSS)
+				log.Debugf("perf buffer map_id=%d cpu=%d rss=%d", mapid, cpub.CPU, cpub.RSS)
 			} else {
-				log.Debugf("unable to find RSS data id=%d cpu=%d addr=%x", mapid, cpub.CPU, cpub.Addr)
+				log.Debugf("unable to find RSS data map_id=%d cpu=%d addr=%x", mapid, cpub.CPU, cpub.Addr)
 			}
 		}
 	}
@@ -542,11 +556,12 @@ func ringBufferMemoryUsage(mapStats *model.EBPFMapStats, info *ebpf.MapInfo, k *
 	addrs := []uintptr{uintptr(ringInfo.Consumer.Addr), uintptr(ringInfo.Data.Addr)}
 	rss, err := k.getMmapRSS(uint32(mapid), addrs)
 	if err != nil {
-		log.Debugf("error getting mmap data id=%d: %s", mapid, err)
+		log.Debugf("error getting mmap data map_id=%d: %s", mapid, err)
 		// default RSS to MaxSize in case of error
 		mapStats.RSS = mapStats.MaxSize
 	} else {
-		for _, size := range rss {
+		for addr, size := range rss {
+			log.Debugf("ring buffer map_id=%d addr=%x rss=%d", mapid, addr, size)
 			mapStats.RSS += size
 		}
 	}
@@ -559,7 +574,7 @@ func (k *Probe) getMmapRSS(mapid uint32, addrs []uintptr) (map[uintptr]uint64, e
 		return nil, fmt.Errorf("pid map lookup: %s", err)
 	}
 
-	log.Debugf("map pid=%d id=%d", pid, mapid)
+	log.Debugf("map pid=%d map_id=%d", pid, mapid)
 	return matchProcessRSS(int(pid), addrs)
 }
 

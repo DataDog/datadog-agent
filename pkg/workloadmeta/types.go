@@ -508,7 +508,7 @@ func (c Container) String(verbose bool) string {
 	return sb.String()
 }
 
-// PodSecurityContext is the Security Context of a Kubernete pod
+// PodSecurityContext is the Security Context of a Kubernetes pod
 type PodSecurityContext struct {
 	RunAsUser  int32
 	RunAsGroup int32
@@ -522,6 +522,7 @@ type ContainerSecurityContext struct {
 	SeccompProfile *SeccompProfile
 }
 
+// Capabilities defines the capabilities of a Container
 type Capabilities struct {
 	Add  []string
 	Drop []string
@@ -530,13 +531,14 @@ type Capabilities struct {
 // SeccompProfileType is the type of seccomp profile used
 type SeccompProfileType string
 
+// Seccomp profile types
 const (
 	SeccompProfileTypeUnconfined     SeccompProfileType = "Unconfined"
 	SeccompProfileTypeRuntimeDefault SeccompProfileType = "RuntimeDefault"
 	SeccompProfileTypeLocalhost      SeccompProfileType = "Localhost"
 )
 
-// SeccompProfileSpec contains fields for unmarshalling a Pod.Spec.Containers.SecurityContext.SeccompProfile
+// SeccompProfile contains fields for unmarshalling a Pod.Spec.Containers.SecurityContext.SeccompProfile
 type SeccompProfile struct {
 	Type             SeccompProfileType
 	LocalhostProfile string
@@ -957,6 +959,7 @@ func printHistory(out io.Writer, history v1.History) {
 
 var _ Entity = &ContainerImageMetadata{}
 
+// Process is an Entity that represents a process
 type Process struct {
 	EntityID // EntityID is the PID for now
 	EntityMeta

@@ -37,7 +37,7 @@ var EventMonitor = module.Factory{
 
 		// adapt options
 		if secconfig.RuntimeSecurity.IsRuntimeEnabled() {
-			secmodule.UpdateEventMonitorOpts(&opts)
+			secmodule.UpdateEventMonitorOpts(&opts, secconfig)
 		} else {
 			secmodule.DisableRuntimeSecurity(secconfig)
 		}

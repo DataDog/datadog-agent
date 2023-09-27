@@ -89,7 +89,7 @@ func rootCmdRun(globalParams *command.GlobalParams) {
 			} else {
 				ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 				defer cancel()
-				if err = winutil.WaitForState(ServiceName, svc.Stopped, ctx); err != nil {
+				if err = winutil.WaitForState(ctx, ServiceName, svc.Stopped); err != nil {
 					if errors.Is(err, context.DeadlineExceeded) {
 						fmt.Printf("Timed out waiting for %s service to stop", ServiceName)
 					} else {

@@ -149,35 +149,35 @@ type SQLMetadata struct {
 // HTTPConfig holds the configuration settings for HTTP obfuscation.
 type HTTPConfig struct {
 	// RemoveQueryStrings determines query strings to be removed from HTTP URLs.
-	RemoveQueryString bool
+	RemoveQueryString bool `mapstructure:"remove_query_string" json:"remove_query_string"`
 
 	// RemovePathDigits determines digits in path segments to be obfuscated.
-	RemovePathDigits bool
+	RemovePathDigits bool `mapstructure:"remove_paths_with_digits" json:"remove_path_digits"`
 }
 
 // RedisConfig holds the configuration settings for Redis obfuscation
 type RedisConfig struct {
 	// Enabled specifies whether this feature should be enabled.
-	Enabled bool
+	Enabled bool `mapstructure:"enabled"`
 
 	// RemoveAllArgs specifies whether all arguments to a given Redis
 	// command should be obfuscated.
-	RemoveAllArgs bool
+	RemoveAllArgs bool `mapstructure:"remove_all_args"`
 }
 
 // JSONConfig holds the obfuscation configuration for sensitive
 // data found in JSON objects.
 type JSONConfig struct {
 	// Enabled will specify whether obfuscation should be enabled.
-	Enabled bool
+	Enabled bool `mapstructure:"enabled"`
 
 	// KeepValues will specify a set of keys for which their values will
 	// not be obfuscated.
-	KeepValues []string
+	KeepValues []string `mapstructure:"keep_values"`
 
 	// ObfuscateSQLValues will specify a set of keys for which their values
 	// will be passed through SQL obfuscation
-	ObfuscateSQLValues []string
+	ObfuscateSQLValues []string `mapstructure:"obfuscate_sql_values"`
 }
 
 // NewObfuscator creates a new obfuscator

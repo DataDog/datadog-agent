@@ -123,6 +123,9 @@ namespace WixSetup.Datadog
                     Win64 = true
                 }
             );
+            // Always generate a new GUID otherwise WixSharp will generate one based on
+            // the version
+            project.ProductId = Guid.NewGuid();
             project
                 .SetCustomActions(_agentCustomActions)
                 .SetProjectInfo(

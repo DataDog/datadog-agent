@@ -32,7 +32,7 @@ from . import (
     vscode,
 )
 from .build_tags import audit_tag_impact, print_default_build_tags
-from .components import lint_components
+from .components import lint_components, lint_fxutil_oneshot_test
 from .fuzz import fuzz
 from .go import (
     check_go_version,
@@ -84,6 +84,7 @@ ns.add_task(deps_vendored)
 ns.add_task(lint_licenses)
 ns.add_task(generate_licenses)
 ns.add_task(lint_components)
+ns.add_task(lint_fxutil_oneshot_test)
 ns.add_task(generate_protobuf)
 ns.add_task(reset)
 ns.add_task(lint_copyrights),
