@@ -61,7 +61,10 @@ func (s *groupedStats) export(a Aggregation) (*pb.ClientGroupedStats, error) {
 	if err != nil {
 		return &pb.ClientGroupedStats{}, err
 	}
-	splitExtraTags := strings.Split(string(a.ExtraTagsKey), ",")
+	var extraTags []string
+	if a.ExtraTagsKey != "" {
+		extraTags = strings.Split(string(a.ExtraTagsKey), ",")
+	}
 
 	return &pb.ClientGroupedStats{
 		Service:        a.Service,
@@ -78,7 +81,7 @@ func (s *groupedStats) export(a Aggregation) (*pb.ClientGroupedStats, error) {
 		Synthetics:     a.Synthetics,
 		PeerService:    a.PeerService,
 		SpanKind:       a.SpanKind,
-		ExtraTags:      splitExtraTags,
+		ExtraTags:      extraTags,
 	}, nil
 }
 

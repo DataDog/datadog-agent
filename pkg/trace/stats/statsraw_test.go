@@ -85,6 +85,35 @@ func TestGrainWithPeerService(t *testing.T) {
 }
 
 func TestGrainWithExtraTags(t *testing.T) {
+	t.Run("none present", func(t *testing.T) {
+		assert := assert.New(t)
+		s := pb.Span{
+			Service:  "thing",
+			Name:     "other",
+			Resource: "yo",
+			Meta:     map[string]string{"peer.service": "aws-s3"},
+		}
+		aggr := NewAggregationFromSpan(&s, "", PayloadAggregationKey{
+			Env:         "default",
+			Hostname:    "default",
+			ContainerID: "cid",
+		}, true, []string{"aws.s3.bucket", "db.instance", "db.system"})
+
+		assert.Equal(Aggregation{
+			PayloadAggregationKey: PayloadAggregationKey{
+				Env:         "default",
+				Hostname:    "default",
+				ContainerID: "cid",
+			},
+			BucketsAggregationKey: BucketsAggregationKey{
+				Service:     "thing",
+				Name:        "other",
+				Resource:    "yo",
+				PeerService: "aws-s3",
+			},
+			ExtraTagsKey: "",
+		}, aggr)
+	})
 	t.Run("partially present", func(t *testing.T) {
 		assert := assert.New(t)
 		s := pb.Span{
