@@ -505,9 +505,12 @@ namespace WixSetup.Datadog
                 RestoreDaclRollbackCustomAction.DoRollback,
                 Return.ignore,
                 When.Before,
-                Step.RemoveExistingProducts)
+                Step.RemoveExistingProducts,
+                Conditions.Upgrading
+                )
                 {
-                    Execute = Execute.rollback
+                    Execute = Execute.rollback,
+                    Impersonate = false
                 }
                 .SetProperties("PROJECTLOCATION=[PROJECTLOCATION]");
         }
