@@ -48,13 +48,14 @@ default:
     max: 2
     when:
       - runner_system_failure
-      - stuck_or_timeout_failure
-      - unknown_failure
-      - api_failure
 
+      - unknown_failure
+      - stuck_or_timeout_failure
+        - api_failure
 stages:
   - .pre
   - setup
+  - internal_kubernetes_deploy
   - maintenance_jobs
   - deps_build
   - deps_fetch
@@ -88,7 +89,6 @@ stages:
   - functional_test
   - functional_test_cleanup
   - functional_test_junit_upload
-  - internal_kubernetes_deploy
   - notify
 
 variables:
