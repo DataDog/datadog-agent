@@ -549,8 +549,8 @@ def post_changelog(ctx, new_git_sha):
 
     print(f"tagging {new_git_sha}")
     ctx.run(f"git checkout {new_git_sha}", hide=True)
-    ctx.run("git tag -d changelog-nightly-staging-sha")
-    ctx.run(f"git tag -a changelog-nightly-staging-sha {new_git_sha}", hide=True)
+    ctx.run("git tag -d changelog-nightly-staging-sha", hide=True)
+    ctx.run(f"git tag changelog-nightly-staging-sha", hide=True)
     ctx.run("git push origin changelog-nightly-staging-sha", hide=True)
     send_slack_message("system-probe-ops", ctx.run("$(cat system_probe_commits.txt)").stout)
 
