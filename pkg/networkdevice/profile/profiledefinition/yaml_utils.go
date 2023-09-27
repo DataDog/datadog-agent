@@ -49,6 +49,8 @@ func (mtcl *MetricTagConfigList) UnmarshalYAML(unmarshal func(interface{}) error
 }
 
 // UnmarshalYAML unmarshalls KeyValueList
+// For yaml profiles, we only unmarshall `map[string]string` and explicitly do
+// not support unmarshalling of ` []KeyValue` to avoid exposing a new list of key/value format in yaml.
 func (kvl *KeyValueList) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	var kvList []KeyValue
 	var mapping map[string]string
