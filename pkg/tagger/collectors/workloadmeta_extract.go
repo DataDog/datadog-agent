@@ -575,8 +575,8 @@ func (c *WorkloadMetaCollector) extractTagsFromPodContainer(pod *workloadmeta.Ku
 	tags.AddLow("kube_container_name", podContainer.Name)
 	tags.AddHigh("container_id", container.ID)
 
-	if container.Name != "" && pod.Name != "" {
-		tags.AddHigh("display_container_name", fmt.Sprintf("%s_%s", container.Name, pod.Name))
+	if podContainer.Name != "" && pod.Name != "" {
+		tags.AddHigh("display_container_name", fmt.Sprintf("%s_%s", podContainer.Name, pod.Name))
 	}
 
 	image := podContainer.Image
