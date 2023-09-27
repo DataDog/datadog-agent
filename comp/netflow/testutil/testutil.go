@@ -51,7 +51,7 @@ func SendUDPPacket(port uint16, data []byte) error {
 
 // ExpectNetflow5Payloads expects the payloads that should result from our
 // recorded pcap files.
-func ExpectNetflow5Payloads(t *testing.T, mockEpForwrader forwarder.MockComponent) {
+func ExpectNetflow5Payloads(t *testing.T, mockEpForwarder forwarder.MockComponent) {
 	events := [][]byte{
 		[]byte(`
 {
@@ -157,7 +157,7 @@ func ExpectNetflow5Payloads(t *testing.T, mockEpForwrader forwarder.MockComponen
 		payloadBytes, _ := json.Marshal(p)
 		m := &message.Message{Content: payloadBytes}
 
-		mockEpForwrader.EXPECT().SendEventPlatformEventBlocking(m, epforwarder.EventTypeNetworkDevicesNetFlow).Return(nil)
+		mockEpForwarder.EXPECT().SendEventPlatformEventBlocking(m, epforwarder.EventTypeNetworkDevicesNetFlow).Return(nil)
 	}
 }
 

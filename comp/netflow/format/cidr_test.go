@@ -12,7 +12,7 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func TestFormatMask(t *testing.T) {
+func TestCIDR(t *testing.T) {
 	tests := []struct {
 		name                  string
 		ipAddr                []byte
