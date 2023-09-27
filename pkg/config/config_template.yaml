@@ -1912,22 +1912,35 @@ api_key:
   #
   # fim_enabled: false
 
+{{- if (eq .OS "windows")}}
+  ## @param sysprobe_socket - string - optional - default: localhost:3334
+  ## @env DD_SYSTEM_PROBE_CONFIG_SYSPROBE_SOCKET - string - optional - default: localhost:3334
+  ## The TCP address where the security runtime module is accessed.
+  #
+  # socket: localhost:3334
+{{else}}
   ## @param socket - string - optional - default: /opt/datadog-agent/run/runtime-security.sock
   ## @env DD_RUNTIME_SECURITY_CONFIG_SOCKET - string - optional - default: /opt/datadog-agent/run/runtime-security.sock
   ## The full path to the location of the unix socket where security runtime module is accessed.
   #
   # socket: /opt/datadog-agent/run/runtime-security.sock
-
+{{ end }}
   ## @param policies - custom object - optional
   ## Policy files
   # policies:
-
+{{- if (eq .OS "windows")}}
+    ## @param dir - string - default: %ProgramData%\Datadog\runtime-security.d
+    ## @env DD_RUNTIME_SECURITY_CONFIG_POLICIES_DIR - string - default: /etc/datadog-agent/runtime-security.d
+    ## Path from where the policy files will be loaded
+    #
+    # dir: c:\ProgramData\Datadog\runtime-security.d
+{{else}}
     ## @param dir - string - default: /etc/datadog-agent/runtime-security.d
     ## @env DD_RUNTIME_SECURITY_CONFIG_POLICIES_DIR - string - default: /etc/datadog-agent/runtime-security.d
     ## Path from where the policy files will be loaded
     #
     # dir: /etc/datadog-agent/runtime-security.d
-
+{{ end }}
   ## @param syscall_monitor - custom object - optional
   ## Syscall monitoring
   #
