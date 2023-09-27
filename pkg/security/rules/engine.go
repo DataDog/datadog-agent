@@ -184,7 +184,7 @@ func (e *RuleEngine) Start(ctx context.Context, reloadChan <-chan struct{}, wg *
 		}
 	}()
 
-	// Sending an heartbeat event
+	// Sending an heartbeat event every 30 seconds
 	wg.Add(1)
 	go func() {
 		defer wg.Done()

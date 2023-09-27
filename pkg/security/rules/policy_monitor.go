@@ -271,7 +271,7 @@ func NewHeartBeatEvents(policies map[string]Policy) (*rules.Rule, []*events.Cust
 			Policy: &policyState,
 		}
 		evt.FillCustomEventCommonFields()
-		evts = append(evts, events.NewCustomEvent(model.CustomRulesetLoadedEventType, evt))
+		evts = append(evts, events.NewCustomEvent(model.CustomHeartbeatEventType, evt))
 	}
 
 	return events.NewCustomRule(events.HeartbeatRuleID, events.HeartbeatRuleIDRuleDesc),
