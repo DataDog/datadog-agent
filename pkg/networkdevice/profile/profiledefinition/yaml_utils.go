@@ -5,7 +5,9 @@
 
 package profiledefinition
 
-import "sort"
+import (
+	"sort"
+)
 
 // StringArray is list of string with a yaml un-marshaller that support both array and string.
 // See test file for example usage.
@@ -72,4 +74,9 @@ func (kvl *KeyValueList) UnmarshalYAML(unmarshal func(interface{}) error) error 
 	}
 	*kvl = kvList
 	return nil
+}
+
+// MarshalYAML marshalls KeyValueList
+func (kvl KeyValueList) MarshalYAML() (interface{}, error) {
+	return kvl.ToMap(), nil
 }

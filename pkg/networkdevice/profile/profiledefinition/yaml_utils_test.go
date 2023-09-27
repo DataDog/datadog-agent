@@ -11,6 +11,7 @@ import (
 	"gopkg.in/yaml.v2"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 type MyStringArray struct {
@@ -101,4 +102,21 @@ my_kv_list:
    value: bbb
 `), &myStruct)
 	assert.ErrorContains(t, err, "cannot unmarshal !!seq into map[string]string")
+}
+
+func TestKeyValueList_Marshall(t *testing.T) {
+	myStruct := MyKeyValueList{
+		KvListField: KeyValueList{
+			{Key: "1", Value: "aaa"},
+			{Key: "2", Value: "bbb"},
+		},
+	}
+
+	bytes, err := yaml.Marshal(myStruct)
+	require.NoError(t, err)
+	expectedYaml := `my_kv_list:
+  "1": aaa
+  "2": bbb
+`
+	assert.Equal(t, expectedYaml, string(bytes))
 }
