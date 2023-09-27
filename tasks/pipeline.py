@@ -535,11 +535,11 @@ def post_changelog(ctx, new_git_sha):
                 result = email
             else:
                 # result = f"<@{result}>"
-                result = f"<@U049LRNEE01>"
+                result = "<@U049LRNEE01>"
             results.append(result)
             time.sleep(1)
 
-    print(f'Contributor list: {results}')
+    print(f"Contributor list: {results}")
 
     with open('system_probe_commits.txt', 'a') as commits_file:
         commits_file.write('\n'.join(results))
@@ -549,8 +549,8 @@ def post_changelog(ctx, new_git_sha):
     ctx.run("git tag -d changelog-nightly-staging-sha", hide=True)
     ctx.run("git tag changelog-nightly-staging-sha", hide=True)
     # ctx.run("git push origin changelog-nightly-staging-sha", hide=True)
-    print(ctx.run("$(cat system_probe_commits.txt)").stout)
-    send_slack_message("system-probe-ops", ctx.run("$(cat system_probe_commits.txt)").stout)
+    print(ctx.run("cat system_probe_commits.txt").stout)
+    send_slack_message("system-probe-ops", ctx.run("cat system_probe_commits.txt").stout)
 
 
 @task
