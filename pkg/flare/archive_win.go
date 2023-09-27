@@ -180,6 +180,62 @@ func exportWindowsEventLog(fb flaretypes.FlareBuilder, eventLogChannel, eventLog
 
 func getServiceStatus(fb flaretypes.FlareBuilder) error {
 	return fb.AddFileFromFunc(
+		"servicestatus.json",
+		func() ([]byte, error){
+			manager, err := mgr.Connect() //Connect establishes a connection to the service control manager.
+			if err != nil {
+				log.Warnf("Error connecting to service control manager %v", err)
+				manager.Disconnect()
+				return nil, err
+			}
+			defer manager.Disconnect()
+			
+			list, err2 := manager.ListServices() //Returns a string slice with all running services
+			if err2 != nil {
+				log.Warnf("Error getting list of running services %v", err)
+				return nil, err
+			}
+
+			dd_services := []ServiceInfo{}
+			
+			for _, i := range list {
+				if strings.HasPrefix(i, "datadog") {
+					srvc, err := manager.OpenService(i)
+					if err != nil {
+						log.Warnf("Error Opening Service %v %v", i, err)
+					}
+					else {
+						conf2, err := GetServiceInfo(srvc)
+						if err != nil{
+							log.Warnf("Error getting info for %v: %v", i, err)
+						}
+						dd_services = append(dd_services, conf2)
+					}
+				}
+			}
+
+			ddnpm, npm_err := manager.OpenService("ddnpm")
+			if npm_err != nil {
+				log.Warnf("Error Opening Service ddnpm %v", npm_err)
+			}
+			else {
+				ddnpm_conf, err := GetServiceInfo(ddnpm)
+				if err != nil{
+					log.Warnf("Error getting info for ddnpm:", err)				
+				}
+				dd_services = append(dd_services, ddnpm_conf)
+			}
+
+			dd_json, err3 := json.MarshalIndent(dd_services, "", "  ")
+			if err3 != nil {
+				log.Warnf("Error Marshaling to JSON %v", err3)
+				return nil, err3
+			}
+
+			return dd_json, err
+		}
+	)
+	/*return fb.AddFileFromFunc(
 		"servicestatus.txt",
 		func() ([]byte, error) {
 			cancelctx, cancelfunc := context.WithTimeout(context.Background(), execTimeout)
@@ -252,7 +308,7 @@ func getServiceStatus(fb flaretypes.FlareBuilder) error {
 			}
 
 			return f.Bytes(), nil
-		})
+		})*/
 }
 
 // getDatadogRegistry function saves all Datadog registry keys and values from HKLM\Software\Datadog.
