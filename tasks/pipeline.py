@@ -472,7 +472,7 @@ def parse(commit_str):
     url = "NO_URL"
     pr_id_match = re.search(r".*\(#(\d+)\)", title)
     if pr_id_match is not None:
-        url = "github.com/DataDog/datadog-agent/pull/{}".format(pr_id_match.group(1))
+        url = f"github.com/DataDog/datadog-agent/pull/{pr_id_match.group(1)}"
     author = lines[1]
     author_email = lines[2]
     files = lines[3:]
@@ -492,10 +492,10 @@ def is_system_probe(owners, files):
 
 @task
 def changelog(_, new_git_sha):
-    old_git_sha = sp.check_output(["git", "rev-list", "-n 1", "stripe_staging"]).decode().strip()
+    old_git_sha = sp.check_output(["git", "rev-list", "-n 1", "changelog-nightly-staging-sha"]).decode().strip()
     commits = (
         sp.check_output(
-            ["git", "log", "{}..{}".format(old_git_sha, new_git_sha), "--pretty=format:%h"]
+            ["git", "log", f"{old_git_sha}..{new_git_sha}", "--pretty=format:%h"]
         )
         .decode()
         .split("\n")
@@ -511,13 +511,13 @@ def changelog(_, new_git_sha):
         ).decode()
         title, author, author_email, files, url = parse(commit_str)
         if is_system_probe(owners, files):
-            message = "{} ({}) {}".format(title, url, author)
+            message = f"{title} ({url}) {author}"
             messages.append(message)
             if "dependabot" not in author_email and "github-actions" not in author_email:
                 unique_emails.add(author_email)
 
     with open("system_probe_commits.txt", "w") as file:
-        file.write("Changelog for commit range: `{}` to `{}` \n".format(old_git_sha[:7], new_git_sha))
+        file.write(f"Changelog for commit range: `{old_git_sha[:7]}` to `{new_git_sha}` \n")
         file.write("\n".join(messages))
         file.write("\n:wave: Authors, please check relevant dashboards for issues: ")
 

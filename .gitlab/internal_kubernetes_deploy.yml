@@ -61,5 +61,5 @@ notify-slack:
       } > slack_message.txt
       postmessage "system-probe-ops" "$(cat slack_message.txt)"
       git checkout ${CI_COMMIT_SHORT_SHA}
-      git tag stripe_staging
-      git push origin stripe_staging
+      git tag changelog-nightly-staging-sha
+      git push origin changelog-nightly-staging-sha
