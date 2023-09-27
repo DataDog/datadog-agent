@@ -499,7 +499,7 @@ def is_system_probe(owners, files):
 def changelog(ctx, new_git_sha):
     old_git_sha = ctx.run("git rev-list -n 1 changelog-nightly-staging-sha").stdout
     commits = (
-        ctx.run(f'git log {old_git_sha}..{new_git_sha} --pretty=format:%h', capture=True).stdout.decode().split("\n")
+        ctx.run(f"git log {old_git_sha}..{new_git_sha} --pretty=format:%h").stdout.decode().split("\n")
     )
     owners = read_owners(".github/CODEOWNERS")
     messages = []
@@ -507,9 +507,7 @@ def changelog(ctx, new_git_sha):
 
     for commit in commits:
         # see https://git-scm.com/docs/pretty-formats for format string
-        commit_str = ctx.run(
-            f'git show --name-only --pretty=format:%s%n%aN%n%aE {commit}', capture=True
-        ).stdout.decode()
+        commit_str = ctx.run(f"git show --name-only --pretty=format:%s%n%aN%n%aE {commit}").stdout.decode()
         title, author, author_email, files, url = parse(commit_str)
         if is_system_probe(owners, files):
             message = f"{title} ({url}) {author}"
