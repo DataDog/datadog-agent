@@ -616,30 +616,8 @@ func (s *USMHTTP2Suite) TestSimpleHTTP2() {
 	cfg := networkconfig.New()
 	cfg.EnableHTTP2Monitoring = true
 
-	srv := &nethttp.Server{
-		Addr: http2SrvPortStr,
-		Handler: h2c.NewHandler(nethttp.HandlerFunc(func(w nethttp.ResponseWriter, r *nethttp.Request) {
-			w.WriteHeader(200)
-			w.Write([]byte("test"))
-		}), &http2.Server{}),
-		IdleTimeout: 2 * time.Second,
-	}
+	startH2CServer(t)
 
-	err := http2.ConfigureServer(srv, nil)
-	require.NoError(t, err)
-
-	l, err := net.Listen("tcp", http2SrvPortStr)
-	require.NoError(t, err, "could not create listening socket")
-
-	go func() {
-		srv.Serve(l)
-		require.NoErrorf(t, err, "could not start HTTP2 server")
-	}()
-
-	t.Cleanup(func() { srv.Close() })
-
-	// c is a stream endpoint
-	// a + b are unary endpoints
 	tests := []struct {
 		name              string
 		runClients        func(t *testing.T, clientsCount int)
@@ -753,6 +731,32 @@ func getClientsArray(t *testing.T, size int, options grpc.Options) []*nethttp.Cl
 	}
 
 	return res
+}
+
+func startH2CServer(t *testing.T) {
+	t.Helper()
+
+	srv := &nethttp.Server{
+		Addr: http2SrvPortStr,
+		Handler: h2c.NewHandler(nethttp.HandlerFunc(func(w nethttp.ResponseWriter, r *nethttp.Request) {
+			w.WriteHeader(200)
+			w.Write([]byte("test"))
+		}), &http2.Server{}),
+		IdleTimeout: 2 * time.Second,
+	}
+
+	err := http2.ConfigureServer(srv, nil)
+	require.NoError(t, err)
+
+	l, err := net.Listen("tcp", http2SrvPortStr)
+	require.NoError(t, err, "could not create listening socket")
+
+	go func() {
+		srv.Serve(l)
+		require.NoErrorf(t, err, "could not start HTTP2 server")
+	}()
+
+	t.Cleanup(func() { srv.Close() })
 }
 
 func newH2CClient(t *testing.T) *nethttp.Client {
