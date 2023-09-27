@@ -34,7 +34,9 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/config/configsetup => ./pkg/config/configsetup/
 	github.com/DataDog/datadog-agent/pkg/config/load => ./pkg/config/load/
 	github.com/DataDog/datadog-agent/pkg/config/logsetup => ./pkg/config/logsetup/
-
+github.com/DataDog/datadog-agent/pkg/status/health => ./pkg/status/health/
+github.com/DataDog/datadog-agent/pkg/orchestrator/model => ./pkg/orchestrator/model/
+github.com/DataDog/datadog-agent/pkg/version => ./pkg/version/
 	github.com/DataDog/datadog-agent/pkg/errors => ./pkg/errors/
 	github.com/DataDog/datadog-agent/pkg/gohai => ./pkg/gohai
 	github.com/DataDog/datadog-agent/pkg/metrics => ./pkg/metrics
@@ -63,6 +65,7 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/util/testutil => ./pkg/util/testutil/
 	github.com/DataDog/datadog-agent/pkg/util/util_sort => ./pkg/util/util_sort
 	github.com/DataDog/datadog-agent/pkg/util/winutil => ./pkg/util/winutil/
+    github.com/DataDog/datadog-agent/pkg/util/common => ./pkg/util/common/
 
 )
 
@@ -76,7 +79,6 @@ require (
 	github.com/DataDog/datadog-agent/pkg/obfuscate v0.48.0-rc.2
 	github.com/DataDog/datadog-agent/pkg/remoteconfig/state v0.48.0-rc.2
 	github.com/DataDog/datadog-agent/pkg/security/secl v0.48.0-rc.2
-	github.com/DataDog/datadog-agent/pkg/trace v0.48.0-rc.2
 	github.com/DataDog/datadog-agent/pkg/util/cgroups v0.48.0-rc.2
 	github.com/DataDog/datadog-agent/pkg/util/log v0.48.0-rc.2
 	github.com/DataDog/datadog-agent/pkg/util/pointer v0.48.0-rc.2

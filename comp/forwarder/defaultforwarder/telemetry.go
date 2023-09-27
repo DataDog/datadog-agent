@@ -9,10 +9,11 @@ import (
 	"expvar"
 
 	"github.com/DataDog/datadog-agent/comp/core/log"
+	orchestrator "github.com/DataDog/datadog-agent/pkg/orchestrator/model"
+	"github.com/DataDog/datadog-agent/pkg/telemetry"
+
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/endpoints"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/transaction"
-	"github.com/DataDog/datadog-agent/pkg/orchestrator"
-	"github.com/DataDog/datadog-agent/pkg/telemetry"
 )
 
 var (

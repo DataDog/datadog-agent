@@ -8,7 +8,7 @@ package log
 import (
 	"runtime"
 
-	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/conf/env"
 )
 
 // Params defines the parameters for this log component.
@@ -62,7 +62,7 @@ func LogForOneShot(loggerName, level string, overrideFromEnv bool) Params {
 	params := Params{}
 	params.loggerName = loggerName
 	if overrideFromEnv {
-		params.logLevelFn = func(configGetter) string { return config.GetEnvDefault("DD_LOG_LEVEL", level) }
+		params.logLevelFn = func(configGetter) string { return env.GetEnvDefault("DD_LOG_LEVEL", level) }
 	} else {
 		params.logLevelFn = func(configGetter) string { return level }
 	}

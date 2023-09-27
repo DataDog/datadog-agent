@@ -2,6 +2,8 @@ package configsetup
 
 import (
 	"encoding/json"
+	"fmt"
+	"net/url"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -1135,4 +1137,31 @@ func sanitizeExternalMetricsProviderChunkSize(config conf.Config) {
 		log.Warnf("external_metrics_provider.chunk_size has been set to %d, which is higher than the maximum allowed value %d. Using %d.", chunkSize, maxExternalMetricsProviderChunkSize, maxExternalMetricsProviderChunkSize)
 		config.Set("external_metrics_provider.chunk_size", maxExternalMetricsProviderChunkSize)
 	}
+}
+
+// GetObsPipelineURL returns the URL under the 'observability_pipelines_worker.' prefix for the given datatype
+func GetObsPipelineURL(datatype DataType, cfg conf.ConfigReader) (string, error) {
+	if cfg.GetBool(fmt.Sprintf("observability_pipelines_worker.%s.enabled", datatype)) {
+		return getObsPipelineURLForPrefix(datatype, "observability_pipelines_worker", cfg)
+	} else if cfg.GetBool(fmt.Sprintf("vector.%s.enabled", datatype)) {
+		// Fallback to the `vector` config if observability_pipelines_worker is not set.
+		return getObsPipelineURLForPrefix(datatype, "vector", cfg)
+	}
+	return "", nil
+}
+
+func getObsPipelineURLForPrefix(datatype DataType, prefix string, cfg conf.ConfigReader) (string, error) {
+	if cfg.GetBool(fmt.Sprintf("%s.%s.enabled", prefix, datatype)) {
+		pipelineURL := cfg.GetString(fmt.Sprintf("%s.%s.url", prefix, datatype))
+		if pipelineURL == "" {
+			log.Errorf("%s.%s.enabled is set to true, but %s.%s.url is empty", prefix, datatype, prefix, datatype)
+			return "", nil
+		}
+		_, err := url.Parse(pipelineURL)
+		if err != nil {
+			return "", fmt.Errorf("could not parse %s %s endpoint: %s", prefix, datatype, err)
+		}
+		return pipelineURL, nil
+	}
+	return "", nil
 }
