@@ -147,24 +147,25 @@ func (t *Tailer) tail(bookmark string) {
 		evtsubscribe.WithNotifyEventsAvailable(),
 	}
 
+	t.bookmark = nil
 	if bookmark != "" {
 		// load bookmark
 		t.bookmark, err = evtbookmark.New(
 			evtbookmark.WithWindowsEventLogAPI(t.evtapi),
 			evtbookmark.FromXML(bookmark))
 		if err != nil {
-			err = fmt.Errorf("error creating bookmark: %v", err)
-			log.Errorf("%v", err)
-			t.source.Status.Error(err)
-			return
+			log.Errorf("error loading bookmark, tailer will start at new events: %v", err)
+			t.bookmark = nil
+		} else {
+			opts = append(opts, evtsubscribe.WithStartAfterBookmark(t.bookmark))
 		}
-		opts = append(opts, evtsubscribe.WithStartAfterBookmark(t.bookmark))
-	} else {
+	}
+	if t.bookmark == nil {
 		// new bookmark
 		t.bookmark, err = evtbookmark.New(
 			evtbookmark.WithWindowsEventLogAPI(t.evtapi))
 		if err != nil {
-			err = fmt.Errorf("error creating bookmark: %v", err)
+			err = fmt.Errorf("error creating new bookmark: %v", err)
 			log.Errorf("%v", err)
 			t.source.Status.Error(err)
 			return
