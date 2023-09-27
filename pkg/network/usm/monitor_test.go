@@ -546,7 +546,7 @@ func (s *USMHTTP2Suite) TestSimpleHTTP2() {
 			},
 			expectedEndpoints: map[http.Key]int{
 				{
-					Path:   http.Path{Content: "/"},
+					Path:   http.Path{Content: http.Interner.GetString("/")},
 					Method: http.MethodPost,
 				}: 1000,
 			},
@@ -558,14 +558,14 @@ func (s *USMHTTP2Suite) TestSimpleHTTP2() {
 
 				for i := 0; i < 1000; i++ {
 					client := clients[getClientsIndex(i, clientsCount)]
-					req, err := client.Post(http2SrvAddr+"/", "application/json", bytes.NewReader([]byte("test")))
+					req, err := client.Post(http2SrvAddr+"/index.html", "application/json", bytes.NewReader([]byte("test")))
 					require.NoError(t, err, "could not make request")
 					req.Body.Close()
 				}
 			},
 			expectedEndpoints: map[http.Key]int{
 				{
-					Path:   http.Path{Content: "/"},
+					Path:   http.Path{Content: http.Interner.GetString("/index.html")},
 					Method: http.MethodPost,
 				}: 1000,
 			},
