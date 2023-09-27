@@ -338,7 +338,7 @@ type AgentConfig struct {
 	ExtraAggregators       []string      // DEPRECATED
 	PeerServiceAggregation bool          // enables/disables stats aggregation for peer.service, used by Concentrator and ClientStatsAggregator
 	ComputeStatsBySpanKind bool          // enables/disables the computing of stats based on a span's `span.kind` field
-	CustomTags             []string      // [EXPERIMENTAL] additional tags to use for stats aggregation
+	PeerTags               []string      // additional tags to use for peer.service-related stats aggregation
 
 	// Sampler configuration
 	ExtraSampleRate float64
@@ -503,7 +503,7 @@ func New() *AgentConfig {
 
 		BucketInterval: time.Duration(10) * time.Second,
 
-		CustomTags: nil,
+		PeerTags: nil,
 
 		ExtraSampleRate: 1.0,
 		TargetTPS:       10,

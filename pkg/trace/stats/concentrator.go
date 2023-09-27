@@ -52,10 +52,6 @@ type Concentrator struct {
 	extraTags              []string
 }
 
-// TODO: finish full list
-// PeerServiceEntityTags represents the full list of supplementary tags to describe a peer.service entity.
-var PeerServiceEntityTags = []string{"rpc.host", "grpc.host", "db.instance", "db.system", "kafka.topic"}
-
 func prepareExtraTags(tags ...string) []string {
 	if len(tags) == 0 {
 		return nil
@@ -93,9 +89,7 @@ func NewConcentrator(conf *config.AgentConfig, out chan *pb.StatsPayload, now ti
 		computeStatsBySpanKind: conf.ComputeStatsBySpanKind,
 	}
 	if conf.PeerServiceAggregation {
-		c.extraTags = prepareExtraTags(append(PeerServiceEntityTags, conf.CustomTags...)...)
-	} else {
-		c.extraTags = prepareExtraTags(conf.CustomTags...)
+		c.extraTags = prepareExtraTags(conf.PeerTags...)
 	}
 	return &c
 }

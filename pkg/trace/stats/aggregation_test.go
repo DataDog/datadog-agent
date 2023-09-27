@@ -114,8 +114,8 @@ func TestNewAggregation(t *testing.T) {
 	}
 }
 
-func TestNewAggregationCustomTags(t *testing.T) {
-	customTags := []string{"db.instance", "db.system"}
+func TestNewAggregationExtraTags(t *testing.T) {
+	extraTags := []string{"db.instance", "db.system"}
 	for _, tt := range []struct {
 		in  *pb.Span
 		res Aggregation
@@ -132,6 +132,6 @@ func TestNewAggregationCustomTags(t *testing.T) {
 			Aggregation{BucketsAggregationKey: BucketsAggregationKey{Service: "a"}, ExtraTagsKey: "db.instance:i-1234,db.system:postgres"},
 		},
 	} {
-		assert.Equal(t, tt.res, NewAggregationFromSpan(tt.in, "", PayloadAggregationKey{}, true, customTags))
+		assert.Equal(t, tt.res, NewAggregationFromSpan(tt.in, "", PayloadAggregationKey{}, true, extraTags))
 	}
 }
