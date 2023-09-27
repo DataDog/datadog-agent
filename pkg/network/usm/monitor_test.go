@@ -672,8 +672,9 @@ func (s *USMHTTP2Suite) TestSimpleHTTP2() {
 
 				for i := 0; i < 1000; i++ {
 					client := clients[getClientsIndex(i, clientsCount)]
-					_, err := client.Post(http2SrvAddr+"/", "application/json", bytes.NewReader([]byte("test")))
+					req, err := client.Post(http2SrvAddr+"/", "application/json", bytes.NewReader([]byte("test")))
 					require.NoError(t, err, "could not make request")
+					req.Body.Close()
 				}
 			},
 			expectedEndpoints: map[http.Key]int{
