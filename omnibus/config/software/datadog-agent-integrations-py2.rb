@@ -174,9 +174,10 @@ build do
       "PIP_CONFIG_FILE" => "#{pip_config_file}",
     }
     # Some libraries (looking at you, aerospike-client-python) need EXT_CFLAGS instead of CFLAGS.
-    specific_build_env = {
+    nix_specific_build_env = {
       "aerospike" => nix_build_env.merge({"EXT_CFLAGS" => nix_build_env["CFLAGS"] + " -std=gnu99"}),
     }
+    win_specific_build_env = {}
 
 
     # On Linux & Windows, specify the C99 standard explicitly to avoid issues while building some
@@ -201,10 +202,12 @@ build do
       static_reqs_in_file = "#{windows_safe_path(project_dir)}\\datadog_checks_base\\datadog_checks\\base\\data\\#{agent_requirements_in}"
       static_reqs_out_folder = "#{windows_safe_path(project_dir)}\\"
       static_reqs_out_file = static_reqs_out_folder + filtered_agent_requirements_in
+      compiled_reqs_file_path = "#{windows_safe_path(install_dir)}\\#{agent_requirements_file}"
     else
       static_reqs_in_file = "#{project_dir}/datadog_checks_base/datadog_checks/base/data/#{agent_requirements_in}"
       static_reqs_out_folder = "#{project_dir}/"
       static_reqs_out_file = static_reqs_out_folder + filtered_agent_requirements_in
+      compiled_reqs_file_path = "#{install_dir}/#{agent_requirements_file}"
     end
 
     # Remove any blacklisted requirements from the static-environment req file
@@ -212,10 +215,17 @@ build do
 
     # Creating a hash containing the requirements and requirements file path associated to every lib
     requirements_custom = Hash.new()
+
+    specific_build_env = windows? ? win_specific_build_env : nix_specific_build_env
+    build_env = windows? ? win_build_env : nix_build_env
+    cwd = windows? ? "#{windows_safe_path(project_dir)}\\datadog_checks_base" : "#{project_dir}/datadog_checks_base"
+
     specific_build_env.each do |lib, env|
+      lib_compiled_req_file_path = (windows? ? "#{windows_safe_path(install_dir)}\\" : "#{install_dir}/") + "agent_#{lib}_requirements-py2.txt"
       requirements_custom[lib] = {
         "req_lines" => Array.new,
         "req_file_path" => static_reqs_out_folder + lib + "-py2.in",
+        "compiled_req_file_path" => lib_compiled_req_file_path,
       }
     end
 
@@ -267,46 +277,31 @@ build do
 
     # Use pip-compile to create the final requirements file. Notice when we invoke `pip` through `python -m pip <...>`,
     # there's no need to refer to `pip`, the interpreter will pick the right script.
-    if windows?
-      command "#{python} -m pip wheel . --no-deps --no-index --wheel-dir=#{wheel_build_dir}", :env => win_build_env, :cwd => "#{windows_safe_path(project_dir)}\\datadog_checks_base"
-      command "#{python} -m pip install datadog_checks_base --no-deps --no-index --find-links=#{wheel_build_dir}"
-      command "#{python} -m piptools compile --generate-hashes --output-file #{windows_safe_path(install_dir)}\\#{agent_requirements_file} #{static_reqs_out_file} " \
-        "--pip-args \"--retries #{pip_max_retries} --timeout #{pip_timeout}\"", :env => win_build_env
-      # Pip-compiling seperately each lib that needs a custom build installation
-      specific_build_env.each do |lib, env|
-        command "#{python} -m piptools compile --generate-hashes --output-file  #{windows_safe_path(install_dir)}\\agent_#{lib}_requirements-py2.txt #{requirements_custom[lib]["req_file_path"]} " \
-        "--pip-args \"--retries #{pip_max_retries} --timeout #{pip_timeout}\"", :env => env
-      end
-    else
-      command "#{pip} wheel . --no-deps --no-index --wheel-dir=#{wheel_build_dir}", :env => nix_build_env, :cwd => "#{project_dir}/datadog_checks_base"
-      command "#{pip} install datadog_checks_base --no-deps --no-index --find-links=#{wheel_build_dir}"
-      command "#{python} -m piptools compile --generate-hashes --output-file #{install_dir}/#{agent_requirements_file} #{static_reqs_out_file} " \
-        "--pip-args \"--retries #{pip_max_retries} --timeout #{pip_timeout}\"", :env => nix_build_env
-      # Pip-compiling seperately each lib that needs a custom build installation
-      specific_build_env.each do |lib, env|
-        command "#{python} -m piptools compile --generate-hashes --output-file #{install_dir}/agent_#{lib}_requirements-py2.txt #{requirements_custom[lib]["req_file_path"]} " \
-        "--pip-args \"--retries #{pip_max_retries} --timeout #{pip_timeout}\"", :env => env
-      end
+    command "#{python} -m pip wheel . --no-deps --no-index --wheel-dir=#{wheel_build_dir}", :env => build_env, :cwd => cwd
+    command "#{python} -m pip install datadog_checks_base --no-deps --no-index --find-links=#{wheel_build_dir}"
+    command "#{python} -m piptools compile --generate-hashes --output-file #{compiled_reqs_file_path} #{static_reqs_out_file} " \
+      "--pip-args \"--retries #{pip_max_retries} --timeout #{pip_timeout}\"", :env => build_env
+    # Pip-compiling seperately each lib that needs a custom build installation
+    specific_build_env.each do |lib, env|
+      command "#{python} -m piptools compile --generate-hashes --output-file #{requirements_custom[lib]["compiled_req_file_path"]} #{requirements_custom[lib]["req_file_path"]} " \
+      "--pip-args \"--retries #{pip_max_retries} --timeout #{pip_timeout}\"", :env => env
     end
 
     #
     # Install static-environment requirements that the Agent and all checks will use
     #
-    if windows?
-      # First we install the dependencies that need specific flags
-      specific_build_env.each do |lib, env|
-        command "#{python} -m pip install --no-deps --require-hashes -r #{windows_safe_path(install_dir)}\\agent_#{lib}_requirements-py2.txt", :env => env
-      end
-      # Then we install the rest (already installed libraries will be ignored) with the main flags
-      command "#{python} -m pip install --no-deps --require-hashes -r #{windows_safe_path(install_dir)}\\#{agent_requirements_file}", :env => win_build_env
-    else
-      # First we install the dependencies that need specific flags
-      specific_build_env.each do |lib, env|
-        command "#{python} -m pip install --no-deps --require-hashes -r #{install_dir}/agent_#{lib}_requirements-py2.txt", :env => env
-      end
-      # Then we install the rest (already installed libraries will be ignored) with the main flags
-      command "#{pip} install --no-deps --require-hashes -r #{install_dir}/#{agent_requirements_file}", :env => nix_build_env
+
+    # First we install the dependencies that need specific flags
+    specific_build_env.each do |lib, env|
+      command "#{python} -m pip install --no-deps --require-hashes -r #{requirements_custom[lib]["compiled_req_file_path"]}", :env => env
+      # Remove the file after use so it is not shipped
+      delete "#{requirements_custom[lib]["compiled_req_file_path"]}"
     end
+
+    # Then we install the rest (already installed libraries will be ignored) with the main flags
+    command "#{python} -m pip install --no-deps --require-hashes -r #{compiled_reqs_file_path}", :env => build_env
+    # Remove the file after use so it is not shipped
+    delete "#{compiled_reqs_file_path}"
 
     #
     # Install Core integrations

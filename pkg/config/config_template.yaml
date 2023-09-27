@@ -1184,7 +1184,7 @@ api_key:
   ## @param open_files_limit - integer - optional - default: 500
   ## @env DD_LOGS_CONFIG_OPEN_FILES_LIMIT - integer - optional - default: 500
   ## The maximum number of files that can be tailed in parallel.
-  ## Note: the default for windows and Mac OS is 200. The default for
+  ## Note: the default for Mac OS is 200. The default for
   ## all other systems is 500.
   #
   # open_files_limit: 500

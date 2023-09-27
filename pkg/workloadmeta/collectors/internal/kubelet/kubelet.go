@@ -5,6 +5,7 @@
 
 //go:build kubelet
 
+// Package kubelet implements the kubelet Workloadmeta collector.
 package kubelet
 
 import (
@@ -100,7 +101,7 @@ func (c *collector) parsePods(pods []*kubelet.Pod) []workloadmeta.CollectorEvent
 			continue
 		}
 
-		podId := workloadmeta.EntityID{
+		podID := workloadmeta.EntityID{
 			Kind: workloadmeta.KindKubernetesPod,
 			ID:   podMeta.UID,
 		}
@@ -109,14 +110,14 @@ func (c *collector) parsePods(pods []*kubelet.Pod) []workloadmeta.CollectorEvent
 			pod,
 			pod.Spec.InitContainers,
 			pod.Status.InitContainers,
-			&podId,
+			&podID,
 		)
 
 		podContainers, containerEvents := c.parsePodContainers(
 			pod,
 			pod.Spec.Containers,
 			pod.Status.Containers,
-			&podId,
+			&podID,
 		)
 		podContainers = append(podContainers, podInitContainers...)
 
@@ -133,7 +134,7 @@ func (c *collector) parsePods(pods []*kubelet.Pod) []workloadmeta.CollectorEvent
 		PodSecurityContext := extractPodSecurityContext(&pod.Spec)
 
 		entity := &workloadmeta.KubernetesPod{
-			EntityID: podId,
+			EntityID: podID,
 			EntityMeta: workloadmeta.EntityMeta{
 				Name:        podMeta.Name,
 				Namespace:   podMeta.Namespace,

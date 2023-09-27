@@ -20,7 +20,7 @@ type fakeintakeSuiteMetrics struct {
 }
 
 func TestVMSuiteEx5(t *testing.T) {
-	e2e.Run(t, &fakeintakeSuiteMetrics{}, e2e.FakeIntakeStackDef(nil))
+	e2e.Run(t, &fakeintakeSuiteMetrics{}, e2e.FakeIntakeStackDef())
 }
 
 func (v *fakeintakeSuiteMetrics) Test1_FakeIntakeReceivesMetrics() {

@@ -3,6 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+// Package server implements a gRPC server that streams the entities stored in
+// Workloadmeta.
 package server
 
 import (
@@ -21,12 +23,14 @@ const (
 	workloadmetaKeepAliveInterval = 9 * time.Minute
 )
 
+// NewServer returns a new Server
 func NewServer(store workloadmeta.Store) *Server {
 	return &Server{
 		store: store,
 	}
 }
 
+// Server is a grpc server that streams workloadmeta entities
 type Server struct {
 	store workloadmeta.Store
 }

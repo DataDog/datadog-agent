@@ -54,6 +54,7 @@ network_devices:
           zz
 `,
 			expectedConfig: NetflowConfig{
+				Enabled:                                true,
 				StopTimeout:                            10,
 				AggregatorBufferSize:                   20,
 				AggregatorFlushInterval:                30,
@@ -91,6 +92,7 @@ network_devices:
       - flow_type: netflow9
 `,
 			expectedConfig: NetflowConfig{
+				Enabled:                                true,
 				StopTimeout:                            5,
 				AggregatorBufferSize:                   10000,
 				AggregatorFlushInterval:                300,
@@ -120,6 +122,7 @@ network_devices:
       - flow_type: netflow9
 `,
 			expectedConfig: NetflowConfig{
+				Enabled:                                true,
 				StopTimeout:                            5,
 				AggregatorBufferSize:                   10000,
 				AggregatorFlushInterval:                50,

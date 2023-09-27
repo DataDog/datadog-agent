@@ -5,6 +5,8 @@
 
 //go:build kubelet
 
+// Package probe is responsible for emitting the Kubelet check metrics that are
+// collected from the `/metrics/probes` endpoint.
 package probe
 
 import (
@@ -28,6 +30,7 @@ type Provider struct {
 	prometheus.Provider
 }
 
+// NewProvider returns a new Provider
 func NewProvider(filter *containers.Filter, config *common.KubeletConfig, store workloadmeta.Store) (*Provider, error) {
 	provider := &Provider{
 		filter: filter,
@@ -80,9 +83,9 @@ func (p *Provider) proberProbeTotal(metric *model.Sample, sender sender.Sender) 
 		return
 	}
 
-	podUid := string(metric.Metric["pod_uid"])
+	podUID := string(metric.Metric["pod_uid"])
 	containerName := string(metric.Metric["container"])
-	pod, err := p.store.GetKubernetesPod(podUid)
+	pod, err := p.store.GetKubernetesPod(podUID)
 	if err != nil {
 		return
 	}
@@ -96,7 +99,7 @@ func (p *Provider) proberProbeTotal(metric *model.Sample, sender sender.Sender) 
 	}
 
 	if container == nil {
-		log.Debugf("container %s not found for pod with id %s", containerName, podUid)
+		log.Debugf("container %s not found for pod with id %s", containerName, podUID)
 		return
 	}
 
@@ -104,9 +107,9 @@ func (p *Provider) proberProbeTotal(metric *model.Sample, sender sender.Sender) 
 		return
 	}
 
-	cId := containers.BuildTaggerEntityName(container.ID)
+	cID := containers.BuildTaggerEntityName(container.ID)
 
-	tags, _ := tagger.Tag(cId, collectors.HighCardinality)
+	tags, _ := tagger.Tag(cID, collectors.HighCardinality)
 	if len(tags) == 0 {
 		return
 	}

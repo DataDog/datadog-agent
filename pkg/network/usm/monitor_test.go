@@ -153,59 +153,48 @@ func (s *HTTPTestSuite) TestHTTPMonitorLoadWithIncompleteBuffers() {
 	slowServerAddr := "localhost:8080"
 	fastServerAddr := "localhost:8081"
 
-	for _, TCPTimestamp := range []struct {
-		name  string
-		value bool
-	}{
-		{name: "without TCP timestamp option", value: false},
-		{name: "with TCP timestamp option", value: true},
-	} {
-		t.Run(TCPTimestamp.name, func(t *testing.T) {
-			monitor := newHTTPMonitor(t)
-			slowSrvDoneFn := testutil.HTTPServer(t, slowServerAddr, testutil.Options{
-				SlowResponse:       time.Millisecond * 500, // Half a second.
-				WriteTimeout:       time.Millisecond * 200,
-				ReadTimeout:        time.Millisecond * 200,
-				EnableTCPTimestamp: &TCPTimestamp.value,
-			})
+	monitor := newHTTPMonitor(t)
+	slowSrvDoneFn := testutil.HTTPServer(t, slowServerAddr, testutil.Options{
+		SlowResponse: time.Millisecond * 500, // Half a second.
+		WriteTimeout: time.Millisecond * 200,
+		ReadTimeout:  time.Millisecond * 200,
+	})
 
-			fastSrvDoneFn := testutil.HTTPServer(t, fastServerAddr, testutil.Options{})
-			abortedRequestFn := requestGenerator(t, fmt.Sprintf("%s/ignore", slowServerAddr), emptyBody)
-			wg := sync.WaitGroup{}
-			abortedRequests := make(chan *nethttp.Request, 100)
-			for i := 0; i < 100; i++ {
-				wg.Add(1)
-				go func() {
-					defer wg.Done()
-					req := abortedRequestFn()
-					abortedRequests <- req
-				}()
-			}
-			fastReq := requestGenerator(t, fastServerAddr, emptyBody)()
-			wg.Wait()
-			close(abortedRequests)
-			slowSrvDoneFn()
-			fastSrvDoneFn()
-
-			foundFastReq := false
-			// We are iterating for a couple of iterations and making sure the aborted requests will never be found.
-			// Since the every call for monitor.GetHTTPStats will delete the pop all entries, and we want to find fastReq
-			// then we are using a variable to check if "we ever found it" among the iterations.
-			for i := 0; i < 10; i++ {
-				time.Sleep(10 * time.Millisecond)
-				stats := getHttpStats(t, monitor)
-				for req := range abortedRequests {
-					requestNotIncluded(t, stats, req)
-				}
-
-				included, err := isRequestIncludedOnce(stats, fastReq)
-				require.NoError(t, err)
-				foundFastReq = foundFastReq || included
-			}
-
-			require.True(t, foundFastReq)
-		})
+	fastSrvDoneFn := testutil.HTTPServer(t, fastServerAddr, testutil.Options{})
+	abortedRequestFn := requestGenerator(t, fmt.Sprintf("%s/ignore", slowServerAddr), emptyBody)
+	wg := sync.WaitGroup{}
+	abortedRequests := make(chan *nethttp.Request, 100)
+	for i := 0; i < 100; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			req := abortedRequestFn()
+			abortedRequests <- req
+		}()
 	}
+	fastReq := requestGenerator(t, fastServerAddr, emptyBody)()
+	wg.Wait()
+	close(abortedRequests)
+	slowSrvDoneFn()
+	fastSrvDoneFn()
+
+	foundFastReq := false
+	// We are iterating for a couple of iterations and making sure the aborted requests will never be found.
+	// Since the every call for monitor.GetHTTPStats will delete the pop all entries, and we want to find fastReq
+	// then we are using a variable to check if "we ever found it" among the iterations.
+	for i := 0; i < 10; i++ {
+		time.Sleep(10 * time.Millisecond)
+		stats := getHttpStats(t, monitor)
+		for req := range abortedRequests {
+			requestNotIncluded(t, stats, req)
+		}
+
+		included, err := isRequestIncludedOnce(stats, fastReq)
+		require.NoError(t, err)
+		foundFastReq = foundFastReq || included
+	}
+
+	require.True(t, foundFastReq)
 }
 
 func (s *HTTPTestSuite) TestHTTPMonitorIntegrationWithResponseBody() {
@@ -246,33 +235,22 @@ func (s *HTTPTestSuite) TestHTTPMonitorIntegrationWithResponseBody() {
 			requestBodySize: 10 * mb,
 		},
 	}
-	for _, TCPTimestamp := range []struct {
-		name  string
-		value bool
-	}{
-		{name: "without TCP timestamp option", value: false},
-		{name: "with TCP timestamp option", value: true},
-	} {
-		t.Run(TCPTimestamp.name, func(t *testing.T) {
-			for _, tt := range tests {
-				t.Run(tt.name, func(t *testing.T) {
-					monitor := newHTTPMonitor(t)
-					srvDoneFn := testutil.HTTPServer(t, serverAddr, testutil.Options{
-						EnableKeepAlive:    true,
-						EnableTCPTimestamp: &TCPTimestamp.value,
-					})
-					t.Cleanup(srvDoneFn)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			monitor := newHTTPMonitor(t)
+			srvDoneFn := testutil.HTTPServer(t, serverAddr, testutil.Options{
+				EnableKeepAlive: true,
+			})
+			t.Cleanup(srvDoneFn)
 
-					requestFn := requestGenerator(t, targetAddr, bytes.Repeat([]byte("a"), tt.requestBodySize))
-					var requests []*nethttp.Request
-					for i := 0; i < 100; i++ {
-						requests = append(requests, requestFn())
-					}
-					srvDoneFn()
-
-					assertAllRequestsExists(t, monitor, requests)
-				})
+			requestFn := requestGenerator(t, targetAddr, bytes.Repeat([]byte("a"), tt.requestBodySize))
+			var requests []*nethttp.Request
+			for i := 0; i < 100; i++ {
+				requests = append(requests, requestFn())
 			}
+			srvDoneFn()
+
+			assertAllRequestsExists(t, monitor, requests)
 		})
 	}
 }
@@ -312,46 +290,35 @@ func (s *HTTPTestSuite) TestHTTPMonitorIntegrationSlowResponse() {
 		},
 	}
 	for _, tt := range tests {
-		for _, TCPTimestamp := range []struct {
-			name  string
-			value bool
-		}{
-			{name: "without TCP timestamp option", value: false},
-			{name: "with TCP timestamp option", value: true},
-		} {
-			t.Run(TCPTimestamp.name, func(t *testing.T) {
-				t.Run(tt.name, func(t *testing.T) {
-					config.ResetSystemProbeConfig(t)
-					t.Setenv("DD_SERVICE_MONITORING_CONFIG_HTTP_MAP_CLEANER_INTERVAL_IN_S", strconv.Itoa(tt.mapCleanerIntervalSeconds))
-					t.Setenv("DD_SERVICE_MONITORING_CONFIG_HTTP_IDLE_CONNECTION_TTL_IN_S", strconv.Itoa(tt.httpIdleConnectionTTLSeconds))
-					monitor := newHTTPMonitor(t)
+		t.Run(tt.name, func(t *testing.T) {
+			config.ResetSystemProbeConfig(t)
+			t.Setenv("DD_SERVICE_MONITORING_CONFIG_HTTP_MAP_CLEANER_INTERVAL_IN_S", strconv.Itoa(tt.mapCleanerIntervalSeconds))
+			t.Setenv("DD_SERVICE_MONITORING_CONFIG_HTTP_IDLE_CONNECTION_TTL_IN_S", strconv.Itoa(tt.httpIdleConnectionTTLSeconds))
+			monitor := newHTTPMonitor(t)
 
-					slowResponseTimeout := time.Duration(tt.slowResponseTime) * time.Second
-					serverTimeout := slowResponseTimeout + time.Second
-					srvDoneFn := testutil.HTTPServer(t, serverAddr, testutil.Options{
-						WriteTimeout:       serverTimeout,
-						ReadTimeout:        serverTimeout,
-						SlowResponse:       slowResponseTimeout,
-						EnableTCPTimestamp: &TCPTimestamp.value,
-					})
-					t.Cleanup(srvDoneFn)
-
-					// Perform a number of random requests
-					req := requestGenerator(t, targetAddr, emptyBody)()
-					srvDoneFn()
-
-					// Ensure all captured transactions get sent to user-space
-					time.Sleep(10 * time.Millisecond)
-					stats := getHttpStats(t, monitor)
-
-					if tt.shouldCapture {
-						includesRequest(t, stats, req)
-					} else {
-						requestNotIncluded(t, stats, req)
-					}
-				})
+			slowResponseTimeout := time.Duration(tt.slowResponseTime) * time.Second
+			serverTimeout := slowResponseTimeout + time.Second
+			srvDoneFn := testutil.HTTPServer(t, serverAddr, testutil.Options{
+				WriteTimeout: serverTimeout,
+				ReadTimeout:  serverTimeout,
+				SlowResponse: slowResponseTimeout,
 			})
-		}
+			t.Cleanup(srvDoneFn)
+
+			// Perform a number of random requests
+			req := requestGenerator(t, targetAddr, emptyBody)()
+			srvDoneFn()
+
+			// Ensure all captured transactions get sent to user-space
+			time.Sleep(10 * time.Millisecond)
+			stats := getHttpStats(t, monitor)
+
+			if tt.shouldCapture {
+				includesRequest(t, stats, req)
+			} else {
+				requestNotIncluded(t, stats, req)
+			}
+		})
 	}
 }
 
@@ -360,28 +327,16 @@ func (s *HTTPTestSuite) TestHTTPMonitorIntegration() {
 	targetAddr := "localhost:8080"
 	serverAddr := "localhost:8080"
 
-	for _, TCPTimestamp := range []struct {
-		name  string
-		value bool
-	}{
-		{name: "without TCP timestamp option", value: false},
-		{name: "with TCP timestamp option", value: true},
-	} {
-		t.Run(TCPTimestamp.name, func(t *testing.T) {
-			t.Run("with keep-alives", func(t *testing.T) {
-				testHTTPMonitor(t, targetAddr, serverAddr, 100, testutil.Options{
-					EnableKeepAlive:    true,
-					EnableTCPTimestamp: &TCPTimestamp.value,
-				})
-			})
-			t.Run("without keep-alives", func(t *testing.T) {
-				testHTTPMonitor(t, targetAddr, serverAddr, 100, testutil.Options{
-					EnableKeepAlive:    false,
-					EnableTCPTimestamp: &TCPTimestamp.value,
-				})
-			})
+	t.Run("with keep-alives", func(t *testing.T) {
+		testHTTPMonitor(t, targetAddr, serverAddr, 100, testutil.Options{
+			EnableKeepAlive: true,
 		})
-	}
+	})
+	t.Run("without keep-alives", func(t *testing.T) {
+		testHTTPMonitor(t, targetAddr, serverAddr, 100, testutil.Options{
+			EnableKeepAlive: false,
+		})
+	})
 }
 
 func (s *HTTPTestSuite) TestHTTPMonitorIntegrationWithNAT() {
@@ -392,28 +347,16 @@ func (s *HTTPTestSuite) TestHTTPMonitorIntegrationWithNAT() {
 	targetAddr := "2.2.2.2:8080"
 	serverAddr := "1.1.1.1:8080"
 
-	for _, TCPTimestamp := range []struct {
-		name  string
-		value bool
-	}{
-		{name: "without TCP timestamp option", value: false},
-		{name: "with TCP timestamp option", value: true},
-	} {
-		t.Run(TCPTimestamp.name, func(t *testing.T) {
-			t.Run("with keep-alives", func(t *testing.T) {
-				testHTTPMonitor(t, targetAddr, serverAddr, 100, testutil.Options{
-					EnableKeepAlive:    true,
-					EnableTCPTimestamp: &TCPTimestamp.value,
-				})
-			})
-			t.Run("without keep-alives", func(t *testing.T) {
-				testHTTPMonitor(t, targetAddr, serverAddr, 100, testutil.Options{
-					EnableKeepAlive:    false,
-					EnableTCPTimestamp: &TCPTimestamp.value,
-				})
-			})
+	t.Run("with keep-alives", func(t *testing.T) {
+		testHTTPMonitor(t, targetAddr, serverAddr, 100, testutil.Options{
+			EnableKeepAlive: true,
 		})
-	}
+	})
+	t.Run("without keep-alives", func(t *testing.T) {
+		testHTTPMonitor(t, targetAddr, serverAddr, 100, testutil.Options{
+			EnableKeepAlive: false,
+		})
+	})
 }
 
 func (s *HTTPTestSuite) TestUnknownMethodRegression() {
@@ -422,177 +365,142 @@ func (s *HTTPTestSuite) TestUnknownMethodRegression() {
 	// SetupDNAT sets up a NAT translation from 2.2.2.2 to 1.1.1.1
 	netlink.SetupDNAT(t)
 
-	for _, TCPTimestamp := range []struct {
-		name  string
-		value bool
-	}{
-		{name: "without TCP timestamp option", value: false},
-		{name: "with TCP timestamp option", value: true},
-	} {
-		t.Run(TCPTimestamp.name, func(t *testing.T) {
-			monitor := newHTTPMonitor(t)
-			targetAddr := "2.2.2.2:8080"
-			serverAddr := "1.1.1.1:8080"
-			serverAddrIP := util.AddressFromString("1.1.1.1")
-			srvDoneFn := testutil.HTTPServer(t, serverAddr, testutil.Options{
-				EnableTLS:          false,
-				EnableKeepAlive:    true,
-				EnableTCPTimestamp: &TCPTimestamp.value,
-			})
-			t.Cleanup(srvDoneFn)
+	monitor := newHTTPMonitor(t)
+	targetAddr := "2.2.2.2:8080"
+	serverAddr := "1.1.1.1:8080"
+	serverAddrIP := util.AddressFromString("1.1.1.1")
+	srvDoneFn := testutil.HTTPServer(t, serverAddr, testutil.Options{
+		EnableTLS:       false,
+		EnableKeepAlive: true,
+	})
+	t.Cleanup(srvDoneFn)
 
-			requestFn := requestGenerator(t, targetAddr, emptyBody)
-			for i := 0; i < 100; i++ {
-				requestFn()
-			}
-
-			time.Sleep(5 * time.Second)
-			stats := getHttpStats(t, monitor)
-			tel := telemetry.ReportPayloadTelemetry("1")
-			requestsSum := 0
-			for key := range stats {
-				if key.Method == http.MethodUnknown {
-					t.Error("detected HTTP request with method unknown")
-				}
-				// we just want our requests
-				if strings.Contains(key.Path.Content, "/request-") &&
-					key.DstPort == 8080 &&
-					util.FromLowHigh(key.DstIPLow, key.DstIPHigh) == serverAddrIP {
-					requestsSum++
-				}
-			}
-
-			require.Equal(t, int64(0), tel["usm.http.dropped"])
-			require.Equal(t, int64(0), tel["usm.http.rejected"])
-			require.Equal(t, int64(0), tel["usm.http.malformed"])
-			// requestGenerator() doesn't query 100 responses
-			require.Equal(t, int64(0), tel["usm.http.hits1XX"])
-
-			require.Equal(t, int(100), requestsSum)
-		})
+	requestFn := requestGenerator(t, targetAddr, emptyBody)
+	for i := 0; i < 100; i++ {
+		requestFn()
 	}
+
+	time.Sleep(5 * time.Second)
+	stats := getHttpStats(t, monitor)
+	tel := telemetry.ReportPayloadTelemetry("1")
+	requestsSum := 0
+	for key := range stats {
+		if key.Method == http.MethodUnknown {
+			t.Error("detected HTTP request with method unknown")
+		}
+		// we just want our requests
+		if strings.Contains(key.Path.Content.Get(), "/request-") &&
+			key.DstPort == 8080 &&
+			util.FromLowHigh(key.DstIPLow, key.DstIPHigh) == serverAddrIP {
+			requestsSum++
+		}
+	}
+
+	require.Equal(t, int64(0), tel["usm.http.dropped"])
+	require.Equal(t, int64(0), tel["usm.http.rejected"])
+	require.Equal(t, int64(0), tel["usm.http.malformed"])
+	// requestGenerator() doesn't query 100 responses
+	require.Equal(t, int64(0), tel["usm.http.hits1XX"])
+
+	require.Equal(t, int(100), requestsSum)
 }
 
 func (s *HTTPTestSuite) TestRSTPacketRegression() {
 	t := s.T()
 
-	for _, TCPTimestamp := range []struct {
-		name  string
-		value bool
-	}{
-		{name: "without TCP timestamp option", value: false},
-		{name: "with TCP timestamp option", value: true},
-	} {
-		t.Run(TCPTimestamp.name, func(t *testing.T) {
+	monitor := newHTTPMonitor(t)
 
-			monitor := newHTTPMonitor(t)
+	serverAddr := "127.0.0.1:8080"
+	srvDoneFn := testutil.HTTPServer(t, serverAddr, testutil.Options{
+		EnableKeepAlive: true,
+	})
+	t.Cleanup(srvDoneFn)
 
-			serverAddr := "127.0.0.1:8080"
-			srvDoneFn := testutil.HTTPServer(t, serverAddr, testutil.Options{
-				EnableKeepAlive:    true,
-				EnableTCPTimestamp: &TCPTimestamp.value,
-			})
-			t.Cleanup(srvDoneFn)
-
-			// Create a "raw" TCP socket that will serve as our HTTP client
-			// We do this in order to configure the socket option SO_LINGER
-			// so we can force a RST packet to be sent during termination
-			c, err := net.DialTimeout("tcp", serverAddr, 5*time.Second)
-			if err != nil {
-				t.Fatal(err)
-			}
-
-			// Issue HTTP request
-			c.Write([]byte("GET /200/foobar HTTP/1.1\nHost: 127.0.0.1:8080\n\n"))
-			io.Copy(io.Discard, c)
-
-			// Configure SO_LINGER to 0 so that triggers an RST when the socket is terminated
-			require.NoError(t, c.(*net.TCPConn).SetLinger(0))
-			c.Close()
-			time.Sleep(100 * time.Millisecond)
-
-			// Assert that the HTTP request was correctly handled despite its forceful termination
-			stats := getHttpStats(t, monitor)
-			url, err := url.Parse("http://127.0.0.1:8080/200/foobar")
-			require.NoError(t, err)
-			includesRequest(t, stats, &nethttp.Request{URL: url})
-		})
+	// Create a "raw" TCP socket that will serve as our HTTP client
+	// We do this in order to configure the socket option SO_LINGER
+	// so we can force a RST packet to be sent during termination
+	c, err := net.DialTimeout("tcp", serverAddr, 5*time.Second)
+	if err != nil {
+		t.Fatal(err)
 	}
+
+	// Issue HTTP request
+	c.Write([]byte("GET /200/foobar HTTP/1.1\nHost: 127.0.0.1:8080\n\n"))
+	io.Copy(io.Discard, c)
+
+	// Configure SO_LINGER to 0 so that triggers an RST when the socket is terminated
+	require.NoError(t, c.(*net.TCPConn).SetLinger(0))
+	c.Close()
+	time.Sleep(100 * time.Millisecond)
+
+	// Assert that the HTTP request was correctly handled despite its forceful termination
+	stats := getHttpStats(t, monitor)
+	url, err := url.Parse("http://127.0.0.1:8080/200/foobar")
+	require.NoError(t, err)
+	includesRequest(t, stats, &nethttp.Request{URL: url})
 }
 
 func (s *HTTPTestSuite) TestKeepAliveWithIncompleteResponseRegression() {
 	t := s.T()
 
-	for _, TCPTimestamp := range []struct {
-		name  string
-		value bool
-	}{
-		{name: "without TCP timestamp option", value: false},
-		{name: "with TCP timestamp option", value: true},
-	} {
-		t.Run(TCPTimestamp.name, func(t *testing.T) {
-			testutil.SetupNetIPV4TCPTimestamp(t, TCPTimestamp.value)
+	monitor := newHTTPMonitor(t)
 
-			monitor := newHTTPMonitor(t)
+	const req = "GET /200/foobar HTTP/1.1\n"
+	const rsp = "HTTP/1.1 200 OK\n"
+	const serverAddr = "127.0.0.1:8080"
 
-			const req = "GET /200/foobar HTTP/1.1\n"
-			const rsp = "HTTP/1.1 200 OK\n"
-			const serverAddr = "127.0.0.1:8080"
+	srvFn := func(c net.Conn) {
+		// emulates a half-transaction (beginning with a response)
+		n, err := c.Write([]byte(rsp))
+		require.NoError(t, err)
+		require.Equal(t, len(rsp), n)
 
-			srvFn := func(c net.Conn) {
-				// emulates a half-transaction (beginning with a response)
-				n, err := c.Write([]byte(rsp))
-				require.NoError(t, err)
-				require.Equal(t, len(rsp), n)
+		// now we read the request from the client on the same connection
+		b := make([]byte, len(req))
+		n, err = c.Read(b)
+		require.NoError(t, err)
+		require.Equal(t, len(req), n)
+		require.Equal(t, string(b), req)
 
-				// now we read the request from the client on the same connection
-				b := make([]byte, len(req))
-				n, err = c.Read(b)
-				require.NoError(t, err)
-				require.Equal(t, len(req), n)
-				require.Equal(t, string(b), req)
-
-				// and finally send the response completing a full HTTP transaction
-				n, err = c.Write([]byte(rsp))
-				require.NoError(t, err)
-				require.Equal(t, len(rsp), n)
-				c.Close()
-			}
-			srv := testutil.NewTCPServer(serverAddr, srvFn)
-			done := make(chan struct{})
-			srv.Run(done)
-			t.Cleanup(func() { close(done) })
-
-			c, err := net.DialTimeout("tcp", serverAddr, 5*time.Second)
-			require.NoError(t, err)
-
-			// ensure we're beginning the connection with a "headless" response from the
-			// server. this emulates the case where system-probe started in the middle of
-			// request/response cyle
-			b := make([]byte, len(rsp))
-			n, err := c.Read(b)
-			require.NoError(t, err)
-			require.Equal(t, len(rsp), n)
-			require.Equal(t, string(b), rsp)
-
-			// now perform a request
-			n, err = c.Write([]byte(req))
-			require.NoError(t, err)
-			require.Equal(t, len(req), n)
-
-			// and read the response completing a full transaction
-			n, err = c.Read(b)
-			require.NoError(t, err)
-			require.Equal(t, len(rsp), n)
-			require.Equal(t, string(b), rsp)
-
-			// after this response, request, response cycle we should ensure that
-			// we got a full HTTP transaction
-			url, err := url.Parse("http://127.0.0.1:8080/200/foobar")
-			require.NoError(t, err)
-			assertAllRequestsExists(t, monitor, []*nethttp.Request{{URL: url, Method: "GET"}})
-		})
+		// and finally send the response completing a full HTTP transaction
+		n, err = c.Write([]byte(rsp))
+		require.NoError(t, err)
+		require.Equal(t, len(rsp), n)
+		c.Close()
 	}
+	srv := testutil.NewTCPServer(serverAddr, srvFn)
+	done := make(chan struct{})
+	srv.Run(done)
+	t.Cleanup(func() { close(done) })
+
+	c, err := net.DialTimeout("tcp", serverAddr, 5*time.Second)
+	require.NoError(t, err)
+
+	// ensure we're beginning the connection with a "headless" response from the
+	// server. this emulates the case where system-probe started in the middle of
+	// request/response cyle
+	b := make([]byte, len(rsp))
+	n, err := c.Read(b)
+	require.NoError(t, err)
+	require.Equal(t, len(rsp), n)
+	require.Equal(t, string(b), rsp)
+
+	// now perform a request
+	n, err = c.Write([]byte(req))
+	require.NoError(t, err)
+	require.Equal(t, len(req), n)
+
+	// and read the response completing a full transaction
+	n, err = c.Read(b)
+	require.NoError(t, err)
+	require.Equal(t, len(rsp), n)
+	require.Equal(t, string(b), rsp)
+
+	// after this response, request, response cycle we should ensure that
+	// we got a full HTTP transaction
+	url, err := url.Parse("http://127.0.0.1:8080/200/foobar")
+	require.NoError(t, err)
+	assertAllRequestsExists(t, monitor, []*nethttp.Request{{URL: url, Method: "GET"}})
 }
 
 type USMHTTP2Suite struct {
@@ -947,7 +855,7 @@ func countRequestOccurrences(allStats map[http.Key]*http.RequestStats, req *neth
 	expectedStatus := testutil.StatusFromPath(req.URL.Path)
 	occurrences := 0
 	for key, stats := range allStats {
-		if key.Path.Content != req.URL.Path {
+		if key.Path.Content.Get() != req.URL.Path {
 			continue
 		}
 		if requests, exists := stats.Data[expectedStatus]; exists && requests.Count > 0 {

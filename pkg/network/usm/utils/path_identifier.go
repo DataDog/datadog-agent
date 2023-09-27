@@ -21,14 +21,14 @@ import (
 
 // PathIdentifier is the unique key (system wide) of a file based on dev/inode
 type PathIdentifier struct {
-	dev   uint64
-	inode uint64
+	Dev   uint64
+	Inode uint64
 }
 
 type pathIdentifierSet = map[PathIdentifier]struct{}
 
 func (p *PathIdentifier) String() string {
-	return fmt.Sprintf("dev/inode %d.%d/%d", unix.Major(p.dev), unix.Minor(p.dev), p.inode)
+	return fmt.Sprintf("dev/inode %d.%d/%d", unix.Major(p.Dev), unix.Minor(p.Dev), p.Inode)
 }
 
 // Key is a unique (system wide) TLDR Base64(murmur3.Sum64(device, inode))
@@ -41,8 +41,8 @@ func (p *PathIdentifier) String() string {
 // a Base64 string representation is returned and could be used in a file path
 func (p *PathIdentifier) Key() string {
 	buffer := make([]byte, 16)
-	binary.LittleEndian.PutUint64(buffer, p.dev)
-	binary.LittleEndian.PutUint64(buffer[8:], p.inode)
+	binary.LittleEndian.PutUint64(buffer, p.Dev)
+	binary.LittleEndian.PutUint64(buffer[8:], p.Inode)
 	m := murmur3.Sum64(buffer)
 	bufferSum := make([]byte, 8)
 	binary.LittleEndian.PutUint64(bufferSum, m)
@@ -67,7 +67,7 @@ func NewPathIdentifier(path string) (pi PathIdentifier, err error) {
 	}
 
 	return PathIdentifier{
-		dev:   stat.Dev,
-		inode: stat.Ino,
+		Dev:   stat.Dev,
+		Inode: stat.Ino,
 	}, nil
 }

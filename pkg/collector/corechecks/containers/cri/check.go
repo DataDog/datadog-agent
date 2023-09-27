@@ -5,6 +5,7 @@
 
 //go:build cri
 
+// Package cri implements the cri check.
 package cri
 
 import (
