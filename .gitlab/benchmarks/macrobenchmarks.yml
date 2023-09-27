@@ -13,12 +13,8 @@ variables:
   image: $BENCHMARKS_CI_IMAGE
   needs: ["setup_agent_version"]
   script:
-    - export ARTIFACTS_DIR="$(pwd)/reports" && (mkdir "${ARTIFACTS_DIR}" || :)
-    - export DD_API_KEY=$(aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.dd_api_key --with-decryption --query "Parameter.Value" --out text)
     - git clone --branch trace-agent https://gitlab-ci-token:${CI_JOB_TOKEN}@gitlab.ddbuild.io/DataDog/benchmarking-platform /platform && cd /platform
-    - ./steps/capture-hardware-software-info.sh
     - ./steps/run-benchmarks.sh
-    - "./steps/upload-results-to-s3.sh || :"
   artifacts:
     name: "reports"
     paths:
@@ -26,7 +22,6 @@ variables:
     expire_in: 3 months
   variables:
     FF_USE_LEGACY_KUBERNETES_EXECUTION_STRATEGY: "true" # Important tweak for stability of benchmarks
-    K6_RUN_ID_PREFIX: ci
     KUBERNETES_SERVICE_ACCOUNT_OVERWRITE: datadog-agent
 
     # Uncomment to force k8s memory limits for CI job container.
@@ -38,48 +33,56 @@ variables:
   # benchmarks get changed to run on every PR)
   allow_failure: true
 
-trace-agent-v04-4cpus-normal_load-fixed_sps-macrobenchmarks:
+trace-agent-v04-2cpus-normal_load-fixed_sps:
   extends: .trace_agent_benchmarks
   variables:
-    TRACE_AGENT_VERSION: main
     TRACE_AGENT_ENDPOINT: v04
     TRACE_AGENT_CPUS: 2
     DD_APM_MAX_CPU_PERCENT: 0
     DD_APM_MAX_MEMORY: 0
     DD_BENCHMARKS_CONFIGURATION: trace-agent-v04-4cpus-normal_load-fixed_sps
-    BENCHMARK_TARGETS: "normal_load.*sps"
+    SCENARIOS: >
+      normal_load-10traces210spans-65ksps|
+      normal_load-500traces8617spans-65ksps|
+      normal_load-3885traces3891spans-65ksps
 
-trace-agent-v04-4cpus-stress_load-fixed_sps-macrobenchmarks:
+trace-agent-v04-2cpus-stress_load-fixed_sps:
   extends: .trace_agent_benchmarks
   when: manual
   variables:
-    TRACE_AGENT_VERSION: main
     TRACE_AGENT_ENDPOINT: v04
     TRACE_AGENT_CPUS: 2
     DD_APM_MAX_CPU_PERCENT: 0
     DD_APM_MAX_MEMORY: 0
-    DD_BENCHMARKS_CONFIGURATION: trace-agent-v04-4cpus-stress_load-fixed_sps
-    BENCHMARK_TARGETS: "stress_load.*sps"
+    DD_BENCHMARKS_CONFIGURATION: trace-agent-v04-2cpus-stress_load-fixed_sps
+    SCENARIOS: >
+      stress_load-10traces210spans-525ksps|
+      stress_load-500traces8617spans-525ksps|
+      stress_load-3885traces3891spans-525ksps
 
-trace-agent-v05-4cpus-normal_load-fixed_sps-macrobenchmarks:
+trace-agent-v05-2cpus-normal_load-fixed_sps:
   extends: .trace_agent_benchmarks
   variables:
-    TRACE_AGENT_VERSION: main
     TRACE_AGENT_ENDPOINT: v05
     TRACE_AGENT_CPUS: 2
     DD_APM_MAX_CPU_PERCENT: 0
     DD_APM_MAX_MEMORY: 0
-    DD_BENCHMARKS_CONFIGURATION: trace-agent-v05-4cpus-normal_load-fixed_sps
-    BENCHMARK_TARGETS: "normal_load.*sps"
+    DD_BENCHMARKS_CONFIGURATION: trace-agent-v05-2cpus-normal_load-fixed_sps
+    SCENARIO: >
+      normal_load-10traces210spans-65ksps|
+      normal_load-500traces8617spans-65ksps|
+      normal_load-3885traces3891spans-65ksps
 
-trace-agent-v05-4cpus-stress_load-fixed_sps-macrobenchmarks:
+trace-agent-v05-2cpus-stress_load-fixed_sps:
   extends: .trace_agent_benchmarks
   when: manual
   variables:
-    TRACE_AGENT_VERSION: main
     TRACE_AGENT_ENDPOINT: v05
     TRACE_AGENT_CPUS: 2
     DD_APM_MAX_CPU_PERCENT: 0
     DD_APM_MAX_MEMORY: 0
-    DD_BENCHMARKS_CONFIGURATION: trace-agent-v05-4cpus-stress_load-fixed_sps
-    BENCHMARK_TARGETS: "stress_load.*sps"
+    DD_BENCHMARKS_CONFIGURATION: trace-agent-v05-2cpus-stress_load-fixed_sps
+    SCENARIOS: >
+      stress_load-10traces210spans-525ksps|
+      stress_load-500traces8617spans-525ksps|
+      stress_load-3885traces3891spans-525ksps
