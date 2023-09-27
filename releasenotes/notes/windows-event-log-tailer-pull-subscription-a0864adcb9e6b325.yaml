@@ -1,0 +1,10 @@
+---
+features:
+  - |
+    Windows Event Log tailer saves its current position in an event log and
+    will resume reading from that location when the agent restarts. This allows
+    the agent to collect events that are created before the agent starts.
+fixes:
+  - |
+    Windows Event Log tailer automatically recovers and is able to resume collecting
+    events when a log provider is reinstalled, which sometimes happens during Windows Updates.
