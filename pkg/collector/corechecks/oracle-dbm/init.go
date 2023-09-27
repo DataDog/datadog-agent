@@ -8,6 +8,7 @@
 package oracle
 
 import (
+	"database/sql"
 	"fmt"
 	"strings"
 
@@ -20,8 +21,9 @@ type vDatabase struct {
 }
 
 type vInstance struct {
-	HostName    string `db:"HOST_NAME"`
-	VersionFull string `db:"VERSION_FULL"`
+	HostName     sql.NullString `db:"HOST_NAME"`
+	InstanceName string         `db:"INSTANCE_NAME"`
+	VersionFull  string         `db:"VERSION_FULL"`
 }
 
 func (c *Check) init() error {
@@ -45,16 +47,24 @@ func (c *Check) init() error {
 	}
 
 	var i vInstance
-	// host_name is null on Oracle Autonomous Database
-	err = getWrapper(c, &i, "SELECT /* DD */ nvl(host_name, instance_name) host_name, version_full FROM v$instance")
+	err = getWrapper(c, &i, "SELECT /* DD */ host_name, instance_name, version_full FROM v$instance")
 	if err != nil {
 		return fmt.Errorf("%s failed to query v$instance: %w", c.logPrompt, err)
 	}
 	c.dbVersion = i.VersionFull
 	if c.config.ReportedHostname != "" {
 		c.dbHostname = c.config.ReportedHostname
+		tags = append(tags, fmt.Sprintf("reported_hostname:%s", c.config.ReportedHostname))
 	} else {
-		c.dbHostname = i.HostName
+		if i.HostName.Valid {
+			c.dbHostname = i.HostName.String
+		} else {
+			// host_name is null on Oracle Autonomous Database
+			c.dbHostname = i.InstanceName
+		}
+	}
+	if i.HostName.Valid {
+		tags = append(tags, fmt.Sprintf("real_hostname:%s", i.HostName.String))
 	}
 	tags = append(tags, fmt.Sprintf("host:%s", c.dbHostname), fmt.Sprintf("oracle_version:%s", c.dbVersion))
 
