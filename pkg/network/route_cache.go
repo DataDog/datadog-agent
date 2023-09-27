@@ -47,7 +47,6 @@ type routeCache struct {
 	cache  *lru.Cache
 	router Router
 	ttl    time.Duration
-	closed bool
 }
 
 const (
@@ -130,7 +129,6 @@ func (c *routeCache) Close() {
 
 	c.cache.Clear()
 	c.router.Close()
-	c.closed = true
 }
 
 func (c *routeCache) Get(source, dest util.Address, netns uint32) (Route, bool) {
@@ -139,10 +137,6 @@ func (c *routeCache) Get(source, dest util.Address, netns uint32) (Route, bool) 
 		routeCacheTelemetry.size.Set(float64(c.cache.Len()))
 		c.Unlock()
 	}()
-
-	if c.closed {
-		return Route{}, false
-	}
 
 	routeCacheTelemetry.lookups.Inc()
 	k := newRouteKey(source, dest, netns)
@@ -193,10 +187,12 @@ type ifEntry struct {
 }
 
 type netlinkRouter struct {
+	sync.Mutex
 	rootNs   uint32
 	ioctlFD  int
 	ifcache  *lru.Cache
 	nlHandle *netlink.Handle
+	closed   bool
 }
 
 // NewNetlinkRouter create a Router that queries routes via netlink
@@ -239,12 +235,23 @@ func NewNetlinkRouter(cfg *config.Config) (Router, error) {
 }
 
 func (n *netlinkRouter) Close() {
+	n.Lock()
+	defer n.Unlock()
+
 	n.ifcache.Clear()
 	unix.Close(n.ioctlFD)
 	n.nlHandle.Close()
+	n.closed = true
 }
 
 func (n *netlinkRouter) Route(source, dest util.Address, netns uint32) (Route, bool) {
+	n.Lock()
+	defer n.Unlock()
+
+	if n.closed {
+		return Route{}, false
+	}
+
 	var iifIndex int
 
 	srcBuf := util.IPBufferPool.Get().(*[]byte)
