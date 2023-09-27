@@ -316,7 +316,6 @@ func BenchmarkReadEvents(b *testing.B) {
 				})
 
 				b.ResetTimer()
-				startTime := time.Now()
 				totalEvents := uint(0)
 				for i := 0; i < b.N; i++ {
 					b.StopTimer()
@@ -333,8 +332,7 @@ func BenchmarkReadEvents(b *testing.B) {
 					}
 				}
 
-				// TODO: Use b.Elapsed in go1.20
-				elapsed := time.Since(startTime)
+				elapsed := b.Elapsed()
 				b.Logf("%.2f events/s (%.3fs)", float64(totalEvents)/elapsed.Seconds(), elapsed.Seconds())
 
 			})

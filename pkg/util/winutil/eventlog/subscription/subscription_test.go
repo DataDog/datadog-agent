@@ -134,7 +134,6 @@ func BenchmarkTestGetEventHandles(b *testing.B) {
 				err := ti.GenerateEvents(eventSource, v)
 				require.NoError(b, err)
 				b.ResetTimer()
-				startTime := time.Now()
 				for i := 0; i < b.N; i++ {
 					sub, err := startSubscription(b, ti, channel,
 						WithStartAtOldestRecord(),
@@ -149,8 +148,7 @@ func BenchmarkTestGetEventHandles(b *testing.B) {
 					}
 					sub.Stop()
 				}
-				// TODO: Use b.Elapsed in go1.20
-				elapsed := time.Since(startTime)
+				elapsed := b.Elapsed()
 				totalEvents := float64(v) * float64(b.N)
 				b.Logf("%.2f events/s (%.3fs)", totalEvents/elapsed.Seconds(), elapsed.Seconds())
 			})
@@ -211,7 +209,6 @@ func BenchmarkTestRenderEventXml(b *testing.B) {
 				err := ti.GenerateEvents(eventSource, v)
 				require.NoError(b, err)
 				b.ResetTimer()
-				startTime := time.Now()
 				for i := 0; i < b.N; i++ {
 					sub, err := startSubscription(b, ti, channel,
 						WithStartAtOldestRecord(),
@@ -228,8 +225,7 @@ func BenchmarkTestRenderEventXml(b *testing.B) {
 					require.NoError(b, err)
 					sub.Stop()
 				}
-				// TODO: Use b.Elapsed in go1.20
-				elapsed := time.Since(startTime)
+				elapsed := b.Elapsed()
 				totalEvents := float64(v) * float64(b.N)
 				b.Logf("%.2f events/s (%.3fs)", totalEvents/elapsed.Seconds(), elapsed.Seconds())
 			})
@@ -257,7 +253,6 @@ func BenchmarkTestFormatEventMessage(b *testing.B) {
 				err := ti.GenerateEvents(eventSource, v)
 				require.NoError(b, err)
 				b.ResetTimer()
-				startTime := time.Now()
 				for i := 0; i < b.N; i++ {
 					sub, err := startSubscription(b, ti, channel,
 						WithStartAtOldestRecord(),
@@ -274,8 +269,7 @@ func BenchmarkTestFormatEventMessage(b *testing.B) {
 					require.NoError(b, err)
 					sub.Stop()
 				}
-				// TODO: Use b.Elapsed in go1.20
-				elapsed := time.Since(startTime)
+				elapsed := b.Elapsed()
 				totalEvents := float64(v) * float64(b.N)
 				b.Logf("%.2f events/s (%.3fs)", totalEvents/elapsed.Seconds(), elapsed.Seconds())
 			})

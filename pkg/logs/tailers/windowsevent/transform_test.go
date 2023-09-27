@@ -9,7 +9,6 @@ package windowsevent
 
 import (
 	"testing"
-	"time"
 
 	"github.com/stretchr/testify/assert"
 )
@@ -27,13 +26,11 @@ func BenchmarkTransform(b *testing.B) {
 	}
 
 	var actual string
-	startTime := time.Now()
 	for i := 0; i < b.N; i++ {
 		actual, _ = eventToJSON(richEvt)
 	}
 	assert.JSONEq(b, expected1, string(actual))
-	// TODO: Use b.Elapsed in go1.20
-	elapsed := time.Since(startTime)
+	elapsed := b.Elapsed()
 	b.Logf("%.2f events/s (%.3fs)", float64(b.N)/elapsed.Seconds(), elapsed.Seconds())
 }
 
