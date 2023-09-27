@@ -49,3 +49,15 @@ func MapOptional[T1 any, T2 any](optional Optional[T1], fct func(T1) T2) Optiona
 	}
 	return NewOptional(fct(value))
 }
+
+// UnmarshalYAML unmarshals an Optional[T] from YAML
+func (o *Optional[T]) UnmarshalYAML(unmarshal func(interface{}) error) error {
+	var v T
+	err := unmarshal(&v)
+	if err != nil {
+		*o = NewNoneOptional[T]()
+		return err
+	}
+	*o = NewOptional[T](v)
+	return nil
+}
