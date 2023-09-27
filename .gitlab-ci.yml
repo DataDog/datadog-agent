@@ -294,7 +294,7 @@ variables:
 # Rules used to define whether a pipeline should run, and with which variables
 #
 
-# WARNING: If you want to disable the caching proxy, as all branches would need to be rebased for it to be effectively disabled.
+# WARNING: Do not change below if you want to globally disable the caching proxy (all branches would need to be rebased for it to be effectively disabled).
 # Instead use the break-glass mechanism by looking for the "Remotely disable Artifactory" doc in Confluence.
 workflow:
   rules:
