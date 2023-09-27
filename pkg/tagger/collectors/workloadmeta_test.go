@@ -236,7 +236,7 @@ func TestHandleKubePod(t *testing.T) {
 					Entity: fullyFleshedContainerTaggerEntityID,
 					HighCardTags: []string{
 						fmt.Sprintf("container_id:%s", fullyFleshedContainerID),
-						fmt.Sprintf("display_container_name:%s_%s", runtimeContainerName, podName),
+						fmt.Sprintf("display_container_name:%s_%s", containerName, podName),
 					},
 					OrchestratorCardTags: []string{
 						fmt.Sprintf("pod_name:%s", podName),
@@ -291,7 +291,7 @@ func TestHandleKubePod(t *testing.T) {
 					Entity: noEnvContainerTaggerEntityID,
 					HighCardTags: []string{
 						fmt.Sprintf("container_id:%s", noEnvContainerID),
-						fmt.Sprintf("display_container_name:%s_%s", runtimeContainerName, podName),
+						fmt.Sprintf("display_container_name:%s_%s", containerName, podName),
 					},
 					OrchestratorCardTags: []string{
 						fmt.Sprintf("pod_name:%s", podName),
