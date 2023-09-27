@@ -79,16 +79,18 @@ func (p *EnvsEntry) FilterEnvs(envsWithValue map[string]bool) ([]string, bool) {
 }
 
 // FilterEnvs returns an array of environment variable key value pairs matching the desired keys
-func filterEnvs(allEnvs []string, desiredEnvs map[string]bool) []string {
-	if len(allEnvs) == 0 {
+//
+//nolint:unused
+func filterEnvs(allEnvVars []string, desiredKeys map[string]bool) []string {
+	if len(allEnvVars) == 0 {
 		return nil
 	}
 
-	filteredEnvs := make([]string, 0, len(desiredEnvs))
+	filteredEnvs := make([]string, 0, len(desiredKeys))
 
-	for _, value := range allEnvs {
+	for _, value := range allEnvVars {
 		k, _, _ := strings.Cut(value, "=")
-		if desiredEnvs[k] {
+		if desiredKeys[k] {
 			filteredEnvs = append(filteredEnvs, value)
 		}
 	}
