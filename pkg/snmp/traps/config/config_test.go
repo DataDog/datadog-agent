@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2020-present Datadog, Inc.
 
-package traps
+package config
 
 import (
 	"strings"
@@ -28,11 +28,11 @@ var expectedEngineIDs = map[string]string{
 	"VeryLongHostnameThatIsDifferent":                "\x80\xff\xff\xff\xff\xe7\x21\xcc\xd7\x0b\xe1\x60\xc5\x18\xd7\xde\x17\x86\xb0\x7d\x36",
 }
 
-func makeConfig(t *testing.T, trapConfig Config) config.Component {
+func makeConfig(t *testing.T, trapConfig TrapsConfig) config.Component {
 	return makeConfigWithGlobalNamespace(t, trapConfig, "")
 }
 
-func makeConfigWithGlobalNamespace(t *testing.T, trapConfig Config, globalNamespace string) config.Component {
+func makeConfigWithGlobalNamespace(t *testing.T, trapConfig TrapsConfig, globalNamespace string) config.Component {
 	trapConfig.Enabled = true
 	conf := ddconf.SetupConf()
 	if globalNamespace != "" {
@@ -53,7 +53,7 @@ func makeConfigWithGlobalNamespace(t *testing.T, trapConfig Config, globalNamesp
 
 func TestFullConfig(t *testing.T) {
 	logger := fxutil.Test[log.Component](t, log.MockModule)
-	rootConfig := makeConfig(t, Config{
+	rootConfig := makeConfig(t, TrapsConfig{
 		Port: 1234,
 		Users: []UserV3{
 			{
@@ -105,7 +105,7 @@ func TestFullConfig(t *testing.T) {
 
 func TestMinimalConfig(t *testing.T) {
 	logger := fxutil.Test[log.Component](t, log.MockModule)
-	config, err := ReadConfig("", makeConfig(t, Config{}))
+	config, err := ReadConfig("", makeConfig(t, TrapsConfig{}))
 	assert.NoError(t, err)
 	assert.Equal(t, uint16(9162), config.Port)
 	assert.Equal(t, 5, config.StopTimeout)
@@ -124,7 +124,7 @@ func TestMinimalConfig(t *testing.T) {
 }
 
 func TestDefaultUsers(t *testing.T) {
-	config, err := ReadConfig("", makeConfig(t, Config{
+	config, err := ReadConfig("", makeConfig(t, TrapsConfig{
 		CommunityStrings: []string{"public"},
 		StopTimeout:      11,
 	}))
@@ -135,14 +135,14 @@ func TestDefaultUsers(t *testing.T) {
 
 func TestBuildAuthoritativeEngineID(t *testing.T) {
 	for hostname, engineID := range expectedEngineIDs {
-		config, err := ReadConfig(hostname, makeConfig(t, Config{}))
+		config, err := ReadConfig(hostname, makeConfig(t, TrapsConfig{}))
 		assert.NoError(t, err)
 		assert.Equal(t, engineID, config.authoritativeEngineID)
 	}
 }
 
 func TestNamespaceIsNormalized(t *testing.T) {
-	config, err := ReadConfig("", makeConfig(t, Config{
+	config, err := ReadConfig("", makeConfig(t, TrapsConfig{
 		Namespace: "><\n\r\tfoo",
 	}))
 	assert.NoError(t, err)
@@ -151,21 +151,21 @@ func TestNamespaceIsNormalized(t *testing.T) {
 }
 
 func TestInvalidNamespace(t *testing.T) {
-	_, err := ReadConfig("", makeConfig(t, Config{
+	_, err := ReadConfig("", makeConfig(t, TrapsConfig{
 		Namespace: strings.Repeat("x", 101),
 	}))
 	assert.Error(t, err)
 }
 
 func TestNamespaceSetGlobally(t *testing.T) {
-	config, err := ReadConfig("", makeConfigWithGlobalNamespace(t, Config{}, "foo"))
+	config, err := ReadConfig("", makeConfigWithGlobalNamespace(t, TrapsConfig{}, "foo"))
 	assert.NoError(t, err)
 
 	assert.Equal(t, "foo", config.Namespace)
 }
 
 func TestNamespaceSetBothGloballyAndLocally(t *testing.T) {
-	config, err := ReadConfig("", makeConfigWithGlobalNamespace(t, Config{Namespace: "bar"}, "foo"))
+	config, err := ReadConfig("", makeConfigWithGlobalNamespace(t, TrapsConfig{Namespace: "bar"}, "foo"))
 	assert.NoError(t, err)
 
 	assert.Equal(t, "bar", config.Namespace)

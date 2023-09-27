@@ -3,20 +3,18 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2020-present Datadog, Inc.
 
-package traps
+package formatter
 
 import (
 	"encoding/base64"
 	"encoding/json"
-	"fmt"
-	"math/rand"
-	"net"
 	"strings"
 	"testing"
-	"time"
 
 	"github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
+	oidresolver "github.com/DataDog/datadog-agent/pkg/snmp/traps/oid_resolver"
+	"github.com/DataDog/datadog-agent/pkg/snmp/traps/packet"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 
 	"github.com/google/go-cmp/cmp"
@@ -24,21 +22,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
-
-type (
-	// NoOpOIDResolver is a dummy OIDResolver implementation that is unable to get any Trap or Variable metadata.
-	NoOpOIDResolver struct{}
-)
-
-// GetTrapMetadata always return an error in this OIDResolver implementation
-func (or NoOpOIDResolver) GetTrapMetadata(trapOID string) (TrapMetadata, error) {
-	return TrapMetadata{}, fmt.Errorf("trap OID %s is not defined", trapOID)
-}
-
-// GetVariableMetadata always return an error in this OIDResolver implementation
-func (or NoOpOIDResolver) GetVariableMetadata(trapOID string, varOID string) (VariableMetadata, error) {
-	return VariableMetadata{}, fmt.Errorf("trap OID %s is not defined", trapOID)
-}
 
 var (
 	// LinkUp Example Trap V2+
@@ -227,56 +210,13 @@ var (
 	}
 )
 
-func createTestV1GenericPacket() *SnmpPacket {
-	examplePacket := &gosnmp.SnmpPacket{Version: gosnmp.Version1, SnmpTrap: LinkDownv1GenericTrap}
-	examplePacket.Variables = examplePacket.SnmpTrap.Variables
-	return &SnmpPacket{
-		Content:   examplePacket,
-		Addr:      &net.UDPAddr{IP: net.ParseIP("127.0.0.1"), Port: 13156},
-		Namespace: "the_baron",
-	}
-}
-
-func createTestV1SpecificPacket() *SnmpPacket {
-	examplePacket := &gosnmp.SnmpPacket{Version: gosnmp.Version1, SnmpTrap: AlarmActiveStatev1SpecificTrap}
-	examplePacket.Variables = examplePacket.SnmpTrap.Variables
-	return &SnmpPacket{
-		Content:   examplePacket,
-		Addr:      &net.UDPAddr{IP: net.ParseIP("127.0.0.1"), Port: 13156},
-		Namespace: "catbus",
-	}
-}
-
-func createTestV1Packet(trap gosnmp.SnmpTrap) *SnmpPacket {
-	examplePacket := &gosnmp.SnmpPacket{Version: gosnmp.Version1, SnmpTrap: trap}
-	examplePacket.Variables = examplePacket.SnmpTrap.Variables
-	return &SnmpPacket{
-		Content:   examplePacket,
-		Addr:      &net.UDPAddr{IP: net.ParseIP("127.0.0.1"), Port: 13156},
-		Namespace: "jiji",
-	}
-}
-
-func createTestPacket(trap gosnmp.SnmpTrap) *SnmpPacket {
-	examplePacket := &gosnmp.SnmpPacket{
-		Version:   gosnmp.Version2c,
-		Community: "public",
-		Variables: trap.Variables,
-	}
-	return &SnmpPacket{
-		Content:   examplePacket,
-		Addr:      &net.UDPAddr{IP: net.ParseIP("127.0.0.1"), Port: 13156},
-		Namespace: "totoro",
-	}
-}
-
 func TestFormatPacketV1Generic(t *testing.T) {
 	mockSender := mocksender.NewMockSender("snmp-traps-telemetry")
 	mockSender.SetupAcceptAll()
 	logger := fxutil.Test[log.Component](t, log.MockModule)
 
-	defaultFormatter, _ := NewJSONFormatter(NoOpOIDResolver{}, mockSender, logger)
-	packet := createTestV1GenericPacket()
+	defaultFormatter, _ := NewJSONFormatter(oidresolver.NewMockResolver(), mockSender, logger)
+	packet := packet.CreateTestV1GenericPacket()
 	formattedPacket, err := defaultFormatter.FormatPacket(packet)
 	require.NoError(t, err)
 	data := make(map[string]interface{})
@@ -324,8 +264,8 @@ func TestFormatPacketV1Specific(t *testing.T) {
 	mockSender := mocksender.NewMockSender("snmp-traps-telemetry")
 	mockSender.SetupAcceptAll()
 
-	defaultFormatter, _ := NewJSONFormatter(NoOpOIDResolver{}, mockSender, logger)
-	packet := createTestV1SpecificPacket()
+	defaultFormatter, _ := NewJSONFormatter(oidresolver.NewMockResolver(), mockSender, logger)
+	packet := packet.CreateTestV1SpecificPacket()
 	formattedPacket, err := defaultFormatter.FormatPacket(packet)
 	require.NoError(t, err)
 	data := make(map[string]interface{})
@@ -368,8 +308,8 @@ func TestFormatPacketToJSON(t *testing.T) {
 	mockSender := mocksender.NewMockSender("snmp-traps-telemetry")
 	mockSender.SetupAcceptAll()
 
-	defaultFormatter, _ := NewJSONFormatter(NoOpOIDResolver{}, mockSender, logger)
-	packet := createTestPacket(NetSNMPExampleHeartbeatNotification)
+	defaultFormatter, _ := NewJSONFormatter(oidresolver.NewMockResolver(), mockSender, logger)
+	packet := packet.CreateTestPacket(packet.NetSNMPExampleHeartbeatNotification)
 
 	formattedPacket, err := defaultFormatter.FormatPacket(packet)
 	require.NoError(t, err)
@@ -405,8 +345,8 @@ func TestFormatPacketToJSONShouldFailIfNotEnoughVariables(t *testing.T) {
 	mockSender := mocksender.NewMockSender("snmp-traps-telemetry")
 	mockSender.SetupAcceptAll()
 
-	defaultFormatter, _ := NewJSONFormatter(NoOpOIDResolver{}, mockSender, logger)
-	packet := createTestPacket(NetSNMPExampleHeartbeatNotification)
+	defaultFormatter, _ := NewJSONFormatter(oidresolver.NewMockResolver(), mockSender, logger)
+	packet := packet.CreateTestPacket(packet.NetSNMPExampleHeartbeatNotification)
 
 	packet.Content.Variables = []gosnmp.SnmpPDU{
 		// No variables at all.
@@ -438,24 +378,23 @@ func TestNewJSONFormatterWithNilStillWorks(t *testing.T) {
 	mockSender := mocksender.NewMockSender("snmp-traps-telemetry")
 	mockSender.SetupAcceptAll()
 
-	var formatter, err = NewJSONFormatter(NoOpOIDResolver{}, mockSender, logger)
+	var formatter, err = NewJSONFormatter(oidresolver.NewMockResolver(), mockSender, logger)
 	require.NoError(t, err)
-	packet := createTestPacket(NetSNMPExampleHeartbeatNotification)
+	packet := packet.CreateTestPacket(packet.NetSNMPExampleHeartbeatNotification)
 	_, err = formatter.FormatPacket(packet)
 	require.NoError(t, err)
 }
 
 func TestFormatterWithResolverAndTrapV2(t *testing.T) {
+
 	data := []struct {
 		description     string
 		trap            gosnmp.SnmpTrap
-		resolver        *MockedResolver
 		expectedContent map[string]interface{}
 	}{
 		{
 			description: "test no enum variable resolution with netSnmpExampleHeartbeatNotification",
-			trap:        NetSNMPExampleHeartbeatNotification,
-			resolver:    resolverWithData,
+			trap:        packet.NetSNMPExampleHeartbeatNotification,
 			expectedContent: map[string]interface{}{
 				"ddsource":                    "snmp-traps",
 				"ddtags":                      "snmp_version:2,device_namespace:totoro,snmp_device:127.0.0.1",
@@ -482,7 +421,6 @@ func TestFormatterWithResolverAndTrapV2(t *testing.T) {
 		{
 			description: "test enum variable resolution with linkDown",
 			trap:        LinkUpExampleV2Trap,
-			resolver:    resolverWithData,
 			expectedContent: map[string]interface{}{
 				"ddsource":      "snmp-traps",
 				"ddtags":        "snmp_version:2,device_namespace:totoro,snmp_device:127.0.0.1",
@@ -516,7 +454,6 @@ func TestFormatterWithResolverAndTrapV2(t *testing.T) {
 		{
 			description: "test enum variable resolution with bad variable",
 			trap:        BadValueExampleV2Trap,
-			resolver:    resolverWithData,
 			expectedContent: map[string]interface{}{
 				"ddsource":      "snmp-traps",
 				"ddtags":        "snmp_version:2,device_namespace:totoro,snmp_device:127.0.0.1",
@@ -550,7 +487,6 @@ func TestFormatterWithResolverAndTrapV2(t *testing.T) {
 		{
 			description: "test enum variable resolution when mapping absent",
 			trap:        NoEnumMappingExampleV2Trap,
-			resolver:    resolverWithData,
 			expectedContent: map[string]interface{}{
 				"ddsource":      "snmp-traps",
 				"ddtags":        "snmp_version:2,device_namespace:totoro,snmp_device:127.0.0.1",
@@ -584,7 +520,6 @@ func TestFormatterWithResolverAndTrapV2(t *testing.T) {
 		{
 			description: "test enum variable resolution with BITS enum",
 			trap:        BitsValueExampleV2Trap,
-			resolver:    resolverWithData,
 			expectedContent: map[string]interface{}{
 				"ddsource":                      "snmp-traps",
 				"ddtags":                        "snmp_version:2,device_namespace:totoro,snmp_device:127.0.0.1",
@@ -624,7 +559,6 @@ func TestFormatterWithResolverAndTrapV2(t *testing.T) {
 		{
 			description: "test enum variable resolution with BITS enum and some missing bits definitions",
 			trap:        BitsMissingValueExampleV2Trap,
-			resolver:    resolverWithData,
 			expectedContent: map[string]interface{}{
 				"ddsource":      "snmp-traps",
 				"ddtags":        "snmp_version:2,device_namespace:totoro,snmp_device:127.0.0.1",
@@ -675,7 +609,6 @@ func TestFormatterWithResolverAndTrapV2(t *testing.T) {
 		{
 			description: "test BITS variable resolution with bad variable",
 			trap:        BadBitsValueExampleV2Trap,
-			resolver:    resolverWithData,
 			expectedContent: map[string]interface{}{
 				"ddsource":      "snmp-traps",
 				"ddtags":        "snmp_version:2,device_namespace:totoro,snmp_device:127.0.0.1",
@@ -703,7 +636,6 @@ func TestFormatterWithResolverAndTrapV2(t *testing.T) {
 		{
 			description: "values returned unenriched when var definition contains both enum and bits",
 			trap:        InvalidTrapDefinitionExampleV2Trap,
-			resolver:    resolverWithData,
 			expectedContent: map[string]interface{}{
 				"ddsource":      "snmp-traps",
 				"ddtags":        "snmp_version:2,device_namespace:totoro,snmp_device:127.0.0.1",
@@ -742,7 +674,6 @@ func TestFormatterWithResolverAndTrapV2(t *testing.T) {
 		{
 			description: "test enum variable resolution with zeroed out BITS",
 			trap:        BitsZeroedOutValueExampleV2Trap,
-			resolver:    resolverWithData,
 			expectedContent: map[string]interface{}{
 				"ddsource":      "snmp-traps",
 				"ddtags":        "snmp_version:2,device_namespace:totoro,snmp_device:127.0.0.1",
@@ -784,12 +715,13 @@ func TestFormatterWithResolverAndTrapV2(t *testing.T) {
 	mockSender := mocksender.NewMockSender("snmp-traps-telemetry")
 	mockSender.SetupAcceptAll()
 	logger := fxutil.Test[log.Component](t, log.MockModule)
+	resolver := oidresolver.NewMockResolver()
+	formatter, err := NewJSONFormatter(resolver, mockSender, logger)
+	require.NoError(t, err)
 
 	for _, d := range data {
 		t.Run(d.description, func(t *testing.T) {
-			formatter, err := NewJSONFormatter(d.resolver, mockSender, logger)
-			require.NoError(t, err)
-			packet := createTestPacket(d.trap)
+			packet := packet.CreateTestPacket(d.trap)
 			data, err := formatter.FormatPacket(packet)
 			require.NoError(t, err)
 			content := make(map[string]interface{})
@@ -823,9 +755,9 @@ func TestFormatterWithResolverAndTrapV1Generic(t *testing.T) {
 	mockSender := mocksender.NewMockSender("snmp-traps-telemetry")
 	mockSender.SetupAcceptAll()
 
-	formatter, err := NewJSONFormatter(resolverWithData, mockSender, logger)
+	formatter, err := NewJSONFormatter(oidresolver.NewMockResolver(), mockSender, logger)
 	require.NoError(t, err)
-	packet := createTestV1GenericPacket()
+	packet := packet.CreateTestV1GenericPacket()
 	data, err := formatter.FormatPacket(packet)
 	require.NoError(t, err)
 	content := make(map[string]interface{})
@@ -947,14 +879,14 @@ func TestEnrichBits(t *testing.T) {
 	data := []struct {
 		description     string
 		variable        trapVariable
-		varMetadata     VariableMetadata
+		varMetadata     oidresolver.VariableMetadata
 		expectedMapping interface{}
 		expectedHex     string
 	}{
 		{
 			description: "all bits are enrichable and are enriched",
 			variable:    trapVariable{OID: ".1.4.3.6.7.3.4.1.4.7", VarType: "string", Value: []byte{0b11000100, 0b10000001}}, // made up OID, bits 0, 1, 5, 8, and 15 set
-			varMetadata: VariableMetadata{
+			varMetadata: oidresolver.VariableMetadata{
 				Name: "myDummyVariable",
 				Bits: map[int]string{
 					0:  "test0",
@@ -977,7 +909,7 @@ func TestEnrichBits(t *testing.T) {
 		{
 			description: "no bits are enrichable are returned unenriched",
 			variable:    trapVariable{OID: ".1.4.3.6.7.3.4.1.4.7", VarType: "string", Value: []byte{0b11000100, 0b10000001}}, // made up OID, bits 0, 1, 5, 8, and 15 set
-			varMetadata: VariableMetadata{
+			varMetadata: oidresolver.VariableMetadata{
 				Name: "myDummyVariable",
 				Bits: map[int]string{
 					2:  "test2",
@@ -998,7 +930,7 @@ func TestEnrichBits(t *testing.T) {
 		{
 			description: "mix of enrichable and unenrichable bits are returned semi-enriched",
 			variable:    trapVariable{OID: ".1.4.3.6.7.3.4.1.4.7", VarType: "string", Value: []byte{0b00111000, 0b01000010}}, // made up OID, bits 2, 3, 4, 9, 14 are set
-			varMetadata: VariableMetadata{
+			varMetadata: oidresolver.VariableMetadata{
 				Name: "myDummyVariable",
 				Bits: map[int]string{
 					2:  "test2",
@@ -1019,7 +951,7 @@ func TestEnrichBits(t *testing.T) {
 		{
 			description: "non-byte array value returns original value unchanged",
 			variable:    trapVariable{OID: ".1.4.3.6.7.3.4.1.4.7", VarType: "string", Value: 42},
-			varMetadata: VariableMetadata{
+			varMetadata: oidresolver.VariableMetadata{
 				Name: "myDummyVariable",
 				Bits: map[int]string{
 					2:  "test2",
@@ -1034,7 +966,7 @@ func TestEnrichBits(t *testing.T) {
 		{
 			description: "completely zeroed out bits returns zeroed out bits",
 			variable:    trapVariable{OID: ".1.4.3.6.7.3.4.1.4.7", VarType: "string", Value: []byte{0x00, 0x00, 0x00, 0x00, 0x00, 0x00}},
-			varMetadata: VariableMetadata{
+			varMetadata: oidresolver.VariableMetadata{
 				Name: "myDummyVariable",
 				Bits: map[int]string{
 					2:  "test2",
@@ -1056,68 +988,6 @@ func TestEnrichBits(t *testing.T) {
 			}
 			require.Equal(t, d.expectedHex, actualHex)
 		})
-	}
-}
-
-func TestIsValidOID_PropertyBasedTesting(t *testing.T) {
-	rand.Seed(time.Now().Unix())
-	testSize := 100
-	validOIDs := make([]string, testSize)
-	for i := 0; i < testSize; i++ {
-		// Valid cases
-		oidLen := rand.Intn(100) + 2
-		oidParts := make([]string, oidLen)
-		for j := 0; j < oidLen; j++ {
-			oidParts[j] = fmt.Sprint(rand.Intn(100000))
-		}
-		recreatedOID := strings.Join(oidParts, ".")
-		if rand.Intn(2) == 0 {
-			recreatedOID = "." + recreatedOID
-		}
-		validOIDs[i] = recreatedOID
-		require.True(t, IsValidOID(validOIDs[i]), "OID: %s", validOIDs[i])
-	}
-
-	var invalidRunes = []rune(",?><|\\}{[]()*&^%$#@!abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ")
-	for i := 0; i < testSize; i++ {
-		// Valid cases
-		oid := validOIDs[i]
-		x := 0
-		switch x = rand.Intn(3); x {
-		case 0:
-			// Append a dot at the end, this is not possible
-			oid = oid + "."
-		case 1:
-			// Append a random invalid character anywhere
-			randomRune := invalidRunes[rand.Intn(len(invalidRunes))]
-			randomIdx := rand.Intn(len(oid))
-			oid = oid[:randomIdx] + string(randomRune) + oid[randomIdx:]
-		case 2:
-			// Put two dots next to each other
-			oidParts := strings.Split(oid, ".")
-			randomIdx := rand.Intn(len(oidParts)-1) + 1
-			oidParts[randomIdx] = "." + oidParts[randomIdx]
-			oid = strings.Join(oidParts, ".")
-		}
-
-		require.False(t, IsValidOID(oid), "OID: %s", oid)
-	}
-}
-
-func TestIsValidOID_Unit(t *testing.T) {
-	cases := map[string]bool{
-		"1.3.6.1.4.1.4962.2.1.6.3":       true,
-		".1.3.6.1.4.1.4962.2.1.6.999999": true,
-		"1":                              true,
-		"1.3.6.1.4.1.4962.2.1.-6.3":      false,
-		"1.3.6.1.4.1..4962.2.1.6.3":      false,
-		"1.3.6.1foo.4.1.4962.2.1.6.3":    false,
-		"1.3.6.1foo.4.1.4962_2.1.6.3":    false,
-		"1.3.6.1.4.1.4962.2.1.6.999999.": false,
-	}
-
-	for oid, expected := range cases {
-		require.Equal(t, expected, IsValidOID(oid))
 	}
 }
 
@@ -1285,19 +1155,16 @@ func TestVariableValueFormat(t *testing.T) {
 }
 
 func TestFormatterTelemetry(t *testing.T) {
-	logger := fxutil.Test[log.Component](t, log.MockModule)
 	data := []struct {
 		description    string
-		packet         *SnmpPacket
-		resolver       *MockedResolver
+		packet         *packet.SnmpPacket
 		expectedMetric string
 		expectedValue  float64
 		expectedTags   []string
 	}{
 		{
 			description:    "Fail to enrich V1 trap",
-			packet:         createTestV1Packet(Unknownv1Trap),
-			resolver:       resolverWithData,
+			packet:         packet.CreateTestV1Packet(packet.Unknownv1Trap),
 			expectedMetric: "datadog.snmp_traps.traps_not_enriched",
 			expectedValue:  1,
 			expectedTags: []string{
@@ -1308,8 +1175,7 @@ func TestFormatterTelemetry(t *testing.T) {
 		},
 		{
 			description:    "Fail to enrich V1 trap variables",
-			packet:         createTestV1Packet(Unknownv1Trap),
-			resolver:       resolverWithData,
+			packet:         packet.CreateTestV1Packet(packet.Unknownv1Trap),
 			expectedMetric: "datadog.snmp_traps.vars_not_enriched",
 			expectedValue:  3,
 			expectedTags: []string{
@@ -1320,8 +1186,7 @@ func TestFormatterTelemetry(t *testing.T) {
 		},
 		{
 			description:    "Not enough variables",
-			packet:         createTestPacket(NotEnoughVarsExampleV2Trap),
-			resolver:       resolverWithData,
+			packet:         packet.CreateTestPacket(NotEnoughVarsExampleV2Trap),
 			expectedMetric: "datadog.snmp_traps.incorrect_format",
 			expectedValue:  1,
 			expectedTags: []string{
@@ -1333,8 +1198,7 @@ func TestFormatterTelemetry(t *testing.T) {
 		},
 		{
 			description:    "Missing SysUpTime",
-			packet:         createTestPacket(MissingSysUpTimeInstanceExampleV2Trap),
-			resolver:       resolverWithData,
+			packet:         packet.CreateTestPacket(MissingSysUpTimeInstanceExampleV2Trap),
 			expectedMetric: "datadog.snmp_traps.incorrect_format",
 			expectedValue:  1,
 			expectedTags: []string{
@@ -1346,8 +1210,7 @@ func TestFormatterTelemetry(t *testing.T) {
 		},
 		{
 			description:    "Missing Trap OID",
-			packet:         createTestPacket(MissingTrapOIDExampleV2Trap),
-			resolver:       resolverWithData,
+			packet:         packet.CreateTestPacket(MissingTrapOIDExampleV2Trap),
 			expectedMetric: "datadog.snmp_traps.incorrect_format",
 			expectedValue:  1,
 			expectedTags: []string{
@@ -1359,8 +1222,7 @@ func TestFormatterTelemetry(t *testing.T) {
 		},
 		{
 			description:    "Fail to enrich V2 trap",
-			packet:         createTestPacket(UnknownExampleV2Trap),
-			resolver:       resolverWithData,
+			packet:         packet.CreateTestPacket(UnknownExampleV2Trap),
 			expectedMetric: "datadog.snmp_traps.traps_not_enriched",
 			expectedValue:  1,
 			expectedTags: []string{
@@ -1371,8 +1233,7 @@ func TestFormatterTelemetry(t *testing.T) {
 		},
 		{
 			description:    "Fail to enrich V2 trap variables",
-			packet:         createTestPacket(UnknownExampleV2Trap),
-			resolver:       resolverWithData,
+			packet:         packet.CreateTestPacket(UnknownExampleV2Trap),
 			expectedMetric: "datadog.snmp_traps.vars_not_enriched",
 			expectedValue:  2,
 			expectedTags: []string{
@@ -1383,13 +1244,15 @@ func TestFormatterTelemetry(t *testing.T) {
 		},
 	}
 
+	logger := fxutil.Test[log.Component](t, log.MockModule)
 	mockSender := mocksender.NewMockSender("snmp-traps-telemetry")
 	mockSender.SetupAcceptAll()
+	resolver := oidresolver.NewMockResolver()
+	formatter, err := NewJSONFormatter(resolver, mockSender, logger)
+	require.NoError(t, err)
 
 	for _, d := range data {
 		t.Run(d.description, func(t *testing.T) {
-			formatter, err := NewJSONFormatter(d.resolver, mockSender, logger)
-			require.NoError(t, err)
 			_, _ = formatter.FormatPacket(d.packet)
 
 			mockSender.AssertMetric(t, "Count", d.expectedMetric, d.expectedValue, "", d.expectedTags)

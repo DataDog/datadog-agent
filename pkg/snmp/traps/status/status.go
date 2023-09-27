@@ -3,7 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2020-present Datadog, Inc.
 
-package traps
+// Package status exposes the expvars we use for status tracking.
+package status
 
 import (
 	"encoding/json"
@@ -21,6 +22,37 @@ var (
 func init() {
 	trapsExpvars.Set("Packets", &trapsPackets)
 	trapsExpvars.Set("PacketsAuthErrors", &trapsPacketsAuthErrors)
+}
+
+// Manager exposes the expvars we care about
+type Manager interface {
+	AddTrapsPackets(int64)
+	GetTrapsPackets() int64
+	AddTrapsPacketsAuthErrors(int64)
+	GetTrapsPacketsAuthErrors() int64
+}
+
+// New creates a new manager
+func New() Manager {
+	return &manager{}
+}
+
+type manager struct{}
+
+func (s *manager) AddTrapsPackets(i int64) {
+	trapsPackets.Add(i)
+}
+
+func (s *manager) AddTrapsPacketsAuthErrors(i int64) {
+	trapsPacketsAuthErrors.Add(i)
+}
+
+func (s *manager) GetTrapsPackets() int64 {
+	return trapsPackets.Value()
+}
+
+func (s *manager) GetTrapsPacketsAuthErrors() int64 {
+	return trapsPacketsAuthErrors.Value()
 }
 
 func getDroppedPackets() int64 {
@@ -54,8 +86,8 @@ func GetStatus() map[string]interface{} {
 	}
 	status["metrics"] = metrics
 
-	if startError != nil {
-		status["error"] = startError.Error()
-	}
+	// if startError != nil {
+	// 	status["error"] = startError.Error()
+	// }
 	return status
 }

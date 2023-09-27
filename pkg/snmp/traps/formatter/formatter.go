@@ -3,7 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package traps
+// Package formatter provides tools for formatting SNMP traps.
+package formatter
 
 import (
 	"encoding/json"
@@ -11,24 +12,29 @@ import (
 	"strings"
 	"unicode"
 
-	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
+	oidresolver "github.com/DataDog/datadog-agent/pkg/snmp/traps/oid_resolver"
+	"github.com/DataDog/datadog-agent/pkg/snmp/traps/packet"
 
 	"github.com/gosnmp/gosnmp"
 
 	"github.com/DataDog/datadog-agent/comp/core/log"
+	"github.com/DataDog/datadog-agent/comp/ndmtmp/sender"
 )
 
-const ddsource string = "snmp-traps"
+const (
+	ddsource       = "snmp-traps"
+	genericTrapOid = "1.3.6.1.6.3.1.1.5"
+)
 
 // Formatter is an interface to extract and format raw SNMP Traps
 type Formatter interface {
-	FormatPacket(packet *SnmpPacket) ([]byte, error)
+	FormatPacket(packet *packet.SnmpPacket) ([]byte, error)
 }
 
 // JSONFormatter is a Formatter implementation that transforms Traps into JSON
 type JSONFormatter struct {
-	oidResolver OIDResolver
-	aggregator  sender.Sender
+	oidResolver oidresolver.OIDResolver
+	aggregator  sender.Component
 	logger      log.Component
 }
 
@@ -48,7 +54,7 @@ const (
 )
 
 // NewJSONFormatter creates a new JSONFormatter instance with an optional OIDResolver variable.
-func NewJSONFormatter(oidResolver OIDResolver, aggregator sender.Sender, logger log.Component) (JSONFormatter, error) {
+func NewJSONFormatter(oidResolver oidresolver.OIDResolver, aggregator sender.Component, logger log.Component) (JSONFormatter, error) {
 	if oidResolver == nil {
 		return JSONFormatter{}, fmt.Errorf("NewJSONFormatter called with a nil OIDResolver")
 	}
@@ -78,7 +84,7 @@ func NewJSONFormatter(oidResolver OIDResolver, aggregator sender.Sender, logger 
 //	   ],
 //	  }
 //	}
-func (f JSONFormatter) FormatPacket(packet *SnmpPacket) ([]byte, error) {
+func (f JSONFormatter) FormatPacket(packet *packet.SnmpPacket) ([]byte, error) {
 	payload := make(map[string]interface{})
 	var formattedTrap map[string]interface{}
 	var err error
@@ -91,19 +97,19 @@ func (f JSONFormatter) FormatPacket(packet *SnmpPacket) ([]byte, error) {
 		}
 	}
 	formattedTrap["ddsource"] = ddsource
-	formattedTrap["ddtags"] = strings.Join(packet.getTags(), ",")
+	formattedTrap["ddtags"] = strings.Join(packet.GetTags(), ",")
 	formattedTrap["timestamp"] = packet.Timestamp
 	payload["trap"] = formattedTrap
 	return json.Marshal(payload)
 }
 
-func (f JSONFormatter) formatV1Trap(packet *SnmpPacket) map[string]interface{} {
+func (f JSONFormatter) formatV1Trap(packet *packet.SnmpPacket) map[string]interface{} {
 	content := packet.Content
-	tags := packet.getTags()
+	tags := packet.GetTags()
 
 	data := make(map[string]interface{})
 	data["uptime"] = uint32(content.Timestamp)
-	enterpriseOid := NormalizeOID(content.Enterprise)
+	enterpriseOid := oidresolver.NormalizeOID(content.Enterprise)
 	genericTrap := content.GenericTrap
 	specificTrap := content.SpecificTrap
 	var trapOID string
@@ -138,13 +144,13 @@ func (f JSONFormatter) formatV1Trap(packet *SnmpPacket) map[string]interface{} {
 	return data
 }
 
-func (f JSONFormatter) formatTrap(packet *SnmpPacket) (map[string]interface{}, error) {
+func (f JSONFormatter) formatTrap(packet *packet.SnmpPacket) (map[string]interface{}, error) {
 	/*
 		An SNMP v2 or v3 trap packet consists in the following variables (PDUs):
 		{sysUpTime.0, snmpTrapOID.0, additionalDataVariables...}
 		See: https://tools.ietf.org/html/rfc3416#section-4.2.6
 	*/
-	tags := packet.getTags()
+	tags := packet.GetTags()
 
 	variables := packet.Content.Variables
 	if len(variables) < 2 {
@@ -189,13 +195,6 @@ func (f JSONFormatter) formatTrap(packet *SnmpPacket) (map[string]interface{}, e
 	return data, nil
 }
 
-// NormalizeOID convert an OID from the absolute form ".1.2.3..." to a relative form "1.2.3..."
-func NormalizeOID(value string) string {
-	// OIDs can be formatted as ".1.2.3..." ("absolute form") or "1.2.3..." ("relative form").
-	// Convert everything to relative form, like we do in the Python check.
-	return strings.TrimLeft(value, ".")
-}
-
 // IsValidOID returns true if a looks like a valid OID.
 // An OID is made of digits and dots, but OIDs do not end with a dot and there are always
 // digits between dots.
@@ -215,7 +214,7 @@ func IsValidOID(value string) bool {
 
 // enrichEnum checks to see if the variable has a mapping in an enum and
 // returns the mapping if it exists, otherwise returns the value unchanged
-func enrichEnum(variable trapVariable, varMetadata VariableMetadata, logger log.Component) interface{} {
+func enrichEnum(variable trapVariable, varMetadata oidresolver.VariableMetadata, logger log.Component) interface{} {
 	// if we find a mapping set it and return
 	i, ok := variable.Value.(int)
 	if !ok {
@@ -233,7 +232,7 @@ func enrichEnum(variable trapVariable, varMetadata VariableMetadata, logger log.
 
 // enrichBits checks to see if the variable has a mapping in bits, if so returns the mapping
 // and hex string of bits, if not returns the value unchanged and empty string
-func enrichBits(variable trapVariable, varMetadata VariableMetadata, logger log.Component) (interface{}, string) {
+func enrichBits(variable trapVariable, varMetadata oidresolver.VariableMetadata, logger log.Component) (interface{}, string) {
 	// do bitwise search
 	bytes, ok := variable.Value.([]byte)
 	if !ok {
@@ -265,7 +264,7 @@ func enrichBits(variable trapVariable, varMetadata VariableMetadata, logger log.
 }
 
 func parseSysUpTime(variable gosnmp.SnmpPDU) (uint32, error) {
-	name := NormalizeOID(variable.Name)
+	name := oidresolver.NormalizeOID(variable.Name)
 	if name != sysUpTimeInstanceOID {
 		return 0, fmt.Errorf("expected OID %s, got %s", sysUpTimeInstanceOID, name)
 	}
@@ -279,7 +278,7 @@ func parseSysUpTime(variable gosnmp.SnmpPDU) (uint32, error) {
 }
 
 func parseSnmpTrapOID(variable gosnmp.SnmpPDU) (string, error) {
-	name := NormalizeOID(variable.Name)
+	name := oidresolver.NormalizeOID(variable.Name)
 	if name != snmpTrapOID {
 		return "", fmt.Errorf("expected OID %s, got %s", snmpTrapOID, name)
 	}
@@ -294,7 +293,7 @@ func parseSnmpTrapOID(variable gosnmp.SnmpPDU) (string, error) {
 		return "", fmt.Errorf("expected snmpTrapOID to be a string (got %v of type %T)", variable.Value, variable.Value)
 	}
 
-	return NormalizeOID(value), nil
+	return oidresolver.NormalizeOID(value), nil
 }
 
 func (f JSONFormatter) parseVariables(trapOID string, variables []gosnmp.SnmpPDU) ([]trapVariable, map[string]interface{}) {
@@ -302,7 +301,7 @@ func (f JSONFormatter) parseVariables(trapOID string, variables []gosnmp.SnmpPDU
 	enrichedValues := make(map[string]interface{})
 
 	for _, variable := range variables {
-		varOID := NormalizeOID(variable.Name)
+		varOID := oidresolver.NormalizeOID(variable.Name)
 		varType := formatType(variable)
 
 		tv := trapVariable{
@@ -388,24 +387,11 @@ func formatValue(variable gosnmp.SnmpPDU) interface{} {
 		return string(variable.Value.([]byte))
 	case string:
 		if variable.Type == gosnmp.ObjectIdentifier {
-			return NormalizeOID(variable.Value.(string))
+			return oidresolver.NormalizeOID(variable.Value.(string))
 		}
 		return variable.Value
 	default:
 		return variable.Value
-	}
-}
-
-func formatVersion(packet *gosnmp.SnmpPacket) string {
-	switch packet.Version {
-	case gosnmp.Version3:
-		return "3"
-	case gosnmp.Version2c:
-		return "2"
-	case gosnmp.Version1:
-		return "1"
-	default:
-		return "unknown"
 	}
 }
 

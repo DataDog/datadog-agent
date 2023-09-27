@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2022-present Datadog, Inc.
 
-package traps
+package oidresolver
 
 // VariableMetadata is the MIB-extracted information of a given trap variable
 type VariableMetadata struct {
@@ -35,7 +35,8 @@ type TrapMetadata struct {
 // TrapSpec contains the variableMetadata for each known trap in all trap db files
 type TrapSpec map[string]TrapMetadata
 
-type trapDBFileContent struct {
+// TrapDBFileContent contains data for the traps and variables from a trap db file.
+type TrapDBFileContent struct {
 	Traps     TrapSpec     `yaml:"traps" json:"traps"`
 	Variables variableSpec `yaml:"vars" json:"vars"`
 }

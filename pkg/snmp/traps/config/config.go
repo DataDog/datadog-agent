@@ -3,7 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2020-present Datadog, Inc.
 
-package traps
+// Package config implements the configuration type for the traps server.
+package config
 
 import (
 	"errors"
@@ -15,13 +16,9 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/pkg/snmp/gosnmplib"
+	"github.com/DataDog/datadog-agent/pkg/snmp/traps/snmplog"
 	"github.com/DataDog/datadog-agent/pkg/snmp/utils"
 )
-
-// IsEnabled returns whether SNMP trap collection is enabled in the Agent configuration.
-func IsEnabled(conf config.Component) bool {
-	return conf.GetBool("network_devices.snmp_traps.enabled")
-}
 
 // UserV3 contains the definition of one SNMPv3 user with its username and its auth
 // parameters.
@@ -33,9 +30,9 @@ type UserV3 struct {
 	PrivProtocol string `mapstructure:"privProtocol" yaml:"privProtocol"`
 }
 
-// Config contains configuration for SNMP trap listeners.
+// TrapsConfig contains configuration for SNMP trap listeners.
 // YAML field tags provided for test marshalling purposes.
-type Config struct {
+type TrapsConfig struct {
 	Enabled               bool     `mapstructure:"enabled" yaml:"enabled"`
 	Port                  uint16   `mapstructure:"port" yaml:"port"`
 	Users                 []UserV3 `mapstructure:"users" yaml:"users"`
@@ -46,9 +43,9 @@ type Config struct {
 	authoritativeEngineID string   `mapstructure:"-" yaml:"-"`
 }
 
-// ReadConfig builds and returns configuration from Agent configuration.
-func ReadConfig(agentHostname string, conf config.Component) (*Config, error) {
-	var c = Config{}
+// ReadConfig builds the traps configuration from the Agent configuration.
+func ReadConfig(host string, conf config.Component) (*TrapsConfig, error) {
+	var c = &TrapsConfig{}
 	err := conf.UnmarshalKey("network_devices.snmp_traps", &c)
 	if err != nil {
 		return nil, err
@@ -57,10 +54,18 @@ func ReadConfig(agentHostname string, conf config.Component) (*Config, error) {
 	if !c.Enabled {
 		return nil, errors.New("traps listener is disabled")
 	}
+	if err := c.SetDefaults(host, conf.GetString("network_devices.namespace")); err != nil {
+		return c, err
+	}
+	return c, nil
+}
 
+// SetDefaults sets all unset values to default values, and returns an error
+// if any fields are invalid.
+func (c *TrapsConfig) SetDefaults(host string, namespace string) error {
 	// gosnmp only supports one v3 user at the moment.
 	if len(c.Users) > 1 {
-		return nil, errors.New("only one user is currently supported in SNMP Traps Listener configuration")
+		return errors.New("only one user is currently supported in SNMP Traps Listener configuration")
 	}
 
 	// Set defaults.
@@ -75,13 +80,13 @@ func ReadConfig(agentHostname string, conf config.Component) (*Config, error) {
 		c.StopTimeout = defaultStopTimeout
 	}
 
-	if agentHostname == "" {
+	if host == "" {
 		// Make sure to have at least some unique bytes for the authoritative engineID.
 		// Unlikely to happen since the agent cannot start without a hostname
-		agentHostname = "unknown-datadog-agent"
+		host = "unknown-datadog-agent"
 	}
 	h := fnv.New128()
-	h.Write([]byte(agentHostname))
+	h.Write([]byte(host))
 	// First byte is always 0x80
 	// Next four bytes are the Private Enterprise Number (set to an invalid value here)
 	// The next 16 bytes are the hash of the agent hostname
@@ -89,26 +94,27 @@ func ReadConfig(agentHostname string, conf config.Component) (*Config, error) {
 	c.authoritativeEngineID = string(engineID)
 
 	if c.Namespace == "" {
-		c.Namespace = conf.GetString("network_devices.namespace")
+		c.Namespace = namespace
 	}
+	var err error
 	c.Namespace, err = utils.NormalizeNamespace(c.Namespace)
 	if err != nil {
-		return nil, fmt.Errorf("unable to load config: %w", err)
+		return fmt.Errorf("invalid config: %w", err)
 	}
 
-	return &c, nil
+	return nil
 }
 
 // Addr returns the host:port address to listen on.
-func (c *Config) Addr() string {
+func (c *TrapsConfig) Addr() string {
 	return fmt.Sprintf("%s:%d", c.BindHost, c.Port)
 }
 
 // BuildSNMPParams returns a valid GoSNMP params structure from configuration.
-func (c *Config) BuildSNMPParams(logger log.Component) (*gosnmp.GoSNMP, error) {
+func (c *TrapsConfig) BuildSNMPParams(logger log.Component) (*gosnmp.GoSNMP, error) {
 	var snmpLogger gosnmp.Logger
 	if logger != nil {
-		snmpLogger = gosnmp.NewLogger(&trapLogger{logger: logger})
+		snmpLogger = gosnmp.NewLogger(snmplog.New(logger))
 	}
 	if len(c.Users) == 0 {
 		return &gosnmp.GoSNMP{
@@ -152,4 +158,9 @@ func (c *Config) BuildSNMPParams(logger log.Component) (*gosnmp.GoSNMP, error) {
 		},
 		Logger: snmpLogger,
 	}, nil
+}
+
+// GetPacketChannelSize returns the default size for the packets channel
+func (c *TrapsConfig) GetPacketChannelSize() int {
+	return packetsChanSize
 }

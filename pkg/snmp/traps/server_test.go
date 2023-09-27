@@ -12,6 +12,9 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
+	"github.com/DataDog/datadog-agent/pkg/snmp/traps/config"
+	"github.com/DataDog/datadog-agent/pkg/snmp/traps/formatter"
+	"github.com/DataDog/datadog-agent/pkg/snmp/traps/status"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 
 	ndmtestutils "github.com/DataDog/datadog-agent/pkg/networkdevice/testutils"
@@ -25,17 +28,18 @@ func TestStartFailure(t *testing.T) {
 
 	freePort, err := ndmtestutils.GetFreePort()
 	require.NoError(t, err)
-	config := Config{Port: freePort, CommunityStrings: []string{"public"}}
+	config := &config.TrapsConfig{Port: freePort, CommunityStrings: []string{"public"}}
 
 	mockSender := mocksender.NewMockSender("snmp-traps-listener")
 	mockSender.SetupAcceptAll()
+	status := status.NewMock()
 
-	sucessServer, err := NewTrapServer(config, &DummyFormatter{}, mockSender, logger)
+	sucessServer, err := NewTrapServer(config, &formatter.DummyFormatter{}, mockSender, logger, status)
 	require.NoError(t, err)
 	require.NotNil(t, sucessServer)
 	defer sucessServer.Stop()
 
-	failedServer, err := NewTrapServer(config, &DummyFormatter{}, mockSender, logger)
+	failedServer, err := NewTrapServer(config, &formatter.DummyFormatter{}, mockSender, logger, status)
 	require.Nil(t, failedServer)
 	require.Error(t, err)
 }

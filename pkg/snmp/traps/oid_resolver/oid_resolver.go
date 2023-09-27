@@ -3,7 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2022-present Datadog, Inc.
 
-package traps
+// Package oidresolver resolves OIDs to metadata about those OIDs.
+package oidresolver
 
 import (
 	"compress/gzip"
@@ -15,6 +16,7 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+	"unicode"
 
 	"gopkg.in/yaml.v2"
 
@@ -177,7 +179,7 @@ func (or *MultiFilesOIDResolver) updateFromReader(reader io.Reader, unmarshalMet
 	if err != nil {
 		return err
 	}
-	var trapData trapDBFileContent
+	var trapData TrapDBFileContent
 	err = unmarshalMethod(fileContent, &trapData)
 	if err != nil {
 		return err
@@ -187,7 +189,7 @@ func (or *MultiFilesOIDResolver) updateFromReader(reader io.Reader, unmarshalMet
 	return nil
 }
 
-func (or *MultiFilesOIDResolver) updateResolverWithData(trapDB trapDBFileContent) {
+func (or *MultiFilesOIDResolver) updateResolverWithData(trapDB TrapDBFileContent) {
 	definedVariables := variableSpec{}
 
 	allOIDs := make([]string, 0, len(trapDB.Variables))
@@ -239,4 +241,28 @@ func (or *MultiFilesOIDResolver) updateResolverWithData(trapDB trapDBFileContent
 			variableSpecPtr: definedVariables,
 		}
 	}
+}
+
+// NormalizeOID converts an OID from the absolute form ".1.2.3..." to a relative form "1.2.3..."
+func NormalizeOID(value string) string {
+	// OIDs can be formatted as ".1.2.3..." ("absolute form") or "1.2.3..." ("relative form").
+	// Convert everything to relative form, like we do in the Python check.
+	return strings.TrimLeft(value, ".")
+}
+
+// IsValidOID returns true if value looks like a valid OID.
+// An OID is made of digits and dots, but OIDs do not end with a dot and there are always
+// digits between dots.
+func IsValidOID(value string) bool {
+	var previousChar rune
+	for _, char := range value {
+		if char != '.' && !unicode.IsDigit(char) {
+			return false
+		}
+		if char == '.' && previousChar == '.' {
+			return false
+		}
+		previousChar = char
+	}
+	return previousChar != '.'
 }

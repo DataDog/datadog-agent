@@ -3,103 +3,23 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2022-present Datadog, Inc.
 
-package traps
+package oidresolver
 
 import (
 	"bytes"
 	"encoding/json"
 	"fmt"
 	"io/fs"
+	"math/rand"
+	"strings"
 	"testing"
+	"time"
 
 	"github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/stretchr/testify/require"
 	"gopkg.in/yaml.v2"
 )
-
-var dummyTrapDB = trapDBFileContent{
-	Traps: TrapSpec{
-		"1.3.6.1.6.3.1.1.5.3":      TrapMetadata{Name: "ifDown", MIBName: "IF-MIB"},                                             // v1 Trap
-		"1.3.6.1.4.1.8072.2.3.0.1": TrapMetadata{Name: "netSnmpExampleHeartbeatNotification", MIBName: "NET-SNMP-EXAMPLES-MIB"}, // v2+
-		"1.3.6.1.6.3.1.1.5.4":      TrapMetadata{Name: "linkUp", MIBName: "IF-MIB"},
-	},
-	Variables: variableSpec{
-		"1.3.6.1.2.1.2.2.1.1":      VariableMetadata{Name: "ifIndex"},
-		"1.3.6.1.2.1.2.2.1.7":      VariableMetadata{Name: "ifAdminStatus", Enumeration: map[int]string{1: "up", 2: "down", 3: "testing"}},
-		"1.3.6.1.2.1.2.2.1.8":      VariableMetadata{Name: "ifOperStatus", Enumeration: map[int]string{1: "up", 2: "down", 3: "testing", 4: "unknown", 5: "dormant", 6: "notPresent", 7: "lowerLayerDown"}},
-		"1.3.6.1.4.1.8072.2.3.2.1": VariableMetadata{Name: "netSnmpExampleHeartbeatRate"},
-		"1.3.6.1.2.1.200.1.1.1.3": VariableMetadata{Name: "pwCepSonetConfigErrorOrStatus", Bits: map[int]string{
-			0:  "other",
-			1:  "timeslotInUse",
-			2:  "timeslotMisuse",
-			3:  "peerDbaIncompatible",
-			4:  "peerEbmIncompatible",
-			5:  "peerRtpIncompatible",
-			6:  "peerAsyncIncompatible",
-			7:  "peerDbaAsymmetric",
-			8:  "peerEbmAsymmetric",
-			9:  "peerRtpAsymmetric",
-			10: "peerAsyncAsymmetric",
-		}},
-		"1.3.6.1.2.1.200.1.3.1.5": VariableMetadata{Name: "myFakeVarType", Bits: map[int]string{
-			0:   "test0",
-			1:   "test1",
-			3:   "test3",
-			5:   "test5",
-			6:   "test6",
-			12:  "test12",
-			15:  "test15",
-			130: "test130",
-		}},
-		"1.3.6.1.2.1.200.1.3.1.6": VariableMetadata{
-			Name: "myBadVarType",
-			Enumeration: map[int]string{
-				0:   "test0",
-				1:   "test1",
-				3:   "test3",
-				5:   "test5",
-				6:   "test6",
-				12:  "test12",
-				15:  "test15",
-				130: "test130",
-			},
-			Bits: map[int]string{
-				0:   "test0",
-				1:   "test1",
-				3:   "test3",
-				5:   "test5",
-				6:   "test6",
-				12:  "test12",
-				15:  "test15",
-				130: "test130",
-			},
-		},
-	},
-}
-
-var resolverWithData = &MockedResolver{content: dummyTrapDB}
-
-type MockedResolver struct {
-	content trapDBFileContent
-}
-
-func (r MockedResolver) GetTrapMetadata(trapOid string) (TrapMetadata, error) {
-	trapOid = NormalizeOID(trapOid)
-	trapData, ok := r.content.Traps[trapOid]
-	if !ok {
-		return TrapMetadata{}, fmt.Errorf("trap OID %s is not defined", trapOid)
-	}
-	return trapData, nil
-}
-func (r MockedResolver) GetVariableMetadata(string, varOid string) (VariableMetadata, error) {
-	varOid = NormalizeOID(varOid)
-	varData, ok := r.content.Variables[varOid]
-	if !ok {
-		return VariableMetadata{}, fmt.Errorf("variable OID %s is not defined", varOid)
-	}
-	return varData, nil
-}
 
 type MockedDirEntry struct {
 	name  string
@@ -122,7 +42,7 @@ func (m MockedDirEntry) Type() fs.FileMode {
 	return 0
 }
 func TestDecoding(t *testing.T) {
-	trapDBFile := &trapDBFileContent{
+	trapDBFile := &TrapDBFileContent{
 		Traps: TrapSpec{
 			"foo": TrapMetadata{
 				Name:    "xx",
@@ -187,7 +107,7 @@ func TestSortFiles(t *testing.T) {
 func TestResolverWithNonStandardOIDs(t *testing.T) {
 	logger := fxutil.Test[log.Component](t, log.MockModule)
 	resolver := &MultiFilesOIDResolver{traps: make(TrapSpec), logger: logger}
-	trapData := trapDBFileContent{
+	trapData := TrapDBFileContent{
 		Traps: TrapSpec{"1.3.6.1.4.1.8072.2.3.0.1": TrapMetadata{Name: "netSnmpExampleHeartbeat", MIBName: "NET-SNMP-EXAMPLES-MIB"}},
 		Variables: variableSpec{
 			"1.3.6.1.4.1.8072.2.3.2.1": VariableMetadata{
@@ -216,10 +136,10 @@ func TestResolverWithNonStandardOIDs(t *testing.T) {
 func TestResolverWithConflictingTrapOID(t *testing.T) {
 	logger := fxutil.Test[log.Component](t, log.MockModule)
 	resolver := &MultiFilesOIDResolver{traps: make(TrapSpec), logger: logger}
-	trapDataA := trapDBFileContent{
+	trapDataA := TrapDBFileContent{
 		Traps: TrapSpec{"1.3.6.1.4.1.8072.2.3.0.1": TrapMetadata{Name: "foo", MIBName: "FOO-MIB"}},
 	}
-	trapDataB := trapDBFileContent{
+	trapDataB := TrapDBFileContent{
 		Traps: TrapSpec{"1.3.6.1.4.1.8072.2.3.0.1": TrapMetadata{Name: "bar", MIBName: "BAR-MIB"}},
 	}
 	updateResolverWithIntermediateJSONReader(t, resolver, trapDataA)
@@ -233,7 +153,7 @@ func TestResolverWithConflictingTrapOID(t *testing.T) {
 func TestResolverWithConflictingVariables(t *testing.T) {
 	logger := fxutil.Test[log.Component](t, log.MockModule)
 	resolver := &MultiFilesOIDResolver{traps: make(TrapSpec), logger: logger}
-	trapDataA := trapDBFileContent{
+	trapDataA := TrapDBFileContent{
 		Traps: TrapSpec{"1.3.6.1.4.1.8072.2.3.0.1": TrapMetadata{}},
 		Variables: variableSpec{
 			"1.3.6.1.4.1.8072.2.3.2.1": VariableMetadata{
@@ -241,7 +161,7 @@ func TestResolverWithConflictingVariables(t *testing.T) {
 			},
 		},
 	}
-	trapDataB := trapDBFileContent{
+	trapDataB := TrapDBFileContent{
 		Traps: TrapSpec{"1.3.6.1.4.1.8072.2.3.0.2": TrapMetadata{}},
 		Variables: variableSpec{
 			"1.3.6.1.4.1.8072.2.3.2.1": VariableMetadata{
@@ -286,7 +206,7 @@ func TestResolverWithSuffixedVariable(t *testing.T) {
 func TestResolverWithSuffixedVariableAndNodeConflict(t *testing.T) {
 	logger := fxutil.Test[log.Component](t, log.MockModule)
 	resolver := &MultiFilesOIDResolver{traps: make(TrapSpec), logger: logger}
-	trapDB := trapDBFileContent{
+	trapDB := TrapDBFileContent{
 		Traps: TrapSpec{
 			"1.3.6.1.6.3.1.1.5.4": TrapMetadata{Name: "linkUp", MIBName: "IF-MIB"},
 		},
@@ -324,7 +244,7 @@ func TestResolverWithSuffixedVariableAndNodeConflict(t *testing.T) {
 func TestResolverWithNoMatchVariableShouldStopBeforeRoot(t *testing.T) {
 	logger := fxutil.Test[log.Component](t, log.MockModule)
 	resolver := &MultiFilesOIDResolver{traps: make(TrapSpec), logger: logger}
-	trapDB := trapDBFileContent{
+	trapDB := TrapDBFileContent{
 		Traps: TrapSpec{
 			"1.3.6.1.6.3.1.1.5.4": TrapMetadata{Name: "linkUp", MIBName: "IF-MIB"},
 		},
@@ -353,7 +273,7 @@ func TestResolverWithNoMatchVariableShouldStopBeforeRoot(t *testing.T) {
 
 }
 
-func updateResolverWithIntermediateJSONReader(t *testing.T, oidResolver *MultiFilesOIDResolver, trapData trapDBFileContent) {
+func updateResolverWithIntermediateJSONReader(t *testing.T, oidResolver *MultiFilesOIDResolver, trapData TrapDBFileContent) {
 	data, err := json.Marshal(trapData)
 	require.NoError(t, err)
 
@@ -362,11 +282,73 @@ func updateResolverWithIntermediateJSONReader(t *testing.T, oidResolver *MultiFi
 	require.NoError(t, err)
 }
 
-func updateResolverWithIntermediateYAMLReader(t *testing.T, oidResolver *MultiFilesOIDResolver, trapData trapDBFileContent) {
+func updateResolverWithIntermediateYAMLReader(t *testing.T, oidResolver *MultiFilesOIDResolver, trapData TrapDBFileContent) {
 	data, err := yaml.Marshal(trapData)
 	require.NoError(t, err)
 
 	reader := bytes.NewReader(data)
 	err = oidResolver.updateFromReader(reader, yaml.Unmarshal)
 	require.NoError(t, err)
+}
+
+func TestIsValidOID_PropertyBasedTesting(t *testing.T) {
+	rand.Seed(time.Now().Unix())
+	testSize := 100
+	validOIDs := make([]string, testSize)
+	for i := 0; i < testSize; i++ {
+		// Valid cases
+		oidLen := rand.Intn(100) + 2
+		oidParts := make([]string, oidLen)
+		for j := 0; j < oidLen; j++ {
+			oidParts[j] = fmt.Sprint(rand.Intn(100000))
+		}
+		recreatedOID := strings.Join(oidParts, ".")
+		if rand.Intn(2) == 0 {
+			recreatedOID = "." + recreatedOID
+		}
+		validOIDs[i] = recreatedOID
+		require.True(t, IsValidOID(validOIDs[i]), "OID: %s", validOIDs[i])
+	}
+
+	var invalidRunes = []rune(",?><|\\}{[]()*&^%$#@!abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ")
+	for i := 0; i < testSize; i++ {
+		// Valid cases
+		oid := validOIDs[i]
+		x := 0
+		switch x = rand.Intn(3); x {
+		case 0:
+			// Append a dot at the end, this is not possible
+			oid = oid + "."
+		case 1:
+			// Append a random invalid character anywhere
+			randomRune := invalidRunes[rand.Intn(len(invalidRunes))]
+			randomIdx := rand.Intn(len(oid))
+			oid = oid[:randomIdx] + string(randomRune) + oid[randomIdx:]
+		case 2:
+			// Put two dots next to each other
+			oidParts := strings.Split(oid, ".")
+			randomIdx := rand.Intn(len(oidParts)-1) + 1
+			oidParts[randomIdx] = "." + oidParts[randomIdx]
+			oid = strings.Join(oidParts, ".")
+		}
+
+		require.False(t, IsValidOID(oid), "OID: %s", oid)
+	}
+}
+
+func TestIsValidOID_Unit(t *testing.T) {
+	cases := map[string]bool{
+		"1.3.6.1.4.1.4962.2.1.6.3":       true,
+		".1.3.6.1.4.1.4962.2.1.6.999999": true,
+		"1":                              true,
+		"1.3.6.1.4.1.4962.2.1.-6.3":      false,
+		"1.3.6.1.4.1..4962.2.1.6.3":      false,
+		"1.3.6.1foo.4.1.4962.2.1.6.3":    false,
+		"1.3.6.1foo.4.1.4962_2.1.6.3":    false,
+		"1.3.6.1.4.1.4962.2.1.6.999999.": false,
+	}
+
+	for oid, expected := range cases {
+		require.Equal(t, expected, IsValidOID(oid))
+	}
 }
