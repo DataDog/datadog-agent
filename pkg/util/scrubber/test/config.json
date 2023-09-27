@@ -6,6 +6,7 @@
     "app_key2": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaabbbb",
     "app_key3": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaabbbb",
     "password": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaabbbb",
+    "pwd": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaabbbb",
     "fourth_token": true,
     "multi_token": [
         "a",

@@ -292,7 +292,7 @@ func ScrubJSON(data []byte) ([]byte, error) {
 // ScrubJSONString scrubs credentials from the given JSON string by loading the data and scrubbing the object instead of
 // the serialized string, using the default scrubber.
 func ScrubJSONString(data string) (string, error) {
-	res, err := DefaultScrubber.ScrubJSON([]byte(data))
+	res, err := ScrubJSON([]byte(data))
 	if err != nil {
 		return "", err
 	}
