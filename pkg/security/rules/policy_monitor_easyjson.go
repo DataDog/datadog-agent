@@ -365,3 +365,83 @@ func (v PolicyState) MarshalEasyJSON(w *jwriter.Writer) {
 func (v *PolicyState) UnmarshalEasyJSON(l *jlexer.Lexer) {
 	easyjson6151911dDecodeGithubComDataDogDatadogAgentPkgSecurityRules2(l, v)
 }
+func easyjson6151911dDecodeGithubComDataDogDatadogAgentPkgSecurityRules3(in *jlexer.Lexer, out *HeartbeatEvent) {
+	isTopLevel := in.IsStart()
+	if in.IsNull() {
+		if isTopLevel {
+			in.Consumed()
+		}
+		in.Skip()
+		return
+	}
+	in.Delim('{')
+	for !in.IsDelim('}') {
+		key := in.UnsafeFieldName(false)
+		in.WantColon()
+		if in.IsNull() {
+			in.Skip()
+			in.WantComma()
+			continue
+		}
+		switch key {
+		case "policy":
+			if in.IsNull() {
+				in.Skip()
+				out.Policy = nil
+			} else {
+				if out.Policy == nil {
+					out.Policy = new(PolicyState)
+				}
+				(*out.Policy).UnmarshalEasyJSON(in)
+			}
+		case "date":
+			if data := in.Raw(); in.Ok() {
+				in.AddError((out.Timestamp).UnmarshalJSON(data))
+			}
+		case "service":
+			out.Service = string(in.String())
+		default:
+			in.SkipRecursive()
+		}
+		in.WantComma()
+	}
+	in.Delim('}')
+	if isTopLevel {
+		in.Consumed()
+	}
+}
+func easyjson6151911dEncodeGithubComDataDogDatadogAgentPkgSecurityRules3(out *jwriter.Writer, in HeartbeatEvent) {
+	out.RawByte('{')
+	first := true
+	_ = first
+	{
+		const prefix string = ",\"policy\":"
+		out.RawString(prefix[1:])
+		if in.Policy == nil {
+			out.RawString("null")
+		} else {
+			(*in.Policy).MarshalEasyJSON(out)
+		}
+	}
+	{
+		const prefix string = ",\"date\":"
+		out.RawString(prefix)
+		out.Raw((in.Timestamp).MarshalJSON())
+	}
+	{
+		const prefix string = ",\"service\":"
+		out.RawString(prefix)
+		out.String(string(in.Service))
+	}
+	out.RawByte('}')
+}
+
+// MarshalEasyJSON supports easyjson.Marshaler interface
+func (v HeartbeatEvent) MarshalEasyJSON(w *jwriter.Writer) {
+	easyjson6151911dEncodeGithubComDataDogDatadogAgentPkgSecurityRules3(w, v)
+}
+
+// UnmarshalEasyJSON supports easyjson.Unmarshaler interface
+func (v *HeartbeatEvent) UnmarshalEasyJSON(l *jlexer.Lexer) {
+	easyjson6151911dDecodeGithubComDataDogDatadogAgentPkgSecurityRules3(l, v)
+}

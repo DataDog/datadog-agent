@@ -173,6 +173,15 @@ type RulesetLoadedEvent struct {
 	Policies []*PolicyState `json:"policies"`
 }
 
+
+// HeartbeatEvent is used to report the policies that has been loaded
+// easyjson:json
+type HeartbeatEvent struct {
+	events.CustomEventCommonFields
+	Policy *PolicyState `json:"policy"`
+}
+
+
 // PolicyStateFromRuleDefinition returns a policy state based on the rule definition
 func PolicyStateFromRuleDefinition(def *rules.RuleDefinition) *PolicyState {
 	return &PolicyState{
@@ -243,4 +252,28 @@ func NewRuleSetLoadedEvent(ruleSets map[string]*rules.RuleSet, err *multierror.E
 
 	return events.NewCustomRule(events.RulesetLoadedRuleID, events.RulesetLoadedRuleDesc),
 		events.NewCustomEvent(model.CustomRulesetLoadedEventType, evt)
+}
+
+// NewHeartBeatEvents returns the rule (e.g. heartbeat) and a populated custom event for a heartbeat event
+func NewHeartBeatEvents(policies map[string]Policy) (*rules.Rule, []*events.CustomEvent) {
+
+	var evts []*events.CustomEvent
+
+	for _, policy := range policies {
+		var policyState =  PolicyState{
+			Name: policy.Name,
+			Version: policy.Version,
+			Source: policy.Source,
+			Rules: nil,
+		}
+
+		evt := HeartbeatEvent{
+			Policy: &policyState,
+		}
+		evt.FillCustomEventCommonFields()
+		evts = append(evts, events.NewCustomEvent(model.CustomRulesetLoadedEventType, evt))
+	}
+
+	return events.NewCustomRule(events.HeartbeatRuleID, events.HeartbeatRuleIDRuleDesc),
+		evts
 }
