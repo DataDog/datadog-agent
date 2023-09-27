@@ -38,6 +38,9 @@ type dependencies struct {
 	Config    config.Component
 	Log       logComponent.Component
 	Telemetry telemetry.Component
+
+	// workloadmeta is still not a component but should be provided as one in the future
+	// TODO(components): Workloadmeta workloadmeta.Component
 }
 
 // client sends language information to the Cluster-Agent
@@ -78,7 +81,7 @@ func newClient(
 		OnStop:  cl.stop,
 	})
 
-	return cl
+	return util.NewOptional[Component](cl)
 }
 
 func (c *client) processEvent(evBundle workloadmeta.EventBundle) {
@@ -120,12 +123,12 @@ func (c *client) stop(_ context.Context) error {
 // start starts streaming languages to the Cluster-Agent
 func (c *client) start(_ context.Context) error {
 	c.logger.Infof("Starting language detection client")
-	go c.stream()
+	go c.run()
 	return nil
 }
 
-// stream starts streaming languages to the Cluster-Agent
-func (c *client) stream() {
+// run starts processing events and starts streaming
+func (c *client) run() {
 	defer c.logger.Infof("Shutting down language detection client")
 	processEventCh := c.store.Subscribe(
 		subscriber,
@@ -142,7 +145,7 @@ func (c *client) stream() {
 	metricTicker := time.NewTicker(runningMetricPeriod)
 	defer metricTicker.Stop()
 
-	go c.startFlushing()
+	go c.startStreaming()
 
 	for {
 		select {
@@ -154,4 +157,64 @@ func (c *client) stream() {
 			return
 		}
 	}
+}
+
+// startStreaming retrieves the language detection client (= the DCA Client) and periodically sends data to the Cluster-Agent
+func (c *client) startStreaming() {
+	periodicFlushTimer := time.NewTicker(c.flushPeriod)
+	defer periodicFlushTimer.Stop()
+
+	if c.langDetectionCl == nil {
+		// TODO(components): The ClusterAgentClient should most likely be a component. Moreover it should provide a retry mechanism or at least, the duration before the next try.
+		// Since currently we never retry `GetClusterAgentClient` in other parts of the code, we choose to follow the same pattern.
+		dcaClient, err := clusteragent.GetClusterAgentClient()
+		if err != nil {
+			c.logger.Errorf("failed to get dca client %s, stopping language exporter", err)
+			c.cancel()
+			return
+		}
+		c.langDetectionCl = dcaClient
+	}
+
+	for {
+		select {
+		case <-periodicFlushTimer.C:
+			c.flush()
+		case <-c.ctx.Done():
+			return
+		}
+	}
+}
+
+// flush sends the current batch to the cluster-agent
+func (c *client) flush() {
+	// To avoid blocking the loop processing events for too long, we retrieve the current batch and release the mutex. On failures, items are added back to the current batch.
+	var data *batch
+	c.mutex.Lock()
+	if len(c.currentBatch.podInfo) > 0 {
+		data = c.currentBatch
+		c.currentBatch = newBatch()
+	}
+	c.mutex.Unlock()
+	// if no data was found
+	if data == nil {
+		return
+	}
+
+	t := time.Now()
+	err := c.langDetectionCl.PostLanguageMetadata(c.ctx, data.toProto())
+	if err != nil {
+		c.logger.Errorf("failed to ")
+		c.mergeBatchesAfterError(data)
+		c.telemetry.Requests.Inc(statusError)
+		return
+	}
+	c.telemetry.Latency.Observe(time.Since(t).Seconds())
+	c.telemetry.Requests.Inc(statusSuccess)
+}
+
+func (c *client) mergeBatchesAfterError(b *batch) {
+	c.mutex.Lock()
+	defer c.mutex.Unlock()
+	c.currentBatch.merge(b)
 }

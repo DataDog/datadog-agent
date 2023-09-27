@@ -7,16 +7,19 @@ package client
 
 import (
 	"context"
-	"sync"
+	"fmt"
 	"testing"
-	"time"
 
+	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/languagedetection/languagemodels"
 	pbgo "github.com/DataDog/datadog-agent/pkg/proto/pbgo/process"
+	"github.com/DataDog/datadog-agent/pkg/util"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
 	"github.com/stretchr/testify/assert"
+	"go.uber.org/fx"
 )
 
 type MockDCAClient struct {
@@ -30,18 +33,62 @@ func (m *MockDCAClient) PostLanguageMetadata(ctx context.Context, request *pbgo.
 	return nil
 }
 
-func TestClientFlush(t *testing.T) {
+func newTestClient(t *testing.T, store workloadmeta.Store) (*client, *MockDCAClient, chan struct{}) {
 	doneCh := make(chan struct{})
 	mockDCAClient := &MockDCAClient{doneCh: doneCh}
-	client := &client{
-		ctx:             context.TODO(),
-		langDetectionCl: mockDCAClient,
-		flushPeriod:     time.Millisecond,
-		mutex:           sync.Mutex{},
-		telemetry:       newComponentTelemetry(telemetry.GetCompatComponent()),
-		currentBatch:    newBatch(),
+
+	deps := fxutil.Test[dependencies](t, fx.Options(
+		config.MockModule,
+		fx.Replace(config.MockParams{Overrides: map[string]interface{}{
+			"language_detection.enabled":       "true",
+			"cluster_agent.enabled":            "true",
+			"language_detection.client_period": "50ms",
+		}}),
+		telemetry.MockModule,
+		log.MockModule,
+	))
+
+	optComponent := newClient(deps).(util.Optional[Component])
+	comp, _ := optComponent.Get()
+	client := comp.(*client)
+	client.langDetectionCl = mockDCAClient
+	client.store = store
+
+	return client, mockDCAClient, doneCh
+}
+
+func TestClientDisabled(t *testing.T) {
+	testCases := []struct {
+		languageEnabled     string
+		clusterAgentEnabled string
+		isSet               bool
+	}{
+		{"true", "true", true},
+		{"true", "false", false},
+		{"false", "true", false},
+		{"false", "false", false},
 	}
 
+	for _, testCase := range testCases {
+		t.Run(fmt.Sprintf("language_enabled=%s, cluster_agent_enabled=%s", testCase.languageEnabled, testCase.clusterAgentEnabled), func(t *testing.T) {
+			deps := fxutil.Test[dependencies](t, fx.Options(
+				config.MockModule,
+				fx.Replace(config.MockParams{Overrides: map[string]interface{}{
+					"language_detection.enabled": testCase.languageEnabled,
+					"cluster_agent.enabled":      testCase.clusterAgentEnabled,
+				}}),
+				telemetry.MockModule,
+				log.MockModule,
+			))
+
+			optionalCl := newClient(deps).(util.Optional[Component])
+			assert.Equal(t, testCase.isSet, optionalCl.IsSet())
+		})
+	}
+}
+
+func TestClientFlush(t *testing.T) {
+	client, mockDCAClient, doneCh := newTestClient(t, nil)
 	container := &containerInfo{
 		languages: map[string]*languagesSet{
 			"java-cont": {
@@ -76,7 +123,7 @@ func TestClientFlush(t *testing.T) {
 	client.currentBatch.podInfo[podName] = podInfo
 
 	// flush the batch as it is done in the client
-	go client.startFlushing()
+	go client.startStreaming()
 	<-doneCh
 	assert.Equal(t, []*pbgo.ParentLanguageAnnotationRequest{
 		{
@@ -103,15 +150,7 @@ func TestClientFlush(t *testing.T) {
 
 func TestClientProcessEvent(t *testing.T) {
 	mockStore := workloadmeta.NewMockStore()
-	client := &client{
-		ctx:          context.TODO(),
-		logger:       log.NewTemporaryLoggerWithoutInit(),
-		flushPeriod:  time.Millisecond,
-		mutex:        sync.Mutex{},
-		telemetry:    newComponentTelemetry(telemetry.GetCompatComponent()),
-		currentBatch: newBatch(),
-		store:        mockStore,
-	}
+	client, _, _ := newTestClient(t, mockStore)
 
 	container := &workloadmeta.Container{
 		EntityID: workloadmeta.EntityID{

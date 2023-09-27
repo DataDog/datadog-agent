@@ -23,8 +23,3 @@ type Component interface{}
 var Module = fxutil.Component(
 	fx.Provide(newClient),
 )
-
-// Mock implements mock-specific methods.
-type Mock interface {
-	Component
-}
