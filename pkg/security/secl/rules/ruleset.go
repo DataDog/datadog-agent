@@ -91,6 +91,7 @@ type RuleDefinition struct {
 	Actions                []ActionDefinition `yaml:"actions"`
 	Every                  time.Duration      `yaml:"every"`
 	Policy                 *Policy
+	Silent                 bool
 }
 
 // GetTag returns the tag value associated with a tag key

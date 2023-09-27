@@ -334,6 +334,10 @@ func (e *RuleEngine) RuleMatch(rule *rules.Rule, event eval.Event) bool {
 		}
 	}
 
+	if rule.Definition.Silent {
+		return false
+	}
+
 	// ensure that all the fields are resolved before sending
 	ev.FieldHandlers.ResolveContainerID(ev, ev.ContainerContext)
 	ev.FieldHandlers.ResolveContainerTags(ev, ev.ContainerContext)

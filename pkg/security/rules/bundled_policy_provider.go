@@ -31,11 +31,13 @@ func (p *BundledPolicyProvider) LoadPolicies([]rules.MacroFilter, []rules.RuleFi
 		Expression: `rename.file.destination.path == "/etc/passwd"`,
 		Actions:    []rules.ActionDefinition{refreshUserCacheAction},
 		Policy:     policy,
+		Silent:     true,
 	}, {
 		ID:         "refresh_group_cache",
 		Expression: `rename.file.destination.path == "/etc/group"`,
 		Actions:    []rules.ActionDefinition{refreshUserCacheAction},
 		Policy:     policy,
+		Silent:     true,
 	}}
 
 	return []*rules.Policy{policy}, nil
