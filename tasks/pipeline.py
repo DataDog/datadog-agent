@@ -2,6 +2,7 @@ import io
 import os
 import pprint
 import re
+import time
 import traceback
 from collections import defaultdict
 from datetime import datetime
@@ -521,6 +522,32 @@ def changelog(_, new_git_sha):
 
     with open("unique_emails.txt", "w") as file:
         file.write("\n".join(unique_emails))
+
+
+@task
+def post_changelog(ctx):
+    results = []
+    with open('unique_emails.txt', 'r') as email_file:
+        for email in email_file:
+            result = ctx.run(f"email2slackid ${email.strip()}")
+            if not result:
+                result = email
+            else:
+                # result = f"<@{result}>"
+                result = f"<@U049LRNEE01>"
+            results.append(result)
+            time.sleep(1)
+
+    # Print the contributor list
+    print(f'Contributor list: {results}')
+
+    with open('system_probe_commits.txt', 'a') as commits_file:
+        commits_file.write('\n'.join(results))
+
+    ctx.run("git checkout $CI_COMMIT_SHORT_SHA")
+    ctx.run("git tag changelog-nightly-staging-sha")
+    ctx.run("git push origin changelog-nightly-staging-sha")
+    send_slack_message("system-probe-ops", "$(cat system_probe_commits.txt)")
 
 
 @task
