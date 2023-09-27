@@ -334,6 +334,12 @@ func (e *RuleEngine) RuleMatch(rule *rules.Rule, event eval.Event) bool {
 	if ev.ContainerContext.ID != "" && (e.config.ActivityDumpTagRulesEnabled || e.config.AnomalyDetectionTagRulesEnabled) {
 		ev.Rules = append(ev.Rules, model.NewMatchedRule(rule.Definition.ID, rule.Definition.Version, rule.Definition.Tags, rule.Definition.Policy.Name, rule.Definition.Policy.Version))
 	}
+
+	// do not send event if a anomaly detection event will be sent
+	if e.config.AnomalyDetectionSilentRuleEventsEnabled && ev.IsAnomalyDetectionEvent() {
+		return false
+	}
+
 	if val, ok := rule.Definition.GetTag("ruleset"); ok && val == "threat_score" {
 		return false // if the triggered rule is only meant to tag secdumps, dont send it
 	}
