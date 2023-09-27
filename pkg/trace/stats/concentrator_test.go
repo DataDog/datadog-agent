@@ -661,7 +661,7 @@ func TestExtraTags(t *testing.T) {
 		stats := c.flushNow(now.UnixNano()+int64(c.bufferLen)*testBucketInterval, false)
 		assert.Len(stats.Stats[0].Stats[0].Stats, 2)
 		for _, st := range stats.Stats[0].Stats[0].Stats {
-			assert.Nil(st.ExtraTags)
+			assert.Nil(st.PeerTags)
 		}
 	})
 	t.Run("configured", func(t *testing.T) {
@@ -669,15 +669,15 @@ func TestExtraTags(t *testing.T) {
 		traceutil.ComputeTopLevel(spans)
 		testTrace := toProcessedTrace(spans, "none", "")
 		c := NewTestConcentrator(now)
-		c.extraTags = []string{"region"}
+		c.peerTags = []string{"region"}
 		c.addNow(testTrace, "")
 		stats := c.flushNow(now.UnixNano()+int64(c.bufferLen)*testBucketInterval, false)
 		assert.Len(stats.Stats[0].Stats[0].Stats, 2)
 		for _, st := range stats.Stats[0].Stats[0].Stats {
 			if st.Name == "http.server.request" {
-				assert.Equal([]string{"region:us1"}, st.ExtraTags)
+				assert.Equal([]string{"region:us1"}, st.PeerTags)
 			} else {
-				assert.Nil(st.ExtraTags)
+				assert.Nil(st.PeerTags)
 			}
 		}
 	})

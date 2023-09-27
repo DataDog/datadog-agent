@@ -6,8 +6,12 @@
 package stats
 
 import (
+	"hash/fnv"
+	"reflect"
+	"sort"
 	"strconv"
 	"strings"
+	"unsafe"
 
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	"github.com/DataDog/datadog-agent/pkg/trace/log"
@@ -25,20 +29,19 @@ const (
 type Aggregation struct {
 	BucketsAggregationKey
 	PayloadAggregationKey
-	// ExtraTagsKey is a comma-delimited string of all tag:value pairs for additional tags that should be used in stats aggregation.
-	ExtraTagsKey string
 }
 
 // BucketsAggregationKey specifies the key by which a bucket is aggregated.
 type BucketsAggregationKey struct {
-	Service     string
-	Name        string
-	PeerService string
-	Resource    string
-	Type        string
-	SpanKind    string
-	StatusCode  uint32
-	Synthetics  bool
+	Service      string
+	Name         string
+	PeerService  string
+	Resource     string
+	Type         string
+	SpanKind     string
+	StatusCode   uint32
+	Synthetics   bool
+	PeerTagsHash uint64
 }
 
 // PayloadAggregationKey specifies the key by which a payload is aggregated.
@@ -67,8 +70,27 @@ func getStatusCode(s *pb.Span) uint32 {
 	return uint32(c)
 }
 
+// stringToBytes unsafely casts a string to a byte slice.
+func stringToBytes(str string) []byte {
+	hdr := (*reflect.StringHeader)(unsafe.Pointer(&str))
+	var slice []byte
+	sliceHdr := (*reflect.SliceHeader)(unsafe.Pointer(&slice))
+	sliceHdr.Data = hdr.Data
+	sliceHdr.Len = hdr.Len
+	sliceHdr.Cap = hdr.Len
+	return slice
+}
+
+func spanKindIsClientOrProducer(spanKind string) bool {
+	sk := strings.ToLower(spanKind)
+	if sk == "client" || sk == "producer" {
+		return true
+	}
+	return false
+}
+
 // NewAggregationFromSpan creates a new aggregation from the provided span and env
-func NewAggregationFromSpan(s *pb.Span, origin string, aggKey PayloadAggregationKey, enablePeerSvcAgg bool, extraTags []string) Aggregation {
+func NewAggregationFromSpan(s *pb.Span, origin string, aggKey PayloadAggregationKey, enablePeerSvcAgg bool, peerTagKeys []string) (Aggregation, []string) {
 	synthetics := strings.HasPrefix(origin, tagSynthetics)
 	agg := Aggregation{
 		PayloadAggregationKey: aggKey,
@@ -82,28 +104,44 @@ func NewAggregationFromSpan(s *pb.Span, origin string, aggKey PayloadAggregation
 			Synthetics: synthetics,
 		},
 	}
-	if enablePeerSvcAgg {
-		agg.PeerService = s.Meta[tagPeerService]
+	var peerTags []string
+	if spanKindIsClientOrProducer(agg.SpanKind) {
+		if enablePeerSvcAgg {
+			agg.PeerService = s.Meta[tagPeerService]
+		}
+		// NOTE: At this time extra tags will only contain peer tags. We only expect these tags on client/producer spans.
+		peerTags = getMatchingPeerTags(s, peerTagKeys)
+		agg.PeerTagsHash = peerTagsHash(peerTags)
 	}
-	agg.ExtraTagsKey = extraTagsKey(s, extraTags)
-	return agg
+	return agg, peerTags
 }
 
-func extraTagsKey(s *pb.Span, extraTags []string) string {
-	if len(extraTags) == 0 {
-		return ""
+func getMatchingPeerTags(s *pb.Span, peerTags []string) []string {
+	if len(peerTags) == 0 {
+		return nil
 	}
-	// TODO: replace with strings.Builder?
-	key := ""
-	for _, t := range extraTags {
-		if s.Meta[t] != "" {
-			if key != "" {
-				key += ","
-			}
-			key += t + ":" + s.Meta[t]
+	et := make([]string, 0, 0)
+	for _, t := range peerTags {
+		v, ok := s.Meta[t]
+		if ok {
+			et = append(et, t+":"+v)
 		}
 	}
-	return key
+	if len(et) == 0 {
+		return nil
+	}
+	return et
+}
+
+func peerTagsHash(tags []string) uint64 {
+	if len(tags) == 0 {
+		return 0
+	}
+	h := fnv.New64a()
+	for _, t := range tags {
+		h.Write(stringToBytes(t))
+	}
+	return h.Sum64()
 }
 
 // NewAggregationFromGroup gets the Aggregation key of grouped stats.
@@ -120,8 +158,9 @@ func NewAggregationFromGroup(g *pb.ClientGroupedStats) Aggregation {
 		},
 	}
 
-	if g.ExtraTags != nil {
-		agg.ExtraTagsKey = strings.Join(g.ExtraTags, ",")
+	if g.PeerTags != nil {
+		sort.Strings(g.PeerTags)
+		agg.PeerTagsHash = peerTagsHash(g.PeerTags)
 	}
 	return agg
 }

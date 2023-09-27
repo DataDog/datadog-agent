@@ -8,7 +8,6 @@ package stats
 import (
 	"math"
 	"math/rand"
-	"strings"
 
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	"github.com/DataDog/datadog-agent/pkg/trace/log"
@@ -38,6 +37,7 @@ type groupedStats struct {
 	duration        float64
 	okDistribution  *ddsketch.DDSketch
 	errDistribution *ddsketch.DDSketch
+	peerTags        []string
 }
 
 // round a float to an int, uniformly choosing
@@ -61,10 +61,6 @@ func (s *groupedStats) export(a Aggregation) (*pb.ClientGroupedStats, error) {
 	if err != nil {
 		return &pb.ClientGroupedStats{}, err
 	}
-	var extraTags []string
-	if a.ExtraTagsKey != "" {
-		extraTags = strings.Split(string(a.ExtraTagsKey), ",")
-	}
 
 	return &pb.ClientGroupedStats{
 		Service:        a.Service,
@@ -81,7 +77,7 @@ func (s *groupedStats) export(a Aggregation) (*pb.ClientGroupedStats, error) {
 		Synthetics:     a.Synthetics,
 		PeerService:    a.PeerService,
 		SpanKind:       a.SpanKind,
-		ExtraTags:      extraTags,
+		PeerTags:       s.peerTags,
 	}, nil
 }
 
@@ -154,20 +150,21 @@ func (sb *RawBucket) Export() map[PayloadAggregationKey]*pb.ClientStatsBucket {
 }
 
 // HandleSpan adds the span to this bucket stats, aggregated with the finest grain matching given aggregators
-func (sb *RawBucket) HandleSpan(s *pb.Span, weight float64, isTop bool, origin string, aggKey PayloadAggregationKey, enablePeerSvcAgg bool, extraTags []string) {
+func (sb *RawBucket) HandleSpan(s *pb.Span, weight float64, isTop bool, origin string, aggKey PayloadAggregationKey, enablePeerSvcAgg bool, peerTagKeys []string) {
 	if aggKey.Env == "" {
 		panic("env should never be empty")
 	}
-	aggr := NewAggregationFromSpan(s, origin, aggKey, enablePeerSvcAgg, extraTags)
-	sb.add(s, weight, isTop, aggr)
+	aggr, peerTags := NewAggregationFromSpan(s, origin, aggKey, enablePeerSvcAgg, peerTagKeys)
+	sb.add(s, weight, isTop, aggr, peerTags)
 }
 
-func (sb *RawBucket) add(s *pb.Span, weight float64, isTop bool, aggr Aggregation) {
+func (sb *RawBucket) add(s *pb.Span, weight float64, isTop bool, aggr Aggregation, peerTags []string) {
 	var gs *groupedStats
 	var ok bool
 
 	if gs, ok = sb.data[aggr]; !ok {
 		gs = newGroupedStats()
+		gs.peerTags = peerTags
 		sb.data[aggr] = gs
 	}
 	if isTop {
