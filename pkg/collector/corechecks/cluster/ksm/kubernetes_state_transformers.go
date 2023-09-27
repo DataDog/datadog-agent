@@ -44,7 +44,7 @@ var allowedResources = map[string]string{
 func resourceDDName(resource string) (string, []string, bool) {
 	// Handle most resources
 	if ddname, allowed := allowedResources[resource]; allowed {
-		return ddname, nil, allowed
+		return ddname, nil, true
 	}
 
 	// Handle Nvidia MIG formatted as nvidia_com_mig_(Xc_)Yg_Zgb

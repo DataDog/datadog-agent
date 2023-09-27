@@ -36,6 +36,18 @@ var renamedResource = map[string]string{
 	"gpu_intel_com_i915": "gpu",
 }
 
+func renameResource(resource string) string {
+	if strings.HasPrefix(resource, "nvidia_com_mig") {
+		return "gpu"
+	}
+
+	if _, found := renamedResource[resource]; found {
+		return "gpu"
+	}
+
+	return resource
+}
+
 type counterAggregator struct {
 	ddMetricName  string
 	ksmMetricName string
@@ -154,12 +166,12 @@ func newLastCronJobAggregator() *lastCronJobAggregator {
 func (a *sumValuesAggregator) accumulate(metric ksmstore.DDMetric) {
 	var labelValues [maxNumberOfAllowedLabels]string
 
-	for i := range a.allowedLabels {
-		if a.allowedLabels[i] == "" {
+	for i, allowedLabel := range a.allowedLabels {
+		if allowedLabel == "" {
 			break
 		}
 
-		labelValues[i] = metric.Labels[a.allowedLabels[i]]
+		labelValues[i] = metric.Labels[allowedLabel]
 	}
 
 	a.accumulator[labelValues] += metric.Val
@@ -168,29 +180,19 @@ func (a *sumValuesAggregator) accumulate(metric ksmstore.DDMetric) {
 func (a *countObjectsAggregator) accumulate(metric ksmstore.DDMetric) {
 	var labelValues [maxNumberOfAllowedLabels]string
 
-	for i := range a.allowedLabels {
-		if a.allowedLabels[i] == "" {
+	for i, allowedLabel := range a.allowedLabels {
+		if allowedLabel == "" {
 			break
 		}
 
-		labelValues[i] = metric.Labels[a.allowedLabels[i]]
+		labelValues[i] = metric.Labels[allowedLabel]
 	}
 
 	a.accumulator[labelValues]++
 }
 
-func renameMig(resource string) string {
-	if strings.HasPrefix(resource, "nvidia_com_mig") {
-		return "gpu"
-	}
-	return resource
-}
-
 func (a *resourceAggregator) accumulate(metric ksmstore.DDMetric) {
-	resource := renameMig(metric.Labels["resource"])
-	if newName, ok := renamedResource[resource]; ok {
-		resource = newName
-	}
+	resource := renameResource(metric.Labels["resource"])
 
 	if _, ok := a.accumulators[resource]; !ok {
 		return
@@ -198,12 +200,12 @@ func (a *resourceAggregator) accumulate(metric ksmstore.DDMetric) {
 
 	var labelValues [maxNumberOfAllowedLabels]string
 
-	for i := range a.allowedLabels {
-		if a.allowedLabels[i] == "" {
+	for i, allowedLabel := range a.allowedLabels {
+		if allowedLabel == "" {
 			break
 		}
 
-		labelValues[i] = metric.Labels[a.allowedLabels[i]]
+		labelValues[i] = metric.Labels[allowedLabel]
 	}
 
 	if _, ok := a.accumulators[resource]; ok {
@@ -255,12 +257,12 @@ func (a *counterAggregator) flush(sender sender.Sender, k *KSMCheck, labelJoiner
 	for labelValues, count := range a.accumulator {
 
 		labels := make(map[string]string)
-		for i := range a.allowedLabels {
-			if a.allowedLabels[i] == "" {
+		for i, allowedLabel := range a.allowedLabels {
+			if allowedLabel == "" {
 				break
 			}
 
-			labels[a.allowedLabels[i]] = labelValues[i]
+			labels[allowedLabel] = labelValues[i]
 		}
 
 		hostname, tags := k.hostnameAndTags(labels, labelJoiner, labelsMapperOverride(a.ksmMetricName))
@@ -276,12 +278,12 @@ func (a *resourceAggregator) flush(sender sender.Sender, k *KSMCheck, labelJoine
 		metricName := fmt.Sprintf("%s%s.%s_%s", ksmMetricPrefix, a.ddMetricPrefix, resource, a.ddMetricSuffix)
 		for labelValues, count := range a.accumulators[resource] {
 			labels := make(map[string]string)
-			for i := range a.allowedLabels {
-				if a.allowedLabels[i] == "" {
+			for i, allowedLabel := range a.allowedLabels {
+				if allowedLabel == "" {
 					break
 				}
 
-				labels[a.allowedLabels[i]] = labelValues[i]
+				labels[allowedLabel] = labelValues[i]
 			}
 
 			hostname, tags := k.hostnameAndTags(labels, labelJoiner, labelsMapperOverride(a.ksmMetricName))
