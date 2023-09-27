@@ -281,8 +281,11 @@
 /pkg/config/environment*.go             @DataDog/container-integrations @DataDog/container-app
 /pkg/config/log*.go                     @Datadog/agent-platform
 /pkg/config/process*.go                 @DataDog/processes
-/pkg/config/system_probe.go             @DataDog/ebpf-platform
-/pkg/config/system_probe_cws.go         @DataDog/agent-security
+/pkg/config/system_probe.go               @DataDog/ebpf-platform
+/pkg/config/system_probe_cws.go           @DataDog/agent-security
+/pkg/config/system_probe_cws_notwin.go    @DataDog/agent-security
+/pkg/config/system_probe_cws_windows.go   @DataDog/windows-kernel-integrations
+/pkg/config/system_probe_cws.go           @DataDog/agent-security
 /pkg/config/remote/                     @DataDog/remote-config
 /pkg/config/remote/meta/                @DataDog/remote-config @DataDog/software-integrity-and-trust
 /pkg/containerlifecycle/                @Datadog/container-integrations
