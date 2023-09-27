@@ -8,7 +8,7 @@
 ---
 fixes:
   - |
-    Bug fix for the error `ORA-06502: PL/SQL: numeric or value error: character string buffer too small` which was raised by the activity sampling.
+    Bug fix for `ORA-06502: PL/SQL: numeric or value error: character string buffer too small`. This error would occasionally appear during activity sampling.
 other:
   - |
     Add here every other information you want in the CHANGELOG that
