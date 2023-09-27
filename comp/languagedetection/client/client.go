@@ -73,6 +73,7 @@ func newClient(
 		logger:       deps.Log,
 		flushPeriod:  deps.Config.GetDuration("language_detection.client_period"),
 		mutex:        sync.Mutex{},
+		store:        workloadmeta.GetGlobalStore(), // TODO(components): should be replaced by components
 		telemetry:    newComponentTelemetry(deps.Telemetry),
 		currentBatch: newBatch(),
 	}
