@@ -87,12 +87,6 @@
         },
         "mapping": {
           "$ref": "#/$defs/KeyValueList"
-        },
-        "match": {
-          "type": "string"
-        },
-        "tags": {
-          "$ref": "#/$defs/KeyValueList"
         }
       },
       "additionalProperties": false,
@@ -124,31 +118,10 @@
           },
           "type": "array"
         },
-        "static_tags": {
-          "items": {
-            "type": "string"
-          },
-          "type": "array"
-        },
         "metric_tags": {
           "$ref": "#/$defs/MetricTagConfigList"
         },
         "metric_type": {
-          "type": "string"
-        },
-        "options": {
-          "$ref": "#/$defs/MetricsConfigOption"
-        }
-      },
-      "additionalProperties": false,
-      "type": "object"
-    },
-    "MetricsConfigOption": {
-      "properties": {
-        "placement": {
-          "type": "integer"
-        },
-        "metric_suffix": {
           "type": "string"
         }
       },
@@ -215,12 +188,6 @@
           "type": "string"
         },
         "extract_value": {
-          "type": "string"
-        },
-        "match_pattern": {
-          "type": "string"
-        },
-        "match_value": {
           "type": "string"
         },
         "scale_factor": {
