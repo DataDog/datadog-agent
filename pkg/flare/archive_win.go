@@ -10,10 +10,12 @@ package flare
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"time"
 	"unsafe"
 
@@ -181,15 +183,23 @@ func exportWindowsEventLog(fb flaretypes.FlareBuilder, eventLogChannel, eventLog
 func getServiceStatus(fb flaretypes.FlareBuilder) error {
 	return fb.AddFileFromFunc(
 		"servicestatus.json",
-		func() ([]byte, error){
-			manager, err := mgr.Connect() //Connect establishes a connection to the service control manager.
+		func() ([]byte, error) {
+			/*manager, err := mgr.Connect() //Connect establishes a connection to the service control manager.
+			if err != nil {
+				log.Warnf("Error connecting to service control manager %v", err)
+				manager.Disconnect()
+				return nil, err
+			}
+			defer manager.Disconnect()*/
+
+			manager, err := winutil.OpenSCManager(SC_MANAGER_ACCESS)
 			if err != nil {
 				log.Warnf("Error connecting to service control manager %v", err)
 				manager.Disconnect()
 				return nil, err
 			}
 			defer manager.Disconnect()
-			
+
 			list, err2 := manager.ListServices() //Returns a string slice with all running services
 			if err2 != nil {
 				log.Warnf("Error getting list of running services %v", err)
@@ -197,16 +207,16 @@ func getServiceStatus(fb flaretypes.FlareBuilder) error {
 			}
 
 			dd_services := []ServiceInfo{}
-			
+
 			for _, i := range list {
 				if strings.HasPrefix(i, "datadog") {
-					srvc, err := manager.OpenService(i)
+					//srvc, err := manager.OpenService(i)
+					srvc, err := winutil.OpenService(manager, i, windows.GENERIC_READ)
 					if err != nil {
 						log.Warnf("Error Opening Service %v %v", i, err)
-					}
-					else {
+					} else {
 						conf2, err := GetServiceInfo(srvc)
-						if err != nil{
+						if err != nil {
 							log.Warnf("Error getting info for %v: %v", i, err)
 						}
 						dd_services = append(dd_services, conf2)
@@ -214,14 +224,14 @@ func getServiceStatus(fb flaretypes.FlareBuilder) error {
 				}
 			}
 
-			ddnpm, npm_err := manager.OpenService("ddnpm")
+			//ddnpm, npm_err := manager.OpenService("ddnpm")
+			ddnpm, npm_err := winutil.OpenService(manager, "ddnpm", windows.GENERIC_READ)
 			if npm_err != nil {
 				log.Warnf("Error Opening Service ddnpm %v", npm_err)
-			}
-			else {
+			} else {
 				ddnpm_conf, err := GetServiceInfo(ddnpm)
-				if err != nil{
-					log.Warnf("Error getting info for ddnpm:", err)				
+				if err != nil {
+					log.Warnf("Error getting info for ddnpm:", err)
 				}
 				dd_services = append(dd_services, ddnpm_conf)
 			}
@@ -233,82 +243,82 @@ func getServiceStatus(fb flaretypes.FlareBuilder) error {
 			}
 
 			return dd_json, err
-		}
+		},
 	)
 	/*return fb.AddFileFromFunc(
-		"servicestatus.txt",
-		func() ([]byte, error) {
-			cancelctx, cancelfunc := context.WithTimeout(context.Background(), execTimeout)
-			defer cancelfunc()
+	"servicestatus.txt",
+	func() ([]byte, error) {
+		cancelctx, cancelfunc := context.WithTimeout(context.Background(), execTimeout)
+		defer cancelfunc()
 
-			cmd := exec.CommandContext(cancelctx, "powershell", "-c", "get-service", "data*,ddnpm", "|", "fl")
+		cmd := exec.CommandContext(cancelctx, "powershell", "-c", "get-service", "data*,ddnpm", "|", "fl")
 
-			var out bytes.Buffer
-			cmd.Stdout = &out
-			err := cmd.Run()
+		var out bytes.Buffer
+		cmd.Stdout = &out
+		err := cmd.Run()
+		if err != nil {
+			log.Warnf("Error running powershell command %v", err)
+			// keep trying to get data even if this fails
+		}
+
+		f := &bytes.Buffer{}
+		_, err = f.Write(out.Bytes())
+		if err != nil {
+			log.Warnf("Error writing file %v", err)
+			return nil, err
+		}
+		out.Reset()
+		// get the full driver configuration information
+		cmd = exec.CommandContext(cancelctx, "powershell", "-c", "sc.exe", "qc", "ddnpm")
+
+		cmd.Stdout = &out
+		err = cmd.Run()
+		if err != nil {
+			log.Warnf("Error running powershell command %v", err)
+			// don't fail if this command fails; there's still lots of good data here
+		}
+
+		_, err = f.Write(out.Bytes())
+		if err != nil {
+			log.Warnf("Error writing file %v", err)
+			return nil, err
+		}
+
+		// compute the location of the driver
+		ddroot, err := winutil.GetProgramFilesDirForProduct("DataDog Agent")
+		if err == nil {
+			pathtodriver := filepath.Join(ddroot, "bin", "agent", "driver", "ddnpm.sys")
+			fi, err := os.Stat(pathtodriver)
 			if err != nil {
-				log.Warnf("Error running powershell command %v", err)
-				// keep trying to get data even if this fails
-			}
-
-			f := &bytes.Buffer{}
-			_, err = f.Write(out.Bytes())
-			if err != nil {
-				log.Warnf("Error writing file %v", err)
-				return nil, err
-			}
-			out.Reset()
-			// get the full driver configuration information
-			cmd = exec.CommandContext(cancelctx, "powershell", "-c", "sc.exe", "qc", "ddnpm")
-
-			cmd.Stdout = &out
-			err = cmd.Run()
-			if err != nil {
-				log.Warnf("Error running powershell command %v", err)
-				// don't fail if this command fails; there's still lots of good data here
-			}
-
-			_, err = f.Write(out.Bytes())
-			if err != nil {
-				log.Warnf("Error writing file %v", err)
-				return nil, err
-			}
-
-			// compute the location of the driver
-			ddroot, err := winutil.GetProgramFilesDirForProduct("DataDog Agent")
-			if err == nil {
-				pathtodriver := filepath.Join(ddroot, "bin", "agent", "driver", "ddnpm.sys")
-				fi, err := os.Stat(pathtodriver)
-				if err != nil {
-					f.Write([]byte(fmt.Sprintf("Failed to stat file %v %v\n", pathtodriver, err))) //nolint:errcheck
-				} else {
-					f.Write([]byte(fmt.Sprintf("Driver last modification time : %v\n", fi.ModTime().Format(time.UnixDate)))) //nolint:errcheck
-					// also show the file version resource
-					out.Reset()
-
-					quotedPath := fmt.Sprintf("\"%s\"", pathtodriver)
-					cmd = exec.CommandContext(cancelctx, "powershell", "-c", "gci", quotedPath, "|", "fl")
-
-					cmd.Stdout = &out
-					err = cmd.Run()
-					if err != nil {
-						log.Warnf("Error running powershell command %v", err)
-						// we've gotten a lot of data to this point.  don't fail just because this fails
-
-					}
-
-					_, err = f.Write(out.Bytes())
-					if err != nil {
-						log.Warnf("Error writing file %v", err)
-						return nil, err
-					}
-				}
+				f.Write([]byte(fmt.Sprintf("Failed to stat file %v %v\n", pathtodriver, err))) //nolint:errcheck
 			} else {
-				return nil, fmt.Errorf("Error getting path to datadog agent binaries %v", err)
-			}
+				f.Write([]byte(fmt.Sprintf("Driver last modification time : %v\n", fi.ModTime().Format(time.UnixDate)))) //nolint:errcheck
+				// also show the file version resource
+				out.Reset()
 
-			return f.Bytes(), nil
-		})*/
+				quotedPath := fmt.Sprintf("\"%s\"", pathtodriver)
+				cmd = exec.CommandContext(cancelctx, "powershell", "-c", "gci", quotedPath, "|", "fl")
+
+				cmd.Stdout = &out
+				err = cmd.Run()
+				if err != nil {
+					log.Warnf("Error running powershell command %v", err)
+					// we've gotten a lot of data to this point.  don't fail just because this fails
+
+				}
+
+				_, err = f.Write(out.Bytes())
+				if err != nil {
+					log.Warnf("Error writing file %v", err)
+					return nil, err
+				}
+			}
+		} else {
+			return nil, fmt.Errorf("Error getting path to datadog agent binaries %v", err)
+		}
+
+		return f.Bytes(), nil
+	})*/
 }
 
 // getDatadogRegistry function saves all Datadog registry keys and values from HKLM\Software\Datadog.

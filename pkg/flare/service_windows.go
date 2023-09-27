@@ -3,10 +3,7 @@
 package flare
 
 import (
-	"encoding/json"
 	"fmt"
-	"os"
-	"strings"
 	"syscall"
 	"time"
 	"unsafe"
@@ -16,13 +13,18 @@ import (
 	"golang.org/x/sys/windows/svc/mgr"
 )
 
+const (
+	SC_MANAGER_ACCESS = windows.SC_MANAGER_CONNECT | windows.SC_MANAGER_ENUMERATE_SERVICE
+	SERVICE_ACCESS    = windows.SERVICE_ENUMERATE_DEPENDENTS | windows.SERVICE_QUERY_CONFIG | windows.SERVICE_QUERY_STATUS
+)
+
 type ServiceInfo struct {
-	ServiceName string
-	ServiceState 	 string
-	ProcessId        uint32
-	Config QueryServiceConfig
-	DependentServices []string
-	TriggersCount    uint32
+	ServiceName           string
+	ServiceState          string
+	ProcessId             uint32
+	Config                QueryServiceConfig
+	DependentServices     []string
+	TriggersCount         uint32
 	ServiceFailureActions ServiceFailureActions
 }
 
@@ -42,17 +44,17 @@ type QueryServiceConfig struct {
 	DelayedAutoStart bool   // the service is started after other auto-start services are started plus a short delay
 }
 
-type RecoveryActionsUpdated struct{
-	Type string
+type RecoveryActionsUpdated struct {
+	Type  string
 	Delay time.Duration
 }
 
-type ServiceFailureActions struct{
-	ResetPeriod uint32
-	RebootMessage string
-	RecoveryCommand string
+type ServiceFailureActions struct {
+	ResetPeriod                      uint32
+	RebootMessage                    string
+	RecoveryCommand                  string
 	FailureActionsOnNonCrashFailures bool
-	RecoveryActions []RecoveryActionsUpdated
+	RecoveryActions                  []RecoveryActionsUpdated
 }
 
 func GetFailureActions(s *mgr.Service) (ServiceFailureActions, error) {
@@ -62,33 +64,33 @@ func GetFailureActions(s *mgr.Service) (ServiceFailureActions, error) {
 	var err1 error
 
 	sfa.ResetPeriod, err1 = s.ResetPeriod()
-	if err1 != nil{
+	if err1 != nil {
 		err = fmt.Errorf("%v, ResetPeriod: %v", err, err1)
 	}
 
 	sfa.RebootMessage, err = s.RebootMessage()
-	if err1 != nil{
+	if err1 != nil {
 		err = fmt.Errorf("%v, RebootMessage: %v", err, err1)
 	}
 
 	sfa.RecoveryCommand, err = s.RecoveryCommand()
-	if err1 != nil{
+	if err1 != nil {
 		err = fmt.Errorf("%v, RecoveryCommand: %v", err, err1)
 	}
 
 	sfa.FailureActionsOnNonCrashFailures, err = s.RecoveryActionsOnNonCrashFailures()
-	if err1 != nil{
+	if err1 != nil {
 		err = fmt.Errorf("%v, FailureActionsOnNonCrashFailure: %v", err, err1)
 	}
- 
+
 	recovery_action_slice, err1 := s.RecoveryActions()
-	if err1 != nil{
+	if err1 != nil {
 		err = fmt.Errorf("%v, RecoveryActions: %v", err, err1)
 	}
-	
-	for _, act := range recovery_action_slice{
+
+	for _, act := range recovery_action_slice {
 		rau := RecoveryActionsUpdated{
-			Type: ActionTypeToString(act.Type),
+			Type:  ActionTypeToString(act.Type),
 			Delay: act.Delay / time.Millisecond,
 		}
 		sfa.RecoveryActions = append(sfa.RecoveryActions, rau)
@@ -150,7 +152,7 @@ func ErrorControlToString(errorCode uint32) string {
 	}
 }
 
-func  ServiceStatusToString(svc_state svc.State) string {
+func ServiceStatusToString(svc_state svc.State) string {
 	switch svc_state {
 	case svc.Stopped:
 		return "Stopped"
@@ -166,12 +168,12 @@ func  ServiceStatusToString(svc_state svc.State) string {
 		return "Pause Pending"
 	case svc.Paused:
 		return "Pause"
-	default: 
+	default:
 		return "Unknown"
 	}
 }
 
-func ConvertConfigToQueryServiceConfig (config mgr.Config) QueryServiceConfig {
+func ConvertConfigToQueryServiceConfig(config mgr.Config) QueryServiceConfig {
 	return QueryServiceConfig{
 		ServiceType:      ServiceTypeToString(config.ServiceType),
 		StartType:        StartTypeToString(config.StartType),
@@ -189,9 +191,8 @@ func ConvertConfigToQueryServiceConfig (config mgr.Config) QueryServiceConfig {
 	}
 }
 
-
 func GetServiceInfo(s *mgr.Service) (ServiceInfo, error) {
-	
+
 	srvinfo := ServiceInfo{}
 	srvinfo.ServiceName = s.Name
 
@@ -199,29 +200,29 @@ func GetServiceInfo(s *mgr.Service) (ServiceInfo, error) {
 	var err1 error
 
 	conf, err1 := s.Config()
-	if err1 != nil{
+	if err1 != nil {
 		err = fmt.Errorf("%v, Config: %v", err, err1)
 	}
 	srvinfo.Config = ConvertConfigToQueryServiceConfig(conf)
 
-	srvinfo.TriggersCount , err1 = ServiceTriggerCount(s)
-	if err1 != nil{
+	srvinfo.TriggersCount, err1 = ServiceTriggerCount(s)
+	if err1 != nil {
 		err = fmt.Errorf("%v, ServiceTriggerCount: %v", err, err1)
 	}
 
 	srvinfo.ServiceFailureActions, err1 = GetFailureActions(s)
-	if err1 != nil{
+	if err1 != nil {
 		err = fmt.Errorf("%v, GetFailureActions: %v", err, err1)
 	}
 
 	srvc_status, err1 := s.Query()
-	if err1 != nil{
+	if err1 != nil {
 		err = fmt.Errorf("%v, Query: %v", err, err1)
 	}
 	srvinfo.ServiceState = ServiceStatusToString(srvc_status.State)
 
 	srvinfo.DependentServices, err1 = s.ListDependentServices(svc.AnyActivity)
-	if err1 != nil{
+	if err1 != nil {
 		err = fmt.Errorf("%v, ListDependentServices: %v", err, err1)
 	}
 
@@ -260,11 +261,11 @@ func queryServiceConfig2Local(s *mgr.Service, infoLevel uint32) ([]byte, error) 
 	}
 }
 
-//Based off of https://cs.opensource.google/go/x/sys/+/refs/tags/v0.12.0:windows/service.go;l=213-228
-type ServiceTriggerInfo struct{
+// Based off of https://cs.opensource.google/go/x/sys/+/refs/tags/v0.12.0:windows/service.go;l=213-228
+type ServiceTriggerInfo struct {
 	TriggersCount uint32
-	Triggers uintptr
-	Reserved *uint8
+	Triggers      uintptr
+	Reserved      *uint8
 }
 
 func ServiceTriggerCount(s *mgr.Service) (uint32, error) {
