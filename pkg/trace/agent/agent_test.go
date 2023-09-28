@@ -2083,3 +2083,58 @@ func TestSpanSampling(t *testing.T) {
 		})
 	}
 }
+
+func TestSingleSpanPlusAnalyticsEvents(t *testing.T) {
+	cfg := config.New()
+	cfg.Endpoints[0].APIKey = "test"
+	// Disable the rare sampler. Otherwise, it would consider every first
+	// priority==0 chunk as rare.
+	cfg.RareSamplerEnabled = false
+	cfg.TargetTPS = 0
+	cfg.AnalyzedRateByServiceLegacy = map[string]float64{
+		"testsvc": 1.0,
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	traceAgent := NewTestAgent(ctx, cfg, telemetry.NewNoopCollector())
+	singleSpanMetrics := map[string]float64{
+		sampler.KeySpanSamplingMechanism:       8,
+		sampler.KeySamplingRateEventExtraction: 1.0,
+	}
+	root := &pb.Span{
+		Service:  "testsvc",
+		Name:     "parent",
+		TraceID:  1,
+		SpanID:   1,
+		Start:    time.Now().Add(-time.Second).UnixNano(),
+		Duration: time.Millisecond.Nanoseconds(),
+	}
+	payload := &traceutil.ProcessedTrace{
+		Root: root,
+		TraceChunk: &pb.TraceChunk{
+			Spans: []*pb.Span{
+				root,
+				{
+					Service:  "testsvc",
+					Name:     "child",
+					TraceID:  1,
+					SpanID:   2,
+					ParentID: 1,
+					Metrics:  singleSpanMetrics,
+					Error:    0,
+					Start:    time.Now().Add(-time.Second).UnixNano(),
+					Duration: time.Millisecond.Nanoseconds(),
+				},
+			},
+			Priority: int32(sampler.PriorityAutoDrop),
+		},
+	}
+	var b bytes.Buffer
+	oldLogger := log.SetLogger(log.NewBufferLogger(&b))
+	defer func() { log.SetLogger(oldLogger) }()
+	keep, numEvents := traceAgent.sample(time.Now(), info.NewReceiverStats().GetTagStats(info.Tags{}), payload)
+	assert.Equal(t, "[WARN] Detected both analytics events AND single span sampling in the same trace. Single span sampling wins because App Analytics is deprecated.", b.String())
+	assert.False(t, keep) //The sampling decision was FALSE but the trace itself is marked as not dropped
+	assert.False(t, payload.TraceChunk.DroppedTrace)
+	assert.Equal(t, 1, numEvents)
+}
