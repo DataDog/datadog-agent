@@ -20,11 +20,14 @@ import (
 
 // Params contains par for VM.Execute commands
 type Params struct {
-	EnvVariables map[string]string
+	EnvVariables EnvVar
 }
 
 // Option alias to a functional option changing a given Params instance
 type Option func(*Params) error
+
+// EnvVar alias to map representing env variables
+type EnvVar map[string]string
 
 // NewParams creates a new instance of Execute params
 // default Env: map[string]string{}
@@ -45,7 +48,7 @@ func applyOption(instance *Params, options ...Option) (*Params, error) {
 }
 
 // WithEnvVariables allows to set env variable for the command that will be executed
-func WithEnvVariables(env map[string]string) Option {
+func WithEnvVariables(env EnvVar) Option {
 	envVarRegex := regexp.MustCompile("^[a-zA-Z_]+[a-zA-Z0-9_]*$")
 	return func(p *Params) error {
 		for envName, envVar := range env {

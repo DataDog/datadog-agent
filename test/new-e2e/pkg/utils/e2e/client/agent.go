@@ -61,7 +61,7 @@ func (agent *Agent) initService(t *testing.T, data *agent.ClientData) error {
 		}
 	}
 
-	agent.vmClient, err = newVMClient(t, privateSSHKey, &data.Connection)
+	agent.vmClient, err = newVMClient(t, privateSSHKey, &data.Connection, agent.os)
 	if err != nil {
 		return err
 	}

@@ -13,16 +13,18 @@ import (
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/clients"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client/executeparams"
 	"github.com/DataDog/test-infra-definitions/common/utils"
+	commonos "github.com/DataDog/test-infra-definitions/components/os"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/ssh"
 )
 
 type vmClient struct {
 	client *ssh.Client
+	os     commonos.OS
 	t      *testing.T
 }
 
-func newVMClient(t *testing.T, sshKey []byte, connection *utils.Connection) (*vmClient, error) {
+func newVMClient(t *testing.T, sshKey []byte, connection *utils.Connection, os commonos.OS) (*vmClient, error) {
 	client, _, err := clients.GetSSHClient(
 		connection.User,
 		fmt.Sprintf("%s:%d", connection.Host, 22),
@@ -30,6 +32,7 @@ func newVMClient(t *testing.T, sshKey []byte, connection *utils.Connection) (*vm
 		2*time.Second, 5)
 	return &vmClient{
 		client: client,
+		os:     os,
 		t:      t,
 	}, err
 }
@@ -40,12 +43,7 @@ func (vmClient *vmClient) ExecuteWithError(command string, options ...executepar
 	if err != nil {
 		return "", err
 	}
-
-	cmd := ""
-	for envName, envValue := range params.EnvVariables {
-		cmd += fmt.Sprintf("%s='%s' ", envName, envValue)
-	}
-	cmd += command
+	cmd := vmClient.setEnvVariables(command, params.EnvVariables)
 
 	output, err := clients.ExecuteCommand(vmClient.client, cmd)
 	if err != nil {
@@ -71,4 +69,26 @@ func (vmClient *vmClient) CopyFile(src string, dst string) {
 func (vmClient *vmClient) CopyFolder(srcFolder string, dstFolder string) {
 	err := clients.CopyFolder(vmClient.client, srcFolder, dstFolder)
 	require.NoError(vmClient.t, err)
+}
+
+func (vmClient *vmClient) setEnvVariables(command string, envVar executeparams.EnvVar) string {
+
+	cmd := ""
+	if vmClient.os.GetType() == commonos.WindowsType {
+		for envName, envValue := range envVar {
+			cmd += fmt.Sprintf("$env:%s='%s'; ", envName, envValue)
+		}
+		cmd += fmt.Sprintf("%s; ", command)
+
+		for envName := range envVar {
+			cmd += fmt.Sprintf("$env:%s=$null; ", envName)
+		}
+	} else {
+		for envName, envValue := range envVar {
+			cmd += fmt.Sprintf("%s='%s' ", envName, envValue)
+		}
+		cmd += command
+	}
+	return cmd
+
 }
