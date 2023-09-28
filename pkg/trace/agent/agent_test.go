@@ -1087,7 +1087,7 @@ func TestSample(t *testing.T) {
 			keepWithFeature: true,
 			dropped:         false,
 		},
-		"autodrop-sampled": {
+		"autodrop-error-sampled": {
 			trace:           genSpan("", sampler.PriorityAutoDrop, 1),
 			keep:            true,
 			keepWithFeature: true,
@@ -1110,19 +1110,45 @@ func TestSample(t *testing.T) {
 			conf:              cfg,
 		}
 		t.Run(name, func(t *testing.T) {
-			before := tt.trace.TraceChunk.ShallowCopy()
-			_, keep, sampled := a.sample(now, info.NewReceiverStats().GetTagStats(info.Tags{}), &tt.trace)
+			keep, _ := a.traceSampling(now, info.NewReceiverStats().GetTagStats(info.Tags{}), &tt.trace)
 			assert.Equal(t, tt.keep, keep)
-			assert.Equal(t, tt.dropped, sampled.TraceChunk.DroppedTrace)
-			assert.Equal(t, before, tt.trace.TraceChunk) // make sure tt.trace.TraceChunk didn't change
+			assert.Equal(t, tt.dropped, tt.trace.TraceChunk.DroppedTrace)
 			cfg.Features["error_rare_sample_tracer_drop"] = struct{}{}
 			defer delete(cfg.Features, "error_rare_sample_tracer_drop")
-			_, keep, sampled = a.sample(now, info.NewReceiverStats().GetTagStats(info.Tags{}), &tt.trace)
+			keep, _ = a.traceSampling(now, info.NewReceiverStats().GetTagStats(info.Tags{}), &tt.trace)
 			assert.Equal(t, tt.keepWithFeature, keep)
-			assert.Equal(t, before, tt.trace.TraceChunk) // make sure tt.trace.TraceChunk didn't change
-			assert.Equal(t, tt.dropped, sampled.TraceChunk.DroppedTrace)
+			assert.Equal(t, tt.dropped, tt.trace.TraceChunk.DroppedTrace)
 		})
 	}
+}
+
+func TestSampleManualUserDropNoAnalyticsEvents(t *testing.T) {
+	// This test exists to confirm previous behavior where we did not extract nor tag analytics events on
+	// user manual drop traces
+	now := time.Now()
+	cfg := &config.AgentConfig{TargetTPS: 5, ErrorTPS: 1000, Features: make(map[string]struct{}), MaxEPS: 1000}
+	root := &pb.Span{
+		Service:  "serv1",
+		Start:    now.UnixNano(),
+		Duration: (100 * time.Millisecond).Nanoseconds(),
+		Metrics:  map[string]float64{"_top_level": 1, "_dd1.sr.eausr": 1},
+		Error:    0, // If 1, the Error Sampler will keep the trace, if 0, it will not be sampled
+		Meta:     map[string]string{},
+	}
+	pt := traceutil.ProcessedTrace{TraceChunk: testutil.TraceChunkWithSpan(root), Root: root}
+	pt.TraceChunk.Priority = -1
+
+	a := &Agent{
+		NoPrioritySampler: sampler.NewNoPrioritySampler(cfg),
+		ErrorsSampler:     sampler.NewErrorsSampler(cfg),
+		PrioritySampler:   sampler.NewPrioritySampler(cfg, &sampler.DynamicConfig{}),
+		RareSampler:       sampler.NewRareSampler(config.New()),
+		EventProcessor:    newEventProcessor(cfg),
+		conf:              cfg,
+	}
+	keep, _ := a.sample(now, info.NewReceiverStats().GetTagStats(info.Tags{}), &pt)
+	assert.False(t, keep)
+	assert.Empty(t, pt.Root.Metrics["_dd.analyzed"])
 }
 
 func TestPartialSamplingFree(t *testing.T) {
@@ -1343,7 +1369,7 @@ Loop:
 			TraceChunk: chunk,
 			Root:       root,
 		}
-		numEvents, _ := processor.Process(pt)
+		_, numEvents, _ := processor.Process(pt)
 		totalSampled += int(numEvents)
 
 		<-eventTicker.C
@@ -1749,9 +1775,9 @@ func TestSampleWithPriorityNone(t *testing.T) {
 	}
 	// before := traceutil.CopyTraceChunk(pt.TraceChunk)
 	before := pt.TraceChunk.ShallowCopy()
-	numEvents, keep, sampled := agnt.sample(time.Now(), info.NewReceiverStats().GetTagStats(info.Tags{}), &pt)
+	keep, numEvents := agnt.sample(time.Now(), info.NewReceiverStats().GetTagStats(info.Tags{}), &pt)
 	assert.True(t, keep) // Score Sampler should keep the trace.
-	assert.False(t, sampled.TraceChunk.DroppedTrace)
+	assert.False(t, pt.TraceChunk.DroppedTrace)
 	assert.Equal(t, before, pt.TraceChunk)
 	assert.EqualValues(t, numEvents, 0)
 }
@@ -2056,4 +2082,59 @@ func TestSpanSampling(t *testing.T) {
 			assert.Equal(t, len(tc.payload.Chunks[0].Spans), len(stats.Traces[0].TraceChunk.Spans))
 		})
 	}
+}
+
+func TestSingleSpanPlusAnalyticsEvents(t *testing.T) {
+	cfg := config.New()
+	cfg.Endpoints[0].APIKey = "test"
+	// Disable the rare sampler. Otherwise, it would consider every first
+	// priority==0 chunk as rare.
+	cfg.RareSamplerEnabled = false
+	cfg.TargetTPS = 0
+	cfg.AnalyzedRateByServiceLegacy = map[string]float64{
+		"testsvc": 1.0,
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	traceAgent := NewTestAgent(ctx, cfg, telemetry.NewNoopCollector())
+	singleSpanMetrics := map[string]float64{
+		sampler.KeySpanSamplingMechanism:       8,
+		sampler.KeySamplingRateEventExtraction: 1.0,
+	}
+	root := &pb.Span{
+		Service:  "testsvc",
+		Name:     "parent",
+		TraceID:  1,
+		SpanID:   1,
+		Start:    time.Now().Add(-time.Second).UnixNano(),
+		Duration: time.Millisecond.Nanoseconds(),
+	}
+	payload := &traceutil.ProcessedTrace{
+		Root: root,
+		TraceChunk: &pb.TraceChunk{
+			Spans: []*pb.Span{
+				root,
+				{
+					Service:  "testsvc",
+					Name:     "child",
+					TraceID:  1,
+					SpanID:   2,
+					ParentID: 1,
+					Metrics:  singleSpanMetrics,
+					Error:    0,
+					Start:    time.Now().Add(-time.Second).UnixNano(),
+					Duration: time.Millisecond.Nanoseconds(),
+				},
+			},
+			Priority: int32(sampler.PriorityAutoDrop),
+		},
+	}
+	var b bytes.Buffer
+	oldLogger := log.SetLogger(log.NewBufferLogger(&b))
+	defer func() { log.SetLogger(oldLogger) }()
+	keep, numEvents := traceAgent.sample(time.Now(), info.NewReceiverStats().GetTagStats(info.Tags{}), payload)
+	assert.Equal(t, "[WARN] Detected both analytics events AND single span sampling in the same trace. Single span sampling wins because App Analytics is deprecated.", b.String())
+	assert.False(t, keep) //The sampling decision was FALSE but the trace itself is marked as not dropped
+	assert.False(t, payload.TraceChunk.DroppedTrace)
+	assert.Equal(t, 1, numEvents)
 }
