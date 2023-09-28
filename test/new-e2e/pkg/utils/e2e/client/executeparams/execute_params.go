@@ -46,7 +46,7 @@ func applyOption(instance *Params, options ...Option) (*Params, error) {
 
 // WithEnvVariables allows to set env variable for the command that will be executed
 func WithEnvVariables(env map[string]string) Option {
-	envVarRegex := regexp.MustCompile("[a-zA-Z_]+[a-zA-Z0-9_]*")
+	envVarRegex := regexp.MustCompile("^[a-zA-Z_]+[a-zA-Z0-9_]*$")
 	return func(p *Params) error {
 		for envName, envVar := range env {
 			if match := envVarRegex.MatchString(envName); match {
