@@ -122,6 +122,24 @@ Package forwarder exposes the event platform forwarder for netflow.
 
 Package sender exposes a Sender for netflow.
 
+## [comp/netflow](https://pkg.go.dev/github.com/DataDog/dd-agent-comp-experiments/comp/netflow) (Component Bundle)
+
+*Datadog Team*: network-device-monitoring
+
+Package netflow implements the "netflow" bundle, which listens for netflow
+packets, processes them, and forwards relevant data to the backend.
+
+### [comp/netflow/config](https://pkg.go.dev/github.com/DataDog/dd-agent-comp-experiments/comp/netflow/config)
+
+Package config exposes the netflow configuration as a component.
+
+### [comp/netflow/server](https://pkg.go.dev/github.com/DataDog/dd-agent-comp-experiments/comp/netflow/server)
+
+Package server implements a component that runs the netflow server.
+When running, it listens for network traffic according to configured
+listeners and aggregates traffic data to send to the backend.
+It does not expose any public methods.
+
 ## [comp/otelcol](https://pkg.go.dev/github.com/DataDog/dd-agent-comp-experiments/comp/otelcol) (Component Bundle)
 
 *Datadog Team*: opentelemetry

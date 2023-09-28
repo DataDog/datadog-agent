@@ -85,6 +85,7 @@ type Check struct {
 	hostingType                             hostingCode
 	logPrompt                               string
 	initialized                             bool
+	multitenant                             bool
 }
 
 func handleServiceCheck(c *Check, err error) {
