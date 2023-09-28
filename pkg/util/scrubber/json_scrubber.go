@@ -12,42 +12,25 @@ import (
 	"encoding/json"
 )
 
-func walkJSONSlice(data []interface{}, callback scrubCallback) {
-	for _, k := range data {
-		switch v := k.(type) {
-		case map[string]interface{}:
-			walkJSONInterface(v, callback)
-		case []interface{}:
-			walkJSONSlice(v, callback)
-		}
-	}
-}
-
-func walkJSONInterface(data map[string]interface{}, callback scrubCallback) {
-	for k, v := range data {
-		if match, newValue := callback(k, v); match {
-			data[k] = newValue
-		}
-		switch v := data[k].(type) {
-		case map[string]interface{}:
-			walkJSONInterface(v, callback)
-		case []interface{}:
-			walkJSONSlice(v, callback)
-		}
-	}
-}
-
 // walk will go through loaded json and call callback on every strings allowing
 // the callback to overwrite the string value
 func walkJSON(data *interface{}, callback scrubCallback) {
 	if data == nil {
 		return
 	}
-	switch v := (*data).(type) {
+	switch m := (*data).(type) {
 	case map[string]interface{}:
-		walkJSONInterface(v, callback)
+		for key, value := range m {
+			if match, newValue := callback(key, value); match {
+				m[key] = newValue //key matched, stop searching and do replacing
+				continue
+			}
+			walkJSON(&value, callback) //Not matched in key, keep searching
+		}
 	case []interface{}:
-		walkJSONSlice(v, callback)
+		for _, k := range m {
+			walkJSON(&k, callback)
+		}
 	}
 }
 
