@@ -157,7 +157,7 @@ type Config struct {
 	// get flushed on every client request (default 30s check interval)
 	MaxDNSStatsBuffered int
 
-	// MaxUSMConcurrentRequests represents the maximum number of concurrent requests (for a single protocol)
+	// MaxUSMConcurrentRequests represents the maximum number of requests (for a single protocol)
 	// that can happen concurrently at a given point in time. This parameter is used for sizing our eBPF maps.
 	MaxUSMConcurrentRequests uint32
 
