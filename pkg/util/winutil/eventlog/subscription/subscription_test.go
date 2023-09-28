@@ -388,6 +388,44 @@ func (s *GetEventsTestSuite) TestReadOnlyNewEvents() {
 
 // Tests that Stop() can be called when there are events available to be collected
 func (s *GetEventsTestSuite) TestStopWhileWaitingWithEventsAvailable() {
+	// reduce batch count below events we will generate
+	batchCount := s.numEvents / 2
+
+	// Create subscription
+	sub, err := startSubscription(s.T(), s.ti, s.channelPath, WithNotifyEventsAvailable(),
+		WithEventBatchCount(batchCount))
+	require.NoError(s.T(), err)
+
+	// Put events in the log
+	err = s.ti.GenerateEvents(s.eventSource, s.numEvents)
+	require.NoError(s.T(), err)
+
+	readyToStop := make(chan struct{})
+	stopped := make(chan struct{})
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		// Read all events
+		_, err := getEventHandles(s.T(), s.ti, sub, batchCount)
+		close(readyToStop)
+		if !assert.NoError(s.T(), err) {
+			return
+		}
+		// Purposefully don't read the rest of the events. This leaves the notify event set.
+		// Wait for Stop() to finish
+		<-stopped
+		_, ok := <-sub.EventsAvailable()
+		assert.False(s.T(), ok, "Notify channel should be closed after Stop()")
+	}()
+
+	<-readyToStop
+	sub.Stop()
+	close(stopped)
+	<-done
+}
+
+// Tests that Stop() can be called when we read all events but haven't received ERROR_NO_MORE_ITEMS
+func (s *GetEventsTestSuite) TestStopWhileWaitingWithNoMoreItemseNotFinalized() {
 	// Create subscription
 	sub, err := startSubscription(s.T(), s.ti, s.channelPath, WithNotifyEventsAvailable())
 	require.NoError(s.T(), err)
