@@ -11,7 +11,7 @@ import (
 	flowpb "github.com/netsampler/goflow2/pb"
 	"github.com/stretchr/testify/assert"
 
-	"github.com/DataDog/datadog-agent/pkg/netflow/common"
+	"github.com/DataDog/datadog-agent/comp/netflow/common"
 )
 
 func Test_convertFlowType(t *testing.T) {

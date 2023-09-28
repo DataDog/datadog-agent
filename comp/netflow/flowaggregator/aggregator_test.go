@@ -37,10 +37,10 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/networkdevice/metadata"
 
-	"github.com/DataDog/datadog-agent/pkg/netflow/common"
-	"github.com/DataDog/datadog-agent/pkg/netflow/config"
-	"github.com/DataDog/datadog-agent/pkg/netflow/goflowlib"
-	"github.com/DataDog/datadog-agent/pkg/netflow/testutil"
+	"github.com/DataDog/datadog-agent/comp/netflow/common"
+	"github.com/DataDog/datadog-agent/comp/netflow/config"
+	"github.com/DataDog/datadog-agent/comp/netflow/goflowlib"
+	"github.com/DataDog/datadog-agent/comp/netflow/testutil"
 )
 
 func TestAggregator(t *testing.T) {
@@ -164,7 +164,7 @@ func TestAggregator(t *testing.T) {
 	logger := fxutil.Test[log.Component](t, log.MockModule)
 
 	aggregator := NewFlowAggregator(sender, epForwarder, &conf, "my-hostname", logger)
-	aggregator.flushFlowsToSendInterval = 1 * time.Second
+	aggregator.FlushFlowsToSendInterval = 1 * time.Second
 	aggregator.TimeNowFunction = func() time.Time {
 		return flushTime
 	}
@@ -264,7 +264,7 @@ func TestAggregator_withMockPayload(t *testing.T) {
 
 	logger := fxutil.Test[log.Component](t, log.MockModule)
 	aggregator := NewFlowAggregator(sender, epForwarder, &conf, "my-hostname", logger)
-	aggregator.flushFlowsToSendInterval = 1 * time.Second
+	aggregator.FlushFlowsToSendInterval = 1 * time.Second
 	aggregator.TimeNowFunction = func() time.Time {
 		return flushTime
 	}

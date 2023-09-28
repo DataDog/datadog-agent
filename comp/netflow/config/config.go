@@ -13,7 +13,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/snmp/utils"
 
-	"github.com/DataDog/datadog-agent/pkg/netflow/common"
+	"github.com/DataDog/datadog-agent/comp/netflow/common"
 )
 
 // NetflowConfig contains configuration for NetFlow collector.
@@ -51,18 +51,27 @@ func ReadConfig(conf config.Component) (*NetflowConfig, error) {
 	if err != nil {
 		return nil, err
 	}
+	if err = mainConfig.SetDefaults(conf.GetString("network_devices.namespace")); err != nil {
+		return nil, err
+	}
+	return &mainConfig, nil
+}
+
+// SetDefaults sets default values wherever possible, returning an error if
+// any values are malformed.
+func (mainConfig *NetflowConfig) SetDefaults(namespace string) error {
 	for i := range mainConfig.Listeners {
 		listenerConfig := &mainConfig.Listeners[i]
 
 		flowType, err := common.GetFlowTypeByName(listenerConfig.FlowType)
 		if err != nil {
-			return nil, fmt.Errorf("the provided flow type `%s` is not valid (valid flow types: %v)", listenerConfig.FlowType, common.GetAllFlowTypes())
+			return fmt.Errorf("the provided flow type `%s` is not valid (valid flow types: %v)", listenerConfig.FlowType, common.GetAllFlowTypes())
 		}
 
 		if listenerConfig.Port == 0 {
 			listenerConfig.Port = flowType.DefaultPort()
 			if listenerConfig.Port == 0 {
-				return nil, fmt.Errorf("no default port found for `%s`, a valid port must be set", listenerConfig.FlowType)
+				return fmt.Errorf("no default port found for `%s`, a valid port must be set", listenerConfig.FlowType)
 			}
 		}
 		if listenerConfig.BindHost == "" {
@@ -72,11 +81,11 @@ func ReadConfig(conf config.Component) (*NetflowConfig, error) {
 			listenerConfig.Workers = 1
 		}
 		if listenerConfig.Namespace == "" {
-			listenerConfig.Namespace = conf.GetString("network_devices.namespace")
+			listenerConfig.Namespace = namespace
 		}
 		normalizedNamespace, err := utils.NormalizeNamespace(listenerConfig.Namespace)
 		if err != nil {
-			return nil, fmt.Errorf("invalid namespace `%s` error: %s", listenerConfig.Namespace, err)
+			return fmt.Errorf("invalid namespace `%s` error: %s", listenerConfig.Namespace, err)
 		}
 		listenerConfig.Namespace = normalizedNamespace
 	}
@@ -106,7 +115,7 @@ func ReadConfig(conf config.Component) (*NetflowConfig, error) {
 		mainConfig.PrometheusListenerAddress = common.DefaultPrometheusListenerAddress
 	}
 
-	return &mainConfig, nil
+	return nil
 }
 
 // Addr returns the host:port address to listen on.

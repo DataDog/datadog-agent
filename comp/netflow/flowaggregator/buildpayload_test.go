@@ -11,8 +11,8 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	"github.com/DataDog/datadog-agent/pkg/netflow/common"
-	"github.com/DataDog/datadog-agent/pkg/netflow/payload"
+	"github.com/DataDog/datadog-agent/comp/netflow/common"
+	"github.com/DataDog/datadog-agent/comp/netflow/payload"
 )
 
 func Test_buildPayload(t *testing.T) {
