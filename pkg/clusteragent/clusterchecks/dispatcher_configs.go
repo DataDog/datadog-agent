@@ -90,12 +90,7 @@ func (d *dispatcher) removeConfig(digest string) {
 
 	node, found := d.store.getNodeStore(d.store.digestToNode[digest])
 
-	checkName := ""
-	if found {
-		node.RLock()
-		checkName = node.digestToConfig[digest].Name
-		node.RUnlock()
-	}
+	checkName := d.store.digestToConfig[digest].Name
 
 	delete(d.store.digestToNode, digest)
 	delete(d.store.digestToConfig, digest)
