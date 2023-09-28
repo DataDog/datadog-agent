@@ -469,7 +469,7 @@ type ContainerSecurityContext struct {
 	SeccompProfile *SeccompProfile
 }
 
-// Capabilities is the capabilities a certain Conatiner security context is capable of
+// Capabilities is the capabilities a certain Container security context is capable of
 type Capabilities struct {
 	Add  []string
 	Drop []string
