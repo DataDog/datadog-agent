@@ -50,12 +50,12 @@ func TestListMap_JSONSchema(t *testing.T) {
 		AllowAdditionalProperties: false,
 	}
 	schema := reflector.Reflect(&ExampleStruct{})
+	schema.Version = "" // no version, to make the test more future-proof
 	schemaJSON, err := json.MarshalIndent(schema, "", "  ")
 	require.NoError(t, err)
 
 	expectedSchema := `
 {
-  "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://github.com/DataDog/datadog-agent/pkg/networkdevice/profile/profiledefinition/example-struct",
   "$ref": "#/$defs/ExampleStruct",
   "$defs": {
