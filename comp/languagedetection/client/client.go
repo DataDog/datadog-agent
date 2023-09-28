@@ -47,7 +47,7 @@ type client struct {
 	mutex           sync.Mutex
 	langDetectionCl clusteragent.LanguageDetectionClient
 	telemetry       *componentTelemetry
-	currentBatch    *batch
+	currentBatch    batch
 }
 
 // newClient creates a new Client
@@ -68,7 +68,7 @@ func newClient(
 		flushPeriod:  deps.Config.GetDuration("language_detection.client_period"),
 		mutex:        sync.Mutex{},
 		telemetry:    newComponentTelemetry(deps.Telemetry),
-		currentBatch: newBatch(),
+		currentBatch: make(batch),
 	}
 	deps.Lc.Append(fx.Hook{
 		OnStart: cl.start,
@@ -188,11 +188,11 @@ func (c *client) startStreaming() {
 // flush sends the current batch to the cluster-agent
 func (c *client) flush() {
 	// To avoid blocking the loop processing events for too long, we retrieve the current batch and release the mutex. On failures, items are added back to the current batch.
-	var data *batch
+	var data batch
 	c.mutex.Lock()
-	if len(c.currentBatch.podInfo) > 0 {
+	if len(c.currentBatch) > 0 {
 		data = c.currentBatch
-		c.currentBatch = newBatch()
+		c.currentBatch = make(batch)
 	}
 	c.mutex.Unlock()
 	// if no data was found
@@ -204,7 +204,7 @@ func (c *client) flush() {
 	err := c.langDetectionCl.PostLanguageMetadata(c.ctx, data.toProto())
 	if err != nil {
 		c.logger.Errorf("failed to ")
-		c.mergeBatchesAfterError(data)
+		c.mergeBatchAfterError(data)
 		c.telemetry.Requests.Inc(statusError)
 		return
 	}
@@ -212,7 +212,7 @@ func (c *client) flush() {
 	c.telemetry.Requests.Inc(statusSuccess)
 }
 
-func (c *client) mergeBatchesAfterError(b *batch) {
+func (c *client) mergeBatchAfterError(b batch) {
 	c.mutex.Lock()
 	defer c.mutex.Unlock()
 	c.currentBatch.merge(b)

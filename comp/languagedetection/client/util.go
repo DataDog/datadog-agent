@@ -4,6 +4,7 @@
 // Copyright 2023-present Datadog, Inc.
 
 // Package client holds the client to send data to the Cluster-Agent
+// Package client holds the client to send data to the Cluster-Agent
 package client
 
 import (
@@ -11,19 +12,13 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
 )
 
-type containerInfo struct {
-	languages map[string]*languagesSet
-}
+type languageSet map[string]struct{}
+type containerInfo map[string]languageSet
+type batch map[string]*podInfo
 
-func newContainerInfo() *containerInfo {
-	return &containerInfo{
-		languages: make(map[string]*languagesSet),
-	}
-}
-
-func (c *containerInfo) toProto() []*pbgo.ContainerLanguageDetails {
-	res := make([]*pbgo.ContainerLanguageDetails, 0, len(c.languages))
-	for containerName, languageSet := range c.languages {
+func (c containerInfo) toProto() []*pbgo.ContainerLanguageDetails {
+	res := make([]*pbgo.ContainerLanguageDetails, 0, len(c))
+	for containerName, languageSet := range c {
 		res = append(res, &pbgo.ContainerLanguageDetails{
 			ContainerName: containerName,
 			Languages:     languageSet.toProto(),
@@ -32,29 +27,19 @@ func (c *containerInfo) toProto() []*pbgo.ContainerLanguageDetails {
 	return res
 }
 
-type languagesSet struct {
-	languages map[string]struct{}
+func (l languageSet) add(language string) {
+	l[language] = struct{}{}
 }
 
-func newLanguageSet() *languagesSet {
-	return &languagesSet{
-		languages: make(map[string]struct{}),
-	}
-}
-
-func (l *languagesSet) add(language string) {
-	l.languages[language] = struct{}{}
-}
-
-func (l *languagesSet) merge(lang *languagesSet) {
-	for language := range lang.languages {
+func (l languageSet) merge(lang languageSet) {
+	for language := range lang {
 		l.add(language)
 	}
 }
 
-func (l *languagesSet) toProto() []*pbgo.Language {
-	res := make([]*pbgo.Language, 0, len(l.languages))
-	for lang := range l.languages {
+func (l languageSet) toProto() []*pbgo.Language {
+	res := make([]*pbgo.Language, 0, len(l))
+	for lang := range l {
 		res = append(res, &pbgo.Language{
 			Name: lang,
 		})
@@ -62,18 +47,50 @@ func (l *languagesSet) toProto() []*pbgo.Language {
 	return res
 }
 
+func (b batch) getOrAddPodInfo(podName, podnamespace string, ownerRef *workloadmeta.KubernetesPodOwner) *podInfo {
+	if podInfo, ok := b[podName]; ok {
+		return podInfo
+	}
+	b[podName] = &podInfo{
+		namespace:         podnamespace,
+		containerInfo:     make(containerInfo),
+		initContainerInfo: make(containerInfo),
+		ownerRef:          ownerRef,
+	}
+	return b[podName]
+}
+
+func (b batch) merge(other batch) {
+	for k, v := range other {
+		podInfo, ok := b[k]
+		if !ok {
+			b[k] = v
+			continue
+		}
+		podInfo.merge(v)
+	}
+}
+
 type podInfo struct {
 	namespace         string
-	containerInfo     *containerInfo
-	initContainerInfo *containerInfo
+	containerInfo     containerInfo
+	initContainerInfo containerInfo
 	ownerRef          *workloadmeta.KubernetesPodOwner
 }
 
 func (p *podInfo) merge(other *podInfo) {
-	for k, otherLangSet := range other.containerInfo.languages {
-		langSet, ok := p.containerInfo.languages[k]
+	for containerName, otherLangSet := range other.containerInfo {
+		langSet, ok := p.containerInfo[containerName]
 		if !ok {
-			p.containerInfo.languages[k] = otherLangSet
+			p.containerInfo[containerName] = otherLangSet
+			continue
+		}
+		langSet.merge(otherLangSet)
+	}
+	for containerName, otherLangSet := range other.initContainerInfo {
+		langSet, ok := p.initContainerInfo[containerName]
+		if !ok {
+			p.initContainerInfo[containerName] = otherLangSet
 			continue
 		}
 		langSet.merge(otherLangSet)
@@ -94,52 +111,22 @@ func (p *podInfo) toProto(podName string) *pbgo.PodLanguageDetails {
 	}
 }
 
-func (p *podInfo) getOrAddcontainerInfo(containerName string, isInitContainer bool) *languagesSet {
+func (p *podInfo) getOrAddcontainerInfo(containerName string, isInitContainer bool) languageSet {
 	cInfo := p.containerInfo
 	if isInitContainer {
 		cInfo = p.initContainerInfo
 	}
 
-	if languagesSet, ok := cInfo.languages[containerName]; ok {
-		return languagesSet
+	if languageSet, ok := cInfo[containerName]; ok {
+		return languageSet
 	}
-	cInfo.languages[containerName] = newLanguageSet()
-	return cInfo.languages[containerName]
+	cInfo[containerName] = make(languageSet)
+	return cInfo[containerName]
 }
 
-type batch struct {
-	podInfo map[string]*podInfo
-}
-
-func newBatch() *batch { return &batch{make(map[string]*podInfo)} }
-
-func (b *batch) getOrAddPodInfo(podName, podNamespace string, ownerRef *workloadmeta.KubernetesPodOwner) *podInfo {
-	if podInfo, ok := b.podInfo[podName]; ok {
-		return podInfo
-	}
-	b.podInfo[podName] = &podInfo{
-		namespace:         podNamespace,
-		containerInfo:     newContainerInfo(),
-		initContainerInfo: newContainerInfo(),
-		ownerRef:          ownerRef,
-	}
-	return b.podInfo[podName]
-}
-
-func (b *batch) merge(other *batch) {
-	for k, v := range other.podInfo {
-		podInfo, ok := b.podInfo[k]
-		if !ok {
-			b.podInfo[k] = v
-			continue
-		}
-		podInfo.merge(v)
-	}
-}
-
-func (b *batch) toProto() *pbgo.ParentLanguageAnnotationRequest {
+func (b batch) toProto() *pbgo.ParentLanguageAnnotationRequest {
 	res := &pbgo.ParentLanguageAnnotationRequest{}
-	for podName, language := range b.podInfo {
+	for podName, language := range b {
 		res.PodDetails = append(res.PodDetails, language.toProto(podName))
 	}
 	return res

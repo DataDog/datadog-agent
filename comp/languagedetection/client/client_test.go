@@ -89,23 +89,15 @@ func TestClientDisabled(t *testing.T) {
 
 func TestClientFlush(t *testing.T) {
 	client, mockDCAClient, doneCh := newTestClient(t, nil)
-	container := &containerInfo{
-		languages: map[string]*languagesSet{
-			"java-cont": {
-				languages: map[string]struct{}{
-					"java": {},
-				},
-			},
+	container := containerInfo{
+		"java-cont": {
+			"java": {},
 		},
 	}
 
-	initContainer := &containerInfo{
-		languages: map[string]*languagesSet{
-			"go-cont": {
-				languages: map[string]struct{}{
-					"go": {},
-				},
-			},
+	initContainer := containerInfo{
+		"go-cont": {
+			"go": {},
 		},
 	}
 
@@ -120,7 +112,7 @@ func TestClientFlush(t *testing.T) {
 		},
 	}
 	podName := "nginx"
-	client.currentBatch.podInfo[podName] = podInfo
+	client.currentBatch[podName] = podInfo
 
 	// flush the batch as it is done in the client
 	go client.startStreaming()
@@ -145,7 +137,7 @@ func TestClientFlush(t *testing.T) {
 	// make sure we didn't touch the current batch
 	client.mutex.Lock()
 	defer client.mutex.Unlock()
-	assert.Equal(t, client.currentBatch, newBatch())
+	assert.Len(t, client.currentBatch, 0)
 }
 
 func TestClientProcessEvent(t *testing.T) {
@@ -278,23 +270,19 @@ func TestClientProcessEvent(t *testing.T) {
 
 	client.processEvent(eventBundle)
 
-	assert.NotEmpty(t, client.currentBatch.podInfo)
+	assert.NotEmpty(t, client.currentBatch)
 	assert.Equal(t,
-		map[string]*podInfo{
+		batch{
 			"nginx-pod-name": {
 				namespace: "nginx-pod-namespace",
-				containerInfo: &containerInfo{
-					map[string]*languagesSet{
-						"nginx-cont-name": {
-							languages: map[string]struct{}{"java": {}},
-						},
+				containerInfo: containerInfo{
+					"nginx-cont-name": {
+						"java": {},
 					},
 				},
-				initContainerInfo: &containerInfo{
-					map[string]*languagesSet{
-						"nginx-cont-name": {
-							languages: map[string]struct{}{"go": {}},
-						},
+				initContainerInfo: containerInfo{
+					"nginx-cont-name": {
+						"go": {},
 					},
 				},
 				ownerRef: &workloadmeta.KubernetesPodOwner{
@@ -304,7 +292,7 @@ func TestClientProcessEvent(t *testing.T) {
 				},
 			},
 		},
-		client.currentBatch.podInfo,
+		client.currentBatch,
 	)
 }
 
