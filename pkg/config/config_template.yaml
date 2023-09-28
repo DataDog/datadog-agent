@@ -495,6 +495,14 @@ api_key:
 #
 # inventories_configuration_enabled: true
 
+## @param inventories_checks_configuration_enabled - boolean - optional - default: true
+## @env DD_INVENTORIES_CHECKS_CONFIGURATION_ENABLED - boolean - optional - default: true
+## By default the Agent sends its integrations / checks configuration to Datadog to be displayed in the UI.
+##
+## The Agent integration configurations are scrubbed of any sensitive information.
+#
+# inventories_checks_configuration_enabled: true
+
 ## @param auto_exit - custom object - optional
 ## Configuration for the automatic exit mechanism: the Agent stops when some conditions are met.
 #
@@ -2256,9 +2264,9 @@ api_key:
 ## @env DD_JMX_MAX_RAM_PERCENTAGE - float - optional - default: 25.0
 ## When running in a container with jmx_use_container_support enabled, the JVM can
 ## automatically declare the maximum heap size based off of a percentage of
-## total container allocated memory. This option is overwritten if 
+## total container allocated memory. This option is overwritten if
 ## you use -Xmx to manually define the size of the heap. This option applies
-## to containers with a total memory limit greater than ~250mb. If 
+## to containers with a total memory limit greater than ~250mb. If
 ## jmx_use_container_support is disabled this option has no effect.
 #
 # jmx_max_ram_percentage: 25.0
@@ -3837,7 +3845,7 @@ api_key:
         ## - `drop` always drops the initial value.
         ## - `keep` always reports the initial value.
         #
-        # initial_cumulative_monotonic_value: auto   
+        # initial_cumulative_monotonic_value: auto
 
     ## @param summaries - custom object - optional
     ## Configuration for OTLP Summaries.
