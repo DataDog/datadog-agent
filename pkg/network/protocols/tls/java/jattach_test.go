@@ -47,7 +47,7 @@ func findJustWait(t *testing.T) (retpid int) {
 
 func testInject(t *testing.T, prefix string) {
 	go func() {
-		o, err := testutil.RunCommand(prefix + "java -cp testdata JustWait")
+		o, err := testutil.RunCommand(prefix + "java -cp testdata Wait JustWait")
 		if err != nil {
 			t.Logf("%v\n", err)
 		}
