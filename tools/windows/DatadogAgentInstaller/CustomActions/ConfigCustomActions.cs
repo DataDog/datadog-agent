@@ -344,6 +344,7 @@ namespace Datadog.CustomActions
             var configFolder = session.Property("APPLICATIONDATADIRECTORY");
             var datadogYaml = Path.Combine(configFolder, "datadog.yaml");
             var systemProbeYaml = Path.Combine(configFolder, "system-probe.yaml");
+            var securityAgentYaml = Path.Combine(configFolder, "security-agent.yaml");
 
             try
             {
@@ -368,6 +369,16 @@ namespace Datadog.CustomActions
                 using (var output = new StreamWriter(datadogYaml))
                 {
                     output.Write(yaml);
+                }
+
+                // Conditionally include the security agent YAML while it is in active development to make it easier
+                // to build/ship without it.
+                if (File.Exists(securityAgentYaml + ".example"))
+                {
+                    if (!File.Exists(securityAgentYaml))
+                    {
+                        File.Copy(securityAgentYaml + ".example", securityAgentYaml);
+                    }
                 }
 
             }
