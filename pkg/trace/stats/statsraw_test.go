@@ -86,7 +86,7 @@ func TestGrainWithPeerService(t *testing.T) {
 	})
 }
 
-func TestGrainWithExtraTags(t *testing.T) {
+func TestGrainWithPeerTags(t *testing.T) {
 	t.Run("none present", func(t *testing.T) {
 		assert := assert.New(t)
 		s := pb.Span{

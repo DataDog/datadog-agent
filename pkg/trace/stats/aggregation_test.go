@@ -58,7 +58,7 @@ func TestNewAggregation(t *testing.T) {
 		in               *pb.Span
 		enablePeerSvcAgg bool
 		resAgg           Aggregation
-		resExtraTags     []string
+		resPeerTags      []string
 	}{
 		{
 			&pb.Span{},
@@ -137,16 +137,16 @@ func TestNewAggregation(t *testing.T) {
 	} {
 		agg, et := NewAggregationFromSpan(tt.in, "", PayloadAggregationKey{}, tt.enablePeerSvcAgg, nil)
 		assert.Equal(t, tt.resAgg, agg)
-		assert.Equal(t, tt.resExtraTags, et)
+		assert.Equal(t, tt.resPeerTags, et)
 	}
 }
 
-func TestNewAggregationExtraTags(t *testing.T) {
-	extraTags := []string{"db.instance", "db.system"}
+func TestNewAggregationPeerTags(t *testing.T) {
+	peerTags := []string{"db.instance", "db.system"}
 	for _, tt := range []struct {
-		in           *pb.Span
-		resAgg       Aggregation
-		resExtraTags []string
+		in          *pb.Span
+		resAgg      Aggregation
+		resPeerTags []string
 	}{
 		{
 			&pb.Span{},
@@ -179,9 +179,9 @@ func TestNewAggregationExtraTags(t *testing.T) {
 			[]string{"db.instance:i-1234", "db.system:postgres"},
 		},
 	} {
-		agg, et := NewAggregationFromSpan(tt.in, "", PayloadAggregationKey{}, true, extraTags)
+		agg, et := NewAggregationFromSpan(tt.in, "", PayloadAggregationKey{}, true, peerTags)
 		assert.Equal(t, tt.resAgg, agg)
-		assert.Equal(t, tt.resExtraTags, et)
+		assert.Equal(t, tt.resPeerTags, et)
 	}
 }
 

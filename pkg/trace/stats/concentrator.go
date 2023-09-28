@@ -52,7 +52,7 @@ type Concentrator struct {
 	peerTagKeys            []string // keys for supplementary tags that describe peer.service entities
 }
 
-func prepareExtraTags(tags ...string) []string {
+func prepareTagKeys(tags ...string) []string {
 	if len(tags) == 0 {
 		return nil
 	}
@@ -89,7 +89,7 @@ func NewConcentrator(conf *config.AgentConfig, out chan *pb.StatsPayload, now ti
 		computeStatsBySpanKind: conf.ComputeStatsBySpanKind,
 	}
 	if conf.PeerServiceAggregation && len(conf.PeerTags) != 0 {
-		c.peerTagKeys = prepareExtraTags(conf.PeerTags...)
+		c.peerTagKeys = prepareTagKeys(conf.PeerTags...)
 	}
 	return &c
 }

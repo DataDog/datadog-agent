@@ -851,7 +851,7 @@ func TestComputeStatsForSpanKind(t *testing.T) {
 	}
 }
 
-func TestPrepareExtraTags(t *testing.T) {
+func TestPrepareTagKeys(t *testing.T) {
 	type testCase struct {
 		input  []string
 		output []string
@@ -875,6 +875,6 @@ func TestPrepareExtraTags(t *testing.T) {
 			output: []string{"a", "b"},
 		},
 	} {
-		assert.Equal(t, tc.output, prepareExtraTags(tc.input...))
+		assert.Equal(t, tc.output, prepareTagKeys(tc.input...))
 	}
 }

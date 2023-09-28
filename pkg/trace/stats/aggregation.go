@@ -109,7 +109,6 @@ func NewAggregationFromSpan(s *pb.Span, origin string, aggKey PayloadAggregation
 		if enablePeerSvcAgg {
 			agg.PeerService = s.Meta[tagPeerService]
 		}
-		// NOTE: At this time extra tags will only contain peer tags. We only expect these tags on client/producer spans.
 		peerTags = getMatchingPeerTags(s, peerTagKeys)
 		agg.PeerTagsHash = peerTagsHash(peerTags)
 	}
