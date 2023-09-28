@@ -374,7 +374,7 @@ def validate_msi_createfolder_table(db):
     TODO: We don't want the AI flag to be removed from the directories in the allow list either, but
           this behavior was also present in the original installer so leave them for now.
     """
-    allowlist = ["APPLICATIONDATADIRECTORY", "checks.d", "run", "logs", "ProgramMenuDatadog"]
+    allowlist = ["APPLICATIONDATADIRECTORY", "EXAMPLECONFSLOCATION", "checks.d", "run", "logs", "ProgramMenuDatadog"]
 
     with MsiClosing(db.OpenView("Select Directory_ FROM CreateFolder")) as view:
         view.Execute(None)
