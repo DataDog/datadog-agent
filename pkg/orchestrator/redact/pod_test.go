@@ -13,7 +13,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-func TestScrubAnnotations(t *testing.T) {
+func TestRedactAnnotations(t *testing.T) {
 	lastAppliedConfiguration := `{
   "apiVersion": "apps/v1",
   "kind": "ReplicaSet",
@@ -82,7 +82,35 @@ func TestScrubAnnotations(t *testing.T) {
 
 }
 
-func TestScrubAnnotationsValueDoesNotExist(t *testing.T) {
+func TestScrubAnnotations(t *testing.T) {
+	annotations := map[string]string{
+		"ad.datadoghq.com/postgres.logs":         `[{"source":"postgresql","service":"postgresql"}]`,
+		"cni.projectcalico.org/podIPs":           `10.1.91.209/32`,
+		"kubernetes.io/config.seen":              `2023-09-12T14:45:38.769079271Z`,
+		"kubernetes.io/config.source":            `api`,
+		"ad.datadoghq.com/postgres.instances":    `[{"host": "%%host%%", "port" : 5432, "username": "postgresadmin", "password": "test1234"}]`,
+		"ad.datadoghq.com/postgres.init_configs": `[{}]`,
+		"cni.projectcalico.org/containerID":      `3e1aac38cc95af5899db757c5fb7b7cddb96c6dfe979378b785a4e5e732954e8`,
+		"cni.projectcalico.org/podIP":            `10.1.91.209/32`,
+		"ad.datadoghq.com/postgres.check_names":  `["postgres"]`,
+	}
+	expectedAnnotations := map[string]string{
+		"ad.datadoghq.com/postgres.logs":         `[{"source":"postgresql","service":"postgresql"}]`,
+		"cni.projectcalico.org/podIPs":           `10.1.91.209/32`,
+		"kubernetes.io/config.seen":              `2023-09-12T14:45:38.769079271Z`,
+		"kubernetes.io/config.source":            `api`,
+		"ad.datadoghq.com/postgres.instances":    `[{"host": "%%host%%", "port" : 5432, "username": "postgresadmin", "password": "********"}]`,
+		"ad.datadoghq.com/postgres.init_configs": `[{}]`,
+		"cni.projectcalico.org/containerID":      `3e1aac38cc95af5899db757c5fb7b7cddb96c6dfe979378b785a4e5e732954e8`,
+		"cni.projectcalico.org/podIP":            `10.1.91.209/32`,
+		"ad.datadoghq.com/postgres.check_names":  `["postgres"]`,
+	}
+	scrubber := NewDefaultDataScrubber()
+	ScrubAnnotations(annotations, scrubber)
+	assert.Equal(t, expectedAnnotations, annotations)
+}
+
+func TestRedactAnnotationsValueDoesNotExist(t *testing.T) {
 	objectMeta := metav1.ObjectMeta{Annotations: map[string]string{
 		"something/else": "some pseudo yaml",
 	}}
@@ -93,7 +121,7 @@ func TestScrubAnnotationsValueDoesNotExist(t *testing.T) {
 	assert.Equal(t, expected, actual)
 }
 
-func TestScrubAnnotationsValueIsEmpty(t *testing.T) {
+func TestRedactAnnotationsValueIsEmpty(t *testing.T) {
 	objectMeta := metav1.ObjectMeta{Annotations: map[string]string{
 		"kubectl.kubernetes.io/last-applied-configuration": "",
 	}}
