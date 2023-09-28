@@ -1236,8 +1236,7 @@ func (p *Probe) FlushDiscarders() error {
 
 // RefreshUserCache refreshes the user cache
 func (p *Probe) RefreshUserCache(containerID string) error {
-	_, _, err := p.GetResolvers().UserGroupResolver.RefreshCache(containerID)
-	return err
+	return p.GetResolvers().UserGroupResolver.RefreshCache(containerID)
 }
 
 // Snapshot runs the different snapshot functions of the resolvers that

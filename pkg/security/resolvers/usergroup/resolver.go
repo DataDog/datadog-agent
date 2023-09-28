@@ -19,24 +19,28 @@ import (
 	cgroupModel "github.com/DataDog/datadog-agent/pkg/security/resolvers/cgroup/model"
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
+	"golang.org/x/time/rate"
 
 	lru "github.com/hashicorp/golang-lru/v2"
 )
 
+const refreshCacheRateLimit = 10
+const refreshCacheRateBurst = 40
+
 var errUserNotFound = errors.New("user not found")
 var errGroupNotFound = errors.New("group not found")
 
-// UserCache defines the cache for uid to usernames
-type UserCache map[int]string
-
-// GroupCache defines the cache for gid to group names
-type GroupCache map[int]string
+// EntryCache maps ids to names
+type EntryCache struct {
+	entries     map[int]string
+	rateLimiter *rate.Limiter
+}
 
 // Resolver resolves user and group ids to names
 type Resolver struct {
 	cgroupResolver *cgroup.Resolver
-	nsUserCache    *lru.Cache[string, UserCache]
-	nsGroupCache   *lru.Cache[string, GroupCache]
+	nsUserCache    *lru.Cache[string, *EntryCache]
+	nsGroupCache   *lru.Cache[string, *EntryCache]
 }
 
 type containerFS struct {
@@ -86,50 +90,70 @@ func (r *Resolver) getFilesystem(containerID string) (fs.FS, error) {
 }
 
 // RefreshCache refresh the user and group caches with data from files
-func (r *Resolver) RefreshCache(containerID string) (UserCache, GroupCache, error) {
+func (r *Resolver) RefreshCache(containerID string) error {
 	fsys, err := r.getFilesystem(containerID)
 	if err != nil {
-		return nil, nil, err
+		return err
 	}
 
-	userCache, err := r.refreshUserCache(containerID, fsys)
-	if err != nil {
-		return nil, nil, err
+	if _, err := r.refreshUserCache(containerID, fsys); err != nil {
+		return err
 	}
 
-	groupCache, err := r.refreshGroupCache(containerID, fsys)
-	if err != nil {
-		return nil, nil, err
+	if _, err := r.refreshGroupCache(containerID, fsys); err != nil {
+		return err
 	}
 
-	return userCache, groupCache, nil
+	return nil
 }
 
-func (r *Resolver) refreshUserCache(containerID string, fsys fs.FS) (UserCache, error) {
-	entryMap, err := parsePasswd(fsys, "/etc/passwd")
+func (r *Resolver) refreshUserCache(containerID string, fsys fs.FS) (map[int]string, error) {
+	entryCache, found := r.nsUserCache.Get(containerID)
+	if !found {
+		// add the entry cache before we parse the fill so that we also
+		// rate limit parsing failures
+		entryCache = &EntryCache{rateLimiter: rate.NewLimiter(rate.Limit(refreshCacheRateLimit), refreshCacheRateBurst)}
+		r.nsUserCache.Add(containerID, entryCache)
+	}
+
+	if !entryCache.rateLimiter.Allow() {
+		return entryCache.entries, nil
+	}
+
+	entries, err := parsePasswd(fsys, "/etc/passwd")
 	if err != nil {
 		return nil, err
 	}
+	entryCache.entries = entries
 
-	r.nsUserCache.Add(containerID, entryMap)
-	return entryMap, nil
+	return entries, nil
 }
 
-func (r *Resolver) refreshGroupCache(containerID string, fsys fs.FS) (GroupCache, error) {
-	entryMap, err := parseGroup(fsys, "/etc/group")
+func (r *Resolver) refreshGroupCache(containerID string, fsys fs.FS) (map[int]string, error) {
+	entryCache, found := r.nsGroupCache.Get(containerID)
+	if !found {
+		entryCache = &EntryCache{rateLimiter: rate.NewLimiter(rate.Limit(refreshCacheRateLimit), refreshCacheRateBurst)}
+		r.nsGroupCache.Add(containerID, entryCache)
+	}
+
+	if !entryCache.rateLimiter.Allow() {
+		return entryCache.entries, nil
+	}
+
+	entries, err := parseGroup(fsys, "/etc/group")
 	if err != nil {
 		return nil, err
 	}
+	entryCache.entries = entries
 
-	r.nsGroupCache.Add(containerID, entryMap)
-	return entryMap, nil
+	return entries, nil
 }
 
 // ResolveUser resolves a user id to a username
 func (r *Resolver) ResolveUser(uid int, containerID string) (string, error) {
 	userCache, found := r.nsUserCache.Get(containerID)
 	if found {
-		cachedEntry, found := userCache[uid]
+		cachedEntry, found := userCache.entries[uid]
 		if !found {
 			return "", errUserNotFound
 		}
@@ -141,12 +165,12 @@ func (r *Resolver) ResolveUser(uid int, containerID string) (string, error) {
 		return "", err
 	}
 
-	userCache, err = r.refreshUserCache(containerID, fsys)
+	userEntries, err := r.refreshUserCache(containerID, fsys)
 	if err != nil {
 		return "", err
 	}
 
-	userName, found := userCache[uid]
+	userName, found := userEntries[uid]
 	if !found {
 		return "", errUserNotFound
 	}
@@ -158,7 +182,7 @@ func (r *Resolver) ResolveUser(uid int, containerID string) (string, error) {
 func (r *Resolver) ResolveGroup(gid int, containerID string) (string, error) {
 	groupCache, found := r.nsGroupCache.Get(containerID)
 	if found {
-		cachedEntry, found := groupCache[gid]
+		cachedEntry, found := groupCache.entries[gid]
 		if !found {
 			return "", errGroupNotFound
 		}
@@ -170,12 +194,12 @@ func (r *Resolver) ResolveGroup(gid int, containerID string) (string, error) {
 		return "", err
 	}
 
-	groupCache, err = r.refreshGroupCache(containerID, fsys)
+	groupEntries, err := r.refreshGroupCache(containerID, fsys)
 	if err != nil {
 		return "", err
 	}
 
-	groupName, found := groupCache[gid]
+	groupName, found := groupEntries[gid]
 	if !found {
 		return "", errGroupNotFound
 	}
@@ -191,12 +215,12 @@ func (r *Resolver) OnCGroupDeletedEvent(sbom *cgroupModel.CacheEntry) {
 
 // NewResolver instantiates a new user and group resolver
 func NewResolver(cgroupResolver *cgroup.Resolver) (*Resolver, error) {
-	nsUserCache, err := lru.New[string, UserCache](64)
+	nsUserCache, err := lru.New[string, *EntryCache](64)
 	if err != nil {
 		return nil, err
 	}
 
-	nsGroupCache, err := lru.New[string, GroupCache](64)
+	nsGroupCache, err := lru.New[string, *EntryCache](64)
 	if err != nil {
 		return nil, err
 	}
