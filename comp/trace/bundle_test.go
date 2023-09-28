@@ -26,10 +26,8 @@ func TestBundleDependencies(t *testing.T) {
 		// automatically. Use fx.Invoke to make sure components are initialized
 		// and all the providers are called.
 		fx.Supply(coreconfig.Params{}),
-		fx.Invoke(func(_ coreconfig.Component) {}),
 		coreconfig.Module,
 		fx.Invoke(func(_ config.Component) {}),
-		config.Module,
 		fx.Supply(&agent.Params{}),
 		fx.Invoke(func(_ agent.Component) {}),
 		Bundle))
@@ -44,10 +42,8 @@ func TestMockBundleDependencies(t *testing.T) {
 
 	cfg := fxutil.Test[config.Component](t, fx.Options(
 		fx.Supply(coreconfig.Params{}),
-		fx.Invoke(func(_ coreconfig.Component) {}),
 		coreconfig.MockModule,
 		fx.Invoke(func(_ config.Component) {}),
-		config.MockModule,
 		fx.Supply(&agent.Params{}),
 		fx.Invoke(func(_ agent.Component) {}),
 		MockBundle,
