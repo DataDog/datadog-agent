@@ -10,5 +10,5 @@ security:
   - |
     APM: The Agent now obfuscates the entire Memcached command by
     default. You can revert to the previous behavior where only the values
-    were obfuscated by setting `DD_APM_OBFUSCATION_MEMCACHED_KEEP_COMMAND=true`
-    or `apm_config.obfuscation.memcached.keep_command: true` in the datadog.yaml. 
+    were obfuscated by setting ``DD_APM_OBFUSCATION_MEMCACHED_KEEP_COMMAND=true``
+    or ``apm_config.obfuscation.memcached.keep_command: true`` in datadog.yaml. 
