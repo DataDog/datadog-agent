@@ -81,13 +81,13 @@ func (s *SharedLibrarySuite) TestSharedLibraryDetection() {
 
 	require.Eventuallyf(t, func() bool {
 		return registerRecorder.CallsForPathID(fooPathID1) == 1
-	}, time.Second*10, time.Second, "")
+	}, time.Second*10, 100*time.Millisecond, "")
 
 	require.NoError(t, command1.Process.Kill())
 
-	require.Eventuallyf(t, func() bool {
+	require.Eventually(t, func() bool {
 		return unregisterRecorder.CallsForPathID(fooPathID1) == 1
-	}, time.Second*10, time.Second, "")
+	}, time.Second*10, 100*time.Millisecond)
 }
 
 func (s *SharedLibrarySuite) TestSharedLibraryDetectionWithPIDAndRootNamespace() {
@@ -186,17 +186,17 @@ func (s *SharedLibrarySuite) TestSameInodeRegression() {
 
 	command1 := fileopener.OpenFromAnotherProcess(t, fooPath1, fooPath2)
 
-	require.Eventuallyf(t, func() bool {
+	require.Eventually(t, func() bool {
 		return registerRecorder.CallsForPathID(fooPathID1) == 1 &&
 			hasPID(watcher, command1)
-	}, time.Second*10, time.Second, "")
+	}, time.Second*10, 100*time.Millisecond)
 
 	require.NoError(t, command1.Process.Kill())
 
-	require.Eventuallyf(t, func() bool {
+	require.Eventually(t, func() bool {
 		return unregisterRecorder.CallsForPathID(fooPathID1) == 1 &&
 			!hasPID(watcher, command1)
-	}, time.Second*10, time.Second, "")
+	}, time.Second*10, 100*time.Millisecond)
 }
 
 func (s *SharedLibrarySuite) TestSoWatcherLeaks() {
@@ -233,36 +233,36 @@ func (s *SharedLibrarySuite) TestSoWatcherLeaks() {
 
 	command1 := fileopener.OpenFromAnotherProcess(t, fooPath1, fooPath2)
 
-	require.Eventuallyf(t, func() bool {
+	require.Eventually(t, func() bool {
 		// Checking register callback was executed once for each library
 		// and that we're tracking the two command PIDs
 		return registerRecorder.CallsForPathID(fooPathID1) == 1 &&
 			registerRecorder.CallsForPathID(fooPathID2) == 1 &&
 			hasPID(watcher, command1)
-	}, time.Second*10, time.Second, "")
+	}, time.Second*10, 100*time.Millisecond)
 
 	command2 := fileopener.OpenFromAnotherProcess(t, fooPath1)
 
-	require.Eventuallyf(t, func() bool {
+	require.Eventually(t, func() bool {
 		// Check that no more callbacks were executed, but we're tracking two PIDs now
 		return registerRecorder.CallsForPathID(fooPathID1) == 1 &&
 			registerRecorder.CallsForPathID(fooPathID2) == 1 &&
 			hasPID(watcher, command1) &&
 			hasPID(watcher, command2)
-	}, time.Second*10, time.Second, "")
+	}, time.Second*10, 100*time.Millisecond)
 
 	require.NoError(t, command1.Process.Kill())
-	require.Eventuallyf(t, func() bool {
+	require.Eventually(t, func() bool {
 		// Checking that the unregisteredCB was executed only for pathID2
 		return unregisterRecorder.CallsForPathID(fooPathID1) == 0 &&
 			unregisterRecorder.CallsForPathID(fooPathID2) == 1
-	}, time.Second*10, time.Second, "")
+	}, time.Second*10, 100*time.Millisecond)
 
 	require.NoError(t, command2.Process.Kill())
-	require.Eventuallyf(t, func() bool {
+	require.Eventually(t, func() bool {
 		// Checking that the unregisteredCB was executed now for pathID1
 		return unregisterRecorder.CallsForPathID(fooPathID1) == 1
-	}, time.Second*10, time.Second, "")
+	}, time.Second*10, 100*time.Millisecond)
 
 	// Check there are no more processes registered
 	assert.Len(t, watcher.registry.GetRegisteredProcesses(), 0)
@@ -301,31 +301,31 @@ func (s *SharedLibrarySuite) TestSoWatcherProcessAlreadyHoldingReferences() {
 	t.Cleanup(watcher.Stop)
 	launchProcessMonitor(t)
 
-	require.Eventuallyf(t, func() bool {
+	require.Eventually(t, func() bool {
 		return registerRecorder.CallsForPathID(fooPathID1) == 1 &&
 			registerRecorder.CallsForPathID(fooPathID2) == 1 &&
 			hasPID(watcher, command1) &&
 			hasPID(watcher, command2)
-	}, time.Second*10, time.Second, "")
+	}, time.Second*10, 100*time.Millisecond)
 
 	require.NoError(t, command1.Process.Kill())
-	require.Eventuallyf(t, func() bool {
+	require.Eventually(t, func() bool {
 		// Checking that unregister callback was called for only path2 and that
 		// command1 PID is no longer being tracked
 		return unregisterRecorder.CallsForPathID(fooPathID1) == 0 &&
 			unregisterRecorder.CallsForPathID(fooPathID2) == 1 &&
 			!hasPID(watcher, command1) &&
 			hasPID(watcher, command2)
-	}, time.Second*10, time.Second, "")
+	}, time.Second*10, 100*time.Millisecond)
 
 	require.NoError(t, command2.Process.Kill())
-	require.Eventuallyf(t, func() bool {
+	require.Eventually(t, func() bool {
 		// Assert that unregisterCB has also been called now for pathID1
 		return unregisterRecorder.CallsForPathID(fooPathID1) == 1 &&
 			unregisterRecorder.CallsForPathID(fooPathID2) == 1 &&
 			!hasPID(watcher, command1) &&
 			!hasPID(watcher, command2)
-	}, time.Second*10, time.Second, "")
+	}, time.Second*10, 100*time.Millisecond)
 
 	// Check there are no more processes registered
 	assert.Len(t, watcher.registry.GetRegisteredProcesses(), 0)
