@@ -109,6 +109,9 @@ func (lp *ProxyLifecycleProcessor) spanModifier(lastReqId string, chunk *pb.Trac
 			chunk.Tags = make(map[string]string)
 		}
 		chunk.Tags["_dd.apm.enabled"] = "0"
+		for _, s := range chunk.Spans {
+			(*spanWrapper)(s).SetMetricsTag("_dd.apm.enabled", 0)
+		}
 	}
 	currentReqId := s.Meta["request_id"]
 	if spanReqId := lastReqId; currentReqId != spanReqId {

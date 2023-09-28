@@ -314,7 +314,7 @@ func runAgent(stopCh chan struct{}) (serverlessDaemon *daemon.Daemon, err error)
 		// Set the default rate limiting to 1 trace/min to limit non ASM related traces as much as possible.
 		// In case of ASM event, the trace priority will be set to manual keep
 		if appsec.IsStandalone() {
-			ta.PrioritySampler.UpdateTargetTPS(1. / 60)
+			ta.PrioritySampler.UpdateTargetTPS(1. / 120)
 		}
 	} else if enabled, _ := strconv.ParseBool(os.Getenv("DD_EXPERIMENTAL_ENABLE_PROXY")); enabled {
 		// start the experimental proxy if enabled
