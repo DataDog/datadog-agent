@@ -24,7 +24,7 @@ type Model struct {
 	ExtraValidateFieldFnc func(field eval.Field, fieldValue eval.FieldValue) error
 }
 
-var processContextZero = ProcessCacheEntry{}
+var processContextZero = ProcessCacheEntry{ProcessContext: ProcessContext{Process: Process{Source: ProcessCacheEntryFromPlaceholder}}}
 var eventZero = Event{BaseEvent: BaseEvent{ContainerContext: &ContainerContext{}}}
 var containerContextZero ContainerContext
 
