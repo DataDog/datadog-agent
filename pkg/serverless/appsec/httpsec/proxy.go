@@ -9,6 +9,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"os"
+	"strconv"
 
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	"github.com/DataDog/datadog-agent/pkg/serverless/invocationlifecycle"
@@ -100,10 +101,7 @@ func (lp *ProxyLifecycleProcessor) OnInvokeEnd(_ *invocationlifecycle.Invocation
 }
 
 func (lp *ProxyLifecycleProcessor) spanModifier(lastReqId string, chunk *pb.TraceChunk, s *pb.Span) {
-	// Add appsec tags to the aws lambda function service entry span
-	if s.Name != "aws.lambda" || s.Type != "serverless" {
-		return
-	}
+	// Add relevant standalone tags to the chunk (TODO: remove per span tagging once backend handles chunk tags)
 	if isStandalone() {
 		if chunk.Tags == nil {
 			chunk.Tags = make(map[string]string)
@@ -112,6 +110,9 @@ func (lp *ProxyLifecycleProcessor) spanModifier(lastReqId string, chunk *pb.Trac
 		for _, s := range chunk.Spans {
 			(*spanWrapper)(s).SetMetricsTag("_dd.apm.enabled", 0)
 		}
+	}
+	if s.Name != "aws.lambda" || s.Type != "serverless" {
+		return
 	}
 	currentReqId := s.Meta["request_id"]
 	if spanReqId := lastReqId; currentReqId != spanReqId {
@@ -263,10 +264,16 @@ func (lp *ProxyLifecycleProcessor) WrapSpanModifier(ctx ExecutionContext, modify
 type spanWrapper pb.Span
 
 func (s *spanWrapper) SetMetaTag(tag string, value string) {
+	if s.Meta == nil {
+		s.Meta = make(map[string]string)
+	}
 	s.Meta[tag] = value
 }
 
 func (s *spanWrapper) SetMetricsTag(tag string, value float64) {
+	if s.Metrics == nil {
+		s.Metrics = make(map[string]float64)
+	}
 	s.Metrics[tag] = value
 }
 
@@ -282,6 +289,7 @@ func (b bytesStringer) String() string {
 }
 
 func isStandalone() bool {
-	value := os.Getenv("DD_APM_TRACING_ENABLED")
-	return value == "false" || value == "0"
+	value, set := os.LookupEnv("DD_APM_TRACING_ENABLED")
+	enabled, _ := strconv.ParseBool(value)
+	return set && !enabled
 }
