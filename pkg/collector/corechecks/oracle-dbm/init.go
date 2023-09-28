@@ -48,11 +48,18 @@ func (c *Check) init() error {
 	c.multitenant = isMultitenant
 
 	var i vInstance
-	err = getWrapper(c, &i, "SELECT /* DD */ host_name, instance_name, version_full FROM v$instance")
+	err = getWrapper(c, &i, "SELECT /* DD */ host_name, instance_name, version version_full FROM v$instance")
 	if err != nil {
 		return fmt.Errorf("%s failed to query v$instance: %w", c.logPrompt, err)
 	}
 	c.dbVersion = i.VersionFull
+	if isDbVersionGreaterOrEqualThan(c, "18") {
+		err = getWrapper(c, &c.dbVersion, "SELECT /* DD */ version_full FROM v$instance")
+		if err != nil {
+			return fmt.Errorf("%s failed to query full version: %w", c.logPrompt, err)
+		}
+	}
+
 	if c.config.ReportedHostname != "" {
 		c.dbHostname = c.config.ReportedHostname
 	} else {
