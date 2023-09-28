@@ -20,7 +20,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
 
-	passwd "github.com/chainguard-dev/go-apk/pkg/passwd"
 	lru "github.com/hashicorp/golang-lru/v2"
 )
 
@@ -107,32 +106,22 @@ func (r *Resolver) RefreshCache(containerID string) (UserCache, GroupCache, erro
 }
 
 func (r *Resolver) refreshUserCache(containerID string, fsys fs.FS) (UserCache, error) {
-	userFile, err := passwd.ReadUserFile(fsys, "/etc/passwd")
+	entryMap, err := parsePasswd(fsys, "/etc/passwd")
 	if err != nil {
 		return nil, err
 	}
 
-	entryMap := make(map[int]string, len(userFile.Entries))
-	for _, entry := range userFile.Entries {
-		entryMap[int(entry.UID)] = entry.UserName
-	}
 	r.nsUserCache.Add(containerID, entryMap)
-
 	return entryMap, nil
 }
 
 func (r *Resolver) refreshGroupCache(containerID string, fsys fs.FS) (GroupCache, error) {
-	groupFile, err := passwd.ReadGroupFile(fsys, "/etc/group")
+	entryMap, err := parseGroup(fsys, "/etc/group")
 	if err != nil {
 		return nil, err
 	}
 
-	entryMap := make(map[int]string, len(groupFile.Entries))
-	for _, entry := range groupFile.Entries {
-		entryMap[int(entry.GID)] = entry.GroupName
-	}
 	r.nsGroupCache.Add(containerID, entryMap)
-
 	return entryMap, nil
 }
 

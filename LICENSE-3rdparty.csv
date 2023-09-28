@@ -548,8 +548,6 @@ core,github.com/cavaliergopher/grab/v3/pkg/bps,BSD-3-Clause,Copyright (c) 2017 R
 core,github.com/cenkalti/backoff,MIT,Copyright (c) 2014 Cenk Altı
 core,github.com/cenkalti/backoff/v4,MIT,Copyright (c) 2014 Cenk Altı
 core,github.com/cespare/xxhash/v2,MIT,Copyright (c) 2016 Caleb Spare
-core,github.com/chainguard-dev/go-apk/pkg/fs,Apache-2.0,"Copyright 2023 Chainguard, Inc."
-core,github.com/chainguard-dev/go-apk/pkg/passwd,Apache-2.0,"Copyright 2023 Chainguard, Inc."
 core,github.com/cihub/seelog,BSD-3-Clause,"Copyright (c) 2012, Cloud Instruments Co., Ltd. <info@cin.io>"
 core,github.com/cilium/ebpf,MIT,"Copyright (c) 2017 Nathan Sweet | Copyright (c) 2018, 2019 Cloudflare | Copyright (c) 2019 Authors of Cilium"
 core,github.com/cilium/ebpf/asm,MIT,"Copyright (c) 2017 Nathan Sweet | Copyright (c) 2018, 2019 Cloudflare | Copyright (c) 2019 Authors of Cilium"
