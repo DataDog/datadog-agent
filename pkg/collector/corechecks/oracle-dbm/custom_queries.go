@@ -12,6 +12,7 @@ import (
 	"reflect"
 	"strconv"
 
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/oracle-dbm/config"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	godror "github.com/godror/godror"
 )
@@ -69,7 +70,25 @@ func (c *Check) CustomQueries() error {
 		"historate":       sender.Historate,
 	}
 	var allErrors error
-	for _, q := range c.config.CustomQueries {
+	var customQueries []config.CustomQuery
+
+	if len(c.config.InstanceConfig.CustomQueries) > 0 {
+		customQueries = append(customQueries, c.config.InstanceConfig.CustomQueries...)
+	}
+	if len(c.config.InitConfig.CustomQueries) > 0 {
+		switch c.config.UseGlobalCustomQueries {
+		case "true":
+			customQueries = make([]config.CustomQuery, len(c.config.InitConfig.CustomQueries))
+			copy(customQueries, c.config.InitConfig.CustomQueries)
+		case "false":
+		case "extend":
+			customQueries = append(customQueries, c.config.InitConfig.CustomQueries...)
+		default:
+			return fmt.Errorf(`Wrong value "%s" for the config parameter use_global_custom_queries. Valid values are "true", "false" and "extend"`, c.config.UseGlobalCustomQueries)
+		}
+	}
+
+	for _, q := range customQueries {
 		var errInQuery bool
 		metricPrefix := q.MetricPrefix
 
