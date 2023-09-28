@@ -290,6 +290,9 @@ func (t *Tailer) readEvents(ctx context.Context) {
 func (t *Tailer) handleEvent(eventRecordHandle evtapi.EventRecordHandle) {
 
 	richEvt := t.enrichEvent(eventRecordHandle)
+	if richEvt == nil {
+		return
+	}
 
 	err := t.bookmark.Update(eventRecordHandle)
 	if err != nil {
