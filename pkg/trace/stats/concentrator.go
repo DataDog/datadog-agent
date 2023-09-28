@@ -56,12 +56,12 @@ func prepareTagKeys(tags ...string) []string {
 	if len(tags) == 0 {
 		return nil
 	}
-	etm := make(map[string]struct{})
+	ptm := make(map[string]struct{})
 	for _, t := range tags {
-		etm[t] = struct{}{}
+		ptm[t] = struct{}{}
 	}
-	deduped := make([]string, 0, len(etm))
-	for t := range etm {
+	deduped := make([]string, 0, len(ptm))
+	for t := range ptm {
 		deduped = append(deduped, t)
 	}
 	sort.Strings(deduped)

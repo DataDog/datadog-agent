@@ -115,21 +115,21 @@ func NewAggregationFromSpan(s *pb.Span, origin string, aggKey PayloadAggregation
 	return agg, peerTags
 }
 
-func getMatchingPeerTags(s *pb.Span, peerTags []string) []string {
-	if len(peerTags) == 0 {
+func getMatchingPeerTags(s *pb.Span, peerTagKeys []string) []string {
+	if len(peerTagKeys) == 0 {
 		return nil
 	}
-	et := make([]string, 0, 0)
-	for _, t := range peerTags {
+	pt := make([]string, 0, 0)
+	for _, t := range peerTagKeys {
 		v, ok := s.Meta[t]
 		if ok {
-			et = append(et, t+":"+v)
+			pt = append(pt, t+":"+v)
 		}
 	}
-	if len(et) == 0 {
+	if len(pt) == 0 {
 		return nil
 	}
-	return et
+	return pt
 }
 
 func peerTagsHash(tags []string) uint64 {
