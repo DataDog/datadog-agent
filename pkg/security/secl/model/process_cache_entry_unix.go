@@ -145,6 +145,8 @@ func NewPlaceholderProcessCacheEntry(pid uint32, tid uint32, isKworker bool) *Pr
 	return entry
 }
 
+var processContextZero = ProcessCacheEntry{ProcessContext: ProcessContext{Process: Process{Source: ProcessCacheEntryFromPlaceholder}}}
+
 // GetPlaceholderProcessCacheEntry returns an empty process cache entry for failed process resolutions
 func GetPlaceholderProcessCacheEntry(pid uint32, tid uint32, isKworker bool) *ProcessCacheEntry {
 	processContextZero.Pid = pid
