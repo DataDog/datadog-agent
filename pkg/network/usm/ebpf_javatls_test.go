@@ -8,13 +8,15 @@
 package usm
 
 import (
-	"github.com/DataDog/datadog-agent/pkg/network/protocols/http"
-	"github.com/stretchr/testify/require"
 	"os"
 	"path/filepath"
+	"regexp"
 	"testing"
 
+	"github.com/stretchr/testify/require"
+
 	networkconfig "github.com/DataDog/datadog-agent/pkg/network/config"
+	"github.com/DataDog/datadog-agent/pkg/network/protocols/http"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http/testutil"
 	javatestutil "github.com/DataDog/datadog-agent/pkg/network/protocols/tls/java/testutil"
 	nettestutil "github.com/DataDog/datadog-agent/pkg/network/testutil"
@@ -85,7 +87,7 @@ func TestJavaInjection(t *testing.T) {
 			},
 			postTracerSetup: func(t *testing.T, ctx map[string]interface{}) {
 				// if RunJavaVersion failing to start it's probably because the java process has not been injected
-				require.NoError(t, javatestutil.RunJavaVersion(t, "openjdk:8u151-jre", "JustWait"), "Failed running Java version")
+				require.NoError(t, javatestutil.RunJavaVersion(t, "openjdk:8u151-jre", "Wait JustWait"), "Failed running Java version")
 			},
 			validation: commonValidation,
 			teardown:   commonTearDown,
@@ -108,8 +110,8 @@ func TestJavaInjection(t *testing.T) {
 			},
 			postTracerSetup: func(t *testing.T, ctx map[string]interface{}) {
 				// if RunJavaVersion failing to start it's probably because the java process has not been injected
-				require.NoError(t, javatestutil.RunJavaVersion(t, "openjdk:21-oraclelinux8", "JustWait"), "Failed running Java version")
-				require.Error(t, javatestutil.RunJavaVersion(t, "openjdk:21-oraclelinux8", "AnotherWait"), "AnotherWait should not be attached")
+				require.NoError(t, javatestutil.RunJavaVersion(t, "openjdk:21-oraclelinux8", "Wait JustWait"), "Failed running Java version")
+				javatestutil.RunJavaVersionAndWaitForRejection(t, "openjdk:21-oraclelinux8", "Wait AnotherWait", regexp.MustCompile(`AnotherWait pid.*`))
 			},
 			validation: commonValidation,
 			teardown:   commonTearDown,
@@ -130,8 +132,8 @@ func TestJavaInjection(t *testing.T) {
 			},
 			postTracerSetup: func(t *testing.T, ctx map[string]interface{}) {
 				// if RunJavaVersion failing to start it's probably because the java process has not been injected
-				require.NoError(t, javatestutil.RunJavaVersion(t, "openjdk:21-oraclelinux8", "AnotherWait"), "Failed running Java version")
-				require.Error(t, javatestutil.RunJavaVersion(t, "openjdk:21-oraclelinux8", "JustWait"), "JustWait should not be attached")
+				require.NoError(t, javatestutil.RunJavaVersion(t, "openjdk:21-oraclelinux8", "Wait AnotherWait"), "Failed running Java version")
+				javatestutil.RunJavaVersionAndWaitForRejection(t, "openjdk:21-oraclelinux8", "Wait JustWait", regexp.MustCompile(`JustWait pid.*`))
 			},
 			validation: commonValidation,
 			teardown:   commonTearDown,
@@ -150,8 +152,8 @@ func TestJavaInjection(t *testing.T) {
 				cfg.JavaAgentBlockRegex = ".*AnotherWait.*"
 			},
 			postTracerSetup: func(t *testing.T, ctx map[string]interface{}) {
-				require.NoError(t, javatestutil.RunJavaVersion(t, "openjdk:21-oraclelinux8", "JustWait"), "Failed running Java version")
-				require.Error(t, javatestutil.RunJavaVersion(t, "openjdk:21-oraclelinux8", "AnotherWait"), "AnotherWait should not be attached")
+				require.NoError(t, javatestutil.RunJavaVersion(t, "openjdk:21-oraclelinux8", "Wait JustWait"), "Failed running Java version")
+				javatestutil.RunJavaVersionAndWaitForRejection(t, "openjdk:21-oraclelinux8", "Wait AnotherWait", regexp.MustCompile(`AnotherWait pid.*`))
 			},
 			validation: commonValidation,
 			teardown:   commonTearDown,
@@ -170,7 +172,7 @@ func TestJavaInjection(t *testing.T) {
 				cfg.JavaAgentBlockRegex = ".*JustWait.*"
 			},
 			postTracerSetup: func(t *testing.T, ctx map[string]interface{}) {
-				require.NoError(t, javatestutil.RunJavaVersion(t, "openjdk:21-oraclelinux8", "JustWait"), "Failed running Java version")
+				require.NoError(t, javatestutil.RunJavaVersion(t, "openjdk:21-oraclelinux8", "Wait JustWait"), "Failed running Java version")
 			},
 			validation: commonValidation,
 			teardown:   commonTearDown,

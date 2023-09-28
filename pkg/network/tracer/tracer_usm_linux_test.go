@@ -26,11 +26,13 @@ import (
 	"testing"
 	"time"
 
-	"github.com/DataDog/gopsutil/host"
 	krpretty "github.com/kr/pretty"
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
+	"golang.org/x/exp/slices"
 	"golang.org/x/sys/unix"
+
+	"github.com/DataDog/gopsutil/host"
 
 	"github.com/DataDog/datadog-agent/pkg/ebpf/ebpftest"
 	"github.com/DataDog/datadog-agent/pkg/network"
@@ -46,6 +48,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/connection"
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/connection/kprobe"
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/testutil/grpc"
+	"github.com/DataDog/datadog-agent/pkg/network/usm/utils"
 )
 
 func httpSupported() bool {
@@ -152,7 +155,7 @@ func testHTTPStats(t *testing.T, aggregateByStatusCode bool) {
 		}
 
 		return false
-	}, 3*time.Second, 10*time.Millisecond, "couldn't find http connection matching: %s", serverAddr)
+	}, 3*time.Second, 100*time.Millisecond, "couldn't find http connection matching: %s", serverAddr)
 }
 
 func (s *USMSuite) TestHTTPSViaLibraryIntegration() {
@@ -313,7 +316,7 @@ func testHTTPSLibrary(t *testing.T, fetchCmd []string, prefetchLibs []string) {
 
 	var allConnections []network.ConnectionStats
 	httpKeys := make(map[uint16]http.Key)
-	require.Eventuallyf(t, func() bool {
+	require.Eventually(t, func() bool {
 		payload := getConnections(t, tr)
 		allConnections = append(allConnections, payload.Conns...)
 		found := false
@@ -350,7 +353,7 @@ func testHTTPSLibrary(t *testing.T, fetchCmd []string, prefetchLibs []string) {
 			t.Logf("=====loop= %# v", krpretty.Formatter(s))
 		}
 		return found
-	}, 15*time.Second, 5*time.Second, "couldn't find USM HTTPS stats")
+	}, 15*time.Second, 100*time.Millisecond, "couldn't find USM HTTPS stats")
 
 	// check NPM static TLS tag
 	found := false
@@ -438,7 +441,7 @@ func (s *USMSuite) TestOpenSSLVersions() {
 		}
 
 		return true
-	}, 3*time.Second, time.Second, "connection not found")
+	}, 3*time.Second, 100*time.Millisecond, "connection not found")
 }
 
 // TestOpenSSLVersionsSlowStart check we are able to capture TLS traffic even if we haven't captured the TLS handshake.
@@ -519,7 +522,7 @@ func (s *USMSuite) TestOpenSSLVersionsSlowStart() {
 		}
 
 		return true
-	}, 3*time.Second, time.Second, "connection not found")
+	}, 3*time.Second, 100*time.Millisecond, "connection not found")
 
 	// Here we intend to check if we catch requests we should not have caught
 	// Thus, if an expected missing requests - exists, thus there is a problem.
@@ -750,7 +753,7 @@ func (s *USMSuite) TestJavaInjection() {
 			},
 			validation: func(t *testing.T, ctx testContext, tr *Tracer) {
 				// Iterate through active connections until we find connection created above
-				require.Eventuallyf(t, func() bool {
+				require.Eventually(t, func() bool {
 					payload := getConnections(t, tr)
 					for key, stats := range payload.HTTP {
 						if key.Path.Content.Get() == "/200/anything/java-tls-request" {
@@ -783,7 +786,7 @@ func (s *USMSuite) TestJavaInjection() {
 					}
 
 					return false
-				}, 4*time.Second, time.Second, "couldn't find http connection matching: %s", "https://host.docker.internal:5443/200/anything/java-tls-request")
+				}, 4*time.Second, 100*time.Millisecond, "couldn't find http connection matching: https://host.docker.internal:5443/200/anything/java-tls-request")
 			},
 		},
 	}
@@ -879,7 +882,17 @@ func testHTTPGoTLSCaptureNewProcess(t *testing.T, cfg *config.Config) {
 	}
 
 	// spin-up goTLS client and issue requests after initialization
-	gotlstestutil.NewGoTLSClient(t, serverAddr, expectedOccurrences)()
+	command, runRequests := gotlstestutil.NewGoTLSClient(t, serverAddr, expectedOccurrences)
+	require.Eventuallyf(t, func() bool {
+		traced := utils.GetTracedPrograms("go-tls")
+		for _, prog := range traced {
+			if slices.Contains[[]uint32](prog.PIDs, uint32(command.Process.Pid)) {
+				return true
+			}
+		}
+		return false
+	}, time.Second*5, time.Millisecond*100, "process %v is not traced by gotls", command.Process.Pid)
+	runRequests()
 	checkRequests(t, tr, expectedOccurrences, reqs)
 }
 
@@ -896,7 +909,7 @@ func testHTTPGoTLSCaptureAlreadyRunning(t *testing.T, cfg *config.Config) {
 	t.Cleanup(closeServer)
 
 	// spin-up goTLS client but don't issue requests yet
-	issueRequestsFn := gotlstestutil.NewGoTLSClient(t, serverAddr, expectedOccurrences)
+	command, issueRequestsFn := gotlstestutil.NewGoTLSClient(t, serverAddr, expectedOccurrences)
 
 	cfg.EnableGoTLSSupport = true
 	cfg.EnableHTTPMonitoring = true
@@ -911,6 +924,15 @@ func testHTTPGoTLSCaptureAlreadyRunning(t *testing.T, cfg *config.Config) {
 		reqs[req] = false
 	}
 
+	require.Eventuallyf(t, func() bool {
+		traced := utils.GetTracedPrograms("go-tls")
+		for _, prog := range traced {
+			if slices.Contains[[]uint32](prog.PIDs, uint32(command.Process.Pid)) {
+				return true
+			}
+		}
+		return false
+	}, time.Second*5, time.Millisecond*100, "process %v is not traced by gotls", command.Process.Pid)
 	issueRequestsFn()
 	checkRequests(t, tr, expectedOccurrences, reqs)
 }
@@ -1048,7 +1070,7 @@ func (s *USMSuite) TestTLSClassification() {
 			},
 			validation: func(t *testing.T, tr *Tracer) {
 				// Iterate through active connections until we find connection created above
-				require.Eventuallyf(t, func() bool {
+				require.Eventually(t, func() bool {
 					payload := getConnections(t, tr)
 					for _, c := range payload.Conns {
 						if c.DPort == 44330 && c.ProtocolStack.Contains(protocols.TLS) {
@@ -1056,7 +1078,7 @@ func (s *USMSuite) TestTLSClassification() {
 						}
 					}
 					return false
-				}, 4*time.Second, time.Second, "couldn't find TLS connection matching: dst port 44330")
+				}, 4*time.Second, 100*time.Millisecond, "couldn't find TLS connection matching: dst port 44330")
 			},
 		})
 	}
