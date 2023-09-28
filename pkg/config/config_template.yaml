@@ -1482,7 +1482,7 @@ api_key:
 
   ## @param peer_tags - list of strings - optional
   ## @env DD_APM_PEER_TAGS - list of strings - optional
-  ## Enables additional tags related to peer.service. Requires peer_service_aggregation to also be set.
+  ## Enables additional tags related to peer.service. Will not be used unless peer_service_aggregation is also set.
   ## NOTE: This option is recommended to get the most granular tagging alongside `peer.service`, but it will
   ## also increase the computational overhead of aggregation. This list can be omitted if that cost is too high for your agent.
   # peer_tags: false
