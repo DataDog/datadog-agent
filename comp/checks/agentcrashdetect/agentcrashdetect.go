@@ -54,7 +54,7 @@ var (
 	// these are vars and not consts so that they can be overridden in
 	// the unit tests.
 	hive    = registry.LOCAL_MACHINE
-	baseKey = `SOFTWARE\Datadog\Datadog Agent\windows_agent_crash_reporting`
+	baseKey = `SOFTWARE\Datadog\Datadog Agent\agent_crash_reporting`
 )
 
 // WinCrashConfig is the configuration options for this check
@@ -67,10 +67,10 @@ type WinCrashConfig struct {
 // for running agent checks
 type AgentCrashDetect struct {
 	core.CheckBase
-	instance   *WinCrashConfig
-	reporter   *crashreport.WinCrashReporter
-	npmEnabled bool
-	tconfig    *traceconfig.AgentConfig
+	instance              *WinCrashConfig
+	reporter              *crashreport.WinCrashReporter
+	crashDetectionEnabled bool
+	tconfig               *traceconfig.AgentConfig
 }
 
 type agentCrashComponent struct {
@@ -106,13 +106,17 @@ func (wcd *AgentCrashDetect) Configure(senderManager sender.SenderManager, integ
 	// check to see if the wincrashdetect module is enabled.  If not, there's no point
 	// in even trying
 	for _, k := range enabledflags {
-		wcd.npmEnabled = config.SystemProbe.GetBool(k)
-		if wcd.npmEnabled {
+		wcd.crashDetectionEnabled = config.SystemProbe.GetBool(k)
+		if wcd.crashDetectionEnabled {
 			break
 		}
 	}
-	if !wcd.npmEnabled {
-		return fmt.Errorf("Not enabling crash detection module: no relevant configurations enabled")
+	if !wcd.crashDetectionEnabled {
+		// would prefer to return an error so that the check won't be scheduled.  But if we do that,
+		// it will show up as an integration issue in the UI; and this is an "expected" error,
+		// not an integration issue.  So just log it here (on startup).  The check will run
+		// every time and do nothing.
+		log.Infof("Agent Crash Detection module will not run; no required components running")
 	}
 
 	return wcd.instance.Parse(initConfig)
@@ -123,6 +127,17 @@ func (wcd *AgentCrashDetect) Configure(senderManager sender.SenderManager, integ
 // will handle only reporting the same crash once, and will return nil, even if a crash
 // is present, if it's already been reported to this check.
 func (wcd *AgentCrashDetect) Run() error {
+
+	if !wcd.crashDetectionEnabled {
+		// would prefer to have returned an error at configure time so that the check
+		// won't be scheduled.  But if we do that,
+		// it will show up as an integration issue in the UI; and this is an "expected" error,
+		// not an integration issue.  So just log it here (on startup).  The check will run
+		// every time and do nothing.
+
+		// No sysprobe crash detection module would be enabled.  So don't try
+		return nil
+	}
 
 	crash, err := wcd.reporter.CheckForCrash()
 	if err != nil {
@@ -141,7 +156,7 @@ func (wcd *AgentCrashDetect) Run() error {
 		return nil
 	}
 
-	log.Infof("sending message")
+	log.Infof("Sending crash: %v", formatText(crash))
 	lts := internaltelemetry.NewLogTelemetrySender(wcd.tconfig, "ddnpm", "go")
 	lts.SendLog("WARN", formatText(crash))
 	return nil
