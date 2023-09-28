@@ -1,6 +1,7 @@
 using System.Diagnostics.CodeAnalysis;
 using Datadog.CustomActions;
 using Datadog.CustomActions.Interfaces;
+using Datadog.CustomActions.Rollback;
 using Microsoft.Deployment.WindowsInstaller;
 using WixSharp;
 
