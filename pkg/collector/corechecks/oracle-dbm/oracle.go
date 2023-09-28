@@ -183,7 +183,7 @@ func (c *Check) Run() error {
 				return fmt.Errorf("%s %w", c.logPrompt, err)
 			}
 		}
-		if len(c.config.CustomQueries) > 0 {
+		if len(c.config.InstanceConfig.CustomQueries) > 0 || len(c.config.InitConfig.CustomQueries) > 0 {
 			err := c.CustomQueries()
 			if err != nil {
 				log.Errorf("%s failed to execute custom queries %s", c.logPrompt, err)
