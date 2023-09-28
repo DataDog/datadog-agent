@@ -19,8 +19,8 @@ import (
 
 func TestWindowsService(t *testing.T) {
 	manager, err := winutil.OpenSCManager(scManagerAccess)
-	if err != nil {
-		assert.Fail(t, "Error connecting to SC Manager: %v", err)
+	if !assert.NoError(t, err) {
+		assert.FailNow(t, "Error connecting to SC Manager: %v", err)
 	}
 	defer manager.Disconnect()
 
