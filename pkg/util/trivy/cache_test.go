@@ -222,7 +222,6 @@ func TestCustomBoltCache_DiskSizeLimit(t *testing.T) {
 
 func TestCustomBoltCache_GarbageCollector(t *testing.T) {
 	// Create a workload meta global store containing two images with a distinct artifactID/blobs and a shared blob
-
 	workloadmetaStore := fxutil.Test[workloadmeta.Mock](t, fx.Options(
 		log.MockModule,
 		config.MockModule,
@@ -230,6 +229,11 @@ func TestCustomBoltCache_GarbageCollector(t *testing.T) {
 		fx.Supply(workloadmeta.NewParams()),
 		workloadmeta.MockModuleV2,
 	))
+
+	// setup workloadmeta for test
+	workloadmetaStore.Start(context.TODO())
+	workloadmeta.SetGlobalStore(workloadmetaStore)
+	defer workloadmeta.SetGlobalStore(nil)
 
 	image1 := &workloadmeta.ContainerImageMetadata{
 		EntityID: workloadmeta.EntityID{
@@ -260,6 +264,8 @@ func TestCustomBoltCache_GarbageCollector(t *testing.T) {
 	defer func() {
 		require.NoError(t, cache.Close())
 	}()
+
+	time.Sleep(5 * time.Second)
 
 	// link image1 to artifact key1, an owned blob and a shared blob
 	cacheCleaner.setKeysForEntity("image1", []string{"key1", "blob1", "sharedBlob"})
@@ -318,12 +324,10 @@ func TestCustomBoltCache_GarbageCollector(t *testing.T) {
 	workloadmetaStore.Reset([]workloadmeta.Entity{image1}, workloadmeta.SourceAll)
 
 	// Wait for the garbage collector to clean up the unused artifact
-	time.Sleep(2 * time.Second)
+	time.Sleep(5 * time.Second)
 
 	// Check that only artifact "key2" and "blob2" were removed
-	t.Logf("Dumping workloadmeta: %v\n", workloadmetaStore.Dump(true))
 	blobby, err := cache.GetArtifact("key2")
-	t.Logf("The blob is: %v + the error here is: %v\n", blobby, err)
 	require.Error(t, err)
 
 	_, err = cache.GetBlob("blob2")

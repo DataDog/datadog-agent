@@ -106,7 +106,9 @@ func startReadiness(ctx context.Context, stores []*reflectorStore) {
 	health := health.RegisterReadiness(componentName)
 	defer func() {
 		err := health.Deregister()
-		log.Criticalf("Unable to deregister component: %s, readiness will likely fail until POD is replaced err: %v", componentName, err)
+		if err != nil {
+			log.Criticalf("Unable to deregister component: %s, readiness will likely fail until POD is replaced err: %v", componentName, err)
+		}
 	}()
 
 	// Checked synced, in its own scope to cleanly unreference the syncTimer

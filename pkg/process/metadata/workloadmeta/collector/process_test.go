@@ -112,6 +112,8 @@ func setUpCollectorTest(t *testing.T) *collectorTest {
 	require.NoError(t, c.Start(ctx, store))
 	t.Cleanup(cancel)
 
+	time.Sleep(5 * time.Second)
+
 	return &collectorTest{
 		collector: c,
 		probe:     probe,
@@ -119,6 +121,7 @@ func setUpCollectorTest(t *testing.T) *collectorTest {
 		store:     store,
 		stream:    acquireStream(t, port),
 	}
+
 }
 
 func (c *collectorTest) setupProcs() {
