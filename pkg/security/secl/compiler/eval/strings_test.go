@@ -8,6 +8,8 @@ package eval
 
 import (
 	"testing"
+
+	"golang.org/x/exp/slices"
 )
 
 func TestStringValues(t *testing.T) {
@@ -19,7 +21,7 @@ func TestStringValues(t *testing.T) {
 			t.Error(err)
 		}
 
-		if !values.scalarCache["test123"] {
+		if !slices.Contains(values.scalarCache, "test123") {
 			t.Error("expected cache key not found")
 		}
 
@@ -36,7 +38,7 @@ func TestStringValues(t *testing.T) {
 			t.Error(err)
 		}
 
-		if values.scalarCache["test123"] {
+		if slices.Contains(values.scalarCache, "test123") {
 			t.Error("expected cache key found")
 		}
 

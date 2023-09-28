@@ -17,6 +17,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
+// ServiceInfo contains name information for each service identified by PID
 type ServiceInfo struct {
 	ServiceName []string
 	DisplayName []string
@@ -46,9 +47,9 @@ func GetServiceMonitor() *SCMMonitor {
 	}
 }
 
-type StartTimeFunc func(uint64) (uint64, error)
+type startTimeFunc func(uint64) (uint64, error)
 
-var pGetProcessStartTimeAsNs = StartTimeFunc(getProcessStartTimeAsNs)
+var pGetProcessStartTimeAsNs = startTimeFunc(getProcessStartTimeAsNs)
 
 // GetRefreshCount returns the number of times we've actually queried
 // the SCM database.  used for logging stats.
@@ -158,11 +159,10 @@ func (scm *SCMMonitor) GetServiceInfo(pid uint64) (*ServiceInfo, error) {
 		if val == pidstart {
 			// it's the same process.  We know this isn't a service
 			return nil, nil
-		} else {
-			// it was in there but the times didn't match, which means
-			// it's a different process.  Clean it out.
-			delete(scm.nonServicePid, pid)
 		}
+		// it was in there but the times didn't match, which means
+		// it's a different process.  Clean it out.
+		delete(scm.nonServicePid, pid)
 	}
 	// if we get here it either wasn't in the map, or it was but the
 	// start time didn't match

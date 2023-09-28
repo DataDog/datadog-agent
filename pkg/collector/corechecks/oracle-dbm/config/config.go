@@ -202,5 +202,6 @@ func GetLogPrompt(c InstanceConfig) string {
 	if c.ServiceName != "" {
 		p = fmt.Sprintf("%s/%s", p, c.ServiceName)
 	}
+	p = fmt.Sprintf("%s>", p)
 	return p
 }

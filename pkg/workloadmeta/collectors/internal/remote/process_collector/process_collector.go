@@ -3,6 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+// Package processcollector implements the remote process collector for
+// Workloadmeta.
 package processcollector
 
 import (
@@ -135,7 +137,7 @@ func (s *streamHandler) IsEnabled() bool {
 	return s.Config.GetBool("language_detection.enabled")
 }
 
-func (s *streamHandler) NewClient(cc grpc.ClientConnInterface) remote.RemoteGrpcClient {
+func (s *streamHandler) NewClient(cc grpc.ClientConnInterface) remote.GrpcClient {
 	log.Debug("creating grpc client")
 	return &client{cl: pbgo.NewProcessEntityStreamClient(cc), parentCollector: s}
 }

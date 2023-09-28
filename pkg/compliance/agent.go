@@ -301,15 +301,18 @@ func (a *Agent) runXCCDFBenchmarks(ctx context.Context) {
 		for i, benchmark := range benchmarks {
 			seed := fmt.Sprintf("%s%s%d", a.opts.Hostname, benchmark.FrameworkID, i)
 			if sleepAborted(ctx, time.After(randomJitter(seed, a.opts.RunJitterMax))) {
+				FinishXCCDFBenchmark(ctx, benchmark)
 				return
 			}
 			for _, rule := range benchmark.Rules {
 				events := EvaluateXCCDFRule(ctx, a.opts.Hostname, a.opts.StatsdClient, benchmark, rule)
 				a.reportEvents(ctx, benchmark, events...)
 				if sleepAborted(ctx, throttler.C) {
+					FinishXCCDFBenchmark(ctx, benchmark)
 					return
 				}
 			}
+			FinishXCCDFBenchmark(ctx, benchmark)
 		}
 		if sleepAborted(ctx, runTicker.C) {
 			return

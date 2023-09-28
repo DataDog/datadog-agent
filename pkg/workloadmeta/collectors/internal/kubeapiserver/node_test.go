@@ -74,5 +74,5 @@ func Test_NodesFakeKubernetesClient(t *testing.T) {
 			},
 		},
 	}
-	testFakeHelper(t, createResource, newNodeStore, expected)
+	testCollectEvent(t, createResource, newNodeStore, expected)
 }

@@ -25,6 +25,7 @@ var preferredHPAVersions = map[string]int{
 	"v2beta1": 1,
 }
 
+// DiscoverHPAGroupVersionResource returns the HPA GroupVersionResource available.
 func DiscoverHPAGroupVersionResource(client kubernetes.Interface) (schema.GroupVersionResource, error) {
 	groups, _, err := client.Discovery().ServerGroupsAndResources()
 	if err != nil {

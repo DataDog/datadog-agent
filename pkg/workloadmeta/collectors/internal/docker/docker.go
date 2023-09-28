@@ -5,6 +5,7 @@
 
 //go:build docker
 
+// Package docker implements the Docker Workloadmeta collector.
 package docker
 
 import (

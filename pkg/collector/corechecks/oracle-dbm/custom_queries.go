@@ -33,7 +33,7 @@ func concatenateTypeError(input error, prefix string, expectedType string, colum
 }
 
 func concatenateError(input error, new string) error {
-	return fmt.Errorf("%w\n%s", input, new)
+	return fmt.Errorf("%w %s", input, new)
 }
 
 func (c *Check) CustomQueries() error {

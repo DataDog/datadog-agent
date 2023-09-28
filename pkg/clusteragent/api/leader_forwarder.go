@@ -3,6 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+// Package api contains the telemetry of the Cluster Agent API and implements
+// the forwarding of queries from Cluster Agent followers to the leader.
 package api
 
 import (
