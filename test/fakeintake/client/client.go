@@ -67,7 +67,6 @@ type Client struct {
 // NewClient creates a new fake intake client
 // fakeIntakeURL: the host of the fake Datadog intake server
 func NewClient(fakeIntakeURL string) *Client {
-	//fmt.Printf("Creating new client with url %s\n", fakeIntakeURL)
 	return &Client{
 		fakeIntakeURL:        strings.TrimSuffix(fakeIntakeURL, "/"),
 		metricAggregator:     aggregator.NewMetricAggregator(),
@@ -128,10 +127,13 @@ func (c *Client) getFakePayloads(endpoint string) (rawPayloads []api.Payload, er
 	var body []byte
 	err = backoff.Retry(func() error {
 		tmpResp, err := http.Get(fmt.Sprintf("%s/fakeintake/payloads?endpoint=%s", c.fakeIntakeURL, endpoint))
-		if err != nil || tmpResp.StatusCode != http.StatusOK {
+		if err != nil {
 			return err
 		}
 		defer tmpResp.Body.Close()
+        if tmpResp.StatusCode != http.StatusOK {
+            return fmt.Errorf("Expected %d got %d", http.StatusOK, tmpResp.StatusCode)
+        }
 		body, err = io.ReadAll(tmpResp.Body)
 		return err
 	}, backoff.WithMaxRetries(backoff.NewConstantBackOff(5*time.Second), 4))
