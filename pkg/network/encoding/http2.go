@@ -6,47 +6,20 @@
 package encoding
 
 import (
-	"sync"
-
-	"github.com/gogo/protobuf/proto"
+	"bytes"
+	"io"
 
 	model "github.com/DataDog/agent-payload/v5/process"
+	"github.com/gogo/protobuf/proto"
 
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http"
 	"github.com/DataDog/datadog-agent/pkg/network/types"
 )
 
-var (
-	http2StatsDataPool = sync.Pool{
-		New: func() any {
-			return new(model.HTTPStats_Data)
-		},
-	}
-
-	http2StatsPool = sync.Pool{
-		New: func() any {
-			return new(model.HTTPStats)
-		},
-	}
-
-	http2StatusCodeMap = sync.Pool{
-		New: func() any {
-			m := make(map[int32]*model.HTTPStats_Data)
-			return &m
-		},
-	}
-)
-
 type http2Encoder struct {
-	byConnection *USMConnectionIndex[http.Key, *http.RequestStats]
-
-	// cached object
-	aggregations *model.HTTP2Aggregations
-
-	// A list of pointers to maps of the protobuf representation. We get the pointers from sync.Pool, and by the end
-	// of the operation, we put the objects back to the pool.
-	toRelease []*map[int32]*model.HTTPStats_Data
+	http2AggregationsBuilder *model.HTTP2AggregationsBuilder
+	byConnection             *USMConnectionIndex[http.Key, *http.RequestStats]
 }
 
 func newHTTP2Encoder(http2Payloads map[http.Key]*http.RequestStats) *http2Encoder {
@@ -58,61 +31,71 @@ func newHTTP2Encoder(http2Payloads map[http.Key]*http.RequestStats) *http2Encode
 		byConnection: GroupByConnection("http2", http2Payloads, func(key http.Key) types.ConnectionKey {
 			return key.ConnectionKey
 		}),
-		aggregations: new(model.HTTP2Aggregations),
+		http2AggregationsBuilder: model.NewHTTP2AggregationsBuilder(nil),
 	}
 }
 
-func (e *http2Encoder) GetHTTP2AggregationsAndTags(c network.ConnectionStats) ([]byte, uint64, map[string]struct{}) {
+func (e *http2Encoder) WriteHTTP2AggregationsAndTags(c network.ConnectionStats, builder *model.ConnectionBuilder) (uint64, map[string]struct{}) {
 	if e == nil {
-		return nil, 0, nil
+		return 0, nil
 	}
 
 	connectionData := e.byConnection.Find(c)
 	if connectionData == nil || len(connectionData.Data) == 0 || connectionData.IsPIDCollision(c) {
-		return nil, 0, nil
+		return 0, nil
 	}
 
-	return e.encodeData(connectionData)
+	var (
+		staticTags  uint64
+		dynamicTags map[string]struct{}
+	)
+
+	builder.SetHttp2Aggregations(func(b *bytes.Buffer) {
+		staticTags, dynamicTags = e.encodeData(connectionData, b)
+	})
+	return staticTags, dynamicTags
 }
 
-func (e *http2Encoder) encodeData(connectionData *USMConnectionData[http.Key, *http.RequestStats]) ([]byte, uint64, map[string]struct{}) {
-	e.reset()
-
+func (e *http2Encoder) encodeData(connectionData *USMConnectionData[http.Key, *http.RequestStats], w io.Writer) (uint64, map[string]struct{}) {
 	var staticTags uint64
 	dynamicTags := make(map[string]struct{})
+	e.http2AggregationsBuilder.Reset(w)
 
 	for _, kvPair := range connectionData.Data {
-		key := kvPair.Key
-		stats := kvPair.Value
+		e.http2AggregationsBuilder.AddEndpointAggregations(func(http2StatsBuilder *model.HTTPStatsBuilder) {
+			key := kvPair.Key
+			stats := kvPair.Value
 
-		ms := http2StatsPool.Get().(*model.HTTPStats)
-		ms.Path = key.Path.Content.Get()
-		ms.FullPath = key.Path.FullPath
-		ms.Method = model.HTTPMethod(key.Method)
-		ms.StatsByStatusCode = e.getDataMap(stats.Data)
+			http2StatsBuilder.SetPath(key.Path.Content.Get())
+			http2StatsBuilder.SetFullPath(key.Path.FullPath)
+			http2StatsBuilder.SetMethod(uint64(model.HTTPMethod(key.Method)))
 
-		for status, s := range stats.Data {
-			data := ms.StatsByStatusCode[int32(status)]
-			data.Count = uint32(s.Count)
+			for code, stats := range stats.Data {
+				http2StatsBuilder.AddStatsByStatusCode(func(w *model.HTTPStats_StatsByStatusCodeEntryBuilder) {
+					w.SetKey(int32(code))
+					w.SetValue(func(w *model.HTTPStats_DataBuilder) {
+						w.SetCount(uint32(stats.Count))
+						if latencies := stats.Latencies; latencies != nil {
 
-			if latencies := s.Latencies; latencies != nil {
-				blob, _ := proto.Marshal(latencies.ToProto())
-				data.Latencies = blob
-			} else {
-				data.FirstLatencySample = s.FirstLatencySample
+							blob, _ := proto.Marshal(latencies.ToProto())
+							w.SetLatencies(func(b *bytes.Buffer) {
+								b.Write(blob)
+							})
+						} else {
+							w.SetFirstLatencySample(stats.FirstLatencySample)
+						}
+					})
+				})
+
+				staticTags |= stats.StaticTags
+				for _, dynamicTag := range stats.DynamicTags {
+					dynamicTags[dynamicTag] = struct{}{}
+				}
 			}
-
-			staticTags |= s.StaticTags
-			for _, dynamicTag := range s.DynamicTags {
-				dynamicTags[dynamicTag] = struct{}{}
-			}
-		}
-
-		e.aggregations.EndpointAggregations = append(e.aggregations.EndpointAggregations, ms)
+		})
 	}
 
-	serializedData, _ := proto.Marshal(e.aggregations)
-	return serializedData, staticTags, dynamicTags
+	return staticTags, dynamicTags
 }
 
 func (e *http2Encoder) Close() {
@@ -120,51 +103,5 @@ func (e *http2Encoder) Close() {
 		return
 	}
 
-	e.reset()
 	e.byConnection.Close()
-}
-
-func (e *http2Encoder) getDataMap(stats map[uint16]*http.RequestStat) map[int32]*model.HTTPStats_Data {
-	resPtr := http2StatusCodeMap.Get().(*map[int32]*model.HTTPStats_Data)
-	e.toRelease = append(e.toRelease, resPtr)
-
-	res := *resPtr
-	for key := range stats {
-		res[int32(key)] = http2StatsDataPool.Get().(*model.HTTPStats_Data)
-	}
-	return res
-}
-
-func (e *http2Encoder) reset() {
-	if e == nil {
-		return
-	}
-
-	byEndpoint := e.aggregations.EndpointAggregations
-	for i, endpointAggregation := range byEndpoint {
-		byStatus := endpointAggregation.StatsByStatusCode
-		for _, s := range byStatus {
-			s.Reset()
-			http2StatsDataPool.Put(s)
-		}
-
-		// This is an idiom recognized and optimized by the Go compiler and results
-		// in clearing the whole map at once
-		// https://github.com/golang/go/issues/20138
-		for k := range byStatus {
-			delete(byStatus, k)
-		}
-
-		endpointAggregation.Reset()
-		http2StatsPool.Put(endpointAggregation)
-		byEndpoint[i] = nil
-	}
-
-	for i, mapPtr := range e.toRelease {
-		http2StatusCodeMap.Put(mapPtr)
-		e.toRelease[i] = nil
-	}
-
-	e.toRelease = e.toRelease[:0]
-	e.aggregations.EndpointAggregations = e.aggregations.EndpointAggregations[:0]
 }

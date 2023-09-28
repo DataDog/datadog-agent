@@ -20,6 +20,9 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
+// Consider multibyte charactersets where a single special character can take several bytes
+const maxFullTextWithSafetyMargin = 3500
+
 // ActivitySnapshot is a payload containing database activity samples. It is parsed from the intake payload.
 // easyjson:json
 type ActivitySnapshot struct {
@@ -90,8 +93,8 @@ const ACTIVITY_QUERY = `SELECT /* DD_ACTIVITY_SAMPLING */
 		'CPU'
 	END wait_class,
 	wait_time_micro,
-	dbms_lob.substr(sql_fulltext, 4000, 1) sql_fulltext,
-	dbms_lob.substr(prev_sql_fulltext, 4000, 1) prev_sql_fulltext,
+	dbms_lob.substr(sql_fulltext, 3500, 1) sql_fulltext,
+	dbms_lob.substr(prev_sql_fulltext, 3500, 1) prev_sql_fulltext,
 	pdb_name,
 	command_name
 FROM sys.dd_session
@@ -161,8 +164,8 @@ ELSE
 END wait_class,
 s.wait_time_micro,
 c.name as pdb_name,
-dbms_lob.substr(sq.sql_fulltext, 4000, 1) sql_fulltext,
-dbms_lob.substr(sq_prev.sql_fulltext, 4000, 1) prev_sql_fulltext,
+dbms_lob.substr(sq.sql_fulltext, 3500, 1) sql_fulltext,
+dbms_lob.substr(sq_prev.sql_fulltext, 3500, 1) prev_sql_fulltext,
 comm.command_name
 FROM
 v$session s,
@@ -316,7 +319,7 @@ func (c *Check) SampleSession() error {
 	var sessionRows []OracleActivityRow
 	sessionSamples := []OracleActivityRowDB{}
 	var activityQuery string
-	maxSQLTextLength := MaxSQLFullTextVSQL
+	maxSQLTextLength := maxFullTextWithSafetyMargin
 	if c.hostingType == selfManaged {
 		activityQuery = ACTIVITY_QUERY
 	} else {

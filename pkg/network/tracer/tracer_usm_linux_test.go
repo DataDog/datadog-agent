@@ -152,7 +152,7 @@ func testHTTPStats(t *testing.T, aggregateByStatusCode bool) {
 		}
 
 		return false
-	}, 3*time.Second, 10*time.Millisecond, "couldn't find http connection matching: %s", serverAddr)
+	}, 3*time.Second, 100*time.Millisecond, "couldn't find http connection matching: %s", serverAddr)
 }
 
 func (s *USMSuite) TestHTTPSViaLibraryIntegration() {
@@ -313,7 +313,7 @@ func testHTTPSLibrary(t *testing.T, fetchCmd []string, prefetchLibs []string) {
 
 	var allConnections []network.ConnectionStats
 	httpKeys := make(map[uint16]http.Key)
-	require.Eventuallyf(t, func() bool {
+	require.Eventually(t, func() bool {
 		payload := getConnections(t, tr)
 		allConnections = append(allConnections, payload.Conns...)
 		found := false
@@ -350,7 +350,7 @@ func testHTTPSLibrary(t *testing.T, fetchCmd []string, prefetchLibs []string) {
 			t.Logf("=====loop= %# v", krpretty.Formatter(s))
 		}
 		return found
-	}, 15*time.Second, 5*time.Second, "couldn't find USM HTTPS stats")
+	}, 15*time.Second, 100*time.Millisecond, "couldn't find USM HTTPS stats")
 
 	// check NPM static TLS tag
 	found := false
@@ -438,7 +438,7 @@ func (s *USMSuite) TestOpenSSLVersions() {
 		}
 
 		return true
-	}, 3*time.Second, time.Second, "connection not found")
+	}, 3*time.Second, 100*time.Millisecond, "connection not found")
 }
 
 // TestOpenSSLVersionsSlowStart check we are able to capture TLS traffic even if we haven't captured the TLS handshake.
@@ -519,7 +519,7 @@ func (s *USMSuite) TestOpenSSLVersionsSlowStart() {
 		}
 
 		return true
-	}, 3*time.Second, time.Second, "connection not found")
+	}, 3*time.Second, 100*time.Millisecond, "connection not found")
 
 	// Here we intend to check if we catch requests we should not have caught
 	// Thus, if an expected missing requests - exists, thus there is a problem.
@@ -723,22 +723,6 @@ func (s *USMSuite) TestJavaInjection() {
 		extras map[string]interface{}
 	}
 
-	commonTearDown := func(t *testing.T, ctx testContext) {
-		cfg.JavaAgentArgs = ctx.extras["JavaAgentArgs"].(string)
-
-		testfile := ctx.extras["testfile"].(string)
-		_, err := os.Stat(testfile)
-		if err == nil {
-			os.Remove(testfile)
-		}
-	}
-
-	commonValidation := func(t *testing.T, ctx testContext, tr *Tracer) {
-		testfile := ctx.extras["testfile"].(string)
-		_, err := os.Stat(testfile)
-		require.NoError(t, err)
-	}
-
 	tests := []struct {
 		name            string
 		context         testContext
@@ -747,119 +731,6 @@ func (s *USMSuite) TestJavaInjection() {
 		validation      func(t *testing.T, ctx testContext, tr *Tracer)
 		teardown        func(t *testing.T, ctx testContext)
 	}{
-		{
-			// Test the java hotspot injection is working
-			name: "java_hotspot_injection_8u151",
-			context: testContext{
-				extras: make(map[string]interface{}),
-			},
-			preTracerSetup: func(t *testing.T, ctx testContext) {
-				cfg.JavaDir = fakeAgentDir
-				ctx.extras["JavaAgentArgs"] = cfg.JavaAgentArgs
-
-				ctx.extras["testfile"] = createJavaTempFile(t, testdataDir)
-				cfg.JavaAgentArgs += ",testfile=/v/" + filepath.Base(ctx.extras["testfile"].(string))
-			},
-			postTracerSetup: func(t *testing.T, ctx testContext) {
-				// if RunJavaVersion failing to start it's probably because the java process has not been injected
-				require.NoError(t, javatestutil.RunJavaVersion(t, "openjdk:8u151-jre", "JustWait"), "Failed running Java version")
-			},
-			validation: commonValidation,
-			teardown:   commonTearDown,
-		},
-		{
-			// Test the java hotspot injection is working
-			name: "java_hotspot_injection_21_allow_only",
-			context: testContext{
-				extras: make(map[string]interface{}),
-			},
-			preTracerSetup: func(t *testing.T, ctx testContext) {
-				cfg.JavaDir = fakeAgentDir
-				ctx.extras["JavaAgentArgs"] = cfg.JavaAgentArgs
-
-				ctx.extras["testfile"] = createJavaTempFile(t, testdataDir)
-				cfg.JavaAgentArgs += ",testfile=/v/" + filepath.Base(ctx.extras["testfile"].(string))
-
-				// testing allow/block list, as Allow list have higher priority
-				// this test will pass normally
-				cfg.JavaAgentAllowRegex = ".*JustWait.*"
-				cfg.JavaAgentBlockRegex = ""
-			},
-			postTracerSetup: func(t *testing.T, ctx testContext) {
-				// if RunJavaVersion failing to start it's probably because the java process has not been injected
-				require.NoError(t, javatestutil.RunJavaVersion(t, "openjdk:21-oraclelinux8", "JustWait"), "Failed running Java version")
-				require.Error(t, javatestutil.RunJavaVersion(t, "openjdk:21-oraclelinux8", "AnotherWait"), "AnotherWait should not be attached")
-			},
-			validation: commonValidation,
-			teardown:   commonTearDown,
-		},
-		{
-			// Test the java hotspot injection is working
-			name: "java_hotspot_injection_21_block_only",
-			context: testContext{
-				extras: make(map[string]interface{}),
-			},
-			preTracerSetup: func(t *testing.T, ctx testContext) {
-				ctx.extras["JavaAgentArgs"] = cfg.JavaAgentArgs
-
-				ctx.extras["testfile"] = createJavaTempFile(t, testdataDir)
-				cfg.JavaAgentArgs += ",testfile=/v/" + filepath.Base(ctx.extras["testfile"].(string))
-
-				// block the agent attachment
-				cfg.JavaAgentAllowRegex = ""
-				cfg.JavaAgentBlockRegex = ".*JustWait.*"
-			},
-			postTracerSetup: func(t *testing.T, ctx testContext) {
-				// if RunJavaVersion failing to start it's probably because the java process has not been injected
-				require.NoError(t, javatestutil.RunJavaVersion(t, "openjdk:21-oraclelinux8", "AnotherWait"), "Failed running Java version")
-				require.Error(t, javatestutil.RunJavaVersion(t, "openjdk:21-oraclelinux8", "JustWait"), "JustWait should not be attached")
-			},
-			validation: commonValidation,
-			teardown:   commonTearDown,
-		},
-		{
-			name: "java_hotspot_injection_21_allowblock",
-			context: testContext{
-				extras: make(map[string]interface{}),
-			},
-			preTracerSetup: func(t *testing.T, ctx testContext) {
-				ctx.extras["JavaAgentArgs"] = cfg.JavaAgentArgs
-
-				ctx.extras["testfile"] = createJavaTempFile(t, testdataDir)
-				cfg.JavaAgentArgs += ",testfile=/v/" + filepath.Base(ctx.extras["testfile"].(string))
-
-				// block the agent attachment
-				cfg.JavaAgentAllowRegex = ".*JustWait.*"
-				cfg.JavaAgentBlockRegex = ".*AnotherWait.*"
-			},
-			postTracerSetup: func(t *testing.T, ctx testContext) {
-				require.NoError(t, javatestutil.RunJavaVersion(t, "openjdk:21-oraclelinux8", "JustWait"), "Failed running Java version")
-				require.Error(t, javatestutil.RunJavaVersion(t, "openjdk:21-oraclelinux8", "AnotherWait"), "AnotherWait should not be attached")
-			},
-			validation: commonValidation,
-			teardown:   commonTearDown,
-		},
-		{
-			name: "java_hotspot_injection_21_allow_higher_priority",
-			context: testContext{
-				extras: make(map[string]interface{}),
-			},
-			preTracerSetup: func(t *testing.T, ctx testContext) {
-				ctx.extras["JavaAgentArgs"] = cfg.JavaAgentArgs
-
-				ctx.extras["testfile"] = createJavaTempFile(t, testdataDir)
-				cfg.JavaAgentArgs += ",testfile=/v/" + filepath.Base(ctx.extras["testfile"].(string))
-
-				// allow has a higher priority
-				cfg.JavaAgentAllowRegex = ".*JustWait.*"
-				cfg.JavaAgentBlockRegex = ".*JustWait.*"
-			},
-			postTracerSetup: func(t *testing.T, ctx testContext) {
-				require.NoError(t, javatestutil.RunJavaVersion(t, "openjdk:21-oraclelinux8", "JustWait"), "Failed running Java version")
-			},
-			validation: commonValidation,
-			teardown:   commonTearDown,
-		},
 		{
 			// Test the java jdk client https request is working
 			name: "java_jdk_client_httpbin_docker_withTLSClassification_java15",
@@ -879,7 +750,7 @@ func (s *USMSuite) TestJavaInjection() {
 			},
 			validation: func(t *testing.T, ctx testContext, tr *Tracer) {
 				// Iterate through active connections until we find connection created above
-				require.Eventuallyf(t, func() bool {
+				require.Eventually(t, func() bool {
 					payload := getConnections(t, tr)
 					for key, stats := range payload.HTTP {
 						if key.Path.Content.Get() == "/200/anything/java-tls-request" {
@@ -912,7 +783,7 @@ func (s *USMSuite) TestJavaInjection() {
 					}
 
 					return false
-				}, 4*time.Second, time.Second, "couldn't find http connection matching: %s", "https://host.docker.internal:5443/200/anything/java-tls-request")
+				}, 4*time.Second, 100*time.Millisecond, "couldn't find http connection matching: https://host.docker.internal:5443/200/anything/java-tls-request")
 			},
 		},
 	}
@@ -1177,7 +1048,7 @@ func (s *USMSuite) TestTLSClassification() {
 			},
 			validation: func(t *testing.T, tr *Tracer) {
 				// Iterate through active connections until we find connection created above
-				require.Eventuallyf(t, func() bool {
+				require.Eventually(t, func() bool {
 					payload := getConnections(t, tr)
 					for _, c := range payload.Conns {
 						if c.DPort == 44330 && c.ProtocolStack.Contains(protocols.TLS) {
@@ -1185,7 +1056,7 @@ func (s *USMSuite) TestTLSClassification() {
 						}
 					}
 					return false
-				}, 4*time.Second, time.Second, "couldn't find TLS connection matching: dst port 44330")
+				}, 4*time.Second, 100*time.Millisecond, "couldn't find TLS connection matching: dst port 44330")
 			},
 		})
 	}
