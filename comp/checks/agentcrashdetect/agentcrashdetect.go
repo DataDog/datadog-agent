@@ -22,9 +22,9 @@ import (
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/system/wincrashdetect/probe"
 
+	compsysconfig "github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
 	comptraceconfig "github.com/DataDog/datadog-agent/comp/trace/config"
 
-	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/internaltelemetry"
 	traceconfig "github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -71,6 +71,7 @@ type AgentCrashDetect struct {
 	reporter              *crashreport.WinCrashReporter
 	crashDetectionEnabled bool
 	tconfig               *traceconfig.AgentConfig
+	probeconfig           compsysconfig.Component
 }
 
 type agentCrashComponent struct {
@@ -81,6 +82,7 @@ type dependencies struct {
 	fx.In
 
 	TConfig   comptraceconfig.Component
+	SConfig   compsysconfig.Component
 	Lifecycle fx.Lifecycle
 }
 
@@ -106,7 +108,7 @@ func (wcd *AgentCrashDetect) Configure(senderManager sender.SenderManager, integ
 	// check to see if the wincrashdetect module is enabled.  If not, there's no point
 	// in even trying
 	for _, k := range enabledflags {
-		wcd.crashDetectionEnabled = config.SystemProbe.GetBool(k)
+		wcd.crashDetectionEnabled = wcd.probeconfig.GetBool(k)
 		if wcd.crashDetectionEnabled {
 			break
 		}
@@ -169,9 +171,10 @@ func newAgentCrashComponent(deps dependencies) Component {
 		OnStart: func(ctx context.Context) error {
 			core.RegisterCheck(crashDetectCheckName, func() check.Check {
 				checkInstance := &AgentCrashDetect{
-					CheckBase: core.NewCheckBase(crashDetectCheckName),
-					instance:  &WinCrashConfig{},
-					tconfig:   instance.tconfig,
+					CheckBase:   core.NewCheckBase(crashDetectCheckName),
+					instance:    &WinCrashConfig{},
+					tconfig:     instance.tconfig,
+					probeconfig: deps.SConfig,
 				}
 				return checkInstance
 			})
