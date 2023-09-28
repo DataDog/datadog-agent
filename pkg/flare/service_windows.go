@@ -1,3 +1,8 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
+
 //go:build windows
 
 package flare
@@ -14,27 +19,26 @@ import (
 )
 
 const (
-	SC_MANAGER_ACCESS = windows.SC_MANAGER_CONNECT | windows.SC_MANAGER_ENUMERATE_SERVICE
-	SERVICE_ACCESS    = windows.SERVICE_ENUMERATE_DEPENDENTS | windows.SERVICE_QUERY_CONFIG | windows.SERVICE_QUERY_STATUS
+	scManagerAccess = windows.SC_MANAGER_CONNECT | windows.SC_MANAGER_ENUMERATE_SERVICE
 )
 
-type ServiceInfo struct {
+type serviceInfo struct {
 	ServiceName           string
 	ServiceState          string
-	ProcessId             uint32
-	Config                QueryServiceConfig
+	ProcessID             uint32
+	Config                queryServiceConfig
 	DependentServices     []string
 	TriggersCount         uint32
-	ServiceFailureActions ServiceFailureActions
+	ServiceFailureActions serviceFailureActions
 }
 
-type QueryServiceConfig struct {
+type queryServiceConfig struct {
 	ServiceType      string
 	StartType        string
 	ErrorControl     string
 	BinaryPathName   string // fully qualified path to the service binary file, can also include arguments for an auto-start service
 	LoadOrderGroup   string
-	TagId            uint32
+	TagID            uint32
 	Dependencies     []string
 	ServiceStartName string // name of the account under which the service should run
 	DisplayName      string
@@ -44,21 +48,21 @@ type QueryServiceConfig struct {
 	DelayedAutoStart bool   // the service is started after other auto-start services are started plus a short delay
 }
 
-type RecoveryActionsUpdated struct {
+type recoveryActionsUpdated struct {
 	Type  string
 	Delay time.Duration
 }
 
-type ServiceFailureActions struct {
+type serviceFailureActions struct {
 	ResetPeriod                      uint32
 	RebootMessage                    string
 	RecoveryCommand                  string
 	FailureActionsOnNonCrashFailures bool
-	RecoveryActions                  []RecoveryActionsUpdated
+	RecoveryActions                  []recoveryActionsUpdated
 }
 
-func GetFailureActions(s *mgr.Service) (ServiceFailureActions, error) {
-	sfa := ServiceFailureActions{}
+func getFailureActions(s *mgr.Service) (serviceFailureActions, error) {
+	sfa := serviceFailureActions{}
 
 	var err error
 	var err1 error
@@ -89,8 +93,8 @@ func GetFailureActions(s *mgr.Service) (ServiceFailureActions, error) {
 	}
 
 	for _, act := range recoveryActionSlice {
-		rau := RecoveryActionsUpdated{
-			Type:  ActionTypeToString(act.Type),
+		rau := recoveryActionsUpdated{
+			Type:  actionTypeToString(act.Type),
 			Delay: act.Delay / time.Millisecond,
 		}
 		sfa.RecoveryActions = append(sfa.RecoveryActions, rau)
@@ -99,7 +103,7 @@ func GetFailureActions(s *mgr.Service) (ServiceFailureActions, error) {
 	return sfa, err
 }
 
-func ServiceTypeToString(serviceType uint32) string {
+func serviceTypeToString(serviceType uint32) string {
 	switch serviceType {
 	case windows.SERVICE_KERNEL_DRIVER:
 		return "KernelDriver"
@@ -120,7 +124,7 @@ func ServiceTypeToString(serviceType uint32) string {
 	}
 }
 
-func StartTypeToString(startType uint32) string {
+func startTypeToString(startType uint32) string {
 	switch startType {
 	case windows.SERVICE_AUTO_START:
 		return "Automatic"
@@ -137,7 +141,7 @@ func StartTypeToString(startType uint32) string {
 	}
 }
 
-func ErrorControlToString(errorCode uint32) string {
+func errorControlToString(errorCode uint32) string {
 	switch errorCode {
 	case windows.SERVICE_ERROR_IGNORE:
 		return "Error Ignore"
@@ -152,8 +156,8 @@ func ErrorControlToString(errorCode uint32) string {
 	}
 }
 
-func ServiceStatusToString(svc_state svc.State) string {
-	switch svc_state {
+func serviceStatusToString(svcState svc.State) string {
+	switch svcState {
 	case svc.Stopped:
 		return "Stopped"
 	case svc.StartPending:
@@ -173,14 +177,14 @@ func ServiceStatusToString(svc_state svc.State) string {
 	}
 }
 
-func ConvertConfigToQueryServiceConfig(config mgr.Config) QueryServiceConfig {
-	return QueryServiceConfig{
-		ServiceType:      ServiceTypeToString(config.ServiceType),
-		StartType:        StartTypeToString(config.StartType),
-		ErrorControl:     ErrorControlToString(config.ErrorControl),
+func convertConfigToQueryServiceConfig(config mgr.Config) queryServiceConfig {
+	return queryServiceConfig{
+		ServiceType:      serviceTypeToString(config.ServiceType),
+		StartType:        startTypeToString(config.StartType),
+		ErrorControl:     errorControlToString(config.ErrorControl),
 		BinaryPathName:   config.BinaryPathName,
 		LoadOrderGroup:   config.LoadOrderGroup,
-		TagId:            config.TagId,
+		TagID:            config.TagId,
 		Dependencies:     config.Dependencies,
 		ServiceStartName: config.ServiceStartName,
 		DisplayName:      config.DisplayName,
@@ -191,9 +195,9 @@ func ConvertConfigToQueryServiceConfig(config mgr.Config) QueryServiceConfig {
 	}
 }
 
-func GetServiceInfo(s *mgr.Service) (ServiceInfo, error) {
+func getServiceInfo(s *mgr.Service) (serviceInfo, error) {
 
-	srvinfo := ServiceInfo{}
+	srvinfo := serviceInfo{}
 	srvinfo.ServiceName = s.Name
 
 	var err error
@@ -202,15 +206,16 @@ func GetServiceInfo(s *mgr.Service) (ServiceInfo, error) {
 	conf, err1 := s.Config()
 	if err1 != nil {
 		err = fmt.Errorf("%v, Config: %v", err, err1)
+	} else {
+		srvinfo.Config = convertConfigToQueryServiceConfig(conf)
 	}
-	srvinfo.Config = ConvertConfigToQueryServiceConfig(conf)
 
-	srvinfo.TriggersCount, err1 = ServiceTriggerCount(s)
+	srvinfo.TriggersCount, err1 = serviceTriggerCount(s)
 	if err1 != nil {
 		err = fmt.Errorf("%v, ServiceTriggerCount: %v", err, err1)
 	}
 
-	srvinfo.ServiceFailureActions, err1 = GetFailureActions(s)
+	srvinfo.ServiceFailureActions, err1 = getFailureActions(s)
 	if err1 != nil {
 		err = fmt.Errorf("%v, GetFailureActions: %v", err, err1)
 	}
@@ -218,9 +223,10 @@ func GetServiceInfo(s *mgr.Service) (ServiceInfo, error) {
 	srvcStatus, err1 := s.Query()
 	if err1 != nil {
 		err = fmt.Errorf("%v, Query: %v", err, err1)
+	} else {
+		srvinfo.ServiceState = serviceStatusToString(srvcStatus.State)
+		srvinfo.ProcessID = srvcStatus.ProcessId
 	}
-	srvinfo.ServiceState = ServiceStatusToString(srvcStatus.State)
-	srvinfo.ProcessId = srvcStatus.ProcessId
 
 	srvinfo.DependentServices, err1 = s.ListDependentServices(svc.AnyActivity)
 	if err1 != nil {
@@ -230,16 +236,16 @@ func GetServiceInfo(s *mgr.Service) (ServiceInfo, error) {
 	return srvinfo, err
 }
 
-func ActionTypeToString(i int) string {
+func actionTypeToString(i int) string {
 	switch i {
 	case windows.SC_ACTION_NONE:
-		return "No Action."
+		return "No Action"
 	case windows.SC_ACTION_REBOOT:
-		return "Reboot the computer."
+		return "Reboot the computer"
 	case windows.SC_ACTION_RESTART:
-		return "Restart the service."
+		return "Restart the service"
 	case windows.SC_ACTION_RUN_COMMAND:
-		return "Run a command."
+		return "Run a command"
 	default:
 		return "Unknown"
 	}
@@ -263,21 +269,19 @@ func queryServiceConfig2Local(s *mgr.Service, infoLevel uint32) ([]byte, error) 
 }
 
 // Based off of https://cs.opensource.google/go/x/sys/+/refs/tags/v0.12.0:windows/service.go;l=213-228
-type ServiceTriggerInfo struct {
+type serviceTriggerInfo struct {
 	TriggersCount uint32
 	Triggers      uintptr
 	Reserved      *uint8
 }
 
-func ServiceTriggerCount(s *mgr.Service) (uint32, error) {
+func serviceTriggerCount(s *mgr.Service) (uint32, error) {
 	b, err := queryServiceConfig2Local(s, windows.SERVICE_CONFIG_TRIGGER_INFO)
 	if err != nil {
 		return 0, err
 	}
-	p := (*ServiceTriggerInfo)(unsafe.Pointer(&b[0]))
-	/*if p.TriggersCount == nil {
-		return nil, err
-	}*/
+	//p := (*ServiceTriggerInfo)(unsafe.Pointer(&b[0]))
+	p := (*serviceTriggerInfo)(unsafe.Pointer(unsafe.SliceData(b)))
 
 	return p.TriggersCount, nil
 }
