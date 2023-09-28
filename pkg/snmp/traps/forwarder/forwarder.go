@@ -35,7 +35,7 @@ func NewTrapForwarder(formatter formatter.Formatter, sender sender.Sender, packe
 		trapsIn:   packets,
 		formatter: formatter,
 		sender:    sender,
-		stopChan:  make(chan struct{}),
+		stopChan:  make(chan struct{}, 1),
 		logger:    logger,
 	}, nil
 }
@@ -48,7 +48,11 @@ func (tf *TrapForwarder) Start() {
 
 // Stop the TrapForwarder instance.
 func (tf *TrapForwarder) Stop() {
-	tf.stopChan <- struct{}{}
+	select {
+	case tf.stopChan <- struct{}{}:
+	default:
+		tf.logger.Warn("TrapForwarder stopped twice.")
+	}
 }
 
 func (tf *TrapForwarder) run() {

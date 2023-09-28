@@ -35,6 +35,7 @@ func createForwarder(t *testing.T) (forwarder *TrapForwarder, err error) {
 		return nil, err
 	}
 	forwarder.Start()
+	t.Cleanup(func() { forwarder.Stop() })
 	return forwarder, err
 }
 
@@ -61,7 +62,7 @@ func TestV1GenericTrapAreForwarder(t *testing.T) {
 	rawEvent, err := forwarder.formatter.FormatPacket(packet)
 	require.NoError(t, err)
 	forwarder.trapsIn <- packet
-	forwarder.Stop()
+	time.Sleep(100 * time.Millisecond)
 	sender.AssertEventPlatformEvent(t, rawEvent, epforwarder.EventTypeSnmpTraps)
 }
 
@@ -74,7 +75,7 @@ func TestV1SpecificTrapAreForwarder(t *testing.T) {
 	rawEvent, err := forwarder.formatter.FormatPacket(packet)
 	require.NoError(t, err)
 	forwarder.trapsIn <- packet
-	forwarder.Stop()
+	time.Sleep(100 * time.Millisecond)
 	sender.AssertEventPlatformEvent(t, rawEvent, epforwarder.EventTypeSnmpTraps)
 }
 func TestV2TrapAreForwarder(t *testing.T) {
@@ -86,7 +87,7 @@ func TestV2TrapAreForwarder(t *testing.T) {
 	rawEvent, err := forwarder.formatter.FormatPacket(packet)
 	require.NoError(t, err)
 	forwarder.trapsIn <- packet
-	forwarder.Stop()
+	time.Sleep(100 * time.Millisecond)
 	sender.AssertEventPlatformEvent(t, rawEvent, epforwarder.EventTypeSnmpTraps)
 }
 
@@ -96,6 +97,6 @@ func TestForwarderTelemetry(t *testing.T) {
 	sender, ok := forwarder.sender.(*mocksender.MockSender)
 	require.True(t, ok)
 	forwarder.trapsIn <- makeSnmpPacket(packet.NetSNMPExampleHeartbeatNotification)
-	forwarder.Stop()
+	time.Sleep(100 * time.Millisecond)
 	sender.AssertMetric(t, "Count", "datadog.snmp_traps.forwarded", 1, "", []string{"snmp_device:1.1.1.1", "device_namespace:totoro", "snmp_version:2"})
 }
