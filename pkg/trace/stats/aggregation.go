@@ -150,7 +150,9 @@ func NewAggregationFromGroup(g *pb.ClientGroupedStats) Aggregation {
 	}
 
 	if g.PeerTags != nil {
-		sort.Strings(g.PeerTags)
+		if !sort.StringsAreSorted(g.PeerTags) {
+			sort.Strings(g.PeerTags)
+		}
 		agg.PeerTagsHash = peerTagsHash(g.PeerTags)
 	}
 	return agg
