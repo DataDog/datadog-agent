@@ -284,26 +284,23 @@ func (c *Collector) ScanContainerdImageFromFilesystem(ctx context.Context, imgMe
 }
 
 func (c *Collector) scanFilesystem(ctx context.Context, path string, imgMeta *workloadmeta.ContainerImageMetadata, scanOptions sbom.ScanOptions) (sbom.Report, error) {
-	cache, _, err := c.getCache()
-	if err != nil {
-		return nil, err
-	}
-
-	if scanOptions.NoCache {
-		cache = &memoryCache{}
-	}
+	cache := newMemoryCache()
 
 	fsArtifact, err := local2.NewArtifact(path, cache, getDefaultArtifactOption(path, scanOptions))
 	if err != nil {
 		return nil, fmt.Errorf("unable to create artifact from fs, err: %w", err)
 	}
 
-	bom, err := c.scan(ctx, fsArtifact, applier.NewApplier(cache), imgMeta)
+	trivyReport, err := c.scan(ctx, fsArtifact, applier.NewApplier(cache), imgMeta)
 	if err != nil {
 		return nil, fmt.Errorf("unable to marshal report to sbom format, err: %w", err)
 	}
 
-	return bom, nil
+	return &Report{
+		Report:    trivyReport,
+		id:        cache.blobID,
+		marshaler: c.marshaler,
+	}, nil
 }
 
 // ScanFilesystem scans file-system
@@ -311,7 +308,7 @@ func (c *Collector) ScanFilesystem(ctx context.Context, path string, scanOptions
 	return c.scanFilesystem(ctx, path, nil, scanOptions)
 }
 
-func (c *Collector) scan(ctx context.Context, artifact artifact.Artifact, applier applier.Applier, imgMeta *workloadmeta.ContainerImageMetadata) (sbom.Report, error) {
+func (c *Collector) scan(ctx context.Context, artifact artifact.Artifact, applier applier.Applier, imgMeta *workloadmeta.ContainerImageMetadata) (*types.Report, error) {
 	if imgMeta != nil {
 		artifactReference, err := artifact.Inspect(ctx) // called by the scanner as well
 		if err != nil {
@@ -331,10 +328,7 @@ func (c *Collector) scan(ctx context.Context, artifact artifact.Artifact, applie
 		return nil, err
 	}
 
-	return &Report{
-		Report:    trivyReport,
-		marshaler: c.marshaler,
-	}, nil
+	return &trivyReport, nil
 }
 
 func (c *Collector) scanImage(ctx context.Context, fanalImage ftypes.Image, imgMeta *workloadmeta.ContainerImageMetadata, scanOptions sbom.ScanOptions) (sbom.Report, error) {
@@ -348,10 +342,14 @@ func (c *Collector) scanImage(ctx context.Context, fanalImage ftypes.Image, imgM
 		return nil, fmt.Errorf("unable to create artifact from image, err: %w", err)
 	}
 
-	bom, err := c.scan(ctx, imageArtifact, applier.NewApplier(cache), imgMeta)
+	trivyReport, err := c.scan(ctx, imageArtifact, applier.NewApplier(cache), imgMeta)
 	if err != nil {
 		return nil, fmt.Errorf("unable to marshal report to sbom format, err: %w", err)
 	}
 
-	return bom, nil
+	return &Report{
+		Report:    trivyReport,
+		id:        trivyReport.Metadata.ImageID,
+		marshaler: c.marshaler,
+	}, nil
 }

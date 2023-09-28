@@ -22,6 +22,7 @@ const (
 // Report defines the report interface
 type Report interface {
 	ToCycloneDX() (*cyclonedxgo.BOM, error)
+	ID() string
 }
 
 // ScanOptions defines the scan options
