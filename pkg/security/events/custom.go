@@ -31,10 +31,10 @@ const (
 	// RulesetLoadedRuleDesc is the rule description for the ruleset_loaded events
 	RulesetLoadedRuleDesc = "New ruleset loaded"
 
-	// HeartbeatRuleID is the rule ID for the ruleset_loaded events
+	// HeartbeatRuleID is the rule ID for the heartbeat events
 	HeartbeatRuleID = "heartbeat"
-	// HeartbeatRuleIDRuleDesc is the rule description for the ruleset_loaded events
-	HeartbeatRuleIDRuleDesc = "Heartbeat"
+	// HeartbeatRuleIDDesc is the rule description for the heartbeat events
+	HeartbeatRuleDesc = "Heartbeat"
 
 	// AbnormalPathRuleID is the rule ID for the abnormal_path events
 	AbnormalPathRuleID = "abnormal_path"

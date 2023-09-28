@@ -262,7 +262,7 @@ func NewHeartBeatEvents(policies map[string]Policy) (*rules.Rule, []*events.Cust
 			Name:    policy.Name,
 			Version: policy.Version,
 			Source:  policy.Source,
-			Rules:   nil,
+			Rules:   nil, // The rules that have been loaded at startup are not reported in the heartbeat event
 		}
 
 		evt := HeartbeatEvent{
