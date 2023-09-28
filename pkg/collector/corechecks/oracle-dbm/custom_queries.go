@@ -84,7 +84,7 @@ func (c *Check) CustomQueries() error {
 		case "extend":
 			customQueries = append(customQueries, c.config.InitConfig.CustomQueries...)
 		default:
-			return fmt.Errorf(`Wrong value "%s" for the config parameter use_global_custom_queries. Valid values are "true", "false" and "extend".`, c.config.UseGlobalCustomQueries)
+			return fmt.Errorf(`Wrong value "%s" for the config parameter use_global_custom_queries. Valid values are "true", "false" and "extend"`, c.config.UseGlobalCustomQueries)
 		}
 	}
 
