@@ -73,6 +73,16 @@ Package forwarder implements the "forwarder" bundle
 
 Package defaultForwarder implements a component to send payloads to the backend
 
+## [comp/languagedetection](https://pkg.go.dev/github.com/DataDog/dd-agent-comp-experiments/comp/languagedetection) (Component Bundle)
+
+*Datadog Team*: container-integrations
+
+Package languagedetection implements the "languagedetection" bundle
+
+### [comp/languagedetection/client](https://pkg.go.dev/github.com/DataDog/dd-agent-comp-experiments/comp/languagedetection/client)
+
+Package client implements a component to send process metadata to the Cluster-Agent
+
 ## [comp/logs](https://pkg.go.dev/github.com/DataDog/dd-agent-comp-experiments/comp/logs) (Component Bundle)
 
 *Datadog Team*: agent-metrics-logs
