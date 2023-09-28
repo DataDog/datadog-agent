@@ -52,7 +52,6 @@ func TestListMap_JSONSchema(t *testing.T) {
 	schema := reflector.Reflect(&ExampleStruct{})
 	schemaJSON, err := json.MarshalIndent(schema, "", "  ")
 	require.NoError(t, err)
-	schema.Version = "" // no version, to make the test more future-proof
 
 	expectedSchema := `
 {
