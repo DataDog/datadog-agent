@@ -55,50 +55,71 @@ func (p *Probe) Stop() {}
 
 // Start processing events
 func (p *Probe) Start() error {
+
 	log.Infof("Windows probe started")
 	p.wg.Add(1)
 	go func() {
 		defer p.wg.Done()
+
+		var (
+			pce *model.ProcessCacheEntry
+		)
+
 		for {
-			var err error
-			var e *model.ProcessCacheEntry
 			ev := p.zeroEvent()
 			select {
 			case <-p.ctx.Done():
 				return
 			case start := <-p.onStart:
-				log.Infof("Received start %v", start)
-				// this doesn't take into account the possibility of
-				// PID collision
-				e, err = p.resolvers.ProcessResolver.AddNewProcessEntry(process.Pid(start.Pid), start.ImageFile, start.CmdLine)
+				pid := process.Pid(start.Pid)
+				if pid == 0 {
+					// TODO this shouldn't happen
+					continue
+				}
+
+				log.Tracef("Received start %v", start)
+
+				ppid, err := procutil.GetParentPid(pid)
 				if err != nil {
-					// count the error and
-					log.Infof("error in resolver %v", err)
+					log.Errorf("unable to resolve parent pid %v", err)
+					continue
+				}
+
+				pce, err = p.resolvers.ProcessResolver.AddNewEntry(pid, ppid, start.ImageFile, start.CmdLine)
+				if err != nil {
+					log.Errorf("error in resolver %v", err)
 					continue
 				}
 				ev.Type = uint32(model.ExecEventType)
-				if e != nil {
-					ev.Exec.Process = &e.Process
-				}
+				ev.Exec.Process = &pce.Process
 			case stop := <-p.onStop:
+				pid := process.Pid(stop.Pid)
+				if pid == 0 {
+					// TODO this shouldn't happen
+					continue
+				}
 				log.Infof("Received stop %v", stop)
-				e = p.resolvers.ProcessResolver.GetProcessEntry(process.Pid(stop.Pid))
-				defer p.resolvers.ProcessResolver.DeleteProcessEntry(process.Pid(stop.Pid))
+
+				pce := p.resolvers.ProcessResolver.GetEntry(pid)
+				defer p.resolvers.ProcessResolver.DeleteEntry(pid, time.Now())
 
 				ev.Type = uint32(model.ExitEventType)
-				if e != nil {
-					ev.Exit.Process = &e.Process
+				if pce == nil {
+					log.Errorf("unable to resolve pid %d", pid)
+					continue
 				}
+				ev.Exit.Process = &pce.Process
 			}
 
-			if e != nil {
-				// use ProcessCacheEntry process context as process context
-				ev.ProcessCacheEntry = e
-				ev.ProcessContext = &e.ProcessContext
-
-				p.DispatchEvent(ev)
+			if pce == nil {
+				continue
 			}
 
+			// use ProcessCacheEntry process context as process context
+			ev.ProcessCacheEntry = pce
+			ev.ProcessContext = &pce.ProcessContext
+
+			p.DispatchEvent(ev)
 		}
 	}()
 	return p.pm.Start()
@@ -130,8 +151,7 @@ func (p *Probe) sendEventToSpecificEventTypeHandlers(event *model.Event) {
 // Snapshot runs the different snapshot functions of the resolvers that
 // require to sync with the current state of the system
 func (p *Probe) Snapshot() error {
-	//return p.resolvers.Snapshot()
-	return nil
+	return p.resolvers.Snapshot()
 }
 
 // Close the probe
@@ -196,10 +216,6 @@ func NewProbe(config *config.Config, opts Opts) (*Probe, error) {
 	return p, nil
 }
 
-// Does nothing if on windows
-func (p *Probe) PlaySnapshot() {
-}
-
 // OnNewDiscarder is called when a new discarder is found. We currently don't generate discarders on Windows.
 func (p *Probe) OnNewDiscarder(rs *rules.RuleSet, ev *model.Event, field eval.Field, eventType eval.EventType) {
 }
@@ -207,4 +223,9 @@ func (p *Probe) OnNewDiscarder(rs *rules.RuleSet, ev *model.Event, field eval.Fi
 // ApplyRuleSet setup the probes for the provided set of rules and returns the policy report.
 func (p *Probe) ApplyRuleSet(rs *rules.RuleSet) (*kfilters.ApplyRuleSetReport, error) {
 	return kfilters.NewApplyRuleSetReport(p.Config.Probe, rs)
+}
+
+// FlushDiscarders invalidates all the discarders
+func (p *Probe) FlushDiscarders() error {
+	return nil
 }

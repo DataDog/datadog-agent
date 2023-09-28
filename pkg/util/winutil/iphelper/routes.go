@@ -15,6 +15,7 @@ import (
 	"golang.org/x/sys/windows"
 )
 
+//revive:disable:var-naming Name is intended to match the Windows API name
 var (
 	modiphelper = windows.NewLazyDLL("Iphlpapi.dll")
 
@@ -22,6 +23,10 @@ var (
 	procGetIpForwardTable   = modiphelper.NewProc("GetIpForwardTable")
 	procGetIfTable          = modiphelper.NewProc("GetIfTable")
 )
+
+//revive:enable:var-naming (API)
+
+//revive:disable:var-naming Name is intended to match the Windows type name
 
 // MIB_TCPROW_OWNER_PID is the matching structure for the IPHelper structure
 // of the same name. Fields documented
@@ -62,42 +67,13 @@ type MIB_IPFORWARDROW struct {
 	DwForwardMetric5   uint32
 }
 
-const (
-	MAX_INTERFACE_NAME_LEN = 256
-	MAXLEN_PHYSADDR        = 8
-	MAXLEN_IFDESCR         = 256
-)
+//revive:enable:var-naming (type)
 
-// MIB_IFROW is the matching structure for the IPHelper structure of the same
-// name, it defines a physical interface
-// https://docs.microsoft.com/en-us/windows/win32/api/ifmib/ns-ifmib-mib_ifrow
-type MIB_IFROW struct {
-	WszName           [MAX_INTERFACE_NAME_LEN]uint16
-	DwIndex           uint32
-	DwType            uint32
-	DwMtu             uint32
-	DwSpeed           uint32
-	DwPhysAddrLen     uint32
-	BPhysAddr         [MAXLEN_PHYSADDR]byte
-	DwAdminStatus     uint32
-	DwOperStatus      uint32
-	DwLastChange      uint32
-	DwInOctets        uint32
-	DwInUcastPkts     uint32
-	DwInNUcastPkts    uint32
-	DwInDiscards      uint32
-	DwInErrors        uint32
-	DwInUnknownProtos uint32
-	DwOutOctets       uint32
-	DwOutUcastPkts    uint32
-	DwOutNUcastPkts   uint32
-	DwOutDiscards     uint32
-	DwOutErrors       uint32
-	DwOutQLen         uint32
-	DwDescrLen        uint32
-	BDescr            [MAXLEN_IFDESCR]byte
-}
+//revive:disable:var-naming Name is intended to match the Windows const name
 
+// TCP_TABLE_CLASS enum
+//
+// https://learn.microsoft.com/en-us/windows/win32/api/iprtrmib/ne-iprtrmib-tcp_table_class
 const (
 	TCP_TABLE_BASIC_LISTENER           = uint32(0)
 	TCP_TABLE_BASIC_CONNECTIONS        = uint32(1)
@@ -110,7 +86,11 @@ const (
 	TCP_TABLE_OWNER_MODULE_ALL         = uint32(8)
 )
 
+//revive:enable:var-naming (const)
+
 // GetIPv4RouteTable returns a list of the current ipv4 routes.
+//
+// https://learn.microsoft.com/en-us/windows/win32/api/iphlpapi/nf-iphlpapi-getipforwardtable
 func GetIPv4RouteTable() (table []MIB_IPFORWARDROW, err error) {
 	var size uint32
 	var rawtableentry uintptr
@@ -139,6 +119,10 @@ func GetIPv4RouteTable() (table []MIB_IPFORWARDROW, err error) {
 }
 
 // GetExtendedTcpV4Table returns a list of ipv4 tcp connections indexed by owning PID
+//
+// https://learn.microsoft.com/en-us/windows/win32/api/iphlpapi/nf-iphlpapi-getextendedtcptable
+//
+//revive:disable-next-line:var-naming Name is intended to match the Windows API name
 func GetExtendedTcpV4Table() (table map[uint32][]MIB_TCPROW_OWNER_PID, err error) {
 	var size uint32
 	var rawtableentry uintptr
@@ -179,7 +163,9 @@ func GetExtendedTcpV4Table() (table map[uint32][]MIB_TCPROW_OWNER_PID, err error
 }
 
 // GetIFTable returns a table of interfaces, indexed by the interface index
-func GetIFTable() (table map[uint32]MIB_IFROW, err error) {
+//
+// https://learn.microsoft.com/en-us/windows/win32/api/iphlpapi/nf-iphlpapi-getiftable
+func GetIFTable() (table map[uint32]windows.MibIfRow, err error) {
 	var size uint32
 	var rawtableentry uintptr
 	r, _, _ := procGetIfTable.Call(rawtableentry,
@@ -199,11 +185,11 @@ func GetIFTable() (table map[uint32]MIB_IFROW, err error) {
 		return
 	}
 	count := uint32(binary.LittleEndian.Uint32(rawbuf))
-	table = make(map[uint32]MIB_IFROW)
+	table = make(map[uint32]windows.MibIfRow)
 
-	entries := (*[1 << 20]MIB_IFROW)(unsafe.Pointer(&rawbuf[4]))[:count:count]
+	entries := (*[1 << 20]windows.MibIfRow)(unsafe.Pointer(&rawbuf[4]))[:count:count]
 	for _, entry := range entries {
-		idx := entry.DwIndex
+		idx := entry.Index
 
 		table[idx] = entry
 

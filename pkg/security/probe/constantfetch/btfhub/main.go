@@ -60,7 +60,7 @@ func main() {
 		currentConstants, err := getCurrentConstants(constantOutputPath)
 		if err == nil && currentConstants.Commit != "" {
 			if currentConstants.Commit == archiveCommit {
-				fmt.Printf("already at most archive commit")
+				fmt.Printf("already at most recent archive commit")
 				return
 			}
 			preAllocHint = len(currentConstants.Kernels)

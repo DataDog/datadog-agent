@@ -91,3 +91,8 @@ func (p *Probe) StatsPollingInterval() time.Duration {
 func (p *Probe) GetResolvers() *resolvers.Resolvers {
 	return nil
 }
+
+// FlushDiscarders invalidates all the discarders
+func (p *Probe) FlushDiscarders() error {
+	return nil
+}

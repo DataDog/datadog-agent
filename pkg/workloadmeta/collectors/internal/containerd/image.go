@@ -379,7 +379,7 @@ func getLayersWithHistory(ctx context.Context, store content.Store, manifest oci
 			}
 
 			manifestLayer := manifest.Layers[manifestLayersIdx]
-			manifestLayersIdx += 1
+			manifestLayersIdx++
 
 			layer.MediaType = manifestLayer.MediaType
 			layer.Digest = manifestLayer.Digest.String()

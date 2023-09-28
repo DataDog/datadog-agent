@@ -250,10 +250,17 @@ func (a *Agent) runRegoBenchmarks(ctx context.Context) {
 			if sleepAborted(ctx, time.After(randomJitter(seed, a.opts.RunJitterMax))) {
 				return
 			}
+
 			resolver := NewResolver(ctx, a.opts.ResolverOptions)
 			for _, rule := range benchmark.Rules {
-				events := ResolveAndEvaluateRegoRule(ctx, resolver, benchmark, rule)
-				a.reportEvents(ctx, benchmark, events)
+				inputs, err := resolver.ResolveInputs(ctx, rule)
+				if err != nil {
+					a.reportEvents(ctx, benchmark, CheckEventFromError(RegoEvaluator, rule, benchmark, err))
+				} else {
+					events := EvaluateRegoRule(ctx, inputs, benchmark, rule)
+					a.reportEvents(ctx, benchmark, events...)
+				}
+
 				if sleepAborted(ctx, throttler.C) {
 					resolver.Close()
 					return
@@ -294,15 +301,18 @@ func (a *Agent) runXCCDFBenchmarks(ctx context.Context) {
 		for i, benchmark := range benchmarks {
 			seed := fmt.Sprintf("%s%s%d", a.opts.Hostname, benchmark.FrameworkID, i)
 			if sleepAborted(ctx, time.After(randomJitter(seed, a.opts.RunJitterMax))) {
+				FinishXCCDFBenchmark(ctx, benchmark)
 				return
 			}
 			for _, rule := range benchmark.Rules {
 				events := EvaluateXCCDFRule(ctx, a.opts.Hostname, a.opts.StatsdClient, benchmark, rule)
-				a.reportEvents(ctx, benchmark, events)
+				a.reportEvents(ctx, benchmark, events...)
 				if sleepAborted(ctx, throttler.C) {
+					FinishXCCDFBenchmark(ctx, benchmark)
 					return
 				}
 			}
+			FinishXCCDFBenchmark(ctx, benchmark)
 		}
 		if sleepAborted(ctx, runTicker.C) {
 			return
@@ -361,7 +371,7 @@ func (a *Agent) runAptConfigurationExport(ctx context.Context) {
 	}
 }
 
-func (a *Agent) reportEvents(ctx context.Context, benchmark *Benchmark, events []*CheckEvent) {
+func (a *Agent) reportEvents(ctx context.Context, benchmark *Benchmark, events ...*CheckEvent) {
 	store := workloadmeta.GetGlobalStore()
 	for _, event := range events {
 		a.updateEvent(event)

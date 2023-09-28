@@ -5,6 +5,7 @@
 
 //go:build kubeapiserver
 
+// Package custommetrics runs the Kubernetes custom metrics API server.
 package custommetrics
 
 import (

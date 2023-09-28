@@ -25,6 +25,7 @@ import (
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/cache"
+	basemetrics "k8s.io/component-base/metrics"
 
 	"k8s.io/kube-state-metrics/v2/pkg/customresource"
 	"k8s.io/kube-state-metrics/v2/pkg/metric"
@@ -78,10 +79,11 @@ func (f *hpav2Factory) CreateClient(cfg *rest.Config) (interface{}, error) {
 
 func (f *hpav2Factory) MetricFamilyGenerators(allowAnnotationsList, allowLabelsList []string) []generator.FamilyGenerator {
 	return []generator.FamilyGenerator{
-		*generator.NewFamilyGenerator(
+		*generator.NewFamilyGeneratorWithStability(
 			"kube_horizontalpodautoscaler_info",
 			"Information about this autoscaler.",
 			metric.Gauge,
+			basemetrics.ALPHA,
 			"",
 			wrapHPAFunc(func(a *autoscaling.HorizontalPodAutoscaler) *metric.Family {
 				labelKeys := []string{"scaletargetref_kind", "scaletargetref_name"}
@@ -101,10 +103,11 @@ func (f *hpav2Factory) MetricFamilyGenerators(allowAnnotationsList, allowLabelsL
 				}
 			}),
 		),
-		*generator.NewFamilyGenerator(
+		*generator.NewFamilyGeneratorWithStability(
 			"kube_horizontalpodautoscaler_metadata_generation",
 			"The generation observed by the HorizontalPodAutoscaler controller.",
 			metric.Gauge,
+			basemetrics.STABLE,
 			"",
 			wrapHPAFunc(func(a *autoscaling.HorizontalPodAutoscaler) *metric.Family {
 				return &metric.Family{
@@ -116,10 +119,11 @@ func (f *hpav2Factory) MetricFamilyGenerators(allowAnnotationsList, allowLabelsL
 				}
 			}),
 		),
-		*generator.NewFamilyGenerator(
+		*generator.NewFamilyGeneratorWithStability(
 			"kube_horizontalpodautoscaler_spec_max_replicas",
 			"Upper limit for the number of pods that can be set by the autoscaler; cannot be smaller than MinReplicas.",
 			metric.Gauge,
+			basemetrics.STABLE,
 			"",
 			wrapHPAFunc(func(a *autoscaling.HorizontalPodAutoscaler) *metric.Family {
 				return &metric.Family{
@@ -131,10 +135,11 @@ func (f *hpav2Factory) MetricFamilyGenerators(allowAnnotationsList, allowLabelsL
 				}
 			}),
 		),
-		*generator.NewFamilyGenerator(
+		*generator.NewFamilyGeneratorWithStability(
 			"kube_horizontalpodautoscaler_spec_min_replicas",
 			"Lower limit for the number of pods that can be set by the autoscaler, default 1.",
 			metric.Gauge,
+			basemetrics.STABLE,
 			"",
 			wrapHPAFunc(func(a *autoscaling.HorizontalPodAutoscaler) *metric.Family {
 				return &metric.Family{
@@ -146,10 +151,11 @@ func (f *hpav2Factory) MetricFamilyGenerators(allowAnnotationsList, allowLabelsL
 				}
 			}),
 		),
-		*generator.NewFamilyGenerator(
+		*generator.NewFamilyGeneratorWithStability(
 			"kube_horizontalpodautoscaler_spec_target_metric",
 			"The metric specifications used by this autoscaler when calculating the desired replica count.",
 			metric.Gauge,
+			basemetrics.ALPHA,
 			"",
 			wrapHPAFunc(func(a *autoscaling.HorizontalPodAutoscaler) *metric.Family {
 				ms := make([]*metric.Metric, 0, len(a.Spec.Metrics))
@@ -208,10 +214,11 @@ func (f *hpav2Factory) MetricFamilyGenerators(allowAnnotationsList, allowLabelsL
 				return &metric.Family{Metrics: ms}
 			}),
 		),
-		*generator.NewFamilyGenerator(
+		*generator.NewFamilyGeneratorWithStability(
 			"kube_horizontalpodautoscaler_status_current_replicas",
 			"Current number of replicas of pods managed by this autoscaler.",
 			metric.Gauge,
+			basemetrics.STABLE,
 			"",
 			wrapHPAFunc(func(a *autoscaling.HorizontalPodAutoscaler) *metric.Family {
 				return &metric.Family{
@@ -223,10 +230,11 @@ func (f *hpav2Factory) MetricFamilyGenerators(allowAnnotationsList, allowLabelsL
 				}
 			}),
 		),
-		*generator.NewFamilyGenerator(
+		*generator.NewFamilyGeneratorWithStability(
 			"kube_horizontalpodautoscaler_status_target_metric",
 			"The current metric status used by this autoscaler when calculating the desired replica count.",
 			metric.Gauge,
+			basemetrics.ALPHA,
 			"",
 			wrapHPAFunc(func(a *autoscaling.HorizontalPodAutoscaler) *metric.Family {
 				ms := make([]*metric.Metric, 0, len(a.Status.CurrentMetrics))
@@ -278,10 +286,11 @@ func (f *hpav2Factory) MetricFamilyGenerators(allowAnnotationsList, allowLabelsL
 				return &metric.Family{Metrics: ms}
 			}),
 		),
-		*generator.NewFamilyGenerator(
+		*generator.NewFamilyGeneratorWithStability(
 			"kube_horizontalpodautoscaler_status_desired_replicas",
 			"Desired number of replicas of pods managed by this autoscaler.",
 			metric.Gauge,
+			basemetrics.STABLE,
 			"",
 			wrapHPAFunc(func(a *autoscaling.HorizontalPodAutoscaler) *metric.Family {
 				return &metric.Family{
@@ -293,10 +302,11 @@ func (f *hpav2Factory) MetricFamilyGenerators(allowAnnotationsList, allowLabelsL
 				}
 			}),
 		),
-		*generator.NewFamilyGenerator(
+		*generator.NewFamilyGeneratorWithStability(
 			descHorizontalPodAutoscalerAnnotationsName,
 			descHorizontalPodAutoscalerAnnotationsHelp,
 			metric.Gauge,
+			basemetrics.ALPHA,
 			"",
 			wrapHPAFunc(func(a *autoscaling.HorizontalPodAutoscaler) *metric.Family {
 				annotationKeys, annotationValues := createPrometheusLabelKeysValues("annotation", a.Annotations, allowAnnotationsList)
@@ -311,10 +321,11 @@ func (f *hpav2Factory) MetricFamilyGenerators(allowAnnotationsList, allowLabelsL
 				}
 			}),
 		),
-		*generator.NewFamilyGenerator(
+		*generator.NewFamilyGeneratorWithStability(
 			descHorizontalPodAutoscalerLabelsName,
 			descHorizontalPodAutoscalerLabelsHelp,
 			metric.Gauge,
+			basemetrics.STABLE,
 			"",
 			wrapHPAFunc(func(a *autoscaling.HorizontalPodAutoscaler) *metric.Family {
 				labelKeys, labelValues := createPrometheusLabelKeysValues("label", a.Labels, allowLabelsList)
@@ -329,10 +340,11 @@ func (f *hpav2Factory) MetricFamilyGenerators(allowAnnotationsList, allowLabelsL
 				}
 			}),
 		),
-		*generator.NewFamilyGenerator(
+		*generator.NewFamilyGeneratorWithStability(
 			"kube_horizontalpodautoscaler_status_condition",
 			"The condition of this autoscaler.",
 			metric.Gauge,
+			basemetrics.STABLE,
 			"",
 			wrapHPAFunc(func(a *autoscaling.HorizontalPodAutoscaler) *metric.Family {
 				ms := make([]*metric.Metric, 0, len(a.Status.Conditions)*len(conditionStatusesV1))

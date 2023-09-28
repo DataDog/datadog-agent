@@ -283,7 +283,7 @@ func testSerialization(t *testing.T, aggregateByStatusCode bool) {
 				util.AddressFromString("20.1.1.1"),
 				40000,
 				80,
-				"/testpath",
+				[]byte("/testpath"),
 				true,
 				http.MethodGet,
 			): httpReqStats,
@@ -313,7 +313,7 @@ func testSerialization(t *testing.T, aggregateByStatusCode bool) {
 				util.AddressFromString("10.2.2.2"),
 				1000,
 				9000,
-				"/testpath",
+				[]byte("/testpath"),
 				true,
 				http.MethodGet,
 			): httpReqStats,
@@ -540,7 +540,7 @@ func testHTTPSerializationWithLocalhostTraffic(t *testing.T, aggregateByStatusCo
 				localhost,
 				clientPort,
 				serverPort,
-				"/testpath",
+				[]byte("/testpath"),
 				true,
 				http.MethodGet,
 			): httpReqStats,
@@ -558,7 +558,7 @@ func testHTTPSerializationWithLocalhostTraffic(t *testing.T, aggregateByStatusCo
 			localhost,
 			serverPort,
 			clientPort,
-			"/testpath",
+			[]byte("/testpath"),
 			true,
 			http.MethodGet,
 		)
@@ -640,6 +640,35 @@ func assertConnsEqual(t *testing.T, expected, actual *model.Connections) {
 
 }
 
+func assertConnsEqualHTTP2(t *testing.T, expected, actual *model.Connections) {
+	require.Equal(t, len(expected.Conns), len(actual.Conns), "expected both model.Connections to have the same number of connections")
+
+	for i := 0; i < len(actual.Conns); i++ {
+		expectedRawHTTP2 := expected.Conns[i].Http2Aggregations
+		actualRawHTTP2 := actual.Conns[i].Http2Aggregations
+
+		if len(expectedRawHTTP2) == 0 && len(actualRawHTTP2) != 0 {
+			t.Fatalf("expected connection %d to have no HTTP2, but got %v", i, actualRawHTTP2)
+		}
+		if len(expectedRawHTTP2) != 0 && len(actualRawHTTP2) == 0 {
+			t.Fatalf("expected connection %d to have HTTP2 data, but got none", i)
+		}
+
+		// the expected HTTPAggregations are encoded with  gogoproto, and the actual HTTPAggregations are encoded with gostreamer.
+		// thus they will not be byte-for-byte equal.
+		// the workaround is to check for protobuf equality, and then set actual.Conns[i] == expected.Conns[i]
+		// so actual.Conns and expected.Conns can be compared.
+		var expectedHTTP2, actualHTTP2 model.HTTP2Aggregations
+		require.NoError(t, proto.Unmarshal(expectedRawHTTP2, &expectedHTTP2))
+		require.NoError(t, proto.Unmarshal(actualRawHTTP2, &actualHTTP2))
+		require.Equalf(t, expectedHTTP2, actualHTTP2, "HTTP2 connection %d was not equal", i)
+		actual.Conns[i].Http2Aggregations = expected.Conns[i].Http2Aggregations
+	}
+
+	assert.Equal(t, expected, actual)
+
+}
+
 func TestHTTP2SerializationWithLocalhostTraffic(t *testing.T) {
 	t.Run("status code", func(t *testing.T) {
 		testHTTP2SerializationWithLocalhostTraffic(t, true)
@@ -681,7 +710,7 @@ func testHTTP2SerializationWithLocalhostTraffic(t *testing.T, aggregateByStatusC
 				localhost,
 				clientPort,
 				serverPort,
-				"/testpath",
+				[]byte("/testpath"),
 				true,
 				http.MethodPost,
 			): http2ReqStats,
@@ -699,7 +728,7 @@ func testHTTP2SerializationWithLocalhostTraffic(t *testing.T, aggregateByStatusC
 			localhost,
 			serverPort,
 			clientPort,
-			"/testpath",
+			[]byte("/testpath"),
 			true,
 			http.MethodPost,
 		)
@@ -749,7 +778,7 @@ func testHTTP2SerializationWithLocalhostTraffic(t *testing.T, aggregateByStatusC
 	result, err := unmarshaler.Unmarshal(blobWriter.Bytes())
 	require.NoError(t, err)
 
-	assert.Equal(t, out, result)
+	assertConnsEqualHTTP2(t, out, result)
 }
 
 func TestPooledObjectGarbageRegression(t *testing.T) {
@@ -760,7 +789,7 @@ func TestPooledObjectGarbageRegression(t *testing.T) {
 		util.AddressFromString("172.217.10.45"),
 		60000,
 		8080,
-		"",
+		nil,
 		true,
 		http.MethodGet,
 	)
@@ -800,7 +829,7 @@ func TestPooledObjectGarbageRegression(t *testing.T) {
 	for i := 0; i < 1000; i++ {
 		if (i % 2) == 0 {
 			httpKey.Path = http.Path{
-				Content:  fmt.Sprintf("/path-%d", i),
+				Content:  http.Interner.GetString(fmt.Sprintf("/path-%d", i)),
 				FullPath: true,
 			}
 			in.HTTP = map[http.Key]*http.RequestStats{httpKey: {}}
@@ -808,7 +837,7 @@ func TestPooledObjectGarbageRegression(t *testing.T) {
 
 			require.NotNil(t, out)
 			require.Len(t, out.EndpointAggregations, 1)
-			require.Equal(t, httpKey.Path.Content, out.EndpointAggregations[0].Path)
+			require.Equal(t, httpKey.Path.Content.Get(), out.EndpointAggregations[0].Path)
 		} else {
 			// No HTTP data in this payload, so we should never get HTTP data back after the serialization
 			in.HTTP = nil
@@ -826,7 +855,7 @@ func TestPooledHTTP2ObjectGarbageRegression(t *testing.T) {
 		util.AddressFromString("172.217.10.45"),
 		60000,
 		8080,
-		"",
+		nil,
 		true,
 		http.MethodGet,
 	)
@@ -866,7 +895,7 @@ func TestPooledHTTP2ObjectGarbageRegression(t *testing.T) {
 	for i := 0; i < 1000; i++ {
 		if (i % 2) == 0 {
 			httpKey.Path = http.Path{
-				Content:  fmt.Sprintf("/path-%d", i),
+				Content:  http.Interner.GetString(fmt.Sprintf("/path-%d", i)),
 				FullPath: true,
 			}
 			in.HTTP2 = map[http.Key]*http.RequestStats{httpKey: {}}
@@ -874,7 +903,7 @@ func TestPooledHTTP2ObjectGarbageRegression(t *testing.T) {
 
 			require.NotNil(t, out)
 			require.Len(t, out.EndpointAggregations, 1)
-			require.Equal(t, httpKey.Path.Content, out.EndpointAggregations[0].Path)
+			require.Equal(t, httpKey.Path.Content.Get(), out.EndpointAggregations[0].Path)
 		} else {
 			// No HTTP2 data in this payload, so we should never get HTTP2 data back after the serialization
 			in.HTTP2 = nil

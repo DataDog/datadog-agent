@@ -53,7 +53,7 @@ func (d *dispatcher) addConfig(config integration.Config, targetNodeName string)
 		checkID := checkid.BuildID(config.Name, fastDigest, instance, config.InitConfig)
 		d.store.idToDigest[checkID] = digest
 		if targetNodeName != "" {
-			configsInfo.Set(1.0, targetNodeName, string(checkID), le.JoinLeaderValue)
+			configsInfo.Set(1.0, targetNodeName, config.Name, string(checkID), le.JoinLeaderValue)
 		}
 	}
 
@@ -89,13 +89,21 @@ func (d *dispatcher) removeConfig(digest string) {
 	defer d.store.Unlock()
 
 	node, found := d.store.getNodeStore(d.store.digestToNode[digest])
+
+	checkName := ""
+	if found {
+		node.RLock()
+		checkName = node.digestToConfig[digest].Name
+		node.RUnlock()
+	}
+
 	delete(d.store.digestToNode, digest)
 	delete(d.store.digestToConfig, digest)
 	delete(d.store.danglingConfigs, digest)
 
 	for k, v := range d.store.idToDigest {
 		if v == digest {
-			configsInfo.Delete(node.name, string(k), le.JoinLeaderValue)
+			configsInfo.Delete(node.name, checkName, string(k), le.JoinLeaderValue)
 			delete(d.store.idToDigest, k)
 		}
 	}

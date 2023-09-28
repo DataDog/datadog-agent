@@ -21,7 +21,7 @@ import (
 type MetricGroup struct {
 	mux        sync.Mutex
 	namespace  string
-	commonTags sets.String
+	commonTags sets.Set[string]
 	metrics    []metric
 
 	// used for the purposes of building the Summary() string
@@ -33,7 +33,7 @@ type MetricGroup struct {
 func NewMetricGroup(namespace string, commonTags ...string) *MetricGroup {
 	return &MetricGroup{
 		namespace:  namespace,
-		commonTags: sets.NewString(commonTags...),
+		commonTags: sets.New(commonTags...),
 		then:       time.Now(),
 	}
 }
@@ -47,7 +47,7 @@ func (mg *MetricGroup) NewCounter(name string, tags ...string) *Counter {
 
 	m := NewCounter(
 		name,
-		append(mg.commonTags.List(), tags...)...,
+		append(sets.List(mg.commonTags), tags...)...,
 	)
 
 	mg.mux.Lock()
@@ -66,7 +66,7 @@ func (mg *MetricGroup) NewGauge(name string, tags ...string) *Gauge {
 
 	m := NewGauge(
 		name,
-		append(mg.commonTags.List(), tags...)...,
+		append(sets.List(mg.commonTags), tags...)...,
 	)
 
 	mg.mux.Lock()
@@ -105,7 +105,7 @@ func (mg *MetricGroup) Summary() string {
 		if uniqueTags.Len() > 0 {
 			// if the metric has tags print them but excluding the ones that are
 			// common to the metric group
-			b.WriteString(fmt.Sprintf("%s%v=%d", name, uniqueTags.List(), v))
+			b.WriteString(fmt.Sprintf("%s%v=%d", name, sets.List(uniqueTags), v))
 		} else {
 			b.WriteString(fmt.Sprintf("%s=%d", name, v))
 		}

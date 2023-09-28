@@ -147,7 +147,7 @@ func (b *Builder) WithAllowAnnotations(l map[string][]string) {
 
 // Build initializes and registers all enabled stores.
 // Returns metric writers.
-func (b *Builder) Build() []metricsstore.MetricsWriter {
+func (b *Builder) Build() metricsstore.MetricsWriterList {
 	return b.ksmBuilder.Build()
 }
 
@@ -193,6 +193,7 @@ func GenerateStores[T any](
 	return stores
 }
 
+// GenerateStores is used to generate new Metrics Store for the given metric families
 func (b *Builder) GenerateStores(
 	metricFamilies []generator.FamilyGenerator,
 	expectedType interface{},
@@ -205,9 +206,9 @@ func (b *Builder) GenerateStores(
 func (b *Builder) getCustomResourceClient(resourceName string) interface{} {
 	if client, ok := b.customResourceClients[resourceName]; ok {
 		return client
-	} else {
-		return b.kubeClient
 	}
+
+	return b.kubeClient
 }
 
 // GenerateCustomResourceStoresFunc use to generate new Metrics Store for Metrics Families

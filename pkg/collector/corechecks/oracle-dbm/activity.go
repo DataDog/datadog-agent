@@ -20,6 +20,9 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
+// Consider multibyte charactersets where a single special character can take several bytes
+const maxFullTextWithSafetyMargin = 3500
+
 // ActivitySnapshot is a payload containing database activity samples. It is parsed from the intake payload.
 // easyjson:json
 type ActivitySnapshot struct {
@@ -90,8 +93,8 @@ const ACTIVITY_QUERY = `SELECT /* DD_ACTIVITY_SAMPLING */
 		'CPU'
 	END wait_class,
 	wait_time_micro,
-	dbms_lob.substr(sql_fulltext, 4000, 1) sql_fulltext,
-	dbms_lob.substr(prev_sql_fulltext, 4000, 1) prev_sql_fulltext,
+	dbms_lob.substr(sql_fulltext, 3500, 1) sql_fulltext,
+	dbms_lob.substr(prev_sql_fulltext, 3500, 1) prev_sql_fulltext,
 	pdb_name,
 	command_name
 FROM sys.dd_session
@@ -161,8 +164,8 @@ ELSE
 END wait_class,
 s.wait_time_micro,
 c.name as pdb_name,
-dbms_lob.substr(sq.sql_fulltext, 4000, 1) sql_fulltext,
-dbms_lob.substr(sq_prev.sql_fulltext, 4000, 1) prev_sql_fulltext,
+dbms_lob.substr(sq.sql_fulltext, 3500, 1) sql_fulltext,
+dbms_lob.substr(sq_prev.sql_fulltext, 3500, 1) prev_sql_fulltext,
 comm.command_name
 FROM
 v$session s,
@@ -288,7 +291,6 @@ func (c *Check) getSQLRow(SQLID sql.NullString, forceMatchingSignature *string, 
 	SQLRow := OracleSQLRow{}
 	if SQLID.Valid {
 		SQLRow.SQLID = SQLID.String
-		c.statementsFilter.SQLIDs[SQLID.String] = 1
 	} else {
 		SQLRow.SQLID = ""
 		return SQLRow, nil
@@ -299,7 +301,6 @@ func (c *Check) getSQLRow(SQLID sql.NullString, forceMatchingSignature *string, 
 			return SQLRow, fmt.Errorf("failed converting force_matching_signature to uint64 %w", err)
 		}
 		SQLRow.ForceMatchingSignature = forceMatchingSignatureUint64
-		c.statementsFilter.ForceMatchingSignatures[*forceMatchingSignature] = 1
 	} else {
 		SQLRow.ForceMatchingSignature = 0
 	}
@@ -315,24 +316,11 @@ func (c *Check) getSQLRow(SQLID sql.NullString, forceMatchingSignature *string, 
 func (c *Check) SampleSession() error {
 	start := time.Now()
 
-	if c.statementsFilter.SQLIDs == nil {
-		c.statementsFilter.SQLIDs = make(map[string]int)
-	}
-	if c.statementsFilter.ForceMatchingSignatures == nil {
-		c.statementsFilter.ForceMatchingSignatures = make(map[string]int)
-	}
-	if c.statementsCache.SQLIDs == nil {
-		c.statementsCache.SQLIDs = make(map[string]StatementsCacheData)
-	}
-	if c.statementsCache.forceMatchingSignatures == nil {
-		c.statementsCache.forceMatchingSignatures = make(map[string]StatementsCacheData)
-	}
-
 	var sessionRows []OracleActivityRow
 	sessionSamples := []OracleActivityRowDB{}
 	var activityQuery string
-	maxSQLTextLength := MaxSQLFullTextVSQL
-	if c.hostingType.value == selfManaged {
+	maxSQLTextLength := maxFullTextWithSafetyMargin
+	if c.hostingType == selfManaged {
 		activityQuery = ACTIVITY_QUERY
 	} else {
 		activityQuery = ACTIVITY_QUERY_DIRECT

@@ -35,6 +35,7 @@ from .utils import (
     get_gopath,
     get_version,
 )
+from .windows_resources import build_messagetable, build_rc, versioninfo_vars
 
 BIN_DIR = os.path.join(".", "bin")
 BIN_PATH = os.path.join(BIN_DIR, "security-agent", bin_name("security-agent"))
@@ -72,6 +73,22 @@ def build(
         "GitCommit": get_git_commit(),
         "BuildDate": datetime.datetime.now().strftime("%Y-%m-%dT%H:%M:%S"),
     }
+
+    ## build windows resources
+    # generate windows resources
+    if sys.platform == 'win32':
+        if arch == "x86":
+            env["GOARCH"] = "386"
+
+        build_messagetable(ctx, arch=arch)
+        vars = versioninfo_vars(ctx, major_version=major_version, arch=arch)
+        build_rc(
+            ctx,
+            "cmd/security-agent/windows_resources/security-agent.rc",
+            arch=arch,
+            vars=vars,
+            out="cmd/security-agent/rsrc.syso",
+        )
 
     ldflags += ' '.join([f"-X '{main + key}={value}'" for key, value in ld_vars.items()])
     build_tags += get_default_build_tags(
@@ -604,7 +621,7 @@ def generate_btfhub_constants(ctx, archive_path, force_refresh=False):
     output_path = "./pkg/security/probe/constantfetch/btfhub/constants.json"
     force_refresh_opt = "-force-refresh" if force_refresh else ""
     ctx.run(
-        f"go run -tags linux_bpf ./pkg/security/probe/constantfetch/btfhub/ -archive-root {archive_path} -output {output_path} {force_refresh_opt}",
+        f"go run -tags linux_bpf,btfhubsync ./pkg/security/probe/constantfetch/btfhub/ -archive-root {archive_path} -output {output_path} {force_refresh_opt}",
     )
 
 

@@ -14,6 +14,7 @@ import (
 
 	sprocess "github.com/DataDog/datadog-agent/pkg/security/resolvers/process"
 
+	"github.com/DataDog/datadog-agent/pkg/security/secl/args"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 )
 
@@ -56,6 +57,16 @@ func (fh *FieldHandlers) ResolveFileFilesystem(ev *model.Event, f *model.FileEve
 		}
 	}
 	return f.Filesystem
+}
+
+// ResolveProcessArgsFlags resolves the arguments flags of the event
+func (fh *FieldHandlers) ResolveProcessArgsFlags(ev *model.Event, process *model.Process) (flags []string) {
+	return args.ParseProcessFlags(fh.ResolveProcessArgv(ev, process))
+}
+
+// ResolveProcessArgsOptions resolves the arguments options of the event
+func (fh *FieldHandlers) ResolveProcessArgsOptions(ev *model.Event, process *model.Process) (options []string) {
+	return args.ParseProcessOptions(fh.ResolveProcessArgv(ev, process))
 }
 
 // ResolveFileFieldsInUpperLayer resolves whether the file is in an upper layer
@@ -156,9 +167,15 @@ func (fh *FieldHandlers) ResolveProcessArgs(ev *model.Event, process *model.Proc
 	return strings.Join(fh.ResolveProcessArgv(ev, process), " ")
 }
 
-// ResolveProcessArgv resolves the args of the event as an array
+// ResolveProcessArgv resolves the unscrubbed args of the process as an array. Use with caution.
 func (fh *FieldHandlers) ResolveProcessArgv(ev *model.Event, process *model.Process) []string {
 	argv, _ := sprocess.GetProcessArgv(process)
+	return argv
+}
+
+// ResolveProcessArgvScrubbed resolves the args of the process as an array
+func (fh *FieldHandlers) ResolveProcessArgvScrubbed(ev *model.Event, process *model.Process) []string {
+	argv, _ := fh.resolvers.ProcessResolver.GetProcessArgvScrubbed(process)
 	return argv
 }
 
@@ -180,7 +197,7 @@ func (fh *FieldHandlers) ResolveProcessEnvsTruncated(ev *model.Event, process *m
 	return truncated
 }
 
-// ResolveProcessEnvs resolves the envs of the event
+// ResolveProcessEnvs resolves the unscrubbed envs of the event. Use with caution.
 func (fh *FieldHandlers) ResolveProcessEnvs(ev *model.Event, process *model.Process) []string {
 	envs, _ := fh.resolvers.ProcessResolver.GetProcessEnvs(process)
 	return envs
@@ -360,7 +377,7 @@ func (fh *FieldHandlers) ResolvePackageSourceVersion(ev *model.Event, f *model.F
 	return f.PkgSrcVersion
 }
 
-// ResolveModuleArgv resolves the args of the event as an array
+// ResolveModuleArgv resolves the unscrubbed args of the module as an array. Use with caution.
 func (fh *FieldHandlers) ResolveModuleArgv(ev *model.Event, module *model.LoadModuleEvent) []string {
 	// strings.Split return [""] if args is empty, so we do a manual check before
 	if len(module.Args) == 0 {

@@ -164,7 +164,7 @@ variables:
   DATADOG_AGENT_NIKOS_BUILDIMAGES: v19979316-3aa3d4b
   DATADOG_AGENT_BTF_GEN_BUILDIMAGES_SUFFIX: ""
   DATADOG_AGENT_BTF_GEN_BUILDIMAGES: v19979316-3aa3d4b
-  TEST_INFRA_DEFINITIONS_BUILDIMAGES: d4ee396a9ca1
+  TEST_INFRA_DEFINITIONS_BUILDIMAGES: cb9e86993fd5
   DATADOG_AGENT_BUILDERS: v19474930-fe4bcd9
 
   DATADOG_AGENT_EMBEDDED_PATH: /opt/datadog-agent/embedded
@@ -294,6 +294,8 @@ variables:
 # Rules used to define whether a pipeline should run, and with which variables
 #
 
+# WARNING: Do not change below if you want to globally disable the caching proxy (all branches would need to be rebased for it to be effectively disabled).
+# Instead use the break-glass mechanism by looking for the "Remotely disable Artifactory" doc in Confluence.
 workflow:
   rules:
     - <<: *if_triggered_pipeline
@@ -310,8 +312,8 @@ workflow:
         USE_CACHING_PROXY_RUBY: "true"
     - <<: *if_deploy
       variables:
-        USE_CACHING_PROXY_PYTHON: "false"
-        USE_CACHING_PROXY_RUBY: "false"
+        USE_CACHING_PROXY_PYTHON: "true"
+        USE_CACHING_PROXY_RUBY: "true"
     - if: $CI_COMMIT_TAG == null
       variables:
         USE_CACHING_PROXY_PYTHON: "false"
@@ -908,6 +910,9 @@ workflow:
     when: on_success
   - when: manual
     allow_failure: true
+
+.on_scheduled_main:
+  - <<: *if_scheduled_main
 
 .on_scheduled_main_or_manual:
   - <<: *if_scheduled_main

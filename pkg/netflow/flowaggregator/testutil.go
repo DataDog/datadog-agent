@@ -10,6 +10,8 @@ import (
 	"time"
 )
 
+// WaitForFlowsToBeFlushed waits up to timeoutDuration for at least minEvents
+// flows to be flushed by the aggregator. It is intended for testing.
 func WaitForFlowsToBeFlushed(aggregator *FlowAggregator, timeoutDuration time.Duration, minEvents uint64) (uint64, error) {
 	timeout := time.After(timeoutDuration)
 	ticker := time.NewTicker(500 * time.Millisecond)
