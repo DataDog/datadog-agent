@@ -111,7 +111,7 @@ func getMatchingPeerTags(s *pb.Span, peerTagKeys []string) []string {
 	if len(peerTagKeys) == 0 {
 		return nil
 	}
-	pt := make([]string, 0, 0)
+	pt := make([]string, 0)
 	for _, t := range peerTagKeys {
 		v, ok := s.Meta[t]
 		if ok {
