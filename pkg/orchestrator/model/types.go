@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/patrickmn/go-cache"
 )
 
 // NodeType represents a kind of resource used by a container orchestrator.
@@ -19,6 +20,8 @@ var CheckName = "orchestrator"
 
 // ExtraLogContext is used to add check name into log context
 var ExtraLogContext = []interface{}{"check", CheckName}
+
+var NoExpiration = cache.NoExpiration
 
 const (
 	// K8sUnsetType represents a Kubernetes unset type
@@ -208,11 +211,11 @@ func getTelemetryTags(n NodeType) []string {
 }
 
 // SetCacheStats sets the cache stats for each resource
-func SetCacheStats(resourceListLen int, resourceMsgLen int, nodeType NodeType) {
+func SetCacheStats(resourceListLen int, resourceMsgLen int, nodeType NodeType, ca *cache.Cache) {
 	stats := CheckStats{
 		CacheHits: resourceListLen - resourceMsgLen,
 		CacheMiss: resourceMsgLen,
 		NodeType:  nodeType,
 	}
-	KubernetesResourceCache.Set(BuildStatsKey(nodeType), stats, NoExpiration)
+	ca.Set(BuildStatsKey(nodeType), stats, NoExpiration)
 }
