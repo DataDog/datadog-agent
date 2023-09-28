@@ -3,12 +3,11 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build linux_bpf && test
+//go:build linux_bpf
 
 package testutil
 
 import (
-	"github.com/stretchr/testify/require"
 	"io"
 	"regexp"
 	"strconv"
@@ -17,8 +16,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/DataDog/gopsutil/process"
 	"github.com/cihub/seelog"
+	"github.com/stretchr/testify/require"
+
+	"github.com/DataDog/gopsutil/process"
 
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http/testutil"
 	protocolsUtils "github.com/DataDog/datadog-agent/pkg/network/protocols/testutil"
