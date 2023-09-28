@@ -34,19 +34,19 @@ var renamedResource = map[string]string{
 }
 
 var nodeAllowedResources = map[string]struct{}{
-	"cpu":               struct{}{},
-	"memory":            struct{}{},
-	"pods":              struct{}{},
-	"ephemeral_storage": struct{}{},
-	"network_bandwidth": struct{}{},
-	"gpu":               struct{}{},
+	"cpu":               {},
+	"memory":            {},
+	"pods":              {},
+	"ephemeral_storage": {},
+	"network_bandwidth": {},
+	"gpu":               {},
 }
 
 var containerAllowedResources = map[string]struct{}{
-	"cpu":               struct{}{},
-	"memory":            struct{}{},
-	"network_bandwidth": struct{}{},
-	"gpu":               struct{}{},
+	"cpu":               {},
+	"memory":            {},
+	"network_bandwidth": {},
+	"gpu":               {},
 }
 
 func renameResource(resource string) string {
@@ -54,8 +54,8 @@ func renameResource(resource string) string {
 		return "gpu"
 	}
 
-	if _, found := renamedResource[resource]; found {
-		return "gpu"
+	if renamed, found := renamedResource[resource]; found {
+		return renamed
 	}
 
 	return resource
