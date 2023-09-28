@@ -105,6 +105,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 
 					return workloadmeta.Params{AgentType: catalog}
 				}),
+
 				processComponent.Bundle,
 			)
 		},
