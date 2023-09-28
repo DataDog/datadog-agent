@@ -8,5 +8,5 @@
 ---
 fixes:
   - |
-    Fixes a panic in the process agent when language detection is enabled on a
+    Fixes a panic in the Process Agent when language detection is enabled on a
     host running a JRuby process. 
