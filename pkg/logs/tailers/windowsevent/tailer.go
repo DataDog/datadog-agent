@@ -179,13 +179,7 @@ func (t *Tailer) tail(ctx context.Context, bookmark string) {
 		t.config.Query,
 		opts...,
 	)
-	err = t.sub.Start()
-	if err != nil {
-		err = fmt.Errorf("failed to start subscription: %v", err)
-		log.Errorf("%v", err)
-		t.source.Status.Error(err)
-		return
-	}
+	// subscription will be started in the eventLoop
 
 	// render context for system values
 	t.systemRenderContext, err = t.evtapi.EvtCreateRenderContext(nil, evtapi.EvtRenderContextSystem)
@@ -196,8 +190,6 @@ func (t *Tailer) tail(ctx context.Context, bookmark string) {
 		return
 	}
 	defer evtapi.EvtCloseRenderContext(t.evtapi, t.systemRenderContext)
-
-	t.source.Status.Success()
 
 	// wait for stop signal
 	t.eventLoop(ctx)
@@ -229,6 +221,7 @@ func (t *Tailer) eventLoop(ctx context.Context) {
 				if err != nil {
 					err = fmt.Errorf("failed to start subscription: %v", err)
 					log.Error(err)
+					t.source.Status.Error(err)
 					return err
 				}
 				// subscription started!
