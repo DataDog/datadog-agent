@@ -10,6 +10,7 @@ package kubeapiserver
 import (
 	"context"
 	"testing"
+	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
 	"github.com/stretchr/testify/assert"
@@ -27,6 +28,7 @@ func testCollectEvent(t *testing.T, createResource func(*fake.Clientset) error, 
 	store, _ := newStore(context.TODO(), wlm, client)
 	stopStore := make(chan struct{})
 	go store.Run(stopStore)
+	time.Sleep(5 * time.Second)
 
 	ch := wlm.Subscribe(dummySubscriber, workloadmeta.NormalPriority, nil)
 	// When Subscribe is called, the first Bundle contains events about the items currently in the store.

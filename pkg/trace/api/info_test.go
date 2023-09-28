@@ -16,6 +16,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
+	"github.com/DataDog/datadog-agent/pkg/obfuscate"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
 )
 
@@ -213,7 +214,7 @@ func TestInfoHandler(t *testing.T) {
 	if err != nil {
 		log.Fatal(err)
 	}
-	jsonObfCfg := config.JSONObfuscationConfig{
+	jsonObfCfg := obfuscate.JSONConfig{
 		Enabled:            true,
 		KeepValues:         []string{"a", "b", "c"},
 		ObfuscateSQLValues: []string{"x", "y"},
@@ -223,12 +224,12 @@ func TestInfoHandler(t *testing.T) {
 		Mongo:                jsonObfCfg,
 		SQLExecPlan:          jsonObfCfg,
 		SQLExecPlanNormalize: jsonObfCfg,
-		HTTP: config.HTTPObfuscationConfig{
+		HTTP: obfuscate.HTTPConfig{
 			RemoveQueryString: true,
 			RemovePathDigits:  true,
 		},
 		RemoveStackTraces: false,
-		Redis:             config.RedisObfuscationConfig{Enabled: true},
+		Redis:             obfuscate.RedisConfig{Enabled: true},
 		Memcached:         config.Enablable{Enabled: false},
 	}
 	conf := &config.AgentConfig{

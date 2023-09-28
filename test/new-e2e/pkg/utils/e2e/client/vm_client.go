@@ -22,6 +22,7 @@ type vmClient struct {
 }
 
 func newVMClient(t *testing.T, sshKey []byte, connection *utils.Connection) (*vmClient, error) {
+	t.Logf("connecting to remote VM at %s:%s", connection.User, connection.Host)
 	client, _, err := clients.GetSSHClient(
 		connection.User,
 		fmt.Sprintf("%s:%d", connection.Host, 22),

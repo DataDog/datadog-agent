@@ -884,11 +884,12 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("logs_config.max_message_size_bytes", DefaultMaxMessageSizeBytes)
 
 	// increase the number of files that can be tailed in parallel:
-	if runtime.GOOS == "windows" || runtime.GOOS == "darwin" {
-		// The OS max for windows is 512, and the default limit on darwin is 256.
+	if runtime.GOOS == "darwin" {
+		// The default limit on darwin is 256.
 		// This is configurable per process on darwin with `ulimit -n` or a launchDaemon config.
 		config.BindEnvAndSetDefault("logs_config.open_files_limit", 200)
 	} else {
+		// There is no effective limit for windows due to use of CreateFile win32 API
 		// The OS default for most linux distributions is 1024
 		config.BindEnvAndSetDefault("logs_config.open_files_limit", 500)
 	}
@@ -1128,10 +1129,10 @@ func InitConfig(config Config) {
 
 	config.BindEnvAndSetDefault("sbom.cache_directory", filepath.Join(defaultRunPath, "sbom-agent"))
 	config.BindEnvAndSetDefault("sbom.clear_cache_on_exit", false)
-	config.BindEnvAndSetDefault("sbom.cache.enabled", false)
+	config.BindEnvAndSetDefault("sbom.cache.enabled", true)
 	config.BindEnvAndSetDefault("sbom.cache.max_disk_size", 1000*1000*100) // used by custom cache: max disk space used by cached objects. Not equal to max disk usage
-	config.BindEnvAndSetDefault("sbom.cache.max_cache_entries", 10000)     // used by custom cache keys stored in memory
-	config.BindEnvAndSetDefault("sbom.cache.clean_interval", "30m")        // used by custom cache.
+	config.BindEnvAndSetDefault("sbom.cache.max_cache_entries", 100000)    // used by custom cache keys stored in memory
+	config.BindEnvAndSetDefault("sbom.cache.clean_interval", "1h")         // used by custom cache.
 
 	// Container SBOM configuration
 	config.BindEnvAndSetDefault("sbom.container_image.enabled", false)

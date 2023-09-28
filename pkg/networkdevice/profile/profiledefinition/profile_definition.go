@@ -12,7 +12,11 @@ type DeviceMeta struct {
 	Vendor string `yaml:"vendor,omitempty" json:"vendor,omitempty"`
 }
 
-// ProfileDefinition is the root profile structure
+// ProfileDefinition is the root profile structure. The ProfileDefinition is currently used in:
+// 1/ SNMP Integration: the profiles are in yaml profiles. Yaml profiles include default datadog profiles and user custom profiles.
+// The serialisation of yaml profiles are defined by the yaml annotation and few custom unmarshaller (see yaml_utils.go).
+// 2/ Datadog backend: the profiles are in json format, they are used to store profiles created via UI.
+// The serialisation of json profiles are defined by the json annotation.
 type ProfileDefinition struct {
 	Name         string            `yaml:"name" json:"name"`
 	Description  string            `yaml:"description,omitempty" json:"description,omitempty"`
