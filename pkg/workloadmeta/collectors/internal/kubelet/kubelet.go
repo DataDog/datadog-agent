@@ -5,6 +5,7 @@
 
 //go:build kubelet
 
+// Package kubelet implements the kubelet Workloadmeta collector.
 package kubelet
 
 import (
@@ -67,7 +68,7 @@ func (c *collector) Pull(ctx context.Context) error {
 
 	events := c.parsePods(updatedPods)
 
-	if time.Now().Sub(c.lastExpire) >= c.expireFreq {
+	if time.Since(c.lastExpire) >= c.expireFreq {
 		var expiredIDs []string
 		expiredIDs, err = c.watcher.Expire()
 		if err == nil {
@@ -99,24 +100,26 @@ func (c *collector) parsePods(pods []*kubelet.Pod) []workloadmeta.CollectorEvent
 				podMeta.UID, len(pod.Spec.Containers), len(pod.Spec.InitContainers))
 			continue
 		}
-		containerSpecs := make(
-			[]kubelet.ContainerSpec, 0,
-			len(pod.Spec.Containers)+len(pod.Spec.InitContainers),
-		)
-		containerSpecs = append(containerSpecs, pod.Spec.InitContainers...)
-		containerSpecs = append(containerSpecs, pod.Spec.Containers...)
 
-		podId := workloadmeta.EntityID{
+		podID := workloadmeta.EntityID{
 			Kind: workloadmeta.KindKubernetesPod,
 			ID:   podMeta.UID,
 		}
 
+		podInitContainers, initContainerEvents := c.parsePodContainers(
+			pod,
+			pod.Spec.InitContainers,
+			pod.Status.InitContainers,
+			&podID,
+		)
+
 		podContainers, containerEvents := c.parsePodContainers(
 			pod,
-			containerSpecs,
-			pod.Status.GetAllContainers(),
-			&podId,
+			pod.Spec.Containers,
+			pod.Status.Containers,
+			&podID,
 		)
+		podContainers = append(podContainers, podInitContainers...)
 
 		podOwners := pod.Owners()
 		owners := make([]workloadmeta.KubernetesPodOwner, 0, len(podOwners))
@@ -131,7 +134,7 @@ func (c *collector) parsePods(pods []*kubelet.Pod) []workloadmeta.CollectorEvent
 		PodSecurityContext := extractPodSecurityContext(&pod.Spec)
 
 		entity := &workloadmeta.KubernetesPod{
-			EntityID: podId,
+			EntityID: podID,
 			EntityMeta: workloadmeta.EntityMeta{
 				Name:        podMeta.Name,
 				Namespace:   podMeta.Namespace,
@@ -140,6 +143,7 @@ func (c *collector) parsePods(pods []*kubelet.Pod) []workloadmeta.CollectorEvent
 			},
 			Owners:                     owners,
 			PersistentVolumeClaimNames: pod.GetPersistentVolumeClaimNames(),
+			InitContainers:             podInitContainers,
 			Containers:                 podContainers,
 			Ready:                      kubelet.IsPodReady(pod),
 			Phase:                      pod.Status.Phase,
@@ -149,6 +153,7 @@ func (c *collector) parsePods(pods []*kubelet.Pod) []workloadmeta.CollectorEvent
 			SecurityContext:            PodSecurityContext,
 		}
 
+		events = append(events, initContainerEvents...)
 		events = append(events, containerEvents...)
 		events = append(events, workloadmeta.CollectorEvent{
 			Source: workloadmeta.SourceNodeOrchestrator,

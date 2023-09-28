@@ -80,9 +80,9 @@ func TestCPUCheckLinux(t *testing.T) {
 	times = CPUTimes
 	cpuInfo = CPUInfo
 	cpuCheck := new(Check)
-	cpuCheck.Configure(integration.FakeConfigHash, nil, nil, "test")
-
 	m := mocksender.NewMockSender(cpuCheck.ID())
+	cpuCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, nil, nil, "test")
+
 	m.On(metrics.GaugeType.String(), "system.cpu.num_cores", 1.0, "", []string(nil)).Return().Times(1)
 	if runtime.GOOS == "linux" {
 		m.On(metrics.MonotonicCountType.String(), "system.cpu.context_switches", mock.AnythingOfType("float64"), "", []string(nil)).Return().Times(1)

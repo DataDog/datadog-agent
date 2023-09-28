@@ -63,7 +63,7 @@ func mockPdhAddEnglishCounter(hQuery PDH_HQUERY, szFullCounterPath string, dwUse
 	ndx := int(hQuery)
 	var thisQuery mockQuery
 	var ok bool
-	if thisQuery, ok = openQueries[ndx]; ok == false {
+	if thisQuery, ok = openQueries[ndx]; !ok {
 		return uint32(PDH_INVALID_PATH)
 	}
 	counterIndex++
@@ -104,7 +104,7 @@ func mockCounterFromHandle(hCounter PDH_HCOUNTER) (mockCounter, error) {
 	return ctr, nil
 
 }
-func mockPdhGetFormattedCounterArray(hCounter PDH_HCOUNTER, format uint32) (out_items []PdhCounterValueItem, err error) {
+func mockPdhGetFormattedCounterArray(hCounter PDH_HCOUNTER, format uint32) (outItems []PdhCounterValueItem, err error) {
 	ctr, err := mockCounterFromHandle(hCounter)
 	if err != nil {
 		return nil, err
@@ -113,7 +113,7 @@ func mockPdhGetFormattedCounterArray(hCounter PDH_HCOUNTER, format uint32) (out_
 		if instMap, ok := classMap[ctr.counter]; ok {
 			for inst, vals := range instMap {
 				if len(vals) > 0 {
-					out_items = append(out_items,
+					outItems = append(outItems,
 						PdhCounterValueItem{
 							instance: inst,
 							value: PdhCounterValue{
@@ -125,7 +125,7 @@ func mockPdhGetFormattedCounterArray(hCounter PDH_HCOUNTER, format uint32) (out_
 					instMap[inst] = vals[1:]
 				}
 			}
-			return out_items, nil
+			return outItems, nil
 		}
 	}
 	return nil, NewErrPdhInvalidInstance("Invalid counter instance")
@@ -211,5 +211,4 @@ func RemoveCounterInstance(clss, inst string) {
 func AddCounterInstance(clss, inst string) {
 	activeAvailableCounters.instancesByClass[clss] =
 		append(activeAvailableCounters.instancesByClass[clss], inst)
-	return
 }

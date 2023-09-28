@@ -12,14 +12,25 @@ import (
 	"golang.org/x/sys/windows"
 )
 
-// SYSTEM_LOGICAL_PROCESSOR_INFORMATION_SIZE is the size of
-// SYSTEM_LOGICAL_PROCESSOR_INFORMATION struct
+// SYSTEM_LOGICAL_PROCESSOR_INFORMATION describes the relationship
+// between the specified processor set.
+// see https://learn.microsoft.com/en-us/windows/win32/api/winnt/ns-winnt-system_logical_processor_information
 //
 //nolint:revive
-const SYSTEM_LOGICAL_PROCESSOR_INFORMATION_SIZE = 24
+type SYSTEM_LOGICAL_PROCESSOR_INFORMATION struct {
+	ProcessorMask uintptr
+	Relationship  int // enum (int)
+	// in the Windows header, this is a union of a byte, a DWORD,
+	// and a cacheDescriptor structure
+	dataunion [16]byte
+}
+
+// systemLogicalProcessorInformationSize is the size of
+// SYSTEM_LOGICAL_PROCESSOR_INFORMATION struct
+const systemLogicalProcessorInformationSize = 24
 
 func getSystemLogicalProcessorInformationSize() int {
-	return SYSTEM_LOGICAL_PROCESSOR_INFORMATION_SIZE
+	return systemLogicalProcessorInformationSize
 }
 
 func byteArrayToProcessorStruct(data []byte) (info SYSTEM_LOGICAL_PROCESSOR_INFORMATION) {
@@ -32,13 +43,13 @@ func byteArrayToProcessorStruct(data []byte) (info SYSTEM_LOGICAL_PROCESSOR_INFO
 func computeCoresAndProcessors() (cpuInfo CPU_INFO, err error) {
 	var mod = windows.NewLazyDLL("kernel32.dll")
 	var getProcInfo = mod.NewProc("GetLogicalProcessorInformation")
-	var buflen uint32 = 0
-	err = windows.Errno(0)
+	var buflen uint32
+
 	// first, figure out how much we need
 	status, _, err := getProcInfo.Call(uintptr(0),
 		uintptr(unsafe.Pointer(&buflen)))
 	if status == 0 {
-		if err != ERROR_INSUFFICIENT_BUFFER {
+		if err != windows.ERROR_INSUFFICIENT_BUFFER {
 			// only error we're expecing here is insufficient buffer
 			// anything else is a failure
 			return

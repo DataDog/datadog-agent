@@ -19,7 +19,7 @@ var metricsData []byte
 
 func TestNewMetricPayloads(t *testing.T) {
 	t.Run("parseMetricSeries empty body should return error", func(t *testing.T) {
-		metrics, err := parseMetricSeries(api.Payload{
+		metrics, err := ParseMetricSeries(api.Payload{
 			Data:     []byte(""),
 			Encoding: encodingDeflate,
 		})
@@ -28,7 +28,7 @@ func TestNewMetricPayloads(t *testing.T) {
 	})
 
 	t.Run("parseMetricSeries valid body should parse metrics", func(t *testing.T) {
-		metrics, err := parseMetricSeries(api.Payload{Data: metricsData, Encoding: encodingDeflate})
+		metrics, err := ParseMetricSeries(api.Payload{Data: metricsData, Encoding: encodingDeflate})
 		assert.NoError(t, err)
 		assert.Equal(t, 151, len(metrics))
 		assert.Equal(t, "datadog.dogstatsd.client.aggregated_context_by_type", metrics[0].name())

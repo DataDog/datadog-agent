@@ -5,6 +5,7 @@
 
 //go:build linux && trivy
 
+// Package sbom holds sbom related files
 package sbom
 
 import (
@@ -18,6 +19,7 @@ import (
 	"github.com/DataDog/datadog-go/v5/statsd"
 	"github.com/avast/retry-go/v4"
 	"github.com/hashicorp/golang-lru/v2/simplelru"
+	"github.com/twmb/murmur3"
 	"go.uber.org/atomic"
 
 	coreconfig "github.com/DataDog/datadog-agent/pkg/config"
@@ -39,11 +41,12 @@ const SBOMSource = "runtime-security-agent"
 
 const maxSBOMGenerationRetries = 3
 
+// SBOM defines an SBOM
 type SBOM struct {
 	sync.RWMutex
 
-	report *trivy.TrivyReport
-	files  map[string]*Package
+	report *trivy.Report
+	files  map[uint64]*Package
 
 	Host        string
 	Source      string
@@ -82,7 +85,7 @@ func (s *SBOM) reset() {
 // NewSBOM returns a new empty instance of SBOM
 func NewSBOM(host string, source string, id string, cgroup *cgroupModel.CacheEntry) (*SBOM, error) {
 	return &SBOM{
-		files:          make(map[string]*Package),
+		files:          make(map[uint64]*Package),
 		Host:           host,
 		Source:         source,
 		ContainerID:    id,
@@ -217,7 +220,7 @@ func (r *Resolver) generateSBOM(root string, sbom *SBOM) error {
 
 	seclog.Infof("SBOM successfully generated from %s", root)
 
-	trivyReport, ok := result.Report.(*trivy.TrivyReport)
+	trivyReport, ok := result.Report.(*trivy.Report)
 	if !ok {
 		return fmt.Errorf("failed to convert report for %s", root)
 	}
@@ -237,6 +240,15 @@ func (r *Resolver) analyzeWorkload(sbom *SBOM) error {
 		return nil
 	}
 
+	// bail out if the workload has been analyzed while queued up
+	sbomKey := sbom.getWorkloadKey()
+	r.sbomsCacheLock.RLock()
+	if r.sbomsCache.Contains(sbomKey) {
+		r.sbomsCacheLock.RUnlock()
+		return nil
+	}
+	r.sbomsCacheLock.RUnlock()
+
 	var lastErr error
 	var scanned bool
 	for _, rootCandidatePID := range sbom.cgroup.GetPIDs() {
@@ -253,7 +265,7 @@ func (r *Resolver) analyzeWorkload(sbom *SBOM) error {
 			continue
 		}
 
-		lastErr = r.generateSBOM(utils.ProcRootPath(int32(rootCandidatePID)), sbom)
+		lastErr = r.generateSBOM(utils.ProcRootPath(rootCandidatePID), sbom)
 		if lastErr == nil {
 			scanned = true
 			break
@@ -269,7 +281,7 @@ func (r *Resolver) analyzeWorkload(sbom *SBOM) error {
 	}
 
 	// cleanup file cache
-	sbom.files = make(map[string]*Package)
+	sbom.files = make(map[uint64]*Package)
 
 	// build file cache
 	for _, result := range sbom.report.Results {
@@ -281,7 +293,7 @@ func (r *Resolver) analyzeWorkload(sbom *SBOM) error {
 			}
 			for _, file := range resultPkg.SystemInstalledFiles {
 				seclog.Tracef("indexing %s as %+v", file, pkg)
-				sbom.files[file] = pkg
+				sbom.files[murmur3.StringSum64(file)] = pkg
 			}
 		}
 	}
@@ -291,6 +303,11 @@ func (r *Resolver) analyzeWorkload(sbom *SBOM) error {
 
 	// mark the SBOM ass successful
 	sbom.scanSuccessful.Store(true)
+
+	// add to cache
+	r.sbomsCacheLock.Lock()
+	r.sbomsCache.Add(sbomKey, sbom)
+	r.sbomsCacheLock.Unlock()
 
 	seclog.Infof("new sbom generated for '%s': %d files added", sbom.ContainerID, len(sbom.files))
 	return nil
@@ -309,9 +326,9 @@ func (r *Resolver) ResolvePackage(containerID string, file *model.FileEvent) *Pa
 	sbom.Lock()
 	defer sbom.Unlock()
 
-	pkg := sbom.files[file.PathnameStr]
+	pkg := sbom.files[murmur3.StringSum64(file.PathnameStr)]
 	if pkg == nil && strings.HasPrefix(file.PathnameStr, "/usr") {
-		pkg = sbom.files[file.PathnameStr[4:]]
+		pkg = sbom.files[murmur3.StringSum64(file.PathnameStr[4:])]
 	}
 
 	return pkg
@@ -441,6 +458,7 @@ func (r *Resolver) deleteSBOM(sbom *SBOM) {
 	r.sbomsCache.Add(sbomKey, sbom)
 }
 
+// SendStats sends stats
 func (r *Resolver) SendStats() error {
 	r.sbomsLock.RLock()
 	defer r.sbomsLock.RUnlock()

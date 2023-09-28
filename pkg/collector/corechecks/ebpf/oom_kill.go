@@ -18,10 +18,11 @@ import (
 	yaml "gopkg.in/yaml.v2"
 
 	sysconfig "github.com/DataDog/datadog-agent/cmd/system-probe/config"
+	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/ebpf/probe"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/ebpf/probe/oomkill/model"
 	dd_config "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/metrics/event"
 	process_net "github.com/DataDog/datadog-agent/pkg/process/net"
@@ -67,8 +68,8 @@ func (c *OOMKillConfig) Parse(data []byte) error {
 }
 
 // Configure parses the check configuration and init the check
-func (m *OOMKillCheck) Configure(integrationConfigDigest uint64, config, initConfig integration.Data, source string) error {
-	err := m.CommonConfigure(integrationConfigDigest, initConfig, config, source)
+func (m *OOMKillCheck) Configure(senderManager sender.SenderManager, integrationConfigDigest uint64, config, initConfig integration.Data, source string) error {
+	err := m.CommonConfigure(senderManager, integrationConfigDigest, initConfig, config, source)
 	if err != nil {
 		return err
 	}
@@ -101,7 +102,7 @@ func (m *OOMKillCheck) Run() error {
 
 	triggerType := ""
 	triggerTypeText := ""
-	oomkillStats, ok := data.([]probe.OOMKillStats)
+	oomkillStats, ok := data.([]model.OOMKillStats)
 	if !ok {
 		return log.Errorf("Raw data has incorrect type")
 	}

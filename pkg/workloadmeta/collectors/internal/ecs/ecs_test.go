@@ -11,9 +11,10 @@ package ecs
 import (
 	"context"
 	"errors"
+	"testing"
+
 	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
 	"github.com/stretchr/testify/assert"
-	"testing"
 
 	v1 "github.com/DataDog/datadog-agent/pkg/util/ecs/metadata/v1"
 	"github.com/DataDog/datadog-agent/pkg/util/ecs/metadata/v3or4"
@@ -52,7 +53,7 @@ type fakev3or4EcsClient struct {
 	mockGetTaskWithTags func(context.Context) (*v3or4.Task, error)
 }
 
-func (store *fakev3or4EcsClient) GetTask(ctx context.Context) (*v3or4.Task, error) {
+func (*fakev3or4EcsClient) GetTask(ctx context.Context) (*v3or4.Task, error) {
 	return nil, errors.New("unimplemented")
 }
 
@@ -60,7 +61,7 @@ func (c *fakev3or4EcsClient) GetTaskWithTags(ctx context.Context) (*v3or4.Task, 
 	return c.mockGetTaskWithTags(ctx)
 }
 
-func (store *fakev3or4EcsClient) GetContainer(ctx context.Context) (*v3or4.Container, error) {
+func (*fakev3or4EcsClient) GetContainer(ctx context.Context) (*v3or4.Container, error) {
 	return nil, errors.New("unimplemented")
 }
 

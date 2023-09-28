@@ -14,11 +14,10 @@ from invoke import task
 from invoke.exceptions import Exit
 
 from .build_tags import get_default_build_tags
-from .go import golangci_lint
+from .go import run_golangci_lint
 from .libs.ninja_syntax import NinjaWriter
 from .system_probe import (
     CURRENT_ARCH,
-    SBOM_TAG,
     build_cws_object_files,
     check_for_ninja,
     ninja_define_ebpf_compiler,
@@ -36,6 +35,7 @@ from .utils import (
     get_gopath,
     get_version,
 )
+from .windows_resources import build_messagetable, build_rc, versioninfo_vars
 
 BIN_DIR = os.path.join(".", "bin")
 BIN_PATH = os.path.join(BIN_DIR, "security-agent", bin_name("security-agent"))
@@ -73,6 +73,22 @@ def build(
         "GitCommit": get_git_commit(),
         "BuildDate": datetime.datetime.now().strftime("%Y-%m-%dT%H:%M:%S"),
     }
+
+    ## build windows resources
+    # generate windows resources
+    if sys.platform == 'win32':
+        if arch == "x86":
+            env["GOARCH"] = "386"
+
+        build_messagetable(ctx, arch=arch)
+        vars = versioninfo_vars(ctx, major_version=major_version, arch=arch)
+        build_rc(
+            ctx,
+            "cmd/security-agent/windows_resources/security-agent.rc",
+            arch=arch,
+            vars=vars,
+            out="cmd/security-agent/rsrc.syso",
+        )
 
     ldflags += ' '.join([f"-X '{main + key}={value}'" for key, value in ld_vars.items()])
     build_tags += get_default_build_tags(
@@ -292,7 +308,7 @@ def build_functional_tests(
 
     build_tags = build_tags.split(",")
     build_tags.append("linux_bpf")
-    build_tags.append(SBOM_TAG)
+    build_tags.append("trivy")
     build_tags.append("containerd")
 
     if bundle_ebpf:
@@ -303,7 +319,12 @@ def build_functional_tests(
 
     if not skip_linters:
         targets = ['./pkg/security/tests']
-        golangci_lint(ctx, targets=targets, build_tags=build_tags, arch=arch)
+        results = run_golangci_lint(ctx, targets=targets, build_tags=build_tags, arch=arch)
+        for result in results:
+            # golangci exits with status 1 when it finds an issue
+            if result.exited != 0:
+                raise Exit(code=1)
+        print("golangci-lint found no issues")
 
     if race:
         build_flags += " -race"
@@ -551,17 +572,21 @@ def cws_go_generate(ctx):
     with ctx.cd("./pkg/security/secl"):
         ctx.run("go generate ./...")
 
-    # skip generation of serializer for windows
     if sys.platform == "win32":
-        return
+        shutil.copy(
+            "./pkg/security/serializers/serializers_windows_easyjson.mock",
+            "./pkg/security/serializers/serializers_windows_easyjson.go",
+        )
+    else:
+        shutil.copy(
+            "./pkg/security/serializers/serializers_linux_easyjson.mock",
+            "./pkg/security/serializers/serializers_linux_easyjson.go",
+        )
 
-    shutil.copy(
-        "./pkg/security/serializers/serializers_easyjson.mock", "./pkg/security/serializers/serializers_easyjson.go"
-    )
-    shutil.copy(
-        "./pkg/security/security_profile/dump/activity_dump_easyjson.mock",
-        "./pkg/security/security_profile/dump/activity_dump_easyjson.go",
-    )
+        shutil.copy(
+            "./pkg/security/security_profile/dump/activity_dump_easyjson.mock",
+            "./pkg/security/security_profile/dump/activity_dump_easyjson.go",
+        )
 
     ctx.run("go generate ./pkg/security/...")
 
@@ -596,7 +621,7 @@ def generate_btfhub_constants(ctx, archive_path, force_refresh=False):
     output_path = "./pkg/security/probe/constantfetch/btfhub/constants.json"
     force_refresh_opt = "-force-refresh" if force_refresh else ""
     ctx.run(
-        f"go run ./pkg/security/probe/constantfetch/btfhub/ -archive-root {archive_path} -output {output_path} {force_refresh_opt}",
+        f"go run -tags linux_bpf,btfhubsync ./pkg/security/probe/constantfetch/btfhub/ -archive-root {archive_path} -output {output_path} {force_refresh_opt}",
     )
 
 

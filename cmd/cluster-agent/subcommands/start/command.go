@@ -162,7 +162,7 @@ func start(log log.Component, config config.Component, telemetry telemetry.Compo
 	}
 
 	// Starting server early to ease investigations
-	if err := api.StartServer(); err != nil {
+	if err := api.StartServer(aggregator.GetSenderManager()); err != nil {
 		return fmt.Errorf("Error while starting agent API, exiting: %v", err)
 	}
 
@@ -239,10 +239,10 @@ func start(log log.Component, config config.Component, telemetry telemetry.Compo
 	// don't import cmd/agent
 
 	// create and setup the Autoconfig instance
-	common.LoadComponents(mainCtx, pkgconfig.Datadog.GetString("confd_path"))
+	common.LoadComponents(mainCtx, aggregator.GetSenderManager(), pkgconfig.Datadog.GetString("confd_path"))
 
 	// Set up check collector
-	common.AC.AddScheduler("check", collector.InitCheckScheduler(common.Coll), true)
+	common.AC.AddScheduler("check", collector.InitCheckScheduler(common.Coll, aggregator.GetSenderManager()), true)
 	common.Coll.Start()
 
 	// start the autoconfig, this will immediately run any configured check
@@ -283,7 +283,7 @@ func start(log log.Component, config config.Component, telemetry telemetry.Compo
 		go func() {
 			defer wg.Done()
 
-			if err := runCompliance(mainCtx, apiCl, le.IsLeader); err != nil {
+			if err := runCompliance(mainCtx, aggregator.GetSenderManager(), apiCl, le.IsLeader); err != nil {
 				pkglog.Errorf("Error while running compliance agent: %v", err)
 			}
 		}()
@@ -297,7 +297,7 @@ func start(log log.Component, config config.Component, telemetry telemetry.Compo
 				K8sClient:           apiCl.Cl,
 				RcClient:            rcClient,
 				ClusterName:         clusterName,
-				ClusterId:           clusterId,
+				ClusterID:           clusterId,
 				StopCh:              stopCh,
 			}
 			if err := admissionpatch.StartControllers(patchCtx); err != nil {

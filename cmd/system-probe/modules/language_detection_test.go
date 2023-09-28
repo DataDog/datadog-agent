@@ -14,6 +14,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"github.com/davecgh/go-spew/spew"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
@@ -44,7 +45,10 @@ func TestLanguageDetectionEndpoint(t *testing.T) {
 	reqBytes, err := proto.Marshal(&reqProto)
 	require.NoError(t, err)
 
-	detectLanguage(rec, httptest.NewRequest(http.MethodGet, "/", bytes.NewReader(reqBytes)))
+	m := languageDetectionModule{
+		languageDetector: languagedetection.NewPrivilegedLanguageDetector(),
+	}
+	m.detectLanguage(rec, httptest.NewRequest(http.MethodGet, "/", bytes.NewReader(reqBytes)))
 
 	resBody := rec.Result().Body
 	defer resBody.Close()
@@ -56,14 +60,14 @@ func TestLanguageDetectionEndpoint(t *testing.T) {
 	err = proto.Unmarshal(resBytes, &detectLanguageResponse)
 	require.NoError(t, err)
 
-	assert.True(t, proto.Equal(
-		&languageDetectionProto.DetectLanguageResponse{
-			Languages: []*languageDetectionProto.Language{{
-				Name:    string(mockGoLanguage.Name),
-				Version: mockGoLanguage.Version,
-			}}},
-		&detectLanguageResponse,
-	))
+	expected := &languageDetectionProto.DetectLanguageResponse{
+		Languages: []*languageDetectionProto.Language{{
+			Name:    string(mockGoLanguage.Name),
+			Version: mockGoLanguage.Version,
+		}}}
+	assert.True(t,
+		proto.Equal(expected, &detectLanguageResponse),
+		"expected:\n%v\nactual:\n%v", spew.Sdump(expected), spew.Sdump(&detectLanguageResponse))
 }
 
 type mockDetector struct {

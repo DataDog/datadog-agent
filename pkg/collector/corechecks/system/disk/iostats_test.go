@@ -15,6 +15,7 @@ import (
 	"github.com/shirou/gopsutil/v3/disk"
 	"github.com/shirou/gopsutil/v3/mem"
 
+	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 )
@@ -108,7 +109,7 @@ func TestIOCheckDM(t *testing.T) {
 	ioCounters = ioSamplerDM
 	swapMemory = SwapMemory
 	ioCheck := new(IOCheck)
-	ioCheck.Configure(integration.FakeConfigHash, nil, nil, "test")
+	ioCheck.Configure(aggregator.NewNoOpSenderManager(), integration.FakeConfigHash, nil, nil, "test")
 
 	mock := mocksender.NewMockSender(ioCheck.ID())
 
@@ -134,9 +135,8 @@ func TestIOCheck(t *testing.T) {
 	ioCounters = ioSampler
 	swapMemory = SwapMemory
 	ioCheck := new(IOCheck)
-	ioCheck.Configure(integration.FakeConfigHash, nil, nil, "test")
-
 	mock := mocksender.NewMockSender(ioCheck.ID())
+	ioCheck.Configure(mock.GetSenderManager(), integration.FakeConfigHash, nil, nil, "test")
 
 	expectedRates := 2
 	expectedGauges := 0
@@ -202,9 +202,8 @@ func TestIOCheckBlacklist(t *testing.T) {
 	ioCounters = ioSampler
 	swapMemory = SwapMemory
 	ioCheck := new(IOCheck)
-	ioCheck.Configure(integration.FakeConfigHash, nil, nil, "test")
-
 	mock := mocksender.NewMockSender(ioCheck.ID())
+	ioCheck.Configure(mock.GetSenderManager(), integration.FakeConfigHash, nil, nil, "test")
 
 	expectedRates := 0
 	expectedGauges := 0

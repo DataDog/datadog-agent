@@ -61,7 +61,7 @@ func NewConcentrator(conf *config.AgentConfig, out chan *pb.StatsPayload, now ti
 		oldestTs: alignTs(now.UnixNano(), bsize),
 		// TODO: Move to configuration.
 		bufferLen:              defaultBufferLen,
-		In:                     make(chan Input, 100),
+		In:                     make(chan Input, 1),
 		Out:                    out,
 		exit:                   make(chan struct{}),
 		agentEnv:               conf.DefaultEnv,
@@ -93,11 +93,8 @@ func (c *Concentrator) Run() {
 	log.Debug("Starting concentrator")
 
 	go func() {
-		for {
-			select {
-			case inputs := <-c.In:
-				c.Add(inputs)
-			}
+		for inputs := range c.In {
+			c.Add(inputs)
 		}
 	}()
 	for {

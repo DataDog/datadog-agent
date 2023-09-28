@@ -5,6 +5,7 @@
 
 //go:build linux
 
+// Package probes holds probes related files
 package probes
 
 import (
@@ -115,41 +116,36 @@ func getExecProbes(fentry bool) []*manager.Probe {
 				EBPFFuncName: "hook_do_coredump",
 			},
 		},
-	}
-
-	if !fentry {
-		execProbes = append(execProbes, []*manager.Probe{
-			{
-				ProbeIdentificationPair: manager.ProbeIdentificationPair{
-					UID:          SecurityAgentUID,
-					EBPFFuncName: "hook_prepare_binprm",
-				},
+		{
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				UID:          SecurityAgentUID,
+				EBPFFuncName: "hook_prepare_binprm",
 			},
-			{
-				ProbeIdentificationPair: manager.ProbeIdentificationPair{
-					UID:          SecurityAgentUID,
-					EBPFFuncName: "hook_do_fork",
-				},
+		},
+		{
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				UID:          SecurityAgentUID,
+				EBPFFuncName: "hook_do_fork",
 			},
-			{
-				ProbeIdentificationPair: manager.ProbeIdentificationPair{
-					UID:          SecurityAgentUID,
-					EBPFFuncName: "hook__do_fork",
-				},
+		},
+		{
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				UID:          SecurityAgentUID,
+				EBPFFuncName: "hook__do_fork",
 			},
-			{
-				ProbeIdentificationPair: manager.ProbeIdentificationPair{
-					UID:          SecurityAgentUID,
-					EBPFFuncName: "hook_cgroup_tasks_write",
-				},
+		},
+		{
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				UID:          SecurityAgentUID,
+				EBPFFuncName: "hook_cgroup_tasks_write",
 			},
-			{
-				ProbeIdentificationPair: manager.ProbeIdentificationPair{
-					UID:          SecurityAgentUID,
-					EBPFFuncName: "hook_cgroup1_tasks_write",
-				},
+		},
+		{
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				UID:          SecurityAgentUID,
+				EBPFFuncName: "hook_cgroup1_tasks_write",
 			},
-		}...)
+		},
 	}
 
 	execProbes = append(execProbes, ExpandSyscallProbes(&manager.Probe{

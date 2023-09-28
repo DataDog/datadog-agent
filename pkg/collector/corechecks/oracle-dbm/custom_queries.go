@@ -9,10 +9,11 @@ package oracle
 
 import (
 	"fmt"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
-	godror "github.com/godror/godror"
 	"reflect"
 	"strconv"
+
+	"github.com/DataDog/datadog-agent/pkg/util/log"
+	godror "github.com/godror/godror"
 )
 
 type Method func(string, float64, string, []string)
@@ -24,11 +25,15 @@ type metricRow struct {
 	tags   []string
 }
 
-func logTypeError(prefix string, expectedType string, column string, value interface{}, query string) {
-	log.Errorf(
-		`Custom query %s encountered a type error during execution. A %s was expected for the column %s, but the query results returned the value "%v" of type %s. Query was: "%s"`,
-		prefix, expectedType, column, value, reflect.TypeOf(value), query,
+func concatenateTypeError(input error, prefix string, expectedType string, column string, value interface{}, query string, err error) error {
+	return fmt.Errorf(
+		`Custom query %s encountered a type error during execution. A %s was expected for the column %s, but the query results returned the value "%v" of type %s. Query was: "%s". Error: %w`,
+		prefix, expectedType, column, value, reflect.TypeOf(value), query, err,
 	)
+}
+
+func concatenateError(input error, new string) error {
+	return fmt.Errorf("%w %s", input, new)
 }
 
 func (c *Check) CustomQueries() error {
@@ -41,16 +46,13 @@ func (c *Check) CustomQueries() error {
 	if c.dbCustomQueries == nil {
 		db, err := c.Connect()
 		if err != nil {
-			if errClosing := CloseDatabaseConnection(db); err != nil {
-				log.Errorf("Error closing connection %s", errClosing)
-			}
+			closeDatabase(c, db)
 			return err
 		}
 		if db == nil {
 			return fmt.Errorf("empty connection")
 		}
 		c.dbCustomQueries = db
-		c.dbCustomQueries.SetMaxOpenConns(1)
 	}
 
 	var metricRows []metricRow
@@ -66,15 +68,16 @@ func (c *Check) CustomQueries() error {
 		"histogram":       sender.Histogram,
 		"historate":       sender.Historate,
 	}
+	var allErrors error
 	for _, q := range c.config.CustomQueries {
 		var errInQuery bool
 		metricPrefix := q.MetricPrefix
 
 		if metricPrefix == "" {
-			log.Error("Undefined metric_prefix for a custom query")
+			allErrors = concatenateError(allErrors, "Undefined metric_prefix for a custom query")
 			continue
 		}
-		log.Tracef("custom query configuration %v", q)
+		log.Debugf("%s custom query configuration %v", c.logPrompt, q)
 		var pdb string
 		if !c.connectedToPdb {
 			pdb = q.Pdb
@@ -83,7 +86,8 @@ func (c *Check) CustomQueries() error {
 			}
 			_, err := c.dbCustomQueries.Exec(fmt.Sprintf("alter session set container = %s", pdb))
 			if err != nil {
-				log.Errorf("Can't set container to %s", pdb)
+				allErrors = concatenateError(allErrors, fmt.Sprintf("failed to set container %s %s", pdb, err))
+				reconnectOnConnectionError(c, &c.dbCustomQueries, err)
 				continue
 			}
 		}
@@ -92,20 +96,23 @@ func (c *Check) CustomQueries() error {
 			defer rows.Close()
 		}
 		if err != nil {
-			log.Errorf("failed to fetch rows for the custom query %s %s", metricPrefix, err)
+			allErrors = concatenateError(allErrors, fmt.Sprintf("failed to fetch rows for the custom query %s %s", metricPrefix, err))
 			continue
 		}
 		for rows.Next() {
 			var metricsFromSingleRow []metricRow
-			tags := []string{fmt.Sprintf("pdb:%s", pdb)}
+			var tags []string
+			if pdb != "" {
+				tags = []string{fmt.Sprintf("pdb:%s", pdb)}
+			}
 			cols, err := rows.SliceScan()
 			if err != nil {
-				log.Errorf("failed to get values for the custom query %s %s", metricPrefix, err)
+				allErrors = concatenateError(allErrors, fmt.Sprintf("failed to get values for the custom query %s %s", metricPrefix, err))
 				errInQuery = true
 				break
 			}
 			if len(cols) > len(q.Columns) {
-				log.Errorf("Not enough column mappings for the custom query %s %s", metricPrefix, err)
+				allErrors = concatenateError(allErrors, fmt.Sprintf("Not enough column mappings for the custom query %s %s", metricPrefix, err))
 				errInQuery = true
 				break
 			}
@@ -120,19 +127,26 @@ func (c *Check) CustomQueries() error {
 					if v_str, ok := v.(string); ok {
 						metricRow.value, err = strconv.ParseFloat(v_str, 64)
 						if err != nil {
-							logTypeError(metricPrefix, "number", metricRow.name, v, q.Query)
+							allErrors = concatenateTypeError(allErrors, metricPrefix, "number", metricRow.name, v, q.Query, err)
 							errInQuery = true
 							break
 						}
 					} else if v_gn, ok := v.(godror.Number); ok {
 						metricRow.value, err = strconv.ParseFloat(string(v_gn), 64)
 						if err != nil {
-							logTypeError(metricPrefix, "godror.Number", metricRow.name, v, q.Query)
+							allErrors = concatenateTypeError(allErrors, metricPrefix, "godror.Number", metricRow.name, v, q.Query, err)
+							errInQuery = true
+							break
+						}
+					} else if vInt64, ok := v.(int64); ok {
+						metricRow.value = float64(vInt64)
+						if err != nil {
+							allErrors = concatenateTypeError(allErrors, metricPrefix, "int64", metricRow.name, v, q.Query, err)
 							errInQuery = true
 							break
 						}
 					} else {
-						logTypeError(metricPrefix, "godror.Number", metricRow.name, v, q.Query)
+						allErrors = concatenateTypeError(allErrors, metricPrefix, "UNKNOWN", metricRow.name, v, q.Query, err)
 						errInQuery = true
 						break
 					}
@@ -140,7 +154,7 @@ func (c *Check) CustomQueries() error {
 					metricRow.method = methodFunc
 					metricsFromSingleRow = append(metricsFromSingleRow, metricRow)
 				} else {
-					log.Errorf("Unknown column type %s in custom query %s", q.Columns[i].Type, metricRow.name)
+					allErrors = concatenateError(allErrors, fmt.Sprintf("Unknown column type %s in custom query %s", q.Columns[i].Type, metricRow.name))
 					errInQuery = true
 					break
 				}
@@ -152,22 +166,22 @@ func (c *Check) CustomQueries() error {
 			if len(q.Tags) > 0 {
 				tags = append(tags, q.Tags...)
 			}
+			log.Debugf("%s Appended queried tags to check tags %v", c.logPrompt, tags)
 			for i := range metricsFromSingleRow {
-				metricsFromSingleRow[i].tags = tags
+				metricsFromSingleRow[i].tags = make([]string, len(tags))
+				copy(metricsFromSingleRow[i].tags, tags)
 			}
 			metricRows = append(metricRows, metricsFromSingleRow...)
-
 		}
 		rows.Close()
 		if errInQuery {
 			continue
 		}
-
 		for _, m := range metricRows {
-			log.Tracef("send metric %+v", m)
+			log.Debugf("%s send metric %+v", c.logPrompt, m)
 			m.method(m.name, m.value, "", m.tags)
 		}
 		sender.Commit()
 	}
-	return nil
+	return allErrors
 }

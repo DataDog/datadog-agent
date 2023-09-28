@@ -25,6 +25,9 @@ var (
 	udpBytes               = expvar.Int{}
 )
 
+// RandomPortName is the value for dogstatsd_port setting that indicates that the server should allocate a random unique port.
+const RandomPortName = "__random__" // this would be zero if zero wasn't used already to disable udp support.
+
 func init() {
 	udpExpvars.Set("PacketReadingErrors", &udpPacketReadingErrors)
 	udpExpvars.Set("Packets", &udpPackets)
@@ -48,11 +51,16 @@ func NewUDPListener(packetOut chan packets.Packets, sharedPacketPoolManager *pac
 	var err error
 	var url string
 
+	port := cfg.GetString("dogstatsd_port")
+	if port == RandomPortName {
+		port = "0"
+	}
+
 	if cfg.GetBool("dogstatsd_non_local_traffic") {
 		// Listen to all network interfaces
-		url = fmt.Sprintf(":%d", cfg.GetInt("dogstatsd_port"))
+		url = fmt.Sprintf(":%s", port)
 	} else {
-		url = net.JoinHostPort(config.GetBindHostFromConfig(cfg), cfg.GetString("dogstatsd_port"))
+		url = net.JoinHostPort(config.GetBindHostFromConfig(cfg), port)
 	}
 
 	addr, err := net.ResolveUDPAddr("udp", url)
@@ -87,6 +95,11 @@ func NewUDPListener(packetOut chan packets.Packets, sharedPacketPoolManager *pac
 	}
 	log.Debugf("dogstatsd-udp: %s successfully initialized", conn.LocalAddr())
 	return listener, nil
+}
+
+// LocalAddr returns the local network address of the listener.
+func (l *UDPListener) LocalAddr() string {
+	return l.conn.LocalAddr().String()
 }
 
 // Listen runs the intake loop. Should be called in its own goroutine

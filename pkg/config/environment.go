@@ -44,6 +44,7 @@ func IsKubernetes() bool {
 	return false
 }
 
+// IsECS returns whether the Agent is running on ECS
 func IsECS() bool {
 	if os.Getenv("AWS_EXECUTION_ENV") == "AWS_ECS_EC2" {
 		return true

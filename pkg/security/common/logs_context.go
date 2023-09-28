@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+// Package common holds common related files
 package common
 
 import (
@@ -10,7 +11,6 @@ import (
 
 	logsconfig "github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/logs"
 	"github.com/DataDog/datadog-agent/pkg/logs/client"
 	logshttp "github.com/DataDog/datadog-agent/pkg/logs/client/http"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -23,14 +23,24 @@ const (
 // NewLogContextCompliance returns the context fields to send compliance events to the intake
 func NewLogContextCompliance() (*logsconfig.Endpoints, *client.DestinationsContext, error) {
 	logsConfigComplianceKeys := logsconfig.NewLogsConfigKeys("compliance_config.endpoints.", pkgconfig.Datadog)
-	return NewLogContext(logsConfigComplianceKeys, "cspm-intake.", "compliance", logsconfig.DefaultIntakeOrigin, logs.AgentJSONIntakeProtocol)
+	return NewLogContext(logsConfigComplianceKeys, "cspm-intake.", "compliance", logsconfig.DefaultIntakeOrigin, logsconfig.AgentJSONIntakeProtocol)
 }
 
 // NewLogContextRuntime returns the context fields to send runtime (CWS) events to the intake
 // This function will only be used on Linux. The only platforms where the runtime agent runs
-func NewLogContextRuntime() (*logsconfig.Endpoints, *client.DestinationsContext, error) {
+func NewLogContextRuntime(useSecRuntimeTrack bool) (*logsconfig.Endpoints, *client.DestinationsContext, error) {
+	var (
+		trackType logsconfig.IntakeTrackType
+	)
+
+	if useSecRuntimeTrack {
+		trackType = "secruntime"
+	} else {
+		trackType = "logs"
+	}
+
 	logsRuntimeConfigKeys := logsconfig.NewLogsConfigKeys("runtime_security_config.endpoints.", pkgconfig.Datadog)
-	return NewLogContext(logsRuntimeConfigKeys, "runtime-security-http-intake.logs.", "logs", cwsIntakeOrigin, logsconfig.DefaultIntakeProtocol)
+	return NewLogContext(logsRuntimeConfigKeys, "runtime-security-http-intake.logs.", trackType, cwsIntakeOrigin, logsconfig.DefaultIntakeProtocol)
 }
 
 // NewLogContext returns the context fields to send events to the intake

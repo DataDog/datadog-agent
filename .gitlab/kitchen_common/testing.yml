@@ -9,6 +9,9 @@
     paths:
       - $CI_PROJECT_DIR/kitchen_logs
   retry: 1
+  variables:
+    KUBERNETES_MEMORY_REQUEST: "6Gi"
+    KUBERNETES_MEMORY_LIMIT: "12Gi"
 
 .kitchen_common_with_junit:
   extends:
@@ -170,8 +173,8 @@
 .kitchen_ec2_location_us_east_1:
   variables:
     KITCHEN_EC2_REGION: us-east-1
-    KITCHEN_EC2_SUBNET: subnet-c18341ed
-    KITCHEN_EC2_SG_IDS: sg-0f5617ceb3e5a6c39
+    KITCHEN_EC2_SUBNET: subnet-05d7c6b1b5cfea811
+    KITCHEN_EC2_SG_IDS: sg-019917348cb0eb7e7
 
 # Kitchen: Test types (test suite * agent flavor + location in each cloud provider)
 # -------------------------------
@@ -236,7 +239,7 @@
   extends:
     - .kitchen_test_upgrade7
     - .kitchen_datadog_agent_flavor
-    - .kitchen_azure_location_west_central_us
+    - .kitchen_azure_location_south_central_us
     - .kitchen_ec2_location_us_east_1
 
 .kitchen_test_upgrade7_iot_agent:

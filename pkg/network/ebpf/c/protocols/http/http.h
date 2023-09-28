@@ -6,6 +6,8 @@
 
 #include "sockfd.h"
 
+#include "protocols/classification/common.h"
+
 #include "protocols/http/types.h"
 #include "protocols/http/maps.h"
 #include "protocols/http/usm-events.h"
@@ -31,6 +33,18 @@ static __always_inline void http_begin_response(http_transaction_t *http, const 
     status_code += (buffer[HTTP_STATUS_OFFSET+2]-'0') * 1;
     http->response_status_code = status_code;
     log_debug("http_begin_response: htx=%llx status=%d\n", http, status_code);
+}
+
+static __always_inline void http_batch_enqueue_wrapper(conn_tuple_t *tuple, http_transaction_t *http) {
+    u32 zero = 0;
+    http_event_t *event = bpf_map_lookup_elem(&http_scratch_buffer, &zero);
+    if (!event) {
+        return;
+    }
+
+    bpf_memcpy(&event->tuple, tuple, sizeof(conn_tuple_t));
+    bpf_memcpy(&event->http, http, sizeof(http_transaction_t));
+    http_batch_enqueue(event);
 }
 
 static __always_inline void http_parse_data(char const *p, http_packet_t *packet_type, http_method_t *method) {
@@ -97,38 +111,48 @@ static __always_inline bool http_seen_before(http_transaction_t *http, skb_info_
     return false;
 }
 
-static __always_inline http_transaction_t *http_fetch_state(http_transaction_t *http, http_packet_t packet_type) {
+static __always_inline http_transaction_t *http_fetch_state(conn_tuple_t *tuple, http_transaction_t *http, http_packet_t packet_type) {
     if (packet_type == HTTP_PACKET_UNKNOWN) {
-        return bpf_map_lookup_elem(&http_in_flight, &http->tup);
+        return bpf_map_lookup_elem(&http_in_flight, tuple);
     }
 
     // We detected either a request or a response
     // In this case we initialize (or fetch) state associated to this tuple
-    bpf_map_update_with_telemetry(http_in_flight, &http->tup, http, BPF_NOEXIST);
-    return bpf_map_lookup_elem(&http_in_flight, &http->tup);
+    bpf_map_update_with_telemetry(http_in_flight, tuple, http, BPF_NOEXIST);
+    return bpf_map_lookup_elem(&http_in_flight, tuple);
 }
 
+
+
+// Returns true if the given http transaction should be flushed to the user mode.
+// We flush a transaction if:
+//   1. We got a new request (packet_type == HTTP_REQUEST) and previously (in the given transaction) we had either a
+//      request (http->request_started != 0) or a response (http->response_status_code). This is equivalent to flush
+//      a transaction if we have a new request, and the given transaction is not clean.
+//   2. We got a new response (packet_type == HTTP_RESPONSE) and the given transaction already contains a response
 static __always_inline bool http_should_flush_previous_state(http_transaction_t *http, http_packet_t packet_type) {
-    return (packet_type == HTTP_REQUEST && http->request_started) ||
+    return (packet_type == HTTP_REQUEST && (http->request_started || http->response_status_code)) ||
         (packet_type == HTTP_RESPONSE && http->response_status_code);
 }
 
 // http_process is responsible for parsing traffic and emitting events
 // representing HTTP transactions.
-static __always_inline void http_process(http_transaction_t *http_stack, skb_info_t *skb_info, __u64 tags) {
-    char *buffer = (char *)http_stack->request_fragment;
+static __always_inline void http_process(http_event_t *event, skb_info_t *skb_info, __u64 tags) {
+    conn_tuple_t *tuple = &event->tuple;
+    http_transaction_t *http = &event->http;
+    char *buffer = (char *)http->request_fragment;
     http_packet_t packet_type = HTTP_PACKET_UNKNOWN;
     http_method_t method = HTTP_METHOD_UNKNOWN;
     http_parse_data(buffer, &packet_type, &method);
 
-    http_transaction_t *http = http_fetch_state(http_stack, packet_type);
+    http = http_fetch_state(tuple, http, packet_type);
     if (!http || http_seen_before(http, skb_info, packet_type)) {
         return;
     }
 
     if (http_should_flush_previous_state(http, packet_type)) {
-        http_batch_enqueue(http);
-        bpf_memcpy(http, http_stack, sizeof(http_transaction_t));
+        http_batch_enqueue_wrapper(tuple, http);
+        bpf_memcpy(http, &event->http, sizeof(http_transaction_t));
     }
 
     log_debug("http_process: type=%d method=%d\n", packet_type, method);
@@ -140,13 +164,15 @@ static __always_inline void http_process(http_transaction_t *http_stack, skb_inf
 
     http->tags |= tags;
 
-    if (http_responding(http)) {
+    // Only if we have a (L7/application-layer) payload we update the response_last_seen field
+    // This is to prevent things such as keep-alives adding up to the transaction latency
+    if (((skb_info && !is_payload_empty(skb_info)) || !skb_info) && http_responding(http)) {
         http->response_last_seen = bpf_ktime_get_ns();
     }
 
     if (http_closed(skb_info)) {
-        http_batch_enqueue(http);
-        bpf_map_delete_elem(&http_in_flight, &http_stack->tup);
+        http_batch_enqueue_wrapper(tuple, http);
+        bpf_map_delete_elem(&http_in_flight, tuple);
     }
 
     return;
@@ -155,15 +181,14 @@ static __always_inline void http_process(http_transaction_t *http_stack, skb_inf
 // this function is called by the socket-filter program to decide whether or not we should inspect
 // the contents of a certain packet, in order to avoid the cost of processing packets that are not
 // of interest such as empty ACKs, UDP data or encrypted traffic.
-static __always_inline bool http_allow_packet(http_transaction_t *http, struct __sk_buff* skb, skb_info_t *skb_info) {
+static __always_inline bool http_allow_packet(conn_tuple_t *tuple, struct __sk_buff* skb, skb_info_t *skb_info) {
     // we're only interested in TCP traffic
-    if (!(http->tup.metadata&CONN_TYPE_TCP)) {
+    if (!(tuple->metadata&CONN_TYPE_TCP)) {
         return false;
     }
 
-    protocol_stack_t *stack = get_protocol_stack(&http->tup);
     bool empty_payload = skb_info->data_off == skb->len;
-    if (empty_payload || is_protocol_layer_known(stack, LAYER_ENCRYPTION)) {
+    if (empty_payload || tuple->sport == HTTPS_PORT || tuple->dport == HTTPS_PORT) {
         // if the payload data is empty or encrypted packet, we only
         // process it if the packet represents a TCP termination
         return skb_info->tcp_flags&(TCPHDR_FIN|TCPHDR_RST);
@@ -175,21 +200,58 @@ static __always_inline bool http_allow_packet(http_transaction_t *http, struct _
 SEC("socket/http_filter")
 int socket__http_filter(struct __sk_buff* skb) {
     skb_info_t skb_info;
-    http_transaction_t http;
-    bpf_memset(&http, 0, sizeof(http));
+    http_event_t event;
+    bpf_memset(&event, 0, sizeof(http_event_t));
 
-    if (!fetch_dispatching_arguments(&http.tup, &skb_info)) {
+    if (!fetch_dispatching_arguments(&event.tuple, &skb_info)) {
         log_debug("http_filter failed to fetch arguments for tail call\n");
         return 0;
     }
 
-    if (!http_allow_packet(&http, skb, &skb_info)) {
+    if (!http_allow_packet(&event.tuple, skb, &skb_info)) {
         return 0;
     }
-    normalize_tuple(&http.tup);
+    normalize_tuple(&event.tuple);
 
-    read_into_buffer_skb((char *)http.request_fragment, skb, skb_info.data_off);
-    http_process(&http, &skb_info, NO_TAGS);
+    read_into_buffer_skb((char *)event.http.request_fragment, skb, skb_info.data_off);
+    http_process(&event, &skb_info, NO_TAGS);
+    return 0;
+}
+
+SEC("uprobe/http_process")
+int uprobe__http_process(struct pt_regs *ctx) {
+    const __u32 zero = 0;
+    tls_dispatcher_arguments_t *args = bpf_map_lookup_elem(&tls_dispatcher_arguments, &zero);
+    if (args == NULL) {
+        return 0;
+    }
+
+    http_event_t event;
+    bpf_memset(&event, 0, sizeof(http_event_t));
+    bpf_memcpy(&event.tuple, &args->tup, sizeof(conn_tuple_t));
+    read_into_user_buffer_http(event.http.request_fragment, args->buffer_ptr);
+    http_process(&event, NULL, args->tags);
+    http_batch_flush(ctx);
+
+    return 0;
+}
+
+SEC("uprobe/http_termination")
+int uprobe__http_termination(struct pt_regs *ctx) {
+    const __u32 zero = 0;
+    tls_dispatcher_arguments_t *args = bpf_map_lookup_elem(&tls_dispatcher_arguments, &zero);
+    if (args == NULL) {
+        return 0;
+    }
+
+    http_event_t event;
+    bpf_memset(&event, 0, sizeof(http_event_t));
+    bpf_memcpy(&event.tuple, &args->tup, sizeof(conn_tuple_t));
+    skb_info_t skb_info = {0};
+    skb_info.tcp_flags |= TCPHDR_FIN;
+    http_process(&event, &skb_info, NO_TAGS);
+    http_batch_flush(ctx);
+
     return 0;
 }
 

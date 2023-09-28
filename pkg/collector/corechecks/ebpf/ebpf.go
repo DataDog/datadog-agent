@@ -5,6 +5,7 @@
 
 //go:build cgo && linux
 
+// Package ebpf contains all the ebpf-based checks.
 package ebpf
 
 import (
@@ -15,10 +16,11 @@ import (
 	"gopkg.in/yaml.v2"
 
 	sysconfig "github.com/DataDog/datadog-agent/cmd/system-probe/config"
+	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/ebpf/probe/ebpfcheck"
+	ebpfcheck "github.com/DataDog/datadog-agent/pkg/collector/corechecks/ebpf/probe/ebpfcheck/model"
 	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
 	processnet "github.com/DataDog/datadog-agent/pkg/process/net"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -57,8 +59,8 @@ func (c *EBPFCheckConfig) Parse(data []byte) error {
 }
 
 // Configure parses the check configuration and init the check
-func (m *EBPFCheck) Configure(integrationConfigDigest uint64, config, initConfig integration.Data, source string) error {
-	if err := m.CommonConfigure(integrationConfigDigest, initConfig, config, source); err != nil {
+func (m *EBPFCheck) Configure(senderManager sender.SenderManager, integrationConfigDigest uint64, config, initConfig integration.Data, source string) error {
+	if err := m.CommonConfigure(senderManager, integrationConfigDigest, initConfig, config, source); err != nil {
 		return err
 	}
 	if err := m.config.Parse(config); err != nil {
@@ -156,6 +158,8 @@ func (m *EBPFCheck) Run() error {
 
 	totalProgRSS := uint64(0)
 	moduleTotalProgRSS := make(map[string]uint64)
+	moduleTotalXlatedLen := make(map[string]uint64)
+	moduleTotalVerifiedCount := make(map[string]uint64)
 	for _, progInfo := range stats.Programs {
 		tags := []string{
 			"program_name:" + progInfo.Name,
@@ -171,7 +175,7 @@ func (m *EBPFCheck) Run() error {
 		}
 
 		gauges := map[string]float64{
-			"xlated_instruction_count":   float64(progInfo.XlatedProgLen),
+			"xlated_instruction_len":     float64(progInfo.XlatedProgLen),
 			"verified_instruction_count": float64(progInfo.VerifiedInsns),
 			"memory_rss":                 float64(progInfo.RSS),
 		}
@@ -186,6 +190,8 @@ func (m *EBPFCheck) Run() error {
 		}
 		totalProgRSS += progInfo.RSS
 		moduleTotalProgRSS[progInfo.Module] += progInfo.RSS
+		moduleTotalXlatedLen[progInfo.Module] += uint64(progInfo.XlatedProgLen)
+		moduleTotalVerifiedCount[progInfo.Module] += uint64(progInfo.VerifiedInsns)
 
 		monos := map[string]float64{
 			"runtime_ns":       float64(progInfo.Runtime.Nanoseconds()),
@@ -211,6 +217,16 @@ func (m *EBPFCheck) Run() error {
 	}
 	for mod, rss := range moduleTotalProgRSS {
 		sender.Gauge("ebpf.programs.memory_rss_permodule_total", float64(rss), "", []string{"module:" + mod})
+	}
+	for mod, xlatedLen := range moduleTotalXlatedLen {
+		if xlatedLen > 0 {
+			sender.Gauge("ebpf.programs.xlated_instruction_len_permodule_total", float64(xlatedLen), "", []string{"module:" + mod})
+		}
+	}
+	for mod, verifiedCount := range moduleTotalVerifiedCount {
+		if verifiedCount > 0 {
+			sender.Gauge("ebpf.programs.verified_instruction_count_permodule_total", float64(verifiedCount), "", []string{"module:" + mod})
+		}
 	}
 
 	sender.Commit()

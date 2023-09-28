@@ -12,7 +12,14 @@ package httpsec
 
 import (
 	"encoding/json"
+	"fmt"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"io"
+	"mime"
+	"mime/multipart"
 	"net/http"
+	"net/textproto"
+	"net/url"
 	"strings"
 )
 
@@ -54,35 +61,106 @@ func makeContext(ctx *context, path *string, headers, queryParams map[string][]s
 	}
 }
 
-func parseBody(headers map[string][]string, rawBody *string) (body interface{}) {
+// parseBody attempts to parse the payload found in rawBody according to the presentation headers. Returns nil if the
+// request body could not be parsed (either due to an error, or because no suitable parsing strategy is implemented).
+func parseBody(headers map[string][]string, rawBody *string) (body any) {
 	if rawBody == nil {
 		return nil
 	}
 
-	rawStr := *rawBody
-	if rawStr == "" {
-		return rawStr
-	}
-	raw := []byte(*rawBody)
-
-	var ct string
-	if values, ok := headers["content-type"]; !ok {
-		return rawStr
-	} else if len(values) > 1 {
-		return rawStr
-	} else {
-		ct = values[0]
-	}
-
-	switch ct {
-	case "application/json":
-		if err := json.Unmarshal(raw, &body); err != nil {
-			return rawStr
+	// textproto.MIMEHeader normalizes the header names, so we don't have to worry about text case.
+	mimeHeaders := make(textproto.MIMEHeader, len(headers))
+	for key, values := range headers {
+		for _, value := range values {
+			mimeHeaders.Add(key, value)
 		}
-		return body
+	}
+
+	result, err := tryParseBody(mimeHeaders, *rawBody)
+	if err != nil {
+		log.Warnf("unable to parse request body: %v", err)
+		return nil
+	}
+
+	return result
+}
+
+// / tryParseBody attempts to parse the raw data in raw according to the headers. Returns an error if parsing
+// / fails, and a nil body if no parsing strategy was found.
+func tryParseBody(headers textproto.MIMEHeader, raw string) (body any, err error) {
+	var mediaType string
+	var params map[string]string
+
+	if value := headers.Get("Content-Type"); value == "" {
+		return nil, nil
+	} else {
+		mt, p, err := mime.ParseMediaType(value)
+		if err != nil {
+			return nil, err
+		}
+		mediaType = mt
+		params = p
+	}
+
+	switch mediaType {
+	case "application/json", "application/vnd.api+json":
+		if err := json.Unmarshal([]byte(raw), &body); err != nil {
+			return nil, err
+		}
+		return body, nil
+
+	case "application/x-www-form-urlencoded":
+		values, err := url.ParseQuery(raw)
+		if err != nil {
+			return nil, err
+		}
+		return map[string][]string(values), nil
+
+	case "multipart/form-data":
+		boundary, ok := params["boundary"]
+		if !ok {
+			return nil, fmt.Errorf("cannot parse a multipart/form-data payload without a boundary")
+		}
+		mr := multipart.NewReader(strings.NewReader(raw), boundary)
+
+		data := make(map[string]any)
+		for {
+			part, err := mr.NextPart()
+			if err != nil {
+				if err == io.EOF {
+					break
+				}
+				return nil, err
+			}
+			defer part.Close()
+
+			partData := make(map[string]any, 2)
+
+			partRawBody, err := io.ReadAll(part)
+			if err != nil {
+				return nil, err
+			}
+			partBody, err := tryParseBody(map[string][]string(part.Header), string(partRawBody))
+			if err != nil {
+				log.Debugf("failed to parse multipart/form-data part: %v", err)
+				partData["data"] = nil
+			} else {
+				partData["data"] = partBody
+			}
+
+			if filename := part.FileName(); filename != "" {
+				partData["filename"] = filename
+			}
+
+			data[part.FormName()] = partData
+		}
+		return data, nil
+
+	case "text/plain":
+		return raw, nil
 
 	default:
-		return rawStr
+		return nil, nil
 	}
 }
 

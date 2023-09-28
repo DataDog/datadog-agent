@@ -21,11 +21,10 @@ import (
 
 	"github.com/DataDog/test-infra-definitions/scenarios/aws/microVMs/microvms"
 	"github.com/sethvargo/go-retry"
-	"golang.org/x/crypto/ssh/terminal"
 	"golang.org/x/term"
 
-	"github.com/DataDog/datadog-agent/test/new-e2e/runner"
-	"github.com/DataDog/datadog-agent/test/new-e2e/utils/infra"
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/runner"
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/infra"
 
 	"github.com/pulumi/pulumi/sdk/v3/go/auto"
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
@@ -42,6 +41,8 @@ const (
 
 	DatadogAgentQAEnv = "aws/agent-qa"
 	SandboxEnv        = "aws/sandbox"
+
+	Aria2cMissingStatusError = "error: wait: remote command exited without exit status or exit signal: running \" aria2c"
 )
 
 var availabilityZones = map[string][]string{
@@ -107,7 +108,7 @@ func GetEnv(key, fallback string) string {
 
 func credentials() (string, error) {
 	var fd int
-	if terminal.IsTerminal(syscall.Stdin) {
+	if term.IsTerminal(syscall.Stdin) {
 		fd = syscall.Stdin
 	} else {
 		tty, err := os.Open("/dev/tty")
@@ -198,7 +199,7 @@ func NewTestEnv(name, x86InstanceType, armInstanceType string, opts *SystemProbe
 			config["ddinfra:aws/defaultSubnets"] = auto.ConfigValue{Value: az}
 		}
 
-		_, upResult, err = stackManager.GetStack(systemProbeTestEnv.context, systemProbeTestEnv.name, config, func(ctx *pulumi.Context) error {
+		_, upResult, err = stackManager.GetStackNoDeleteOnFailure(systemProbeTestEnv.context, systemProbeTestEnv.name, config, func(ctx *pulumi.Context) error {
 			if err := microvms.Run(ctx); err != nil {
 				return fmt.Errorf("setup micro-vms in remote instance: %w", err)
 			}
@@ -218,6 +219,12 @@ func NewTestEnv(name, x86InstanceType, armInstanceType string, opts *SystemProbe
 			} else if strings.Contains(err.Error(), "InsufficientInstanceCapacity") {
 				fmt.Printf("[Error] Insufficient instance capacity in %s. Retrying stack with %s as the AZ.", getAvailabilityZone(opts.InfraEnv, currentAZ), getAvailabilityZone(opts.InfraEnv, currentAZ+1))
 				currentAZ += 1
+				return retry.RetryableError(err)
+
+				// Retry when ssh thinks aria2c exited without status. This may happen
+				// due to network connectivity issues if ssh keepalive mecahnism fails.
+			} else if strings.Contains(err.Error(), Aria2cMissingStatusError) {
+				fmt.Println("[Error] Missing exit status from Aria2c. Retrying stack")
 				return retry.RetryableError(err)
 			} else {
 				return err
@@ -241,4 +248,8 @@ func NewTestEnv(name, x86InstanceType, armInstanceType string, opts *SystemProbe
 
 func Destroy(name string) error {
 	return infra.GetStackManager().DeleteStack(context.Background(), name)
+}
+
+func (env *TestEnv) RemoveStack() error {
+	return infra.GetStackManager().ForceRemoveStackConfiguration(env.context, env.name)
 }

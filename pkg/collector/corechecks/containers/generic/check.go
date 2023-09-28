@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+// Package generic implements the container check.
 package generic
 
 import (
@@ -10,6 +11,7 @@ import (
 
 	yaml "gopkg.in/yaml.v2"
 
+	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
@@ -50,8 +52,8 @@ func ContainerCheckFactory() check.Check {
 }
 
 // Configure parses the check configuration and init the check
-func (c *ContainerCheck) Configure(integrationConfigDigest uint64, config, initConfig integration.Data, source string) error {
-	err := c.CommonConfigure(integrationConfigDigest, initConfig, config, source)
+func (c *ContainerCheck) Configure(senderManager sender.SenderManager, integrationConfigDigest uint64, config, initConfig integration.Data, source string) error {
+	err := c.CommonConfigure(senderManager, integrationConfigDigest, initConfig, config, source)
 	if err != nil {
 		return err
 	}

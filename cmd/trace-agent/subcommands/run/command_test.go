@@ -23,7 +23,7 @@ func TestStartCommand(t *testing.T) {
 
 		})},
 		[]string{"run", "--cpu-profile", "/foo", "--mem-profile", "/bar", "--pidfile", "/var/run/quz.pid"},
-		Start,
+		Run,
 		func(cliParams *RunParams) {
 			require.Equal(t, "PATH", cliParams.ConfPath)
 			require.Equal(t, "/foo", cliParams.CPUProfile)

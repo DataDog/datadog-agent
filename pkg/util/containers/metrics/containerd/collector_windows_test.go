@@ -22,9 +22,10 @@ import (
 	wstats "github.com/Microsoft/hcsshim/cmd/containerd-shim-runhcs-v1/stats"
 	"github.com/containerd/containerd/api/types"
 	"github.com/containerd/containerd/oci"
-	"github.com/containerd/typeurl"
+	"github.com/containerd/typeurl/v2"
 	"github.com/google/go-cmp/cmp"
 	"github.com/stretchr/testify/assert"
+	"google.golang.org/protobuf/types/known/anypb"
 )
 
 func TestGetContainerStats_Containerd(t *testing.T) {
@@ -64,7 +65,10 @@ func TestGetContainerStats_Containerd(t *testing.T) {
 		{
 			name: "Windows metrics",
 			containerdMetrics: &types.Metric{
-				Data: windowsMetricsAny,
+				Data: &anypb.Any{
+					TypeUrl: windowsMetricsAny.GetTypeUrl(),
+					Value:   windowsMetricsAny.GetValue(),
+				},
 			},
 			expectedContainerStats: &provider.ContainerStats{
 				Timestamp: currentTime,
@@ -141,7 +145,10 @@ func TestGetContainerNetworkStats_Containerd(t *testing.T) {
 		{
 			name: "Windows",
 			containerdMetrics: &types.Metric{
-				Data: windowsMetricsAny,
+				Data: &anypb.Any{
+					TypeUrl: windowsMetricsAny.GetTypeUrl(),
+					Value:   windowsMetricsAny.GetValue(),
+				},
 			},
 			expectedNetworkStats: nil, // Does not return anything on Windows
 		},

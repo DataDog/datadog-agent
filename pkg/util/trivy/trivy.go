@@ -13,6 +13,7 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"sync"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
@@ -40,12 +41,13 @@ import (
 )
 
 const (
-	cleanupTimeout      = 30 * time.Second
-	OSAnalyzers         = "os"
-	LanguagesAnalyzers  = "languages"
-	SecretAnalyzers     = "secret"
-	ConfigFileAnalyzers = "config"
-	LicenseAnalyzers    = "license"
+	cleanupTimeout = 30 * time.Second
+
+	OSAnalyzers         = "os"        // OSAnalyzers defines an OS analyzer
+	LanguagesAnalyzers  = "languages" // LanguagesAnalyzers defines a language analyzer
+	SecretAnalyzers     = "secret"    // SecretAnalyzers defines a secret analyzer
+	ConfigFileAnalyzers = "config"    // ConfigFileAnalyzers defines a configuration file analyzer
+	LicenseAnalyzers    = "license"   // LicenseAnalyzers defines a license analyzers
 )
 
 // ContainerdAccessor is a function that should return a containerd client
@@ -59,13 +61,13 @@ type CollectorConfig struct {
 
 // Collector uses trivy to generate a SBOM
 type Collector struct {
-	config       CollectorConfig
-	cache        cache.Cache
-	cacheCleaner CacheCleaner
-	detector     local.OspkgDetector
-	dbConfig     db.Config
-	vulnClient   vulnerability.Client
-	marshaler    *cyclonedx.Marshaler
+	config           CollectorConfig
+	cacheInitialized sync.Once
+	cache            cache.Cache
+	cacheCleaner     CacheCleaner
+	detector         local.OspkgDetector
+	vulnClient       vulnerability.Client
+	marshaler        *cyclonedx.Marshaler
 }
 
 var globalCollector *Collector
@@ -123,6 +125,7 @@ func cacheProvider(cacheLocation string, useCustomCache bool) func() (cache.Cach
 	}
 }
 
+// DefaultDisabledCollectors returns default disabled collectors
 func DefaultDisabledCollectors(enabledAnalyzers []string) []analyzer.Type {
 	sort.Strings(enabledAnalyzers)
 	analyzersDisabled := func(analyzers string) bool {
@@ -150,31 +153,25 @@ func DefaultDisabledCollectors(enabledAnalyzers []string) []analyzer.Type {
 	return disabledAnalyzers
 }
 
+// DefaultDisabledHandlers returns default disabled handlers
 func DefaultDisabledHandlers() []ftypes.HandlerType {
 	return []ftypes.HandlerType{ftypes.UnpackagedPostHandler}
 }
 
+// NewCollector returns a new collector
 func NewCollector(cfg config.Config) (*Collector, error) {
 	config := defaultCollectorConfig(cfg.GetString("sbom.cache_directory"))
 	config.ClearCacheOnClose = cfg.GetBool("sbom.clear_cache_on_exit")
 
-	dbConfig := db.Config{}
-	fanalCache, cacheCleaner, err := config.CacheProvider()
-	if err != nil {
-		return nil, err
-	}
-
 	return &Collector{
-		config:       config,
-		cache:        fanalCache,
-		cacheCleaner: cacheCleaner,
-		detector:     ospkg.Detector{},
-		dbConfig:     dbConfig,
-		vulnClient:   vulnerability.NewClient(dbConfig),
-		marshaler:    cyclonedx.NewMarshaler(""),
+		config:     config,
+		detector:   ospkg.Detector{},
+		vulnClient: vulnerability.NewClient(db.Config{}),
+		marshaler:  cyclonedx.NewMarshaler(""),
 	}, nil
 }
 
+// GetGlobalCollector gets the global collector
 func GetGlobalCollector(cfg config.Config) (*Collector, error) {
 	if globalCollector != nil {
 		return globalCollector, nil
@@ -189,7 +186,12 @@ func GetGlobalCollector(cfg config.Config) (*Collector, error) {
 	return globalCollector, nil
 }
 
+// Close closes the collector
 func (c *Collector) Close() error {
+	if c.cache == nil {
+		return nil
+	}
+
 	if c.config.ClearCacheOnClose {
 		if err := c.cache.Clear(); err != nil {
 			return fmt.Errorf("error when clearing trivy cache: %w", err)
@@ -199,10 +201,28 @@ func (c *Collector) Close() error {
 	return c.cache.Close()
 }
 
-func (c *Collector) GetCacheCleaner() CacheCleaner {
-	return c.cacheCleaner
+// CleanCache cleans the cache
+func (c *Collector) CleanCache() error {
+	if c.cacheCleaner != nil {
+		return c.cacheCleaner.Clean()
+	}
+	return nil
 }
 
+func (c *Collector) getCache() (cache.Cache, CacheCleaner, error) {
+	var err error
+	c.cacheInitialized.Do(func() {
+		c.cache, c.cacheCleaner, err = c.config.CacheProvider()
+	})
+
+	if err != nil {
+		return nil, nil, err
+	}
+
+	return c.cache, c.cacheCleaner, nil
+}
+
+// ScanDockerImage scans a docker image
 func (c *Collector) ScanDockerImage(ctx context.Context, imgMeta *workloadmeta.ContainerImageMetadata, client client.ImageAPIClient, scanOptions sbom.ScanOptions) (sbom.Report, error) {
 	fanalImage, cleanup, err := convertDockerImage(ctx, client, imgMeta)
 	if cleanup != nil {
@@ -216,6 +236,7 @@ func (c *Collector) ScanDockerImage(ctx context.Context, imgMeta *workloadmeta.C
 	return c.scanImage(ctx, fanalImage, imgMeta, scanOptions)
 }
 
+// ScanContainerdImage scans containerd image
 func (c *Collector) ScanContainerdImage(ctx context.Context, imgMeta *workloadmeta.ContainerImageMetadata, img containerd.Image, client cutil.ContainerdItf, scanOptions sbom.ScanOptions) (sbom.Report, error) {
 	fanalImage, cleanup, err := convertContainerdImage(ctx, client.RawClient(), imgMeta, img)
 	if cleanup != nil {
@@ -228,6 +249,7 @@ func (c *Collector) ScanContainerdImage(ctx context.Context, imgMeta *workloadme
 	return c.scanImage(ctx, fanalImage, imgMeta, scanOptions)
 }
 
+// ScanContainerdImageFromFilesystem scans containerd image from file-system
 func (c *Collector) ScanContainerdImageFromFilesystem(ctx context.Context, imgMeta *workloadmeta.ContainerImageMetadata, img containerd.Image, client cutil.ContainerdItf, scanOptions sbom.ScanOptions) (sbom.Report, error) {
 	imagePath, err := os.MkdirTemp(os.TempDir(), fmt.Sprintf("containerd-image-*"))
 	if err != nil {
@@ -262,7 +284,11 @@ func (c *Collector) ScanContainerdImageFromFilesystem(ctx context.Context, imgMe
 }
 
 func (c *Collector) scanFilesystem(ctx context.Context, path string, imgMeta *workloadmeta.ContainerImageMetadata, scanOptions sbom.ScanOptions) (sbom.Report, error) {
-	cache := c.cache
+	cache, _, err := c.getCache()
+	if err != nil {
+		return nil, err
+	}
+
 	if scanOptions.NoCache {
 		cache = &memoryCache{}
 	}
@@ -280,6 +306,7 @@ func (c *Collector) scanFilesystem(ctx context.Context, path string, imgMeta *wo
 	return bom, nil
 }
 
+// ScanFilesystem scans file-system
 func (c *Collector) ScanFilesystem(ctx context.Context, path string, scanOptions sbom.ScanOptions) (sbom.Report, error) {
 	return c.scanFilesystem(ctx, path, nil, scanOptions)
 }
@@ -304,19 +331,24 @@ func (c *Collector) scan(ctx context.Context, artifact artifact.Artifact, applie
 		return nil, err
 	}
 
-	return &TrivyReport{
+	return &Report{
 		Report:    trivyReport,
 		marshaler: c.marshaler,
 	}, nil
 }
 
 func (c *Collector) scanImage(ctx context.Context, fanalImage ftypes.Image, imgMeta *workloadmeta.ContainerImageMetadata, scanOptions sbom.ScanOptions) (sbom.Report, error) {
-	imageArtifact, err := image2.NewArtifact(fanalImage, c.cache, getDefaultArtifactOption("", scanOptions))
+	cache, _, err := c.getCache()
+	if err != nil {
+		return nil, err
+	}
+
+	imageArtifact, err := image2.NewArtifact(fanalImage, cache, getDefaultArtifactOption("", scanOptions))
 	if err != nil {
 		return nil, fmt.Errorf("unable to create artifact from image, err: %w", err)
 	}
 
-	bom, err := c.scan(ctx, imageArtifact, applier.NewApplier(c.cache), imgMeta)
+	bom, err := c.scan(ctx, imageArtifact, applier.NewApplier(cache), imgMeta)
 	if err != nil {
 		return nil, fmt.Errorf("unable to marshal report to sbom format, err: %w", err)
 	}

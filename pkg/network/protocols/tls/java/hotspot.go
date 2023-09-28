@@ -23,7 +23,7 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/process/util"
+	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -65,7 +65,7 @@ func NewHotspot(pid int, nsPid int) (*Hotspot, error) {
 	}
 
 	var err error
-	procPath := fmt.Sprintf("%s/%d", util.HostProc(), pid)
+	procPath := fmt.Sprintf("%s/%d", kernel.ProcFSRoot(), pid)
 	h.root = procPath + "/root"
 	h.cwd, err = os.Readlink(procPath + "/cwd")
 	if err != nil {

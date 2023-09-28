@@ -48,6 +48,9 @@ else
   if debian?
     runtime_recommended_dependency 'datadog-signing-keys (>= 1:1.3.1)'
   end
+  unless osx?
+    conflict 'datadog-agent'
+  end
 end
 
 # build_version is computed by an invoke command/function.

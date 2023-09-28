@@ -5,21 +5,29 @@
 
 //go:build kubelet
 
+// Package common provides types used by the Kubelet check.
 package common
 
 import (
 	"gopkg.in/yaml.v2"
+
+	"github.com/DataDog/datadog-agent/pkg/autodiscovery/common/types"
 )
 
 const (
+	// KubeletMetricsPrefix is the prefix included in the metrics emitted by the kubernetes_core check.
 	KubeletMetricsPrefix = "kubernetes_core."
 )
 
 // KubeletConfig is the config of the Kubelet.
 type KubeletConfig struct {
-	Tags []string `yaml:"tags"`
+	ProbesMetricsEndpoint   *string  `yaml:"probes_metrics_endpoint,omitempty"`
+	EnabledRates            []string `yaml:"enabled_rates,omitempty"`
+	UseStatsSummaryAsSource *bool    `yaml:"use_stats_summary_as_source,omitempty"`
+	types.OpenmetricsInstance
 }
 
+// Parse parses the configuration.
 func (c *KubeletConfig) Parse(data []byte) error {
 	return yaml.Unmarshal(data, c)
 }

@@ -21,12 +21,12 @@ import (
 	"time"
 
 	corecompcfg "github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/otelcol/otlp"
 	coreconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/config/remote"
 	"github.com/DataDog/datadog-agent/pkg/config/remote/data"
 	"github.com/DataDog/datadog-agent/pkg/config/utils"
 	configUtils "github.com/DataDog/datadog-agent/pkg/config/utils"
-	"github.com/DataDog/datadog-agent/pkg/otlp"
 	pbgo "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
 	"github.com/DataDog/datadog-agent/pkg/tagger"
 	"github.com/DataDog/datadog-agent/pkg/tagger/collectors"
@@ -139,7 +139,7 @@ func appendEndpoints(endpoints []*config.Endpoint, cfgKey string) []*config.Endp
 			continue
 		}
 		for _, key := range keys {
-			endpoints = append(endpoints, &config.Endpoint{Host: url, APIKey: coreconfig.SanitizeAPIKey(key)})
+			endpoints = append(endpoints, &config.Endpoint{Host: url, APIKey: configUtils.SanitizeAPIKey(key)})
 		}
 	}
 	return endpoints
@@ -150,7 +150,7 @@ func applyDatadogConfig(c *config.AgentConfig, core corecompcfg.Component) error
 		c.Endpoints = []*config.Endpoint{{}}
 	}
 	if core.IsSet("api_key") {
-		c.Endpoints[0].APIKey = coreconfig.SanitizeAPIKey(coreconfig.Datadog.GetString("api_key"))
+		c.Endpoints[0].APIKey = configUtils.SanitizeAPIKey(coreconfig.Datadog.GetString("api_key"))
 	}
 	if core.IsSet("hostname") {
 		c.Hostname = core.GetString("hostname")
@@ -268,6 +268,23 @@ func applyDatadogConfig(c *config.AgentConfig, core corecompcfg.Component) error
 	if k := "apm_config.max_payload_size"; core.IsSet(k) {
 		c.MaxRequestBytes = core.GetInt64(k)
 	}
+	if core.IsSet("apm_config.trace_buffer") {
+		c.TraceBuffer = core.GetInt("apm_config.trace_buffer")
+	}
+	if core.IsSet("apm_config.decoders") {
+		c.Decoders = core.GetInt("apm_config.decoders")
+	}
+	if core.IsSet("apm_config.max_connections") {
+		c.MaxConnections = core.GetInt("apm_config.max_connections")
+	} else {
+		c.MaxConnections = 1000
+	}
+	if core.IsSet("apm_config.decoder_timeout") {
+		c.DecoderTimeout = core.GetInt("apm_config.decoder_timeout")
+	} else {
+		c.DecoderTimeout = 1000
+	}
+
 	if k := "apm_config.replace_tags"; core.IsSet(k) {
 		rt := make([]*config.ReplaceRule, 0)
 		if err := coreconfig.Datadog.UnmarshalKey(k, &rt); err != nil {
@@ -338,6 +355,14 @@ func applyDatadogConfig(c *config.AgentConfig, core corecompcfg.Component) error
 		}
 	}
 	{
+		// Obfuscation of database statements will be ON by default. Any new obfuscators should likely be
+		// enabled by default as well. This can be explicitly disabled with the agent config. Any changes
+		// to obfuscation options or defaults must be reflected in the public docs.
+		c.Obfuscation.ES.Enabled = true
+		c.Obfuscation.Mongo.Enabled = true
+		c.Obfuscation.Memcached.Enabled = true
+		c.Obfuscation.Redis.Enabled = true
+
 		// TODO(x): There is an issue with coreconfig.Datadog.IsSet("apm_config.obfuscation"), probably coming from Viper,
 		// where it returns false even is "apm_config.obfuscation.credit_cards.enabled" is set via an environment
 		// variable, so we need a temporary workaround by specifically setting env. var. accessible fields.
@@ -427,6 +452,12 @@ func applyDatadogConfig(c *config.AgentConfig, core corecompcfg.Component) error
 	}
 	if core.IsSet("apm_config.connection_reset_interval") {
 		c.ConnectionResetInterval = getDuration(core.GetInt("apm_config.connection_reset_interval"))
+	}
+	if core.IsSet("apm_config.max_sender_retries") {
+		c.MaxSenderRetries = core.GetInt("apm_config.max_sender_retries")
+	} else {
+		// Default of 4 was chosen through experimentation, but may not be the optimal value.
+		c.MaxSenderRetries = 4
 	}
 	if core.IsSet("apm_config.sync_flushing") {
 		c.SynchronousFlushing = core.GetBool("apm_config.sync_flushing")
@@ -541,7 +572,7 @@ func applyDatadogConfig(c *config.AgentConfig, core corecompcfg.Component) error
 func loadDeprecatedValues(c *config.AgentConfig) error {
 	cfg := coreconfig.Datadog
 	if cfg.IsSet("apm_config.api_key") {
-		c.Endpoints[0].APIKey = coreconfig.SanitizeAPIKey(cfg.GetString("apm_config.api_key"))
+		c.Endpoints[0].APIKey = configUtils.SanitizeAPIKey(cfg.GetString("apm_config.api_key"))
 	}
 	if cfg.IsSet("apm_config.log_throttling") {
 		c.LogThrottling = cfg.GetBool("apm_config.log_throttling")

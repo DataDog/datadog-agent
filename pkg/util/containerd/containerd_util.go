@@ -5,6 +5,7 @@
 
 //go:build containerd
 
+// Package containerd provides a containerd client.
 package containerd
 
 import (
@@ -79,8 +80,6 @@ type ContainerdUtil struct {
 	connectionTimeout time.Duration
 }
 
-type ContainerdAccessor func() (ContainerdItf, error)
-
 // NewContainerdUtil creates the Containerd util containing the Containerd client and implementing the ContainerdItf
 // Errors are handled in the retrier.
 func NewContainerdUtil() (ContainerdItf, error) {
@@ -113,7 +112,7 @@ func NewContainerdUtil() (ContainerdItf, error) {
 	return containerdUtil, nil
 }
 
-// CheckConnectivity tries to connect to containerd api
+// RawClient tries to connect to containerd api
 func (c *ContainerdUtil) RawClient() *containerd.Client {
 	return c.cl
 }
@@ -297,12 +296,13 @@ func (c *ContainerdUtil) LabelsWithContext(ctx context.Context, namespace string
 
 // Spec unmarshal Spec from container.Info(), will return parsed Spec if size < maxSize
 func (c *ContainerdUtil) Spec(namespace string, ctn containers.Container, maxSize int) (*oci.Spec, error) {
-	if len(ctn.Spec.Value) >= maxSize {
+	spec := ctn.Spec.GetValue()
+	if len(spec) >= maxSize {
 		return nil, fmt.Errorf("unable to get spec for container: %s/%s, err: %w", namespace, ctn.ID, ErrSpecTooLarge)
 	}
 
 	var s oci.Spec
-	if err := json.Unmarshal(ctn.Spec.Value, &s); err != nil {
+	if err := json.Unmarshal(spec, &s); err != nil {
 		return nil, err
 	}
 	return &s, nil
@@ -372,6 +372,7 @@ func (c *ContainerdUtil) IsSandbox(namespace string, ctn containerd.Container) (
 	return labels["io.cri-containerd.kind"] == "sandbox", nil
 }
 
+// MountImage mounts the given image in the targetDir specified
 func (c *ContainerdUtil) MountImage(ctx context.Context, expiration time.Duration, namespace string, img containerd.Image, targetDir string) (func(context.Context) error, error) {
 	snapshotter := containerd.DefaultSnapshotter
 	ctx = namespaces.WithNamespace(ctx, namespace)

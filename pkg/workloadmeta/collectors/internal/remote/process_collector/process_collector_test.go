@@ -12,6 +12,7 @@ import (
 	"net"
 	"os"
 	"strconv"
+	"strings"
 	"testing"
 	"time"
 
@@ -101,7 +102,7 @@ func TestCollection(t *testing.T) {
 						Kind: workloadmeta.KindProcess,
 					},
 					NsPid:        345,
-					ContainerId:  "cid",
+					ContainerID:  "cid",
 					Language:     &languagemodels.Language{Name: languagemodels.Java},
 					CreationTime: time.UnixMilli(creationTime),
 				},
@@ -143,7 +144,7 @@ func TestCollection(t *testing.T) {
 						Kind: workloadmeta.KindProcess,
 					},
 					NsPid:        345,
-					ContainerId:  "cid",
+					ContainerID:  "cid",
 					Language:     &languagemodels.Language{Name: languagemodels.Java},
 					CreationTime: time.UnixMilli(creationTime),
 				},
@@ -153,7 +154,7 @@ func TestCollection(t *testing.T) {
 						Kind: workloadmeta.KindProcess,
 					},
 					NsPid:        567,
-					ContainerId:  "cid",
+					ContainerID:  "cid",
 					Language:     &languagemodels.Language{Name: languagemodels.Java},
 					CreationTime: time.UnixMilli(creationTime),
 				},
@@ -197,7 +198,7 @@ func TestCollection(t *testing.T) {
 							Kind: workloadmeta.KindProcess,
 						},
 						NsPid:        345,
-						ContainerId:  "cid",
+						ContainerID:  "cid",
 						Language:     &languagemodels.Language{Name: languagemodels.Java},
 						CreationTime: time.UnixMilli(creationTime),
 					},
@@ -224,7 +225,7 @@ func TestCollection(t *testing.T) {
 						Kind: workloadmeta.KindProcess,
 					},
 					NsPid:        678,
-					ContainerId:  "cid",
+					ContainerID:  "cid",
 					Language:     &languagemodels.Language{Name: languagemodels.Java},
 					CreationTime: time.UnixMilli(creationTime),
 				},
@@ -235,9 +236,8 @@ func TestCollection(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			mockConfig := config.Mock(t)
+			mockConfig := config.NewConfig("datadog", "DD", strings.NewReplacer(".", "_"))
 			mockConfig.Set("language_detection.enabled", true)
-
 			// remote process collector server (process agent)
 			server := &mockServer{
 				responses:       test.serverResponses,
@@ -285,17 +285,15 @@ func TestCollection(t *testing.T) {
 				numberOfReponse++
 			}
 			go func() {
-				j := 0
 				for i := 0; i < numberOfReponse; i++ {
 					bundle := <-ch
 					close(bundle.Ch)
-					j++
 				}
 				close(doneCh)
+				mockStore.Unsubscribe(ch)
 			}()
 
 			<-doneCh
-			mockStore.Unsubscribe(ch)
 
 			// wait that the store gets populated
 			time.Sleep(time.Second)

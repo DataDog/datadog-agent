@@ -13,6 +13,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/log"
 	forwarder "github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
+	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	"github.com/DataDog/datadog-agent/pkg/config"
 )
@@ -20,15 +21,25 @@ import (
 // NewMockSender initiates the aggregator and returns a
 // functional mocked Sender for testing
 func NewMockSender(id checkid.ID) *MockSender {
-	mockSender := new(MockSender)
+	return NewMockSenderWithSenderManager(id, CreateDefaultDemultiplexer())
+}
 
+// CreateDefaultDemultiplexer creates a default demultiplexer for testing
+func CreateDefaultDemultiplexer() *aggregator.AgentDemultiplexer {
 	opts := aggregator.DefaultAgentDemultiplexerOptions()
 	opts.FlushInterval = 1 * time.Hour
 	opts.DontStartForwarders = true
 	log := log.NewTemporaryLoggerWithoutInit()
 	sharedForwarder := forwarder.NewDefaultForwarder(config.Datadog, log, forwarder.NewOptions(config.Datadog, log, nil))
-	aggregator.InitAndStartAgentDemultiplexer(log, sharedForwarder, opts, "")
+	return aggregator.InitAndStartAgentDemultiplexer(log, sharedForwarder, opts, "")
 
+}
+
+// NewMockSenderWithSenderManager returns a functional mocked Sender for testing
+func NewMockSenderWithSenderManager(id checkid.ID, senderManager sender.SenderManager) *MockSender {
+	mockSender := new(MockSender)
+
+	mockSender.senderManager = senderManager
 	SetSender(mockSender, id)
 
 	return mockSender
@@ -36,17 +47,23 @@ func NewMockSender(id checkid.ID) *MockSender {
 
 // SetSender sets passed sender with the passed ID.
 func SetSender(sender *MockSender, id checkid.ID) {
-	aggregator.SetSender(sender, id) //nolint:errcheck
+	sender.senderManager.SetSender(sender, id) //nolint:errcheck
 }
 
 // MockSender allows mocking of the checks sender for unit testing
 type MockSender struct {
 	mock.Mock
+	senderManager sender.SenderManager
+}
+
+// GetSenderManager returns the instance of sender.SenderManager
+func (m *MockSender) GetSenderManager() sender.SenderManager {
+	return m.senderManager
 }
 
 // SetupAcceptAll sets mock expectations to accept any call in the Sender interface
 func (m *MockSender) SetupAcceptAll() {
-	metricCalls := []string{"Rate", "Count", "MonotonicCount", "Counter", "Histogram", "Historate", "Gauge"}
+	metricCalls := []string{"Rate", "Count", "MonotonicCount", "Counter", "Histogram", "Historate", "Gauge", "Distribution"}
 	for _, call := range metricCalls {
 		m.On(call,
 			mock.AnythingOfType("string"),   // Metric

@@ -13,16 +13,17 @@ import (
 	"fmt"
 	"testing"
 
-	v1 "github.com/containerd/cgroups/stats/v1"
+	v1 "github.com/containerd/cgroups/v3/cgroup1/stats"
 	"github.com/containerd/containerd"
 	"github.com/containerd/containerd/api/types"
 	"github.com/containerd/containerd/cio"
 	"github.com/containerd/containerd/containers"
 	"github.com/containerd/containerd/oci"
-	"github.com/containerd/typeurl"
+	"github.com/containerd/typeurl/v2"
 	prototypes "github.com/gogo/protobuf/types"
 	"github.com/opencontainers/runtime-spec/specs-go"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/protobuf/types/known/anypb"
 )
 
 type mockContainer struct {
@@ -319,7 +320,7 @@ func makeCtn(value v1.Metrics, typeURL string, taskMetricsError error) container
 			typeURL := typeURL
 			jsonValue, _ := json.Marshal(value)
 			metric := &types.Metric{
-				Data: &prototypes.Any{
+				Data: &anypb.Any{
 					TypeUrl: typeURL,
 					Value:   jsonValue,
 				},

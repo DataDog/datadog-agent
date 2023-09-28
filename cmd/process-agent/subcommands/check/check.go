@@ -88,9 +88,6 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 
 			return fxutil.OneShot(runCheckCmd,
 				fx.Supply(cliParams, bundleParams),
-
-				fx.Invoke(command.SetHostMountEnv),
-
 				processComponent.Bundle,
 			)
 		},
@@ -104,6 +101,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 }
 
 func runCheckCmd(deps dependencies) error {
+	command.SetHostMountEnv(deps.Log)
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
@@ -162,6 +160,7 @@ func runCheckCmd(deps dependencies) error {
 			MaxConnsPerMessage:   deps.Syscfg.SysProbeObject().MaxConnsPerMessage,
 			SystemProbeAddress:   deps.Syscfg.SysProbeObject().SocketAddress,
 			ProcessModuleEnabled: processModuleEnabled,
+			GRPCServerEnabled:    deps.Syscfg.SysProbeObject().GRPCServerEnabled,
 		}
 
 		if !matchingCheck(deps.CliParams.checkName, ch) {

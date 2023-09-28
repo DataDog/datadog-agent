@@ -54,7 +54,6 @@ type Telemetry struct {
 	Udp_sends_processed uint64
 	Udp_sends_missed    uint64
 	Udp_dropped_conns   uint64
-	Tcp_dropped_conns   uint64
 }
 type PortBinding struct {
 	Netns     uint32
@@ -78,6 +77,10 @@ type ProtocolStack struct {
 	Application uint8
 	Encryption  uint8
 	Flags       uint8
+}
+type ProtocolStackWrapper struct {
+	Stack   ProtocolStack
+	Updated uint64
 }
 
 type _Ctype_struct_sock uint64
@@ -109,4 +112,5 @@ type ClassificationProgram = uint32
 const (
 	ClassificationQueues ClassificationProgram = 0x2
 	ClassificationDBs    ClassificationProgram = 0x3
+	ClassificationGRPC   ClassificationProgram = 0x5
 )

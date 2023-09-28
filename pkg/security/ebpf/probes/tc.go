@@ -5,6 +5,7 @@
 
 //go:build linux
 
+// Package probes holds probes related files
 package probes
 
 import (
@@ -12,31 +13,28 @@ import (
 	"golang.org/x/sys/unix"
 )
 
-// tcProbes holds the list of probes used to track network flows
-var tcProbes = []*manager.Probe{
-	{
-		ProbeIdentificationPair: manager.ProbeIdentificationPair{
-			UID:          SecurityAgentUID,
-			EBPFFuncName: "classifier_ingress",
-		},
-		NetworkDirection: manager.Ingress,
-		TCFilterProtocol: unix.ETH_P_ALL,
-		KeepProgramSpec:  true,
-	},
-	{
-		ProbeIdentificationPair: manager.ProbeIdentificationPair{
-			UID:          SecurityAgentUID,
-			EBPFFuncName: "classifier_egress",
-		},
-		NetworkDirection: manager.Egress,
-		TCFilterProtocol: unix.ETH_P_ALL,
-		KeepProgramSpec:  true,
-	},
-}
-
 // GetTCProbes returns the list of TCProbes
 func GetTCProbes() []*manager.Probe {
-	return tcProbes
+	return []*manager.Probe{
+		{
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				UID:          SecurityAgentUID,
+				EBPFFuncName: "classifier_ingress",
+			},
+			NetworkDirection: manager.Ingress,
+			TCFilterProtocol: unix.ETH_P_ALL,
+			KeepProgramSpec:  true,
+		},
+		{
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				UID:          SecurityAgentUID,
+				EBPFFuncName: "classifier_egress",
+			},
+			NetworkDirection: manager.Egress,
+			TCFilterProtocol: unix.ETH_P_ALL,
+			KeepProgramSpec:  true,
+		},
+	}
 }
 
 // GetAllTCProgramFunctions returns the list of TC classifier sections

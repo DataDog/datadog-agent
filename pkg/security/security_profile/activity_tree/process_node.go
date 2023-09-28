@@ -5,7 +5,8 @@
 
 //go:build linux
 
-package activity_tree
+// Package activitytree holds activitytree related files
+package activitytree
 
 import (
 	"fmt"
@@ -19,9 +20,18 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
 )
 
+// ProcessNodeParent is an interface used to identify the parent of a process node
+type ProcessNodeParent interface {
+	GetParent() ProcessNodeParent
+	GetChildren() *[]*ProcessNode
+	GetSiblings() *[]*ProcessNode
+	AppendChild(node *ProcessNode)
+}
+
 // ProcessNode holds the activity of a process
 type ProcessNode struct {
 	Process        model.Process
+	Parent         ProcessNodeParent
 	GenerationType NodeGenerationType
 	MatchedRules   []*model.MatchedRule
 
@@ -30,6 +40,47 @@ type ProcessNode struct {
 	Sockets  []*SocketNode
 	Syscalls []int
 	Children []*ProcessNode
+}
+
+// NewProcessNode returns a new ProcessNode instance
+func NewProcessNode(entry *model.ProcessCacheEntry, generationType NodeGenerationType, resolvers *resolvers.Resolvers) *ProcessNode {
+	// call the callback to resolve additional fields before copying them
+	if resolvers != nil {
+		resolvers.HashResolver.ComputeHashes(model.ExecEventType, &entry.ProcessContext.Process, &entry.ProcessContext.FileEvent)
+		if entry.ProcessContext.HasInterpreter() {
+			resolvers.HashResolver.ComputeHashes(model.ExecEventType, &entry.ProcessContext.Process, &entry.ProcessContext.LinuxBinprm.FileEvent)
+		}
+	}
+	return &ProcessNode{
+		Process:        entry.Process,
+		GenerationType: generationType,
+		Files:          make(map[string]*FileNode),
+		DNSNames:       make(map[string]*DNSNode),
+	}
+}
+
+// GetChildren returns the list of children from the ProcessNode
+func (pn *ProcessNode) GetChildren() *[]*ProcessNode {
+	return &pn.Children
+}
+
+// GetSiblings returns the list of siblings of the current node
+func (pn *ProcessNode) GetSiblings() *[]*ProcessNode {
+	if pn.Parent != nil {
+		return pn.Parent.GetChildren()
+	}
+	return nil
+}
+
+// GetParent returns nil for the ActivityTree
+func (pn *ProcessNode) GetParent() ProcessNodeParent {
+	return pn.Parent
+}
+
+// AppendChild appends a new root node in the ActivityTree
+func (pn *ProcessNode) AppendChild(node *ProcessNode) {
+	pn.Children = append(pn.Children, node)
+	node.Parent = pn
 }
 
 func (pn *ProcessNode) getNodeLabel(args string) string {
@@ -50,23 +101,6 @@ func (pn *ProcessNode) getNodeLabel(args string) string {
 		label += fmt.Sprintf("|(%s)", pn.Process.FileEvent.HashState)
 	}
 	return label
-}
-
-// NewProcessNode returns a new ProcessNode instance
-func NewProcessNode(entry *model.ProcessCacheEntry, generationType NodeGenerationType, resolvers *resolvers.Resolvers) *ProcessNode {
-	// call the callback to resolve additional fields before copying them
-	if resolvers != nil {
-		resolvers.HashResolver.ComputeHashes(model.ExecEventType, &entry.ProcessContext.Process, &entry.ProcessContext.FileEvent)
-		if entry.ProcessContext.HasInterpreter() {
-			resolvers.HashResolver.ComputeHashes(model.ExecEventType, &entry.ProcessContext.Process, &entry.ProcessContext.LinuxBinprm.FileEvent)
-		}
-	}
-	return &ProcessNode{
-		Process:        entry.Process,
-		GenerationType: generationType,
-		Files:          make(map[string]*FileNode),
-		DNSNames:       make(map[string]*DNSNode),
-	}
 }
 
 // nolint: unused
@@ -103,7 +137,7 @@ func (pn *ProcessNode) debug(w io.Writer, prefix string) {
 // scrubAndReleaseArgsEnvs scrubs the process args and envs, and then releases them
 func (pn *ProcessNode) scrubAndReleaseArgsEnvs(resolver *sprocess.Resolver) {
 	if pn.Process.ArgsEntry != nil {
-		resolver.GetProcessScrubbedArgv(&pn.Process)
+		resolver.GetProcessArgvScrubbed(&pn.Process)
 		sprocess.GetProcessArgv0(&pn.Process)
 		pn.Process.ArgsEntry = nil
 
@@ -162,7 +196,7 @@ newSyscallLoop:
 
 // InsertFileEvent inserts the provided file event in the current node. This function returns true if a new entry was
 // added, false if the event was dropped.
-func (pn *ProcessNode) InsertFileEvent(fileEvent *model.FileEvent, event *model.Event, generationType NodeGenerationType, stats *ActivityTreeStats, dryRun bool, reducer *PathsReducer, resolvers *resolvers.Resolvers) bool {
+func (pn *ProcessNode) InsertFileEvent(fileEvent *model.FileEvent, event *model.Event, generationType NodeGenerationType, stats *Stats, dryRun bool, reducer *PathsReducer, resolvers *resolvers.Resolvers) bool {
 	var filePath string
 	if generationType != Snapshot {
 		filePath = event.FieldHandlers.ResolveFilePath(event, fileEvent)
@@ -224,7 +258,7 @@ func (pn *ProcessNode) findDNSNode(DNSName string, DNSMatchMaxDepth int, DNSType
 }
 
 // InsertDNSEvent inserts a DNS event in a process node
-func (pn *ProcessNode) InsertDNSEvent(evt *model.Event, generationType NodeGenerationType, stats *ActivityTreeStats, DNSNames *utils.StringKeys, dryRun bool, dnsMatchMaxDepth int) bool {
+func (pn *ProcessNode) InsertDNSEvent(evt *model.Event, generationType NodeGenerationType, stats *Stats, DNSNames *utils.StringKeys, dryRun bool, dnsMatchMaxDepth int) bool {
 	if dryRun {
 		// Use DNSMatchMaxDepth only when searching for a node, not when trying to insert
 		return !pn.findDNSNode(evt.DNS.Name, dnsMatchMaxDepth, evt.DNS.Type)
@@ -254,7 +288,7 @@ func (pn *ProcessNode) InsertDNSEvent(evt *model.Event, generationType NodeGener
 }
 
 // InsertBindEvent inserts a bind event in a process node
-func (pn *ProcessNode) InsertBindEvent(evt *model.Event, generationType NodeGenerationType, stats *ActivityTreeStats, dryRun bool) bool {
+func (pn *ProcessNode) InsertBindEvent(evt *model.Event, generationType NodeGenerationType, stats *Stats, dryRun bool) bool {
 	if evt.Bind.SyscallEvent.Retval != 0 {
 		return false
 	}

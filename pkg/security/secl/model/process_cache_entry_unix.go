@@ -6,6 +6,7 @@
 //go:build unix
 // +build unix
 
+// Package model holds model related files
 package model
 
 import (
@@ -38,6 +39,21 @@ func (pc *ProcessCacheEntry) HasCompleteLineage() bool {
 	return false
 }
 
+// HasValidLineage returns false if, from the entry, we cannot ascend the ancestors list to PID 1 or if a new is having a missing parent
+func (pc *ProcessCacheEntry) HasValidLineage() bool {
+	for pc != nil {
+		if pc.IsParentMissing {
+			return false
+		}
+
+		if pc.Pid == 1 {
+			return true
+		}
+		pc = pc.Ancestor
+	}
+	return false
+}
+
 // Exit a process
 func (pc *ProcessCacheEntry) Exit(exitTime time.Time) {
 	pc.ExitTime = exitTime
@@ -55,7 +71,7 @@ func copyProcessContext(parent, child *ProcessCacheEntry) {
 	}
 }
 
-// Replace previous entry values by the given one
+// ApplyExecTimeOf replace previous entry values by the given one
 func (pc *ProcessCacheEntry) ApplyExecTimeOf(entry *ProcessCacheEntry) {
 	pc.ExecTime = entry.ExecTime
 }
@@ -105,17 +121,28 @@ func (pc *ProcessCacheEntry) Equals(entry *ProcessCacheEntry) bool {
 		pc.EnvsEntry.Equals(entry.EnvsEntry))
 }
 
-// NewEmptyProcessCacheEntry returns an empty process cache entry for kworker events or failed process resolutions
-func NewEmptyProcessCacheEntry(pid uint32, tid uint32, isKworker bool) *ProcessCacheEntry {
-	entry := &ProcessCacheEntry{ProcessContext: ProcessContext{Process: Process{PIDContext: PIDContext{Pid: pid, Tid: tid, IsKworker: isKworker}}}}
-
+func (pc *ProcessCacheEntry) markFileEventAsResovled() {
 	// mark file path as resolved
-	entry.FileEvent.SetPathnameStr("")
-	entry.FileEvent.SetBasenameStr("")
+	pc.FileEvent.SetPathnameStr("")
+	pc.FileEvent.SetBasenameStr("")
 
 	// mark interpreter as resolved too
-	entry.LinuxBinprm.FileEvent.SetPathnameStr("")
-	entry.LinuxBinprm.FileEvent.SetBasenameStr("")
+	pc.LinuxBinprm.FileEvent.SetPathnameStr("")
+	pc.LinuxBinprm.FileEvent.SetBasenameStr("")
+}
 
+// NewPlaceholderProcessCacheEntry returns a new empty process cache entry for failed process resolutions
+func NewPlaceholderProcessCacheEntry(pid uint32, tid uint32, isKworker bool) *ProcessCacheEntry {
+	entry := &ProcessCacheEntry{ProcessContext: ProcessContext{Process: Process{PIDContext: PIDContext{Pid: pid, Tid: tid, IsKworker: isKworker}}}}
+	entry.markFileEventAsResovled()
 	return entry
+}
+
+// GetPlaceholderProcessCacheEntry returns an empty process cache entry for failed process resolutions
+func GetPlaceholderProcessCacheEntry(pid uint32, tid uint32, isKworker bool) *ProcessCacheEntry {
+	processContextZero.Pid = pid
+	processContextZero.Tid = tid
+	processContextZero.IsKworker = isKworker
+	processContextZero.markFileEventAsResovled()
+	return &processContextZero
 }

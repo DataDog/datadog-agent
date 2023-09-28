@@ -269,6 +269,7 @@ func submitContainerResourceMetric(s sender.Sender, name string, metric ksmstore
 		log.Debugf("Couldn't find 'resource' label, ignoring resource metric '%s'", name)
 		return
 	}
+
 	if ddname, extraTags, allowed := resourceDDName(resource); allowed {
 		tags = append(tags, extraTags...)
 		s.Gauge(ksmMetricPrefix+"container."+ddname+"_"+metricSuffix, metric.Val, hostname, tags)
@@ -295,6 +296,10 @@ func submitNodeResourceMetric(s sender.Sender, name string, metric ksmstore.DDMe
 	if !found {
 		log.Debugf("Couldn't find 'resource' label, ignoring resource metric '%s'", name)
 		return
+	}
+
+	if ddname, allowed := allowedResources[resource]; allowed {
+		s.Gauge(ksmMetricPrefix+"node."+ddname+"_"+metricSuffix, metric.Val, hostname, tags)
 	} else {
 		if ddname, extraTags, allowed := resourceDDName(resource); allowed {
 			tags = append(tags, extraTags...)

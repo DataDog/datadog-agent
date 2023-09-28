@@ -14,6 +14,20 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
+type telemetryJoiner struct {
+	// requests          orphan requests
+	// responses         orphan responses
+	// responsesDropped  responses dropped as older than request
+	// requestJoined     joined request and response
+	// agedRequest       aged requests dropped
+
+	requests         *libtelemetry.Counter
+	responses        *libtelemetry.Counter
+	responsesDropped *libtelemetry.Counter
+	requestJoined    *libtelemetry.Counter
+	agedRequest      *libtelemetry.Counter
+}
+
 type Telemetry struct {
 	protocol string
 
@@ -22,15 +36,19 @@ type Telemetry struct {
 
 	hits1XX, hits2XX, hits3XX, hits4XX, hits5XX *libtelemetry.Counter
 
-	totalHits                                                        *libtelemetry.Counter
+	totalHitsPlain                                                   *libtelemetry.Counter
+	totalHitsEncrypted                                               *libtelemetry.Counter
 	dropped                                                          *libtelemetry.Counter // this happens when statKeeper reaches capacity
 	rejected                                                         *libtelemetry.Counter // this happens when an user-defined reject-filter matches a request
 	emptyPath, unknownMethod, invalidLatency, nonPrintableCharacters *libtelemetry.Counter // this happens when the request doesn't have the expected format
 	aggregations                                                     *libtelemetry.Counter
+
+	joiner telemetryJoiner
 }
 
 func NewTelemetry(protocol string) *Telemetry {
 	metricGroup := libtelemetry.NewMetricGroup(fmt.Sprintf("usm.%s", protocol))
+	metricGroupJoiner := libtelemetry.NewMetricGroup(fmt.Sprintf("usm.%s.joiner", protocol))
 
 	return &Telemetry{
 		protocol:    protocol,
@@ -44,13 +62,22 @@ func NewTelemetry(protocol string) *Telemetry {
 		aggregations: metricGroup.NewCounter("aggregations", libtelemetry.OptPrometheus),
 
 		// these metrics are also exported as statsd metrics
-		totalHits:              metricGroup.NewCounter("total_hits", libtelemetry.OptStatsd, libtelemetry.OptPayloadTelemetry),
+		totalHitsPlain:         metricGroup.NewCounter("total_hits", "encrypted:false", libtelemetry.OptStatsd, libtelemetry.OptPayloadTelemetry),
+		totalHitsEncrypted:     metricGroup.NewCounter("total_hits", "encrypted:true", libtelemetry.OptStatsd, libtelemetry.OptPayloadTelemetry),
 		dropped:                metricGroup.NewCounter("dropped", libtelemetry.OptStatsd),
 		rejected:               metricGroup.NewCounter("rejected", libtelemetry.OptStatsd),
 		emptyPath:              metricGroup.NewCounter("malformed", "type:empty-path", libtelemetry.OptStatsd),
 		unknownMethod:          metricGroup.NewCounter("malformed", "type:unknown-method", libtelemetry.OptStatsd),
 		invalidLatency:         metricGroup.NewCounter("malformed", "type:invalid-latency", libtelemetry.OptStatsd),
 		nonPrintableCharacters: metricGroup.NewCounter("malformed", "type:non-printable-char", libtelemetry.OptStatsd),
+
+		joiner: telemetryJoiner{
+			requests:         metricGroupJoiner.NewCounter("requests", libtelemetry.OptPrometheus),
+			responses:        metricGroupJoiner.NewCounter("responses", libtelemetry.OptPrometheus),
+			responsesDropped: metricGroupJoiner.NewCounter("responses_dropped", libtelemetry.OptPrometheus),
+			requestJoined:    metricGroupJoiner.NewCounter("joined", libtelemetry.OptPrometheus),
+			agedRequest:      metricGroupJoiner.NewCounter("aged", libtelemetry.OptPrometheus),
+		},
 	}
 }
 
@@ -68,7 +95,13 @@ func (t *Telemetry) Count(tx Transaction) {
 	case 500:
 		t.hits5XX.Add(1)
 	}
-	t.totalHits.Add(1)
+
+	if isEncrypted(tx) {
+		t.totalHitsEncrypted.Add(1)
+		return
+	}
+
+	t.totalHitsPlain.Add(1)
 }
 
 func (t *Telemetry) Log() {

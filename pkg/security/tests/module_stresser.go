@@ -5,6 +5,7 @@
 
 //go:build stresstests
 
+// Package tests holds tests related files
 package tests
 
 import (
@@ -279,7 +280,7 @@ LOOP:
 		}
 	}
 
-	duration := time.Now().Sub(start)
+	duration := time.Since(start)
 
 	pprof.StopCPUProfile()
 	proCPUFile.Close()

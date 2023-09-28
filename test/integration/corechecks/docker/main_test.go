@@ -140,7 +140,7 @@ func doRun(m *testing.M) int {
 	// Setup docker check
 	dockerCfg := integration.Data(dockerCfgString)
 	dockerInitCfg := integration.Data("")
-	dockerCheck.Configure(integration.FakeConfigHash, dockerCfg, dockerInitCfg, "test")
+	dockerCheck.Configure(sender.GetSenderManager(), integration.FakeConfigHash, dockerCfg, dockerInitCfg, "test")
 
 	dockerCheck.Run()
 	return m.Run()

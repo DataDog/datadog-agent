@@ -5,6 +5,7 @@
 
 //go:build cri
 
+// Package cri implements the cri check.
 package cri
 
 import (
@@ -63,9 +64,9 @@ func (c *CRIConfig) Parse(data []byte) error {
 }
 
 // Configure parses the check configuration and init the check
-func (c *CRICheck) Configure(integrationConfigDigest uint64, config, initConfig integration.Data, source string) error {
+func (c *CRICheck) Configure(senderManager sender.SenderManager, integrationConfigDigest uint64, config, initConfig integration.Data, source string) error {
 	var err error
-	if err = c.CommonConfigure(integrationConfigDigest, initConfig, config, source); err != nil {
+	if err = c.CommonConfigure(senderManager, integrationConfigDigest, initConfig, config, source); err != nil {
 		return err
 	}
 

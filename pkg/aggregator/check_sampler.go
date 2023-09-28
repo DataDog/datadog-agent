@@ -43,6 +43,11 @@ func newCheckSampler(expirationCount int, expireMetrics bool, statefulTimeout ti
 func (cs *CheckSampler) addSample(metricSample *metrics.MetricSample) {
 	contextKey := cs.contextResolver.trackContext(metricSample)
 
+	if metricSample.Mtype == metrics.DistributionType {
+		cs.sketchMap.insert(int64(metricSample.Timestamp), contextKey, metricSample.Value, metricSample.SampleRate)
+		return
+	}
+
 	if err := cs.metrics.AddSample(contextKey, metricSample, metricSample.Timestamp, 1); err != nil {
 		log.Debugf("Ignoring sample '%s' on host '%s' and tags '%s': %s", metricSample.Name, metricSample.Host, metricSample.Tags, err)
 	}

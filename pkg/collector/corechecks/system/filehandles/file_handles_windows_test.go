@@ -19,9 +19,8 @@ func TestFhCheckWindows(t *testing.T) {
 	pdhtest.SetQueryReturnValue("\\\\.\\Process(_Total)\\Handle Count", 0.006848775103963421)
 
 	fileHandleCheck := new(fhCheck)
-	fileHandleCheck.Configure(integration.FakeConfigHash, nil, nil, "test")
-
 	mock := mocksender.NewMockSender(fileHandleCheck.ID())
+	fileHandleCheck.Configure(mock.GetSenderManager(), integration.FakeConfigHash, nil, nil, "test")
 
 	mock.On("Gauge", "system.fs.file_handles.in_use", 0.006848775103963421, "", []string(nil)).Return().Times(1)
 	mock.On("Commit").Return().Times(1)

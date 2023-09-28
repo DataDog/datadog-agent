@@ -32,6 +32,7 @@ import (
 func SetupHandlers(r *mux.Router) {
 	r.HandleFunc("/clcrunner/version", common.GetVersion).Methods("GET")
 	r.HandleFunc("/clcrunner/stats", getCLCRunnerStats).Methods("GET")
+	r.HandleFunc("/clcrunner/workers", getCLCRunnerWorkers).Methods("GET")
 }
 
 // getCLCRunnerStats retrieves Cluster Level Check runners stats
@@ -67,4 +68,26 @@ func flattenCLCStats(stats status.CLCChecks) map[string]status.CLCStats {
 	}
 
 	return flatened
+}
+
+func getCLCRunnerWorkers(w http.ResponseWriter, r *http.Request) {
+	log.Info("Got a request for the runner workers")
+	w.Header().Set("Content-Type", "application/json")
+	stats, err := status.GetExpvarRunnerStats()
+	if err != nil {
+		log.Errorf("Error getting exp var stats: %v", err)
+		body, _ := json.Marshal(map[string]string{"error": err.Error()})
+		http.Error(w, string(body), 500)
+		return
+	}
+
+	jsonWorkers, err := json.Marshal(stats.Workers)
+	if err != nil {
+		log.Errorf("Error marshalling stats. Error: %v, Stats: %v", err, stats.Workers)
+		body, _ := json.Marshal(map[string]string{"error": err.Error()})
+		http.Error(w, string(body), 500)
+		return
+	}
+
+	w.Write(jsonWorkers)
 }

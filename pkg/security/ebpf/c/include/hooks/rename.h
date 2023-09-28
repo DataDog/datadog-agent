@@ -67,7 +67,7 @@ int hook_vfs_rename(ctx_t *ctx) {
     syscall->rename.src_dentry = src_dentry;
     syscall->rename.target_dentry = target_dentry;
 
-    fill_file_metadata(src_dentry, &syscall->rename.src_file.metadata);
+    fill_file(src_dentry, &syscall->rename.src_file);
     syscall->rename.target_file.metadata = syscall->rename.src_file.metadata;
     if (is_overlayfs(src_dentry)) {
         syscall->rename.target_file.flags |= UPPER_LAYER;
@@ -148,7 +148,7 @@ int __attribute__((always_inline)) sys_rename_ret(void *ctx, int retval, int dr_
         syscall->resolver.key = syscall->rename.target_file.path_key;
         syscall->resolver.dentry = syscall->rename.src_dentry;
         syscall->resolver.discarder_type = 0;
-        syscall->resolver.callback = dr_type == DR_KPROBE ? DR_RENAME_CALLBACK_KPROBE_KEY : DR_RENAME_CALLBACK_TRACEPOINT_KEY;
+        syscall->resolver.callback = select_dr_key(dr_type, DR_RENAME_CALLBACK_KPROBE_KEY, DR_RENAME_CALLBACK_TRACEPOINT_KEY);
         syscall->resolver.iteration = 0;
         syscall->resolver.ret = 0;
         syscall->resolver.sysretval = retval;
@@ -215,19 +215,10 @@ int __attribute__((always_inline)) dr_rename_callback(void *ctx) {
     return 0;
 }
 
-SEC("kprobe/dr_rename_callback")
-int kprobe_dr_rename_callback(struct pt_regs *ctx) {
-    return dr_rename_callback(ctx);
-}
-
-#ifdef USE_FENTRY
-
 TAIL_CALL_TARGET("dr_rename_callback")
-int fentry_dr_rename_callback(ctx_t *ctx) {
+int tail_call_target_dr_rename_callback(ctx_t *ctx) {
     return dr_rename_callback(ctx);
 }
-
-#endif // USE_FENTRY
 
 SEC("tracepoint/dr_rename_callback")
 int tracepoint_dr_rename_callback(struct tracepoint_syscalls_sys_exit_t *args) {
