@@ -1212,7 +1212,7 @@ api_key:
 
   ## @param max_message_size_bytes - integer - optional - default: 256000
   ## @env DD_LOGS_CONFIG_MAX_MESSAGE_SIZE_BYTES - integer - optional - default : 256000
-  ## The maximum size of single log message in bytes. If maxMessageSizeBytes exceeds 
+  ## The maximum size of single log message in bytes. If maxMessageSizeBytes exceeds
   ## the documented API limit of 1MB - any payloads larger than 1MB will be dropped by the intake.
   # https://docs.datadoghq.com/api/latest/logs/
   #
@@ -1479,6 +1479,13 @@ api_key:
   ## NOTE: If you are using an OTel tracer it's best to have both enabled because client/producer spans with a `peer.service` value
   ## may not be marked by the Agent as top-level spans.
   # peer_service_aggregation: false
+
+  ## @param peer_tags - list of strings - optional
+  ## @env DD_APM_PEER_TAGS - list of strings - optional
+  ## Enables additional tags related to peer.service. Requires peer_service_aggregation to also be set.
+  ## NOTE: This option is recommended to get the most granular tagging alongside `peer.service`, but it will
+  ## also increase the computational overhead of aggregation. This list can be omitted if that cost is too high for your agent.
+  # peer_tags: false
 
   ## @param features - list of strings - optional
   ## @env DD_APM_FEATURES - comma separated list of strings - optional
