@@ -44,7 +44,7 @@ func TestUserGroup(t *testing.T) {
 				{
 					name: "addgroup",
 					cmd:  []string{"/usr/sbin/groupadd", "--gid", "1999", "testgroup"},
-					rule: "refresh_group_cache",
+					rule: "refresh_user_cache",
 				},
 				{
 					name: "adduser",
@@ -69,7 +69,7 @@ func TestUserGroup(t *testing.T) {
 				{
 					name: "addgroup",
 					cmd:  []string{"/usr/sbin/groupadd", "--gid", "1999", "testgroup"},
-					rule: "refresh_group_cache",
+					rule: "refresh_user_cache",
 				},
 				{
 					name: "adduser",
@@ -94,7 +94,7 @@ func TestUserGroup(t *testing.T) {
 				{
 					name: "addgroup",
 					cmd:  []string{"/usr/sbin/addgroup", "--gid", "1999", "testgroup"},
-					rule: "refresh_group_cache",
+					rule: "refresh_user_cache",
 				},
 				{
 					name: "adduser",
@@ -105,7 +105,7 @@ func TestUserGroup(t *testing.T) {
 					// busybox 'adduser' calls addgroup, that updates /etc/group
 					name: "add-user-to-group",
 					cmd:  []string{"/bin/ls"},
-					rule: "refresh_group_cache",
+					rule: "refresh_user_cache",
 				},
 				{
 					name: "user-resolution",

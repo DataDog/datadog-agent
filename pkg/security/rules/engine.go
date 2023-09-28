@@ -329,7 +329,7 @@ func (e *RuleEngine) RuleMatch(rule *rules.Rule, event eval.Event) bool {
 	}
 
 	for _, action := range rule.Definition.Actions {
-		if action.RefreshUserCache != nil {
+		if action.InternalCallbackDefinition != nil && rule.ID == refreshUserCacheRuleID {
 			_ = e.probe.RefreshUserCache(ev.ContainerContext.ID)
 		}
 	}

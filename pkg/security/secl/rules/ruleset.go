@@ -119,14 +119,14 @@ func (rd *RuleDefinition) MergeWith(rd2 *RuleDefinition) error {
 
 // ActionDefinition describes a rule action section
 type ActionDefinition struct {
-	Set              *SetDefinition              `yaml:"set"`
-	RefreshUserCache *RefreshUserCacheDefinition `yaml:"refresh_user_cache"`
+	Set                        *SetDefinition `yaml:"set"`
+	InternalCallbackDefinition *InternalCallbackDefinition
 }
 
 // Check returns an error if the action in invalid
 func (a *ActionDefinition) Check() error {
-	if a.Set == nil && a.RefreshUserCache == nil {
-		return errors.New("missing 'set' or 'refresh_user_cache' section in action")
+	if a.Set == nil && a.InternalCallbackDefinition == nil {
+		return errors.New("missing 'set' section in action")
 	}
 
 	if a.Set != nil {
@@ -154,9 +154,8 @@ type SetDefinition struct {
 	Scope  Scope       `yaml:"scope"`
 }
 
-// RefreshUserCacheDefinition describes the 'refresh_user_cache' section of a rule action
-type RefreshUserCacheDefinition struct {
-}
+// InternalCallbackDefinition describes an internal rule action
+type InternalCallbackDefinition struct{}
 
 // Rule describes a rule of a ruleset
 type Rule struct {
