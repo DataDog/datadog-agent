@@ -206,6 +206,9 @@ func (b *orderedBTFLoader) getEmbeddedBTF(platform, platformVersion, kernelVersi
 
 	btfRelativePath := filepath.Join(platform, btfTarball)
 	if platform == "ubuntu" {
+		// Ubuntu BTFs are stored in subdirectories corresponding to platform version.
+		// This is because we have BTFs for different versions of ubuntu with the exact same
+		// kernel name, so kernel name alone is not a unique identifier.
 		btfRelativePath = filepath.Join(platform, platformVersion, btfTarball)
 	}
 	if slices.Contains(possiblePaths, btfRelativePath) {
