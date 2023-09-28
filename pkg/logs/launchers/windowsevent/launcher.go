@@ -85,6 +85,7 @@ func (l *Launcher) sanitizedConfig(sourceConfig *config.LogsConfig) *tailer.Conf
 	config := &tailer.Config{
 		ChannelPath: sourceConfig.ChannelPath,
 		Query:       sourceConfig.Query,
+		V1Behavior:  sourceConfig.V1Behavior,
 	}
 	if config.Query == "" {
 		config.Query = "*"
@@ -98,6 +99,7 @@ func (l *Launcher) setupTailer(source *sources.LogSource) (*tailer.Tailer, error
 	config := &tailer.Config{
 		ChannelPath: sanitizedConfig.ChannelPath,
 		Query:       sanitizedConfig.Query,
+		V1Behavior:  sanitizedConfig.V1Behavior,
 	}
 	tailer := tailer.NewTailer(source, config, l.pipelineProvider.NextPipelineChan())
 	tailer.Start()

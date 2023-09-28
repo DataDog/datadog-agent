@@ -38,7 +38,7 @@ func (s *streamStrategy) Start() {
 				msg.Origin.LogSource.LatencyStats.Add(msg.GetLatency())
 			}
 
-			encodedPayload, err := s.contentEncoding.encode(msg.Content)
+			encodedPayload, err := s.contentEncoding.encode(msg.GetContent())
 			if err != nil {
 				log.Warn("Encoding failed - dropping payload", err)
 				return
@@ -48,7 +48,7 @@ func (s *streamStrategy) Start() {
 				Messages:      []*message.Message{msg},
 				Encoded:       encodedPayload,
 				Encoding:      s.contentEncoding.name(),
-				UnencodedSize: len(msg.Content),
+				UnencodedSize: len(msg.GetContent()),
 			}
 		}
 		s.done <- struct{}{}

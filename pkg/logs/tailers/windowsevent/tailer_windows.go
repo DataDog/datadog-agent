@@ -61,7 +61,7 @@ func (t *Tailer) tail() {
 
 func (t *Tailer) forwardMessages() {
 	for decodedMessage := range t.decoder.OutputChan {
-		if len(decodedMessage.Content) > 0 {
+		if len(decodedMessage.GetContent()) > 0 {
 			t.outputChan <- decodedMessage
 		}
 	}
@@ -105,7 +105,7 @@ func goNotificationCallback(handle C.ULONGLONG, ctx C.PVOID) {
 		return
 	}
 
-	t.source.RecordBytes(int64(len(msg.Content)))
+	t.source.RecordBytes(int64(len(msg.GetContent())))
 	t.decoder.InputChan <- msg
 }
 

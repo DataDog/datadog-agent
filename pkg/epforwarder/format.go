@@ -29,27 +29,27 @@ func (e *epFormatter) Format(m *message.Message, eventType string, redactedMsg [
 	switch eventType {
 	case EventTypeContainerLifecycle:
 		var msg contlcycle.EventsPayload
-		if err := proto.Unmarshal(m.Content, &msg); err != nil {
+		if err := proto.Unmarshal(m.GetContent(), &msg); err != nil {
 			output.WriteString(err.Error())
 		} else {
 			prettyPrint(&output, &msg)
 		}
 	case EventTypeContainerImages:
 		var msg contimage.ContainerImagePayload
-		if err := proto.Unmarshal(m.Content, &msg); err != nil {
+		if err := proto.Unmarshal(m.GetContent(), &msg); err != nil {
 			output.WriteString(err.Error())
 		} else {
 			prettyPrint(&output, &msg)
 		}
 	case EventTypeContainerSBOM:
 		var msg sbom.SBOMPayload
-		if err := proto.Unmarshal(m.Content, &msg); err != nil {
+		if err := proto.Unmarshal(m.GetContent(), &msg); err != nil {
 			output.WriteString(err.Error())
 		} else {
 			prettyPrint(&output, &msg)
 		}
 	default:
-		output.Write(m.Content)
+		output.Write(m.GetContent())
 	}
 	output.WriteRune('\n')
 	return output.String()

@@ -18,7 +18,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/decoder"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/framer"
-	"github.com/DataDog/datadog-agent/pkg/logs/internal/parsers/windowsevent"
+	"github.com/DataDog/datadog-agent/pkg/logs/internal/parsers/noop"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/status"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
@@ -39,11 +39,41 @@ const (
 type Config struct {
 	ChannelPath string
 	Query       string
+	// V1Behavior indicates ifq we want to process and send the whole structured log message
+	// instead of on the logs content. Note that the default behavior is now to only send
+	// the logs content, as other tailers do.
+	V1Behavior bool
 }
 
 // eventContext links go and c
 type eventContext struct {
 	id int
+}
+
+// WindowsEventMessage is used by the tailer to store the structured log information.
+// The message from the log is in the "message" key.
+type WindowsEventMessage struct { //nolint:revive
+	data mxj.Map
+}
+
+// Render renders the structured log information into JSON, for further encoding before
+// being sent to the intake.
+func (m *WindowsEventMessage) Render() ([]byte, error) {
+	return m.data.Json(false)
+}
+
+// GetContent returns the content part of the structured log.
+func (m *WindowsEventMessage) GetContent() []byte {
+	if message, exists := m.data["message"]; exists {
+		return message.([]byte)
+	}
+	log.Error("WindowsEventMessage not containing any message")
+	return []byte{}
+}
+
+// SetContent sets the content part of the structured log.
+func (m *WindowsEventMessage) SetContent(content []byte) {
+	_ = m.data.SetValueForPath(content, "message")
 }
 
 // richEvent carries rendered information to create a richer log
@@ -72,7 +102,7 @@ func NewTailer(source *sources.LogSource, config *Config, outputChan chan *messa
 	return &Tailer{
 		source:     source,
 		config:     config,
-		decoder:    decoder.NewDecoderWithFraming(sources.NewReplaceableSource(source), windowsevent.New(), framer.NoFraming, nil, status.NewInfoRegistry()),
+		decoder:    decoder.NewDecoderWithFraming(sources.NewReplaceableSource(source), noop.New(), framer.NoFraming, nil, status.NewInfoRegistry()),
 		outputChan: outputChan,
 		stop:       make(chan struct{}, 1),
 		done:       make(chan struct{}, 1),
@@ -148,7 +178,16 @@ func (t *Tailer) toMessage(re *richEvent) (*message.Message, error) { //nolint:u
 	}
 	jsonEvent = replaceTextKeyToValue(jsonEvent)
 	log.Debug("Sending JSON:", string(jsonEvent))
-	return message.NewMessageWithSource(jsonEvent, message.StatusInfo, t.source, time.Now().UnixNano()), nil
+
+	if t.config.V1Behavior {
+		return message.NewMessageWithSource(jsonEvent, message.StatusInfo, t.source, time.Now().UnixNano()), nil
+	}
+
+	return message.NewStructuredMessage(
+		&WindowsEventMessage{data: mv}, message.NewOrigin(t.source),
+		message.StatusInfo,
+		time.Now().UnixNano(),
+	), nil
 }
 
 // EventID sometimes comes in like <EventID>7036</EventID>

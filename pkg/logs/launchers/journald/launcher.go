@@ -112,7 +112,7 @@ func (l *Launcher) setupTailer(source *sources.LogSource) (*tailer.Tailer, error
 		return nil, err
 	}
 
-	tailer := tailer.NewTailer(source, l.pipelineProvider.NextPipelineChan(), journal)
+	tailer := tailer.NewTailer(source, l.pipelineProvider.NextPipelineChan(), journal, source.Config.V1Behavior)
 	cursor := l.registry.GetOffset(tailer.Identifier())
 
 	err = tailer.Start(cursor)

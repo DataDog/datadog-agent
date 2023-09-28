@@ -82,6 +82,14 @@ type LogsConfig struct {
 	Tags            []string
 	ProcessingRules []*ProcessingRule `mapstructure:"log_processing_rules" json:"log_processing_rules"`
 
+	// This is tightly linked to how messages are transmitted through the pipeline.
+	// If set to true, tailers using structured message (journald, windowsevents)
+	// will fall back to previous behavior of sending the whole message (e.g. JSON
+	// for journald) for post-processing. Which is the behavior of Agent < 7.50.0.
+	// Otherwise, the message content is extracted from the structured message and
+	// only this part is post-processed and sent to the intake.
+	V1Behavior bool `mapstructure:"v1_behavior" json:"v1_behavior"`
+
 	AutoMultiLine               *bool   `mapstructure:"auto_multi_line_detection" json:"auto_multi_line_detection"`
 	AutoMultiLineSampleSize     int     `mapstructure:"auto_multi_line_sample_size" json:"auto_multi_line_sample_size"`
 	AutoMultiLineMatchThreshold float64 `mapstructure:"auto_multi_line_match_threshold" json:"auto_multi_line_match_threshold"`

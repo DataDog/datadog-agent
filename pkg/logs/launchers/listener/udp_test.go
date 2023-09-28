@@ -34,7 +34,7 @@ func TestUDPShouldReceiveMessage(t *testing.T) {
 
 	fmt.Fprintf(conn, "hello world\n")
 	msg = <-msgChan
-	assert.Equal(t, "hello world", string(msg.Content))
+	assert.Equal(t, "hello world", string(msg.GetContent()))
 
 	listener.Stop()
 }

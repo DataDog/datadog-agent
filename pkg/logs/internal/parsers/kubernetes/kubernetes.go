@@ -45,12 +45,9 @@ func parseKubernetes(msg *message.Message) (*message.Message, error) {
 	var flag string
 	var timestamp string
 	// split '<timestamp> <stream> <flag> <content>' into its components
-	components := bytes.SplitN(msg.Content, spaceByte, 4)
+	components := bytes.SplitN(msg.GetContent(), spaceByte, 4)
 	if len(components) < 3 {
-		return &message.Message{
-			Content: msg.Content,
-			Status:  status,
-		}, errors.New("cannot parse the log line")
+		return message.NewMessage(msg.GetContent(), nil, status, 0), errors.New("cannot parse the log line")
 	}
 	var content []byte
 	if len(components) > 3 {
@@ -59,14 +56,15 @@ func parseKubernetes(msg *message.Message) (*message.Message, error) {
 	timestamp = string(components[0])
 	status = getStatus(components[1])
 	flag = string(components[2])
-	return &message.Message{
-		Content: content,
-		Status:  status,
-		ParsingExtra: message.ParsingExtra{
-			IsPartial: isPartial(flag),
-			Timestamp: timestamp,
-		},
-	}, nil
+
+	msg.SetContent(content)
+	msg.Status = status
+	msg.ParsingExtra = message.ParsingExtra{
+		IsPartial: isPartial(flag),
+		Timestamp: timestamp,
+	}
+
+	return msg, nil
 }
 
 func isPartial(flag string) bool {

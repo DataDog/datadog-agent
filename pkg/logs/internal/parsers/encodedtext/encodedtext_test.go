@@ -15,54 +15,48 @@ import (
 
 func TestUTF16LEParserHandleMessages(t *testing.T) {
 	parser := New(UTF16LE)
-	logMessage := message.Message{
-		Content: []byte{'F', 0x0, 'o', 0x0, 'o', 0x0},
-	}
-	msg, err := parser.Parse(&logMessage)
+	logMessage := message.NewMessage([]byte{'F', 0x0, 'o', 0x0, 'o', 0x0}, nil, "", 0)
+	msg, err := parser.Parse(logMessage)
 	assert.Nil(t, err)
-	assert.Equal(t, "Foo", string(msg.Content))
+	assert.Equal(t, "Foo", string(msg.GetContent()))
 
 	// We should support BOM
-	logMessage.Content = []byte{0xFF, 0xFE, 'F', 0x0, 'o', 0x0, 'o', 0x0}
-	msg, err = parser.Parse(&logMessage)
+	logMessage.SetContent([]byte{0xFF, 0xFE, 'F', 0x0, 'o', 0x0, 'o', 0x0})
+	msg, err = parser.Parse(logMessage)
 	assert.Nil(t, err)
-	assert.Equal(t, "Foo", string(msg.Content))
+	assert.Equal(t, "Foo", string(msg.GetContent()))
 
 	// BOM overrides endianness
-	logMessage.Content = []byte{0xFE, 0xFF, 0x0, 'F', 0x0, 'o', 0x0, 'o'}
-	msg, err = parser.Parse(&logMessage)
+	logMessage.SetContent([]byte{0xFE, 0xFF, 0x0, 'F', 0x0, 'o', 0x0, 'o'})
+	msg, err = parser.Parse(logMessage)
 	assert.Nil(t, err)
-	assert.Equal(t, "Foo", string(msg.Content))
+	assert.Equal(t, "Foo", string(msg.GetContent()))
 }
 
 func TestUTF16BEParserHandleMessages(t *testing.T) {
 	parser := New(UTF16BE)
-	logMessage := message.Message{
-		Content: []byte{0x0, 'F', 0x0, 'o', 0x0, 'o'},
-	}
-	msg, err := parser.Parse(&logMessage)
+	logMessage := message.NewMessage([]byte{0x0, 'F', 0x0, 'o', 0x0, 'o'}, nil, "", 0)
+	msg, err := parser.Parse(logMessage)
 	assert.Nil(t, err)
-	assert.Equal(t, "Foo", string(msg.Content))
+	assert.Equal(t, "Foo", string(msg.GetContent()))
 
 	// We should support BOM
-	logMessage.Content = []byte{0xFE, 0xFF, 0x0, 'F', 0x0, 'o', 0x0, 'o'}
-	msg, err = parser.Parse(&logMessage)
+	logMessage.SetContent([]byte{0xFE, 0xFF, 0x0, 'F', 0x0, 'o', 0x0, 'o'})
+	msg, err = parser.Parse(logMessage)
 	assert.Nil(t, err)
-	assert.Equal(t, "Foo", string(msg.Content))
+	assert.Equal(t, "Foo", string(msg.GetContent()))
 
 	// BOM overrides endianness
-	logMessage.Content = []byte{0xFF, 0xFE, 'F', 0x0, 'o', 0x0, 'o', 0x0}
-	msg, err = parser.Parse(&logMessage)
+	logMessage.SetContent([]byte{0xFF, 0xFE, 'F', 0x0, 'o', 0x0, 'o', 0x0})
+	msg, err = parser.Parse(logMessage)
 	assert.Nil(t, err)
-	assert.Equal(t, "Foo", string(msg.Content))
+	assert.Equal(t, "Foo", string(msg.GetContent()))
 }
 
 func TestSHIFTJISParserHandleMessages(t *testing.T) {
 	parser := New(SHIFTJIS)
-	logMessage := message.Message{
-		Content: []byte{0x93, 0xfa, 0x96, 0x7b},
-	}
-	msg, err := parser.Parse(&logMessage)
+	logMessage := message.NewMessage([]byte{0x93, 0xfa, 0x96, 0x7b}, nil, "", 0)
+	msg, err := parser.Parse(logMessage)
 	assert.Nil(t, err)
-	assert.Equal(t, "日本", string(msg.Content))
+	assert.Equal(t, "日本", string(msg.GetContent()))
 }

@@ -134,7 +134,7 @@ func (p AgentDemultiplexerPrinter) toDebugEpEvents() map[string][]eventPlatformD
 	for eventType, messages := range events {
 		var events []eventPlatformDebugEvent
 		for _, m := range messages {
-			e := eventPlatformDebugEvent{EventType: eventType, RawEvent: string(m.Content)}
+			e := eventPlatformDebugEvent{EventType: eventType, RawEvent: string(m.GetContent())}
 			err := json.Unmarshal([]byte(e.RawEvent), &e.UnmarshalledEvent)
 			if err == nil {
 				e.RawEvent = ""

@@ -112,6 +112,7 @@ func getDestinations(endpoints *config.Endpoints, destinationsContext *client.De
 	for _, endpoint := range endpoints.GetUnReliableEndpoints() {
 		additionals = append(additionals, tcp.NewDestination(endpoint, endpoints.UseProto, destinationsContext, false))
 	}
+
 	return client.NewDestinations(reliable, additionals)
 }
 

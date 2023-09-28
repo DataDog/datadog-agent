@@ -159,8 +159,8 @@ func TestAggregator(t *testing.T) {
 	err = json.Compact(compactMetadataEvent, metadataEvent)
 	assert.NoError(t, err)
 
-	epForwarder.EXPECT().SendEventPlatformEventBlocking(&message.Message{Content: compactEvent.Bytes()}, "network-devices-netflow").Return(nil).Times(1)
-	epForwarder.EXPECT().SendEventPlatformEventBlocking(&message.Message{Content: compactMetadataEvent.Bytes()}, "network-devices-metadata").Return(nil).Times(1)
+	epForwarder.EXPECT().SendEventPlatformEventBlocking(message.NewMessage(compactEvent.Bytes(), nil, "", 0), "network-devices-netflow").Return(nil).Times(1)
+	epForwarder.EXPECT().SendEventPlatformEventBlocking(message.NewMessage(compactMetadataEvent.Bytes(), nil, "", 0), "network-devices-metadata").Return(nil).Times(1)
 	logger := fxutil.Test[log.Component](t, log.MockModule)
 
 	aggregator := NewFlowAggregator(sender, epForwarder, &conf, "my-hostname", logger)
@@ -260,7 +260,7 @@ func TestAggregator_withMockPayload(t *testing.T) {
 	err := json.Compact(compactMetadataEvent, metadataEvent)
 	require.NoError(t, err)
 
-	epForwarder.EXPECT().SendEventPlatformEventBlocking(&message.Message{Content: compactMetadataEvent.Bytes()}, "network-devices-metadata").Return(nil).Times(1)
+	epForwarder.EXPECT().SendEventPlatformEventBlocking(message.NewMessage(compactMetadataEvent.Bytes(), nil, "", 0), "network-devices-metadata").Return(nil).Times(1)
 
 	logger := fxutil.Test[log.Component](t, log.MockModule)
 	aggregator := NewFlowAggregator(sender, epForwarder, &conf, "my-hostname", logger)
@@ -557,7 +557,7 @@ func TestFlowAggregator_sendExporterMetadata_multiplePayloads(t *testing.T) {
 		payloadBytes, err := json.Marshal(payload)
 		require.NoError(t, err)
 
-		m := &message.Message{Content: payloadBytes}
+		m := message.NewMessage(payloadBytes, nil, "", 0)
 		epForwarder.EXPECT().SendEventPlatformEventBlocking(m, "network-devices-metadata").Return(nil).Times(1)
 	}
 	aggregator.sendExporterMetadata(flows, now)
@@ -672,7 +672,7 @@ func TestFlowAggregator_sendExporterMetadata_invalidIPIgnored(t *testing.T) {
 	compactMetadataEvent := new(bytes.Buffer)
 	err := json.Compact(compactMetadataEvent, metadataEvent)
 	assert.NoError(t, err)
-	epForwarder.EXPECT().SendEventPlatformEventBlocking(&message.Message{Content: compactMetadataEvent.Bytes()}, "network-devices-metadata").Return(nil).Times(1)
+	epForwarder.EXPECT().SendEventPlatformEventBlocking(message.NewMessage(compactMetadataEvent.Bytes(), nil, "", 0), "network-devices-metadata").Return(nil).Times(1)
 
 	// call sendExporterMetadata does not trigger any call to epForwarder.SendEventPlatformEventBlocking(...)
 	aggregator.sendExporterMetadata(flows, now)
@@ -756,7 +756,7 @@ func TestFlowAggregator_sendExporterMetadata_multipleNamespaces(t *testing.T) {
 	compactMetadataEvent := new(bytes.Buffer)
 	err := json.Compact(compactMetadataEvent, metadataEvent)
 	assert.NoError(t, err)
-	epForwarder.EXPECT().SendEventPlatformEventBlocking(&message.Message{Content: compactMetadataEvent.Bytes()}, "network-devices-metadata").Return(nil).Times(1)
+	epForwarder.EXPECT().SendEventPlatformEventBlocking(message.NewMessage(compactMetadataEvent.Bytes(), nil, "", 0), "network-devices-metadata").Return(nil).Times(1)
 
 	// language=json
 	metadataEvent2 := []byte(`
@@ -775,7 +775,7 @@ func TestFlowAggregator_sendExporterMetadata_multipleNamespaces(t *testing.T) {
 	compactMetadataEvent2 := new(bytes.Buffer)
 	err = json.Compact(compactMetadataEvent2, metadataEvent2)
 	assert.NoError(t, err)
-	epForwarder.EXPECT().SendEventPlatformEventBlocking(&message.Message{Content: compactMetadataEvent2.Bytes()}, "network-devices-metadata").Return(nil).Times(1)
+	epForwarder.EXPECT().SendEventPlatformEventBlocking(message.NewMessage(compactMetadataEvent2.Bytes(), nil, "", 0), "network-devices-metadata").Return(nil).Times(1)
 
 	// call sendExporterMetadata does not trigger any call to epForwarder.SendEventPlatformEventBlocking(...)
 	aggregator.sendExporterMetadata(flows, now)
@@ -864,7 +864,7 @@ func TestFlowAggregator_sendExporterMetadata_singleExporterIpWithMultipleFlowTyp
 	compactMetadataEvent := new(bytes.Buffer)
 	err := json.Compact(compactMetadataEvent, metadataEvent)
 	assert.NoError(t, err)
-	epForwarder.EXPECT().SendEventPlatformEventBlocking(&message.Message{Content: compactMetadataEvent.Bytes()}, "network-devices-metadata").Return(nil).Times(1)
+	epForwarder.EXPECT().SendEventPlatformEventBlocking(message.NewMessage(compactMetadataEvent.Bytes(), nil, "", 0), "network-devices-metadata").Return(nil).Times(1)
 
 	// call sendExporterMetadata does not trigger any call to epForwarder.SendEventPlatformEventBlocking(...)
 	aggregator.sendExporterMetadata(flows, now)
