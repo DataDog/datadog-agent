@@ -8,11 +8,13 @@
 package windowsevent
 
 import (
-	"errors"
+	"context"
 	"fmt"
 	"time"
 
 	"golang.org/x/sys/windows"
+
+	"github.com/cenkalti/backoff"
 
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/decoder"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/framer"
@@ -26,7 +28,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/winutil/eventlog/api/windows"
 	"github.com/DataDog/datadog-agent/pkg/util/winutil/eventlog/bookmark"
 	"github.com/DataDog/datadog-agent/pkg/util/winutil/eventlog/subscription"
-	"github.com/cenkalti/backoff"
 )
 
 const (
@@ -63,8 +64,9 @@ type Tailer struct {
 	config     *Config
 	decoder    *decoder.Decoder
 	outputChan chan *message.Message
-	stop       chan struct{}
-	done       chan struct{}
+
+	cancelTail context.CancelFunc
+	doneTail   chan struct{}
 
 	sub                 evtsubscribe.PullSubscription
 	bookmark            evtbookmark.Bookmark
@@ -83,8 +85,6 @@ func NewTailer(evtapi evtapi.API, source *sources.LogSource, config *Config, out
 		config:     config,
 		decoder:    decoder.NewDecoderWithFraming(sources.NewReplaceableSource(source), windowsevent.New(), framer.NoFraming, nil, status.NewInfoRegistry()),
 		outputChan: outputChan,
-		stop:       make(chan struct{}, 1),
-		done:       make(chan struct{}, 1),
 	}
 }
 
@@ -109,18 +109,19 @@ func (t *Tailer) toMessage(re *richEvent) (*message.Message, error) {
 // Start starts tailing the event log.
 func (t *Tailer) Start(bookmark string) {
 	log.Infof("Starting windows event log tailing for channel %s query %s", t.config.ChannelPath, t.config.Query)
-	t.stop = make(chan struct{})
-	t.done = make(chan struct{})
+	t.doneTail = make(chan struct{})
+	ctx, ctxCancel := context.WithCancel(context.Background())
+	t.cancelTail = ctxCancel
 	go t.forwardMessages()
 	t.decoder.Start()
-	go t.tail(bookmark)
+	go t.tail(ctx, bookmark)
 }
 
 // Stop stops the tailer
 func (t *Tailer) Stop() {
 	log.Info("Stop tailing windows event log")
-	close(t.stop)
-	<-t.done
+	t.cancelTail()
+	<-t.doneTail
 
 	t.decoder.Stop()
 
@@ -136,8 +137,8 @@ func (t *Tailer) forwardMessages() {
 }
 
 // tail subscribes to the channel for the windows events
-func (t *Tailer) tail(bookmark string) {
-	defer close(t.done)
+func (t *Tailer) tail(ctx context.Context, bookmark string) {
+	defer close(t.doneTail)
 
 	var err error
 
@@ -199,72 +200,89 @@ func (t *Tailer) tail(bookmark string) {
 	t.source.Status.Success()
 
 	// wait for stop signal
-	t.eventLoop()
+	t.eventLoop(ctx)
 }
 
-func (t *Tailer) eventLoop() {
+func retryForeverWithCancel(ctx context.Context, operation backoff.Operation) error {
+	resetBackoff := backoff.NewExponentialBackOff()
+	resetBackoff.InitialInterval = 1 * time.Second
+	resetBackoff.MaxInterval = 1 * time.Minute
+	// retry never stops if MaxElapsedTime == 0
+	resetBackoff.MaxElapsedTime = 0
+
+	return backoff.Retry(operation, backoff.WithContext(resetBackoff, ctx))
+}
+
+func (t *Tailer) eventLoop(ctx context.Context) {
 	for {
+		// check if loop should exit
+		select {
+		case <-ctx.Done():
+			return
+		default:
+		}
+
 		// if subscription is not running, try to start it with an exponential backoff
 		if !t.sub.Running() {
-			resetBackoff := backoff.NewExponentialBackOff()
-			resetBackoff.InitialInterval = 1 * time.Second
-			resetBackoff.MaxInterval = 1 * time.Minute
-			// retry never stops if MaxElapsedTime == 0
-			resetBackoff.MaxElapsedTime = 0
-			err := backoff.Retry(func() error {
+			err := retryForeverWithCancel(ctx, func() error {
 				err := t.sub.Start()
 				if err != nil {
 					err = fmt.Errorf("failed to start subscription: %v", err)
 					log.Error(err)
 					return err
 				}
-				// if stop event is set then return PermanentError to stop the retry loop
-				select {
-				case <-t.stop:
-					return backoff.Permanent(fmt.Errorf("stop event set"))
-				default:
-				}
 				// subscription started!
 				return nil
-			}, resetBackoff)
+			})
 			if err != nil {
-				var permanent *backoff.PermanentError
-				if errors.As(err, &permanent) {
-					return
-				}
+				// subscription failed to start, retry returned, probably because
+				// ctx was cancelled. go back to top of loop to check for cancellation
+				// and exit or continue looping as appropriate.
 				continue
 			}
+			// subscription started!
 			t.source.Status.Success()
 		}
 
 		// subscription is running, wait for and get events
 		select {
-		case <-t.stop:
+		case <-ctx.Done():
 			return
 		case _, ok := <-t.sub.EventsAvailable():
 			if !ok {
 				break
 			}
 			// events are available, read them
-			for {
-				events, err := t.sub.GetEvents()
-				if err != nil {
-					// error
-					log.Errorf("GetEvents failed: %v", err)
-					t.sub.Stop()
-					t.source.Status.Error(fmt.Errorf("subscription stopped: %v", err))
-					break
-				}
-				if events == nil {
-					// no more events
-					log.Debug("No more events")
-					break
-				}
-				for _, eventRecord := range events {
-					t.handleEvent(eventRecord.EventRecordHandle)
-					evtapi.EvtCloseRecord(t.evtapi, eventRecord.EventRecordHandle)
-				}
-			}
+			t.readEvents(ctx)
+		}
+	}
+}
+
+func (t *Tailer) readEvents(ctx context.Context) {
+	// read events until there are no more events available or stop is signalled
+	for {
+		events, err := t.sub.GetEvents()
+		if err != nil {
+			// error
+			log.Errorf("GetEvents failed: %v", err)
+			t.sub.Stop()
+			t.source.Status.Error(fmt.Errorf("subscription stopped: %v", err))
+			break
+		}
+		if events == nil {
+			// no more events
+			log.Debug("No more events")
+			break
+		}
+		for _, eventRecord := range events {
+			t.handleEvent(eventRecord.EventRecordHandle)
+			evtapi.EvtCloseRecord(t.evtapi, eventRecord.EventRecordHandle)
+		}
+		// check if we need to stop
+		select {
+		case <-ctx.Done():
+			return
+		default:
 		}
 	}
 }
