@@ -22,21 +22,28 @@ import (
 )
 
 func TestToSnakeCaseConversion(t *testing.T) {
-
-	mockString := ""
-	expectedOutput := ""
-	actualOutput := toSnakeCase(mockString)
-
-	if expectedOutput != actualOutput {
-		t.Errorf("got %s, wanted %s", actualOutput, expectedOutput)
+	tests := []struct {
+		name     string
+		input    string
+		expected string
+	}{
+		{
+			name:     "Empty string",
+			input:    "",
+			expected: "",
+		},
+		{
+			name:     "Full",
+			input:    "SomeMetricLabel",
+			expected: "some_metric_label",
+		},
 	}
 
-	mockString = "SomeMetricLabel"
-	expectedOutput = "some_metric_label"
-	actualOutput = toSnakeCase(mockString)
-
-	if expectedOutput != actualOutput {
-		t.Errorf("got %s, wanted empty string", actualOutput)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			actual := toSnakeCase(tt.input)
+			assert.Equal(t, tt.expected, actual)
+		})
 	}
 }
 
