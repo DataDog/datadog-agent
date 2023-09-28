@@ -304,7 +304,7 @@ func (e *RuleEngine) sendHeartbeatEvent() {
 	e.Lock()
 	defer e.Unlock()
 
-	rule, events := NewHeartBeatEvents(e.policyMonitor.policies)
+	rule, events := NewHeartbeatEvents(e.policyMonitor.policies)
 	for _, event := range events {
 		e.eventSender.SendEvent(rule, event, nil, "")
 	}

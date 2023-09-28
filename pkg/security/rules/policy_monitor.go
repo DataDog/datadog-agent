@@ -252,8 +252,8 @@ func NewRuleSetLoadedEvent(ruleSets map[string]*rules.RuleSet, err *multierror.E
 		events.NewCustomEvent(model.CustomRulesetLoadedEventType, evt)
 }
 
-// NewHeartBeatEvents returns the rule (e.g. heartbeat) and a populated custom event for a heartbeat event
-func NewHeartBeatEvents(policies map[string]Policy) (*rules.Rule, []*events.CustomEvent) {
+// NewHeartbeatEvents returns the rule (e.g. heartbeat) and a populated custom event for a heartbeat event
+func NewHeartbeatEvents(policies map[string]Policy) (*rules.Rule, []*events.CustomEvent) {
 
 	var evts []*events.CustomEvent
 
