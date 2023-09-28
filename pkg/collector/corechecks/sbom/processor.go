@@ -208,6 +208,8 @@ func (p *processor) processHostRefresh() {
 			}
 			sbom.Status = model.SBOMStatus_FAILED
 		} else {
+			log.Infof("Successfully generated SBOM for host: %v, %v", result.CreatedAt, result.Duration)
+
 			if p.hostCache != "" && p.hostCache == result.Report.ID() {
 				sbom.Heartbeat = true
 			} else {

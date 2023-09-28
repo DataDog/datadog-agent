@@ -53,21 +53,21 @@ var /* const */ (
 	}
 
 	newSBOMMaxLatencySecondsValueRange = &configValueRange{
-		min:          1,   // 1 s
+		min:          1,   // 1 seconds
 		max:          300, // 5 min
-		defaultValue: 30,  // 30 s
+		defaultValue: 30,  // 30 seconds
 	}
 
 	containerPeriodicRefreshSecondsValueRange = &configValueRange{
 		min:          60,     // 1 min
 		max:          604800, // 1 week
-		defaultValue: 3600,   // 1h
+		defaultValue: 3600,   // 1 hour
 	}
 
 	hostPeriodicRefreshSecondsValueRange = &configValueRange{
-		min:          60,        // 1 min
-		max:          604800,    // 1 week
-		defaultValue: 3600 * 24, // 1h
+		min:          60,     // 1 min
+		max:          604800, // 1 week
+		defaultValue: 3600,   // 1 hour
 	}
 )
 
