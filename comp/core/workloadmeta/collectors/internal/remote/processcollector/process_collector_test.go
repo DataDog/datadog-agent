@@ -5,10 +5,9 @@
 
 //go:build test
 
-//revive:disable:var-naming
-package process_collector
-
-//revive:enable:var-naming
+// Package processcollector implements the remote process collector for
+// Workloadmeta.
+package processcollector
 
 import (
 	"context"

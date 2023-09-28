@@ -19,7 +19,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/internal/kubelet"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/internal/kubemetadata"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/internal/podman"
-	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/internal/remote/process_collector"
+	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/internal/remote/processcollector"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/internal/remote/workloadmeta"
 	"go.uber.org/fx"
 )
@@ -38,7 +38,7 @@ func GetCatalog() fx.Option {
 		kubemetadata.GetFxOptions(),
 		podman.GetFxOptions(),
 		workloadmeta.GetFxOptions(),
-		process_collector.GetFxOptions(),
+		processcollector.GetFxOptions(),
 	}
 
 	// remove nil options
