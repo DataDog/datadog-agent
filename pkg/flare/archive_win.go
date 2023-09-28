@@ -206,7 +206,7 @@ func getServiceStatus(fb flaretypes.FlareBuilder) error {
 				return nil, err
 			}
 
-			dd_services := []ServiceInfo{}
+			ddServices := []ServiceInfo{}
 
 			for _, i := range list {
 				if strings.HasPrefix(i, "datadog") {
@@ -219,30 +219,30 @@ func getServiceStatus(fb flaretypes.FlareBuilder) error {
 						if err != nil {
 							log.Warnf("Error getting info for %v: %v", i, err)
 						}
-						dd_services = append(dd_services, conf2)
+						ddServices = append(ddServices, conf2)
 					}
 				}
 			}
 
 			//ddnpm, npm_err := manager.OpenService("ddnpm")
-			ddnpm, npm_err := winutil.OpenService(manager, "ddnpm", windows.GENERIC_READ)
-			if npm_err != nil {
-				log.Warnf("Error Opening Service ddnpm %v", npm_err)
+			ddnpm, npmErr := winutil.OpenService(manager, "ddnpm", windows.GENERIC_READ)
+			if npmErr != nil {
+				log.Warnf("Error Opening Service ddnpm %v", npmErr)
 			} else {
-				ddnpm_conf, err := GetServiceInfo(ddnpm)
+				ddnpmConf, err := GetServiceInfo(ddnpm)
 				if err != nil {
-					log.Warnf("Error getting info for ddnpm:", err)
+					log.Warnf("Error getting info for ddnpm: %v", err)
 				}
-				dd_services = append(dd_services, ddnpm_conf)
+				ddServices = append(ddServices, ddnpmConf)
 			}
 
-			dd_json, err3 := json.MarshalIndent(dd_services, "", "  ")
+			ddJson, err3 := json.MarshalIndent(ddServices, "", "  ")
 			if err3 != nil {
 				log.Warnf("Error Marshaling to JSON %v", err3)
 				return nil, err3
 			}
 
-			return dd_json, err
+			return ddJson, err
 		},
 	)
 	/*return fb.AddFileFromFunc(

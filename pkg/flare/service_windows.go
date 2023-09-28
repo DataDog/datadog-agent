@@ -68,27 +68,27 @@ func GetFailureActions(s *mgr.Service) (ServiceFailureActions, error) {
 		err = fmt.Errorf("%v, ResetPeriod: %v", err, err1)
 	}
 
-	sfa.RebootMessage, err = s.RebootMessage()
+	sfa.RebootMessage, err1 = s.RebootMessage()
 	if err1 != nil {
 		err = fmt.Errorf("%v, RebootMessage: %v", err, err1)
 	}
 
-	sfa.RecoveryCommand, err = s.RecoveryCommand()
+	sfa.RecoveryCommand, err1 = s.RecoveryCommand()
 	if err1 != nil {
 		err = fmt.Errorf("%v, RecoveryCommand: %v", err, err1)
 	}
 
-	sfa.FailureActionsOnNonCrashFailures, err = s.RecoveryActionsOnNonCrashFailures()
+	sfa.FailureActionsOnNonCrashFailures, err1 = s.RecoveryActionsOnNonCrashFailures()
 	if err1 != nil {
 		err = fmt.Errorf("%v, FailureActionsOnNonCrashFailure: %v", err, err1)
 	}
 
-	recovery_action_slice, err1 := s.RecoveryActions()
+	recoveryActionSlice, err1 := s.RecoveryActions()
 	if err1 != nil {
 		err = fmt.Errorf("%v, RecoveryActions: %v", err, err1)
 	}
 
-	for _, act := range recovery_action_slice {
+	for _, act := range recoveryActionSlice {
 		rau := RecoveryActionsUpdated{
 			Type:  ActionTypeToString(act.Type),
 			Delay: act.Delay / time.Millisecond,
@@ -133,7 +133,7 @@ func StartTypeToString(startType uint32) string {
 	case windows.SERVICE_SYSTEM_START:
 		return "System"
 	default:
-		return "Unkown"
+		return "Unknown"
 	}
 }
 
@@ -215,11 +215,12 @@ func GetServiceInfo(s *mgr.Service) (ServiceInfo, error) {
 		err = fmt.Errorf("%v, GetFailureActions: %v", err, err1)
 	}
 
-	srvc_status, err1 := s.Query()
+	srvcStatus, err1 := s.Query()
 	if err1 != nil {
 		err = fmt.Errorf("%v, Query: %v", err, err1)
 	}
-	srvinfo.ServiceState = ServiceStatusToString(srvc_status.State)
+	srvinfo.ServiceState = ServiceStatusToString(srvcStatus.State)
+	srvinfo.ProcessId = srvcStatus.ProcessId
 
 	srvinfo.DependentServices, err1 = s.ListDependentServices(svc.AnyActivity)
 	if err1 != nil {
