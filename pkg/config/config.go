@@ -835,6 +835,7 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("jmx_check_period", int(defaults.DefaultCheckInterval/time.Millisecond))
 	config.BindEnvAndSetDefault("jmx_reconnection_timeout", 60)
 	config.BindEnvAndSetDefault("jmx_statsd_telemetry_enabled", false)
+	config.BindEnvAndSetDefault("jmx_telemetry_enabled", false)
 	// The following jmx_statsd_client-* options are internal and will not be documented
 	// the queue size is the no. of elements (metrics, event, service checks) it can hold.
 	config.BindEnvAndSetDefault("jmx_statsd_client_queue_size", 4096)
