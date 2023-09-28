@@ -13,7 +13,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 	"github.com/DataDog/datadog-agent/pkg/snmp/traps/config"
-	"github.com/DataDog/datadog-agent/pkg/snmp/traps/packet"
+	packetModule "github.com/DataDog/datadog-agent/pkg/snmp/traps/packet"
 	"github.com/DataDog/datadog-agent/pkg/snmp/traps/status"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 
@@ -32,7 +32,7 @@ func listenerTestSetup(t *testing.T, config *config.TrapsConfig) (*mocksender.Mo
 	logger := fxutil.Test[log.Component](t, log.MockModule)
 	mockSender := mocksender.NewMockSender("snmp-traps-telemetry")
 	mockSender.SetupAcceptAll()
-	packetOutChan := make(packet.PacketsChannel, config.GetPacketChannelSize())
+	packetOutChan := make(packetModule.PacketsChannel, config.GetPacketChannelSize())
 	status := status.NewMock()
 	trapListener, err := NewTrapListener(config, mockSender, packetOutChan, logger, status)
 	require.NoError(t, err)
@@ -52,7 +52,7 @@ func TestListenV1GenericTrap(t *testing.T) {
 	packet, err := receivePacket(t, trapListener, defaultTimeout, status)
 	require.NoError(t, err)
 	packet.Content.SnmpTrap.Variables = packet.Content.Variables
-	assert.Equal(t, LinkDownv1GenericTrap, packet.Content.SnmpTrap)
+	assert.Equal(t, packetModule.LinkDownv1GenericTrap, packet.Content.SnmpTrap)
 }
 
 func TestServerV1SpecificTrap(t *testing.T) {
@@ -68,7 +68,7 @@ func TestServerV1SpecificTrap(t *testing.T) {
 	packet, err := receivePacket(t, trapListener, defaultTimeout, status)
 	require.NoError(t, err)
 	packet.Content.SnmpTrap.Variables = packet.Content.Variables
-	assert.Equal(t, AlarmActiveStatev1SpecificTrap, packet.Content.SnmpTrap)
+	assert.Equal(t, packetModule.AlarmActiveStatev1SpecificTrap, packet.Content.SnmpTrap)
 }
 
 func TestServerV2(t *testing.T) {
@@ -153,7 +153,7 @@ func TestListenerTrapsReceivedTelemetry(t *testing.T) {
 	mockSender.AssertMetric(t, "Count", "datadog.snmp_traps.received", 1, "", []string{"snmp_device:127.0.0.1", "device_namespace:totoro", "snmp_version:1"})
 }
 
-func receivePacket(t *testing.T, listener *TrapListener, timeoutDuration time.Duration, status status.Manager) (*packet.SnmpPacket, error) {
+func receivePacket(t *testing.T, listener *TrapListener, timeoutDuration time.Duration, status status.Manager) (*packetModule.SnmpPacket, error) {
 	timeout := time.After(timeoutDuration)
 	ticker := time.NewTicker(20 * time.Millisecond)
 	defer ticker.Stop()

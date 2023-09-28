@@ -14,7 +14,7 @@ import (
 
 // SNMPLogger is a GoSNMP logger interface implementation.
 type SNMPLogger struct {
-	gosnmp.Logger
+	gosnmp.LoggerInterface
 	logger log.Component
 }
 
@@ -29,6 +29,7 @@ func New(logger log.Component) *SNMPLogger {
 
 // Print implements gosnmp.LoggerInterface#Print
 func (logger *SNMPLogger) Print(v ...interface{}) {
+	// NOTE: GoSNMP logs show the full content of decoded trap packets. Logging as DEBUG would be too noisy.
 	logger.logger.Trace(v...)
 }
 

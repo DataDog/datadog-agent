@@ -10,7 +10,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"strings"
-	"unicode"
 
 	oidresolver "github.com/DataDog/datadog-agent/pkg/snmp/traps/oid_resolver"
 	"github.com/DataDog/datadog-agent/pkg/snmp/traps/packet"
@@ -193,23 +192,6 @@ func (f JSONFormatter) formatTrap(packet *packet.SnmpPacket) (map[string]interfa
 		data[key] = value
 	}
 	return data, nil
-}
-
-// IsValidOID returns true if a looks like a valid OID.
-// An OID is made of digits and dots, but OIDs do not end with a dot and there are always
-// digits between dots.
-func IsValidOID(value string) bool {
-	var previousChar rune
-	for _, char := range value {
-		if char != '.' && !unicode.IsDigit(char) {
-			return false
-		}
-		if char == '.' && previousChar == '.' {
-			return false
-		}
-		previousChar = char
-	}
-	return previousChar != '.'
 }
 
 // enrichEnum checks to see if the variable has a mapping in an enum and

@@ -109,9 +109,9 @@ func TestMinimalConfig(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, uint16(9162), config.Port)
 	assert.Equal(t, 5, config.StopTimeout)
-	assert.Equal(t, []string{}, config.CommunityStrings)
+	assert.Empty(t, config.CommunityStrings)
 	assert.Equal(t, "0.0.0.0", config.BindHost)
-	assert.Equal(t, []UserV3{}, config.Users)
+	assert.Empty(t, config.Users)
 	assert.Equal(t, "default", config.Namespace)
 
 	params, err := config.BuildSNMPParams(logger)
