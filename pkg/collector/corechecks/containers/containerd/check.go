@@ -199,7 +199,7 @@ func (c *ContainerdCheck) collectImagePullMetrics(sender sender.Sender) error {
 		metricName := fmt.Sprintf("containerd.image.pull.%s", toSnakeCase(string(grpcCode)))
 		metricTags := []string{fmt.Sprintf("grpc_service:%s", metric["grpc_service"])}
 
-		sender.Counter(metricName, float64(sample.Value), "", metricTags)
+		sender.MonotonicCount(metricName, float64(sample.Value), "", metricTags)
 	}
 
 	return nil
