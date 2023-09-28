@@ -12,6 +12,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/process/procutil"
 	"github.com/DataDog/datadog-agent/pkg/util/winutil"
+	"github.com/DataDog/datadog-agent/pkg/windowsdriver/driver"
 	"github.com/DataDog/datadog-agent/pkg/windowsdriver/olreader"
 )
 
@@ -36,6 +37,8 @@ type WinProcmon struct {
 const (
 	// deviceName identifies the name and location of the windows driver
 	deviceName = `\\.\ddprocmon`
+	// driverName is the name of the driver service
+	driverName = "ddprocmon"
 )
 
 func NewWinProcMon(onStart chan *ProcessStartNotification, onStop chan *ProcessStopNotification) (*WinProcmon, error) {
@@ -43,6 +46,9 @@ func NewWinProcMon(onStart chan *ProcessStartNotification, onStop chan *ProcessS
 	wp := &WinProcmon{
 		onStart: onStart,
 		onStop:  onStop,
+	}
+	if err := driver.StartDriverService(driverName); err != nil {
+		return nil, err
 	}
 	reader, err := olreader.NewOverlappedReader(wp, 1024, 100)
 	if err != nil {
@@ -103,6 +109,8 @@ func (wp *WinProcmon) Stop() {
 		nil,
 		nil)
 	wp.reader.Stop()
+
+	_ = driver.StopDriverService(driverName, false)
 }
 func (wp *WinProcmon) Start() error {
 	err := wp.reader.Read()
