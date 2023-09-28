@@ -9,6 +9,7 @@
 package tests
 
 import (
+	"fmt"
 	"os"
 	"path"
 	"path/filepath"
@@ -25,7 +26,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 )
 
-func runRuleSetLoadedBaseTest(t *testing.T, ruleDefs []*rules.RuleDefinition, opts testOpts) {
+func runRuleSetLoadedBaseTest(t *testing.T, ruleDefs []*rules.RuleDefinition, opts testOpts, nbPoliciesToLoad int) {
+
 	test, err := newTestModule(t, nil, ruleDefs, opts)
 	if err != nil {
 		t.Fatal(err)
@@ -45,7 +47,7 @@ func runRuleSetLoadedBaseTest(t *testing.T, ruleDefs []*rules.RuleDefinition, op
 		assert.Zero(t, count)
 		countPoliciesLoaded := 0
 
-		err = test.GetCustomEventSent(t, func() error {
+		err := test.GetCustomEventSent(t, func() error {
 			// force a reload
 			return syscall.Kill(syscall.Getpid(), syscall.SIGHUP)
 		}, func(rule *rules.Rule, customEvent *events.CustomEvent) bool {
@@ -57,7 +59,7 @@ func runRuleSetLoadedBaseTest(t *testing.T, ruleDefs []*rules.RuleDefinition, op
 
 			countPoliciesLoaded = countPoliciesLoaded + 1
 
-			allPoliciesLoaded := int(countPoliciesLoaded) == opts.nbPoliciesToLoad
+			allPoliciesLoaded := int(countPoliciesLoaded) == nbPoliciesToLoad
 
 			return validateRuleSetLoadedSchema(t, customEvent) && allPoliciesLoaded
 		}, 20*time.Second, model.CustomRulesetLoadedEventType)
@@ -72,11 +74,29 @@ func TestSeveralRulesetsLoaded(t *testing.T) {
 		ID:         "path_test",
 		Expression: `open.file.path == "/aaaaaaaaaaaaaaaaaaaaaaaaa" && open.flags & O_CREAT != 0`,
 	}
+	ruleDefs := []*rules.RuleDefinition{rule}
+	nbPoliciesToLoad := 2
 
 	probeMonitorOpts := testOpts{
-		nbPoliciesToLoad: 2,
+		preStartCallback: func(test *testModule) {
+
+			// Loop loading the number of policies required
+			for i := 1; i < nbPoliciesToLoad; i++ {
+
+				// We need to modify slightly the ruleIDs to make them unique to the policy so no conflicts occur
+				policyRuleDefs := ruleDefs
+				for j, rd := range policyRuleDefs {
+					rd.ID = fmt.Sprintf(rd.ID+"_%d", j)
+					policyRuleDefs[j] = rd
+				}
+				if _, err := setTestPolicy(test.st.root, nil, policyRuleDefs, fmt.Sprintf(testPolicyID, i)); err != nil {
+					fmt.Errorf("Error loading test policy")
+				}
+			}
+		},
 	}
-	runRuleSetLoadedBaseTest(t, []*rules.RuleDefinition{rule}, probeMonitorOpts)
+
+	runRuleSetLoadedBaseTest(t, ruleDefs, probeMonitorOpts, nbPoliciesToLoad)
 }
 
 func TestRulesetLoaded(t *testing.T) {
@@ -84,11 +104,9 @@ func TestRulesetLoaded(t *testing.T) {
 		ID:         "path_test",
 		Expression: `open.file.path == "/aaaaaaaaaaaaaaaaaaaaaaaaa" && open.flags & O_CREAT != 0`,
 	}
+	nbPoliciesToLoad := 1
 
-	probeMonitorOpts := testOpts{
-		nbPoliciesToLoad: 1,
-	}
-	runRuleSetLoadedBaseTest(t, []*rules.RuleDefinition{rule}, probeMonitorOpts)
+	runRuleSetLoadedBaseTest(t, []*rules.RuleDefinition{rule}, testOpts{}, nbPoliciesToLoad)
 }
 
 func truncatedParents(t *testing.T, opts testOpts) {

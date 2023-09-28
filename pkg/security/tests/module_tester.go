@@ -258,7 +258,6 @@ type testOpts struct {
 	enableSBOM                          bool
 	preStartCallback                    func(test *testModule)
 	tagsResolver                        tags.Resolver
-	nbPoliciesToLoad                    int
 	snapshotRuleMatchHandler            func(*testModule, *model.Event, *rules.Rule)
 }
 
@@ -876,21 +875,6 @@ func newTestModule(t testing.TB, macroDefs []*rules.MacroDefinition, ruleDefs []
 
 	if _, err = setTestPolicy(st.root, macroDefs, ruleDefs, fmt.Sprintf(testPolicyID, 0)); err != nil {
 		return nil, err
-	}
-
-	if opts.nbPoliciesToLoad > 1 {
-		for i := 1; i < opts.nbPoliciesToLoad; i++ {
-
-			// We need to modify slightly the ruleIDs to make them unique to the policy so no conflicts occur
-			policyRuleDefs := ruleDefs
-			for j, rd := range policyRuleDefs {
-				rd.ID = fmt.Sprintf(rd.ID+"_%d", j)
-				policyRuleDefs[j] = rd
-			}
-			if _, err = setTestPolicy(st.root, macroDefs, policyRuleDefs, fmt.Sprintf(testPolicyID, i)); err != nil {
-				return nil, err
-			}
-		}
 	}
 
 	var cmdWrapper cmdWrapper
