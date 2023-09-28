@@ -46,7 +46,7 @@ import (
 	// runtime init routines
 )
 
-// StartAgentWithDefaults is a temporary way for other packages to use startAgent.
+// StartAgentWithDefaults is a temporary way for the windows service to use startAgent.
 // Starts the agent in the background and then returns.
 //
 // @ctxChan
@@ -147,6 +147,10 @@ func run(log log.Component,
 	_ agentcrashdetect.Component,
 	_ comptraceconfig.Component,
 ) error {
+	// commonRun provides a mechanism to have the shared run function not require the unused components
+	// (i.e. here `_ netflowServer`, `_ agentcrashdetect`, etc.).  The run function can have different
+	// parameters on different platforms based on platform-specific components.  commonRun is the shared initialization.
+
 	return commonRun(log, config, flare, telemetry, sysprobeconfig, server, capture, serverDebug, forwarder, rcclient, metadataRunner, demux, sharedSerializer, cliParams, logsAgent, otelcollector)
 }
 

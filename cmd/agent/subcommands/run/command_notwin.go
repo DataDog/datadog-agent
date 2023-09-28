@@ -53,6 +53,9 @@ func run(log log.Component,
 	otelcollector otelcollector.Component,
 	_ netflowServer.Component,
 ) error {
+	// commonRun provides a mechanism to have the shared run function not require the unused components
+	// (i.e. here `_ netflowServer`).  The run function can have different parameters on different platforms
+	// based on platform-specific components.  commonRun is the shared initialization.
 	return commonRun(log, config, flare, telemetry, sysprobeconfig, server, capture, serverDebug, forwarder, rcclient, metadataRunner, demux, sharedSerializer, cliParams, logsAgent, otelcollector)
 }
 
