@@ -8,9 +8,9 @@ package flowaggregator
 import (
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/netflow/common"
-	"github.com/DataDog/datadog-agent/pkg/netflow/format"
-	"github.com/DataDog/datadog-agent/pkg/netflow/payload"
+	"github.com/DataDog/datadog-agent/comp/netflow/common"
+	"github.com/DataDog/datadog-agent/comp/netflow/format"
+	"github.com/DataDog/datadog-agent/comp/netflow/payload"
 )
 
 func buildPayload(aggFlow *common.Flow, hostname string, flushTime time.Time) payload.FlowPayload {

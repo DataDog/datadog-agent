@@ -9,12 +9,10 @@ import (
 	"sync"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/netflow/portrollup"
-	"go.uber.org/atomic"
-
 	"github.com/DataDog/datadog-agent/comp/core/log"
-
-	"github.com/DataDog/datadog-agent/pkg/netflow/common"
+	"github.com/DataDog/datadog-agent/comp/netflow/common"
+	"github.com/DataDog/datadog-agent/comp/netflow/portrollup"
+	"go.uber.org/atomic"
 )
 
 var timeNow = time.Now

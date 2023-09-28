@@ -9,9 +9,8 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/DataDog/datadog-agent/comp/netflow/common"
 	flowpb "github.com/netsampler/goflow2/pb"
-
-	"github.com/DataDog/datadog-agent/pkg/netflow/common"
 )
 
 // AggregatorFormatDriver is used as goflow formatter to forward flow data to aggregator/EP Forwarder
