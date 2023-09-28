@@ -9,45 +9,20 @@ package java
 
 import (
 	"os"
-	"strings"
 	"syscall"
 	"testing"
 	"time"
 
-	"github.com/DataDog/gopsutil/process"
 	"github.com/stretchr/testify/require"
 
+	javatestutil "github.com/DataDog/datadog-agent/pkg/network/protocols/tls/java/testutil"
 	"github.com/DataDog/datadog-agent/pkg/network/testutil"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 )
 
-func findJustWait(t *testing.T) (retpid int) {
-	fn := func(pid int) error {
-		proc, err := process.NewProcess(int32(pid))
-		if err != nil {
-			return nil // ignore process that didn't exist anymore
-		}
-
-		name, err := proc.Name()
-		if err == nil && name == "java" {
-			cmdline, err := proc.Cmdline()
-			if err == nil && strings.Contains(cmdline, "JustWait") {
-				retpid = pid
-			}
-		}
-		return nil
-	}
-
-	err := kernel.WithAllProcs(kernel.ProcFSRoot(), fn)
-	if err != nil {
-		t.Fatalf("%v\n", err)
-	}
-	return retpid
-}
-
 func testInject(t *testing.T, prefix string) {
 	go func() {
-		o, err := testutil.RunCommand(prefix + "java -cp testdata JustWait")
+		o, err := testutil.RunCommand(prefix + "java -cp testdata Wait JustWait")
 		if err != nil {
 			t.Logf("%v\n", err)
 		}
@@ -55,12 +30,12 @@ func testInject(t *testing.T, prefix string) {
 	}()
 	time.Sleep(time.Second) // give a chance to spawn java
 
-	pid := findJustWait(t)
-	require.NotEqual(t, pid, 0, "Can't find java JustWait process")
-	t.Log(pid)
+	pids, err := javatestutil.FindProcessByCommandLine("java", "JustWait")
+	require.NoError(t, err)
+	require.Lenf(t, pids, 1, "expected to find 1 match, but found %v instead", len(pids))
 
 	defer func() {
-		process, _ := os.FindProcess(pid)
+		process, _ := os.FindProcess(pids[0])
 		process.Signal(syscall.SIGKILL)
 		time.Sleep(200 * time.Millisecond) // give a chance to the process to give his report/output
 	}()
@@ -72,7 +47,7 @@ func testInject(t *testing.T, prefix string) {
 	defer os.Remove(tfile.Name())
 
 	// equivalent to jattach <pid> load instrument false testdata/TestAgentLoaded.jar=<tempfile>
-	err = InjectAgent(pid, "testdata/TestAgentLoaded.jar", "testfile="+tfile.Name())
+	err = InjectAgent(pids[0], "testdata/TestAgentLoaded.jar", "testfile="+tfile.Name())
 	require.NoError(t, err)
 
 	time.Sleep((MINIMUM_JAVA_AGE_TO_ATTACH_MS + 200) * time.Millisecond) // wait java process to be old enough to be injected

@@ -294,6 +294,8 @@ variables:
 # Rules used to define whether a pipeline should run, and with which variables
 #
 
+# WARNING: Do not change below if you want to globally disable the caching proxy (all branches would need to be rebased for it to be effectively disabled).
+# Instead use the break-glass mechanism by looking for the "Remotely disable Artifactory" doc in Confluence.
 workflow:
   rules:
     - <<: *if_triggered_pipeline
@@ -310,8 +312,8 @@ workflow:
         USE_CACHING_PROXY_RUBY: "true"
     - <<: *if_deploy
       variables:
-        USE_CACHING_PROXY_PYTHON: "false"
-        USE_CACHING_PROXY_RUBY: "false"
+        USE_CACHING_PROXY_PYTHON: "true"
+        USE_CACHING_PROXY_RUBY: "true"
     - if: $CI_COMMIT_TAG == null
       variables:
         USE_CACHING_PROXY_PYTHON: "false"
