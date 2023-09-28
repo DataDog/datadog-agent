@@ -5,10 +5,6 @@
 
 package profiledefinition
 
-import (
-	"sort"
-)
-
 // StringArray is list of string with a yaml un-marshaller that support both array and string.
 // See test file for example usage.
 // Credit: https://github.com/go-yaml/yaml/issues/100#issuecomment-324964723
@@ -48,35 +44,4 @@ func (mtcl *MetricTagConfigList) UnmarshalYAML(unmarshal func(interface{}) error
 	}
 	*mtcl = multi
 	return nil
-}
-
-// UnmarshalYAML unmarshalls KeyValueList
-// For yaml profiles, we only unmarshall `map[string]string` and explicitly do
-// not support unmarshalling of ` []KeyValue` to avoid exposing a new list of key/value format in yaml.
-func (kvl *KeyValueList) UnmarshalYAML(unmarshal func(interface{}) error) error {
-	var kvList []KeyValue
-	var mapping map[string]string
-
-	err := unmarshal(&mapping)
-	if err != nil {
-		return err
-	}
-
-	var keys []string
-	for k := range mapping {
-		keys = append(keys, k)
-	}
-	sort.Strings(keys)
-
-	for _, k := range keys {
-		v := mapping[k]
-		kvList = append(kvList, KeyValue{Key: k, Value: v})
-	}
-	*kvl = kvList
-	return nil
-}
-
-// MarshalYAML marshalls KeyValueList
-func (kvl KeyValueList) MarshalYAML() (interface{}, error) {
-	return kvl.ToMap(), nil
 }

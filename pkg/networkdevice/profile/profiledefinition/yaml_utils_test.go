@@ -11,15 +11,10 @@ import (
 	"gopkg.in/yaml.v2"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
 type MyStringArray struct {
 	SomeIds StringArray `yaml:"my_field"`
-}
-
-type MyKeyValueList struct {
-	KvListField KeyValueList `yaml:"my_kv_list"`
 }
 
 func Test_metricTagConfig_UnmarshalYAML(t *testing.T) {
@@ -68,55 +63,4 @@ my_field: aaa
 `), &myStruct)
 
 	assert.Equal(t, expected, myStruct)
-}
-
-func TestKeyValueList_UnmarshalYAML_mapping(t *testing.T) {
-	myStruct := MyKeyValueList{}
-	expected := MyKeyValueList{KvListField: KeyValueList{
-		{
-			Key: "1", Value: "aaa",
-		},
-		{
-			Key: "2", Value: "bbb",
-		},
-	}}
-
-	err := yaml.Unmarshal([]byte(`
-my_kv_list:
- 1: aaa
- 2: bbb
-`), &myStruct)
-	assert.NoError(t, err)
-
-	assert.Equal(t, expected, myStruct)
-}
-
-func TestKeyValueList_UnmarshalYAML_listKeyValue_listNotAllowedInYaml(t *testing.T) {
-	myStruct := MyKeyValueList{}
-
-	err := yaml.Unmarshal([]byte(`
-my_kv_list:
- - key: 1
-   value: aaa
- - key: 2
-   value: bbb
-`), &myStruct)
-	assert.ErrorContains(t, err, "cannot unmarshal !!seq into map[string]string")
-}
-
-func TestKeyValueList_Marshall(t *testing.T) {
-	myStruct := MyKeyValueList{
-		KvListField: KeyValueList{
-			{Key: "1", Value: "aaa"},
-			{Key: "2", Value: "bbb"},
-		},
-	}
-
-	bytes, err := yaml.Marshal(myStruct)
-	require.NoError(t, err)
-	expectedYaml := `my_kv_list:
-  "1": aaa
-  "2": bbb
-`
-	assert.Equal(t, expectedYaml, string(bytes))
 }

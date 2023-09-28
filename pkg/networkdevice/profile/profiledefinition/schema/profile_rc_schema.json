@@ -24,25 +24,22 @@
         "profile_definition"
       ]
     },
-    "KeyValue": {
-      "properties": {
-        "key": {
-          "type": "string"
-        },
-        "value": {
-          "type": "string"
-        }
-      },
-      "additionalProperties": false,
-      "type": "object",
-      "required": [
-        "key",
-        "value"
-      ]
-    },
-    "KeyValueList": {
+    "ListMap[string]": {
       "items": {
-        "$ref": "#/$defs/KeyValue"
+        "properties": {
+          "key": {
+            "type": "string"
+          },
+          "value": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "key",
+          "value"
+        ]
       },
       "type": "array"
     },
@@ -86,7 +83,7 @@
           "type": "array"
         },
         "mapping": {
-          "$ref": "#/$defs/KeyValueList"
+          "$ref": "#/$defs/ListMap[string]"
         }
       },
       "additionalProperties": false,
