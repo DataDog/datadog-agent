@@ -10,6 +10,7 @@ package kubelet
 
 import (
 	"context"
+	"strings"
 	"time"
 
 	"github.com/DataDog/datadog-agent/internal/third_party/golang/expansion"
@@ -24,9 +25,10 @@ import (
 )
 
 const (
-	collectorID   = "kubelet"
-	componentName = "workloadmeta-kubelet"
-	expireFreq    = 15 * time.Second
+	collectorID         = "kubelet"
+	componentName       = "workloadmeta-kubelet"
+	expireFreq          = 15 * time.Second
+	dockerImageIDPrefix = "docker-pullable://"
 )
 
 type collector struct {
@@ -186,17 +188,22 @@ func (c *collector) parsePodContainers(
 		var env map[string]string
 		var ports []workloadmeta.ContainerPort
 
-		image, err := workloadmeta.NewContainerImage(container.ImageID, container.Image)
+		// When running on docker, the image ID contains a prefix that's not
+		// included in other runtimes. Remove it for consistency.
+		// See https://github.com/kubernetes/kubernetes/issues/95968
+		imageID := strings.TrimPrefix(container.ImageID, dockerImageIDPrefix)
+
+		image, err := workloadmeta.NewContainerImage(imageID, container.Image)
 		if err != nil {
 			if err == containers.ErrImageIsSha256 {
 				// try the resolved image ID if the image name in the container
 				// status is a SHA256. this seems to happen sometimes when
 				// pinning the image to a SHA256
-				image, err = workloadmeta.NewContainerImage(container.ImageID, container.ImageID)
+				image, err = workloadmeta.NewContainerImage(imageID, imageID)
 			}
 
 			if err != nil {
-				log.Debugf("cannot split image name %q nor %q: %s", container.Image, container.ImageID, err)
+				log.Debugf("cannot split image name %q nor %q: %s", container.Image, imageID, err)
 			}
 		}
 
@@ -210,12 +217,12 @@ func (c *collector) parsePodContainers(
 		if containerSpec != nil {
 			env = extractEnvFromSpec(containerSpec.Env)
 
-			podContainer.Image, err = workloadmeta.NewContainerImage(container.ImageID, containerSpec.Image)
+			podContainer.Image, err = workloadmeta.NewContainerImage(imageID, containerSpec.Image)
 			if err != nil {
 				log.Debugf("cannot split image name %q: %s", containerSpec.Image, err)
 			}
 
-			podContainer.Image.ID = container.ImageID
+			podContainer.Image.ID = imageID
 			containerSecurityContext = extractContainerSecurityContext(containerSpec)
 			ports = make([]workloadmeta.ContainerPort, 0, len(containerSpec.Ports))
 			for _, port := range containerSpec.Ports {
