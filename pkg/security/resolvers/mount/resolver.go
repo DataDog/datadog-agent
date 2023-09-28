@@ -308,11 +308,7 @@ func (mr *Resolver) lookupByMountID(mountID uint32) *model.Mount {
 		return mount
 	}
 
-	if mount = mr.getFromRedemption(mountID); mount != nil {
-		return mount
-	}
-
-	return nil
+	return mr.getFromRedemption(mountID)
 }
 
 func (mr *Resolver) lookupByDevice(device uint32, pid uint32) *model.Mount {

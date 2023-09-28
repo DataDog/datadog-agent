@@ -53,10 +53,7 @@ func run(
 		// TODO: to be removed when default telemetry is enabled.
 		telemetry.RegisterStatsSender(sender)
 	}
-	if err := c.Start(); err != nil {
-		return err
-	}
-	return nil
+	return c.Start()
 }
 
 func main() {
