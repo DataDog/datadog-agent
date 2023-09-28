@@ -142,9 +142,8 @@ func TestSetFieldValue(t *testing.T) {
 			if err != nil {
 				if errors.As(err, &fieldNotSupportedError) {
 					continue
-				} else {
-					t.Errorf("unable to get the expected `%s` value: %v", field, err)
 				}
+				t.Errorf("unable to get the expected `%s` value: %v", field, err)
 			}
 			switch v := value.(type) {
 			case string:
