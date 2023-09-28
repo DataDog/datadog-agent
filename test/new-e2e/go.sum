@@ -10,8 +10,6 @@ github.com/DataDog/datadog-api-client-go v1.16.0 h1:5jOZv1m98criCvYTa3qpW8Hzv301
 github.com/DataDog/datadog-api-client-go v1.16.0/go.mod h1:PgrP2ABuJWL3Auw2iEkemAJ/r72ghG4DQQmb5sgnKW4=
 github.com/DataDog/mmh3 v0.0.0-20200805151601-30884ca2197a h1:m9REhmyaWD5YJ0P53ygRHxKKo+KM+nw+zz0hEdKztMo=
 github.com/DataDog/mmh3 v0.0.0-20200805151601-30884ca2197a/go.mod h1:SvsjzyJlSg0rKsqYgdcFxeEVflx3ZNAyFfkUHP0TxXg=
-github.com/DataDog/test-infra-definitions v0.0.0-20230926100718-c5ea04b9d97e h1:ZZdQo5Wt7gLHn1Q8rDjJFF1zIwZ1atipL7FJSwZiLwI=
-github.com/DataDog/test-infra-definitions v0.0.0-20230926100718-c5ea04b9d97e/go.mod h1:buLeNA6H7/WU+W1Te1toombEWWhdxQjVsQNkLhmfyW0=
 github.com/DataDog/test-infra-definitions v0.0.0-20230925114635-cb9e86993fd5 h1:iGd61e5bM0Ms1CrcUhEi3wmwukUJJW8ZFeMhRPjMEmc=
 github.com/DataDog/test-infra-definitions v0.0.0-20230925114635-cb9e86993fd5/go.mod h1:buLeNA6H7/WU+W1Te1toombEWWhdxQjVsQNkLhmfyW0=
 github.com/DataDog/zstd v1.5.0 h1:+K/VEwIAaPcHiMtQvpLD4lqW7f0Gk3xdYZmI1hD+CXo=
