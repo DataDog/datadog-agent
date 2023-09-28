@@ -1354,6 +1354,11 @@ api_key:
   ##        @param DD_APM_OBFUSCATION_MEMCACHED_ENABLED - boolean - optional
   ##        Enables obfuscation rules for spans of type "memcached". Enabled by default.
   #         enabled: false
+  ##        @param DD_APM_OBFUSCATION_MEMCACHED_KEEP_COMMAND - boolean - optional
+  ##        If enabled, the full command for the query will be kept, including any lookup
+  ##        keys that could be present. The value for storage commands will still be
+  ##        redacted if Memcached obfuscation is enabled.
+  #         keep_command: false
   #
   #     mongodb:
   ##        @param DD_APM_OBFUSCATION_MONGODB_ENABLED - boolean - optional
