@@ -47,6 +47,7 @@ type processor struct {
 	hostSBOM          bool
 	hostScanOpts      sbom.ScanOptions
 	hostname          string
+	hostCache         string
 }
 
 func newProcessor(workloadmetaStore workloadmeta.Store, sender sender.Sender, maxNbItem int, maxRetentionTime time.Duration, hostSBOM bool) (*processor, error) {
@@ -198,6 +199,7 @@ func (p *processor) processHostRefresh() {
 			InUse:              true,
 			GeneratedAt:        timestamppb.New(result.CreatedAt),
 			GenerationDuration: convertDuration(result.Duration),
+			Hash:               result.Report.ID(),
 		}
 
 		if result.Error != nil {
@@ -206,19 +208,26 @@ func (p *processor) processHostRefresh() {
 			}
 			sbom.Status = model.SBOMStatus_FAILED
 		} else {
-			report, err := result.Report.ToCycloneDX()
-			if err != nil {
-				log.Errorf("Failed to extract SBOM from report: %s", err)
-				sbom.Sbom = &model.SBOMEntity_Error{
-					Error: err.Error(),
-				}
-				sbom.Status = model.SBOMStatus_FAILED
+			if p.hostCache != "" && p.hostCache == result.Report.ID() {
+				sbom.Heartbeat = true
 			} else {
-				sbom.Sbom = &model.SBOMEntity_Cyclonedx{
-					Cyclonedx: convertBOM(report),
+				report, err := result.Report.ToCycloneDX()
+				if err != nil {
+					log.Errorf("Failed to extract SBOM from report: %s", err)
+					sbom.Sbom = &model.SBOMEntity_Error{
+						Error: err.Error(),
+					}
+					sbom.Status = model.SBOMStatus_FAILED
+				} else {
+					sbom.Sbom = &model.SBOMEntity_Cyclonedx{
+						Cyclonedx: convertBOM(report),
+					}
 				}
+
+				p.hostCache = result.Report.ID()
 			}
 		}
+
 		p.queue <- sbom
 	}()
 }
