@@ -184,12 +184,12 @@ func (e *RuleEngine) Start(ctx context.Context, reloadChan <-chan struct{}, wg *
 		}
 	}()
 
-	// Sending an heartbeat event every 30 seconds
+	// Sending an heartbeat event every minute
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
 
-		heartbeatTicker := time.NewTicker(30 * time.Second)
+		heartbeatTicker := time.NewTicker(1 * time.Minute)
 		defer heartbeatTicker.Stop()
 
 		for {

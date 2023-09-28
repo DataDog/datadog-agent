@@ -93,7 +93,7 @@ func TestHeartbeatSent(t *testing.T) {
 			isHeartbeatEvent := events.HeartbeatRuleID == rule.ID
 
 			return validateHeartbeatSchema(t, customEvent) && isHeartbeatEvent
-		}, 45*time.Second, model.CustomHeartbeatEventType)
+		}, 80*time.Second, model.CustomHeartbeatEventType)
 		if err != nil {
 			t.Fatal(err)
 		}
