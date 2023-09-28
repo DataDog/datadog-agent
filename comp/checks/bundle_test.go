@@ -12,6 +12,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/checks/agentcrashdetect"
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	compsysconfig "github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
 	comptraceconfig "github.com/DataDog/datadog-agent/comp/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/util/winutil/crashreport"
 	"github.com/stretchr/testify/require"
@@ -24,6 +25,7 @@ func TestBundleDependencies(t *testing.T) {
 		// automatically.
 		comptraceconfig.Module,
 		config.Module,
+		compsysconfig.Module,
 		fx.Supply(crashreport.WinCrashReporter{}),
 		fx.Supply(config.Params{}),
 		fx.Invoke(func(agentcrashdetect.Component) {}),
