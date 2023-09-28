@@ -45,6 +45,7 @@ func (c *Check) init() error {
 	if d.Cdb == "NO" {
 		isMultitenant = false
 	}
+	c.multitenant = isMultitenant
 
 	var i vInstance
 	err = getWrapper(c, &i, "SELECT /* DD */ host_name, instance_name, version_full FROM v$instance")
