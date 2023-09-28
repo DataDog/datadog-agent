@@ -3,12 +3,16 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build !(linux && linux_bpf)
+//go:build !linux_bpf && !windows
 
-package modules
+package module
 
-// PostRegisterCleanup is a function that will be called after modules are registered, it should run cleanup code
-// that is common to most system probe modules
-func PostRegisterCleanup() error {
+import "github.com/DataDog/datadog-agent/cmd/system-probe/config"
+
+func preRegister(_ *config.Config) error {
+	return nil
+}
+
+func postRegister(_ *config.Config) error {
 	return nil
 }
