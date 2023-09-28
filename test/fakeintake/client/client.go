@@ -131,9 +131,9 @@ func (c *Client) getFakePayloads(endpoint string) (rawPayloads []api.Payload, er
 			return err
 		}
 		defer tmpResp.Body.Close()
-        if tmpResp.StatusCode != http.StatusOK {
-            return fmt.Errorf("Expected %d got %d", http.StatusOK, tmpResp.StatusCode)
-        }
+		if tmpResp.StatusCode != http.StatusOK {
+			return fmt.Errorf("Expected %d got %d", http.StatusOK, tmpResp.StatusCode)
+		}
 		body, err = io.ReadAll(tmpResp.Body)
 		return err
 	}, backoff.WithMaxRetries(backoff.NewConstantBackOff(5*time.Second), 4))
