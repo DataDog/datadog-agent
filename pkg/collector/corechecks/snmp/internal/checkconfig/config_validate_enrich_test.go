@@ -566,9 +566,9 @@ func Test_ValidateEnrichMetrics(t *testing.T) {
 								OID:  "1.2",
 								Name: "abc",
 							},
-							Mapping: profiledefinition.KeyValueList{
-								{Key: "1", Value: "abc"},
-								{Key: "2", Value: "def"},
+							Mapping: map[string]string{
+								"1": "abc",
+								"2": "def",
 							},
 						},
 					},
@@ -577,7 +577,7 @@ func Test_ValidateEnrichMetrics(t *testing.T) {
 			expectedErrors: []string{},
 			expectedLogs: []logCount{
 				{
-					"[WARN] validateEnrichMetricTag: ``tag` must be provided if `mapping`",
+					"[WARN] validateEnrichMetricTag: ``tag` must be provided if `mapping` (`map[1:abc 2:def]`) is defined",
 					1,
 				},
 			},

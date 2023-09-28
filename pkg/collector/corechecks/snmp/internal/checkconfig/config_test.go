@@ -6,12 +6,12 @@
 package checkconfig
 
 import (
+	"encoding/json"
 	"regexp"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	coreconfig "github.com/DataDog/datadog-agent/pkg/config"
@@ -137,7 +137,7 @@ bulk_max_repetitions: 20
 `)
 	config, err := NewCheckConfig(rawInstanceConfig, rawInitConfig)
 
-	require.NoError(t, err)
+	assert.Nil(t, err)
 	assert.Equal(t, 10, config.OidBatchSize)
 	assert.Equal(t, uint32(20), config.BulkMaxRepetitions)
 	assert.Equal(t, "1.2.3.4", config.IPAddress)
@@ -184,22 +184,22 @@ bulk_max_repetitions: 20
 						},
 					},
 				},
-				{Tag: "ipversion", Index: 1, Mapping: profiledefinition.KeyValueList{
-					{Key: "0", Value: "unknown"},
-					{Key: "1", Value: "ipv4"},
-					{Key: "16", Value: "dns"},
-					{Key: "2", Value: "ipv6"},
-					{Key: "3", Value: "ipv4z"},
-					{Key: "4", Value: "ipv6z"},
+				{Tag: "ipversion", Index: 1, Mapping: map[string]string{
+					"0":  "unknown",
+					"1":  "ipv4",
+					"2":  "ipv6",
+					"3":  "ipv4z",
+					"4":  "ipv6z",
+					"16": "dns",
 				}},
 				{Tag: "if_type",
 					Column: profiledefinition.SymbolConfig{OID: "1.3.6.1.2.1.2.2.1.3", Name: "ifType"},
-					Mapping: profiledefinition.KeyValueList{
-						{Key: "1", Value: "other"},
-						{Key: "2", Value: "regular1822"},
-						{Key: "29", Value: "ultra"},
-						{Key: "3", Value: "hdh1822"},
-						{Key: "4", Value: "ddn-x25"},
+					Mapping: map[string]string{
+						"1":  "other",
+						"2":  "regular1822",
+						"3":  "hdh1822",
+						"4":  "ddn-x25",
+						"29": "ultra",
 					}},
 				{
 					Column: profiledefinition.SymbolConfig{
@@ -221,10 +221,7 @@ bulk_max_repetitions: 20
 
 	expectedMetricTags := []profiledefinition.MetricTagConfig{
 		{Tag: "my_symbol", OID: "1.2.3", Name: "mySymbol"},
-		{Tag: "my_symbol_mapped", OID: "1.2.3", Name: "mySymbol", Mapping: profiledefinition.KeyValueList{
-			{Key: "1", Value: "one"},
-			{Key: "2", Value: "two"},
-		}},
+		{Tag: "my_symbol_mapped", OID: "1.2.3", Name: "mySymbol", Mapping: map[string]string{"1": "one", "2": "two"}},
 		{
 			OID:     "1.2.3",
 			Name:    "mySymbol",
@@ -249,7 +246,9 @@ bulk_max_repetitions: 20
 		{Tag: "snmp_host", OID: "1.3.6.1.2.1.1.5.0", Name: "sysName"},
 	}
 
-	assert.Equal(t, expectedMetrics, config.Metrics)
+	expectedMetricsJSON, _ := json.MarshalIndent(expectedMetrics, "", "\t")
+	actualMetricsJSON, _ := json.MarshalIndent(config.Metrics, "", "\t")
+	assert.JSONEq(t, string(expectedMetricsJSON), string(actualMetricsJSON))
 	assert.Equal(t, expectedMetricTags, config.MetricTags)
 	assert.Equal(t, []string{"snmp_profile:f5-big-ip", "device_vendor:f5", "static_tag:from_profile_root", "static_tag:from_base_profile"}, config.ProfileTags)
 	assert.Equal(t, 1, len(config.Profiles))
