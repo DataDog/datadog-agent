@@ -27,7 +27,8 @@ func PathPatternBuilder(pattern string, path string, opts PathPatternBuilderOpts
 		result                               = make([]byte, lenMax)
 		offsetPattern, offsetPath, size      = 0, 0, 0
 		wildcardCount, nodeCount, suffixNode = 0, 0, 0
-		wildcard, inPattern, inPath          bool
+		patternLen, pathLen                  = len(pattern), len(path)
+		wildcard                             bool
 
 		computeNode = func() bool {
 			if wildcard {
@@ -45,13 +46,14 @@ func PathPatternBuilder(pattern string, path string, opts PathPatternBuilderOpts
 				result[size], result[size+1] = '/', '*'
 				size += 2
 
-				offsetPattern, suffixNode = i, 0
+				suffixNode = 0
 			} else {
 				copy(result[size:], pattern[offsetPattern:i])
 				size += i - offsetPattern
-				offsetPattern = i
 				suffixNode++
 			}
+
+			offsetPattern = i
 			offsetPath = j
 
 			if i > 0 {
@@ -61,16 +63,25 @@ func PathPatternBuilder(pattern string, path string, opts PathPatternBuilderOpts
 		}
 	)
 
-	for i != len(pattern) && j != len(path) {
-		pn, ph := pattern[i], path[j]
-		if pn == '/' && !inPattern {
-			offsetPattern = i
-			inPattern = true
-		}
+	if patternLen > 0 && pattern[0] != '/' {
+		return false, ""
+	}
 
-		if ph == '/' && !inPath {
-			offsetPath = j
-			inPath = true
+	if pathLen > 0 && path[0] != '/' {
+		return false, ""
+	}
+
+	for i < len(pattern) && j < len(path) {
+		pn, ph := pattern[i], path[j]
+		if pn == '/' && ph == '/' {
+			if !computeNode() {
+				return false, ""
+			}
+			wildcard = false
+
+			i++
+			j++
+			continue
 		}
 
 		if pn != ph {
@@ -82,25 +93,24 @@ func PathPatternBuilder(pattern string, path string, opts PathPatternBuilderOpts
 		if ph != '/' {
 			j++
 		}
+	}
 
-		patternEnd, pathEnd := len(pattern) == i, len(path) == j
-		if patternEnd || pathEnd {
-			if !patternEnd || !pathEnd {
-				wildcard = true
-			}
-			break
+	if patternLen != i || pathLen != j {
+		wildcard = true
+	}
+
+	for i < patternLen {
+		if pattern[i] == '/' {
+			return false, ""
 		}
+		i++
+	}
 
-		pn, ph = pattern[i], path[j]
-		if pn == '/' && ph == '/' {
-			if !computeNode() {
-				return false, ""
-			}
-			wildcard, inPattern = false, false
-
-			i++
-			j++
+	for j < pathLen {
+		if path[j] == '/' {
+			return false, ""
 		}
+		j++
 	}
 
 	if !computeNode() {

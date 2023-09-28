@@ -3736,21 +3736,21 @@ var activityTreeInsertExecEventTestCases = []struct {
 				{
 					Process: model.Process{
 						FileEvent: model.FileEvent{
-							PathnameStr: "dash",
+							PathnameStr: "/dash",
 						},
 					},
 					Children: []*ProcessNode{
 						{
 							Process: model.Process{
 								FileEvent: model.FileEvent{
-									PathnameStr: "bash",
+									PathnameStr: "/bash",
 								},
 							},
 							Children: []*ProcessNode{
 								{
 									Process: model.Process{
 										FileEvent: model.FileEvent{
-											PathnameStr: "python",
+											PathnameStr: "/python",
 										},
 									},
 								},
@@ -3760,7 +3760,7 @@ var activityTreeInsertExecEventTestCases = []struct {
 							Process: model.Process{
 								IsExecChild: false,
 								FileEvent: model.FileEvent{
-									PathnameStr: "ddtrace",
+									PathnameStr: "/ddtrace",
 								},
 							},
 							Children: []*ProcessNode{
@@ -3768,7 +3768,7 @@ var activityTreeInsertExecEventTestCases = []struct {
 									Process: model.Process{
 										IsExecChild: true,
 										FileEvent: model.FileEvent{
-											PathnameStr: "uwsgi",
+											PathnameStr: "/uwsgi",
 										},
 									},
 								},
@@ -3783,7 +3783,7 @@ var activityTreeInsertExecEventTestCases = []struct {
 				IsExecChild: false,
 				ContainerID: "123",
 				FileEvent: model.FileEvent{
-					PathnameStr: "dash",
+					PathnameStr: "/dash",
 					FileFields: model.FileFields{
 						PathKey: model.PathKey{
 							Inode: 1,
@@ -3795,7 +3795,7 @@ var activityTreeInsertExecEventTestCases = []struct {
 				IsExecChild: false,
 				ContainerID: "123",
 				FileEvent: model.FileEvent{
-					PathnameStr: "bash",
+					PathnameStr: "/bash",
 					FileFields: model.FileFields{
 						PathKey: model.PathKey{
 							Inode: 2,
@@ -3807,7 +3807,7 @@ var activityTreeInsertExecEventTestCases = []struct {
 				IsExecChild: false,
 				ContainerID: "123",
 				FileEvent: model.FileEvent{
-					PathnameStr: "ddtrace",
+					PathnameStr: "/ddtrace",
 					FileFields: model.FileFields{
 						PathKey: model.PathKey{
 							Inode: 3,
@@ -3819,7 +3819,7 @@ var activityTreeInsertExecEventTestCases = []struct {
 				IsExecChild: true,
 				ContainerID: "123",
 				FileEvent: model.FileEvent{
-					PathnameStr: "tools",
+					PathnameStr: "/tools",
 					FileFields: model.FileFields{
 						PathKey: model.PathKey{
 							Inode: 4,
@@ -3831,7 +3831,7 @@ var activityTreeInsertExecEventTestCases = []struct {
 				IsExecChild: true,
 				ContainerID: "123",
 				FileEvent: model.FileEvent{
-					PathnameStr: "utils",
+					PathnameStr: "/utils",
 					FileFields: model.FileFields{
 						PathKey: model.PathKey{
 							Inode: 5,
@@ -3843,7 +3843,7 @@ var activityTreeInsertExecEventTestCases = []struct {
 				IsExecChild: true,
 				ContainerID: "123",
 				FileEvent: model.FileEvent{
-					PathnameStr: "uwsgi",
+					PathnameStr: "/uwsgi",
 					FileFields: model.FileFields{
 						PathKey: model.PathKey{
 							Inode: 6,
@@ -3855,7 +3855,7 @@ var activityTreeInsertExecEventTestCases = []struct {
 		wantNode: &ProcessNode{
 			Process: model.Process{
 				FileEvent: model.FileEvent{
-					PathnameStr: "uwsgi",
+					PathnameStr: "/uwsgi",
 				},
 			},
 		},
@@ -3865,21 +3865,21 @@ var activityTreeInsertExecEventTestCases = []struct {
 				{
 					Process: model.Process{
 						FileEvent: model.FileEvent{
-							PathnameStr: "dash",
+							PathnameStr: "/dash",
 						},
 					},
 					Children: []*ProcessNode{
 						{
 							Process: model.Process{
 								FileEvent: model.FileEvent{
-									PathnameStr: "bash",
+									PathnameStr: "/bash",
 								},
 							},
 							Children: []*ProcessNode{
 								{
 									Process: model.Process{
 										FileEvent: model.FileEvent{
-											PathnameStr: "python",
+											PathnameStr: "/python",
 										},
 									},
 								},
@@ -3887,7 +3887,7 @@ var activityTreeInsertExecEventTestCases = []struct {
 									Process: model.Process{
 										IsExecChild: true,
 										FileEvent: model.FileEvent{
-											PathnameStr: "ddtrace",
+											PathnameStr: "/ddtrace",
 										},
 									},
 									Children: []*ProcessNode{
@@ -3895,7 +3895,7 @@ var activityTreeInsertExecEventTestCases = []struct {
 											Process: model.Process{
 												IsExecChild: true,
 												FileEvent: model.FileEvent{
-													PathnameStr: "tools",
+													PathnameStr: "/tools",
 												},
 											},
 											Children: []*ProcessNode{
@@ -3903,7 +3903,7 @@ var activityTreeInsertExecEventTestCases = []struct {
 													Process: model.Process{
 														IsExecChild: true,
 														FileEvent: model.FileEvent{
-															PathnameStr: "utils",
+															PathnameStr: "/utils",
 														},
 													},
 													Children: []*ProcessNode{
@@ -3911,7 +3911,7 @@ var activityTreeInsertExecEventTestCases = []struct {
 															Process: model.Process{
 																IsExecChild: true,
 																FileEvent: model.FileEvent{
-																	PathnameStr: "uwsgi",
+																	PathnameStr: "/uwsgi",
 																},
 															},
 														},
