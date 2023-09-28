@@ -46,11 +46,18 @@ func (c *Check) init() error {
 
 	var i vInstance
 	// host_name is null on Oracle Autonomous Database
-	err = getWrapper(c, &i, "SELECT /* DD */ nvl(host_name, instance_name) host_name, version_full FROM v$instance")
+	err = getWrapper(c, &i, "SELECT /* DD */ nvl(host_name, instance_name) host_name, version version_full FROM v$instance")
 	if err != nil {
 		return fmt.Errorf("%s failed to query v$instance: %w", c.logPrompt, err)
 	}
 	c.dbVersion = i.VersionFull
+	if isDbVersionGreaterOrEqualThan(c, "18"){
+		err = getWrapper(c, &c.dbVersion, "SELECT /* DD */ version_full FROM v$instance")
+		if err != nil {
+			return fmt.Errorf("%s failed to query full version: %w", c.logPrompt, err)
+		}	
+	}
+
 	if c.config.ReportedHostname != "" {
 		c.dbHostname = c.config.ReportedHostname
 	} else {

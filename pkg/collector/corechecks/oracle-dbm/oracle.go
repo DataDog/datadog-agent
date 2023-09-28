@@ -23,6 +23,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/obfuscate"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/version"
+	go_version "github.com/hashicorp/go-version"
 	_ "github.com/godror/godror"
 	"github.com/jmoiron/sqlx"
 	cache "github.com/patrickmn/go-cache"
@@ -324,4 +325,26 @@ func appendPDBTag(tags []string, pdb sql.NullString) []string {
 		return tags
 	}
 	return append(tags, "pdb:"+strings.ToLower(pdb.String))
+}
+
+func isDbVersionLessThan(c *Check, v string) bool {
+	dbVersion := c.dbVersion
+	vParsed, err := go_version.NewVersion(v)
+	if err != nil {
+		log.Errorf("%s Can't parse %s version string", c.logPrompt, v)
+		return false
+	}
+	parsedDbVersion, err := go_version.NewVersion(dbVersion)
+	if err != nil {
+		log.Errorf("%s Can't parse db version string %s", c.logPrompt, dbVersion)
+		return false
+	}
+	if parsedDbVersion.LessThan(vParsed) {
+		return true
+	}
+	return false
+}
+
+func isDbVersionGreaterOrEqualThan(c *Check, v string) bool {
+	return !isDbVersionLessThan(c, v)
 }
