@@ -25,12 +25,12 @@ func TestWindowsService(t *testing.T) {
 	defer manager.Disconnect()
 
 	evtlog, err := winutil.OpenService(manager, "EventLog", windows.GENERIC_READ)
-	if err != nil {
-		assert.Fail(t, "Error opening service EventLog: %v", err)
+	if !assert.NoError(t, err) {
+		assert.FailNow(t, "Error opening service EventLog: %v", err)
 	}
 	evtlogConf, err := getServiceInfo(evtlog)
-	if err != nil {
-		assert.Fail(t, "Error getting Service Info: %v", err)
+	if !assert.NoError(t, err) {
+		assert.FailNow(t, "Error getting Service Info: %v", err)
 	}
 
 	assert.Contains(t, evtlogConf.ServiceName, "EventLog", "Expected service name EventLog")

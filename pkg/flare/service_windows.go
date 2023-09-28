@@ -280,7 +280,6 @@ func serviceTriggerCount(s *mgr.Service) (uint32, error) {
 	if err != nil {
 		return 0, err
 	}
-	//p := (*ServiceTriggerInfo)(unsafe.Pointer(&b[0]))
 	p := (*serviceTriggerInfo)(unsafe.Pointer(unsafe.SliceData(b)))
 
 	return p.TriggersCount, nil

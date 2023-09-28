@@ -191,7 +191,7 @@ func getServiceStatus(fb flaretypes.FlareBuilder) error {
 			}
 			defer manager.Disconnect()
 
-			//Returns a string slice with all running services. Does not return Kernel services only SERVICE_WIN32
+			// Returns a string slice with all running services. Does not return Kernel services only SERVICE_WIN32
 			list, err := manager.ListServices()
 			if err != nil {
 				log.Warnf("Error getting list of running services %v", err)
@@ -215,7 +215,7 @@ func getServiceStatus(fb flaretypes.FlareBuilder) error {
 				}
 			}
 
-			//Getting ddnpm service info separately
+			// Getting ddnpm service info separately
 			ddnpm, err := winutil.OpenService(manager, "ddnpm", windows.GENERIC_READ)
 			if err != nil {
 				log.Warnf("Error Opening Service ddnpm %v", err)
