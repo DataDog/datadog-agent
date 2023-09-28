@@ -7,7 +7,6 @@ package stats
 
 import (
 	"hash/fnv"
-	"reflect"
 	"sort"
 	"strconv"
 	"strings"
@@ -70,15 +69,8 @@ func getStatusCode(s *pb.Span) uint32 {
 	return uint32(c)
 }
 
-// stringToBytes unsafely casts a string to a byte slice.
-func stringToBytes(str string) []byte {
-	hdr := (*reflect.StringHeader)(unsafe.Pointer(&str))
-	var slice []byte
-	sliceHdr := (*reflect.SliceHeader)(unsafe.Pointer(&slice))
-	sliceHdr.Data = hdr.Data
-	sliceHdr.Len = hdr.Len
-	sliceHdr.Cap = hdr.Len
-	return slice
+func stringToBytes(s string) []byte {
+	return unsafe.Slice(unsafe.StringData(s), len(s))
 }
 
 func spanKindIsClientOrProducer(spanKind string) bool {
