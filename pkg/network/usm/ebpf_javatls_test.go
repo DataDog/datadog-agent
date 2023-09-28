@@ -8,14 +8,15 @@
 package usm
 
 import (
-	"github.com/DataDog/datadog-agent/pkg/network/protocols/http"
-	"github.com/stretchr/testify/require"
 	"os"
 	"path/filepath"
 	"regexp"
 	"testing"
 
+	"github.com/stretchr/testify/require"
+
 	networkconfig "github.com/DataDog/datadog-agent/pkg/network/config"
+	"github.com/DataDog/datadog-agent/pkg/network/protocols/http"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http/testutil"
 	javatestutil "github.com/DataDog/datadog-agent/pkg/network/protocols/tls/java/testutil"
 	nettestutil "github.com/DataDog/datadog-agent/pkg/network/testutil"
