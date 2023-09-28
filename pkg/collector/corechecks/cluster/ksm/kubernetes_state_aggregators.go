@@ -9,7 +9,6 @@ package ksm
 
 import (
 	"fmt"
-	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	ksmstore "github.com/DataDog/datadog-agent/pkg/kubestatemetrics/store"
@@ -29,24 +28,6 @@ type metricAggregator interface {
 // This hard coded limit is fine because the metrics to aggregate and the label list to use are hardcoded
 // in the code and cannot be arbitrarily set by the end-user.
 const maxNumberOfAllowedLabels = 4
-
-var renamedResource = map[string]string{
-	"nvidia_com_gpu":     "gpu",
-	"amd_com_gpu":        "gpu",
-	"gpu_intel_com_i915": "gpu",
-}
-
-func renameResource(resource string) string {
-	if strings.HasPrefix(resource, "nvidia_com_mig") {
-		return "gpu"
-	}
-
-	if _, found := renamedResource[resource]; found {
-		return "gpu"
-	}
-
-	return resource
-}
 
 type counterAggregator struct {
 	ddMetricName  string

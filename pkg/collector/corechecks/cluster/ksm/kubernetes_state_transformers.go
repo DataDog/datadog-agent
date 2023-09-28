@@ -23,40 +23,66 @@ import (
 // For name translation only please use metricNamesMapper instead
 type metricTransformerFunc = func(sender.Sender, string, ksmstore.DDMetric, string, []string, time.Time)
 
-var allowedResources = map[string]string{
-	"cpu":               "cpu",
-	"memory":            "memory",
-	"pods":              "pods",
-	"ephemeral_storage": "ephemeral_storage",
+var renamedResource = map[string]string{
+	"nvidia_com_gpu":     "gpu",
+	"amd_com_gpu":        "gpu",
+	"gpu_intel_com_i915": "gpu",
 	// Note: the following does not work out of the box, because it is filtered out of KSM metrics by default.
 	//       and needs to be grabbed some other way. At time of commit, this is via customresources/node.go.
 	//       More info: https://github.com/kubernetes/kube-state-metrics/issues/2027
 	"kubernetes_io_network_bandwidth": "network_bandwidth",
-
-	// GPU units
-	"amd_com_gpu":    "gpu",
-	"nvidia_com_gpu": "gpu",
-	// Note: i915 is a driver name. It is unsure if other drivers are currently supported by intel
-	"gpu_intel_com_i915": "gpu",
 }
 
-// resourceDDName returns the datadog name of the given resource with possibly extra tags
-func resourceDDName(resource string) (string, []string, bool) {
-	// Handle most resources
-	if ddname, allowed := allowedResources[resource]; allowed {
-		return ddname, nil, true
+var nodeAllowedResources = map[string]struct{}{
+	"cpu":               struct{}{},
+	"memory":            struct{}{},
+	"pods":              struct{}{},
+	"ephemeral_storage": struct{}{},
+	"network_bandwidth": struct{}{},
+	"gpu":               struct{}{},
+}
+
+var containerAllowedResources = map[string]struct{}{
+	"cpu":               struct{}{},
+	"memory":            struct{}{},
+	"network_bandwidth": struct{}{},
+	"gpu":               struct{}{},
+}
+
+func renameResource(resource string) string {
+	if strings.HasPrefix(resource, "nvidia_com_mig") {
+		return "gpu"
 	}
 
-	// Handle Nvidia MIG formatted as nvidia_com_mig_(Xc_)Yg_Zgb
+	if _, found := renamedResource[resource]; found {
+		return "gpu"
+	}
+
+	return resource
+}
+
+func resourceExtraTag(resource string) []string {
 	if strings.HasPrefix(resource, "nvidia_com_mig") {
-		var extraTag []string
 		splitStr := strings.Split(resource, "mig_")
 		if len(splitStr) == 2 {
-			extraTag = []string{fmt.Sprintf("mig_profile:%s", strings.Replace(splitStr[1], "_", "-", 2))}
+			return []string{fmt.Sprintf("mig_profile:%s", strings.Replace(splitStr[1], "_", "-", 2))}
 		}
-		return "gpu", extraTag, true
 	}
-	return "", nil, false
+	return nil
+}
+
+// resourceDDName returns the datadog name of the given resource with possibly extra tags.
+func resourceDDName(resource string, allowedResources map[string]struct{}) (string, []string, bool) {
+	// Add an extra tag
+	extraTag := resourceExtraTag(resource)
+
+	// Rename the resource
+	ddname := renameResource(resource)
+
+	// Check if the renamed resource is allowed
+	_, allowed := allowedResources[ddname]
+
+	return ddname, extraTag, allowed
 }
 
 // defaultMetricTransformers returns a map that contains KSM metric names and their corresponding transformer functions
@@ -270,7 +296,7 @@ func submitContainerResourceMetric(s sender.Sender, name string, metric ksmstore
 		return
 	}
 
-	if ddname, extraTags, allowed := resourceDDName(resource); allowed {
+	if ddname, extraTags, allowed := resourceDDName(resource, containerAllowedResources); allowed {
 		tags = append(tags, extraTags...)
 		s.Gauge(ksmMetricPrefix+"container."+ddname+"_"+metricSuffix, metric.Val, hostname, tags)
 		return
@@ -298,15 +324,11 @@ func submitNodeResourceMetric(s sender.Sender, name string, metric ksmstore.DDMe
 		return
 	}
 
-	if ddname, allowed := allowedResources[resource]; allowed {
+	if ddname, extraTags, allowed := resourceDDName(resource, nodeAllowedResources); allowed {
+		tags = append(tags, extraTags...)
 		s.Gauge(ksmMetricPrefix+"node."+ddname+"_"+metricSuffix, metric.Val, hostname, tags)
 	} else {
-		if ddname, extraTags, allowed := resourceDDName(resource); allowed {
-			tags = append(tags, extraTags...)
-			s.Gauge(ksmMetricPrefix+"node."+ddname+"_"+metricSuffix, metric.Val, hostname, tags)
-		} else {
-			log.Tracef("Ignoring node resource metric '%s': resource '%s' is not supported", name, resource)
-		}
+		log.Tracef("Ignoring node resource metric '%s': resource '%s' is not supported", name, resource)
 	}
 }
 
