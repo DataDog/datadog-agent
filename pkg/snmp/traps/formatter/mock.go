@@ -20,11 +20,17 @@ type DummyFormatter struct{}
 // FormatPacket is a dummy formatter method that hashes an SnmpPacket object
 func (f DummyFormatter) FormatPacket(packet *packet.SnmpPacket) ([]byte, error) {
 	var b bytes.Buffer
-	gob.NewEncoder(&b).Encode(packet.Addr)
-	gob.NewEncoder(&b).Encode(packet.Content.Community)
-	gob.NewEncoder(&b).Encode(packet.Content.SnmpTrap)
-	gob.NewEncoder(&b).Encode(packet.Content.Variables)
-	gob.NewEncoder(&b).Encode(packet.Content.Version)
+	for _, err := range []error{
+		gob.NewEncoder(&b).Encode(packet.Addr),
+		gob.NewEncoder(&b).Encode(packet.Content.Community),
+		gob.NewEncoder(&b).Encode(packet.Content.SnmpTrap),
+		gob.NewEncoder(&b).Encode(packet.Content.Variables),
+		gob.NewEncoder(&b).Encode(packet.Content.Version),
+	} {
+		if err != nil {
+			return nil, err
+		}
+	}
 
 	h := sha256.New()
 	h.Write(b.Bytes())
