@@ -130,10 +130,10 @@ func TestContainerdCheckGenericPart(t *testing.T) {
 	mockSender.AssertMetric(t, "Rate", "containerd.blkio.serviced_recursive", 20, "", barWriteTags)
 
 	check.collectImagePullMetrics(mockSender)
-	mockSender.AssertMetric(t, "Counter", "containerd.image.pull.ok", 72, "", []string{"grpc_service:runtime.v1alpha2.ImageService"})
-	mockSender.AssertMetric(t, "Counter", "containerd.image.pull.invalid_argument", 0, "", []string{"grpc_service:runtime.v1alpha2.ImageService"})
-	mockSender.AssertMetric(t, "Counter", "containerd.image.pull.not_found", 0, "", []string{"grpc_service:runtime.v1.ImageService"})
-	mockSender.AssertMetric(t, "Counter", "containerd.image.pull.not_found", 16559, "", []string{"grpc_service:runtime.v1alpha2.ImageService"})
+	mockSender.AssertMetric(t, "MonotonicCount", "containerd.image.pull", 72, "", []string{"grpc_service:runtime.v1alpha2.ImageService", "grpc_code:ok"})
+	mockSender.AssertMetric(t, "MonotonicCount", "containerd.image.pull", 0, "", []string{"grpc_service:runtime.v1alpha2.ImageService", "grpc_code:invalid_argument"})
+	mockSender.AssertMetric(t, "MonotonicCount", "containerd.image.pull", 0, "", []string{"grpc_service:runtime.v1.ImageService", "grpc_code:not_found"})
+	mockSender.AssertMetric(t, "MonotonicCount", "containerd.image.pull", 16559, "", []string{"grpc_service:runtime.v1alpha2.ImageService", "grpc_code:not_found"})
 
 	mockSender.AssertMetric(t, "Gauge", "containerd.proc.open_fds", 200, "", expectedTags)
 }
