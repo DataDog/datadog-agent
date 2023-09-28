@@ -10,22 +10,18 @@ import (
 	"go.uber.org/fx"
 )
 
-func newMock(conf *NetflowConfig) Component {
-	return &configService{conf}
+func newMock(conf *NetflowConfig) (Component, error) {
+	if err := conf.SetDefaults("default"); err != nil {
+		return nil, err
+	}
+	return &configService{conf}, nil
 }
 
 // MockModule defines the fx options for the mock component.
 // Injecting MockModule will provide default config;
 // override this with fx.Replace(&config.NetflowConfig{...}).
-// Note that defaults will always be populated.
+// Defaults will always be populated.
 var MockModule = fxutil.Component(
 	fx.Provide(newMock),
 	fx.Supply(&NetflowConfig{}),
-	// This decorate means that if you `fx.Replace(&NetflowConfig{...})` the
-	// config you provide will automatically have SetDefaults() called.
-	fx.Decorate(
-		func(conf *NetflowConfig) (*NetflowConfig, error) {
-			return conf, conf.SetDefaults("default")
-		},
-	),
 )
