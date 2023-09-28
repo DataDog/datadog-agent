@@ -271,7 +271,7 @@ func (t *Tailer) readEvents(ctx context.Context) {
 		}
 		if events == nil {
 			// no more events
-			log.Debug("No more events")
+			log.Trace("No more events")
 			break
 		}
 		for _, eventRecord := range events {
