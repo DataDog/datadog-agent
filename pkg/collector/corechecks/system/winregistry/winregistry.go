@@ -61,16 +61,14 @@ type registryKey struct {
 type WindowsRegistryCheck struct {
 	core.CheckBase
 	metrics.Gauge
-	senderManager sender.SenderManager
-	sender        sender.Sender
-	registryKeys  []registryKey
+	sender       sender.Sender
+	registryKeys []registryKey
 }
 
 // Configure reads the config and setups the check
-func (c *WindowsRegistryCheck) Configure(senderManager sender.SenderManager, integrationConfigDigest uint64, data integration.Data, initConfig integration.Data, source string) error {
-	c.senderManager = senderManager
+func (c *WindowsRegistryCheck) Configure(integrationConfigDigest uint64, data integration.Data, initConfig integration.Data, source string) error {
 	c.BuildID(integrationConfigDigest, data, initConfig)
-	err := c.CommonConfigure(senderManager, integrationConfigDigest, initConfig, data, source)
+	err := c.CommonConfigure(integrationConfigDigest, initConfig, data, source)
 	if err != nil {
 		return err
 	}
