@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/clients"
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client/executeparams"
 	"github.com/DataDog/test-infra-definitions/common/utils"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/ssh"
@@ -34,8 +35,19 @@ func newVMClient(t *testing.T, sshKey []byte, connection *utils.Connection) (*vm
 }
 
 // ExecuteWithError executes a command and returns an error if any.
-func (vmClient *vmClient) ExecuteWithError(command string) (string, error) {
-	output, err := clients.ExecuteCommand(vmClient.client, command)
+func (vmClient *vmClient) ExecuteWithError(command string, options ...executeparams.Option) (string, error) {
+	params, err := executeparams.NewParams(options...)
+	if err != nil {
+		return "", err
+	}
+
+	cmd := ""
+	for envName, envValue := range params.EnvVariables {
+		cmd += fmt.Sprintf("%s='%s' ", envName, envValue)
+	}
+	cmd += command
+
+	output, err := clients.ExecuteCommand(vmClient.client, cmd)
 	if err != nil {
 		return "", fmt.Errorf("%v: %v", output, err)
 	}
@@ -43,8 +55,8 @@ func (vmClient *vmClient) ExecuteWithError(command string) (string, error) {
 }
 
 // Execute executes a command and returns its output.
-func (vmClient *vmClient) Execute(command string) string {
-	output, err := vmClient.ExecuteWithError(command)
+func (vmClient *vmClient) Execute(command string, options ...executeparams.Option) string {
+	output, err := vmClient.ExecuteWithError(command, options...)
 	require.NoError(vmClient.t, err)
 	return output
 }
