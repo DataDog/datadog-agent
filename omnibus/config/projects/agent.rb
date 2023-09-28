@@ -285,22 +285,18 @@ if windows?
     end
   }
 
-  # Check the exported symbols from the binary
-  inspect_binary("#{install_dir}\\bin\\agent\\agent.exe", &raise_if_forbidden_symbol_found)
-  inspect_binary("#{install_dir}\\bin\\agent\\trace-agent.exe", &raise_if_forbidden_symbol_found)
-  inspect_binary("#{install_dir}\\bin\\agent\\process-agent.exe", &raise_if_forbidden_symbol_found)
-  inspect_binary("#{install_dir}\\bin\\agent\\system-probe.exe", &raise_if_forbidden_symbol_found)
+  [
+    "#{install_dir}\\bin\\agent\\agent.exe",
+    "#{install_dir}\\bin\\agent\\trace-agent.exe",
+    "#{install_dir}\\bin\\agent\\process-agent.exe",
+    "#{install_dir}\\bin\\agent\\system-probe.exe"
+  ].each do |bin|
+    # Check the exported symbols from the binary
+    inspect_binary(bin, &raise_if_forbidden_symbol_found)
 
-  #
-  # For Windows build, files need to be stripped must be specified here.
-  #
-  windows_symbol_stripping_file "#{Omnibus::Config.source_dir()}\\cf-root\\bin\\agent\\process-agent.exe"
-  windows_symbol_stripping_file "#{Omnibus::Config.source_dir()}\\cf-root\\bin\\agent\\trace-agent.exe"
-  windows_symbol_stripping_file "#{Omnibus::Config.source_dir()}\\cf-root\\bin\\agent.exe"
-  windows_symbol_stripping_file "#{Omnibus::Config.source_dir()}\\datadog-agent\\src\\github.com\\DataDog\\datadog-agent\\bin\\agent\\process-agent.exe"
-  windows_symbol_stripping_file "#{Omnibus::Config.source_dir()}\\datadog-agent\\src\\github.com\\DataDog\\datadog-agent\\bin\\agent\\trace-agent.exe"
-  windows_symbol_stripping_file "#{Omnibus::Config.source_dir()}\\datadog-agent\\src\\github.com\\DataDog\\datadog-agent\\bin\\agent\\agent.exe"
-  windows_symbol_stripping_file "#{Omnibus::Config.source_dir()}\\datadog-agent\\src\\github.com\\DataDog\\datadog-agent\\bin\\agent\\system-probe.exe"
+    # strip the binary of debug symbols
+    windows_symbol_stripping_file bin
+  end
 end
 
 if linux? or windows?
