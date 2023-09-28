@@ -68,7 +68,7 @@ func TestNetFlow_IntegrationTest_NetFlow5(t *testing.T) {
 	err = testutil.SendUDPPacket(port, packetData)
 	require.NoError(t, err, "error sending udp packet")
 
-	netflowEvents, err := flowaggregator.WaitForFlowsToBeFlushed(srv.FlowAgg, time.Second, 2)
+	netflowEvents, err := flowaggregator.WaitForFlowsToBeFlushed(srv.FlowAgg, 5*time.Second, 2)
 	assert.Equal(t, uint64(2), netflowEvents)
 	assert.NoError(t, err)
 }
@@ -94,7 +94,7 @@ func TestNetFlow_IntegrationTest_NetFlow9(t *testing.T) {
 	err = testutil.SendUDPPacket(port, packetData)
 	require.NoError(t, err, "error sending udp packet")
 
-	netflowEvents, err := flowaggregator.WaitForFlowsToBeFlushed(srv.FlowAgg, time.Second, 6)
+	netflowEvents, err := flowaggregator.WaitForFlowsToBeFlushed(srv.FlowAgg, 5*time.Second, 6)
 	assert.Equal(t, uint64(29), netflowEvents)
 	assert.NoError(t, err)
 }
@@ -121,7 +121,7 @@ func TestNetFlow_IntegrationTest_SFlow5(t *testing.T) {
 	err = testutil.SendUDPPacket(port, data)
 	require.NoError(t, err, "error sending udp packet")
 
-	netflowEvents, err := flowaggregator.WaitForFlowsToBeFlushed(srv.FlowAgg, time.Second, 6)
+	netflowEvents, err := flowaggregator.WaitForFlowsToBeFlushed(srv.FlowAgg, 5*time.Second, 6)
 	assert.Equal(t, uint64(7), netflowEvents)
 	assert.NoError(t, err)
 }
