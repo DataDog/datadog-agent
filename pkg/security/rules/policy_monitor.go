@@ -272,6 +272,6 @@ func NewHeartBeatEvents(policies map[string]Policy) (*rules.Rule, []*events.Cust
 		evts = append(evts, events.NewCustomEvent(model.CustomHeartbeatEventType, evt))
 	}
 
-	return events.NewCustomRule(events.HeartbeatRuleID, events.HeartbeatRuleIDRuleDesc),
+	return events.NewCustomRule(events.HeartbeatRuleID, events.HeartbeatRuleDesc),
 		evts
 }
