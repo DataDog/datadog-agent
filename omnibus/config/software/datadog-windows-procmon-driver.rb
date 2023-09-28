@@ -20,7 +20,7 @@ if ohai["platform"] == "windows"
            :target_filename => "DDPROCMON.msm"
 
     build do
-        copy "DDPROCMON.msm", "#{Omnibus::Config.source_dir()}/datadog-agent/src/github.com/DataDog/datadog-agent/bin/agent/DDPROCMON.msm"
+        copy "DDPROCMON.msm", "#{install_dir}/bin/agent/DDPROCMON.msm"
     end
 
 end
