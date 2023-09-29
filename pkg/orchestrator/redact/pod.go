@@ -18,10 +18,9 @@ const (
 	replacedValue = "-"
 )
 
-// ScrubPodTemplateSpec scrubs a pod template.
+// ScrubPodTemplateSpec calls ScrubContainer for every container within a pod
+// template spec.
 func ScrubPodTemplateSpec(template *v1.PodTemplateSpec, scrubber *DataScrubber) {
-	ScrubAnnotations(template.Annotations, scrubber)
-
 	for c := 0; c < len(template.Spec.InitContainers); c++ {
 		ScrubContainer(&template.Spec.InitContainers[c], scrubber)
 	}
@@ -30,22 +29,13 @@ func ScrubPodTemplateSpec(template *v1.PodTemplateSpec, scrubber *DataScrubber) 
 	}
 }
 
-// ScrubPod scrubs a pod.
-func ScrubPod(p *v1.Pod, scrubber *DataScrubber) {
-	ScrubAnnotations(p.Annotations, scrubber)
-
-	for c := 0; c < len(p.Spec.InitContainers); c++ {
-		ScrubContainer(&p.Spec.InitContainers[c], scrubber)
+// ScrubPodSpec calls ScrubContainer for every container within a pod spec.
+func ScrubPodSpec(spec *v1.PodSpec, scrubber *DataScrubber) {
+	for c := 0; c < len(spec.InitContainers); c++ {
+		ScrubContainer(&spec.InitContainers[c], scrubber)
 	}
-	for c := 0; c < len(p.Spec.Containers); c++ {
-		ScrubContainer(&p.Spec.InitContainers[c], scrubber)
-	}
-}
-
-// ScrubAnnotations scrubs sensitive information from pod annotations.
-func ScrubAnnotations(annotations map[string]string, scrubber *DataScrubber) {
-	for k, v := range annotations {
-		annotations[k] = scrubber.ScrubAnnotationValue(v)
+	for c := 0; c < len(spec.Containers); c++ {
+		ScrubContainer(&spec.Containers[c], scrubber)
 	}
 }
 
