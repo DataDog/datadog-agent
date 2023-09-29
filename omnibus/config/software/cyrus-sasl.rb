@@ -23,16 +23,14 @@ build do
     "LD_RUN_PATH" => "#{install_dir}/embedded/lib",
   }
 
-  configure_command = ["./configure",
-                        "--prefix=#{install_dir}/embedded",
-                        "--with-dblib=lmdb"]
+  configure_opts = ["--with-dblib=lmdb"]
 
   if osx?
     # https://github.com/Homebrew/homebrew-core/blob/e2071268473bcddaf72f8e3f7aa4153a18d1ccfa/Formula/cyrus-sasl.rb
-    configure_command = configure_command.append("--disable-macos-framework")
+    configure_opts = configure_opts.append("--disable-macos-framework")
   end
 
-  command configure_command.join(" "), env: env
+  configure(*configure_opts, env: env)
   command "make", :env => env
   command "make install", :env => env
 
