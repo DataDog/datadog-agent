@@ -12,11 +12,7 @@ build do
   license = "MIT"
   license_file = "https://git.kernel.org/pub/scm/fs/ext2/e2fsprogs.git/tree/lib/et/com_err.c"
 
-  env = {
-    "LDFLAGS" => "-L#{install_dir}/embedded/lib -I#{install_dir}/embedded/include",
-    "CFLAGS" => "-L#{install_dir}/embedded/lib -I#{install_dir}/embedded/include",
-    "LD_RUN_PATH" => "#{install_dir}/embedded/lib",
-  }
+  env = with_standard_compiler_flags(with_embedded_path)
 
   # For libcom_err, we need to build e2fsprogs (since libcom_err is a subpackage of it),
   # and manually move the contents of libcom_err into the Agent
