@@ -307,8 +307,8 @@ func (e EntityMeta) String(verbose bool) string {
 	_, _ = fmt.Fprintln(&sb, "Namespace:", e.Namespace)
 
 	if verbose {
-		_, _ = fmt.Fprintln(&sb, "Annotations:", mapToString(e.Annotations))
-		_, _ = fmt.Fprintln(&sb, "Labels:", mapToString(e.Labels))
+		_, _ = fmt.Fprintln(&sb, "Annotations:", mapToScrubbedJSONString(e.Annotations))
+		_, _ = fmt.Fprintln(&sb, "Labels:", mapToScrubbedJSONString(e.Labels))
 	}
 
 	return sb.String()
