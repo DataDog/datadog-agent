@@ -8,6 +8,7 @@ package agent
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"os/signal"
 	"runtime"
@@ -23,6 +24,10 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/trace/watchdog"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
+
+const messageAgentDisabled = `trace-agent not enabled. Set the environment variable
+DD_APM_ENABLED=true or add "apm_config.enabled: true" entry
+to your datadog.yaml. Exiting...`
 
 type dependencies struct {
 	fx.In
@@ -94,6 +99,13 @@ func (ag *agent) start(_ context.Context) error {
 		log.Infof("PID '%d' written to PID file '%s'", os.Getpid(), ag.params.PIDFilePath)
 	}
 
+	tracecfg := ag.config.Object()
+	if !tracecfg.Enabled {
+		log.Info(messageAgentDisabled)
+		ag.telemetryCollector.SendStartupError(telemetry.TraceAgentNotEnabled, fmt.Errorf(""))
+		return fmt.Errorf(messageAgentDisabled)
+	}
+
 	if err := runAgentSidekicks(ag.ctx, ag.config, ag.telemetryCollector); err != nil {
 		return err
 	}
@@ -104,6 +116,7 @@ func (ag *agent) start(_ context.Context) error {
 
 func (ag *agent) stop(_ context.Context) error {
 	ag.cancel()
+	stopAgentSidekicks(ag.config)
 	if ag.params.CPUProfile != "" {
 		pprof.StopCPUProfile()
 	}

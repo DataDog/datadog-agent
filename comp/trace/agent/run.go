@@ -41,10 +41,6 @@ import (
 	_ "github.com/DataDog/datadog-agent/pkg/workloadmeta/collectors"
 )
 
-const messageAgentDisabled = `trace-agent not enabled. Set the environment variable
-DD_APM_ENABLED=true or add "apm_config.enabled: true" entry
-to your datadog.yaml. Exiting...`
-
 // Stack depth of 3 since the `corelogger` struct adds a layer above the logger
 const stackDepth = 3
 
@@ -69,14 +65,6 @@ func runAgentSidekicks(ctx context.Context, cfg config.Component, telemetryColle
 		return fmt.Errorf("Cannot create logger: %v", err)
 	}
 	tracelog.SetLogger(corelogger{})
-	defer log.Flush()
-
-	if !tracecfg.Enabled {
-		log.Info(messageAgentDisabled)
-		telemetryCollector.SendStartupError(telemetry.TraceAgentNotEnabled, fmt.Errorf(""))
-		return nil
-	}
-
 	defer watchdog.LogOnPanic()
 
 	if err := util.SetupCoreDump(coreconfig.Datadog); err != nil {
