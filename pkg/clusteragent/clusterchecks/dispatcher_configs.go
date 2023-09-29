@@ -106,16 +106,19 @@ func (d *dispatcher) removeConfig(digest string) {
 		}
 	}
 
-	// Remove from node configs if assigned
-	if found {
-		node.Lock()
-		nodeName := node.name
-		node.removeConfig(digest)
-		node.Unlock()
+	if !found { // Dangling config. Not assigned to any node.
+		danglingConfigs.Dec(le.JoinLeaderValue)
+		return
+	}
 
-		for _, checkID := range checkIDsToRemove {
-			configsInfo.Delete(nodeName, checkName, string(checkID), le.JoinLeaderValue)
-		}
+	// Remove from node configs if assigned
+	node.Lock()
+	nodeName := node.name
+	node.removeConfig(digest)
+	node.Unlock()
+
+	for _, checkID := range checkIDsToRemove {
+		configsInfo.Delete(nodeName, checkName, string(checkID), le.JoinLeaderValue)
 	}
 }
 
