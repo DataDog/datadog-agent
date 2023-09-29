@@ -309,6 +309,7 @@ func (p *processor) processImageSBOM(img *workloadmeta.ContainerImageMetadata) {
 				Error: img.SBOM.Error,
 			}
 		default:
+			sbom.Status = model.SBOMStatus_SUCCESS
 			sbom.GeneratedAt = timestamppb.New(img.SBOM.GenerationTime)
 			sbom.GenerationDuration = convertDuration(img.SBOM.GenerationDuration)
 			sbom.Sbom = &model.SBOMEntity_Cyclonedx{
