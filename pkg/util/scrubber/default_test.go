@@ -87,17 +87,17 @@ func TestConfigScrubbedJson(t *testing.T) {
 	cleaned, err := ScrubJSON([]byte(inputConfData))
 	require.Nil(t, err)
 	// First test that the a scrubbed json is still valid
-	var actualOutJSON interface{}
+	var actualOutJSON map[string]interface{}
 	err = json.Unmarshal(cleaned, &actualOutJSON)
 	assert.NoError(t, err, "Could not load JSON configuration after being scrubbed")
 
 	outputConf := filepath.Join(wd, "test", "config_scrubbed.json")
 	outputConfData, err := os.ReadFile(outputConf)
 	require.NoError(t, err)
-	var expectedOutJSON interface{}
+	var expectedOutJSON map[string]interface{}
 	err = json.Unmarshal(outputConfData, &expectedOutJSON)
 	require.NoError(t, err)
-	reflect.DeepEqual(expectedOutJSON, actualOutJSON)
+	assert.Equal(t, reflect.DeepEqual(expectedOutJSON, actualOutJSON), true)
 }
 
 func TestEmptyYaml(t *testing.T) {
