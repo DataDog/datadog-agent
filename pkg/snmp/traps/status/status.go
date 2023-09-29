@@ -86,8 +86,5 @@ func GetStatus() map[string]interface{} {
 	}
 	status["metrics"] = metrics
 
-	// if startError != nil {
-	// 	status["error"] = startError.Error()
-	// }
 	return status
 }
