@@ -303,6 +303,7 @@ func (k *Version) HaveLegacyPipeInodeInfoStruct() bool {
 	return k.Code != 0 && k.Code < Kernel5_5
 }
 
+// HaveFentrySupport returns whether the kernel supports fentry probes
 func (k *Version) HaveFentrySupport() bool {
 	if features.HaveProgramType(ebpf.Tracing) != nil {
 		return false
