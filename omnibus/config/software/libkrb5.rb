@@ -26,11 +26,7 @@ build do
          "--without-libedit", # we don't want to link with libraries outside of the install dir
          "--disable-static"
   ]
-  env = {
-    "LDFLAGS" => "-L#{install_dir}/embedded/lib -I#{install_dir}/embedded/include",
-    "CFLAGS" => "-L#{install_dir}/embedded/lib -I#{install_dir}/embedded/include",
-    "LD_RUN_PATH" => "#{install_dir}/embedded/lib",
-  }
+  env = with_standard_compiler_flags(with_embedded_path)
   configure(*configure_options, :env => env)
   command "make -j #{workers}", :env => { "LD_RUN_PATH" => "#{install_dir}/embedded/lib" }
   command "make install", :env => { "LD_RUN_PATH" => "#{install_dir}/embedded/lib" }
