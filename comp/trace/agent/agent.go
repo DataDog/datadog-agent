@@ -82,7 +82,6 @@ func (ag *agent) start(_ context.Context) error {
 		}
 		pprof.StartCPUProfile(f) //nolint:errcheck
 		log.Info("CPU profiling started...")
-		defer pprof.StopCPUProfile()
 	}
 	if ag.params.PIDFilePath != "" {
 		err := pidfile.WritePID(ag.params.PIDFilePath)
@@ -93,7 +92,6 @@ func (ag *agent) start(_ context.Context) error {
 		}
 
 		log.Infof("PID '%d' written to PID file '%s'", os.Getpid(), ag.params.PIDFilePath)
-		defer os.Remove(ag.params.PIDFilePath)
 	}
 
 	if err := runAgentSidekicks(ag.ctx, ag.config, ag.telemetryCollector); err != nil {
@@ -106,6 +104,12 @@ func (ag *agent) start(_ context.Context) error {
 
 func (ag *agent) stop(_ context.Context) error {
 	ag.cancel()
+	if ag.params.CPUProfile != "" {
+		pprof.StopCPUProfile()
+	}
+	if ag.params.PIDFilePath != "" {
+		os.Remove(ag.params.PIDFilePath)
+	}
 	if ag.params.MemProfile == "" {
 		return nil
 	}
