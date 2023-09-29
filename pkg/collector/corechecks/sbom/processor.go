@@ -189,7 +189,7 @@ func (p *processor) processHostRefresh() {
 
 	go func() {
 		result := <-ch
-		log.Debugf("Sending sbom to event platform: %v", result)
+		log.Debugf("processing host scanresult: %v", result)
 
 		sbom := &model.SBOMEntity{
 			Status:             model.SBOMStatus_SUCCESS,
