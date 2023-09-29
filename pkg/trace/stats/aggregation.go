@@ -68,7 +68,7 @@ func getStatusCode(s *pb.Span) uint32 {
 	return uint32(c)
 }
 
-func spanKindIsClientOrProducer(spanKind string) bool {
+func clientOrProducer(spanKind string) bool {
 	sk := strings.ToLower(spanKind)
 	return sk == "client" || sk == "producer"
 }
