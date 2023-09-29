@@ -39,18 +39,20 @@ var /* const */ (
 )
 
 type processor struct {
-	queue             chan *model.SBOMEntity
-	workloadmetaStore workloadmeta.Store
-	imageRepoDigests  map[string]string              // Map where keys are image repo digest and values are image ID
-	imageUsers        map[string]map[string]struct{} // Map where keys are image repo digest and values are set of container IDs
-	sbomScanner       *sbomscanner.Scanner
-	hostSBOM          bool
-	hostScanOpts      sbom.ScanOptions
-	hostname          string
-	hostCache         string
+	queue                 chan *model.SBOMEntity
+	workloadmetaStore     workloadmeta.Store
+	imageRepoDigests      map[string]string              // Map where keys are image repo digest and values are image ID
+	imageUsers            map[string]map[string]struct{} // Map where keys are image repo digest and values are set of container IDs
+	sbomScanner           *sbomscanner.Scanner
+	hostSBOM              bool
+	hostScanOpts          sbom.ScanOptions
+	hostname              string
+	hostCache             string
+	hostLastFullSBOM      time.Time
+	hostHeartbeatValidity time.Duration
 }
 
-func newProcessor(workloadmetaStore workloadmeta.Store, sender sender.Sender, maxNbItem int, maxRetentionTime time.Duration, hostSBOM bool) (*processor, error) {
+func newProcessor(workloadmetaStore workloadmeta.Store, sender sender.Sender, maxNbItem int, maxRetentionTime time.Duration, hostSBOM bool, hostHeartbeatValidity time.Duration) (*processor, error) {
 	hostScanOpts := sbom.ScanOptionsFromConfig(ddConfig.Datadog, false)
 	hostScanOpts.NoCache = true
 	sbomScanner := sbomscanner.GetGlobalScanner()
@@ -74,13 +76,14 @@ func newProcessor(workloadmetaStore workloadmeta.Store, sender sender.Sender, ma
 
 			sender.EventPlatformEvent(encoded, epforwarder.EventTypeContainerSBOM)
 		}),
-		workloadmetaStore: workloadmetaStore,
-		imageRepoDigests:  make(map[string]string),
-		imageUsers:        make(map[string]map[string]struct{}),
-		sbomScanner:       sbomScanner,
-		hostSBOM:          hostSBOM,
-		hostScanOpts:      hostScanOpts,
-		hostname:          hostname,
+		workloadmetaStore:     workloadmetaStore,
+		imageRepoDigests:      make(map[string]string),
+		imageUsers:            make(map[string]map[string]struct{}),
+		sbomScanner:           sbomScanner,
+		hostSBOM:              hostSBOM,
+		hostScanOpts:          hostScanOpts,
+		hostname:              hostname,
+		hostHeartbeatValidity: hostHeartbeatValidity,
 	}, nil
 }
 
@@ -210,7 +213,7 @@ func (p *processor) processHostRefresh() {
 		} else {
 			log.Infof("Successfully generated SBOM for host: %v, %v", result.CreatedAt, result.Duration)
 
-			if p.hostCache != "" && p.hostCache == result.Report.ID() {
+			if p.hostCache != "" && p.hostCache == result.Report.ID() && result.CreatedAt.Sub(p.hostLastFullSBOM) < p.hostHeartbeatValidity {
 				sbom.Heartbeat = true
 			} else {
 				report, err := result.Report.ToCycloneDX()
@@ -227,6 +230,7 @@ func (p *processor) processHostRefresh() {
 				}
 
 				p.hostCache = result.Report.ID()
+				p.hostLastFullSBOM = result.CreatedAt
 			}
 		}
 
