@@ -6,7 +6,7 @@
 // Package executeparams implements function parameters for [client.vmClient]
 package executeparams
 
-// Params defines the parameters for the Agent client.
+// Params defines the parameters for the VM client.
 // The Params configuration uses the [Functional options pattern].
 //
 // The available options are:
