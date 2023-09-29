@@ -19,8 +19,6 @@ import (
 	"sync"
 	"time"
 
-	cebpf "github.com/cilium/ebpf"
-	"github.com/cilium/ebpf/features"
 	"github.com/hashicorp/go-multierror"
 	"github.com/mailru/easyjson"
 	"github.com/moby/sys/mountinfo"
@@ -140,7 +138,7 @@ func (p *Probe) UseRingBuffers() bool {
 }
 
 func (p *Probe) UseFentry() {
-	fmt.Printf("fentry supported: %v\n", features.HaveProgramType(cebpf.Tracing))
+	fmt.Printf("fentry supported: %v\n", p.kernelVersion.HaveFentrySupport())
 }
 
 func (p *Probe) sanityChecks() error {
