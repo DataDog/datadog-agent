@@ -26,16 +26,17 @@ import (
 
 const defaultProfilesFolder = "default_profiles"
 const userProfilesFolder = "profiles"
+const profilesJsonGzipFile = "profiles.json.gz"
 
 var defaultProfilesMu = &sync.Mutex{}
 
 var globalProfileConfigMap profileConfigMap
 
-// loadDefaultProfiles will load the profiles from disk only once and store it
+// loadYamlProfiles will load the profiles from disk only once and store it
 // in globalProfileConfigMap. The subsequent call to it will return profiles stored in
-// globalProfileConfigMap. The mutex will help loading once when `loadDefaultProfiles`
+// globalProfileConfigMap. The mutex will help loading once when `loadYamlProfiles`
 // is called by multiple check instances.
-func loadDefaultProfiles() (profileConfigMap, error) {
+func loadYamlProfiles() (profileConfigMap, error) {
 	defaultProfilesMu.Lock()
 	defer defaultProfilesMu.Unlock()
 
