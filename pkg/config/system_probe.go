@@ -206,7 +206,7 @@ func InitSystemProbeConfig(cfg Config) {
 	cfg.BindEnv(join(smNS, "tls", "native", "enabled"))
 
 	// For backward compatibility
-	cfg.BindEnvAndSetDefault(join(smNS, "enable_go_tls_support"), false)
+	cfg.BindEnv(join(smNS, "enable_go_tls_support"))
 	cfg.BindEnv(join(smNS, "tls", "go", "enabled"))
 
 	cfg.BindEnvAndSetDefault(join(smNS, "enable_http2_monitoring"), false)
