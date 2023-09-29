@@ -95,18 +95,19 @@ func initManager(mgr *errtelemetry.Manager, closedHandler *ebpf.PerfHandler, run
 		{Name: probes.ClassificationProgsMap},
 		{Name: probes.TCPCloseProgsMap},
 	}
-	mgr.PerfMaps = []*manager.PerfMap{
-		{
-			Map: manager.Map{Name: probes.ConnCloseEventMap},
-			PerfMapOptions: manager.PerfMapOptions{
-				PerfRingBufferSize: 8 * os.Getpagesize(),
-				Watermark:          1,
-				RecordHandler:      closedHandler.RecordHandler,
-				LostHandler:        closedHandler.LostHandler,
-				RecordGetter:       closedHandler.RecordGetter,
-			},
+	pm := &manager.PerfMap{
+		Map: manager.Map{Name: probes.ConnCloseEventMap},
+		PerfMapOptions: manager.PerfMapOptions{
+			PerfRingBufferSize: 8 * os.Getpagesize(),
+			Watermark:          1,
+			RecordHandler:      closedHandler.RecordHandler,
+			LostHandler:        closedHandler.LostHandler,
+			RecordGetter:       closedHandler.RecordGetter,
+			TelemetryEnabled:   true,
 		},
 	}
+	mgr.PerfMaps = []*manager.PerfMap{pm}
+	ebpf.ReportPerfMapTelemetry(pm)
 	for _, funcName := range mainProbes {
 		p := &manager.Probe{
 			ProbeIdentificationPair: manager.ProbeIdentificationPair{

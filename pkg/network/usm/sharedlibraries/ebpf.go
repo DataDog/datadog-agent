@@ -44,22 +44,23 @@ type ebpfProgram struct {
 
 func newEBPFProgram(c *config.Config, bpfTelemetry *errtelemetry.EBPFTelemetry) *ebpfProgram {
 	perfHandler := ddebpf.NewPerfHandler(100)
-	mgr := &manager.Manager{
-		PerfMaps: []*manager.PerfMap{
-			{
-				Map: manager.Map{
-					Name: sharedLibrariesPerfMap,
-				},
-				PerfMapOptions: manager.PerfMapOptions{
-					PerfRingBufferSize: 8 * os.Getpagesize(),
-					Watermark:          1,
-					RecordHandler:      perfHandler.RecordHandler,
-					LostHandler:        perfHandler.LostHandler,
-					RecordGetter:       perfHandler.RecordGetter,
-				},
-			},
+	pm := &manager.PerfMap{
+		Map: manager.Map{
+			Name: sharedLibrariesPerfMap,
+		},
+		PerfMapOptions: manager.PerfMapOptions{
+			PerfRingBufferSize: 8 * os.Getpagesize(),
+			Watermark:          1,
+			RecordHandler:      perfHandler.RecordHandler,
+			LostHandler:        perfHandler.LostHandler,
+			RecordGetter:       perfHandler.RecordGetter,
+			TelemetryEnabled:   true,
 		},
 	}
+	mgr := &manager.Manager{
+		PerfMaps: []*manager.PerfMap{pm},
+	}
+	ddebpf.ReportPerfMapTelemetry(pm)
 
 	probeIDs := getSysOpenHooksIdentifiers()
 	for _, identifier := range probeIDs {

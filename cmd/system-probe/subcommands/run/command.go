@@ -92,9 +92,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 }
 
 // run starts the main loop.
-//
-//nolint:revive // TODO(EBPF) Fix revive linter
-func run(log log.Component, config config.Component, telemetry telemetry.Component, sysprobeconfig sysprobeconfig.Component, rcclient rcclient.Component, cliParams *cliParams) error {
+func run(log log.Component, _ config.Component, telemetry telemetry.Component, sysprobeconfig sysprobeconfig.Component, rcclient rcclient.Component, cliParams *cliParams) error {
 	defer func() {
 		stopSystemProbe(cliParams)
 	}()
@@ -287,6 +285,9 @@ func startSystemProbe(cliParams *cliParams, log log.Component, telemetry telemet
 		if cfg.TelemetryEnabled {
 			http.Handle("/telemetry", telemetry.Handler())
 			telemetry.RegisterCollector(ebpf.NewDebugFsStatCollector())
+			if pc := ebpf.NewPerfUsageCollector(); pc != nil {
+				telemetry.RegisterCollector(pc)
+			}
 		}
 		go func() {
 			common.ExpvarServer = &http.Server{
