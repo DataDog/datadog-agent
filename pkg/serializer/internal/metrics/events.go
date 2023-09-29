@@ -13,10 +13,9 @@ import (
 	"expvar"
 	"fmt"
 
+	agentpayload "github.com/DataDog/agent-payload/v5/gogen"
 	"github.com/gogo/protobuf/proto"
 	jsoniter "github.com/json-iterator/go"
-
-	agentpayload "github.com/DataDog/agent-payload/v5/gogen"
 
 	"github.com/DataDog/datadog-agent/pkg/metrics/event"
 	"github.com/DataDog/datadog-agent/pkg/serializer/marshaler"
@@ -82,10 +81,9 @@ func (events Events) getEventsBySourceType() map[string][]*event.Event {
 // MarshalJSON serializes events to JSON so it can be sent to the Agent 5 intake
 // (we don't use the v1 event endpoint because it only supports 1 event per payload)
 // FIXME(olivier): to be removed when v2 endpoints are available
-func (events Events) MarshalJSON() ([]byte, error) {
+func (events Events) MarshalJSON(hname string) ([]byte, error) {
 	// Regroup events by their source type name
 	eventsBySourceType := events.getEventsBySourceType()
-	hname, _ := hostname.Get(context.TODO())
 	// Build intake payload containing events and serialize
 	data := map[string]interface{}{
 		apiKeyJSONField:           "", // legacy field, it isn't actually used by the backend

@@ -16,7 +16,7 @@ import (
 	jsoniter "github.com/json-iterator/go"
 
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/transaction"
-	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/conf"
 	"github.com/DataDog/datadog-agent/pkg/serializer/marshaler"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -67,10 +67,11 @@ type JSONPayloadBuilder struct {
 	shareAndLockBuffers           bool
 	input, output                 *bytes.Buffer
 	mu                            sync.Mutex
+	cfg                           conf.ConfigReader
 }
 
 // NewJSONPayloadBuilder returns a new JSONPayloadBuilder
-func NewJSONPayloadBuilder(shareAndLockBuffers bool) *JSONPayloadBuilder {
+func NewJSONPayloadBuilder(shareAndLockBuffers bool, cfg conf.ConfigReader) *JSONPayloadBuilder {
 	if shareAndLockBuffers {
 		return &JSONPayloadBuilder{
 			inputSizeHint:       4096,
@@ -78,12 +79,14 @@ func NewJSONPayloadBuilder(shareAndLockBuffers bool) *JSONPayloadBuilder {
 			shareAndLockBuffers: true,
 			input:               bytes.NewBuffer(make([]byte, 0, 4096)),
 			output:              bytes.NewBuffer(make([]byte, 0, 4096)),
+			cfg:                 cfg,
 		}
 	}
 	return &JSONPayloadBuilder{
 		inputSizeHint:       4096,
 		outputSizeHint:      4096,
 		shareAndLockBuffers: false,
+		cfg:                 cfg,
 	}
 }
 
@@ -101,13 +104,14 @@ const (
 // BuildWithOnErrItemTooBigPolicy serializes a metadata payload and sends it to the forwarder
 func (b *JSONPayloadBuilder) BuildWithOnErrItemTooBigPolicy(
 	m marshaler.IterableStreamJSONMarshaler,
-	policy OnErrItemTooBigPolicy) (transaction.BytesPayloads, error) {
+	policy OnErrItemTooBigPolicy,
+) (transaction.BytesPayloads, error) {
 	var input, output *bytes.Buffer
 
 	// the backend accepts payloads up to specific compressed / uncompressed
 	// sizes, but prefers small uncompressed payloads.
-	maxPayloadSize := config.Datadog.GetInt("serializer_max_payload_size")
-	maxUncompressedSize := config.Datadog.GetInt("serializer_max_uncompressed_payload_size")
+	maxPayloadSize := b.cfg.GetInt("serializer_max_payload_size")
+	maxUncompressedSize := b.cfg.GetInt("serializer_max_uncompressed_payload_size")
 
 	if b.shareAndLockBuffers {
 		defer b.mu.Unlock()
