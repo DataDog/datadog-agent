@@ -4016,7 +4016,6 @@ api_key:
     ## Valid values are basic, normal, detailed.
     #
     # verbosity: normal
-{{end -}}
 {{- if (eq .OS "windows")}}
 #####################################################
 ## Datadog Agent Manager System Tray Configuration ##
@@ -4032,3 +4031,72 @@ api_key:
   #
   # log_file: <TRAY_LOG_FILE_PATH>
 {{end -}}
+{{end -}}
+
+
+{{- if .APMInjection -}}
+##############################################
+## Datadog APM Auto-injection Configuration ##
+##############################################
+
+## @param injection_controller_config - custom object
+## This section configures the Datadog APM Auto Injection controller.
+## Uncomment this parameter and the one below to enable them.
+#
+# injection_controller_config:
+
+  ## @param enabled - boolean - optional - default: false
+  ## Set to true to enable the APM Auto-injection.
+  ## Please note that enabling this service will result in a kernel driver being loaded.
+  #
+  # enabled: false
+
+  ## @param log_file - string - optional - default: c:\programdata\datadog\logs\apm-inject.log
+  ## The full path to the file where injection controller logs are written.
+  #
+  # log_file: c:\programdata\datadog\logs\apm-inject.log
+
+  ## @param log_level - string - optional - default: info
+  ## Minimum log level of the injection controller.
+  ## Valid log levels are: debug, info, warn, and error.
+  #
+  # log_level: 'info'
+
+  ## @param log_to_console - boolean - optional - default: true
+  ## Set to 'false' to disable injection controller logging to stdout.
+  #
+  # log_to_console: true
+
+  ## @param socket_port - integer - optional - default: 3030
+  ## The port used for the injection controller communications API (served on localhost).
+  #
+  # socket_port: 3030
+
+  # internal_profiling:
+  #
+    ## @param enabled - boolean - optional - default: false
+    ## Enable internal profiling for the injection controller process.
+    #
+    # enabled: false
+
+## @param service_configs - list of custom objects
+## This section configures the services which will be automatically injected with APM
+## configurations, as well as the APM configurations which will be injected.
+#
+# service_configs:
+
+  ## @param service configuration - custom object
+  ## In order to configure APM auto-injection for a service or set of services, an injection condition
+  ## and APM configuration must be provided.
+  ##
+  ## Example:
+  ## - conditions:
+  ##     service_name: exampleService
+  ##   configuration:
+  ##     version: 1
+  ##     service_language: dotnet
+  ##
+  ## To learn about all the available service matching conditions & configuration options, visit
+  ## https://docs.datadoghq.com/tracing/trace_collection/library_injection_local
+
+{{end}}
