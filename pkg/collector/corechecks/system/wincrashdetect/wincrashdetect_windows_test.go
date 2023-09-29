@@ -179,6 +179,7 @@ func TestWinCrashReporting(t *testing.T) {
 		check = crashDetectFactory()
 		crashCheck = check.(*WinCrashDetect)
 		err = crashCheck.Configure(mock.GetSenderManager(), 0, nil, nil, "")
+		assert.Nil(t, err)
 		err = crashCheck.Run()
 		assert.Nil(t, err)
 		mock.AssertNumberOfCalls(t, "Gauge", 0)
