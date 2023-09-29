@@ -193,7 +193,7 @@ func runAgentSidekicks(ctx context.Context, cfg config.Component, telemetryColle
 	return nil
 }
 
-func stopAgentSidekicks(cfg config.Component) error {
+func stopAgentSidekicks(cfg config.Component) {
 	defer watchdog.LogOnPanic()
 
 	log.Flush()
@@ -208,7 +208,6 @@ func stopAgentSidekicks(cfg config.Component) error {
 	if pcfg := profilingConfig(tracecfg); pcfg != nil {
 		profiling.Stop()
 	}
-	return nil
 }
 
 type corelogger struct{}
