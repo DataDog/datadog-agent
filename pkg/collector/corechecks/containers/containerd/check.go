@@ -127,7 +127,7 @@ func (c *ContainerdCheck) Run() error {
 		_ = c.Warnf("Error collecting metrics: %s", err)
 	}
 
-	if err := c.collectImagePullMetrics(sender); err != nil {
+	if err := c.scrapeOpenmetricsEndpoint(sender); err != nil {
 		_ = c.Warnf("Error collecting image pull metrics: %s", err)
 	}
 
@@ -148,7 +148,7 @@ func (c *ContainerdCheck) runContainerdCustom(sender sender.Sender) error {
 
 	for _, namespace := range namespaces {
 		if err := c.collectImageSizes(sender, c.client, namespace); err != nil {
-			log.Infof("Failed to collect images size, err: %s", err)
+			log.Infof("Failed to scrape containerd openmetrics endpoint, err: %s", err)
 		}
 	}
 
@@ -160,7 +160,7 @@ func toSnakeCase(s string) string {
 	return strings.ToLower(snake)
 }
 
-func (c *ContainerdCheck) collectImagePullMetrics(sender sender.Sender) error {
+func (c *ContainerdCheck) scrapeOpenmetricsEndpoint(sender sender.Sender) error {
 	openmetricsEndpoint := fmt.Sprintf("%s/v1/metrics", c.instance.OpenmetricsEndpoint)
 	resp, err := c.httpClient.Get(openmetricsEndpoint)
 	if err != nil {
@@ -186,22 +186,17 @@ func (c *ContainerdCheck) collectImagePullMetrics(sender sender.Sender) error {
 
 		metric := sample.Metric
 
-		grpcMethod, ok := metric["grpc_method"]
-		if !ok || grpcMethod != pullImageGrpcMethod {
-			continue
-		}
+		metricName, ok := metric["__name__"]
 
-		grpcCode, ok := metric["grpc_code"]
 		if !ok {
 			continue
 		}
 
-		metricTags := []string{
-			fmt.Sprintf("grpc_service:%s", metric["grpc_service"]),
-			fmt.Sprintf("grpc_code:%s", toSnakeCase(string(grpcCode))),
-		}
+		transform, found := defaultContainerdOpenmetricsTransformers[string(metricName)]
 
-		sender.MonotonicCount("containerd.image.pull", float64(sample.Value), "", metricTags)
+		if found {
+			transform(sender, string(metricName), *sample)
+		}
 	}
 
 	return nil

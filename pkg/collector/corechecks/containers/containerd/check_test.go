@@ -129,7 +129,7 @@ func TestContainerdCheckGenericPart(t *testing.T) {
 	mockSender.AssertMetric(t, "Rate", "containerd.blkio.service_recursive_bytes", 200, "", barWriteTags)
 	mockSender.AssertMetric(t, "Rate", "containerd.blkio.serviced_recursive", 20, "", barWriteTags)
 
-	check.collectImagePullMetrics(mockSender)
+	check.scrapeOpenmetricsEndpoint(mockSender)
 	mockSender.AssertMetric(t, "MonotonicCount", "containerd.image.pull", 72, "", []string{"grpc_service:runtime.v1alpha2.ImageService", "grpc_code:ok"})
 	mockSender.AssertMetric(t, "MonotonicCount", "containerd.image.pull", 0, "", []string{"grpc_service:runtime.v1alpha2.ImageService", "grpc_code:invalid_argument"})
 	mockSender.AssertMetric(t, "MonotonicCount", "containerd.image.pull", 0, "", []string{"grpc_service:runtime.v1.ImageService", "grpc_code:not_found"})
