@@ -230,7 +230,9 @@ func (b *bucket) aggregateCounts(p *pb.ClientStatsPayload, enablePeerSvcAgg bool
 			if !ok {
 				agg = &aggregatedCounts{}
 				payloadAgg[aggKey] = agg
-				agg.peerTags = sb.PeerTags
+				if enablePeerSvcAgg {
+					agg.peerTags = sb.PeerTags
+				}
 			}
 			agg.hits += sb.Hits
 			agg.errors += sb.Errors
