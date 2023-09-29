@@ -312,7 +312,7 @@ func (k *Version) HaveFentrySupport() bool {
 	spec := &ebpf.ProgramSpec{
 		Type:       ebpf.Tracing,
 		AttachType: ebpf.AttachTraceFEntry,
-		AttachTo:   "bpf_init",
+		AttachTo:   "vfs_open",
 		Instructions: asm.Instructions{
 			asm.LoadImm(asm.R0, 0, asm.DWord),
 			asm.Return(),
