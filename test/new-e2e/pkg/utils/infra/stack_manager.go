@@ -52,7 +52,7 @@ func GetStackManager() *StackManager {
 	initStackManager.Do(func() {
 		var err error
 
-		stackManager, err = newStackManager(context.Background())
+		stackManager, err = newStackManager()
 		if err != nil {
 			panic(fmt.Sprintf("Got an error during StackManager singleton init, err: %v", err))
 		}
@@ -61,7 +61,7 @@ func GetStackManager() *StackManager {
 	return stackManager
 }
 
-func newStackManager(ctx context.Context) (*StackManager, error) {
+func newStackManager() (*StackManager, error) {
 	return &StackManager{
 		stacks: make(map[string]*auto.Stack),
 	}, nil

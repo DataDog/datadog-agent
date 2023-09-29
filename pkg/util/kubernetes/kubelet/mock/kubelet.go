@@ -40,7 +40,7 @@ func NewKubeletMock() *KubeletMock {
 }
 
 // QueryKubelet overrides base implementation using HTTPReplyMock
-func (km *KubeletMock) QueryKubelet(ctx context.Context, path string) ([]byte, int, error) {
+func (km *KubeletMock) QueryKubelet(_ context.Context, path string) ([]byte, int, error) {
 	reply := km.MockReplies[path]
 	if reply != nil {
 		return reply.Data, reply.ResponseCode, reply.Error

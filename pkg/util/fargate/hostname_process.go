@@ -52,7 +52,7 @@ func getECSHost(ctx context.Context) (string, error) {
 	return fmt.Sprintf("fargate_task:%s", taskMeta.TaskARN), nil
 }
 
-func getEKSHost(ctx context.Context) (string, error) {
+func getEKSHost(context.Context) (string, error) {
 	// Use the node name as hostname
 	return GetEKSFargateNodename()
 }

@@ -226,7 +226,7 @@ func (s *Store) Unset(entity workloadmeta.Entity) {
 }
 
 // Start is not implemented in the testing store.
-func (s *Store) Start(ctx context.Context) {
+func (s *Store) Start(context.Context) {
 	panic("not implemented")
 }
 
@@ -236,12 +236,12 @@ func (s *Store) Subscribe(name string, _ workloadmeta.SubscriberPriority, filter
 }
 
 // Unsubscribe is not implemented in the testing store.
-func (s *Store) Unsubscribe(ch chan workloadmeta.EventBundle) {
+func (s *Store) Unsubscribe(chan workloadmeta.EventBundle) {
 	panic("not implemented")
 }
 
 // Notify is not implemented in the testing store.
-func (s *Store) Notify(events []workloadmeta.CollectorEvent) {
+func (s *Store) Notify([]workloadmeta.CollectorEvent) {
 	panic("not implemented")
 }
 

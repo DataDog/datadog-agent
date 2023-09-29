@@ -38,7 +38,7 @@ var (
 )
 
 // NewProcessProbe returns a Probe object
-func NewProcessProbe(options ...Option) Probe {
+func NewProcessProbe(...Option) Probe {
 	p := &probe{}
 	p.init()
 	return p
