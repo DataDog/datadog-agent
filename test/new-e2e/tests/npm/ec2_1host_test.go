@@ -18,6 +18,7 @@ import (
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/params"
 	"github.com/DataDog/test-infra-definitions/components/datadog/agentparams"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 const NPMsystemProbeConfig = `
@@ -76,11 +77,7 @@ func (v *ec2VMSuite) TestFakeIntakeNPM() {
 		cnx, err := v.Env().Fakeintake.GetConnections()
 		assert.NoError(t, err)
 
-		assert.Greater(c, len(cnx.GetPayloadsByName(targetHostnameNetID)), 2, "not enough payloads")
-		if len(cnx.GetPayloadsByName(targetHostnameNetID)) < 3 {
-			return
-		}
-
+		require.Greater(c, len(cnx.GetPayloadsByName(targetHostnameNetID)), 2, "not enough payloads")
 		var payloadsTimestamps []time.Time
 		for _, cc := range cnx.GetPayloadsByName(targetHostnameNetID) {
 			payloadsTimestamps = append(payloadsTimestamps, cc.GetCollectedTime())
