@@ -10,7 +10,6 @@ import (
 	"sort"
 	"strconv"
 	"strings"
-	"unsafe"
 
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	"github.com/DataDog/datadog-agent/pkg/trace/log"
@@ -69,16 +68,9 @@ func getStatusCode(s *pb.Span) uint32 {
 	return uint32(c)
 }
 
-func stringToBytes(s string) []byte {
-	return unsafe.Slice(unsafe.StringData(s), len(s))
-}
-
 func spanKindIsClientOrProducer(spanKind string) bool {
 	sk := strings.ToLower(spanKind)
-	if sk == "client" || sk == "producer" {
-		return true
-	}
-	return false
+	return sk == "client" || sk == "producer"
 }
 
 // NewAggregationFromSpan creates a new aggregation from the provided span and env
@@ -111,7 +103,7 @@ func getMatchingPeerTags(s *pb.Span, peerTagKeys []string) []string {
 	if len(peerTagKeys) == 0 {
 		return nil
 	}
-	pt := make([]string, 0)
+	var pt []string
 	for _, t := range peerTagKeys {
 		v, ok := s.Meta[t]
 		if ok {
@@ -128,9 +120,15 @@ func peerTagsHash(tags []string) uint64 {
 	if len(tags) == 0 {
 		return 0
 	}
+	if !sort.StringsAreSorted(tags) {
+		sort.Strings(tags)
+	}
 	h := fnv.New64a()
-	for _, t := range tags {
-		h.Write(stringToBytes(t))
+	for i, t := range tags {
+		h.Write([]byte(t))
+		if i != len(tags)-1 {
+			h.Write([]byte{0})
+		}
 	}
 	return h.Sum64()
 }
@@ -150,9 +148,6 @@ func NewAggregationFromGroup(g *pb.ClientGroupedStats) Aggregation {
 	}
 
 	if g.PeerTags != nil {
-		if !sort.StringsAreSorted(g.PeerTags) {
-			sort.Strings(g.PeerTags)
-		}
 		agg.PeerTagsHash = peerTagsHash(g.PeerTags)
 	}
 	return agg

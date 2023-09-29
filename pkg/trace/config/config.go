@@ -503,8 +503,6 @@ func New() *AgentConfig {
 
 		BucketInterval: time.Duration(10) * time.Second,
 
-		PeerTags: nil,
-
 		ExtraSampleRate: 1.0,
 		TargetTPS:       10,
 		ErrorTPS:        10,
