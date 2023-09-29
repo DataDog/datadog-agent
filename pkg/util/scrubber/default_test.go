@@ -9,6 +9,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
 
@@ -96,9 +97,7 @@ func TestConfigScrubbedJson(t *testing.T) {
 	var expectedOutJSON interface{}
 	err = json.Unmarshal(outputConfData, &expectedOutJSON)
 	require.NoError(t, err)
-	outputConfData, err = json.Marshal(expectedOutJSON)
-	require.NoError(t, err)
-	assert.Equal(t, cleaned, outputConfData)
+	reflect.DeepEqual(expectedOutJSON, actualOutJSON)
 }
 
 func TestEmptyYaml(t *testing.T) {
