@@ -5,7 +5,7 @@
 
 //go:build trivy
 
-// package trivy holds the the scan components
+// Package trivy holds the scan components
 package trivy
 
 import (
