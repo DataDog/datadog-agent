@@ -5,6 +5,7 @@
 
 //go:build !windows
 
+// package wincrashdetect implements the windows crash detection on windows.  It does nothing on linux
 package wincrashdetect
 
 // Avoid the following error on non-supported platforms:
