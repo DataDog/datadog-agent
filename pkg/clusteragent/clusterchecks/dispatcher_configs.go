@@ -119,9 +119,9 @@ func (d *dispatcher) removeConfig(digest string) {
 	}
 }
 
-// shouldDispatchDanling returns true if there are dangling configs
+// shouldDispatchDangling returns true if there are dangling configs
 // and node registered, available for dispatching.
-func (d *dispatcher) shouldDispatchDanling() bool {
+func (d *dispatcher) shouldDispatchDangling() bool {
 	d.store.RLock()
 	defer d.store.RUnlock()
 
