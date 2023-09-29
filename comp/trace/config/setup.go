@@ -444,6 +444,29 @@ func applyDatadogConfig(c *config.AgentConfig, core corecompcfg.Component) error
 		}
 	}
 
+	if coreconfig.Datadog.IsSet("apm_config.filter_tags_regex.require") {
+		tags := coreconfig.Datadog.GetStringSlice("apm_config.filter_tags_regex.require")
+		for _, tag := range tags {
+			splitTag := splitTagRegex(tag)
+			if containsKey(c.RequireTags, splitTag.K) {
+				// RequireTags already has this tag, so skip the regexp.
+				continue
+			}
+			c.RequireTagsRegex = append(c.RequireTagsRegex, splitTag)
+		}
+	}
+	if coreconfig.Datadog.IsSet("apm_config.filter_tags_regex.reject") {
+		tags := coreconfig.Datadog.GetStringSlice("apm_config.filter_tags_regex.reject")
+		for _, tag := range tags {
+			splitTag := splitTagRegex(tag)
+			if containsKey(c.RejectTags, splitTag.K) {
+				// RejectTags already has this tag, so skip the regexp.
+				continue
+			}
+			c.RejectTagsRegex = append(c.RejectTagsRegex, splitTag)
+		}
+	}
+
 	// undocumented writers
 	for key, cfg := range map[string]*config.WriterConfig{
 		"apm_config.trace_writer": c.TraceWriter,
@@ -675,6 +698,16 @@ func toFloat64(val interface{}) (float64, error) {
 	}
 }
 
+// containsKey return true if slice of tag contains tag with the specified key.
+func containsKey(t []*config.Tag, k string) bool {
+	for _, tag := range t {
+		if tag.K == k {
+			return true
+		}
+	}
+	return false
+}
+
 // splitTag splits a "k:v" formatted string and returns a Tag.
 func splitTag(tag string) *config.Tag {
 	parts := strings.SplitN(tag, ":", 2)
@@ -685,6 +718,24 @@ func splitTag(tag string) *config.Tag {
 		if v := strings.TrimSpace(parts[1]); v != "" {
 			kv.V = v
 		}
+	}
+	return kv
+}
+
+// splitTag splits a "k:v" formatted string and returns a TagRegex.
+func splitTagRegex(tag string) *config.TagRegex {
+	parts := strings.SplitN(tag, ":", 2)
+	kv := &config.TagRegex{
+		K: strings.TrimSpace(parts[0]),
+	}
+	if len(parts) > 1 {
+		v := strings.TrimSpace(parts[1])
+		re, err := regexp.Compile(v)
+		if err != nil {
+			log.Errorf("Invalid regex pattern in tag filter: %q:%q", kv.K, v)
+			return nil
+		}
+		kv.V = re
 	}
 	return kv
 }
