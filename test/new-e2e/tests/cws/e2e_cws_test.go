@@ -57,8 +57,7 @@ func TestAgentSuite(t *testing.T) {
 			agentparams.WithSecurityAgentConfig(securityAgentConfig),
 			agentparams.WithSystemProbeConfig(systemProbeConfig),
 		),
-		params.WithSkipDeleteOnFailure(),
-	))
+	), params.WithSkipDeleteOnFailure())
 }
 
 func (a *agentSuite) SetupSuite() {
