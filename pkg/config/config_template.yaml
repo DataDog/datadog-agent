@@ -1518,7 +1518,7 @@ api_key:
 
   ## @param instrumentation_enabled - boolean - default: false
   ## @env DD_APM_INSTRUMENTATION_ENABLED - boolean - default: false
-  ## Enables Single Step Instrumentation in the cluster
+  ## Enables Single Step Instrumentation in the cluster (in beta)
   #
   # instrumentation_enabled: false
 
