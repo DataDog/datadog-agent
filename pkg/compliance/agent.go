@@ -10,10 +10,12 @@ package compliance
 
 import (
 	"context"
+	"encoding/binary"
 	"expvar"
 	"fmt"
 	"hash/fnv"
 	"math/rand"
+	"strconv"
 	"sync"
 	"time"
 
@@ -33,6 +35,22 @@ const containersCountMetricName = "datadog.security_agent.compliance.containers_
 
 var status = expvar.NewMap("compliance")
 
+const (
+	// defaultEvalThrottling is the time that space out rule evaluation to avoid CPU
+	// spikes.
+	defaultEvalThrottling = 2 * time.Second
+
+	// defaultCheckInterval defines the default value used as interval for
+	// executing benchmarks.
+	defaultCheckInterval = 20 * time.Minute
+
+	// defaultCheckInterval defines the default value used as interval for
+	// executing benchmarks with a low priority: usually because of the
+	// compute overhead of executing such benchmarks, or the nature of
+	// configurations which tend to be constant.
+	defaultCheckIntervalLowPriority = 3 * time.Hour
+)
+
 // AgentOptions holds the different options to configure the compliance agent.
 type AgentOptions struct {
 	// ResolverOptions is the options passed to the constructed resolvers
@@ -51,19 +69,14 @@ type AgentOptions struct {
 	// applied on all loaded benchmarks.
 	RuleFilter RuleFilter
 
-	// CheckInterval is the period at which benchmarks are being run. It should
-	// also be roughly (see RunJitterMax) the interval at which rule checks
-	// are being run. By default: 20 minutes.
+	// CheckInterval is the period at which benchmarks are being run. It
+	// should also be roughly the interval at which rule checks are being run.
+	// By default: 20 minutes.
 	CheckInterval time.Duration
 
-	// RunJitterMax is the maximum duration of the jitter that randomizes the
-	// benchmarks evaluations. If less than 0, the jitter is null. By default
-	// is is one tenth of the specified CheckInterval.
-	RunJitterMax time.Duration
-
-	// EvalThrottling is the time that space out rule evaluation to avoid CPU
-	// spikes.
-	EvalThrottling time.Duration
+	// CheckIntervalLowPriority is like CheckInterval but for low-priority
+	// benchmarks.
+	CheckIntervalLowPriority time.Duration
 }
 
 // Agent is the compliance agent that is responsible for running compliance
@@ -128,16 +141,11 @@ func NewAgent(senderManager sender.SenderManager, opts AgentOptions) *Agent {
 	if opts.Reporter.Endpoints() == nil {
 		panic("compliance: missing agent endpoints")
 	}
-	if opts.CheckInterval == 0 {
-		opts.CheckInterval = 20 * time.Minute
+	if opts.CheckInterval <= 0 {
+		opts.CheckInterval = defaultCheckInterval
 	}
-	if opts.RunJitterMax == 0 {
-		opts.RunJitterMax = opts.CheckInterval / 10
-	} else if opts.RunJitterMax < 0 {
-		opts.RunJitterMax = 0
-	}
-	if opts.EvalThrottling == 0 {
-		opts.EvalThrottling = 2 * time.Second
+	if opts.CheckIntervalLowPriority <= 0 {
+		opts.CheckIntervalLowPriority = defaultCheckIntervalLowPriority
 	}
 	if ruleFilter := opts.RuleFilter; ruleFilter != nil {
 		opts.RuleFilter = func(r *Rule) bool { return DefaultRuleFilter(r) && ruleFilter(r) }
@@ -238,16 +246,16 @@ func (a *Agent) runRegoBenchmarks(ctx context.Context) {
 	}
 	a.addBenchmarks(benchmarks...)
 
-	runTicker := time.NewTicker(a.opts.CheckInterval)
-	throttler := time.NewTicker(a.opts.EvalThrottling)
+	checkInterval := a.opts.CheckInterval
+	runTicker := time.NewTicker(checkInterval)
+	throttler := time.NewTicker(defaultEvalThrottling)
 	defer runTicker.Stop()
 	defer throttler.Stop()
 
-	log.Debugf("will be executing %d rego benchmarks every %s", len(benchmarks), a.opts.CheckInterval)
-	for {
-		for i, benchmark := range benchmarks {
-			seed := fmt.Sprintf("%s%s%d", a.opts.Hostname, benchmark.FrameworkID, i)
-			if sleepAborted(ctx, time.After(randomJitter(seed, a.opts.RunJitterMax))) {
+	log.Debugf("will be executing %d rego benchmarks every %s", len(benchmarks), checkInterval)
+	for runCount := uint64(0); ; runCount++ {
+		for _, benchmark := range benchmarks {
+			if sleepRandomJitter(ctx, checkInterval, runCount, a.opts.Hostname, benchmark.FrameworkID) {
 				return
 			}
 
@@ -291,16 +299,16 @@ func (a *Agent) runXCCDFBenchmarks(ctx context.Context) {
 	}
 	a.addBenchmarks(benchmarks...)
 
-	runTicker := time.NewTicker(a.opts.CheckInterval)
-	throttler := time.NewTicker(a.opts.EvalThrottling)
+	checkInterval := a.opts.CheckIntervalLowPriority
+	runTicker := time.NewTicker(checkInterval)
+	throttler := time.NewTicker(defaultEvalThrottling)
 	defer runTicker.Stop()
 	defer throttler.Stop()
 
-	log.Debugf("will be executing %d XCCDF benchmarks every %s", len(benchmarks), a.opts.CheckInterval)
-	for {
-		for i, benchmark := range benchmarks {
-			seed := fmt.Sprintf("%s%s%d", a.opts.Hostname, benchmark.FrameworkID, i)
-			if sleepAborted(ctx, time.After(randomJitter(seed, a.opts.RunJitterMax))) {
+	log.Debugf("will be executing %d XCCDF benchmarks every %s", len(benchmarks), checkInterval)
+	for runCount := uint64(0); ; runCount++ {
+		for _, benchmark := range benchmarks {
+			if sleepRandomJitter(ctx, checkInterval, runCount, a.opts.Hostname, benchmark.FrameworkID) {
 				FinishXCCDFBenchmark(ctx, benchmark)
 				return
 			}
@@ -325,13 +333,12 @@ func (a *Agent) runKubernetesConfigurationsExport(ctx context.Context) {
 		return
 	}
 
-	runTicker := time.NewTicker(a.opts.CheckInterval)
+	checkInterval := a.opts.CheckIntervalLowPriority
+	runTicker := time.NewTicker(checkInterval)
 	defer runTicker.Stop()
 
-	for i := 0; ; i++ {
-		seed := fmt.Sprintf("%s%s%d", a.opts.Hostname, "kubernetes-configuration", i)
-		jitter := randomJitter(seed, a.opts.RunJitterMax)
-		if sleepAborted(ctx, time.After(jitter)) {
+	for runCount := uint64(0); ; runCount++ {
+		if sleepRandomJitter(ctx, checkInterval, runCount, a.opts.Hostname, "kubernetes-configuration") {
 			return
 		}
 		k8sResourceType, k8sResourceData := k8sconfig.LoadConfiguration(ctx, a.opts.HostRoot)
@@ -353,13 +360,12 @@ func (a *Agent) runAptConfigurationExport(ctx context.Context) {
 		return
 	}
 
-	runTicker := time.NewTicker(a.opts.CheckInterval)
+	checkInterval := a.opts.CheckIntervalLowPriority
+	runTicker := time.NewTicker(checkInterval)
 	defer runTicker.Stop()
 
-	for i := 0; ; i++ {
-		seed := fmt.Sprintf("%s%s%d", a.opts.Hostname, "apt-configuration", i)
-		jitter := randomJitter(seed, a.opts.RunJitterMax)
-		if sleepAborted(ctx, time.After(jitter)) {
+	for runCount := uint64(0); ; runCount++ {
+		if sleepRandomJitter(ctx, checkInterval, runCount, a.opts.Hostname, "apt-configuration") {
 			return
 		}
 		aptResourceType, aptResourceData := aptconfig.LoadConfiguration(ctx, a.opts.HostRoot)
@@ -475,13 +481,42 @@ func sleepAborted(ctx context.Context, ch <-chan time.Time) bool {
 	}
 }
 
-func randomJitter(seed string, maxDuration time.Duration) time.Duration {
-	if maxDuration == 0 {
-		return 0
+// sleepRandomJitter returns a jitter duration adapted to space out randomly
+// our benchmark runs given the current run count and the run interval. The
+// random timing is generated with a seeded RNG using the list of optional
+// seeding strings and the runCount value.
+func sleepRandomJitter(ctx context.Context, runInterval time.Duration, runCount uint64, seeds ...string) bool {
+	// guardrail in case runInterval is set to a negative or null value.
+	if runInterval <= 0 {
+		select {
+		case <-ctx.Done():
+			return true
+		default:
+			return false
+		}
 	}
+
+	// If we are jittering the first run, we hardcode a reasonably small
+	// amount of time to make sure we init the checks quickly for short-lived
+	// hosts. Otherwise we use the tenth of the run interval.
+	const defaultJitterMax = 20 * time.Minute
+
+	jitterMax := runInterval / 10
+	if runCount == 0 && jitterMax > defaultJitterMax {
+		jitterMax = defaultJitterMax
+	}
+
+	var runCountBuf [4]byte
+	binary.LittleEndian.PutUint64(runCountBuf[:], runCount)
+
 	h := fnv.New64a()
-	h.Write([]byte(seed))
+	h.Write(runCountBuf[:])
+	for _, seed := range seeds {
+		h.Write([]byte(seed))
+	}
+
 	r := rand.New(rand.NewSource(int64(h.Sum64())))
-	d := r.Int63n(maxDuration.Milliseconds())
-	return time.Duration(d) * time.Millisecond
+	d := r.Int63n(jitterMax.Milliseconds())
+	sleep := time.Duration(d) * time.Millisecond
+	return sleepAborted(ctx, time.After(sleep))
 }
