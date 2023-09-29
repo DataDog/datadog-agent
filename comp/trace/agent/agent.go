@@ -117,6 +117,7 @@ func (ag *agent) start(_ context.Context) error {
 
 func (ag *agent) stop(_ context.Context) error {
 	ag.cancel()
+	ag.Agent.Stop()
 	stopAgentSidekicks(ag.config)
 	if ag.params.CPUProfile != "" {
 		pprof.StopCPUProfile()
@@ -152,7 +153,7 @@ func handleSignal(shutdowner fx.Shutdowner) {
 		switch signo {
 		case syscall.SIGINT, syscall.SIGTERM:
 			log.Infof("Received signal %d (%v)", signo, signo)
-			shutdowner.Shutdown()
+			_ = shutdowner.Shutdown()
 			return
 		case syscall.SIGPIPE:
 			// By default systemd redirects the stdout to journald. When journald is stopped or crashes we receive a SIGPIPE signal.

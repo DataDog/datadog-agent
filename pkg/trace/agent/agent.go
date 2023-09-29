@@ -186,7 +186,10 @@ func (a *Agent) work() {
 func (a *Agent) loop() {
 	<-a.ctx.Done()
 	log.Info("Exiting...")
+}
 
+// Stop is a temporary method to allow the agent component to stop everything properly.
+func (a *Agent) Stop() {
 	// Stop OTLPReceiver before Receiver to avoid sending to closed channel
 	a.OTLPReceiver.Stop()
 
