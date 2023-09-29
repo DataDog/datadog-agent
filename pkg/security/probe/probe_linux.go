@@ -19,6 +19,8 @@ import (
 	"sync"
 	"time"
 
+	cebpf "github.com/cilium/ebpf"
+	"github.com/cilium/ebpf/features"
 	"github.com/hashicorp/go-multierror"
 	"github.com/mailru/easyjson"
 	"github.com/moby/sys/mountinfo"
@@ -135,6 +137,10 @@ func (p *Probe) GetKernelVersion() (*kernel.Version, error) {
 // UseRingBuffers returns true if eBPF ring buffers are supported and used
 func (p *Probe) UseRingBuffers() bool {
 	return p.kernelVersion.HaveRingBuffers() && p.Config.Probe.EventStreamUseRingBuffer
+}
+
+func (p *Probe) UseFentry() {
+	fmt.Printf("fentry supported: %v\n", features.HaveProgramType(cebpf.Tracing))
 }
 
 func (p *Probe) sanityChecks() error {
@@ -1442,6 +1448,7 @@ func NewProbe(config *config.Config, opts Opts) (*Probe, error) {
 	}
 
 	useRingBuffers := p.UseRingBuffers()
+	p.UseFentry()
 	useMmapableMaps := p.kernelVersion.HaveMmapableMaps()
 
 	p.Manager = ebpf.NewRuntimeSecurityManager(useRingBuffers, p.useFentry)
