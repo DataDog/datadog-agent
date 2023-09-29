@@ -134,11 +134,20 @@ func (p *Probe) GetKernelVersion() (*kernel.Version, error) {
 
 // UseRingBuffers returns true if eBPF ring buffers are supported and used
 func (p *Probe) UseRingBuffers() bool {
-	return p.kernelVersion.HaveRingBuffers() && p.Config.Probe.EventStreamUseRingBuffer
+	return p.Config.Probe.EventStreamUseRingBuffer && p.kernelVersion.HaveRingBuffers()
 }
 
-func (p *Probe) UseFentry() {
-	fmt.Printf("fentry supported: %v\n", p.kernelVersion.HaveFentrySupport())
+func (p *Probe) selectFentryMode() {
+	if !p.Config.Probe.EventStreamUseFentry {
+		p.useFentry = false
+		return
+	}
+
+	supported := p.kernelVersion.HaveFentrySupport()
+	if !supported {
+		seclog.Warnf("fentry enabled but not supported, falling back to kprobe mode")
+	}
+	p.useFentry = supported
 }
 
 func (p *Probe) sanityChecks() error {
@@ -1444,7 +1453,8 @@ func NewProbe(config *config.Config, opts Opts) (*Probe, error) {
 		seclog.Warnf("the current environment may be misconfigured: %v", err)
 	}
 
-	p.useFentry = config.Probe.EventStreamUseFentry && p.kernelVersion.HaveFentrySupport()
+	p.selectFentryMode()
+
 	useRingBuffers := p.UseRingBuffers()
 	useMmapableMaps := p.kernelVersion.HaveMmapableMaps()
 
