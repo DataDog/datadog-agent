@@ -170,7 +170,7 @@ func (t *Tailer) tail(ctx context.Context, bookmark string) {
 		t.bookmark, err = evtbookmark.New(
 			evtbookmark.WithWindowsEventLogAPI(t.evtapi))
 		if err != nil {
-			t.logErrorAndSetStatus(fmt.Errorf("error creating new bookmark: %v", err))
+			t.logErrorAndSetStatus(fmt.Errorf("error creating new bookmark: %w", err))
 			return
 		}
 	}
@@ -186,7 +186,7 @@ func (t *Tailer) tail(ctx context.Context, bookmark string) {
 	// render context for system values
 	t.systemRenderContext, err = t.evtapi.EvtCreateRenderContext(nil, evtapi.EvtRenderContextSystem)
 	if err != nil {
-		t.logErrorAndSetStatus(fmt.Errorf("failed to create system render context: %v", err))
+		t.logErrorAndSetStatus(fmt.Errorf("failed to create system render context: %w", err))
 		return
 	}
 	defer evtapi.EvtCloseRenderContext(t.evtapi, t.systemRenderContext)
@@ -219,7 +219,7 @@ func (t *Tailer) eventLoop(ctx context.Context) {
 			err := retryForeverWithCancel(ctx, func() error {
 				err := t.sub.Start()
 				if err != nil {
-					t.logErrorAndSetStatus(fmt.Errorf("failed to start subscription: %v", err))
+					t.logErrorAndSetStatus(fmt.Errorf("failed to start subscription: %w", err))
 					return err
 				}
 				// subscription started!
@@ -243,7 +243,7 @@ func (t *Tailer) eventLoop(ctx context.Context) {
 			if !ok {
 				// error
 				err := t.sub.Error()
-				t.logErrorAndSetStatus(fmt.Errorf("GetEvents failed, stopping subscription: %v", err))
+				t.logErrorAndSetStatus(fmt.Errorf("GetEvents failed, stopping subscription: %w", err))
 				t.sub.Stop()
 				break
 			}
@@ -269,7 +269,7 @@ func (t *Tailer) handleEvent(eventRecordHandle evtapi.EventRecordHandle) {
 
 	msg, err := t.toMessage(richEvt)
 	if err != nil {
-		log.Warnf("Failed to convert xml to json: %s for event %s", err, richEvt.xmlEvent)
+		log.Warnf("Failed to convert xml to json: %v for event %s", err, richEvt.xmlEvent)
 		return
 	}
 

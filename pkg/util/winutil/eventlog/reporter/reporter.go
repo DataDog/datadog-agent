@@ -45,7 +45,7 @@ func New(channelName string, api evtapi.API) (Reporter, error) {
 
 	logHandle, err := r.eventLogAPI.RegisterEventSource(channelName)
 	if err != nil {
-		return nil, fmt.Errorf("Failed to register source %s: %v", channelName, err)
+		return nil, fmt.Errorf("Failed to register source %s: %w", channelName, err)
 	}
 	r.logHandle = logHandle
 

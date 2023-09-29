@@ -87,7 +87,7 @@ outerLoop:
 func printEventXML(api evtapi.API, event *evtapi.EventRecord) error {
 	xml, err := api.EvtRenderEventXml(event.EventRecordHandle)
 	if err != nil {
-		return fmt.Errorf("failed to render event XML: %v", err)
+		return fmt.Errorf("failed to render event XML: %w", err)
 	}
 
 	fmt.Printf("%s\n", windows.UTF16ToString(xml))
@@ -100,62 +100,62 @@ func printEventValues(api evtapi.API, event *evtapi.EventRecord) error {
 	// https://learn.microsoft.com/en-us/windows/win32/api/winevt/ne-winevt-evt_system_property_id
 	c, err := api.EvtCreateRenderContext(nil, evtapi.EvtRenderContextSystem)
 	if err != nil {
-		return fmt.Errorf("failed to create render context: %v", err)
+		return fmt.Errorf("failed to create render context: %w", err)
 	}
 	defer evtapi.EvtCloseRenderContext(api, c)
 
 	// Render the values
 	vals, err := api.EvtRenderEventValues(c, event.EventRecordHandle)
 	if err != nil {
-		return fmt.Errorf("failed to render values: %v", err)
+		return fmt.Errorf("failed to render values: %w", err)
 	}
 	defer vals.Close()
 
 	// EventID
 	eventid, err := vals.UInt(evtapi.EvtSystemEventID)
 	if err != nil {
-		return fmt.Errorf("failed to get eventid value: %v", err)
+		return fmt.Errorf("failed to get eventid value: %w", err)
 	}
 	fmt.Printf("eventid: %d\n", eventid)
 
 	// Provider
 	provider, err := vals.String(evtapi.EvtSystemProviderName)
 	if err != nil {
-		return fmt.Errorf("failed to get provider name value: %v", err)
+		return fmt.Errorf("failed to get provider name value: %w", err)
 	}
 	fmt.Printf("provider name: %s\n", provider)
 
 	// Computer
 	computer, err := vals.String(evtapi.EvtSystemComputer)
 	if err != nil {
-		return fmt.Errorf("failed to get computer name value: %v", err)
+		return fmt.Errorf("failed to get computer name value: %w", err)
 	}
 	fmt.Printf("computer name: %s\n", computer)
 
 	// Time Created
 	ts, err := vals.Time(evtapi.EvtSystemTimeCreated)
 	if err != nil {
-		return fmt.Errorf("failed to get time created value: %v", err)
+		return fmt.Errorf("failed to get time created value: %w", err)
 	}
 	fmt.Printf("time created: %d\n", ts)
 
 	// Level
 	level, err := vals.UInt(evtapi.EvtSystemLevel)
 	if err != nil {
-		return fmt.Errorf("failed to get level value: %v", err)
+		return fmt.Errorf("failed to get level value: %w", err)
 	}
 	fmt.Printf("level: %d\n", level)
 
 	// Format Message
 	pm, err := api.EvtOpenPublisherMetadata(provider, "")
 	if err != nil {
-		return fmt.Errorf("failed to open provider metadata: %v", err)
+		return fmt.Errorf("failed to open provider metadata: %w", err)
 	}
 	defer evtapi.EvtClosePublisherMetadata(api, pm)
 
 	message, err := api.EvtFormatMessage(pm, event.EventRecordHandle, 0, nil, evtapi.EvtFormatMessageEvent)
 	if err != nil {
-		return fmt.Errorf("failed to format event message: %v", err)
+		return fmt.Errorf("failed to format event message: %w", err)
 	}
 	fmt.Printf("message: %s\n", message)
 

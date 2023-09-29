@@ -283,7 +283,7 @@ func (q *pullSubscription) getEventsLoop() {
 		dwWait, err := windows.WaitForMultipleObjects(waiters, false, windows.INFINITE)
 		if err != nil {
 			// WAIT_FAILED
-			q.logAndSetError(fmt.Errorf("WaitForMultipleObjects failed: %v", err))
+			q.logAndSetError(fmt.Errorf("WaitForMultipleObjects failed: %w", err))
 			return
 		}
 
@@ -314,7 +314,7 @@ func (q *pullSubscription) getEventsLoop() {
 				continue
 			}
 
-			q.logAndSetError(fmt.Errorf("EvtNext failed: %v", err))
+			q.logAndSetError(fmt.Errorf("EvtNext failed: %w", err))
 			return
 		} else if dwWait == (windows.WAIT_OBJECT_0 + 1) {
 			// Stop event is set

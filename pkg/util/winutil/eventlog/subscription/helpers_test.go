@@ -28,7 +28,7 @@ func ReadNumEvents(t testing.TB, ti eventlog_test.APITester, sub PullSubscriptio
 			err = sub.Error()
 		}
 		if !assert.NoError(t, err, "GetEvents should not return an error") {
-			return nil, fmt.Errorf("GetEvents returned error: %v", err)
+			return nil, fmt.Errorf("GetEvents returned error: %w", err)
 		}
 		if count == numEvents {
 			if !assert.Nil(t, events, "events should be nil when count is reached") {

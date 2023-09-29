@@ -94,7 +94,7 @@ func newtailer(evtapi evtapi.API, tailerconfig *Config, bookmark string, msgChan
 		return fmt.Errorf("start pending")
 	}, backoff.NewConstantBackOff(50*time.Millisecond))
 	if err != nil {
-		return nil, fmt.Errorf("failed to start tailer: %v", err)
+		return nil, fmt.Errorf("failed to start tailer: %w", err)
 	}
 	return tailer, nil
 }

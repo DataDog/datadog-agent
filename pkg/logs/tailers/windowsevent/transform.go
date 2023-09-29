@@ -162,7 +162,7 @@ func formatEventBinaryData(mv mxj.Map) error {
 
 	valueString, ok := values[0].(string)
 	if !ok {
-		return fmt.Errorf("could not cast binary data to string: %s", err)
+		return fmt.Errorf("could not cast binary data to string: %w", err)
 	}
 
 	// decoded is an utf-16 array of byte

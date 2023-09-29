@@ -159,33 +159,33 @@ func formatEventMessage(api evtapi.API, event *evtapi.EventRecord) (string, erro
 	// Create render context for the System values
 	c, err := api.EvtCreateRenderContext(nil, evtapi.EvtRenderContextSystem)
 	if err != nil {
-		return "", fmt.Errorf("failed to create render context: %v", err)
+		return "", fmt.Errorf("failed to create render context: %w", err)
 	}
 	defer evtapi.EvtCloseRenderContext(api, c)
 
 	// Render the values
 	vals, err := api.EvtRenderEventValues(c, event.EventRecordHandle)
 	if err != nil {
-		return "", fmt.Errorf("failed to render values: %v", err)
+		return "", fmt.Errorf("failed to render values: %w", err)
 	}
 	defer vals.Close()
 
 	// Get the provider name
 	provider, err := vals.String(evtapi.EvtSystemProviderName)
 	if err != nil {
-		return "", fmt.Errorf("failed to get provider name value: %v", err)
+		return "", fmt.Errorf("failed to get provider name value: %w", err)
 	}
 
 	// Format Message
 	pm, err := api.EvtOpenPublisherMetadata(provider, "")
 	if err != nil {
-		return "", fmt.Errorf("failed to open provider metadata: %v", err)
+		return "", fmt.Errorf("failed to open provider metadata: %w", err)
 	}
 	defer evtapi.EvtClosePublisherMetadata(api, pm)
 
 	message, err := api.EvtFormatMessage(pm, event.EventRecordHandle, 0, nil, evtapi.EvtFormatMessageEvent)
 	if err != nil {
-		return "", fmt.Errorf("failed to format event message: %v", err)
+		return "", fmt.Errorf("failed to format event message: %w", err)
 	}
 
 	return message, nil
