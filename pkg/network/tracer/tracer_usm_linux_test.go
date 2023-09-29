@@ -26,11 +26,13 @@ import (
 	"testing"
 	"time"
 
-	"github.com/DataDog/gopsutil/host"
 	krpretty "github.com/kr/pretty"
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
+	"golang.org/x/exp/slices"
 	"golang.org/x/sys/unix"
+
+	"github.com/DataDog/gopsutil/host"
 
 	"github.com/DataDog/datadog-agent/pkg/ebpf/ebpftest"
 	"github.com/DataDog/datadog-agent/pkg/network"
@@ -46,6 +48,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/connection"
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/connection/kprobe"
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/testutil/grpc"
+	"github.com/DataDog/datadog-agent/pkg/network/usm/utils"
 )
 
 func httpSupported() bool {
@@ -879,7 +882,17 @@ func testHTTPGoTLSCaptureNewProcess(t *testing.T, cfg *config.Config) {
 	}
 
 	// spin-up goTLS client and issue requests after initialization
-	gotlstestutil.NewGoTLSClient(t, serverAddr, expectedOccurrences)()
+	command, runRequests := gotlstestutil.NewGoTLSClient(t, serverAddr, expectedOccurrences)
+	require.Eventuallyf(t, func() bool {
+		traced := utils.GetTracedPrograms("go-tls")
+		for _, prog := range traced {
+			if slices.Contains[[]uint32](prog.PIDs, uint32(command.Process.Pid)) {
+				return true
+			}
+		}
+		return false
+	}, time.Second*5, time.Millisecond*100, "process %v is not traced by gotls", command.Process.Pid)
+	runRequests()
 	checkRequests(t, tr, expectedOccurrences, reqs)
 }
 
@@ -896,7 +909,7 @@ func testHTTPGoTLSCaptureAlreadyRunning(t *testing.T, cfg *config.Config) {
 	t.Cleanup(closeServer)
 
 	// spin-up goTLS client but don't issue requests yet
-	issueRequestsFn := gotlstestutil.NewGoTLSClient(t, serverAddr, expectedOccurrences)
+	command, issueRequestsFn := gotlstestutil.NewGoTLSClient(t, serverAddr, expectedOccurrences)
 
 	cfg.EnableGoTLSSupport = true
 	cfg.EnableHTTPMonitoring = true
@@ -911,6 +924,15 @@ func testHTTPGoTLSCaptureAlreadyRunning(t *testing.T, cfg *config.Config) {
 		reqs[req] = false
 	}
 
+	require.Eventuallyf(t, func() bool {
+		traced := utils.GetTracedPrograms("go-tls")
+		for _, prog := range traced {
+			if slices.Contains[[]uint32](prog.PIDs, uint32(command.Process.Pid)) {
+				return true
+			}
+		}
+		return false
+	}, time.Second*5, time.Millisecond*100, "process %v is not traced by gotls", command.Process.Pid)
 	issueRequestsFn()
 	checkRequests(t, tr, expectedOccurrences, reqs)
 }

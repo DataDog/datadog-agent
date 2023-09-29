@@ -118,7 +118,7 @@ func (m *EBPFCheck) Run() error {
 		moduleTotalMapMaxSize[mapStats.Module] += mapStats.MaxSize
 		moduleTotalMapRSS[mapStats.Module] += mapStats.RSS
 
-		log.Debugf("ebpf check: map=%s maxsize=%d type=%s", mapStats.Name, mapStats.MaxSize, mapStats.Type.String())
+		log.Tracef("ebpf check: map=%s maxsize=%d type=%s", mapStats.Name, mapStats.MaxSize, mapStats.Type.String())
 	}
 
 	for _, mapInfo := range stats.Maps {
@@ -170,7 +170,7 @@ func (m *EBPFCheck) Run() error {
 			tags = append(tags, "program_tag:"+progInfo.Tag)
 		}
 		var debuglogs []string
-		if log.ShouldLog(seelog.DebugLvl) {
+		if log.ShouldLog(seelog.TraceLvl) {
 			debuglogs = []string{"program=" + progInfo.Name, "type=" + progInfo.Type.String()}
 		}
 
@@ -184,7 +184,7 @@ func (m *EBPFCheck) Run() error {
 				continue
 			}
 			sender.Gauge("ebpf.programs."+k, v, "", tags)
-			if log.ShouldLog(seelog.DebugLvl) {
+			if log.ShouldLog(seelog.TraceLvl) {
 				debuglogs = append(debuglogs, fmt.Sprintf("%s=%.0f", k, v))
 			}
 		}
@@ -203,13 +203,13 @@ func (m *EBPFCheck) Run() error {
 				continue
 			}
 			sender.MonotonicCountWithFlushFirstValue("ebpf.programs."+k, v, "", tags, true)
-			if log.ShouldLog(seelog.DebugLvl) {
+			if log.ShouldLog(seelog.TraceLvl) {
 				debuglogs = append(debuglogs, fmt.Sprintf("%s=%.0f", k, v))
 			}
 		}
 
-		if log.ShouldLog(seelog.DebugLvl) {
-			log.Debugf("ebpf check: %s", strings.Join(debuglogs, " "))
+		if log.ShouldLog(seelog.TraceLvl) {
+			log.Tracef("ebpf check: %s", strings.Join(debuglogs, " "))
 		}
 	}
 	if totalProgRSS > 0 {

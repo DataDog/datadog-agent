@@ -100,11 +100,11 @@ func TestProcessor(t *testing.T) {
 				TraceChunk: testChunk,
 				Root:       root,
 			}
-			numEvents, extracted := p.Process(pt)
+			numEvents, numExtracted, events := p.Process(pt)
 			p.Stop()
 
 			expectedExtracted := float64(numSpans) * test.expectedExtractedPct
-			assert.InDelta(expectedExtracted, extracted, expectedExtracted*test.deltaPct)
+			assert.InDelta(expectedExtracted, numExtracted, expectedExtracted*test.deltaPct)
 
 			expectedReturned := expectedExtracted * test.expectedSampledPct
 			assert.InDelta(expectedReturned, numEvents, expectedReturned*test.deltaPct)
@@ -112,19 +112,20 @@ func TestProcessor(t *testing.T) {
 			assert.EqualValues(1, testSampler.StartCalls)
 			assert.EqualValues(1, testSampler.StopCalls)
 
-			expectedSampleCalls := extracted
+			expectedSampleCalls := numExtracted
 			if test.priority == sampler.PriorityUserKeep {
 				expectedSampleCalls = 0
 			}
 			assert.EqualValues(expectedSampleCalls, testSampler.SampleCalls)
 
 			if !test.droppedTrace {
+				events = testChunk.Spans // If we aren't going to drop the trace we need to look at the whole list of spans
 				assert.EqualValues(numSpans, len(testChunk.Spans))
 			} else {
-				assert.EqualValues(numEvents, len(testChunk.Spans))
+				assert.EqualValues(numEvents, len(events))
 			}
 
-			for _, event := range testChunk.Spans {
+			for _, event := range events {
 				if !sampler.IsAnalyzedSpan(event) {
 					continue
 				}
