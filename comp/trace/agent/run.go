@@ -50,7 +50,6 @@ const stackDepth = 3
 
 // runAgentSidekicks is the entrypoint for running non-components that run along the agent.
 func runAgentSidekicks(ctx context.Context, cfg config.Component, telemetryCollector telemetry.TelemetryCollector) error {
-
 	tracecfg := cfg.Object()
 	err := info.InitInfo(tracecfg) // for expvar & -info option
 	if err != nil {
@@ -95,8 +94,6 @@ func runAgentSidekicks(ctx context.Context, cfg config.Component, telemetryColle
 		telemetryCollector.SendStartupError(telemetry.CantConfigureDogstatsd, err)
 		return fmt.Errorf("cannot configure dogstatsd: %v", err)
 	}
-	defer metrics.Flush()
-	defer timing.Stop()
 
 	metrics.Count("datadog.trace_agent.started", 1, nil, 1)
 
@@ -128,13 +125,6 @@ func runAgentSidekicks(ctx context.Context, cfg config.Component, telemetryColle
 			log.Errorf("failed to start the tagger: %s", err)
 		}
 	}
-
-	defer func() {
-		err := tagger.Stop()
-		if err != nil {
-			log.Error(err)
-		}
-	}()
 
 	if coreconfig.IsRemoteConfigEnabled(coreconfig.Datadog) {
 		// Auth tokens are handled by the rcClient
@@ -206,13 +196,30 @@ func runAgentSidekicks(ctx context.Context, cfg config.Component, telemetryColle
 		} else {
 			log.Infof("Internal profiling enabled: %s.", pcfg)
 		}
-		defer profiling.Stop()
 	}
 	go func() {
 		time.Sleep(time.Second * 30)
 		telemetryCollector.SendStartupSuccess()
 	}()
 
+	return nil
+}
+
+func stopAgentSidekicks(cfg config.Component) error {
+	defer watchdog.LogOnPanic()
+
+	log.Flush()
+	metrics.Flush()
+
+	timing.Stop()
+	err := tagger.Stop()
+	if err != nil {
+		log.Error(err)
+	}
+	tracecfg := cfg.Object()
+	if pcfg := profilingConfig(tracecfg); pcfg != nil {
+		profiling.Stop()
+	}
 	return nil
 }
 
