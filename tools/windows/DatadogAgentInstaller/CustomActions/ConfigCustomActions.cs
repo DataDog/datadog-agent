@@ -344,12 +344,8 @@ namespace Datadog.CustomActions
             var configFolder = session.Property("APPLICATIONDATADIRECTORY");
             var datadogYaml = Path.Combine(configFolder, "datadog.yaml");
             var systemProbeYaml = Path.Combine(configFolder, "system-probe.yaml");
-<<<<<<< HEAD
             var securityAgentYaml = Path.Combine(configFolder, "security-agent.yaml");
-
-=======
             var injectionControllerYaml = Path.Combine(configFolder, "apm-inject.yaml");
->>>>>>> 1d306a7453 ([windows] Conditionally add apm tracing to agent)
             try
             {
                 if (!File.Exists(systemProbeYaml))
