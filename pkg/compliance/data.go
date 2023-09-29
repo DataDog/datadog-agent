@@ -76,7 +76,7 @@ type CheckEvent struct {
 	RuleVersion  int                    `json:"agent_rule_version,omitempty"`
 	FrameworkID  string                 `json:"agent_framework_id,omitempty"`
 	Evaluator    Evaluator              `json:"evaluator,omitempty"`
-	ExpireAt     time.Time              `json:"expire_at,omitempty"`
+	ExpireAt     *time.Time             `json:"expire_at,omitempty"`
 	Result       CheckResult            `json:"result,omitempty"`
 	ResourceType string                 `json:"resource_type,omitempty"`
 	ResourceID   string                 `json:"resource_id,omitempty"`
@@ -90,7 +90,7 @@ type CheckEvent struct {
 // ResourceLog is the data structure holding a resource configuration data.
 type ResourceLog struct {
 	AgentVersion string      `json:"agent_version,omitempty"`
-	ExpireAt     time.Time   `json:"expire_at,omitempty"`
+	ExpireAt     *time.Time  `json:"expire_at,omitempty"`
 	ResourceType string      `json:"resource_type,omitempty"`
 	ResourceID   string      `json:"resource_id,omitempty"`
 	ResourceData interface{} `json:"resource_data,omitempty"`

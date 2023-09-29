@@ -375,7 +375,8 @@ func (a *Agent) runAptConfigurationExport(ctx context.Context) {
 }
 
 func (a *Agent) reportResourceLog(resourceTTL time.Duration, resourceLog *ResourceLog) {
-	resourceLog.ExpireAt = time.Now().Add(2 * resourceTTL).Truncate(1 * time.Second)
+	expireAt := time.Now().Add(2 * resourceTTL).Truncate(1 * time.Second)
+	resourceLog.ExpireAt = &expireAt
 	a.opts.Reporter.ReportEvent(resourceLog)
 }
 
@@ -383,7 +384,7 @@ func (a *Agent) reportCheckEvents(eventsTTL time.Duration, events ...*CheckEvent
 	store := workloadmeta.GetGlobalStore()
 	eventsExpireAt := time.Now().Add(2 * eventsTTL).Truncate(1 * time.Second)
 	for _, event := range events {
-		event.ExpireAt = eventsExpireAt
+		event.ExpireAt = &eventsExpireAt
 		a.updateEvent(event)
 		if event.Result == CheckSkipped {
 			continue
