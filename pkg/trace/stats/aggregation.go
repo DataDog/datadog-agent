@@ -89,17 +89,17 @@ func NewAggregationFromSpan(s *pb.Span, origin string, aggKey PayloadAggregation
 		},
 	}
 	var peerTags []string
-	if spanKindIsClientOrProducer(agg.SpanKind) {
+	if clientOrProducer(agg.SpanKind) {
 		if enablePeerSvcAgg {
 			agg.PeerService = s.Meta[tagPeerService]
 		}
-		peerTags = getMatchingPeerTags(s, peerTagKeys)
+		peerTags = matchingPeerTags(s, peerTagKeys)
 		agg.PeerTagsHash = peerTagsHash(peerTags)
 	}
 	return agg, peerTags
 }
 
-func getMatchingPeerTags(s *pb.Span, peerTagKeys []string) []string {
+func matchingPeerTags(s *pb.Span, peerTagKeys []string) []string {
 	if len(peerTagKeys) == 0 {
 		return nil
 	}
@@ -109,11 +109,10 @@ func getMatchingPeerTags(s *pb.Span, peerTagKeys []string) []string {
 			pt = append(pt, t+":"+v)
 		}
 	}
-	if len(pt) == 0 {
-		return nil
-	}
 	return pt
 }
+
+const hashDelimiter = " "
 
 func peerTagsHash(tags []string) uint64 {
 	if len(tags) == 0 {
@@ -123,12 +122,7 @@ func peerTagsHash(tags []string) uint64 {
 		sort.Strings(tags)
 	}
 	h := fnv.New64a()
-	for i, t := range tags {
-		h.Write([]byte(t))
-		if i != len(tags)-1 {
-			h.Write([]byte{0})
-		}
-	}
+	h.Write([]byte(strings.Join(tags, hashDelimiter)))
 	return h.Sum64()
 }
 

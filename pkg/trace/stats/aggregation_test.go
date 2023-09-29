@@ -167,7 +167,7 @@ func TestNewAggregationPeerTags(t *testing.T) {
 				Service: "a",
 				Meta:    map[string]string{"span.kind": "client", "field1": "val1", "db.instance": "i-1234", "db.system": "postgres"},
 			},
-			Aggregation{BucketsAggregationKey: BucketsAggregationKey{Service: "a", SpanKind: "client", PeerTagsHash: 17292111254139093926}},
+			Aggregation{BucketsAggregationKey: BucketsAggregationKey{Service: "a", SpanKind: "client", PeerTagsHash: 1501430795634437062}},
 			[]string{"db.instance:i-1234", "db.system:postgres"},
 		},
 		{
@@ -175,7 +175,7 @@ func TestNewAggregationPeerTags(t *testing.T) {
 				Service: "a",
 				Meta:    map[string]string{"span.kind": "producer", "field1": "val1", "db.instance": "i-1234", "db.system": "postgres"},
 			},
-			Aggregation{BucketsAggregationKey: BucketsAggregationKey{Service: "a", SpanKind: "producer", PeerTagsHash: 17292111254139093926}},
+			Aggregation{BucketsAggregationKey: BucketsAggregationKey{Service: "a", SpanKind: "producer", PeerTagsHash: 1501430795634437062}},
 			[]string{"db.instance:i-1234", "db.system:postgres"},
 		},
 	} {
@@ -202,6 +202,6 @@ func TestSpanKindIsConsumerOrProducer(t *testing.T) {
 		{"internal", false},
 		{"", false},
 	} {
-		assert.Equal(t, tc.res, spanKindIsClientOrProducer(tc.input))
+		assert.Equal(t, tc.res, clientOrProducer(tc.input))
 	}
 }
