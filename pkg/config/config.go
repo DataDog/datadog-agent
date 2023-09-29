@@ -1352,8 +1352,8 @@ func LoadProxyFromEnv(config Config) {
 	// We have to set each value individually so both config.Get("proxy")
 	// and config.Get("proxy.http") work
 	if isSet {
-		config.Set("proxy.http", p.HTTP)
-		config.Set("proxy.https", p.HTTPS)
+		config.SetForSource("proxy.http", p.HTTP, SourceEnvVar)
+		config.SetForSource("proxy.https", p.HTTPS, SourceEnvVar)
 
 		// If this is set to an empty []string, viper will have a type conflict when merging
 		// this config during secrets resolution. It unmarshals empty yaml lists to type
@@ -1362,7 +1362,7 @@ func LoadProxyFromEnv(config Config) {
 		for idx := range p.NoProxy {
 			noProxy[idx] = p.NoProxy[idx]
 		}
-		config.Set("proxy.no_proxy", noProxy)
+		config.SetForSource("proxy.no_proxy", noProxy, SourceEnvVar)
 	}
 }
 
@@ -1669,37 +1669,37 @@ func setupFipsEndpoints(config Config) error {
 	protocol := "http://"
 	if config.GetBool("fips.https") {
 		protocol = "https://"
-		config.Set("skip_ssl_validation", !config.GetBool("fips.tls_verify"))
+		config.SetForSource("skip_ssl_validation", !config.GetBool("fips.tls_verify"), SourceYaml)
 	}
 
 	// The following overwrites should be sync with the documentation for the fips.enabled config setting in the
 	// config_template.yaml
 
 	// Metrics
-	config.Set("dd_url", protocol+urlFor(metrics))
+	config.SetForSource("dd_url", protocol+urlFor(metrics), SourceYaml)
 
 	// Logs
 	setupFipsLogsConfig(config, "logs_config.", urlFor(logs))
 
 	// APM
-	config.Set("apm_config.apm_dd_url", protocol+urlFor(traces))
+	config.SetForSource("apm_config.apm_dd_url", protocol+urlFor(traces), SourceYaml)
 	// Adding "/api/v2/profile" because it's not added to the 'apm_config.profiling_dd_url' value by the Agent
-	config.Set("apm_config.profiling_dd_url", protocol+urlFor(profiles)+"/api/v2/profile")
-	config.Set("apm_config.telemetry.dd_url", protocol+urlFor(instrumentationTelemetry))
+	config.SetForSource("apm_config.profiling_dd_url", protocol+urlFor(profiles)+"/api/v2/profile", SourceYaml)
+	config.SetForSource("apm_config.telemetry.dd_url", protocol+urlFor(instrumentationTelemetry), SourceYaml)
 
 	// Processes
-	config.Set("process_config.process_dd_url", protocol+urlFor(processes))
+	config.SetForSource("process_config.process_dd_url", protocol+urlFor(processes), SourceYaml)
 
 	// Database monitoring
-	config.Set("database_monitoring.metrics.dd_url", urlFor(databasesMonitoringMetrics))
-	config.Set("database_monitoring.activity.dd_url", urlFor(databasesMonitoringMetrics))
-	config.Set("database_monitoring.samples.dd_url", urlFor(databasesMonitoringSamples))
+	config.SetForSource("database_monitoring.metrics.dd_url", urlFor(databasesMonitoringMetrics), SourceYaml)
+	config.SetForSource("database_monitoring.activity.dd_url", urlFor(databasesMonitoringMetrics), SourceYaml)
+	config.SetForSource("database_monitoring.samples.dd_url", urlFor(databasesMonitoringSamples), SourceYaml)
 
 	// Network devices
-	config.Set("network_devices.metadata.dd_url", urlFor(networkDevicesMetadata))
+	config.SetForSource("network_devices.metadata.dd_url", urlFor(networkDevicesMetadata), SourceYaml)
 
 	// Orchestrator Explorer
-	config.Set("orchestrator_explorer.orchestrator_dd_url", protocol+urlFor(orchestratorExplorer))
+	config.SetForSource("orchestrator_explorer.orchestrator_dd_url", protocol+urlFor(orchestratorExplorer), SourceYaml)
 
 	// CWS
 	setupFipsLogsConfig(config, "runtime_security_config.endpoints.", urlFor(runtimeSecurity))
@@ -1708,9 +1708,9 @@ func setupFipsEndpoints(config Config) error {
 }
 
 func setupFipsLogsConfig(config Config, configPrefix string, url string) {
-	config.Set(configPrefix+"use_http", true)
-	config.Set(configPrefix+"logs_no_ssl", !config.GetBool("fips.https"))
-	config.Set(configPrefix+"logs_dd_url", url)
+	config.SetForSource(configPrefix+"use_http", true, SourceYaml)
+	config.SetForSource(configPrefix+"logs_no_ssl", !config.GetBool("fips.https"), SourceYaml)
+	config.SetForSource(configPrefix+"logs_dd_url", url, SourceYaml)
 }
 
 // ResolveSecrets merges all the secret values from origin into config. Secret values

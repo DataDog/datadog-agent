@@ -131,6 +131,11 @@ const (
 	// Those are reserved fields for the agentMetadata payload.
 	agentProvidedConf AgentMetadataName = "provided_configuration"
 	agentFullConf     AgentMetadataName = "full_configuration"
+	agentYamlConf     AgentMetadataName = "yaml_configuration"
+	agentEnvVarConf   AgentMetadataName = "environment_variable_configuration"
+	agentSelfConf     AgentMetadataName = "self_configuration"
+	agentRemoteConf   AgentMetadataName = "remote_configuration"
+	agentCliConf      AgentMetadataName = "cli_configuration"
 
 	// key for the host metadata cache. See host_metadata.go
 	HostOSVersion              AgentMetadataName = "os_version"
@@ -333,6 +338,21 @@ func createPayload(ctx context.Context, hostname string, coll CollectorInterface
 		}
 		if providedConf, err := getProvidedAgentConfiguration(); err == nil {
 			payloadAgentMeta[agentProvidedConf] = providedConf
+		}
+		if yamlConf, err := getAgentYamlConfiguration(); err == nil {
+			payloadAgentMeta[agentYamlConf] = yamlConf
+		}
+		if envVarConf, err := getAgentEnvVarConfiguration(); err == nil {
+			payloadAgentMeta[agentEnvVarConf] = envVarConf
+		}
+		if selfConf, err := getAgentSelfConfiguration(); err == nil {
+			payloadAgentMeta[agentSelfConf] = selfConf
+		}
+		if remoteConf, err := getAgentRemoteConfiguration(); err == nil {
+			payloadAgentMeta[agentRemoteConf] = remoteConf
+		}
+		if cliConf, err := getAgentCliConfiguration(); err == nil {
+			payloadAgentMeta[agentCliConf] = cliConf
 		}
 	}
 

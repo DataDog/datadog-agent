@@ -41,13 +41,21 @@ type ConfigReader interface {
 	GetSizeInBytes(key string) uint
 	GetProxies() *Proxy
 
+	GetSource(key string) Source
+
 	ConfigFileUsed() string
 
 	AllSettings() map[string]interface{}
 	AllSettingsWithoutDefault() map[string]interface{}
+	AllYamlSettingsWithoutDefault() map[string]interface{}
+	AllEnvVarSettingsWithoutDefault() map[string]interface{}
+	AllSelfSettingsWithoutDefault() map[string]interface{}
+	AllRemoteSettingsWithoutDefault() map[string]interface{}
+	AllCliSettingsWithoutDefault() map[string]interface{}
 	AllKeys() []string
 
 	IsSet(key string) bool
+	IsSetForSource(key string, source Source) bool
 
 	// UnmarshalKey Unmarshal a configuration key into a struct
 	UnmarshalKey(key string, rawVal interface{}, opts ...viper.DecoderConfigOption) error
@@ -76,6 +84,8 @@ type ConfigReader interface {
 
 type ConfigWriter interface {
 	Set(key string, value interface{})
+	SetForSource(key string, value interface{}, source Source)
+	UnsetForSource(key string, source Source)
 	CopyConfig(cfg Config)
 }
 

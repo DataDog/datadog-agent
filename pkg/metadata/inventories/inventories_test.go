@@ -175,10 +175,15 @@ func TestGetPayload(t *testing.T) {
 	//  - test
 	//  - full_configuration
 	//  - provided_configuration
+	//  - yaml_configuration
+	//  - environment_variable_configuration
+	//  - self_configuration
+	//  - remote_configuration
+	//  - cli_configuration
 	//  - install_method_installer_version
 	//  - install_method_tool": "undefined
 	//  - install_method_tool_version
-	assert.Len(t, agentMetadata, 6)
+	assert.Len(t, agentMetadata, 11)
 	assert.Equal(t, true, agentMetadata["test"])
 
 	checkMeta := *p.CheckMetadata
@@ -222,10 +227,15 @@ func TestGetPayload(t *testing.T) {
 	//  - cloud_provider
 	//  - full_configuration
 	//  - provided_configuration
+	//  - yaml_configuration
+	//  - environment_variable_configuration
+	//  - self_configuration
+	//  - remote_configuration
+	//  - cli_configuration
 	//  - install_method_installer_version
 	//  - install_method_tool": "undefined
 	//  - install_method_tool_version
-	assert.Len(t, agentMetadata, 7)
+	assert.Len(t, agentMetadata, 12)
 	assert.Equal(t, true, agentMetadata["test"])
 
 	// no point in asserting every field from the agent configuration. We just check they are present and then set
@@ -234,6 +244,11 @@ func TestGetPayload(t *testing.T) {
 	assert.NotNil(t, agentMetadata["full_configuration"])
 	delete(agentMetadata, "provided_configuration")
 	delete(agentMetadata, "full_configuration")
+	delete(agentMetadata, "yaml_configuration")
+	delete(agentMetadata, "environment_variable_configuration")
+	delete(agentMetadata, "self_configuration")
+	delete(agentMetadata, "remote_configuration")
+	delete(agentMetadata, "cli_configuration")
 
 	checkMeta = *p.CheckMetadata
 	assert.Len(t, checkMeta, 2)

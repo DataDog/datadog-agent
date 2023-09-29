@@ -15,7 +15,7 @@ type LegacyConfigConverter struct {
 
 // Set is used for setting configuration from A5 config
 func (c *LegacyConfigConverter) Set(key string, value interface{}) {
-	c.Config.Set(key, value)
+	c.Config.SetForSource(key, value, SourceSelf) // TODO jules.macret this was failing github.com/DataDog/datadog-agent/cmd/agent/common TestImport
 }
 
 // NewConfigConverter is creating and returning a config converter
