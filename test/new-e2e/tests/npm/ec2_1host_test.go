@@ -86,10 +86,7 @@ func (v *ec2VMSuite) TestFakeIntakeNPM() {
 		t.Logf("hostname+networkID %v diff time %f seconds", targetHostnameNetID, dt)
 
 		// we want the test fail now, not retrying on the next payloads
-		if math.Abs(dt-30) > 0.5 {
-			t.Log("delta between collection is higher that 500ms")
-			c.FailNow()
-		}
+		require.Greater(t, math.Abs(dt-30), 0.5, "delta between collection is higher that 500ms")
 	}, 90*time.Second, time.Second, "no connections received")
 }
 
