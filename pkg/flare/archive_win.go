@@ -294,7 +294,8 @@ func getEventLogConfig(fb flaretypes.FlareBuilder) error {
 	defer cancelfunc()
 
 	var out bytes.Buffer
-	f := &bytes.Buffer{}
+	// creating a buffer to append all cmd outputs
+	fullOutput := &bytes.Buffer{}
 	channels := [3]string{"Application", "System", "Security"}
 
 	for _, channel := range channels {
@@ -304,11 +305,13 @@ func getEventLogConfig(fb flaretypes.FlareBuilder) error {
 		if err != nil {
 			log.Warnf("Error getting config for %s: %s", channel, err)
 		}
-		_, err = f.Write(out.Bytes())
+		_, err = fullOutput.Write(out.Bytes())
 		if err != nil {
 			log.Warnf("Error writing file %v", err)
 		}
-		_, err = f.Write([]byte("\n"))
+
+		// adding a newline character to make the file easier to read
+		_, err = fullOutput.Write([]byte("\n"))
 		if err != nil {
 			log.Warnf("Error writing file %v", err)
 		}
@@ -316,7 +319,7 @@ func getEventLogConfig(fb flaretypes.FlareBuilder) error {
 		out.Reset()
 	}
 
-	return fb.AddFile("eventlogconfig.txt", f.Bytes())
+	return fb.AddFile("eventlogconfig.txt", fullOutput.Bytes())
 
 }
 
