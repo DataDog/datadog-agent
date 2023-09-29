@@ -120,7 +120,12 @@ func peerTagsHash(tags []string) uint64 {
 		sort.Strings(tags)
 	}
 	h := fnv.New64a()
-	h.Write([]byte(strings.Join(tags, "")))
+	for i, t := range tags {
+		h.Write([]byte(t))
+		if i != len(tags)-1 {
+			h.Write([]byte{0})
+		}
+	}
 	return h.Sum64()
 }
 
