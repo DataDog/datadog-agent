@@ -61,7 +61,6 @@ func (s *groupedStats) export(a Aggregation) (*pb.ClientGroupedStats, error) {
 	if err != nil {
 		return &pb.ClientGroupedStats{}, err
 	}
-
 	return &pb.ClientGroupedStats{
 		Service:        a.Service,
 		Name:           a.Name,

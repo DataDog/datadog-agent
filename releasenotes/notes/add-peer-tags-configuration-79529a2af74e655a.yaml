@@ -8,5 +8,8 @@
 ---
 features:
   - |
-    Adds `peer_tags` configuration to allow for more tags in APM stats that
-    can add granularity and clarity to a `peer.service`.
+    APM: [BETA] Adds `peer_tags` configuration to allow for more tags in APM stats that
+    can add granularity and clarity to a `peer.service`. To set this config, use
+    ``DD_APM_PEER_TAGs='["aws.s3.bucket", "db.instance", ...]`` or
+    ``apm_config.peer_tags: ["aws.s3.bucket", "db.instance", ...]`` in datadog.yaml.
+    Please note that ``DD_APM_PEER_SERVICE_AGGREGATION`` or ``apm_config.peer_service_aggregation`` must also be set to ``true``.

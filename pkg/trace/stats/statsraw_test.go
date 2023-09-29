@@ -174,7 +174,7 @@ func TestGrainWithPeerTags(t *testing.T) {
 				Name:         "other",
 				Resource:     "yo",
 				PeerService:  "aws-dynamodb",
-				PeerTagsHash: 17880368617769319876,
+				PeerTagsHash: 8458632248774807478,
 			},
 		}, aggr)
 		assert.Equal([]string{"db.instance:dynamo.test.us1", "db.system:dynamodb"}, et)

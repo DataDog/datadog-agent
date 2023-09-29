@@ -56,13 +56,13 @@ func prepareTagKeys(tags ...string) []string {
 	if len(tags) == 0 {
 		return nil
 	}
-	ptm := make(map[string]struct{})
+	var deduped []string
+	seen := make(map[string]bool)
 	for _, t := range tags {
-		ptm[t] = struct{}{}
-	}
-	deduped := make([]string, 0, len(ptm))
-	for t := range ptm {
-		deduped = append(deduped, t)
+		if !seen[t] {
+			seen[t] = true
+			deduped = append(deduped, t)
+		}
 	}
 	sort.Strings(deduped)
 	return deduped
@@ -88,7 +88,7 @@ func NewConcentrator(conf *config.AgentConfig, out chan *pb.StatsPayload, now ti
 		peerSvcAggregation:     conf.PeerServiceAggregation,
 		computeStatsBySpanKind: conf.ComputeStatsBySpanKind,
 	}
-	if conf.PeerServiceAggregation && len(conf.PeerTags) != 0 {
+	if conf.PeerServiceAggregation {
 		c.peerTagKeys = prepareTagKeys(conf.PeerTags...)
 	}
 	return &c

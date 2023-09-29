@@ -112,8 +112,6 @@ func matchingPeerTags(s *pb.Span, peerTagKeys []string) []string {
 	return pt
 }
 
-const hashDelimiter = " "
-
 func peerTagsHash(tags []string) uint64 {
 	if len(tags) == 0 {
 		return 0
@@ -122,7 +120,7 @@ func peerTagsHash(tags []string) uint64 {
 		sort.Strings(tags)
 	}
 	h := fnv.New64a()
-	h.Write([]byte(strings.Join(tags, hashDelimiter)))
+	h.Write([]byte(strings.Join(tags, "")))
 	return h.Sum64()
 }
 
@@ -130,18 +128,16 @@ func peerTagsHash(tags []string) uint64 {
 func NewAggregationFromGroup(g *pb.ClientGroupedStats) Aggregation {
 	agg := Aggregation{
 		BucketsAggregationKey: BucketsAggregationKey{
-			Resource:    g.Resource,
-			Service:     g.Service,
-			PeerService: g.PeerService,
-			Name:        g.Name,
-			SpanKind:    g.SpanKind,
-			StatusCode:  g.HTTPStatusCode,
-			Synthetics:  g.Synthetics,
+			Resource:     g.Resource,
+			Service:      g.Service,
+			PeerService:  g.PeerService,
+			Name:         g.Name,
+			SpanKind:     g.SpanKind,
+			StatusCode:   g.HTTPStatusCode,
+			Synthetics:   g.Synthetics,
+			PeerTagsHash: peerTagsHash(g.PeerTags),
 		},
 	}
 
-	if g.PeerTags != nil {
-		agg.PeerTagsHash = peerTagsHash(g.PeerTags)
-	}
 	return agg
 }

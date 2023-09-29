@@ -153,7 +153,6 @@ func TestNewAggregationPeerTags(t *testing.T) {
 			Aggregation{},
 			nil,
 		},
-		// span.kind != (client, producer)
 		{
 			&pb.Span{
 				Service: "a",
@@ -165,9 +164,17 @@ func TestNewAggregationPeerTags(t *testing.T) {
 		{
 			&pb.Span{
 				Service: "a",
+				Meta:    map[string]string{"span.kind": "server", "field1": "val1", "db.instance": "i-1234", "db.system": "postgres"},
+			},
+			Aggregation{BucketsAggregationKey: BucketsAggregationKey{Service: "a", SpanKind: "server", PeerTagsHash: 0}},
+			nil,
+		},
+		{
+			&pb.Span{
+				Service: "a",
 				Meta:    map[string]string{"span.kind": "client", "field1": "val1", "db.instance": "i-1234", "db.system": "postgres"},
 			},
-			Aggregation{BucketsAggregationKey: BucketsAggregationKey{Service: "a", SpanKind: "client", PeerTagsHash: 1501430795634437062}},
+			Aggregation{BucketsAggregationKey: BucketsAggregationKey{Service: "a", SpanKind: "client", PeerTagsHash: 9310219457642010342}},
 			[]string{"db.instance:i-1234", "db.system:postgres"},
 		},
 		{
@@ -175,7 +182,7 @@ func TestNewAggregationPeerTags(t *testing.T) {
 				Service: "a",
 				Meta:    map[string]string{"span.kind": "producer", "field1": "val1", "db.instance": "i-1234", "db.system": "postgres"},
 			},
-			Aggregation{BucketsAggregationKey: BucketsAggregationKey{Service: "a", SpanKind: "producer", PeerTagsHash: 1501430795634437062}},
+			Aggregation{BucketsAggregationKey: BucketsAggregationKey{Service: "a", SpanKind: "producer", PeerTagsHash: 9310219457642010342}},
 			[]string{"db.instance:i-1234", "db.system:postgres"},
 		},
 	} {
