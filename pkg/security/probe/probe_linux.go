@@ -145,7 +145,7 @@ func (p *Probe) selectFentryMode() {
 
 	supported := p.kernelVersion.HaveFentrySupport()
 	if !supported {
-		seclog.Warnf("fentry enabled but not supported, falling back to kprobe mode")
+		seclog.Errorf("fentry enabled but not supported, falling back to kprobe mode")
 	}
 	p.useFentry = supported
 }
