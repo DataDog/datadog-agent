@@ -199,7 +199,7 @@ func (d *dispatcher) run(ctx context.Context) {
 			d.expireNodes()
 
 			// Re-dispatch dangling configs
-			if d.shouldDispatchDanling() {
+			if d.shouldDispatchDangling() {
 				danglingConfs := d.retrieveAndClearDangling()
 				d.reschedule(danglingConfs)
 			}

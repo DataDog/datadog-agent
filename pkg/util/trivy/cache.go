@@ -517,15 +517,15 @@ func (c *PersistentCache) collectTelemetry() {
 	telemetry.SBOMCacheDiskSize.Set(float64(diskSize))
 }
 
+func newMemoryCache() *memoryCache {
+	return &memoryCache{}
+}
+
 type memoryCache struct {
-	blobInfo *struct {
-		*types.BlobInfo
-		id string
-	}
-	artifactInfo *struct {
-		*types.ArtifactInfo
-		id string
-	}
+	blobInfo     *types.BlobInfo
+	blobID       string
+	artifactInfo *types.ArtifactInfo
+	artifactID   string
 }
 
 func (c *memoryCache) MissingBlobs(artifactID string, blobIDs []string) (missingArtifact bool, missingBlobIDs []string, err error) {
@@ -543,31 +543,21 @@ func (c *memoryCache) MissingBlobs(artifactID string, blobIDs []string) (missing
 }
 
 func (c *memoryCache) PutArtifact(artifactID string, artifactInfo types.ArtifactInfo) (err error) {
-	c.artifactInfo = &struct {
-		*types.ArtifactInfo
-		id string
-	}{
-		id:           artifactID,
-		ArtifactInfo: &artifactInfo,
-	}
+	c.artifactInfo = &artifactInfo
+	c.artifactID = artifactID
 	return nil
 }
 
 func (c *memoryCache) PutBlob(blobID string, blobInfo types.BlobInfo) (err error) {
-	c.blobInfo = &struct {
-		*types.BlobInfo
-		id string
-	}{
-		id:       blobID,
-		BlobInfo: &blobInfo,
-	}
+	c.blobInfo = &blobInfo
+	c.blobID = blobID
 	return nil
 }
 
 func (c *memoryCache) DeleteBlobs(blobIDs []string) error {
 	if c.blobInfo != nil {
 		for _, blobID := range blobIDs {
-			if blobID == c.blobInfo.id {
+			if blobID == c.blobID {
 				c.blobInfo = nil
 			}
 		}
@@ -576,15 +566,15 @@ func (c *memoryCache) DeleteBlobs(blobIDs []string) error {
 }
 
 func (c *memoryCache) GetArtifact(artifactID string) (artifactInfo types.ArtifactInfo, err error) {
-	if c.artifactInfo != nil && c.artifactInfo.id == artifactID {
-		return *c.artifactInfo.ArtifactInfo, nil
+	if c.artifactInfo != nil && c.artifactID == artifactID {
+		return *c.artifactInfo, nil
 	}
 	return types.ArtifactInfo{}, nil
 }
 
 func (c *memoryCache) GetBlob(blobID string) (blobInfo types.BlobInfo, err error) {
-	if c.blobInfo != nil && c.blobInfo.id == blobID {
-		return *c.blobInfo.BlobInfo, nil
+	if c.blobInfo != nil && c.blobID == blobID {
+		return *c.blobInfo, nil
 	}
 	return types.BlobInfo{}, errors.New("not found")
 }
