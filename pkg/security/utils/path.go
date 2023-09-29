@@ -7,25 +7,18 @@
 
 package utils
 
-// PathPatternBuilderOpts PathPatternBuilder options
-type PathPatternBuilderOpts struct {
+// PathPatternMatchOpts PathPatternMatch options
+type PathPatternMatchOpts struct {
 	WildcardLimit      int // max number of wildcard in the pattern
 	PrefixNodeRequired int // number of prefix nodes required
 	SuffixNodeRequired int // number of suffix nodes required
 	NodeSizeLimit      int // min size required to substitute with a wildcard
 }
 
-// PathPatternBuilder pattern builder for files
-func PathPatternBuilder(pattern string, path string, opts PathPatternBuilderOpts) (bool, string) {
-	lenMax := len(pattern)
-	if l := len(path); l > lenMax {
-		lenMax = l
-	}
-
+// PathPatternMatch pattern builder for files
+func PathPatternMatch(pattern string, path string, opts PathPatternMatchOpts) bool {
 	var (
-		i, j                                 = 0, 0
-		result                               = make([]byte, lenMax)
-		offsetPattern, offsetPath, size      = 0, 0, 0
+		i, j, offsetPath                     = 0, 0, 0
 		wildcardCount, nodeCount, suffixNode = 0, 0, 0
 		patternLen, pathLen                  = len(pattern), len(path)
 		wildcard                             bool
@@ -43,17 +36,11 @@ func PathPatternBuilder(pattern string, path string, opts PathPatternBuilderOpts
 					return false
 				}
 
-				result[size], result[size+1] = '/', '*'
-				size += 2
-
 				suffixNode = 0
 			} else {
-				copy(result[size:], pattern[offsetPattern:i])
-				size += i - offsetPattern
 				suffixNode++
 			}
 
-			offsetPattern = i
 			offsetPath = j
 
 			if i > 0 {
@@ -64,18 +51,18 @@ func PathPatternBuilder(pattern string, path string, opts PathPatternBuilderOpts
 	)
 
 	if patternLen > 0 && pattern[0] != '/' {
-		return false, ""
+		return false
 	}
 
 	if pathLen > 0 && path[0] != '/' {
-		return false, ""
+		return false
 	}
 
 	for i < len(pattern) && j < len(path) {
 		pn, ph := pattern[i], path[j]
 		if pn == '/' && ph == '/' {
 			if !computeNode() {
-				return false, ""
+				return false
 			}
 			wildcard = false
 
@@ -101,25 +88,25 @@ func PathPatternBuilder(pattern string, path string, opts PathPatternBuilderOpts
 
 	for i < patternLen {
 		if pattern[i] == '/' {
-			return false, ""
+			return false
 		}
 		i++
 	}
 
 	for j < pathLen {
 		if path[j] == '/' {
-			return false, ""
+			return false
 		}
 		j++
 	}
 
 	if !computeNode() {
-		return false, ""
+		return false
 	}
 
 	if opts.SuffixNodeRequired == 0 || suffixNode >= opts.SuffixNodeRequired {
-		return true, string(result[:size])
+		return true
 	}
 
-	return false, ""
+	return false
 }

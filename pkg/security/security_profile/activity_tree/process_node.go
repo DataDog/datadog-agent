@@ -152,11 +152,10 @@ func (pn *ProcessNode) scrubAndReleaseArgsEnvs(resolver *sprocess.Resolver) {
 func (pn *ProcessNode) Matches(entry *model.Process, matchArgs bool, normalize bool) bool {
 	if normalize {
 		// should convert /var/run/1234/runc.pid + /var/run/54321/runc.pic into /var/run/*/runc.pid
-		match, pattern := utils.PathPatternBuilder(pn.Process.FileEvent.PathnameStr, entry.FileEvent.PathnameStr, utils.PathPatternBuilderOpts{WildcardLimit: 3, PrefixNodeRequired: 1, SuffixNodeRequired: 1, NodeSizeLimit: 8})
+		match := utils.PathPatternMatch(pn.Process.FileEvent.PathnameStr, entry.FileEvent.PathnameStr, utils.PathPatternMatchOpts{WildcardLimit: 3, PrefixNodeRequired: 1, SuffixNodeRequired: 1, NodeSizeLimit: 8})
 		if !match {
 			return false
 		}
-		pn.Process.FileEvent.PathnameStr = pattern
 	} else if pn.Process.FileEvent.PathnameStr != entry.FileEvent.PathnameStr {
 		return false
 	}

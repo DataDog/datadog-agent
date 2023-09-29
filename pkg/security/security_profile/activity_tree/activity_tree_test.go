@@ -3993,7 +3993,7 @@ func TestActivityTree_Patterns(t *testing.T) {
 				{
 					Process: model.Process{
 						FileEvent: model.FileEvent{
-							PathnameStr: "/tmp/*/script.sh",
+							PathnameStr: "/tmp/123456789/script.sh",
 						},
 					},
 				},
