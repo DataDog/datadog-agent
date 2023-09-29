@@ -392,6 +392,182 @@ func TestProcessEvents(t *testing.T) {
 				},
 			},
 		},
+		{
+			name: "pending case",
+			inputEvents: []workloadmeta.Event{
+				{
+					Type: workloadmeta.EventTypeSet,
+					Entity: &workloadmeta.ContainerImageMetadata{
+						EntityID: workloadmeta.EntityID{
+							Kind: workloadmeta.KindContainerImageMetadata,
+							ID:   "sha256:9634b84c45c6ad220c3d0d2305aaa5523e47d6d43649c9bbeda46ff010b4aacd",
+						},
+						RepoTags: []string{
+							"datadog/agent:7-rc",
+							"datadog/agent:7.41.1-rc.1",
+							"gcr.io/datadoghq/agent:7-rc",
+							"gcr.io/datadoghq/agent:7.41.1-rc.1",
+							"public.ecr.aws/datadog/agent:7-rc",
+							"public.ecr.aws/datadog/agent:7.41.1-rc.1",
+						},
+						RepoDigests: []string{
+							"datadog/agent@sha256:052f1fdf4f9a7117d36a1838ab60782829947683007c34b69d4991576375c409",
+							"gcr.io/datadoghq/agent@sha256:052f1fdf4f9a7117d36a1838ab60782829947683007c34b69d4991576375c409",
+							"public.ecr.aws/datadog/agent@sha256:052f1fdf4f9a7117d36a1838ab60782829947683007c34b69d4991576375c409",
+						},
+						SBOM: &workloadmeta.SBOM{
+							Status: workloadmeta.Pending,
+						},
+					},
+				},
+			},
+			expectedSBOMs: []*model.SBOMEntity{
+				{
+					Type: model.SBOMSourceType_CONTAINER_IMAGE_LAYERS,
+					Id:   "datadog/agent@sha256:9634b84c45c6ad220c3d0d2305aaa5523e47d6d43649c9bbeda46ff010b4aacd",
+					DdTags: []string{
+						"image_id:datadog/agent@sha256:9634b84c45c6ad220c3d0d2305aaa5523e47d6d43649c9bbeda46ff010b4aacd",
+						"image_name:datadog/agent",
+						"short_image:agent",
+						"image_tag:7-rc",
+						"image_tag:7.41.1-rc.1",
+					},
+					RepoTags: []string{
+						"7-rc",
+						"7.41.1-rc.1",
+					},
+					InUse:  false,
+					Status: model.SBOMStatus_PENDING,
+				},
+				{
+					Type: model.SBOMSourceType_CONTAINER_IMAGE_LAYERS,
+					Id:   "gcr.io/datadoghq/agent@sha256:9634b84c45c6ad220c3d0d2305aaa5523e47d6d43649c9bbeda46ff010b4aacd",
+					DdTags: []string{
+						"image_id:gcr.io/datadoghq/agent@sha256:9634b84c45c6ad220c3d0d2305aaa5523e47d6d43649c9bbeda46ff010b4aacd",
+						"image_name:gcr.io/datadoghq/agent",
+						"short_image:agent",
+						"image_tag:7-rc",
+						"image_tag:7.41.1-rc.1",
+					},
+					RepoTags: []string{
+						"7-rc",
+						"7.41.1-rc.1",
+					},
+					InUse:  false,
+					Status: model.SBOMStatus_PENDING,
+				},
+				{
+					Type: model.SBOMSourceType_CONTAINER_IMAGE_LAYERS,
+					Id:   "public.ecr.aws/datadog/agent@sha256:9634b84c45c6ad220c3d0d2305aaa5523e47d6d43649c9bbeda46ff010b4aacd",
+					DdTags: []string{
+						"image_id:public.ecr.aws/datadog/agent@sha256:9634b84c45c6ad220c3d0d2305aaa5523e47d6d43649c9bbeda46ff010b4aacd",
+						"image_name:public.ecr.aws/datadog/agent",
+						"short_image:agent",
+						"image_tag:7-rc",
+						"image_tag:7.41.1-rc.1",
+					},
+					RepoTags: []string{
+						"7-rc",
+						"7.41.1-rc.1",
+					},
+					InUse:  false,
+					Status: model.SBOMStatus_PENDING,
+				},
+			},
+		},
+		{
+			name: "error case",
+			inputEvents: []workloadmeta.Event{
+				{
+					Type: workloadmeta.EventTypeSet,
+					Entity: &workloadmeta.ContainerImageMetadata{
+						EntityID: workloadmeta.EntityID{
+							Kind: workloadmeta.KindContainerImageMetadata,
+							ID:   "sha256:9634b84c45c6ad220c3d0d2305aaa5523e47d6d43649c9bbeda46ff010b4aacd",
+						},
+						RepoTags: []string{
+							"datadog/agent:7-rc",
+							"datadog/agent:7.41.1-rc.1",
+							"gcr.io/datadoghq/agent:7-rc",
+							"gcr.io/datadoghq/agent:7.41.1-rc.1",
+							"public.ecr.aws/datadog/agent:7-rc",
+							"public.ecr.aws/datadog/agent:7.41.1-rc.1",
+						},
+						RepoDigests: []string{
+							"datadog/agent@sha256:052f1fdf4f9a7117d36a1838ab60782829947683007c34b69d4991576375c409",
+							"gcr.io/datadoghq/agent@sha256:052f1fdf4f9a7117d36a1838ab60782829947683007c34b69d4991576375c409",
+							"public.ecr.aws/datadog/agent@sha256:052f1fdf4f9a7117d36a1838ab60782829947683007c34b69d4991576375c409",
+						},
+						SBOM: &workloadmeta.SBOM{
+							Status: workloadmeta.Failed,
+							Error:  "error",
+						},
+					},
+				},
+			},
+			expectedSBOMs: []*model.SBOMEntity{
+				{
+					Type: model.SBOMSourceType_CONTAINER_IMAGE_LAYERS,
+					Id:   "datadog/agent@sha256:9634b84c45c6ad220c3d0d2305aaa5523e47d6d43649c9bbeda46ff010b4aacd",
+					DdTags: []string{
+						"image_id:datadog/agent@sha256:9634b84c45c6ad220c3d0d2305aaa5523e47d6d43649c9bbeda46ff010b4aacd",
+						"image_name:datadog/agent",
+						"short_image:agent",
+						"image_tag:7-rc",
+						"image_tag:7.41.1-rc.1",
+					},
+					RepoTags: []string{
+						"7-rc",
+						"7.41.1-rc.1",
+					},
+					InUse: false,
+					Sbom: &model.SBOMEntity_Error{
+						Error: "error",
+					},
+					Status: model.SBOMStatus_FAILED,
+				},
+				{
+					Type: model.SBOMSourceType_CONTAINER_IMAGE_LAYERS,
+					Id:   "gcr.io/datadoghq/agent@sha256:9634b84c45c6ad220c3d0d2305aaa5523e47d6d43649c9bbeda46ff010b4aacd",
+					DdTags: []string{
+						"image_id:gcr.io/datadoghq/agent@sha256:9634b84c45c6ad220c3d0d2305aaa5523e47d6d43649c9bbeda46ff010b4aacd",
+						"image_name:gcr.io/datadoghq/agent",
+						"short_image:agent",
+						"image_tag:7-rc",
+						"image_tag:7.41.1-rc.1",
+					},
+					RepoTags: []string{
+						"7-rc",
+						"7.41.1-rc.1",
+					},
+					InUse: false,
+					Sbom: &model.SBOMEntity_Error{
+						Error: "error",
+					},
+					Status: model.SBOMStatus_FAILED,
+				},
+				{
+					Type: model.SBOMSourceType_CONTAINER_IMAGE_LAYERS,
+					Id:   "public.ecr.aws/datadog/agent@sha256:9634b84c45c6ad220c3d0d2305aaa5523e47d6d43649c9bbeda46ff010b4aacd",
+					DdTags: []string{
+						"image_id:public.ecr.aws/datadog/agent@sha256:9634b84c45c6ad220c3d0d2305aaa5523e47d6d43649c9bbeda46ff010b4aacd",
+						"image_name:public.ecr.aws/datadog/agent",
+						"short_image:agent",
+						"image_tag:7-rc",
+						"image_tag:7.41.1-rc.1",
+					},
+					RepoTags: []string{
+						"7-rc",
+						"7.41.1-rc.1",
+					},
+					InUse: false,
+					Sbom: &model.SBOMEntity_Error{
+						Error: "error",
+					},
+					Status: model.SBOMStatus_FAILED,
+				},
+			},
+		},
 	}
 
 	cfg := config.Mock(nil)
