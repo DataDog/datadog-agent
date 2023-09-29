@@ -131,7 +131,7 @@ func peerTagsHash(tags []string) uint64 {
 
 // NewAggregationFromGroup gets the Aggregation key of grouped stats.
 func NewAggregationFromGroup(g *pb.ClientGroupedStats) Aggregation {
-	agg := Aggregation{
+	return Aggregation{
 		BucketsAggregationKey: BucketsAggregationKey{
 			Resource:     g.Resource,
 			Service:      g.Service,
@@ -143,6 +143,4 @@ func NewAggregationFromGroup(g *pb.ClientGroupedStats) Aggregation {
 			PeerTagsHash: peerTagsHash(g.PeerTags),
 		},
 	}
-
-	return agg
 }
