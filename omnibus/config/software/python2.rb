@@ -41,19 +41,17 @@ if ohai["platform"] != "windows"
     "PKG_CONFIG_PATH" => "#{install_dir}/embedded/lib/pkgconfig"
   }
 
-  python_configure = ["./configure",
-                      "--prefix=#{install_dir}/embedded",
-                      "--with-ensurepip=no"] # pip is installed separately by its own software def
+  python_configure_options = ["--with-ensurepip=no"] # pip is installed separately by its own software def
 
   if mac_os_x?
-    python_configure.push("--enable-ipv6",
+    python_configure_options.push("--enable-ipv6",
                           "--with-universal-archs=intel",
                           "--enable-shared",
                           "--disable-static",
                           "--without-gcc",
                           "CC=clang")
   elsif linux?
-    python_configure.push("--enable-unicode=ucs4",
+    python_configure_options.push("--enable-unicode=ucs4",
                           "--enable-shared",
                           "--disable-static")
   end
@@ -70,7 +68,7 @@ if ohai["platform"] != "windows"
     patch :source => "python2.7_2.7.18-cve-2020-8492.diff" unless windows?
     patch :source => "python2.7_2.7.18-cve-2021-3177.diff" unless windows?
 
-    command python_configure.join(" "), :env => env
+    configure(*python_configure_options, :env => env)
     command "make -j #{workers}", :env => env
     command "make install", :env => env
     delete "#{install_dir}/embedded/lib/python2.7/test"
