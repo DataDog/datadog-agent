@@ -226,7 +226,6 @@ new-e2e-cws-dev:
   needs: []
   variables:
     TARGETS: ./tests/cws
-    ENV_SKIP_DELETE_ON_FAIL: "false"
   # Temporary, until we manage to stabilize those tests.
   allow_failure: true
 #   ^    If you create a new job here that extends `.new_e2e_template`,
