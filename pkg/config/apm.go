@@ -173,6 +173,15 @@ func setupAPM(config Config) {
 		}
 		return out
 	})
+
+	config.BindEnv("apm_config.peer_tags", "DD_APM_PEER_TAGS")
+	config.SetEnvKeyTransformer("apm_config.peer_tags", func(in string) interface{} {
+		var out []string
+		if err := json.Unmarshal([]byte(in), &out); err != nil {
+			log.Warnf(`"apm_config.peer_tags" can not be parsed: %v`, err)
+		}
+		return out
+	})
 }
 
 func parseKVList(key string) func(string) interface{} {
