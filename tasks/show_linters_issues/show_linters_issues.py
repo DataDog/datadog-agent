@@ -6,7 +6,13 @@ from invoke import task
 from invoke.exceptions import Exit
 
 from ..libs.pipeline_notifications import GITHUB_SLACK_MAP
-from .golangci_lint_parser import display_result, filter_lints, merge_results
+from .golangci_lint_parser import (
+    count_lints_per_team,
+    display_nb_lints_per_team,
+    display_result,
+    filter_lints,
+    merge_results,
+)
 
 FIRST_COMMIT_HASH = "52a313fe7f5e8e16d487bc5dc770038bc234608b"
 # See https://go.dev/doc/install/source#environment for all available combinations of GOOS x GOARCH.
@@ -24,7 +30,7 @@ def check_if_team_exists(team: str):
         print("[WARNING] No team entered. Displaying linters errors for all teams.\n")
 
 
-@task(iterable=['tested_os_and_arch'])
+@task(iterable=['platforms'])
 def show_linters_issues(
     ctx,
     filter_team: str = None,
@@ -69,4 +75,8 @@ def show_linters_issues(
     display = display_result(lints_filtered_by_team)
     if filter_team:
         print(f"Results of running '{filter_linters}' linters on {filter_team} team owned files:\n")
-    print(display)
+        print(display)
+    else:
+        print(display)
+        print("Number of errors per team:")
+        print(display_nb_lints_per_team(count_lints_per_team(merged_results, filter_linters)))

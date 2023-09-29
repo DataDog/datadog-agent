@@ -5,6 +5,7 @@
 
 //go:build docker
 
+// Package telemetry defines the telemetry for the ECS client.
 package telemetry
 
 import (

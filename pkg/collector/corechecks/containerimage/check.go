@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2022-present Datadog, Inc.
 
+// Package containerimage implements the container image check.
 package containerimage
 
 import (
@@ -71,6 +72,7 @@ func validateValue(val *int, valueRange *configValueRange) {
 	}
 }
 
+// Parse parses the configuration
 func (c *Config) Parse(data []byte) error {
 	if err := yaml.Unmarshal(data, c); err != nil {
 		return err

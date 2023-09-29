@@ -50,6 +50,9 @@ import (
 	logsAgent "github.com/DataDog/datadog-agent/comp/logs/agent"
 	"github.com/DataDog/datadog-agent/comp/metadata"
 	"github.com/DataDog/datadog-agent/comp/metadata/runner"
+	"github.com/DataDog/datadog-agent/comp/ndmtmp"
+	"github.com/DataDog/datadog-agent/comp/netflow"
+	netflowServer "github.com/DataDog/datadog-agent/comp/netflow/server"
 	"github.com/DataDog/datadog-agent/comp/otelcol"
 	otelcollector "github.com/DataDog/datadog-agent/comp/otelcol/collector"
 	"github.com/DataDog/datadog-agent/comp/remote-config/rcclient"
@@ -65,7 +68,6 @@ import (
 	adScheduler "github.com/DataDog/datadog-agent/pkg/logs/schedulers/ad"
 	pkgMetadata "github.com/DataDog/datadog-agent/pkg/metadata"
 	"github.com/DataDog/datadog-agent/pkg/metadata/host"
-	"github.com/DataDog/datadog-agent/pkg/netflow"
 	"github.com/DataDog/datadog-agent/pkg/pidfile"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/snmp/traps"
@@ -110,6 +112,7 @@ import (
 	_ "github.com/DataDog/datadog-agent/pkg/collector/corechecks/system/uptime"
 	_ "github.com/DataDog/datadog-agent/pkg/collector/corechecks/system/winkmem"
 	_ "github.com/DataDog/datadog-agent/pkg/collector/corechecks/system/winproc"
+	_ "github.com/DataDog/datadog-agent/pkg/collector/corechecks/system/winregistry"
 	_ "github.com/DataDog/datadog-agent/pkg/collector/corechecks/systemd"
 
 	// register metadata providers
@@ -182,6 +185,7 @@ func run(log log.Component,
 	cliParams *cliParams,
 	logsAgent util.Optional[logsAgent.Component],
 	otelcollector otelcollector.Component,
+	_ netflowServer.Component,
 ) error {
 	defer func() {
 		stopAgent(cliParams, server)
@@ -258,6 +262,7 @@ func StartAgentWithDefaults(ctxChan <-chan context.Context) (<-chan error, error
 			metadataRunner runner.Component,
 			sharedSerializer serializer.MetricSerializer,
 			otelcollector otelcollector.Component,
+			_ netflowServer.Component,
 		) error {
 
 			defer StopAgentWithDefaults(server)
@@ -369,6 +374,8 @@ func getSharedFxOption() fx.Option {
 		fx.Provide(func(demux *aggregator.AgentDemultiplexer) serializer.MetricSerializer {
 			return demux.Serializer()
 		}),
+		ndmtmp.Bundle,
+		netflow.Bundle,
 	)
 }
 
@@ -591,15 +598,6 @@ func startAgent(
 		}
 	}
 
-	// Start NetFlow server
-	// This must happen after LoadComponents is set up (via common.LoadComponents).
-	// netflow.StartServer uses AgentDemultiplexer, that uses ContextResolver, that uses the tagger (initialized by LoadComponents)
-	if netflow.IsEnabled(pkgconfig.Datadog) {
-		if err = netflow.StartServer(demux, pkgconfig.Datadog, log); err != nil {
-			log.Errorf("Failed to start NetFlow server: %s", err)
-		}
-	}
-
 	// load and run all configs in AD
 	common.AC.LoadAndRun(common.MainCtx)
 
@@ -657,7 +655,6 @@ func stopAgent(cliParams *cliParams, server dogstatsdServer.Component) {
 		common.MetadataScheduler.Stop()
 	}
 	traps.StopServer()
-	netflow.StopServer()
 	api.StopServer()
 	clcrunnerapi.StopCLCRunnerServer()
 	jmx.StopJmxfetch()

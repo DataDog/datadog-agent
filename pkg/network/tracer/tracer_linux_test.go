@@ -58,6 +58,10 @@ import (
 var kv470 = kernel.VersionCode(4, 7, 0)
 var kv = kernel.MustHostVersion()
 
+func platformInit() {
+	// linux-specific tasks here
+}
+
 func doDNSQuery(t *testing.T, domain string, serverIP string) (*net.UDPAddr, *net.UDPAddr) {
 	dnsServerAddr := &net.UDPAddr{IP: net.ParseIP(serverIP), Port: 53}
 	queryMsg := new(dns.Msg)
