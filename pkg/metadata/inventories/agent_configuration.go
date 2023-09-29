@@ -31,6 +31,14 @@ func marshalAndScrub(conf map[string]interface{}) (string, error) {
 	return string(scrubbed), nil
 }
 
+func getFullAgentConfiguration() (string, error) {
+	if !config.Datadog.GetBool("inventories_configuration_enabled") {
+		return "", fmt.Errorf("inventories_configuration_enabled is disabled")
+	}
+
+	return marshalAndScrub(config.Datadog.AllSettings())
+}
+
 func getProvidedAgentConfiguration() (string, error) {
 	if !config.Datadog.GetBool("inventories_configuration_enabled") {
 		return "", fmt.Errorf("inventories_configuration_enabled is disabled")
@@ -39,10 +47,42 @@ func getProvidedAgentConfiguration() (string, error) {
 	return marshalAndScrub(config.Datadog.AllSettingsWithoutDefault())
 }
 
-func getFullAgentConfiguration() (string, error) {
+func getAgentYamlConfiguration() (string, error) {
 	if !config.Datadog.GetBool("inventories_configuration_enabled") {
 		return "", fmt.Errorf("inventories_configuration_enabled is disabled")
 	}
 
-	return marshalAndScrub(config.Datadog.AllSettings())
+	return marshalAndScrub(config.Datadog.AllYamlSettingsWithoutDefault())
+}
+
+func getAgentEnvVarConfiguration() (string, error) {
+	if !config.Datadog.GetBool("inventories_configuration_enabled") {
+		return "", fmt.Errorf("inventories_configuration_enabled is disabled")
+	}
+
+	return marshalAndScrub(config.Datadog.AllEnvVarSettingsWithoutDefault())
+}
+
+func getAgentSelfConfiguration() (string, error) {
+	if !config.Datadog.GetBool("inventories_configuration_enabled") {
+		return "", fmt.Errorf("inventories_configuration_enabled is disabled")
+	}
+
+	return marshalAndScrub(config.Datadog.AllSelfSettingsWithoutDefault())
+}
+
+func getAgentRemoteConfiguration() (string, error) {
+	if !config.Datadog.GetBool("inventories_configuration_enabled") {
+		return "", fmt.Errorf("inventories_configuration_enabled is disabled")
+	}
+
+	return marshalAndScrub(config.Datadog.AllRemoteSettingsWithoutDefault())
+}
+
+func getAgentCliConfiguration() (string, error) {
+	if !config.Datadog.GetBool("inventories_configuration_enabled") {
+		return "", fmt.Errorf("inventories_configuration_enabled is disabled")
+	}
+
+	return marshalAndScrub(config.Datadog.AllCliSettingsWithoutDefault())
 }

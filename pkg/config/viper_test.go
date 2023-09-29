@@ -190,3 +190,55 @@ test:
 	res = config.IsSectionSet("yetanothertest")
 	assert.Equal(t, false, res)
 }
+
+func TestSetForSource(t *testing.T) {
+	config := NewConfig("test", "DD", strings.NewReplacer(".", "_"))
+	config.SetForSource("foo", "bar", SourceYaml)
+	config.SetForSource("foo", "baz", SourceEnvVar)
+	config.SetForSource("foo", "qux", SourceSelf)
+	config.SetForSource("foo", "quux", SourceRC)
+	config.SetForSource("foo", "corge", SourceCLI)
+
+	assert.Equal(t, config.AllYamlSettingsWithoutDefault(), map[string]interface{}{"foo": "bar"})
+	assert.Equal(t, config.AllEnvVarSettingsWithoutDefault(), map[string]interface{}{"foo": "baz"})
+	assert.Equal(t, config.AllSelfSettingsWithoutDefault(), map[string]interface{}{"foo": "qux"})
+	assert.Equal(t, config.AllRemoteSettingsWithoutDefault(), map[string]interface{}{"foo": "quux"})
+	assert.Equal(t, config.AllCliSettingsWithoutDefault(), map[string]interface{}{"foo": "corge"})
+
+	assert.Equal(t, config.Get("foo"), "corge")
+}
+
+func TestGetSource(t *testing.T) {
+	config := NewConfig("test", "DD", strings.NewReplacer(".", "_"))
+	config.SetForSource("foo", "bar", SourceYaml)
+	config.SetForSource("foo", "baz", SourceEnvVar)
+	assert.Equal(t, SourceEnvVar, config.GetSource("foo"))
+}
+
+func TestIsSetForSource(t *testing.T) {
+	config := NewConfig("test", "DD", strings.NewReplacer(".", "_"))
+	assert.False(t, config.IsSetForSource("foo", SourceYaml))
+	config.SetForSource("foo", "bar", SourceYaml)
+	assert.True(t, config.IsSetForSource("foo", SourceYaml))
+}
+
+func TestUnsetForSource(t *testing.T) {
+	config := NewConfig("test", "DD", strings.NewReplacer(".", "_"))
+	config.SetForSource("foo", "bar", SourceYaml)
+	config.UnsetForSource("foo", SourceYaml)
+	assert.False(t, config.IsSetForSource("foo", SourceYaml))
+}
+
+func TestAllYamlSettingsWithoutDefault(t *testing.T) {
+	config := NewConfig("test", "DD", strings.NewReplacer(".", "_"))
+	config.SetForSource("foo", "bar", SourceYaml)
+	config.SetForSource("baz", "qux", SourceYaml)
+	config.UnsetForSource("foo", SourceYaml)
+	assert.Equal(
+		t,
+		map[string]interface{}{
+			"baz": "qux",
+		},
+		config.AllYamlSettingsWithoutDefault(),
+	)
+}
