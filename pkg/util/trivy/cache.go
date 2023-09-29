@@ -12,6 +12,8 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"os"
+	"path/filepath"
 	"sync"
 	"time"
 
@@ -21,7 +23,6 @@ import (
 
 	"github.com/aquasecurity/trivy/pkg/fanal/cache"
 	"github.com/aquasecurity/trivy/pkg/fanal/types"
-	"github.com/aquasecurity/trivy/pkg/utils"
 	"github.com/hashicorp/golang-lru/v2/simplelru"
 )
 
@@ -35,11 +36,20 @@ var telemetryTick = 1 * time.Minute
 // and a cache cleaner
 type CacheProvider func() (cache.Cache, CacheCleaner, error)
 
+// defaultCacheDir returns/creates the default cache-dir to be used for trivy operations
+func defaultCacheDir() string {
+	tmpDir, err := os.UserCacheDir()
+	if err != nil {
+		tmpDir = os.TempDir()
+	}
+	return filepath.Join(tmpDir, "trivy")
+}
+
 // NewCustomBoltCache is a CacheProvider. It returns a custom implementation of a BoltDB cache using an LRU algorithm with a
 // maximum number of cache entries, maximum disk size and garbage collection of unused images with its custom cleaner.
 func NewCustomBoltCache(cacheDir string, maxDiskSize int) (cache.Cache, CacheCleaner, error) {
 	if cacheDir == "" {
-		cacheDir = utils.DefaultCacheDir()
+		cacheDir = defaultCacheDir()
 	}
 	db, err := NewBoltDB(cacheDir)
 	if err != nil {
@@ -59,7 +69,7 @@ func NewCustomBoltCache(cacheDir string, maxDiskSize int) (cache.Cache, CacheCle
 // NewBoltCache is a CacheProvider. It returns a BoltDB cache provided by Trivy and an empty cleaner.
 func NewBoltCache(cacheDir string) (cache.Cache, CacheCleaner, error) {
 	if cacheDir == "" {
-		cacheDir = utils.DefaultCacheDir()
+		cacheDir = defaultCacheDir()
 	}
 	cache, err := cache.NewFSCache(cacheDir)
 	return cache, &StubCacheCleaner{}, err
