@@ -15,7 +15,6 @@ import (
 	"fmt"
 	"hash/fnv"
 	"math/rand"
-	"strconv"
 	"sync"
 	"time"
 
@@ -263,10 +262,10 @@ func (a *Agent) runRegoBenchmarks(ctx context.Context) {
 			for _, rule := range benchmark.Rules {
 				inputs, err := resolver.ResolveInputs(ctx, rule)
 				if err != nil {
-					a.reportEvents(ctx, benchmark, CheckEventFromError(RegoEvaluator, rule, benchmark, err))
+					a.reportCheckEvents(checkInterval, CheckEventFromError(RegoEvaluator, rule, benchmark, err))
 				} else {
 					events := EvaluateRegoRule(ctx, inputs, benchmark, rule)
-					a.reportEvents(ctx, benchmark, events...)
+					a.reportCheckEvents(checkInterval, events...)
 				}
 
 				if sleepAborted(ctx, throttler.C) {
@@ -314,7 +313,7 @@ func (a *Agent) runXCCDFBenchmarks(ctx context.Context) {
 			}
 			for _, rule := range benchmark.Rules {
 				events := EvaluateXCCDFRule(ctx, a.opts.Hostname, a.opts.StatsdClient, benchmark, rule)
-				a.reportEvents(ctx, benchmark, events...)
+				a.reportCheckEvents(checkInterval, events...)
 				if sleepAborted(ctx, throttler.C) {
 					FinishXCCDFBenchmark(ctx, benchmark)
 					return
@@ -342,8 +341,7 @@ func (a *Agent) runKubernetesConfigurationsExport(ctx context.Context) {
 			return
 		}
 		k8sResourceType, k8sResourceData := k8sconfig.LoadConfiguration(ctx, a.opts.HostRoot)
-		k8sResourceLog := NewResourceLog(a.opts.Hostname, k8sResourceType, k8sResourceData)
-		a.opts.Reporter.ReportEvent(k8sResourceLog)
+		a.reportResourceLog(checkInterval, NewResourceLog(a.opts.Hostname, k8sResourceType, k8sResourceData))
 		if sleepAborted(ctx, runTicker.C) {
 			return
 		}
@@ -369,17 +367,23 @@ func (a *Agent) runAptConfigurationExport(ctx context.Context) {
 			return
 		}
 		aptResourceType, aptResourceData := aptconfig.LoadConfiguration(ctx, a.opts.HostRoot)
-		aptResourceLog := NewResourceLog(a.opts.Hostname, aptResourceType, aptResourceData)
-		a.opts.Reporter.ReportEvent(aptResourceLog)
+		a.reportResourceLog(checkInterval, NewResourceLog(a.opts.Hostname, aptResourceType, aptResourceData))
 		if sleepAborted(ctx, runTicker.C) {
 			return
 		}
 	}
 }
 
-func (a *Agent) reportEvents(ctx context.Context, benchmark *Benchmark, events ...*CheckEvent) {
+func (a *Agent) reportResourceLog(resourceTTL time.Duration, resourceLog *ResourceLog) {
+	resourceLog.ExpireAt = time.Now().Add(2 * resourceTTL).Truncate(1 * time.Second)
+	a.opts.Reporter.ReportEvent(resourceLog)
+}
+
+func (a *Agent) reportCheckEvents(eventsTTL time.Duration, events ...*CheckEvent) {
 	store := workloadmeta.GetGlobalStore()
+	eventsExpireAt := time.Now().Add(2 * eventsTTL).Truncate(1 * time.Second)
 	for _, event := range events {
+		event.ExpireAt = eventsExpireAt
 		a.updateEvent(event)
 		if event.Result == CheckSkipped {
 			continue

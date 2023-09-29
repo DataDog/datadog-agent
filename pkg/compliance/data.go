@@ -120,14 +120,12 @@ func NewCheckError(
 	rule *Rule,
 	benchmark *Benchmark,
 ) *CheckEvent {
-	expireAt := time.Now().Add(1 * time.Hour).UTC().Truncate(1 * time.Second)
 	return &CheckEvent{
 		AgentVersion: version.AgentVersion,
 		RuleID:       rule.ID,
 		FrameworkID:  benchmark.FrameworkID,
 		ResourceID:   resourceID,
 		ResourceType: resourceType,
-		ExpireAt:     expireAt,
 		Evaluator:    evaluator,
 		Result:       CheckError,
 		Data:         map[string]interface{}{"error": errReason.Error()},
@@ -146,14 +144,12 @@ func NewCheckEvent(
 	rule *Rule,
 	benchmark *Benchmark,
 ) *CheckEvent {
-	expireAt := time.Now().Add(1 * time.Hour).UTC().Truncate(1 * time.Second)
 	return &CheckEvent{
 		AgentVersion: version.AgentVersion,
 		RuleID:       rule.ID,
 		FrameworkID:  benchmark.FrameworkID,
 		ResourceID:   resourceID,
 		ResourceType: resourceType,
-		ExpireAt:     expireAt,
 		Evaluator:    evaluator,
 		Result:       result,
 		Data:         data,
@@ -169,12 +165,10 @@ func NewCheckSkipped(
 	rule *Rule,
 	benchmark *Benchmark,
 ) *CheckEvent {
-	expireAt := time.Now().Add(1 * time.Hour).UTC().Truncate(1 * time.Second)
 	return &CheckEvent{
 		AgentVersion: version.AgentVersion,
 		RuleID:       rule.ID,
 		FrameworkID:  benchmark.FrameworkID,
-		ExpireAt:     expireAt,
 		Evaluator:    evaluator,
 		Result:       CheckSkipped,
 		Data:         map[string]interface{}{"error": skipReason.Error()},
@@ -183,10 +177,8 @@ func NewCheckSkipped(
 
 // NewResourceLog returns a ResourceLog.
 func NewResourceLog(resourceID, resourceType string, resource interface{}) *ResourceLog {
-	expireAt := time.Now().Add(1 * time.Hour).UTC().Truncate(1 * time.Second)
 	return &ResourceLog{
 		AgentVersion: version.AgentVersion,
-		ExpireAt:     expireAt,
 		ResourceType: resourceType,
 		ResourceID:   resourceID,
 		ResourceData: resource,
