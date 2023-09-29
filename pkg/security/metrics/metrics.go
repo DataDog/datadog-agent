@@ -215,6 +215,9 @@ var (
 	// MetricActivityDumpNotYetProfiledWorkload is the name of the metric used to report the count of workload not yet profiled
 	// Tags: -
 	MetricActivityDumpNotYetProfiledWorkload = newAgentMetric(".activity_dump.not_yet_profiled_workload")
+	// MetricActivityDumpWorkloadDenyListHits is the name of the metric used to report the count of dumps that were dismissed because their workload is in the deny list
+	// Tags: -
+	MetricActivityDumpWorkloadDenyListHits = newRuntimeMetric(".activity_dump.workload_deny_list_hits")
 	// MetricActivityDumpLocalStorageCount is the name of the metric used to count the number of dumps stored locally
 	// Tags: -
 	MetricActivityDumpLocalStorageCount = newAgentMetric(".activity_dump.local_storage.count")
