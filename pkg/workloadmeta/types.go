@@ -993,7 +993,7 @@ func (p *Process) Merge(e Entity) error {
 }
 
 // String implements Entity#String.
-func (p Process) String(verbose bool) string {
+func (p Process) String(verbose bool) string { // nolint:revive // TODO fix revive unused-parameter
 	var sb strings.Builder
 
 	_, _ = fmt.Fprintln(&sb, "----------- Entity ID -----------")

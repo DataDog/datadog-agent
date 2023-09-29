@@ -8,7 +8,7 @@
 package resources
 
 // GetPayload builds a payload of processes metadata collected from gohai.
-func GetPayload(hostname string) *Payload {
+func GetPayload(hostname string) *Payload { // nolint:revive // TODO fix revive unused-parameter
 	// Not implemented on Windows
 	return nil
 }

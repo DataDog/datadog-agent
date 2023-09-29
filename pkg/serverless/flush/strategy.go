@@ -67,7 +67,7 @@ type AtTheEnd struct{}
 func (s *AtTheEnd) String() string { return "end" }
 
 // ShouldFlush returns true if this strategy want to flush at the given moment.
-func (s *AtTheEnd) ShouldFlush(moment Moment, t time.Time) bool {
+func (s *AtTheEnd) ShouldFlush(moment Moment, t time.Time) bool { // nolint:revive // TODO fix revive unused-parameter
 	return moment == Stopping
 }
 
@@ -88,7 +88,7 @@ func (s *Periodically) String() string {
 }
 
 // ShouldFlush returns true if this strategy want to flush at the given moment.
-func (s *Periodically) ShouldFlush(moment Moment, t time.Time) bool {
+func (s *Periodically) ShouldFlush(moment Moment, t time.Time) bool { // nolint:revive // TODO fix revive unused-parameter
 	if moment == Starting {
 		now := time.Now()
 		if s.lastFlush.Add(s.interval).Before(now) {

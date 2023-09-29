@@ -24,7 +24,7 @@ import (
 
 // StartCompliance runs the compliance sub-agent running compliance benchmarks
 // and checks.
-func StartCompliance(log log.Component, config config.Component, sysprobeconfig sysprobeconfig.Component, hostname string, stopper startstop.Stopper, statsdClient *ddgostatsd.Client) (*compliance.Agent, error) {
+func StartCompliance(log log.Component, config config.Component, sysprobeconfig sysprobeconfig.Component, hostname string, stopper startstop.Stopper, statsdClient *ddgostatsd.Client) (*compliance.Agent, error) { // nolint:revive // TODO fix revive unused-parameter
 	enabled := config.GetBool("compliance_config.enabled")
 	runPath := config.GetString("compliance_config.run_path")
 	configDir := config.GetString("compliance_config.dir")

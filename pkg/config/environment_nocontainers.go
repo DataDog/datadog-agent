@@ -12,5 +12,5 @@ func IsAnyContainerFeaturePresent() bool {
 	return false
 }
 
-func detectContainerFeatures(features FeatureMap) {
+func detectContainerFeatures(features FeatureMap) { // nolint:revive // TODO fix revive unused-parameter
 }

@@ -19,7 +19,7 @@ type provides struct {
 	Comp Component
 }
 
-func newResourcesProvider(log log.Component, config config.Component) provides {
+func newResourcesProvider(log log.Component, config config.Component) provides { // nolint:revive // TODO fix revive unused-parameter
 	return provides{
 		// We return a dummy Component
 		Comp: struct{}{},

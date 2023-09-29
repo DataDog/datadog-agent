@@ -1245,7 +1245,7 @@ func TestReset(t *testing.T) {
 	}
 }
 
-func TestNoDataRace(t *testing.T) {
+func TestNoDataRace(t *testing.T) { // nolint:revive // TODO fix revive unused-parameter
 	// This test ensures that no race conditions are encountered when the "--race" flag is passed
 	// to the test process and an entity is accessed in a different thread than the one handling events
 	s := newTestStore()

@@ -43,7 +43,7 @@ func (mm MarshableMetric) MarshalJSON() ([]byte, error) {
 
 // Handler is meant to be used in conjuntion with a HTTP server for exposing the
 // state of all metrics currently tracked by this library
-func Handler(w http.ResponseWriter, req *http.Request) {
+func Handler(w http.ResponseWriter, req *http.Request) { // nolint:revive // TODO fix revive unused-parameter
 	metrics := globalRegistry.GetMetrics()
 
 	// sort entries by name it easier to read the output

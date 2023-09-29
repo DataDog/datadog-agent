@@ -231,7 +231,7 @@ func (s *Store) Start(context.Context) {
 }
 
 // Subscribe is not implemented in the testing store.
-func (s *Store) Subscribe(name string, _ workloadmeta.SubscriberPriority, filter *workloadmeta.Filter) chan workloadmeta.EventBundle {
+func (s *Store) Subscribe(name string, _ workloadmeta.SubscriberPriority, filter *workloadmeta.Filter) chan workloadmeta.EventBundle { // nolint:revive // TODO fix revive unused-parameter
 	panic("not implemented")
 }
 
@@ -246,17 +246,17 @@ func (s *Store) Notify([]workloadmeta.CollectorEvent) {
 }
 
 // Dump is not implemented in the testing store.
-func (s *Store) Dump(verbose bool) workloadmeta.WorkloadDumpResponse {
+func (s *Store) Dump(verbose bool) workloadmeta.WorkloadDumpResponse { // nolint:revive // TODO fix revive unused-parameter
 	panic("not implemented")
 }
 
 // Reset is not implemented in the testing store.
-func (s *Store) Reset(newEntities []workloadmeta.Entity, source workloadmeta.Source) {
+func (s *Store) Reset(newEntities []workloadmeta.Entity, source workloadmeta.Source) { // nolint:revive // TODO fix revive unused-parameter
 	panic("not implemented")
 }
 
 // ResetProcesses is not implemented in the testing store.
-func (s *Store) ResetProcesses(newProcesses []workloadmeta.Entity, source workloadmeta.Source) {
+func (s *Store) ResetProcesses(newProcesses []workloadmeta.Entity, source workloadmeta.Source) { // nolint:revive // TODO fix revive unused-parameter
 	panic("not implemented")
 }
 

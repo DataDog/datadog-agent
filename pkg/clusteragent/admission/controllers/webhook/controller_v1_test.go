@@ -628,7 +628,7 @@ func (f *fixtureV1) createController() (*ControllerV1, informers.SharedInformerF
 	), factory
 }
 
-func (f *fixtureV1) run(t *testing.T) *ControllerV1 {
+func (f *fixtureV1) run(t *testing.T) *ControllerV1 { // nolint:revive // TODO fix revive unused-parameter
 	stopCh := make(chan struct{})
 	defer close(stopCh)
 

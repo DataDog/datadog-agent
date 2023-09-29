@@ -164,4 +164,4 @@ func (*noopTelemetryCollector) SendRemoteConfigPatchEvent(ApmRemoteConfigEvent) 
 func (*noopTelemetryCollector) SendRemoteConfigMutateEvent(ApmRemoteConfigEvent) {
 }
 
-func (*noopTelemetryCollector) SetTestHost(testHost string) {}
+func (*noopTelemetryCollector) SetTestHost(testHost string) {} // nolint:revive // TODO fix revive unused-parameter

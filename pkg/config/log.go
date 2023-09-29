@@ -58,7 +58,7 @@ func getLogDateFormat() string {
 	return logDateFormat
 }
 
-func createQuoteMsgFormatter(params string) seelog.FormatterFunc {
+func createQuoteMsgFormatter(params string) seelog.FormatterFunc { // nolint:revive // TODO fix revive unused-parameter
 	return func(message string, level seelog.LogLevel, context seelog.LogContextInterface) interface{} {
 		return strconv.Quote(message)
 	}
@@ -352,7 +352,7 @@ func getSyslogConnection(uri *url.URL, secure bool) (net.Conn, error) {
 }
 
 // ReceiveMessage process current log message
-func (s *SyslogReceiver) ReceiveMessage(message string, level seelog.LogLevel, context seelog.LogContextInterface) error {
+func (s *SyslogReceiver) ReceiveMessage(message string, level seelog.LogLevel, context seelog.LogContextInterface) error { // nolint:revive // TODO fix revive unused-parameter
 	if !s.enabled {
 		return nil
 	}
@@ -429,7 +429,7 @@ func (s *SyslogReceiver) Close() error {
 	return nil
 }
 
-func parseShortFilePath(params string) seelog.FormatterFunc {
+func parseShortFilePath(params string) seelog.FormatterFunc { // nolint:revive // TODO fix revive unused-parameter
 	return func(message string, level seelog.LogLevel, context seelog.LogContextInterface) interface{} {
 		return extractShortPathFromFullPath(context.FullPath())
 	}
@@ -457,7 +457,7 @@ func extractShortPathFromFullPath(fullPath string) string {
 	return shortPath
 }
 
-func createExtraJSONContext(params string) seelog.FormatterFunc {
+func createExtraJSONContext(params string) seelog.FormatterFunc { // nolint:revive // TODO fix revive unused-parameter
 	return func(message string, level seelog.LogLevel, context seelog.LogContextInterface) interface{} {
 		contextList, ok := context.CustomContext().([]interface{})
 		if len(contextList) == 0 || !ok {
@@ -467,7 +467,7 @@ func createExtraJSONContext(params string) seelog.FormatterFunc {
 	}
 }
 
-func createExtraTextContext(params string) seelog.FormatterFunc {
+func createExtraTextContext(params string) seelog.FormatterFunc { // nolint:revive // TODO fix revive unused-parameter
 	return func(message string, level seelog.LogLevel, context seelog.LogContextInterface) interface{} {
 		contextList, ok := context.CustomContext().([]interface{})
 		if len(contextList) == 0 || !ok {

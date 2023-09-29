@@ -27,7 +27,7 @@ func (m *mock) Get() map[string]interface{} {
 	return m.data
 }
 
-func newMock(deps mockDependencies, t testing.TB) Component {
+func newMock(deps mockDependencies, t testing.TB) Component { // nolint:revive // TODO fix revive unused-parameter
 	return &mock{
 		data: deps.Params.Data,
 	}

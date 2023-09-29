@@ -34,7 +34,7 @@ const (
 // RegisterExtension registers the serverless daemon and subscribe to INVOKE and SHUTDOWN messages.
 // Returns either (the serverless ID assigned by the serverless daemon + the api key as read from
 // the environment) or an error.
-func RegisterExtension(runtimeURL string, registrationRoute string, timeout time.Duration) (ID, FunctionARN, error) {
+func RegisterExtension(runtimeURL string, registrationRoute string, timeout time.Duration) (ID, FunctionARN, error) { // nolint:revive // TODO fix revive unused-parameter
 	extesionRegistrationURL := BuildURL(registrationRoute)
 	payload := createRegistrationPayload()
 

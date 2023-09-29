@@ -46,7 +46,7 @@ var cfgPath = flag.String("config", "/opt/datadog-agent/etc/datadog.yaml", "agen
 func run(
 	c collector.Component,
 	demux *aggregator.AgentDemultiplexer,
-	logsAgent util.Optional[logsAgent.Component],
+	logsAgent util.Optional[logsAgent.Component], //nolint:revive // TODO fix unused-parameter
 ) error {
 	// Setup stats telemetry handler
 	if sender, err := demux.GetDefaultSender(); err == nil {
