@@ -36,11 +36,12 @@ EOF
     "CFLAGS" => "-I#{install_dir}/embedded/include -O2 -pipe",
     "LDFLAGS" => "-Wl,-rpath,#{install_dir}/embedded/lib -L#{install_dir}/embedded/lib",
   }
-  command "./configure" \
-          " --prefix=#{install_dir}/embedded" \
-          " --disable-static",
-          " --disable-debuginfod" \
-          " --disable-dependency-tracking", :env => env
+  configure_options = [
+    " --disable-static",
+    " --disable-debuginfod",
+    " --disable-dependency-tracking",
+  ]
+  configure(*configure_options, env: env)
   make "-j #{workers}", :env => env
   make 'install', :env => env
   delete "#{install_dir}/embedded/bin/eu-*"
