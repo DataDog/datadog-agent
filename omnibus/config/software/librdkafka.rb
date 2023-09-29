@@ -23,8 +23,10 @@ build do
     "CFLAGS" => "-L#{install_dir}/embedded/lib -I#{install_dir}/embedded/include",
     "LD_RUN_PATH" => "#{install_dir}/embedded/lib",
   }
-
-  command "./configure --enable-sasl --prefix=#{install_dir}/embedded", :env => env
+  configure_options = [
+    "--enable-sasl",
+  ]
+  configure(*configure_options, :env => env)
   command "make -j #{workers}", :env => env
   command "make install", :env => env
 
