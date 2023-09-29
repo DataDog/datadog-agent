@@ -242,7 +242,7 @@ github_team = "database-monitoring"
 github_labels = ["team/database-monitoring"]
 
 [teams."Container App"]
-jira_project = "CAP2"
+jira_project = "CAP"
 jira_issue_type = "Task"
 jira_statuses = [
   "💼 To Do",
