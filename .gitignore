@@ -39,6 +39,7 @@ system-probe.yaml
 security-agent.yaml
 dogstatsd.yaml
 cloudfoundry.yaml
+apm-inject.yaml
 Dockerfiles/cluster-agent/datadog-cluster.yaml
 Dockerfiles/cluster-agent/dist
 Dockerfiles/cluster-agent/security-agent-policies

@@ -161,6 +161,14 @@ build do
     move 'bin/agent/dist/security-agent.yaml', "#{conf_dir}/security-agent.yaml.example"
   end
 
+  # APM Injection agent
+  if windows?
+    if ENV['WINDOWS_APMINJECT_MODULE'] and not ENV['WINDOWS_APMINJECT_MODULE'].empty?
+      command "inv generate-config --build-type apm-injection --output-file ./bin/agent/dist/apm-inject.yaml", :env => env
+     #move 'bin/agent/dist/system-probe.yaml', "#{conf_dir}/system-probe.yaml.example"
+      move 'bin/agent/dist/apm-inject.yaml', "#{conf_dir}/apm-inject.yaml.example"
+    end
+  end
   if linux?
     if debian?
       erb source: "upstart_debian.conf.erb",
