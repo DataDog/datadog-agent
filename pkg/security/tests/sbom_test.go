@@ -11,9 +11,7 @@ package tests
 import (
 	"fmt"
 	"os/exec"
-	"strconv"
 	"testing"
-	"time"
 
 	"github.com/avast/retry-go/v4"
 
@@ -44,15 +42,6 @@ func TestSBOM(t *testing.T) {
 
 	dockerWrapper.Run(t, "package-rule", func(t *testing.T, kind wrapperType, cmdFunc func(bin string, args, env []string) *exec.Cmd) {
 		test.WaitSignal(t, func() error {
-			retry.Do(func() error {
-				workload, found := test.probe.GetResolvers().CGroupResolver.GetWorkload(dockerWrapper.containerID)
-				if !found {
-					return fmt.Errorf("failed to find workload '%s'", dockerWrapper.containerID)
-				}
-				// fake tag resolution to trigger SBOM generation
-				workload.SetTags([]string{"image_name:ubuntu", "image_tag:" + strconv.Itoa(time.Now().Nanosecond())})
-				return nil
-			})
 			retry.Do(func() error {
 				sbom := test.probe.GetResolvers().SBOMResolver.GetWorkload(dockerWrapper.containerID)
 				if sbom == nil {
