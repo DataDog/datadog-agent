@@ -30,7 +30,8 @@ type PullSubscription interface {
 	Start() error
 
 	// Stop the event subscription and free resources.
-	// Stop will automatically close any outstanding event record handles associated with this subscription.
+	// Stop will automatically close any outstanding event record handles associated with this subscription,
+	// so you must not continue using any EventRecord returned by GetEvents.
 	// https://learn.microsoft.com/en-us/windows/win32/api/winevt/nf-winevt-evtclose
 	Stop()
 
@@ -46,6 +47,9 @@ type PullSubscription interface {
 	// GetEvents returns the next available events in the subscription.
 	// If no events are available returns nil,nil
 	// You must close every event record handle returned from this function.
+	// You must not use any EventRecords after the subscription is stopped. Windows automatically closes
+	// all of the event record handles when the subscription handle is closed.
+	// https://learn.microsoft.com/en-us/windows/win32/api/winevt/nf-winevt-evtclose
 	GetEvents() ([]*evtapi.EventRecord, error)
 
 	// Set the subscription to "StartAfterBookmark"
@@ -326,11 +330,6 @@ func (q *pullSubscription) notifyEventsAvailableLoop() {
 		} else if dwWait == (windows.WAIT_OBJECT_0 + 1) {
 			// Stop event is set
 			return
-		} else if dwWait == uint32(windows.WAIT_TIMEOUT) {
-			// timeout
-			// this shouldn't happen
-			pkglog.Errorf("WaitForMultipleObjects timed out")
-			return
 		} else {
 			// some other error occurred
 			gle := windows.GetLastError()
@@ -388,7 +387,8 @@ func (q *pullSubscription) synchronizeNoMoreItems() error {
 // GetEvents returns the next available events in the subscription.
 func (q *pullSubscription) GetEvents() ([]*evtapi.EventRecord, error) {
 	// Do a non-blocking check to see if the "events available" event handle is set.
-	// We should only call EvtNext when this event is set.
+	// We should only call EvtNext when this event is set. If EvtNext is called when this
+	// event is unset it will return ERROR_INVALID_OPERATION.
 	dwWait, err := windows.WaitForSingleObject(windows.Handle(q.waitEventHandle), 0)
 	if err != nil {
 		return nil, fmt.Errorf("WaitForSingleObject failed: %v", err)
@@ -407,12 +407,9 @@ func (q *pullSubscription) GetEvents() ([]*evtapi.EventRecord, error) {
 		// got events
 		eventRecords := q.parseEventRecordHandles(eventRecordHandles)
 		return eventRecords, nil
-	} else if err == windows.ERROR_TIMEOUT {
-		// no more events
-		// TODO: Should we reset the handle? MS example says no
-		pkglog.Errorf("evtnext timeout")
-		return nil, fmt.Errorf("timeout")
-	} else if err == windows.ERROR_NO_MORE_ITEMS {
+	}
+
+	if err == windows.ERROR_NO_MORE_ITEMS {
 		// EvtNext returns ERROR_NO_MORE_ITEMS when there are no more items available.
 		pkglog.Debugf("EvtNext returned no more items")
 		err := q.synchronizeNoMoreItems()
@@ -423,6 +420,8 @@ func (q *pullSubscription) GetEvents() ([]*evtapi.EventRecord, error) {
 		return nil, nil
 	}
 
+	// Should we reset the signal handle? The docs don't say, but MS example does not reset the handle on error.
+	// https://learn.microsoft.com/en-us/windows/win32/wes/subscribing-to-events#pull-subscriptions
 	pkglog.Errorf("EvtNext failed: %v", err)
 	return nil, err
 }

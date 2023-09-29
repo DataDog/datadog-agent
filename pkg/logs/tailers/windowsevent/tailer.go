@@ -136,6 +136,11 @@ func (t *Tailer) forwardMessages() {
 	}
 }
 
+func (t *Tailer) logErrorAndSetStatus(err error) {
+	log.Errorf("%v", err)
+	t.source.Status.Error(err)
+}
+
 // tail subscribes to the channel for the windows events
 func (t *Tailer) tail(ctx context.Context, bookmark string) {
 	defer close(t.doneTail)
@@ -166,9 +171,7 @@ func (t *Tailer) tail(ctx context.Context, bookmark string) {
 		t.bookmark, err = evtbookmark.New(
 			evtbookmark.WithWindowsEventLogAPI(t.evtapi))
 		if err != nil {
-			err = fmt.Errorf("error creating new bookmark: %v", err)
-			log.Errorf("%v", err)
-			t.source.Status.Error(err)
+			t.logErrorAndSetStatus(fmt.Errorf("error creating new bookmark: %v", err))
 			return
 		}
 	}
@@ -184,9 +187,7 @@ func (t *Tailer) tail(ctx context.Context, bookmark string) {
 	// render context for system values
 	t.systemRenderContext, err = t.evtapi.EvtCreateRenderContext(nil, evtapi.EvtRenderContextSystem)
 	if err != nil {
-		err = fmt.Errorf("failed to create system render context: %v", err)
-		log.Errorf("%v", err)
-		t.source.Status.Error(err)
+		t.logErrorAndSetStatus(fmt.Errorf("failed to create system render context: %v", err))
 		return
 	}
 	defer evtapi.EvtCloseRenderContext(t.evtapi, t.systemRenderContext)
@@ -219,9 +220,7 @@ func (t *Tailer) eventLoop(ctx context.Context) {
 			err := retryForeverWithCancel(ctx, func() error {
 				err := t.sub.Start()
 				if err != nil {
-					err = fmt.Errorf("failed to start subscription: %v", err)
-					log.Error(err)
-					t.source.Status.Error(err)
+					t.logErrorAndSetStatus(fmt.Errorf("failed to start subscription: %v", err))
 					return err
 				}
 				// subscription started!
@@ -257,9 +256,8 @@ func (t *Tailer) readEvents(ctx context.Context) {
 		events, err := t.sub.GetEvents()
 		if err != nil {
 			// error
-			log.Errorf("GetEvents failed: %v", err)
+			t.logErrorAndSetStatus(fmt.Errorf("GetEvents failed, stopping subscription: %v", err))
 			t.sub.Stop()
-			t.source.Status.Error(fmt.Errorf("subscription stopped: %v", err))
 			break
 		}
 		if events == nil {

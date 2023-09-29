@@ -96,7 +96,7 @@ func FromXML(bookmarkXML string) Option {
 			return fmt.Errorf("bookmark handle already initialized")
 		}
 		// Load bookmark XML
-		bookmarkHandle, err := b.eventLogAPI.EvtCreateBookmark(string(bookmarkXML))
+		bookmarkHandle, err := b.eventLogAPI.EvtCreateBookmark(bookmarkXML)
 		if err != nil {
 			return err
 		}

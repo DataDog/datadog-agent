@@ -242,7 +242,8 @@ func evtRenderText(
 		return nil, lastErr
 	}
 
-	return Buffer, nil
+	// Trim buffer to size (BufferUsed is size in bytes)
+	return Buffer[:BufferUsed/2], nil
 }
 
 // EvtRenderEventXml wraps EvtRender with EvtRenderEventXml
@@ -447,5 +448,6 @@ func (api *API) EvtFormatMessage(
 		return "", lastErr
 	}
 
-	return windows.UTF16ToString(Buffer), nil
+	// Trim Buffer to output size (BufferUsed is size in characters)
+	return windows.UTF16ToString(Buffer[:BufferUsed]), nil
 }
