@@ -510,7 +510,7 @@ func sleepRandomJitter(ctx context.Context, runInterval time.Duration, runCount 
 		jitterMax = defaultJitterMax
 	}
 
-	var runCountBuf [4]byte
+	var runCountBuf [8]byte
 	binary.LittleEndian.PutUint64(runCountBuf[:], runCount)
 
 	h := fnv.New64a()
