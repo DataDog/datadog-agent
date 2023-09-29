@@ -26,6 +26,7 @@ import (
 
 const defaultProfilesFolder = "default_profiles"
 const userProfilesFolder = "profiles"
+const profilesJsonGzipFile = "profiles.json.gz"
 
 var defaultProfilesMu = &sync.Mutex{}
 
