@@ -8,6 +8,8 @@
 package run
 
 import (
+	"context"
+
 	"github.com/spf13/cobra"
 
 	"github.com/DataDog/datadog-agent/cmd/trace-agent/subcommands"
@@ -27,5 +29,5 @@ type RunParams struct {
 func setOSSpecificParamFlags(cmd *cobra.Command, cliParams *RunParams) {}
 
 func runTraceAgent(cliParams *RunParams, defaultConfPath string) error {
-	return runFx(cliParams, defaultConfPath)
+	return runFx(context.Background(), cliParams, defaultConfPath)
 }

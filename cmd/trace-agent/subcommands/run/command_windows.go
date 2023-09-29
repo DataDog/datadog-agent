@@ -43,5 +43,5 @@ func runTraceAgent(cliParams *RunParams, defaultConfPath string) error {
 			return nil
 		}
 	}
-	return runFx(cliParams, defaultConfPath)
+	return runFx(context.Background(), cliParams, defaultConfPath)
 }

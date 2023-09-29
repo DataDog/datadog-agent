@@ -35,8 +35,9 @@ type dependencies struct {
 	Lc         fx.Lifecycle
 	Shutdowner fx.Shutdowner
 
-	Params *Params
-	Config config.Component
+	Config  config.Component
+	Context context.Context
+	Params  *Params
 }
 
 type agent struct {
@@ -52,7 +53,7 @@ type agent struct {
 
 func newAgent(deps dependencies) Component {
 	telemetryCollector := telemetry.NewCollector(deps.Config.Object())
-	ctx, cancel := context.WithCancel(context.Background()) // Several related non-components require a shared context to gracefully stop.
+	ctx, cancel := context.WithCancel(deps.Context) // Several related non-components require a shared context to gracefully stop.
 	ag := &agent{
 		Agent: pkgagent.NewAgent(
 			ctx,
@@ -151,7 +152,7 @@ func handleSignal(shutdowner fx.Shutdowner) {
 		switch signo {
 		case syscall.SIGINT, syscall.SIGTERM:
 			log.Infof("Received signal %d (%v)", signo, signo)
-			_ = shutdowner.Shutdown()
+			shutdowner.Shutdown()
 			return
 		case syscall.SIGPIPE:
 			// By default systemd redirects the stdout to journald. When journald is stopped or crashes we receive a SIGPIPE signal.

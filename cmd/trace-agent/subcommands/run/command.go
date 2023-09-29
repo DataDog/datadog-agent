@@ -6,6 +6,8 @@
 package run
 
 import (
+	"context"
+
 	"github.com/spf13/cobra"
 	"go.uber.org/fx"
 
@@ -46,11 +48,14 @@ func setParamFlags(cmd *cobra.Command, cliParams *RunParams) {
 	setOSSpecificParamFlags(cmd, cliParams)
 }
 
-func runFx(cliParams *RunParams, defaultConfPath string) error {
+func runFx(ctx context.Context, cliParams *RunParams, defaultConfPath string) error {
 	if cliParams.ConfPath == "" {
 		cliParams.ConfPath = defaultConfPath
 	}
 	return fxutil.Run(
+		// ctx is required to be supplied from here, as Windows needs to inject its own context
+		// to allow the agent to work as a service.
+		fx.Provide(func() context.Context { return ctx }),
 		fx.Supply(coreconfig.NewAgentParamsWithSecrets(cliParams.ConfPath)),
 		coreconfig.Module,
 		fx.Invoke(func(_ config.Component) {}),

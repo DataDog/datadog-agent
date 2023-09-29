@@ -25,6 +25,6 @@ func (s *service) Init() error {
 	return nil
 }
 
-func (s *service) Run(_ context.Context) error {
-	return runFx(s.cliParams, s.defaultConfPath)
+func (s *service) Run(ctx context.Context) error {
+	return runFx(ctx, s.cliParams, s.defaultConfPath)
 }
