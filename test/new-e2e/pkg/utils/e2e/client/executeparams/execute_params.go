@@ -13,6 +13,7 @@ package executeparams
 //   - [WithEnvVariables]
 //
 // [Functional options pattern]: https://dave.cheney.net/2014/10/17/functional-options-for-friendly-apis
+// [client.vmClient]: https://pkg.go.dev/github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client/vm_client.go
 import (
 	"fmt"
 	"regexp"
