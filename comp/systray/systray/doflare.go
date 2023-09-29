@@ -17,6 +17,7 @@ import (
 	"go.uber.org/atomic"
 	"golang.org/x/sys/windows"
 
+	"github.com/DataDog/datadog-agent/comp/core/flare/helpers"
 	"github.com/DataDog/datadog-agent/pkg/api/util"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	pkglog "github.com/DataDog/datadog-agent/pkg/util/log"
@@ -207,7 +208,7 @@ func requestFlare(s *systray, caseID, customerEmail string) (response string, e 
 
 	s.log.Warnf("%s is going to be uploaded to Datadog\n", filePath)
 
-	response, e = s.flare.Send(filePath, caseID, customerEmail, "local")
+	response, e = s.flare.Send(filePath, caseID, customerEmail, helpers.NewLocalFlareSource())
 	s.log.Debug(response)
 	if e != nil {
 		return

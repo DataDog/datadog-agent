@@ -3,6 +3,9 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+// Package autodiscovery contains helper function that return autodiscovery
+// providers from the config and from the environment where the Agent is
+// running.
 package autodiscovery
 
 import (

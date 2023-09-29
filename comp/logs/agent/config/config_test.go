@@ -37,7 +37,7 @@ func (suite *ConfigTestSuite) TestDefaultDatadogConfig() {
 	suite.Equal("agent-443-intake.logs.datadoghq.com", suite.config.GetString("logs_config.dd_url_443"))
 	suite.Equal(false, suite.config.GetBool("logs_config.use_port_443"))
 	suite.Equal(true, suite.config.GetBool("logs_config.dev_mode_use_proto"))
-	if runtime.GOOS == "windows" || runtime.GOOS == "darwin" {
+	if runtime.GOOS == "darwin" {
 		suite.Equal(200, suite.config.GetInt("logs_config.open_files_limit"))
 	} else {
 		suite.Equal(500, suite.config.GetInt("logs_config.open_files_limit"))

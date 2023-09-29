@@ -251,6 +251,19 @@ func (p *oscapIO) Kill() error {
 	if err := p.cmd.Process.Kill(); err != nil {
 		return err
 	}
+	// Wait for the oscap-io process to terminate.
+	// Otherwise, the call to p.Stop() at the end of p.Run() might
+	// override oscapIOs[p.File] from a newly created process.
+	c := time.After(60 * time.Second)
+	select {
+	case <-p.DoneCh:
+		// The oscap-io process has been terminated.
+		return nil
+	case <-c:
+		// This shouldn't be necessary, but better have
+		// a timeout to prevent the program from hanging.
+		log.Warnf("timed out waiting for oscap-io process to terminate")
+	}
 	return nil
 }
 
@@ -310,12 +323,12 @@ func evaluateXCCDFRule(ctx context.Context, hostname string, statsdClient *stats
 		select {
 		case <-ctx.Done():
 			return nil
+		case <-p.DoneCh:
+			// The oscap-io process has been terminated.
+			return nil
 		case <-c:
 			log.Warnf("timed out waiting for expected results for rule %s", reqs[i].Rule)
 			// If no result has been received, it's likely for the oscap-io process to be stuck, so we kill it.
-			oscapIOsMu.Lock()
-			delete(oscapIOs, p.File)
-			oscapIOsMu.Unlock()
 			err := p.Kill()
 			if err != nil {
 				log.Warnf("failed to kill process: %v", err)
@@ -368,12 +381,12 @@ func evaluateXCCDFRule(ctx context.Context, hostname string, statsdClient *stats
 // FinishXCCDFBenchmark finishes an XCCDF benchmark by terminating the oscap-io processes.
 func FinishXCCDFBenchmark(ctx context.Context, benchmark *Benchmark) {
 	oscapIOsMu.Lock()
-	defer oscapIOsMu.Unlock()
-
 	if len(oscapIOs) == 0 {
 		// No oscap-io process is running.
+		oscapIOsMu.Unlock()
 		return
 	}
+	oscapIOsMu.Unlock()
 
 	for _, rule := range benchmark.Rules {
 		if !rule.IsXCCDF() {
@@ -383,18 +396,23 @@ func FinishXCCDFBenchmark(ctx context.Context, benchmark *Benchmark) {
 			continue
 		}
 		file := filepath.Join(benchmark.dirname, rule.InputSpecs[0].XCCDF.Name)
+		oscapIOsMu.Lock()
 		p := oscapIOs[file]
 		if p == nil {
+			oscapIOsMu.Unlock()
 			continue
 		}
-		delete(oscapIOs, file)
+		oscapIOsMu.Unlock()
 		err := p.Kill()
 		if err != nil {
 			log.Warnf("failed to kill process: %v", err)
 		}
+		oscapIOsMu.Lock()
 		if len(oscapIOs) == 0 {
 			// If no oscap-io process is running, we don't have to loop through every rules.
+			oscapIOsMu.Unlock()
 			return
 		}
+		oscapIOsMu.Unlock()
 	}
 }

@@ -137,7 +137,7 @@ func (pn *ProcessNode) debug(w io.Writer, prefix string) {
 // scrubAndReleaseArgsEnvs scrubs the process args and envs, and then releases them
 func (pn *ProcessNode) scrubAndReleaseArgsEnvs(resolver *sprocess.Resolver) {
 	if pn.Process.ArgsEntry != nil {
-		resolver.GetProcessScrubbedArgv(&pn.Process)
+		resolver.GetProcessArgvScrubbed(&pn.Process)
 		sprocess.GetProcessArgv0(&pn.Process)
 		pn.Process.ArgsEntry = nil
 

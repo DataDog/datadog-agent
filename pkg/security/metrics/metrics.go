@@ -155,6 +155,9 @@ var (
 	// MetricProcessEventBrokenLineage is the name of the metric used to report a broken lineage
 	// Tags: -
 	MetricProcessEventBrokenLineage = newRuntimeMetric(".process_resolver.event_broken_lineage")
+	// MetricProcessInodeError is the name of the metric used to report a broken lineage with a inode mismatch
+	// Tags: -
+	MetricProcessInodeError = newRuntimeMetric(".process_resolver.inode_error")
 
 	// Mount resolver metrics
 

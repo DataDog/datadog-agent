@@ -24,6 +24,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/version"
 	_ "github.com/godror/godror"
+	go_version "github.com/hashicorp/go-version"
 	"github.com/jmoiron/sqlx"
 	cache "github.com/patrickmn/go-cache"
 	go_ora "github.com/sijms/go-ora/v2"
@@ -51,11 +52,6 @@ const (
 	oci         hostingCode = "OCI"
 )
 
-type hostingType struct {
-	value hostingCode
-	valid bool
-}
-
 type pgaOverAllocationCount struct {
 	value float64
 	valid bool
@@ -71,6 +67,7 @@ type Check struct {
 	agentVersion                            string
 	checkInterval                           float64
 	tags                                    []string
+	configTags                              []string
 	tagsString                              string
 	cdbName                                 string
 	statementMetricsMonotonicCountsPrevious map[StatementMetricsKeyDB]StatementMetricsMonotonicCountDB
@@ -85,8 +82,10 @@ type Check struct {
 	fqtEmitted                              *cache.Cache
 	planEmitted                             *cache.Cache
 	previousPGAOverAllocationCount          pgaOverAllocationCount
-	hostingType
-	logPrompt string
+	hostingType                             hostingCode
+	logPrompt                               string
+	initialized                             bool
+	multitenant                             bool
 }
 
 func handleServiceCheck(c *Check, err error) {
@@ -133,6 +132,13 @@ func (c *Check) Run() error {
 		c.db = db
 	}
 
+	if !c.initialized {
+		err := c.init()
+		if err != nil {
+			return fmt.Errorf("%s failed to initialize: %w", c.logPrompt, err)
+		}
+	}
+
 	if c.driver == "oracle" && c.connection == nil {
 		conn, err := connectGoOra(c)
 		if err != nil {
@@ -170,16 +176,16 @@ func (c *Check) Run() error {
 		if c.config.Tablespaces.Enabled {
 			err := c.Tablespaces()
 			if err != nil {
-				return err
+				return fmt.Errorf("%s %w", c.logPrompt, err)
 			}
 		}
 		if c.config.ProcessMemory.Enabled {
 			err := c.ProcessMemory()
 			if err != nil {
-				return err
+				return fmt.Errorf("%s %w", c.logPrompt, err)
 			}
 		}
-		if len(c.config.CustomQueries) > 0 {
+		if len(c.config.InstanceConfig.CustomQueries) > 0 || len(c.config.InitConfig.CustomQueries) > 0 {
 			err := c.CustomQueries()
 			if err != nil {
 				log.Errorf("%s failed to execute custom queries %s", c.logPrompt, err)
@@ -191,12 +197,12 @@ func (c *Check) Run() error {
 		if c.config.QuerySamples.Enabled {
 			err := c.SampleSession()
 			if err != nil {
-				return err
+				return fmt.Errorf("%s %w", c.logPrompt, err)
 			}
 			if c.config.QueryMetrics.Enabled {
 				_, err = c.StatementMetrics()
 				if err != nil {
-					return err
+					return fmt.Errorf("%s %w", c.logPrompt, err)
 				}
 			}
 		}
@@ -204,7 +210,7 @@ func (c *Check) Run() error {
 			if c.config.SharedMemory.Enabled {
 				err := c.SharedMemory()
 				if err != nil {
-					return err
+					return fmt.Errorf("%s %w", c.logPrompt, err)
 				}
 			}
 		}
@@ -261,27 +267,26 @@ func (c *Check) Configure(senderManager sender.SenderManager, integrationConfigD
 	c.agentVersion = agentVersion.GetNumberAndPre()
 
 	c.checkInterval = float64(c.config.InitConfig.MinCollectionInterval)
-	c.tags = make([]string, len(c.config.Tags))
-	copy(c.tags, c.config.Tags)
-	c.tags = append(c.tags, fmt.Sprintf("dbms:%s", common.IntegrationName), fmt.Sprintf("ddagentversion:%s", c.agentVersion))
-	c.tags = append(c.tags, fmt.Sprintf("dbm:%t", c.dbmEnabled))
+
+	tags := make([]string, len(c.config.Tags))
+
+	tags = append(tags, fmt.Sprintf("dbms:%s", common.IntegrationName), fmt.Sprintf("ddagentversion:%s", c.agentVersion))
+	tags = append(tags, fmt.Sprintf("dbm:%t", c.dbmEnabled))
 	if c.config.TnsAlias != "" {
-		c.tags = append(c.tags, fmt.Sprintf("tns-alias:%s", c.config.TnsAlias))
+		tags = append(tags, fmt.Sprintf("tns-alias:%s", c.config.TnsAlias))
 	}
 	if c.config.Port != 0 {
-		c.tags = append(c.tags, fmt.Sprintf("port:%d", c.config.Port))
+		tags = append(tags, fmt.Sprintf("port:%d", c.config.Port))
 	}
 	if c.config.Server != "" {
-		c.tags = append(c.tags, fmt.Sprintf("server:%s", c.config.Server))
+		tags = append(tags, fmt.Sprintf("server:%s", c.config.Server))
 	}
 	if c.config.ServiceName != "" {
-		c.tags = append(c.tags, fmt.Sprintf("service:%s", c.config.ServiceName))
+		tags = append(tags, fmt.Sprintf("service:%s", c.config.ServiceName))
 	}
+	copy(c.configTags, tags)
 
-	c.tagsString = strings.Join(c.tags, ",")
-
-	c.fqtEmitted = getFqtEmittedCache()
-	c.planEmitted = getPlanEmittedCache(c)
+	c.logPrompt = config.GetLogPrompt(c.config.InstanceConfig)
 
 	return nil
 }
@@ -321,4 +326,26 @@ func appendPDBTag(tags []string, pdb sql.NullString) []string {
 		return tags
 	}
 	return append(tags, "pdb:"+strings.ToLower(pdb.String))
+}
+
+func isDbVersionLessThan(c *Check, v string) bool {
+	dbVersion := c.dbVersion
+	vParsed, err := go_version.NewVersion(v)
+	if err != nil {
+		log.Errorf("%s Can't parse %s version string", c.logPrompt, v)
+		return false
+	}
+	parsedDbVersion, err := go_version.NewVersion(dbVersion)
+	if err != nil {
+		log.Errorf("%s Can't parse db version string %s", c.logPrompt, dbVersion)
+		return false
+	}
+	if parsedDbVersion.LessThan(vParsed) {
+		return true
+	}
+	return false
+}
+
+func isDbVersionGreaterOrEqualThan(c *Check, v string) bool {
+	return !isDbVersionLessThan(c, v)
 }

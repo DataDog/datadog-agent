@@ -176,7 +176,13 @@ func NewSecurityProfileManager(config *config.Config, statsdClient statsd.Client
 
 	// instantiate directory provider
 	if len(config.RuntimeSecurity.SecurityProfileDir) != 0 {
-		dirProvider, err := NewDirectoryProvider(config.RuntimeSecurity.SecurityProfileDir, config.RuntimeSecurity.SecurityProfileWatchDir)
+		// override the status if autosuppression is enabled
+		var status model.Status
+		if config.RuntimeSecurity.ActivityDumpAutoSuppressionEnabled {
+			status = model.AnomalyDetection | model.AutoSuppression
+		}
+
+		dirProvider, err := NewDirectoryProvider(config.RuntimeSecurity.SecurityProfileDir, config.RuntimeSecurity.SecurityProfileWatchDir, status)
 		if err != nil {
 			return nil, fmt.Errorf("couldn't instantiate a new security profile directory provider: %w", err)
 		}

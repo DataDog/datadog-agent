@@ -28,7 +28,7 @@ var (
 		"ECS_CONTAINER_METADATA_URI",
 		"ECS_CONTAINER_METADATA_URI_V4",
 		"DOCKER_DD_AGENT", // included to be able to detect agent containers
-		// Included to ease unit tests withtout requiring a mock
+		// Included to ease unit tests without requiring a mock
 		"TEST_ENV",
 	}
 
@@ -36,6 +36,7 @@ var (
 	envFilterFromConfig EnvFilter
 )
 
+// EnvVarFilterFromConfig returns an EnvFilter based on the options present in the config
 func EnvVarFilterFromConfig() EnvFilter {
 	envFilterOnce.Do(func() {
 		configEnvVars := make([]string, 0)
@@ -55,6 +56,7 @@ func EnvVarFilterFromConfig() EnvFilter {
 	return envFilterFromConfig
 }
 
+// EnvFilter defines a filter for environment variables
 type EnvFilter struct {
 	includeVars map[string]struct{}
 }
@@ -75,6 +77,7 @@ func newEnvFilter(includeVars []string) EnvFilter {
 	return filter
 }
 
+// IsIncluded returns whether the given env variable name is included
 func (f EnvFilter) IsIncluded(envVarName string) bool {
 	_, found := f.includeVars[strings.ToUpper(envVarName)]
 	return found
