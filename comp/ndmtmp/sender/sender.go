@@ -15,8 +15,8 @@ func getDefaultSender(agg aggregator.Component) (Component, error) {
 	return agg.GetDefaultSender()
 }
 
-func newMockSender() MockComponent {
+func newMockSender() (MockComponent, Component) {
 	mockSender := mocksender.NewMockSender("mock-sender")
 	mockSender.SetupAcceptAll()
-	return mockSender
+	return mockSender, mockSender
 }

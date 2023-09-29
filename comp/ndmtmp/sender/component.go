@@ -47,10 +47,5 @@ type MockComponent interface {
 
 // MockModule provides a MockSender as the sender Component.
 var MockModule = fxutil.Component(
-	fx.Provide(
-		newMockSender,
-		func(s MockComponent) Component {
-			return s
-		},
-	),
+	fx.Provide(newMockSender),
 )
