@@ -32,10 +32,7 @@ build do
        if (!checks_passed)
 EOF
 )
-  env = {
-    "CFLAGS" => "-I#{install_dir}/embedded/include -O2 -pipe",
-    "LDFLAGS" => "-Wl,-rpath,#{install_dir}/embedded/lib -L#{install_dir}/embedded/lib",
-  }
+  env = with_standard_compiler_flags(with_embedded_path)
   configure_options = [
     " --disable-static",
     " --disable-debuginfod",
