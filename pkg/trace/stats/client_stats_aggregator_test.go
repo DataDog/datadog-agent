@@ -138,7 +138,6 @@ func agg2Counts(insertionTime time.Time, p *proto.ClientStatsPayload) *proto.Cli
 			stat.TopLevelHits = 0
 			stat.OkSummary = nil
 			stat.ErrorSummary = nil
-			//stat.PeerTags = nil
 		}
 	}
 	return p
