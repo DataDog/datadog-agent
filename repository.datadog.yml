@@ -1,0 +1,9 @@
+---
+schema-version: v1
+kind: mergequeue
+enable: true
+merge_method: squash
+workflow_type: speculative
+speculative_max_depth: 1
+wait_for_check_timeout_in_minutes: 240
+gitlab_jobs_retry_enable: true
