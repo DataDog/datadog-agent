@@ -242,6 +242,10 @@ func (t *Tailer) eventLoop(ctx context.Context) {
 			return
 		case _, ok := <-t.sub.EventsAvailable():
 			if !ok {
+				// error
+				err := t.sub.Error()
+				t.logErrorAndSetStatus(fmt.Errorf("GetEvents failed, stopping subscription: %v", err))
+				t.sub.Stop()
 				break
 			}
 			// events are available, read them
