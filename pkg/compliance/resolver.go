@@ -39,6 +39,7 @@ import (
 	kubemetav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	kubeunstructured "k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	kubeschema "k8s.io/apimachinery/pkg/runtime/schema"
+	kubediscovery "k8s.io/client-go/discovery"
 	kubedynamic "k8s.io/client-go/dynamic"
 )
 
@@ -50,7 +51,7 @@ const inputsResolveTimeout = 5 * time.Second
 type DockerProvider func(context.Context) (docker.CommonAPIClient, error)
 
 // KubernetesProvider is a function returning a Kubernetes client.
-type KubernetesProvider func(context.Context) (kubedynamic.Interface, error)
+type KubernetesProvider func(context.Context) (kubedynamic.Interface, kubediscovery.DiscoveryInterface, error)
 
 // LinuxAuditProvider is a function returning a Linux Audit client.
 type LinuxAuditProvider func(context.Context) (LinuxAuditClient, error)
@@ -110,10 +111,12 @@ type defaultResolver struct {
 	filesCache         []fileMeta
 	pkgsCache          map[string]*packageInfo
 	kubeClusterIDCache string
+	kubeResourcesCache *[]*kubemetav1.APIResourceList
 
-	dockerCl     docker.CommonAPIClient
-	kubernetesCl kubedynamic.Interface
-	linuxAuditCl LinuxAuditClient
+	dockerCl          docker.CommonAPIClient
+	kubernetesCl      kubedynamic.Interface
+	kubernetesDiscoCl kubediscovery.DiscoveryInterface
+	linuxAuditCl      LinuxAuditClient
 }
 
 type fileMeta struct {
@@ -137,7 +140,7 @@ func NewResolver(ctx context.Context, opts ResolverOptions) Resolver {
 		r.dockerCl, _ = opts.DockerProvider(ctx)
 	}
 	if opts.KubernetesProvider != nil {
-		r.kubernetesCl, _ = opts.KubernetesProvider(ctx)
+		r.kubernetesCl, r.kubernetesDiscoCl, _ = opts.KubernetesProvider(ctx)
 	}
 	if opts.LinuxAuditProvider != nil {
 		r.linuxAuditCl, _ = opts.LinuxAuditProvider(ctx)
@@ -155,11 +158,13 @@ func (r *defaultResolver) Close() {
 		r.linuxAuditCl = nil
 	}
 	r.kubernetesCl = nil
+	r.kubernetesDiscoCl = nil
 
 	r.procsCache = nil
 	r.filesCache = nil
 	r.pkgsCache = nil
 	r.kubeClusterIDCache = ""
+	r.kubeResourcesCache = nil
 }
 
 func (r *defaultResolver) ResolveInputs(ctx context.Context, rule *Rule) (ResolvedInputs, error) {
@@ -687,10 +692,21 @@ func (r *defaultResolver) resolveKubeApiserver(ctx context.Context, spec InputSp
 		spec.Version = "v1"
 	}
 
+	// podsecuritypolicies have been deprecated as part of Kubernetes v1.25
+
 	resourceSchema := kubeschema.GroupVersionResource{
 		Group:    spec.Group,
 		Resource: spec.Kind,
 		Version:  spec.Version,
+	}
+
+	resourceSupported, err := r.checkKubeServerResourceSupport(resourceSchema)
+	if err != nil {
+		return nil, fmt.Errorf("unable to check for Kube resource support:'%v', ns:'%s' err: %w",
+			resourceSchema, spec.Namespace, err)
+	}
+	if !resourceSupported {
+		return nil, ErrIncompatibleEnvironment
 	}
 
 	resourceDef := cl.Resource(resourceSchema)
@@ -738,6 +754,32 @@ func (r *defaultResolver) resolveKubeApiserver(ctx context.Context, spec InputSp
 		})
 	}
 	return resolved, nil
+}
+
+func (r *defaultResolver) checkKubeServerResourceSupport(resourceSchema kubeschema.GroupVersionResource) (bool, error) {
+	if r.kubernetesDiscoCl == nil {
+		return true, nil
+	}
+
+	if r.kubeResourcesCache == nil {
+		_, resources, err := r.kubernetesDiscoCl.ServerGroupsAndResources()
+		if err != nil {
+			return false, fmt.Errorf("could not fetch kubernetes resources: %w", err)
+		}
+		r.kubeResourcesCache = &resources
+	}
+
+	groupVersion := resourceSchema.GroupVersion().String()
+	for _, list := range *r.kubeResourcesCache {
+		if groupVersion == list.GroupVersion {
+			for _, r := range list.APIResources {
+				if r.Name == resourceSchema.Resource {
+					return true, nil
+				}
+			}
+		}
+	}
+	return false, nil
 }
 
 const (

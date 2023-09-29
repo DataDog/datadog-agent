@@ -91,7 +91,7 @@ int __attribute__((always_inline)) sys_splice_ret(void *ctx, int retval) {
     }
 
     if (filter_syscall(syscall, splice_approvers)) {
-        return discard_syscall(syscall);
+        return 0;
     }
 
     struct splice_event_t event = {

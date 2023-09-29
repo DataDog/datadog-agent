@@ -961,8 +961,7 @@ var _ Entity = &ContainerImageMetadata{}
 
 // Process is an Entity that represents a process
 type Process struct {
-	EntityID // EntityID is the PID for now
-	EntityMeta
+	EntityID // EntityID.ID is the PID
 
 	NsPid        int32
 	ContainerID  string

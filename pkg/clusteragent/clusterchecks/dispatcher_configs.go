@@ -90,29 +90,32 @@ func (d *dispatcher) removeConfig(digest string) {
 
 	node, found := d.store.getNodeStore(d.store.digestToNode[digest])
 
-	checkName := ""
-	if found {
-		node.RLock()
-		checkName = node.digestToConfig[digest].Name
-		node.RUnlock()
-	}
+	checkName := d.store.digestToConfig[digest].Name
 
 	delete(d.store.digestToNode, digest)
 	delete(d.store.digestToConfig, digest)
 	delete(d.store.danglingConfigs, digest)
 
-	for k, v := range d.store.idToDigest {
-		if v == digest {
-			configsInfo.Delete(node.name, checkName, string(k), le.JoinLeaderValue)
-			delete(d.store.idToDigest, k)
+	// This is a list because each instance in a config has its own check ID and
+	// all of them need to be deleted.
+	var checkIDsToRemove []checkid.ID
+	for checkID, checkDigest := range d.store.idToDigest {
+		if checkDigest == digest {
+			checkIDsToRemove = append(checkIDsToRemove, checkID)
+			delete(d.store.idToDigest, checkID)
 		}
 	}
 
 	// Remove from node configs if assigned
 	if found {
 		node.Lock()
+		nodeName := node.name
 		node.removeConfig(digest)
 		node.Unlock()
+
+		for _, checkID := range checkIDsToRemove {
+			configsInfo.Delete(nodeName, checkName, string(checkID), le.JoinLeaderValue)
+		}
 	}
 }
 
