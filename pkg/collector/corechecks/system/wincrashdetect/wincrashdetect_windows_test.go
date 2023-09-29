@@ -99,10 +99,13 @@ func TestWinCrashReporting(t *testing.T) {
 			Success: true,
 		}
 
-		crashCheck := new(WinCrashDetect)
+		check := crashDetectFactory()
+		crashCheck := check.(*WinCrashDetect)
 		mock := mocksender.NewMockSender(crashCheck.ID())
+		err := crashCheck.Configure(mock.GetSenderManager(), 0, nil, nil, "")
+		assert.NoError(t, err)
 
-		err := crashCheck.Run()
+		err = crashCheck.Run()
 		assert.Nil(t, err)
 		mock.AssertNumberOfCalls(t, "Gauge", 0)
 		mock.AssertNumberOfCalls(t, "Rate", 0)
@@ -120,22 +123,25 @@ func TestWinCrashReporting(t *testing.T) {
 			Offender:   `somedriver.sys`,
 			BugCheck:   "0x00000007",
 		}
-		crashCheck := new(WinCrashDetect)
+		check := crashDetectFactory()
+		crashCheck := check.(*WinCrashDetect)
 		mock := mocksender.NewMockSender(crashCheck.ID())
+		err := crashCheck.Configure(mock.GetSenderManager(), 0, nil, nil, "")
+		assert.NoError(t, err)
 
 		expected := event.Event{
 			Priority:       event.EventPriorityNormal,
 			SourceTypeName: crashDetectCheckName,
 			EventType:      crashDetectCheckName,
-			Title:          formatTitle(*p),
-			Text:           formatText(*p),
+			Title:          formatTitle(p),
+			Text:           formatText(p),
 		}
 		// set up to return from the event call when we get it
 		mock.On("Event", expected).Return().Times(1)
 		mock.On("Commit").Return().Times(1)
 		// the first time we run, we should get the bug check notification
 
-		err := crashCheck.Run()
+		err = crashCheck.Run()
 		assert.Nil(t, err)
 		mock.AssertNumberOfCalls(t, "Gauge", 0)
 		mock.AssertNumberOfCalls(t, "Rate", 0)
@@ -163,13 +169,16 @@ func TestWinCrashReporting(t *testing.T) {
 
 		// if we now create a new instance of the check, we should see a new event because
 		// it's a new bugcheck, different from the registry
-		expected.Title = formatTitle(*p)
-		expected.Text = formatText(*p)
+		expected.Title = formatTitle(p)
+		expected.Text = formatText(p)
 
 		// set up to return from the event call when we get it
 		mock.On("Event", expected).Return().Times(1)
 		mock.On("Commit").Return().Times(1)
-		crashCheck = new(WinCrashDetect)
+
+		check = crashDetectFactory()
+		crashCheck = check.(*WinCrashDetect)
+		err = crashCheck.Configure(mock.GetSenderManager(), 0, nil, nil, "")
 		err = crashCheck.Run()
 		assert.Nil(t, err)
 		mock.AssertNumberOfCalls(t, "Gauge", 0)
