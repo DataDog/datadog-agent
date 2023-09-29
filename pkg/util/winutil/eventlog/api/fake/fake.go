@@ -8,6 +8,7 @@ package fakeevtapi
 
 import (
 	"fmt"
+	"sync"
 
 	"github.com/DataDog/datadog-agent/pkg/util/winutil/eventlog/api"
 
@@ -33,6 +34,7 @@ type API struct {
 type eventLog struct {
 	name   string
 	events []*eventRecord
+	mu     sync.Mutex
 
 	nextRecordID *atomic.Uint64
 
@@ -188,7 +190,6 @@ func (api *API) addEventLog(eventLog *eventLog) {
 
 func (e *eventLog) addEventRecord(event *eventRecord) {
 	event.RecordID = uint(e.nextRecordID.Inc())
-	// TODO: lock list operations
 	e.events = append(e.events, event)
 }
 

@@ -41,6 +41,8 @@ func (api *API) EvtSubscribe(
 	if err != nil {
 		return evtapi.EventResultSetHandle(0), err
 	}
+	evtlog.mu.Lock()
+	defer evtlog.mu.Unlock()
 
 	// get bookmark
 	var bookmark *bookmark
@@ -114,6 +116,8 @@ func (api *API) EvtNext(
 	if err != nil {
 		return nil, err
 	}
+	eventLog.mu.Lock()
+	defer eventLog.mu.Unlock()
 
 	// is event log empty
 	if len(eventLog.events) == 0 {
@@ -290,6 +294,8 @@ func (api *API) EvtClearLog(ChannelPath string) error {
 	}
 
 	// clear the log
+	eventLog.mu.Lock()
+	defer eventLog.mu.Unlock()
 	eventLog.events = nil
 	// clearing the log does NOT reset the record IDs
 	return nil

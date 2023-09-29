@@ -44,6 +44,8 @@ func (api *API) AddEventSource(channel string, source string) error {
 	if err != nil {
 		return err
 	}
+	log.mu.Lock()
+	defer log.mu.Unlock()
 
 	_, exists := log.sources[source]
 	if !exists {
@@ -63,6 +65,8 @@ func (api *API) RemoveEventSource(channel string, name string) error {
 	if err != nil {
 		return err
 	}
+	log.mu.Lock()
+	defer log.mu.Unlock()
 	delete(log.sources, name)
 	return nil
 }
@@ -82,6 +86,8 @@ func (api *API) GenerateEvents(sourceName string, numEvents uint) error {
 	if eventLog == nil {
 		return fmt.Errorf("Event source %v does not exist", sourceName)
 	}
+	eventLog.mu.Lock()
+	defer eventLog.mu.Unlock()
 
 	// Use LocalSystem for the SID
 	sid, _ := windows.CreateWellKnownSid(windows.WinLocalSystemSid)
