@@ -1424,7 +1424,6 @@ func NewProbe(config *config.Config, opts Opts) (*Probe, error) {
 			Erpc:               nerpc,
 			erpcRequest:        &erpc.Request{},
 			isRuntimeDiscarded: !opts.DontDiscardRuntime,
-			useFentry:          config.Probe.EventStreamUseFentry,
 		},
 	}
 
@@ -1445,8 +1444,8 @@ func NewProbe(config *config.Config, opts Opts) (*Probe, error) {
 		seclog.Warnf("the current environment may be misconfigured: %v", err)
 	}
 
+	p.useFentry = config.Probe.EventStreamUseFentry && p.kernelVersion.HaveFentrySupport()
 	useRingBuffers := p.UseRingBuffers()
-	p.UseFentry()
 	useMmapableMaps := p.kernelVersion.HaveMmapableMaps()
 
 	p.Manager = ebpf.NewRuntimeSecurityManager(useRingBuffers, p.useFentry)
