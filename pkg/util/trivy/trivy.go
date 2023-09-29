@@ -5,6 +5,7 @@
 
 //go:build trivy
 
+// Package trivy holds the scan components
 package trivy
 
 import (
@@ -114,7 +115,6 @@ func cacheProvider(cacheLocation string, useCustomCache bool) func() (cache.Cach
 		return func() (cache.Cache, CacheCleaner, error) {
 			return NewCustomBoltCache(
 				cacheLocation,
-				config.Datadog.GetInt("sbom.cache.max_cache_entries"),
 				config.Datadog.GetInt("sbom.cache.max_disk_size"),
 			)
 		}

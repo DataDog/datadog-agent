@@ -15,8 +15,9 @@ import (
 )
 
 const (
-	PolicyProviderTypeDir = "file"          // PolicyProviderTypeDir defines directory policy provider
-	PolicyProviderTypeRC  = "remote-config" // PolicyProviderTypeRC defines RC policy provider
+	PolicyProviderTypeDir     = "file"          // PolicyProviderTypeDir defines directory policy provider
+	PolicyProviderTypeRC      = "remote-config" // PolicyProviderTypeRC defines RC policy provider
+	PolicyProviderTypeBundled = "bundled"       // PolicyProviderTypeBundled defines the bundled policy provider
 )
 
 var (

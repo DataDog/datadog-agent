@@ -1,0 +1,136 @@
+From 194995d5d9958c5b6288941455d43b63d4706f9f Mon Sep 17 00:00:00 2001
+From: David du Colombier <djc@datadoghq.com>
+Date: Mon, 4 Sep 2023 15:56:07 +0200
+Subject: [PATCH 10/16] Implement xccdf_session_result_reset function in XCCDF
+ session API
+
+This change adds a new public xccdf_session_result_reset function
+to the XCCDF session API.
+
+This function resets XCCDF session results, so xccdf_session_evaluate
+could be called again from a clean state, without having to call
+xccdf_session_free, which would imply to parse the XCCDF file again.
+
+This function resets XCCDF policies, session rules, skipped rules,
+OVAL system characteristics and OVAL results.
+---
+ src/OVAL/oval_agent.c            | 15 ++++++++++++++
+ src/OVAL/public/oval_agent_api.h | 10 ++++++++++
+ src/XCCDF/public/xccdf_session.h |  8 ++++++++
+ src/XCCDF/xccdf_session.c        | 34 ++++++++++++++++++++++++++++++++
+ 4 files changed, 67 insertions(+)
+
+diff --git a/src/OVAL/oval_agent.c b/src/OVAL/oval_agent.c
+index a4ee34d12..4e3115870 100644
+--- a/src/OVAL/oval_agent.c
++++ b/src/OVAL/oval_agent.c
+@@ -255,6 +255,21 @@ int oval_agent_reset_session(oval_agent_session_t * ag_sess) {
+ 	return 0;
+ }
+ 
++void oval_agent_reset_syschar(oval_agent_session_t * ag_sess) {
++	oval_syschar_model_reset(ag_sess->sys_model);
++}
++
++void oval_agent_reset_results(oval_agent_session_t * ag_sess) {
++#if defined(OVAL_PROBES_ENABLED)
++	if (ag_sess != NULL) {
++		oval_results_model_free(ag_sess->res_model);
++		ag_sess->res_model = oval_results_model_new_with_probe_session(
++				ag_sess->def_model, ag_sess->sys_models, ag_sess->psess);
++		oval_probe_session_reinit(ag_sess->psess, ag_sess->sys_model);
++	}
++#endif
++}
++
+ int oval_agent_abort_session(oval_agent_session_t *ag_sess)
+ {
+ 	if (ag_sess == NULL) {
+diff --git a/src/OVAL/public/oval_agent_api.h b/src/OVAL/public/oval_agent_api.h
+index 475a53aab..9e6236f3c 100644
+--- a/src/OVAL/public/oval_agent_api.h
++++ b/src/OVAL/public/oval_agent_api.h
+@@ -96,6 +96,16 @@ OSCAP_API struct oval_result_definition * oval_agent_get_result_definition(oval_
+  */
+ OSCAP_API int oval_agent_reset_session(oval_agent_session_t * ag_sess);
+ 
++/**
++ * Clean system characteristics that were generated in this agent session
++ */
++OSCAP_API void oval_agent_reset_syschar(oval_agent_session_t * ag_sess);
++
++/**
++ * Clean results that were generated in this agent session
++ */
++OSCAP_API void oval_agent_reset_results(oval_agent_session_t * ag_sess);
++
+ /**
+  * Abort a running probe session
+  */
+diff --git a/src/XCCDF/public/xccdf_session.h b/src/XCCDF/public/xccdf_session.h
+index c01448d3f..8efa1d16d 100644
+--- a/src/XCCDF/public/xccdf_session.h
++++ b/src/XCCDF/public/xccdf_session.h
+@@ -81,6 +81,14 @@ OSCAP_API struct xccdf_session *xccdf_session_new_from_source(struct oscap_sourc
+  */
+ OSCAP_API void xccdf_session_free(struct xccdf_session *session);
+ 
++/**
++ * Reset xccdf_session results.
++ * This function resets XCCDF policies, session rules, skipped rules, OVAL system characteristics and OVAL results.
++ * @memberof xccdf_session
++ * @param session to reset results from.
++ */
++OSCAP_API void xccdf_session_result_reset(struct xccdf_session *session);
++
+ /**
+  * Retrieves the filename the session was created with
+  * @memberof xccdf_session
+diff --git a/src/XCCDF/xccdf_session.c b/src/XCCDF/xccdf_session.c
+index 2fa5e00af..c5bc6d694 100644
+--- a/src/XCCDF/xccdf_session.c
++++ b/src/XCCDF/xccdf_session.c
+@@ -362,6 +362,40 @@ void xccdf_session_free(struct xccdf_session *session)
+ 	free(session);
+ }
+ 
++static void _xccdf_session_reset_oval_agents_syschar(struct xccdf_session *session)
++{
++	if (session->oval.agents != NULL) {
++		for (int i=0; session->oval.agents[i]; i++) {
++			oval_agent_reset_syschar(session->oval.agents[i]);
++		}
++	}
++}
++
++static void _xccdf_session_reset_oval_agents_results(struct xccdf_session *session)
++{
++	if (session->oval.agents != NULL) {
++		for (int i=0; session->oval.agents[i]; i++) {
++			oval_agent_reset_results(session->oval.agents[i]);
++		}
++	}
++}
++
++void xccdf_session_result_reset(struct xccdf_session *session)
++{
++	if (session->xccdf.policy_model != NULL) {
++		oscap_list_free(session->xccdf.policy_model->policies, (oscap_destruct_func) xccdf_policy_free);
++		session->xccdf.policy_model->policies = oscap_list_new();
++	}
++
++	oscap_list_free(session->rules, (oscap_destruct_func) free);
++	session->rules = oscap_list_new();
++	oscap_list_free(session->skip_rules, (oscap_destruct_func) free);
++	session->skip_rules = oscap_list_new();
++
++	_xccdf_session_reset_oval_agents_syschar(session);
++	_xccdf_session_reset_oval_agents_results(session);
++}
++
+ const char *xccdf_session_get_filename(const struct xccdf_session *session)
+ {
+ 	return oscap_source_readable_origin(session->source);
+-- 
+2.34.1
+

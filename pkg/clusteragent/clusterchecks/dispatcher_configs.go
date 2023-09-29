@@ -53,7 +53,7 @@ func (d *dispatcher) addConfig(config integration.Config, targetNodeName string)
 		checkID := checkid.BuildID(config.Name, fastDigest, instance, config.InitConfig)
 		d.store.idToDigest[checkID] = digest
 		if targetNodeName != "" {
-			configsInfo.Set(1.0, targetNodeName, string(checkID), le.JoinLeaderValue)
+			configsInfo.Set(1.0, targetNodeName, config.Name, string(checkID), le.JoinLeaderValue)
 		}
 	}
 
@@ -89,22 +89,33 @@ func (d *dispatcher) removeConfig(digest string) {
 	defer d.store.Unlock()
 
 	node, found := d.store.getNodeStore(d.store.digestToNode[digest])
+
+	checkName := d.store.digestToConfig[digest].Name
+
 	delete(d.store.digestToNode, digest)
 	delete(d.store.digestToConfig, digest)
 	delete(d.store.danglingConfigs, digest)
 
-	for k, v := range d.store.idToDigest {
-		if v == digest {
-			configsInfo.Delete(node.name, string(k), le.JoinLeaderValue)
-			delete(d.store.idToDigest, k)
+	// This is a list because each instance in a config has its own check ID and
+	// all of them need to be deleted.
+	var checkIDsToRemove []checkid.ID
+	for checkID, checkDigest := range d.store.idToDigest {
+		if checkDigest == digest {
+			checkIDsToRemove = append(checkIDsToRemove, checkID)
+			delete(d.store.idToDigest, checkID)
 		}
 	}
 
 	// Remove from node configs if assigned
 	if found {
 		node.Lock()
+		nodeName := node.name
 		node.removeConfig(digest)
 		node.Unlock()
+
+		for _, checkID := range checkIDsToRemove {
+			configsInfo.Delete(nodeName, checkName, string(checkID), le.JoinLeaderValue)
+		}
 	}
 }
 

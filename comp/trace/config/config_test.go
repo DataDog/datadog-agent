@@ -662,6 +662,7 @@ func TestFullYamlConfig(t *testing.T) {
 	assert.True(t, o.RemoveStackTraces)
 	assert.True(t, o.Redis.Enabled)
 	assert.True(t, o.Memcached.Enabled)
+	assert.True(t, o.Memcached.KeepCommand)
 	assert.True(t, o.CreditCards.Enabled)
 	assert.True(t, o.CreditCards.Luhn)
 
@@ -1694,6 +1695,27 @@ func TestLoadEnv(t *testing.T) {
 		assert.NotNil(t, cfg)
 		assert.True(t, coreconfig.Datadog.GetBool("apm_config.obfuscation.memcached.enabled"))
 		assert.True(t, cfg.Obfuscation.Memcached.Enabled)
+	})
+
+	env = "DD_APM_OBFUSCATION_MEMCACHED_KEEP_COMMAND"
+	t.Run(env, func(t *testing.T) {
+		t.Setenv(env, "true")
+
+		c := fxutil.Test[Component](t, fx.Options(
+			corecomp.MockModule,
+			fx.Replace(corecomp.MockParams{
+				Params:      corecomp.Params{ConfFilePath: "./testdata/full.yaml"},
+				SetupConfig: true,
+			}),
+			MockModule,
+		))
+		cfg := c.Object()
+
+		assert.NotNil(t, cfg)
+		assert.True(t, coreconfig.Datadog.GetBool("apm_config.obfuscation.memcached.enabled"))
+		assert.True(t, cfg.Obfuscation.Memcached.Enabled)
+		assert.True(t, coreconfig.Datadog.GetBool("apm_config.obfuscation.memcached.keep_command"))
+		assert.True(t, cfg.Obfuscation.Memcached.KeepCommand)
 	})
 
 	env = "DD_APM_OBFUSCATION_MONGODB_ENABLED"

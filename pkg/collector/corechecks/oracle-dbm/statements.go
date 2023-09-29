@@ -354,6 +354,22 @@ func (c *Check) copyToPreviousMap(newMap map[StatementMetricsKeyDB]StatementMetr
 	}
 }
 
+func handlePredicate(predicateType string, dbValue sql.NullString, payloadValue *string, statement StatementMetricsDB, c *Check, o *obfuscate.Obfuscator) {
+	if dbValue.Valid {
+		obfuscated, err := o.ObfuscateSQLString(dbValue.String)
+		if err == nil {
+			*payloadValue = obfuscated.Query
+		} else {
+			*payloadValue = fmt.Sprintf("%s obfuscation error", predicateType)
+			logEntry := fmt.Sprintf("%s %s for sql_id: %s, plan_hash_value: %d", c.logPrompt, *payloadValue, statement.SQLID, statement.PlanHashValue)
+			if c.config.ExecutionPlans.LogUnobfuscatedPlans {
+				logEntry = fmt.Sprintf("%s unobfuscated filter: %s", logEntry, dbValue.String)
+			}
+			log.Error(logEntry)
+		}
+	}
+}
+
 func (c *Check) StatementMetrics() (int, error) {
 	if !checkIntervalExpired(&c.statementsLastRun, c.config.QueryMetrics.CollectionInterval) {
 		return 0, nil
@@ -673,30 +689,8 @@ func (c *Check) StatementMetrics() (int, error) {
 								if stepRow.TempSpace.Valid {
 									stepPayload.TempSpace = stepRow.TempSpace.Float64
 								}
-								if stepRow.AccessPredicates.Valid {
-									obfuscated, err := o.ObfuscateSQLString(stepRow.AccessPredicates.String)
-									if err == nil {
-										stepPayload.AccessPredicates = obfuscated.Query
-									} else {
-										stepPayload.AccessPredicates = "Access obfuscation error"
-										if c.config.ExecutionPlans.LogUnobfuscatedPlans {
-											stepPayload.AccessPredicates = fmt.Sprintf("%s, unobfuscated filter: %s", stepPayload.AccessPredicates, stepRow.AccessPredicates.String)
-										}
-										log.Errorf("%s %s", c.logPrompt, stepPayload.AccessPredicates)
-									}
-								}
-								if stepRow.FilterPredicates.Valid {
-									obfuscated, err := o.ObfuscateSQLString(stepRow.FilterPredicates.String)
-									if err == nil {
-										stepPayload.FilterPredicates = obfuscated.Query
-									} else {
-										stepPayload.FilterPredicates = "Filter obfuscation error"
-										if c.config.ExecutionPlans.LogUnobfuscatedPlans {
-											stepPayload.FilterPredicates = fmt.Sprintf("%s, unobfuscated filter: %s", stepPayload.FilterPredicates, stepRow.FilterPredicates.String)
-										}
-										log.Errorf("%s %s", c.logPrompt, stepPayload.FilterPredicates)
-									}
-								}
+								handlePredicate("access", stepRow.AccessPredicates, &stepPayload.AccessPredicates, statementMetricRow, c, o)
+								handlePredicate("filter", stepRow.FilterPredicates, &stepPayload.FilterPredicates, statementMetricRow, c, o)
 								if stepRow.Projection.Valid {
 									stepPayload.Projection = stepRow.Projection.String
 								}

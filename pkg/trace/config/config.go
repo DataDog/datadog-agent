@@ -106,7 +106,7 @@ type ObfuscationConfig struct {
 
 	// Memcached holds the configuration for obfuscating the "memcached.command" tag
 	// for spans of type "memcached".
-	Memcached Enablable `mapstructure:"memcached"`
+	Memcached obfuscate.MemcachedConfig `mapstructure:"memcached"`
 
 	// CreditCards holds the configuration for obfuscating credit cards.
 	CreditCards CreditCardsConfig `mapstructure:"credit_cards"`
@@ -128,6 +128,7 @@ func (o *ObfuscationConfig) Export(conf *AgentConfig) obfuscate.Config {
 		SQLExecPlanNormalize: o.SQLExecPlanNormalize,
 		HTTP:                 o.HTTP,
 		Redis:                o.Redis,
+		Memcached:            o.Memcached,
 		Logger:               new(debugLogger),
 	}
 }

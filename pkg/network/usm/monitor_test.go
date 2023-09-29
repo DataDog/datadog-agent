@@ -23,6 +23,9 @@ import (
 	"testing"
 	"time"
 
+	"golang.org/x/net/http2"
+	"golang.org/x/net/http2/h2c"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
@@ -36,14 +39,21 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/protocols"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http/testutil"
+	usmhttp2 "github.com/DataDog/datadog-agent/pkg/network/protocols/http2"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/telemetry"
 	libtelemetry "github.com/DataDog/datadog-agent/pkg/network/protocols/telemetry"
+	"github.com/DataDog/datadog-agent/pkg/network/tracer/testutil/grpc"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
+	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 )
 
 const (
 	kb = 1024
 	mb = 1024 * kb
+
+	http2SrvAddr    = "http://127.0.0.1:8082"
+	http2SrvPortStr = ":8082"
+	http2SrvPort    = 8082
 )
 
 var (
@@ -491,6 +501,200 @@ func (s *HTTPTestSuite) TestKeepAliveWithIncompleteResponseRegression() {
 	url, err := url.Parse("http://127.0.0.1:8080/200/foobar")
 	require.NoError(t, err)
 	assertAllRequestsExists(t, monitor, []*nethttp.Request{{URL: url, Method: "GET"}})
+}
+
+type USMHTTP2Suite struct {
+	suite.Suite
+}
+
+type captureRange struct {
+	lower int
+	upper int
+}
+
+func TestHTTP2(t *testing.T) {
+	currKernelVersion, err := kernel.HostVersion()
+	require.NoError(t, err)
+	if currKernelVersion < usmhttp2.MinimumKernelVersion {
+		t.Skipf("HTTP2 monitoring can not run on kernel before %v", usmhttp2.MinimumKernelVersion)
+	}
+
+	ebpftest.TestBuildModes(t, []ebpftest.BuildMode{ebpftest.Prebuilt, ebpftest.RuntimeCompiled, ebpftest.CORE}, "", func(t *testing.T) {
+		suite.Run(t, new(USMHTTP2Suite))
+	})
+}
+
+func (s *USMHTTP2Suite) TestSimpleHTTP2() {
+	t := s.T()
+	cfg := networkconfig.New()
+	cfg.EnableHTTP2Monitoring = true
+
+	startH2CServer(t)
+
+	tests := []struct {
+		name              string
+		runClients        func(t *testing.T, clientsCount int)
+		expectedEndpoints map[http.Key]captureRange
+		skip              bool
+	}{
+		{
+			name: " / path",
+			runClients: func(t *testing.T, clientsCount int) {
+				clients := getClientsArray(t, clientsCount, grpc.Options{})
+
+				for i := 0; i < 1000; i++ {
+					client := clients[getClientsIndex(i, clientsCount)]
+					req, err := client.Post(http2SrvAddr+"/", "application/json", bytes.NewReader([]byte("test")))
+					require.NoError(t, err, "could not make request")
+					req.Body.Close()
+				}
+			},
+			expectedEndpoints: map[http.Key]captureRange{
+				{
+					Path:   http.Path{Content: http.Interner.GetString("/")},
+					Method: http.MethodPost,
+				}: {
+					lower: 999,
+					upper: 1000,
+				},
+			},
+		},
+		{
+			name: " /index.html path",
+			runClients: func(t *testing.T, clientsCount int) {
+				clients := getClientsArray(t, clientsCount, grpc.Options{})
+
+				for i := 0; i < 1000; i++ {
+					client := clients[getClientsIndex(i, clientsCount)]
+					req, err := client.Post(http2SrvAddr+"/index.html", "application/json", bytes.NewReader([]byte("test")))
+					require.NoError(t, err, "could not make request")
+					req.Body.Close()
+				}
+			},
+			expectedEndpoints: map[http.Key]captureRange{
+				{
+					Path:   http.Path{Content: http.Interner.GetString("/index.html")},
+					Method: http.MethodPost,
+				}: {
+					lower: 999,
+					upper: 1000,
+				},
+			},
+		},
+	}
+	for _, tt := range tests {
+		for _, clientCount := range []int{1, 2, 5} {
+			testNameSuffix := fmt.Sprintf("-different clients - %v", clientCount)
+			t.Run(tt.name+testNameSuffix, func(t *testing.T) {
+				if tt.skip {
+					t.Skip("Skipping test due to known issue")
+				}
+
+				monitor, err := NewMonitor(cfg, nil, nil, nil)
+				require.NoError(t, err)
+				require.NoError(t, monitor.Start())
+				defer monitor.Stop()
+
+				tt.runClients(t, clientCount)
+
+				res := make(map[http.Key]int)
+				require.Eventually(t, func() bool {
+					stats := monitor.GetProtocolStats()
+					http2Stats, ok := stats[protocols.HTTP2]
+					if !ok {
+						return false
+					}
+					http2StatsTyped := http2Stats.(map[http.Key]*http.RequestStats)
+					for key, stat := range http2StatsTyped {
+						if key.DstPort == http2SrvPort || key.SrcPort == http2SrvPort {
+							count := stat.Data[200].Count
+							newKey := http.Key{
+								Path:   http.Path{Content: key.Path.Content},
+								Method: key.Method,
+							}
+							if _, ok := res[newKey]; !ok {
+								res[newKey] = count
+							} else {
+								res[newKey] += count
+							}
+						}
+					}
+
+					if len(res) != len(tt.expectedEndpoints) {
+						return false
+					}
+
+					for key, count := range res {
+						valRange, ok := tt.expectedEndpoints[key]
+						if !ok {
+							return false
+						}
+						if count < valRange.lower || count > valRange.upper {
+							return false
+						}
+					}
+
+					return true
+				}, time.Second*5, time.Millisecond*100, "%v != %v", res, tt.expectedEndpoints)
+			})
+		}
+	}
+}
+
+func getClientsArray(t *testing.T, size int, options grpc.Options) []*nethttp.Client {
+	t.Helper()
+
+	res := make([]*nethttp.Client, size)
+	for i := 0; i < size; i++ {
+		res[i] = newH2CClient(t)
+	}
+
+	return res
+}
+
+func startH2CServer(t *testing.T) {
+	t.Helper()
+
+	srv := &nethttp.Server{
+		Addr: http2SrvPortStr,
+		Handler: h2c.NewHandler(nethttp.HandlerFunc(func(w nethttp.ResponseWriter, r *nethttp.Request) {
+			w.WriteHeader(200)
+			w.Write([]byte("test"))
+		}), &http2.Server{}),
+		IdleTimeout: 2 * time.Second,
+	}
+
+	err := http2.ConfigureServer(srv, nil)
+	require.NoError(t, err)
+
+	l, err := net.Listen("tcp", http2SrvPortStr)
+	require.NoError(t, err, "could not create listening socket")
+
+	go func() {
+		srv.Serve(l)
+		require.NoErrorf(t, err, "could not start HTTP2 server")
+	}()
+
+	t.Cleanup(func() { srv.Close() })
+}
+
+func newH2CClient(t *testing.T) *nethttp.Client {
+	t.Helper()
+
+	client := &nethttp.Client{
+		Transport: &http2.Transport{
+			AllowHTTP: true,
+			DialTLS: func(network, addr string, cfg *tls.Config) (net.Conn, error) {
+				return net.Dial(network, addr)
+			},
+		},
+	}
+
+	return client
+}
+
+func getClientsIndex(index, totalCount int) int {
+	return index % totalCount
 }
 
 func assertAllRequestsExists(t *testing.T, monitor *Monitor, requests []*nethttp.Request) {
