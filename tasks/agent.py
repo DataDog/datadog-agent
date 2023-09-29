@@ -68,6 +68,7 @@ AGENT_CORECHECKS = [
     "tcp_queue_length",
     "uptime",
     "winkmem",
+    "wincrashdetect",
     "winproc",
     "jetson",
 ]

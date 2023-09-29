@@ -114,6 +114,7 @@ import (
 	_ "github.com/DataDog/datadog-agent/pkg/collector/corechecks/system/filehandles"
 	_ "github.com/DataDog/datadog-agent/pkg/collector/corechecks/system/memory"
 	_ "github.com/DataDog/datadog-agent/pkg/collector/corechecks/system/uptime"
+	_ "github.com/DataDog/datadog-agent/pkg/collector/corechecks/system/wincrashdetect"
 	_ "github.com/DataDog/datadog-agent/pkg/collector/corechecks/system/winkmem"
 	_ "github.com/DataDog/datadog-agent/pkg/collector/corechecks/system/winproc"
 	_ "github.com/DataDog/datadog-agent/pkg/collector/corechecks/system/winregistry"
