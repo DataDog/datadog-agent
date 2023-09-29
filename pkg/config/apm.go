@@ -41,6 +41,8 @@ func setupAPM(config Config) {
 	config.BindEnv("apm_config.obfuscation.memcached.keep_command", "DD_APM_OBFUSCATION_MEMCACHED_KEEP_COMMAND")
 	config.SetKnown("apm_config.filter_tags.require")
 	config.SetKnown("apm_config.filter_tags.reject")
+	config.SetKnown("apm_config.filter_tags_regex.require")
+	config.SetKnown("apm_config.filter_tags_regex.reject")
 	config.SetKnown("apm_config.extra_sample_rate")
 	config.SetKnown("apm_config.dd_agent_bin")
 	config.SetKnown("apm_config.trace_writer.connection_limit")
@@ -110,6 +112,8 @@ func setupAPM(config Config) {
 	config.BindEnv("apm_config.sync_flushing", "DD_APM_SYNC_FLUSHING")
 	config.BindEnv("apm_config.filter_tags.require", "DD_APM_FILTER_TAGS_REQUIRE")
 	config.BindEnv("apm_config.filter_tags.reject", "DD_APM_FILTER_TAGS_REJECT")
+	config.BindEnv("apm_config.filter_tags_regex.reject", "DD_APM_FILTER_TAGS_REGEX_REJECT")
+	config.BindEnv("apm_config.filter_tags_regex.require", "DD_APM_FILTER_TAGS_REGEX_REQUIRE")
 	config.BindEnv("apm_config.internal_profiling.enabled", "DD_APM_INTERNAL_PROFILING_ENABLED")
 	config.BindEnv("apm_config.debugger_dd_url", "DD_APM_DEBUGGER_DD_URL")
 	config.BindEnv("apm_config.debugger_api_key", "DD_APM_DEBUGGER_API_KEY")
@@ -153,6 +157,10 @@ func setupAPM(config Config) {
 
 	config.SetEnvKeyTransformer("apm_config.filter_tags.reject", parseKVList("apm_config.filter_tags.reject"))
 
+	config.SetEnvKeyTransformer("apm_config.filter_tags_regex.require", parseKVList("apm_config.filter_tags_regex.require"))
+
+	config.SetEnvKeyTransformer("apm_config.filter_tags_regex.reject", parseKVList("apm_config.filter_tags_regex.reject"))
+
 	config.SetEnvKeyTransformer("apm_config.replace_tags", func(in string) interface{} {
 		var out []map[string]string
 		if err := json.Unmarshal([]byte(in), &out); err != nil {
@@ -165,6 +173,15 @@ func setupAPM(config Config) {
 		out, err := parseAnalyzedSpans(in)
 		if err != nil {
 			log.Errorf(`Bad format for "apm_config.analyzed_spans" it should be of the form \"service_name|operation_name=rate,other_service|other_operation=rate\", error: %v`, err)
+		}
+		return out
+	})
+
+	config.BindEnv("apm_config.peer_tags", "DD_APM_PEER_TAGS")
+	config.SetEnvKeyTransformer("apm_config.peer_tags", func(in string) interface{} {
+		var out []string
+		if err := json.Unmarshal([]byte(in), &out); err != nil {
+			log.Warnf(`"apm_config.peer_tags" can not be parsed: %v`, err)
 		}
 		return out
 	})

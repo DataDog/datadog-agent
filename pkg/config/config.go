@@ -1112,6 +1112,7 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("orchestrator_explorer.manifest_collection.enabled", true)
 	config.BindEnvAndSetDefault("orchestrator_explorer.manifest_collection.buffer_manifest", true)
 	config.BindEnvAndSetDefault("orchestrator_explorer.manifest_collection.buffer_flush_interval", 20*time.Second)
+	config.BindEnvAndSetDefault("orchestrator_explorer.run_on_node_agent", false)
 
 	// Container lifecycle configuration
 	config.BindEnvAndSetDefault("container_lifecycle.enabled", false)
@@ -1132,7 +1133,6 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("sbom.clear_cache_on_exit", false)
 	config.BindEnvAndSetDefault("sbom.cache.enabled", true)
 	config.BindEnvAndSetDefault("sbom.cache.max_disk_size", 1000*1000*100) // used by custom cache: max disk space used by cached objects. Not equal to max disk usage
-	config.BindEnvAndSetDefault("sbom.cache.max_cache_entries", 100000)    // used by custom cache keys stored in memory
 	config.BindEnvAndSetDefault("sbom.cache.clean_interval", "1h")         // used by custom cache.
 
 	// Container SBOM configuration
