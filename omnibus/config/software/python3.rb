@@ -43,17 +43,7 @@ if ohai["platform"] != "windows"
     # 2.0 is the license version here, not the python version
     license "Python-2.0"
 
-    env = case ohai["platform"]
-          when "aix"
-            aix_env
-          else
-            {
-              "CFLAGS" => "-I#{install_dir}/embedded/include -O2 -g -pipe",
-              "LDFLAGS" => "-Wl,-rpath,#{install_dir}/embedded/lib -L#{install_dir}/embedded/lib",
-              "PKG_CONFIG" => "#{install_dir}/embedded/bin/pkg-config",
-              "PKG_CONFIG_PATH" => "#{install_dir}/embedded/lib/pkgconfig"
-            }
-          end
+    env = with_standard_compiler_flags(with_embedded_path)
     configure(*python_configure_options, :env => env)
     command "make -j #{workers}", :env => env
     command "make install", :env => env
