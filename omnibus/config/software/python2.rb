@@ -34,12 +34,8 @@ if ohai["platform"] != "windows"
 
   relative_path "Python-#{version}"
 
-  env = {
-    "CFLAGS" => "-I#{install_dir}/embedded/include -O2 -g -pipe -fPIC",
-    "LDFLAGS" => "-Wl,-rpath,#{install_dir}/embedded/lib -L#{install_dir}/embedded/lib",
-    "PKG_CONFIG" => "#{install_dir}/embedded/bin/pkg-config",
-    "PKG_CONFIG_PATH" => "#{install_dir}/embedded/lib/pkgconfig"
-  }
+  env = with_standard_compiler_flags(with_embedded_path)
+  env['CFLAGS'] << ' -fPIC'
 
   python_configure_options = ["--with-ensurepip=no"] # pip is installed separately by its own software def
 
