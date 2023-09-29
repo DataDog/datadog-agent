@@ -40,7 +40,7 @@ int __attribute__((always_inline)) sys_mmap_ret(void *ctx, int retval, u64 addr)
     }
 
     if (filter_syscall(syscall, mmap_approvers)) {
-        return discard_syscall(syscall);
+        return 0;
     }
 
     if (retval != -1) {
