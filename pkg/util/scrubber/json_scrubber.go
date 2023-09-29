@@ -12,28 +12,6 @@ import (
 	"encoding/json"
 )
 
-// walk will go through loaded json and call callback on every strings allowing
-// the callback to overwrite the string value
-func walkJSON(data *interface{}, callback scrubCallback) {
-	if data == nil {
-		return
-	}
-	switch m := (*data).(type) {
-	case map[string]interface{}:
-		for key, value := range m {
-			if match, newValue := callback(key, value); match {
-				m[key] = newValue //key matched, stop searching and do replacing
-				continue
-			}
-			walkJSON(&value, callback) //Not matched in key, keep searching
-		}
-	case []interface{}:
-		for _, k := range m {
-			walkJSON(&k, callback)
-		}
-	}
-}
-
 // ScrubJSON scrubs credentials from the given json by loading the data and scrubbing the
 // object instead of the serialized string.
 func (c *Scrubber) ScrubJSON(input []byte) ([]byte, error) {
@@ -42,20 +20,7 @@ func (c *Scrubber) ScrubJSON(input []byte) ([]byte, error) {
 
 	// if we can't load the json run the default scrubber on the input
 	if len(input) != 0 && err == nil {
-		walkJSON(data, func(key string, value interface{}) (bool, interface{}) {
-			for _, replacer := range c.singleLineReplacers {
-				if replacer.YAMLKeyRegex == nil {
-					continue
-				}
-				if replacer.YAMLKeyRegex.Match([]byte(key)) {
-					if replacer.ProcessValue != nil {
-						return true, replacer.ProcessValue(value)
-					}
-					return true, defaultReplacement
-				}
-			}
-			return false, ""
-		})
+		c.ScrubDataObj(data)
 
 		newInput, err := json.Marshal(data)
 		if err == nil {

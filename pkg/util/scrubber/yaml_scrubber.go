@@ -58,6 +58,24 @@ func walk(data *interface{}, callback scrubCallback) {
 	}
 }
 
+// ScrubDataObj scrubs credentials from the data interface by recursively walking over all the nodes
+func (c *Scrubber) ScrubDataObj(data *interface{}) {
+	walk(data, func(key string, value interface{}) (bool, interface{}) {
+		for _, replacer := range c.singleLineReplacers {
+			if replacer.YAMLKeyRegex == nil {
+				continue
+			}
+			if replacer.YAMLKeyRegex.Match([]byte(key)) {
+				if replacer.ProcessValue != nil {
+					return true, replacer.ProcessValue(value)
+				}
+				return true, defaultReplacement
+			}
+		}
+		return false, ""
+	})
+}
+
 // ScrubYaml scrubs credentials from the given YAML by loading the data and scrubbing the object instead of the
 // serialized string.
 func (c *Scrubber) ScrubYaml(input []byte) ([]byte, error) {
@@ -66,21 +84,7 @@ func (c *Scrubber) ScrubYaml(input []byte) ([]byte, error) {
 
 	// if we can't load the yaml run the default scrubber on the input
 	if len(input) != 0 && err == nil {
-		walk(data, func(key string, value interface{}) (bool, interface{}) {
-			for _, replacer := range c.singleLineReplacers {
-				if replacer.YAMLKeyRegex == nil {
-					continue
-				}
-				if replacer.YAMLKeyRegex.Match([]byte(key)) {
-					if replacer.ProcessValue != nil {
-						return true, replacer.ProcessValue(value)
-					}
-					return true, defaultReplacement
-				}
-			}
-			return false, ""
-		})
-
+		c.ScrubDataObj(data)
 		newInput, err := yaml.Marshal(data)
 		if err == nil {
 			input = newInput
