@@ -17,11 +17,7 @@ build do
   license "Carnegie Mellon University license"
   license_file "https://raw.githubusercontent.com/cyrusimap/cyrus-sasl/master/COPYING"
 
-  env = {
-    "LDFLAGS" => "-Wl,-rpath,#{install_dir}/embedded/lib -L#{install_dir}/embedded/lib",
-    "CFLAGS" => "-L#{install_dir}/embedded/lib -I#{install_dir}/embedded/include",
-    "LD_RUN_PATH" => "#{install_dir}/embedded/lib",
-  }
+  env = with_standard_compiler_flags(with_embedded_path)
 
   configure_opts = ["--with-dblib=lmdb"]
 
