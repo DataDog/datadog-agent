@@ -30,12 +30,10 @@ relative_path "pcre2-#{version}"
 build do
   env = with_standard_compiler_flags(with_embedded_path)
 
-  configure_command = [
-    "./configure",
-    "--prefix=#{install_dir}/embedded",
+  configure_options = [
   ]
 
-  command configure_command.join(" "), env: env
+  configure(*configure_options, env: env)
 
   make "-j #{workers}", env: env
   make "-j #{workers} install", env: env
