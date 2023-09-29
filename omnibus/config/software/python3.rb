@@ -19,25 +19,25 @@ if ohai["platform"] != "windows"
 
   relative_path "Python-#{version}"
 
-  python_configure = ["./configure",
-                      "--prefix=#{install_dir}/embedded",
-                      "--with-ssl=#{install_dir}/embedded",
-                      "--with-ensurepip=yes"] # We upgrade pip later, in the pip3 software definition
+  python_configure_options = [
+    "--with-ssl=#{install_dir}/embedded",
+    "--with-ensurepip=yes" # We upgrade pip later, in the pip3 software definition
+  ]
 
   if mac_os_x?
-    python_configure.push("--enable-ipv6",
+    python_configure_options.push("--enable-ipv6",
                           "--with-universal-archs=intel",
                           "--enable-shared",
                           "--disable-static")
   elsif linux?
-    python_configure.push("--enable-shared",
+    python_configure_options.push("--enable-shared",
                           "--disable-static",
                           "--enable-ipv6")
   elsif aix?
     # something here...
   end
 
-  python_configure.push("--with-dbmliborder=")
+  python_configure_options.push("--with-dbmliborder=")
 
   build do
     # 2.0 is the license version here, not the python version
@@ -54,7 +54,7 @@ if ohai["platform"] != "windows"
               "PKG_CONFIG_PATH" => "#{install_dir}/embedded/lib/pkgconfig"
             }
           end
-    command python_configure.join(" "), :env => env
+    configure(*python_configure_options, :env => env)
     command "make -j #{workers}", :env => env
     command "make install", :env => env
     delete "#{install_dir}/embedded/lib/python3.9/test"
