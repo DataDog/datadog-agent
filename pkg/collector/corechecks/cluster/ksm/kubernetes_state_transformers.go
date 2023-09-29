@@ -62,27 +62,24 @@ func renameResource(resource string) string {
 }
 
 func resourceExtraTag(resource string) []string {
-	if strings.HasPrefix(resource, "nvidia_com_mig") {
-		splitStr := strings.Split(resource, "mig_")
-		if len(splitStr) == 2 {
-			return []string{fmt.Sprintf("mig_profile:%s", strings.Replace(splitStr[1], "_", "-", 2))}
-		}
+	if suffix, found := strings.CutPrefix(resource, "nvidia_com_mig_"); found {
+		return []string{"mig_profile:" + strings.ReplaceAll(suffix, "_", "-")}
 	}
 	return nil
 }
 
 // resourceDDName returns the datadog name of the given resource with possibly extra tags.
-func resourceDDName(resource string, allowedResources map[string]struct{}) (string, []string, bool) {
+func resourceDDName(resource string, allowedResources map[string]struct{}) (ddname string, extraTag []string, allowed bool) {
 	// Add an extra tag
-	extraTag := resourceExtraTag(resource)
+	extraTag = resourceExtraTag(resource)
 
 	// Rename the resource
-	ddname := renameResource(resource)
+	ddname = renameResource(resource)
 
 	// Check if the renamed resource is allowed
-	_, allowed := allowedResources[ddname]
+	_, allowed = allowedResources[ddname]
 
-	return ddname, extraTag, allowed
+	return
 }
 
 // defaultMetricTransformers returns a map that contains KSM metric names and their corresponding transformer functions
