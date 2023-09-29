@@ -19,7 +19,7 @@ var example = ExampleStruct{
 	},
 }
 
-var exampleJson = `{
+var exampleJSON = `{
 	"mapping": [
 		{"key": "2", "value": "bbb"},
 		{"key": "1", "value": "aaa"}
@@ -39,7 +39,7 @@ func TestListMap_MarshalJSON(t *testing.T) {
 
 func TestListMap_UnmarshalJSON(t *testing.T) {
 	var expectedExample ExampleStruct
-	err := json.Unmarshal([]byte(exampleJson), &expectedExample)
+	err := json.Unmarshal([]byte(exampleJSON), &expectedExample)
 	require.NoError(t, err)
 
 	assert.Equal(t, example.Mapping, expectedExample.Mapping)

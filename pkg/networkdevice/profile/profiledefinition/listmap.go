@@ -13,6 +13,7 @@ import (
 // ListMap is used to marshall a map into a list (map[string]T to []MapItem[T]) and vice versa.
 type ListMap[T any] map[string]T
 
+// MapItem is used for ListMap marshalling/unmarshalling
 type MapItem[T any] struct {
 	Key   string `json:"key"`
 	Value T      `json:"value"`
