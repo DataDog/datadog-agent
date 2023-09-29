@@ -5,7 +5,7 @@
 
 //go:build windows
 
-// package wincrashdetect implements the windows crash detection check
+// Package wincrashdetect implements the windows crash detection check
 package wincrashdetect
 
 import (
@@ -34,7 +34,7 @@ var (
 	baseKey = `SOFTWARE\Datadog\Datadog Agent\windows_crash_reporting`
 )
 
-// Config is the configuration options for this check
+// WinCrashConfig is the configuration options for this check
 // it is exported so that the yaml parser can read it.
 type WinCrashConfig struct {
 	Enabled bool `yaml:"enabled"` // placeholder for config
