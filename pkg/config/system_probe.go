@@ -261,6 +261,7 @@ func InitSystemProbeConfig(cfg Config) {
 
 	// oom_kill module
 	cfg.BindEnvAndSetDefault(join(spNS, "enable_oom_kill"), false)
+
 	// tcp_queue_length module
 	cfg.BindEnvAndSetDefault(join(spNS, "enable_tcp_queue_length"), false)
 	// process module
