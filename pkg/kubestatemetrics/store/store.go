@@ -5,6 +5,8 @@
 
 //go:build kubeapiserver
 
+// Package store implements the store used by the Kubernetes State Core cluster
+// check.
 package store
 
 import (

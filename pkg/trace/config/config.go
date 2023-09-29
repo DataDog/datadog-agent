@@ -81,20 +81,20 @@ type OTLP struct {
 // for various span types.
 type ObfuscationConfig struct {
 	// ES holds the obfuscation configuration for ElasticSearch bodies.
-	ES JSONObfuscationConfig `mapstructure:"elasticsearch"`
+	ES obfuscate.JSONConfig `mapstructure:"elasticsearch"`
 
 	// Mongo holds the obfuscation configuration for MongoDB queries.
-	Mongo JSONObfuscationConfig `mapstructure:"mongodb"`
+	Mongo obfuscate.JSONConfig `mapstructure:"mongodb"`
 
 	// SQLExecPlan holds the obfuscation configuration for SQL Exec Plans. This is strictly for safety related obfuscation,
 	// not normalization. Normalization of exec plans is configured in SQLExecPlanNormalize.
-	SQLExecPlan JSONObfuscationConfig `mapstructure:"sql_exec_plan"`
+	SQLExecPlan obfuscate.JSONConfig `mapstructure:"sql_exec_plan"`
 
 	// SQLExecPlanNormalize holds the normalization configuration for SQL Exec Plans.
-	SQLExecPlanNormalize JSONObfuscationConfig `mapstructure:"sql_exec_plan_normalize"`
+	SQLExecPlanNormalize obfuscate.JSONConfig `mapstructure:"sql_exec_plan_normalize"`
 
 	// HTTP holds the obfuscation settings for HTTP URLs.
-	HTTP HTTPObfuscationConfig `mapstructure:"http"`
+	HTTP obfuscate.HTTPConfig `mapstructure:"http"`
 
 	// RemoveStackTraces specifies whether stack traces should be removed.
 	// More specifically "error.stack" tag values will be cleared.
@@ -102,11 +102,11 @@ type ObfuscationConfig struct {
 
 	// Redis holds the configuration for obfuscating the "redis.raw_command" tag
 	// for spans of type "redis".
-	Redis RedisObfuscationConfig `mapstructure:"redis"`
+	Redis obfuscate.RedisConfig `mapstructure:"redis"`
 
 	// Memcached holds the configuration for obfuscating the "memcached.command" tag
 	// for spans of type "memcached".
-	Memcached Enablable `mapstructure:"memcached"`
+	Memcached obfuscate.MemcachedConfig `mapstructure:"memcached"`
 
 	// CreditCards holds the configuration for obfuscating credit cards.
 	CreditCards CreditCardsConfig `mapstructure:"credit_cards"`
@@ -122,35 +122,14 @@ func (o *ObfuscationConfig) Export(conf *AgentConfig) obfuscate.Config {
 			DollarQuotedFunc: conf.HasFeature("dollar_quoted_func"),
 			Cache:            conf.HasFeature("sql_cache"),
 		},
-		ES: obfuscate.JSONConfig{
-			Enabled:            o.ES.Enabled,
-			KeepValues:         o.ES.KeepValues,
-			ObfuscateSQLValues: o.ES.ObfuscateSQLValues,
-		},
-		Mongo: obfuscate.JSONConfig{
-			Enabled:            o.Mongo.Enabled,
-			KeepValues:         o.Mongo.KeepValues,
-			ObfuscateSQLValues: o.Mongo.ObfuscateSQLValues,
-		},
-		SQLExecPlan: obfuscate.JSONConfig{
-			Enabled:            o.SQLExecPlan.Enabled,
-			KeepValues:         o.SQLExecPlan.KeepValues,
-			ObfuscateSQLValues: o.SQLExecPlan.ObfuscateSQLValues,
-		},
-		SQLExecPlanNormalize: obfuscate.JSONConfig{
-			Enabled:            o.SQLExecPlanNormalize.Enabled,
-			KeepValues:         o.SQLExecPlanNormalize.KeepValues,
-			ObfuscateSQLValues: o.SQLExecPlanNormalize.ObfuscateSQLValues,
-		},
-		HTTP: obfuscate.HTTPConfig{
-			RemoveQueryString: o.HTTP.RemoveQueryString,
-			RemovePathDigits:  o.HTTP.RemovePathDigits,
-		},
-		Redis: obfuscate.RedisConfig{
-			Enabled:       o.Redis.Enabled,
-			RemoveAllArgs: o.Redis.RemoveAllArgs,
-		},
-		Logger: new(debugLogger),
+		ES:                   o.ES,
+		Mongo:                o.Mongo,
+		SQLExecPlan:          o.SQLExecPlan,
+		SQLExecPlanNormalize: o.SQLExecPlanNormalize,
+		HTTP:                 o.HTTP,
+		Redis:                o.Redis,
+		Memcached:            o.Memcached,
+		Logger:               new(debugLogger),
 	}
 }
 
@@ -172,49 +151,15 @@ type CreditCardsConfig struct {
 	Luhn bool `mapstructure:"luhn"`
 }
 
-// HTTPObfuscationConfig holds the configuration settings for HTTP obfuscation.
-type HTTPObfuscationConfig struct {
-	// RemoveQueryStrings determines query strings to be removed from HTTP URLs.
-	RemoveQueryString bool `mapstructure:"remove_query_string" json:"remove_query_string"`
-
-	// RemovePathDigits determines digits in path segments to be obfuscated.
-	RemovePathDigits bool `mapstructure:"remove_paths_with_digits" json:"remove_path_digits"`
-}
-
 // Enablable can represent any option that has an "enabled" boolean sub-field.
 type Enablable struct {
 	Enabled bool `mapstructure:"enabled"`
-}
-
-// RedisObfuscationConfig holds the configuration settings for Redis obfuscation
-type RedisObfuscationConfig struct {
-	// Enabled specifies whether this feature should be enabled.
-	Enabled bool `mapstructure:"enabled"`
-
-	// RemoveAllArgs specifies whether all arguments to a given Redis
-	// command should be obfuscated.
-	RemoveAllArgs bool `mapstructure:"remove_all_args"`
 }
 
 // TelemetryConfig holds Instrumentation telemetry Endpoints information
 type TelemetryConfig struct {
 	Enabled   bool `mapstructure:"enabled"`
 	Endpoints []*Endpoint
-}
-
-// JSONObfuscationConfig holds the obfuscation configuration for sensitive
-// data found in JSON objects.
-type JSONObfuscationConfig struct {
-	// Enabled will specify whether obfuscation should be enabled.
-	Enabled bool `mapstructure:"enabled"`
-
-	// KeepValues will specify a set of keys for which their values will
-	// not be obfuscated.
-	KeepValues []string `mapstructure:"keep_values"`
-
-	// ObfuscateSQLValues will specify a set of keys for which their values
-	// will be passed through SQL obfuscation
-	ObfuscateSQLValues []string `mapstructure:"obfuscate_sql_values"`
 }
 
 // ReplaceRule specifies a replace rule.

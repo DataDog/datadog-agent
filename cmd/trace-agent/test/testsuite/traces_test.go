@@ -6,6 +6,7 @@
 package testsuite
 
 import (
+	"strings"
 	"testing"
 	"time"
 
@@ -136,6 +137,34 @@ func TestTraces(t *testing.T) {
 		}
 		waitForTrace(t, &r, func(v *pb.AgentPayload) {
 			payloadsEqual(t, p[:2], v)
+		})
+	})
+
+	t.Run("normalize, obfuscate", func(t *testing.T) {
+		if err := r.RunAgent(nil); err != nil {
+			t.Fatal(err)
+		}
+		defer r.KillAgent()
+
+		p := testutil.GeneratePayload(1, &testutil.TraceConfig{
+			MinSpans: 4,
+			Keep:     true,
+		}, nil)
+		for _, span := range p[0] {
+			span.Service = strings.Repeat("a", 200) // Too long
+			span.Name = strings.Repeat("b", 200)    // Too long
+		}
+		p[0][0].Type = "sql"
+		p[0][0].Resource = "SELECT secret FROM users WHERE id = 123"
+		if err := r.Post(p); err != nil {
+			t.Fatal(err)
+		}
+		waitForTrace(t, &r, func(v *pb.AgentPayload) {
+			assert.Equal(t, "SELECT secret FROM users WHERE id = ?", v.TracerPayloads[0].Chunks[0].Spans[0].Resource)
+			for _, s := range v.TracerPayloads[0].Chunks[0].Spans {
+				assert.Len(t, s.Service, 100)
+				assert.Len(t, s.Name, 100)
+			}
 		})
 	})
 }

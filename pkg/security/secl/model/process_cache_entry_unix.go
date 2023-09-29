@@ -39,6 +39,21 @@ func (pc *ProcessCacheEntry) HasCompleteLineage() bool {
 	return false
 }
 
+// HasValidLineage returns false if, from the entry, we cannot ascend the ancestors list to PID 1 or if a new is having a missing parent
+func (pc *ProcessCacheEntry) HasValidLineage() bool {
+	for pc != nil {
+		if pc.IsParentMissing {
+			return false
+		}
+
+		if pc.Pid == 1 {
+			return true
+		}
+		pc = pc.Ancestor
+	}
+	return false
+}
+
 // Exit a process
 func (pc *ProcessCacheEntry) Exit(exitTime time.Time) {
 	pc.ExitTime = exitTime
@@ -106,7 +121,7 @@ func (pc *ProcessCacheEntry) Equals(entry *ProcessCacheEntry) bool {
 		pc.EnvsEntry.Equals(entry.EnvsEntry))
 }
 
-func (pc *ProcessCacheEntry) markFileEventAsResovled() {
+func (pc *ProcessCacheEntry) markFileEventAsResolved() {
 	// mark file path as resolved
 	pc.FileEvent.SetPathnameStr("")
 	pc.FileEvent.SetBasenameStr("")
@@ -118,16 +133,25 @@ func (pc *ProcessCacheEntry) markFileEventAsResovled() {
 
 // NewPlaceholderProcessCacheEntry returns a new empty process cache entry for failed process resolutions
 func NewPlaceholderProcessCacheEntry(pid uint32, tid uint32, isKworker bool) *ProcessCacheEntry {
-	entry := &ProcessCacheEntry{ProcessContext: ProcessContext{Process: Process{PIDContext: PIDContext{Pid: pid, Tid: tid, IsKworker: isKworker}}}}
-	entry.markFileEventAsResovled()
+	entry := &ProcessCacheEntry{
+		ProcessContext: ProcessContext{
+			Process: Process{
+				PIDContext: PIDContext{Pid: pid, Tid: tid, IsKworker: isKworker},
+				Source:     ProcessCacheEntryFromPlaceholder,
+			},
+		},
+	}
+	entry.markFileEventAsResolved()
 	return entry
 }
+
+var processContextZero = ProcessCacheEntry{ProcessContext: ProcessContext{Process: Process{Source: ProcessCacheEntryFromPlaceholder}}}
 
 // GetPlaceholderProcessCacheEntry returns an empty process cache entry for failed process resolutions
 func GetPlaceholderProcessCacheEntry(pid uint32, tid uint32, isKworker bool) *ProcessCacheEntry {
 	processContextZero.Pid = pid
 	processContextZero.Tid = tid
 	processContextZero.IsKworker = isKworker
-	processContextZero.markFileEventAsResovled()
+	processContextZero.markFileEventAsResolved()
 	return &processContextZero
 }

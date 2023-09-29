@@ -5,6 +5,7 @@
 
 //go:build kubeapiserver
 
+// Package mutate implements the mutations needed by the auto-instrumentation feature.
 package mutate
 
 import (
@@ -17,6 +18,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/common"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/metrics"
 	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/pointer"
 
@@ -524,8 +526,7 @@ func getServiceNameFromPod(pod *corev1.Pod) (string, error) {
 	case "DaemonSet":
 		return owner.Name, nil
 	case "ReplicaSet":
-		// Remove the suffix in ReplicaSet name to get Deployment name
-		return owner.Name[:strings.LastIndex(owner.Name, "-")], nil
+		return kubernetes.ParseDeploymentForReplicaSet(owner.Name), nil
 	}
 
 	return "", nil
