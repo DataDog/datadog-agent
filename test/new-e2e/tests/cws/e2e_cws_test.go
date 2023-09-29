@@ -50,12 +50,13 @@ var securityAgentConfig string
 func TestAgentSuite(t *testing.T) {
 
 	e2e.Run(t, &agentSuite{}, e2e.AgentStackDef(
-		e2e.WithVMParams(ec2params.WithName("cws-e2e-tests"), ec2params.WithSkipDeleteOnFailure()),
+		e2e.WithVMParams(ec2params.WithName("cws-e2e-tests")),
 		e2e.WithAgentParams(
 			agentparams.WithAgentConfig(agentConfig),
 			agentparams.WithSecurityAgentConfig(securityAgentConfig),
 			agentparams.WithSystemProbeConfig(systemProbeConfig),
 		),
+		params.WithSkipDeleteOnFailure()
 	))
 }
 
