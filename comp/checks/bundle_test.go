@@ -28,6 +28,7 @@ func TestBundleDependencies(t *testing.T) {
 		compsysconfig.Module,
 		fx.Supply(crashreport.WinCrashReporter{}),
 		fx.Supply(config.Params{}),
+		fx.Supply(compsysconfig.Params{}),
 		fx.Invoke(func(agentcrashdetect.Component) {}),
 		Bundle,
 	))
