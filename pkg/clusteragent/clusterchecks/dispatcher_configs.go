@@ -125,13 +125,7 @@ func (d *dispatcher) shouldDispatchDanling() bool {
 	d.store.RLock()
 	defer d.store.RUnlock()
 
-	if len(d.store.danglingConfigs) == 0 {
-		return false
-	}
-	if len(d.store.nodes) == 0 {
-		return false
-	}
-	return true
+	return len(d.store.danglingConfigs) > 0 && len(d.store.nodes) > 0
 }
 
 // retrieveAndClearDangling extracts dangling configs from the store
