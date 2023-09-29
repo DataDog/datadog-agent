@@ -9,7 +9,7 @@ package strings
 import "unicode/utf8"
 
 // TruncateUTF8 truncates the given string to make sure it uses less than limit bytes.
-// If the last code point is an utf8 code point that would be splitten, it removes it
+// If the last code point is an utf8 code point that would be split, it removes it
 // entirely to make sure the resulting string is not broken.
 //
 // This function may still split characters that are comprised of more than one valid

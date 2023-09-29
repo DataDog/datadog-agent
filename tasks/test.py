@@ -1018,7 +1018,7 @@ def lint_filenames(ctx):
 
 
 @task
-def integration_tests(ctx, install_deps=False, race=False, remote_docker=False):
+def integration_tests(ctx, install_deps=False, race=False, remote_docker=False, debug=False):
     """
     Run all the available integration tests
     """
@@ -1034,7 +1034,7 @@ def integration_tests(ctx, install_deps=False, race=False, remote_docker=False):
         except Exit as e:
             if e.code != 0:
                 raise
-            else:
+            elif debug:
                 print(e.message)
 
 
