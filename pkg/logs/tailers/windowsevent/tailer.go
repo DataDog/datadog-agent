@@ -150,7 +150,6 @@ func (t *Tailer) tail(ctx context.Context, bookmark string) {
 	opts := []evtsubscribe.PullSubscriptionOption{
 		evtsubscribe.WithWindowsEventLogAPI(t.evtapi),
 		evtsubscribe.WithEventBatchCount(10),
-		evtsubscribe.WithNotifyEventsAvailable(),
 	}
 
 	t.bookmark = nil
@@ -240,7 +239,7 @@ func (t *Tailer) eventLoop(ctx context.Context) {
 		select {
 		case <-ctx.Done():
 			return
-		case _, ok := <-t.sub.EventsAvailable():
+		case events, ok := <-t.sub.GetEvents():
 			if !ok {
 				// error
 				err := t.sub.Error()
@@ -248,36 +247,10 @@ func (t *Tailer) eventLoop(ctx context.Context) {
 				t.sub.Stop()
 				break
 			}
-			// events are available, read them
-			t.readEvents(ctx)
-		}
-	}
-}
-
-func (t *Tailer) readEvents(ctx context.Context) {
-	// read events until there are no more events available or stop is signalled
-	for {
-		events, err := t.sub.GetEvents()
-		if err != nil {
-			// error
-			t.logErrorAndSetStatus(fmt.Errorf("GetEvents failed, stopping subscription: %v", err))
-			t.sub.Stop()
-			break
-		}
-		if events == nil {
-			// no more events
-			log.Trace("No more events")
-			break
-		}
-		for _, eventRecord := range events {
-			t.handleEvent(eventRecord.EventRecordHandle)
-			evtapi.EvtCloseRecord(t.evtapi, eventRecord.EventRecordHandle)
-		}
-		// check if we need to stop
-		select {
-		case <-ctx.Done():
-			return
-		default:
+			for _, eventRecord := range events {
+				t.handleEvent(eventRecord.EventRecordHandle)
+				evtapi.EvtCloseRecord(t.evtapi, eventRecord.EventRecordHandle)
+			}
 		}
 	}
 }

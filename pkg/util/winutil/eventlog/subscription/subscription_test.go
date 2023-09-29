@@ -2,6 +2,7 @@
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2023-present Datadog, Inc.
+
 //go:build windows
 
 package evtsubscribe
@@ -10,7 +11,6 @@ import (
 	"flag"
 	"fmt"
 	"testing"
-	"time"
 
 	pkglog "github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/cihub/seelog"
@@ -95,7 +95,7 @@ func startSubscription(t testing.TB, ti eventlog_test.APITester, channel string,
 }
 
 func getEventHandles(t testing.TB, ti eventlog_test.APITester, sub PullSubscription, numEvents uint) ([]*evtapi.EventRecord, error) {
-	eventRecords, err := ReadNumEventsWithNotify(t, ti, sub, numEvents)
+	eventRecords, err := ReadNumEvents(t, ti, sub, numEvents)
 	if err != nil {
 		return nil, err
 	}
@@ -107,14 +107,13 @@ func getEventHandles(t testing.TB, ti eventlog_test.APITester, sub PullSubscript
 }
 
 func assertNoMoreEvents(t testing.TB, sub PullSubscription) error {
-	events, err := sub.GetEvents()
-	if !assert.NoError(t, err, "Error should be nil when there are no more events") {
-		return fmt.Errorf("Error should be nil when there are no more events")
+	select {
+	case <-sub.GetEvents():
+		assert.Fail(t, "GetEvents should block when there are no more events!")
+		return fmt.Errorf("GetEvents did not block")
+	default:
+		return nil
 	}
-	if !assert.Nil(t, events, "[]events should be nil when there are no more events") {
-		return fmt.Errorf("[]events should be nil when there are no more events")
-	}
-	return nil
 }
 
 func BenchmarkTestGetEventHandles(b *testing.B) {
@@ -137,7 +136,7 @@ func BenchmarkTestGetEventHandles(b *testing.B) {
 				for i := 0; i < b.N; i++ {
 					sub, err := startSubscription(b, ti, channel,
 						WithStartAtOldestRecord(),
-						WithNotifyEventsAvailable())
+					)
 					require.NoError(b, err)
 					events, err := getEventHandles(b, ti, sub, v)
 					require.NoError(b, err)
@@ -212,7 +211,7 @@ func BenchmarkTestRenderEventXml(b *testing.B) {
 				for i := 0; i < b.N; i++ {
 					sub, err := startSubscription(b, ti, channel,
 						WithStartAtOldestRecord(),
-						WithNotifyEventsAvailable())
+					)
 					require.NoError(b, err)
 					events, err := getEventHandles(b, ti, sub, v)
 					require.NoError(b, err)
@@ -256,7 +255,7 @@ func BenchmarkTestFormatEventMessage(b *testing.B) {
 				for i := 0; i < b.N; i++ {
 					sub, err := startSubscription(b, ti, channel,
 						WithStartAtOldestRecord(),
-						WithNotifyEventsAvailable())
+					)
 					require.NoError(b, err)
 					events, err := getEventHandles(b, ti, sub, v)
 					require.NoError(b, err)
@@ -330,7 +329,7 @@ func (s *GetEventsTestSuite) TestReadOldEvents() {
 	// Create sub
 	sub, err := startSubscription(s.T(), s.ti, s.channelPath,
 		WithStartAtOldestRecord(),
-		WithNotifyEventsAvailable())
+	)
 	require.NoError(s.T(), err)
 
 	// Put events in the log
@@ -347,7 +346,7 @@ func (s *GetEventsTestSuite) TestReadOldEvents() {
 // Tests that the subscription is notified of and can read new events
 func (s *GetEventsTestSuite) TestReadNewEvents() {
 	// Create sub
-	sub, err := startSubscription(s.T(), s.ti, s.channelPath, WithNotifyEventsAvailable())
+	sub, err := startSubscription(s.T(), s.ti, s.channelPath)
 	require.NoError(s.T(), err)
 
 	// Eat the initial state
@@ -372,7 +371,7 @@ func (s *GetEventsTestSuite) TestReadOnlyNewEvents() {
 	require.NoError(s.T(), err)
 
 	// Create sub
-	sub, err := startSubscription(s.T(), s.ti, s.channelPath, WithNotifyEventsAvailable())
+	sub, err := startSubscription(s.T(), s.ti, s.channelPath)
 	require.NoError(s.T(), err)
 
 	// Put events in the log
@@ -392,7 +391,7 @@ func (s *GetEventsTestSuite) TestStopWhileWaitingWithEventsAvailable() {
 	batchCount := s.numEvents / 2
 
 	// Create subscription
-	sub, err := startSubscription(s.T(), s.ti, s.channelPath, WithNotifyEventsAvailable(),
+	sub, err := startSubscription(s.T(), s.ti, s.channelPath,
 		WithEventBatchCount(batchCount))
 	require.NoError(s.T(), err)
 
@@ -405,17 +404,17 @@ func (s *GetEventsTestSuite) TestStopWhileWaitingWithEventsAvailable() {
 	done := make(chan struct{})
 	go func() {
 		defer close(done)
-		// Read all events
-		_, err := getEventHandles(s.T(), s.ti, sub, batchCount)
+		// Read not all of the events
+		_, err := ReadNumEvents(s.T(), s.ti, sub, batchCount)
 		close(readyToStop)
 		if !assert.NoError(s.T(), err) {
 			return
 		}
-		// Purposefully don't read the rest of the events. This leaves the notify event set.
+		// Purposefully don't read the rest of the events. This leaves the signal event set.
 		// Wait for Stop() to finish
 		<-stopped
-		_, ok := <-sub.EventsAvailable()
-		assert.False(s.T(), ok, "Notify channel should be closed after Stop()")
+		_, ok := <-sub.GetEvents()
+		assert.False(s.T(), ok, "GetEvents channel should be closed after Stop()")
 	}()
 
 	<-readyToStop
@@ -427,7 +426,7 @@ func (s *GetEventsTestSuite) TestStopWhileWaitingWithEventsAvailable() {
 // Tests that Stop() can be called when we read all events but haven't received ERROR_NO_MORE_ITEMS
 func (s *GetEventsTestSuite) TestStopWhileWaitingWithNoMoreItemseNotFinalized() {
 	// Create subscription
-	sub, err := startSubscription(s.T(), s.ti, s.channelPath, WithNotifyEventsAvailable())
+	sub, err := startSubscription(s.T(), s.ti, s.channelPath)
 	require.NoError(s.T(), err)
 
 	// Put events in the log
@@ -446,11 +445,11 @@ func (s *GetEventsTestSuite) TestStopWhileWaitingWithNoMoreItemseNotFinalized() 
 			return
 		}
 		// Purposefully don't call EvtNext the final time when it would normally return ERROR_NO_MORE_ITEMS.
-		// This leaves the notify event set.
+		// This leaves the signal event set.
 		// Wait for Stop() to finish
 		<-stopped
-		_, ok := <-sub.EventsAvailable()
-		assert.False(s.T(), ok, "Notify channel should be closed after Stop()")
+		_, ok := <-sub.GetEvents()
+		assert.False(s.T(), ok, "Getevents channel should be closed after Stop()")
 	}()
 
 	<-readyToStop
@@ -462,7 +461,7 @@ func (s *GetEventsTestSuite) TestStopWhileWaitingWithNoMoreItemseNotFinalized() 
 // Tests that Stop() can be called when the subscription is in a ERROR_NO_MORE_ITEMS state
 func (s *GetEventsTestSuite) TestStopWhileWaitingNoMoreEvents() {
 	// Create subscription
-	sub, err := startSubscription(s.T(), s.ti, s.channelPath, WithNotifyEventsAvailable())
+	sub, err := startSubscription(s.T(), s.ti, s.channelPath)
 	require.NoError(s.T(), err)
 
 	// Put events in the log
@@ -487,8 +486,8 @@ func (s *GetEventsTestSuite) TestStopWhileWaitingNoMoreEvents() {
 		}
 		close(readyToStop)
 		// block on events available notification
-		_, ok := <-sub.EventsAvailable()
-		assert.False(s.T(), ok, "Notify channel should be closed after Stop()")
+		_, ok := <-sub.GetEvents()
+		assert.False(s.T(), ok, "GetEvents channel should be closed after Stop()")
 		close(done)
 	}()
 
@@ -497,38 +496,17 @@ func (s *GetEventsTestSuite) TestStopWhileWaitingNoMoreEvents() {
 	<-done
 }
 
-// Tests that GetEvents() still works when the EventsAvailable() channel is ignored
-func (s *GetEventsTestSuite) TestUnusedNotifyChannel() {
+// Tests that GetEvents does not deadlock when getEventsLoop unexpectedly exits
+func (s *GetEventsTestSuite) TestHandleEarlyGetEventsLoopExit() {
 	// Create sub
-	sub, err := startSubscription(s.T(), s.ti, s.channelPath, WithNotifyEventsAvailable())
+	sub, err := startSubscription(s.T(), s.ti, s.channelPath)
 	require.NoError(s.T(), err)
-
-	// Loop so we test collecting old events and then new events
-	for i := 0; i < 2; i++ {
-		// Put events in the log
-		err = s.ti.GenerateEvents(s.eventSource, s.numEvents)
-		require.NoError(s.T(), err)
-
-		// Don't wait on the channel, just get events
-		eventRecords, err := sub.GetEvents()
-		require.NoError(s.T(), err)
-		count := uint(len(eventRecords))
-		require.Equal(s.T(), s.numEvents, count, fmt.Sprintf("Missing events, collected %d/%d events", count, s.numEvents))
-		err = assertNoMoreEvents(s.T(), sub)
-		require.NoError(s.T(), err)
-	}
-}
-
-// Tests that GetEvents does not deadlock when notifyEventsAvailableLoop unexpectedly exits
-func (s *GetEventsTestSuite) TestHandleEarlyNotifyLoopExit() {
-	// Create sub
-	sub, err := startSubscription(s.T(), s.ti, s.channelPath, WithNotifyEventsAvailable())
-	require.NoError(s.T(), err)
+	defer sub.Stop()
 
 	// Need base type for this test
 	baseSub := sub.(*pullSubscription)
 
-	// set stop event to trigger notify loop to exit
+	// set stop event to trigger getEventsLoop to exit
 	windows.SetEvent(windows.Handle(baseSub.stopEventHandle))
 	require.NoError(s.T(), err)
 
@@ -537,58 +515,28 @@ func (s *GetEventsTestSuite) TestHandleEarlyNotifyLoopExit() {
 	require.NoError(s.T(), err)
 
 	// wait for the loop to exit
-	baseSub.notifyEventsAvailableWaiter.Wait()
+	baseSub.getEventsLoopWaiter.Wait()
 
-	// ensure the notify channel is closed
-	_, ok := <-sub.EventsAvailable()
-	require.False(s.T(), ok, "Notify channel should be closed when notify loop exits")
+	// ensure the events channel is closed
+	_, ok := <-sub.GetEvents()
+	require.False(s.T(), ok, "GetEvents should close when the loop exits")
+	require.Error(s.T(), sub.Error(), "GetEvents should set error when the loop exits")
+
+	// handle error by stopping subscription, then restart it
+	sub.Stop()
+	sub.Start()
 
 	// Put events in the log
 	err = s.ti.GenerateEvents(s.eventSource, s.numEvents)
 	require.NoError(s.T(), err)
 
-	// read all the events, don't wait on the (now closed) channel, just get events
-	eventRecords, err := sub.GetEvents()
+	// Read the events
+	_, err = getEventHandles(s.T(), s.ti, sub, s.numEvents)
 	require.NoError(s.T(), err)
-	count := uint(len(eventRecords))
-	require.Equal(s.T(), s.numEvents, count, fmt.Sprintf("Missing events, collected %d/%d events", count, s.numEvents))
-
-	// trigger ERROR_NO_MORE_EVENTS, which triggers a sync with the (no longer running) notify loop
-	events, err := sub.GetEvents()
-	require.Nil(s.T(), events, "events should be nil on error")
-	require.Error(s.T(), err, "GetEvents should return error when notify loop is no longer running")
-
-	sub.Stop()
-
-	// success if we did not deadlock
-}
-
-// Tests that EventsAvailable() starts out set then becomes unset after calling GetEvents().
-// This ensures the Windows Event Log API follows the behavior implied by the Microsoft example.
-// https://learn.microsoft.com/en-us/windows/win32/wes/subscribing-to-events#pull-subscriptions
-func (s *GetEventsTestSuite) TestChannelInitiallyNotified() {
-	// Create sub
-	sub, err := startSubscription(s.T(), s.ti, s.channelPath, WithNotifyEventsAvailable())
-	require.NoError(s.T(), err)
-
-	select {
-	case <-sub.EventsAvailable():
-		break
-	case <-time.After(5 * time.Minute):
-		require.FailNow(s.T(), "EventsAvailable() should not block the first time")
-	}
-
-	// should return empty
 	err = assertNoMoreEvents(s.T(), sub)
 	require.NoError(s.T(), err)
 
-	// should block this time
-	select {
-	case <-sub.EventsAvailable():
-		require.FailNow(s.T(), "EventsAvailable() should block if no events available")
-	default:
-		break
-	}
+	// success if we did not deadlock
 }
 
 // Tests that the subscription can start from a provided bookmark
@@ -608,7 +556,7 @@ func (s *GetEventsTestSuite) TestStartAfterBookmark() {
 	// Create sub
 	sub, err := startSubscription(s.T(), s.ti, s.channelPath,
 		WithStartAtOldestRecord(),
-		WithNotifyEventsAvailable())
+	)
 	require.NoError(s.T(), err)
 
 	// Read the events
@@ -635,7 +583,7 @@ func (s *GetEventsTestSuite) TestStartAfterBookmark() {
 	// Create sub
 	sub, err = startSubscription(s.T(), s.ti, s.channelPath,
 		WithStartAtOldestRecord(),
-		WithNotifyEventsAvailable())
+	)
 	require.NoError(s.T(), err)
 
 	// Read the events
@@ -654,7 +602,7 @@ func (s *GetEventsTestSuite) TestStartAfterBookmark() {
 	// Create a new subscription starting from the bookmark
 	sub, err = startSubscription(s.T(), s.ti, s.channelPath,
 		WithStartAfterBookmark(bookmark),
-		WithNotifyEventsAvailable())
+	)
 	require.NoError(s.T(), err)
 
 	// Get Events
@@ -682,7 +630,7 @@ func (s *GetEventsTestSuite) TestStartAfterBookmarkNotFoundWithoutStrictFlag() {
 	// Create sub
 	sub, err := startSubscription(s.T(), s.ti, s.channelPath,
 		WithStartAtOldestRecord(),
-		WithNotifyEventsAvailable())
+	)
 	require.NoError(s.T(), err)
 
 	// Read the events
@@ -713,7 +661,7 @@ func (s *GetEventsTestSuite) TestStartAfterBookmarkNotFoundWithoutStrictFlag() {
 	// Create sub
 	sub, err = startSubscription(s.T(), s.ti, s.channelPath,
 		WithStartAtOldestRecord(),
-		WithNotifyEventsAvailable())
+	)
 	require.NoError(s.T(), err)
 
 	// Read the events
@@ -732,7 +680,7 @@ func (s *GetEventsTestSuite) TestStartAfterBookmarkNotFoundWithoutStrictFlag() {
 	// Create a new subscription starting from the bookmark
 	sub, err = startSubscription(s.T(), s.ti, s.channelPath,
 		WithStartAfterBookmark(bookmark),
-		WithNotifyEventsAvailable())
+	)
 	// strict flag not set so there should be no error
 	require.NoError(s.T(), err)
 
@@ -760,7 +708,7 @@ func (s *GetEventsTestSuite) TestStartAfterBookmarkNotFoundWithStrictFlag() {
 	// Create sub
 	sub, err := startSubscription(s.T(), s.ti, s.channelPath,
 		WithStartAtOldestRecord(),
-		WithNotifyEventsAvailable())
+	)
 	require.NoError(s.T(), err)
 
 	// Read the events
@@ -791,7 +739,7 @@ func (s *GetEventsTestSuite) TestStartAfterBookmarkNotFoundWithStrictFlag() {
 	// Create sub
 	sub, err = startSubscription(s.T(), s.ti, s.channelPath,
 		WithStartAtOldestRecord(),
-		WithNotifyEventsAvailable())
+	)
 	require.NoError(s.T(), err)
 
 	// Read the events
@@ -846,7 +794,7 @@ func (s *GetEventsTestSuite) TestReadWhenNoMoreEvents() {
 	require.NoError(s.T(), err)
 
 	// Read all the events
-	eventRecords, err := ReadNumEvents(s.T(), s.ti, sub, 2*s.numEvents)
+	eventRecords, err := getEventHandles(s.T(), s.ti, sub, 2*s.numEvents)
 	require.NoError(s.T(), err)
 	count := uint(len(eventRecords))
 	if !assert.Equal(s.T(), 2*s.numEvents, count, fmt.Sprintf("Missing events, collected %d/%d events", count, 2*s.numEvents)) {

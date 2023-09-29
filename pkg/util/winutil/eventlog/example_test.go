@@ -22,7 +22,7 @@ import (
 
 // Example usage of the eventlog utility library to get event records from the Windows Event Log
 // while using a channel to be notified when new events are available.
-func testExampleNotifyChannel(t testing.TB, ti eventlog_test.APITester, stop chan struct{}, done chan struct{}, channelPath string, numEvents uint) {
+func testSubscriptionExample(t testing.TB, ti eventlog_test.APITester, stop chan struct{}, done chan struct{}, channelPath string, numEvents uint) {
 	defer close(done)
 
 	// Choose the Windows Event Log API implementation
@@ -40,7 +40,6 @@ func testExampleNotifyChannel(t testing.TB, ti eventlog_test.APITester, stop cha
 		channelPath,
 		"*",
 		evtsubscribe.WithStartAtOldestRecord(),
-		evtsubscribe.WithNotifyEventsAvailable(),
 		evtsubscribe.WithWindowsEventLogAPI(api))
 
 	// Start the subscription
@@ -57,34 +56,28 @@ outerLoop:
 		select {
 		case <-stop:
 			break outerLoop
-		case _, ok := <-sub.EventsAvailable():
+		case events, ok := <-sub.GetEvents():
 			if !ok {
 				// The channel is closed, this indicates an error or that sub.Stop() was called
+				// Use sub.Error() to get the error, if any.
+				err = sub.Error()
+				if err != nil {
+					// If there is an error, you must stop the subscription. It is possible to resume
+					// the subscription by calling sub.Start() again.
+					sub.Stop()
+				}
 				break outerLoop
 			}
-			// Get events until there are no more events, then go back to waiting
-			for {
-				events, err := sub.GetEvents()
-				if err != nil {
-					// error
-					break outerLoop
-				}
-				if events == nil {
-					// no more events, go back to waiting for EventsAvailable()
-					continue outerLoop
-				}
-
-				// handle the events
-				for _, eventRecord := range events {
-					// do something with the event
-					// ...
-					err = printEventXML(api, eventRecord)
-					assert.NoError(t, err)
-					err = printEventValues(api, eventRecord)
-					assert.NoError(t, err)
-					// close the event when done
-					evtapi.EvtCloseRecord(api, eventRecord.EventRecordHandle)
-				}
+			// handle the events
+			for _, eventRecord := range events {
+				// do something with the event
+				// ...
+				err = printEventXML(api, eventRecord)
+				assert.NoError(t, err)
+				err = printEventValues(api, eventRecord)
+				assert.NoError(t, err)
+				// close the event when done
+				evtapi.EvtCloseRecord(api, eventRecord.EventRecordHandle)
 			}
 		}
 	}
@@ -190,8 +183,8 @@ func createLog(t testing.TB, ti eventlog_test.APITester, channel string, source 
 	return nil
 }
 
-// tests our example implementation in testExampleNotifyChannel
-func TestExampleNotifyChannel(t *testing.T) {
+// tests our example implementation in testSubscriptionExample can read events
+func TestSubscriptionExample(t *testing.T) {
 	testInterfaceNames := eventlog_test.GetEnabledAPITesters()
 
 	channelPath := "dd-test-channel-example"
@@ -212,7 +205,7 @@ func TestExampleNotifyChannel(t *testing.T) {
 			done := make(chan struct{})
 
 			// Start our example implementation
-			go testExampleNotifyChannel(t, ti, stop, done, channelPath, numEvents)
+			go testSubscriptionExample(t, ti, stop, done, channelPath, numEvents)
 
 			// Create some test events while that's running
 			for i := 0; i < 3; i++ {
