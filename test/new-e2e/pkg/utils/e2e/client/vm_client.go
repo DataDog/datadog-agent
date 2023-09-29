@@ -76,13 +76,21 @@ func (vmClient *vmClient) setEnvVariables(command string, envVar executeparams.E
 
 	cmd := ""
 	if vmClient.os.GetType() == commonos.WindowsType {
+		envVarSave := map[string]string{}
 		for envName, envValue := range envVar {
+			previousEnvVar, err := vmClient.ExecuteWithError(fmt.Sprintf("$env:%s", envName))
+			if err != nil || previousEnvVar == "" {
+				previousEnvVar = "null"
+			}
+			envVarSave[envName] = previousEnvVar
+
 			cmd += fmt.Sprintf("$env:%s='%s'; ", envName, envValue)
 		}
 		cmd += fmt.Sprintf("%s; ", command)
 
+		// Restore env variables
 		for envName := range envVar {
-			cmd += fmt.Sprintf("$env:%s=$null; ", envName)
+			cmd += fmt.Sprintf("$env:%s='%s'; ", envName, envVarSave[envName])
 		}
 	} else {
 		for envName, envValue := range envVar {
