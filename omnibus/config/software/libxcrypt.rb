@@ -34,9 +34,10 @@ build do
     # This builds libcrypt.so.2
     # To build libcrypt.so.1, the --disable-obsolete-api option
     # needs to be removed.
-    command ["./configure",
-        "--prefix=#{install_dir}/embedded",
-        "--disable-obsolete-api"].join(" "), env: env
+    configure_options = [
+        "--disable-obsolete-api",
+    ]
+    configure(*configure_options, env: env)
     command "make -j #{workers}", env: env
     command "make -j #{workers} install"
 end
