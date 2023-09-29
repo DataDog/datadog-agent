@@ -295,6 +295,9 @@
 /pkg/dynamicinstrumentation/            @DataDog/debugger
 /pkg/epforwarder/                       @DataDog/agent-shared-components @DataDog/agent-metrics-logs
 /pkg/flare/                             @DataDog/agent-shared-components
+/pkg/flare/*_win.go                     @Datadog/windows-agent
+/pkg/flare/*_windows.go                 @Datadog/windows-agent
+/pkg/flare/*_windows_test.go            @Datadog/windows-agent
 /pkg/otlp/                              @DataDog/opentelemetry
 /pkg/otlp/*_serverless*.go              @DataDog/serverless
 /pkg/otlp/*_not_serverless*.go          @DataDog/opentelemetry
