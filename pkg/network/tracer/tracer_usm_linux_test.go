@@ -114,11 +114,6 @@ func testHTTPStats(t *testing.T, aggregateByStatusCode bool) {
 		return
 	}
 
-	cfg := testConfig()
-	cfg.EnableHTTPMonitoring = true
-	cfg.EnableHTTPStatsByStatusCode = aggregateByStatusCode
-	tr := setupTracer(t, cfg)
-
 	// Start an HTTP server on localhost:8080
 	serverAddr := "127.0.0.1:8080"
 	srv := &nethttp.Server{
@@ -134,10 +129,11 @@ func testHTTPStats(t *testing.T, aggregateByStatusCode bool) {
 	go func() { _ = srv.ListenAndServe() }()
 	t.Cleanup(func() { _ = srv.Shutdown(context.Background()) })
 
-	// Allow the HTTP server time to get set up
-	time.Sleep(time.Millisecond * 500)
+	cfg := testConfig()
+	cfg.EnableHTTPMonitoring = true
+	cfg.EnableHTTPStatsByStatusCode = aggregateByStatusCode
+	tr := setupTracer(t, cfg)
 
-	// Send a series of HTTP requests to the test server
 	resp, err := nethttp.Get("http://" + serverAddr + "/test")
 	require.NoError(t, err)
 	_ = resp.Body.Close()
