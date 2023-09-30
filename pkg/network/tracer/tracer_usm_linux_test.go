@@ -269,10 +269,15 @@ func buildPrefetchFileBin(t *testing.T) string {
 	return binary
 }
 
-func prefetchLib(t *testing.T, filename string) {
+func prefetchLib(t *testing.T, filenames ...string) *exec.Cmd {
 	prefetchBin := buildPrefetchFileBin(t)
-	cmd := exec.Command(prefetchBin, filename, "3s")
+	cmd := exec.Command(prefetchBin, filenames...)
 	require.NoError(t, cmd.Start())
+	t.Cleanup(func() {
+		_ = cmd.Process.Kill()
+		_, _ = cmd.Process.Wait()
+	})
+	return cmd
 }
 
 func testHTTPSLibrary(t *testing.T, fetchCmd []string, prefetchLibs []string) {
@@ -287,10 +292,17 @@ func testHTTPSLibrary(t *testing.T, fetchCmd []string, prefetchLibs []string) {
 	tr := setupTracer(t, cfg)
 
 	// not ideal but, short process are hard to catch
-	for _, lib := range prefetchLibs {
-		prefetchLib(t, lib)
-	}
-	time.Sleep(2 * time.Second)
+	prefetchPid := uint32(prefetchLib(t, prefetchLibs...).Process.Pid)
+	require.Eventuallyf(t, func() bool {
+		traced := utils.GetTracedPrograms("shared_libraries")
+		for _, prog := range traced {
+			if slices.Contains[[]uint32](prog.PIDs, prefetchPid) {
+				return true
+			}
+		}
+
+		return false
+	}, time.Second*5, time.Millisecond*100, "process %v is not traced by shared-libraries", prefetchPid)
 
 	// Issue request using fetchCmd (wget, curl, ...)
 	// This is necessary (as opposed to using net/http) because we want to
