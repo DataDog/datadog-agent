@@ -30,3 +30,8 @@ require (
 	gopkg.in/yaml.v2 v2.4.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
+
+replace (
+	github.com/DataDog/datadog-agent/pkg/util/log => ../util/log
+	github.com/DataDog/datadog-agent/pkg/util/scrubber => ../util/scrubber
+)
