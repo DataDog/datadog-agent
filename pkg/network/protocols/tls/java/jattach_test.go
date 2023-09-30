@@ -64,12 +64,9 @@ func testInject(t *testing.T, prefix string) {
 //	o in the container, _simulated_ by running java in his own PID namespace
 func TestInject(t *testing.T) {
 	currKernelVersion, err := kernel.HostVersion()
-	if err != nil {
-		t.Skip("Can't detect kernel version on this platform")
-	}
-	pre410Kernel := currKernelVersion < kernel.VersionCode(4, 1, 0)
-	if pre410Kernel {
-		t.Skip("Kernel < 4.1.0 are not supported as /proc/pid/status doesn't report NSpid")
+	require.NoError(t, err)
+	if currKernelVersion < kernel.VersionCode(4, 14, 0) {
+		t.Skip("Java TLS injection tests can run only on USM supported machines.")
 	}
 
 	javaVersion, err := testutil.RunCommand("java -version")
