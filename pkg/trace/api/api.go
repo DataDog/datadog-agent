@@ -8,6 +8,7 @@ package api
 import (
 	"bytes"
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -358,16 +359,29 @@ func decodeTracerPayload(v Version, req *http.Request, ts *info.TagStats, cIDPro
 	case v05:
 		buf := getBuffer()
 		defer putBuffer(buf)
-		if _, err = io.Copy(buf, req.Body); err != nil {
+		safeCopy := &bytes.Buffer{}
+
+		if _, err = io.Copy(buf, io.TeeReader(req.Body, safeCopy)); err != nil {
 			return nil, false, err
 		}
 		var traces pb.Traces
 		err = traces.UnmarshalMsgDictionary(buf.Bytes())
+		chunks := traceChunksFromTraces(traces)
+	chunksLoop:
+		for _, chunk := range chunks {
+			for _, span := range chunk.Spans {
+				if span != nil && strings.HasPrefix(span.Service, "00-") {
+					log.Errorf("INCIDENT-22455 In v05Receiver (ID %d) bytes: %#v ORIG BYTES, span: %#v", span.TraceID, base64.StdEncoding.EncodeToString(safeCopy.Bytes()), span)
+					log.Errorf("INCIDENT-22455 In v05Receiver (ID %d) bytes: %#v AFTER BYTES, span: %#v", span.TraceID, base64.StdEncoding.EncodeToString(buf.Bytes()), span)
+					break chunksLoop
+				}
+			}
+		}
 		return &pb.TracerPayload{
 			LanguageName:    ts.Lang,
 			LanguageVersion: ts.LangVersion,
 			ContainerID:     cIDProvider.GetContainerID(req.Context(), req.Header),
-			Chunks:          traceChunksFromTraces(traces),
+			Chunks:          chunks,
 			TracerVersion:   ts.TracerVersion,
 		}, true, err
 	case V07:
