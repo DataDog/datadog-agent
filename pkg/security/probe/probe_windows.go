@@ -229,3 +229,8 @@ func (p *Probe) ApplyRuleSet(rs *rules.RuleSet) (*kfilters.ApplyRuleSetReport, e
 func (p *Probe) FlushDiscarders() error {
 	return nil
 }
+
+// RefreshUserCache refreshes the user cache
+func (p *Probe) RefreshUserCache(containerID string) error {
+	return nil
+}

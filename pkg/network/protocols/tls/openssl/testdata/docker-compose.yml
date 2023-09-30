@@ -3,6 +3,6 @@ version: '3'
 services:
   openssl-server:
     image: menci/archlinuxarm:base
-    entrypoint: bash -c "yes '' | openssl req -x509 -newkey rsa:2048 -keyout key.pem -out cert.pem -days 1 -nodes && openssl s_server -key key.pem -cert cert.pem -accept 0.0.0.0:${OPENSSL_PORT:-44330} -naccept 1 ${OPENSSL_ARGS}"
+    entrypoint: bash -c "yes '' | openssl req -x509 -newkey rsa:2048 -keyout key.pem -out cert.pem -days 1 -nodes && openssl s_server -key key.pem -cert cert.pem -accept 0.0.0.0:${OPENSSL_PORT:-44330} -naccept ${CLIENTS} ${OPENSSL_ARGS}"
     ports:
       - ${OPENSSL_PORT:-44330}:44330/tcp
