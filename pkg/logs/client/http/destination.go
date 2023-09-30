@@ -268,9 +268,10 @@ func (d *Destination) unconditionalSend(payload *message.Payload) (err error) {
 	if payload.Encoding != "" {
 		req.Header.Set("Content-Encoding", payload.Encoding)
 	}
-	if d.protocol != "" {
-		req.Header.Set("DD-PROTOCOL", string(d.protocol))
-	}
+	// Commented out due to extra attributes added
+	//if d.protocol != "" {
+	//	req.Header.Set("DD-PROTOCOL", string(d.protocol))
+	//}
 	if d.origin != "" {
 		req.Header.Set("DD-EVP-ORIGIN", string(d.origin))
 		req.Header.Set("DD-EVP-ORIGIN-VERSION", version.AgentVersion)

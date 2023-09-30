@@ -44,9 +44,9 @@ func (t *Tailer) DidRotate() (bool, error) {
 	truncated := fileSize < lastReadOffset
 
 	if recreated {
-		log.Debugf("File rotation detected due to recreation, f1: %+v, f2: %+v", fi1, fi2)
+		log.Infof("File rotation detected due to recreation, f1: %+v, f2: %+v", fi1, fi2)
 	} else if truncated {
-		log.Debugf("File rotation detected due to size change, lastReadOffset=%d, fileSize=%d", lastReadOffset, fileSize)
+		log.Infof("File rotation detected due to size change, lastReadOffset=%d, fileSize=%d", lastReadOffset, fileSize)
 	}
 
 	return recreated || truncated, nil

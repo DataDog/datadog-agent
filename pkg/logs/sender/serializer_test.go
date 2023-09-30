@@ -22,11 +22,11 @@ func TestLineSerializer(t *testing.T) {
 	payload = serializer.Serialize(messages)
 	assert.Len(t, payload, 0)
 
-	messages = []*message.Message{message.NewMessage([]byte("a"), nil, "", 0)}
+	messages = []*message.Message{message.NewMessage([]byte("a"), nil, "", 0, "")}
 	payload = serializer.Serialize(messages)
 	assert.Equal(t, []byte("a"), payload)
 
-	messages = []*message.Message{message.NewMessage([]byte("a"), nil, "", 0), message.NewMessage([]byte("b"), nil, "", 0)}
+	messages = []*message.Message{message.NewMessage([]byte("a"), nil, "", 0, ""), message.NewMessage([]byte("b"), nil, "", 0, "")}
 	payload = serializer.Serialize(messages)
 	assert.Equal(t, []byte("a\nb"), payload)
 }
@@ -40,11 +40,11 @@ func TestArraySerializer(t *testing.T) {
 	payload = serializer.Serialize(messages)
 	assert.Equal(t, []byte("[]"), payload)
 
-	messages = []*message.Message{message.NewMessage([]byte("a"), nil, "", 0)}
+	messages = []*message.Message{message.NewMessage([]byte("a"), nil, "", 0, "")}
 	payload = serializer.Serialize(messages)
 	assert.Equal(t, []byte("[a]"), payload)
 
-	messages = []*message.Message{message.NewMessage([]byte("a"), nil, "", 0), message.NewMessage([]byte("b"), nil, "", 0)}
+	messages = []*message.Message{message.NewMessage([]byte("a"), nil, "", 0, ""), message.NewMessage([]byte("b"), nil, "", 0, "")}
 	payload = serializer.Serialize(messages)
 	assert.Equal(t, []byte("[a,b]"), payload)
 }

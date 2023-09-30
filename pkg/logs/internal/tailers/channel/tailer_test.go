@@ -32,7 +32,7 @@ func TestBuildMessageNoLambda(t *testing.T) {
 		IsError:   false,
 	}
 	origin := &message.Origin{}
-	builtMessage := buildMessage(logline, origin)
+	builtMessage := buildMessage(logline, origin, "")
 	assert.Equal(t, "bababang", string(builtMessage.Content))
 	assert.Nil(t, builtMessage.Lambda)
 	assert.Equal(t, message.StatusInfo, builtMessage.GetStatus())
@@ -49,7 +49,7 @@ func TestBuildMessageLambda(t *testing.T) {
 		},
 	}
 	origin := &message.Origin{}
-	builtMessage := buildMessage(logline, origin)
+	builtMessage := buildMessage(logline, origin, "")
 	assert.Equal(t, "bababang", string(builtMessage.Content))
 	assert.Equal(t, "myTestARN", builtMessage.Lambda.ARN)
 	assert.Equal(t, "myTestRequestId", builtMessage.Lambda.RequestID)
@@ -63,7 +63,7 @@ func TestBuildErrorMessage(t *testing.T) {
 		IsError:   true,
 	}
 	origin := &message.Origin{}
-	builtMessage := buildMessage(logline, origin)
+	builtMessage := buildMessage(logline, origin, "")
 	assert.Equal(t, "bababang", string(builtMessage.Content))
 	assert.Equal(t, message.StatusError, builtMessage.GetStatus())
 }

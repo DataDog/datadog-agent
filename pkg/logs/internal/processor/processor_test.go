@@ -156,5 +156,5 @@ func newSource(ruleType, replacePlaceholder, pattern string) sources.LogSource {
 }
 
 func newMessage(content []byte, source *sources.LogSource, status string) *message.Message {
-	return message.NewMessageWithSource(content, status, source, 0)
+	return message.NewMessageWithSource(content, status, source, 0, "msg_id")
 }

@@ -221,7 +221,7 @@ func newMessage(name, typ, source, service string) message.Message {
 	}
 	src := sources.NewLogSource(name, cfg)
 	origin := message.NewOrigin(src)
-	return *message.NewMessage([]byte("a"), origin, "", 0)
+	return *message.NewMessage([]byte("a"), origin, "", 0, "msg_id")
 }
 
 func readFilteredLines(t *testing.T, b *BufferedMessageReceiver, filters *Filters, expectedLineCount int) {
