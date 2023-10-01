@@ -1320,7 +1320,11 @@ func (s *TracerSuite) TestDNSStatsWithNAT() {
 	cmds := []string{"iptables -t nat -A OUTPUT -d 2.2.2.2 -j DNAT --to-destination 8.8.8.8"}
 	testutil.RunCommands(t, cmds, true)
 
-	testDNSStats(t, "golang.org", 1, 0, 0, "2.2.2.2")
+	cfg := testConfig()
+	cfg.CollectDNSStats = true
+	cfg.DNSTimeout = 1 * time.Second
+	tr := setupTracer(t, cfg)
+	testDNSStats(t, tr, "golang.org", 1, 0, 0, "2.2.2.2")
 }
 
 func iptablesWrapper(t *testing.T, f func()) {

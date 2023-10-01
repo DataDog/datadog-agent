@@ -1001,11 +1001,27 @@ const (
 	validDNSServer = "8.8.8.8"
 )
 
-func testDNSStats(t *testing.T, domain string, success int, failure int, timeout int, serverIP string) {
-	config := testConfig()
-	config.CollectDNSStats = true
-	config.DNSTimeout = 1 * time.Second
-	tr := setupTracer(t, config)
+func testInner(t *testing.T, params protocolClassificationAttributes, tr *Tracer) {
+	t.Cleanup(func() { tr.removeClient(clientID) })
+	t.Cleanup(func() { tr.ebpfTracer.Pause() })
+
+	tr.removeClient(clientID)
+	initTracerState(t, tr)
+	require.NoError(t, tr.ebpfTracer.Resume(), "enable probes - before post tracer")
+	if params.postTracerSetup != nil {
+		params.postTracerSetup(t, params.context)
+	}
+	require.NoError(t, tr.ebpfTracer.Pause(), "disable probes - after post tracer")
+}
+
+func testDNSStats(t *testing.T, tr *Tracer, domain string, success, failure, timeout int, serverIP string) {
+	t.Cleanup(func() { tr.removeClient(clientID) })
+	t.Cleanup(func() { tr.ebpfTracer.Pause() })
+	require.NoError(t, tr.ebpfTracer.Pause(), "disable probes")
+
+	tr.removeClient(clientID)
+	initTracerState(t, tr)
+	require.NoError(t, tr.ebpfTracer.Resume(), "enable probes")
 
 	dnsServerAddr := &net.UDPAddr{IP: net.ParseIP(serverIP), Port: 53}
 
@@ -1065,14 +1081,18 @@ func testDNSStats(t *testing.T, domain string, success int, failure int, timeout
 
 func (s *TracerSuite) TestDNSStats() {
 	t := s.T()
+	cfg := testConfig()
+	cfg.CollectDNSStats = true
+	cfg.DNSTimeout = 1 * time.Second
+	tr := setupTracer(t, cfg)
 	t.Run("valid domain", func(t *testing.T) {
-		testDNSStats(t, "golang.org", 1, 0, 0, validDNSServer)
+		testDNSStats(t, tr, "golang.org", 1, 0, 0, validDNSServer)
 	})
 	t.Run("invalid domain", func(t *testing.T) {
-		testDNSStats(t, "abcdedfg", 0, 1, 0, validDNSServer)
+		testDNSStats(t, tr, "abcdedfg", 0, 1, 0, validDNSServer)
 	})
 	t.Run("timeout", func(t *testing.T) {
-		testDNSStats(t, "golang.org", 0, 0, 1, "1.2.3.4")
+		testDNSStats(t, tr, "golang.org", 0, 0, 1, "1.2.3.4")
 	})
 }
 
