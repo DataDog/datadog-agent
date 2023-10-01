@@ -25,6 +25,9 @@ import (
 	"github.com/hashicorp/golang-lru/v2/simplelru"
 )
 
+// cacheSize is the number of entries that can be stored in the LRU cache
+const cacheSize = 1600
+
 // telemetryTick is the frequency at which the cache usage metrics are collected.
 var telemetryTick = 1 * time.Minute
 
@@ -34,7 +37,7 @@ type CacheProvider func() (cache.Cache, CacheCleaner, error)
 
 // NewCustomBoltCache is a CacheProvider. It returns a custom implementation of a BoltDB cache using an LRU algorithm with a
 // maximum number of cache entries, maximum disk size and garbage collection of unused images with its custom cleaner.
-func NewCustomBoltCache(cacheDir string, maxCacheEntries int, maxDiskSize int) (cache.Cache, CacheCleaner, error) {
+func NewCustomBoltCache(cacheDir string, maxDiskSize int) (cache.Cache, CacheCleaner, error) {
 	if cacheDir == "" {
 		cacheDir = utils.DefaultCacheDir()
 	}
@@ -43,7 +46,6 @@ func NewCustomBoltCache(cacheDir string, maxCacheEntries int, maxDiskSize int) (
 		return nil, &StubCacheCleaner{}, err
 	}
 	cache, err := NewPersistentCache(
-		maxCacheEntries,
 		maxDiskSize,
 		db,
 	)
@@ -254,7 +256,6 @@ type PersistentCache struct {
 
 // NewPersistentCache creates a new instance of PersistentCache and returns a pointer to it.
 func NewPersistentCache(
-	maxCacheSize int,
 	maxCachedObjectSize int,
 	localDB PersistentDB,
 ) (*PersistentCache, error) {
@@ -265,7 +266,7 @@ func NewPersistentCache(
 		maximumCachedObjectSize:      maxCachedObjectSize,
 	}
 
-	lruCache, err := simplelru.NewLRU(maxCacheSize, func(key string, _ struct{}) {
+	lruCache, err := simplelru.NewLRU(cacheSize, func(key string, _ struct{}) {
 		persistentCache.lastEvicted = key
 	})
 	if err != nil {
@@ -338,7 +339,6 @@ func (c *PersistentCache) Clear() error {
 	}
 	c.lruCache.Purge()
 	c.currentCachedObjectTotalSize = 0
-	telemetry.SBOMCachedObjectSize.Set(0)
 	return nil
 }
 
@@ -413,7 +413,6 @@ func (c *PersistentCache) set(key string, value []byte) error {
 			c.addKeyInMemory(c.lastEvicted)
 			return err
 		}
-		telemetry.SBOMCacheEvicts.Inc()
 		c.subCurrentCachedObjectTotalSize(evictedSize)
 	}
 
@@ -476,30 +475,19 @@ func (c *PersistentCache) Remove(keys []string) error {
 
 // addKeyInMemory adds the provided key in the lrucache, returning if an entry was evicted.
 func (c *PersistentCache) addKeyInMemory(key string) bool {
-	ok := c.lruCache.Add(key, struct{}{})
-	if !ok {
-		telemetry.SBOMCacheEntries.Inc()
-	}
-	return ok
+	return c.lruCache.Add(key, struct{}{})
 }
 
 // removeKeyFromMemory removes the provided key from the lrucache, returning if the
 // key was contained.
 func (c *PersistentCache) removeKeyFromMemory(key string) bool {
-	ok := c.lruCache.Remove(key)
-	if ok {
-		telemetry.SBOMCacheEntries.Dec()
-	}
-	return ok
+	return c.lruCache.Remove(key)
 }
 
 // removeOldestKeyFromMemory removes the oldest key from the lrucache returning the key and
 // if a key was removed.
 func (c *PersistentCache) removeOldestKeyFromMemory() (string, bool) {
 	key, _, ok := c.lruCache.RemoveOldest()
-	if ok {
-		telemetry.SBOMCacheEntries.Dec()
-	}
 	return key, ok
 }
 
@@ -513,13 +501,11 @@ func (c *PersistentCache) GetCurrentCachedObjectTotalSize() int {
 // addCurrentCachedObjectTotalSize adds val to the current cached object total size.
 func (c *PersistentCache) addCurrentCachedObjectTotalSize(val int) {
 	c.currentCachedObjectTotalSize += val
-	telemetry.SBOMCachedObjectSize.Add(float64(val))
 }
 
 // subCurrentCachedObjectTotalSize subtract val to the current cached object total size.
 func (c *PersistentCache) subCurrentCachedObjectTotalSize(val int) {
 	c.currentCachedObjectTotalSize -= val
-	telemetry.SBOMCachedObjectSize.Sub(float64(val))
 }
 
 // collectTelemetry collects the database's size
@@ -531,15 +517,15 @@ func (c *PersistentCache) collectTelemetry() {
 	telemetry.SBOMCacheDiskSize.Set(float64(diskSize))
 }
 
+func newMemoryCache() *memoryCache {
+	return &memoryCache{}
+}
+
 type memoryCache struct {
-	blobInfo *struct {
-		*types.BlobInfo
-		id string
-	}
-	artifactInfo *struct {
-		*types.ArtifactInfo
-		id string
-	}
+	blobInfo     *types.BlobInfo
+	blobID       string
+	artifactInfo *types.ArtifactInfo
+	artifactID   string
 }
 
 func (c *memoryCache) MissingBlobs(artifactID string, blobIDs []string) (missingArtifact bool, missingBlobIDs []string, err error) {
@@ -557,31 +543,21 @@ func (c *memoryCache) MissingBlobs(artifactID string, blobIDs []string) (missing
 }
 
 func (c *memoryCache) PutArtifact(artifactID string, artifactInfo types.ArtifactInfo) (err error) {
-	c.artifactInfo = &struct {
-		*types.ArtifactInfo
-		id string
-	}{
-		id:           artifactID,
-		ArtifactInfo: &artifactInfo,
-	}
+	c.artifactInfo = &artifactInfo
+	c.artifactID = artifactID
 	return nil
 }
 
 func (c *memoryCache) PutBlob(blobID string, blobInfo types.BlobInfo) (err error) {
-	c.blobInfo = &struct {
-		*types.BlobInfo
-		id string
-	}{
-		id:       blobID,
-		BlobInfo: &blobInfo,
-	}
+	c.blobInfo = &blobInfo
+	c.blobID = blobID
 	return nil
 }
 
 func (c *memoryCache) DeleteBlobs(blobIDs []string) error {
 	if c.blobInfo != nil {
 		for _, blobID := range blobIDs {
-			if blobID == c.blobInfo.id {
+			if blobID == c.blobID {
 				c.blobInfo = nil
 			}
 		}
@@ -590,15 +566,15 @@ func (c *memoryCache) DeleteBlobs(blobIDs []string) error {
 }
 
 func (c *memoryCache) GetArtifact(artifactID string) (artifactInfo types.ArtifactInfo, err error) {
-	if c.artifactInfo != nil && c.artifactInfo.id == artifactID {
-		return *c.artifactInfo.ArtifactInfo, nil
+	if c.artifactInfo != nil && c.artifactID == artifactID {
+		return *c.artifactInfo, nil
 	}
 	return types.ArtifactInfo{}, nil
 }
 
 func (c *memoryCache) GetBlob(blobID string) (blobInfo types.BlobInfo, err error) {
-	if c.blobInfo != nil && c.blobInfo.id == blobID {
-		return *c.blobInfo.BlobInfo, nil
+	if c.blobInfo != nil && c.blobID == blobID {
+		return *c.blobInfo, nil
 	}
 	return types.BlobInfo{}, errors.New("not found")
 }

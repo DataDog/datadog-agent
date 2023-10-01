@@ -72,4 +72,7 @@ message ClientGroupedStats {
 	uint64 topLevelHits = 13; // count of top level spans aggregated in the groupedstats
 	string peer_service = 14; // name of the remote service that the `service` communicated with
 	string span_kind = 15; // value of the span.kind tag on the span
+	// peer_tags are supplementary tags that further describe a peer_service
+	// E.g., `aws.s3.bucket` gives a specific bucket for `peer_service = aws-s3`
+	repeated string peer_tags = 16;
 }

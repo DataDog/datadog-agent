@@ -55,20 +55,18 @@ func Test_NodesFakeKubernetesClient(t *testing.T) {
 		_, err := cl.CoreV1().Nodes().Create(context.TODO(), &corev1.Node{ObjectMeta: objectMeta}, metav1.CreateOptions{})
 		return err
 	}
-	expected := []workloadmeta.EventBundle{
-		{
-			Events: []workloadmeta.Event{
-				{
-					Type: workloadmeta.EventTypeSet,
-					Entity: &workloadmeta.KubernetesNode{
-						EntityID: workloadmeta.EntityID{
-							ID:   objectMeta.Name,
-							Kind: workloadmeta.KindKubernetesNode,
-						},
-						EntityMeta: workloadmeta.EntityMeta{
-							Name:   objectMeta.Name,
-							Labels: objectMeta.Labels,
-						},
+	expected := workloadmeta.EventBundle{
+		Events: []workloadmeta.Event{
+			{
+				Type: workloadmeta.EventTypeSet,
+				Entity: &workloadmeta.KubernetesNode{
+					EntityID: workloadmeta.EntityID{
+						ID:   objectMeta.Name,
+						Kind: workloadmeta.KindKubernetesNode,
+					},
+					EntityMeta: workloadmeta.EntityMeta{
+						Name:   objectMeta.Name,
+						Labels: objectMeta.Labels,
 					},
 				},
 			},

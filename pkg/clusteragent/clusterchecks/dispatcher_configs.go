@@ -90,45 +90,45 @@ func (d *dispatcher) removeConfig(digest string) {
 
 	node, found := d.store.getNodeStore(d.store.digestToNode[digest])
 
-	checkName := ""
-	if found {
-		node.RLock()
-		checkName = node.digestToConfig[digest].Name
-		node.RUnlock()
-	}
+	checkName := d.store.digestToConfig[digest].Name
 
 	delete(d.store.digestToNode, digest)
 	delete(d.store.digestToConfig, digest)
 	delete(d.store.danglingConfigs, digest)
 
-	for k, v := range d.store.idToDigest {
-		if v == digest {
-			configsInfo.Delete(node.name, checkName, string(k), le.JoinLeaderValue)
-			delete(d.store.idToDigest, k)
+	// This is a list because each instance in a config has its own check ID and
+	// all of them need to be deleted.
+	var checkIDsToRemove []checkid.ID
+	for checkID, checkDigest := range d.store.idToDigest {
+		if checkDigest == digest {
+			checkIDsToRemove = append(checkIDsToRemove, checkID)
+			delete(d.store.idToDigest, checkID)
 		}
 	}
 
+	if !found { // Dangling config. Not assigned to any node.
+		danglingConfigs.Dec(le.JoinLeaderValue)
+		return
+	}
+
 	// Remove from node configs if assigned
-	if found {
-		node.Lock()
-		node.removeConfig(digest)
-		node.Unlock()
+	node.Lock()
+	nodeName := node.name
+	node.removeConfig(digest)
+	node.Unlock()
+
+	for _, checkID := range checkIDsToRemove {
+		configsInfo.Delete(nodeName, checkName, string(checkID), le.JoinLeaderValue)
 	}
 }
 
-// shouldDispatchDanling returns true if there are dangling configs
+// shouldDispatchDangling returns true if there are dangling configs
 // and node registered, available for dispatching.
-func (d *dispatcher) shouldDispatchDanling() bool {
+func (d *dispatcher) shouldDispatchDangling() bool {
 	d.store.RLock()
 	defer d.store.RUnlock()
 
-	if len(d.store.danglingConfigs) == 0 {
-		return false
-	}
-	if len(d.store.nodes) == 0 {
-		return false
-	}
-	return true
+	return len(d.store.danglingConfigs) > 0 && len(d.store.nodes) > 0
 }
 
 // retrieveAndClearDangling extracts dangling configs from the store

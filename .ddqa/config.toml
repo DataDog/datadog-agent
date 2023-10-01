@@ -160,7 +160,6 @@ jira_statuses = [
 ]
 github_team = "container-integrations"
 github_labels = ["team/containers"]
-exclude_members = ["vboulineau"]
 
 [teams."Container Ecosystems"]
 jira_project = "CECO"
@@ -242,7 +241,7 @@ github_team = "database-monitoring"
 github_labels = ["team/database-monitoring"]
 
 [teams."Container App"]
-jira_project = "CAP2"
+jira_project = "CAP"
 jira_issue_type = "Task"
 jira_statuses = [
   "💼 To Do",
@@ -254,7 +253,7 @@ github_labels = ["team/container-app"]
 
 [teams."APM Onboarding"]
 jira_project = "APMON"
-jira_issue_type = "Task"
+jira_issue_type = "Story"
 jira_statuses = [
   "Selected For Development",
   "In Progress",
