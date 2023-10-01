@@ -56,7 +56,7 @@ type NetworkDeviceSerializer struct{}
 // EventSerializer serializes an event to JSON
 // easyjson:json
 type EventSerializer struct {
-	*BaseEventSerializer `json:"evt,omitempty"`
+	*BaseEventSerializer
 }
 
 func newFileSerializer(fe *model.FileEvent, e *model.Event, forceInode ...uint64) *FileSerializer {
