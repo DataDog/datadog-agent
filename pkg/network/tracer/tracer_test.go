@@ -89,7 +89,10 @@ func setupTracer(t testing.TB, cfg *config.Config) *Tracer {
 
 func (s *TracerSuite) TestGetStats() {
 	t := s.T()
-	httpSupported := httpSupported()
+	if !httpSupported() {
+		t.Skip("test is not supported on this system")
+	}
+
 	linuxExpected := map[string]interface{}{}
 	err := json.Unmarshal([]byte(`{
       "state": {
@@ -132,10 +135,6 @@ func (s *TracerSuite) TestGetStats() {
 			actual, _ := tr.getStats()
 
 			for section, entries := range expected {
-				if section == "usm" && !httpSupported {
-					// HTTP stats not supported on some systems
-					continue
-				}
 				require.Contains(t, actual, section, "missing section from telemetry map: %s", section)
 				for name := range entries.(map[string]interface{}) {
 					if cfg.EnableRuntimeCompiler || cfg.EnableEbpfConntracker {
