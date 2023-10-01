@@ -158,7 +158,7 @@ func (a *TestAgentDemultiplexer) Reset() {
 // InitTestAgentDemultiplexerWithFlushInterval inits a TestAgentDemultiplexer with the given options.
 func InitTestAgentDemultiplexerWithOpts(log log.Component, sharedForwarderOptions *forwarder.Options, opts AgentDemultiplexerOptions) *TestAgentDemultiplexer {
 	sharedForwarder := forwarder.NewDefaultForwarder(config.Datadog, log, sharedForwarderOptions)
-	demux := InitAndStartAgentDemultiplexer(log, sharedForwarder, opts, "hostname")
+	demux := InitAndStartAgentDemultiplexer(log, config.Datadog, sharedForwarder, opts, "hostname")
 	testAgent := TestAgentDemultiplexer{
 		AgentDemultiplexer: demux,
 		events:             make(chan []*event.Event),

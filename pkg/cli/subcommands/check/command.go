@@ -115,7 +115,8 @@ func MakeCommand(globalParamsGetter func() GlobalParams) *cobra.Command {
 				fx.Supply(core.BundleParams{
 					ConfigParams:         config.NewAgentParamsWithSecrets(globalParams.ConfFilePath, config.WithConfigName(globalParams.ConfigName)),
 					SysprobeConfigParams: sysprobeconfig.NewParams(sysprobeconfig.WithSysProbeConfFilePath(globalParams.SysProbeConfFilePath)),
-					LogParams:            log.LogForOneShot(globalParams.LoggerName, "off", true)}),
+					LogParams:            log.LogForOneShot(globalParams.LoggerName, "off", true),
+				}),
 				core.Bundle,
 				forwarder.Bundle,
 				fx.Supply(defaultforwarder.Params{UseNoopForwarder: true}),
@@ -165,7 +166,6 @@ func run(log log.Component, config config.Component, sysprobeconfig sysprobeconf
 	if cliParams.generateIntegrationTraces {
 		if pkgconfig.Datadog.IsSet("integration_tracing") {
 			previousIntegrationTracing = pkgconfig.Datadog.GetBool("integration_tracing")
-
 		}
 		if pkgconfig.Datadog.IsSet("integration_tracing_exhaustive") {
 			previousIntegrationTracingExhaustive = pkgconfig.Datadog.GetBool("integration_tracing_exhaustive")
@@ -198,7 +198,7 @@ func run(log log.Component, config config.Component, sysprobeconfig sysprobeconf
 	opts.FlushInterval = 0
 	opts.UseNoopEventPlatformForwarder = true
 	opts.UseNoopOrchestratorForwarder = true
-	demux := aggregator.InitAndStartAgentDemultiplexer(log, forwarder, opts, hostnameDetected)
+	demux := aggregator.InitAndStartAgentDemultiplexer(log, pkgconfig.Datadog, forwarder, opts, hostnameDetected)
 
 	common.LoadComponents(context.Background(), aggregator.GetSenderManager(), pkgconfig.Datadog.GetString("confd_path"))
 	common.AC.LoadAndRun(context.Background())

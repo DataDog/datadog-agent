@@ -11,6 +11,8 @@ import (
 	"fmt"
 
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/transaction"
+	"github.com/DataDog/datadog-agent/pkg/conf"
+
 	"github.com/DataDog/datadog-agent/pkg/serializer/marshaler"
 )
 
@@ -26,11 +28,10 @@ const (
 )
 
 // JSONPayloadBuilder is not implemented when zlib is not available.
-type JSONPayloadBuilder struct {
-}
+type JSONPayloadBuilder struct{}
 
 // NewJSONPayloadBuilder is not implemented when zlib is not available.
-func NewJSONPayloadBuilder(shareAndLockBuffers bool) *JSONPayloadBuilder {
+func NewJSONPayloadBuilder(shareAndLockBuffers bool, cfg conf.ConfigReader) *JSONPayloadBuilder {
 	return nil
 }
 

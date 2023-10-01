@@ -276,7 +276,10 @@ func (s *Serializer) SendEvents(events event.Events) error {
 	var extraHeaders http.Header
 	var err error
 
-	eventsSerializer := metricsserializer.Events(events)
+	eventsSerializer := metricsserializer.Events{
+		EventsArr: events,
+		Hname:     s.hostname,
+	}
 	if s.enableEventsJSONStream {
 		eventPayloads, extraHeaders, err = s.serializeEventsStreamJSONMarshalerPayload(eventsSerializer, true)
 	} else {
@@ -325,7 +328,7 @@ func (s *Serializer) SendIterableSeries(serieSource metrics.SerieSource) error {
 		return nil
 	}
 
-	seriesSerializer := metricsserializer.CreateIterableSeries(serieSource)
+	seriesSerializer := metricsserializer.CreateIterableSeries(serieSource, s.cfg)
 	useV1API := !s.cfg.GetBool("use_v2_api.series")
 
 	var seriesBytesPayloads transaction.BytesPayloads
@@ -364,7 +367,7 @@ func (s *Serializer) SendSketch(sketches metrics.SketchesSource) error {
 	}
 	sketchesSerializer := metricsserializer.SketchSeriesList{SketchesSource: sketches}
 	if s.enableSketchProtobufStream {
-		payloads, err := sketchesSerializer.MarshalSplitCompress(marshaler.NewBufferContext())
+		payloads, err := sketchesSerializer.MarshalSplitCompress(marshaler.NewBufferContext(), s.cfg)
 		if err != nil {
 			return fmt.Errorf("dropping sketch payload: %v", err)
 		}

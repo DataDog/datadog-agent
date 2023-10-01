@@ -7,21 +7,19 @@ package metrics
 
 import (
 	"bytes"
-	"context"
 	"encoding/json"
 	"errors"
 	"expvar"
 	"fmt"
 
 	agentpayload "github.com/DataDog/agent-payload/v5/gogen"
+	"github.com/DataDog/datadog-agent/pkg/metrics/event"
+	"github.com/DataDog/datadog-agent/pkg/telemetry"
+	utiljson "github.com/DataDog/datadog-agent/pkg/util/json"
 	"github.com/gogo/protobuf/proto"
 	jsoniter "github.com/json-iterator/go"
 
-	"github.com/DataDog/datadog-agent/pkg/metrics/event"
 	"github.com/DataDog/datadog-agent/pkg/serializer/marshaler"
-	"github.com/DataDog/datadog-agent/pkg/telemetry"
-	"github.com/DataDog/datadog-agent/pkg/util/hostname"
-	utiljson "github.com/DataDog/datadog-agent/pkg/util/json"
 )
 
 const (
@@ -38,7 +36,10 @@ var (
 )
 
 // Events represents a list of events ready to be serialize
-type Events []*event.Event
+type Events struct {
+	EventsArr []*event.Event
+	Hname     string
+}
 
 // Marshal serialize events using agent-payload definition
 func (events Events) Marshal() ([]byte, error) {
@@ -47,7 +48,7 @@ func (events Events) Marshal() ([]byte, error) {
 		Metadata: &agentpayload.CommonMetadata{},
 	}
 
-	for _, e := range events {
+	for _, e := range events.EventsArr {
 		payload.Events = append(payload.Events,
 			&agentpayload.EventsPayload_Event{
 				Title:          e.Title,
@@ -67,7 +68,7 @@ func (events Events) Marshal() ([]byte, error) {
 
 func (events Events) getEventsBySourceType() map[string][]*event.Event {
 	eventsBySourceType := make(map[string][]*event.Event)
-	for _, e := range events {
+	for _, e := range events.EventsArr {
 		sourceTypeName := e.SourceTypeName
 		if sourceTypeName == "" {
 			sourceTypeName = "api"
@@ -81,14 +82,14 @@ func (events Events) getEventsBySourceType() map[string][]*event.Event {
 // MarshalJSON serializes events to JSON so it can be sent to the Agent 5 intake
 // (we don't use the v1 event endpoint because it only supports 1 event per payload)
 // FIXME(olivier): to be removed when v2 endpoints are available
-func (events Events) MarshalJSON(hname string) ([]byte, error) {
+func (events Events) MarshalJSON() ([]byte, error) {
 	// Regroup events by their source type name
 	eventsBySourceType := events.getEventsBySourceType()
 	// Build intake payload containing events and serialize
 	data := map[string]interface{}{
 		apiKeyJSONField:           "", // legacy field, it isn't actually used by the backend
 		eventsJSONField:           eventsBySourceType,
-		internalHostnameJSONField: hname,
+		internalHostnameJSONField: events.Hname,
 	}
 	reqBody := &bytes.Buffer{}
 	err := json.NewEncoder(reqBody).Encode(data)
@@ -103,14 +104,14 @@ func (events Events) SplitPayload(times int) ([]marshaler.AbstractMarshaler, err
 	// we can only split up the events
 
 	// only split as much as possible
-	if len(events) < times {
+	if len(events.EventsArr) < times {
 		eventExpvar.Add("EventsShorter", 1)
 		tlmEvent.Inc("shorter")
-		times = len(events)
+		times = len(events.EventsArr)
 	}
 	splitPayloads := make([]marshaler.AbstractMarshaler, times)
 
-	batchSize := len(events) / times
+	batchSize := len(events.EventsArr) / times
 	n := 0
 	for i := 0; i < times; i++ {
 		var end int
@@ -118,10 +119,13 @@ func (events Events) SplitPayload(times int) ([]marshaler.AbstractMarshaler, err
 		if i < times-1 {
 			end = n + batchSize
 		} else {
-			end = len(events)
+			end = len(events.EventsArr)
 		}
-		newEvents := events[n:end]
-		splitPayloads[i] = newEvents
+		newEvents := events.EventsArr[n:end]
+		splitPayloads[i] = Events{
+			EventsArr: newEvents,
+			Hname:     events.Hname,
+		}
 		n += batchSize
 	}
 	return splitPayloads, nil
@@ -154,15 +158,14 @@ func writeEventsHeader(stream *jsoniter.Stream) {
 	stream.WriteObjectStart()
 }
 
-func (*eventsBySourceTypeMarshaler) WriteFooter(stream *jsoniter.Stream) error {
-	return writeEventsFooter(stream)
+func (e *eventsBySourceTypeMarshaler) WriteFooter(stream *jsoniter.Stream) error {
+	return writeEventsFooter(stream, e.Hname)
 }
 
-func writeEventsFooter(stream *jsoniter.Stream) error {
+func writeEventsFooter(stream *jsoniter.Stream, hname string) error {
 	stream.WriteObjectEnd()
 	stream.WriteMore()
 
-	hname, _ := hostname.Get(context.TODO())
 	stream.WriteObjectField(internalHostnameJSONField)
 	stream.WriteString(hname)
 
@@ -258,15 +261,15 @@ func (e *eventsMarshaler) WriteHeader(stream *jsoniter.Stream) error {
 
 func (e *eventsMarshaler) WriteFooter(stream *jsoniter.Stream) error {
 	stream.WriteArrayEnd()
-	return writeEventsFooter(stream)
+	return writeEventsFooter(stream, e.Hname)
 }
 
 func (e *eventsMarshaler) WriteItem(stream *jsoniter.Stream, i int) error {
-	if i < 0 || i > len(e.Events)-1 {
+	if i < 0 || i > len(e.EventsArr)-1 {
 		return errors.New(outOfRangeMsg)
 	}
 
-	event := e.Events[i]
+	event := e.EventsArr[i]
 	writer := utiljson.NewRawObjectWriter(stream)
 	if err := writeEvent(event, writer); err != nil {
 		return err
@@ -275,13 +278,13 @@ func (e *eventsMarshaler) WriteItem(stream *jsoniter.Stream, i int) error {
 	return writer.Flush()
 }
 
-func (e *eventsMarshaler) Len() int { return len(e.Events) }
+func (e *eventsMarshaler) Len() int { return len(e.EventsArr) }
 
 func (e *eventsMarshaler) DescribeItem(i int) string {
-	if i < 0 || i > len(e.Events)-1 {
+	if i < 0 || i > len(e.Events.EventsArr)-1 {
 		return outOfRangeMsg
 	}
-	event := e.Events[i]
+	event := e.EventsArr[i]
 	return fmt.Sprintf("Title: %s, Text: %s, Source Type: %s", event.Title, event.Text, event.SourceTypeName)
 }
 
@@ -297,7 +300,10 @@ func (events Events) CreateMarshalersBySourceType() []marshaler.StreamJSONMarsha
 
 	values := make([]marshaler.StreamJSONMarshaler, 0, len(e))
 	for k, v := range e {
-		values = append(values, &eventsMarshaler{k, v})
+		values = append(values, &eventsMarshaler{k, Events{
+			EventsArr: v,
+			Hname:     events.Hname,
+		}})
 	}
 	return values
 }

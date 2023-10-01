@@ -13,12 +13,14 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	"github.com/DataDog/datadog-agent/pkg/conf"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 )
 
 func TestIterableSeriesEmptyMarshalJSON(t *testing.T) {
 	r := require.New(t)
-	iterableSerie := CreateIterableSeries(CreateSerieSource(metrics.Series{}))
+	cfg := conf.NewConfig("test", "DD", strings.NewReplacer(".", "_"))
+	iterableSerie := CreateIterableSeries(CreateSerieSource(metrics.Series{}), cfg)
 	bytes, err := iterableSerie.MarshalJSON()
 	r.NoError(err)
 	r.Equal(`{"series":[]}`, strings.TrimSpace(string(bytes)))
@@ -32,7 +34,8 @@ func TestIterableSeriesMoveNext(t *testing.T) {
 		&metrics.Serie{Name: "serie3", NoIndex: false},
 		&metrics.Serie{Name: "serie4", NoIndex: true},
 	}
-	iterableSerie := CreateIterableSeries(CreateSerieSource(series))
+	cfg := conf.NewConfig("test", "DD", strings.NewReplacer(".", "_"))
+	iterableSerie := CreateIterableSeries(CreateSerieSource(series), cfg)
 	r.True(iterableSerie.MoveNext()) // Skip serie1
 	r.True(strings.Contains(iterableSerie.DescribeCurrentItem(), "serie2"))
 	r.True(iterableSerie.MoveNext())

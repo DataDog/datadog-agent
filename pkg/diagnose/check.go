@@ -35,7 +35,6 @@ func diagnose(diagCfg diagnosis.Config, senderManager sender.SenderManager) []di
 }
 
 func getInstanceDiagnoses(instance check.Check) []diagnosis.Diagnosis {
-
 	// Get diagnoses
 	diagnoses, err := instance.GetDiagnoses()
 	if err != nil {
@@ -109,7 +108,7 @@ func diagnoseChecksInCLIProcess(diagCfg diagnosis.Config, senderManager sender.S
 	log := log.NewTemporaryLoggerWithoutInit()
 
 	forwarder := forwarder.NewDefaultForwarder(config.Datadog, log, forwarder.NewOptions(config.Datadog, log, nil))
-	aggregator.InitAndStartAgentDemultiplexer(log, forwarder, opts, hostnameDetected)
+	aggregator.InitAndStartAgentDemultiplexer(log, config.Datadog, forwarder, opts, hostnameDetected)
 
 	common.LoadComponents(context.Background(), senderManager, pkgconfig.Datadog.GetString("confd_path"))
 	common.AC.LoadAndRun(context.Background())
