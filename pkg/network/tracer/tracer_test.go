@@ -396,12 +396,15 @@ func (s *TracerSuite) TestTCPConnsReported() {
 
 func (s *TracerSuite) TestUDPSendAndReceive() {
 	t := s.T()
+	cfg := testConfig()
+	tr := setupTracer(t, cfg)
+
 	t.Run("v4", func(t *testing.T) {
 		if !testConfig().CollectUDPv4Conns {
 			t.Skip("UDPv4 disabled")
 		}
 		t.Run("fixed port", func(t *testing.T) {
-			testUDPSendAndReceive(t, "127.0.0.1:8081")
+			testUDPSendAndReceive(t, tr, "127.0.0.1:8081")
 		})
 	})
 	t.Run("v6", func(t *testing.T) {
@@ -409,14 +412,17 @@ func (s *TracerSuite) TestUDPSendAndReceive() {
 			t.Skip("UDPv6 disabled")
 		}
 		t.Run("fixed port", func(t *testing.T) {
-			testUDPSendAndReceive(t, "[::1]:8081")
+			testUDPSendAndReceive(t, tr, "[::1]:8081")
 		})
 	})
 }
 
-func testUDPSendAndReceive(t *testing.T, addr string) {
-	cfg := testConfig()
-	tr := setupTracer(t, cfg)
+func testUDPSendAndReceive(t *testing.T, tr *Tracer, addr string) {
+	t.Cleanup(func() { tr.removeClient(clientID) })
+	t.Cleanup(func() { tr.ebpfTracer.Pause() })
+	require.NoError(t, tr.ebpfTracer.Pause(), "disable probes")
+
+	tr.removeClient(clientID)
 
 	server := &UDPServer{
 		address: addr,
@@ -430,6 +436,7 @@ func testUDPSendAndReceive(t *testing.T, addr string) {
 	t.Cleanup(server.Shutdown)
 
 	initTracerState(t, tr)
+	require.NoError(t, tr.ebpfTracer.Resume(), "enable probes")
 
 	// Connect to server
 	c, err := net.DialTimeout("udp", server.address, 50*time.Millisecond)
@@ -1000,19 +1007,6 @@ func getConnections(t *testing.T, tr *Tracer) *network.Connections {
 const (
 	validDNSServer = "8.8.8.8"
 )
-
-func testInner(t *testing.T, params protocolClassificationAttributes, tr *Tracer) {
-	t.Cleanup(func() { tr.removeClient(clientID) })
-	t.Cleanup(func() { tr.ebpfTracer.Pause() })
-
-	tr.removeClient(clientID)
-	initTracerState(t, tr)
-	require.NoError(t, tr.ebpfTracer.Resume(), "enable probes - before post tracer")
-	if params.postTracerSetup != nil {
-		params.postTracerSetup(t, params.context)
-	}
-	require.NoError(t, tr.ebpfTracer.Pause(), "disable probes - after post tracer")
-}
 
 func testDNSStats(t *testing.T, tr *Tracer, domain string, success, failure, timeout int, serverIP string) {
 	t.Cleanup(func() { tr.removeClient(clientID) })
