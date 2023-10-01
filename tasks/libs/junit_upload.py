@@ -110,7 +110,7 @@ def upload_junitxmls(output_dir, owners, flavor, xmlfile_name, process_env, addi
             "--tags",
             f"jira_project:{jira_project}",
             "--xpath-tag",
-            "custom_tag=/testcase/@jira_card",
+            "jira_card=/testcase/@jira_card",
         ]
         if additional_tags and "upload_option.os_version_from_name" in additional_tags:
             additional_tags.remove("upload_option.os_version_from_name")
