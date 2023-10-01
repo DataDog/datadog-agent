@@ -117,7 +117,6 @@ const (
 	amqpPort     = "5672"
 	httpPort     = "8080"
 	httpsPort    = "8443"
-	tcpPort      = "9999"
 	http2Port    = "9090"
 	grpcPort     = "9091"
 	kafkaPort    = "9092"
@@ -1612,8 +1611,6 @@ func testEdgeCasesProtocolClassification(t *testing.T, tr *Tracer, clientHost, t
 		server, ok := ctx.extras["server"].(*TCPServer)
 		if ok {
 			server.Shutdown()
-			// Giving time for the port to be free again.
-			time.Sleep(time.Second)
 		}
 	}
 
@@ -1621,9 +1618,9 @@ func testEdgeCasesProtocolClassification(t *testing.T, tr *Tracer, clientHost, t
 		{
 			name: "tcp client without sending data",
 			context: testContext{
-				serverPort:    tcpPort,
-				serverAddress: net.JoinHostPort(serverHost, tcpPort),
-				targetAddress: net.JoinHostPort(targetHost, tcpPort),
+				serverPort:    "10001",
+				serverAddress: net.JoinHostPort(serverHost, "10001"),
+				targetAddress: net.JoinHostPort(targetHost, "10001"),
 				extras:        map[string]interface{}{},
 			},
 			preTracerSetup: func(t *testing.T, ctx testContext) {
@@ -1646,9 +1643,9 @@ func testEdgeCasesProtocolClassification(t *testing.T, tr *Tracer, clientHost, t
 		{
 			name: "tcp client with sending random data",
 			context: testContext{
-				serverPort:    tcpPort,
-				serverAddress: net.JoinHostPort(serverHost, tcpPort),
-				targetAddress: net.JoinHostPort(targetHost, tcpPort),
+				serverPort:    "10002",
+				serverAddress: net.JoinHostPort(serverHost, "10002"),
+				targetAddress: net.JoinHostPort(targetHost, "10002"),
 				extras:        map[string]interface{}{},
 			},
 			preTracerSetup: func(t *testing.T, ctx testContext) {
@@ -1680,9 +1677,9 @@ func testEdgeCasesProtocolClassification(t *testing.T, tr *Tracer, clientHost, t
 			// with the first protocol we've found.
 			name: "mixed protocols",
 			context: testContext{
-				serverPort:    tcpPort,
-				serverAddress: net.JoinHostPort(serverHost, tcpPort),
-				targetAddress: net.JoinHostPort(targetHost, tcpPort),
+				serverPort:    "10003",
+				serverAddress: net.JoinHostPort(serverHost, "10003"),
+				targetAddress: net.JoinHostPort(targetHost, "10003"),
 				extras:        map[string]interface{}{},
 			},
 			preTracerSetup: func(t *testing.T, ctx testContext) {
