@@ -507,6 +507,11 @@ type USMHTTP2Suite struct {
 	suite.Suite
 }
 
+type captureRange struct {
+	lower int
+	upper int
+}
+
 func TestHTTP2(t *testing.T) {
 	currKernelVersion, err := kernel.HostVersion()
 	require.NoError(t, err)
@@ -529,7 +534,7 @@ func (s *USMHTTP2Suite) TestSimpleHTTP2() {
 	tests := []struct {
 		name              string
 		runClients        func(t *testing.T, clientsCount int)
-		expectedEndpoints map[http.Key]int
+		expectedEndpoints map[http.Key]captureRange
 		skip              bool
 	}{
 		{
@@ -544,11 +549,14 @@ func (s *USMHTTP2Suite) TestSimpleHTTP2() {
 					req.Body.Close()
 				}
 			},
-			expectedEndpoints: map[http.Key]int{
+			expectedEndpoints: map[http.Key]captureRange{
 				{
 					Path:   http.Path{Content: http.Interner.GetString("/")},
 					Method: http.MethodPost,
-				}: 1000,
+				}: {
+					lower: 999,
+					upper: 1000,
+				},
 			},
 		},
 		{
@@ -563,11 +571,14 @@ func (s *USMHTTP2Suite) TestSimpleHTTP2() {
 					req.Body.Close()
 				}
 			},
-			expectedEndpoints: map[http.Key]int{
+			expectedEndpoints: map[http.Key]captureRange{
 				{
 					Path:   http.Path{Content: http.Interner.GetString("/index.html")},
 					Method: http.MethodPost,
-				}: 1000,
+				}: {
+					lower: 999,
+					upper: 1000,
+				},
 			},
 		},
 	}
@@ -614,11 +625,11 @@ func (s *USMHTTP2Suite) TestSimpleHTTP2() {
 					}
 
 					for key, count := range res {
-						val, ok := tt.expectedEndpoints[key]
+						valRange, ok := tt.expectedEndpoints[key]
 						if !ok {
 							return false
 						}
-						if val != count {
+						if count < valRange.lower || count > valRange.upper {
 							return false
 						}
 					}

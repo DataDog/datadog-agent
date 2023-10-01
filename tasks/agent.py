@@ -44,6 +44,7 @@ BIN_PATH = os.path.join(".", "bin", "agent")
 AGENT_TAG = "datadog/agent:master"
 
 AGENT_CORECHECKS = [
+    "agentcrashdetect",
     "container",
     "containerd",
     "container_image",
@@ -67,6 +68,7 @@ AGENT_CORECHECKS = [
     "tcp_queue_length",
     "uptime",
     "winkmem",
+    "wincrashdetect",
     "winproc",
     "jetson",
 ]

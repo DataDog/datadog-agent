@@ -476,6 +476,77 @@ func TestCountAggregationPeerService(t *testing.T) {
 	}
 }
 
+func TestCountAggregationPeerTags(t *testing.T) {
+	assert := assert.New(t)
+	peerTags := []string{"db.instance:a", "db.system:b"}
+	type tt struct {
+		k                BucketsAggregationKey
+		res              *proto.ClientGroupedStats
+		name             string
+		enablePeerSvcAgg bool
+	}
+	tts := []tt{
+		{
+			BucketsAggregationKey{Service: "s", PeerService: "remote-service"},
+			&proto.ClientGroupedStats{Service: "s", PeerService: ""},
+			"peer.service aggregation disabled",
+			false,
+		},
+		{
+			BucketsAggregationKey{Service: "s", PeerService: "remote-service"},
+			&proto.ClientGroupedStats{Service: "s", PeerService: "remote-service", PeerTags: peerTags},
+			"peer.service aggregation enabled",
+			true,
+		},
+	}
+	for _, tc := range tts {
+		t.Run(tc.name, func(t *testing.T) {
+			a := newTestAggregator()
+			a.peerSvcAggregation = tc.enablePeerSvcAgg
+			testTime := time.Unix(time.Now().Unix(), 0)
+
+			c1 := payloadWithCounts(testTime, tc.k, 11, 7, 100)
+			c2 := payloadWithCounts(testTime, tc.k, 27, 2, 300)
+			c3 := payloadWithCounts(testTime, tc.k, 5, 10, 3)
+			c1.Stats[0].Stats[0].PeerTags = peerTags
+			c2.Stats[0].Stats[0].PeerTags = peerTags
+			c3.Stats[0].Stats[0].PeerTags = peerTags
+			keyDefault := BucketsAggregationKey{}
+			cDefault := payloadWithCounts(testTime, keyDefault, 0, 2, 4)
+
+			assert.Len(a.out, 0)
+			a.add(testTime, deepCopy(c1))
+			a.add(testTime, deepCopy(c2))
+			a.add(testTime, deepCopy(c3))
+			a.add(testTime, deepCopy(cDefault))
+			assert.Len(a.out, 3)
+			a.flushOnTime(testTime.Add(oldestBucketStart + time.Nanosecond))
+			assert.Len(a.out, 4)
+
+			assertDistribPayload(t, wrapPayloads([]*proto.ClientStatsPayload{c1, c2}), <-a.out)
+			assertDistribPayload(t, wrapPayload(c3), <-a.out)
+			assertDistribPayload(t, wrapPayload(cDefault), <-a.out)
+			aggCounts := <-a.out
+			assertAggCountsPayload(t, aggCounts)
+
+			tc.res.Hits = 43
+			tc.res.Errors = 19
+			tc.res.Duration = 403
+			assert.ElementsMatch(aggCounts.Stats[0].Stats[0].Stats, []*proto.ClientGroupedStats{
+				tc.res,
+				// Additional grouped stat object that corresponds to the keyDefault/cDefault.
+				// We do not expect this to be aggregated with the non-default key in the test.
+				{
+					Hits:     0,
+					Errors:   2,
+					Duration: 4,
+				},
+			})
+			assert.Len(a.buckets, 0)
+		})
+	}
+}
+
 func TestNewBucketAggregationKeyPeerService(t *testing.T) {
 	t.Run("disabled", func(t *testing.T) {
 		assert := assert.New(t)
@@ -548,6 +619,7 @@ func deepCopyGroupedStats(s []*proto.ClientGroupedStats) []*proto.ClientGroupedS
 			TopLevelHits:   b.GetTopLevelHits(),
 			PeerService:    b.GetPeerService(),
 			SpanKind:       b.GetSpanKind(),
+			PeerTags:       b.GetPeerTags(),
 		}
 		if b.OkSummary != nil {
 			new[i].OkSummary = make([]byte, len(b.OkSummary))

@@ -17,13 +17,14 @@ import (
 
 // Report describes a trivy report along with its marshaler
 type Report struct {
-	types.Report
+	*types.Report
+	id        string
 	marshaler *cyclonedx.Marshaler
 }
 
 // ToCycloneDX returns the report as a CycloneDX SBOM
 func (r *Report) ToCycloneDX() (*cyclonedxgo.BOM, error) {
-	bom, err := r.marshaler.Marshal(r.Report)
+	bom, err := r.marshaler.Marshal(*r.Report)
 	if err != nil {
 		return nil, err
 	}
@@ -31,4 +32,9 @@ func (r *Report) ToCycloneDX() (*cyclonedxgo.BOM, error) {
 	// We don't need the dependencies attribute. Remove to save memory.
 	bom.Dependencies = nil
 	return bom, nil
+}
+
+// ID returns the report identifier
+func (r *Report) ID() string {
+	return r.id
 }

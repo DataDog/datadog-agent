@@ -17,7 +17,9 @@ import (
 
 	"github.com/acobaugh/osrelease"
 	"github.com/cilium/ebpf"
+	"github.com/cilium/ebpf/asm"
 	"github.com/cilium/ebpf/features"
+	"github.com/cilium/ebpf/link"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/filesystem"
@@ -299,4 +301,38 @@ func (k *Version) HavePIDLinkStruct() bool {
 // HaveLegacyPipeInodeInfoStruct returns whether the kernel uses the legacy pipe_inode_info struct
 func (k *Version) HaveLegacyPipeInodeInfoStruct() bool {
 	return k.Code != 0 && k.Code < Kernel5_5
+}
+
+// HaveFentrySupport returns whether the kernel supports fentry probes
+func (k *Version) HaveFentrySupport() bool {
+	if features.HaveProgramType(ebpf.Tracing) != nil {
+		return false
+	}
+
+	spec := &ebpf.ProgramSpec{
+		Type:       ebpf.Tracing,
+		AttachType: ebpf.AttachTraceFEntry,
+		AttachTo:   "vfs_open",
+		Instructions: asm.Instructions{
+			asm.LoadImm(asm.R0, 0, asm.DWord),
+			asm.Return(),
+		},
+	}
+	prog, err := ebpf.NewProgramWithOptions(spec, ebpf.ProgramOptions{
+		LogDisabled: true,
+	})
+	if err != nil {
+		return false
+	}
+	defer prog.Close()
+
+	link, err := link.AttachTracing(link.TracingOptions{
+		Program: prog,
+	})
+	if err != nil {
+		return false
+	}
+	defer link.Close()
+
+	return true
 }

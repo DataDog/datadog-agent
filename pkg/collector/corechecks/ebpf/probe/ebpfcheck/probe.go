@@ -37,12 +37,12 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-// TODO estimated minimum kernel version: 5.8/5.5
+// 5.16 for verified instruction count (reported if available)
+// 5.12 for recursion misses (reported if available)
 // 5.8 required for kernel stats (optional)
 // 5.5 for security_perf_event_open
 // 5.0 required for /proc/kallsyms BTF program full names
 // 4.15 required for map names from kernel
-// some detailed program statistics may require even higher kernel versions
 var minimumKernelVersion = kernel.VersionCode(5, 5, 0)
 
 const maxMapsTracked = 20
@@ -74,8 +74,7 @@ func NewProbe(cfg *ddebpf.Config) (*Probe, error) {
 	if cfg.BPFDebug {
 		filename = "ebpf-debug.o"
 	}
-	log.Debugf("loading %s", filename)
-	err = ddebpf.LoadCOREAsset(cfg, filename, func(buf bytecode.AssetReader, opts manager.Options) error {
+	err = ddebpf.LoadCOREAsset(filename, func(buf bytecode.AssetReader, opts manager.Options) error {
 		var err error
 		probe, err = startEBPFCheck(buf, opts)
 		return err
@@ -263,10 +262,10 @@ func (k *Probe) getProgramStats(stats *model.EBPFStats) error {
 		stats.Programs = append(stats.Programs, ps)
 	}
 
-	log.Debugf("found %d programs", len(stats.Programs))
+	log.Tracef("found %d programs", len(stats.Programs))
 	deduplicateProgramNames(stats)
 	for _, ps := range stats.Programs {
-		log.Debugf("name=%s prog_id=%d type=%s", ps.Name, ps.ID, ps.Type.String())
+		log.Tracef("name=%s prog_id=%d type=%s", ps.Name, ps.ID, ps.Type.String())
 	}
 
 	return nil
@@ -355,13 +354,13 @@ func (k *Probe) getMapStats(stats *model.EBPFStats) error {
 		stats.Maps = append(stats.Maps, baseMapStats)
 	}
 
-	log.Debugf("found %d maps", mapCount)
+	log.Tracef("found %d maps", mapCount)
 	deduplicateMapNames(stats)
 	for _, mp := range stats.Maps {
-		log.Debugf("name=%s map_id=%d max=%d rss=%d type=%s", mp.Name, mp.ID, mp.MaxSize, mp.RSS, mp.Type)
+		log.Tracef("name=%s map_id=%d max=%d rss=%d type=%s", mp.Name, mp.ID, mp.MaxSize, mp.RSS, mp.Type)
 	}
 	for _, mp := range stats.PerfBuffers {
-		log.Debugf("name=%s map_id=%d max=%d rss=%d type=%s", mp.Name, mp.ID, mp.MaxSize, mp.RSS, mp.Type)
+		log.Tracef("name=%s map_id=%d max=%d rss=%d type=%s", mp.Name, mp.ID, mp.MaxSize, mp.RSS, mp.Type)
 	}
 
 	return nil
@@ -486,7 +485,7 @@ func perfBufferMemoryUsage(mapStats *model.EBPFPerfBufferStats, info *ebpf.MapIn
 			}
 			return fmt.Errorf("error reading perf buffer fd map %s, mapid=%d cpu=%d: %s", info.Name, mapid, i, err)
 		}
-		log.Debugf("map_id=%d cpu=%d len=%d addr=%x", mapid, i, region.Len, region.Addr)
+		log.Tracef("map_id=%d cpu=%d len=%d addr=%x", mapid, i, region.Len, region.Addr)
 		mapStats.MaxSize += region.Len
 		mapStats.CPUBuffers = append(mapStats.CPUBuffers, model.EBPFCPUPerfBufferStats{
 			CPU: i,
@@ -497,7 +496,7 @@ func perfBufferMemoryUsage(mapStats *model.EBPFPerfBufferStats, info *ebpf.MapIn
 		})
 	}
 
-	log.Debugf("map_id=%d num_cpus=%d", mapid, len(mapStats.CPUBuffers))
+	log.Tracef("map_id=%d num_cpus=%d", mapid, len(mapStats.CPUBuffers))
 	addrs := make([]uintptr, 0, len(mapStats.CPUBuffers))
 	for _, b := range mapStats.CPUBuffers {
 		addrs = append(addrs, b.Addr)
@@ -517,7 +516,7 @@ func perfBufferMemoryUsage(mapStats *model.EBPFPerfBufferStats, info *ebpf.MapIn
 			if rss, ok := rssMap[cpub.Addr]; ok {
 				cpub.RSS = rss
 				mapStats.RSS += rss
-				log.Debugf("perf buffer map_id=%d cpu=%d rss=%d", mapid, cpub.CPU, cpub.RSS)
+				log.Tracef("perf buffer map_id=%d cpu=%d rss=%d", mapid, cpub.CPU, cpub.RSS)
 			} else {
 				log.Debugf("unable to find RSS data map_id=%d cpu=%d addr=%x", mapid, cpub.CPU, cpub.Addr)
 			}
@@ -550,7 +549,7 @@ func ringBufferMemoryUsage(mapStats *model.EBPFMapStats, info *ebpf.MapInfo, k *
 	if err := k.ringBufferMap.Lookup(unsafe.Pointer(&mapid), unsafe.Pointer(&ringInfo)); err != nil {
 		return fmt.Errorf("error reading ring buffer map %s, mapid=%d: %s", info.Name, mapid, err)
 	}
-	log.Debugf("map_id=%d data_len=%d data_addr=%x cons_len=%d cons_addr=%x", mapid, ringInfo.Data.Len, ringInfo.Data.Addr, ringInfo.Consumer.Len, ringInfo.Consumer.Addr)
+	log.Tracef("map_id=%d data_len=%d data_addr=%x cons_len=%d cons_addr=%x", mapid, ringInfo.Data.Len, ringInfo.Data.Addr, ringInfo.Consumer.Len, ringInfo.Consumer.Addr)
 	mapStats.MaxSize += ringInfo.Consumer.Len + ringInfo.Data.Len
 
 	addrs := []uintptr{uintptr(ringInfo.Consumer.Addr), uintptr(ringInfo.Data.Addr)}
@@ -561,7 +560,7 @@ func ringBufferMemoryUsage(mapStats *model.EBPFMapStats, info *ebpf.MapInfo, k *
 		mapStats.RSS = mapStats.MaxSize
 	} else {
 		for addr, size := range rss {
-			log.Debugf("ring buffer map_id=%d addr=%x rss=%d", mapid, addr, size)
+			log.Tracef("ring buffer map_id=%d addr=%x rss=%d", mapid, addr, size)
 			mapStats.RSS += size
 		}
 	}
@@ -574,7 +573,7 @@ func (k *Probe) getMmapRSS(mapid uint32, addrs []uintptr) (map[uintptr]uint64, e
 		return nil, fmt.Errorf("pid map lookup: %s", err)
 	}
 
-	log.Debugf("map pid=%d map_id=%d", pid, mapid)
+	log.Tracef("map pid=%d map_id=%d", pid, mapid)
 	return matchProcessRSS(int(pid), addrs)
 }
 

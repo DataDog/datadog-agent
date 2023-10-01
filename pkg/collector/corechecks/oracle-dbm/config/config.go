@@ -21,7 +21,8 @@ import (
 
 // InitConfig is used to deserialize integration init config.
 type InitConfig struct {
-	MinCollectionInterval int `yaml:"min_collection_interval"`
+	MinCollectionInterval int           `yaml:"min_collection_interval"`
+	CustomQueries         []CustomQuery `yaml:"custom_queries"`
 }
 
 type QuerySamplesConfig struct {
@@ -104,6 +105,7 @@ type InstanceConfig struct {
 	SharedMemory             SharedMemoryConfig   `yaml:"shared_memory"`
 	ExecutionPlans           ExecutionPlansConfig `yaml:"execution_plans"`
 	AgentSQLTrace            AgentSQLTrace        `yaml:"agent_sql_trace"`
+	UseGlobalCustomQueries   string               `yaml:"use_global_custom_queries"`
 	CustomQueries            []CustomQuery        `yaml:"custom_queries"`
 	MetricCollectionInterval int64                `yaml:"metric_collection_interval"`
 }
@@ -151,6 +153,8 @@ func NewCheckConfig(rawInstance integration.Data, rawInitConfig integration.Data
 	instance.SharedMemory.Enabled = true
 
 	instance.ExecutionPlans.Enabled = true
+
+	instance.UseGlobalCustomQueries = "true"
 	// Defaults end
 
 	if err := yaml.Unmarshal(rawInstance, &instance); err != nil {

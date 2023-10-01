@@ -1,0 +1,22 @@
+--- a/src/OVAL/probes/unix/linux/dpkginfo-helper.cxx
++++ b/src/OVAL/probes/unix/linux/dpkginfo-helper.cxx
+@@ -57,11 +57,8 @@ static int opencache (void) {
+ struct dpkginfo_reply_t * dpkginfo_get_by_name(const char *name, int *err)
+ {
+         pkgCache &cache = *cgCache->GetPkgCache();
+-        pkgRecords Recs (cache);
+         struct dpkginfo_reply_t *reply = NULL;
+ 
+-        if (!cgCache->ReadOnlyOpen(NULL)) return 0;
+-
+         // Locate the package
+         pkgCache::PkgIterator Pkg = cache.FindPkg(name);
+         if (Pkg.end() == true) {
+@@ -77,7 +74,6 @@ struct dpkginfo_reply_t * dpkginfo_get_by_name(const char *name, int *err)
+                 if (err) *err = 0;
+                 return NULL;
+         }
+-        pkgRecords::Parser &P = Recs.Lookup(V1.FileList());
+ 
+         /* split epoch, version and release */
+         string evr = V1.VerStr();

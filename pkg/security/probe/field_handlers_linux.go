@@ -143,7 +143,7 @@ func (fh *FieldHandlers) ResolveRights(ev *model.Event, e *model.FileFields) int
 // ResolveChownUID resolves the ResolveProcessCacheEntry id of a chown event to a username
 func (fh *FieldHandlers) ResolveChownUID(ev *model.Event, e *model.ChownEvent) string {
 	if len(e.User) == 0 {
-		e.User, _ = fh.resolvers.UserGroupResolver.ResolveUser(int(e.UID))
+		e.User, _ = fh.resolvers.UserGroupResolver.ResolveUser(int(e.UID), ev.ContainerContext.ID)
 	}
 	return e.User
 }
@@ -151,7 +151,7 @@ func (fh *FieldHandlers) ResolveChownUID(ev *model.Event, e *model.ChownEvent) s
 // ResolveChownGID resolves the group id of a chown event to a group name
 func (fh *FieldHandlers) ResolveChownGID(ev *model.Event, e *model.ChownEvent) string {
 	if len(e.Group) == 0 {
-		e.Group, _ = fh.resolvers.UserGroupResolver.ResolveGroup(int(e.GID))
+		e.Group, _ = fh.resolvers.UserGroupResolver.ResolveGroup(int(e.GID), ev.ContainerContext.ID)
 	}
 	return e.Group
 }
@@ -206,7 +206,7 @@ func (fh *FieldHandlers) ResolveProcessEnvs(ev *model.Event, process *model.Proc
 // ResolveSetuidUser resolves the user of the Setuid event
 func (fh *FieldHandlers) ResolveSetuidUser(ev *model.Event, e *model.SetuidEvent) string {
 	if len(e.User) == 0 {
-		e.User, _ = fh.resolvers.UserGroupResolver.ResolveUser(int(e.UID))
+		e.User, _ = fh.resolvers.UserGroupResolver.ResolveUser(int(e.UID), ev.ContainerContext.ID)
 	}
 	return e.User
 }
@@ -214,7 +214,7 @@ func (fh *FieldHandlers) ResolveSetuidUser(ev *model.Event, e *model.SetuidEvent
 // ResolveSetuidEUser resolves the effective user of the Setuid event
 func (fh *FieldHandlers) ResolveSetuidEUser(ev *model.Event, e *model.SetuidEvent) string {
 	if len(e.EUser) == 0 {
-		e.EUser, _ = fh.resolvers.UserGroupResolver.ResolveUser(int(e.EUID))
+		e.EUser, _ = fh.resolvers.UserGroupResolver.ResolveUser(int(e.EUID), ev.ContainerContext.ID)
 	}
 	return e.EUser
 }
@@ -222,7 +222,7 @@ func (fh *FieldHandlers) ResolveSetuidEUser(ev *model.Event, e *model.SetuidEven
 // ResolveSetuidFSUser resolves the file-system user of the Setuid event
 func (fh *FieldHandlers) ResolveSetuidFSUser(ev *model.Event, e *model.SetuidEvent) string {
 	if len(e.FSUser) == 0 {
-		e.FSUser, _ = fh.resolvers.UserGroupResolver.ResolveUser(int(e.FSUID))
+		e.FSUser, _ = fh.resolvers.UserGroupResolver.ResolveUser(int(e.FSUID), ev.ContainerContext.ID)
 	}
 	return e.FSUser
 }
@@ -230,7 +230,7 @@ func (fh *FieldHandlers) ResolveSetuidFSUser(ev *model.Event, e *model.SetuidEve
 // ResolveSetgidGroup resolves the group of the Setgid event
 func (fh *FieldHandlers) ResolveSetgidGroup(ev *model.Event, e *model.SetgidEvent) string {
 	if len(e.Group) == 0 {
-		e.Group, _ = fh.resolvers.UserGroupResolver.ResolveUser(int(e.GID))
+		e.Group, _ = fh.resolvers.UserGroupResolver.ResolveUser(int(e.GID), ev.ContainerContext.ID)
 	}
 	return e.Group
 }
@@ -238,7 +238,7 @@ func (fh *FieldHandlers) ResolveSetgidGroup(ev *model.Event, e *model.SetgidEven
 // ResolveSetgidEGroup resolves the effective group of the Setgid event
 func (fh *FieldHandlers) ResolveSetgidEGroup(ev *model.Event, e *model.SetgidEvent) string {
 	if len(e.EGroup) == 0 {
-		e.EGroup, _ = fh.resolvers.UserGroupResolver.ResolveUser(int(e.EGID))
+		e.EGroup, _ = fh.resolvers.UserGroupResolver.ResolveUser(int(e.EGID), ev.ContainerContext.ID)
 	}
 	return e.EGroup
 }
@@ -246,7 +246,7 @@ func (fh *FieldHandlers) ResolveSetgidEGroup(ev *model.Event, e *model.SetgidEve
 // ResolveSetgidFSGroup resolves the file-system group of the Setgid event
 func (fh *FieldHandlers) ResolveSetgidFSGroup(ev *model.Event, e *model.SetgidEvent) string {
 	if len(e.FSGroup) == 0 {
-		e.FSGroup, _ = fh.resolvers.UserGroupResolver.ResolveUser(int(e.FSGID))
+		e.FSGroup, _ = fh.resolvers.UserGroupResolver.ResolveUser(int(e.FSGID), ev.ContainerContext.ID)
 	}
 	return e.FSGroup
 }
@@ -276,7 +276,7 @@ func (fh *FieldHandlers) GetProcessCacheEntry(ev *model.Event) (*model.ProcessCa
 // ResolveFileFieldsGroup resolves the group id of the file to a group name
 func (fh *FieldHandlers) ResolveFileFieldsGroup(ev *model.Event, e *model.FileFields) string {
 	if len(e.Group) == 0 {
-		e.Group, _ = fh.resolvers.UserGroupResolver.ResolveGroup(int(e.GID))
+		e.Group, _ = fh.resolvers.UserGroupResolver.ResolveGroup(int(e.GID), ev.ContainerContext.ID)
 	}
 	return e.Group
 }
@@ -296,7 +296,7 @@ func (fh *FieldHandlers) ResolveNetworkDeviceIfName(ev *model.Event, device *mod
 // ResolveFileFieldsUser resolves the user id of the file to a username
 func (fh *FieldHandlers) ResolveFileFieldsUser(ev *model.Event, e *model.FileFields) string {
 	if len(e.User) == 0 {
-		e.User, _ = fh.resolvers.UserGroupResolver.ResolveUser(int(e.UID))
+		e.User, _ = fh.resolvers.UserGroupResolver.ResolveUser(int(e.UID), ev.ContainerContext.ID)
 	}
 	return e.User
 }

@@ -22,11 +22,10 @@ internal_kubernetes_deploy_experimental:
   tags: ["arch:amd64"]
   variables:
     OPTION_AUTOMATIC_ROLLOUT: "true"
-    OPTION_PRE_SCRIPT: "patch-cluster-images-operator.sh snowver ${CI_COMMIT_REF_SLUG}-jmx-${CI_COMMIT_SHORT_SHA} ${CI_COMMIT_REF_SLUG}-${CI_COMMIT_SHORT_SHA}"
+    OPTION_PRE_SCRIPT: "patch-cluster-images-operator.sh env=all-staging ${CI_COMMIT_REF_SLUG}-jmx-${CI_COMMIT_SHORT_SHA} ${CI_COMMIT_REF_SLUG}-${CI_COMMIT_SHORT_SHA}"
     SKIP_PLAN_CHECK: "true"
-    WORKFLOW: "agents"
-    FILTER: "cluster.env == 'experimental' and cluster.shortName == 'snowver'"
+    EXPLICIT_WORKFLOWS: "//workflows:deploy_nightly.agents_nightly"
   script:
     - source /root/.bashrc
     - export GITLAB_TOKEN=$(aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.gitlab_pipelines_scheduler_token --with-decryption --query "Parameter.Value" --out text)
-    - inv pipeline.trigger-child-pipeline --project-name "DataDog/k8s-datadog-agent-ops" --git-ref "main" --variables "OPTION_AUTOMATIC_ROLLOUT,WORKFLOW,OPTION_PRE_SCRIPT,FILTER,SKIP_PLAN_CHECK"
+    - inv pipeline.trigger-child-pipeline --project-name "DataDog/k8s-datadog-agent-ops" --git-ref "main" --variables "OPTION_AUTOMATIC_ROLLOUT,EXPLICIT_WORKFLOWS,OPTION_PRE_SCRIPT,FILTER,SKIP_PLAN_CHECK" --follow false
