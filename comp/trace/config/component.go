@@ -52,6 +52,10 @@ var Module = fxutil.Component(
 	fx.Provide(newConfig),
 )
 
+var MainAgentModule = fxutil.Component(
+	fx.Provide(newConfigForMainAgent),
+)
+
 // MockModule defines the fx options for the mock component.
 var MockModule = fxutil.Component(
 	fx.Provide(newMock),

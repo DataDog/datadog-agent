@@ -41,10 +41,14 @@ type cfg struct {
 	warnings *pkgconfig.Warnings
 }
 
-func newConfig(deps dependencies) (Component, error) {
+func generateNewConfig(deps dependencies, failIfApiKeyMissing bool) (Component, error) {
 	tracecfg, err := setupConfig(deps, "")
+
 	if err != nil {
-		return nil, err
+		// Allow main Agent to start with missing API key
+		if !(err == traceconfig.ErrMissingAPIKey && !failIfApiKeyMissing) {
+			return nil, err
+		}
 	}
 
 	c := cfg{
@@ -54,6 +58,14 @@ func newConfig(deps dependencies) (Component, error) {
 	c.SetMaxMemCPU(pkgconfig.IsContainerized())
 
 	return &c, nil
+}
+
+func newConfig(deps dependencies) (Component, error) {
+	return generateNewConfig(deps, true)
+}
+
+func newConfigForMainAgent(deps dependencies) (Component, error) {
+	return generateNewConfig(deps, false)
 }
 
 func (c *cfg) Warnings() *pkgconfig.Warnings {

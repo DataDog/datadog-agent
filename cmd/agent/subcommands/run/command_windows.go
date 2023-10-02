@@ -157,6 +157,6 @@ func run(log log.Component,
 func getPlatformModules() fx.Option {
 	return fx.Options(
 		agentcrashdetect.Module,
-		comptraceconfig.Module,
+		comptraceconfig.MainAgentModule,
 	)
 }
