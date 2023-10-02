@@ -8,7 +8,6 @@ package flare
 // defaultFlareFiles contains all the files that are included in the flare archive by default (no need for a specific configuration option)
 var defaultFlareFiles = []string{
 	"config-check.log",
-	"connectivity.log",
 	"diagnose.log",
 	"docker_ps.log",
 	"envvars.log",
