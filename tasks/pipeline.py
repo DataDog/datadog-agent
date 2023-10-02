@@ -496,8 +496,8 @@ def is_system_probe(owners, files):
 @task
 def changelog(ctx, new_commit_sha):
     old_commit_sha = ctx.run("aws ssm get-parameter --region us-east-1 --name "
-                             "ci.gitlab.datadog-agent.changelog-commit-sha --query \"Parameter.Value\" --out "
-                             "text", hide=False).stdout.strip()
+                             "ci.gitlab.datadog-agent.changelog-commit-sha --with-decryption --query "
+                             "\"Parameter.Value\" --out text", hide=False).stdout.strip()
     print(f"Generating changelog for commit range {old_commit_sha} to {new_commit_sha}")
     commits = ctx.run(f"git log {old_commit_sha}..{new_commit_sha} --pretty=format:%h", hide=True).stdout.split("\n")
     owners = read_owners(".github/CODEOWNERS")
