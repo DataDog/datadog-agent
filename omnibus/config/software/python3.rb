@@ -40,6 +40,8 @@ if ohai["platform"] != "windows"
     # 2.0 is the license version here, not the python version
     license "Python-2.0"
 
+    patch source: "0001-disable-multiarch.patch" if linux_target?
+
     env = with_standard_compiler_flags(with_embedded_path)
     # Force different defaults for the "optimization settings"
     # This removes the debug symbol generation and doesn't enable all warnings
