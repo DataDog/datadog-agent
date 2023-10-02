@@ -21,47 +21,6 @@ import (
 	cache "github.com/patrickmn/go-cache"
 )
 
-// including sql_id for indexed access
-const PLAN_QUERY = `SELECT /* DD */
-	timestamp,
-	operation,
-	options,
-	object_name,
-	object_type,
-	object_alias,
-	optimizer,
-	id,
-	parent_id,
-	depth,
-	position,
-	search_columns,
-	cost,
-	cardinality,
-	bytes,
-	partition_start,
-	partition_stop,
-	other,
-	cpu_cost,
-	io_cost,
-	temp_space,
-	access_predicates,
-	filter_predicates,
-	projection,
-	executions,
-	last_starts,
-	last_output_rows,
-	last_cr_buffer_gets,
-	last_disk_reads,
-	last_disk_writes,
-	last_elapsed_time,
-	last_memory_used,
-	last_degree,
-	last_tempseg_size
-FROM v$sql_plan_statistics_all s
-WHERE 
-  sql_id = :1 AND plan_hash_value = :2 AND con_id = :3
-ORDER BY id, position`
-
 type StatementMetricsKeyDB struct {
 	ConID                  int    `db:"CON_ID"`
 	PDBName                string `db:"PDB_NAME"`
@@ -422,7 +381,7 @@ func (c *Check) StatementMetrics() (int, error) {
 			c,
 			&statementMetrics,
 			sql,
-			2*c.config.QueryMetrics.CollectionInterval,
+			lookback,
 			c.config.QueryMetrics.DBRowsLimit,
 		)
 		if err != nil {
@@ -626,7 +585,15 @@ func (c *Check) StatementMetrics() (int, error) {
 					var planStepsPayload []PlanDefinition
 					var planStepsDB []PlanRows
 					var oraclePlan OraclePlan
-					err = selectWrapper(c, &planStepsDB, PLAN_QUERY, statementMetricRow.SQLID, statementMetricRow.PlanHashValue, statementMetricRow.ConID)
+
+					var planQuery string
+					if isDbVersionGreaterOrEqualThan(c, minMultitenantVersion){
+						planQuery = planQuery12
+						err = selectWrapper(c, &planStepsDB, planQuery, statementMetricRow.SQLID, statementMetricRow.PlanHashValue, statementMetricRow.ConID)
+					} else {
+						planQuery = planQuery11
+						err = selectWrapper(c, &planStepsDB, planQuery, statementMetricRow.SQLID, statementMetricRow.PlanHashValue)
+					}
 
 					if err == nil {
 						if len(planStepsDB) > 0 {

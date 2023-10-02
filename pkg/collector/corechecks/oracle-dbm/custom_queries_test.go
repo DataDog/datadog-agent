@@ -87,7 +87,7 @@ func TestCustomQueries(t *testing.T) {
 	sender.SetupAcceptAll()
 	sender.On("Gauge", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
 
-	chk.config.CustomQueries = []config.CustomQuery{q}
+	chk.config.InstanceConfig.CustomQueries = []config.CustomQuery{q}
 
 	err = chk.CustomQueries()
 	assert.NoError(t, err, "failed to execute custom query")

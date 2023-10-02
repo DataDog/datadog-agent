@@ -16,7 +16,13 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-const SYSMETRICS_QUERY = `SELECT 
+const sysMetricsQuery11 = `SELECT 
+	metric_name,
+	value, 
+	metric_unit
+  FROM %s s`
+
+const sysMetricsQuery12 = `SELECT 
 	metric_name,
 	value, 
 	metric_unit, 
@@ -51,7 +57,6 @@ var SYSMETRICS_COLS = map[string]sysMetricsDefinition{
 	"Consistent Read Gets Per Sec":                  {DDmetric: "consistent_read_gets", DBM: true},
 	"CPU Usage Per Sec":                             {DDmetric: "active_sessions_on_cpu", DBM: true},
 	"Current OS Load":                               {DDmetric: "os_load", DBM: true},
-	//"Cursor Cache Hit Ratio":                        {DDmetric: "cursor_cachehit_ratio"},
 	"Database CPU Time Ratio":                  {DDmetric: "database_cpu_time_ratio", DBM: true},
 	"Database Wait Time Ratio":                 {DDmetric: "database_wait_time_ratio"},
 	"DB Block Changes Per Sec":                 {DDmetric: "db_block_changes", DBM: true},
@@ -131,17 +136,28 @@ func (c *Check) SysMetrics() error {
 	}
 
 	metricRows := []SysmetricsRowDB{}
-	err = selectWrapper(c, &metricRows, fmt.Sprintf(SYSMETRICS_QUERY, "v$con_sysmetric"))
-	if err != nil {
-		return fmt.Errorf("failed to collect container sysmetrics: %w", err)
+
+	var sysMetricsQuery string
+	if isDbVersionGreaterOrEqualThan(c, minMultitenantVersion){
+		sysMetricsQuery = sysMetricsQuery12
+	} else {
+		sysMetricsQuery = sysMetricsQuery11
 	}
+
+	if isDbVersionGreaterOrEqualThan(c , "18") {
+		err = selectWrapper(c, &metricRows, fmt.Sprintf(sysMetricsQuery, "v$con_sysmetric"))
+		if err != nil {
+			return fmt.Errorf("failed to collect container sysmetrics: %w", err)
+		}
+	}
+
 	seenInContainerMetrics := make(map[string]bool)
 	for _, r := range metricRows {
 		c.sendMetric(sender, r, seenInContainerMetrics)
 	}
 
 	seenInGlobalMetrics := make(map[string]bool)
-	err = selectWrapper(c, &metricRows, fmt.Sprintf(SYSMETRICS_QUERY, "v$sysmetric")+" ORDER BY begin_time ASC, metric_name ASC")
+	err = selectWrapper(c, &metricRows, fmt.Sprintf(sysMetricsQuery, "v$sysmetric")+" ORDER BY begin_time ASC, metric_name ASC")
 	if err != nil {
 		return fmt.Errorf("failed to collect sysmetrics: %w", err)
 	}
