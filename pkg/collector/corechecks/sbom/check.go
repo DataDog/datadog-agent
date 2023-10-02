@@ -37,6 +37,7 @@ type Config struct {
 	NewSBOMMaxLatencySeconds        int `yaml:"new_sbom_max_latency_seconds"`
 	ContainerPeriodicRefreshSeconds int `yaml:"periodic_refresh_seconds"`
 	HostPeriodicRefreshSeconds      int `yaml:"host_periodic_refresh_seconds"`
+	HostHeartbeatValiditySeconds    int `yaml:"host_heartbeat_validity_seconds"`
 }
 
 type configValueRange struct {
@@ -53,21 +54,27 @@ var /* const */ (
 	}
 
 	newSBOMMaxLatencySecondsValueRange = &configValueRange{
-		min:          1,   // 1 s
+		min:          1,   // 1 seconds
 		max:          300, // 5 min
-		defaultValue: 30,  // 30 s
+		defaultValue: 30,  // 30 seconds
 	}
 
 	containerPeriodicRefreshSecondsValueRange = &configValueRange{
 		min:          60,     // 1 min
 		max:          604800, // 1 week
-		defaultValue: 3600,   // 1h
+		defaultValue: 3600,   // 1 hour
 	}
 
 	hostPeriodicRefreshSecondsValueRange = &configValueRange{
+		min:          60,     // 1 min
+		max:          604800, // 1 week
+		defaultValue: 3600,   // 1 hour
+	}
+
+	hostHeartbeatValiditySeconds = &configValueRange{
 		min:          60,        // 1 min
 		max:          604800,    // 1 week
-		defaultValue: 3600 * 24, // 1h
+		defaultValue: 3600 * 24, // 1 day
 	}
 )
 
@@ -91,6 +98,7 @@ func (c *Config) Parse(data []byte) error {
 	validateValue(&c.NewSBOMMaxLatencySeconds, newSBOMMaxLatencySecondsValueRange)
 	validateValue(&c.ContainerPeriodicRefreshSeconds, containerPeriodicRefreshSecondsValueRange)
 	validateValue(&c.HostPeriodicRefreshSeconds, hostPeriodicRefreshSecondsValueRange)
+	validateValue(&c.HostHeartbeatValiditySeconds, hostHeartbeatValiditySeconds)
 
 	return nil
 }
@@ -137,8 +145,13 @@ func (c *Check) Configure(senderManager sender.SenderManager, integrationConfigD
 	c.sender = sender
 	sender.SetNoIndex(true)
 
-	c.processor, err = newProcessor(c.workloadmetaStore, sender, c.instance.ChunkSize, time.Duration(c.instance.NewSBOMMaxLatencySeconds)*time.Second, ddConfig.Datadog.GetBool("sbom.host.enabled"))
-	if err != nil {
+	if c.processor, err = newProcessor(
+		c.workloadmetaStore,
+		sender,
+		c.instance.ChunkSize,
+		time.Duration(c.instance.NewSBOMMaxLatencySeconds)*time.Second,
+		ddConfig.Datadog.GetBool("sbom.host.enabled"),
+		time.Duration(c.instance.HostHeartbeatValiditySeconds)*time.Second); err != nil {
 		return err
 	}
 

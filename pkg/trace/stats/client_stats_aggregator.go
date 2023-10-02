@@ -230,6 +230,9 @@ func (b *bucket) aggregateCounts(p *pb.ClientStatsPayload, enablePeerSvcAgg bool
 			if !ok {
 				agg = &aggregatedCounts{}
 				payloadAgg[aggKey] = agg
+				if enablePeerSvcAgg {
+					agg.peerTags = sb.PeerTags
+				}
 			}
 			agg.hits += sb.Hits
 			agg.errors += sb.Errors
@@ -259,6 +262,7 @@ func (b *bucket) aggregationToPayloads() []*pb.ClientStatsPayload {
 				HTTPStatusCode: aggrKey.StatusCode,
 				Type:           aggrKey.Type,
 				Synthetics:     aggrKey.Synthetics,
+				PeerTags:       counts.peerTags,
 				Hits:           counts.hits,
 				Errors:         counts.errors,
 				Duration:       counts.duration,
@@ -297,6 +301,7 @@ func newBucketAggregationKey(b *pb.ClientGroupedStats, enablePeerSvcAgg bool) Bu
 	}
 	if enablePeerSvcAgg {
 		k.PeerService = b.PeerService
+		k.PeerTagsHash = peerTagsHash(b.GetPeerTags())
 	}
 	return k
 }
@@ -321,4 +326,5 @@ func trimCounts(p *pb.ClientStatsPayload) *pb.ClientStatsPayload {
 // Distributions and TopLevelCount will stay on the initial payload
 type aggregatedCounts struct {
 	hits, errors, duration uint64
+	peerTags               []string
 }

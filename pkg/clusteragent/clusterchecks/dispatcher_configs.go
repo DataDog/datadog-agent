@@ -106,32 +106,29 @@ func (d *dispatcher) removeConfig(digest string) {
 		}
 	}
 
-	// Remove from node configs if assigned
-	if found {
-		node.Lock()
-		nodeName := node.name
-		node.removeConfig(digest)
-		node.Unlock()
+	if !found { // Dangling config. Not assigned to any node.
+		danglingConfigs.Dec(le.JoinLeaderValue)
+		return
+	}
 
-		for _, checkID := range checkIDsToRemove {
-			configsInfo.Delete(nodeName, checkName, string(checkID), le.JoinLeaderValue)
-		}
+	// Remove from node configs if assigned
+	node.Lock()
+	nodeName := node.name
+	node.removeConfig(digest)
+	node.Unlock()
+
+	for _, checkID := range checkIDsToRemove {
+		configsInfo.Delete(nodeName, checkName, string(checkID), le.JoinLeaderValue)
 	}
 }
 
-// shouldDispatchDanling returns true if there are dangling configs
+// shouldDispatchDangling returns true if there are dangling configs
 // and node registered, available for dispatching.
-func (d *dispatcher) shouldDispatchDanling() bool {
+func (d *dispatcher) shouldDispatchDangling() bool {
 	d.store.RLock()
 	defer d.store.RUnlock()
 
-	if len(d.store.danglingConfigs) == 0 {
-		return false
-	}
-	if len(d.store.nodes) == 0 {
-		return false
-	}
-	return true
+	return len(d.store.danglingConfigs) > 0 && len(d.store.nodes) > 0
 }
 
 // retrieveAndClearDangling extracts dangling configs from the store

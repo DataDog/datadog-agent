@@ -38,7 +38,7 @@ func ScrubPod(p *v1.Pod, scrubber *DataScrubber) {
 		ScrubContainer(&p.Spec.InitContainers[c], scrubber)
 	}
 	for c := 0; c < len(p.Spec.Containers); c++ {
-		ScrubContainer(&p.Spec.InitContainers[c], scrubber)
+		ScrubContainer(&p.Spec.Containers[c], scrubber)
 	}
 }
 

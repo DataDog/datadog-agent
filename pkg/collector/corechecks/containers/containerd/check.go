@@ -10,6 +10,10 @@ package containerd
 import (
 	"context"
 	"fmt"
+	"io"
+	"net/http"
+	"regexp"
+	"strings"
 	"time"
 
 	"gopkg.in/yaml.v2"
@@ -24,12 +28,16 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/containers/metrics"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/prometheus"
 )
 
 const (
 	containerdCheckName = "containerd"
+	pullImageGrpcMethod = "PullImage"
 	cacheValidity       = 2 * time.Second
 )
+
+var matchAllCap = regexp.MustCompile("([a-z0-9])([A-Z])")
 
 // ContainerdCheck grabs containerd metrics and events
 type ContainerdCheck struct {
@@ -39,12 +47,14 @@ type ContainerdCheck struct {
 	subscriber      *subscriber
 	containerFilter *containers.Filter
 	client          cutil.ContainerdItf
+	httpClient      http.Client
 }
 
 // ContainerdConfig contains the custom options and configurations set by the user.
 type ContainerdConfig struct {
-	ContainerdFilters []string `yaml:"filters"`
-	CollectEvents     bool     `yaml:"collect_events"`
+	ContainerdFilters   []string `yaml:"filters"`
+	CollectEvents       bool     `yaml:"collect_events"`
+	OpenmetricsEndpoint string   `yaml:"openmetrics_endpoint"`
 }
 
 func init() {
@@ -85,6 +95,7 @@ func (c *ContainerdCheck) Configure(senderManager sender.SenderManager, integrat
 		return err
 	}
 
+	c.httpClient = http.Client{Timeout: time.Duration(1) * time.Second}
 	c.processor = generic.NewProcessor(metrics.GetProvider(), generic.MetadataContainerAccessor{}, metricsAdapter{}, getProcessorFilter(c.containerFilter))
 	c.processor.RegisterExtension("containerd-custom-metrics", &containerdCustomMetricsExtension{})
 	c.subscriber = createEventSubscriber("ContainerdCheck", c.client, cutil.FiltersWithNamespaces(c.instance.ContainerdFilters))
@@ -116,6 +127,10 @@ func (c *ContainerdCheck) Run() error {
 		_ = c.Warnf("Error collecting metrics: %s", err)
 	}
 
+	if err := c.scrapeOpenmetricsEndpoint(sender); err != nil {
+		_ = c.Warnf("Error collecting image pull metrics: %s", err)
+	}
+
 	c.collectEvents(sender)
 
 	return nil
@@ -133,7 +148,54 @@ func (c *ContainerdCheck) runContainerdCustom(sender sender.Sender) error {
 
 	for _, namespace := range namespaces {
 		if err := c.collectImageSizes(sender, c.client, namespace); err != nil {
-			log.Infof("Failed to collect images size, err: %s", err)
+			log.Infof("Failed to scrape containerd openmetrics endpoint, err: %s", err)
+		}
+	}
+
+	return nil
+}
+
+func toSnakeCase(s string) string {
+	snake := matchAllCap.ReplaceAllString(s, "${1}_${2}")
+	return strings.ToLower(snake)
+}
+
+func (c *ContainerdCheck) scrapeOpenmetricsEndpoint(sender sender.Sender) error {
+	openmetricsEndpoint := fmt.Sprintf("%s/v1/metrics", c.instance.OpenmetricsEndpoint)
+	resp, err := c.httpClient.Get(openmetricsEndpoint)
+	if err != nil {
+		return err
+	}
+
+	defer resp.Body.Close()
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return err
+	}
+
+	parsedMetrics, err := prometheus.ParseMetrics(body)
+	if err != nil {
+		return err
+	}
+
+	for _, sample := range parsedMetrics {
+		if sample == nil {
+			continue
+		}
+
+		metric := sample.Metric
+
+		metricName, ok := metric["__name__"]
+
+		if !ok {
+			continue
+		}
+
+		transform, found := defaultContainerdOpenmetricsTransformers[string(metricName)]
+
+		if found {
+			transform(sender, string(metricName), *sample)
 		}
 	}
 
