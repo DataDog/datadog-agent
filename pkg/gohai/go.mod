@@ -8,7 +8,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/log v0.49.0-rc.1
 	github.com/cihub/seelog v0.0.0-20170130134532-f561c5e57575
 	github.com/moby/sys/mountinfo v0.6.2
-	github.com/shirou/gopsutil/v3 v3.23.8
+	github.com/shirou/gopsutil/v3 v3.23.9
 	github.com/stretchr/testify v1.8.4
 	golang.org/x/sys v0.12.0
 )
