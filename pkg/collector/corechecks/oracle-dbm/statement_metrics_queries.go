@@ -134,7 +134,7 @@ GROUP BY s.con_id, c.name, force_matching_signature, plan_hash_value
 HAVING MAX (last_active_time) > sysdate - :seconds/24/60/60
 FETCH FIRST :limit ROWS ONLY`
 
-// `FETCH FIRST`` doesn't exist in Oracle 11. Also, no container awarness.
+// `FETCH FIRST“ doesn't exist in Oracle 11. Also, no container awarness.
 const queryFmsRandom11 = `SELECT /* DD_QM_FMS */ 
 	force_matching_signature, plan_hash_value, 
 	sql_text, sql_text_length, sql_id, 
@@ -605,11 +605,11 @@ const (
 
 func getStatementMetricsQueries(c *Check) map[statementMetricsQuery]string {
 	queries := make(map[statementMetricsQuery]string)
-	if isDbVersionLessThan(c, "12"){
+	if isDbVersionLessThan(c, "12") {
 		queries[fmsRandomQuery] = queryFmsRandom11
 		queries[fmsLastActiveQuery] = queryForceMatchingSignatureLastActive11
 		queries[sqlIDQuery] = querySQLID11
-	} else if isDbVersionLessThan(c, "12.2"){
+	} else if isDbVersionLessThan(c, "12.2") {
 		queries[fmsRandomQuery] = queryFmsRandom121
 		queries[fmsLastActiveQuery] = queryForceMatchingSignatureLastActive121
 		queries[sqlIDQuery] = querySQLID121

@@ -79,7 +79,7 @@ WHERE
 	)
 	AND status = 'ACTIVE'`
 
-	const activityQueryOnView11 = `SELECT /* DD_ACTIVITY_SAMPLING */
+const activityQueryOnView11 = `SELECT /* DD_ACTIVITY_SAMPLING */
 	SYSDATE as now,
 	sid,
 	serial#,

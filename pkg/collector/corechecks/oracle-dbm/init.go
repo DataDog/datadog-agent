@@ -65,7 +65,7 @@ func (c *Check) init() error {
 	tags = append(tags, fmt.Sprintf("host:%s", c.dbHostname), fmt.Sprintf("oracle_version:%s", c.dbVersion))
 
 	var d vDatabase
-	if isDbVersionGreaterOrEqualThan(c, minMultitenantVersion){
+	if isDbVersionGreaterOrEqualThan(c, minMultitenantVersion) {
 		err = getWrapper(c, &d, "SELECT /* DD */ lower(name) name, cdb FROM v$database")
 	} else {
 		err = getWrapper(c, &d, "SELECT /* DD */ lower(name) name FROM v$database")
@@ -85,7 +85,7 @@ func (c *Check) init() error {
 	c.logPrompt = fmt.Sprintf("%s@%s> ", c.cdbName, c.dbHostname)
 
 	// Check if PDB
-	if isDbVersionGreaterOrEqualThan(c, minMultitenantVersion){
+	if isDbVersionGreaterOrEqualThan(c, minMultitenantVersion) {
 		var connectionType string
 		err = getWrapper(c, &connectionType, "select decode(sys_context('USERENV','CON_ID'),1,'CDB','PDB') TYPE from DUAL")
 		if err != nil {
@@ -96,8 +96,7 @@ func (c *Check) init() error {
 		}
 	} else {
 		c.connectedToPdb = true
-	} 
-
+	}
 
 	// determine hosting type
 	ht := selfManaged

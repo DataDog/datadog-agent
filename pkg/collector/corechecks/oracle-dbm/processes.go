@@ -36,7 +36,6 @@ const pgaQuery11 = `SELECT
 	nvl(pga_max_mem,0) pga_max_mem
   FROM v$process p`
 
-
 type ProcessesRowDB struct {
 	PdbName        sql.NullString `db:"PDB_NAME"`
 	PID            uint64         `db:"PID"`
@@ -51,7 +50,7 @@ func (c *Check) ProcessMemory() error {
 	rows := []ProcessesRowDB{}
 
 	var pgaQuery string
-	if isDbVersionGreaterOrEqualThan(c, minMultitenantVersion){
+	if isDbVersionGreaterOrEqualThan(c, minMultitenantVersion) {
 		pgaQuery = pgaQuery12
 	} else {
 		pgaQuery = pgaQuery11

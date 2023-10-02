@@ -49,7 +49,7 @@ type RowDB struct {
 func (c *Check) Tablespaces() error {
 	rows := []RowDB{}
 	var tablespaceQuery string
-	if isDbVersionGreaterOrEqualThan(c, minMultitenantVersion){
+	if isDbVersionGreaterOrEqualThan(c, minMultitenantVersion) {
 		tablespaceQuery = tablespaceQuery12
 	} else {
 		tablespaceQuery = tablespaceQuery11

@@ -587,7 +587,7 @@ func (c *Check) StatementMetrics() (int, error) {
 					var oraclePlan OraclePlan
 
 					var planQuery string
-					if isDbVersionGreaterOrEqualThan(c, minMultitenantVersion){
+					if isDbVersionGreaterOrEqualThan(c, minMultitenantVersion) {
 						planQuery = planQuery12
 						err = selectWrapper(c, &planStepsDB, planQuery, statementMetricRow.SQLID, statementMetricRow.PlanHashValue, statementMetricRow.ConID)
 					} else {

@@ -37,7 +37,7 @@ type SHMRow struct {
 func (c *Check) SharedMemory() error {
 	rows := []SHMRow{}
 	var shmQuery string
-	if isDbVersionGreaterOrEqualThan(c, minMultitenantVersion){
+	if isDbVersionGreaterOrEqualThan(c, minMultitenantVersion) {
 		shmQuery = shmQuery12
 	} else {
 		shmQuery = shmQuery11

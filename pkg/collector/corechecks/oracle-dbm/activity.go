@@ -168,7 +168,7 @@ func (c *Check) SampleSession() error {
 	var activityQuery string
 	maxSQLTextLength := maxFullTextWithSafetyMargin
 	if c.hostingType == selfManaged {
-		if isDbVersionGreaterOrEqualThan(c, minMultitenantVersion){
+		if isDbVersionGreaterOrEqualThan(c, minMultitenantVersion) {
 			activityQuery = activityQueryOnView12
 		} else {
 			activityQuery = activityQueryOnView11
