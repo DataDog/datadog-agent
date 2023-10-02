@@ -31,7 +31,7 @@ func CreateDefaultDemultiplexer() *aggregator.AgentDemultiplexer {
 	opts.DontStartForwarders = true
 	log := log.NewTemporaryLoggerWithoutInit()
 	sharedForwarder := forwarder.NewDefaultForwarder(config.Datadog, log, forwarder.NewOptions(config.Datadog, log, nil))
-	return aggregator.InitAndStartAgentDemultiplexer(log, config.Datadog, sharedForwarder, opts, "")
+	return aggregator.InitAndStartAgentDemultiplexer(log, sharedForwarder, opts, "")
 }
 
 // NewMockSenderWithSenderManager returns a functional mocked Sender for testing

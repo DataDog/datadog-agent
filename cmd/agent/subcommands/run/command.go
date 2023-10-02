@@ -351,7 +351,7 @@ func getSharedFxOption() fx.Option {
 				return nil, log.Errorf("Error while getting hostname, exiting: %v", err)
 			}
 			// demux is currently a global used by start/stop. It will need to be migrated at some point
-			demux = aggregator.InitAndStartAgentDemultiplexer(log, config, sharedForwarder, opts, hostnameDetected)
+			demux = aggregator.InitAndStartAgentDemultiplexer(log, sharedForwarder, opts, hostnameDetected)
 			return demux, nil
 		}),
 		// injecting the shared Serializer to FX until we migrate it to a prpoper component. This allows other

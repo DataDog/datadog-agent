@@ -12,7 +12,6 @@ import (
 
 	"go.uber.org/fx"
 
-	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
 	forwarder "github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
@@ -124,11 +123,11 @@ type dataOutputs struct {
 // InitAndStartAgentDemultiplexer creates a new Demultiplexer and runs what's necessary
 // in goroutines. As of today, only the embedded BufferedAggregator needs a separate goroutine.
 // In the future, goroutines will be started for the event platform forwarder and/or orchestrator forwarder.
-func InitAndStartAgentDemultiplexer(log log.Component, config config.Component, sharedForwarder forwarder.Forwarder, options AgentDemultiplexerOptions, hostname string) *AgentDemultiplexer {
+func InitAndStartAgentDemultiplexer(log log.Component, sharedForwarder forwarder.Forwarder, options AgentDemultiplexerOptions, hostname string) *AgentDemultiplexer {
 	demultiplexerInstanceMu.Lock()
 	defer demultiplexerInstanceMu.Unlock()
 
-	demux := initAgentDemultiplexer(log, config, sharedForwarder, options, hostname)
+	demux := initAgentDemultiplexer(log, sharedForwarder, options, hostname)
 
 	if demultiplexerInstance != nil {
 		log.Warn("A DemultiplexerInstance is already existing but InitAndStartAgentDemultiplexer has been called again. Current instance will be overridden")
@@ -146,10 +145,10 @@ type AggregatorTestDeps struct {
 }
 
 func InitAndStartAgentDemultiplexerForTest(deps AggregatorTestDeps, options AgentDemultiplexerOptions, hostname string) *AgentDemultiplexer {
-	return InitAndStartAgentDemultiplexer(deps.Log, pkgconfig.Datadog, deps.SharedForwarder, options, hostname)
+	return InitAndStartAgentDemultiplexer(deps.Log, deps.SharedForwarder, options, hostname)
 }
 
-func initAgentDemultiplexer(log log.Component, cfg config.Component, sharedForwarder forwarder.Forwarder, options AgentDemultiplexerOptions, hostname string) *AgentDemultiplexer {
+func initAgentDemultiplexer(log log.Component, sharedForwarder forwarder.Forwarder, options AgentDemultiplexerOptions, hostname string) *AgentDemultiplexer {
 	// prepare the multiple forwarders
 	// -------------------------------
 
@@ -178,7 +177,7 @@ func initAgentDemultiplexer(log log.Component, cfg config.Component, sharedForwa
 	// prepare the serializer
 	// ----------------------
 
-	sharedSerializer := serializer.NewSerializer(sharedForwarder, orchestratorForwarder, cfg, hostname)
+	sharedSerializer := serializer.NewSerializer(sharedForwarder, orchestratorForwarder, pkgconfig.Datadog, hostname)
 
 	// prepare the embedded aggregator
 	// --
@@ -213,7 +212,7 @@ func initAgentDemultiplexer(log log.Component, cfg config.Component, sharedForwa
 	var noAggWorker *noAggregationStreamWorker
 	var noAggSerializer serializer.MetricSerializer
 	if options.EnableNoAggregationPipeline {
-		noAggSerializer = serializer.NewSerializer(sharedForwarder, orchestratorForwarder, cfg, hostname)
+		noAggSerializer = serializer.NewSerializer(sharedForwarder, orchestratorForwarder, pkgconfig.Datadog, hostname)
 		noAggWorker = newNoAggregationStreamWorker(
 			pkgconfig.Datadog.GetInt("dogstatsd_no_aggregation_pipeline_batch_size"),
 			metricSamplePool,
