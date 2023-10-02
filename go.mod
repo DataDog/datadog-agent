@@ -396,7 +396,7 @@ require (
 	github.com/kballard/go-shellquote v0.0.0-20180428030007-95032a82bc51 // indirect
 	github.com/kevinburke/ssh_config v1.2.0 // indirect
 	github.com/kjk/lzma v0.0.0-20161016003348-3fd93898850d // indirect
-	github.com/klauspost/compress v1.16.7 // indirect
+	github.com/klauspost/compress v1.17.0 // indirect
 	github.com/klauspost/pgzip v1.2.5 // indirect
 	github.com/knadh/koanf v1.5.0 // indirect
 	github.com/knqyf263/go-apk-version v0.0.0-20200609155635-041fdbb8563f // indirect
@@ -474,8 +474,8 @@ require (
 	github.com/tklauser/numcpus v0.6.1 // indirect
 	github.com/tmthrgd/go-hex v0.0.0-20190904060850-447a3041c3bc // indirect
 	github.com/twitchtv/twirp v8.1.3+incompatible // indirect
-	github.com/twmb/franz-go v1.14.3
-	github.com/twmb/franz-go/pkg/kadm v1.9.0
+	github.com/twmb/franz-go v1.15.0
+	github.com/twmb/franz-go/pkg/kadm v1.9.2
 	github.com/twmb/franz-go/pkg/kmsg v1.6.1 // indirect
 	github.com/ugorji/go/codec v1.2.11 // indirect
 	github.com/ulikunitz/xz v0.5.11 // indirect
