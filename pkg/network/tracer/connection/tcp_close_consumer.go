@@ -129,8 +129,8 @@ func (c *tcpCloseConsumer) Start(callback func([]network.ConnectionStats)) {
 				if !ok {
 					return
 				}
-				closerConsumerTelemetry.perfLost.Add(float64(lc * netebpf.BatchSize))
-				lostCount += lc * netebpf.BatchSize
+				closerConsumerTelemetry.perfLost.Add(float64(lc))
+				lostCount += lc
 			case request := <-c.requests:
 				oneTimeBuffer := network.NewConnectionBuffer(32, 32)
 				c.batchManager.GetPendingConns(oneTimeBuffer)
