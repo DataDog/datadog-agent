@@ -417,10 +417,6 @@ func (s *TracerSuite) TestUDPSendAndReceive() {
 }
 
 func testUDPSendAndReceive(t *testing.T, tr *Tracer, addr string) {
-	t.Cleanup(func() { tr.removeClient(clientID) })
-	t.Cleanup(func() { tr.ebpfTracer.Pause() })
-	require.NoError(t, tr.ebpfTracer.Pause(), "disable probes")
-
 	tr.removeClient(clientID)
 
 	server := &UDPServer{
@@ -435,7 +431,6 @@ func testUDPSendAndReceive(t *testing.T, tr *Tracer, addr string) {
 	t.Cleanup(server.Shutdown)
 
 	initTracerState(t, tr)
-	require.NoError(t, tr.ebpfTracer.Resume(), "enable probes")
 
 	// Connect to server
 	c, err := net.DialTimeout("udp", server.address, 50*time.Millisecond)
