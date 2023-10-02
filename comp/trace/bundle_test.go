@@ -43,7 +43,7 @@ func TestMockBundleDependencies(t *testing.T) {
 	defer func() { os.Unsetenv("DD_DD_URL") }()
 
 	cfg := fxutil.Test[config.Component](t, fx.Options(
-		fx.Supply(func() context.Context { return context.TODO() }),
+		fx.Provide(func() context.Context { return context.TODO() }),
 		fx.Supply(coreconfig.Params{}),
 		coreconfig.MockModule,
 		fx.Invoke(func(_ config.Component) {}),
