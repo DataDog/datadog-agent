@@ -118,11 +118,17 @@ func (nt *networkTracer) StreamConnections(runCounter *atomic.Uint64, reqID, con
 		nt.restartTimer.Reset(inactivityRestartDuration)
 	}
 	logRequests(reqID, "/ws-connections", runCounter.Inc(), len(cs.Conns), start)
+	includeLen := true
 
 	// As long as there are connections, we divide them into batches and subsequently send all the batches
 	// via a gRPC stream to the process agent. The size of each batch is determined by the value of maxConnsPerMessage.
 	for len(cs.Conns) > 0 {
 		finalBatchSize := min(nt.maxConnsPerMessage, len(cs.Conns))
+		if includeLen {
+			cs.ConnTelemetry["conn_len"] = int64(len(cs.Conns))
+			includeLen = false
+		}
+
 		rest := cs.Conns[finalBatchSize:]
 		cs.Conns = cs.Conns[:finalBatchSize]
 

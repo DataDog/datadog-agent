@@ -228,6 +228,15 @@ func (c *ConnectionsCheck) getConnectionsWS() (*model.Connections, error) {
 		if log.ShouldLog(seelog.DebugLvl) {
 			log.Debugf("[grpc] received %d connections in a batch (%v)", len(batch.Conns), time.Since(currentStreamStartTime))
 		}
+
+		size := int64(0)
+		for telem, tel := range batch.GetConnTelemetryMap() {
+			if telem == "conn_len" {
+				size = tel
+			}
+		}
+		fmt.Println(size)
+
 		if len(batch.Conns) > 0 {
 			outcome.Conns = append(outcome.Conns, batch.Conns...)
 		}
