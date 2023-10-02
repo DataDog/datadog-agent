@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"html"
 	"net/http"
+	"runtime"
 	"strings"
 	"testing"
 
@@ -44,7 +45,13 @@ type cfg struct {
 func newConfig(deps dependencies) (Component, error) {
 	tracecfg, err := setupConfig(deps, "")
 	if err != nil {
-		return nil, err
+		// The windows agent has a requirement that it can successfully start
+		// with an invalid config.  The `tracecfg` object is initialized with
+		// various defaults, that allow it to be "good enough".  On Windows,
+		// allow us to return the minimal config rather than failing startup
+		if runtime.GOOS != "windows" || tracecfg == nil {
+			return nil, err
+		}
 	}
 
 	c := cfg{
