@@ -1709,8 +1709,6 @@ func (s *TracerSuite) TestTCPDirectionWithPreexistingConnection() {
 
 	// start tracer so it dumps port bindings
 	cfg := testConfig()
-	// delay from gateway lookup timeout can cause test failure
-	cfg.EnableGatewayLookup = false
 	tr := setupTracer(t, cfg)
 
 	// open and close another client connection to force port binding delete
@@ -2031,6 +2029,8 @@ func testConfig() *config.Config {
 	if isPrebuilt(cfg) && kv >= kernel.VersionCode(5, 18, 0) {
 		cfg.CollectUDPv6Conns = false
 	}
+
+	cfg.EnableGatewayLookup = false
 	return cfg
 }
 
