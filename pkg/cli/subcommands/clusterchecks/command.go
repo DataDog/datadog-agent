@@ -40,6 +40,7 @@ type GlobalParams struct {
 
 type cliParams struct {
 	checkName string
+	force     bool
 }
 
 // MakeCommand returns a `clusterchecks` command to be used by cluster-agent
@@ -72,11 +73,14 @@ func MakeCommand(globalParamsGetter func() GlobalParams) *cobra.Command {
 			globalParams := globalParamsGetter()
 
 			return fxutil.OneShot(rebalance,
+				fx.Supply(cliParams),
 				fx.Supply(bundleParams(globalParams)),
 				core.Bundle,
 			)
 		},
 	}
+
+	rebalanceCmd.Flags().BoolVarP(&cliParams.force, "force", "f", false, "Use to force rebalance")
 
 	cmd.AddCommand(rebalanceCmd)
 
@@ -98,7 +102,8 @@ func run(log log.Component, config config.Component, cliParams *cliParams) error
 	return flare.GetEndpointsChecks(color.Output, cliParams.checkName)
 }
 
-func rebalance(log log.Component, config config.Component) error {
+func rebalance(log log.Component, config config.Component, cliParams *cliParams) error {
+
 	fmt.Println("Requesting a cluster check rebalance...")
 	c := util.GetClient(false) // FIX: get certificates right then make this true
 	urlstr := fmt.Sprintf("https://localhost:%v/api/v1/clusterchecks/rebalance", pkgconfig.Datadog.GetInt("cluster_agent.cmd_port"))
@@ -109,7 +114,17 @@ func rebalance(log log.Component, config config.Component) error {
 		return err
 	}
 
-	r, err := util.DoPost(c, urlstr, "application/json", bytes.NewBuffer([]byte{}))
+	// Construct the POST payload.
+	payload := map[string]bool{
+		"force": cliParams.force,
+	}
+	postData, err := json.Marshal(payload)
+
+	if err != nil {
+		return fmt.Errorf("error marshalling payload: %v", err)
+	}
+
+	r, err := util.DoPost(c, urlstr, "application/json", bytes.NewBuffer(postData))
 	if err != nil {
 		var errMap = make(map[string]string)
 		json.Unmarshal(r, &errMap) //nolint:errcheck

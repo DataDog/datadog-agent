@@ -1389,7 +1389,7 @@ func TestRebalance(t *testing.T) {
 			}
 
 			// rebalance checks
-			dispatcher.rebalance()
+			dispatcher.rebalance(false)
 
 			// assert runner stats repartition is updated correctly
 			for node, store := range tc.out {
