@@ -10,6 +10,7 @@ import (
 	_ "embed"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/DataDog/datadog-agent/test/fakeintake/client/flare"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e"
@@ -27,6 +28,9 @@ func TestFlareSuite(t *testing.T) {
 }
 
 func requestAgentFlareAndFetchFromFakeIntake(v *commandFlareSuite, flareArgs ...client.AgentArgsOption) flare.Flare {
+	// Wait for the fakeintake to be ready to avoid 503 when sending the flare
+	// Definitely not the best way to do it, but the easiest at the moment
+	time.Sleep(30 * time.Second)
 	_ = v.Env().Agent.Flare(flareArgs...)
 
 	flare, err := v.Env().Fakeintake.Client.GetLatestFlare()
