@@ -241,7 +241,7 @@ func (t *Tailer) eventLoop(ctx context.Context) {
 			return
 		case events, ok := <-t.sub.GetEvents():
 			if !ok {
-				// error
+				// events channel is closed, fetch the error and stop the subscription so we may retry
 				err := t.sub.Error()
 				t.logErrorAndSetStatus(fmt.Errorf("GetEvents failed, stopping subscription: %w", err))
 				t.sub.Stop()

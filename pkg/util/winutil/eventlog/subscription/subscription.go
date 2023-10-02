@@ -121,7 +121,7 @@ func NewPullSubscription(channelPath, query string, options ...PullSubscriptionO
 	return &q
 }
 
-// WithEventBatchCount sets how many event records are requested per EvtNext call.
+// WithEventBatchCount sets the maximum number of event records returned per EvtNext call.
 //
 // Keep this value low, EvtNext will fail if the sum of the size of the events it is
 // returning exceeds a buffer size that is internal to subscription. Note that this
@@ -129,7 +129,8 @@ func NewPullSubscription(channelPath, query string, options ...PullSubscriptionO
 // means the per-event size must be larger to cause the error.
 //
 // There is a very small difference in performance between requesting 10 events per call
-// and 1000 events per call. See subscription benchmark tests for results.
+// and 1000 events per call. The bottlneck by far is EvtFormatMessage. See subscription benchmark
+// tests for results.
 //
 // Windows limits this to 1024.
 // https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-even6/65f22d62-5f0f-4306-85c4-50fb9e77075b
@@ -295,7 +296,7 @@ func (q *pullSubscription) getEventsLoop() {
 			// https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-even6/cd4c258c-5a2c-4ba8-bce3-37eefaa416e7
 			eventRecordHandles, err := q.eventLogAPI.EvtNext(q.subscriptionHandle, q.evtNextStorage, uint(len(q.evtNextStorage)), windows.INFINITE)
 			if err == nil {
-				pkglog.Debugf("EvtNext returned %v handles", len(eventRecordHandles))
+				pkglog.Tracef("EvtNext returned %v handles", len(eventRecordHandles))
 				select {
 				case q.eventsChannel <- q.parseEventRecordHandles(eventRecordHandles):
 				case <-q.notifyStop:
@@ -309,7 +310,7 @@ func (q *pullSubscription) getEventsLoop() {
 			if err == windows.ERROR_NO_MORE_ITEMS || err == windows.ERROR_INVALID_OPERATION {
 				// EvtNext returns ERROR_NO_MORE_ITEMS when there are no more items available.
 				// EvtNext returns ERROR_INVALID_OPERATION when it is called when the notify event is not set.
-				pkglog.Debugf("EvtNext returned no more items")
+				pkglog.Tracef("EvtNext returned no more items")
 				_ = windows.ResetEvent(windows.Handle(q.subscriptionSignalEventHandle))
 				continue
 			}
