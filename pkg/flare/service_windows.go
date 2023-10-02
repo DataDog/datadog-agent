@@ -324,5 +324,5 @@ func getDDServices(manager *mgr.Mgr) ([]serviceInfo, error) {
 		ddServices = append(ddServices, ddnpmConf)
 	}
 
-	return ddServices, err
+	return ddServices, nil
 }
