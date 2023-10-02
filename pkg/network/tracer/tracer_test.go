@@ -1004,13 +1004,8 @@ const (
 )
 
 func testDNSStats(t *testing.T, tr *Tracer, domain string, success, failure, timeout int, serverIP string) {
-	t.Cleanup(func() { tr.removeClient(clientID) })
-	t.Cleanup(func() { tr.ebpfTracer.Pause() })
-	require.NoError(t, tr.ebpfTracer.Pause(), "disable probes")
-
 	tr.removeClient(clientID)
 	initTracerState(t, tr)
-	require.NoError(t, tr.ebpfTracer.Resume(), "enable probes")
 
 	dnsServerAddr := &net.UDPAddr{IP: net.ParseIP(serverIP), Port: 53}
 
