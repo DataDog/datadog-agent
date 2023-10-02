@@ -8,4 +8,4 @@
 ---
 features:
   - |
-    Allow forcing clusterchecks rebalancing with utilisation.
+    Added a new --force option to the `datadog-cluster-agent clusterchecks rebalance` command that allows you to force clustercheck rebalancing with utilization.
