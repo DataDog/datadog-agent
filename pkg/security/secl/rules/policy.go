@@ -8,11 +8,17 @@ package rules
 
 import (
 	"fmt"
+	"io"
+
 	"github.com/DataDog/datadog-agent/pkg/security/secl/validators"
 	"github.com/hashicorp/go-multierror"
 	"gopkg.in/yaml.v2"
-	"io"
 )
+
+// LoadPolicyOpts defines options for LoadPolicy
+type LoadPolicyOpts struct {
+	GenerateMacro bool
+}
 
 // PolicyDef represents a policy file definition
 type PolicyDef struct {
@@ -141,12 +147,16 @@ LOOP:
 }
 
 // LoadPolicy load a policy
-func LoadPolicy(name string, source string, reader io.Reader, macroFilters []MacroFilter, ruleFilters []RuleFilter) (*Policy, error) {
+func LoadPolicy(name string, source string, reader io.Reader, macroFilters []MacroFilter, ruleFilters []RuleFilter, opts LoadPolicyOpts) (*Policy, error) {
 	var def PolicyDef
 
 	decoder := yaml.NewDecoder(reader)
 	if err := decoder.Decode(&def); err != nil {
 		return nil, &ErrPolicyLoad{Name: name, Err: err}
+	}
+
+	if opts.GenerateMacro {
+		ReMacro(&def)
 	}
 
 	return parsePolicyDef(name, source, &def, macroFilters, ruleFilters)

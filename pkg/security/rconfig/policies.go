@@ -113,7 +113,7 @@ func (r *RCPolicyProvider) LoadPolicies(macroFilters []rules.MacroFilter, ruleFi
 	load := func(id string, cfg []byte) {
 		reader := bytes.NewReader(cfg)
 
-		policy, err := rules.LoadPolicy(id, rules.PolicyProviderTypeRC, reader, macroFilters, ruleFilters)
+		policy, err := rules.LoadPolicy(id, rules.PolicyProviderTypeRC, reader, macroFilters, ruleFilters, rules.LoadPolicyOpts{GenerateMacro: true})
 		if err != nil {
 			errs = multierror.Append(errs, err)
 		} else {
