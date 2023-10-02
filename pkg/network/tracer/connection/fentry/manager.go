@@ -45,6 +45,7 @@ func initManager(mgr *manager.Manager, config *config.Config, closedHandler *ebp
 				},
 			},
 		}
+		_ = mgr.RingBuffers[0].Start()
 	} else {
 		mgr.PerfMaps = []*manager.PerfMap{
 			{

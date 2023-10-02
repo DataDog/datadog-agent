@@ -11,13 +11,14 @@ import (
 	"os"
 	"strings"
 
-	"github.com/cilium/ebpf/features"
 	ebpfCore "github.com/cilium/ebpf"
+	"github.com/cilium/ebpf/features"
+
+	manager "github.com/DataDog/ebpf-manager"
 
 	"github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/ebpf/probes"
-	manager "github.com/DataDog/ebpf-manager"
 )
 
 const (
@@ -105,6 +106,10 @@ func initManager(mgr *manager.Manager, config *config.Config, closedHandler *ebp
 					RingBufferSize: 16 * 256 * os.Getpagesize(),
 				},
 			},
+		}
+		err := mgr.RingBuffers[0].Start()
+		if err != nil {
+			return err
 		}
 	} else {
 		mgr.PerfMaps = []*manager.PerfMap{
