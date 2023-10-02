@@ -41,12 +41,12 @@ type cfg struct {
 	warnings *pkgconfig.Warnings
 }
 
-func generateNewConfig(deps dependencies, failIfApiKeyMissing bool) (Component, error) {
+func generateNewConfig(deps dependencies, failIfAPIKeyMissing bool) (Component, error) {
 	tracecfg, err := setupConfig(deps, "")
 
 	if err != nil {
 		// Allow main Agent to start with missing API key
-		if !(err == traceconfig.ErrMissingAPIKey && !failIfApiKeyMissing) {
+		if !(err == traceconfig.ErrMissingAPIKey && !failIfAPIKeyMissing) {
 			return nil, err
 		}
 	}

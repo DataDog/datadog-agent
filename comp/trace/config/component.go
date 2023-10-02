@@ -52,6 +52,7 @@ var Module = fxutil.Component(
 	fx.Provide(newConfig),
 )
 
+// MainAgentModule defines the fx options for this component for the main Datadog Agent.
 var MainAgentModule = fxutil.Component(
 	fx.Provide(newConfigForMainAgent),
 )
