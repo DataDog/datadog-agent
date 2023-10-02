@@ -13,11 +13,13 @@ import (
 	"unsafe"
 
 	"github.com/cilium/ebpf"
+	"github.com/cilium/ebpf/features"
+
+	manager "github.com/DataDog/ebpf-manager"
 
 	"github.com/DataDog/datadog-agent/pkg/network"
 	netebpf "github.com/DataDog/datadog-agent/pkg/network/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/network/ebpf/probes"
-	manager "github.com/DataDog/ebpf-manager"
 )
 
 const defaultExpiredStateInterval = 60 * time.Second
@@ -172,7 +174,13 @@ func (p *perfBatchManager) cleanupExpiredState(now time.Time) {
 }
 
 func newConnBatchManager(mgr *manager.Manager) (*perfBatchManager, error) {
-	connCloseEventMap, _, err := mgr.GetMap(probes.ConnCloseEventMap)
+	var connCloseEventMap *ebpf.Map
+	var err error
+	if features.HaveMapType(ebpf.RingBuf) == nil {
+		connCloseEventMap, _, err = mgr.GetMap(probes.ConnCloseEventMapRing)
+	} else {
+		connCloseEventMap, _, err = mgr.GetMap(probes.ConnCloseEventMapPerf)
+	}
 	if err != nil {
 		return nil, err
 	}

@@ -11,6 +11,9 @@ import (
 	"os"
 	"strings"
 
+	"github.com/cilium/ebpf/features"
+	ebpfCore "github.com/cilium/ebpf"
+
 	"github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/ebpf/probes"
@@ -94,17 +97,28 @@ func initManager(mgr *manager.Manager, config *config.Config, closedHandler *ebp
 		{Name: probes.ClassificationProgsMap},
 		{Name: probes.TCPCloseProgsMap},
 	}
-	mgr.PerfMaps = []*manager.PerfMap{
-		{
-			Map: manager.Map{Name: probes.ConnCloseEventMap},
-			PerfMapOptions: manager.PerfMapOptions{
-				PerfRingBufferSize: 8 * os.Getpagesize(),
-				Watermark:          1,
-				RecordHandler:      closedHandler.RecordHandler,
-				LostHandler:        closedHandler.LostHandler,
-				RecordGetter:       closedHandler.RecordGetter,
+	if features.HaveMapType(ebpfCore.RingBuf) == nil {
+		mgr.RingBuffers = []*manager.RingBuffer{
+			{
+				Map: manager.Map{Name: probes.ConnCloseEventMapRing},
+				RingBufferOptions: manager.RingBufferOptions{
+					RingBufferSize: 16 * 256 * os.Getpagesize(),
+				},
 			},
-		},
+		}
+	} else {
+		mgr.PerfMaps = []*manager.PerfMap{
+			{
+				Map: manager.Map{Name: probes.ConnCloseEventMapPerf},
+				PerfMapOptions: manager.PerfMapOptions{
+					PerfRingBufferSize: 8 * os.Getpagesize(),
+					Watermark:          1,
+					RecordHandler:      closedHandler.RecordHandler,
+					LostHandler:        closedHandler.LostHandler,
+					RecordGetter:       closedHandler.RecordGetter,
+				},
+			},
+		}
 	}
 	for _, funcName := range mainProbes {
 		p := &manager.Probe{

@@ -12,6 +12,7 @@
 #include "cookie.h"
 #include "ip.h"
 #include "port_range.h"
+#include <linux/version.h>
 
 #ifdef COMPILE_CORE
 #define MSG_PEEK 2
@@ -112,11 +113,11 @@ static __always_inline void cleanup_conn(void *ctx, conn_tuple_t *tup, struct so
     // We send the connection outside of a batch anyway. This is likely not as
     // frequent of a case to cause performance issues and avoid cases where
     // we drop whole connections, which impacts things USM connection matching.
-    #if LINUX_VERSION_CODE < KERNEL_VERSION(5, 8, 0)
+    if (LINUX_VERSION_CODE < KERNEL_VERSION(5, 8, 0)) {
         bpf_perf_event_output(ctx, &conn_close_event_perf, cpu, &conn, sizeof(conn));
-    #else
+    } else {
         bpf_ringbuf_output(&conn_close_event_ring, &conn, sizeof(conn), 0);
-    #endif
+    }
 
     if (is_tcp) {
         increment_telemetry_count(unbatched_tcp_close);
@@ -143,11 +144,11 @@ static __always_inline void flush_conn_close_if_full(void *ctx) {
         batch_ptr->id++;
 
         // we cannot use the telemetry macro here because of stack size constraints
-        #if LINUX_VERSION_CODE < KERNEL_VERSION(5, 8, 0)
+        if (LINUX_VERSION_CODE < KERNEL_VERSION(5, 8, 0)) {
             bpf_perf_event_output(ctx, &conn_close_event_perf, cpu, &batch_copy, sizeof(batch_copy));
-        #else
+        } else {
             bpf_ringbuf_output(&conn_close_event_ring, &batch_copy, sizeof(batch_copy), 0);
-        #endif
+        }
     }
 }
 
