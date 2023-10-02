@@ -75,7 +75,7 @@ func (ds *DataScrubber) ContainsSensitiveWord(word string) bool {
 func (ds *DataScrubber) ScrubAnnotationValue(annotationValue string) string {
 	for _, r := range ds.regexSensitiveWordsInAnnotations {
 		if r.MatchString(annotationValue) {
-			return r.ReplaceAllString(annotationValue, `${before_value}"********"`)
+			annotationValue = r.ReplaceAllString(annotationValue, `${before_value}"********"`)
 		}
 	}
 	return annotationValue
