@@ -13,15 +13,16 @@ import (
 	"os/signal"
 	"runtime"
 	"runtime/pprof"
+	"sync"
 	"syscall"
 
+	"github.com/DataDog/datadog-agent/pkg/trace/watchdog"
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/comp/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/pidfile"
 	pkgagent "github.com/DataDog/datadog-agent/pkg/trace/agent"
 	"github.com/DataDog/datadog-agent/pkg/trace/telemetry"
-	"github.com/DataDog/datadog-agent/pkg/trace/watchdog"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -49,6 +50,7 @@ type agent struct {
 	params             *Params
 	shutdowner         fx.Shutdowner
 	telemetryCollector telemetry.TelemetryCollector
+	wg                 sync.WaitGroup
 }
 
 func newAgent(deps dependencies) Component {
@@ -66,6 +68,7 @@ func newAgent(deps dependencies) Component {
 		params:             deps.Params,
 		shutdowner:         deps.Shutdowner,
 		telemetryCollector: telemetryCollector,
+		wg:                 sync.WaitGroup{},
 	}
 
 	deps.Lc.Append(fx.Hook{OnStart: ag.start, OnStop: ag.stop})
@@ -75,11 +78,7 @@ func newAgent(deps dependencies) Component {
 // Provided ctx has a timeout, so it can't be used for gracefully stopping long-running components.
 // This context is cancelled on a deadline, so it would stop the agent after starting it.
 func (ag *agent) start(_ context.Context) error {
-	// Handle stops properly
-	go func() {
-		defer watchdog.LogOnPanic()
-		handleSignal(ag.shutdowner)
-	}()
+	setupShutdown(ag.ctx, ag.shutdowner)
 
 	if ag.params.CPUProfile != "" {
 		f, err := os.Create(ag.params.CPUProfile)
@@ -111,13 +110,17 @@ func (ag *agent) start(_ context.Context) error {
 		return err
 	}
 
-	go ag.Run()
+	ag.wg.Add(1)
+	go func() {
+		ag.Run()
+		ag.wg.Done()
+	}()
 	return nil
 }
 
 func (ag *agent) stop(_ context.Context) error {
 	ag.cancel()
-	ag.Agent.Stop()
+	ag.wg.Wait()
 	stopAgentSidekicks(ag.config)
 	if ag.params.CPUProfile != "" {
 		pprof.StopCPUProfile()
@@ -147,6 +150,8 @@ func (ag *agent) stop(_ context.Context) error {
 
 // handleSignal closes a channel to exit cleanly from routines
 func handleSignal(shutdowner fx.Shutdowner) {
+	defer watchdog.LogOnPanic()
+
 	sigChan := make(chan os.Signal, 1)
 	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM, syscall.SIGPIPE)
 	for signo := range sigChan {
