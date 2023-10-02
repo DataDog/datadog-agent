@@ -22,7 +22,7 @@ import (
 
 // EvaluateRegoRule evaluates the given rule and resolved inputs map against
 // the rule's rego program.
-func EvaluateRegoRule(ctx context.Context, resolvedInputs ResolvedInputs, benchmark *Benchmark, rule *Rule) []*CheckEvent {
+func EvaluateRegoRule(ctx context.Context, resolvedInputs *ResolvedInputs, benchmark *Benchmark, rule *Rule) []*CheckEvent {
 	wrapErr := func(errReason error) []*CheckEvent {
 		err := fmt.Errorf("rego eval error for rule=%s: %w", rule.ID, errReason)
 		return []*CheckEvent{NewCheckError(RegoEvaluator, err, "", "", rule, benchmark)}
@@ -40,7 +40,7 @@ func EvaluateRegoRule(ctx context.Context, resolvedInputs ResolvedInputs, benchm
 		return wrapErr(fmt.Errorf("could not build rego modules: %w", err))
 	}
 
-	input, err := regoast.InterfaceToValue(resolvedInputs)
+	input, err := regoast.InterfaceToValue(resolvedInputs.Data())
 	if err != nil {
 		return wrapErr(fmt.Errorf("could not create input value: %w", err))
 	}
@@ -96,7 +96,7 @@ func EvaluateRegoRule(ctx context.Context, resolvedInputs ResolvedInputs, benchm
 	return events
 }
 
-func newCheckEventFromRegoResult(data interface{}, rule *Rule, resolvedInputs ResolvedInputs, benchmark *Benchmark) *CheckEvent {
+func newCheckEventFromRegoResult(data interface{}, rule *Rule, resolvedInputs *ResolvedInputs, benchmark *Benchmark) *CheckEvent {
 	m, ok := data.(map[string]interface{})
 	if !ok || m == nil {
 		return NewCheckError(RegoEvaluator, fmt.Errorf("failed to cast event"), "", "", rule, benchmark)
@@ -132,7 +132,7 @@ func newCheckEventFromRegoResult(data interface{}, rule *Rule, resolvedInputs Re
 		event = NewCheckEvent(RegoEvaluator, result, eventData, resourceID, resourceType, rule, benchmark)
 	}
 
-	if containerID := resolvedInputs.GetContext().ContainerID; containerID != "" {
+	if containerID := resolvedInputs.Context().ContainerID; containerID != "" {
 		event.Container = &CheckContainerMeta{
 			ContainerID: containerID,
 		}

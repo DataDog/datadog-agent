@@ -6,9 +6,12 @@
 package compliance
 
 import (
+	"crypto/sha256"
+	"encoding/binary"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"hash"
 	"os"
 	"path/filepath"
 	"sort"
@@ -32,6 +35,9 @@ const (
 
 // CheckResult lists the different states of a check result.
 type CheckResult string
+
+// CheckInputsSum holds the checksum of the inputs data used for the check.
+type CheckInputsSum []byte
 
 const (
 	// CheckPassed is used to report successful result of a rule check
@@ -57,7 +63,8 @@ type CheckStatus struct {
 	Framework   string
 	Source      string
 	InitError   error
-	LastEvent   *CheckEvent
+	LastSum     CheckInputsSum
+	LastEvents  []*CheckEvent
 }
 
 // CheckContainerMeta holds metadata related to the container that has been checked.
@@ -330,27 +337,91 @@ type ResolvingContext struct {
 //		Context  *ResolvingContext      `json:"context"`
 //		Resolved map[string]interface{} `json:",inline"`
 //	}
-type ResolvedInputs map[string]interface{}
+type ResolvedInputs struct {
+	m map[string]interface{}
 
-// GetContext returns the ResolvingContext associated with this resolved
+	h        hash.Hash
+	hinvalid bool
+}
+
+// NewResolvedInputs builds a ResolvedInputs map.
+func NewResolvedInputs() *ResolvedInputs {
+	return &ResolvedInputs{
+		m: make(map[string]interface{}),
+		h: sha256.New(),
+	}
+}
+
+// Data returns the inner content map holding the actual data.
+func (r *ResolvedInputs) Data() map[string]interface{} {
+	return r.m
+}
+
+// Context returns the ResolvingContext associated with this resolved
 // inputs.
-func (r ResolvedInputs) GetContext() *ResolvingContext {
-	c := r["context"].(ResolvingContext)
+func (r *ResolvedInputs) Context() *ResolvingContext {
+	c := r.m["context"].(ResolvingContext)
 	return &c
 }
 
-// NewResolvedInputs builds a ResolvedInputs map from the given resolving
-// context and generic resolved data.
-func NewResolvedInputs(resolvingContext ResolvingContext, resolved map[string]interface{}) (ResolvedInputs, error) {
-	ri := make(ResolvedInputs, len(resolved)+1)
-	for k, v := range resolved {
-		if k == "context" {
-			return nil, fmt.Errorf("NewResolvedInputs: \"context\" is a reserved keyword")
-		}
-		ri[k] = v
+// HashSum returns a checksum of the constructed resolved inputs map. Check
+// the second return value for checksum validity.
+func (r *ResolvedInputs) HashSum() (CheckInputsSum, bool) {
+	if r.hinvalid {
+		return nil, false
 	}
-	ri["context"] = resolvingContext
-	return ri, nil
+	return r.h.Sum(nil), true
+}
+
+// Put adds a new property to the resolved inputs map. "context" key is
+// reserved and should not be used (see SetResolvingContext).
+func (r *ResolvedInputs) Put(tagName string, value interface{}) error {
+	if tagName == "context" {
+		return fmt.Errorf("input with tag 'context' is reserved")
+	}
+	if _, ok := r.m[tagName]; ok {
+		return fmt.Errorf("input with tag %q already set", tagName)
+	}
+	r.m[tagName] = value
+	return nil
+}
+
+// SetResolvingContext updates the "context" key with given resolving context.
+func (r *ResolvedInputs) SetResolvingContext(resolvingContext ResolvingContext) {
+	r.m["context"] = resolvingContext
+}
+
+func (r *ResolvedInputs) markHashInvalid() {
+	r.hinvalid = true
+}
+
+func (r *ResolvedInputs) hashBytes(slice []byte) []byte {
+	r.h.Write(slice)
+	return slice
+}
+
+func (r *ResolvedInputs) hashStrings(slice []string) []string {
+	for _, s := range slice {
+		r.hashString(s)
+	}
+	return slice
+}
+
+func (r *ResolvedInputs) hashString(s string) string {
+	r.h.Write([]byte(s))
+	return s
+}
+
+func (r *ResolvedInputs) hashInt(i int) int {
+	r.hashUint64(uint64(i))
+	return i
+}
+
+func (r *ResolvedInputs) hashUint64(i uint64) uint64 {
+	var b [8]byte
+	binary.LittleEndian.PutUint64(b[:], i)
+	r.h.Write(b[:])
+	return i
 }
 
 // Benchmark represents a set of rules that have a common identity, typically

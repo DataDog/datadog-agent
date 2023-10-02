@@ -282,7 +282,7 @@ func newFakeResolver(regoInputPath string) compliance.Resolver {
 	return &fakeResolver{regoInputPath}
 }
 
-func (r *fakeResolver) ResolveInputs(ctx context.Context, rule *compliance.Rule) (compliance.ResolvedInputs, error) {
+func (r *fakeResolver) ResolveInputs(ctx context.Context, rule *compliance.Rule) (*compliance.ResolvedInputs, error) {
 	var fixtures map[string]map[string]interface{}
 	data, err := os.ReadFile(r.regoInputPath)
 	if err != nil {
@@ -300,7 +300,14 @@ func (r *fakeResolver) ResolveInputs(ctx context.Context, rule *compliance.Rule)
 		return nil, err
 	}
 	delete(fixture, "context")
-	return compliance.NewResolvedInputs(resolvingContext, fixture)
+	resolved := compliance.NewResolvedInputs()
+	resolved.SetResolvingContext(resolvingContext)
+	for k, v := range fixture {
+		if err := resolved.Put(k, v); err != nil {
+			return nil, err
+		}
+	}
+	return resolved, nil
 }
 
 func jsonRountrip(i interface{}, v interface{}) error {
