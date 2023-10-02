@@ -30,7 +30,7 @@ require (
 	github.com/shirou/gopsutil/v3 v3.23.8
 	github.com/stretchr/testify v1.8.4
 	github.com/tinylib/msgp v1.1.8
-	github.com/vmihailenco/msgpack/v4 v4.3.12
+	github.com/vmihailenco/msgpack/v4 v4.3.13
 	go.opentelemetry.io/collector/pdata v1.0.0-rcv0014
 	go.opentelemetry.io/collector/semconv v0.83.0
 	go.uber.org/atomic v1.11.0
