@@ -31,7 +31,7 @@ func installClusterCheckEndpoints(r *mux.Router, sc clusteragent.ServerContext) 
 	r.HandleFunc("/clusterchecks", api.WithTelemetryWrapper("getState", getState(sc))).Methods("GET")
 }
 
-// Payload struct is for the JSON messages received from a client POST request
+// RebalancePostPayload struct is for the JSON messages received from a client POST request
 type RebalancePostPayload struct {
 	Force bool `json:"force"`
 }

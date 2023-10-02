@@ -1560,7 +1560,7 @@ func TestRebalanceUsingUtilization(t *testing.T) {
 		"digest2": "node1",
 	}
 
-	checksMoved := testDispatcher.rebalanceUsingUtilization()
+	checksMoved := testDispatcher.rebalanceUsingUtilization(false)
 
 	requireNotLocked(t, testDispatcher.store)
 
@@ -1592,7 +1592,7 @@ func TestRebalanceUsingUtilization(t *testing.T) {
 
 	// The next rebalance should not move anything because there were not any
 	// changes in the checks stats.
-	checksMoved = testDispatcher.rebalanceUsingUtilization()
+	checksMoved = testDispatcher.rebalanceUsingUtilization(false)
 	assert.Empty(t, checksMoved)
 }
 
