@@ -15,7 +15,6 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"strings"
 	"time"
 	"unsafe"
 
@@ -191,40 +190,10 @@ func getServiceStatus(fb flaretypes.FlareBuilder) error {
 			}
 			defer manager.Disconnect()
 
-			// Returns a string slice with all running services. Does not return Kernel services only SERVICE_WIN32
-			list, err := manager.ListServices()
+			ddServices, err := getDDServices(manager)
 			if err != nil {
-				log.Warnf("Error getting list of running services %v", err)
+				log.Warnf("Error getting service information %v", err)
 				return nil, err
-			}
-
-			ddServices := []serviceInfo{}
-
-			for _, serviceName := range list {
-				if strings.HasPrefix(serviceName, "datadog") {
-					srvc, err := winutil.OpenService(manager, serviceName, windows.GENERIC_READ)
-					if err != nil {
-						log.Warnf("Error Opening Service %v %v", serviceName, err)
-					} else {
-						conf2, err := getServiceInfo(srvc)
-						if err != nil {
-							log.Warnf("Error getting info for %v: %v", serviceName, err)
-						}
-						ddServices = append(ddServices, conf2)
-					}
-				}
-			}
-
-			// Getting ddnpm service info separately
-			ddnpm, err := winutil.OpenService(manager, "ddnpm", windows.GENERIC_READ)
-			if err != nil {
-				log.Warnf("Error Opening Service ddnpm %v", err)
-			} else {
-				ddnpmConf, err := getServiceInfo(ddnpm)
-				if err != nil {
-					log.Warnf("Error getting info for ddnpm: %v", err)
-				}
-				ddServices = append(ddServices, ddnpmConf)
 			}
 
 			ddJSON, err := json.MarshalIndent(ddServices, "", "  ")

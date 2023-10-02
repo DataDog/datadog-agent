@@ -8,7 +8,7 @@
 package flare
 
 import (
-	"fmt"
+	"strings"
 	"syscall"
 	"time"
 	"unsafe"
@@ -16,6 +16,9 @@ import (
 	"golang.org/x/sys/windows"
 	"golang.org/x/sys/windows/svc"
 	"golang.org/x/sys/windows/svc/mgr"
+
+	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/winutil"
 )
 
 const (
@@ -28,7 +31,7 @@ type serviceInfo struct {
 	ProcessID             uint32
 	Config                queryServiceConfig
 	DependentServices     []string
-	TriggersCount         uint32
+	TriggersCount         *uint32
 	ServiceFailureActions serviceFailureActions
 }
 
@@ -65,31 +68,30 @@ func getFailureActions(s *mgr.Service) (serviceFailureActions, error) {
 	sfa := serviceFailureActions{}
 
 	var err error
-	var err1 error
 
-	sfa.ResetPeriod, err1 = s.ResetPeriod()
-	if err1 != nil {
-		err = fmt.Errorf("%v, ResetPeriod: %v", err, err1)
+	sfa.ResetPeriod, err = s.ResetPeriod()
+	if err != nil {
+		log.Warnf("Error getting ResetPeriod for %s: %v", s.Name, err)
 	}
 
-	sfa.RebootMessage, err1 = s.RebootMessage()
-	if err1 != nil {
-		err = fmt.Errorf("%v, RebootMessage: %v", err, err1)
+	sfa.RebootMessage, err = s.RebootMessage()
+	if err != nil {
+		log.Warnf("Error getting RebootMessage for %s: %v", s.Name, err)
 	}
 
-	sfa.RecoveryCommand, err1 = s.RecoveryCommand()
-	if err1 != nil {
-		err = fmt.Errorf("%v, RecoveryCommand: %v", err, err1)
+	sfa.RecoveryCommand, err = s.RecoveryCommand()
+	if err != nil {
+		log.Warnf("Error getting RecoveryCommandfor %s: %v", s.Name, err)
 	}
 
-	sfa.FailureActionsOnNonCrashFailures, err1 = s.RecoveryActionsOnNonCrashFailures()
-	if err1 != nil {
-		err = fmt.Errorf("%v, FailureActionsOnNonCrashFailure: %v", err, err1)
+	sfa.FailureActionsOnNonCrashFailures, err = s.RecoveryActionsOnNonCrashFailures()
+	if err != nil {
+		log.Warnf("Error getting FailureActionsOnNonCrashFailuresfor %s: %v", s.Name, err)
 	}
 
-	recoveryActionSlice, err1 := s.RecoveryActions()
-	if err1 != nil {
-		err = fmt.Errorf("%v, RecoveryActions: %v", err, err1)
+	recoveryActionSlice, err := s.RecoveryActions()
+	if err != nil {
+		log.Warnf("Error getting RecoveryActionsfor %s: %v", s.Name, err)
 	}
 
 	for _, act := range recoveryActionSlice {
@@ -103,6 +105,7 @@ func getFailureActions(s *mgr.Service) (serviceFailureActions, error) {
 	return sfa, err
 }
 
+// Converting returned enums to readable strings
 func serviceTypeToString(serviceType uint32) string {
 	switch serviceType {
 	case windows.SERVICE_KERNEL_DRIVER:
@@ -201,36 +204,35 @@ func getServiceInfo(s *mgr.Service) (serviceInfo, error) {
 	srvinfo.ServiceName = s.Name
 
 	var err error
-	var err1 error
 
-	conf, err1 := s.Config()
-	if err1 != nil {
-		err = fmt.Errorf("%v, Config: %v", err, err1)
+	conf, err := s.Config()
+	if err != nil {
+		log.Warnf("Error getting Config for %s: %v", s.Name, err)
 	} else {
 		srvinfo.Config = convertConfigToQueryServiceConfig(conf)
 	}
 
-	srvinfo.TriggersCount, err1 = serviceTriggerCount(s)
-	if err1 != nil {
-		err = fmt.Errorf("%v, ServiceTriggerCount: %v", err, err1)
+	srvinfo.TriggersCount, err = serviceTriggerCount(s)
+	if err != nil {
+		log.Warnf("Error getting TriggersCount for %s: %v", s.Name, err)
 	}
 
-	srvinfo.ServiceFailureActions, err1 = getFailureActions(s)
-	if err1 != nil {
-		err = fmt.Errorf("%v, GetFailureActions: %v", err, err1)
+	srvinfo.ServiceFailureActions, err = getFailureActions(s)
+	if err != nil {
+		log.Warnf("Error getting ServiceFailureActions for %s: %v", s.Name, err)
 	}
 
-	srvcStatus, err1 := s.Query()
-	if err1 != nil {
-		err = fmt.Errorf("%v, Query: %v", err, err1)
+	srvcStatus, err := s.Query()
+	if err != nil {
+		log.Warnf("Error getting Service Status for %s: %v", s.Name, err)
 	} else {
 		srvinfo.ServiceState = serviceStatusToString(srvcStatus.State)
 		srvinfo.ProcessID = srvcStatus.ProcessId
 	}
 
-	srvinfo.DependentServices, err1 = s.ListDependentServices(svc.AnyActivity)
-	if err1 != nil {
-		err = fmt.Errorf("%v, ListDependentServices: %v", err, err1)
+	srvinfo.DependentServices, err = s.ListDependentServices(svc.AnyActivity)
+	if err != nil {
+		log.Warnf("Error getting DependentServices for %s: %v", s.Name, err)
 	}
 
 	return srvinfo, err
@@ -275,12 +277,52 @@ type serviceTriggerInfo struct {
 	Reserved      *uint8
 }
 
-func serviceTriggerCount(s *mgr.Service) (uint32, error) {
+func serviceTriggerCount(s *mgr.Service) (*uint32, error) {
 	b, err := queryServiceConfig2Local(s, windows.SERVICE_CONFIG_TRIGGER_INFO)
 	if err != nil {
-		return 0, err
+		return nil, err
 	}
 	p := (*serviceTriggerInfo)(unsafe.Pointer(unsafe.SliceData(b)))
 
-	return p.TriggersCount, nil
+	return &p.TriggersCount, nil
+}
+
+func getDDServices(manager *mgr.Mgr) ([]serviceInfo, error) {
+	ddServices := []serviceInfo{}
+
+	// Returns a string slice with all running services. Does not return Kernel services only SERVICE_WIN32
+	list, err := manager.ListServices()
+	if err != nil {
+		log.Warnf("Error getting list of running services %v", err)
+		return nil, err
+	}
+
+	for _, serviceName := range list {
+		if strings.HasPrefix(serviceName, "datadog") {
+			srvc, err := winutil.OpenService(manager, serviceName, windows.GENERIC_READ)
+			if err != nil {
+				log.Warnf("Error Opening Service %s: %v", serviceName, err)
+			} else {
+				conf2, err := getServiceInfo(srvc)
+				if err != nil {
+					log.Warnf("Error getting info for %s: %v", serviceName, err)
+				}
+				ddServices = append(ddServices, conf2)
+			}
+		}
+	}
+
+	// Getting ddnpm service info separately
+	ddnpm, err := winutil.OpenService(manager, "ddnpm", windows.GENERIC_READ)
+	if err != nil {
+		log.Warnf("Error Opening Service ddnpm %v", err)
+	} else {
+		ddnpmConf, err := getServiceInfo(ddnpm)
+		if err != nil {
+			log.Warnf("Error getting info for ddnpm: %v", err)
+		}
+		ddServices = append(ddServices, ddnpmConf)
+	}
+
+	return ddServices, err
 }

@@ -38,7 +38,7 @@ func TestWindowsService(t *testing.T) {
 	assert.Contains(t, evtlogConf.Config.ServiceType, "Win32ShareProcess", "Expected EventLog to have service type Win32ShareProcess")
 
 	var zero uint32
-	assert.Equal(t, evtlogConf.TriggersCount, zero, "Expected EventLog to have trigger count 0")
+	assert.Equal(t, *evtlogConf.TriggersCount, zero, "Expected EventLog to have trigger count 0")
 
 	assert.NotNil(t, evtlogConf.ServiceFailureActions.RecoveryActions, "Expected EventLog to have Recovery Actions")
 	assert.NotContains(t, evtlogConf.ServiceState, "Unknown", "Expected EventLog to have a valid State")
