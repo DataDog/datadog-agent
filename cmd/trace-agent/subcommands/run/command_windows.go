@@ -8,10 +8,11 @@
 package run
 
 import (
-	"github.com/spf13/cobra"
+	"context"
 
 	"github.com/DataDog/datadog-agent/cmd/trace-agent/subcommands"
 	"github.com/DataDog/datadog-agent/pkg/util/winutil/servicemain"
+	"github.com/spf13/cobra"
 )
 
 type RunParams struct {
