@@ -838,7 +838,7 @@ func TestInjectAll(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			targetNamespaces = tt.targetNamespaces
-			got := injectAll(tt.ns, "gcr.io/datadoghq")
+			got := getAllLibsToInject(tt.ns, "gcr.io/datadoghq")
 			require.EqualValues(t, tt.want, got)
 		})
 	}
