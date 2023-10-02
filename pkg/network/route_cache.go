@@ -43,7 +43,7 @@ type routeTTL struct {
 }
 
 type routeCache struct {
-	sync.Mutex
+	mu     sync.Mutex
 	cache  *lru.Cache
 	router Router
 	ttl    time.Duration
@@ -124,18 +124,18 @@ func newRouteCache(size int, router Router, ttl time.Duration) *routeCache {
 }
 
 func (c *routeCache) Close() {
-	c.Lock()
-	defer c.Unlock()
+	c.mu.Lock()
+	defer c.mu.Unlock()
 
 	c.cache.Clear()
 	c.router.Close()
 }
 
 func (c *routeCache) Get(source, dest util.Address, netns uint32) (Route, bool) {
-	c.Lock()
+	c.mu.Lock()
 	defer func() {
 		routeCacheTelemetry.size.Set(float64(c.cache.Len()))
-		c.Unlock()
+		c.mu.Unlock()
 	}()
 
 	routeCacheTelemetry.lookups.Inc()
@@ -187,7 +187,7 @@ type ifEntry struct {
 }
 
 type netlinkRouter struct {
-	sync.Mutex
+	mu       sync.Mutex
 	rootNs   uint32
 	ioctlFD  int
 	ifcache  *lru.Cache
@@ -235,8 +235,8 @@ func NewNetlinkRouter(cfg *config.Config) (Router, error) {
 }
 
 func (n *netlinkRouter) Close() {
-	n.Lock()
-	defer n.Unlock()
+	n.mu.Lock()
+	defer n.mu.Unlock()
 
 	n.ifcache.Clear()
 	unix.Close(n.ioctlFD)
@@ -245,8 +245,8 @@ func (n *netlinkRouter) Close() {
 }
 
 func (n *netlinkRouter) Route(source, dest util.Address, netns uint32) (Route, bool) {
-	n.Lock()
-	defer n.Unlock()
+	n.mu.Lock()
+	defer n.mu.Unlock()
 
 	if n.closed {
 		return Route{}, false
