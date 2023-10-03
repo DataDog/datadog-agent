@@ -21,6 +21,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/pointer"
 	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
 )
 
@@ -186,6 +187,7 @@ func (c *collector) parsePodContainers(
 		var containerSecurityContext *workloadmeta.ContainerSecurityContext
 		var env map[string]string
 		var ports []workloadmeta.ContainerPort
+		var resources workloadmeta.ContainerResources
 
 		// When running on docker, the image ID contains a prefix that's not
 		// included in other runtimes. Remove it for consistency.
@@ -215,6 +217,7 @@ func (c *collector) parsePodContainers(
 		containerSpec := findContainerSpec(container.Name, containerSpecs)
 		if containerSpec != nil {
 			env = extractEnvFromSpec(containerSpec.Env)
+			resources = extractResources(containerSpec)
 
 			podContainer.Image, err = workloadmeta.NewContainerImage(imageID, containerSpec.Image)
 			if err != nil {
@@ -271,6 +274,7 @@ func (c *collector) parsePodContainers(
 				Runtime:         workloadmeta.ContainerRuntime(runtime),
 				State:           containerState,
 				Owner:           parent,
+				Resources:       resources,
 			},
 		})
 	}
@@ -330,16 +334,6 @@ func extractContainerSecurityContext(spec *kubelet.ContainerSpec) *workloadmeta.
 	}
 }
 
-func findContainerSpec(name string, specs []kubelet.ContainerSpec) *kubelet.ContainerSpec {
-	for _, spec := range specs {
-		if spec.Name == name {
-			return &spec
-		}
-	}
-
-	return nil
-}
-
 func extractEnvFromSpec(envSpec []kubelet.EnvVar) map[string]string {
 	env := make(map[string]string)
 	mappingFunc := expansion.MappingFuncFor(env)
@@ -364,6 +358,25 @@ func extractEnvFromSpec(envSpec []kubelet.EnvVar) map[string]string {
 	}
 
 	return env
+}
+
+func extractResources(spec *kubelet.ContainerSpec) workloadmeta.ContainerResources {
+	resources := workloadmeta.ContainerResources{}
+	if cpuReq, found := spec.Resources.Requests[kubelet.ResourceCPU]; found {
+		resources.CPURequest = pointer.Ptr(cpuReq.AsApproximateFloat64() * 100) // For 100Mi, AsApproximate returns 0.1, we return 10%
+	}
+
+	return resources
+}
+
+func findContainerSpec(name string, specs []kubelet.ContainerSpec) *kubelet.ContainerSpec {
+	for _, spec := range specs {
+		if spec.Name == name {
+			return &spec
+		}
+	}
+
+	return nil
 }
 
 func (c *collector) parseExpires(expiredIDs []string) []workloadmeta.CollectorEvent {

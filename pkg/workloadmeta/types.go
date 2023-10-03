@@ -418,6 +418,20 @@ func (c ContainerPort) String(verbose bool) string {
 	return sb.String()
 }
 
+// ContainerResources is resources requests or limitations for a container
+type ContainerResources struct {
+	CPURequest *float64 // Percentage 0-100*numCPU (aligned with CPU Limit from metrics provider)
+}
+
+// String returns a string representation of ContainerPort.
+func (cr ContainerResources) String(verbose bool) string {
+	var sb strings.Builder
+	if cr.CPURequest != nil {
+		_, _ = fmt.Fprintln(&sb, "TargetCPUUsage:", *cr.CPURequest)
+	}
+	return sb.String()
+}
+
 // OrchestratorContainer is a reference to a Container with
 // orchestrator-specific data attached to it.
 type OrchestratorContainer struct {
@@ -449,6 +463,7 @@ type Container struct {
 	CollectorTags   []string
 	Owner           *EntityID
 	SecurityContext *ContainerSecurityContext
+	Resources       ContainerResources
 }
 
 // GetID implements Entity#GetID.
@@ -488,6 +503,9 @@ func (c Container) String(verbose bool) string {
 	_, _ = fmt.Fprintln(&sb, "----------- Container Info -----------")
 	_, _ = fmt.Fprintln(&sb, "Runtime:", c.Runtime)
 	_, _ = fmt.Fprint(&sb, c.State.String(verbose))
+
+	_, _ = fmt.Fprintln(&sb, "----------- Resources -----------")
+	_, _ = fmt.Fprint(&sb, c.Resources.String(verbose))
 
 	if verbose {
 		_, _ = fmt.Fprintln(&sb, "Allowed env variables:", filterAndFormatEnvVars(c.EnvVars))

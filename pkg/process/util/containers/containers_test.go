@@ -91,6 +91,9 @@ func TestGetContainers(t *testing.T) {
 			CreatedAt: testTime.Add(-10 * time.Minute),
 			StartedAt: testTime,
 		},
+		Resources: workloadmeta.ContainerResources{
+			CPURequest: pointer.Ptr(500.0),
+		},
 	})
 	fakeTagger.SetTags(containers.BuildTaggerEntityName("cID1"), "fake", []string{"low:common"}, []string{"orch:orch1"}, []string{"id:container1"}, nil)
 
@@ -306,6 +309,7 @@ func TestGetContainers(t *testing.T) {
 			Type:         "containerd",
 			Id:           "cID1",
 			CpuLimit:     50,
+			CpuRequest:   500,
 			MemoryLimit:  42000,
 			State:        process.ContainerState_running,
 			Health:       process.ContainerHealth_healthy,
@@ -503,6 +507,7 @@ func TestGetContainers(t *testing.T) {
 			Type:         "containerd",
 			Id:           "cID1",
 			CpuLimit:     50,
+			CpuRequest:   500,
 			MemoryLimit:  42000,
 			State:        process.ContainerState_running,
 			Health:       process.ContainerHealth_healthy,
