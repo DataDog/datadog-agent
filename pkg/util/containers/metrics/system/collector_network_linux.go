@@ -17,8 +17,8 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/util/containers/metrics/provider"
-	"github.com/DataDog/datadog-agent/pkg/util/module/filesystem"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/module/filesystem"
 	systemutils "github.com/DataDog/datadog-agent/pkg/util/system"
 )
 

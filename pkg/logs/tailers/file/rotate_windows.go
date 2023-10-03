@@ -8,8 +8,8 @@
 package file
 
 import (
-	"github.com/DataDog/datadog-agent/pkg/util/module/filesystem"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/module/filesystem"
 )
 
 // DidRotate returns true if the file has been log-rotated.

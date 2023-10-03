@@ -8,8 +8,8 @@ package path
 import (
 	"path/filepath"
 
-	"github.com/DataDog/datadog-agent/pkg/util/module/executable"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/module/executable"
 	"github.com/DataDog/datadog-agent/pkg/util/winutil"
 
 	"golang.org/x/sys/windows/registry"

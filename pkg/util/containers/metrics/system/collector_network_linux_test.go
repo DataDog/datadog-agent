@@ -15,8 +15,8 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/DataDog/datadog-agent/pkg/util/containers/metrics/provider"
-	"github.com/DataDog/datadog-agent/pkg/util/pointer"
 	"github.com/DataDog/datadog-agent/pkg/util/module/testutil"
+	"github.com/DataDog/datadog-agent/pkg/util/pointer"
 )
 
 func TestCollectNetworkStats(t *testing.T) {

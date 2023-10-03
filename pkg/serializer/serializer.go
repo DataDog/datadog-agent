@@ -26,8 +26,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/serializer/marshaler"
 	"github.com/DataDog/datadog-agent/pkg/serializer/split"
 	"github.com/DataDog/datadog-agent/pkg/serializer/types"
-	"github.com/DataDog/datadog-agent/pkg/util/module/compression"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/module/compression"
 	"github.com/DataDog/datadog-agent/pkg/version"
 
 	"github.com/benbjohnson/clock"
