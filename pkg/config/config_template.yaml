@@ -497,7 +497,7 @@ api_key:
 
 ## @param inventories_checks_configuration_enabled - boolean - optional - default: true
 ## @env DD_INVENTORIES_CHECKS_CONFIGURATION_ENABLED - boolean - optional - default: true
-## By default the Agent sends its integrations and checks configuration to Datadog to be displayed in the UI.
+## By default the Agent sends the configuration for integrations being run to Datadog to be displayed in the UI.
 ##
 ## The Agent integration configurations are scrubbed of any sensitive information.
 #
