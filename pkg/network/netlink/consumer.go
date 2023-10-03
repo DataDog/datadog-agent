@@ -337,37 +337,35 @@ func (c *Consumer) dumpTable(family uint8, output chan Event, ns netns.NsHandle)
 	})
 }
 
-func (c *Consumer) FetchDummyEntry() error {
-	ns := c.rootNetNs
-	return kernel.WithNS(ns, func() error {
-		sock, err := NewSocket(ns)
-		if err != nil {
-			return fmt.Errorf("could not open netlink socket for net ns %d: %w", int(ns), err)
-		}
-		defer sock.Close()
+func FetchDummyEntry(ns netns.NsHandle) error {
+	sock, err := NewSocket(ns)
+	if err != nil {
+		return fmt.Errorf("could not open netlink socket for net ns %d: %w", int(ns), err)
+	}
+	defer sock.Close()
 
-		conn := netlink.NewConn(sock, sock.pid)
-		defer func() {
-			_ = conn.Close()
-		}()
+	conn := netlink.NewConn(sock, sock.pid)
+	defer func() {
+		_ = conn.Close()
+	}()
 
-		dummyTupleData := []byte{0x2, 0, 0, 0, 0, 0, 0}
+	dummyTupleData := []byte{0x2, 0, 0, 0, 0, 0, 0}
 
-		req := netlink.Message{
-			Header: netlink.Header{
-				Type:  netlink.HeaderType((unix.NFNL_SUBSYS_CTNETLINK << 8) | ipctnlMsgCtGet),
-				Flags: netlink.Request,
-			},
-			Data: dummyTupleData,
-		}
+	req := netlink.Message{
+		Header: netlink.Header{
+			Type:  netlink.HeaderType((unix.NFNL_SUBSYS_CTNETLINK << 8) | ipctnlMsgCtGet),
+			Flags: netlink.Request,
+		},
+		Data: dummyTupleData,
+	}
 
-		_, err = conn.Send(req)
-		if err != nil {
-			log.Warnf("Error while trying to load dummy entry from netlink: %v", err)
-			return nil
-		}
-		return nil
-	})
+	_, err = conn.Send(req)
+	_, _, err = sock.ReceiveAndDiscard()
+	if err != nil {
+		log.Warnf("Error while trying to load dummy entry from netlink: %v", err)
+		return err
+	}
+	return nil
 }
 
 // DumpAndDiscardTable sends a message to netlink to dump all entries present in the Conntrack table. It
