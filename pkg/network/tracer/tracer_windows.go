@@ -204,6 +204,10 @@ func (t *Tracer) RegisterClient(clientID string) error {
 	return nil
 }
 
+func (t *Tracer) removeClient(clientID string) {
+	t.state.RemoveClient(clientID)
+}
+
 func (t *Tracer) getConnTelemetry() map[network.ConnTelemetryType]int64 {
 	return map[network.ConnTelemetryType]int64{
 		network.MonotonicDNSPacketsDropped: driver.HandleTelemetry.ReadPacketsSkipped.Load(),
