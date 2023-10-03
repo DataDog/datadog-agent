@@ -127,9 +127,7 @@ func StartServerUDP(t *testing.T, ip net.IP, port int) io.Closer {
 
 	require.EventuallyWithT(t, func(collect *assert.CollectT) {
 		conn := PingUDP(t, ip, port)
-		if conn != nil {
-			conn.Close()
-		}
+		conn.Close()
 	}, 3*time.Second, 10*time.Millisecond, "timed out waiting for UDP server to come up")
 
 	return l
