@@ -303,17 +303,20 @@ func getEventLogConfig(fb flaretypes.FlareBuilder) error {
 		cmd.Stdout = &out
 		err := cmd.Run()
 		if err != nil {
-			log.Warnf("Error getting config for %s: %s", channel, err)
+			log.Warnf("Error getting config for %s: %v", channel, err)
+			return err
 		}
 		_, err = fullOutput.Write(out.Bytes())
 		if err != nil {
 			log.Warnf("Error writing file %v", err)
+			return err
 		}
 
 		// adding a newline character to make the file easier to read
 		_, err = fullOutput.Write([]byte("\n"))
 		if err != nil {
 			log.Warnf("Error writing file %v", err)
+			return err
 		}
 
 		out.Reset()
