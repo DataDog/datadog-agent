@@ -21,6 +21,6 @@ func setupShutdown(ctx context.Context, shutdowner fx.Shutdowner) {
 	go func() {
 		defer watchdog.LogOnPanic()
 		<-ctx.Done()
-		shutdowner.Shutdown()
+		_ = shutdowner.Shutdown()
 	}()
 }
