@@ -112,8 +112,8 @@ func (ag *agent) start(_ context.Context) error {
 
 	ag.wg.Add(1)
 	go func() {
+		defer ag.wg.Done()
 		ag.Run()
-		ag.wg.Done()
 	}()
 	return nil
 }
