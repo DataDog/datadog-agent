@@ -50,11 +50,9 @@ type Mock interface {
 // Module defines the fx options for this component.
 var Module = fxutil.Component(
 	fx.Provide(newConfig),
-)
-
-// MainAgentModule defines the fx options for this component for the main Datadog Agent.
-var MainAgentModule = fxutil.Component(
-	fx.Provide(newConfigForMainAgent),
+	fx.Supply(Params{
+		FailIfAPIKeyMissing: true,
+	}),
 )
 
 // MockModule defines the fx options for the mock component.

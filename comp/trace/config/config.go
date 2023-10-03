@@ -24,7 +24,7 @@ import (
 
 type dependencies struct {
 	fx.In
-
+	Params Params
 	Config coreconfig.Component
 }
 
@@ -41,12 +41,12 @@ type cfg struct {
 	warnings *pkgconfig.Warnings
 }
 
-func generateNewConfig(deps dependencies, failIfAPIKeyMissing bool) (Component, error) {
+func newConfig(deps dependencies) (Component, error) {
 	tracecfg, err := setupConfig(deps, "")
 
 	if err != nil {
 		// Allow main Agent to start with missing API key
-		if !(err == traceconfig.ErrMissingAPIKey && !failIfAPIKeyMissing) {
+		if !(err == traceconfig.ErrMissingAPIKey && !deps.Params.FailIfAPIKeyMissing) {
 			return nil, err
 		}
 	}
@@ -58,14 +58,6 @@ func generateNewConfig(deps dependencies, failIfAPIKeyMissing bool) (Component, 
 	c.SetMaxMemCPU(pkgconfig.IsContainerized())
 
 	return &c, nil
-}
-
-func newConfig(deps dependencies) (Component, error) {
-	return generateNewConfig(deps, true)
-}
-
-func newConfigForMainAgent(deps dependencies) (Component, error) {
-	return generateNewConfig(deps, false)
 }
 
 func (c *cfg) Warnings() *pkgconfig.Warnings {
