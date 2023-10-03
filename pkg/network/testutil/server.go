@@ -34,8 +34,6 @@ func StartServerTCPNs(t testing.TB, ip net.IP, port int, ns string) io.Closer {
 	})
 	require.NoError(t, err)
 
-	// TODO: open a connection and make sure it can be hit?
-
 	return closer
 }
 
