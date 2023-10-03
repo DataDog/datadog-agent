@@ -73,7 +73,7 @@ func extractTraceContextFromSNSSQSEvent(firstRecord events.SQSMessage) *rawTrace
 		return nil
 	}
 
-	ddCustomPayloadValue, ok := messageBody.MessageAttributes["_datadog"]
+	ddCustomPayloadValue, ok := messageBody.MessageAttributes[datadogHeader]
 	if !ok {
 		log.Debug("No Datadog trace context found")
 		return nil
@@ -107,12 +107,20 @@ func extractTraceContextFromPureSqsEvent(ddPayloadValue events.SQSMessageAttribu
 			log.Debug("Error unmarshaling payload value: ", err)
 			return nil
 		}
-	} else {
-		log.Debug("Unsupported DataType in _datadog payload")
-		return nil
+		return &traceData
 	}
 
-	return &traceData
+	if ddPayloadValue.DataType == "Binary" {
+		err := json.Unmarshal(ddPayloadValue.BinaryValue, &traceData) // No need to decode base64 because already decoded
+		if err != nil {
+			log.Debug("Error unmarshaling the decoded binary: ", err)
+			return nil
+		}
+		return &traceData
+	}
+
+	log.Debug("Unsupported DataType in _datadog payload")
+	return nil
 }
 
 func extractTraceContextfromAWSTraceHeader(value string) *rawTraceContext {
