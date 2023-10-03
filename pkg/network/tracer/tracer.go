@@ -252,6 +252,7 @@ func newConntracker(cfg *config.Config, bpfTelemetry *nettelemetry.EBPFTelemetry
 		},
 		retry.Attempts(3),
 		retry.Delay(1*time.Second),
+		retry.LastErrorOnly(true),
 	)
 	if err == nil {
 		return c, nil
