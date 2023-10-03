@@ -180,3 +180,66 @@ deploy_containers_latest-dogstatsd:
   variables:
     IMG_SOURCES: ${SRC_DSD}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-amd64,${SRC_DSD}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-arm64
     IMG_DESTINATIONS: ${DSD_REPOSITORY}:7,${DSD_REPOSITORY}:latest
+
+# On failure manual publish jobs
+
+check_failure_for_manual:
+  stage: deploy_containers
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
+  rules:
+    !reference [.on_deploy_rc_failure]
+  script:
+    - echo "Job in previous stage failed, enabling manual deploy of images"
+
+deploy_containers-a7_internal-rc_on_failure:
+  extends: .deploy_containers-a7-base
+  rules:
+    !reference [.on_deploy_a7_internal_rc_manual]
+  variables:
+    VERSION: 7-rc
+  needs: ["check_failure_for_manual"]
+
+
+deploy_containers-a7-rc_on_failure:
+  extends: .deploy_containers-a7_external
+  rules:
+    !reference [.on_deploy_a7_rc_manual]
+  variables:
+    VERSION: 7-rc
+
+deploy_containers-a7_on_failure:
+  extends: .deploy_containers-a7_external
+  rules:
+    !reference [.on_deploy_a7_rc_manual]
+  needs: ["check_failure_for_manual"]
+
+
+deploy_containers-dogstatsd_on_failure:
+  extends: .docker_publish_job_definition
+  stage: deploy_containers
+  rules:
+    !reference [.on_deploy_a7_rc_manual]
+  dependencies: []
+  before_script:
+    - source /root/.bashrc
+    - export VERSION="$(inv agent.version --major-version 7 --url-safe)"
+    - export IMG_SOURCES="${SRC_DSD}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-amd64,${SRC_DSD}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-arm64"
+    - export IMG_DESTINATIONS="${DSD_REPOSITORY}:${VERSION}"
+  needs: ["check_failure_for_manual"]
+
+
+deploy_containers-a6_on_failure:
+  extends: .deploy_containers-a6-base
+  rules:
+    !reference [.on_deploy_a6_rc_manual]
+  needs: ["check_failure_for_manual"]
+
+
+deploy_containers-a6-rc_on_failure:
+  extends: .deploy_containers-a6-base
+  rules:
+    !reference [.on_deploy_a6_rc_manual]
+  variables:
+    VERSION: 6-rc
+  needs: ["check_failure_for_manual"]
+

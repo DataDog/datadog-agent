@@ -387,6 +387,12 @@ workflow:
   - <<: *if_deploy
     when: on_failure
 
+.on_deploy_rc_failure:
+  - <<: *if_not_deploy
+    when: never
+  - <<: *if_rc_tag_on_beta_repo_branch
+    when: on_failure
+
 .on_deploy_a6:
   - <<: *if_not_version_6
     when: never
@@ -399,6 +405,18 @@ workflow:
     when: never
   - <<: *if_rc_tag_on_beta_repo_branch
     when: on_success
+    variables:
+      AGENT_REPOSITORY: agent
+      DSD_REPOSITORY: dogstatsd
+      IMG_REGISTRIES: public
+
+.on_deploy_a6_rc_manual:
+  - <<: *if_not_version_6
+    when: never
+  - <<: *if_not_deploy
+    when: never
+  - <<: *if_rc_tag_on_beta_repo_branch
+    when: manual
     variables:
       AGENT_REPOSITORY: agent
       DSD_REPOSITORY: dogstatsd
@@ -482,6 +500,18 @@ workflow:
     when: never
   - <<: *if_rc_tag_on_beta_repo_branch
     when: on_success
+    variables:
+      AGENT_REPOSITORY: agent
+      DSD_REPOSITORY: dogstatsd
+      IMG_REGISTRIES: public
+  
+  .on_deploy_a7_rc_manual:
+  - <<: *if_not_version_7
+    when: never
+  - <<: *if_not_deploy
+    when: never
+  - <<: *if_rc_tag_on_beta_repo_branch
+    when: manual
     variables:
       AGENT_REPOSITORY: agent
       DSD_REPOSITORY: dogstatsd
@@ -578,6 +608,19 @@ workflow:
 # agent 7 versions should be published internally using these
 # configurations.
 .on_deploy_a7_internal_rc:
+  - <<: *if_not_version_7
+    when: never
+  - <<: *if_not_deploy
+    when: never
+  - <<: *if_rc_tag_on_beta_repo_branch
+    when: on_success
+    variables:
+      AGENT_REPOSITORY: ci/datadog-agent/agent-release
+      CLUSTER_AGENT_REPOSITORY: ci/datadog-agent/cluster-agent-release
+      DSD_REPOSITORY: ci/datadog-agent/dogstatsd-release
+      IMG_REGISTRIES: internal-aws-ddbuild
+
+.on_deploy_a7_internal_rc_manual:
   - <<: *if_not_version_7
     when: never
   - <<: *if_not_deploy
