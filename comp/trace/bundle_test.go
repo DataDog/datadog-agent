@@ -12,6 +12,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/fx"
 
+	"github.com/DataDog/datadog-agent/comp/core"
 	coreconfig "github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -20,15 +21,7 @@ import (
 // team: agent-apm
 
 func TestBundleDependencies(t *testing.T) {
-	require.NoError(t, fx.ValidateApp(
-		// instantiate all of the core components, since this is not done
-		// automatically.
-		fx.Invoke(func(r config.Component) {}),
-		fx.Invoke(func(coreconfig.Component) {}),
-		// supply the necessary parameters to populate the agent and trace
-		// configs in the agent.
-		fx.Supply(coreconfig.Params{}),
-		Bundle))
+	fxutil.TestBundle(t, Bundle, core.MockBundle)
 }
 
 func TestBundle(t *testing.T) {
@@ -46,6 +39,7 @@ func TestBundle(t *testing.T) {
 		// supply the necessary parameters to populate the agent and trace
 		// configs in the agent.
 		fx.Supply(coreconfig.Params{}),
+		coreconfig.MockModule,
 		MockBundle,
 	))
 	cfg := config.Object()

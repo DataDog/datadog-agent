@@ -14,10 +14,19 @@ import (
 	"go.uber.org/fx"
 )
 
+// Module is a fx.Module for Component with an exported field "Options" to list options
+type Module struct {
+	fx.Option
+	Options []fx.Option
+}
+
 // Component is a simple wrapper around fx.Module that automatically determines
 // the component name.
-func Component(opts ...fx.Option) fx.Option {
-	return fx.Module(getComponentName(), opts...)
+func Component(opts ...fx.Option) Module {
+	return Module{
+		Option:  fx.Module(getComponentName(), opts...),
+		Options: opts,
+	}
 }
 
 // getComponentName gets the component name of the caller's caller.
@@ -37,10 +46,19 @@ func getComponentName() string {
 	panic("must be called from a component (comp/<bundle>/<comp>/component.go)")
 }
 
+// BundleOptions is a fx.Module for Bundle with an exported field "Options" to list options
+type BundleOptions struct {
+	fx.Option
+	Options []fx.Option
+}
+
 // Bundle is a simple wrapper around fx.Module that automatically determines
 // the bundle name.
-func Bundle(opts ...fx.Option) fx.Option {
-	return fx.Module(getBundleName(), opts...)
+func Bundle(opts ...fx.Option) BundleOptions {
+	return BundleOptions{
+		Option:  fx.Module(getBundleName(), opts...),
+		Options: opts,
+	}
 }
 
 // getBundleName gets the bundle name of the caller's caller.
