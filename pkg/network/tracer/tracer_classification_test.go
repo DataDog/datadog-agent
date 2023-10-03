@@ -126,14 +126,10 @@ const (
 	fetchAPIKey   = 1
 
 	produceMaxSupportedVersion = 8
-	produceMaxVersion          = 9
 	produceMinSupportedVersion = 1
-	produceMinVersion          = 0
 
 	fetchMaxSupportedVersion = 11
-	fetchMaxVersion          = 13
 	fetchMinSupportedVersion = 0
-	fetchMinVersion          = 0
 )
 
 func testProtocolClassification(t *testing.T, tr *Tracer, clientHost, targetHost, serverHost string) {
@@ -209,15 +205,10 @@ func testKafkaProtocolClassification(t *testing.T, tr *Tracer, clientHost, targe
 	}
 
 	kafkaTeardown := func(t *testing.T, ctx testContext) {
-		if _, ok := ctx.extras["client"]; !ok {
-			return
-		}
-		client := ctx.extras["client"].(*kafka.Client)
-		defer client.Client.Close()
-		for k, value := range ctx.extras {
-			if strings.HasPrefix(k, "topic_name") {
-				// We're in the teardown phase, and deleting the topic name is a best effort operation. Therefore, we can ignore any errors that may occur.
-				_ = client.DeleteTopic(value.(string))
+		for key, val := range ctx.extras {
+			if strings.HasSuffix(key, "client") {
+				client := val.(*kafka.Client)
+				client.Client.Close()
 			}
 		}
 	}
@@ -340,63 +331,84 @@ func testKafkaProtocolClassification(t *testing.T, tr *Tracer, clientHost, targe
 		},
 	}
 
-	// Adding produce tests in different versions
-	for i := int16(produceMinVersion); i <= produceMaxVersion; i++ {
-		version := kversion.V3_4_0()
-		expectedStack := &protocols.Stack{
-			Application: protocols.Kafka,
-		}
-
-		if i < produceMinSupportedVersion || i > produceMaxSupportedVersion {
-			expectedStack.Application = protocols.Unknown
-		}
-
-		version.SetMaxKeyVersion(produceAPIKey, i)
-		tests = append(tests, protocolClassificationAttributes{
-			name: fmt.Sprintf("produce - version %d", i),
-			context: testContext{
-				serverPort:    kafkaPort,
-				targetAddress: targetAddress,
-				serverAddress: serverAddress,
-				extras: map[string]interface{}{
-					"topic_name": getTopicName(),
-				},
-			},
-			preTracerSetup: func(t *testing.T, ctx testContext) {
-				client, err := kafka.NewClient(kafka.Options{
-					ServerAddress: ctx.targetAddress,
-					Dialer:        defaultDialer,
-					CustomOptions: []kgo.Opt{kgo.MaxVersions(version)},
-				})
-				require.NoError(t, err)
-				ctx.extras["client"] = client
-				require.NoError(t, client.CreateTopic(ctx.extras["topic_name"].(string)))
-			},
-			postTracerSetup: func(t *testing.T, ctx testContext) {
-				client := ctx.extras["client"].(*kafka.Client)
-				record := &kgo.Record{Topic: ctx.extras["topic_name"].(string), Value: []byte("Hello Kafka!")}
-				ctxTimeout, cancel := context.WithTimeout(context.Background(), time.Second*5)
-				defer cancel()
-				require.NoError(t, client.Client.ProduceSync(ctxTimeout, record).FirstErr(), "record had a produce error while synchronously producing")
-			},
-			validation: validateProtocolConnection(expectedStack),
-			teardown:   kafkaTeardown,
-		})
+	versions := []struct {
+		produceVersion int16
+		fetchVersion   int16
+	}{
+		{
+			produceVersion: 0,
+			fetchVersion:   0,
+		},
+		{
+			produceVersion: 1,
+			fetchVersion:   1,
+		},
+		{
+			produceVersion: 2,
+			fetchVersion:   2,
+		},
+		{
+			produceVersion: 3,
+			fetchVersion:   3,
+		},
+		{
+			produceVersion: 4,
+			fetchVersion:   4,
+		},
+		{
+			produceVersion: 5,
+			fetchVersion:   5,
+		},
+		{
+			produceVersion: 6,
+			fetchVersion:   6,
+		},
+		{
+			produceVersion: 7,
+			fetchVersion:   7,
+		},
+		{
+			produceVersion: 8,
+			fetchVersion:   8,
+		},
+		{
+			produceVersion: 9,
+			fetchVersion:   9,
+		},
+		{
+			produceVersion: 9,
+			fetchVersion:   10,
+		},
+		{
+			produceVersion: 9,
+			fetchVersion:   11,
+		},
+		{
+			produceVersion: 9,
+			fetchVersion:   12,
+		},
+		{
+			produceVersion: 9,
+			fetchVersion:   13,
+		},
 	}
-	// Adding fetch tests in different versions
-	for i := int16(fetchMinVersion); i < fetchMaxVersion; i++ {
-		expectedStack := &protocols.Stack{
-			Application: protocols.Kafka,
-		}
+	for _, pair := range versions {
+		produceExpectedStack := &protocols.Stack{Application: protocols.Kafka}
+		fetchExpectedStack := &protocols.Stack{Application: protocols.Kafka}
 
-		if i < fetchMinSupportedVersion || i > fetchMaxSupportedVersion {
-			expectedStack.Application = protocols.Unknown
+		if pair.produceVersion < produceMinSupportedVersion || pair.produceVersion > produceMaxSupportedVersion {
+			produceExpectedStack.Application = protocols.Unknown
+		}
+		if pair.fetchVersion < fetchMinSupportedVersion || pair.fetchVersion > fetchMaxSupportedVersion {
+			fetchExpectedStack.Application = protocols.Unknown
 		}
 
 		version := kversion.V3_4_0()
-		version.SetMaxKeyVersion(fetchAPIKey, i)
+		version.SetMaxKeyVersion(produceAPIKey, pair.produceVersion)
+		version.SetMaxKeyVersion(fetchAPIKey, pair.fetchVersion)
+
 		tests = append(tests, protocolClassificationAttributes{
-			name: fmt.Sprintf("fetch - sanity version %d", i),
+			name: fmt.Sprintf("fetch (v%d); produce (v%d)", pair.fetchVersion, pair.produceVersion),
 			context: testContext{
 				serverPort:    kafkaPort,
 				targetAddress: targetAddress,
@@ -406,28 +418,40 @@ func testKafkaProtocolClassification(t *testing.T, tr *Tracer, clientHost, targe
 				},
 			},
 			preTracerSetup: func(t *testing.T, ctx testContext) {
-				client, err := kafka.NewClient(kafka.Options{
+				produceClient, err := kafka.NewClient(kafka.Options{
 					ServerAddress: ctx.targetAddress,
 					Dialer:        defaultDialer,
 					CustomOptions: []kgo.Opt{kgo.MaxVersions(version), kgo.ConsumeTopics(ctx.extras["topic_name"].(string))},
 				})
 				require.NoError(t, err)
-				ctx.extras["client"] = client
-				require.NoError(t, client.CreateTopic(ctx.extras["topic_name"].(string)))
-				record := &kgo.Record{Topic: ctx.extras["topic_name"].(string), Value: []byte("Hello Kafka!")}
-				ctxTimeout, cancel := context.WithTimeout(context.Background(), time.Second*5)
-				defer cancel()
-				require.NoError(t, client.Client.ProduceSync(ctxTimeout, record).FirstErr(), "record had a produce error while synchronously producing")
+				fetchClient, err := kafka.NewClient(kafka.Options{
+					ServerAddress: ctx.targetAddress,
+					Dialer:        defaultDialer,
+					CustomOptions: []kgo.Opt{kgo.MaxVersions(version), kgo.ConsumeTopics(ctx.extras["topic_name"].(string))},
+				})
+				require.NoError(t, err)
+				ctx.extras["produce_client"] = produceClient
+				ctx.extras["fetch_client"] = fetchClient
+				require.NoError(t, produceClient.CreateTopic(ctx.extras["topic_name"].(string)))
 			},
 			postTracerSetup: func(t *testing.T, ctx testContext) {
-				client := ctx.extras["client"].(*kafka.Client)
-				fetches := client.Client.PollFetches(context.Background())
+				produceClient := ctx.extras["produce_client"].(*kafka.Client)
+				record := &kgo.Record{Topic: ctx.extras["topic_name"].(string), Value: []byte("Hello Kafka!")}
+				ctxTimeout, cancel := context.WithTimeout(context.Background(), time.Second*5)
+				require.NoError(t, produceClient.Client.ProduceSync(ctxTimeout, record).FirstErr(), "record had a produce error while synchronously producing")
+				cancel()
+
+				validateProtocolConnection(produceExpectedStack)
+				tr.removeClient(clientID)
+				initTracerState(t, tr)
+				fetchClient := ctx.extras["fetch_client"].(*kafka.Client)
+				fetches := fetchClient.Client.PollFetches(context.Background())
 				require.Empty(t, fetches.Errors())
 				records := fetches.Records()
 				require.Len(t, records, 1)
 				require.Equal(t, ctx.extras["topic_name"].(string), records[0].Topic)
 			},
-			validation: validateProtocolConnection(expectedStack),
+			validation: validateProtocolConnection(fetchExpectedStack),
 			teardown:   kafkaTeardown,
 		})
 	}
