@@ -14,14 +14,12 @@ import (
 
 // DsdCaptureDurationRuntimeSetting wraps operations to change the duration, in seconds, of traffic captures
 type DsdCaptureDurationRuntimeSetting struct {
-	value  string
-	source config.Source
+	value string
 }
 
 func NewDsdCaptureDurationRuntimeSetting(value string) *DsdCaptureDurationRuntimeSetting {
 	return &DsdCaptureDurationRuntimeSetting{
-		value:  value,
-		source: config.SourceDefault,
+		value: value,
 	}
 }
 
@@ -62,11 +60,6 @@ func (l *DsdCaptureDurationRuntimeSetting) Set(v interface{}, source config.Sour
 
 	// TODO
 	// common.DSD.Capture.SetDuration(d)
-	l.source = source
+	// use SetForSource to update the configuration
 	return nil
-}
-
-// GetSource returns the current source of the corresponding runtime setting
-func (l *DsdCaptureDurationRuntimeSetting) GetSource() config.Source {
-	return l.source
 }

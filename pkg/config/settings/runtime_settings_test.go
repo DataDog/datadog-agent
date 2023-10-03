@@ -14,8 +14,7 @@ import (
 )
 
 type runtimeTestSetting struct {
-	value  int
-	source config.Source
+	value int
 }
 
 func (t *runtimeTestSetting) Name() string {
@@ -32,16 +31,12 @@ func (t *runtimeTestSetting) Get() (interface{}, error) {
 
 func (t *runtimeTestSetting) Set(v interface{}, source config.Source) error {
 	t.value = v.(int)
-	t.source = source
+	config.Datadog.SetForSource(t.Name(), t.value, source)
 	return nil
 }
 
 func (t *runtimeTestSetting) Hidden() bool {
 	return false
-}
-
-func (t *runtimeTestSetting) GetSource() config.Source {
-	return t.source
 }
 
 func cleanRuntimeSetting() {
@@ -50,7 +45,7 @@ func cleanRuntimeSetting() {
 
 func TestRuntimeSettings(t *testing.T) {
 	cleanRuntimeSetting()
-	runtimeSetting := runtimeTestSetting{1, config.SourceDefault}
+	runtimeSetting := runtimeTestSetting{value: 1}
 
 	err := RegisterRuntimeSetting(&runtimeSetting)
 	assert.Nil(t, err)
@@ -76,7 +71,7 @@ func TestLogLevel(t *testing.T) {
 	cleanRuntimeSetting()
 	config.SetupLogger("TEST", "debug", "", "", true, true, true)
 
-	ll := LogLevelRuntimeSetting{}
+	ll := LogLevelRuntimeSetting{ConfigKey: "log_level"}
 	assert.Equal(t, "log_level", ll.Name())
 
 	err := ll.Set("off", config.SourceDefault)

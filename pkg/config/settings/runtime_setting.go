@@ -39,7 +39,6 @@ type RuntimeSetting interface {
 	Name() string
 	Description() string
 	Hidden() bool
-	GetSource() config.Source
 }
 
 // RegisterRuntimeSetting keeps track of configurable settings
@@ -76,14 +75,6 @@ func GetRuntimeSetting(setting string) (interface{}, error) {
 		return nil, err
 	}
 	return value, nil
-}
-
-// GetRuntimeSetting returns the source of the last change of a runtime configurable setting
-func GetRuntimeSource(setting string) (config.Source, error) {
-	if _, ok := runtimeSettings[setting]; !ok {
-		return config.SourceDefault, &SettingNotFoundError{name: setting}
-	}
-	return runtimeSettings[setting].GetSource(), nil
 }
 
 // GetBool returns the bool value contained in value.

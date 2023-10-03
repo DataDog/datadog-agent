@@ -13,11 +13,10 @@ import (
 type ProfilingGoroutines struct {
 	Config       config.ConfigReaderWriter
 	ConfigPrefix string
-	source       config.Source
 }
 
 func NewProfilingGoroutines() *ProfilingGoroutines {
-	return &ProfilingGoroutines{source: config.SourceDefault}
+	return &ProfilingGoroutines{}
 }
 
 // Name returns the name of the runtime setting
@@ -51,17 +50,6 @@ func (r *ProfilingGoroutines) Set(value interface{}, source config.Source) error
 		return err
 	}
 
-	var cfg config.ConfigReaderWriter = config.Datadog
-	if r.Config != nil {
-		cfg = r.Config
-	}
-	cfg.Set(r.ConfigPrefix+"internal_profiling.enable_goroutine_stacktraces", enabled)
-	r.source = source
-
+	config.Datadog.SetForSource(r.ConfigPrefix+"internal_profiling.enable_goroutine_stacktraces", enabled, source)
 	return nil
-}
-
-// GetSource returns the current source of the corresponding runtime setting
-func (r *ProfilingGoroutines) GetSource() config.Source {
-	return r.source
 }

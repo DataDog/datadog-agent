@@ -15,11 +15,10 @@ import (
 type LogLevelRuntimeSetting struct {
 	Config    config.ConfigReaderWriter
 	ConfigKey string
-	source    config.Source
 }
 
 func NewLogLevelRuntimeSetting() *LogLevelRuntimeSetting {
-	return &LogLevelRuntimeSetting{source: config.SourceDefault}
+	return &LogLevelRuntimeSetting{ConfigKey: "log_level"}
 }
 
 // Description returns the runtime setting's description
@@ -34,7 +33,7 @@ func (l *LogLevelRuntimeSetting) Hidden() bool {
 
 // Name returns the name of the runtime setting
 func (l *LogLevelRuntimeSetting) Name() string {
-	return "log_level"
+	return l.ConfigKey
 }
 
 // Get returns the current value of the runtime setting
@@ -46,11 +45,6 @@ func (l *LogLevelRuntimeSetting) Get() (interface{}, error) {
 	return level.String(), nil
 }
 
-// GetSource returns the current source of the corresponding runtime setting
-func (l *LogLevelRuntimeSetting) GetSource() config.Source {
-	return l.source
-}
-
 // Set changes the value of the runtime setting
 func (l *LogLevelRuntimeSetting) Set(v interface{}, source config.Source) error {
 	level := v.(string)
@@ -60,17 +54,7 @@ func (l *LogLevelRuntimeSetting) Set(v interface{}, source config.Source) error 
 		return err
 	}
 
-	l.source = source
-
-	key := "log_level"
-	if l.ConfigKey != "" {
-		key = l.ConfigKey
-	}
-	var cfg config.ConfigReaderWriter = config.Datadog
-	if l.Config != nil {
-		cfg = l.Config
-	}
-	cfg.Set(key, level)
+	config.Datadog.SetForSource(l.ConfigKey, level, source)
 	// we trigger a new inventory metadata payload since the configuration was updated by the user.
 	inventories.Refresh()
 	return nil

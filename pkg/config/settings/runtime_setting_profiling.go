@@ -21,14 +21,12 @@ type ProfilingRuntimeSetting struct {
 
 	Config       config.ConfigReaderWriter
 	ConfigPrefix string
-	source       config.Source
 }
 
 func NewProfilingRuntimeSetting(settingName string, service string) *ProfilingRuntimeSetting {
 	return &ProfilingRuntimeSetting{
 		SettingName: settingName,
 		Service:     service,
-		source:      config.SourceDefault,
 	}
 }
 
@@ -115,18 +113,11 @@ func (l *ProfilingRuntimeSetting) Set(v interface{}, source config.Source) error
 		}
 		err := profiling.Start(settings)
 		if err == nil {
-			cfg.Set(l.ConfigPrefix+"internal_profiling.enabled", true)
+			cfg.SetForSource(l.ConfigPrefix+"internal_profiling.enabled", true, source)
 		}
 	} else {
 		profiling.Stop()
-		cfg.Set(l.ConfigPrefix+"internal_profiling.enabled", false)
+		cfg.SetForSource(l.ConfigPrefix+"internal_profiling.enabled", false, source)
 	}
-
-	l.source = source
 	return nil
-}
-
-// GetSource returns the current source of the corresponding runtime setting
-func (l *ProfilingRuntimeSetting) GetSource() config.Source {
-	return l.source
 }

@@ -27,6 +27,12 @@ func (c *MockConfig) Set(key string, value interface{}) {
 	c.Config.Set(key, value)
 }
 
+// SetForSource is used for setting both a specific Viper instance dedicated to this source
+// and the main Viper instance in tests
+func (c *MockConfig) SetForSource(key string, value interface{}, source Source) {
+	c.Config.SetForSource(key, value, source)
+}
+
 // Mock is creating and returning a mock config
 func Mock(t *testing.T) *MockConfig {
 	// We only check isConfigMocked when registering a cleanup function. 'isConfigMocked' avoids nested calls to

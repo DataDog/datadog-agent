@@ -16,13 +16,11 @@ import (
 // DsdStatsRuntimeSetting wraps operations to change the collection of dogstatsd stats at runtime.
 type DsdStatsRuntimeSetting struct {
 	ServerDebug dogstatsdDebug.Component
-	source      config.Source
 }
 
 func NewDsdStatsRuntimeSetting(serverDebug dogstatsdDebug.Component) *DsdStatsRuntimeSetting {
 	return &DsdStatsRuntimeSetting{
 		ServerDebug: serverDebug,
-		source:      config.SourceDefault,
 	}
 }
 
@@ -57,12 +55,6 @@ func (s *DsdStatsRuntimeSetting) Set(v interface{}, source config.Source) error 
 
 	s.ServerDebug.SetMetricStatsEnabled(newValue)
 
-	config.Datadog.Set("dogstatsd_metrics_stats_enable", newValue)
-	s.source = source
+	config.Datadog.SetForSource("dogstatsd_metrics_stats_enable", newValue, source)
 	return nil
-}
-
-// GetSource returns the current source of the corresponding runtime setting
-func (s *DsdStatsRuntimeSetting) GetSource() config.Source {
-	return s.source
 }
