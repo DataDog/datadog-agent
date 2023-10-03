@@ -8,6 +8,6 @@
 ---
 features:
   - |
-    The Agent now sends its integration and checks configuration to the backend by default. They will
+    The Agent now sends the configuration for integrations being run to the backend by default. They will
    be available in the Datadog UI. The configurations are scrubbed of any sensitive information.
     Set `inventories_checks_configuration_enabled` to false to disable this feature.
