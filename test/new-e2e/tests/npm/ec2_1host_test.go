@@ -66,7 +66,7 @@ func (v *ec2VMSuite) TestFakeIntakeNPM() {
 
 		hostnameNetID, err := v.Env().Fakeintake.GetConnectionsNames()
 		assert.NoError(c, err, "GetConnectionsNames() errors")
-		assert.NotZero(c, len(hostnameNetID), "no connections yet")
+		require.NotZero(c, len(hostnameNetID), "no connections yet")
 		targetHostnameNetID = hostnameNetID[0]
 
 		t.Logf("hostname+networkID %v seen connections", hostnameNetID)
@@ -82,7 +82,7 @@ func (v *ec2VMSuite) TestFakeIntakeNPM() {
 		for _, cc := range cnx.GetPayloadsByName(targetHostnameNetID) {
 			payloadsTimestamps = append(payloadsTimestamps, cc.GetCollectedTime())
 		}
-		dt := float64(payloadsTimestamps[2].Sub(payloadsTimestamps[1])) / float64(time.Second)
+		dt := payloadsTimestamps[2].Sub(payloadsTimestamps[1]).Seconds()
 		t.Logf("hostname+networkID %v diff time %f seconds", targetHostnameNetID, dt)
 
 		// we want the test fail now, not retrying on the next payloads
