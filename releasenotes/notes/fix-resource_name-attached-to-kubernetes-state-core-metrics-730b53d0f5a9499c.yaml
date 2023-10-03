@@ -1,0 +1,5 @@
+
+fixes:
+  - |
+    Fix bug where `resource_name` could be attached to every `kubernetes_state_core` metrics when the check is configured with
+    `telemetry: true`.
