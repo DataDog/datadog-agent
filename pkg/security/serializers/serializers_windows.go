@@ -12,6 +12,7 @@ import (
 )
 
 <<<<<<< HEAD
+<<<<<<< HEAD
 // FileSerializer serializes a file to JSON
 // easyjson:json
 type FileSerializer struct {
@@ -58,6 +59,8 @@ type EventSerializer struct {
 
 =======
 >>>>>>> 9469c1850f... new easyjson
+=======
+>>>>>>> e62e34ec99... add windows field accessors
 func newFileSerializer(fe *model.FileEvent, e *model.Event, forceInode ...uint64) *FileSerializer {
 	return &FileSerializer{
 		Path: e.FieldHandlers.ResolveFilePath(e, fe),

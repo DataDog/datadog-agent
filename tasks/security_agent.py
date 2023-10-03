@@ -579,7 +579,7 @@ def cws_go_generate(ctx):
         if sys.platform == "linux":
             ctx.run("GOOS=windows go generate ./...")
         elif sys.platform == "win32":
-            ctx.run("GOOS=linux go generate ./...")
+            ctx.run("set GOOS=linux && go generate ./...")
 
     shutil.copy(
         "./pkg/security/serializers/model/model_windows_easyjson.mock",
@@ -600,7 +600,7 @@ def cws_go_generate(ctx):
     if sys.platform == "linux":
         ctx.run("GOOS=windows GEN_GOOS=linux go generate ./pkg/security/...")
     elif sys.platform == "win32":
-        ctx.run("GOOS=linux GEN_GOOS=windows go generate ./pkg/security/...")
+        ctx.run("set GOOS=linux && set GEN_GOOS=windows && go generate ./pkg/security/...")
 
     ctx.run("sed -i -e 's/linux_tmp/linux/' ./pkg/security/serializers/model/model_base_linux_easyjson.go")
     ctx.run("sed -i -e 's/linux_tmp/linux/' ./pkg/security/serializers/model/model_linux_easyjson.go")
