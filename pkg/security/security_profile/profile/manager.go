@@ -648,7 +648,7 @@ func (m *SecurityProfileManager) unlinkProfile(profile *SecurityProfile, workloa
 	}
 
 	if err := m.securityProfileMap.Delete([]byte(workload.ID)); err != nil {
-		seclog.Errorf("couldn't unlink workload %s with profile %s: %v", workload.WorkloadSelector.String(), profile.Metadata.Name, err)
+		seclog.Errorf("couldn't unlink workload %s (selector: %s) with profile %s: %v", workload.ID, workload.WorkloadSelector.String(), profile.Metadata.Name, err)
 	}
 	seclog.Infof("workload %s (selector: %s) successfully unlinked from profile %s", workload.ID, workload.WorkloadSelector.String(), profile.Metadata.Name)
 }
