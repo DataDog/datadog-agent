@@ -335,4 +335,14 @@ static __always_inline void* get_tls_base(struct task_struct* task) {
 #endif
 }
 
+BPF_PERF_EVENT_ARRAY_MAP(process_monitor_events, __u32);
+
+SEC("tracepoint/syscalls/sys_enter_connect")
+int tracepoint__syscalls__sys_enter_connect(struct trace_event_raw_sys_enter *ctx) {
+    uint32_t tgid = (uint32_t)bpf_get_current_pid_tgid();
+    log_debug("tracepoint__syscalls__sys_enter_connect: tgid is %d", tgid);
+    bpf_perf_event_output_with_telemetry(ctx, &process_monitor_events, BPF_F_CURRENT_CPU, &tgid, sizeof(tgid));
+    return 0;
+}
+
 char _license[] SEC("license") = "GPL";
