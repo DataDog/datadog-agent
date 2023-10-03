@@ -247,9 +247,6 @@ func newConntracker(cfg *config.Config, bpfTelemetry *nettelemetry.EBPFTelemetry
 
 	err = consumer.FetchDummyEntry()
 	consumer.Stop()
-	if err != nil {
-		return nil, err
-	}
 	c, err = NewEBPFConntracker(cfg, bpfTelemetry)
 
 	if err == nil {
