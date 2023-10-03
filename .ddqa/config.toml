@@ -87,6 +87,7 @@ jira_statuses = [
 ]
 github_team = "opentelemetry"
 github_labels = ["team/opentelemetry"]
+exclude_members = ["ancostas", "Maascamp"]
 
 [teams."eBPF Platform"]
 jira_project = "EBPF"
