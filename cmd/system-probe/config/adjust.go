@@ -37,7 +37,7 @@ func Adjust(cfg config.Config) {
 		// enable the connections/network check.
 		log.Warn(deprecationMessage(spNS("enabled"), netNS("enabled")))
 		// ensure others can key off of this single config value for NPM status
-		cfg.Set(netNS("enabled"), true)
+		cfg.SetForSource(netNS("enabled"), true, config.SourceSelf)
 	}
 
 	validateString(cfg, spNS("sysprobe_socket"), defaultSystemProbeAddress, ValidateSocketAddress)
@@ -46,7 +46,7 @@ func Adjust(cfg config.Config) {
 	adjustUSM(cfg)
 	adjustSecurity(cfg)
 
-	cfg.Set(spNS("adjusted"), true)
+	cfg.SetForSource(spNS("adjusted"), true, config.SourceSelf)
 }
 
 // validateString validates the string configuration value at `key` using a custom provided function `valFn`.
@@ -55,10 +55,10 @@ func validateString(cfg config.Config, key string, defaultVal string, valFn func
 	if cfg.IsSet(key) {
 		if err := valFn(cfg.GetString(key)); err != nil {
 			log.Errorf("error validating `%s`: %s, using default value of `%s`", key, err, defaultVal)
-			cfg.Set(key, defaultVal)
+			cfg.SetForSource(key, defaultVal, config.SourceSelf)
 		}
 	} else {
-		cfg.Set(key, defaultVal)
+		cfg.SetForSource(key, defaultVal, config.SourceSelf)
 	}
 }
 
@@ -68,10 +68,10 @@ func validateInt(cfg config.Config, key string, defaultVal int, valFn func(int) 
 	if cfg.IsSet(key) {
 		if err := valFn(cfg.GetInt(key)); err != nil {
 			log.Errorf("error validating `%s`: %s, using default value of `%d`", key, err, defaultVal)
-			cfg.Set(key, defaultVal)
+			cfg.SetForSource(key, defaultVal, config.SourceSelf)
 		}
 	} else {
-		cfg.Set(key, defaultVal)
+		cfg.SetForSource(key, defaultVal, config.SourceSelf)
 	}
 }
 
@@ -81,17 +81,17 @@ func validateInt64(cfg config.Config, key string, defaultVal int64, valFn func(i
 	if cfg.IsSet(key) {
 		if err := valFn(cfg.GetInt64(key)); err != nil {
 			log.Errorf("error validating `%s`: %s. using default value of `%d`", key, err, defaultVal)
-			cfg.Set(key, defaultVal)
+			cfg.SetForSource(key, defaultVal, config.SourceSelf)
 		}
 	} else {
-		cfg.Set(key, defaultVal)
+		cfg.SetForSource(key, defaultVal, config.SourceSelf)
 	}
 }
 
 // applyDefault sets configuration `key` to `defaultVal` only if not previously set.
 func applyDefault(cfg config.Config, key string, defaultVal interface{}) {
 	if !cfg.IsSet(key) {
-		cfg.Set(key, defaultVal)
+		cfg.SetForSource(key, defaultVal, config.SourceSelf) // TODO jules.macret was failing test TestHTTPNotificationThresholdOverLimit
 	}
 }
 
@@ -141,7 +141,7 @@ func deprecateCustom(cfg config.Config, oldkey string, newkey string, getFn func
 	if cfg.IsSet(oldkey) {
 		log.Warn(deprecationMessage(oldkey, newkey))
 		if !cfg.IsSet(newkey) {
-			cfg.Set(newkey, getFn(cfg))
+			cfg.SetForSource(newkey, getFn(cfg), config.SourceSelf)
 		}
 	}
 }
@@ -156,7 +156,7 @@ func limitMaxInt(cfg config.Config, key string, max int) {
 	val := cfg.GetInt(key)
 	if val > max {
 		log.Warnf("configuration key `%s` was set to `%d`, using maximum value `%d` instead", key, val, max)
-		cfg.Set(key, max)
+		cfg.SetForSource(key, max, config.SourceSelf)
 	}
 }
 
@@ -165,6 +165,6 @@ func limitMaxInt64(cfg config.Config, key string, max int64) {
 	val := cfg.GetInt64(key)
 	if val > max {
 		log.Warnf("configuration key `%s` was set to `%d`, using maximum value `%d` instead", key, val, max)
-		cfg.Set(key, max)
+		cfg.SetForSource(key, max, config.SourceSelf)
 	}
 }
