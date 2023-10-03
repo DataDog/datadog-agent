@@ -74,7 +74,7 @@ func StartServerTCP(t testing.TB, ip net.IP, port int) io.Closer {
 		if conn != nil {
 			conn.Close()
 		}
-	}, 10*time.Second, time.Millisecond*10, "timed out waiting for TCP server to come up")
+	}, 3*time.Second, 10*time.Millisecond, "timed out waiting for TCP server to come up")
 
 	return l
 }
@@ -130,7 +130,7 @@ func StartServerUDP(t *testing.T, ip net.IP, port int) io.Closer {
 		if conn != nil {
 			conn.Close()
 		}
-	}, 10*time.Second, 10*time.Millisecond, "timed out waiting for UDP server to come up")
+	}, 3*time.Second, 10*time.Millisecond, "timed out waiting for UDP server to come up")
 
 	return l
 }
