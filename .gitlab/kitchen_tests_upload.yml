@@ -43,15 +43,15 @@ kitchen_tests_upload_common:
     - kitchen_debian_upgrade6_agent-a7
     - kitchen_debian_upgrade7_agent-a7
     - kitchen_debian_upgrade7_iot_agent-a7
-    - kitchen_suse_install_script_agent-a6
-    - kitchen_suse_install_script_agent-a7
-    - kitchen_suse_install_script_dogstatsd-a7
-    - kitchen_suse_install_script_iot_agent-a7
-    - kitchen_suse_process_agent-a7
-    - kitchen_suse_upgrade6_agent-a6
-    - kitchen_suse_upgrade6_agent-a7
-    - kitchen_suse_upgrade7_agent-a7
-    - kitchen_suse_upgrade7_iot_agent-a7
+    - kitchen_suse_install_script_agent_x64-a6
+    - kitchen_suse_install_script_agent_x64-a7
+    - kitchen_suse_install_script_dogstatsd_x64-a7
+    - kitchen_suse_install_script_iot_agent_x64-a7
+    - kitchen_suse_process_agent_x64-a7
+    - kitchen_suse_upgrade6_agent_x64-a6
+    - kitchen_suse_upgrade6_agent_x64-a7
+    - kitchen_suse_upgrade7_agent_x64-a7
+    - kitchen_suse_upgrade7_iot_agent_x64-a7
     - kitchen_ubuntu_install_script_agent-a6_arm64
     - kitchen_ubuntu_install_script_agent-a6_x64
     - kitchen_ubuntu_install_script_agent-a7_arm64
