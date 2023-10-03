@@ -15,6 +15,7 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/util/executable => ../../../pkg/util/executable
 	github.com/DataDog/datadog-agent/pkg/util/fxutil => ../../../pkg/util/fxutil
 	github.com/DataDog/datadog-agent/pkg/util/system/socket => ../../../pkg/util/system/socket
+	github.com/DataDog/datadog-agent/pkg/version => ../../../pkg/version
 )
 
 go 1.20

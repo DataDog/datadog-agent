@@ -11,7 +11,7 @@ import (
 	"fmt"
 	"time"
 
-	logModule "github.com/DataDog/datadog-agent/comp/core/log/module"
+	logModule "github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	"github.com/DataDog/datadog-agent/pkg/conf"
 	"github.com/DataDog/datadog-agent/pkg/logs/auditor"
