@@ -1370,6 +1370,7 @@ def check_for_ninja(ctx):
         ctx.run("where ninja")
     else:
         ctx.run("which ninja")
+    ctx.run("ninja --version")
 
 
 def is_bpftool_compatible(ctx):
@@ -1455,6 +1456,9 @@ def generate_minimized_btfs(
     if input_bpf_programs == "":
         ctx.run(f"mkdir -p {output_dir}/dummy_data")
         return
+
+    if os.path.isdir(input_bpf_programs):
+        input_bpf_programs = glob.glob(f"{input_bpf_programs}/*.o")
 
     ctx.run(f"mkdir -p {output_dir}")
 
@@ -1658,3 +1662,34 @@ def start_microvms(
     ctx.run(
         f"cd ./test/new-e2e && go run ./scenarios/system-probe/main.go {go_args}",
     )
+
+
+@task
+def save_build_outputs(ctx, destfile):
+    ignored_extensions = {".bc"}
+    ignored_files = {"cws", "integrity", "include_headers"}
+
+    if not destfile.endswith(".tar.xz"):
+        raise Exit(message="destfile must be a .tar.xz file")
+
+    absdest = os.path.abspath(destfile)
+    count = 0
+    with tempfile.TemporaryDirectory() as stagedir:
+        with open("compile_commands.json", "r") as compiledb:
+            for outputitem in json.load(compiledb):
+                if "output" not in outputitem:
+                    continue
+
+                filedir, file = os.path.split(outputitem["output"])
+                _, ext = os.path.splitext(file)
+                if ext in ignored_extensions or file in ignored_files:
+                    continue
+
+                outdir = os.path.join(stagedir, filedir)
+                ctx.run(f"mkdir -p {outdir}")
+                ctx.run(f"cp {outputitem['output']} {outdir}/")
+                count += 1
+
+        if count == 0:
+            raise Exit(message="no build outputs captured")
+        ctx.run(f"tar -C {stagedir} -cJf {absdest} .")
