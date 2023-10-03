@@ -9,7 +9,7 @@ package config
 import (
 	"go.uber.org/fx"
 
-	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
+	"github.com/DataDog/datadog-agent/pkg/util/module/fxutil"
 )
 
 // team: network-device-monitoring

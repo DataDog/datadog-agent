@@ -7,7 +7,7 @@ package logs
 
 import (
 	"github.com/DataDog/datadog-agent/comp/logs/agent"
-	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
+	"github.com/DataDog/datadog-agent/pkg/util/module/fxutil"
 )
 
 // team: agent-metrics-logs

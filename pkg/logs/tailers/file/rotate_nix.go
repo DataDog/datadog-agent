@@ -10,7 +10,7 @@ package file
 import (
 	"os"
 
-	"github.com/DataDog/datadog-agent/pkg/util/filesystem"
+	"github.com/DataDog/datadog-agent/pkg/util/module/filesystem"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 

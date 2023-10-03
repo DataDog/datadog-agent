@@ -22,7 +22,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/serializer/marshaler"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname"
-	utiljson "github.com/DataDog/datadog-agent/pkg/util/json"
+	utiljson "github.com/DataDog/datadog-agent/pkg/util/module/json"
 )
 
 const (

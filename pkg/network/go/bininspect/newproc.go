@@ -13,7 +13,7 @@ import (
 	"fmt"
 
 	"github.com/DataDog/datadog-agent/pkg/network/go/goid"
-	"github.com/DataDog/datadog-agent/pkg/util/common"
+	"github.com/DataDog/datadog-agent/pkg/util/module/common"
 	"github.com/go-delve/delve/pkg/goversion"
 )
 

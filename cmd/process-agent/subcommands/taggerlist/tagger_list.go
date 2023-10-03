@@ -18,7 +18,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/log"
 	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
 	tagger_api "github.com/DataDog/datadog-agent/pkg/tagger/api"
-	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
+	"github.com/DataDog/datadog-agent/pkg/util/module/fxutil"
 )
 
 const taggerListURLTpl = "http://%s/agent/tagger-list"

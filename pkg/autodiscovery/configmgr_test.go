@@ -18,7 +18,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/listeners"
-	"github.com/DataDog/datadog-agent/pkg/util/testutil"
+	"github.com/DataDog/datadog-agent/pkg/util/module/testutil"
 )
 
 // assertConfigsMatch verifies that the given slice of changes has exactly

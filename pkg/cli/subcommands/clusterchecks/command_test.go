@@ -10,7 +10,7 @@ package clusterchecks
 import (
 	"testing"
 
-	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
+	"github.com/DataDog/datadog-agent/pkg/util/module/fxutil"
 	"github.com/spf13/cobra"
 )
 

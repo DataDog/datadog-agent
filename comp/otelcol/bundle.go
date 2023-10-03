@@ -9,7 +9,7 @@ package otelcol
 
 import (
 	"github.com/DataDog/datadog-agent/comp/otelcol/collector"
-	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
+	"github.com/DataDog/datadog-agent/pkg/util/module/fxutil"
 )
 
 // team: opentelemetry

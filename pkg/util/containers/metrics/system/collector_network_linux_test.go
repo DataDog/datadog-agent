@@ -16,7 +16,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/util/containers/metrics/provider"
 	"github.com/DataDog/datadog-agent/pkg/util/pointer"
-	"github.com/DataDog/datadog-agent/pkg/util/testutil"
+	"github.com/DataDog/datadog-agent/pkg/util/module/testutil"
 )
 
 func TestCollectNetworkStats(t *testing.T) {

@@ -27,8 +27,8 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/util/executable"
-	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
+	"github.com/DataDog/datadog-agent/pkg/util/module/executable"
+	"github.com/DataDog/datadog-agent/pkg/util/module/fxutil"
 
 	"github.com/coreos/go-semver/semver"
 	"github.com/fatih/color"

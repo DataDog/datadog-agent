@@ -17,7 +17,7 @@ import (
 	"github.com/hashicorp/go-multierror"
 
 	"github.com/DataDog/datadog-agent/pkg/util"
-	"github.com/DataDog/datadog-agent/pkg/util/filesystem"
+	"github.com/DataDog/datadog-agent/pkg/util/module/filesystem"
 )
 
 // FileRemovalPolicy handles the removal policy for `.retry` files.

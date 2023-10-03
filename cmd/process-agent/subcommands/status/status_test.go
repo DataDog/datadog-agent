@@ -25,7 +25,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/process/util/status"
 	ddstatus "github.com/DataDog/datadog-agent/pkg/status"
 	"github.com/DataDog/datadog-agent/pkg/trace/log"
-	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
+	"github.com/DataDog/datadog-agent/pkg/util/module/fxutil"
 )
 
 func fakeStatusServer(t *testing.T, stats status.Status) *httptest.Server {

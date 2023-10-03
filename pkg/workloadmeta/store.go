@@ -16,7 +16,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/errors"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/DataDog/datadog-agent/pkg/util/retry"
+	"github.com/DataDog/datadog-agent/pkg/util/module/retry"
 	"github.com/DataDog/datadog-agent/pkg/workloadmeta/telemetry"
 	"github.com/cenkalti/backoff"
 )

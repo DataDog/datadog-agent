@@ -28,7 +28,7 @@ import (
 	languagepb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/languagedetection"
 	pbgo "github.com/DataDog/datadog-agent/pkg/proto/pbgo/process"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/DataDog/datadog-agent/pkg/util/retry"
+	"github.com/DataDog/datadog-agent/pkg/util/module/retry"
 )
 
 // Conn is a wrapper over some net.Listener

@@ -13,7 +13,7 @@ package start
 // 	"testing"
 
 // 	"github.com/DataDog/datadog-agent/comp/core/config"
-// 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
+// 	"github.com/DataDog/datadog-agent/pkg/util/module/fxutil"
 // 	"github.com/spf13/cobra"
 // 	"github.com/stretchr/testify/require"
 // )

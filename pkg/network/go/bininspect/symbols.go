@@ -17,7 +17,7 @@ import (
 
 	"github.com/cihub/seelog"
 
-	"github.com/DataDog/datadog-agent/pkg/util/common"
+	"github.com/DataDog/datadog-agent/pkg/util/module/common"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 

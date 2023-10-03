@@ -9,7 +9,7 @@ import (
 	"os"
 
 	"github.com/DataDog/datadog-agent/pkg/util/docker"
-	"github.com/DataDog/datadog-agent/pkg/util/filesystem"
+	"github.com/DataDog/datadog-agent/pkg/util/module/filesystem"
 )
 
 // getEnv retrieves the environment variable key. If it does not exist it returns the default.

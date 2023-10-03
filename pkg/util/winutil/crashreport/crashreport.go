@@ -16,7 +16,7 @@ import (
 	dd_config "github.com/DataDog/datadog-agent/pkg/config"
 	process_net "github.com/DataDog/datadog-agent/pkg/process/net"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/DataDog/datadog-agent/pkg/util/retry"
+	"github.com/DataDog/datadog-agent/pkg/util/module/retry"
 
 	"golang.org/x/sys/windows/registry"
 )

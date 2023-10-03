@@ -12,7 +12,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/ndmtmp/aggregator"
 	"github.com/DataDog/datadog-agent/comp/ndmtmp/forwarder"
 	"github.com/DataDog/datadog-agent/comp/ndmtmp/sender"
-	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
+	"github.com/DataDog/datadog-agent/pkg/util/module/fxutil"
 )
 
 // team: network-device-monitoring
