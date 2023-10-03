@@ -827,7 +827,10 @@ func (k *KSMCheck) sendTelemetry(s sender.Sender) {
 	s.Gauge(ksmMetricPrefix+"telemetry.metrics.count.total", float64(k.telemetry.getTotal()), "", k.instance.Tags)
 	s.Gauge(ksmMetricPrefix+"telemetry.unknown_metrics.count", float64(k.telemetry.getUnknown()), "", k.instance.Tags) // useful to track metrics that aren't mapped to DD metrics
 	for resource, count := range k.telemetry.getResourcesCount() {
-		s.Gauge(ksmMetricPrefix+"telemetry.metrics.count", float64(count), "", append(k.instance.Tags, "resource_name:"+resource))
+		t := make([]string, len(k.instance.Tags), len(k.instance.Tags)+1)
+		copy(t, k.instance.Tags)
+		s.Gauge(ksmMetricPrefix+"telemetry.metrics.count", float64(count), "", append(t, "resource_name:"+resource))
+		panic(fmt.Sprintf("%v", k.instance.Tags))
 	}
 }
 
