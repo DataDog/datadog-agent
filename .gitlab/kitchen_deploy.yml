@@ -193,7 +193,7 @@ deploy_rpm_testing-a7_arm64:
     - set +x
     - echo "$RPM_SIGNING_PASSPHRASE" | rpm-s3 --verbose --visibility public-read -c "https://s3.amazonaws.com" -b $RPM_TESTING_S3_BUCKET -p "testing/pipeline-$DD_PIPELINE_ID/7/aarch64/" -a "aarch64" --sign --metadata-signing-key $RPM_GPG_KEY_ID $OMNIBUS_PACKAGE_DIR/datadog-*-7.*aarch64.rpm
 
-deploy_suse_rpm_testing-a6:
+deploy_suse_rpm_testing_x64-a6:
   rules:
     !reference [.on_kitchen_tests_a6]
   stage: kitchen_deploy
@@ -210,7 +210,7 @@ deploy_suse_rpm_testing-a6:
     - set +x
     - echo "$RPM_SIGNING_PASSPHRASE" | rpm-s3 --verbose --visibility public-read -c "https://s3.amazonaws.com" -b $RPM_TESTING_S3_BUCKET -p "suse/testing/pipeline-$DD_PIPELINE_ID/6/x86_64/" -a "x86_64" --sign --metadata-signing-key $RPM_GPG_KEY_ID --repodata-store-public-key $OMNIBUS_PACKAGE_DIR_SUSE/datadog-*-6.*x86_64.rpm
 
-deploy_suse_rpm_testing-a7:
+deploy_suse_rpm_testing_x64-a7:
   rules:
     !reference [.on_default_kitchen_tests_a7]
   stage: kitchen_deploy
