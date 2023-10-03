@@ -337,11 +337,9 @@ func (c *Consumer) dumpTable(family uint8, output chan Event, ns netns.NsHandle)
 	})
 }
 
-func (c *Consumer) LoadConntrackModule() error {
+func (c *Consumer) FetchDummyEntry() error {
 	ns := c.rootNetNs
 	return kernel.WithNS(ns, func() error {
-		log.Tracef("Attempting to load nf_conntrack_netlink module via net ns %d", int(ns))
-
 		sock, err := NewSocket(ns)
 		if err != nil {
 			return fmt.Errorf("could not open netlink socket for net ns %d: %w", int(ns), err)
@@ -353,7 +351,6 @@ func (c *Consumer) LoadConntrackModule() error {
 			_ = conn.Close()
 		}()
 
-		// Using a dummy tuple
 		dummyTupleData := []byte{0x2, 0, 0, 0, 0, 0, 0}
 
 		req := netlink.Message{
@@ -366,12 +363,9 @@ func (c *Consumer) LoadConntrackModule() error {
 
 		_, err = conn.Send(req)
 		if err != nil {
-			log.Warnf("Error while trying to load nf_conntrack_netlink module: %v", err)
-			return nil // Return nil because our main intention is just to attempt to load the module.
+			log.Warnf("Error while trying to load dummy entry from netlink: %v", err)
+			return nil
 		}
-
-		// Note: If the dummy tuple doesn't exist, an error will be returned (this is fine)
-		log.Tracef("nf_conntrack_netlink module loaded successfully via dummy tuple")
 		return nil
 	})
 }

@@ -244,9 +244,9 @@ func newConntracker(cfg *config.Config, bpfTelemetry *nettelemetry.EBPFTelemetry
 	var err error
 
 	consumer, err := netlink.NewConsumer(cfg)
-	defer consumer.Stop()
 
-	err = consumer.LoadConntrackModule()
+	err = consumer.FetchDummyEntry()
+	consumer.Stop()
 	if err != nil {
 		return nil, err
 	}
