@@ -1763,7 +1763,7 @@ func sanitizeAPIKeyConfig(config Config, key string) {
 	if !config.IsKnown(key) {
 		return
 	}
-	config.Set(key, strings.TrimSpace(config.GetString(key)))
+	config.SetForSource(key, strings.TrimSpace(config.GetString(key)), SourceYaml)
 }
 
 // sanitizeExternalMetricsProviderChunkSize ensures the value of `external_metrics_provider.chunk_size` is within an acceptable range
@@ -1775,11 +1775,11 @@ func sanitizeExternalMetricsProviderChunkSize(config Config) {
 	chunkSize := config.GetInt("external_metrics_provider.chunk_size")
 	if chunkSize <= 0 {
 		log.Warnf("external_metrics_provider.chunk_size cannot be negative: %d", chunkSize)
-		config.Set("external_metrics_provider.chunk_size", 1)
+		config.SetForSource("external_metrics_provider.chunk_size", 1, SourceYaml)
 	}
 	if chunkSize > maxExternalMetricsProviderChunkSize {
 		log.Warnf("external_metrics_provider.chunk_size has been set to %d, which is higher than the maximum allowed value %d. Using %d.", chunkSize, maxExternalMetricsProviderChunkSize, maxExternalMetricsProviderChunkSize)
-		config.Set("external_metrics_provider.chunk_size", maxExternalMetricsProviderChunkSize)
+		config.SetForSource("external_metrics_provider.chunk_size", maxExternalMetricsProviderChunkSize, SourceYaml)
 	}
 }
 
@@ -1880,7 +1880,7 @@ func setTracemallocEnabled(config Config) bool {
 	}
 
 	// update config with the actual effective tracemalloc
-	config.Set("tracemalloc_debug", wTracemalloc)
+	config.SetForSource("tracemalloc_debug", wTracemalloc, SourceYaml)
 	return traceMallocEnabledWithPy2
 }
 
@@ -1899,7 +1899,7 @@ func setNumWorkers(config Config) {
 	}
 
 	// update config with the actual effective number of workers
-	config.Set("check_runners", numWorkers)
+	config.SetForSource("check_runners", numWorkers, SourceYaml)
 }
 
 // GetDogstatsdMappingProfiles returns mapping profiles used in DogStatsD mapper
