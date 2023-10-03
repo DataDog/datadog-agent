@@ -15,7 +15,6 @@ import (
 	"time"
 
 	"github.com/DataDog/ebpf-manager/tracefs"
-	"github.com/avast/retry-go/v4"
 	"github.com/cihub/seelog"
 	"github.com/cilium/ebpf"
 	"go.uber.org/atomic"
@@ -244,15 +243,15 @@ func newConntracker(cfg *config.Config, bpfTelemetry *nettelemetry.EBPFTelemetry
 	var c netlink.Conntracker
 	var err error
 
-	// try creating ebpf conntracker 3 times in case the module is not loaded on the host yet
-	err = retry.Do(
-		func() error {
-			c, err = NewEBPFConntracker(cfg, bpfTelemetry)
-			return err
-		},
-		retry.Attempts(3),
-		retry.Delay(1*time.Second),
-	)
+	consumer, err := netlink.NewConsumer(cfg)
+	defer consumer.Stop()
+
+	err = consumer.LoadConntrackModule()
+	if err != nil {
+		return nil, err
+	}
+	c, err = NewEBPFConntracker(cfg, bpfTelemetry)
+
 	if err == nil {
 		return c, nil
 	}

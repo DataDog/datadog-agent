@@ -337,6 +337,45 @@ func (c *Consumer) dumpTable(family uint8, output chan Event, ns netns.NsHandle)
 	})
 }
 
+func (c *Consumer) LoadConntrackModule() error {
+	ns := c.rootNetNs
+	return kernel.WithNS(ns, func() error {
+		log.Tracef("Attempting to load nf_conntrack_netlink module via net ns %d", int(ns))
+
+		sock, err := NewSocket(ns)
+		if err != nil {
+			return fmt.Errorf("could not open netlink socket for net ns %d: %w", int(ns), err)
+		}
+		defer sock.Close()
+
+		conn := netlink.NewConn(sock, sock.pid)
+		defer func() {
+			_ = conn.Close()
+		}()
+
+		// Using a dummy tuple
+		dummyTupleData := []byte{0x2, 0, 0, 0, 0, 0, 0}
+
+		req := netlink.Message{
+			Header: netlink.Header{
+				Type:  netlink.HeaderType((unix.NFNL_SUBSYS_CTNETLINK << 8) | ipctnlMsgCtGet),
+				Flags: netlink.Request,
+			},
+			Data: dummyTupleData,
+		}
+
+		_, err = conn.Send(req)
+		if err != nil {
+			log.Warnf("Error while trying to load nf_conntrack_netlink module: %v", err)
+			return nil // Return nil because our main intention is just to attempt to load the module.
+		}
+
+		// Note: If the dummy tuple doesn't exist, an error will be returned (this is fine)
+		log.Tracef("nf_conntrack_netlink module loaded successfully via dummy tuple")
+		return nil
+	})
+}
+
 // DumpAndDiscardTable sends a message to netlink to dump all entries present in the Conntrack table. It
 // returns a channel which be closed once all entries have been read.
 // Because the dumped conntrack entries are read & processed in kernelspace, the messages received
