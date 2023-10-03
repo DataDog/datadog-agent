@@ -16,6 +16,8 @@ import (
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client"
 	"github.com/DataDog/test-infra-definitions/components/datadog/agentparams"
+	"github.com/DataDog/test-infra-definitions/scenarios/aws/vm/ec2os"
+	"github.com/DataDog/test-infra-definitions/scenarios/aws/vm/ec2params"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -112,4 +114,26 @@ func (v *commandFlareSuite) TestFlareWithAllConfiguration() {
 
 	filesRegistredInPermissionsLog := append(systemProbeDummyFiles, "/etc/datadog-agent/auth_token")
 	assertFileContains(v.T(), flare, "permissions.log", filesRegistredInPermissionsLog...)
+}
+
+func (v *commandFlareSuite) TestFlareWindows() {
+	vmParams := []ec2params.Option{ec2params.WithOS(ec2os.WindowsOS)}
+	agentOptions := []agentparams.Option{}
+	v.UpdateEnv(e2e.FakeIntakeStackDef(vmParams, agentOptions...))
+
+	flare := requestAgentFlareAndFetchFromFakeIntake(v, client.WithArgs([]string{"--email", "e2e@test.com", "--send"}))
+	assertFilesExist(v.T(), flare, defaultFlareFiles)
+	assertFilesExist(v.T(), flare, defaultLogFiles)
+	assertFilesExist(v.T(), flare, defaultConfigFiles)
+	assertLogsFolderOnlyContainsLogFile(v.T(), flare)
+	assertEtcFolderOnlyContainsConfigFile(v.T(), flare)
+
+	assertFilesExist(v.T(), flare, windowsFiles)
+	assertEventlogFolderOnlyContainsWindoesEventLog(v.T(), flare)
+
+	expectedCounterStrings := []string{"Write Packets/sec", "Events Logged per sec"}
+	assertFileContains(v.T(), flare, "counter_strings.txt", expectedCounterStrings...)
+
+	_, err := flare.GetFile("datadog-raw.reg")
+	assert.Error(v.T(), err, "File 'datadog-raw.reg' was found in flare, but was expected not to be part of the archive")
 }

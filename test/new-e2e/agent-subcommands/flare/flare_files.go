@@ -64,6 +64,15 @@ var defaultFlareFolders = []string{
 	"logs",
 }
 
+// windowsFiles contains files that are specific to Windows
+var windowsFiles = []string{
+	"typeperf.txt",
+	"lodctr.txt",
+	"counter_strings.txt",
+	"servicestatus.txt",
+	"datadog.reg",
+}
+
 // untestedFiles contains some untested files that needs specific scenario which should be added later.
 // nolint:unused
 var untestedFiles = []string{
