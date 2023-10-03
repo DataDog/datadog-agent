@@ -16,7 +16,11 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 )
 
-const ProtocolDispatcherProgramsMap = "protocols_progs"
+// Programs maps used for tail valls
+const (
+	ProtocolDispatcherProgramsMap = "protocols_progs"
+	TLSDispatcherProgramsMap      = "tls_process_progs"
+)
 
 // Protocol is the interface that represents a protocol supported by USM.
 //

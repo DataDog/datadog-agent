@@ -9,13 +9,12 @@ import (
 	"sync"
 
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
+	"github.com/DataDog/datadog-agent/pkg/logs/diagnostic/module"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 )
 
 // MessageReceiver interface to handle messages for diagnostics
-type MessageReceiver interface {
-	HandleMessage(message.Message, string, []byte)
-}
+type MessageReceiver = module.MessageReceiver
 
 type messagePair struct {
 	msg         *message.Message

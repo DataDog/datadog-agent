@@ -5,11 +5,12 @@
 
 package diagnostic
 
-import "github.com/DataDog/datadog-agent/pkg/logs/message"
+import (
+	"github.com/DataDog/datadog-agent/pkg/logs/diagnostic/module"
+)
 
 // NoopMessageReceiver for cases where diagnosing messages is unsupported or not needed (serverless, tests)
-type NoopMessageReceiver struct{}
+type NoopMessageReceiver = module.NoopMessageReceiver
 
 // HandleMessage does nothing with the message
-func (n *NoopMessageReceiver) HandleMessage(m message.Message, eventType string, redactedMsg []byte) {
-}
+var HandleMessage = (*NoopMessageReceiver).HandleMessage

@@ -13,9 +13,6 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-type MyStringArray struct {
-	SomeIds StringArray `yaml:"my_field"`
-}
 type MyNumber struct {
 	SomeNum Number `yaml:"my_field"`
 }
@@ -26,54 +23,6 @@ type MyBoolean struct {
 
 type MyInterfaceConfigs struct {
 	SomeInterfaceConfigs InterfaceConfigs `yaml:"interface_configs"`
-}
-
-func TestStringArray_UnmarshalYAML_array(t *testing.T) {
-	myStruct := MyStringArray{}
-	expected := MyStringArray{SomeIds: StringArray{"aaa", "bbb"}}
-
-	yaml.Unmarshal([]byte(`
-my_field:
- - aaa
- - bbb
-`), &myStruct)
-
-	assert.Equal(t, expected, myStruct)
-}
-
-func TestStringArray_UnmarshalYAML_string(t *testing.T) {
-	myStruct := MyStringArray{}
-	expected := MyStringArray{SomeIds: StringArray{"aaa"}}
-
-	yaml.Unmarshal([]byte(`
-my_field: aaa
-`), &myStruct)
-
-	assert.Equal(t, expected, myStruct)
-}
-
-func Test_metricTagConfig_UnmarshalYAML(t *testing.T) {
-	myStruct := MetricsConfig{}
-	expected := MetricsConfig{MetricTags: []MetricTagConfig{{Index: 3}}}
-
-	yaml.Unmarshal([]byte(`
-metric_tags:
-- index: 3
-`), &myStruct)
-
-	assert.Equal(t, expected, myStruct)
-}
-
-func Test_metricTagConfig_onlyTags(t *testing.T) {
-	myStruct := MetricsConfig{}
-	expected := MetricsConfig{MetricTags: []MetricTagConfig{{symbolTag: "aaa"}}}
-
-	yaml.Unmarshal([]byte(`
-metric_tags:
-- aaa
-`), &myStruct)
-
-	assert.Equal(t, expected, myStruct)
 }
 
 func Test_Number_UnmarshalYAML(t *testing.T) {

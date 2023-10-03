@@ -54,7 +54,8 @@ type SharedMemoryConfig struct {
 }
 
 type ExecutionPlansConfig struct {
-	Enabled bool `yaml:"enabled"`
+	Enabled              bool `yaml:"enabled"`
+	LogUnobfuscatedPlans bool `yaml:"log_unobfuscated_plans"`
 }
 
 type AgentSQLTrace struct {

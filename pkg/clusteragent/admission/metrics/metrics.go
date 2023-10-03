@@ -15,10 +15,11 @@ import (
 
 // Metric names
 const (
-	SecretControllerName   = "secrets"
-	WebhooksControllerName = "webhooks"
-	TagsMutationType       = "standard_tags"
-	ConfigMutationType     = "agent_config"
+	SecretControllerName     = "secrets"
+	WebhooksControllerName   = "webhooks"
+	TagsMutationType         = "standard_tags"
+	ConfigMutationType       = "agent_config"
+	LibInjectionMutationType = "lib_injection"
 )
 
 // Telemetry metrics
@@ -33,10 +34,10 @@ var (
 		[]string{}, "Time left before the certificate expires in hours.",
 		telemetry.Options{NoDoubleUnderscoreSep: true})
 	MutationAttempts = telemetry.NewGaugeWithOpts("admission_webhooks", "mutation_attempts",
-		[]string{"mutation_type", "injected"}, "Number of pod mutation attempts by mutation type (agent config, standard tags).",
+		[]string{"mutation_type", "injected", "language"}, "Number of pod mutation attempts by mutation type (agent config, standard tags).",
 		telemetry.Options{NoDoubleUnderscoreSep: true})
 	MutationErrors = telemetry.NewGaugeWithOpts("admission_webhooks", "mutation_errors",
-		[]string{"mutation_type", "reason"}, "Number of mutation failures by mutation type (agent config, standard tags).",
+		[]string{"mutation_type", "reason", "language"}, "Number of mutation failures by mutation type (agent config, standard tags).",
 		telemetry.Options{NoDoubleUnderscoreSep: true})
 	WebhooksReceived = telemetry.NewCounterWithOpts("admission_webhooks", "webhooks_received",
 		[]string{}, "Number of mutation webhook requests received.",

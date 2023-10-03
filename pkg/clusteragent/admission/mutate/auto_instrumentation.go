@@ -234,6 +234,7 @@ func injectAutoInstruConfig(pod *corev1.Pod, libsToInject []libInfo) error {
 		langStr := string(lib.lang)
 		defer func() {
 			metrics.LibInjectionAttempts.Inc(langStr, strconv.FormatBool(injected))
+			metrics.MutationAttempts.Inc(metrics.LibInjectionMutationType, strconv.FormatBool(injected), langStr)
 		}()
 
 		var err error
@@ -290,13 +291,16 @@ func injectAutoInstruConfig(pod *corev1.Pod, libsToInject []libInfo) error {
 				}})
 		default:
 			metrics.LibInjectionErrors.Inc(langStr)
+			metrics.MutationErrors.Inc(metrics.LibInjectionMutationType, "unsupported language", langStr)
 			lastError = fmt.Errorf("language %q is not supported. Supported languages are %v", lib.lang, supportedLanguages)
 			continue
 		}
 
 		if err != nil {
 			metrics.LibInjectionErrors.Inc(langStr)
+			metrics.MutationErrors.Inc(metrics.LibInjectionMutationType, "requirements config error", langStr)
 			lastError = err
+			log.Errorf("Error injecting library config requirements: %s", err)
 		}
 
 		initContainerToInject[lib.lang] = lib.image
@@ -307,13 +311,17 @@ func injectAutoInstruConfig(pod *corev1.Pod, libsToInject []libInfo) error {
 	for lang, image := range initContainerToInject {
 		err := injectLibInitContainer(pod, image, lang)
 		if err != nil {
-			metrics.LibInjectionErrors.Inc(string(lang))
+			langStr := string(lang)
+			metrics.LibInjectionErrors.Inc(langStr)
+			metrics.MutationErrors.Inc(metrics.LibInjectionMutationType, "cannot inject init container", langStr)
 			lastError = err
 			log.Errorf("Cannot inject init container into pod %s: %s", podString(pod), err)
 		}
 		err = injectLibConfig(pod, lang)
 		if err != nil {
-			metrics.LibInjectionErrors.Inc(string(lang))
+			langStr := string(lang)
+			metrics.LibInjectionErrors.Inc(langStr)
+			metrics.MutationErrors.Inc(metrics.LibInjectionMutationType, "cannot inject lib config", langStr)
 			lastError = err
 			log.Errorf("Cannot inject library configuration into pod %s: %s", podString(pod), err)
 		}
@@ -322,6 +330,7 @@ func injectAutoInstruConfig(pod *corev1.Pod, libsToInject []libInfo) error {
 	// try to inject all if the annotation is set
 	if err := injectLibConfig(pod, "all"); err != nil {
 		metrics.LibInjectionErrors.Inc("all")
+		metrics.MutationErrors.Inc(metrics.LibInjectionMutationType, "cannot inject lib config", "all")
 		lastError = err
 		log.Errorf("Cannot inject library configuration into pod %s: %s", podString(pod), err)
 	}

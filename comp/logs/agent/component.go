@@ -24,17 +24,21 @@ type Component interface {
 	// AddScheduler adds an AD scheduler to the logs agent
 	AddScheduler(scheduler schedulers.Scheduler)
 
-	// IsRunning returns true if the logs agent is running
-	IsRunning() bool
-
 	// GetMessageReceiver gets the diagnostic message receiver
 	GetMessageReceiver() *diagnostic.BufferedMessageReceiver
 
-	// Flush synchronously flushes the pipelines managed by the Logs Agent.
-	Flush(ctx context.Context)
-
 	// GetPipelineProvider gets the pipeline provider
 	GetPipelineProvider() pipeline.Provider
+}
+
+// ServerlessLogsAgent is a compat version of the component for the serverless agent
+type ServerlessLogsAgent interface {
+	Component
+	Start() error
+	Stop()
+
+	// Flush flushes synchronously the pipelines managed by the Logs Agent.
+	Flush(ctx context.Context)
 }
 
 // Mock implements mock-specific methods.
@@ -50,4 +54,5 @@ var Module = fxutil.Component(
 // MockModule defines the fx options for the mock component.
 var MockModule = fxutil.Component(
 	fx.Provide(newMock),
+	fx.Provide(func(m Mock) Component { return m }),
 )

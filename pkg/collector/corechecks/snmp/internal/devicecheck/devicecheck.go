@@ -22,6 +22,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	"github.com/DataDog/datadog-agent/pkg/networkdevice/metadata"
+	"github.com/DataDog/datadog-agent/pkg/networkdevice/profile/profiledefinition"
 	coresnmp "github.com/DataDog/datadog-agent/pkg/snmp"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/common"
@@ -243,7 +244,7 @@ func (d *DeviceCheck) detectMetricsToMonitor(sess session.Session) error {
 	return nil
 }
 
-func (d *DeviceCheck) detectAvailableMetrics() ([]checkconfig.MetricsConfig, []checkconfig.MetricTagConfig) {
+func (d *DeviceCheck) detectAvailableMetrics() ([]profiledefinition.MetricsConfig, []profiledefinition.MetricTagConfig) {
 	fetchedOIDs := session.FetchAllOIDsUsingGetNext(d.session)
 	log.Debugf("fetched OIDs: %v", fetchedOIDs)
 
@@ -252,8 +253,8 @@ func (d *DeviceCheck) detectAvailableMetrics() ([]checkconfig.MetricsConfig, []c
 		root.DebugPrint()
 	}
 
-	var metricConfigs []checkconfig.MetricsConfig
-	var metricTagConfigs []checkconfig.MetricTagConfig
+	var metricConfigs []profiledefinition.MetricsConfig
+	var metricTagConfigs []profiledefinition.MetricTagConfig
 
 	// If a metric name has already been encountered, we won't try to add it again.
 	alreadySeenMetrics := make(map[string]bool)
@@ -272,7 +273,7 @@ func (d *DeviceCheck) detectAvailableMetrics() ([]checkconfig.MetricsConfig, []c
 					metricConfigs = append(metricConfigs, newMetricConfig)
 				}
 			} else if metricConfig.IsColumn() {
-				newMetricConfig.Symbols = []checkconfig.SymbolConfig{}
+				newMetricConfig.Symbols = []profiledefinition.SymbolConfig{}
 				for _, symbol := range metricConfig.Symbols {
 					if !alreadySeenMetrics[symbol.Name] && root.NonLeafNodeExist(symbol.OID) {
 						alreadySeenMetrics[symbol.Name] = true

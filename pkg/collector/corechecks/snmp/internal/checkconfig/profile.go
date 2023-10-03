@@ -19,34 +19,13 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/filesystem"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
+	"github.com/DataDog/datadog-agent/pkg/networkdevice/profile/profiledefinition"
+
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/common"
 )
 
 const defaultProfilesFolder = "default_profiles"
 const userProfilesFolder = "profiles"
-
-// DeviceMeta holds device related static metadata
-// DEPRECATED in favour of profile metadata syntax
-type DeviceMeta struct {
-	// deprecated in favour of new `profileDefinition.Metadata` syntax
-	Vendor string `yaml:"vendor"`
-}
-
-type profileDefinition struct {
-	Metrics      []MetricsConfig   `yaml:"metrics"`
-	Metadata     MetadataConfig    `yaml:"metadata"`
-	MetricTags   []MetricTagConfig `yaml:"metric_tags"`
-	StaticTags   []string          `yaml:"static_tags"`
-	Extends      []string          `yaml:"extends"`
-	Device       DeviceMeta        `yaml:"device"`
-	SysObjectIds StringArray       `yaml:"sysobjectid"`
-}
-
-func newProfileDefinition() *profileDefinition {
-	p := &profileDefinition{}
-	p.Metadata = make(MetadataConfig)
-	return p
-}
 
 var defaultProfilesMu = &sync.Mutex{}
 
@@ -146,19 +125,19 @@ func loadProfiles(pConfig profileConfigMap) (profileConfigMap, error) {
 	return profiles, nil
 }
 
-func readProfileDefinition(definitionFile string) (*profileDefinition, error) {
+func readProfileDefinition(definitionFile string) (*profiledefinition.ProfileDefinition, error) {
 	filePath := resolveProfileDefinitionPath(definitionFile)
 	buf, err := os.ReadFile(filePath)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read file `%s`: %s", filePath, err)
 	}
 
-	profileDefinition := newProfileDefinition()
+	profileDefinition := profiledefinition.NewProfileDefinition()
 	err = yaml.Unmarshal(buf, profileDefinition)
 	if err != nil {
 		return nil, fmt.Errorf("failed to unmarshall %q: %v", filePath, err)
 	}
-	normalizeMetrics(profileDefinition.Metrics)
+	profiledefinition.NormalizeMetrics(profileDefinition.Metrics)
 	errors := validateEnrichMetadata(profileDefinition.Metadata)
 	errors = append(errors, ValidateEnrichMetrics(profileDefinition.Metrics)...)
 	errors = append(errors, ValidateEnrichMetricTags(profileDefinition.MetricTags)...)
@@ -184,7 +163,7 @@ func getProfileConfdRoot(profileFolderName string) string {
 	return filepath.Join(confdPath, "snmp.d", profileFolderName)
 }
 
-func recursivelyExpandBaseProfiles(parentPath string, definition *profileDefinition, extends []string, extendsHistory []string) error {
+func recursivelyExpandBaseProfiles(parentPath string, definition *profiledefinition.ProfileDefinition, extends []string, extendsHistory []string) error {
 	parentBasePath := filepath.Base(parentPath)
 	for _, extendEntry := range extends {
 		// User profile can extend default profile by extending the default profile.
@@ -213,13 +192,13 @@ func recursivelyExpandBaseProfiles(parentPath string, definition *profileDefinit
 	return nil
 }
 
-func mergeProfileDefinition(targetDefinition *profileDefinition, baseDefinition *profileDefinition) {
+func mergeProfileDefinition(targetDefinition *profiledefinition.ProfileDefinition, baseDefinition *profiledefinition.ProfileDefinition) {
 	targetDefinition.Metrics = append(targetDefinition.Metrics, baseDefinition.Metrics...)
 	targetDefinition.MetricTags = append(targetDefinition.MetricTags, baseDefinition.MetricTags...)
 	targetDefinition.StaticTags = append(targetDefinition.StaticTags, baseDefinition.StaticTags...)
 	for baseResName, baseResource := range baseDefinition.Metadata {
 		if _, ok := targetDefinition.Metadata[baseResName]; !ok {
-			targetDefinition.Metadata[baseResName] = newMetadataResourceConfig()
+			targetDefinition.Metadata[baseResName] = profiledefinition.NewMetadataResourceConfig()
 		}
 		if resource, ok := targetDefinition.Metadata[baseResName]; ok {
 			for _, tagConfig := range baseResource.IDTags {
@@ -227,7 +206,7 @@ func mergeProfileDefinition(targetDefinition *profileDefinition, baseDefinition 
 			}
 
 			if resource.Fields == nil {
-				resource.Fields = make(map[string]MetadataField, len(baseResource.Fields))
+				resource.Fields = make(map[string]profiledefinition.MetadataField, len(baseResource.Fields))
 			}
 			for field, symbol := range baseResource.Fields {
 				if _, ok := resource.Fields[field]; !ok {

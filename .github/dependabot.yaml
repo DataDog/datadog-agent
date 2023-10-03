@@ -113,6 +113,20 @@ updates:
     schedule:
       interval: monthly
     open-pull-requests-limit: 100
+  - package-ecosystem: gomod
+    directory: /pkg/networkdevice/profile
+    labels:
+      - dependencies
+      - dependencies-go
+      - team/network-device-monitoring
+      - changelog/no-changelog
+    milestone: 22
+    ignore:
+      # Ignore internal modules
+      - dependency-name: github.com/DataDog/datadog-agent/*
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 100
   - package-ecosystem: "pip"
     directory: "/.circleci"
     labels:

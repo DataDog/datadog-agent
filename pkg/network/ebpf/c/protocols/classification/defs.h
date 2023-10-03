@@ -141,4 +141,10 @@ typedef enum {
     PROG_MAX,
 } protocol_prog_t;
 
+typedef enum {
+    TLS_PROG_UNKNOWN = 0,
+    // Add TLS uprobe tail calls here
+    TLS_PROG_MAX,
+} tls_prog_t;
+
 #endif

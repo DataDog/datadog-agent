@@ -7,28 +7,37 @@ package aggregator
 
 import (
 	"encoding/json"
+	"time"
 
 	"github.com/DataDog/datadog-agent/test/fakeintake/api"
 )
 
 type Log struct {
-	Message   string   `json:"message"`
-	Status    string   `json:"status"`
-	Timestamp int      `json:"timestamp"`
-	HostName  string   `json:"hostname"`
-	Service   string   `json:"service"`
-	Source    string   `json:"source"`
-	Tags      []string `json:"tags"`
+	collectedTime time.Time
+	Message       string   `json:"message"`
+	Status        string   `json:"status"`
+	Timestamp     int      `json:"timestamp"`
+	HostName      string   `json:"hostname"`
+	Service       string   `json:"service"`
+	Source        string   `json:"source"`
+	Tags          []string `json:"tags"`
 }
 
 func (l *Log) name() string {
 	return l.Service
 }
 
+// GetTags return the tags from a payload
 func (l *Log) GetTags() []string {
 	return l.Tags
 }
 
+// GetCollectedTime return the time when the payload has been collected by the fakeintake server
+func (l *Log) GetCollectedTime() time.Time {
+	return l.collectedTime
+}
+
+// ParseLogPayload return the parsed logs from payload
 func ParseLogPayload(payload api.Payload) (logs []*Log, err error) {
 	if len(payload.Data) == 0 {
 		// logs can submit with empty data
@@ -42,6 +51,9 @@ func ParseLogPayload(payload api.Payload) (logs []*Log, err error) {
 	err = json.Unmarshal(enflated, &logs)
 	if err != nil {
 		return nil, err
+	}
+	for _, l := range logs {
+		l.collectedTime = payload.Timestamp
 	}
 	return logs, err
 }

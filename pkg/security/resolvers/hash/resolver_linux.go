@@ -11,6 +11,7 @@ import (
 	"crypto/sha1"
 	"crypto/sha256"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"hash"
 	"io"
@@ -26,7 +27,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/metrics"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/cgroup"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
-	"github.com/DataDog/datadog-agent/pkg/security/seclog"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
 )
 
@@ -176,13 +176,7 @@ func (resolver *Resolver) ComputeHashes(eventType model.EventType, process *mode
 		return nil
 	}
 
-	if err := resolver.hash(eventType, process, file); err != nil {
-		resolver.hashMiss[eventType][model.UnknownHashError].Inc()
-		seclog.Errorf("hash computation failed: %v", err)
-		file.HashState = model.UnknownHashError
-		return nil
-	}
-
+	resolver.hash(eventType, process, file)
 	return file.Hashes
 }
 
@@ -201,10 +195,11 @@ func (resolver *Resolver) getHashFunction(algorithm model.HashAlgorithm) hash.Ha
 }
 
 // hash hashes the provided file event
-func (resolver *Resolver) hash(eventType model.EventType, process *model.Process, file *model.FileEvent) error {
+func (resolver *Resolver) hash(eventType model.EventType, process *model.Process, file *model.FileEvent) {
 	if !file.IsPathnameStrResolved || len(file.PathnameStr) == 0 {
 		resolver.hashMiss[eventType][model.PathnameResolutionError].Inc()
-		return fmt.Errorf("pathname resolution error: can't hash a FileEvent that hasn't been properly resolved")
+		file.HashState = model.PathnameResolutionError
+		return
 	}
 
 	// check if the hash(es) of this file is in cache
@@ -214,7 +209,7 @@ func (resolver *Resolver) hash(eventType model.EventType, process *model.Process
 			file.HashState = cacheEntry.state
 			file.Hashes = cacheEntry.hashes
 			resolver.hashCacheHit[eventType].Inc()
-			return nil
+			return
 		}
 	}
 
@@ -239,28 +234,44 @@ func (resolver *Resolver) hash(eventType model.EventType, process *model.Process
 		if os.IsNotExist(lastErr) {
 			file.HashState = model.FileNotFound
 			resolver.hashMiss[eventType][model.FileNotFound].Inc()
-			return nil
+			return
 		}
-		return fmt.Errorf("couldn't open file: %w", lastErr)
+		// We can't open this file, most likely because it isn't a regular file. Example seen in production:
+		//  - open(/host/proc/2129077/root/tmp/plugin3037415914) => no such device or address
+		//  - open(/host/proc/576833/root/run/containerd/runc/k8s.io/2b100...96104/runc.WUXTJB) => permission denied
+		//  - open(/host/proc/313599/root/proc/10987/task/10988/status/10987/task) => not a directory
+		//  - open(/host/proc/263082/root/usr/local/bin/runc) => no such process
+		resolver.hashMiss[eventType][model.FileOpenError].Inc()
+		file.HashState = model.FileOpenError
+		return
 	}
 	defer f.Close()
 
 	fi, err := f.Stat()
 	if err != nil {
-		return fmt.Errorf("couldn't stat file: %w", err)
+		file.HashState = model.FileNotFound
+		resolver.hashMiss[eventType][model.FileNotFound].Inc()
+		return
 	}
 
 	// is this a regular file ?
 	if !fi.Mode().IsRegular() {
 		file.HashState = model.Done
-		return nil
+		return
 	}
 
-	// check file size
+	// is the file size above the configured limit
 	if fi.Size() > resolver.opts.MaxFileSize {
 		resolver.hashMiss[eventType][model.FileTooBig].Inc()
 		file.HashState = model.FileTooBig
-		return nil
+		return
+	}
+
+	// is the file empty ?
+	if fi.Size() == 0 {
+		resolver.hashMiss[eventType][model.FileEmpty].Inc()
+		file.HashState = model.FileEmpty
+		return
 	}
 
 	// check the rate limiter
@@ -268,7 +279,7 @@ func (resolver *Resolver) hash(eventType model.EventType, process *model.Process
 		// better luck next time
 		resolver.hashMiss[eventType][model.HashWasRateLimited].Inc()
 		file.HashState = model.HashWasRateLimited
-		return nil
+		return
 	}
 
 	var hashers []io.Writer
@@ -283,7 +294,18 @@ func (resolver *Resolver) hash(eventType model.EventType, process *model.Process
 	multiWriter := newSizeLimitedWriter(io.MultiWriter(hashers...), int(resolver.opts.MaxFileSize))
 
 	if _, err = io.Copy(multiWriter, f); err != nil {
-		return fmt.Errorf("couldn't compute %v hash(es): %w", resolver.opts.HashAlgorithms, err)
+		if errors.Is(err, ErrSizeLimitReached) {
+			resolver.hashMiss[eventType][model.FileTooBig].Inc()
+			file.HashState = model.FileTooBig
+			return
+		}
+		// We can't read this file, most likely because it isn't a regular file (despite the check above). Example seen
+		// in production:
+		//  - read(/host/proc/2076/root/proc/1/fdinfo/64) => no such file or directory
+		//  - read(/host/proc/2328/root/run/netns/a574a27c) => invalid argument
+		resolver.hashMiss[eventType][model.FileOpenError].Inc()
+		file.HashState = model.FileOpenError
+		return
 	}
 
 	for i, algorithm := range resolver.opts.HashAlgorithms {
@@ -308,7 +330,6 @@ func (resolver *Resolver) hash(eventType model.EventType, process *model.Process
 		copy(cacheEntry.hashes, file.Hashes)
 		resolver.cache.Add(file.PathKey, cacheEntry)
 	}
-	return nil
 }
 
 // SendStats sends the resolver metrics

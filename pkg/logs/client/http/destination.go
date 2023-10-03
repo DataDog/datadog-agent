@@ -19,7 +19,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
-	coreConfig "github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/conf"
 	"github.com/DataDog/datadog-agent/pkg/logs/client"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/logs/metrics"
@@ -91,14 +91,16 @@ func NewDestination(endpoint config.Endpoint,
 	maxConcurrentBackgroundSends int,
 	shouldRetry bool,
 	telemetryName string,
-) *Destination {
+	cfg conf.ConfigReader) *Destination {
+
 	return newDestination(endpoint,
 		contentType,
 		destinationsContext,
 		time.Second*10,
 		maxConcurrentBackgroundSends,
 		shouldRetry,
-		telemetryName)
+		telemetryName,
+		cfg)
 }
 
 func newDestination(endpoint config.Endpoint,
@@ -108,14 +110,15 @@ func newDestination(endpoint config.Endpoint,
 	maxConcurrentBackgroundSends int,
 	shouldRetry bool,
 	telemetryName string,
-) *Destination {
+	cfg conf.ConfigReader) *Destination {
+
 	if maxConcurrentBackgroundSends <= 0 {
 		maxConcurrentBackgroundSends = 1
 	}
 	var policy backoff.Policy
 	if endpoint.Origin == config.ServerlessIntakeOrigin {
 		policy = backoff.NewConstantBackoffPolicy(
-			coreConfig.Datadog.GetDuration("serverless.constant_backoff_interval"),
+			cfg.GetDuration("serverless.constant_backoff_interval"),
 		)
 	} else {
 		policy = backoff.NewExpBackoffPolicy(
@@ -139,7 +142,7 @@ func newDestination(endpoint config.Endpoint,
 		url:                 buildURL(endpoint),
 		apiKey:              endpoint.APIKey,
 		contentType:         contentType,
-		client:              httputils.NewResetClient(endpoint.ConnectionResetInterval, httpClientFactory(timeout)),
+		client:              httputils.NewResetClient(endpoint.ConnectionResetInterval, httpClientFactory(timeout, cfg)),
 		destinationsContext: destinationsContext,
 		climit:              make(chan struct{}, maxConcurrentBackgroundSends),
 		wg:                  sync.WaitGroup{},
@@ -348,12 +351,12 @@ func (d *Destination) updateRetryState(err error, isRetrying chan bool) bool {
 	}
 }
 
-func httpClientFactory(timeout time.Duration) func() *http.Client {
+func httpClientFactory(timeout time.Duration, cfg conf.ConfigReader) func() *http.Client {
 	return func() *http.Client {
 		return &http.Client{
 			Timeout: timeout,
 			// reusing core agent HTTP transport to benefit from proxy settings.
-			Transport: httputils.CreateHTTPTransport(coreConfig.Datadog),
+			Transport: httputils.CreateHTTPTransport(cfg),
 		}
 	}
 }
@@ -384,10 +387,10 @@ func buildURL(endpoint config.Endpoint) string {
 	return url.String()
 }
 
-func prepareCheckConnectivity(endpoint config.Endpoint) (*client.DestinationsContext, *Destination) {
+func prepareCheckConnectivity(endpoint config.Endpoint, cfg conf.ConfigReader) (*client.DestinationsContext, *Destination) {
 	ctx := client.NewDestinationsContext()
 	// Lower the timeout to 5s because HTTP connectivity test is done synchronously during the agent bootstrap sequence
-	destination := newDestination(endpoint, JSONContentType, ctx, time.Second*5, 0, false, "")
+	destination := newDestination(endpoint, JSONContentType, ctx, time.Second*5, 0, false, "", cfg)
 	return ctx, destination
 }
 
@@ -398,9 +401,9 @@ func completeCheckConnectivity(ctx *client.DestinationsContext, destination *Des
 }
 
 // CheckConnectivity check if sending logs through HTTP works
-func CheckConnectivity(endpoint config.Endpoint) config.HTTPConnectivity {
+func CheckConnectivity(endpoint config.Endpoint, cfg conf.ConfigReader) config.HTTPConnectivity {
 	log.Info("Checking HTTP connectivity...")
-	ctx, destination := prepareCheckConnectivity(endpoint)
+	ctx, destination := prepareCheckConnectivity(endpoint, cfg)
 	log.Infof("Sending HTTP connectivity request to %s...", destination.url)
 	err := completeCheckConnectivity(ctx, destination)
 	if err != nil {
@@ -411,8 +414,8 @@ func CheckConnectivity(endpoint config.Endpoint) config.HTTPConnectivity {
 	return err == nil
 }
 
-func CheckConnectivityDiagnose(endpoint config.Endpoint) (url string, err error) {
-	ctx, destination := prepareCheckConnectivity(endpoint)
+func CheckConnectivityDiagnose(endpoint config.Endpoint, cfg conf.ConfigReader) (url string, err error) {
+	ctx, destination := prepareCheckConnectivity(endpoint, cfg)
 	return destination.url, completeCheckConnectivity(ctx, destination)
 }
 

@@ -20,7 +20,7 @@ import (
 	"golang.org/x/net/proxy"
 
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
-	"github.com/DataDog/datadog-agent/pkg/logs/status"
+	status "github.com/DataDog/datadog-agent/pkg/logs/status/module"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -35,12 +35,17 @@ type ConnectionManager struct {
 	endpoint  config.Endpoint
 	mutex     sync.Mutex
 	firstConn sync.Once
+
+	statusAddGlobalWarning    status.AddGlobalWarning
+	statusRemoveGlobalWarning status.RemoveGlobalWarning
 }
 
 // NewConnectionManager returns an initialized ConnectionManager
-func NewConnectionManager(endpoint config.Endpoint) *ConnectionManager {
+func NewConnectionManager(endpoint config.Endpoint, statusAddGlobalWarning status.AddGlobalWarning, statusRemoveGlobalWarning status.RemoveGlobalWarning) *ConnectionManager {
 	return &ConnectionManager{
-		endpoint: endpoint,
+		endpoint:                  endpoint,
+		statusAddGlobalWarning:    statusAddGlobalWarning,
+		statusRemoveGlobalWarning: statusRemoveGlobalWarning,
 	}
 }
 
@@ -67,8 +72,8 @@ func (cm *ConnectionManager) NewConnection(ctx context.Context) (net.Conn, error
 	var retries uint
 	var err error
 	for {
-		if err != nil {
-			status.AddGlobalWarning(statusConnectionError, fmt.Sprintf("Connection to the log intake cannot be established: %v", err))
+		if err != nil && cm.statusAddGlobalWarning != nil {
+			cm.statusAddGlobalWarning(statusConnectionError, fmt.Sprintf("Connection to the log intake cannot be established: %v", err))
 		}
 		if retries > 0 {
 			log.Debugf("Connect attempt #%d", retries)
@@ -121,7 +126,9 @@ func (cm *ConnectionManager) NewConnection(ctx context.Context) (net.Conn, error
 		}
 
 		go cm.handleServerClose(conn)
-		status.RemoveGlobalWarning(statusConnectionError)
+		if cm.statusRemoveGlobalWarning != nil {
+			cm.statusRemoveGlobalWarning(statusConnectionError)
+		}
 		return conn, nil
 	}
 }

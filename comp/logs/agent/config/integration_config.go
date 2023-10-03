@@ -10,7 +10,7 @@ import (
 	"strings"
 	"sync"
 
-	pkgConfig "github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/conf"
 )
 
 // Logs source types
@@ -235,7 +235,7 @@ func (c *LogsConfig) validateTailingMode() error {
 // AutoMultiLineEnabled determines whether auto multi line detection is enabled for this config,
 // considering both the agent-wide logs_config.auto_multi_line_detection and any config for this
 // particular log source.
-func (c *LogsConfig) AutoMultiLineEnabled(coreConfig pkgConfig.ConfigReader) bool {
+func (c *LogsConfig) AutoMultiLineEnabled(coreConfig conf.ConfigReader) bool {
 	if c.AutoMultiLine != nil {
 		return *c.AutoMultiLine
 	}

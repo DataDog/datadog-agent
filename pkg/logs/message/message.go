@@ -10,7 +10,6 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
-	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 )
 
 // Payload represents an encoded collection of messages ready to be sent to the intake
@@ -36,6 +35,8 @@ type Message struct {
 	ParsingExtra
 	// Extra information for Serverless Logs messages
 	ServerlessExtra
+	// Function to retrieve host name
+	GetHostnameFunc GetHostnameFunc
 }
 
 // ParsingExtra ships extra information parsers want to make available
@@ -68,6 +69,7 @@ func NewMessageWithSource(content []byte, status string, source *sources.LogSour
 	return NewMessage(content, NewOrigin(source), status, ingestionTimestamp)
 }
 
+// TODO: could do hostname getter if hostname migration is too hard
 // NewMessage constructs message with content, status, origin and the ingestion timestamp.
 func NewMessage(content []byte, origin *Origin, status string, ingestionTimestamp int64) *Message {
 	return &Message{
@@ -95,6 +97,10 @@ func NewMessageFromLambda(content []byte, origin *Origin, status string, utcTime
 	}
 }
 
+// TODO: remove module here if this approach works for util/hostname
+// GetHostnameFunc defines the signature for a function to retrieve the hostname for the agent.
+type GetHostnameFunc func(ctx context.Context) (string, error)
+
 // GetStatus gets the status of the message.
 // if status is not set, StatusInfo will be returned.
 func (m *Message) GetStatus() string {
@@ -107,18 +113,4 @@ func (m *Message) GetStatus() string {
 // GetLatency returns the latency delta from ingestion time until now
 func (m *Message) GetLatency() int64 {
 	return time.Now().UnixNano() - m.IngestionTimestamp
-}
-
-// GetHostname returns the hostname to applied the given log message
-func (m *Message) GetHostname() string {
-	if m.Lambda != nil {
-		return m.Lambda.ARN
-	}
-	hname, err := hostname.Get(context.TODO())
-	if err != nil {
-		// this scenario is not likely to happen since
-		// the agent cannot start without a hostname
-		hname = "unknown"
-	}
-	return hname
 }

@@ -9,12 +9,11 @@ import (
 	"context"
 	"sync"
 
-	"github.com/DataDog/datadog-agent/pkg/util/log"
-
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
-	"github.com/DataDog/datadog-agent/pkg/logs/diagnostic"
+	diagnostic "github.com/DataDog/datadog-agent/pkg/logs/diagnostic/module"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/logs/metrics"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // A Processor updates messages from an inputChan and pushes
@@ -27,10 +26,11 @@ type Processor struct {
 	done                      chan struct{}
 	diagnosticMessageReceiver diagnostic.MessageReceiver
 	mu                        sync.Mutex
+	getHostnameFunc           message.GetHostnameFunc
 }
 
 // New returns an initialized Processor.
-func New(inputChan, outputChan chan *message.Message, processingRules []*config.ProcessingRule, encoder Encoder, diagnosticMessageReceiver diagnostic.MessageReceiver) *Processor {
+func New(inputChan, outputChan chan *message.Message, processingRules []*config.ProcessingRule, encoder Encoder, diagnosticMessageReceiver diagnostic.MessageReceiver, getHostnameFunc message.GetHostnameFunc) *Processor {
 	return &Processor{
 		inputChan:                 inputChan,
 		outputChan:                outputChan,
@@ -38,6 +38,7 @@ func New(inputChan, outputChan chan *message.Message, processingRules []*config.
 		encoder:                   encoder,
 		done:                      make(chan struct{}),
 		diagnosticMessageReceiver: diagnosticMessageReceiver,
+		getHostnameFunc:           getHostnameFunc,
 	}
 }
 
@@ -94,7 +95,7 @@ func (p *Processor) processMessage(msg *message.Message) {
 		p.diagnosticMessageReceiver.HandleMessage(*msg, "", redactedMsg)
 
 		// Encode the message to its final format
-		content, err := p.encoder.Encode(msg, redactedMsg)
+		content, err := p.encoder.Encode(msg, redactedMsg, p.GetHostname(msg))
 		if err != nil {
 			log.Error("unable to encode msg ", err)
 			return
@@ -124,4 +125,21 @@ func (p *Processor) applyRedactingRules(msg *message.Message) (bool, []byte) {
 		}
 	}
 	return true, content
+}
+
+// GetHostname returns the hostname to applied the given log message
+func (p *Processor) GetHostname(msg *message.Message) string {
+	if msg.Lambda != nil {
+		return msg.Lambda.ARN
+	}
+	if p.getHostnameFunc == nil {
+		return "unknown"
+	}
+	hname, err := p.getHostnameFunc(context.TODO())
+	if err != nil {
+		// this scenario is not likely to happen since
+		// the agent cannot start without a hostname
+		hname = "unknown"
+	}
+	return hname
 }

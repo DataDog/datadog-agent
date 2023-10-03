@@ -13,7 +13,7 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/util/log => ../util/log/
 	github.com/DataDog/datadog-agent/pkg/util/system/socket => ../util/system/socket
 	github.com/DataDog/datadog-agent/pkg/util/util_sort => ../util/util_sort/
-
+	github.com/DataDog/datadog-agent/pkg/version => ../../pkg/version
 )
 
 require (

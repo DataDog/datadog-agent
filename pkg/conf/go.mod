@@ -5,11 +5,13 @@ go 1.20
 replace (
 	github.com/DataDog/datadog-agent/pkg/util/log => ../util/log/
 	github.com/DataDog/datadog-agent/pkg/util/system/socket => ../util/system/socket
+	github.com/DataDog/datadog-agent/pkg/version => ../version
 )
 
 require (
 	github.com/DataDog/datadog-agent/pkg/util/log v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/pkg/util/system/socket v0.0.0-00010101000000-000000000000
+	github.com/DataDog/datadog-agent/pkg/version v0.0.0-00010101000000-000000000000
 	github.com/DataDog/viper v1.12.0
 	github.com/spf13/afero v1.9.5
 	github.com/spf13/pflag v1.0.5

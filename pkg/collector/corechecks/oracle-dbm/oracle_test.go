@@ -14,9 +14,6 @@ import (
 	"testing"
 	"time"
 
-	"testing"
-	"time"
-
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"

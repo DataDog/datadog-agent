@@ -3,18 +3,13 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build !serverless
-
-package logs
+package module
 
 import (
-	"testing"
-
-	"github.com/stretchr/testify/assert"
+	"github.com/DataDog/datadog-agent/pkg/logs/message"
 )
 
-func TestBuildEndpoints(t *testing.T) {
-	endpoints, err := buildEndpoints()
-	assert.Nil(t, err)
-	assert.Equal(t, "agent-intake.logs.datadoghq.com", endpoints.Main.Host)
+// MessageReceiver interface to handle messages for diagnostics
+type MessageReceiver interface {
+	HandleMessage(message.Message, string, []byte)
 }

@@ -507,10 +507,10 @@ func (ns *networkState) storeDNSStats(stats dns.StatsByKeyByNameByType) {
 	// Fast-path for common case (one client registered)
 	if len(ns.clients) == 1 {
 		for _, c := range ns.clients {
-			if len(c.dnsStats) == 0 {
+			if len(c.dnsStats) == 0 && getDeepDNSStatsCount(stats) <= ns.maxDNSStats {
 				c.dnsStats = stats
+				return
 			}
-			return
 		}
 	}
 
@@ -519,7 +519,6 @@ func (ns *networkState) storeDNSStats(stats dns.StatsByKeyByNameByType) {
 		for key, statsByDomain := range stats {
 			for domain, statsByQtype := range statsByDomain {
 				for qtype, dnsStats := range statsByQtype {
-
 					if _, ok := client.dnsStats[key]; !ok {
 						if dnsStatsThisClient >= ns.maxDNSStats {
 							stateTelemetry.dnsStatsDropped.Inc()
@@ -527,6 +526,7 @@ func (ns *networkState) storeDNSStats(stats dns.StatsByKeyByNameByType) {
 						}
 						client.dnsStats[key] = make(map[dns.Hostname]map[dns.QueryType]dns.Stats)
 					}
+
 					if _, ok := client.dnsStats[key][domain]; !ok {
 						if dnsStatsThisClient >= ns.maxDNSStats {
 							stateTelemetry.dnsStatsDropped.Inc()
@@ -544,14 +544,17 @@ func (ns *networkState) storeDNSStats(stats dns.StatsByKeyByNameByType) {
 							prev.CountByRcode[rcode] += count
 						}
 						client.dnsStats[key][domain][qtype] = prev
-					} else {
-						if dnsStatsThisClient >= ns.maxDNSStats {
-							stateTelemetry.dnsStatsDropped.Inc()
-							continue
-						}
-						client.dnsStats[key][domain][qtype] = dnsStats
-						dnsStatsThisClient++
+						continue
 					}
+
+					// new stat
+					if dnsStatsThisClient >= ns.maxDNSStats {
+						stateTelemetry.dnsStatsDropped.Inc()
+						continue
+					}
+
+					client.dnsStats[key][domain][qtype] = dnsStats
+					dnsStatsThisClient++
 				}
 			}
 		}
@@ -562,7 +565,7 @@ func (ns *networkState) storeDNSStats(stats dns.StatsByKeyByNameByType) {
 func (ns *networkState) storeHTTPStats(allStats map[http.Key]*http.RequestStats) {
 	if len(ns.clients) == 1 {
 		for _, client := range ns.clients {
-			if len(client.httpStatsDelta) == 0 {
+			if len(client.httpStatsDelta) == 0 && len(allStats) <= ns.maxHTTPStats {
 				// optimization for the common case:
 				// if there is only one client and no previous state, no memory allocation is needed
 				client.httpStatsDelta = allStats
@@ -592,7 +595,7 @@ func (ns *networkState) storeHTTPStats(allStats map[http.Key]*http.RequestStats)
 func (ns *networkState) storeHTTP2Stats(allStats map[http.Key]*http.RequestStats) {
 	if len(ns.clients) == 1 {
 		for _, client := range ns.clients {
-			if len(client.http2StatsDelta) == 0 {
+			if len(client.http2StatsDelta) == 0 && len(allStats) <= ns.maxHTTPStats {
 				// optimization for the common case:
 				// if there is only one client and no previous state, no memory allocation is needed
 				client.http2StatsDelta = allStats
@@ -624,7 +627,7 @@ func (ns *networkState) storeHTTP2Stats(allStats map[http.Key]*http.RequestStats
 func (ns *networkState) storeKafkaStats(allStats map[kafka.Key]*kafka.RequestStat) {
 	if len(ns.clients) == 1 {
 		for _, client := range ns.clients {
-			if len(client.kafkaStatsDelta) == 0 {
+			if len(client.kafkaStatsDelta) == 0 && len(allStats) <= ns.maxKafkaStats {
 				// optimization for the common case:
 				// if there is only one client and no previous state, no memory allocation is needed
 				client.kafkaStatsDelta = allStats

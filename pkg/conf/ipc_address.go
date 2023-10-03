@@ -30,7 +30,7 @@ func IsLocalAddress(address string) (string, error) {
 }
 
 // GetIPCAddress returns the IPC address or an error if the address is not local
-func GetIPCAddress(cfg Config) (string, error) {
+func GetIPCAddress(cfg ConfigReader) (string, error) {
 	address, err := IsLocalAddress(cfg.GetString("ipc_address"))
 	if err != nil {
 		return "", fmt.Errorf("ipc_address: %s", err)

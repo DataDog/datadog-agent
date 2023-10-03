@@ -47,6 +47,11 @@ var (
 	infoPodQueueBytes         atomic.Int64
 	infoEnabledChecks         []string
 	infoDropCheckPayloads     []string
+
+	// WorkloadMetaExtractor stats
+	infoWlmExtractorCacheSize    atomic.Int64
+	infoWlmExtractorStaleDiffs   atomic.Int64
+	infoWlmExtractorDiffsDropped atomic.Int64
 )
 
 func publishUptime() interface{} {
@@ -146,6 +151,20 @@ func UpdateEnabledChecks(enabledChecks []string) {
 	infoEnabledChecks = enabledChecks
 }
 
+// WlmExtractorStats are stats from the WorkloadMetaExtractor
+type WlmExtractorStats struct {
+	CacheSize    int
+	StaleDiffs   int64
+	DiffsDropped int64
+}
+
+// UpdateWlmExtractorStats updates the expvar stats for the WorkloadMetaExtractor
+func UpdateWlmExtractorStats(stats WlmExtractorStats) {
+	infoWlmExtractorCacheSize.Store(int64(stats.CacheSize))
+	infoWlmExtractorStaleDiffs.Store(stats.StaleDiffs)
+	infoWlmExtractorDiffsDropped.Store(stats.DiffsDropped)
+}
+
 func publishEnabledChecks() interface{} {
 	infoMutex.RLock()
 	defer infoMutex.RUnlock()
@@ -220,35 +239,6 @@ func publishDropCheckPayloads() interface{} {
 	return infoDropCheckPayloads
 }
 
-// StatusInfo is a structure to get information from expvar and feed to template
-type StatusInfo struct {
-	Pid                             int                    `json:"pid"`
-	HostName                        string                 `json:"host"`
-	Uptime                          int                    `json:"uptime"`
-	MemStats                        struct{ Alloc uint64 } `json:"memstats"`
-	Version                         version.Version        `json:"version"`
-	DockerSocket                    string                 `json:"docker_socket"`
-	LastCollectTime                 string                 `json:"last_collect_time"`
-	ProcessCount                    int                    `json:"process_count"`
-	ContainerCount                  int                    `json:"container_count"`
-	ProcessQueueSize                int                    `json:"process_queue_size"`
-	RTProcessQueueSize              int                    `json:"rtprocess_queue_size"`
-	ConnectionsQueueSize            int                    `json:"connections_queue_size"`
-	EventQueueSize                  int                    `json:"event_queue_size"`
-	PodQueueSize                    int                    `json:"pod_queue_size"`
-	ProcessQueueBytes               int                    `json:"process_queue_bytes"`
-	RTProcessQueueBytes             int                    `json:"rtprocess_queue_bytes"`
-	ConnectionsQueueBytes           int                    `json:"connections_queue_bytes"`
-	EventQueueBytes                 int                    `json:"event_queue_bytes"`
-	PodQueueBytes                   int                    `json:"pod_queue_bytes"`
-	ContainerID                     string                 `json:"container_id"`
-	ProxyURL                        string                 `json:"proxy_url"`
-	LogFile                         string                 `json:"log_file"`
-	DropCheckPayloads               []string               `json:"drop_check_payloads"`
-	SystemProbeProcessModuleEnabled bool                   `json:"system_probe_process_module_enabled"`
-	LanguageDetectionEnabled        bool                   `json:"language_detection_enabled"`
-}
-
 func InitExpvars(config ddconfig.ConfigReader, telemetry telemetry.Component, hostname string, processModuleEnabled, languageDetectionEnabled bool, eps []apicfg.Endpoint) {
 	infoOnce.Do(func() {
 		expvar.NewString("host").Set(hostname)
@@ -276,6 +266,9 @@ func InitExpvars(config ddconfig.ConfigReader, telemetry telemetry.Component, ho
 		expvar.Publish("drop_check_payloads", expvar.Func(publishDropCheckPayloads))
 		expvar.Publish("system_probe_process_module_enabled", publishBool(processModuleEnabled))
 		expvar.Publish("language_detection_enabled", publishBool(languageDetectionEnabled))
+		expvar.Publish("workloadmeta_extractor_cache_size", publishInt(&infoWlmExtractorCacheSize))
+		expvar.Publish("workloadmeta_extractor_stale_diffs", publishInt(&infoWlmExtractorStaleDiffs))
+		expvar.Publish("workloadmeta_extractor_diffs_dropped", publishInt(&infoWlmExtractorDiffsDropped))
 	})
 
 	// Run a profile & telemetry server.

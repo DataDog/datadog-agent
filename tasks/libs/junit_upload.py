@@ -92,6 +92,7 @@ def upload_junitxmls(output_dir, owners, flavor, xmlfile_name, additional_tags=N
         process_env.update(job_env)
 
     for owner in owners:
+        junit_file_path = os.path.join(output_dir, owner + ".xml")
         codeowner = CODEOWNERS_ORG_PREFIX + owner
         slack_channel = GITHUB_SLACK_MAP.get(codeowner.lower(), DEFAULT_SLACK_CHANNEL)[1:]
         jira_project = GITHUB_JIRA_MAP.get(codeowner.lower(), DEFAULT_JIRA_PROJECT)[0:]
@@ -107,6 +108,9 @@ def upload_junitxmls(output_dir, owners, flavor, xmlfile_name, additional_tags=N
             "--tags",
             f"jira_project:{jira_project}",
         ]
+        jira_card = retrieve_jira_card(junit_file_path)
+        if jira_card:
+            args.extend(["--tags", f"jira_card:{jira_card}"])
         if additional_tags and "upload_option.os_version_from_name" in additional_tags:
             additional_tags.remove("upload_option.os_version_from_name")
             additional_tags.append("--tags")
@@ -117,7 +121,7 @@ def upload_junitxmls(output_dir, owners, flavor, xmlfile_name, additional_tags=N
 
         if additional_tags:
             args.extend(additional_tags)
-        args.append(os.path.join(output_dir, owner + ".xml"))
+        args.append(junit_file_path)
         processes.append(subprocess.Popen(DATADOG_CI_COMMAND + args, bufsize=-1, env=process_env))
     for process in processes:
         exit_code = process.wait()
@@ -246,3 +250,45 @@ def repack_macos_junit_tar(infile, outfile):
         # pack all files to a new tarball
         for f in os.listdir(tempd):
             outfp.add(os.path.join(tempd, f), arcname=f)
+
+
+def retrieve_jira_card(xmlfile_path):
+    """
+    Search in jira if a card already exist for the given testsuite
+    """
+    from jira import JIRA
+
+    fake_jira_card = "XYZ-123"
+    tree = ET.parse(xmlfile_path)
+    try:
+        jira_token = os.environ["JIRA_TOKEN"]
+    except KeyError:
+        print("Failed to retrieve jira token in environment, won't retrieve jira cards")
+        # See https://app.datadoghq.com/workflow/42375aaf-9a77-4b93-ad51-9a5f524b570d
+        print(f"Junit jira ticket {fake_jira_card}")
+        return fake_jira_card
+
+    auth = ("robot-jira-agentplatform@datadoghq.com", jira_token)
+    j = JIRA(basic_auth=auth, server="https://datadoghq.atlassian.net/")
+    test_suites = list(tree.iter("testsuite"))
+    if len(test_suites) > 1:
+        message = f"Found several test suites in a single junit file: {[x.attrib['name'] for x in test_suites]}"
+        print(message)
+    suite_name = test_suites[0].attrib["name"]
+    search_query = f'project = "CI Improvement" and summary ~ "{suite_name}" and status != Done'
+    try:
+        issues = j.search_issues(search_query)
+    except Exception as e:
+        # Catch whatever issue from jira api and send an information handled in the wokflow
+        # See https://app.datadoghq.com/workflow/42375aaf-9a77-4b93-ad51-9a5f524b570d
+        print(e)
+        print(f"Junit jira ticket {fake_jira_card}")
+        return fake_jira_card
+    if len(issues) == 0:
+        print("Junit jira ticket empty")
+        return ""
+    elif len(issues) > 1:
+        message = f"Found several jira issues for the test suite {suite_name}: {[x.key for x in issues]}"
+        print(message)
+    print(f"Junit jira ticket {issues[0].key}")
+    return issues[0].key

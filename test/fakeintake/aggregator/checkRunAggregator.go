@@ -7,27 +7,36 @@ package aggregator
 
 import (
 	"encoding/json"
+	"time"
 
 	"github.com/DataDog/datadog-agent/test/fakeintake/api"
 )
 
 type CheckRun struct {
-	Check     string   `json:"check"`
-	HostName  string   `json:"host_name"`
-	Timestamp int      `json:"timestamp"`
-	Status    int      `json:"status"`
-	Message   string   `json:"message"`
-	Tags      []string `json:"tags"`
+	collectedTime time.Time
+	Check         string   `json:"check"`
+	HostName      string   `json:"host_name"`
+	Timestamp     int      `json:"timestamp"`
+	Status        int      `json:"status"`
+	Message       string   `json:"message"`
+	Tags          []string `json:"tags"`
 }
 
 func (cr *CheckRun) name() string {
 	return cr.Check
 }
 
+// GetTags return the tags from a payload
 func (cr *CheckRun) GetTags() []string {
 	return cr.Tags
 }
 
+// GetCollectedTime return the time when the payload has been collected by the fakeintake server
+func (cr *CheckRun) GetCollectedTime() time.Time {
+	return cr.collectedTime
+}
+
+// ParseCheckRunPayload return the parsed checkRun from payload
 func ParseCheckRunPayload(payload api.Payload) (checks []*CheckRun, err error) {
 	enflated, err := enflate(payload.Data, payload.Encoding)
 	if err != nil {
@@ -35,6 +44,12 @@ func ParseCheckRunPayload(payload api.Payload) (checks []*CheckRun, err error) {
 	}
 	checks = []*CheckRun{}
 	err = json.Unmarshal(enflated, &checks)
+	if err != nil {
+		return nil, err
+	}
+	for _, c := range checks {
+		c.collectedTime = payload.Timestamp
+	}
 	return checks, err
 }
 
