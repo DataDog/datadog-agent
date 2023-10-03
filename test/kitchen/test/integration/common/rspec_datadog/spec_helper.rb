@@ -219,12 +219,8 @@ end
 def log_trace(flavor, action)
   service = get_service_name(flavor)
   if os == :windows
-    if action == "stop" || action == "restart"
-      system "wevtutil qe System /q:\"*[System[(EventID=7040) and (EventData[Data[@Name='param1']='#{service}'])]\""
-    end
-    if action == "start" || action == "restart"
-      system "wevtutil qe System /q:\"*[System[(EventID=7036) and (EventData[Data[@Name='param1']='#{service}'])]\""
-    end
+    system "powershell.exe -Command \"Get-EventLog -LogName Application -Newest 10 -Source #{service} | fl\""
+    system "powershell.exe -Command \"Get-EventLog -LogName System -Newest 10 -Source \\\"Service Control Manager\\\" | fl\""
   else
     if has_systemctl
       system "sudo journalctl -u #{service} -xe --no-pager"
