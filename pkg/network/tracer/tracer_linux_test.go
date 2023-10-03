@@ -975,11 +975,11 @@ func (s *TracerSuite) TestDNATIntraHostIntegration() {
 		onMessage: func(c net.Conn) {
 			serverAddr.local = c.LocalAddr()
 			serverAddr.remote = c.RemoteAddr()
-			bs := make([]byte, 1)
+			bs := make([]byte, 4)
 			_, err := c.Read(bs)
 			require.NoError(t, err, "error reading in server")
 
-			_, err = c.Write([]byte("Ping back"))
+			_, err = c.Write([]byte("pong"))
 			require.NoError(t, err, "error writing back in server")
 		},
 	}
@@ -992,23 +992,27 @@ func (s *TracerSuite) TestDNATIntraHostIntegration() {
 	require.NoError(t, err, "error connecting to client")
 	defer conn.Close()
 
-	_, err = conn.Write([]byte("ping"))
-	require.NoError(t, err, "error writing in client")
+	var incoming, outgoing *network.ConnectionStats
+	require.Eventually(t, func() bool {
+		_, err = conn.Write([]byte("ping"))
+		require.NoError(t, err, "error writing in client")
 
-	bs := make([]byte, 1)
-	_, err = conn.Read(bs)
-	require.NoError(t, err)
+		bs := make([]byte, 4)
+		_, err = conn.Read(bs)
+		require.NoError(t, err)
 
-	conns := getConnections(t, tr)
-	c, found := findConnection(conn.LocalAddr(), conn.RemoteAddr(), conns)
-	require.True(t, found, "could not find outgoing connection %+v", conns)
-	require.NotNil(t, c, "could not find outgoing connection %+v", conns)
-	assert.True(t, c.IntraHost, "did not find outgoing connection classified as local: %v", c)
+		conns := getConnections(t, tr)
+		t.Log(conns)
 
-	c, found = findConnection(serverAddr.local, serverAddr.remote, conns)
-	require.True(t, found, "could not find incoming connection %+v", conns)
-	require.NotNil(t, c, "could not find incoming connection %+v", conns)
-	assert.True(t, c.IntraHost, "did not find incoming connection classified as local: %v", c)
+		outgoing, _ = findConnection(conn.LocalAddr(), conn.RemoteAddr(), conns)
+		incoming, _ = findConnection(serverAddr.local, serverAddr.remote, conns)
+
+		t.Logf("incoming: %+v, outgoing: %+v", incoming, outgoing)
+		return incoming != nil && outgoing != nil
+	}, 3*time.Second, 100*time.Millisecond, "failed to get both incoming and outgoing connection")
+
+	assert.True(t, outgoing.IntraHost, "did not find outgoing connection classified as local: %v", outgoing)
+	assert.True(t, incoming.IntraHost, "did not find incoming connection classified as local: %v", incoming)
 }
 
 func (s *TracerSuite) TestSelfConnect() {
