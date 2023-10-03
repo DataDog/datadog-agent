@@ -15,7 +15,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/common"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/metrics"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/cache"
@@ -111,14 +110,6 @@ func injectTags(pod *corev1.Pod, ns string, dc dynamic.Interface) error {
 	_, injected = injectTagsFromLabels(owner.labels, pod)
 
 	return nil
-}
-
-// shouldInjectConf returns whether we should try to inject standard tags
-func shouldInjectTags(pod *corev1.Pod) bool {
-	if val := pod.GetLabels()[common.EnabledLabelKey]; val == "false" {
-		return false
-	}
-	return true
 }
 
 // injectTagsFromLabels looks for standard tags in pod labels
