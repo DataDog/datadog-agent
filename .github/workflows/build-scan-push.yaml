@@ -1,0 +1,106 @@
+[200~name: datadog-build-scan-push
+
+on:
+  push:
+    branches:
+    - main
+
+env:
+  REGISTRY: ghcr.io
+  CLUSTER_AGENT_IMAGE_NAME: "${{ github.repository }}/datadog-cluster-agent:${{ github.sha }}-GOV"
+  AGENT_IMAGE_NAME: "${{ github.repository }}/datadog-agent:${{ github.sha }}-GOV"
+  AGENT_VERSION: 7.47.1
+
+jobs:
+  build-and-scan:
+    runs-on: ubuntu-latest
+    steps:
+    - name: Check out the repository
+      uses: actions/checkout@v2
+      with:
+        fetch-depth: 0
+
+    - name: Install python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.8.14'
+
+    - name: Install Python requirements
+      run: |
+        pip install -r requirements.txt
+
+    - name: Setup env variables
+      run: |
+        echo "CODEQL_PYTHON=$(which python3)" >> $GITHUB_ENV
+        echo "$GOPATH/bin" >> $GITHUB_PATH
+        echo "CGO_LDFLAGS= -L${GITHUB_WORKSPACE}/rtloader/build/rtloader -ldl " >> $GITHUB_ENV
+        echo "CGO_CFLAGS= -I${GITHUB_WORKSPACE}/rtloader/include  -I${GITHUB_WORKSPACE}/rtloader/common " >> $GITHUB_ENV
+
+    - uses: actions/setup-go@v3
+      with:
+        go-version-file: '.go-version'
+
+    - name: Log in to GitHub Container Registry
+      uses: docker/login-action@v1
+      with:
+        registry: ghcr.io
+        username: ${{ github.actor }}
+        password: ${{ secrets.GITHUB_TOKEN }}
+
+    - name: Build datadog agent
+      run: |
+        docker pull gcr.io/datadoghq/agent:$AGENT_VERSION
+        docker tag gcr.io/datadoghq/agent:$AGENT_VERSION $AGENT_IMAGE_NAME
+
+    - name: Build datadog cluster agent
+      run: |
+        docker pull gcr.io/datadoghq/cluster-agent:$AGENT_VERSION
+        docker tag gcr.io/datadoghq/cluster-agent:$AGENT_VERSION $CLUSTER_AGENT_IMAGE_NAME
+
+
+    - name: Prisma Cloud image scan agent
+      id: scan-agent
+      uses: PaloAltoNetworks/prisma-cloud-scan@v1
+      with:
+        pcc_console_url: ${{ secrets.PCC_CONSOLE_URL }}
+        pcc_user: ${{ secrets.PCC_USER }}
+        pcc_pass: ${{ secrets.PCC_PASS }}
+        image_name: ${{ env.AGENT_IMAGE_NAME }}
+
+    - name: Prisma Cloud image scan cluster-agent
+      id: scan-cluster-agent
+      uses: PaloAltoNetworks/prisma-cloud-scan@v1
+      with:
+        pcc_console_url: ${{ secrets.PCC_CONSOLE_URL }}
+        pcc_user: ${{ secrets.PCC_USER }}
+        pcc_pass: ${{ secrets.PCC_PASS }}
+        image_name: ${{ env.CLUSTER_AGENT_IMAGE_NAME }}
+
+    - name: Install Cosign
+      uses: sigstore/cosign-installer@main
+
+    - name: Push agent to ghcr.io
+      run: |
+        docker tag $AGENT_IMAGE_NAME  ${{ env.REGISTRY }}/${{ env.AGENT_IMAGE_NAME }}
+        docker push ${{ env.REGISTRY }}/${{ env.AGENT_IMAGE_NAME }}
+
+    - name: Push cluster-agent to ghcr.io
+      run: |
+        docker tag $CLUSTER_AGENT_IMAGE_NAME  ${{ env.REGISTRY }}/${{ env.CLUSTER_AGENT_IMAGE_NAME }}
+        docker push ${{ env.REGISTRY }}/${{ env.CLUSTER_AGENT_IMAGE_NAME }}
+
+    - name: Sign agent image with a key
+      run: |
+        cosign sign --key env://COSIGN_PRIVATE_KEY ${TAGS}
+      env:
+        TAGS: ghcr.io/${{ env.AGENT_IMAGE_NAME }}
+        COSIGN_PRIVATE_KEY: ${{secrets.COSIGN_PRIVATE_KEY}}
+        COSIGN_PASSWORD: ${{secrets.COSIGN_PASSWORD}}
+
+    - name: Sign cluster-agent image with a key
+      run: |
+        cosign sign --key env://COSIGN_PRIVATE_KEY ${TAGS}
+      env:
+        TAGS: ghcr.io/${{ env.CLUSTER_AGENT_IMAGE_NAME }}
+        COSIGN_PRIVATE_KEY: ${{secrets.COSIGN_PRIVATE_KEY}}
+        COSIGN_PASSWORD: ${{secrets.COSIGN_PASSWORD}}
