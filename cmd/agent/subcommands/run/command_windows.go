@@ -158,5 +158,8 @@ func getPlatformModules() fx.Option {
 	return fx.Options(
 		agentcrashdetect.Module,
 		comptraceconfig.Module,
+		fx.Replace(comptraceconfig.Params{
+			FailIfAPIKeyMissing: false,
+		}),
 	)
 }
