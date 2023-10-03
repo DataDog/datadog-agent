@@ -11,23 +11,25 @@ import (
 	"fmt"
 	"testing"
 
+	"github.com/DataDog/test-infra-definitions/common/utils"
 	"github.com/DataDog/test-infra-definitions/components/datadog/agent/docker"
 	"github.com/DataDog/test-infra-definitions/components/os"
 	"github.com/docker/cli/cli/connhelper"
 	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/client"
 	"github.com/docker/docker/pkg/stdcopy"
+	"github.com/pulumi/pulumi/sdk/v3/go/auto"
 	"github.com/stretchr/testify/require"
 )
 
-var _ clientService[docker.ClientData] = (*Docker)(nil)
+var _ stackInitializer = (*Docker)(nil)
 
 // A Docker client that is connected to an [docker.Deamon].
 //
 // [docker.Deamon]: https://pkg.go.dev/github.com/DataDog/test-infra-definitions@main/components/datadog/agent/docker#Deamon
 type Docker struct {
-	agent *AgentCommandRunner
-	*UpResultDeserializer[docker.ClientData]
+	agent              *AgentCommandRunner
+	deserializer       utils.RemoteServiceDeserializer[docker.ClientData]
 	t                  *testing.T
 	client             *client.Client
 	agentContainerName string
@@ -36,19 +38,22 @@ type Docker struct {
 
 // NewDocker creates a new instance of Docker
 func NewDocker(daemon *docker.Daemon) *Docker {
-	dockerInstance := &Docker{
+	return &Docker{
 		agentContainerName: daemon.GetAgentContainerName(),
 		os:                 daemon.GetOS(),
+		deserializer:       daemon,
 	}
-	dockerInstance.UpResultDeserializer = NewUpResultDeserializer[docker.ClientData](daemon, dockerInstance)
-	return dockerInstance
 }
 
 //lint:ignore U1000 Ignore unused function as this function is call using reflection
-func (docker *Docker) initService(t *testing.T, data *docker.ClientData) error {
+func (docker *Docker) setStack(t *testing.T, stackResult auto.UpResult) error {
+	clientData, err := docker.deserializer.Deserialize(stackResult)
+	if err != nil {
+		return err
+	}
 	docker.t = t
 
-	deamonURL := fmt.Sprintf("ssh://%v@%v:22", data.Connection.User, data.Connection.Host)
+	deamonURL := fmt.Sprintf("ssh://%v@%v:22", clientData.Connection.User, clientData.Connection.Host)
 	helper, err := connhelper.GetConnectionHelperWithSSHOpts(deamonURL, []string{"-o", "StrictHostKeyChecking no"})
 
 	if err != nil {

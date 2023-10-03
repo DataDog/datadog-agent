@@ -60,8 +60,6 @@ func getFields[Env any](env *Env) ([]field, error) {
 	}
 
 	stackInitializerType := reflect.TypeOf((*stackInitializer)(nil)).Elem()
-	upResultDeserializerType := reflect.TypeOf((*UpResultDeserializer[any])(nil)).Elem()
-
 	for i := 0; i < envValue.NumField(); i++ {
 		fieldName := envValue.Type().Field(i).Name
 		if _, found := exportedFields[fieldName]; !found {
@@ -70,11 +68,10 @@ func getFields[Env any](env *Env) ([]field, error) {
 
 		initializer, ok := envValue.Field(i).Interface().(stackInitializer)
 		if !ok {
-			return nil, fmt.Errorf("%v contains %v which doesn't implement %v. See %v",
+			return nil, fmt.Errorf("%v contains %v which doesn't implement %v",
 				envType,
 				fieldName,
 				stackInitializerType,
-				upResultDeserializerType,
 			)
 		}
 		fields = append(fields, field{
