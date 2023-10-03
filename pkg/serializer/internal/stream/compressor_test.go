@@ -18,17 +18,10 @@ import (
 	jsoniter "github.com/json-iterator/go"
 	"github.com/stretchr/testify/require"
 
-	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/conf"
+	"github.com/DataDog/datadog-agent/pkg/config/configsetup"
 	"github.com/DataDog/datadog-agent/pkg/serializer/marshaler"
 )
-
-var (
-	maxPayloadSizeDefault = config.Datadog.GetInt("serializer_max_payload_size")
-)
-
-func resetDefaults() {
-	config.Datadog.SetDefault("serializer_max_payload_size", maxPayloadSizeDefault)
-}
 
 func decompressPayload(payload []byte) ([]byte, error) {
 	r, err := zlib.NewReader(bytes.NewReader(payload))
@@ -53,8 +46,10 @@ func payloadToString(payload []byte) string {
 }
 
 func TestCompressorSimple(t *testing.T) {
-	maxPayloadSize := config.Datadog.GetInt("serializer_max_payload_size")
-	maxUncompressedSize := config.Datadog.GetInt("serializer_max_uncompressed_payload_size")
+	cfg := conf.NewConfig("test", "DD", strings.NewReplacer(".", "_"))
+	configsetup.InitConfig(cfg)
+	maxPayloadSize := cfg.GetInt("serializer_max_payload_size")
+	maxUncompressedSize := cfg.GetInt("serializer_max_uncompressed_payload_size")
 	c, err := NewCompressor(
 		&bytes.Buffer{}, &bytes.Buffer{},
 		maxPayloadSize, maxUncompressedSize,
@@ -113,7 +108,8 @@ func TestOnePayloadSimple(t *testing.T) {
 		Footer: "]}",
 	}
 
-	builder := NewJSONPayloadBuilder(true)
+	cfg := conf.NewConfig("test", "DD", strings.NewReplacer(".", "_"))
+	builder := NewJSONPayloadBuilder(true, cfg)
 	payloads, err := BuildJSONPayload(builder, m)
 	require.NoError(t, err)
 	require.Len(t, payloads, 1)
@@ -127,10 +123,10 @@ func TestMaxCompressedSizePayload(t *testing.T) {
 		Header: "{[",
 		Footer: "]}",
 	}
-	config.Datadog.SetDefault("serializer_max_payload_size", 22)
-	defer resetDefaults()
+	cfg := conf.NewConfig("test", "DD", strings.NewReplacer(".", "_"))
+	cfg.SetDefault("serializer_max_payload_size", 22)
 
-	builder := NewJSONPayloadBuilder(true)
+	builder := NewJSONPayloadBuilder(true, cfg)
 	payloads, err := BuildJSONPayload(builder, m)
 	require.NoError(t, err)
 	require.Len(t, payloads, 1)
@@ -144,10 +140,11 @@ func TestTwoPayload(t *testing.T) {
 		Header: "{[",
 		Footer: "]}",
 	}
-	config.Datadog.SetDefault("serializer_max_payload_size", 22)
-	defer resetDefaults()
 
-	builder := NewJSONPayloadBuilder(true)
+	cfg := conf.NewConfig("test", "DD", strings.NewReplacer(".", "_"))
+	cfg.SetDefault("serializer_max_payload_size", 22)
+
+	builder := NewJSONPayloadBuilder(true, cfg)
 	payloads, err := BuildJSONPayload(builder, m)
 	require.NoError(t, err)
 	require.Len(t, payloads, 2)
@@ -162,10 +159,10 @@ func TestLockedCompressorProducesSamePayloads(t *testing.T) {
 		Header: "{[",
 		Footer: "]}",
 	}
-	defer resetDefaults()
-
-	builderLocked := NewJSONPayloadBuilder(true)
-	builderUnLocked := NewJSONPayloadBuilder(false)
+	cfg := conf.NewConfig("test", "DD", strings.NewReplacer(".", "_"))
+	configsetup.InitConfig(cfg)
+	builderLocked := NewJSONPayloadBuilder(true, cfg)
+	builderUnLocked := NewJSONPayloadBuilder(false, cfg)
 	payloads1, err := BuildJSONPayload(builderLocked, m)
 	require.NoError(t, err)
 	payloads2, err := BuildJSONPayload(builderUnLocked, m)
@@ -175,10 +172,10 @@ func TestLockedCompressorProducesSamePayloads(t *testing.T) {
 }
 
 func TestBuildWithOnErrItemTooBigPolicyMetadata(t *testing.T) {
-	config.Datadog.Set("serializer_max_uncompressed_payload_size", 40)
-	defer config.Datadog.Set("serializer_max_uncompressed_payload_size", nil)
 	marshaler := &IterableStreamJSONMarshalerMock{index: 0, maxIndex: 100}
-	builder := NewJSONPayloadBuilder(false)
+	cfg := conf.NewConfig("test", "DD", strings.NewReplacer(".", "_"))
+	cfg.Set("serializer_max_uncompressed_payload_size", 40)
+	builder := NewJSONPayloadBuilder(false, cfg)
 	payloads, err := builder.BuildWithOnErrItemTooBigPolicy(
 		marshaler,
 		DropItemOnErrItemTooBig)

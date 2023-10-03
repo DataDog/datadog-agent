@@ -26,8 +26,9 @@ replace (
 replace (
 	github.com/DataDog/datadog-agent/cmd/agent/common/path => ./cmd/agent/common/path
 	github.com/DataDog/datadog-agent/comp/core/config => ./comp/core/config
-	github.com/DataDog/datadog-agent/comp/core/log/module => ./comp/core/log/module
+	github.com/DataDog/datadog-agent/comp/core/log => ./comp/core/log/
 	github.com/DataDog/datadog-agent/comp/core/telemetry => ./comp/core/telemetry
+	github.com/DataDog/datadog-agent/comp/forwarder => ./comp/forwarder/
 	github.com/DataDog/datadog-agent/comp/logs/agent/config => ./comp/logs/agent/config
 	github.com/DataDog/datadog-agent/comp/logs/agent/pipeline => ./comp/logs/agent/pipeline
 	github.com/DataDog/datadog-agent/pkg/aggregator/ckey => ./pkg/aggregator/ckey
@@ -37,7 +38,7 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/config/configsetup => ./pkg/config/configsetup/
 	github.com/DataDog/datadog-agent/pkg/config/load => ./pkg/config/load/
 	github.com/DataDog/datadog-agent/pkg/config/logsetup => ./pkg/config/logsetup/
-
+	github.com/DataDog/datadog-agent/pkg/config/utils/endpoints => ./pkg/config/utils/endpoints/
 	github.com/DataDog/datadog-agent/pkg/errors => ./pkg/errors/
 	github.com/DataDog/datadog-agent/pkg/gohai => ./pkg/gohai
 	github.com/DataDog/datadog-agent/pkg/logs/auditor => ./pkg/logs/auditor
@@ -57,11 +58,14 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/metrics/servicecheck => ./pkg/metrics/servicecheck/
 	github.com/DataDog/datadog-agent/pkg/networkdevice/profile => ./pkg/networkdevice/profile
 	github.com/DataDog/datadog-agent/pkg/obfuscate => ./pkg/obfuscate
+	github.com/DataDog/datadog-agent/pkg/orchestrator/model => ./pkg/orchestrator/model/
+	github.com/DataDog/datadog-agent/pkg/process/util/api => ./pkg/process/util/api/
 	github.com/DataDog/datadog-agent/pkg/proto => ./pkg/proto
 	github.com/DataDog/datadog-agent/pkg/remoteconfig/state => ./pkg/remoteconfig/state
 	github.com/DataDog/datadog-agent/pkg/secrets => ./pkg/secrets/
 	github.com/DataDog/datadog-agent/pkg/security/secl => ./pkg/security/secl
-	github.com/DataDog/datadog-agent/pkg/status/health => ./pkg/status/health
+	github.com/DataDog/datadog-agent/pkg/serializer => ./pkg/serializer
+	github.com/DataDog/datadog-agent/pkg/status/health => ./pkg/status/health/
 	github.com/DataDog/datadog-agent/pkg/tagset => ./pkg/tagset/
 	github.com/DataDog/datadog-agent/pkg/telemetry => ./pkg/telemetry
 	github.com/DataDog/datadog-agent/pkg/trace => ./pkg/trace
@@ -69,11 +73,14 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/util/buf => ./pkg/util/buf
 	github.com/DataDog/datadog-agent/pkg/util/cache => ./pkg/util/cache
 	github.com/DataDog/datadog-agent/pkg/util/cgroups => ./pkg/util/cgroups
+	github.com/DataDog/datadog-agent/pkg/util/common => ./pkg/util/common/
+	github.com/DataDog/datadog-agent/pkg/util/compression => ./pkg/util/compression/
 	github.com/DataDog/datadog-agent/pkg/util/executable => ./pkg/util/executable/
 	github.com/DataDog/datadog-agent/pkg/util/filesystem => ./pkg/util/filesystem/
 	github.com/DataDog/datadog-agent/pkg/util/fxutil => ./pkg/util/fxutil
 	github.com/DataDog/datadog-agent/pkg/util/go_routines => ./pkg/util/go_routines
 	github.com/DataDog/datadog-agent/pkg/util/http => ./pkg/util/http
+	github.com/DataDog/datadog-agent/pkg/util/json => ./pkg/util/json/
 	github.com/DataDog/datadog-agent/pkg/util/log => ./pkg/util/log
 	github.com/DataDog/datadog-agent/pkg/util/optional => ./pkg/util/optional
 	github.com/DataDog/datadog-agent/pkg/util/pointer => ./pkg/util/pointer
@@ -85,8 +92,7 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/util/testutil => ./pkg/util/testutil/
 	github.com/DataDog/datadog-agent/pkg/util/util_sort => ./pkg/util/util_sort
 	github.com/DataDog/datadog-agent/pkg/util/winutil => ./pkg/util/winutil/
-	github.com/DataDog/datadog-agent/pkg/version => ./pkg/version
-
+	github.com/DataDog/datadog-agent/pkg/version => ./pkg/version/
 )
 
 require (
@@ -99,7 +105,6 @@ require (
 	github.com/DataDog/datadog-agent/pkg/obfuscate v0.48.0-rc.2
 	github.com/DataDog/datadog-agent/pkg/remoteconfig/state v0.48.0-rc.2
 	github.com/DataDog/datadog-agent/pkg/security/secl v0.48.0-rc.2
-	github.com/DataDog/datadog-agent/pkg/trace v0.48.0-rc.2
 	github.com/DataDog/datadog-agent/pkg/util/cgroups v0.48.0-rc.2
 	github.com/DataDog/datadog-agent/pkg/util/log v0.48.0-rc.2
 	github.com/DataDog/datadog-agent/pkg/util/pointer v0.48.0-rc.2
@@ -118,7 +123,7 @@ require (
 	github.com/DataDog/viper v1.12.0
 	github.com/DataDog/watermarkpodautoscaler v0.5.2
 	github.com/DataDog/zstd v1.5.5
-	github.com/DataDog/zstd_0 v0.0.0-20210310093942-586c1286621f
+	github.com/DataDog/zstd_0 v0.0.0-20210310093942-586c1286621f // indirect
 	github.com/Masterminds/semver v1.5.0
 	github.com/Masterminds/semver/v3 v3.2.1
 	github.com/Masterminds/sprig/v3 v3.2.3 // indirect
@@ -212,7 +217,7 @@ require (
 	github.com/prometheus/client_golang v1.16.0
 	github.com/prometheus/client_model v0.4.0
 	github.com/prometheus/procfs v0.11.1
-	github.com/richardartoul/molecule v1.0.1-0.20221107223329-32cfee06a052
+	github.com/richardartoul/molecule v1.0.1-0.20221107223329-32cfee06a052 // indirect
 	github.com/robfig/cron/v3 v3.0.1
 	github.com/samber/lo v1.38.1
 	github.com/samuel/go-zookeeper v0.0.0-20190923202752-2cc03de413da
@@ -611,12 +616,13 @@ require github.com/lorenzosaino/go-sysctl v0.3.1
 
 require (
 	github.com/DATA-DOG/go-sqlmock v1.5.0
-	github.com/DataDog/agent-payload/v5 v5.0.96
+	github.com/DataDog/agent-payload/v5 v5.0.97
 	github.com/DataDog/datadog-agent/cmd/agent/common/path v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/comp/core/config v0.0.0-00010101000000-000000000000
-	github.com/DataDog/datadog-agent/comp/core/log/module v0.0.0-00010101000000-000000000000
+	github.com/DataDog/datadog-agent/comp/core/log v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/comp/core/telemetry v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/comp/logs/agent/config v0.0.0-00010101000000-000000000000
+	github.com/DataDog/datadog-agent/comp/forwarder v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/pkg/aggregator/ckey v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/pkg/autodiscovery/common/types v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/pkg/collector/check/defaults v0.0.0-00010101000000-000000000000
@@ -636,22 +642,29 @@ require (
 	github.com/DataDog/datadog-agent/pkg/logs/sender v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/pkg/logs/sources v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/pkg/metrics v0.0.0-00010101000000-000000000000
+	github.com/DataDog/datadog-agent/pkg/process/util/api v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/pkg/metrics/event v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/pkg/metrics/servicecheck v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/pkg/networkdevice/profile v0.0.0-20230913122404-c12f437d52a4
 	github.com/DataDog/datadog-agent/pkg/proto v0.48.0-rc.2
 	github.com/DataDog/datadog-agent/pkg/secrets v0.0.0-00010101000000-000000000000
+	github.com/DataDog/datadog-agent/pkg/serializer v0.0.0-00010101000000-000000000000
+	github.com/DataDog/datadog-agent/pkg/status/health v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/pkg/status/health v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/pkg/tagset v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/pkg/telemetry v0.0.0-00010101000000-000000000000
+	github.com/DataDog/datadog-agent/pkg/trace v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/pkg/util/backoff v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/pkg/util/buf v0.0.0-00010101000000-000000000000
+	github.com/DataDog/datadog-agent/pkg/util/common v0.0.0-00010101000000-000000000000
+	github.com/DataDog/datadog-agent/pkg/util/compression v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/pkg/util/cache v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/pkg/util/executable v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/pkg/util/filesystem v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/pkg/util/fxutil v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/pkg/util/go_routines v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/pkg/util/http v0.0.0-00010101000000-000000000000
+	github.com/DataDog/datadog-agent/pkg/util/json v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/pkg/util/retry v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/pkg/util/startstop v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/pkg/util/stats_tracker v0.0.0-00010101000000-000000000000
@@ -668,7 +681,6 @@ require (
 	github.com/godror/godror v0.37.0
 	github.com/jmoiron/sqlx v1.3.5
 	github.com/kr/pretty v0.3.1
-	github.com/protocolbuffers/protoscope v0.0.0-20221109213918-8e7a6aafa2c9
 	github.com/sijms/go-ora/v2 v2.7.6
 	go.opentelemetry.io/collector/extension v0.84.0
 	go.opentelemetry.io/collector/processor v0.84.0
@@ -680,6 +692,8 @@ require (
 	github.com/AdamKorcz/go-118-fuzz-build v0.0.0-20230306123547-8075edf89bb0 // indirect
 	github.com/DataDog/datadog-agent/pkg/logs/internal/processor v0.0.0-00010101000000-000000000000 // indirect
 	github.com/DataDog/datadog-agent/pkg/logs/status/module v0.0.0-00010101000000-000000000000 // indirect
+	github.com/DataDog/datadog-agent/pkg/config/utils/endpoints v0.0.0-00010101000000-000000000000 // indirect
+	github.com/DataDog/datadog-agent/pkg/orchestrator/model v0.0.0-00010101000000-000000000000 // indirect
 	github.com/DataDog/datadog-api-client-go/v2 v2.13.0 // indirect
 	github.com/antlr/antlr4/runtime/Go/antlr v1.4.10 // indirect
 	github.com/blang/semver/v4 v4.0.0 // indirect

@@ -10,12 +10,11 @@ import (
 	"errors"
 	"fmt"
 
-	"go.uber.org/fx"
-
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/config/logsetup"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/cihub/seelog"
+	"go.uber.org/fx"
 )
 
 // logger implements the component
@@ -50,14 +49,14 @@ func NewLogger(lc fx.Lifecycle, params Params, config config.LogConfig) (Compone
 		return nil, errors.New("must call one of core.BundleParams.LogForOneShot or LogForDaemon")
 	}
 
-	err := pkgconfig.SetupLogger(
-		pkgconfig.LoggerName(params.loggerName),
+	err := logsetup.SetupLogger(
+		logsetup.LoggerName(params.loggerName),
 		params.logLevelFn(config),
 		params.logFileFn(config),
 		params.logSyslogURIFn(config),
 		params.logSyslogRFCFn(config),
 		params.logToConsoleFn(config),
-		params.logFormatJSONFn(config))
+		params.logFormatJSONFn(config), config)
 	if err != nil {
 		return nil, err
 	}

@@ -15,7 +15,7 @@ import (
 	"github.com/richardartoul/molecule"
 
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/transaction"
-	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/conf"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/serializer/internal/stream"
 	"github.com/DataDog/datadog-agent/pkg/serializer/marshaler"
@@ -24,12 +24,14 @@ import (
 // IterableSeries is a serializer for metrics.IterableSeries
 type IterableSeries struct {
 	source metrics.SerieSource
+	cfg    conf.ConfigReader
 }
 
 // CreateIterableSeries creates a new instance of *IterableSeries
-func CreateIterableSeries(source metrics.SerieSource) *IterableSeries {
+func CreateIterableSeries(source metrics.SerieSource, cfg conf.ConfigReader) *IterableSeries {
 	return &IterableSeries{
 		source: source,
+		cfg:    cfg,
 	}
 }
 
@@ -122,9 +124,9 @@ func (series *IterableSeries) MarshalSplitCompress(bufferContext *marshaler.Buff
 	// the backend accepts payloads up to specific compressed / uncompressed
 	// sizes, but prefers small uncompressed payloads.  For series, there is
 	// also a maximum number of points.
-	maxPayloadSize := config.Datadog.GetInt("serializer_max_series_payload_size")
-	maxUncompressedSize := config.Datadog.GetInt("serializer_max_series_uncompressed_payload_size")
-	maxPointsPerPayload := config.Datadog.GetInt("serializer_max_series_points_per_payload")
+	maxPayloadSize := series.cfg.GetInt("serializer_max_series_payload_size")
+	maxUncompressedSize := series.cfg.GetInt("serializer_max_series_uncompressed_payload_size")
+	maxPointsPerPayload := series.cfg.GetInt("serializer_max_series_points_per_payload")
 
 	// constants for the protobuf data we will be writing, taken from MetricPayload in
 	// https://github.com/DataDog/agent-payload/blob/master/proto/metrics/agent_payload.proto

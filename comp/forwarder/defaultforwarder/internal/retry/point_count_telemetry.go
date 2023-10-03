@@ -10,7 +10,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
-	"github.com/DataDog/datadog-agent/pkg/util"
+	util "github.com/DataDog/datadog-agent/pkg/util/common"
 	"go.uber.org/atomic"
 )
 

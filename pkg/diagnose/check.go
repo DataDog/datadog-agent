@@ -35,7 +35,6 @@ func diagnose(diagCfg diagnosis.Config, senderManager sender.SenderManager) []di
 }
 
 func getInstanceDiagnoses(instance check.Check) []diagnosis.Diagnosis {
-
 	// Get diagnoses
 	diagnoses, err := instance.GetDiagnoses()
 	if err != nil {

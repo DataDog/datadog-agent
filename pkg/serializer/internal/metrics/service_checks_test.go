@@ -18,7 +18,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/conf"
 	"github.com/DataDog/datadog-agent/pkg/metrics/servicecheck"
 	"github.com/DataDog/datadog-agent/pkg/serializer/internal/stream"
 	"github.com/DataDog/datadog-agent/pkg/serializer/marshaler"
@@ -42,7 +42,7 @@ func TestMarshalJSONServiceChecks(t *testing.T) {
 }
 
 func TestSplitServiceChecks(t *testing.T) {
-	var serviceChecks = ServiceChecks{}
+	serviceChecks := ServiceChecks{}
 	for i := 0; i < 2; i++ {
 		sc := servicecheck.ServiceCheck{
 			CheckName: "test.check",
@@ -72,11 +72,12 @@ func createServiceCheck(checkName string) *servicecheck.ServiceCheck {
 		Ts:        3,
 		Status:    servicecheck.ServiceCheckUnknown,
 		Message:   "4",
-		Tags:      []string{"5", "6"}}
+		Tags:      []string{"5", "6"},
+	}
 }
 
-func buildPayload(t *testing.T, m marshaler.StreamJSONMarshaler) [][]byte {
-	builder := stream.NewJSONPayloadBuilder(true)
+func buildPayload(t *testing.T, m marshaler.StreamJSONMarshaler, cfg conf.ConfigReader) [][]byte {
+	builder := stream.NewJSONPayloadBuilder(true, cfg)
 	payloads, err := stream.BuildJSONPayload(builder, m)
 	assert.NoError(t, err)
 	var uncompressedPayloads [][]byte
@@ -91,7 +92,8 @@ func buildPayload(t *testing.T, m marshaler.StreamJSONMarshaler) [][]byte {
 }
 
 func assertEqualToMarshalJSON(t *testing.T, m marshaler.StreamJSONMarshaler, jsonMarshaler marshaler.JSONMarshaler) {
-	payloads := buildPayload(t, m)
+	cfg := conf.NewConfig("test", "DD", strings.NewReplacer(".", "_"))
+	payloads := buildPayload(t, m, cfg)
 	json, err := jsonMarshaler.MarshalJSON()
 	assert.NoError(t, err)
 	assert.Equal(t, 1, len(payloads))
@@ -119,21 +121,20 @@ func TestPayloadsEmptyServiceCheck(t *testing.T) {
 }
 
 func TestPayloadsServiceChecks(t *testing.T) {
-
-	maxPayloadSize := config.Datadog.GetInt("serializer_max_payload_size")
-	config.Datadog.SetDefault("serializer_max_payload_size", 200)
-	defer config.Datadog.SetDefault("serializer_max_payload_size", maxPayloadSize)
+	cfg := conf.NewConfig("test", "DD", strings.NewReplacer(".", "_"))
+	cfg.SetDefault("serializer_max_payload_size", 200)
 
 	serviceCheckCollection := []ServiceChecks{
 		{createServiceCheck("1"), createServiceCheck("2"), createServiceCheck("3")},
 		{createServiceCheck("4"), createServiceCheck("5"), createServiceCheck("6")},
-		{createServiceCheck("7"), createServiceCheck("8")}}
+		{createServiceCheck("7"), createServiceCheck("8")},
+	}
 	var allServiceChecks ServiceChecks
 	for _, serviceCheck := range serviceCheckCollection {
 		allServiceChecks = append(allServiceChecks, serviceCheck...)
 	}
 
-	payloads := buildPayload(t, allServiceChecks)
+	payloads := buildPayload(t, allServiceChecks, cfg)
 	assert.Equal(t, 3, len(payloads))
 
 	for index, serviceChecks := range serviceCheckCollection {
@@ -168,7 +169,8 @@ func decompressPayload(payload []byte) ([]byte, error) {
 }
 
 func benchmarkJSONPayloadBuilderServiceCheck(b *testing.B, numberOfItem int) {
-	payloadBuilder := stream.NewJSONPayloadBuilder(true)
+	cfg := conf.NewConfig("test", "DD", strings.NewReplacer(".", "_"))
+	payloadBuilder := stream.NewJSONPayloadBuilder(true, cfg)
 	serviceChecks := createServiceChecks(numberOfItem)
 
 	b.ResetTimer()
@@ -181,24 +183,31 @@ func benchmarkJSONPayloadBuilderServiceCheck(b *testing.B, numberOfItem int) {
 func BenchmarkJSONPayloadBuilderServiceCheck1(b *testing.B) {
 	benchmarkJSONPayloadBuilderServiceCheck(b, 1)
 }
+
 func BenchmarkJSONPayloadBuilderServiceCheck10(b *testing.B) {
 	benchmarkJSONPayloadBuilderServiceCheck(b, 10)
 }
+
 func BenchmarkJSONPayloadBuilderServiceCheck100(b *testing.B) {
 	benchmarkJSONPayloadBuilderServiceCheck(b, 100)
 }
+
 func BenchmarkJSONPayloadBuilderServiceCheck1000(b *testing.B) {
 	benchmarkJSONPayloadBuilderServiceCheck(b, 1000)
 }
+
 func BenchmarkJSONPayloadBuilderServiceCheck10000(b *testing.B) {
 	benchmarkJSONPayloadBuilderServiceCheck(b, 10000)
 }
+
 func BenchmarkJSONPayloadBuilderServiceCheck100000(b *testing.B) {
 	benchmarkJSONPayloadBuilderServiceCheck(b, 100000)
 }
+
 func BenchmarkJSONPayloadBuilderServiceCheck1000000(b *testing.B) {
 	benchmarkJSONPayloadBuilderServiceCheck(b, 1000000)
 }
+
 func BenchmarkJSONPayloadBuilderServiceCheck10000000(b *testing.B) {
 	benchmarkJSONPayloadBuilderServiceCheck(b, 10000000)
 }
@@ -222,6 +231,7 @@ func BenchmarkPayloadServiceCheck100000(b *testing.B) { benchmarkPayloadsService
 func BenchmarkPayloadServiceCheck1000000(b *testing.B) {
 	benchmarkPayloadsServiceCheck(b, 1000000)
 }
+
 func BenchmarkPayloadServiceCheck10000000(b *testing.B) {
 	benchmarkPayloadsServiceCheck(b, 10000000)
 }

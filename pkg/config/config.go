@@ -11,7 +11,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
@@ -199,13 +198,13 @@ type Endpoint struct {
 type Warnings = conf.Warnings
 
 // DataType represent the generic data type (e.g. metrics, logs) that can be sent by the Agent
-type DataType string
+type DataType = configsetup.DataType
 
 const (
 	// Metrics type covers series & sketches
-	Metrics DataType = "metrics"
+	Metrics = configsetup.Metrics
 	// Logs type covers all outgoing logs
-	Logs DataType = "logs"
+	Logs DataType = configsetup.Logs
 )
 
 func init() {
@@ -459,29 +458,7 @@ func getValidHostAliasesWithConfig(config Config) []string {
 
 // GetObsPipelineURL returns the URL under the 'observability_pipelines_worker.' prefix for the given datatype
 func GetObsPipelineURL(datatype DataType) (string, error) {
-	if Datadog.GetBool(fmt.Sprintf("observability_pipelines_worker.%s.enabled", datatype)) {
-		return getObsPipelineURLForPrefix(datatype, "observability_pipelines_worker")
-	} else if Datadog.GetBool(fmt.Sprintf("vector.%s.enabled", datatype)) {
-		// Fallback to the `vector` config if observability_pipelines_worker is not set.
-		return getObsPipelineURLForPrefix(datatype, "vector")
-	}
-	return "", nil
-}
-
-func getObsPipelineURLForPrefix(datatype DataType, prefix string) (string, error) {
-	if Datadog.GetBool(fmt.Sprintf("%s.%s.enabled", prefix, datatype)) {
-		pipelineURL := Datadog.GetString(fmt.Sprintf("%s.%s.url", prefix, datatype))
-		if pipelineURL == "" {
-			log.Errorf("%s.%s.enabled is set to true, but %s.%s.url is empty", prefix, datatype, prefix, datatype)
-			return "", nil
-		}
-		_, err := url.Parse(pipelineURL)
-		if err != nil {
-			return "", fmt.Errorf("could not parse %s %s endpoint: %s", prefix, datatype, err)
-		}
-		return pipelineURL, nil
-	}
-	return "", nil
+	return configsetup.GetObsPipelineURL(datatype, Datadog)
 }
 
 // IsRemoteConfigEnabled returns true if Remote Configuration should be enabled

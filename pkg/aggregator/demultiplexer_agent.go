@@ -18,7 +18,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/aggregator/internal/limiter"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/internal/tags"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/internal/tags_limiter"
-	"github.com/DataDog/datadog-agent/pkg/config"
+	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
 	cfutils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/epforwarder"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
@@ -169,15 +169,15 @@ func initAgentDemultiplexer(log log.Component, sharedForwarder forwarder.Forward
 		eventPlatformForwarder = epforwarder.NewEventPlatformForwarder()
 	}
 
-	if config.Datadog.GetBool("telemetry.enabled") && config.Datadog.GetBool("telemetry.dogstatsd_origin") && !config.Datadog.GetBool("aggregator_use_tags_store") {
+	if pkgconfig.Datadog.GetBool("telemetry.enabled") && pkgconfig.Datadog.GetBool("telemetry.dogstatsd_origin") && !pkgconfig.Datadog.GetBool("aggregator_use_tags_store") {
 		log.Warn("DogStatsD origin telemetry is not supported when aggregator_use_tags_store is disabled.")
-		config.Datadog.Set("telemetry.dogstatsd_origin", false)
+		pkgconfig.Datadog.Set("telemetry.dogstatsd_origin", false)
 	}
 
 	// prepare the serializer
 	// ----------------------
 
-	sharedSerializer := serializer.NewSerializer(sharedForwarder, orchestratorForwarder)
+	sharedSerializer := serializer.NewSerializer(sharedForwarder, orchestratorForwarder, pkgconfig.Datadog, hostname)
 
 	// prepare the embedded aggregator
 	// --
@@ -187,7 +187,7 @@ func initAgentDemultiplexer(log log.Component, sharedForwarder forwarder.Forward
 	// statsd samplers
 	// ---------------
 
-	bufferSize := config.Datadog.GetInt("aggregator_buffer_size")
+	bufferSize := pkgconfig.Datadog.GetInt("aggregator_buffer_size")
 	metricSamplePool := metrics.NewMetricSamplePool(MetricSamplePoolBatchSize, cfutils.IsTelemetryEnabled())
 
 	_, statsdPipelinesCount := GetDogStatsDWorkerAndPipelineCount()
@@ -197,7 +197,7 @@ func initAgentDemultiplexer(log log.Component, sharedForwarder forwarder.Forward
 
 	for i := 0; i < statsdPipelinesCount; i++ {
 		// the sampler
-		tagsStore := tags.NewStore(config.Datadog.GetBool("aggregator_use_tags_store"), fmt.Sprintf("timesampler #%d", i))
+		tagsStore := tags.NewStore(pkgconfig.Datadog.GetBool("aggregator_use_tags_store"), fmt.Sprintf("timesampler #%d", i))
 		tagsLimiter := tags_limiter.New(options.DogstatsdMaxMetricsTags)
 		contextsLimiter := limiter.FromConfig(statsdPipelinesCount, options.UseDogstatsdContextLimiter)
 
@@ -212,9 +212,9 @@ func initAgentDemultiplexer(log log.Component, sharedForwarder forwarder.Forward
 	var noAggWorker *noAggregationStreamWorker
 	var noAggSerializer serializer.MetricSerializer
 	if options.EnableNoAggregationPipeline {
-		noAggSerializer = serializer.NewSerializer(sharedForwarder, orchestratorForwarder)
+		noAggSerializer = serializer.NewSerializer(sharedForwarder, orchestratorForwarder, pkgconfig.Datadog, hostname)
 		noAggWorker = newNoAggregationStreamWorker(
-			config.Datadog.GetInt("dogstatsd_no_aggregation_pipeline_batch_size"),
+			pkgconfig.Datadog.GetInt("dogstatsd_no_aggregation_pipeline_batch_size"),
 			metricSamplePool,
 			noAggSerializer,
 			agg.flushAndSerializeInParallel,
@@ -234,7 +234,6 @@ func initAgentDemultiplexer(log log.Component, sharedForwarder forwarder.Forward
 
 		// Output
 		dataOutputs: dataOutputs{
-
 			forwarders: forwarders{
 				shared:        sharedForwarder,
 				orchestrator:  orchestratorForwarder,
@@ -369,7 +368,7 @@ func (d *AgentDemultiplexer) flushLoop() {
 // Stop stops the demultiplexer.
 // Resources are released, the instance should not be used after a call to `Stop()`.
 func (d *AgentDemultiplexer) Stop(flush bool) {
-	timeout := config.Datadog.GetDuration("aggregator_stop_timeout") * time.Second
+	timeout := pkgconfig.Datadog.GetDuration("aggregator_stop_timeout") * time.Second
 
 	if d.noAggStreamWorker != nil {
 		d.noAggStreamWorker.stop(flush)
@@ -469,7 +468,7 @@ func (d *AgentDemultiplexer) flushToSerializer(start time.Time, waitForSerialize
 		return
 	}
 
-	logPayloads := config.Datadog.GetBool("log_payloads")
+	logPayloads := pkgconfig.Datadog.GetBool("log_payloads")
 	series, sketches := createIterableMetrics(d.aggregator.flushAndSerializeInParallel, d.sharedSerializer, logPayloads, false)
 
 	metrics.Serialize(

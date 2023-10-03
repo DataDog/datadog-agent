@@ -14,8 +14,9 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/comp/core/log"
+	util "github.com/DataDog/datadog-agent/pkg/util/common"
+
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/transaction"
-	"github.com/DataDog/datadog-agent/pkg/util"
 )
 
 const retryTransactionsExtension = ".retry"

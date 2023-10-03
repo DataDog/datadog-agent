@@ -6,17 +6,19 @@
 package aggregator
 
 import (
+	"context"
 	"sync"
 	"time"
 
 	"github.com/DataDog/datadog-agent/comp/core/log"
 	forwarder "github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
+	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/resolver"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/internal/tags"
 	"github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/config/resolver"
 	"github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
+	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 )
 
 // ServerlessDemultiplexer is a simple demultiplexer used by the serverless flavor of the Agent
@@ -42,7 +44,8 @@ func InitAndStartServerlessDemultiplexer(domainResolvers map[string]resolver.Dom
 	bufferSize := config.Datadog.GetInt("aggregator_buffer_size")
 	log := log.NewTemporaryLoggerWithoutInit()
 	forwarder := forwarder.NewSyncForwarder(config.Datadog, log, domainResolvers, forwarderTimeout)
-	serializer := serializer.NewSerializer(forwarder, nil)
+	h, _ := hostname.Get(context.Background())
+	serializer := serializer.NewSerializer(forwarder, nil, config.Datadog, h)
 	metricSamplePool := metrics.NewMetricSamplePool(MetricSamplePoolBatchSize, utils.IsTelemetryEnabled())
 	tagsStore := tags.NewStore(config.Datadog.GetBool("aggregator_use_tags_store"), "timesampler")
 
