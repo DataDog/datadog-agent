@@ -17,6 +17,7 @@ import (
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client"
 	"github.com/DataDog/test-infra-definitions/components/datadog/agentparams"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 type commandFlareSuite struct {
@@ -29,12 +30,14 @@ func TestFlareSuite(t *testing.T) {
 
 func requestAgentFlareAndFetchFromFakeIntake(v *commandFlareSuite, flareArgs ...client.AgentArgsOption) flare.Flare {
 	// Wait for the fakeintake to be ready to avoid 503 when sending the flare
-	// Definitely not the best way to do it, but the easiest at the moment
-	time.Sleep(60 * time.Second)
+	v.EventuallyWithT(func(c *assert.CollectT) {
+		assert.NoError(c, v.Env().Fakeintake.Client.GetServerHealth())
+	}, 5*time.Minute, 20*time.Second)
+
 	_ = v.Env().Agent.Flare(flareArgs...)
 
 	flare, err := v.Env().Fakeintake.Client.GetLatestFlare()
-	assert.NoError(v.T(), err)
+	require.NoError(v.T(), err)
 
 	return flare
 }
