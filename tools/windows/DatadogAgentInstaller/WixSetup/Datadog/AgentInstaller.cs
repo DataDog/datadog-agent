@@ -511,7 +511,8 @@ namespace WixSetup.Datadog
                     Constants.SecurityAgentServiceName,
                     "Datadog Security Service",
                     "Send Security events to Datadog",
-                    "LocalSystem");
+                    "[DDAGENTUSER_PROCESSED_FQ_NAME]",
+                    "[DDAGENTUSER_PROCESSED_PASSWORD]");
                 agentBinDir.AddFile(new WixSharp.File(_agentBinaries.SecurityAgent, securityAgentService));
                 
                 agentBinDir.Add( new EventSource
