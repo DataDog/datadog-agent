@@ -1,5 +1,9 @@
 github.com/DataDog/datadog-go/v5 v5.1.1 h1:JLZ6s2K1pG2h9GkvEvMdEGqMDyVLEAccdX5TltWcLMU=
 github.com/DataDog/datadog-go/v5 v5.1.1/go.mod h1:KhiYb2Badlv9/rofz+OznKoEF5XKTonWyhx5K83AP8E=
+github.com/DataDog/go-sqllexer v0.0.4 h1:DjuAkGxmMQ/NG/ivMAuk0lvDEKo9XT7AIkM/1ODaXa0=
+github.com/DataDog/go-sqllexer v0.0.4/go.mod h1:nB4Ea2YNsqMwtbWMc4Fm/oP98IIrSPapqwOwPioMspY=
+github.com/DataDog/go-sqllexer v0.0.5 h1:c1DAp0OD5EOQeu/JFLM6P7ytPpzviRYERYeE6oaPABA=
+github.com/DataDog/go-sqllexer v0.0.5/go.mod h1:nB4Ea2YNsqMwtbWMc4Fm/oP98IIrSPapqwOwPioMspY=
 github.com/DataDog/go-tuf v1.0.2-0.5.2 h1:EeZr937eKAWPxJ26IykAdWA4A0jQXJgkhUjqEI/w7+I=
 github.com/DataDog/go-tuf v1.0.2-0.5.2/go.mod h1:zBcq6f654iVqmkk8n2Cx81E1JnNTMOAx1UEO/wZR+P0=
 github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes v0.8.0 h1:NNSjBdo9PlfjUKmCrjNWTxAtG7ovemO5EHT08zVpeUU=

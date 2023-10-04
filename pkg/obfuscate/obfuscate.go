@@ -131,6 +131,14 @@ type SQLConfig struct {
 	// https://www.postgresql.org/docs/current/sql-syntax-lexical.html#SQL-SYNTAX-DOLLAR-QUOTING
 	DollarQuotedFunc bool `json:"dollar_quoted_func"`
 
+	// ObfuscateOnly specifies whether the obfuscator should only obfuscate SQL queries but not normalize them.
+	// This option will use go-sqllexer pkg to obfuscate SQL queries.
+	ObfuscateOnly bool `json:"obfuscate_only" yaml:"obfuscate_only"`
+
+	// ObfuscateAndNormalize specifies whether the obfuscator should obfuscate and normalize SQL queries.
+	// This option will use go-sqllexer pkg to obfuscate and normalize SQL queries.
+	ObfuscateAndNormalize bool `json:"obfuscate_and_normalize" yaml:"obfuscate_and_normalize"`
+
 	// Cache reports whether the obfuscator should use a LRU look-up cache for SQL obfuscations.
 	Cache bool
 }

@@ -2057,5 +2057,176 @@ func TestToUpper(t *testing.T) {
 			}
 		})
 	}
+}
 
+func TestSQLLexerObfuscation(t *testing.T) {
+	tests := []struct {
+		query            string
+		expected         string
+		replaceDigits    bool
+		dollarQuotedFunc bool
+	}{
+		{
+			query:    "SELECT * FROM users WHERE id = 1",
+			expected: "SELECT * FROM users WHERE id = ?",
+		},
+		{
+			query:         "SELECT * FROM users123 WHERE id = 1",
+			expected:      "SELECT * FROM users? WHERE id = ?",
+			replaceDigits: true,
+		},
+		{
+			query:         "SELECT * FROM users123 WHERE id = 1",
+			expected:      "SELECT * FROM users123 WHERE id = ?",
+			replaceDigits: false,
+		},
+		{
+			query:            "SELECT $func$INSERT INTO table VALUES ('a', 1, 2)$func$ FROM users",
+			expected:         "SELECT $func$INSERT INTO table VALUES (?, ?, ?)$func$ FROM users",
+			dollarQuotedFunc: true,
+		},
+		{
+			query:            "SELECT $func$INSERT INTO table VALUES ('a', 1, 2)$func$ FROM users",
+			expected:         "SELECT ? FROM users",
+			dollarQuotedFunc: false,
+		},
+		{
+			query:            "SELECT * FROM users123 WHERE id = $tag$1$tag$",
+			expected:         "SELECT * FROM users? WHERE id = ?",
+			replaceDigits:    true,
+			dollarQuotedFunc: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run("", func(t *testing.T) {
+			oq, err := NewObfuscator(Config{
+				SQL: SQLConfig{
+					ObfuscateOnly:    true,
+					ReplaceDigits:    tt.replaceDigits,
+					DollarQuotedFunc: tt.dollarQuotedFunc,
+				},
+			}).ObfuscateSQLString(tt.query)
+			require.NoError(t, err)
+			require.NotNil(t, oq)
+			assert.Equal(t, tt.expected, oq.Query)
+		})
+	}
+}
+
+func TestSQLLexerObfuscationAndNormalization(t *testing.T) {
+	tests := []struct {
+		query            string
+		expected         string
+		replaceDigits    bool
+		dollarQuotedFunc bool
+		keepSQLAlias     bool
+		metadata         SQLMetadata
+	}{
+		{
+			query:    "SELECT * FROM users WHERE id = 1",
+			expected: "SELECT * FROM users WHERE id = ?",
+			metadata: SQLMetadata{
+				Size:      11,
+				TablesCSV: "users",
+				Commands: []string{
+					"SELECT",
+				},
+				Comments: []string{},
+			},
+		},
+		{
+			query:         "SELECT * FROM users123 WHERE id = 1",
+			expected:      "SELECT * FROM users? WHERE id = ?",
+			replaceDigits: true,
+			metadata: SQLMetadata{
+				Size:      12,
+				TablesCSV: "users?",
+				Commands: []string{
+					"SELECT",
+				},
+				Comments: []string{},
+			},
+		},
+		{
+			query: `
+			-- comment
+			/* comment */
+			SELECT id as id, name as n FROM users123 WHERE id in (1,2,3)`,
+			expected:      "SELECT id as id, name as n FROM users123 WHERE id in ( ? )",
+			replaceDigits: false,
+			keepSQLAlias:  true,
+			metadata: SQLMetadata{
+				Size:      37,
+				TablesCSV: "users123",
+				Commands: []string{
+					"SELECT",
+				},
+				Comments: []string{
+					"-- comment",
+					"/* comment */",
+				},
+			},
+		},
+		{
+			query:            "SELECT $func$INSERT INTO table VALUES ('a', 1, 2)$func$ FROM users",
+			expected:         "SELECT $func$INSERT INTO table VALUES ( ? )$func$ FROM users",
+			dollarQuotedFunc: true,
+			metadata: SQLMetadata{
+				Size:      11,
+				TablesCSV: "users",
+				Commands: []string{
+					"SELECT",
+				},
+				Comments: []string{},
+			},
+		},
+		{
+			query:            "SELECT $func$INSERT INTO table VALUES ('a', 1, 2)$func$ FROM users",
+			expected:         "SELECT ? FROM users",
+			dollarQuotedFunc: false,
+			metadata: SQLMetadata{
+				Size:      11,
+				TablesCSV: "users",
+				Commands: []string{
+					"SELECT",
+				},
+				Comments: []string{},
+			},
+		},
+		{
+			query:            "SELECT * FROM users123 WHERE id = $tag$1$tag$",
+			expected:         "SELECT * FROM users? WHERE id = ?",
+			replaceDigits:    true,
+			dollarQuotedFunc: true,
+			metadata: SQLMetadata{
+				Size:      12,
+				TablesCSV: "users?",
+				Commands: []string{
+					"SELECT",
+				},
+				Comments: []string{},
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run("", func(t *testing.T) {
+			oq, err := NewObfuscator(Config{
+				SQL: SQLConfig{
+					ObfuscateAndNormalize: true,
+					ReplaceDigits:         tt.replaceDigits,
+					DollarQuotedFunc:      tt.dollarQuotedFunc,
+					KeepSQLAlias:          tt.keepSQLAlias,
+					TableNames:            true,
+					CollectCommands:       true,
+					CollectComments:       true,
+				},
+			}).ObfuscateSQLString(tt.query)
+			require.NoError(t, err)
+			require.NotNil(t, oq)
+			assert.Equal(t, tt.expected, oq.Query)
+			assert.Equal(t, tt.metadata, oq.Metadata)
+		})
+	}
 }
