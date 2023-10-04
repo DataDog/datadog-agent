@@ -95,6 +95,10 @@ func (c *ContainerdCheck) Configure(senderManager sender.SenderManager, integrat
 		return err
 	}
 
+	if c.instance.OpenmetricsEndpoint == "" {
+		log.Warnf("openmetrics_endpoint configuration parameter is missing. Some metrics can not be generated in the absence of this configuration parameter.")
+	}
+
 	c.httpClient = http.Client{Timeout: time.Duration(1) * time.Second}
 	c.processor = generic.NewProcessor(metrics.GetProvider(), generic.MetadataContainerAccessor{}, metricsAdapter{}, getProcessorFilter(c.containerFilter))
 	c.processor.RegisterExtension("containerd-custom-metrics", &containerdCustomMetricsExtension{})
@@ -163,7 +167,6 @@ func toSnakeCase(s string) string {
 func (c *ContainerdCheck) scrapeOpenmetricsEndpoint(sender sender.Sender) error {
 
 	if c.instance.OpenmetricsEndpoint == "" {
-		log.Warnf("openmetrics_endpoint configuration parameter is missing. Some metrics can not be generated in the absence of this configuration parameter.")
 		return nil
 	}
 
