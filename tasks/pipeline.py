@@ -546,8 +546,8 @@ def post_changelog(ctx, new_git_sha):
         commits_file.write('\n'.join(results))
 
     print(f"tagging {new_git_sha}")
-    ctx.run(f"aws ssm put-parameter --name ci.datadog-agent.gitlab_changelog_commit_sha --value \"{new_git_sha}\" "
-            "--type \"SecureString\" --region us-east-1", hide=False)
+    # ctx.run(f"aws ssm put-parameter --name ci.datadog-agent.gitlab_changelog_commit_sha --value \"{new_git_sha}\" "
+    #         "--type \"SecureString\" --region us-east-1", hide=False)
     print(ctx.run("cat system_probe_commits.txt", hide=True).stdout)
     send_slack_message("system-probe-ops", ctx.run("cat system_probe_commits.txt").stdout)
 
