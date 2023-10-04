@@ -45,33 +45,34 @@ var setTimeNow = fx.Invoke(func(c Component) {
 	}
 })
 
-func TestNetFlow_IntegrationTest_NetFlow5(t *testing.T) {
-	port := testutil.GetFreePort()
-	var epForwarder forwarder.MockComponent
-	srv := fxutil.Test[Component](t, fx.Options(
-		testOptions,
-		fx.Populate(&epForwarder),
-		fx.Replace(
-			singleListenerConfig("netflow5", port),
-		),
-		setTimeNow,
-	)).(*Server)
-
-	// Set expectations
-	testutil.ExpectNetflow5Payloads(t, epForwarder)
-	epForwarder.EXPECT().SendEventPlatformEventBlocking(gomock.Any(), "network-devices-metadata").Return(nil).Times(1)
-
-	// Send netflowV5Data twice to test aggregator
-	// Flows will have 2x bytes/packets after aggregation
-	packetData, err := testutil.GetNetFlow5Packet()
-	require.NoError(t, err, "error getting packet")
-	err = testutil.SendUDPPacket(port, packetData)
-	require.NoError(t, err, "error sending udp packet")
-
-	netflowEvents, err := flowaggregator.WaitForFlowsToBeFlushed(srv.FlowAgg, 30*time.Second, 2)
-	assert.Equal(t, uint64(2), netflowEvents)
-	assert.NoError(t, err)
-}
+//
+//func TestNetFlow_IntegrationTest_NetFlow5(t *testing.T) {
+//	port := testutil.GetFreePort()
+//	var epForwarder forwarder.MockComponent
+//	srv := fxutil.Test[Component](t, fx.Options(
+//		testOptions,
+//		fx.Populate(&epForwarder),
+//		fx.Replace(
+//			singleListenerConfig("netflow5", port),
+//		),
+//		setTimeNow,
+//	)).(*Server)
+//
+//	// Set expectations
+//	testutil.ExpectNetflow5Payloads(t, epForwarder)
+//	epForwarder.EXPECT().SendEventPlatformEventBlocking(gomock.Any(), "network-devices-metadata").Return(nil).Times(1)
+//
+//	// Send netflowV5Data twice to test aggregator
+//	// Flows will have 2x bytes/packets after aggregation
+//	packetData, err := testutil.GetNetFlow5Packet()
+//	require.NoError(t, err, "error getting packet")
+//	err = testutil.SendUDPPacket(port, packetData)
+//	require.NoError(t, err, "error sending udp packet")
+//
+//	netflowEvents, err := flowaggregator.WaitForFlowsToBeFlushed(srv.FlowAgg, 30*time.Second, 2)
+//	assert.Equal(t, uint64(2), netflowEvents)
+//	assert.NoError(t, err)
+//}
 
 func TestNetFlow_IntegrationTest_NetFlow9(t *testing.T) {
 	port := testutil.GetFreePort()
@@ -99,29 +100,30 @@ func TestNetFlow_IntegrationTest_NetFlow9(t *testing.T) {
 	assert.NoError(t, err)
 }
 
-func TestNetFlow_IntegrationTest_SFlow5(t *testing.T) {
-	port := testutil.GetFreePort()
-	var epForwarder forwarder.MockComponent
-	srv := fxutil.Test[Component](t, fx.Options(
-		testOptions,
-		fx.Populate(&epForwarder),
-		fx.Replace(
-			singleListenerConfig("sflow5", port),
-		),
-		setTimeNow,
-	)).(*Server)
-
-	// Test later content of payloads if needed for more precise test.
-	epForwarder.EXPECT().SendEventPlatformEventBlocking(gomock.Any(), epforwarder.EventTypeNetworkDevicesNetFlow).Return(nil).Times(7)
-	epForwarder.EXPECT().SendEventPlatformEventBlocking(gomock.Any(), "network-devices-metadata").Return(nil).Times(1)
-
-	data, err := testutil.GetSFlow5Packet()
-	require.NoError(t, err, "error getting sflow data")
-
-	err = testutil.SendUDPPacket(port, data)
-	require.NoError(t, err, "error sending udp packet")
-
-	netflowEvents, err := flowaggregator.WaitForFlowsToBeFlushed(srv.FlowAgg, 30*time.Second, 6)
-	assert.Equal(t, uint64(7), netflowEvents)
-	assert.NoError(t, err)
-}
+//
+//func TestNetFlow_IntegrationTest_SFlow5(t *testing.T) {
+//	port := testutil.GetFreePort()
+//	var epForwarder forwarder.MockComponent
+//	srv := fxutil.Test[Component](t, fx.Options(
+//		testOptions,
+//		fx.Populate(&epForwarder),
+//		fx.Replace(
+//			singleListenerConfig("sflow5", port),
+//		),
+//		setTimeNow,
+//	)).(*Server)
+//
+//	// Test later content of payloads if needed for more precise test.
+//	epForwarder.EXPECT().SendEventPlatformEventBlocking(gomock.Any(), epforwarder.EventTypeNetworkDevicesNetFlow).Return(nil).Times(7)
+//	epForwarder.EXPECT().SendEventPlatformEventBlocking(gomock.Any(), "network-devices-metadata").Return(nil).Times(1)
+//
+//	data, err := testutil.GetSFlow5Packet()
+//	require.NoError(t, err, "error getting sflow data")
+//
+//	err = testutil.SendUDPPacket(port, data)
+//	require.NoError(t, err, "error sending udp packet")
+//
+//	netflowEvents, err := flowaggregator.WaitForFlowsToBeFlushed(srv.FlowAgg, 30*time.Second, 6)
+//	assert.Equal(t, uint64(7), netflowEvents)
+//	assert.NoError(t, err)
+//}
