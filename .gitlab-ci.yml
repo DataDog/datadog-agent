@@ -505,7 +505,7 @@ workflow:
       DSD_REPOSITORY: dogstatsd
       IMG_REGISTRIES: public
   
-  .on_deploy_a7_rc_manual:
+.on_deploy_a7_rc_manual:
   - <<: *if_not_version_7
     when: never
   - <<: *if_not_deploy
