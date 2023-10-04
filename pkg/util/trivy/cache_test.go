@@ -324,10 +324,10 @@ func TestCustomBoltCache_GarbageCollector(t *testing.T) {
 	workloadmetaStore.Reset([]workloadmeta.Entity{image1}, workloadmeta.SourceAll)
 
 	// Wait for the garbage collector to clean up the unused artifact
-	time.Sleep(5 * time.Second)
+	time.Sleep(time.Second)
 
 	// Check that only artifact "key2" and "blob2" were removed
-	blobby, err := cache.GetArtifact("key2")
+	_, err = cache.GetArtifact("key2")
 	require.Error(t, err)
 
 	_, err = cache.GetBlob("blob2")
