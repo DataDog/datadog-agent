@@ -8,6 +8,7 @@
 package server
 
 import (
+	"github.com/DataDog/datadog-agent/comp/netflow/flowaggregator"
 	"testing"
 	"time"
 
@@ -19,7 +20,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/ndmtmp/forwarder"
 	"github.com/DataDog/datadog-agent/comp/netflow/common"
 	nfconfig "github.com/DataDog/datadog-agent/comp/netflow/config"
-	"github.com/DataDog/datadog-agent/comp/netflow/flowaggregator"
 	"github.com/DataDog/datadog-agent/comp/netflow/testutil"
 	"github.com/DataDog/datadog-agent/pkg/epforwarder"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -93,16 +93,14 @@ func TestNetFlow_IntegrationTest_NetFlow9(t *testing.T) {
 	epForwarder.EXPECT().SendEventPlatformEventBlocking(gomock.Any(), epforwarder.EventTypeNetworkDevicesNetFlow).Return(nil).Times(29)
 	epForwarder.EXPECT().SendEventPlatformEventBlocking(gomock.Any(), "network-devices-metadata").Return(nil).Times(1)
 
-	time.Sleep(100 * time.Millisecond) // wait to make sure goflow listener is started before sending
+	assert.EventuallyWithT(t, func(c *assert.CollectT) {
+		packetData, err := testutil.GetNetFlow9Packet()
+		require.NoError(c, err, "error getting packet")
+		err = testutil.SendUDPPacket(port, packetData)
+		require.NoError(c, err, "error sending udp packet")
 
-	packetData, err := testutil.GetNetFlow9Packet()
-	require.NoError(t, err, "error getting packet")
-	err = testutil.SendUDPPacket(port, packetData)
-	require.NoError(t, err, "error sending udp packet")
-
-	netflowEvents, err := flowaggregator.WaitForFlowsToBeFlushed(srv.FlowAgg, 15*time.Second, 6)
-	assert.Equal(t, uint64(29), netflowEvents)
-	assert.NoError(t, err)
+		assert.Equal(c, uint64(29), srv.FlowAgg.FlushedFlowCount())
+	}, 15*time.Second, 10*time.Millisecond)
 }
 
 func TestNetFlow_IntegrationTest_SFlow5(t *testing.T) {
@@ -121,15 +119,13 @@ func TestNetFlow_IntegrationTest_SFlow5(t *testing.T) {
 	epForwarder.EXPECT().SendEventPlatformEventBlocking(gomock.Any(), epforwarder.EventTypeNetworkDevicesNetFlow).Return(nil).Times(7)
 	epForwarder.EXPECT().SendEventPlatformEventBlocking(gomock.Any(), "network-devices-metadata").Return(nil).Times(1)
 
-	time.Sleep(100 * time.Millisecond) // wait to make sure goflow listener is started before sending
+	assert.EventuallyWithT(t, func(c *assert.CollectT) {
+		data, err := testutil.GetSFlow5Packet()
+		require.NoError(c, err, "error getting sflow data")
 
-	data, err := testutil.GetSFlow5Packet()
-	require.NoError(t, err, "error getting sflow data")
+		err = testutil.SendUDPPacket(port, data)
+		require.NoError(c, err, "error sending udp packet")
 
-	err = testutil.SendUDPPacket(port, data)
-	require.NoError(t, err, "error sending udp packet")
-
-	netflowEvents, err := flowaggregator.WaitForFlowsToBeFlushed(srv.FlowAgg, 15*time.Second, 6)
-	assert.Equal(t, uint64(7), netflowEvents)
-	assert.NoError(t, err)
+		assert.Equal(c, uint64(7), srv.FlowAgg.FlushedFlowCount())
+	}, 15*time.Second, 10*time.Millisecond)
 }
