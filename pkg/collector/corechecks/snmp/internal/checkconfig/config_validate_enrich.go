@@ -190,7 +190,11 @@ func validateEnrichMetricTag(metricTag *profiledefinition.MetricTagConfig) []str
 		metricTag.Symbol.OID = metricTag.OID
 		metricTag.OID = ""
 	}
-
+	if metricTag.Symbol.OID != "" || metricTag.Symbol.Name != "" {
+		symbol := profiledefinition.SymbolConfig(metricTag.Symbol)
+		errors = append(errors, validateEnrichSymbol(&symbol, MetricTagSymbol)...)
+		metricTag.Symbol = profiledefinition.SymbolConfigCompat(symbol)
+	}
 	if metricTag.Match != "" {
 		pattern, err := regexp.Compile(metricTag.Match)
 		if err != nil {

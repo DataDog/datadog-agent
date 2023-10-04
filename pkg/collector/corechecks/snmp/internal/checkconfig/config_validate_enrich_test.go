@@ -657,6 +657,19 @@ func Test_ValidateEnrichMetricTags(t *testing.T) {
 				"metric tag OID and symbol.OID cannot be both declared",
 			},
 		},
+		{
+			name: "Missing OID",
+			metrics: []profiledefinition.MetricTagConfig{
+				{
+					Symbol: profiledefinition.SymbolConfigCompat{
+						Name: "mySymbol",
+					},
+				},
+			},
+			expectedErrors: []string{
+				"symbol oid missing",
+			},
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
