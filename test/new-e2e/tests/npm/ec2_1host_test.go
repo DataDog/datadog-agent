@@ -110,7 +110,7 @@ func (v *ec2VMSuite) TestFakeIntakeNPM_TCP_UDP_DNS() {
 		v.Env().VM.Execute("dig @8.8.8.8 www.google.ch")
 
 		cnx, err := v.Env().Fakeintake.GetConnections()
-		assert.NoError(c, err)
+		require.NoError(c, err)
 
 		var currentHostname string
 		var currentConnection *agentmodel.Connection
