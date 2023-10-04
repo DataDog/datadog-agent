@@ -471,11 +471,11 @@ def parse(commit_str):
     url = "NO_URL"
     pr_id_match = re.search(r".*\(#(\d+)\)", title)
     if pr_id_match is not None:
-        url = f"github.com/DataDog/datadog-agent/pull/{pr_id_match.group(1)}"
+        url = f"https://github.com//DataDog/datadog-agent/pull/{pr_id_match.group(1)}"
     author = lines[1]
     author_email = lines[2]
     files = lines[3:]
-    return title, author, author_email, files, url  # Include author's email
+    return title, author, author_email, files, url
 
 
 def is_system_probe(owners, files):
@@ -494,10 +494,12 @@ def is_system_probe(owners, files):
 
 
 @task
-def changelog(ctx, new_git_sha):
-    old_git_sha = ctx.run("git rev-list -n 1 changelog-nightly-staging-sha", hide=True).stdout.strip()
-    print(f"Generating changelog for commit range {old_git_sha} to {new_git_sha}")
-    commits = ctx.run(f"git log {old_git_sha}..{new_git_sha} --pretty=format:%h", hide=True).stdout.split("\n")
+def changelog(ctx, new_commit_sha):
+    old_commit_sha = ctx.run("aws ssm get-parameter --region us-east-1 --name "
+                             "ci.datadog-agent.gitlab_changelog_commit_sha --with-decryption --query "
+                             "\"Parameter.Value\" --out text", hide=False).stdout.strip()
+    print(f"Generating changelog for commit range {old_commit_sha} to {new_commit_sha}")
+    commits = ctx.run(f"git log {old_commit_sha}..{new_commit_sha} --pretty=format:%h", hide=True).stdout.split("\n")
     owners = read_owners(".github/CODEOWNERS")
     messages = []
     unique_emails = set()
@@ -507,16 +509,17 @@ def changelog(ctx, new_git_sha):
         commit_str = ctx.run(f"git show --name-only --pretty=format:%s%n%aN%n%aE {commit}", hide=True).stdout
         title, author, author_email, files, url = parse(commit_str)
         if is_system_probe(owners, files):
-            message = f"{title} ({url}) {author}"
+            message = f"{title} (<{url}|PR Link>) {author}"
             messages.append(message)
             if "dependabot" not in author_email and "github-actions" not in author_email:
                 unique_emails.add(author_email)
 
     with open("system_probe_commits.txt", "w") as file:
         content = (
-            f"Changelog for commit range: `{old_git_sha}` to `{new_git_sha}`\n"
-            + "\n".join(messages)
-            + "\n:wave: Authors, please check relevant dashboards for issues: "
+                f"Changelog for commit range: `{old_commit_sha}` to `{new_commit_sha}`\n"
+                + "\n".join(messages)
+                + "\n:wave: Authors, please check relevant "
+                  "<https://ddstaging.datadoghq.com/dashboard/kfn-zy2-t98|dashboards> for issues:"
         )
         file.write(content)
 
@@ -526,7 +529,6 @@ def changelog(ctx, new_git_sha):
 
 @task
 def post_changelog(ctx, new_git_sha):
-    new_git_sha = new_git_sha[:7]
     results = []
     with open('unique_emails.txt', 'r') as email_file:
         for email in email_file:
@@ -534,23 +536,21 @@ def post_changelog(ctx, new_git_sha):
             if not result:
                 result = email
             else:
-                # result = f"<@{result}>"
-                result = f"<@U049LRNEE01>"
+                result = f"<@{result}>"
             results.append(result)
             time.sleep(1)
 
-    # Print the contributor list
-    print(f'Contributor list: {results}')
+    print(f"Contributor list: {results}")
 
     with open('system_probe_commits.txt', 'a') as commits_file:
         commits_file.write('\n'.join(results))
 
-    print(f"tagging {new_git_sha}")
-    ctx.run(f"git checkout {new_git_sha}", hide=True)
-    ctx.run("git tag -d changelog-nightly-staging-sha", hide=True)
-    ctx.run(f"git tag changelog-nightly-staging-sha", hide=True)
-    ctx.run("git push origin changelog-nightly-staging-sha", hide=True)
-    send_slack_message("system-probe-ops", ctx.run("$(cat system_probe_commits.txt)").stout)
+    print(f"Pushing new tag {new_git_sha} to SSM")
+    ctx.run(f"aws ssm put-parameter --name ci.datadog-agent.gitlab_changelog_commit_sha --value \"{new_git_sha}\" "
+            "--type \"SecureString\" --region us-east-1", hide=False)
+    print(ctx.run("cat system_probe_commits.txt", hide=True).stdout)
+    send_slack_message("system-probe-ops", ctx.run("cat system_probe_commits.txt").stdout)
+
 
 
 @task
