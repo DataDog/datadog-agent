@@ -157,6 +157,8 @@ func (v *ec2VMSuite) TestFakeIntakeNPM_TCP_UDP_DNS() {
 				count.UDP++
 			}
 			validateConnection(t, c, cc, hostname)
+
+			validateDNS(t, c, cc, hostname)
 		})
 
 		totalConnections := countCnx{}

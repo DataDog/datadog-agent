@@ -92,7 +92,7 @@ func validateUDPConnection(t *testing.T, c *agentmodel.Connection) {
 	// require.False(t, c.LastBytesSent == 0 && c.LastBytesReceived == 0, "connection with no packet bytes")
 }
 
-func printDNS(t *testing.T, c *agentmodel.Connection, cc *agentmodel.CollectorConnections, hostname string) {
+func validateDNS(t *testing.T, c *agentmodel.Connection, cc *agentmodel.CollectorConnections, hostname string) {
 	if len(c.DnsStatsByDomainOffsetByQueryType) == 0 {
 		return
 	}
