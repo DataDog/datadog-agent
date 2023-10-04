@@ -15,17 +15,17 @@ import (
 
 // EasyjsonTime represents a EasyJSON enabled time wrapper
 type EasyjsonTime struct {
-	inner time.Time
+	Inner time.Time
 }
 
 // NewEasyjsonTime returns a new EasyjsonTime based on the provided time
 func NewEasyjsonTime(t time.Time) EasyjsonTime {
-	return EasyjsonTime{inner: t}
+	return EasyjsonTime{Inner: t}
 }
 
 // MarshalEasyJSON does JSON marshaling using easyjson interface
 func (t EasyjsonTime) MarshalEasyJSON(w *jwriter.Writer) {
-	if y := t.inner.Year(); y < 0 || y >= 10000 {
+	if y := t.Inner.Year(); y < 0 || y >= 10000 {
 		if w.Error == nil {
 			w.Error = errors.New("Time.MarshalJSON: year outside of range [0,9999]")
 		}
@@ -34,11 +34,11 @@ func (t EasyjsonTime) MarshalEasyJSON(w *jwriter.Writer) {
 
 	w.Buffer.EnsureSpace(len(time.RFC3339Nano) + 2)
 	w.Buffer.AppendByte('"')
-	w.Buffer.Buf = t.inner.AppendFormat(w.Buffer.Buf, time.RFC3339Nano)
+	w.Buffer.Buf = t.Inner.AppendFormat(w.Buffer.Buf, time.RFC3339Nano)
 	w.Buffer.AppendByte('"')
 }
 
 // UnmarshalJSON does JSON unmarshaling
 func (t *EasyjsonTime) UnmarshalJSON(b []byte) error {
-	return t.inner.UnmarshalJSON(b)
+	return t.Inner.UnmarshalJSON(b)
 }
