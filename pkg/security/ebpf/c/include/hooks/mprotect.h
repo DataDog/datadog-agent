@@ -46,7 +46,7 @@ int __attribute__((always_inline)) sys_mprotect_ret(void *ctx, int retval) {
     }
 
     if (filter_syscall(syscall, mprotect_approvers)) {
-        return discard_syscall(syscall);
+        return 0;
     }
 
     struct mprotect_event_t event = {

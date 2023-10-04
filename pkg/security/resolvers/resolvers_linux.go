@@ -78,11 +78,6 @@ func NewResolvers(config *config.Config, manager *manager.Manager, statsdClient 
 		return nil, err
 	}
 
-	userGroupResolver, err := usergroup.NewResolver()
-	if err != nil {
-		return nil, err
-	}
-
 	tcResolver := tc.NewResolver(config.Probe)
 
 	namespaceResolver, err := netns.NewResolver(config.Probe, manager, statsdClient, tcResolver)
@@ -110,9 +105,22 @@ func NewResolvers(config *config.Config, manager *manager.Manager, statsdClient 
 		return nil, err
 	}
 
+	userGroupResolver, err := usergroup.NewResolver(cgroupsResolver)
+	if err != nil {
+		return nil, err
+	}
+
 	if config.RuntimeSecurity.SBOMResolverEnabled {
-		_ = cgroupsResolver.RegisterListener(cgroup.CGroupDeleted, sbomResolver.OnCGroupDeletedEvent)
-		_ = cgroupsResolver.RegisterListener(cgroup.WorkloadSelectorResolved, sbomResolver.OnWorkloadSelectorResolvedEvent)
+		if err := cgroupsResolver.RegisterListener(cgroup.CGroupDeleted, sbomResolver.OnCGroupDeletedEvent); err != nil {
+			return nil, err
+		}
+		if err := cgroupsResolver.RegisterListener(cgroup.WorkloadSelectorResolved, sbomResolver.OnWorkloadSelectorResolvedEvent); err != nil {
+			return nil, err
+		}
+	}
+
+	if err := cgroupsResolver.RegisterListener(cgroup.CGroupDeleted, userGroupResolver.OnCGroupDeletedEvent); err != nil {
+		return nil, err
 	}
 
 	// Force the use of redemption for now, as it seems that the kernel reference counter on mounts used to remove mounts is not working properly.

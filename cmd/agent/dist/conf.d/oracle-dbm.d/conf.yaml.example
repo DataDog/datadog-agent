@@ -6,6 +6,18 @@ init_config:
   ## Active session sampling interval in seconds
   # min_collection_interval: <interval_in_seconds>
 
+  ## @param global_custom_queries - list of mappings - optional
+  ## See `custom_queries` defined below.
+  ##
+  ## Global custom queries can be applied to all instances using the
+  ## `use_global_custom_queries` setting at the instance level.
+  #
+  # global_custom_queries:
+  #   - query: <QUERY> 
+  #     columns: <COLUMNS>
+  #     tags: <TAGS>
+
+
 ## Every instance is scheduled independent of the others.
 #
 instances:
@@ -182,6 +194,15 @@ instances:
         ## Enable collection of database shared memory usages
         #
         # enabled: true
+
+    ## @param use_global_custom_queries - string - optional - default: 'true'
+    ## How `global_custom_queries` should be used for this instance. There are 3 options:
+    ##
+    ## 1. true - `global_custom_queries` override `custom_queries`.
+    ## 2. false - `custom_queries` override `global_custom_queries`.
+    ## 3. extend - `global_custom_queries` are used in addition to any `custom_queries`.
+    #
+    # use_global_custom_queries: 'true'
 
     ## @param tags - list of strings - optional
     ## A list of tags to attach to every metric and service check emitted by this instance.

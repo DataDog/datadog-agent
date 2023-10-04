@@ -913,7 +913,7 @@ func (p *Resolver) SetProcessArgs(pce *model.ProcessCacheEntry) {
 	}
 }
 
-// GetProcessArgv returns the args of the event as an array
+// GetProcessArgv returns the unscrubbed args of the event as an array. Use with caution.
 func GetProcessArgv(pr *model.Process) ([]string, bool) {
 	if pr.ArgsEntry == nil {
 		return pr.Argv, pr.ArgsTruncated
@@ -991,7 +991,7 @@ func (p *Resolver) GetProcessEnvs(pr *model.Process) ([]string, bool) {
 	return pr.Envs, pr.EnvsTruncated
 }
 
-// GetProcessEnvp returns the envs of the event with their values
+// GetProcessEnvp returns the unscrubbed envs of the event with their values. Use with caution.
 func (p *Resolver) GetProcessEnvp(pr *model.Process) ([]string, bool) {
 	if pr.EnvsEntry == nil {
 		return pr.Envp, pr.EnvsTruncated
@@ -1013,13 +1013,13 @@ func (p *Resolver) SetProcessTTY(pce *model.ProcessCacheEntry) string {
 
 // SetProcessUsersGroups resolves and set users and groups
 func (p *Resolver) SetProcessUsersGroups(pce *model.ProcessCacheEntry) {
-	pce.User, _ = p.userGroupResolver.ResolveUser(int(pce.Credentials.UID))
-	pce.EUser, _ = p.userGroupResolver.ResolveUser(int(pce.Credentials.EUID))
-	pce.FSUser, _ = p.userGroupResolver.ResolveUser(int(pce.Credentials.FSUID))
+	pce.User, _ = p.userGroupResolver.ResolveUser(int(pce.Credentials.UID), pce.ContainerID)
+	pce.EUser, _ = p.userGroupResolver.ResolveUser(int(pce.Credentials.EUID), pce.ContainerID)
+	pce.FSUser, _ = p.userGroupResolver.ResolveUser(int(pce.Credentials.FSUID), pce.ContainerID)
 
-	pce.Group, _ = p.userGroupResolver.ResolveGroup(int(pce.Credentials.GID))
-	pce.EGroup, _ = p.userGroupResolver.ResolveGroup(int(pce.Credentials.EGID))
-	pce.FSGroup, _ = p.userGroupResolver.ResolveGroup(int(pce.Credentials.FSGID))
+	pce.Group, _ = p.userGroupResolver.ResolveGroup(int(pce.Credentials.GID), pce.ContainerID)
+	pce.EGroup, _ = p.userGroupResolver.ResolveGroup(int(pce.Credentials.EGID), pce.ContainerID)
+	pce.FSGroup, _ = p.userGroupResolver.ResolveGroup(int(pce.Credentials.FSGID), pce.ContainerID)
 }
 
 // Get returns the cache entry for a specified pid

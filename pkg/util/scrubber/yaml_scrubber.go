@@ -21,6 +21,8 @@ func walkSlice(data []interface{}, callback scrubCallback) {
 			walkHash(v, callback)
 		case []interface{}:
 			walkSlice(v, callback)
+		case map[string]interface{}:
+			walkStringMap(v, callback)
 		}
 	}
 }
@@ -43,7 +45,23 @@ func walkHash(data map[interface{}]interface{}, callback scrubCallback) {
 	}
 }
 
-// walk will go through loaded yaml and call callback on every strings allowing
+func walkStringMap(data map[string]interface{}, callback scrubCallback) {
+	for k, v := range data {
+		if match, newValue := callback(k, v); match {
+			data[k] = newValue
+			continue
+		}
+		switch v := data[k].(type) {
+		case map[string]interface{}:
+			walkStringMap(v, callback)
+		case []interface{}:
+			walkSlice(v, callback)
+		}
+
+	}
+}
+
+// walk will go through loaded data and call callback on every strings allowing
 // the callback to overwrite the string value
 func walk(data *interface{}, callback scrubCallback) {
 	if data == nil {
@@ -55,7 +73,27 @@ func walk(data *interface{}, callback scrubCallback) {
 		walkHash(v, callback)
 	case []interface{}:
 		walkSlice(v, callback)
+	case map[string]interface{}:
+		walkStringMap(v, callback)
 	}
+}
+
+// ScrubDataObj scrubs credentials from the data interface by recursively walking over all the nodes
+func (c *Scrubber) ScrubDataObj(data *interface{}) {
+	walk(data, func(key string, value interface{}) (bool, interface{}) {
+		for _, replacer := range c.singleLineReplacers {
+			if replacer.YAMLKeyRegex == nil {
+				continue
+			}
+			if replacer.YAMLKeyRegex.Match([]byte(key)) {
+				if replacer.ProcessValue != nil {
+					return true, replacer.ProcessValue(value)
+				}
+				return true, defaultReplacement
+			}
+		}
+		return false, ""
+	})
 }
 
 // ScrubYaml scrubs credentials from the given YAML by loading the data and scrubbing the object instead of the
@@ -66,21 +104,7 @@ func (c *Scrubber) ScrubYaml(input []byte) ([]byte, error) {
 
 	// if we can't load the yaml run the default scrubber on the input
 	if len(input) != 0 && err == nil {
-		walk(data, func(key string, value interface{}) (bool, interface{}) {
-			for _, replacer := range c.singleLineReplacers {
-				if replacer.YAMLKeyRegex == nil {
-					continue
-				}
-				if replacer.YAMLKeyRegex.Match([]byte(key)) {
-					if replacer.ProcessValue != nil {
-						return true, replacer.ProcessValue(value)
-					}
-					return true, defaultReplacement
-				}
-			}
-			return false, ""
-		})
-
+		c.ScrubDataObj(data)
 		newInput, err := yaml.Marshal(data)
 		if err == nil {
 			input = newInput
