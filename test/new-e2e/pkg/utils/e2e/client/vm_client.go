@@ -16,25 +16,26 @@ import (
 	"golang.org/x/crypto/ssh"
 )
 
-type vmClient struct {
+// VMClient wrap testing struct and SSH client
+type VMClient struct {
 	client *ssh.Client
 	t      *testing.T
 }
 
-func newVMClient(t *testing.T, sshKey []byte, connection *utils.Connection) (*vmClient, error) {
+func newVMClient(t *testing.T, sshKey []byte, connection *utils.Connection) (*VMClient, error) {
 	client, _, err := clients.GetSSHClient(
 		connection.User,
 		fmt.Sprintf("%s:%d", connection.Host, 22),
 		sshKey,
 		2*time.Second, 5)
-	return &vmClient{
+	return &VMClient{
 		client: client,
 		t:      t,
 	}, err
 }
 
 // ExecuteWithError executes a command and returns an error if any.
-func (vmClient *vmClient) ExecuteWithError(command string) (string, error) {
+func (vmClient *VMClient) ExecuteWithError(command string) (string, error) {
 	output, err := clients.ExecuteCommand(vmClient.client, command)
 	if err != nil {
 		return "", fmt.Errorf("%v: %v", output, err)
@@ -43,20 +44,20 @@ func (vmClient *vmClient) ExecuteWithError(command string) (string, error) {
 }
 
 // Execute executes a command and returns its output.
-func (vmClient *vmClient) Execute(command string) string {
+func (vmClient *VMClient) Execute(command string) string {
 	output, err := vmClient.ExecuteWithError(command)
 	require.NoError(vmClient.t, err)
 	return output
 }
 
 // CopyFile copy file to the remote host
-func (vmClient *vmClient) CopyFile(src string, dst string) {
+func (vmClient *VMClient) CopyFile(src string, dst string) {
 	err := clients.CopyFile(vmClient.client, src, dst)
 	require.NoError(vmClient.t, err)
 }
 
 // CopyFolder copy a folder to the remote host
-func (vmClient *vmClient) CopyFolder(srcFolder string, dstFolder string) {
+func (vmClient *VMClient) CopyFolder(srcFolder string, dstFolder string) {
 	err := clients.CopyFolder(vmClient.client, srcFolder, dstFolder)
 	require.NoError(vmClient.t, err)
 }

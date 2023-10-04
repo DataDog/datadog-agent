@@ -28,7 +28,7 @@ func CheckAgentBehaviour(t *testing.T, client *ExtendedClient) {
 		var statusOutputJSON map[string]any
 		result := false
 		for try := 0; try < 5 && !result; try++ {
-			err := json.Unmarshal([]byte(client.Env.Agent.Status(e2eClient.WithArgs([]string{"-j"})).Content), &statusOutputJSON)
+			err := json.Unmarshal([]byte(client.AgentClient.Status(e2eClient.WithArgs([]string{"-j"})).Content), &statusOutputJSON)
 			require.NoError(tt, err)
 			if runnerStats, ok := statusOutputJSON["runnerStats"]; ok {
 				runnerStatsMap := runnerStats.(map[string]any)
@@ -43,14 +43,14 @@ func CheckAgentBehaviour(t *testing.T, client *ExtendedClient) {
 	})
 
 	t.Run("status command infos", func(tt *testing.T) {
-		statusOutput := client.Env.Agent.Status().Content
+		statusOutput := client.AgentClient.Status().Content
 		require.Contains(tt, statusOutput, "Forwarder")
 		require.Contains(tt, statusOutput, "Host Info")
 		require.Contains(tt, statusOutput, "DogStatsD")
 	})
 
 	t.Run("status command no errors", func(tt *testing.T) {
-		statusOutput := client.Env.Agent.Status().Content
+		statusOutput := client.AgentClient.Status().Content
 
 		// API Key is invalid we should not check for the following error
 		statusOutput = strings.ReplaceAll(statusOutput, "[ERROR] API Key is invalid", "API Key is invalid")
@@ -69,14 +69,14 @@ func CheckAgentStops(t *testing.T, client *ExtendedClient) {
 	})
 
 	t.Run("refuse connections", func(tt *testing.T) {
-		_, err := client.Env.Agent.StatusWithError()
+		_, err := client.AgentClient.StatusWithError()
 		require.Error(tt, err, "status should error")
 	})
 
 	t.Run("no running processes", func(tt *testing.T) {
 		agentProcesses := []string{"datadog-agent", "system-probe", "security-agent"}
 		for _, process := range agentProcesses {
-			_, err := client.Env.VM.ExecuteWithError(fmt.Sprintf("pgrep -f %s", process))
+			_, err := client.VMClient.ExecuteWithError(fmt.Sprintf("pgrep -f %s", process))
 			require.Error(tt, err, fmt.Sprintf("process %s should not be running", process))
 		}
 	})
@@ -170,12 +170,12 @@ func CheckCWSBehaviour(t *testing.T, client *ExtendedClient) {
 	})
 
 	t.Run("security-agent is running", func(tt *testing.T) {
-		_, err := client.Env.VM.ExecuteWithError("pgrep -f security-agent")
+		_, err := client.VMClient.ExecuteWithError("pgrep -f security-agent")
 		require.NoError(tt, err, "security-agent should be running")
 	})
 
 	t.Run("system-probe is running", func(tt *testing.T) {
-		_, err := client.Env.VM.ExecuteWithError("pgrep -f system-probe")
+		_, err := client.VMClient.ExecuteWithError("pgrep -f system-probe")
 		require.NoError(tt, err, "security-agent should be running")
 	})
 
@@ -183,7 +183,7 @@ func CheckCWSBehaviour(t *testing.T, client *ExtendedClient) {
 		var statusOutputJSON map[string]any
 		var result bool
 		for try := 0; try < 10 && !result; try++ {
-			status, err := client.Env.VM.ExecuteWithError("sudo /opt/datadog-agent/embedded/bin/security-agent status -j")
+			status, err := client.VMClient.ExecuteWithError("sudo /opt/datadog-agent/embedded/bin/security-agent status -j")
 			if err == nil {
 				statusLines := strings.Split(status, "\n")
 				status = strings.Join(statusLines[1:], "\n")

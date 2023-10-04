@@ -36,6 +36,19 @@ func newAgentCommandRunner(t *testing.T, executeAgentCmdWithError executeAgentCm
 	return agent
 }
 
+// NewAgentCommandRunnerFromVM create a AgentCommandRunner from a VM
+func NewAgentCommandRunnerFromVM(t *testing.T, vm *VM) *AgentCommandRunner {
+
+	return newAgentCommandRunner(t, func(arguments []string) (string, error) {
+		parameters := ""
+		if len(arguments) > 0 {
+			parameters = `"` + strings.Join(arguments, `" "`) + `"`
+		}
+		cmd := vm.os.GetRunAgentCmd(parameters)
+		return vm.ExecuteWithError(cmd)
+	})
+}
+
 func (agent *AgentCommandRunner) executeCommand(command string, commandArgs ...AgentArgsOption) string {
 
 	output, err := agent.executeCommandWithError(command, commandArgs...)

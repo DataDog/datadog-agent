@@ -20,56 +20,56 @@ func CheckIntegrationInstall(t *testing.T, client *ExtendedClient) {
 	requirementIntegrationPath := "/opt/datadog-agent/requirements-agent-release.txt"
 
 	ciliumRegex := regexp.MustCompile(`datadog-cilium==.*`)
-	freezeContent := client.Env.VM.Execute(fmt.Sprintf("cat %s", requirementIntegrationPath))
+	freezeContent := client.VMClient.Execute(fmt.Sprintf("cat %s", requirementIntegrationPath))
 	freezeContent = ciliumRegex.ReplaceAllString(freezeContent, "datadog-cilium==2.2.1")
-	client.Env.VM.Execute(fmt.Sprintf(`sudo bash -c " echo '%s' > %s"`, freezeContent, requirementIntegrationPath))
+	client.VMClient.Execute(fmt.Sprintf(`sudo bash -c " echo '%s' > %s"`, freezeContent, requirementIntegrationPath))
 
 	t.Run("uninstall installed package", func(tt *testing.T) {
-		client.Env.Agent.Integration(e2eClient.WithArgs([]string{"install", "-r", "datadog-cilium==2.2.1"}))
+		client.AgentClient.Integration(e2eClient.WithArgs([]string{"install", "-r", "datadog-cilium==2.2.1"}))
 
-		freezeRequirement := client.Env.Agent.Integration(e2eClient.WithArgs([]string{"freeze"}))
-		client.Env.Agent.Integration(e2eClient.WithArgs([]string{"remove", "-r", "datadog-cilium"}))
-		freezeRequirementNew := client.Env.Agent.Integration(e2eClient.WithArgs([]string{"freeze"}))
+		freezeRequirement := client.AgentClient.Integration(e2eClient.WithArgs([]string{"freeze"}))
+		client.AgentClient.Integration(e2eClient.WithArgs([]string{"remove", "-r", "datadog-cilium"}))
+		freezeRequirementNew := client.AgentClient.Integration(e2eClient.WithArgs([]string{"freeze"}))
 
 		require.Contains(tt, freezeRequirement, "datadog-cilium==2.2.1", "before removal integration should be in freeze")
 		require.NotContains(tt, freezeRequirementNew, "datadog-cilium==2.2.1", "after removal integration should not be in freeze")
 	})
 
 	t.Run("install a new package", func(tt *testing.T) {
-		client.Env.Agent.Integration(e2eClient.WithArgs([]string{"remove", "-r", "datadog-cilium"}))
+		client.AgentClient.Integration(e2eClient.WithArgs([]string{"remove", "-r", "datadog-cilium"}))
 
-		freezeRequirement := client.Env.Agent.Integration(e2eClient.WithArgs([]string{"freeze"}))
-		client.Env.Agent.Integration(e2eClient.WithArgs([]string{"install", "-r", "datadog-cilium==2.2.1"}))
-		freezeRequirementNew := client.Env.Agent.Integration(e2eClient.WithArgs([]string{"freeze"}))
+		freezeRequirement := client.AgentClient.Integration(e2eClient.WithArgs([]string{"freeze"}))
+		client.AgentClient.Integration(e2eClient.WithArgs([]string{"install", "-r", "datadog-cilium==2.2.1"}))
+		freezeRequirementNew := client.AgentClient.Integration(e2eClient.WithArgs([]string{"freeze"}))
 
 		require.NotContains(tt, freezeRequirement, "datadog-cilium==2.2.1", "before install integration should not be in freeze")
 		require.Contains(tt, freezeRequirementNew, "datadog-cilium==2.2.1", "after install integration should be in freeze")
 	})
 
 	t.Run("upgrade a package", func(tt *testing.T) {
-		client.Env.Agent.Integration(e2eClient.WithArgs([]string{"install", "-r", "datadog-cilium==2.2.1"}))
+		client.AgentClient.Integration(e2eClient.WithArgs([]string{"install", "-r", "datadog-cilium==2.2.1"}))
 
-		freezeRequirement := client.Env.Agent.Integration(e2eClient.WithArgs([]string{"freeze"}))
-		client.Env.Agent.Integration(e2eClient.WithArgs([]string{"install", "-r", "datadog-cilium==2.3.0"}))
-		freezeRequirementNew := client.Env.Agent.Integration(e2eClient.WithArgs([]string{"freeze"}))
+		freezeRequirement := client.AgentClient.Integration(e2eClient.WithArgs([]string{"freeze"}))
+		client.AgentClient.Integration(e2eClient.WithArgs([]string{"install", "-r", "datadog-cilium==2.3.0"}))
+		freezeRequirementNew := client.AgentClient.Integration(e2eClient.WithArgs([]string{"freeze"}))
 
 		require.NotContains(tt, freezeRequirement, "datadog-cilium==2.3.0", "before update integration should not be in 2.3.0")
 		require.Contains(tt, freezeRequirementNew, "datadog-cilium==2.3.0", "after update integration should be in 2.3.0")
 	})
 
 	t.Run("downgrade a package", func(tt *testing.T) {
-		client.Env.Agent.Integration(e2eClient.WithArgs([]string{"install", "-r", "datadog-cilium==2.3.0"}))
+		client.AgentClient.Integration(e2eClient.WithArgs([]string{"install", "-r", "datadog-cilium==2.3.0"}))
 
-		freezeRequirement := client.Env.Agent.Integration(e2eClient.WithArgs([]string{"freeze"}))
-		client.Env.Agent.Integration(e2eClient.WithArgs([]string{"install", "-r", "datadog-cilium==2.2.1"}))
-		freezeRequirementNew := client.Env.Agent.Integration(e2eClient.WithArgs([]string{"freeze"}))
+		freezeRequirement := client.AgentClient.Integration(e2eClient.WithArgs([]string{"freeze"}))
+		client.AgentClient.Integration(e2eClient.WithArgs([]string{"install", "-r", "datadog-cilium==2.2.1"}))
+		freezeRequirementNew := client.AgentClient.Integration(e2eClient.WithArgs([]string{"freeze"}))
 
 		require.NotContains(tt, freezeRequirement, "datadog-cilium==2.2.1", "before downgrade integration should not be in 2.2.1")
 		require.Contains(tt, freezeRequirementNew, "datadog-cilium==2.2.1", "after downgrade integration should be in 2.2.1")
 	})
 
 	t.Run("downgrade to older version than shipped", func(tt *testing.T) {
-		_, err := client.Env.Agent.IntegrationWithError(e2eClient.WithArgs([]string{"install", "-r", "datadog-cilium==2.2.0"}))
+		_, err := client.AgentClient.IntegrationWithError(e2eClient.WithArgs([]string{"install", "-r", "datadog-cilium==2.2.0"}))
 		require.Error(tt, err, "should raise error when trying to install version older than the one shipped")
 	})
 }

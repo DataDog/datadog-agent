@@ -13,7 +13,6 @@ import (
 
 	pkgmanager "github.com/DataDog/datadog-agent/test/new-e2e/agent-platform/common/pkg-manager"
 	svcmanager "github.com/DataDog/datadog-agent/test/new-e2e/agent-platform/common/svc-manager"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e"
 	e2eClient "github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client"
 	"gopkg.in/yaml.v2"
 )
@@ -31,42 +30,44 @@ type PackageManager interface {
 	Remove(pkg string) (string, error)
 }
 
-func getServiceManager(env *e2e.AgentEnv) ServiceManager {
-	if _, err := env.VM.ExecuteWithError("systemctl --version"); err == nil {
-		return svcmanager.NewSystemctlSvcManager(env)
+func getServiceManager(vmClient *e2eClient.VMClient) ServiceManager {
+	if _, err := vmClient.ExecuteWithError("systemctl --version"); err == nil {
+		return svcmanager.NewSystemctlSvcManager(vmClient)
 	}
 	return nil
 }
 
-func getPackageManager(env *e2e.AgentEnv) PackageManager {
-	if _, err := env.VM.ExecuteWithError("apt-get --version"); err == nil {
-		return pkgmanager.NewAptPackageManager(env)
+func getPackageManager(vmClient *e2eClient.VMClient) PackageManager {
+	if _, err := vmClient.ExecuteWithError("apt-get --version"); err == nil {
+		return pkgmanager.NewAptPackageManager(vmClient)
 	}
 	return nil
 }
 
 // ExtendedClient contain the Agent Env and SvcManager and PkgManager for tests
 type ExtendedClient struct {
-	Env        *e2e.AgentEnv
-	SvcManager ServiceManager
-	PkgManager PackageManager
+	VMClient    *e2eClient.VMClient
+	AgentClient *e2eClient.AgentCommandRunner
+	SvcManager  ServiceManager
+	PkgManager  PackageManager
 }
 
-// NewClientFromEnv create a an ExtendedClient from Agent Env, includes svcManager and pkgManager to write agent-platform tests
-func NewClientFromEnv(env *e2e.AgentEnv) *ExtendedClient {
-	svcManager := getServiceManager(env)
-	pkgManager := getPackageManager(env)
+// NewTestClient create a an ExtendedClient from VMClient and AgentCommandRunner, includes svcManager and pkgManager to write agent-platform tests
+func NewTestClient(vmClient *e2eClient.VMClient, agentClient *e2eClient.AgentCommandRunner) *ExtendedClient {
+	svcManager := getServiceManager(vmClient)
+	pkgManager := getPackageManager(vmClient)
 	return &ExtendedClient{
-		Env:        env,
-		SvcManager: svcManager,
-		PkgManager: pkgManager,
+		VMClient:    vmClient,
+		AgentClient: agentClient,
+		SvcManager:  svcManager,
+		PkgManager:  pkgManager,
 	}
 }
 
 // CheckPortBound check if the port is currently bound, use netstat or ss
 func (c *ExtendedClient) CheckPortBound(port int) error {
 	netstatCmd := "sudo netstat -lntp | grep %v"
-	if _, err := c.Env.VM.ExecuteWithError("sudo netstat --version"); err != nil {
+	if _, err := c.VMClient.ExecuteWithError("sudo netstat --version"); err != nil {
 		netstatCmd = "sudo ss -lntp | grep %v"
 	}
 
@@ -74,7 +75,7 @@ func (c *ExtendedClient) CheckPortBound(port int) error {
 	var err error
 
 	for try := 0; try < 5 && !ok; try++ {
-		_, err = c.Env.VM.ExecuteWithError(fmt.Sprintf(netstatCmd, port))
+		_, err = c.VMClient.ExecuteWithError(fmt.Sprintf(netstatCmd, port))
 		if err == nil {
 			ok = true
 		}
@@ -87,7 +88,7 @@ func (c *ExtendedClient) CheckPortBound(port int) error {
 // SetConfig set config given a key and a path to a yaml config file, support key nested twice at most
 func (c *ExtendedClient) SetConfig(confPath string, key string, value string) error {
 	confYaml := map[string]any{}
-	conf, err := c.Env.VM.ExecuteWithError(fmt.Sprintf("cat %s", confPath))
+	conf, err := c.VMClient.ExecuteWithError(fmt.Sprintf("cat %s", confPath))
 	if err != nil {
 		fmt.Printf("config file: %s not found, it will be created\n", confPath)
 	}
@@ -111,7 +112,7 @@ func (c *ExtendedClient) SetConfig(confPath string, key string, value string) er
 	if err != nil {
 		return err
 	}
-	c.Env.VM.Execute(fmt.Sprintf(`sudo bash -c " echo '%s' > %s"`, confUpdated, confPath))
+	c.VMClient.Execute(fmt.Sprintf(`sudo bash -c " echo '%s' > %s"`, confUpdated, confPath))
 	return nil
 }
 
@@ -122,7 +123,7 @@ func (c *ExtendedClient) GetPythonVersion() (string, error) {
 	var statusString string
 
 	for try := 0; try < 5 && !ok; try++ {
-		status, err := c.Env.Agent.StatusWithError(e2eClient.WithArgs([]string{"-j"}))
+		status, err := c.AgentClient.StatusWithError(e2eClient.WithArgs([]string{"-j"}))
 		if err == nil {
 			ok = true
 			statusString = status.Content

@@ -18,20 +18,20 @@ import (
 func CheckInstallation(t *testing.T, client *ExtendedClient) {
 
 	t.Run("example config file", func(tt *testing.T) {
-		_, err := client.Env.VM.ExecuteWithError("stat /etc/datadog-agent/datadog.yaml.example")
+		_, err := client.VMClient.ExecuteWithError("stat /etc/datadog-agent/datadog.yaml.example")
 		require.NoError(tt, err, "Example config file should be present")
 	})
 
 	t.Run("datdog-agent binary", func(tt *testing.T) {
-		_, err := client.Env.VM.ExecuteWithError("stat /usr/bin/datadog-agent")
+		_, err := client.VMClient.ExecuteWithError("stat /usr/bin/datadog-agent")
 		require.NoError(tt, err, "datadog-agent binary should be present")
 	})
 
 	t.Run("datadog-signing-keys package", func(tt *testing.T) {
-		if _, err := client.Env.VM.ExecuteWithError("dpkg --version"); err != nil {
+		if _, err := client.VMClient.ExecuteWithError("dpkg --version"); err != nil {
 			tt.Skip()
 		}
-		_, err := client.Env.VM.ExecuteWithError(("dpkg -l datadog-signing-keys"))
+		_, err := client.VMClient.ExecuteWithError(("dpkg -l datadog-signing-keys"))
 		require.NoError(tt, err, "datadog-singing-keys package should be installed")
 	})
 }
@@ -41,7 +41,7 @@ func CheckInstallationInstallScript(t *testing.T, client *ExtendedClient) {
 
 	t.Run("site config attribute", func(tt *testing.T) {
 		var configJSON map[string]any
-		config := client.Env.VM.Execute("cat /etc/datadog-agent/datadog.yaml")
+		config := client.VMClient.Execute("cat /etc/datadog-agent/datadog.yaml")
 
 		err := yaml.Unmarshal([]byte(config), &configJSON)
 		require.NoError(tt, err)
@@ -50,7 +50,7 @@ func CheckInstallationInstallScript(t *testing.T, client *ExtendedClient) {
 
 	t.Run("install info file", func(tt *testing.T) {
 		var installInfoYaml map[string]map[string]string
-		installInfo := client.Env.VM.Execute("cat /etc/datadog-agent/install_info")
+		installInfo := client.VMClient.Execute("cat /etc/datadog-agent/install_info")
 		err := yaml.Unmarshal([]byte(installInfo), &installInfoYaml)
 		require.NoError(tt, err)
 		toolVersionRegex := regexp.MustCompile(`^install_script_agent\d+$`)
@@ -75,14 +75,14 @@ func CheckUninstallation(t *testing.T, client *ExtendedClient) {
 	t.Run("no agent process running", func(tt *testing.T) {
 		agentProcesses := []string{"datadog-agent", "system-probe", "security-agent"}
 		for _, process := range agentProcesses {
-			_, err := client.Env.VM.ExecuteWithError(fmt.Sprintf("pgrep -f %s", process))
+			_, err := client.VMClient.ExecuteWithError(fmt.Sprintf("pgrep -f %s", process))
 			require.Error(tt, err, fmt.Sprintf("process %s should not be running", process))
 		}
 	})
 
 	t.Run("remove install directory", func(tt *testing.T) {
 
-		foundFiles, err := client.Env.VM.ExecuteWithError("sudo find /opt/datadog-agent -type f")
+		foundFiles, err := client.VMClient.ExecuteWithError("sudo find /opt/datadog-agent -type f")
 		require.Error(tt, err, "should not find anything in install folder, found: ", foundFiles)
 	})
 

@@ -12,9 +12,10 @@ import (
 	"strings"
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/agent-platform/common"
+	"github.com/DataDog/datadog-agent/test/new-e2e/agent-platform/install"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e"
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/params"
-	"github.com/DataDog/test-infra-definitions/components/datadog/agentparams"
 	e2eOs "github.com/DataDog/test-infra-definitions/components/os"
 	"github.com/DataDog/test-infra-definitions/scenarios/aws/vm/ec2os"
 	"github.com/DataDog/test-infra-definitions/scenarios/aws/vm/ec2params"
@@ -27,7 +28,7 @@ var platform = flag.String("platform", "", "platform to test")
 var cwsSupportedOsVersion = flag.String("cws-supported-osversion", "", "list of os where CWS is supported")
 
 type installScriptSuite struct {
-	e2e.Suite[e2e.AgentEnv]
+	e2e.Suite[e2e.VMEnv]
 	cwsSupported bool
 }
 
@@ -44,6 +45,7 @@ func TestInstallScript(t *testing.T) {
 	osVersions := strings.Split(*osVersion, ",")
 	cwsSupportedOsVersionList := strings.Split(*cwsSupportedOsVersion, ",")
 
+	fmt.Println("Parsed platform json file: ", platformJSON)
 	for _, osVers := range osVersions {
 		osVers := osVers
 		cwsSupported := false
@@ -56,14 +58,16 @@ func TestInstallScript(t *testing.T) {
 		t.Run(fmt.Sprintf("test install script on %s", osVers), func(tt *testing.T) {
 			tt.Parallel()
 			fmt.Printf("Testing %s", osVers)
-			e2e.Run(tt, &installScriptSuite{cwsSupported: cwsSupported}, e2e.AgentStackDef(e2e.WithVMParams(ec2params.WithImageName(platformJSON[*platform][osVers], e2eOs.AMD64Arch, ec2os.DebianOS)), e2e.WithAgentParams(agentparams.WithAgentConfig("site: datadoghq.eu"))), params.WithStackName(fmt.Sprintf("install-script-test-%v-%v", os.Getenv("CI_PIPELINE_ID"), osVers)))
+			e2e.Run(tt, &installScriptSuite{cwsSupported: cwsSupported}, e2e.EC2VMStackDef(ec2params.WithImageName(platformJSON[*platform][osVers], e2eOs.AMD64Arch, ec2os.DebianOS)), params.WithStackName(fmt.Sprintf("install-script-test-%v-%v", os.Getenv("CI_PIPELINE_ID"), osVers)))
 		})
 	}
 }
 
 func (is *installScriptSuite) TestInstallAgent() {
+	agentClient := client.NewAgentCommandRunnerFromVM(is.T(), is.Env().VM)
+	client := common.NewTestClient(is.Env().VM.VMClient, agentClient)
 
-	client := common.NewClientFromEnv(is.Env())
+	install.Unix(is.T(), client)
 
 	common.CheckInstallation(is.T(), client)
 	common.CheckAgentBehaviour(is.T(), client)
