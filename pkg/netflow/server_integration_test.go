@@ -78,7 +78,7 @@ network_devices:
 	assert.NoError(t, err)
 }
 
-func TestNetFlow_IntegrationTest_NetFlow9_00(t *testing.T) {
+func TestNetFlow_IntegrationTest_NetFlow9_1(t *testing.T) {
 	// Setup NetFlow feature config
 	port := testutil.GetFreePort()
 	config.Datadog.SetConfigType("yaml")
@@ -125,7 +125,7 @@ network_devices:
 	assert.NoError(t, err)
 }
 
-func TestNetFlow_IntegrationTest_NetFlow9_00(t *testing.T) {
+func TestNetFlow_IntegrationTest_NetFlow9_2(t *testing.T) {
 	// Setup NetFlow feature config
 	port := testutil.GetFreePort()
 	config.Datadog.SetConfigType("yaml")
@@ -172,7 +172,7 @@ network_devices:
 	assert.NoError(t, err)
 }
 
-func TestNetFlow_IntegrationTest_NetFlow9_00(t *testing.T) {
+func TestNetFlow_IntegrationTest_NetFlow9_3(t *testing.T) {
 	// Setup NetFlow feature config
 	port := testutil.GetFreePort()
 	config.Datadog.SetConfigType("yaml")
@@ -219,7 +219,7 @@ network_devices:
 	assert.NoError(t, err)
 }
 
-func TestNetFlow_IntegrationTest_NetFlow9_00(t *testing.T) {
+func TestNetFlow_IntegrationTest_NetFlow9_4(t *testing.T) {
 	// Setup NetFlow feature config
 	port := testutil.GetFreePort()
 	config.Datadog.SetConfigType("yaml")
@@ -266,7 +266,7 @@ network_devices:
 	assert.NoError(t, err)
 }
 
-func TestNetFlow_IntegrationTest_NetFlow9_00(t *testing.T) {
+func TestNetFlow_IntegrationTest_NetFlow9_5(t *testing.T) {
 	// Setup NetFlow feature config
 	port := testutil.GetFreePort()
 	config.Datadog.SetConfigType("yaml")
@@ -313,7 +313,7 @@ network_devices:
 	assert.NoError(t, err)
 }
 
-func TestNetFlow_IntegrationTest_NetFlow9_00(t *testing.T) {
+func TestNetFlow_IntegrationTest_NetFlow9_6(t *testing.T) {
 	// Setup NetFlow feature config
 	port := testutil.GetFreePort()
 	config.Datadog.SetConfigType("yaml")
@@ -360,7 +360,7 @@ network_devices:
 	assert.NoError(t, err)
 }
 
-func TestNetFlow_IntegrationTest_NetFlow9_00(t *testing.T) {
+func TestNetFlow_IntegrationTest_NetFlow9_7(t *testing.T) {
 	// Setup NetFlow feature config
 	port := testutil.GetFreePort()
 	config.Datadog.SetConfigType("yaml")
@@ -407,7 +407,7 @@ network_devices:
 	assert.NoError(t, err)
 }
 
-func TestNetFlow_IntegrationTest_NetFlow9_00(t *testing.T) {
+func TestNetFlow_IntegrationTest_NetFlow9_8(t *testing.T) {
 	// Setup NetFlow feature config
 	port := testutil.GetFreePort()
 	config.Datadog.SetConfigType("yaml")
@@ -454,7 +454,7 @@ network_devices:
 	assert.NoError(t, err)
 }
 
-func TestNetFlow_IntegrationTest_NetFlow9_00(t *testing.T) {
+func TestNetFlow_IntegrationTest_NetFlow9_9(t *testing.T) {
 	// Setup NetFlow feature config
 	port := testutil.GetFreePort()
 	config.Datadog.SetConfigType("yaml")
@@ -501,7 +501,7 @@ network_devices:
 	assert.NoError(t, err)
 }
 
-func TestNetFlow_IntegrationTest_NetFlow9_00(t *testing.T) {
+func TestNetFlow_IntegrationTest_NetFlow9_10(t *testing.T) {
 	// Setup NetFlow feature config
 	port := testutil.GetFreePort()
 	config.Datadog.SetConfigType("yaml")
@@ -548,7 +548,7 @@ network_devices:
 	assert.NoError(t, err)
 }
 
-func TestNetFlow_IntegrationTest_NetFlow9_00(t *testing.T) {
+func TestNetFlow_IntegrationTest_NetFlow9_11(t *testing.T) {
 	// Setup NetFlow feature config
 	port := testutil.GetFreePort()
 	config.Datadog.SetConfigType("yaml")
@@ -595,7 +595,7 @@ network_devices:
 	assert.NoError(t, err)
 }
 
-func TestNetFlow_IntegrationTest_NetFlow9_00(t *testing.T) {
+func TestNetFlow_IntegrationTest_NetFlow9_12(t *testing.T) {
 	// Setup NetFlow feature config
 	port := testutil.GetFreePort()
 	config.Datadog.SetConfigType("yaml")
@@ -642,7 +642,7 @@ network_devices:
 	assert.NoError(t, err)
 }
 
-func TestNetFlow_IntegrationTest_NetFlow9_00(t *testing.T) {
+func TestNetFlow_IntegrationTest_NetFlow9_13(t *testing.T) {
 	// Setup NetFlow feature config
 	port := testutil.GetFreePort()
 	config.Datadog.SetConfigType("yaml")
@@ -689,7 +689,7 @@ network_devices:
 	assert.NoError(t, err)
 }
 
-func TestNetFlow_IntegrationTest_NetFlow9_00(t *testing.T) {
+func TestNetFlow_IntegrationTest_NetFlow9_14(t *testing.T) {
 	// Setup NetFlow feature config
 	port := testutil.GetFreePort()
 	config.Datadog.SetConfigType("yaml")
@@ -736,7 +736,7 @@ network_devices:
 	assert.NoError(t, err)
 }
 
-func TestNetFlow_IntegrationTest_NetFlow9_00(t *testing.T) {
+func TestNetFlow_IntegrationTest_NetFlow9_15(t *testing.T) {
 	// Setup NetFlow feature config
 	port := testutil.GetFreePort()
 	config.Datadog.SetConfigType("yaml")
@@ -783,7 +783,7 @@ network_devices:
 	assert.NoError(t, err)
 }
 
-func TestNetFlow_IntegrationTest_NetFlow9_00(t *testing.T) {
+func TestNetFlow_IntegrationTest_NetFlow9_16(t *testing.T) {
 	// Setup NetFlow feature config
 	port := testutil.GetFreePort()
 	config.Datadog.SetConfigType("yaml")
@@ -830,7 +830,7 @@ network_devices:
 	assert.NoError(t, err)
 }
 
-func TestNetFlow_IntegrationTest_NetFlow9_00(t *testing.T) {
+func TestNetFlow_IntegrationTest_NetFlow9_17(t *testing.T) {
 	// Setup NetFlow feature config
 	port := testutil.GetFreePort()
 	config.Datadog.SetConfigType("yaml")
@@ -877,7 +877,7 @@ network_devices:
 	assert.NoError(t, err)
 }
 
-func TestNetFlow_IntegrationTest_NetFlow9_00(t *testing.T) {
+func TestNetFlow_IntegrationTest_NetFlow9_18(t *testing.T) {
 	// Setup NetFlow feature config
 	port := testutil.GetFreePort()
 	config.Datadog.SetConfigType("yaml")
@@ -924,7 +924,7 @@ network_devices:
 	assert.NoError(t, err)
 }
 
-func TestNetFlow_IntegrationTest_NetFlow9_00(t *testing.T) {
+func TestNetFlow_IntegrationTest_NetFlow9_19(t *testing.T) {
 	// Setup NetFlow feature config
 	port := testutil.GetFreePort()
 	config.Datadog.SetConfigType("yaml")
@@ -971,7 +971,7 @@ network_devices:
 	assert.NoError(t, err)
 }
 
-func TestNetFlow_IntegrationTest_NetFlow9_00(t *testing.T) {
+func TestNetFlow_IntegrationTest_NetFlow9_20(t *testing.T) {
 	// Setup NetFlow feature config
 	port := testutil.GetFreePort()
 	config.Datadog.SetConfigType("yaml")
@@ -1018,7 +1018,7 @@ network_devices:
 	assert.NoError(t, err)
 }
 
-func TestNetFlow_IntegrationTest_NetFlow9_00(t *testing.T) {
+func TestNetFlow_IntegrationTest_NetFlow9_21(t *testing.T) {
 	// Setup NetFlow feature config
 	port := testutil.GetFreePort()
 	config.Datadog.SetConfigType("yaml")
@@ -1065,7 +1065,7 @@ network_devices:
 	assert.NoError(t, err)
 }
 
-func TestNetFlow_IntegrationTest_NetFlow9_00(t *testing.T) {
+func TestNetFlow_IntegrationTest_NetFlow9_22(t *testing.T) {
 	// Setup NetFlow feature config
 	port := testutil.GetFreePort()
 	config.Datadog.SetConfigType("yaml")
@@ -1112,7 +1112,7 @@ network_devices:
 	assert.NoError(t, err)
 }
 
-func TestNetFlow_IntegrationTest_NetFlow9_00(t *testing.T) {
+func TestNetFlow_IntegrationTest_NetFlow9_23(t *testing.T) {
 	// Setup NetFlow feature config
 	port := testutil.GetFreePort()
 	config.Datadog.SetConfigType("yaml")
@@ -1159,7 +1159,7 @@ network_devices:
 	assert.NoError(t, err)
 }
 
-func TestNetFlow_IntegrationTest_NetFlow9_00(t *testing.T) {
+func TestNetFlow_IntegrationTest_NetFlow9_24(t *testing.T) {
 	// Setup NetFlow feature config
 	port := testutil.GetFreePort()
 	config.Datadog.SetConfigType("yaml")
@@ -1206,7 +1206,7 @@ network_devices:
 	assert.NoError(t, err)
 }
 
-func TestNetFlow_IntegrationTest_NetFlow9_00(t *testing.T) {
+func TestNetFlow_IntegrationTest_NetFlow9_25(t *testing.T) {
 	// Setup NetFlow feature config
 	port := testutil.GetFreePort()
 	config.Datadog.SetConfigType("yaml")
@@ -1253,7 +1253,7 @@ network_devices:
 	assert.NoError(t, err)
 }
 
-func TestNetFlow_IntegrationTest_NetFlow9_00(t *testing.T) {
+func TestNetFlow_IntegrationTest_NetFlow9_26(t *testing.T) {
 	// Setup NetFlow feature config
 	port := testutil.GetFreePort()
 	config.Datadog.SetConfigType("yaml")
@@ -1300,7 +1300,7 @@ network_devices:
 	assert.NoError(t, err)
 }
 
-func TestNetFlow_IntegrationTest_NetFlow9_00(t *testing.T) {
+func TestNetFlow_IntegrationTest_NetFlow9_27(t *testing.T) {
 	// Setup NetFlow feature config
 	port := testutil.GetFreePort()
 	config.Datadog.SetConfigType("yaml")
@@ -1347,7 +1347,7 @@ network_devices:
 	assert.NoError(t, err)
 }
 
-func TestNetFlow_IntegrationTest_NetFlow9_00(t *testing.T) {
+func TestNetFlow_IntegrationTest_NetFlow9_28(t *testing.T) {
 	// Setup NetFlow feature config
 	port := testutil.GetFreePort()
 	config.Datadog.SetConfigType("yaml")
@@ -1394,7 +1394,7 @@ network_devices:
 	assert.NoError(t, err)
 }
 
-func TestNetFlow_IntegrationTest_NetFlow9_00(t *testing.T) {
+func TestNetFlow_IntegrationTest_NetFlow9_29(t *testing.T) {
 	// Setup NetFlow feature config
 	port := testutil.GetFreePort()
 	config.Datadog.SetConfigType("yaml")
@@ -1441,7 +1441,7 @@ network_devices:
 	assert.NoError(t, err)
 }
 
-func TestNetFlow_IntegrationTest_NetFlow9_00(t *testing.T) {
+func TestNetFlow_IntegrationTest_NetFlow9_30(t *testing.T) {
 	// Setup NetFlow feature config
 	port := testutil.GetFreePort()
 	config.Datadog.SetConfigType("yaml")
@@ -1488,7 +1488,7 @@ network_devices:
 	assert.NoError(t, err)
 }
 
-func TestNetFlow_IntegrationTest_NetFlow9_00(t *testing.T) {
+func TestNetFlow_IntegrationTest_NetFlow9_31(t *testing.T) {
 	// Setup NetFlow feature config
 	port := testutil.GetFreePort()
 	config.Datadog.SetConfigType("yaml")
@@ -1535,7 +1535,7 @@ network_devices:
 	assert.NoError(t, err)
 }
 
-func TestNetFlow_IntegrationTest_NetFlow9_00(t *testing.T) {
+func TestNetFlow_IntegrationTest_NetFlow9_32(t *testing.T) {
 	// Setup NetFlow feature config
 	port := testutil.GetFreePort()
 	config.Datadog.SetConfigType("yaml")
@@ -1582,7 +1582,7 @@ network_devices:
 	assert.NoError(t, err)
 }
 
-func TestNetFlow_IntegrationTest_NetFlow9_00(t *testing.T) {
+func TestNetFlow_IntegrationTest_NetFlow9_33(t *testing.T) {
 	// Setup NetFlow feature config
 	port := testutil.GetFreePort()
 	config.Datadog.SetConfigType("yaml")
@@ -1629,7 +1629,7 @@ network_devices:
 	assert.NoError(t, err)
 }
 
-func TestNetFlow_IntegrationTest_NetFlow9_00(t *testing.T) {
+func TestNetFlow_IntegrationTest_NetFlow9_34(t *testing.T) {
 	// Setup NetFlow feature config
 	port := testutil.GetFreePort()
 	config.Datadog.SetConfigType("yaml")
@@ -1676,7 +1676,7 @@ network_devices:
 	assert.NoError(t, err)
 }
 
-func TestNetFlow_IntegrationTest_NetFlow9_00(t *testing.T) {
+func TestNetFlow_IntegrationTest_NetFlow9_35(t *testing.T) {
 	// Setup NetFlow feature config
 	port := testutil.GetFreePort()
 	config.Datadog.SetConfigType("yaml")
@@ -1723,7 +1723,7 @@ network_devices:
 	assert.NoError(t, err)
 }
 
-func TestNetFlow_IntegrationTest_NetFlow9_00(t *testing.T) {
+func TestNetFlow_IntegrationTest_NetFlow9_36(t *testing.T) {
 	// Setup NetFlow feature config
 	port := testutil.GetFreePort()
 	config.Datadog.SetConfigType("yaml")
@@ -1770,7 +1770,7 @@ network_devices:
 	assert.NoError(t, err)
 }
 
-func TestNetFlow_IntegrationTest_NetFlow9_00(t *testing.T) {
+func TestNetFlow_IntegrationTest_NetFlow9_37(t *testing.T) {
 	// Setup NetFlow feature config
 	port := testutil.GetFreePort()
 	config.Datadog.SetConfigType("yaml")
@@ -1817,7 +1817,7 @@ network_devices:
 	assert.NoError(t, err)
 }
 
-func TestNetFlow_IntegrationTest_NetFlow9_00(t *testing.T) {
+func TestNetFlow_IntegrationTest_NetFlow9_38(t *testing.T) {
 	// Setup NetFlow feature config
 	port := testutil.GetFreePort()
 	config.Datadog.SetConfigType("yaml")
@@ -1864,7 +1864,7 @@ network_devices:
 	assert.NoError(t, err)
 }
 
-func TestNetFlow_IntegrationTest_NetFlow9_00(t *testing.T) {
+func TestNetFlow_IntegrationTest_NetFlow9_39(t *testing.T) {
 	// Setup NetFlow feature config
 	port := testutil.GetFreePort()
 	config.Datadog.SetConfigType("yaml")
@@ -1911,7 +1911,7 @@ network_devices:
 	assert.NoError(t, err)
 }
 
-func TestNetFlow_IntegrationTest_NetFlow9_00(t *testing.T) {
+func TestNetFlow_IntegrationTest_NetFlow9_40(t *testing.T) {
 	// Setup NetFlow feature config
 	port := testutil.GetFreePort()
 	config.Datadog.SetConfigType("yaml")
@@ -1958,7 +1958,7 @@ network_devices:
 	assert.NoError(t, err)
 }
 
-func TestNetFlow_IntegrationTest_NetFlow9_00(t *testing.T) {
+func TestNetFlow_IntegrationTest_NetFlow9_41(t *testing.T) {
 	// Setup NetFlow feature config
 	port := testutil.GetFreePort()
 	config.Datadog.SetConfigType("yaml")
@@ -2005,7 +2005,7 @@ network_devices:
 	assert.NoError(t, err)
 }
 
-func TestNetFlow_IntegrationTest_NetFlow9_00(t *testing.T) {
+func TestNetFlow_IntegrationTest_NetFlow9_42(t *testing.T) {
 	// Setup NetFlow feature config
 	port := testutil.GetFreePort()
 	config.Datadog.SetConfigType("yaml")
@@ -2052,7 +2052,7 @@ network_devices:
 	assert.NoError(t, err)
 }
 
-func TestNetFlow_IntegrationTest_NetFlow9_00(t *testing.T) {
+func TestNetFlow_IntegrationTest_NetFlow9_43(t *testing.T) {
 	// Setup NetFlow feature config
 	port := testutil.GetFreePort()
 	config.Datadog.SetConfigType("yaml")
@@ -2099,7 +2099,7 @@ network_devices:
 	assert.NoError(t, err)
 }
 
-func TestNetFlow_IntegrationTest_NetFlow9_00(t *testing.T) {
+func TestNetFlow_IntegrationTest_NetFlow9_44(t *testing.T) {
 	// Setup NetFlow feature config
 	port := testutil.GetFreePort()
 	config.Datadog.SetConfigType("yaml")
@@ -2146,7 +2146,7 @@ network_devices:
 	assert.NoError(t, err)
 }
 
-func TestNetFlow_IntegrationTest_NetFlow9_00(t *testing.T) {
+func TestNetFlow_IntegrationTest_NetFlow9_45(t *testing.T) {
 	// Setup NetFlow feature config
 	port := testutil.GetFreePort()
 	config.Datadog.SetConfigType("yaml")
@@ -2193,7 +2193,7 @@ network_devices:
 	assert.NoError(t, err)
 }
 
-func TestNetFlow_IntegrationTest_NetFlow9_00(t *testing.T) {
+func TestNetFlow_IntegrationTest_NetFlow9_46(t *testing.T) {
 	// Setup NetFlow feature config
 	port := testutil.GetFreePort()
 	config.Datadog.SetConfigType("yaml")
@@ -2240,7 +2240,7 @@ network_devices:
 	assert.NoError(t, err)
 }
 
-func TestNetFlow_IntegrationTest_NetFlow9_00(t *testing.T) {
+func TestNetFlow_IntegrationTest_NetFlow9_47(t *testing.T) {
 	// Setup NetFlow feature config
 	port := testutil.GetFreePort()
 	config.Datadog.SetConfigType("yaml")
@@ -2287,7 +2287,7 @@ network_devices:
 	assert.NoError(t, err)
 }
 
-func TestNetFlow_IntegrationTest_NetFlow9_00(t *testing.T) {
+func TestNetFlow_IntegrationTest_NetFlow9_48(t *testing.T) {
 	// Setup NetFlow feature config
 	port := testutil.GetFreePort()
 	config.Datadog.SetConfigType("yaml")
@@ -2334,7 +2334,7 @@ network_devices:
 	assert.NoError(t, err)
 }
 
-func TestNetFlow_IntegrationTest_NetFlow9_00(t *testing.T) {
+func TestNetFlow_IntegrationTest_NetFlow9_49(t *testing.T) {
 	// Setup NetFlow feature config
 	port := testutil.GetFreePort()
 	config.Datadog.SetConfigType("yaml")
@@ -2381,7 +2381,7 @@ network_devices:
 	assert.NoError(t, err)
 }
 
-func TestNetFlow_IntegrationTest_NetFlow9_00(t *testing.T) {
+func TestNetFlow_IntegrationTest_NetFlow9_50(t *testing.T) {
 	// Setup NetFlow feature config
 	port := testutil.GetFreePort()
 	config.Datadog.SetConfigType("yaml")
@@ -2428,7 +2428,7 @@ network_devices:
 	assert.NoError(t, err)
 }
 
-func TestNetFlow_IntegrationTest_NetFlow9_00(t *testing.T) {
+func TestNetFlow_IntegrationTest_NetFlow9_51(t *testing.T) {
 	// Setup NetFlow feature config
 	port := testutil.GetFreePort()
 	config.Datadog.SetConfigType("yaml")
@@ -2475,7 +2475,7 @@ network_devices:
 	assert.NoError(t, err)
 }
 
-func TestNetFlow_IntegrationTest_NetFlow9_00(t *testing.T) {
+func TestNetFlow_IntegrationTest_NetFlow9_52(t *testing.T) {
 	// Setup NetFlow feature config
 	port := testutil.GetFreePort()
 	config.Datadog.SetConfigType("yaml")
@@ -2522,7 +2522,7 @@ network_devices:
 	assert.NoError(t, err)
 }
 
-func TestNetFlow_IntegrationTest_NetFlow9_00(t *testing.T) {
+func TestNetFlow_IntegrationTest_NetFlow9_53(t *testing.T) {
 	// Setup NetFlow feature config
 	port := testutil.GetFreePort()
 	config.Datadog.SetConfigType("yaml")
@@ -2569,7 +2569,7 @@ network_devices:
 	assert.NoError(t, err)
 }
 
-func TestNetFlow_IntegrationTest_NetFlow9_00(t *testing.T) {
+func TestNetFlow_IntegrationTest_NetFlow9_54(t *testing.T) {
 	// Setup NetFlow feature config
 	port := testutil.GetFreePort()
 	config.Datadog.SetConfigType("yaml")
@@ -2616,7 +2616,7 @@ network_devices:
 	assert.NoError(t, err)
 }
 
-func TestNetFlow_IntegrationTest_NetFlow9_00(t *testing.T) {
+func TestNetFlow_IntegrationTest_NetFlow9_55(t *testing.T) {
 	// Setup NetFlow feature config
 	port := testutil.GetFreePort()
 	config.Datadog.SetConfigType("yaml")
@@ -2663,7 +2663,7 @@ network_devices:
 	assert.NoError(t, err)
 }
 
-func TestNetFlow_IntegrationTest_NetFlow9_00(t *testing.T) {
+func TestNetFlow_IntegrationTest_NetFlow9_56(t *testing.T) {
 	// Setup NetFlow feature config
 	port := testutil.GetFreePort()
 	config.Datadog.SetConfigType("yaml")
@@ -2710,7 +2710,7 @@ network_devices:
 	assert.NoError(t, err)
 }
 
-func TestNetFlow_IntegrationTest_NetFlow9_00(t *testing.T) {
+func TestNetFlow_IntegrationTest_NetFlow9_57(t *testing.T) {
 	// Setup NetFlow feature config
 	port := testutil.GetFreePort()
 	config.Datadog.SetConfigType("yaml")
@@ -2757,7 +2757,7 @@ network_devices:
 	assert.NoError(t, err)
 }
 
-func TestNetFlow_IntegrationTest_NetFlow9_00(t *testing.T) {
+func TestNetFlow_IntegrationTest_NetFlow9_58(t *testing.T) {
 	// Setup NetFlow feature config
 	port := testutil.GetFreePort()
 	config.Datadog.SetConfigType("yaml")
@@ -2804,7 +2804,7 @@ network_devices:
 	assert.NoError(t, err)
 }
 
-func TestNetFlow_IntegrationTest_NetFlow9_00(t *testing.T) {
+func TestNetFlow_IntegrationTest_NetFlow9_59(t *testing.T) {
 	// Setup NetFlow feature config
 	port := testutil.GetFreePort()
 	config.Datadog.SetConfigType("yaml")
@@ -2851,7 +2851,7 @@ network_devices:
 	assert.NoError(t, err)
 }
 
-func TestNetFlow_IntegrationTest_NetFlow9_00(t *testing.T) {
+func TestNetFlow_IntegrationTest_NetFlow9_60(t *testing.T) {
 	// Setup NetFlow feature config
 	port := testutil.GetFreePort()
 	config.Datadog.SetConfigType("yaml")
@@ -2898,7 +2898,7 @@ network_devices:
 	assert.NoError(t, err)
 }
 
-func TestNetFlow_IntegrationTest_NetFlow9_00(t *testing.T) {
+func TestNetFlow_IntegrationTest_NetFlow9_61(t *testing.T) {
 	// Setup NetFlow feature config
 	port := testutil.GetFreePort()
 	config.Datadog.SetConfigType("yaml")
@@ -2945,7 +2945,7 @@ network_devices:
 	assert.NoError(t, err)
 }
 
-func TestNetFlow_IntegrationTest_NetFlow9_00(t *testing.T) {
+func TestNetFlow_IntegrationTest_NetFlow9_62(t *testing.T) {
 	// Setup NetFlow feature config
 	port := testutil.GetFreePort()
 	config.Datadog.SetConfigType("yaml")
@@ -2992,7 +2992,7 @@ network_devices:
 	assert.NoError(t, err)
 }
 
-func TestNetFlow_IntegrationTest_NetFlow9_00(t *testing.T) {
+func TestNetFlow_IntegrationTest_NetFlow9_63(t *testing.T) {
 	// Setup NetFlow feature config
 	port := testutil.GetFreePort()
 	config.Datadog.SetConfigType("yaml")
@@ -3039,7 +3039,7 @@ network_devices:
 	assert.NoError(t, err)
 }
 
-func TestNetFlow_IntegrationTest_NetFlow9_00(t *testing.T) {
+func TestNetFlow_IntegrationTest_NetFlow9_64(t *testing.T) {
 	// Setup NetFlow feature config
 	port := testutil.GetFreePort()
 	config.Datadog.SetConfigType("yaml")
@@ -3086,7 +3086,7 @@ network_devices:
 	assert.NoError(t, err)
 }
 
-func TestNetFlow_IntegrationTest_NetFlow9_00(t *testing.T) {
+func TestNetFlow_IntegrationTest_NetFlow9_65(t *testing.T) {
 	// Setup NetFlow feature config
 	port := testutil.GetFreePort()
 	config.Datadog.SetConfigType("yaml")
@@ -3133,7 +3133,7 @@ network_devices:
 	assert.NoError(t, err)
 }
 
-func TestNetFlow_IntegrationTest_NetFlow9_00(t *testing.T) {
+func TestNetFlow_IntegrationTest_NetFlow9_66(t *testing.T) {
 	// Setup NetFlow feature config
 	port := testutil.GetFreePort()
 	config.Datadog.SetConfigType("yaml")
@@ -3180,7 +3180,7 @@ network_devices:
 	assert.NoError(t, err)
 }
 
-func TestNetFlow_IntegrationTest_NetFlow9_00(t *testing.T) {
+func TestNetFlow_IntegrationTest_NetFlow9_67(t *testing.T) {
 	// Setup NetFlow feature config
 	port := testutil.GetFreePort()
 	config.Datadog.SetConfigType("yaml")
@@ -3227,7 +3227,7 @@ network_devices:
 	assert.NoError(t, err)
 }
 
-func TestNetFlow_IntegrationTest_NetFlow9_00(t *testing.T) {
+func TestNetFlow_IntegrationTest_NetFlow9_68(t *testing.T) {
 	// Setup NetFlow feature config
 	port := testutil.GetFreePort()
 	config.Datadog.SetConfigType("yaml")
@@ -3274,7 +3274,7 @@ network_devices:
 	assert.NoError(t, err)
 }
 
-func TestNetFlow_IntegrationTest_NetFlow9_00(t *testing.T) {
+func TestNetFlow_IntegrationTest_NetFlow9_69(t *testing.T) {
 	// Setup NetFlow feature config
 	port := testutil.GetFreePort()
 	config.Datadog.SetConfigType("yaml")
@@ -3321,7 +3321,7 @@ network_devices:
 	assert.NoError(t, err)
 }
 
-func TestNetFlow_IntegrationTest_NetFlow9_00(t *testing.T) {
+func TestNetFlow_IntegrationTest_NetFlow9_70(t *testing.T) {
 	// Setup NetFlow feature config
 	port := testutil.GetFreePort()
 	config.Datadog.SetConfigType("yaml")
@@ -3368,7 +3368,7 @@ network_devices:
 	assert.NoError(t, err)
 }
 
-func TestNetFlow_IntegrationTest_NetFlow9_00(t *testing.T) {
+func TestNetFlow_IntegrationTest_NetFlow9_71(t *testing.T) {
 	// Setup NetFlow feature config
 	port := testutil.GetFreePort()
 	config.Datadog.SetConfigType("yaml")
@@ -3415,7 +3415,7 @@ network_devices:
 	assert.NoError(t, err)
 }
 
-func TestNetFlow_IntegrationTest_NetFlow9_00(t *testing.T) {
+func TestNetFlow_IntegrationTest_NetFlow9_72(t *testing.T) {
 	// Setup NetFlow feature config
 	port := testutil.GetFreePort()
 	config.Datadog.SetConfigType("yaml")
@@ -3462,7 +3462,7 @@ network_devices:
 	assert.NoError(t, err)
 }
 
-func TestNetFlow_IntegrationTest_NetFlow9_00(t *testing.T) {
+func TestNetFlow_IntegrationTest_NetFlow9_73(t *testing.T) {
 	// Setup NetFlow feature config
 	port := testutil.GetFreePort()
 	config.Datadog.SetConfigType("yaml")
@@ -3509,7 +3509,7 @@ network_devices:
 	assert.NoError(t, err)
 }
 
-func TestNetFlow_IntegrationTest_NetFlow9_00(t *testing.T) {
+func TestNetFlow_IntegrationTest_NetFlow9_74(t *testing.T) {
 	// Setup NetFlow feature config
 	port := testutil.GetFreePort()
 	config.Datadog.SetConfigType("yaml")
@@ -3556,7 +3556,7 @@ network_devices:
 	assert.NoError(t, err)
 }
 
-func TestNetFlow_IntegrationTest_NetFlow9_00(t *testing.T) {
+func TestNetFlow_IntegrationTest_NetFlow9_75(t *testing.T) {
 	// Setup NetFlow feature config
 	port := testutil.GetFreePort()
 	config.Datadog.SetConfigType("yaml")
@@ -3603,7 +3603,7 @@ network_devices:
 	assert.NoError(t, err)
 }
 
-func TestNetFlow_IntegrationTest_NetFlow9_00(t *testing.T) {
+func TestNetFlow_IntegrationTest_NetFlow9_76(t *testing.T) {
 	// Setup NetFlow feature config
 	port := testutil.GetFreePort()
 	config.Datadog.SetConfigType("yaml")
@@ -3650,7 +3650,7 @@ network_devices:
 	assert.NoError(t, err)
 }
 
-func TestNetFlow_IntegrationTest_NetFlow9_00(t *testing.T) {
+func TestNetFlow_IntegrationTest_NetFlow9_77(t *testing.T) {
 	// Setup NetFlow feature config
 	port := testutil.GetFreePort()
 	config.Datadog.SetConfigType("yaml")
@@ -3697,7 +3697,7 @@ network_devices:
 	assert.NoError(t, err)
 }
 
-func TestNetFlow_IntegrationTest_NetFlow9_00(t *testing.T) {
+func TestNetFlow_IntegrationTest_NetFlow9_78(t *testing.T) {
 	// Setup NetFlow feature config
 	port := testutil.GetFreePort()
 	config.Datadog.SetConfigType("yaml")
@@ -3744,7 +3744,7 @@ network_devices:
 	assert.NoError(t, err)
 }
 
-func TestNetFlow_IntegrationTest_NetFlow9_00(t *testing.T) {
+func TestNetFlow_IntegrationTest_NetFlow9_79(t *testing.T) {
 	// Setup NetFlow feature config
 	port := testutil.GetFreePort()
 	config.Datadog.SetConfigType("yaml")
@@ -3791,7 +3791,7 @@ network_devices:
 	assert.NoError(t, err)
 }
 
-func TestNetFlow_IntegrationTest_NetFlow9_00(t *testing.T) {
+func TestNetFlow_IntegrationTest_NetFlow9_80(t *testing.T) {
 	// Setup NetFlow feature config
 	port := testutil.GetFreePort()
 	config.Datadog.SetConfigType("yaml")
@@ -3838,7 +3838,7 @@ network_devices:
 	assert.NoError(t, err)
 }
 
-func TestNetFlow_IntegrationTest_NetFlow9_00(t *testing.T) {
+func TestNetFlow_IntegrationTest_NetFlow9_81(t *testing.T) {
 	// Setup NetFlow feature config
 	port := testutil.GetFreePort()
 	config.Datadog.SetConfigType("yaml")
@@ -3885,7 +3885,7 @@ network_devices:
 	assert.NoError(t, err)
 }
 
-func TestNetFlow_IntegrationTest_NetFlow9_00(t *testing.T) {
+func TestNetFlow_IntegrationTest_NetFlow9_82(t *testing.T) {
 	// Setup NetFlow feature config
 	port := testutil.GetFreePort()
 	config.Datadog.SetConfigType("yaml")
@@ -3932,7 +3932,7 @@ network_devices:
 	assert.NoError(t, err)
 }
 
-func TestNetFlow_IntegrationTest_NetFlow9_00(t *testing.T) {
+func TestNetFlow_IntegrationTest_NetFlow9_83(t *testing.T) {
 	// Setup NetFlow feature config
 	port := testutil.GetFreePort()
 	config.Datadog.SetConfigType("yaml")
@@ -3979,7 +3979,7 @@ network_devices:
 	assert.NoError(t, err)
 }
 
-func TestNetFlow_IntegrationTest_NetFlow9_00(t *testing.T) {
+func TestNetFlow_IntegrationTest_NetFlow9_84(t *testing.T) {
 	// Setup NetFlow feature config
 	port := testutil.GetFreePort()
 	config.Datadog.SetConfigType("yaml")
@@ -4026,7 +4026,7 @@ network_devices:
 	assert.NoError(t, err)
 }
 
-func TestNetFlow_IntegrationTest_NetFlow9_00(t *testing.T) {
+func TestNetFlow_IntegrationTest_NetFlow9_85(t *testing.T) {
 	// Setup NetFlow feature config
 	port := testutil.GetFreePort()
 	config.Datadog.SetConfigType("yaml")
@@ -4073,7 +4073,7 @@ network_devices:
 	assert.NoError(t, err)
 }
 
-func TestNetFlow_IntegrationTest_NetFlow9_00(t *testing.T) {
+func TestNetFlow_IntegrationTest_NetFlow9_86(t *testing.T) {
 	// Setup NetFlow feature config
 	port := testutil.GetFreePort()
 	config.Datadog.SetConfigType("yaml")
@@ -4120,7 +4120,7 @@ network_devices:
 	assert.NoError(t, err)
 }
 
-func TestNetFlow_IntegrationTest_NetFlow9_00(t *testing.T) {
+func TestNetFlow_IntegrationTest_NetFlow9_87(t *testing.T) {
 	// Setup NetFlow feature config
 	port := testutil.GetFreePort()
 	config.Datadog.SetConfigType("yaml")
@@ -4167,7 +4167,7 @@ network_devices:
 	assert.NoError(t, err)
 }
 
-func TestNetFlow_IntegrationTest_NetFlow9_00(t *testing.T) {
+func TestNetFlow_IntegrationTest_NetFlow9_88(t *testing.T) {
 	// Setup NetFlow feature config
 	port := testutil.GetFreePort()
 	config.Datadog.SetConfigType("yaml")
@@ -4214,7 +4214,7 @@ network_devices:
 	assert.NoError(t, err)
 }
 
-func TestNetFlow_IntegrationTest_NetFlow9_00(t *testing.T) {
+func TestNetFlow_IntegrationTest_NetFlow9_89(t *testing.T) {
 	// Setup NetFlow feature config
 	port := testutil.GetFreePort()
 	config.Datadog.SetConfigType("yaml")
@@ -4261,7 +4261,7 @@ network_devices:
 	assert.NoError(t, err)
 }
 
-func TestNetFlow_IntegrationTest_NetFlow9_00(t *testing.T) {
+func TestNetFlow_IntegrationTest_NetFlow9_90(t *testing.T) {
 	// Setup NetFlow feature config
 	port := testutil.GetFreePort()
 	config.Datadog.SetConfigType("yaml")
@@ -4308,7 +4308,7 @@ network_devices:
 	assert.NoError(t, err)
 }
 
-func TestNetFlow_IntegrationTest_NetFlow9_00(t *testing.T) {
+func TestNetFlow_IntegrationTest_NetFlow9_91(t *testing.T) {
 	// Setup NetFlow feature config
 	port := testutil.GetFreePort()
 	config.Datadog.SetConfigType("yaml")
@@ -4355,7 +4355,7 @@ network_devices:
 	assert.NoError(t, err)
 }
 
-func TestNetFlow_IntegrationTest_NetFlow9_00(t *testing.T) {
+func TestNetFlow_IntegrationTest_NetFlow9_92(t *testing.T) {
 	// Setup NetFlow feature config
 	port := testutil.GetFreePort()
 	config.Datadog.SetConfigType("yaml")
@@ -4402,7 +4402,7 @@ network_devices:
 	assert.NoError(t, err)
 }
 
-func TestNetFlow_IntegrationTest_NetFlow9_00(t *testing.T) {
+func TestNetFlow_IntegrationTest_NetFlow9_93(t *testing.T) {
 	// Setup NetFlow feature config
 	port := testutil.GetFreePort()
 	config.Datadog.SetConfigType("yaml")
@@ -4449,7 +4449,7 @@ network_devices:
 	assert.NoError(t, err)
 }
 
-func TestNetFlow_IntegrationTest_NetFlow9_00(t *testing.T) {
+func TestNetFlow_IntegrationTest_NetFlow9_94(t *testing.T) {
 	// Setup NetFlow feature config
 	port := testutil.GetFreePort()
 	config.Datadog.SetConfigType("yaml")
@@ -4496,7 +4496,7 @@ network_devices:
 	assert.NoError(t, err)
 }
 
-func TestNetFlow_IntegrationTest_NetFlow9_00(t *testing.T) {
+func TestNetFlow_IntegrationTest_NetFlow9_95(t *testing.T) {
 	// Setup NetFlow feature config
 	port := testutil.GetFreePort()
 	config.Datadog.SetConfigType("yaml")
@@ -4543,7 +4543,7 @@ network_devices:
 	assert.NoError(t, err)
 }
 
-func TestNetFlow_IntegrationTest_NetFlow9_00(t *testing.T) {
+func TestNetFlow_IntegrationTest_NetFlow9_96(t *testing.T) {
 	// Setup NetFlow feature config
 	port := testutil.GetFreePort()
 	config.Datadog.SetConfigType("yaml")
@@ -4590,7 +4590,7 @@ network_devices:
 	assert.NoError(t, err)
 }
 
-func TestNetFlow_IntegrationTest_NetFlow9_00(t *testing.T) {
+func TestNetFlow_IntegrationTest_NetFlow9_97(t *testing.T) {
 	// Setup NetFlow feature config
 	port := testutil.GetFreePort()
 	config.Datadog.SetConfigType("yaml")
@@ -4637,7 +4637,7 @@ network_devices:
 	assert.NoError(t, err)
 }
 
-func TestNetFlow_IntegrationTest_NetFlow9_00(t *testing.T) {
+func TestNetFlow_IntegrationTest_NetFlow9_98(t *testing.T) {
 	// Setup NetFlow feature config
 	port := testutil.GetFreePort()
 	config.Datadog.SetConfigType("yaml")
@@ -4684,7 +4684,7 @@ network_devices:
 	assert.NoError(t, err)
 }
 
-func TestNetFlow_IntegrationTest_NetFlow9_00(t *testing.T) {
+func TestNetFlow_IntegrationTest_NetFlow9_99(t *testing.T) {
 	// Setup NetFlow feature config
 	port := testutil.GetFreePort()
 	config.Datadog.SetConfigType("yaml")
@@ -4731,7 +4731,7 @@ network_devices:
 	assert.NoError(t, err)
 }
 
-func TestNetFlow_IntegrationTest_NetFlow9_00(t *testing.T) {
+func TestNetFlow_IntegrationTest_NetFlow9_100(t *testing.T) {
 	// Setup NetFlow feature config
 	port := testutil.GetFreePort()
 	config.Datadog.SetConfigType("yaml")
