@@ -16,9 +16,10 @@ variables:
     - git clone --branch trace-agent https://gitlab-ci-token:${CI_JOB_TOKEN}@gitlab.ddbuild.io/DataDog/benchmarking-platform /platform && cd /platform
     - ./steps/run-benchmarks.sh
   artifacts:
-    name: "reports"
+    name: "artifacts"
+    when: always
     paths:
-      - reports/
+      - platform/artifacts/
     expire_in: 3 months
   variables:
     FF_USE_LEGACY_KUBERNETES_EXECUTION_STRATEGY: "true" # Important tweak for stability of benchmarks
