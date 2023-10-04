@@ -161,6 +161,12 @@ func toSnakeCase(s string) string {
 }
 
 func (c *ContainerdCheck) scrapeOpenmetricsEndpoint(sender sender.Sender) error {
+
+	if c.instance.OpenmetricsEndpoint == "" {
+		log.Warnf("openmetrics_endpoint configuration parameter is missing. Some metrics can not be generated in the absence of this configuration parameter.")
+		return nil
+	}
+
 	openmetricsEndpoint := fmt.Sprintf("%s/v1/metrics", c.instance.OpenmetricsEndpoint)
 	resp, err := c.httpClient.Get(openmetricsEndpoint)
 	if err != nil {
