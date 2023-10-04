@@ -81,6 +81,28 @@ int kretprobe__tcp_recvmsg(struct pt_regs *ctx) {
     return handle_tcp_recv(pid_tgid, skp, recv);
 }
 
+SEC("fexit/tcp_recvmsg")
+int BPF_PROG(tcp_recvmsg_exit, struct sock *sk, struct msghdr *msg, size_t len, int flags, int *addr_len, int copied) {
+    RETURN_IF_NOT_IN_SYSPROBE_TASK("fexit/tcp_recvmsg");
+    if (copied < 0) { // error
+        return 0;
+    }
+
+    u64 pid_tgid = bpf_get_current_pid_tgid();
+    return handle_tcp_recv(pid_tgid, sk, copied);
+}
+
+SEC("fexit/tcp_recvmsg")
+int BPF_PROG(tcp_recvmsg_exit_pre_5_19_0, struct sock *sk, struct msghdr *msg, size_t len, int nonblock, int flags, int *addr_len, int copied) {
+    RETURN_IF_NOT_IN_SYSPROBE_TASK("fexit/tcp_recvmsg");
+    if (copied < 0) { // error
+        return 0;
+    }
+
+    u64 pid_tgid = bpf_get_current_pid_tgid();
+    return handle_tcp_recv(pid_tgid, sk, copied);
+}
+
 SEC("kprobe/tcp_read_sock")
 int kprobe__tcp_read_sock(struct pt_regs *ctx) {
     u64 pid_tgid = bpf_get_current_pid_tgid();
@@ -113,6 +135,31 @@ int kretprobe__tcp_read_sock(struct pt_regs *ctx) {
     }
 
     return handle_tcp_recv(pid_tgid, skp, recv);
+}
+
+SEC("fexit/tcp_sendmsg")
+int BPF_PROG(tcp_sendmsg_exit, struct sock *sk, struct msghdr *msg, size_t size, int sent) {
+    RETURN_IF_NOT_IN_SYSPROBE_TASK("fexit/tcp_sendmsg");
+    if (sent < 0) {
+        log_debug("fexit/tcp_sendmsg: tcp_sendmsg err=%d\n", sent);
+        return 0;
+    }
+
+    u64 pid_tgid = bpf_get_current_pid_tgid();
+    log_debug("fexit/tcp_sendmsg: pid_tgid: %d, sent: %d, sock: %llx\n", pid_tgid, sent, sk);
+
+    conn_tuple_t t = {};
+    if (!read_conn_tuple(&t, sk, pid_tgid, CONN_TYPE_TCP)) {
+        return 0;
+    }
+
+    handle_tcp_stats(&t, sk, 0);
+
+    __u32 packets_in = 0;
+    __u32 packets_out = 0;
+    get_tcp_segment_counts(sk, &packets_in, &packets_out);
+
+    return handle_message(&t, sent, 0, CONN_DIRECTION_UNKNOWN, packets_out, packets_in, PACKET_COUNT_ABSOLUTE, sk);
 }
 
 #endif // __TCP_RECV_H__

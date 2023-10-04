@@ -42,6 +42,8 @@ var (
 	// socket filter, and a tracepoint (4.7.0+).
 	classificationMinimumKernel = kernel.VersionCode(4, 7, 0)
 
+	fentryMinimumKernel = kernel.VersionCode(5, 5, 0)
+
 	protocolClassificationTailCalls = []manager.TailCallRoute{
 		{
 			ProgArrayName: probes.ClassificationProgsMap,
@@ -103,6 +105,15 @@ func ClassificationSupported(config *config.Config) bool {
 	}
 
 	return currentKernelVersion >= classificationMinimumKernel
+}
+
+func fentrySupported() bool {
+	kv, err := kernel.HostVersion()
+	if err != nil {
+		log.Warn("could not determine the current kernel version. fentry/fexit support disabled.")
+		return false
+	}
+	return kv >= fentryMinimumKernel
 }
 
 func addBoolConst(options *manager.Options, flag bool, name string) {
@@ -241,6 +252,12 @@ func loadTracerFromAsset(buf bytecode.AssetReader, runtimeTracer, coreTracer boo
 		if _, enabled := enabledProbes[p.EBPFFuncName]; !enabled {
 			mgrOpts.ExcludedFunctions = append(mgrOpts.ExcludedFunctions, p.EBPFFuncName)
 		}
+	}
+
+	// exclude all maps responsible for storing argument values between kprobes and kretprobes
+	if fentrySupported() {
+		mgrOpts.ExcludedMaps = append(mgrOpts.ExcludedMaps, probes.TcpSendMsgArgsMap)
+		mgrOpts.ExcludedMaps = append(mgrOpts.ExcludedMaps, probes.TcpRecvMsgArgsMap)
 	}
 
 	var tailCallsIdentifiersSet map[manager.ProbeIdentificationPair]struct{}

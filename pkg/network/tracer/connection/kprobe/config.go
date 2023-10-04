@@ -13,6 +13,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/ebpf/probes"
+	"github.com/DataDog/datadog-agent/pkg/network/tracer/connection/fentry"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 )
 
@@ -27,6 +28,7 @@ func enabledProbes(c *config.Config, runtimeTracer, coreTracer bool) (map[probes
 
 	kv410 := kernel.VersionCode(4, 1, 0)
 	kv470 := kernel.VersionCode(4, 7, 0)
+	kv550 := kernel.VersionCode(5, 5, 0)
 	kv5180 := kernel.VersionCode(5, 18, 0)
 	kv5190 := kernel.VersionCode(5, 19, 0)
 	kv, err := kernel.HostVersion()
@@ -43,13 +45,19 @@ func enabledProbes(c *config.Config, runtimeTracer, coreTracer bool) (map[probes
 			enableProbe(enabled, probes.NetDevQueue)
 			enableProbe(enabled, probes.TCPCloseCleanProtocolsReturn)
 		}
-		enableProbe(enabled, selectVersionBasedProbe(runtimeTracer, kv, probes.TCPSendMsg, probes.TCPSendMsgPre410, kv410))
-		enableProbe(enabled, probes.TCPSendMsgReturn)
+		if kv >= kv550 {
+			enableProbe(enabled, fentry.TCPSendMsgReturn)
+			// set runtimeTracer arg to false to do strict version based selection
+			enableProbe(enabled, selectVersionBasedProbe(false, kv, fentry.TCPRecvMsgReturn, fentry.TCPRecvMsgPre5190Return, kv5190))
+		} else {
+			enableProbe(enabled, selectVersionBasedProbe(runtimeTracer, kv, probes.TCPSendMsg, probes.TCPSendMsgPre410, kv410))
+			enableProbe(enabled, probes.TCPSendMsgReturn)
+			// 5.19: remove noblock parameter in *_recvmsg https://github.com/torvalds/linux/commit/ec095263a965720e1ca39db1d9c5cd47846c789b
+			enableProbe(enabled, selectVersionBasedProbe(runtimeTracer, kv, selectVersionBasedProbe(runtimeTracer, kv, probes.TCPRecvMsg, probes.TCPRecvMsgPre5190, kv5190), probes.TCPRecvMsgPre410, kv410))
+			enableProbe(enabled, probes.TCPRecvMsgReturn)
+		}
 		enableProbe(enabled, probes.TCPSendPage)
 		enableProbe(enabled, probes.TCPSendPageReturn)
-		// 5.19: remove noblock parameter in *_recvmsg https://github.com/torvalds/linux/commit/ec095263a965720e1ca39db1d9c5cd47846c789b
-		enableProbe(enabled, selectVersionBasedProbe(runtimeTracer, kv, selectVersionBasedProbe(runtimeTracer, kv, probes.TCPRecvMsg, probes.TCPRecvMsgPre5190, kv5190), probes.TCPRecvMsgPre410, kv410))
-		enableProbe(enabled, probes.TCPRecvMsgReturn)
 		enableProbe(enabled, probes.TCPReadSock)
 		enableProbe(enabled, probes.TCPReadSockReturn)
 		enableProbe(enabled, probes.TCPClose)

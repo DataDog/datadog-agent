@@ -11,10 +11,12 @@ import (
 	"os"
 	"strings"
 
+	manager "github.com/DataDog/ebpf-manager"
+
 	"github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/ebpf/probes"
-	manager "github.com/DataDog/ebpf-manager"
+	"github.com/DataDog/datadog-agent/pkg/network/tracer/connection/fentry"
 )
 
 const (
@@ -66,6 +68,9 @@ var mainProbes = []probes.ProbeFuncName{
 	probes.SockFDLookupRet,
 	probes.UDPSendPage,
 	probes.UDPSendPageReturn,
+	fentry.TCPSendMsgReturn,
+	fentry.TCPRecvMsgReturn,
+	fentry.TCPRecvMsgPre5190Return,
 }
 
 func initManager(mgr *manager.Manager, config *config.Config, closedHandler *ebpf.PerfHandler, runtimeTracer bool) error {

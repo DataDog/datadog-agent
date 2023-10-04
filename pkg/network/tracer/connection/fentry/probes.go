@@ -25,14 +25,14 @@ const (
 	// used to know when a TCP connection switches to the ESTABLISHED state
 	tcpFinishConnect = "tcp_finish_connect"
 
-	// tcpSendMsgReturn traces the return value for the tcp_sendmsg() system call
-	tcpSendMsgReturn  = "tcp_sendmsg_exit"
+	// TCPSendMsgReturn traces the return value for the tcp_sendmsg() system call
+	TCPSendMsgReturn  = "tcp_sendmsg_exit"
 	tcpSendPageReturn = "tcp_sendpage_exit"
 	udpSendPageReturn = "udp_sendpage_exit"
 
-	// tcpRecvMsgReturn traces the return value for the tcp_recvmsg() system call
-	tcpRecvMsgReturn        = "tcp_recvmsg_exit"
-	tcpRecvMsgPre5190Return = "tcp_recvmsg_exit_pre_5_19_0"
+	// TCPRecvMsgReturn traces the return value for the tcp_recvmsg() system call
+	TCPRecvMsgReturn        = "tcp_recvmsg_exit"
+	TCPRecvMsgPre5190Return = "tcp_recvmsg_exit_pre_5_19_0"
 	// tcpClose traces the tcp_close() system call
 	tcpClose = "tcp_close"
 	// tcpCloseReturn traces the return of tcp_close() system call
@@ -92,14 +92,14 @@ var programs = map[string]struct{}{
 	inetCskAcceptReturn:       {},
 	inetCskListenStop:         {},
 	sockFDLookupRet:           {}, // TODO: not available on certain kernels, will have to one or more hooks to get equivalent functionality; affects HTTPS monitoring (OpenSSL/GnuTLS/GoTLS)
-	tcpRecvMsgReturn:          {},
+	TCPRecvMsgReturn:          {},
 	tcpClose:                  {},
 	tcpCloseReturn:            {},
 	tcpConnect:                {},
 	tcpFinishConnect:          {},
 	tcpRetransmit:             {},
 	tcpRetransmitRet:          {},
-	tcpSendMsgReturn:          {},
+	TCPSendMsgReturn:          {},
 	tcpSendPageReturn:         {},
 	udpDestroySock:            {},
 	udpDestroySockReturn:      {},
@@ -117,7 +117,7 @@ var programs = map[string]struct{}{
 	skbFreeDatagramLocked:     {},
 	__skbFreeDatagramLocked:   {},
 	skbConsumeUdp:             {},
-	tcpRecvMsgPre5190Return:   {},
+	TCPRecvMsgPre5190Return:   {},
 	udpRecvMsgPre5190Return:   {},
 	udpv6RecvMsgPre5190Return: {},
 }
@@ -138,9 +138,9 @@ func enabledPrograms(c *config.Config) (map[string]struct{}, error) {
 	}
 
 	if c.CollectTCPv4Conns || c.CollectTCPv6Conns {
-		enableProgram(enabled, tcpSendMsgReturn)
+		enableProgram(enabled, TCPSendMsgReturn)
 		enableProgram(enabled, tcpSendPageReturn)
-		enableProgram(enabled, selectVersionBasedProbe(kv, tcpRecvMsgReturn, tcpRecvMsgPre5190Return, kv5190))
+		enableProgram(enabled, selectVersionBasedProbe(kv, TCPRecvMsgReturn, TCPRecvMsgPre5190Return, kv5190))
 		enableProgram(enabled, tcpClose)
 		enableProgram(enabled, tcpCloseReturn)
 		enableProgram(enabled, tcpConnect)
