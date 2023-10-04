@@ -25,8 +25,14 @@ build do
 
   if windows?
     pip = "#{windows_safe_path(python_3_embedded)}\\Scripts\\pip.exe"
+    build_env = {}
   else
     pip = "#{install_dir}/embedded/bin/pip3"
+    build_env = {
+      "CFLAGS" => "-I#{install_dir}/embedded/include",
+      "CXXFLAGS" => "-I#{install_dir}/embedded/include",
+      "LDFLAGS" => "-L#{install_dir}/embedded/lib",
+    }
   end
 
   # We need a newer version of oscrypto than the one released to get a fix for a bug
@@ -35,5 +41,5 @@ build do
   # We can remove the oscrypto pinning once the fix becomes part of a new release
   oscrypto_commit = "d5f3437ed24257895ae1edd9e503cfb352e635a8"
 
-  command "#{pip} install . \"oscrypto @ git+https://github.com/wbond/oscrypto.git@#{oscrypto_commit}\""
+  command "#{pip} install . \"oscrypto @ git+https://github.com/wbond/oscrypto.git@#{oscrypto_commit}\"", :env => build_env
 end
