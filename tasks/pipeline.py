@@ -45,6 +45,7 @@ from .utils import (
     release_entry_for,
 )
 
+
 # Tasks to trigger pipelines
 
 
@@ -137,7 +138,7 @@ def workflow_rules(gitlab_file=".gitlab-ci.yml"):
 
 @task
 def trigger(
-    _, git_ref=DEFAULT_BRANCH, release_version_6="nightly", release_version_7="nightly-a7", repo_branch="nightly"
+        _, git_ref=DEFAULT_BRANCH, release_version_6="nightly", release_version_7="nightly-a7", repo_branch="nightly"
 ):
     """
     OBSOLETE: Trigger a deploy pipeline on the given git ref. Use pipeline.run with the --deploy option instead.
@@ -203,15 +204,15 @@ def auto_cancel_previous_pipelines(ctx):
 
 @task
 def run(
-    ctx,
-    git_ref=None,
-    here=False,
-    use_release_entries=False,
-    major_versions='6,7',
-    repo_branch="nightly",
-    deploy=False,
-    all_builds=True,
-    kitchen_tests=True,
+        ctx,
+        git_ref=None,
+        here=False,
+        use_release_entries=False,
+        major_versions='6,7',
+        repo_branch="nightly",
+        deploy=False,
+        all_builds=True,
+        kitchen_tests=True,
 ):
     """
     Run a pipeline on the given git ref (--git-ref <git ref>), or on the current branch if --here is given.
@@ -502,29 +503,31 @@ def changelog(ctx, new_commit_sha):
     commits = ctx.run(f"git log {old_commit_sha}..{new_commit_sha} --pretty=format:%h", hide=True).stdout.split("\n")
     owners = read_owners(".github/CODEOWNERS")
     messages = []
-    unique_emails = set()
 
     for commit in commits:
         # see https://git-scm.com/docs/pretty-formats for format string
         commit_str = ctx.run(f"git show --name-only --pretty=format:%s%n%aN%n%aE {commit}", hide=True).stdout
         title, author, author_email, files, url = parse(commit_str)
         if is_system_probe(owners, files):
-            message = f"{title} (<{url}|PR Link>) {author}"
-            messages.append(message)
+            contributor_handle = ctx.run(f"email2slackid ${author_email.strip()}", hide=True) or author_email
+            time.sleep(1)
+            print(f"Author: {contributor_handle}")
             if "dependabot" not in author_email and "github-actions" not in author_email:
-                unique_emails.add(author_email)
+                messages.append(f"<{url}|{title}> {contributor_handle}")
+            else:
+                messages.append(f"<{url}|{title}>")
 
-    with open("system_probe_commits.txt", "w") as file:
-        content = (
+    slack_message = (
+            f"The nightly deployment is rolling out to Staging :siren: \n"
             f"Changelog for commit range: `{old_commit_sha}` to `{new_commit_sha}`\n"
             + "\n".join(messages)
             + "\n:wave: Authors, please check relevant "
               "<https://ddstaging.datadoghq.com/dashboard/kfn-zy2-t98|dashboards> for issues:"
-        )
-        file.write(content)
-
-    with open("unique_emails.txt", "w") as file:
-        file.write("\n".join(unique_emails))
+    )
+    print(f"tagging {new_commit_sha}")
+    # ctx.run(f"aws ssm put-parameter --name ci.datadog-agent.gitlab_changelog_commit_sha --value \"{new_git_sha}\" "
+    #         "--type \"SecureString\" --region us-east-1", hide=False)
+    send_slack_message("system-probe-ops", slack_message)
 
 
 @task
@@ -657,10 +660,10 @@ def send_stats(_, print_to_stdout=False):
                 timestamp=timestamp,
                 value=count,
                 tags=list(failure_tags)
-                + [
-                    "repository:datadog-agent",
-                    f"git_ref:{os.getenv('CI_COMMIT_REF_NAME')}",
-                ],
+                     + [
+                         "repository:datadog-agent",
+                         f"git_ref:{os.getenv('CI_COMMIT_REF_NAME')}",
+                     ],
             )
         )
 
