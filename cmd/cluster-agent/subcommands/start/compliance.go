@@ -11,6 +11,7 @@ import (
 	"context"
 	"os"
 
+	"k8s.io/client-go/discovery"
 	"k8s.io/client-go/dynamic"
 
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
@@ -107,7 +108,7 @@ func startCompliance(senderManager sender.SenderManager, stopper startstop.Stopp
 			HostRoot:           os.Getenv("HOST_ROOT"),
 			DockerProvider:     compliance.DefaultDockerProvider,
 			LinuxAuditProvider: compliance.DefaultLinuxAuditProvider,
-			KubernetesProvider: wrapKubernetesClient(apiCl.DynamicCl, isLeader),
+			KubernetesProvider: wrapKubernetesClient(apiCl, isLeader),
 		},
 	})
 	err = agent.Start()
@@ -120,11 +121,11 @@ func startCompliance(senderManager sender.SenderManager, stopper startstop.Stopp
 	return nil
 }
 
-func wrapKubernetesClient(client dynamic.Interface, isLeader func() bool) compliance.KubernetesProvider {
-	return func(ctx context.Context) (dynamic.Interface, error) {
+func wrapKubernetesClient(apiCl *apiserver.APIClient, isLeader func() bool) compliance.KubernetesProvider {
+	return func(ctx context.Context) (dynamic.Interface, discovery.DiscoveryInterface, error) {
 		if isLeader() {
-			return client, nil
+			return apiCl.DynamicCl, apiCl.DiscoveryCl, nil
 		}
-		return nil, compliance.ErrIncompatibleEnvironment
+		return nil, nil, compliance.ErrIncompatibleEnvironment
 	}
 }

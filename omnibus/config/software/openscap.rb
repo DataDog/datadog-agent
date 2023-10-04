@@ -39,13 +39,22 @@ relative_path "openscap-#{version}"
 build do
   env = with_standard_compiler_flags(with_embedded_path)
 
-  patch source: "get_results_from_session.patch", env: env # add a function to retrieve results from session
-  patch source: "session_result_reset.patch", env: env # add a function to reset results from session
-  patch source: "session_reset_syschar.patch", env: env # also reset system characteristics
-  patch source: "session_reset_results.patch", env: env # also reset OVAL results
+  # Fixes since release 1.3.9
+  patch source: "0005-Fix-partition-probe-for-PCRE2.patch", env: env
+  patch source: "0006-Implement-xccdf_session_get_rule_results-function-in.patch", env: env
+  patch source: "0007-Be-able-to-delete-temporary-files-on-a-different-mou.patch", env: env
+  patch source: "0009-Use-the-OSCAP_PCRE_ERR_NOMATCH.patch", env: env
+  patch source: "0010-Implement-xccdf_session_result_reset-function-in-XCC.patch", env: env
+  patch source: "0011-Fix-memory-leaks-reported-by-Coverity.patch", env: env
+  patch source: "0012-Fix-deadlocks-reported-by-Coverity.patch", env: env
+  patch source: "0013-Fix-out-of-bounds-access-reported-by-Coverity.patch", env: env
+  patch source: "0014-Fix-incorrect-expressions-reported-by-Coverity.patch", env: env
+  patch source: "0015-Fix-uninitialized-variables-reported-by-Coverity.patch", env: env
+  patch source: "0016-Fix-incorrect-openscap-cpe-oval-result-filename.patch", env: env
+
   patch source: "010_perlpm_install_fix.patch", env: env # fix build of perl bindings
   patch source: "dpkginfo-cacheconfig.patch", env: env # work around incomplete pkgcache path
-  patch source: "dpkginfo-cache-no-open.patch", env: env # reduce memory footprint of dpkginfo probe
+  patch source: "dpkginfo-cache-fixes.patch", env: env # reduce memory footprint of dpkginfo probe
   patch source: "fsdev-ignore-host.patch", env: env # ignore /host directory in fsdev probe
   patch source: "systemd-dbus-address.patch", env: env # fix dbus address in systemd probe
   patch source: "rpm-verbosity-err.patch", env: env # decrease rpmlog verbosity level to ERR

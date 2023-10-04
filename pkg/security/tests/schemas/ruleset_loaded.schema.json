@@ -24,6 +24,7 @@
                 "source": {
                     "type": "string",
                     "enum": [
+                        "bundled",
                         "file",
                         "remote-config"
                     ]

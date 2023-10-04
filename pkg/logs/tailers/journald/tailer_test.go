@@ -81,7 +81,7 @@ func TestIdentifier(t *testing.T) {
 	tailer = NewTailer(source, nil, nil)
 	assert.Equal(t, "journald:default", tailer.Identifier())
 
-	// expect identifier to be overidden
+	// expect identifier to be overridden
 	source = sources.NewLogSource("", &config.LogsConfig{Path: "any_path"})
 	tailer = NewTailer(source, nil, nil)
 	assert.Equal(t, "journald:any_path", tailer.Identifier())

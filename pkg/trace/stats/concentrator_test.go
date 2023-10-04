@@ -588,6 +588,7 @@ func TestPeerServiceStats(t *testing.T) {
 		Name:     "http.server.request",
 		Resource: "GET /users",
 		Duration: 100,
+		Meta:     map[string]string{"span.kind": "server"},
 	}
 	peerSvcSp := &pb.Span{
 		ParentID: sp.SpanID,
@@ -597,7 +598,7 @@ func TestPeerServiceStats(t *testing.T) {
 		Resource: "SELECT user_id from users WHERE user_name = ?",
 		Duration: 75,
 		Metrics:  map[string]float64{"_dd.measured": 1.0},
-		Meta:     map[string]string{"peer.service": "users-db"},
+		Meta:     map[string]string{"span.kind": "client", "peer.service": "users-db"},
 	}
 	t.Run("enabled", func(t *testing.T) {
 		spans := []*pb.Span{sp, peerSvcSp}
@@ -627,6 +628,59 @@ func TestPeerServiceStats(t *testing.T) {
 		assert.Len(stats.Stats[0].Stats[0].Stats, 2)
 		for _, st := range stats.Stats[0].Stats[0].Stats {
 			assert.Equal("", st.PeerService)
+		}
+	})
+}
+
+func TestPeerTags(t *testing.T) {
+	assert := assert.New(t)
+	now := time.Now()
+	sp := &pb.Span{
+		ParentID: 0,
+		SpanID:   1,
+		Service:  "myservice",
+		Name:     "http.server.request",
+		Resource: "GET /users",
+		Duration: 100,
+		Meta:     map[string]string{"span.kind": "server", "region": "us1"},
+	}
+	sp2 := &pb.Span{
+		ParentID: sp.SpanID,
+		SpanID:   2,
+		Service:  "myservice",
+		Name:     "postgres.query",
+		Resource: "SELECT user_id from users WHERE user_name = ?",
+		Duration: 75,
+		Meta:     map[string]string{"span.kind": "client", "region": "us1"},
+		Metrics:  map[string]float64{"_dd.measured": 1.0},
+	}
+	t.Run("not configured", func(t *testing.T) {
+		spans := []*pb.Span{sp, sp2}
+		traceutil.ComputeTopLevel(spans)
+		testTrace := toProcessedTrace(spans, "none", "")
+		c := NewTestConcentrator(now)
+		c.addNow(testTrace, "")
+		stats := c.flushNow(now.UnixNano()+int64(c.bufferLen)*testBucketInterval, false)
+		assert.Len(stats.Stats[0].Stats[0].Stats, 2)
+		for _, st := range stats.Stats[0].Stats[0].Stats {
+			assert.Nil(st.PeerTags)
+		}
+	})
+	t.Run("configured", func(t *testing.T) {
+		spans := []*pb.Span{sp, sp2}
+		traceutil.ComputeTopLevel(spans)
+		testTrace := toProcessedTrace(spans, "none", "")
+		c := NewTestConcentrator(now)
+		c.peerTagKeys = []string{"region"}
+		c.addNow(testTrace, "")
+		stats := c.flushNow(now.UnixNano()+int64(c.bufferLen)*testBucketInterval, false)
+		assert.Len(stats.Stats[0].Stats[0].Stats, 2)
+		for _, st := range stats.Stats[0].Stats[0].Stats {
+			if st.Name == "postgres.query" {
+				assert.Equal([]string{"region:us1"}, st.PeerTags)
+			} else {
+				assert.Nil(st.PeerTags)
+			}
 		}
 	})
 }
@@ -794,5 +848,33 @@ func TestComputeStatsForSpanKind(t *testing.T) {
 		},
 	} {
 		assert.Equal(tc.res, computeStatsForSpanKind(tc.s))
+	}
+}
+
+func TestPrepareTagKeys(t *testing.T) {
+	type testCase struct {
+		input  []string
+		output []string
+	}
+
+	for _, tc := range []testCase{
+		{
+			input:  nil,
+			output: nil,
+		},
+		{
+			input:  []string{},
+			output: nil,
+		},
+		{
+			input:  []string{"a", "b"},
+			output: []string{"a", "b"},
+		},
+		{
+			input:  []string{"a", "a", "b"},
+			output: []string{"a", "b"},
+		},
+	} {
+		assert.Equal(t, tc.output, prepareTagKeys(tc.input...))
 	}
 }

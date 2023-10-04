@@ -31,7 +31,7 @@ generator:
             distribution: 50
             set: 0
             histogram: 1
-      bytes_per_second: "1000 Mb"
+      bytes_per_second: "100 MiB"
       block_sizes: ["256b", "512b", "1Kb", "2Kb", "3Kb", "4Kb", "5Kb", "6Kb"]
       maximum_prebuild_cache_size_bytes: "500 Mb"
 

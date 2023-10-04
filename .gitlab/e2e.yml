@@ -137,12 +137,15 @@ k8s-e2e-otlp-main:
     # Use S3 backend
     - pulumi login "s3://dd-pulumi-state?region=us-east-1&awssdk=v2&profile=$AWS_PROFILE"
   variables:
+    KUBERNETES_MEMORY_REQUEST: 12Gi
+    KUBERNETES_MEMORY_LIMIT: 16Gi
     E2E_PUBLIC_KEY_PATH: /tmp/agent-qa-ssh-key.pub
     E2E_PRIVATE_KEY_PATH: /tmp/agent-qa-ssh-key
     E2E_KEY_PAIR_NAME: datadog-agent-ci
     E2E_PIPELINE_ID: $CI_PIPELINE_ID
+    IMAGE_PATH_CONFIG: "-c ddagent:fullImagePath=669783387624.dkr.ecr.us-east-1.amazonaws.com/agent:${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA} -c ddagent:clusterAgentFullImagePath=669783387624.dkr.ecr.us-east-1.amazonaws.com/cluster-agent:${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}"
   script:
-    - inv -e new-e2e-tests.run --targets $TARGETS $CONFIGPARAMS --junit-tar "junit-${CI_JOB_NAME}.tgz" ${EXTRA_PARAMS}
+    - inv -e new-e2e-tests.run --targets $TARGETS $IMAGE_PATH_CONFIG --junit-tar "junit-${CI_JOB_NAME}.tgz" ${EXTRA_PARAMS}
   artifacts:
     expire_in: 2 weeks
     when: always
@@ -162,7 +165,6 @@ new-e2e-containers-dev:
   needs: []
   variables:
     TARGETS: ./tests/containers
-    CONFIGPARAMS: "-c ddagent:fullImagePath=datadog/agent-dev:${CI_COMMIT_REF_SLUG}-py3 -c ddagent:clusterAgentFullImagePath=datadog/cluster-agent-dev:${CI_COMMIT_REF_SLUG}"
     TEAM: container-integrations
   parallel:
     matrix:
@@ -175,12 +177,11 @@ new-e2e-containers-main:
   extends: .new_e2e_template
   rules: !reference [.on_main_and_no_skip_e2e]
   needs:
-    - qa_agent
-    - qa_dca
-    - qa_dogstatsd
+    - qa_main_agent
+    - qa_main_dca
+    - qa_main_dogstatsd
   variables:
     TARGETS: ./tests/containers
-    CONFIGPARAMS: "-c ddagent:fullImagePath=669783387624.dkr.ecr.us-east-1.amazonaws.com/agent:${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA} -c ddagent:clusterAgentFullImagePath=669783387624.dkr.ecr.us-east-1.amazonaws.com/cluster-agent:${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}"
     TEAM: container-integrations
   # Temporary, until we manage to stabilize those tests.
   allow_failure: true
