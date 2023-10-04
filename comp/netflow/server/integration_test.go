@@ -468,7 +468,7 @@ func runTest(t *testing.T) {
 	require.NoError(t, err, "error sending udp packet")
 
 	fmt.Printf("[%d] DEBUG 2", time.Now().UnixMilli())
-	netflowEvents, err := flowaggregator.WaitForFlowsToBeFlushed(srv.FlowAgg, 30*time.Second, 6)
+	netflowEvents, err := flowaggregator.WaitForFlowsToBeFlushed(srv.FlowAgg, 15*time.Second, 6)
 	fmt.Printf("[%d] DEBUG 3", time.Now().UnixMilli())
 	assert.Equal(t, uint64(29), netflowEvents)
 	assert.NoError(t, err)
