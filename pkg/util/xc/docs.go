@@ -3,11 +3,5 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-// Package filesystem provides functions and types to interact with the filesystem
-package filesystem
-
-// DiskUsage is the disk usage
-type DiskUsage struct {
-	Total     uint64
-	Available uint64
-}
+// Package xc provides a function to get system clock frequency
+package xc

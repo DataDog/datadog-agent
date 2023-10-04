@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+// Package flavor defines the various flavors of the agent
 package flavor
 
 import "github.com/DataDog/datadog-agent/pkg/config"

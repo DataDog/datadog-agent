@@ -15,6 +15,7 @@ import (
 	"go.uber.org/fx/fxtest"
 )
 
+// NoDependencies defines a component which doesn't have any dependencies
 type NoDependencies struct {
 	fx.In
 }

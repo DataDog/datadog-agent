@@ -7,10 +7,10 @@ package log
 
 import "strings"
 
-// redirectLogger is used to redirect klog logs to datadog logs. klog is
+// KlogRedirectLogger is used to redirect klog logs to datadog logs. klog is
 // client-go's logger, logging to STDERR by default, which makes all severities
 // into ERROR, along with the formatting just being off. To make the
-// conversion, we set a redirectLogger as klog's output, and parse the severity
+// conversion, we set a KlogRedirectLogger as klog's output, and parse the severity
 // and log message out of every log line.
 // NOTE: on klog v2 this parsing is no longer necessary, as it allows us to use
 // kSetLogger() instead of kSetOutputBySeverity(). unfortunately we
@@ -19,6 +19,7 @@ type KlogRedirectLogger struct {
 	stackDepth int
 }
 
+// NewKlogRedirectLogger creates a new KlogRedirectLogger with provided stack depth
 func NewKlogRedirectLogger(stackDepth int) KlogRedirectLogger {
 	return KlogRedirectLogger{
 		stackDepth: stackDepth,
