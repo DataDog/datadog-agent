@@ -214,15 +214,6 @@ new-e2e-language-detection-main:
     TARGETS: ./language-detection
     TEAM: processes
 
-new-e2e-language-detection-main:
-  extends: .new_e2e_template
-  rules: !reference [.on_main_and_no_skip_e2e]
-  variables:
-    TARGETS: ./agent-platform/install-script-debian
-    TEAM: agent-platform
-    EXTRA_PARAMS: --osversion debian-10,debian-11,debian-12,debian-12
-
-
 #   ^    If you create a new job here that extends `.new_e2e_template`,
 #  /!\   do not forget to add it in the `dependencies` statement of the
 # /___\  `e2e_test_junit_upload` job in the `.gitlab/e2e_test_junit_upload.yml` file
