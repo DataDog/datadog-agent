@@ -15,6 +15,7 @@ package python
 import "C"
 
 import (
+	"errors"
 	"fmt"
 	"io"
 	"os/exec"
@@ -68,7 +69,15 @@ func GetSubprocessOutput(argv **C.char, env **C.char, cStdout **C.char, cStderr 
 		outputErr, _ = io.ReadAll(stderr)
 	}()
 
-	cmd.Start() //nolint:errcheck
+	err = cmd.Start()
+
+	if errors.Is(err, exec.ErrNotFound) || errors.Is(err, exec.ErrDot) {
+		outputErr = []byte(err.Error())
+		*cStderr = TrackedCString(string(outputErr))
+		*exception = TrackedCString(fmt.Sprintf("internal error running command: %v", err))
+		*cRetCode = C.int(127) // Command not found
+		return
+	}
 
 	// Wait for the pipes to be closed *before* waiting for the cmd to exit, as per os.exec docs
 	wg.Wait()
