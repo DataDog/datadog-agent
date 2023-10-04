@@ -335,13 +335,49 @@ static __always_inline void* get_tls_base(struct task_struct* task) {
 #endif
 }
 
+typedef enum {
+    CONNECT_EVENT = 0,
+    BIND_EVENT = 1,
+    PROCESS_EXIT_EVENT = 2,
+} process_monitor_event_types;
+
+typedef struct {
+	process_monitor_event_types event_type;
+	__u32 pid;
+} process_monitor_event_t;
+
 BPF_PERF_EVENT_ARRAY_MAP(process_monitor_events, __u32);
 
 SEC("tracepoint/syscalls/sys_enter_connect")
 int tracepoint__syscalls__sys_enter_connect(struct trace_event_raw_sys_enter *ctx) {
     uint32_t tgid = (uint32_t)bpf_get_current_pid_tgid();
     log_debug("tracepoint__syscalls__sys_enter_connect: tgid is %d", tgid);
-    bpf_perf_event_output_with_telemetry(ctx, &process_monitor_events, BPF_F_CURRENT_CPU, &tgid, sizeof(tgid));
+    process_monitor_event_t event;
+    event.event_type = CONNECT_EVENT;
+    event.pid = tgid;
+    bpf_perf_event_output_with_telemetry(ctx, &process_monitor_events, BPF_F_CURRENT_CPU, &event, sizeof(event));
+    return 0;
+}
+
+SEC("tracepoint/syscalls/sys_enter_bind")
+int tracepoint__syscalls__sys_enter_bind(struct trace_event_raw_sys_enter *ctx) {
+    uint32_t tgid = (uint32_t)bpf_get_current_pid_tgid();
+    log_debug("tracepoint__syscalls__sys_enter_bind: tgid is %d", tgid);
+    process_monitor_event_t event;
+    event.event_type = BIND_EVENT;
+    event.pid = tgid;
+    bpf_perf_event_output_with_telemetry(ctx, &process_monitor_events, BPF_F_CURRENT_CPU, &event, sizeof(event));
+    return 0;
+}
+
+SEC("tracepoint/syscalls/sys_enter_exit")
+int tracepoint_syscalls_sys_enter_exit(struct trace_event_raw_sys_exit *ctx) {
+    uint32_t tgid = (uint32_t)bpf_get_current_pid_tgid();
+    log_debug("tracepoint_syscalls_sys_enter_exit: tgid is %d", tgid);
+    process_monitor_event_t event;
+    event.event_type = PROCESS_EXIT_EVENT;
+    event.pid = tgid;
+    bpf_perf_event_output_with_telemetry(ctx, &process_monitor_events, BPF_F_CURRENT_CPU, &event, sizeof(event));
     return 0;
 }
 

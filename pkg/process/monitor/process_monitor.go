@@ -228,12 +228,26 @@ func (pm *ProcessMonitor) mainEventLoop() {
 				if !ok {
 					return
 				}
-				processID := binary.LittleEndian.Uint32(dataEvent.Data)
+				CONNECT_EVENT := 0
+				BIND_EVENT := 1
+				PROCESS_EXIT_EVENT := 2
+				eventType := binary.LittleEndian.Uint32(dataEvent.Data[:4])
+				processID := binary.LittleEndian.Uint32(dataEvent.Data[4:8])
+
 				log.Debugf("pid: %d", processID)
-				//b := batchFromEventData(dataEvent.Data)
-				//c.process(dataEvent.CPU, b, false)
-				if pm.hasExecCallbacks.Load() {
-					pm.handleProcessExec(processID)
+				switch eventType {
+				case uint32(CONNECT_EVENT):
+					fallthrough
+				case uint32(BIND_EVENT):
+					log.Debugf("Got CONNECT_EVENT")
+					if pm.hasExecCallbacks.Load() {
+						pm.handleProcessExec(processID)
+					}
+				case uint32(PROCESS_EXIT_EVENT):
+					log.Debugf("Got PROCESS_EXIT_EVENT")
+					if pm.hasExitCallbacks.Load() {
+						pm.handleProcessExit(processID)
+					}
 				}
 				dataEvent.Done()
 			case _, ok := <-pm.EbpfEventsHandler.LostChannel:
