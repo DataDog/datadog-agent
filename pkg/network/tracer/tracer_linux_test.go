@@ -1001,39 +1001,39 @@ func (s *TracerSuite) TestDNATIntraHostIntegration() {
 		}
 	})
 
-	require.EventuallyWithT(t, func(c *assert.CollectT) {
-		conn, err = net.Dial("tcp", "2.2.2.2:"+port)
-		if !assert.NoError(c, err, "error connecting to client") {
-			return
+	var incoming, outgoing *network.ConnectionStats
+	require.Eventually(t, func() bool {
+		if conn == nil {
+			conn, err = net.Dial("tcp", "2.2.2.2:"+port)
+			if !assert.NoError(t, err, "error connecting to client") {
+				return false
+			}
 		}
 
 		_, err = conn.Write([]byte("ping"))
-		if !assert.NoError(c, err, "error writing in client") {
-			return
+		if !assert.NoError(t, err, "error writing in client") {
+			return false
 		}
 
 		bs := make([]byte, 4)
 		_, err = conn.Read(bs)
-		if !assert.NoError(c, err) {
-			return
+		if !assert.NoError(t, err) {
+			return false
 		}
 
-		conns := getConnections(c, tr)
+		conns := getConnections(t, tr)
 		t.Log(conns)
 
-		outgoing, _ := findConnection(conn.LocalAddr(), conn.RemoteAddr(), conns)
-		incoming, _ := findConnection(serverAddr.local, serverAddr.remote, conns)
+		outgoing, _ = findConnection(conn.LocalAddr(), conn.RemoteAddr(), conns)
+		incoming, _ = findConnection(serverAddr.local, serverAddr.remote, conns)
 
 		t.Logf("incoming: %+v, outgoing: %+v", incoming, outgoing)
 
-		if assert.NotNil(c, outgoing) {
-			assert.True(c, outgoing.IntraHost, "did not find outgoing connection classified as local: %v", outgoing)
-		}
-		if assert.NotNil(c, incoming) {
-			assert.True(c, incoming.IntraHost, "did not find incoming connection classified as local: %v", incoming)
-		}
+		return outgoing != nil && incoming != nil
 	}, 3*time.Second, 100*time.Millisecond, "failed to get both incoming and outgoing connection")
 
+	assert.True(t, outgoing.IntraHost, "did not find outgoing connection classified as local: %v", outgoing)
+	assert.True(t, incoming.IntraHost, "did not find incoming connection classified as local: %v", incoming)
 }
 
 func (s *TracerSuite) TestSelfConnect() {
