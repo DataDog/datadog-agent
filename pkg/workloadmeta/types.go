@@ -240,6 +240,18 @@ const (
 	EventTypeUnset
 )
 
+// SBOMStatus is the status of a SBOM
+type SBOMStatus string
+
+const (
+	// Pending is the status when the image was not scanned
+	Pending SBOMStatus = "Pending"
+	// Success is the status when the image was scanned
+	Success SBOMStatus = "Success"
+	// Failed is the status when the scan failed
+	Failed SBOMStatus = "Failed"
+)
+
 // Entity represents a single unit of work being done that is of interest to
 // the agent.
 //
@@ -295,8 +307,8 @@ func (e EntityMeta) String(verbose bool) string {
 	_, _ = fmt.Fprintln(&sb, "Namespace:", e.Namespace)
 
 	if verbose {
-		_, _ = fmt.Fprintln(&sb, "Annotations:", mapToString(e.Annotations))
-		_, _ = fmt.Fprintln(&sb, "Labels:", mapToString(e.Labels))
+		_, _ = fmt.Fprintln(&sb, "Annotations:", mapToScrubbedJSONString(e.Annotations))
+		_, _ = fmt.Fprintln(&sb, "Labels:", mapToScrubbedJSONString(e.Labels))
 	}
 
 	return sb.String()
@@ -508,7 +520,7 @@ func (c Container) String(verbose bool) string {
 	return sb.String()
 }
 
-// PodSecurityContext is the Security Context of a Kubernete pod
+// PodSecurityContext is the Security Context of a Kubernetes pod
 type PodSecurityContext struct {
 	RunAsUser  int32
 	RunAsGroup int32
@@ -522,6 +534,7 @@ type ContainerSecurityContext struct {
 	SeccompProfile *SeccompProfile
 }
 
+// Capabilities defines the capabilities of a Container
 type Capabilities struct {
 	Add  []string
 	Drop []string
@@ -530,13 +543,14 @@ type Capabilities struct {
 // SeccompProfileType is the type of seccomp profile used
 type SeccompProfileType string
 
+// Seccomp profile types
 const (
 	SeccompProfileTypeUnconfined     SeccompProfileType = "Unconfined"
 	SeccompProfileTypeRuntimeDefault SeccompProfileType = "RuntimeDefault"
 	SeccompProfileTypeLocalhost      SeccompProfileType = "Localhost"
 )
 
-// SeccompProfileSpec contains fields for unmarshalling a Pod.Spec.Containers.SecurityContext.SeccompProfile
+// SeccompProfile contains fields for unmarshalling a Pod.Spec.Containers.SecurityContext.SeccompProfile
 type SeccompProfile struct {
 	Type             SeccompProfileType
 	LocalhostProfile string
@@ -767,7 +781,7 @@ func (d KubernetesDeployment) String(verbose bool) string {
 				}
 				_, _ = langSb.WriteString(string(lang.Name))
 			}
-			_, _ = fmt.Fprintf(&sb, "%s %s=>[%s]", ctype, container, langSb.String())
+			_, _ = fmt.Fprintf(&sb, "%s %s=>[%s]\n", ctype, container, langSb.String())
 		}
 	}
 	langPrinter(d.InitContainerLanguages, "InitContainer")
@@ -874,6 +888,8 @@ type SBOM struct {
 	CycloneDXBOM       *cyclonedx.BOM
 	GenerationTime     time.Time
 	GenerationDuration time.Duration
+	Status             SBOMStatus
+	Error              string // needs to be stored as a string otherwise the merge() will favor the nil value
 }
 
 // GetID implements Entity#GetID.
@@ -918,10 +934,14 @@ func (i ContainerImageMetadata) String(verbose bool) string {
 		_, _ = fmt.Fprintln(&sb, "Architecture:", i.Architecture)
 		_, _ = fmt.Fprintln(&sb, "Variant:", i.Variant)
 
-		if i.SBOM != nil {
-			_, _ = fmt.Fprintf(&sb, "SBOM: stored. Generated in: %.2f seconds\n", i.SBOM.GenerationDuration.Seconds())
-		} else {
-			_, _ = fmt.Fprintln(&sb, "SBOM: not stored")
+		_, _ = fmt.Fprintln(&sb, "----------- SBOM -----------")
+		_, _ = fmt.Fprintln(&sb, "Status:", i.SBOM.Status)
+		switch i.SBOM.Status {
+		case Success:
+			_, _ = fmt.Fprintf(&sb, "Generated in: %.2f seconds\n", i.SBOM.GenerationDuration.Seconds())
+		case Failed:
+			_, _ = fmt.Fprintf(&sb, "Error: %s\n", i.SBOM.Error)
+		default:
 		}
 
 		_, _ = fmt.Fprintln(&sb, "----------- Layers -----------")
@@ -957,9 +977,9 @@ func printHistory(out io.Writer, history v1.History) {
 
 var _ Entity = &ContainerImageMetadata{}
 
+// Process is an Entity that represents a process
 type Process struct {
-	EntityID // EntityID is the PID for now
-	EntityMeta
+	EntityID // EntityID.ID is the PID
 
 	NsPid        int32
 	ContainerID  string

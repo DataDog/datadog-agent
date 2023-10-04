@@ -6,6 +6,8 @@
 package config
 
 import (
+	"bufio"
+	"bytes"
 	"context"
 	"errors"
 	"html/template"
@@ -20,6 +22,7 @@ import (
 
 	"testing"
 
+	"github.com/cihub/seelog"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/fx"
@@ -29,6 +32,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	traceconfig "github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // team: agent-apm
@@ -81,6 +85,59 @@ func TestSplitTag(t *testing.T) {
 			assert.Equal(t, splitTag(tt.tag), tt.kv)
 		})
 	}
+}
+
+func TestSplitTagRegex(t *testing.T) {
+	for _, tt := range []struct {
+		tag string
+		kv  *config.TagRegex
+	}{
+		{
+			tag: "",
+			kv:  &config.TagRegex{K: ""},
+		},
+		{
+			tag: "key:^value$",
+			kv:  &config.TagRegex{K: "key", V: regexp.MustCompile("^value$")},
+		},
+		{
+			tag: "env:^prod123$",
+			kv:  &config.TagRegex{K: "env", V: regexp.MustCompile("^prod123$")},
+		},
+		{
+			tag: "env:^staging:east.*$",
+			kv:  &config.TagRegex{K: "env", V: regexp.MustCompile("^staging:east.*$")},
+		},
+		{
+			tag: "key",
+			kv:  &config.TagRegex{K: "key"},
+		},
+	} {
+		t.Run("normal", func(t *testing.T) {
+			assert.Equal(t, splitTagRegex(tt.tag), tt.kv)
+		})
+	}
+	bad := struct {
+		tag string
+		kv  *config.Tag
+	}{
+
+		tag: "key:[value",
+		kv:  nil,
+	}
+
+	t.Run("error", func(t *testing.T) {
+		var b bytes.Buffer
+		w := bufio.NewWriter(&b)
+
+		logger, err := seelog.LoggerFromWriterWithMinLevelAndFormat(w, seelog.DebugLvl, "[%LEVEL] %Msg")
+		assert.Nil(t, err)
+		seelog.ReplaceLogger(logger) //nolint:errcheck
+		log.SetupLogger(logger, "debug")
+		assert.Nil(t, splitTagRegex(bad.tag))
+		w.Flush()
+		assert.Contains(t, b.String(), "[ERROR] Invalid regex pattern in tag filter: \"key\":\"[value\"")
+	})
 }
 
 func TestTelemetryEndpointsConfig(t *testing.T) {
@@ -626,7 +683,9 @@ func TestFullYamlConfig(t *testing.T) {
 	}, cfg.Endpoints)
 
 	assert.ElementsMatch(t, []*traceconfig.Tag{{K: "env", V: "prod"}, {K: "db", V: "mongodb"}}, cfg.RequireTags)
-	assert.ElementsMatch(t, []*traceconfig.Tag{{K: "outcome", V: "success"}}, cfg.RejectTags)
+	assert.ElementsMatch(t, []*traceconfig.Tag{{K: "outcome", V: "success"}, {K: "bad-key", V: "bad-value"}}, cfg.RejectTags)
+	assert.ElementsMatch(t, []*traceconfig.TagRegex{{K: "type", V: regexp.MustCompile("^internal$")}}, cfg.RequireTagsRegex)
+	assert.ElementsMatch(t, []*traceconfig.TagRegex{{K: "filter", V: regexp.MustCompile("^true$")}}, cfg.RejectTagsRegex)
 
 	assert.ElementsMatch(t, []*traceconfig.ReplaceRule{
 		{
@@ -662,6 +721,7 @@ func TestFullYamlConfig(t *testing.T) {
 	assert.True(t, o.RemoveStackTraces)
 	assert.True(t, o.Redis.Enabled)
 	assert.True(t, o.Memcached.Enabled)
+	assert.True(t, o.Memcached.KeepCommand)
 	assert.True(t, o.CreditCards.Enabled)
 	assert.True(t, o.CreditCards.Luhn)
 
@@ -1168,7 +1228,7 @@ func TestLoadEnv(t *testing.T) {
 
 		assert.NotNil(t, cfg)
 
-		assert.Equal(t, cfg.RequireTags, []*config.Tag{{K: "important1", V: ""}, {K: "important2", V: "value1"}})
+		assert.Equal(t, cfg.RequireTags, []*config.Tag{{K: "important1"}, {K: "important2", V: "value1"}})
 	})
 
 	t.Run(env, func(t *testing.T) {
@@ -1187,6 +1247,45 @@ func TestLoadEnv(t *testing.T) {
 		assert.NotNil(t, cfg)
 
 		assert.Equal(t, cfg.RequireTags, []*config.Tag{{K: "important1", V: "value with a space"}})
+	})
+
+	env = "DD_APM_FILTER_TAGS_REGEX_REQUIRE"
+	t.Run(env, func(t *testing.T) {
+		t.Setenv(env, `important1 important2:^value1$`)
+
+		c := fxutil.Test[Component](t, fx.Options(
+			corecomp.MockModule,
+			fx.Replace(corecomp.MockParams{
+				Params:      corecomp.Params{ConfFilePath: "./testdata/full.yaml"},
+				SetupConfig: true,
+			}),
+			MockModule,
+		))
+
+		cfg := c.Object()
+
+		assert.NotNil(t, cfg)
+
+		assert.Equal(t, cfg.RequireTagsRegex, []*config.TagRegex{{K: "important1"}, {K: "important2", V: regexp.MustCompile("^value1$")}})
+	})
+
+	t.Run(env, func(t *testing.T) {
+		t.Setenv(env, `["important1:^value with a space$"]`)
+
+		c := fxutil.Test[Component](t, fx.Options(
+			corecomp.MockModule,
+			fx.Replace(corecomp.MockParams{
+				Params:      corecomp.Params{ConfFilePath: "./testdata/full.yaml"},
+				SetupConfig: true,
+			}),
+			MockModule,
+		))
+
+		cfg := c.Object()
+
+		assert.NotNil(t, cfg)
+
+		assert.Equal(t, cfg.RequireTagsRegex, []*config.TagRegex{{K: "important1", V: regexp.MustCompile("^value with a space$")}})
 	})
 
 	env = "DD_APM_FILTER_TAGS_REJECT"
@@ -1245,6 +1344,41 @@ func TestLoadEnv(t *testing.T) {
 			{K: "bad1", V: "value with a space"},
 			{K: "bad2", V: "value with spaces"},
 		})
+	})
+
+	env = "DD_APM_FILTER_TAGS_REGEX_REJECT"
+	t.Run(env, func(t *testing.T) {
+		t.Setenv(env, `bad1:^value1$`)
+		c := fxutil.Test[Component](t, fx.Options(
+			corecomp.MockModule,
+			fx.Replace(corecomp.MockParams{
+				Params:      corecomp.Params{ConfFilePath: "./testdata/full.yaml"},
+				SetupConfig: true,
+			}),
+			MockModule,
+		))
+		cfg := c.Object()
+
+		assert.NotNil(t, cfg)
+
+		assert.Equal(t, cfg.RejectTagsRegex, []*config.TagRegex{{K: "bad1", V: regexp.MustCompile("^value1$")}})
+	})
+
+	t.Run(env, func(t *testing.T) {
+		t.Setenv(env, `["bad1:value with a space"]`)
+		c := fxutil.Test[Component](t, fx.Options(
+			corecomp.MockModule,
+			fx.Replace(corecomp.MockParams{
+				Params:      corecomp.Params{ConfFilePath: "./testdata/full.yaml"},
+				SetupConfig: true,
+			}),
+			MockModule,
+		))
+		cfg := c.Object()
+
+		assert.NotNil(t, cfg)
+
+		assert.Equal(t, cfg.RejectTagsRegex, []*config.TagRegex{{K: "bad1", V: regexp.MustCompile("value with a space")}})
 	})
 
 	for _, envKey := range []string{
@@ -1694,6 +1828,27 @@ func TestLoadEnv(t *testing.T) {
 		assert.NotNil(t, cfg)
 		assert.True(t, coreconfig.Datadog.GetBool("apm_config.obfuscation.memcached.enabled"))
 		assert.True(t, cfg.Obfuscation.Memcached.Enabled)
+	})
+
+	env = "DD_APM_OBFUSCATION_MEMCACHED_KEEP_COMMAND"
+	t.Run(env, func(t *testing.T) {
+		t.Setenv(env, "true")
+
+		c := fxutil.Test[Component](t, fx.Options(
+			corecomp.MockModule,
+			fx.Replace(corecomp.MockParams{
+				Params:      corecomp.Params{ConfFilePath: "./testdata/full.yaml"},
+				SetupConfig: true,
+			}),
+			MockModule,
+		))
+		cfg := c.Object()
+
+		assert.NotNil(t, cfg)
+		assert.True(t, coreconfig.Datadog.GetBool("apm_config.obfuscation.memcached.enabled"))
+		assert.True(t, cfg.Obfuscation.Memcached.Enabled)
+		assert.True(t, coreconfig.Datadog.GetBool("apm_config.obfuscation.memcached.keep_command"))
+		assert.True(t, cfg.Obfuscation.Memcached.KeepCommand)
 	})
 
 	env = "DD_APM_OBFUSCATION_MONGODB_ENABLED"

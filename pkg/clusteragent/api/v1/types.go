@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+// Package v1 contains the types of the Cluster Agent API (v1).
 package v1
 
 import (

@@ -106,7 +106,7 @@ func (p *protocol) Name() string {
 // We also configure the http event stream with the manager and its options.
 func (p *protocol) ConfigureOptions(mgr *manager.Manager, opts *manager.Options) {
 	opts.MapSpecEditors[inFlightMap] = manager.MapSpecEditor{
-		MaxEntries: p.cfg.MaxTrackedConnections,
+		MaxEntries: p.cfg.MaxUSMConcurrentRequests,
 		EditorFlag: manager.EditMaxEntries,
 	}
 	utils.EnableOption(opts, "http_monitoring_enabled")
@@ -163,7 +163,7 @@ func (p *protocol) DumpMaps(output *strings.Builder, mapName string, currentMap 
 }
 
 func (p *protocol) processHTTP(data []byte) {
-	tx := (*EbpfTx)(unsafe.Pointer(&data[0]))
+	tx := (*EbpfEvent)(unsafe.Pointer(&data[0]))
 	p.telemetry.Count(tx)
 	p.statkeeper.Process(tx)
 }
@@ -187,11 +187,11 @@ func (p *protocol) setupMapCleaner(mgr *manager.Manager) {
 			return false
 		}
 
-		if updated := int64(httpTxn.ResponseLastSeen()); updated > 0 {
+		if updated := int64(httpTxn.Response_last_seen); updated > 0 {
 			return (now - updated) > ttl
 		}
 
-		started := int64(httpTxn.RequestStarted())
+		started := int64(httpTxn.Request_started)
 		return started > 0 && (now-started) > ttl
 	})
 

@@ -1,0 +1,145 @@
+From 1e32c861bcccb558b3d7122841d955bb5badb521 Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?Jan=20=C4=8Cern=C3=BD?= <jcerny@redhat.com>
+Date: Fri, 8 Sep 2023 14:47:59 +0200
+Subject: [PATCH 05/16] Fix partition probe for PCRE2
+
+The pcre_exec function can return a positive number or zero,
+zero is returned if the buffer isn't large enough. Therefore,
+we should allow also positive number return code.
+
+The commit also extends the test to cover the bug situation.
+
+Fixes: #2026
+---
+ src/OVAL/probes/unix/linux/partition_probe.c  |  2 +-
+ .../probes/partition/test_probes_partition.sh | 20 +++++++---
+ .../partition/test_probes_partition.xml       | 40 ++++++++++++++++++-
+ 3 files changed, 54 insertions(+), 8 deletions(-)
+
+diff --git a/src/OVAL/probes/unix/linux/partition_probe.c b/src/OVAL/probes/unix/linux/partition_probe.c
+index cd0e10413..eea7bc348 100644
+--- a/src/OVAL/probes/unix/linux/partition_probe.c
++++ b/src/OVAL/probes/unix/linux/partition_probe.c
+@@ -402,7 +402,7 @@ int partition_probe_main(probe_ctx *ctx, void *probe_arg)
+                                 rc = oscap_pcre_exec(re, mnt_entp->mnt_dir,
+                                                strlen(mnt_entp->mnt_dir), 0, 0, NULL, 0);
+ 
+-                                if (rc == 0) {
++                                if (rc >= 0) {
+ 	                                if (
+ #if defined(HAVE_BLKID_GET_TAG_VALUE)
+ 		                                collect_item(ctx, obj_over, mnt_entp, blkcache)
+diff --git a/tests/probes/partition/test_probes_partition.sh b/tests/probes/partition/test_probes_partition.sh
+index 421461260..2e31fec0b 100755
+--- a/tests/probes/partition/test_probes_partition.sh
++++ b/tests/probes/partition/test_probes_partition.sh
+@@ -10,22 +10,30 @@ function test_probes_partition {
+ 
+     local ret_val=0;
+     local DF="${srcdir}/test_probes_partition.xml"
+-    local RF="test_probes_partition.results.xml"
+-    echo "result file: $RF"
++    local result="test_probes_partition.results.xml"
++    echo "result file: $result"
+     local stderr=$(mktemp $1.err.XXXXXX)
+     echo "stderr file: $stderr"
+ 
+-    [ -f $RF ] && rm -f $RF
++    [ -f $result ] && rm -f $result
+ 
+-    $OSCAP oval eval --results $RF $DF 2>$stderr
++    $OSCAP oval eval --results $result $DF 2>$stderr
+ 
+-    if [ -f $RF ]; then
+-        verify_results "def" $DF $RF 1 && verify_results "tst" $DF $RF 1
++    if [ -f $result ]; then
++        verify_results "def" $DF $result 3 && verify_results "tst" $DF $result 3
+         ret_val=$?
+     else
+         ret_val=1
+     fi
+ 
++    CO='/oval_results/results/system/oval_system_characteristics/collected_objects'
++    assert_exists 1 $CO'/object[@id="oval:1:obj:1" and @flag="complete"]'
++    assert_exists 1 $CO'/object[@id="oval:1:obj:2" and @flag="complete"]'
++    assert_exists 1 $CO'/object[@id="oval:1:obj:3" and @flag="does not exist"]'
++    SD='/oval_results/results/system/oval_system_characteristics/system_data'
++    assert_exists 1 $SD'/lin-sys:partition_item'
++    assert_exists 1 $SD'/lin-sys:partition_item/lin-sys:mount_point[text()="/proc"]'
++
+     grep -Ei "(W: |E: )" $stderr && ret_val=1 && echo "There is an error and/or a warning in the output!"
+     rm $stderr
+ 
+diff --git a/tests/probes/partition/test_probes_partition.xml b/tests/probes/partition/test_probes_partition.xml
+index 9bb2237f5..711f68986 100644
+--- a/tests/probes/partition/test_probes_partition.xml
++++ b/tests/probes/partition/test_probes_partition.xml
+@@ -21,6 +21,28 @@
+         </criteria>
+       </criteria>
+     </definition>
++    <definition class="compliance" version="1" id="oval:1:def:2"> <!-- comment="true" -->
++      <metadata>
++        <title></title>
++        <description></description>
++      </metadata>
++      <criteria>
++        <criteria operator="AND">
++          <criterion test_ref="oval:1:tst:2"/>
++        </criteria>
++      </criteria>
++    </definition>
++    <definition class="compliance" version="1" id="oval:1:def:3"> <!-- comment="true" -->
++      <metadata>
++        <title></title>
++        <description></description>
++      </metadata>
++      <criteria>
++        <criteria operator="AND">
++          <criterion test_ref="oval:1:tst:3"/>
++        </criteria>
++      </criteria>
++    </definition>
+ 
+   </definitions>
+ 
+@@ -29,18 +51,34 @@
+       <object object_ref="oval:1:obj:1"/>
+       <state state_ref="oval:1:ste:1"/>
+     </partition_test>
++    <partition_test version="1" id="oval:1:tst:2" check="at least one" comment="true" xmlns="http://oval.mitre.org/XMLSchema/oval-definitions-5#linux">
++      <object object_ref="oval:1:obj:2"/>
++      <state state_ref="oval:1:ste:2"/>
++    </partition_test>
++    <partition_test version="1" id="oval:1:tst:3" check="at least one" check_existence="none_exist" comment="true" xmlns="http://oval.mitre.org/XMLSchema/oval-definitions-5#linux">
++      <object object_ref="oval:1:obj:3"/>
++    </partition_test>
+   </tests>
+ 
+   <objects>
+     <partition_object version="1" id="oval:1:obj:1" xmlns="http://oval.mitre.org/XMLSchema/oval-definitions-5#linux">
+       <mount_point>/proc</mount_point>
+     </partition_object>
++    <partition_object version="1" id="oval:1:obj:2" xmlns="http://oval.mitre.org/XMLSchema/oval-definitions-5#linux">
++      <mount_point operation="pattern match">^\/proc$</mount_point>
++    </partition_object>
++    <partition_object version="1" id="oval:1:obj:3" xmlns="http://oval.mitre.org/XMLSchema/oval-definitions-5#linux">
++      <mount_point operation="pattern match">^something.*without.*leading.*slash$</mount_point>
++    </partition_object>
+   </objects>
+ 
+   <states>
+     <partition_state version="1" id="oval:1:ste:1" xmlns="http://oval.mitre.org/XMLSchema/oval-definitions-5#linux">
+       <device>proc</device>
+     </partition_state>
++    <partition_state version="1" id="oval:1:ste:2" xmlns="http://oval.mitre.org/XMLSchema/oval-definitions-5#linux">
++      <device>proc</device>
++    </partition_state>
+   </states>
+ 
+-</oval_definitions>
+\ No newline at end of file
++</oval_definitions>
+-- 
+2.34.1
+

@@ -91,6 +91,7 @@ type RuleDefinition struct {
 	Actions                []ActionDefinition `yaml:"actions"`
 	Every                  time.Duration      `yaml:"every"`
 	Policy                 *Policy
+	Silent                 bool
 }
 
 // GetTag returns the tag value associated with a tag key
@@ -118,21 +119,24 @@ func (rd *RuleDefinition) MergeWith(rd2 *RuleDefinition) error {
 
 // ActionDefinition describes a rule action section
 type ActionDefinition struct {
-	Set *SetDefinition `yaml:"set"`
+	Set                        *SetDefinition `yaml:"set"`
+	InternalCallbackDefinition *InternalCallbackDefinition
 }
 
 // Check returns an error if the action in invalid
 func (a *ActionDefinition) Check() error {
-	if a.Set == nil {
+	if a.Set == nil && a.InternalCallbackDefinition == nil {
 		return errors.New("missing 'set' section in action")
 	}
 
-	if a.Set.Name == "" {
-		return errors.New("action name is empty")
-	}
+	if a.Set != nil {
+		if a.Set.Name == "" {
+			return errors.New("action name is empty")
+		}
 
-	if (a.Set.Value == nil && a.Set.Field == "") || (a.Set.Value != nil && a.Set.Field != "") {
-		return errors.New("either 'value' or 'field' must be specified")
+		if (a.Set.Value == nil && a.Set.Field == "") || (a.Set.Value != nil && a.Set.Field != "") {
+			return errors.New("either 'value' or 'field' must be specified")
+		}
 	}
 
 	return nil
@@ -149,6 +153,9 @@ type SetDefinition struct {
 	Append bool        `yaml:"append"`
 	Scope  Scope       `yaml:"scope"`
 }
+
+// InternalCallbackDefinition describes an internal rule action
+type InternalCallbackDefinition struct{}
 
 // Rule describes a rule of a ruleset
 type Rule struct {

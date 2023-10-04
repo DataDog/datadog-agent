@@ -21,143 +21,6 @@ import (
 	cache "github.com/patrickmn/go-cache"
 )
 
-/*
- * We are selecting from sql_fulltext instead of sql_text because sql_text doesn't preserve the new lines.
- * sql_fulltext, despite "full" in its name, truncates the text after the first 1000 characters.
- * For such statements, we will have to get the text from v$sql which has the complete text.
- */
-const QUERY_FMS_RANDOM = `SELECT /* DD_QM_FMS */ s.con_id con_id, c.name pdb_name, s.force_matching_signature, plan_hash_value, max(dbms_lob.substr(sql_fulltext, 1000, 1)) sql_text, max(length(sql_text)) sql_text_length, max(s.sql_id) sql_id, 
-	sum(parse_calls) as parse_calls,
-	sum(disk_reads) as disk_reads,
-	sum(direct_writes) as direct_writes,
-	sum(direct_reads) as direct_reads,
-	sum(buffer_gets) as buffer_gets,
-	sum(rows_processed) as rows_processed,
-	sum(serializable_aborts) as serializable_aborts,
-	sum(fetches) as fetches,
-	sum(executions) as executions,
-	sum(end_of_fetch_count) as end_of_fetch_count,
-	sum(loads) as loads,
-	sum(version_count) as version_count,
-	sum(invalidations) as invalidations,
-	sum(px_servers_executions) as px_servers_executions,
-	sum(cpu_time) as cpu_time,
-	sum(elapsed_time) as elapsed_time,
-	sum(application_wait_time) as application_wait_time,
-	sum(concurrency_wait_time) as concurrency_wait_time,
-	sum(cluster_wait_time) as cluster_wait_time,
-	sum(user_io_wait_time) as user_io_wait_time,
-	sum(plsql_exec_time) as plsql_exec_time,
-	sum(java_exec_time) as java_exec_time,
-	sum(sorts) as sorts,
-	sum(sharable_mem) as sharable_mem,
-	sum(typecheck_mem) as typecheck_mem,
-	sum(io_cell_offload_eligible_bytes) as io_cell_offload_eligible_bytes,
-	sum(io_interconnect_bytes) as io_interconnect_bytes,
-	sum(physical_read_requests) as physical_read_requests,
-	sum(physical_read_bytes) as physical_read_bytes,
-	sum(physical_write_requests) as physical_write_requests,
-	sum(physical_write_bytes) as physical_write_bytes,
-	sum(io_cell_uncompressed_bytes) as io_cell_uncompressed_bytes,
-	sum(io_cell_offload_returned_bytes) as io_cell_offload_returned_bytes,
-	sum(avoided_executions) as avoided_executions
-FROM v$sqlstats s, v$containers c 
-WHERE s.con_id = c.con_id (+) AND force_matching_signature != 0
-GROUP BY s.con_id, c.name, force_matching_signature, plan_hash_value 
-HAVING MAX (last_active_time) > sysdate - :seconds/24/60/60
-FETCH FIRST :limit ROWS ONLY`
-
-// queryForceMatchingSignatureLastActive Querying force_matching_signature = 0
-const queryForceMatchingSignatureLastActive = `SELECT /* DD_QM_FMS */ s.con_id con_id, c.name pdb_name, s.force_matching_signature, plan_hash_value, 
-	max(dbms_lob.substr(sql_fulltext, 1000, 1)) sql_text, max(length(sql_text)) sql_text_length, sq.sql_id,
-	sum(parse_calls) as parse_calls,
-	sum(disk_reads) as disk_reads,
-	sum(direct_writes) as direct_writes,
-	sum(direct_reads) as direct_reads,
-	sum(buffer_gets) as buffer_gets,
-	sum(rows_processed) as rows_processed,
-	sum(serializable_aborts) as serializable_aborts,
-	sum(fetches) as fetches,
-	sum(executions) as executions,
-	sum(end_of_fetch_count) as end_of_fetch_count,
-	sum(loads) as loads,
-	sum(version_count) as version_count,
-	sum(invalidations) as invalidations,
-	sum(px_servers_executions) as px_servers_executions,
-	sum(cpu_time) as cpu_time,
-	sum(elapsed_time) as elapsed_time,
-	sum(application_wait_time) as application_wait_time,
-	sum(concurrency_wait_time) as concurrency_wait_time,
-	sum(cluster_wait_time) as cluster_wait_time,
-	sum(user_io_wait_time) as user_io_wait_time,
-	sum(plsql_exec_time) as plsql_exec_time,
-	sum(java_exec_time) as java_exec_time,
-	sum(sorts) as sorts,
-	sum(sharable_mem) as sharable_mem,
-	sum(typecheck_mem) as typecheck_mem,
-	sum(io_cell_offload_eligible_bytes) as io_cell_offload_eligible_bytes,
-	sum(io_interconnect_bytes) as io_interconnect_bytes,
-	sum(physical_read_requests) as physical_read_requests,
-	sum(physical_read_bytes) as physical_read_bytes,
-	sum(physical_write_requests) as physical_write_requests,
-	sum(physical_write_bytes) as physical_write_bytes,
-	sum(io_cell_uncompressed_bytes) as io_cell_uncompressed_bytes,
-	sum(io_cell_offload_returned_bytes) as io_cell_offload_returned_bytes,
-	sum(avoided_executions) as avoided_executions
-FROM v$sqlstats s, v$containers c, ( 
-    SELECT * 
-    FROM ( 
-        SELECT force_matching_signature, sql_id, row_number ( ) over ( partition by force_matching_signature ORDER BY last_active_time DESC ) rowno
-    FROM v$sqlstats 
-    WHERE last_active_time > sysdate - :seconds/24/60/60 AND force_matching_signature != 0
-) 
-WHERE rowno = 1
-) sq 
-WHERE s.con_id = c.con_id (+) AND sq.force_matching_signature = s.force_matching_signature 
-GROUP BY s.con_id, c.name, s.force_matching_signature, plan_hash_value, sq.sql_id 
-FETCH FIRST :limit ROWS ONLY`
-
-// querySQLID force_matching_signature = 0
-const querySQLID = `SELECT /* DD_QM_SQLID */ s.con_id con_id, c.name pdb_name, sql_id, plan_hash_value, 
-	dbms_lob.substr(sql_fulltext, 1000, 1) sql_text, length(sql_text) sql_text_length, 
-	parse_calls,
-	disk_reads,
-	direct_writes,
-	direct_reads,
-	buffer_gets,
-	rows_processed,
-	serializable_aborts,
-	fetches,
-	executions,
-	end_of_fetch_count,
-	loads,
-	version_count,
-	invalidations,
-	px_servers_executions,
-	cpu_time,
-	elapsed_time,
-	application_wait_time,
-	concurrency_wait_time,
-	cluster_wait_time,
-	user_io_wait_time,
-	plsql_exec_time,
-	java_exec_time,
-	sorts,
-	sharable_mem,
-	typecheck_mem,
-	io_cell_offload_eligible_bytes,
-	io_interconnect_bytes,
-	physical_read_requests,
-	physical_read_bytes,
-	physical_write_requests,
-	physical_write_bytes,
-	io_cell_uncompressed_bytes,
-	io_cell_offload_returned_bytes,
-	avoided_executions
-FROM v$sqlstats s, v$containers c 
-WHERE s.con_id = c.con_id (+) AND last_active_time > sysdate - :seconds/24/60/60 AND force_matching_signature = 0
-FETCH FIRST :limit ROWS ONLY`
-
 // including sql_id for indexed access
 const PLAN_QUERY = `SELECT /* DD */
 	timestamp,
@@ -491,6 +354,22 @@ func (c *Check) copyToPreviousMap(newMap map[StatementMetricsKeyDB]StatementMetr
 	}
 }
 
+func handlePredicate(predicateType string, dbValue sql.NullString, payloadValue *string, statement StatementMetricsDB, c *Check, o *obfuscate.Obfuscator) {
+	if dbValue.Valid {
+		obfuscated, err := o.ObfuscateSQLString(dbValue.String)
+		if err == nil {
+			*payloadValue = obfuscated.Query
+		} else {
+			*payloadValue = fmt.Sprintf("%s obfuscation error", predicateType)
+			logEntry := fmt.Sprintf("%s %s for sql_id: %s, plan_hash_value: %d", c.logPrompt, *payloadValue, statement.SQLID, statement.PlanHashValue)
+			if c.config.ExecutionPlans.LogUnobfuscatedPlans {
+				logEntry = fmt.Sprintf("%s unobfuscated filter: %s", logEntry, dbValue.String)
+			}
+			log.Error(logEntry)
+		}
+	}
+}
+
 func (c *Check) StatementMetrics() (int, error) {
 	if !checkIntervalExpired(&c.statementsLastRun, c.config.QueryMetrics.CollectionInterval) {
 		return 0, nil
@@ -506,13 +385,14 @@ func (c *Check) StatementMetrics() (int, error) {
 	SQLCount := 0
 	var oracleRows []OracleRow
 	var planErrors uint16
+	queries := getStatementMetricsQueries(c)
 	if c.config.QueryMetrics.Enabled {
 		var statementMetrics []StatementMetricsDB
 		var sql string
 		if c.config.QueryMetrics.DisableLastActive {
-			sql = QUERY_FMS_RANDOM
+			sql = queries[fmsRandomQuery]
 		} else {
-			sql = queryForceMatchingSignatureLastActive
+			sql = queries[fmsLastActiveQuery]
 		}
 
 		var lookback int64
@@ -537,7 +417,7 @@ func (c *Check) StatementMetrics() (int, error) {
 		statementMetricsAll := make([]StatementMetricsDB, len(statementMetrics))
 		copy(statementMetricsAll, statementMetrics)
 
-		sql = querySQLID
+		sql = queries[sqlIDQuery]
 		err = selectWrapper(
 			c,
 			&statementMetrics,
@@ -809,30 +689,8 @@ func (c *Check) StatementMetrics() (int, error) {
 								if stepRow.TempSpace.Valid {
 									stepPayload.TempSpace = stepRow.TempSpace.Float64
 								}
-								if stepRow.AccessPredicates.Valid {
-									obfuscated, err := o.ObfuscateSQLString(stepRow.AccessPredicates.String)
-									if err == nil {
-										stepPayload.AccessPredicates = obfuscated.Query
-									} else {
-										stepPayload.AccessPredicates = "Access obfuscation error"
-										if c.config.ExecutionPlans.LogUnobfuscatedPlans {
-											stepPayload.AccessPredicates = fmt.Sprintf("%s, unobfuscated filter: %s", stepPayload.AccessPredicates, stepRow.AccessPredicates.String)
-										}
-										log.Errorf("%s %s", c.logPrompt, stepPayload.AccessPredicates)
-									}
-								}
-								if stepRow.FilterPredicates.Valid {
-									obfuscated, err := o.ObfuscateSQLString(stepRow.FilterPredicates.String)
-									if err == nil {
-										stepPayload.FilterPredicates = obfuscated.Query
-									} else {
-										stepPayload.FilterPredicates = "Filter obfuscation error"
-										if c.config.ExecutionPlans.LogUnobfuscatedPlans {
-											stepPayload.FilterPredicates = fmt.Sprintf("%s, unobfuscated filter: %s", stepPayload.FilterPredicates, stepRow.FilterPredicates.String)
-										}
-										log.Errorf("%s %s", c.logPrompt, stepPayload.FilterPredicates)
-									}
-								}
+								handlePredicate("access", stepRow.AccessPredicates, &stepPayload.AccessPredicates, statementMetricRow, c, o)
+								handlePredicate("filter", stepRow.FilterPredicates, &stepPayload.FilterPredicates, statementMetricRow, c, o)
 								if stepRow.Projection.Valid {
 									stepPayload.Projection = stepRow.Projection.String
 								}

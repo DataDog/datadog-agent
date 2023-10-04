@@ -1,0 +1,14 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+security:
+  - |
+    APM: The Agent now obfuscates the entire Memcached command by
+    default. You can revert to the previous behavior where only the values
+    were obfuscated by setting ``DD_APM_OBFUSCATION_MEMCACHED_KEEP_COMMAND=true``
+    or ``apm_config.obfuscation.memcached.keep_command: true`` in datadog.yaml. 

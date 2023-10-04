@@ -51,7 +51,11 @@ apm_config:
 
   filter_tags:
     require: ["env:prod", "db:mongodb"]
-    reject: ["outcome:success"]
+    reject: ["outcome:success", "bad-key:bad-value"]
+
+  filter_tags_regex:
+    require: ["env:^prod123$", "type: ^internal$"]
+    reject: ["filter:^true$", "bad-key:$another-bad-value$"]
 
   replace_tags:
     - name: "http.method"
@@ -81,6 +85,7 @@ apm_config:
       remove_all_args: true
     memcached:
       enabled: true
+      keep_command: true
     credit_cards:
       enabled: true
       luhn: true

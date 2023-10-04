@@ -83,10 +83,10 @@ type Resolver struct {
 	execFileCacheMap *lib.Map
 	procCacheMap     *lib.Map
 	pidCacheMap      *lib.Map
-	cacheSize        *atomic.Int64
 	opts             ResolverOpts
 
 	// stats
+	cacheSize                 *atomic.Int64
 	hitsStats                 map[string]*atomic.Int64
 	missStats                 *atomic.Int64
 	addedEntriesFromEvent     *atomic.Int64
@@ -99,6 +99,7 @@ type Resolver struct {
 	envsTruncated             *atomic.Int64
 	envsSize                  *atomic.Int64
 	brokenLineage             *atomic.Int64
+	inodeErrStats             *atomic.Int64
 
 	entryCache    map[uint32]*model.ProcessCacheEntry
 	argsEnvsCache *simplelru.LRU[uint32, *argsEnvsCacheEntry]
@@ -109,41 +110,6 @@ type Resolver struct {
 	procFallbackLimiter *utils.Limiter[uint32]
 
 	exitedQueue []uint32
-}
-
-// Pool defines a pool for process entry allocations
-type Pool struct {
-	pool *sync.Pool
-}
-
-// Get returns a cache entry
-func (p *Pool) Get() *model.ProcessCacheEntry {
-	return p.pool.Get().(*model.ProcessCacheEntry)
-}
-
-// Put returns a cache entry
-func (p *Pool) Put(pce *model.ProcessCacheEntry) {
-	pce.Reset()
-	p.pool.Put(pce)
-}
-
-// NewProcessCacheEntryPool returns a new Pool
-func NewProcessCacheEntryPool(p *Resolver) *Pool {
-	pcep := Pool{pool: &sync.Pool{}}
-
-	pcep.pool.New = func() interface{} {
-		return model.NewProcessCacheEntry(func(pce *model.ProcessCacheEntry) {
-			if pce.Ancestor != nil {
-				pce.Ancestor.Release()
-			}
-
-			p.cacheSize.Dec()
-
-			pcep.Put(pce)
-		})
-	}
-
-	return &pcep
 }
 
 // DequeueExited dequeue exited process
@@ -190,11 +156,11 @@ func (p *Resolver) CountBrokenLineage() {
 
 // SendStats sends process resolver metrics
 func (p *Resolver) SendStats() error {
-	if err := p.statsdClient.Gauge(metrics.MetricProcessResolverCacheSize, p.GetCacheSize(), []string{}, 1.0); err != nil {
+	if err := p.statsdClient.Gauge(metrics.MetricProcessResolverCacheSize, p.getCacheSize(), []string{}, 1.0); err != nil {
 		return fmt.Errorf("failed to send process_resolver cache_size metric: %w", err)
 	}
 
-	if err := p.statsdClient.Gauge(metrics.MetricProcessResolverReferenceCount, p.GetEntryCacheSize(), []string{}, 1.0); err != nil {
+	if err := p.statsdClient.Gauge(metrics.MetricProcessResolverReferenceCount, p.getEntryCacheSize(), []string{}, 1.0); err != nil {
 		return fmt.Errorf("failed to send process_resolver reference_count metric: %w", err)
 	}
 
@@ -272,6 +238,12 @@ func (p *Resolver) SendStats() error {
 		}
 	}
 
+	if count := p.inodeErrStats.Swap(0); count > 0 {
+		if err := p.statsdClient.Count(metrics.MetricProcessInodeError, count, []string{}, 1.0); err != nil {
+			return fmt.Errorf("failed to send process_resolver inode error metric: %w", err)
+		}
+	}
+
 	return nil
 }
 
@@ -322,19 +294,19 @@ func (p *Resolver) UpdateArgsEnvs(event *model.ArgsEnvsEvent) {
 }
 
 // AddForkEntry adds an entry to the local cache and returns the newly created entry
-func (p *Resolver) AddForkEntry(entry *model.ProcessCacheEntry) {
+func (p *Resolver) AddForkEntry(entry *model.ProcessCacheEntry, inode uint64) {
 	p.Lock()
 	defer p.Unlock()
 
-	p.insertForkEntry(entry, model.ProcessCacheEntryFromEvent)
+	p.insertForkEntry(entry, inode, model.ProcessCacheEntryFromEvent)
 }
 
 // AddExecEntry adds an entry to the local cache and returns the newly created entry
-func (p *Resolver) AddExecEntry(entry *model.ProcessCacheEntry) {
+func (p *Resolver) AddExecEntry(entry *model.ProcessCacheEntry, inode uint64) {
 	p.Lock()
 	defer p.Unlock()
 
-	p.insertExecEntry(entry, model.ProcessCacheEntryFromEvent)
+	p.insertExecEntry(entry, inode, model.ProcessCacheEntryFromEvent)
 }
 
 // enrichEventFromProc uses /proc to enrich a ProcessCacheEntry with additional metadata
@@ -519,28 +491,42 @@ func (p *Resolver) insertEntry(entry, prev *model.ProcessCacheEntry, source uint
 	p.cacheSize.Inc()
 }
 
-func (p *Resolver) insertForkEntry(entry *model.ProcessCacheEntry, source uint64) {
+func (p *Resolver) insertForkEntry(entry *model.ProcessCacheEntry, inode uint64, source uint64) {
 	prev := p.entryCache[entry.Pid]
 	if prev != nil {
 		// this shouldn't happen but it is better to exit the prev and let the new one replace it
 		prev.Exit(entry.ForkTime)
 	}
 
-	parent := p.entryCache[entry.PPid]
-	if parent == nil && entry.PPid >= 1 {
-		parent = p.resolve(entry.PPid, entry.PPid, entry.ExecInode, true)
-	}
+	if entry.Pid != 1 {
+		parent := p.entryCache[entry.PPid]
+		if entry.PPid >= 1 && (parent == nil || parent.FileEvent.Inode != inode) {
+			if candidate := p.resolve(entry.PPid, entry.PPid, inode, true); candidate != nil {
+				parent = candidate
+			} else {
+				entry.IsParentMissing = true
+				p.inodeErrStats.Inc()
+			}
+		}
 
-	if parent != nil {
-		parent.Fork(entry)
+		if parent != nil {
+			parent.Fork(entry)
+		} else {
+			entry.IsParentMissing = true
+		}
 	}
 
 	p.insertEntry(entry, prev, source)
 }
 
-func (p *Resolver) insertExecEntry(entry *model.ProcessCacheEntry, source uint64) {
+func (p *Resolver) insertExecEntry(entry *model.ProcessCacheEntry, inode uint64, source uint64) {
 	prev := p.entryCache[entry.Pid]
 	if prev != nil {
+		if prev.FileEvent.Inode != inode {
+			entry.IsParentMissing = true
+			p.inodeErrStats.Inc()
+		}
+
 		// check exec bomb
 		if prev.Equals(entry) {
 			prev.ApplyExecTimeOf(entry)
@@ -548,6 +534,8 @@ func (p *Resolver) insertExecEntry(entry *model.ProcessCacheEntry, source uint64
 		}
 
 		prev.Exec(entry)
+	} else {
+		entry.IsParentMissing = true
 	}
 
 	p.insertEntry(entry, prev, source)
@@ -837,11 +825,11 @@ func (p *Resolver) resolveFromKernelMaps(pid, tid uint32, inode uint64) *model.P
 	}
 
 	if entry.ExecTime.IsZero() {
-		p.insertForkEntry(entry, model.ProcessCacheEntryFromKernelMap)
-		return entry
+		p.insertForkEntry(entry, entry.FileEvent.Inode, model.ProcessCacheEntryFromKernelMap)
+	} else {
+		p.insertExecEntry(entry, 0, model.ProcessCacheEntryFromKernelMap)
 	}
 
-	p.insertExecEntry(entry, model.ProcessCacheEntryFromKernelMap)
 	return entry
 }
 
@@ -925,7 +913,7 @@ func (p *Resolver) SetProcessArgs(pce *model.ProcessCacheEntry) {
 	}
 }
 
-// GetProcessArgv returns the args of the event as an array
+// GetProcessArgv returns the unscrubbed args of the event as an array. Use with caution.
 func GetProcessArgv(pr *model.Process) ([]string, bool) {
 	if pr.ArgsEntry == nil {
 		return pr.Argv, pr.ArgsTruncated
@@ -954,8 +942,8 @@ func GetProcessArgv0(pr *model.Process) (string, bool) {
 	return pr.Argv0, pr.ArgsTruncated
 }
 
-// GetProcessScrubbedArgv returns the scrubbed args of the event as an array
-func (p *Resolver) GetProcessScrubbedArgv(pr *model.Process) ([]string, bool) {
+// GetProcessArgvScrubbed returns the scrubbed args of the event as an array
+func (p *Resolver) GetProcessArgvScrubbed(pr *model.Process) ([]string, bool) {
 	if pr.ArgsEntry == nil || pr.ScrubbedArgvResolved {
 		return pr.Argv, pr.ArgsTruncated
 	}
@@ -1003,7 +991,7 @@ func (p *Resolver) GetProcessEnvs(pr *model.Process) ([]string, bool) {
 	return pr.Envs, pr.EnvsTruncated
 }
 
-// GetProcessEnvp returns the envs of the event with their values
+// GetProcessEnvp returns the unscrubbed envs of the event with their values. Use with caution.
 func (p *Resolver) GetProcessEnvp(pr *model.Process) ([]string, bool) {
 	if pr.EnvsEntry == nil {
 		return pr.Envp, pr.EnvsTruncated
@@ -1025,13 +1013,13 @@ func (p *Resolver) SetProcessTTY(pce *model.ProcessCacheEntry) string {
 
 // SetProcessUsersGroups resolves and set users and groups
 func (p *Resolver) SetProcessUsersGroups(pce *model.ProcessCacheEntry) {
-	pce.User, _ = p.userGroupResolver.ResolveUser(int(pce.Credentials.UID))
-	pce.EUser, _ = p.userGroupResolver.ResolveUser(int(pce.Credentials.EUID))
-	pce.FSUser, _ = p.userGroupResolver.ResolveUser(int(pce.Credentials.FSUID))
+	pce.User, _ = p.userGroupResolver.ResolveUser(int(pce.Credentials.UID), pce.ContainerID)
+	pce.EUser, _ = p.userGroupResolver.ResolveUser(int(pce.Credentials.EUID), pce.ContainerID)
+	pce.FSUser, _ = p.userGroupResolver.ResolveUser(int(pce.Credentials.FSUID), pce.ContainerID)
 
-	pce.Group, _ = p.userGroupResolver.ResolveGroup(int(pce.Credentials.GID))
-	pce.EGroup, _ = p.userGroupResolver.ResolveGroup(int(pce.Credentials.EGID))
-	pce.FSGroup, _ = p.userGroupResolver.ResolveGroup(int(pce.Credentials.FSGID))
+	pce.Group, _ = p.userGroupResolver.ResolveGroup(int(pce.Credentials.GID), pce.ContainerID)
+	pce.EGroup, _ = p.userGroupResolver.ResolveGroup(int(pce.Credentials.EGID), pce.ContainerID)
+	pce.FSGroup, _ = p.userGroupResolver.ResolveGroup(int(pce.Credentials.FSGID), pce.ContainerID)
 }
 
 // Get returns the cache entry for a specified pid
@@ -1230,7 +1218,7 @@ func (p *Resolver) dumpEntry(writer io.Writer, entry *model.ProcessCacheEntry, a
 			}
 
 			if withArgs {
-				argv, _ := p.GetProcessScrubbedArgv(&entry.Process)
+				argv, _ := p.GetProcessArgvScrubbed(&entry.Process)
 				fmt.Fprintf(writer, `"%d:%s" [label="%s", comment="%s"];`, entry.Pid, entry.Comm, label, strings.Join(argv, " "))
 			} else {
 				fmt.Fprintf(writer, `"%d:%s" [label="%s"];`, entry.Pid, entry.Comm, label)
@@ -1284,15 +1272,15 @@ func (p *Resolver) Dump(withArgs bool) (string, error) {
 	return dump.Name(), nil
 }
 
-// GetCacheSize returns the cache size of the process resolver
-func (p *Resolver) GetCacheSize() float64 {
+// getCacheSize returns the cache size of the process resolver
+func (p *Resolver) getCacheSize() float64 {
 	p.RLock()
 	defer p.RUnlock()
 	return float64(len(p.entryCache))
 }
 
-// GetEntryCacheSize returns the cache size of the process resolver
-func (p *Resolver) GetEntryCacheSize() float64 {
+// getEntryCacheSize returns the cache size of the process resolver
+func (p *Resolver) getEntryCacheSize() float64 {
 	return float64(p.cacheSize.Load())
 }
 
@@ -1343,6 +1331,7 @@ func NewResolver(manager *manager.Manager, config *config.Config, statsdClient s
 		envsTruncated:             atomic.NewInt64(0),
 		envsSize:                  atomic.NewInt64(0),
 		brokenLineage:             atomic.NewInt64(0),
+		inodeErrStats:             atomic.NewInt64(0),
 		containerResolver:         containerResolver,
 		mountResolver:             mountResolver,
 		cgroupResolver:            cgroupResolver,

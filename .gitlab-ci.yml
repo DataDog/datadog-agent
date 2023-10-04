@@ -153,20 +153,20 @@ variables:
   # To use images from datadog-agent-buildimages dev branches, set the corresponding
   # SUFFIX variable to _test_only
   DATADOG_AGENT_BUILDIMAGES_SUFFIX: ""
-  DATADOG_AGENT_BUILDIMAGES: v19979316-3aa3d4b
+  DATADOG_AGENT_BUILDIMAGES: v20878799-a2f77ae
   DATADOG_AGENT_WINBUILDIMAGES_SUFFIX: ""
-  DATADOG_AGENT_WINBUILDIMAGES: v19979316-3aa3d4b
+  DATADOG_AGENT_WINBUILDIMAGES: v20878799-a2f77ae
   DATADOG_AGENT_ARMBUILDIMAGES_SUFFIX: ""
-  DATADOG_AGENT_ARMBUILDIMAGES: v19979316-3aa3d4b
+  DATADOG_AGENT_ARMBUILDIMAGES: v20878799-a2f77ae
   DATADOG_AGENT_SYSPROBE_BUILDIMAGES_SUFFIX: ""
-  DATADOG_AGENT_SYSPROBE_BUILDIMAGES: v19979316-3aa3d4b
+  DATADOG_AGENT_SYSPROBE_BUILDIMAGES: v20878799-a2f77ae
   DATADOG_AGENT_KERNEL_MATRIX_TESTING_BUILDIMAGES_SUFFIX: ""
-  DATADOG_AGENT_KERNEL_MATRIX_TESTING_BUILDIMAGES: v19979316-3aa3d4b
+  DATADOG_AGENT_KERNEL_MATRIX_TESTING_BUILDIMAGES: v20878799-a2f77ae
   DATADOG_AGENT_NIKOS_BUILDIMAGES_SUFFIX: ""
-  DATADOG_AGENT_NIKOS_BUILDIMAGES: v19979316-3aa3d4b
+  DATADOG_AGENT_NIKOS_BUILDIMAGES: v20878799-a2f77ae
   DATADOG_AGENT_BTF_GEN_BUILDIMAGES_SUFFIX: ""
-  DATADOG_AGENT_BTF_GEN_BUILDIMAGES: v19979316-3aa3d4b
-  TEST_INFRA_DEFINITIONS_BUILDIMAGES: f4f52d64a31e
+  DATADOG_AGENT_BTF_GEN_BUILDIMAGES: v20878799-a2f77ae
+  TEST_INFRA_DEFINITIONS_BUILDIMAGES: cb9e86993fd5
   DATADOG_AGENT_BUILDERS: v19474930-fe4bcd9
 
   DATADOG_AGENT_EMBEDDED_PATH: /opt/datadog-agent/embedded
@@ -296,6 +296,8 @@ variables:
 # Rules used to define whether a pipeline should run, and with which variables
 #
 
+# WARNING: Do not change below if you want to globally disable the caching proxy (all branches would need to be rebased for it to be effectively disabled).
+# Instead use the break-glass mechanism by looking for the "Remotely disable Artifactory" doc in Confluence.
 workflow:
   rules:
     - <<: *if_triggered_pipeline
@@ -312,8 +314,8 @@ workflow:
         USE_CACHING_PROXY_RUBY: "true"
     - <<: *if_deploy
       variables:
-        USE_CACHING_PROXY_PYTHON: "false"
-        USE_CACHING_PROXY_RUBY: "false"
+        USE_CACHING_PROXY_PYTHON: "true"
+        USE_CACHING_PROXY_RUBY: "true"
     - if: $CI_COMMIT_TAG == null
       variables:
         USE_CACHING_PROXY_PYTHON: "false"

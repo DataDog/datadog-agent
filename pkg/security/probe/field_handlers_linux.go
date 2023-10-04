@@ -14,6 +14,7 @@ import (
 
 	sprocess "github.com/DataDog/datadog-agent/pkg/security/resolvers/process"
 
+	"github.com/DataDog/datadog-agent/pkg/security/secl/args"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 )
 
@@ -56,6 +57,16 @@ func (fh *FieldHandlers) ResolveFileFilesystem(ev *model.Event, f *model.FileEve
 		}
 	}
 	return f.Filesystem
+}
+
+// ResolveProcessArgsFlags resolves the arguments flags of the event
+func (fh *FieldHandlers) ResolveProcessArgsFlags(ev *model.Event, process *model.Process) (flags []string) {
+	return args.ParseProcessFlags(fh.ResolveProcessArgv(ev, process))
+}
+
+// ResolveProcessArgsOptions resolves the arguments options of the event
+func (fh *FieldHandlers) ResolveProcessArgsOptions(ev *model.Event, process *model.Process) (options []string) {
+	return args.ParseProcessOptions(fh.ResolveProcessArgv(ev, process))
 }
 
 // ResolveFileFieldsInUpperLayer resolves whether the file is in an upper layer
@@ -132,7 +143,7 @@ func (fh *FieldHandlers) ResolveRights(ev *model.Event, e *model.FileFields) int
 // ResolveChownUID resolves the ResolveProcessCacheEntry id of a chown event to a username
 func (fh *FieldHandlers) ResolveChownUID(ev *model.Event, e *model.ChownEvent) string {
 	if len(e.User) == 0 {
-		e.User, _ = fh.resolvers.UserGroupResolver.ResolveUser(int(e.UID))
+		e.User, _ = fh.resolvers.UserGroupResolver.ResolveUser(int(e.UID), ev.ContainerContext.ID)
 	}
 	return e.User
 }
@@ -140,7 +151,7 @@ func (fh *FieldHandlers) ResolveChownUID(ev *model.Event, e *model.ChownEvent) s
 // ResolveChownGID resolves the group id of a chown event to a group name
 func (fh *FieldHandlers) ResolveChownGID(ev *model.Event, e *model.ChownEvent) string {
 	if len(e.Group) == 0 {
-		e.Group, _ = fh.resolvers.UserGroupResolver.ResolveGroup(int(e.GID))
+		e.Group, _ = fh.resolvers.UserGroupResolver.ResolveGroup(int(e.GID), ev.ContainerContext.ID)
 	}
 	return e.Group
 }
@@ -156,9 +167,15 @@ func (fh *FieldHandlers) ResolveProcessArgs(ev *model.Event, process *model.Proc
 	return strings.Join(fh.ResolveProcessArgv(ev, process), " ")
 }
 
-// ResolveProcessArgv resolves the args of the event as an array
+// ResolveProcessArgv resolves the unscrubbed args of the process as an array. Use with caution.
 func (fh *FieldHandlers) ResolveProcessArgv(ev *model.Event, process *model.Process) []string {
 	argv, _ := sprocess.GetProcessArgv(process)
+	return argv
+}
+
+// ResolveProcessArgvScrubbed resolves the args of the process as an array
+func (fh *FieldHandlers) ResolveProcessArgvScrubbed(ev *model.Event, process *model.Process) []string {
+	argv, _ := fh.resolvers.ProcessResolver.GetProcessArgvScrubbed(process)
 	return argv
 }
 
@@ -180,7 +197,7 @@ func (fh *FieldHandlers) ResolveProcessEnvsTruncated(ev *model.Event, process *m
 	return truncated
 }
 
-// ResolveProcessEnvs resolves the envs of the event
+// ResolveProcessEnvs resolves the unscrubbed envs of the event. Use with caution.
 func (fh *FieldHandlers) ResolveProcessEnvs(ev *model.Event, process *model.Process) []string {
 	envs, _ := fh.resolvers.ProcessResolver.GetProcessEnvs(process)
 	return envs
@@ -189,7 +206,7 @@ func (fh *FieldHandlers) ResolveProcessEnvs(ev *model.Event, process *model.Proc
 // ResolveSetuidUser resolves the user of the Setuid event
 func (fh *FieldHandlers) ResolveSetuidUser(ev *model.Event, e *model.SetuidEvent) string {
 	if len(e.User) == 0 {
-		e.User, _ = fh.resolvers.UserGroupResolver.ResolveUser(int(e.UID))
+		e.User, _ = fh.resolvers.UserGroupResolver.ResolveUser(int(e.UID), ev.ContainerContext.ID)
 	}
 	return e.User
 }
@@ -197,7 +214,7 @@ func (fh *FieldHandlers) ResolveSetuidUser(ev *model.Event, e *model.SetuidEvent
 // ResolveSetuidEUser resolves the effective user of the Setuid event
 func (fh *FieldHandlers) ResolveSetuidEUser(ev *model.Event, e *model.SetuidEvent) string {
 	if len(e.EUser) == 0 {
-		e.EUser, _ = fh.resolvers.UserGroupResolver.ResolveUser(int(e.EUID))
+		e.EUser, _ = fh.resolvers.UserGroupResolver.ResolveUser(int(e.EUID), ev.ContainerContext.ID)
 	}
 	return e.EUser
 }
@@ -205,7 +222,7 @@ func (fh *FieldHandlers) ResolveSetuidEUser(ev *model.Event, e *model.SetuidEven
 // ResolveSetuidFSUser resolves the file-system user of the Setuid event
 func (fh *FieldHandlers) ResolveSetuidFSUser(ev *model.Event, e *model.SetuidEvent) string {
 	if len(e.FSUser) == 0 {
-		e.FSUser, _ = fh.resolvers.UserGroupResolver.ResolveUser(int(e.FSUID))
+		e.FSUser, _ = fh.resolvers.UserGroupResolver.ResolveUser(int(e.FSUID), ev.ContainerContext.ID)
 	}
 	return e.FSUser
 }
@@ -213,7 +230,7 @@ func (fh *FieldHandlers) ResolveSetuidFSUser(ev *model.Event, e *model.SetuidEve
 // ResolveSetgidGroup resolves the group of the Setgid event
 func (fh *FieldHandlers) ResolveSetgidGroup(ev *model.Event, e *model.SetgidEvent) string {
 	if len(e.Group) == 0 {
-		e.Group, _ = fh.resolvers.UserGroupResolver.ResolveUser(int(e.GID))
+		e.Group, _ = fh.resolvers.UserGroupResolver.ResolveUser(int(e.GID), ev.ContainerContext.ID)
 	}
 	return e.Group
 }
@@ -221,7 +238,7 @@ func (fh *FieldHandlers) ResolveSetgidGroup(ev *model.Event, e *model.SetgidEven
 // ResolveSetgidEGroup resolves the effective group of the Setgid event
 func (fh *FieldHandlers) ResolveSetgidEGroup(ev *model.Event, e *model.SetgidEvent) string {
 	if len(e.EGroup) == 0 {
-		e.EGroup, _ = fh.resolvers.UserGroupResolver.ResolveUser(int(e.EGID))
+		e.EGroup, _ = fh.resolvers.UserGroupResolver.ResolveUser(int(e.EGID), ev.ContainerContext.ID)
 	}
 	return e.EGroup
 }
@@ -229,7 +246,7 @@ func (fh *FieldHandlers) ResolveSetgidEGroup(ev *model.Event, e *model.SetgidEve
 // ResolveSetgidFSGroup resolves the file-system group of the Setgid event
 func (fh *FieldHandlers) ResolveSetgidFSGroup(ev *model.Event, e *model.SetgidEvent) string {
 	if len(e.FSGroup) == 0 {
-		e.FSGroup, _ = fh.resolvers.UserGroupResolver.ResolveUser(int(e.FSGID))
+		e.FSGroup, _ = fh.resolvers.UserGroupResolver.ResolveUser(int(e.FSGID), ev.ContainerContext.ID)
 	}
 	return e.FSGroup
 }
@@ -259,7 +276,7 @@ func (fh *FieldHandlers) GetProcessCacheEntry(ev *model.Event) (*model.ProcessCa
 // ResolveFileFieldsGroup resolves the group id of the file to a group name
 func (fh *FieldHandlers) ResolveFileFieldsGroup(ev *model.Event, e *model.FileFields) string {
 	if len(e.Group) == 0 {
-		e.Group, _ = fh.resolvers.UserGroupResolver.ResolveGroup(int(e.GID))
+		e.Group, _ = fh.resolvers.UserGroupResolver.ResolveGroup(int(e.GID), ev.ContainerContext.ID)
 	}
 	return e.Group
 }
@@ -279,7 +296,7 @@ func (fh *FieldHandlers) ResolveNetworkDeviceIfName(ev *model.Event, device *mod
 // ResolveFileFieldsUser resolves the user id of the file to a username
 func (fh *FieldHandlers) ResolveFileFieldsUser(ev *model.Event, e *model.FileFields) string {
 	if len(e.User) == 0 {
-		e.User, _ = fh.resolvers.UserGroupResolver.ResolveUser(int(e.UID))
+		e.User, _ = fh.resolvers.UserGroupResolver.ResolveUser(int(e.UID), ev.ContainerContext.ID)
 	}
 	return e.User
 }
@@ -360,7 +377,7 @@ func (fh *FieldHandlers) ResolvePackageSourceVersion(ev *model.Event, f *model.F
 	return f.PkgSrcVersion
 }
 
-// ResolveModuleArgv resolves the args of the event as an array
+// ResolveModuleArgv resolves the unscrubbed args of the module as an array. Use with caution.
 func (fh *FieldHandlers) ResolveModuleArgv(ev *model.Event, module *model.LoadModuleEvent) []string {
 	// strings.Split return [""] if args is empty, so we do a manual check before
 	if len(module.Args) == 0 {

@@ -18,7 +18,6 @@ import (
 	"google.golang.org/grpc"
 
 	"github.com/DataDog/datadog-agent/cmd/system-probe/config"
-	"github.com/DataDog/datadog-agent/pkg/network/driver"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -65,8 +64,8 @@ func withModule(name config.ModuleName, fn func()) {
 // * Registering the HTTP endpoints of each module;
 // * Register the gRPC server;
 func Register(cfg *config.Config, httpMux *mux.Router, grpcServer *grpc.Server, factories []Factory) error {
-	if err := driver.Init(cfg); err != nil {
-		log.Warnf("Failed to load driver subsystem %v", err)
+	if err := preRegister(cfg); err != nil {
+		return fmt.Errorf("error in pre-register hook: %w", err)
 	}
 
 	for _, factory := range factories {
@@ -116,15 +115,10 @@ func Register(cfg *config.Config, httpMux *mux.Router, grpcServer *grpc.Server, 
 		log.Infof("module %s started", factory.Name)
 	}
 
-	if !driver.IsNeeded() {
-		// if running, shut it down
-		log.Debug("Shutting down the driver.  Upon successful initialization, it was not needed by the current configuration.")
-
-		// shut the driver down and  disable it
-		if err := driver.ForceStop(); err != nil {
-			log.Warnf("error stopping driver: %s", err)
-		}
+	if err := postRegister(cfg); err != nil {
+		return fmt.Errorf("error in post-register hook: %w", err)
 	}
+
 	l.cfg = cfg
 	if len(l.modules) == 0 {
 		return errors.New("no module could be loaded")

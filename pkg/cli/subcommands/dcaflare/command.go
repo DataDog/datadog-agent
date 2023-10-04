@@ -13,6 +13,7 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/agent/common/path"
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/core/flare/helpers"
 	"github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/api/util"
@@ -215,7 +216,7 @@ func run(log log.Component, config config.Component, cliParams *cliParams) error
 		}
 	}
 
-	response, e := flare.SendFlare(filePath, cliParams.caseID, cliParams.email, "local")
+	response, e := flare.SendFlare(filePath, cliParams.caseID, cliParams.email, helpers.NewLocalFlareSource())
 	fmt.Println(response)
 	if e != nil {
 		return e
