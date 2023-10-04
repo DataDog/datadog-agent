@@ -148,6 +148,12 @@ func (gd *USMConnectionData[K, V]) IsPIDCollision(c network.ConnectionStats) boo
 // Close `USMConnectionIndex` and report orphan aggregations
 func (bc *USMConnectionIndex[K, V]) Close() {
 	bc.once.Do(func() {
+		// Count the number of USM connections for this particular protocol
+		telemetry.NewCounter(
+			fmt.Sprintf("usm.%s.connections", bc.protocol),
+			telemetry.OptPrometheus,
+		).Add(int64(len(bc.data)))
+
 		// Determine count of orphan aggregations
 		var total int
 		for _, value := range bc.data {
