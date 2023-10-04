@@ -45,11 +45,9 @@ func computeDefaultEventsRingBufferSize() uint32 {
 
 	if numCPU <= 16 {
 		return uint32(8 * 256 * os.Getpagesize())
-	} else if numCPU <= 64 {
-		return uint32(16 * 256 * os.Getpagesize())
 	}
 
-	return uint32(32 * 256 * os.Getpagesize())
+	return uint32(16 * 256 * os.Getpagesize())
 }
 
 // AllProbes returns the list of all the probes of the runtime security module
