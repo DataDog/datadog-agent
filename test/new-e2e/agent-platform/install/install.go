@@ -16,7 +16,7 @@ import (
 // Unix install the agent from install script
 func Unix(t *testing.T, client *common.ExtendedClient) {
 	t.Run("Installing the agent", func(tt *testing.T) {
-		cmd := `DD_API_KEY="aaaaaaaaaa" DD_SITE="datadoghq.com" bash -c "$(curl -L https://s3.amazonaws.com/dd-agent/scripts/install_script_agent7.sh)"`
+		cmd := `DD_API_KEY="aaaaaaaaaa" DD_SITE="datadoghq.eu" bash -c "$(curl -L https://s3.amazonaws.com/dd-agent/scripts/install_script_agent7.sh)"`
 		_, err := client.VMClient.ExecuteWithError(cmd)
 		require.NoError(tt, err, "agent installation should not return any error: ", err)
 	})

@@ -88,7 +88,7 @@ func (c *ExtendedClient) CheckPortBound(port int) error {
 // SetConfig set config given a key and a path to a yaml config file, support key nested twice at most
 func (c *ExtendedClient) SetConfig(confPath string, key string, value string) error {
 	confYaml := map[string]any{}
-	conf, err := c.VMClient.ExecuteWithError(fmt.Sprintf("cat %s", confPath))
+	conf, err := c.VMClient.ExecuteWithError(fmt.Sprintf("sudo cat %s", confPath))
 	if err != nil {
 		fmt.Printf("config file: %s not found, it will be created\n", confPath)
 	}

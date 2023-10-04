@@ -41,7 +41,7 @@ func CheckInstallationInstallScript(t *testing.T, client *ExtendedClient) {
 
 	t.Run("site config attribute", func(tt *testing.T) {
 		var configJSON map[string]any
-		config := client.VMClient.Execute("cat /etc/datadog-agent/datadog.yaml")
+		config := client.VMClient.Execute("sudo cat /etc/datadog-agent/datadog.yaml")
 
 		err := yaml.Unmarshal([]byte(config), &configJSON)
 		require.NoError(tt, err)
@@ -50,7 +50,7 @@ func CheckInstallationInstallScript(t *testing.T, client *ExtendedClient) {
 
 	t.Run("install info file", func(tt *testing.T) {
 		var installInfoYaml map[string]map[string]string
-		installInfo := client.VMClient.Execute("cat /etc/datadog-agent/install_info")
+		installInfo := client.VMClient.Execute("sudo cat /etc/datadog-agent/install_info")
 		err := yaml.Unmarshal([]byte(installInfo), &installInfoYaml)
 		require.NoError(tt, err)
 		toolVersionRegex := regexp.MustCompile(`^install_script_agent\d+$`)
