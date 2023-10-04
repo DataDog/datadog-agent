@@ -37,6 +37,16 @@ type scanRequest struct {
 	ch        chan<- sbom.ScanResult
 }
 
+// sendResult sends a ScanResult to the channel associated with the scan request.
+// This function should not be blocking
+func (request *scanRequest) sendResult(result *sbom.ScanResult) {
+	select {
+	case request.ch <- *result:
+	default:
+		log.Errorf("Failed to push scanner result for '%s' into channel", request.ID())
+	}
+}
+
 // Scanner defines the scanner
 type Scanner struct {
 	startOnce sync.Once
@@ -78,14 +88,6 @@ func (s *Scanner) enoughDiskSpace(opts sbom.ScanOptions) error {
 	return nil
 }
 
-func sendResult(request *scanRequest, result *sbom.ScanResult) {
-	select {
-	case request.ch <- *result:
-	default:
-		log.Errorf("Failed to push scanner result for '%s' into channel", request.ID())
-	}
-}
-
 func (s *Scanner) start(ctx context.Context) {
 	if s.running {
 		return
@@ -124,7 +126,7 @@ func (s *Scanner) start(ctx context.Context) {
 						ImgMeta: imgMeta,
 						Error:   fmt.Errorf("failed to check current disk usage: %w", err),
 					}
-					sendResult(&request, &result)
+					request.sendResult(&result)
 					telemetry.SBOMFailures.Inc(request.Collector(), request.Type(), "disk_space")
 					continue
 				}
@@ -146,7 +148,7 @@ func (s *Scanner) start(ctx context.Context) {
 					telemetry.SBOMGenerationDuration.Observe(generationDuration.Seconds(), request.Collector(), request.Type())
 				}
 				cancel()
-				sendResult(&request, &scanResult)
+				request.sendResult(&scanResult)
 				if request.opts.WaitAfter != 0 {
 					t := time.NewTimer(request.opts.WaitAfter)
 					select {
