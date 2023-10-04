@@ -509,7 +509,7 @@ def changelog(ctx, new_commit_sha):
         commit_str = ctx.run(f"git show --name-only --pretty=format:%s%n%aN%n%aE {commit}", hide=True).stdout
         title, author, author_email, files, url = parse(commit_str)
         if is_system_probe(owners, files):
-            message = f"{title} <{url}|PR> {author}"
+            message = f"{title} (<{url}|PR Link>) {author}"
             messages.append(message)
             if "dependabot" not in author_email and "github-actions" not in author_email:
                 unique_emails.add(author_email)
