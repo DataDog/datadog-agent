@@ -509,7 +509,7 @@ def changelog(ctx, new_commit_sha):
         commit_str = ctx.run(f"git show --name-only --pretty=format:%s%n%aN%n%aE {commit}", hide=True).stdout
         title, author, author_email, files, url = parse(commit_str)
         if is_system_probe(owners, files):
-            message = f"{title} ({url}) {author}"
+            message = f"{title} <{url}|PR> {author}"
             messages.append(message)
             if "dependabot" not in author_email and "github-actions" not in author_email:
                 unique_emails.add(author_email)
@@ -518,7 +518,8 @@ def changelog(ctx, new_commit_sha):
         content = (
             f"Changelog for commit range: `{old_commit_sha}` to `{new_commit_sha}`\n"
             + "\n".join(messages)
-            + "\n:wave: Authors, please check relevant dashboards for issues: "
+            + "\n:wave: Authors, please check relevant "
+              "<https://ddstaging.datadoghq.com/dashboard/kfn-zy2-t98|dashboards> for issues:"
         )
         file.write(content)
 
