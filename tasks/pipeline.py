@@ -472,7 +472,7 @@ def parse(commit_str):
     url = "NO_URL"
     pr_id_match = re.search(r".*\(#(\d+)\)", title)
     if pr_id_match is not None:
-        url = f"https://github.com//DataDog/datadog-agent/pull/{pr_id_match.group(1)}"
+        url = f"https://github.com/DataDog/datadog-agent/pull/{pr_id_match.group(1)}"
     author = lines[1]
     author_email = lines[2]
     files = lines[3:]
@@ -510,7 +510,7 @@ def changelog(ctx, new_commit_sha):
         title, author, author_email, files, url = parse(commit_str)
         if is_system_probe(owners, files):
             print(f"Author Email: {author_email.strip()}")
-            author_handle = ctx.run(f"email2slackid ${author_email.strip()}", hide=True).stdout or author_email
+            author_handle = ctx.run(f"email2slackid {author_email.strip()}", hide=True).stdout or author_email
             time.sleep(1)
             print(f"Author Handle: {author_handle}")
             author_handle = "U049LRNEE01"
