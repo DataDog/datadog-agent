@@ -8,4 +8,4 @@
 ---
 fixes:
   - |
-    Remove openmetrics endpoint default value from containerd check default configuration.
+    Remove openmetrics endpoint default value from `containerd` check default configuration.
