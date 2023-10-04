@@ -60,7 +60,7 @@ type ScanRequest interface {
 	ID() string
 }
 
-// ImageScanRequests defines methods exclusive to image scan requests
+// ImageScanRequest defines methods exclusive to image scan requests
 type ImageScanRequest interface {
 	// GetImgMetadata() returns the image metadata.
 	GetImgMetadata() *workloadmeta.ContainerImageMetadata
