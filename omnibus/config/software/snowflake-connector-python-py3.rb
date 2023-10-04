@@ -29,5 +29,11 @@ build do
     pip = "#{install_dir}/embedded/bin/pip3"
   end
 
-  command "#{pip} install ."
+  # We need a newer version of oscrypto than the one released to get a fix for a bug
+  # that gets triggered when having double digits on the OpenSSL version
+  # (https://github.com/wbond/oscrypto/issues/75).
+  # We can remove the oscrypto pinning once the fix becomes part of a new release
+  oscrypto_commit = "d5f3437ed24257895ae1edd9e503cfb352e635a8"
+
+  command "#{pip} install . \"oscrypto @ git+https://github.com/wbond/oscrypto.git@#{oscrypto_commit}\""
 end
