@@ -71,7 +71,7 @@ func (c *Check) init() error {
 	if c.dbHostname != "" {
 		tags = append(tags, fmt.Sprintf("host:%s", c.dbHostname), fmt.Sprintf("db_server:%s", c.dbHostname))
 	}
-	tags = append(tags, fmt.Sprintf("db_instance:%s/%s", c.dbHostname, c.cdbName), fmt.Sprintf("oracle_version:%s", c.dbVersion))
+	tags = append(tags, fmt.Sprintf("database_instance:%s/%s", c.dbHostname, c.cdbName), fmt.Sprintf("oracle_version:%s", c.dbVersion))
 
 	c.logPrompt = fmt.Sprintf("%s@%s> ", c.cdbName, c.dbHostname)
 
