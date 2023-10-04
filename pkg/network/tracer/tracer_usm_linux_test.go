@@ -685,17 +685,6 @@ func testProtocolConnectionProtocolMapCleanup(t *testing.T, tr *Tracer, clientHo
 	})
 }
 
-// Java Injection and TLS tests
-func createJavaTempFile(t *testing.T, dir string) string {
-	tempfile, err := os.CreateTemp(dir, "TestAgentLoaded.agentmain.*")
-	require.NoError(t, err)
-	tempfile.Close()
-	os.Remove(tempfile.Name())
-	t.Cleanup(func() { os.Remove(tempfile.Name()) })
-
-	return tempfile.Name()
-}
-
 func (s *USMSuite) TestJavaInjection() {
 	t := s.T()
 	if !httpsSupported() {
