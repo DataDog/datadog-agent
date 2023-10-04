@@ -9,6 +9,7 @@
 package compliance
 
 import (
+	"bytes"
 	"context"
 	"encoding/binary"
 	"expvar"
@@ -257,17 +258,10 @@ func (a *Agent) runRegoBenchmarks(ctx context.Context) {
 			if sleepRandomJitter(ctx, checkInterval, runCount, a.opts.Hostname, benchmark.FrameworkID) {
 				return
 			}
-
 			resolver := NewResolver(ctx, a.opts.ResolverOptions)
 			for _, rule := range benchmark.Rules {
-				inputs, err := resolver.ResolveInputs(ctx, rule)
-				if err != nil {
-					a.reportCheckEvents(checkInterval, CheckEventFromError(RegoEvaluator, rule, benchmark, err))
-				} else {
-					events := EvaluateRegoRule(ctx, inputs, benchmark, rule)
-					a.reportCheckEvents(checkInterval, events...)
-				}
-
+				events, hash := a.resolveAndEvaluateRegoRule(ctx, resolver, rule, benchmark)
+				a.reportCheckEvents(rule.ID, hash, checkInterval, events...)
 				if sleepAborted(ctx, throttler.C) {
 					resolver.Close()
 					return
@@ -279,6 +273,25 @@ func (a *Agent) runRegoBenchmarks(ctx context.Context) {
 			return
 		}
 	}
+}
+
+func (a *Agent) resolveAndEvaluateRegoRule(ctx context.Context, resolver Resolver, rule *Rule, benchmark *Benchmark) ([]*CheckEvent, []byte) {
+	resolved, err := resolver.ResolveInputs(ctx, rule)
+	if err != nil {
+		return []*CheckEvent{
+			CheckEventFromError(RegoEvaluator, rule, benchmark, err),
+		}, nil
+	}
+	sum, ok := resolved.HashSum()
+	if ok {
+		a.statusesMu.RLock()
+		status := a.statuses[rule.ID]
+		a.statusesMu.RUnlock()
+		if bytes.Equal(sum, status.LastSum) {
+			return status.LastEvents, status.LastSum
+		}
+	}
+	return EvaluateRegoRule(ctx, resolved, benchmark, rule), sum
 }
 
 func (a *Agent) runXCCDFBenchmarks(ctx context.Context) {
@@ -313,7 +326,7 @@ func (a *Agent) runXCCDFBenchmarks(ctx context.Context) {
 			}
 			for _, rule := range benchmark.Rules {
 				events := EvaluateXCCDFRule(ctx, a.opts.Hostname, a.opts.StatsdClient, benchmark, rule)
-				a.reportCheckEvents(checkInterval, events...)
+				a.reportCheckEvents(rule.ID, nil, checkInterval, events...)
 				if sleepAborted(ctx, throttler.C) {
 					FinishXCCDFBenchmark(ctx, benchmark)
 					return
@@ -380,12 +393,12 @@ func (a *Agent) reportResourceLog(resourceTTL time.Duration, resourceLog *Resour
 	a.opts.Reporter.ReportEvent(resourceLog)
 }
 
-func (a *Agent) reportCheckEvents(eventsTTL time.Duration, events ...*CheckEvent) {
+func (a *Agent) reportCheckEvents(ruleID string, sum []byte, eventsTTL time.Duration, events ...*CheckEvent) {
 	store := workloadmeta.GetGlobalStore()
 	eventsExpireAt := time.Now().Add(2 * eventsTTL).Truncate(1 * time.Second)
+	a.updateEvents(ruleID, sum, events)
 	for _, event := range events {
 		event.ExpireAt = &eventsExpireAt
-		a.updateEvent(event)
 		if event.Result == CheckSkipped {
 			continue
 		}
@@ -455,25 +468,28 @@ func (a *Agent) addBenchmarks(benchmarks ...*Benchmark) {
 	}
 }
 
-func (a *Agent) updateEvent(event *CheckEvent) {
+func (a *Agent) updateEvents(ruleID string, sum []byte, events []*CheckEvent) {
 	if client := a.opts.StatsdClient; client != nil {
-		tags := []string{
-			"rule_id:" + event.RuleID,
-			"rule_result:" + string(event.Result),
-			"agent_version:" + event.AgentVersion,
-		}
-		if err := client.Gauge(metrics.MetricChecksStatuses, 1, tags, 1.0); err != nil {
-			log.Errorf("failed to send checks metric: %v", err)
+		for _, event := range events {
+			tags := []string{
+				"rule_id:" + ruleID,
+				"rule_result:" + string(event.Result),
+				"agent_version:" + event.AgentVersion,
+			}
+			if err := client.Gauge(metrics.MetricChecksStatuses, 1, tags, 1.0); err != nil {
+				log.Errorf("failed to send checks metric: %v", err)
+			}
 		}
 	}
 
 	a.statusesMu.Lock()
 	defer a.statusesMu.Unlock()
-	status, ok := a.statuses[event.RuleID]
+	status, ok := a.statuses[ruleID]
 	if !ok || status == nil {
-		log.Errorf("check for rule=%s was not registered in checks monitor statuses", event.RuleID)
+		log.Errorf("check for rule=%s was not registered in checks monitor statuses", ruleID)
 	} else {
-		status.LastEvent = event
+		status.LastSum = sum
+		status.LastEvents = events
 	}
 }
 

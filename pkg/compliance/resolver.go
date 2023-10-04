@@ -100,7 +100,7 @@ type ResolverOptions struct {
 // associated with a given rule. The Close() method should be called whenever
 // the resolver is stopped being used to cleanup underlying resources.
 type Resolver interface {
-	ResolveInputs(ctx context.Context, rule *Rule) (ResolvedInputs, error)
+	ResolveInputs(ctx context.Context, rule *Rule) (*ResolvedInputs, error)
 	Close()
 }
 
@@ -167,7 +167,7 @@ func (r *defaultResolver) Close() {
 	r.kubeResourcesCache = nil
 }
 
-func (r *defaultResolver) ResolveInputs(ctx context.Context, rule *Rule) (ResolvedInputs, error) {
+func (r *defaultResolver) ResolveInputs(ctx context.Context, rule *Rule) (*ResolvedInputs, error) {
 	resolvingContext := ResolvingContext{
 		RuleID:     rule.ID,
 		Hostname:   r.opts.Hostname,
@@ -205,7 +205,7 @@ func (r *defaultResolver) ResolveInputs(ctx context.Context, rule *Rule) (Resolv
 		}
 	}
 
-	resolved := make(map[string]interface{})
+	resolved := NewResolvedInputs()
 	for _, spec := range rule.InputSpecs {
 		start := time.Now()
 
@@ -217,29 +217,31 @@ func (r *defaultResolver) ResolveInputs(ctx context.Context, rule *Rule) (Resolv
 		switch {
 		case spec.File != nil:
 			resultType = "file"
-			result, err = r.resolveFile(ctx, rootPath, *spec.File)
+			result, err = r.resolveFile(ctx, resolved, rootPath, *spec.File)
 		case spec.Process != nil:
 			resultType = "process"
-			result, err = r.resolveProcess(ctx, *spec.Process)
+			result, err = r.resolveProcess(ctx, resolved, *spec.Process)
 		case spec.Group != nil:
 			resultType = "group"
-			result, err = r.resolveGroup(ctx, *spec.Group)
+			result, err = r.resolveGroup(ctx, resolved, *spec.Group)
 		case spec.Audit != nil:
 			resultType = "audit"
-			result, err = r.resolveAudit(ctx, *spec.Audit)
+			result, err = r.resolveAudit(ctx, resolved, *spec.Audit)
 		case spec.Docker != nil:
+			resolved.markHashInvalid()
 			resultType = "docker"
 			result, err = r.resolveDocker(ctx, *spec.Docker)
 		case spec.KubeApiserver != nil:
+			resolved.markHashInvalid()
 			resultType = "kubernetes"
 			result, err = r.resolveKubeApiserver(ctx, *spec.KubeApiserver)
 			kubernetesCluster = r.resolveKubeClusterID(ctx)
 		case spec.Package != nil:
 			resultType = "package"
-			result, err = r.resolvePackage(ctx, *spec.Package)
+			result, err = r.resolvePackage(ctx, resolved, *spec.Package)
 		case spec.Constants != nil:
 			resultType = "constants"
-			result = *spec.Constants
+			result = *spec.Constants // not hashed - they are immutable
 		default:
 			return nil, fmt.Errorf("bad input spec")
 		}
@@ -251,24 +253,18 @@ func (r *defaultResolver) ResolveInputs(ctx context.Context, rule *Rule) (Resolv
 		if err != nil {
 			return nil, fmt.Errorf("could not resolve input spec %s(tagged=%q): %w", resultType, tagName, err)
 		}
-
-		if _, ok := resolved[tagName]; ok {
-			return nil, fmt.Errorf("input with tag %q already set", tagName)
+		if r, ok := result.([]interface{}); ok && reflect.ValueOf(r).IsNil() {
+			result = nil
 		}
-		if _, ok := resolvingContext.InputSpecs[tagName]; ok {
-			return nil, fmt.Errorf("input with tag %q already set", tagName)
+
+		err = resolved.Put(tagName, result)
+		if err != nil {
+			return nil, err
 		}
 
 		resolvingContext.InputSpecs[tagName] = spec
 		if kubernetesCluster != "" {
 			resolvingContext.KubernetesCluster = kubernetesCluster
-		}
-
-		if r, ok := result.([]interface{}); ok && reflect.ValueOf(r).IsNil() {
-			result = nil
-		}
-		if result != nil {
-			resolved[tagName] = result
 		}
 
 		if statsdClient := r.opts.StatsdClient; statsdClient != nil && resultType != "constants" {
@@ -286,7 +282,8 @@ func (r *defaultResolver) ResolveInputs(ctx context.Context, rule *Rule) (Resolv
 		}
 	}
 
-	return NewResolvedInputs(resolvingContext, resolved)
+	resolved.SetResolvingContext(resolvingContext)
+	return resolved, nil
 }
 
 func (r *defaultResolver) pathNormalize(rootPath, path string) string {
@@ -346,17 +343,17 @@ func (r *defaultResolver) getFileMeta(path string) (*fileMeta, error) {
 
 var processFlagBuiltinReg = regexp.MustCompile(`process\.flag\("(\S+)",\s*"(\S+)"\)`)
 
-func (r *defaultResolver) resolveFile(ctx context.Context, rootPath string, spec InputSpecFile) (result interface{}, err error) {
+func (r *defaultResolver) resolveFile(ctx context.Context, h *ResolvedInputs, rootPath string, spec InputSpecFile) (result interface{}, err error) {
 	path := strings.TrimSpace(spec.Path)
 	if matches := processFlagBuiltinReg.FindStringSubmatch(path); len(matches) == 3 {
 		processName, processFlag := matches[1], matches[2]
-		result, err = r.resolveFileFromProcessFlag(ctx, rootPath, processName, processFlag, spec.Parser)
+		result, err = r.resolveFileFromProcessFlag(ctx, h, rootPath, processName, processFlag, spec.Parser)
 	} else if spec.Glob != "" && path == "" {
-		result, err = r.resolveFileGlob(ctx, rootPath, spec.Glob, spec.Parser)
+		result, err = r.resolveFileGlob(ctx, h, rootPath, spec.Glob, spec.Parser)
 	} else if strings.Contains(path, "*") {
-		result, err = r.resolveFileGlob(ctx, rootPath, path, spec.Parser)
+		result, err = r.resolveFileGlob(ctx, h, rootPath, path, spec.Parser)
 	} else {
-		result, err = r.resolveFilePath(ctx, rootPath, path, spec.Parser)
+		result, err = r.resolveFilePath(ctx, h, rootPath, path, spec.Parser)
 	}
 	if errors.Is(err, os.ErrPermission) ||
 		errors.Is(err, os.ErrNotExist) ||
@@ -366,7 +363,7 @@ func (r *defaultResolver) resolveFile(ctx context.Context, rootPath string, spec
 	return
 }
 
-func (r *defaultResolver) resolveFilePath(ctx context.Context, rootPath, path, parser string) (interface{}, error) {
+func (r *defaultResolver) resolveFilePath(ctx context.Context, h *ResolvedInputs, rootPath, path, parser string) (interface{}, error) {
 	path = r.pathNormalize(rootPath, path)
 	file, err := r.getFileMeta(path)
 	if err != nil {
@@ -394,17 +391,19 @@ func (r *defaultResolver) resolveFilePath(ctx context.Context, rootPath, path, p
 			return nil, err
 		}
 	}
+
+	h.hashBytes(file.data)
 	return map[string]interface{}{
-		"path":        r.pathRelative(rootPath, path),
-		"glob":        "",
-		"permissions": file.perms,
-		"user":        file.user,
-		"group":       file.group,
-		"content":     content,
+		"path":        h.hashString(r.pathRelative(rootPath, path)),
+		"glob":        h.hashString(""),
+		"permissions": h.hashUint64(file.perms),
+		"user":        h.hashString(file.user),
+		"group":       h.hashString(file.group),
+		"content":     content, // hashed by file.data
 	}, nil
 }
 
-func (r *defaultResolver) resolveFileFromProcessFlag(ctx context.Context, rootPath, name, flag, parser string) (interface{}, error) {
+func (r *defaultResolver) resolveFileFromProcessFlag(ctx context.Context, h *ResolvedInputs, rootPath, name, flag, parser string) (interface{}, error) {
 	procs, err := r.getProcs(ctx)
 	if err != nil {
 		return nil, err
@@ -431,27 +430,27 @@ func (r *defaultResolver) resolveFileFromProcessFlag(ctx context.Context, rootPa
 	if !ok {
 		return nil, nil
 	}
-	return r.resolveFilePath(ctx, rootPath, path, parser)
+	return r.resolveFilePath(ctx, h, rootPath, path, parser)
 }
 
-func (r *defaultResolver) resolveFileGlob(ctx context.Context, rootPath, glob, parser string) (interface{}, error) {
+func (r *defaultResolver) resolveFileGlob(ctx context.Context, h *ResolvedInputs, rootPath, glob, parser string) (interface{}, error) {
 	paths, _ := filepath.Glob(r.pathNormalize(rootPath, glob)) // We ignore errors from Glob which are never I/O errors
 	var resolved []interface{}
 	for _, path := range paths {
 		path = r.pathRelative(rootPath, path)
-		file, err := r.resolveFilePath(ctx, rootPath, path, parser)
+		file, err := r.resolveFilePath(ctx, h, rootPath, path, parser)
 		if err != nil {
 			continue
 		}
 		if f, ok := file.(map[string]interface{}); ok {
-			f["glob"] = glob
+			f["glob"] = h.hashString(glob)
 		}
 		resolved = append(resolved, file)
 	}
 	return resolved, nil
 }
 
-func (r *defaultResolver) resolveProcess(ctx context.Context, spec InputSpecProcess) (interface{}, error) {
+func (r *defaultResolver) resolveProcess(ctx context.Context, h *ResolvedInputs, spec InputSpecProcess) (interface{}, error) {
 	procs, err := r.getProcs(ctx)
 	if err != nil {
 		return nil, err
@@ -475,13 +474,14 @@ func (r *defaultResolver) resolveProcess(ctx context.Context, spec InputSpecProc
 			}
 		}
 		exe, _ := p.Exe()
+
 		resolved = append(resolved, map[string]interface{}{
-			"name":    spec.Name,
-			"pid":     p.Pid,
-			"exe":     exe,
-			"cmdLine": cmdLine,
+			"name":    h.hashString(spec.Name),
+			"pid":     h.hashInt(int(p.Pid)),
+			"exe":     h.hashString(exe),
+			"cmdLine": h.hashStrings(cmdLine),
 			"flags":   parseCmdlineFlags(cmdLine),
-			"envs":    parseEnvironMap(envs, spec.Envs),
+			"envs":    parseEnvironMap(h.hashStrings(envs), spec.Envs),
 		})
 	}
 	return resolved, nil
@@ -498,7 +498,7 @@ func (r *defaultResolver) getProcs(ctx context.Context) ([]*process.Process, err
 	return r.procsCache, nil
 }
 
-func (r *defaultResolver) resolveGroup(ctx context.Context, spec InputSpecGroup) (interface{}, error) {
+func (r *defaultResolver) resolveGroup(ctx context.Context, h *ResolvedInputs, spec InputSpecGroup) (interface{}, error) {
 	f, err := os.Open("/etc/group")
 	if err != nil {
 		return nil, err
@@ -523,16 +523,17 @@ func (r *defaultResolver) resolveGroup(ctx context.Context, spec InputSpecGroup)
 			return nil, fmt.Errorf("failed to parse group ID for %s: %w", spec.Name, err)
 		}
 		users := strings.Split(parts[3], ",")
+
 		return map[string]interface{}{
-			"name":  spec.Name,
-			"users": users,
-			"id":    gid,
+			"name":  h.hashString(spec.Name),
+			"users": h.hashStrings(users),
+			"id":    h.hashInt(gid),
 		}, nil
 	}
 	return nil, nil
 }
 
-func (r *defaultResolver) resolveAudit(ctx context.Context, spec InputSpecAudit) (interface{}, error) {
+func (r *defaultResolver) resolveAudit(ctx context.Context, h *ResolvedInputs, spec InputSpecAudit) (interface{}, error) {
 	cl := r.linuxAuditCl
 	if cl == nil {
 		return nil, ErrIncompatibleEnvironment
@@ -561,10 +562,11 @@ func (r *defaultResolver) resolveAudit(ctx context.Context, spec InputSpecAudit)
 					permissions += "a"
 				}
 			}
+
 			resolved = append(resolved, map[string]interface{}{
-				"path":        spec.Path,
+				"path":        h.hashString(spec.Path),
 				"enabled":     true,
-				"permissions": permissions,
+				"permissions": h.hashString(permissions),
 			})
 		}
 	}
@@ -797,45 +799,54 @@ var rpmDbs = []string{
 	"/var/lib/rpm/Packages",
 }
 
-func (r *defaultResolver) resolvePackage(ctx context.Context, spec InputSpecPackage) (pkg *packageInfo, err error) {
+func (r *defaultResolver) resolvePackage(ctx context.Context, h *ResolvedInputs, spec InputSpecPackage) (result map[string]interface{}, err error) {
 	if len(spec.Names) == 0 {
 		return nil, nil
 	}
 
+	var pkg *packageInfo
+	defer func() {
+		if pkg == nil {
+			return
+		}
+		if r.pkgsCache == nil {
+			r.pkgsCache = make(map[string]*packageInfo)
+		}
+		r.pkgsCache[pkg.Name] = pkg
+
+		result = map[string]interface{}{
+			"name":    h.hashString(pkg.Name),
+			"version": h.hashString(pkg.Version),
+			"arch":    h.hashString(pkg.Arch),
+		}
+	}()
+
 	if r.pkgsCache != nil {
 		for _, name := range spec.Names {
-			if p, ok := r.pkgsCache[name]; ok {
-				return p, nil
+			pkg = r.pkgsCache[name]
+			if pkg != nil {
+				return
 			}
 		}
 	}
 
-	defer func() {
-		if pkg != nil {
-			if r.pkgsCache == nil {
-				r.pkgsCache = make(map[string]*packageInfo)
-			}
-			r.pkgsCache[pkg.Name] = pkg
-		}
-	}()
-
 	// apk
 	apkPath := r.pathNormalizeToHostRoot(apkDb)
-	if pkg := findApkPackage(apkPath, spec.Names); pkg != nil {
-		return pkg, nil
+	if pkg = findApkPackage(apkPath, spec.Names); pkg != nil {
+		return
 	}
 
 	// dpkg
 	dpkgPath := r.pathNormalizeToHostRoot(dpkgDb)
-	if pkg := findDpkgPackage(dpkgPath, spec.Names); pkg != nil {
-		return pkg, nil
+	if pkg = findDpkgPackage(dpkgPath, spec.Names); pkg != nil {
+		return
 	}
 	dpkgDirPath := r.pathNormalizeToHostRoot(dpkgDbDir)
 	if files, _ := os.ReadDir(dpkgDirPath); len(files) > 0 {
 		for _, entry := range files {
 			dpkgPath := filepath.Join(dpkgDirPath, entry.Name())
-			if pkg := findDpkgPackage(dpkgPath, spec.Names); pkg != nil {
-				return pkg, nil
+			if pkg = findDpkgPackage(dpkgPath, spec.Names); pkg != nil {
+				return
 			}
 		}
 	}
@@ -843,12 +854,12 @@ func (r *defaultResolver) resolvePackage(ctx context.Context, spec InputSpecPack
 	// rpm
 	for _, path := range rpmDbs {
 		rpmPath := r.pathNormalizeToHostRoot(path)
-		if pkg := findRpmPackage(rpmPath, spec.Names); pkg != nil {
-			return pkg, nil
+		if pkg = findRpmPackage(rpmPath, spec.Names); pkg != nil {
+			return
 		}
 	}
 
-	return nil, nil
+	return
 }
 
 func parseCmdlineFlags(cmdline []string) map[string]string {
