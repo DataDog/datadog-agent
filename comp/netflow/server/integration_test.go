@@ -8,6 +8,7 @@
 package server
 
 import (
+	"fmt"
 	"testing"
 	"time"
 
@@ -460,13 +461,15 @@ func runTest(t *testing.T) {
 	// Test later content of payloads if needed for more precise test.
 	epForwarder.EXPECT().SendEventPlatformEventBlocking(gomock.Any(), epforwarder.EventTypeNetworkDevicesNetFlow).Return(nil).Times(29)
 	epForwarder.EXPECT().SendEventPlatformEventBlocking(gomock.Any(), "network-devices-metadata").Return(nil).Times(1)
-
+	fmt.Printf("[%d] DEBUG 1", time.Now().UnixMilli())
 	packetData, err := testutil.GetNetFlow9Packet()
 	require.NoError(t, err, "error getting packet")
 	err = testutil.SendUDPPacket(port, packetData)
 	require.NoError(t, err, "error sending udp packet")
 
+	fmt.Printf("[%d] DEBUG 2", time.Now().UnixMilli())
 	netflowEvents, err := flowaggregator.WaitForFlowsToBeFlushed(srv.FlowAgg, 30*time.Second, 6)
+	fmt.Printf("[%d] DEBUG 3", time.Now().UnixMilli())
 	assert.Equal(t, uint64(29), netflowEvents)
 	assert.NoError(t, err)
 }
