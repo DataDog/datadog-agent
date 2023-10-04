@@ -121,6 +121,8 @@ github.com/DATA-DOG/go-sqlmock v1.5.0 h1:Shsta01QNfFxHCfpW6YH2STWB0MudeXXEWMr20O
 github.com/DATA-DOG/go-sqlmock v1.5.0/go.mod h1:f/Ixk793poVmq4qj/V1dPUg2JEAKC73Q5eFN3EC/SaM=
 github.com/DataDog/agent-payload/v5 v5.0.97 h1:kB3eFOHl5hPr/EqPbTF9o/UB2saq00qoKgBMbRYQsAM=
 github.com/DataDog/agent-payload/v5 v5.0.97/go.mod h1:oQZi1VZp1e3QvlSUX4iphZCpJaFepUxWq0hNXxihKBM=
+github.com/DataDog/agent-payload/v5 v5.0.98-0.20231003142834-36642fa7a572 h1:Xp/+5zNR0+AbuXhVF6qwMi2SEP0e4T8JvjANx0xmRvQ=
+github.com/DataDog/agent-payload/v5 v5.0.98-0.20231003142834-36642fa7a572/go.mod h1:oQZi1VZp1e3QvlSUX4iphZCpJaFepUxWq0hNXxihKBM=
 github.com/DataDog/appsec-internal-go v1.0.1-0.20230723140106-7cb513f54ce1 h1:vYoZgFDFkHeSRYtDVFGYw6rWbx2wWJxztCj1e9YJdQ0=
 github.com/DataDog/appsec-internal-go v1.0.1-0.20230723140106-7cb513f54ce1/go.mod h1:+Y+4klVWKPOnZx6XESG7QHydOaUGEXyH2j/vSg9JiNM=
 github.com/DataDog/aptly v1.5.2 h1:qnuKf01NDOtpxvs/1H3WVM6HxrHbRuuADVO1gNnelg8=

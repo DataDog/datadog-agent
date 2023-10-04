@@ -206,8 +206,8 @@ func (c *ConnectionsCheck) getConnectionsWS() (*model.Connections, error) {
 	defer conn.Close()
 
 	unmarshaler := netEncoding.GetUnmarshaler(netEncoding.ContentTypeProtobuf)
-	outcome := new(model.Connections)
 
+	outcome := new(model.Connections)
 	for {
 		currentStreamStartTime := time.Now()
 		_, res, err := conn.ReadMessage()
@@ -229,17 +229,9 @@ func (c *ConnectionsCheck) getConnectionsWS() (*model.Connections, error) {
 			log.Debugf("[grpc] received %d connections in a batch (%v)", len(batch.Conns), time.Since(currentStreamStartTime))
 		}
 
-		size := int64(0)
-		for telem, tel := range batch.GetConnTelemetryMap() {
-			if telem == "conn_len" {
-				size = tel
-			}
-		}
-		fmt.Println(size)
+		log.Debugf("[grpc] the size of all of the connection is: %d", batch.ConnLen)
+		outcome.Conns = make([]*model.Connection, 0, batch.ConnLen)
 
-		if len(batch.Conns) > 0 {
-			outcome.Conns = append(outcome.Conns, batch.Conns...)
-		}
 		if batch.AgentConfiguration != nil {
 			log.Debugf("[grpc] got unique batch")
 			// All other fields are being sent in a single (last) chunk, so we have to just copy them.
