@@ -61,8 +61,6 @@ func TestNetFlow_IntegrationTest_NetFlow5(t *testing.T) {
 	testutil.ExpectNetflow5Payloads(t, epForwarder)
 	epForwarder.EXPECT().SendEventPlatformEventBlocking(gomock.Any(), "network-devices-metadata").Return(nil).Times(1)
 
-	time.Sleep(100 * time.Millisecond) // wait to make sure goflow listener is started before sending
-
 	assert.EventuallyWithT(t, func(c *assert.CollectT) {
 		// Send netflowV5Data twice to test aggregator
 		// Flows will have 2x bytes/packets after aggregation
