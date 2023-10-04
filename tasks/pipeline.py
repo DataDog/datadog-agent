@@ -471,7 +471,7 @@ def parse(commit_str):
     url = "NO_URL"
     pr_id_match = re.search(r".*\(#(\d+)\)", title)
     if pr_id_match is not None:
-        url = f"github.com/DataDog/datadog-agent/pull/{pr_id_match.group(1)}"
+        url = f"https://github.com//DataDog/datadog-agent/pull/{pr_id_match.group(1)}"
     author = lines[1]
     author_email = lines[2]
     files = lines[3:]
