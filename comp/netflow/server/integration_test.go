@@ -63,16 +63,18 @@ func TestNetFlow_IntegrationTest_NetFlow5(t *testing.T) {
 
 	time.Sleep(100 * time.Millisecond) // wait to make sure goflow listener is started before sending
 
-	// Send netflowV5Data twice to test aggregator
-	// Flows will have 2x bytes/packets after aggregation
-	packetData, err := testutil.GetNetFlow5Packet()
-	require.NoError(t, err, "error getting packet")
-	err = testutil.SendUDPPacket(port, packetData)
-	require.NoError(t, err, "error sending udp packet")
+	assert.EventuallyWithT(t, func(c *assert.CollectT) {
+		// Send netflowV5Data twice to test aggregator
+		// Flows will have 2x bytes/packets after aggregation
+		packetData, err := testutil.GetNetFlow5Packet()
+		require.NoError(c, err, "error getting packet")
+		err = testutil.SendUDPPacket(port, packetData)
+		require.NoError(c, err, "error sending udp packet")
 
-	netflowEvents, err := flowaggregator.WaitForFlowsToBeFlushed(srv.FlowAgg, 15*time.Second, 2)
-	assert.Equal(t, uint64(2), netflowEvents)
-	assert.NoError(t, err)
+		netflowEvents, err := flowaggregator.WaitForFlowsToBeFlushed(srv.FlowAgg, 3*time.Second, 2)
+		assert.Equal(c, uint64(2), netflowEvents)
+		assert.NoError(c, err)
+	}, 15*time.Second, 10*time.Millisecond)
 }
 
 func TestNetFlow_IntegrationTest_NetFlow9(t *testing.T) {
