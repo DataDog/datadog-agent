@@ -69,10 +69,12 @@ func StartServerTCP(t testing.TB, ip net.IP, port int) io.Closer {
 	}()
 	<-ch
 
-	require.EventuallyWithT(t, func(t *assert.CollectT) {
-		conn := PingTCP(t, ip, port)
-		conn.Close()
-	}, 3*time.Second, 10*time.Millisecond, "timed out waiting for TCP server to come up")
+	require.EventuallyWithT(t, func(tb *assert.CollectT) {
+		conn := PingTCP(tb, ip, l.Addr().(*net.TCPAddr).Port)
+		if conn != nil {
+			conn.Close()
+		}
+	}, 3*time.Second, 100*time.Millisecond, "timed out waiting for TCP server to come up")
 
 	return l
 }
@@ -125,7 +127,9 @@ func StartServerUDP(t *testing.T, ip net.IP, port int) io.Closer {
 
 	require.EventuallyWithT(t, func(t *assert.CollectT) {
 		conn := PingUDP(t, ip, port)
-		conn.Close()
+		if conn != nil {
+			conn.Close()
+		}
 	}, 3*time.Second, 10*time.Millisecond, "timed out waiting for UDP server to come up")
 
 	return l

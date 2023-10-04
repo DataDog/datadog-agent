@@ -10,6 +10,7 @@ import (
 	"net"
 	"time"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
@@ -24,13 +25,21 @@ func PingTCP(tb require.TestingT, ip net.IP, port int) net.Conn {
 	}
 
 	conn, err := net.DialTimeout(network, addr, time.Second)
-	require.NoError(tb, err)
+	if !assert.NoError(tb, err) {
+		return nil
+	}
 
 	_, err = conn.Write([]byte("ping"))
-	require.NoError(tb, err)
+	if !assert.NoError(tb, err) {
+		return nil
+	}
+
 	bs := make([]byte, 10)
 	_, err = conn.Read(bs)
-	require.NoError(tb, err)
+
+	if !assert.NoError(tb, err) {
+		return nil
+	}
 
 	return conn
 }
@@ -47,10 +56,14 @@ func PingUDP(tb require.TestingT, ip net.IP, port int) net.Conn {
 		Port: port,
 	}
 	conn, err := net.DialUDP(network, nil, addr)
-	require.NoError(tb, err)
+	if !assert.NoError(tb, err) {
+		return nil
+	}
 
 	_, err = conn.Write([]byte("ping"))
-	require.NoError(tb, err)
+	if !assert.NoError(tb, err) {
+		return nil
+	}
 
 	return conn
 }
