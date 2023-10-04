@@ -824,11 +824,14 @@ func (k *KSMCheck) sendTelemetry(s sender.Sender) {
 	// reset the cache for the next check run
 	defer k.telemetry.reset()
 
+	log.Infof("A instance tags %v %d %d", k.instance.Tags, len(k.instance.Tags), cap(k.instance.Tags))
 	s.Gauge(ksmMetricPrefix+"telemetry.metrics.count.total", float64(k.telemetry.getTotal()), "", k.instance.Tags)
 	s.Gauge(ksmMetricPrefix+"telemetry.unknown_metrics.count", float64(k.telemetry.getUnknown()), "", k.instance.Tags) // useful to track metrics that aren't mapped to DD metrics
+	log.Infof("B instance tags %v %d %d", k.instance.Tags, len(k.instance.Tags), cap(k.instance.Tags))
 	for resource, count := range k.telemetry.getResourcesCount() {
 		s.Gauge(ksmMetricPrefix+"telemetry.metrics.count", float64(count), "", append(k.instance.Tags, "resource_name:"+resource))
 	}
+	log.Infof("C instance tags %v %d %d", k.instance.Tags, len(k.instance.Tags), cap(k.instance.Tags))
 }
 
 // KubeStateMetricsFactory returns a new KSMCheck

@@ -115,7 +115,9 @@ func (s *Scanner) start(ctx context.Context) {
 
 				collector := request.collector
 				if err := s.enoughDiskSpace(request.opts); err != nil {
-					sendResult(sbom.ScanResult{Error: fmt.Errorf("failed to check current disk usage: %w", err)})
+					sendResult(sbom.ScanResult{
+						Error: fmt.Errorf("failed to check current disk usage: %w", err),
+					})
 					telemetry.SBOMFailures.Inc(request.Collector(), request.Type(), "disk_space")
 					continue
 				}
