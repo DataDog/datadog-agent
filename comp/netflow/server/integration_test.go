@@ -461,6 +461,9 @@ func runTest(t *testing.T) {
 	// Test later content of payloads if needed for more precise test.
 	epForwarder.EXPECT().SendEventPlatformEventBlocking(gomock.Any(), epforwarder.EventTypeNetworkDevicesNetFlow).Return(nil).Times(29)
 	epForwarder.EXPECT().SendEventPlatformEventBlocking(gomock.Any(), "network-devices-metadata").Return(nil).Times(1)
+
+	time.Sleep(100 * time.Millisecond) // wait to make sure goflow listener is started before sending
+
 	fmt.Printf("[%d] DEBUG 1", time.Now().UnixMilli())
 	packetData, err := testutil.GetNetFlow9Packet()
 	require.NoError(t, err, "error getting packet")
