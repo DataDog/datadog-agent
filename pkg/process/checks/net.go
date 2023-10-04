@@ -7,12 +7,12 @@ package checks
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
 	"net/http"
 	"sort"
+	"strconv"
 	"time"
 
 	"github.com/cihub/seelog"
@@ -220,8 +220,8 @@ func (c *ConnectionsCheck) getConnectionsWS() (*model.Connections, error) {
 		return nil, fmt.Errorf("unable to get response from grpc server due to: %v", err)
 	}
 
-	var csLen int
-	err = json.Unmarshal(res, &csLen)
+	receivedText := string(res)
+	csLen, err := strconv.Atoi(receivedText)
 	if err != nil {
 		log.Error(err)
 	}

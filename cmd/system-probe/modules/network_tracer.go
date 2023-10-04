@@ -9,7 +9,6 @@ package modules
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"math"
@@ -121,12 +120,7 @@ func (nt *networkTracer) StreamConnections(runCounter *atomic.Uint64, reqID, con
 	logRequests(reqID, "/ws-connections", runCounter.Inc(), len(cs.Conns), start)
 	log.Debugf("[grpc] the total number of connections we see is %d", len(cs.Conns))
 
-	bla, err := json.Marshal(len(cs.Conns))
-	if err != nil {
-		return fmt.Errorf("unable to marshl conn size: %s", err)
-	}
-
-	if err := c.WriteMessage(websocket.BinaryMessage, bla); err != nil {
+	if err := c.WriteMessage(websocket.TextMessage, []byte(fmt.Sprintf("%d", len(cs.Conns)))); err != nil {
 		log.Error(err)
 	}
 
