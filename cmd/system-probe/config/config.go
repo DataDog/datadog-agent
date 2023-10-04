@@ -36,6 +36,7 @@ const (
 	DynamicInstrumentationModule ModuleName = "dynamic_instrumentation"
 	EBPFModule                   ModuleName = "ebpf"
 	LanguageDetectionModule      ModuleName = "language_detection"
+	WindowsCrashDetectModule     ModuleName = "windows_crash_detection"
 )
 
 // Config represents the configuration options for the system-probe
@@ -57,6 +58,8 @@ type Config struct {
 
 	StatsdHost string
 	StatsdPort int
+
+	GRPCServerEnabled bool
 }
 
 // New creates a config object for system-probe. It assumes no configuration has been loaded as this point.
@@ -114,6 +117,7 @@ func load() (*Config, error) {
 		ExternalSystemProbe: cfg.GetBool(spNS("external")),
 
 		SocketAddress:      cfg.GetString(spNS("sysprobe_socket")),
+		GRPCServerEnabled:  cfg.GetBool(spNS("grpc_enabled")),
 		MaxConnsPerMessage: cfg.GetInt(spNS("max_conns_per_message")),
 
 		LogFile:          cfg.GetString("log_file"),
@@ -138,7 +142,6 @@ func load() (*Config, error) {
 	if cfg.GetBool(spNS("enable_oom_kill")) {
 		c.EnabledModules[OOMKillProbeModule] = struct{}{}
 	}
-
 	if cfg.GetBool(secNS("enabled")) ||
 		cfg.GetBool(secNS("fim_enabled")) ||
 		cfg.GetBool(evNS("process.enabled")) ||
@@ -156,6 +159,17 @@ func load() (*Config, error) {
 	}
 	if cfg.GetBool("system_probe_config.language_detection.enabled") {
 		c.EnabledModules[LanguageDetectionModule] = struct{}{}
+	}
+
+	if cfg.GetBool(wcdNS("enabled")) {
+		c.EnabledModules[WindowsCrashDetectModule] = struct{}{}
+	}
+	if runtime.GOOS == "windows" {
+		if c.ModuleIsEnabled(NetworkTracerModule) {
+			// enable the windows crash detection module if the network tracer
+			// module is enabled, to allow the core agent to detect our own crash
+			c.EnabledModules[WindowsCrashDetectModule] = struct{}{}
+		}
 	}
 
 	c.Enabled = len(c.EnabledModules) > 0

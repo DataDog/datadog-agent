@@ -5,6 +5,7 @@
 
 //go:build linux
 
+// Package runtime holds runtime related files
 package runtime
 
 import (
@@ -23,7 +24,7 @@ import (
 	secagent "github.com/DataDog/datadog-agent/pkg/security/agent"
 	secconfig "github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/proto/api"
-	"github.com/DataDog/datadog-agent/pkg/security/security_profile/activity_tree"
+	activity_tree "github.com/DataDog/datadog-agent/pkg/security/security_profile/activity_tree"
 	"github.com/DataDog/datadog-agent/pkg/security/security_profile/dump"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -360,7 +361,7 @@ func diffADSubtree(p1, p2 []*activity_tree.ProcessNode, states map[string]bool) 
 NEXT:
 	for _, n := range p2 {
 		for _, n2 := range p1 {
-			if n.Matches(&n2.Process, false) {
+			if n.Matches(&n2.Process, false, false) {
 				newNode := *n
 				processID := utils.NewGraphID(utils.NewNodeIDFromPtr(&newNode))
 				newNode.Children = diffADSubtree(n.Children, n2.Children, states)
@@ -378,7 +379,7 @@ NEXT:
 NEXT2:
 	for _, n := range p1 {
 		for _, n2 := range p2 {
-			if n.Matches(&n2.Process, false) {
+			if n.Matches(&n2.Process, false, false) {
 				continue NEXT2
 			}
 		}

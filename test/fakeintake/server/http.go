@@ -5,15 +5,19 @@
 
 package server
 
-import "net/http"
+import (
+	"encoding/json"
+	"net/http"
+)
 
 type httpResponse struct {
 	contentType string
 	statusCode  int
+	data        interface{}
 	body        []byte
 }
 
-func writeHttpResponse(w http.ResponseWriter, response httpResponse) {
+func writeHTTPResponse(w http.ResponseWriter, response httpResponse) {
 	if response.contentType != "" {
 		w.Header().Set("Content-Type", response.contentType)
 	}
@@ -21,4 +25,29 @@ func writeHttpResponse(w http.ResponseWriter, response httpResponse) {
 	if len(response.body) > 0 {
 		w.Write(response.body)
 	}
+}
+
+func buildErrorResponse(responseError error) httpResponse {
+	return updateResponseFromData(httpResponse{
+		statusCode:  http.StatusBadRequest,
+		contentType: "application/json",
+		data:        errorResponseBody{Errors: []string{responseError.Error()}},
+	})
+}
+
+func updateResponseFromData(r httpResponse) httpResponse {
+	if r.contentType == "application/json" {
+		bodyJSON, err := json.Marshal(r.data)
+		if err != nil {
+			return httpResponse{
+				statusCode:  http.StatusInternalServerError,
+				contentType: "text/plain",
+				body:        []byte(err.Error()),
+			}
+		}
+		r.body = bodyJSON
+	} else {
+		r.body = r.data.([]byte)
+	}
+	return r
 }

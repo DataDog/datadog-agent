@@ -1156,7 +1156,4 @@ int tracepoint__net__net_dev_queue(struct net_dev_queue_ctx* ctx) {
     return 0;
 }
 
-// This number will be interpreted by elf-loader to set the current running kernel version
-__u32 _version SEC("version") = 0xFFFFFFFE; // NOLINT(bugprone-reserved-identifier)
-
-char _license[] SEC("license") = "GPL"; // NOLINT(bugprone-reserved-identifier)
+char _license[] SEC("license") = "GPL";

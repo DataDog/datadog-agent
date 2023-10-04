@@ -102,6 +102,11 @@ int hook_vfs_truncate(ctx_t *ctx) {
     struct path *path = (struct path *)CTX_PARM1(ctx);
     struct dentry *dentry = get_path_dentry(path);
 
+    if (is_non_mountable_dentry(dentry)) {
+        pop_syscall(EVENT_OPEN);
+        return 0;
+    }
+
     syscall->open.dentry = dentry;
     syscall->open.file.path_key = get_dentry_key_path(syscall->open.dentry, path);
 
@@ -125,6 +130,11 @@ int hook_vfs_open(ctx_t *ctx) {
     struct file *file = (struct file *)CTX_PARM2(ctx);
     struct dentry *dentry = get_path_dentry(path);
     struct inode *inode = get_dentry_inode(dentry);
+
+    if (is_non_mountable_dentry(dentry)) {
+        pop_syscall(EVENT_OPEN);
+        return 0;
+    }
 
     return handle_open_event(syscall, file, path, inode);
 }
@@ -290,7 +300,7 @@ int __attribute__((always_inline)) dr_open_callback(void *ctx) {
         .mode = syscall->open.mode,
     };
 
-    fill_file_metadata(syscall->open.dentry, &event.file.metadata);
+    fill_file(syscall->open.dentry, &event.file);
     struct proc_cache_t *entry;
     if (syscall->open.pid_tgid != 0) {
         entry = fill_process_context_with_pid_tgid(&event.process, syscall->open.pid_tgid);
@@ -304,19 +314,10 @@ int __attribute__((always_inline)) dr_open_callback(void *ctx) {
     return 0;
 }
 
-SEC("kprobe/dr_open_callback")
-int kprobe_dr_open_callback(struct pt_regs *ctx) {
-    return dr_open_callback(ctx);
-}
-
-#ifdef USE_FENTRY
-
 TAIL_CALL_TARGET("dr_open_callback")
-int fentry_dr_open_callback(ctx_t *ctx) {
+int tail_call_target_dr_open_callback(ctx_t *ctx) {
     return dr_open_callback(ctx);
 }
-
-#endif // USE_FENTRY
 
 SEC("tracepoint/dr_open_callback")
 int tracepoint_dr_open_callback(struct tracepoint_syscalls_sys_exit_t *args) {

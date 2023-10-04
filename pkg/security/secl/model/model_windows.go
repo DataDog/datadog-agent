@@ -5,6 +5,7 @@
 
 //go:generate go run github.com/DataDog/datadog-agent/pkg/security/secl/compiler/generators/accessors -tags windows -types-file model.go -output accessors_windows.go -field-handlers field_handlers_windows.go
 
+// Package model holds model related files
 package model
 
 import (
@@ -34,8 +35,8 @@ type Event struct {
 
 // FileEvent is the common file event type
 type FileEvent struct {
-	PathnameStr string `field:"path"` // SECLDoc[path] Definition:`File's path` Example:`exec.file.path == "/usr/bin/apt"` Description:`Matches the execution of the file located at /usr/bin/apt` Example:`open.file.path == "/etc/passwd"` Description:`Matches any process opening the /etc/passwd file.`
-	BasenameStr string `field:"name"` // SECLDoc[name] Definition:`File's basename` Example:`exec.file.name == "apt"` Description:`Matches the execution of any file named apt.`
+	PathnameStr string `field:"path,handler:ResolveFilePath,opts:length"`     // SECLDoc[path] Definition:`File's path` Example:`exec.file.path == "c:\cmd.bat"` Description:`Matches the execution of the file located at c:\cmd.bat`
+	BasenameStr string `field:"name,handler:ResolveFileBasename,opts:length"` // SECLDoc[name] Definition:`File's basename` Example:`exec.file.name == "cmd.bat"` Description:`Matches the execution of any file named cmd.bat.`
 }
 
 // Process represents a process
@@ -45,6 +46,9 @@ type Process struct {
 	FileEvent FileEvent `field:"file"`
 
 	ContainerID string `field:"container.id"` // SECLDoc[container.id] Definition:`Container ID`
+
+	SpanID  uint64 `field:"-"`
+	TraceID uint64 `field:"-"`
 
 	ExitTime time.Time `field:"-" json:"-"`
 	ExecTime time.Time `field:"-" json:"-"`
@@ -56,27 +60,17 @@ type Process struct {
 	ArgsEntry *ArgsEntry `field:"-" json:"-"`
 	EnvsEntry *EnvsEntry `field:"-" json:"-"`
 
-	Argv0 string   `field:"argv0"`                                                                                                                    // SECLDoc[argv0] Definition:`First argument of the process`
-	Args  string   `field:"args"`                                                                                                                     // SECLDoc[args] Definition:`Arguments of the process (as a string, excluding argv0)` Example:`exec.args == "-sV -p 22,53,110,143,4564 198.116.0-255.1-127"` Description:`Matches any process with these exact arguments.` Example:`exec.args =~ "* -F * http*"` Description:`Matches any process that has the "-F" argument anywhere before an argument starting with "http".`
-	Argv  []string `field:"argv; args_flags,handler:ResolveProcessArgsFlags,opts:helper; args_options,handler:ResolveProcessArgsOptions,opts:helper"` // SECLDoc[argv] Definition:`Arguments of the process (as an array, excluding argv0)` Example:`exec.argv in ["127.0.0.1"]` Description:`Matches any process that has this IP address as one of its arguments.` SECLDoc[args_flags] Definition:`Flags in the process arguments` Example:`exec.args_flags in ["s"] && exec.args_flags in ["V"]` Description:`Matches any process with both "-s" and "-V" flags in its arguments. Also matches "-sV".` SECLDoc[args_options] Definition:`Argument of the process as options` Example:`exec.args_options in ["p=0-1024"]` Description:`Matches any process that has either "-p 0-1024" or "--p=0-1024" in its arguments.`
-	Envs  []string `field:"envs"`                                                                                                                     // SECLDoc[envs] Definition:`Environment variable names of the process`
-	Envp  []string `field:"envp"`                                                                                                                     // SECLDoc[envp] Definition:`Environment variables of the process`
+	CmdLine string   `field:"cmdline"`                             // SECLDoc[cmdline] Definition:`Command line of the process (as a string, excluding argv0)` Example:`exec.args == "-sV -p 22,53,110,143,4564 198.116.0-255.1-127"` Description:`Matches any process with these exact arguments.` Example:`exec.args =~ "* -F * http*"` Description:`Matches any process that has the "-F" argument anywhere before an argument starting with "http".`
+	Envs    []string `field:"envs,handler:ResolveProcessEnvs:100"` // SECLDoc[envs] Definition:`Environment variable names of the process`
+	Envp    []string `field:"envp,handler:ResolveProcessEnvp:100"` // SECLDoc[envp] Definition:`Environment variables of the process`                                                                                                                         // SECLDoc[envp] Definition:`Environment variables of the process`
 
 	// cache version
-	ScrubbedArgvResolved bool           `field:"-" json:"-"`
-	ScrubbedArgv         []string       `field:"-" json:"-"`
-	Variables            eval.Variables `field:"-" json:"-"`
+	Variables eval.Variables `field:"-" json:"-"`
 }
 
 // ExecEvent represents a exec event
 type ExecEvent struct {
 	*Process
-}
-
-// ExitEvent represents a process exit event
-type ExitEvent struct {
-	*Process
-	Code uint32 `field:"code"` // SECLDoc[code] Definition:`Exit code of the process or number of the signal that caused the process to terminate`
 }
 
 // PIDContext holds the process context of an kernel event
@@ -90,4 +84,5 @@ type PIDContext struct {
 	ExecInode uint64 `field:"-"` // used to track exec and event loss
 }
 
+// NetworkDeviceContext defines a network device context
 type NetworkDeviceContext struct{}

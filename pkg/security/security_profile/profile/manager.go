@@ -5,6 +5,7 @@
 
 //go:build linux
 
+// Package profile holds profile related files
 package profile
 
 import (
@@ -31,7 +32,7 @@ import (
 	cgroupModel "github.com/DataDog/datadog-agent/pkg/security/resolvers/cgroup/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
-	"github.com/DataDog/datadog-agent/pkg/security/security_profile/activity_tree"
+	activity_tree "github.com/DataDog/datadog-agent/pkg/security/security_profile/activity_tree"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
 )
 
@@ -80,7 +81,7 @@ func (efr EventFilteringProfileState) toTag() string {
 type EventFilteringResult uint8
 
 const (
-	// Not applicable, for profil NoProfile and ProfileAtMaxSize state
+	// NA not applicable for profil NoProfile and ProfileAtMaxSize state
 	NA EventFilteringResult = iota
 	// InProfile is used to count the events that matched a profile
 	InProfile
@@ -136,32 +137,13 @@ type SecurityProfileManager struct {
 	cacheHit         *atomic.Uint64
 	cacheMiss        *atomic.Uint64
 
-	eventFiltering map[eventFilteringEntry]*atomic.Uint64
-	pathsReducer   *activity_tree.PathsReducer
+	eventFiltering        map[eventFilteringEntry]*atomic.Uint64
+	pathsReducer          *activity_tree.PathsReducer
+	onLocalStorageCleanup func(files []string)
 }
 
 // NewSecurityProfileManager returns a new instance of SecurityProfileManager
 func NewSecurityProfileManager(config *config.Config, statsdClient statsd.ClientInterface, resolvers *resolvers.Resolvers, manager *manager.Manager) (*SecurityProfileManager, error) {
-	var providers []Provider
-
-	// instantiate directory provider
-	if len(config.RuntimeSecurity.SecurityProfileDir) != 0 {
-		dirProvider, err := NewDirectoryProvider(config.RuntimeSecurity.SecurityProfileDir, config.RuntimeSecurity.SecurityProfileWatchDir)
-		if err != nil {
-			return nil, fmt.Errorf("couldn't instantiate a new security profile directory provider: %w", err)
-		}
-		providers = append(providers, dirProvider)
-	}
-
-	// instantiate remote-config provider
-	if config.RuntimeSecurity.RemoteConfigurationEnabled && config.RuntimeSecurity.SecurityProfileRCEnabled {
-		rcProvider, err := rconfig.NewRCProfileProvider()
-		if err != nil {
-			return nil, fmt.Errorf("couldn't instantiate a new security profile remote-config provider: %w", err)
-		}
-		providers = append(providers, rcProvider)
-	}
-
 	profileCache, err := simplelru.NewLRU[cgroupModel.WorkloadSelector, *SecurityProfile](config.RuntimeSecurity.SecurityProfileCacheSize, nil)
 	if err != nil {
 		return nil, fmt.Errorf("couldn't create security profile cache: %w", err)
@@ -180,7 +162,6 @@ func NewSecurityProfileManager(config *config.Config, statsdClient statsd.Client
 	m := &SecurityProfileManager{
 		config:                     config,
 		statsdClient:               statsdClient,
-		providers:                  providers,
 		manager:                    manager,
 		securityProfileMap:         securityProfileMap,
 		securityProfileSyscallsMap: securityProfileSyscallsMap,
@@ -192,6 +173,32 @@ func NewSecurityProfileManager(config *config.Config, statsdClient statsd.Client
 		eventFiltering:             make(map[eventFilteringEntry]*atomic.Uint64),
 		pathsReducer:               activity_tree.NewPathsReducer(),
 	}
+
+	// instantiate directory provider
+	if len(config.RuntimeSecurity.SecurityProfileDir) != 0 {
+		// override the status if autosuppression is enabled
+		var status model.Status
+		if config.RuntimeSecurity.ActivityDumpAutoSuppressionEnabled {
+			status = model.AnomalyDetection | model.AutoSuppression
+		}
+
+		dirProvider, err := NewDirectoryProvider(config.RuntimeSecurity.SecurityProfileDir, config.RuntimeSecurity.SecurityProfileWatchDir, status)
+		if err != nil {
+			return nil, fmt.Errorf("couldn't instantiate a new security profile directory provider: %w", err)
+		}
+		m.providers = append(m.providers, dirProvider)
+		m.onLocalStorageCleanup = dirProvider.OnLocalStorageCleanup
+	}
+
+	// instantiate remote-config provider
+	if config.RuntimeSecurity.RemoteConfigurationEnabled && config.RuntimeSecurity.SecurityProfileRCEnabled {
+		rcProvider, err := rconfig.NewRCProfileProvider()
+		if err != nil {
+			return nil, fmt.Errorf("couldn't instantiate a new security profile remote-config provider: %w", err)
+		}
+		m.providers = append(m.providers, rcProvider)
+	}
+
 	m.initMetricsMap()
 
 	// register the manager to the provider(s)
@@ -199,6 +206,13 @@ func NewSecurityProfileManager(config *config.Config, statsdClient statsd.Client
 		p.SetOnNewProfileCallback(m.OnNewProfileEvent)
 	}
 	return m, nil
+}
+
+// OnLocalStorageCleanup performs the necessary cleanup when the Activity Dump Manager local storage cleans up an entry
+func (m *SecurityProfileManager) OnLocalStorageCleanup(files []string) {
+	if m.onLocalStorageCleanup != nil {
+		m.onLocalStorageCleanup(files)
+	}
 }
 
 func (m *SecurityProfileManager) initMetricsMap() {
@@ -411,6 +425,8 @@ func (m *SecurityProfileManager) OnCGroupDeletedEvent(workload *cgroupModel.Cach
 func (m *SecurityProfileManager) ShouldDeleteProfile(profile *SecurityProfile) {
 	m.profilesLock.Lock()
 	defer m.profilesLock.Unlock()
+	m.pendingCacheLock.Lock()
+	defer m.pendingCacheLock.Unlock()
 	profile.Lock()
 	defer profile.Unlock()
 
@@ -440,8 +456,6 @@ func (m *SecurityProfileManager) ShouldDeleteProfile(profile *SecurityProfile) {
 	}
 
 	// add profile in cache
-	m.pendingCacheLock.Lock()
-	defer m.pendingCacheLock.Unlock()
 	m.pendingCache.Add(profile.selector, profile)
 }
 
@@ -462,6 +476,9 @@ func (m *SecurityProfileManager) OnNewProfileEvent(selector cgroupModel.Workload
 		return
 	}
 
+	m.pendingCacheLock.Lock()
+	defer m.pendingCacheLock.Unlock()
+
 	profile.Lock()
 	defer profile.Unlock()
 	profile.loadedInKernel = false
@@ -478,8 +495,6 @@ func (m *SecurityProfileManager) OnNewProfileEvent(selector cgroupModel.Workload
 
 	if !ok {
 		// insert in cache and leave
-		m.pendingCacheLock.Lock()
-		defer m.pendingCacheLock.Unlock()
 		m.pendingCache.Add(selector, profile)
 		return
 	}
@@ -511,8 +526,18 @@ func (m *SecurityProfileManager) incrementEventFilteringStat(eventType model.Eve
 
 // SendStats sends metrics about the Security Profile manager
 func (m *SecurityProfileManager) SendStats() error {
+	// Send metrics for profile provider first to prevent a deadlock with the call to "dp.onNewProfileCallback" on
+	// "m.profilesLock"
+	for _, provider := range m.providers {
+		if err := provider.SendStats(m.statsdClient); err != nil {
+			return err
+		}
+	}
+
 	m.profilesLock.Lock()
 	defer m.profilesLock.Unlock()
+	m.pendingCacheLock.Lock()
+	defer m.pendingCacheLock.Unlock()
 
 	profileStats := make(map[model.Status]map[bool]float64)
 	for _, profile := range m.profiles {
@@ -524,7 +549,7 @@ func (m *SecurityProfileManager) SendStats() error {
 		if profileStats[profile.Status] == nil {
 			profileStats[profile.Status] = make(map[bool]float64)
 		}
-		profileStats[profile.Status][profile.loadedInKernel] += 1
+		profileStats[profile.Status][profile.loadedInKernel]++
 	}
 
 	for status, counts := range profileStats {
@@ -541,8 +566,6 @@ func (m *SecurityProfileManager) SendStats() error {
 		}
 	}
 
-	m.pendingCacheLock.Lock()
-	defer m.pendingCacheLock.Unlock()
 	if val := float64(m.pendingCache.Len()); val > 0 {
 		if err := m.statsdClient.Gauge(metrics.MetricSecurityProfileCacheLen, val, []string{}, 1.0); err != nil {
 			return fmt.Errorf("couldn't send MetricSecurityProfileCacheLen: %w", err)
@@ -588,7 +611,7 @@ func (m *SecurityProfileManager) loadProfile(profile *SecurityProfile) error {
 
 	// push kernel space filters
 	if err := m.securityProfileSyscallsMap.Put(profile.profileCookie, profile.generateSyscallsFilters()); err != nil {
-		return fmt.Errorf("couldn't push syscalls filter: %w", err)
+		return fmt.Errorf("couldn't push syscalls filter (check map size limit ?): %w", err)
 	}
 
 	// TODO: load generated programs
@@ -612,7 +635,7 @@ func (m *SecurityProfileManager) unloadProfile(profile *SecurityProfile) {
 // linkProfile (thread unsafe) updates the kernel space mapping between a workload and its profile
 func (m *SecurityProfileManager) linkProfile(profile *SecurityProfile, workload *cgroupModel.CacheEntry) {
 	if err := m.securityProfileMap.Put([]byte(workload.ID), profile.generateKernelSecurityProfileDefinition()); err != nil {
-		seclog.Errorf("couldn't link workload %s (selector: %s) with profile %s: %v", workload.ID, workload.WorkloadSelector.String(), profile.Metadata.Name, err)
+		seclog.Errorf("couldn't link workload %s (selector: %s) with profile %s (check map size limit ?): %v", workload.ID, workload.WorkloadSelector.String(), profile.Metadata.Name, err)
 		return
 	}
 	seclog.Infof("workload %s (selector: %s) successfully linked to profile %s", workload.ID, workload.WorkloadSelector.String(), profile.Metadata.Name)
@@ -630,6 +653,7 @@ func (m *SecurityProfileManager) unlinkProfile(profile *SecurityProfile, workloa
 	seclog.Infof("workload %s (selector: %s) successfully unlinked from profile %s", workload.ID, workload.WorkloadSelector.String(), profile.Metadata.Name)
 }
 
+// LookupEventInProfiles lookups event in profiles
 func (m *SecurityProfileManager) LookupEventInProfiles(event *model.Event) {
 	// ignore events with an error
 	if event.Error != nil {
@@ -814,7 +838,7 @@ func (m *SecurityProfileManager) SaveSecurityProfile(params *api.SecurityProfile
 	}
 
 	p := m.GetProfile(selector)
-	if p == nil {
+	if p == nil || p.Status == 0 || p.ActivityTree == nil {
 		return &api.SecurityProfileSaveMessage{
 			Error: "security profile not found",
 		}, nil

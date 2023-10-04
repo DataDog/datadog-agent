@@ -39,17 +39,20 @@ var /* const */ (
 )
 
 type processor struct {
-	queue             chan *model.SBOMEntity
-	workloadmetaStore workloadmeta.Store
-	imageRepoDigests  map[string]string              // Map where keys are image repo digest and values are image ID
-	imageUsers        map[string]map[string]struct{} // Map where keys are image repo digest and values are set of container IDs
-	sbomScanner       *sbomscanner.Scanner
-	hostSBOM          bool
-	hostScanOpts      sbom.ScanOptions
-	hostname          string
+	queue                 chan *model.SBOMEntity
+	workloadmetaStore     workloadmeta.Store
+	imageRepoDigests      map[string]string              // Map where keys are image repo digest and values are image ID
+	imageUsers            map[string]map[string]struct{} // Map where keys are image repo digest and values are set of container IDs
+	sbomScanner           *sbomscanner.Scanner
+	hostSBOM              bool
+	hostScanOpts          sbom.ScanOptions
+	hostname              string
+	hostCache             string
+	hostLastFullSBOM      time.Time
+	hostHeartbeatValidity time.Duration
 }
 
-func newProcessor(workloadmetaStore workloadmeta.Store, sender sender.Sender, maxNbItem int, maxRetentionTime time.Duration, hostSBOM bool) (*processor, error) {
+func newProcessor(workloadmetaStore workloadmeta.Store, sender sender.Sender, maxNbItem int, maxRetentionTime time.Duration, hostSBOM bool, hostHeartbeatValidity time.Duration) (*processor, error) {
 	hostScanOpts := sbom.ScanOptionsFromConfig(ddConfig.Datadog, false)
 	hostScanOpts.NoCache = true
 	sbomScanner := sbomscanner.GetGlobalScanner()
@@ -73,13 +76,14 @@ func newProcessor(workloadmetaStore workloadmeta.Store, sender sender.Sender, ma
 
 			sender.EventPlatformEvent(encoded, epforwarder.EventTypeContainerSBOM)
 		}),
-		workloadmetaStore: workloadmetaStore,
-		imageRepoDigests:  make(map[string]string),
-		imageUsers:        make(map[string]map[string]struct{}),
-		sbomScanner:       sbomScanner,
-		hostSBOM:          hostSBOM,
-		hostScanOpts:      hostScanOpts,
-		hostname:          hostname,
+		workloadmetaStore:     workloadmetaStore,
+		imageRepoDigests:      make(map[string]string),
+		imageUsers:            make(map[string]map[string]struct{}),
+		sbomScanner:           sbomScanner,
+		hostSBOM:              hostSBOM,
+		hostScanOpts:          hostScanOpts,
+		hostname:              hostname,
+		hostHeartbeatValidity: hostHeartbeatValidity,
 	}, nil
 }
 
@@ -189,36 +193,58 @@ func (p *processor) processHostRefresh() {
 
 	go func() {
 		result := <-ch
+		log.Debugf("processing host scanresult: %v", result)
 
-		if result.Error != nil {
-			// TODO: add a retry mechanism for retryable errors
-			log.Errorf("Failed to generate SBOM for host: %s", result.Error)
-			return
-		}
-
-		log.Debugf("Successfully generated SBOM for host: %v, %v", result.CreatedAt, result.Duration)
-
-		bom, err := result.Report.ToCycloneDX()
-		if err != nil {
-			log.Errorf("Failed to extract SBOM from report: %s", err)
-			return
-		}
-
-		p.queue <- &model.SBOMEntity{
+		sbom := &model.SBOMEntity{
+			Status:             model.SBOMStatus_SUCCESS,
 			Type:               model.SBOMSourceType_HOST_FILE_SYSTEM,
 			Id:                 p.hostname,
-			GeneratedAt:        timestamppb.New(result.CreatedAt),
 			InUse:              true,
+			GeneratedAt:        timestamppb.New(result.CreatedAt),
 			GenerationDuration: convertDuration(result.Duration),
-			Sbom: &model.SBOMEntity_Cyclonedx{
-				Cyclonedx: convertBOM(bom),
-			},
+			Hash:               result.Report.ID(),
 		}
+
+		if result.Error != nil {
+			sbom.Sbom = &model.SBOMEntity_Error{
+				Error: result.Error.Error(),
+			}
+			sbom.Status = model.SBOMStatus_FAILED
+		} else {
+			log.Infof("Successfully generated SBOM for host: %v, %v", result.CreatedAt, result.Duration)
+
+			if p.hostCache != "" && p.hostCache == result.Report.ID() && result.CreatedAt.Sub(p.hostLastFullSBOM) < p.hostHeartbeatValidity {
+				sbom.Heartbeat = true
+			} else {
+				report, err := result.Report.ToCycloneDX()
+				if err != nil {
+					log.Errorf("Failed to extract SBOM from report: %s", err)
+					sbom.Sbom = &model.SBOMEntity_Error{
+						Error: err.Error(),
+					}
+					sbom.Status = model.SBOMStatus_FAILED
+				} else {
+					sbom.Sbom = &model.SBOMEntity_Cyclonedx{
+						Cyclonedx: convertBOM(report),
+					}
+				}
+
+				p.hostCache = result.Report.ID()
+				p.hostLastFullSBOM = result.CreatedAt
+			}
+		}
+
+		p.queue <- sbom
 	}()
 }
 
 func (p *processor) processImageSBOM(img *workloadmeta.ContainerImageMetadata) {
-	if img.SBOM == nil || img.SBOM.CycloneDXBOM == nil {
+	if img.SBOM == nil {
+		return
+	}
+
+	if img.SBOM.Status == workloadmeta.Success && img.SBOM.CycloneDXBOM == nil {
+		log.Debug("received a sbom with incorrect status")
 		return
 	}
 
@@ -281,18 +307,31 @@ func (p *processor) processImageSBOM(img *workloadmeta.ContainerImageMetadata) {
 			ddTags2 = append(ddTags2, "image_tag:"+t)
 		}
 
-		p.queue <- &model.SBOMEntity{
-			Type:               model.SBOMSourceType_CONTAINER_IMAGE_LAYERS,
-			Id:                 id,
-			DdTags:             ddTags2,
-			GeneratedAt:        timestamppb.New(img.SBOM.GenerationTime),
-			RepoTags:           repoTags,
-			InUse:              inUse,
-			GenerationDuration: convertDuration(img.SBOM.GenerationDuration),
-			Sbom: &model.SBOMEntity_Cyclonedx{
-				Cyclonedx: convertBOM(img.SBOM.CycloneDXBOM),
-			},
+		sbom := &model.SBOMEntity{
+			Type:     model.SBOMSourceType_CONTAINER_IMAGE_LAYERS,
+			Id:       id,
+			DdTags:   ddTags2,
+			RepoTags: repoTags,
+			InUse:    inUse,
 		}
+
+		switch img.SBOM.Status {
+		case workloadmeta.Pending:
+			sbom.Status = model.SBOMStatus_PENDING
+		case workloadmeta.Failed:
+			sbom.Status = model.SBOMStatus_FAILED
+			sbom.Sbom = &model.SBOMEntity_Error{
+				Error: img.SBOM.Error,
+			}
+		default:
+			sbom.Status = model.SBOMStatus_SUCCESS
+			sbom.GeneratedAt = timestamppb.New(img.SBOM.GenerationTime)
+			sbom.GenerationDuration = convertDuration(img.SBOM.GenerationDuration)
+			sbom.Sbom = &model.SBOMEntity_Cyclonedx{
+				Cyclonedx: convertBOM(img.SBOM.CycloneDXBOM),
+			}
+		}
+		p.queue <- sbom
 	}
 }
 

@@ -89,32 +89,35 @@ func TestReceiverRequestBodyLength(t *testing.T) {
 
 	// Before going further, make sure receiver is started
 	// since it's running in another goroutine
-	for i := 0; i < 10; i++ {
+	serverReady := false
+	for i := 0; i < 100; i++ {
 		var client http.Client
 
 		body := bytes.NewBufferString("[]")
 		req, err := http.NewRequest("POST", url, body)
-		assert.Nil(err)
+		assert.NoError(err)
 
 		resp, err := client.Do(req)
 		if err == nil {
 			resp.Body.Close()
 			if resp.StatusCode == http.StatusOK {
+				serverReady = true
 				break
 			}
 		}
 		time.Sleep(10 * time.Millisecond)
 	}
 
+	assert.True(serverReady)
 	testBody := func(expectedStatus int, bodyData string) {
 		var client http.Client
 
 		body := bytes.NewBufferString(bodyData)
 		req, err := http.NewRequest("POST", url, body)
-		assert.Nil(err)
+		assert.NoError(err)
 
 		resp, err := client.Do(req)
-		assert.Nil(err)
+		assert.NoError(err)
 		assert.Equal(expectedStatus, resp.StatusCode)
 		resp.Body.Close()
 	}
@@ -144,7 +147,7 @@ func TestListenTCP(t *testing.T) {
 }
 
 func TestTracesDecodeMakingHugeAllocation(t *testing.T) {
-	r := newTestReceiverFromConfig(config.New())
+	r := newTestReceiverFromConfig(newTestReceiverConfig())
 	r.Start()
 	defer r.Stop()
 	data := []byte{0x96, 0x97, 0xa4, 0x30, 0x30, 0x30, 0x30, 0xa6, 0x30, 0x30, 0x30, 0x30, 0x30, 0x30, 0xa6, 0x30, 0x30, 0x30, 0x30, 0x30, 0x30, 0xa6, 0x30, 0x30, 0x30, 0x30, 0x30, 0x30, 0xa6, 0x30, 0x30, 0x30, 0x30, 0x30, 0x30, 0xa6, 0x30, 0x30, 0x30, 0x30, 0x30, 0x30, 0xa6, 0x30, 0x30, 0x30, 0x30, 0x30, 0x30, 0x96, 0x94, 0x9c, 0x00, 0x00, 0x00, 0x30, 0x30, 0xd1, 0x30, 0x30, 0x30, 0x30, 0x30, 0xdf, 0x30, 0x30, 0x30, 0x30}
@@ -158,7 +161,7 @@ func TestTracesDecodeMakingHugeAllocation(t *testing.T) {
 
 func TestStateHeaders(t *testing.T) {
 	assert := assert.New(t)
-	cfg := config.New()
+	cfg := newTestReceiverConfig()
 	cfg.AgentVersion = "testVersion"
 	r := newTestReceiverFromConfig(cfg)
 	r.Start()
@@ -986,7 +989,7 @@ func BenchmarkDecoderMsgpack(b *testing.B) {
 
 func BenchmarkWatchdog(b *testing.B) {
 	now := time.Now()
-	conf := config.New()
+	conf := newTestReceiverConfig()
 	conf.Endpoints[0].APIKey = "apikey_2"
 	r := NewHTTPReceiver(conf, nil, nil, nil, telemetry.NewNoopCollector())
 
@@ -998,7 +1001,7 @@ func BenchmarkWatchdog(b *testing.B) {
 }
 
 func TestReplyOKV5(t *testing.T) {
-	r := newTestReceiverFromConfig(config.New())
+	r := newTestReceiverFromConfig(newTestReceiverConfig())
 	r.Start()
 	defer r.Stop()
 
@@ -1020,7 +1023,7 @@ func TestExpvar(t *testing.T) {
 		return
 	}
 
-	c := config.New()
+	c := newTestReceiverConfig()
 	c.DebugServerPort = 5012
 	info.InitInfo(c)
 	s := NewDebugServer(c)

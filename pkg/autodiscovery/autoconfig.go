@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+// Package autodiscovery implements the agent's autodiscovery mechanism.
 package autodiscovery
 
 import (
@@ -262,7 +263,7 @@ func (ac *AutoConfig) processNewConfig(config integration.Config) integration.Co
 func (ac *AutoConfig) AddListeners(listenerConfigs []config.Listeners) {
 	ac.addListenerCandidates(listenerConfigs)
 	remaining := ac.initListenerCandidates()
-	if remaining == false {
+	if !remaining {
 		return
 	}
 

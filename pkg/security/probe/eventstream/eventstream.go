@@ -5,6 +5,8 @@
 
 //go:build linux
 
+// Package eventstream holds eventstream related files
 package eventstream
 
+// EventStreamMap defines the event stream map name
 const EventStreamMap = "events"

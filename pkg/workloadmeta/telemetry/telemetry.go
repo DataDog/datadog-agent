@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+// Package telemetry defines the telemetry for the Workloadmeta component.
 package telemetry
 
 import "github.com/DataDog/datadog-agent/pkg/telemetry"

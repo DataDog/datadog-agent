@@ -3,8 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build linux
-
+// Package rules holds rules related files
 package rules
 
 import (
@@ -30,13 +29,13 @@ func TestRuleEngineGatherPolicyProviders(t *testing.T) {
 			name:     "RC enabled",
 			fields:   fields{config: &config.RuntimeSecurityConfig{RemoteConfigurationEnabled: true}},
 			wantType: rules.PolicyProviderTypeRC,
-			wantLen:  2,
+			wantLen:  3,
 		},
 		{
 			name:     "RC disabled",
 			fields:   fields{config: &config.RuntimeSecurityConfig{RemoteConfigurationEnabled: false}},
 			wantType: rules.PolicyProviderTypeDir,
-			wantLen:  1,
+			wantLen:  2,
 		},
 	}
 
@@ -49,7 +48,7 @@ func TestRuleEngineGatherPolicyProviders(t *testing.T) {
 			got := e.gatherPolicyProviders()
 
 			assert.Equal(t, tt.wantLen, len(got))
-			assert.Equal(t, tt.wantType, got[0].Type())
+			assert.Equal(t, tt.wantType, got[1].Type())
 		})
 	}
 }

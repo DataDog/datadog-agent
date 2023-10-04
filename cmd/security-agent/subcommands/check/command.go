@@ -5,6 +5,7 @@
 
 //go:build !windows && kubeapiserver
 
+// Package check holds check related files
 package check
 
 import (
@@ -17,6 +18,7 @@ import (
 
 	"github.com/spf13/cobra"
 	"go.uber.org/fx"
+	"k8s.io/client-go/discovery"
 	"k8s.io/client-go/dynamic"
 
 	ddgostatsd "github.com/DataDog/datadog-go/v5/statsd"
@@ -26,6 +28,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/log"
+	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
 	"github.com/DataDog/datadog-agent/pkg/compliance"
 	"github.com/DataDog/datadog-agent/pkg/compliance/k8sconfig"
 	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
@@ -51,15 +54,18 @@ type CliParams struct {
 	dumpReports       string
 }
 
+// SecurityAgentCommands returns the security agent commands
 func SecurityAgentCommands(globalParams *command.GlobalParams) []*cobra.Command {
 	return commandsWrapped(func() core.BundleParams {
 		return core.BundleParams{
-			ConfigParams: config.NewSecurityAgentParams(globalParams.ConfigFilePaths),
-			LogParams:    log.LogForOneShot(command.LoggerName, "info", true),
+			ConfigParams:         config.NewSecurityAgentParams(globalParams.ConfigFilePaths),
+			SysprobeConfigParams: sysprobeconfig.NewParams(sysprobeconfig.WithSysProbeConfFilePath(globalParams.SysProbeConfFilePath)),
+			LogParams:            log.LogForOneShot(command.LoggerName, "info", true),
 		}
 	})
 }
 
+// ClusterAgentCommands returns the cluster agent commands
 func ClusterAgentCommands(bundleParams core.BundleParams) []*cobra.Command {
 	return commandsWrapped(func() core.BundleParams {
 		return bundleParams
@@ -99,6 +105,7 @@ func commandsWrapped(bundleParamsFactory func() core.BundleParams) []*cobra.Comm
 	return []*cobra.Command{cmd}
 }
 
+// RunCheck runs a check
 func RunCheck(log log.Component, config config.Component, checkArgs *CliParams) error {
 	hname, err := hostname.Get(context.TODO())
 	if err != nil {
@@ -192,7 +199,12 @@ func RunCheck(log log.Component, config config.Component, checkArgs *CliParams) 
 			case rule.IsXCCDF():
 				ruleEvents = compliance.EvaluateXCCDFRule(context.Background(), hname, statsdClient, benchmark, rule)
 			case rule.IsRego():
-				ruleEvents = compliance.ResolveAndEvaluateRegoRule(context.Background(), resolver, benchmark, rule)
+				inputs, err := resolver.ResolveInputs(context.Background(), rule)
+				if err != nil {
+					ruleEvents = append(ruleEvents, compliance.CheckEventFromError(compliance.RegoEvaluator, rule, benchmark, err))
+				} else {
+					ruleEvents = compliance.EvaluateRegoRule(context.Background(), inputs, benchmark, rule)
+				}
 			}
 			for _, event := range ruleEvents {
 				b, _ := json.MarshalIndent(event, "", "\t")
@@ -252,14 +264,14 @@ func reportComplianceEvents(log log.Component, config config.Component, events [
 	return nil
 }
 
-func complianceKubernetesProvider(_ctx context.Context) (dynamic.Interface, error) {
+func complianceKubernetesProvider(_ctx context.Context) (dynamic.Interface, discovery.DiscoveryInterface, error) {
 	ctx, cancel := context.WithTimeout(_ctx, 2*time.Second)
 	defer cancel()
 	apiCl, err := apiserver.WaitForAPIClient(ctx)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
-	return apiCl.DynamicCl, nil
+	return apiCl.DynamicCl, apiCl.DiscoveryCl, nil
 }
 
 type fakeResolver struct {
@@ -271,15 +283,32 @@ func newFakeResolver(regoInputPath string) compliance.Resolver {
 }
 
 func (r *fakeResolver) ResolveInputs(ctx context.Context, rule *compliance.Rule) (compliance.ResolvedInputs, error) {
-	var fixtures map[string]compliance.ResolvedInputs
+	var fixtures map[string]map[string]interface{}
 	data, err := os.ReadFile(r.regoInputPath)
 	if err != nil {
 		return nil, err
 	}
-	if err := json.Unmarshal([]byte(data), &fixtures); err != nil {
+	if err := json.Unmarshal(data, &fixtures); err != nil {
 		return nil, fmt.Errorf("could not unmarshal faked rego input: %w", err)
 	}
-	return fixtures[rule.ID], nil
+	fixture, ok := fixtures[rule.ID]
+	if !ok {
+		return nil, fmt.Errorf("could not find fixtures for rule %q", rule.ID)
+	}
+	var resolvingContext compliance.ResolvingContext
+	if err := jsonRountrip(fixture["context"], &resolvingContext); err != nil {
+		return nil, err
+	}
+	delete(fixture, "context")
+	return compliance.NewResolvedInputs(resolvingContext, fixture)
+}
+
+func jsonRountrip(i interface{}, v interface{}) error {
+	b, err := json.Marshal(i)
+	if err != nil {
+		return err
+	}
+	return json.Unmarshal(b, &v)
 }
 
 func (r *fakeResolver) Close() {

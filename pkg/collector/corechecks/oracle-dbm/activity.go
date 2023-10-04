@@ -20,6 +20,9 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
+// Consider multibyte charactersets where a single special character can take several bytes
+const maxFullTextWithSafetyMargin = 3500
+
 // ActivitySnapshot is a payload containing database activity samples. It is parsed from the intake payload.
 // easyjson:json
 type ActivitySnapshot struct {
@@ -90,8 +93,8 @@ const ACTIVITY_QUERY = `SELECT /* DD_ACTIVITY_SAMPLING */
 		'CPU'
 	END wait_class,
 	wait_time_micro,
-	sql_fulltext,
-	prev_sql_fulltext,
+	dbms_lob.substr(sql_fulltext, 3500, 1) sql_fulltext,
+	dbms_lob.substr(prev_sql_fulltext, 3500, 1) prev_sql_fulltext,
 	pdb_name,
 	command_name
 FROM sys.dd_session
@@ -161,8 +164,8 @@ ELSE
 END wait_class,
 s.wait_time_micro,
 c.name as pdb_name,
-sq.sql_fulltext as sql_fulltext,
-sq_prev.sql_fulltext as prev_sql_fulltext,
+dbms_lob.substr(sq.sql_fulltext, 3500, 1) sql_fulltext,
+dbms_lob.substr(sq_prev.sql_fulltext, 3500, 1) prev_sql_fulltext,
 comm.command_name
 FROM
 v$session s,
@@ -283,11 +286,11 @@ type OracleActivityRowDB struct {
 	CommandName                sql.NullString `db:"COMMAND_NAME"`
 }
 
+// Converts sql types to Go native types
 func (c *Check) getSQLRow(SQLID sql.NullString, forceMatchingSignature *string, SQLPlanHashValue *uint64, SQLExecStart sql.NullString) (OracleSQLRow, error) {
 	SQLRow := OracleSQLRow{}
 	if SQLID.Valid {
 		SQLRow.SQLID = SQLID.String
-		c.statementsFilter.SQLIDs[SQLID.String] = 1
 	} else {
 		SQLRow.SQLID = ""
 		return SQLRow, nil
@@ -298,7 +301,6 @@ func (c *Check) getSQLRow(SQLID sql.NullString, forceMatchingSignature *string, 
 			return SQLRow, fmt.Errorf("failed converting force_matching_signature to uint64 %w", err)
 		}
 		SQLRow.ForceMatchingSignature = forceMatchingSignatureUint64
-		c.statementsFilter.ForceMatchingSignatures[*forceMatchingSignature] = 1
 	} else {
 		SQLRow.ForceMatchingSignature = 0
 	}
@@ -314,26 +316,18 @@ func (c *Check) getSQLRow(SQLID sql.NullString, forceMatchingSignature *string, 
 func (c *Check) SampleSession() error {
 	start := time.Now()
 
-	if c.statementsFilter.SQLIDs == nil {
-		c.statementsFilter.SQLIDs = make(map[string]int)
-	}
-	if c.statementsFilter.ForceMatchingSignatures == nil {
-		c.statementsFilter.ForceMatchingSignatures = make(map[string]int)
-	}
-	if c.statementsCache.SQLIDs == nil {
-		c.statementsCache.SQLIDs = make(map[string]StatementsCacheData)
-	}
-	if c.statementsCache.forceMatchingSignatures == nil {
-		c.statementsCache.forceMatchingSignatures = make(map[string]StatementsCacheData)
-	}
-
 	var sessionRows []OracleActivityRow
 	sessionSamples := []OracleActivityRowDB{}
 	var activityQuery string
-	if c.isRDS || c.isOracleCloud {
-		activityQuery = ACTIVITY_QUERY_DIRECT
-	} else {
+	maxSQLTextLength := maxFullTextWithSafetyMargin
+	if c.hostingType == selfManaged {
 		activityQuery = ACTIVITY_QUERY
+	} else {
+		activityQuery = ACTIVITY_QUERY_DIRECT
+	}
+
+	if c.config.QuerySamples.IncludeAllSessions {
+		activityQuery = fmt.Sprintf("%s %s", activityQuery, " OR 1=1")
 	}
 
 	err := selectWrapper(c, &sessionSamples, activityQuery)
@@ -387,7 +381,7 @@ func (c *Check) SampleSession() error {
 		previousSQL := false
 		sqlCurrentSQL, err := c.getSQLRow(sample.SQLID, sample.ForceMatchingSignature, sample.SQLPlanHashValue, sample.SQLExecStart)
 		if err != nil {
-			log.Errorf("error getting SQL row %s", err)
+			log.Errorf("%s error getting SQL row %s", c.logPrompt, err)
 		}
 
 		var sqlPrevSQL OracleSQLRow
@@ -396,7 +390,7 @@ func (c *Check) SampleSession() error {
 		} else {
 			sqlPrevSQL, err = c.getSQLRow(sample.PrevSQLID, sample.PrevForceMatchingSignature, sample.PrevSQLPlanHashValue, sample.PrevSQLExecStart)
 			if err != nil {
-				log.Errorf("error getting SQL row %s", err)
+				log.Errorf("%s error getting SQL row %s", c.logPrompt, err)
 			}
 			if sqlPrevSQL.SQLID != "" {
 				sessionRow.OracleSQLRow = sqlPrevSQL
@@ -447,40 +441,54 @@ func (c *Check) SampleSession() error {
 		obfuscate := true
 		var hasRealSQLText bool
 		if sample.Statement.Valid && sample.Statement.String != "" && !previousSQL {
+			// If we captured the statement, we are assigning the value
 			statement = sample.Statement.String
 			hasRealSQLText = true
-		} else if previousSQL {
-			if sample.PrevSQLFullText.Valid && sample.PrevSQLFullText.String != "" {
-				statement = sample.PrevSQLFullText.String
-			} else {
-				/* The case where we got the previous sql but not the text. Happens when
-				 * a cursor with a short living explain plan was evicted from the shared pool.
-				 * We'll search for the text of a different cursor of the same SQL.
-				 */
-				err = c.db.Get(&statement, "SELECT sql_fulltext FROM v$sqlstats WHERE sql_id = :1 AND rownum=1", sqlPrevSQL.SQLID)
-				if err != nil {
-					log.Errorf("sql_text for the previous statement: %s", err)
-				}
-				if statement != "" {
-					hasRealSQLText = true
-				}
-			}
+		} else if previousSQL && sample.PrevSQLFullText.Valid && sample.PrevSQLFullText.String != "" {
+			statement = sample.PrevSQLFullText.String
+			hasRealSQLText = true
 		} else if (sample.OpFlags & 8) == 8 {
 			statement = "LOG ON/LOG OFF"
 			obfuscate = false
 		} else if commandName != "" {
 			statement = commandName
-			//obfuscate = false
 		} else if sessionType == "BACKGROUND" {
 			statement = program
-			// The program name can contain an IP address
-			//obfuscate = false
+			obfuscate = false
 		} else if sample.Module.Valid && sample.Module.String == "DBMS_SCHEDULER" {
 			statement = sample.Module.String
 			obfuscate = false
 		} else {
-			log.Warnf("activity sql text empty for %#v \n", sample)
+			log.Debugf("activity sql text empty for %#v \n", sample)
 		}
+
+		if hasRealSQLText {
+			/*
+			 * If the statement length is maxSQLTextLength characters, we are assuming that the statement was truncated,
+			 * so we are trying to fetch it complete. The full statement is stored in a LOB, so we are calling
+			 * getFullSQLText which doesn't leak PGA memory
+			 */
+			if len(statement) == maxSQLTextLength {
+				var fetchedStatement string
+				err = getFullSQLText(c, &fetchedStatement, "sql_id", sessionRow.SQLID)
+				if err != nil {
+					log.Warnf("%s failed to fetch full sql text for the current sql_id: %s", c.logPrompt, err)
+				}
+				if fetchedStatement != "" {
+					statement = fetchedStatement
+				}
+			}
+		} else {
+			if (sample.OpFlags & 128) == 128 {
+				statement = fmt.Sprintf("%s IN HARD PARSE", statement)
+			} else if (sample.OpFlags & 16) == 16 {
+				statement = fmt.Sprintf("%s IN PARSE", statement)
+			}
+			if (sample.OpFlags & 65536) == 65536 {
+				statement = fmt.Sprintf("%s IN CURSOR CLOSING", statement)
+			}
+		}
+
 		if statement != "" && obfuscate {
 			obfuscatedStatement, err := c.GetObfuscatedStatement(o, statement)
 			sessionRow.Statement = obfuscatedStatement.Statement
@@ -489,23 +497,6 @@ func (c *Check) SampleSession() error {
 				sessionRow.Tables = obfuscatedStatement.Tables
 				sessionRow.Comments = obfuscatedStatement.Comments
 				sessionRow.QuerySignature = obfuscatedStatement.QuerySignature
-			}
-			if hasRealSQLText {
-				if sessionRow.OracleSQLRow.ForceMatchingSignature != 0 {
-					c.statementsCache.forceMatchingSignatures[strconv.FormatUint(sessionRow.OracleSQLRow.ForceMatchingSignature, 10)] = StatementsCacheData{
-						statement:      obfuscatedStatement.Statement,
-						querySignature: obfuscatedStatement.QuerySignature,
-						commands:       obfuscatedStatement.Commands,
-						tables:         obfuscatedStatement.Tables,
-					}
-				} else if sessionRow.OracleSQLRow.SQLID != "" {
-					c.statementsCache.SQLIDs[sessionRow.OracleSQLRow.SQLID] = StatementsCacheData{
-						statement:      obfuscatedStatement.Statement,
-						querySignature: obfuscatedStatement.QuerySignature,
-						commands:       obfuscatedStatement.Commands,
-						tables:         obfuscatedStatement.Tables,
-					}
-				}
 			}
 		} else {
 			sessionRow.Statement = statement
@@ -534,15 +525,15 @@ func (c *Check) SampleSession() error {
 
 	payloadBytes, err := json.Marshal(payload)
 	if err != nil {
-		log.Errorf("Error marshalling activity payload: %s", err)
+		log.Errorf("%s Error marshalling activity payload: %s", c.logPrompt, err)
 		return err
 	}
 
-	log.Tracef("Activity payload %s", strings.ReplaceAll(string(payloadBytes), "@", "XX"))
+	log.Debugf("%s Activity payload %s", c.logPrompt, strings.ReplaceAll(string(payloadBytes), "@", "XX"))
 
 	sender, err := c.GetSender()
 	if err != nil {
-		log.Errorf("GetSender SampleSession %s", string(payloadBytes))
+		log.Errorf("%s GetSender SampleSession %s", c.logPrompt, string(payloadBytes))
 		return err
 	}
 	sender.EventPlatformEvent(payloadBytes, "dbm-activity")

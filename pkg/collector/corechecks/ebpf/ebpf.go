@@ -5,6 +5,7 @@
 
 //go:build cgo && linux
 
+// Package ebpf contains all the ebpf-based checks.
 package ebpf
 
 import (
@@ -19,7 +20,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/ebpf/probe/ebpfcheck"
+	ebpfcheck "github.com/DataDog/datadog-agent/pkg/collector/corechecks/ebpf/probe/ebpfcheck/model"
 	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
 	processnet "github.com/DataDog/datadog-agent/pkg/process/net"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -117,7 +118,7 @@ func (m *EBPFCheck) Run() error {
 		moduleTotalMapMaxSize[mapStats.Module] += mapStats.MaxSize
 		moduleTotalMapRSS[mapStats.Module] += mapStats.RSS
 
-		log.Debugf("ebpf check: map=%s maxsize=%d type=%s", mapStats.Name, mapStats.MaxSize, mapStats.Type.String())
+		log.Tracef("ebpf check: map=%s maxsize=%d type=%s", mapStats.Name, mapStats.MaxSize, mapStats.Type.String())
 	}
 
 	for _, mapInfo := range stats.Maps {
@@ -157,6 +158,8 @@ func (m *EBPFCheck) Run() error {
 
 	totalProgRSS := uint64(0)
 	moduleTotalProgRSS := make(map[string]uint64)
+	moduleTotalXlatedLen := make(map[string]uint64)
+	moduleTotalVerifiedCount := make(map[string]uint64)
 	for _, progInfo := range stats.Programs {
 		tags := []string{
 			"program_name:" + progInfo.Name,
@@ -167,12 +170,12 @@ func (m *EBPFCheck) Run() error {
 			tags = append(tags, "program_tag:"+progInfo.Tag)
 		}
 		var debuglogs []string
-		if log.ShouldLog(seelog.DebugLvl) {
+		if log.ShouldLog(seelog.TraceLvl) {
 			debuglogs = []string{"program=" + progInfo.Name, "type=" + progInfo.Type.String()}
 		}
 
 		gauges := map[string]float64{
-			"xlated_instruction_count":   float64(progInfo.XlatedProgLen),
+			"xlated_instruction_len":     float64(progInfo.XlatedProgLen),
 			"verified_instruction_count": float64(progInfo.VerifiedInsns),
 			"memory_rss":                 float64(progInfo.RSS),
 		}
@@ -181,12 +184,14 @@ func (m *EBPFCheck) Run() error {
 				continue
 			}
 			sender.Gauge("ebpf.programs."+k, v, "", tags)
-			if log.ShouldLog(seelog.DebugLvl) {
+			if log.ShouldLog(seelog.TraceLvl) {
 				debuglogs = append(debuglogs, fmt.Sprintf("%s=%.0f", k, v))
 			}
 		}
 		totalProgRSS += progInfo.RSS
 		moduleTotalProgRSS[progInfo.Module] += progInfo.RSS
+		moduleTotalXlatedLen[progInfo.Module] += uint64(progInfo.XlatedProgLen)
+		moduleTotalVerifiedCount[progInfo.Module] += uint64(progInfo.VerifiedInsns)
 
 		monos := map[string]float64{
 			"runtime_ns":       float64(progInfo.Runtime.Nanoseconds()),
@@ -198,13 +203,13 @@ func (m *EBPFCheck) Run() error {
 				continue
 			}
 			sender.MonotonicCountWithFlushFirstValue("ebpf.programs."+k, v, "", tags, true)
-			if log.ShouldLog(seelog.DebugLvl) {
+			if log.ShouldLog(seelog.TraceLvl) {
 				debuglogs = append(debuglogs, fmt.Sprintf("%s=%.0f", k, v))
 			}
 		}
 
-		if log.ShouldLog(seelog.DebugLvl) {
-			log.Debugf("ebpf check: %s", strings.Join(debuglogs, " "))
+		if log.ShouldLog(seelog.TraceLvl) {
+			log.Tracef("ebpf check: %s", strings.Join(debuglogs, " "))
 		}
 	}
 	if totalProgRSS > 0 {
@@ -212,6 +217,16 @@ func (m *EBPFCheck) Run() error {
 	}
 	for mod, rss := range moduleTotalProgRSS {
 		sender.Gauge("ebpf.programs.memory_rss_permodule_total", float64(rss), "", []string{"module:" + mod})
+	}
+	for mod, xlatedLen := range moduleTotalXlatedLen {
+		if xlatedLen > 0 {
+			sender.Gauge("ebpf.programs.xlated_instruction_len_permodule_total", float64(xlatedLen), "", []string{"module:" + mod})
+		}
+	}
+	for mod, verifiedCount := range moduleTotalVerifiedCount {
+		if verifiedCount > 0 {
+			sender.Gauge("ebpf.programs.verified_instruction_count_permodule_total", float64(verifiedCount), "", []string{"module:" + mod})
+		}
 	}
 
 	sender.Commit()

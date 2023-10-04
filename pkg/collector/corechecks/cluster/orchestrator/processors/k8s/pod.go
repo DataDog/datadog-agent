@@ -12,10 +12,10 @@ import (
 	"strings"
 
 	model "github.com/DataDog/agent-payload/v5/process"
-
 	kubetypes "github.com/DataDog/datadog-agent/internal/third_party/kubernetes/pkg/kubelet/types"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors"
 	k8sTransformers "github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/transformers/k8s"
+	"github.com/DataDog/datadog-agent/pkg/orchestrator"
 	"github.com/DataDog/datadog-agent/pkg/orchestrator/redact"
 	"github.com/DataDog/datadog-agent/pkg/tagger"
 	"github.com/DataDog/datadog-agent/pkg/tagger/collectors"
@@ -56,7 +56,7 @@ func (h *PodHandlers) BeforeCacheCheck(ctx *processors.ProcessorContext, resourc
 	// insert tagger tags
 	taggerTags, err := tagger.Tag(kubelet.PodUIDToTaggerEntityName(string(r.UID)), collectors.HighCardinality)
 	if err != nil {
-		log.Debugf("Could not retrieve tags for pod: %s", err)
+		log.Debugf("Could not retrieve tags for pod: %s", err.Error())
 		skip = true
 		return
 	}
@@ -79,7 +79,7 @@ func (h *PodHandlers) BeforeCacheCheck(ctx *processors.ProcessorContext, resourc
 
 	// Custom resource version to work around kubelet issues.
 	if err := k8sTransformers.FillK8sPodResourceVersion(m); err != nil {
-		log.Warnf("Failed to compute pod resource version: %s", err)
+		log.Warnc(fmt.Sprintf("Failed to compute pod resource version: %s", err.Error()), orchestrator.ExtraLogContext)
 		skip = true
 		return
 	}
@@ -148,6 +148,6 @@ func (h *PodHandlers) ScrubBeforeExtraction(ctx *processors.ProcessorContext, re
 func (h *PodHandlers) ScrubBeforeMarshalling(ctx *processors.ProcessorContext, resource interface{}) {
 	r := resource.(*corev1.Pod)
 	if ctx.Cfg.IsScrubbingEnabled {
-		redact.ScrubPodSpec(&r.Spec, ctx.Cfg.Scrubber)
+		redact.ScrubPod(r, ctx.Cfg.Scrubber)
 	}
 }

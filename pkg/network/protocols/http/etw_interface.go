@@ -28,7 +28,7 @@ func NewEtwInterface(c *config.Config) *EtwInterface {
 	return &EtwInterface{
 		maxEntriesBuffered: c.MaxHTTPStatsBuffered,
 		DataChannel:        make(chan []WinHttpTransaction),
-		captureHTTPS:       c.EnableHTTPSMonitoring,
+		captureHTTPS:       c.EnableNativeTLSMonitoring,
 		captureHTTP:        c.EnableHTTPMonitoring,
 	}
 }
@@ -66,7 +66,7 @@ func (hei *EtwInterface) StartReadingHttpFlows() {
 
 		startingEtwChan <- struct{}{}
 
-		err := etw.StartEtw("ddnpm-httpservice", etw.EtwProviderHttpService, hei)
+		err := etw.StartEtw("ddnpm-httpservice", etw.EtwProviderHTTPService, hei)
 
 		if err == nil {
 			log.Infof("ETW HttpService subscription completed")

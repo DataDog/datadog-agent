@@ -127,5 +127,12 @@ func (c *CheckWrapper) InstanceConfig() string {
 
 // GetDiagnoses returns the diagnoses cached in last run or diagnose explicitly
 func (c *CheckWrapper) GetDiagnoses() ([]diagnosis.Diagnosis, error) {
-	return nil, nil
+	// Avoid running concurrently with Run method (for now)
+	c.runM.Lock()
+	defer c.runM.Unlock()
+
+	if c.done {
+		return nil, nil
+	}
+	return c.inner.GetDiagnoses()
 }

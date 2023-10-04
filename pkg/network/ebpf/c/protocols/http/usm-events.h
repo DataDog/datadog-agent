@@ -4,6 +4,6 @@
 #include "protocols/events.h"
 #include "protocols/http/types.h"
 
-USM_EVENTS_INIT(http, http_transaction_t, HTTP_BATCH_SIZE);
+USM_EVENTS_INIT(http, http_event_t, HTTP_BATCH_SIZE);
 
 #endif

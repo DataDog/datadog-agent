@@ -9,6 +9,7 @@ include:
   - /.gitlab/source_test.yml
   - /.gitlab/source_test_junit_upload.yml
   - /.gitlab/binary_build.yml
+  - /.gitlab/cancel-prev-pipelines.yml
   - /.gitlab/integration_test.yml
   - /.gitlab/package_build.yml
   - /.gitlab/kitchen_deploy.yml
@@ -37,12 +38,8 @@ include:
   - /.gitlab/functional_test_junit_upload.yml
   - /.gitlab/internal_kubernetes_deploy.yml
   - /.gitlab/notify.yml
-  # FIXME: our current Gitlab version doesn't support importing a file more than once
-  # For now, the workaround is to include "common" files once in the top-level .gitlab-ci.yml file
-  # See: https://gitlab.com/gitlab-org/gitlab/-/issues/28987
   - /.gitlab/kitchen_common/cleanup.yml
   - /.gitlab/kitchen_common/testing.yml
-  - /.gitlab/docker_common/publish_job_templates.yml
   - /.gitlab/benchmarks/benchmarks.yml
   - /.gitlab/benchmarks/macrobenchmarks.yml
 
@@ -56,6 +53,7 @@ default:
       - api_failure
 
 stages:
+  - .pre
   - setup
   - maintenance_jobs
   - deps_build
@@ -153,21 +151,21 @@ variables:
   # To use images from datadog-agent-buildimages dev branches, set the corresponding
   # SUFFIX variable to _test_only
   DATADOG_AGENT_BUILDIMAGES_SUFFIX: ""
-  DATADOG_AGENT_BUILDIMAGES: v18868373-918b265
+  DATADOG_AGENT_BUILDIMAGES: v19979316-3aa3d4b
   DATADOG_AGENT_WINBUILDIMAGES_SUFFIX: ""
-  DATADOG_AGENT_WINBUILDIMAGES: v18868373-918b265
+  DATADOG_AGENT_WINBUILDIMAGES: v19979316-3aa3d4b
   DATADOG_AGENT_ARMBUILDIMAGES_SUFFIX: ""
-  DATADOG_AGENT_ARMBUILDIMAGES: v18868373-918b265
+  DATADOG_AGENT_ARMBUILDIMAGES: v19979316-3aa3d4b
   DATADOG_AGENT_SYSPROBE_BUILDIMAGES_SUFFIX: ""
-  DATADOG_AGENT_SYSPROBE_BUILDIMAGES: v18868373-918b265
+  DATADOG_AGENT_SYSPROBE_BUILDIMAGES: v19979316-3aa3d4b
   DATADOG_AGENT_KERNEL_MATRIX_TESTING_BUILDIMAGES_SUFFIX: ""
-  DATADOG_AGENT_KERNEL_MATRIX_TESTING_BUILDIMAGES: v18868373-918b265
+  DATADOG_AGENT_KERNEL_MATRIX_TESTING_BUILDIMAGES: v19979316-3aa3d4b
   DATADOG_AGENT_NIKOS_BUILDIMAGES_SUFFIX: ""
-  DATADOG_AGENT_NIKOS_BUILDIMAGES: v18868373-918b265
+  DATADOG_AGENT_NIKOS_BUILDIMAGES: v19979316-3aa3d4b
   DATADOG_AGENT_BTF_GEN_BUILDIMAGES_SUFFIX: ""
-  DATADOG_AGENT_BTF_GEN_BUILDIMAGES: v18868373-918b265
-  DATADOG_AGENT_BUILDERS: v19040681-572898a
-  TEST_INFRA_DEFINITIONS_BUILDIMAGES: b26f1d056477
+  DATADOG_AGENT_BTF_GEN_BUILDIMAGES: v19979316-3aa3d4b
+  TEST_INFRA_DEFINITIONS_BUILDIMAGES: cb9e86993fd5
+  DATADOG_AGENT_BUILDERS: v19474930-fe4bcd9
 
   DATADOG_AGENT_EMBEDDED_PATH: /opt/datadog-agent/embedded
   DEB_GPG_KEY_ID: ad9589b7
@@ -271,6 +269,9 @@ variables:
 .if_testing_cleanup: &if_testing_cleanup
   if: $TESTING_CLEANUP == "true"
 
+.if_not_e2e: &if_not_e2e
+  if: $RUN_KITCHEN_TESTS == "false"
+
 .if_deploy_on_beta_repo_branch: &if_deploy_on_beta_repo_branch
   if: $DEPLOY_AGENT == "true" && $BUCKET_BRANCH == "beta"
 
@@ -293,6 +294,8 @@ variables:
 # Rules used to define whether a pipeline should run, and with which variables
 #
 
+# WARNING: Do not change below if you want to globally disable the caching proxy (all branches would need to be rebased for it to be effectively disabled).
+# Instead use the break-glass mechanism by looking for the "Remotely disable Artifactory" doc in Confluence.
 workflow:
   rules:
     - <<: *if_triggered_pipeline
@@ -309,8 +312,8 @@ workflow:
         USE_CACHING_PROXY_RUBY: "true"
     - <<: *if_deploy
       variables:
-        USE_CACHING_PROXY_PYTHON: "false"
-        USE_CACHING_PROXY_RUBY: "false"
+        USE_CACHING_PROXY_PYTHON: "true"
+        USE_CACHING_PROXY_RUBY: "true"
     - if: $CI_COMMIT_TAG == null
       variables:
         USE_CACHING_PROXY_PYTHON: "false"
@@ -741,6 +744,13 @@ workflow:
   - <<: *if_main_branch
   - <<: *if_release_branch
 
+.except_main_or_release_branch:
+  - <<: *if_main_branch
+    when: never
+  - <<: *if_release_branch
+    when: never
+  - when: on_success
+
 .on_main_or_release_branch_or_deploy_always:
   - <<: *if_deploy
     when: always
@@ -842,6 +852,7 @@ workflow:
 
 .on_security_agent_changes_or_manual:
   - <<: *if_main_branch
+    allow_failure: true
   - changes:
       paths:
         - pkg/ebpf/**/*
@@ -900,8 +911,17 @@ workflow:
   - when: manual
     allow_failure: true
 
+.on_scheduled_main:
+  - <<: *if_scheduled_main
+
 .on_scheduled_main_or_manual:
   - <<: *if_scheduled_main
     when: always
   - when: manual
     allow_failure: true
+
+.on_main_and_no_skip_e2e:
+  - <<: *if_not_e2e
+    when: never
+  - <<: *if_main_branch
+    when: on_success

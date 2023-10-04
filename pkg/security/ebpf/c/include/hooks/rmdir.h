@@ -52,7 +52,7 @@ int hook_security_inode_rmdir(ctx_t *ctx) {
             // we resolve all the information before the file is actually removed
             dentry = (struct dentry *)CTX_PARM2(ctx);
             set_file_inode(dentry, &syscall->rmdir.file, 1);
-            fill_file_metadata(dentry, &syscall->rmdir.file.metadata);
+            fill_file(dentry, &syscall->rmdir.file);
 
             // the mount id of path_key is resolved by kprobe/mnt_want_write. It is already set by the time we reach this probe.
             key = syscall->rmdir.file.path_key;
@@ -71,7 +71,7 @@ int hook_security_inode_rmdir(ctx_t *ctx) {
             // we resolve all the information before the file is actually removed
             dentry = (struct dentry *) CTX_PARM2(ctx);
             set_file_inode(dentry, &syscall->unlink.file, 1);
-            fill_file_metadata(dentry, &syscall->unlink.file.metadata);
+            fill_file(dentry, &syscall->unlink.file);
 
             // the mount id of path_key is resolved by kprobe/mnt_want_write. It is already set by the time we reach this probe.
             key = syscall->unlink.file.path_key;
@@ -107,24 +107,8 @@ int hook_security_inode_rmdir(ctx_t *ctx) {
     return 0;
 }
 
-SEC("kprobe/dr_security_inode_rmdir_callback")
-int kprobe_dr_security_inode_rmdir_callback(struct pt_regs *ctx) {
-    struct syscall_cache_t *syscall = peek_syscall_with(rmdir_predicate);
-    if (!syscall) {
-        return 0;
-    }
-
-    if (syscall->resolver.ret == DENTRY_DISCARDED) {
-        monitor_discarded(EVENT_RMDIR);
-        return mark_as_discarded(syscall);
-    }
-    return 0;
-}
-
-#ifdef USE_FENTRY
-
 TAIL_CALL_TARGET("dr_security_inode_rmdir_callback")
-int fentry_dr_security_inode_rmdir_callback(ctx_t *ctx) {
+int tail_call_target_dr_security_inode_rmdir_callback(ctx_t *ctx) {
     struct syscall_cache_t *syscall = peek_syscall_with(rmdir_predicate);
     if (!syscall) {
         return 0;
@@ -136,8 +120,6 @@ int fentry_dr_security_inode_rmdir_callback(ctx_t *ctx) {
     }
     return 0;
 }
-
-#endif // USE_FENTRY
 
 int __attribute__((always_inline)) sys_rmdir_ret(void *ctx, int retval) {
     struct syscall_cache_t *syscall = pop_syscall_with(rmdir_predicate);

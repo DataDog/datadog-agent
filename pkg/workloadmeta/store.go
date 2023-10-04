@@ -204,7 +204,7 @@ func (s *store) Subscribe(name string, priority SubscriberPriority, filter *Filt
 
 	// notifyChannel should not wait when doing the first subscription, as
 	// the subscriber is not ready to receive events yet
-	notifyChannel(sub.name, sub.ch, events, false)
+	s.notifyChannel(sub.name, sub.ch, events, false)
 
 	s.subscribersMut.Lock()
 	defer s.subscribersMut.Unlock()
@@ -357,6 +357,16 @@ func (s *store) GetKubernetesNode(id string) (*KubernetesNode, error) {
 	}
 
 	return entity.(*KubernetesNode), nil
+}
+
+// GetKubernetesDeployment implements Store#GetKubernetesDeployment
+func (s *store) GetKubernetesDeployment(id string) (*KubernetesDeployment, error) {
+	entity, err := s.getEntityByKind(KindKubernetesDeployment, id)
+	if err != nil {
+		return nil, err
+	}
+
+	return entity.(*KubernetesDeployment), nil
 }
 
 // GetECSTask implements Store#GetECSTask
@@ -532,7 +542,7 @@ func (s *store) pull(ctx context.Context) {
 		ongoingPullStartTime := s.ongoingPulls[id]
 		alreadyRunning := !ongoingPullStartTime.IsZero()
 		if alreadyRunning {
-			timeRunning := time.Now().Sub(ongoingPullStartTime)
+			timeRunning := time.Since(ongoingPullStartTime)
 			if timeRunning > maxCollectorPullTime {
 				log.Errorf("collector %q has been running for too long (%d seconds)", id, timeRunning/time.Second)
 			} else {
@@ -558,7 +568,7 @@ func (s *store) pull(ctx context.Context) {
 			}
 
 			s.ongoingPullsMut.Lock()
-			pullDuration := time.Now().Sub(s.ongoingPulls[id])
+			pullDuration := time.Since(s.ongoingPulls[id])
 			telemetry.PullDuration.Observe(pullDuration.Seconds(), id)
 			s.ongoingPulls[id] = time.Time{}
 			s.ongoingPullsMut.Unlock()
@@ -694,7 +704,7 @@ func (s *store) handleEvents(evs []CollectorEvent) {
 			continue
 		}
 
-		notifyChannel(sub.name, sub.ch, evs, true)
+		s.notifyChannel(sub.name, sub.ch, evs, true)
 	}
 }
 
@@ -745,13 +755,14 @@ func (s *store) unsubscribeAll() {
 	telemetry.Subscribers.Set(0)
 }
 
-func notifyChannel(name string, ch chan EventBundle, events []Event, wait bool) {
+func (s *store) notifyChannel(name string, ch chan EventBundle, events []Event, wait bool) {
 	bundle := EventBundle{
 		Ch:     make(chan struct{}),
 		Events: events,
 	}
-
+	s.subscribersMut.Lock()
 	ch <- bundle
+	s.subscribersMut.Unlock()
 
 	if wait {
 		timer := time.NewTimer(eventBundleChTimeout)

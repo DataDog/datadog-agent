@@ -84,6 +84,12 @@ var javaTLSSpec = &protocols.ProtocolSpec{
 		{
 			Name: javaTLSConnectionsMap,
 		},
+		{
+			Name: javaDomainsToConnectionsMap,
+		},
+		{
+			Name: eRPCHandlersMap,
+		},
 	},
 	Probes: []*manager.Probe{
 		{
@@ -127,7 +133,7 @@ var javaTLSSpec = &protocols.ProtocolSpec{
 }
 
 func newJavaTLSProgram(c *config.Config) (protocols.Protocol, error) {
-	if !c.EnableJavaTLSSupport || !c.EnableHTTPSMonitoring || !http.HTTPSSupported(c) {
+	if !c.EnableJavaTLSSupport || !http.HTTPSSupported(c) {
 		return nil, nil
 	}
 
@@ -157,13 +163,11 @@ func (p *javaTLSProgram) Name() string {
 
 func (p *javaTLSProgram) ConfigureOptions(_ *manager.Manager, options *manager.Options) {
 	options.MapSpecEditors[javaTLSConnectionsMap] = manager.MapSpecEditor{
-		Type:       ebpf.Hash,
-		MaxEntries: p.cfg.MaxTrackedConnections,
+		MaxEntries: p.cfg.MaxUSMConcurrentRequests,
 		EditorFlag: manager.EditMaxEntries,
 	}
 	options.MapSpecEditors[javaDomainsToConnectionsMap] = manager.MapSpecEditor{
-		Type:       ebpf.Hash,
-		MaxEntries: p.cfg.MaxTrackedConnections,
+		MaxEntries: p.cfg.MaxUSMConcurrentRequests,
 		EditorFlag: manager.EditMaxEntries,
 	}
 	options.ActivatedProbes = append(options.ActivatedProbes,
@@ -255,7 +259,7 @@ func (p *javaTLSProgram) newJavaProcess(pid uint32) {
 	}
 }
 
-func (p *javaTLSProgram) PreStart(*manager.Manager, protocols.BuildMode) error {
+func (p *javaTLSProgram) PreStart(*manager.Manager) error {
 	p.cleanupExec = p.processMonitor.SubscribeExec(p.newJavaProcess)
 	return nil
 }

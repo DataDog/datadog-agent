@@ -243,7 +243,7 @@ func (c *collector) handleImageCreateOrUpdate(ctx context.Context, namespace str
 	return c.notifyEventForImage(ctx, namespace, img, bom)
 }
 
-func (c *collector) notifyEventForImage(ctx context.Context, namespace string, img containerd.Image, bom *workloadmeta.SBOM) error {
+func (c *collector) notifyEventForImage(ctx context.Context, namespace string, img containerd.Image, newSBOM *workloadmeta.SBOM) error {
 	c.handleImagesMut.Lock()
 	defer c.handleImagesMut.Unlock()
 
@@ -272,7 +272,7 @@ func (c *collector) notifyEventForImage(ctx context.Context, namespace string, i
 
 	c.knownImages.addReference(imageName, imageID)
 
-	existingBOM := bom
+	sbom := newSBOM
 
 	// We can get "create" events for images that already exist. That happens
 	// when the same image is referenced with different names. For example,
@@ -292,12 +292,18 @@ func (c *collector) notifyEventForImage(ctx context.Context, namespace string, i
 			imageName = existingImg.Name
 		}
 
-		if existingBOM == nil && existingImg.SBOM != nil {
-			existingBOM = existingImg.SBOM
+		if sbom == nil && existingImg.SBOM.Status != workloadmeta.Pending {
+			sbom = existingImg.SBOM
 		}
 	}
 
-	var totalSizeBytes int64 = 0
+	if sbom == nil {
+		sbom = &workloadmeta.SBOM{
+			Status: workloadmeta.Pending,
+		}
+	}
+
+	totalSizeBytes := manifest.Config.Size
 	for _, layer := range manifest.Layers {
 		totalSizeBytes += layer.Size
 	}
@@ -330,7 +336,7 @@ func (c *collector) notifyEventForImage(ctx context.Context, namespace string, i
 		Architecture: architecture,
 		Variant:      variant,
 		Layers:       layers,
-		SBOM:         existingBOM,
+		SBOM:         sbom,
 	}
 
 	c.store.Notify([]workloadmeta.CollectorEvent{
@@ -379,7 +385,7 @@ func getLayersWithHistory(ctx context.Context, store content.Store, manifest oci
 			}
 
 			manifestLayer := manifest.Layers[manifestLayersIdx]
-			manifestLayersIdx += 1
+			manifestLayersIdx++
 
 			layer.MediaType = manifestLayer.MediaType
 			layer.Digest = manifestLayer.Digest.String()

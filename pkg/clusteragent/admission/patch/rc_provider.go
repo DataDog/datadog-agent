@@ -22,7 +22,7 @@ import (
 type remoteConfigProvider struct {
 	client             *remote.Client
 	isLeaderNotif      <-chan struct{}
-	subscribers        map[TargetObjKind]chan PatchRequest
+	subscribers        map[TargetObjKind]chan Request
 	clusterName        string
 	telemetryCollector telemetry.TelemetryCollector
 }
@@ -36,7 +36,7 @@ func newRemoteConfigProvider(client *remote.Client, isLeaderNotif <-chan struct{
 	return &remoteConfigProvider{
 		client:             client,
 		isLeaderNotif:      isLeaderNotif,
-		subscribers:        make(map[TargetObjKind]chan PatchRequest),
+		subscribers:        make(map[TargetObjKind]chan Request),
 		clusterName:        clusterName,
 		telemetryCollector: telemetryCollector,
 	}, nil
@@ -50,7 +50,7 @@ func (rcp *remoteConfigProvider) start(stopCh <-chan struct{}) {
 		select {
 		case <-rcp.isLeaderNotif:
 			log.Info("Got a leader notification, polling from remote-config")
-			rcp.process(rcp.client.GetConfigs(state.ProductAPMTracing))
+			rcp.process(rcp.client.GetConfigs(state.ProductAPMTracing), rcp.client.UpdateApplyStatus)
 		case <-stopCh:
 			log.Info("Shutting down remote-config patch provider")
 			rcp.client.Close()
@@ -59,19 +59,19 @@ func (rcp *remoteConfigProvider) start(stopCh <-chan struct{}) {
 	}
 }
 
-func (rcp *remoteConfigProvider) subscribe(kind TargetObjKind) chan PatchRequest {
-	ch := make(chan PatchRequest, 10)
+func (rcp *remoteConfigProvider) subscribe(kind TargetObjKind) chan Request {
+	ch := make(chan Request, 10)
 	rcp.subscribers[kind] = ch
 	return ch
 }
 
 // process is the event handler called by the RC client on config updates
-func (rcp *remoteConfigProvider) process(update map[string]state.RawConfig) {
+func (rcp *remoteConfigProvider) process(update map[string]state.RawConfig, _ func(string, state.ApplyStatus)) {
 	log.Infof("Got %d updates from remote-config", len(update))
 	var valid, invalid float64
 	for path, config := range update {
 		log.Debugf("Parsing config %s from path %s", config.Config, path)
-		var req PatchRequest
+		var req Request
 		err := json.Unmarshal(config.Config, &req)
 		if err != nil {
 			invalid++

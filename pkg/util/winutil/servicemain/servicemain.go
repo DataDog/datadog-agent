@@ -5,20 +5,25 @@
 
 //go:build windows
 
+// Package servicemain provides Windows Service application helpers
 package servicemain
 
 import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
+	"unsafe"
 
 	"github.com/DataDog/datadog-agent/pkg/util/winutil"
 	"github.com/DataDog/datadog-agent/pkg/util/winutil/messagestrings"
 
+	"golang.org/x/sys/windows"
 	"golang.org/x/sys/windows/svc"
 )
 
+// Service defines the interface that applications should implement to run as Windows Services
 type Service interface {
 	// Name() returns the string to be used as the source for event log records.
 	Name() string
@@ -44,7 +49,7 @@ type Service interface {
 	Run(ctx context.Context) error
 }
 
-// Return ErrCleanStopAfterInit from Service.Init() to report SERVICE_RUNNING and then exit without error after
+// ErrCleanStopAfterInit should be returned from Service.Init() to report SERVICE_RUNNING and then exit without error after
 // a delay. See runTimeExitGate for more information on why the delay is necessary.
 //
 // Example use case, the service detects that it is not configured and wishes to stop running, but does not want
@@ -64,10 +69,43 @@ type controlHandler struct {
 	service Service
 }
 
+// This function is a clone of "golang.org/x/sys/windows/svc:IsWindowsService", but with a fix
+// for Windows containers. Go cloned the .NET implementation of this function, which has since
+// been patched to support Windows containers, which don't use Session ID 0 for services.
+// https://github.com/dotnet/runtime/pull/74188
+// This function can be replaced with go's once go brings in the fix.
+func patchedIsWindowsService() (bool, error) {
+	var currentProcess windows.PROCESS_BASIC_INFORMATION
+	infoSize := uint32(unsafe.Sizeof(currentProcess))
+	err := windows.NtQueryInformationProcess(windows.CurrentProcess(), windows.ProcessBasicInformation, unsafe.Pointer(&currentProcess), infoSize, &infoSize)
+	if err != nil {
+		return false, err
+	}
+	var parentProcess *windows.SYSTEM_PROCESS_INFORMATION
+	for infoSize = uint32((unsafe.Sizeof(*parentProcess) + unsafe.Sizeof(uintptr(0))) * 1024); ; {
+		parentProcess = (*windows.SYSTEM_PROCESS_INFORMATION)(unsafe.Pointer(&make([]byte, infoSize)[0]))
+		err = windows.NtQuerySystemInformation(windows.SystemProcessInformation, unsafe.Pointer(parentProcess), infoSize, &infoSize)
+		if err == nil {
+			break
+		} else if err != windows.STATUS_INFO_LENGTH_MISMATCH {
+			return false, err
+		}
+	}
+	for ; ; parentProcess = (*windows.SYSTEM_PROCESS_INFORMATION)(unsafe.Pointer(uintptr(unsafe.Pointer(parentProcess)) + uintptr(parentProcess.NextEntryOffset))) {
+		if parentProcess.UniqueProcessID == currentProcess.InheritedFromUniqueProcessId {
+			return strings.EqualFold("services.exe", parentProcess.ImageName.String()), nil
+		}
+		if parentProcess.NextEntryOffset == 0 {
+			break
+		}
+	}
+	return false, nil
+}
+
 // RunningAsWindowsService returns true if the current process is running as a Windows Service
 // and the application should call Run().
 func RunningAsWindowsService() bool {
-	isWindowsService, err := svc.IsWindowsService()
+	isWindowsService, err := patchedIsWindowsService()
 	if err != nil {
 		fmt.Printf("failed to determine if we are running in an interactive session: %v\n", err)
 		return false

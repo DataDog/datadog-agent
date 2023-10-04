@@ -80,6 +80,10 @@ type Store interface {
 	// the entity with kind KindKubernetesNode and the given ID.
 	GetKubernetesNode(id string) (*KubernetesNode, error)
 
+	// GetKubernetesDeployment returns metadata about a Kubernetes deployment. It fetches
+	// the entity with kind KindKubernetesDeployment and the given ID.
+	GetKubernetesDeployment(id string) (*KubernetesDeployment, error)
+
 	// GetECSTask returns metadata about an ECS task.  It fetches the entity with
 	// kind KindECSTask and the given ID.
 	GetECSTask(id string) (*ECSTask, error)
@@ -133,6 +137,7 @@ const (
 	KindContainer              Kind = "container"
 	KindKubernetesPod          Kind = "kubernetes_pod"
 	KindKubernetesNode         Kind = "kubernetes_node"
+	KindKubernetesDeployment   Kind = "kubernetes_deployment"
 	KindECSTask                Kind = "ecs_task"
 	KindContainerImageMetadata Kind = "container_image_metadata"
 	KindProcess                Kind = "process"
@@ -235,6 +240,18 @@ const (
 	EventTypeUnset
 )
 
+// SBOMStatus is the status of a SBOM
+type SBOMStatus string
+
+const (
+	// Pending is the status when the image was not scanned
+	Pending SBOMStatus = "Pending"
+	// Success is the status when the image was scanned
+	Success SBOMStatus = "Success"
+	// Failed is the status when the scan failed
+	Failed SBOMStatus = "Failed"
+)
+
 // Entity represents a single unit of work being done that is of interest to
 // the agent.
 //
@@ -290,8 +307,8 @@ func (e EntityMeta) String(verbose bool) string {
 	_, _ = fmt.Fprintln(&sb, "Namespace:", e.Namespace)
 
 	if verbose {
-		_, _ = fmt.Fprintln(&sb, "Annotations:", mapToString(e.Annotations))
-		_, _ = fmt.Fprintln(&sb, "Labels:", mapToString(e.Labels))
+		_, _ = fmt.Fprintln(&sb, "Annotations:", mapToScrubbedJSONString(e.Annotations))
+		_, _ = fmt.Fprintln(&sb, "Labels:", mapToScrubbedJSONString(e.Labels))
 	}
 
 	return sb.String()
@@ -503,7 +520,7 @@ func (c Container) String(verbose bool) string {
 	return sb.String()
 }
 
-// PodSecurityContext is the Security Context of a Kubernete pod
+// PodSecurityContext is the Security Context of a Kubernetes pod
 type PodSecurityContext struct {
 	RunAsUser  int32
 	RunAsGroup int32
@@ -517,6 +534,7 @@ type ContainerSecurityContext struct {
 	SeccompProfile *SeccompProfile
 }
 
+// Capabilities defines the capabilities of a Container
 type Capabilities struct {
 	Add  []string
 	Drop []string
@@ -525,13 +543,14 @@ type Capabilities struct {
 // SeccompProfileType is the type of seccomp profile used
 type SeccompProfileType string
 
+// Seccomp profile types
 const (
 	SeccompProfileTypeUnconfined     SeccompProfileType = "Unconfined"
 	SeccompProfileTypeRuntimeDefault SeccompProfileType = "RuntimeDefault"
 	SeccompProfileTypeLocalhost      SeccompProfileType = "Localhost"
 )
 
-// SeccompProfileSpec contains fields for unmarshalling a Pod.Spec.Containers.SecurityContext.SeccompProfile
+// SeccompProfile contains fields for unmarshalling a Pod.Spec.Containers.SecurityContext.SeccompProfile
 type SeccompProfile struct {
 	Type             SeccompProfileType
 	LocalhostProfile string
@@ -554,6 +573,7 @@ type KubernetesPod struct {
 	EntityMeta
 	Owners                     []KubernetesPodOwner
 	PersistentVolumeClaimNames []string
+	InitContainers             []OrchestratorContainer
 	Containers                 []OrchestratorContainer
 	Ready                      bool
 	Phase                      string
@@ -603,6 +623,13 @@ func (p KubernetesPod) String(verbose bool) string {
 		}
 	}
 
+	if len(p.InitContainers) > 0 {
+		_, _ = fmt.Fprintln(&sb, "----------- Init Containers -----------")
+		for _, c := range p.InitContainers {
+			_, _ = fmt.Fprint(&sb, c.String(verbose))
+		}
+	}
+
 	if len(p.Containers) > 0 {
 		_, _ = fmt.Fprintln(&sb, "----------- Containers -----------")
 		for _, c := range p.Containers {
@@ -634,6 +661,11 @@ func (p KubernetesPod) String(verbose bool) string {
 	}
 
 	return sb.String()
+}
+
+// GetAllContainers returns init containers and containers.
+func (p KubernetesPod) GetAllContainers() []OrchestratorContainer {
+	return append(p.InitContainers, p.Containers...)
 }
 
 var _ Entity = &KubernetesPod{}
@@ -697,6 +729,67 @@ func (n KubernetesNode) String(verbose bool) string {
 }
 
 var _ Entity = &KubernetesNode{}
+
+// KubernetesDeployment is an Entity representing a Kubernetes Deployment.
+type KubernetesDeployment struct {
+	EntityID
+	Env                    string
+	Service                string
+	Version                string
+	ContainerLanguages     map[string][]languagemodels.Language
+	InitContainerLanguages map[string][]languagemodels.Language
+}
+
+// GetID implements Entity#GetID.
+func (d *KubernetesDeployment) GetID() EntityID {
+	return d.EntityID
+}
+
+// Merge implements Entity#Merge.
+func (d *KubernetesDeployment) Merge(e Entity) error {
+	dd, ok := e.(*KubernetesDeployment)
+	if !ok {
+		return fmt.Errorf("cannot merge KubernetesDeployment with different kind %T", e)
+	}
+
+	return merge(d, dd)
+}
+
+// DeepCopy implements Entity#DeepCopy.
+func (d KubernetesDeployment) DeepCopy() Entity {
+	cd := deepcopy.Copy(d).(KubernetesDeployment)
+	return &cd
+}
+
+// String implements Entity#String
+func (d KubernetesDeployment) String(verbose bool) string {
+	var sb strings.Builder
+	_, _ = fmt.Fprintln(&sb, "----------- Entity ID -----------")
+	_, _ = fmt.Fprintln(&sb, d.EntityID.String(verbose))
+	_, _ = fmt.Fprintln(&sb, "----------- Unified Service Tagging -----------")
+	_, _ = fmt.Fprintln(&sb, "Env :", d.Env)
+	_, _ = fmt.Fprintln(&sb, "Service :", d.Service)
+	_, _ = fmt.Fprintln(&sb, "Version :", d.Version)
+	_, _ = fmt.Fprintln(&sb, "----------- Languages -----------")
+
+	langPrinter := func(m map[string][]languagemodels.Language, ctype string) {
+		for container, languages := range m {
+			var langSb strings.Builder
+			for i, lang := range languages {
+				if i != 0 {
+					_, _ = langSb.WriteString(",")
+				}
+				_, _ = langSb.WriteString(string(lang.Name))
+			}
+			_, _ = fmt.Fprintf(&sb, "%s %s=>[%s]", ctype, container, langSb.String())
+		}
+	}
+	langPrinter(d.InitContainerLanguages, "InitContainer")
+	langPrinter(d.ContainerLanguages, "Container")
+	return sb.String()
+}
+
+var _ Entity = &KubernetesDeployment{}
 
 // ECSTask is an Entity representing an ECS Task.
 type ECSTask struct {
@@ -795,6 +888,8 @@ type SBOM struct {
 	CycloneDXBOM       *cyclonedx.BOM
 	GenerationTime     time.Time
 	GenerationDuration time.Duration
+	Status             SBOMStatus
+	Error              string // needs to be stored as a string otherwise the merge() will favor the nil value
 }
 
 // GetID implements Entity#GetID.
@@ -839,10 +934,14 @@ func (i ContainerImageMetadata) String(verbose bool) string {
 		_, _ = fmt.Fprintln(&sb, "Architecture:", i.Architecture)
 		_, _ = fmt.Fprintln(&sb, "Variant:", i.Variant)
 
-		if i.SBOM != nil {
-			_, _ = fmt.Fprintf(&sb, "SBOM: stored. Generated in: %.2f seconds\n", i.SBOM.GenerationDuration.Seconds())
-		} else {
-			_, _ = fmt.Fprintln(&sb, "SBOM: not stored")
+		_, _ = fmt.Fprintln(&sb, "----------- SBOM -----------")
+		_, _ = fmt.Fprintln(&sb, "Status:", i.SBOM.Status)
+		switch i.SBOM.Status {
+		case Success:
+			_, _ = fmt.Fprintf(&sb, "Generated in: %.2f seconds\n", i.SBOM.GenerationDuration.Seconds())
+		case Failed:
+			_, _ = fmt.Fprintf(&sb, "Error: %s\n", i.SBOM.Error)
+		default:
 		}
 
 		_, _ = fmt.Fprintln(&sb, "----------- Layers -----------")
@@ -878,12 +977,12 @@ func printHistory(out io.Writer, history v1.History) {
 
 var _ Entity = &ContainerImageMetadata{}
 
+// Process is an Entity that represents a process
 type Process struct {
-	EntityID // EntityID is the PID for now
-	EntityMeta
+	EntityID // EntityID.ID is the PID
 
 	NsPid        int32
-	ContainerId  string
+	ContainerID  string
 	CreationTime time.Time
 	Language     *languagemodels.Language
 }
@@ -918,7 +1017,7 @@ func (p Process) String(verbose bool) string {
 	_, _ = fmt.Fprintln(&sb, "----------- Entity ID -----------")
 	_, _ = fmt.Fprintln(&sb, "PID:", p.EntityID.ID)
 	_, _ = fmt.Fprintln(&sb, "Namespace PID:", p.NsPid)
-	_, _ = fmt.Fprintln(&sb, "Container ID:", p.ContainerId)
+	_, _ = fmt.Fprintln(&sb, "Container ID:", p.ContainerID)
 	_, _ = fmt.Fprintln(&sb, "Creation time:", p.CreationTime)
 	_, _ = fmt.Fprintln(&sb, "Language:", p.Language.Name)
 

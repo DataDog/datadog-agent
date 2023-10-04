@@ -30,6 +30,7 @@ type schedulerInterface interface {
 // CollectorInterface is an interface for the MapOverChecks method of the collector
 type CollectorInterface interface {
 	MapOverChecks(func([]check.Info))
+	GetChecks() []check.Check
 }
 
 type checkMetadataCacheEntry struct {
@@ -91,6 +92,7 @@ const (
 	AgentOTLPEnabled                     AgentMetadataName = "feature_otlp_enabled"
 	AgentProcessEnabled                  AgentMetadataName = "feature_process_enabled"
 	AgentProcessesContainerEnabled       AgentMetadataName = "feature_processes_container_enabled"
+	AgentProcessLanguageDetectionEnabled AgentMetadataName = "feature_process_language_detection_enabled"
 	AgentNetworksEnabled                 AgentMetadataName = "feature_networks_enabled"
 	AgentNetworksHTTPEnabled             AgentMetadataName = "feature_networks_http_enabled"
 	AgentNetworksHTTPSEnabled            AgentMetadataName = "feature_networks_https_enabled"
@@ -98,6 +100,7 @@ const (
 	AgentUSMEnabled                      AgentMetadataName = "feature_usm_enabled"
 	AgentUSMKafkaEnabled                 AgentMetadataName = "feature_usm_kafka_enabled"
 	AgentUSMJavaTLSEnabled               AgentMetadataName = "feature_usm_java_tls_enabled"
+	AgentUSMIstioEnabled                 AgentMetadataName = "feature_usm_istio_enabled"
 	AgentUSMHTTP2Enabled                 AgentMetadataName = "feature_usm_http2_enabled"
 	AgentUSMHTTPStatsByStatusCodeEnabled AgentMetadataName = "feature_usm_http_by_status_code_enabled"
 	AgentUSMGoTLSEnabled                 AgentMetadataName = "feature_usm_go_tls_enabled"
@@ -109,6 +112,7 @@ const (
 
 	// System Probe general config values
 	AgentSPOOMKillEnabled                AgentMetadataName = "feature_oom_kill_enabled"
+	AgentSPWinCrashEnabled               AgentMetadataName = "feature_windows_crash_detection_enabled"
 	AgentSPTCPQueueLengthEnabled         AgentMetadataName = "feature_tcp_queue_length_enabled"
 	AgentSPTelemetryEnabled              AgentMetadataName = "system_probe_telemetry_enabled"
 	AgentSPCOREEnabled                   AgentMetadataName = "system_probe_core_enabled"
@@ -236,13 +240,13 @@ func createCheckInstanceMetadata(checkID, configProvider, initConfig, instanceCo
 	checkInstanceMetadata["config.provider"] = configProvider
 
 	if withConfigs && config.Datadog.GetBool("inventories_checks_configuration_enabled") {
-		if instanceScrubbed, err := scrubber.ScrubString(instanceConfig); err != nil {
+		if instanceScrubbed, err := scrubber.ScrubYamlString(instanceConfig); err != nil {
 			log.Errorf("Could not scrub instance configuration for check id %s: %s", checkID, err)
 		} else {
 			checkInstanceMetadata["instance_config"] = strings.TrimSpace(instanceScrubbed)
 		}
 
-		if initScrubbed, err := scrubber.ScrubString(initConfig); err != nil {
+		if initScrubbed, err := scrubber.ScrubYamlString(initConfig); err != nil {
 			log.Errorf("Could not scrub init configuration for check id %s: %s", checkID, err)
 		} else {
 			checkInstanceMetadata["init_config"] = strings.TrimSpace(initScrubbed)
@@ -455,28 +459,30 @@ func initializeConfig(cfg config.Config) {
 	SetAgentMetadata(AgentConfigProcessDDURL, clean(cfg.GetString("process_config.process_dd_url")))
 	SetAgentMetadata(AgentConfigProxyHTTP, clean(cfg.GetString("proxy.http")))
 	SetAgentMetadata(AgentConfigProxyHTTPS, clean(cfg.GetString("proxy.https")))
-	SetAgentMetadata(AgentFIPSEnabled, config.Datadog.GetBool("fips.enabled"))
+	SetAgentMetadata(AgentFIPSEnabled, cfg.GetBool("fips.enabled"))
 	SetAgentMetadata(AgentCWSEnabled, config.SystemProbe.GetBool("runtime_security_config.enabled"))
 	SetAgentMetadata(AgentCWSNetworkEnabled, config.SystemProbe.GetBool("event_monitoring_config.network.enabled"))
 	SetAgentMetadata(AgentCWSSecurityProfilesEnabled, config.SystemProbe.GetBool("runtime_security_config.activity_dump.enabled"))
 	SetAgentMetadata(AgentCWSRemoteConfigEnabled, config.SystemProbe.GetBool("runtime_security_config.remote_configuration.enabled"))
-	SetAgentMetadata(AgentProcessEnabled, config.Datadog.GetBool("process_config.process_collection.enabled"))
-	SetAgentMetadata(AgentProcessesContainerEnabled, config.Datadog.GetBool("process_config.container_collection.enabled"))
+	SetAgentMetadata(AgentProcessEnabled, cfg.GetBool("process_config.process_collection.enabled"))
+	SetAgentMetadata(AgentProcessLanguageDetectionEnabled, cfg.GetBool("language_detection.enabled"))
+	SetAgentMetadata(AgentProcessesContainerEnabled, cfg.GetBool("process_config.container_collection.enabled"))
 	SetAgentMetadata(AgentNetworksEnabled, config.SystemProbe.GetBool("network_config.enabled"))
 	SetAgentMetadata(AgentNetworksHTTPEnabled, config.SystemProbe.GetBool("service_monitoring_config.enable_http_monitoring"))
-	SetAgentMetadata(AgentNetworksHTTPSEnabled, config.SystemProbe.GetBool("network_config.enable_https_monitoring"))
+	SetAgentMetadata(AgentNetworksHTTPSEnabled, config.SystemProbe.GetBool("service_monitoring_config.tls.native.enabled"))
 	SetAgentMetadata(AgentUSMEnabled, config.SystemProbe.GetBool("service_monitoring_config.enabled"))
 	SetAgentMetadata(AgentUSMKafkaEnabled, config.SystemProbe.GetBool("data_streams_config.enabled"))
-	SetAgentMetadata(AgentRemoteConfigEnabled, config.Datadog.GetBool("remote_configuration.enabled"))
-	SetAgentMetadata(AgentUSMJavaTLSEnabled, config.SystemProbe.GetBool("service_monitoring_config.enable_java_tls_support"))
+	SetAgentMetadata(AgentRemoteConfigEnabled, cfg.GetBool("remote_configuration.enabled"))
+	SetAgentMetadata(AgentUSMJavaTLSEnabled, config.SystemProbe.GetBool("service_monitoring_config.tls.java.enabled"))
 	SetAgentMetadata(AgentUSMHTTP2Enabled, config.SystemProbe.GetBool("service_monitoring_config.enable_http2_monitoring"))
+	SetAgentMetadata(AgentUSMIstioEnabled, config.SystemProbe.GetBool("service_monitoring_config.tls.istio.enabled"))
 	SetAgentMetadata(AgentUSMHTTPStatsByStatusCodeEnabled, config.SystemProbe.GetBool("service_monitoring_config.enable_http_stats_by_status_code"))
-	SetAgentMetadata(AgentUSMGoTLSEnabled, config.SystemProbe.GetBool("service_monitoring_config.enable_go_tls_support"))
+	SetAgentMetadata(AgentUSMGoTLSEnabled, config.SystemProbe.GetBool("service_monitoring_config.tls.go.enabled"))
 	SetAgentMetadata(AgentDIEnabled, config.SystemProbe.GetBool("dynamic_instrumentation.enabled"))
-	SetAgentMetadata(AgentLogsEnabled, config.Datadog.GetBool("logs_enabled"))
-	SetAgentMetadata(AgentCSPMEnabled, config.Datadog.GetBool("compliance_config.enabled"))
-	SetAgentMetadata(AgentAPMEnabled, config.Datadog.GetBool("apm_config.enabled"))
-	SetAgentMetadata(AgentIMDSv2Enabled, config.Datadog.GetBool("ec2_prefer_imdsv2"))
+	SetAgentMetadata(AgentLogsEnabled, cfg.GetBool("logs_enabled"))
+	SetAgentMetadata(AgentCSPMEnabled, cfg.GetBool("compliance_config.enabled"))
+	SetAgentMetadata(AgentAPMEnabled, cfg.GetBool("apm_config.enabled"))
+	SetAgentMetadata(AgentIMDSv2Enabled, cfg.GetBool("ec2_prefer_imdsv2"))
 	// NOTE: until otlp config stabilizes, we set AgentOTLPEnabled in cmd/agent/app/run.go
 	// Also note we can't import OTLP here, as it would trigger an import loop - if we see another
 	// case like that, we should move otlp.IsEnabled to pkg/config/otlp
@@ -484,6 +490,7 @@ func initializeConfig(cfg config.Config) {
 	// SystemProbe module level configuration
 	SetAgentMetadata(AgentSPTCPQueueLengthEnabled, config.SystemProbe.GetBool("system_probe_config.enable_tcp_queue_length"))
 	SetAgentMetadata(AgentSPOOMKillEnabled, config.SystemProbe.GetBool("system_probe_config.enable_oom_kill"))
+	SetAgentMetadata(AgentSPWinCrashEnabled, config.SystemProbe.GetBool("windows_crash_detection.enabled"))
 	SetAgentMetadata(AgentSPCOREEnabled, config.SystemProbe.GetBool("system_probe_config.enable_co_re"))
 	SetAgentMetadata(AgentSPRuntimeCompilationEnabled, config.SystemProbe.GetBool("system_probe_config.enable_runtime_compiler"))
 	SetAgentMetadata(AgentSPKernelHeadersDownloadEnabled, config.SystemProbe.GetBool("system_probe_config.enable_kernel_header_download"))

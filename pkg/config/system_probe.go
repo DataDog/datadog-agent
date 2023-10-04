@@ -25,8 +25,9 @@ const (
 	smNS                         = "service_monitoring_config"
 	dsNS                         = "data_streams_config"
 	evNS                         = "event_monitoring_config"
-	smjtNS                       = smNS + ".java_tls"
+	smjtNS                       = smNS + ".tls.java"
 	diNS                         = "dynamic_instrumentation"
+	wcdNS                        = "windows_crash_detection"
 	defaultConnsMessageBatchSize = 600
 
 	// defaultSystemProbeBPFDir is the default path for eBPF programs
@@ -67,9 +68,8 @@ func InitSystemProbeConfig(cfg Config) {
 	cfg.BindEnvAndSetDefault("sbom.host.analyzers", []string{"os"})
 	cfg.BindEnvAndSetDefault("sbom.cache_directory", filepath.Join(defaultRunPath, "sbom-sysprobe"))
 	cfg.BindEnvAndSetDefault("sbom.clear_cache_on_exit", false)
-	cfg.BindEnvAndSetDefault("sbom.cache.enabled", false)
+	cfg.BindEnvAndSetDefault("sbom.cache.enabled", true)
 	cfg.BindEnvAndSetDefault("sbom.cache.max_disk_size", 1000*1000*100) // used by custom cache: max disk space used by cached objects. Not equal to max disk usage
-	cfg.BindEnvAndSetDefault("sbom.cache.max_cache_entries", 10000)     // used by custom cache keys stored in memory
 	cfg.BindEnvAndSetDefault("sbom.cache.clean_interval", "30m")        // used by custom cache.
 
 	// Auto exit configuration
@@ -105,6 +105,7 @@ func InitSystemProbeConfig(cfg Config) {
 	cfg.BindEnvAndSetDefault(join(spNS, "external"), false, "DD_SYSTEM_PROBE_EXTERNAL")
 
 	cfg.BindEnvAndSetDefault(join(spNS, "sysprobe_socket"), defaultSystemProbeAddress, "DD_SYSPROBE_SOCKET")
+	cfg.BindEnvAndSetDefault(join(spNS, "grpc_enabled"), false, "DD_SYSPROBE_GRPC_ENABLED")
 	cfg.BindEnvAndSetDefault(join(spNS, "max_conns_per_message"), defaultConnsMessageBatchSize)
 
 	cfg.BindEnvAndSetDefault(join(spNS, "debug_port"), 0)
@@ -121,6 +122,9 @@ func InitSystemProbeConfig(cfg Config) {
 	cfg.BindEnvAndSetDefault(join(spNS, "internal_profiling.block_profile_rate"), 0)
 	cfg.BindEnvAndSetDefault(join(spNS, "internal_profiling.enable_goroutine_stacktraces"), false)
 	cfg.BindEnvAndSetDefault(join(spNS, "internal_profiling.delta_profiles"), true)
+	cfg.BindEnvAndSetDefault(join(spNS, "internal_profiling.custom_attributes"), []string{"module"})
+	cfg.BindEnvAndSetDefault(join(spNS, "internal_profiling.unix_socket"), "")
+	cfg.BindEnvAndSetDefault(join(spNS, "internal_profiling.extra_tags"), []string{})
 
 	cfg.BindEnvAndSetDefault(join(spNS, "memory_controller.enabled"), false)
 	cfg.BindEnvAndSetDefault(join(spNS, "memory_controller.hierarchy"), "v1")
@@ -197,11 +201,16 @@ func InitSystemProbeConfig(cfg Config) {
 	cfg.BindEnv(join(netNS, "enable_http_monitoring"), "DD_SYSTEM_PROBE_NETWORK_ENABLE_HTTP_MONITORING")
 	cfg.BindEnv(join(smNS, "enable_http_monitoring"))
 
+	// For backward compatibility
 	cfg.BindEnv(join(netNS, "enable_https_monitoring"), "DD_SYSTEM_PROBE_NETWORK_ENABLE_HTTPS_MONITORING")
+	cfg.BindEnv(join(smNS, "tls", "native", "enabled"))
 
-	cfg.BindEnvAndSetDefault(join(smNS, "enable_go_tls_support"), false)
+	// For backward compatibility
+	cfg.BindEnv(join(smNS, "enable_go_tls_support"))
+	cfg.BindEnv(join(smNS, "tls", "go", "enabled"))
 
 	cfg.BindEnvAndSetDefault(join(smNS, "enable_http2_monitoring"), false)
+	cfg.BindEnvAndSetDefault(join(smNS, "tls", "istio", "enabled"), false)
 	cfg.BindEnvAndSetDefault(join(smjtNS, "enabled"), false)
 	cfg.BindEnvAndSetDefault(join(smjtNS, "debug"), false)
 	cfg.BindEnvAndSetDefault(join(smjtNS, "args"), defaultServiceMonitoringJavaAgentArgs)
@@ -214,6 +223,7 @@ func InitSystemProbeConfig(cfg Config) {
 	cfg.BindEnv(join(netNS, "max_http_stats_buffered"), "DD_SYSTEM_PROBE_NETWORK_MAX_HTTP_STATS_BUFFERED")
 	cfg.BindEnv(join(smNS, "max_http_stats_buffered"))
 	cfg.BindEnvAndSetDefault(join(smNS, "max_kafka_stats_buffered"), 100000)
+	cfg.BindEnv(join(smNS, "max_concurrent_requests"))
 
 	oldHTTPRules := join(netNS, "http_replace_rules")
 	newHTTPRules := join(smNS, "http_replace_rules")
@@ -251,6 +261,7 @@ func InitSystemProbeConfig(cfg Config) {
 
 	// oom_kill module
 	cfg.BindEnvAndSetDefault(join(spNS, "enable_oom_kill"), false)
+
 	// tcp_queue_length module
 	cfg.BindEnvAndSetDefault(join(spNS, "enable_tcp_queue_length"), false)
 	// process module
@@ -294,12 +305,15 @@ func InitSystemProbeConfig(cfg Config) {
 	eventMonitorBindEnvAndSetDefault(cfg, join(evNS, "network.classifier_handle"), 0)
 	eventMonitorBindEnvAndSetDefault(cfg, join(evNS, "event_stream.use_ring_buffer"), true)
 	eventMonitorBindEnvAndSetDefault(cfg, join(evNS, "event_stream.use_fentry"), false)
+	eventMonitorBindEnvAndSetDefault(cfg, join(evNS, "event_stream.use_fentry_amd64"), false)
+	eventMonitorBindEnvAndSetDefault(cfg, join(evNS, "event_stream.use_fentry_arm64"), false)
 	eventMonitorBindEnv(cfg, join(evNS, "event_stream.buffer_size"))
 	eventMonitorBindEnvAndSetDefault(cfg, join(evNS, "envs_with_value"), []string{"LD_PRELOAD", "LD_LIBRARY_PATH", "PATH", "HISTSIZE", "HISTFILESIZE"})
 	eventMonitorBindEnvAndSetDefault(cfg, join(evNS, "runtime_compilation.enabled"), false)
 	eventMonitorBindEnv(cfg, join(evNS, "runtime_compilation.compiled_constants_enabled"))
 	eventMonitorBindEnvAndSetDefault(cfg, join(evNS, "network.enabled"), true)
 	eventMonitorBindEnvAndSetDefault(cfg, join(evNS, "events_stats.polling_interval"), 20)
+	eventMonitorBindEnvAndSetDefault(cfg, join(evNS, "syscalls_monitor.enabled"), false)
 	cfg.BindEnvAndSetDefault(join(evNS, "socket"), "/opt/datadog-agent/run/event-monitor.sock")
 	cfg.BindEnvAndSetDefault(join(evNS, "event_server.burst"), 40)
 
@@ -309,84 +323,10 @@ func InitSystemProbeConfig(cfg Config) {
 	// enable/disable use of root net namespace
 	cfg.BindEnvAndSetDefault(join(netNS, "enable_root_netns"), true)
 
-	// CWS - general config
-	cfg.BindEnvAndSetDefault("runtime_security_config.enabled", false)
-	cfg.BindEnvAndSetDefault("runtime_security_config.fim_enabled", false)
-	cfg.BindEnvAndSetDefault("runtime_security_config.policies.dir", DefaultRuntimePoliciesDir)
-	cfg.BindEnvAndSetDefault("runtime_security_config.policies.watch_dir", false)
-	cfg.BindEnvAndSetDefault("runtime_security_config.policies.monitor.enabled", false)
-	cfg.BindEnvAndSetDefault("runtime_security_config.policies.monitor.per_rule_enabled", false)
-	cfg.BindEnvAndSetDefault("runtime_security_config.socket", "/opt/datadog-agent/run/runtime-security.sock")
-	cfg.BindEnvAndSetDefault("runtime_security_config.event_server.burst", 40)
-	cfg.BindEnvAndSetDefault("runtime_security_config.event_server.retention", "6s")
-	cfg.BindEnvAndSetDefault("runtime_security_config.event_server.rate", 10)
-	cfg.BindEnvAndSetDefault("runtime_security_config.cookie_cache_size", 100)
-	cfg.BindEnvAndSetDefault("runtime_security_config.agent_monitoring_events", true)
-	cfg.BindEnvAndSetDefault("runtime_security_config.log_patterns", []string{})
-	cfg.BindEnvAndSetDefault("runtime_security_config.log_tags", []string{})
-	cfg.BindEnvAndSetDefault("runtime_security_config.self_test.enabled", true)
-	cfg.BindEnvAndSetDefault("runtime_security_config.self_test.send_report", true)
-	cfg.BindEnvAndSetDefault("runtime_security_config.remote_configuration.enabled", false)
-	cfg.BindEnvAndSetDefault("runtime_security_config.direct_send_from_system_probe", false)
+	// Windows crash detection
+	cfg.BindEnvAndSetDefault(join(wcdNS, "enabled"), false)
 
-	// CWS - activity dump
-	cfg.BindEnvAndSetDefault("runtime_security_config.activity_dump.enabled", true)
-	cfg.BindEnvAndSetDefault("runtime_security_config.activity_dump.cleanup_period", "30s")
-	cfg.BindEnvAndSetDefault("runtime_security_config.activity_dump.tags_resolution_period", "60s")
-	cfg.BindEnvAndSetDefault("runtime_security_config.activity_dump.load_controller_period", "60s")
-	cfg.BindEnvAndSetDefault("runtime_security_config.activity_dump.min_timeout", "10m")
-	cfg.BindEnvAndSetDefault("runtime_security_config.activity_dump.max_dump_size", 1750)
-	cfg.BindEnvAndSetDefault("runtime_security_config.activity_dump.traced_cgroups_count", 5)
-	cfg.BindEnvAndSetDefault("runtime_security_config.activity_dump.traced_event_types", []string{"exec", "open", "dns"})
-	cfg.BindEnv("runtime_security_config.activity_dump.cgroup_dump_timeout") // deprecated in favor of dump_duration
-	cfg.BindEnvAndSetDefault("runtime_security_config.activity_dump.dump_duration", "1800s")
-	cfg.BindEnvAndSetDefault("runtime_security_config.activity_dump.rate_limiter", 500)
-	cfg.BindEnvAndSetDefault("runtime_security_config.activity_dump.cgroup_wait_list_timeout", "4500s")
-	cfg.BindEnvAndSetDefault("runtime_security_config.activity_dump.cgroup_differentiate_args", false)
-	cfg.BindEnvAndSetDefault("runtime_security_config.activity_dump.local_storage.max_dumps_count", 100)
-	cfg.BindEnvAndSetDefault("runtime_security_config.activity_dump.local_storage.output_directory", DefaultSecurityProfilesDir)
-	cfg.BindEnvAndSetDefault("runtime_security_config.activity_dump.local_storage.formats", []string{"profile"})
-	cfg.BindEnvAndSetDefault("runtime_security_config.activity_dump.local_storage.compression", false)
-	cfg.BindEnvAndSetDefault("runtime_security_config.activity_dump.syscall_monitor.period", "60s")
-	cfg.BindEnvAndSetDefault("runtime_security_config.activity_dump.max_dump_count_per_workload", 25)
-	cfg.BindEnvAndSetDefault("runtime_security_config.activity_dump.tag_rules.enabled", true)
-	cfg.BindEnvAndSetDefault("runtime_security_config.activity_dump.silent_workloads.delay", "10s")
-	cfg.BindEnvAndSetDefault("runtime_security_config.activity_dump.silent_workloads.ticker", "10s")
-
-	// CWS - SBOM
-	cfg.BindEnvAndSetDefault("runtime_security_config.sbom.enabled", false)
-	cfg.BindEnvAndSetDefault("runtime_security_config.sbom.workloads_cache_size", 10)
-
-	// CWS - Security Profiles
-	cfg.BindEnvAndSetDefault("runtime_security_config.security_profile.enabled", false)
-	cfg.BindEnvAndSetDefault("runtime_security_config.security_profile.dir", DefaultSecurityProfilesDir)
-	cfg.BindEnvAndSetDefault("runtime_security_config.security_profile.watch_dir", true)
-	cfg.BindEnvAndSetDefault("runtime_security_config.security_profile.cache_size", 10)
-	cfg.BindEnvAndSetDefault("runtime_security_config.security_profile.max_count", 400)
-	cfg.BindEnvAndSetDefault("runtime_security_config.security_profile.remote_configuration.enabled", false)
-	cfg.BindEnvAndSetDefault("runtime_security_config.security_profile.dns_match_max_depth", 3)
-
-	// CWS - Anomaly detection
-	cfg.BindEnvAndSetDefault("runtime_security_config.security_profile.anomaly_detection.event_types", []string{"exec", "dns"})
-	cfg.BindEnvAndSetDefault("runtime_security_config.security_profile.anomaly_detection.default_minimum_stable_period", "48h")
-	cfg.BindEnvAndSetDefault("runtime_security_config.security_profile.anomaly_detection.minimum_stable_period.dns", "96h")
-	cfg.BindEnvAndSetDefault("runtime_security_config.security_profile.anomaly_detection.workload_warmup_period", "180s")
-	cfg.BindEnvAndSetDefault("runtime_security_config.security_profile.anomaly_detection.unstable_profile_time_threshold", "120h")
-	cfg.BindEnvAndSetDefault("runtime_security_config.security_profile.anomaly_detection.unstable_profile_size_threshold", 5000000)
-	cfg.BindEnvAndSetDefault("runtime_security_config.security_profile.anomaly_detection.rate_limiter.period", "1s")
-	cfg.BindEnvAndSetDefault("runtime_security_config.security_profile.anomaly_detection.rate_limiter.num_keys", 400)
-	cfg.BindEnvAndSetDefault("runtime_security_config.security_profile.anomaly_detection.rate_limiter.num_events_allowed", 100)
-	cfg.BindEnvAndSetDefault("runtime_security_config.security_profile.anomaly_detection.tag_rules.enabled", true)
-
-	// CWS - Hash algorithms
-	cfg.BindEnvAndSetDefault("runtime_security_config.hash_resolver.enabled", false)
-	cfg.BindEnvAndSetDefault("runtime_security_config.hash_resolver.event_types", []string{"exec", "open"})
-	cfg.BindEnvAndSetDefault("runtime_security_config.hash_resolver.max_file_size", (1<<20)*10) // 10 MB
-	cfg.BindEnvAndSetDefault("runtime_security_config.hash_resolver.max_hash_rate", 500)
-	cfg.BindEnvAndSetDefault("runtime_security_config.hash_resolver.max_hash_burst", 1000)
-	cfg.BindEnvAndSetDefault("runtime_security_config.hash_resolver.hash_algorithms", []string{"sha1", "sha256"})
-	cfg.BindEnvAndSetDefault("runtime_security_config.hash_resolver.cache_size", 500)
-
+	initCWSSystemProbeConfig(cfg)
 }
 
 func join(pieces ...string) string {

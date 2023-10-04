@@ -5,6 +5,7 @@
 
 //go:build linux
 
+// Package resolvers holds resolvers related files
 package resolvers
 
 import (
@@ -39,11 +40,12 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-// ResolversOpts defines common options
-type ResolversOpts struct {
+// Opts defines common options
+type Opts struct {
 	PathResolutionEnabled bool
 	TagsResolver          tags.Resolver
 	UseRingBuffer         bool
+	TTYFallbackEnabled    bool
 }
 
 // Resolvers holds the list of the event attribute resolvers
@@ -65,18 +67,13 @@ type Resolvers struct {
 }
 
 // NewResolvers creates a new instance of Resolvers
-func NewResolvers(config *config.Config, manager *manager.Manager, statsdClient statsd.ClientInterface, scrubber *procutil.DataScrubber, eRPC *erpc.ERPC, opts ResolversOpts) (*Resolvers, error) {
+func NewResolvers(config *config.Config, manager *manager.Manager, statsdClient statsd.ClientInterface, scrubber *procutil.DataScrubber, eRPC *erpc.ERPC, opts Opts) (*Resolvers, error) {
 	dentryResolver, err := dentry.NewResolver(config.Probe, statsdClient, eRPC)
 	if err != nil {
 		return nil, err
 	}
 
 	timeResolver, err := time.NewResolver()
-	if err != nil {
-		return nil, err
-	}
-
-	userGroupResolver, err := usergroup.NewResolver()
 	if err != nil {
 		return nil, err
 	}
@@ -108,13 +105,27 @@ func NewResolvers(config *config.Config, manager *manager.Manager, statsdClient 
 		return nil, err
 	}
 
-	if config.RuntimeSecurity.SBOMResolverEnabled {
-		_ = cgroupsResolver.RegisterListener(cgroup.CGroupDeleted, sbomResolver.OnCGroupDeletedEvent)
-		_ = cgroupsResolver.RegisterListener(cgroup.WorkloadSelectorResolved, sbomResolver.OnWorkloadSelectorResolvedEvent)
+	userGroupResolver, err := usergroup.NewResolver(cgroupsResolver)
+	if err != nil {
+		return nil, err
 	}
 
-	// don't use the redemption if the reorderer is not used
-	mountResolver, err := mount.NewResolver(statsdClient, cgroupsResolver, mount.ResolverOpts{UseProcFS: true, UseRedemption: !opts.UseRingBuffer})
+	if config.RuntimeSecurity.SBOMResolverEnabled {
+		if err := cgroupsResolver.RegisterListener(cgroup.CGroupDeleted, sbomResolver.OnCGroupDeletedEvent); err != nil {
+			return nil, err
+		}
+		if err := cgroupsResolver.RegisterListener(cgroup.WorkloadSelectorResolved, sbomResolver.OnWorkloadSelectorResolvedEvent); err != nil {
+			return nil, err
+		}
+	}
+
+	if err := cgroupsResolver.RegisterListener(cgroup.CGroupDeleted, userGroupResolver.OnCGroupDeletedEvent); err != nil {
+		return nil, err
+	}
+
+	// Force the use of redemption for now, as it seems that the kernel reference counter on mounts used to remove mounts is not working properly.
+	// This means that we can remove mount entries that are still in use.
+	mountResolver, err := mount.NewResolver(statsdClient, cgroupsResolver, mount.ResolverOpts{UseProcFS: true})
 	if err != nil {
 		return nil, err
 	}
@@ -129,6 +140,9 @@ func NewResolvers(config *config.Config, manager *manager.Manager, statsdClient 
 
 	processOpts := process.NewResolverOpts()
 	processOpts.WithEnvsValue(config.Probe.EnvsWithValue)
+	if opts.TTYFallbackEnabled {
+		processOpts.WithTTYFallbackEnabled()
+	}
 
 	processResolver, err := process.NewResolver(manager, config.Probe, statsdClient,
 		scrubber, containerResolver, mountResolver, cgroupsResolver, userGroupResolver, timeResolver, pathResolver, processOpts)
@@ -250,6 +264,7 @@ func (r *Resolvers) snapshot() error {
 			if !os.IsNotExist(err) {
 				log.Debugf("snapshot failed for %d: couldn't sync mount points: %s", proc.Pid, err)
 			}
+			continue
 		}
 
 		// Sync the process cache

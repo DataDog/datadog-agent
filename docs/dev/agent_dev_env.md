@@ -9,26 +9,26 @@ development files to be available in the dev env. The Agent can embed Python2
 and/or Python3, you will need development files for all versions you want to
 support.
 
-If you're on OSX/macOS, installing Python 2.7 and/or 3.8 with [Homebrew](https://brew.sh)
+If you're on OSX/macOS, installing Python 2.7 and/or 3.9 with [Homebrew](https://brew.sh)
 brings along all the development files needed:
 
 **Please note that not using Python versions explicitly supported, you may have
 problems running the built Agent's Python checks, especially if using a virtualenv.
-At this time, only Python 3.8 is confirmed to work as expected in the development
+At this time, only Python 3.9 is confirmed to work as expected in the development
 environment.**
 ```
 brew install python@2
-brew install python@3.8
+brew install python@3.9
 ```
 
 On Linux, depending on the distribution, you might need to explicitly install
 the development files, for example on Ubuntu:
 ```
 sudo apt-get install python2.7-dev
-sudo apt-get install python3.8-dev
+sudo apt-get install python3.9-dev
 ```
 
-On Windows, install Python 2.7 and/or 3.8 via the [official installer](https://www.python.org/downloads/).
+On Windows, install Python 2.7 and/or 3.9 via the [official installer](https://www.python.org/downloads/).
 
 #### Additional Windows Tools
 You will also need the Visual Studio for [Visual Studio for Python installer](http://aka.ms/vcpython27)
@@ -65,7 +65,7 @@ Agent's search path for Python check packages using the `PYTHONPATH` variable (y
 must have the [pre-requisite core integration packages installed](https://datadoghq.dev/integrations-core/setup/)
 though).
 ```sh
-PYTHONPATH="./venv/lib/python3.8/site-packages:$PYTHONPATH" ./agent run ...
+PYTHONPATH="./venv/lib/python3.9/site-packages:$PYTHONPATH" ./agent run ...
 ```
 
 See also some notes in [./checks](./checks) about running custom python checks.
@@ -97,7 +97,7 @@ variables (see Invoke docs for more details).
 
 ### Golang
 
-You must [install Golang](https://golang.org/doc/install) version `1.20.7` or
+You must [install Golang](https://golang.org/doc/install) version `1.20.8` or
 higher. Make sure that `$GOPATH/bin` is in your `$PATH` otherwise `invoke`
 cannot use any additional tool it might need.
 

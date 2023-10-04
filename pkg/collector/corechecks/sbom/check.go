@@ -37,50 +37,58 @@ type Config struct {
 	NewSBOMMaxLatencySeconds        int `yaml:"new_sbom_max_latency_seconds"`
 	ContainerPeriodicRefreshSeconds int `yaml:"periodic_refresh_seconds"`
 	HostPeriodicRefreshSeconds      int `yaml:"host_periodic_refresh_seconds"`
+	HostHeartbeatValiditySeconds    int `yaml:"host_heartbeat_validity_seconds"`
 }
 
 type configValueRange struct {
-	min      int
-	max      int
-	default_ int
+	min          int
+	max          int
+	defaultValue int
 }
 
 var /* const */ (
 	chunkSizeValueRange = &configValueRange{
-		min:      1,
-		max:      100,
-		default_: 1,
+		min:          1,
+		max:          100,
+		defaultValue: 1,
 	}
 
 	newSBOMMaxLatencySecondsValueRange = &configValueRange{
-		min:      1,   // 1 s
-		max:      300, // 5 min
-		default_: 30,  // 30 s
+		min:          1,   // 1 seconds
+		max:          300, // 5 min
+		defaultValue: 30,  // 30 seconds
 	}
 
 	containerPeriodicRefreshSecondsValueRange = &configValueRange{
-		min:      60,     // 1 min
-		max:      604800, // 1 week
-		default_: 3600,   // 1h
+		min:          60,     // 1 min
+		max:          604800, // 1 week
+		defaultValue: 3600,   // 1 hour
 	}
 
 	hostPeriodicRefreshSecondsValueRange = &configValueRange{
-		min:      60,        // 1 min
-		max:      604800,    // 1 week
-		default_: 3600 * 24, // 1h
+		min:          60,     // 1 min
+		max:          604800, // 1 week
+		defaultValue: 3600,   // 1 hour
+	}
+
+	hostHeartbeatValiditySeconds = &configValueRange{
+		min:          60,        // 1 min
+		max:          604800,    // 1 week
+		defaultValue: 3600 * 24, // 1 day
 	}
 )
 
-func validateValue(val *int, range_ *configValueRange) {
+func validateValue(val *int, valueRange *configValueRange) {
 	if *val == 0 {
-		*val = range_.default_
-	} else if *val < range_.min {
-		*val = range_.min
-	} else if *val > range_.max {
-		*val = range_.max
+		*val = valueRange.defaultValue
+	} else if *val < valueRange.min {
+		*val = valueRange.min
+	} else if *val > valueRange.max {
+		*val = valueRange.max
 	}
 }
 
+// Parse parses the configuration
 func (c *Config) Parse(data []byte) error {
 	if err := yaml.Unmarshal(data, c); err != nil {
 		return err
@@ -90,6 +98,7 @@ func (c *Config) Parse(data []byte) error {
 	validateValue(&c.NewSBOMMaxLatencySeconds, newSBOMMaxLatencySecondsValueRange)
 	validateValue(&c.ContainerPeriodicRefreshSeconds, containerPeriodicRefreshSecondsValueRange)
 	validateValue(&c.HostPeriodicRefreshSeconds, hostPeriodicRefreshSecondsValueRange)
+	validateValue(&c.HostHeartbeatValiditySeconds, hostHeartbeatValiditySeconds)
 
 	return nil
 }
@@ -136,8 +145,13 @@ func (c *Check) Configure(senderManager sender.SenderManager, integrationConfigD
 	c.sender = sender
 	sender.SetNoIndex(true)
 
-	c.processor, err = newProcessor(c.workloadmetaStore, sender, c.instance.ChunkSize, time.Duration(c.instance.NewSBOMMaxLatencySeconds)*time.Second, ddConfig.Datadog.GetBool("sbom.host.enabled"))
-	if err != nil {
+	if c.processor, err = newProcessor(
+		c.workloadmetaStore,
+		sender,
+		c.instance.ChunkSize,
+		time.Duration(c.instance.NewSBOMMaxLatencySeconds)*time.Second,
+		ddConfig.Datadog.GetBool("sbom.host.enabled"),
+		time.Duration(c.instance.HostHeartbeatValiditySeconds)*time.Second); err != nil {
 		return err
 	}
 

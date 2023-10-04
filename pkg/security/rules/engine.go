@@ -3,8 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build linux
-
+// Package rules holds rules related files
 package rules
 
 import (
@@ -12,10 +11,7 @@ import (
 	json "encoding/json"
 	"errors"
 	"fmt"
-	"os"
-	"os/signal"
 	"sync"
-	"syscall"
 	"time"
 
 	"github.com/DataDog/datadog-go/v5/statsd"
@@ -37,10 +33,13 @@ import (
 )
 
 const (
+	// ProbeEvaluationRuleSetTagValue defines the probe evaluation rule-set tag value
 	ProbeEvaluationRuleSetTagValue = "probe_evaluation"
-	ThreatScoreRuleSetTagValue     = "threat_score"
+	// ThreatScoreRuleSetTagValue defines the threat-score rule-set tag value
+	ThreatScoreRuleSetTagValue = "threat_score"
 )
 
+// RuleEngine defines a rule engine
 type RuleEngine struct {
 	sync.RWMutex
 	config                    *config.RuntimeSecurityConfig
@@ -56,16 +55,17 @@ type RuleEngine struct {
 	policyLoader              *rules.PolicyLoader
 	policyOpts                rules.PolicyLoaderOpts
 	policyMonitor             *PolicyMonitor
-	sighupChan                chan os.Signal
 	statsdClient              statsd.ClientInterface
 	eventSender               events.EventSender
 	rulesetListeners          []rules.RuleSetListener
 }
 
+// APIServer defines the API server
 type APIServer interface {
 	Apply([]string)
 }
 
+// NewRuleEngine returns a new rule engine
 func NewRuleEngine(evm *eventmonitor.EventMonitor, config *config.RuntimeSecurityConfig, probe *probe.Probe, rateLimiter *events.RateLimiter, apiServer APIServer, sender events.EventSender, statsdClient statsd.ClientInterface, rulesetListeners ...rules.RuleSetListener) (*RuleEngine, error) {
 	engine := &RuleEngine{
 		probe:                     probe,
@@ -78,20 +78,20 @@ func NewRuleEngine(evm *eventmonitor.EventMonitor, config *config.RuntimeSecurit
 		currentRuleSet:            new(atomic.Value),
 		currentThreatScoreRuleSet: new(atomic.Value),
 		policyLoader:              rules.NewPolicyLoader(),
-		sighupChan:                make(chan os.Signal, 1),
 		statsdClient:              statsdClient,
 		rulesetListeners:          rulesetListeners,
 	}
 
 	// register as event handler
-	if err := probe.AddEventHandler(model.UnknownEventType, engine); err != nil {
+	if err := probe.AddFullAccessEventHandler(engine); err != nil {
 		return nil, err
 	}
 
 	return engine, nil
 }
 
-func (e *RuleEngine) Start(ctx context.Context, wg *sync.WaitGroup) error {
+// Start the rule engine
+func (e *RuleEngine) Start(ctx context.Context, reloadChan <-chan struct{}, wg *sync.WaitGroup) error {
 	// monitor policies
 	if e.config.PolicyMonitorEnabled {
 		e.policyMonitor.Start(ctx)
@@ -129,13 +129,11 @@ func (e *RuleEngine) Start(ctx context.Context, wg *sync.WaitGroup) error {
 		return fmt.Errorf("failed to load policies: %s", err)
 	}
 
-	signal.Notify(e.sighupChan, syscall.SIGHUP)
-
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
 
-		for range e.sighupChan {
+		for range reloadChan {
 			if err := e.ReloadPolicies(); err != nil {
 				seclog.Errorf("failed to reload policies: %s", err)
 			}
@@ -251,13 +249,17 @@ func (e *RuleEngine) LoadPolicies(policyProviders []rules.PolicyProvider, sendLo
 	}
 
 	if probeEvaluationRuleSet != nil {
-		e.currentRuleSet.Store(probeEvaluationRuleSet)
-		ruleIDs = append(ruleIDs, probeEvaluationRuleSet.ListRuleIDs()...)
-
 		// analyze the ruleset, push probe evaluation rule sets to the kernel and generate the policy report
 		report, err := e.probe.ApplyRuleSet(probeEvaluationRuleSet)
 		if err != nil {
 			return err
+		}
+
+		e.currentRuleSet.Store(probeEvaluationRuleSet)
+		ruleIDs = append(ruleIDs, probeEvaluationRuleSet.ListRuleIDs()...)
+
+		if err := e.probe.FlushDiscarders(); err != nil {
+			return fmt.Errorf("failed to flush discarders: %w", err)
 		}
 
 		content, _ := json.Marshal(report)
@@ -272,7 +274,7 @@ func (e *RuleEngine) LoadPolicies(policyProviders []rules.PolicyProvider, sendLo
 
 	if sendLoadedReport {
 		ReportRuleSetLoaded(e.eventSender, e.statsdClient, evaluationSet.RuleSets, loadErrs)
-		e.policyMonitor.AddPolicies(evaluationSet.GetPolicies(), loadErrs)
+		e.policyMonitor.SetPolicies(evaluationSet.GetPolicies(), loadErrs)
 	}
 
 	return nil
@@ -280,6 +282,8 @@ func (e *RuleEngine) LoadPolicies(policyProviders []rules.PolicyProvider, sendLo
 
 func (e *RuleEngine) gatherPolicyProviders() []rules.PolicyProvider {
 	var policyProviders []rules.PolicyProvider
+
+	policyProviders = append(policyProviders, &BundledPolicyProvider{})
 
 	// add remote config as config provider if enabled.
 	if e.config.RemoteConfigurationEnabled {
@@ -324,6 +328,16 @@ func (e *RuleEngine) RuleMatch(rule *rules.Rule, event eval.Event) bool {
 		return false
 	}
 
+	for _, action := range rule.Definition.Actions {
+		if action.InternalCallbackDefinition != nil && rule.ID == refreshUserCacheRuleID {
+			_ = e.probe.RefreshUserCache(ev.ContainerContext.ID)
+		}
+	}
+
+	if rule.Definition.Silent {
+		return false
+	}
+
 	// ensure that all the fields are resolved before sending
 	ev.FieldHandlers.ResolveContainerID(ev, ev.ContainerContext)
 	ev.FieldHandlers.ResolveContainerTags(ev, ev.ContainerContext)
@@ -332,6 +346,12 @@ func (e *RuleEngine) RuleMatch(rule *rules.Rule, event eval.Event) bool {
 	if ev.ContainerContext.ID != "" && (e.config.ActivityDumpTagRulesEnabled || e.config.AnomalyDetectionTagRulesEnabled) {
 		ev.Rules = append(ev.Rules, model.NewMatchedRule(rule.Definition.ID, rule.Definition.Version, rule.Definition.Tags, rule.Definition.Policy.Name, rule.Definition.Policy.Version))
 	}
+
+	// do not send event if a anomaly detection event will be sent
+	if e.config.AnomalyDetectionSilentRuleEventsEnabled && ev.IsAnomalyDetectionEvent() {
+		return false
+	}
+
 	if val, ok := rule.Definition.GetTag("ruleset"); ok && val == "threat_score" {
 		return false // if the triggered rule is only meant to tag secdumps, dont send it
 	}
@@ -349,10 +369,8 @@ func (e *RuleEngine) RuleMatch(rule *rules.Rule, event eval.Event) bool {
 	return true
 }
 
+// Stop stops the rule engine
 func (e *RuleEngine) Stop() {
-	signal.Stop(e.sighupChan)
-	close(e.sighupChan)
-
 	for _, provider := range e.policyProviders {
 		_ = provider.Close()
 	}
@@ -446,6 +464,7 @@ func (e *RuleEngine) HandleEvent(event *model.Event) {
 	}
 }
 
+// StopEventCollector stops the event collector
 func (e *RuleEngine) StopEventCollector() []rules.CollectedEvent {
 	return e.GetRuleSet().StopEventCollector()
 }

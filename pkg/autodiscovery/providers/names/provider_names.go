@@ -3,6 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+// Package names defines the name of each config provider ("container",
+// "cluster-checks", "file", etc.).
 package names
 
 // User-facing names for the config providers
@@ -22,6 +24,7 @@ const (
 	KubeEndpointsFile  = "kubernetes-endpoints-file"
 	PrometheusPods     = "prometheus-pods"
 	PrometheusServices = "prometheus-services"
+	RemoteConfig       = "remote-config"
 	SNMP               = "snmp"
 	Zookeeper          = "zookeeper"
 )
@@ -43,5 +46,6 @@ const (
 	KubeEndpointsFileRegisterName  = "kube_endpoints_file"
 	PrometheusPodsRegisterName     = "prometheus_pods"
 	PrometheusServicesRegisterName = "prometheus_services"
+	RemoteConfigRegisterName       = "remote_config"
 	ZookeeperRegisterName          = "zookeeper"
 )

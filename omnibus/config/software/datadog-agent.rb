@@ -155,12 +155,26 @@ build do
   end
 
   # Security agent
-  unless windows? || heroku?
-    command "invoke -e security-agent.build --major-version #{major_version_arg}", :env => env
-    copy 'bin/security-agent/security-agent', "#{install_dir}/embedded/bin"
-    move 'bin/agent/dist/security-agent.yaml', "#{conf_dir}/security-agent.yaml.example"
+  unless heroku?
+    if not windows? or (ENV['WINDOWS_DDPROCMON_DRIVER'] and not ENV['WINDOWS_DDPROCMON_DRIVER'].empty?)
+      command "invoke -e security-agent.build --major-version #{major_version_arg}", :env => env
+      if windows?
+        copy 'bin/security-agent/security-agent.exe', "#{Omnibus::Config.source_dir()}/datadog-agent/src/github.com/DataDog/datadog-agent/bin/agent"
+      else 
+        copy 'bin/security-agent/security-agent', "#{install_dir}/embedded/bin"
+      end
+      move 'bin/agent/dist/security-agent.yaml', "#{conf_dir}/security-agent.yaml.example"
+    end
   end
 
+  # APM Injection agent
+  if windows?
+    if ENV['WINDOWS_APMINJECT_MODULE'] and not ENV['WINDOWS_APMINJECT_MODULE'].empty?
+      command "inv generate-config --build-type apm-injection --output-file ./bin/agent/dist/apm-inject.yaml", :env => env
+     #move 'bin/agent/dist/system-probe.yaml', "#{conf_dir}/system-probe.yaml.example"
+      move 'bin/agent/dist/apm-inject.yaml', "#{conf_dir}/apm-inject.yaml.example"
+    end
+  end
   if linux?
     if debian?
       erb source: "upstart_debian.conf.erb",

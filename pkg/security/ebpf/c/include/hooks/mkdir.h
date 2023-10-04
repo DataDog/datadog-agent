@@ -148,7 +148,7 @@ int __attribute__((always_inline)) dr_mkdir_callback(void *ctx) {
         .mode = syscall->mkdir.mode,
     };
 
-    fill_file_metadata(syscall->mkdir.dentry, &event.file.metadata);
+    fill_file(syscall->mkdir.dentry, &event.file);
     struct proc_cache_t *entry = fill_process_context(&event.process);
     fill_container_context(entry, &event.container);
     fill_span_context(&event.span);
@@ -157,19 +157,10 @@ int __attribute__((always_inline)) dr_mkdir_callback(void *ctx) {
     return 0;
 }
 
-SEC("kprobe/dr_mkdir_callback")
-int kprobe_dr_mkdir_callback(struct pt_regs *ctx) {
-    return dr_mkdir_callback(ctx);
-}
-
-#ifdef USE_FENTRY
-
 TAIL_CALL_TARGET("dr_mkdir_callback")
-int fentry_dr_mkdir_callback(ctx_t *ctx) {
+int tail_call_target_dr_mkdir_callback(ctx_t *ctx) {
     return dr_mkdir_callback(ctx);
 }
-
-#endif // USE_FENTRY
 
 SEC("tracepoint/dr_mkdir_callback")
 int tracepoint_dr_mkdir_callback(struct tracepoint_syscalls_sys_exit_t *args) {

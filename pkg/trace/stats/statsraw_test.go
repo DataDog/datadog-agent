@@ -6,7 +6,9 @@
 package stats
 
 import (
+	"fmt"
 	"testing"
+	"time"
 
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 
@@ -16,11 +18,11 @@ import (
 func TestGrain(t *testing.T) {
 	assert := assert.New(t)
 	s := pb.Span{Service: "thing", Name: "other", Resource: "yo"}
-	aggr := NewAggregationFromSpan(&s, "", PayloadAggregationKey{
+	aggr, _ := NewAggregationFromSpan(&s, "", PayloadAggregationKey{
 		Env:         "default",
 		Hostname:    "default",
 		ContainerID: "cid",
-	}, false)
+	}, false, nil)
 	assert.Equal(Aggregation{
 		PayloadAggregationKey: PayloadAggregationKey{
 			Env:         "default",
@@ -38,12 +40,12 @@ func TestGrain(t *testing.T) {
 func TestGrainWithPeerService(t *testing.T) {
 	t.Run("disabled", func(t *testing.T) {
 		assert := assert.New(t)
-		s := pb.Span{Service: "thing", Name: "other", Resource: "yo", Meta: map[string]string{"peer.service": "remote-service"}}
-		aggr := NewAggregationFromSpan(&s, "", PayloadAggregationKey{
+		s := pb.Span{Service: "thing", Name: "other", Resource: "yo", Meta: map[string]string{"span.kind": "client", "peer.service": "remote-service"}}
+		aggr, _ := NewAggregationFromSpan(&s, "", PayloadAggregationKey{
 			Env:         "default",
 			Hostname:    "default",
 			ContainerID: "cid",
-		}, false)
+		}, false, nil)
 		assert.Equal(Aggregation{
 			PayloadAggregationKey: PayloadAggregationKey{
 				Env:         "default",
@@ -52,6 +54,7 @@ func TestGrainWithPeerService(t *testing.T) {
 			},
 			BucketsAggregationKey: BucketsAggregationKey{
 				Service:     "thing",
+				SpanKind:    "client",
 				Name:        "other",
 				Resource:    "yo",
 				PeerService: "",
@@ -60,12 +63,12 @@ func TestGrainWithPeerService(t *testing.T) {
 	})
 	t.Run("enabled", func(t *testing.T) {
 		assert := assert.New(t)
-		s := pb.Span{Service: "thing", Name: "other", Resource: "yo", Meta: map[string]string{"peer.service": "remote-service"}}
-		aggr := NewAggregationFromSpan(&s, "", PayloadAggregationKey{
+		s := pb.Span{Service: "thing", Name: "other", Resource: "yo", Meta: map[string]string{"span.kind": "client", "peer.service": "remote-service"}}
+		aggr, _ := NewAggregationFromSpan(&s, "", PayloadAggregationKey{
 			Env:         "default",
 			Hostname:    "default",
 			ContainerID: "cid",
-		}, true)
+		}, true, nil)
 		assert.Equal(Aggregation{
 			PayloadAggregationKey: PayloadAggregationKey{
 				Env:         "default",
@@ -74,6 +77,7 @@ func TestGrainWithPeerService(t *testing.T) {
 			},
 			BucketsAggregationKey: BucketsAggregationKey{
 				Service:     "thing",
+				SpanKind:    "client",
 				Name:        "other",
 				Resource:    "yo",
 				PeerService: "remote-service",
@@ -82,15 +86,110 @@ func TestGrainWithPeerService(t *testing.T) {
 	})
 }
 
-func TestGrainWithExtraTags(t *testing.T) {
+func TestGrainWithPeerTags(t *testing.T) {
+	t.Run("none present", func(t *testing.T) {
+		assert := assert.New(t)
+		s := pb.Span{
+			Service:  "thing",
+			Name:     "other",
+			Resource: "yo",
+			Meta:     map[string]string{"span.kind": "client", "peer.service": "aws-s3"},
+		}
+		aggr, et := NewAggregationFromSpan(&s, "", PayloadAggregationKey{
+			Env:         "default",
+			Hostname:    "default",
+			ContainerID: "cid",
+		}, true, []string{"aws.s3.bucket", "db.instance", "db.system"})
+
+		assert.Equal(Aggregation{
+			PayloadAggregationKey: PayloadAggregationKey{
+				Env:         "default",
+				Hostname:    "default",
+				ContainerID: "cid",
+			},
+			BucketsAggregationKey: BucketsAggregationKey{
+				Service:     "thing",
+				SpanKind:    "client",
+				Name:        "other",
+				Resource:    "yo",
+				PeerService: "aws-s3",
+			},
+		}, aggr)
+		assert.Nil(et)
+	})
+	t.Run("partially present", func(t *testing.T) {
+		assert := assert.New(t)
+		s := pb.Span{
+			Service:  "thing",
+			Name:     "other",
+			Resource: "yo",
+			Meta:     map[string]string{"span.kind": "client", "peer.service": "aws-s3", "aws.s3.bucket": "bucket-a"},
+		}
+		aggr, et := NewAggregationFromSpan(&s, "", PayloadAggregationKey{
+			Env:         "default",
+			Hostname:    "default",
+			ContainerID: "cid",
+		}, true, []string{"aws.s3.bucket", "db.instance", "db.system"})
+
+		assert.Equal(Aggregation{
+			PayloadAggregationKey: PayloadAggregationKey{
+				Env:         "default",
+				Hostname:    "default",
+				ContainerID: "cid",
+			},
+			BucketsAggregationKey: BucketsAggregationKey{
+				Service:      "thing",
+				SpanKind:     "client",
+				Name:         "other",
+				Resource:     "yo",
+				PeerService:  "aws-s3",
+				PeerTagsHash: 6956349601612342508,
+			},
+		}, aggr)
+		assert.Equal([]string{"aws.s3.bucket:bucket-a"}, et)
+	})
+	t.Run("all present", func(t *testing.T) {
+		assert := assert.New(t)
+		s := pb.Span{
+			Service:  "thing",
+			Name:     "other",
+			Resource: "yo",
+			Meta:     map[string]string{"span.kind": "client", "peer.service": "aws-dynamodb", "db.instance": "dynamo.test.us1", "db.system": "dynamodb"},
+		}
+		aggr, et := NewAggregationFromSpan(&s, "", PayloadAggregationKey{
+			Env:         "default",
+			Hostname:    "default",
+			ContainerID: "cid",
+		}, true, []string{"db.instance", "db.system"})
+
+		assert.Equal(Aggregation{
+			PayloadAggregationKey: PayloadAggregationKey{
+				Env:         "default",
+				Hostname:    "default",
+				ContainerID: "cid",
+			},
+			BucketsAggregationKey: BucketsAggregationKey{
+				Service:      "thing",
+				SpanKind:     "client",
+				Name:         "other",
+				Resource:     "yo",
+				PeerService:  "aws-dynamodb",
+				PeerTagsHash: 7368490161962389668,
+			},
+		}, aggr)
+		assert.Equal([]string{"db.instance:dynamo.test.us1", "db.system:dynamodb"}, et)
+	})
+}
+
+func TestGrainWithSynthetics(t *testing.T) {
 	assert := assert.New(t)
 	s := pb.Span{Service: "thing", Name: "other", Resource: "yo", Meta: map[string]string{tagStatusCode: "418"}}
-	aggr := NewAggregationFromSpan(&s, "synthetics-browser", PayloadAggregationKey{
+	aggr, _ := NewAggregationFromSpan(&s, "synthetics-browser", PayloadAggregationKey{
 		Hostname:    "host-id",
 		Version:     "v0",
 		Env:         "default",
 		ContainerID: "cid",
-	}, false)
+	}, false, nil)
 	assert.Equal(Aggregation{
 		PayloadAggregationKey: PayloadAggregationKey{
 			Hostname:    "host-id",
@@ -114,7 +213,7 @@ func BenchmarkHandleSpanRandom(b *testing.B) {
 	b.ReportAllocs()
 	for i := 0; i < b.N; i++ {
 		for _, span := range benchSpans {
-			sb.HandleSpan(span, 1, true, "", PayloadAggregationKey{"a", "b", "c", "d"}, true)
+			sb.HandleSpan(span, 1, true, "", PayloadAggregationKey{"a", "b", "c", "d"}, true, nil)
 		}
 	}
 }
@@ -344,4 +443,38 @@ var benchSpans = []*pb.Span{
 		Metrics:  map[string]float64{"payloads": 0.3779600143407876, "loops": 0.20498295768971775, "size": 0.7947128947983215, "rowcount": 0.7478115781577667},
 		Type:     "lamar",
 	},
+}
+
+const roundMask int64 = 1 << 10
+
+func oldNSTimestampToFloat(ns int64) float64 {
+	var shift uint
+	for ns > roundMask {
+		ns = ns >> 1
+		shift++
+	}
+	return float64(ns << shift)
+}
+
+func TestNSTimestampToFloat(t *testing.T) {
+	ns := []int64{
+		int64(1066789584153112 - 1066789583298779), // kernel boot time values
+		int64(0),
+		int64(1),
+		int64(1066789584153112),
+		int64(time.Hour * 24 * 3650), // 10 year
+		int64(time.Now().UnixNano()),
+		int64(0x000000000000ffff),
+		int64(1023),
+		int64(1024),
+		int64(1025),
+		//^int64(0), this can't be used here because float64 have only 52 bits of mantissa
+		// and filter(float(int64)) will difference due to roundup than float(filter(int64))
+		int64(0x001fffffffffffff),
+		^int64(0x001fffffffffffff), // ~584 years
+	}
+
+	for _, n := range ns {
+		assert.Equal(t, oldNSTimestampToFloat(n), nsTimestampToFloat(n), "uint64 10 bits mantissa truncation failed "+fmt.Sprintf("%d 0x%x", n, n))
+	}
 }

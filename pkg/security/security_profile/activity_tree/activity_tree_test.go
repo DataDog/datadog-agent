@@ -5,14 +5,14 @@
 
 //go:build linux
 
-package activity_tree
+// Package activitytree holds activitytree related files
+package activitytree
 
 import (
 	"fmt"
 	"math"
 	"strings"
 	"testing"
-	"time"
 
 	"github.com/stretchr/testify/assert"
 
@@ -71,10 +71,34 @@ func TestInsertFileEvent(t *testing.T) {
 	assert.Equal(t, expectedDebugOuput, debugOutput)
 }
 
+func setParentRelationship(parent ProcessNodeParent, node *ProcessNode) {
+	node.Parent = parent
+	for _, child := range node.Children {
+		setParentRelationship(node, child)
+	}
+}
+
+func assertTreeEqual(t *testing.T, wanted *ActivityTree, tree *ActivityTree) {
+	var builder strings.Builder
+	tree.Debug(&builder)
+	inputResult := strings.TrimSpace(builder.String())
+
+	builder.Reset()
+	wanted.Debug(&builder)
+	wantedResult := strings.TrimSpace(builder.String())
+
+	assert.Equalf(t, wantedResult, inputResult, "the generated tree didn't match the expected output")
+}
+
 func TestActivityTree_InsertExecEvent(t *testing.T) {
 	for _, tt := range activityTreeInsertExecEventTestCases {
 		t.Run(tt.name, func(t *testing.T) {
-			node, _, newEntry, err := tt.tree.CreateProcessNode(tt.inputEvent.ProcessCacheEntry, nil, Runtime, false, nil)
+			// prepare parent links in the input tree
+			for _, rootNode := range tt.tree.ProcessNodes {
+				setParentRelationship(tt.tree, rootNode)
+			}
+
+			node, newEntry, err := tt.tree.CreateProcessNode(tt.inputEvent.ProcessCacheEntry, Runtime, false, nil)
 			if tt.wantErr != nil {
 				if !tt.wantErr(t, err, fmt.Sprintf("unexpected error: %v", err)) {
 					return
@@ -84,15 +108,8 @@ func TestActivityTree_InsertExecEvent(t *testing.T) {
 				return
 			}
 
-			var builder strings.Builder
-			tt.tree.Debug(&builder)
-			inputResult := strings.TrimSpace(builder.String())
+			assertTreeEqual(t, tt.wantTree, tt.tree)
 
-			builder.Reset()
-			tt.wantTree.Debug(&builder)
-			wantedResult := strings.TrimSpace(builder.String())
-
-			assert.Equalf(t, wantedResult, inputResult, "the generated tree didn't match the expected output")
 			assert.Equalf(t, tt.wantNewEntry, newEntry, "invalid newEntry output")
 			assert.Equalf(t, tt.wantNode.Process.FileEvent.PathnameStr, node.Process.FileEvent.PathnameStr, "the returned ProcessNode is invalid")
 		})
@@ -2344,7 +2361,6 @@ var activityTreeInsertExecEventTestCases = []struct {
 										{
 											Process: model.Process{
 												IsExecChild: true,
-												ExecTime:    time.Date(2023, 06, 23, 1, 2, 3, 4, time.UTC),
 												FileEvent: model.FileEvent{
 													PathnameStr: "/bin/wc",
 												},
@@ -3307,4 +3323,761 @@ var activityTreeInsertExecEventTestCases = []struct {
 			},
 		},
 	},
+
+	// exec/20
+	// ---------------
+	//
+	//      /bin/1--------         +       systemd                 ==>>   /bin/1 -------     /bin/4
+	//         |         |                 |- /bin/4                         |         |        |
+	//      /bin/2    /bin/3               |- /bin/2                       /bin/2    /bin/3   /bin/2
+	{
+		name: "exec/20",
+		tree: &ActivityTree{
+			validator: activityTreeInsertTestValidator{},
+			Stats:     NewActivityTreeNodeStats(),
+			ProcessNodes: []*ProcessNode{
+				{
+					Process: model.Process{
+						FileEvent: model.FileEvent{
+							PathnameStr: "/bin/1",
+						},
+					},
+					Children: []*ProcessNode{
+						{
+							Process: model.Process{
+								FileEvent: model.FileEvent{
+									PathnameStr: "/bin/2",
+								},
+							},
+						},
+						{
+							Process: model.Process{
+								FileEvent: model.FileEvent{
+									PathnameStr: "/bin/3",
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+		inputEvent: newExecTestEventWithAncestors([]model.Process{
+			{
+				ContainerID: "123",
+				FileEvent: model.FileEvent{
+					PathnameStr: "/bin/4",
+					FileFields: model.FileFields{
+						PathKey: model.PathKey{
+							Inode: 4,
+						},
+					},
+				},
+			},
+			{
+				ContainerID: "123",
+				FileEvent: model.FileEvent{
+					PathnameStr: "/bin/2",
+					FileFields: model.FileFields{
+						PathKey: model.PathKey{
+							Inode: 2,
+						},
+					},
+				},
+			},
+		}),
+		wantNode: &ProcessNode{
+			Process: model.Process{
+				FileEvent: model.FileEvent{
+					PathnameStr: "/bin/2",
+				},
+			},
+		},
+		wantNewEntry: true,
+		wantTree: &ActivityTree{
+			ProcessNodes: []*ProcessNode{
+				{
+					Process: model.Process{
+						FileEvent: model.FileEvent{
+							PathnameStr: "/bin/1",
+						},
+					},
+					Children: []*ProcessNode{
+						{
+							Process: model.Process{
+								FileEvent: model.FileEvent{
+									PathnameStr: "/bin/2",
+								},
+							},
+						},
+						{
+							Process: model.Process{
+								FileEvent: model.FileEvent{
+									PathnameStr: "/bin/3",
+								},
+							},
+						},
+					},
+				},
+				{
+					Process: model.Process{
+						FileEvent: model.FileEvent{
+							PathnameStr: "/bin/4",
+						},
+					},
+					Children: []*ProcessNode{
+						{
+							Process: model.Process{
+								FileEvent: model.FileEvent{
+									PathnameStr: "/bin/2",
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+	},
+
+	// exec/21
+	// ---------------
+	//
+	//       bin/1------------           /bin/4          +        systemd                   ==>>        /bin/4
+	//         | (exec)      | (exec)                                |- /bin/4 -> /bin/2                   | (exec)
+	//      /bin/2         /bin/3                                                                       /bin/1 -------------
+	//                                                                                                    | (exec)         | (exec)
+	//                                                                                                  /bin/2          /bin/3
+	//
+	{
+		name: "exec/21",
+		tree: &ActivityTree{
+			validator: activityTreeInsertTestValidator{},
+			Stats:     NewActivityTreeNodeStats(),
+			ProcessNodes: []*ProcessNode{
+				{
+					Process: model.Process{
+						IsExecChild: false,
+						FileEvent: model.FileEvent{
+							PathnameStr: "/bin/1",
+						},
+					},
+					Children: []*ProcessNode{
+						{
+							Process: model.Process{
+								IsExecChild: true,
+								FileEvent: model.FileEvent{
+									PathnameStr: "/bin/2",
+								},
+							},
+						},
+						{
+							Process: model.Process{
+								IsExecChild: true,
+								FileEvent: model.FileEvent{
+									PathnameStr: "/bin/3",
+								},
+							},
+						},
+					},
+				},
+				{
+					Process: model.Process{
+						IsExecChild: false,
+						FileEvent: model.FileEvent{
+							PathnameStr: "/bin/4",
+						},
+					},
+				},
+			},
+		},
+		inputEvent: newExecTestEventWithAncestors([]model.Process{
+			{
+				IsExecChild: false,
+				ContainerID: "123",
+				FileEvent: model.FileEvent{
+					PathnameStr: "/bin/4",
+					FileFields: model.FileFields{
+						PathKey: model.PathKey{
+							Inode: 4,
+						},
+					},
+				},
+			},
+			{
+				IsExecChild: true,
+				ContainerID: "123",
+				FileEvent: model.FileEvent{
+					PathnameStr: "/bin/2",
+					FileFields: model.FileFields{
+						PathKey: model.PathKey{
+							Inode: 2,
+						},
+					},
+				},
+			},
+		}),
+		wantNode: &ProcessNode{
+			Process: model.Process{
+				FileEvent: model.FileEvent{
+					PathnameStr: "/bin/2",
+				},
+			},
+		},
+		wantNewEntry: false,
+		wantTree: &ActivityTree{
+			ProcessNodes: []*ProcessNode{
+				{
+					Process: model.Process{
+						IsExecChild: false,
+						FileEvent: model.FileEvent{
+							PathnameStr: "/bin/4",
+						},
+					},
+					Children: []*ProcessNode{
+						{
+							Process: model.Process{
+								IsExecChild: true,
+								FileEvent: model.FileEvent{
+									PathnameStr: "/bin/1",
+								},
+							},
+							Children: []*ProcessNode{
+								{
+									Process: model.Process{
+										IsExecChild: true,
+										FileEvent: model.FileEvent{
+											PathnameStr: "/bin/2",
+										},
+									},
+								},
+								{
+									Process: model.Process{
+										IsExecChild: true,
+										FileEvent: model.FileEvent{
+											PathnameStr: "/bin/3",
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+	},
+
+	// exec/22
+	// ---------------
+	//      /bin/0                          +       systemd                      ==>>         /bin/0                          /bin/4
+	//         |                                       |- /bin/4 -> /bin/2                       |                               | (exec)
+	//      /bin/1---------------                                                             /bin/1 -----------              /bin/2
+	//         | (exec)         | (exec)                                                         | (exec)      | (exec)
+	//      /bin/2            /bin/3                                                          /bin/2         /bin/3
+	//
+	{
+		name: "exec/22",
+		tree: &ActivityTree{
+			validator: activityTreeInsertTestValidator{},
+			Stats:     NewActivityTreeNodeStats(),
+			ProcessNodes: []*ProcessNode{
+				{
+					Process: model.Process{
+						IsExecChild: false,
+						FileEvent: model.FileEvent{
+							PathnameStr: "/bin/0",
+						},
+					},
+					Children: []*ProcessNode{
+						{
+							Process: model.Process{
+								IsExecChild: false,
+								FileEvent: model.FileEvent{
+									PathnameStr: "/bin/1",
+								},
+							},
+							Children: []*ProcessNode{
+								{
+									Process: model.Process{
+										IsExecChild: true,
+										FileEvent: model.FileEvent{
+											PathnameStr: "/bin/2",
+										},
+									},
+								},
+								{
+									Process: model.Process{
+										IsExecChild: true,
+										FileEvent: model.FileEvent{
+											PathnameStr: "/bin/3",
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+		inputEvent: newExecTestEventWithAncestors([]model.Process{
+			{
+				IsExecChild: false,
+				ContainerID: "123",
+				FileEvent: model.FileEvent{
+					PathnameStr: "/bin/4",
+					FileFields: model.FileFields{
+						PathKey: model.PathKey{
+							Inode: 4,
+						},
+					},
+				},
+			},
+			{
+				IsExecChild: true,
+				ContainerID: "123",
+				FileEvent: model.FileEvent{
+					PathnameStr: "/bin/2",
+					FileFields: model.FileFields{
+						PathKey: model.PathKey{
+							Inode: 2,
+						},
+					},
+				},
+			},
+		}),
+		wantNode: &ProcessNode{
+			Process: model.Process{
+				FileEvent: model.FileEvent{
+					PathnameStr: "/bin/2",
+				},
+			},
+		},
+		wantNewEntry: true,
+		wantTree: &ActivityTree{
+			ProcessNodes: []*ProcessNode{
+				{
+					Process: model.Process{
+						IsExecChild: false,
+						FileEvent: model.FileEvent{
+							PathnameStr: "/bin/0",
+						},
+					},
+					Children: []*ProcessNode{
+						{
+							Process: model.Process{
+								IsExecChild: false,
+								FileEvent: model.FileEvent{
+									PathnameStr: "/bin/1",
+								},
+							},
+							Children: []*ProcessNode{
+								{
+									Process: model.Process{
+										IsExecChild: true,
+										FileEvent: model.FileEvent{
+											PathnameStr: "/bin/2",
+										},
+									},
+								},
+								{
+									Process: model.Process{
+										IsExecChild: true,
+										FileEvent: model.FileEvent{
+											PathnameStr: "/bin/3",
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+				{
+					Process: model.Process{
+						IsExecChild: false,
+						FileEvent: model.FileEvent{
+							PathnameStr: "/bin/4",
+						},
+					},
+					Children: []*ProcessNode{
+						{
+							Process: model.Process{
+								IsExecChild: true,
+								FileEvent: model.FileEvent{
+									PathnameStr: "/bin/2",
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+	},
+
+	// exec/23
+	// ---------------
+	//        dash---------            +        systemd             ==>    dash
+	//         |          |                        |                        |
+	//        bash     ddtrace                    dash                     bash------------
+	//         |         | (exec)                  |                        |             | (exec)
+	//       python    uwsgi                      bash                   python        ddtrace
+	//                                             |                                      | (exec)
+	//                                           ddtrace                                tools
+	//                                             | (exec)                               | (exec)
+	//                                           tools                                  utils
+	//                                             | (exec)                               | (exec)
+	//                                           utils                                  uwsgi
+	//                                             | (exec)
+	//                                           uwsgi
+	//
+	{
+		name: "exec/23",
+		tree: &ActivityTree{
+			validator: activityTreeInsertTestValidator{},
+			Stats:     NewActivityTreeNodeStats(),
+			ProcessNodes: []*ProcessNode{
+				{
+					Process: model.Process{
+						FileEvent: model.FileEvent{
+							PathnameStr: "/dash",
+						},
+					},
+					Children: []*ProcessNode{
+						{
+							Process: model.Process{
+								FileEvent: model.FileEvent{
+									PathnameStr: "/bash",
+								},
+							},
+							Children: []*ProcessNode{
+								{
+									Process: model.Process{
+										FileEvent: model.FileEvent{
+											PathnameStr: "/python",
+										},
+									},
+								},
+							},
+						},
+						{
+							Process: model.Process{
+								IsExecChild: false,
+								FileEvent: model.FileEvent{
+									PathnameStr: "/ddtrace",
+								},
+							},
+							Children: []*ProcessNode{
+								{
+									Process: model.Process{
+										IsExecChild: true,
+										FileEvent: model.FileEvent{
+											PathnameStr: "/uwsgi",
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+		inputEvent: newExecTestEventWithAncestors([]model.Process{
+			{
+				IsExecChild: false,
+				ContainerID: "123",
+				FileEvent: model.FileEvent{
+					PathnameStr: "/dash",
+					FileFields: model.FileFields{
+						PathKey: model.PathKey{
+							Inode: 1,
+						},
+					},
+				},
+			},
+			{
+				IsExecChild: false,
+				ContainerID: "123",
+				FileEvent: model.FileEvent{
+					PathnameStr: "/bash",
+					FileFields: model.FileFields{
+						PathKey: model.PathKey{
+							Inode: 2,
+						},
+					},
+				},
+			},
+			{
+				IsExecChild: false,
+				ContainerID: "123",
+				FileEvent: model.FileEvent{
+					PathnameStr: "/ddtrace",
+					FileFields: model.FileFields{
+						PathKey: model.PathKey{
+							Inode: 3,
+						},
+					},
+				},
+			},
+			{
+				IsExecChild: true,
+				ContainerID: "123",
+				FileEvent: model.FileEvent{
+					PathnameStr: "/tools",
+					FileFields: model.FileFields{
+						PathKey: model.PathKey{
+							Inode: 4,
+						},
+					},
+				},
+			},
+			{
+				IsExecChild: true,
+				ContainerID: "123",
+				FileEvent: model.FileEvent{
+					PathnameStr: "/utils",
+					FileFields: model.FileFields{
+						PathKey: model.PathKey{
+							Inode: 5,
+						},
+					},
+				},
+			},
+			{
+				IsExecChild: true,
+				ContainerID: "123",
+				FileEvent: model.FileEvent{
+					PathnameStr: "/uwsgi",
+					FileFields: model.FileFields{
+						PathKey: model.PathKey{
+							Inode: 6,
+						},
+					},
+				},
+			},
+		}),
+		wantNode: &ProcessNode{
+			Process: model.Process{
+				FileEvent: model.FileEvent{
+					PathnameStr: "/uwsgi",
+				},
+			},
+		},
+		wantNewEntry: true,
+		wantTree: &ActivityTree{
+			ProcessNodes: []*ProcessNode{
+				{
+					Process: model.Process{
+						FileEvent: model.FileEvent{
+							PathnameStr: "/dash",
+						},
+					},
+					Children: []*ProcessNode{
+						{
+							Process: model.Process{
+								FileEvent: model.FileEvent{
+									PathnameStr: "/bash",
+								},
+							},
+							Children: []*ProcessNode{
+								{
+									Process: model.Process{
+										FileEvent: model.FileEvent{
+											PathnameStr: "/python",
+										},
+									},
+								},
+								{
+									Process: model.Process{
+										IsExecChild: true,
+										FileEvent: model.FileEvent{
+											PathnameStr: "/ddtrace",
+										},
+									},
+									Children: []*ProcessNode{
+										{
+											Process: model.Process{
+												IsExecChild: true,
+												FileEvent: model.FileEvent{
+													PathnameStr: "/tools",
+												},
+											},
+											Children: []*ProcessNode{
+												{
+													Process: model.Process{
+														IsExecChild: true,
+														FileEvent: model.FileEvent{
+															PathnameStr: "/utils",
+														},
+													},
+													Children: []*ProcessNode{
+														{
+															Process: model.Process{
+																IsExecChild: true,
+																FileEvent: model.FileEvent{
+																	PathnameStr: "/uwsgi",
+																},
+															},
+														},
+													},
+												},
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+	},
+}
+
+func TestActivityTree_Patterns(t *testing.T) {
+	t.Run("pattern/learning", func(t *testing.T) {
+		tree := &ActivityTree{
+			validator: activityTreeInsertTestValidator{},
+			Stats:     NewActivityTreeNodeStats(),
+		}
+
+		// prepare parent links in the input tree
+		for _, rootNode := range tree.ProcessNodes {
+			setParentRelationship(tree, rootNode)
+		}
+
+		event := newExecTestEventWithAncestors([]model.Process{
+			{
+				ContainerID: "123",
+				FileEvent: model.FileEvent{
+					PathnameStr: "/tmp/123456789/script.sh",
+					FileFields: model.FileFields{
+						PathKey: model.PathKey{
+							Inode: 1,
+						},
+					},
+				},
+			},
+		})
+
+		wanted := &ActivityTree{
+			ProcessNodes: []*ProcessNode{
+				{
+					Process: model.Process{
+						FileEvent: model.FileEvent{
+							PathnameStr: "/tmp/123456789/script.sh",
+						},
+					},
+				},
+			},
+		}
+
+		_, newEntry, err := tree.CreateProcessNode(event.ProcessCacheEntry, Runtime, false, nil)
+		assert.NoError(t, err)
+		assert.True(t, newEntry)
+		assertTreeEqual(t, wanted, tree)
+
+		// add an event that generates a pattern
+		event = newExecTestEventWithAncestors([]model.Process{
+			{
+				ContainerID: "123",
+				FileEvent: model.FileEvent{
+					PathnameStr: "/tmp/987654321/script.sh",
+					FileFields: model.FileFields{
+						PathKey: model.PathKey{
+							Inode: 1,
+						},
+					},
+				},
+			},
+		})
+
+		wanted = &ActivityTree{
+			ProcessNodes: []*ProcessNode{
+				{
+					Process: model.Process{
+						FileEvent: model.FileEvent{
+							PathnameStr: "/tmp/123456789/script.sh",
+						},
+					},
+				},
+			},
+		}
+
+		_, newEntry, err = tree.CreateProcessNode(event.ProcessCacheEntry, Runtime, false, nil)
+		assert.NoError(t, err)
+		assert.False(t, newEntry)
+		assertTreeEqual(t, wanted, tree)
+	})
+
+	t.Run("pattern/anamoly", func(t *testing.T) {
+		tree := &ActivityTree{
+			validator: activityTreeInsertTestValidator{},
+			Stats:     NewActivityTreeNodeStats(),
+		}
+
+		// prepare parent links in the input tree
+		for _, rootNode := range tree.ProcessNodes {
+			setParentRelationship(tree, rootNode)
+		}
+
+		event := newExecTestEventWithAncestors([]model.Process{
+			{
+				ContainerID: "123",
+				FileEvent: model.FileEvent{
+					PathnameStr: "/tmp/123456789/script.sh",
+					FileFields: model.FileFields{
+						PathKey: model.PathKey{
+							Inode: 1,
+						},
+					},
+				},
+			},
+		})
+
+		wanted := &ActivityTree{
+			ProcessNodes: []*ProcessNode{
+				{
+					Process: model.Process{
+						FileEvent: model.FileEvent{
+							PathnameStr: "/tmp/123456789/script.sh",
+						},
+					},
+				},
+			},
+		}
+
+		_, newEntry, err := tree.CreateProcessNode(event.ProcessCacheEntry, Runtime, false, nil)
+		assert.NoError(t, err)
+		assert.True(t, newEntry)
+		assertTreeEqual(t, wanted, tree)
+
+		// add an event that generates a pattern
+		event = newExecTestEventWithAncestors([]model.Process{
+			{
+				ContainerID: "123",
+				FileEvent: model.FileEvent{
+					PathnameStr: "/var/123456789/script.sh",
+					FileFields: model.FileFields{
+						PathKey: model.PathKey{
+							Inode: 1,
+						},
+					},
+				},
+			},
+		})
+
+		wanted = &ActivityTree{
+			ProcessNodes: []*ProcessNode{
+				{
+					Process: model.Process{
+						FileEvent: model.FileEvent{
+							PathnameStr: "/tmp/123456789/script.sh",
+						},
+					},
+				},
+			},
+		}
+
+		_, newEntry, err = tree.CreateProcessNode(event.ProcessCacheEntry, Runtime, true, nil)
+		assert.NoError(t, err)
+		assert.True(t, newEntry)
+		assertTreeEqual(t, wanted, tree)
+	})
 }

@@ -147,7 +147,7 @@ func (d *dispatcher) reschedule(configs []integration.Config) {
 
 // add stores and delegates a given configuration
 func (d *dispatcher) add(config integration.Config) {
-	target := d.getLeastBusyNode()
+	target := d.getNodeToScheduleCheck()
 	if target == "" {
 		// If no node is found, store it in the danglingConfigs map for retrying later.
 		log.Warnf("No available node to dispatch %s:%s on, will retry later", config.Name, config.Digest())
@@ -199,7 +199,7 @@ func (d *dispatcher) run(ctx context.Context) {
 			d.expireNodes()
 
 			// Re-dispatch dangling configs
-			if d.shouldDispatchDanling() {
+			if d.shouldDispatchDangling() {
 				danglingConfs := d.retrieveAndClearDangling()
 				d.reschedule(danglingConfs)
 			}

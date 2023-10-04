@@ -31,6 +31,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/log"
+	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	"github.com/DataDog/datadog-agent/comp/forwarder"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
@@ -44,6 +45,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/tagger/remote"
 	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
+	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 	"github.com/DataDog/datadog-agent/pkg/util/profiling"
 	"github.com/DataDog/datadog-agent/pkg/util/startstop"
 	"github.com/DataDog/datadog-agent/pkg/version"
@@ -71,8 +73,9 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 			return fxutil.OneShot(start,
 				fx.Supply(params),
 				fx.Supply(core.BundleParams{
-					ConfigParams: config.NewSecurityAgentParams(params.ConfigFilePaths),
-					LogParams:    log.LogForDaemon(command.LoggerName, "security_agent.log_file", pkgconfig.DefaultSecurityAgentLogFile),
+					ConfigParams:         config.NewSecurityAgentParams(params.ConfigFilePaths),
+					SysprobeConfigParams: sysprobeconfig.NewParams(sysprobeconfig.WithSysProbeConfFilePath(globalParams.SysProbeConfFilePath)),
+					LogParams:            log.LogForDaemon(command.LoggerName, "security_agent.log_file", pkgconfig.DefaultSecurityAgentLogFile),
 				}),
 				core.Bundle,
 				forwarder.Bundle,
@@ -86,12 +89,11 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 	return []*cobra.Command{startCmd}
 }
 
-func start(log log.Component, config config.Component, telemetry telemetry.Component, forwarder defaultforwarder.Component, params *cliParams) error {
-	// Main context passed to components
+func start(log log.Component, config config.Component, sysprobeconfig sysprobeconfig.Component, telemetry telemetry.Component, forwarder defaultforwarder.Component, params *cliParams) error {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer StopAgent(cancel, log)
 
-	err := RunAgent(ctx, log, config, telemetry, forwarder, params.pidfilePath)
+	err := RunAgent(ctx, log, config, sysprobeconfig, telemetry, forwarder, params.pidfilePath)
 	if errors.Is(err, errAllComponentsDisabled) || errors.Is(err, errNoAPIKeyConfigured) {
 		return nil
 	}
@@ -144,7 +146,7 @@ var errAllComponentsDisabled = errors.New("all security-agent component are disa
 var errNoAPIKeyConfigured = errors.New("no API key configured")
 
 // RunAgent initialized resources and starts API server
-func RunAgent(ctx context.Context, log log.Component, config config.Component, telemetry telemetry.Component, forwarder defaultforwarder.Component, pidfilePath string) (err error) {
+func RunAgent(ctx context.Context, log log.Component, config config.Component, sysprobeconfig sysprobeconfig.Component, telemetry telemetry.Component, forwarder defaultforwarder.Component, pidfilePath string) (err error) {
 	if err := util.SetupCoreDump(config); err != nil {
 		log.Warnf("Can't setup core dumps: %v, core dumps might not be available after a crash", err)
 	}
@@ -204,7 +206,11 @@ func RunAgent(ctx context.Context, log log.Component, config config.Component, t
 
 	hostnameDetected, err := utils.GetHostname()
 	if err != nil {
-		return log.Errorf("Error while getting hostname, exiting: %v", err)
+		log.Warnf("Could not resolve hostname from core-agent: %v", err)
+		hostnameDetected, err = hostname.Get(ctx)
+		if err != nil {
+			return log.Errorf("Error while getting hostname, exiting: %v", err)
+		}
 	}
 	log.Infof("Hostname is: %s", hostnameDetected)
 
@@ -254,7 +260,7 @@ func RunAgent(ctx context.Context, log log.Component, config config.Component, t
 		}
 	}
 
-	complianceAgent, err := compliance.StartCompliance(log, config, hostnameDetected, stopper, statsdClient)
+	complianceAgent, err := compliance.StartCompliance(log, config, sysprobeconfig, hostnameDetected, stopper, statsdClient)
 	if err != nil {
 		return err
 	}
@@ -340,17 +346,21 @@ func setupInternalProfiling(config config.Component) error {
 			}
 		}
 
+		tags := config.GetStringSlice(secAgentKey("internal_profiling.extra_tags"))
+		tags = append(tags, fmt.Sprintf("version:%v", v))
+
 		profSettings := profiling.Settings{
 			ProfilingURL:         site,
 			Env:                  config.GetString(secAgentKey("internal_profiling.env")),
 			Service:              "security-agent",
 			Period:               config.GetDuration(secAgentKey("internal_profiling.period")),
-			CPUDuration:          config.GetDuration("internal_profiling.cpu_duration"),
+			CPUDuration:          config.GetDuration(secAgentKey("internal_profiling.cpu_duration")),
 			MutexProfileFraction: config.GetInt(secAgentKey("internal_profiling.mutex_profile_fraction")),
 			BlockProfileRate:     config.GetInt(secAgentKey("internal_profiling.block_profile_rate")),
 			WithGoroutineProfile: config.GetBool(secAgentKey("internal_profiling.enable_goroutine_stacktraces")),
 			WithDeltaProfiles:    config.GetBool(secAgentKey("internal_profiling.delta_profiles")),
-			Tags:                 []string{fmt.Sprintf("version:%v", v)},
+			Socket:               config.GetString(secAgentKey("internal_profiling.unix_socket")),
+			Tags:                 tags,
 		}
 
 		return profiling.Start(profSettings)

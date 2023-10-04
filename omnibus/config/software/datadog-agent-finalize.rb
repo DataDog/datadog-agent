@@ -28,6 +28,12 @@ build do
             if ENV['WINDOWS_DDNPM_DRIVER'] and not ENV['WINDOWS_DDNPM_DRIVER'].empty? and not windows_arch_i386?
               move "#{install_dir}/etc/datadog-agent/system-probe.yaml.example", conf_dir_root, :force=>true
             end
+            if ENV['WINDOWS_DDPROCMON_DRIVER'] and not ENV['WINDOWS_DDPROCMON_DRIVER'].empty? and not windows_arch_i386?
+              move "#{install_dir}/etc/datadog-agent/security-agent.yaml.example", conf_dir_root, :force=>true
+            end
+            if ENV['WINDOWS_APMINJECT_MODULE'] and not ENV['WINDOWS_APMINJECT_MODULE'].empty?
+              move "#{install_dir}/etc/datadog-agent/apm-inject.yaml.example", conf_dir_root, :force=>true
+            end
             move "#{install_dir}/etc/datadog-agent/conf.d/*", conf_dir, :force=>true
             delete "#{install_dir}/bin/agent/agent.exe"
             # TODO why does this get generated at all
@@ -80,6 +86,7 @@ build do
                 delete "#{install_dir}/embedded/bin/2to3"
                 link "#{install_dir}/embedded/bin/2to3-3.9", "#{install_dir}/embedded/bin/2to3"
             end
+            delete "#{install_dir}/embedded/lib/config_guess"
         end
 
         if linux?
@@ -191,16 +198,8 @@ build do
             strip_exclude("*aerospike*")
 
             # Do not strip eBPF programs
-            strip_exclude("*tracer*")
-            strip_exclude("*offset-guess*")
-            strip_exclude("*usm*")
-            strip_exclude("*shared-libraries*")
-            strip_exclude("*runtime-security*")
-            strip_exclude("*dns*")
-            strip_exclude("*conntrack*")
-            strip_exclude("*oom-kill*")
-            strip_exclude("*tcp-queue-length*")
-            strip_exclude("*ebpf*")
+            strip_exclude("#{install_dir}/embedded/share/system-probe/ebpf/*.o")
+            strip_exclude("#{install_dir}/embedded/share/system-probe/ebpf/co-re/*.o")
         end
 
         if osx?

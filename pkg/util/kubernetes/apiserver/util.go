@@ -44,11 +44,58 @@ func SyncInformers(informers map[InformerName]cache.SharedInformer, extraWait ti
 				log.Warnf("couldn't sync informer %s in %v (kube_cache_sync_timeout_seconds: %v)", name, end.Sub(start), timeoutConfig)
 				return fmt.Errorf("couldn't sync informer %s in %v", name, end.Sub(start))
 			}
-			log.Debugf("Sync done for informer %s in %v, last resource version: %s", name, time.Now().Sub(start), informers[name].LastSyncResourceVersion())
+			log.Debugf("Sync done for informer %s in %v, last resource version: %s", name, time.Since(start), informers[name].LastSyncResourceVersion())
 			return nil
 		})
 	}
 	return g.Wait()
+}
+
+type syncInformerResult struct {
+	informerName InformerName
+	err          error
+}
+
+// SyncInformersReturnErrors does the same thing as SyncInformers except it returns a map of InformerName and error
+func SyncInformersReturnErrors(informers map[InformerName]cache.SharedInformer, extraWait time.Duration) map[InformerName]error {
+	resultChan := make(chan syncInformerResult)
+	errors := make(map[InformerName]error, len(informers))
+	timeoutConfig := config.Datadog.GetDuration("kube_cache_sync_timeout_seconds") * time.Second
+	// syncTimeout can be used to wait for the kubernetes client-go cache to sync.
+	// It cannot be retrieved at the package-level due to the package being imported before configs are loaded.
+	syncTimeout := timeoutConfig + extraWait
+	for name := range informers {
+		name := name // https://golang.org/doc/faq#closures_and_goroutines
+		go (func() {
+			ctx, cancel := context.WithTimeout(context.Background(), syncTimeout)
+			defer cancel()
+			start := time.Now()
+			if !cache.WaitForCacheSync(ctx.Done(), informers[name].HasSynced) {
+				end := time.Now()
+				cacheSyncTimeouts.Inc()
+				log.Warnf("couldn't sync informer %s in %v (kube_cache_sync_timeout_seconds: %v)", name, end.Sub(start), timeoutConfig)
+				resultChan <- syncInformerResult{
+					informerName: name,
+					err:          fmt.Errorf("couldn't sync informer %s in %v", name, end.Sub(start)),
+				}
+				return
+			}
+			log.Debugf("Sync done for informer %s in %v, last resource version: %s", name, time.Since(start), informers[name].LastSyncResourceVersion())
+			resultChan <- syncInformerResult{
+				informerName: name,
+				err:          nil,
+			}
+		})()
+	}
+
+	for r := range resultChan {
+		errors[r.informerName] = r.err
+		if len(errors) == len(informers) {
+			break
+		}
+	}
+
+	return errors
 }
 
 // UnstructuredIntoWPA converts an unstructured into a WPA

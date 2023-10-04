@@ -3,21 +3,27 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+// Package diagnosis contains types used by the "agent diagnose" command.
 package diagnosis
 
 import (
-	"regexp"
-
+	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // --------------------------------
 // Diagnose (Metadata availability subcommand)
+
+// MetadataAvailDiagnose represents a function to fetch the metadata availability
 type MetadataAvailDiagnose func() error
+
+// MetadataAvailDiagnoseCatalog is a set of MetadataAvailDiagnose functions
 type MetadataAvailDiagnoseCatalog map[string]MetadataAvailDiagnose
 
+// MetadataAvailCatalog is a set of MetadataAvailDiagnose functions
 var MetadataAvailCatalog = make(MetadataAvailDiagnoseCatalog)
 
+// RegisterMetadataAvail adds a MetadataAvailDiagnose
 func RegisterMetadataAvail(name string, d MetadataAvailDiagnose) {
 	if _, ok := MetadataAvailCatalog[name]; ok {
 		log.Warnf("Diagnosis %s already registered, overriding it", name)
@@ -29,26 +35,27 @@ func RegisterMetadataAvail(name string, d MetadataAvailDiagnose) {
 // Diagnose (all subcommand)
 
 // Diagnose interface function
-type Diagnose func(Config) []Diagnosis
+type Diagnose func(Config, sender.SenderManager) []Diagnosis
 
-// Global list of registered Diagnose functions
+// Catalog is a global list of registered Diagnose functions
 var Catalog = make([]Suite, 0)
 
-// Diagnose suite information
+// Suite contains the Diagnose suite information
 type Suite struct {
 	SuitName string
 	Diagnose Diagnose
 }
 
-// Diagnose configuration
+// Config contains the Diagnose configuration
 type Config struct {
-	Verbose        bool
-	ForceLocal     bool
-	RemoteDiagnose bool
-	Include        []*regexp.Regexp
-	Exclude        []*regexp.Regexp
+	Verbose               bool
+	RunLocal              bool
+	RunningInAgentProcess bool
+	Include               []string
+	Exclude               []string
 }
 
+// Result contains the result of the diagnosis
 type Result int
 
 // Use explicit constant instead of iota because the same numbers are used
@@ -57,6 +64,7 @@ type Result int
 //    datadog-agent\rtloader\include\rtloader_types.h
 //    integrations-core\datadog_checks_base\datadog_checks\base\utils\diagnose.py
 
+// Diagnosis results
 const (
 	DiagnosisSuccess         Result = 0
 	DiagnosisFail            Result = 1
@@ -66,7 +74,7 @@ const (
 	DiagnosisResultMAX              = DiagnosisUnexpectedError
 )
 
-// Diagnose result (diagnosis)
+// Diagnosis contains the results of the diagnosis
 type Diagnosis struct {
 	// --------------------------
 	// required fields
@@ -82,21 +90,22 @@ type Diagnosis struct {
 	// optional fields
 
 	// static-time (meta typically)
-	Category string
+	Category string `json:",omitempty"`
 	// static-time (meta typically, description of what being tested)
 	Description string
 	// run-time (what can be done of what docs need to be consulted to address the issue)
 	Remediation string
 	// run-time
-	RawError error
+	RawError string
 }
 
+// Diagnoses is a collection of Diagnosis
 type Diagnoses struct {
 	SuiteName      string
 	SuiteDiagnoses []Diagnosis
 }
 
-// Add Diagnose suite
+// Register registers the given Diagnose function
 func Register(suiteName string, diagnose Diagnose) {
 	Catalog = append(Catalog, Suite{
 		SuitName: suiteName,

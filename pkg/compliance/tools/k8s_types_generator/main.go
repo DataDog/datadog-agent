@@ -3,6 +3,9 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+// Package main is the entrypoint of the compliance k8s_types_generator tool
+// that is responsible for generating various configuration types of
+// Kubernetes components.
 package main
 
 import (
@@ -27,6 +30,8 @@ import (
 	"unicode"
 
 	"golang.org/x/exp/slices"
+	"golang.org/x/text/cases"
+	"golang.org/x/text/language"
 )
 
 var (
@@ -141,6 +146,7 @@ const preamble = `// Unless explicitly stated otherwise all files in this reposi
 // !!!
 // This is a generated file: regenerate with go run ./pkg/compliance/tools/k8s_types_generator.go
 // !!!
+//revive:disable
 package k8sconfig
 
 import (
@@ -391,9 +397,8 @@ func printKomponentCode(komp *komponent) string {
 		case "*K8sConfigFileMeta":
 			if komp.name == "kubelet" && c.flagName == "config" {
 				return fmt.Sprintf("res.%s = l.loadKubeletConfigFileMeta(%s)", toGoField(c.flagName), v)
-			} else {
-				return fmt.Sprintf("res.%s = l.loadConfigFileMeta(%s)", toGoField(c.flagName), v)
 			}
+			return fmt.Sprintf("res.%s = l.loadConfigFileMeta(%s)", toGoField(c.flagName), v)
 		case "*K8sKubeletConfigFileMeta":
 			return fmt.Sprintf("res.%s = l.loadKubeletConfigFileMeta(%s)", toGoField(c.flagName), v)
 		case "*K8sAdmissionConfigFileMeta":
@@ -407,7 +412,8 @@ func printKomponentCode(komp *komponent) string {
 		}
 	}
 
-	goStructName := strings.ReplaceAll(strings.Title(komp.name), "-", "")
+	titled := cases.Title(language.English, cases.NoLower).String(komp.name)
+	goStructName := strings.ReplaceAll(titled, "-", "")
 	s := ""
 	s += fmt.Sprintf("type K8s%sConfig struct {\n", goStructName)
 	for _, c := range komp.confs {
@@ -445,11 +451,11 @@ func downloadEtcdAndExtractFlags(componentVersion string) *komponent {
 	const componentName = "etcd"
 	componentBin := path.Join(bindir, fmt.Sprintf("%s-%s", componentName, componentVersion))
 	componentTar := path.Join(bindir, fmt.Sprintf("%s-%s.tar.gz", componentName, componentVersion))
-	componentUrl := fmt.Sprintf("https://github.com/etcd-io/etcd/releases/download/%s/etcd-%s-linux-%s.tar.gz",
+	componentURL := fmt.Sprintf("https://github.com/etcd-io/etcd/releases/download/%s/etcd-%s-linux-%s.tar.gz",
 		componentVersion, componentVersion, arch)
 	if _, err := os.Stat(componentBin); os.IsNotExist(err) {
-		fmt.Fprintf(os.Stderr, "downloading %s into %s...", componentUrl, componentBin)
-		if err := download(componentUrl, componentTar); err != nil {
+		fmt.Fprintf(os.Stderr, "downloading %s into %s...", componentURL, componentBin)
+		if err := download(componentURL, componentTar); err != nil {
 			log.Fatal(err)
 		}
 		t, err := os.Open(componentTar)
@@ -462,7 +468,7 @@ func downloadEtcdAndExtractFlags(componentVersion string) *komponent {
 			log.Fatal(err)
 		}
 		r := tar.NewReader(g)
-		for true {
+		for {
 			header, err := r.Next()
 			if err == io.EOF {
 				break
@@ -514,11 +520,11 @@ func downloadEtcdAndExtractFlags(componentVersion string) *komponent {
 
 func downloadKubeComponentAndExtractFlags(componentName, componentVersion string) *komponent {
 	componentBin := path.Join(bindir, fmt.Sprintf("%s-%s", componentName, componentVersion))
-	componentUrl := fmt.Sprintf("https://dl.k8s.io/%s/bin/linux/%s/%s",
+	componentURL := fmt.Sprintf("https://dl.k8s.io/%s/bin/linux/%s/%s",
 		componentVersion, arch, componentName)
 	if _, err := os.Stat(componentBin); os.IsNotExist(err) {
-		fmt.Fprintf(os.Stderr, "downloading %s into %s...", componentUrl, componentBin)
-		if err := download(componentUrl, componentBin); err != nil {
+		fmt.Fprintf(os.Stderr, "downloading %s into %s...", componentURL, componentBin)
+		if err := download(componentURL, componentBin); err != nil {
 			log.Fatal(err)
 		}
 		fmt.Fprintf(os.Stderr, "ok\n")
@@ -552,7 +558,8 @@ func downloadKubeComponentAndExtractFlags(componentName, componentVersion string
 }
 
 func toGoField(s string) string {
-	return strings.ReplaceAll(strings.Title(s), "-", "")
+	caser := cases.Title(language.English, cases.NoLower)
+	return strings.ReplaceAll(caser.String(s), "-", "")
 }
 
 func toGoJSONTag(s string) string {

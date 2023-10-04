@@ -50,7 +50,7 @@ int __attribute__((always_inline)) handle_selinux_event(void *ctx, struct file *
     }
     // otherwise let's keep the value = error state.
 
-    fill_file_metadata(syscall.selinux.dentry, &syscall.selinux.file.metadata);
+    fill_file(syscall.selinux.dentry, &syscall.selinux.file);
     set_file_inode(syscall.selinux.dentry, &syscall.selinux.file, 0);
 
     syscall.resolver.key = syscall.selinux.file.path_key;
@@ -99,22 +99,12 @@ int __attribute__((always_inline)) dr_selinux_callback(void *ctx, int retval) {
     return 0;
 }
 
-SEC("kprobe/dr_selinux_callback")
-int kprobe_dr_selinux_callback(struct pt_regs *ctx) {
-    int retval = PT_REGS_RC(ctx);
-    return dr_selinux_callback(ctx, retval);
-}
-
-#ifdef USE_FENTRY
-
 TAIL_CALL_TARGET("dr_selinux_callback")
-int fentry_dr_selinux_callback(ctx_t *ctx) {
+int tail_call_target_dr_selinux_callback(ctx_t *ctx) {
     // int retval = PT_REGS_RC(ctx);
     int retval = 0;
     return dr_selinux_callback(ctx, retval);
 }
-
-#endif // USE_FENTRY
 
 #define PROBE_SEL_WRITE_FUNC(func_name, source_event)                       \
     HOOK_ENTRY(#func_name)                                                  \

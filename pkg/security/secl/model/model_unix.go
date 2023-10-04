@@ -6,8 +6,9 @@
 //go:build unix
 // +build unix
 
-//go:generate go run github.com/DataDog/datadog-agent/pkg/security/secl/compiler/generators/accessors -tags unix -types-file model.go -output accessors_unix.go -field-handlers field_handlers_unix.go -doc ../../../../docs/cloud-workload-security/secl.json
+//go:generate go run github.com/DataDog/datadog-agent/pkg/security/secl/compiler/generators/accessors -tags unix -types-file model.go -output accessors_unix.go -field-handlers field_handlers_unix.go -doc ../../../../docs/cloud-workload-security/secl.json -field-accessors-output field_accessors_unix.go
 
+// Package model holds model related files
 package model
 
 import (
@@ -23,15 +24,16 @@ import (
 )
 
 const (
-	// OverlayFS overlay filesystem
-	OverlayFS = "overlay"
-	// TmpFS tmpfs
-	TmpFS = "tmpfs"
-	// UnknownFS unknown filesystem
-	UnknownFS             = "unknown"
-	ErrPathMustBeAbsolute = "all the path have to be absolute"
-	ErrPathDepthLimit     = "path depths have to be shorter than"
-	ErrPathSegmentLimit   = "each segment of a path must be shorter than"
+	OverlayFS = "overlay" // OverlayFS overlay filesystem
+	TmpFS     = "tmpfs"   // TmpFS tmpfs
+	UnknownFS = "unknown" // UnknownFS unknown filesystem
+
+	ErrPathMustBeAbsolute = "all the path have to be absolute"            // ErrPathMustBeAbsolute tells when a path is not absolute
+	ErrPathDepthLimit     = "path depths have to be shorter than"         // ErrPathDepthLimit tells when a path is too long
+	ErrPathSegmentLimit   = "each segment of a path must be shorter than" // ErrPathSegmentLimit tells when a patch reached the segment limit
+
+	// SizeOfCookie size of cookie
+	SizeOfCookie = 8
 )
 
 // check that all path are absolute
@@ -178,7 +180,7 @@ type Event struct {
 
 	// network events
 	DNS  DNSEvent  `field:"dns" event:"dns"`   // [7.36] [Network] A DNS request was sent
-	Bind BindEvent `field:"bind" event:"bind"` // [7.37] [Network] [Experimental] A bind was executed
+	Bind BindEvent `field:"bind" event:"bind"` // [7.37] [Network] A bind was executed
 
 	// internal usage
 	Umount           UmountEvent           `field:"-" json:"-"`
@@ -246,14 +248,14 @@ type Credentials struct {
 
 // Equals returns if both credentials are equal
 func (c *Credentials) Equals(o *Credentials) bool {
-	return (c.UID == o.UID &&
+	return c.UID == o.UID &&
 		c.GID == o.GID &&
 		c.EUID == o.EUID &&
 		c.EGID == o.EGID &&
 		c.FSUID == o.FSUID &&
 		c.FSGID == o.FSGID &&
 		c.CapEffective == o.CapEffective &&
-		c.CapPermitted == o.CapPermitted)
+		c.CapPermitted == o.CapPermitted
 }
 
 // SetSpan sets the span
@@ -298,13 +300,14 @@ type Process struct {
 	LinuxBinprm LinuxBinprm `field:"interpreter,check:HasInterpreter"` // Script interpreter as identified by the shebang
 
 	// pid_cache_t
-	ForkTime time.Time `field:"-" json:"-"`
-	ExitTime time.Time `field:"-" json:"-"`
-	ExecTime time.Time `field:"-" json:"-"`
+	ForkTime time.Time `field:"fork_time,opts:getters_only" json:"-"`
+	ExitTime time.Time `field:"exit_time,opts:getters_only" json:"-"`
+	ExecTime time.Time `field:"exec_time,opts:getters_only" json:"-"`
 
+	// TODO: merge with ExecTime
 	CreatedAt uint64 `field:"created_at,handler:ResolveProcessCreatedAt"` // SECLDoc[created_at] Definition:`Timestamp of the creation of the process`
 
-	Cookie uint32 `field:"-"`
+	Cookie uint64 `field:"-"`
 	PPid   uint32 `field:"ppid"` // SECLDoc[ppid] Definition:`Parent process ID`
 
 	// credentials_t section of pid_cache_t
@@ -330,13 +333,12 @@ type Process struct {
 	SymlinkBasenameStr string              `field:"-" json:"-"`
 
 	// cache version
-	ScrubbedArgvResolved  bool           `field:"-" json:"-"`
-	ScrubbedArgv          []string       `field:"-" json:"-"`
-	ScrubbedArgsTruncated bool           `field:"-" json:"-"`
-	Variables             eval.Variables `field:"-" json:"-"`
+	ScrubbedArgvResolved bool           `field:"-" json:"-"`
+	Variables            eval.Variables `field:"-" json:"-"`
 
-	IsThread    bool `field:"is_thread"` // SECLDoc[is_thread] Definition:`Indicates whether the process is considered a thread (that is, a child process that hasn't executed another program)`
-	IsExecChild bool `field:"-"`         // Indicates whether the process is an exec child of its parent
+	IsThread        bool `field:"is_thread"` // SECLDoc[is_thread] Definition:`Indicates whether the process is considered a thread (that is, a child process that hasn't executed another program)`
+	IsExecChild     bool `field:"-"`         // Indicates whether the process is an exec child of its parent
+	IsParentMissing bool `field:"-"`         // Indicates the direct parent is missing
 
 	Source uint64 `field:"-" json:"-"`
 }
@@ -346,24 +348,19 @@ type ExecEvent struct {
 	*Process
 }
 
-// ExitEvent represents a process exit event
-type ExitEvent struct {
-	*Process
-	Cause uint32 `field:"cause"` // SECLDoc[cause] Definition:`Cause of the process termination (one of EXITED, SIGNALED, COREDUMPED)`
-	Code  uint32 `field:"code"`  // SECLDoc[code] Definition:`Exit code of the process or number of the signal that caused the process to terminate`
-}
-
 // FileFields holds the information required to identify a file
 type FileFields struct {
-	UID   uint32 `field:"uid"`                                                         // SECLDoc[uid] Definition:`UID of the file's owner`
-	User  string `field:"user,handler:ResolveFileFieldsUser"`                          // SECLDoc[user] Definition:`User of the file's owner`
-	GID   uint32 `field:"gid"`                                                         // SECLDoc[gid] Definition:`GID of the file's owner`
-	Group string `field:"group,handler:ResolveFileFieldsGroup"`                        // SECLDoc[group] Definition:`Group of the file's owner`
-	Mode  uint16 `field:"mode;rights,handler:ResolveRights,opts:cacheless_resolution"` // SECLDoc[mode] Definition:`Mode of the file` Constants:`Inode mode constants` SECLDoc[rights] Definition:`Rights of the file` Constants:`File mode constants`
-	CTime uint64 `field:"change_time"`                                                 // SECLDoc[change_time] Definition:`Change time of the file`
-	MTime uint64 `field:"modification_time"`                                           // SECLDoc[modification_time] Definition:`Modification time of the file`
+	UID   uint32 `field:"uid"`                                           // SECLDoc[uid] Definition:`UID of the file's owner`
+	User  string `field:"user,handler:ResolveFileFieldsUser"`            // SECLDoc[user] Definition:`User of the file's owner`
+	GID   uint32 `field:"gid"`                                           // SECLDoc[gid] Definition:`GID of the file's owner`
+	Group string `field:"group,handler:ResolveFileFieldsGroup"`          // SECLDoc[group] Definition:`Group of the file's owner`
+	Mode  uint16 `field:"mode;rights,handler:ResolveRights,opts:helper"` // SECLDoc[mode] Definition:`Mode of the file` Constants:`Inode mode constants` SECLDoc[rights] Definition:`Rights of the file` Constants:`File mode constants`
+	CTime uint64 `field:"change_time"`                                   // SECLDoc[change_time] Definition:`Change time (ctime) of the file`
+	MTime uint64 `field:"modification_time"`                             // SECLDoc[modification_time] Definition:`Modification time (mtime) of the file`
 
 	PathKey
+	Device uint32 `field:"-"`
+
 	InUpperLayer bool `field:"in_upper_layer,handler:ResolveFileFieldsInUpperLayer"` // SECLDoc[in_upper_layer] Definition:`Indicator of the file layer, for example, in an OverlayFS`
 
 	NLink uint32 `field:"-" json:"-"`
@@ -549,21 +546,25 @@ type SELinuxEvent struct {
 }
 
 const (
-	ProcessCacheEntryFromUnknown = iota
-	ProcessCacheEntryFromEvent
-	ProcessCacheEntryFromKernelMap
-	ProcessCacheEntryFromProcFS
-	ProcessCacheEntryFromSnapshot
+	ProcessCacheEntryFromUnknown     = iota // ProcessCacheEntryFromUnknown defines a process cache entry from unknown
+	ProcessCacheEntryFromPlaceholder        // ProcessCacheEntryFromPlaceholder defines the source of a placeholder process cache entry
+	ProcessCacheEntryFromEvent              // ProcessCacheEntryFromEvent defines a process cache entry from event
+	ProcessCacheEntryFromKernelMap          // ProcessCacheEntryFromKernelMap defines a process cache entry from kernel map
+	ProcessCacheEntryFromProcFS             // ProcessCacheEntryFromProcFS defines a process cache entry from procfs. Note that some exec parent may be missing.
+	ProcessCacheEntryFromSnapshot           // ProcessCacheEntryFromSnapshot defines a process cache entry from snapshot
 )
 
+// ProcessSources defines process sources
 var ProcessSources = [...]string{
 	"unknown",
+	"placeholder",
 	"event",
 	"map",
 	"procfs_fallback",
 	"procfs_snapshot",
 }
 
+// ProcessSourceToString returns the string corresponding to a process source
 func ProcessSourceToString(source uint64) string {
 	return ProcessSources[source]
 }
@@ -725,7 +726,7 @@ type SpliceEvent struct {
 type CgroupTracingEvent struct {
 	ContainerContext ContainerContext
 	Config           ActivityDumpLoadConfig
-	ConfigCookie     uint32
+	ConfigCookie     uint64
 }
 
 // ActivityDumpLoadConfig represents the load configuration of an activity dump
@@ -750,16 +751,6 @@ type NetworkDeviceContext struct {
 	NetNS   uint32 `field:"-" json:"-"`
 	IfIndex uint32 `field:"ifindex"`                                   // SECLDoc[ifindex] Definition:`interface ifindex`
 	IfName  string `field:"ifname,handler:ResolveNetworkDeviceIfName"` // SECLDoc[ifname] Definition:`interface ifname`
-}
-
-// DNSEvent represents a DNS event
-type DNSEvent struct {
-	ID    uint16 `field:"id" json:"-"`                                             // SECLDoc[id] Definition:`[Experimental] the DNS request ID`
-	Name  string `field:"question.name,opts:length" op_override:"eval.DNSNameCmp"` // SECLDoc[question.name] Definition:`the queried domain name`
-	Type  uint16 `field:"question.type"`                                           // SECLDoc[question.type] Definition:`a two octet code which specifies the DNS question type` Constants:`DNS qtypes`
-	Class uint16 `field:"question.class"`                                          // SECLDoc[question.class] Definition:`the class looked up by the DNS question` Constants:`DNS qclasses`
-	Size  uint16 `field:"question.length"`                                         // SECLDoc[question.length] Definition:`the total DNS request size in bytes`
-	Count uint16 `field:"question.count"`                                          // SECLDoc[question.count] Definition:`the total count of questions in the DNS request`
 }
 
 // BindEvent represents a bind event
@@ -804,6 +795,7 @@ type SyscallsEvent struct {
 	Syscalls []Syscall // 64 * 8 = 512 > 450, bytes should be enough to hold all 450 syscalls
 }
 
+// PathKeySize defines the path key size
 const PathKeySize = 16
 
 // AnomalyDetectionSyscallEvent represents an anomaly detection for a syscall event
@@ -860,7 +852,7 @@ func (pl *PathLeaf) GetName() string {
 	return NullTerminatedString(pl.Name[:])
 }
 
-// GetName returns the path value as a string
+// SetName sets the path name
 func (pl *PathLeaf) SetName(name string) {
 	copy(pl.Name[:], []byte(name))
 	pl.Len = uint16(len(name) + 1)

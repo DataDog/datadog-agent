@@ -8,19 +8,45 @@
 package events
 
 import (
+	"strings"
 	"sync"
+	"time"
 
 	"go.uber.org/atomic"
+	"go4.org/intern"
+	"golang.org/x/exp/slices"
 
 	"github.com/DataDog/datadog-agent/pkg/security/events"
 	sprobe "github.com/DataDog/datadog-agent/pkg/security/probe"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 var theMonitor atomic.Value
 var once sync.Once
 var initErr error
+
+// Process is a process
+type Process struct {
+	Pid         uint32
+	Envs        []string
+	ContainerID *intern.Value
+	StartTime   int64
+	Expiry      int64
+}
+
+// Env returns the value of a environment variable
+func (p *Process) Env(key string) string {
+	for _, e := range p.Envs {
+		k, v, _ := strings.Cut(e, "=")
+		if k == key {
+			return v
+		}
+	}
+
+	return ""
+}
 
 // Init initializes the events package
 func Init() error {
@@ -35,22 +61,68 @@ func Init() error {
 	return initErr
 }
 
-// HandlerFunc is the prototype for an event handler callback for process events
-type HandlerFunc func(*model.ProcessContext)
+type ProcessEventHandler interface {
+	HandleProcessEvent(*Process)
+}
 
 // RegisterHandler registers a handler function for getting process events
-func RegisterHandler(handler HandlerFunc) {
+func RegisterHandler(handler ProcessEventHandler) {
 	m := theMonitor.Load().(*eventMonitor)
 	m.RegisterHandler(handler)
 }
 
+// UnregisterHandler unregisters a handler function for getting process events
+func UnregisterHandler(handler ProcessEventHandler) {
+	m := theMonitor.Load().(*eventMonitor)
+	m.UnregisterHandler(handler)
+}
+
 type eventHandlerWrapper struct{}
 
-func (h *eventHandlerWrapper) HandleEvent(ev *model.Event) {
+func (h *eventHandlerWrapper) HandleEvent(ev any) {
+	if ev == nil {
+		log.Errorf("Received nil event")
+		return
+	}
+
+	evProcess, ok := ev.(*Process)
+	if !ok {
+		log.Errorf("Event is not a process")
+		return
+	}
+
 	m := theMonitor.Load()
 	if m != nil {
-		m.(*eventMonitor).HandleEvent(ev)
+		m.(*eventMonitor).HandleEvent(evProcess)
 	}
+}
+
+// Copy copies the necessary fields from the event received from the event monitor
+func (h *eventHandlerWrapper) Copy(ev *model.Event) any {
+	m := theMonitor.Load()
+	if m != nil {
+		// If this consumer subscribes to more event types, this block will have to account for those additional event types
+		var processStartTime time.Time
+		if ev.GetEventType() == model.ExecEventType {
+			processStartTime = ev.GetProcessExecTime()
+		}
+		if ev.GetEventType() == model.ForkEventType {
+			processStartTime = ev.GetProcessForkTime()
+		}
+
+		return &Process{
+			Pid:         ev.GetProcessPid(),
+			ContainerID: intern.GetByString(ev.GetContainerId()),
+			StartTime:   processStartTime.UnixNano(),
+			Envs: ev.GetProcessEnvp(map[string]bool{
+				"DD_SERVICE": true,
+				"DD_VERSION": true,
+				"DD_ENV":     true,
+			}),
+		}
+	}
+
+	return nil
 }
 
 func (h *eventHandlerWrapper) HandleCustomEvent(rule *rules.Rule, event *events.CustomEvent) {
@@ -70,28 +142,26 @@ func Handler() sprobe.EventHandler {
 type eventMonitor struct {
 	sync.Mutex
 
-	handlers []HandlerFunc
+	handlers []ProcessEventHandler
 }
 
 func newEventMonitor() (*eventMonitor, error) {
 	return &eventMonitor{}, nil
 }
 
-func (e *eventMonitor) HandleEvent(ev *model.Event) {
-	ev.ResolveFields()
-
+func (e *eventMonitor) HandleEvent(ev *Process) {
 	e.Lock()
 	defer e.Unlock()
 
 	for _, h := range e.handlers {
-		h(ev.ProcessContext)
+		h.HandleProcessEvent(ev)
 	}
 }
 
 func (e *eventMonitor) HandleCustomEvent(rule *rules.Rule, event *events.CustomEvent) {
 }
 
-func (e *eventMonitor) RegisterHandler(handler HandlerFunc) {
+func (e *eventMonitor) RegisterHandler(handler ProcessEventHandler) {
 	if handler == nil {
 		return
 	}
@@ -100,5 +170,17 @@ func (e *eventMonitor) RegisterHandler(handler HandlerFunc) {
 	defer e.Unlock()
 
 	e.handlers = append(e.handlers, handler)
+}
 
+func (e *eventMonitor) UnregisterHandler(handler ProcessEventHandler) {
+	if handler == nil {
+		return
+	}
+
+	e.Lock()
+	defer e.Unlock()
+
+	if idx := slices.Index(e.handlers, handler); idx >= 0 {
+		e.handlers = slices.Delete(e.handlers, idx, idx+1)
+	}
 }

@@ -57,33 +57,57 @@ func TestNewAggregation(t *testing.T) {
 	for _, tt := range []struct {
 		in               *pb.Span
 		enablePeerSvcAgg bool
-		res              Aggregation
+		resAgg           Aggregation
+		resPeerTags      []string
 	}{
 		{
 			&pb.Span{},
 			false,
 			Aggregation{},
+			nil,
 		},
 		{
 			&pb.Span{},
 			true,
 			Aggregation{},
+			nil,
 		},
 		{
 			&pb.Span{
 				Service: "a",
-				Meta:    map[string]string{"peer.service": "remote-service"},
+				Meta:    map[string]string{"span.kind": "client", "peer.service": "remote-service"},
 			},
 			false,
+			Aggregation{BucketsAggregationKey: BucketsAggregationKey{Service: "a", SpanKind: "client"}},
+			nil,
+		},
+		// peer.service stats aggregation is enabled, but span.kind != (client, producer).
+		{
+			&pb.Span{
+				Service: "a",
+				Meta:    map[string]string{"span.kind": "", "peer.service": "remote-service"},
+			},
+			true,
 			Aggregation{BucketsAggregationKey: BucketsAggregationKey{Service: "a"}},
+			nil,
 		},
 		{
 			&pb.Span{
 				Service: "a",
-				Meta:    map[string]string{"peer.service": "remote-service"},
+				Meta:    map[string]string{"span.kind": "client", "peer.service": "remote-service"},
 			},
 			true,
-			Aggregation{BucketsAggregationKey: BucketsAggregationKey{Service: "a", PeerService: "remote-service"}},
+			Aggregation{BucketsAggregationKey: BucketsAggregationKey{Service: "a", SpanKind: "client", PeerService: "remote-service"}},
+			nil,
+		},
+		{
+			&pb.Span{
+				Service: "a",
+				Meta:    map[string]string{"span.kind": "producer", "peer.service": "remote-service"},
+			},
+			true,
+			Aggregation{BucketsAggregationKey: BucketsAggregationKey{Service: "a", SpanKind: "producer", PeerService: "remote-service"}},
+			nil,
 		},
 		{
 			&pb.Span{
@@ -108,8 +132,83 @@ func TestNewAggregation(t *testing.T) {
 					Synthetics:  false,
 				},
 			},
+			nil,
 		},
 	} {
-		assert.Equal(t, tt.res, NewAggregationFromSpan(tt.in, "", PayloadAggregationKey{}, tt.enablePeerSvcAgg))
+		agg, et := NewAggregationFromSpan(tt.in, "", PayloadAggregationKey{}, tt.enablePeerSvcAgg, nil)
+		assert.Equal(t, tt.resAgg, agg)
+		assert.Equal(t, tt.resPeerTags, et)
+	}
+}
+
+func TestNewAggregationPeerTags(t *testing.T) {
+	peerTags := []string{"db.instance", "db.system"}
+	for _, tt := range []struct {
+		in          *pb.Span
+		resAgg      Aggregation
+		resPeerTags []string
+	}{
+		{
+			&pb.Span{},
+			Aggregation{},
+			nil,
+		},
+		{
+			&pb.Span{
+				Service: "a",
+				Meta:    map[string]string{"span.kind": "", "field1": "val1", "db.instance": "i-1234", "db.system": "postgres"},
+			},
+			Aggregation{BucketsAggregationKey: BucketsAggregationKey{Service: "a", PeerTagsHash: 0}},
+			nil,
+		},
+		{
+			&pb.Span{
+				Service: "a",
+				Meta:    map[string]string{"span.kind": "server", "field1": "val1", "db.instance": "i-1234", "db.system": "postgres"},
+			},
+			Aggregation{BucketsAggregationKey: BucketsAggregationKey{Service: "a", SpanKind: "server", PeerTagsHash: 0}},
+			nil,
+		},
+		{
+			&pb.Span{
+				Service: "a",
+				Meta:    map[string]string{"span.kind": "client", "field1": "val1", "db.instance": "i-1234", "db.system": "postgres"},
+			},
+			Aggregation{BucketsAggregationKey: BucketsAggregationKey{Service: "a", SpanKind: "client", PeerTagsHash: 17292111254139093926}},
+			[]string{"db.instance:i-1234", "db.system:postgres"},
+		},
+		{
+			&pb.Span{
+				Service: "a",
+				Meta:    map[string]string{"span.kind": "producer", "field1": "val1", "db.instance": "i-1234", "db.system": "postgres"},
+			},
+			Aggregation{BucketsAggregationKey: BucketsAggregationKey{Service: "a", SpanKind: "producer", PeerTagsHash: 17292111254139093926}},
+			[]string{"db.instance:i-1234", "db.system:postgres"},
+		},
+	} {
+		agg, et := NewAggregationFromSpan(tt.in, "", PayloadAggregationKey{}, true, peerTags)
+		assert.Equal(t, tt.resAgg, agg)
+		assert.Equal(t, tt.resPeerTags, et)
+	}
+}
+
+func TestSpanKindIsConsumerOrProducer(t *testing.T) {
+	type testCase struct {
+		input string
+		res   bool
+	}
+	for _, tc := range []testCase{
+		{"client", true},
+		{"producer", true},
+		{"CLIENT", true},
+		{"PRODUCER", true},
+		{"cLient", true},
+		{"pRoducer", true},
+		{"server", false},
+		{"consumer", false},
+		{"internal", false},
+		{"", false},
+	} {
+		assert.Equal(t, tc.res, clientOrProducer(tc.input))
 	}
 }

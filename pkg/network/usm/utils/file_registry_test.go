@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build linux_bpf
+//go:build linux
 
 package utils
 
@@ -167,5 +167,5 @@ func createTempTestFile(t *testing.T, name string) (string, PathIdentifier) {
 func newFileRegistry() *FileRegistry {
 	// Ensure that tests relying on telemetry data will always have a clean slate
 	telemetry.Clear()
-	return NewFileRegistry()
+	return NewFileRegistry("")
 }

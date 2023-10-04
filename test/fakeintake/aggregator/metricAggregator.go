@@ -6,6 +6,8 @@
 package aggregator
 
 import (
+	"time"
+
 	metricspb "github.com/DataDog/agent-payload/v5/gogen"
 	"github.com/DataDog/datadog-agent/test/fakeintake/api"
 )
@@ -13,17 +15,26 @@ import (
 type MetricSeries struct {
 	// embed proto Metric Series struct
 	metricspb.MetricPayload_MetricSeries
+
+	collectedTime time.Time
 }
 
 func (mp *MetricSeries) name() string {
 	return mp.Metric
 }
 
+// GetTags return the tags from a payload
 func (mp *MetricSeries) GetTags() []string {
 	return mp.Tags
 }
 
-func parseMetricSeries(payload api.Payload) (metrics []*MetricSeries, err error) {
+// GetCollectedTime return the time when the payload has been collected by the fakeintake server
+func (mp *MetricSeries) GetCollectedTime() time.Time {
+	return mp.collectedTime
+}
+
+// ParseMetricSeries return the parsed metrics from payload
+func ParseMetricSeries(payload api.Payload) (metrics []*MetricSeries, err error) {
 	enflated, err := enflate(payload.Data, payload.Encoding)
 	if err != nil {
 		return nil, err
@@ -36,7 +47,7 @@ func parseMetricSeries(payload api.Payload) (metrics []*MetricSeries, err error)
 
 	metrics = []*MetricSeries{}
 	for _, serie := range metricsPayload.Series {
-		metrics = append(metrics, &MetricSeries{MetricPayload_MetricSeries: *serie})
+		metrics = append(metrics, &MetricSeries{MetricPayload_MetricSeries: *serie, collectedTime: payload.Timestamp})
 	}
 
 	return metrics, err
@@ -48,6 +59,6 @@ type MetricAggregator struct {
 
 func NewMetricAggregator() MetricAggregator {
 	return MetricAggregator{
-		Aggregator: newAggregator(parseMetricSeries),
+		Aggregator: newAggregator(ParseMetricSeries),
 	}
 }

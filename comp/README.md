@@ -4,6 +4,28 @@
 This file lists all components defined in this repository, with their package summary.
 Click the links for more documentation.
 
+## [comp/aggregator](https://pkg.go.dev/github.com/DataDog/dd-agent-comp-experiments/comp/aggregator) (Component Bundle)
+
+*Datadog Team*: agent-shared-components
+
+Package aggregator implements the "aggregator" bundle,
+
+### [comp/aggregator/demultiplexer](https://pkg.go.dev/github.com/DataDog/dd-agent-comp-experiments/comp/aggregator/demultiplexer)
+
+Package demultiplexer defines the aggregator demultiplexer
+
+## [comp/checks](https://pkg.go.dev/github.com/DataDog/dd-agent-comp-experiments/comp/checks) (Component Bundle)
+
+*Datadog Team*: agent-shared-components
+
+Package checks implements the "checks" bundle, for all of the component based agent checks
+
+### [comp/checks/agentcrashdetect](https://pkg.go.dev/github.com/DataDog/dd-agent-comp-experiments/comp/checks/agentcrashdetect)
+
+*Datadog Team*: windows-kernel-integrations
+
+Package agentcrashdetect ... /* TODO: detailed doc comment for the component */
+
 ## [comp/core](https://pkg.go.dev/github.com/DataDog/dd-agent-comp-experiments/comp/core) (Component Bundle)
 
 *Datadog Team*: agent-shared-components
@@ -19,6 +41,10 @@ component temporarily wraps pkg/config.
 ### [comp/core/flare](https://pkg.go.dev/github.com/DataDog/dd-agent-comp-experiments/comp/core/flare)
 
 Package flare implements a component to generate flares from the agent.
+
+### [comp/core/hostname](https://pkg.go.dev/github.com/DataDog/dd-agent-comp-experiments/comp/core/hostname)
+
+Package hostname exposes hostname.Get() as a component.
 
 ### [comp/core/log](https://pkg.go.dev/github.com/DataDog/dd-agent-comp-experiments/comp/core/log)
 
@@ -87,6 +113,55 @@ Package runner implements a component to generate the 'resources' metadata paylo
 ### [comp/metadata/runner](https://pkg.go.dev/github.com/DataDog/dd-agent-comp-experiments/comp/metadata/runner)
 
 Package runner implements a component to generate metadata payload at the right interval.
+
+## [comp/ndmtmp](https://pkg.go.dev/github.com/DataDog/dd-agent-comp-experiments/comp/ndmtmp) (Component Bundle)
+
+*Datadog Team*: network-device-monitoring
+
+Package ndmtmp implements the "ndmtmp" bundle, which exposes the default
+sender.Sender and the event platform forwarder. This is a temporary module
+intended for ndm internal use until these pieces are properly componentized.
+
+### [comp/ndmtmp/aggregator](https://pkg.go.dev/github.com/DataDog/dd-agent-comp-experiments/comp/ndmtmp/aggregator)
+
+Package aggregator exposes the AgentDemultiplexer as a DemultiplexerWithAggregator
+
+### [comp/ndmtmp/forwarder](https://pkg.go.dev/github.com/DataDog/dd-agent-comp-experiments/comp/ndmtmp/forwarder)
+
+Package forwarder exposes the event platform forwarder for netflow.
+
+### [comp/ndmtmp/sender](https://pkg.go.dev/github.com/DataDog/dd-agent-comp-experiments/comp/ndmtmp/sender)
+
+Package sender exposes a Sender for netflow.
+
+## [comp/netflow](https://pkg.go.dev/github.com/DataDog/dd-agent-comp-experiments/comp/netflow) (Component Bundle)
+
+*Datadog Team*: network-device-monitoring
+
+Package netflow implements the "netflow" bundle, which listens for netflow
+packets, processes them, and forwards relevant data to the backend.
+
+### [comp/netflow/config](https://pkg.go.dev/github.com/DataDog/dd-agent-comp-experiments/comp/netflow/config)
+
+Package config exposes the netflow configuration as a component.
+
+### [comp/netflow/server](https://pkg.go.dev/github.com/DataDog/dd-agent-comp-experiments/comp/netflow/server)
+
+Package server implements a component that runs the netflow server.
+When running, it listens for network traffic according to configured
+listeners and aggregates traffic data to send to the backend.
+It does not expose any public methods.
+
+## [comp/otelcol](https://pkg.go.dev/github.com/DataDog/dd-agent-comp-experiments/comp/otelcol) (Component Bundle)
+
+*Datadog Team*: opentelemetry
+
+Package otelcol contains the OTLP ingest bundle pipeline to be included
+into the agent components.
+
+### [comp/otelcol/collector](https://pkg.go.dev/github.com/DataDog/dd-agent-comp-experiments/comp/otelcol/collector)
+
+Package collector implements the OpenTelemetry Collector component.
 
 ## [comp/process](https://pkg.go.dev/github.com/DataDog/dd-agent-comp-experiments/comp/process) (Component Bundle)
 
@@ -169,7 +244,7 @@ Package systray implements the Datadog Agent Manager System Tray
 
 ### [comp/systray/systray](https://pkg.go.dev/github.com/DataDog/dd-agent-comp-experiments/comp/systray/systray)
 
-Package systray
+Package systray provides a component for the system tray application
 
 ## [comp/trace](https://pkg.go.dev/github.com/DataDog/dd-agent-comp-experiments/comp/trace) (Component Bundle)
 

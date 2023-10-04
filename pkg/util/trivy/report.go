@@ -15,15 +15,16 @@ import (
 	"github.com/aquasecurity/trivy/pkg/types"
 )
 
-// TrivyReport describes a trivy report along with its marshaler
-type TrivyReport struct {
-	types.Report
+// Report describes a trivy report along with its marshaler
+type Report struct {
+	*types.Report
+	id        string
 	marshaler *cyclonedx.Marshaler
 }
 
 // ToCycloneDX returns the report as a CycloneDX SBOM
-func (r *TrivyReport) ToCycloneDX() (*cyclonedxgo.BOM, error) {
-	bom, err := r.marshaler.Marshal(r.Report)
+func (r *Report) ToCycloneDX() (*cyclonedxgo.BOM, error) {
+	bom, err := r.marshaler.Marshal(*r.Report)
 	if err != nil {
 		return nil, err
 	}
@@ -31,4 +32,9 @@ func (r *TrivyReport) ToCycloneDX() (*cyclonedxgo.BOM, error) {
 	// We don't need the dependencies attribute. Remove to save memory.
 	bom.Dependencies = nil
 	return bom, nil
+}
+
+// ID returns the report identifier
+func (r *Report) ID() string {
+	return r.id
 }

@@ -32,6 +32,7 @@ type TraceConfig struct {
 }
 
 // GeneratePayload generates a new payload.
+// The last span of a generated trace is the "root" of that trace
 func GeneratePayload(n int, tc *TraceConfig, sc *SpanConfig) pb.Traces {
 	if n == 0 {
 		return pb.Traces{}

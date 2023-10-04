@@ -25,6 +25,8 @@ func adjustUSM(cfg config.Config) {
 	}
 
 	deprecateBool(cfg, netNS("enable_http_monitoring"), smNS("enable_http_monitoring"))
+	deprecateBool(cfg, netNS("enable_https_monitoring"), smNS("tls", "native", "enabled"))
+	deprecateBool(cfg, smNS("enable_go_tls_support"), smNS("tls", "go", "enabled"))
 	deprecateGeneric(cfg, netNS("http_replace_rules"), smNS("http_replace_rules"))
 	deprecateInt64(cfg, netNS("max_tracked_http_connections"), smNS("max_tracked_http_connections"))
 	applyDefault(cfg, smNS("max_tracked_http_connections"), 1024)
@@ -38,6 +40,7 @@ func adjustUSM(cfg config.Config) {
 	applyDefault(cfg, smNS("http_notification_threshold"), 512)
 	deprecateInt64(cfg, netNS("http_max_request_fragment"), smNS("http_max_request_fragment"))
 	applyDefault(cfg, smNS("http_max_request_fragment"), 160)
+	applyDefault(cfg, smNS("max_concurrent_requests"), cfg.GetInt(spNS("max_tracked_connections")))
 
 	if cfg.GetBool(dsmNS("enabled")) {
 		// DSM infers USM
