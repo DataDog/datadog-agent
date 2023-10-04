@@ -137,7 +137,6 @@ type Connections struct {
 	HTTP2                       map[http.Key]*http.RequestStats
 	Kafka                       map[kafka.Key]*kafka.RequestStat
 	DNSStats                    dns.StatsByKeyByNameByType
-	Length                      int64
 }
 
 // NewConnections create a new Connections object

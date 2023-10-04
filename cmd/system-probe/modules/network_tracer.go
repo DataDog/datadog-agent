@@ -9,6 +9,7 @@ package modules
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"math"
@@ -118,8 +119,16 @@ func (nt *networkTracer) StreamConnections(runCounter *atomic.Uint64, reqID, con
 		nt.restartTimer.Reset(inactivityRestartDuration)
 	}
 	logRequests(reqID, "/ws-connections", runCounter.Inc(), len(cs.Conns), start)
-	cs.Length = int64(len(cs.Conns))
-	log.Debugf("[grpc] the total number of connections we see is %d", cs.Length)
+	log.Debugf("[grpc] the total number of connections we see is %d", len(cs.Conns))
+
+	bla, err := json.Marshal(len(cs.Conns))
+	if err != nil {
+		return fmt.Errorf("unable to marshl conn size: %s", err)
+	}
+
+	if err := c.WriteMessage(websocket.BinaryMessage, bla); err != nil {
+		log.Error(err)
+	}
 
 	// As long as there are connections, we divide them into batches and subsequently send all the batches
 	// via a gRPC stream to the process agent. The size of each batch is determined by the value of maxConnsPerMessage.

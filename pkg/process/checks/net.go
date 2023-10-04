@@ -7,6 +7,7 @@ package checks
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -207,7 +208,28 @@ func (c *ConnectionsCheck) getConnectionsWS() (*model.Connections, error) {
 
 	unmarshaler := netEncoding.GetUnmarshaler(netEncoding.ContentTypeProtobuf)
 
+	_, res, err := conn.ReadMessage()
+	if err == nil && len(res) == 0 {
+		log.Error(err)
+	}
+	if errors.Is(err, io.EOF) {
+		log.Error(err)
+
+	}
+	if err != nil {
+		return nil, fmt.Errorf("unable to get response from grpc server due to: %v", err)
+	}
+
+	var csLen int
+	err = json.Unmarshal(res, &csLen)
+	if err != nil {
+		log.Error(err)
+	}
+
 	outcome := new(model.Connections)
+	outcome.Conns = make([]*model.Connection, 0, csLen)
+	log.Debugf("[grpc] the size of all of the connection is: %d", csLen)
+
 	for {
 		currentStreamStartTime := time.Now()
 		_, res, err := conn.ReadMessage()
@@ -229,8 +251,9 @@ func (c *ConnectionsCheck) getConnectionsWS() (*model.Connections, error) {
 			log.Debugf("[grpc] received %d connections in a batch (%v)", len(batch.Conns), time.Since(currentStreamStartTime))
 		}
 
-		log.Debugf("[grpc] the size of all of the connection is: %d", batch.ConnLen)
-		outcome.Conns = make([]*model.Connection, 0, batch.ConnLen)
+		if len(batch.Conns) > 0 {
+			outcome.Conns = append(outcome.Conns, batch.Conns...)
+		}
 
 		if batch.AgentConfiguration != nil {
 			log.Debugf("[grpc] got unique batch")

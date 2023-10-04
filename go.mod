@@ -577,6 +577,7 @@ require (
 require (
 	github.com/AdaLogics/go-fuzz-headers v0.0.0-20230811130428-ced1acdcaa24 // indirect
 	github.com/AdamKorcz/go-118-fuzz-build v0.0.0-20230306123547-8075edf89bb0 // indirect
+	github.com/DataDog/agent-payload v4.89.0+incompatible // indirect
 	github.com/DataDog/datadog-api-client-go/v2 v2.13.0 // indirect
 	github.com/antlr/antlr4/runtime/Go/antlr v1.4.10 // indirect
 	github.com/bahlo/generic-list-go v0.2.0 // indirect
