@@ -90,6 +90,9 @@ func setUpCollectorTest(t *testing.T) *collectorTest {
 		collectors.GetCatalog(),
 		workloadmeta.MockModuleV2,
 	))
+	store.Start(context.TODO())
+	workloadmeta.SetGlobalStore(store)
+	defer workloadmeta.SetGlobalStore(nil)
 
 	// pass actual config component
 	wlmExtractor := workloadmetaExtractor.NewWorkloadMetaExtractor(store.GetConfig())
