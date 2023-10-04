@@ -496,7 +496,7 @@ def is_system_probe(owners, files):
 @task
 def changelog(ctx, new_commit_sha):
     old_commit_sha = ctx.run("aws ssm get-parameter --region us-east-1 --name "
-                             "ci.gitlab.datadog-agent.changelog-commit-sha --with-decryption --query "
+                             "ci.datadog-agent.gitlab_changelog_commit_sha --with-decryption --query "
                              "\"Parameter.Value\" --out text", hide=False).stdout.strip()
     print(f"Generating changelog for commit range {old_commit_sha} to {new_commit_sha}")
     commits = ctx.run(f"git log {old_commit_sha}..{new_commit_sha} --pretty=format:%h", hide=True).stdout.split("\n")
@@ -546,7 +546,7 @@ def post_changelog(ctx, new_git_sha):
         commits_file.write('\n'.join(results))
 
     print(f"tagging {new_git_sha}")
-    ctx.run(f"aws ssm put-parameter --name \"ci.gitlab.datadog-agent.changelog-commit-sha\" --value \"{new_git_sha}\" "
+    ctx.run(f"aws ssm put-parameter --name ci.datadog-agent.gitlab_changelog_commit_sha --value \"{new_git_sha}\" "
             "--type \"SecureString\" --region us-east-1", hide=False)
     print(ctx.run("cat system_probe_commits.txt", hide=True).stdout)
     send_slack_message("system-probe-ops", ctx.run("cat system_probe_commits.txt").stdout)
