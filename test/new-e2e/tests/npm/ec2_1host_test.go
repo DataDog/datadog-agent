@@ -44,7 +44,7 @@ func TestEC2VMSuite(t *testing.T) {
 	// Source of our kitchen CI images test/kitchen/platforms.json
 	// Other VM image can be used, our kitchen CI images test/kitchen/platforms.json
 	// ec2params.WithImageName("ami-a4dc46db", os.AMD64Arch, ec2os.AmazonLinuxOS) // ubuntu-16-04-4.4
-	e2e.Run(t, s, e2e.FakeIntakeStackDef(nil, agentparams.WithSystemProbeConfig(NPMsystemProbeConfig)), e2eParams...)
+	e2e.Run(t, s, e2e.FakeIntakeStackDef(e2e.WithAgentParams(agentparams.WithSystemProbeConfig(NPMsystemProbeConfig))), e2eParams...)
 }
 
 // TestFakeIntakeNPM Validate the agent can communicate with the (fake) backend and send connections every 30 seconds
@@ -66,7 +66,9 @@ func (v *ec2VMSuite) TestFakeIntakeNPM() {
 
 		hostnameNetID, err := v.Env().Fakeintake.GetConnectionsNames()
 		assert.NoError(c, err, "GetConnectionsNames() errors")
-		require.NotZero(c, len(hostnameNetID), "no connections yet")
+		if !assert.NotZero(c, len(hostnameNetID), "no connections yet") {
+			return
+		}
 		targetHostnameNetID = hostnameNetID[0]
 
 		t.Logf("hostname+networkID %v seen connections", hostnameNetID)
@@ -77,7 +79,9 @@ func (v *ec2VMSuite) TestFakeIntakeNPM() {
 		cnx, err := v.Env().Fakeintake.GetConnections()
 		assert.NoError(t, err)
 
-		require.Greater(c, len(cnx.GetPayloadsByName(targetHostnameNetID)), 2, "not enough payloads")
+		if !assert.Greater(c, len(cnx.GetPayloadsByName(targetHostnameNetID)), 2, "not enough payloads") {
+			return
+		}
 		var payloadsTimestamps []time.Time
 		for _, cc := range cnx.GetPayloadsByName(targetHostnameNetID) {
 			payloadsTimestamps = append(payloadsTimestamps, cc.GetCollectedTime())
@@ -86,14 +90,19 @@ func (v *ec2VMSuite) TestFakeIntakeNPM() {
 		t.Logf("hostname+networkID %v diff time %f seconds", targetHostnameNetID, dt)
 
 		// we want the test fail now, not retrying on the next payloads
-		require.Greater(t, math.Abs(dt-30), 0.5, "delta between collection is higher that 500ms")
-	}, 90*time.Second, time.Second, "no connections received")
+		require.Greater(t, 0.5, math.Abs(dt-30), "delta between collection is higher that 500ms")
+	}, 90*time.Second, time.Second, "not enough connections received")
 }
 
 // TestFakeIntakeNPM_TCP_UDP_DNS validate we received tcp, udp, and DNS connections
 // with some basic checks, like IPs/Ports present, DNS query has been captured, ...
 func (v *ec2VMSuite) TestFakeIntakeNPM_TCP_UDP_DNS() {
 	t := v.T()
+
+	// default is to reset the current state of the fakeintake aggregators
+	if !v.DevMode {
+		v.Env().Fakeintake.FlushServerAndResetAggregators()
+	}
 
 	v.EventuallyWithT(func(c *assert.CollectT) {
 		// generate connections
@@ -119,7 +128,9 @@ func (v *ec2VMSuite) TestFakeIntakeNPM_TCP_UDP_DNS() {
 				foundDNS = true
 			}
 		})
-		assert.True(c, foundDNS, "DNS not found")
+		if !assert.True(c, foundDNS, "DNS not found") {
+			return
+		}
 
 		type countCnx struct {
 			hit int

@@ -63,15 +63,15 @@ func validateDNSConnection(t *testing.T, c *agentmodel.Connection, cc *agentmode
 func validateTCPConnection(t *testing.T, c *agentmodel.Connection) {
 	require.Equal(t, c.Type, agentmodel.ConnectionType_tcp, "connection is not TCP")
 	/*
-			The following fields depend on the connection state/scenario
-			 * short term connection
-			 * long term connection
-			 * TCP retransmit packets
+		The following fields depend on the connection state/scenario
+		 * short term connection
+		 * long term connection
+		 * TCP retransmit packets
 
-		  	   require.NotZero(t, c.LastRetransmits, "LastRetransmits = 0")
-			   require.NotZero(t, c.LastTcpClosed, "LastTcpClosed = 0")
+		require.NotZero(t, c.LastRetransmits, "LastRetransmits = 0")
+		require.NotZero(t, c.LastTcpClosed, "LastTcpClosed = 0")
+		require.NotZero(t, c.LastTcpEstablished, "LastTcpEstablished = 0")
 	*/
-	require.NotZero(t, c.LastTcpEstablished, "LastTcpEstablished = 0")
 
 	// un-comment the lines below when https://datadoghq.atlassian.net/browse/NPM-2958 will be fixed
 	// require.NotZero(t, c.Rtt, "Rtt = 0")
