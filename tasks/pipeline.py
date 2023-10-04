@@ -509,11 +509,13 @@ def changelog(ctx, new_commit_sha):
         commit_str = ctx.run(f"git show --name-only --pretty=format:%s%n%aN%n%aE {commit}", hide=True).stdout
         title, author, author_email, files, url = parse(commit_str)
         if is_system_probe(owners, files):
-            contributor_handle = ctx.run(f"email2slackid ${author_email.strip()}", hide=True) or author_email
+            print(f"Author Email: {author_email.strip()}")
+            author_handle = ctx.run(f"email2slackid ${author_email.strip()}", hide=True).stdout or author_email
             time.sleep(1)
-            print(f"Author: {contributor_handle}")
+            print(f"Author Handle: {author_handle}")
+            author_handle = "U049LRNEE01"
             if "dependabot" not in author_email and "github-actions" not in author_email:
-                messages.append(f"<{url}|{title}> {contributor_handle}")
+                messages.append(f"<{url}|{title}> <@{author_handle}>")
             else:
                 messages.append(f"<{url}|{title}>")
 
@@ -522,7 +524,7 @@ def changelog(ctx, new_commit_sha):
             f"Changelog for commit range: `{old_commit_sha}` to `{new_commit_sha}`\n"
             + "\n".join(messages)
             + "\n:wave: Authors, please check relevant "
-              "<https://ddstaging.datadoghq.com/dashboard/kfn-zy2-t98|dashboards> for issues:"
+              "<https://ddstaging.datadoghq.com/dashboard/kfn-zy2-t98|dashboards> for issues"
     )
     print(f"tagging {new_commit_sha}")
     # ctx.run(f"aws ssm put-parameter --name ci.datadog-agent.gitlab_changelog_commit_sha --value \"{new_git_sha}\" "
