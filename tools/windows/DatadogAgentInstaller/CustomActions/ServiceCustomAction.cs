@@ -145,6 +145,11 @@ namespace Datadog.CustomActions
                 // LocalSystem is a SCM specific shorthand that doesn't need to be localized
                 _serviceController.SetCredentials(Constants.SystemProbeServiceName, "LocalSystem", "");
                 _serviceController.SetCredentials(Constants.ProcessAgentServiceName, "LocalSystem", "");
+
+                 var installCWS = _session.Property("INSTALL_CWS")
+                 if(!string.IsNullOrEmpty(installCWS)){
+                    _serviceController.SetCredentials(Constants.SecurityAgentServiceName, ddAgentUserName, ddAgentUserPassword);
+                 }
             }
             catch (Exception e)
             {

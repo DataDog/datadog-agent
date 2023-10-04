@@ -123,6 +123,13 @@ namespace WixSetup.Datadog
                     Win64 = true
                 }
             );
+            // Conditionally include the PROCMON MSM while it is in active development to make it easier
+            // to build/ship without it.
+            if (!string.IsNullOrEmpty(Environment.GetEnvironmentVariable("WINDOWS_DDPROCMON_DRIVER")))
+            {
+                var cws = new Property("INSTALL_CWS", "1")
+                project.Add(cws)
+            }
             // Always generate a new GUID otherwise WixSharp will generate one based on
             // the version
             project.ProductId = Guid.NewGuid();
