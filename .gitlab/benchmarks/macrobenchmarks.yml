@@ -13,7 +13,7 @@ variables:
   image: $BENCHMARKS_CI_IMAGE
   needs: ["setup_agent_version"]
   script:
-    - git clone --branch trace-agent https://gitlab-ci-token:${CI_JOB_TOKEN}@gitlab.ddbuild.io/DataDog/benchmarking-platform /platform && cd /platform
+    - git clone --branch trace-agent https://gitlab-ci-token:${CI_JOB_TOKEN}@gitlab.ddbuild.io/DataDog/benchmarking-platform platform && cd platform
     - ./steps/run-benchmarks.sh
   artifacts:
     name: "artifacts"
