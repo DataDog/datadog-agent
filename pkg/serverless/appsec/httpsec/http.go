@@ -11,6 +11,7 @@
 package httpsec
 
 import (
+	"encoding/base64"
 	"encoding/json"
 	"encoding/xml"
 	"fmt"
@@ -48,10 +49,10 @@ type context struct {
 }
 
 // makeContext creates a http monitoring context out of the provided arguments.
-func makeContext(ctx *context, path *string, headers, queryParams map[string][]string, pathParams map[string]string, sourceIP string, rawBody *string) {
+func makeContext(ctx *context, path *string, headers, queryParams map[string][]string, pathParams map[string]string, sourceIP string, rawBody *string, isBodyBase64 bool) {
 	headers, rawCookies := filterHeaders(headers)
 	cookies := parseCookies(rawCookies)
-	body := parseBody(headers, rawBody)
+	body := parseBody(headers, rawBody, isBodyBase64)
 	*ctx = context{
 		requestSourceIP:   sourceIP,
 		requestRawURI:     path,
@@ -65,9 +66,19 @@ func makeContext(ctx *context, path *string, headers, queryParams map[string][]s
 
 // parseBody attempts to parse the payload found in rawBody according to the presentation headers. Returns nil if the
 // request body could not be parsed (either due to an error, or because no suitable parsing strategy is implemented).
-func parseBody(headers map[string][]string, rawBody *string) (body any) {
+func parseBody(headers map[string][]string, rawBody *string, isBodyBase64 bool) any {
 	if rawBody == nil {
 		return nil
+	}
+
+	bodyDecoded := *rawBody
+	if isBodyBase64 {
+		rawBodyDecoded, err := base64.StdEncoding.DecodeString(bodyDecoded)
+		if err != nil {
+			panic(err)
+		}
+
+		bodyDecoded = string(rawBodyDecoded)
 	}
 
 	// textproto.MIMEHeader normalizes the header names, so we don't have to worry about text case.
@@ -78,7 +89,7 @@ func parseBody(headers map[string][]string, rawBody *string) (body any) {
 		}
 	}
 
-	result, err := tryParseBody(mimeHeaders, *rawBody)
+	result, err := tryParseBody(mimeHeaders, bodyDecoded)
 	if err != nil {
 		log.Warnf("unable to parse request body: %v", err)
 		return nil

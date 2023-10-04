@@ -132,6 +132,7 @@ func (lp *ProxyLifecycleProcessor) spanModifier(lastReqId string, chunk *pb.Trac
 			event.PathParameters,
 			event.RequestContext.Identity.SourceIP,
 			&event.Body,
+			event.IsBase64Encoded,
 		)
 
 	case *events.APIGatewayV2HTTPRequest:
@@ -143,6 +144,7 @@ func (lp *ProxyLifecycleProcessor) spanModifier(lastReqId string, chunk *pb.Trac
 			event.PathParameters,
 			event.RequestContext.HTTP.SourceIP,
 			&event.Body,
+			event.IsBase64Encoded,
 		)
 
 	case *events.APIGatewayWebsocketProxyRequest:
@@ -154,6 +156,7 @@ func (lp *ProxyLifecycleProcessor) spanModifier(lastReqId string, chunk *pb.Trac
 			event.PathParameters,
 			event.RequestContext.Identity.SourceIP,
 			&event.Body,
+			event.IsBase64Encoded,
 		)
 
 	case *events.APIGatewayCustomAuthorizerRequest:
@@ -188,6 +191,7 @@ func (lp *ProxyLifecycleProcessor) spanModifier(lastReqId string, chunk *pb.Trac
 			nil,
 			"",
 			&event.Body,
+			event.IsBase64Encoded,
 		)
 
 	case *events.LambdaFunctionURLRequest:
@@ -199,6 +203,7 @@ func (lp *ProxyLifecycleProcessor) spanModifier(lastReqId string, chunk *pb.Trac
 			nil,
 			event.RequestContext.HTTP.SourceIP,
 			&event.Body,
+			event.IsBase64Encoded,
 		)
 	}
 
@@ -218,8 +223,9 @@ func (lp *ProxyLifecycleProcessor) spanModifier(lastReqId string, chunk *pb.Trac
 		log.Debug("appsec: missing span tag http.status_code")
 	}
 
-	if events := lp.appsec.Monitor(ctx.toAddresses()); len(events) > 0 {
-		setSecurityEventsTags(span, events, reqHeaders, nil)
+	if secEvents := lp.appsec.Monitor(ctx.toAddresses()); len(secEvents) > 0 {
+		log.Debug("appsec: ", len(secEvents), " attack attempt(s) detected")
+		setSecurityEventsTags(span, secEvents, reqHeaders, nil)
 		chunk.Priority = int32(sampler.PriorityUserKeep)
 	}
 }
