@@ -471,7 +471,7 @@ def parse(commit_str):
     url = "NO_URL"
     pr_id_match = re.search(r".*\(#(\d+)\)", title)
     if pr_id_match is not None:
-        url = f"https://github.com//DataDog/datadog-agent/pull/{pr_id_match.group(1)}"
+        url = f"https://github.com/DataDog/datadog-agent/pull/{pr_id_match.group(1)}"
     author = lines[1]
     author_email = lines[2]
     files = lines[3:]
@@ -495,67 +495,38 @@ def is_system_probe(owners, files):
 
 @task
 def changelog(ctx, new_commit_sha):
-    old_commit_sha = ctx.run(
-        "aws ssm get-parameter --region us-east-1 --name "
-        "ci.datadog-agent.gitlab_changelog_commit_sha --with-decryption --query "
-        "\"Parameter.Value\" --out text",
-        hide=False,
-    ).stdout.strip()
+    old_commit_sha = ctx.run("aws ssm get-parameter --region us-east-1 --name "
+                             "ci.datadog-agent.gitlab_changelog_commit_sha --with-decryption --query "
+                             "\"Parameter.Value\" --out text", hide=False).stdout.strip()
     print(f"Generating changelog for commit range {old_commit_sha} to {new_commit_sha}")
     commits = ctx.run(f"git log {old_commit_sha}..{new_commit_sha} --pretty=format:%h", hide=True).stdout.split("\n")
     owners = read_owners(".github/CODEOWNERS")
     messages = []
-    unique_emails = set()
 
     for commit in commits:
         # see https://git-scm.com/docs/pretty-formats for format string
         commit_str = ctx.run(f"git show --name-only --pretty=format:%s%n%aN%n%aE {commit}", hide=True).stdout
         title, author, author_email, files, url = parse(commit_str)
         if is_system_probe(owners, files):
-            message = f"{title} (<{url}|PR Link>) {author}"
-            messages.append(message)
+            author_handle = ctx.run(f"email2slackid {author_email.strip()}", hide=True).stdout or author_email
+            time.sleep(1)
             if "dependabot" not in author_email and "github-actions" not in author_email:
-                unique_emails.add(author_email)
+                messages.append(f"<{url}|{title}> <@{author_handle}>")
+            else:
+                messages.append(f"<{url}|{title}>")
 
-    with open("system_probe_commits.txt", "w") as file:
-        content = (
+    slack_message = (
+            f"The nightly deployment is rolling out to Staging :siren: \n"
             f"Changelog for commit range: `{old_commit_sha}` to `{new_commit_sha}`\n"
             + "\n".join(messages)
             + "\n:wave: Authors, please check relevant "
-            "<https://ddstaging.datadoghq.com/dashboard/kfn-zy2-t98|dashboards> for issues:"
-        )
-        file.write(content)
-
-    with open("unique_emails.txt", "w") as file:
-        file.write("\n".join(unique_emails))
-
-
-@task
-def post_changelog(ctx, new_git_sha):
-    results = []
-    with open('unique_emails.txt', 'r') as email_file:
-        for email in email_file:
-            result = ctx.run(f"email2slackid ${email.strip()}", hide=True)
-            if not result:
-                result = email
-            else:
-                result = f"<@{result}>"
-            results.append(result)
-            time.sleep(1)
-
-    print(f"Contributor list: {results}")
-
-    with open('system_probe_commits.txt', 'a') as commits_file:
-        commits_file.write('\n'.join(results))
-
-    print(f"Pushing new tag {new_git_sha} to SSM")
-    ctx.run(
-        f"aws ssm put-parameter --name ci.datadog-agent.gitlab_changelog_commit_sha --value \"{new_git_sha}\" "
-        "--type \"SecureString\" --region us-east-1",
-        hide=False,
+              "<https://ddstaging.datadoghq.com/dashboard/kfn-zy2-t98|dashboards> for issues"
     )
-    print(ctx.run("cat system_probe_commits.txt", hide=True).stdout)
-    send_slack_message("system-probe-ops", ctx.run("cat system_probe_commits.txt").stdout)
+    print(f"tagging {new_commit_sha}")
+    # ctx.run(f"aws ssm put-parameter --name ci.datadog-agent.gitlab_changelog_commit_sha --value \"{new_git_sha}\" "
+    #         "--type \"SecureString\" --region us-east-1", hide=False)
+    send_slack_message("system-probe-ops", slack_message)
+
 
 
 @task
