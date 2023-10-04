@@ -8,7 +8,6 @@ package testutil
 import (
 	"fmt"
 	"net"
-	"testing"
 	"time"
 
 	"github.com/stretchr/testify/require"
@@ -16,7 +15,7 @@ import (
 
 // PingTCP connects to the provided IP address over TCP/TCPv6, sends the string "ping",
 // reads from the connection, and returns the open connection for further use/inspection.
-func PingTCP(tb testing.TB, ip net.IP, port int) net.Conn {
+func PingTCP(tb require.TestingT, ip net.IP, port int) net.Conn {
 	addr := fmt.Sprintf("%s:%d", ip, port)
 	network := "tcp"
 	if isIpv6(ip) {
@@ -26,7 +25,6 @@ func PingTCP(tb testing.TB, ip net.IP, port int) net.Conn {
 
 	conn, err := net.DialTimeout(network, addr, time.Second)
 	require.NoError(tb, err)
-	tb.Cleanup(func() { conn.Close() })
 
 	_, err = conn.Write([]byte("ping"))
 	require.NoError(tb, err)
@@ -39,7 +37,7 @@ func PingTCP(tb testing.TB, ip net.IP, port int) net.Conn {
 
 // PingUDP connects to the provided IP address over UDP/UDPv6, sends the string "ping",
 // and returns the open connection for further use/inspection.
-func PingUDP(tb testing.TB, ip net.IP, port int) net.Conn {
+func PingUDP(tb require.TestingT, ip net.IP, port int) net.Conn {
 	network := "udp"
 	if isIpv6(ip) {
 		network = "udp6"
@@ -50,7 +48,6 @@ func PingUDP(tb testing.TB, ip net.IP, port int) net.Conn {
 	}
 	conn, err := net.DialUDP(network, nil, addr)
 	require.NoError(tb, err)
-	tb.Cleanup(func() { conn.Close() })
 
 	_, err = conn.Write([]byte("ping"))
 	require.NoError(tb, err)
