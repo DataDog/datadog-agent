@@ -66,9 +66,14 @@ AGENT_CORECHECKS = [
     "systemd",
     "tcp_queue_length",
     "uptime",
-    "winkmem",
     "winproc",
     "jetson",
+]
+
+WINDOWS_CORECHECKS = [
+    "agentcrashdetect",
+    "winkmem",
+    "wincrashdetect",
 ]
 
 IOT_AGENT_CORECHECKS = [
@@ -235,6 +240,14 @@ def refresh_assets(_, build_tags, development=True, flavor=AgentFlavor.base.name
     for check in AGENT_CORECHECKS if not flavor.is_iot() else IOT_AGENT_CORECHECKS:
         check_dir = os.path.join(dist_folder, f"conf.d/{check}.d/")
         copy_tree(f"./cmd/agent/dist/conf.d/{check}.d/", check_dir)
+
+    ## add additional windows-only corechecks, only on windows. Otherwise the check loader
+    ## on linux will throw an error because the module is not found, but the config is.
+    if sys.platform == 'win32':
+        for check in WINDOWS_CORECHECKS:
+            check_dir = os.path.join(dist_folder, f"conf.d/{check}.d/")
+            copy_tree(f"./cmd/agent/dist/conf.d/{check}.d/", check_dir)
+
     if "apm" in build_tags:
         shutil.copy("./cmd/agent/dist/conf.d/apm.yaml.default", os.path.join(dist_folder, "conf.d/apm.yaml.default"))
     if "process" in build_tags:

@@ -60,9 +60,9 @@ type Process struct {
 	ArgsEntry *ArgsEntry `field:"-" json:"-"`
 	EnvsEntry *EnvsEntry `field:"-" json:"-"`
 
-	Args string   `field:"args"`                                // SECLDoc[args] Definition:`Arguments of the process (as a string, excluding argv0)` Example:`exec.args == "-sV -p 22,53,110,143,4564 198.116.0-255.1-127"` Description:`Matches any process with these exact arguments.` Example:`exec.args =~ "* -F * http*"` Description:`Matches any process that has the "-F" argument anywhere before an argument starting with "http".`
-	Envs []string `field:"envs,handler:ResolveProcessEnvs:100"` // SECLDoc[envs] Definition:`Environment variable names of the process`
-	Envp []string `field:"envp,handler:ResolveProcessEnvp:100"` // SECLDoc[envp] Definition:`Environment variables of the process`                                                                                                                         // SECLDoc[envp] Definition:`Environment variables of the process`
+	CmdLine string   `field:"cmdline"`                             // SECLDoc[cmdline] Definition:`Command line of the process (as a string, excluding argv0)` Example:`exec.args == "-sV -p 22,53,110,143,4564 198.116.0-255.1-127"` Description:`Matches any process with these exact arguments.` Example:`exec.args =~ "* -F * http*"` Description:`Matches any process that has the "-F" argument anywhere before an argument starting with "http".`
+	Envs    []string `field:"envs,handler:ResolveProcessEnvs:100"` // SECLDoc[envs] Definition:`Environment variable names of the process`
+	Envp    []string `field:"envp,handler:ResolveProcessEnvp:100"` // SECLDoc[envp] Definition:`Environment variables of the process`                                                                                                                         // SECLDoc[envp] Definition:`Environment variables of the process`
 
 	// cache version
 	Variables eval.Variables `field:"-" json:"-"`

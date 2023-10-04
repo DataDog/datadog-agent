@@ -916,3 +916,24 @@ func TestLanguageDetectionSettings(t *testing.T) {
 	testConfig = SetupConfFromYAML("")
 	require.True(t, testConfig.GetBool("language_detection.enabled"))
 }
+
+func TestPeerTagsYAML(t *testing.T) {
+	testConfig := SetupConfFromYAML("")
+	require.Nil(t, testConfig.GetStringSlice("apm_config.peer_tags"))
+
+	datadogYaml := `
+apm_config:
+  peer_tags: ["aws.s3.bucket", "db.instance", "db.system"]
+`
+	testConfig = SetupConfFromYAML(datadogYaml)
+	require.Equal(t, []string{"aws.s3.bucket", "db.instance", "db.system"}, testConfig.GetStringSlice("apm_config.peer_tags"))
+}
+
+func TestPeerTagsEnv(t *testing.T) {
+	testConfig := SetupConfFromYAML("")
+	require.Nil(t, testConfig.GetStringSlice("apm_config.peer_tags"))
+
+	t.Setenv("DD_APM_PEER_TAGS", `["aws.s3.bucket","db.instance","db.system"]`)
+	testConfig = SetupConfFromYAML("")
+	require.Equal(t, []string{"aws.s3.bucket", "db.instance", "db.system"}, testConfig.GetStringSlice("apm_config.peer_tags"))
+}

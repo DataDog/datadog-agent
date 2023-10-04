@@ -616,7 +616,7 @@ func (at *ActivityTree) rebaseTree(parent ProcessNodeParent, childIndexToRebase 
 		// = false" node. To be safe, check if the 2 top level nodes match if one of them is an "isExecChild = true" node.
 		childToRebase := (*parent.GetChildren())[childIndexToRebase]
 		if topLevelNode := branchToInsert[len(branchToInsert)-1]; !topLevelNode.IsExecChild || !childToRebase.Process.IsExecChild {
-			if childToRebase.Matches(&topLevelNode.Process, at.differentiateArgs) {
+			if childToRebase.Matches(&topLevelNode.Process, at.differentiateArgs, true) {
 				// ChildNodeToRebase and topLevelNode match and need to be merged, rebase the one in the profile, and insert
 				// the remaining nodes of the branch on top of it
 				newRebasedChild := at.rebaseTree(parent, childIndexToRebase, newParent, nil, generationType, resolvers)
@@ -675,7 +675,7 @@ func (at *ActivityTree) rebaseTree(parent ProcessNodeParent, childIndexToRebase 
 // found) and the index of the top level child that lead to the matching node (or -1 if not found).
 func (at *ActivityTree) findProcessCacheEntryInTree(tree []*ProcessNode, entry *model.ProcessCacheEntry) (*ProcessNode, int) {
 	for i, child := range tree {
-		if child.Matches(&entry.Process, at.differentiateArgs) {
+		if child.Matches(&entry.Process, at.differentiateArgs, true) {
 			return child, i
 		}
 	}
@@ -695,7 +695,7 @@ func (at *ActivityTree) findProcessCacheEntryInChildExecedNodes(child *ProcessNo
 	for _, node := range child.Children {
 		if node.Process.IsExecChild {
 			// does this execed child match the entry ?
-			if node.Matches(&entry.Process, at.differentiateArgs) {
+			if node.Matches(&entry.Process, at.differentiateArgs, true) {
 				return node
 			}
 		}
@@ -721,7 +721,7 @@ func (at *ActivityTree) findProcessCacheEntryInChildExecedNodes(child *ProcessNo
 				// there should always be only one
 
 				// does this execed child match the entry ?
-				if node.Matches(&entry.Process, at.differentiateArgs) {
+				if node.Matches(&entry.Process, at.differentiateArgs, true) {
 					return node
 				}
 

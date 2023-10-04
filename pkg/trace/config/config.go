@@ -283,6 +283,7 @@ type AgentConfig struct {
 	ExtraAggregators       []string      // DEPRECATED
 	PeerServiceAggregation bool          // enables/disables stats aggregation for peer.service, used by Concentrator and ClientStatsAggregator
 	ComputeStatsBySpanKind bool          // enables/disables the computing of stats based on a span's `span.kind` field
+	PeerTags               []string      // additional tags to use for peer.service-related stats aggregation
 
 	// Sampler configuration
 	ExtraSampleRate float64
@@ -376,6 +377,12 @@ type AgentConfig struct {
 	// RejectTags specifies a list of tags which must be absent on the root span in order for a trace to be accepted.
 	RejectTags []*Tag
 
+	// RequireTagsRegex specifies a list of regexp for tags which must be present on the root span in order for a trace to be accepted.
+	RequireTagsRegex []*TagRegex
+
+	// RejectTagsRegex specifies a list of regexp for tags which must be absent on the root span in order for a trace to be accepted.
+	RejectTagsRegex []*TagRegex
+
 	// OTLPReceiver holds the configuration for OpenTelemetry receiver.
 	OTLPReceiver *OTLP
 
@@ -433,6 +440,12 @@ type RemoteClient interface {
 // Tag represents a key/value pair.
 type Tag struct {
 	K, V string
+}
+
+// TagRegex represents a key/value regex pattern pair.
+type TagRegex struct {
+	K string
+	V *regexp.Regexp
 }
 
 // New returns a configuration with the default values.

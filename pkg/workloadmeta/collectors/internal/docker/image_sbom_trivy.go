@@ -12,6 +12,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/CycloneDX/cyclonedx-go"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/sbom"
 	"github.com/DataDog/datadog-agent/pkg/sbom/collectors/docker"
@@ -64,7 +65,7 @@ func (c *collector) startSBOMCollection(ctx context.Context) error {
 				for _, event := range eventBundle.Events {
 					image := event.Entity.(*workloadmeta.ContainerImageMetadata)
 
-					if image.SBOM != nil {
+					if image.SBOM.Status != workloadmeta.Pending {
 						// BOM already stored. Can happen when the same image ID
 						// is referenced with different names.
 						log.Debugf("Image: %s/%s (id %s) SBOM already available", image.Namespace, image.Name, image.ID)
@@ -81,22 +82,30 @@ func (c *collector) startSBOMCollection(ctx context.Context) error {
 
 	go func() {
 		for result := range resultChan {
+			status := workloadmeta.Success
+			reportedError := ""
+			var report *cyclonedx.BOM
 			if result.Error != nil {
 				// TODO: add a retry mechanism for retryable errors
 				log.Errorf("Failed to generate SBOM for docker: %s", result.Error)
-				continue
-			}
-
-			bom, err := result.Report.ToCycloneDX()
-			if err != nil {
-				log.Errorf("Failed to extract SBOM from report")
-				continue
+				status = workloadmeta.Failed
+				reportedError = result.Error.Error()
+			} else {
+				bom, err := result.Report.ToCycloneDX()
+				if err != nil {
+					log.Errorf("Failed to extract SBOM from report")
+					status = workloadmeta.Failed
+					reportedError = result.Error.Error()
+				}
+				report = bom
 			}
 
 			sbom := &workloadmeta.SBOM{
-				CycloneDXBOM:       bom,
+				CycloneDXBOM:       report,
 				GenerationTime:     result.CreatedAt,
 				GenerationDuration: result.Duration,
+				Status:             status,
+				Error:              reportedError,
 			}
 
 			// Updating workloadmeta entities directly is not thread-safe, that's why we

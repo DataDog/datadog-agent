@@ -10,6 +10,7 @@ package dump
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 	"sync"
@@ -18,6 +19,7 @@ import (
 	"github.com/cilium/ebpf"
 	lru "github.com/hashicorp/golang-lru/v2"
 	"go.uber.org/atomic"
+	"golang.org/x/sys/unix"
 
 	"github.com/DataDog/datadog-go/v5/statsd"
 	manager "github.com/DataDog/ebpf-manager"
@@ -69,7 +71,9 @@ type ActivityDumpManager struct {
 	activityDumpsConfigMap *ebpf.Map
 	ignoreFromSnapshot     map[string]bool
 
-	dumpLimiter *lru.Cache[cgroupModel.WorkloadSelector, *atomic.Uint64]
+	dumpLimiter          *lru.Cache[cgroupModel.WorkloadSelector, *atomic.Uint64]
+	workloadDenyList     []cgroupModel.WorkloadSelector
+	workloadDenyListHits *atomic.Uint64
 
 	activeDumps         []*ActivityDump
 	snapshotQueue       chan *ActivityDump
@@ -194,14 +198,25 @@ func (adm *ActivityDumpManager) resolveTags() {
 			seclog.Warnf("couldn't resolve activity dump tags (will try again later): %v", err)
 		}
 
-		if !ad.countedByLimiter {
-			// check if we should discard this dump based on the manager dump limiter
-			selector := ad.GetWorkloadSelector()
-			if selector == nil {
-				// wait for the tags
-				continue
-			}
+		// check if we should discard this dump based on the manager dump limiter or the deny list
+		selector := ad.GetWorkloadSelector()
+		if selector == nil {
+			// wait for the tags
+			continue
+		}
 
+		shouldFinalize := false
+
+		// check if the workload is in the deny list
+		for _, entry := range adm.workloadDenyList {
+			if entry.Match(*selector) {
+				shouldFinalize = true
+				adm.workloadDenyListHits.Inc()
+				break
+			}
+		}
+
+		if !shouldFinalize && !ad.countedByLimiter {
 			counter, ok := adm.dumpLimiter.Get(*selector)
 			if !ok {
 				counter = atomic.NewUint64(0)
@@ -209,13 +224,17 @@ func (adm *ActivityDumpManager) resolveTags() {
 			}
 
 			if counter.Load() >= uint64(ad.adm.config.RuntimeSecurity.ActivityDumpMaxDumpCountPerWorkload) {
-				ad.Finalize(true)
-				adm.RemoveDump(ad)
+				shouldFinalize = true
 				adm.dropMaxDumpReached.Inc()
 			} else {
 				ad.countedByLimiter = true
 				counter.Add(1)
 			}
+		}
+
+		if shouldFinalize {
+			ad.Finalize(true)
+			adm.RemoveDump(ad)
 		}
 	}
 }
@@ -266,6 +285,19 @@ func NewActivityDumpManager(config *config.Config, statsdClient statsd.ClientInt
 		return nil, fmt.Errorf("couldn't create dump limiter: %w", err)
 	}
 
+	var denyList []cgroupModel.WorkloadSelector
+	for _, entry := range config.RuntimeSecurity.ActivityDumpWorkloadDenyList {
+		split := strings.Split(entry, ":")
+		if len(split) != 2 {
+			return nil, fmt.Errorf("invalid activity_dump.workload_deny_list parameter: expecting following format \"{image_name}:[{image_tag}|*]\"")
+		}
+		selectorTmp, err := cgroupModel.NewWorkloadSelector(split[0], split[1])
+		if err != nil {
+			return nil, fmt.Errorf("invalid workload selector in activity_dump.workload_deny_list: %w", err)
+		}
+		denyList = append(denyList, selectorTmp)
+	}
+
 	adm := &ActivityDumpManager{
 		config:                 config,
 		statsdClient:           statsdClient,
@@ -283,6 +315,8 @@ func NewActivityDumpManager(config *config.Config, statsdClient statsd.ClientInt
 		snapshotQueue:          make(chan *ActivityDump, 100),
 		ignoreFromSnapshot:     make(map[string]bool),
 		dumpLimiter:            limiter,
+		workloadDenyList:       denyList,
+		workloadDenyListHits:   atomic.NewUint64(0),
 		pathsReducer:           activity_tree.NewPathsReducer(),
 	}
 
@@ -374,7 +408,7 @@ func (adm *ActivityDumpManager) insertActivityDump(newDump *ActivityDump) error 
 }
 
 // handleDefaultDumpRequest starts dumping a new workload with the provided load configuration and the default dump configuration
-func (adm *ActivityDumpManager) startDumpWithConfig(containerID string, cookie uint64, loadConfig model.ActivityDumpLoadConfig) {
+func (adm *ActivityDumpManager) startDumpWithConfig(containerID string, cookie uint64, loadConfig model.ActivityDumpLoadConfig) error {
 	newDump := NewActivityDump(adm, func(ad *ActivityDump) {
 		ad.Metadata.ContainerID = containerID
 		ad.SetLoadConfig(cookie, loadConfig)
@@ -404,8 +438,9 @@ func (adm *ActivityDumpManager) startDumpWithConfig(containerID string, cookie u
 	))
 
 	if err := adm.insertActivityDump(newDump); err != nil {
-		seclog.Errorf("couldn't start tracing [%s]: %v", newDump.GetSelectorStr(), err)
+		return fmt.Errorf("couldn't start tracing [%s]: %v", newDump.GetSelectorStr(), err)
 	}
+	return nil
 }
 
 // HandleCGroupTracingEvent handles a cgroup tracing event
@@ -418,7 +453,9 @@ func (adm *ActivityDumpManager) HandleCGroupTracingEvent(event *model.CgroupTrac
 		return
 	}
 
-	adm.startDumpWithConfig(event.ContainerContext.ID, event.ConfigCookie, event.Config)
+	if err := adm.startDumpWithConfig(event.ContainerContext.ID, event.ConfigCookie, event.Config); err != nil {
+		seclog.Errorf("%v", err)
+	}
 }
 
 // SetSecurityProfileManager sets the security profile manager
@@ -476,7 +513,14 @@ workloadLoop:
 		}
 
 		// if we're still here, we can start tracing this workload
-		adm.startDumpWithConfig(workloads[0].ID, utils.NewCookie(), *adm.loadController.getDefaultLoadConfig())
+		if err := adm.startDumpWithConfig(workloads[0].ID, utils.NewCookie(), *adm.loadController.getDefaultLoadConfig()); err != nil {
+			if !errors.Is(err, unix.E2BIG) {
+				seclog.Debugf("%v", err)
+				break
+			} else {
+				seclog.Errorf("%v", err)
+			}
+		}
 	}
 }
 
@@ -698,6 +742,12 @@ func (adm *ActivityDumpManager) SendStats() error {
 	if value := adm.dropMaxDumpReached.Swap(0); value > 0 {
 		if err := adm.statsdClient.Count(metrics.MetricActivityDumpDropMaxDumpReached, int64(value), nil, 1.0); err != nil {
 			return fmt.Errorf("couldn't send %s metric: %w", metrics.MetricActivityDumpDropMaxDumpReached, err)
+		}
+	}
+
+	if value := adm.workloadDenyListHits.Swap(0); value > 0 {
+		if err := adm.statsdClient.Count(metrics.MetricActivityDumpWorkloadDenyListHits, int64(value), nil, 1.0); err != nil {
+			return fmt.Errorf("couldn't send %s metric: %w", metrics.MetricActivityDumpWorkloadDenyListHits, err)
 		}
 	}
 
