@@ -56,7 +56,6 @@ func (c *Client) HandleStream(ctx context.Context, numberOfMessages int32) error
 				sendErr = err
 				return
 			}
-			time.Sleep(time.Millisecond * 10)
 		}
 	}()
 
