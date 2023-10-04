@@ -17,7 +17,7 @@ import (
 	"go.uber.org/atomic"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/DataDog/datadog-agent/pkg/util/module/retry"
+	"github.com/DataDog/datadog-agent/pkg/util/retry"
 )
 
 // Known container runtimes

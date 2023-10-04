@@ -26,7 +26,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/process/events"
 	"github.com/DataDog/datadog-agent/pkg/process/events/model"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
-	"github.com/DataDog/datadog-agent/pkg/util/module/fxutil"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
 const (

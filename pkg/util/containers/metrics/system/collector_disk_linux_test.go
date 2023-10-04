@@ -16,7 +16,7 @@ import (
 	"github.com/stretchr/testify/suite"
 
 	"github.com/DataDog/datadog-agent/pkg/util/cache"
-	"github.com/DataDog/datadog-agent/pkg/util/module/testutil"
+	"github.com/DataDog/datadog-agent/pkg/util/testutil"
 )
 
 type DiskMappingTestSuite struct {

@@ -8,7 +8,7 @@
 package systray
 
 import (
-	"github.com/DataDog/datadog-agent/pkg/util/module/fxutil"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"go.uber.org/fx"
 )
 

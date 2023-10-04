@@ -20,7 +20,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
 	"github.com/DataDog/datadog-agent/pkg/config/settings"
 	settingshttp "github.com/DataDog/datadog-agent/pkg/config/settings/http"
-	"github.com/DataDog/datadog-agent/pkg/util/module/fxutil"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
 // cliParams are the command-line arguments for this subcommand

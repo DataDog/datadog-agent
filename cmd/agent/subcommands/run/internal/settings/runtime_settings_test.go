@@ -20,7 +20,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/config/settings"
-	"github.com/DataDog/datadog-agent/pkg/util/module/fxutil"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
 type testDeps struct {

@@ -119,23 +119,6 @@ func injectConfig(pod *corev1.Pod, _ string, _ dynamic.Interface) error {
 	return nil
 }
 
-// shouldInjectConf returns whether the config should be injected
-// based on the pod labels and the cluster agent config
-func shouldInjectConf(pod *corev1.Pod) bool {
-	if val, found := pod.GetLabels()[admCommon.EnabledLabelKey]; found {
-		switch val {
-		case "true":
-			return true
-		case "false":
-			return false
-		default:
-			log.Warnf("Invalid label value '%s=%s' on pod %s should be either 'true' or 'false', ignoring it", admCommon.EnabledLabelKey, val, podString(pod))
-			return false
-		}
-	}
-	return config.Datadog.GetBool("admission_controller.mutate_unlabelled")
-}
-
 // injectionMode returns the injection mode based on the global mode and pod labels
 func injectionMode(pod *corev1.Pod, globalMode string) string {
 	if val, found := pod.GetLabels()[admCommon.InjectionModeLabelKey]; found {

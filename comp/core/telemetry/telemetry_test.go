@@ -9,7 +9,7 @@ import (
 	"context"
 	"testing"
 
-	"github.com/DataDog/datadog-agent/pkg/util/module/fxutil"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	dto "github.com/prometheus/client_model/go"
 	"github.com/stretchr/testify/assert"
 )

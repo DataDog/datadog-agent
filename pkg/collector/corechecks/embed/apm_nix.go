@@ -14,7 +14,7 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/DataDog/datadog-agent/pkg/util/module/executable"
+	"github.com/DataDog/datadog-agent/pkg/util/executable"
 )
 
 const apmBinaryName = "trace-agent" //nolint:golint

@@ -12,7 +12,7 @@ import (
 	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/util/cachedfetch"
-	"github.com/DataDog/datadog-agent/pkg/util/module/common"
+	"github.com/DataDog/datadog-agent/pkg/util/common"
 )
 
 var publicIPv4Fetcher = cachedfetch.Fetcher{

@@ -24,7 +24,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/log"
 	configUtils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
-	"github.com/DataDog/datadog-agent/pkg/util/module/fxutil"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
 func TestConfDisabled(t *testing.T) {

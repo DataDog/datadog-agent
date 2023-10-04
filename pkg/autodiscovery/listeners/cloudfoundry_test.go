@@ -15,7 +15,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/util/cloudproviders/cloudfoundry"
-	"github.com/DataDog/datadog-agent/pkg/util/module/testutil"
+	"github.com/DataDog/datadog-agent/pkg/util/testutil"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"

@@ -17,7 +17,7 @@ import (
 	"github.com/containerd/containerd/containers"
 	"github.com/containerd/containerd/oci"
 
-	"github.com/DataDog/datadog-agent/pkg/util/module/retry"
+	"github.com/DataDog/datadog-agent/pkg/util/retry"
 )
 
 // MockedContainerdClient is a fake containerd client that implements the

@@ -14,7 +14,7 @@ import (
 	"expvar"
 
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
-	"github.com/DataDog/datadog-agent/pkg/util/module/compression"
+	"github.com/DataDog/datadog-agent/pkg/util/compression"
 )
 
 const (

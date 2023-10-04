@@ -8,7 +8,7 @@ package retry
 import (
 	math "math"
 
-	"github.com/DataDog/datadog-agent/pkg/util/module/filesystem"
+	"github.com/DataDog/datadog-agent/pkg/util/filesystem"
 )
 
 // DiskUsageLimit provides `computeAvailableSpace` which returns

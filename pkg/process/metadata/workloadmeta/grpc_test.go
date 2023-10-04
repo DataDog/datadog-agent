@@ -23,7 +23,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/process/procutil"
 	pbgo "github.com/DataDog/datadog-agent/pkg/proto/pbgo/process"
 	"github.com/DataDog/datadog-agent/pkg/trace/testutil"
-	"github.com/DataDog/datadog-agent/pkg/util/module/fxutil"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
 func TestGetGRPCStreamPort(t *testing.T) {

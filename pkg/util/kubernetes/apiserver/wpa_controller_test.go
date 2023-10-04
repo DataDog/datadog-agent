@@ -45,8 +45,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/errors"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/autoscalers"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/DataDog/datadog-agent/pkg/util/module/testutil"
 	"github.com/DataDog/datadog-agent/pkg/util/pointer"
+	"github.com/DataDog/datadog-agent/pkg/util/testutil"
 )
 
 var (

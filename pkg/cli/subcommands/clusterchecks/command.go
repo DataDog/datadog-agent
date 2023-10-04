@@ -18,7 +18,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/clusterchecks/types"
 	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/flare"
-	"github.com/DataDog/datadog-agent/pkg/util/module/fxutil"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/fatih/color"
 	"github.com/spf13/cobra"
 	"go.uber.org/fx"

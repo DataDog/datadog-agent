@@ -23,7 +23,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
 	apicfg "github.com/DataDog/datadog-agent/pkg/process/util/api/config"
-	"github.com/DataDog/datadog-agent/pkg/util/module/filesystem"
+	"github.com/DataDog/datadog-agent/pkg/util/filesystem"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
 

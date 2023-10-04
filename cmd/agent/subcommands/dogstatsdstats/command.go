@@ -21,8 +21,8 @@ import (
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/serverDebug"
 	"github.com/DataDog/datadog-agent/pkg/api/util"
 	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/input"
-	"github.com/DataDog/datadog-agent/pkg/util/module/fxutil"
 
 	"github.com/spf13/cobra"
 )

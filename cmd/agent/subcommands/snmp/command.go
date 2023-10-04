@@ -24,7 +24,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/log"
 	utilFunc "github.com/DataDog/datadog-agent/pkg/snmp/gosnmplib"
 	parse "github.com/DataDog/datadog-agent/pkg/snmp/snmpparse"
-	"github.com/DataDog/datadog-agent/pkg/util/module/fxutil"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
 const (

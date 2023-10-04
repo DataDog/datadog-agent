@@ -31,11 +31,18 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/remoteconfig/state => ./pkg/remoteconfig/state
 	github.com/DataDog/datadog-agent/pkg/security/secl => ./pkg/security/secl
 	github.com/DataDog/datadog-agent/pkg/trace => ./pkg/trace
+	github.com/DataDog/datadog-agent/pkg/util/backoff => ./pkg/util/backoff
 	github.com/DataDog/datadog-agent/pkg/util/cgroups => ./pkg/util/cgroups
+	github.com/DataDog/datadog-agent/pkg/util/common => ./pkg/util/common
+	github.com/DataDog/datadog-agent/pkg/util/compression => ./pkg/util/compression
+	github.com/DataDog/datadog-agent/pkg/util/executable => ./pkg/util/executable
+	github.com/DataDog/datadog-agent/pkg/util/filesystem => ./pkg/util/filesystem
+	github.com/DataDog/datadog-agent/pkg/util/fxutil => ./pkg/util/fxutil/
+	github.com/DataDog/datadog-agent/pkg/util/json => ./pkg/util/json
 	github.com/DataDog/datadog-agent/pkg/util/log => ./pkg/util/log
-	github.com/DataDog/datadog-agent/pkg/util/module => ./pkg/util/module/
 	github.com/DataDog/datadog-agent/pkg/util/pointer => ./pkg/util/pointer
 	github.com/DataDog/datadog-agent/pkg/util/scrubber => ./pkg/util/scrubber
+	github.com/DataDog/datadog-agent/pkg/util/testutil => ./pkg/util/testutil
 )
 
 require (
@@ -558,7 +565,14 @@ require (
 	github.com/DataDog/agent-payload/v5 v5.0.97
 	github.com/DataDog/datadog-agent/pkg/networkdevice/profile v0.49.0-rc.1
 	github.com/DataDog/datadog-agent/pkg/proto v0.49.0-rc.1
-	github.com/DataDog/datadog-agent/pkg/util/module v0.0.0-00010101000000-000000000000
+	github.com/DataDog/datadog-agent/pkg/util/backoff v0.0.0-00010101000000-000000000000
+	github.com/DataDog/datadog-agent/pkg/util/common v0.0.0-00010101000000-000000000000
+	github.com/DataDog/datadog-agent/pkg/util/compression v0.0.0-00010101000000-000000000000
+	github.com/DataDog/datadog-agent/pkg/util/executable v0.0.0-00010101000000-000000000000
+	github.com/DataDog/datadog-agent/pkg/util/filesystem v0.0.0-00010101000000-000000000000
+	github.com/DataDog/datadog-agent/pkg/util/fxutil v0.0.0-00010101000000-000000000000
+	github.com/DataDog/datadog-agent/pkg/util/json v0.0.0-00010101000000-000000000000
+	github.com/DataDog/datadog-agent/pkg/util/testutil v0.0.0-00010101000000-000000000000
 	github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/logs v0.8.0
 	github.com/aquasecurity/trivy v0.0.0-00010101000000-000000000000
 	github.com/cloudfoundry-community/go-cfclient/v2 v2.0.1-0.20230503155151-3d15366c5820

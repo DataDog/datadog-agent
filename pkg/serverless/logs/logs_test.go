@@ -25,7 +25,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/serverless/executioncontext"
 	serverlessMetrics "github.com/DataDog/datadog-agent/pkg/serverless/metrics"
-	"github.com/DataDog/datadog-agent/pkg/util/module/fxutil"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
 func TestUnmarshalExtensionLog(t *testing.T) {

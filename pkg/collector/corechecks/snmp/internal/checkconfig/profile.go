@@ -16,8 +16,8 @@ import (
 	"gopkg.in/yaml.v2"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/util/filesystem"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/DataDog/datadog-agent/pkg/util/module/filesystem"
 
 	"github.com/DataDog/datadog-agent/pkg/networkdevice/profile/profiledefinition"
 

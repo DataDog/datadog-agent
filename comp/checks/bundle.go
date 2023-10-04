@@ -12,7 +12,7 @@ package checks
 
 import (
 	"github.com/DataDog/datadog-agent/comp/checks/agentcrashdetect"
-	"github.com/DataDog/datadog-agent/pkg/util/module/fxutil"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
 // team: agent-shared-components

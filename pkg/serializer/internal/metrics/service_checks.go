@@ -17,7 +17,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/metrics/servicecheck"
 	"github.com/DataDog/datadog-agent/pkg/serializer/marshaler"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
-	utiljson "github.com/DataDog/datadog-agent/pkg/util/module/json"
+	utiljson "github.com/DataDog/datadog-agent/pkg/util/json"
 )
 
 var (

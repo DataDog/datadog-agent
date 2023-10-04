@@ -12,7 +12,7 @@ import (
 	"testing"
 
 	"github.com/DataDog/datadog-agent/cmd/security-agent/command"
-	"github.com/DataDog/datadog-agent/pkg/util/module/fxutil"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
 func TestShowRuntimeConfigurationCommand(t *testing.T) {

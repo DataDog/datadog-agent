@@ -16,8 +16,8 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/DataDog/datadog-agent/pkg/util/filesystem"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/DataDog/datadog-agent/pkg/util/module/filesystem"
 )
 
 // ParseProcessRoutes parses /proc/<pid>/net/route into a list of NetworkDestionation

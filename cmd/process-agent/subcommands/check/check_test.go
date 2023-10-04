@@ -9,7 +9,7 @@ import (
 	"testing"
 
 	"github.com/DataDog/datadog-agent/cmd/process-agent/command"
-	"github.com/DataDog/datadog-agent/pkg/util/module/fxutil"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
 func TestRunCheckCmdCommand(t *testing.T) {

@@ -12,7 +12,7 @@ package server
 import (
 	"go.uber.org/fx"
 
-	"github.com/DataDog/datadog-agent/pkg/util/module/fxutil"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
 // team: network-device-monitoring

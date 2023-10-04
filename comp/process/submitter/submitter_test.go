@@ -13,7 +13,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/process/forwarders"
 	"github.com/DataDog/datadog-agent/comp/process/hostinfo"
-	"github.com/DataDog/datadog-agent/pkg/util/module/fxutil"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
 func TestSubmitterLifecycle(t *testing.T) {

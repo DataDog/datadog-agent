@@ -13,7 +13,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
-	"github.com/DataDog/datadog-agent/pkg/util/module/testutil"
+	"github.com/DataDog/datadog-agent/pkg/util/testutil"
 )
 
 type TestJobCheck struct {

@@ -18,7 +18,7 @@ import (
 	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
 	tagger_api "github.com/DataDog/datadog-agent/pkg/tagger/api"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
-	"github.com/DataDog/datadog-agent/pkg/util/module/fxutil"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 
 	"github.com/fatih/color"
 	"github.com/spf13/cobra"

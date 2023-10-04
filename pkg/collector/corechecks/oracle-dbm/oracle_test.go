@@ -23,7 +23,7 @@ import (
 	go_ora "github.com/sijms/go-ora/v2"
 	"github.com/stretchr/testify/assert"
 
-	"github.com/DataDog/datadog-agent/pkg/util/module/fxutil"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	_ "github.com/godror/godror"
 )
 

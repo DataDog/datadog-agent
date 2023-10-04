@@ -42,7 +42,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/util"
-	"github.com/DataDog/datadog-agent/pkg/util/module/fxutil"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	// runtime init routines
 )
 
@@ -158,5 +158,8 @@ func getPlatformModules() fx.Option {
 	return fx.Options(
 		agentcrashdetect.Module,
 		comptraceconfig.Module,
+		fx.Replace(comptraceconfig.Params{
+			FailIfAPIKeyMissing: false,
+		}),
 	)
 }

@@ -22,7 +22,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/packets"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
-	"github.com/DataDog/datadog-agent/pkg/util/module/fxutil"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
 func writerTest(t *testing.T, z bool) {

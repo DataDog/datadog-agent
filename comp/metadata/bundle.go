@@ -10,7 +10,7 @@ package metadata
 import (
 	"github.com/DataDog/datadog-agent/comp/metadata/resources"
 	"github.com/DataDog/datadog-agent/comp/metadata/runner"
-	"github.com/DataDog/datadog-agent/pkg/util/module/fxutil"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
 // team: agent-shared-components

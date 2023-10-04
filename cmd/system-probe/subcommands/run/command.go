@@ -39,8 +39,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/process/statsd"
 	ddruntime "github.com/DataDog/datadog-agent/pkg/runtime"
 	"github.com/DataDog/datadog-agent/pkg/util"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	pkglog "github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/DataDog/datadog-agent/pkg/util/module/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/profiling"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )

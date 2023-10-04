@@ -17,7 +17,7 @@ import (
 	"go.uber.org/fx"
 
 	corecomp "github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/pkg/util/module/fxutil"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
 func TestFullYamlConfigWithOTLP(t *testing.T) {

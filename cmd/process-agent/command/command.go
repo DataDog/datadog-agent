@@ -18,7 +18,7 @@ import (
 	logComponent "github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
 	"github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/util/module/filesystem"
+	"github.com/DataDog/datadog-agent/pkg/util/filesystem"
 )
 
 const LoggerName config.LoggerName = "PROCESS"

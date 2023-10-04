@@ -9,7 +9,7 @@ import (
 	jsonEncoder "encoding/json"
 	"strings"
 
-	"github.com/DataDog/datadog-agent/pkg/util/module/json"
+	"github.com/DataDog/datadog-agent/pkg/util/json"
 )
 
 // AWSEventType corresponds to the various event triggers

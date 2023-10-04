@@ -22,7 +22,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 	traceconfig "github.com/DataDog/datadog-agent/pkg/trace/config"
-	"github.com/DataDog/datadog-agent/pkg/util/module/fxutil"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
 // team: agent-apm
@@ -50,9 +50,15 @@ type Mock interface {
 // Module defines the fx options for this component.
 var Module = fxutil.Component(
 	fx.Provide(newConfig),
+	fx.Supply(Params{
+		FailIfAPIKeyMissing: true,
+	}),
 )
 
 // MockModule defines the fx options for the mock component.
 var MockModule = fxutil.Component(
 	fx.Provide(newMock),
+	fx.Supply(Params{
+		FailIfAPIKeyMissing: true,
+	}),
 )

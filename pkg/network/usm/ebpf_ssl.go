@@ -27,8 +27,8 @@ import (
 	errtelemetry "github.com/DataDog/datadog-agent/pkg/network/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/network/usm/sharedlibraries"
 	"github.com/DataDog/datadog-agent/pkg/network/usm/utils"
+	"github.com/DataDog/datadog-agent/pkg/util/common"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/DataDog/datadog-agent/pkg/util/module/common"
 )
 
 const (

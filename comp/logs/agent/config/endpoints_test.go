@@ -15,7 +15,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	coreConfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/config/utils"
-	"github.com/DataDog/datadog-agent/pkg/util/module/fxutil"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
 type EndpointsTestSuite struct {

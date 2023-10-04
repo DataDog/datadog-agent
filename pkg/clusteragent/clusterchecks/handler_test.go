@@ -22,7 +22,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/api"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/clusterchecks/types"
-	"github.com/DataDog/datadog-agent/pkg/util/module/testutil"
+	"github.com/DataDog/datadog-agent/pkg/util/testutil"
 )
 
 func (h *Handler) assertLeadershipMessage(t *testing.T, expected state) {

@@ -19,7 +19,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/collector/check/stub"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
-	"github.com/DataDog/datadog-agent/pkg/util/module/fxutil"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
 type CollectorDemuxTestSuite struct {

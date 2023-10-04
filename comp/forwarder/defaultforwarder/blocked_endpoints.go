@@ -12,7 +12,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/log"
 	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/util/module/backoff"
+	"github.com/DataDog/datadog-agent/pkg/util/backoff"
 )
 
 type block struct {

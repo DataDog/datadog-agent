@@ -21,8 +21,8 @@ import (
 	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
 	pkgdiagnose "github.com/DataDog/datadog-agent/pkg/diagnose"
 	"github.com/DataDog/datadog-agent/pkg/diagnose/diagnosis"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	utillog "github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/DataDog/datadog-agent/pkg/util/module/fxutil"
 
 	"github.com/cihub/seelog"
 	"github.com/fatih/color"

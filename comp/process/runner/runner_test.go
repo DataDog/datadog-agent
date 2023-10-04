@@ -19,7 +19,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/process/processcheck"
 	"github.com/DataDog/datadog-agent/comp/process/submitter"
 	"github.com/DataDog/datadog-agent/comp/process/types"
-	"github.com/DataDog/datadog-agent/pkg/util/module/fxutil"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
 func TestRunnerLifecycle(t *testing.T) {
