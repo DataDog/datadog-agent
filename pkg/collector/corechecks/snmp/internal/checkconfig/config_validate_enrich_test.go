@@ -610,6 +610,81 @@ func Test_ValidateEnrichMetrics(t *testing.T) {
 	}
 }
 
+func Test_ValidateEnrichMetricTags(t *testing.T) {
+	type logCount struct {
+		log   string
+		count int
+	}
+
+	tests := []struct {
+		name            string
+		metrics         []profiledefinition.MetricTagConfig
+		expectedErrors  []string
+		expectedMetrics []profiledefinition.MetricTagConfig
+		expectedLogs    []logCount
+	}{
+		{
+			name: "Move OID to Symbol",
+			metrics: []profiledefinition.MetricTagConfig{
+				{
+					OID: "1.2.3.4",
+					Symbol: profiledefinition.SymbolConfigCompat{
+						Name: "mySymbol",
+					},
+				},
+			},
+			expectedMetrics: []profiledefinition.MetricTagConfig{
+				{
+					Symbol: profiledefinition.SymbolConfigCompat{
+						OID:  "1.2.3.4",
+						Name: "mySymbol",
+					},
+				},
+			},
+		},
+		{
+			name: "Metric tag OID and symbol.OID cannot be both declared",
+			metrics: []profiledefinition.MetricTagConfig{
+				{
+					OID: "1.2.3.4",
+					Symbol: profiledefinition.SymbolConfigCompat{
+						OID:  "1.2.3.5",
+						Name: "mySymbol",
+					},
+				},
+			},
+			expectedErrors: []string{
+				"metric tag OID and symbol.OID cannot be both declared",
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var b bytes.Buffer
+			w := bufio.NewWriter(&b)
+			l, err := seelog.LoggerFromWriterWithMinLevelAndFormat(w, seelog.DebugLvl, "[%LEVEL] %FuncShort: %Msg")
+			assert.Nil(t, err)
+			log.SetupLogger(l, "debug")
+
+			errors := ValidateEnrichMetricTags(tt.metrics)
+			assert.Equal(t, len(tt.expectedErrors), len(errors), fmt.Sprintf("ERRORS: %v", errors))
+			for i := range errors {
+				assert.Contains(t, errors[i], tt.expectedErrors[i])
+			}
+			if tt.expectedMetrics != nil {
+				assert.Equal(t, tt.expectedMetrics, tt.metrics)
+			}
+
+			w.Flush()
+			logs := b.String()
+
+			for _, aLogCount := range tt.expectedLogs {
+				assert.Equal(t, aLogCount.count, strings.Count(logs, aLogCount.log), logs)
+			}
+		})
+	}
+}
+
 func Test_validateEnrichMetadata(t *testing.T) {
 	tests := []struct {
 		name             string
@@ -813,3 +888,5 @@ func Test_validateEnrichMetadata(t *testing.T) {
 		})
 	}
 }
+
+// TODO: Add test for ValidateEnrichMetricTags

@@ -678,7 +678,7 @@ func (c *CheckConfig) parseScalarOids(metrics []profiledefinition.MetricsConfig,
 		oids = append(oids, metric.Symbol.OID)
 	}
 	for _, metricTag := range metricTags {
-		oids = append(oids, metricTag.OID)
+		oids = append(oids, metricTag.Symbol.OID)
 	}
 	if c.CollectDeviceMetadata {
 		for resource, metadataConfig := range metadataConfigs {
