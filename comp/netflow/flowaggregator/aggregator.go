@@ -101,10 +101,6 @@ func NewFlowAggregator(sender sender.Sender, epForwarder epforwarder.EventPlatfo
 	}
 }
 
-func (agg *FlowAggregator) FlushedFlowCount() uint64 {
-	return agg.flushedFlowCount.Load()
-}
-
 // Start will start the FlowAggregator worker
 func (agg *FlowAggregator) Start() {
 	agg.logger.Info("Flow Aggregator started")
