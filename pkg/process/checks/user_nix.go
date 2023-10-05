@@ -24,6 +24,7 @@ type LookupIdProbe struct {
 	lookupId      func(uid string) (*user.User, error)
 }
 
+// NewLookupIdProbe returns a new LookupIdProbe from the config
 func NewLookupIdProbe(coreConfig config.Reader) *LookupIdProbe {
 	if coreConfig.GetBool("process_config.cache_lookupid") {
 		log.Debug("Using cached calls to `user.LookupID`")
