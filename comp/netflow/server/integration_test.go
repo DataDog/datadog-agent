@@ -48,7 +48,10 @@ var setTimeNow = fx.Invoke(func(c Component) {
 func assertFlowEventsCount(t *testing.T, port uint16, srv *Server, packetData []byte, expectedEvents uint64) bool {
 	return assert.EventuallyWithT(t, func(c *assert.CollectT) {
 		err := testutil.SendUDPPacket(port, packetData)
-		require.NoError(c, err, "error sending udp packet")
+		assert.NoError(c, err, "error sending udp packet")
+		if err != nil {
+			return
+		}
 
 		netflowEvents, err := flowaggregator.WaitForFlowsToBeFlushed(srv.FlowAgg, 1*time.Second, 2)
 		assert.Equal(c, expectedEvents, netflowEvents)
