@@ -30,7 +30,7 @@ GITHUB_SLACK_MAP = {
     "@datadog/ebpf-platform": "#ebpf-platform-ops",
     "@datadog/networks": "#network-performance-monitoring",
     "@datadog/universal-service-monitoring": "#universal-service-monitoring",
-    "@datadog/windows-agent": "#windows-agent",
+    "@datadog/windows-agent": "#windows-agent-ops",
     "@datadog/windows-kernel-integrations": "#windows-kernel-integrations",
     "@datadog/opentelemetry": "#opentelemetry-ops",
     "@datadog/agent-e2e-testing": "#agent-testing-and-qa",
