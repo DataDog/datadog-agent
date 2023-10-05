@@ -207,6 +207,7 @@ deploy_containers-a7-rc_on_failure:
     !reference [.on_deploy_a7_rc_manual]
   variables:
     VERSION: 7-rc
+  needs: ["check_failure_for_manual"]
 
 deploy_containers-a7_on_failure:
   extends: .deploy_containers-a7_external
