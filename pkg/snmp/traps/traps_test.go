@@ -45,6 +45,10 @@ var (
 		SpecificTrap: 0,
 		Timestamp:    1000,
 		Variables: []gosnmp.SnmpPDU{
+			// sysUpTimeInstance
+			{Name: "1.3.6.1.2.1.1.3.0", Type: gosnmp.TimeTicks, Value: uint32(1000)},
+			// snmpTrapOID
+			{Name: "1.3.6.1.6.3.1.1.4.1.0", Type: gosnmp.OctetString, Value: "1.3.6.1.4.1.8072.2.3.0.1"},
 			// ifIndex
 			{Name: ".1.3.6.1.2.1.2.2.1.1", Type: gosnmp.Integer, Value: 2},
 			// ifAdminStatus
@@ -62,6 +66,10 @@ var (
 		SpecificTrap: 2,
 		Timestamp:    1000,
 		Variables: []gosnmp.SnmpPDU{
+			// sysUpTimeInstance
+			{Name: "1.3.6.1.2.1.1.3.0", Type: gosnmp.TimeTicks, Value: uint32(1000)},
+			// snmpTrapOID
+			{Name: "1.3.6.1.6.3.1.1.4.1.0", Type: gosnmp.OctetString, Value: "1.3.6.1.4.1.8072.2.3.0.1"},
 			// alarmActiveModelPointer
 			{Name: ".1.3.6.1.2.1.118.1.2.2.1.13", Type: gosnmp.OctetString, Value: []uint8{0x66, 0x6f, 0x6f}},
 			// alarmActiveResourceId

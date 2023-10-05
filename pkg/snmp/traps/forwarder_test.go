@@ -10,6 +10,7 @@ import (
 	"crypto/sha256"
 	"encoding/gob"
 	"encoding/hex"
+	"encoding/json"
 	"net"
 	"testing"
 	"time"
@@ -24,6 +25,13 @@ import (
 type DummyFormatter struct{}
 
 var simpleUDPAddr = &net.UDPAddr{IP: net.IPv4(1, 1, 1, 1), Port: 161}
+
+var MockTime = func() time.Time {
+	layout := "2006-01-02 15:04:05"
+	str := "2000-01-01 00:00:00"
+	t, _ := time.Parse(layout, str)
+	return t
+}
 
 // FormatPacket is a dummy formatter method that hashes an SnmpPacket object
 func (f DummyFormatter) FormatPacket(packet *SnmpPacket) ([]byte, error) {
@@ -48,7 +56,16 @@ func createForwarder(t *testing.T) (forwarder *TrapForwarder, err error) {
 	config := Config{Port: serverPort, CommunityStrings: []string{"public"}, Namespace: "default"}
 	Configure(t, config)
 
-	forwarder, err = NewTrapForwarder(&DummyFormatter{}, mockSender, packetsIn)
+	oidResolver, err := NewMultiFilesOIDResolver()
+	if err != nil {
+		return nil, err
+	}
+
+	formatter, err := NewJSONFormatter(oidResolver, mockSender)
+	if err != nil {
+		return nil, err
+	}
+	forwarder, err = NewTrapForwarder(formatter, mockSender, packetsIn)
 	if err != nil {
 		return nil, err
 	}
@@ -63,7 +80,41 @@ func makeSnmpPacket(trap gosnmp.SnmpTrap) *SnmpPacket {
 		Variables: trap.Variables,
 		SnmpTrap:  trap,
 	}
-	return &SnmpPacket{gosnmpPacket, simpleUDPAddr, "totoro", time.Now().UnixMilli()}
+	return &SnmpPacket{gosnmpPacket, simpleUDPAddr, "totoro", MockTime().UnixMilli()}
+}
+
+func getMockEvent() ([]byte, error) {
+	expectedEvent := `
+{
+    "trap": {
+        "ddsource": "snmp-traps",
+        "ddtags": "snmp_version:2,device_namespace:totoro,snmp_device:1.1.1.1",
+        "netSnmpExampleHeartbeatRate": 1024,
+        "snmpTrapMIB": "NET-SNMP-EXAMPLES-MIB",
+        "snmpTrapName": "netSnmpExampleHeartbeatNotification",
+        "snmpTrapOID": "1.3.6.1.4.1.8072.2.3.0.1",
+        "timestamp": 946684800000,
+        "uptime": 1000,
+        "variables": [
+            {
+                "oid": "1.3.6.1.4.1.8072.2.3.2.1",
+                "type": "integer",
+                "value": 1024
+            },
+            {
+                "oid": "1.3.6.1.4.1.8072.2.3.2.2",
+                "type": "string",
+                "value": "test"
+            }
+        ]
+    }
+}`
+	expectedEventCompact := new(bytes.Buffer)
+	err := json.Compact(expectedEventCompact, []byte(expectedEvent))
+	if err != nil {
+		return nil, err
+	}
+	return expectedEventCompact.Bytes(), nil
 }
 
 func TestV1GenericTrapAreForwarder(t *testing.T) {
@@ -98,7 +149,9 @@ func TestV2TrapAreForwarder(t *testing.T) {
 	require.True(t, ok)
 	forwarder.trapsIn <- makeSnmpPacket(NetSNMPExampleHeartbeatNotification)
 	forwarder.Stop()
-	sender.AssertEventPlatformEvent(t, []byte("0dee7422f503d972db97b711e39a5003d1995c0d2f718542813acc4c46053ef0"), epforwarder.EventTypeSnmpTraps)
+	expectedEvent, err := getMockEvent()
+	require.NoError(t, err)
+	sender.AssertEventPlatformEvent(t, expectedEvent, epforwarder.EventTypeSnmpTraps)
 }
 
 func TestForwarderTelemetry(t *testing.T) {
