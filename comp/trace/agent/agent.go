@@ -78,6 +78,13 @@ func newAgent(deps dependencies) Component {
 // Provided ctx has a timeout, so it can't be used for gracefully stopping long-running components.
 // This context is cancelled on a deadline, so it would stop the agent after starting it.
 func (ag *agent) start(_ context.Context) error {
+	tracecfg := ag.config.Object()
+	if !tracecfg.Enabled {
+		log.Info(messageAgentDisabled)
+		ag.telemetryCollector.SendStartupError(telemetry.TraceAgentNotEnabled, fmt.Errorf(""))
+		return fmt.Errorf(messageAgentDisabled)
+	}
+
 	setupShutdown(ag.ctx, ag.shutdowner)
 
 	if ag.params.CPUProfile != "" {
@@ -97,13 +104,6 @@ func (ag *agent) start(_ context.Context) error {
 		}
 
 		log.Infof("PID '%d' written to PID file '%s'", os.Getpid(), ag.params.PIDFilePath)
-	}
-
-	tracecfg := ag.config.Object()
-	if !tracecfg.Enabled {
-		log.Info(messageAgentDisabled)
-		ag.telemetryCollector.SendStartupError(telemetry.TraceAgentNotEnabled, fmt.Errorf(""))
-		return fmt.Errorf(messageAgentDisabled)
 	}
 
 	if err := runAgentSidekicks(ag.ctx, ag.config, ag.telemetryCollector); err != nil {
