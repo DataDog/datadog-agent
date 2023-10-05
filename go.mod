@@ -30,7 +30,6 @@ replace (
 	github.com/DataDog/datadog-agent/comp/core/telemetry => ./comp/core/telemetry
 	github.com/DataDog/datadog-agent/comp/forwarder => ./comp/forwarder/
 	github.com/DataDog/datadog-agent/comp/logs/agent/config => ./comp/logs/agent/config
-	github.com/DataDog/datadog-agent/comp/logs/agent/pipeline => ./comp/logs/agent/pipeline
 	github.com/DataDog/datadog-agent/pkg/aggregator/ckey => ./pkg/aggregator/ckey
 	github.com/DataDog/datadog-agent/pkg/autodiscovery/common/types => ./pkg/autodiscovery/common/types/
 	github.com/DataDog/datadog-agent/pkg/collector/check/defaults => ./pkg/collector/check/defaults/
