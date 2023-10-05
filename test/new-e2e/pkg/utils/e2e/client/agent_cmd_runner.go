@@ -57,6 +57,11 @@ func (agent *AgentCommandRunner) executeCommand(command string, commandArgs ...A
 }
 
 func (agent *AgentCommandRunner) executeCommandWithError(command string, commandArgs ...AgentArgsOption) (string, error) {
+	if !agent.isReady {
+		err := agent.waitForReadyTimeout(1 * time.Minute)
+		require.NoErrorf(agent.t, err, "the agent is not ready")
+		agent.isReady = true
+	}
 	args := newAgentArgs(commandArgs...)
 	arguments := []string{command}
 	arguments = append(arguments, args.Args...)
