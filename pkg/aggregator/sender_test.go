@@ -127,13 +127,13 @@ func TestGetSenderWithSameIDsReturnsSameSender(t *testing.T) {
 	assert.Nil(t, err)
 	assertAggSamplersLen(t, aggregatorInstance, 1)
 
-	assert.Len(t, demux.senderPool.senders, 1)
+	assert.Len(t, demux.senders.senderPool.senders, 1)
 
 	sender2, err := demux.GetSender(checkID1)
 	assert.Nil(t, err)
 	assert.Equal(t, sender1, sender2)
 
-	assert.Len(t, demux.senderPool.senders, 1)
+	assert.Len(t, demux.senders.senderPool.senders, 1)
 }
 
 func TestDestroySender(t *testing.T) {
