@@ -18,6 +18,7 @@ import (
 	"syscall"
 
 	"github.com/DataDog/datadog-agent/pkg/trace/watchdog"
+	"github.com/DataDog/datadog-agent/pkg/util"
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/comp/trace/config"
@@ -58,12 +59,15 @@ type agent struct {
 	wg                 sync.WaitGroup
 }
 
-func newAgent(deps dependencies) (Component, error) {
+func newAgent(deps dependencies) Component {
+	c := Component{}
+	deps.Lc.Append(fx.Hook{OnStart: c.start, OnStop: c.stop})
+
 	tracecfg := deps.Config.Object()
 	if !tracecfg.Enabled {
 		log.Info(messageAgentDisabled)
 		deps.TelemetryCollector.SendStartupError(telemetry.TraceAgentNotEnabled, fmt.Errorf(""))
-		return nil, ErrAgentDisabled
+		return c
 	}
 
 	ctx, cancel := context.WithCancel(deps.Context) // Several related non-components require a shared context to gracefully stop.
@@ -81,14 +85,18 @@ func newAgent(deps dependencies) (Component, error) {
 		telemetryCollector: deps.TelemetryCollector,
 		wg:                 sync.WaitGroup{},
 	}
-
-	deps.Lc.Append(fx.Hook{OnStart: ag.start, OnStop: ag.stop})
-	return ag, nil
+	c.Optional = util.NewOptional[agentComponent](ag)
+	return c
 }
 
 // Provided ctx has a timeout, so it can't be used for gracefully stopping long-running components.
 // This context is cancelled on a deadline, so it would stop the agent after starting it.
-func (ag *agent) start(_ context.Context) error {
+func (c *Component) start(_ context.Context) error {
+	agc, ok := c.Get()
+	if !ok {
+		return ErrAgentDisabled
+	}
+	ag := agc.(*agent)
 	setupShutdown(ag.ctx, ag.shutdowner)
 
 	if ag.params.CPUProfile != "" {
@@ -122,7 +130,12 @@ func (ag *agent) start(_ context.Context) error {
 	return nil
 }
 
-func (ag *agent) stop(_ context.Context) error {
+func (c *Component) stop(_ context.Context) error {
+	agc, ok := c.Get()
+	if !ok {
+		return ErrAgentDisabled
+	}
+	ag := agc.(*agent)
 	ag.cancel()
 	ag.wg.Wait()
 	stopAgentSidekicks(ag.config)

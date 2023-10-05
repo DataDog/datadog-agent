@@ -11,6 +11,7 @@ import (
 	"testing"
 
 	"github.com/DataDog/datadog-agent/comp/trace/agent"
+	"github.com/DataDog/datadog-agent/pkg/trace/telemetry"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/fx"
 
@@ -26,10 +27,11 @@ func TestBundleDependencies(t *testing.T) {
 		// instantiate all of the core components, since this is not done
 		// automatically. Use fx.Invoke to make sure components are initialized
 		// and all the providers are called.
-		fx.Supply(context.TODO()),
+		fx.Provide(func() context.Context { return context.TODO() }), // fx.Supply(ctx) fails with a missing type error.
 		fx.Supply(coreconfig.Params{}),
 		coreconfig.Module,
 		fx.Invoke(func(_ config.Component) {}),
+		fx.Provide(func(cfg config.Component) telemetry.TelemetryCollector { return telemetry.NewCollector(cfg.Object()) }),
 		fx.Supply(&agent.Params{}),
 		fx.Invoke(func(_ agent.Component) {}),
 		Bundle))
@@ -43,10 +45,11 @@ func TestMockBundleDependencies(t *testing.T) {
 	defer func() { os.Unsetenv("DD_DD_URL") }()
 
 	cfg := fxutil.Test[config.Component](t, fx.Options(
-		fx.Supply(context.TODO()),
+		fx.Provide(func() context.Context { return context.TODO() }), // fx.Supply(ctx) fails with a missing type error.
 		fx.Supply(coreconfig.Params{}),
 		coreconfig.MockModule,
 		fx.Invoke(func(_ config.Component) {}),
+		fx.Provide(func(cfg config.Component) telemetry.TelemetryCollector { return telemetry.NewCollector(cfg.Object()) }),
 		fx.Supply(&agent.Params{}),
 		fx.Invoke(func(_ agent.Component) {}),
 		MockBundle,

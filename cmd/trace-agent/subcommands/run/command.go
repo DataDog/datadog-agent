@@ -7,8 +7,8 @@ package run
 
 import (
 	"context"
+	"errors"
 	"fmt"
-	"strings"
 
 	"github.com/spf13/cobra"
 	"go.uber.org/fx"
@@ -64,12 +64,12 @@ func runFx(ctx context.Context, cliParams *RunParams, defaultConfPath string) er
 	err := fxutil.Run(
 		// ctx is required to be supplied from here, as Windows needs to inject its own context
 		// to allow the agent to work as a service.
-		fx.Supply(ctx),
-		fx.Provide(func(cfg config.Component) telemetry.TelemetryCollector { return telemetry.NewCollector(cfg.Object()) }),
+		fx.Provide(func() context.Context { return ctx }), // fx.Supply(ctx) fails with a missing type error.
 		fx.Supply(coreconfig.NewAgentParamsWithSecrets(cliParams.ConfPath)),
 		coreconfig.Module,
 		fx.Invoke(func(_ config.Component) {}),
 		// Required to avoid cyclic imports.
+		fx.Provide(func(cfg config.Component) telemetry.TelemetryCollector { return telemetry.NewCollector(cfg.Object()) }),
 		fx.Supply(&agent.Params{
 			CPUProfile:  cliParams.CPUProfile,
 			MemProfile:  cliParams.MemProfile,
@@ -96,9 +96,8 @@ func runFx(ctx context.Context, cliParams *RunParams, defaultConfPath string) er
 		}),
 		fx.Invoke(func(_ agent.Component) {}),
 	)
-	// UnwrapIfErrArgumentsFailed doesn't allow to use errors.Is, so we need to compare
-	// with the first line of agent.ErrAgentDisabled message.
-	if err != nil && err.Error() == strings.Split(agent.ErrAgentDisabled.Error(), "\n")[0] {
+	if err != nil && errors.Is(err, agent.ErrAgentDisabled) {
+		log.Info(err)
 		return nil
 	}
 	return err

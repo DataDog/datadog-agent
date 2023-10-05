@@ -16,9 +16,10 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/trace/stats"
 	"github.com/DataDog/datadog-agent/pkg/trace/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/trace/writer"
+	"github.com/DataDog/datadog-agent/pkg/util"
 )
 
-func newMock(deps dependencies, t testing.TB) (Component, error) {
+func newMock(deps dependencies, t testing.TB) Component {
 	telemetryCollector := telemetry.NewCollector(deps.Config.Object())
 
 	// Several related non-components require a shared context to gracefully stop.
@@ -40,5 +41,5 @@ func newMock(deps dependencies, t testing.TB) (Component, error) {
 	ag.TraceWriter.In = make(chan *writer.SampledChunks, 1000)
 	ag.Concentrator.In = make(chan stats.Input, 1000)
 
-	return ag, nil
+	return Component{Optional: util.NewOptional[agentComponent](ag)}
 }
