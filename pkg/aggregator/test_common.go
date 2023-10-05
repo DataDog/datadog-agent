@@ -27,7 +27,7 @@ func (d *AgentDemultiplexer) PeekSender(cid checkid.ID) (sender.Sender, error) {
 	d.m.Lock()
 	defer d.m.Unlock()
 	if d.senders == nil {
-		return nil, errors.New("demultiplexer is stoped")
+		return nil, errors.New("demultiplexer is stopped")
 	}
 	return d.senders.PeekSender(cid)
 }

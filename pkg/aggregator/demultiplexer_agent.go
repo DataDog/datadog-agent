@@ -621,7 +621,7 @@ func (d *AgentDemultiplexer) GetSender(id checkid.ID) (sender.Sender, error) {
 	defer d.m.Unlock()
 
 	if d.senders == nil {
-		return nil, errors.New("demultiplexer is stoped")
+		return nil, errors.New("demultiplexer is stopped")
 	}
 
 	return d.senders.GetSender(id)
@@ -633,7 +633,7 @@ func (d *AgentDemultiplexer) SetSender(s sender.Sender, id checkid.ID) error {
 	d.m.Lock()
 	defer d.m.Unlock()
 	if d.senders == nil {
-		return errors.New("demultiplexer is stoped")
+		return errors.New("demultiplexer is stopped")
 	}
 
 	return d.senders.SetSender(s, id)
@@ -659,7 +659,7 @@ func (d *AgentDemultiplexer) GetDefaultSender() (sender.Sender, error) {
 	defer d.m.Unlock()
 
 	if d.senders == nil {
-		return nil, errors.New("demultiplexer is stoped")
+		return nil, errors.New("demultiplexer is stopped")
 	}
 
 	return d.senders.GetDefaultSender()
