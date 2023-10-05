@@ -29,6 +29,10 @@ type cliParams struct {
 	GlobalParams
 }
 
+// GlobalParams contains the values of agent-global Cobra flags.
+//
+// A pointer to this type is passed to SubcommandFactory's, but its contents
+// are not valid until Cobra calls the subcommand's Run or RunE function.
 type GlobalParams struct {
 	ConfFilePath string
 	ConfigName   string
@@ -55,7 +59,7 @@ func MakeCommand(globalParamsGetter func() GlobalParams) *cobra.Command {
 						globalParams.ConfFilePath,
 						config.WithConfigName(globalParams.ConfigName),
 					),
-					LogParams: log.LogForOneShot(globalParams.LoggerName, "off", true)}),
+					LogParams: log.ForOneShot(globalParams.LoggerName, "off", true)}),
 				core.Bundle,
 			)
 		},

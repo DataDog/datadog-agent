@@ -8,6 +8,9 @@
 package runtime
 
 import (
+	"github.com/spf13/cobra"
+	"go.uber.org/fx"
+
 	"github.com/DataDog/datadog-agent/cmd/security-agent/command"
 	"github.com/DataDog/datadog-agent/cmd/security-agent/flags"
 	"github.com/DataDog/datadog-agent/comp/core"
@@ -15,8 +18,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/log"
 	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
-	"github.com/spf13/cobra"
-	"go.uber.org/fx"
 )
 
 // checkPoliciesCommands is deprecated
@@ -33,7 +34,7 @@ func checkPoliciesCommands(globalParams *command.GlobalParams) []*cobra.Command 
 				fx.Supply(cliParams),
 				fx.Supply(core.BundleParams{
 					ConfigParams: config.NewSecurityAgentParams(globalParams.ConfigFilePaths),
-					LogParams:    log.LogForOneShot(command.LoggerName, "off", false)}),
+					LogParams:    log.ForOneShot(command.LoggerName, "off", false)}),
 				core.Bundle,
 			)
 		},
@@ -54,7 +55,7 @@ func reloadPoliciesCommands(globalParams *command.GlobalParams) []*cobra.Command
 			return fxutil.OneShot(reloadRuntimePolicies,
 				fx.Supply(core.BundleParams{
 					ConfigParams: config.NewSecurityAgentParams(globalParams.ConfigFilePaths),
-					LogParams:    log.LogForOneShot(command.LoggerName, "info", true)}),
+					LogParams:    log.ForOneShot(command.LoggerName, "info", true)}),
 				core.Bundle,
 			)
 		},

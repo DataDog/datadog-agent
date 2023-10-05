@@ -9,13 +9,14 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/spf13/cobra"
+	"go.uber.org/fx"
+
 	"github.com/DataDog/datadog-agent/cmd/trace-agent/subcommands"
 	coreconfig "github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/info"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
-	"github.com/spf13/cobra"
-	"go.uber.org/fx"
 )
 
 // MakeCommand returns the start subcommand for the 'trace-agent' command.
@@ -38,7 +39,7 @@ func runTraceAgentInfoFct(params *subcommands.GlobalParams, fct interface{}) err
 		fx.Supply(coreconfig.NewAgentParamsWithSecrets(params.ConfPath)),
 		coreconfig.Module,
 		// TODO: (component)
-		// fx.Supply(log.LogForOneShot(params.LoggerName, "off", true)),
+		// fx.Supply(log.ForOneShot(params.LoggerName, "off", true)),
 		// log.Module,
 	)
 }

@@ -17,7 +17,10 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/security-agent/flags"
 )
 
-// GlobalParams defines global parameters
+// GlobalParams contains the values of agent-global Cobra flags.
+//
+// A pointer to this type is passed to SubcommandFactory's, but its contents
+// are not valid until Cobra calls the subcommand's Run or RunE function.
 type GlobalParams struct {
 	ConfigFilePaths      []string
 	SysProbeConfFilePath string

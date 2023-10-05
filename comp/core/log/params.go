@@ -15,7 +15,7 @@ import (
 //
 // Logs-related parameters are implemented as unexported fields containing
 // callbacks.  These fields can be set with the `LogXxx()` methods, which
-// return the updated LogParams.  One of `LogForOneShot` or `LogForDaemon`
+// return the updated LogParams.  One of `log.ForOneShot` or `log.ForDaemon`
 // must be called.
 type Params struct {
 	// loggerName is the name that appears in the logfile
@@ -52,13 +52,13 @@ type configGetter interface {
 	GetBool(key string) bool
 }
 
-// LogForOneShot sets up logging parameters for a one-shot app.
+// ForOneShot sets up logging parameters for a one-shot app.
 //
 // If overrideFromEnv is set, then DD_LOG_LEVEL will override the given level.
 //
 // Otherwise, file logging is disabled, syslog is disabled, console logging is
 // enabled, and JSON formatting is disabled.
-func LogForOneShot(loggerName, level string, overrideFromEnv bool) Params {
+func ForOneShot(loggerName, level string, overrideFromEnv bool) Params {
 	params := Params{}
 	params.loggerName = loggerName
 	if overrideFromEnv {
@@ -74,7 +74,7 @@ func LogForOneShot(loggerName, level string, overrideFromEnv bool) Params {
 	return params
 }
 
-// LogForDaemon sets up logging parameters for a daemon app.
+// ForDaemon sets up logging parameters for a daemon app.
 //
 // The log level is set based on the `log_level` config parameter.
 //
@@ -88,7 +88,7 @@ func LogForOneShot(loggerName, level string, overrideFromEnv bool) Params {
 //
 // Console logging is enabled if `log_to_console` is set.  Lots are formatted
 // as JSON if `log_format_json` is set.
-func LogForDaemon(loggerName, logFileConfig, defaultLogFile string) Params {
+func ForDaemon(loggerName, logFileConfig, defaultLogFile string) Params {
 	params := Params{}
 	params.loggerName = loggerName
 	params.logLevelFn = func(g configGetter) string { return g.GetString("log_level") }

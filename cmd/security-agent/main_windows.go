@@ -74,7 +74,7 @@ func (s *service) Run(svcctx context.Context) error {
 		},
 		fx.Supply(core.BundleParams{
 			ConfigParams: config.NewSecurityAgentParams(defaultSecurityAgentConfigFilePaths),
-			LogParams:    log.LogForDaemon(command.LoggerName, "security_agent.log_file", pkgconfig.DefaultSecurityAgentLogFile),
+			LogParams:    log.ForDaemon(command.LoggerName, "security_agent.log_file", pkgconfig.DefaultSecurityAgentLogFile),
 		}),
 		core.Bundle,
 		forwarder.Bundle,

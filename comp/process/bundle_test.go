@@ -20,7 +20,7 @@ import (
 
 var mockCoreBundleParams = core.BundleParams{
 	ConfigParams: configComp.NewParams("", configComp.WithConfigMissingOK(true)),
-	LogParams:    log.LogForOneShot("PROCESS", "trace", false),
+	LogParams:    log.ForOneShot("PROCESS", "trace", false),
 }
 
 func TestBundleDependencies(t *testing.T) {

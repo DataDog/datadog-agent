@@ -48,7 +48,7 @@ func newAgentLogger(lc fx.Lifecycle, params Params, config config.Component) (Co
 // NewLogger creates a log.Component using the provided config.LogConfig
 func NewLogger(lc fx.Lifecycle, params Params, config config.LogConfig) (Component, error) {
 	if params.logLevelFn == nil {
-		return nil, errors.New("must call one of core.BundleParams.LogForOneShot or LogForDaemon")
+		return nil, errors.New("must call one of core.BundleParams.ForOneShot or ForDaemon")
 	}
 
 	err := pkgconfig.SetupLogger(

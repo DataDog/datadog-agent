@@ -15,6 +15,9 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"go.uber.org/fx"
+	"golang.org/x/sys/windows"
+
 	"github.com/DataDog/datadog-agent/cmd/agent/common/path"
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
@@ -23,8 +26,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/systray/systray"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/winutil"
-	"go.uber.org/fx"
-	"golang.org/x/sys/windows"
 )
 
 const (
@@ -62,9 +63,9 @@ func MakeCommand() *cobra.Command {
 	// log params
 	var logParams log.Params
 	if subsystem == "windows" {
-		logParams = log.LogForDaemon("TRAY", "system_tray.log_file", logFilePath)
+		logParams = log.ForDaemon("TRAY", "system_tray.log_file", logFilePath)
 	} else if subsystem == "console" {
-		logParams = log.LogForOneShot("TRAY", "info", true)
+		logParams = log.ForOneShot("TRAY", "info", true)
 	}
 
 	// root command

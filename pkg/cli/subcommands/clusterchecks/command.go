@@ -11,6 +11,10 @@ import (
 	"encoding/json"
 	"fmt"
 
+	"github.com/fatih/color"
+	"github.com/spf13/cobra"
+	"go.uber.org/fx"
+
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/log"
@@ -19,9 +23,6 @@ import (
 	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/flare"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
-	"github.com/fatih/color"
-	"github.com/spf13/cobra"
-	"go.uber.org/fx"
 )
 
 const (
@@ -29,6 +30,10 @@ const (
 	defaultLogLevel = "off"
 )
 
+// GlobalParams contains the values of agent-global Cobra flags.
+//
+// A pointer to this type is passed to SubcommandFactory's, but its contents
+// are not valid until Cobra calls the subcommand's Run or RunE function.
 type GlobalParams struct {
 	ConfFilePath string
 }
@@ -81,7 +86,7 @@ func MakeCommand(globalParamsGetter func() GlobalParams) *cobra.Command {
 func bundleParams(globalParams GlobalParams) core.BundleParams {
 	return core.BundleParams{
 		ConfigParams: config.NewClusterAgentParams(globalParams.ConfFilePath, config.WithConfigLoadSecrets(true)),
-		LogParams:    log.LogForOneShot(loggerName, defaultLogLevel, true),
+		LogParams:    log.ForOneShot(loggerName, defaultLogLevel, true),
 	}
 }
 
