@@ -11,9 +11,9 @@ import (
 	"strings"
 	"time"
 
-	pkgmanager "github.com/DataDog/datadog-agent/test/new-e2e/agent-platform/common/pkg-manager"
-	svcmanager "github.com/DataDog/datadog-agent/test/new-e2e/agent-platform/common/svc-manager"
 	e2eClient "github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client"
+	pkgmanager "github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-platform/common/pkg-manager"
+	svcmanager "github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-platform/common/svc-manager"
 	"gopkg.in/yaml.v2"
 )
 

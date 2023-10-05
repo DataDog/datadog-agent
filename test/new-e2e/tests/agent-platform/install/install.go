@@ -11,8 +11,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/DataDog/datadog-agent/test/new-e2e/agent-platform/common"
-	"github.com/DataDog/datadog-agent/test/new-e2e/agent-platform/install/installparams"
+	"github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-platform/common"
+	"github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-platform/install/installparams"
 	"github.com/stretchr/testify/require"
 )
 

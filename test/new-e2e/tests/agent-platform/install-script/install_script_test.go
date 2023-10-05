@@ -11,14 +11,14 @@ import (
 	"os"
 	"strings"
 
-	"github.com/DataDog/datadog-agent/test/new-e2e/agent-platform/common"
-	filemanager "github.com/DataDog/datadog-agent/test/new-e2e/agent-platform/common/file-manager"
-	helpers "github.com/DataDog/datadog-agent/test/new-e2e/agent-platform/common/helper"
+	"github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-platform/common"
+	filemanager "github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-platform/common/file-manager"
+	helpers "github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-platform/common/helper"
 
-	"github.com/DataDog/datadog-agent/test/new-e2e/agent-platform/install"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/params"
+	"github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-platform/install"
 	e2eOs "github.com/DataDog/test-infra-definitions/components/os"
 	"github.com/DataDog/test-infra-definitions/scenarios/aws/vm/ec2os"
 	"github.com/DataDog/test-infra-definitions/scenarios/aws/vm/ec2params"
