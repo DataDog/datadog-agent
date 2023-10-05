@@ -10,6 +10,7 @@ package dump
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 	"sync"
@@ -18,6 +19,7 @@ import (
 	"github.com/cilium/ebpf"
 	lru "github.com/hashicorp/golang-lru/v2"
 	"go.uber.org/atomic"
+	"golang.org/x/sys/unix"
 
 	"github.com/DataDog/datadog-go/v5/statsd"
 	manager "github.com/DataDog/ebpf-manager"
@@ -406,7 +408,7 @@ func (adm *ActivityDumpManager) insertActivityDump(newDump *ActivityDump) error 
 }
 
 // handleDefaultDumpRequest starts dumping a new workload with the provided load configuration and the default dump configuration
-func (adm *ActivityDumpManager) startDumpWithConfig(containerID string, cookie uint64, loadConfig model.ActivityDumpLoadConfig) {
+func (adm *ActivityDumpManager) startDumpWithConfig(containerID string, cookie uint64, loadConfig model.ActivityDumpLoadConfig) error {
 	newDump := NewActivityDump(adm, func(ad *ActivityDump) {
 		ad.Metadata.ContainerID = containerID
 		ad.SetLoadConfig(cookie, loadConfig)
@@ -436,8 +438,9 @@ func (adm *ActivityDumpManager) startDumpWithConfig(containerID string, cookie u
 	))
 
 	if err := adm.insertActivityDump(newDump); err != nil {
-		seclog.Errorf("couldn't start tracing [%s]: %v", newDump.GetSelectorStr(), err)
+		return fmt.Errorf("couldn't start tracing [%s]: %v", newDump.GetSelectorStr(), err)
 	}
+	return nil
 }
 
 // HandleCGroupTracingEvent handles a cgroup tracing event
@@ -450,7 +453,9 @@ func (adm *ActivityDumpManager) HandleCGroupTracingEvent(event *model.CgroupTrac
 		return
 	}
 
-	adm.startDumpWithConfig(event.ContainerContext.ID, event.ConfigCookie, event.Config)
+	if err := adm.startDumpWithConfig(event.ContainerContext.ID, event.ConfigCookie, event.Config); err != nil {
+		seclog.Errorf("%v", err)
+	}
 }
 
 // SetSecurityProfileManager sets the security profile manager
@@ -508,7 +513,14 @@ workloadLoop:
 		}
 
 		// if we're still here, we can start tracing this workload
-		adm.startDumpWithConfig(workloads[0].ID, utils.NewCookie(), *adm.loadController.getDefaultLoadConfig())
+		if err := adm.startDumpWithConfig(workloads[0].ID, utils.NewCookie(), *adm.loadController.getDefaultLoadConfig()); err != nil {
+			if !errors.Is(err, unix.E2BIG) {
+				seclog.Debugf("%v", err)
+				break
+			} else {
+				seclog.Errorf("%v", err)
+			}
+		}
 	}
 }
 
