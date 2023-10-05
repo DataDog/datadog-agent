@@ -78,8 +78,10 @@ func setUpCollectorTest(t *testing.T) *collectorTest {
 	require.NoError(t, err)
 
 	overrides := map[string]interface{}{
-		"process_config.language_detection.grpc_port":   port,
-		"workloadmeta.remote_process_collector.enabled": true,
+		"process_config.language_detection.grpc_port":              port,
+		"workloadmeta.remote_process_collector.enabled":            true,
+		"workloadmeta.local_process_collector.collection_interval": 10 * time.Second,
+		// "workloadmeta.local_process_collector.collection_interval": pkgconfig.DefaultAPIKeyValidationInterval,
 	}
 
 	store := fxutil.Test[workloadmeta.Mock](t, fx.Options(
@@ -90,7 +92,6 @@ func setUpCollectorTest(t *testing.T) *collectorTest {
 		collectors.GetCatalog(),
 		workloadmeta.MockModuleV2,
 	))
-	store.Start(context.TODO())
 	workloadmeta.SetGlobalStore(store)
 	defer workloadmeta.SetGlobalStore(nil)
 
@@ -114,8 +115,6 @@ func setUpCollectorTest(t *testing.T) *collectorTest {
 	ctx, cancel := context.WithCancel(context.Background())
 	require.NoError(t, c.Start(ctx, store))
 	t.Cleanup(cancel)
-
-	time.Sleep(5 * time.Second)
 
 	return &collectorTest{
 		collector: c,
