@@ -626,7 +626,7 @@ workflow:
   - <<: *if_not_deploy
     when: never
   - <<: *if_rc_tag_on_beta_repo_branch
-    when: on_success
+    when: manual
     variables:
       AGENT_REPOSITORY: ci/datadog-agent/agent-release
       CLUSTER_AGENT_REPOSITORY: ci/datadog-agent/cluster-agent-release
