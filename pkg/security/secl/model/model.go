@@ -317,21 +317,6 @@ func (e *Event) GetWorkloadID() string {
 	return e.SecurityProfileContext.Name
 }
 
-// Retain the event
-func (e *Event) Retain() Event {
-	if e.ProcessCacheEntry != nil {
-		e.ProcessCacheEntry.Retain()
-	}
-	return *e
-}
-
-// Release the event
-func (e *Event) Release() {
-	if e.ProcessCacheEntry != nil {
-		e.ProcessCacheEntry.Release()
-	}
-}
-
 // ResolveProcessCacheEntry uses the field handler
 func (e *Event) ResolveProcessCacheEntry() (*ProcessCacheEntry, bool) {
 	return e.FieldHandlers.ResolveProcessCacheEntry(e)
@@ -453,60 +438,14 @@ var zeroProcessContext ProcessContext
 
 // ProcessCacheEntry this struct holds process context kept in the process tree
 type ProcessCacheEntry struct {
-	ProcessContext
+	Releasable // Needed for scoped variables
 
-	refCount  uint64                     `field:"-" json:"-"`
-	onRelease func(_ *ProcessCacheEntry) `field:"-" json:"-"`
-	releaseCb func()                     `field:"-" json:"-"`
+	ProcessContext
 }
 
 // IsContainerRoot returns whether this is a top level process in the container ID
 func (pc *ProcessCacheEntry) IsContainerRoot() bool {
 	return pc.ContainerID != "" && pc.Ancestor != nil && pc.Ancestor.ContainerID == ""
-}
-
-// Reset the entry
-func (pc *ProcessCacheEntry) Reset() {
-	pc.ProcessContext = zeroProcessContext
-	pc.refCount = 0
-	pc.releaseCb = nil
-}
-
-// Retain increment ref counter
-func (pc *ProcessCacheEntry) Retain() {
-	pc.refCount++
-}
-
-// SetReleaseCallback set the callback called when the entry is released
-func (pc *ProcessCacheEntry) SetReleaseCallback(callback func()) {
-	previousCallback := pc.releaseCb
-	pc.releaseCb = func() {
-		callback()
-		if previousCallback != nil {
-			previousCallback()
-		}
-	}
-}
-
-// Release decrement and eventually release the entry
-func (pc *ProcessCacheEntry) Release() {
-	pc.refCount--
-	if pc.refCount > 0 {
-		return
-	}
-
-	if pc.onRelease != nil {
-		pc.onRelease(pc)
-	}
-
-	if pc.releaseCb != nil {
-		pc.releaseCb()
-	}
-}
-
-// NewProcessCacheEntry returns a new process cache entry
-func NewProcessCacheEntry(onRelease func(_ *ProcessCacheEntry)) *ProcessCacheEntry {
-	return &ProcessCacheEntry{onRelease: onRelease}
 }
 
 // ProcessAncestorsIterator defines an iterator of ancestors

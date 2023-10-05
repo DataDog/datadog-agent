@@ -86,7 +86,6 @@ type Resolver struct {
 	opts             ResolverOpts
 
 	// stats
-	cacheSize                 *atomic.Int64
 	hitsStats                 map[string]*atomic.Int64
 	missStats                 *atomic.Int64
 	addedEntriesFromEvent     *atomic.Int64
@@ -103,8 +102,6 @@ type Resolver struct {
 
 	entryCache    map[uint32]*model.ProcessCacheEntry
 	argsEnvsCache *simplelru.LRU[uint32, *argsEnvsCacheEntry]
-
-	processCacheEntryPool *Pool
 
 	// limiters
 	procFallbackLimiter *utils.Limiter[uint32]
@@ -143,7 +140,7 @@ func (p *Resolver) DequeueExited() {
 
 // NewProcessCacheEntry returns a new process cache entry
 func (p *Resolver) NewProcessCacheEntry(pidContext model.PIDContext) *model.ProcessCacheEntry {
-	entry := p.processCacheEntryPool.Get()
+	entry := &model.ProcessCacheEntry{}
 	entry.PIDContext = pidContext
 	entry.Cookie = utils.NewCookie()
 	return entry
@@ -158,10 +155,6 @@ func (p *Resolver) CountBrokenLineage() {
 func (p *Resolver) SendStats() error {
 	if err := p.statsdClient.Gauge(metrics.MetricProcessResolverCacheSize, p.getCacheSize(), []string{}, 1.0); err != nil {
 		return fmt.Errorf("failed to send process_resolver cache_size metric: %w", err)
-	}
-
-	if err := p.statsdClient.Gauge(metrics.MetricProcessResolverReferenceCount, p.getEntryCacheSize(), []string{}, 1.0); err != nil {
-		return fmt.Errorf("failed to send process_resolver reference_count metric: %w", err)
 	}
 
 	for _, resolutionType := range metrics.AllTypesTags {
@@ -468,11 +461,6 @@ func (p *Resolver) retrieveExecFileFields(procExecPath string) (*model.FileField
 func (p *Resolver) insertEntry(entry, prev *model.ProcessCacheEntry, source uint64) {
 	entry.Source = source
 	p.entryCache[entry.Pid] = entry
-	entry.Retain()
-
-	if prev != nil {
-		prev.Release()
-	}
 
 	if p.cgroupResolver != nil && entry.ContainerID != "" {
 		// add the new PID in the right cgroup_resolver bucket
@@ -487,8 +475,6 @@ func (p *Resolver) insertEntry(entry, prev *model.ProcessCacheEntry, source uint
 	case model.ProcessCacheEntryFromProcFS:
 		p.addedEntriesFromProcFS.Inc()
 	}
-
-	p.cacheSize.Inc()
 }
 
 func (p *Resolver) insertForkEntry(entry *model.ProcessCacheEntry, inode uint64, source uint64) {
@@ -554,7 +540,6 @@ func (p *Resolver) deleteEntry(pid uint32, exitTime time.Time) {
 
 	entry.Exit(exitTime)
 	delete(p.entryCache, entry.Pid)
-	entry.Release()
 }
 
 // DeleteEntry tries to delete an entry in the process cache
@@ -1174,8 +1159,6 @@ func (p *Resolver) syncCache(proc *process.Process, filledProc *utils.FilledProc
 
 	// update the cache entry
 	if err := p.enrichEventFromProc(entry, proc, filledProc); err != nil {
-		entry.Release()
-
 		seclog.Trace(err)
 		return nil, false
 	}
@@ -1279,11 +1262,6 @@ func (p *Resolver) getCacheSize() float64 {
 	return float64(len(p.entryCache))
 }
 
-// getEntryCacheSize returns the cache size of the process resolver
-func (p *Resolver) getEntryCacheSize() float64 {
-	return float64(p.cacheSize.Load())
-}
-
 // SetState sets the process resolver state
 func (p *Resolver) SetState(state int64) {
 	p.state.Store(state)
@@ -1319,7 +1297,6 @@ func NewResolver(manager *manager.Manager, config *config.Config, statsdClient s
 		argsEnvsCache:             argsEnvsCache,
 		state:                     atomic.NewInt64(Snapshotting),
 		hitsStats:                 map[string]*atomic.Int64{},
-		cacheSize:                 atomic.NewInt64(0),
 		missStats:                 atomic.NewInt64(0),
 		addedEntriesFromEvent:     atomic.NewInt64(0),
 		addedEntriesFromKernelMap: atomic.NewInt64(0),
@@ -1343,7 +1320,6 @@ func NewResolver(manager *manager.Manager, config *config.Config, statsdClient s
 	for _, t := range metrics.AllTypesTags {
 		p.hitsStats[t] = atomic.NewInt64(0)
 	}
-	p.processCacheEntryPool = NewProcessCacheEntryPool(p)
 
 	// Create rate limiter that allows for 128 pids
 	limiter, err := utils.NewLimiter[uint32](128, numAllowedPIDsToResolvePerPeriod, procFallbackLimiterPeriod)

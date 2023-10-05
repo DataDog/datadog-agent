@@ -326,7 +326,6 @@ func (p *Probe) playSnapshot() {
 		if entry.Source != model.ProcessCacheEntryFromSnapshot {
 			return
 		}
-		entry.Retain()
 		event := NewEvent(p.fieldHandlers)
 		event.Type = uint32(model.ExecEventType)
 		event.TimestampRaw = uint64(time.Now().UnixNano())
@@ -344,7 +343,6 @@ func (p *Probe) playSnapshot() {
 	p.GetResolvers().ProcessResolver.Walk(entryToEvent)
 	for _, event := range events {
 		p.DispatchEvent(event)
-		event.ProcessCacheEntry.Release()
 	}
 }
 

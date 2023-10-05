@@ -19,13 +19,8 @@ func (pc *ProcessCacheEntry) SetAncestor(parent *ProcessCacheEntry) {
 		return
 	}
 
-	if pc.Ancestor != nil {
-		pc.Ancestor.Release()
-	}
-
 	pc.Ancestor = parent
 	pc.Parent = &parent.Process
-	parent.Retain()
 }
 
 // HasCompleteLineage returns false if, from the entry, we cannot ascend the ancestors list to PID 1

@@ -261,7 +261,6 @@ func TestActionSetVariable(t *testing.T) {
 	event := model.NewDefaultEvent()
 	event.Type = uint32(model.FileOpenEventType)
 	processCacheEntry := &model.ProcessCacheEntry{}
-	processCacheEntry.Retain()
 	event.ProcessCacheEntry = processCacheEntry
 	event.SetFieldValue("open.file.path", "/tmp/test2")
 	event.SetFieldValue("open.flags", syscall.O_RDONLY)
@@ -284,7 +283,7 @@ func TestActionSetVariable(t *testing.T) {
 	scopedVariables := evaluationSet.RuleSets[DefaultRuleSetTagValue].scopedVariables["process"].(*eval.ScopedVariables)
 
 	assert.Equal(t, scopedVariables.Len(), 1)
-	event.ProcessCacheEntry.Release()
+	event.ProcessCacheEntry.CallReleaseCallback()
 	assert.Equal(t, scopedVariables.Len(), 0)
 }
 
