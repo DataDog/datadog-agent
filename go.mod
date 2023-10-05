@@ -57,8 +57,8 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/networkdevice/profile => ./pkg/networkdevice/profile
 	github.com/DataDog/datadog-agent/pkg/obfuscate => ./pkg/obfuscate
 	github.com/DataDog/datadog-agent/pkg/orchestrator/model => ./pkg/orchestrator/model/
-	github.com/DataDog/datadog-agent/pkg/otlp/internal/logsagentexporter => ./pkg/otlp/internal/logsagentexporter
 	github.com/DataDog/datadog-agent/pkg/otlp/internal/testutil => ./pkg/otlp/internal/testutil
+	github.com/DataDog/datadog-agent/pkg/otlp/logsagentexporter => ./pkg/otlp/logsagentexporter
 	github.com/DataDog/datadog-agent/pkg/process/util/api => ./pkg/process/util/api/
 	github.com/DataDog/datadog-agent/pkg/proto => ./pkg/proto
 	github.com/DataDog/datadog-agent/pkg/remoteconfig/state => ./pkg/remoteconfig/state
@@ -643,8 +643,8 @@ require (
 	github.com/DataDog/datadog-agent/pkg/logs/sources v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/pkg/metrics v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/pkg/networkdevice/profile v0.0.0-20230913122404-c12f437d52a4
-	github.com/DataDog/datadog-agent/pkg/otlp/internal/logsagentexporter v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/pkg/otlp/internal/testutil v0.0.0-00010101000000-000000000000
+	github.com/DataDog/datadog-agent/pkg/otlp/logsagentexporter v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/pkg/process/util/api v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/pkg/proto v0.48.0-rc.2
 	github.com/DataDog/datadog-agent/pkg/secrets v0.0.0-00010101000000-000000000000

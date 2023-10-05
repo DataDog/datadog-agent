@@ -47,7 +47,7 @@ func (f *factory) createLogsExporter(
 
 	ctx, cancel := context.WithCancel(ctx)
 	// cancel() runs on shutdown
-	pusher := createConsumeLogsFunc(set.TelemetrySettings.Logger, logSource, f.logsAgentChannel)
+	pusher := CreateConsumeLogsFunc(set.TelemetrySettings.Logger, logSource, f.logsAgentChannel)
 
 	return exporterhelper.NewLogsExporter(
 		ctx,

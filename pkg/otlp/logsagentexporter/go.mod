@@ -1,30 +1,30 @@
-module github.com/DataDog/datadog-agent/pkg/otlp/internal/logsagentexporter
+module github.com/DataDog/datadog-agent/pkg/otlp/logsagentexporter
 
 go 1.20
 
 replace (
-	github.com/DataDog/datadog-agent/comp/core/config => ../../../../comp/core/config/
-	github.com/DataDog/datadog-agent/comp/core/telemetry => ../../../../comp/core/telemetry/
-	github.com/DataDog/datadog-agent/comp/logs/agent/config => ../../../../comp/logs/agent/config
-	github.com/DataDog/datadog-agent/pkg/autodiscovery/common/types => ../../../autodiscovery/common/types/
-	github.com/DataDog/datadog-agent/pkg/collector/check/defaults => ../../../collector/check/defaults/
-	github.com/DataDog/datadog-agent/pkg/conf => ../../../conf
-	github.com/DataDog/datadog-agent/pkg/config/configsetup => ../../../config/configsetup
-	github.com/DataDog/datadog-agent/pkg/config/load => ../../../config/load
-	github.com/DataDog/datadog-agent/pkg/logs/internal/status => ../../../logs/internal/status
-	github.com/DataDog/datadog-agent/pkg/logs/message => ../../../logs/message
-	github.com/DataDog/datadog-agent/pkg/logs/sources => ../../../logs/sources
-	github.com/DataDog/datadog-agent/pkg/otlp/internal/testutil => ../../../otlp/internal/testutil
-	github.com/DataDog/datadog-agent/pkg/secrets => ../../../secrets/
-	github.com/DataDog/datadog-agent/pkg/telemetry => ../../../telemetry/
-	github.com/DataDog/datadog-agent/pkg/util/executable => ../../../util/executable/
-	github.com/DataDog/datadog-agent/pkg/util/fxutil => ../../../util/fxutil/
-	github.com/DataDog/datadog-agent/pkg/util/log => ../../../util/log/
-	github.com/DataDog/datadog-agent/pkg/util/scrubber => ../../../util/scrubber/
-	github.com/DataDog/datadog-agent/pkg/util/stats_tracker => ../../../util/stats_tracker
-	github.com/DataDog/datadog-agent/pkg/util/system/socket => ../../../util/system/socket/
-	github.com/DataDog/datadog-agent/pkg/util/winutil => ../../../util/winutil/
-	github.com/DataDog/datadog-agent/pkg/version => ../../../version/
+	github.com/DataDog/datadog-agent/comp/core/config => ../../../comp/core/config/
+	github.com/DataDog/datadog-agent/comp/core/telemetry => ../../../comp/core/telemetry/
+	github.com/DataDog/datadog-agent/comp/logs/agent/config => ../../../comp/logs/agent/config
+	github.com/DataDog/datadog-agent/pkg/autodiscovery/common/types => ../../autodiscovery/common/types/
+	github.com/DataDog/datadog-agent/pkg/collector/check/defaults => ../../collector/check/defaults/
+	github.com/DataDog/datadog-agent/pkg/conf => ../../conf
+	github.com/DataDog/datadog-agent/pkg/config/configsetup => ../../config/configsetup
+	github.com/DataDog/datadog-agent/pkg/config/load => ../../config/load
+	github.com/DataDog/datadog-agent/pkg/logs/internal/status => ../../logs/internal/status
+	github.com/DataDog/datadog-agent/pkg/logs/message => ../../logs/message
+	github.com/DataDog/datadog-agent/pkg/logs/sources => ../../logs/sources
+	github.com/DataDog/datadog-agent/pkg/otlp/internal/testutil => ../internal/testutil
+	github.com/DataDog/datadog-agent/pkg/secrets => ../../secrets/
+	github.com/DataDog/datadog-agent/pkg/telemetry => ../../telemetry/
+	github.com/DataDog/datadog-agent/pkg/util/executable => ../../util/executable/
+	github.com/DataDog/datadog-agent/pkg/util/fxutil => ../../util/fxutil/
+	github.com/DataDog/datadog-agent/pkg/util/log => ../../util/log/
+	github.com/DataDog/datadog-agent/pkg/util/scrubber => ../../util/scrubber/
+	github.com/DataDog/datadog-agent/pkg/util/stats_tracker => ../../util/stats_tracker
+	github.com/DataDog/datadog-agent/pkg/util/system/socket => ../../util/system/socket/
+	github.com/DataDog/datadog-agent/pkg/util/winutil => ../../util/winutil/
+	github.com/DataDog/datadog-agent/pkg/version => ../../version/
 )
 
 require (

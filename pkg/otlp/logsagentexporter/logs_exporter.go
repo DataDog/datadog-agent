@@ -23,8 +23,8 @@ import (
 // otelTag specifies a tag to be added to all logs sent from the Datadog Agent
 const otelTag = "otel_source:datadog_agent"
 
-// createConsumeLogsFunc returns an implementation of consumer.ConsumeLogsFunc
-func createConsumeLogsFunc(logger *zap.Logger, logSource *sources.LogSource, logsAgentChannel chan *message.Message) func(context.Context, plog.Logs) error {
+// CreateConsumeLogsFunc returns an implementation of consumer.ConsumeLogsFunc
+func CreateConsumeLogsFunc(logger *zap.Logger, logSource *sources.LogSource, logsAgentChannel chan *message.Message) func(context.Context, plog.Logs) error {
 
 	return func(_ context.Context, ld plog.Logs) (err error) {
 		defer func() {
