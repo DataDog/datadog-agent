@@ -31,6 +31,7 @@ const messageAgentDisabled = `trace-agent not enabled. Set the environment varia
 DD_APM_ENABLED=true or add "apm_config.enabled: true" entry
 to your datadog.yaml. Exiting...`
 
+// ErrAgentDisabled indicates that the trace-agent wasn't enabled through environment variable or config.
 var ErrAgentDisabled = errors.New(messageAgentDisabled)
 
 type dependencies struct {
