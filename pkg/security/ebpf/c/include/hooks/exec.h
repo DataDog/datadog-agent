@@ -156,6 +156,9 @@ int sched_process_fork(struct _tracepoint_sched_process_fork *args) {
         u32 value = 1;
         // mark as ignored fork not from syscall, ex: kworkers
         bpf_map_update_elem(&pid_ignored, &pid, &value, BPF_ANY);
+        if (syscall) {
+            pop_syscall(EVENT_FORK);
+        }
         return 0;
     }
 
