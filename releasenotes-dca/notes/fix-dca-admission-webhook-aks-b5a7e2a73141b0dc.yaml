@@ -1,0 +1,4 @@
+
+fixes:
+  - |
+    Resolved a conflict between the admission controller and the AKS admissions enforcer that previously led to a loop in reconciling the webhook.
