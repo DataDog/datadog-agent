@@ -243,7 +243,7 @@ func (c *collector) handleImageCreateOrUpdate(ctx context.Context, namespace str
 	return c.notifyEventForImage(ctx, namespace, img, bom)
 }
 
-func (c *collector) notifyEventForImage(ctx context.Context, namespace string, img containerd.Image, bom *workloadmeta.SBOM) error {
+func (c *collector) notifyEventForImage(ctx context.Context, namespace string, img containerd.Image, newSBOM *workloadmeta.SBOM) error {
 	c.handleImagesMut.Lock()
 	defer c.handleImagesMut.Unlock()
 
@@ -267,12 +267,18 @@ func (c *collector) notifyEventForImage(ctx context.Context, namespace string, i
 		return fmt.Errorf("error getting image platforms: %w", err)
 	}
 
+	labels, err := getImageLabels(ctxWithNamespace, img)
+	if err != nil {
+		log.Warnf("error while getting all the image labels. The list might be incomplete: %s", err)
+		// Continue and use the labels available instead of returning.
+	}
+
 	imageName := img.Name()
 	imageID := manifest.Config.Digest.String()
 
 	c.knownImages.addReference(imageName, imageID)
 
-	existingBOM := bom
+	sbom := newSBOM
 
 	// We can get "create" events for images that already exist. That happens
 	// when the same image is referenced with different names. For example,
@@ -292,8 +298,14 @@ func (c *collector) notifyEventForImage(ctx context.Context, namespace string, i
 			imageName = existingImg.Name
 		}
 
-		if existingBOM == nil && existingImg.SBOM != nil {
-			existingBOM = existingImg.SBOM
+		if sbom == nil && existingImg.SBOM.Status != workloadmeta.Pending {
+			sbom = existingImg.SBOM
+		}
+	}
+
+	if sbom == nil {
+		sbom = &workloadmeta.SBOM{
+			Status: workloadmeta.Pending,
 		}
 	}
 
@@ -319,7 +331,7 @@ func (c *collector) notifyEventForImage(ctx context.Context, namespace string, i
 		EntityMeta: workloadmeta.EntityMeta{
 			Name:      imageName,
 			Namespace: namespace,
-			Labels:    img.Labels(),
+			Labels:    labels,
 		},
 		RepoTags:     c.knownImages.getRepoTags(imageID),
 		RepoDigests:  c.knownImages.getRepoDigests(imageID),
@@ -330,7 +342,7 @@ func (c *collector) notifyEventForImage(ctx context.Context, namespace string, i
 		Architecture: architecture,
 		Variant:      variant,
 		Layers:       layers,
-		SBOM:         existingBOM,
+		SBOM:         sbom,
 	}
 
 	c.store.Notify([]workloadmeta.CollectorEvent{
@@ -396,4 +408,37 @@ func getLayersWithHistory(ctx context.Context, store content.Store, manifest oci
 	}
 
 	return layers, nil
+}
+
+func getImageLabels(ctx context.Context, img containerd.Image) (map[string]string, error) {
+	// Labels() does not return the labels set in the Dockerfile. They are in
+	// the config descriptor.
+	// When running on Kubernetes Labels() only returns io.cri-containerd
+	// labels.
+	labels := map[string]string{}
+
+	for labelName, labelValue := range img.Labels() {
+		labels[labelName] = labelValue
+	}
+
+	configDescriptor, err := img.Config(ctx)
+	if err != nil {
+		return labels, err
+	}
+
+	contents, err := content.ReadBlob(ctx, img.ContentStore(), configDescriptor)
+	if err != nil {
+		return labels, err
+	}
+
+	var config ocispec.Image
+	if err = json.Unmarshal(contents, &config); err != nil {
+		return labels, err
+	}
+
+	for labelName, labelValue := range config.Config.Labels {
+		labels[labelName] = labelValue
+	}
+
+	return labels, nil
 }

@@ -22,6 +22,7 @@ const (
 // Report defines the report interface
 type Report interface {
 	ToCycloneDX() (*cyclonedxgo.BOM, error)
+	ID() string
 }
 
 // ScanOptions defines the scan options
@@ -57,6 +58,12 @@ type ScanRequest interface {
 	Collector() string
 	Type() string
 	ID() string
+}
+
+// ImageScanRequest defines methods exclusive to image scan requests
+type ImageScanRequest interface {
+	// GetImgMetadata() returns the image metadata.
+	GetImgMetadata() *workloadmeta.ContainerImageMetadata
 }
 
 // ScanResult defines the scan result

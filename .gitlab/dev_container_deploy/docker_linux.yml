@@ -247,11 +247,9 @@ dev_nightly-dogstatsd:
     IMG_DESTINATIONS: dogstatsd-dev:nightly-${CI_COMMIT_REF_SLUG}-${CI_COMMIT_SHORT_SHA},dogstatsd-dev:nightly-${CI_COMMIT_REF_SLUG}
 
 # push images to `datadog-agent-qa` ECR for the end-to-end tests defined in `e2e.yml`
-qa_agent:
+.qa_agent:
   extends: .docker_publish_job_definition
   stage: dev_container_deploy
-  rules:
-    !reference [.on_main_a7]
   needs:
     - docker_build_agent7
     - docker_build_agent7_arm64
@@ -262,11 +260,9 @@ qa_agent:
     IMG_SOURCES: ${SRC_AGENT}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-7-amd64,${SRC_AGENT}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-7-arm64,${SRC_AGENT}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-7-win1809-amd64,${SRC_AGENT}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-7-winltsc2022-amd64
     IMG_DESTINATIONS: agent:${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}
 
-qa_dca:
+.qa_dca:
   extends: .docker_publish_job_definition
   stage: dev_container_deploy
-  rules:
-    !reference [.on_main_a7]
   needs:
     - docker_build_cluster_agent_amd64
   variables:
@@ -274,11 +270,9 @@ qa_dca:
     IMG_SOURCES: ${SRC_DCA}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-amd64
     IMG_DESTINATIONS: cluster-agent:${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}
 
-qa_dogstatsd:
+.qa_dogstatsd:
   extends: .docker_publish_job_definition
   stage: dev_container_deploy
-  rules:
-    !reference [.on_main_a7]
   needs:
     - docker_build_dogstatsd_amd64
     - docker_build_dogstatsd_arm64
@@ -286,3 +280,33 @@ qa_dogstatsd:
     IMG_REGISTRIES: agent-qa
     IMG_SOURCES: ${SRC_DSD}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-amd64,${SRC_DSD}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-arm64
     IMG_DESTINATIONS: dogstatsd:${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}
+
+qa_main_agent:
+  extends: .qa_agent
+  rules:
+    !reference [.on_main_and_no_skip_e2e]
+
+qa_branch_agent:
+  extends: .qa_agent
+  rules:
+    !reference [.on_dev_branch_manual]
+
+qa_main_dca:
+  extends: .qa_dca
+  rules:
+    !reference [.on_main_and_no_skip_e2e]
+
+qa_branch_dca:
+  extends: .qa_dca
+  rules:
+    !reference [.on_dev_branch_manual]
+
+qa_main_dogstatsd:
+  extends: .qa_dogstatsd
+  rules:
+    !reference [.on_main_and_no_skip_e2e]
+
+qa_branch_dogstatsd:
+  extends: .qa_dogstatsd
+  rules:
+    !reference [.on_dev_branch_manual]

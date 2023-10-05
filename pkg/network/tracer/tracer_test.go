@@ -32,12 +32,10 @@ import (
 	"github.com/stretchr/testify/suite"
 	"golang.org/x/sync/errgroup"
 
-	syscfg "github.com/DataDog/datadog-agent/cmd/system-probe/config"
 	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/ebpftest"
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
-	"github.com/DataDog/datadog-agent/pkg/network/driver"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -55,7 +53,7 @@ func TestMain(m *testing.M) {
 		logLevel = "warn"
 	}
 	log.SetupLogger(seelog.Default, logLevel)
-	_ = driver.Init(&syscfg.Config{})
+	platformInit()
 	os.Exit(m.Run())
 }
 

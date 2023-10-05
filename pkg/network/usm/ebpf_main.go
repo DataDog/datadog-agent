@@ -248,7 +248,7 @@ func (e *ebpfProgram) Close() error {
 
 func (e *ebpfProgram) initCORE() error {
 	assetName := getAssetName("usm", e.cfg.BPFDebug)
-	return ddebpf.LoadCOREAsset(&e.cfg.Config, assetName, e.init)
+	return ddebpf.LoadCOREAsset(assetName, e.init)
 }
 
 func (e *ebpfProgram) initRuntimeCompiler() error {

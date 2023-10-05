@@ -1212,7 +1212,7 @@ api_key:
 
   ## @param max_message_size_bytes - integer - optional - default: 256000
   ## @env DD_LOGS_CONFIG_MAX_MESSAGE_SIZE_BYTES - integer - optional - default : 256000
-  ## The maximum size of single log message in bytes. If maxMessageSizeBytes exceeds 
+  ## The maximum size of single log message in bytes. If maxMessageSizeBytes exceeds
   ## the documented API limit of 1MB - any payloads larger than 1MB will be dropped by the intake.
   # https://docs.datadoghq.com/api/latest/logs/
   #
@@ -1354,6 +1354,11 @@ api_key:
   ##        @param DD_APM_OBFUSCATION_MEMCACHED_ENABLED - boolean - optional
   ##        Enables obfuscation rules for spans of type "memcached". Enabled by default.
   #         enabled: false
+  ##        @param DD_APM_OBFUSCATION_MEMCACHED_KEEP_COMMAND - boolean - optional
+  ##        If enabled, the full command for the query will be kept, including any lookup
+  ##        keys that could be present. The value for storage commands will still be
+  ##        redacted if Memcached obfuscation is enabled.
+  #         keep_command: false
   #
   #     mongodb:
   ##        @param DD_APM_OBFUSCATION_MONGODB_ENABLED - boolean - optional
@@ -1413,11 +1418,36 @@ api_key:
   ## Defines rules by which to filter traces based on tags.
   ##  * require - list of key or key/value strings - traces must have those tags in order to be sent to Datadog
   ##  * reject - list of key or key/value strings - traces with these tags are dropped by the Agent
-  ## Note: Rules take into account the intersection of tags defined.
+  ## Please note that:
+  ##   1. Rules take into account the intersection of tags defined.
+  ##   2. When `filter_tags` and `filter_tags_regex` are used at the same time, all rules are united for filtering.
+  ##      In cases where rules in `filter_tags` and `filter_tags_regex` match the same key, the rule from `filter_tags`
+  ##      takes precendence over the rule from `filter_tags_regex`.
+  ##
+  ##      For example, in the case of the following configuration:
+  ##        filter_tags:
+  ##          require: ["foo:bar"]
+  ##        filter_tags_regex:
+  ##          require: ["foo:^bar[0-9]{1}$"]
+  ##      With these rules, traces with a tag `foo:bar1` will be dropped, and those with a `foo:bar` tag will be kept
   #
   # filter_tags:
   #     require: [<LIST_OF_KEY_VALUE_TAGS>]
   #     reject: [<LIST_OF_KEY_VALUE_TAGS>]
+
+  ## @param filter_tags_regex - object - optional
+  ## Defines rules by which to filter traces based on tags with regex pattern for tag values.
+  ##  * require - list of key or key/value regex pattern strings - traces must have those tags in order to be sent to Datadog
+  ##  * reject - list of key or key/value regex pattern strings - traces with these tags are dropped by the Agent
+  ## Note: Rules take into account the intersection of tags defined.
+  ## Using regexp patterns for tag filtering can have performance implications, and is slower than typical tag filtering
+  ## without regexp. However, this regexp is only run on the root span of a trace, so should not have a critical impact
+  ## on overall performance.
+  ## More detailed information can be found in the description of the `filter_tags` parameter above
+  #
+  # filter_tags_regex:
+  #     require: [<LIST_OF_KEY_VALUE_REGEX_TAGS>]    # e.g. ["<key>:<regex>"]
+  #     reject: [<LIST_OF_KEY_VALUE_REGEX_TAGS>]     # e.g. ["<key>:<regex>"]
 
   ## @param replace_tags - list of objects - optional
   ## @env DD_APM_REPLACE_TAGS  - list of objects - optional
@@ -1464,7 +1494,7 @@ api_key:
 
   ## @param compute_stats_by_span_kind - bool - default: false
   ## @env DD_APM_COMPUTE_STATS_BY_SPAN_KIND - bool - default: false
-  ## Enables an additional stats computation check on spans to see they have an eligible `span.kind` (server, consumer, client, producer).
+  ## [BETA] Enables an additional stats computation check on spans to see they have an eligible `span.kind` (server, consumer, client, producer).
   ## If enabled, a span with an eligible `span.kind` will have stats computed. If disabled, only top-level and measured spans will have stats computed.
   ## NOTE: For stats computed from OTel traces, only top-level spans are considered when this option is off.
   ## If you are sending OTel traces and want stats on non-top-level spans, this flag will need to be enabled.
@@ -1472,13 +1502,20 @@ api_key:
 
   ## @param peer_service_aggregation - bool - default: false
   ## @env DD_APM_PEER_SERVICE_AGGREGATION - bool - default: false
-  ## Enables `peer.service` aggregation in the agent. If disabled, aggregated trace stats will not include `peer.service` as a dimension.
+  ## [BETA] Enables `peer.service` aggregation in the agent. If disabled, aggregated trace stats will not include `peer.service` as a dimension.
   ## For the best experience with `peer.service`, it is recommended to also enable `compute_stats_by_span_kind`.
   ## If enabling both causes the Agent to consume too many resources, try disabling `compute_stats_by_span_kind` first.
   ## If the overhead remains high, it will be due to a high cardinality of `peer.service` values from the traces. You may need to check your instrumentation.
   ## NOTE: If you are using an OTel tracer it's best to have both enabled because client/producer spans with a `peer.service` value
   ## may not be marked by the Agent as top-level spans.
   # peer_service_aggregation: false
+
+  ## @param peer_tags - list of strings - optional
+  ## @env DD_APM_PEER_TAGS - list of strings - optional
+  ## [BETA] Enables additional tags related to peer.service. Will not be used unless peer_service_aggregation is also set.
+  ## NOTE: This option is recommended to get the most granular tagging alongside `peer.service`, but it will
+  ## also increase the computational overhead of aggregation. This list can be omitted if that cost is too high for your agent.
+  # peer_tags: []
 
   ## @param features - list of strings - optional
   ## @env DD_APM_FEATURES - comma separated list of strings - optional
@@ -1510,6 +1547,30 @@ api_key:
     ## Port for the debug endpoints for the trace Agent. Set it to 0 to disable the server.
     #
     # port: 5012
+
+  ## @param instrumentation_enabled - boolean - default: false
+  ## @env DD_APM_INSTRUMENTATION_ENABLED - boolean - default: false
+  ## Enables Single Step Instrumentation in the cluster (in beta)
+  #
+  # instrumentation_enabled: false
+
+  ## @param instrumentation_enabled_namespaces - list of strings - optional
+  ## @env DD_APM_INSTRUMENTATION_ENABLED_NAMESPACES - space separated list of strings - optional
+  ## Enables Single Step Instrumentation in specific namespaces, while Single Step Instrumentation is off in the whole cluster (in beta)
+  ## Can only be set if DD_APM_INSTRUMENTATION_ENABLED is false. Cannot be set together with DD_APM_INSTRUMENTATION_DISABLED_NAMESPACES.
+  #
+  # instrumentation_enabled_namespaces:
+  # - ns1
+  # - apps
+
+  ## @param instrumentation_disabled_namespaces - list of strings - optional
+  ## @env DD_APM_INSTRUMENTATION_DISABLED_NAMESPACES - space separated list of strings - optional
+  ## Disables Single Step Instrumentation in specific namespaces, while Single Step Instrumentation is enabled in the whole cluster (in beta)
+  ## Can only be set if DD_APM_INSTRUMENTATION_ENABLED is true. Cannot be set together with DD_APM_INSTRUMENTATION_ENABLED_NAMESPACES.
+  #
+  # instrumentation_disabled_namespaces:
+  # - ns2
+  # - system-ns
 
   {{- if .InternalProfiling -}}
   ## @param profiling - custom object - optional
@@ -1912,22 +1973,35 @@ api_key:
   #
   # fim_enabled: false
 
+{{- if (eq .OS "windows")}}
+  ## @param sysprobe_socket - string - optional - default: localhost:3334
+  ## @env DD_SYSTEM_PROBE_CONFIG_SYSPROBE_SOCKET - string - optional - default: localhost:3334
+  ## The TCP address where the security runtime module is accessed.
+  #
+  # socket: localhost:3334
+{{else}}
   ## @param socket - string - optional - default: /opt/datadog-agent/run/runtime-security.sock
   ## @env DD_RUNTIME_SECURITY_CONFIG_SOCKET - string - optional - default: /opt/datadog-agent/run/runtime-security.sock
   ## The full path to the location of the unix socket where security runtime module is accessed.
   #
   # socket: /opt/datadog-agent/run/runtime-security.sock
-
+{{ end }}
   ## @param policies - custom object - optional
   ## Policy files
   # policies:
-
+{{- if (eq .OS "windows")}}
+    ## @param dir - string - default: %ProgramData%\Datadog\runtime-security.d
+    ## @env DD_RUNTIME_SECURITY_CONFIG_POLICIES_DIR - string - default: /etc/datadog-agent/runtime-security.d
+    ## Path from where the policy files are loaded
+    #
+    # dir: c:\ProgramData\Datadog\runtime-security.d
+{{else}}
     ## @param dir - string - default: /etc/datadog-agent/runtime-security.d
     ## @env DD_RUNTIME_SECURITY_CONFIG_POLICIES_DIR - string - default: /etc/datadog-agent/runtime-security.d
     ## Path from where the policy files will be loaded
     #
     # dir: /etc/datadog-agent/runtime-security.d
-
+{{ end }}
   ## @param syscall_monitor - custom object - optional
   ## Syscall monitoring
   #
@@ -1997,6 +2071,19 @@ api_key:
     ## Set to true to activate the CWS network detections.
     #
     #  enabled: true
+
+{{- if (eq .OS "windows")}}
+
+#####################################################
+## Datadog Agent Windows Crash Detection module
+#####################################################
+
+# windows_crash_detection:
+  ## @param enabled - boolean - optional - default: false
+  ## Enables the system probe module which supports the Windows crash detection check.
+  #
+  # enabled: false
+{{ end }}
 
 {{ end -}}
 {{ end -}}
@@ -2356,6 +2443,12 @@ api_key:
 ## Specifies whether the JMXFetch statsd client telemetry is enabled.
 #
 # jmx_statsd_telemetry_enabled: false
+
+## @param jmx_telemetry_enabled - boolean - optional - default: false
+## @env DD_JMX_TELEMETRY_ENABLED - boolean - optional - default: false
+## Specifies whether additional JMXFetch telemetry is enabled.
+#
+# jmx_telemetry_enabled: false
 
 {{ end -}}
 {{- if .Logging }}
@@ -3967,7 +4060,6 @@ api_key:
     ## Valid values are basic, normal, detailed.
     #
     # verbosity: normal
-{{end -}}
 {{- if (eq .OS "windows")}}
 #####################################################
 ## Datadog Agent Manager System Tray Configuration ##
@@ -3983,3 +4075,72 @@ api_key:
   #
   # log_file: <TRAY_LOG_FILE_PATH>
 {{end -}}
+{{end -}}
+
+
+{{- if .APMInjection -}}
+##############################################
+## Datadog APM Auto-injection Configuration ##
+##############################################
+
+## @param injection_controller_config - custom object
+## This section configures the Datadog APM Auto Injection controller.
+## Uncomment this parameter and the one below to enable them.
+#
+# injection_controller_config:
+
+  ## @param enabled - boolean - optional - default: false
+  ## Set to true to enable the APM Auto-injection.
+  ## Please note that enabling this service will result in a kernel driver being loaded.
+  #
+  # enabled: false
+
+  ## @param log_file - string - optional - default: c:\programdata\datadog\logs\apm-inject.log
+  ## The full path to the file where injection controller logs are written.
+  #
+  # log_file: c:\programdata\datadog\logs\apm-inject.log
+
+  ## @param log_level - string - optional - default: info
+  ## Minimum log level of the injection controller.
+  ## Valid log levels are: debug, info, warn, and error.
+  #
+  # log_level: 'info'
+
+  ## @param log_to_console - boolean - optional - default: true
+  ## Set to 'false' to disable injection controller logging to stdout.
+  #
+  # log_to_console: true
+
+  ## @param socket_port - integer - optional - default: 3030
+  ## The port used for the injection controller communications API (served on localhost).
+  #
+  # socket_port: 3030
+
+  # internal_profiling:
+  #
+    ## @param enabled - boolean - optional - default: false
+    ## Enable internal profiling for the injection controller process.
+    #
+    # enabled: false
+
+## @param service_configs - list of custom objects
+## This section configures the services which will be automatically injected with APM
+## configurations, as well as the APM configurations which will be injected.
+#
+# service_configs:
+
+  ## @param service configuration - custom object
+  ## In order to configure APM auto-injection for a service or set of services, an injection condition
+  ## and APM configuration must be provided.
+  ##
+  ## Example:
+  ## - conditions:
+  ##     service_name: exampleService
+  ##   configuration:
+  ##     version: 1
+  ##     service_language: dotnet
+  ##
+  ## To learn about all the available service matching conditions & configuration options, visit
+  ## https://docs.datadoghq.com/tracing/trace_collection/library_injection_local
+
+{{end}}
