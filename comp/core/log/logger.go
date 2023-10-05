@@ -12,10 +12,11 @@ import (
 
 	"go.uber.org/fx"
 
+	"github.com/cihub/seelog"
+
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/cihub/seelog"
 )
 
 // logger implements the component
@@ -24,7 +25,7 @@ type logger struct {
 	// pkg/util/log, and uses globals in that package.
 }
 
-// NewTemporaryLogger returns a logger component instance. It assumes the logger has already been
+// NewTemporaryLoggerWithoutInit returns a logger component instance. It assumes the logger has already been
 // initialized beforehand.
 //
 // This function should be used when all these conditions are true:
