@@ -12,7 +12,6 @@ import (
 	"net"
 	"os"
 	"testing"
-	"time"
 
 	"github.com/cihub/seelog"
 	"github.com/stretchr/testify/assert"
@@ -163,9 +162,6 @@ func BenchmarkConntrackExists(b *testing.B) {
 
 func TestConntrackExists6(t *testing.T) {
 	ns := testutil.SetupCrossNsDNAT6(t)
-
-	// wait a small amount of time to ensure IPv6 setup is functional
-	time.Sleep(100 * time.Millisecond)
 
 	tcpCloser := nettestutil.StartServerTCPNs(t, net.ParseIP("fd00::2"), 8080, ns)
 	defer tcpCloser.Close()

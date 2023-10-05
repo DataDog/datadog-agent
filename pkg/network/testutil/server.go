@@ -10,12 +10,13 @@ package testutil
 import (
 	"errors"
 	"fmt"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"github.com/vishvananda/netns"
 	"io"
 	"net"
 	"testing"
-
-	"github.com/stretchr/testify/require"
-	"github.com/vishvananda/netns"
+	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 )
@@ -27,10 +28,11 @@ func StartServerTCPNs(t testing.TB, ip net.IP, port int, ns string) io.Closer {
 	require.NoError(t, err)
 
 	var closer io.Closer
-	_ = kernel.WithNS(h, func() error {
+	err = kernel.WithNS(h, func() error {
 		closer = StartServerTCP(t, ip, port)
 		return nil
 	})
+	require.NoError(t, err)
 
 	return closer
 }
@@ -67,6 +69,13 @@ func StartServerTCP(t testing.TB, ip net.IP, port int) io.Closer {
 	}()
 	<-ch
 
+	require.EventuallyWithT(t, func(tb *assert.CollectT) {
+		conn := PingTCP(tb, ip, l.Addr().(*net.TCPAddr).Port)
+		if conn != nil {
+			conn.Close()
+		}
+	}, 3*time.Second, 100*time.Millisecond, "timed out waiting for TCP server to come up")
+
 	return l
 }
 
@@ -77,10 +86,11 @@ func StartServerUDPNs(t *testing.T, ip net.IP, port int, ns string) io.Closer {
 	require.NoError(t, err)
 
 	var closer io.Closer
-	_ = kernel.WithNS(h, func() error {
+	err = kernel.WithNS(h, func() error {
 		closer = StartServerUDP(t, ip, port)
 		return nil
 	})
+	require.NoError(t, err)
 
 	return closer
 }
@@ -114,6 +124,13 @@ func StartServerUDP(t *testing.T, ip net.IP, port int) io.Closer {
 		}
 	}()
 	<-ch
+
+	require.EventuallyWithT(t, func(t *assert.CollectT) {
+		conn := PingUDP(t, ip, port)
+		if conn != nil {
+			conn.Close()
+		}
+	}, 3*time.Second, 10*time.Millisecond, "timed out waiting for UDP server to come up")
 
 	return l
 }
