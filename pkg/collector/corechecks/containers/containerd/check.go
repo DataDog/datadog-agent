@@ -161,6 +161,11 @@ func toSnakeCase(s string) string {
 }
 
 func (c *ContainerdCheck) scrapeOpenmetricsEndpoint(sender sender.Sender) error {
+
+	if c.instance.OpenmetricsEndpoint == "" {
+		return nil
+	}
+
 	openmetricsEndpoint := fmt.Sprintf("%s/v1/metrics", c.instance.OpenmetricsEndpoint)
 	resp, err := c.httpClient.Get(openmetricsEndpoint)
 	if err != nil {
