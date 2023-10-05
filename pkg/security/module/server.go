@@ -113,33 +113,18 @@ func (a *APIServer) SendActivityDump(dump *api.ActivityDumpStreamMessage) {
 
 // GetEvents waits for security events
 func (a *APIServer) GetEvents(params *api.GetEventParams, stream api.SecurityModule_GetEventsServer) error {
-	// Read 10 security events per call
-	msgs := 10
-LOOP:
 	for {
-		// Check that the limit is not reached
-		if !a.limiter.Allow(nil) {
-			return nil
-		}
-
-		// Read one message
 		select {
+		case <-stream.Context().Done():
+			return nil
 		case msg := <-a.msgs:
-			if err := stream.Send(msg); err != nil {
-				return err
+			if a.limiter.Allow(nil) {
+				if err := stream.Send(msg); err != nil {
+					return err
+				}
 			}
-			msgs--
-		case <-time.After(time.Second):
-			break LOOP
-		}
-
-		// Stop the loop when 10 messages were retrieved
-		if msgs <= 0 {
-			break
 		}
 	}
-
-	return nil
 }
 
 // RuleEvent is a wrapper used to send an event to the backend
