@@ -24,6 +24,7 @@ type ProfilingRuntimeSetting struct {
 	source       Source
 }
 
+// NewProfilingRuntimeSetting returns a new ProfilingRuntimeSetting
 func NewProfilingRuntimeSetting(settingName string, service string) *ProfilingRuntimeSetting {
 	return &ProfilingRuntimeSetting{
 		SettingName: settingName,
@@ -126,6 +127,7 @@ func (l *ProfilingRuntimeSetting) Set(v interface{}, source Source) error {
 	return nil
 }
 
+// GetSource returns the source of the ProfilingRuntimeSetting
 func (l *ProfilingRuntimeSetting) GetSource() Source {
 	return l.source
 }

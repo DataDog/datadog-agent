@@ -17,6 +17,7 @@ type RuntimeMutexProfileFraction struct {
 	source       Source
 }
 
+// NewRuntimeMutexProfileFraction returns a new RuntimeMutexProfileFraction
 func NewRuntimeMutexProfileFraction() *RuntimeMutexProfileFraction {
 	return &RuntimeMutexProfileFraction{source: SourceDefault}
 }
@@ -64,6 +65,7 @@ func (r *RuntimeMutexProfileFraction) Set(value interface{}, source Source) erro
 	return err
 }
 
+// GetSource returns the source of the RuntimeMutexProfileFraction
 func (r *RuntimeMutexProfileFraction) GetSource() Source {
 	return r.source
 }

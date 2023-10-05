@@ -14,12 +14,14 @@ import (
 	"testing"
 )
 
+// SetupConf generates and returns a new configuration
 func SetupConf() Config {
 	conf := NewConfig("datadog", "DD", strings.NewReplacer(".", "_"))
 	InitConfig(conf)
 	return conf
 }
 
+// SetupConfFromYAML generates a configuration from the given yaml config
 func SetupConfFromYAML(yamlConfig string) Config {
 	conf := SetupConf()
 	conf.SetConfigType("yaml")

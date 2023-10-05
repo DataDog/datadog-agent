@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+// Package settings implements runtime settings and profiling
 package settings
 
 import (
@@ -30,14 +31,18 @@ func (e *SettingNotFoundError) Error() string {
 	return fmt.Sprintf("setting %s not found", e.name)
 }
 
+// Source defines what changed a setting
 type Source string
 
 const (
-	// The default source is set as an empty string so that if the source isn't properly initialized, it is considered SourceDefault
+	// SourceDefault is set as an empty string so that if the source isn't properly initialized, it is considered SourceDefault
 	SourceDefault Source = ""
-	SourceCLI     Source = "CLI"
-	SourceRC      Source = "remote-config"
-	SourceConfig  Source = "config"
+	// SourceCLI means the source of the config is CLI
+	SourceCLI Source = "CLI"
+	// SourceRC means the source of the config is RC
+	SourceRC Source = "remote-config"
+	// SourceConfig means the source of the config is the config file
+	SourceConfig Source = "config"
 )
 
 func (s Source) String() string {
@@ -93,7 +98,7 @@ func GetRuntimeSetting(setting string) (interface{}, error) {
 	return value, nil
 }
 
-// GetRuntimeSetting returns the source of the last change of a runtime configurable setting
+// GetRuntimeSource returns the source of the last change of a runtime configurable setting
 func GetRuntimeSource(setting string) (Source, error) {
 	if _, ok := runtimeSettings[setting]; !ok {
 		return SourceDefault, &SettingNotFoundError{name: setting}

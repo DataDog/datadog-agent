@@ -16,6 +16,7 @@ type ProfilingGoroutines struct {
 	source       Source
 }
 
+// NewProfilingGoroutines returns a new ProfilingGoroutines
 func NewProfilingGoroutines() *ProfilingGoroutines {
 	return &ProfilingGoroutines{source: SourceDefault}
 }
@@ -61,6 +62,7 @@ func (r *ProfilingGoroutines) Set(value interface{}, source Source) error {
 	return nil
 }
 
+// GetSource returns the source of the ProfilingGoroutines
 func (r *ProfilingGoroutines) GetSource() Source {
 	return r.source
 }

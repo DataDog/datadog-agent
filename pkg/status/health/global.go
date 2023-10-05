@@ -18,7 +18,7 @@ func RegisterReadiness(name string) *Handle {
 	return readinessOnlyCatalog.register(name)
 }
 
-// RegisterLiveness registers a component fore liveness check with the default 30 seconds timeout, returns a token
+// RegisterLiveness registers a component for liveness check with the default 30 seconds timeout, returns a token
 func RegisterLiveness(name string) *Handle {
 	return readinessAndLivenessCatalog.register(name)
 }

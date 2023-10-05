@@ -14,7 +14,7 @@ import (
 // limit is the number of processes to collect by default
 const limit = 20
 
-// Processes is the Collector type of the processes package.
+// Info represents a list of process groups
 type Info []ProcessGroup
 
 // ProcessGroup represents the information about a single process group

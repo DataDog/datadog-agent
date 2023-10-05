@@ -17,6 +17,7 @@ type RuntimeBlockProfileRate struct {
 	source       Source
 }
 
+// NewRuntimeBlockProfileRate returns a new RuntimeBlockProfileRate
 func NewRuntimeBlockProfileRate() *RuntimeBlockProfileRate {
 	return &RuntimeBlockProfileRate{source: SourceDefault}
 }
@@ -64,6 +65,7 @@ func (r *RuntimeBlockProfileRate) Set(value interface{}, source Source) error {
 	return err
 }
 
+// GetSource returns the source of the RuntimeBlockProfileRate
 func (r *RuntimeBlockProfileRate) GetSource() Source {
 	return r.source
 }

@@ -16,6 +16,7 @@ type LogPayloadsRuntimeSetting struct {
 	source Source
 }
 
+// NewLogPayloadsRuntimeSetting returns a new LogPayloadsRuntimeSetting
 func NewLogPayloadsRuntimeSetting() *LogPayloadsRuntimeSetting {
 	return &LogPayloadsRuntimeSetting{source: SourceDefault}
 }
@@ -54,6 +55,7 @@ func (l *LogPayloadsRuntimeSetting) Set(v interface{}, source Source) error {
 	return nil
 }
 
+// GetSource returns the source of the LogPayloadsRuntimeSetting
 func (l *LogPayloadsRuntimeSetting) GetSource() Source {
 	return l.source
 }

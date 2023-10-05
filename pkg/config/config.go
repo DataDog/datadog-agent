@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+// Package config defines the configuration of the agent
 package config
 
 import (
@@ -1523,6 +1524,7 @@ func checkConflictingOptions(config Config) error {
 	return nil
 }
 
+// LoadDatadogCustom loads the datadog config in the given config
 func LoadDatadogCustom(config Config, origin string, loadSecret bool, additionalKnownEnvVars []string) (*Warnings, error) {
 	// Feature detection running in a defer func as it always  need to run (whether config load has been successful or not)
 	// Because some Agents (e.g. trace-agent) will run even if config file does not exist
@@ -1956,6 +1958,7 @@ func GetBindHost() string {
 	return GetBindHostFromConfig(Datadog)
 }
 
+// GetBindHostFromConfig returns the bind_host value from the config
 func GetBindHostFromConfig(cfg ConfigReader) string {
 	if cfg.IsSet("bind_host") {
 		return cfg.GetString("bind_host")

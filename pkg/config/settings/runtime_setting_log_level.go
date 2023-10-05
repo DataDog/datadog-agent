@@ -18,6 +18,7 @@ type LogLevelRuntimeSetting struct {
 	source    Source
 }
 
+// NewLogLevelRuntimeSetting returns a new LogLevelRuntimeSetting
 func NewLogLevelRuntimeSetting() *LogLevelRuntimeSetting {
 	return &LogLevelRuntimeSetting{source: SourceDefault}
 }
@@ -46,6 +47,7 @@ func (l *LogLevelRuntimeSetting) Get() (interface{}, error) {
 	return level.String(), nil
 }
 
+// GetSource returns the source of the LogLevelRuntimeSetting
 func (l *LogLevelRuntimeSetting) GetSource() Source {
 	return l.source
 }

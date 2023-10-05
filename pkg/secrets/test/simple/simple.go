@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2018-present Datadog, Inc.
 
+// Package main defines the main function
 package main
 
 import (

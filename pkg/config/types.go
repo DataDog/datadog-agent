@@ -74,16 +74,19 @@ type ConfigReader interface {
 	Object() ConfigReader
 }
 
+// ConfigWriter is a subset of Config that only allows writing the configuration
 type ConfigWriter interface {
 	Set(key string, value interface{})
 	CopyConfig(cfg Config)
 }
 
+// ConfigReaderWriter is a subset of Config that allows reading and writing the configuration
 type ConfigReaderWriter interface {
 	ConfigReader
 	ConfigWriter
 }
 
+// ConfigLoader is a subset of Config that allows loading the configuration
 type ConfigLoader interface {
 	// API implemented by viper.Viper
 
