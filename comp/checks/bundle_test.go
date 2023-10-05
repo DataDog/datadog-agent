@@ -10,7 +10,7 @@ package checks
 import (
 	"testing"
 
-	compsysconfig "github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
+	"github.com/DataDog/datadog-agent/comp/core"
 	comptraceconfig "github.com/DataDog/datadog-agent/comp/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/winutil/crashreport"
@@ -18,11 +18,10 @@ import (
 )
 
 func TestBundleDependencies(t *testing.T) {
-	fxutil.TestBundle(Bundle,
+	fxutil.TestBundle(t, Bundle,
 		comptraceconfig.Module,
 		core.MockBundle,
-		compsysconfig.Module,
+		fx.Supply(core.BundleParams{}),
 		fx.Supply(crashreport.WinCrashReporter{}),
-		fx.Supply(compsysconfig.Params{}),
 	)
 }
