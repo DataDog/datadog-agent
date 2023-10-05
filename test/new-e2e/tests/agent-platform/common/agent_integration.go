@@ -23,7 +23,8 @@ func CheckIntegrationInstall(t *testing.T, client *ExtendedClient) {
 	require.NoError(t, err)
 
 	freezeContent = ciliumRegex.ReplaceAllString(freezeContent, "datadog-cilium==2.2.1")
-	client.FileManager.WriteFile(requirementIntegrationPath, freezeContent)
+	_, err = client.FileManager.WriteFile(requirementIntegrationPath, freezeContent)
+	require.NoError(t, err)
 
 	t.Run("uninstall installed package", func(tt *testing.T) {
 		client.AgentClient.Integration(e2eClient.WithArgs([]string{"install", "-r", "datadog-cilium==2.2.1"}))

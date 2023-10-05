@@ -131,8 +131,8 @@ func (c *ExtendedClient) SetConfig(confPath string, key string, value string) er
 	if err != nil {
 		return err
 	}
-	c.FileManager.WriteFile(confPath, string(confUpdated))
-	return nil
+	_, err = c.FileManager.WriteFile(confPath, string(confUpdated))
+	return err
 }
 
 // GetPythonVersion returns python version from the Agent status
