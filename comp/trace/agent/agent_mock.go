@@ -41,5 +41,5 @@ func newMock(deps dependencies, t testing.TB) Component {
 	ag.TraceWriter.In = make(chan *writer.SampledChunks, 1000)
 	ag.Concentrator.In = make(chan stats.Input, 1000)
 
-	return Component{Optional: util.NewOptional[agentComponent](ag)}
+	return component{Optional: util.NewOptional[agentComponent](ag)}
 }
