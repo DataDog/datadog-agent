@@ -321,7 +321,7 @@ func TestRescheduleDanglingFromExpiredNodes(t *testing.T) {
 	dispatcher.processNodeStatus("nodeB", "10.0.0.2", types.NodeStatus{})
 
 	// Ensure we have 1 dangling to schedule, as new available node is registered
-	assert.True(t, dispatcher.shouldDispatchDanling())
+	assert.True(t, dispatcher.shouldDispatchDangling())
 	configs := dispatcher.retrieveAndClearDangling()
 	// Assert the check is scheduled
 	dispatcher.reschedule(configs)
@@ -380,24 +380,54 @@ func TestDanglingConfig(t *testing.T) {
 		ClusterCheck: true,
 	}
 
-	assert.False(t, dispatcher.shouldDispatchDanling())
+	assert.False(t, dispatcher.shouldDispatchDangling())
 
 	// No node is available, config will be dispatched to the dummy "" node
 	dispatcher.Schedule([]integration.Config{config})
 	assert.Equal(t, 0, len(dispatcher.store.digestToNode))
 	assert.Equal(t, 1, len(dispatcher.store.danglingConfigs))
 
-	// shouldDispatchDanling is still false because no node is available
-	assert.False(t, dispatcher.shouldDispatchDanling())
+	// shouldDispatchDangling is still false because no node is available
+	assert.False(t, dispatcher.shouldDispatchDangling())
 
-	// register a node, shouldDispatchDanling will become true
+	// register a node, shouldDispatchDangling will become true
 	dispatcher.processNodeStatus("nodeA", "10.0.0.1", types.NodeStatus{})
-	assert.True(t, dispatcher.shouldDispatchDanling())
+	assert.True(t, dispatcher.shouldDispatchDangling())
 
 	// get the danglings and make sure they are removed from the store
 	configs := dispatcher.retrieveAndClearDangling()
 	assert.Len(t, configs, 1)
 	assert.Equal(t, 0, len(dispatcher.store.danglingConfigs))
+}
+
+func TestUnscheduleDanglingConfig(t *testing.T) {
+	testDispatcher := newDispatcher()
+
+	testConfig := integration.Config{
+		Name:         "cluster-check-example",
+		ClusterCheck: true,
+		Instances: []integration.Data{
+			// Define 2 to test that all of them are deleted and not just 1.
+			integration.Data("tags: [\"t1:v1\"]"),
+			integration.Data("tags: [\"t2:v2\"]"),
+		},
+	}
+
+	// False because because no node is available
+	assert.False(t, testDispatcher.shouldDispatchDangling())
+
+	// No nodes created, so it will not get assigned
+	testDispatcher.Schedule([]integration.Config{testConfig})
+
+	testDispatcher.Unschedule([]integration.Config{testConfig})
+
+	configs, err := testDispatcher.getAllConfigs()
+	require.NoError(t, err)
+	assert.Empty(t, configs)
+
+	// Also check that internal structures not used by getAllConfigs() are cleaned up
+	assert.Empty(t, testDispatcher.store.danglingConfigs)
+	assert.Empty(t, testDispatcher.store.idToDigest)
 }
 
 func TestReset(t *testing.T) {

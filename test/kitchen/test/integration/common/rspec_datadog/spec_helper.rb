@@ -154,7 +154,7 @@ def stop(flavor)
   end
   wait_until_service_stopped(service)
   if result == nil || result == false
-      log_trace "datadog-agent" "stop"
+      log_trace "datadog-agent", "stop"
   end
   result
 end
@@ -175,7 +175,7 @@ def start(flavor)
   end
   wait_until_service_started(service)
   if result == nil || result == false
-      log_trace "datadog-agent" "start"
+      log_trace "datadog-agent", "start"
   end
   result
 end
@@ -211,7 +211,7 @@ def restart(flavor)
     end
   end
   if result == nil || result == false
-      log_trace "datadog-agent" "restart"
+      log_trace "datadog-agent", "restart"
   end
   result
 end

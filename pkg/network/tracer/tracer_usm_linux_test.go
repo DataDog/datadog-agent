@@ -21,7 +21,6 @@ import (
 	"path/filepath"
 	"regexp"
 	"strings"
-	"sync"
 	"syscall"
 	"testing"
 	"time"
@@ -1024,13 +1023,6 @@ func (s *USMSuite) TestTLSClassification() {
 		t.Skip("TLS classification platform not supported")
 	}
 
-	tr := setupTracer(t, cfg)
-
-	type tlsTest struct {
-		name            string
-		postTracerSetup func(t *testing.T)
-		validation      func(t *testing.T, tr *Tracer)
-	}
 	scenarios := []tlsTestCommand{
 		{
 			version:        "1.0",
@@ -1049,24 +1041,21 @@ func (s *USMSuite) TestTLSClassification() {
 			openSSLCommand: "-tls1_3",
 		},
 	}
+	require.NoError(t, prototls.RunServerOpenssl(t, "44330", len(scenarios), "-www"))
+
+	tr := setupTracer(t, cfg)
+
+	type tlsTest struct {
+		name            string
+		postTracerSetup func(t *testing.T)
+		validation      func(t *testing.T, tr *Tracer)
+	}
 	tests := make([]tlsTest, 0, len(scenarios))
 	for _, scenario := range scenarios {
 		tests = append(tests, tlsTest{
 			name: "TLS-" + scenario.version + "_docker",
 			postTracerSetup: func(t *testing.T) {
-				clientSuccess := false
-				var wg sync.WaitGroup
-				wg.Add(1)
-				go func() {
-					defer wg.Done()
-					time.Sleep(5 * time.Second)
-					clientSuccess = prototls.RunClientOpenssl(t, "localhost", "44330", scenario.openSSLCommand)
-				}()
-				require.NoError(t, prototls.RunServerOpenssl(t, "44330", "-www"))
-				wg.Wait()
-				if !clientSuccess {
-					t.Fatalf("openssl client failed")
-				}
+				require.True(t, prototls.RunClientOpenssl(t, "localhost", "44330", scenario.openSSLCommand))
 			},
 			validation: func(t *testing.T, tr *Tracer) {
 				// Iterate through active connections until we find connection created above

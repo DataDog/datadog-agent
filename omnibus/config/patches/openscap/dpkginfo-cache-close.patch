@@ -1,0 +1,38 @@
+--- a/src/OVAL/probes/unix/linux/dpkginfo-helper.cxx
++++ b/src/OVAL/probes/unix/linux/dpkginfo-helper.cxx
+@@ -64,6 +64,7 @@ struct dpkginfo_reply_t * dpkginfo_get_by_name(const char *name, int *err)
+         if (Pkg.end() == true) {
+                 /* not found, clear error flag */
+                 if (err) *err = 0;
++                cgCache->Close();
+                 return NULL;
+         }
+ 
+@@ -72,6 +73,7 @@ struct dpkginfo_reply_t * dpkginfo_get_by_name(const char *name, int *err)
+                 /* not installed, clear error flag */
+                 /* FIXME this should be different that not found */
+                 if (err) *err = 0;
++                cgCache->Close();
+                 return NULL;
+         }
+ 
+@@ -114,6 +116,8 @@ struct dpkginfo_reply_t * dpkginfo_get_by_name(const char *name, int *err)
+         reply->version = strdup(version.c_str());
+         reply->evr = strdup(evr_str.c_str());
+ 
++        cgCache->Close();
++
+         return reply;
+ }
+ 
+@@ -147,10 +151,6 @@ int dpkginfo_init()
+ 
+ int dpkginfo_fini()
+ {
+-        if (cgCache != NULL) {
+-                cgCache->Close();
+-        }
+-
+         return 0;
+ }
+ 

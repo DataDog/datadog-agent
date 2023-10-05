@@ -109,6 +109,8 @@ def upload_junitxmls(output_dir, owners, flavor, xmlfile_name, process_env, addi
             f"slack_channel:{slack_channel}",
             "--tags",
             f"jira_project:{jira_project}",
+            "--xpath-tag",
+            "jira_card=/testcase/@jira_card",
         ]
         if additional_tags and "upload_option.os_version_from_name" in additional_tags:
             additional_tags.remove("upload_option.os_version_from_name")
@@ -275,8 +277,8 @@ def retrieve_jira_card(test_name, jira_project, jira_cache):
         jira_token = os.environ["JIRA_TOKEN"]
         auth = ("robot-jira-agentplatform@datadoghq.com", jira_token)
     except KeyError:
-        print(f"Failed to retrieve jira token in environment, won't retrieve jira cards, report {jira_card}")
         jira_card = "ERROR-TOKEN"
+        print(f"Failed to retrieve jira token in environment, won't retrieve jira cards, report {jira_card}")
         # See https://app.datadoghq.com/workflow/42375aaf-9a77-4b93-ad51-9a5f524b570d
         return jira_card
 
