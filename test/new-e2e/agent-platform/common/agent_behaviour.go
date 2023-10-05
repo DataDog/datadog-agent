@@ -146,7 +146,9 @@ func CheckApmEnabled(t *testing.T, client *ExtendedClient) {
 // CheckApmDisabled runs tests to check the agent behave properly when APM is disabled
 func CheckApmDisabled(t *testing.T, client *ExtendedClient) {
 	t.Run("port not bound when disabled", func(tt *testing.T) {
-		err := client.SetConfig("/etc/datadog-agent/datadog.yaml", "apm_config.enabled", "false")
+		configFilePath := client.Helper.GetConfigFolder() + "datadog.yaml"
+
+		err := client.SetConfig(configFilePath, "apm_config.enabled", "false")
 		require.NoError(tt, err)
 
 		_, err = client.SvcManager.Restart("datadog-agent")
@@ -160,9 +162,10 @@ func CheckApmDisabled(t *testing.T, client *ExtendedClient) {
 // CheckCWSBehaviour runs tests to check the agent behave correctly when CWS is enabled
 func CheckCWSBehaviour(t *testing.T, client *ExtendedClient) {
 	t.Run("enable CWS and restarts", func(tt *testing.T) {
-		err := client.SetConfig("/etc/datadog-agent/system-probe.yaml", "runtime_security_config.enabled", "true")
+
+		err := client.SetConfig(client.Helper.GetConfigFolder()+"system-probe.yaml", "runtime_security_config.enabled", "true")
 		require.NoError(tt, err)
-		err = client.SetConfig("/etc/datadog-agent/security-agent.yaml", "runtime_security_config.enabled", "true")
+		err = client.SetConfig(client.Helper.GetConfigFolder()+"security-agent.yaml", "runtime_security_config.enabled", "true")
 		require.NoError(tt, err)
 
 		_, err = client.SvcManager.Restart("datadog-agent")

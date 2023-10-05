@@ -6,7 +6,6 @@
 package common
 
 import (
-	"fmt"
 	"regexp"
 	"testing"
 
@@ -17,12 +16,14 @@ import (
 // CheckIntegrationInstall run test to test installation of integrations
 func CheckIntegrationInstall(t *testing.T, client *ExtendedClient) {
 
-	requirementIntegrationPath := "/opt/datadog-agent/requirements-agent-release.txt"
+	requirementIntegrationPath := client.Helper.GetInstallFolder() + "requirements-agent-release.txt"
 
 	ciliumRegex := regexp.MustCompile(`datadog-cilium==.*`)
-	freezeContent := client.VMClient.Execute(fmt.Sprintf("cat %s", requirementIntegrationPath))
+	freezeContent, err := client.FileManager.ReadFile(requirementIntegrationPath)
+	require.NoError(t, err)
+
 	freezeContent = ciliumRegex.ReplaceAllString(freezeContent, "datadog-cilium==2.2.1")
-	client.VMClient.Execute(fmt.Sprintf(`sudo bash -c " echo '%s' > %s"`, freezeContent, requirementIntegrationPath))
+	client.FileManager.WriteFile(requirementIntegrationPath, freezeContent)
 
 	t.Run("uninstall installed package", func(tt *testing.T) {
 		client.AgentClient.Integration(e2eClient.WithArgs([]string{"install", "-r", "datadog-cilium==2.2.1"}))

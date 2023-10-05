@@ -30,6 +30,21 @@ type PackageManager interface {
 	Remove(pkg string) (string, error)
 }
 
+// FileManager generic interface
+type FileManager interface {
+	ReadFile(path string) (string, error)
+	CheckFile(path string) (string, error)
+	FindFileInFolder(path string) (string, error)
+	WriteFile(path string, content string) (string, error)
+}
+
+// Helper generic interface
+type Helper interface {
+	GetInstallFolder() string
+	GetConfigFolder() string
+	GetBinaryPath() string
+}
+
 func getServiceManager(vmClient *e2eClient.VMClient) ServiceManager {
 	if _, err := vmClient.ExecuteWithError("systemctl --version"); err == nil {
 		return svcmanager.NewSystemctlSvcManager(vmClient)
@@ -48,17 +63,21 @@ func getPackageManager(vmClient *e2eClient.VMClient) PackageManager {
 type ExtendedClient struct {
 	VMClient    *e2eClient.VMClient
 	AgentClient *e2eClient.AgentCommandRunner
+	Helper      Helper
+	FileManager FileManager
 	SvcManager  ServiceManager
 	PkgManager  PackageManager
 }
 
 // NewTestClient create a an ExtendedClient from VMClient and AgentCommandRunner, includes svcManager and pkgManager to write agent-platform tests
-func NewTestClient(vmClient *e2eClient.VMClient, agentClient *e2eClient.AgentCommandRunner) *ExtendedClient {
+func NewTestClient(vmClient *e2eClient.VMClient, agentClient *e2eClient.AgentCommandRunner, fileManager FileManager, helper Helper) *ExtendedClient {
 	svcManager := getServiceManager(vmClient)
 	pkgManager := getPackageManager(vmClient)
 	return &ExtendedClient{
 		VMClient:    vmClient,
 		AgentClient: agentClient,
+		Helper:      helper,
+		FileManager: fileManager,
 		SvcManager:  svcManager,
 		PkgManager:  pkgManager,
 	}
@@ -88,7 +107,7 @@ func (c *ExtendedClient) CheckPortBound(port int) error {
 // SetConfig set config given a key and a path to a yaml config file, support key nested twice at most
 func (c *ExtendedClient) SetConfig(confPath string, key string, value string) error {
 	confYaml := map[string]any{}
-	conf, err := c.VMClient.ExecuteWithError(fmt.Sprintf("sudo cat %s", confPath))
+	conf, err := c.FileManager.ReadFile(confPath)
 	if err != nil {
 		fmt.Printf("config file: %s not found, it will be created\n", confPath)
 	}
@@ -112,7 +131,7 @@ func (c *ExtendedClient) SetConfig(confPath string, key string, value string) er
 	if err != nil {
 		return err
 	}
-	c.VMClient.Execute(fmt.Sprintf(`sudo bash -c " echo '%s' > %s"`, confUpdated, confPath))
+	c.FileManager.WriteFile(confPath, string(confUpdated))
 	return nil
 }
 

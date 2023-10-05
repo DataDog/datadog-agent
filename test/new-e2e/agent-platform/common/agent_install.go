@@ -18,12 +18,18 @@ import (
 func CheckInstallation(t *testing.T, client *ExtendedClient) {
 
 	t.Run("example config file", func(tt *testing.T) {
-		_, err := client.VMClient.ExecuteWithError("stat /etc/datadog-agent/datadog.yaml.example")
+
+		exampleFilePath := client.Helper.GetConfigFolder() + "datadog.yaml.example"
+
+		_, err := client.FileManager.CheckFile(exampleFilePath)
 		require.NoError(tt, err, "Example config file should be present")
 	})
 
 	t.Run("datdog-agent binary", func(tt *testing.T) {
-		_, err := client.VMClient.ExecuteWithError("stat /usr/bin/datadog-agent")
+
+		binaryPath := client.Helper.GetBinaryPath()
+
+		_, err := client.FileManager.CheckFile(binaryPath)
 		require.NoError(tt, err, "datadog-agent binary should be present")
 	})
 
@@ -40,18 +46,25 @@ func CheckInstallation(t *testing.T, client *ExtendedClient) {
 func CheckInstallationInstallScript(t *testing.T, client *ExtendedClient) {
 
 	t.Run("site config attribute", func(tt *testing.T) {
-		var configJSON map[string]any
-		config := client.VMClient.Execute("sudo cat /etc/datadog-agent/datadog.yaml")
+		configFilePath := client.Helper.GetConfigFolder() + "datadog.yaml"
 
-		err := yaml.Unmarshal([]byte(config), &configJSON)
+		var configJSON map[string]any
+		config, err := client.FileManager.ReadFile(configFilePath)
+		require.NoError(tt, err)
+
+		err = yaml.Unmarshal([]byte(config), &configJSON)
 		require.NoError(tt, err)
 		require.Equal(tt, configJSON["site"], "datadoghq.eu")
 	})
 
 	t.Run("install info file", func(tt *testing.T) {
+		installInfoFilePath := client.Helper.GetConfigFolder() + "install_info"
+
 		var installInfoYaml map[string]map[string]string
-		installInfo := client.VMClient.Execute("sudo cat /etc/datadog-agent/install_info")
-		err := yaml.Unmarshal([]byte(installInfo), &installInfoYaml)
+		installInfo, err := client.FileManager.ReadFile(installInfoFilePath)
+		require.NoError(tt, err)
+
+		err = yaml.Unmarshal([]byte(installInfo), &installInfoYaml)
 		require.NoError(tt, err)
 		toolVersionRegex := regexp.MustCompile(`^install_script_agent\d+$`)
 		installerVersionRegex := regexp.MustCompile(`^install_script-\d+\.\d+\.\d+(.post)?$`)
@@ -81,8 +94,9 @@ func CheckUninstallation(t *testing.T, client *ExtendedClient) {
 	})
 
 	t.Run("remove install directory", func(tt *testing.T) {
+		installFolderPath := client.Helper.GetInstallFolder()
 
-		foundFiles, err := client.VMClient.ExecuteWithError("sudo find /opt/datadog-agent -type f")
+		foundFiles, err := client.FileManager.FindFileInFolder(installFolderPath)
 		require.Error(tt, err, "should not find anything in install folder, found: ", foundFiles)
 	})
 

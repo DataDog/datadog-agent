@@ -12,6 +12,9 @@ import (
 	"strings"
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/agent-platform/common"
+	filemanager "github.com/DataDog/datadog-agent/test/new-e2e/agent-platform/common/file-manager"
+	helpers "github.com/DataDog/datadog-agent/test/new-e2e/agent-platform/common/helper"
+
 	"github.com/DataDog/datadog-agent/test/new-e2e/agent-platform/install"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client"
@@ -64,8 +67,10 @@ func TestInstallScript(t *testing.T) {
 }
 
 func (is *installScriptSuite) TestInstallAgent() {
+	fileManager := filemanager.NewUnixFileManager(is.Env().VM.VMClient)
+	unixHelper := helpers.NewUnixHelper()
 	agentClient := client.NewAgentCommandRunnerFromVM(is.T(), is.Env().VM)
-	client := common.NewTestClient(is.Env().VM.VMClient, agentClient)
+	client := common.NewTestClient(is.Env().VM.VMClient, agentClient, fileManager, unixHelper)
 
 	install.Unix(is.T(), client)
 
