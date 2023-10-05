@@ -27,21 +27,13 @@ func init() {
 // to the workloadmeta store.
 type KubeletListener struct {
 	workloadmetaListener
-	containerFilters *containerFilters
 }
 
 // NewKubeletListener returns a new KubeletListener.
 func NewKubeletListener(Config) (ServiceListener, error) {
 	const name = "ad-kubeletlistener"
 
-	containerFilters, containerFiltersErr := newContainerFilters()
-	if containerFiltersErr != nil {
-		return nil, containerFiltersErr
-	}
-
-	l := &KubeletListener{
-		containerFilters: containerFilters,
-	}
+	l := &KubeletListener{}
 	f := workloadmeta.NewFilter(
 		[]workloadmeta.Kind{workloadmeta.KindKubernetesPod},
 		workloadmeta.SourceNodeOrchestrator,
@@ -79,10 +71,10 @@ func (l *KubeletListener) processPod(entity workloadmeta.Entity) {
 
 func (l *KubeletListener) createPodService(
 	pod *workloadmeta.KubernetesPod,
-	containerList []*workloadmeta.Container,
+	containers []*workloadmeta.Container,
 ) {
 	var ports []ContainerPort
-	for _, container := range containerList {
+	for _, container := range containers {
 		for _, port := range container.Ports {
 			ports = append(ports, ContainerPort{
 				Port: port.Port,
@@ -96,20 +88,12 @@ func (l *KubeletListener) createPodService(
 	})
 
 	entity := kubelet.PodUIDToEntityName(pod.ID)
-	metricsExcluded := l.containerFilters.IsExcluded(
-		containers.MetricsFilter,
-		pod.Annotations,
-		pod.Name,
-		"",
-		pod.Namespace,
-	)
 	svc := &service{
-		entity:          pod,
-		adIdentifiers:   []string{entity},
-		hosts:           map[string]string{"pod": pod.IP},
-		ports:           ports,
-		ready:           true,
-		metricsExcluded: metricsExcluded,
+		entity:        pod,
+		adIdentifiers: []string{entity},
+		hosts:         map[string]string{"pod": pod.IP},
+		ports:         ports,
+		ready:         true,
 	}
 
 	svcID := buildSvcID(pod.GetID())

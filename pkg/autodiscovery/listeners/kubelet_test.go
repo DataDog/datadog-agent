@@ -511,10 +511,6 @@ func TestKubeletCreateContainerService(t *testing.T) {
 
 func newKubeletListener(t *testing.T) (*KubeletListener, *testWorkloadmetaListener) {
 	wlm := newTestWorkloadmetaListener(t)
-	filters, err := newContainerFilters()
-	if err != nil {
-		t.Fatalf("cannot initialize container filters: %s", err)
-	}
 
-	return &KubeletListener{workloadmetaListener: wlm, containerFilters: filters}, wlm
+	return &KubeletListener{workloadmetaListener: wlm}, wlm
 }
