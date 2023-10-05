@@ -38,7 +38,7 @@ type Meta struct {
 
 // GetMetaFromCache returns the metadata information about the host from the cache and returns it, if the cache is
 // empty, then it queries the information directly
-func GetMetaFromCache(ctx context.Context, conf config.ConfigReader) *Meta {
+func GetMetaFromCache(ctx context.Context, conf config.Reader) *Meta {
 	res, _ := cache.Get[*Meta](
 		metaCacheKey,
 		func() (*Meta, error) {
@@ -49,7 +49,7 @@ func GetMetaFromCache(ctx context.Context, conf config.ConfigReader) *Meta {
 }
 
 // GetMeta returns the metadata information about the host and refreshes the cache
-func GetMeta(ctx context.Context, conf config.ConfigReader) *Meta {
+func GetMeta(ctx context.Context, conf config.Reader) *Meta {
 	osHostname, _ := os.Hostname()
 	tzname, _ := time.Now().Zone()
 	ec2Hostname, _ := ec2.GetHostname(ctx)

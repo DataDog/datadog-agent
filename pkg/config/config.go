@@ -1959,7 +1959,7 @@ func GetBindHost() string {
 }
 
 // GetBindHostFromConfig returns the bind_host value from the config
-func GetBindHostFromConfig(cfg ConfigReader) string {
+func GetBindHostFromConfig(cfg Reader) string {
 	if cfg.IsSet("bind_host") {
 		return cfg.GetString("bind_host")
 	}
@@ -2021,7 +2021,7 @@ func getObsPipelineURLForPrefix(datatype DataType, prefix string) (string, error
 }
 
 // IsRemoteConfigEnabled returns true if Remote Configuration should be enabled
-func IsRemoteConfigEnabled(cfg ConfigReader) bool {
+func IsRemoteConfigEnabled(cfg Reader) bool {
 	// Disable Remote Config for GovCloud
 	if cfg.GetBool("fips.enabled") || cfg.GetString("site") == "ddog-gov.com" {
 		return false

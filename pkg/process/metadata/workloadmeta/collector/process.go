@@ -20,7 +20,7 @@ import (
 const collectorId = "local-process"
 
 // NewProcessCollector creates a new process collector.
-func NewProcessCollector(coreConfig, sysProbeConfig config.ConfigReader) *Collector {
+func NewProcessCollector(coreConfig, sysProbeConfig config.Reader) *Collector {
 	wlmExtractor := workloadmetaExtractor.NewWorkloadMetaExtractor(sysProbeConfig)
 
 	processData := checks.NewProcessData(coreConfig)
@@ -39,7 +39,7 @@ func NewProcessCollector(coreConfig, sysProbeConfig config.ConfigReader) *Collec
 // Collector collects processes to send to the remote process collector in the core agent.
 // It is only intended to be used when language detection is enabled, and the process check is disabled.
 type Collector struct {
-	ddConfig config.ConfigReader
+	ddConfig config.Reader
 
 	processData *checks.ProcessData
 
@@ -118,7 +118,7 @@ func (c *Collector) handleContainerEvent(evt workloadmeta.EventBundle) {
 // Since it's job is to collect processes when the process check is disabled, we only enable it when `process_config.process_collection.enabled` == false
 // Additionally, if the remote process collector is not enabled in the core agent, there is no reason to collect processes. Therefore, we check `language_detection.enabled`
 // Finally, we only want to run this collector in the process agent, so if we're running as anything else we should disable the collector.
-func Enabled(cfg config.ConfigReader) bool {
+func Enabled(cfg config.Reader) bool {
 	if cfg.GetBool("process_config.process_collection.enabled") {
 		return false
 	}

@@ -11,11 +11,12 @@ import (
 	"sync"
 	"time"
 
+	"github.com/spf13/afero"
+	"go.uber.org/fx"
+
 	configComponent "github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/packets"
 	"github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/spf13/afero"
-	"go.uber.org/fx"
 )
 
 const (
@@ -35,7 +36,7 @@ type dependencies struct {
 // TrafficCapture allows capturing traffic from our listeners and writing it to file
 type trafficCapture struct {
 	writer *TrafficCaptureWriter
-	config config.ConfigReader
+	config config.Reader
 
 	sync.RWMutex
 }
@@ -50,7 +51,7 @@ func newTrafficCapture(deps dependencies) Component {
 	return newTrafficCaptureCompat(deps.Config)
 }
 
-func newTrafficCaptureCompat(cfg config.ConfigReader) Component {
+func newTrafficCaptureCompat(cfg config.Reader) Component {
 	return &trafficCapture{
 		config: cfg,
 	}

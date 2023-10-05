@@ -44,7 +44,7 @@ type WorkloadMetaExtractor struct {
 
 	pidToCid map[int]string
 
-	sysprobeConfig config.ConfigReader
+	sysprobeConfig config.Reader
 }
 
 // ProcessCacheDiff holds the information about processes that have been created and deleted in the past
@@ -65,7 +65,7 @@ var (
 )
 
 // NewWorkloadMetaExtractor constructs the WorkloadMetaExtractor.
-func NewWorkloadMetaExtractor(sysprobeConfig config.ConfigReader) *WorkloadMetaExtractor {
+func NewWorkloadMetaExtractor(sysprobeConfig config.Reader) *WorkloadMetaExtractor {
 	log.Info("Instantiating a new WorkloadMetaExtractor")
 
 	return &WorkloadMetaExtractor{
@@ -182,7 +182,7 @@ func getDifference(oldCache, newCache map[string]*ProcessEntity) []*ProcessEntit
 }
 
 // Enabled returns whether the extractor should be enabled
-func Enabled(ddconfig config.ConfigReader) bool {
+func Enabled(ddconfig config.Reader) bool {
 	enabled := ddconfig.GetBool("language_detection.enabled")
 	if enabled && runtime.GOOS == "darwin" {
 		log.Warn("Language detection is not supported on macOS")

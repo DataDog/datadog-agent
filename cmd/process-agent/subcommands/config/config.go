@@ -172,7 +172,7 @@ func getConfigValue(deps dependencies, args []string) error {
 	return nil
 }
 
-func getClient(cfg ddconfig.ConfigReader) (settings.Client, error) {
+func getClient(cfg ddconfig.Reader) (settings.Client, error) {
 	httpClient := apiutil.GetClient(false)
 	ipcAddress, err := ddconfig.GetIPCAddress()
 

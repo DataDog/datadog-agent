@@ -14,6 +14,11 @@ import (
 	"sync"
 	"time"
 
+	"github.com/benbjohnson/clock"
+	slog "github.com/cihub/seelog"
+	"go.uber.org/atomic"
+	"go.uber.org/fx"
+
 	commonpath "github.com/DataDog/datadog-agent/cmd/agent/common/path"
 	configComponent "github.com/DataDog/datadog-agent/comp/core/config"
 	logComponent "github.com/DataDog/datadog-agent/comp/core/log"
@@ -21,10 +26,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/tagset"
-	"github.com/benbjohnson/clock"
-	slog "github.com/cihub/seelog"
-	"go.uber.org/atomic"
-	"go.uber.org/fx"
 )
 
 type dependencies struct {
@@ -71,7 +72,7 @@ func newServerDebug(deps dependencies) Component {
 	return newServerDebugCompat(deps.Log, deps.Config)
 }
 
-func newServerDebugCompat(log logComponent.Component, cfg config.ConfigReader) Component {
+func newServerDebugCompat(log logComponent.Component, cfg config.Reader) Component {
 	sd := &serverDebug{
 		log:     log,
 		enabled: atomic.NewBool(false),
@@ -266,7 +267,7 @@ func (d *serverDebug) disableMetricsStats() {
 }
 
 // build a local dogstatsd logger and bubbling up any errors
-func (d *serverDebug) getDogstatsdDebug(cfg config.ConfigReader) slog.LoggerInterface {
+func (d *serverDebug) getDogstatsdDebug(cfg config.Reader) slog.LoggerInterface {
 
 	var dogstatsdLogger slog.LoggerInterface
 

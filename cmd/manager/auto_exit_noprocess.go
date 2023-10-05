@@ -38,7 +38,7 @@ func NoProcessExit(r []*regexp.Regexp) ExitDetector {
 }
 
 // DefaultNoProcessExit creates the default NoProcess shutdown detector
-func DefaultNoProcessExit(cfg config.ConfigReader) (ExitDetector, error) {
+func DefaultNoProcessExit(cfg config.Reader) (ExitDetector, error) {
 	mergedRegexps := make([]*regexp.Regexp, len(defaultRegexps))
 	copy(mergedRegexps, defaultRegexps)
 

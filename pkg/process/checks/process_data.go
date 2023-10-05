@@ -23,7 +23,7 @@ type ProcessData struct {
 	extractors []metadata.Extractor
 }
 
-func NewProcessData(cfg config.ConfigReader) *ProcessData {
+func NewProcessData(cfg config.Reader) *ProcessData {
 	return &ProcessData{
 		probe: newProcessProbe(cfg),
 	}

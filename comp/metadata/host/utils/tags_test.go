@@ -108,7 +108,7 @@ func TestHostTagsCache(t *testing.T) {
 	var fooErr error
 	nbCall := 0
 
-	getProvidersDefinitionsFunc = func(config.ConfigReader) map[string]*providerDef {
+	getProvidersDefinitionsFunc = func(config.Reader) map[string]*providerDef {
 		return map[string]*providerDef{
 			"foo": {
 				retries: 2,

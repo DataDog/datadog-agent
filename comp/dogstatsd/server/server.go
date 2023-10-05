@@ -15,6 +15,8 @@ import (
 	"sync"
 	"time"
 
+	"go.uber.org/fx"
+
 	configComponent "github.com/DataDog/datadog-agent/comp/core/config"
 	logComponent "github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/listeners"
@@ -31,7 +33,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname"
-	"go.uber.org/fx"
 )
 
 var (
@@ -84,7 +85,7 @@ type cachedOriginCounter struct {
 // Server represent a Dogstatsd server
 type server struct {
 	log    logComponent.Component
-	config config.ConfigReader
+	config config.Reader
 	// listeners are the instantiated socket listener (UDS or UDP or both)
 	listeners []listeners.StatsdListener
 
@@ -141,7 +142,7 @@ type server struct {
 	enrichConfig enrichConfig
 }
 
-func initTelemetry(cfg config.ConfigReader, logger logComponent.Component) {
+func initTelemetry(cfg config.Reader, logger logComponent.Component) {
 	dogstatsdExpvars.Set("ServiceCheckParseErrors", &dogstatsdServiceCheckParseErrors)
 	dogstatsdExpvars.Set("ServiceCheckPackets", &dogstatsdServiceCheckPackets)
 	dogstatsdExpvars.Set("EventParseErrors", &dogstatsdEventParseErrors)
@@ -193,7 +194,7 @@ func newServer(deps dependencies) Component {
 	return newServerCompat(deps.Config, deps.Log, deps.Replay, deps.Debug, deps.Params.Serverless)
 }
 
-func newServerCompat(cfg config.ConfigReader, log logComponent.Component, capture replay.Component, debug serverDebug.Component, serverless bool) Component {
+func newServerCompat(cfg config.Reader, log logComponent.Component, capture replay.Component, debug serverDebug.Component, serverless bool) Component {
 	// This needs to be done after the configuration is loaded
 	once.Do(func() { initTelemetry(cfg, log) })
 

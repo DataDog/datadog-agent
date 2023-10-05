@@ -22,8 +22,8 @@ type Proxy struct {
 	NoProxy []string `mapstructure:"no_proxy"`
 }
 
-// ConfigReader is a subset of Config that only allows reading of configuration
-type ConfigReader interface {
+// Reader is a subset of Config that only allows reading of configuration
+type Reader interface {
 	Get(key string) interface{}
 	GetString(key string) string
 	GetBool(key string) bool
@@ -70,24 +70,24 @@ type ConfigReader interface {
 	// Warnings returns pointer to a list of warnings (completes config.Component interface)
 	Warnings() *Warnings
 
-	// Object returns ConfigReader to config (completes config.Component interface)
-	Object() ConfigReader
+	// Object returns Reader to config (completes config.Component interface)
+	Object() Reader
 }
 
-// ConfigWriter is a subset of Config that only allows writing the configuration
-type ConfigWriter interface {
+// Writer is a subset of Config that only allows writing the configuration
+type Writer interface {
 	Set(key string, value interface{})
 	CopyConfig(cfg Config)
 }
 
-// ConfigReaderWriter is a subset of Config that allows reading and writing the configuration
-type ConfigReaderWriter interface {
-	ConfigReader
-	ConfigWriter
+// ReaderWriter is a subset of Config that allows reading and writing the configuration
+type ReaderWriter interface {
+	Reader
+	Writer
 }
 
-// ConfigLoader is a subset of Config that allows loading the configuration
-type ConfigLoader interface {
+// Loader is a subset of Config that allows loading the configuration
+type Loader interface {
 	// API implemented by viper.Viper
 
 	SetDefault(key string, value interface{})
@@ -134,6 +134,6 @@ type ConfigLoader interface {
 // - environment variables
 // - flags
 type Config interface {
-	ConfigReaderWriter
-	ConfigLoader
+	ReaderWriter
+	Loader
 }

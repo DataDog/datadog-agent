@@ -52,7 +52,7 @@ func TestMockConfig(t *testing.T) {
 	// but defaults are set
 	require.Equal(t, "localhost", config.GetString("ipc_address"))
 
-	// values can also be set by the mock (ConfigWriter)
+	// values can also be set by the mock (config.Writer)
 	config.(Mock).Set("app_key", "newvalue")
 	require.Equal(t, "newvalue", config.GetString("app_key"))
 }

@@ -62,7 +62,7 @@ func GetDefaultInterval(checkName string) time.Duration {
 }
 
 // GetInterval returns the configured check interval value
-func GetInterval(cfg config.ConfigReader, checkName string) time.Duration {
+func GetInterval(cfg config.Reader, checkName string) time.Duration {
 	switch checkName {
 	case DiscoveryCheckName:
 		// We don't need to check if the key exists since we already bound it to a default in InitConfig.
