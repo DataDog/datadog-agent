@@ -97,7 +97,6 @@ func runFx(ctx context.Context, cliParams *RunParams, defaultConfPath string) er
 		fx.Invoke(func(_ agent.Component) {}),
 	)
 	if err != nil && errors.Is(err, agent.ErrAgentDisabled) {
-		log.Info(err)
 		return nil
 	}
 	return err
