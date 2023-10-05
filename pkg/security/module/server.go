@@ -71,7 +71,8 @@ type APIServer struct {
 	selfTester        *selftests.SelfTester
 	cwsConsumer       *CWSConsumer
 
-	stopper startstop.Stopper
+	stopChan chan struct{}
+	stopper  startstop.Stopper
 }
 
 // GetActivityDumpStream waits for activity dumps and forwards them to the stream
@@ -116,6 +117,8 @@ func (a *APIServer) GetEvents(params *api.GetEventParams, stream api.SecurityMod
 	for {
 		select {
 		case <-stream.Context().Done():
+			return nil
+		case <-a.stopChan:
 			return nil
 		case msg := <-a.msgs:
 			if a.limiter.Allow(nil) {
@@ -201,6 +204,7 @@ func (a *APIServer) start(ctx context.Context) {
 				}
 			})
 		case <-ctx.Done():
+			a.stopChan <- struct{}{}
 			return
 		}
 	}
@@ -445,6 +449,7 @@ func NewAPIServer(cfg *config.RuntimeSecurityConfig, probe *sprobe.Probe, client
 		cfg:            cfg,
 		stopper:        stopper,
 		selfTester:     selfTester,
+		stopChan:       make(chan struct{}),
 	}
 	return es
 }
