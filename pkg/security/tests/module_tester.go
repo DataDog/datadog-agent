@@ -71,6 +71,7 @@ var (
 	logger seelog.LoggerInterface
 	//nolint:deadcode,unused
 	testSuitePid uint32
+	errSkipEvent = errors.New("skip event")
 )
 
 const (
@@ -1254,10 +1255,42 @@ func (err ErrSkipTest) Error() string {
 	return err.msg
 }
 
+func (tm *testModule) mapFilters(filters ...func(event *model.Event, rule *rules.Rule) error) func(event *model.Event, rule *rules.Rule) error {
+	return func(event *model.Event, rule *rules.Rule) error {
+		for _, filter := range filters {
+			if err := filter(event, rule); err != nil {
+				return err
+			}
+		}
+		return nil
+	}
+}
+
+func (tm *testModule) WaitSignals(tb testing.TB, action func() error, cbs ...func(event *model.Event, rule *rules.Rule) error) {
+	tb.Helper()
+
+	tm.waitSignal(tb, action, func(event *model.Event, rule *rules.Rule) error {
+		validateProcessContext(tb, event, tm.probe)
+
+		return tm.mapFilters(cbs...)(event, rule)
+	})
+
+}
+
 func (tm *testModule) WaitSignal(tb testing.TB, action func() error, cb onRuleHandler) {
 	tb.Helper()
 
-	if err := tm.GetSignal(tb, action, validateEvent(tb, cb, tm.probe)); err != nil {
+	tm.waitSignal(tb, action, func(event *model.Event, rule *rules.Rule) error {
+		validateProcessContext(tb, event, tm.probe)
+		cb(event, rule)
+		return nil
+	})
+}
+
+func (tm *testModule) waitSignal(tb testing.TB, action func() error, cb func(*model.Event, *rules.Rule) error) {
+	tb.Helper()
+
+	if err := tm.getSignal(tb, action, cb); err != nil {
 		if _, ok := err.(ErrSkipTest); ok {
 			tb.Skip(err)
 		} else {
@@ -1267,6 +1300,13 @@ func (tm *testModule) WaitSignal(tb testing.TB, action func() error, cb onRuleHa
 }
 
 func (tm *testModule) GetSignal(tb testing.TB, action func() error, cb onRuleHandler) error {
+	return tm.getSignal(tb, action, func(event *model.Event, rule *rules.Rule) error {
+		cb(event, rule)
+		return nil
+	})
+}
+
+func (tm *testModule) getSignal(tb testing.TB, action func() error, cb func(*model.Event, *rules.Rule) error) error {
 	tb.Helper()
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -1283,7 +1323,14 @@ func (tm *testModule) GetSignal(tb testing.TB, action func() error, cb onRuleHan
 		case msg := <-message:
 			switch msg {
 			case Continue:
-				cb(e, r)
+				if err := cb(e, r); err != nil {
+					if errors.Is(err, errSkipEvent) {
+						message <- Continue
+						return
+					} else {
+						tb.Error(err)
+					}
+				}
 				if tb.Skipped() || tb.Failed() {
 					failNow <- true
 				}
