@@ -15,7 +15,9 @@ import (
 // team: agent-apm
 
 // Component is the agent component type.
-type Component struct {
+type Component interface{}
+
+type component struct {
 	util.Optional[agentComponent]
 }
 

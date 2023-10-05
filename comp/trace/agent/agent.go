@@ -60,7 +60,7 @@ type agent struct {
 }
 
 func newAgent(deps dependencies) Component {
-	c := Component{}
+	c := component{}
 	deps.Lc.Append(fx.Hook{OnStart: c.start, OnStop: c.stop})
 
 	tracecfg := deps.Config.Object()
@@ -91,7 +91,7 @@ func newAgent(deps dependencies) Component {
 
 // Provided ctx has a timeout, so it can't be used for gracefully stopping long-running components.
 // This context is cancelled on a deadline, so it would stop the agent after starting it.
-func (c *Component) start(_ context.Context) error {
+func (c *component) start(_ context.Context) error {
 	agc, ok := c.Get()
 	if !ok {
 		return ErrAgentDisabled
@@ -130,7 +130,7 @@ func (c *Component) start(_ context.Context) error {
 	return nil
 }
 
-func (c *Component) stop(_ context.Context) error {
+func (c *component) stop(_ context.Context) error {
 	agc, ok := c.Get()
 	if !ok {
 		return ErrAgentDisabled
