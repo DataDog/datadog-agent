@@ -146,7 +146,7 @@ namespace Datadog.CustomActions
                 _serviceController.SetCredentials(Constants.SystemProbeServiceName, "LocalSystem", "");
                 _serviceController.SetCredentials(Constants.ProcessAgentServiceName, "LocalSystem", "");
 
-                 var installCWS = _session.Property("INSTALL_CWS")
+                 var installCWS = _session.Property("INSTALL_CWS");
                  if(!string.IsNullOrEmpty(installCWS)){
                     _serviceController.SetCredentials(Constants.SecurityAgentServiceName, ddAgentUserName, ddAgentUserPassword);
                  }
