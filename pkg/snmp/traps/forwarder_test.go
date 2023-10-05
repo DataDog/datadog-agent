@@ -6,10 +6,8 @@
 package traps
 
 import (
-	"bytes"
-	"crypto/sha256"
-	"encoding/gob"
-	"encoding/hex"
+	"fmt"
+	"github.com/mitchellh/hashstructure/v2"
 	"net"
 	"testing"
 	"time"
@@ -25,19 +23,29 @@ type DummyFormatter struct{}
 
 var simpleUDPAddr = &net.UDPAddr{IP: net.IPv4(1, 1, 1, 1), Port: 161}
 
+type dummyFormatterHashStruct struct {
+	addr      net.UDPAddr
+	community string
+	snmpTraps gosnmp.SnmpTrap
+	variables []gosnmp.SnmpPDU
+	version   gosnmp.SnmpVersion
+}
+
 // FormatPacket is a dummy formatter method that hashes an SnmpPacket object
 func (f DummyFormatter) FormatPacket(packet *SnmpPacket) ([]byte, error) {
-	var b bytes.Buffer
-	gob.NewEncoder(&b).Encode(packet.Addr)
-	gob.NewEncoder(&b).Encode(packet.Content.Community)
-	gob.NewEncoder(&b).Encode(packet.Content.SnmpTrap)
-	gob.NewEncoder(&b).Encode(packet.Content.Variables)
-	gob.NewEncoder(&b).Encode(packet.Content.Version)
-
-	h := sha256.New()
-	h.Write(b.Bytes())
-	hexHash := hex.EncodeToString(h.Sum(nil))
-	return []byte(hexHash), nil
+	v := dummyFormatterHashStruct{
+		addr:      *packet.Addr,
+		community: packet.Content.Community,
+		snmpTraps: packet.Content.SnmpTrap,
+		variables: packet.Content.Variables,
+		version:   packet.Content.Version,
+	}
+	hash, err := hashstructure.Hash(v, hashstructure.FormatV2, nil)
+	if err != nil {
+		return nil, err
+	}
+	hex := fmt.Sprintf("%x", hash)
+	return []byte(hex), nil
 }
 
 func createForwarder(t *testing.T) (forwarder *TrapForwarder, err error) {
@@ -98,7 +106,7 @@ func TestV2TrapAreForwarder(t *testing.T) {
 	require.True(t, ok)
 	forwarder.trapsIn <- makeSnmpPacket(NetSNMPExampleHeartbeatNotification)
 	forwarder.Stop()
-	sender.AssertEventPlatformEvent(t, []byte("0dee7422f503d972db97b711e39a5003d1995c0d2f718542813acc4c46053ef0"), epforwarder.EventTypeSnmpTraps)
+	sender.AssertEventPlatformEvent(t, []byte("a0c2196b2643152f"), epforwarder.EventTypeSnmpTraps)
 }
 
 func TestForwarderTelemetry(t *testing.T) {
