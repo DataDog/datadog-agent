@@ -57,7 +57,8 @@ func assertFlowEventsCount(t *testing.T, port uint16, srv *Server, packetData []
 }
 
 func TestNetFlow_IntegrationTest_NetFlow5(t *testing.T) {
-	port := testutil.GetFreePort()
+	port, err := testutil.GetFreePort()
+	require.NoError(t, err)
 	var epForwarder forwarder.MockComponent
 	srv := fxutil.Test[Component](t, fx.Options(
 		testOptions,
@@ -81,7 +82,8 @@ func TestNetFlow_IntegrationTest_NetFlow5(t *testing.T) {
 }
 
 func TestNetFlow_IntegrationTest_NetFlow9(t *testing.T) {
-	port := testutil.GetFreePort()
+	port, err := testutil.GetFreePort()
+	require.NoError(t, err)
 	var epForwarder forwarder.MockComponent
 	srv := fxutil.Test[Component](t, fx.Options(
 		testOptions,
@@ -103,7 +105,8 @@ func TestNetFlow_IntegrationTest_NetFlow9(t *testing.T) {
 }
 
 func TestNetFlow_IntegrationTest_SFlow5(t *testing.T) {
-	port := testutil.GetFreePort()
+	port, err := testutil.GetFreePort()
+	require.NoError(t, err)
 	var epForwarder forwarder.MockComponent
 	srv := fxutil.Test[Component](t, fx.Options(
 		testOptions,

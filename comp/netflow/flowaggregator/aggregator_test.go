@@ -214,7 +214,8 @@ stopLoop:
 }
 
 func TestAggregator_withMockPayload(t *testing.T) {
-	port := testutil.GetFreePort()
+	port, err := testutil.GetFreePort()
+	require.NoError(t, err)
 	flushTime, _ := time.Parse(time.RFC3339, "2019-02-18T16:00:06Z")
 
 	sender := mocksender.NewMockSender("")
@@ -257,7 +258,7 @@ func TestAggregator_withMockPayload(t *testing.T) {
 }
 `)
 	compactMetadataEvent := new(bytes.Buffer)
-	err := json.Compact(compactMetadataEvent, metadataEvent)
+	err = json.Compact(compactMetadataEvent, metadataEvent)
 	require.NoError(t, err)
 
 	epForwarder.EXPECT().SendEventPlatformEventBlocking(&message.Message{Content: compactMetadataEvent.Bytes()}, "network-devices-metadata").Return(nil).Times(1)
