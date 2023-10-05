@@ -108,7 +108,7 @@ by the Agent.
 
 ### [comp/metadata/resources](https://pkg.go.dev/github.com/DataDog/dd-agent-comp-experiments/comp/metadata/resources)
 
-Package runner implements a component to generate the 'resources' metadata payload.
+Package resources implements a component to generate the 'resources' metadata payload.
 
 ### [comp/metadata/runner](https://pkg.go.dev/github.com/DataDog/dd-agent-comp-experiments/comp/metadata/runner)
 
