@@ -57,6 +57,8 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/networkdevice/profile => ./pkg/networkdevice/profile
 	github.com/DataDog/datadog-agent/pkg/obfuscate => ./pkg/obfuscate
 	github.com/DataDog/datadog-agent/pkg/orchestrator/model => ./pkg/orchestrator/model/
+	github.com/DataDog/datadog-agent/pkg/otlp/internal/logsagentexporter => ./pkg/otlp/internal/logsagentexporter
+	github.com/DataDog/datadog-agent/pkg/otlp/internal/testutil => ./pkg/otlp/internal/testutil
 	github.com/DataDog/datadog-agent/pkg/process/util/api => ./pkg/process/util/api/
 	github.com/DataDog/datadog-agent/pkg/proto => ./pkg/proto
 	github.com/DataDog/datadog-agent/pkg/remoteconfig/state => ./pkg/remoteconfig/state
@@ -261,7 +263,7 @@ require (
 	go.uber.org/dig v1.17.0
 	go.uber.org/fx v1.20.0
 	go.uber.org/multierr v1.11.0
-	go.uber.org/zap v1.25.0
+	go.uber.org/zap v1.26.0
 	go4.org/netipx v0.0.0-20220812043211-3cc044ffd68d
 	golang.org/x/arch v0.5.0
 	golang.org/x/exp v0.0.0-20230711023510-fffb14384f22
@@ -272,8 +274,8 @@ require (
 	golang.org/x/time v0.3.0
 	golang.org/x/tools v0.13.0
 	golang.org/x/xerrors v0.0.0-20220907171357-04be3eba64a2
-	google.golang.org/genproto v0.0.0-20230706204954-ccb25ca9f130 // indirect
-	google.golang.org/grpc v1.57.0
+	google.golang.org/genproto v0.0.0-20230711160842-782d3b101e98 // indirect
+	google.golang.org/grpc v1.58.1
 	google.golang.org/grpc/examples v0.0.0-20221020162917-9127159caf5a
 	google.golang.org/protobuf v1.31.0
 	gopkg.in/DataDog/dd-trace-go.v1 v1.49.1
@@ -300,9 +302,9 @@ require (
 
 require (
 	cloud.google.com/go v0.110.4 // indirect
-	cloud.google.com/go/compute v1.20.1 // indirect
+	cloud.google.com/go/compute v1.21.0 // indirect
 	cloud.google.com/go/compute/metadata v0.2.4-0.20230617002413-005d2dfb6b68 // indirect
-	cloud.google.com/go/iam v1.1.0 // indirect
+	cloud.google.com/go/iam v1.1.1 // indirect
 	cloud.google.com/go/storage v1.31.0 // indirect
 	code.cloudfoundry.org/cfhttp/v2 v2.0.0 // indirect
 	code.cloudfoundry.org/clock v1.0.0 // indirect
@@ -641,6 +643,8 @@ require (
 	github.com/DataDog/datadog-agent/pkg/logs/sources v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/pkg/metrics v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/pkg/networkdevice/profile v0.0.0-20230913122404-c12f437d52a4
+	github.com/DataDog/datadog-agent/pkg/otlp/internal/logsagentexporter v0.0.0-00010101000000-000000000000
+	github.com/DataDog/datadog-agent/pkg/otlp/internal/testutil v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/pkg/process/util/api v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/pkg/proto v0.48.0-rc.2
 	github.com/DataDog/datadog-agent/pkg/secrets v0.0.0-00010101000000-000000000000
@@ -668,7 +672,6 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/util_sort v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/pkg/util/winutil v0.36.1
 	github.com/DataDog/datadog-agent/pkg/version v0.0.0-00010101000000-000000000000
-	github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/logs v0.8.0
 	github.com/aquasecurity/trivy v0.0.0-00010101000000-000000000000
 	github.com/cloudfoundry-community/go-cfclient/v2 v2.0.1-0.20230503155151-3d15366c5820
 	github.com/containerd/typeurl/v2 v2.1.1
@@ -690,6 +693,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/logs/status/module v0.0.0-00010101000000-000000000000 // indirect
 	github.com/DataDog/datadog-agent/pkg/orchestrator/model v0.0.0-00010101000000-000000000000 // indirect
 	github.com/DataDog/datadog-api-client-go/v2 v2.13.0 // indirect
+	github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/logs v0.8.0 // indirect
 	github.com/antlr/antlr4/runtime/Go/antlr v1.4.10 // indirect
 	github.com/blang/semver/v4 v4.0.0 // indirect
 	github.com/cloudflare/circl v1.3.3 // indirect
@@ -730,7 +734,7 @@ require (
 	golang.org/x/exp/typeparams v0.0.0-20220613132600-b0d781184e0d // indirect
 	golang.org/x/lint v0.0.0-20210508222113-6edffad5e616 // indirect
 	gomodules.xyz/jsonpatch/v2 v2.3.0 // indirect
-	google.golang.org/genproto/googleapis/api v0.0.0-20230706204954-ccb25ca9f130 // indirect
+	google.golang.org/genproto/googleapis/api v0.0.0-20230711160842-782d3b101e98 // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20230720185612-659f7aaaa771 // indirect
 	gopkg.in/ini.v1 v1.67.0 // indirect
 	honnef.co/go/tools v0.3.2 // indirect
