@@ -7,12 +7,12 @@ package traps
 
 import (
 	"fmt"
-	"github.com/mitchellh/hashstructure/v2"
 	"net"
 	"testing"
 	"time"
 
 	"github.com/gosnmp/gosnmp"
+	"github.com/mitchellh/hashstructure/v2"
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
