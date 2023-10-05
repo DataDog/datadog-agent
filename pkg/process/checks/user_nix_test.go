@@ -41,7 +41,7 @@ func TestLookupUserWithId(t *testing.T) {
 	} {
 		const testUID = "0"
 		t.Run(tc.name, func(t *testing.T) {
-			p := NewLookupIdProbe(cfg)
+			p := NewLookupIDProbe(cfg)
 
 			checkResult := func(u *user.User, err error) {
 				t.Helper()
@@ -95,7 +95,7 @@ func TestLookupIdConfigSetting(t *testing.T) {
 		cfg := config.Mock(t)
 		cfg.Set("process_config.cache_lookupid", true)
 
-		p := NewLookupIdProbe(cfg)
+		p := NewLookupIDProbe(cfg)
 		p.lookupId = testLookupIdFunc
 
 		_, _ = p.LookupId("1234") // testLookupIdFunc should be called and "1234" added to the cache
@@ -108,7 +108,7 @@ func TestLookupIdConfigSetting(t *testing.T) {
 		cfg := config.Mock(t)
 		cfg.Set("process_config.cache_lookupid", false)
 
-		p := NewLookupIdProbe(cfg)
+		p := NewLookupIDProbe(cfg)
 		p.lookupId = testLookupIdFunc
 
 		_, _ = p.LookupId("1234")

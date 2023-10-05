@@ -21,7 +21,7 @@ import (
 func NewProcessDiscoveryCheck(config ddconfig.Reader) *ProcessDiscoveryCheck {
 	return &ProcessDiscoveryCheck{
 		config:    config,
-		userProbe: NewLookupIdProbe(config),
+		userProbe: NewLookupIDProbe(config),
 	}
 }
 

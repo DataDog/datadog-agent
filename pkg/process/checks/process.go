@@ -43,7 +43,7 @@ func NewProcessCheck(config ddconfig.Reader) *ProcessCheck {
 	check := &ProcessCheck{
 		config:        config,
 		scrubber:      procutil.NewDefaultDataScrubber(),
-		lookupIdProbe: NewLookupIdProbe(config),
+		lookupIdProbe: NewLookupIDProbe(config),
 	}
 
 	if workloadmeta.Enabled(config) {

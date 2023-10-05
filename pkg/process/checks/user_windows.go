@@ -14,6 +14,6 @@ import (
 // On Windows the LookupIdProbe does nothing since we get the user info from the process itself.
 type LookupIdProbe struct{}
 
-func NewLookupIdProbe(config.Reader) *LookupIdProbe {
+func NewLookupIDProbe(config.Reader) *LookupIdProbe {
 	return &LookupIdProbe{}
 }
