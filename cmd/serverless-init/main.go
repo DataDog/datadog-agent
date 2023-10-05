@@ -24,6 +24,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/serverless/random"
 	"github.com/DataDog/datadog-agent/pkg/serverless/tags"
 	"github.com/DataDog/datadog-agent/pkg/serverless/trace"
+	tracelog "github.com/DataDog/datadog-agent/pkg/trace/log"
 	logger "github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -43,6 +44,26 @@ func main() {
 }
 
 func setup() (cloudservice.CloudService, *log.Config, *trace.ServerlessTraceAgent, *metrics.ServerlessMetricAgent, logsAgent.ServerlessLogsAgent) {
+	if err := config.SetupLogger(
+		loggerName,
+		"error", // will be re-set later with the value from the env var
+		"",      // logFile -> by setting this to an empty string, we don't write the logs to any file
+		"",      // syslog URI
+		false,   // syslog_rfc
+		true,    // log_to_console
+		false,   // log_format_json
+	); err != nil {
+		logger.Errorf("Unable to setup logger: %s", err)
+	}
+
+	if logLevel := os.Getenv(logLevelEnvVar); len(logLevel) > 0 {
+		if err := config.ChangeLogLevel(logLevel); err != nil {
+			logger.Errorf("Unable to change the log level: %s", err)
+		}
+	}
+
+	tracelog.SetLogger(corelogger{})
+
 	// load proxy settings
 	setupProxy()
 
