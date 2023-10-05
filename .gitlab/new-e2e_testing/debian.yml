@@ -10,7 +10,7 @@
     E2E_BRANCH_OSVERS: "debian-11"
   needs: ["deploy_deb_testing-a7_x64"]
 
-new-e2e-agent-platform-install-script-debian-x64:
+new-e2e-agent-platform-install-script-debian-a7-x64:
   stage: kitchen_testing
   extends: 
     - .new_e2e_template
