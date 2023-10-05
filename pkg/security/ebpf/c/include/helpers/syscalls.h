@@ -93,7 +93,7 @@ struct syscall_cache_t *__attribute__((always_inline)) pop_task_syscall(u64 pid_
     if (!type || syscall->type == type) {
         bpf_map_delete_elem(&syscalls, &pid_tgid);
 
-        monitor_syscalls(type, -1);
+        monitor_syscalls(syscall->type, -1);
         return syscall;
     }
     return NULL;
