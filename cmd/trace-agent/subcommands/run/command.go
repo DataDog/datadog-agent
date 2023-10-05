@@ -7,6 +7,8 @@ package run
 
 import (
 	"context"
+	"fmt"
+	"strings"
 
 	"github.com/spf13/cobra"
 	"go.uber.org/fx"
@@ -16,8 +18,15 @@ import (
 	"github.com/DataDog/datadog-agent/comp/trace"
 	"github.com/DataDog/datadog-agent/comp/trace/agent"
 	"github.com/DataDog/datadog-agent/comp/trace/config"
+	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
+	tracelog "github.com/DataDog/datadog-agent/pkg/trace/log"
+	"github.com/DataDog/datadog-agent/pkg/trace/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
+
+// Stack depth of 3 since the `corelogger` struct adds a layer above the logger
+const stackDepth = 3
 
 // MakeCommand returns the run subcommand for the 'trace-agent' command.
 func MakeCommand(globalParamsGetter func() *subcommands.GlobalParams) *cobra.Command {
@@ -52,10 +61,11 @@ func runFx(ctx context.Context, cliParams *RunParams, defaultConfPath string) er
 	if cliParams.ConfPath == "" {
 		cliParams.ConfPath = defaultConfPath
 	}
-	return fxutil.Run(
+	err := fxutil.Run(
 		// ctx is required to be supplied from here, as Windows needs to inject its own context
 		// to allow the agent to work as a service.
 		fx.Provide(func() context.Context { return ctx }),
+		fx.Provide(func(cfg config.Component) telemetry.TelemetryCollector { return telemetry.NewCollector(cfg.Object()) }),
 		fx.Supply(coreconfig.NewAgentParamsWithSecrets(cliParams.ConfPath)),
 		coreconfig.Module,
 		fx.Invoke(func(_ config.Component) {}),
@@ -66,6 +76,83 @@ func runFx(ctx context.Context, cliParams *RunParams, defaultConfPath string) er
 			PIDFilePath: cliParams.PIDFilePath,
 		}),
 		trace.Bundle,
+		// TODO: corelogger must be a component (for future reference)
+		fx.Invoke(func(cfg config.Component, telemetryCollector telemetry.TelemetryCollector) error {
+			tracecfg := cfg.Object()
+			if err := pkgconfig.SetupLogger(
+				pkgconfig.LoggerName("TRACE"),
+				pkgconfig.Datadog.GetString("log_level"),
+				tracecfg.LogFilePath,
+				pkgconfig.GetSyslogURI(),
+				pkgconfig.Datadog.GetBool("syslog_rfc"),
+				pkgconfig.Datadog.GetBool("log_to_console"),
+				pkgconfig.Datadog.GetBool("log_format_json"),
+			); err != nil {
+				telemetryCollector.SendStartupError(telemetry.CantCreateLogger, err)
+				return fmt.Errorf("Cannot create logger: %v", err)
+			}
+			tracelog.SetLogger(corelogger{})
+			return nil
+		}),
 		fx.Invoke(func(_ agent.Component) {}),
 	)
+	// UnwrapIfErrArgumentsFailed doesn't allow to use errors.Is, so we need to compare
+	// with the first line of agent.ErrAgentDisabled message.
+	if err != nil && err.Error() == strings.Split(agent.ErrAgentDisabled.Error(), "\n")[0] {
+		return nil
+	}
+	return err
 }
+
+type corelogger struct{}
+
+// Trace implements Logger.
+func (corelogger) Trace(v ...interface{}) { log.TraceStackDepth(stackDepth, v...) }
+
+// Tracef implements Logger.
+func (corelogger) Tracef(format string, params ...interface{}) {
+	log.TracefStackDepth(stackDepth, format, params...)
+}
+
+// Debug implements Logger.
+func (corelogger) Debug(v ...interface{}) { log.DebugStackDepth(stackDepth, v...) }
+
+// Debugf implements Logger.
+func (corelogger) Debugf(format string, params ...interface{}) {
+	log.DebugfStackDepth(stackDepth, format, params...)
+}
+
+// Info implements Logger.
+func (corelogger) Info(v ...interface{}) { log.InfoStackDepth(stackDepth, v...) }
+
+// Infof implements Logger.
+func (corelogger) Infof(format string, params ...interface{}) {
+	log.InfofStackDepth(stackDepth, format, params...)
+}
+
+// Warn implements Logger.
+func (corelogger) Warn(v ...interface{}) error { return log.WarnStackDepth(stackDepth, v...) }
+
+// Warnf implements Logger.
+func (corelogger) Warnf(format string, params ...interface{}) error {
+	return log.WarnfStackDepth(stackDepth, format, params...)
+}
+
+// Error implements Logger.
+func (corelogger) Error(v ...interface{}) error { return log.ErrorStackDepth(stackDepth, v...) }
+
+// Errorf implements Logger.
+func (corelogger) Errorf(format string, params ...interface{}) error {
+	return log.ErrorfStackDepth(stackDepth, format, params...)
+}
+
+// Critical implements Logger.
+func (corelogger) Critical(v ...interface{}) error { return log.CriticalStackDepth(stackDepth, v...) }
+
+// Criticalf implements Logger.
+func (corelogger) Criticalf(format string, params ...interface{}) error {
+	return log.CriticalfStackDepth(stackDepth, format, params...)
+}
+
+// Flush implements Logger.
+func (corelogger) Flush() { log.Flush() }

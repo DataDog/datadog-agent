@@ -8,6 +8,7 @@ package agent
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"os/signal"
@@ -30,15 +31,18 @@ const messageAgentDisabled = `trace-agent not enabled. Set the environment varia
 DD_APM_ENABLED=true or add "apm_config.enabled: true" entry
 to your datadog.yaml. Exiting...`
 
+var ErrAgentDisabled = errors.New(messageAgentDisabled)
+
 type dependencies struct {
 	fx.In
 
 	Lc         fx.Lifecycle
 	Shutdowner fx.Shutdowner
 
-	Config  config.Component
-	Context context.Context
-	Params  *Params
+	Config             config.Component
+	Context            context.Context
+	Params             *Params
+	TelemetryCollector telemetry.TelemetryCollector
 }
 
 type agent struct {
@@ -53,38 +57,37 @@ type agent struct {
 	wg                 sync.WaitGroup
 }
 
-func newAgent(deps dependencies) Component {
-	telemetryCollector := telemetry.NewCollector(deps.Config.Object())
+func newAgent(deps dependencies) (Component, error) {
+	tracecfg := deps.Config.Object()
+	if !tracecfg.Enabled {
+		log.Info(messageAgentDisabled)
+		deps.TelemetryCollector.SendStartupError(telemetry.TraceAgentNotEnabled, fmt.Errorf(""))
+		return nil, ErrAgentDisabled
+	}
+
 	ctx, cancel := context.WithCancel(deps.Context) // Several related non-components require a shared context to gracefully stop.
 	ag := &agent{
 		Agent: pkgagent.NewAgent(
 			ctx,
 			deps.Config.Object(),
-			telemetryCollector,
+			deps.TelemetryCollector,
 		),
 		cancel:             cancel,
 		config:             deps.Config,
 		ctx:                ctx,
 		params:             deps.Params,
 		shutdowner:         deps.Shutdowner,
-		telemetryCollector: telemetryCollector,
+		telemetryCollector: deps.TelemetryCollector,
 		wg:                 sync.WaitGroup{},
 	}
 
 	deps.Lc.Append(fx.Hook{OnStart: ag.start, OnStop: ag.stop})
-	return ag
+	return ag, nil
 }
 
 // Provided ctx has a timeout, so it can't be used for gracefully stopping long-running components.
 // This context is cancelled on a deadline, so it would stop the agent after starting it.
 func (ag *agent) start(_ context.Context) error {
-	tracecfg := ag.config.Object()
-	if !tracecfg.Enabled {
-		log.Info(messageAgentDisabled)
-		ag.telemetryCollector.SendStartupError(telemetry.TraceAgentNotEnabled, fmt.Errorf(""))
-		return fmt.Errorf(messageAgentDisabled)
-	}
-
 	setupShutdown(ag.ctx, ag.shutdowner)
 
 	if ag.params.CPUProfile != "" {
