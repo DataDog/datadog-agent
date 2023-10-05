@@ -52,10 +52,10 @@ build do
 if intel? && _64_bit?
   arch = 'amd64'
 end
-if arm? && _32_bit?
+if arm_target? && _32_bit?
   arch = 'arm'
 end
-if arm? && _64_bit?
+if arm_target? && _64_bit?
   arch = 'arm64'
 end
 

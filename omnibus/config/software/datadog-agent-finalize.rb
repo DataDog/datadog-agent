@@ -20,7 +20,7 @@ build do
     # TODO too many things done here, should be split
     block do
         # Conf files
-        if windows?
+        if windows_target?
             conf_dir_root = "#{Omnibus::Config.source_dir()}/etc/datadog-agent"
             conf_dir = "#{conf_dir_root}/extra_package_files/EXAMPLECONFSLOCATION"
             mkdir conf_dir
@@ -64,7 +64,7 @@ build do
 
         end
 
-        if linux? || osx?
+        if linux_target? || osx_target?
             # Setup script aliases, e.g. `/opt/datadog-agent/embedded/bin/pip` will
             # default to `pip2` if the default Python runtime is Python 2.
             if with_python_runtime? "2"
@@ -89,10 +89,10 @@ build do
             delete "#{install_dir}/embedded/lib/config_guess"
         end
 
-        if linux?
+        if linux_target?
             # Fix pip after building on extended toolchain in CentOS builder
-            if redhat? && ohai["platform_version"].to_i == 6
-              unless arm?
+            if redhat_target? && ohai["platform_version"].to_i == 6
+              unless arm_target?
                 rhel_toolchain_root = "/opt/rh/devtoolset-1.1/root"
                 # lets be cautious - we first search for the expected toolchain path, if its not there, bail out
                 command "find #{install_dir} -type f -iname '*_sysconfigdata*.py' -exec grep -inH '#{rhel_toolchain_root}' {} \\; |  egrep '.*'"
@@ -109,7 +109,7 @@ build do
             move "#{install_dir}/scripts/datadog-agent-sysprobe.conf", "/etc/init"
             move "#{install_dir}/scripts/datadog-agent-security.conf", "/etc/init"
             systemd_directory = "/usr/lib/systemd/system"
-            if debian?
+            if debian_target?
                 # debian recommends using a different directory for systemd unit files
                 systemd_directory = "/lib/systemd/system"
 
@@ -138,7 +138,7 @@ build do
             move "#{install_dir}/etc/datadog-agent/compliance.d", "/etc/datadog-agent"
 
             # Move SELinux policy
-            if debian? || redhat?
+            if debian_target? || redhat_target?
               move "#{install_dir}/etc/datadog-agent/selinux", "/etc/datadog-agent/selinux"
             end
 
@@ -202,7 +202,7 @@ build do
             strip_exclude("#{install_dir}/embedded/share/system-probe/ebpf/co-re/*.o")
         end
 
-        if osx?
+        if osx_target?
             # Remove linux specific configs
             delete "#{install_dir}/etc/conf.d/file_handle.d"
 

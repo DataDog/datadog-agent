@@ -29,7 +29,7 @@ if ohai["platform"] != "windows"
                           "--with-universal-archs=intel",
                           "--enable-shared",
                           "--disable-static")
-  elsif linux?
+  elsif linux_target?
     python_configure_options.push("--enable-shared",
                           "--disable-static",
                           "--enable-ipv6")
