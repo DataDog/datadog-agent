@@ -445,6 +445,16 @@ func TestGenerateTemplatesV1(t *testing.T) {
 								Key:      "control-plane",
 								Operator: metav1.LabelSelectorOpDoesNotExist,
 							},
+							{
+								Key:      "control-plane",
+								Operator: metav1.LabelSelectorOpNotIn,
+								Values:   []string{"true"},
+							},
+							{
+								Key:      "kubernetes.azure.com/managedby",
+								Operator: metav1.LabelSelectorOpNotIn,
+								Values:   []string{"aks"},
+							},
 						},
 					},
 				)
