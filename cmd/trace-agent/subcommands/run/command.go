@@ -64,7 +64,7 @@ func runFx(ctx context.Context, cliParams *RunParams, defaultConfPath string) er
 	err := fxutil.Run(
 		// ctx is required to be supplied from here, as Windows needs to inject its own context
 		// to allow the agent to work as a service.
-		fx.Provide(func() context.Context { return ctx }),
+		fx.Supply(ctx),
 		fx.Provide(func(cfg config.Component) telemetry.TelemetryCollector { return telemetry.NewCollector(cfg.Object()) }),
 		fx.Supply(coreconfig.NewAgentParamsWithSecrets(cliParams.ConfPath)),
 		coreconfig.Module,

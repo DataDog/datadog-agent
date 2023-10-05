@@ -26,7 +26,7 @@ func TestBundleDependencies(t *testing.T) {
 		// instantiate all of the core components, since this is not done
 		// automatically. Use fx.Invoke to make sure components are initialized
 		// and all the providers are called.
-		fx.Provide(func() context.Context { return context.TODO() }),
+		fx.Supply(context.TODO()),
 		fx.Supply(coreconfig.Params{}),
 		coreconfig.Module,
 		fx.Invoke(func(_ config.Component) {}),
@@ -43,7 +43,7 @@ func TestMockBundleDependencies(t *testing.T) {
 	defer func() { os.Unsetenv("DD_DD_URL") }()
 
 	cfg := fxutil.Test[config.Component](t, fx.Options(
-		fx.Provide(func() context.Context { return context.TODO() }),
+		fx.Supply(context.TODO()),
 		fx.Supply(coreconfig.Params{}),
 		coreconfig.MockModule,
 		fx.Invoke(func(_ config.Component) {}),
