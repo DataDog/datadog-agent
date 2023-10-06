@@ -1,0 +1,78 @@
+package listeners
+
+import (
+	"fmt"
+	"net"
+	"strings"
+
+	"github.com/DataDog/datadog-agent/comp/dogstatsd/packets"
+	"github.com/DataDog/datadog-agent/comp/dogstatsd/replay"
+	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
+)
+
+type UDSStreamListener struct {
+	UDSListener
+
+	conn *net.UnixListener
+}
+
+// NewUDSStreamListener returns an idle UDS datagram Statsd listener
+func NewUDSStreamListener(packetOut chan packets.Packets, sharedPacketPoolManager *packets.PoolManager, sharedOobPacketPoolManager *packets.PoolManager, cfg config.ConfigReader, capture replay.Component) (*UDSStreamListener, error) {
+	socketPath := cfg.GetString("dogstatsd_stream_socket")
+	network := "unix"
+
+	address, err := setupSocketBeforeListen(socketPath, network)
+	if err != nil {
+		return nil, err
+	}
+
+	conn, err := net.ListenUnix(network, address)
+	if err != nil {
+		return nil, fmt.Errorf("can't listen: %s", err)
+	}
+
+	err = setSocketWriteOnly(socketPath)
+	if err != nil {
+		return nil, err
+	}
+
+	l, err := NewUDSListener(packetOut, sharedPacketPoolManager, sharedOobPacketPoolManager, cfg, capture, network)
+	if err != nil {
+		return nil, err
+	}
+
+	listener := &UDSStreamListener{
+		UDSListener: *l,
+		conn:        conn,
+	}
+
+	log.Infof("dogstatsd-uds-stream: %s successfully initialized", conn.Addr())
+	return listener, nil
+}
+
+// Listen runs the intake loop. Should be called in its own goroutine
+func (l *UDSStreamListener) Listen() {
+	log.Infof("dogstatsd-uds-stream: starting to listen on %s", l.conn.Addr())
+	for {
+		conn, err := l.conn.AcceptUnix()
+		if err != nil {
+			if !strings.HasSuffix(err.Error(), " use of closed network connection") {
+				log.Errorf("dogstatsd-uds: error accepting connection: %v", err)
+			}
+			break
+		}
+		go func() {
+			_ = l.handleConnection(conn)
+			if err != nil {
+				log.Errorf("dogstatsd-uds-stream: error handling connection: %v", err)
+			}
+		}()
+	}
+}
+
+// Stop closes the UDS connection and stops listening
+func (l *UDSStreamListener) Stop() {
+	_ = l.conn.Close()
+	l.UDSListener.Stop()
+}

@@ -1,0 +1,64 @@
+package listeners
+
+import (
+	"fmt"
+	"net"
+
+	"github.com/DataDog/datadog-agent/comp/dogstatsd/packets"
+	"github.com/DataDog/datadog-agent/comp/dogstatsd/replay"
+	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
+)
+
+type UDSDatagramListener struct {
+	UDSListener
+
+	conn *net.UnixConn
+}
+
+// NewUDSDatagramListener returns an idle UDS datagram Statsd listener
+func NewUDSDatagramListener(packetOut chan packets.Packets, sharedPacketPoolManager *packets.PoolManager, sharedOobPoolManager *packets.PoolManager, cfg config.ConfigReader, capture replay.Component) (*UDSDatagramListener, error) {
+	socketPath := cfg.GetString("dogstatsd_socket")
+	network := "unixgram"
+
+	address, err := setupSocketBeforeListen(socketPath, network)
+	if err != nil {
+		return nil, err
+	}
+
+	conn, err := net.ListenUnixgram(network, address)
+	if err != nil {
+		return nil, fmt.Errorf("can't listen: %s", err)
+	}
+
+	err = setSocketWriteOnly(socketPath)
+	if err != nil {
+		return nil, err
+	}
+
+	l, err := NewUDSListener(packetOut, sharedPacketPoolManager, sharedOobPoolManager, cfg, capture, network)
+	if err != nil {
+		return nil, err
+	}
+
+	listener := &UDSDatagramListener{
+		UDSListener: *l,
+		conn:        conn,
+	}
+
+	log.Infof("dogstatsd-uds: %s successfully initialized", conn.LocalAddr())
+	return listener, nil
+}
+
+// Listen runs the intake loop. Should be called in its own goroutine
+func (l *UDSDatagramListener) Listen() {
+	log.Infof("dogstatsd-uds: starting to listen on %s", l.conn.LocalAddr())
+	_ = l.handleConnection(l.conn)
+}
+
+// Stop closes the UDS connection and stops listening
+func (l *UDSDatagramListener) Stop() {
+	_ = l.conn.Close()
+	// FIXME close all currently running connections.
+	l.UDSListener.Stop()
+}
