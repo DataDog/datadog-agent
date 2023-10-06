@@ -28,7 +28,6 @@ type kindSuite struct {
 }
 
 func TestKindSuite(t *testing.T) {
-	t.Parallel()
 	ctx := context.Background()
 
 	stackConfig := runner.ConfigMap{

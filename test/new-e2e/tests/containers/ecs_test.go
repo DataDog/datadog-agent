@@ -24,14 +24,13 @@ import (
 )
 
 func TestECSSuite(t *testing.T) {
-	t.Parallel()
 	ctx := context.Background()
 
 	// Creating the stack
 	stackConfig := runner.ConfigMap{
-		"ddinfra:aws/ecs/linuxECSOptimizedNodeGroup": auto.ConfigValue{Value: "false"},
-		"ddinfra:aws/ecs/linuxBottlerocketNodeGroup": auto.ConfigValue{Value: "false"},
-		"ddinfra:aws/ecs/windowsLTSCNodeGroup":       auto.ConfigValue{Value: "false"},
+		"ddinfra:aws/ecs/linuxECSOptimizedNodeGroup": auto.ConfigValue{Value: "true"},
+		"ddinfra:aws/ecs/linuxBottlerocketNodeGroup": auto.ConfigValue{Value: "true"},
+		"ddinfra:aws/ecs/windowsLTSCNodeGroup":       auto.ConfigValue{Value: "true"},
 		"ddagent:deploy":                             auto.ConfigValue{Value: "true"},
 	}
 
