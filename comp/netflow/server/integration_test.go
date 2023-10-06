@@ -16,14 +16,17 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/fx"
 
+	"github.com/DataDog/datadog-agent/pkg/epforwarder"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
+
 	"github.com/DataDog/datadog-agent/comp/ndmtmp/forwarder"
+
+	ndmtestutils "github.com/DataDog/datadog-agent/pkg/networkdevice/testutils"
+
 	"github.com/DataDog/datadog-agent/comp/netflow/common"
 	nfconfig "github.com/DataDog/datadog-agent/comp/netflow/config"
 	"github.com/DataDog/datadog-agent/comp/netflow/flowaggregator"
 	"github.com/DataDog/datadog-agent/comp/netflow/testutil"
-	"github.com/DataDog/datadog-agent/pkg/epforwarder"
-	ndmtestutils "github.com/DataDog/datadog-agent/pkg/networkdevice/testutils"
-	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
 func singleListenerConfig(flowType common.FlowType, port uint16) *nfconfig.NetflowConfig {

@@ -6,12 +6,13 @@
 package traps
 
 import (
-	ndmtestutils "github.com/DataDog/datadog-agent/pkg/networkdevice/testutils"
 	"testing"
 
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
+
+	ndmtestutils "github.com/DataDog/datadog-agent/pkg/networkdevice/testutils"
 )
 
 func TestStartFailure(t *testing.T) {

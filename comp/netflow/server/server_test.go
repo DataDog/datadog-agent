@@ -24,9 +24,11 @@ import (
 	"github.com/DataDog/datadog-agent/comp/ndmtmp/aggregator"
 	"github.com/DataDog/datadog-agent/comp/ndmtmp/forwarder"
 	"github.com/DataDog/datadog-agent/comp/ndmtmp/sender"
+
+	ndmtestutils "github.com/DataDog/datadog-agent/pkg/networkdevice/testutils"
+
 	nfconfig "github.com/DataDog/datadog-agent/comp/netflow/config"
 	"github.com/DataDog/datadog-agent/comp/netflow/goflowlib"
-	ndmtestutils "github.com/DataDog/datadog-agent/pkg/networkdevice/testutils"
 )
 
 type dummyFlowProcessor struct {

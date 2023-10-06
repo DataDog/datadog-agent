@@ -10,7 +10,6 @@ import (
 	"crypto/sha256"
 	"encoding/gob"
 	"encoding/hex"
-	ndmtestutils "github.com/DataDog/datadog-agent/pkg/networkdevice/testutils"
 	"net"
 	"testing"
 	"time"
@@ -20,6 +19,8 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 	"github.com/DataDog/datadog-agent/pkg/epforwarder"
+
+	ndmtestutils "github.com/DataDog/datadog-agent/pkg/networkdevice/testutils"
 )
 
 type DummyFormatter struct{}
