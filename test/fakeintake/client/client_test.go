@@ -29,6 +29,9 @@ var apiV1CheckRunResponse []byte
 //go:embed fixtures/api_v2_logs_response
 var apiV2LogsResponse []byte
 
+//go:embed fixtures/process_payload_response
+var processPayloadResponse []byte
+
 //go:embed fixtures/api_support_flare_response
 var supportFlareResponse []byte
 
@@ -233,5 +236,18 @@ func TestClient(t *testing.T) {
 		assert.Equal(t, flare.GetEmail(), "test")
 		assert.Equal(t, flare.GetAgentVersion(), "7.45.1+commit.102cdaf")
 		assert.Equal(t, flare.GetHostname(), "test-hostname")
+	})
+
+	t.Run("getProcesses", func(t *testing.T) {
+		ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.Write(processPayloadResponse)
+		}))
+		defer ts.Close()
+
+		client := NewClient(ts.URL)
+		err := client.getProcesses()
+		require.NoError(t, err)
+		assert.True(t, client.processAggregator.ContainsPayloadName("i-078e212ca9b2c518f"))
+		assert.False(t, client.processAggregator.ContainsPayloadName("totoro"))
 	})
 }
