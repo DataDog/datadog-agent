@@ -7,6 +7,8 @@ package server
 
 import (
 	"fmt"
+	"runtime"
+	"unsafe"
 
 	"github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
@@ -16,9 +18,7 @@ var (
 	// There are multiple instances of the interner, one per worker (depends on # of virtual CPUs).
 	// Most metrics are tagged with the instance ID, however some are left as global
 	// Note `New` vs `NewSimple`
-	tlmSIResets = telemetry.NewCounter("dogstatsd", "string_interner_resets", []string{"interner_id"},
-		"Amount of resets of the string interner used in dogstatsd")
-	tlmSIRSize = telemetry.NewGauge("dogstatsd", "string_interner_entries", []string{"interner_id"},
+	tlmSIREntries = telemetry.NewGauge("dogstatsd", "string_interner_entries", []string{"interner_id"},
 		"Number of entries in the string interner")
 	tlmSIRBytes = telemetry.NewGauge("dogstatsd", "string_interner_bytes", []string{"interner_id"},
 		"Number of bytes stored in the string interner")
@@ -28,72 +28,85 @@ var (
 		"Number of times string interner created a new string object")
 	tlmSIRNew = telemetry.NewSimpleCounter("dogstatsd", "string_interner_new",
 		"Number of times string interner was created")
-	tlmSIRStrBytes = telemetry.NewSimpleHistogram("dogstatsd", "string_interner_str_bytes",
-		"Number of times string with specific length were added",
-		[]float64{1, 2, 4, 8, 16, 32, 64, 128})
 )
 
-// stringInterner is a string cache providing a longer life for strings,
-// helping to avoid GC runs because they're re-used many times instead of
-// created every time.
-type stringInterner struct {
-	strings    map[string]string
-	maxSize    int
-	curBytes   int
-	tlmEnabled bool
-	id         string
+// A StringValue pointer is the handle to the underlying string value.
+// See Get how Value pointers may be used.
+type StringValue struct {
+	_           [0]func() // prevent people from accidentally using value type as comparable
+	cmpVal      string
+	resurrected bool
 }
 
-func newStringInterner(maxSize int, internerID int) *stringInterner {
+// Get the underlying string value
+func (v *StringValue) Get() string {
+	return v.cmpVal
+}
+
+// stringInterner interns strings while allowing them to be cleaned up by the GC.
+// It can handle both string and []byte types without allocation.
+type stringInterner struct {
+	tlmEnabled   bool
+	valMap       map[string]uintptr
+	id           string
+	totalBytes   uint32
+	totalEntries uint32
+}
+
+// newStringInterner creates a new StringInterner
+func newStringInterner(internerID int) *stringInterner {
 	i := &stringInterner{
-		strings:    make(map[string]string),
-		id:         fmt.Sprintf("interner_%d", internerID),
-		maxSize:    maxSize,
+		valMap:     make(map[string]uintptr),
 		tlmEnabled: utils.IsTelemetryEnabled(),
+		id:         fmt.Sprintf("interner_%d", internerID),
 	}
+
 	if i.tlmEnabled {
 		tlmSIRNew.Inc()
 	}
 	return i
 }
 
-// LoadOrStore always returns the string from the cache, adding it into the
-// cache if needed.
-// If we need to store a new entry and the cache is at its maximum capacity,
-// it is reset.
-func (i *stringInterner) LoadOrStore(key []byte) string {
-	// here is the string interner trick: the map lookup using
-	// string(key) doesn't actually allocate a string, but is
-	// returning the string value -> no new heap allocation
-	// for this string.
-	// See https://github.com/golang/go/commit/f5f5a8b6209f84961687d993b93ea0d397f5d5bf
-	if s, found := i.strings[string(key)]; found {
-		if i.tlmEnabled {
-			tlmSIRHits.WithTags(map[string]string{"interner_id": i.id}).Inc()
+// Get returns a pointer representing the []byte k
+//
+// The returned pointer will be the same for Get(v) and Get(v2)
+// if and only if v == v2. The returned pointer will also be the same
+// for a string with same contents as the byte slice.
+//
+//go:nocheckptr
+func (s *stringInterner) LoadOrStore(k []byte) *StringValue {
+	var v *StringValue
+	// the compiler will optimize the following map lookup to not alloc a string
+	if addr, ok := s.valMap[string(k)]; ok {
+		//goland:noinspection GoVetUnsafePointer
+		v = (*StringValue)((unsafe.Pointer)(addr))
+		v.resurrected = true
+		if s.tlmEnabled {
+			tlmSIRHits.WithTags(map[string]string{"interner_id": s.id}).Inc()
+			tlmSIRBytes.WithTags(map[string]string{"interner_id": s.id}).Add(float64(len(k)))
+			tlmSIREntries.WithTags(map[string]string{"interner_id": s.id}).Add(1)
 		}
-		return s
-	}
-	if len(i.strings) >= i.maxSize {
-		if i.tlmEnabled {
-			tlmSIResets.WithTags(map[string]string{"interner_id": i.id}).Inc()
-			tlmSIRBytes.WithTags(map[string]string{"interner_id": i.id}).Sub(float64(i.curBytes))
-			tlmSIRSize.WithTags(map[string]string{"interner_id": i.id}).Sub(float64(len(i.strings)))
-			i.curBytes = 0
-		}
-
-		i.strings = make(map[string]string)
+		return v
 	}
 
-	s := string(key)
-	i.strings[s] = s
+	v = &StringValue{cmpVal: string(k)}
+	runtime.SetFinalizer(v, s.finalize)
+	s.valMap[string(k)] = uintptr(unsafe.Pointer(v))
+	tlmSIRMiss.WithTags(map[string]string{"interner_id": s.id}).Inc()
+	return v
+}
 
-	if i.tlmEnabled {
-		tlmSIRMiss.WithTags(map[string]string{"interner_id": i.id}).Inc()
-		tlmSIRSize.WithTags(map[string]string{"interner_id": i.id}).Inc()
-		tlmSIRBytes.WithTags(map[string]string{"interner_id": i.id}).Add(float64(len(s)))
-		tlmSIRStrBytes.Observe(float64(len(s)))
-		i.curBytes += len(s)
+func (s *stringInterner) finalize(v *StringValue) {
+	if v.resurrected {
+		// We lost the race. Somebody resurrected it while we
+		// were about to finalize it. Try again next round.
+		v.resurrected = false
+		runtime.SetFinalizer(v, s.finalize)
+		return
 	}
 
-	return s
+	deadValue := v.Get()
+	tlmSIRBytes.WithTags(map[string]string{"interner_id": s.id}).Sub(float64(len(deadValue)))
+	tlmSIREntries.WithTags(map[string]string{"interner_id": s.id}).Sub(1)
+	delete(s.valMap, v.Get())
 }

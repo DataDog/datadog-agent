@@ -51,11 +51,10 @@ type parser struct {
 }
 
 func newParser(cfg config.Reader, float64List *float64ListPool, workerNum int) *parser {
-	stringInternerCacheSize := cfg.GetInt("dogstatsd_string_interner_size")
 	readTimestamps := cfg.GetBool("dogstatsd_no_aggregation_pipeline")
 
 	return &parser{
-		interner:         newStringInterner(stringInternerCacheSize, workerNum),
+		interner:         newStringInterner(workerNum),
 		readTimestamps:   readTimestamps,
 		float64List:      float64List,
 		dsdOriginEnabled: cfg.GetBool("dogstatsd_origin_detection_client"),
@@ -97,11 +96,11 @@ func (p *parser) parseTags(rawTags []byte) []string {
 		if tagPos < 0 {
 			break
 		}
-		tagsList[i] = p.interner.LoadOrStore(rawTags[:tagPos])
+		tagsList[i] = p.interner.LoadOrStore(rawTags[:tagPos]).Get()
 		rawTags = rawTags[tagPos+len(commaSeparator):]
 		i++
 	}
-	tagsList[i] = p.interner.LoadOrStore(rawTags)
+	tagsList[i] = p.interner.LoadOrStore(rawTags).Get()
 	return tagsList
 }
 
@@ -188,7 +187,7 @@ func (p *parser) parseMetricSample(message []byte) (dogstatsdMetricSample, error
 	}
 
 	return dogstatsdMetricSample{
-		name:        p.interner.LoadOrStore(name),
+		name:        p.interner.LoadOrStore(name).Get(),
 		value:       value,
 		values:      values,
 		setValue:    string(setValue),
