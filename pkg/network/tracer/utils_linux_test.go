@@ -4,15 +4,15 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build linux_bpf
-// +build linux_bpf
 
 package tracer
 
 import (
 	"testing"
 
-	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/stretchr/testify/assert"
+
+	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 )
 
 func TestUbuntuKernelsNotSupported(t *testing.T) {

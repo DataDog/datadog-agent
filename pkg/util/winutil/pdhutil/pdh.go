@@ -3,8 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 //go:build windows
-// +build windows
 
+// Package pdhutil provides the Windows PDH API
 package pdhutil
 
 import (
@@ -13,12 +13,11 @@ import (
 	"golang.org/x/sys/windows"
 )
 
-type (
-	PDH_HQUERY   windows.Handle
-	PDH_HCOUNTER windows.Handle
-)
+//revive:disable:var-naming Name is intended to match the Windows const name
 
 // PDH error codes.  Taken from latest PDHMSH.h in Windows SDK
+//
+// https://learn.microsoft.com/en-us/windows/win32/perfctrs/pdh-error-codes
 const (
 
 	//
@@ -129,10 +128,10 @@ const (
 	PERF_DETAIL_COSTLY   = uint32(0x00010000)
 	PERF_DETAIL_STANDARD = uint32(0x0000FFFF)
 )
-const (
-	ERROR_SUCCESS = 0
-)
 
+//revive:enable:var-naming (const)
+
+// English counters for the Process counterset
 const (
 	CounterAllProcessPctProcessorTime   = `\Process(*)\% Processor Time`
 	CounterAllProcessPctUserTime        = `\Process(*)\% User Time`
@@ -164,6 +163,14 @@ const (
 	CounterAllProcessWorkingSetPrivate  = `\Process(*)\Working Set - Private`
 )
 
+//revive:disable:var-naming Name is intended to match the Windows type name
+type (
+	// PDH_HQUERY is a handle to a PDH query
+	PDH_HQUERY windows.Handle
+	// PDH_HCOUNTER is a handle to a PDH counter
+	PDH_HCOUNTER windows.Handle
+)
+
 // PDH_FMT_COUNTERVALUE_ITEM_LONG structure contains the instance name and formatted value of a PDH_FMT_COUNTERVALUE_LONG counter.
 type PDH_FMT_COUNTERVALUE_ITEM_LONG struct {
 	szName *uint8
@@ -182,6 +189,8 @@ type PDH_FMT_COUNTERVALUE_ITEM_DOUBLE struct {
 	value  PDH_FMT_COUNTERVALUE_DOUBLE
 }
 
+//revive:enable:var-naming (type)
+
 // PdhOpenQuery Creates a new query that is used to manage the collection of performance data.
 /*
 Parameters
@@ -199,32 +208,6 @@ func PdhOpenQuery(szDataSource uintptr, dwUserData uintptr, phQuery *PDH_HQUERY)
 		szDataSource,
 		dwUserData,
 		uintptr(unsafe.Pointer(phQuery)))
-
-	return uint32(ret)
-}
-
-// PdhAddCounter adds the specified counter to the query
-/*
-Parameters
-hQuery [in]
-Handle to the query to which you want to add the counter. This handle is returned by the PdhOpenQuery function.
-
-szFullCounterPath [in]
-Null-terminated string that contains the counter path. For details on the format of a counter path, see Specifying a Counter Path. The maximum length of a counter path is PDH_MAX_COUNTER_PATH.
-
-dwUserData [in]
-User-defined value. This value becomes part of the counter information. To retrieve this value later, call the PdhGetCounterInfo function and access the dwUserData member of the PDH_COUNTER_INFO structure.
-
-phCounter [out]
-Handle to the counter that was added to the query. You may need to reference this handle in subsequent calls.
-*/
-func PdhAddCounter(hQuery PDH_HQUERY, szFullCounterPath string, dwUserData uintptr, phCounter *PDH_HCOUNTER) uint32 {
-	ptxt, _ := windows.UTF16PtrFromString(szFullCounterPath)
-	ret, _, _ := procPdhAddCounterW.Call(
-		uintptr(hQuery),
-		uintptr(unsafe.Pointer(ptxt)),
-		dwUserData,
-		uintptr(unsafe.Pointer(phCounter)))
 
 	return uint32(ret)
 }
@@ -252,13 +235,15 @@ func PdhAddEnglishCounter(hQuery PDH_HQUERY, szFullCounterPath string, dwUserDat
 	return uint32(ret)
 }
 
-/* PdhCollectQueryData
-   Collects the current raw data value for all counters in the specified query and updates the status code of each counter.
+/*
+	pdhCollectQueryData
+	  Collects the current raw data value for all counters in the specified query and updates the status code of each counter.
+
 Parameters
 hQuery [in, out]
 Handle of the query for which you want to collect data. The PdhOpenQuery function returns this handle.
 */
-func PdhCollectQueryData(hQuery PDH_HQUERY) uint32 {
+func pdhCollectQueryData(hQuery PDH_HQUERY) uint32 {
 	ret, _, _ := procPdhCollectQueryData.Call(uintptr(hQuery))
 
 	return uint32(ret)

@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build containerd
-// +build containerd
 
 package containerd
 
@@ -34,6 +33,7 @@ func TestIgnoreContainer(t *testing.T) {
 	tests := []struct {
 		name           string
 		imgName        string
+		isSandbox      bool
 		container      containerd.Container
 		expectsIgnored bool
 	}{
@@ -41,12 +41,21 @@ func TestIgnoreContainer(t *testing.T) {
 			name:           "pause image",
 			imgName:        "k8s.gcr.io/pause",
 			container:      &container,
+			isSandbox:      false,
+			expectsIgnored: true,
+		},
+		{
+			name:           "is sandbox",
+			imgName:        "k8s.gcr.io/pause",
+			container:      &container,
+			isSandbox:      true,
 			expectsIgnored: true,
 		},
 		{
 			name:           "non-pause container that exists",
 			imgName:        "datadog/agent",
 			container:      &container,
+			isSandbox:      false,
 			expectsIgnored: false,
 		},
 	}
@@ -54,10 +63,13 @@ func TestIgnoreContainer(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			client := fake.MockedContainerdClient{
-				MockInfo: func(containerd.Container) (containerdcontainers.Container, error) {
+				MockInfo: func(namespace string, ctn containerd.Container) (containerdcontainers.Container, error) {
 					return containerdcontainers.Container{
 						Image: test.imgName,
 					}, nil
+				},
+				MockIsSandbox: func(namespace string, ctn containerd.Container) (bool, error) {
+					return test.isSandbox, nil
 				},
 			}
 
@@ -66,7 +78,7 @@ func TestIgnoreContainer(t *testing.T) {
 				filterPausedContainers: pauseFilter,
 			}
 
-			ignored, err := containerdCollector.ignoreContainer(test.container)
+			ignored, err := containerdCollector.ignoreContainer("default", test.container)
 			assert.NoError(t, err)
 
 			if test.expectsIgnored {

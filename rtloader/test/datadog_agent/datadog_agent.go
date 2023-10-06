@@ -8,7 +8,6 @@ package testdatadogagent
 import (
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"runtime"
 	"strings"
@@ -83,7 +82,7 @@ func setUp() error {
 	}
 
 	var err error
-	tmpfile, err = ioutil.TempFile("", "testout")
+	tmpfile, err = os.CreateTemp("", "testout")
 	if err != nil {
 		return err
 	}
@@ -130,7 +129,7 @@ except Exception as e:
 		return "", fmt.Errorf("`run_simple_string` errored")
 	}
 
-	output, err := ioutil.ReadFile(tmpfile.Name())
+	output, err := os.ReadFile(tmpfile.Name())
 
 	return strings.TrimSpace(string(output)), err
 }
@@ -186,7 +185,7 @@ func getTracemallocEnabled() C.bool {
 //export doLog
 func doLog(msg *C.char, level C.int) {
 	data := []byte(fmt.Sprintf("[%d]%s", int(level), C.GoString(msg)))
-	ioutil.WriteFile(tmpfile.Name(), data, 0644)
+	os.WriteFile(tmpfile.Name(), data, 0644)
 }
 
 //export setCheckMetadata
@@ -256,6 +255,10 @@ type sqlConfig struct {
 	CollectComments bool `json:"collect_comments"`
 	// ReplaceDigits specifies whether digits in table names and identifiers should be obfuscated.
 	ReplaceDigits bool `json:"replace_digits"`
+	// KeepSQLAlias specifies whether or not to strip sql aliases while obfuscating.
+	KeepSQLAlias bool `json:"keep_sql_alias"`
+	// DollarQuotedFunc specifies whether or not to remove $func$ strings in postgres.
+	DollarQuotedFunc bool `json:"dollar_quoted_func"`
 	// ReturnJSONMetadata specifies whether the stub will return metadata as JSON.
 	ReturnJSONMetadata bool `json:"return_json_metadata"`
 }

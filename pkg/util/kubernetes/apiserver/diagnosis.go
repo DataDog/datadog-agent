@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build kubeapiserver
-// +build kubeapiserver
 
 package apiserver
 
@@ -20,7 +19,7 @@ import (
 )
 
 func init() {
-	diagnosis.Register("Kubernetes API Server availability", diagnose)
+	diagnosis.RegisterMetadataAvail("Kubernetes API Server availability", diagnose)
 }
 
 // diagnose the API server availability

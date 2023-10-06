@@ -13,7 +13,7 @@ import (
 	"flag"
 	"fmt"
 	"io"
-	"io/ioutil"
+	"os"
 	"path"
 	"path/filepath"
 
@@ -41,13 +41,13 @@ func parseArg() (string, error) {
 }
 
 func dumpRetryFiles(folder string) error {
-	entries, err := ioutil.ReadDir(folder)
+	entries, err := os.ReadDir(folder)
 	if err != nil {
 		return err
 	}
 
 	for _, entry := range entries {
-		if entry.Mode().IsRegular() && filepath.Ext(entry.Name()) == ".retry" {
+		if entry.Type().IsRegular() && filepath.Ext(entry.Name()) == ".retry" {
 			fmt.Println(entry.Name())
 			filePath := path.Join(folder, entry.Name())
 			fileContent, err := dumpRetryFile(filePath)
@@ -55,7 +55,7 @@ func dumpRetryFiles(folder string) error {
 				return err
 			}
 			output := filePath + ".json"
-			err = ioutil.WriteFile(output, fileContent, 0600)
+			err = os.WriteFile(output, fileContent, 0600)
 			if err != nil {
 				return err
 			}
@@ -65,7 +65,7 @@ func dumpRetryFiles(folder string) error {
 }
 
 func dumpRetryFile(file string) ([]byte, error) {
-	content, err := ioutil.ReadFile(file)
+	content, err := os.ReadFile(file)
 	if err != nil {
 		return nil, err
 	}
@@ -75,14 +75,14 @@ func dumpRetryFile(file string) ([]byte, error) {
 		return nil, err
 	}
 	buffer := bytes.NewBuffer([]byte{})
-	var jsonTrs []JsonHttpTransaction
+	var jsonTrs []JSONHTTPTransaction
 	for _, v := range collection.Values {
 		payload, err := decodePayload(v.Payload, buffer)
 		if err != nil {
 			return nil, err
 		}
 		v.Payload = nil // This field is not used as we want a type string to dump in JSON.
-		jsonTrs = append(jsonTrs, JsonHttpTransaction{
+		jsonTrs = append(jsonTrs, JSONHTTPTransaction{
 			HttpTransactionProto: v,
 			Payload:              payload,
 		})
@@ -90,7 +90,9 @@ func dumpRetryFile(file string) ([]byte, error) {
 	return json.MarshalIndent(jsonTrs, "", "  ")
 }
 
-type JsonHttpTransaction struct {
+// JSONHTTPTransaction is a transaction object with a string-type Payload associated
+// with it
+type JSONHTTPTransaction struct {
 	*HttpTransactionProto
 	Payload string // Same as HttpTransactionProto.Payload but the type is string instead of []byte
 }

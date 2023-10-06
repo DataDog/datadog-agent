@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build clusterchecks && !windows
-// +build clusterchecks,!windows
 
 package cloudfoundry
 
@@ -14,7 +13,7 @@ import (
 	"testing"
 
 	"code.cloudfoundry.org/bbs/models"
-	"github.com/cloudfoundry-community/go-cfclient"
+	"github.com/cloudfoundry-community/go-cfclient/v2"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -88,6 +87,16 @@ var cfSidecar1 = CFSidecar{
 var cfSidecar2 = CFSidecar{
 	GUID: "sidecar_guid_2",
 	Name: "sidecar_name_2",
+}
+
+var cfIsolationSegment1 = cfclient.IsolationSegment{
+	GUID: "isolation_segment_guid_1",
+	Name: "isolation_segment_name_1",
+}
+
+var cfIsolationSegment2 = cfclient.IsolationSegment{
+	GUID: "isolation_segment_guid_2",
+	Name: "isolation_segment_name_2",
 }
 
 type Links struct {
@@ -291,7 +300,7 @@ var ExpectedD1 = DesiredLRP{
 	ProcessGUID:      "0123456789012345678901234567890123456789",
 	SpaceGUID:        "space_guid_1",
 	SpaceName:        "space_name_1",
-	CustomTags:       []string{"env:test-env", "service:test-service", "sidecar_present:true", "sidecar_count:1"},
+	CustomTags:       []string{"env:test-env", "service:test-service", "sidecar_present:true", "sidecar_count:1", "segment_id:isolation_segment_guid_1", "segment_name:isolation_segment_name_1"},
 }
 
 var ExpectedD2 = DesiredLRP{
@@ -319,6 +328,8 @@ var ExpectedD2 = DesiredLRP{
 		"service:test-service",
 		"sidecar_present:true",
 		"sidecar_count:1",
+		"segment_id:isolation_segment_guid_1",
+		"segment_name:isolation_segment_name_1",
 	},
 }
 

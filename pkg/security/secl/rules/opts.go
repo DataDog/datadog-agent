@@ -3,10 +3,13 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+// Package rules holds rules related files
 package rules
 
 import (
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/log"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 )
 
 // VariableProvider is the interface implemented by SECL variable providers
@@ -19,41 +22,20 @@ type VariableProviderFactory func() VariableProvider
 
 // Opts defines rules set options
 type Opts struct {
-	eval.Opts
+	RuleSetTag          map[string]eval.RuleSetTagValue
 	SupportedDiscarders map[eval.Field]bool
 	ReservedRuleIDs     []RuleID
 	EventTypeEnabled    map[eval.EventType]bool
 	StateScopes         map[Scope]VariableProviderFactory
-	Logger              Logger
+	Logger              log.Logger
 }
 
-// WithConstants set constants
-func (o *Opts) WithConstants(constants map[string]interface{}) *Opts {
-	o.Opts.WithConstants(constants)
-	return o
-}
-
-// WithVariables set variables
-func (o *Opts) WithVariables(variables map[string]eval.VariableValue) *Opts {
-	o.Opts.WithVariables(variables)
-	return o
-}
-
-// WithLegacyFields set legacy fields
-func (o *Opts) WithLegacyFields(fields map[eval.Field]eval.Field) *Opts {
-	o.Opts.WithLegacyFields(fields)
-	return o
-}
-
-// AddMacro add a macro
-func (o *Opts) AddMacro(macro *eval.Macro) *Opts {
-	o.Opts.AddMacro(macro)
-	return o
-}
-
-// WithUserContext set user context
-func (o *Opts) WithUserContext(ctx interface{}) *Opts {
-	o.Opts.WithUserContext(ctx)
+// WithRuleSetTag sets the rule set tag with the value of the tag of the rules that belong in this rule set
+func (o *Opts) WithRuleSetTag(tagValue eval.RuleSetTagValue) *Opts {
+	if o.RuleSetTag == nil {
+		o.RuleSetTag = make(map[string]eval.RuleSetTagValue)
+	}
+	o.RuleSetTag[RuleSetTagKey] = tagValue
 	return o
 }
 
@@ -76,7 +58,7 @@ func (o *Opts) WithReservedRuleIDs(ruleIds []RuleID) *Opts {
 }
 
 // WithLogger set logger
-func (o *Opts) WithLogger(logger Logger) *Opts {
+func (o *Opts) WithLogger(logger log.Logger) *Opts {
 	o.Logger = logger
 	return o
 }
@@ -85,4 +67,32 @@ func (o *Opts) WithLogger(logger Logger) *Opts {
 func (o *Opts) WithStateScopes(stateScopes map[Scope]VariableProviderFactory) *Opts {
 	o.StateScopes = stateScopes
 	return o
+}
+
+// NewEvalOpts returns eval options
+func NewEvalOpts(eventTypeEnabled map[eval.EventType]bool) (*Opts, *eval.Opts) {
+	var ruleOpts Opts
+
+	ruleOpts.
+		WithEventTypeEnabled(eventTypeEnabled).
+		WithStateScopes(map[Scope]VariableProviderFactory{
+			"process": func() VariableProvider {
+				return eval.NewScopedVariables(func(ctx *eval.Context) eval.ScopedVariable {
+					return ctx.Event.(*model.Event).ProcessCacheEntry
+				})
+			},
+			"container": func() VariableProvider {
+				return eval.NewScopedVariables(func(ctx *eval.Context) eval.ScopedVariable {
+					return ctx.Event.(*model.Event).ContainerContext
+				})
+			},
+		}).WithRuleSetTag(DefaultRuleSetTagValue)
+
+	var evalOpts eval.Opts
+	evalOpts.
+		WithConstants(model.SECLConstants).
+		WithLegacyFields(model.SECLLegacyFields).
+		WithVariables(model.SECLVariables)
+
+	return &ruleOpts, &evalOpts
 }

@@ -11,16 +11,16 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"log"
 	"net/http"
-	"sync/atomic"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/trace/pb"
+	"go.uber.org/atomic"
 
-	"github.com/gogo/protobuf/proto"
+	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
+
 	"github.com/tinylib/msgp/msgp"
+	"google.golang.org/protobuf/proto"
 )
 
 // defaultBackendAddress is the default listening address for the fake
@@ -32,7 +32,7 @@ const defaultBackendAddress = "localhost:8888"
 const defaultChannelSize = 100
 
 type fakeBackend struct {
-	started uint64           // 0 if server is stopped
+	started *atomic.Bool
 	out     chan interface{} // payload output
 	srv     http.Server
 }
@@ -43,7 +43,8 @@ func newFakeBackend(channelSize int) *fakeBackend {
 		size = channelSize
 	}
 	fb := fakeBackend{
-		out: make(chan interface{}, size),
+		started: atomic.NewBool(false),
+		out:     make(chan interface{}, size),
 	}
 	mux := http.NewServeMux()
 	mux.HandleFunc("/api/v0.2/traces", fb.handleTraces)
@@ -58,13 +59,13 @@ func newFakeBackend(channelSize int) *fakeBackend {
 }
 
 func (s *fakeBackend) Start() error {
-	if atomic.LoadUint64(&s.started) > 0 {
+	if s.started.Load() {
 		// already running
 		return nil
 	}
 	go func() {
-		atomic.StoreUint64(&s.started, 1)
-		defer atomic.StoreUint64(&s.started, 0)
+		s.started.Store(true)
+		defer s.started.Store(false)
 		if err := s.srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 			log.Fatalf("server: %v", err)
 		}
@@ -77,8 +78,11 @@ func (s *fakeBackend) Start() error {
 			return errors.New("server: timed out out waiting for start")
 		default:
 			resp, err := http.Get(fmt.Sprintf("http://%s/_health", s.srv.Addr))
-			if err == nil && resp.StatusCode == http.StatusOK {
-				return nil
+			if err == nil {
+				resp.Body.Close()
+				if resp.StatusCode == http.StatusOK {
+					return nil
+				}
 			}
 			time.Sleep(5 * time.Millisecond)
 		}
@@ -105,7 +109,7 @@ func (s *fakeBackend) handleStats(w http.ResponseWriter, req *http.Request) {
 	if err := readMsgPRequest(req, &payload); err != nil {
 		log.Println("server: error reading stats: ", err)
 	}
-	s.out <- payload
+	s.out <- &payload
 }
 
 func (s *fakeBackend) handleTraces(w http.ResponseWriter, req *http.Request) {
@@ -113,7 +117,7 @@ func (s *fakeBackend) handleTraces(w http.ResponseWriter, req *http.Request) {
 	if err := readProtoRequest(req, &payload); err != nil {
 		log.Println("server: error reading traces: ", err)
 	}
-	s.out <- payload
+	s.out <- &payload
 }
 
 func readMsgPRequest(req *http.Request, msg msgp.Decodable) error {
@@ -130,7 +134,7 @@ func readProtoRequest(req *http.Request, msg proto.Message) error {
 	if err != nil {
 		return err
 	}
-	slurp, err := ioutil.ReadAll(rc)
+	slurp, err := io.ReadAll(rc)
 	defer rc.Close()
 	if err != nil {
 		return err

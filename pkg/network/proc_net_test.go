@@ -4,12 +4,10 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build linux
-// +build linux
 
 package network
 
 import (
-	"io/ioutil"
 	"os"
 	"testing"
 
@@ -54,7 +52,7 @@ func TestReadProcNet(t *testing.T) {
 }
 
 func writeTestFile(content string) (f *os.File, err error) {
-	tmpfile, err := ioutil.TempFile("", "test-proc-net")
+	tmpfile, err := os.CreateTemp("", "test-proc-net")
 
 	if err != nil {
 		return nil, err

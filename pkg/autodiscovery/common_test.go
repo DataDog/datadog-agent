@@ -8,18 +8,20 @@ package autodiscovery
 import (
 	"context"
 
+	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/listeners"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 )
 
 type dummyService struct {
-	ID            string
-	ADIdentifiers []string
-	Hosts         map[string]string
-	Ports         []listeners.ContainerPort
-	Pid           int
-	Hostname      string
-	CheckNames    []string
+	ID              string
+	ADIdentifiers   []string
+	Hosts           map[string]string
+	Ports           []listeners.ContainerPort
+	Pid             int
+	Hostname        string
+	CheckNames      []string
+	filterTemplates func(map[string]integration.Config)
 }
 
 // GetServiceID returns the service entity name
@@ -47,9 +49,9 @@ func (s *dummyService) GetPorts(context.Context) ([]listeners.ContainerPort, err
 	return s.Ports, nil
 }
 
-// GetTags returns mil
-func (s *dummyService) GetTags() ([]string, string, error) {
-	return nil, "", nil
+// GetTags returns the tags for this service
+func (s *dummyService) GetTags() ([]string, error) {
+	return nil, nil
 }
 
 // GetPid return a dummy pid
@@ -78,6 +80,13 @@ func (s *dummyService) HasFilter(filter containers.FilterType) bool {
 }
 
 // GetExtraConfig isn't supported
-func (s *dummyService) GetExtraConfig(key []byte) ([]byte, error) {
-	return []byte{}, nil
+func (s *dummyService) GetExtraConfig(key string) (string, error) {
+	return "", nil
+}
+
+// FilterTemplates calls filterTemplates, if not nil
+func (s *dummyService) FilterTemplates(configs map[string]integration.Config) {
+	if s.filterTemplates != nil {
+		(s.filterTemplates)(configs)
+	}
 }

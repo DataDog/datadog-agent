@@ -6,10 +6,10 @@
 package util
 
 import (
+	"context"
 	"crypto/tls"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"net/http"
 )
 
@@ -41,7 +41,12 @@ func GetClient(verify bool) *http.Client {
 
 // DoGet is a wrapper around performing HTTP GET requests
 func DoGet(c *http.Client, url string, conn ShouldCloseConnection) (body []byte, e error) {
-	req, e := http.NewRequest("GET", url, nil)
+	return DoGetWithContext(context.Background(), c, url, conn)
+}
+
+// DoGetWithContext is a wrapper around performing HTTP GET requests
+func DoGetWithContext(ctx context.Context, c *http.Client, url string, conn ShouldCloseConnection) (body []byte, e error) {
+	req, e := http.NewRequestWithContext(ctx, "GET", url, nil)
 	if e != nil {
 		return body, e
 	}
@@ -55,7 +60,7 @@ func DoGet(c *http.Client, url string, conn ShouldCloseConnection) (body []byte,
 	if e != nil {
 		return body, e
 	}
-	body, e = ioutil.ReadAll(r.Body)
+	body, e = io.ReadAll(r.Body)
 	r.Body.Close()
 	if e != nil {
 		return body, e
@@ -64,7 +69,6 @@ func DoGet(c *http.Client, url string, conn ShouldCloseConnection) (body []byte,
 		return body, fmt.Errorf("%s", body)
 	}
 	return body, nil
-
 }
 
 // DoPost is a wrapper around performing HTTP POST requests
@@ -80,7 +84,7 @@ func DoPost(c *http.Client, url string, contentType string, body io.Reader) (res
 	if e != nil {
 		return resp, e
 	}
-	resp, e = ioutil.ReadAll(r.Body)
+	resp, e = io.ReadAll(r.Body)
 	r.Body.Close()
 	if e != nil {
 		return resp, e

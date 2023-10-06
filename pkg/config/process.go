@@ -6,6 +6,7 @@
 package config
 
 import (
+	"net"
 	"strconv"
 	"strings"
 	"sync"
@@ -34,8 +35,14 @@ const (
 	// DefaultProcessMaxPerMessage is the default maximum number of processes, or containers per message. Note: Only change if the defaults are causing issues.
 	DefaultProcessMaxPerMessage = 100
 
+	// ProcessMaxPerMessageLimit is the maximum allowed value for maximum number of processes, or containers per message.
+	ProcessMaxPerMessageLimit = 10000
+
 	// DefaultProcessMaxMessageBytes is the default max for size of a message containing processes or container data. Note: Only change if the defaults are causing issues.
 	DefaultProcessMaxMessageBytes = 1000000
+
+	// ProcessMaxMessageBytesLimit is the maximum allowed value for the maximum size of a message containing processes or container data.
+	ProcessMaxMessageBytesLimit = 4000000
 
 	// DefaultProcessExpVarPort is the default port used by the process-agent expvar server
 	DefaultProcessExpVarPort = 6062
@@ -43,8 +50,35 @@ const (
 	// DefaultProcessCmdPort is the default port used by process-agent to run a runtime settings server
 	DefaultProcessCmdPort = 6162
 
+	// DefaultProcessEntityStreamPort is the default port used by the process-agent to expose Process Entities
+	DefaultProcessEntityStreamPort = 6262
+
 	// DefaultProcessEndpoint is the default endpoint for the process agent to send payloads to
 	DefaultProcessEndpoint = "https://process.datadoghq.com"
+
+	// DefaultProcessEventsEndpoint is the default endpoint for the process agent to send event payloads to
+	DefaultProcessEventsEndpoint = "https://process-events.datadoghq.com"
+
+	// DefaultProcessEventStoreMaxItems is the default maximum amount of events that can be stored in the Event Store
+	DefaultProcessEventStoreMaxItems = 200
+
+	// DefaultProcessEventStoreMaxPendingPushes is the default amount of pending push operations can be handled by the Event Store
+	DefaultProcessEventStoreMaxPendingPushes = 10
+
+	// DefaultProcessEventStoreMaxPendingPulls is the default amount of pending pull operations can be handled by the Event Store
+	DefaultProcessEventStoreMaxPendingPulls = 10
+
+	// DefaultProcessEventStoreStatsInterval is the default frequency at which the event store sends stats about expired events, in seconds
+	DefaultProcessEventStoreStatsInterval = 20
+
+	// DefaultProcessEventsMinCheckInterval is the minimum interval allowed for the process_events check
+	DefaultProcessEventsMinCheckInterval = time.Second
+
+	// DefaultProcessEventsCheckInterval is the default interval used by the process_events check
+	DefaultProcessEventsCheckInterval = 10 * time.Second
+
+	// DefaultProcessDiscoveryHintFrequency is the default frequency in terms of number of checks which we send a process discovery hint
+	DefaultProcessDiscoveryHintFrequency = 60
 )
 
 // setupProcesses is meant to be called multiple times for different configs, but overrides apply to all configs, so
@@ -59,7 +93,7 @@ func procBindEnvAndSetDefault(config Config, key string, val interface{}) {
 	processConfigKey := "DD_" + strings.Replace(strings.ToUpper(key), ".", "_", -1)
 	processAgentKey := strings.Replace(processConfigKey, "PROCESS_CONFIG", "PROCESS_AGENT", 1)
 
-	envs := append([]string{processConfigKey, processAgentKey})
+	envs := []string{processConfigKey, processAgentKey}
 	config.BindEnvAndSetDefault(key, val, envs...)
 }
 
@@ -94,6 +128,7 @@ func setupProcesses(config Config) {
 		"DD_PROCESS_AGENT_URL",
 		"DD_PROCESS_CONFIG_URL",
 	)
+	procBindEnv(config, "process_config.events_dd_url")
 	config.SetKnown("process_config.dd_agent_env")
 	config.SetKnown("process_config.intervals.process_realtime")
 	procBindEnvAndSetDefault(config, "process_config.queue_size", DefaultProcessQueueSize)
@@ -134,12 +169,14 @@ func setupProcesses(config Config) {
 		"DD_PROCESS_AGENT_ADDITIONAL_ENDPOINTS",
 		"DD_PROCESS_ADDITIONAL_ENDPOINTS",
 	)
+	procBindEnvAndSetDefault(config, "process_config.events_additional_endpoints", make(map[string][]string))
 	config.SetKnown("process_config.intervals.connections")
 	procBindEnvAndSetDefault(config, "process_config.expvar_port", DefaultProcessExpVarPort)
 	procBindEnvAndSetDefault(config, "process_config.log_file", DefaultProcessAgentLogFile)
 	procBindEnvAndSetDefault(config, "process_config.internal_profiling.enabled", false)
 	procBindEnvAndSetDefault(config, "process_config.grpc_connection_timeout_secs", DefaultGRPCConnectionTimeoutSecs)
 	procBindEnvAndSetDefault(config, "process_config.remote_tagger", false)
+	procBindEnvAndSetDefault(config, "process_config.remote_workloadmeta", false) // This flag might change. It's still being tested.
 	procBindEnvAndSetDefault(config, "process_config.disable_realtime_checks", false)
 
 	// Process Discovery Check
@@ -150,6 +187,22 @@ func setupProcesses(config Config) {
 		"DD_PROCESS_AGENT_DISCOVERY_ENABLED",
 	)
 	procBindEnvAndSetDefault(config, "process_config.process_discovery.interval", 4*time.Hour)
+
+	procBindEnvAndSetDefault(config, "process_config.process_discovery.hint_frequency", DefaultProcessDiscoveryHintFrequency)
+
+	procBindEnvAndSetDefault(config, "process_config.drop_check_payloads", []string{})
+
+	// Process Lifecycle Events
+	procBindEnvAndSetDefault(config, "process_config.event_collection.store.max_items", DefaultProcessEventStoreMaxItems)
+	procBindEnvAndSetDefault(config, "process_config.event_collection.store.max_pending_pushes", DefaultProcessEventStoreMaxPendingPushes)
+	procBindEnvAndSetDefault(config, "process_config.event_collection.store.max_pending_pulls", DefaultProcessEventStoreMaxPendingPulls)
+	procBindEnvAndSetDefault(config, "process_config.event_collection.store.stats_interval", DefaultProcessEventStoreStatsInterval)
+	procBindEnvAndSetDefault(config, "process_config.event_collection.enabled", false)
+	procBindEnvAndSetDefault(config, "process_config.event_collection.interval", DefaultProcessEventsCheckInterval)
+
+	procBindEnvAndSetDefault(config, "process_config.cache_lookupid", false)
+
+	procBindEnvAndSetDefault(config, "process_config.language_detection.grpc_port", DefaultProcessEntityStreamPort)
 
 	processesAddOverrideOnce.Do(func() {
 		AddOverrideFunc(loadProcessTransforms)
@@ -174,4 +227,21 @@ func loadProcessTransforms(config Config) {
 			config.Set("process_config.container_collection.enabled", true)
 		}
 	}
+}
+
+// GetProcessAPIAddressPort returns the API endpoint of the process agent
+func GetProcessAPIAddressPort() (string, error) {
+	address, err := GetIPCAddress()
+	if err != nil {
+		return "", err
+	}
+
+	port := Datadog.GetInt("process_config.cmd_port")
+	if port <= 0 {
+		log.Warnf("Invalid process_config.cmd_port -- %d, using default port %d", port, DefaultProcessCmdPort)
+		port = DefaultProcessCmdPort
+	}
+
+	addrPort := net.JoinHostPort(address, strconv.Itoa(port))
+	return addrPort, nil
 }

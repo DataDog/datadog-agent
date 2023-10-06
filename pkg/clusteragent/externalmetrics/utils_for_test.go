@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build kubeapiserver
-// +build kubeapiserver
 
 package externalmetrics
 
@@ -13,8 +12,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/clusteragent/externalmetrics/model"
 	"github.com/stretchr/testify/assert"
+
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/externalmetrics/model"
 
 	"k8s.io/apimachinery/pkg/util/diff"
 	core "k8s.io/client-go/testing"

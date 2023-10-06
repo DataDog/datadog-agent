@@ -8,11 +8,11 @@ from invoke.exceptions import Exit
 
 from .build_tags import filter_incompatible_tags, get_build_tags, get_default_build_tags
 from .flavor import AgentFlavor
-from .utils import REPO_PATH, bin_name, get_build_flags, get_version_numeric_only
+from .utils import REPO_PATH, bin_name, get_build_flags
+from .windows_resources import build_messagetable, build_rc, versioninfo_vars
 
 BIN_DIR = os.path.join(".", "bin", "process-agent")
-BIN_PATH = os.path.join(BIN_DIR, bin_name("process-agent", android=False))
-GIMME_ENV_VARS = ['GOROOT', 'PATH']
+BIN_PATH = os.path.join(BIN_DIR, bin_name("process-agent"))
 
 
 @task
@@ -36,19 +36,17 @@ def build(
 
     # generate windows resources
     if sys.platform == 'win32':
-        windres_target = "pe-x86-64"
         if arch == "x86":
             env["GOARCH"] = "386"
-            windres_target = "pe-i386"
 
-        ver = get_version_numeric_only(ctx, major_version=major_version)
-        maj_ver, min_ver, patch_ver = ver.split(".")
-        resdir = os.path.join(".", "cmd", "process-agent", "windows_resources")
-
-        ctx.run(f"windmc --target {windres_target} -r {resdir} {resdir}/process-agent-msg.mc")
-
-        ctx.run(
-            f"windres --define MAJ_VER={maj_ver} --define MIN_VER={min_ver} --define PATCH_VER={patch_ver} -i cmd/process-agent/windows_resources/process-agent.rc --target {windres_target} -O coff -o cmd/process-agent/rsrc.syso"
+        build_messagetable(ctx, arch=arch)
+        vars = versioninfo_vars(ctx, major_version=major_version, python_runtimes=python_runtimes, arch=arch)
+        build_rc(
+            ctx,
+            "cmd/process-agent/windows_resources/process-agent.rc",
+            arch=arch,
+            vars=vars,
+            out="cmd/process-agent/rsrc.syso",
         )
 
     goenv = {}
@@ -66,11 +64,6 @@ def build(
 
     build_tags = get_build_tags(build_include, build_exclude)
 
-    ## secrets is not supported on windows because the process agent still runs as
-    ## root.  No matter what `get_default_build_tags()` returns, take secrets out.
-    if sys.platform == 'win32' and "secrets" in build_tags:
-        build_tags.remove("secrets")
-
     # TODO static option
     cmd = 'go build -mod={go_mod} {race_opt} {build_type} -tags "{go_build_tags}" '
     cmd += '-o {agent_bin} -gcflags="{gcflags}" -ldflags="{ldflags}" {REPO_PATH}/cmd/process-agent'
@@ -87,6 +80,18 @@ def build(
     }
 
     ctx.run(cmd.format(**args), env=env)
+
+
+class TempDir:
+    def __enter__(self):
+        self.fname = tempfile.mkdtemp()
+        print(f"created tempdir: {self.fname}")
+        return self.fname
+
+    # The _ in front of the unused arguments are needed to pass lint check
+    def __exit__(self, _exception_type, _exception_value, _exception_traceback):
+        print(f"deleting tempdir: {self.fname}")
+        shutil.rmtree(self.fname)
 
 
 @task
@@ -116,7 +121,13 @@ def build_dev_image(ctx, image=None, push=False, base_image="datadog/agent:lates
             core_agent_dest = "/dev/null"
 
         ctx.run(f"cp pkg/ebpf/bytecode/build/*.o {docker_context}")
+        ctx.run(f"mkdir {docker_context}/co-re")
+        ctx.run(f"cp pkg/ebpf/bytecode/build/co-re/*.o {docker_context}/co-re/")
         ctx.run(f"cp pkg/ebpf/bytecode/build/runtime/*.c {docker_context}")
+        ctx.run(f"chmod 0444 {docker_context}/*.o {docker_context}/*.c {docker_context}/co-re/*.o")
+        ctx.run(f"cp /opt/datadog-agent/embedded/bin/clang-bpf {docker_context}")
+        ctx.run(f"cp /opt/datadog-agent/embedded/bin/llc-bpf {docker_context}")
+        ctx.run(f"cp pkg/network/protocols/tls/java/agent-usm.jar {docker_context}")
 
         with ctx.cd(docker_context):
             # --pull in the build will force docker to grab the latest base image
@@ -128,13 +139,19 @@ def build_dev_image(ctx, image=None, push=False, base_image="datadog/agent:lates
         ctx.run(f"docker push {image}")
 
 
-class TempDir:
-    def __enter__(self):
-        self.fname = tempfile.mkdtemp()
-        print(f"created tempdir: {self.fname}")
-        return self.fname
+@task
+def go_generate(ctx):
+    """
+    Run the go generate directives inside the /pkg/process directory
 
-    # The _ in front of the unused arguments are needed to pass lint check
-    def __exit__(self, _exception_type, _exception_value, _exception_traceback):
-        print(f"deleting tempdir: {self.fname}")
-        shutil.rmtree(self.fname)
+    """
+    with ctx.cd("./pkg/process/events/model"):
+        ctx.run("go generate ./...")
+
+
+@task
+def gen_mocks(ctx):
+    """
+    Generate mocks
+    """
+    ctx.run("mockery")

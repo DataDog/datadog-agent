@@ -7,14 +7,14 @@ package config
 
 import (
 	"net/url"
-	"os"
 	"strconv"
 	"strings"
 	"testing"
 
+	"github.com/stretchr/testify/suite"
+
 	coreConfig "github.com/DataDog/datadog-agent/pkg/config"
 	apicfg "github.com/DataDog/datadog-agent/pkg/process/util/api/config"
-	"github.com/stretchr/testify/suite"
 )
 
 type YamlConfigTestSuite struct {
@@ -23,7 +23,7 @@ type YamlConfigTestSuite struct {
 }
 
 func (suite *YamlConfigTestSuite) SetupTest() {
-	suite.config = coreConfig.Mock()
+	suite.config = coreConfig.Mock(nil)
 }
 
 func (suite *YamlConfigTestSuite) TestExtractOrchestratorDDOrchestratorUrl() {
@@ -122,23 +122,65 @@ func (suite *YamlConfigTestSuite) TestExtractOrchestratorEndpointsPrecedence() {
 }
 
 func (suite *YamlConfigTestSuite) TestEnvConfigDDURL() {
-	ddOrchestratorURL := "DD_ORCHESTRATOR_EXPLORER_ORCHESTRATOR_DD_URL"
+	ddOrchestratorURL := "DD_ORCHESTRATOR_URL"
 	expectedValue := "123.datadoghq.com"
-	os.Setenv(ddOrchestratorURL, expectedValue)
-	defer os.Unsetenv(ddOrchestratorURL)
+	suite.T().Setenv(ddOrchestratorURL, expectedValue)
 
 	orchestratorCfg := NewDefaultOrchestratorConfig()
 	err := orchestratorCfg.Load()
 	suite.NoError(err)
 
 	suite.Equal(expectedValue, orchestratorCfg.OrchestratorEndpoints[0].Endpoint.Path)
+
+	// Override to make sure the precedence
+	ddOrchestratorURL = "DD_ORCHESTRATOR_EXPLORER_ORCHESTRATOR_DD_URL"
+	expectedValue = "456.datadoghq.com"
+	suite.T().Setenv(ddOrchestratorURL, expectedValue)
+	err = orchestratorCfg.Load()
+	suite.NoError(err)
+
+	suite.Equal(expectedValue, orchestratorCfg.OrchestratorEndpoints[0].Endpoint.Path)
+}
+
+func (suite *YamlConfigTestSuite) TestEnvConfigAdditionalEndpoints() {
+	suite.T().Setenv("DD_ORCHESTRATOR_ADDITIONAL_ENDPOINTS", `{"https://process1.com": ["key1"], "https://process2.com": ["key2"]}`)
+
+	expected := map[string]string{
+		"key1": "process1.com",
+		"key2": "process2.com",
+	}
+
+	actualEndpoints := []apicfg.Endpoint{}
+	err := extractOrchestratorAdditionalEndpoints(&url.URL{}, &actualEndpoints)
+	suite.NoError(err)
+
+	suite.Len(actualEndpoints, len(expected))
+	for _, actual := range actualEndpoints {
+		suite.Equal(expected[actual.APIKey], actual.Endpoint.Hostname())
+	}
+
+	// Override to make sure the precedence
+	suite.T().Setenv("DD_ORCHESTRATOR_EXPLORER_ORCHESTRATOR_ADDITIONAL_ENDPOINTS", `{"https://orchestrator1.com": ["key1"], "https://orchestrator2.com": ["key2", "key3"]}`)
+
+	expected = map[string]string{
+		"key1": "orchestrator1.com",
+		"key2": "orchestrator2.com",
+		"key3": "orchestrator2.com",
+	}
+
+	actualEndpoints = []apicfg.Endpoint{}
+	err = extractOrchestratorAdditionalEndpoints(&url.URL{}, &actualEndpoints)
+	suite.NoError(err)
+	suite.Len(actualEndpoints, len(expected))
+	for _, actual := range actualEndpoints {
+		suite.Equal(expected[actual.APIKey], actual.Endpoint.Hostname())
+	}
 }
 
 func (suite *YamlConfigTestSuite) TestEnvConfigMessageSize() {
 	ddMaxMessage := "DD_ORCHESTRATOR_EXPLORER_MAX_PER_MESSAGE"
 	expectedValue := "50"
-	os.Setenv(ddMaxMessage, expectedValue)
-	defer os.Unsetenv(ddMaxMessage)
+	suite.T().Setenv(ddMaxMessage, expectedValue)
 
 	orchestratorCfg := NewDefaultOrchestratorConfig()
 	err := orchestratorCfg.Load()
@@ -153,8 +195,7 @@ func (suite *YamlConfigTestSuite) TestEnvConfigMessageSizeTooHigh() {
 	ddMaxMessage := "DD_ORCHESTRATOR_EXPLORER_MAX_PER_MESSAGE"
 	expectedDefaultValue := 100
 
-	os.Setenv(ddMaxMessage, "150")
-	defer os.Unsetenv(ddMaxMessage)
+	suite.T().Setenv(ddMaxMessage, "150")
 
 	orchestratorCfg := NewDefaultOrchestratorConfig()
 	err := orchestratorCfg.Load()
@@ -166,8 +207,7 @@ func (suite *YamlConfigTestSuite) TestEnvConfigMessageSizeTooHigh() {
 func (suite *YamlConfigTestSuite) TestEnvConfigSensitiveWords() {
 	ddSensitiveWords := "DD_ORCHESTRATOR_EXPLORER_CUSTOM_SENSITIVE_WORDS"
 	expectedValue := "token consul"
-	os.Setenv(ddSensitiveWords, expectedValue)
-	defer os.Unsetenv(ddSensitiveWords)
+	suite.T().Setenv(ddSensitiveWords, expectedValue)
 
 	orchestratorCfg := NewDefaultOrchestratorConfig()
 	err := orchestratorCfg.Load()

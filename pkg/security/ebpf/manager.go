@@ -4,13 +4,12 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build linux
-// +build linux
 
+// Package ebpf holds ebpf related files
 package ebpf
 
 import (
 	"math"
-	"os"
 
 	manager "github.com/DataDog/ebpf-manager"
 	"github.com/cilium/ebpf"
@@ -25,10 +24,7 @@ func NewDefaultOptions() manager.Options {
 		// DefaultKProbeMaxActive is the maximum number of active kretprobe at a given time
 		DefaultKProbeMaxActive: 512,
 
-		// DefaultPerfRingBufferSize is the default buffer size of the perf buffers
-		// PLEASE NOTE: for the perf ring buffer usage metrics to be accurate, the provided value must have the
-		// following form: (1 + 2^n) * pages. Checkout https://github.com/DataDog/ebpf for more.
-		DefaultPerfRingBufferSize: 4097 * os.Getpagesize(),
+		DefaultPerfRingBufferSize: probes.EventsPerfRingBufferSize,
 
 		VerifierOptions: ebpf.CollectionOptions{
 			Programs: ebpf.ProgramOptions{
@@ -53,10 +49,15 @@ func NewDefaultOptions() manager.Options {
 }
 
 // NewRuntimeSecurityManager returns a new instance of the runtime security module manager
-func NewRuntimeSecurityManager() *manager.Manager {
-	return &manager.Manager{
-		Probes:   probes.AllProbes(),
-		Maps:     probes.AllMaps(),
-		PerfMaps: probes.AllPerfMaps(),
+func NewRuntimeSecurityManager(supportsRingBuffers, useFentry bool) *manager.Manager {
+	manager := &manager.Manager{
+		Probes: probes.AllProbes(useFentry),
+		Maps:   probes.AllMaps(),
 	}
+	if supportsRingBuffers {
+		manager.RingBuffers = probes.AllRingBuffers()
+	} else {
+		manager.PerfMaps = probes.AllPerfMaps()
+	}
+	return manager
 }

@@ -1,0 +1,4 @@
+---
+enhancements:
+  - |
+    The external metrics server now automatically adjusts the query time window based on the Datadog metrics `MaxAge` attribute.

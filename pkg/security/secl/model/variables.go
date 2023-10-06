@@ -3,9 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build linux
-// +build linux
-
+// Package model holds model related files
 package model
 
 import (
@@ -16,7 +14,11 @@ var (
 	// SECLVariables set of variables
 	SECLVariables = map[string]eval.VariableValue{
 		"process.pid": eval.NewIntVariable(func(ctx *eval.Context) int {
-			return int((*Event)(ctx.Object).ProcessContext.Process.Pid)
+			pc := ctx.Event.(*Event).ProcessContext
+			if pc == nil {
+				return 0
+			}
+			return int(pc.Process.Pid)
 		}, nil),
 	}
 )

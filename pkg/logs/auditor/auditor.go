@@ -8,7 +8,6 @@ package auditor
 import (
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"sync"
@@ -17,7 +16,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
-	"github.com/DataDog/datadog-agent/pkg/logs/config"
+	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 )
 
@@ -62,22 +61,26 @@ type Auditor interface {
 
 // A RegistryAuditor is storing the Auditor information using a registry.
 type RegistryAuditor struct {
-	health        *health.Handle
-	chansMutex    sync.Mutex
-	inputChan     chan *message.Payload
-	registry      map[string]*RegistryEntry
-	registryPath  string
-	registryMutex sync.Mutex
-	entryTTL      time.Duration
-	done          chan struct{}
+	health          *health.Handle
+	chansMutex      sync.Mutex
+	inputChan       chan *message.Payload
+	registry        map[string]*RegistryEntry
+	registryPath    string
+	registryDirPath string
+	registryTmpFile string
+	registryMutex   sync.Mutex
+	entryTTL        time.Duration
+	done            chan struct{}
 }
 
 // New returns an initialized Auditor
 func New(runPath string, filename string, ttl time.Duration, health *health.Handle) *RegistryAuditor {
 	return &RegistryAuditor{
-		health:       health,
-		registryPath: filepath.Join(runPath, filename),
-		entryTTL:     ttl,
+		health:          health,
+		registryPath:    filepath.Join(runPath, filename),
+		registryDirPath: runPath,
+		registryTmpFile: filepath.Base(filename) + ".tmp",
+		entryTTL:        ttl,
 	}
 }
 
@@ -194,10 +197,10 @@ func (a *RegistryAuditor) run() {
 
 // recoverRegistry rebuilds the registry from the state file found at path
 func (a *RegistryAuditor) recoverRegistry() map[string]*RegistryEntry {
-	mr, err := ioutil.ReadFile(a.registryPath)
+	mr, err := os.ReadFile(a.registryPath)
 	if err != nil {
 		if os.IsNotExist(err) {
-			log.Debugf("Could not find state file at %q, will start with default offsets", a.registryPath)
+			log.Infof("Could not find state file at %q, will start with default offsets", a.registryPath)
 		} else {
 			log.Error(err)
 		}
@@ -268,7 +271,30 @@ func (a *RegistryAuditor) flushRegistry() error {
 	if err != nil {
 		return err
 	}
-	return ioutil.WriteFile(a.registryPath, mr, 0644)
+	f, err := os.CreateTemp(a.registryDirPath, a.registryTmpFile)
+	if err != nil {
+		return err
+	}
+	tmpName := f.Name()
+	defer func() {
+		if err != nil {
+			_ = f.Close()
+			_ = os.Remove(tmpName)
+		}
+	}()
+	if _, err = f.Write(mr); err != nil {
+		return err
+	}
+
+	if err = f.Chmod(0644); err != nil {
+		return err
+	}
+
+	if err = f.Close(); err != nil {
+		return err
+	}
+	err = os.Rename(tmpName, a.registryPath)
+	return err
 }
 
 // marshalRegistry marshals a registry

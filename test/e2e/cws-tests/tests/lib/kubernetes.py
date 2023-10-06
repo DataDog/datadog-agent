@@ -24,8 +24,8 @@ class KubernetesHelper(LogGetter):
         resp = self.api_client.list_namespaced_pod(namespace=self.namespace, label_selector=label_selector)
         for i in resp.items:
             self.pod_name = i.metadata.name
-            break
-        LookupError(label_selector)
+            return
+        raise LookupError(label_selector)
 
     def get_log(self, agent_name):
         log = self.api_client.read_namespaced_pod_log(
@@ -79,7 +79,7 @@ class KubernetesHelper(LogGetter):
         temppolicy.close()
         temppolicy_path = temppolicy.name
         self.exec_command("security-agent", command=["mkdir", "-p", "/tmp/runtime-security.d"])
-        self.cp_to_agent("security-agent", temppolicy_path, "/tmp/runtime-security.d/default.policy")
+        self.cp_to_agent("security-agent", temppolicy_path, "/tmp/runtime-security.d/downloaded.policy")
         os.remove(temppolicy_path)
 
     def cp_to_agent(self, agent_name, src_file, dst_file):

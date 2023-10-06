@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build !kubeapiserver
-// +build !kubeapiserver
 
 package apiserver
 
@@ -13,9 +12,10 @@ import (
 	"errors"
 	"time"
 
+	"k8s.io/client-go/kubernetes"
+
 	apiv1 "github.com/DataDog/datadog-agent/pkg/clusteragent/api/v1"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"k8s.io/client-go/kubernetes"
 )
 
 var (

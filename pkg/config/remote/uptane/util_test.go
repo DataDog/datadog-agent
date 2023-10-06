@@ -9,8 +9,8 @@ import (
 	"encoding/json"
 	"testing"
 
+	"github.com/DataDog/go-tuf/data"
 	"github.com/stretchr/testify/assert"
-	"github.com/theupdateframework/go-tuf/data"
 )
 
 func TestParseMetaPath(t *testing.T) {

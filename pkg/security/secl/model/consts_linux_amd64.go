@@ -4,8 +4,8 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build linux
-// +build linux
 
+// Package model holds model related files
 package model
 
 import (
@@ -13,6 +13,8 @@ import (
 )
 
 var (
+	// ptraceArchConstants are the supported ptrace commands for the ptrace syscall on amd64
+	// generate_constants:Ptrace constants,Ptrace constants are the supported ptrace commands for the ptrace syscall.
 	ptraceArchConstants = map[string]uint32{
 		"PTRACE_GETFPREGS":         unix.PTRACE_GETFPREGS,
 		"PTRACE_SETFPREGS":         unix.PTRACE_SETFPREGS,
@@ -27,7 +29,9 @@ var (
 		"PTRACE_SINGLEBLOCK":       unix.PTRACE_SINGLEBLOCK,
 	}
 
-	mmapFlagArchConstants = map[string]int{
+	// mmapFlagConstants are the supported flags for the mmap syscall on amd64
+	// generate_constants:MMap flags,MMap flags are the supported flags for the mmap syscall.
+	mmapFlagArchConstants = map[string]uint64{
 		"MAP_32BIT": unix.MAP_32BIT, /* only give out 32bit addresses */
 	}
 )

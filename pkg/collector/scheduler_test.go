@@ -7,12 +7,15 @@ package collector
 
 import (
 	"fmt"
-	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
 	"testing"
+
+	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
+	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
+
+	"github.com/stretchr/testify/assert"
 
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
-	"github.com/stretchr/testify/assert"
 )
 
 type MockCheck struct {
@@ -36,7 +39,7 @@ func (l *MockCoreLoader) Name() string {
 	return "core"
 }
 
-func (l *MockCoreLoader) Load(config integration.Config, instance integration.Data) (check.Check, error) {
+func (l *MockCoreLoader) Load(senderManager sender.SenderManager, config integration.Config, instance integration.Data) (check.Check, error) {
 	mockCheck := MockCheck{Name: config.Name, Loader: l.Name()}
 	return &mockCheck, nil
 }
@@ -47,7 +50,7 @@ func (l *MockPythonLoader) Name() string {
 	return "python"
 }
 
-func (l *MockPythonLoader) Load(config integration.Config, instance integration.Data) (check.Check, error) {
+func (l *MockPythonLoader) Load(senderManager sender.SenderManager, config integration.Config, instance integration.Data) (check.Check, error) {
 	mockCheck := MockCheck{Name: config.Name, Loader: l.Name()}
 	return &mockCheck, nil
 }

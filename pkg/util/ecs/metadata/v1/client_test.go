@@ -4,7 +4,6 @@
 // Copyright 2020-present Datadog, Inc.
 
 //go:build docker
-// +build docker
 
 package v1
 
@@ -27,11 +26,10 @@ func TestGetInstance(t *testing.T) {
 	ecsinterface, err := testutil.NewDummyECS(
 		testutil.FileHandlerOption("/v1/metadata", "./testdata/instance.json"),
 	)
+	require.Nil(t, err)
 
-	require.Nil(t, err)
-	ts, _, err := ecsinterface.Start()
+	ts := ecsinterface.Start()
 	defer ts.Close()
-	require.Nil(t, err)
 
 	expected := &Instance{
 		Cluster: "ecs_cluster",
@@ -58,11 +56,10 @@ func TestGetTasks(t *testing.T) {
 	ecsinterface, err := testutil.NewDummyECS(
 		testutil.FileHandlerOption("/v1/tasks", "./testdata/tasks.json"),
 	)
+	require.Nil(t, err)
 
-	require.Nil(t, err)
-	ts, _, err := ecsinterface.Start()
+	ts := ecsinterface.Start()
 	defer ts.Close()
-	require.Nil(t, err)
 
 	expected := []Task{
 		{
@@ -107,11 +104,10 @@ func TestGetTasksFail(t *testing.T) {
 	ecsinterface, err := testutil.NewDummyECS(
 		testutil.RawHandlerOption("/v1/tasks", ""),
 	)
+	require.Nil(t, err)
 
-	require.Nil(t, err)
-	ts, _, err := ecsinterface.Start()
+	ts := ecsinterface.Start()
 	defer ts.Close()
-	require.Nil(t, err)
 
 	var expected []Task
 	expectedErr := errors.New("Failed to decode metadata v1 JSON payload to type *v1.Tasks: EOF")

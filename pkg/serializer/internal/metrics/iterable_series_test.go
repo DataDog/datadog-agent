@@ -3,140 +3,39 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build test
+
 package metrics
 
 import (
-	"fmt"
-	"strconv"
 	"strings"
 	"testing"
 
-	"github.com/DataDog/datadog-agent/pkg/metrics"
-	"github.com/DataDog/datadog-agent/pkg/serializer/marshaler"
-	_ "github.com/DataDog/datadog-agent/pkg/tagset"
-	jsoniter "github.com/json-iterator/go"
-	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/DataDog/datadog-agent/pkg/metrics"
 )
 
-func TestIterableSeries(t *testing.T) {
-	iterableSeries := IterableSeries{IterableSeries: metrics.NewIterableSeries(func(*metrics.Serie) {}, 10, 1)}
-	done := make(chan struct{})
-	var descritions []string
-	go func() {
-		defer iterableSeries.IterationStopped()
-		for iterableSeries.MoveNext() {
-			descritions = append(descritions, iterableSeries.DescribeCurrentItem())
-		}
-		close(done)
-	}()
-	iterableSeries.Append(&metrics.Serie{Name: "serie1"})
-	iterableSeries.Append(&metrics.Serie{Name: "serie2"})
-	iterableSeries.Append(&metrics.Serie{Name: "serie3"})
-	iterableSeries.SenderStopped()
-	<-done
+func TestIterableSeriesEmptyMarshalJSON(t *testing.T) {
 	r := require.New(t)
-	r.Len(descritions, 3)
-	r.True(strings.Contains(descritions[0], "serie1"))
-	r.True(strings.Contains(descritions[1], "serie2"))
-	r.True(strings.Contains(descritions[2], "serie3"))
+	iterableSerie := CreateIterableSeries(CreateSerieSource(metrics.Series{}))
+	bytes, err := iterableSerie.MarshalJSON()
+	r.NoError(err)
+	r.Equal(`{"series":[]}`, strings.TrimSpace(string(bytes)))
 }
 
-func TestIterableSeriesCallback(t *testing.T) {
-	var series Series
-	callback := func(s *metrics.Serie) { series = append(series, s) }
-	iterableSeries := IterableSeries{IterableSeries: metrics.NewIterableSeries(callback, 10, 10)}
-	iterableSeries.Append(&metrics.Serie{Name: "serie1"})
-	iterableSeries.Append(&metrics.Serie{Name: "serie2"})
-
+func TestIterableSeriesMoveNext(t *testing.T) {
 	r := require.New(t)
-	r.Equal(uint64(2), iterableSeries.SeriesCount())
-	r.Len(series, 2)
-	r.Equal("serie1", series[0].Name)
-	r.Equal("serie2", series[1].Name)
-}
-
-func TestIterableSeriesReceiverStopped(t *testing.T) {
-	iterableSeries := IterableSeries{IterableSeries: metrics.NewIterableSeries(func(*metrics.Serie) {}, 1, 1)}
-	iterableSeries.Append(&metrics.Serie{Name: "serie1"})
-
-	// Next call to Append must not block
-	go iterableSeries.IterationStopped()
-	iterableSeries.Append(&metrics.Serie{Name: "serie2"})
-	iterableSeries.Append(&metrics.Serie{Name: "serie3"})
-}
-
-func TestIterableStreamJSONMarshalerAdapter(t *testing.T) {
-	var series Series
-	series = append(series, &metrics.Serie{Name: "serie1"})
-	series = append(series, &metrics.Serie{Name: "serie2"})
-	series = append(series, &metrics.Serie{Name: "serie3"})
-
-	iterableSeries := IterableSeries{IterableSeries: metrics.NewIterableSeries(func(*metrics.Serie) {}, 4, 2)}
-	for _, serie := range series {
-		iterableSeries.Append(serie)
+	series := metrics.Series{
+		&metrics.Serie{Name: "serie1", NoIndex: true},
+		&metrics.Serie{Name: "serie2", NoIndex: false},
+		&metrics.Serie{Name: "serie3", NoIndex: false},
+		&metrics.Serie{Name: "serie4", NoIndex: true},
 	}
-	iterableSeries.SenderStopped()
-
-	adapter := marshaler.NewIterableStreamJSONMarshalerAdapter(series)
-	expected := dumpIterableStream(adapter)
-	assert.EqualValues(t, expected, dumpIterableStream(iterableSeries))
-}
-
-func dumpIterableStream(marshaler marshaler.IterableStreamJSONMarshaler) []byte {
-	jsonStream := jsoniter.NewStream(jsoniter.ConfigDefault, nil, 0)
-	defer marshaler.IterationStopped()
-	marshaler.WriteHeader(jsonStream)
-	for marshaler.MoveNext() {
-		marshaler.WriteCurrentItem(jsonStream)
-	}
-	marshaler.WriteFooter(jsonStream)
-	return jsonStream.Buffer()
-}
-
-func BenchmarkIterableSeries(b *testing.B) {
-	for bufferSize := 1000; bufferSize <= 8000; bufferSize *= 2 {
-		b.Run(fmt.Sprintf("%v", bufferSize), func(b *testing.B) {
-			iterableSeries := IterableSeries{IterableSeries: metrics.NewIterableSeries(func(*metrics.Serie) {}, 100, bufferSize)}
-			done := make(chan struct{})
-			go func() {
-				defer iterableSeries.IterationStopped()
-				for iterableSeries.MoveNext() {
-				}
-				close(done)
-			}()
-
-			for i := 0; i < b.N; i++ {
-				iterableSeries.Append(&metrics.Serie{Name: "name"})
-			}
-			iterableSeries.SenderStopped()
-			<-done
-		})
-	}
-}
-
-func TestIterableSeriesSeveralValues(t *testing.T) {
-	iterableSeries := IterableSeries{IterableSeries: metrics.NewIterableSeries(func(*metrics.Serie) {}, 10, 2)}
-	done := make(chan struct{})
-	var series []*metrics.Serie
-	go func() {
-		defer iterableSeries.IterationStopped()
-		for iterableSeries.MoveNext() {
-			series = append(series, iterableSeries.Current())
-		}
-		close(done)
-	}()
-	var expected []string
-	for i := 0; i < 101; i++ {
-		name := "serie" + strconv.Itoa(i)
-		expected = append(expected, name)
-		iterableSeries.Append(&metrics.Serie{Name: name})
-	}
-	iterableSeries.SenderStopped()
-	<-done
-	r := require.New(t)
-	r.Len(series, len(expected))
-	for i, v := range expected {
-		r.Equal(v, series[i].Name)
-	}
+	iterableSerie := CreateIterableSeries(CreateSerieSource(series))
+	r.True(iterableSerie.MoveNext()) // Skip serie1
+	r.True(strings.Contains(iterableSerie.DescribeCurrentItem(), "serie2"))
+	r.True(iterableSerie.MoveNext())
+	r.True(strings.Contains(iterableSerie.DescribeCurrentItem(), "serie3"))
+	r.False(iterableSerie.MoveNext()) // Skip serie4
 }

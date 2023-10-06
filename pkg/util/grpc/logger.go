@@ -6,13 +6,14 @@
 package grpc
 
 import (
-	"io/ioutil"
+	"io"
 	"os"
 	"strconv"
 	"strings"
 
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"google.golang.org/grpc/grpclog"
+
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 const (
@@ -59,9 +60,9 @@ func (l redirectLogger) Write(b []byte) (int, error) {
 // NewLogger returns a gRPC logger that logs to the Datadog logger instead of
 // directly to stderr.
 func NewLogger() grpclog.LoggerV2 {
-	errorW := ioutil.Discard
-	warningW := ioutil.Discard
-	infoW := ioutil.Discard
+	errorW := io.Discard
+	warningW := io.Discard
+	infoW := io.Discard
 
 	// grpc-go logs to an io.Writer on a certain severity, and every single
 	// lower severity (so FATAL would log to FATAL, ERROR, WARN and INFO),

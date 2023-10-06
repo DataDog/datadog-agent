@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build linux
-// +build linux
 
 package cgroups
 
@@ -70,8 +69,8 @@ func TestDiscoverCgroupMountPoints(t *testing.T) {
 				"rdma":       "/host/sys/fs/cgroup/rdma",
 				"systemd":    "/host/sys/fs/cgroup/systemd",
 				// Not a real controller but mounted as such in DinD
-				"kubelet": "/host/sys/fs/cgroup/blkio/kubelet",
-				"88ea268ece65a02d68b169fd74bcbcb427eb7f28900db0e3b906fb2eeb7341df": "/host/sys/fs/cgroup/blkio/docker/88ea268ece65a02d68b169fd74bcbcb427eb7f28900db0e3b906fb2eeb7341df",
+				"kubelet": "/host/sys/fs/cgroup/cpu/kubelet",
+				"88ea268ece65a02d68b169fd74bcbcb427eb7f28900db0e3b906fb2eeb7341df": "/host/sys/fs/cgroup/cpu/docker/88ea268ece65a02d68b169fd74bcbcb427eb7f28900db0e3b906fb2eeb7341df",
 			},
 		},
 	}

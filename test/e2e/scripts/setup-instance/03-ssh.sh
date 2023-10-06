@@ -16,7 +16,9 @@ test "${COMMIT_ID}" || {
     COMMIT_ID=$(git rev-parse --verify HEAD)
 }
 
-SSH_OPTS=("-o" "ServerAliveInterval=20" "-o" "ConnectTimeout=6" "-o" "StrictHostKeyChecking=no" "-o" "UserKnownHostsFile=/dev/null" "-i" "${PWD}/id_rsa" "-o" "SendEnv=DOCKER_REGISTRY_* DATADOG_AGENT_IMAGE=${DATADOG_AGENT_IMAGE:-datadog/agent-dev:master} DATADOG_CLUSTER_AGENT_IMAGE=${DATADOG_CLUSTER_AGENT_IMAGE:-datadog/cluster-agent-dev:master} ARGO_WORKFLOW=${ARGO_WORKFLOW:-''} DATADOG_AGENT_SITE=${DATADOG_AGENT_SITE:-''} DATADOG_AGENT_API_KEY=${DATADOG_AGENT_API_KEY:-''} DATADOG_AGENT_APP_KEY=${DATADOG_AGENT_APP_KEY:-''}")
+export DATADOG_AGENT_IMAGE=${DATADOG_AGENT_IMAGE:-datadog/agent-dev:master}
+export DATADOG_CLUSTER_AGENT_IMAGE=${DATADOG_CLUSTER_AGENT_IMAGE:-datadog/cluster-agent-dev:master}
+SSH_OPTS=("-o" "ServerAliveInterval=20" "-o" "ConnectTimeout=6" "-o" "StrictHostKeyChecking=no" "-o" "UserKnownHostsFile=/dev/null" "-i" "${PWD}/id_rsa" "-o" "SendEnv=CI_* DD_API_KEY DOCKER_REGISTRY_* DATADOG_AGENT_IMAGE DATADOG_CLUSTER_AGENT_IMAGE ARGO_WORKFLOW DATADOG_AGENT_SITE DATADOG_AGENT_API_KEY DATADOG_AGENT_APP_KEY")
 
 function _ssh() {
     ssh "${SSH_OPTS[@]}" -lcore "${MACHINE}" "$@"
@@ -71,6 +73,8 @@ _ssh_logged /home/core/datadog-agent/test/e2e/scripts/run-instance/22-argo-submi
 set +e
 _ssh_logged /home/core/datadog-agent/test/e2e/scripts/run-instance/23-argo-get.sh
 EXIT_CODE=$?
+_ssh_logged /home/core/datadog-agent/test/e2e/scripts/run-instance/24-argo-to-ci-setup.sh
+_ssh_logged /home/core/datadog-agent/test/e2e/scripts/run-instance/25-argo-to-ci.sh
 set -e
 export MACHINE
 ./04-send-dd-event.sh $EXIT_CODE

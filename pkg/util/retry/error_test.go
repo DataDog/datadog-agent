@@ -13,9 +13,7 @@ import (
 )
 
 func TestErrorOK(t *testing.T) {
-	var err error
-
-	err = &Error{
+	var err error = &Error{
 		LogicError:    errors.New("logic error"),
 		RessourceName: "mocked",
 		RetryStatus:   PermaFail,
@@ -28,9 +26,7 @@ func TestErrorOK(t *testing.T) {
 }
 
 func TestIsErrWillRetry(t *testing.T) {
-	var err error
-
-	err = &Error{
+	var err error = &Error{
 		LogicError:    errors.New("logic error"),
 		RessourceName: "mocked",
 		RetryStatus:   FailWillRetry,

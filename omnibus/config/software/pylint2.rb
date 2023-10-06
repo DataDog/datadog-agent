@@ -17,14 +17,21 @@ build do
     python2 = "#{install_dir}/embedded/bin/python2"
   end
 
+  # If a python_mirror was set, it's passed through a pip config file so that we're not leaking the API key in the CI Output
+  # Else the pip config file so pip will act casually
+  pip_config_file = ENV['PIP_CONFIG_FILE']
+  build_env = {
+    "PIP_CONFIG_FILE" => "#{pip_config_file}"
+  }
+
   # pin 2 dependencies of pylint:
   # - configparser: later versions (up to v3.7.1) are broken
   # - lazy-object-proxy 1.7.0 broken on python 2 https://github.com/ionelmc/python-lazy-object-proxy/issues/61
   if windows?
-    command "#{python2} -m pip install configparser==3.5.0 lazy-object-proxy==1.6.0"
-    command "#{python2} -m pip install pylint==#{version}"
+    command "#{python2} -m pip install configparser==3.5.0 lazy-object-proxy==1.6.0", :env => build_env
+    command "#{python2} -m pip install pylint==#{version}", :env => build_env
   else
-    command "#{pip2} install configparser==3.5.0 lazy-object-proxy==1.6.0"
-    command "#{pip2} install pylint==#{version}"
+    command "#{pip2} install configparser==3.5.0 lazy-object-proxy==1.6.0", :env => build_env
+    command "#{pip2} install pylint==#{version}", :env => build_env
   end
 end

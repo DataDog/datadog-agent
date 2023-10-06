@@ -12,15 +12,21 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/assert"
+
 	"github.com/DataDog/datadog-agent/pkg/serverless/invocationlifecycle"
 	"github.com/DataDog/datadog-agent/pkg/trace/testutil"
-	"github.com/stretchr/testify/assert"
 )
 
 type mockLifecycleProcessor struct {
 	OnInvokeStartCalled bool
 	OnInvokeEndCalled   bool
 	isError             bool
+	lastEndDetails      *invocationlifecycle.InvocationEndDetails
+}
+
+func (m *mockLifecycleProcessor) GetExecutionInfo() *invocationlifecycle.ExecutionStartInfo {
+	return &invocationlifecycle.ExecutionStartInfo{}
 }
 
 func (m *mockLifecycleProcessor) OnInvokeStart(*invocationlifecycle.InvocationStartDetails) {
@@ -30,6 +36,7 @@ func (m *mockLifecycleProcessor) OnInvokeStart(*invocationlifecycle.InvocationSt
 func (m *mockLifecycleProcessor) OnInvokeEnd(endDetails *invocationlifecycle.InvocationEndDetails) {
 	m.OnInvokeEndCalled = true
 	m.isError = endDetails.IsError
+	m.lastEndDetails = endDetails
 }
 
 func TestStartInvocation(t *testing.T) {
@@ -50,6 +57,7 @@ func TestStartInvocation(t *testing.T) {
 	assert.Nil(err)
 	if res != nil {
 		assert.Equal(res.StatusCode, 200)
+		res.Body.Close()
 	}
 	assert.True(m.OnInvokeStartCalled)
 }
@@ -71,10 +79,18 @@ func TestEndInvocation(t *testing.T) {
 	res, err := client.Do(request)
 	assert.Nil(err)
 	if res != nil {
+		res.Body.Close()
 		assert.Equal(res.StatusCode, 200)
 	}
 	assert.False(m.isError)
 	assert.True(m.OnInvokeEndCalled)
+
+	lastRequestID := d.ExecutionContext.GetCurrentState().LastRequestID
+	coldStartTags := d.ExecutionContext.GetColdStartTagsForRequestID(lastRequestID)
+
+	assert.Equal(m.lastEndDetails.ColdStart, coldStartTags.IsColdStart)
+	assert.Equal(m.lastEndDetails.ProactiveInit, coldStartTags.IsProactiveInit)
+	assert.Equal(m.lastEndDetails.Runtime, d.ExecutionContext.GetCurrentState().Runtime)
 }
 
 func TestEndInvocationWithError(t *testing.T) {
@@ -95,6 +111,7 @@ func TestEndInvocationWithError(t *testing.T) {
 	res, err := client.Do(request)
 	assert.Nil(err)
 	if res != nil {
+		res.Body.Close()
 		assert.Equal(res.StatusCode, 200)
 	}
 	assert.True(m.OnInvokeEndCalled)
@@ -118,15 +135,17 @@ func TestTraceContext(t *testing.T) {
 	body := bytes.NewBuffer([]byte(`{"toto": "tutu","Headers": {"x-datadog-trace-id": "2222"}}`))
 	request, err := http.NewRequest(http.MethodPost, fmt.Sprintf("http://127.0.0.1:%d/lambda/start-invocation", port), body)
 	assert.Nil(err)
-	_, err = client.Do(request)
+	response, err := client.Do(request)
 	assert.Nil(err)
+	response.Body.Close()
 	request, err = http.NewRequest(http.MethodPost, fmt.Sprintf("http://127.0.0.1:%d/trace-context", port), nil)
 	assert.Nil(err)
 	res, err := client.Do(request)
 	assert.Nil(err)
-	assert.Equal("2222", fmt.Sprintf("%v", invocationlifecycle.TraceID()))
+	assert.Equal("2222", fmt.Sprintf("%v", d.InvocationProcessor.GetExecutionInfo().TraceID))
 	if res != nil {
-		assert.Equal(res.Header.Get("x-datadog-trace-id"), fmt.Sprintf("%v", invocationlifecycle.TraceID()))
-		assert.Equal(res.Header.Get("x-datadog-span-id"), fmt.Sprintf("%v", invocationlifecycle.SpanID()))
+		res.Body.Close()
+		assert.Equal(res.Header.Get("x-datadog-trace-id"), fmt.Sprintf("%v", d.InvocationProcessor.GetExecutionInfo().TraceID))
+		assert.Equal(res.Header.Get("x-datadog-span-id"), fmt.Sprintf("%v", d.InvocationProcessor.GetExecutionInfo().SpanID))
 	}
 }

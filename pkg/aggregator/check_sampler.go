@@ -25,6 +25,7 @@ type CheckSampler struct {
 	metrics         metrics.CheckMetrics
 	sketchMap       sketchMap
 	lastBucketValue map[ckey.ContextKey]int64
+	deregistered    bool
 }
 
 // newCheckSampler returns a newly initialized CheckSampler
@@ -42,14 +43,19 @@ func newCheckSampler(expirationCount int, expireMetrics bool, statefulTimeout ti
 func (cs *CheckSampler) addSample(metricSample *metrics.MetricSample) {
 	contextKey := cs.contextResolver.trackContext(metricSample)
 
+	if metricSample.Mtype == metrics.DistributionType {
+		cs.sketchMap.insert(int64(metricSample.Timestamp), contextKey, metricSample.Value, metricSample.SampleRate)
+		return
+	}
+
 	if err := cs.metrics.AddSample(contextKey, metricSample, metricSample.Timestamp, 1); err != nil {
 		log.Debugf("Ignoring sample '%s' on host '%s' and tags '%s': %s", metricSample.Name, metricSample.Host, metricSample.Tags, err)
 	}
 }
 
-func (cs *CheckSampler) newSketchSeries(ck ckey.ContextKey, points []metrics.SketchPoint) metrics.SketchSeries {
+func (cs *CheckSampler) newSketchSeries(ck ckey.ContextKey, points []metrics.SketchPoint) *metrics.SketchSeries {
 	ctx, _ := cs.contextResolver.get(ck)
-	ss := metrics.SketchSeries{
+	ss := &metrics.SketchSeries{
 		Name: ctx.Name,
 		Tags: ctx.Tags(),
 		Host: ctx.Host,
@@ -140,6 +146,7 @@ func (cs *CheckSampler) commitSeries(timestamp float64) {
 		serie.Name = context.Name + serie.NameSuffix
 		serie.Tags = context.Tags()
 		serie.Host = context.Host
+		serie.NoIndex = context.noIndex
 		serie.SourceTypeName = checksSourceTypeName // this source type is required for metrics coming from the checks
 
 		cs.series = append(cs.series, serie)

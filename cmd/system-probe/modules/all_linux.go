@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build linux
-// +build linux
 
 package modules
 
@@ -16,11 +15,14 @@ import (
 
 // All System Probe modules should register their factories here
 var All = []module.Factory{
+	EBPFProbe,
 	NetworkTracer,
 	TCPQueueLength,
 	OOMKillProbe,
-	SecurityRuntime,
+	EventMonitor,
 	Process,
+	DynamicInstrumentation,
+	LanguageDetectionModule,
 }
 
 func inactivityEventLog(duration time.Duration) {

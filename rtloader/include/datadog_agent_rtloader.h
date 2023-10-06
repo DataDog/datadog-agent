@@ -208,6 +208,15 @@ DATADOG_AGENT_RTLOADER_API void cancel_check(rtloader_t *, rtloader_pyobject_t *
 */
 DATADOG_AGENT_RTLOADER_API char **get_checks_warnings(rtloader_t *, rtloader_pyobject_t *check);
 
+/*! \fn char *get_check_diagnoses(rtloader_t*, rtloader_pyobject_t* check)
+    \brief Get all diagnoses, if any, for a check instance.
+    \param rtloader_t A rtloader_t * pointer to the RtLoader instance.
+    \param check A rtloader_pyobject_t * pointer to the check instance we wish to collect the
+    diagnoses for.
+    \return serialized diagnoses for the check as a C-string or NULL if none exists or an error occurred.
+*/
+DATADOG_AGENT_RTLOADER_API char *get_check_diagnoses(rtloader_t *, rtloader_pyobject_t *check);
+
 /*! \fn void rtloader_free(rtloader_t *, void *ptr)
     \brief Routine to free heap memory in RtLoader.
     \param rtloader_t A rtloader_t * pointer to the RtLoader instance.
@@ -620,6 +629,19 @@ DATADOG_AGENT_RTLOADER_API void set_obfuscate_sql_exec_plan_cb(rtloader_t *, cb_
     The callback is expected to be provided by the rtloader caller - in go-context: CGO.
 */
 DATADOG_AGENT_RTLOADER_API void set_get_process_start_time_cb(rtloader_t *, cb_get_process_start_time_t);
+
+/*! \fn void init_pymem_stats(rtloader_t *)
+    \brief Install python allocator hooks.
+    \param rtloader A pointer to the RtLoader instance.
+*/
+DATADOG_AGENT_RTLOADER_API void init_pymem_stats(rtloader_t *);
+
+/*! \fn void get_pymem_stats(rtloader_t *, pymem_stats_t *)
+    \brief Retrieve a snapshot of python allocated memory statistics.
+    \param rtloader A pointer to the RtLoader instance.
+    \param stats A pointer to pymem_stats_t structure that will be updated with the new values.
+*/
+DATADOG_AGENT_RTLOADER_API void get_pymem_stats(rtloader_t *, pymem_stats_t *);
 
 #ifdef __cplusplus
 }

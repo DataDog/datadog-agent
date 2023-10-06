@@ -4,7 +4,6 @@
 // Copyright 2022-present Datadog, Inc.
 
 //go:build test
-// +build test
 
 package metrics
 
@@ -13,14 +12,14 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator/ckey"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
-	"github.com/DataDog/datadog-agent/pkg/quantile"
 	"github.com/DataDog/datadog-agent/pkg/tagset"
+	"github.com/DataDog/opentelemetry-mapping-go/pkg/quantile"
 )
 
 // Makeseries creates a metrics.SketchSeries with i+5 Sketch Points
-func Makeseries(i int) metrics.SketchSeries {
+func Makeseries(i int) *metrics.SketchSeries {
 	// Makeseries is deterministic so that we can test for mutation.
-	ss := metrics.SketchSeries{
+	ss := &metrics.SketchSeries{
 		Name: fmt.Sprintf("name.%d", i),
 		Tags: tagset.CompositeTagsFromSlice([]string{
 			fmt.Sprintf("a:%d", i),
@@ -50,4 +49,29 @@ func makesketch(n int) *quantile.Sketch {
 		s.Insert(c, float64(i))
 	}
 	return s
+}
+
+type serieSourceMock struct {
+	series metrics.Series
+	index  int
+}
+
+func (s *serieSourceMock) MoveNext() bool {
+	s.index++
+	return s.index < len(s.series)
+}
+
+func (s *serieSourceMock) Current() *metrics.Serie {
+	return s.series[s.index]
+}
+
+func (s *serieSourceMock) Count() uint64 {
+	return uint64(len(s.series))
+}
+
+func CreateSerieSource(series metrics.Series) metrics.SerieSource {
+	return &serieSourceMock{
+		series: series,
+		index:  -1,
+	}
 }

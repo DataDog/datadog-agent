@@ -11,11 +11,13 @@ import (
 
 	yaml "gopkg.in/yaml.v2"
 
-	"github.com/DataDog/datadog-agent/pkg/aggregator"
+	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
-	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/DataDog/datadog-agent/pkg/collector/check/defaults"
-	telemetry_utils "github.com/DataDog/datadog-agent/pkg/telemetry/utils"
+	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
+	"github.com/DataDog/datadog-agent/pkg/collector/check/stats"
+	"github.com/DataDog/datadog-agent/pkg/config/utils"
+	"github.com/DataDog/datadog-agent/pkg/diagnose/diagnosis"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -38,12 +40,15 @@ import (
 // If custom tags are set in the instance configuration, they will
 // be automatically appended to each send done by this check.
 type CheckBase struct {
+	senderManager  sender.SenderManager
 	checkName      string
-	checkID        check.ID
+	checkID        checkid.ID
 	latestWarnings []error
 	checkInterval  time.Duration
 	source         string
 	telemetry      bool
+	initConfig     string
+	instanceConfig string
 }
 
 // NewCheckBase returns a check base struct with a given check name
@@ -55,39 +60,23 @@ func NewCheckBase(name string) CheckBase {
 func NewCheckBaseWithInterval(name string, defaultInterval time.Duration) CheckBase {
 	return CheckBase{
 		checkName:     name,
-		checkID:       check.ID(name),
+		checkID:       checkid.ID(name),
 		checkInterval: defaultInterval,
-		telemetry:     telemetry_utils.IsCheckEnabled(name),
+		telemetry:     utils.IsCheckTelemetryEnabled(name),
 	}
 }
 
 // BuildID is to be called by the check's Config() method to generate
 // the unique check ID.
-func (c *CheckBase) BuildID(instance, initConfig integration.Data) {
-	c.checkID = check.BuildID(c.checkName, instance, initConfig)
+func (c *CheckBase) BuildID(integrationConfigDigest uint64, instance, initConfig integration.Data) {
+	c.checkID = checkid.BuildID(c.checkName, integrationConfigDigest, instance, initConfig)
 }
 
 // Configure is provided for checks that require no config. If overridden,
 // the call to CommonConfigure must be preserved.
-func (c *CheckBase) Configure(data integration.Data, initConfig integration.Data, source string) error {
-	commonGlobalOptions := integration.CommonGlobalConfig{}
-	err := yaml.Unmarshal(initConfig, &commonGlobalOptions)
-	if err != nil {
-		log.Errorf("invalid init_config section for check %s: %s", string(c.ID()), err)
-		return err
-	}
-
-	// Set service for this check
-	if len(commonGlobalOptions.Service) > 0 {
-		s, err := c.GetSender()
-		if err != nil {
-			log.Errorf("failed to retrieve a sender for check %s: %s", string(c.ID()), err)
-			return err
-		}
-		s.SetCheckService(commonGlobalOptions.Service)
-	}
-
-	err = c.CommonConfigure(data, source)
+func (c *CheckBase) Configure(senderManager sender.SenderManager, integrationConfigDigest uint64, data integration.Data, initConfig integration.Data, source string) error {
+	c.senderManager = senderManager
+	err := c.CommonConfigure(senderManager, integrationConfigDigest, initConfig, data, source)
 	if err != nil {
 		return err
 	}
@@ -105,56 +94,78 @@ func (c *CheckBase) Configure(data integration.Data, initConfig integration.Data
 
 // CommonConfigure is called when checks implement their own Configure method,
 // in order to setup common options (run interval, empty hostname)
-func (c *CheckBase) CommonConfigure(instance integration.Data, source string) error {
-	commonOptions := integration.CommonInstanceConfig{}
-	err := yaml.Unmarshal(instance, &commonOptions)
-	if err != nil {
-		log.Errorf("invalid instance section for check %s: %s", string(c.ID()), err)
+func (c *CheckBase) CommonConfigure(senderManager sender.SenderManager, integrationConfigDigest uint64, initConfig, instanceConfig integration.Data, source string) error {
+	c.senderManager = senderManager
+	handleConf := func(conf integration.Data, c *CheckBase) error {
+		commonOptions := integration.CommonInstanceConfig{}
+		err := yaml.Unmarshal(conf, &commonOptions)
+		if err != nil {
+			log.Errorf("invalid configuration section for check %s: %s", string(c.ID()), err)
+			return err
+		}
+
+		// See if a collection interval was specified
+		if commonOptions.MinCollectionInterval > 0 {
+			c.checkInterval = time.Duration(commonOptions.MinCollectionInterval) * time.Second
+		}
+
+		// Disable default hostname if specified
+		if commonOptions.EmptyDefaultHostname {
+			s, err := c.GetSender()
+			if err != nil {
+				log.Errorf("failed to retrieve a sender for check %s: %s", string(c.ID()), err)
+				return err
+			}
+			s.DisableDefaultHostname(true)
+		}
+
+		// Set custom tags configured for this check
+		if len(commonOptions.Tags) > 0 {
+			s, err := c.GetSender()
+			if err != nil {
+				log.Errorf("failed to retrieve a sender for check %s: %s", string(c.ID()), err)
+				return err
+			}
+			s.SetCheckCustomTags(commonOptions.Tags)
+		}
+
+		// Set configured service for this check, overriding the one possibly defined globally
+		if len(commonOptions.Service) > 0 {
+			s, err := c.GetSender()
+			if err != nil {
+				log.Errorf("failed to retrieve a sender for check %s: %s", string(c.ID()), err)
+				return err
+			}
+			s.SetCheckService(commonOptions.Service)
+		}
+
+		if commonOptions.NoIndex {
+			s, err := c.GetSender()
+			if err != nil {
+				log.Errorf("failed to retrieve a sender for check %s: %s", string(c.ID()), err)
+				return err
+			}
+			s.SetNoIndex(commonOptions.NoIndex)
+		}
+
+		c.source = source
+		return nil
+	}
+	if err := handleConf(initConfig, c); err != nil {
+		return err
+	}
+	if err := handleConf(instanceConfig, c); err != nil {
 		return err
 	}
 
-	// See if a collection interval was specified
-	if commonOptions.MinCollectionInterval > 0 {
-		c.checkInterval = time.Duration(commonOptions.MinCollectionInterval) * time.Second
-	}
-
-	// Disable default hostname if specified
-	if commonOptions.EmptyDefaultHostname {
-		s, err := c.GetSender()
-		if err != nil {
-			log.Errorf("failed to retrieve a sender for check %s: %s", string(c.ID()), err)
-			return err
-		}
-		s.DisableDefaultHostname(true)
-	}
-
-	// Set custom tags configured for this check
-	if len(commonOptions.Tags) > 0 {
-		s, err := c.GetSender()
-		if err != nil {
-			log.Errorf("failed to retrieve a sender for check %s: %s", string(c.ID()), err)
-			return err
-		}
-		s.SetCheckCustomTags(commonOptions.Tags)
-	}
-
-	// Set configured service for this check, overriding the one possibly defined globally
-	if len(commonOptions.Service) > 0 {
-		s, err := c.GetSender()
-		if err != nil {
-			log.Errorf("failed to retrieve a sender for check %s: %s", string(c.ID()), err)
-			return err
-		}
-		s.SetCheckService(commonOptions.Service)
-	}
-
-	c.source = source
+	c.initConfig = string(initConfig)
+	c.instanceConfig = string(instanceConfig)
 	return nil
 }
 
 // Warn sends an integration warning to logs + agent status.
 func (c *CheckBase) Warn(v ...interface{}) error {
-	w := log.Warn(v...)
+	w := log.WarncStackDepth(log.BuildLogEntry(v...), 1, "check", c.checkName)
 	c.latestWarnings = append(c.latestWarnings, w)
 
 	return w
@@ -162,7 +173,7 @@ func (c *CheckBase) Warn(v ...interface{}) error {
 
 // Warnf sends an integration warning to logs + agent status.
 func (c *CheckBase) Warnf(format string, params ...interface{}) error {
-	w := log.Warnf(format, params...)
+	w := log.WarncStackDepth(fmt.Sprintf(format, params...), 1, "check", c.checkName)
 	c.latestWarnings = append(c.latestWarnings, w)
 
 	return w
@@ -172,18 +183,10 @@ func (c *CheckBase) Warnf(format string, params ...interface{}) error {
 // long-running checks (persisting after Run() exits)
 func (c *CheckBase) Stop() {}
 
-// Cancel calls CommonCancel by default. Override it if
-// your check has background resources that need to be cleaned up
-// when the check is unscheduled. Make sure to call CommonCancel from
-// your override.
+// Cancel does nothing by default. Override it if your check has
+// background resources that need to be cleaned up when the check is
+// unscheduled.
 func (c *CheckBase) Cancel() {
-	c.CommonCancel()
-}
-
-// CommonCancel cleans up common resources. Must be called from Cancel
-// when checks implement it.
-func (c *CheckBase) CommonCancel() {
-	aggregator.DestroySender(c.checkID)
 }
 
 // Interval returns the scheduling time for the check.
@@ -209,12 +212,22 @@ func (c *CheckBase) ConfigSource() string {
 	return c.source
 }
 
+// InitConfig returns the init_config configuration for the check.
+func (c *CheckBase) InitConfig() string {
+	return c.initConfig
+}
+
+// InstanceConfig returns the instance configuration for the check.
+func (c *CheckBase) InstanceConfig() string {
+	return c.instanceConfig
+}
+
 // ID returns a unique ID for that check instance
 //
 // For checks that only support one instance, the default value is
 // the check name. Regular checks must call BuildID() from Config()
 // to build their ID.
-func (c *CheckBase) ID() check.ID {
+func (c *CheckBase) ID() checkid.ID {
 	return c.checkID
 }
 
@@ -240,7 +253,7 @@ func (c *CheckBase) GetWarnings() []error {
 // to avoid this performance cost, as long as they are careful to avoid errors.
 //
 // See `safesender.go` for details on the managed errors.
-func (c *CheckBase) GetSender() (aggregator.Sender, error) {
+func (c *CheckBase) GetSender() (sender.Sender, error) {
 	sender, err := c.GetRawSender()
 	if err != nil {
 		return nil, err
@@ -249,15 +262,20 @@ func (c *CheckBase) GetSender() (aggregator.Sender, error) {
 }
 
 // GetRawSender is similar to GetSender, but does not provide the safety wrapper.
-func (c *CheckBase) GetRawSender() (aggregator.Sender, error) {
-	return aggregator.GetSender(c.ID())
+func (c *CheckBase) GetRawSender() (sender.Sender, error) {
+	return c.senderManager.GetSender(c.ID())
 }
 
 // GetSenderStats returns the stats from the last run of the check.
-func (c *CheckBase) GetSenderStats() (check.SenderStats, error) {
+func (c *CheckBase) GetSenderStats() (stats.SenderStats, error) {
 	sender, err := c.GetSender()
 	if err != nil {
-		return check.SenderStats{}, fmt.Errorf("failed to retrieve a sender: %v", err)
+		return stats.SenderStats{}, fmt.Errorf("failed to retrieve a sender: %v", err)
 	}
 	return sender.GetSenderStats(), nil
+}
+
+// GetDiagnoses returns the diagnoses cached in last run or diagnose explicitly
+func (c *CheckBase) GetDiagnoses() ([]diagnosis.Diagnosis, error) {
+	return nil, nil
 }

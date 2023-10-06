@@ -11,10 +11,13 @@ spec:
       - name: datadog-agent-image-tag
       - name: datadog-cluster-agent-image-repository
       - name: datadog-cluster-agent-image-tag
+      - name: ci_commit_short_sha
+      - name: ci_pipeline_id
+      - name: ci_job_id
   volumes:
-  - name: datadog-agent-volume
-    hostPath:
-      path: /host/datadog-agent
+    - name: datadog-agent-volume
+      hostPath:
+        path: /host/datadog-agent
   templates:
     - name: main
       inputs:
@@ -23,6 +26,9 @@ spec:
           - name: datadog-agent-image-tag
           - name: datadog-cluster-agent-image-repository
           - name: datadog-cluster-agent-image-tag
+          - name: ci_commit_short_sha
+          - name: ci_pipeline_id
+          - name: ci_job_id
       steps:
         - - name: start-fake-datadog
             templateRef:
@@ -57,20 +63,30 @@ spec:
               template: create
             arguments:
               parameters:
-              - name: namespace
-                value: "{{workflow.namespace}}"
-              - name: agent-image-repository
-                value: "{{inputs.parameters.datadog-agent-image-repository}}"
-              - name: agent-image-tag
-                value: "{{inputs.parameters.datadog-agent-image-tag}}"
-              - name: dd-url
-                value: "http://fake-datadog.{{workflow.namespace}}.svc.cluster.local"
-              - name: site
-                value: ""
-              - name: cluster-agent-image-repository
-                value: "{{inputs.parameters.datadog-cluster-agent-image-repository}}"
-              - name: cluster-agent-image-tag
-                value: "{{inputs.parameters.datadog-cluster-agent-image-tag}}"
+                - name: namespace
+                  value: "{{workflow.namespace}}"
+                - name: agent-image-repository
+                  value: "{{inputs.parameters.datadog-agent-image-repository}}"
+                - name: agent-image-tag
+                  value: "{{inputs.parameters.datadog-agent-image-tag}}"
+                - name: dd-url
+                  value: "http://fake-datadog.{{workflow.namespace}}.svc.cluster.local"
+                - name: site
+                  value: ""
+                - name: cluster-agent-image-repository
+                  value: "{{inputs.parameters.datadog-cluster-agent-image-repository}}"
+                - name: cluster-agent-image-tag
+                  value: "{{inputs.parameters.datadog-cluster-agent-image-tag}}"
+                - name: ci_commit_short_sha
+                  value: "{{inputs.parameters.ci_commit_short_sha}}"
+                - name: ci_pipeline_id
+                  value: "{{inputs.parameters.ci_pipeline_id}}"
+                - name: ci_job_id
+                  value: "{{inputs.parameters.ci_job_id}}"
+                - name: remote_configuration_enabled
+                  value: "false"
+                - name: networkmonitoring_enabled
+                  value: "false"
 
         - - name: wait-datadog-agent
             templateRef:
@@ -78,8 +94,8 @@ spec:
               template: wait
             arguments:
               parameters:
-              - name: namespace
-                value: "{{workflow.namespace}}"
+                - name: namespace
+                  value: "{{workflow.namespace}}"
 
         - - name: test-otlp
             templateRef:
@@ -108,8 +124,8 @@ spec:
               template: delete
             arguments:
               parameters:
-              - name: namespace
-                value: "{{workflow.namespace}}"
+                - name: namespace
+                  value: "{{workflow.namespace}}"
 
           - name: stop-otlp-test
             templateRef:
@@ -128,13 +144,13 @@ spec:
               template: diagnose
             arguments:
               parameters:
-              - name: namespace
-                value: "{{workflow.namespace}}"
+                - name: namespace
+                  value: "{{workflow.namespace}}"
           - name: diagnose-otlp-test
             templateRef:
               name: otlp-test
               template: diagnose
             arguments:
               parameters:
-              - name: namespace
-                value: "{{workflow.namespace}}"   
+                - name: namespace
+                  value: "{{workflow.namespace}}"

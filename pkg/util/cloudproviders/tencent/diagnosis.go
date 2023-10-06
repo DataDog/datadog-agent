@@ -12,7 +12,7 @@ import (
 )
 
 func init() {
-	diagnosis.Register("Tencent Metadata availability", diagnose)
+	diagnosis.RegisterMetadataAvail("Tencent Metadata availability", diagnose)
 }
 
 // diagnose the tencent cloud metadata API availability

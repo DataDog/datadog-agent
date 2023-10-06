@@ -3,5 +3,4 @@ Debug/
 x64/
 .vs/
 
-*.vcxproj.filters
 *.vcxproj.user

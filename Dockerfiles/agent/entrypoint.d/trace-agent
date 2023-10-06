@@ -1,4 +1,4 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-exec /opt/datadog-agent/embedded/bin/trace-agent -config=/etc/datadog-agent/datadog.yaml
+exec /opt/datadog-agent/embedded/bin/trace-agent --config=/etc/datadog-agent/datadog.yaml

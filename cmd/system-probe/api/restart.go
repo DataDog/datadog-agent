@@ -8,17 +8,18 @@ package api
 import (
 	"net/http"
 
+	"github.com/gorilla/mux"
+
 	"github.com/DataDog/datadog-agent/cmd/system-probe/api/module"
 	"github.com/DataDog/datadog-agent/cmd/system-probe/config"
 	"github.com/DataDog/datadog-agent/cmd/system-probe/modules"
-	"github.com/gorilla/mux"
 )
 
 func restartModuleHandler(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
 	moduleName := config.ModuleName(vars["module-name"])
 
-	if moduleName == config.SecurityRuntimeModule {
+	if moduleName == config.EventMonitorModule {
 		w.WriteHeader(http.StatusOK)
 		return
 	}

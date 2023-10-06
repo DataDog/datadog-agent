@@ -1,0 +1,4 @@
+---
+deprecations:
+  - |
+    The `compliance_config.xccdf.enabled` configuration has been deprecated. Use `compliance_config.host_benchmarks.enabled` instead.

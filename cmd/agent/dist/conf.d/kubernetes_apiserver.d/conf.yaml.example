@@ -12,8 +12,37 @@ instances:
     #   - <KEY_1>:<VALUE_1>
     #   - <KEY_2>:<VALUE_2>
 
+    ## @param unbundle_events - boolean - optional - default: false
+    ## Transforms each collected Kubernetes event into its own Datadog
+    ## event, instead of grouping them together by InvolvedObject.
+    #
+    # unbundle_events: true
+
+    ## @param collected_event_types - map of array of strings - optional
+    ## Specify which events to be collected by kind, source, and reasons.
+    ## Either kind or source are required, reasons is optional. Only effective
+    ## when unbundle_events is true, otherwise filtered_event_types is used.
+    #
+    collected_event_types:
+      - kind: Pod
+        reasons:
+          - Failed
+          - BackOff
+          - Unhealthy
+          - FailedScheduling
+          - FailedMount
+          - FailedAttachVolume
+      - kind: Node
+        reasons:
+          - TerminatingEvictedPod
+          - NodeNotReady
+          - Rebooted
+          - HostPortConflict
+
     ## @param filtered_event_types - array of strings - optional
     ## Specify a list of exclusion filters over the event type, involvedObject.kind, reason, following the Kubernetes field-selector format.
+    ## Only effective hen unbundle_events is false, otherwise
+    ## collected_event_types  is used.
     #
     # filtered_event_types: ["reason!=FailedGetScale","involvedObject.kind==Pod","type==Normal"]
 

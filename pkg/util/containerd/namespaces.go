@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build containerd
-// +build containerd
 
 package containerd
 
@@ -23,7 +22,31 @@ func NamespacesToWatch(ctx context.Context, containerdClient ContainerdItf) ([]s
 		return namespaces, nil
 	}
 
-	return containerdClient.Namespaces(ctx)
+	namespaces, err := containerdClient.Namespaces(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	excludeNamespaces := config.Datadog.GetStringSlice("containerd_exclude_namespaces")
+	if len(excludeNamespaces) == 0 {
+		return namespaces, nil
+	}
+
+	excludeNamespacesSet := make(map[string]struct{}, len(excludeNamespaces))
+	for _, namespace := range excludeNamespaces {
+		excludeNamespacesSet[namespace] = struct{}{}
+	}
+
+	filteredNamespaces := make([]string, 0, len(namespaces))
+	for _, namespace := range namespaces {
+		if _, exclude := excludeNamespacesSet[namespace]; exclude {
+			continue
+		}
+
+		filteredNamespaces = append(filteredNamespaces, namespace)
+	}
+
+	return filteredNamespaces, nil
 }
 
 // FiltersWithNamespaces returns the given list of filters adapted to take into
@@ -33,8 +56,9 @@ func NamespacesToWatch(ctx context.Context, containerdClient ContainerdItf) ([]s
 // `topic=="/container/create",namespace=="ns1"`.
 func FiltersWithNamespaces(filters []string) []string {
 	namespaces := config.Datadog.GetStringSlice("containerd_namespaces")
+	excludeNamespaces := config.Datadog.GetStringSlice("containerd_exclude_namespaces")
 
-	if len(namespaces) == 0 {
+	if len(namespaces) == 0 && len(excludeNamespaces) == 0 {
 		// Watch all namespaces. No need to add them to the filters.
 		return filters
 	}
@@ -42,8 +66,14 @@ func FiltersWithNamespaces(filters []string) []string {
 	var res []string
 
 	for _, filter := range filters {
-		for _, namespace := range namespaces {
-			res = append(res, fmt.Sprintf(`%s,namespace==%q`, filter, namespace))
+		if len(namespaces) > 0 {
+			for _, namespace := range namespaces {
+				res = append(res, fmt.Sprintf(`%s,namespace==%q`, filter, namespace))
+			}
+		} else if len(excludeNamespaces) > 0 {
+			for _, namespace := range excludeNamespaces {
+				res = append(res, fmt.Sprintf(`%s,namespace!=%q`, filter, namespace))
+			}
 		}
 	}
 

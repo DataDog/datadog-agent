@@ -112,22 +112,10 @@ build do
     if windows?
       # defer compilation step in a block to allow getting the project's build version, which is populated
       # only once the software that the project takes its version from (i.e. `datadog-agent`) has finished building
-      env['TRACE_AGENT_VERSION'] = project.build_version.gsub(/[^0-9\.]/, '') # used by gorake.rb in the trace-agent, only keep digits and dots
       platform = windows_arch_i386? ? "x86" : "x64"
       command "invoke trace-agent.build --major-version #{major_version_arg} --arch #{platform}", :env => env
 
       copy 'bin/trace-agent/trace-agent.exe', "#{Omnibus::Config.source_dir()}/datadog-iot-agent/src/github.com/DataDog/datadog-agent/bin/agent"
-    end
-  end
-  block do
-    # defer compilation step in a block to allow getting the project's build version, which is populated
-    # only once the software that the project takes its version from (i.e. `datadog-agent`) has finished building
-    if windows?
-      platform = windows_arch_i386? ? "x86" : "x64"
-      # Build the security-agent with the correct go version for windows
-      command "invoke -e security-agent.build --major-version #{major_version_arg} --arch #{platform}", :env => env
-
-      copy 'bin/security-agent/security-agent.exe', "#{Omnibus::Config.source_dir()}/datadog-iot-agent/src/github.com/DataDog/datadog-agent/bin/agent"
     end
   end
 

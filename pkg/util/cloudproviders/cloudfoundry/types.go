@@ -4,14 +4,13 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build clusterchecks
-// +build clusterchecks
 
 package cloudfoundry
 
 import (
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"net/http"
 	"net/url"
 	"regexp"
@@ -19,8 +18,9 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/cloudfoundry-community/go-cfclient/v2"
+
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/cloudfoundry-community/go-cfclient"
 
 	"code.cloudfoundry.org/bbs/models"
 )
@@ -131,10 +131,12 @@ type DesiredLRP struct {
 	CustomTags         []string
 }
 
+// CFClient defines a structure that implements the official go cf-client and implements methods that are not supported yet
 type CFClient struct {
 	*cfclient.Client
 }
 
+// CFApplication represents a Cloud Foundry application regardless of the CAPI version
 type CFApplication struct {
 	GUID           string
 	Name           string
@@ -153,6 +155,7 @@ type CFApplication struct {
 	Sidecars       []CFSidecar
 }
 
+// CFSidecar defines a Cloud Foundry Sidecar
 type CFSidecar struct {
 	Name string
 	GUID string
@@ -163,6 +166,26 @@ type listSidecarsResponse struct {
 	Resources  []CFSidecar         `json:"resources"`
 }
 
+type isolationSegmentRelationshipResponse struct {
+	Data []struct {
+		GUID string `json:"guid"`
+	} `json:"data"`
+	Links struct {
+		Self struct {
+			Href string `json:"href"`
+		} `json:"self"`
+		Related struct {
+			Href string `json:"href"`
+		} `json:"related"`
+	} `json:"links"`
+}
+
+type listProcessesByAppGUIDResponse struct {
+	Pagination cfclient.Pagination `json:"pagination"`
+	Resources  []cfclient.Process  `json:"resources"`
+}
+
+// CFOrgQuota defines a Cloud Foundry Organization quota
 type CFOrgQuota struct {
 	GUID        string
 	MemoryLimit int
@@ -295,12 +318,21 @@ func DesiredLRPFromBBSModel(bbsLRP *models.DesiredLRP, includeList, excludeList 
 			} else {
 				log.Debugf("Could not find org %s in cc cache", orgGUID)
 			}
-			if ccCache.advancedTagging {
+			if ccCache.sidecarsTags {
 				if sidecars, err := ccCache.GetSidecars(appGUID); err == nil && len(sidecars) > 0 {
 					customTags = append(customTags, fmt.Sprintf("%s:%s", SidecarPresentTagKey, "true"))
 					customTags = append(customTags, fmt.Sprintf("%s:%d", SidecarCountTagKey, len(sidecars)))
 				} else {
 					customTags = append(customTags, fmt.Sprintf("%s:%s", SidecarPresentTagKey, "false"))
+				}
+			}
+			if ccCache.segmentsTags {
+				if segment, err := ccCache.GetIsolationSegmentForOrg(orgGUID); err == nil {
+					customTags = append(customTags, fmt.Sprintf("%s:%s", SegmentIDTagKey, segment.GUID))
+					customTags = append(customTags, fmt.Sprintf("%s:%s", SegmentNameTagKey, segment.Name))
+				} else if segment, err := ccCache.GetIsolationSegmentForSpace(spaceGUID); err == nil {
+					customTags = append(customTags, fmt.Sprintf("%s:%s", SegmentIDTagKey, segment.GUID))
+					customTags = append(customTags, fmt.Sprintf("%s:%s", SegmentNameTagKey, segment.Name))
 				}
 			}
 		}
@@ -531,6 +563,7 @@ func (a *CFApplication) extractDataFromV3Org(data *cfclient.V3Organization) {
 	}
 }
 
+// NewCFClient returns a new Cloud Foundry client instance given a config
 func NewCFClient(config *cfclient.Config) (client *CFClient, err error) {
 	cfc, err := cfclient.NewClient(config)
 	if err != nil {
@@ -540,6 +573,7 @@ func NewCFClient(config *cfclient.Config) (client *CFClient, err error) {
 	return client, nil
 }
 
+// ListSidecarsByApp returns a list of sidecars for the given application GUID
 func (c *CFClient) ListSidecarsByApp(query url.Values, appGUID string) ([]CFSidecar, error) {
 	var sidecars []CFSidecar
 
@@ -549,7 +583,7 @@ func (c *CFClient) ListSidecarsByApp(query url.Values, appGUID string) ([]CFSide
 		r := c.NewRequest("GET", requestURL+"?"+query.Encode())
 		resp, err := c.DoRequest(r)
 		if err != nil {
-			return nil, fmt.Errorf("Error requesting sidecars for app: %s", err)
+			return nil, fmt.Errorf("Error requesting sidecars for app %s: %s", appGUID, err)
 		}
 
 		if resp.StatusCode != http.StatusOK {
@@ -557,7 +591,7 @@ func (c *CFClient) ListSidecarsByApp(query url.Values, appGUID string) ([]CFSide
 		}
 
 		defer resp.Body.Close()
-		resBody, err := ioutil.ReadAll(resp.Body)
+		resBody, err := io.ReadAll(resp.Body)
 		if err != nil {
 			return nil, fmt.Errorf("Error reading sidecars response for app %s for page %d: %s", appGUID, page, err)
 		}
@@ -575,4 +609,84 @@ func (c *CFClient) ListSidecarsByApp(query url.Values, appGUID string) ([]CFSide
 		}
 	}
 	return sidecars, nil
+}
+
+func (c *CFClient) getIsolationSegmentRelationship(resource, guid string) (string, error) {
+	requestURL := "/v3/isolation_segments/" + guid + "/relationships/" + resource
+	r := c.NewRequest("GET", requestURL)
+
+	resp, err := c.DoRequest(r)
+	if err != nil {
+		return "", fmt.Errorf("Error requesting isolation segment %s: %s", resource, err)
+	}
+
+	if resp.StatusCode != http.StatusOK {
+		return "", fmt.Errorf("Error listing isolation segment %s, response code: %d", resource, resp.StatusCode)
+	}
+
+	defer resp.Body.Close()
+	resBody, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return "", fmt.Errorf("Error reading isolation segment %s response: %s", resource, err)
+	}
+
+	var data isolationSegmentRelationshipResponse
+	err = json.Unmarshal(resBody, &data)
+	if err != nil {
+		return "", fmt.Errorf("Error unmarshalling isolation segment %s response: %s", resource, err)
+	}
+
+	if len(data.Data) == 0 {
+		return "", nil
+	}
+
+	return data.Data[0].GUID, nil
+}
+
+// GetIsolationSegmentSpaceGUID returns an isolation segment GUID given a space GUID
+func (c *CFClient) GetIsolationSegmentSpaceGUID(guid string) (string, error) {
+	return c.getIsolationSegmentRelationship("spaces", guid)
+}
+
+// GetIsolationSegmentOrganizationGUID return an isolation segment GUID given an organization GUID
+func (c *CFClient) GetIsolationSegmentOrganizationGUID(guid string) (string, error) {
+	return c.getIsolationSegmentRelationship("organizations", guid)
+}
+
+// ListProcessByAppGUID returns a list of processes for the given application GUID
+func (c *CFClient) ListProcessByAppGUID(query url.Values, appGUID string) ([]cfclient.Process, error) {
+	var processes []cfclient.Process
+
+	requestURL := "/v3/apps/" + appGUID + "/processes"
+	for page := 1; ; page++ {
+		query.Set("page", strconv.Itoa(page))
+		r := c.NewRequest("GET", requestURL+"?"+query.Encode())
+		resp, err := c.DoRequest(r)
+		if err != nil {
+			return nil, fmt.Errorf("Error requesting processes for app: %s", err)
+		}
+
+		if resp.StatusCode != http.StatusOK {
+			return nil, fmt.Errorf("Error listing processes, response code: %d", resp.StatusCode)
+		}
+
+		defer resp.Body.Close()
+		resBody, err := io.ReadAll(resp.Body)
+		if err != nil {
+			return nil, fmt.Errorf("Error reading processes response for app %s for page %d: %s", appGUID, page, err)
+		}
+
+		var data listProcessesByAppGUIDResponse
+		err = json.Unmarshal(resBody, &data)
+		if err != nil {
+			return nil, fmt.Errorf("Error unmarshalling processes response for app %s for page %d: %s", appGUID, page, err)
+		}
+
+		processes = append(processes, data.Resources...)
+
+		if data.Pagination.TotalPages <= page {
+			break
+		}
+	}
+	return processes, nil
 }

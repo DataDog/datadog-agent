@@ -4,13 +4,10 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build kubeapiserver && orchestrator
-// +build kubeapiserver,orchestrator
 
 package k8s
 
 import (
-	"sync/atomic"
-
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/collectors"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors"
 	k8sProcessors "github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors/k8s"
@@ -21,6 +18,13 @@ import (
 	batchv1Listers "k8s.io/client-go/listers/batch/v1"
 	"k8s.io/client-go/tools/cache"
 )
+
+// NewJobCollectorVersions builds the group of collector versions.
+func NewJobCollectorVersions() collectors.CollectorVersions {
+	return collectors.NewCollectorVersions(
+		NewJobCollector(),
+	)
+}
 
 // JobCollector is a collector for Kubernetes Jobs.
 type JobCollector struct {
@@ -34,9 +38,14 @@ type JobCollector struct {
 func NewJobCollector() *JobCollector {
 	return &JobCollector{
 		metadata: &collectors.CollectorMetadata{
-			IsStable: true,
-			Name:     "jobs",
-			NodeType: orchestrator.K8sJob,
+			IsDefaultVersion:          true,
+			IsStable:                  true,
+			IsMetadataProducer:        true,
+			IsManifestProducer:        true,
+			SupportsManifestBuffering: true,
+			Name:                      "jobs",
+			NodeType:                  orchestrator.K8sJob,
+			Version:                   "batch/v1",
 		},
 		processor: processors.NewProcessor(new(k8sProcessors.JobHandlers)),
 	}
@@ -49,12 +58,9 @@ func (c *JobCollector) Informer() cache.SharedInformer {
 
 // Init is used to initialize the collector.
 func (c *JobCollector) Init(rcfg *collectors.CollectorRunConfig) {
-	c.informer = rcfg.APIClient.InformerFactory.Batch().V1().Jobs()
+	c.informer = rcfg.OrchestratorInformerFactory.InformerFactory.Batch().V1().Jobs()
 	c.lister = c.informer.Lister()
 }
-
-// IsAvailable returns whether the collector is available.
-func (c *JobCollector) IsAvailable() bool { return true }
 
 // Metadata is used to access information about the collector.
 func (c *JobCollector) Metadata() *collectors.CollectorMetadata {
@@ -68,22 +74,16 @@ func (c *JobCollector) Run(rcfg *collectors.CollectorRunConfig) (*collectors.Col
 		return nil, collectors.NewListingError(err)
 	}
 
-	ctx := &processors.ProcessorContext{
-		APIClient:  rcfg.APIClient,
-		Cfg:        rcfg.Config,
-		ClusterID:  rcfg.ClusterID,
-		MsgGroupID: atomic.AddInt32(rcfg.MsgGroupRef, 1),
-		NodeType:   c.metadata.NodeType,
-	}
+	ctx := collectors.NewProcessorContext(rcfg, c.metadata)
 
-	messages, processed := c.processor.Process(ctx, list)
+	processResult, processed := c.processor.Process(ctx, list)
 
 	if processed == -1 {
 		return nil, collectors.ErrProcessingPanic
 	}
 
 	result := &collectors.CollectorRunResult{
-		Messages:           messages,
+		Result:             processResult,
 		ResourcesListed:    len(list),
 		ResourcesProcessed: processed,
 	}

@@ -9,8 +9,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/util/pointer"
 	"github.com/stretchr/testify/assert"
+
+	"github.com/DataDog/datadog-agent/pkg/util/pointer"
 )
 
 func container1(testTime time.Time) Container {
@@ -78,7 +79,7 @@ func container2(testTime time.Time) Container {
 			CreatedAt:  time.Time{},
 			StartedAt:  time.Time{},
 			FinishedAt: time.Time{},
-			ExitCode:   pointer.UInt32Ptr(100),
+			ExitCode:   pointer.Ptr(uint32(100)),
 		},
 		CollectorTags: []string{"tag3"},
 	}
@@ -101,7 +102,7 @@ func TestMerge(t *testing.T) {
 			CreatedAt:  testTime,
 			StartedAt:  testTime,
 			FinishedAt: time.Time{},
-			ExitCode:   pointer.UInt32Ptr(100),
+			ExitCode:   pointer.Ptr(uint32(100)),
 		},
 	}
 

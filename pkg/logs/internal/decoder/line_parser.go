@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/parsers"
+	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -17,7 +18,7 @@ import (
 // an embedded parsers.Parser.
 type LineParser interface {
 	// process handles a new line (message)
-	process(content []byte, rawDataLen int)
+	process(content *message.Message, rawDataLen int)
 
 	// flushChan returns a channel which will deliver a message when `flush` should be called.
 	flushChan() <-chan time.Time
@@ -30,13 +31,13 @@ type LineParser interface {
 // SingleLineParser makes sure that multiple lines from a same content
 // are properly put together.
 type SingleLineParser struct {
-	outputFn func(*Message)
+	outputFn func(*message.Message)
 	parser   parsers.Parser
 }
 
 // NewSingleLineParser returns a new SingleLineParser.
 func NewSingleLineParser(
-	outputFn func(*Message),
+	outputFn func(*message.Message),
 	parser parsers.Parser) *SingleLineParser {
 	return &SingleLineParser{
 		outputFn: outputFn,
@@ -52,18 +53,19 @@ func (p *SingleLineParser) flush() {
 	// do nothing
 }
 
-func (p *SingleLineParser) process(content []byte, rawDataLen int) {
-	// Just parse an pass to the next step
-	msg, err := p.parser.Parse(content)
+func (p *SingleLineParser) process(input *message.Message, rawDataLen int) {
+	// Just parse and pass to the next step
+	input, err := p.parser.Parse(input)
 	if err != nil {
 		log.Debug(err)
 	}
-	p.outputFn(NewMessage(msg.Content, msg.Status, rawDataLen, msg.Timestamp))
+	input.RawDataLen = rawDataLen
+	p.outputFn(input)
 }
 
 // MultiLineParser makes sure that chunked lines are properly put together.
 type MultiLineParser struct {
-	outputFn     func(*Message)
+	outputFn     func(*message.Message)
 	buffer       *bytes.Buffer
 	flushTimeout time.Duration
 	flushTimer   *time.Timer
@@ -76,7 +78,7 @@ type MultiLineParser struct {
 
 // NewMultiLineParser returns a new MultiLineParser.
 func NewMultiLineParser(
-	outputFn func(*Message),
+	outputFn func(*message.Message),
 	flushTimeout time.Duration,
 	parser parsers.Parser,
 	lineLimit int,
@@ -103,25 +105,25 @@ func (p *MultiLineParser) flush() {
 }
 
 // process buffers and aggregates partial lines
-func (p *MultiLineParser) process(content []byte, rawDataLen int) {
+func (p *MultiLineParser) process(input *message.Message, rawDataLen int) {
 	if p.flushTimer != nil && p.buffer.Len() > 0 {
 		// stop the flush timer, as we now have data
 		if !p.flushTimer.Stop() {
 			<-p.flushTimer.C
 		}
 	}
-	msg, err := p.parser.Parse(content)
+	msg, err := p.parser.Parse(input)
 	if err != nil {
 		log.Debug(err)
 	}
 	// track the raw data length and the timestamp so that the agent tails
 	// from the right place at restart
 	p.rawDataLen += rawDataLen
-	p.timestamp = msg.Timestamp
+	p.timestamp = msg.ParsingExtra.Timestamp
 	p.status = msg.Status
 	p.buffer.Write(msg.Content)
 
-	if !msg.IsPartial || p.buffer.Len() >= p.lineLimit {
+	if !msg.ParsingExtra.IsPartial || p.buffer.Len() >= p.lineLimit {
 		// the current chunk marks the end of an aggregated line
 		p.sendLine()
 	}

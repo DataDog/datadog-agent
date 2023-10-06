@@ -9,8 +9,9 @@ import (
 	"context"
 	"testing"
 
-	"github.com/DataDog/datadog-agent/pkg/metadata/externalhost"
 	"github.com/stretchr/testify/assert"
+
+	"github.com/DataDog/datadog-agent/pkg/metadata/externalhost"
 )
 
 func TestExternalHostTags(t *testing.T) {

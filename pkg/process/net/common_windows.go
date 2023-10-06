@@ -4,24 +4,30 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build windows
-// +build windows
 
 package net
 
-import "fmt"
+import (
+	"fmt"
+
+	sysconfig "github.com/DataDog/datadog-agent/cmd/system-probe/config"
+)
 
 const (
-	connectionsURL = "http://localhost:3333/connections"
-	statsURL       = "http://localhost:3333/debug/stats"
+	connectionsURL       = "http://localhost:3333/" + string(sysconfig.NetworkTracerModule) + "/connections"
+	registerURL          = "http://localhost:3333/" + string(sysconfig.NetworkTracerModule) + "/register"
+	languageDetectionURL = "http://localhost:3333/" + string(sysconfig.LanguageDetectionModule) + "/detect"
+	statsURL             = "http://localhost:3333/debug/stats"
+	netType              = "tcp"
+
 	// procStatsURL is not used in windows, the value is added to avoid compilation error in windows
-	procStatsURL = "http://localhost:3333/proc/stats"
-	netType      = "tcp"
+	procStatsURL = "http://localhost:3333/" + string(sysconfig.ProcessModule) + "stats"
 )
 
 // CheckPath is used to make sure the globalSocketPath has been set before attempting to connect
-func CheckPath() error {
-	if globalSocketPath == "" {
-		return fmt.Errorf("remote tracer has no path defined")
+func CheckPath(path string) error {
+	if path == "" {
+		return fmt.Errorf("socket path is empty")
 	}
 	return nil
 }

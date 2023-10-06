@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build linux
-// +build linux
 
 package network
 
@@ -16,7 +15,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/process/util"
+	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -32,10 +31,10 @@ var statusMap = map[ConnectionType]int64{
 }
 
 // ReadInitialState reads the /proc filesystem and determines which ports are being listened on
-func ReadInitialState(procRoot string, protocol ConnectionType, collectIPv6 bool) (map[PortMapping]struct{}, error) {
+func ReadInitialState(procRoot string, protocol ConnectionType, collectIPv6 bool) (map[PortMapping]uint32, error) {
 	start := time.Now()
 	defer func() {
-		log.Debugf("Read initial %s pid->port mapping in %s", protocol.String(), time.Now().Sub(start))
+		log.Debugf("Read initial %s pid->port mapping in %s", protocol.String(), time.Since(start))
 	}()
 
 	lp := strings.ToLower(protocol.String())
@@ -48,11 +47,11 @@ func ReadInitialState(procRoot string, protocol ConnectionType, collectIPv6 bool
 	return readState(procRoot, paths, status)
 }
 
-func readState(procRoot string, paths []string, status int64) (map[PortMapping]struct{}, error) {
+func readState(procRoot string, paths []string, status int64) (map[PortMapping]uint32, error) {
 	seen := make(map[uint32]struct{})
-	allports := make(map[PortMapping]struct{})
-	err := util.WithAllProcs(procRoot, func(pid int) error {
-		nsIno, err := util.GetNetNsInoFromPid(procRoot, pid)
+	allports := make(map[PortMapping]uint32)
+	err := kernel.WithAllProcs(procRoot, func(pid int) error {
+		ns, err := kernel.GetNetNsInoFromPid(procRoot, pid)
 		if err != nil {
 			if !errors.Is(err, os.ErrNotExist) {
 				log.Errorf("error getting net ns for pid %d: %s", pid, err)
@@ -60,20 +59,24 @@ func readState(procRoot string, paths []string, status int64) (map[PortMapping]s
 			return nil
 		}
 
-		if _, ok := seen[nsIno]; ok {
+		if _, ok := seen[ns]; ok {
 			return nil
 		}
-		seen[nsIno] = struct{}{}
+		seen[ns] = struct{}{}
 
 		for _, p := range paths {
 			ports, err := readProcNetWithStatus(path.Join(procRoot, fmt.Sprintf("%d", pid), p), status)
 			if err != nil {
-				log.Errorf("error reading port state net ns ino=%d pid=%d path=%s status=%d", nsIno, pid, p, status)
+				log.Errorf("error reading port state net ns ino=%d pid=%d path=%s status=%d", ns, pid, p, status)
 				continue
 			}
 
 			for _, port := range ports {
-				allports[PortMapping{Ino: nsIno, Port: port}] = struct{}{}
+				pm := PortMapping{Ino: ns, Port: port}
+				if _, ok := allports[pm]; !ok {
+					allports[pm] = 0
+				}
+				allports[pm]++
 			}
 		}
 

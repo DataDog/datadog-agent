@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build clusterchecks && !windows
-// +build clusterchecks,!windows
 
 package cloudfoundry
 
@@ -54,6 +53,8 @@ func TestBBSCache_GetTagsForNode(t *testing.T) {
 			"env:test-env",
 			"org_id:org_guid_1",
 			"org_name:org_name_1",
+			"segment_id:isolation_segment_guid_1",
+			"segment_name:isolation_segment_name_1",
 			"service:test-service",
 			"sidecar_count:1",
 			"sidecar_present:true",
@@ -75,6 +76,8 @@ func TestBBSCache_GetTagsForNode(t *testing.T) {
 			"env:test-env",
 			"org_id:org_guid_1",
 			"org_name:org_name_1",
+			"segment_id:isolation_segment_guid_1",
+			"segment_name:isolation_segment_name_1",
 			"service:test-service",
 			"sidecar_count:1",
 			"sidecar_present:true",

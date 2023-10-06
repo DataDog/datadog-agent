@@ -4,8 +4,8 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build kubelet
-// +build kubelet
 
+// Package mock provides a fake Kubelet client to be used in tests.
 package mock
 
 import (
@@ -49,6 +49,7 @@ func (km *KubeletMock) QueryKubelet(ctx context.Context, path string) ([]byte, i
 	return nil, http.StatusNotFound, nil
 }
 
+// GetLocalStatsSummary is a mock method
 func (km *KubeletMock) GetLocalStatsSummary(ctx context.Context) (*kubeletv1alpha1.Summary, error) {
 	data, rc, err := km.QueryKubelet(ctx, "/stats/summary")
 	if err != nil {

@@ -1,20 +1,45 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2022-present Datadog, Inc.
+
 package api
 
 import (
 	"bytes"
 	"fmt"
 	"io"
-	"io/ioutil"
 	stdlog "log"
 	"net/http"
 	"net/http/httputil"
 	"net/url"
+	"strings"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/trace/api/internal/header"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
-	"github.com/DataDog/datadog-agent/pkg/trace/info"
 	"github.com/DataDog/datadog-agent/pkg/trace/log"
 	"github.com/DataDog/datadog-agent/pkg/trace/metrics"
+)
+
+const functionARNKeyTag = "function_arn"
+const originTag = "origin"
+
+type cloudResourceType string
+type cloudProvider string
+
+const (
+	awsLambda                     cloudResourceType = "AWSLambda"
+	awsFargate                    cloudResourceType = "AWSFargate"
+	cloudRun                      cloudResourceType = "GCPCloudRun"
+	azureAppService               cloudResourceType = "AzureAppService"
+	azureContainerApp             cloudResourceType = "AzureContainerApp"
+	aws                           cloudProvider     = "AWS"
+	gcp                           cloudProvider     = "GCP"
+	azure                         cloudProvider     = "Azure"
+	cloudProviderHeader           string            = "dd-cloud-provider"
+	cloudResourceTypeHeader       string            = "dd-cloud-resource-type"
+	cloudResourceIdentifierHeader string            = "dd-cloud-resource-identifier"
 )
 
 // telemetryMultiTransport sends HTTP requests to multiple targets using an
@@ -56,27 +81,100 @@ func (r *HTTPReceiver) telemetryProxyHandler() http.Handler {
 		return http.NotFoundHandler()
 	}
 
+	underlyingTransport := r.conf.NewHTTPTransport()
+	// Fix and documentation taken from pkg/trace/api/profiles.go
+	// The intake's connection timeout is 60 seconds, which is similar to the default heartbeat periodicity of
+	// telemetry clients. When a new heartbeat is simultaneous to the intake closing the connection, Go's ReverseProxy
+	// returns a 502 error to the tracer. Ensuring that the agent closes the connection before the intake solves this
+	// race condition. A value of 47 was chosen as it's a prime number which doesn't divide 60, reducing the risk of
+	// overlap with other timeouts or periodicities. It provides sufficient buffer time compared to 60, whilst still
+	// allowing connection reuse.
+	underlyingTransport.IdleConnTimeout = 47 * time.Second
 	transport := telemetryMultiTransport{
-		Transport: r.conf.NewHTTPTransport(),
+		Transport: underlyingTransport,
 		Endpoints: endpoints,
 	}
 	limitedLogger := log.NewThrottled(5, 10*time.Second) // limit to 5 messages every 10 seconds
 	logger := stdlog.New(limitedLogger, "telemetry.Proxy: ", 0)
 	director := func(req *http.Request) {
-		req.Header.Set("Via", fmt.Sprintf("trace-agent %s", info.Version))
+		req.Header.Set("Via", fmt.Sprintf("trace-agent %s", r.conf.AgentVersion))
 		if _, ok := req.Header["User-Agent"]; !ok {
 			// explicitly disable User-Agent so it's not set to the default value
 			// that net/http gives it: Go-http-client/1.1
 			// See https://codereview.appspot.com/7532043
 			req.Header.Set("User-Agent", "")
 		}
+
+		containerID := r.containerIDProvider.GetContainerID(req.Context(), req.Header)
+		if containerID == "" {
+			metrics.Count("datadog.trace_agent.telemetry_proxy.no_container_id_found", 1, []string{}, 1)
+		}
+		containerTags := getContainerTags(r.conf.ContainerTags, containerID)
+
 		req.Header.Set("DD-Agent-Hostname", r.conf.Hostname)
 		req.Header.Set("DD-Agent-Env", r.conf.DefaultEnv)
+		if containerID != "" {
+			req.Header.Set(header.ContainerID, containerID)
+		}
+		if containerTags != "" {
+			req.Header.Set("x-datadog-container-tags", containerTags)
+		}
+		if arn, ok := r.conf.GlobalTags[functionARNKeyTag]; ok {
+			req.Header.Set(cloudProviderHeader, string(aws))
+			req.Header.Set(cloudResourceTypeHeader, string(awsLambda))
+			req.Header.Set(cloudResourceIdentifierHeader, arn)
+		} else if taskArn, ok := extractFargateTask(containerTags); ok {
+			req.Header.Set(cloudProviderHeader, string(aws))
+			req.Header.Set(cloudResourceTypeHeader, string(awsFargate))
+			req.Header.Set(cloudResourceIdentifierHeader, taskArn)
+		}
+		if origin, ok := r.conf.GlobalTags[originTag]; ok {
+			switch origin {
+			case "cloudrun":
+				req.Header.Set(cloudProviderHeader, string(gcp))
+				req.Header.Set(cloudResourceTypeHeader, string(cloudRun))
+				if serviceName, found := r.conf.GlobalTags["service_name"]; found {
+					req.Header.Set(cloudResourceIdentifierHeader, serviceName)
+				}
+			case "appservice":
+				req.Header.Set(cloudProviderHeader, string(azure))
+				req.Header.Set(cloudResourceTypeHeader, string(azureAppService))
+				if appName, found := r.conf.GlobalTags["app_name"]; found {
+					req.Header.Set(cloudResourceIdentifierHeader, appName)
+				}
+			case "containerapp":
+				req.Header.Set(cloudProviderHeader, string(azure))
+				req.Header.Set(cloudResourceTypeHeader, string(azureContainerApp))
+				if appName, found := r.conf.GlobalTags["app_name"]; found {
+					req.Header.Set(cloudResourceIdentifierHeader, appName)
+				}
+			}
+		}
 	}
 	return &httputil.ReverseProxy{
 		Director:  director,
 		ErrorLog:  logger,
 		Transport: &transport,
+	}
+}
+
+func extractFargateTask(containerTags string) (string, bool) {
+	return extractTag(containerTags, "task_arn")
+}
+
+func extractTag(tags string, name string) (string, bool) {
+	leftoverTags := tags
+	for {
+		if leftoverTags == "" {
+			return "", false
+		}
+		var tag string
+		tag, leftoverTags, _ = strings.Cut(leftoverTags, ",")
+
+		tagName, value, hasValue := strings.Cut(tag, ":")
+		if hasValue && tagName == name {
+			return value, true
+		}
 	}
 }
 
@@ -90,20 +188,20 @@ func (m *telemetryMultiTransport) RoundTrip(req *http.Request) (*http.Response, 
 	if len(m.Endpoints) == 1 {
 		return m.roundTrip(req, m.Endpoints[0])
 	}
-	slurp, err := ioutil.ReadAll(req.Body)
+	slurp, err := io.ReadAll(req.Body)
 	if err != nil {
 		return nil, err
 	}
 	newreq := req.Clone(req.Context())
-	newreq.Body = ioutil.NopCloser(bytes.NewReader(slurp))
+	newreq.Body = io.NopCloser(bytes.NewReader(slurp))
 	// despite the number of endpoints, we always return the response of the first
 	rresp, rerr := m.roundTrip(newreq, m.Endpoints[0])
 	for _, endpoint := range m.Endpoints[1:] {
 		newreq := req.Clone(req.Context())
-		newreq.Body = ioutil.NopCloser(bytes.NewReader(slurp))
+		newreq.Body = io.NopCloser(bytes.NewReader(slurp))
 		if resp, err := m.roundTrip(newreq, endpoint); err == nil {
 			// we discard responses for all subsequent requests
-			io.Copy(ioutil.Discard, resp.Body) //nolint:errcheck
+			io.Copy(io.Discard, resp.Body) //nolint:errcheck
 			resp.Body.Close()
 		} else {
 			log.Error(err)

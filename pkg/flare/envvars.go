@@ -9,7 +9,6 @@ import (
 	"bytes"
 	"fmt"
 	"os"
-	"path/filepath"
 	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
@@ -59,16 +58,57 @@ var allowedEnvvarNames = []string{
 	"DD_APM_TPS", //deprecated
 	"DD_APM_MAX_TPS",
 	"DD_APM_ERROR_TPS",
-	"DD_APM_DISABLE_RARE_SAMPLER",
+	"DD_APM_ENABLE_RARE_SAMPLER",
+	"DD_APM_DISABLE_RARE_SAMPLER", // deprecated
 	"DD_APM_MAX_REMOTE_TPS",
 	"DD_APM_MAX_MEMORY",
 	"DD_APM_MAX_CPU_PERCENT",
 	"DD_APM_FEATURES",
 	"DD_APM_RECEIVER_SOCKET",
 	"DD_APM_REPLACE_TAGS",
-	"DD_APM_ADDITIONAL_ENDPOINTS",
 	"DD_APM_PROFILING_DD_URL",
-	"DD_APM_PROFILING_ADDITIONAL_ENDPOINTS",
+	"DD_APM_WINDOWS_PIPE_BUFFER_SIZE",
+	"DD_APM_REMOTE_TAGGER",
+	"DD_APM_PEER_SERVICE_AGGREGATION",
+	"DD_APM_COMPUTE_STATS_BY_SPAN_KIND",
+	"DD_APM_PEER_TAGS",
+	"DD_APM_MAX_CATALOG_SERVICES",
+	"DD_APM_RECEIVER_TIMEOUT",
+	"DD_APM_MAX_PAYLOAD_SIZE",
+	"DD_APM_LOG_FILE",
+	"DD_APM_CONNECTION_RESET_INTERVAL",
+	"DD_APM_WINDOWS_PIPE_NAME",
+	"DD_APM_SYNC_FLUSHING",
+	"DD_APM_FILTER_TAGS_REQUIRE",
+	"DD_APM_FILTER_TAGS_REJECT",
+	"DD_APM_INTERNAL_PROFILING_ENABLED",
+	"DD_APM_DEBUGGER_DD_URL",
+	"DD_APM_SYMDB_DD_URL",
+	"DD_APM_OBFUSCATION_CREDIT_CARDS_ENABLED",
+	"DD_APM_OBFUSCATION_CREDIT_CARDS_LUHN",
+	"DD_APM_OBFUSCATION_ELASTICSEARCH_ENABLED",
+	"DD_APM_OBFUSCATION_ELASTICSEARCH_KEEP_VALUES",
+	"DD_APM_OBFUSCATION_ELASTICSEARCH_OBFUSCATE_SQL_VALUES",
+	"DD_APM_OBFUSCATION_HTTP_REMOVE_QUERY_STRING",
+	"DD_APM_OBFUSCATION_HTTP_REMOVE_PATHS_WITH_DIGITS",
+	"DD_APM_OBFUSCATION_MEMCACHED_ENABLED",
+	"DD_APM_OBFUSCATION_MEMCACHED_KEEP_COMMAND",
+	"DD_APM_OBFUSCATION_MONGODB_ENABLED",
+	"DD_APM_OBFUSCATION_MONGODB_KEEP_VALUES",
+	"DD_APM_OBFUSCATION_MONGODB_OBFUSCATE_SQL_VALUES",
+	"DD_APM_OBFUSCATION_REDIS_ENABLED",
+	"DD_APM_OBFUSCATION_REDIS_REMOVE_ALL_ARGS",
+	"DD_APM_OBFUSCATION_REMOVE_STACK_TRACES",
+	"DD_APM_OBFUSCATION_SQL_EXEC_PLAN_ENABLED",
+	"DD_APM_OBFUSCATION_SQL_EXEC_PLAN_KEEP_VALUES",
+	"DD_APM_OBFUSCATION_SQL_EXEC_PLAN_OBFUSCATE_SQL_VALUES",
+	"DD_APM_OBFUSCATION_SQL_EXEC_PLAN_NORMALIZE_ENABLED",
+	"DD_APM_OBFUSCATION_SQL_EXEC_PLAN_NORMALIZE_KEEP_VALUES",
+	"DD_APM_OBFUSCATION_SQL_EXEC_PLAN_NORMALIZE_OBFUSCATE_SQL_VALUES",
+	"DD_APM_DEBUG_PORT",
+	"DD_APM_INSTRUMENTATION_ENABLED",
+	"DD_APM_INSTRUMENTATION_ENABLED_NAMESPACES",
+	"DD_APM_INSTRUMENTATION_DISABLED_NAMESPACES",
 
 	// Process agent
 	"DD_PROCESS_AGENT_URL",
@@ -76,8 +116,6 @@ var allowedEnvvarNames = []string{
 	"DD_CUSTOM_SENSITIVE_WORDS",
 	"DD_STRIP_PROCESS_ARGS",
 	"DD_LOGS_STDOUT",
-	"DD_AGENT_PY",
-	"DD_AGENT_PY_ENV",
 	"LOG_LEVEL",
 	"LOG_TO_CONSOLE",
 	"DD_COLLECT_DOCKER_NETWORK",
@@ -89,13 +127,16 @@ var allowedEnvvarNames = []string{
 
 	// CI
 	"DD_INSIDE_CI",
+
+	// Cluster agent
+	"CHART_RELEASE_NAME",
+	"AGENT_DAEMONSET",
+	"CLUSTER_AGENT_DEPLOYMENT",
 }
 
 func getAllowedEnvvars() []string {
 	allowed := allowedEnvvarNames
-	for _, envName := range config.Datadog.GetEnvVars() {
-		allowed = append(allowed, envName)
-	}
+	allowed = append(allowed, config.Datadog.GetEnvVars()...)
 	var found []string
 	for _, envvar := range os.Environ() {
 		parts := strings.SplitN(envvar, "=", 2)
@@ -115,9 +156,9 @@ func getAllowedEnvvars() []string {
 	return found
 }
 
-// zipEnvvars collects allowed envvars that can affect the agent's
+// getEnvVars collects allowed envvars that can affect the agent's
 // behaviour while not being handled by viper, in addition to the envvars handled by viper
-func zipEnvvars(tempDir, hostname string) error {
+func getEnvVars() ([]byte, error) {
 	envvars := getAllowedEnvvars()
 
 	var b bytes.Buffer
@@ -130,6 +171,5 @@ func zipEnvvars(tempDir, hostname string) error {
 		fmt.Fprintln(&b, "Found no allowed envvar")
 	}
 
-	f := filepath.Join(tempDir, hostname, "envvars.log")
-	return writeScrubbedFile(f, b.Bytes())
+	return b.Bytes(), nil
 }

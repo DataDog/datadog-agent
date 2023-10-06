@@ -4,7 +4,6 @@
 // Copyright 2021-present Datadog, Inc.
 
 //go:build kubeapiserver
-// +build kubeapiserver
 
 package autoscalers
 
@@ -14,10 +13,13 @@ import (
 	"os"
 	"time"
 
+	"gopkg.in/zorkian/go-datadog-api.v2"
+
 	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/config/utils"
+	configUtils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"gopkg.in/zorkian/go-datadog-api.v2"
 )
 
 const (
@@ -25,11 +27,12 @@ const (
 	metricsEndpointConfig = "external_metrics_provider.endpoint"
 )
 
+// NewDatadogClient configures and returns a new DatadogClient
 func NewDatadogClient() (DatadogClient, error) {
 	if config.Datadog.IsSet("external_metrics_provider.endpoints") {
 		var endpoints []config.Endpoint
 		if err := config.Datadog.UnmarshalKey("external_metrics_provider.endpoints", &endpoints); err != nil {
-			return nil, log.Errorf("could not parse external_metrics_provider.endpoints: %w", err)
+			return nil, log.Errorf("could not parse external_metrics_provider.endpoints: %v", err)
 		}
 
 		return newDatadogFallbackClient(endpoints)
@@ -40,14 +43,14 @@ func NewDatadogClient() (DatadogClient, error) {
 
 // NewDatadogSingleClient generates a new client to query metrics from Datadog
 func newDatadogSingleClient() (*datadog.Client, error) {
-	apiKey := config.SanitizeAPIKey(config.Datadog.GetString("external_metrics_provider.api_key"))
+	apiKey := configUtils.SanitizeAPIKey(config.Datadog.GetString("external_metrics_provider.api_key"))
 	if apiKey == "" {
-		apiKey = config.SanitizeAPIKey(config.Datadog.GetString("api_key"))
+		apiKey = configUtils.SanitizeAPIKey(config.Datadog.GetString("api_key"))
 	}
 
-	appKey := config.SanitizeAPIKey(config.Datadog.GetString("external_metrics_provider.app_key"))
+	appKey := configUtils.SanitizeAPIKey(config.Datadog.GetString("external_metrics_provider.app_key"))
 	if appKey == "" {
-		appKey = config.SanitizeAPIKey(config.Datadog.GetString("app_key"))
+		appKey = configUtils.SanitizeAPIKey(config.Datadog.GetString("app_key"))
 	}
 
 	// DATADOG_HOST used to be the only way to set the external metrics
@@ -58,7 +61,7 @@ func newDatadogSingleClient() (*datadog.Client, error) {
 	//   - DD_SITE
 	endpoint := os.Getenv("DATADOG_HOST")
 	if config.Datadog.GetString(metricsEndpointConfig) != "" || endpoint == "" {
-		endpoint = config.GetMainEndpoint(metricsEndpointPrefix, metricsEndpointConfig)
+		endpoint = utils.GetMainEndpoint(config.Datadog, metricsEndpointPrefix, metricsEndpointConfig)
 	}
 
 	if appKey == "" || apiKey == "" {
@@ -211,15 +214,25 @@ func (cl *datadogFallbackClient) GetRateLimitStats() map[string]datadog.RateLimi
 	return map[string]datadog.RateLimit{}
 }
 
+// GetStatus returns the status of the DatadogClient
 func GetStatus(datadogClient DatadogClient) map[string]interface{} {
 	status := make(map[string]interface{})
 
 	switch ddCl := datadogClient.(type) {
 	case *datadog.Client:
+		// Can be nil if there's an error in NewDatadogClient()
+		if ddCl == nil {
+			return status
+		}
+
 		clientStatus := make(map[string]interface{})
 		clientStatus["url"] = ddCl.GetBaseUrl()
 		status["client"] = clientStatus
 	case *datadogFallbackClient:
+		if ddCl == nil {
+			return status
+		}
+
 		status["lastUsedClient"] = ddCl.lastUsedClient
 		clientsStatus := make([]map[string]interface{}, len(ddCl.clients))
 		for i, individualClient := range ddCl.clients {

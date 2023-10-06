@@ -1,0 +1,3 @@
+features:
+  - |
+    Adding new configuration setting ``otlp_config.logs.enabled`` to enable/disable logs support  in the OTLP ingest endpoint.

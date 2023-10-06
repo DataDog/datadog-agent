@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build python
-// +build python
 
 package python
 
@@ -17,7 +16,7 @@ import "C"
 
 import (
 	"fmt"
-	"io/ioutil"
+	"io"
 	"os/exec"
 	"sync"
 	"syscall"
@@ -25,6 +24,7 @@ import (
 
 // GetSubprocessOutput runs the subprocess and returns the output
 // Indirectly used by the C function `get_subprocess_output` that's mapped to `_util.get_subprocess_output`.
+//
 //export GetSubprocessOutput
 func GetSubprocessOutput(argv **C.char, env **C.char, cStdout **C.char, cStderr **C.char, cRetCode *C.int, exception **C.char) {
 	subprocessArgs := cStringArrayToSlice(argv)
@@ -52,7 +52,7 @@ func GetSubprocessOutput(argv **C.char, env **C.char, cStdout **C.char, cStderr 
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		output, _ = ioutil.ReadAll(stdout)
+		output, _ = io.ReadAll(stdout)
 	}()
 
 	stderr, err := cmd.StderrPipe()
@@ -65,7 +65,7 @@ func GetSubprocessOutput(argv **C.char, env **C.char, cStdout **C.char, cStderr 
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		outputErr, _ = ioutil.ReadAll(stderr)
+		outputErr, _ = io.ReadAll(stderr)
 	}()
 
 	cmd.Start() //nolint:errcheck

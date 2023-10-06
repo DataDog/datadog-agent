@@ -9,11 +9,13 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/DataDog/datadog-agent/pkg/logs/client"
-	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/stretchr/testify/assert"
 
-	"github.com/DataDog/datadog-agent/pkg/logs/config"
+	coreConfig "github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/logs/client"
+	"github.com/DataDog/datadog-agent/pkg/logs/message"
+
+	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 )
 
 func TestBuildURLShouldReturnHTTPSWithUseSSL(t *testing.T) {
@@ -323,10 +325,10 @@ func TestBackoffDelayDisabled(t *testing.T) {
 	server.Stop()
 }
 
-func TestBackoffDelayDisabledServerless(t *testing.T) {
+func TestBackoffShouldBeConstantServerless(t *testing.T) {
 	dest := NewDestination(config.Endpoint{
 		Origin: "lambda-extension",
 	}, "", nil, 0, true, "")
 
-	assert.False(t, dest.shouldRetry)
+	assert.Equal(t, dest.backoff.GetBackoffDuration(0), coreConfig.Datadog.GetDuration("serverless.constant_backoff_interval"))
 }

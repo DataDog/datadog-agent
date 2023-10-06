@@ -6,23 +6,19 @@
 package encoding
 
 import (
+	"bytes"
 	"math"
-	"sync"
+	"reflect"
+	"unsafe"
+
+	"github.com/twmb/murmur3"
 
 	model "github.com/DataDog/agent-payload/v5/process"
 	"github.com/DataDog/datadog-agent/pkg/network"
-	"github.com/DataDog/datadog-agent/pkg/network/http"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
-	"github.com/gogo/protobuf/proto"
 )
 
 const maxRoutes = math.MaxInt32
-
-var connPool = sync.Pool{
-	New: func() interface{} {
-		return new(model.Connection)
-	},
-}
 
 // RouteIdx stores the route and the index into the route collection for a route
 type RouteIdx struct {
@@ -43,165 +39,129 @@ func (ipc ipCache) Get(addr util.Address) string {
 }
 
 // FormatConnection converts a ConnectionStats into an model.Connection
-func FormatConnection(
-	conn network.ConnectionStats,
-	routes map[string]RouteIdx,
-	httpStats *model.HTTPAggregations,
-	dnsFormatter *dnsFormatter,
-	ipc ipCache,
-) *model.Connection {
-	c := connPool.Get().(*model.Connection)
-	c.Pid = int32(conn.Pid)
-	c.Laddr = formatAddr(conn.Source, conn.SPort, ipc)
-	c.Raddr = formatAddr(conn.Dest, conn.DPort, ipc)
-	c.Family = formatFamily(conn.Family)
-	c.Type = formatType(conn.Type)
-	c.IsLocalPortEphemeral = formatEphemeralType(conn.SPortIsEphemeral)
-	c.PidCreateTime = 0
-	c.LastBytesSent = conn.LastSentBytes
-	c.LastBytesReceived = conn.LastRecvBytes
-	c.LastPacketsSent = conn.LastSentPackets
-	c.LastPacketsReceived = conn.LastRecvPackets
-	c.LastRetransmits = conn.LastRetransmits
-	c.Direction = formatDirection(conn.Direction)
-	c.NetNS = conn.NetNS
-	c.RemoteNetworkId = ""
-	c.IpTranslation = formatIPTranslation(conn.IPTranslation, ipc)
-	c.Rtt = conn.RTT
-	c.RttVar = conn.RTTVar
-	c.IntraHost = conn.IntraHost
-	c.LastTcpEstablished = conn.LastTCPEstablished
-	c.LastTcpClosed = conn.LastTCPClosed
+func FormatConnection(builder *model.ConnectionBuilder, conn network.ConnectionStats, routes map[string]RouteIdx, httpEncoder *httpEncoder, http2Encoder *http2Encoder, kafkaEncoder *kafkaEncoder, dnsFormatter *dnsFormatter, ipc ipCache, tagsSet *network.TagsSet) {
 
-	c.RouteIdx = formatRouteIdx(conn.Via, routes)
-	dnsFormatter.FormatConnectionDNS(conn, c)
+	builder.SetPid(int32(conn.Pid))
 
-	if httpStats != nil {
-		c.HttpAggregations, _ = proto.Marshal(httpStats)
+	var containerID string
+	if conn.ContainerID != nil {
+		containerID = *conn.ContainerID
 	}
 
-	return c
+	builder.SetLaddr(func(w *model.AddrBuilder) {
+		w.SetIp(ipc.Get(conn.Source))
+		w.SetPort(int32(conn.SPort))
+		w.SetContainerId(containerID)
+	})
+	builder.SetRaddr(func(w *model.AddrBuilder) {
+		w.SetIp(ipc.Get(conn.Dest))
+		w.SetPort(int32(conn.DPort))
+	})
+	builder.SetFamily(uint64(formatFamily(conn.Family)))
+	builder.SetType(uint64(formatType(conn.Type)))
+	builder.SetIsLocalPortEphemeral(uint64(formatEphemeralType(conn.SPortIsEphemeral)))
+	builder.SetLastBytesSent(conn.Last.SentBytes)
+	builder.SetLastBytesReceived(conn.Last.RecvBytes)
+	builder.SetLastPacketsSent(conn.Last.SentPackets)
+	builder.SetLastRetransmits(conn.Last.Retransmits)
+	builder.SetLastPacketsReceived(conn.Last.RecvPackets)
+	builder.SetDirection(uint64(formatDirection(conn.Direction)))
+	builder.SetNetNS(conn.NetNS)
+	if conn.IPTranslation != nil {
+		builder.SetIpTranslation(func(w *model.IPTranslationBuilder) {
+			ipt := formatIPTranslation(conn.IPTranslation, ipc)
+			w.SetReplSrcPort(ipt.ReplSrcPort)
+			w.SetReplDstPort(ipt.ReplDstPort)
+			w.SetReplSrcIP(ipt.ReplSrcIP)
+			w.SetReplDstIP(ipt.ReplDstIP)
+		})
+	}
+	builder.SetRtt(conn.RTT)
+	builder.SetRttVar(conn.RTTVar)
+	builder.SetIntraHost(conn.IntraHost)
+	builder.SetLastTcpEstablished(conn.Last.TCPEstablished)
+	builder.SetLastTcpClosed(conn.Last.TCPClosed)
+	builder.SetProtocol(func(w *model.ProtocolStackBuilder) {
+		ps := formatProtocolStack(conn.ProtocolStack, conn.StaticTags)
+		for _, p := range ps.Stack {
+			w.AddStack(uint64(p))
+		}
+	})
+
+	builder.SetRouteIdx(formatRouteIdx(conn.Via, routes))
+	dnsFormatter.FormatConnectionDNS(conn, builder)
+
+	var (
+		staticTags  uint64
+		dynamicTags map[string]struct{}
+	)
+	staticTags, dynamicTags = httpEncoder.GetHTTPAggregationsAndTags(conn, builder)
+	_, _ = http2Encoder.WriteHTTP2AggregationsAndTags(conn, builder)
+
+	// TODO: optimize kafkEncoder to take a writer and use gostreamer
+	if dsa := kafkaEncoder.GetKafkaAggregations(conn); dsa != nil {
+		builder.SetDataStreamsAggregations(func(b *bytes.Buffer) {
+			b.Write(dsa)
+		})
+	}
+
+	conn.StaticTags |= staticTags
+	tags, tagChecksum := formatTags(conn, tagsSet, dynamicTags)
+	for _, t := range tags {
+		builder.AddTags(t)
+	}
+	builder.SetTagsChecksum(tagChecksum)
 }
 
 // FormatCompilationTelemetry converts telemetry from its internal representation to a protobuf message
-func FormatCompilationTelemetry(telByAsset map[string]network.RuntimeCompilationTelemetry) map[string]*model.RuntimeCompilationTelemetry {
+func FormatCompilationTelemetry(builder *model.ConnectionsBuilder, telByAsset map[string]network.RuntimeCompilationTelemetry) {
 	if telByAsset == nil {
-		return nil
+		return
 	}
 
-	ret := make(map[string]*model.RuntimeCompilationTelemetry)
 	for asset, tel := range telByAsset {
-		t := &model.RuntimeCompilationTelemetry{}
-		t.RuntimeCompilationEnabled = tel.RuntimeCompilationEnabled
-		t.RuntimeCompilationResult = model.RuntimeCompilationResult(tel.RuntimeCompilationResult)
-		t.KernelHeaderFetchResult = model.KernelHeaderFetchResult(tel.KernelHeaderFetchResult)
-		t.RuntimeCompilationDuration = tel.RuntimeCompilationDuration
-		ret[asset] = t
+		builder.AddCompilationTelemetryByAsset(func(kv *model.Connections_CompilationTelemetryByAssetEntryBuilder) {
+			kv.SetKey(asset)
+			kv.SetValue(func(w *model.RuntimeCompilationTelemetryBuilder) {
+				w.SetRuntimeCompilationEnabled(tel.RuntimeCompilationEnabled)
+				w.SetRuntimeCompilationResult(uint64(tel.RuntimeCompilationResult))
+				w.SetRuntimeCompilationDuration(tel.RuntimeCompilationDuration)
+			})
+		})
 	}
-	return ret
 }
 
 // FormatConnectionTelemetry converts telemetry from its internal representation to a protobuf message
-func FormatConnectionTelemetry(tel map[network.ConnTelemetryType]int64) map[string]int64 {
-	if tel == nil {
-		return nil
-	}
+func FormatConnectionTelemetry(builder *model.ConnectionsBuilder, tel map[network.ConnTelemetryType]int64) {
+	// Fetch USM payload telemetry
+	ret := GetUSMPayloadTelemetry()
 
-	ret := make(map[string]int64)
+	// Merge it with NPM telemetry
 	for k, v := range tel {
 		ret[string(k)] = v
 	}
-	return ret
+
+	for k, v := range ret {
+		builder.AddConnTelemetryMap(func(w *model.Connections_ConnTelemetryMapEntryBuilder) {
+			w.SetKey(k)
+			w.SetValue(v)
+		})
+	}
+
 }
 
-// FormatHTTPStats converts the HTTP map into a suitable format for serialization
-func FormatHTTPStats(httpData map[http.Key]http.RequestStats) map[http.Key]*model.HTTPAggregations {
-	var (
-		aggregationsByKey = make(map[http.Key]*model.HTTPAggregations, len(httpData))
-
-		// Pre-allocate some of the objects
-		dataPool = make([]model.HTTPStats_Data, len(httpData)*http.NumStatusClasses)
-		ptrPool  = make([]*model.HTTPStats_Data, len(httpData)*http.NumStatusClasses)
-		poolIdx  = 0
-	)
-
-	for key, stats := range httpData {
-		path := key.Path
-		method := key.Method
-		key.Path = ""
-		key.Method = http.MethodUnknown
-
-		httpAggregations, ok := aggregationsByKey[key]
-		if !ok {
-			httpAggregations = &model.HTTPAggregations{
-				EndpointAggregations: make([]*model.HTTPStats, 0, 10),
-			}
-
-			aggregationsByKey[key] = httpAggregations
-		}
-
-		ms := &model.HTTPStats{
-			Path:                  path,
-			Method:                model.HTTPMethod(method),
-			StatsByResponseStatus: ptrPool[poolIdx : poolIdx+http.NumStatusClasses],
-		}
-
-		for i := 0; i < len(stats); i++ {
-			data := &dataPool[poolIdx+i]
-			ms.StatsByResponseStatus[i] = data
-			data.Count = uint32(stats[i].Count)
-
-			if latencies := stats[i].Latencies; latencies != nil {
-				blob, _ := proto.Marshal(latencies.ToProto())
-				data.Latencies = blob
-			} else {
-				data.FirstLatencySample = stats[i].FirstLatencySample
-			}
-		}
-
-		poolIdx += http.NumStatusClasses
-		httpAggregations.EndpointAggregations = append(httpAggregations.EndpointAggregations, ms)
+// FormatCORETelemetry writes the CORETelemetryByAsset map into a connections payload
+func FormatCORETelemetry(builder *model.ConnectionsBuilder, telByAsset map[string]int32) {
+	if telByAsset == nil {
+		return
 	}
 
-	return aggregationsByKey
-}
-
-// Build the key for the http map based on whether the local or remote side is http.
-func httpKeyFromConn(c network.ConnectionStats) http.Key {
-	// Retrieve translated addresses
-	laddr, lport := network.GetNATLocalAddress(c)
-	raddr, rport := network.GetNATRemoteAddress(c)
-
-	// HTTP data is always indexed as (client, server), so we flip
-	// the lookup key if necessary using the port range heuristic
-	if network.IsEphemeralPort(int(lport)) {
-		return http.NewKey(laddr, raddr, lport, rport, "", http.MethodUnknown)
+	for asset, tel := range telByAsset {
+		builder.AddCORETelemetryByAsset(func(w *model.Connections_CORETelemetryByAssetEntryBuilder) {
+			w.SetKey(asset)
+			w.SetValue(uint64(tel))
+		})
 	}
-
-	return http.NewKey(raddr, laddr, rport, lport, "", http.MethodUnknown)
-}
-
-func returnToPool(c *model.Connections) {
-	if c.Conns != nil {
-		for _, c := range c.Conns {
-			c.Reset()
-			connPool.Put(c)
-		}
-	}
-	if c.Dns != nil {
-		for _, e := range c.Dns {
-			e.Reset()
-			dnsPool.Put(e)
-		}
-	}
-}
-
-func formatAddr(addr util.Address, port uint16, ipc ipCache) *model.Addr {
-	if addr == nil {
-		return nil
-	}
-
-	return &model.Addr{Ip: ipc.Get(addr), Port: int32(port)}
 }
 
 func formatFamily(f network.ConnectionFamily) model.ConnectionFamily {
@@ -293,4 +253,41 @@ func formatRouteIdx(v *network.Via, routes map[string]RouteIdx) int32 {
 
 func routeKey(v *network.Via) string {
 	return v.Subnet.Alias
+}
+
+func formatTags(c network.ConnectionStats, tagsSet *network.TagsSet, connDynamicTags map[string]struct{}) (tagsIdx []uint32, checksum uint32) {
+	mm := murmur3.New32()
+	for _, tag := range network.GetStaticTags(c.StaticTags) {
+		mm.Reset()
+		_, _ = mm.Write(unsafeStringSlice(tag))
+		checksum ^= mm.Sum32()
+		tagsIdx = append(tagsIdx, tagsSet.Add(tag))
+	}
+
+	// Dynamic tags
+	for tag := range connDynamicTags {
+		mm.Reset()
+		_, _ = mm.Write(unsafeStringSlice(tag))
+		checksum ^= mm.Sum32()
+		tagsIdx = append(tagsIdx, tagsSet.Add(tag))
+	}
+
+	// other tags, e.g., from process env vars like DD_ENV, etc.
+	for tag := range c.Tags {
+		mm.Reset()
+		_, _ = mm.Write(unsafeStringSlice(tag))
+		checksum ^= mm.Sum32()
+		tagsIdx = append(tagsIdx, tagsSet.Add(tag))
+	}
+
+	return
+}
+
+func unsafeStringSlice(key string) []byte {
+	if len(key) == 0 {
+		return nil
+	}
+	// Reinterpret the string as bytes. This is safe because we don't write into the byte array.
+	sh := (*reflect.StringHeader)(unsafe.Pointer(&key))
+	return unsafe.Slice((*byte)(unsafe.Pointer(sh.Data)), len(key))
 }

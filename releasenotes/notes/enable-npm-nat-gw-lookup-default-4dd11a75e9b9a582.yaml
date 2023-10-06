@@ -1,0 +1,4 @@
+---
+features:
+  - |
+    Enable NPM NAT gateway lookup by default.

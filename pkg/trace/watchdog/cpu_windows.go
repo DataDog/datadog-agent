@@ -6,8 +6,14 @@
 package watchdog
 
 import (
+	"os"
+
 	"golang.org/x/sys/windows"
 )
+
+func getpid() int {
+	return os.Getpid()
+}
 
 // this code was copied over from shirou/gopsutil/process because we can't import this package on Windows,
 // due to its "wmi" dependency.

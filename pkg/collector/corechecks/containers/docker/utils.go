@@ -4,7 +4,6 @@
 // Copyright 2021-present Datadog, Inc.
 
 //go:build docker
-// +build docker
 
 package docker
 
@@ -42,7 +41,7 @@ func getImageTagsFromContainer(taggerEntityID string, resolvedImageName string, 
 }
 
 func getImageTags(imageName string) ([]string, error) {
-	long, short, tag, err := containers.SplitImageName(imageName)
+	long, _, short, tag, err := containers.SplitImageName(imageName)
 	if err != nil {
 		return nil, err
 	}
@@ -53,4 +52,13 @@ func getImageTags(imageName string) ([]string, error) {
 		fmt.Sprintf("image_tag:%s", tag),
 		fmt.Sprintf("short_image:%s", short),
 	}, nil
+}
+
+const (
+	eventActionOOM  = "oom"
+	eventActionKill = "kill"
+)
+
+func isAlertTypeError(action string) bool {
+	return action == eventActionOOM || action == eventActionKill
 }

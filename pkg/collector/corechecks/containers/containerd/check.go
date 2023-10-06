@@ -4,33 +4,40 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build containerd
-// +build containerd
 
 package containerd
 
 import (
 	"context"
 	"fmt"
+	"io"
+	"net/http"
+	"regexp"
+	"strings"
 	"time"
 
 	"gopkg.in/yaml.v2"
 
-	"github.com/DataDog/datadog-agent/pkg/aggregator"
+	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/containers/generic"
-	coreMetrics "github.com/DataDog/datadog-agent/pkg/metrics"
+	"github.com/DataDog/datadog-agent/pkg/metrics/servicecheck"
 	cutil "github.com/DataDog/datadog-agent/pkg/util/containerd"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
-	"github.com/DataDog/datadog-agent/pkg/util/containers/v2/metrics"
+	"github.com/DataDog/datadog-agent/pkg/util/containers/metrics"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/prometheus"
 )
 
 const (
 	containerdCheckName = "containerd"
+	pullImageGrpcMethod = "PullImage"
 	cacheValidity       = 2 * time.Second
 )
+
+var matchAllCap = regexp.MustCompile("([a-z0-9])([A-Z])")
 
 // ContainerdCheck grabs containerd metrics and events
 type ContainerdCheck struct {
@@ -40,12 +47,14 @@ type ContainerdCheck struct {
 	subscriber      *subscriber
 	containerFilter *containers.Filter
 	client          cutil.ContainerdItf
+	httpClient      http.Client
 }
 
 // ContainerdConfig contains the custom options and configurations set by the user.
 type ContainerdConfig struct {
-	ContainerdFilters []string `yaml:"filters"`
-	CollectEvents     bool     `yaml:"collect_events"`
+	ContainerdFilters   []string `yaml:"filters"`
+	CollectEvents       bool     `yaml:"collect_events"`
+	OpenmetricsEndpoint string   `yaml:"openmetrics_endpoint"`
 }
 
 func init() {
@@ -66,9 +75,9 @@ func (co *ContainerdConfig) Parse(data []byte) error {
 }
 
 // Configure parses the check configuration and init the check
-func (c *ContainerdCheck) Configure(config, initConfig integration.Data, source string) error {
+func (c *ContainerdCheck) Configure(senderManager sender.SenderManager, integrationConfigDigest uint64, config, initConfig integration.Data, source string) error {
 	var err error
-	if err = c.CommonConfigure(config, source); err != nil {
+	if err = c.CommonConfigure(senderManager, integrationConfigDigest, initConfig, config, source); err != nil {
 		return err
 	}
 
@@ -86,9 +95,10 @@ func (c *ContainerdCheck) Configure(config, initConfig integration.Data, source 
 		return err
 	}
 
+	c.httpClient = http.Client{Timeout: time.Duration(1) * time.Second}
 	c.processor = generic.NewProcessor(metrics.GetProvider(), generic.MetadataContainerAccessor{}, metricsAdapter{}, getProcessorFilter(c.containerFilter))
 	c.processor.RegisterExtension("containerd-custom-metrics", &containerdCustomMetricsExtension{})
-	c.subscriber = createEventSubscriber("ContainerdCheck", cutil.FiltersWithNamespaces(c.instance.ContainerdFilters))
+	c.subscriber = createEventSubscriber("ContainerdCheck", c.client, cutil.FiltersWithNamespaces(c.instance.ContainerdFilters))
 
 	return nil
 }
@@ -103,18 +113,22 @@ func (c *ContainerdCheck) Run() error {
 
 	// As we do not rely on a singleton, we ensure connectivity every check run.
 	if errHealth := c.client.CheckConnectivity(); errHealth != nil {
-		sender.ServiceCheck("containerd.health", coreMetrics.ServiceCheckCritical, "", nil, fmt.Sprintf("Connectivity error %v", errHealth))
+		sender.ServiceCheck("containerd.health", servicecheck.ServiceCheckCritical, "", nil, fmt.Sprintf("Connectivity error %v", errHealth))
 		log.Infof("Error ensuring connectivity with Containerd daemon %v", errHealth)
 		return errHealth
 	}
-	sender.ServiceCheck("containerd.health", coreMetrics.ServiceCheckOK, "", nil, "")
+	sender.ServiceCheck("containerd.health", servicecheck.ServiceCheckOK, "", nil, "")
 
 	if err := c.runProcessor(sender); err != nil {
 		_ = c.Warnf("Error collecting metrics: %s", err)
 	}
 
-	if err := c.runContainerdCustom(sender, c.client); err != nil {
+	if err := c.runContainerdCustom(sender); err != nil {
 		_ = c.Warnf("Error collecting metrics: %s", err)
+	}
+
+	if err := c.scrapeOpenmetricsEndpoint(sender); err != nil {
+		_ = c.Warnf("Error collecting image pull metrics: %s", err)
 	}
 
 	c.collectEvents(sender)
@@ -122,29 +136,80 @@ func (c *ContainerdCheck) Run() error {
 	return nil
 }
 
-func (c *ContainerdCheck) runProcessor(sender aggregator.Sender) error {
+func (c *ContainerdCheck) runProcessor(sender sender.Sender) error {
 	return c.processor.Run(sender, cacheValidity)
 }
 
-func (c *ContainerdCheck) runContainerdCustom(sender aggregator.Sender, cl cutil.ContainerdItf) error {
+func (c *ContainerdCheck) runContainerdCustom(sender sender.Sender) error {
 	namespaces, err := cutil.NamespacesToWatch(context.TODO(), c.client)
 	if err != nil {
 		return err
 	}
 
 	for _, namespace := range namespaces {
-		c.client.SetCurrentNamespace(namespace)
-		if err := c.collectImageSizes(sender, c.client); err != nil {
-			log.Infof("Failed to collect images size, err: %s", err)
+		if err := c.collectImageSizes(sender, c.client, namespace); err != nil {
+			log.Infof("Failed to scrape containerd openmetrics endpoint, err: %s", err)
 		}
 	}
 
 	return nil
 }
 
-func (c *ContainerdCheck) collectImageSizes(sender aggregator.Sender, cl cutil.ContainerdItf) error {
+func toSnakeCase(s string) string {
+	snake := matchAllCap.ReplaceAllString(s, "${1}_${2}")
+	return strings.ToLower(snake)
+}
+
+func (c *ContainerdCheck) scrapeOpenmetricsEndpoint(sender sender.Sender) error {
+
+	if c.instance.OpenmetricsEndpoint == "" {
+		return nil
+	}
+
+	openmetricsEndpoint := fmt.Sprintf("%s/v1/metrics", c.instance.OpenmetricsEndpoint)
+	resp, err := c.httpClient.Get(openmetricsEndpoint)
+	if err != nil {
+		return err
+	}
+
+	defer resp.Body.Close()
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return err
+	}
+
+	parsedMetrics, err := prometheus.ParseMetrics(body)
+	if err != nil {
+		return err
+	}
+
+	for _, sample := range parsedMetrics {
+		if sample == nil {
+			continue
+		}
+
+		metric := sample.Metric
+
+		metricName, ok := metric["__name__"]
+
+		if !ok {
+			continue
+		}
+
+		transform, found := defaultContainerdOpenmetricsTransformers[string(metricName)]
+
+		if found {
+			transform(sender, string(metricName), *sample)
+		}
+	}
+
+	return nil
+}
+
+func (c *ContainerdCheck) collectImageSizes(sender sender.Sender, cl cutil.ContainerdItf, namespace string) error {
 	// Report images size
-	images, err := cl.ListImages()
+	images, err := cl.ListImages(namespace)
 	if err != nil {
 		return err
 	}
@@ -152,7 +217,7 @@ func (c *ContainerdCheck) collectImageSizes(sender aggregator.Sender, cl cutil.C
 	for _, image := range images {
 		var size int64
 
-		if err := cl.CallWithClientContext(func(c context.Context) error {
+		if err := cl.CallWithClientContext(namespace, func(c context.Context) error {
 			size, err = image.Size(c)
 			return err
 		}); err != nil {
@@ -166,17 +231,14 @@ func (c *ContainerdCheck) collectImageSizes(sender aggregator.Sender, cl cutil.C
 	return nil
 }
 
-func (c *ContainerdCheck) collectEvents(sender aggregator.Sender) {
+func (c *ContainerdCheck) collectEvents(sender sender.Sender) {
 	if !c.instance.CollectEvents {
 		return
 	}
 
 	if !c.subscriber.isRunning() {
 		// Keep track of the health of the Containerd socket.
-		//
-		// Check events does not rely on the "namespace" attribute of the
-		// client, so we can share it.
-		c.subscriber.CheckEvents(c.client)
+		c.subscriber.CheckEvents()
 	}
 	events := c.subscriber.Flush(time.Now().Unix())
 	// Process events

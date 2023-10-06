@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build linux || freebsd || netbsd || openbsd || solaris || dragonfly || darwin
-// +build linux freebsd netbsd openbsd solaris dragonfly darwin
 
 package config
 
@@ -17,7 +16,7 @@ import (
 func TestGetSyslogURI(t *testing.T) {
 	assert := assert.New(t)
 
-	mockConfig := Mock()
+	mockConfig := Mock(t)
 	mockConfig.Set("log_to_syslog", true)
 	mockConfig.Set("syslog_uri", "")
 

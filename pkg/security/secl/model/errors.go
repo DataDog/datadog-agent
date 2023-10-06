@@ -3,10 +3,12 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+// Package model holds model related files
 package model
 
 import (
-	"github.com/pkg/errors"
+	"errors"
+	"fmt"
 )
 
 var (
@@ -21,4 +23,17 @@ var (
 
 	// ErrNonPrintable returned when a string contains non printable char
 	ErrNonPrintable = errors.New("non printable")
+
+	// ErrIncorrectDataSize is returned when the data read size doesn't correspond to the expected one
+	ErrIncorrectDataSize = errors.New("incorrect data size")
 )
+
+// ErrInvalidKeyPath is returned when inode or mountid are not valid
+type ErrInvalidKeyPath struct {
+	Inode   uint64
+	MountID uint32
+}
+
+func (e *ErrInvalidKeyPath) Error() string {
+	return fmt.Sprintf("invalid inode/mountID couple: %d/%d", e.Inode, e.MountID)
+}

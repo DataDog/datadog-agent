@@ -6,7 +6,6 @@
 package log
 
 import (
-	"fmt"
 	"sync"
 )
 
@@ -15,11 +14,20 @@ var (
 	logger Logger = NoopLogger
 )
 
-// SetLogger sets l as the default Logger.
-func SetLogger(l Logger) {
+// SetLogger sets l as the default Logger and returns the old logger.
+func SetLogger(l Logger) Logger {
 	mu.Lock()
+	oldlogger := logger
 	logger = l
 	mu.Unlock()
+	return oldlogger
+}
+
+// IsSet returns whether the logger has been set up.
+func IsSet() bool {
+	mu.Lock()
+	defer mu.Unlock()
+	return logger != NoopLogger
 }
 
 // Logger implements the core logger interface.
@@ -115,7 +123,6 @@ func Error(v ...interface{}) {
 // and writes to log with level = Error.
 func Errorf(format string, params ...interface{}) {
 	mu.RLock()
-	fmt.Println("X:", format, params)
 	logger.Errorf(format, params...) //nolint:errcheck
 	mu.RUnlock()
 }

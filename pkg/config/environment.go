@@ -44,9 +44,32 @@ func IsKubernetes() bool {
 	return false
 }
 
+// IsECS returns whether the Agent is running on ECS
+func IsECS() bool {
+	if os.Getenv("AWS_EXECUTION_ENV") == "AWS_ECS_EC2" {
+		return true
+	}
+
+	if IsECSFargate() {
+		return false
+	}
+
+	if os.Getenv("AWS_CONTAINER_CREDENTIALS_RELATIVE_URI") != "" ||
+		os.Getenv("ECS_CONTAINER_METADATA_URI") != "" ||
+		os.Getenv("ECS_CONTAINER_METADATA_URI_V4") != "" {
+		return true
+	}
+
+	if _, err := os.Stat("/etc/ecs/ecs.config"); err == nil {
+		return true
+	}
+
+	return false
+}
+
 // IsECSFargate returns whether the Agent is running in ECS Fargate
 func IsECSFargate() bool {
-	return os.Getenv("ECS_FARGATE") != ""
+	return os.Getenv("ECS_FARGATE") != "" || os.Getenv("AWS_EXECUTION_ENV") == "AWS_ECS_FARGATE"
 }
 
 // IsHostProcAvailable returns whether host proc is available or not
@@ -63,4 +86,9 @@ func IsHostSysAvailable() bool {
 		return pathExists("/host/sys")
 	}
 	return true
+}
+
+// IsServerless returns whether the Agent is running in a Lambda function
+func IsServerless() bool {
+	return os.Getenv("AWS_LAMBDA_FUNCTION_NAME") != ""
 }

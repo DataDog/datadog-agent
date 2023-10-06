@@ -10,11 +10,11 @@ import (
 	"errors"
 	"fmt"
 	"strconv"
-	"sync/atomic"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/atomic"
 )
 
 type sqlTestCase struct {
@@ -90,6 +90,31 @@ func TestDollarQuotedFunc(t *testing.T) {
 		)
 		assert.NoError(t, err)
 		assert.Equal(t, `CREATE OR REPLACE FUNCTION pg_temp.sequelize_upsert ( OUT created boolean, OUT primary_key text ) AS $func$BEGIN INSERT INTO school ( id, organization_id, name, created_at, updated_at ) VALUES ( ? ) created := ? EXCEPTION WHEN unique_violation THEN UPDATE school SET id = ? organization_id = ? name = ? updated_at = ? WHERE ( id = ? ) created := ? END$func$ LANGUAGE plpgsql SELECT * FROM pg_temp.sequelize_upsert ( )`, oq.Query)
+	})
+}
+
+func TestSingleDollarIdentifier(t *testing.T) {
+	q := `
+	MERGE INTO Employees AS target
+	USING EmployeeUpdates AS source
+	ON (target.EmployeeID = source.EmployeeID)
+	WHEN MATCHED THEN 
+		UPDATE SET 
+			target.Name = source.Name
+	WHEN NOT MATCHED BY TARGET THEN 
+		INSERT (EmployeeID, Name)
+		VALUES (source.EmployeeID, source.Name)
+	WHEN NOT MATCHED BY SOURCE THEN 
+		DELETE
+	OUTPUT $action, inserted.*, deleted.*;
+	`
+
+	t.Run("", func(t *testing.T) {
+		oq, err := NewObfuscator(Config{SQL: SQLConfig{
+			DBMS: DBMSSQLServer,
+		}}).ObfuscateSQLString(q)
+		assert.NoError(t, err)
+		assert.Equal(t, "MERGE INTO Employees USING EmployeeUpdates ON ( target.EmployeeID = source.EmployeeID ) WHEN MATCHED THEN UPDATE SET target.Name = source.Name WHEN NOT MATCHED BY TARGET THEN INSERT ( EmployeeID, Name ) VALUES ( source.EmployeeID, source.Name ) WHEN NOT MATCHED BY SOURCE THEN DELETE OUTPUT $action, inserted.*, deleted.*", oq.Query)
 	})
 }
 
@@ -383,6 +408,10 @@ func TestSQLUTF8(t *testing.T) {
 		{
 			"SELECT     Cli_Establiments.CODCLI, Cli_Establiments.Id_ESTAB_CLI As [Código Centro Trabajo], Cli_Establiments.CODIGO_CENTRO_AXAPTA As [Código C. Axapta],  Cli_Establiments.NOMESTAB As [Nombre],                                 Cli_Establiments.ADRECA As [Dirección], Cli_Establiments.CodPostal As [Código Postal], Cli_Establiments.Poblacio as [Población], Cli_Establiments.Provincia,                                Cli_Establiments.TEL As [Tel],  Cli_Establiments.EMAIL As [EMAIL],                                Cli_Establiments.PERS_CONTACTE As [Contacto], Cli_Establiments.PERS_CONTACTE_CARREC As [Cargo Contacto], Cli_Establiments.NumTreb As [Plantilla],                                Cli_Establiments.Localitzacio As [Localización], Tipus_Activitat.CNAE, Tipus_Activitat.Nom_ES As [Nombre Actividad], ACTIVO AS [Activo]                        FROM         Cli_Establiments LEFT OUTER JOIN                                    Tipus_Activitat ON Cli_Establiments.Id_ACTIVITAT = Tipus_Activitat.IdActivitat                        Where CODCLI = '01234' AND CENTRE_CORRECTE = 3 AND ACTIVO = 5                        ORDER BY Cli_Establiments.CODIGO_CENTRO_AXAPTA ",
 			"SELECT Cli_Establiments.CODCLI, Cli_Establiments.Id_ESTAB_CLI, Cli_Establiments.CODIGO_CENTRO_AXAPTA, Cli_Establiments.NOMESTAB, Cli_Establiments.ADRECA, Cli_Establiments.CodPostal, Cli_Establiments.Poblacio, Cli_Establiments.Provincia, Cli_Establiments.TEL, Cli_Establiments.EMAIL, Cli_Establiments.PERS_CONTACTE, Cli_Establiments.PERS_CONTACTE_CARREC, Cli_Establiments.NumTreb, Cli_Establiments.Localitzacio, Tipus_Activitat.CNAE, Tipus_Activitat.Nom_ES, ACTIVO FROM Cli_Establiments LEFT OUTER JOIN Tipus_Activitat ON Cli_Establiments.Id_ACTIVITAT = Tipus_Activitat.IdActivitat Where CODCLI = ? AND CENTRE_CORRECTE = ? AND ACTIVO = ? ORDER BY Cli_Establiments.CODIGO_CENTRO_AXAPTA",
+		},
+		{
+			`select * from dollarField$ as df from some$dollar$filled_thing$$;`,
+			`select * from dollarField$ from some$dollar$filled_thing$$`,
 		},
 		{
 			"select * from `構わない`;",
@@ -1076,6 +1105,26 @@ ORDER BY [b].[Name]`,
 			`SELECT id, name FROM emp WHERE name LIKE ?`,
 		},
 		{
+			"select users.custom #- '{a,b}' from users",
+			"select users.custom",
+		},
+		{
+			"select users.custom #> '{a,b}' from users",
+			"select users.custom",
+		},
+		{
+			"select users.custom #>> '{a,b}' from users",
+			"select users.custom",
+		},
+		{
+			`SELECT a FROM foo WHERE value<@name`,
+			`SELECT a FROM foo WHERE value < @name`,
+		},
+		{
+			`SELECT @@foo`,
+			`SELECT @@foo`,
+		},
+		{
 			`DROP TABLE IF EXISTS django_site;
 DROP TABLE IF EXISTS knowledgebase_article;
 
@@ -1148,6 +1197,18 @@ LIMIT 1
 			query:    `SELECT * FROM dbo.Items WHERE id = 1 or /*!obfuscation*/ 1 = 1`,
 			expected: `SELECT * FROM dbo.Items WHERE id = ? or ? = ?`,
 		},
+		{
+			query:    `SELECT * FROM Items WHERE id = -1 OR id = -01 OR id = -108 OR id = -.018 OR id = -.08 OR id = -908129`,
+			expected: `SELECT * FROM Items WHERE id = ? OR id = ? OR id = ? OR id = ? OR id = ? OR id = ?`,
+		},
+		{
+			query:    "USING $09 SELECT",
+			expected: `USING ? SELECT`,
+		},
+		{
+			query:    "USING - SELECT",
+			expected: `USING - SELECT`,
+		},
 	}
 	o := NewObfuscator(Config{})
 	for _, c := range cases {
@@ -1159,15 +1220,75 @@ LIMIT 1
 	}
 }
 
+func TestPGJSONOperators(t *testing.T) {
+	assert := assert.New(t)
+	for _, tt := range []struct {
+		in, out string
+	}{
+		{
+			"select users.custom #> '{a,b}' from users",
+			"select users.custom #> ? from users",
+		},
+		{
+			"select users.custom #>> '{a,b}' from users",
+			"select users.custom #>> ? from users",
+		},
+		{
+			"select users.custom #- '{a,b}' from users",
+			"select users.custom #- ? from users",
+		},
+		{
+			"select users.custom -> 'foo' from users",
+			"select users.custom -> ? from users",
+		},
+		{
+			"select users.custom ->> 'foo' from users",
+			"select users.custom ->> ? from users",
+		},
+		{
+			"select * from users where user.custom @> '{a,b}'",
+			"select * from users where user.custom @> ?",
+		},
+		{
+			`SELECT a FROM foo WHERE value<@name`,
+			`SELECT a FROM foo WHERE value <@ name`,
+		},
+		{
+			"select * from users where user.custom ? 'foo'",
+			"select * from users where user.custom ? ?",
+		},
+		{
+			"select * from users where user.custom ?| array [ '1', '2' ]",
+			"select * from users where user.custom ?| array [ ? ]",
+		},
+		{
+			"select * from users where user.custom ?& array [ '1', '2' ]",
+			"select * from users where user.custom ?& array [ ? ]",
+		},
+	} {
+		t.Run("", func(t *testing.T) {
+			oq, err := NewObfuscator(Config{
+				SQL: SQLConfig{
+					DBMS: DBMSPostgres,
+				},
+			}).ObfuscateSQLString(tt.in)
+			assert.NoError(err)
+			assert.Equal(tt.out, oq.Query)
+		})
+	}
+}
+
 func TestObfuscatorDBMSBehavior(t *testing.T) {
 	assert := assert.New(t)
 	for _, tt := range []struct {
 		in, out string
+		tables  string
 		cfg     SQLConfig
 	}{
 		{
 			"select * from ##ThisIsAGlobalTempTable where id = 1",
 			"select * from ##ThisIsAGlobalTempTable where id = ?",
+			"",
 			SQLConfig{
 				DBMS: DBMSSQLServer,
 			},
@@ -1175,8 +1296,18 @@ func TestObfuscatorDBMSBehavior(t *testing.T) {
 		{
 			"select * from dbo.#ThisIsATempTable where id = 1",
 			"select * from dbo.#ThisIsATempTable where id = ?",
+			"",
 			SQLConfig{
 				DBMS: DBMSSQLServer,
+			},
+		},
+		{
+			"SELECT * from [db_users] where [id] = @1",
+			"SELECT * from db_users where id = @1",
+			"db_users",
+			SQLConfig{
+				DBMS:       DBMSSQLServer,
+				TableNames: true,
 			},
 		},
 	} {
@@ -1184,6 +1315,7 @@ func TestObfuscatorDBMSBehavior(t *testing.T) {
 			oq, err := NewObfuscator(Config{SQL: tt.cfg}).ObfuscateSQLString(tt.in)
 			assert.NoError(err)
 			assert.Equal(tt.out, oq.Query)
+			assert.Equal(tt.tables, oq.Metadata.TablesCSV)
 		})
 	}
 }
@@ -1527,11 +1659,6 @@ func TestSQLErrors(t *testing.T) {
 		},
 
 		{
-			"USING $09 SELECT",
-			`at position 9: invalid number`,
-		},
-
-		{
 			"INSERT VALUES (1, 2) INTO {ABC",
 			`at position 30: unexpected EOF in escape sequence`,
 		},
@@ -1585,7 +1712,7 @@ func TestSQLErrors(t *testing.T) {
 	for _, tc := range cases {
 		t.Run("", func(t *testing.T) {
 			_, err := NewObfuscator(Config{}).ObfuscateSQLString(tc.query)
-			assert.Error(t, err)
+			require.Error(t, err)
 			assert.Equal(t, tc.expected, err.Error())
 		})
 	}
@@ -1741,9 +1868,9 @@ func BenchmarkObfuscateSQLString(b *testing.B) {
 
 	b.Run("random", func(b *testing.B) {
 		b.ReportAllocs()
-		var j uint64
+		var j atomic.Uint64
 		for i := 0; i < b.N; i++ {
-			_, err := obf.ObfuscateSQLString(fmt.Sprintf("SELECT * FROM users WHERE id=%d", atomic.AddUint64(&j, 1)))
+			_, err := obf.ObfuscateSQLString(fmt.Sprintf("SELECT * FROM users WHERE id=%d", j.Inc()))
 			if err != nil {
 				b.Fatal(err)
 			}
@@ -1770,7 +1897,7 @@ func BenchmarkQueryCacheTippingPoint(b *testing.B) {
 		return func(b *testing.B) {
 			o := NewObfuscator(Config{})
 			hitcount := int(float64(queries) * hitrate)
-			var idx uint64
+			var idx atomic.Uint64
 			b.ResetTimer()
 			for i := 0; i < b.N; i++ {
 				for n := 0; n < hitcount; n++ {
@@ -1779,7 +1906,7 @@ func BenchmarkQueryCacheTippingPoint(b *testing.B) {
 					}
 				}
 				for n := 0; n < queries-hitcount; n++ {
-					if _, err := fn(o, fmt.Sprintf(queryfmt, atomic.AddUint64(&idx, 1))); err != nil {
+					if _, err := fn(o, fmt.Sprintf(queryfmt, idx.Inc())); err != nil {
 						b.Fatal(err)
 					}
 				}
@@ -1859,6 +1986,32 @@ func TestUnicodeDigit(t *testing.T) {
 	hangStr := "٩"
 	o := NewObfuscator(Config{})
 	o.ObfuscateSQLString(hangStr)
+}
+
+func TestParseNumber(t *testing.T) {
+	var testCases = []string{
+		"1234",
+		"-1234",
+		"1234e12",
+		"0xfa",
+		"01234567",
+		"09",
+		// Negatives are always parsed as decimals (not octal).
+		"-01234567",
+		"-012345678",
+	}
+
+	o := NewObfuscator(Config{})
+	for _, testCase := range testCases {
+		t.Run(testCase, func(t *testing.T) {
+			assert := assert.New(t)
+			oq, err := o.ObfuscateSQLString(testCase)
+			require.NoError(t, err)
+			if assert.NotNil(oq) {
+				assert.Equal("?", oq.Query)
+			}
+		})
+	}
 }
 
 // TestToUpper contains test data lifted from Go's bytes/bytes_test.go, but we test

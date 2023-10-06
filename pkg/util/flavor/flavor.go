@@ -22,6 +22,8 @@ const (
 	ServerlessAgent = "serverless_agent"
 	// HerokuAgent is the Heroku Agent flavor
 	HerokuAgent = "heroku_agent"
+	// ProcessAgent is the Process Agent flavor
+	ProcessAgent = "process_agent"
 )
 
 var agentFlavor = DefaultAgent

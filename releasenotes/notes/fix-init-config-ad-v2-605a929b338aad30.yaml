@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    Fix parsing of init_config in AD annotations v2.

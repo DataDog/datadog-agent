@@ -4,12 +4,13 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build kubelet
-// +build kubelet
 
+// Package kubelet implements the kubelet Workloadmeta collector.
 package kubelet
 
 import (
 	"context"
+	"strings"
 	"time"
 
 	"github.com/DataDog/datadog-agent/internal/third_party/golang/expansion"
@@ -17,15 +18,17 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/errors"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
 )
 
 const (
-	collectorID   = "kubelet"
-	componentName = "workloadmeta-kubelet"
-	expireFreq    = 15 * time.Second
+	collectorID         = "kubelet"
+	componentName       = "workloadmeta-kubelet"
+	expireFreq          = 15 * time.Second
+	dockerImageIDPrefix = "docker-pullable://"
 )
 
 type collector struct {
@@ -67,7 +70,7 @@ func (c *collector) Pull(ctx context.Context) error {
 
 	events := c.parsePods(updatedPods)
 
-	if time.Now().Sub(c.lastExpire) >= c.expireFreq {
+	if time.Since(c.lastExpire) >= c.expireFreq {
 		var expiredIDs []string
 		expiredIDs, err = c.watcher.Expire()
 		if err == nil {
@@ -91,16 +94,32 @@ func (c *collector) parsePods(pods []*kubelet.Pod) []workloadmeta.CollectorEvent
 			continue
 		}
 
-		containerSpecs := make(
-			[]kubelet.ContainerSpec, 0,
-			len(pod.Spec.Containers)+len(pod.Spec.InitContainers),
+		// Validate allocation size.
+		// Limits hardcoded here are huge enough to never be hit.
+		if len(pod.Spec.Containers) > 10000 ||
+			len(pod.Spec.InitContainers) > 10000 {
+			log.Errorf("pod %s has a crazy number of containers: %d or init containers: %d. Skipping it!",
+				podMeta.UID, len(pod.Spec.Containers), len(pod.Spec.InitContainers))
+			continue
+		}
+
+		podID := workloadmeta.EntityID{
+			Kind: workloadmeta.KindKubernetesPod,
+			ID:   podMeta.UID,
+		}
+
+		podInitContainers, initContainerEvents := c.parsePodContainers(
+			pod,
+			pod.Spec.InitContainers,
+			pod.Status.InitContainers,
+			&podID,
 		)
-		containerSpecs = append(containerSpecs, pod.Spec.InitContainers...)
-		containerSpecs = append(containerSpecs, pod.Spec.Containers...)
 
 		podContainers, containerEvents := c.parsePodContainers(
-			containerSpecs,
-			pod.Status.GetAllContainers(),
+			pod,
+			pod.Spec.Containers,
+			pod.Status.Containers,
+			&podID,
 		)
 
 		podOwners := pod.Owners()
@@ -113,11 +132,10 @@ func (c *collector) parsePods(pods []*kubelet.Pod) []workloadmeta.CollectorEvent
 			})
 		}
 
+		PodSecurityContext := extractPodSecurityContext(&pod.Spec)
+
 		entity := &workloadmeta.KubernetesPod{
-			EntityID: workloadmeta.EntityID{
-				Kind: workloadmeta.KindKubernetesPod,
-				ID:   podMeta.UID,
-			},
+			EntityID: podID,
 			EntityMeta: workloadmeta.EntityMeta{
 				Name:        podMeta.Name,
 				Namespace:   podMeta.Namespace,
@@ -126,13 +144,17 @@ func (c *collector) parsePods(pods []*kubelet.Pod) []workloadmeta.CollectorEvent
 			},
 			Owners:                     owners,
 			PersistentVolumeClaimNames: pod.GetPersistentVolumeClaimNames(),
+			InitContainers:             podInitContainers,
 			Containers:                 podContainers,
 			Ready:                      kubelet.IsPodReady(pod),
 			Phase:                      pod.Status.Phase,
 			IP:                         pod.Status.PodIP,
 			PriorityClass:              pod.Spec.PriorityClassName,
+			QOSClass:                   pod.Status.QOSClass,
+			SecurityContext:            PodSecurityContext,
 		}
 
+		events = append(events, initContainerEvents...)
 		events = append(events, containerEvents...)
 		events = append(events, workloadmeta.CollectorEvent{
 			Source: workloadmeta.SourceNodeOrchestrator,
@@ -145,8 +167,10 @@ func (c *collector) parsePods(pods []*kubelet.Pod) []workloadmeta.CollectorEvent
 }
 
 func (c *collector) parsePodContainers(
+	pod *kubelet.Pod,
 	containerSpecs []kubelet.ContainerSpec,
 	containerStatuses []kubelet.ContainerStatus,
+	parent *workloadmeta.EntityID,
 ) ([]workloadmeta.OrchestratorContainer, []workloadmeta.CollectorEvent) {
 	podContainers := make([]workloadmeta.OrchestratorContainer, 0, len(containerStatuses))
 	events := make([]workloadmeta.CollectorEvent, 0, len(containerStatuses))
@@ -159,15 +183,28 @@ func (c *collector) parsePodContainers(
 			continue
 		}
 
+		var containerSecurityContext *workloadmeta.ContainerSecurityContext
 		var env map[string]string
 		var ports []workloadmeta.ContainerPort
 
-		image, err := workloadmeta.NewContainerImage(container.Image)
-		if err != nil {
-			log.Warnf("cannot split image name %q: %s", container.Image, err)
-		}
+		// When running on docker, the image ID contains a prefix that's not
+		// included in other runtimes. Remove it for consistency.
+		// See https://github.com/kubernetes/kubernetes/issues/95968
+		imageID := strings.TrimPrefix(container.ImageID, dockerImageIDPrefix)
 
-		image.ID = container.ImageID
+		image, err := workloadmeta.NewContainerImage(imageID, container.Image)
+		if err != nil {
+			if err == containers.ErrImageIsSha256 {
+				// try the resolved image ID if the image name in the container
+				// status is a SHA256. this seems to happen sometimes when
+				// pinning the image to a SHA256
+				image, err = workloadmeta.NewContainerImage(imageID, imageID)
+			}
+
+			if err != nil {
+				log.Debugf("cannot split image name %q nor %q: %s", container.Image, imageID, err)
+			}
+		}
 
 		runtime, containerID := containers.SplitEntityName(container.ID)
 		podContainer := workloadmeta.OrchestratorContainer{
@@ -179,13 +216,13 @@ func (c *collector) parsePodContainers(
 		if containerSpec != nil {
 			env = extractEnvFromSpec(containerSpec.Env)
 
-			podContainer.Image, err = workloadmeta.NewContainerImage(containerSpec.Image)
+			podContainer.Image, err = workloadmeta.NewContainerImage(imageID, containerSpec.Image)
 			if err != nil {
 				log.Debugf("cannot split image name %q: %s", containerSpec.Image, err)
 			}
 
-			podContainer.Image.ID = container.ImageID
-
+			podContainer.Image.ID = imageID
+			containerSecurityContext = extractContainerSecurityContext(containerSpec)
 			ports = make([]workloadmeta.ContainerPort, 0, len(containerSpec.Ports))
 			for _, port := range containerSpec.Ports {
 				ports = append(ports, workloadmeta.ContainerPort{
@@ -223,17 +260,74 @@ func (c *collector) parsePodContainers(
 				},
 				EntityMeta: workloadmeta.EntityMeta{
 					Name: container.Name,
+					Labels: map[string]string{
+						kubernetes.CriContainerNamespaceLabel: pod.Metadata.Namespace,
+					},
 				},
-				Image:   image,
-				EnvVars: env,
-				Ports:   ports,
-				Runtime: workloadmeta.ContainerRuntime(runtime),
-				State:   containerState,
+				Image:           image,
+				EnvVars:         env,
+				SecurityContext: containerSecurityContext,
+				Ports:           ports,
+				Runtime:         workloadmeta.ContainerRuntime(runtime),
+				State:           containerState,
+				Owner:           parent,
 			},
 		})
 	}
 
 	return podContainers, events
+}
+
+func extractPodSecurityContext(spec *kubelet.Spec) *workloadmeta.PodSecurityContext {
+	if spec.SecurityContext == nil {
+		return nil
+	}
+
+	return &workloadmeta.PodSecurityContext{
+		RunAsUser:  spec.SecurityContext.RunAsUser,
+		RunAsGroup: spec.SecurityContext.RunAsGroup,
+		FsGroup:    spec.SecurityContext.FsGroup,
+	}
+}
+
+func extractContainerSecurityContext(spec *kubelet.ContainerSpec) *workloadmeta.ContainerSecurityContext {
+	if spec.SecurityContext == nil {
+		return nil
+	}
+
+	var caps *workloadmeta.Capabilities
+	if spec.SecurityContext.Capabilities != nil {
+		caps = &workloadmeta.Capabilities{
+			Add:  spec.SecurityContext.Capabilities.Add,
+			Drop: spec.SecurityContext.Capabilities.Drop,
+		}
+	}
+
+	privileged := false
+	if spec.SecurityContext.Privileged != nil {
+		privileged = *spec.SecurityContext.Privileged
+	}
+
+	var seccompProfile *workloadmeta.SeccompProfile
+	if spec.SecurityContext.SeccompProfile != nil {
+		localhostProfile := ""
+		if spec.SecurityContext.SeccompProfile.LocalhostProfile != nil {
+			localhostProfile = *spec.SecurityContext.SeccompProfile.LocalhostProfile
+		}
+
+		spType := workloadmeta.SeccompProfileType(spec.SecurityContext.SeccompProfile.Type)
+
+		seccompProfile = &workloadmeta.SeccompProfile{
+			Type:             spType,
+			LocalhostProfile: localhostProfile,
+		}
+	}
+
+	return &workloadmeta.ContainerSecurityContext{
+		Capabilities:   caps,
+		Privileged:     privileged,
+		SeccompProfile: seccompProfile,
+	}
 }
 
 func findContainerSpec(name string, specs []kubelet.ContainerSpec) *kubelet.ContainerSpec {
@@ -257,6 +351,10 @@ func extractEnvFromSpec(envSpec []kubelet.EnvVar) map[string]string {
 	// done by the kubelet.
 
 	for _, e := range envSpec {
+		if !containers.EnvVarFilterFromConfig().IsIncluded(e.Name) {
+			continue
+		}
+
 		runtimeVal := e.Value
 		if runtimeVal != "" {
 			runtimeVal = expansion.Expand(runtimeVal, mappingFunc)
@@ -270,24 +368,34 @@ func extractEnvFromSpec(envSpec []kubelet.EnvVar) map[string]string {
 
 func (c *collector) parseExpires(expiredIDs []string) []workloadmeta.CollectorEvent {
 	events := make([]workloadmeta.CollectorEvent, 0, len(expiredIDs))
+	podTerminatedTime := time.Now()
 
 	for _, expiredID := range expiredIDs {
 		prefix, id := containers.SplitEntityName(expiredID)
 
-		var kind workloadmeta.Kind
+		var entity workloadmeta.Entity
+
 		if prefix == kubelet.KubePodEntityName {
-			kind = workloadmeta.KindKubernetesPod
+			entity = &workloadmeta.KubernetesPod{
+				EntityID: workloadmeta.EntityID{
+					Kind: workloadmeta.KindKubernetesPod,
+					ID:   id,
+				},
+				FinishedAt: podTerminatedTime,
+			}
 		} else {
-			kind = workloadmeta.KindContainer
+			entity = &workloadmeta.Container{
+				EntityID: workloadmeta.EntityID{
+					Kind: workloadmeta.KindContainer,
+					ID:   id,
+				},
+			}
 		}
 
 		events = append(events, workloadmeta.CollectorEvent{
 			Source: workloadmeta.SourceNodeOrchestrator,
 			Type:   workloadmeta.EventTypeUnset,
-			Entity: workloadmeta.EntityID{
-				Kind: kind,
-				ID:   id,
-			},
+			Entity: entity,
 		})
 	}
 

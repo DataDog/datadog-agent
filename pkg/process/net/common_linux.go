@@ -4,30 +4,33 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build linux
-// +build linux
 
 package net
 
 import (
 	"fmt"
 	"os"
+
+	sysconfig "github.com/DataDog/datadog-agent/cmd/system-probe/config"
 )
 
 const (
-	connectionsURL = "http://unix/connections"
-	statsURL       = "http://unix/debug/stats"
-	procStatsURL   = "http://unix/proc/stats"
-	netType        = "unix"
+	connectionsURL       = "http://unix/" + string(sysconfig.NetworkTracerModule) + "/connections"
+	procStatsURL         = "http://unix/" + string(sysconfig.ProcessModule) + "/stats"
+	registerURL          = "http://unix/" + string(sysconfig.NetworkTracerModule) + "/register"
+	statsURL             = "http://unix/debug/stats"
+	languageDetectionURL = "http://unix/" + string(sysconfig.LanguageDetectionModule) + "/detect"
+	netType              = "unix"
 )
 
 // CheckPath is used in conjunction with calling the stats endpoint, since we are calling this
 // From the main agent and want to ensure the socket exists
-func CheckPath() error {
-	if globalSocketPath == "" {
-		return fmt.Errorf("remote tracer has no path defined")
+func CheckPath(path string) error {
+	if path == "" {
+		return fmt.Errorf("socket path is empty")
 	}
 
-	if _, err := os.Stat(globalSocketPath); err != nil {
+	if _, err := os.Stat(path); err != nil {
 		return fmt.Errorf("socket path does not exist: %v", err)
 	}
 	return nil

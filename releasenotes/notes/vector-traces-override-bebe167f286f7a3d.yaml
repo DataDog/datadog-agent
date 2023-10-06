@@ -1,0 +1,14 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+features:
+  - |
+    APM: Add two options under the `vector` config prefix to send traces
+    to Vector instead of Datadog. Set `vector.traces.enabled` to true.
+    Set `vector.traces.url` to point to a Vector endpoint. This overrides 
+    the main endpoint. Additional endpoints remains fully functional.

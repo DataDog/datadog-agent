@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build orchestrator
-// +build orchestrator
 
 package k8s
 
@@ -16,19 +15,22 @@ import (
 	kubetypes "github.com/DataDog/datadog-agent/internal/third_party/kubernetes/pkg/kubelet/types"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors"
 	k8sTransformers "github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/transformers/k8s"
+	"github.com/DataDog/datadog-agent/pkg/orchestrator"
 	"github.com/DataDog/datadog-agent/pkg/orchestrator/redact"
-	"github.com/DataDog/datadog-agent/pkg/security/log"
 	"github.com/DataDog/datadog-agent/pkg/tagger"
 	"github.com/DataDog/datadog-agent/pkg/tagger/collectors"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/types"
 )
 
 // PodHandlers implements the Handlers interface for Kubernetes Pods.
-type PodHandlers struct{}
+type PodHandlers struct {
+	BaseHandlers
+}
 
 // AfterMarshalling is a handler called after resource marshalling.
 func (h *PodHandlers) AfterMarshalling(ctx *processors.ProcessorContext, resource, resourceModel interface{}, yaml []byte) (skip bool) {
@@ -52,18 +54,20 @@ func (h *PodHandlers) BeforeCacheCheck(ctx *processors.ProcessorContext, resourc
 	}
 
 	// insert tagger tags
-	tags, err := tagger.Tag(kubelet.PodUIDToTaggerEntityName(string(r.UID)), collectors.HighCardinality)
+	taggerTags, err := tagger.Tag(kubelet.PodUIDToTaggerEntityName(string(r.UID)), collectors.HighCardinality)
 	if err != nil {
-		log.Debugf("Could not retrieve tags for pod: %s", err)
+		log.Debugf("Could not retrieve tags for pod: %s", err.Error())
 		skip = true
 		return
 	}
 
+	m.Tags = append(m.Tags, taggerTags...)
+
 	// additional tags
-	m.Tags = append(tags, fmt.Sprintf("pod_status:%s", strings.ToLower(m.Status)))
+	m.Tags = append(m.Tags, fmt.Sprintf("pod_status:%s", strings.ToLower(m.Status)))
 
 	// tags that should be on the tagger
-	if len(tags) == 0 {
+	if len(taggerTags) == 0 {
 		// Tags which should be on the tagger
 		for _, volume := range r.Spec.Volumes {
 			if volume.PersistentVolumeClaim != nil && volume.PersistentVolumeClaim.ClaimName != "" {
@@ -75,16 +79,11 @@ func (h *PodHandlers) BeforeCacheCheck(ctx *processors.ProcessorContext, resourc
 
 	// Custom resource version to work around kubelet issues.
 	if err := k8sTransformers.FillK8sPodResourceVersion(m); err != nil {
-		log.Warnf("Failed to compute pod resource version: %s", err)
+		log.Warnc(fmt.Sprintf("Failed to compute pod resource version: %s", err.Error()), orchestrator.ExtraLogContext)
 		skip = true
 		return
 	}
 
-	return
-}
-
-// BeforeMarshalling is a handler called before resource marshalling.
-func (h *PodHandlers) BeforeMarshalling(ctx *processors.ProcessorContext, resource, resourceModel interface{}) (skip bool) {
 	return
 }
 
@@ -104,7 +103,7 @@ func (h *PodHandlers) BuildMessageBody(ctx *processors.ProcessorContext, resourc
 		GroupSize:   int32(groupSize),
 		HostName:    ctx.HostName,
 		Pods:        models,
-		Tags:        ctx.Cfg.ExtraTags,
+		Tags:        append(ctx.Cfg.ExtraTags, ctx.ApiGroupVersionTag),
 	}
 }
 
@@ -128,7 +127,7 @@ func (h *PodHandlers) ResourceList(ctx *processors.ProcessorContext, list interf
 }
 
 // ResourceUID is a handler called to retrieve the resource UID.
-func (h *PodHandlers) ResourceUID(ctx *processors.ProcessorContext, resource, resourceModel interface{}) types.UID {
+func (h *PodHandlers) ResourceUID(ctx *processors.ProcessorContext, resource interface{}) types.UID {
 	return resource.(*corev1.Pod).UID
 }
 
@@ -149,6 +148,6 @@ func (h *PodHandlers) ScrubBeforeExtraction(ctx *processors.ProcessorContext, re
 func (h *PodHandlers) ScrubBeforeMarshalling(ctx *processors.ProcessorContext, resource interface{}) {
 	r := resource.(*corev1.Pod)
 	if ctx.Cfg.IsScrubbingEnabled {
-		redact.ScrubPodSpec(&r.Spec, ctx.Cfg.Scrubber)
+		redact.ScrubPod(r, ctx.Cfg.Scrubber)
 	}
 }

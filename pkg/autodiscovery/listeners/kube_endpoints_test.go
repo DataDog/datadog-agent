@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build clusterchecks && kubeapiserver
-// +build clusterchecks,kubeapiserver
 
 package listeners
 
@@ -73,7 +72,7 @@ func TestProcessEndpoints(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, []ContainerPort{{123, "port123"}, {126, "port126"}}, ports)
 
-	tags, _, err := eps[0].GetTags()
+	tags, err := eps[0].GetTags()
 	assert.NoError(t, err)
 	assert.Equal(t, []string{"kube_service:myservice", "kube_namespace:default", "kube_endpoint_ip:10.0.0.1", "foo:bar"}, tags)
 
@@ -91,7 +90,7 @@ func TestProcessEndpoints(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, []ContainerPort{{123, "port123"}, {126, "port126"}}, ports)
 
-	tags, _, err = eps[1].GetTags()
+	tags, err = eps[1].GetTags()
 	assert.NoError(t, err)
 	assert.Equal(t, []string{"kube_service:myservice", "kube_namespace:default", "kube_endpoint_ip:10.0.0.2", "foo:bar"}, tags)
 }

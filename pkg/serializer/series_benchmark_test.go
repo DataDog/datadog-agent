@@ -3,8 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build zlib
-// +build zlib
+//go:build zlib && test
 
 package serializer
 
@@ -12,17 +11,18 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/DataDog/datadog-agent/pkg/forwarder"
+	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/transaction"
+	"github.com/stretchr/testify/require"
+
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	metricsserializer "github.com/DataDog/datadog-agent/pkg/serializer/internal/metrics"
 	"github.com/DataDog/datadog-agent/pkg/serializer/internal/stream"
 	"github.com/DataDog/datadog-agent/pkg/serializer/marshaler"
 	"github.com/DataDog/datadog-agent/pkg/tagset"
-	"github.com/stretchr/testify/require"
 )
 
-func generateData(points int, items int, tags int) metricsserializer.Series {
-	series := metricsserializer.Series{}
+func generateData(points int, items int, tags int) metrics.Series {
+	series := metrics.Series{}
 	for i := 0; i < items; i++ {
 		series = append(series, &metrics.Serie{
 			Points: func() []metrics.Point {
@@ -48,10 +48,10 @@ func generateData(points int, items int, tags int) metricsserializer.Series {
 	return series
 }
 
-var payloads forwarder.Payloads
+var payloads transaction.BytesPayloads
 
 func BenchmarkSeries(b *testing.B) {
-	bench := func(points, items, tags int, build func(series metricsserializer.Series) (forwarder.Payloads, error)) func(b *testing.B) {
+	bench := func(points, items, tags int, build func(series metrics.Series) (transaction.BytesPayloads, error)) func(b *testing.B) {
 		return func(b *testing.B) {
 			series := generateData(points, items, tags)
 
@@ -65,7 +65,7 @@ func BenchmarkSeries(b *testing.B) {
 				payloads, err = build(series)
 				payloadCount += len(payloads)
 				for _, pl := range payloads {
-					payloadCompressedSize += uint64(len(*pl))
+					payloadCompressedSize += uint64(pl.Len())
 				}
 				require.NoError(b, err)
 			}
@@ -73,14 +73,16 @@ func BenchmarkSeries(b *testing.B) {
 			b.ReportMetric(float64(payloadCompressedSize)/float64(b.N), "compressed-payload-bytes")
 		}
 	}
-	bufferContext := marshaler.DefaultBufferContext()
-	pb := func(series metricsserializer.Series) (forwarder.Payloads, error) {
-		return series.MarshalSplitCompress(bufferContext)
+	bufferContext := marshaler.NewBufferContext()
+	pb := func(series metrics.Series) (transaction.BytesPayloads, error) {
+		iterableSeries := metricsserializer.CreateIterableSeries(metricsserializer.CreateSerieSource(series))
+		return iterableSeries.MarshalSplitCompress(bufferContext)
 	}
 
 	payloadBuilder := stream.NewJSONPayloadBuilder(true)
-	json := func(series metricsserializer.Series) (forwarder.Payloads, error) {
-		return payloadBuilder.Build(series)
+	json := func(series metrics.Series) (transaction.BytesPayloads, error) {
+		iterableSeries := metricsserializer.CreateIterableSeries(metricsserializer.CreateSerieSource(series))
+		return payloadBuilder.BuildWithOnErrItemTooBigPolicy(iterableSeries, stream.DropItemOnErrItemTooBig)
 	}
 
 	for _, items := range []int{5, 10, 100, 500, 1000, 10000, 100000} {

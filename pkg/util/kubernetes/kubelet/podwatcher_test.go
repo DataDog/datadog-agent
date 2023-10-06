@@ -4,13 +4,13 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build kubelet
-// +build kubelet
 
 package kubelet
 
 import (
 	"context"
 	"fmt"
+	"os"
 	"testing"
 	"time"
 
@@ -387,13 +387,15 @@ func (suite *PodwatcherTestSuite) TestPodWatcherExpireWholePod() {
 
 func (suite *PodwatcherTestSuite) TestPullChanges() {
 	ctx := context.Background()
-	mockConfig := config.Mock()
+	mockConfig := config.Mock(nil)
 
 	kubelet, err := newDummyKubelet("./testdata/podlist_1.8-2.json")
 	require.Nil(suite.T(), err)
 	ts, kubeletPort, err := kubelet.StartTLS()
-	defer ts.Close()
+	defer os.Remove(kubelet.testingCertificate)
+	defer os.Remove(kubelet.testingPrivateKey)
 	require.Nil(suite.T(), err)
+	defer ts.Close()
 
 	mockConfig.Set("kubernetes_kubelet_host", "127.0.0.1")
 	mockConfig.Set("kubernetes_https_kubelet_port", kubeletPort)

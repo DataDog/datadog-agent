@@ -4,8 +4,8 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build kubeapiserver && kubelet
-// +build kubeapiserver,kubelet
 
+// Package kubemetadata implements the kube_metadata Workloadmeta collector.
 package kubemetadata
 
 import (
@@ -13,6 +13,8 @@ import (
 	"fmt"
 	"strings"
 	"time"
+
+	"k8s.io/apimachinery/pkg/util/sets"
 
 	apiv1 "github.com/DataDog/datadog-agent/pkg/clusteragent/api/v1"
 	"github.com/DataDog/datadog-agent/pkg/config"
@@ -23,30 +25,30 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/retry"
 	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
-	"github.com/DataDog/datadog-agent/pkg/workloadmeta/collectors/internal/util"
 )
 
 const (
 	collectorID   = "kube_metadata"
 	componentName = "workloadmeta-kube_metadata"
-	expireFreq    = 5 * time.Minute
 )
 
 type collector struct {
 	store                  workloadmeta.Store
+	seen                   map[workloadmeta.EntityID]struct{}
 	kubeUtil               kubelet.KubeUtilInterface
 	apiClient              *apiserver.APIClient
 	dcaClient              clusteragent.DCAClientInterface
 	dcaEnabled             bool
 	updateFreq             time.Duration
 	lastUpdate             time.Time
-	expire                 *util.Expire
 	collectNamespaceLabels bool
 }
 
 func init() {
 	workloadmeta.RegisterCollector(collectorID, func() workloadmeta.Collector {
-		return &collector{}
+		return &collector{
+			seen: make(map[workloadmeta.EntityID]struct{}),
+		}
 	})
 }
 
@@ -99,7 +101,6 @@ func (c *collector) Start(_ context.Context, store workloadmeta.Store) error {
 	}
 
 	c.updateFreq = time.Duration(config.Datadog.GetInt("kubernetes_metadata_tag_update_freq")) * time.Second
-	c.expire = util.NewExpire(expireFreq)
 	c.collectNamespaceLabels = len(config.Datadog.GetStringMapString("kubernetes_namespace_labels_as_tags")) > 0
 
 	return err
@@ -127,19 +128,27 @@ func (c *collector) Pull(ctx context.Context) error {
 		}
 	}
 
-	events, err := c.parsePods(ctx, pods)
+	seen := make(map[workloadmeta.EntityID]struct{})
+	events, err := c.parsePods(ctx, pods, seen)
 	if err != nil {
 		return err
 	}
 
-	expires := c.expire.ComputeExpires()
-	for _, expired := range expires {
+	for seenID := range c.seen {
+		if _, ok := seen[seenID]; ok {
+			continue
+		}
+
 		events = append(events, workloadmeta.CollectorEvent{
 			Type:   workloadmeta.EventTypeUnset,
 			Source: workloadmeta.SourceClusterOrchestrator,
-			Entity: expired,
+			Entity: &workloadmeta.KubernetesPod{
+				EntityID: seenID,
+			},
 		})
 	}
+
+	c.seen = seen
 
 	c.store.Notify(events)
 
@@ -149,7 +158,11 @@ func (c *collector) Pull(ctx context.Context) error {
 }
 
 // parsePods returns collection events based on a given podlist.
-func (c *collector) parsePods(ctx context.Context, pods []*kubelet.Pod) ([]workloadmeta.CollectorEvent, error) {
+func (c *collector) parsePods(
+	ctx context.Context,
+	pods []*kubelet.Pod,
+	seen map[workloadmeta.EntityID]struct{},
+) ([]workloadmeta.CollectorEvent, error) {
 	events := []workloadmeta.CollectorEvent{}
 
 	var err error
@@ -169,10 +182,8 @@ func (c *collector) parsePods(ctx context.Context, pods []*kubelet.Pod) ([]workl
 		}
 	}
 
-	now := time.Now()
-
 	for _, pod := range pods {
-		if pod.Spec.HostNetwork || !kubelet.IsPodReady(pod) || pod.Metadata.UID == "" {
+		if pod.Metadata.UID == "" {
 			continue
 		}
 
@@ -181,17 +192,21 @@ func (c *collector) parsePods(ctx context.Context, pods []*kubelet.Pod) ([]workl
 			log.Debugf("Could not fetch metadata for pod %s/%s: %v", pod.Metadata.Namespace, pod.Metadata.Name, err)
 		}
 
+		// Skip `kube_service` label for pods that are not ready (since their endpoint will be disabled from the service)
+		// Skip pods with hostNetwork because we cannot use their IP to match endpoints.
 		services := []string{}
-		for _, data := range metadata {
-			d := strings.Split(data, ":")
-			switch len(d) {
-			case 1:
-				// c.dcaClient.GetPodsMetadataForNode returns only a list of services without tag key
-				services = append(services, d[0])
-			case 2:
-				services = append(services, d[1])
-			default:
-				continue
+		if !pod.Spec.HostNetwork && kubelet.IsPodReady(pod) {
+			for _, data := range metadata {
+				d := strings.Split(data, ":")
+				switch len(d) {
+				case 1:
+					// c.dcaClient.GetPodsMetadataForNode returns only a list of services without tag key
+					services = append(services, d[0])
+				case 2:
+					services = append(services, d[1])
+				default:
+					continue
+				}
 			}
 		}
 
@@ -206,10 +221,16 @@ func (c *collector) parsePods(ctx context.Context, pods []*kubelet.Pod) ([]workl
 			ID:   pod.Metadata.UID,
 		}
 
-		c.expire.Update(entityID, now)
+		seen[entityID] = struct{}{}
 
 		entity := &workloadmeta.KubernetesPod{
-			EntityID:        entityID,
+			EntityID: entityID,
+			EntityMeta: workloadmeta.EntityMeta{
+				Name:        pod.Metadata.Name,
+				Namespace:   pod.Metadata.Namespace,
+				Annotations: pod.Metadata.Annotations,
+				Labels:      pod.Metadata.Labels,
+			},
 			KubeServices:    services,
 			NamespaceLabels: nsLabels,
 		}
@@ -236,7 +257,7 @@ func (c *collector) getMetadata(getPodMetaDataFromAPIServerFunc func(string, str
 
 	if metadataByNsPods != nil {
 		if data, ok := metadataByNsPods[po.Metadata.Namespace][po.Metadata.Name]; ok && data != nil {
-			return data.List(), nil
+			return sets.List(data), nil
 		}
 		return nil, nil
 	}

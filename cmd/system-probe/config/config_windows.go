@@ -4,14 +4,12 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build windows
-// +build windows
 
 package config
 
 import (
 	"fmt"
 	"net"
-	"path/filepath"
 
 	"github.com/DataDog/datadog-agent/pkg/util/winutil"
 )
@@ -25,15 +23,13 @@ const (
 )
 
 var (
-	defaultConfigDir              = "c:\\programdata\\datadog\\"
-	defaultSystemProbeLogFilePath = "c:\\programdata\\datadog\\logs\\system-probe.log"
+	defaultConfigDir = "c:\\programdata\\datadog\\"
 )
 
 func init() {
 	pd, err := winutil.GetProgramDataDir()
 	if err == nil {
 		defaultConfigDir = pd
-		defaultSystemProbeLogFilePath = filepath.Join(pd, "logs", "system-probe.log")
 	}
 }
 

@@ -1,3 +1,7 @@
+{{/*
+NOTE: Changes made to this template should be reflected on the following templates, if applicable:
+* cmd/agent/gui/views/templates/generalStatus.tmpl
+*/}}
 =============
 Process Agent
 =============
@@ -16,6 +20,12 @@ Process Agent
   Enabled Checks: {{ .expvars.enabled_checks }}
   Allocated Memory: {{ humanize .expvars.memstats.alloc }} bytes
   Hostname: {{ .core.metadata.meta.hostname }}
+  {{- if .expvars.system_probe_process_module_enabled }}
+  System Probe Process Module Status: Running
+  {{- else}}
+  System Probe Process Module Status: Not running
+  {{- end}}
+  Process Language Detection Enabled: {{ if .expvars.language_detection_enabled }}True{{ else }}False{{ end }}
 
   =================
   Process Endpoints
@@ -41,9 +51,23 @@ Process Agent
     Number of containers: {{.expvars.container_count}}
     Process Queue length: {{.expvars.process_queue_size}}
     RTProcess Queue length: {{.expvars.rtprocess_queue_size}}
+    Connections Queue length: {{.expvars.connections_queue_size}}
+    Event Queue length: {{.expvars.event_queue_size}}
     Pod Queue length: {{.expvars.pod_queue_size}}
     Process Bytes enqueued: {{.expvars.process_queue_bytes}}
     RTProcess Bytes enqueued: {{.expvars.rtprocess_queue_bytes}}
+    Connections Bytes enqueued: {{.expvars.connections_queue_bytes}}
+    Event Bytes enqueued: {{.expvars.event_queue_bytes}}
     Pod Bytes enqueued: {{.expvars.pod_queue_bytes}}
-{{- end }}
+    Drop Check Payloads: {{.expvars.drop_check_payloads}}
 
+  ==========
+  Extractors
+  ==========
+
+    Workloadmeta
+    ============
+      Cache size: {{.expvars.workloadmeta_extractor_cache_size}}
+      Stale diffs discarded: {{.expvars.workloadmeta_extractor_stale_diffs}}
+      Diffs dropped: {{.expvars.workloadmeta_extractor_diffs_dropped}}
+{{- end }}

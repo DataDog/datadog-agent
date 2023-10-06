@@ -3,23 +3,32 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+// Package rules holds rules related files
 package rules
 
 import (
+	"errors"
 	"fmt"
 	"strings"
-
-	"github.com/pkg/errors"
 )
 
 var (
+	// ErrRuleWithoutID is returned when there is no ID
+	ErrRuleWithoutID = errors.New("no rule ID")
+
+	// ErrRuleWithoutExpression is returned when there is no expression
+	ErrRuleWithoutExpression = errors.New("no rule expression")
+
+	// ErrRuleIDPattern is returned when there is no expression
+	ErrRuleIDPattern = errors.New("rule ID pattern error")
+
 	// ErrRuleWithoutEvent is returned when no event type was inferred from the rule
 	ErrRuleWithoutEvent = errors.New("no event in the rule definition")
 
 	// ErrRuleWithMultipleEvents is returned when multiple event type were inferred from the rule
 	ErrRuleWithMultipleEvents = errors.New("rule with multiple events is not supported")
 
-	// ErrDefinitionIDConflict is returned when mlultiple rule use the same ID
+	// ErrDefinitionIDConflict is returned when multiple rules use the same ID
 	ErrDefinitionIDConflict = errors.New("multiple definition with the same ID")
 
 	// ErrInternalIDConflict is returned when a user defined rule use an internal ID
@@ -30,6 +39,18 @@ var (
 
 	// ErrCannotMergeExpression is returned when trying to merge SECL expression
 	ErrCannotMergeExpression = errors.New("cannot merge expression")
+
+	// ErrRuleAgentVersion is returned when there is an agent version error
+	ErrRuleAgentVersion = errors.New("agent version incompatible")
+
+	// ErrRuleAgentFilter is returned when an agent rule was filtered
+	ErrRuleAgentFilter = errors.New("agent rule filtered")
+
+	// ErrNoRuleSetsInEvaluationSet is returned when no rule sets were provided to instantiate an evaluation set
+	ErrNoRuleSetsInEvaluationSet = errors.New("no rule sets provided to instantiate an evaluation set")
+
+	// ErrCannotChangeTagAfterLoading is returned when an attempt was made to change the tag on a ruleset that already has rules loaded
+	ErrCannotChangeTagAfterLoading = errors.New("cannot change tag on a rule set that already has rules loaded")
 )
 
 // ErrFieldTypeUnknown is returned when a field has an unknown type
@@ -105,5 +126,49 @@ type ErrRuleLoad struct {
 }
 
 func (e ErrRuleLoad) Error() string {
-	return fmt.Sprintf("rule `%s` definition error: %s", e.Definition.ID, e.Err)
+	return fmt.Sprintf("rule `%s` error: %s", e.Definition.ID, e.Err)
+}
+
+// RuleLoadErrType defines an rule error type
+type RuleLoadErrType string
+
+const (
+	// AgentVersionErrType agent version incompatible
+	AgentVersionErrType RuleLoadErrType = "agent_version_error"
+	// AgentFilterErrType agent filter do not match
+	AgentFilterErrType RuleLoadErrType = "agent_filter_error"
+	// EventTypeNotEnabledErrType event type not enabled
+	EventTypeNotEnabledErrType RuleLoadErrType = "event_type_disabled"
+	// SyntaxErrType syntax error
+	SyntaxErrType RuleLoadErrType = "syntax_error"
+	// UnknownErrType undefined error
+	UnknownErrType RuleLoadErrType = "error"
+)
+
+// Type return the type of the error
+func (e ErrRuleLoad) Type() RuleLoadErrType {
+	switch e.Err {
+	case ErrRuleAgentVersion:
+		return AgentVersionErrType
+	case ErrRuleAgentFilter:
+		return AgentVersionErrType
+	case ErrEventTypeNotEnabled:
+		return EventTypeNotEnabledErrType
+	}
+
+	switch e.Err.(type) {
+	case *ErrFieldTypeUnknown, *ErrValueTypeUnknown, *ErrRuleSyntax:
+		return SyntaxErrType
+	}
+
+	return UnknownErrType
+}
+
+// ErrRuleSyntax is returned when there is a syntax error
+type ErrRuleSyntax struct {
+	Err error
+}
+
+func (e *ErrRuleSyntax) Error() string {
+	return fmt.Sprintf("syntax error `%v`", e.Err)
 }

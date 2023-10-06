@@ -7,8 +7,12 @@ package invocationlifecycle
 
 const (
 	// TraceIDHeader is the header containing the traceID
-	// used in /trace-context
+	// used in /trace-context and /lambda/start-invocation
 	TraceIDHeader = "x-datadog-trace-id"
+
+	// ParentIDHeader is the header containing the parentID
+	// used in /trace-context and /lambda/start-invocation
+	ParentIDHeader = "x-datadog-parent-id"
 
 	// SpanIDHeader is the header containing the spanID
 	// used in /lambda/start-invocation
@@ -18,5 +22,19 @@ const (
 	// used in /lambda/end-invocation
 	InvocationErrorHeader = "x-datadog-invocation-error"
 
-	parentIDHeader = "x-datadog-parent-id"
+	// SamplingPriorityHeader is the header containing the sampling priority for execution and/or inferred spans
+	SamplingPriorityHeader = "x-datadog-sampling-priority"
+
+	// Lambda function trigger span tag values
+	apiGateway              = "api-gateway"
+	applicationLoadBalancer = "application-load-balancer"
+	cloudwatchEvents        = "cloudwatch-events"
+	cloudwatchLogs          = "cloudwatch-logs"
+	dynamoDB                = "dynamodb"
+	eventBridge             = "eventbridge"
+	kinesis                 = "kinesis"
+	s3                      = "s3"
+	sns                     = "sns"
+	sqs                     = "sqs"
+	functionURL             = "lambda-function-url"
 )

@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build clusterchecks && kubeapiserver
-// +build clusterchecks,kubeapiserver
 
 package utils
 
@@ -85,7 +84,7 @@ func TestConfigsForService(t *testing.T) {
 				Instances: []*types.OpenmetricsInstance{
 					{
 						OpenMetricsEndpoint: "foo/bar",
-						Metrics:             []string{".*"},
+						Metrics:             []interface{}{".*"},
 						Namespace:           "",
 					},
 				},
@@ -117,7 +116,7 @@ func TestConfigsForService(t *testing.T) {
 				Instances: []*types.OpenmetricsInstance{
 					{
 						PrometheusURL: "foo/bar",
-						Metrics:       []string{"*"},
+						Metrics:       []interface{}{"*"},
 						Namespace:     "",
 					},
 				},
@@ -169,11 +168,60 @@ func TestConfigsForService(t *testing.T) {
 			},
 			want: nil,
 		},
+		{
+			name: "metrics key value",
+			check: &types.PrometheusCheck{
+				Instances: []*types.OpenmetricsInstance{
+					{
+						PrometheusURL: "foo/bar",
+						Metrics:       []interface{}{map[string]string{"foo": "bar"}},
+						Namespace:     "",
+					},
+				},
+			},
+			version: 2,
+			svc: &corev1.Service{
+				ObjectMeta: metav1.ObjectMeta{
+					UID:         k8stypes.UID("foo-uid"),
+					Name:        "svc-foo",
+					Annotations: map[string]string{"prometheus.io/scrape": "true"},
+					Namespace:   "ns",
+				},
+			},
+			want: []integration.Config{
+				{
+					Name:          "openmetrics",
+					InitConfig:    integration.Data("{}"),
+					Instances:     []integration.Data{integration.Data(`{"prometheus_url":"foo/bar","namespace":"","metrics":[{"foo":"bar"}]}`)},
+					ClusterCheck:  true,
+					Provider:      names.PrometheusServices,
+					Source:        "prometheus_services:kube_service://ns/svc-foo",
+					ADIdentifiers: []string{"kube_service://ns/svc-foo"},
+				},
+			},
+		},
+		{
+			name:    "headless service is ignored",
+			check:   types.DefaultPrometheusCheck,
+			version: 1,
+			svc: &corev1.Service{
+				ObjectMeta: metav1.ObjectMeta{
+					UID:         k8stypes.UID("foo-uid"),
+					Name:        "svc-foo",
+					Annotations: map[string]string{"prometheus.io/scrape": "true"},
+					Namespace:   "ns",
+				},
+				Spec: corev1.ServiceSpec{
+					ClusterIP: "None",
+				},
+			},
+			want: nil,
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			config.Datadog.Set("prometheus_scrape.version", tt.version)
-			assert.NoError(t, tt.check.Init())
+			assert.NoError(t, tt.check.Init(tt.version))
 			assert.ElementsMatch(t, tt.want, ConfigsForService(tt.check, tt.svc))
 		})
 	}

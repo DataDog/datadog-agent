@@ -4,22 +4,24 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build linux_bpf
-// +build linux_bpf
 
 package kprobe
 
 import (
 	"testing"
 
-	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode/runtime"
-	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/stretchr/testify/require"
+
+	"github.com/DataDog/datadog-agent/pkg/ebpf/ebpftest"
+	"github.com/DataDog/datadog-agent/pkg/network/config"
 )
 
 func TestTracerCompile(t *testing.T) {
-	cfg := config.New()
-	cfg.BPFDebug = true
-	cflags := getCFlags(cfg)
-	_, err := runtime.Tracer.Compile(&cfg.Config, cflags)
-	require.NoError(t, err)
+	ebpftest.TestBuildMode(t, ebpftest.RuntimeCompiled, "", func(t *testing.T) {
+		cfg := config.New()
+		cfg.BPFDebug = true
+		out, err := getRuntimeCompiledTracer(cfg)
+		require.NoError(t, err)
+		_ = out.Close()
+	})
 }

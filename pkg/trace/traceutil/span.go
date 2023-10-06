@@ -8,15 +8,14 @@ package traceutil
 import (
 	"bytes"
 
-	"github.com/DataDog/datadog-agent/pkg/trace/pb"
-
 	"github.com/tinylib/msgp/msgp"
+
+	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 )
 
 const (
 	// This is a special metric, it's 1 if the span is top-level, 0 if not.
 	topLevelKey = "_top_level"
-
 	// measuredKey is a special metric flag that marks a span for trace metrics calculation.
 	measuredKey = "_dd.measured"
 	// tracerTopLevelKey is a metric flag set by tracers on top_level spans
@@ -131,4 +130,13 @@ func GetMetaStruct(s *pb.Span, key string) (interface{}, bool) {
 		return val, ok
 	}
 	return nil, false
+}
+
+// GetMetric gets the metadata value in the span Metrics map.
+func GetMetric(s *pb.Span, key string) (float64, bool) {
+	if s.Metrics == nil {
+		return 0, false
+	}
+	val, ok := s.Metrics[key]
+	return val, ok
 }

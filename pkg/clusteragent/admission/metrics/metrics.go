@@ -4,8 +4,8 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build kubeapiserver
-// +build kubeapiserver
 
+// Package metrics defines the telemetry of the Admission Controller.
 package metrics
 
 import (
@@ -16,10 +16,11 @@ import (
 
 // Metric names
 const (
-	SecretControllerName   = "secrets"
-	WebhooksControllerName = "webhooks"
-	TagsMutationType       = "standard_tags"
-	ConfigMutationType     = "agent_config"
+	SecretControllerName     = "secrets"
+	WebhooksControllerName   = "webhooks"
+	TagsMutationType         = "standard_tags"
+	ConfigMutationType       = "agent_config"
+	LibInjectionMutationType = "lib_injection"
 )
 
 // Telemetry metrics
@@ -34,10 +35,10 @@ var (
 		[]string{}, "Time left before the certificate expires in hours.",
 		telemetry.Options{NoDoubleUnderscoreSep: true})
 	MutationAttempts = telemetry.NewGaugeWithOpts("admission_webhooks", "mutation_attempts",
-		[]string{"mutation_type", "injected"}, "Number of pod mutation attempts by mutation type (agent config, standard tags).",
+		[]string{"mutation_type", "injected", "language"}, "Number of pod mutation attempts by mutation type (agent config, standard tags, lib injection).",
 		telemetry.Options{NoDoubleUnderscoreSep: true})
 	MutationErrors = telemetry.NewGaugeWithOpts("admission_webhooks", "mutation_errors",
-		[]string{"mutation_type", "reason"}, "Number of mutation failures by mutation type (agent config, standard tags).",
+		[]string{"mutation_type", "reason", "language"}, "Number of mutation failures by mutation type (agent config, standard tags, lib injection).",
 		telemetry.Options{NoDoubleUnderscoreSep: true})
 	WebhooksReceived = telemetry.NewCounterWithOpts("admission_webhooks", "webhooks_received",
 		[]string{}, "Number of mutation webhook requests received.",
@@ -56,4 +57,25 @@ var (
 		prometheus.DefBuckets, // The default prometheus buckets are adapted to measure response time
 		telemetry.Options{NoDoubleUnderscoreSep: true},
 	)
+	LibInjectionAttempts = telemetry.NewCounterWithOpts("admission_webhooks", "library_injection_attempts",
+		[]string{"language", "injected"}, "Number of pod library injection attempts by language.",
+		telemetry.Options{NoDoubleUnderscoreSep: true})
+	LibInjectionErrors = telemetry.NewCounterWithOpts("admission_webhooks", "library_injection_errors",
+		[]string{"language"}, "Number of library injection failures by language",
+		telemetry.Options{NoDoubleUnderscoreSep: true})
+	RemoteConfigs = telemetry.NewGaugeWithOpts("admission_webhooks", "rc_provider_configs",
+		[]string{}, "Number of valid remote configurations.",
+		telemetry.Options{NoDoubleUnderscoreSep: true})
+	InvalidRemoteConfigs = telemetry.NewGaugeWithOpts("admission_webhooks", "rc_provider_configs_invalid",
+		[]string{}, "Number of invalid remote configurations.",
+		telemetry.Options{NoDoubleUnderscoreSep: true})
+	PatchAttempts = telemetry.NewCounterWithOpts("admission_webhooks", "patcher_attempts",
+		[]string{}, "Number of patch attempts.",
+		telemetry.Options{NoDoubleUnderscoreSep: true})
+	PatchCompleted = telemetry.NewCounterWithOpts("admission_webhooks", "patcher_completed",
+		[]string{}, "Number of completed patch attempts.",
+		telemetry.Options{NoDoubleUnderscoreSep: true})
+	PatchErrors = telemetry.NewCounterWithOpts("admission_webhooks", "patcher_errors",
+		[]string{}, "Number of patch errors.",
+		telemetry.Options{NoDoubleUnderscoreSep: true})
 )

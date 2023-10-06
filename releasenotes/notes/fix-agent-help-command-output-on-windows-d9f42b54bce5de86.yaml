@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    The help output of the Agent command now correctly displays the executable name on Windows.

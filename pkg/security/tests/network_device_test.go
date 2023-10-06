@@ -4,8 +4,8 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build functionaltests
-// +build functionaltests
 
+// Package tests holds tests related files
 package tests
 
 import (
@@ -20,7 +20,6 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/security/ebpf/kernel"
-	sprobe "github.com/DataDog/datadog-agent/pkg/security/probe"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
@@ -29,7 +28,7 @@ import (
 func TestNetDevice(t *testing.T) {
 	checkKernelCompatibility(t, "RHEL, SLES and Oracle kernels", func(kv *kernel.Version) bool {
 		// TODO: Oracle because we are missing offsets
-		return kv.IsRH7Kernel() || kv.IsOracleUEKKernel()
+		return kv.IsRH7Kernel() || kv.IsOracleUEKKernel() || kv.IsSLESKernel()
 	})
 
 	if testEnvironment != DockerEnvironment && !config.IsContainerized() {
@@ -43,13 +42,13 @@ func TestNetDevice(t *testing.T) {
 		Expression: `dns.question.type == A && dns.question.name == "google.com" && process.file.name == "testsuite"`,
 	}
 
-	test, err := newTestModule(t, nil, []*rules.RuleDefinition{rule}, testOpts{enableNetwork: true})
+	test, err := newTestModule(t, nil, []*rules.RuleDefinition{rule}, testOpts{})
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer test.Close()
 
-	currentNetns, err := utils.GetProcessNetworkNamespace(utils.NetNSPathFromPid(uint32(utils.Getpid())))
+	currentNetns, err := utils.NetNSPathFromPid(utils.Getpid()).GetProcessNetworkNamespace()
 	if err != nil {
 		t.Errorf("couldn't retrieve current network namespace ID: %v", err)
 	}
@@ -67,7 +66,7 @@ func TestNetDevice(t *testing.T) {
 			}
 
 			// retrieve new netnsid
-			fi, err := os.Stat(fmt.Sprintf("/var/run/netns/test_netns"))
+			fi, err := os.Stat("/var/run/netns/test_netns")
 			if err != nil {
 				return err
 			}
@@ -78,7 +77,7 @@ func TestNetDevice(t *testing.T) {
 			testNetns = uint32(stat.Ino)
 
 			return nil
-		}, func(event *sprobe.Event) bool {
+		}, func(event *model.Event) bool {
 			if !assert.Equal(t, "net_device", event.GetType(), "wrong event type") {
 				return true
 			}
@@ -95,7 +94,7 @@ func TestNetDevice(t *testing.T) {
 		err = test.GetProbeEvent(func() error {
 			cmd := exec.Command(executable, "link", "add", "host-eth0", "type", "veth", "peer", "name", "ns-eth0", "netns", "test_netns")
 			return cmd.Run()
-		}, func(event *sprobe.Event) bool {
+		}, func(event *model.Event) bool {
 			if !assert.Equal(t, "veth_pair", event.GetType(), "wrong event type") {
 				return true
 			}
@@ -119,7 +118,7 @@ func TestNetDevice(t *testing.T) {
 
 			cmd = exec.Command(executable, "link", "set", "ns-eth1", "netns", "test_netns")
 			return cmd.Run()
-		}, func(event *sprobe.Event) bool {
+		}, func(event *model.Event) bool {
 			if !assert.Equal(t, "veth_pair", event.GetType(), "wrong event type") {
 				return true
 			}

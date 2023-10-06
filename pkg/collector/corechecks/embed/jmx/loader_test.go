@@ -4,22 +4,21 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build jmx
-// +build jmx
 
 package jmx
 
 import (
 	"context"
 	"errors"
-	"io/ioutil"
-	"os"
 	"path/filepath"
 	"runtime"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
+
+	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/providers"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
-	"github.com/stretchr/testify/assert"
 )
 
 func getFile() (string, error) {
@@ -32,13 +31,6 @@ func getFile() (string, error) {
 
 func TestLoadCheckConfig(t *testing.T) {
 	ctx := context.Background()
-
-	tmp, err := ioutil.TempDir("", "datadog-agent")
-	if err != nil {
-		t.Fatalf("unable to create temporary directory: %v", err)
-	}
-
-	defer os.RemoveAll(tmp) // clean up
 
 	jl, err := NewJMXCheckLoader()
 	assert.Nil(t, err)
@@ -65,7 +57,7 @@ func TestLoadCheckConfig(t *testing.T) {
 
 	for _, cfg := range cfgs {
 		for _, instance := range cfg.Instances {
-			if loadedCheck, err := jl.Load(cfg, instance); err == nil {
+			if loadedCheck, err := jl.Load(aggregator.NewNoOpSenderManager(), cfg, instance); err == nil {
 				checks = append(checks, loadedCheck)
 			} else {
 				numOtherInstances++

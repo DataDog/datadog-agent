@@ -44,7 +44,6 @@ type DockerListenerTestSuite struct {
 func (suite *DockerListenerTestSuite) SetupSuite() {
 	config.Datadog.SetDefault("ac_include", []string{"name:.*redis.*"})
 	config.Datadog.SetDefault("ac_exclude", []string{"image:datadog/docker-library:redis.*"})
-	config.DetectFeatures()
 	containers.ResetSharedFilter()
 
 	config.SetupLogger(
@@ -57,7 +56,7 @@ func (suite *DockerListenerTestSuite) SetupSuite() {
 		false,
 	)
 
-	store := workloadmeta.GetGlobalStore()
+	store := workloadmeta.CreateGlobalStore(workloadmeta.NodeAgentCatalog)
 	store.Start(context.Background())
 
 	tagger.SetDefaultTagger(local.NewTagger(store))
@@ -188,7 +187,7 @@ func (suite *DockerListenerTestSuite) commonSection(containerIDs []string) {
 		assert.Nil(suite.T(), err)
 		entity := fmt.Sprintf("docker://%s", container)
 		if strings.Contains(inspect.Name, "excluded") {
-			excludedEntity = docker.ContainerIDToEntityName(container)
+			excludedEntity = containers.BuildEntityName(string(workloadmeta.ContainerRuntimeDocker), container)
 			excludedIDs = append(excludedIDs, container)
 			continue
 		}
@@ -224,9 +223,8 @@ func (suite *DockerListenerTestSuite) commonSection(containerIDs []string) {
 		expectedTags, found := expectedADIDs[entity]
 		assert.True(suite.T(), found, "entity not found in expected ones")
 
-		tags, hash, err := service.GetTags()
+		tags, err := service.GetTags()
 		assert.Nil(suite.T(), err)
-		assert.NotEqual(suite.T(), "", hash)
 		assert.Contains(suite.T(), tags, "docker_image:datadog/docker-library:redis_3_2_11-alpine")
 		assert.Contains(suite.T(), tags, "image_name:datadog/docker-library")
 		assert.Contains(suite.T(), tags, "image_tag:redis_3_2_11-alpine")
@@ -265,5 +263,6 @@ func (suite *DockerListenerTestSuite) commonSection(containerIDs []string) {
 }
 
 func TestDockerListenerSuite(t *testing.T) {
+	config.SetFeatures(t, config.Docker)
 	suite.Run(t, &DockerListenerTestSuite{})
 }

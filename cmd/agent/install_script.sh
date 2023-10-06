@@ -1,12 +1,20 @@
 #!/bin/bash
 # (C) Datadog, Inc. 2010-present
 # All rights reserved
-# Licensed under Simplified BSD License (see LICENSE)
+# Licensed under Apache-2.0 License (see LICENSE)
 # Datadog Agent installation script: install and set up the Agent on supported Linux distributions
 # using the package manager and Datadog repositories.
 
 set -e
-install_script_version=1.8.0.post
+
+echo -e "\033[33m
+ install_script.sh is deprecated. Please use one of
+ 
+ * https://s3.amazonaws.com/dd-agent/scripts/install_script_agent6.sh to install Agent 6
+ * https://s3.amazonaws.com/dd-agent/scripts/install_script_agent7.sh to install Agent 7
+\033[0m"
+
+install_script_version=1.13.0.deprecated
 logfile="ddagent-install.log"
 support_email=support@datadoghq.com
 
@@ -25,9 +33,9 @@ APT_GPG_KEYS=("DATADOG_APT_KEY_CURRENT.public" "DATADOG_APT_KEY_F14F620E.public"
 # DATADOG_RPM_KEY_FD4BF915.public expires in 2024
 RPM_GPG_KEYS=("DATADOG_RPM_KEY_CURRENT.public" "DATADOG_RPM_KEY_E09422B3.public" "DATADOG_RPM_KEY_FD4BF915.public")
 
-# RPM_GPG_KEYS_A6 contains keys we only install for the A6 repo.
-# DATADOG_RPM_KEY.public is only useful to install old (< 6.14) Agent packages.
-RPM_GPG_KEYS_A6=("DATADOG_RPM_KEY.public")
+# DATADOG_RPM_KEY.public (4172A230) was only useful to install old (< 6.14) Agent packages.
+# We no longer add it and we explicitly remove it.
+RPM_GPG_KEYS_TO_REMOVE=("gpg-pubkey-4172a230-55dd14f6")
 
 # Set up a named pipe for logging
 npipe=/tmp/$$.tmp
@@ -135,6 +143,18 @@ function verify_agent_version(){
     fi
 }
 
+function remove_rpm_gpg_keys() {
+    local sudo_cmd="$1"
+    shift
+    local old_keys=("$@")
+    for key in "${old_keys[@]}"; do
+        if $sudo_cmd rpm -q "$key" 1>/dev/null 2>/dev/null; then
+            echo -e "\033[34m\nRemoving old RPM key $key from the RPM database\n\033[0m"
+            $sudo_cmd rpm --erase "$key"
+        fi
+    done
+}
+
 echo -e "\033[34m\n* Datadog Agent install script v${install_script_version}\n\033[0m"
 
 hostname=
@@ -204,6 +224,11 @@ if [ -n "$DD_UPGRADE" ]; then
   upgrade=$DD_UPGRADE
 fi
 
+fips_mode=
+if [ -n "$DD_FIPS_MODE" ]; then
+  fips_mode=$DD_FIPS_MODE
+fi
+
 agent_flavor="datadog-agent"
 if [ -n "$DD_AGENT_FLAVOR" ]; then
     agent_flavor=$DD_AGENT_FLAVOR #Eg: datadog-iot-agent
@@ -214,6 +239,7 @@ flavor_to_readable=(
     ["datadog-agent"]="Datadog Agent"
     ["datadog-iot-agent"]="Datadog IoT Agent"
     ["datadog-dogstatsd"]="Datadog Dogstatsd"
+    ["datadog-fips-proxy"]="Datadog FIPS Proxy"
     ["datadog-heroku-agent"]="Datadog Heroku Agent"
 )
 nice_flavor=${flavor_to_readable[$agent_flavor]}
@@ -230,17 +256,25 @@ flavor_to_system_service=(
 )
 system_service=${flavor_to_system_service[$agent_flavor]:-datadog-agent}
 
+declare -a services
+services=("$system_service")
+if [ -n "$fips_mode" ]; then
+  services+=("datadog-fips-proxy")
+fi
+
 declare -A flavor_to_etcdir
 flavor_to_etcdir=(
     ["datadog-dogstatsd"]="/etc/datadog-dogstatsd"
 )
 etcdir=${flavor_to_etcdir[$agent_flavor]:-/etc/datadog-agent}
+etcdirfips=/etc/datadog-fips-proxy
 
 declare -A flavor_to_config
 flavor_to_config=(
     ["datadog-dogstatsd"]="$etcdir/dogstatsd.yaml"
 )
 config_file=${flavor_to_config[$agent_flavor]:-$etcdir/datadog.yaml}
+config_file_fips=$etcdirfips/datadog-fips-proxy.cfg
 
 agent_major_version=6
 if [ -n "$DD_AGENT_MAJOR_VERSION" ]; then
@@ -270,8 +304,13 @@ fi
 
 agent_dist_channel=stable
 if [ -n "$DD_AGENT_DIST_CHANNEL" ]; then
-  if [ "$DD_AGENT_DIST_CHANNEL" != "stable" ] && [ "$DD_AGENT_DIST_CHANNEL" != "beta" ]; then
-    echo "DD_AGENT_DIST_CHANNEL must be either 'stable' or 'beta'. Current value: $DD_AGENT_DIST_CHANNEL"
+  if [ "$repository_url" == "datadoghq.com" ]; then
+    if [ "$DD_AGENT_DIST_CHANNEL" != "stable" ] && [ "$DD_AGENT_DIST_CHANNEL" != "beta" ]; then
+      echo "DD_AGENT_DIST_CHANNEL must be either 'stable' or 'beta'. Current value: $DD_AGENT_DIST_CHANNEL"
+      exit 1;
+    fi
+  elif [ "$DD_AGENT_DIST_CHANNEL" != "stable" ] && [ "$DD_AGENT_DIST_CHANNEL" != "beta" ] && [ "$DD_AGENT_DIST_CHANNEL" != "nightly" ]; then
+    echo "DD_AGENT_DIST_CHANNEL must be either 'stable', 'beta' or 'nightly' on custom repos. Current value: $DD_AGENT_DIST_CHANNEL"
     exit 1;
   fi
   agent_dist_channel=$DD_AGENT_DIST_CHANNEL
@@ -356,6 +395,7 @@ fi
 
 # Install the necessary package sources
 if [ "$OS" = "RedHat" ]; then
+    remove_rpm_gpg_keys "$sudo_cmd" "${RPM_GPG_KEYS_TO_REMOVE[@]}"
     if { [ "$DISTRIBUTION" == "Rocky" ] || [ "$DISTRIBUTION" == "AlmaLinux" ]; } && { [ -n "$agent_minor_version" ] && [ "$agent_minor_version" -lt 33 ]; } && ! echo "$agent_flavor" | grep '[0-9]' > /dev/null; then
         echo -e "\033[33mA future version of $nice_flavor will support $DISTRIBUTION\n\033[0m"
         exit;
@@ -392,11 +432,6 @@ if [ "$OS" = "RedHat" ]; then
     for key_path in "${RPM_GPG_KEYS[@]}"; do
       gpgkeys="${gpgkeys:+"${gpgkeys}${separator}"}https://${keys_url}/${key_path}"
     done
-    if [ "$agent_major_version" -eq 6 ]; then
-      for key_path in "${RPM_GPG_KEYS_A6[@]}"; do
-        gpgkeys="${gpgkeys:+"${gpgkeys}${separator}"}https://${keys_url}/${key_path}"
-      done
-    fi
 
     $sudo_cmd sh -c "echo -e '[datadog]\nname = Datadog, Inc.\nbaseurl = https://${yum_url}/${yum_version_path}/${ARCHI}/\nenabled=1\ngpgcheck=1\nrepo_gpgcheck=${rpm_repo_gpgcheck}\npriority=1\ngpgkey=${gpgkeys}' > /etc/yum.repos.d/datadog.repo"
 
@@ -417,9 +452,16 @@ if [ "$OS" = "RedHat" ]; then
         agent_version_custom="$(yum -y --disablerepo=* --enablerepo=datadog list --showduplicates datadog-agent | sort -r | grep -E "$pkg_pattern" -om1)" || true
         verify_agent_version "-"
     fi
-    echo -e "  \033[33mInstalling package: $agent_flavor\n\033[0m"
 
-    $sudo_cmd yum -y --disablerepo='*' --enablerepo='datadog' install $dnf_flag "$agent_flavor" || $sudo_cmd yum -y install $dnf_flag "$agent_flavor"
+    declare -a packages
+    packages=("$agent_flavor")
+    if [ -n "$fips_mode" ]; then
+      packages+=("datadog-fips-proxy")
+    fi
+
+    echo -e "  \033[33mInstalling package(s): ${packages[*]}\n\033[0m"
+
+    $sudo_cmd yum -y --disablerepo='*' --enablerepo='datadog' install $dnf_flag "${packages[@]}" || $sudo_cmd yum -y install $dnf_flag "${packages[@]}"
 
 elif [ "$OS" = "Debian" ]; then
     apt_trusted_d_keyring="/etc/apt/trusted.gpg.d/datadog-archive-keyring.gpg"
@@ -467,8 +509,8 @@ elif [ "$OS" = "Debian" ]; then
           fi
       else
           if ! echo "$agent_flavor" | grep '[0-9]' > /dev/null; then
-              echo -e "  \033[33m$nice_flavor $agent_major_version.35 will be the last supported version on $DISTRIBUTION $release_version. Installing $agent_major_version.34 now.\n\033[0m"
-              agent_minor_version=34
+              echo -e "  \033[33m$nice_flavor $agent_major_version.35 is the last supported version on $DISTRIBUTION $release_version. Installing $agent_major_version.35 now.\n\033[0m"
+              agent_minor_version=35
           fi
       fi
     fi
@@ -489,18 +531,27 @@ determine the cause.
 If the cause is unclear, please contact Datadog support.
 *****
 "
-    
+
     if [ -n "$agent_minor_version" ]; then
         # Example: datadog-agent=1:7.20.2-1
         pkg_pattern="([[:digit:]]:)?$agent_major_version\.${agent_minor_version%.}(\.[[:digit:]]+){0,1}(-[[:digit:]])?"
         agent_version_custom="$(apt-cache madison datadog-agent | grep -E "$pkg_pattern" -om1)" || true
         verify_agent_version "="
     fi
-    echo -e "  \033[33mInstalling package: $agent_flavor\n\033[0m"
 
-    $sudo_cmd apt-get install -y --force-yes "$agent_flavor" "datadog-signing-keys"
+    declare -a packages
+    packages=("$agent_flavor" "datadog-signing-keys")
+    if [ -n "$fips_mode" ]; then
+     packages+=("datadog-fips-proxy")
+    fi
+
+    echo -e "  \033[33mInstalling package(s): ${packages[*]}\n\033[0m"
+
+    $sudo_cmd apt-get install -y --force-yes "${packages[@]}"
+
     ERROR_MESSAGE=""
 elif [ "$OS" = "SUSE" ]; then
+  remove_rpm_gpg_keys "$sudo_cmd" "${RPM_GPG_KEYS_TO_REMOVE[@]}"
   UNAME_M=$(uname -m)
   if [ "$UNAME_M"  == "i686" ] || [ "$UNAME_M"  == "i386" ] || [ "$UNAME_M"  == "x86" ]; then
       printf "\033[31mThe Datadog Agent installer is only available for 64 bit SUSE Enterprise machines.\033[0m\n"
@@ -521,6 +572,23 @@ elif [ "$OS" = "SUSE" ]; then
     SUSE11="yes"
   fi
 
+  # Doing "rpm --import" requires curl on SUSE/SLES
+  echo -e "\033[34m\n* Ensuring curl is installed\n\033[0m\n"
+  if ! rpm -q curl > /dev/null; then
+    # If zypper fails to refresh a random repo, it installs the package, but then fails
+    # anyway. Therefore we let it do its thing and then see if curl was installed or not.
+    if [ -z "$sudo_cmd" ]; then
+      ZYPP_RPM_DEBUG="${ZYPP_RPM_DEBUG:-0}" zypper --non-interactive install curl ||:
+    else
+      $sudo_cmd ZYPP_RPM_DEBUG="${ZYPP_RPM_DEBUG:-0}" zypper --non-interactive install curl ||:
+    fi
+    if ! rpm -q curl > /dev/null; then
+      echo -e "\033[31mFailed to install curl.\033[0m\n"
+      fallback_msg
+      exit 1;
+    fi
+  fi
+
   echo -e "\033[34m\n* Importing the Datadog GPG Keys\n\033[0m"
   if [ "$SUSE11" == "yes" ]; then
     # SUSE 11 special case
@@ -528,21 +596,10 @@ elif [ "$OS" = "SUSE" ]; then
       $sudo_cmd curl -o "/tmp/${key_path}" "https://${keys_url}/${key_path}"
       $sudo_cmd rpm --import "/tmp/${key_path}"
     done
-    if [ "$agent_major_version" -eq 6 ]; then
-      for key_path in "${RPM_GPG_KEYS_A6[@]}"; do
-        $sudo_cmd curl -o "/tmp/${key_path}" "https://${keys_url}/${key_path}"
-        $sudo_cmd rpm --import "/tmp/${key_path}"
-      done
-    fi
   else
     for key_path in "${RPM_GPG_KEYS[@]}"; do
       $sudo_cmd rpm --import "https://${keys_url}/${key_path}"
     done
-    if [ "$agent_major_version" -eq 6 ]; then
-      for key_path in "${RPM_GPG_KEYS_A6[@]}"; do
-        $sudo_cmd rpm --import "https://${keys_url}/${key_path}"
-      done
-    fi
   fi
 
   # Parse the major version number out of the distro release info file. xargs is used to trim whitespace.
@@ -557,11 +614,6 @@ elif [ "$OS" = "SUSE" ]; then
     for key_path in "${RPM_GPG_KEYS[@]}"; do
       gpgkeys="${gpgkeys:+"${gpgkeys}${separator}"}https://${keys_url}/${key_path}"
     done
-    if [ "$agent_major_version" -eq 6 ]; then
-      for key_path in "${RPM_GPG_KEYS_A6[@]}"; do
-        gpgkeys="${gpgkeys:+"${gpgkeys}${separator}"}https://${keys_url}/${key_path}"
-      done
-    fi
   fi
 
   echo -e "\033[34m\n* Installing YUM Repository for Datadog\n\033[0m"
@@ -569,7 +621,7 @@ elif [ "$OS" = "SUSE" ]; then
 
   echo -e "\033[34m\n* Refreshing repositories\n\033[0m"
   $sudo_cmd zypper --non-interactive --no-gpg-checks refresh datadog
-  
+
   echo -e "\033[34m\n* Installing the $nice_flavor package\n\033[0m"
 
   # ".32" is the latest version supported for OpenSUSE < 15 and SLES < 12
@@ -607,13 +659,31 @@ elif [ "$OS" = "SUSE" ]; then
       agent_version_custom="$(zypper search -s datadog-agent | grep -E "$pkg_pattern" -om1)" || true
       verify_agent_version "-"
   fi
-  echo -e "  \033[33mInstalling package: $agent_flavor\n\033[0m"
+
+  declare -a packages
+  packages=("$agent_flavor")
+  if [ -n "$fips_mode" ]; then
+    packages+=("datadog-fips-proxy")
+  fi
+
+
+  echo -e "  \033[33mInstalling package(s): ${packages[*]}\n\033[0m"
 
   if [ -z "$sudo_cmd" ]; then
-    ZYPP_RPM_DEBUG="${ZYPP_RPM_DEBUG:-0}" zypper --non-interactive install "$agent_flavor"
+    ZYPP_RPM_DEBUG="${ZYPP_RPM_DEBUG:-0}" zypper --non-interactive install "${packages[@]}" ||:
   else
-    $sudo_cmd ZYPP_RPM_DEBUG="${ZYPP_RPM_DEBUG:-0}" zypper --non-interactive install "$agent_flavor"
+    $sudo_cmd ZYPP_RPM_DEBUG="${ZYPP_RPM_DEBUG:-0}" zypper --non-interactive install "${packages[@]}" ||:
   fi
+
+  # If zypper fails to refresh a random repo, it installs the package, but then fails
+  # anyway. Therefore we let it do its thing and then see if curl was installed or not.
+  for expected_pkg in "${packages[@]}"; do
+    if ! rpm -q "${expected_pkg}" > /dev/null; then
+      echo -e "\033[31mFailed to install ${expected_pkg}.\033[0m\n"
+      fallback_msg
+      exit 1;
+    fi
+  done
 
 else
     printf "\033[31mYour OS or distribution are not supported by this install script.
@@ -656,13 +726,50 @@ else
       no_start=true
     fi
   fi
-  if [ "$site" ]; then
-    printf "\033[34m\n* Setting SITE in the $nice_flavor configuration: $config_file\n\033[0m\n"
-    $sudo_cmd sh -c "sed -i 's/# site:.*/site: $site/' $config_file"
-  fi
-  if [ -n "$DD_URL" ]; then
-    printf "\033[34m\n* Setting DD_URL in the $nice_flavor configuration: $config_file\n\033[0m\n"
-    $sudo_cmd sh -c "sed -i 's|# dd_url:.*|dd_url: $DD_URL|' $config_file"
+
+  if [ -z "$fips_mode" ]; then
+    if [ "$site" ]; then
+      printf "\033[34m\n* Setting SITE in the $nice_flavor configuration: $config_file\n\033[0m\n"
+      $sudo_cmd sh -c "sed -i 's/# site:.*/site: $site/' $config_file"
+    fi
+    if [ -n "$DD_URL" ]; then
+      printf "\033[34m\n* Setting DD_URL in the $nice_flavor configuration: $config_file\n\033[0m\n"
+      $sudo_cmd sh -c "sed -i 's|# dd_url:.*|dd_url: $DD_URL|' $config_file"
+    fi
+  else
+    printf "\033[34m\n* Setting $nice_flavor configuration to use FIPS proxy: $config_file\n\033[0m\n"
+    $sudo_cmd cp "$config_file" "${config_file}.orig"
+    $sudo_cmd sh -c "exec cat - '${config_file}.orig' > '$config_file'" <<EOF
+# Configuration for the agent to use datadog-fips-proxy to communicate with Datadog via FIPS-compliant channel.
+
+dd_url: http://localhost:9804
+
+apm_config:
+    apm_dd_url: http://localhost:9805
+    profiling_dd_url: http://localhost:9806
+    telemetry:
+        dd_url: http://localhost:9813
+
+process_config:
+    process_dd_url: http://localhost:9807
+
+logs_config:
+    use_http: true
+    logs_dd_url: localhost:9808
+    logs_no_ssl: true
+
+database_monitoring:
+    metrics:
+        dd_url: localhost:9809
+    activity:
+        dd_url: localhost:9809
+    samples:
+        dd_url: localhost:9810
+
+network_devices:
+    metadata:
+        dd_url: localhost:9811
+EOF
   fi
   if [ "$hostname" ]; then
     printf "\033[34m\n* Adding your HOSTNAME to the $nice_flavor configuration: $config_file\n\033[0m\n"
@@ -673,8 +780,26 @@ else
       formatted_host_tags="['""$( echo "$host_tags" | sed "s/,/','/g" )""']"  # format `env:prod,foo:bar` to yaml-compliant `['env:prod','foo:bar']`
       $sudo_cmd sh -c "sed -i \"s/# tags:.*/tags: ""$formatted_host_tags""/\" $config_file"
   fi
-  $sudo_cmd chown dd-agent:dd-agent "$config_file"
-  $sudo_cmd chmod 640 "$config_file"
+fi
+
+$sudo_cmd chown dd-agent:dd-agent "$config_file"
+$sudo_cmd chmod 640 "$config_file"
+
+# set the FIPS configuration
+if [ -n "$fips_mode" ]; then
+  if [ -e "$config_file_fips" ] && [ -z "$upgrade" ]; then
+    printf "\033[34m\n* Keeping old $config_file_fips configuration file\n\033[0m\n"
+  else
+    if [ ! -e "$config_file_fips" ]; then
+      $sudo_cmd cp "$config_file_fips.example" "$config_file_fips"
+
+      # TODO: set port range in file, or environment variable
+    fi
+
+    $sudo_cmd chown dd-agent:dd-agent "$config_file_fips"
+    $sudo_cmd chmod 640 "$config_file_fips"
+
+  fi
 fi
 
 # Creating or overriding the install information
@@ -686,6 +811,11 @@ install_method:
 "
 $sudo_cmd sh -c "echo '$install_info_content' > $etcdir/install_info"
 
+if [ -n "$fips_mode" ]; then
+  # Creating or overriding the install information
+  $sudo_cmd sh -c "echo '$install_info_content' > $etcdirfips/install_info"
+fi
+
 # On SUSE 11, sudo service datadog-agent start fails (because /sbin is not in a base user's path)
 # However, sudo /sbin/service datadog-agent does work.
 # Use which (from root user) to find the absolute path to service
@@ -695,52 +825,59 @@ if [ "$SUSE11" == "yes" ]; then
   service_cmd=`$sudo_cmd which service`
 fi
 
-# Use /usr/sbin/service by default.
-# Some distros usually include compatibility scripts with Upstart or Systemd. Check with: `command -v service | xargs grep -E "(upstart|systemd)"`
-restart_cmd="$sudo_cmd $service_cmd $system_service restart"
-stop_instructions="$sudo_cmd $service_cmd $system_service stop"
-start_instructions="$sudo_cmd $service_cmd $system_service start"
-
-if [[ `$sudo_cmd ps --no-headers -o comm 1 2>&1` == "systemd" ]] && command -v systemctl 2>&1; then
-  # Use systemd if systemctl binary exists and systemd is the init process
-  restart_cmd="$sudo_cmd systemctl restart ${system_service}.service"
-  stop_instructions="$sudo_cmd systemctl stop $system_service"
-  start_instructions="$sudo_cmd systemctl start $system_service"
-elif /sbin/init --version 2>&1 | grep -q upstart; then
-  # Try to detect Upstart, this works most of the times but still a best effort
-  restart_cmd="$sudo_cmd stop $system_service || true ; sleep 2s ; $sudo_cmd start $system_service"
-  stop_instructions="$sudo_cmd stop $system_service"
-  start_instructions="$sudo_cmd start $system_service"
-fi
+declare -a monitoring_services
+monitoring_services=( "datadog-agent" )
 
 if [ $no_start ]; then
-    printf "\033[34m
-* DD_INSTALL_ONLY environment variable set: the newly installed version of the
-$nice_flavor will not be started. You will have to do it manually using the
-following command:
-
-    $start_instructions
-
-\033[0m\n"
-    exit
+  printf "\033[34m\n  * DD_INSTALL_ONLY environment variable set.\033[0m\n"
 fi
 
-printf "\033[34m* Starting the $nice_flavor...\n\033[0m\n"
-eval "$restart_cmd"
+for current_service in "${services[@]}"; do
+  nice_current_flavor=${flavor_to_readable[$current_service]}
+
+  # Use /usr/sbin/service by default.
+  # Some distros usually include compatibility scripts with Upstart or Systemd. Check with: `command -v service | xargs grep -E "(upstart|systemd)"`
+  restart_cmd="$sudo_cmd $service_cmd $current_service restart"
+  stop_instructions="$sudo_cmd $service_cmd $current_service stop"
+  start_instructions="$sudo_cmd $service_cmd $current_service start"
+
+  if [[ `$sudo_cmd ps --no-headers -o comm 1 2>&1` == "systemd" ]] && command -v systemctl 2>&1; then
+    # Use systemd if systemctl binary exists and systemd is the init process
+    restart_cmd="$sudo_cmd systemctl restart ${current_service}.service"
+    stop_instructions="$sudo_cmd systemctl stop $current_service"
+    start_instructions="$sudo_cmd systemctl start $current_service"
+  elif /sbin/init --version 2>&1 | grep -q upstart; then
+    # Try to detect Upstart, this works most of the times but still a best effort
+    restart_cmd="$sudo_cmd stop $current_service || true ; sleep 2s ; $sudo_cmd start $current_service"
+    stop_instructions="$sudo_cmd stop $current_service"
+    start_instructions="$sudo_cmd start $current_service"
+  fi
+
+  if [ $no_start ]; then
+    printf "\033[34m\n    The newly installed version of the ${nice_current_flavor} will not be started.
+    You will have to do it manually using the following command:
+
+    $start_instructions\033[0m\n\n"
+
+    continue
+  fi
+
+  printf "\033[34m* Starting the ${nice_current_flavor}...\n\033[0m\n"
+  eval "$restart_cmd"
 
 
-# Metrics are submitted, echo some instructions and exit
-printf "\033[32m
+  # Metrics are submitted, echo some instructions and exit
+  printf "\033[32m  Your ${nice_current_flavor} is running and functioning properly.\n\033[0m"
 
-Your $nice_flavor is running and functioning properly. It will continue
-to run in the background and submit metrics to Datadog.
+  if [[ "${monitoring_services[*]}" =~ ${current_service} ]]; then
+    printf "\033[32m  It will continue to run in the background and submit metrics to Datadog.\n\033[0m"
+  fi
 
-If you ever want to stop the $nice_flavor, run:
+  printf "\033[32m  If you ever want to stop the ${nice_current_flavor}, run:
 
-    $stop_instructions
+      $stop_instructions
 
-And to run it again run:
+  And to run it again run:
 
-    $start_instructions
-
-\033[0m"
+      $start_instructions\033[0m\n\n"
+done

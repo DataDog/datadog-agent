@@ -7,13 +7,14 @@ package pipeline
 
 import (
 	"context"
-	"sync/atomic"
+
+	"go.uber.org/atomic"
 
 	"github.com/DataDog/datadog-agent/pkg/logs/diagnostic"
 
+	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/auditor"
 	"github.com/DataDog/datadog-agent/pkg/logs/client"
-	"github.com/DataDog/datadog-agent/pkg/logs/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/util/startstop"
 )
@@ -37,7 +38,7 @@ type provider struct {
 	endpoints                 *config.Endpoints
 
 	pipelines            []*Pipeline
-	currentPipelineIndex uint32
+	currentPipelineIndex *atomic.Uint32
 	destinationsContext  *client.DestinationsContext
 
 	serverless bool
@@ -53,6 +54,11 @@ func NewServerlessProvider(numberOfPipelines int, auditor auditor.Auditor, proce
 	return newProvider(numberOfPipelines, auditor, &diagnostic.NoopMessageReceiver{}, processingRules, endpoints, destinationsContext, true)
 }
 
+// NewMockProvider creates a new provider that will not provide any pipelines.
+func NewMockProvider() Provider {
+	return &provider{}
+}
+
 func newProvider(numberOfPipelines int, auditor auditor.Auditor, diagnosticMessageReceiver diagnostic.MessageReceiver, processingRules []*config.ProcessingRule, endpoints *config.Endpoints, destinationsContext *client.DestinationsContext, serverless bool) Provider {
 	return &provider{
 		numberOfPipelines:         numberOfPipelines,
@@ -61,6 +67,7 @@ func newProvider(numberOfPipelines int, auditor auditor.Auditor, diagnosticMessa
 		processingRules:           processingRules,
 		endpoints:                 endpoints,
 		pipelines:                 []*Pipeline{},
+		currentPipelineIndex:      atomic.NewUint32(0),
 		destinationsContext:       destinationsContext,
 		serverless:                serverless,
 	}
@@ -96,7 +103,7 @@ func (p *provider) NextPipelineChan() chan *message.Message {
 	if pipelinesLen == 0 {
 		return nil
 	}
-	index := atomic.AddUint32(&p.currentPipelineIndex, uint32(1)) % uint32(pipelinesLen)
+	index := p.currentPipelineIndex.Inc() % uint32(pipelinesLen)
 	nextPipeline := p.pipelines[index]
 	return nextPipeline.InputChan
 }

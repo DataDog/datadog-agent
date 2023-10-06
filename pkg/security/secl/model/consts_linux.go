@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+// Package model holds model related files
 package model
 
 import (
@@ -12,6 +13,8 @@ import (
 )
 
 var (
+	// errorConstants are the supported error constants
+	// generate_constants:Error constants,Error constants are the supported error constants.
 	errorConstants = map[string]int{
 		"E2BIG":           -int(syscall.E2BIG),
 		"EACCES":          -int(syscall.EACCES),
@@ -148,6 +151,8 @@ var (
 		"EXFULL":          -int(syscall.EXFULL),
 	}
 
+	// openFlagsConstants are the supported flags for the open syscall
+	// generate_constants:Open flags,Open flags are the supported flags for the open syscall.
 	openFlagsConstants = map[string]int{
 		"O_RDONLY":    syscall.O_RDONLY,
 		"O_WRONLY":    syscall.O_WRONLY,
@@ -164,7 +169,7 @@ var (
 		"O_DIRECTORY": syscall.O_DIRECTORY,
 		"O_DSYNC":     syscall.O_DSYNC,
 		"O_FSYNC":     syscall.O_FSYNC,
-		//"O_LARGEFILE": syscall.O_LARGEFILE, golang defines this as 0
+		// "O_LARGEFILE": syscall.O_LARGEFILE, golang defines this as 0
 		"O_NDELAY":   syscall.O_NDELAY,
 		"O_NOATIME":  syscall.O_NOATIME,
 		"O_NOCTTY":   syscall.O_NOCTTY,
@@ -173,36 +178,59 @@ var (
 		"O_RSYNC":    syscall.O_RSYNC,
 	}
 
-	chmodModeConstants = map[string]int{
-		//"S_IEXEC":  syscall.S_IEXEC, deprecated
-		"S_IFBLK":  syscall.S_IFBLK,
-		"S_IFCHR":  syscall.S_IFCHR,
-		"S_IFDIR":  syscall.S_IFDIR,
-		"S_IFIFO":  syscall.S_IFIFO,
-		"S_IFLNK":  syscall.S_IFLNK,
-		"S_IFMT":   syscall.S_IFMT,
-		"S_IFREG":  syscall.S_IFREG,
-		"S_IFSOCK": syscall.S_IFSOCK,
-		//"S_IREAD":  syscall.S_IREAD, deprecated
-		"S_IRGRP": syscall.S_IRGRP,
-		"S_IROTH": syscall.S_IROTH,
-		"S_IRUSR": syscall.S_IRUSR,
-		"S_IRWXG": syscall.S_IRWXG,
-		"S_IRWXO": syscall.S_IRWXO,
-		"S_IRWXU": syscall.S_IRWXU,
-		"S_ISGID": syscall.S_ISGID,
+	// fileModeConstants contains the constants describing file permissions as well as the set-user-ID, set-group-ID, and sticky bits.
+	// generate_constants:File mode constants,File mode constants are the supported file permissions as well as constants for the set-user-ID, set-group-ID, and sticky bits.
+	fileModeConstants = map[string]int{
+		// "S_IREAD":  syscall.S_IREAD, deprecated
 		"S_ISUID": syscall.S_ISUID,
+		"S_ISGID": syscall.S_ISGID,
 		"S_ISVTX": syscall.S_ISVTX,
-		"S_IWGRP": syscall.S_IWGRP,
-		"S_IWOTH": syscall.S_IWOTH,
-		//"S_IWRITE": syscall.S_IWRITE, deprecated
+		"S_IRWXU": syscall.S_IRWXU,
+		"S_IRUSR": syscall.S_IRUSR,
 		"S_IWUSR": syscall.S_IWUSR,
-		"S_IXGRP": syscall.S_IXGRP,
-		"S_IXOTH": syscall.S_IXOTH,
 		"S_IXUSR": syscall.S_IXUSR,
+		"S_IRWXG": syscall.S_IRWXG,
+		"S_IRGRP": syscall.S_IRGRP,
+		"S_IWGRP": syscall.S_IWGRP,
+		"S_IXGRP": syscall.S_IXGRP,
+		"S_IRWXO": syscall.S_IRWXO,
+		"S_IROTH": syscall.S_IROTH,
+		"S_IWOTH": syscall.S_IWOTH,
+		"S_IXOTH": syscall.S_IXOTH,
+		// "S_IWRITE": syscall.S_IWRITE, deprecated
+	}
+
+	// inodeModeConstants are the supported file types and file modes
+	// generate_constants:Inode mode constants,Inode mode constants are the supported file type constants as well as the file mode constants.
+	inodeModeConstants = map[string]int{
+		// "S_IEXEC":  syscall.S_IEXEC, deprecated
+		"S_IFMT":   syscall.S_IFMT,
+		"S_IFSOCK": syscall.S_IFSOCK,
+		"S_IFLNK":  syscall.S_IFLNK,
+		"S_IFREG":  syscall.S_IFREG,
+		"S_IFBLK":  syscall.S_IFBLK,
+		"S_IFDIR":  syscall.S_IFDIR,
+		"S_IFCHR":  syscall.S_IFCHR,
+		"S_IFIFO":  syscall.S_IFIFO,
+		"S_ISUID":  syscall.S_ISUID,
+		"S_ISGID":  syscall.S_ISGID,
+		"S_ISVTX":  syscall.S_ISVTX,
+		"S_IRWXU":  syscall.S_IRWXU,
+		"S_IRUSR":  syscall.S_IRUSR,
+		"S_IWUSR":  syscall.S_IWUSR,
+		"S_IXUSR":  syscall.S_IXUSR,
+		"S_IRWXG":  syscall.S_IRWXG,
+		"S_IRGRP":  syscall.S_IRGRP,
+		"S_IWGRP":  syscall.S_IWGRP,
+		"S_IXGRP":  syscall.S_IXGRP,
+		"S_IRWXO":  syscall.S_IRWXO,
+		"S_IROTH":  syscall.S_IROTH,
+		"S_IWOTH":  syscall.S_IWOTH,
+		"S_IXOTH":  syscall.S_IXOTH,
 	}
 
 	// KernelCapabilityConstants list of kernel capabilities
+	// generate_constants:Kernel Capability constants,Kernel Capability constants are the supported Linux Kernel Capability.
 	KernelCapabilityConstants = map[string]uint64{
 		"CAP_AUDIT_CONTROL":      1 << unix.CAP_AUDIT_CONTROL,
 		"CAP_AUDIT_READ":         1 << unix.CAP_AUDIT_READ,
@@ -218,7 +246,6 @@ var (
 		"CAP_IPC_LOCK":           1 << unix.CAP_IPC_LOCK,
 		"CAP_IPC_OWNER":          1 << unix.CAP_IPC_OWNER,
 		"CAP_KILL":               1 << unix.CAP_KILL,
-		"CAP_LAST_CAP":           1 << unix.CAP_LAST_CAP,
 		"CAP_LEASE":              1 << unix.CAP_LEASE,
 		"CAP_LINUX_IMMUTABLE":    1 << unix.CAP_LINUX_IMMUTABLE,
 		"CAP_MAC_ADMIN":          1 << unix.CAP_MAC_ADMIN,
@@ -248,6 +275,8 @@ var (
 		"CAP_WAKE_ALARM":         1 << unix.CAP_WAKE_ALARM,
 	}
 
+	// ptraceConstants are the supported ptrace commands for the ptrace syscall
+	// generate_constants:Ptrace constants,Ptrace constants are the supported ptrace commands for the ptrace syscall.
 	ptraceConstants = map[string]uint32{
 		"PTRACE_TRACEME":    unix.PTRACE_TRACEME,
 		"PTRACE_PEEKTEXT":   unix.PTRACE_PEEKTEXT,
@@ -280,6 +309,8 @@ var (
 		"PTRACE_GET_SYSCALL_INFO":     unix.PTRACE_GET_SYSCALL_INFO,
 	}
 
+	// protConstants are the supported protections for the mmap syscall
+	// generate_constants:Protection constants,Protection constants are the supported protections for the mmap syscall.
 	protConstants = map[string]int{
 		"PROT_NONE":      unix.PROT_NONE,
 		"PROT_READ":      unix.PROT_READ,
@@ -289,7 +320,9 @@ var (
 		"PROT_GROWSUP":   unix.PROT_GROWSUP,
 	}
 
-	mmapFlagConstants = map[string]int{
+	// mmapFlagConstants are the supported flags for the mmap syscall
+	// generate_constants:MMap flags,MMap flags are the supported flags for the mmap syscall.
+	mmapFlagConstants = map[string]uint64{
 		"MAP_SHARED":          unix.MAP_SHARED,          /* Share changes */
 		"MAP_PRIVATE":         unix.MAP_PRIVATE,         /* Changes are private */
 		"MAP_SHARED_VALIDATE": unix.MAP_SHARED_VALIDATE, /* share + validate extension flags */
@@ -323,6 +356,8 @@ var (
 		"MAP_HUGE_16GB":       34 << unix.MAP_HUGE_SHIFT,
 	}
 
+	// signalConstants are the supported signals for the kill syscall
+	// generate_constants:Signal constants,Signal constants are the supported signals for the kill syscall.
 	signalConstants = map[string]int{
 		"SIGHUP":    int(unix.SIGHUP),
 		"SIGINT":    int(unix.SIGINT),
@@ -359,7 +394,63 @@ var (
 		"SIGSYS":    int(unix.SIGSYS),
 	}
 
+	// unlinkFlagsConstants are the supported unlink flags for the unlink syscall
+	// generate_constants:Unlink flags,Unlink flags are the supported flags for the unlink syscall.
 	unlinkFlagsConstants = map[string]int{
 		"AT_REMOVEDIR": unix.AT_REMOVEDIR,
+	}
+
+	// addressFamilyConstants are the supported network address families
+	// generate_constants:Network Address Family constants,Network Address Family constants are the supported network address families.
+	addressFamilyConstants = map[string]uint16{
+		"AF_UNSPEC":     unix.AF_UNSPEC,
+		"AF_LOCAL":      unix.AF_LOCAL,
+		"AF_UNIX":       unix.AF_UNIX,
+		"AF_FILE":       unix.AF_FILE,
+		"AF_INET":       unix.AF_INET,
+		"AF_AX25":       unix.AF_AX25,
+		"AF_IPX":        unix.AF_IPX,
+		"AF_APPLETALK":  unix.AF_APPLETALK,
+		"AF_NETROM":     unix.AF_NETROM,
+		"AF_BRIDGE":     unix.AF_BRIDGE,
+		"AF_ATMPVC":     unix.AF_ATMPVC,
+		"AF_X25":        unix.AF_X25,
+		"AF_INET6":      unix.AF_INET6,
+		"AF_ROSE":       unix.AF_ROSE,
+		"AF_DECnet":     unix.AF_DECnet,
+		"AF_NETBEUI":    unix.AF_NETBEUI,
+		"AF_SECURITY":   unix.AF_SECURITY,
+		"AF_KEY":        unix.AF_KEY,
+		"AF_NETLINK":    unix.AF_NETLINK,
+		"AF_ROUTE":      unix.AF_ROUTE,
+		"AF_PACKET":     unix.AF_PACKET,
+		"AF_ASH":        unix.AF_ASH,
+		"AF_ECONET":     unix.AF_ECONET,
+		"AF_ATMSVC":     unix.AF_ATMSVC,
+		"AF_RDS":        unix.AF_RDS,
+		"AF_SNA":        unix.AF_SNA,
+		"AF_IRDA":       unix.AF_IRDA,
+		"AF_PPPOX":      unix.AF_PPPOX,
+		"AF_WANPIPE":    unix.AF_WANPIPE,
+		"AF_LLC":        unix.AF_LLC,
+		"AF_IB":         unix.AF_IB,
+		"AF_MPLS":       unix.AF_MPLS,
+		"AF_CAN":        unix.AF_CAN,
+		"AF_TIPC":       unix.AF_TIPC,
+		"AF_BLUETOOTH":  unix.AF_BLUETOOTH,
+		"AF_IUCV":       unix.AF_IUCV,
+		"AF_RXRPC":      unix.AF_RXRPC,
+		"AF_ISDN":       unix.AF_ISDN,
+		"AF_PHONET":     unix.AF_PHONET,
+		"AF_IEEE802154": unix.AF_IEEE802154,
+		"AF_CAIF":       unix.AF_CAIF,
+		"AF_ALG":        unix.AF_ALG,
+		"AF_NFC":        unix.AF_NFC,
+		"AF_VSOCK":      unix.AF_VSOCK,
+		"AF_KCM":        unix.AF_KCM,
+		"AF_QIPCRTR":    unix.AF_QIPCRTR,
+		"AF_SMC":        unix.AF_SMC,
+		"AF_XDP":        unix.AF_XDP,
+		"AF_MAX":        unix.AF_MAX,
 	}
 )

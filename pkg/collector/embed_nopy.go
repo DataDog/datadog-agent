@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build !python
-// +build !python
 
 package collector
 
@@ -15,5 +14,3 @@ func pySetup(paths ...string) (pythonVersion, pythonHome, pythonPath string) {
 func pyPrepareEnv() error {
 	return nil
 }
-
-func pyTeardown() {}

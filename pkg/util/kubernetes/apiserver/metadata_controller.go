@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build kubeapiserver
-// +build kubeapiserver
 
 package apiserver
 
@@ -49,24 +48,29 @@ type MetadataController struct {
 	queue workqueue.RateLimitingInterface
 }
 
+// NewMetadataController returns a new metadata controller
 func NewMetadataController(nodeInformer coreinformers.NodeInformer, namespaceInformer coreinformers.NamespaceInformer, endpointsInformer coreinformers.EndpointsInformer) *MetadataController {
 	m := &MetadataController{
 		queue: workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "endpoints"),
 	}
-	nodeInformer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
+	if _, err := nodeInformer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
 		AddFunc:    m.addNode,
 		DeleteFunc: m.deleteNode,
-	})
+	}); err != nil {
+		log.Errorf("error adding event handler to node informer: %f", err)
+	}
 	m.nodeLister = nodeInformer.Lister()
 	m.nodeListerSynced = nodeInformer.Informer().HasSynced
 
 	m.namespaceListerSynced = namespaceInformer.Informer().HasSynced
 
-	endpointsInformer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
+	if _, err := endpointsInformer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
 		AddFunc:    m.addEndpoints,
 		UpdateFunc: m.updateEndpoints,
 		DeleteFunc: m.deleteEndpoints,
-	})
+	}); err != nil {
+		log.Errorf("error adding event handler to node informer: %f", err)
+	}
 	m.endpointsLister = endpointsInformer.Lister()
 	m.endpointsListerSynced = endpointsInformer.Informer().HasSynced
 
@@ -75,6 +79,7 @@ func NewMetadataController(nodeInformer coreinformers.NodeInformer, namespaceInf
 	return m
 }
 
+// Run starts the metadata controller reconciler loop
 func (m *MetadataController) Run(stopCh <-chan struct{}) {
 	defer m.queue.ShutDown()
 
@@ -208,7 +213,7 @@ func (m *MetadataController) syncEndpoints(key string) error {
 
 // mapEndpoints matches pods to services via endpoint TargetRef objects. It supports Kubernetes 1.4+.
 func (m *MetadataController) mapEndpoints(endpoints *corev1.Endpoints) error {
-	nodeToPods := make(map[string]map[string]sets.String)
+	nodeToPods := make(map[string]map[string]sets.Set[string])
 
 	// Loop over the subsets to create a mapping of nodes to pods running on the node.
 	for _, subset := range endpoints.Subsets {
@@ -238,10 +243,10 @@ func (m *MetadataController) mapEndpoints(endpoints *corev1.Endpoints) error {
 			nodeName := *address.NodeName
 
 			if _, ok := nodeToPods[nodeName]; !ok {
-				nodeToPods[nodeName] = make(map[string]sets.String)
+				nodeToPods[nodeName] = make(map[string]sets.Set[string])
 			}
 			if _, ok := nodeToPods[nodeName][namespace]; !ok {
-				nodeToPods[nodeName][namespace] = sets.NewString()
+				nodeToPods[nodeName][namespace] = sets.New[string]()
 			}
 			nodeToPods[nodeName][namespace].Insert(podName)
 		}
@@ -312,38 +317,6 @@ func GetPodMetadataNames(nodeName, ns, podName string) ([]string, error) {
 		metaList = append(metaList, fmt.Sprintf("kube_service:%s", s))
 	}
 	return metaList, nil
-}
-
-func getNode(as *APIClient, nodeName string) (*corev1.Node, error) {
-	if !config.Datadog.GetBool("kubernetes_collect_metadata_tags") {
-		return nil, log.Errorf("Metadata collection is disabled on the Cluster Agent")
-	}
-	node, err := as.InformerFactory.Core().V1().Nodes().Lister().Get(nodeName)
-	if err != nil {
-		return nil, err
-	}
-	if node == nil {
-		return nil, fmt.Errorf("cannot get node %s from the informer's cache", nodeName)
-	}
-	return node, nil
-}
-
-// GetNodeLabels retrieves the labels of the queried node from the cache of the shared informer.
-func GetNodeLabels(as *APIClient, nodeName string) (map[string]string, error) {
-	node, err := getNode(as, nodeName)
-	if err != nil {
-		return nil, err
-	}
-	return node.Labels, nil
-}
-
-// GetNodeAnnotations retrieves the annotations of the queried node from the cache of the shared informer.
-func GetNodeAnnotations(as *APIClient, nodeName string) (map[string]string, error) {
-	node, err := getNode(as, nodeName)
-	if err != nil {
-		return nil, err
-	}
-	return node.Annotations, nil
 }
 
 // GetNamespaceLabels retrieves the labels of the queried namespace from the cache of the shared informer.

@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build linux
-// +build linux
 
 package cgroups
 
@@ -16,20 +15,17 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/DataDog/datadog-agent/pkg/util/system"
-
 	"github.com/karrick/godirwalk"
 )
 
-// ContainerIDFromCgroupReferences returns container id extracted from <proc>/<pid>/cgroup
-func ContainerIDFromCgroupReferences(procPath, pid, baseCgroupController string) (string, string, error) {
-	var containerID string
-	var relativeCgroupPath string
+// IdentiferFromCgroupReferences returns cgroup identifier extracted from <proc>/<pid>/cgroup
+func IdentiferFromCgroupReferences(procPath, pid, baseCgroupController string, filter ReaderFilter) (string, error) {
+	var identifier string
 
 	err := parseFile(defaultFileReader, filepath.Join(procPath, pid, procCgroupFile), func(s string) error {
 		var err error
 
-		parts := strings.Split(s, ":")
+		parts := strings.SplitN(s, ":", 3)
 		// Skip potentially malformed lines
 		if len(parts) != 3 {
 			return nil
@@ -40,8 +36,8 @@ func ContainerIDFromCgroupReferences(procPath, pid, baseCgroupController string)
 		}
 
 		// We need to remove first / as the path produced in Readers may not include it
-		relativeCgroupPath = strings.TrimLeft(parts[2], "/")
-		containerID, err = ContainerFilter(relativeCgroupPath, filepath.Base(relativeCgroupPath))
+		relativeCgroupPath := strings.TrimLeft(parts[2], "/")
+		identifier, err = filter(relativeCgroupPath, filepath.Base(relativeCgroupPath))
 		if err != nil {
 			return err
 		}
@@ -49,15 +45,15 @@ func ContainerIDFromCgroupReferences(procPath, pid, baseCgroupController string)
 		return &stopParsingError{}
 	})
 	if err != nil {
-		return "", "", err
+		return "", err
 	}
-	return containerID, relativeCgroupPath, err
+	return identifier, err
 }
 
 // Unfortunately, the reading of `<host_path>/sys/fs/cgroup/pids/.../cgroup.procs` is PID-namespace aware,
 // meaning that we cannot rely on it to find all PIDs belonging to a cgroupp, except if the Agent runs in host PID namespace.
 type pidMapper interface {
-	getPIDsForCgroup(relativeCgroupPath string, cacheValidity time.Duration) []int
+	getPIDsForCgroup(identifier, relativeCgroupPath string, cacheValidity time.Duration) []int
 }
 
 // cgroupRoot is cgroup base directory (like /host/sys/fs/cgroup/<baseController>)
@@ -89,14 +85,15 @@ func getPidMapper(procPath, cgroupRoot, baseController string, filter ReaderFilt
 	pidMapper := &procPidMapper{
 		procPath:         procPath,
 		cgroupController: baseController,
+		readerFilter:     filter,
 	}
 
 	// In cgroupv2, checking if we run in host cgroup namespace.
 	// If not we cannot fill PIDs for containers and do PID<>CID mapping.
 	if baseController == "" {
-		cgroupInode, err := system.GetProcessNamespaceInode("/proc", "self", "cgroup")
+		cgroupInode, err := getProcessNamespaceInode("/proc", "self", "cgroup")
 		if err == nil {
-			if isHostNs := system.IsProcessHostCgroupNamespace(procPath, cgroupInode); isHostNs != nil && !*isHostNs {
+			if isHostNs := IsProcessHostCgroupNamespace(procPath, cgroupInode); isHostNs != nil && !*isHostNs {
 				log.Warnf("Usage of cgroupv2 detected but the Agent does not seem to run in host cgroup namespace. Make sure to run with --cgroupns=host, some feature may not work otherwise")
 			}
 		} else {
@@ -114,7 +111,7 @@ type cgroupProcsPidMapper struct {
 	cgroupProcsFilePathBuilder func(string) string
 }
 
-func (pm *cgroupProcsPidMapper) getPIDsForCgroup(relativeCgroupPath string, cacheValidity time.Duration) []int {
+func (pm *cgroupProcsPidMapper) getPIDsForCgroup(identifier, relativeCgroupPath string, cacheValidity time.Duration) []int {
 	var pids []int
 
 	if err := parseFile(pm.fr, pm.cgroupProcsFilePathBuilder(relativeCgroupPath), func(s string) error {
@@ -140,6 +137,7 @@ type procPidMapper struct {
 	refreshTimestamp  time.Time
 	procPath          string
 	cgroupController  string
+	readerFilter      ReaderFilter
 	cgroupPidsMapping map[string][]int
 }
 
@@ -165,12 +163,12 @@ func (pm *procPidMapper) refreshMapping(cacheValidity time.Duration) {
 				return godirwalk.SkipThis
 			}
 
-			containerID, cgroupRelativePath, err := ContainerIDFromCgroupReferences(pm.procPath, de.Name(), pm.cgroupController)
+			cgroupIdentifier, err := IdentiferFromCgroupReferences(pm.procPath, de.Name(), pm.cgroupController, pm.readerFilter)
 			if err != nil {
 				log.Debugf("Unable to parse cgroup file for pid: %s, err: %v", de.Name(), err)
 			}
-			if containerID != "" {
-				cgroupPidMapping[cgroupRelativePath] = append(cgroupPidMapping[cgroupRelativePath], int(pid))
+			if cgroupIdentifier != "" {
+				cgroupPidMapping[cgroupIdentifier] = append(cgroupPidMapping[cgroupIdentifier], int(pid))
 			}
 
 			return godirwalk.SkipThis
@@ -185,10 +183,10 @@ func (pm *procPidMapper) refreshMapping(cacheValidity time.Duration) {
 	}
 }
 
-func (pm *procPidMapper) getPIDsForCgroup(relativeCgroupPath string, cacheValidity time.Duration) []int {
+func (pm *procPidMapper) getPIDsForCgroup(identifier, relativeCgroupPath string, cacheValidity time.Duration) []int {
 	pm.lock.Lock()
 	defer pm.lock.Unlock()
 
 	pm.refreshMapping(cacheValidity)
-	return pm.cgroupPidsMapping[relativeCgroupPath]
+	return pm.cgroupPidsMapping[identifier]
 }

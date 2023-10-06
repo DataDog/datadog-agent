@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build orchestrator
-// +build orchestrator
 
 package k8s
 
@@ -13,6 +12,8 @@ import (
 	"time"
 
 	model "github.com/DataDog/agent-payload/v5/process"
+
+	"github.com/DataDog/datadog-agent/pkg/util/pointer"
 
 	"github.com/stretchr/testify/assert"
 	batchv1 "k8s.io/api/batch/v1"
@@ -44,7 +45,7 @@ func TestExtractJob(t *testing.T) {
 					OwnerReferences: []metav1.OwnerReference{
 						{
 							APIVersion: "batch/v1beta1",
-							Controller: boolPtr(true),
+							Controller: pointer.Ptr(true),
 							Kind:       "CronJob",
 							Name:       "test-job",
 							UID:        "d0326ca4-d405-4fe9-99b5-7bfc4a6722b6",
@@ -54,9 +55,9 @@ func TestExtractJob(t *testing.T) {
 					UID:             types.UID("8893e7a0-fc49-4627-b695-3ed47074ecba"),
 				},
 				Spec: batchv1.JobSpec{
-					BackoffLimit: int32Ptr(6),
-					Completions:  int32Ptr(1),
-					Parallelism:  int32Ptr(1),
+					BackoffLimit: pointer.Ptr(int32(6)),
+					Completions:  pointer.Ptr(int32(1)),
+					Parallelism:  pointer.Ptr(int32(1)),
 					Selector: &metav1.LabelSelector{
 						MatchLabels: map[string]string{
 							"controller-uid": "43739057-c6d7-4a5e-ab63-d0c8844e5272",
@@ -116,7 +117,7 @@ func TestExtractJob(t *testing.T) {
 					OwnerReferences: []metav1.OwnerReference{
 						{
 							APIVersion: "batch/v1beta1",
-							Controller: boolPtr(true),
+							Controller: pointer.Ptr(true),
 							Kind:       "CronJob",
 							Name:       "test-job",
 							UID:        "d0326ca4-d405-4fe9-99b5-7bfc4a6722b6",
@@ -126,9 +127,9 @@ func TestExtractJob(t *testing.T) {
 					UID:             types.UID("8893e7a0-fc49-4627-b695-3ed47074ecba"),
 				},
 				Spec: batchv1.JobSpec{
-					BackoffLimit: int32Ptr(6),
-					Completions:  int32Ptr(1),
-					Parallelism:  int32Ptr(1),
+					BackoffLimit: pointer.Ptr(int32(6)),
+					Completions:  pointer.Ptr(int32(1)),
+					Parallelism:  pointer.Ptr(int32(1)),
 					Selector: &metav1.LabelSelector{
 						MatchLabels: map[string]string{
 							"controller-uid": "43739057-c6d7-4a5e-ab63-d0c8844e5272",
@@ -183,6 +184,15 @@ func TestExtractJob(t *testing.T) {
 					Succeeded:      1,
 					StartTime:      startTime.Unix(),
 				},
+				Conditions: []*model.JobCondition{
+					{
+						LastProbeTime:      lastTransitionTime.Unix(),
+						LastTransitionTime: lastTransitionTime.Unix(),
+						Status:             string(corev1.ConditionTrue),
+						Type:               string(batchv1.JobComplete),
+					},
+				},
+				Tags: []string{"kube_condition_complete:true"},
 			},
 		},
 		"job started by cronjob (failed)": {
@@ -200,7 +210,7 @@ func TestExtractJob(t *testing.T) {
 					OwnerReferences: []metav1.OwnerReference{
 						{
 							APIVersion: "batch/v1beta1",
-							Controller: boolPtr(true),
+							Controller: pointer.Ptr(true),
 							Kind:       "CronJob",
 							Name:       "test-job",
 							UID:        "d0326ca4-d405-4fe9-99b5-7bfc4a6722b6",
@@ -210,9 +220,9 @@ func TestExtractJob(t *testing.T) {
 					UID:             types.UID("8893e7a0-fc49-4627-b695-3ed47074ecba"),
 				},
 				Spec: batchv1.JobSpec{
-					BackoffLimit: int32Ptr(6),
-					Completions:  int32Ptr(1),
-					Parallelism:  int32Ptr(1),
+					BackoffLimit: pointer.Ptr(int32(6)),
+					Completions:  pointer.Ptr(int32(1)),
+					Parallelism:  pointer.Ptr(int32(1)),
 					Selector: &metav1.LabelSelector{
 						MatchLabels: map[string]string{
 							"controller-uid": "43739057-c6d7-4a5e-ab63-d0c8844e5272",
@@ -268,6 +278,17 @@ func TestExtractJob(t *testing.T) {
 					Failed:           1,
 					StartTime:        startTime.Unix(),
 				},
+				Conditions: []*model.JobCondition{
+					{
+						LastProbeTime:      lastTransitionTime.Unix(),
+						LastTransitionTime: lastTransitionTime.Unix(),
+						Message:            "Job has reached the specified backoff limit",
+						Reason:             "BackoffLimitExceeded",
+						Status:             string(corev1.ConditionTrue),
+						Type:               string(batchv1.JobFailed),
+					},
+				},
+				Tags: []string{"kube_condition_failed:true"},
 			},
 		},
 		"job with resources": {

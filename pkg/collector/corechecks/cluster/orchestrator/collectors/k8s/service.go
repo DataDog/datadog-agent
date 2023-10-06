@@ -4,13 +4,10 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build kubeapiserver && orchestrator
-// +build kubeapiserver,orchestrator
 
 package k8s
 
 import (
-	"sync/atomic"
-
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/collectors"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors"
 	k8sProcessors "github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors/k8s"
@@ -21,6 +18,13 @@ import (
 	corev1Listers "k8s.io/client-go/listers/core/v1"
 	"k8s.io/client-go/tools/cache"
 )
+
+// NewServiceCollectorVersions builds the group of collector versions.
+func NewServiceCollectorVersions() collectors.CollectorVersions {
+	return collectors.NewCollectorVersions(
+		NewServiceCollector(),
+	)
+}
 
 // ServiceCollector is a collector for Kubernetes Services.
 type ServiceCollector struct {
@@ -35,9 +39,14 @@ type ServiceCollector struct {
 func NewServiceCollector() *ServiceCollector {
 	return &ServiceCollector{
 		metadata: &collectors.CollectorMetadata{
-			IsStable: true,
-			Name:     "services",
-			NodeType: orchestrator.K8sService,
+			IsDefaultVersion:          true,
+			IsStable:                  true,
+			IsMetadataProducer:        true,
+			IsManifestProducer:        true,
+			SupportsManifestBuffering: true,
+			Name:                      "services",
+			NodeType:                  orchestrator.K8sService,
+			Version:                   "v1",
 		},
 		processor: processors.NewProcessor(new(k8sProcessors.ServiceHandlers)),
 	}
@@ -50,12 +59,9 @@ func (c *ServiceCollector) Informer() cache.SharedInformer {
 
 // Init is used to initialize the collector.
 func (c *ServiceCollector) Init(rcfg *collectors.CollectorRunConfig) {
-	c.informer = rcfg.APIClient.InformerFactory.Core().V1().Services()
+	c.informer = rcfg.OrchestratorInformerFactory.InformerFactory.Core().V1().Services()
 	c.lister = c.informer.Lister()
 }
-
-// IsAvailable returns whether the collector is available.
-func (c *ServiceCollector) IsAvailable() bool { return true }
 
 // Metadata is used to access information about the collector.
 func (c *ServiceCollector) Metadata() *collectors.CollectorMetadata {
@@ -69,22 +75,16 @@ func (c *ServiceCollector) Run(rcfg *collectors.CollectorRunConfig) (*collectors
 		return nil, collectors.NewListingError(err)
 	}
 
-	ctx := &processors.ProcessorContext{
-		APIClient:  rcfg.APIClient,
-		Cfg:        rcfg.Config,
-		ClusterID:  rcfg.ClusterID,
-		MsgGroupID: atomic.AddInt32(rcfg.MsgGroupRef, 1),
-		NodeType:   c.metadata.NodeType,
-	}
+	ctx := collectors.NewProcessorContext(rcfg, c.metadata)
 
-	messages, processed := c.processor.Process(ctx, list)
+	processResult, processed := c.processor.Process(ctx, list)
 
 	if processed == -1 {
 		return nil, collectors.ErrProcessingPanic
 	}
 
 	result := &collectors.CollectorRunResult{
-		Messages:           messages,
+		Result:             processResult,
 		ResourcesListed:    len(list),
 		ResourcesProcessed: processed,
 	}

@@ -20,6 +20,7 @@ if node['dd-agent-install']['enable_testsigning']
   end
 end
 
+
 include_recipe 'dd-agent-install::_install_windows_base'
 
 agent_config_file = ::File.join(node['dd-agent-install']['config_dir'], 'datadog.conf')

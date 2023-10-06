@@ -31,19 +31,6 @@ Those two will generate the protobuf golang definitions _and_ the
 gRPC gateway code that will allow us to serve the API also as a 
 REST application.
 
-
-### Compiling the Agent
-
-Remember to make sure your gRPC go dependencies are current for
-the agent by running:
-```
-inv -e deps
-```
-
-The grpc deps are defined [here](https://github.com/DataDog/datadog-agent/blob/main/cmd/agent/api/tools.go)
-and are tracked by gomod.
-
-
 ### Notes
 
 We are currently pinned to fairly old versions for some of the 

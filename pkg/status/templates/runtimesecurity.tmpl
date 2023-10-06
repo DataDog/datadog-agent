@@ -1,3 +1,4 @@
+================
 Runtime Security
 ================
 
@@ -12,6 +13,28 @@ Runtime Security
   {{- end }}
   Connected: {{.connected}}
   Events received: {{.eventReceived}}
+
+  Self Tests
+  ==========
+
+    Last execution: {{ .selfTests.LastTimestamp }}
+    {{ if .selfTests.Success }}
+    Succeeded:
+      {{- range $test := .selfTests.Success }}
+      - {{ $test }}
+      {{- end }}
+    {{- else }}
+    Succeeded: none
+    {{- end }}
+    {{ if .selfTests.Fails }}
+    Failed:
+      {{- range $test := .selfTests.Fails }}
+      - {{ $test }}
+      {{- end }}
+    {{- else }}
+    Failed: none
+    {{- end }}
+
   {{- with .environment }}
 
   Environment
@@ -24,6 +47,12 @@ Runtime Security
     {{- end }}
     {{ if .kernelLockdown }}
     Kernel lockdown: {{ .kernelLockdown }}
+    {{- end }}
+    {{- if .mmapableMaps }}
+    Use eBPF mmapable maps: {{ .mmapableMaps }}
+    {{- end }}
+    {{- if .ringBuffer }}
+    Use eBPF ring buffer: {{ .ringBuffer }}
     {{- end }}
     {{ if .constantFetchers }}
     Available constant fetchers
@@ -41,4 +70,3 @@ Runtime Security
   {{- end }}
   {{- end }}
 {{- end }}
-

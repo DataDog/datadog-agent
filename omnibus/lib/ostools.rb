@@ -29,6 +29,14 @@ def arm?()
     return ohai["kernel"]["machine"].start_with?("aarch", "arm")
 end
 
+def arm7l?()
+    return ohai["kernel"]["machine"] == 'armv7l'
+end
+
+def heroku?()
+    return ENV['AGENT_FLAVOR'] == 'heroku'
+end
+
 def os
     case RUBY_PLATFORM
     when /linux/

@@ -7,7 +7,7 @@ package checkconfig
 
 import (
 	"fmt"
-	"io/ioutil"
+	"os"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -16,44 +16,26 @@ import (
 	"gopkg.in/yaml.v2"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/util/filesystem"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+
+	"github.com/DataDog/datadog-agent/pkg/networkdevice/profile/profiledefinition"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/common"
 )
 
-type profileDefinitionMap map[string]profileDefinition
-
-// DeviceMeta holds device related static metadata
-// DEPRECATED in favour of profile metadata syntax
-type DeviceMeta struct {
-	// deprecated in favour of new `profileDefinition.Metadata` syntax
-	Vendor string `yaml:"vendor"`
-}
-
-type profileDefinition struct {
-	Metrics      []MetricsConfig   `yaml:"metrics"`
-	Metadata     MetadataConfig    `yaml:"metadata"`
-	MetricTags   []MetricTagConfig `yaml:"metric_tags"`
-	Extends      []string          `yaml:"extends"`
-	Device       DeviceMeta        `yaml:"device"`
-	SysObjectIds StringArray       `yaml:"sysobjectid"`
-}
-
-func newProfileDefinition() *profileDefinition {
-	p := &profileDefinition{}
-	p.Metadata = make(MetadataConfig)
-	return p
-}
+const defaultProfilesFolder = "default_profiles"
+const userProfilesFolder = "profiles"
 
 var defaultProfilesMu = &sync.Mutex{}
 
-var globalProfileConfigMap profileDefinitionMap
+var globalProfileConfigMap profileConfigMap
 
 // loadDefaultProfiles will load the profiles from disk only once and store it
 // in globalProfileConfigMap. The subsequent call to it will return profiles stored in
 // globalProfileConfigMap. The mutex will help loading once when `loadDefaultProfiles`
 // is called by multiple check instances.
-func loadDefaultProfiles() (profileDefinitionMap, error) {
+func loadDefaultProfiles() (profileConfigMap, error) {
 	defaultProfilesMu.Lock()
 	defer defaultProfilesMu.Unlock()
 
@@ -76,8 +58,29 @@ func loadDefaultProfiles() (profileDefinitionMap, error) {
 }
 
 func getDefaultProfilesDefinitionFiles() (profileConfigMap, error) {
-	profilesRoot := getProfileConfdRoot()
-	files, err := ioutil.ReadDir(profilesRoot)
+	// Get default profiles
+	profiles, err := getProfilesDefinitionFiles(defaultProfilesFolder)
+	if err != nil {
+		log.Warnf("failed to read default_profiles: %s", err)
+		profiles = make(profileConfigMap)
+	}
+	// Get user profiles
+	// User profiles have precedence over default profiles
+	userProfiles, err := getProfilesDefinitionFiles(userProfilesFolder)
+	if err != nil {
+		log.Warnf("failed to read user_profiles: %s", err)
+	} else {
+		for profileName, profileDef := range userProfiles {
+			profileDef.isUserProfile = true
+			profiles[profileName] = profileDef
+		}
+	}
+	return profiles, nil
+}
+
+func getProfilesDefinitionFiles(profilesFolder string) (profileConfigMap, error) {
+	profilesRoot := getProfileConfdRoot(profilesFolder)
+	files, err := os.ReadDir(profilesRoot)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read dir `%s`: %v", profilesRoot, err)
 	}
@@ -99,45 +102,44 @@ func getDefaultProfilesDefinitionFiles() (profileConfigMap, error) {
 	return profiles, nil
 }
 
-func loadProfiles(pConfig profileConfigMap) (profileDefinitionMap, error) {
-	profiles := make(map[string]profileDefinition, len(pConfig))
+func loadProfiles(pConfig profileConfigMap) (profileConfigMap, error) {
+	profiles := make(profileConfigMap, len(pConfig))
 
-	for name, profile := range pConfig {
-		if profile.DefinitionFile != "" {
-			profileDefinition, err := readProfileDefinition(profile.DefinitionFile)
+	for name, profConfig := range pConfig {
+		if profConfig.DefinitionFile != "" {
+			profDefinition, err := readProfileDefinition(profConfig.DefinitionFile)
 			if err != nil {
 				log.Warnf("failed to read profile definition `%s`: %s", name, err)
 				continue
 			}
 
-			err = recursivelyExpandBaseProfiles(profileDefinition, profileDefinition.Extends, []string{})
+			err = recursivelyExpandBaseProfiles(profConfig.DefinitionFile, profDefinition, profDefinition.Extends, []string{})
 			if err != nil {
 				log.Warnf("failed to expand profile `%s`: %s", name, err)
 				continue
 			}
-			profiles[name] = *profileDefinition
-		} else {
-			profiles[name] = profile.Definition
+			profConfig.Definition = *profDefinition
 		}
+		profiles[name] = profConfig
 	}
 	return profiles, nil
 }
 
-func readProfileDefinition(definitionFile string) (*profileDefinition, error) {
+func readProfileDefinition(definitionFile string) (*profiledefinition.ProfileDefinition, error) {
 	filePath := resolveProfileDefinitionPath(definitionFile)
-	buf, err := ioutil.ReadFile(filePath)
+	buf, err := os.ReadFile(filePath)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read file `%s`: %s", filePath, err)
 	}
 
-	profileDefinition := newProfileDefinition()
+	profileDefinition := profiledefinition.NewProfileDefinition()
 	err = yaml.Unmarshal(buf, profileDefinition)
 	if err != nil {
 		return nil, fmt.Errorf("failed to unmarshall %q: %v", filePath, err)
 	}
-	normalizeMetrics(profileDefinition.Metrics)
+	profiledefinition.NormalizeMetrics(profileDefinition.Metrics)
 	errors := validateEnrichMetadata(profileDefinition.Metadata)
-	errors = append(errors, validateEnrichMetrics(profileDefinition.Metrics)...)
+	errors = append(errors, ValidateEnrichMetrics(profileDefinition.Metrics)...)
 	errors = append(errors, ValidateEnrichMetricTags(profileDefinition.MetricTags)...)
 	if len(errors) > 0 {
 		return nil, fmt.Errorf("validation errors: %s", strings.Join(errors, "\n"))
@@ -149,30 +151,40 @@ func resolveProfileDefinitionPath(definitionFile string) string {
 	if filepath.IsAbs(definitionFile) {
 		return definitionFile
 	}
-	return filepath.Join(getProfileConfdRoot(), definitionFile)
+	userProfile := filepath.Join(getProfileConfdRoot(userProfilesFolder), definitionFile)
+	if filesystem.FileExists(userProfile) {
+		return userProfile
+	}
+	return filepath.Join(getProfileConfdRoot(defaultProfilesFolder), definitionFile)
 }
 
-func getProfileConfdRoot() string {
+func getProfileConfdRoot(profileFolderName string) string {
 	confdPath := config.Datadog.GetString("confd_path")
-	return filepath.Join(confdPath, "snmp.d", "profiles")
+	return filepath.Join(confdPath, "snmp.d", profileFolderName)
 }
 
-func recursivelyExpandBaseProfiles(definition *profileDefinition, extends []string, extendsHistory []string) error {
-	for _, basePath := range extends {
+func recursivelyExpandBaseProfiles(parentPath string, definition *profiledefinition.ProfileDefinition, extends []string, extendsHistory []string) error {
+	parentBasePath := filepath.Base(parentPath)
+	for _, extendEntry := range extends {
+		// User profile can extend default profile by extending the default profile.
+		// If the extend entry has the same name as the profile name, we assume the extend entry is referring to a default profile.
+		if extendEntry == parentBasePath {
+			extendEntry = filepath.Join(getProfileConfdRoot(defaultProfilesFolder), extendEntry)
+		}
 		for _, extend := range extendsHistory {
-			if extend == basePath {
-				return fmt.Errorf("cyclic profile extend detected, `%s` has already been extended, extendsHistory=`%v`", basePath, extendsHistory)
+			if extend == extendEntry {
+				return fmt.Errorf("cyclic profile extend detected, `%s` has already been extended, extendsHistory=`%v`", extendEntry, extendsHistory)
 			}
 		}
-		baseDefinition, err := readProfileDefinition(basePath)
+		baseDefinition, err := readProfileDefinition(extendEntry)
 		if err != nil {
 			return err
 		}
 
 		mergeProfileDefinition(definition, baseDefinition)
 
-		newExtendsHistory := append(common.CopyStrings(extendsHistory), basePath)
-		err = recursivelyExpandBaseProfiles(definition, baseDefinition.Extends, newExtendsHistory)
+		newExtendsHistory := append(common.CopyStrings(extendsHistory), extendEntry)
+		err = recursivelyExpandBaseProfiles(extendEntry, definition, baseDefinition.Extends, newExtendsHistory)
 		if err != nil {
 			return err
 		}
@@ -180,12 +192,13 @@ func recursivelyExpandBaseProfiles(definition *profileDefinition, extends []stri
 	return nil
 }
 
-func mergeProfileDefinition(targetDefinition *profileDefinition, baseDefinition *profileDefinition) {
+func mergeProfileDefinition(targetDefinition *profiledefinition.ProfileDefinition, baseDefinition *profiledefinition.ProfileDefinition) {
 	targetDefinition.Metrics = append(targetDefinition.Metrics, baseDefinition.Metrics...)
 	targetDefinition.MetricTags = append(targetDefinition.MetricTags, baseDefinition.MetricTags...)
+	targetDefinition.StaticTags = append(targetDefinition.StaticTags, baseDefinition.StaticTags...)
 	for baseResName, baseResource := range baseDefinition.Metadata {
 		if _, ok := targetDefinition.Metadata[baseResName]; !ok {
-			targetDefinition.Metadata[baseResName] = newMetadataResourceConfig()
+			targetDefinition.Metadata[baseResName] = profiledefinition.NewMetadataResourceConfig()
 		}
 		if resource, ok := targetDefinition.Metadata[baseResName]; ok {
 			for _, tagConfig := range baseResource.IDTags {
@@ -193,7 +206,7 @@ func mergeProfileDefinition(targetDefinition *profileDefinition, baseDefinition 
 			}
 
 			if resource.Fields == nil {
-				resource.Fields = make(map[string]MetadataField, len(baseResource.Fields))
+				resource.Fields = make(map[string]profiledefinition.MetadataField, len(baseResource.Fields))
 			}
 			for field, symbol := range baseResource.Fields {
 				if _, ok := resource.Fields[field]; !ok {

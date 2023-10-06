@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build kubeapiserver
-// +build kubeapiserver
 
 package ksm
 
@@ -19,7 +18,7 @@ import (
 func Test_labelJoiner(t *testing.T) {
 	tests := []struct {
 		name     string
-		config   map[string]*JoinsConfig
+		config   map[string]*joinsConfig
 		families map[string][]ksmstore.DDMetricsFam
 		expected []struct {
 			inputLabels map[string]string
@@ -28,10 +27,10 @@ func Test_labelJoiner(t *testing.T) {
 	}{
 		{
 			name: "One label to match, one label to get",
-			config: map[string]*JoinsConfig{
+			config: map[string]*joinsConfig{
 				"kube_pod_info": {
-					LabelsToMatch: []string{"foo_key"},
-					LabelsToGet:   []string{"qux_key"},
+					labelsToMatch: []string{"foo_key"},
+					labelsToGet:   map[string]string{"qux_key": "qux_tag"},
 				},
 			},
 			families: map[string][]ksmstore.DDMetricsFam{
@@ -75,23 +74,23 @@ func Test_labelJoiner(t *testing.T) {
 				{
 					inputLabels: map[string]string{"foo_key": "foo_value1"},
 					labelsToAdd: []label{
-						{key: "qux_key", value: "qux_value1"},
+						{key: "qux_tag", value: "qux_value1"},
 					},
 				},
 				{
 					inputLabels: map[string]string{"foo_key": "foo_value2"},
 					labelsToAdd: []label{
-						{key: "qux_key", value: "qux_value2"},
+						{key: "qux_tag", value: "qux_value2"},
 					},
 				},
 			},
 		},
 		{
 			name: "Two labels to match, two labels to get",
-			config: map[string]*JoinsConfig{
+			config: map[string]*joinsConfig{
 				"kube_pod_info": {
-					LabelsToMatch: []string{"foo_key", "bar_key"},
-					LabelsToGet:   []string{"qux_key", "quux_key"},
+					labelsToMatch: []string{"foo_key", "bar_key"},
+					labelsToGet:   map[string]string{"qux_key": "qux_tag", "quux_key": "quux_tag"},
 				},
 			},
 			families: map[string][]ksmstore.DDMetricsFam{
@@ -170,8 +169,8 @@ func Test_labelJoiner(t *testing.T) {
 						"bar_key": "bar_value1",
 					},
 					labelsToAdd: []label{
-						{key: "qux_key", value: "qux_value1"},
-						{key: "quux_key", value: "quux_value1"},
+						{key: "qux_tag", value: "qux_value1"},
+						{key: "quux_tag", value: "quux_value1"},
 					},
 				},
 				{
@@ -180,8 +179,8 @@ func Test_labelJoiner(t *testing.T) {
 						"bar_key": "bar_value2",
 					},
 					labelsToAdd: []label{
-						{key: "qux_key", value: "qux_value2"},
-						{key: "quux_key", value: "quux_value2"},
+						{key: "qux_tag", value: "qux_value2"},
+						{key: "quux_tag", value: "quux_value2"},
 					},
 				},
 				{
@@ -190,18 +189,18 @@ func Test_labelJoiner(t *testing.T) {
 						"bar_key": "bar_value2",
 					},
 					labelsToAdd: []label{
-						{key: "qux_key", value: "qux_value12"},
-						{key: "quux_key", value: "quux_value12"},
+						{key: "qux_tag", value: "qux_value12"},
+						{key: "quux_tag", value: "quux_value12"},
 					},
 				},
 			},
 		},
 		{
 			name: "Three labels to match, all labels to get",
-			config: map[string]*JoinsConfig{
+			config: map[string]*joinsConfig{
 				"kube_pod_info": {
-					LabelsToMatch: []string{"foo_key", "bar_key", "baz_key"},
-					GetAllLabels:  true,
+					labelsToMatch: []string{"foo_key", "bar_key", "baz_key"},
+					getAllLabels:  true,
 				},
 			},
 			families: map[string][]ksmstore.DDMetricsFam{
@@ -325,10 +324,10 @@ func Test_labelJoiner(t *testing.T) {
 		},
 		{
 			name: "Several metrics with the same value for labels to match",
-			config: map[string]*JoinsConfig{
+			config: map[string]*joinsConfig{
 				"kube_pod_info": {
-					LabelsToMatch: []string{"foo_key"},
-					LabelsToGet:   []string{"qux_key"},
+					labelsToMatch: []string{"foo_key"},
+					labelsToGet:   map[string]string{"qux_key": "qux_tag"},
 				},
 			},
 			families: map[string][]ksmstore.DDMetricsFam{
@@ -375,18 +374,18 @@ func Test_labelJoiner(t *testing.T) {
 						"bar_key": "no_matter",
 					},
 					labelsToAdd: []label{
-						{key: "qux_key", value: "qux_value1"},
-						{key: "qux_key", value: "qux_value2"},
+						{key: "qux_tag", value: "qux_value1"},
+						{key: "qux_tag", value: "qux_value2"},
 					},
 				},
 			},
 		},
 		{
 			name: "Skip tags with empty value",
-			config: map[string]*JoinsConfig{
+			config: map[string]*joinsConfig{
 				"kube_pod_info": {
-					LabelsToMatch: []string{"foo_key"},
-					LabelsToGet:   []string{"qux_key"},
+					labelsToMatch: []string{"foo_key"},
+					labelsToGet:   map[string]string{"qux_key": "qux_tag"},
 				},
 			},
 			families: map[string][]ksmstore.DDMetricsFam{
@@ -424,7 +423,7 @@ func Test_labelJoiner(t *testing.T) {
 				{
 					inputLabels: map[string]string{"foo_key": "foo_value1"},
 					labelsToAdd: []label{
-						{key: "qux_key", value: "qux_value1"},
+						{key: "qux_tag", value: "qux_value1"},
 					},
 				},
 				{

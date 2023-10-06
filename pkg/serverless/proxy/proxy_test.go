@@ -6,26 +6,31 @@
 package proxy
 
 import (
+	"bytes"
 	"fmt"
 	"net"
 	"net/http"
 	"net/http/httptest"
-	"os"
 	"strings"
 	"testing"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/serverless/invocationlifecycle"
 	"github.com/stretchr/testify/assert"
+
+	"github.com/DataDog/datadog-agent/pkg/serverless/invocationlifecycle"
 )
 
 type testProcessorResponseValid struct{}
+
+func (tp *testProcessorResponseValid) GetExecutionInfo() *invocationlifecycle.ExecutionStartInfo {
+	return nil
+}
 
 func (tp *testProcessorResponseValid) OnInvokeStart(startDetails *invocationlifecycle.InvocationStartDetails) {
 	if startDetails.StartTime.IsZero() {
 		panic("isZero")
 	}
-	if !strings.HasSuffix(startDetails.InvokeEventRawPayload, "ok") {
+	if !bytes.HasSuffix(startDetails.InvokeEventRawPayload, []byte("ok")) {
 		panic("payload")
 	}
 }
@@ -45,7 +50,7 @@ func (tp *testProcessorResponseError) OnInvokeStart(startDetails *invocationlife
 	if startDetails.StartTime.IsZero() {
 		panic("isZero")
 	}
-	if !strings.HasSuffix(startDetails.InvokeEventRawPayload, "ok") {
+	if !bytes.HasSuffix(startDetails.InvokeEventRawPayload, []byte("ok")) {
 		panic("payload")
 	}
 }
@@ -56,14 +61,8 @@ func (tp *testProcessorResponseError) OnInvokeEnd(endDetails *invocationlifecycl
 	}
 }
 
-func TestStartTrue(t *testing.T) {
-	os.Setenv("DD_EXPERIMENTAL_ENABLE_PROXY", "true")
-	defer os.Unsetenv("DD_EXPERIMENTAL_ENABLE_PROXY")
-	assert.True(t, Start("127.0.0.1:7000", "127.0.0.1:7001", &testProcessorResponseValid{}))
-}
-
-func TestStartFalse(t *testing.T) {
-	assert.False(t, Start("127.0.0.1:5000", "127.0.0.1:5001", &testProcessorResponseValid{}))
+func (tp *testProcessorResponseError) GetExecutionInfo() *invocationlifecycle.ExecutionStartInfo {
+	return nil
 }
 
 func TestProxyResponseValid(t *testing.T) {
@@ -79,17 +78,18 @@ func TestProxyResponseValid(t *testing.T) {
 	ts.Start()
 	defer ts.Close()
 
-	os.Setenv("DD_EXPERIMENTAL_ENABLE_PROXY", "true")
-	defer os.Unsetenv("DD_EXPERIMENTAL_ENABLE_PROXY")
+	t.Setenv("DD_EXPERIMENTAL_ENABLE_PROXY", "true")
 
 	go setup("127.0.0.1:5000", "127.0.0.1:5001", &testProcessorResponseValid{})
 	time.Sleep(100 * time.Millisecond)
 	resp, err := http.Get("http://127.0.0.1:5000/xxx/next")
 	assert.Nil(t, err)
 	assert.Equal(t, 200, resp.StatusCode)
+	resp.Body.Close()
 	resp, err = http.Post("http://127.0.0.1:5000/xxx/response", "text/plain", strings.NewReader("bla bla bla"))
 	assert.Nil(t, err)
 	assert.Equal(t, 200, resp.StatusCode)
+	resp.Body.Close()
 }
 
 func TestProxyResponseError(t *testing.T) {
@@ -105,16 +105,17 @@ func TestProxyResponseError(t *testing.T) {
 	ts.Start()
 	defer ts.Close()
 
-	os.Setenv("DD_EXPERIMENTAL_ENABLE_PROXY", "true")
-	defer os.Unsetenv("DD_EXPERIMENTAL_ENABLE_PROXY")
+	t.Setenv("DD_EXPERIMENTAL_ENABLE_PROXY", "true")
 
 	go setup("127.0.0.1:6000", "127.0.0.1:6001", &testProcessorResponseError{})
 	time.Sleep(100 * time.Millisecond)
 	resp, err := http.Get("http://127.0.0.1:6000/xxx/next")
 	assert.Nil(t, err)
+	resp.Body.Close()
 	assert.Equal(t, 200, resp.StatusCode)
 	resp, err = http.Post("http://127.0.0.1:6000/xxx/error", "text/plain", strings.NewReader("bla bla bla"))
 	assert.Nil(t, err)
 	assert.Equal(t, 200, resp.StatusCode)
 
+	resp.Body.Close()
 }

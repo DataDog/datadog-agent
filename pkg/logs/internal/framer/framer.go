@@ -9,7 +9,9 @@ package framer
 import (
 	"bytes"
 	"fmt"
-	"sync/atomic"
+
+	"github.com/DataDog/datadog-agent/pkg/logs/message"
+	"go.uber.org/atomic"
 )
 
 // Framing describes the kind of framing applied to the byte stream being broken.
@@ -30,6 +32,9 @@ const (
 	// Newline-terminated text in SHIFT-JIS.
 	SHIFTJISNewline
 
+	// NoFraming considers the given input as already framed.
+	NoFraming
+
 	// Docker log-stream format.
 	//
 	// WARNING: This bundles multiple docker frames together into a single "log
@@ -43,12 +48,8 @@ const (
 // EndLineMatcher to break those into frames, passing the results to its
 // outputFn.
 type Framer struct {
-	// The number of raw frames decoded from the input before they are processed.
-	// Needs to be first to ensure 64 bit alignment
-	frames int64
-
 	// outputFn is called with each complete "line"
-	outputFn func(content []byte, rawDatatLen int)
+	outputFn func(input *message.Message, rawDataLen int)
 
 	// the matcher is the
 	matcher FrameMatcher
@@ -59,6 +60,9 @@ type Framer struct {
 	// bytesFramed is the length, in bytes, of the prefix of buffer that
 	// has already been output as a frame.
 	bytesFramed int
+
+	// The number of raw frames decoded from the input before they are processed.
+	frames *atomic.Int64
 
 	// contentLenLimit is the longest content value the Framer will produce.
 	// Over this size, the framer will break the bytes into individual frames
@@ -77,7 +81,7 @@ type Framer struct {
 // itself and the number of raw bytes matched to represent that frame.  In general,
 // the content does not contain framing data like newlines.
 func NewFramer(
-	outputFn func(content []byte, rawDataLen int),
+	outputFn func(input *message.Message, rawDataLen int),
 	framing Framing,
 	contentLenLimit int,
 ) *Framer {
@@ -95,12 +99,14 @@ func NewFramer(
 		matcher = &oneByteNewLineMatcher{contentLenLimit}
 	case DockerStream:
 		matcher = &dockerStreamMatcher{contentLenLimit}
+	case NoFraming:
+		matcher = &noFramingMatcher{}
 	default:
 		panic(fmt.Sprintf("unknown framing %d", framing))
 	}
 
 	return &Framer{
-		frames:          0,
+		frames:          atomic.NewInt64(0),
 		outputFn:        outputFn,
 		matcher:         matcher,
 		buffer:          bytes.Buffer{},
@@ -112,12 +118,12 @@ func NewFramer(
 // GetFrameCount gets the number of frames this framer has processed.  This is safe to
 // call from any goroutine.
 func (fr *Framer) GetFrameCount() int64 {
-	return atomic.LoadInt64(&fr.frames)
+	return fr.frames.Load()
 }
 
 // Process handles an incoming chunk of data.  It will call outputFn for any recognized frames.  Partial
 // frames are maintained between calls to Process.  The passed buffer is not used after return.
-func (fr *Framer) Process(inBuf []byte) {
+func (fr *Framer) Process(input *message.Message) {
 	// buffer is laid out as follows:
 	//
 	//                  /------from inBuf------\
@@ -130,7 +136,7 @@ func (fr *Framer) Process(inBuf []byte) {
 
 	framed := fr.bytesFramed
 	seen := fr.buffer.Len()
-	fr.buffer.Write(inBuf)
+	fr.buffer.Write(input.Content)
 	end := fr.buffer.Len()
 	contentLenLimit := fr.contentLenLimit
 
@@ -158,8 +164,19 @@ func (fr *Framer) Process(inBuf []byte) {
 		owned := make([]byte, len(content))
 		copy(owned, content)
 
-		fr.outputFn(owned, rawDataLen)
-		atomic.AddInt64(&fr.frames, 1)
+		c := &message.Message{
+			Content:            owned,
+			Origin:             input.Origin,
+			Status:             input.Status,
+			IngestionTimestamp: input.IngestionTimestamp,
+			ServerlessExtra: message.ServerlessExtra{
+				Timestamp: input.ServerlessExtra.Timestamp,
+				Lambda:    input.ServerlessExtra.Lambda,
+			},
+		}
+
+		fr.outputFn(c, rawDataLen)
+		fr.frames.Inc()
 		framed += rawDataLen
 		seen = framed
 	}

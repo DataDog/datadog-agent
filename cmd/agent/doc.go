@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 /*
-
 The Datadog Agent faithfully collects events and metrics and brings them to
 Datadog on your behalf.
 
@@ -13,6 +12,5 @@ To install the agent, please refer the official documentation at https://docs.da
 If you want to build the agent by yourself or contribute to the project, please
 refer to the Agent Developer Guide at https://github.com/DataDog/datadog-agent/tree/main/docs/dev
 for more details.
-
 */
 package main

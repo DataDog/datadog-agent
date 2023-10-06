@@ -30,11 +30,14 @@ argo_submit_cws_cspm() {
     oldstate=$(shopt -po xtrace ||:); set +x  # Do not log credentials
 
     if [[ -z ${DATADOG_AGENT_API_KEY:+x} ]] || [[ -z ${DATADOG_AGENT_APP_KEY:+x} ]]; then
-        echo "DATADOG_AGENT_API_KEY and DATADOG_AGENT_APP_KEY environment variables need to be set" >&2
+        echo "DATADOG_AGENT_API_KEY, DATADOG_AGENT_APP_KEY environment variables need to be set" >&2
         exit 2
     fi
 
-    kubectl create secret generic dd-keys --from-literal=DD_API_KEY="${DATADOG_AGENT_API_KEY}" --from-literal=DD_APP_KEY="${DATADOG_AGENT_APP_KEY}"
+    kubectl create secret generic dd-keys \
+        --from-literal=DD_API_KEY="${DATADOG_AGENT_API_KEY}" \
+        --from-literal=DD_APP_KEY="${DATADOG_AGENT_APP_KEY}" \
+        --from-literal=DD_DDDEV_API_KEY="${DD_API_KEY}"
 
     eval "$oldstate"
 
@@ -44,7 +47,10 @@ argo_submit_cws_cspm() {
         --parameter datadog-agent-image-tag="${DATADOG_AGENT_IMAGE#*:}" \
         --parameter datadog-cluster-agent-image-repository="${DATADOG_CLUSTER_AGENT_IMAGE%:*}" \
         --parameter datadog-cluster-agent-image-tag="${DATADOG_CLUSTER_AGENT_IMAGE#*:}" \
-        --parameter datadog-agent-site="${DATADOG_AGENT_SITE#*:}" || :
+        --parameter datadog-agent-site="${DATADOG_AGENT_SITE#*:}" \
+        --parameter ci_commit_short_sha="${CI_COMMIT_SHORT_SHA:-unknown}" \
+        --parameter ci_pipeline_id="${CI_PIPELINE_ID:-unknown}" \
+        --parameter ci_job_id="${CI_JOB_ID:-unknown}" || :
 }
 
 case "$ARGO_WORKFLOW" in
@@ -55,14 +61,20 @@ case "$ARGO_WORKFLOW" in
         argo_submit_cws_cspm cspm-workflow.yaml
         ;;
     *)
-        kubectl create secret generic dd-keys --from-literal=DD_API_KEY=123er --from-literal=DD_APP_KEY=123er1
+        kubectl create secret generic dd-keys  \
+            --from-literal=DD_API_KEY=123er \
+            --from-literal=DD_APP_KEY=123er1 \
+            --from-literal=DD_DDDEV_API_KEY="${DD_API_KEY}"
 
         ./argo template create ../../argo-workflows/templates/*.yaml
         ./argo submit "../../argo-workflows/${ARGO_WORKFLOW}-workflow.yaml" --wait \
             --parameter datadog-agent-image-repository="${DATADOG_AGENT_IMAGE%:*}" \
             --parameter datadog-agent-image-tag="${DATADOG_AGENT_IMAGE#*:}" \
             --parameter datadog-cluster-agent-image-repository="${DATADOG_CLUSTER_AGENT_IMAGE%:*}" \
-            --parameter datadog-cluster-agent-image-tag="${DATADOG_CLUSTER_AGENT_IMAGE#*:}" || :
+            --parameter datadog-cluster-agent-image-tag="${DATADOG_CLUSTER_AGENT_IMAGE#*:}" \
+            --parameter ci_commit_short_sha="${CI_COMMIT_SHORT_SHA:-unknown}" \
+            --parameter ci_pipeline_id="${CI_PIPELINE_ID:-unknown}" \
+            --parameter ci_job_id="${CI_JOB_ID:-unknown}" || :
         ;;
 esac
 

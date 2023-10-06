@@ -4,22 +4,28 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build windows && npm
-// +build windows,npm
 
 package tracer
 
 import (
-	"testing"
+	syscfg "github.com/DataDog/datadog-agent/cmd/system-probe/config"
+	"github.com/DataDog/datadog-agent/pkg/network/config"
+	"github.com/DataDog/datadog-agent/pkg/network/driver"
 )
 
-func dnsSupported(t *testing.T) bool {
+func platformInit() {
+	_ = driver.Init(&syscfg.Config{})
+}
+
+func httpSupported() bool {
+	return false
+}
+
+func classificationSupported(config *config.Config) bool {
 	return true
 }
 
-func httpSupported(t *testing.T) bool {
-	return false
-}
-
-func httpsSupported(t *testing.T) bool {
-	return false
+func testConfig() *config.Config {
+	cfg := config.New()
+	return cfg
 }

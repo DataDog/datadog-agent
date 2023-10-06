@@ -3,22 +3,23 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+// Package replay implements the Tagger replay.
 package replay
 
 import (
 	"context"
 	"time"
 
-	"github.com/DataDog/datadog-agent/cmd/agent/api/response"
-	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo"
-	pbutils "github.com/DataDog/datadog-agent/pkg/proto/utils"
+	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
+	tagger_api "github.com/DataDog/datadog-agent/pkg/tagger/api"
 	"github.com/DataDog/datadog-agent/pkg/tagger/collectors"
 	"github.com/DataDog/datadog-agent/pkg/tagger/tagstore"
 	"github.com/DataDog/datadog-agent/pkg/tagger/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/tagger/types"
 	"github.com/DataDog/datadog-agent/pkg/tagset"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	pbutils "github.com/DataDog/datadog-agent/pkg/util/proto"
 )
 
 // Tagger stores tags to entity as stored in a replay state.
@@ -73,7 +74,7 @@ func (t *Tagger) Tag(entityID string, cardinality collectors.TagCardinality) ([]
 }
 
 // AccumulateTagsFor returns tags for a given entity at the desired cardinality.
-func (t *Tagger) AccumulateTagsFor(entityID string, cardinality collectors.TagCardinality, tb tagset.TagAccumulator) error {
+func (t *Tagger) AccumulateTagsFor(entityID string, cardinality collectors.TagCardinality, tb tagset.TagsAccumulator) error {
 	tags := t.store.LookupHashed(entityID, cardinality)
 
 	if tags.Len() == 0 {
@@ -98,7 +99,7 @@ func (t *Tagger) Standard(entityID string) ([]string, error) {
 }
 
 // List returns all the entities currently stored by the tagger.
-func (t *Tagger) List(cardinality collectors.TagCardinality) response.TaggerListResponse {
+func (t *Tagger) List(cardinality collectors.TagCardinality) tagger_api.TaggerListResponse {
 	return t.store.List()
 }
 
@@ -115,7 +116,6 @@ func (t *Tagger) Unsubscribe(ch chan []types.EntityEvent) {
 
 // LoadState loads the state for the tagger from the supplied map.
 func (t *Tagger) LoadState(state map[string]*pb.Entity) {
-
 	if state == nil {
 		return
 	}

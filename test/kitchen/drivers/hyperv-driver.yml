@@ -1,7 +1,7 @@
 provisioner:
   name: chef_solo
   product_name: chef
-  product_version: 13.6.4
+  product_version: 13.9.4
   install_strategy: always
   # the following settings make it possible to do a reboot during setup
   # (necessary for FIPS tests which reboot to enable FIPS mode)
@@ -51,7 +51,6 @@ platforms:
 
       windows = platform_name.include?("win")
       sles15 = platform_name.include?("sles-15")
-      windows2008 = windows && platform_name.include?("2008")
 
       if windows
         windows_platforms << platform_name

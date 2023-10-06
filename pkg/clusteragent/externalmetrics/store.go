@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build kubeapiserver
-// +build kubeapiserver
 
 package externalmetrics
 
@@ -19,6 +18,7 @@ const (
 	deleteOperation
 )
 
+// DatadogMetricInternalObserverFunc represents observer functions of the datadog metrics store
 type DatadogMetricInternalObserverFunc func(string, string)
 
 // DatadogMetricInternalObserver allows to define functions to watch changes in Store

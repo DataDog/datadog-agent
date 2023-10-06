@@ -1,0 +1,12 @@
+---
+enhancements:
+  - |
+    The new ``min_tls_version`` configuration parameter allows configuration of
+    the minimum TLS version used for connections to the Datadog intake.  This
+    replaces the ``force_tls_12`` configuration parameter which only allowed
+    the minimum to be set to tlsv1.2.
+deprecations:
+  - |
+    The ``force_tls_12`` configuration parameter is deprecated, replaced by
+    ``min_tls_version``.  If ``min_tls_version`` is not given, but ``force_tls_12``
+    is true, then ``min_tls_version`` defaults to tlsv1.2.

@@ -1,11 +1,26 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2022-present Datadog, Inc.
+
 package inferredspan
 
 import (
+	"crypto/rand"
+	"math"
+	"math/big"
+	"os"
 	"strings"
+	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
+	configUtils "github.com/DataDog/datadog-agent/pkg/config/utils"
+	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
+	"github.com/DataDog/datadog-agent/pkg/serverless/random"
 	"github.com/DataDog/datadog-agent/pkg/serverless/tags"
-	"github.com/DataDog/datadog-agent/pkg/trace/pb"
+	"github.com/DataDog/datadog-agent/pkg/trace/api"
+	"github.com/DataDog/datadog-agent/pkg/trace/info"
+	"github.com/DataDog/datadog-agent/pkg/trace/sampler"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -19,6 +34,17 @@ const (
 	functionVersionTagKey = "function_version"
 	coldStartTagKey       = "cold_start"
 )
+
+// InferredSpan contains the pb.Span and Async information
+// of the inferredSpan for the current invocation
+type InferredSpan struct {
+	Span    *pb.Span
+	IsAsync bool
+	// CurrentInvocationStartTime is the start time of the
+	// current invocation not he inferred span. It is used
+	// for async function calls to calculate the duration.
+	CurrentInvocationStartTime time.Time
+}
 
 var functionTagsToIgnore = []string{
 	tags.FunctionARNKey,
@@ -43,7 +69,6 @@ func CheckIsInferredSpan(span *pb.Span) bool {
 
 // FilterFunctionTags filters out DD tags & function specific tags
 func FilterFunctionTags(input map[string]string) map[string]string {
-
 	if input == nil {
 		return nil
 	}
@@ -54,7 +79,7 @@ func FilterFunctionTags(input map[string]string) map[string]string {
 	}
 
 	// filter out DD_TAGS & DD_EXTRA_TAGS
-	ddTags := config.GetConfiguredTags(false)
+	ddTags := configUtils.GetConfiguredTags(config.Datadog, false)
 	for _, tag := range ddTags {
 		tagParts := strings.SplitN(tag, ":", 2)
 		if len(tagParts) != 2 {
@@ -71,4 +96,84 @@ func FilterFunctionTags(input map[string]string) map[string]string {
 	}
 
 	return output
+}
+
+// CompleteInferredSpan finishes the inferred span and passes it
+// as an API payload to be processed by the trace agent
+func (inferredSpan *InferredSpan) CompleteInferredSpan(
+	processTrace func(p *api.Payload),
+	endTime time.Time,
+	isError bool,
+	traceID uint64,
+	samplingPriority sampler.SamplingPriority) {
+
+	durationIsSet := inferredSpan.Span.Duration != 0
+	if inferredSpan.IsAsync {
+		// SNSSQS span duration is set in invocationlifecycle/init.go
+		if !durationIsSet {
+			inferredSpan.Span.Duration = inferredSpan.CurrentInvocationStartTime.UnixNano() - inferredSpan.Span.Start
+		}
+	} else {
+		inferredSpan.Span.Duration = endTime.UnixNano() - inferredSpan.Span.Start
+	}
+	if isError {
+		inferredSpan.Span.Error = 1
+	}
+
+	inferredSpan.Span.TraceID = traceID
+
+	traceChunk := &pb.TraceChunk{
+		Origin:   "lambda",
+		Spans:    []*pb.Span{inferredSpan.Span},
+		Priority: int32(samplingPriority),
+	}
+
+	tracerPayload := &pb.TracerPayload{
+		Chunks: []*pb.TraceChunk{traceChunk},
+	}
+
+	processTrace(&api.Payload{
+		Source:        info.NewReceiverStats().GetTagStats(info.Tags{}),
+		TracerPayload: tracerPayload,
+	})
+}
+
+// GenerateSpanId creates a secure random span id in specific scenarios, otherwise return a pseudo random id
+func GenerateSpanId() uint64 {
+	isSnapStart := os.Getenv(tags.InitType) == tags.SnapStartValue
+	if isSnapStart {
+		max := new(big.Int).SetUint64(math.MaxUint64)
+		if randId, err := rand.Int(rand.Reader, max); err != nil {
+			log.Debugf("Failed to generate a secure random span id: %v", err)
+		} else {
+			return randId.Uint64()
+		}
+	}
+	return random.Random.Uint64()
+}
+
+// generateInferredSpan declares and initializes a new inferred span
+// with the SpanID and TraceID
+func (inferredSpan *InferredSpan) generateInferredSpan(startTime time.Time) {
+
+	inferredSpan.CurrentInvocationStartTime = startTime
+	inferredSpan.Span = &pb.Span{
+		SpanID: GenerateSpanId(),
+	}
+	log.Debugf("Generated new Inferred span: %+v", inferredSpan)
+}
+
+// IsInferredSpansEnabled is used to determine if we need to
+// generate and enrich inferred spans for a particular invocation
+func IsInferredSpansEnabled() bool {
+	return config.Datadog.GetBool("serverless.trace_enabled") && config.Datadog.GetBool("serverless.trace_managed_services")
+}
+
+// AddTagToInferredSpan is used to add new tags to the inferred span in
+// inferredSpan.Span.Meta[]. Should be used before completing an inferred span.
+func (inferredSpan *InferredSpan) AddTagToInferredSpan(key string, value string) {
+	if inferredSpan.Span.Meta == nil {
+		inferredSpan.Span.Meta = make(map[string]string)
+	}
+	inferredSpan.Span.Meta[key] = value
 }

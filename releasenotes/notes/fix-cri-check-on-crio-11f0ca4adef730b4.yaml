@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    Fix `cri` check producing no metrics when running on `OpenShift / cri-o`.

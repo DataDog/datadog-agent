@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build jmx
-// +build jmx
 
 package jmx
 
@@ -68,17 +67,6 @@ func TestConfigureRunner(t *testing.T) {
 	err = r.configureRunner(instanceConfYaml, initConfYaml)
 	assert.Nil(t, err)
 	assert.Equal(t, r.jmxfetch.JavaBinPath, "/usr/local/java8/bin/java")
-
-	// Test process regex with no tools - should fail
-	r.jmxfetch.JavaToolsJarPath = ""
-	instanceConfYaml = []byte("process_name_regex: regex\n")
-	err = r.configureRunner(instanceConfYaml, initConfYaml)
-	assert.NotNil(t, err)
-
-	instanceConfYaml = []byte("process_name_regex: regex\n" +
-		"tools_jar_path: some/other/path")
-	err = r.configureRunner(instanceConfYaml, initConfYaml)
-	assert.Nil(t, err)
 
 	// Configurations "pile" up
 	assert.Equal(t, r.jmxfetch.JavaToolsJarPath, "some/other/path")

@@ -4,8 +4,8 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build linux
-// +build linux
 
+// Package model holds model related files
 package model
 
 import (
@@ -13,6 +13,8 @@ import (
 )
 
 var (
+	// ptraceArchConstants are the supported ptrace commands for the ptrace syscall on arm
+	// generate_constants:Ptrace constants,Ptrace constants are the supported ptrace commands for the ptrace syscall.
 	ptraceArchConstants = map[string]uint32{
 		"PTRACE_GETCRUNCHREGS":   unix.PTRACE_GETCRUNCHREGS,
 		"PTRACE_GETFDPIC":        unix.PTRACE_GETFDPIC,
@@ -32,5 +34,5 @@ var (
 		"PTRACE_SET_SYSCALL":     unix.PTRACE_SET_SYSCALL,
 	}
 
-	mmapFlagArchConstants = map[string]int{}
+	mmapFlagArchConstants = map[string]uint64{}
 )

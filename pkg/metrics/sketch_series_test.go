@@ -6,6 +6,8 @@
 package metrics
 
 import (
+	"fmt"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -31,8 +33,14 @@ func TestString(t *testing.T) {
 		},
 	}
 	sketchSerieList := SketchSeriesList{
-		sketchSerie0,
-		sketchSerie1,
+		&sketchSerie0,
+		&sketchSerie1,
 	}
 	assert.Equal(t, "{\"sketches\":[{\"metric\":\"sketchSerie0\",\"tags\":[],\"host\":\"hostSketchSerie0\",\"interval\":10,\"points\":[{\"sketch\":null,\"ts\":1},{\"sketch\":null,\"ts\":2}]},{\"metric\":\"sketchSerie1\",\"tags\":[],\"host\":\"hostSketchSerie1\",\"interval\":100,\"points\":[{\"sketch\":null,\"ts\":3},{\"sketch\":null,\"ts\":4}]}]}\n", sketchSerieList.String())
+	assert.Equal(
+		t,
+		sketchSerieList.String(),
+		fmt.Sprintf("{\"sketches\":[%v,%v]}\n",
+			strings.TrimSpace(sketchSerie0.String()),
+			strings.TrimSpace(sketchSerie1.String())))
 }

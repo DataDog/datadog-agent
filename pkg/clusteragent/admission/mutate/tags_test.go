@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build kubeapiserver
-// +build kubeapiserver
 
 package mutate
 
@@ -13,6 +12,7 @@ import (
 	"testing"
 
 	"github.com/DataDog/datadog-agent/pkg/util/cache"
+	"github.com/DataDog/datadog-agent/pkg/util/pointer"
 
 	"github.com/stretchr/testify/assert"
 	corev1 "k8s.io/api/core/v1"
@@ -95,37 +95,6 @@ func Test_injectTagsFromLabels(t *testing.T) {
 	}
 }
 
-func Test_shouldInjectTags(t *testing.T) {
-	tests := []struct {
-		name string
-		pod  *corev1.Pod
-		want bool
-	}{
-		{
-			name: "no admission label",
-			pod:  fakePodWithLabel("k", "v"),
-			want: true,
-		},
-		{
-			name: "admission label enabled",
-			pod:  fakePodWithLabel("k", "v"),
-			want: true,
-		},
-		{
-			name: "admission label disabled",
-			pod:  fakePodWithLabel("admission.datadoghq.com/enabled", "false"),
-			want: false,
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			if got := shouldInjectTags(tt.pod); got != tt.want {
-				t.Errorf("shouldInjectTags() = %v, want %v", got, tt.want)
-			}
-		})
-	}
-}
-
 func Test_getOwnerInfo(t *testing.T) {
 	tests := []struct {
 		name    string
@@ -137,8 +106,8 @@ func Test_getOwnerInfo(t *testing.T) {
 			name: "replicaset",
 			owner: metav1.OwnerReference{
 				APIVersion:         "apps/v1",
-				BlockOwnerDeletion: boolPointer(true),
-				Controller:         boolPointer(true),
+				BlockOwnerDeletion: pointer.Ptr(true),
+				Controller:         pointer.Ptr(true),
 				Kind:               "ReplicaSet",
 				Name:               "my-app-547c56f566",
 				UID:                "2dfa7d22-245f-4769-8854-bc3b056cd224",
@@ -157,8 +126,8 @@ func Test_getOwnerInfo(t *testing.T) {
 			name: "job",
 			owner: metav1.OwnerReference{
 				APIVersion:         "batch/v1",
-				BlockOwnerDeletion: boolPointer(true),
-				Controller:         boolPointer(true),
+				BlockOwnerDeletion: pointer.Ptr(true),
+				Controller:         pointer.Ptr(true),
 				Kind:               "Job",
 				Name:               "my-job",
 				UID:                "89e8148c-8601-4c69-b8a6-3fbb176547d0",
@@ -177,8 +146,8 @@ func Test_getOwnerInfo(t *testing.T) {
 			name: "invalid APIVersion",
 			owner: metav1.OwnerReference{
 				APIVersion:         "batch/v1/",
-				BlockOwnerDeletion: boolPointer(true),
-				Controller:         boolPointer(true),
+				BlockOwnerDeletion: pointer.Ptr(true),
+				Controller:         pointer.Ptr(true),
 				Kind:               "Job",
 				Name:               "my-job",
 				UID:                "89e8148c-8601-4c69-b8a6-3fbb176547d0",
@@ -213,24 +182,25 @@ const (
 
 func TestGetAndCacheOwner(t *testing.T) {
 	ownerInfo := dummyInfo()
-	ownerObj := newUnstructuredWithSpec(map[string]interface{}{"foo": "bar"})
+	kubeObj := newUnstructuredWithSpec(map[string]interface{}{"foo": "bar"})
+	owner := newOwner(kubeObj)
 
 	// Cache hit
-	cache.Cache.Set(ownerInfo.buildID(testNamespace), ownerObj, ownerCacheTTL)
+	cache.Cache.Set(ownerInfo.buildID(testNamespace), owner, ownerCacheTTL)
 	dc := fake.NewSimpleDynamicClient(scheme)
 	obj, err := getAndCacheOwner(ownerInfo, testNamespace, dc)
 	assert.NoError(t, err)
 	assert.NotNil(t, obj)
-	assert.Equal(t, ownerObj, obj)
+	assert.Equal(t, owner, obj)
 	assert.Len(t, dc.Actions(), 0)
 	cache.Cache.Flush()
 
 	// Cache miss
-	dc = fake.NewSimpleDynamicClient(scheme, ownerObj)
+	dc = fake.NewSimpleDynamicClient(scheme, kubeObj)
 	obj, err = getAndCacheOwner(ownerInfo, testNamespace, dc)
 	assert.NoError(t, err)
 	assert.NotNil(t, obj)
-	assert.Equal(t, ownerObj, obj)
+	assert.Equal(t, owner, obj)
 	assert.Len(t, dc.Actions(), 1)
 	cachedObj, found := cache.Cache.Get(ownerInfo.buildID(testNamespace))
 	assert.True(t, found)
@@ -245,6 +215,16 @@ func dummyInfo() *ownerInfo {
 			Resource: testResource,
 			Version:  testVersion,
 		},
+	}
+}
+
+func newOwner(obj *unstructured.Unstructured) *owner {
+	return &owner{
+		name:            obj.GetName(),
+		namespace:       obj.GetNamespace(),
+		kind:            obj.GetKind(),
+		labels:          obj.GetLabels(),
+		ownerReferences: obj.GetOwnerReferences(),
 	}
 }
 

@@ -1,4 +1,4 @@
-#include "stdafx.h"
+#include "precompiled/stdafx.h"
 #include "ReplaceYamlProperties.h"
 
 TEST_F(ReplaceYamlPropertiesTests, When_Optional_Proxy_Values_Present_Dont_Do_Anything)

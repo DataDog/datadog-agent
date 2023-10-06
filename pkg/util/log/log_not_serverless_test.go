@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build !serverless
-// +build !serverless
 
 package log
 
@@ -25,7 +24,7 @@ func TestServerlessLoggingNotInServerlessContext(t *testing.T) {
 	assert.Nil(t, err)
 
 	SetupLogger(l, "debug")
-	assert.NotNil(t, logger)
+	assert.NotNil(t, Logger)
 
 	DebugfServerless("%s %d", "foo", 10)
 	DebugServerless("Not in serverless mode")

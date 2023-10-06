@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build test
-// +build test
 
 package metrics
 
@@ -12,9 +11,10 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/DataDog/datadog-agent/pkg/quantile"
-	"github.com/DataDog/datadog-agent/pkg/tagset"
 	"github.com/stretchr/testify/assert"
+
+	"github.com/DataDog/datadog-agent/pkg/tagset"
+	"github.com/DataDog/opentelemetry-mapping-go/pkg/quantile"
 )
 
 func TestAssertSketchSeriesEqual(t *testing.T) {
@@ -134,7 +134,7 @@ func TestAssertSketchSeriesEqual(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			ft := &fakeTestingT{}
 
-			AssertSketchSeriesEqual(ft, tt.s[0], tt.s[1])
+			AssertSketchSeriesEqual(ft, &tt.s[0], &tt.s[1])
 			if tt.valid {
 				assert.Len(t, ft.msgs, 0, "should be equal")
 			} else {

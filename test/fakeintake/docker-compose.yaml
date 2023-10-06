@@ -1,0 +1,8 @@
+version: "3.9"
+services:
+  fake-datadog:
+    build: .
+    ports:
+      - "80:80"
+    container_name: fake-datadog
+

@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build cri && !windows
-// +build cri,!windows
 
 // Note: CRI is supported on Windows. However, these test don't work on Windows
 // because the `kubernetes/pkg/kubelet/cri/remote/fake` Windows build only works
@@ -18,9 +17,10 @@ import (
 	"testing"
 	"time"
 
-	fakeremote "github.com/DataDog/datadog-agent/internal/third_party/kubernetes/pkg/kubelet/cri/remote/fake"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	fakeremote "github.com/DataDog/datadog-agent/internal/third_party/kubernetes/pkg/kubelet/cri/remote/fake"
 )
 
 func TestCRIUtilInit(t *testing.T) {

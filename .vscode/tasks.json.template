@@ -27,7 +27,21 @@
             "problemMatcher": []
         },
         {
-            "label": "all tests",
+            "label": "go linters",
+            "command": "invoke -e lint-go",
+            "args": [],
+            "type": "shell",
+            "problemMatcher": []
+        },
+        {
+            "label": "go tests",
+            "command": "invoke -e test --skip-linters",
+            "args": [],
+            "type": "shell",
+            "problemMatcher": []
+        },
+        {
+            "label": "go linters and tests",
             "command": "invoke -e test",
             "args": [],
             "type": "shell",

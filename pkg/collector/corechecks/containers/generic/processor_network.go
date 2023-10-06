@@ -8,14 +8,13 @@ package generic
 import (
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/aggregator"
-	"github.com/DataDog/datadog-agent/pkg/security/log"
+	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/tagger"
 	"github.com/DataDog/datadog-agent/pkg/tagger/collectors"
 	taggerUtils "github.com/DataDog/datadog-agent/pkg/tagger/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
-	"github.com/DataDog/datadog-agent/pkg/util/containers/v2/metrics"
-	"github.com/DataDog/datadog-agent/pkg/util/containers/v2/metrics/provider"
+	"github.com/DataDog/datadog-agent/pkg/util/containers/metrics"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
 )
 
@@ -28,7 +27,7 @@ type containerNetwork struct {
 // ProcessorNetwork is a Processor extension taking care of network metrics
 type ProcessorNetwork struct {
 	sender                  SenderFunc
-	aggSender               aggregator.Sender
+	aggSender               sender.Sender
 	groupedContainerNetwork map[uint64][]containerNetwork
 }
 
@@ -38,15 +37,15 @@ func NewProcessorNetwork() ProcessorExtension {
 }
 
 // PreProcess is called once during check run, before any call to `Process`
-func (pn *ProcessorNetwork) PreProcess(sender SenderFunc, aggSender aggregator.Sender) {
+func (pn *ProcessorNetwork) PreProcess(sender SenderFunc, aggSender sender.Sender) {
 	pn.sender = sender
 	pn.aggSender = aggSender
 	pn.groupedContainerNetwork = make(map[uint64][]containerNetwork)
 }
 
 // Process stores each container in relevant network group
-func (pn *ProcessorNetwork) Process(tags []string, container *workloadmeta.Container, collector provider.Collector, cacheValidity time.Duration) {
-	containerNetworkStats, err := collector.GetContainerNetworkStats(container.ID, cacheValidity)
+func (pn *ProcessorNetwork) Process(tags []string, container *workloadmeta.Container, collector metrics.Collector, cacheValidity time.Duration) {
+	containerNetworkStats, err := collector.GetContainerNetworkStats(container.Namespace, container.ID, cacheValidity)
 	if err != nil {
 		log.Debugf("Gathering network metrics for container: %v failed, metrics may be missing, err: %v", container, err)
 		return

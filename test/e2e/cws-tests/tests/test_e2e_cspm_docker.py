@@ -1,16 +1,16 @@
+import json
 import os
+import socket
 import time
 import unittest
 import uuid
 import warnings
 
 from lib.config import gen_datadog_agent_config
-from lib.const import CSPM_RUNNING_DOCKER_CHECK_LOG, CSPM_START_LOG
-from lib.cspm.api import wait_for_compliance_event, wait_for_finding
-from lib.cspm.finding import is_expected_docker_finding, parse_output_and_extract_findings
+from lib.cspm.api import App
 from lib.docker import DockerHelper
-from lib.log import wait_agent_log
 from lib.stepper import Step
+from test_e2e_cspm import expect_findings
 
 
 class TestE2EDocker(unittest.TestCase):
@@ -19,6 +19,7 @@ class TestE2EDocker(unittest.TestCase):
         warnings.simplefilter("ignore", category=UserWarning)
 
         self.docker_helper = DockerHelper()
+        self.app = App()
 
     def tearDown(self):
         self.docker_helper.close()
@@ -27,8 +28,6 @@ class TestE2EDocker(unittest.TestCase):
         print("")
 
         test_id = str(uuid.uuid4())[:4]
-        agent_name = "security-agent"
-
         with Step(msg="create privileged container", emoji=":construction:"):
             pc = self.docker_helper.client.containers.run(
                 "ubuntu:latest",
@@ -54,29 +53,93 @@ class TestE2EDocker(unittest.TestCase):
 
             self.docker_helper.wait_agent_container()
 
-            wait_agent_log(agent_name, self.docker_helper, CSPM_START_LOG)
+        with Step(msg="check agent events", emoji=":check_mark_button:"):
+            self.container.exec_run("security-agent compliance check --dump-reports /tmp/reports.json --report")
+            _, output = self.container.exec_run("cat /tmp/reports.json")
+            print(output)
+            findings = json.loads(output)
 
-        with Step(msg="check agent event", emoji=":check_mark_button:"):
-            _, output = self.container.exec_run("security-agent compliance check --report")
-            findings = parse_output_and_extract_findings(output.decode(), [CSPM_RUNNING_DOCKER_CHECK_LOG])
-            self.finding = None
-            for f in findings:
-                if is_expected_docker_finding(f, self.container_id):
-                    self.finding = f
-            if self.finding is None:
-                raise LookupError(f"{agent_name} | {CSPM_RUNNING_DOCKER_CHECK_LOG}")
+            expected_findings = {
+                "cis-docker-1.2.0-5.4": [
+                    {
+                        "agent_rule_id": "cis-docker-1.2.0-5.4",
+                        "agent_framework_id": "cis-docker",
+                        "result": "failed",
+                        "resource_type": "docker_container",
+                        "data": {
+                            "container.id": self.container_id,
+                        },
+                    }
+                ],
+                "cis-docker-1.2.0-1.2.1": [{"result": "failed"}],
+                "cis-docker-1.2.0-1.2.3": [{"result": "error"}],
+                "cis-docker-1.2.0-1.2.4": [{"result": "error"}],
+                "cis-docker-1.2.0-1.2.5": [{"result": "error"}],
+                "cis-docker-1.2.0-1.2.6": [{"result": "error"}],
+                "cis-docker-1.2.0-1.2.7": [{"result": "error"}],
+                "cis-docker-1.2.0-1.2.8": [{"result": "error"}],
+                "cis-docker-1.2.0-1.2.9": [{"result": "error"}],
+                "cis-docker-1.2.0-1.2.10": [{"result": "error"}],
+                "cis-docker-1.2.0-1.2.11": [{"result": "error"}],
+                "cis-docker-1.2.0-1.2.12": [{"result": "error"}],
+                "cis-docker-1.2.0-2.2": [{"result": "failed"}],
+                "cis-docker-1.2.0-2.3": [{"result": "failed"}],
+                "cis-docker-1.2.0-2.4": [{"result": "failed"}],
+                "cis-docker-1.2.0-2.6": [{"result": "failed"}],
+                "cis-docker-1.2.0-3.10": [{"result": "error"}],
+                "cis-docker-1.2.0-3.11": [{"result": "error"}],
+                "cis-docker-1.2.0-3.12": [{"result": "error"}],
+                "cis-docker-1.2.0-3.13": [{"result": "error"}],
+                "cis-docker-1.2.0-3.14": [{"result": "error"}],
+                "cis-docker-1.2.0-3.15": [{"result": "error"}],
+                "cis-docker-1.2.0-3.16": [{"result": "error"}],
+                "cis-docker-1.2.0-3.17": [{"result": "error"}],
+                "cis-docker-1.2.0-3.18": [{"result": "error"}],
+                "cis-docker-1.2.0-3.19": [{"result": "error"}],
+                "cis-docker-1.2.0-3.20": [{"result": "error"}],
+                "cis-docker-1.2.0-3.21": [{"result": "error"}],
+                "cis-docker-1.2.0-3.22": [{"result": "error"}],
+                "cis-docker-1.2.0-3.7": [{"result": "error"}],
+                "cis-docker-1.2.0-3.8": [{"result": "error"}],
+                "cis-docker-1.2.0-3.9": [{"result": "error"}],
+                "cis-docker-1.2.0-4.1": [{"result": "failed"}],
+                "cis-docker-1.2.0-4.6": [{"result": "failed"}],
+                "cis-docker-1.2.0-5.1": [{"result": "failed"}],
+                "cis-docker-1.2.0-5.10": [{"result": "failed"}],
+                "cis-docker-1.2.0-5.11": [{"result": "failed"}],
+                "cis-docker-1.2.0-5.12": [{"result": "failed"}],
+                "cis-docker-1.2.0-5.14": [{"result": "failed"}],
+                "cis-docker-1.2.0-5.2": [{"result": "error"}],
+                "cis-docker-1.2.0-5.25": [{"result": "failed"}],
+                "cis-docker-1.2.0-5.26": [{"result": "failed"}],
+                "cis-docker-1.2.0-5.28": [{"result": "failed"}],
+                "cis-docker-1.2.0-5.31": [{"result": "failed"}],
+                "cis-docker-1.2.0-5.7": [{"result": "failed"}],
+            }
+
+            expect_findings(self, findings, expected_findings)
 
         with Step(msg="wait for intake (~1m)", emoji=":alarm_clock:"):
             time.sleep(1 * 60)
 
-        with Step(msg="check app compliance event", emoji=":SOON_arrow:"):
-            wait_for_compliance_event(f"resource_id:*{self.container_id}")
+        with Step(msg="wait for datadog.security_agent.compliance.running metric", emoji="\N{beer mug}"):
+            self.app.wait_for_metric("datadog.security_agent.compliance.running", host=socket.gethostname())
+
+        ## Disabled while no CSPM API is available
+        # with Step(msg="check app compliance event", emoji=":SOON_arrow:"):
+        #    wait_for_compliance_event(f"resource_id:*{self.container_id}")
 
         with Step(msg="wait for finding generation (~1m)", emoji=":alarm_clock:"):
             time.sleep(1 * 60)
 
-        with Step(msg="check app finding", emoji=":chart_increasing_with_yen:"):
-            wait_for_finding(f"@resource_type:docker_container @container_id:{self.container_id}")
+        with Step(msg="wait for datadog.security_agent.compliance.containers_running metric", emoji="\N{beer mug}"):
+            self.app.wait_for_metric(
+                "datadog.security_agent.compliance.containers_running", container_id=self.container_id
+            )
+
+        ## Disabled while no CSPM API is available
+        # with Step(msg="check app finding", emoji=":chart_increasing_with_yen:"):
+        #    wait_for_findings(f"@resource_type:docker_container @container_id:{self.container_id}")
 
 
 def main():

@@ -3,55 +3,37 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+// Package autodiscovery implements the agent's autodiscovery mechanism.
 package autodiscovery
 
 import (
 	"context"
-	"expvar"
-	"fmt"
 	"sync"
-	"sync/atomic"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/autodiscovery/configresolver"
+	"go.uber.org/atomic"
+
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/listeners"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/providers"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/scheduler"
+	"github.com/DataDog/datadog-agent/pkg/autodiscovery/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/secrets"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 	"github.com/DataDog/datadog-agent/pkg/tagger"
-	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/retry"
 )
 
-var (
-	listenerCandidateIntl = 30 * time.Second
-	acErrors              *expvar.Map
-	errorStats            = newAcErrorStats()
-)
-
-var secretsDecrypt = secrets.Decrypt
-
-func init() {
-	acErrors = expvar.NewMap("autoconfig")
-	acErrors.Set("ConfigErrors", expvar.Func(func() interface{} {
-		return errorStats.getConfigErrors()
-	}))
-	acErrors.Set("ResolveWarnings", expvar.Func(func() interface{} {
-		return errorStats.getResolveWarnings()
-	}))
-}
+var listenerCandidateIntl = 30 * time.Second
 
 // AutoConfig implements the agent's autodiscovery mechanism.  It is
 // responsible to collect integrations configurations from different sources
 // and then "schedule" or "unschedule" them by notifying subscribers.  See the
 // module README for details.
 type AutoConfig struct {
-	providers          []*configPoller
+	configPollers      []*configPoller
 	listeners          []listeners.ServiceListener
 	listenerCandidates map[string]*listenerCandidate
 	listenerRetryStop  chan struct{}
@@ -61,9 +43,14 @@ type AutoConfig struct {
 	newService         chan listeners.Service
 	delService         chan listeners.Service
 	store              *store
-	m                  sync.RWMutex
-	// ranOnce is an atomic uint32 set to 1 once the AutoConfig has been executed
-	ranOnce uint32
+	cfgMgr             configManager
+
+	// m covers the `configPollers`, `listenerCandidates`, `listeners`, and `listenerRetryStop`, but
+	// not the values they point to.
+	m sync.RWMutex
+
+	// ranOnce is set to 1 once the AutoConfig has been executed
+	ranOnce *atomic.Bool
 }
 
 type listenerCandidate struct {
@@ -75,10 +62,21 @@ func (l *listenerCandidate) try() (listeners.ServiceListener, error) {
 	return l.factory(l.config)
 }
 
-// NewAutoConfig creates an AutoConfig instance.
+// NewAutoConfig creates an AutoConfig instance and starts it.
 func NewAutoConfig(scheduler *scheduler.MetaScheduler) *AutoConfig {
+	ac := NewAutoConfigNoStart(scheduler)
+
+	// We need to listen to the service channels before anything is sent to them
+	go ac.serviceListening()
+
+	return ac
+}
+
+// NewAutoConfigNoStart creates an AutoConfig instance.
+func NewAutoConfigNoStart(scheduler *scheduler.MetaScheduler) *AutoConfig {
+	cfgMgr := newReconcilingConfigManager()
 	ac := &AutoConfig{
-		providers:          make([]*configPoller, 0, 9),
+		configPollers:      make([]*configPoller, 0, 9),
 		listenerCandidates: make(map[string]*listenerCandidate),
 		listenerRetryStop:  nil, // We'll open it if needed
 		listenerStop:       make(chan struct{}),
@@ -86,10 +84,10 @@ func NewAutoConfig(scheduler *scheduler.MetaScheduler) *AutoConfig {
 		newService:         make(chan listeners.Service),
 		delService:         make(chan listeners.Service),
 		store:              newStore(),
+		cfgMgr:             cfgMgr,
 		scheduler:          scheduler,
+		ranOnce:            atomic.NewBool(false),
 	}
-	// We need to listen to the service channels before anything is sent to them
-	go ac.serviceListening()
 	return ac
 }
 
@@ -114,7 +112,7 @@ func (ac *AutoConfig) serviceListening() {
 		case svc := <-ac.newService:
 			ac.processNewService(ctx, svc)
 		case svc := <-ac.delService:
-			ac.processDelService(svc)
+			ac.processDelService(ctx, svc)
 		case <-tagFreshnessTicker.C:
 			ac.checkTagFreshness(ctx)
 		}
@@ -137,7 +135,7 @@ func (ac *AutoConfig) checkTagFreshness(ctx context.Context) {
 	}
 	for _, service := range servicesToRefresh {
 		log.Debugf("Tags changed for service %s, rescheduling associated checks if any", service.GetTaggerEntity())
-		ac.processDelService(service)
+		ac.processDelService(ctx, service)
 		ac.processNewService(ctx, service)
 	}
 }
@@ -146,11 +144,8 @@ func (ac *AutoConfig) checkTagFreshness(ctx context.Context) {
 // AutoConfig is not supposed to be restarted, so this is expected
 // to be called only once at program exit.
 func (ac *AutoConfig) Stop() {
-	ac.m.Lock()
-	defer ac.m.Unlock()
-
-	// stop polled config providers
-	for _, pd := range ac.providers {
+	// stop polled config providers without holding ac.m
+	for _, pd := range ac.getConfigPollers() {
 		pd.stop()
 	}
 
@@ -159,6 +154,9 @@ func (ac *AutoConfig) Stop() {
 
 	// stop the meta scheduler
 	ac.scheduler.Stop()
+
+	ac.m.RLock()
+	defer ac.m.RUnlock()
 
 	// stop the listener retry logic if running
 	if ac.listenerRetryStop != nil {
@@ -177,36 +175,47 @@ func (ac *AutoConfig) Stop() {
 // Agent lifetime.
 // If the config provider is polled, the routine is scheduled right away
 func (ac *AutoConfig) AddConfigProvider(provider providers.ConfigProvider, shouldPoll bool, pollInterval time.Duration) {
+	if shouldPoll && pollInterval <= 0 {
+		log.Warnf("Polling interval <= 0 for AD provider: %s, deactivating polling", provider.String())
+		shouldPoll = false
+	}
+	cp := newConfigPoller(provider, shouldPoll, pollInterval)
+
 	ac.m.Lock()
 	defer ac.m.Unlock()
-
-	for _, pd := range ac.providers {
-		if pd.provider == provider {
-			// we already know this configuration provider, don't do anything
-			log.Warnf("Provider %s was already added, skipping...", provider)
-			return
-		}
-	}
-
-	pd := newConfigPoller(provider, shouldPoll, pollInterval)
-	ac.providers = append(ac.providers, pd)
-	pd.start(ac)
+	ac.configPollers = append(ac.configPollers, cp)
 }
 
 // LoadAndRun loads all of the integration configs it can find
 // and schedules them. Should always be run once so providers
 // that don't need polling will be queried at least once
-func (ac *AutoConfig) LoadAndRun() {
-	resolvedConfigs := ac.GetAllConfigs()
-	ac.schedule(resolvedConfigs)
-	atomic.StoreUint32(&ac.ranOnce, 1)
-	log.Debug("LoadAndRun done.")
+func (ac *AutoConfig) LoadAndRun(ctx context.Context) {
+	for _, cp := range ac.getConfigPollers() {
+		cp.start(ctx, ac)
+		if cp.canPoll {
+			log.Infof("Started config provider %q, polled every %s", cp.provider.String(), cp.pollInterval.String())
+		} else {
+			log.Infof("Started config provider %q", cp.provider.String())
+		}
+
+		// TODO: this probably belongs somewhere inside the file config
+		// provider itself, but since it already lived in AD it's been
+		// moved here for the moment.
+		if fileConfPd, ok := cp.provider.(*providers.FileConfigProvider); ok {
+			// Grab any errors that occurred when reading the YAML file
+			for name, e := range fileConfPd.Errors {
+				errorStats.setConfigError(name, e)
+			}
+		}
+	}
+
+	ac.ranOnce.Store(true)
 }
 
 // ForceRanOnceFlag sets the ranOnce flag.  This is used for testing other
 // components that depend on this value.
 func (ac *AutoConfig) ForceRanOnceFlag() {
-	atomic.StoreUint32(&ac.ranOnce, 1)
+	ac.ranOnce.Store(true)
 }
 
 // HasRunOnce returns true if the AutoConfig has ran once.
@@ -214,73 +223,27 @@ func (ac *AutoConfig) HasRunOnce() bool {
 	if ac == nil {
 		return false
 	}
-	return atomic.LoadUint32(&ac.ranOnce) == 1
+	return ac.ranOnce.Load()
 }
 
-// GetAllConfigs queries all the providers and returns all the integration
-// configurations found, resolving the ones it can
+// GetAllConfigs returns all resolved and non-template configs known to
+// AutoConfig.
 func (ac *AutoConfig) GetAllConfigs() []integration.Config {
-	var resolvedConfigs []integration.Config
-
-	for _, pd := range ac.providers {
-		cfgs, err := pd.provider.Collect(context.TODO())
-		if err != nil {
-			log.Debugf("Unexpected error returned when collecting configurations from provider %v: %v", pd.provider, err)
-		}
-
-		if fileConfPd, ok := pd.provider.(*providers.FileConfigProvider); ok {
-			var goodConfs []integration.Config
-			for _, cfg := range cfgs {
-				// JMX checks can have 2 YAML files: one containing the metrics to collect, one containing the
-				// instance configuration
-				// If the file provider finds any of these metric YAMLs, we store them in a map for future access
-				if cfg.MetricConfig != nil {
-					// We don't want to save metric files, it's enough to store them in the map
-					ac.store.setJMXMetricsForConfigName(cfg.Name, cfg.MetricConfig)
-					continue
-				}
-
-				goodConfs = append(goodConfs, cfg)
-
-				// Clear any old errors if a valid config file is found
-				errorStats.removeConfigError(cfg.Name)
-			}
-
-			// Grab any errors that occurred when reading the YAML file
-			for name, e := range fileConfPd.Errors {
-				errorStats.setConfigError(name, e)
-			}
-
-			cfgs = goodConfs
-		}
-		// Store all raw configs in the provider
-		pd.configs = cfgs
-
-		// resolve configs if needed
-		for _, config := range cfgs {
-			config.Provider = pd.provider.String()
-			rc := ac.processNewConfig(config)
-			resolvedConfigs = append(resolvedConfigs, rc...)
-		}
-	}
-
-	return resolvedConfigs
-}
-
-// schedule takes a slice of configs and schedule them
-func (ac *AutoConfig) schedule(configs []integration.Config) {
-	ac.scheduler.Schedule(configs)
-}
-
-// unschedule takes a slice of configs and unschedule them
-func (ac *AutoConfig) unschedule(configs []integration.Config) {
-	ac.scheduler.Unschedule(configs)
-}
-
-// processNewConfig store (in template cache) and resolves a given config into a slice of resolved configs
-func (ac *AutoConfig) processNewConfig(config integration.Config) []integration.Config {
 	var configs []integration.Config
 
+	ac.cfgMgr.mapOverLoadedConfigs(func(scheduledConfigs map[string]integration.Config) {
+		configs = make([]integration.Config, 0, len(scheduledConfigs))
+		for _, config := range scheduledConfigs {
+			configs = append(configs, config)
+		}
+	})
+
+	return configs
+}
+
+// processNewConfig store (in template cache) and resolves a given config,
+// returning the changes to be made.
+func (ac *AutoConfig) processNewConfig(config integration.Config) integration.ConfigChanges {
 	// add default metrics to collect to JMX checks
 	if check.CollectDefaultMetrics(config) {
 		metrics := ac.store.getJMXMetricsForConfigName(config.Name)
@@ -291,35 +254,7 @@ func (ac *AutoConfig) processNewConfig(config integration.Config) []integration.
 		}
 	}
 
-	if config.IsTemplate() {
-		// store the template in the cache in any case
-		if err := ac.store.templateCache.set(config); err != nil {
-			log.Errorf("Unable to store Check configuration in the cache: %s", err)
-		}
-
-		// try to resolve the template
-		resolvedConfigs := ac.resolveTemplate(config)
-		if len(resolvedConfigs) == 0 {
-			e := fmt.Sprintf("Can't resolve the template for %s at this moment.", config.Name)
-			errorStats.setResolveWarning(config.Name, e)
-			log.Debug(e)
-			return configs
-		}
-
-		return resolvedConfigs
-	}
-
-	// decrypt and store non-template config in AC as well
-	config, err := decryptConfig(config)
-	if err != nil {
-		log.Errorf("Dropping conf for '%s': %s", config.Name, err.Error())
-		return configs
-	}
-	configs = append(configs, config)
-
-	ac.store.setLoadedConfig(config)
-
-	return configs
+	return ac.cfgMgr.processNewConfig(config)
 }
 
 // AddListeners tries to initialise the listeners listed in the given configs. A first
@@ -328,7 +263,7 @@ func (ac *AutoConfig) processNewConfig(config integration.Config) []integration.
 func (ac *AutoConfig) AddListeners(listenerConfigs []config.Listeners) {
 	ac.addListenerCandidates(listenerConfigs)
 	remaining := ac.initListenerCandidates()
-	if remaining == false {
+	if !remaining {
 		return
 	}
 
@@ -408,19 +343,13 @@ func (ac *AutoConfig) retryListenerCandidates() {
 	}
 }
 
-// AddScheduler allows to register a new scheduler to receive configurations.
-// Previously emitted configurations can be replayed with the replayConfigs flag.
+// AddScheduler a new scheduler to receive configurations.
+//
+// Previously scheduled configurations that have not subsequently been
+// unscheduled can be replayed with the replayConfigs flag.  This replay occurs
+// immediately, before the AddScheduler call returns.
 func (ac *AutoConfig) AddScheduler(name string, s scheduler.Scheduler, replayConfigs bool) {
-	ac.m.Lock()
-	defer ac.m.Unlock()
-
-	ac.scheduler.Register(name, s)
-	if !replayConfigs {
-		return
-	}
-
-	configs := ac.LoadedConfigs()
-	s.Schedule(configs)
+	ac.scheduler.Register(name, s, replayConfigs)
 }
 
 // RemoveScheduler allows to remove a scheduler from the AD system.
@@ -428,139 +357,9 @@ func (ac *AutoConfig) RemoveScheduler(name string) {
 	ac.scheduler.Deregister(name)
 }
 
-func decryptConfig(conf integration.Config) (integration.Config, error) {
-	if config.Datadog.GetBool("secret_backend_skip_checks") {
-		log.Tracef("'secret_backend_skip_checks' is enabled, not decrypting configuration %q", conf.Name)
-		return conf, nil
-	}
-
-	var err error
-
-	// init_config
-	conf.InitConfig, err = secretsDecrypt(conf.InitConfig, conf.Name)
-	if err != nil {
-		return conf, fmt.Errorf("error while decrypting secrets in 'init_config': %s", err)
-	}
-
-	// instances
-	for idx := range conf.Instances {
-		conf.Instances[idx], err = secretsDecrypt(conf.Instances[idx], conf.Name)
-		if err != nil {
-			return conf, fmt.Errorf("error while decrypting secrets in an instance: %s", err)
-		}
-	}
-
-	// metrics
-	conf.MetricConfig, err = secretsDecrypt(conf.MetricConfig, conf.Name)
-	if err != nil {
-		return conf, fmt.Errorf("error while decrypting secrets in 'metrics': %s", err)
-	}
-
-	// logs
-	conf.LogsConfig, err = secretsDecrypt(conf.LogsConfig, conf.Name)
-	if err != nil {
-		return conf, fmt.Errorf("error while decrypting secrets 'logs': %s", err)
-	}
-
-	return conf, nil
-}
-
 func (ac *AutoConfig) processRemovedConfigs(configs []integration.Config) {
-	ac.unschedule(configs)
-	for _, c := range configs {
-		ac.store.removeLoadedConfig(c)
-	}
-}
-
-func (ac *AutoConfig) removeConfigTemplates(configs []integration.Config) {
-	for _, c := range configs {
-		if c.IsTemplate() {
-			// Remove the resolved configurations
-			tplDigest := c.Digest()
-			removedConfigs := ac.store.removeConfigsForTemplate(tplDigest)
-			ac.processRemovedConfigs(removedConfigs)
-
-			// Remove template from the cache
-			err := ac.store.templateCache.del(c)
-			if err != nil {
-				log.Debugf("Could not delete template: %v", err)
-			}
-		}
-	}
-}
-
-// resolveTemplate attempts to resolve a configuration template using the AD
-// identifiers in the `integration.Config` struct to match a Service.
-//
-// The function might return more than one configuration for a single template,
-// for example when the `ad_identifiers` section of a config.yaml file contains
-// multiple entries, or when more than one Service has the same identifier,
-// e.g. 'redis'.
-//
-// The function might return an empty list in the case the configuration has a
-// list of Autodiscovery identifiers for services that are unknown to the
-// resolver at this moment.
-func (ac *AutoConfig) resolveTemplate(tpl integration.Config) []integration.Config {
-	// use a map to dedupe configurations
-	resolvedSet := map[string]integration.Config{}
-
-	// go through the AD identifiers provided by the template
-	for _, id := range tpl.ADIdentifiers {
-		// check out whether any service we know has this identifier
-		serviceIds, found := ac.store.getServiceEntitiesForADID(id)
-		if !found {
-			s := fmt.Sprintf("No service found with this AD identifier: %s", id)
-			errorStats.setResolveWarning(tpl.Name, s)
-			log.Debugf(s)
-			continue
-		}
-
-		for serviceID := range serviceIds {
-			svc := ac.store.getServiceForEntity(serviceID)
-			if svc == nil {
-				log.Warnf("Service %s was removed before we could resolve its config", serviceID)
-				continue
-			}
-			resolvedConfig, err := ac.resolveTemplateForService(tpl, svc)
-			if err != nil {
-				continue
-			}
-			resolvedSet[resolvedConfig.Digest()] = resolvedConfig
-		}
-	}
-
-	// build the slice of configs to return
-	var resolved []integration.Config
-	for _, v := range resolvedSet {
-		resolved = append(resolved, v)
-	}
-
-	return resolved
-}
-
-// resolveTemplateForService calls the config resolver for the template against the service,
-// decrypts secrets and stores the resolved config and service mapping if successful
-func (ac *AutoConfig) resolveTemplateForService(tpl integration.Config, svc listeners.Service) (integration.Config, error) {
-	config, tagsHash, err := configresolver.Resolve(tpl, svc)
-	if err != nil {
-		newErr := fmt.Errorf("error resolving template %s for service %s: %v", tpl.Name, svc.GetServiceID(), err)
-		errorStats.setResolveWarning(tpl.Name, newErr.Error())
-		return tpl, log.Warn(newErr)
-	}
-	resolvedConfig, err := decryptConfig(config)
-	if err != nil {
-		newErr := fmt.Errorf("error decrypting secrets in config %s for service %s: %v", config.Name, svc.GetServiceID(), err)
-		return config, log.Warn(newErr)
-	}
-	ac.store.setLoadedConfig(resolvedConfig)
-	ac.store.addConfigForService(svc.GetServiceID(), resolvedConfig)
-	ac.store.addConfigForTemplate(tpl.Digest(), resolvedConfig)
-	ac.store.setTagsHashForService(
-		svc.GetTaggerEntity(),
-		tagsHash,
-	)
-	errorStats.removeResolveWarnings(tpl.Name)
-	return resolvedConfig, nil
+	changes := ac.cfgMgr.processDelConfigs(configs)
+	ac.applyChanges(changes)
 }
 
 // MapOverLoadedConfigs calls the given function with the map of all
@@ -574,7 +373,7 @@ func (ac *AutoConfig) MapOverLoadedConfigs(f func(map[string]integration.Config)
 		f(map[string]integration.Config{})
 		return
 	}
-	ac.store.mapOverLoadedConfigs(f)
+	ac.cfgMgr.mapOverLoadedConfigs(f)
 }
 
 // LoadedConfigs returns a slice of all loaded configs.  Loaded configs are non-template
@@ -584,7 +383,7 @@ func (ac *AutoConfig) MapOverLoadedConfigs(f func(map[string]integration.Config)
 // The returned slice is freshly created and will not be modified after return.
 func (ac *AutoConfig) LoadedConfigs() []integration.Config {
 	var configs []integration.Config
-	ac.store.mapOverLoadedConfigs(func(loadedConfigs map[string]integration.Config) {
+	ac.cfgMgr.mapOverLoadedConfigs(func(loadedConfigs map[string]integration.Config) {
 		configs = make([]integration.Config, 0, len(loadedConfigs))
 		for _, c := range loadedConfigs {
 			configs = append(configs, c)
@@ -594,19 +393,10 @@ func (ac *AutoConfig) LoadedConfigs() []integration.Config {
 	return configs
 }
 
-// GetUnresolvedTemplates returns templates in cache yet to be resolved
+// GetUnresolvedTemplates returns all templates in the cache, in their unresolved
+// state.
 func (ac *AutoConfig) GetUnresolvedTemplates() map[string][]integration.Config {
 	return ac.store.templateCache.getUnresolvedTemplates()
-}
-
-// GetConfigErrors gets the config errors
-func GetConfigErrors() map[string]string {
-	return errorStats.getConfigErrors()
-}
-
-// GetResolveWarnings get the resolve warnings/errors
-func GetResolveWarnings() map[string][]string {
-	return errorStats.getResolveWarnings()
 }
 
 // processNewService takes a service, tries to match it against templates and
@@ -620,61 +410,22 @@ func (ac *AutoConfig) processNewService(ctx context.Context, svc listeners.Servi
 	)
 
 	// get all the templates matching service identifiers
-	var templates []integration.Config
 	ADIdentifiers, err := svc.GetADIdentifiers(ctx)
 	if err != nil {
 		log.Errorf("Failed to get AD identifiers for service %s, it will not be monitored - %s", svc.GetServiceID(), err)
 		return
 	}
-	for _, adID := range ADIdentifiers {
-		// map the AD identifier to this service for reverse lookup
-		ac.store.setADIDForServices(adID, svc.GetServiceID())
-		tpls, err := ac.store.templateCache.get(adID)
-		if err != nil {
-			log.Debugf("Unable to fetch templates from the cache: %v", err)
-		}
-		templates = append(templates, tpls...)
-	}
 
-	for _, template := range templates {
-		// resolve the template
-		resolvedConfig, err := ac.resolveTemplateForService(template, svc)
-		if err != nil {
-			continue
-		}
-
-		// ask the Collector to schedule the checks
-		ac.schedule([]integration.Config{resolvedConfig})
-	}
-	// FIXME: schedule new services as well
-	ac.schedule([]integration.Config{
-		{
-			LogsConfig:      integration.Data{},
-			ServiceID:       svc.GetServiceID(),
-			TaggerEntity:    svc.GetTaggerEntity(),
-			MetricsExcluded: svc.HasFilter(containers.MetricsFilter),
-			LogsExcluded:    svc.HasFilter(containers.LogsFilter),
-		},
-	})
-
+	changes := ac.cfgMgr.processNewService(ADIdentifiers, svc)
+	ac.applyChanges(changes)
 }
 
 // processDelService takes a service, stops its associated checks, and updates the cache
-func (ac *AutoConfig) processDelService(svc listeners.Service) {
+func (ac *AutoConfig) processDelService(ctx context.Context, svc listeners.Service) {
 	ac.store.removeServiceForEntity(svc.GetServiceID())
-	removedConfigs := ac.store.removeConfigsForService(svc.GetServiceID())
-	ac.processRemovedConfigs(removedConfigs)
+	changes := ac.cfgMgr.processDelService(ctx, svc)
 	ac.store.removeTagsHashForService(svc.GetTaggerEntity())
-	// FIXME: unschedule remove services as well
-	ac.unschedule([]integration.Config{
-		{
-			LogsConfig:      integration.Data{},
-			ServiceID:       svc.GetServiceID(),
-			TaggerEntity:    svc.GetTaggerEntity(),
-			MetricsExcluded: svc.HasFilter(containers.MetricsFilter),
-			LogsExcluded:    svc.HasFilter(containers.LogsFilter),
-		},
-	})
+	ac.applyChanges(changes)
 }
 
 // GetAutodiscoveryErrors fetches AD errors from each ConfigProvider.  The
@@ -683,11 +434,57 @@ func (ac *AutoConfig) processDelService(svc listeners.Service) {
 // and are only intended for display in diagnostic tools like `agent status`.
 func (ac *AutoConfig) GetAutodiscoveryErrors() map[string]map[string]providers.ErrorMsgSet {
 	errors := map[string]map[string]providers.ErrorMsgSet{}
-	for _, pd := range ac.providers {
-		configErrors := pd.provider.GetConfigErrors()
+	for _, cp := range ac.getConfigPollers() {
+		configErrors := cp.provider.GetConfigErrors()
 		if len(configErrors) > 0 {
-			errors[pd.provider.String()] = configErrors
+			errors[cp.provider.String()] = configErrors
 		}
 	}
 	return errors
+}
+
+// applyChanges applies a configChanges object. This always unschedules first.
+func (ac *AutoConfig) applyChanges(changes integration.ConfigChanges) {
+	if len(changes.Unschedule) > 0 {
+		for _, conf := range changes.Unschedule {
+			telemetry.ScheduledConfigs.Dec(conf.Provider, configType(conf))
+		}
+
+		ac.scheduler.Unschedule(changes.Unschedule)
+	}
+
+	if len(changes.Schedule) > 0 {
+		for _, conf := range changes.Schedule {
+			telemetry.ScheduledConfigs.Inc(conf.Provider, configType(conf))
+		}
+
+		ac.scheduler.Schedule(changes.Schedule)
+	}
+}
+
+// getConfigPollers gets a slice of config pollers that can be used without holding
+// ac.m.
+func (ac *AutoConfig) getConfigPollers() []*configPoller {
+	ac.m.RLock()
+	defer ac.m.RUnlock()
+
+	// this value is only ever appended to, so the sliced elements will not change and
+	// no race can occur.
+	return ac.configPollers
+}
+
+func configType(c integration.Config) string {
+	if c.IsLogConfig() {
+		return "logs"
+	}
+
+	if c.IsCheckConfig() {
+		return "check"
+	}
+
+	if c.ClusterCheck {
+		return "clustercheck"
+	}
+
+	return "unknown"
 }

@@ -3,12 +3,13 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build linux
-// +build linux
-
+// Package utils holds utils related files
 package utils
 
-import "math/rand"
+import (
+	"math/rand"
+	"time"
+)
 
 var letterRunes = []rune("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ")
 
@@ -19,4 +20,23 @@ func RandString(n int) string {
 		b[i] = letterRunes[rand.Intn(len(letterRunes))]
 	}
 	return string(b)
+}
+
+func init() {
+	rand.Seed(time.Now().UnixNano())
+}
+
+// NewCookie returns a new random cookie
+func NewCookie() uint64 {
+	return uint64(rand.Uint32())<<32 | uint64(time.Now().UnixNano())
+}
+
+// RandNonZeroUint64 returns a new non-zero uint64
+func RandNonZeroUint64() uint64 {
+	for {
+		value := rand.Uint64()
+		if value != 0 {
+			return value
+		}
+	}
 }

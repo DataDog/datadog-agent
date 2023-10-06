@@ -6,11 +6,12 @@
 package testdata
 
 import (
-	"github.com/DataDog/datadog-agent/pkg/trace/pb"
 	"github.com/DataDog/sketches-go/ddsketch"
 	"github.com/DataDog/sketches-go/ddsketch/mapping"
 	"github.com/DataDog/sketches-go/ddsketch/store"
 	"github.com/golang/protobuf/proto"
+
+	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 )
 
 func getEmptyDDSketch() []byte {
@@ -22,22 +23,22 @@ func getEmptyDDSketch() []byte {
 
 // ClientStatsTests contains a suite of tests for testing the stats endpoint.
 var ClientStatsTests = []struct {
-	In  pb.ClientStatsPayload
-	Out []pb.StatsPayload
+	In  *pb.ClientStatsPayload
+	Out []*pb.StatsPayload
 }{
 	{
-		In: pb.ClientStatsPayload{
+		In: &pb.ClientStatsPayload{
 			Hostname:  "testhost",
 			Env:       "testing",
 			Version:   "0.1-alpha",
 			RuntimeID: "1",
 			Sequence:  2,
 			Service:   "test-service",
-			Stats: []pb.ClientStatsBucket{
+			Stats: []*pb.ClientStatsBucket{
 				{
 					Start:    1,
 					Duration: 2,
-					Stats: []pb.ClientGroupedStats{
+					Stats: []*pb.ClientGroupedStats{
 						{
 							Service:        "",
 							Name:           "___noname00___",
@@ -55,11 +56,12 @@ var ClientStatsTests = []struct {
 				},
 			},
 		},
-		Out: []pb.StatsPayload{{
+		Out: []*pb.StatsPayload{{
 			AgentHostname:  "agent-hostname",
 			AgentEnv:       "agent-env",
+			AgentVersion:   "6.0.0",
 			ClientComputed: true,
-			Stats: []pb.ClientStatsPayload{{
+			Stats: []*pb.ClientStatsPayload{{
 				Hostname:      "testhost",
 				Env:           "testing",
 				Version:       "0.1-alpha",
@@ -68,11 +70,11 @@ var ClientStatsTests = []struct {
 				RuntimeID:     "1",
 				Sequence:      2,
 				Service:       "test-service",
-				Stats: []pb.ClientStatsBucket{
+				Stats: []*pb.ClientStatsBucket{
 					{
 						Start:    0,
 						Duration: 2,
-						Stats: []pb.ClientGroupedStats{
+						Stats: []*pb.ClientGroupedStats{
 							{
 								Service:        "unnamed-go-service",
 								Name:           "noname00",
@@ -95,18 +97,18 @@ var ClientStatsTests = []struct {
 		},
 	},
 	{
-		In: pb.ClientStatsPayload{
+		In: &pb.ClientStatsPayload{
 			Hostname:  "testhost",
 			Env:       "testing",
 			Version:   "0.1-alpha",
 			RuntimeID: "1",
 			Sequence:  2,
 			Service:   "test-service",
-			Stats: []pb.ClientStatsBucket{
+			Stats: []*pb.ClientStatsBucket{
 				{
 					Start:    1,
 					Duration: 2,
-					Stats: []pb.ClientGroupedStats{
+					Stats: []*pb.ClientGroupedStats{
 						{
 							Service:        "svc",
 							Name:           "noname00",
@@ -135,7 +137,7 @@ var ClientStatsTests = []struct {
 				{
 					Start:    3,
 					Duration: 4,
-					Stats: []pb.ClientGroupedStats{
+					Stats: []*pb.ClientGroupedStats{
 						{
 							Service:      "profiles-db",
 							Name:         "sql.query",
@@ -151,12 +153,13 @@ var ClientStatsTests = []struct {
 				},
 			},
 		},
-		Out: []pb.StatsPayload{
+		Out: []*pb.StatsPayload{
 			{
 				AgentHostname:  "agent-hostname",
 				AgentEnv:       "agent-env",
+				AgentVersion:   "6.0.0",
 				ClientComputed: true,
-				Stats: []pb.ClientStatsPayload{
+				Stats: []*pb.ClientStatsPayload{
 					{
 						Hostname:         "testhost",
 						Env:              "testing",
@@ -167,11 +170,11 @@ var ClientStatsTests = []struct {
 						Sequence:         2,
 						AgentAggregation: "distributions",
 						Service:          "test-service",
-						Stats: []pb.ClientStatsBucket{
+						Stats: []*pb.ClientStatsBucket{
 							{
 								Start:    0,
 								Duration: 2,
-								Stats: []pb.ClientGroupedStats{
+								Stats: []*pb.ClientGroupedStats{
 									{
 										Service:        "svc",
 										Name:           "noname00",
@@ -209,11 +212,11 @@ var ClientStatsTests = []struct {
 						Sequence:         2,
 						AgentAggregation: "distributions",
 						Service:          "test-service",
-						Stats: []pb.ClientStatsBucket{
+						Stats: []*pb.ClientStatsBucket{
 							{
 								Start:    0,
 								Duration: 4,
-								Stats: []pb.ClientGroupedStats{
+								Stats: []*pb.ClientGroupedStats{
 									{
 										Service:      "profiles-db",
 										Name:         "sql.query",

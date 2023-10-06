@@ -1,0 +1,5 @@
+# This configuration goal is to enable system-probe in order to have the following files in the flare:
+#
+# ./etc/security-agent.yaml
+# ./logs/security-agent.log
+runtime_security_config.enabled: true

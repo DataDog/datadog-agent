@@ -7,12 +7,13 @@ package uptane
 
 import (
 	"fmt"
-	"io/ioutil"
+	"io"
 	"testing"
 
-	"github.com/DataDog/datadog-agent/pkg/proto/pbgo"
+	"github.com/DataDog/go-tuf/client"
 	"github.com/stretchr/testify/assert"
-	"github.com/theupdateframework/go-tuf/client"
+
+	pbgo "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
 )
 
 func generateUpdate(baseVersion uint64) *pbgo.LatestConfigsResponse {
@@ -92,9 +93,10 @@ func generateUpdate(baseVersion uint64) *pbgo.LatestConfigsResponse {
 }
 
 func TestRemoteStoreConfig(t *testing.T) {
-	db := getTestDB()
-	targetStore, err := newTargetStore(db, "testcachekey")
-	assert.NoError(t, err)
+	db := newTransactionalStore(getTestDB(t))
+	defer db.commit()
+
+	targetStore := newTargetStore(db, "testcachekey")
 	store := newRemoteStoreConfig(targetStore)
 
 	testUpdate1 := generateUpdate(1)
@@ -157,9 +159,9 @@ func TestRemoteStoreConfig(t *testing.T) {
 }
 
 func TestRemoteStoreDirector(t *testing.T) {
-	db := getTestDB()
-	targetStore, err := newTargetStore(db, "testcachekey")
-	assert.NoError(t, err)
+	db := newTransactionalStore(getTestDB(t))
+	defer db.commit()
+	targetStore := newTargetStore(db, "testcachekey")
 	store := newRemoteStoreDirector(targetStore)
 
 	testUpdate1 := generateUpdate(1)
@@ -220,7 +222,7 @@ func assertGetMeta(t *testing.T, store *remoteStore, path string, expectedConten
 	}
 	assert.NoError(t, err)
 	assert.Equal(t, int64(len(expectedContent)), size)
-	content, err := ioutil.ReadAll(stream)
+	content, err := io.ReadAll(stream)
 	assert.NoError(t, err)
 	assert.Equal(t, expectedContent, content)
 }
@@ -233,7 +235,7 @@ func assertGetTarget(t *testing.T, store *remoteStore, path string, expectedCont
 	}
 	assert.NoError(t, err)
 	assert.Equal(t, int64(len(expectedContent)), size)
-	content, err := ioutil.ReadAll(stream)
+	content, err := io.ReadAll(stream)
 	assert.NoError(t, err)
 	assert.Equal(t, expectedContent, content)
 }

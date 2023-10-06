@@ -4,8 +4,8 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build functionaltests
-// +build functionaltests
 
+// Package tests holds tests related files
 package tests
 
 import (
@@ -16,7 +16,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"golang.org/x/sys/unix"
 
-	sprobe "github.com/DataDog/datadog-agent/pkg/security/probe"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 )
@@ -25,7 +24,7 @@ func TestMMapEvent(t *testing.T) {
 	ruleDefs := []*rules.RuleDefinition{
 		{
 			ID:         "test_mmap",
-			Expression: `mmap.protection & (VM_WRITE | VM_EXEC) > 0 && process.file.name == "testsuite"`,
+			Expression: `(mmap.protection & (VM_READ|VM_WRITE|VM_EXEC)) == (VM_READ|VM_WRITE|VM_EXEC) && process.file.name == "testsuite"`,
 		},
 	}
 
@@ -46,13 +45,20 @@ func TestMMapEvent(t *testing.T) {
 				return fmt.Errorf("couldn't unmap memory segment: %w", err)
 			}
 			return nil
-		}, func(event *sprobe.Event, r *rules.Rule) {
+		}, func(event *model.Event, r *rules.Rule) {
 			assert.Equal(t, "mmap", event.GetType(), "wrong event type")
-			assert.NotEqual(t, 0, event.MMap.Protection&(unix.PROT_READ|unix.PROT_WRITE|unix.PROT_EXEC), fmt.Sprintf("wrong protection: %s", model.Protection(event.MMap.Protection)))
+			assert.Equal(t, unix.PROT_READ|unix.PROT_WRITE|unix.PROT_EXEC, event.MMap.Protection&(unix.PROT_READ|unix.PROT_WRITE|unix.PROT_EXEC), fmt.Sprintf("wrong protection: %s", model.Protection(event.MMap.Protection)))
 
-			if !validateMMapSchema(t, event) {
-				t.Error(event.String())
+			value, _ := event.GetFieldValue("event.async")
+			assert.Equal(t, value.(bool), false)
+
+			executable, err := os.Executable()
+			if err != nil {
+				t.Fatal(err)
 			}
+			assertFieldEqual(t, event, "process.file.path", executable)
+
+			test.validateMMapSchema(t, event)
 		})
 	})
 }

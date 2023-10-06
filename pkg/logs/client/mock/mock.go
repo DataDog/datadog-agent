@@ -6,13 +6,13 @@
 package mock
 
 import (
-	"io/ioutil"
+	"io"
 	"net"
 	"testing"
 )
 
 // NewMockLogsIntake creates a TCP server that mimics the logs backend and returns
-// a Listener. It's the caller's responsibility to close the listener.
+// a Listener. The intake only accepts one connection and then exits.
 func NewMockLogsIntake(t *testing.T) net.Listener {
 	// This needs to be an IPv4 because most of the code doesn't handle IPv6 yet.
 	l, err := net.Listen("tcp", "127.0.0.1:0")
@@ -21,20 +21,17 @@ func NewMockLogsIntake(t *testing.T) net.Listener {
 	}
 	go func() {
 		defer l.Close()
-		for {
-			conn, err := l.Accept()
-			if err != nil {
-				return
-			}
-			defer conn.Close()
-
-			for {
-				_, err := ioutil.ReadAll(conn)
-				if err != nil {
-					break
-				}
-			}
+		conn, err := l.Accept()
+		if err != nil {
 			return
+		}
+		defer conn.Close()
+
+		for {
+			_, err := io.ReadAll(conn)
+			if err != nil {
+				break
+			}
 		}
 	}()
 	return l

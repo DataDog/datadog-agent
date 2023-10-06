@@ -9,9 +9,11 @@ import (
 	"regexp"
 	"testing"
 
-	"github.com/DataDog/datadog-agent/pkg/logs/config"
-	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/stretchr/testify/assert"
+
+	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
+	"github.com/DataDog/datadog-agent/pkg/logs/message"
+	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 )
 
 func TestExclusion(t *testing.T) {
@@ -42,7 +44,7 @@ func TestInclusion(t *testing.T) {
 	var shouldProcess bool
 	var redactedMessage []byte
 
-	source := config.LogSource{Config: &config.LogsConfig{}}
+	source := sources.LogSource{Config: &config.LogsConfig{}}
 	shouldProcess, redactedMessage = p.applyRedactingRules(newMessage([]byte("hello"), &source, ""))
 	assert.Equal(t, false, shouldProcess)
 	assert.Nil(t, redactedMessage)
@@ -70,7 +72,7 @@ func TestExclusionWithInclusion(t *testing.T) {
 	var shouldProcess bool
 	var redactedMessage []byte
 
-	source := config.LogSource{Config: &config.LogsConfig{ProcessingRules: []*config.ProcessingRule{iRule}}}
+	source := sources.LogSource{Config: &config.LogsConfig{ProcessingRules: []*config.ProcessingRule{iRule}}}
 
 	shouldProcess, redactedMessage = p.applyRedactingRules(newMessage([]byte("bob@datadoghq.com"), &source, ""))
 	assert.Equal(t, false, shouldProcess)
@@ -131,7 +133,7 @@ func TestMask(t *testing.T) {
 func TestTruncate(t *testing.T) {
 	p := &Processor{}
 
-	source := config.NewLogSource("", &config.LogsConfig{})
+	source := sources.NewLogSource("", &config.LogsConfig{})
 	var redactedMessage []byte
 
 	_, redactedMessage = p.applyRedactingRules(newMessage([]byte("hello"), source, ""))
@@ -149,10 +151,10 @@ func newProcessingRule(ruleType, replacePlaceholder, pattern string) *config.Pro
 	}
 }
 
-func newSource(ruleType, replacePlaceholder, pattern string) config.LogSource {
-	return config.LogSource{Config: &config.LogsConfig{ProcessingRules: []*config.ProcessingRule{newProcessingRule(ruleType, replacePlaceholder, pattern)}}}
+func newSource(ruleType, replacePlaceholder, pattern string) sources.LogSource {
+	return sources.LogSource{Config: &config.LogsConfig{ProcessingRules: []*config.ProcessingRule{newProcessingRule(ruleType, replacePlaceholder, pattern)}}}
 }
 
-func newMessage(content []byte, source *config.LogSource, status string) *message.Message {
+func newMessage(content []byte, source *sources.LogSource, status string) *message.Message {
 	return message.NewMessageWithSource(content, status, source, 0)
 }

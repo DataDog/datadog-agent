@@ -8,16 +8,18 @@ package sender
 import (
 	"testing"
 
+	"github.com/stretchr/testify/assert"
+
+	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/client"
 	"github.com/DataDog/datadog-agent/pkg/logs/client/http"
 	"github.com/DataDog/datadog-agent/pkg/logs/client/mock"
 	"github.com/DataDog/datadog-agent/pkg/logs/client/tcp"
-	"github.com/DataDog/datadog-agent/pkg/logs/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
-	"github.com/stretchr/testify/assert"
+	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 )
 
-func newMessage(content []byte, source *config.LogSource, status string) *message.Payload {
+func newMessage(content []byte, source *sources.LogSource, status string) *message.Payload {
 	return &message.Payload{
 		Messages: []*message.Message{message.NewMessageWithSource(content, status, source, 0)},
 		Encoded:  content,
@@ -29,7 +31,7 @@ func TestSender(t *testing.T) {
 	l := mock.NewMockLogsIntake(t)
 	defer l.Close()
 
-	source := config.NewLogSource("", &config.LogsConfig{})
+	source := sources.NewLogSource("", &config.LogsConfig{})
 
 	input := make(chan *message.Payload, 1)
 	output := make(chan *message.Payload, 1)

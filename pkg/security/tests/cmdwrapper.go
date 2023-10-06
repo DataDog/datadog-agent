@@ -4,23 +4,45 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build functionaltests || stresstests
-// +build functionaltests stresstests
 
+// Package tests holds tests related files
 package tests
 
 import (
 	"fmt"
 	"os/exec"
+	"strings"
 	"testing"
+
+	"github.com/DataDog/datadog-agent/pkg/security/utils"
 )
 
 type wrapperType string
 
 const (
+	noWrapperType     wrapperType = "" //nolint:deadcode,unused
 	stdWrapperType    wrapperType = "std"
 	dockerWrapperType wrapperType = "docker"
 	multiWrapperType  wrapperType = "multi"
 )
+
+// Because of rate limits, we allow the specification of multiple images for the same "kind".
+// Since dockerhub limits per pulls by 6 hours, and aws limits by data over a month, we first try the dockerhub
+// one and fallback on aws.
+var dockerImageLibrary = map[string][]string{
+	"ubuntu": {
+		"ubuntu:20.04",
+		"public.ecr.aws/ubuntu/ubuntu:20.04",
+	},
+	"centos": {
+		"centos:7",
+		"public.ecr.aws/centos/centos:7",
+	},
+	"alpine": {
+		"alpine",
+		"public.ecr.aws/docker/library/alpine:latest",
+	},
+}
 
 type cmdWrapper interface {
 	Run(t *testing.T, name string, fnc func(t *testing.T, kind wrapperType, cmd func(bin string, args []string, envs []string) *exec.Cmd))
@@ -53,8 +75,11 @@ func newStdCmdWrapper() *stdCmdWrapper {
 
 type dockerCmdWrapper struct {
 	executable    string
-	root          string
+	mountSrc      string
+	mountDest     string
 	containerName string
+	containerID   string
+	image         string
 }
 
 func (d *dockerCmdWrapper) Command(bin string, args []string, envs []string) *exec.Cmd {
@@ -72,9 +97,13 @@ func (d *dockerCmdWrapper) Command(bin string, args []string, envs []string) *ex
 }
 
 func (d *dockerCmdWrapper) start() ([]byte, error) {
-	d.containerName = fmt.Sprintf("docker-wrapper-%s", randStringRunes(6))
-	cmd := exec.Command(d.executable, "run", "--rm", "-d", "--name", d.containerName, "-v", d.root+":"+d.root, "ubuntu:focal", "sleep", "600")
-	return cmd.CombinedOutput()
+	d.containerName = fmt.Sprintf("docker-wrapper-%s", utils.RandString(6))
+	cmd := exec.Command(d.executable, "run", "--rm", "-d", "--name", d.containerName, "-v", d.mountSrc+":"+d.mountDest, d.image, "sleep", "1200")
+	out, err := cmd.CombinedOutput()
+	if err == nil {
+		d.containerID = strings.TrimSpace(string(out))
+	}
+	return out, err
 }
 
 func (d *dockerCmdWrapper) stop() ([]byte, error) {
@@ -99,11 +128,30 @@ func (d *dockerCmdWrapper) Run(t *testing.T, name string, fnc func(t *testing.T,
 	})
 }
 
+func (d *dockerCmdWrapper) RunTest(t *testing.T, name string, fnc func(t *testing.T, kind wrapperType, cmd func(bin string, args []string, envs []string) *exec.Cmd)) {
+	t.Run(name, func(t *testing.T) {
+		fnc(t, d.Type(), d.Command)
+	})
+}
+
 func (d *dockerCmdWrapper) Type() wrapperType {
 	return dockerWrapperType
 }
 
-func newDockerCmdWrapper(root string) (*dockerCmdWrapper, error) {
+func (d *dockerCmdWrapper) selectImageFromLibrary(kind string) error {
+	var err error
+	for _, entry := range dockerImageLibrary[kind] {
+		cmd := exec.Command(d.executable, "pull", entry)
+		err = cmd.Run()
+		if err == nil {
+			d.image = entry
+			break
+		}
+	}
+	return err
+}
+
+func newDockerCmdWrapper(mountSrc, mountDest string, kind string) (*dockerCmdWrapper, error) {
 	executable, err := exec.LookPath("docker")
 	if err != nil {
 		return nil, err
@@ -115,10 +163,17 @@ func newDockerCmdWrapper(root string) (*dockerCmdWrapper, error) {
 		return nil, err
 	}
 
-	return &dockerCmdWrapper{
+	wrapper := &dockerCmdWrapper{
 		executable: executable,
-		root:       root,
-	}, nil
+		mountSrc:   mountSrc,
+		mountDest:  mountDest,
+	}
+
+	if err := wrapper.selectImageFromLibrary(kind); err != nil {
+		return nil, err
+	}
+
+	return wrapper, nil
 }
 
 type multiCmdWrapper struct {

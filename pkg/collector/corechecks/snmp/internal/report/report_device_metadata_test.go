@@ -18,10 +18,13 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
+	"github.com/DataDog/datadog-agent/pkg/networkdevice/metadata"
+	"github.com/DataDog/datadog-agent/pkg/networkdevice/profile/profiledefinition"
+	"github.com/DataDog/datadog-agent/pkg/snmp/snmpintegration"
+
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/common"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/checkconfig"
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/metadata"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/valuestore"
 )
 
@@ -59,16 +62,16 @@ func Test_metricSender_reportNetworkDeviceMetadata_withoutInterfaces(t *testing.
 		DeviceIDTags:       []string{"device_name:127.0.0.1"},
 		ResolvedSubnetName: "127.0.0.0/29",
 		Namespace:          "my-ns",
-		Metadata: checkconfig.MetadataConfig{
+		Metadata: profiledefinition.MetadataConfig{
 			"device": {
-				Fields: map[string]checkconfig.MetadataField{
+				Fields: map[string]profiledefinition.MetadataField{
 					"name": {
 						// Should use value from Symbol `1.3.6.1.2.1.1.5.0`
-						Symbol: checkconfig.SymbolConfig{
+						Symbol: profiledefinition.SymbolConfig{
 							OID:  "1.3.6.1.2.1.1.5.0",
 							Name: "sysName",
 						},
-						Symbols: []checkconfig.SymbolConfig{
+						Symbols: []profiledefinition.SymbolConfig{
 							{
 								OID:  "1.2.99",
 								Name: "doesNotExist",
@@ -77,11 +80,11 @@ func Test_metricSender_reportNetworkDeviceMetadata_withoutInterfaces(t *testing.
 					},
 					"description": {
 						// Should use value from first element in Symbols `1.3.6.1.2.1.1.1.0`
-						Symbol: checkconfig.SymbolConfig{
+						Symbol: profiledefinition.SymbolConfig{
 							OID:  "1.9999",
 							Name: "doesNotExist",
 						},
-						Symbols: []checkconfig.SymbolConfig{
+						Symbols: []profiledefinition.SymbolConfig{
 							{
 								OID:  "1.3.6.1.2.1.1.1.0",
 								Name: "sysDescr",
@@ -90,11 +93,11 @@ func Test_metricSender_reportNetworkDeviceMetadata_withoutInterfaces(t *testing.
 					},
 					"location": {
 						// Should use value from first element in Symbols `1.3.6.1.2.1.1.1.0`
-						Symbol: checkconfig.SymbolConfig{
+						Symbol: profiledefinition.SymbolConfig{
 							OID:  "1.9999",
 							Name: "doesNotExist",
 						},
-						Symbols: []checkconfig.SymbolConfig{
+						Symbols: []profiledefinition.SymbolConfig{
 							{
 								OID:  "1.888",
 								Name: "doesNotExist2",
@@ -118,7 +121,7 @@ func Test_metricSender_reportNetworkDeviceMetadata_withoutInterfaces(t *testing.
 	collectTime, err := time.Parse(layout, str)
 	assert.NoError(t, err)
 
-	ms.ReportNetworkDeviceMetadata(config, storeWithoutIfName, []string{"tag1", "tag2"}, collectTime, metadata.DeviceStatusReachable)
+	ms.ReportNetworkDeviceMetadata(config, storeWithoutIfName, []string{"tag1", "tag2"}, collectTime, metadata.DeviceStatusReachable, nil)
 
 	// language=json
 	event := []byte(`
@@ -150,7 +153,7 @@ func Test_metricSender_reportNetworkDeviceMetadata_withoutInterfaces(t *testing.
 	err = json.Compact(compactEvent, event)
 	assert.NoError(t, err)
 
-	sender.AssertEventPlatformEvent(t, compactEvent.String(), "network-devices-metadata")
+	sender.AssertEventPlatformEvent(t, compactEvent.Bytes(), "network-devices-metadata")
 
 	w.Flush()
 	logs := b.String()
@@ -195,7 +198,7 @@ profiles:
 	collectTime, err := time.Parse(layout, str)
 	assert.NoError(t, err)
 
-	ms.ReportNetworkDeviceMetadata(config, storeWithoutIfName, []string{"tag1", "tag2"}, collectTime, metadata.DeviceStatusReachable)
+	ms.ReportNetworkDeviceMetadata(config, storeWithoutIfName, []string{"tag1", "tag2"}, collectTime, metadata.DeviceStatusReachable, nil)
 
 	// language=json
 	event := []byte(`
@@ -227,22 +230,45 @@ profiles:
 	err = json.Compact(compactEvent, event)
 	assert.NoError(t, err)
 
-	sender.AssertEventPlatformEvent(t, compactEvent.String(), "network-devices-metadata")
+	sender.AssertEventPlatformEvent(t, compactEvent.Bytes(), "network-devices-metadata")
 }
 
-func Test_metricSender_reportNetworkDeviceMetadata_withInterfaces(t *testing.T) {
+func Test_metricSender_reportNetworkDeviceMetadata_withDeviceInterfacesAndDiagnoses(t *testing.T) {
 	var storeWithIfName = &valuestore.ResultValueStore{
 		ColumnValues: valuestore.ColumnResultValuesType{
 			"1.3.6.1.2.1.31.1.1.1.1": {
 				"1": valuestore.ResultValue{Value: float64(21)},
 				"2": valuestore.ResultValue{Value: float64(22)},
 			},
+			"1.3.6.1.2.1.2.2.1.7": {
+				"1": valuestore.ResultValue{Value: float64(2)},
+				"2": valuestore.ResultValue{Value: float64(2)},
+			},
+			"1.3.6.1.2.1.2.2.1.8": {
+				"1": valuestore.ResultValue{Value: float64(1)},
+				"2": valuestore.ResultValue{Value: float64(2)},
+			},
+			"1.3.6.1.2.1.31.1.1.1.18": {
+				"1": valuestore.ResultValue{Value: "ifAlias1"},
+				"2": valuestore.ResultValue{Value: ""},
+			},
 		},
 	}
 	sender := mocksender.NewMockSender("testID") // required to initiate aggregator
 	sender.On("EventPlatformEvent", mock.Anything, mock.Anything).Return()
+	sender.On("Gauge", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
 	ms := &MetricSender{
 		sender: sender,
+		interfaceConfigs: []snmpintegration.InterfaceConfig{
+			{
+				MatchField: "index",
+				MatchValue: "2",
+				Tags: []string{
+					"muted",
+					"someKey:someValue",
+				},
+			},
+		},
 	}
 
 	config := &checkconfig.CheckConfig{
@@ -251,19 +277,37 @@ func Test_metricSender_reportNetworkDeviceMetadata_withInterfaces(t *testing.T) 
 		DeviceIDTags:       []string{"device_name:127.0.0.1"},
 		ResolvedSubnetName: "127.0.0.0/29",
 		Namespace:          "my-ns",
-		Metadata: checkconfig.MetadataConfig{
+		Metadata: profiledefinition.MetadataConfig{
 			"interface": {
-				Fields: map[string]checkconfig.MetadataField{
+				Fields: map[string]profiledefinition.MetadataField{
 					"name": {
-						Symbol: checkconfig.SymbolConfig{
+						Symbol: profiledefinition.SymbolConfig{
 							OID:  "1.3.6.1.2.1.31.1.1.1.1",
 							Name: "ifName",
 						},
 					},
+					"alias": {
+						Symbol: profiledefinition.SymbolConfig{
+							OID:  "1.3.6.1.2.1.31.1.1.1.18",
+							Name: "ifAlias",
+						},
+					},
+					"admin_status": {
+						Symbol: profiledefinition.SymbolConfig{
+							OID:  "1.3.6.1.2.1.2.2.1.7",
+							Name: "ifAdminStatus",
+						},
+					},
+					"oper_status": {
+						Symbol: profiledefinition.SymbolConfig{
+							OID:  "1.3.6.1.2.1.2.2.1.8",
+							Name: "ifOperStatus",
+						},
+					},
 				},
-				IDTags: checkconfig.MetricTagConfigList{
-					checkconfig.MetricTagConfig{
-						Column: checkconfig.SymbolConfig{
+				IDTags: profiledefinition.MetricTagConfigList{
+					profiledefinition.MetricTagConfig{
+						Column: profiledefinition.SymbolConfig{
 							OID:  "1.3.6.1.2.1.31.1.1.1.1",
 							Name: "interface",
 						},
@@ -274,12 +318,23 @@ func Test_metricSender_reportNetworkDeviceMetadata_withInterfaces(t *testing.T) 
 		},
 	}
 
+	diagnosis := []metadata.DiagnosisMetadata{{ResourceType: "device", ResourceID: "1234", Diagnoses: []metadata.Diagnosis{{
+		Severity: "warn",
+		Code:     "TEST_DIAGNOSIS",
+		Message:  "Test",
+	}}}}
+
 	layout := "2006-01-02 15:04:05"
 	str := "2014-11-12 11:45:26"
 	collectTime, err := time.Parse(layout, str)
 	assert.NoError(t, err)
-	ms.ReportNetworkDeviceMetadata(config, storeWithIfName, []string{"tag1", "tag2"}, collectTime, metadata.DeviceStatusReachable)
+	ms.ReportNetworkDeviceMetadata(config, storeWithIfName, []string{"tag1", "tag2"}, collectTime, metadata.DeviceStatusReachable, diagnosis)
 
+	ifTags1 := []string{"tag1", "tag2", "status:down", "interface:21", "interface_alias:ifAlias1", "interface_index:1", "oper_status:up", "admin_status:down"}
+	ifTags2 := []string{"tag1", "tag2", "status:off", "interface:22", "interface_index:2", "oper_status:down", "admin_status:down", "muted", "someKey:someValue"}
+
+	sender.AssertMetric(t, "Gauge", interfaceStatusMetric, 1., "", ifTags1)
+	sender.AssertMetric(t, "Gauge", interfaceStatusMetric, 1., "", ifTags2)
 	// language=json
 	event := []byte(`
 {
@@ -307,7 +362,10 @@ func Test_metricSender_reportNetworkDeviceMetadata_withInterfaces(t *testing.T) 
                 "interface:21"
             ],
             "index": 1,
-            "name": "21"
+			"name": "21",
+			"alias": "ifAlias1",
+			"admin_status": 2,
+			"oper_status": 1
         },
         {
             "device_id": "1234",
@@ -315,8 +373,23 @@ func Test_metricSender_reportNetworkDeviceMetadata_withInterfaces(t *testing.T) 
                 "interface:22"
             ],
             "index": 2,
-            "name": "22"
+            "name": "22",
+			"admin_status": 2,
+			"oper_status": 2
         }
+    ],
+    "diagnoses": [
+      {
+        "resource_type": "device",
+        "resource_id": "1234",
+        "diagnoses": [
+          {
+            "severity": "warn",
+            "message": "Test",
+            "code": "TEST_DIAGNOSIS"
+          }
+        ]
+      }
     ],
     "collect_timestamp":1415792726
 }
@@ -325,7 +398,7 @@ func Test_metricSender_reportNetworkDeviceMetadata_withInterfaces(t *testing.T) 
 	err = json.Compact(compactEvent, event)
 	assert.NoError(t, err)
 
-	sender.AssertEventPlatformEvent(t, compactEvent.String(), "network-devices-metadata")
+	sender.AssertEventPlatformEvent(t, compactEvent.Bytes(), "network-devices-metadata")
 }
 
 func Test_metricSender_reportNetworkDeviceMetadata_fallbackOnFieldValue(t *testing.T) {
@@ -345,11 +418,11 @@ func Test_metricSender_reportNetworkDeviceMetadata_fallbackOnFieldValue(t *testi
 		DeviceIDTags:       []string{"device_name:127.0.0.1"},
 		ResolvedSubnetName: "127.0.0.0/29",
 		Namespace:          "my-ns",
-		Metadata: checkconfig.MetadataConfig{
+		Metadata: profiledefinition.MetadataConfig{
 			"device": {
-				Fields: map[string]checkconfig.MetadataField{
+				Fields: map[string]profiledefinition.MetadataField{
 					"name": {
-						Symbol: checkconfig.SymbolConfig{
+						Symbol: profiledefinition.SymbolConfig{
 							OID:  "1.999",
 							Name: "doesNotExist",
 						},
@@ -364,7 +437,7 @@ func Test_metricSender_reportNetworkDeviceMetadata_fallbackOnFieldValue(t *testi
 	collectTime, err := time.Parse(layout, str)
 	assert.NoError(t, err)
 
-	ms.ReportNetworkDeviceMetadata(config, emptyMetadataStore, []string{"tag1", "tag2"}, collectTime, metadata.DeviceStatusReachable)
+	ms.ReportNetworkDeviceMetadata(config, emptyMetadataStore, []string{"tag1", "tag2"}, collectTime, metadata.DeviceStatusReachable, nil)
 
 	// language=json
 	event := []byte(`
@@ -394,40 +467,250 @@ func Test_metricSender_reportNetworkDeviceMetadata_fallbackOnFieldValue(t *testi
 	err = json.Compact(compactEvent, event)
 	assert.NoError(t, err)
 
-	sender.AssertEventPlatformEvent(t, compactEvent.String(), "network-devices-metadata")
+	sender.AssertEventPlatformEvent(t, compactEvent.Bytes(), "network-devices-metadata")
 }
 
-func Test_batchPayloads(t *testing.T) {
-	collectTime := common.MockTimeNow()
-	deviceID := "123"
-	device := metadata.DeviceMetadata{ID: deviceID}
-
-	var interfaces []metadata.InterfaceMetadata
-	for i := 0; i < 350; i++ {
-		interfaces = append(interfaces, metadata.InterfaceMetadata{DeviceID: deviceID, Index: int32(i)})
+func TestComputeInterfaceStatus(t *testing.T) {
+	type testCase struct {
+		ifAdminStatus common.IfAdminStatus
+		ifOperStatus  common.IfOperStatus
+		status        common.InterfaceStatus
 	}
-	payloads := batchPayloads("my-ns", "127.0.0.0/30", collectTime, 100, device, interfaces)
 
-	assert.Equal(t, 4, len(payloads))
+	// Test the method with only valid input for ifAdminStatus and ifOperStatus
+	allTests := []testCase{
+		// Valid test cases
+		{common.AdminStatus_Up, common.OperStatus_Up, common.InterfaceStatus_Up},
+		{common.AdminStatus_Up, common.OperStatus_Down, common.InterfaceStatus_Down},
+		{common.AdminStatus_Up, common.OperStatus_Testing, common.InterfaceStatus_Warning},
+		{common.AdminStatus_Up, common.OperStatus_Unknown, common.InterfaceStatus_Warning},
+		{common.AdminStatus_Up, common.OperStatus_Dormant, common.InterfaceStatus_Warning},
+		{common.AdminStatus_Up, common.OperStatus_NotPresent, common.InterfaceStatus_Warning},
+		{common.AdminStatus_Up, common.OperStatus_LowerLayerDown, common.InterfaceStatus_Warning},
+		{common.AdminStatus_Down, common.OperStatus_Up, common.InterfaceStatus_Down},
+		{common.AdminStatus_Down, common.OperStatus_Down, common.InterfaceStatus_Off},
+		{common.AdminStatus_Down, common.OperStatus_Testing, common.InterfaceStatus_Warning},
+		{common.AdminStatus_Down, common.OperStatus_Unknown, common.InterfaceStatus_Warning},
+		{common.AdminStatus_Down, common.OperStatus_Dormant, common.InterfaceStatus_Warning},
+		{common.AdminStatus_Down, common.OperStatus_NotPresent, common.InterfaceStatus_Warning},
+		{common.AdminStatus_Down, common.OperStatus_LowerLayerDown, common.InterfaceStatus_Warning},
+		{common.AdminStatus_Testing, common.OperStatus_Up, common.InterfaceStatus_Warning},
+		{common.AdminStatus_Testing, common.OperStatus_Down, common.InterfaceStatus_Down},
+		{common.AdminStatus_Testing, common.OperStatus_Testing, common.InterfaceStatus_Warning},
+		{common.AdminStatus_Testing, common.OperStatus_Unknown, common.InterfaceStatus_Warning},
+		{common.AdminStatus_Testing, common.OperStatus_Dormant, common.InterfaceStatus_Warning},
+		{common.AdminStatus_Testing, common.OperStatus_NotPresent, common.InterfaceStatus_Warning},
+		{common.AdminStatus_Testing, common.OperStatus_LowerLayerDown, common.InterfaceStatus_Warning},
 
-	assert.Equal(t, "my-ns", payloads[0].Namespace)
-	assert.Equal(t, "127.0.0.0/30", payloads[0].Subnet)
-	assert.Equal(t, int64(946684800), payloads[0].CollectTimestamp)
-	assert.Equal(t, []metadata.DeviceMetadata{device}, payloads[0].Devices)
-	assert.Equal(t, 99, len(payloads[0].Interfaces))
-	assert.Equal(t, interfaces[0:99], payloads[0].Interfaces)
+		// Invalid ifOperStatus
+		{common.AdminStatus_Up, 0, common.InterfaceStatus_Warning},
+		{common.AdminStatus_Up, 8, common.InterfaceStatus_Warning},
+		{common.AdminStatus_Up, 100, common.InterfaceStatus_Warning},
+		{common.AdminStatus_Down, 0, common.InterfaceStatus_Warning},
+		{common.AdminStatus_Down, 8, common.InterfaceStatus_Warning},
+		{common.AdminStatus_Down, 100, common.InterfaceStatus_Warning},
+		{common.AdminStatus_Testing, 0, common.InterfaceStatus_Warning},
+		{common.AdminStatus_Testing, 8, common.InterfaceStatus_Warning},
+		{common.AdminStatus_Testing, 100, common.InterfaceStatus_Warning},
 
-	assert.Equal(t, "127.0.0.0/30", payloads[1].Subnet)
-	assert.Equal(t, int64(946684800), payloads[1].CollectTimestamp)
-	assert.Equal(t, 0, len(payloads[1].Devices))
-	assert.Equal(t, 100, len(payloads[1].Interfaces))
-	assert.Equal(t, interfaces[99:199], payloads[1].Interfaces)
+		// Invalid ifAdminStatus
+		{0, common.OperStatus_Unknown, common.InterfaceStatus_Down},
+		{0, common.OperStatus_Down, common.InterfaceStatus_Down},
+		{0, common.OperStatus_Up, common.InterfaceStatus_Down},
+		{4, common.OperStatus_Up, common.InterfaceStatus_Down},
+		{4, common.OperStatus_Down, common.InterfaceStatus_Down},
+		{4, common.OperStatus_Testing, common.InterfaceStatus_Down},
+		{100, common.OperStatus_Up, common.InterfaceStatus_Down},
+		{100, common.OperStatus_Down, common.InterfaceStatus_Down},
+		{100, common.OperStatus_Testing, common.InterfaceStatus_Down},
+	}
+	for _, test := range allTests {
+		assert.Equal(t, test.status, computeInterfaceStatus(test.ifAdminStatus, test.ifOperStatus))
+	}
+}
 
-	assert.Equal(t, 0, len(payloads[2].Devices))
-	assert.Equal(t, 100, len(payloads[2].Interfaces))
-	assert.Equal(t, interfaces[199:299], payloads[2].Interfaces)
+func Test_getRemManIPAddrByLLDPRemIndex(t *testing.T) {
+	indexes := []string{
+		// IPv4
+		"0.102.2.1.4.10.250.0.7",
+		"0.102.99.1.4.10.250.0.8",
 
-	assert.Equal(t, 0, len(payloads[3].Devices))
-	assert.Equal(t, 51, len(payloads[3].Interfaces))
-	assert.Equal(t, interfaces[299:350], payloads[3].Interfaces)
+		// IPv6
+		"370.5.1.2.16.254.128.0.0.0.0.0.0.26.146.164.255.254.48.12.1",
+
+		// Invalid
+		"0.102.2.1.4.10.250", // too short, ignored
+	}
+	remManIPAddrByLLDPRemIndex := getRemManIPAddrByLLDPRemIndex(indexes)
+	expectedResult := map[string]string{
+		"2":  "10.250.0.7",
+		"99": "10.250.0.8",
+	}
+	assert.Equal(t, expectedResult, remManIPAddrByLLDPRemIndex)
+}
+
+func Test_resolveLocalInterface(t *testing.T) {
+	interfaceIndexByIDType := map[string]map[string][]int32{
+		"mac_address": {
+			"00:00:00:00:00:01": []int32{1},
+			"00:00:00:00:00:02": []int32{2},
+			"00:00:00:00:00:03": []int32{3, 4},
+		},
+		"interface_name": {
+			"eth1": []int32{1},
+			"eth2": []int32{2},
+			"eth3": []int32{3}, // eth3 is both a name and alias, and reference the same interface
+			"eth4": []int32{4}, // eth4 is both a name and alias, and reference two different interfaces
+		},
+		"interface_alias": {
+			"alias1": []int32{1},
+			"alias2": []int32{2},
+			"eth3":   []int32{3},
+			"eth4":   []int32{44},
+		},
+		"interface_index": {
+			"1": []int32{1},
+			"2": []int32{2},
+		},
+	}
+	deviceID := "default:1.2.3.4"
+
+	tests := []struct {
+		name        string
+		localIDType string
+		localID     string
+		expectedID  string
+	}{
+		{
+			name:        "mac_address",
+			localIDType: "mac_address",
+			localID:     "00:00:00:00:00:01",
+			expectedID:  "default:1.2.3.4:1",
+		},
+		{
+			name:        "mac_address cannot resolve due to multiple results",
+			localIDType: "mac_address",
+			localID:     "00:00:00:00:00:03",
+			expectedID:  "",
+		},
+		{
+			name:        "interface_name",
+			localIDType: "interface_name",
+			localID:     "eth2",
+			expectedID:  "default:1.2.3.4:2",
+		},
+		{
+			name:        "interface_alias",
+			localIDType: "interface_alias",
+			localID:     "alias2",
+			expectedID:  "default:1.2.3.4:2",
+		},
+		{
+			name:        "mac_address by trying",
+			localIDType: "",
+			localID:     "00:00:00:00:00:01",
+			expectedID:  "default:1.2.3.4:1",
+		},
+		{
+			name:        "interface_name by trying",
+			localIDType: "",
+			localID:     "eth2",
+			expectedID:  "default:1.2.3.4:2",
+		},
+		{
+			name:        "interface_alias by trying",
+			localIDType: "",
+			localID:     "alias2",
+			expectedID:  "default:1.2.3.4:2",
+		},
+		{
+			name:        "interface_alias+interface_name match with same interface should resolve",
+			localIDType: "",
+			localID:     "eth3",
+			expectedID:  "default:1.2.3.4:3",
+		},
+		{
+			name:        "interface_alias+interface_name match with different interface should not resolve",
+			localIDType: "",
+			localID:     "eth4",
+			expectedID:  "",
+		},
+		{
+			name:        "interface_index by trying",
+			localIDType: "",
+			localID:     "2",
+			expectedID:  "default:1.2.3.4:2",
+		},
+		{
+			name:        "mac_address not found",
+			localIDType: "mac_address",
+			localID:     "00:00:00:00:00:99",
+			expectedID:  "",
+		},
+		{
+			name:        "invalid",
+			localIDType: "invalid_type",
+			localID:     "invalidID",
+			expectedID:  "",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.expectedID, resolveLocalInterface(deviceID, interfaceIndexByIDType, tt.localIDType, tt.localID))
+		})
+	}
+}
+
+func Test_buildInterfaceIndexByIDType(t *testing.T) {
+	// Arrange
+	interfaces := []metadata.InterfaceMetadata{
+		{
+			DeviceID:   "default:1.2.3.4",
+			Index:      1,
+			MacAddress: "00:00:00:00:00:01",
+			Name:       "eth1",
+			Alias:      "alias1",
+		},
+		{
+			DeviceID:   "default:1.2.3.4",
+			Index:      2,
+			MacAddress: "00:00:00:00:00:02",
+			Name:       "eth2",
+			Alias:      "alias2",
+		},
+		{
+			DeviceID:   "default:1.2.3.4",
+			Index:      3,
+			MacAddress: "00:00:00:00:00:02",
+			Name:       "eth3",
+			Alias:      "alias3",
+		},
+	}
+
+	// Act
+	interfaceIndexByIDType := buildInterfaceIndexByIDType(interfaces)
+
+	// Assert
+	expectedInterfaceIndexByIDType := map[string]map[string][]int32{
+		"mac_address": {
+			"00:00:00:00:00:01": []int32{1},
+			"00:00:00:00:00:02": []int32{2, 3},
+		},
+		"interface_name": {
+			"eth1": []int32{1},
+			"eth2": []int32{2},
+			"eth3": []int32{3},
+		},
+		"interface_alias": {
+			"alias1": []int32{1},
+			"alias2": []int32{2},
+			"alias3": []int32{3},
+		},
+		"interface_index": {
+			"1": []int32{1},
+			"2": []int32{2},
+			"3": []int32{3},
+		},
+	}
+	assert.Equal(t, expectedInterfaceIndexByIDType, interfaceIndexByIDType)
 }

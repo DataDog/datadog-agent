@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build kubeapiserver
-// +build kubeapiserver
 
 package custommetrics
 
@@ -52,6 +51,7 @@ func ExternalMetricValueKeyFunc(val ExternalMetricValue) string {
 	return strings.Join(parts, keyDelimeter)
 }
 
+// DeprecatedExternalMetricValueKeyFunc generates identifiers for DeprecatedExternalMetricValue objects
 func DeprecatedExternalMetricValueKeyFunc(val DeprecatedExternalMetricValue) string {
 	parts := []string{
 		"external_metric",

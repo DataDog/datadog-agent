@@ -4,17 +4,17 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build jetson
-// +build jetson
 
 package nvidia
 
 import (
 	"errors"
 	"fmt"
-	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"regexp"
 	"strconv"
 	"strings"
+
+	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 )
 
 type cpuMetricSender struct {
@@ -39,7 +39,7 @@ func (cpuMetricSender *cpuMetricSender) Init() error {
 	return nil
 }
 
-func (cpuMetricSender *cpuMetricSender) SendMetrics(sender aggregator.Sender, field string) error {
+func (cpuMetricSender *cpuMetricSender) SendMetrics(sender sender.Sender, field string) error {
 	cpuFields := cpuMetricSender.cpusRegex.FindAllStringSubmatch(field, -1)
 	if len(cpuFields) <= 0 {
 		return errors.New("could not parse CPU usage fields")

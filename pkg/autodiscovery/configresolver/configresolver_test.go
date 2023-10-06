@@ -11,12 +11,11 @@ import (
 	"os"
 	"testing"
 
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
-
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/listeners"
+	"github.com/DataDog/datadog-agent/pkg/autodiscovery/providers/names"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
+	"github.com/stretchr/testify/assert"
 
 	// we need some valid check in the catalog to run tests
 	_ "github.com/DataDog/datadog-agent/pkg/collector/corechecks/system"
@@ -59,8 +58,8 @@ func (s *dummyService) GetPorts(context.Context) ([]listeners.ContainerPort, err
 }
 
 // GetTags returns static tags
-func (s *dummyService) GetTags() ([]string, string, error) {
-	return []string{"foo:bar"}, "hash", nil
+func (s *dummyService) GetTags() ([]string, error) {
+	return []string{"foo:bar"}, nil
 }
 
 // GetPid return a dummy pid
@@ -89,8 +88,12 @@ func (s *dummyService) HasFilter(filter containers.FilterType) bool {
 }
 
 // GetExtraConfig returns extra configuration
-func (s *dummyService) GetExtraConfig(key []byte) ([]byte, error) {
-	return []byte(s.ExtraConfig[string(key)]), nil
+func (s *dummyService) GetExtraConfig(key string) (string, error) {
+	return s.ExtraConfig[key], nil
+}
+
+// FilterConfigs does nothing.
+func (s *dummyService) FilterTemplates(map[string]integration.Config) {
 }
 
 func TestGetFallbackHost(t *testing.T) {
@@ -113,10 +116,8 @@ func TestGetFallbackHost(t *testing.T) {
 
 func TestResolve(t *testing.T) {
 	// Prepare envvars for test
-	err := os.Setenv("test_envvar_key", "test_value")
-	require.NoError(t, err)
+	t.Setenv("test_envvar_key", "test_value")
 	os.Unsetenv("test_envvar_not_set")
-	defer os.Unsetenv("test_envvar_key")
 
 	testCases := []struct {
 		testName    string
@@ -355,7 +356,7 @@ func TestResolve(t *testing.T) {
 				ADIdentifiers: []string{"redis"},
 				Instances:     []integration.Data{},
 				ServiceID:     "a5901276aed1",
-				LogsConfig:    integration.Data("host: 127.0.0.1"),
+				LogsConfig:    integration.Data("host: 127.0.0.1\n"),
 			},
 		},
 		{
@@ -439,7 +440,7 @@ func TestResolve(t *testing.T) {
 				Name:          "cpu",
 				ADIdentifiers: []string{"redis"},
 				Instances:     []integration.Data{},
-				LogsConfig:    integration.Data("test: test_value"),
+				LogsConfig:    integration.Data("test: test_value\n"),
 				ServiceID:     "a5901276aed1",
 			},
 		},
@@ -509,7 +510,7 @@ func TestResolve(t *testing.T) {
 			out: integration.Config{
 				Name:          "cpu",
 				ADIdentifiers: []string{"redis"},
-				Instances:     []integration.Data{integration.Data("pid: 1337\ntags: [\"foo\"]")},
+				Instances:     []integration.Data{integration.Data("pid: 1337\ntags:\n- foo\n")},
 				ServiceID:     "a5901276aed1",
 			},
 		},
@@ -525,102 +526,7 @@ func TestResolve(t *testing.T) {
 				ADIdentifiers: []string{"redis"},
 				Instances:     []integration.Data{integration.Data("host: %%FOO%%")},
 			},
-			errorString: "unable to add tags for service 'a5901276aed1', err: yaml: found character that cannot start any token",
-		},
-		//// check overrides
-		{
-			testName: "same check: override check from file",
-			svc: &dummyService{
-				ID:            "a5901276aed1",
-				ADIdentifiers: []string{"redis"},
-				CheckNames:    []string{"redis"},
-			},
-			tpl: integration.Config{
-				Name:          "redis",
-				ADIdentifiers: []string{"redis"},
-				Instances:     []integration.Data{integration.Data("host: %%host%%")},
-				Source:        "file:/etc/datadog-agent/conf.d/redisdb.d/auto_conf.yaml",
-				Provider:      "file",
-			},
-			errorString: "ignoring config from file:/etc/datadog-agent/conf.d/redisdb.d/auto_conf.yaml: another config is defined for the check redis",
-		},
-		{
-			testName: "empty check name defined: override check from file",
-			svc: &dummyService{
-				ID:            "a5901276aed1",
-				ADIdentifiers: []string{"redis"},
-				CheckNames:    []string{""},
-			},
-			tpl: integration.Config{
-				Name:          "redis",
-				ADIdentifiers: []string{"redis"},
-				Instances:     []integration.Data{integration.Data("host: %%host%%")},
-				Source:        "file:/etc/datadog-agent/conf.d/redisdb.d/auto_conf.yaml",
-				Provider:      "file",
-			},
-			errorString: "ignoring config from file:/etc/datadog-agent/conf.d/redisdb.d/auto_conf.yaml: another empty config is defined with the same AD identifier: [redis]",
-		},
-		{
-			testName: "empty check names list defined: override check from file",
-			svc: &dummyService{
-				ID:            "a5901276aed1",
-				ADIdentifiers: []string{"redis"},
-				CheckNames:    []string{},
-			},
-			tpl: integration.Config{
-				Name:          "redis",
-				ADIdentifiers: []string{"redis"},
-				Instances:     []integration.Data{integration.Data("host: %%host%%")},
-				Source:        "file:/etc/datadog-agent/conf.d/redisdb.d/auto_conf.yaml",
-				Provider:      "file",
-			},
-			errorString: "ignoring config from file:/etc/datadog-agent/conf.d/redisdb.d/auto_conf.yaml: another empty config is defined with the same AD identifier: [redis]",
-		},
-		{
-			testName: "different checks: don't override check from file",
-			svc: &dummyService{
-				ID:            "a5901276aed1",
-				ADIdentifiers: []string{"redis"},
-				CheckNames:    []string{"tcp_check", "http_check"},
-			},
-			tpl: integration.Config{
-				Name:          "redis",
-				ADIdentifiers: []string{"redis"},
-				Instances:     []integration.Data{integration.Data("host: localhost")},
-				Source:        "file:/etc/datadog-agent/conf.d/redisdb.d/auto_conf.yaml",
-				Provider:      "file",
-			},
-			out: integration.Config{
-				Name:          "redis",
-				ADIdentifiers: []string{"redis"},
-				Instances:     []integration.Data{integration.Data("host: localhost\ntags:\n- foo:bar\n")},
-				ServiceID:     "a5901276aed1",
-				Source:        "file:/etc/datadog-agent/conf.d/redisdb.d/auto_conf.yaml",
-				Provider:      "file",
-			},
-		},
-		{
-			testName: "not annotated: don't override check from file",
-			svc: &dummyService{
-				ID:            "a5901276aed1",
-				ADIdentifiers: []string{"redis"},
-				CheckNames:    nil,
-			},
-			tpl: integration.Config{
-				Name:          "redis",
-				ADIdentifiers: []string{"redis"},
-				Instances:     []integration.Data{integration.Data("host: localhost")},
-				Source:        "file:/etc/datadog-agent/conf.d/redisdb.d/auto_conf.yaml",
-				Provider:      "file",
-			},
-			out: integration.Config{
-				Name:          "redis",
-				ADIdentifiers: []string{"redis"},
-				Instances:     []integration.Data{integration.Data("host: localhost\ntags:\n- foo:bar\n")},
-				ServiceID:     "a5901276aed1",
-				Source:        "file:/etc/datadog-agent/conf.d/redisdb.d/auto_conf.yaml",
-				Provider:      "file",
-			},
+			errorString: "unable to add tags for service 'a5901276aed1', err: invalid %%FOO%% tag",
 		},
 		{
 			testName: "SNMP testing",
@@ -677,7 +583,7 @@ func TestResolve(t *testing.T) {
 			out: integration.Config{
 				Name:          "ksm",
 				ADIdentifiers: []string{"kube-state-metrics"},
-				Instances:     []integration.Data{integration.Data("host: 10.3.2.1")},
+				Instances:     []integration.Data{integration.Data("host: 10.3.2.1\n")},
 				ServiceID:     "a5901276aed1",
 			},
 		},
@@ -700,6 +606,154 @@ func TestResolve(t *testing.T) {
 				ServiceID:     "a5901276aed1",
 			},
 		},
+		{
+			testName: "IPv6 %%host%%",
+			svc: &dummyService{
+				ID:            "a5901276aed1",
+				ADIdentifiers: []string{"redis"},
+				Hosts:         map[string]string{"ipv4": "192.168.0.1", "ipv6": "fd::1"},
+				Ports:         newFakeContainerPorts(),
+			},
+			tpl: integration.Config{
+				Name:          "cpu",
+				ADIdentifiers: []string{"redis"},
+				Instances:     []integration.Data{integration.Data("host_ipv4: %%host_ipv4%%\nhost_ipv6: %%host_ipv6%%\nurl_ipv4: http://%%host_ipv4%%:%%port%%/data\nurl_ipv6: http://%%host_ipv6%%:%%port%%/data")},
+			},
+			out: integration.Config{
+				Name:          "cpu",
+				ADIdentifiers: []string{"redis"},
+				Instances:     []integration.Data{integration.Data("host_ipv4: 192.168.0.1\nhost_ipv6: fd::1\ntags:\n- foo:bar\nurl_ipv4: http://192.168.0.1:3/data\nurl_ipv6: http://[fd::1]:3/data\n")},
+				ServiceID:     "a5901276aed1",
+			},
+		},
+		{
+			testName: "logs config in yaml from file",
+			svc: &dummyService{
+				ID:            "a5901276aed1",
+				ADIdentifiers: []string{"redis"},
+				Hosts:         map[string]string{"bridge": "127.0.0.1"},
+			},
+			tpl: integration.Config{
+				Name:          "cpu",
+				ADIdentifiers: []string{"redis"},
+				Instances:     []integration.Data{integration.Data("host: %%host%%\n")},
+				LogsConfig:    integration.Data("logs:\n- log_processing_rules:\n  - name: numbers\n    pattern: ^[0-9]+$\n    type: include_at_match\n  type: docker\n"),
+				Source:        "file:/etc/datadog-agent/conf.d/redisdb.d/auto_conf.yaml",
+				Provider:      names.File,
+			},
+			out: integration.Config{
+				Name:          "cpu",
+				ADIdentifiers: []string{"redis"},
+				Instances:     []integration.Data{integration.Data("host: 127.0.0.1\ntags:\n- foo:bar\n")},
+				LogsConfig:    integration.Data("logs:\n- log_processing_rules:\n  - name: numbers\n    pattern: ^[0-9]+$\n    type: include_at_match\n  type: docker\n"),
+				ServiceID:     "a5901276aed1",
+				Source:        "file:/etc/datadog-agent/conf.d/redisdb.d/auto_conf.yaml",
+				Provider:      names.File,
+			},
+		},
+		{
+			testName: "logs config in json from container",
+			svc: &dummyService{
+				ID:            "a5901276aed1",
+				ADIdentifiers: []string{"redis"},
+				Hosts:         map[string]string{"bridge": "127.0.0.1"},
+			},
+			tpl: integration.Config{
+				Name:          "cpu",
+				ADIdentifiers: []string{"redis"},
+				Instances:     []integration.Data{integration.Data("host: %%host%%\n")},
+				LogsConfig:    integration.Data(`[{"service":"any_service","source":"any_source","tags":["a","b:d"]}]`),
+				Provider:      names.Container,
+			},
+			out: integration.Config{
+				Name:          "cpu",
+				ADIdentifiers: []string{"redis"},
+				Instances:     []integration.Data{integration.Data("host: 127.0.0.1\ntags:\n- foo:bar\n")},
+				LogsConfig:    integration.Data(`[{"service":"any_service","source":"any_source","tags":["a","b:d"]}]`),
+				ServiceID:     "a5901276aed1",
+				Provider:      names.Container,
+			},
+		},
+		{
+			testName: "logs config in json from kubernetes",
+			svc: &dummyService{
+				ID:            "a5901276aed1",
+				ADIdentifiers: []string{"redis"},
+				Hosts:         map[string]string{"bridge": "127.0.0.1"},
+			},
+			tpl: integration.Config{
+				Name:          "cpu",
+				ADIdentifiers: []string{"redis"},
+				Instances:     []integration.Data{integration.Data("host: %%host%%\n")},
+				LogsConfig:    integration.Data(`[{"service":"any_service","source":"any_source","tags":["a","b:d"]}]`),
+				Provider:      names.Kubernetes,
+			},
+			out: integration.Config{
+				Name:          "cpu",
+				ADIdentifiers: []string{"redis"},
+				Instances:     []integration.Data{integration.Data("host: 127.0.0.1\ntags:\n- foo:bar\n")},
+				LogsConfig:    integration.Data(`[{"service":"any_service","source":"any_source","tags":["a","b:d"]}]`),
+				ServiceID:     "a5901276aed1",
+				Provider:      names.Kubernetes,
+			},
+		},
+		{
+			testName: "static tags",
+			svc: &dummyService{
+				ID:            "a5901276aed1",
+				ADIdentifiers: []string{"redis"},
+				Hosts:         map[string]string{"bridge": "127.0.0.1"},
+			},
+			tpl: integration.Config{
+				Name:          "cpu",
+				ADIdentifiers: []string{"redis"},
+				Instances:     []integration.Data{integration.Data("host: %%host%%\ntags:\n- statictag:TEST")},
+			},
+			out: integration.Config{
+				Name:          "cpu",
+				ADIdentifiers: []string{"redis"},
+				Instances:     []integration.Data{integration.Data("host: 127.0.0.1\ntags:\n- foo:bar\n- statictag:TEST\n")},
+				ServiceID:     "a5901276aed1",
+			},
+		},
+		{
+			testName: "empty key",
+			svc: &dummyService{
+				ID:            "a5901276aed1",
+				ADIdentifiers: []string{"redis"},
+				Hosts:         map[string]string{"bridge": "127.0.0.1"},
+			},
+			tpl: integration.Config{
+				Name:          "cpu",
+				ADIdentifiers: []string{"redis"},
+				Instances:     []integration.Data{integration.Data("host: %%host%%\ntags:\n- statictag:TEST\nzemptykey:\n")},
+			},
+			out: integration.Config{
+				Name:          "cpu",
+				ADIdentifiers: []string{"redis"},
+				Instances:     []integration.Data{integration.Data("host: 127.0.0.1\ntags:\n- foo:bar\n- statictag:TEST\nzemptykey: null\n")},
+				ServiceID:     "a5901276aed1",
+			},
+		},
+		{
+			testName: "%% that is not a template variable delimiter",
+			svc: &dummyService{
+				ID:            "a5901276aed1",
+				ADIdentifiers: []string{"redis"},
+				Hosts:         map[string]string{"bridge": "127.0.0.1"},
+			},
+			tpl: integration.Config{
+				Name:          "cpu",
+				ADIdentifiers: []string{"redis"},
+				Instances:     []integration.Data{integration.Data("host: %%host%%\ntags:\n- password:\"complex%%password\"")},
+			},
+			out: integration.Config{
+				Name:          "cpu",
+				ADIdentifiers: []string{"redis"},
+				Instances:     []integration.Data{integration.Data("host: 127.0.0.1\ntags:\n- foo:bar\n- password:\"complex%%password\"\n")},
+				ServiceID:     "a5901276aed1",
+			},
+		},
 	}
 
 	for i, tc := range testCases {
@@ -707,14 +761,13 @@ func TestResolve(t *testing.T) {
 			// Make sure we don't modify the template object
 			checksum := tc.tpl.Digest()
 
-			cfg, hash, err := Resolve(tc.tpl, tc.svc)
+			cfg, err := Resolve(tc.tpl, tc.svc)
 			if tc.errorString != "" {
 				assert.EqualError(t, err, tc.errorString)
 			} else {
 				assert.NoError(t, err)
 				assert.Equal(t, tc.out, cfg)
 				assert.Equal(t, checksum, tc.tpl.Digest())
-				assert.Equal(t, "hash", hash) // Resolve must return a non-empty hash if err == nil
 			}
 		})
 	}
@@ -725,5 +778,60 @@ func newFakeContainerPorts() []listeners.ContainerPort {
 		{Port: 1, Name: "foo"},
 		{Port: 2, Name: "bar"},
 		{Port: 3, Name: "baz"},
+	}
+}
+
+func BenchmarkResolve(b *testing.B) {
+	// Prepare envvars for test
+	b.Setenv("test_envvar_key", "test_value")
+	os.Unsetenv("test_envvar_not_set")
+
+	testCases := []struct {
+		testName    string
+		tpl         integration.Config
+		svc         listeners.Service
+		out         integration.Config
+		errorString string
+	}{
+		{
+			testName: "simple",
+			svc: &dummyService{
+				ID:            "a5901276aed1",
+				ADIdentifiers: []string{"redis"},
+				Hosts:         map[string]string{"bridge": "127.0.0.1"},
+				Ports:         newFakeContainerPorts(),
+			},
+			tpl: integration.Config{
+				Name:          "cpu",
+				ADIdentifiers: []string{"redis"},
+				Instances:     []integration.Data{integration.Data("host: %%host%%\nport: %%port%%\nports:\n- foo: %%port_foo%%\n- bar: %%port_bar%%\n- baz: %%port_baz%%\ntest: %%env_test_envvar_key%%\nurl: http://%%host%%:%%port%%/data")},
+			},
+			out: integration.Config{
+				Name:          "cpu",
+				ADIdentifiers: []string{"redis"},
+				Instances:     []integration.Data{integration.Data("host: 127.0.0.1\nport: 3\nports:\n- foo: 1\n- bar: 2\n- baz: 3\ntags:\n- foo:bar\ntest: test_value\nurl: http://127.0.0.1:3/data\n")},
+				ServiceID:     "a5901276aed1",
+			},
+		},
+	}
+
+	for i, tc := range testCases {
+		b.Run(fmt.Sprintf("case %d: %s", i, tc.testName), func(b *testing.B) {
+			// Make sure we don't modify the template object
+			checksum := tc.tpl.Digest()
+
+			var cfg integration.Config
+			var err error
+			for i := 0; i < b.N; i++ {
+				cfg, err = Resolve(tc.tpl, tc.svc)
+			}
+			if tc.errorString != "" {
+				assert.EqualError(b, err, tc.errorString)
+			} else {
+				assert.NoError(b, err)
+				assert.Equal(b, tc.out, cfg)
+				assert.Equal(b, checksum, tc.tpl.Digest())
+			}
+		})
 	}
 }

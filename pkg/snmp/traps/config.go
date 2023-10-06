@@ -9,16 +9,17 @@ import (
 	"errors"
 	"fmt"
 	"hash/fnv"
-	"strings"
 
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/common"
-	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/gosnmp/gosnmp"
+
+	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/snmp/gosnmplib"
+	"github.com/DataDog/datadog-agent/pkg/snmp/utils"
 )
 
 // IsEnabled returns whether SNMP trap collection is enabled in the Agent configuration.
 func IsEnabled() bool {
-	return config.Datadog.GetBool("snmp_traps_enabled")
+	return config.Datadog.GetBool("network_devices.snmp_traps.enabled")
 }
 
 // UserV3 contains the definition of one SNMPv3 user with its username and its auth
@@ -34,6 +35,7 @@ type UserV3 struct {
 // Config contains configuration for SNMP trap listeners.
 // YAML field tags provided for test marshalling purposes.
 type Config struct {
+	Enabled               bool     `mapstructure:"enabled" yaml:"enabled"`
 	Port                  uint16   `mapstructure:"port" yaml:"port"`
 	Users                 []UserV3 `mapstructure:"users" yaml:"users"`
 	CommunityStrings      []string `mapstructure:"community_strings" yaml:"community_strings"`
@@ -46,14 +48,18 @@ type Config struct {
 // ReadConfig builds and returns configuration from Agent configuration.
 func ReadConfig(agentHostname string) (*Config, error) {
 	var c Config
-	err := config.Datadog.UnmarshalKey("snmp_traps_config", &c)
+	err := config.Datadog.UnmarshalKey("network_devices.snmp_traps", &c)
 	if err != nil {
 		return nil, err
 	}
 
+	if !c.Enabled {
+		return nil, errors.New("traps listener is disabled")
+	}
+
 	// gosnmp only supports one v3 user at the moment.
 	if len(c.Users) > 1 {
-		return nil, errors.New("only one user is currently supported in snmp_traps_config")
+		return nil, errors.New("only one user is currently supported in SNMP Traps Listener configuration")
 	}
 
 	// Set defaults.
@@ -62,7 +68,7 @@ func ReadConfig(agentHostname string) (*Config, error) {
 	}
 	if c.BindHost == "" {
 		// Default to global bind_host option.
-		c.BindHost = config.GetBindHost()
+		c.BindHost = "0.0.0.0"
 	}
 	if c.StopTimeout == 0 {
 		c.StopTimeout = defaultStopTimeout
@@ -84,9 +90,9 @@ func ReadConfig(agentHostname string) (*Config, error) {
 	if c.Namespace == "" {
 		c.Namespace = config.Datadog.GetString("network_devices.namespace")
 	}
-	c.Namespace, err = common.NormalizeNamespace(c.Namespace)
+	c.Namespace, err = utils.NormalizeNamespace(c.Namespace)
 	if err != nil {
-		return nil, fmt.Errorf("invalid snmp_traps_config: %w", err)
+		return nil, fmt.Errorf("unable to load config: %w", err)
 	}
 
 	return &c, nil
@@ -108,36 +114,14 @@ func (c *Config) BuildSNMPParams() (*gosnmp.GoSNMP, error) {
 		}, nil
 	}
 	user := c.Users[0]
-	var authProtocol gosnmp.SnmpV3AuthProtocol
-	switch lowerAuthProtocol := strings.ToLower(user.AuthProtocol); lowerAuthProtocol {
-	case "":
-		authProtocol = gosnmp.NoAuth
-	case "md5":
-		authProtocol = gosnmp.MD5
-	case "sha":
-		authProtocol = gosnmp.SHA
-	default:
-		return nil, fmt.Errorf("unsupported authentication protocol: %s", user.AuthProtocol)
+	authProtocol, err := gosnmplib.GetAuthProtocol(user.AuthProtocol)
+	if err != nil {
+		return nil, err
 	}
 
-	var privProtocol gosnmp.SnmpV3PrivProtocol
-	switch lowerPrivProtocol := strings.ToLower(user.PrivProtocol); lowerPrivProtocol {
-	case "":
-		privProtocol = gosnmp.NoPriv
-	case "des":
-		privProtocol = gosnmp.DES
-	case "aes":
-		privProtocol = gosnmp.AES
-	case "aes192":
-		privProtocol = gosnmp.AES192
-	case "aes192c":
-		privProtocol = gosnmp.AES192C
-	case "aes256":
-		privProtocol = gosnmp.AES256
-	case "aes256c":
-		privProtocol = gosnmp.AES256C
-	default:
-		return nil, fmt.Errorf("unsupported privacy protocol: %s", user.PrivProtocol)
+	privProtocol, err := gosnmplib.GetPrivProtocol(user.PrivProtocol)
+	if err != nil {
+		return nil, err
 	}
 
 	msgFlags := gosnmp.NoAuthNoPriv

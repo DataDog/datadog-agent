@@ -2,7 +2,7 @@ syntax = "proto3";
 
 package datadog.model.v1;
 
-option go_package = "pkg/proto/pbgo"; // golang
+option go_package = "pkg/proto/pbgo/core";  // golang
 
 
 // Hostname types

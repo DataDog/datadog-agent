@@ -4,7 +4,6 @@
 // Copyright 2019-present Datadog, Inc.
 
 //go:build zlib
-// +build zlib
 
 package stream
 
@@ -16,8 +15,8 @@ import (
 
 	jsoniter "github.com/json-iterator/go"
 
+	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/transaction"
 	"github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/forwarder"
 	"github.com/DataDog/datadog-agent/pkg/serializer/marshaler"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -70,6 +69,7 @@ type JSONPayloadBuilder struct {
 	mu                            sync.Mutex
 }
 
+// NewJSONPayloadBuilder returns a new JSONPayloadBuilder
 func NewJSONPayloadBuilder(shareAndLockBuffers bool) *JSONPayloadBuilder {
 	if shareAndLockBuffers {
 		return &JSONPayloadBuilder{
@@ -98,17 +98,10 @@ const (
 	FailOnErrItemTooBig
 )
 
-// Build serializes a metadata payload and sends it to the forwarder
-func (b *JSONPayloadBuilder) Build(m marshaler.StreamJSONMarshaler) (forwarder.Payloads, error) {
-	adapter := marshaler.NewIterableStreamJSONMarshalerAdapter(m)
-	return b.BuildWithOnErrItemTooBigPolicy(adapter, DropItemOnErrItemTooBig)
-}
-
 // BuildWithOnErrItemTooBigPolicy serializes a metadata payload and sends it to the forwarder
 func (b *JSONPayloadBuilder) BuildWithOnErrItemTooBigPolicy(
 	m marshaler.IterableStreamJSONMarshaler,
-	policy OnErrItemTooBigPolicy) (forwarder.Payloads, error) {
-	defer m.IterationStopped()
+	policy OnErrItemTooBigPolicy) (transaction.BytesPayloads, error) {
 	var input, output *bytes.Buffer
 
 	// the backend accepts payloads up to specific compressed / uncompressed
@@ -138,7 +131,7 @@ func (b *JSONPayloadBuilder) BuildWithOnErrItemTooBigPolicy(
 		output = bytes.NewBuffer(make([]byte, 0, b.outputSizeHint))
 	}
 
-	var payloads forwarder.Payloads
+	var payloads transaction.BytesPayloads
 	expvarsTotalCalls.Add(1)
 	tlmTotalCalls.Inc()
 	start := time.Now()
@@ -166,6 +159,7 @@ func (b *JSONPayloadBuilder) BuildWithOnErrItemTooBigPolicy(
 		return nil, err
 	}
 
+	pointCount := 0
 	ok := m.MoveNext()
 	for ok {
 		// We keep reusing the same small buffer in the jsoniter stream. Note that we can do so
@@ -189,7 +183,8 @@ func (b *JSONPayloadBuilder) BuildWithOnErrItemTooBigPolicy(
 			if err != nil {
 				return payloads, err
 			}
-			payloads = append(payloads, &payload)
+			payloads = append(payloads, transaction.NewBytesPayload(payload, pointCount))
+			pointCount = 0
 			input.Reset()
 			output.Reset()
 			compressor, err = NewCompressor(
@@ -201,6 +196,7 @@ func (b *JSONPayloadBuilder) BuildWithOnErrItemTooBigPolicy(
 			}
 		case nil:
 			// All good, continue to next item
+			pointCount += m.GetCurrentItemPointCount()
 			ok = m.MoveNext()
 			expvarsTotalItems.Add(1)
 			tlmTotalItems.Inc()
@@ -225,7 +221,7 @@ func (b *JSONPayloadBuilder) BuildWithOnErrItemTooBigPolicy(
 	if err != nil {
 		return payloads, err
 	}
-	payloads = append(payloads, &payload)
+	payloads = append(payloads, transaction.NewBytesPayload(payload, pointCount))
 
 	if !b.shareAndLockBuffers {
 		b.inputSizeHint = input.Cap()

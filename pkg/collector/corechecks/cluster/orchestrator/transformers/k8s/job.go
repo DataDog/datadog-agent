@@ -4,14 +4,14 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build orchestrator
-// +build orchestrator
 
 package k8s
 
 import (
 	model "github.com/DataDog/agent-payload/v5/process"
-
 	batchv1 "k8s.io/api/batch/v1"
+
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/transformers"
 )
 
 // ExtractJob returns the protobuf model corresponding to a Kubernetes Job
@@ -54,7 +54,14 @@ func ExtractJob(j *batchv1.Job) *model.Job {
 		job.Status.CompletionTime = j.Status.CompletionTime.Unix()
 	}
 
+	if len(j.Status.Conditions) > 0 {
+		jConditions, conditionTags := extractJobConditions(j)
+		job.Conditions = jConditions
+		job.Tags = append(job.Tags, conditionTags...)
+	}
+
 	job.Spec.ResourceRequirements = ExtractPodTemplateResourceRequirements(j.Spec.Template)
+	job.Tags = append(job.Tags, transformers.RetrieveUnifiedServiceTags(j.ObjectMeta.Labels)...)
 
 	return &job
 }
@@ -66,4 +73,35 @@ func extractJobConditionMessage(conditions []batchv1.JobCondition) string {
 		}
 	}
 	return ""
+}
+
+// extractJobConditions iterates over job conditions and returns:
+// - the payload representation of those conditions
+// - the list of tags that will enable pod filtering by condition
+func extractJobConditions(p *batchv1.Job) ([]*model.JobCondition, []string) {
+	conditions := make([]*model.JobCondition, 0, len(p.Status.Conditions))
+	conditionTags := make([]string, 0, len(p.Status.Conditions))
+
+	for _, condition := range p.Status.Conditions {
+		c := &model.JobCondition{
+			Message: condition.Message,
+			Reason:  condition.Reason,
+			Status:  string(condition.Status),
+			Type:    string(condition.Type),
+		}
+		if !condition.LastTransitionTime.IsZero() {
+			c.LastTransitionTime = condition.LastTransitionTime.Unix()
+		}
+
+		if !condition.LastProbeTime.IsZero() {
+			c.LastProbeTime = condition.LastProbeTime.Unix()
+		}
+
+		conditions = append(conditions, c)
+
+		conditionTag := createConditionTag(string(condition.Type), string(condition.Status))
+		conditionTags = append(conditionTags, conditionTag)
+	}
+
+	return conditions, conditionTags
 }

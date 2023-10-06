@@ -4,7 +4,6 @@
 // Copyright 2020-present Datadog, Inc.
 
 //go:build docker
-// +build docker
 
 package metadata
 
@@ -17,8 +16,8 @@ import (
 	"os"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/util/containers/providers"
 	"github.com/DataDog/datadog-agent/pkg/util/docker"
+	"github.com/DataDog/datadog-agent/pkg/util/system"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -43,7 +42,7 @@ func detectAgentV1URL() (string, error) {
 			urls = append(urls, agentURLS...)
 		}
 		// Try the default gateway
-		gw, err := providers.ContainerImpl().GetDefaultGateway()
+		gw, err := system.GetDefaultGateway(config.Datadog.GetString("proc_root"))
 		if err != nil {
 			log.Debugf("Could not get docker default gateway: %s", err)
 		}
@@ -107,6 +106,7 @@ func testURLs(urls []string, timeout time.Duration) string {
 		if err != nil {
 			continue
 		}
+		defer r.Body.Close()
 		if r.StatusCode != http.StatusOK {
 			continue
 		}

@@ -3,13 +3,12 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 //go:build !windows && !freebsd
-// +build !windows,!freebsd
 
 package filehandles
 
 import (
 	"errors"
-	"io/ioutil"
+	"os"
 	"strconv"
 	"strings"
 
@@ -28,7 +27,7 @@ type fhCheck struct {
 }
 
 func (c *fhCheck) getFileNrValues(fn string) ([]string, error) {
-	dat, err := ioutil.ReadFile(fn)
+	dat, err := os.ReadFile(fn)
 	if err != nil {
 		log.Error(err.Error())
 		return nil, err

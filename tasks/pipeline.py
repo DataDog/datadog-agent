@@ -4,36 +4,44 @@ import pprint
 import re
 import traceback
 from collections import defaultdict
+from datetime import datetime
 
 import yaml
 from invoke import task
 from invoke.exceptions import Exit
 
-from tasks.utils import (
+from .libs.common.color import color_message
+from .libs.common.github_api import GithubAPI
+from .libs.common.gitlab import Gitlab, get_gitlab_bot_token, get_gitlab_token
+from .libs.datadog_api import create_count, send_metrics
+from .libs.pipeline_data import get_failed_jobs
+from .libs.pipeline_notifications import (
+    GITHUB_SLACK_MAP,
+    base_message,
+    check_for_missing_owners_slack_and_jira,
+    find_job_owners,
+    get_failed_tests,
+    send_slack_message,
+)
+from .libs.pipeline_stats import get_failed_jobs_stats
+from .libs.pipeline_tools import (
+    FilteredOutException,
+    cancel_pipelines_with_confirmation,
+    get_running_pipelines_on_same_ref,
+    gracefully_cancel_pipeline,
+    trigger_agent_pipeline,
+    wait_for_pipeline,
+)
+from .libs.types import SlackMessage, TeamMessage
+from .utils import (
     DEFAULT_BRANCH,
+    GITHUB_REPO_NAME,
+    check_clean_branch_state,
     get_all_allowed_repo_branches,
     is_allowed_repo_branch,
     nightly_entry_for,
     release_entry_for,
 )
-
-from .libs.common.color import color_message
-from .libs.common.gitlab import Gitlab, get_gitlab_bot_token, get_gitlab_token
-from .libs.pipeline_notifications import (
-    base_message,
-    find_job_owners,
-    get_failed_jobs,
-    get_failed_tests,
-    send_slack_message,
-)
-from .libs.pipeline_tools import (
-    FilteredOutException,
-    cancel_pipelines_with_confirmation,
-    get_running_pipelines_on_same_ref,
-    trigger_agent_pipeline,
-    wait_for_pipeline,
-)
-from .libs.types import SlackMessage, TeamMessage
 
 # Tasks to trigger pipelines
 
@@ -154,6 +162,44 @@ instead.""",
 
 
 @task
+def auto_cancel_previous_pipelines(ctx):
+    """
+    Automatically cancel previous pipelines running on the same ref
+    """
+
+    project_name = "DataDog/datadog-agent"
+    if not os.environ.get('GITLAB_TOKEN'):
+        raise Exit("GITLAB_TOKEN variable needed to cancel pipelines on the same ref.", 1)
+
+    gitlab = Gitlab(project_name=project_name, api_token=get_gitlab_token())
+    gitlab.test_project_found()
+
+    git_ref = os.getenv("CI_COMMIT_REF_NAME")
+    git_sha = os.getenv("CI_COMMIT_SHA")
+
+    pipelines = get_running_pipelines_on_same_ref(gitlab, git_ref)
+    pipelines_without_current = [p for p in pipelines if p["sha"] != git_sha]
+
+    for pipeline in pipelines_without_current:
+        # We cancel pipeline only if it correspond to a commit that is an ancestor of the current commit
+        is_ancestor = ctx.run(f'git merge-base --is-ancestor {pipeline["sha"]} {git_sha}', warn=True, hide="both")
+        if is_ancestor.exited == 0:
+            print(
+                f'Gracefully canceling jobs that are not canceled on pipeline {pipeline["id"]} ({pipeline["web_url"]})'
+            )
+            gracefully_cancel_pipeline(gitlab, pipeline, force_cancel_stages=["package_build"])
+        elif is_ancestor.exited == 1:
+            print(f'{pipeline["sha"]} is not an ancestor of {git_sha}, not cancelling pipeline {pipeline["id"]}')
+        elif is_ancestor.exited == 128:
+            print(
+                f'Could not determine if {pipeline["sha"]} is an ancestor of {git_sha}, probably because it has been deleted from the history because of force push'
+            )
+        else:
+            print(is_ancestor.stderr)
+            raise Exit(1)
+
+
+@task
 def run(
     ctx,
     git_ref=None,
@@ -202,8 +248,8 @@ def run(
     gitlab = Gitlab(project_name=project_name, api_token=get_gitlab_token())
     gitlab.test_project_found()
 
-    if not git_ref and not here:
-        raise Exit("Either --here or --git-ref <git ref> must be specified.", code=1)
+    if (not git_ref and not here) or (git_ref and here):
+        raise Exit("ERROR: Exactly one of --here or --git-ref <git ref> must be specified.", code=1)
 
     if use_release_entries:
         release_version_6 = release_entry_for(6)
@@ -290,6 +336,19 @@ def follow(ctx, id=None, git_ref=None, here=False, project_name="DataDog/datadog
     gitlab = Gitlab(project_name=project_name, api_token=get_gitlab_token())
     gitlab.test_project_found()
 
+    args_given = 0
+    if id is not None:
+        args_given += 1
+    if git_ref is not None:
+        args_given += 1
+    if here:
+        args_given += 1
+    if args_given != 1:
+        raise Exit(
+            "ERROR: Exactly one of --here, --git-ref or --id must be given.\nSee --help for an explanation of each.",
+            code=1,
+        )
+
     if id is not None:
         wait_for_pipeline(gitlab, id)
     elif git_ref is not None:
@@ -310,35 +369,17 @@ def wait_for_pipeline_from_ref(gitlab, ref):
 
 # Tasks to trigger pipeline notifications
 
-GITHUB_SLACK_MAP = {
-    "@DataDog/agent-platform": "#agent-platform",
-    "@DataDog/container-integrations": "#container-integrations",
-    "@DataDog/integrations-tools-and-libraries": "#intg-tools-libs",
-    "@DataDog/agent-network": "#network-agent",
-    "@DataDog/agent-security": "#security-and-compliance-agent-ops",
-    "@DataDog/agent-apm": "#apm-agent",
-    "@DataDog/infrastructure-integrations": "#infrastructure-integrations",
-    "@DataDog/processes": "#processes",
-    "@DataDog/agent-core": "#agent-core",
-    "@DataDog/container-app": "#container-app",
-    "@DataDog/metrics-aggregation": "#metrics-aggregation",
-    "@DataDog/serverless": "#serverless-agent",
-    "@DataDog/remote-config": "#remote-config-monitoring",
-    "@DataDog/agent-all": "#datadog-agent-pipelines",
-}
-
 UNKNOWN_OWNER_TEMPLATE = """The owner `{owner}` is not mapped to any slack channel.
 Please check for typos in the JOBOWNERS file and/or add them to the Github <-> Slack map.
 """
 
 
-def generate_failure_messages(base):
-    project_name = "DataDog/datadog-agent"
+def generate_failure_messages(project_name, failed_jobs):
     all_teams = "@DataDog/agent-all"
-    failed_jobs = get_failed_jobs(project_name, os.getenv("CI_PIPELINE_ID"))
+
     # Generate messages for each team
-    messages_to_send = defaultdict(lambda: TeamMessage(base))
-    messages_to_send[all_teams] = SlackMessage(base, jobs=failed_jobs)
+    messages_to_send = defaultdict(TeamMessage)
+    messages_to_send[all_teams] = SlackMessage(jobs=failed_jobs)
 
     failed_job_owners = find_job_owners(failed_jobs)
     for owner, jobs in failed_job_owners.items():
@@ -423,45 +464,146 @@ def trigger_child_pipeline(_, git_ref, project_name, variables="", follow=True):
 
 
 @task
-def notify_failure(_, notification_type="merge", print_to_stdout=False):
+def check_notify_teams(_):
+    if check_for_missing_owners_slack_and_jira():
+        print(
+            "Error: Some teams in CODEOWNERS don't have their slack notification channel or jira specified!\n"
+            "Please specify one in the GITHUB_SLACK_MAP or GITHUB_JIRA_MAP map in tasks/libs/pipeline_notifications.py."
+        )
+        raise Exit(code=1)
+    else:
+        print("All CODEOWNERS teams have their slack notification channel and jira project specified !!")
+
+
+@task
+def notify(_, notification_type="merge", print_to_stdout=False):
     """
-    Send failure notifications for the current pipeline. CI-only task.
+    Send notifications for the current pipeline. CI-only task.
     Use the --print-to-stdout option to test this locally, without sending
     real slack messages.
     """
-
-    header = ""
-    if notification_type == "merge":
-        header = ":host-red: :merged: datadog-agent merge"
-    elif notification_type == "deploy":
-        header = ":host-red: :rocket: datadog-agent deploy"
-    base = base_message(header)
+    project_name = "DataDog/datadog-agent"
 
     try:
-        messages_to_send = generate_failure_messages(base)
+        failed_jobs = get_failed_jobs(project_name, os.getenv("CI_PIPELINE_ID"))
+        messages_to_send = generate_failure_messages(project_name, failed_jobs)
     except Exception as e:
         buffer = io.StringIO()
-        print(base, file=buffer)
+        print(base_message("datadog-agent", "is in an unknown state"), file=buffer)
         print("Found exception when generating notification:", file=buffer)
         traceback.print_exc(limit=-1, file=buffer)
-        print("See the job log for the full exception traceback.", file=buffer)
+        print("See the notify job log for the full exception traceback.", file=buffer)
+
         messages_to_send = {
-            "@DataDog/agent-all": SlackMessage(buffer.getvalue()),
+            "@DataDog/agent-all": SlackMessage(base=buffer.getvalue()),
         }
         # Print traceback on job log
         print(e)
         traceback.print_exc()
+        raise Exit(code=1)
+
+    # From the job failures, set whether the pipeline succeeded or failed and craft the
+    # base message that will be sent.
+    if failed_jobs:  # At least one job failed
+        header_icon = ":host-red:"
+        state = "failed"
+        coda = "If there is something wrong with the notification please contact #agent-platform"
+    else:
+        header_icon = ":host-green:"
+        state = "succeeded"
+        coda = ""
+
+    header = ""
+    if notification_type == "merge":
+        header = f"{header_icon} :merged: datadog-agent merge"
+    elif notification_type == "deploy":
+        header = f"{header_icon} :rocket: datadog-agent deploy"
+    base = base_message(header, state)
 
     # Send messages
     for owner, message in messages_to_send.items():
-        channel = GITHUB_SLACK_MAP.get(owner, "#datadog-agent-pipelines")
-        if owner not in GITHUB_SLACK_MAP.keys():
+        channel = GITHUB_SLACK_MAP.get(owner.lower(), None)
+        message.base_message = base
+        if channel is None:
+            channel = "#datadog-agent-pipelines"
             message.base_message += UNKNOWN_OWNER_TEMPLATE.format(owner=owner)
-        message.coda = "If there is something wrong with the notification please contact #agent-platform"
+        message.coda = coda
         if print_to_stdout:
             print(f"Would send to {channel}:\n{str(message)}")
         else:
             send_slack_message(channel, str(message))  # TODO: use channel variable
+
+
+@task
+def send_stats(_, print_to_stdout=False):
+    """
+    Send statistics to Datadog for the current pipeline. CI-only task.
+    Use the --print-to-stdout option to test this locally, without sending
+    data points to Datadog.
+    """
+    project_name = "DataDog/datadog-agent"
+
+    try:
+        global_failure_reason, job_failure_stats = get_failed_jobs_stats(project_name, os.getenv("CI_PIPELINE_ID"))
+    except Exception as e:
+        print("Found exception when generating statistics:")
+        print(e)
+        traceback.print_exc(limit=-1)
+        raise Exit(code=1)
+
+    if not (print_to_stdout or os.environ.get("DD_API_KEY")):
+        print("DD_API_KEY environment variable not set, cannot send pipeline metrics to the backend")
+        raise Exit(code=1)
+
+    timestamp = int(datetime.now().timestamp())
+    series = []
+
+    for failure_tags, count in job_failure_stats.items():
+        # This allows getting stats on the number of jobs that fail due to infrastructure
+        # issues vs. other failures, and have a per-pipeline ratio of infrastructure failures.
+        series.append(
+            create_count(
+                metric_name="datadog.ci.job_failures",
+                timestamp=timestamp,
+                value=count,
+                tags=list(failure_tags)
+                + [
+                    "repository:datadog-agent",
+                    f"git_ref:{os.getenv('CI_COMMIT_REF_NAME')}",
+                ],
+            )
+        )
+
+    if job_failure_stats:  # At least one job failed
+        pipeline_state = "failed"
+    else:
+        pipeline_state = "succeeded"
+
+    pipeline_tags = [
+        "repository:datadog-agent",
+        f"git_ref:{os.getenv('CI_COMMIT_REF_NAME')}",
+        f"status:{pipeline_state}",
+    ]
+    if global_failure_reason:  # Only set the reason if the pipeline fails
+        pipeline_tags.append(f"reason:{global_failure_reason}")
+
+    series.append(
+        create_count(
+            metric_name="datadog.ci.pipelines",
+            timestamp=timestamp,
+            value=1,
+            tags=pipeline_tags,
+        )
+    )
+
+    if not print_to_stdout:
+        response = send_metrics(series)
+        if response["errors"]:
+            print(f"Error(s) while sending pipeline metrics to the Datadog backend: {response['errors']}")
+            raise Exit(code=1)
+        print(f"Sent pipeline metrics: {series}")
+    else:
+        print(f"Would send: {series}")
 
 
 def _init_pipeline_schedule_task():
@@ -581,3 +723,91 @@ def delete_schedule_variable(_, schedule_id, key):
     gitlab = _init_pipeline_schedule_task()
     result = gitlab.delete_pipeline_schedule_variable(schedule_id, key)
     pprint.pprint(result)
+
+
+@task(
+    help={
+        "image_tag": "tag from build_image with format v<build_id>_<commit_id>",
+        "test_version": "Is a test image or not",
+        "branch_name": "If you already committed in a local branch",
+    }
+)
+def update_buildimages(ctx, image_tag, test_version=True, branch_name=None):
+    """
+    Update local files to run with new image_tag from agent-buildimages and launch a full pipeline
+    Use --no-test-version to commit without the _test_only suffixes
+    """
+    create_branch = branch_name is None
+    branch_name = verify_workspace(ctx, branch_name=branch_name)
+    update_gitlab_config(".gitlab-ci.yml", image_tag, test_version=test_version)
+    update_circleci_config(".circleci/config.yml", image_tag, test_version=test_version)
+    trigger_build(ctx, branch_name=branch_name, create_branch=create_branch)
+
+
+def verify_workspace(ctx, branch_name=None):
+    """
+    Assess we can modify files and commit without risk of local or upstream conflicts
+    """
+    if branch_name is None:
+        user_name = ctx.run("whoami", hide="out")
+        branch_name = f"{user_name.stdout.rstrip()}/test_buildimages"
+        github = GithubAPI(repository=GITHUB_REPO_NAME)
+        check_clean_branch_state(ctx, github, branch_name)
+    return branch_name
+
+
+def update_gitlab_config(file_path, image_tag, test_version):
+    """
+    Override variables in .gitlab-ci.yml file
+    """
+    with open(file_path, "r") as gl:
+        file_content = gl.readlines()
+    gitlab_ci = yaml.safe_load("".join(file_content))
+    suffixes = [name for name in gitlab_ci["variables"].keys() if name.endswith("SUFFIX")]
+    images = [name.replace("_SUFFIX", "") for name in suffixes]
+    with open(file_path, "w") as gl:
+        for line in file_content:
+            if any(re.search(fr"{suffix}:", line) for suffix in suffixes):
+                if test_version:
+                    gl.write(line.replace('""', '"_test_only"'))
+                else:
+                    gl.write(line.replace('"_test_only"', '""'))
+            elif any(re.search(fr"{image}:", line) for image in images):
+                current_version = re.search(r"v\d+-\w+", line)
+                if current_version:
+                    gl.write(line.replace(current_version.group(0), image_tag))
+                else:
+                    raise RuntimeError(
+                        f"Unable to find a version matching the v<pipelineId>-<commitId> pattern in line {line}"
+                    )
+            else:
+                gl.write(line)
+
+
+def update_circleci_config(file_path, image_tag, test_version):
+    """
+    Override variables in .gitlab-ci.yml file
+    """
+    image_name = "datadog/agent-buildimages-circleci-runner"
+    with open(file_path, "r") as circle:
+        circle_ci = circle.read()
+    match = re.search(rf"({image_name}(_test_only)?):([a-zA-Z0-9_-]+)\n", circle_ci)
+    if not match:
+        raise RuntimeError(f"Impossible to find the version of image {image_name} in circleci configuration file")
+    image = f"{image_name}_test_only" if test_version else image_name
+    with open(file_path, "w") as circle:
+        circle.write(circle_ci.replace(f"{match.group(0)}", f"{image}:{image_tag}\n"))
+
+
+def trigger_build(ctx, branch_name=None, create_branch=False):
+    """
+    Trigger a pipeline from current branch on-demand (useful for test image)
+    """
+    if create_branch:
+        ctx.run(f"git checkout -b {branch_name}")
+    ctx.run("git add .gitlab-ci.yml .circleci/config.yml")
+    answer = input("Do you want to trigger a pipeline (will also commit and push)? [Y/n]\n")
+    if len(answer) == 0 or answer.casefold() == "y":
+        ctx.run("git commit -m 'Update buildimages version'")
+        ctx.run(f"git push origin {branch_name}")
+        run(ctx, here=True)

@@ -296,7 +296,7 @@ def get_config(options=None):
 
         # Endpoints
         dd_urls = map(clean_dd_url, config.get('Main', 'dd_url').split(','))
-        api_keys = map(lambda el: el.strip(), config.get('Main', 'api_key').split(','))
+        api_keys = (el.strip() for el in config.get('Main', 'api_key').split(','))
 
         # For collector and dogstatsd
         agentConfig['dd_url'] = dd_urls[0]

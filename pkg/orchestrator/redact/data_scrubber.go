@@ -14,6 +14,10 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
+// regexSensitiveParamInJSON is using non greedy operators in the value capture
+// group to work around missing support for look behind assertions in Go.
+const regexSensitiveParamInJSON = `(?P<before_value>"%s"\s*:\s*)(?P<value>".*?[^\\]+?")`
+
 var (
 	defaultSensitiveWords = []string{
 		"password", "passwd", "mysql_pwd",
@@ -29,8 +33,9 @@ type DataScrubber struct {
 	// RegexSensitivePatterns are custom regex patterns which are currently not exposed externally
 	RegexSensitivePatterns []*regexp.Regexp
 	// LiteralSensitivePatterns are custom words which use to match against
-	LiteralSensitivePatterns []string
-	scrubbedCmdLines         map[string][]string
+	LiteralSensitivePatterns         []string
+	regexSensitiveWordsInAnnotations []*regexp.Regexp
+	scrubbedCmdLines                 map[string][]string
 }
 
 // NewDefaultDataScrubber creates a DataScrubber with the default behavior: enabled
@@ -42,7 +47,16 @@ func NewDefaultDataScrubber() *DataScrubber {
 		scrubbedCmdLines:         make(map[string][]string),
 	}
 
+	newDataScrubber.setupAnnotationRegexps(defaultSensitiveWords)
+
 	return newDataScrubber
+}
+
+func (ds *DataScrubber) setupAnnotationRegexps(words []string) {
+	for _, word := range words {
+		r := regexp.MustCompile(fmt.Sprintf(regexSensitiveParamInJSON, regexp.QuoteMeta(word)))
+		ds.regexSensitiveWordsInAnnotations = append(ds.regexSensitiveWordsInAnnotations, r)
+	}
 }
 
 // ContainsSensitiveWord returns true if the given string contains
@@ -54,6 +68,17 @@ func (ds *DataScrubber) ContainsSensitiveWord(word string) bool {
 		}
 	}
 	return false
+}
+
+// ScrubAnnotationValue obfuscate sensitive information from an annotation
+// value.
+func (ds *DataScrubber) ScrubAnnotationValue(annotationValue string) string {
+	for _, r := range ds.regexSensitiveWordsInAnnotations {
+		if r.MatchString(annotationValue) {
+			annotationValue = r.ReplaceAllString(annotationValue, `${before_value}"********"`)
+		}
+	}
+	return annotationValue
 }
 
 // ScrubSimpleCommand hides the argument value for any key which matches a "sensitive word" pattern.
@@ -97,7 +122,7 @@ func (ds *DataScrubber) ScrubSimpleCommand(cmdline []string) ([]string, bool) {
 			if matchIndex >= 0 {
 				before := cmd[:matchIndex] // /etc/vaultd/ from /etc/vaultd/secret/haproxy-crt.pem
 				// skip paths /etc/vaultd/secrets/haproxy-crt.pem -> we don't want to match if one of the below chars are in before
-				if strings.IndexAny(before, "/:=$") >= 0 {
+				if strings.ContainsAny(before, "/:=$") {
 					break
 				}
 
@@ -143,6 +168,7 @@ func (ds *DataScrubber) ScrubSimpleCommand(cmdline []string) ([]string, bool) {
 // AddCustomSensitiveWords adds custom sensitive words on the DataScrubber object
 func (ds *DataScrubber) AddCustomSensitiveWords(words []string) {
 	ds.LiteralSensitivePatterns = append(ds.LiteralSensitivePatterns, words...)
+	ds.setupAnnotationRegexps(words)
 }
 
 // AddCustomSensitiveRegex adds custom sensitive regex on the DataScrubber object
@@ -183,7 +209,7 @@ func compileStringsToRegex(words []string) []*regexp.Regexp {
 					valid = false
 					break
 				} else {
-					enhancedWord.WriteString(fmt.Sprintf("[^\\s=:$/]*"))
+					enhancedWord.WriteString("[^\\s=:$/]*")
 				}
 			} else {
 				enhancedWord.WriteString(string(rune))

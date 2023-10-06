@@ -7,13 +7,16 @@ package workloadmeta
 
 import (
 	"context"
-	"errors"
 	"fmt"
+	"io"
 	"strings"
 	"time"
 
+	"github.com/CycloneDX/cyclonedx-go"
 	"github.com/mohae/deepcopy"
+	v1 "github.com/opencontainers/image-spec/specs-go/v1"
 
+	"github.com/DataDog/datadog-agent/pkg/languagedetection/languagemodels"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 )
 
@@ -56,19 +59,54 @@ type Store interface {
 
 	// ListContainers returns metadata about all known containers, equivalent
 	// to all entities with kind KindContainer.
-	ListContainers() ([]*Container, error)
+	ListContainers() []*Container
+
+	// ListContainersWithFilter returns all the containers for which the passed
+	// filter evaluates to true.
+	ListContainersWithFilter(filter ContainerFilterFunc) []*Container
 
 	// GetKubernetesPod returns metadata about a Kubernetes pod.  It fetches
 	// the entity with kind KindKubernetesPod and the given ID.
 	GetKubernetesPod(id string) (*KubernetesPod, error)
 
-	// GetKubernetesPodForContainer searches all known KubernetesPod entities
-	// for one containing the given container.
+	// GetKubernetesPodForContainer retrieves the ownership information for the
+	// given container and returns the owner pod. This information might lag because
+	// the kubelet check sets the `Owner` field but a container can also be stored by CRI
+	// checks, which do not have ownership info. Thus, the function might return an error
+	// when the pod actually exists.
 	GetKubernetesPodForContainer(containerID string) (*KubernetesPod, error)
+
+	// GetKubernetesNode returns metadata about a Kubernetes node. It fetches
+	// the entity with kind KindKubernetesNode and the given ID.
+	GetKubernetesNode(id string) (*KubernetesNode, error)
+
+	// GetKubernetesDeployment returns metadata about a Kubernetes deployment. It fetches
+	// the entity with kind KindKubernetesDeployment and the given ID.
+	GetKubernetesDeployment(id string) (*KubernetesDeployment, error)
 
 	// GetECSTask returns metadata about an ECS task.  It fetches the entity with
 	// kind KindECSTask and the given ID.
 	GetECSTask(id string) (*ECSTask, error)
+
+	// ListImages returns metadata about all known images, equivalent to all
+	// entities with kind KindContainerImageMetadata.
+	ListImages() []*ContainerImageMetadata
+
+	// GetImage returns metadata about a container image. It fetches the entity
+	// with kind KindContainerImageMetadata and the given ID.
+	GetImage(id string) (*ContainerImageMetadata, error)
+
+	// GetProcess returns metadata about a process.  It fetches the entity
+	// with kind KindProcess and the given ID.
+	GetProcess(pid int32) (*Process, error)
+
+	// ListProcesses returns metadata about all known processes, equivalent
+	// to all entities with kind KindProcess.
+	ListProcesses() []*Process
+
+	// ListProcessesWithFilter returns all the processes for which the passed
+	// filter evaluates to true.
+	ListProcessesWithFilter(filterFunc ProcessFilterFunc) []*Process
 
 	// Notify notifies the store with a slice of events.  It should only be
 	// used by workloadmeta collectors.
@@ -76,6 +114,19 @@ type Store interface {
 
 	// Dump lists the content of the store, for debugging purposes.
 	Dump(verbose bool) WorkloadDumpResponse
+
+	// ResetProcesses resets the state of the store so that newProcesses are the
+	// only entites stored.
+	ResetProcesses(newProcesses []Entity, source Source)
+
+	// Reset resets the state of the store so that newEntities are the only
+	// entities stored. This function sends events to the subscribers in the
+	// following cases:
+	// - EventTypeSet: one for each entity in newEntities that doesn't exist in
+	// the store. Also, when the entity exists, but with different values.
+	// - EventTypeUnset: one for each entity that exists in the store but is not
+	// present in newEntities.
+	Reset(newEntities []Entity, source Source)
 }
 
 // Kind is the kind of an entity.
@@ -83,9 +134,13 @@ type Kind string
 
 // Defined Kinds
 const (
-	KindContainer     Kind = "container"
-	KindKubernetesPod Kind = "kubernetes_pod"
-	KindECSTask       Kind = "ecs_task"
+	KindContainer              Kind = "container"
+	KindKubernetesPod          Kind = "kubernetes_pod"
+	KindKubernetesNode         Kind = "kubernetes_node"
+	KindKubernetesDeployment   Kind = "kubernetes_deployment"
+	KindECSTask                Kind = "ecs_task"
+	KindContainerImageMetadata Kind = "container_image_metadata"
+	KindProcess                Kind = "process"
 )
 
 // Source is the source name of an entity.
@@ -111,6 +166,14 @@ const (
 	// the central component of an orchestrator, or the Datadog Cluster
 	// Agent.  `kube_metadata` and `cloudfoundry` use this.
 	SourceClusterOrchestrator Source = "cluster_orchestrator"
+
+	// SourceRemoteWorkloadmeta represents entities detected by the remote
+	// workloadmeta.
+	SourceRemoteWorkloadmeta Source = "remote_workloadmeta"
+
+	// SourceRemoteProcessCollector reprents processes entities detected
+	// by the RemoteProcessCollector.
+	SourceRemoteProcessCollector Source = "remote_process_collector"
 )
 
 // ContainerRuntime is the container runtime used by a container.
@@ -164,8 +227,12 @@ const (
 type EventType int
 
 const (
+	// EventTypeAll matches any event type. Should not be returned by
+	// collectors, as it is only meant to be used in filters.
+	EventTypeAll EventType = iota
+
 	// EventTypeSet indicates that an entity has been added or updated.
-	EventTypeSet EventType = iota
+	EventTypeSet
 
 	// EventTypeUnset indicates that an entity has been removed.  If multiple
 	// sources provide data for an entity, this message is only sent when the
@@ -173,14 +240,25 @@ const (
 	EventTypeUnset
 )
 
+// SBOMStatus is the status of a SBOM
+type SBOMStatus string
+
+const (
+	// Pending is the status when the image was not scanned
+	Pending SBOMStatus = "Pending"
+	// Success is the status when the image was scanned
+	Success SBOMStatus = "Success"
+	// Failed is the status when the scan failed
+	Failed SBOMStatus = "Failed"
+)
+
 // Entity represents a single unit of work being done that is of interest to
 // the agent.
 //
 // This interface is implemented by several concrete types, and is typically
-// cast to that concrete type to get detailed information.  For EntityTypeSet
-// events, the concrete type corresponds to the entity's type (GetID().Kind),
-// and it is safe to make an unchecked cast.  For EntityTypeUnset, the entity
-// is an EntityID and such a cast will fail.
+// cast to that concrete type to get detailed information.  The concrete type
+// corresponds to the entity's type (GetID().Kind), and it is safe to make an
+// unchecked cast.
 type Entity interface {
 	// GetID gets the EntityID for this entity.
 	GetID() EntityID
@@ -209,28 +287,6 @@ type EntityID struct {
 	ID string
 }
 
-// EntityID satisfies the Entity interface for EntityID to allow a standalone
-// EntityID to be passed in events of type EventTypeUnset without the need to
-// build a full, concrete entity.
-var _ Entity = EntityID{}
-
-// GetID implements Entity#GetID.
-func (i EntityID) GetID() EntityID {
-	return i
-}
-
-// Merge implements Entity#Merge.
-func (i EntityID) Merge(e Entity) error {
-	// Merge returns an error because EntityID is not expected to be merged
-	// with another Entity, because it's used as an identifier.
-	return errors.New("cannot merge EntityID with another entity")
-}
-
-// DeepCopy implements Entity#DeepCopy.
-func (i EntityID) DeepCopy() Entity {
-	return i
-}
-
 // String implements Entity#String.
 func (i EntityID) String(_ bool) string {
 	return fmt.Sprintln("Kind:", i.Kind, "ID:", i.ID)
@@ -251,8 +307,8 @@ func (e EntityMeta) String(verbose bool) string {
 	_, _ = fmt.Fprintln(&sb, "Namespace:", e.Namespace)
 
 	if verbose {
-		_, _ = fmt.Fprintln(&sb, "Annotations:", mapToString(e.Annotations))
-		_, _ = fmt.Fprintln(&sb, "Labels:", mapToString(e.Labels))
+		_, _ = fmt.Fprintln(&sb, "Annotations:", mapToScrubbedJSONString(e.Annotations))
+		_, _ = fmt.Fprintln(&sb, "Labels:", mapToScrubbedJSONString(e.Labels))
 	}
 
 	return sb.String()
@@ -263,18 +319,20 @@ type ContainerImage struct {
 	ID        string
 	RawName   string
 	Name      string
+	Registry  string
 	ShortName string
 	Tag       string
 }
 
-// NewContainerImage builds a ContainerImage from an image name
-func NewContainerImage(imageName string) (ContainerImage, error) {
+// NewContainerImage builds a ContainerImage from an image name and its id
+func NewContainerImage(imageID string, imageName string) (ContainerImage, error) {
 	image := ContainerImage{
+		ID:      imageID,
 		RawName: imageName,
 		Name:    imageName,
 	}
 
-	name, shortName, tag, err := containers.SplitImageName(imageName)
+	name, registry, shortName, tag, err := containers.SplitImageName(imageName)
 	if err != nil {
 		return image, err
 	}
@@ -284,6 +342,7 @@ func NewContainerImage(imageName string) (ContainerImage, error) {
 	}
 
 	image.Name = name
+	image.Registry = registry
 	image.ShortName = shortName
 	image.Tag = tag
 
@@ -372,6 +431,7 @@ func (o OrchestratorContainer) String(_ bool) string {
 type Container struct {
 	EntityID
 	EntityMeta
+	// EnvVars are limited to variables included in pkg/util/containers/env_vars_filter.go
 	EnvVars    map[string]string
 	Hostname   string
 	Image      ContainerImage
@@ -381,8 +441,10 @@ type Container struct {
 	Runtime    ContainerRuntime
 	State      ContainerState
 	// CollectorTags represent tags coming from the collector itself
-	// and that it would impossible to compute later on
-	CollectorTags []string
+	// and that it would be impossible to compute later on
+	CollectorTags   []string
+	Owner           *EntityID
+	SecurityContext *ContainerSecurityContext
 }
 
 // GetID implements Entity#GetID.
@@ -424,7 +486,7 @@ func (c Container) String(verbose bool) string {
 	_, _ = fmt.Fprint(&sb, c.State.String(verbose))
 
 	if verbose {
-		_, _ = fmt.Fprintln(&sb, "Env Variables:", mapToString(c.EnvVars))
+		_, _ = fmt.Fprintln(&sb, "Allowed env variables:", filterAndFormatEnvVars(c.EnvVars))
 		_, _ = fmt.Fprintln(&sb, "Hostname:", c.Hostname)
 		_, _ = fmt.Fprintln(&sb, "Network IPs:", mapToString(c.NetworkIPs))
 		_, _ = fmt.Fprintln(&sb, "PID:", c.PID)
@@ -437,10 +499,73 @@ func (c Container) String(verbose bool) string {
 		}
 	}
 
+	if c.SecurityContext != nil {
+		_, _ = fmt.Fprintln(&sb, "----------- Security Context -----------")
+		if c.SecurityContext.Capabilities != nil {
+			_, _ = fmt.Fprintln(&sb, "----------- Capabilities -----------")
+			_, _ = fmt.Fprintln(&sb, "Add:", c.SecurityContext.Capabilities.Add)
+			_, _ = fmt.Fprintln(&sb, "Drop:", c.SecurityContext.Capabilities.Drop)
+		}
+
+		_, _ = fmt.Fprintln(&sb, "Privileged:", c.SecurityContext.Privileged)
+		if c.SecurityContext.SeccompProfile != nil {
+			_, _ = fmt.Fprintln(&sb, "----------- Seccomp Profile -----------")
+			_, _ = fmt.Fprintln(&sb, "Type:", c.SecurityContext.SeccompProfile.Type)
+			if c.SecurityContext.SeccompProfile.Type == SeccompProfileTypeLocalhost {
+				_, _ = fmt.Fprintln(&sb, "Localhost Profile:", c.SecurityContext.SeccompProfile.LocalhostProfile)
+			}
+		}
+	}
+
 	return sb.String()
 }
 
+// PodSecurityContext is the Security Context of a Kubernetes pod
+type PodSecurityContext struct {
+	RunAsUser  int32
+	RunAsGroup int32
+	FsGroup    int32
+}
+
+// ContainerSecurityContext is the Security Context of a Container
+type ContainerSecurityContext struct {
+	*Capabilities
+	Privileged     bool
+	SeccompProfile *SeccompProfile
+}
+
+// Capabilities defines the capabilities of a Container
+type Capabilities struct {
+	Add  []string
+	Drop []string
+}
+
+// SeccompProfileType is the type of seccomp profile used
+type SeccompProfileType string
+
+// Seccomp profile types
+const (
+	SeccompProfileTypeUnconfined     SeccompProfileType = "Unconfined"
+	SeccompProfileTypeRuntimeDefault SeccompProfileType = "RuntimeDefault"
+	SeccompProfileTypeLocalhost      SeccompProfileType = "Localhost"
+)
+
+// SeccompProfile contains fields for unmarshalling a Pod.Spec.Containers.SecurityContext.SeccompProfile
+type SeccompProfile struct {
+	Type             SeccompProfileType
+	LocalhostProfile string
+}
+
 var _ Entity = &Container{}
+
+// ContainerFilterFunc is a function used to filter containers.
+type ContainerFilterFunc func(container *Container) bool
+
+// ProcessFilterFunc is a function used to filter processes.
+type ProcessFilterFunc func(process *Process) bool
+
+// GetRunningContainers is a function that evaluates to true for running containers.
+var GetRunningContainers ContainerFilterFunc = func(container *Container) bool { return container.State.Running }
 
 // KubernetesPod is an Entity representing a Kubernetes Pod.
 type KubernetesPod struct {
@@ -448,13 +573,17 @@ type KubernetesPod struct {
 	EntityMeta
 	Owners                     []KubernetesPodOwner
 	PersistentVolumeClaimNames []string
+	InitContainers             []OrchestratorContainer
 	Containers                 []OrchestratorContainer
 	Ready                      bool
 	Phase                      string
 	IP                         string
 	PriorityClass              string
+	QOSClass                   string
 	KubeServices               []string
 	NamespaceLabels            map[string]string
+	FinishedAt                 time.Time
+	SecurityContext            *PodSecurityContext
 }
 
 // GetID implements Entity#GetID.
@@ -494,6 +623,13 @@ func (p KubernetesPod) String(verbose bool) string {
 		}
 	}
 
+	if len(p.InitContainers) > 0 {
+		_, _ = fmt.Fprintln(&sb, "----------- Init Containers -----------")
+		for _, c := range p.InitContainers {
+			_, _ = fmt.Fprint(&sb, c.String(verbose))
+		}
+	}
+
 	if len(p.Containers) > 0 {
 		_, _ = fmt.Fprintln(&sb, "----------- Containers -----------")
 		for _, c := range p.Containers {
@@ -508,12 +644,28 @@ func (p KubernetesPod) String(verbose bool) string {
 
 	if verbose {
 		_, _ = fmt.Fprintln(&sb, "Priority Class:", p.PriorityClass)
+		_, _ = fmt.Fprintln(&sb, "QOS Class:", p.QOSClass)
 		_, _ = fmt.Fprintln(&sb, "PVCs:", sliceToString(p.PersistentVolumeClaimNames))
 		_, _ = fmt.Fprintln(&sb, "Kube Services:", sliceToString(p.KubeServices))
 		_, _ = fmt.Fprintln(&sb, "Namespace Labels:", mapToString(p.NamespaceLabels))
+		if !p.FinishedAt.IsZero() {
+			_, _ = fmt.Fprintln(&sb, "Finished At:", p.FinishedAt)
+		}
+	}
+
+	if p.SecurityContext != nil {
+		_, _ = fmt.Fprintln(&sb, "----------- Pod Security Context -----------")
+		_, _ = fmt.Fprintln(&sb, "RunAsUser:", p.SecurityContext.RunAsUser)
+		_, _ = fmt.Fprintln(&sb, "RunAsGroup:", p.SecurityContext.RunAsGroup)
+		_, _ = fmt.Fprintln(&sb, "FsGroup:", p.SecurityContext.FsGroup)
 	}
 
 	return sb.String()
+}
+
+// GetAllContainers returns init containers and containers.
+func (p KubernetesPod) GetAllContainers() []OrchestratorContainer {
+	return append(p.InitContainers, p.Containers...)
 }
 
 var _ Entity = &KubernetesPod{}
@@ -536,6 +688,108 @@ func (o KubernetesPodOwner) String(verbose bool) string {
 
 	return sb.String()
 }
+
+// KubernetesNode is an Entity representing a Kubernetes Node.
+type KubernetesNode struct {
+	EntityID
+	EntityMeta
+}
+
+// GetID implements Entity#GetID.
+func (n *KubernetesNode) GetID() EntityID {
+	return n.EntityID
+}
+
+// Merge implements Entity#Merge.
+func (n *KubernetesNode) Merge(e Entity) error {
+	nn, ok := e.(*KubernetesNode)
+	if !ok {
+		return fmt.Errorf("cannot merge KubernetesNode with different kind %T", e)
+	}
+
+	return merge(n, nn)
+}
+
+// DeepCopy implements Entity#DeepCopy.
+func (n KubernetesNode) DeepCopy() Entity {
+	cn := deepcopy.Copy(n).(KubernetesNode)
+	return &cn
+}
+
+// String implements Entity#String
+func (n KubernetesNode) String(verbose bool) string {
+	var sb strings.Builder
+	_, _ = fmt.Fprintln(&sb, "----------- Entity ID -----------")
+	_, _ = fmt.Fprintln(&sb, n.EntityID.String(verbose))
+
+	_, _ = fmt.Fprintln(&sb, "----------- Entity Meta -----------")
+	_, _ = fmt.Fprint(&sb, n.EntityMeta.String(verbose))
+
+	return sb.String()
+}
+
+var _ Entity = &KubernetesNode{}
+
+// KubernetesDeployment is an Entity representing a Kubernetes Deployment.
+type KubernetesDeployment struct {
+	EntityID
+	Env                    string
+	Service                string
+	Version                string
+	ContainerLanguages     map[string][]languagemodels.Language
+	InitContainerLanguages map[string][]languagemodels.Language
+}
+
+// GetID implements Entity#GetID.
+func (d *KubernetesDeployment) GetID() EntityID {
+	return d.EntityID
+}
+
+// Merge implements Entity#Merge.
+func (d *KubernetesDeployment) Merge(e Entity) error {
+	dd, ok := e.(*KubernetesDeployment)
+	if !ok {
+		return fmt.Errorf("cannot merge KubernetesDeployment with different kind %T", e)
+	}
+
+	return merge(d, dd)
+}
+
+// DeepCopy implements Entity#DeepCopy.
+func (d KubernetesDeployment) DeepCopy() Entity {
+	cd := deepcopy.Copy(d).(KubernetesDeployment)
+	return &cd
+}
+
+// String implements Entity#String
+func (d KubernetesDeployment) String(verbose bool) string {
+	var sb strings.Builder
+	_, _ = fmt.Fprintln(&sb, "----------- Entity ID -----------")
+	_, _ = fmt.Fprintln(&sb, d.EntityID.String(verbose))
+	_, _ = fmt.Fprintln(&sb, "----------- Unified Service Tagging -----------")
+	_, _ = fmt.Fprintln(&sb, "Env :", d.Env)
+	_, _ = fmt.Fprintln(&sb, "Service :", d.Service)
+	_, _ = fmt.Fprintln(&sb, "Version :", d.Version)
+	_, _ = fmt.Fprintln(&sb, "----------- Languages -----------")
+
+	langPrinter := func(m map[string][]languagemodels.Language, ctype string) {
+		for container, languages := range m {
+			var langSb strings.Builder
+			for i, lang := range languages {
+				if i != 0 {
+					_, _ = langSb.WriteString(",")
+				}
+				_, _ = langSb.WriteString(string(lang.Name))
+			}
+			_, _ = fmt.Fprintf(&sb, "%s %s=>[%s]\n", ctype, container, langSb.String())
+		}
+	}
+	langPrinter(d.InitContainerLanguages, "InitContainer")
+	langPrinter(d.ContainerLanguages, "Container")
+	return sb.String()
+}
+
+var _ Entity = &KubernetesDeployment{}
 
 // ECSTask is an Entity representing an ECS Task.
 type ECSTask struct {
@@ -604,6 +858,172 @@ func (t ECSTask) String(verbose bool) string {
 
 var _ Entity = &ECSTask{}
 
+// ContainerImageMetadata is an Entity that represents container image metadata
+type ContainerImageMetadata struct {
+	EntityID
+	EntityMeta
+	RepoTags     []string
+	RepoDigests  []string
+	MediaType    string
+	SizeBytes    int64
+	OS           string
+	OSVersion    string
+	Architecture string
+	Variant      string
+	Layers       []ContainerImageLayer
+	SBOM         *SBOM
+}
+
+// ContainerImageLayer represents a layer of a container image
+type ContainerImageLayer struct {
+	MediaType string
+	Digest    string
+	SizeBytes int64
+	URLs      []string
+	History   v1.History
+}
+
+// SBOM represents the Software Bill Of Materials (SBOM) of a container
+type SBOM struct {
+	CycloneDXBOM       *cyclonedx.BOM
+	GenerationTime     time.Time
+	GenerationDuration time.Duration
+	Status             SBOMStatus
+	Error              string // needs to be stored as a string otherwise the merge() will favor the nil value
+}
+
+// GetID implements Entity#GetID.
+func (i ContainerImageMetadata) GetID() EntityID {
+	return i.EntityID
+}
+
+// Merge implements Entity#Merge.
+func (i *ContainerImageMetadata) Merge(e Entity) error {
+	otherImage, ok := e.(*ContainerImageMetadata)
+	if !ok {
+		return fmt.Errorf("cannot merge ContainerImageMetadata with different kind %T", e)
+	}
+
+	return merge(i, otherImage)
+}
+
+// DeepCopy implements Entity#DeepCopy.
+func (i ContainerImageMetadata) DeepCopy() Entity {
+	cp := deepcopy.Copy(i).(ContainerImageMetadata)
+	return &cp
+}
+
+// String implements Entity#String.
+func (i ContainerImageMetadata) String(verbose bool) string {
+	var sb strings.Builder
+
+	_, _ = fmt.Fprintln(&sb, "----------- Entity ID -----------")
+	_, _ = fmt.Fprint(&sb, i.EntityID.String(verbose))
+
+	_, _ = fmt.Fprintln(&sb, "----------- Entity Meta -----------")
+	_, _ = fmt.Fprint(&sb, i.EntityMeta.String(verbose))
+
+	_, _ = fmt.Fprintln(&sb, "Repo tags:", i.RepoTags)
+	_, _ = fmt.Fprintln(&sb, "Repo digests:", i.RepoDigests)
+
+	if verbose {
+		_, _ = fmt.Fprintln(&sb, "Media Type:", i.MediaType)
+		_, _ = fmt.Fprintln(&sb, "Size in bytes:", i.SizeBytes)
+		_, _ = fmt.Fprintln(&sb, "OS:", i.OS)
+		_, _ = fmt.Fprintln(&sb, "OS Version:", i.OSVersion)
+		_, _ = fmt.Fprintln(&sb, "Architecture:", i.Architecture)
+		_, _ = fmt.Fprintln(&sb, "Variant:", i.Variant)
+
+		_, _ = fmt.Fprintln(&sb, "----------- SBOM -----------")
+		_, _ = fmt.Fprintln(&sb, "Status:", i.SBOM.Status)
+		switch i.SBOM.Status {
+		case Success:
+			_, _ = fmt.Fprintf(&sb, "Generated in: %.2f seconds\n", i.SBOM.GenerationDuration.Seconds())
+		case Failed:
+			_, _ = fmt.Fprintf(&sb, "Error: %s\n", i.SBOM.Error)
+		default:
+		}
+
+		_, _ = fmt.Fprintln(&sb, "----------- Layers -----------")
+		for _, layer := range i.Layers {
+			_, _ = fmt.Fprintln(&sb, layer)
+		}
+	}
+
+	return sb.String()
+}
+
+// String returns a string representation of ContainerImageLayer
+func (layer ContainerImageLayer) String() string {
+	var sb strings.Builder
+
+	_, _ = fmt.Fprintln(&sb, "Media Type:", layer.MediaType)
+	_, _ = fmt.Fprintln(&sb, "Digest:", layer.Digest)
+	_, _ = fmt.Fprintln(&sb, "Size in bytes:", layer.SizeBytes)
+	_, _ = fmt.Fprintln(&sb, "URLs:", layer.URLs)
+
+	printHistory(&sb, layer.History)
+
+	return sb.String()
+}
+
+func printHistory(out io.Writer, history v1.History) {
+	_, _ = fmt.Fprintln(out, "History:")
+	_, _ = fmt.Fprintln(out, "- createdAt:", history.Created)
+	_, _ = fmt.Fprintln(out, "- createdBy:", history.CreatedBy)
+	_, _ = fmt.Fprintln(out, "- comment:", history.Comment)
+	_, _ = fmt.Fprintln(out, "- emptyLayer:", history.EmptyLayer)
+}
+
+var _ Entity = &ContainerImageMetadata{}
+
+// Process is an Entity that represents a process
+type Process struct {
+	EntityID // EntityID.ID is the PID
+
+	NsPid        int32
+	ContainerID  string
+	CreationTime time.Time
+	Language     *languagemodels.Language
+}
+
+var _ Entity = &Process{}
+
+// GetID implements Entity#GetID.
+func (p Process) GetID() EntityID {
+	return p.EntityID
+}
+
+// DeepCopy implements Entity#DeepCopy.
+func (p Process) DeepCopy() Entity {
+	cp := deepcopy.Copy(p).(Process)
+	return &cp
+}
+
+// Merge implements Entity#Merge.
+func (p *Process) Merge(e Entity) error {
+	otherProcess, ok := e.(*Process)
+	if !ok {
+		return fmt.Errorf("cannot merge ProcessMetadata with different kind %T", e)
+	}
+
+	return merge(p, otherProcess)
+}
+
+// String implements Entity#String.
+func (p Process) String(verbose bool) string {
+	var sb strings.Builder
+
+	_, _ = fmt.Fprintln(&sb, "----------- Entity ID -----------")
+	_, _ = fmt.Fprintln(&sb, "PID:", p.EntityID.ID)
+	_, _ = fmt.Fprintln(&sb, "Namespace PID:", p.NsPid)
+	_, _ = fmt.Fprintln(&sb, "Container ID:", p.ContainerID)
+	_, _ = fmt.Fprintln(&sb, "Creation time:", p.CreationTime)
+	_, _ = fmt.Fprintln(&sb, "Language:", p.Language.Name)
+
+	return sb.String()
+}
+
 // CollectorEvent is an event generated by a metadata collector, to be handled
 // by the metadata store.
 type CollectorEvent struct {
@@ -643,6 +1063,11 @@ const (
 	// TaggerPriority is the priority for the Tagger.  The Tagger must always
 	// come first.
 	TaggerPriority SubscriberPriority = iota
+
+	// ConfigProviderPriority is the priority for the AD Config Provider.
+	// This should come before other subscribers so that config provided by
+	// entities is available to those other subscribers.
+	ConfigProviderPriority SubscriberPriority = iota
 
 	// NormalPriority should be used by subscribers on which other components
 	// do not depend.

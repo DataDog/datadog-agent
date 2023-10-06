@@ -8,28 +8,34 @@ package status
 import (
 	"expvar"
 	"strings"
-	"sync/atomic"
-	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/logs/config"
+	"go.uber.org/atomic"
+
+	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
+	"github.com/DataDog/datadog-agent/pkg/logs/internal/status"
+	sourcesPkg "github.com/DataDog/datadog-agent/pkg/logs/sources"
+	"github.com/DataDog/datadog-agent/pkg/logs/tailers"
+	"github.com/DataDog/datadog-agent/pkg/util"
 )
 
 // Builder is used to build the status.
 type Builder struct {
-	isRunning   *int32
+	isRunning   *atomic.Bool
 	endpoints   *config.Endpoints
-	sources     *config.LogSources
+	sources     *sourcesPkg.LogSources
+	tailers     *tailers.TailerTracker
 	warnings    *config.Messages
 	errors      *config.Messages
 	logsExpVars *expvar.Map
 }
 
 // NewBuilder returns a new builder.
-func NewBuilder(isRunning *int32, endpoints *config.Endpoints, sources *config.LogSources, warnings *config.Messages, errors *config.Messages, logExpVars *expvar.Map) *Builder {
+func NewBuilder(isRunning *atomic.Bool, endpoints *config.Endpoints, sources *sourcesPkg.LogSources, tracker *tailers.TailerTracker, warnings *config.Messages, errors *config.Messages, logExpVars *expvar.Map) *Builder {
 	return &Builder{
 		isRunning:   isRunning,
 		endpoints:   endpoints,
 		sources:     sources,
+		tailers:     tracker,
 		warnings:    warnings,
 		errors:      errors,
 		logsExpVars: logExpVars,
@@ -37,15 +43,21 @@ func NewBuilder(isRunning *int32, endpoints *config.Endpoints, sources *config.L
 }
 
 // BuildStatus returns the status of the logs-agent.
-func (b *Builder) BuildStatus() Status {
+func (b *Builder) BuildStatus(verbose bool) Status {
+	tailers := []Tailer{}
+	if verbose {
+		tailers = b.getTailers()
+	}
 	return Status{
-		IsRunning:     b.getIsRunning(),
-		Endpoints:     b.getEndpoints(),
-		Integrations:  b.getIntegrations(),
-		StatusMetrics: b.getMetricsStatus(),
-		Warnings:      b.getWarnings(),
-		Errors:        b.getErrors(),
-		UseHTTP:       b.getUseHTTP(),
+		IsRunning:        b.getIsRunning(),
+		Endpoints:        b.getEndpoints(),
+		Integrations:     b.getIntegrations(),
+		Tailers:          tailers,
+		StatusMetrics:    b.getMetricsStatus(),
+		ProcessFileStats: b.getProcessFileStats(),
+		Warnings:         b.getWarnings(),
+		Errors:           b.getErrors(),
+		UseHTTP:          b.getUseHTTP(),
 	}
 }
 
@@ -53,7 +65,7 @@ func (b *Builder) BuildStatus() Status {
 // this needs to be thread safe as it can be accessed
 // from different commands (start, stop, status).
 func (b *Builder) getIsRunning() bool {
-	return atomic.LoadInt32(b.isRunning) != 0
+	return b.isRunning.Load()
 }
 
 func (b *Builder) getUseHTTP() bool {
@@ -83,17 +95,12 @@ func (b *Builder) getIntegrations() []Integration {
 		var sources []Source
 		for _, source := range logSources {
 			sources = append(sources, Source{
-				BytesRead:          source.BytesRead.Value(),
-				AllTimeAvgLatency:  source.LatencyStats.AllTimeAvg() / int64(time.Millisecond),
-				AllTimePeakLatency: source.LatencyStats.AllTimePeak() / int64(time.Millisecond),
-				RecentAvgLatency:   source.LatencyStats.MovingAvg() / int64(time.Millisecond),
-				RecentPeakLatency:  source.LatencyStats.MovingPeak() / int64(time.Millisecond),
-				Type:               source.Config.Type,
-				Configuration:      b.toDictionary(source.Config),
-				Status:             b.toString(source.Status),
-				Inputs:             source.GetInputs(),
-				Messages:           source.Messages.GetMessages(),
-				Info:               source.GetInfoStatus(),
+				Type:          source.Config.Type,
+				Configuration: b.toDictionary(source.Config),
+				Status:        b.toString(source.Status),
+				Inputs:        source.GetInputs(),
+				Messages:      source.Messages.GetMessages(),
+				Info:          source.GetInfoStatus(),
 			})
 		}
 		integrations = append(integrations, Integration{
@@ -104,16 +111,33 @@ func (b *Builder) getIntegrations() []Integration {
 	return integrations
 }
 
+// getTailers returns all the information about the logs integrations.
+func (b *Builder) getTailers() []Tailer {
+	tailers := b.tailers.All()
+	tailerStatus := make([]Tailer, 0, len(tailers))
+	for _, tailer := range tailers {
+
+		info := tailer.GetInfo().Rendered()
+
+		tailerStatus = append(tailerStatus, Tailer{
+			Id:   tailer.GetId(),
+			Type: tailer.GetType(),
+			Info: info,
+		})
+	}
+	return tailerStatus
+}
+
 // groupSourcesByName groups all logs sources by name so that they get properly displayed
 // on the agent status.
-func (b *Builder) groupSourcesByName() map[string][]*config.LogSource {
-	sources := make(map[string][]*config.LogSource)
+func (b *Builder) groupSourcesByName() map[string][]*sourcesPkg.LogSource {
+	sources := make(map[string][]*sourcesPkg.LogSource)
 	for _, source := range b.sources.GetSources() {
 		if source.IsHiddenFromStatus() {
 			continue
 		}
 		if _, exists := sources[source.Name]; !exists {
-			sources[source.Name] = []*config.LogSource{}
+			sources[source.Name] = []*sourcesPkg.LogSource{}
 		}
 		sources[source.Name] = append(sources[source.Name], source)
 	}
@@ -121,7 +145,7 @@ func (b *Builder) groupSourcesByName() map[string][]*config.LogSource {
 }
 
 // toString returns a representation of a status.
-func (b *Builder) toString(status *config.LogStatus) string {
+func (b *Builder) toString(status *status.LogStatus) string {
 	var value string
 	if status.IsPending() {
 		value = "Pending"
@@ -136,6 +160,8 @@ func (b *Builder) toString(status *config.LogStatus) string {
 // toDictionary returns a representation of the configuration.
 func (b *Builder) toDictionary(c *config.LogsConfig) map[string]interface{} {
 	dictionary := make(map[string]interface{})
+	dictionary["Service"] = c.Service
+	dictionary["Source"] = c.Source
 	switch c.Type {
 	case config.TCPType, config.UDPType:
 		dictionary["Port"] = c.Port
@@ -148,8 +174,12 @@ func (b *Builder) toDictionary(c *config.LogsConfig) map[string]interface{} {
 		dictionary["Label"] = c.Label
 		dictionary["Name"] = c.Name
 	case config.JournaldType:
-		dictionary["IncludeUnits"] = strings.Join(c.IncludeUnits, ", ")
-		dictionary["ExcludeUnits"] = strings.Join(c.ExcludeUnits, ", ")
+		dictionary["IncludeSystemUnits"] = strings.Join(c.IncludeSystemUnits, ", ")
+		dictionary["ExcludeSystemUnits"] = strings.Join(c.ExcludeSystemUnits, ", ")
+		dictionary["IncludeUserUnits"] = strings.Join(c.IncludeUserUnits, ", ")
+		dictionary["ExcludeUserUnits"] = strings.Join(c.ExcludeUserUnits, ", ")
+		dictionary["IncludeMatches"] = strings.Join(c.IncludeMatches, ", ")
+		dictionary["ExcludeMatches"] = strings.Join(c.ExcludeMatches, ", ")
 	case config.WindowsEventType:
 		dictionary["ChannelPath"] = c.ChannelPath
 		dictionary["Query"] = c.Query
@@ -170,4 +200,16 @@ func (b *Builder) getMetricsStatus() map[string]int64 {
 	metrics["BytesSent"] = b.logsExpVars.Get("BytesSent").(*expvar.Int).Value()
 	metrics["EncodedBytesSent"] = b.logsExpVars.Get("EncodedBytesSent").(*expvar.Int).Value()
 	return metrics
+}
+
+func (b *Builder) getProcessFileStats() map[string]uint64 {
+	stats := make(map[string]uint64)
+	fs, err := util.GetProcessFileStats()
+	if err != nil {
+		return stats
+	}
+
+	stats["CoreAgentProcessOpenFiles"] = fs.AgentOpenFiles
+	stats["OSFileLimit"] = fs.OsFileLimit
+	return stats
 }

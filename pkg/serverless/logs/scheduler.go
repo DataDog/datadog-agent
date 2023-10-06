@@ -6,10 +6,8 @@
 package logs
 
 import (
-	"github.com/DataDog/datadog-agent/cmd/agent/common"
-	"github.com/DataDog/datadog-agent/pkg/autodiscovery"
-	"github.com/DataDog/datadog-agent/pkg/logs"
-	"github.com/DataDog/datadog-agent/pkg/logs/config"
+	logsAgent "github.com/DataDog/datadog-agent/comp/logs/agent"
+	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/schedulers/channel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -19,17 +17,17 @@ import (
 var logsScheduler *channel.Scheduler
 
 // SetupLogAgent sets up the logs agent to handle messages on the given channel.
-func SetupLogAgent(logChannel chan *config.ChannelMessage) {
-	agent, err := logs.StartServerless(
-		func() *autodiscovery.AutoConfig { return common.AC },
-	)
+func SetupLogAgent(logChannel chan *config.ChannelMessage, sourceName string, source string) (logsAgent.ServerlessLogsAgent, error) {
+	agent := logsAgent.NewServerlessLogsAgent()
+	err := agent.Start()
 	if err != nil {
 		log.Error("Could not start an instance of the Logs Agent:", err)
-		return
+		return nil, err
 	}
 
-	logsScheduler = channel.NewScheduler("AWS Logs", "lambda", logChannel, nil)
+	logsScheduler = channel.NewScheduler(sourceName, source, logChannel)
 	agent.AddScheduler(logsScheduler)
+	return agent, nil
 }
 
 // SetLogsTags updates the tags attached to logs messages.
@@ -40,4 +38,11 @@ func SetLogsTags(tags []string) {
 	if logsScheduler != nil {
 		logsScheduler.SetLogsTags(tags)
 	}
+}
+
+func GetLogsTags() []string {
+	if logsScheduler != nil {
+		return logsScheduler.GetLogsTags()
+	}
+	return nil
 }

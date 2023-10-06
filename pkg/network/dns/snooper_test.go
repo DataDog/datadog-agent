@@ -4,36 +4,26 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build linux_bpf
-// +build linux_bpf
 
 package dns
 
 import (
 	"math/rand"
 	"net"
-	"sync"
+	"strconv"
 	"syscall"
 	"testing"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/network/config"
-	"github.com/DataDog/datadog-agent/pkg/process/util"
-	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/google/gopacket/layers"
 	"github.com/miekg/dns"
 	mdns "github.com/miekg/dns"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"go4.org/intern"
-)
 
-func skipIfDNSNotSupported(t *testing.T) {
-	currKernelVersion, err := kernel.HostVersion()
-	require.NoError(t, err)
-	if currKernelVersion < kernel.VersionCode(4, 1, 0) {
-		t.Skip("dns inspection not supported on this kernel")
-	}
-}
+	"github.com/DataDog/datadog-agent/pkg/network/config"
+	"github.com/DataDog/datadog-agent/pkg/process/util"
+)
 
 func checkSnooping(t *testing.T, destIP string, destName string, reverseDNS *dnsMonitor) {
 	destAddr := util.AddressFromString(destIP)
@@ -45,24 +35,26 @@ func checkSnooping(t *testing.T, destIP string, destName string, reverseDNS *dns
 	}, 1*time.Second, 10*time.Millisecond)
 
 	// Verify that the IP from the connections above maps to the right name
-	payload := []util.Address{srcAddr, destAddr}
+	payload := map[util.Address]struct{}{srcAddr: {}, destAddr: {}}
 	names := reverseDNS.Resolve(payload)
 	require.Len(t, names, 1)
-	assert.Contains(t, names[destAddr], destName)
+	assert.Contains(t, names[destAddr], ToHostname(destName))
 
 	// Verify telemetry
-	stats := reverseDNS.GetStats()
-	assert.True(t, stats["ips"] >= 1)
-
+	assert.True(t, cacheTelemetry.length.Load() >= 1)
+	lookups := cacheTelemetry.lookups.Load()
 	if srcIP != destIP {
-		assert.Equal(t, int64(2), stats["lookups"])
+		assert.Equal(t, int64(2), lookups)
 	} else {
-		assert.Equal(t, int64(1), stats["lookups"])
+		assert.Equal(t, int64(1), lookups)
 	}
-	assert.Equal(t, int64(1), stats["resolved"])
+	assert.Equal(t, int64(1), cacheTelemetry.resolved.Load())
 }
 
 func TestDNSOverUDPSnooping(t *testing.T) {
+	cacheTelemetry.length.Set(0)
+	cacheTelemetry.lookups.Delete()
+	cacheTelemetry.resolved.Delete()
 	reverseDNS := initDNSTestsWithDomainCollection(t, false)
 	defer reverseDNS.Close()
 
@@ -82,6 +74,9 @@ func TestDNSOverUDPSnooping(t *testing.T) {
 }
 
 func TestDNSOverTCPSnooping(t *testing.T) {
+	cacheTelemetry.length.Set(0)
+	cacheTelemetry.lookups.Delete()
+	cacheTelemetry.resolved.Delete()
 	reverseDNS := initDNSTestsWithDomainCollection(t, false)
 	defer reverseDNS.Close()
 
@@ -121,8 +116,6 @@ func initDNSTestsWithDomainCollection(t *testing.T, localDNS bool) *dnsMonitor {
 }
 
 func initDNSTests(t *testing.T, localDNS bool, collectDomain bool) *dnsMonitor {
-	skipIfDNSNotSupported(t)
-
 	cfg := testConfig()
 	cfg.CollectDNSStats = true
 	cfg.CollectLocalDNS = localDNS
@@ -141,6 +134,10 @@ func sendDNSQueries(
 	serverIP string,
 	protocol string,
 ) (string, int, []*mdns.Msg) {
+	return sendDNSQueriesOnPort(t, domains, serverIP, "53", protocol)
+}
+
+func sendDNSQueriesOnPort(t *testing.T, domains []string, serverIP string, port string, protocol string) (string, int, []*mdns.Msg) {
 	// Create a DNS query message
 	msg := new(mdns.Msg)
 	msg.RecursionDesired = true
@@ -162,7 +159,7 @@ func sendDNSQueries(
 	}
 
 	dnsClient := mdns.Client{Net: protocol, Dialer: localAddrDialer}
-	dnsHost := net.JoinHostPort(serverIP, "53")
+	dnsHost := net.JoinHostPort(serverIP, port)
 	var reps []*mdns.Msg
 
 	if protocol == "tcp" {
@@ -197,9 +194,9 @@ func getKey(
 	}
 }
 
-func hasDomains(stats map[*intern.Value]map[QueryType]Stats, domains ...string) bool {
+func hasDomains(stats map[Hostname]map[QueryType]Stats, domains ...string) bool {
 	for _, domain := range domains {
-		if _, ok := stats[intern.GetByString(domain)]; !ok {
+		if _, ok := stats[ToHostname(domain)]; !ok {
 			return false
 		}
 	}
@@ -207,15 +204,13 @@ func hasDomains(stats map[*intern.Value]map[QueryType]Stats, domains ...string) 
 	return true
 }
 
-func countDNSResponses(stats StatsByKeyByNameByType) int {
+func countDNSResponses(statsByDomain map[Hostname]map[QueryType]Stats) int {
 	total := 0
-	for _, statsByDomain := range stats {
-		for _, statsByType := range statsByDomain {
-			for _, s := range statsByType {
-				total += int(s.Timeouts)
-				for _, count := range s.CountByRcode {
-					total += int(count)
-				}
+	for _, statsByType := range statsByDomain {
+		for _, s := range statsByType {
+			total += int(s.Timeouts)
+			for _, count := range s.CountByRcode {
+				total += int(count)
 			}
 		}
 	}
@@ -243,11 +238,11 @@ func TestDNSOverTCPSuccessfulResponseCountWithoutDomain(t *testing.T) {
 	var allStats StatsByKeyByNameByType
 	require.Eventuallyf(t, func() bool {
 		allStats = statKeeper.Snapshot()
-		return allStats[key] != nil && countDNSResponses(allStats) >= len(domains)
+		return allStats[key] != nil && countDNSResponses(allStats[key]) >= len(domains)
 	}, 3*time.Second, 10*time.Millisecond, "not enough DNS responses")
 
 	// Exactly one rcode (0, success) is expected
-	stats := allStats[key][intern.GetByString("")][TypeA]
+	stats := allStats[key][ToHostname("")][TypeA]
 	require.Equal(t, 1, len(stats.CountByRcode))
 	assert.Equal(t, uint32(3), stats.CountByRcode[uint32(layers.DNSResponseCodeNoErr)])
 	assert.True(t, stats.SuccessLatencySum >= uint64(1))
@@ -281,7 +276,7 @@ func TestDNSOverTCPSuccessfulResponseCount(t *testing.T) {
 
 	// Exactly one rcode (0, success) is expected
 	for _, d := range domains {
-		stats := allStats[key][intern.GetByString(d)][TypeA]
+		stats := allStats[key][ToHostname(d)][TypeA]
 		require.Equal(t, 1, len(stats.CountByRcode))
 		assert.Equal(t, uint32(1), stats.CountByRcode[uint32(layers.DNSResponseCodeNoErr)])
 		assert.True(t, stats.SuccessLatencySum >= uint64(1))
@@ -305,7 +300,7 @@ func TestDNSFailedResponseCount(t *testing.T) {
 	statKeeper := reverseDNS.statKeeper
 
 	domains := []string{
-		"nonexistenent.com.net",
+		"nonexistenent.net.com",
 		"aabdgdfsgsdafsdafsad",
 	}
 	queryIP, queryPort, reps := sendDNSQueries(t, domains, validDNSServerIP, "tcp")
@@ -315,21 +310,10 @@ func TestDNSFailedResponseCount(t *testing.T) {
 	}
 	key1 := getKey(queryIP, queryPort, validDNSServerIP, syscall.IPPROTO_TCP)
 
-	// Set up a local DNS server to return SERVFAIL
-	localServerAddr := &net.UDPAddr{IP: net.ParseIP(localhost), Port: 53}
-	localServer := &mdns.Server{Addr: localServerAddr.String(), Net: "udp"}
-	localServer.Handler = &handler{}
-	waitLock := sync.Mutex{}
-	waitLock.Lock()
-	localServer.NotifyStartedFunc = waitLock.Unlock
-	defer localServer.Shutdown()
+	h := handler{}
+	shutdown := newTestServer(t, localhost, 53, "udp", h.ServeDNS)
+	defer shutdown()
 
-	go func() {
-		if err := localServer.ListenAndServe(); err != nil {
-			t.Fatalf("Failed to set listener %s\n", err.Error())
-		}
-	}()
-	waitLock.Lock()
 	queryIP, queryPort, _ = sendDNSQueries(t, domains, localhost, "udp")
 	var allStats StatsByKeyByNameByType
 
@@ -339,8 +323,8 @@ func TestDNSFailedResponseCount(t *testing.T) {
 		return hasDomains(allStats[key1], domains...)
 	}, 3*time.Second, 10*time.Millisecond, "missing DNS data for TCP requests")
 	for _, d := range domains {
-		require.Equal(t, 1, len(allStats[key1][intern.GetByString(d)][TypeA].CountByRcode))
-		assert.Equal(t, uint32(1), allStats[key1][intern.GetByString(d)][TypeA].CountByRcode[uint32(layers.DNSResponseCodeNXDomain)], "expected one NXDOMAIN for %s, got %v", d, allStats[key1][intern.GetByString(d)])
+		require.Equal(t, 1, len(allStats[key1][ToHostname(d)][TypeA].CountByRcode))
+		assert.Equal(t, uint32(1), allStats[key1][ToHostname(d)][TypeA].CountByRcode[uint32(layers.DNSResponseCodeNXDomain)], "expected one NXDOMAIN for %s, got %v", d, allStats[key1][ToHostname(d)])
 	}
 
 	// Next check the one sent over UDP. Expected error type: ServFail
@@ -350,9 +334,33 @@ func TestDNSFailedResponseCount(t *testing.T) {
 		return hasDomains(allStats[key2], domains...)
 	}, 3*time.Second, 10*time.Millisecond, "missing DNS data for UDP requests")
 	for _, d := range domains {
-		require.Equal(t, 1, len(allStats[key2][intern.GetByString(d)][TypeA].CountByRcode))
-		assert.Equal(t, uint32(1), allStats[key2][intern.GetByString(d)][TypeA].CountByRcode[uint32(layers.DNSResponseCodeServFail)])
+		require.Equal(t, 1, len(allStats[key2][ToHostname(d)][TypeA].CountByRcode))
+		assert.Equal(t, uint32(1), allStats[key2][ToHostname(d)][TypeA].CountByRcode[uint32(layers.DNSResponseCodeServFail)])
 	}
+}
+
+func TestDNSOverNonPort53(t *testing.T) {
+	reverseDNS := initDNSTestsWithDomainCollection(t, true)
+	defer reverseDNS.Close()
+	statKeeper := reverseDNS.statKeeper
+
+	domains := []string{
+		"nonexistent.com.net",
+	}
+	h := &handler{}
+	shutdown := newTestServer(t, localhost, 5353, "udp", h.ServeDNS)
+	defer shutdown()
+
+	queryIP, queryPort, reps := sendDNSQueriesOnPort(t, domains, localhost, "5353", "udp")
+	require.NotNil(t, reps[0])
+
+	// we only pick up on port 53 traffic, so we shouldn't ever get stats
+	key := getKey(queryIP, queryPort, localhost, syscall.IPPROTO_UDP)
+	var allStats StatsByKeyByNameByType
+	require.Never(t, func() bool {
+		allStats = statKeeper.Snapshot()
+		return allStats[key] != nil
+	}, 3*time.Second, 10*time.Millisecond, "found DNS data for key %v when it should be missing", key)
 }
 
 func TestDNSOverUDPTimeoutCount(t *testing.T) {
@@ -371,10 +379,10 @@ func TestDNSOverUDPTimeoutCount(t *testing.T) {
 		allStats = statKeeper.Snapshot()
 		return allStats[key] != nil
 	}, 3*time.Second, 10*time.Millisecond, "missing DNS data for key %v", key)
-	assert.Equal(t, 0, len(allStats[key][intern.GetByString(domainQueried)][TypeA].CountByRcode))
-	assert.Equal(t, uint32(1), allStats[key][intern.GetByString(domainQueried)][TypeA].Timeouts)
-	assert.Equal(t, uint64(0), allStats[key][intern.GetByString(domainQueried)][TypeA].SuccessLatencySum)
-	assert.Equal(t, uint64(0), allStats[key][intern.GetByString(domainQueried)][TypeA].FailureLatencySum)
+	assert.Equal(t, 0, len(allStats[key][ToHostname(domainQueried)][TypeA].CountByRcode))
+	assert.Equal(t, uint32(1), allStats[key][ToHostname(domainQueried)][TypeA].Timeouts)
+	assert.Equal(t, uint64(0), allStats[key][ToHostname(domainQueried)][TypeA].SuccessLatencySum)
+	assert.Equal(t, uint64(0), allStats[key][ToHostname(domainQueried)][TypeA].FailureLatencySum)
 }
 
 func TestDNSOverUDPTimeoutCountWithoutDomain(t *testing.T) {
@@ -394,15 +402,15 @@ func TestDNSOverUDPTimeoutCountWithoutDomain(t *testing.T) {
 		return allStats[key] != nil
 	}, 3*time.Second, 10*time.Millisecond, "missing DNS data for key %v", key)
 
-	assert.Equal(t, 0, len(allStats[key][intern.GetByString("")][TypeA].CountByRcode))
-	assert.Equal(t, uint32(1), allStats[key][intern.GetByString("")][TypeA].Timeouts)
-	assert.Equal(t, uint64(0), allStats[key][intern.GetByString("")][TypeA].SuccessLatencySum)
-	assert.Equal(t, uint64(0), allStats[key][intern.GetByString("")][TypeA].FailureLatencySum)
+	assert.Equal(t, 0, len(allStats[key][ToHostname("")][TypeA].CountByRcode))
+	assert.Equal(t, uint32(1), allStats[key][ToHostname("")][TypeA].Timeouts)
+	assert.Equal(t, uint64(0), allStats[key][ToHostname("")][TypeA].SuccessLatencySum)
+	assert.Equal(t, uint64(0), allStats[key][ToHostname("")][TypeA].FailureLatencySum)
 }
 
 func TestParsingError(t *testing.T) {
-	skipIfDNSNotSupported(t)
-
+	cacheTelemetry.length.Set(0)
+	snooperTelemetry.decodingErrors.Delete()
 	cfg := testConfig()
 	cfg.CollectDNSStats = false
 	cfg.CollectLocalDNS = false
@@ -416,9 +424,8 @@ func TestParsingError(t *testing.T) {
 	// Pass a byte array of size 1 which should result in parsing error
 	err = reverseDNS.processPacket(make([]byte, 1), time.Now())
 	require.NoError(t, err)
-	stats := reverseDNS.GetStats()
-	assert.True(t, stats["ips"] == 0)
-	assert.True(t, stats["decoding_errors"] == 1)
+	assert.True(t, cacheTelemetry.length.Load() == 0)
+	assert.True(t, snooperTelemetry.decodingErrors.Load() == 1)
 }
 
 func TestDNSOverIPv6(t *testing.T) {
@@ -428,7 +435,7 @@ func TestDNSOverIPv6(t *testing.T) {
 
 	// This DNS server is set up so it always returns a NXDOMAIN answer
 	serverIP := net.IPv6loopback.String()
-	closeFn := newTestServer(t, serverIP, "udp", nxDomainHandler)
+	closeFn := newTestServer(t, serverIP, 53, "udp", nxDomainHandler)
 	defer closeFn()
 
 	queryIP, queryPort, reps := sendDNSQueries(t, []string{"nxdomain-123.com"}, serverIP, "udp")
@@ -441,18 +448,21 @@ func TestDNSOverIPv6(t *testing.T) {
 		return allStats[key] != nil
 	}, 3*time.Second, 10*time.Millisecond, "missing DNS data for key %v", key)
 
-	stats := allStats[key][intern.GetByString("nxdomain-123.com")][TypeA]
+	stats := allStats[key][ToHostname("nxdomain-123.com")][TypeA]
 	assert.Equal(t, 1, len(stats.CountByRcode))
 	assert.Equal(t, uint32(1), stats.CountByRcode[uint32(layers.DNSResponseCodeNXDomain)])
 }
 
 func TestDNSNestedCNAME(t *testing.T) {
+	cacheTelemetry.length.Set(0)
+	cacheTelemetry.lookups.Delete()
+	cacheTelemetry.resolved.Delete()
 	reverseDNS := initDNSTestsWithDomainCollection(t, true)
 	defer reverseDNS.Close()
 	statKeeper := reverseDNS.statKeeper
 
 	serverIP := "127.0.0.1"
-	closeFn := newTestServer(t, serverIP, "udp", func(w dns.ResponseWriter, r *dns.Msg) {
+	closeFn := newTestServer(t, serverIP, 53, "udp", func(w dns.ResponseWriter, r *dns.Msg) {
 		answer := new(dns.Msg)
 		answer.SetReply(r)
 
@@ -484,15 +494,15 @@ func TestDNSNestedCNAME(t *testing.T) {
 		return allStats[key] != nil
 	}, 3*time.Second, 10*time.Millisecond, "missing DNS data for key %v", key)
 
-	stats := allStats[key][intern.GetByString("example.com")][TypeA]
+	stats := allStats[key][ToHostname("example.com")][TypeA]
 	assert.Equal(t, 1, len(stats.CountByRcode))
 	assert.Equal(t, uint32(1), stats.CountByRcode[uint32(layers.DNSResponseCodeNoErr)])
 
 	checkSnooping(t, serverIP, "example.com", reverseDNS)
 }
 
-func newTestServer(t *testing.T, ip string, protocol string, handler dns.HandlerFunc) func() {
-	addr := net.JoinHostPort(ip, "53")
+func newTestServer(t *testing.T, ip string, port uint16, protocol string, handler dns.HandlerFunc) func() {
+	addr := net.JoinHostPort(ip, strconv.Itoa(int(port)))
 	srv := &dns.Server{Addr: addr, Net: protocol, Handler: handler}
 
 	initChan := make(chan error, 1)
@@ -511,7 +521,7 @@ func newTestServer(t *testing.T, ip string, protocol string, handler dns.Handler
 	}
 
 	return func() {
-		srv.Shutdown() //nolint:errcheck
+		_ = srv.Shutdown()
 	}
 }
 
@@ -520,7 +530,7 @@ func nxDomainHandler(w dns.ResponseWriter, r *dns.Msg) {
 	answer := new(dns.Msg)
 	answer.SetReply(r)
 	answer.SetRcode(r, dns.RcodeNameError)
-	w.WriteMsg(answer) //nolint:errcheck
+	_ = w.WriteMsg(answer)
 }
 
 func testConfig() *config.Config {

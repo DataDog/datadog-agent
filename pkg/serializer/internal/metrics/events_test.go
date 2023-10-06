@@ -3,8 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build zlib
-// +build zlib
+//go:build zlib && test
 
 package metrics
 
@@ -22,8 +21,9 @@ import (
 	"github.com/stretchr/testify/require"
 
 	agentpayload "github.com/DataDog/agent-payload/v5/gogen"
+
 	"github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/metrics"
+	"github.com/DataDog/datadog-agent/pkg/metrics/event"
 	"github.com/DataDog/datadog-agent/pkg/serializer/internal/stream"
 )
 
@@ -32,10 +32,10 @@ func TestMarshal(t *testing.T) {
 		Title:          "test title",
 		Text:           "test text",
 		Ts:             12345,
-		Priority:       metrics.EventPriorityNormal,
+		Priority:       event.EventPriorityNormal,
 		Host:           "test.localhost",
 		Tags:           []string{"tag1", "tag2:yes"},
-		AlertType:      metrics.EventAlertTypeError,
+		AlertType:      event.EventAlertTypeError,
 		AggregationKey: "test aggregation",
 		SourceTypeName: "test source",
 	}}
@@ -52,12 +52,12 @@ func TestMarshal(t *testing.T) {
 	assert.Equal(t, newPayload.Events[0].Title, "test title")
 	assert.Equal(t, newPayload.Events[0].Text, "test text")
 	assert.Equal(t, newPayload.Events[0].Ts, int64(12345))
-	assert.Equal(t, newPayload.Events[0].Priority, string(metrics.EventPriorityNormal))
+	assert.Equal(t, newPayload.Events[0].Priority, string(event.EventPriorityNormal))
 	assert.Equal(t, newPayload.Events[0].Host, "test.localhost")
 	require.Len(t, newPayload.Events[0].Tags, 2)
 	assert.Equal(t, newPayload.Events[0].Tags[0], "tag1")
 	assert.Equal(t, newPayload.Events[0].Tags[1], "tag2:yes")
-	assert.Equal(t, newPayload.Events[0].AlertType, string(metrics.EventAlertTypeError))
+	assert.Equal(t, newPayload.Events[0].AlertType, string(event.EventAlertTypeError))
 	assert.Equal(t, newPayload.Events[0].AggregationKey, "test aggregation")
 	assert.Equal(t, newPayload.Events[0].SourceTypeName, "test source")
 }
@@ -67,15 +67,15 @@ func TestMarshalJSON(t *testing.T) {
 		Title:          "An event occurred",
 		Text:           "event description",
 		Ts:             12345,
-		Priority:       metrics.EventPriorityNormal,
+		Priority:       event.EventPriorityNormal,
 		Host:           "my-hostname",
 		Tags:           []string{"tag1", "tag2:yes"},
-		AlertType:      metrics.EventAlertTypeError,
+		AlertType:      event.EventAlertTypeError,
 		AggregationKey: "my_agg_key",
 		SourceTypeName: "custom_source_type",
 	}}
 
-	mockConfig := config.Mock()
+	mockConfig := config.Mock(t)
 	oldName := mockConfig.GetString("hostname")
 	defer mockConfig.Set("hostname", oldName)
 	mockConfig.Set("hostname", "test-hostname")
@@ -95,7 +95,7 @@ func TestMarshalJSONOmittedFields(t *testing.T) {
 		Host:  "my-hostname",
 	}}
 
-	mockConfig := config.Mock()
+	mockConfig := config.Mock(t)
 	oldName := mockConfig.GetString("hostname")
 	defer mockConfig.Set("hostname", oldName)
 	mockConfig.Set("hostname", "test-hostname")
@@ -110,14 +110,14 @@ func TestMarshalJSONOmittedFields(t *testing.T) {
 func TestSplitEvents(t *testing.T) {
 	var events = Events{}
 	for i := 0; i < 2; i++ {
-		e := metrics.Event{
+		e := event.Event{
 			Title:          "An event occurred",
 			Text:           "event description",
 			Ts:             12345,
-			Priority:       metrics.EventPriorityNormal,
+			Priority:       event.EventPriorityNormal,
 			Host:           "my-hostname",
 			Tags:           []string{"tag1", "tag2:yes"},
-			AlertType:      metrics.EventAlertTypeError,
+			AlertType:      event.EventAlertTypeError,
 			AggregationKey: "my_agg_key",
 			SourceTypeName: "custom_source_type",
 		}
@@ -152,7 +152,7 @@ func TestPayloadsSingleEvent(t *testing.T) {
 }
 
 func TestPayloadsEmptyEvent(t *testing.T) {
-	assertEqualEventsToMarshalJSON(t, Events{&metrics.Event{}})
+	assertEqualEventsToMarshalJSON(t, Events{&event.Event{}})
 }
 
 func TestPayloadsEvents(t *testing.T) {
@@ -198,22 +198,22 @@ func TestEventsSeveralPayloadsCreateMarshalersBySourceType(t *testing.T) {
 // Helpers
 type payloadsType = []byte
 
-func createEvent(sourceTypeName string) *metrics.Event {
-	return &metrics.Event{
+func createEvent(sourceTypeName string) *event.Event {
+	return &event.Event{
 		Title:          "1",
 		Text:           "2",
 		Ts:             3,
-		Priority:       metrics.EventPriorityNormal,
+		Priority:       event.EventPriorityNormal,
 		Host:           "5",
 		Tags:           []string{"6", "7"},
-		AlertType:      metrics.EventAlertTypeError,
+		AlertType:      event.EventAlertTypeError,
 		AggregationKey: "9",
 		SourceTypeName: sourceTypeName,
 		EventType:      "10"}
 }
 
 func createEvents(sourceTypeNames ...string) Events {
-	var events []*metrics.Event
+	var events []*event.Event
 	for _, s := range sourceTypeNames {
 		events = append(events, createEvent(s))
 	}
@@ -284,7 +284,7 @@ func buildEventsJSON(payloads []payloadsType) (*eventsJSON, error) {
 
 type eventsJSON struct {
 	APIKey           string
-	Events           map[string][]metrics.Event
+	Events           map[string][]event.Event
 	InternalHostname string
 }
 
@@ -330,7 +330,7 @@ func benchmarkCreateSingleMarshaler(b *testing.B, createEvents func(numberOfItem
 		b.ResetTimer()
 
 		for n := 0; n < b.N; n++ {
-			payloadBuilder.Build(events.CreateSingleMarshaler())
+			stream.BuildJSONPayload(payloadBuilder, events.CreateSingleMarshaler())
 		}
 	})
 }
@@ -344,7 +344,7 @@ func BenchmarkCreateMarshalersBySourceType(b *testing.B) {
 
 		for n := 0; n < b.N; n++ {
 			for _, m := range events.CreateMarshalersBySourceType() {
-				payloadBuilder.Build(m)
+				stream.BuildJSONPayload(payloadBuilder, m)
 			}
 		}
 	})
@@ -369,9 +369,9 @@ func BenchmarkCreateMarshalersSeveralSourceTypes(b *testing.B) {
 		for n := 0; n < b.N; n++ {
 			// As CreateMarshalersBySourceType is called only after CreateSingleMarshaler,
 			// we also call CreateSingleMarshaler in this benchmark.
-			payloadBuilder.Build(events.CreateSingleMarshaler())
+			stream.BuildJSONPayload(payloadBuilder, events.CreateSingleMarshaler())
 			for _, m := range events.CreateMarshalersBySourceType() {
-				payloadBuilder.Build(m)
+				stream.BuildJSONPayload(payloadBuilder, m)
 			}
 		}
 	})

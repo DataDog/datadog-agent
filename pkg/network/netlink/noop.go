@@ -3,12 +3,17 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build linux && !android
-// +build linux,!android
+//go:build linux
 
 package netlink
 
-import "github.com/DataDog/datadog-agent/pkg/network"
+import (
+	"context"
+
+	"github.com/prometheus/client_golang/prometheus"
+
+	"github.com/DataDog/datadog-agent/pkg/network"
+)
 
 type noOpConntracker struct{}
 
@@ -31,8 +36,12 @@ func (*noOpConntracker) IsSampling() bool {
 
 func (*noOpConntracker) Close() {}
 
-func (*noOpConntracker) GetStats() map[string]int64 {
-	return map[string]int64{
-		"noop_conntracker": 0,
-	}
+func (c *noOpConntracker) DumpCachedTable(ctx context.Context) (map[uint32][]DebugConntrackEntry, error) {
+	return nil, nil
 }
+
+// Describe returns all descriptions of the collector
+func (*noOpConntracker) Describe(ch chan<- *prometheus.Desc) {}
+
+// Collect returns the current state of all metrics of the collector
+func (*noOpConntracker) Collect(ch chan<- prometheus.Metric) {}

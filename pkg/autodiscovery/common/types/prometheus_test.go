@@ -135,14 +135,48 @@ func TestPrometheusAnnotationsDiffer(t *testing.T) {
 	}
 }
 
-func TestConfigPrometheusScrapeChecksTransformer(t *testing.T) {
-	input := `[{"configurations":[{"timeout":5,"send_distribution_buckets":true}],"autodiscovery":{"kubernetes_container_names":["my-app"],"kubernetes_annotations":{"include":{"custom_label":"true"}}}}]`
-	expected := []*PrometheusCheck{
+func TestPrometheusCheck_IsIncluded(t *testing.T) {
+	tests := []struct {
+		name        string
+		adConfig    *ADConfig
+		annotations map[string]string
+		want        bool
+	}{
 		{
-			Instances: []*OpenmetricsInstance{{Timeout: 5, DistributionBuckets: true}},
-			AD:        &ADConfig{KubeContainerNames: []string{"my-app"}, KubeAnnotations: &InclExcl{Incl: map[string]string{"custom_label": "true"}}},
+			name:     "Basic case",
+			adConfig: DefaultPrometheusCheck.AD,
+			annotations: map[string]string{
+				"foo":                      "bar",
+				PrometheusScrapeAnnotation: "true",
+			},
+			want: true,
+		},
+		{
+			name:     "With excluded annotation",
+			adConfig: DefaultPrometheusCheck.AD,
+			annotations: map[string]string{
+				"foo":                      "bar",
+				PrometheusScrapeAnnotation: "false",
+			},
+			want: false,
+		},
+		{
+			name:     "No relevant annotations",
+			adConfig: DefaultPrometheusCheck.AD,
+			annotations: map[string]string{
+				"foo": "bar",
+			},
+			want: false,
 		},
 	}
-
-	assert.EqualValues(t, configPrometheusScrapeChecksTransformer(input), expected)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			pc := &PrometheusCheck{
+				AD: tt.adConfig,
+			}
+			if got := pc.IsIncluded(tt.annotations); got != tt.want {
+				t.Errorf("PrometheusCheck.IsIncluded() = %v, want %v", got, tt.want)
+			}
+		})
+	}
 }

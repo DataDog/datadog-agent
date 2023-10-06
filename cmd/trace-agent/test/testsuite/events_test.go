@@ -7,18 +7,17 @@ package testsuite
 
 import (
 	"encoding/json"
-	"io/ioutil"
 	"os"
 	"testing"
 	"time"
 
 	"github.com/DataDog/datadog-agent/cmd/trace-agent/test"
-	"github.com/DataDog/datadog-agent/pkg/trace/pb"
+	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	"github.com/DataDog/datadog-agent/pkg/trace/sampler"
 )
 
 func jsonTraceFromPath(path string) (pb.Trace, error) {
-	slurp, err := ioutil.ReadFile(path)
+	slurp, err := os.ReadFile(path)
 	if err != nil {
 		return nil, err
 	}
@@ -59,16 +58,15 @@ func TestAPMEvents(t *testing.T) {
 			t.Fatal(err)
 		}
 
-		waitForTrace(t, &runner, func(v pb.AgentPayload) {
-			if n := countEvents(&v); n != 0 {
+		waitForTrace(t, &runner, func(v *pb.AgentPayload) {
+			if n := countEvents(v); n != 0 {
 				t.Fatalf("expected no events, got %d", n)
 			}
 		})
 	})
 
 	t.Run("env", func(t *testing.T) {
-		os.Setenv("DD_APM_ANALYZED_SPANS", "coffee-house|servlet.request=1")
-		defer os.Unsetenv("DD_APM_ANALYZED_SPANS")
+		t.Setenv("DD_APM_ANALYZED_SPANS", "coffee-house|servlet.request=1")
 		if err := runner.RunAgent(nil); err != nil {
 			t.Fatal(err)
 		}
@@ -78,8 +76,8 @@ func TestAPMEvents(t *testing.T) {
 			t.Fatal(err)
 		}
 
-		waitForTrace(t, &runner, func(v pb.AgentPayload) {
-			if n := countEvents(&v); n != 1 {
+		waitForTrace(t, &runner, func(v *pb.AgentPayload) {
+			if n := countEvents(v); n != 1 {
 				t.Fatalf("expected 1 event, got %d", n)
 			}
 		})
@@ -95,8 +93,8 @@ func TestAPMEvents(t *testing.T) {
 			t.Fatal(err)
 		}
 
-		waitForTrace(t, &runner, func(v pb.AgentPayload) {
-			if n := countEvents(&v); n != 5 {
+		waitForTrace(t, &runner, func(v *pb.AgentPayload) {
+			if n := countEvents(v); n != 5 {
 				t.Fatalf("expected 5 event, got %d", n)
 			}
 		})

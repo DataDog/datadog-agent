@@ -8,8 +8,9 @@ package api
 import (
 	"errors"
 	"net"
-	"sync/atomic"
 	"time"
+
+	"go.uber.org/atomic"
 
 	"github.com/DataDog/datadog-agent/pkg/trace/log"
 	"github.com/DataDog/datadog-agent/pkg/trace/metrics"
@@ -19,21 +20,30 @@ import (
 type measuredListener struct {
 	net.Listener
 
-	name     string        // metric name to emit
-	accepted uint32        // accepted connection count
-	timedout uint32        // timedout connection count
-	errored  uint32        // errored connection count
-	exit     chan struct{} // exit signal channel (on Close call)
+	name     string         // metric name to emit
+	accepted *atomic.Uint32 // accepted connection count
+	timedout *atomic.Uint32 // timedout connection count
+	errored  *atomic.Uint32 // errored connection count
+	exit     chan struct{}  // exit signal channel (on Close call)
+	sem      chan struct{}  // Used to limit active connections
 }
 
 // NewMeasuredListener wraps ln and emits metrics every 10 seconds. The metric name is
 // datadog.trace_agent.receiver.<name>. Additionally, a "status" tag will be added with
 // potential values "accepted", "timedout" or "errored".
-func NewMeasuredListener(ln net.Listener, name string) net.Listener {
+func NewMeasuredListener(ln net.Listener, name string, maxConn int) net.Listener {
+	if maxConn == 0 {
+		maxConn = 1
+	}
+	log.Infof("Listener started with %d maximum connections.", maxConn)
 	ml := &measuredListener{
 		Listener: ln,
 		name:     "datadog.trace_agent.receiver." + name,
+		accepted: atomic.NewUint32(0),
+		timedout: atomic.NewUint32(0),
+		errored:  atomic.NewUint32(0),
 		exit:     make(chan struct{}),
+		sem:      make(chan struct{}, maxConn),
 	}
 	go ml.run()
 	return ml
@@ -54,30 +64,50 @@ func (ln *measuredListener) run() {
 }
 
 func (ln *measuredListener) flushMetrics() {
-	for tag, stat := range map[string]*uint32{
-		"status:accepted": &ln.accepted,
-		"status:timedout": &ln.timedout,
-		"status:errored":  &ln.errored,
+	for tag, stat := range map[string]*atomic.Uint32{
+		"status:accepted": ln.accepted,
+		"status:timedout": ln.timedout,
+		"status:errored":  ln.errored,
 	} {
-		if v := int64(atomic.SwapUint32(stat, 0)); v > 0 {
+		if v := int64(stat.Swap(0)); v > 0 {
 			metrics.Count(ln.name, v, []string{tag}, 1)
 		}
 	}
 }
 
+type onCloseConn struct {
+	net.Conn
+	onClose func()
+}
+
+func (c *onCloseConn) Close() error {
+	err := c.Conn.Close()
+	c.onClose()
+	return err
+}
+
+func OnCloseConn(c net.Conn, onclose func()) net.Conn {
+	return &onCloseConn{c, onclose}
+}
+
 // Accept implements net.Listener and keeps counts on connection statuses.
 func (ln *measuredListener) Accept() (net.Conn, error) {
+	ln.sem <- struct{}{}
 	conn, err := ln.Listener.Accept()
 	if err != nil {
+		log.Debugf("Error connection named %q: %s", ln.name, err)
 		if ne, ok := err.(net.Error); ok && ne.Timeout() && !ne.Temporary() {
-			atomic.AddUint32(&ln.timedout, 1)
+			ln.timedout.Inc()
 		} else {
-			atomic.AddUint32(&ln.errored, 1)
+			ln.errored.Inc()
 		}
 	} else {
-		atomic.AddUint32(&ln.accepted, 1)
+		ln.accepted.Inc()
+		log.Tracef("Accepted connection named %q.", ln.name)
 	}
-	log.Tracef("Accepted connection named %q.", ln.name)
+	conn = OnCloseConn(conn, func() {
+		<-ln.sem
+	})
 	return conn, err
 }
 
@@ -97,15 +127,15 @@ func (ln measuredListener) Addr() net.Addr { return ln.Listener.Addr() }
 type rateLimitedListener struct {
 	*net.TCPListener
 
-	lease  int32         // connections allowed until refresh
-	exit   chan struct{} // exit notification channel
-	closed uint32        // closed will be non-zero if the listener was closed
+	lease  *atomic.Int32  // connections allowed until refresh
+	exit   chan struct{}  // exit notification channel
+	closed *atomic.Uint32 // closed will be non-zero if the listener was closed
 
 	// stats
-	accepted uint32
-	rejected uint32
-	timedout uint32
-	errored  uint32
+	accepted *atomic.Uint32
+	rejected *atomic.Uint32
+	timedout *atomic.Uint32
+	errored  *atomic.Uint32
 }
 
 // newRateLimitedListener returns a new wrapped listener, which is non-initialized
@@ -117,9 +147,14 @@ func newRateLimitedListener(l net.Listener, conns int) (*rateLimitedListener, er
 	}
 
 	return &rateLimitedListener{
-		lease:       int32(conns),
+		lease:       atomic.NewInt32(int32(conns)),
 		TCPListener: tcpL,
 		exit:        make(chan struct{}),
+		closed:      atomic.NewUint32(0),
+		accepted:    atomic.NewUint32(0),
+		rejected:    atomic.NewUint32(0),
+		timedout:    atomic.NewUint32(0),
+		errored:     atomic.NewUint32(0),
 	}, nil
 }
 
@@ -137,17 +172,17 @@ func (sl *rateLimitedListener) Refresh(conns int) {
 		case <-sl.exit:
 			return
 		case <-tickStats.C:
-			for tag, stat := range map[string]*uint32{
-				"status:accepted": &sl.accepted,
-				"status:rejected": &sl.rejected,
-				"status:timedout": &sl.timedout,
-				"status:errored":  &sl.errored,
+			for tag, stat := range map[string]*atomic.Uint32{
+				"status:accepted": sl.accepted,
+				"status:rejected": sl.rejected,
+				"status:timedout": sl.timedout,
+				"status:errored":  sl.errored,
 			} {
-				v := int64(atomic.SwapUint32(stat, 0))
+				v := int64(stat.Swap(0))
 				metrics.Count("datadog.trace_agent.receiver.tcp_connections", v, []string{tag}, 1)
 			}
 		case <-t.C:
-			atomic.StoreInt32(&sl.lease, int32(conns))
+			sl.lease.Store(int32(conns))
 			log.Debugf("Refreshed the connection lease: %d conns available", conns)
 		}
 	}
@@ -168,9 +203,9 @@ func (e *rateLimitedError) Timeout() bool { return false }
 
 // Accept reimplements the regular Accept but adds rate limiting.
 func (sl *rateLimitedListener) Accept() (net.Conn, error) {
-	if atomic.LoadInt32(&sl.lease) <= 0 {
+	if sl.lease.Load() <= 0 {
 		// we've reached our cap for this lease period; reject the request
-		atomic.AddUint32(&sl.rejected, 1)
+		sl.rejected.Inc()
 		return nil, &rateLimitedError{}
 	}
 	for {
@@ -187,16 +222,16 @@ func (sl *rateLimitedListener) Accept() (net.Conn, error) {
 				} else {
 					// don't count temporary errors; they usually signify expired deadlines
 					// see (golang/go/src/internal/poll/fd.go).TimeoutError
-					atomic.AddUint32(&sl.timedout, 1)
+					sl.timedout.Inc()
 				}
 			} else {
-				atomic.AddUint32(&sl.errored, 1)
+				sl.errored.Inc()
 			}
 			return conn, err
 		}
 
-		atomic.AddInt32(&sl.lease, -1)
-		atomic.AddUint32(&sl.accepted, 1)
+		sl.lease.Dec()
+		sl.accepted.Inc()
 
 		return conn, nil
 	}
@@ -204,7 +239,7 @@ func (sl *rateLimitedListener) Accept() (net.Conn, error) {
 
 // Close wraps the Close method of the underlying tcp listener
 func (sl *rateLimitedListener) Close() error {
-	if !atomic.CompareAndSwapUint32(&sl.closed, 0, 1) {
+	if !sl.closed.CompareAndSwap(0, 1) {
 		// already closed; avoid multiple calls if we're on go1.10
 		// https://golang.org/issue/24803
 		return nil

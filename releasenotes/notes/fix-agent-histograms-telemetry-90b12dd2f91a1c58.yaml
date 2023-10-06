@@ -1,0 +1,3 @@
+fixes:
+  - |
+    - Updated ``datadog.agent.sbom_generation_duration`` to only be observed for successful scans.

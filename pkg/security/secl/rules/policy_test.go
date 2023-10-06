@@ -3,22 +3,32 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build linux
+
+// Package rules holds rules related files
 package rules
 
 import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"syscall"
 	"testing"
 
+	"github.com/google/go-cmp/cmp"
+	"github.com/google/go-cmp/cmp/cmpopts"
+
+	"github.com/Masterminds/semver/v3"
+	"github.com/hashicorp/go-multierror"
+	"github.com/stretchr/testify/assert"
 	"gopkg.in/yaml.v3"
 
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
-	"github.com/hashicorp/go-multierror"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 )
 
-func savePolicy(filename string, testPolicy *Policy) error {
+func savePolicy(filename string, testPolicy *PolicyDef) error {
 	yamlBytes, err := yaml.Marshal(testPolicy)
 	if err != nil {
 		return err
@@ -28,18 +38,10 @@ func savePolicy(filename string, testPolicy *Policy) error {
 }
 
 func TestMacroMerge(t *testing.T) {
-	var opts Opts
-	opts.
-		WithConstants(testConstants).
-		WithSupportedDiscarders(testSupportedDiscarders).
-		WithEventTypeEnabled(map[eval.EventType]bool{"*": true})
-
-	rs := NewRuleSet(&testModel{}, func() eval.Event { return &testEvent{} }, &opts)
-	testPolicy := &Policy{
-		Name: "test-policy",
+	testPolicy := &PolicyDef{
 		Rules: []*RuleDefinition{{
 			ID:         "test_rule",
-			Expression: `open.filename == "/tmp/test" && process.name == "/usr/bin/vim"`,
+			Expression: `open.file.path == "/tmp/test" && process.name == "/usr/bin/vim"`,
 		}},
 		Macros: []*MacroDefinition{{
 			ID:     "test_macro",
@@ -47,8 +49,7 @@ func TestMacroMerge(t *testing.T) {
 		}},
 	}
 
-	testPolicy2 := &Policy{
-		Name: "test-policy2",
+	testPolicy2 := &PolicyDef{
 		Macros: []*MacroDefinition{{
 			ID:      "test_macro",
 			Values:  []string{"/usr/bin/vim"},
@@ -56,11 +57,7 @@ func TestMacroMerge(t *testing.T) {
 		}},
 	}
 
-	tmpDir, err := os.MkdirTemp("", "test-policy")
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer os.RemoveAll(tmpDir)
+	tmpDir := t.TempDir()
 
 	if err := savePolicy(filepath.Join(tmpDir, "test.policy"), testPolicy); err != nil {
 		t.Fatal(err)
@@ -70,22 +67,24 @@ func TestMacroMerge(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	rs.Evaluate(&testEvent{
-		open: testOpen{
-			filename: "/tmp/test",
-		},
-		process: testProcess{
-			name: "/usr/bin/vi",
-		},
-	})
+	event := model.NewDefaultEvent()
+	event.SetFieldValue("open.file.path", "/tmp/test")
+	event.SetFieldValue("process.comm", "/usr/bin/vi")
 
-	if err := LoadPolicies(tmpDir, rs); err != nil {
+	provider, err := NewPoliciesDirProvider(tmpDir, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	loader := NewPolicyLoader(provider)
+
+	evaluationSet, _ := newTestEvaluationSet([]eval.RuleSetTagValue{DefaultRuleSetTagValue})
+	if errs := evaluationSet.LoadPolicies(loader, PolicyLoaderOpts{}); errs.ErrorOrNil() != nil {
 		t.Error(err)
 	}
 
-	macro := rs.opts.Macros["test_macro"]
+	macro := evaluationSet.RuleSets[DefaultRuleSetTagValue].evalOpts.MacroStore.Get("test_macro")
 	if macro == nil {
-		t.Fatalf("failed to find test_macro in ruleset: %+v", rs.opts.Macros)
+		t.Fatalf("failed to find test_macro in ruleset: %+v", evaluationSet.RuleSets[DefaultRuleSetTagValue].evalOpts.MacroStore.List())
 	}
 
 	testPolicy2.Macros[0].Combine = ""
@@ -94,41 +93,28 @@ func TestMacroMerge(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if err := LoadPolicies(tmpDir, rs); err == nil {
+	if err := evaluationSet.LoadPolicies(loader, PolicyLoaderOpts{}); err == nil {
 		t.Error("expected macro ID conflict")
 	}
 }
 
 func TestRuleMerge(t *testing.T) {
-	var opts Opts
-	opts.
-		WithConstants(testConstants).
-		WithSupportedDiscarders(testSupportedDiscarders).
-		WithEventTypeEnabled(map[eval.EventType]bool{"*": true})
-	rs := NewRuleSet(&testModel{}, func() eval.Event { return &testEvent{} }, &opts)
-
-	testPolicy := &Policy{
-		Name: "test-policy",
+	testPolicy := &PolicyDef{
 		Rules: []*RuleDefinition{{
 			ID:         "test_rule",
-			Expression: `open.filename == "/tmp/test"`,
+			Expression: `open.file.path == "/tmp/test"`,
 		}},
 	}
 
-	testPolicy2 := &Policy{
-		Name: "test-policy2",
+	testPolicy2 := &PolicyDef{
 		Rules: []*RuleDefinition{{
 			ID:         "test_rule",
-			Expression: `open.filename == "/tmp/test"`,
+			Expression: `open.file.path == "/tmp/test"`,
 			Combine:    OverridePolicy,
 		}},
 	}
 
-	tmpDir, err := os.MkdirTemp("", "test-policy")
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer os.RemoveAll(tmpDir)
+	tmpDir := t.TempDir()
 
 	if err := savePolicy(filepath.Join(tmpDir, "test.policy"), testPolicy); err != nil {
 		t.Fatal(err)
@@ -138,11 +124,18 @@ func TestRuleMerge(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if err := LoadPolicies(tmpDir, rs); err != nil {
+	provider, err := NewPoliciesDirProvider(tmpDir, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	loader := NewPolicyLoader(provider)
+
+	evaluationSet, _ := newTestEvaluationSet([]eval.RuleSetTagValue{DefaultRuleSetTagValue})
+	if errs := evaluationSet.LoadPolicies(loader, PolicyLoaderOpts{}); errs.ErrorOrNil() != nil {
 		t.Error(err)
 	}
 
-	rule := rs.GetRules()["test_rule"]
+	rule := evaluationSet.RuleSets[DefaultRuleSetTagValue].GetRules()["test_rule"]
 	if rule == nil {
 		t.Fatal("failed to find test_rule in ruleset")
 	}
@@ -153,71 +146,16 @@ func TestRuleMerge(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if err := LoadPolicies(tmpDir, rs); err == nil {
+	if err := evaluationSet.LoadPolicies(loader, PolicyLoaderOpts{}); err == nil {
 		t.Error("expected rule ID conflict")
 	}
 }
 
-type testVariableProvider struct {
-	vars map[string]map[string]interface{}
-}
-
-func (t *testVariableProvider) GetVariable(name string, value interface{}) (eval.VariableValue, error) {
-	switch value.(type) {
-	case []int:
-		intVar := eval.NewIntArrayVariable(func(ctx *eval.Context) []int {
-			processName := (*testEvent)(ctx.Object).process.name
-			processVars, found := t.vars[processName]
-			if !found {
-				return nil
-			}
-
-			v, found := processVars[name]
-			if !found {
-				return nil
-			}
-
-			i, _ := v.([]int)
-			return i
-		}, func(ctx *eval.Context, value interface{}) error {
-			processName := (*testEvent)(ctx.Object).process.name
-			if _, found := t.vars[processName]; !found {
-				t.vars[processName] = map[string]interface{}{}
-			}
-
-			t.vars[processName][name] = value
-			return nil
-		})
-		return intVar, nil
-	default:
-		return nil, fmt.Errorf("unsupported variable '%s'", name)
-	}
-}
-
 func TestActionSetVariable(t *testing.T) {
-	enabled := map[eval.EventType]bool{"*": true}
-	stateScopes := map[Scope]VariableProviderFactory{
-		"process": func() VariableProvider {
-			return &testVariableProvider{
-				vars: map[string]map[string]interface{}{},
-			}
-		},
-	}
-	var opts Opts
-	opts.
-		WithConstants(testConstants).
-		WithSupportedDiscarders(testSupportedDiscarders).
-		WithEventTypeEnabled(enabled).
-		WithVariables(make(map[string]eval.VariableValue)).
-		WithStateScopes(stateScopes).
-		WithMacros(make(map[eval.MacroID]*eval.Macro))
-	rs := NewRuleSet(&testModel{}, func() eval.Event { return &testEvent{} }, &opts)
-
-	testPolicy := &Policy{
-		Name: "test-policy",
+	testPolicy := &PolicyDef{
 		Rules: []*RuleDefinition{{
 			ID:         "test_rule",
-			Expression: `open.filename == "/tmp/test"`,
+			Expression: `open.file.path == "/tmp/test"`,
 			Actions: []ActionDefinition{{
 				Set: &SetDefinition{
 					Name:  "var1",
@@ -272,18 +210,18 @@ func TestActionSetVariable(t *testing.T) {
 			}, {
 				Set: &SetDefinition{
 					Name:  "var9",
-					Field: "open.filename",
+					Field: "open.file.path",
 				},
 			}, {
 				Set: &SetDefinition{
 					Name:   "var10",
-					Field:  "open.filename",
+					Field:  "open.file.path",
 					Append: true,
 				},
 			}},
 		}, {
 			ID: "test_rule2",
-			Expression: `open.filename == "/tmp/test2" && ` +
+			Expression: `open.file.path == "/tmp/test2" && ` +
 				`${var1} == true && ` +
 				`"${var2}" == "value" && ` +
 				`${var2} == "value" && ` +
@@ -298,70 +236,63 @@ func TestActionSetVariable(t *testing.T) {
 		}},
 	}
 
-	tmpDir, err := os.MkdirTemp("", "test-policy")
-	if err != nil {
-		t.Fatal(err)
-	}
+	tmpDir := t.TempDir()
 
 	if err := savePolicy(filepath.Join(tmpDir, "test.policy"), testPolicy); err != nil {
 		t.Fatal(err)
 	}
 
-	if err := LoadPolicies(tmpDir, rs); err != nil {
+	provider, err := NewPoliciesDirProvider(tmpDir, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	loader := NewPolicyLoader(provider)
+
+	evaluationSet, _ := newTestEvaluationSet([]eval.RuleSetTagValue{DefaultRuleSetTagValue})
+	if errs := evaluationSet.LoadPolicies(loader, PolicyLoaderOpts{}); errs.ErrorOrNil() != nil {
 		t.Error(err)
 	}
 
-	rule := rs.GetRules()["test_rule"]
+	rule := evaluationSet.RuleSets[DefaultRuleSetTagValue].GetRules()["test_rule"]
 	if rule == nil {
 		t.Fatal("failed to find test_rule in ruleset")
 	}
 
-	event := &testEvent{
-		process: testProcess{
-			uid:  0,
-			name: "myprocess",
-		},
-	}
+	event := model.NewDefaultEvent()
+	event.Type = uint32(model.FileOpenEventType)
+	processCacheEntry := &model.ProcessCacheEntry{}
+	processCacheEntry.Retain()
+	event.ProcessCacheEntry = processCacheEntry
+	event.SetFieldValue("open.file.path", "/tmp/test2")
+	event.SetFieldValue("open.flags", syscall.O_RDONLY)
 
-	ev1 := *event
-	ev1.kind = "open"
-	ev1.open = testOpen{
-		filename: "/tmp/test2",
-		flags:    syscall.O_RDONLY,
-	}
-
-	if rs.Evaluate(event) {
+	if evaluationSet.RuleSets[DefaultRuleSetTagValue].Evaluate(event) {
 		t.Errorf("Expected event to match no rule")
 	}
 
-	ev1.open.filename = "/tmp/test"
+	event.SetFieldValue("open.file.path", "/tmp/test")
 
-	if !rs.Evaluate(&ev1) {
+	if !evaluationSet.RuleSets[DefaultRuleSetTagValue].Evaluate(event) {
 		t.Errorf("Expected event to match rule")
 	}
 
-	ev1.open.filename = "/tmp/test2"
-	if !rs.Evaluate(&ev1) {
+	event.SetFieldValue("open.file.path", "/tmp/test2")
+	if !evaluationSet.RuleSets[DefaultRuleSetTagValue].Evaluate(event) {
 		t.Errorf("Expected event to match rule")
 	}
+
+	scopedVariables := evaluationSet.RuleSets[DefaultRuleSetTagValue].scopedVariables["process"].(*eval.ScopedVariables)
+
+	assert.Equal(t, scopedVariables.Len(), 1)
+	event.ProcessCacheEntry.Release()
+	assert.Equal(t, scopedVariables.Len(), 0)
 }
 
 func TestActionSetVariableConflict(t *testing.T) {
-	enabled := map[eval.EventType]bool{"*": true}
-	var opts Opts
-	opts.
-		WithConstants(testConstants).
-		WithSupportedDiscarders(testSupportedDiscarders).
-		WithEventTypeEnabled(enabled).
-		WithVariables(make(map[string]eval.VariableValue)).
-		WithMacros(make(map[eval.MacroID]*eval.Macro))
-	rs := NewRuleSet(&testModel{}, func() eval.Event { return &testEvent{} }, &opts)
-
-	testPolicy := &Policy{
-		Name: "test-policy",
+	testPolicy := &PolicyDef{
 		Rules: []*RuleDefinition{{
 			ID:         "test_rule",
-			Expression: `open.filename == "/tmp/test"`,
+			Expression: `open.file.path == "/tmp/test"`,
 			Actions: []ActionDefinition{{
 				Set: &SetDefinition{
 					Name:  "var1",
@@ -375,80 +306,236 @@ func TestActionSetVariableConflict(t *testing.T) {
 			}},
 		}, {
 			ID: "test_rule2",
-			Expression: `open.filename == "/tmp/test2" && ` +
+			Expression: `open.file.path == "/tmp/test2" && ` +
 				`${var1} == true`,
 		}},
 	}
 
-	tmpDir, err := os.MkdirTemp("", "test-policy")
-	if err != nil {
-		t.Fatal(err)
-	}
+	tmpDir := t.TempDir()
 
 	if err := savePolicy(filepath.Join(tmpDir, "test.policy"), testPolicy); err != nil {
 		t.Fatal(err)
 	}
 
-	if err := LoadPolicies(tmpDir, rs); err == nil {
+	provider, err := NewPoliciesDirProvider(tmpDir, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	loader := NewPolicyLoader(provider)
+
+	evaluationSet, _ := newTestEvaluationSet([]eval.RuleSetTagValue{DefaultRuleSetTagValue})
+	if errs := evaluationSet.LoadPolicies(loader, PolicyLoaderOpts{}); errs.ErrorOrNil() == nil {
 		t.Error("expected policy to fail to load")
-	} else {
-		t.Log(err)
 	}
 }
 
-func loadPolicy(t *testing.T, testPolicy *Policy) *multierror.Error {
-	enabled := map[eval.EventType]bool{"*": true}
-	var opts Opts
-	opts.
-		WithConstants(testConstants).
-		WithSupportedDiscarders(testSupportedDiscarders).
-		WithEventTypeEnabled(enabled).
-		WithVariables(make(map[string]eval.VariableValue)).
-		WithMacros(make(map[eval.MacroID]*eval.Macro))
-	rs := NewRuleSet(&testModel{}, func() eval.Event { return &testEvent{} }, &opts)
-
-	tmpDir, err := os.MkdirTemp("", "test-policy")
-	if err != nil {
-		t.Fatal(err)
+func TestRuleErrorLoading(t *testing.T) {
+	testPolicy := &PolicyDef{
+		Rules: []*RuleDefinition{
+			{
+				ID:         "testA",
+				Expression: `open.file.path == "/tmp/test"`,
+			},
+			{
+				ID:         "testB",
+				Expression: `open.file.path =-= "/tmp/test"`,
+			},
+			{
+				ID:         "testA",
+				Expression: `open.file.path == "/tmp/toto"`,
+			},
+		},
 	}
 
-	if err := savePolicy(filepath.Join(tmpDir, "test.policy"), testPolicy); err != nil {
-		t.Fatal(err)
+	es, err := loadPolicyIntoProbeEvaluationRuleSet(t, testPolicy, PolicyLoaderOpts{})
+	rs := es.RuleSets[DefaultRuleSetTagValue]
+	assert.NotNil(t, err)
+	assert.Len(t, err.Errors, 2)
+	assert.ErrorContains(t, err.Errors[0], "rule `testA` error: multiple definition with the same ID")
+	assert.ErrorContains(t, err.Errors[1], "rule `testB` error: syntax error `1:17: unexpected token \"-\" (expected \"~\")`")
+
+	assert.Contains(t, rs.rules, "testA")
+	assert.NotContains(t, rs.rules, "testB")
+}
+
+func TestRuleAgentConstraint(t *testing.T) {
+	testPolicy := &PolicyDef{
+		Macros: []*MacroDefinition{
+			{
+				ID:         "macro1",
+				Expression: `[1, 2]`,
+			},
+			{
+				ID:                     "macro2",
+				Expression:             `[3, 4]`,
+				AgentVersionConstraint: ">= 7.37, < 7.38",
+			},
+			{
+				ID:                     "macro2",
+				Expression:             `[3, 4, 5]`,
+				AgentVersionConstraint: ">= 7.38",
+			},
+		},
+		Rules: []*RuleDefinition{
+			{
+				ID:         "no_constraint",
+				Expression: `open.file.path == "/tmp/test"`,
+			},
+			{
+				ID:                     "conflict",
+				Expression:             `open.file.path == "/tmp/test1"`,
+				AgentVersionConstraint: "< 7.37",
+			},
+			{
+				ID:                     "conflict",
+				Expression:             `open.file.path == "/tmp/test2"`,
+				AgentVersionConstraint: ">= 7.37",
+			},
+			{
+				ID:                     "basic",
+				Expression:             `open.file.path == "/tmp/test"`,
+				AgentVersionConstraint: "< 7.37",
+			},
+			{
+				ID:                     "basic2",
+				Expression:             `open.file.path == "/tmp/test"`,
+				AgentVersionConstraint: "> 7.37",
+			},
+			{
+				ID:                     "range",
+				Expression:             `open.file.path == "/tmp/test"`,
+				AgentVersionConstraint: ">= 7.30, < 7.39",
+			},
+			{
+				ID:                     "range_not",
+				Expression:             `open.file.path == "/tmp/test"`,
+				AgentVersionConstraint: ">= 7.30, < 7.39, != 7.38",
+			},
+			{
+				ID:                     "rc_prerelease",
+				Expression:             `open.file.path == "/tmp/test"`,
+				AgentVersionConstraint: ">= 7.38",
+			},
+			{
+				ID:                     "with_macro1",
+				Expression:             `open.file.path == "/tmp/test" && open.mode in macro1`,
+				AgentVersionConstraint: ">= 7.38",
+			},
+			{
+				ID:                     "with_macro2",
+				Expression:             `open.file.path == "/tmp/test" && open.mode in macro2`,
+				AgentVersionConstraint: ">= 7.38",
+			},
+		},
 	}
 
-	return LoadPolicies(tmpDir, rs)
+	expected := []struct {
+		ruleID       string
+		expectedLoad bool
+	}{
+		{
+			ruleID:       "no_constraint",
+			expectedLoad: true,
+		},
+		{
+			ruleID:       "conflict",
+			expectedLoad: true,
+		},
+		{
+			ruleID:       "basic",
+			expectedLoad: false,
+		},
+		{
+			ruleID:       "basic2",
+			expectedLoad: true,
+		},
+		{
+			ruleID:       "range",
+			expectedLoad: true,
+		},
+		{
+			ruleID:       "range_not",
+			expectedLoad: false,
+		},
+		{
+			ruleID:       "rc_prerelease",
+			expectedLoad: true,
+		},
+		{
+			ruleID:       "with_macro1",
+			expectedLoad: true,
+		},
+		{
+			ruleID:       "with_macro2",
+			expectedLoad: true,
+		},
+	}
+
+	agentVersion, err := semver.NewVersion("7.38")
+	assert.Nil(t, err)
+
+	agentVersionFilter, err := NewAgentVersionFilter(agentVersion)
+	assert.Nil(t, err)
+
+	policyOpts := PolicyLoaderOpts{
+		MacroFilters: []MacroFilter{
+			agentVersionFilter,
+		},
+		RuleFilters: []RuleFilter{
+			agentVersionFilter,
+		},
+	}
+
+	es, err := loadPolicyIntoProbeEvaluationRuleSet(t, testPolicy, policyOpts)
+	rs := es.RuleSets[DefaultRuleSetTagValue]
+
+	for _, err := range err.(*multierror.Error).Errors {
+		if rerr, ok := err.(*ErrRuleLoad); ok {
+			if rerr.Definition.ID != "basic" && rerr.Definition.ID != "range_not" {
+				t.Errorf("unexpected error: %v", rerr)
+			}
+		}
+	}
+
+	for _, exp := range expected {
+		t.Run(exp.ruleID, func(t *testing.T) {
+			if exp.expectedLoad {
+				assert.Contains(t, rs.rules, exp.ruleID)
+			} else {
+				assert.NotContains(t, rs.rules, exp.ruleID)
+			}
+		})
+	}
 }
 
 func TestActionSetVariableInvalid(t *testing.T) {
 	t.Run("both-field-and-value", func(t *testing.T) {
-		testPolicy := &Policy{
-			Name: "test-policy",
+		testPolicy := &PolicyDef{
 			Rules: []*RuleDefinition{{
 				ID:         "test_rule",
-				Expression: `open.filename == "/tmp/test"`,
+				Expression: `open.file.path == "/tmp/test"`,
 				Actions: []ActionDefinition{{
 					Set: &SetDefinition{
 						Name:  "var1",
 						Value: []string{"abc"},
-						Field: "open.filename",
+						Field: "open.file.path",
 					},
 				}},
 			}},
 		}
 
-		if err := loadPolicy(t, testPolicy); err == nil {
-			t.Error("expected policy to fail to load")
+		if _, err := loadPolicyIntoProbeEvaluationRuleSet(t, testPolicy, PolicyLoaderOpts{}); err == nil {
+			t.Error("policy should fail to load")
 		} else {
 			t.Log(err)
 		}
 	})
 
 	t.Run("bool-array", func(t *testing.T) {
-		testPolicy := &Policy{
-			Name: "test-policy",
+		testPolicy := &PolicyDef{
 			Rules: []*RuleDefinition{{
 				ID:         "test_rule",
-				Expression: `open.filename == "/tmp/test"`,
+				Expression: `open.file.path == "/tmp/test"`,
 				Actions: []ActionDefinition{{
 					Set: &SetDefinition{
 						Name:  "var1",
@@ -457,12 +544,12 @@ func TestActionSetVariableInvalid(t *testing.T) {
 				}},
 			}, {
 				ID: "test_rule2",
-				Expression: `open.filename == "/tmp/test2" && ` +
+				Expression: `open.file.path == "/tmp/test2" && ` +
 					`${var1} == true`,
 			}},
 		}
 
-		if err := loadPolicy(t, testPolicy); err == nil {
+		if _, err := loadPolicyIntoProbeEvaluationRuleSet(t, testPolicy, PolicyLoaderOpts{}); err == nil {
 			t.Error("expected policy to fail to load")
 		} else {
 			t.Log(err)
@@ -470,11 +557,10 @@ func TestActionSetVariableInvalid(t *testing.T) {
 	})
 
 	t.Run("heterogeneous-array", func(t *testing.T) {
-		testPolicy := &Policy{
-			Name: "test-policy",
+		testPolicy := &PolicyDef{
 			Rules: []*RuleDefinition{{
 				ID:         "test_rule",
-				Expression: `open.filename == "/tmp/test"`,
+				Expression: `open.file.path == "/tmp/test"`,
 				Actions: []ActionDefinition{{
 					Set: &SetDefinition{
 						Name:  "var1",
@@ -483,12 +569,12 @@ func TestActionSetVariableInvalid(t *testing.T) {
 				}},
 			}, {
 				ID: "test_rule2",
-				Expression: `open.filename == "/tmp/test2" && ` +
+				Expression: `open.file.path == "/tmp/test2" && ` +
 					`${var1} == true`,
 			}},
 		}
 
-		if err := loadPolicy(t, testPolicy); err == nil {
+		if _, err := loadPolicyIntoProbeEvaluationRuleSet(t, testPolicy, PolicyLoaderOpts{}); err == nil {
 			t.Error("expected policy to fail to load")
 		} else {
 			t.Log(err)
@@ -496,11 +582,10 @@ func TestActionSetVariableInvalid(t *testing.T) {
 	})
 
 	t.Run("nil-values", func(t *testing.T) {
-		testPolicy := &Policy{
-			Name: "test-policy",
+		testPolicy := &PolicyDef{
 			Rules: []*RuleDefinition{{
 				ID:         "test_rule",
-				Expression: `open.filename == "/tmp/test"`,
+				Expression: `open.file.path == "/tmp/test"`,
 				Actions: []ActionDefinition{{
 					Set: &SetDefinition{
 						Name:  "var1",
@@ -510,7 +595,7 @@ func TestActionSetVariableInvalid(t *testing.T) {
 			}},
 		}
 
-		if err := loadPolicy(t, testPolicy); err == nil {
+		if _, err := loadPolicyIntoProbeEvaluationRuleSet(t, testPolicy, PolicyLoaderOpts{}); err == nil {
 			t.Error("expected policy to fail to load")
 		} else {
 			t.Log(err)
@@ -518,11 +603,10 @@ func TestActionSetVariableInvalid(t *testing.T) {
 	})
 
 	t.Run("append-array", func(t *testing.T) {
-		testPolicy := &Policy{
-			Name: "test-policy",
+		testPolicy := &PolicyDef{
 			Rules: []*RuleDefinition{{
 				ID:         "test_rule",
-				Expression: `open.filename == "/tmp/test"`,
+				Expression: `open.file.path == "/tmp/test"`,
 				Actions: []ActionDefinition{{
 					Set: &SetDefinition{
 						Name:   "var1",
@@ -538,12 +622,12 @@ func TestActionSetVariableInvalid(t *testing.T) {
 				}},
 			}, {
 				ID: "test_rule2",
-				Expression: `open.filename == "/tmp/test2" && ` +
+				Expression: `open.file.path == "/tmp/test2" && ` +
 					`${var1} == true`,
 			}},
 		}
 
-		if err := loadPolicy(t, testPolicy); err == nil {
+		if _, err := loadPolicyIntoProbeEvaluationRuleSet(t, testPolicy, PolicyLoaderOpts{}); err == nil {
 			t.Error("expected policy to fail to load")
 		} else {
 			t.Log(err)
@@ -551,15 +635,14 @@ func TestActionSetVariableInvalid(t *testing.T) {
 	})
 
 	t.Run("conflicting-field-type", func(t *testing.T) {
-		testPolicy := &Policy{
-			Name: "test-policy",
+		testPolicy := &PolicyDef{
 			Rules: []*RuleDefinition{{
 				ID:         "test_rule",
-				Expression: `open.filename == "/tmp/test"`,
+				Expression: `open.file.path == "/tmp/test"`,
 				Actions: []ActionDefinition{{
 					Set: &SetDefinition{
 						Name:  "var1",
-						Field: "open.filename",
+						Field: "open.file.path",
 					},
 				}, {
 					Set: &SetDefinition{
@@ -570,12 +653,12 @@ func TestActionSetVariableInvalid(t *testing.T) {
 				}},
 			}, {
 				ID: "test_rule2",
-				Expression: `open.filename == "/tmp/test2" && ` +
+				Expression: `open.file.path == "/tmp/test2" && ` +
 					`${var1} == "true"`,
 			}},
 		}
 
-		if err := loadPolicy(t, testPolicy); err == nil {
+		if _, err := loadPolicyIntoProbeEvaluationRuleSet(t, testPolicy, PolicyLoaderOpts{}); err == nil {
 			t.Error("expected policy to fail to load")
 		} else {
 			t.Log(err)
@@ -583,15 +666,14 @@ func TestActionSetVariableInvalid(t *testing.T) {
 	})
 
 	t.Run("conflicting-field-type", func(t *testing.T) {
-		testPolicy := &Policy{
-			Name: "test-policy",
+		testPolicy := &PolicyDef{
 			Rules: []*RuleDefinition{{
 				ID:         "test_rule",
-				Expression: `open.filename == "/tmp/test"`,
+				Expression: `open.file.path == "/tmp/test"`,
 				Actions: []ActionDefinition{{
 					Set: &SetDefinition{
 						Name:   "var1",
-						Field:  "open.filename",
+						Field:  "open.file.path",
 						Append: true,
 					},
 				}, {
@@ -603,15 +685,170 @@ func TestActionSetVariableInvalid(t *testing.T) {
 				}},
 			}, {
 				ID: "test_rule2",
-				Expression: `open.filename == "/tmp/test2" && ` +
+				Expression: `open.file.path == "/tmp/test2" && ` +
 					`${var1} == "true"`,
 			}},
 		}
 
-		if err := loadPolicy(t, testPolicy); err == nil {
+		if _, err := loadPolicyIntoProbeEvaluationRuleSet(t, testPolicy, PolicyLoaderOpts{}); err == nil {
 			t.Error("expected policy to fail to load")
 		} else {
 			t.Log(err)
 		}
 	})
+}
+
+// go test -v github.com/DataDog/datadog-agent/pkg/security/secl/rules --run="TestLoadPolicy"
+func TestLoadPolicy(t *testing.T) {
+	type args struct {
+		name         string
+		source       string
+		fileContent  string
+		macroFilters []MacroFilter
+		ruleFilters  []RuleFilter
+	}
+	tests := []struct {
+		name    string
+		args    args
+		want    *Policy
+		wantErr assert.ErrorAssertionFunc
+	}{
+		{
+			name: "empty yaml file",
+			args: args{
+				name:         "myLocal.policy",
+				source:       PolicyProviderTypeRC,
+				fileContent:  ``,
+				macroFilters: nil,
+				ruleFilters:  nil,
+			},
+			want: nil,
+			wantErr: func(t assert.TestingT, err error, i ...interface{}) bool {
+				return assert.EqualError(t, err, ErrPolicyLoad{Name: "myLocal.policy", Err: fmt.Errorf(`EOF`)}.Error())
+			},
+		},
+		{
+			name: "empty yaml file with new line char",
+			args: args{
+				name:   "myLocal.policy",
+				source: PolicyProviderTypeRC,
+				fileContent: `
+`,
+				macroFilters: nil,
+				ruleFilters:  nil,
+			},
+			want: nil,
+			wantErr: func(t assert.TestingT, err error, i ...interface{}) bool {
+				return assert.EqualError(t, err, ErrPolicyLoad{Name: "myLocal.policy", Err: fmt.Errorf(`EOF`)}.Error())
+			},
+		},
+		{
+			name: "no rules in yaml file",
+			args: args{
+				name:   "myLocal.policy",
+				source: PolicyProviderTypeRC,
+				fileContent: `
+rules:
+`,
+				macroFilters: nil,
+				ruleFilters:  nil,
+			},
+			want: &Policy{
+				Name:   "myLocal.policy",
+				Source: PolicyProviderTypeRC,
+				Rules:  nil,
+			},
+			wantErr: assert.NoError,
+		},
+		{
+			name: "broken yaml file",
+			args: args{
+				name:   "myLocal.policy",
+				source: PolicyProviderTypeRC,
+				fileContent: `
+broken
+`,
+				macroFilters: nil,
+				ruleFilters:  nil,
+			},
+			want: nil,
+			wantErr: func(t assert.TestingT, err error, i ...interface{}) bool {
+				return assert.ErrorContains(t, err, ErrPolicyLoad{Name: "myLocal.policy", Err: fmt.Errorf(`yaml: unmarshal error`)}.Error())
+			},
+		},
+		{
+			name: "disabled tag",
+			args: args{
+				name:   "myLocal.policy",
+				source: PolicyProviderTypeRC,
+				fileContent: `rules:
+ - id: rule_test
+   disabled: true
+`,
+				macroFilters: nil,
+				ruleFilters:  nil,
+			},
+			want: &Policy{
+				Name:   "myLocal.policy",
+				Source: PolicyProviderTypeRC,
+				Rules: []*RuleDefinition{
+					{
+						ID:         "rule_test",
+						Expression: "",
+						Disabled:   true,
+						Policy: &Policy{
+							Name:   "myLocal.policy",
+							Source: PolicyProviderTypeRC,
+						},
+					},
+				},
+			},
+			wantErr: assert.NoError,
+		},
+		{
+			name: "combine:override tag",
+			args: args{
+				name:   "myLocal.policy",
+				source: PolicyProviderTypeRC,
+				fileContent: `rules:
+ - id: rule_test
+   expression: open.file.path == "/etc/gshadow"
+   combine: override
+`,
+				macroFilters: nil,
+				ruleFilters:  nil,
+			},
+			want: &Policy{
+				Name:   "myLocal.policy",
+				Source: PolicyProviderTypeRC,
+				Rules: []*RuleDefinition{
+					{
+						ID:         "rule_test",
+						Expression: "open.file.path == \"/etc/gshadow\"",
+						Combine:    OverridePolicy,
+						Policy: &Policy{
+							Name:   "myLocal.policy",
+							Source: PolicyProviderTypeRC,
+						},
+					},
+				},
+			},
+			wantErr: assert.NoError,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			r := strings.NewReader(tt.args.fileContent)
+
+			got, err := LoadPolicy(tt.args.name, tt.args.source, r, tt.args.macroFilters, tt.args.ruleFilters)
+
+			if !tt.wantErr(t, err, fmt.Sprintf("LoadPolicy(%v, %v, %v, %v, %v)", tt.args.name, tt.args.source, r, tt.args.macroFilters, tt.args.ruleFilters)) {
+				return
+			}
+
+			if !cmp.Equal(tt.want, got, cmpopts.IgnoreFields(RuleDefinition{}, "Policy")) {
+				t.Errorf("LoadPolicy(%v, %v, %v, %v, %v)", tt.args.name, tt.args.source, r, tt.args.macroFilters, tt.args.ruleFilters)
+			}
+		})
+	}
 }

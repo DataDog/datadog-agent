@@ -3,9 +3,12 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+// Package model holds model related files
 package model
 
-import "github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
+import (
+	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
+)
 
 // EventCategory category type
 type EventCategory = string
@@ -35,9 +38,10 @@ func GetAllCategories() []EventCategory {
 // GetEventTypeCategory returns the category for the given event type
 func GetEventTypeCategory(eventType eval.EventType) EventCategory {
 	switch eventType {
-	case "exec", "signal":
+	case "exec", "signal", "exit", "fork", "anomaly_detection_syscall":
 		return ProcessCategory
-	case "bpf", "selinux", "mmap", "mprotect", "ptrace", "load_module", "unload_module":
+	case "bpf", "selinux", "mmap", "mprotect", "ptrace", "load_module", "unload_module", "bind":
+		// TODO(will): "bind" is in this category because answering "NetworkCategory" would insert a network section in the serializer.
 		return KernelCategory
 	case "dns":
 		return NetworkCategory

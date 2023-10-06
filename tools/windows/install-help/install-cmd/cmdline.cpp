@@ -67,7 +67,7 @@ bool parseArgs(int argc, wchar_t **argv, std::wstring &calstring)
                 calstring += calargs[(int)a];
                 calstring += L"=";
                 calstring += argv[i];
-                calstring += L";";
+                calstring += L"\n";
                 break;
             }
         }
@@ -85,7 +85,7 @@ bool parseArgs(int argc, wchar_t **argv, std::wstring &calstring)
             calstring += calargs[(int)a];
             calstring += L"=";
             calstring += defaults[(int)a];
-            calstring += L";";
+            calstring += L"\n";
         }
     }
     return true;

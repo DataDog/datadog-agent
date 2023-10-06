@@ -9,12 +9,16 @@ import (
 	"fmt"
 	"regexp"
 	"strconv"
+
+	"github.com/DataDog/datadog-agent/pkg/networkdevice/profile/profiledefinition"
+
+	"github.com/DataDog/datadog-agent/pkg/snmp/gosnmplib"
 )
 
 // ResultValue represent a snmp value
 type ResultValue struct {
-	SubmissionType string      `json:"sub_type,omitempty"` // used when sending the metric
-	Value          interface{} `json:"value"`              // might be a `string` or `float64` type
+	SubmissionType profiledefinition.ProfileMetricType `json:"sub_type,omitempty"` // used when sending the metric
+	Value          interface{}                         `json:"value"`              // might be a `string`, `[]byte` or `float64` type
 }
 
 // ToFloat64 converts value to float64
@@ -22,8 +26,9 @@ func (sv *ResultValue) ToFloat64() (float64, error) {
 	switch sv.Value.(type) {
 	case float64:
 		return sv.Value.(float64), nil
-	case string:
-		val, err := strconv.ParseFloat(sv.Value.(string), 64)
+	case string, []byte:
+		strValue := bytesOrStringToString(sv.Value)
+		val, err := strconv.ParseFloat(strValue, 64)
 		if err != nil {
 			return 0, fmt.Errorf("failed to parse `%s`: %s", sv.Value, err.Error())
 		}
@@ -34,20 +39,14 @@ func (sv *ResultValue) ToFloat64() (float64, error) {
 
 // ToString converts value to string
 func (sv ResultValue) ToString() (string, error) {
-	switch sv.Value.(type) {
-	case float64:
-		return strconv.Itoa(int(sv.Value.(float64))), nil
-	case string:
-		return sv.Value.(string), nil
-	}
-	return "", fmt.Errorf("invalid type %T for value %#v", sv.Value, sv.Value)
+	return gosnmplib.StandardTypeToString(sv.Value)
 }
 
 // ExtractStringValue extract value using a regex
 func (sv ResultValue) ExtractStringValue(extractValuePattern *regexp.Regexp) (ResultValue, error) {
 	switch sv.Value.(type) {
-	case string:
-		srcValue := sv.Value.(string)
+	case string, []byte:
+		srcValue := bytesOrStringToString(sv.Value)
 		matches := extractValuePattern.FindStringSubmatch(srcValue)
 		if matches == nil {
 			return ResultValue{}, fmt.Errorf("extract value extractValuePattern does not match (extractValuePattern=%v, srcValue=%v)", extractValuePattern, srcValue)
@@ -60,4 +59,14 @@ func (sv ResultValue) ExtractStringValue(extractValuePattern *regexp.Regexp) (Re
 	default:
 		return sv, nil
 	}
+}
+
+func bytesOrStringToString(value interface{}) string {
+	switch value := value.(type) {
+	case string:
+		return value
+	case []byte:
+		return string(value)
+	}
+	return ""
 }

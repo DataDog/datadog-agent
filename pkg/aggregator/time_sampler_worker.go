@@ -13,9 +13,9 @@ import (
 )
 
 // The timeSamplerWorker runs the process loop for a TimeSampler:
-//  - receiving samples for the TimeSampler to process
-//  - receiving flush triggers to flush the series from the TimeSampler
-//    into a serializer
+//   - receiving samples for the TimeSampler to process
+//   - receiving flush triggers to flush the series from the TimeSampler
+//     into a serializer
 type timeSamplerWorker struct {
 	// parent sampler the timeSamplerWorker is responsible of
 	sampler *TimeSampler
@@ -91,20 +91,6 @@ func (w *timeSamplerWorker) stop() {
 }
 
 func (w *timeSamplerWorker) triggerFlush(trigger flushTrigger) {
-	if w.parallelSerialization.Enabled {
-		sketches := w.sampler.flush(float64(trigger.time.Unix()), trigger.seriesSink)
-		if len(sketches) > 0 {
-			*trigger.flushedSketches = append(*trigger.flushedSketches, sketches)
-		}
-	} else {
-		var series metrics.Series
-		sketches := w.sampler.flush(float64(trigger.time.Unix()), &series)
-		if len(series) > 0 {
-			*trigger.flushedSeries = append(*trigger.flushedSeries, series)
-		}
-		if len(sketches) > 0 {
-			*trigger.flushedSketches = append(*trigger.flushedSketches, sketches)
-		}
-	}
+	w.sampler.flush(float64(trigger.time.Unix()), trigger.seriesSink, trigger.sketchesSink)
 	trigger.blockChan <- struct{}{}
 }

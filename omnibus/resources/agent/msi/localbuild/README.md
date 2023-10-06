@@ -16,4 +16,7 @@ and the configuration files directory, `c:\omnibus-ruby\src\etc\datadog-agent\ex
 
 It includes `parameters.wxi`, where the variables such as the installation version can be changed (note that the included binaries will not be rebuilt, so the included binaries will not necessarily report the version specified in `parameters.wxi`.  However, the MSI itself will report itself as that version).
 
+The first time it is run after a full build, it will generate the 7z (zip) file of the python directory that
+is used in the msi.  On each subsequent execution, it will reuse that zip file.
+
 

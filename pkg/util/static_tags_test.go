@@ -1,19 +1,25 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2022-present Datadog, Inc.
+
 package util
 
 import (
 	"context"
 	"testing"
 
-	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/stretchr/testify/assert"
+
+	"github.com/DataDog/datadog-agent/pkg/config"
 )
 
 func TestStaticTags(t *testing.T) {
-	mockConfig := config.Mock()
-	mockConfig.Set("eks_fargate", true) // pretend this is a hostless environment
+	mockConfig := config.Mock(t)
 	mockConfig.Set("kubernetes_kubelet_nodename", "eksnode")
-	defer mockConfig.Set("eks_fargate", false)
 	defer mockConfig.Set("kubernetes_kubelet_nodename", "")
+
+	config.SetFeatures(t, config.EKSFargate)
 
 	t.Run("just tags", func(t *testing.T) {
 		mockConfig.Set("tags", []string{"some:tag", "another:tag", "nocolon"})
@@ -51,11 +57,11 @@ func TestStaticTags(t *testing.T) {
 }
 
 func TestStaticTagsSlice(t *testing.T) {
-	mockConfig := config.Mock()
-	mockConfig.Set("eks_fargate", true) // pretend this is a hostless environment
+	mockConfig := config.Mock(t)
 	mockConfig.Set("kubernetes_kubelet_nodename", "eksnode")
-	defer mockConfig.Set("eks_fargate", false)
 	defer mockConfig.Set("kubernetes_kubelet_nodename", "")
+
+	config.SetFeatures(t, config.EKSFargate)
 
 	t.Run("just tags", func(t *testing.T) {
 		mockConfig.Set("tags", []string{"some:tag", "another:tag", "nocolon"})

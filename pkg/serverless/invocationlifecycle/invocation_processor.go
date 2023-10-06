@@ -11,4 +11,15 @@ type InvocationProcessor interface {
 	OnInvokeStart(startDetails *InvocationStartDetails)
 	// OnInvokeEnd is the hook triggered when an invocation has ended
 	OnInvokeEnd(endDetails *InvocationEndDetails)
+	// GetExecutionInfo returns the current execution start information
+	GetExecutionInfo() *ExecutionStartInfo
+}
+
+// InvocationSubProcessor is the interface to implement to receive invocation lifecycle hooks along with the
+// invocation context of the request handler.
+type InvocationSubProcessor interface {
+	// OnInvokeStart is the hook triggered when an invocation has started and the request handler context was created,
+	OnInvokeStart(startDetails *InvocationStartDetails, ctx *RequestHandler)
+	// OnInvokeEnd is the hook triggered when an invocation has ended
+	OnInvokeEnd(endDetails *InvocationEndDetails, ctx *RequestHandler)
 }

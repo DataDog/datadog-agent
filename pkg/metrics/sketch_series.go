@@ -10,8 +10,8 @@ import (
 	"encoding/json"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator/ckey"
-	"github.com/DataDog/datadog-agent/pkg/quantile"
 	"github.com/DataDog/datadog-agent/pkg/tagset"
+	"github.com/DataDog/opentelemetry-mapping-go/pkg/quantile"
 )
 
 // A SketchSeries is a timeseries of quantile sketches.
@@ -24,6 +24,14 @@ type SketchSeries struct {
 	ContextKey ckey.ContextKey      `json:"-"`
 }
 
+// String returns the JSON representation of a SketchSeries as a string
+// or an empty string in case of an error
+func (sl SketchSeries) String() string {
+	reqBody := &bytes.Buffer{}
+	_ = json.NewEncoder(reqBody).Encode(sl)
+	return reqBody.String()
+}
+
 // A SketchPoint represents a quantile sketch at a specific time
 type SketchPoint struct {
 	Sketch *quantile.Sketch `json:"sketch"`
@@ -31,7 +39,7 @@ type SketchPoint struct {
 }
 
 // SketchSeriesList is a collection of SketchSeries
-type SketchSeriesList []SketchSeries
+type SketchSeriesList []*SketchSeries
 
 // MarshalJSON serializes sketch series to JSON.
 func (sl SketchSeriesList) MarshalJSON() ([]byte, error) {
@@ -52,4 +60,17 @@ func (sl SketchSeriesList) String() string {
 		return ""
 	}
 	return string(json)
+}
+
+// SketchesSink is a sink for sketches.
+// It provides a way to append a sketches into `SketchSeriesList`
+type SketchesSink interface {
+	Append(*SketchSeries)
+}
+
+var _ SketchesSink = (*SketchSeriesList)(nil)
+
+// Append appends a sketches.
+func (sl *SketchSeriesList) Append(sketches *SketchSeries) {
+	*sl = append(*sl, sketches)
 }

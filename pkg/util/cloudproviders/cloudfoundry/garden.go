@@ -13,6 +13,7 @@ import (
 	"code.cloudfoundry.org/garden"
 	"code.cloudfoundry.org/garden/client"
 	"code.cloudfoundry.org/garden/client/connection"
+
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/retry"
@@ -48,6 +49,10 @@ const (
 	SidecarPresentTagKey = "sidecar_present"
 	// SidecarCountTagKey tag key for container tags
 	SidecarCountTagKey = "sidecar_count"
+	// SegmentNameTagKey tag key for container tags
+	SegmentNameTagKey = "segment_name"
+	// SegmentIDTagKey tag key for container tags
+	SegmentIDTagKey = "segment_id"
 )
 
 var (
@@ -60,6 +65,7 @@ type GardenUtilInterface interface {
 	ListContainers() ([]garden.Container, error)
 	GetContainersInfo(handles []string) (map[string]garden.ContainerInfoEntry, error)
 	GetContainersMetrics(handles []string) (map[string]garden.ContainerMetricsEntry, error)
+	GetContainer(string) (garden.Container, error)
 }
 
 // GardenUtil wraps interactions with a local garden API.
@@ -125,4 +131,9 @@ func ContainersToHandles(containers []garden.Container) []string {
 		handles[i] = gardenContainer.Handle()
 	}
 	return handles
+}
+
+// GetContainer returns a container with the given handle from the local garden API
+func (gu *GardenUtil) GetContainer(handle string) (garden.Container, error) {
+	return gu.cli.Lookup(handle)
 }

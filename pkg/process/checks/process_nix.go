@@ -4,25 +4,40 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build !windows
-// +build !windows
 
 package checks
 
 import (
+	"math"
 	"os/user"
 	"strconv"
 
 	model "github.com/DataDog/agent-payload/v5/process"
+	"github.com/DataDog/gopsutil/cpu"
+
 	"github.com/DataDog/datadog-agent/pkg/process/procutil"
 	"github.com/DataDog/datadog-agent/pkg/util/system"
-	"github.com/DataDog/gopsutil/cpu"
 )
 
-func formatUser(fp *procutil.Process) *model.ProcessUser {
+var (
+	// overridden in tests
+	hostCPUCount = system.HostCPUCount
+)
+
+func formatUser(fp *procutil.Process, uidProbe *LookupIdProbe) *model.ProcessUser {
 	var username string
 	var uid, gid int32
 	if len(fp.Uids) > 0 {
-		u, err := user.LookupId(strconv.Itoa(int(fp.Uids[0])))
+		var (
+			u   *user.User
+			err error
+		)
+		if uidProbe == nil {
+			// If the probe is nil, skip it and just call `LookupId` directly
+			u, err = user.LookupId(strconv.Itoa(int(fp.Uids[0])))
+		} else {
+			u, err = uidProbe.LookupId(strconv.Itoa(int(fp.Uids[0])))
+		}
 		if err == nil {
 			username = u.Username
 		}
@@ -40,7 +55,7 @@ func formatUser(fp *procutil.Process) *model.ProcessUser {
 }
 
 func formatCPUTimes(fp *procutil.Stats, t2, t1 *procutil.CPUTimesStat, syst2, syst1 cpu.TimesStat) *model.CPUStat {
-	numCPU := float64(system.HostCPUCount())
+	numCPU := float64(hostCPUCount())
 	deltaSys := syst2.Total() - syst1.Total()
 	return &model.CPUStat{
 		LastCpu:    "cpu",
@@ -70,5 +85,11 @@ func calculatePct(deltaProc, deltaTime, numCPU float64) float32 {
 	}
 
 	// In order to emulate top we multiply utilization by # of CPUs so a busy loop would be 100%.
-	return float32(overalPct * numCPU)
+	pct := overalPct * numCPU
+
+	// Clamp to 0 below if we get a negative value
+	// CPU time counters in /proc/ used to determine process execution time may potentially be decremented, leading to a negative deltaProc
+	// Avoid reporting negative CPU percentages when this occurs
+	pct = math.Max(pct, 0.0)
+	return float32(pct)
 }

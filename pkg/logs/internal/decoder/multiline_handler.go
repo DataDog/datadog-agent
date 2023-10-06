@@ -10,34 +10,46 @@ import (
 	"regexp"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/logs/config"
+	"github.com/DataDog/datadog-agent/pkg/logs/internal/status"
+	"github.com/DataDog/datadog-agent/pkg/logs/message"
+	"github.com/DataDog/datadog-agent/pkg/telemetry"
 )
+
+// Currently only reported when telemetryEnabled is true. telemetryEnabled is only true when
+// the multi_line handler is used with auto_multi_line_detection enabled.
+const linesCombinedTelemetryMetricName = "datadog.logs_agent.auto_multi_line_lines_combined"
 
 // MultiLineHandler makes sure that multiple lines from a same content
 // are properly put together.
 type MultiLineHandler struct {
-	outputFn       func(*Message)
-	newContentRe   *regexp.Regexp
-	buffer         *bytes.Buffer
-	flushTimeout   time.Duration
-	flushTimer     *time.Timer
-	lineLimit      int
-	shouldTruncate bool
-	linesLen       int
-	status         string
-	timestamp      string
-	countInfo      *config.CountInfo
+	outputFn          func(*message.Message)
+	newContentRe      *regexp.Regexp
+	buffer            *bytes.Buffer
+	flushTimeout      time.Duration
+	flushTimer        *time.Timer
+	lineLimit         int
+	shouldTruncate    bool
+	linesLen          int
+	status            string
+	timestamp         string
+	countInfo         *status.CountInfo
+	linesCombinedInfo *status.CountInfo
+	telemetryEnabled  bool
+	linesCombined     int
 }
 
 // NewMultiLineHandler returns a new MultiLineHandler.
-func NewMultiLineHandler(outputFn func(*Message), newContentRe *regexp.Regexp, flushTimeout time.Duration, lineLimit int) *MultiLineHandler {
+func NewMultiLineHandler(outputFn func(*message.Message), newContentRe *regexp.Regexp, flushTimeout time.Duration, lineLimit int, telemetryEnabled bool) *MultiLineHandler {
 	return &MultiLineHandler{
-		outputFn:     outputFn,
-		newContentRe: newContentRe,
-		buffer:       bytes.NewBuffer(nil),
-		flushTimeout: flushTimeout,
-		lineLimit:    lineLimit,
-		countInfo:    config.NewCountInfo("MultiLine matches"),
+		outputFn:          outputFn,
+		newContentRe:      newContentRe,
+		buffer:            bytes.NewBuffer(nil),
+		flushTimeout:      flushTimeout,
+		lineLimit:         lineLimit,
+		countInfo:         status.NewCountInfo("MultiLine matches"),
+		linesCombinedInfo: status.NewCountInfo("Lines Combined"),
+		telemetryEnabled:  telemetryEnabled,
+		linesCombined:     0,
 	}
 }
 
@@ -57,7 +69,7 @@ func (h *MultiLineHandler) flush() {
 // It also makes sure that the content will never exceed the limit
 // and that the length of the lines is properly tracked
 // so that the agent restarts tailing from the right place.
-func (h *MultiLineHandler) process(message *Message) {
+func (h *MultiLineHandler) process(message *message.Message) {
 	if h.flushTimer != nil && h.buffer.Len() > 0 {
 		// stop the flush timer, as we now have data
 		if !h.flushTimer.Stop() {
@@ -78,8 +90,9 @@ func (h *MultiLineHandler) process(message *Message) {
 	// track the raw data length and the timestamp so that the agent tails
 	// from the right place at restart
 	h.linesLen += message.RawDataLen
-	h.timestamp = message.Timestamp
+	h.timestamp = message.ParsingExtra.Timestamp
 	h.status = message.Status
+	h.linesCombined++
 
 	if h.buffer.Len() > 0 {
 		// the buffer already contains some data which means that
@@ -120,6 +133,7 @@ func (h *MultiLineHandler) sendBuffer() {
 	defer func() {
 		h.buffer.Reset()
 		h.linesLen = 0
+		h.linesCombined = 0
 		h.shouldTruncate = false
 	}()
 
@@ -128,6 +142,15 @@ func (h *MultiLineHandler) sendBuffer() {
 	copy(content, data)
 
 	if len(content) > 0 || h.linesLen > 0 {
+		if h.linesCombined > 0 {
+			// -1 to ignore the line matching the pattern. This leave a count of only combined lines.
+			linesCombined := int64(h.linesCombined - 1)
+			h.linesCombinedInfo.Add(linesCombined)
+			if h.telemetryEnabled {
+				telemetry.GetStatsTelemetryProvider().Count(linesCombinedTelemetryMetricName, float64(linesCombined), []string{})
+			}
+		}
+
 		h.outputFn(NewMessage(content, h.status, h.linesLen, h.timestamp))
 	}
 }

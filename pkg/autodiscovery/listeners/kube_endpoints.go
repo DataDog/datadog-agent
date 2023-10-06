@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build clusterchecks && kubeapiserver
-// +build clusterchecks,kubeapiserver
 
 package listeners
 
@@ -14,6 +13,7 @@ import (
 	"sync"
 
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/common/types"
+	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/providers/names"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
@@ -64,6 +64,7 @@ func init() {
 	Register(kubeEndpointsName, NewKubeEndpointsListener)
 }
 
+// NewKubeEndpointsListener returns the kube endpoints implementation of the ServiceListener interface
 func NewKubeEndpointsListener(conf Config) (ServiceListener, error) {
 	// Using GetAPIClient (no wait) as Client should already be initialized by Cluster Agent main entrypoint before
 	ac, err := apiserver.GetAPIClient()
@@ -92,20 +93,25 @@ func NewKubeEndpointsListener(conf Config) (ServiceListener, error) {
 	}, nil
 }
 
+// Listen starts watching service and endpoint events
 func (l *KubeEndpointsListener) Listen(newSvc chan<- Service, delSvc chan<- Service) {
 	// setup the I/O channels
 	l.newService = newSvc
 	l.delService = delSvc
 
-	l.endpointsInformer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
+	if _, err := l.endpointsInformer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
 		AddFunc:    l.endpointsAdded,
 		DeleteFunc: l.endpointsDeleted,
 		UpdateFunc: l.endpointsUpdated,
-	})
+	}); err != nil {
+		log.Errorf("cannot add event handler to endpoints informer: %s", err)
+	}
 
-	l.serviceInformer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
+	if _, err := l.serviceInformer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
 		UpdateFunc: l.serviceUpdated,
-	})
+	}); err != nil {
+		log.Errorf("cannot add event handler to service informer: %s", err)
+	}
 
 	// Initial fill
 	endpoints, err := l.endpointsLister.List(labels.Everything())
@@ -125,7 +131,7 @@ func (l *KubeEndpointsListener) Stop() {
 func (l *KubeEndpointsListener) endpointsAdded(obj interface{}) {
 	castedObj, ok := obj.(*v1.Endpoints)
 	if !ok {
-		log.Errorf("Expected an Endpoints type, got: %v", obj)
+		log.Errorf("Expected an *v1.Endpoints type, got: %T", obj)
 		return
 	}
 	if isLockForLE(castedObj) {
@@ -138,8 +144,18 @@ func (l *KubeEndpointsListener) endpointsAdded(obj interface{}) {
 func (l *KubeEndpointsListener) endpointsDeleted(obj interface{}) {
 	castedObj, ok := obj.(*v1.Endpoints)
 	if !ok {
-		log.Errorf("Expected an Endpoints type, got: %v", obj)
-		return
+		// It's possible that we got a DeletedFinalStateUnknown here
+		deletedState, ok := obj.(cache.DeletedFinalStateUnknown)
+		if !ok {
+			log.Errorf("Received unexpected object: %T", obj)
+			return
+		}
+
+		castedObj, ok = deletedState.Obj.(*v1.Endpoints)
+		if !ok {
+			log.Errorf("Expected DeletedFinalStateUnknown to contain *v1.Endpoints, got: %T", deletedState.Obj)
+			return
+		}
 	}
 	if isLockForLE(castedObj) {
 		// Ignore Endpoints objects used for leader election
@@ -152,7 +168,7 @@ func (l *KubeEndpointsListener) endpointsUpdated(old, obj interface{}) {
 	// Cast the updated object or return on failure
 	castedObj, ok := obj.(*v1.Endpoints)
 	if !ok {
-		log.Errorf("Expected an Endpoints type, got: %v", obj)
+		log.Errorf("Expected an *v1.Endpoints type, got: %T", obj)
 		return
 	}
 	if isLockForLE(castedObj) {
@@ -162,7 +178,7 @@ func (l *KubeEndpointsListener) endpointsUpdated(old, obj interface{}) {
 	// Cast the old object, consider it an add on cast failure
 	castedOld, ok := old.(*v1.Endpoints)
 	if !ok {
-		log.Errorf("Expected an Endpoints type, got: %v", old)
+		log.Errorf("Expected an *v1.Endpoints type, got: %T", old)
 		l.createService(castedObj, true)
 		return
 	}
@@ -176,14 +192,14 @@ func (l *KubeEndpointsListener) serviceUpdated(old, obj interface{}) {
 	// Cast the updated object or return on failure
 	castedObj, ok := obj.(*v1.Service)
 	if !ok {
-		log.Errorf("Expected a Service type, got: %v", obj)
+		log.Errorf("Expected a *v1.Service type, got: %T", obj)
 		return
 	}
 
 	// Cast the old object, consider it an add on cast failure
 	castedOld, ok := old.(*v1.Service)
 	if !ok {
-		log.Errorf("Expected a Service type, got: %v", old)
+		log.Errorf("Expected a *v1.Service type, got: %T", old)
 		l.createService(l.endpointsForService(castedObj), false)
 		return
 	}
@@ -415,11 +431,11 @@ func (s *KubeEndpointService) GetPorts(context.Context) ([]ContainerPort, error)
 }
 
 // GetTags retrieves tags
-func (s *KubeEndpointService) GetTags() ([]string, string, error) {
+func (s *KubeEndpointService) GetTags() ([]string, error) {
 	if s.tags == nil {
-		return []string{}, "", nil
+		return []string{}, nil
 	}
-	return s.tags, "", nil
+	return s.tags, nil
 }
 
 // GetHostname returns nil and an error because port is not supported in Kubelet
@@ -445,6 +461,10 @@ func (s *KubeEndpointService) HasFilter(filter containers.FilterType) bool {
 }
 
 // GetExtraConfig isn't supported
-func (s *KubeEndpointService) GetExtraConfig(key []byte) ([]byte, error) {
-	return []byte{}, ErrNotSupported
+func (s *KubeEndpointService) GetExtraConfig(key string) (string, error) {
+	return "", ErrNotSupported
+}
+
+// FilterTemplates does nothing.
+func (s *KubeEndpointService) FilterTemplates(map[string]integration.Config) {
 }

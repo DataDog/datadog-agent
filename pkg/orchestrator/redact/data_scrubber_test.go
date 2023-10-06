@@ -6,12 +6,12 @@
 package redact
 
 import (
-	"fmt"
 	"testing"
 
-	scrubberpkg "github.com/DataDog/datadog-agent/pkg/util/scrubber"
 	"github.com/stretchr/testify/assert"
 	v1 "k8s.io/api/core/v1"
+
+	scrubberpkg "github.com/DataDog/datadog-agent/pkg/util/scrubber"
 )
 
 func BenchmarkNoRegexMatching1(b *testing.B)        { benchmarkMatching(1, b) }
@@ -23,6 +23,7 @@ func BenchmarkRegexMatchingCustom1000(b *testing.B) { benchmarkMatchingCustomReg
 // https://dave.cheney.net/2013/06/30/how-to-write-benchmarks-in-go
 // store the result to a package level variable
 // so the compiler cannot eliminate the Benchmark itself.
+//
 //goland:noinspection ALL
 var avoidOptimization bool
 
@@ -43,7 +44,7 @@ func benchmarkMatching(nbContainers int, b *testing.B) {
 	}
 	b.ResetTimer()
 
-	b.Run(fmt.Sprintf("simplified"), func(b *testing.B) {
+	b.Run("simplified", func(b *testing.B) {
 		for n := 0; n < b.N; n++ {
 			for _, c := range containersBenchmarks {
 				ScrubContainer(&c, scrubber)
@@ -150,7 +151,7 @@ func benchmarkEnvScrubbing(nEnvs int, b *testing.B) {
 
 	b.ResetTimer()
 
-	b.Run(fmt.Sprintf("simplified"), func(b *testing.B) {
+	b.Run("simplified", func(b *testing.B) {
 		for n := 0; n < b.N; n++ {
 			for _, p := range runningEnvs {
 				c = scrubber.ContainsSensitiveWord(p)
@@ -158,7 +159,7 @@ func benchmarkEnvScrubbing(nEnvs int, b *testing.B) {
 		}
 	})
 
-	b.Run(fmt.Sprintf("default"), func(b *testing.B) {
+	b.Run("default", func(b *testing.B) {
 		for n := 0; n < b.N; n++ {
 			for _, p := range runningEnvs {
 				if scrubbedVal, _ := scrubberpkg.ScrubBytes([]byte(p)); scrubbedVal != nil {
@@ -310,4 +311,106 @@ func setupInsensitiveCmdLines() []testCase {
 		{[]string{"agent", "1_pword:1234"}, []string{"agent", "1_pword:1234"}},
 		{[]string{"agent 1_pword:1234"}, []string{"agent 1_pword:1234"}},
 	}
+}
+
+func BenchmarkScrubSensitiveAnnotation(b *testing.B) {
+	annotationValue := `[{"host": "%%host%%", "port" : 5432, "username": "postgresadmin", "password": "eZH47hUGspGF.66QZnNZGaHaq@z6UBuu"}]`
+	scrubber := NewDefaultDataScrubber()
+
+	b.ReportAllocs()
+	b.ResetTimer()
+
+	for i := 0; i < b.N; i++ {
+		scrubber.ScrubAnnotationValue(annotationValue)
+	}
+}
+
+func TestScrubAnnotationValue(t *testing.T) {
+	scrubber := NewDefaultDataScrubber()
+	testCases := setupSensitiveAnnotations()
+	for _, testCase := range testCases {
+		value := scrubber.ScrubAnnotationValue(testCase.annotationValue)
+		assert.Equal(t, testCase.expectedAnnotationValue, value)
+	}
+}
+
+func TestScrubAnnotationValueWithCustomWords(t *testing.T) {
+	scrubber := NewDefaultDataScrubber()
+	testCases := setupSensitiveAnnotationsWithCustomWords()
+	customWords := testCasesSensitiveWords(testCases)
+
+	scrubber.AddCustomSensitiveWords(customWords)
+
+	for _, testCase := range testCases {
+		value := scrubber.ScrubAnnotationValue(testCase.annotationValue)
+		assert.Equal(t, testCase.expectedAnnotationValue, value)
+	}
+}
+
+type annotationTestCase struct {
+	annotationValue         string
+	expectedAnnotationValue string
+}
+
+func setupSensitiveAnnotations() []annotationTestCase {
+	return []annotationTestCase{
+		// preserve indentation
+		{`{"access_token"  :   "test1234"}`, `{"access_token"  :   "********"}`},
+		{`{"access_token":"test1234"}`, `{"access_token":"********"}`},
+		{`{"access_token": "test1234"}`, `{"access_token": "********"}`},
+
+		// other words
+		{`{"access_token": "test1234"}`, `{"access_token": "********"}`},
+		{`{"api_key": "test1234"}`, `{"api_key": "********"}`},
+		{`{"auth_token": "test1234"}`, `{"auth_token": "********"}`},
+		{`{"credentials": "test1234"}`, `{"credentials": "********"}`},
+		{`{"mysql_pwd": "test1234"}`, `{"mysql_pwd": "********"}`},
+		{`{"passwd": "test1234"}`, `{"passwd": "********"}`},
+		{`{"password": "test1234"}`, `{"password": "********"}`},
+		{`{"secret": "test1234"}`, `{"secret": "********"}`},
+		{`{"stripetoken": "test1234"}`, `{"stripetoken": "********"}`},
+
+		// preserve the rest of the value
+		{`{"param1": 1, "password": "test1234", "param2": 2}`, `{"param1": 1, "password": "********", "param2": 2}`},
+
+		// no match
+		{`{"parameter": "test1234"}`, `{"parameter": "test1234"}`},
+	}
+}
+
+type annotationTestCaseCustomWord struct {
+	word                    string
+	annotationValue         string
+	expectedAnnotationValue string
+}
+
+func setupSensitiveAnnotationsWithCustomWords() []annotationTestCaseCustomWord {
+	return []annotationTestCaseCustomWord{
+		// exact match
+		{"hide_me", `{"hide_me": "test1234"}`, `{"hide_me": "********"}`},
+
+		// subset of another string
+		{"hide_me", `{"dont_hide_me": "value"}`, `{"dont_hide_me": "value"}`},
+
+		// double quotes in value
+		{"hide_me", `{"hide_me": "\"tes\\\\"t\"1\\"234\""}`, `{"hide_me": "********"}`},
+
+		// special characters are escaped
+		{"a.+*?()|[]{}^$z", `{"a.+*?()|[]{}^$z": "test1234"}`, `{"a.+*?()|[]{}^$z": "********"}`},
+		{".*_hide_me", `{"dont_hide_me": "value"}`, `{"dont_hide_me": "value"}`},
+	}
+}
+
+func testCasesSensitiveWords(testCases []annotationTestCaseCustomWord) []string {
+	dedupedWords := make(map[string]struct{})
+	words := []string{}
+
+	for _, testCase := range testCases {
+		dedupedWords[testCase.word] = struct{}{}
+	}
+	for word := range dedupedWords {
+		words = append(words, word)
+	}
+
+	return words
 }

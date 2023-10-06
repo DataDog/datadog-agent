@@ -13,16 +13,21 @@ from time import sleep
 from invoke import Failure, task
 from invoke.exceptions import Exit
 
-from tasks.libs.common.color import color_message
-from tasks.libs.common.github_api import GithubAPI, get_github_token
-from tasks.libs.common.gitlab import Gitlab, get_gitlab_token
-from tasks.libs.common.remote_api import APIError
-from tasks.pipeline import run
-from tasks.utils import DEFAULT_BRANCH, get_version, nightly_entry_for, release_entry_for
-
+from .libs.common.color import color_message
+from .libs.common.github_api import GithubAPI
+from .libs.common.gitlab import Gitlab, get_gitlab_token
 from .libs.common.user_interactions import yes_no_question
 from .libs.version import Version
 from .modules import DEFAULT_MODULES
+from .pipeline import run
+from .utils import (
+    DEFAULT_BRANCH,
+    GITHUB_REPO_NAME,
+    check_clean_branch_state,
+    get_version,
+    nightly_entry_for,
+    release_entry_for,
+)
 
 # Generic version regex. Aims to match:
 # - X.Y.Z
@@ -30,8 +35,6 @@ from .modules import DEFAULT_MODULES
 # - X.Y.Z-devel
 # - vX.Y(.Z) (security-agent-policies repo)
 VERSION_RE = re.compile(r'(v)?(\d+)[.](\d+)([.](\d+))?(-devel)?(-rc\.(\d+))?')
-
-REPOSITORY_NAME = "DataDog/datadog-agent"
 
 UNFREEZE_REPO_AGENT = "datadog-agent"
 UNFREEZE_REPOS = [UNFREEZE_REPO_AGENT, "omnibus-software", "omnibus-ruby", "datadog-agent-macos-build"]
@@ -58,11 +61,11 @@ def add_prelude(ctx, version):
 
 
 @task
-def add_dca_prelude(ctx, version, agent7_version, agent6_version=""):
+def add_dca_prelude(ctx, agent7_version, agent6_version=""):
     """
     Release of the Cluster Agent should be pinned to a version of the Agent.
     """
-    res = ctx.run(f"reno --rel-notes-dir releasenotes-dca new prelude-release-{version}")
+    res = ctx.run(f"reno --rel-notes-dir releasenotes-dca new prelude-release-{agent7_version}")
     new_releasenote = res.stdout.split(' ')[-1].strip()  # get the new releasenote file path
 
     if agent6_version != "":
@@ -75,12 +78,12 @@ def add_dca_prelude(ctx, version, agent7_version, agent6_version=""):
             f"""prelude:
     |
     Released on: {date.today()}
-    Pinned to datadog-agent v{agent7_version}: `CHANGELOG <https://github.com/{REPOSITORY_NAME}/blob/{DEFAULT_BRANCH}/CHANGELOG.rst#{agent7_version.replace('.', '')}{agent6_version}>`_."""
+    Pinned to datadog-agent v{agent7_version}: `CHANGELOG <https://github.com/{GITHUB_REPO_NAME}/blob/{DEFAULT_BRANCH}/CHANGELOG.rst#{agent7_version.replace('.', '')}{agent6_version}>`_."""
         )
 
     ctx.run(f"git add {new_releasenote}")
     print("\nCommit this with:")
-    print(f"git commit -m \"Add prelude for {version} release\"")
+    print(f"git commit -m \"Add prelude for {agent7_version} release\"")
 
 
 @task
@@ -101,116 +104,53 @@ def add_installscript_prelude(ctx, version):
 
 
 @task
-def update_dca_changelog(ctx, new_version, agent_version):
-    """
-    Quick task to generate the new CHANGELOG-DCA using reno when releasing a minor
-    version (linux/macOS only).
-    """
-    new_version_int = list(map(int, new_version.split(".")))
-
-    if len(new_version_int) != 3:
-        print(f"Error: invalid version: {new_version_int}")
-        raise Exit(1)
-
-    agent_version_int = list(map(int, agent_version.split(".")))
-
-    if len(agent_version_int) != 3:
-        print(f"Error: invalid version: {agent_version_int}")
-        raise Exit(1)
-
-    # let's avoid losing uncommitted change with 'git reset --hard'
-    try:
-        ctx.run("git diff --exit-code HEAD", hide="both")
-    except Failure:
-        print("Error: You have uncommitted changes, please commit or stash before using update-dca-changelog")
-        return
-
-    # make sure we are up to date
-    ctx.run("git fetch")
-
-    # let's check that the tag for the new version is present (needed by reno)
-    try:
-        ctx.run(f"git tag --list | grep dca-{new_version}")
-    except Failure:
-        print(f"Missing 'dca-{new_version}' git tag: mandatory to use 'reno'")
-        raise
-
-    # Cluster agent minor releases are in sync with the agent's, bugfixes are not necessarily.
-    # We rely on the agent's devel tag to enforce the sync between both releases.
-    branching_point_agent = f"{agent_version_int[0]}.{agent_version_int[1]}.0-devel"
-    previous_minor_branchoff = f"dca-{new_version_int[0]}.{new_version_int[1] - 1}.X"
-    log_result = ctx.run(
-        f"git log {branching_point_agent}...remotes/origin/{previous_minor_branchoff} --name-only --oneline |             grep releasenotes-dca/notes/ || true"
-    )
-    log_result = log_result.stdout.replace('\n', ' ').strip()
-
-    # Do not include release notes that were added in the previous minor release branch (previous_minor_branchoff)
-    # and the branch-off points for the current release (pined by the agent's devel tag)
-    if len(log_result) > 0:
-        ctx.run(f"git rm --ignore-unmatch {log_result}")
-
-    current_branchoff = f"dca-{new_version_int[0]}.{new_version_int[1]}.X"
-    # generate the new changelog. Specifying branch in case this is run outside the release branch that contains the tag.
-    ctx.run(
-        f"reno --rel-notes-dir releasenotes-dca report             --ignore-cache             --branch {current_branchoff}             --version dca-{new_version}             --no-show-source > /tmp/new_changelog-dca.rst"
-    )
-
-    # reseting git
-    ctx.run("git reset --hard HEAD")
-
-    # mac's `sed` has a different syntax for the "-i" paramter
-    sed_i_arg = "-i"
-    if sys.platform == 'darwin':
-        sed_i_arg = "-i ''"
-    # remove the old header from the existing changelog
-    ctx.run(f"sed {sed_i_arg} -e '1,4d' CHANGELOG-DCA.rst")
-
-    if sys.platform != 'darwin':
-        # sed on darwin doesn't support `-z`. On mac, you will need to manually update the following.
-        ctx.run(
-            "sed -z {0} -e 's/dca-{1}\\n===={2}/{1}\\n{2}/' /tmp/new_changelog-dca.rst".format(  # noqa: FS002
-                sed_i_arg, new_version, '=' * len(new_version)
-            )
-        )
-
-    # merging to CHANGELOG.rst
-    ctx.run("cat CHANGELOG-DCA.rst >> /tmp/new_changelog-dca.rst && mv /tmp/new_changelog-dca.rst CHANGELOG-DCA.rst")
-
-    # commit new CHANGELOG
-    ctx.run("git add CHANGELOG-DCA.rst")
-
-    print("\nCommit this with:")
-    print(f"git commit -m \"[DCA] Update CHANGELOG for {new_version}\"")
-
-
-@task
-def update_changelog(ctx, new_version):
+def update_changelog(ctx, new_version=None, target="all"):
     """
     Quick task to generate the new CHANGELOG using reno when releasing a minor
     version (linux/macOS only).
+    By default generates Agent and Cluster Agent changelogs.
+    Use target == "agent" or target == "cluster-agent" to only generate one or the other.
+    If new_version is omitted, a changelog since last tag on the current branch
+    will be generated.
     """
-    new_version_int = list(map(int, new_version.split(".")))
+    generate_agent = target in ["all", "agent"]
+    generate_cluster_agent = target in ["all", "cluster-agent"]
 
-    if len(new_version_int) != 3:
-        print(f"Error: invalid version: {new_version_int}")
-        raise Exit(1)
+    if new_version is not None:
+        new_version_int = list(map(int, new_version.split(".")))
+        if len(new_version_int) != 3:
+            print(f"Error: invalid version: {new_version_int}")
+            raise Exit(1)
 
-    # let's avoid losing uncommitted change with 'git reset --hard'
-    try:
-        ctx.run("git diff --exit-code HEAD", hide="both")
-    except Failure:
-        print("Error: You have uncommitted change, please commit or stash before using update_changelog")
+        # let's avoid losing uncommitted change with 'git reset --hard'
+        try:
+            ctx.run("git diff --exit-code HEAD", hide="both")
+        except Failure:
+            print("Error: You have uncommitted change, please commit or stash before using update_changelog")
+            return
+
+        # make sure we are up to date
+        ctx.run("git fetch")
+
+        # let's check that the tag for the new version is present
+        try:
+            ctx.run(f"git tag --list | grep {new_version}")
+        except Failure:
+            print(f"Missing '{new_version}' git tag: mandatory to use 'reno'")
+            raise
+
+    if generate_agent:
+        update_changelog_generic(ctx, new_version, "releasenotes", "CHANGELOG.rst")
+    if generate_cluster_agent:
+        update_changelog_generic(ctx, new_version, "releasenotes-dca", "CHANGELOG-DCA.rst")
+
+
+def update_changelog_generic(ctx, new_version, changelog_dir, changelog_file):
+    if new_version is None:
+        latest_version = current_version(ctx, 7)
+        ctx.run(f"reno -q --rel-notes-dir {changelog_dir} report --ignore-cache --earliest-version {latest_version}")
         return
-
-    # make sure we are up to date
-    ctx.run("git fetch")
-
-    # let's check that the tag for the new version is present (needed by reno)
-    try:
-        ctx.run(f"git tag --list | grep {new_version}")
-    except Failure:
-        print(f"Missing '{new_version}' git tag: mandatory to use 'reno'")
-        raise
+    new_version_int = list(map(int, new_version.split(".")))
 
     # removing releasenotes from bugfix on the old minor.
     branching_point = f"{new_version_int[0]}.{new_version_int[1]}.0-devel"
@@ -218,7 +158,7 @@ def update_changelog(ctx, new_version):
     if previous_minor == "7.15":
         previous_minor = "6.15"  # 7.15 is the first release in the 7.x series
     log_result = ctx.run(
-        f"git log {branching_point}...remotes/origin/{previous_minor}.x --name-only --oneline |             grep releasenotes/notes/ || true"
+        f"git log {branching_point}...remotes/origin/{previous_minor}.x --name-only --oneline | grep {changelog_dir}/notes/ || true"
     )
     log_result = log_result.stdout.replace('\n', ' ').strip()
     if len(log_result) > 0:
@@ -226,15 +166,17 @@ def update_changelog(ctx, new_version):
 
     # generate the new changelog
     ctx.run(
-        f"reno report             --ignore-cache             --earliest-version {branching_point}             --version {new_version}             --no-show-source > /tmp/new_changelog.rst"
+        f"reno --rel-notes-dir {changelog_dir} report --ignore-cache --earliest-version {branching_point} --version {new_version} --no-show-source > /tmp/new_changelog.rst"
     )
 
-    # reseting git
-    ctx.run("git reset --hard HEAD")
+    ctx.run(f"git checkout HEAD -- {changelog_dir}")
 
     # mac's `sed` has a different syntax for the "-i" paramter
-    sed_i_arg = "-i"
-    if sys.platform == 'darwin':
+    # GNU sed has a `--version` parameter while BSD sed does not, using that to do proper detection.
+    try:
+        ctx.run("sed --version", hide='both')
+        sed_i_arg = "-i"
+    except Failure:
         sed_i_arg = "-i ''"
     # check whether there is a v6 tag on the same v7 tag, if so add the v6 tag to the release title
     v6_tag = ""
@@ -243,16 +185,16 @@ def update_changelog(ctx, new_version):
         if v6_tag:
             ctx.run(f"sed {sed_i_arg} -E 's#^{new_version}#{new_version} / {v6_tag}#' /tmp/new_changelog.rst")
     # remove the old header from the existing changelog
-    ctx.run(f"sed {sed_i_arg} -e '1,4d' CHANGELOG.rst")
+    ctx.run(f"sed {sed_i_arg} -e '1,4d' {changelog_file}")
 
-    # merging to CHANGELOG.rst
-    ctx.run("cat CHANGELOG.rst >> /tmp/new_changelog.rst && mv /tmp/new_changelog.rst CHANGELOG.rst")
+    # merging to <changelog_file>
+    ctx.run(f"cat {changelog_file} >> /tmp/new_changelog.rst && mv /tmp/new_changelog.rst {changelog_file}")
 
     # commit new CHANGELOG
-    ctx.run("git add CHANGELOG.rst")
+    ctx.run(f"git add {changelog_file}")
 
     print("\nCommit this with:")
-    print(f"git commit -m \"[DCA] Update CHANGELOG for {new_version}\"")
+    print(f"git commit -m \"Update {changelog_file} for {new_version}\"")
 
 
 @task
@@ -350,19 +292,16 @@ def list_major_change(_, milestone):
     List all PR labeled "major_changed" for this release.
     """
 
-    github_token = get_github_token()
-
-    response = _query_github_api(
-        github_token,
-        f"https://api.github.com/search/issues?q=repo:datadog/datadog-agent+label:major_change+milestone:{milestone}",
-    )
-    results = response.json()
-    if not results["items"]:
+    gh = GithubAPI('datadog/datadog-agent')
+    pull_requests = gh.get_pulls(milestone=milestone, labels=['major_change'])
+    if pull_requests is None:
+        return
+    if len(pull_requests) == 0:
         print(f"no major change for {milestone}")
         return
 
-    for pr in results["items"]:
-        print(f"#{pr['number']}: {pr['title']} ({pr['html_url']})")
+    for pr in pull_requests:
+        print(f"#{pr.number}: {pr.title} ({pr.html_url})")
 
 
 #
@@ -417,15 +356,6 @@ def _stringify_config(config_dict):
     return {key: str(value) for key, value in config_dict.items()}
 
 
-def _query_github_api(auth_token, url):
-    import requests
-
-    # Basic auth doesn't seem to work with private repos, so we use token auth here
-    headers = {"Authorization": f"token {auth_token}"}
-    response = requests.get(url, headers=headers)
-    return response
-
-
 def build_compatible_version_re(allowed_major_versions, minor_version):
     """
     Returns a regex that matches only versions whose major version is
@@ -445,7 +375,7 @@ def build_compatible_version_re(allowed_major_versions, minor_version):
 
 
 def _get_highest_repo_version(
-    auth, repo, version_prefix, version_re, allowed_major_versions=None, max_version: Version = None
+    repo, version_prefix, version_re, allowed_major_versions=None, max_version: Version = None
 ):
     # If allowed_major_versions is not specified, search for all versions by using an empty
     # major version prefix.
@@ -454,13 +384,13 @@ def _get_highest_repo_version(
 
     highest_version = None
 
-    for major_version in allowed_major_versions:
-        url = f"https://api.github.com/repos/DataDog/{repo}/git/matching-refs/tags/{version_prefix}{major_version}"
+    gh = GithubAPI(repository=f'Datadog/{repo}')
 
-        tags = _query_github_api(auth, url).json()
+    for major_version in allowed_major_versions:
+        tags = gh.get_tags(f'{version_prefix}{major_version}')
 
         for tag in tags:
-            match = version_re.search(tag["ref"])
+            match = version_re.search(tag.name)
             if match:
                 this_version = _create_version_from_match(match)
                 if max_version:
@@ -559,7 +489,6 @@ def _fetch_dependency_repo_version(
     max_agent_version,
     allowed_major_versions,
     compatible_version_re,
-    github_token,
     check_for_rc,
 ):
     """
@@ -577,7 +506,6 @@ def _fetch_dependency_repo_version(
     # We don't want to use a tag on dependent repositories that is supposed to be used in a future
     # release of the Agent (eg. if 7.31.1-rc.1 is tagged on integrations-core while we're releasing 7.30.0).
     version = _get_highest_repo_version(
-        github_token,
         repo_name,
         new_agent_version.prefix,
         compatible_version_re,
@@ -609,9 +537,7 @@ def _confirm_independent_dependency_repo_version(repo, latest_version, highest_r
     return highest_release_json_version
 
 
-def _fetch_independent_dependency_repo_version(
-    repo_name, release_json, agent_major_version, github_token, release_json_key
-):
+def _fetch_independent_dependency_repo_version(repo_name, release_json, agent_major_version, release_json_key):
     """
     Fetches the latest tag on a given repository whose version scheme doesn't match the one used for the Agent:
     - first, we get the latest version used in release entries of the matching Agent major version
@@ -626,7 +552,7 @@ def _fetch_independent_dependency_repo_version(
         release_json_key=release_json_key,
     )
     # NOTE: This assumes that the repository doesn't change the way it prefixes versions.
-    version = _get_highest_repo_version(github_token, repo_name, previous_version.prefix, VERSION_RE)
+    version = _get_highest_repo_version(repo_name, previous_version.prefix, VERSION_RE)
 
     version = _confirm_independent_dependency_repo_version(repo_name, version, previous_version)
     print(TAG_FOUND_TEMPLATE.format(repo_name, version))
@@ -721,7 +647,7 @@ def _update_release_json_entry(
 ##
 
 
-def _update_release_json(release_json, release_entry, new_version: Version, max_version: Version, github_token):
+def _update_release_json(release_json, release_entry, new_version: Version, max_version: Version):
     """
     Updates the provided release.json object by fetching compatible versions for all dependencies
     of the provided Agent version, constructing the new entry, adding it to the release.json object
@@ -747,7 +673,6 @@ def _update_release_json(release_json, release_entry, new_version: Version, max_
         max_version,
         allowed_major_versions,
         compatible_version_re,
-        github_token,
         check_for_rc,
     )
 
@@ -757,7 +682,6 @@ def _update_release_json(release_json, release_entry, new_version: Version, max_
         max_version,
         allowed_major_versions,
         compatible_version_re,
-        github_token,
         check_for_rc,
     )
 
@@ -767,7 +691,6 @@ def _update_release_json(release_json, release_entry, new_version: Version, max_
         max_version,
         allowed_major_versions,
         compatible_version_re,
-        github_token,
         check_for_rc,
     )
 
@@ -777,18 +700,19 @@ def _update_release_json(release_json, release_entry, new_version: Version, max_
         max_version,
         allowed_major_versions,
         compatible_version_re,
-        github_token,
         check_for_rc,
     )
 
     # Part 2: repositories which have their own version scheme
     jmxfetch_version = _fetch_independent_dependency_repo_version(
-        "jmxfetch", release_json, new_version.major, github_token, "JMXFETCH_VERSION"
+        "jmxfetch", release_json, new_version.major, "JMXFETCH_VERSION"
     )
 
-    security_agent_policies_version = _fetch_independent_dependency_repo_version(
-        "security-agent-policies", release_json, new_version.major, github_token, "SECURITY_AGENT_POLICIES_VERSION"
+    # security agent policies are updated directly by the CWS team
+    security_agent_policies_version = _get_release_version_from_release_json(
+        release_json, new_version.major, VERSION_RE, "SECURITY_AGENT_POLICIES_VERSION"
     )
+    print(TAG_FOUND_TEMPLATE.format("security-agent-policies", security_agent_policies_version))
 
     windows_ddnpm_driver, windows_ddnpm_version, windows_ddnpm_shasum = _get_windows_ddnpm_release_json_info(
         release_json, new_version.major, is_first_rc=(new_version.rc == 1)
@@ -810,7 +734,7 @@ def _update_release_json(release_json, release_entry, new_version: Version, max_
     )
 
 
-def update_release_json(github_token, new_version: Version, max_version: Version):
+def update_release_json(new_version: Version, max_version: Version):
     """
     Updates the release entries in release.json to prepare the next RC or final build.
     """
@@ -820,7 +744,7 @@ def update_release_json(github_token, new_version: Version, max_version: Version
     print(f"Updating {release_entry} for {new_version}")
 
     # Update release.json object with the entry for the new version
-    release_json = _update_release_json(release_json, release_entry, new_version, max_version, github_token)
+    release_json = _update_release_json(release_json, release_entry, new_version, max_version)
 
     _save_release_json(release_json)
 
@@ -850,15 +774,73 @@ def update_modules(ctx, agent_version, verify=True):
             ctx.run(f"go mod edit -require={dependency_mod.dependency_path(agent_version)} {module.go_mod_path()}")
 
 
+def __get_force_option(force: bool) -> str:
+    """Get flag to pass to git tag depending on if we want forcing or not."""
+    force_option = ""
+    if force:
+        print(color_message("--force option enabled. This will allow the task to overwrite existing tags.", "orange"))
+        result = yes_no_question("Please confirm the use of the --force option.", color="orange", default=False)
+        if result:
+            print("Continuing with the --force option.")
+            force_option = " --force"
+        else:
+            print("Continuing without the --force option.")
+    return force_option
+
+
+def __tag_single_module(ctx, module, agent_version, commit, push, force_option):
+    """Tag a given module."""
+    for tag in module.tag(agent_version):
+        ok = try_git_command(
+            ctx,
+            f"git tag -m {tag} {tag} {commit}{force_option}",
+        )
+        if not ok:
+            message = f"Could not create tag {tag}. Please rerun the task to retry creating the tags (you may need the --force option)"
+            raise Exit(color_message(message, "red"), code=1)
+        print(f"Created tag {tag}")
+        if push:
+            ctx.run(f"git push origin {tag}{force_option}")
+            print(f"Pushed tag {tag}")
+
+
 @task
-def tag_version(ctx, agent_version, commit="HEAD", verify=True, tag_modules=True, push=True, force=False):
+def tag_modules(ctx, agent_version, commit="HEAD", verify=True, push=True, force=False):
+    """
+    Create tags for Go nested modules for a given Datadog Agent version.
+    The version should be given as an Agent 7 version.
+
+    * --commit COMMIT will tag COMMIT with the tags (default HEAD)
+    * --verify checks for correctness on the Agent version (on by default).
+    * --push will push the tags to the origin remote (on by default).
+    * --force will allow the task to overwrite existing tags. Needed to move existing tags (off by default).
+
+    Examples:
+    inv -e release.tag-modules 7.27.0                 # Create tags and push them to origin
+    inv -e release.tag-modules 7.27.0-rc.3 --no-push  # Create tags locally; don't push them
+    inv -e release.tag-modules 7.29.0-rc.3 --force    # Create tags (overwriting existing tags with the same name), force-push them to origin
+
+    """
+    if verify:
+        check_version(agent_version)
+
+    force_option = __get_force_option(force)
+    for module in DEFAULT_MODULES.values():
+        # Skip main module; this is tagged at tag_version via __tag_single_module.
+        if module.should_tag and module.path != ".":
+            __tag_single_module(ctx, module, agent_version, commit, push, force_option)
+
+    print(f"Created module tags for version {agent_version}")
+
+
+@task
+def tag_version(ctx, agent_version, commit="HEAD", verify=True, push=True, force=False):
     """
     Create tags for a given Datadog Agent version.
     The version should be given as an Agent 7 version.
 
     * --commit COMMIT will tag COMMIT with the tags (default HEAD)
     * --verify checks for correctness on the Agent version (on by default).
-    * --tag_modules tags Go modules in addition to the agent repository
     * --push will push the tags to the origin remote (on by default).
     * --force will allow the task to overwrite existing tags. Needed to move existing tags (off by default).
 
@@ -870,32 +852,10 @@ def tag_version(ctx, agent_version, commit="HEAD", verify=True, tag_modules=True
     if verify:
         check_version(agent_version)
 
-    force_option = ""
-    if force:
-        print(color_message("--force option enabled. This will allow the task to overwrite existing tags.", "orange"))
-        result = yes_no_question("Please confirm the use of the --force option.", color="orange", default=False)
-        if result:
-            print("Continuing with the --force option.")
-            force_option = " --force"
-        else:
-            print("Continuing without the --force option.")
-
-    for module in DEFAULT_MODULES.values():
-        if (tag_modules or module.path == ".") and module.should_tag:
-            for tag in module.tag(agent_version):
-                ok = try_git_command(
-                    ctx,
-                    f"git tag -m {tag} {tag} {commit}{force_option}",
-                )
-                if not ok:
-                    message = f"Could not create tag {tag}. Please rerun the task to retry creating the tags (you may need the --force option)"
-                    raise Exit(color_message(message, "red"), code=1)
-                print(f"Created tag {tag}")
-                if push:
-                    ctx.run(f"git push origin {tag}{force_option}")
-                    print(f"Pushed tag {tag}")
-
-    print(f"Created all tags for version {agent_version}")
+    # Always tag the main module
+    force_option = __get_force_option(force)
+    __tag_single_module(ctx, DEFAULT_MODULES["."], agent_version, commit, push, force_option)
+    print(f"Created tags for version {agent_version}")
 
 
 def current_version(ctx, major_version) -> Version:
@@ -953,41 +913,6 @@ def check_base_branch(branch, release_version):
     return branch == DEFAULT_BRANCH or branch == release_version.branch()
 
 
-def check_uncommitted_changes(ctx):
-    """
-    Checks if there are uncommitted changes in the local git repository.
-    """
-    modified_files = ctx.run("git --no-pager diff --name-only HEAD | wc -l", hide=True).stdout.strip()
-
-    # Return True if at least one file has uncommitted changes.
-    return modified_files != "0"
-
-
-def check_local_branch(ctx, branch):
-    """
-    Checks if the given branch exists locally
-    """
-    matching_branch = ctx.run(f"git --no-pager branch --list {branch} | wc -l", hide=True).stdout.strip()
-
-    # Return True if a branch is returned by git branch --list
-    return matching_branch != "0"
-
-
-def check_upstream_branch(github, branch):
-    """
-    Checks if the given branch already exists in the upstream repository
-    """
-    try:
-        github_branch = github.get_branch(branch)
-    except APIError as e:
-        if e.status_code == 404:
-            return False
-        raise e
-
-    # Return True if the branch exists
-    return github_branch and github_branch.get('name', False)
-
-
 def parse_major_versions(major_versions):
     return sorted(int(x) for x in major_versions.split(","))
 
@@ -1032,8 +957,6 @@ def finish(ctx, major_versions="6,7"):
     list_major_versions = parse_major_versions(major_versions)
     print(f"Finishing release for major version(s) {list_major_versions}")
 
-    github_token = get_github_token()
-
     for major_version in list_major_versions:
         # NOTE: the release process assumes that at least one RC
         # was built before release.finish is used. It doesn't support
@@ -1043,7 +966,7 @@ def finish(ctx, major_versions="6,7"):
         # To support this, we'd have to support a --patch-version param in
         # release.finish
         new_version = next_final_version(ctx, major_version, False)
-        update_release_json(github_token, new_version, new_version)
+        update_release_json(new_version, new_version)
 
     # Update internal module dependencies
     update_modules(ctx, str(new_version))
@@ -1087,7 +1010,7 @@ def create_rc(ctx, major_versions="6,7", patch_version=False, upstream="origin")
     if sys.version_info[0] < 3:
         return Exit(message="Must use Python 3 for this task", code=1)
 
-    github = GithubAPI(repository=REPOSITORY_NAME, api_token=get_github_token())
+    github = GithubAPI(repository=GITHUB_REPO_NAME)
 
     list_major_versions = parse_major_versions(major_versions)
 
@@ -1109,41 +1032,15 @@ def create_rc(ctx, major_versions="6,7", patch_version=False, upstream="origin")
     print(color_message("Checking repository state", "bold"))
     ctx.run("git fetch")
 
-    if check_uncommitted_changes(ctx):
-        raise Exit(
-            color_message(
-                "There are uncomitted changes in your repository. Please commit or stash them before trying again.",
-                "red",
-            ),
-            code=1,
-        )
-
     # Check that the current and update branches are valid
     current_branch = ctx.run("git rev-parse --abbrev-ref HEAD", hide=True).stdout.strip()
     update_branch = f"release/{new_highest_version}"
 
+    check_clean_branch_state(ctx, github, update_branch)
     if not check_base_branch(current_branch, new_highest_version):
         raise Exit(
             color_message(
                 f"The branch you are on is neither {DEFAULT_BRANCH} or the correct release branch ({new_highest_version.branch()}). Aborting.",
-                "red",
-            ),
-            code=1,
-        )
-
-    if check_local_branch(ctx, update_branch):
-        raise Exit(
-            color_message(
-                f"The branch {update_branch} already exists locally. Please remove it before trying again.",
-                "red",
-            ),
-            code=1,
-        )
-
-    if check_upstream_branch(github, update_branch):
-        raise Exit(
-            color_message(
-                f"The branch {update_branch} already exists upstream. Please remove it before trying again.",
                 "red",
             ),
             code=1,
@@ -1154,7 +1051,7 @@ def create_rc(ctx, major_versions="6,7", patch_version=False, upstream="origin")
 
     milestone = github.get_milestone_by_name(milestone_name)
 
-    if not milestone or not milestone.get("number"):
+    if not milestone or not milestone.number:
         raise Exit(
             color_message(
                 f"""Could not find milestone {milestone_name} in the Github repository. Response: {milestone}
@@ -1169,7 +1066,7 @@ Make sure that milestone is open before trying again.""",
     print(color_message("Updating release entries", "bold"))
     for major_version in list_major_versions:
         new_version = next_rc_version(ctx, major_version, patch_version)
-        update_release_json(github.api_token, new_version, new_final_version)
+        update_release_json(new_version, new_final_version)
 
     # Step 2: Update internal module dependencies
 
@@ -1222,38 +1119,42 @@ Make sure that milestone is open before trying again.""",
         target_branch=update_branch,
     )
 
-    if not pr or not pr.get("number"):
+    if not pr:
         raise Exit(
             color_message(f"Could not create PR in the Github repository. Response: {pr}", "red"),
             code=1,
         )
 
-    print(color_message(f"Created PR #{pr['number']}", "bold"))
+    print(color_message(f"Created PR #{pr.number}", "bold"))
 
     # Step 5: add milestone and labels to PR
 
     updated_pr = github.update_pr(
-        pull_number=pr["number"],
-        milestone_number=milestone["number"],
-        labels=["changelog/no-changelog", "qa/skip-qa", "team/agent-platform", "team/agent-core"],
+        pull_number=pr.number,
+        milestone_number=milestone.number,
+        labels=[
+            "changelog/no-changelog",
+            "qa/skip-qa",
+            "team/agent-platform",
+            "team/agent-release-management",
+            "category/release_operations",
+        ],
     )
 
-    if not updated_pr or not updated_pr.get("number") or not updated_pr.get("html_url"):
+    if not updated_pr or not updated_pr.number or not updated_pr.html_url:
         raise Exit(
             color_message(f"Could not update PR in the Github repository. Response: {updated_pr}", "red"),
             code=1,
         )
 
-    print(color_message(f"Set labels and milestone for PR #{updated_pr['number']}", "bold"))
+    print(color_message(f"Set labels and milestone for PR #{updated_pr.number}", "bold"))
     print(
-        color_message(
-            f"Done preparing RC {versions_string}. The PR is available here: {updated_pr['html_url']}", "bold"
-        )
+        color_message(f"Done preparing RC {versions_string}. The PR is available here: {updated_pr.html_url}", "bold")
     )
 
 
-@task(help={'redo': "Redo the tag & build for the last RC that was tagged, instead of creating tags for the next RC."})
-def build_rc(ctx, major_versions="6,7", patch_version=False, redo=False):
+@task
+def build_rc(ctx, major_versions="6,7", patch_version=False):
     """
     To be done after the PR created by release.create-rc is merged, with the same options
     as release.create-rc.
@@ -1264,16 +1165,12 @@ def build_rc(ctx, major_versions="6,7", patch_version=False, redo=False):
     if sys.version_info[0] < 3:
         return Exit(message="Must use Python 3 for this task", code=1)
 
-    gitlab = Gitlab(project_name=REPOSITORY_NAME, api_token=get_gitlab_token())
+    gitlab = Gitlab(project_name=GITHUB_REPO_NAME, api_token=get_gitlab_token())
     list_major_versions = parse_major_versions(major_versions)
 
     # Get the version of the highest major: needed for tag_version and to know
     # which tag to target when creating the pipeline.
-    if redo:
-        # If redo is enabled, we're moving the current RC tag, so we keep the same version
-        new_version = current_version(ctx, max(list_major_versions))
-    else:
-        new_version = next_rc_version(ctx, max(list_major_versions), patch_version)
+    new_version = next_rc_version(ctx, max(list_major_versions), patch_version)
 
     # Get a string representation of the RC, eg. "6/7.32.0-rc.1"
     versions_string = f"{'/'.join([str(n) for n in list_major_versions[:-1]] + [str(new_version)])}"
@@ -1311,8 +1208,8 @@ def build_rc(ctx, major_versions="6,7", patch_version=False, redo=False):
     # tag_version only takes the highest version (Agent 7 currently), and creates
     # the tags for all supported versions
     # TODO: make it possible to do Agent 6-only or Agent 7-only tags?
-    # Note: if redo is enabled, then we need to set the --force option to move the tags.
-    tag_version(ctx, str(new_version), force=redo)
+    tag_version(ctx, str(new_version), force=False)
+    tag_modules(ctx, str(new_version), force=False)
 
     print(color_message(f"Waiting until the {new_version} tag appears in Gitlab", "bold"))
     gitlab_tag = None
@@ -1336,7 +1233,11 @@ def build_rc(ctx, major_versions="6,7", patch_version=False, redo=False):
 
 @task(help={'key': "Path to the release.json key, separated with double colons, eg. 'last_stable::6'"})
 def get_release_json_value(_, key):
+    release_json = _get_release_json_value(key)
+    print(release_json)
 
+
+def _get_release_json_value(key):
     release_json = _load_release_json()
 
     path = key.split('::')
@@ -1347,7 +1248,7 @@ def get_release_json_value(_, key):
 
         release_json = release_json.get(element)
 
-    print(release_json)
+    return release_json
 
 
 def create_release_branch(ctx, repo, release_branch, base_directory="~/dd", upstream="origin"):
@@ -1425,14 +1326,8 @@ def unfreeze(ctx, base_directory="~/dd", major_versions="6,7", upstream="origin"
     print(color_message("Checking repository state", "bold"))
     ctx.run("git fetch")
 
-    if check_uncommitted_changes(ctx):
-        raise Exit(
-            color_message(
-                "There are uncomitted changes in your repository. Please commit or stash them before trying again.",
-                "red",
-            ),
-            code=1,
-        )
+    github = GithubAPI(repository=GITHUB_REPO_NAME)
+    check_clean_branch_state(ctx, github, release_branch)
 
     if not yes_no_question(
         f"This task will create new branches with the name '{release_branch}' in repositories: {', '.join(UNFREEZE_REPOS)}. Is this OK?",

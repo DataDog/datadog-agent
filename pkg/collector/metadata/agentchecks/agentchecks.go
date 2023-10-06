@@ -9,22 +9,22 @@ import (
 	"context"
 	"encoding/json"
 
+	hostMetadataUtils "github.com/DataDog/datadog-agent/comp/metadata/host/utils"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery"
 	"github.com/DataDog/datadog-agent/pkg/collector"
 	"github.com/DataDog/datadog-agent/pkg/collector/runner/expvars"
+	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/metadata/common"
 	"github.com/DataDog/datadog-agent/pkg/metadata/externalhost"
-	"github.com/DataDog/datadog-agent/pkg/metadata/host"
 	"github.com/DataDog/datadog-agent/pkg/status"
-	"github.com/DataDog/datadog-agent/pkg/util"
+	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // GetPayload builds a payload of all the agentchecks metadata
 func GetPayload(ctx context.Context) *Payload {
 	agentChecksPayload := ACPayload{}
-	hostnameData, _ := util.GetHostnameData(ctx)
-	hostname := hostnameData.Hostname
+	hostnameData, _ := hostname.GetWithProvider(ctx)
 	checkStats := expvars.GetCheckStats()
 	jmxStartupError := status.GetJMXStartupError()
 
@@ -80,9 +80,9 @@ func GetPayload(ctx context.Context) *Payload {
 	}
 
 	// Grab the non agent checks information
-	metaPayload := host.GetMeta(ctx, hostnameData)
-	metaPayload.Hostname = hostname
-	cp := common.GetPayload(hostname)
+	metaPayload := hostMetadataUtils.GetMetaFromCache(ctx, config.Datadog)
+	metaPayload.Hostname = hostnameData.Hostname
+	cp := common.GetPayload(hostnameData.Hostname)
 	ehp := externalhost.GetPayload()
 	payload := &Payload{
 		CommonPayload{*cp},

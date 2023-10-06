@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build python
-// +build python
 
 package python
 
@@ -17,6 +16,7 @@ import (
 	"unsafe"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
+	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/DataDog/datadog-agent/pkg/collector/loaders"
@@ -53,12 +53,12 @@ const (
 	a7TagReady     = "ready"
 	a7TagNotReady  = "not_ready"
 	a7TagUnknown   = "unknown"
-	a7TagPython3   = "python3" //Already running on python3, linting is disabled
+	a7TagPython3   = "python3" // Already running on python3, linting is disabled
 )
 
 func init() {
-	factory := func() (check.Loader, error) {
-		return NewPythonCheckLoader()
+	factory := func(senderManager sender.SenderManager) (check.Loader, error) {
+		return NewPythonCheckLoader(senderManager)
 	}
 	loaders.RegisterLoader(20, factory)
 
@@ -83,7 +83,8 @@ func init() {
 type PythonCheckLoader struct{}
 
 // NewPythonCheckLoader creates an instance of the Python checks loader
-func NewPythonCheckLoader() (*PythonCheckLoader, error) {
+func NewPythonCheckLoader(senderManager sender.SenderManager) (*PythonCheckLoader, error) {
+	initializeCheckContext(senderManager)
 	return &PythonCheckLoader{}, nil
 }
 
@@ -102,12 +103,13 @@ func (cl *PythonCheckLoader) Name() string {
 
 // Load tries to import a Python module with the same name found in config.Name, searches for
 // subclasses of the AgentCheck class and returns the corresponding Check
-func (cl *PythonCheckLoader) Load(config integration.Config, instance integration.Data) (check.Check, error) {
+func (cl *PythonCheckLoader) Load(senderManager sender.SenderManager, config integration.Config, instance integration.Data) (check.Check, error) {
 	if rtloader == nil {
 		return nil, fmt.Errorf("python is not initialized")
 	}
-
 	moduleName := config.Name
+	// FastDigest is used as check id calculation does not account for tags order
+	configDigest := config.FastDigest()
 
 	// Lock the GIL
 	glock, err := newStickyLock()
@@ -194,13 +196,13 @@ func (cl *PythonCheckLoader) Load(config integration.Config, instance integratio
 		go reportPy3Warnings(name, goCheckFilePath)
 	}
 
-	c, err := NewPythonCheck(moduleName, checkClass)
+	c, err := NewPythonCheck(senderManager, moduleName, checkClass)
 	if err != nil {
 		return c, err
 	}
 
 	// The GIL should be unlocked at this point, `check.Configure` uses its own stickyLock and stickyLocks must not be nested
-	if err := c.Configure(instance, config.InitConfig, config.Source); err != nil {
+	if err := c.Configure(senderManager, configDigest, instance, config.InitConfig, config.Source); err != nil {
 		C.rtloader_decref(rtloader, checkClass)
 		C.rtloader_decref(rtloader, checkModule)
 
@@ -227,9 +229,7 @@ func expvarConfigureErrors() interface{} {
 	configureErrorsCopy := map[string][]string{}
 	for k, v := range configureErrors {
 		errors := []string{}
-		for i := range v {
-			errors = append(errors, v[i])
-		}
+		errors = append(errors, v...)
 		configureErrorsCopy[k] = errors
 	}
 
@@ -256,9 +256,7 @@ func expvarPy3Warnings() interface{} {
 	py3WarningsCopy := map[string][]string{}
 	for k, v := range py3Warnings {
 		warnings := []string{}
-		for i := range v {
-			warnings = append(warnings, v[i])
-		}
+		warnings = append(warnings, v...)
 		py3WarningsCopy[k] = warnings
 	}
 
@@ -268,7 +266,6 @@ func expvarPy3Warnings() interface{} {
 // reportPy3Warnings runs the a7 linter and exports the result in both expvar
 // and the aggregator (as extra series)
 func reportPy3Warnings(checkName string, checkFilePath string) {
-
 	// check if the check has already been linted
 	py3LintedLock.Lock()
 	_, found := py3Linted[checkName]

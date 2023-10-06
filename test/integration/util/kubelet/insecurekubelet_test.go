@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build kubelet
-// +build kubelet
 
 package kubernetes
 
@@ -32,7 +31,7 @@ func (suite *InsecureTestSuite) SetupTest() {
 
 func (suite *InsecureTestSuite) TestHTTP() {
 	ctx := context.Background()
-	mockConfig := config.Mock()
+	mockConfig := config.Mock(nil)
 
 	mockConfig.Set("kubernetes_http_kubelet_port", 10255)
 
@@ -45,7 +44,6 @@ func (suite *InsecureTestSuite) TestHTTP() {
 
 	ku, err := kubelet.GetKubeUtil()
 	require.Nil(suite.T(), err, fmt.Sprintf("%v", err))
-	assert.Equal(suite.T(), "http://127.0.0.1:10255", ku.GetKubeletAPIEndpoint())
 	b, code, err := ku.QueryKubelet(ctx, "/healthz")
 	require.Nil(suite.T(), err, fmt.Sprintf("%v", err))
 	assert.Equal(suite.T(), 200, code)
@@ -69,7 +67,7 @@ func (suite *InsecureTestSuite) TestHTTP() {
 
 func (suite *InsecureTestSuite) TestInsecureHTTPS() {
 	ctx := context.Background()
-	mockConfig := config.Mock()
+	mockConfig := config.Mock(nil)
 
 	mockConfig.Set("kubernetes_http_kubelet_port", 10255)
 	mockConfig.Set("kubernetes_https_kubelet_port", 10250)
@@ -79,7 +77,6 @@ func (suite *InsecureTestSuite) TestInsecureHTTPS() {
 
 	ku, err := kubelet.GetKubeUtil()
 	require.NoError(suite.T(), err)
-	assert.Equal(suite.T(), "https://127.0.0.1:10250", ku.GetKubeletAPIEndpoint())
 	b, code, err := ku.QueryKubelet(ctx, "/healthz")
 	assert.Equal(suite.T(), 200, code)
 	require.NoError(suite.T(), err)
@@ -103,6 +100,8 @@ func (suite *InsecureTestSuite) TestInsecureHTTPS() {
 }
 
 func TestInsecureKubeletSuite(t *testing.T) {
+	config.SetFeatures(t, config.Kubernetes)
+
 	compose, err := initInsecureKubelet()
 	require.Nil(t, err)
 	output, err := compose.Start()

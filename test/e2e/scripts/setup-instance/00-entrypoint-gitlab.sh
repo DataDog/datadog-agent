@@ -14,14 +14,16 @@ IGNITION_BASE64=$(base64 -w 0 ignition.json)
 
 REGION="${REGION:-us-east-1}"
 UPDATE_STREAM="${UPDATE_STREAM:-stable}"
-AMI="$(curl "https://builds.coreos.fedoraproject.org/streams/${UPDATE_STREAM}.json" | jq -r ".architectures.x86_64.images.aws.regions.\"$REGION\".image")"
+if [ -z "${AMI+x}" ]; then
+  AMI="$(curl "https://builds.coreos.fedoraproject.org/streams/${UPDATE_STREAM}.json" | jq -r ".architectures.x86_64.images.aws.regions.\"$REGION\".image")"
+fi
 ARGO_WORKFLOW=${ARGO_WORKFLOW:-''}
 
 # TODO remove the IamInstanceProfile
 tee specification.json << EOF
 {
   "ImageId": "${AMI}",
-  "InstanceType": "c5.2xlarge",
+  "InstanceType": "t3.2xlarge",
   "Monitoring": {
     "Enabled": false
   },
@@ -37,11 +39,11 @@ tee specification.json << EOF
   ],
   "UserData": "${IGNITION_BASE64}",
 
-  "SubnetId": "subnet-c18341ed",
+  "SubnetId": "subnet-05d7c6b1b5cfea811",
   "IamInstanceProfile": {
     "Name": "ci-datadog-agent-e2e-runner"
   },
-  "SecurityGroupIds": ["sg-0f5617ceb3e5a6c39"]
+  "SecurityGroupIds": ["sg-019917348cb0eb7e7"]
 }
 EOF
 
@@ -54,18 +56,22 @@ echo "using ARGO_WORKFLOW=${ARGO_WORKFLOW}"
 echo "${DATADOG_AGENT_IMAGE} is hosted on a docker registry, checking if it's available"
 IMAGE_REPOSITORY=${DATADOG_AGENT_IMAGE%:*}
 IMAGE_TAG=${DATADOG_AGENT_IMAGE#*:}
-if ! curl -Lfs "https://registry.hub.docker.com/v1/repositories/${IMAGE_REPOSITORY}/tags" | \
-    jq -re ".[] | select(.name==\"${IMAGE_TAG}\")"; then
-        echo "The DATADOG_AGENT_IMAGE=${DATADOG_AGENT_IMAGE} returns a 404 on the registry.hub.docker.com"
+if ! curl -Lfs --head "https://hub.docker.com/v2/repositories/${IMAGE_REPOSITORY}/tags/${IMAGE_TAG}" > /dev/null ; then
+        echo "The DATADOG_AGENT_IMAGE=${DATADOG_AGENT_IMAGE} is not available on DockerHub"
+        echo "Ensure that the manual jobs in dev_container_deploy has been run/rerun"
+        echo "*dev_branch* -> k8s-e2e-*-dev"
+        echo "*dev_master* -> k8s-e2e-*-main"
         exit 2
 fi
 
 echo "${DATADOG_CLUSTER_AGENT_IMAGE} is hosted on a docker registry, checking if it's available"
 IMAGE_REPOSITORY=${DATADOG_CLUSTER_AGENT_IMAGE%:*}
 IMAGE_TAG=${DATADOG_CLUSTER_AGENT_IMAGE#*:}
-if ! curl -Lfs "https://registry.hub.docker.com/v1/repositories/${IMAGE_REPOSITORY}/tags" | \
-    jq -re ".[] | select(.name==\"${IMAGE_TAG}\")"; then
-        echo "The DATADOG_CLUSTER_AGENT_IMAGE=${DATADOG_CLUSTER_AGENT_IMAGE} returns a 404 on the registry.hub.docker.com"
+if ! curl -Lfs --head "https://hub.docker.com/v2/repositories/${IMAGE_REPOSITORY}/tags/${IMAGE_TAG}" > /dev/null ; then
+        echo "The DATADOG_CLUSTER_AGENT_IMAGE=${DATADOG_CLUSTER_AGENT_IMAGE} is not available on DockerHub"
+        echo "Ensure that the manual jobs in dev_container_deploy has been run/rerun"
+        echo "*dev_branch* -> k8s-e2e-*-dev"
+        echo "*dev_master* -> k8s-e2e-*-main"
         exit 2
 fi
 

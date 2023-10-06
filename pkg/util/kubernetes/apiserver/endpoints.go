@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build kubeapiserver
-// +build kubeapiserver
 
 package apiserver
 
@@ -38,6 +37,7 @@ func SearchTargetPerName(endpoints *v1.Endpoints, targetName string) (v1.Endpoin
 	return v1.EndpointAddress{}, dderrors.NewNotFound("target named " + targetName)
 }
 
+// EntityForEndpoints builds entity strings for Endpoints
 func EntityForEndpoints(namespace, name, ip string) string {
 	return fmt.Sprintf("%s%s/%s/%s", kubeEndpointIDPrefix, namespace, name, ip)
 }

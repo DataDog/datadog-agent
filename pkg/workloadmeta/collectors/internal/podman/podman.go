@@ -4,8 +4,8 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build podman
-// +build podman
 
+// Package podman implements the podman Workloadmeta collector.
 package podman
 
 import (
@@ -13,20 +13,18 @@ import (
 	"errors"
 	"sort"
 	"strings"
-	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 	dderrors "github.com/DataDog/datadog-agent/pkg/errors"
+	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/podman"
 	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
-	"github.com/DataDog/datadog-agent/pkg/workloadmeta/collectors/internal/util"
 )
 
 const (
 	collectorID   = "podman"
 	componentName = "workloadmeta-podman"
-	expireFreq    = 10 * time.Second
 )
 
 type podmanClient interface {
@@ -36,12 +34,14 @@ type podmanClient interface {
 type collector struct {
 	client podmanClient
 	store  workloadmeta.Store
-	expire *util.Expire
+	seen   map[workloadmeta.EntityID]struct{}
 }
 
 func init() {
 	workloadmeta.RegisterCollector(collectorID, func() workloadmeta.Collector {
-		return &collector{}
+		return &collector{
+			seen: make(map[workloadmeta.EntityID]struct{}),
+		}
 	})
 }
 
@@ -50,9 +50,8 @@ func (c *collector) Start(_ context.Context, store workloadmeta.Store) error {
 		return dderrors.NewDisabled(componentName, "Podman not detected")
 	}
 
-	c.client = podman.NewDBClient(podman.DefaultDBPath)
+	c.client = podman.NewDBClient(config.Datadog.GetString("podman_db_path"))
 	c.store = store
-	c.expire = util.NewExpire(expireFreq)
 
 	return nil
 }
@@ -63,15 +62,30 @@ func (c *collector) Pull(_ context.Context) error {
 		return err
 	}
 
-	var events []workloadmeta.CollectorEvent
+	seen := make(map[workloadmeta.EntityID]struct{})
+	events := make([]workloadmeta.CollectorEvent, 0, len(containers))
 
 	for _, container := range containers {
 		event := convertToEvent(&container)
-		c.expire.Update(event.Entity.GetID(), time.Now())
+		seen[event.Entity.GetID()] = struct{}{}
 		events = append(events, event)
 	}
 
-	events = append(events, c.expiredEvents()...)
+	for seenID := range c.seen {
+		if _, ok := seen[seenID]; ok {
+			continue
+		}
+
+		events = append(events, workloadmeta.CollectorEvent{
+			Type:   workloadmeta.EventTypeUnset,
+			Source: workloadmeta.SourceRuntime,
+			Entity: &workloadmeta.Container{
+				EntityID: seenID,
+			},
+		})
+	}
+
+	c.seen = seen
 
 	c.store.Notify(events)
 
@@ -91,7 +105,7 @@ func convertToEvent(container *podman.Container) workloadmeta.CollectorEvent {
 		log.Warnf("Could not get env vars for container %s", containerID)
 	}
 
-	image, err := workloadmeta.NewContainerImage(container.Config.RawImageName)
+	image, err := workloadmeta.NewContainerImage(container.Config.ContainerRootFSConfig.RootfsImageID, container.Config.RawImageName)
 	if err != nil {
 		log.Warnf("Could not get image for container %s", containerID)
 	}
@@ -141,20 +155,6 @@ func convertToEvent(container *podman.Container) workloadmeta.CollectorEvent {
 			},
 		},
 	}
-}
-
-func (c *collector) expiredEvents() []workloadmeta.CollectorEvent {
-	var res []workloadmeta.CollectorEvent
-
-	for _, expired := range c.expire.ComputeExpires() {
-		res = append(res, workloadmeta.CollectorEvent{
-			Type:   workloadmeta.EventTypeUnset,
-			Source: workloadmeta.SourceRuntime,
-			Entity: expired,
-		})
-	}
-
-	return res
 }
 
 func getShortID(container *podman.Container) (containerID string) {
@@ -214,7 +214,9 @@ func envVars(container *podman.Container) (map[string]string, error) {
 			return nil, errors.New("unexpected environment variable format")
 		}
 
-		res[envSplit[0]] = envSplit[1]
+		if containers.EnvVarFilterFromConfig().IsIncluded(envSplit[0]) {
+			res[envSplit[0]] = envSplit[1]
+		}
 	}
 
 	return res, nil

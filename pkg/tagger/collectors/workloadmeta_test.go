@@ -83,6 +83,7 @@ func TestHandleKubePod(t *testing.T) {
 
 	tests := []struct {
 		name              string
+		staticTags        map[string]string
 		labelsAsTags      map[string]string
 		annotationsAsTags map[string]string
 		nsLabelsAsTags    map[string]string
@@ -159,6 +160,9 @@ func TestHandleKubePod(t *testing.T) {
 				// PVC tags
 				PersistentVolumeClaimNames: []string{"pvc-0"},
 
+				// QOS tags
+				QOSClass: "guaranteed",
+
 				// Phase tags
 				Phase: "Running",
 			},
@@ -186,6 +190,7 @@ func TestHandleKubePod(t *testing.T) {
 						"kube_ownerref_kind:deployment",
 						"kube_service:service1",
 						"kube_service:service2",
+						"kube_qos:guaranteed",
 						"ns-team:containers",
 						"ns_env:dev",
 						"pod_phase:running",
@@ -221,9 +226,9 @@ func TestHandleKubePod(t *testing.T) {
 					OrchestratorCardTags: []string{
 						fmt.Sprintf("pod_name:%s", podName),
 					},
-					LowCardTags: append([]string{
+					LowCardTags: []string{
 						fmt.Sprintf("kube_namespace:%s", podNamespace),
-					}),
+					},
 					StandardTags: []string{},
 				},
 				{
@@ -276,9 +281,9 @@ func TestHandleKubePod(t *testing.T) {
 					OrchestratorCardTags: []string{
 						fmt.Sprintf("pod_name:%s", podName),
 					},
-					LowCardTags: append([]string{
+					LowCardTags: []string{
 						fmt.Sprintf("kube_namespace:%s", podNamespace),
-					}),
+					},
 					StandardTags: []string{},
 				},
 				{
@@ -322,10 +327,97 @@ func TestHandleKubePod(t *testing.T) {
 						fmt.Sprintf("pod_name:%s", podName),
 						"oshift_deployment:gitlab-ce-1",
 					},
-					LowCardTags: append([]string{
+					LowCardTags: []string{
 						fmt.Sprintf("kube_namespace:%s", podNamespace),
 						"oshift_deployment_config:gitlab-ce",
-					}),
+					},
+					StandardTags: []string{},
+				},
+			},
+		},
+		{
+			name: "pod with admission + remote config annotations",
+			pod: workloadmeta.KubernetesPod{
+				EntityID: podEntityID,
+				EntityMeta: workloadmeta.EntityMeta{
+					Name:      podName,
+					Namespace: podNamespace,
+					Annotations: map[string]string{
+						"admission.datadoghq.com/rc.id":  "id",
+						"admission.datadoghq.com/rc.rev": "123",
+					},
+				},
+			},
+			expected: []*TagInfo{
+				{
+					Source:       podSource,
+					Entity:       podTaggerEntityID,
+					HighCardTags: []string{},
+					OrchestratorCardTags: []string{
+						fmt.Sprintf("pod_name:%s", podName),
+					},
+					LowCardTags: []string{
+						fmt.Sprintf("kube_namespace:%s", podNamespace),
+						"dd_remote_config_id:id",
+						"dd_remote_config_rev:123",
+					},
+					StandardTags: []string{},
+				},
+			},
+		},
+		{
+			name: "static tags",
+			staticTags: map[string]string{
+				"eks_fargate_node": "foobar",
+			},
+			pod: workloadmeta.KubernetesPod{
+				EntityID: podEntityID,
+				EntityMeta: workloadmeta.EntityMeta{
+					Name:      podName,
+					Namespace: podNamespace,
+				},
+			},
+			expected: []*TagInfo{
+				{
+					Source:       podSource,
+					Entity:       podTaggerEntityID,
+					HighCardTags: []string{},
+					OrchestratorCardTags: []string{
+						fmt.Sprintf("pod_name:%s", podName),
+					},
+					LowCardTags: []string{
+						fmt.Sprintf("kube_namespace:%s", podNamespace),
+						"eks_fargate_node:foobar",
+					},
+					StandardTags: []string{},
+				},
+			},
+		},
+		{
+			name: "disable kube_service",
+			pod: workloadmeta.KubernetesPod{
+				EntityID: podEntityID,
+				EntityMeta: workloadmeta.EntityMeta{
+					Name:      podName,
+					Namespace: podNamespace,
+					Annotations: map[string]string{
+						"tags.datadoghq.com/disable": "kube_service",
+					},
+				},
+				// kube_service tags
+				KubeServices: []string{"service1", "service2"},
+			},
+			expected: []*TagInfo{
+				{
+					Source:       podSource,
+					Entity:       podTaggerEntityID,
+					HighCardTags: []string{},
+					OrchestratorCardTags: []string{
+						fmt.Sprintf("pod_name:%s", podName),
+					},
+					LowCardTags: []string{
+						fmt.Sprintf("kube_namespace:%s", podNamespace),
+					},
 					StandardTags: []string{},
 				},
 			},
@@ -335,8 +427,9 @@ func TestHandleKubePod(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			collector := &WorkloadMetaCollector{
-				store:    store,
-				children: make(map[string]map[string]struct{}),
+				store:      store,
+				children:   make(map[string]map[string]struct{}),
+				staticTags: tt.staticTags,
 			}
 
 			collector.initPodMetaAsTags(tt.labelsAsTags, tt.annotationsAsTags, tt.nsLabelsAsTags)
@@ -445,6 +538,7 @@ func TestHandleECSTask(t *testing.T) {
 						Name: containerName,
 					},
 				},
+				AvailabilityZone: "us-east-1c",
 			},
 			expected: []*TagInfo{
 				{
@@ -461,6 +555,8 @@ func TestHandleECSTask(t *testing.T) {
 						"task_family:datadog-agent",
 						"task_name:datadog-agent",
 						"task_version:1",
+						"availability_zone:us-east-1c",
+						"availability-zone:us-east-1c",
 					},
 					StandardTags: []string{},
 				},
@@ -477,6 +573,8 @@ func TestHandleECSTask(t *testing.T) {
 						"task_family:datadog-agent",
 						"task_name:datadog-agent",
 						"task_version:1",
+						"availability_zone:us-east-1c",
+						"availability-zone:us-east-1c",
 					},
 					StandardTags: []string{},
 				},
@@ -526,6 +624,7 @@ func TestHandleContainer(t *testing.T) {
 
 	tests := []struct {
 		name         string
+		staticTags   map[string]string
 		labelsAsTags map[string]string
 		envAsTags    map[string]string
 		container    workloadmeta.Container
@@ -566,6 +665,7 @@ func TestHandleContainer(t *testing.T) {
 						"image_name:datadog/agent",
 						"image_tag:latest",
 						"short_image:agent",
+						"image_id:datadog/agent@sha256:a63d3f66fb2f69d955d4f2ca0b229385537a77872ffc04290acae65aed5317d2",
 					}, standardTags...),
 					StandardTags: standardTags,
 				},
@@ -637,9 +737,9 @@ func TestHandleContainer(t *testing.T) {
 						"app_name:datadog-agent",
 					},
 					OrchestratorCardTags: []string{},
-					LowCardTags: append([]string{
+					LowCardTags: []string{
 						"owner_team:container-integrations",
-					}),
+					},
 					StandardTags: []string{},
 				},
 			},
@@ -673,12 +773,12 @@ func TestHandleContainer(t *testing.T) {
 						fmt.Sprintf("container_id:%s", entityID.ID),
 					},
 					OrchestratorCardTags: []string{},
-					LowCardTags: append([]string{
+					LowCardTags: []string{
 						// Notice that the names include the custom prefixes
 						// added in labelsAsTags and envAsTags.
 						"custom_label_prefix_team:container-integrations",
 						"custom_env_prefix_some_env:some_env_val",
-					}),
+					},
 					StandardTags: []string{},
 				},
 			},
@@ -707,11 +807,11 @@ func TestHandleContainer(t *testing.T) {
 						fmt.Sprintf("container_id:%s", entityID.ID),
 					},
 					OrchestratorCardTags: []string{},
-					LowCardTags: append([]string{
+					LowCardTags: []string{
 						"docker_image:redis", // Notice that there's no tag
 						"image_name:redis",
 						"short_image:redis",
-					}),
+					},
 					StandardTags: []string{},
 				},
 			},
@@ -740,13 +840,13 @@ func TestHandleContainer(t *testing.T) {
 						fmt.Sprintf("container_id:%s", entityID.ID),
 					},
 					OrchestratorCardTags: []string{},
-					LowCardTags: append([]string{
+					LowCardTags: []string{
 						"nomad_task:test-task",
 						"nomad_job:test-job",
 						"nomad_group:test-group",
 						"nomad_namespace:test-namespace",
 						"nomad_dc:test-dc",
-					}),
+					},
 					StandardTags: []string{},
 				},
 			},
@@ -776,11 +876,11 @@ func TestHandleContainer(t *testing.T) {
 					OrchestratorCardTags: []string{
 						"mesos_task:system_dd-agent.dcc75b42-4b87-11e7-9a62-70b3d5800001",
 					},
-					LowCardTags: append([]string{
+					LowCardTags: []string{
 						"chronos_job:app1_process-orders",
 						"chronos_job_owner:qa",
 						"marathon_app:/system/dd-agent",
-					}),
+					},
 					StandardTags: []string{},
 				},
 			},
@@ -819,10 +919,10 @@ func TestHandleContainer(t *testing.T) {
 						"rancher_container:testAD-redis-1",
 					},
 					OrchestratorCardTags: []string{},
-					LowCardTags: append([]string{
+					LowCardTags: []string{
 						"rancher_service:testAD/redis",
 						"rancher_stack:testAD",
-					}),
+					},
 					StandardTags: []string{},
 				},
 			},
@@ -853,10 +953,10 @@ func TestHandleContainer(t *testing.T) {
 						fmt.Sprintf("container_id:%s", entityID.ID),
 					},
 					OrchestratorCardTags: []string{},
-					LowCardTags: append([]string{
+					LowCardTags: []string{
 						"swarm_namespace:default",
 						"swarm_service:helloworld",
-					}),
+					},
 					StandardTags: []string{},
 				},
 			},
@@ -890,16 +990,128 @@ func TestHandleContainer(t *testing.T) {
 				},
 			},
 		},
+		{
+			name: "static tags",
+			staticTags: map[string]string{
+				"eks_fargate_node": "foobar",
+			},
+			container: workloadmeta.Container{
+				EntityID: entityID,
+				EntityMeta: workloadmeta.EntityMeta{
+					Name: containerName,
+				},
+			},
+			expected: []*TagInfo{
+				{
+					Source: containerSource,
+					Entity: taggerEntityID,
+					HighCardTags: []string{
+						fmt.Sprintf("container_name:%s", containerName),
+						fmt.Sprintf("container_id:%s", entityID.ID),
+					},
+					OrchestratorCardTags: []string{},
+					LowCardTags: []string{
+						"eks_fargate_node:foobar",
+					},
+					StandardTags: []string{},
+				},
+			},
+		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			collector := &WorkloadMetaCollector{}
+			collector := &WorkloadMetaCollector{
+				staticTags: tt.staticTags,
+			}
 			collector.initContainerMetaAsTags(tt.labelsAsTags, tt.envAsTags)
 
 			actual := collector.handleContainer(workloadmeta.Event{
 				Type:   workloadmeta.EventTypeSet,
 				Entity: &tt.container,
+			})
+
+			assertTagInfoListEqual(t, tt.expected, actual)
+		})
+	}
+}
+
+func TestHandleContainerImage(t *testing.T) {
+	entityID := workloadmeta.EntityID{
+		Kind: workloadmeta.KindContainerImageMetadata,
+		ID:   "sha256:651c55002cd5deb06bde7258f6ec6e0ff7f4f17a648ce6e2ec01917da9ae5104",
+	}
+
+	taggerEntityID := fmt.Sprintf("container_image_metadata://%s", entityID.ID)
+
+	tests := []struct {
+		name     string
+		image    workloadmeta.ContainerImageMetadata
+		expected []*TagInfo
+	}{
+		{
+			name: "basic",
+			image: workloadmeta.ContainerImageMetadata{
+				EntityID: entityID,
+				EntityMeta: workloadmeta.EntityMeta{
+					Name: entityID.ID,
+					Labels: map[string]string{
+						"com.datadoghq.tags.env":     "production",
+						"com.datadoghq.tags.service": "datadog-agent",
+						"com.datadoghq.tags.version": "8.0.0",
+					},
+				},
+				RepoTags: []string{
+					"datadog/agent:7.41.1-rc.1",
+					"gcr.io/datadoghq/agent:7-rc",
+					"gcr.io/datadoghq/agent:7.41.1-rc.1",
+					"public.ecr.aws/datadog/agent:7-rc",
+					"public.ecr.aws/datadog/agent:7.41.1-rc.1",
+				},
+				RepoDigests: []string{
+					"datadog/agent@sha256:052f1fdf4f9a7117d36a1838ab60782829947683007c34b69d4991576375c409",
+					"gcr.io/datadoghq/agent@sha256:052f1fdf4f9a7117d36a1838ab60782829947683007c34b69d4991576375c409",
+					"public.ecr.aws/datadog/agent@sha256:052f1fdf4f9a7117d36a1838ab60782829947683007c34b69d4991576375c409",
+				},
+				OS:           "DOS",
+				OSVersion:    "6.22",
+				Architecture: "80486DX",
+			},
+			expected: []*TagInfo{
+				{
+					Source:               containerImageSource,
+					Entity:               taggerEntityID,
+					HighCardTags:         []string{},
+					OrchestratorCardTags: []string{},
+					LowCardTags: []string{
+						"architecture:80486DX",
+						"env:production",
+						"image_name:sha256:651c55002cd5deb06bde7258f6ec6e0ff7f4f17a648ce6e2ec01917da9ae5104",
+						"image_tag:7-rc",
+						"image_tag:7.41.1-rc.1",
+						"os_name:DOS",
+						"os_version:6.22",
+						"service:datadog-agent",
+						"short_image:agent",
+						"version:8.0.0",
+					},
+					StandardTags: []string{
+						"env:production",
+						"service:datadog-agent",
+						"version:8.0.0",
+					},
+				},
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			collector := &WorkloadMetaCollector{}
+
+			actual := collector.handleContainerImage(workloadmeta.Event{
+				Type:   workloadmeta.EventTypeSet,
+				Entity: &tt.image,
 			})
 
 			assertTagInfoListEqual(t, tt.expected, actual)
@@ -976,6 +1188,7 @@ func TestHandleDelete(t *testing.T) {
 	})
 
 	assertTagInfoListEqual(t, expected, actual)
+	assert.Empty(t, collector.children)
 }
 
 type fakeProcessor struct {

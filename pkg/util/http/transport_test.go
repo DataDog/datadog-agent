@@ -7,6 +7,7 @@ package http
 
 import (
 	"crypto/tls"
+	"fmt"
 	"net/http"
 	"testing"
 
@@ -17,6 +18,8 @@ import (
 )
 
 func TestEmptyProxy(t *testing.T) {
+	setupTest(t)
+
 	r, err := http.NewRequest("GET", "https://test.com", nil)
 	require.Nil(t, err)
 
@@ -29,6 +32,8 @@ func TestEmptyProxy(t *testing.T) {
 }
 
 func TestHTTPProxy(t *testing.T) {
+	setupTest(t)
+
 	rHTTP, _ := http.NewRequest("GET", "http://test.com/api/v1?arg=21", nil)
 	rHTTPS, _ := http.NewRequest("GET", "https://test.com/api/v1?arg=21", nil)
 
@@ -47,6 +52,8 @@ func TestHTTPProxy(t *testing.T) {
 }
 
 func TestNoProxy(t *testing.T) {
+	setupTest(t)
+
 	r1, _ := http.NewRequest("GET", "http://test_no_proxy.com/api/v1?arg=21", nil)
 	r2, _ := http.NewRequest("GET", "http://test_http.com/api/v1?arg=21", nil)
 	r3, _ := http.NewRequest("GET", "https://test_https.com/api/v1?arg=21", nil)
@@ -78,6 +85,8 @@ func TestNoProxy(t *testing.T) {
 }
 
 func TestNoProxyNonexactMatch(t *testing.T) {
+	setupTest(t)
+
 	r1, _ := http.NewRequest("GET", "http://test_no_proxy.com/api/v1?arg=21", nil)
 	r2, _ := http.NewRequest("GET", "http://test_http.com/api/v1?arg=21", nil)
 	r3, _ := http.NewRequest("GET", "https://test_https.com/api/v1?arg=21", nil)
@@ -123,6 +132,8 @@ func TestNoProxyNonexactMatch(t *testing.T) {
 }
 
 func TestErrorParse(t *testing.T) {
+	setupTest(t)
+
 	r1, _ := http.NewRequest("GET", "http://test_no_proxy.com/api/v1?arg=21", nil)
 
 	proxies := &config.Proxy{
@@ -136,6 +147,8 @@ func TestErrorParse(t *testing.T) {
 }
 
 func TestBadScheme(t *testing.T) {
+	setupTest(t)
+
 	r1, _ := http.NewRequest("GET", "ftp://test.com", nil)
 
 	proxies := &config.Proxy{
@@ -149,31 +162,27 @@ func TestBadScheme(t *testing.T) {
 }
 
 func TestCreateHTTPTransport(t *testing.T) {
-	mockConfig := config.Mock()
+	setupTest(t)
 
-	skipSSL := config.Datadog.GetBool("skip_ssl_validation")
-	forceTLS := config.Datadog.GetBool("force_tls_12")
-	defer mockConfig.Set("skip_ssl_validation", skipSSL)
-	defer mockConfig.Set("force_tls_12", forceTLS)
-
+	mockConfig := config.Mock(t)
 	mockConfig.Set("skip_ssl_validation", false)
-	mockConfig.Set("force_tls_12", false)
 	transport := CreateHTTPTransport()
 	assert.False(t, transport.TLSClientConfig.InsecureSkipVerify)
-	assert.Equal(t, transport.TLSClientConfig.MinVersion, uint16(0))
+	assert.Equal(t, transport.TLSClientConfig.MinVersion, uint16(tls.VersionTLS12))
 
 	mockConfig.Set("skip_ssl_validation", true)
 	transport = CreateHTTPTransport()
 	assert.True(t, transport.TLSClientConfig.InsecureSkipVerify)
-	assert.Equal(t, transport.TLSClientConfig.MinVersion, uint16(0))
+	assert.Equal(t, transport.TLSClientConfig.MinVersion, uint16(tls.VersionTLS12))
 
-	mockConfig.Set("force_tls_12", true)
 	transport = CreateHTTPTransport()
 	assert.True(t, transport.TLSClientConfig.InsecureSkipVerify)
 	assert.Equal(t, transport.TLSClientConfig.MinVersion, uint16(tls.VersionTLS12))
 }
 
 func TestNoProxyWarningMap(t *testing.T) {
+	setupTest(t)
+
 	r1, _ := http.NewRequest("GET", "http://api.test_http.com/api/v1?arg=21", nil)
 
 	proxies := &config.Proxy{
@@ -187,5 +196,43 @@ func TestNoProxyWarningMap(t *testing.T) {
 	assert.Nil(t, err)
 	assert.Equal(t, "https://user:pass@proxy.com:3128", proxyURL.String())
 
-	assert.Equal(t, NoProxyIgnoredWarningMap["http://api.test_http.com"], true)
+	assert.True(t, noProxyIgnoredWarningMap["http://api.test_http.com"])
+}
+
+func TestMinTLSVersionFromConfig(t *testing.T) {
+	setupTest(t)
+
+	tests := []struct {
+		minTLSVersion string
+		expect        uint16
+	}{
+		{"tlsv1.0", tls.VersionTLS10},
+		{"tlsv1.1", tls.VersionTLS11},
+		{"tlsv1.2", tls.VersionTLS12},
+		{"tlsv1.3", tls.VersionTLS13},
+		// case-insensitive
+		{"TlSv1.0", tls.VersionTLS10},
+		{"TlSv1.3", tls.VersionTLS13},
+		// defaults
+		{"", tls.VersionTLS12},
+		{"", tls.VersionTLS12},
+		// invalid values
+		{"tlsv1.9", tls.VersionTLS12},
+		{"tlsv1.9", tls.VersionTLS12},
+		{"blergh", tls.VersionTLS12},
+		{"blergh", tls.VersionTLS12},
+	}
+
+	for _, test := range tests {
+		t.Run(
+			fmt.Sprintf("min_tls_version=%s", test.minTLSVersion),
+			func(t *testing.T) {
+				cfg := config.Mock(t)
+				if test.minTLSVersion != "" {
+					cfg.Set("min_tls_version", test.minTLSVersion)
+				}
+				got := minTLSVersionFromConfig(cfg)
+				require.Equal(t, test.expect, got)
+			})
+	}
 }

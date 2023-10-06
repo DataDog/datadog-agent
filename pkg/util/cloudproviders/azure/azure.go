@@ -113,7 +113,7 @@ func getResponse(ctx context.Context, url string) (string, error) {
 }
 
 // GetHostname returns hostname based on Azure instance metadata.
-func GetHostname(ctx context.Context, options map[string]interface{}) (string, error) {
+func GetHostname(ctx context.Context) (string, error) {
 	return getHostnameWithConfig(ctx, config.Datadog)
 }
 
@@ -170,4 +170,41 @@ func getHostnameWithConfig(ctx context.Context, config config.Config) (string, e
 	}
 
 	return name, nil
+}
+
+var publicIPv4Fetcher = cachedfetch.Fetcher{
+	Name: "Azure Public IP",
+	Attempt: func(ctx context.Context) (interface{}, error) {
+		publicIPv4, err := getResponse(ctx,
+			metadataURL+"/metadata/instance/network/interface/0/ipv4/ipAddress/0/publicIpAddress?api-version=2017-04-02&format=text")
+		if err != nil {
+			return "", fmt.Errorf("failed to get Azure public ip: %s", err)
+		}
+
+		return publicIPv4, nil
+	},
+}
+
+// GetPublicIPv4 returns the public IPv4 address of the current Azure instance
+func GetPublicIPv4(ctx context.Context) (string, error) {
+	return publicIPv4Fetcher.FetchString(ctx)
+}
+
+type instanceMetadata struct {
+	SubscriptionID string `json:"subscriptionId"`
+}
+
+// GetSubscriptionID returns the subscription ID of the current Azure instance
+func GetSubscriptionID(ctx context.Context) (string, error) {
+	body, err := instanceMetaFetcher.FetchString(ctx)
+	if err != nil {
+		return "", err
+	}
+
+	var metadata instanceMetadata
+	if err := json.Unmarshal([]byte(body), &metadata); err != nil {
+		return "", err
+	}
+
+	return metadata.SubscriptionID, nil
 }

@@ -4,16 +4,16 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build windows || darwin || linux
-// +build windows darwin linux
 
 package executable
 
 import (
-	"github.com/stretchr/testify/assert"
 	"os"
 	"path/filepath"
 	"runtime"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
 )
 
 func TestResolvePath(t *testing.T) {

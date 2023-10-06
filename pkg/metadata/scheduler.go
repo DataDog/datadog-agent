@@ -80,8 +80,13 @@ func (c *Scheduler) AddCollector(name string, interval time.Duration) error {
 		return fmt.Errorf("Unable to find metadata collector: %s", name)
 	}
 
+	firstInterval := interval
+	if withFirstRun, ok := p.(CollectorWithFirstRun); ok {
+		firstInterval = withFirstRun.FirstRunInterval()
+	}
+
 	sc := &scheduledCollector{
-		sendTimer:    newTimer(interval),
+		sendTimer:    newTimer(firstInterval),
 		healthHandle: health.RegisterLiveness("metadata-" + name),
 	}
 

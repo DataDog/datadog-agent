@@ -4,12 +4,12 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build orchestrator
-// +build orchestrator
 
 package k8s
 
 import (
 	model "github.com/DataDog/agent-payload/v5/process"
+
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors"
 	k8sTransformers "github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/transformers/k8s"
 	"github.com/DataDog/datadog-agent/pkg/orchestrator/redact"
@@ -19,22 +19,14 @@ import (
 )
 
 // ServiceAccountHandlers implements the Handlers interface for Kubernetes ServiceAccounts.
-type ServiceAccountHandlers struct{}
+type ServiceAccountHandlers struct {
+	BaseHandlers
+}
 
 // AfterMarshalling is a handler called after resource marshalling.
 func (h *ServiceAccountHandlers) AfterMarshalling(ctx *processors.ProcessorContext, resource, resourceModel interface{}, yaml []byte) (skip bool) {
 	m := resourceModel.(*model.ServiceAccount)
 	m.Yaml = yaml
-	return
-}
-
-// BeforeCacheCheck is a handler called before cache lookup.
-func (h *ServiceAccountHandlers) BeforeCacheCheck(ctx *processors.ProcessorContext, resource, resourceModel interface{}) (skip bool) {
-	return
-}
-
-// BeforeMarshalling is a handler called before resource marshalling.
-func (h *ServiceAccountHandlers) BeforeMarshalling(ctx *processors.ProcessorContext, resource, resourceModel interface{}) (skip bool) {
 	return
 }
 
@@ -53,7 +45,7 @@ func (h *ServiceAccountHandlers) BuildMessageBody(ctx *processors.ProcessorConte
 		GroupId:         ctx.MsgGroupID,
 		GroupSize:       int32(groupSize),
 		ServiceAccounts: models,
-		Tags:            ctx.Cfg.ExtraTags,
+		Tags:            append(ctx.Cfg.ExtraTags, ctx.ApiGroupVersionTag),
 	}
 }
 
@@ -77,7 +69,7 @@ func (h *ServiceAccountHandlers) ResourceList(ctx *processors.ProcessorContext, 
 }
 
 // ResourceUID is a handler called to retrieve the resource UID.
-func (h *ServiceAccountHandlers) ResourceUID(ctx *processors.ProcessorContext, resource, resourceModel interface{}) types.UID {
+func (h *ServiceAccountHandlers) ResourceUID(ctx *processors.ProcessorContext, resource interface{}) types.UID {
 	return resource.(*corev1.ServiceAccount).UID
 }
 
@@ -91,9 +83,4 @@ func (h *ServiceAccountHandlers) ResourceVersion(ctx *processors.ProcessorContex
 func (h *ServiceAccountHandlers) ScrubBeforeExtraction(ctx *processors.ProcessorContext, resource interface{}) {
 	r := resource.(*corev1.ServiceAccount)
 	redact.RemoveLastAppliedConfigurationAnnotation(r.Annotations)
-}
-
-// ScrubBeforeMarshalling is a handler called to redact the raw resource before
-// it is marshalled to generate a manifest.
-func (h *ServiceAccountHandlers) ScrubBeforeMarshalling(ctx *processors.ProcessorContext, resource interface{}) {
 }

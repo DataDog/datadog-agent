@@ -6,7 +6,6 @@
 package expvars
 
 import (
-	"fmt"
 	"testing"
 	"time"
 
@@ -19,8 +18,8 @@ func TestTimestamp(t *testing.T) {
 	require.Nil(t, err)
 
 	unixTimeUTC := time.Unix(1628195974, 0).In(loc)
-	assert.Equal(t, "\"2021-08-05T16:39:34-04:00\"", fmt.Sprintf("%s", timestamp(unixTimeUTC)))
+	assert.Equal(t, "\"2021-08-05T16:39:34-04:00\"", timestamp(unixTimeUTC).String())
 
 	unixTimeUTC = time.Unix(1234567890, 0).In(loc)
-	assert.Equal(t, "\"2009-02-13T18:31:30-05:00\"", fmt.Sprintf("%s", timestamp(unixTimeUTC)))
+	assert.Equal(t, "\"2009-02-13T18:31:30-05:00\"", timestamp(unixTimeUTC).String())
 }

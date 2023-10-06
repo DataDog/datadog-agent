@@ -15,7 +15,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery"
 	"github.com/DataDog/datadog-agent/pkg/collector"
-	"github.com/DataDog/datadog-agent/pkg/collector/check"
+	"github.com/DataDog/datadog-agent/pkg/collector/check/stats"
 	"github.com/DataDog/datadog-agent/pkg/status"
 )
 
@@ -34,13 +34,15 @@ type Data struct {
 	LoaderErrs map[string]map[string]string
 	ConfigErrs map[string]string
 	Stats      map[string]interface{}
-	CheckStats []*check.Stats
+	CheckStats []*stats.Stats
 }
 
 func renderStatus(rawData []byte, request string) (string, error) {
 	var b = new(bytes.Buffer)
 	stats := make(map[string]interface{})
-	json.Unmarshal(rawData, &stats) //nolint:errcheck
+	if err := json.Unmarshal(rawData, &stats); err != nil {
+		return "", err
+	}
 
 	data := Data{Stats: stats}
 	e := fillTemplate(b, data, request+"Status")
@@ -55,7 +57,9 @@ func renderRunningChecks() (string, error) {
 
 	runnerStatsJSON := []byte(expvar.Get("runner").String())
 	runnerStats := make(map[string]interface{})
-	json.Unmarshal(runnerStatsJSON, &runnerStats) //nolint:errcheck
+	if err := json.Unmarshal(runnerStatsJSON, &runnerStats); err != nil {
+		return "", err
+	}
 	loaderErrs := collector.GetLoaderErrors()
 	configErrs := autodiscovery.GetConfigErrors()
 
@@ -67,7 +71,7 @@ func renderRunningChecks() (string, error) {
 	return b.String(), nil
 }
 
-func renderCheck(name string, stats []*check.Stats) (string, error) {
+func renderCheck(name string, stats []*stats.Stats) (string, error) {
 	var b = new(bytes.Buffer)
 
 	data := Data{Name: name, CheckStats: stats}

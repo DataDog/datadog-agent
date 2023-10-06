@@ -3,177 +3,292 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:generate go run github.com/DataDog/datadog-agent/pkg/security/secl/compiler/generators/accessors -mock -output accessors.go
-//go:generate go run github.com/DataDog/datadog-agent/pkg/security/secl/compiler/generators/accessors -tags linux -output ../../probe/accessors.go -doc ../../../../docs/cloud-workload-security/secl.json -fields-resolver ../../probe/fields_resolver.go
-//go:generate go run github.com/tinylib/msgp -tests=false
+//go:generate go run golang.org/x/tools/cmd/stringer -type=HashState -linecomment -output model_string.go
 
+// Package model holds model related files
 package model
 
 import (
-	"fmt"
 	"net"
-	"path"
-	"path/filepath"
-	"regexp"
-	"strings"
-	"syscall"
+	"reflect"
 	"time"
 	"unsafe"
 
-	"github.com/pkg/errors"
+	"golang.org/x/exp/slices"
 
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 )
 
 // Model describes the data model for the runtime security agent events
-//msgp:ignore Model
-type Model struct{}
+type Model struct {
+	ExtraValidateFieldFnc func(field eval.Field, fieldValue eval.FieldValue) error
+}
+
+var eventZero = Event{BaseEvent: BaseEvent{ContainerContext: &ContainerContext{}}}
+var containerContextZero ContainerContext
 
 // NewEvent returns a new Event
 func (m *Model) NewEvent() eval.Event {
-	return &Event{}
+	return &Event{
+		BaseEvent: BaseEvent{
+			ContainerContext: &ContainerContext{},
+		},
+	}
 }
 
-// ValidateField validates the value of a field
-func (m *Model) ValidateField(field eval.Field, fieldValue eval.FieldValue) error {
-	// check that all path are absolute
-	if strings.HasSuffix(field, "path") {
+// NewDefaultEventWithType returns a new Event for the given type
+func (m *Model) NewDefaultEventWithType(kind EventType) eval.Event {
+	return &Event{
+		BaseEvent: BaseEvent{
+			Type:             uint32(kind),
+			FieldHandlers:    &DefaultFieldHandlers{},
+			ContainerContext: &ContainerContext{},
+		},
+	}
+}
 
-		// do not support regular expression on path, currently unable to support discarder for regex value
-		if fieldValue.Type == eval.RegexpValueType {
-			return fmt.Errorf("regexp not supported on path `%s`", field)
-		}
+// Releasable represents an object than can be released
+type Releasable struct {
+	onReleaseCallback func() `field:"-" json:"-"`
+}
 
-		if value, ok := fieldValue.Value.(string); ok {
-			errAbs := fmt.Errorf("invalid path `%s`, all the path have to be absolute", value)
-			errDepth := fmt.Errorf("invalid path `%s`, path depths have to be shorter than %d", value, MaxPathDepth)
-			errSegment := fmt.Errorf("invalid path `%s`, each segment of a path must be shorter than %d", value, MaxSegmentLength)
+// CallReleaseCallback calls the on-release callback
+func (r *Releasable) CallReleaseCallback() {
+	if r.onReleaseCallback != nil {
+		r.onReleaseCallback()
+	}
+}
 
-			if value != path.Clean(value) {
-				return errAbs
-			}
-
-			if value == "*" {
-				return errAbs
-			}
-
-			if !filepath.IsAbs(value) && len(value) > 0 && value[0] != '*' {
-				return errAbs
-			}
-
-			if matched, err := regexp.Match(`^~`, []byte(value)); err != nil || matched {
-				return errAbs
-			}
-
-			// check resolution limitations
-			segments := strings.Split(value, "/")
-			if len(segments) > MaxPathDepth {
-				return errDepth
-			}
-			for _, segment := range segments {
-				if segment == ".." {
-					return errAbs
-				}
-				if len(segment) > MaxSegmentLength {
-					return errSegment
-				}
-			}
+// SetReleaseCallback sets a callback to be called when the cache entry is released
+func (r *Releasable) SetReleaseCallback(callback func()) {
+	previousCallback := r.onReleaseCallback
+	r.onReleaseCallback = func() {
+		callback()
+		if previousCallback != nil {
+			previousCallback()
 		}
 	}
-
-	switch field {
-
-	case "event.retval":
-		if value := fieldValue.Value; value != -int(syscall.EPERM) && value != -int(syscall.EACCES) {
-			return errors.New("return value can only be tested against EPERM or EACCES")
-		}
-	case "bpf.map.name", "bpf.prog.name":
-		if value, ok := fieldValue.Value.(string); ok {
-			if len(value) > MaxBpfObjName {
-				return fmt.Errorf("the name provided in %s must be at most %d characters, len(\"%s\") = %d", field, MaxBpfObjName, value, len(value))
-			}
-		}
-	}
-
-	return nil
 }
 
-// ChmodEvent represents a chmod event
-//msgp:ignore ChmodEvent
-type ChmodEvent struct {
-	SyscallEvent
-	File FileEvent `field:"file"`
-	Mode uint32    `field:"file.destination.mode" field:"file.destination.rights"` // New mode/rights of the chmod-ed file
-}
-
-// ChownEvent represents a chown event
-//msgp:ignore ChownEvent
-type ChownEvent struct {
-	SyscallEvent
-	File  FileEvent `field:"file"`
-	UID   int64     `field:"file.destination.uid"`                   // New UID of the chown-ed file's owner
-	User  string    `field:"file.destination.user,ResolveChownUID"`  // New user of the chown-ed file's owner
-	GID   int64     `field:"file.destination.gid"`                   // New GID of the chown-ed file's owner
-	Group string    `field:"file.destination.group,ResolveChownGID"` // New group of the chown-ed file's owner
+// OnRelease triggers the callback
+func (r *Releasable) OnRelease() {
+	r.onReleaseCallback()
 }
 
 // ContainerContext holds the container context of an event
-//msgp:ignore ContainerContext
 type ContainerContext struct {
-	ID   string   `field:"id,ResolveContainerID"`          // ID of the container
-	Tags []string `field:"tags,ResolveContainerTags:9999"` // Tags of the container
+	Releasable
+	ID        string   `field:"id,handler:ResolveContainerID"`                              // SECLDoc[id] Definition:`ID of the container`
+	CreatedAt uint64   `field:"created_at,handler:ResolveContainerCreatedAt"`               // SECLDoc[created_at] Definition:`Timestamp of the creation of the container``
+	Tags      []string `field:"tags,handler:ResolveContainerTags,opts:skip_ad,weight:9999"` // SECLDoc[tags] Definition:`Tags of the container`
+	Resolved  bool     `field:"-"`
 }
 
-// Event represents an event sent from the kernel
-//msgp:ignore Event
-// genaccessors
-type Event struct {
-	ID           string    `field:"-"`
-	Type         uint64    `field:"-"`
-	TimestampRaw uint64    `field:"-"`
-	Timestamp    time.Time `field:"timestamp"` // Timestamp of the event
+// Status defines the possible status of a profile as a bitmask
+type Status uint32
 
-	ProcessContext   ProcessContext   `field:"process" event:"*"`
-	SpanContext      SpanContext      `field:"-"`
-	ContainerContext ContainerContext `field:"container"`
-	NetworkContext   NetworkContext   `field:"network"`
+const (
+	// AnomalyDetection will trigger alerts each time an event is not part of the profile
+	AnomalyDetection Status = 1 << iota
+	// AutoSuppression will suppress any signal to events present on the profile
+	AutoSuppression
+	// WorkloadHardening will kill the process that triggered anomaly detection
+	WorkloadHardening
+)
 
-	Chmod       ChmodEvent    `field:"chmod" event:"chmod"`             // [7.27] [File] A file’s permissions were changed
-	Chown       ChownEvent    `field:"chown" event:"chown"`             // [7.27] [File] A file’s owner was changed
-	Open        OpenEvent     `field:"open" event:"open"`               // [7.27] [File] A file was opened
-	Mkdir       MkdirEvent    `field:"mkdir" event:"mkdir"`             // [7.27] [File] A directory was created
-	Rmdir       RmdirEvent    `field:"rmdir" event:"rmdir"`             // [7.27] [File] A directory was removed
-	Rename      RenameEvent   `field:"rename" event:"rename"`           // [7.27] [File] A file/directory was renamed
-	Unlink      UnlinkEvent   `field:"unlink" event:"unlink"`           // [7.27] [File] A file was deleted
-	Utimes      UtimesEvent   `field:"utimes" event:"utimes"`           // [7.27] [File] Change file access/modification times
-	Link        LinkEvent     `field:"link" event:"link"`               // [7.27] [File] Create a new name/alias for a file
-	SetXAttr    SetXAttrEvent `field:"setxattr" event:"setxattr"`       // [7.27] [File] Set exteneded attributes
-	RemoveXAttr SetXAttrEvent `field:"removexattr" event:"removexattr"` // [7.27] [File] Remove extended attributes
-	Splice      SpliceEvent   `field:"splice" event:"splice"`           // [7.36] [File] A splice command was executed
+// IsEnabled returns true if enabled
+func (s Status) IsEnabled(option Status) bool {
+	return (s & option) != 0
+}
 
-	Exec   ExecEvent   `field:"exec" event:"exec"`     // [7.27] [Process] A process was executed or forked
-	SetUID SetuidEvent `field:"setuid" event:"setuid"` // [7.27] [Process] A process changed its effective uid
-	SetGID SetgidEvent `field:"setgid" event:"setgid"` // [7.27] [Process] A process changed its effective gid
-	Capset CapsetEvent `field:"capset" event:"capset"` // [7.27] [Process] A process changed its capacity set
-	Signal SignalEvent `field:"signal" event:"signal"` // [7.35] [Process] A signal was sent
+func (s Status) String() string {
+	var options []string
+	if s.IsEnabled(AnomalyDetection) {
+		options = append(options, "anomaly_detection")
+	}
+	if s.IsEnabled(AutoSuppression) {
+		options = append(options, "auto_suppression")
+	}
+	if s.IsEnabled(WorkloadHardening) {
+		options = append(options, "workload_hardening")
+	}
 
-	SELinux      SELinuxEvent      `field:"selinux" event:"selinux"`             // [7.30] [Kernel] An SELinux operation was run
-	BPF          BPFEvent          `field:"bpf" event:"bpf"`                     // [7.33] [Kernel] A BPF command was executed
-	PTrace       PTraceEvent       `field:"ptrace" event:"ptrace"`               // [7.35] [Kernel] A ptrace command was executed
-	MMap         MMapEvent         `field:"mmap" event:"mmap"`                   // [7.35] [Kernel] A mmap command was executed
-	MProtect     MProtectEvent     `field:"mprotect" event:"mprotect"`           // [7.35] [Kernel] A mprotect command was executed
-	LoadModule   LoadModuleEvent   `field:"load_module" event:"load_module"`     // [7.35] [Kernel] A new kernel module was loaded
-	UnloadModule UnloadModuleEvent `field:"unload_module" event:"unload_module"` // [7.35] [Kernel] A kernel module was deleted
-	DNS          DNSEvent          `field:"dns" event:"dns"`                     // [7.36] [Network] A DNS request was sent
+	var res string
+	for _, option := range options {
+		if len(res) > 0 {
+			res += ","
+		}
+		res += option
+	}
+	return res
+}
 
-	Mount            MountEvent            `field:"-"`
-	Umount           UmountEvent           `field:"-"`
-	InvalidateDentry InvalidateDentryEvent `field:"-"`
-	ArgsEnvs         ArgsEnvsEvent         `field:"-"`
-	MountReleased    MountReleasedEvent    `field:"-"`
-	CgroupTracing    CgroupTracingEvent    `field:"-"`
-	NetDevice        NetDeviceEvent        `field:"-"`
-	VethPair         VethPairEvent         `field:"-"`
+// SecurityProfileContext holds the security context of the profile
+type SecurityProfileContext struct {
+	Name                       string      `field:"name"`                          // SECLDoc[name] Definition:`Name of the security profile`
+	Status                     Status      `field:"status"`                        // SECLDoc[status] Definition:`Status of the security profile`
+	Version                    string      `field:"version"`                       // SECLDoc[version] Definition:`Version of the security profile`
+	Tags                       []string    `field:"tags"`                          // SECLDoc[tags] Definition:`Tags of the security profile`
+	AnomalyDetectionEventTypes []EventType `field:"anomaly_detection_event_types"` // SECLDoc[anomaly_detection_event_types] Definition:`Event types enabled for anomaly detection`
+}
+
+// CanGenerateAnomaliesFor returns true if the current profile can generate anomalies for the provided event type
+func (spc SecurityProfileContext) CanGenerateAnomaliesFor(evtType EventType) bool {
+	return slices.Contains(spc.AnomalyDetectionEventTypes, evtType)
+}
+
+// IPPortContext is used to hold an IP and Port
+type IPPortContext struct {
+	IPNet net.IPNet `field:"ip"`   // SECLDoc[ip] Definition:`IP address`
+	Port  uint16    `field:"port"` // SECLDoc[port] Definition:`Port number`
+}
+
+// NetworkContext represents the network context of the event
+type NetworkContext struct {
+	Device NetworkDeviceContext `field:"device"` // network device on which the network packet was captured
+
+	L3Protocol  uint16        `field:"l3_protocol"` // SECLDoc[l3_protocol] Definition:`l3 protocol of the network packet` Constants:`L3 protocols`
+	L4Protocol  uint16        `field:"l4_protocol"` // SECLDoc[l4_protocol] Definition:`l4 protocol of the network packet` Constants:`L4 protocols`
+	Source      IPPortContext `field:"source"`      // source of the network packet
+	Destination IPPortContext `field:"destination"` // destination of the network packet
+	Size        uint32        `field:"size"`        // SECLDoc[size] Definition:`size in bytes of the network packet`
+}
+
+// SpanContext describes a span context
+type SpanContext struct {
+	SpanID  uint64 `field:"_" json:"-"`
+	TraceID uint64 `field:"_" json:"-"`
+}
+
+// BaseEvent represents an event sent from the kernel
+type BaseEvent struct {
+	ID           string         `field:"-" event:"*"`
+	Type         uint32         `field:"-"`
+	Flags        uint32         `field:"-"`
+	TimestampRaw uint64         `field:"event.timestamp,handler:ResolveEventTimestamp" event:"*"` // SECLDoc[event.timestamp] Definition:`Timestamp of the event`
+	Timestamp    time.Time      `field:"timestamp,opts:getters_only,handler:ResolveEventTime"`
+	Rules        []*MatchedRule `field:"-"`
+
+	// context shared with all events
+	SpanContext            SpanContext            `field:"-" json:"-"`
+	ProcessContext         *ProcessContext        `field:"process" event:"*"`
+	ContainerContext       *ContainerContext      `field:"container" event:"*"`
+	NetworkContext         NetworkContext         `field:"network" event:"dns"`
+	SecurityProfileContext SecurityProfileContext `field:"-"`
+
+	// internal usage
+	PIDContext        PIDContext         `field:"-" json:"-"`
+	ProcessCacheEntry *ProcessCacheEntry `field:"-" json:"-"`
+
+	// mark event with having error
+	Error error `field:"-" json:"-"`
+
+	// field resolution
+	FieldHandlers FieldHandlers `field:"-" json:"-"`
+}
+
+func initMember(member reflect.Value, deja map[string]bool) {
+	for i := 0; i < member.NumField(); i++ {
+		field := member.Field(i)
+
+		switch field.Kind() {
+		case reflect.Ptr:
+			if field.CanSet() {
+				field.Set(reflect.New(field.Type().Elem()))
+			}
+			if field.Elem().Kind() == reflect.Struct {
+				name := field.Elem().Type().Name()
+				if deja[name] {
+					continue
+				}
+				deja[name] = true
+
+				initMember(field.Elem(), deja)
+			}
+		case reflect.Struct:
+			name := field.Type().Name()
+			if deja[name] {
+				continue
+			}
+			deja[name] = true
+
+			initMember(field, deja)
+		}
+	}
+}
+
+// NewDefaultEvent returns a new event using the default field handlers
+func NewDefaultEvent() *Event {
+	return &Event{
+		BaseEvent: BaseEvent{
+			FieldHandlers:    &DefaultFieldHandlers{},
+			ContainerContext: &ContainerContext{},
+		},
+	}
+}
+
+// Init initialize the event
+func (e *Event) Init() {
+	initMember(reflect.ValueOf(e).Elem(), map[string]bool{})
+}
+
+// Zero the event
+func (e *Event) Zero() {
+	*e = eventZero
+	*e.BaseEvent.ContainerContext = containerContextZero
+}
+
+// IsSavedByActivityDumps return whether saved by AD
+func (e *Event) IsSavedByActivityDumps() bool {
+	return e.Flags&EventFlagsSavedByAD > 0
+}
+
+// IsActivityDumpSample return whether AD sample
+func (e *Event) IsActivityDumpSample() bool {
+	return e.Flags&EventFlagsActivityDumpSample > 0
+}
+
+// IsInProfile return true if the event was found in the profile
+func (e *Event) IsInProfile() bool {
+	return e.Flags&EventFlagsSecurityProfileInProfile > 0
+}
+
+// IsKernelSpaceAnomalyDetectionEvent returns true if the event is a kernel space anomaly detection event
+func (e *Event) IsKernelSpaceAnomalyDetectionEvent() bool {
+	return AnomalyDetectionSyscallEventType == e.GetEventType()
+}
+
+// IsAnomalyDetectionEvent returns true if the current event is an anomaly detection event (kernel or user space)
+func (e *Event) IsAnomalyDetectionEvent() bool {
+	if !e.SecurityProfileContext.Status.IsEnabled(AnomalyDetection) {
+		return false
+	}
+
+	// first, check if the current event is a kernel generated anomaly detection event
+	if e.IsKernelSpaceAnomalyDetectionEvent() {
+		return true
+	} else if !e.SecurityProfileContext.CanGenerateAnomaliesFor(e.GetEventType()) {
+		// the profile can't generate anomalies for the current event type
+		return false
+	} else if e.IsInProfile() {
+		return false
+	}
+	return true
+}
+
+// AddToFlags adds a flag to the event
+func (e *Event) AddToFlags(flag uint32) {
+	e.Flags |= flag
+}
+
+// RemoveFromFlags remove a flag to the event
+func (e *Event) RemoveFromFlags(flag uint32) {
+	e.Flags ^= flag
+}
+
+// HasProfile returns true if we found a profile for that event
+func (e *Event) HasProfile() bool {
+	return e.SecurityProfileContext.Name != ""
 }
 
 // GetType returns the event type
@@ -197,302 +312,141 @@ func (e *Event) GetTags() []string {
 	return tags
 }
 
-// GetPointer return an unsafe.Pointer of the Event
-func (e *Event) GetPointer() unsafe.Pointer {
-	return unsafe.Pointer(e)
+// GetWorkloadID returns an ID that represents the workload
+func (e *Event) GetWorkloadID() string {
+	return e.SecurityProfileContext.Name
 }
 
-// SetuidEvent represents a setuid event
-//msgp:ignore SetuidEvent
-type SetuidEvent struct {
-	UID    uint32 `field:"uid"`                        // New UID of the process
-	User   string `field:"user,ResolveSetuidUser"`     // New user of the process
-	EUID   uint32 `field:"euid"`                       // New effective UID of the process
-	EUser  string `field:"euser,ResolveSetuidEUser"`   // New effective user of the process
-	FSUID  uint32 `field:"fsuid"`                      // New FileSystem UID of the process
-	FSUser string `field:"fsuser,ResolveSetuidFSUser"` // New FileSystem user of the process
-}
-
-// SetgidEvent represents a setgid event
-//msgp:ignore SetgidEvent
-type SetgidEvent struct {
-	GID     uint32 `field:"gid"`                          // New GID of the process
-	Group   string `field:"group,ResolveSetgidGroup"`     // New group of the process
-	EGID    uint32 `field:"egid"`                         // New effective GID of the process
-	EGroup  string `field:"egroup,ResolveSetgidEGroup"`   // New effective group of the process
-	FSGID   uint32 `field:"fsgid"`                        // New FileSystem GID of the process
-	FSGroup string `field:"fsgroup,ResolveSetgidFSGroup"` // New FileSystem group of the process
-}
-
-// CapsetEvent represents a capset event
-//msgp:ignore CapsetEvent
-type CapsetEvent struct {
-	CapEffective uint64 `field:"cap_effective"` // Effective capability set of the process
-	CapPermitted uint64 `field:"cap_permitted"` // Permitted capability set of the process
-}
-
-// Credentials represents the kernel credentials of a process
-type Credentials struct {
-	UID   uint32 `field:"uid" msg:"uid"`     // UID of the process
-	GID   uint32 `field:"gid" msg:"gid"`     // GID of the process
-	User  string `field:"user" msg:"user"`   // User of the process
-	Group string `field:"group" msg:"group"` // Group of the process
-
-	EUID   uint32 `field:"euid" msg:"euid"`     // Effective UID of the process
-	EGID   uint32 `field:"egid" msg:"egid"`     // Effective GID of the process
-	EUser  string `field:"euser" msg:"euser"`   // Effective user of the process
-	EGroup string `field:"egroup" msg:"egroup"` // Effective group of the process
-
-	FSUID   uint32 `field:"fsuid" msg:"fsuid"`     // FileSystem-uid of the process
-	FSGID   uint32 `field:"fsgid" msg:"fsgid"`     // FileSystem-gid of the process
-	FSUser  string `field:"fsuser" msg:"fsuser"`   // FileSystem-user of the process
-	FSGroup string `field:"fsgroup" msg:"fsgroup"` // FileSystem-group of the process
-
-	CapEffective uint64 `field:"cap_effective" msg:"cap_effective"` // Effective capability set of the process
-	CapPermitted uint64 `field:"cap_permitted" msg:"cap_permitted"` // Permitted capability set of the process
-}
-
-// GetPathResolutionError returns the path resolution error as a string if there is one
-func (e *Process) GetPathResolutionError() string {
-	if e.PathResolutionError != nil {
-		return e.PathResolutionError.Error()
+// Retain the event
+func (e *Event) Retain() Event {
+	if e.ProcessCacheEntry != nil {
+		e.ProcessCacheEntry.Retain()
 	}
-	return ""
+	return *e
 }
 
-// Process represents a process
-type Process struct {
-	// proc_cache_t
-	FileFields FileFields `field:"file" msg:"file"`
-
-	Pid   uint32 `field:"pid" msg:"pid"` // Process ID of the process (also called thread group ID)
-	Tid   uint32 `field:"tid" msg:"tid"` // Thread ID of the thread
-	NetNS uint32 `field:"-" msg:"-"`
-
-	PathnameStr         string `field:"file.path" msg:"path"`             // Path of the process executable
-	BasenameStr         string `field:"file.name" msg:"name"`             // Basename of the path of the process executable
-	Filesystem          string `field:"file.filesystem" msg:"filesystem"` // FileSystem of the process executable
-	PathResolutionError error  `field:"-" msg:"-"`
-
-	ContainerID   string   `field:"container.id" msg:"container_id"` // Container ID
-	ContainerTags []string `field:"-" msg:"container_tags"`
-
-	TTYName string `field:"tty_name" msg:"tty"` // Name of the TTY associated with the process
-	Comm    string `field:"comm" msg:"comm"`    // Comm attribute of the process
-
-	// pid_cache_t
-	ForkTime time.Time `field:"-" msg:"fork_time"`
-	ExitTime time.Time `field:"-" msg:"exit_time"`
-	ExecTime time.Time `field:"-" msg:"exec_time"`
-
-	CreatedAt uint64 `field:"created_at,ResolveProcessCreatedAt" msg:"created_at"` // Timestamp of the creation of the process
-
-	Cookie uint32 `field:"cookie" msg:"cookie"` // Cookie of the process
-	PPid   uint32 `field:"ppid" msg:"ppid"`     // Parent process ID
-
-	// credentials_t section of pid_cache_t
-	Credentials `msg:"credentials"`
-
-	ArgsID uint32 `field:"-" msg:"-"`
-	EnvsID uint32 `field:"-" msg:"-"`
-
-	ArgsEntry *ArgsEntry `field:"-" msg:"args"`
-	EnvsEntry *EnvsEntry `field:"-" msg:"envs"`
-
-	// defined to generate accessors, ArgsTruncated and EnvsTruncated are used during by unmarshaller
-	Argv0         string   `field:"argv0,ResolveProcessArgv0:100" msg:"-"`                                                                                                                                     // First argument of the process
-	Args          string   `field:"args,ResolveProcessArgs:100" msg:"-"`                                                                                                                                       // Arguments of the process (as a string)
-	Argv          []string `field:"argv,ResolveProcessArgv:100" field:"args_flags,ResolveProcessArgsFlags,,cacheless_resolution" field:"args_options,ResolveProcessArgsOptions,,cacheless_resolution" msg:"-"` // Arguments of the process (as an array)
-	ArgsTruncated bool     `field:"args_truncated,ResolveProcessArgsTruncated" msg:"-"`                                                                                                                        // Indicator of arguments truncation
-	Envs          []string `field:"envs,ResolveProcessEnvs:100" msg:"-"`                                                                                                                                       // Environment variable names of the process
-	Envp          []string `field:"envp,ResolveProcessEnvp:100" msg:"-"`                                                                                                                                       // Environment variables of the process
-	EnvsTruncated bool     `field:"envs_truncated,ResolveProcessEnvsTruncated" msg:"-"`                                                                                                                        // Indicator of environment variables truncation
-
-	// cache version
-	ScrubbedArgvResolved  bool           `field:"-" msg:"-"`
-	ScrubbedArgv          []string       `field:"-" msg:"-"`
-	ScrubbedArgsTruncated bool           `field:"-" msg:"-"`
-	Variables             eval.Variables `field:"-" msg:"-"`
-}
-
-// SpanContext describes a span context
-type SpanContext struct {
-	SpanID  uint64 `field:"_" msg:"span_id"`
-	TraceID uint64 `field:"_" msg:"trace_id"`
-}
-
-// ExecEvent represents a exec event
-//msgp:ignore ExecEvent
-type ExecEvent struct {
-	Process
-}
-
-// FileFields holds the information required to identify a file
-type FileFields struct {
-	UID   uint32 `field:"uid" msg:"uid"`                                                      // UID of the file's owner
-	User  string `field:"user,ResolveFileFieldsUser" msg:"user"`                              // User of the file's owner
-	GID   uint32 `field:"gid" msg:"gid"`                                                      // GID of the file's owner
-	Group string `field:"group,ResolveFileFieldsGroup" msg:"group"`                           // Group of the file's owner
-	Mode  uint16 `field:"mode" field:"rights,ResolveRights,,cacheless_resolution" msg:"mode"` // Mode/rights of the file
-	CTime uint64 `field:"change_time" msg:"ctime"`                                            // Change time of the file
-	MTime uint64 `field:"modification_time" msg:"mtime"`                                      // Modification time of the file
-
-	MountID      uint32 `field:"mount_id" msg:"mount_id"`                                           // Mount ID of the file
-	Inode        uint64 `field:"inode" msg:"inode"`                                                 // Inode of the file
-	InUpperLayer bool   `field:"in_upper_layer,ResolveFileFieldsInUpperLayer" msg:"in_upper_layer"` // Indicator of the file layer, in an OverlayFS for example
-
-	NLink  uint32 `field:"-" msg:"-"`
-	PathID uint32 `field:"-" msg:"-"`
-	Flags  int32  `field:"-" msg:"-"`
-}
-
-// HasHardLinks returns whether the file has hardlink
-func (f *FileFields) HasHardLinks() bool {
-	return f.NLink > 1
-}
-
-// GetInLowerLayer returns whether a file is in a lower layer
-func (f *FileFields) GetInLowerLayer() bool {
-	return f.Flags&LowerLayer != 0
-}
-
-// GetInUpperLayer returns whether a file is in the upper layer
-func (f *FileFields) GetInUpperLayer() bool {
-	return f.Flags&UpperLayer != 0
-}
-
-// FileEvent is the common file event type
-type FileEvent struct {
-	FileFields
-	PathnameStr string `field:"path,ResolveFilePath" msg:"path"`                   // File's path
-	BasenameStr string `field:"name,ResolveFileBasename" msg:"name"`               // File's basename
-	Filesytem   string `field:"filesystem,ResolveFileFilesystem" msg:"filesystem"` // File's filesystem
-
-	PathResolutionError error `field:"-" msg:"-"`
-}
-
-// GetPathResolutionError returns the path resolution error as a string if there is one
-func (e *FileEvent) GetPathResolutionError() string {
-	if e.PathResolutionError != nil {
-		return e.PathResolutionError.Error()
+// Release the event
+func (e *Event) Release() {
+	if e.ProcessCacheEntry != nil {
+		e.ProcessCacheEntry.Release()
 	}
-	return ""
 }
 
-// InvalidateDentryEvent defines a invalidate dentry event
-//msgp:ignore InvalidateDentryEvent
-type InvalidateDentryEvent struct {
-	Inode             uint64
-	MountID           uint32
-	DiscarderRevision uint32
+// ResolveProcessCacheEntry uses the field handler
+func (e *Event) ResolveProcessCacheEntry() (*ProcessCacheEntry, bool) {
+	return e.FieldHandlers.ResolveProcessCacheEntry(e)
 }
 
-// MountReleasedEvent defines a mount released event
-//msgp:ignore MountReleasedEvent
-type MountReleasedEvent struct {
-	MountID           uint32
-	DiscarderRevision uint32
+// ResolveEventTime uses the field handler
+func (e *Event) ResolveEventTime() time.Time {
+	return e.FieldHandlers.ResolveEventTime(e)
 }
 
-// LinkEvent represents a link event
-//msgp:ignore LinkEvent
-type LinkEvent struct {
-	SyscallEvent
-	Source FileEvent `field:"file"`
-	Target FileEvent `field:"file.destination"`
+// GetProcessService uses the field handler
+func (e *Event) GetProcessService() string {
+	return e.FieldHandlers.GetProcessService(e)
 }
 
-// MkdirEvent represents a mkdir event
-//msgp:ignore MkdirEvent
-type MkdirEvent struct {
-	SyscallEvent
-	File FileEvent `field:"file"`
-	Mode uint32    `field:"file.destination.mode" field:"file.destination.rights"` // Mode/rights of the new directory
+// MatchedRule contains the identification of one rule that has match
+type MatchedRule struct {
+	RuleID        string
+	RuleVersion   string
+	RuleTags      map[string]string
+	PolicyName    string
+	PolicyVersion string
 }
 
-// ArgsEnvsEvent defines a args/envs event
-//msgp:ignore ArgsEnvsEvent
-type ArgsEnvsEvent struct {
-	ArgsEnvs
-}
-
-// MountEvent represents a mount event
-//msgp:ignore MountEvent
-type MountEvent struct {
-	SyscallEvent
-	MountID                       uint32
-	GroupID                       uint32
-	Device                        uint32
-	ParentMountID                 uint32
-	ParentInode                   uint64
-	FSType                        string
-	MountPointStr                 string
-	MountPointPathResolutionError error
-	RootMountID                   uint32
-	RootInode                     uint64
-	RootStr                       string
-	RootPathResolutionError       error
-
-	FSTypeRaw [16]byte
-}
-
-// GetFSType returns the filesystem type of the mountpoint
-func (m *MountEvent) GetFSType() string {
-	return m.FSType
-}
-
-// IsOverlayFS returns whether it is an overlay fs
-func (m *MountEvent) IsOverlayFS() bool {
-	return m.GetFSType() == "overlay"
-}
-
-// GetRootPathResolutionError returns the root path resolution error as a string if there is one
-func (m *MountEvent) GetRootPathResolutionError() string {
-	if m.RootPathResolutionError != nil {
-		return m.RootPathResolutionError.Error()
+// NewMatchedRule return a new MatchedRule instance
+func NewMatchedRule(ruleID, ruleVersion string, ruleTags map[string]string, policyName, policyVersion string) *MatchedRule {
+	return &MatchedRule{
+		RuleID:        ruleID,
+		RuleVersion:   ruleVersion,
+		RuleTags:      ruleTags,
+		PolicyName:    policyName,
+		PolicyVersion: policyVersion,
 	}
-	return ""
 }
 
-// GetMountPointPathResolutionError returns the mount point path resolution error as a string if there is one
-func (m *MountEvent) GetMountPointPathResolutionError() string {
-	if m.MountPointPathResolutionError != nil {
-		return m.MountPointPathResolutionError.Error()
+// Match returns true if the rules are equal
+func (mr *MatchedRule) Match(mr2 *MatchedRule) bool {
+	if mr2 == nil ||
+		mr.RuleID != mr2.RuleID ||
+		mr.RuleVersion != mr2.RuleVersion ||
+		mr.PolicyName != mr2.PolicyName ||
+		mr.PolicyVersion != mr2.PolicyVersion {
+		return false
 	}
-	return ""
+	return true
 }
 
-// OpenEvent represents an open event
-//msgp:ignore OpenEvent
-type OpenEvent struct {
-	SyscallEvent
-	File  FileEvent `field:"file"`
-	Flags uint32    `field:"flags"`                 // Flags used when opening the file
-	Mode  uint32    `field:"file.destination.mode"` // Mode of the created file
+// AppendMatchedRule appends two lists, but avoiding duplicates
+func AppendMatchedRule(list []*MatchedRule, toAdd []*MatchedRule) []*MatchedRule {
+	for _, ta := range toAdd {
+		found := false
+		for _, l := range list {
+			if l.Match(ta) { // rule already present
+				found = true
+				break
+			}
+		}
+		if !found {
+			list = append(list, ta)
+		}
+	}
+	return list
 }
 
-// SELinuxEventKind represents the event kind for SELinux events
-//msgp:ignore SELinuxEventKind
-type SELinuxEventKind uint32
+// HashState is used to prevent the hash resolver from retrying to hash a file
+type HashState int
 
 const (
-	// SELinuxBoolChangeEventKind represents SELinux boolean change events
-	SELinuxBoolChangeEventKind SELinuxEventKind = iota
-	// SELinuxStatusChangeEventKind represents SELinux status change events
-	SELinuxStatusChangeEventKind
-	// SELinuxBoolCommitEventKind represents SELinux boolean commit events
-	SELinuxBoolCommitEventKind
+	// NoHash means that computing a hash hasn't been attempted
+	NoHash HashState = iota
+	// Done means that the hashes were already computed
+	Done
+	// FileNotFound means that the underlying file is not longer available to compute the hash
+	FileNotFound
+	// PathnameResolutionError means that the underlying file wasn't properly resolved
+	PathnameResolutionError
+	// FileTooBig means that the underlying file is larger than the hash resolver file size limit
+	FileTooBig
+	// FileEmpty means that the underlying file is empty
+	FileEmpty
+	// FileOpenError is a generic hash state to say that we couldn't open the file
+	FileOpenError
+	// EventTypeNotConfigured means that the event type prevents a hash from being computed
+	EventTypeNotConfigured
+	// HashWasRateLimited means that the hash will be tried again later, it was rate limited
+	HashWasRateLimited
+	// MaxHashState is used for initializations
+	MaxHashState
 )
 
-// SELinuxEvent represents a selinux event
-//msgp:ignore SELinuxEvent
-type SELinuxEvent struct {
-	File            FileEvent        `field:"-"`
-	EventKind       SELinuxEventKind `field:"-"`
-	BoolName        string           `field:"bool.name,ResolveSELinuxBoolName"` // SELinux boolean name
-	BoolChangeValue string           `field:"bool.state"`                       // SELinux boolean new value
-	BoolCommitValue bool             `field:"bool_commit.state"`                // Indicator of a SELinux boolean commit operation
-	EnforceStatus   string           `field:"enforce.status"`                   // SELinux enforcement status (one of "enforcing", "permissive", "disabled"")
+// HashAlgorithm is used to configure the hash algorithms of the hash resolver
+type HashAlgorithm int
+
+const (
+	// SHA1 is used to identify a SHA1 hash
+	SHA1 HashAlgorithm = iota
+	// SHA256 is used to identify a SHA256 hash
+	SHA256
+	// MD5 is used to identify a MD5 hash
+	MD5
+	// MaxHashAlgorithm is used for initializations
+	MaxHashAlgorithm
+)
+
+func (ha HashAlgorithm) String() string {
+	switch ha {
+	case SHA1:
+		return "sha1"
+	case SHA256:
+		return "sha256"
+	case MD5:
+		return "md5"
+	default:
+		return ""
+	}
 }
 
 var zeroProcessContext ProcessContext
@@ -501,9 +455,14 @@ var zeroProcessContext ProcessContext
 type ProcessCacheEntry struct {
 	ProcessContext
 
-	refCount  uint64                     `field:"-" msg:"-"`
-	onRelease func(_ *ProcessCacheEntry) `field:"-" msg:"-"`
-	releaseCb func()                     `field:"-" msg:"-"`
+	refCount  uint64                     `field:"-" json:"-"`
+	onRelease func(_ *ProcessCacheEntry) `field:"-" json:"-"`
+	releaseCb func()                     `field:"-" json:"-"`
+}
+
+// IsContainerRoot returns whether this is a top level process in the container ID
+func (pc *ProcessCacheEntry) IsContainerRoot() bool {
+	return pc.ContainerID != "" && pc.Ancestor != nil && pc.Ancestor.ContainerID == ""
 }
 
 // Reset the entry
@@ -520,7 +479,13 @@ func (pc *ProcessCacheEntry) Retain() {
 
 // SetReleaseCallback set the callback called when the entry is released
 func (pc *ProcessCacheEntry) SetReleaseCallback(callback func()) {
-	pc.releaseCb = callback
+	previousCallback := pc.releaseCb
+	pc.releaseCb = func() {
+		callback()
+		if previousCallback != nil {
+			previousCallback()
+		}
+	}
 }
 
 // Release decrement and eventually release the entry
@@ -545,14 +510,13 @@ func NewProcessCacheEntry(onRelease func(_ *ProcessCacheEntry)) *ProcessCacheEnt
 }
 
 // ProcessAncestorsIterator defines an iterator of ancestors
-//msgp:ignore ProcessAncestorsIterator
 type ProcessAncestorsIterator struct {
 	prev *ProcessCacheEntry
 }
 
 // Front returns the first element
 func (it *ProcessAncestorsIterator) Front(ctx *eval.Context) unsafe.Pointer {
-	if front := (*Event)(ctx.Object).ProcessContext.Ancestor; front != nil {
+	if front := ctx.Event.(*Event).ProcessContext.Ancestor; front != nil {
 		it.prev = front
 		return unsafe.Pointer(front)
 	}
@@ -570,246 +534,66 @@ func (it *ProcessAncestorsIterator) Next() unsafe.Pointer {
 	return nil
 }
 
+// HasParent returns whether the process has a parent
+func (p *ProcessContext) HasParent() bool {
+	return p.Parent != nil
+}
+
 // ProcessContext holds the process context of an event
 type ProcessContext struct {
 	Process
 
-	Ancestor *ProcessCacheEntry `field:"ancestors,,ProcessAncestorsIterator" msg:"ancestor"`
+	Parent   *Process           `field:"parent,opts:exposed_at_event_root_only,check:HasParent"`
+	Ancestor *ProcessCacheEntry `field:"ancestors,iterator:ProcessAncestorsIterator,check:IsNotKworker"`
 }
 
-// RenameEvent represents a rename event
-//msgp:ignore RenameEvent
-type RenameEvent struct {
-	SyscallEvent
-	Old               FileEvent `field:"file"`
-	New               FileEvent `field:"file.destination"`
-	DiscarderRevision uint32    `field:"-"`
-}
-
-// RmdirEvent represents a rmdir event
-//msgp:ignore RmdirEvent
-type RmdirEvent struct {
-	SyscallEvent
-	File              FileEvent `field:"file"`
-	DiscarderRevision uint32    `field:"-"`
-}
-
-// SetXAttrEvent represents an extended attributes event
-//msgp:ignore SetXAttrEvent
-type SetXAttrEvent struct {
-	SyscallEvent
-	File      FileEvent `field:"file"`
-	Namespace string    `field:"file.destination.namespace,ResolveXAttrNamespace"` // Namespace of the extended attribute
-	Name      string    `field:"file.destination.name,ResolveXAttrName"`           // Name of the extended attribute
-
-	NameRaw [200]byte `field:"-"`
-}
-
-// SyscallEvent contains common fields for all the event
-type SyscallEvent struct {
-	Retval int64 `field:"retval" msg:"retval"` // Return value of the syscall
-}
-
-// UnlinkEvent represents an unlink event
-//msgp:ignore UnlinkEvent
-type UnlinkEvent struct {
-	SyscallEvent
-	File              FileEvent `field:"file"`
-	Flags             uint32    `field:"-"`
-	DiscarderRevision uint32    `field:"-"`
-}
-
-// UmountEvent represents an umount event
-//msgp:ignore UmountEvent
-type UmountEvent struct {
-	SyscallEvent
-	MountID uint32
-}
-
-// UtimesEvent represents a utime event
-//msgp:ignore UtimesEvent
-type UtimesEvent struct {
-	SyscallEvent
-	File  FileEvent `field:"file"`
-	Atime time.Time `field:"-"`
-	Mtime time.Time `field:"-"`
-}
-
-// BPFEvent represents a BPF event
-//msgp:ignore BPFEvent
-type BPFEvent struct {
-	SyscallEvent
-
-	Map     BPFMap     `field:"map"`  // eBPF map involved in the BPF command
-	Program BPFProgram `field:"prog"` // eBPF program involved in the BPF command
-	Cmd     uint32     `field:"cmd"`  // BPF command name
-}
-
-// BPFMap represents a BPF map
-//msgp:ignore BPFMap
-type BPFMap struct {
-	ID   uint32 `field:"-"`    // ID of the eBPF map
-	Type uint32 `field:"type"` // Type of the eBPF map
-	Name string `field:"name"` // Name of the eBPF map (added in 7.35)
-}
-
-// BPFProgram represents a BPF program
-//msgp:ignore BPFProgram
-type BPFProgram struct {
-	ID         uint32   `field:"-"`                      // ID of the eBPF program
-	Type       uint32   `field:"type"`                   // Type of the eBPF program
-	AttachType uint32   `field:"attach_type"`            // Attach type of the eBPF program
-	Helpers    []uint32 `field:"helpers,ResolveHelpers"` // eBPF helpers used by the eBPF program (added in 7.35)
-	Name       string   `field:"name"`                   // Name of the eBPF program (added in 7.35)
-	Tag        string   `field:"tag"`                    // Hash (sha1) of the eBPF program (added in 7.35)
-}
-
-// PTraceEvent represents a ptrace event
-//msgp:ignore PTraceEvent
-type PTraceEvent struct {
-	SyscallEvent
-
-	Request uint32         `field:"request"` //  ptrace request
-	PID     uint32         `field:"-"`
-	Address uint64         `field:"-"`
-	Tracee  ProcessContext `field:"tracee"` // process context of the tracee
-}
-
-// MMapEvent represents a mmap event
-//msgp:ignore MMapEvent
-type MMapEvent struct {
-	SyscallEvent
-
-	File       FileEvent `field:"file"`
-	Addr       uint64    `field:"-"`
-	Offset     uint64    `field:"-"`
-	Len        uint32    `field:"-"`
-	Protection int       `field:"protection"` // memory segment protection
-	Flags      int       `field:"flags"`      // memory segment flags
-}
-
-// MProtectEvent represents a mprotect event
-//msgp:ignore MProtectEvent
-type MProtectEvent struct {
-	SyscallEvent
-
-	VMStart       uint64 `field:"-"`
-	VMEnd         uint64 `field:"-"`
-	VMProtection  int    `field:"vm_protection"`  // initial memory segment protection
-	ReqProtection int    `field:"req_protection"` // new memory segment protection
-}
-
-// LoadModuleEvent represents a load_module event
-//msgp:ignore LoadModuleEvent
-type LoadModuleEvent struct {
-	SyscallEvent
-
-	File             FileEvent `field:"file"`               // Path to the kernel module file
-	LoadedFromMemory bool      `field:"loaded_from_memory"` // Indicates if the kernel module was loaded from memory
-	Name             string    `field:"name"`               // Name of the new kernel module
-}
-
-// UnloadModuleEvent represents an unload_module event
-//msgp:ignore UnloadModuleEvent
-type UnloadModuleEvent struct {
-	SyscallEvent
-
-	Name string `field:"name"` // Name of the kernel module that was deleted
-}
-
-// SignalEvent represents a signal event
-//msgp:ignore SignalEvent
-type SignalEvent struct {
-	SyscallEvent
-
-	Type   uint32         `field:"type"`   // Signal type (ex: SIGHUP, SIGINT, SIGQUIT, etc)
-	PID    uint32         `field:"pid"`    // Target PID
-	Target ProcessContext `field:"target"` // Target process context
-}
-
-// SpliceEvent represents a splice event
-//msgp:ignore SpliceEvent
-type SpliceEvent struct {
-	SyscallEvent
-
-	File          FileEvent `field:"file"`            // File modified by the splice syscall
-	PipeEntryFlag uint32    `field:"pipe_entry_flag"` // Entry flag of the "fd_out" pipe passed to the splice syscall
-	PipeExitFlag  uint32    `field:"pipe_exit_flag"`  // Exit flag of the "fd_out" pipe passed to the splice syscall
-}
-
-// CgroupTracingEvent is used to signal that a new cgroup should be traced by the activity dump manager
-//msgp:ignore CgroupTracingEvent
-type CgroupTracingEvent struct {
-	ContainerContext ContainerContext
-	TimeoutRaw       uint64
-}
-
-// NetworkDeviceContext represents the network device context of a network event
-//msgp:ignore NetworkDeviceContext
-type NetworkDeviceContext struct {
-	NetNS   uint32 `field:"-"`
-	IfIndex uint32 `field:"ifindex"`                           // interface ifindex
-	IfName  string `field:"ifname,ResolveNetworkDeviceIfName"` // interface ifname
-}
-
-// IPPortContext is used to hold an IP and Port
-//msgp:ignore IPPortContext
-type IPPortContext struct {
-	IP   net.IP `field:"-"`
-	Port uint16 `field:"port"` // Port number
-}
-
-// NetworkContext represents the network context of the event
-//msgp:ignore NetworkContext
-type NetworkContext struct {
-	Device NetworkDeviceContext `field:"device"` // network device on which the network packet was captured
-
-	L3Protocol  uint16        `field:"l3_protocol"` // l3 protocol of the network packet
-	L4Protocol  uint16        `field:"l4_protocol"` // l4 protocol of the network packet
-	Source      IPPortContext `field:"source"`      // source of the network packet
-	Destination IPPortContext `field:"destination"` // destination of the network packet
-	Size        uint32        `field:"size"`        // size in bytes of the network packet
+// ExitEvent represents a process exit event
+type ExitEvent struct {
+	*Process
+	Cause uint32 `field:"cause"` // SECLDoc[cause] Definition:`Cause of the process termination (one of EXITED, SIGNALED, COREDUMPED)`
+	Code  uint32 `field:"code"`  // SECLDoc[code] Definition:`Exit code of the process or number of the signal that caused the process to terminate`
 }
 
 // DNSEvent represents a DNS event
-//msgp:ignore DNSEvent
 type DNSEvent struct {
-	ID    uint16 `field:"-"`
-	Name  string `field:"question.name"`  // the queried domain name
-	Type  uint16 `field:"question.type"`  // a two octet code which specifies the DNS question type
-	Class uint16 `field:"question.class"` // the class looked up by the DNS question
-	Size  uint16 `field:"question.size"`  // the total DNS request size in bytes
-	Count uint16 `field:"question.count"` // the total count of questions in the DNS request
+	ID    uint16 `field:"id" json:"-"`                                             // SECLDoc[id] Definition:`[Experimental] the DNS request ID`
+	Name  string `field:"question.name,opts:length" op_override:"eval.DNSNameCmp"` // SECLDoc[question.name] Definition:`the queried domain name`
+	Type  uint16 `field:"question.type"`                                           // SECLDoc[question.type] Definition:`a two octet code which specifies the DNS question type` Constants:`DNS qtypes`
+	Class uint16 `field:"question.class"`                                          // SECLDoc[question.class] Definition:`the class looked up by the DNS question` Constants:`DNS qclasses`
+	Size  uint16 `field:"question.length"`                                         // SECLDoc[question.length] Definition:`the total DNS request size in bytes`
+	Count uint16 `field:"question.count"`                                          // SECLDoc[question.count] Definition:`the total count of questions in the DNS request`
 }
 
-// NetDevice represents a network device
-//msgp:ignore NetDevice
-type NetDevice struct {
-	Name        string
-	NetNS       uint32
-	IfIndex     uint32
-	PeerNetNS   uint32
-	PeerIfIndex uint32
+// ExtraFieldHandlers handlers not hold by any field
+type ExtraFieldHandlers interface {
+	ResolveProcessCacheEntry(ev *Event) (*ProcessCacheEntry, bool)
+	ResolveContainerContext(ev *Event) (*ContainerContext, bool)
+	ResolveEventTime(ev *Event) time.Time
+	GetProcessService(ev *Event) string
+	ResolveHashes(eventType EventType, process *Process, file *FileEvent) []string
 }
 
-// GetKey returns a key to uniquely identify a network device on the system
-func (d NetDevice) GetKey() string {
-	return fmt.Sprintf("%v_%v", d.IfIndex, d.NetNS)
+// ResolveProcessCacheEntry stub implementation
+func (dfh *DefaultFieldHandlers) ResolveProcessCacheEntry(ev *Event) (*ProcessCacheEntry, bool) {
+	return nil, false
 }
 
-// NetDeviceEvent represents a network device event
-//msgp:ignore NetDeviceEvent
-type NetDeviceEvent struct {
-	SyscallEvent
-
-	Device NetDevice
+// ResolveContainerContext stub implementation
+func (dfh *DefaultFieldHandlers) ResolveContainerContext(ev *Event) (*ContainerContext, bool) {
+	return nil, false
 }
 
-// VethPairEvent represents a veth pair event
-//msgp:ignore VethPairEvent
-type VethPairEvent struct {
-	SyscallEvent
+// ResolveEventTime stub implementation
+func (dfh *DefaultFieldHandlers) ResolveEventTime(ev *Event) time.Time {
+	return ev.Timestamp
+}
 
-	HostDevice NetDevice
-	PeerDevice NetDevice
+// GetProcessService stub implementation
+func (dfh *DefaultFieldHandlers) GetProcessService(ev *Event) string {
+	return ""
+}
+
+// ResolveHashes resolves the hash of the provided file
+func (dfh *DefaultFieldHandlers) ResolveHashes(eventType EventType, process *Process, file *FileEvent) []string {
+	return nil
 }

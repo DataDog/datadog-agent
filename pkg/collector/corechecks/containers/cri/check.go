@@ -4,8 +4,8 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build cri
-// +build cri
 
+// Package cri implements the cri check.
 package cri
 
 import (
@@ -13,14 +13,15 @@ import (
 
 	yaml "gopkg.in/yaml.v2"
 
-	"github.com/DataDog/datadog-agent/pkg/aggregator"
+	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/containers/generic"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/containers/cri"
-	"github.com/DataDog/datadog-agent/pkg/util/containers/v2/metrics"
+	"github.com/DataDog/datadog-agent/pkg/util/containers/metrics"
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
 )
@@ -63,9 +64,9 @@ func (c *CRIConfig) Parse(data []byte) error {
 }
 
 // Configure parses the check configuration and init the check
-func (c *CRICheck) Configure(config, initConfig integration.Data, source string) error {
+func (c *CRICheck) Configure(senderManager sender.SenderManager, integrationConfigDigest uint64, config, initConfig integration.Data, source string) error {
 	var err error
-	if err = c.CommonConfigure(config, source); err != nil {
+	if err = c.CommonConfigure(senderManager, integrationConfigDigest, initConfig, config, source); err != nil {
 		return err
 	}
 
@@ -96,10 +97,10 @@ func (c *CRICheck) Run() error {
 	}
 	defer sender.Commit()
 
-	return c.processor.Run(sender, cacheValidity)
+	return c.runProcessor(sender)
 }
 
-func (c *CRICheck) runProcessor(sender aggregator.Sender) error {
+func (c *CRICheck) runProcessor(sender sender.Sender) error {
 	return c.processor.Run(sender, cacheValidity)
 }
 
@@ -108,7 +109,7 @@ func getProcessorFilter(legacyFilter *containers.Filter) generic.ContainerFilter
 	return generic.ANDContainerFilter{
 		Filters: []generic.ContainerFilter{
 			generic.FuncContainerFilter(func(container *workloadmeta.Container) bool {
-				return container.Labels["io.kubernetes.pod.namespace"] == ""
+				return container.Labels[kubernetes.CriContainerNamespaceLabel] == ""
 			}),
 			generic.LegacyContainerFilter{OldFilter: legacyFilter},
 		},

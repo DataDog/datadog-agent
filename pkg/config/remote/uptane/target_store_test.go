@@ -8,14 +8,16 @@ package uptane
 import (
 	"testing"
 
-	"github.com/DataDog/datadog-agent/pkg/proto/pbgo"
 	"github.com/stretchr/testify/assert"
+
+	pbgo "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
 )
 
 func TestTargetStore(t *testing.T) {
-	db := getTestDB()
-	store, err := newTargetStore(db, "testcachekey")
-	assert.NoError(t, err)
+	db := newTransactionalStore(getTestDB(t))
+	defer db.commit()
+
+	store := newTargetStore(db, "testcachekey")
 
 	target1 := &pbgo.File{
 		Path: "2/APM_SAMPLING/target1",

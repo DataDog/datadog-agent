@@ -3,9 +3,9 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build linux
-// +build linux
+//go:build linux && linux_bpf
 
+// Package constantfetch holds constantfetch related files
 package constantfetch
 
 import (
@@ -13,18 +13,20 @@ import (
 	"io"
 	"strings"
 
-	cbtf "github.com/DataDog/btf-internals/btf"
+	"github.com/cilium/ebpf/btf"
+
+	"github.com/DataDog/datadog-agent/pkg/ebpf"
 )
 
 // BTFConstantFetcher is a constant fetcher based on BTF data (from file or current kernel)
 type BTFConstantFetcher struct {
-	spec      *cbtf.Spec
+	spec      *btf.Spec
 	constants map[string]uint64
 	err       error
 }
 
 // NewBTFConstantFetcherFromSpec creates a BTFConstantFetcher directly from a BTF spec
-func NewBTFConstantFetcherFromSpec(spec *cbtf.Spec) *BTFConstantFetcher {
+func NewBTFConstantFetcherFromSpec(spec *btf.Spec) *BTFConstantFetcher {
 	return &BTFConstantFetcher{
 		spec:      spec,
 		constants: make(map[string]uint64),
@@ -33,7 +35,7 @@ func NewBTFConstantFetcherFromSpec(spec *cbtf.Spec) *BTFConstantFetcher {
 
 // NewBTFConstantFetcherFromReader creates a BTFConstantFetcher from a reader pointing to a BTF file
 func NewBTFConstantFetcherFromReader(btfReader io.ReaderAt) (*BTFConstantFetcher, error) {
-	spec, err := cbtf.LoadSpecFromReader(btfReader)
+	spec, err := btf.LoadSpecFromReader(btfReader)
 	if err != nil {
 		return nil, err
 	}
@@ -42,7 +44,7 @@ func NewBTFConstantFetcherFromReader(btfReader io.ReaderAt) (*BTFConstantFetcher
 
 // NewBTFConstantFetcherFromCurrentKernel creates a BTFConstantFetcher, reading BTF from current kernel
 func NewBTFConstantFetcherFromCurrentKernel() (*BTFConstantFetcher, error) {
-	spec, err := cbtf.LoadKernelSpec()
+	spec, err := ebpf.GetKernelSpec()
 	if err != nil {
 		return nil, err
 	}
@@ -121,8 +123,8 @@ func getActualTypeName(tn string) string {
 	return tn
 }
 
-func runRequestOnBTFType(r constantRequest, ty cbtf.Type) uint64 {
-	sTy, ok := ty.(*cbtf.Struct)
+func runRequestOnBTFType(r constantRequest, ty btf.Type) uint64 {
+	sTy, ok := ty.(*btf.Struct)
 	if !ok {
 		return ErrorSentinel
 	}
@@ -133,7 +135,7 @@ func runRequestOnBTFType(r constantRequest, ty cbtf.Type) uint64 {
 
 	for _, m := range sTy.Members {
 		if m.Name == r.fieldName {
-			return uint64(m.OffsetBits) / 8
+			return uint64(m.Offset.Bytes())
 		}
 	}
 

@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build ignore
-// +build ignore
 
 package main
 
@@ -19,40 +18,44 @@ import (
 
 // context contains the context used to render the config file template
 type context struct {
-	OS                  string
-	Common              bool
-	Agent               bool
-	Python              bool // Sub-option of Agent
-	BothPythonPresent   bool // Sub-option of Agent - Python
-	Metadata            bool
-	InternalProfiling   bool
-	Dogstatsd           bool
-	LogsAgent           bool
-	JMX                 bool
-	Autoconfig          bool
-	Logging             bool
-	Autodiscovery       bool
-	DockerTagging       bool
-	Kubelet             bool
-	KubernetesTagging   bool
-	ECS                 bool
-	Containerd          bool
-	CRI                 bool
-	ProcessAgent        bool
-	SystemProbe         bool
-	KubeApiServer       bool
-	TraceAgent          bool
-	ClusterAgent        bool
-	ClusterChecks       bool
-	AdmissionController bool
-	CloudFoundryBBS     bool
-	CloudFoundryCC      bool
-	Compliance          bool
-	SNMP                bool
-	SecurityModule      bool
-	SecurityAgent       bool
-	NetworkModule       bool // Sub-module of System Probe
-	PrometheusScrape    bool
+	OS                               string
+	Common                           bool
+	Agent                            bool
+	Python                           bool // Sub-option of Agent
+	BothPythonPresent                bool // Sub-option of Agent - Python
+	Metadata                         bool
+	InternalProfiling                bool
+	Dogstatsd                        bool
+	LogsAgent                        bool
+	JMX                              bool
+	Autoconfig                       bool
+	Logging                          bool
+	Autodiscovery                    bool
+	DockerTagging                    bool
+	Kubelet                          bool
+	KubernetesTagging                bool
+	ECS                              bool
+	Containerd                       bool
+	CRI                              bool
+	ProcessAgent                     bool
+	SystemProbe                      bool
+	KubeApiServer                    bool
+	TraceAgent                       bool
+	ClusterAgent                     bool
+	ClusterChecks                    bool
+	AdmissionController              bool
+	CloudFoundryBBS                  bool
+	CloudFoundryCC                   bool
+	Compliance                       bool
+	SNMP                             bool
+	SecurityModule                   bool
+	SecurityAgent                    bool
+	NetworkModule                    bool // Sub-module of System Probe
+	UniversalServiceMonitoringModule bool // Sub-module of System Probe
+	DataStreamsModule                bool // Sub-module of System Probe
+	PrometheusScrape                 bool
+	OTLP                             bool
+	APMInjection                     bool
 }
 
 func mkContext(buildType string) context {
@@ -83,6 +86,7 @@ func mkContext(buildType string) context {
 		Compliance:        true,
 		SNMP:              true,
 		PrometheusScrape:  true,
+		OTLP:              true,
 	}
 
 	switch buildType {
@@ -93,6 +97,7 @@ func mkContext(buildType string) context {
 		return agentContext
 	case "iot-agent":
 		return context{
+			OS:        runtime.GOOS,
 			Common:    true,
 			Agent:     true,
 			Metadata:  true,
@@ -102,12 +107,16 @@ func mkContext(buildType string) context {
 		}
 	case "system-probe":
 		return context{
-			SystemProbe:    true,
-			NetworkModule:  true,
-			SecurityModule: true,
+			OS:                               runtime.GOOS,
+			SystemProbe:                      true,
+			NetworkModule:                    true,
+			UniversalServiceMonitoringModule: true,
+			DataStreamsModule:                true,
+			SecurityModule:                   true,
 		}
 	case "dogstatsd":
 		return context{
+			OS:                runtime.GOOS,
 			Common:            true,
 			Dogstatsd:         true,
 			DockerTagging:     true,
@@ -119,6 +128,7 @@ func mkContext(buildType string) context {
 		}
 	case "dca":
 		return context{
+			OS:                  runtime.GOOS,
 			ClusterAgent:        true,
 			Common:              true,
 			Logging:             true,
@@ -128,6 +138,7 @@ func mkContext(buildType string) context {
 		}
 	case "dcacf":
 		return context{
+			OS:              runtime.GOOS,
 			ClusterAgent:    true,
 			Common:          true,
 			Logging:         true,
@@ -137,7 +148,13 @@ func mkContext(buildType string) context {
 		}
 	case "security-agent":
 		return context{
+			OS:            runtime.GOOS,
 			SecurityAgent: true,
+		}
+	case "apm-injection":
+		return context{
+			OS:           runtime.GOOS,
+			APMInjection: true,
 		}
 	}
 

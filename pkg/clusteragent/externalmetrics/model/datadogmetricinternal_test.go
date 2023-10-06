@@ -4,17 +4,17 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build kubeapiserver
-// +build kubeapiserver
 
 package model
 
 import (
 	"errors"
-	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"testing"
 	"time"
 
-	datadoghq "github.com/DataDog/datadog-operator/api/v1alpha1"
+	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+
+	datadoghq "github.com/DataDog/datadog-operator/apis/datadoghq/v1alpha1"
 
 	"github.com/stretchr/testify/assert"
 )
@@ -29,73 +29,161 @@ var (
 
 func TestDatadogMetricInternal_UpdateFrom(t *testing.T) {
 	templatedTags = templatedTagsStub
+	currentTime := time.Now()
 	tests := []struct {
 		name                  string
 		ddmInternal           *DatadogMetricInternal
-		newSpec               datadoghq.DatadogMetricSpec
+		new                   datadoghq.DatadogMetric
 		expectedQuery         string
 		expectedResolvedQuery *string
+		expectedTimewindow    time.Duration
 		expectedMaxAge        time.Duration
+		expectedAlwaysActive  bool
+		expectedRetries       int
+		expectedRetryAfter    time.Time
 	}{
 		{
 			name: "same query",
 			ddmInternal: &DatadogMetricInternal{
 				query:         simpleQuery,
 				resolvedQuery: &simpleQuery,
+				Retries:       1,
+				RetryAfter:    currentTime,
 			},
-			newSpec: datadoghq.DatadogMetricSpec{
-				Query: simpleQuery,
+			new: datadoghq.DatadogMetric{
+				Spec: datadoghq.DatadogMetricSpec{
+					Query: simpleQuery,
+				},
 			},
 			expectedQuery:         simpleQuery,
 			expectedResolvedQuery: &simpleQuery,
+			expectedAlwaysActive:  false,
+			expectedRetries:       1,
+			expectedRetryAfter:    currentTime,
+		},
+		{
+			name: "same query - annotation on",
+			ddmInternal: &DatadogMetricInternal{
+				query:         simpleQuery,
+				resolvedQuery: &simpleQuery,
+				Retries:       1,
+				RetryAfter:    currentTime,
+			},
+			new: datadoghq.DatadogMetric{
+				ObjectMeta: v1.ObjectMeta{
+					Annotations: map[string]string{
+						alwaysActiveAnnotation: "true",
+					},
+				},
+				Spec: datadoghq.DatadogMetricSpec{
+					Query: simpleQuery,
+				},
+			},
+			expectedQuery:         simpleQuery,
+			expectedResolvedQuery: &simpleQuery,
+			expectedAlwaysActive:  true,
+			expectedRetries:       1,
+			expectedRetryAfter:    currentTime,
+		},
+		{
+			name: "same query - annotation off",
+			ddmInternal: &DatadogMetricInternal{
+				query:         simpleQuery,
+				resolvedQuery: &simpleQuery,
+				Retries:       1,
+				RetryAfter:    currentTime,
+			},
+			new: datadoghq.DatadogMetric{
+				ObjectMeta: v1.ObjectMeta{
+					Annotations: map[string]string{
+						alwaysActiveAnnotation: "false",
+					},
+				},
+				Spec: datadoghq.DatadogMetricSpec{
+					Query: simpleQuery,
+				},
+			},
+			expectedQuery:         simpleQuery,
+			expectedResolvedQuery: &simpleQuery,
+			expectedAlwaysActive:  false,
+			expectedRetries:       1,
+			expectedRetryAfter:    currentTime,
 		},
 		{
 			name: "new query, no templating",
 			ddmInternal: &DatadogMetricInternal{
 				query:         simpleQuery,
 				resolvedQuery: &simpleQuery,
+				Retries:       1,
+				RetryAfter:    currentTime,
 			},
-			newSpec: datadoghq.DatadogMetricSpec{
-				Query: simpleQueryWithRollup,
+			new: datadoghq.DatadogMetric{
+				Spec: datadoghq.DatadogMetricSpec{
+					Query: simpleQueryWithRollup,
+				},
 			},
 			expectedQuery:         simpleQueryWithRollup,
 			expectedResolvedQuery: &simpleQueryWithRollup,
+			expectedAlwaysActive:  false,
+			expectedRetries:       0,
+			expectedRetryAfter:    time.Time{},
 		},
 		{
 			name: "same query, nil ResolvedQuery",
 			ddmInternal: &DatadogMetricInternal{
 				query:         simpleQuery,
 				resolvedQuery: nil,
+				Retries:       1,
+				RetryAfter:    currentTime,
 			},
-			newSpec: datadoghq.DatadogMetricSpec{
-				Query: simpleQuery,
+			new: datadoghq.DatadogMetric{
+				Spec: datadoghq.DatadogMetricSpec{
+					Query: simpleQuery,
+				},
 			},
 			expectedQuery:         simpleQuery,
 			expectedResolvedQuery: &simpleQuery,
+			expectedAlwaysActive:  false,
+			expectedRetries:       1,
+			expectedRetryAfter:    currentTime,
 		},
 		{
 			name: "new templated query",
 			ddmInternal: &DatadogMetricInternal{
 				query:         simpleQuery,
 				resolvedQuery: &simpleQuery,
+				Retries:       1,
+				RetryAfter:    currentTime,
 			},
-			newSpec: datadoghq.DatadogMetricSpec{
-				Query: templatedQuery,
+			new: datadoghq.DatadogMetric{
+				Spec: datadoghq.DatadogMetricSpec{
+					Query: templatedQuery,
+				},
 			},
 			expectedQuery:         templatedQuery,
 			expectedResolvedQuery: &resolvedQuery,
+			expectedAlwaysActive:  false,
+			expectedRetries:       1,
+			expectedRetryAfter:    currentTime,
 		},
 		{
 			name: "cannot resolve query",
 			ddmInternal: &DatadogMetricInternal{
 				query:         simpleQuery,
 				resolvedQuery: &simpleQuery,
+				Retries:       1,
+				RetryAfter:    currentTime,
 			},
-			newSpec: datadoghq.DatadogMetricSpec{
-				Query: invalidTemplatedQuery,
+			new: datadoghq.DatadogMetric{
+				Spec: datadoghq.DatadogMetricSpec{
+					Query: invalidTemplatedQuery,
+				},
 			},
 			expectedQuery:         invalidTemplatedQuery,
 			expectedResolvedQuery: nil,
+			expectedAlwaysActive:  false,
+			expectedRetries:       0,
+			expectedRetryAfter:    time.Time{},
 		},
 		{
 			name: "new max age",
@@ -103,14 +191,21 @@ func TestDatadogMetricInternal_UpdateFrom(t *testing.T) {
 				MaxAge:        5 * time.Second,
 				query:         simpleQuery,
 				resolvedQuery: &simpleQuery,
+				Retries:       1,
+				RetryAfter:    currentTime,
 			},
-			newSpec: datadoghq.DatadogMetricSpec{
-				MaxAge: v1.Duration{Duration: 10 * time.Second},
-				Query:  simpleQuery,
+			new: datadoghq.DatadogMetric{
+				Spec: datadoghq.DatadogMetricSpec{
+					MaxAge: v1.Duration{Duration: 10 * time.Second},
+					Query:  simpleQuery,
+				},
 			},
 			expectedMaxAge:        10 * time.Second,
 			expectedQuery:         simpleQuery,
 			expectedResolvedQuery: &simpleQuery,
+			expectedAlwaysActive:  false,
+			expectedRetries:       0,
+			expectedRetryAfter:    time.Time{},
 		},
 		{
 			name: "same max age",
@@ -118,14 +213,21 @@ func TestDatadogMetricInternal_UpdateFrom(t *testing.T) {
 				MaxAge:        5 * time.Second,
 				query:         simpleQuery,
 				resolvedQuery: &simpleQuery,
+				Retries:       1,
+				RetryAfter:    currentTime,
 			},
-			newSpec: datadoghq.DatadogMetricSpec{
-				MaxAge: v1.Duration{Duration: 5 * time.Second},
-				Query:  simpleQuery,
+			new: datadoghq.DatadogMetric{
+				Spec: datadoghq.DatadogMetricSpec{
+					MaxAge: v1.Duration{Duration: 5 * time.Second},
+					Query:  simpleQuery,
+				},
 			},
 			expectedMaxAge:        5 * time.Second,
 			expectedQuery:         simpleQuery,
 			expectedResolvedQuery: &simpleQuery,
+			expectedAlwaysActive:  false,
+			expectedRetries:       1,
+			expectedRetryAfter:    currentTime,
 		},
 		{
 			name: "deleted max age",
@@ -133,18 +235,89 @@ func TestDatadogMetricInternal_UpdateFrom(t *testing.T) {
 				MaxAge:        5 * time.Second,
 				query:         simpleQuery,
 				resolvedQuery: &simpleQuery,
+				Retries:       1,
+				RetryAfter:    currentTime,
 			},
-			newSpec: datadoghq.DatadogMetricSpec{
-				Query: simpleQuery,
+			new: datadoghq.DatadogMetric{
+				Spec: datadoghq.DatadogMetricSpec{
+					Query: simpleQuery,
+				},
 			},
 			expectedMaxAge:        0,
 			expectedQuery:         simpleQuery,
 			expectedResolvedQuery: &simpleQuery,
+			expectedAlwaysActive:  false,
+			expectedRetries:       0,
+			expectedRetryAfter:    time.Time{},
+		},
+		{
+			name: "new time window",
+			ddmInternal: &DatadogMetricInternal{
+				TimeWindow:    time.Duration(5 * time.Second),
+				query:         simpleQuery,
+				resolvedQuery: &simpleQuery,
+				Retries:       1,
+				RetryAfter:    currentTime,
+			},
+			new: datadoghq.DatadogMetric{
+				Spec: datadoghq.DatadogMetricSpec{
+					TimeWindow: v1.Duration{Duration: 10 * time.Second},
+					Query:      simpleQuery,
+				},
+			},
+			expectedTimewindow:    10 * time.Second,
+			expectedQuery:         simpleQuery,
+			expectedResolvedQuery: &simpleQuery,
+			expectedAlwaysActive:  false,
+			expectedRetries:       0,
+			expectedRetryAfter:    time.Time{},
+		},
+		{
+			name: "same time window",
+			ddmInternal: &DatadogMetricInternal{
+				TimeWindow:    time.Duration(5 * time.Second),
+				query:         simpleQuery,
+				resolvedQuery: &simpleQuery,
+				Retries:       1,
+				RetryAfter:    currentTime,
+			},
+			new: datadoghq.DatadogMetric{
+				Spec: datadoghq.DatadogMetricSpec{
+					TimeWindow: v1.Duration{Duration: 5 * time.Second},
+					Query:      simpleQuery,
+				},
+			},
+			expectedTimewindow:    5 * time.Second,
+			expectedQuery:         simpleQuery,
+			expectedResolvedQuery: &simpleQuery,
+			expectedAlwaysActive:  false,
+			expectedRetries:       1,
+			expectedRetryAfter:    currentTime,
+		},
+		{
+			name: "deleted time window",
+			ddmInternal: &DatadogMetricInternal{
+				query:         simpleQuery,
+				resolvedQuery: &simpleQuery,
+				Retries:       1,
+				RetryAfter:    currentTime,
+			},
+			new: datadoghq.DatadogMetric{
+				Spec: datadoghq.DatadogMetricSpec{
+					Query: simpleQuery,
+				},
+			},
+			expectedTimewindow:    0,
+			expectedQuery:         simpleQuery,
+			expectedResolvedQuery: &simpleQuery,
+			expectedAlwaysActive:  false,
+			expectedRetries:       0,
+			expectedRetryAfter:    time.Time{},
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			tt.ddmInternal.UpdateFrom(tt.newSpec)
+			tt.ddmInternal.UpdateFrom(tt.new)
 			assert.Equal(t, tt.expectedQuery, tt.ddmInternal.query)
 			if tt.expectedResolvedQuery == nil {
 				assert.Nil(t, tt.ddmInternal.resolvedQuery)
@@ -153,6 +326,7 @@ func TestDatadogMetricInternal_UpdateFrom(t *testing.T) {
 			}
 
 			assert.Equal(t, tt.expectedMaxAge, tt.ddmInternal.MaxAge)
+			assert.Equal(t, tt.expectedAlwaysActive, tt.ddmInternal.AlwaysActive)
 		})
 	}
 }

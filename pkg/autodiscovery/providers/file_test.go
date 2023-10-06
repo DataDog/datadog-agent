@@ -14,7 +14,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
 func TestCollect(t *testing.T) {
@@ -74,7 +73,7 @@ func TestCollect(t *testing.T) {
 	assert.Equal(t, 0, len(get("ignored")))
 
 	// total number of configurations found
-	assert.Equal(t, 15, len(configs))
+	assert.Equal(t, 16, len(configs))
 
 	// incorrect configs get saved in the Errors map (invalid.yaml & notaconfig.yaml & ad_deprecated.yaml)
 	assert.Equal(t, 3, len(provider.Errors))
@@ -82,10 +81,8 @@ func TestCollect(t *testing.T) {
 
 func TestEnvVarReplacement(t *testing.T) {
 	ctx := context.Background()
-	err := os.Setenv("test_envvar_key", "test_value")
-	require.NoError(t, err)
+	t.Setenv("test_envvar_key", "test_value")
 	os.Unsetenv("test_envvar_not_set")
-	defer os.Unsetenv("test_envvar_key")
 
 	paths := []string{"tests"}
 	ResetReader(paths)

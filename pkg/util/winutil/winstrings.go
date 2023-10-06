@@ -4,8 +4,8 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build windows
-// +build windows
 
+// Package winutil provides windows utilities
 package winutil
 
 import (
@@ -56,4 +56,28 @@ func ConvertWindowsString(winput []uint8) string {
 // uint16 (unicode)
 func ConvertWindowsString16(winput []uint16) string {
 	return windows.UTF16ToString(winput)
+}
+
+// ExpandEnvironmentStrings returns a string with any environment variables
+// substituted.
+//
+// provided here because `x/sys/windows` provides a wrapper to the underlying
+// function, but it expects C strings.  This will do the buffer calculation
+// and return the go string everyone wants.
+func ExpandEnvironmentStrings(input string) (string, error) {
+
+	asutf16 := windows.StringToUTF16Ptr(input)
+
+	sz, err := windows.ExpandEnvironmentStrings(asutf16, nil, 0)
+	if err != nil {
+		return "", err
+	}
+	sz += 2 // leave room for terminating null, and a bonus char
+	target := make([]uint16, sz)
+
+	_, err = windows.ExpandEnvironmentStrings(asutf16, (*uint16)(unsafe.Pointer(&target[0])), sz)
+	if err != nil {
+		return "", err
+	}
+	return windows.UTF16ToString(target), nil
 }

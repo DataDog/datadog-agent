@@ -8,9 +8,10 @@ package schedulers
 import (
 	"testing"
 
-	logsConfig "github.com/DataDog/datadog-agent/pkg/logs/config"
-	"github.com/DataDog/datadog-agent/pkg/logs/service"
 	"github.com/stretchr/testify/require"
+
+	"github.com/DataDog/datadog-agent/pkg/logs/service"
+	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 )
 
 type testSched struct {
@@ -29,7 +30,7 @@ func (t *testSched) Stop() {
 func TestSchedulers(t *testing.T) {
 	sch := &testSched{}
 
-	ss := NewSchedulers(logsConfig.NewLogSources(), service.NewServices())
+	ss := NewSchedulers(sources.NewLogSources(), service.NewServices())
 	ss.AddScheduler(sch)
 
 	require.False(t, sch.started)

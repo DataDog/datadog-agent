@@ -1,6 +1,8 @@
+import datetime
 import os
 import tempfile
 
+import lib.common.app as common
 import requests
 from datadog_api_client.v2 import ApiClient, ApiException, Configuration
 from datadog_api_client.v2.api import cloud_workload_security_api, logs_api, security_monitoring_api
@@ -21,24 +23,27 @@ from datadog_api_client.v2.models import (
     SecurityMonitoringRuleMaxSignalDuration,
     SecurityMonitoringRuleOptions,
     SecurityMonitoringRuleQueryAggregation,
-    SecurityMonitoringRuleQueryCreate,
     SecurityMonitoringRuleSeverity,
     SecurityMonitoringRuleTypeCreate,
     SecurityMonitoringSignalListRequest,
     SecurityMonitoringSignalListRequestFilter,
     SecurityMonitoringSignalListRequestPage,
     SecurityMonitoringSignalsSort,
+    SecurityMonitoringStandardRuleQuery,
 )
-from dateutil.parser import parse as dateutil_parser
 from retry.api import retry_call
 
 
 def get_app_log(api_client, query):
+    # ensures that we are filtering the logs from the e2e runs and not
+    # other agents from people doing QA
+    query = f"app:agent-e2e-tests host:k8s-e2e-tests-control-plane {query}"
+
     api_instance = logs_api.LogsApi(api_client)
     body = LogsListRequest(
         filter=LogsQueryFilter(
-            _from="now-15m",
-            indexes=["main"],
+            _from="now-10m",
+            indexes=["*"],
             query=query,
             to="now",
         ),
@@ -56,12 +61,15 @@ def get_app_log(api_client, query):
 
 
 def get_app_signal(api_client, query):
+    now = datetime.datetime.now(datetime.timezone.utc)
+    query_from = now - datetime.timedelta(minutes=15)
+
     api_instance = security_monitoring_api.SecurityMonitoringApi(api_client)
     body = SecurityMonitoringSignalListRequest(
         filter=SecurityMonitoringSignalListRequestFilter(
-            _from=dateutil_parser("2021-01-01T00:00:00.00Z"),
+            _from=query_from.isoformat(),
             query=query,
-            to=dateutil_parser("2050-01-01T00:00:00.00Z"),
+            to=now.isoformat(),
         ),
         page=SecurityMonitoringSignalListRequestPage(
             limit=25,
@@ -75,11 +83,11 @@ def get_app_signal(api_client, query):
     return api_response
 
 
-class App:
+class App(common.App):
     def __init__(self):
-        configuration = Configuration()
-        configuration.unstable_operations["search_security_monitoring_signals"] = True
+        common.App.__init__(self)
 
+        configuration = Configuration()
         self.api_client = ApiClient(configuration)
 
     def __exit__(self):
@@ -108,7 +116,11 @@ class App:
                 max_signal_duration=SecurityMonitoringRuleMaxSignalDuration(0),
             ),
             queries=[
-                SecurityMonitoringRuleQueryCreate(
+                # TODO(paulcacheux): maybe change back to SecurityMonitoringRuleQuery
+                # once the api client is fixed.
+                # 2.4.0 and 2.5.0 are broken because they send `is_enabled` instead
+                # of `isEnabled`, resulting in the signal rule being disabled.
+                SecurityMonitoringStandardRuleQuery(
                     aggregation=SecurityMonitoringRuleQueryAggregation("count"),
                     query="@agent.rule_id:" + agent_rule_id,
                     name="a",
@@ -183,10 +195,32 @@ class App:
     def wait_app_signal(self, query, tries=30, delay=10):
         return retry_call(get_app_signal, fargs=[self.api_client, query], tries=tries, delay=delay)
 
-    def check_for_ignored_policies(self, policies):
+    def check_for_ignored_policies(self, test_case, policies):
         if "policies_ignored" in policies:
-            self.assertEqual(len(policies["policies_ignored"]), 0)
+            test_case.assertEqual(len(policies["policies_ignored"]), 0)
         if "policies" in policies:
             for policy in policies["policies"]:
                 if "rules_ignored" in policy:
-                    self.assertEqual(len(policy["rules_ignored"]), 0)
+                    test_case.assertEqual(len(policy["rules_ignored"]), 0)
+
+    def __find_policy(self, policies, policy_source, policy_name):
+        found = False
+        if "policies" in policies:
+            for policy in policies["policies"]:
+                if "source" in policy and "name" in policy:
+                    if policy["source"] == policy_source and policy["name"] == policy_name:
+                        found = True
+                        break
+        return found
+
+    def check_policy_found(self, test_case, policies, policy_source, policy_name):
+        test_case.assertTrue(
+            self.__find_policy(policies, policy_source, policy_name),
+            msg=f"should find policy in log (source:{policy_source} name:{policy_name})",
+        )
+
+    def check_policy_not_found(self, test_case, policies, policy_source, policy_name):
+        test_case.assertFalse(
+            self.__find_policy(policies, policy_source, policy_name),
+            msg=f"shouldn't find policy in log (source:{policy_source} name:{policy_name})",
+        )

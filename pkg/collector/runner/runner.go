@@ -9,10 +9,13 @@ import (
 	"fmt"
 
 	"sync"
-	"sync/atomic"
 	"time"
 
+	"go.uber.org/atomic"
+
+	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
+	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	"github.com/DataDog/datadog-agent/pkg/collector/runner/tracker"
 	"github.com/DataDog/datadog-agent/pkg/collector/scheduler"
 	"github.com/DataDog/datadog-agent/pkg/collector/worker"
@@ -29,17 +32,14 @@ const (
 
 var (
 	// Atomic incrementing variables for generating globally unique runner and worker object IDs
-	runnerIDGenerator uint64
-	workerIDGenerator uint64
+	runnerIDGenerator = atomic.NewUint64(0)
+	workerIDGenerator = atomic.NewUint64(0)
 )
 
 // Runner is the object in charge of running all the checks
 type Runner struct {
-	// keep members that are used in atomic functions at the top of the structure
-	// important for 32 bit compiles.
-	// see https://github.com/golang/go/issues/599#issuecomment-419909701 for more information
-	isRunning uint32 // Flag to see if the Runner is, well, running
-
+	senderManager       sender.SenderManager
+	isRunning           *atomic.Bool
 	id                  int                           // Globally unique identifier for the Runner
 	workers             map[int]*worker.Worker        // Workers currrently under this Runner's management
 	workersLock         sync.Mutex                    // Lock to prevent concurrent worker changes
@@ -51,12 +51,13 @@ type Runner struct {
 }
 
 // NewRunner takes the number of desired goroutines processing incoming checks.
-func NewRunner() *Runner {
+func NewRunner(senderManager sender.SenderManager) *Runner {
 	numWorkers := config.Datadog.GetInt("check_runners")
 
 	r := &Runner{
-		id:                  int(atomic.AddUint64(&runnerIDGenerator, 1)),
-		isRunning:           1,
+		senderManager:       senderManager,
+		id:                  int(runnerIDGenerator.Inc()),
+		isRunning:           atomic.NewBool(true),
 		workers:             make(map[int]*worker.Worker),
 		isStaticWorkerCount: numWorkers != 0,
 		pendingChecksChan:   make(chan check.Check),
@@ -114,8 +115,9 @@ func (r *Runner) AddWorker() {
 // addWorker adds a new worker running in a separate goroutine
 func (r *Runner) newWorker() (*worker.Worker, error) {
 	worker, err := worker.NewWorker(
+		r.senderManager,
 		r.id,
-		int(atomic.AddUint64(&workerIDGenerator, 1)),
+		int(workerIDGenerator.Inc()),
 		r.pendingChecksChan,
 		r.checksTracker,
 		r.ShouldAddCheckStats,
@@ -170,7 +172,7 @@ func (r *Runner) UpdateNumWorkers(numChecks int64) {
 // Stop closes the pending channel so all workers will exit their loop and terminate
 // All publishers to the pending channel need to have stopped before Stop is called
 func (r *Runner) Stop() {
-	if !atomic.CompareAndSwapUint32(&r.isRunning, 1, 0) {
+	if !r.isRunning.CompareAndSwap(true, false) {
 		log.Debugf("Runner %d already stopped, nothing to do here...", r.id)
 		return
 	}
@@ -181,7 +183,7 @@ func (r *Runner) Stop() {
 	wg := sync.WaitGroup{}
 
 	// Stop running checks
-	r.checksTracker.WithRunningChecks(func(runningChecks map[check.ID]check.Check) {
+	r.checksTracker.WithRunningChecks(func(runningChecks map[checkid.ID]check.Check) {
 		// Stop all python subprocesses
 		terminateChecksRunningProcesses()
 
@@ -240,7 +242,7 @@ func (r *Runner) getScheduler() *scheduler.Scheduler {
 }
 
 // ShouldAddCheckStats returns true if check stats should be preserved or not
-func (r *Runner) ShouldAddCheckStats(id check.ID) bool {
+func (r *Runner) ShouldAddCheckStats(id checkid.ID) bool {
 	r.schedulerLock.RLock()
 	defer r.schedulerLock.RUnlock()
 
@@ -254,7 +256,7 @@ func (r *Runner) ShouldAddCheckStats(id check.ID) bool {
 
 // StopCheck invokes the `Stop` method on a check if it's running. If the check
 // is not running, this is a noop
-func (r *Runner) StopCheck(id check.ID) error {
+func (r *Runner) StopCheck(id checkid.ID) error {
 	done := make(chan bool)
 
 	stopFunc := func(c check.Check) {

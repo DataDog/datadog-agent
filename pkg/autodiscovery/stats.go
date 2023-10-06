@@ -6,8 +6,24 @@
 package autodiscovery
 
 import (
+	"expvar"
 	"sync"
 )
+
+var (
+	errorStats = newAcErrorStats()
+	acErrors   *expvar.Map
+)
+
+func init() {
+	acErrors = expvar.NewMap("autoconfig")
+	acErrors.Set("ConfigErrors", expvar.Func(func() interface{} {
+		return errorStats.getConfigErrors()
+	}))
+	acErrors.Set("ResolveWarnings", expvar.Func(func() interface{} {
+		return errorStats.getResolveWarnings()
+	}))
+}
 
 // loaderErrorStats holds the error objects
 type acErrorStats struct {
@@ -80,4 +96,14 @@ func (es *acErrorStats) getResolveWarnings() map[string][]string {
 	}
 
 	return resolveCopy
+}
+
+// GetConfigErrors gets the config errors
+func GetConfigErrors() map[string]string {
+	return errorStats.getConfigErrors()
+}
+
+// GetResolveWarnings get the resolve warnings/errors
+func GetResolveWarnings() map[string][]string {
+	return errorStats.getResolveWarnings()
 }

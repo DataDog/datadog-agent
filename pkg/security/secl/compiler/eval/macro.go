@@ -3,17 +3,16 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+// Package eval holds eval related files
 package eval
 
 import (
 	"fmt"
 
-	"github.com/pkg/errors"
-
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/ast"
 )
 
-//MacroID - ID of a Macro
+// MacroID - ID of a Macro
 type MacroID = string
 
 // Macro - Macro object identified by an `ID` containing a SECL `Expression`
@@ -33,17 +32,17 @@ type MacroEvaluator struct {
 }
 
 // NewMacro parses an expression and returns a new macro
-func NewMacro(id, expression string, model Model, opts *Opts) (*Macro, error) {
+func NewMacro(id, expression string, model Model, parsingContext *ast.ParsingContext, opts *Opts) (*Macro, error) {
 	macro := &Macro{
 		ID:   id,
 		Opts: opts,
 	}
 
-	if err := macro.Parse(expression); err != nil {
+	if err := macro.Parse(parsingContext, expression); err != nil {
 		return nil, fmt.Errorf("syntax error: %w", err)
 	}
 
-	if err := macro.GenEvaluator(expression, model, opts); err != nil {
+	if err := macro.GenEvaluator(expression, model); err != nil {
 		return nil, fmt.Errorf("compilation error: %w", err)
 	}
 
@@ -59,9 +58,11 @@ func NewStringValuesMacro(id string, values []string, opts *Opts) (*Macro, error
 			Value: value,
 		}
 
-		if err := evaluator.AppendFieldValues(fieldValue); err != nil {
-			return nil, err
-		}
+		evaluator.Values.AppendFieldValue(fieldValue)
+	}
+
+	if err := evaluator.Compile(DefaultStringCmpOpts); err != nil {
+		return nil, err
 	}
 
 	return &Macro{
@@ -82,8 +83,8 @@ func (m *Macro) GetAst() *ast.Macro {
 }
 
 // Parse - Transforms the SECL `Expression` into its AST representation
-func (m *Macro) Parse(expression string) error {
-	astMacro, err := ast.ParseMacro(expression)
+func (m *Macro) Parse(parsingContext *ast.ParsingContext, expression string) error {
+	astMacro, err := parsingContext.ParseMacro(expression)
 	if err != nil {
 		return err
 	}
@@ -93,10 +94,10 @@ func (m *Macro) Parse(expression string) error {
 
 func macroToEvaluator(macro *ast.Macro, model Model, opts *Opts, field Field) (*MacroEvaluator, error) {
 	macros := make(map[MacroID]*MacroEvaluator)
-	for id, macro := range opts.Macros {
-		macros[id] = macro.evaluator
+	for _, macro := range opts.MacroStore.List() {
+		macros[macro.ID] = macro.evaluator
 	}
-	state := newState(model, field, macros)
+	state := NewState(model, field, macros)
 
 	var eval interface{}
 	var err error
@@ -127,15 +128,13 @@ func macroToEvaluator(macro *ast.Macro, model Model, opts *Opts, field Field) (*
 }
 
 // GenEvaluator - Compiles and generates the evalutor
-func (m *Macro) GenEvaluator(expression string, model Model, opts *Opts) error {
-	m.Opts = opts
-
-	evaluator, err := macroToEvaluator(m.ast, model, opts, "")
+func (m *Macro) GenEvaluator(expression string, model Model) error {
+	evaluator, err := macroToEvaluator(m.ast, model, m.Opts, "")
 	if err != nil {
 		if err, ok := err.(*ErrAstToEval); ok {
-			return errors.Wrap(&ErrRuleParse{pos: err.Pos, expr: expression}, "macro syntax error")
+			return fmt.Errorf("macro syntax error: %w", &ErrRuleParse{pos: err.Pos, expr: expression})
 		}
-		return errors.Wrap(err, "macro compilation error")
+		return fmt.Errorf("macro compilation error: %w", err)
 	}
 	m.evaluator = evaluator
 
@@ -146,7 +145,7 @@ func (m *Macro) GenEvaluator(expression string, model Model, opts *Opts) error {
 func (m *Macro) GetEventTypes() []EventType {
 	eventTypes := m.evaluator.EventTypes
 
-	for _, macro := range m.Opts.Macros {
+	for _, macro := range m.Opts.MacroStore.List() {
 		eventTypes = append(eventTypes, macro.evaluator.EventTypes...)
 	}
 
@@ -157,7 +156,7 @@ func (m *Macro) GetEventTypes() []EventType {
 func (m *Macro) GetFields() []Field {
 	fields := m.evaluator.GetFields()
 
-	for _, macro := range m.Opts.Macros {
+	for _, macro := range m.Opts.MacroStore.List() {
 		fields = append(fields, macro.evaluator.GetFields()...)
 	}
 

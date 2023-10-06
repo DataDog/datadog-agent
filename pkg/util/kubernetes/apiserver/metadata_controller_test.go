@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build kubeapiserver
-// +build kubeapiserver
 
 package apiserver
 
@@ -13,10 +12,11 @@ import (
 	"testing"
 	"time"
 
-	apiv1 "github.com/DataDog/datadog-agent/pkg/clusteragent/api/v1"
-	"github.com/DataDog/datadog-agent/pkg/util/testutil"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	apiv1 "github.com/DataDog/datadog-agent/pkg/clusteragent/api/v1"
+	"github.com/DataDog/datadog-agent/pkg/util/testutil"
 
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -102,12 +102,12 @@ func TestMetadataControllerSyncEndpoints(t *testing.T) {
 			map[string]apiv1.NamespacesPodsStringsSet{
 				"node1": {
 					"default": {
-						"pod1_name": sets.NewString("svc1"),
+						"pod1_name": sets.New("svc1"),
 					},
 				},
 				"node2": {
 					"default": {
-						"pod2_name": sets.NewString("svc1"),
+						"pod2_name": sets.New("svc1"),
 					},
 				},
 			},
@@ -130,13 +130,13 @@ func TestMetadataControllerSyncEndpoints(t *testing.T) {
 			map[string]apiv1.NamespacesPodsStringsSet{
 				"node1": {
 					"default": {
-						"pod1_name": sets.NewString("svc1"),
-						"pod3_name": sets.NewString("svc1"),
+						"pod1_name": sets.New("svc1"),
+						"pod3_name": sets.New("svc1"),
 					},
 				},
 				"node2": {
 					"default": {
-						"pod2_name": sets.NewString("svc1"),
+						"pod2_name": sets.New("svc1"),
 					},
 				},
 			},
@@ -158,12 +158,12 @@ func TestMetadataControllerSyncEndpoints(t *testing.T) {
 			map[string]apiv1.NamespacesPodsStringsSet{
 				"node1": {
 					"default": {
-						"pod1_name": sets.NewString("svc1"),
+						"pod1_name": sets.New("svc1"),
 					},
 				},
 				"node2": {
 					"default": {
-						"pod2_name": sets.NewString("svc1"),
+						"pod2_name": sets.New("svc1"),
 					},
 				},
 			},
@@ -184,12 +184,12 @@ func TestMetadataControllerSyncEndpoints(t *testing.T) {
 			map[string]apiv1.NamespacesPodsStringsSet{
 				"node1": {
 					"default": {
-						"pod1_name": sets.NewString("svc1", "svc2"),
+						"pod1_name": sets.New("svc1", "svc2"),
 					},
 				},
 				"node2": {
 					"default": {
-						"pod2_name": sets.NewString("svc1"),
+						"pod2_name": sets.New("svc1"),
 					},
 				},
 			},
@@ -203,7 +203,7 @@ func TestMetadataControllerSyncEndpoints(t *testing.T) {
 			map[string]apiv1.NamespacesPodsStringsSet{
 				"node1": {
 					"default": {
-						"pod1_name": sets.NewString("svc2"),
+						"pod1_name": sets.New("svc2"),
 					},
 				},
 			},
@@ -223,7 +223,7 @@ func TestMetadataControllerSyncEndpoints(t *testing.T) {
 			map[string]apiv1.NamespacesPodsStringsSet{ // no changes to cluster metadata
 				"node1": {
 					"default": {
-						"pod1_name": sets.NewString("svc2"),
+						"pod1_name": sets.New("svc2"),
 					},
 				},
 			},
@@ -243,7 +243,7 @@ func TestMetadataControllerSyncEndpoints(t *testing.T) {
 			map[string]apiv1.NamespacesPodsStringsSet{ // no changes to cluster metadata
 				"node1": {
 					"default": {
-						"pod1_name": sets.NewString("svc2"),
+						"pod1_name": sets.New("svc2"),
 					},
 				},
 			},
@@ -433,14 +433,11 @@ func TestMetadataController(t *testing.T) {
 	informerFactory.Start(stop)
 	go metaController.Run(stop)
 
-	testutil.AssertTrueBeforeTimeout(t, 100*time.Millisecond, 500*time.Millisecond, func() bool {
-		if !metaController.endpointsListerSynced() && !metaController.nodeListerSynced() {
-			return false
-		}
-		return true
+	testutil.AssertTrueBeforeTimeout(t, 100*time.Millisecond, 2*time.Second, func() bool {
+		return metaController.endpointsListerSynced() && metaController.nodeListerSynced()
 	})
 
-	testutil.AssertTrueBeforeTimeout(t, 100*time.Millisecond, 500*time.Millisecond, func() bool {
+	testutil.AssertTrueBeforeTimeout(t, 100*time.Millisecond, 2*time.Second, func() bool {
 		metadataNames, err := GetPodMetadataNames(node.Name, pod.Namespace, pod.Name)
 		if err != nil {
 			return false
@@ -455,7 +452,7 @@ func TestMetadataController(t *testing.T) {
 
 	cl := &APIClient{Cl: client, timeoutSeconds: 5}
 
-	testutil.AssertTrueBeforeTimeout(t, 100*time.Millisecond, 500*time.Millisecond, func() bool {
+	testutil.AssertTrueBeforeTimeout(t, 100*time.Millisecond, 2*time.Second, func() bool {
 		fullmapper, errList := GetMetadataMapBundleOnAllNodes(cl)
 		require.Nil(t, errList)
 		list := fullmapper.Nodes

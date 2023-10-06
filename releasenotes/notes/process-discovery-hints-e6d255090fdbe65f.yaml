@@ -1,0 +1,4 @@
+---
+enhancements:
+  - |
+    Adds a new process discovery hint in the process agent when the regular process and container checks run.

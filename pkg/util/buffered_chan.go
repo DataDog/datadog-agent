@@ -15,9 +15,9 @@ import (
 // and writes to the channel. Instead of having one write and one read for each value for a regular channel,
 // there are one write and one read for each `bufferSize` value.
 // Thread safety:
-// 	- `BufferedChan.Put` cannot be called concurrently.
-// 	- `BufferedChan.Get` cannot be called concurrently.
-//  - `BufferedChan.Put` can be called while another goroutine calls `BufferedChan.Get`.
+//   - `BufferedChan.Put` cannot be called concurrently.
+//   - `BufferedChan.Get` cannot be called concurrently.
+//   - `BufferedChan.Put` can be called while another goroutine calls `BufferedChan.Get`.
 type BufferedChan struct {
 	c        chan []interface{}
 	pool     *sync.Pool
@@ -68,9 +68,23 @@ func (c *BufferedChan) Close() {
 }
 
 // Get gets the value and returns false when the channel is closed and all
-//  values were read.
+//
+//	values were read.
+//
 // Cannot be called concurrently.
 func (c *BufferedChan) Get() (interface{}, bool) {
+	if !c.WaitForValue() {
+		return nil, false
+	}
+	value := c.getSlice[c.getIndex]
+	c.getSlice[c.getIndex] = nil // do not keep a reference on the object.
+	c.getIndex++
+	return value, true
+}
+
+// WaitForValue waits until a value is available for Get or until Close is called or when the context is Done
+// Returns true if a value is available, false otherwise
+func (c *BufferedChan) WaitForValue() bool {
 	if c.getIndex >= len(c.getSlice) {
 		if c.getSlice != nil {
 			c.pool.Put(c.getSlice[:0])
@@ -80,18 +94,15 @@ func (c *BufferedChan) Get() (interface{}, bool) {
 		select {
 		case c.getSlice, ok = <-c.c:
 			if !ok {
-				return nil, false
+				return false
 			}
 		case <-c.ctx.Done():
-			return nil, false
+			return false
 		}
 		c.getIndex = 0
 		if len(c.getSlice) == 0 {
-			return nil, false
+			return false
 		}
 	}
-	value := c.getSlice[c.getIndex]
-	c.getSlice[c.getIndex] = nil // do not keep a reference on the object.
-	c.getIndex++
-	return value, true
+	return true
 }

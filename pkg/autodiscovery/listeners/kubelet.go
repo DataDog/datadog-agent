@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build !serverless
-// +build !serverless
 
 package listeners
 
@@ -38,6 +37,7 @@ func NewKubeletListener(Config) (ServiceListener, error) {
 	f := workloadmeta.NewFilter(
 		[]workloadmeta.Kind{workloadmeta.KindKubernetesPod},
 		workloadmeta.SourceNodeOrchestrator,
+		workloadmeta.EventTypeAll,
 	)
 
 	var err error
@@ -52,8 +52,9 @@ func NewKubeletListener(Config) (ServiceListener, error) {
 func (l *KubeletListener) processPod(entity workloadmeta.Entity) {
 	pod := entity.(*workloadmeta.KubernetesPod)
 
-	containers := make([]*workloadmeta.Container, 0, len(pod.Containers))
-	for _, podContainer := range pod.Containers {
+	wlmContainers := pod.GetAllContainers()
+	containers := make([]*workloadmeta.Container, 0, len(wlmContainers))
+	for _, podContainer := range wlmContainers {
 		container, err := l.Store().GetContainer(podContainer.ID)
 		if err != nil {
 			log.Debugf("pod %q has reference to non-existing container %q", pod.Name, podContainer.ID)
@@ -113,6 +114,7 @@ func (l *KubeletListener) createContainerService(
 
 	if l.IsExcluded(
 		containers.GlobalFilter,
+		pod.Annotations,
 		containerName,
 		containerImg.RawName,
 		pod.Namespace,
@@ -128,7 +130,7 @@ func (l *KubeletListener) createContainerService(
 	if !container.State.Running && !container.State.FinishedAt.IsZero() {
 		finishedAt := container.State.FinishedAt
 		excludeAge := time.Duration(config.Datadog.GetInt("container_exclude_stopped_age")) * time.Hour
-		if time.Now().Sub(finishedAt) > excludeAge {
+		if time.Since(finishedAt) > excludeAge {
 			log.Debugf("container %q not running for too long, skipping", container.ID)
 			return
 		}
@@ -162,12 +164,14 @@ func (l *KubeletListener) createContainerService(
 		// from metrics collection but keep them for collecting logs.
 		metricsExcluded: l.IsExcluded(
 			containers.MetricsFilter,
+			pod.Annotations,
 			containerName,
 			containerImg.RawName,
 			pod.Namespace,
 		) || !container.State.Running,
 		logsExcluded: l.IsExcluded(
 			containers.LogsFilter,
+			pod.Annotations,
 			containerName,
 			containerImg.RawName,
 			pod.Namespace,
@@ -175,7 +179,7 @@ func (l *KubeletListener) createContainerService(
 	}
 
 	adIdentifier := containerName
-	if customADID, found := utils.GetCustomCheckID(pod.Annotations, containerName); found {
+	if customADID, found := utils.ExtractCheckIDFromPodAnnotations(pod.Annotations, containerName); found {
 		adIdentifier = customADID
 		svc.adIdentifiers = append(svc.adIdentifiers, customADID)
 	}
@@ -187,7 +191,7 @@ func (l *KubeletListener) createContainerService(
 	}
 
 	var err error
-	svc.checkNames, err = utils.ExtractCheckNames(pod.Annotations, adIdentifier)
+	svc.checkNames, err = utils.ExtractCheckNamesFromPodAnnotations(pod.Annotations, adIdentifier)
 	if err != nil {
 		log.Error(err.Error())
 	}

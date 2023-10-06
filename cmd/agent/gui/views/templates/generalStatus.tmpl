@@ -97,10 +97,21 @@
     <span class="stat_title">Metadata</span>
     <span class="stat_data">
     {{- range $key, $value := .agent_metadata }}
-      {{ $key }}: {{ $value }}
+      {{ $key }}: {{ $value }}<br>
     {{- end }}
     </span>
   </div>
+
+  {{- if eq .config.fips_enabled "true" }}
+
+    <div class="stat">
+      <span class="stat_title">FIPS proxy</span>
+      <span class="stat_data">
+        FIPS proxy is enabled. All communication will be routed to a local FIPS proxy:<br>
+          - Local address: {{ .config.fips_local_address }}<br>
+          - Starting port range: {{ .config.fips_port_range_start }}<br>
+      </span>
+  {{- end }}
 
   {{- if .TransportWarnings }}
     <div class="stat">
@@ -110,8 +121,8 @@
       The following hosts used a proxy - but will ignore the proxy in future Agent versions with the no_proxy setting.
       Enable the new behavior now with no_proxy_nonexact_match: true
         <span class="stat_data">
-        {{- range $key, $value := .NoProxyIgnoredWarningMap }}
-          {{ $key }}<br>
+        {{- range $.NoProxyIgnoredWarningMap }}
+          {{ . }}<br>
         {{- end }}
         </span>
       </span>
@@ -121,8 +132,8 @@
       The following hosts did not use a proxy - but will use the proxy in future Agent versions with the no_proxy setting.
       Enable the new behavior now with no_proxy_nonexact_match: true
         <span class="stat_data">
-        {{- range $key, $value := .NoProxyUsedInFuture }}
-          {{ $key }}<br>
+        {{- range $.NoProxyUsedInFuture }}
+          {{ . }}<br>
         {{- end }}
         </span>
       </span>
@@ -132,8 +143,8 @@
       The following hosts' proxy behavior will change in a future Agent version. Please check the Agent logs for more details.
       Enable the new behavior now with no_proxy_nonexact_match: true
         <span class="stat_data">
-        {{- range $key, $value := .NoProxyChanged }}
-          {{ $key }}<br>
+        {{- range .NoProxyChanged }}
+          {{ . }}<br>
         {{- end }}
         </span>
       </span>
@@ -172,9 +183,12 @@
               {{- range $check,$instances := .checks.initialized_checks }}
                 {{ $check -}}<br>
                 {{- range $instance := $instances }}
-                  {{- range $k,$v := $instance }}
-                      {{ $k }} : {{ $v }}<br>
-                  {{- end -}}
+                    instance_name: {{ .instance_name }}<br>
+                    metric_count: {{ .metric_count }}<br>
+                    service_check_count: {{ .service_check_count }}<br>
+                    message: {{ .message }}<br>
+                    status: {{ .status }}<br>
+                    <br>
                 {{- end -}}
               {{- end }}
             {{- end -}}
@@ -279,6 +293,14 @@
               {{$key}}: {{$value}}<br>
             {{- end -}}
           </span>
+        {{- end}}        
+        {{- if .APIKeyFailure}}
+          <span class="stat_subtitle">API Keys Errors</span>
+          <span class="stat_subdata">
+            {{ range $key, $value := .APIKeyFailure}}
+              <span class="warning"> {{$key}}: {{$value}} <span> <br>
+            {{- end -}}
+          </span>
         {{- end}}
       {{- end -}}
     </span>
@@ -368,11 +390,6 @@
               {{- end }}
             </ul>
             {{- end }}
-            BytesRead: {{ .bytes_read }}</br>
-            Average Latency (ms): {{ .all_time_avg_latency }}</br>
-            24h Average Latency (ms): {{ .recent_avg_latency }}</br>
-            Peak Latency (ms): {{ .all_time_peak_latency }}</br>
-            24h Peak Latency (ms): {{ .recent_peak_latency }}</br>
             {{- if .info }}
             {{- range $key, $value := .info }} {{ $len := len $value }} {{ if eq $len 1 }}
             {{$key}}: {{index $value 0}}</br> {{ else }}
@@ -436,6 +453,9 @@
         {{- if .SketchesFlushErrors}}
           Sketches Flush Errors: {{.SketchesFlushErrors}}<br>
         {{- end -}}
+        {{- if .ChecksHistogramBucketMetricSample}}
+          Checks Histogram Bucket Metric Sample: {{.ChecksHistogramBucketMetricSample}}<br>
+        {{- end -}}
         {{- if .EventPlatformEvents }}
         {{- range $k, $v := .EventPlatformEvents }}
           {{ $k }}: {{humanize $v}}
@@ -475,6 +495,32 @@
           {{formatTitle $key}}: {{humanize $value}}<br>
         {{- end }}
       {{- end -}}
+    </span>
+  </div>
+
+  <div class="stat">
+    <span class="stat_title">Remote Configuration</span>
+    <span class="stat_data">
+      {{ with .remoteConfiguration }}
+        API Key: {{ if .apiKeyScoped }}Authorized{{ else }}Not authorized{{ end }}
+        Feature: {{ if .orgEnabled }}Enabled{{ else }}Disabled{{ end }}
+        Last error: {{ if .lastError }}{{ .lastError }}{{ else }}None{{ end }}
+      {{ else }}
+        Remote Configuration is disabled
+      {{ end }}
+    </span>
+  </div>
+
+  <div class="stat">
+    <span class="stat_title">OTLP</span>
+    <span class="stat_data">
+      {{ with .otlp }}
+        Status: {{ if .otlpStatus }}Enabled{{else}}Not enabled{{end}}
+        <br>Collector status: {{ .otlpCollectorStatus }}
+        {{ if .otlpCollectorStatusErr }}
+          <br><span class="error">Error</span>: <b>{{ .otlpCollectorStatusErr }}</b>
+        {{ end }}
+      {{ end }}
     </span>
   </div>
 {{- end -}}

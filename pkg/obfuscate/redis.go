@@ -245,6 +245,45 @@ func obfuscateRedisCmd(out *strings.Builder, cmd string, args ...string) {
 	out.WriteString(strings.Join(args, " "))
 }
 
+// removeAllRedisArgs will take in a command and obfuscate all arguments following
+// the command, regardless of if the command is valid Redis or not
+func (*Obfuscator) RemoveAllRedisArgs(rediscmd string) string {
+	fullCmd := strings.Fields(rediscmd)
+	if len(fullCmd) == 0 {
+		return ""
+	}
+	cmd, args := fullCmd[0], fullCmd[1:]
+
+	var out strings.Builder
+	out.WriteString(cmd)
+	if len(args) == 0 {
+		return out.String()
+	}
+
+	out.WriteByte(' ')
+	switch strings.ToUpper(cmd) {
+	case "BITFIELD":
+		out.WriteString("?")
+		for _, a := range args {
+			arg := strings.ToUpper(a)
+			if arg == "SET" || arg == "GET" || arg == "INCRBY" {
+				out.WriteString(strings.Join([]string{"", a, "?"}, " "))
+			}
+		}
+	case "CONFIG":
+		arg := strings.ToUpper(args[0])
+		if arg == "GET" || arg == "SET" || arg == "RESETSTAT" || arg == "REWRITE" {
+			out.WriteString(strings.Join([]string{args[0], "?"}, " "))
+		} else {
+			out.WriteString("?")
+		}
+	default:
+		out.WriteString("?")
+	}
+
+	return out.String()
+}
+
 func obfuscateRedisArgN(args []string, n int) {
 	if len(args) > n {
 		args[n] = "?"

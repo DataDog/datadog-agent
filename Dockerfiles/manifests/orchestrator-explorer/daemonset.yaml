@@ -7,6 +7,7 @@ metadata:
   namespace: default
   labels: {}
 spec:
+  revisionHistoryLimit: 10
   selector:
     matchLabels:
       app: datadog
@@ -21,9 +22,12 @@ spec:
       name: datadog
       annotations: {}
     spec:
+      securityContext:
+        runAsUser: 0
+      hostPID: true
       containers:
         - name: agent
-          image: "gcr.io/datadoghq/agent:7.34.0"
+          image: "gcr.io/datadoghq/agent:7.46.0"
           imagePullPolicy: IfNotPresent
           command: ["agent", "run"]
           resources: {}
@@ -40,18 +44,24 @@ spec:
                 secretKeyRef:
                   name: "datadog"
                   key: api-key
+            - name: DD_REMOTE_CONFIGURATION_ENABLED
+              value: "false"
+            - name: DD_AUTH_TOKEN_FILE_PATH
+              value: /etc/datadog-agent/auth/token
+            - name: KUBERNETES
+              value: "yes"
             - name: DD_KUBERNETES_KUBELET_HOST
               valueFrom:
                 fieldRef:
                   fieldPath: status.hostIP
-            - name: KUBERNETES
-              value: "yes"
             - name: DD_LOG_LEVEL
               value: "INFO"
             - name: DD_DOGSTATSD_PORT
               value: "8125"
             - name: DD_DOGSTATSD_NON_LOCAL_TRAFFIC
               value: "true"
+            - name: DD_DOGSTATSD_TAG_CARDINALITY
+              value: "low"
             - name: DD_CLUSTER_AGENT_ENABLED
               value: "true"
             - name: DD_CLUSTER_AGENT_KUBERNETES_SERVICE_NAME
@@ -77,26 +87,40 @@ spec:
               value: "/var/run/datadog/dsd.socket"
             - name: DD_EXTRA_CONFIG_PROVIDERS
               value: "clusterchecks endpointschecks"
+            - name: DD_IGNORE_AUTOCONF
+              value: "kubernetes_state"
             - name: DD_EXPVAR_PORT
               value: "6000"
+            - name: DD_COMPLIANCE_CONFIG_ENABLED
+              value: "false"
           volumeMounts:
+            - name: logdatadog
+              mountPath: /var/log/datadog
+              readOnly: false # Need RW to write logs
             - name: installinfo
               subPath: install_info
               mountPath: /etc/datadog-agent/install_info
               readOnly: true
-            - name: logdatadog
-              mountPath: /var/log/datadog
             - name: tmpdir
               mountPath: /tmp
-              readOnly: false
+              readOnly: false # Need RW to write to /tmp directory
+            - name: os-release-file
+              mountPath: /host/etc/os-release
+              mountPropagation: None
+              readOnly: true
             - name: config
               mountPath: /etc/datadog-agent
+              readOnly: false # Need RW to mount to config path
+            - name: auth-token
+              mountPath: /etc/datadog-agent/auth
+              readOnly: false # Need RW to write auth token
             - name: runtimesocketdir
               mountPath: /host/var/run
               mountPropagation: None
               readOnly: true
             - name: dsdsocket
               mountPath: /var/run/datadog
+              readOnly: false
             - name: procdir
               mountPath: /host/proc
               mountPropagation: None
@@ -126,9 +150,9 @@ spec:
             successThreshold: 1
             timeoutSeconds: 5
         - name: process-agent
-          image: "gcr.io/datadoghq/agent:7.34.0"
+          image: "gcr.io/datadoghq/agent:7.46.0"
           imagePullPolicy: IfNotPresent
-          command: ["process-agent", "-config=/etc/datadog-agent/datadog.yaml"]
+          command: ["process-agent", "--cfgpath=/etc/datadog-agent/datadog.yaml"]
           resources: {}
           env:
             # Needs to be removed when Agent N-2 is built with Golang 1.17
@@ -139,12 +163,16 @@ spec:
                 secretKeyRef:
                   name: "datadog"
                   key: api-key
+            - name: DD_REMOTE_CONFIGURATION_ENABLED
+              value: "false"
+            - name: DD_AUTH_TOKEN_FILE_PATH
+              value: /etc/datadog-agent/auth/token
+            - name: KUBERNETES
+              value: "yes"
             - name: DD_KUBERNETES_KUBELET_HOST
               valueFrom:
                 fieldRef:
                   fieldPath: status.hostIP
-            - name: KUBERNETES
-              value: "yes"
             - name: DD_CLUSTER_AGENT_ENABLED
               value: "true"
             - name: DD_CLUSTER_AGENT_KUBERNETES_SERVICE_NAME
@@ -155,7 +183,7 @@ spec:
                   name: datadog-cluster-agent
                   key: token
             - name: DD_PROCESS_AGENT_DISCOVERY_ENABLED
-              value: "false"
+              value: "true"
             - name: DD_LOG_LEVEL
               value: "INFO"
             - name: DD_SYSTEM_PROBE_ENABLED
@@ -167,11 +195,23 @@ spec:
           volumeMounts:
             - name: config
               mountPath: /etc/datadog-agent
+              readOnly: true
             - name: logdatadog
               mountPath: /var/log/datadog
+              readOnly: false # Need RW to write logs
+            - name: auth-token
+              mountPath: /etc/datadog-agent/auth
+              readOnly: true
+            - name: dsdsocket
+              mountPath: /var/run/datadog
+              readOnly: false # Need RW for UDS DSD socket
             - name: tmpdir
               mountPath: /tmp
-              readOnly: false
+              readOnly: false # Need RW to write to tmp directory
+            - name: os-release-file
+              mountPath: /host/etc/os-release
+              mountPropagation: None
+              readOnly: true
             - name: runtimesocketdir
               mountPath: /host/var/run
               mountPropagation: None
@@ -187,12 +227,9 @@ spec:
               mountPath: /host/proc
               mountPropagation: None
               readOnly: true
-            - name: dsdsocket
-              mountPath: /var/run/datadog
-              readOnly: true
       initContainers:
         - name: init-volume
-          image: "gcr.io/datadoghq/agent:7.34.0"
+          image: "gcr.io/datadoghq/agent:7.46.0"
           imagePullPolicy: IfNotPresent
           command: ["bash", "-c"]
           args:
@@ -200,18 +237,23 @@ spec:
           volumeMounts:
             - name: config
               mountPath: /opt/datadog-agent
+              readOnly: false # Need RW for config path
           resources: {}
         - name: init-config
-          image: "gcr.io/datadoghq/agent:7.34.0"
+          image: "gcr.io/datadoghq/agent:7.46.0"
           imagePullPolicy: IfNotPresent
-          command: ["bash", "-c"]
+          command:
+            - bash
+            - -c
           args:
             - for script in $(find /etc/cont-init.d/ -type f -name '*.sh' | sort) ; do bash $script ; done
           volumeMounts:
             - name: logdatadog
               mountPath: /var/log/datadog
+              readOnly: false # Need RW to write logs
             - name: config
               mountPath: /etc/datadog-agent
+              readOnly: false # Need RW for config path
             - name: procdir
               mountPath: /host/proc
               mountPropagation: None
@@ -229,14 +271,20 @@ spec:
                 secretKeyRef:
                   name: "datadog"
                   key: api-key
+            - name: DD_REMOTE_CONFIGURATION_ENABLED
+              value: "false"
+            - name: DD_AUTH_TOKEN_FILE_PATH
+              value: /etc/datadog-agent/auth/token
+            - name: KUBERNETES
+              value: "yes"
             - name: DD_KUBERNETES_KUBELET_HOST
               valueFrom:
                 fieldRef:
                   fieldPath: status.hostIP
-            - name: KUBERNETES
-              value: "yes"
           resources: {}
       volumes:
+        - name: auth-token
+          emptyDir: {}
         - name: installinfo
           configMap:
             name: datadog-installinfo
@@ -253,6 +301,9 @@ spec:
             path: /sys/fs/cgroup
           name: cgroups
         - hostPath:
+            path: /etc/os-release
+          name: os-release-file
+        - hostPath:
             path: /var/run/datadog/
             type: DirectoryOrCreate
           name: dsdsocket
@@ -266,7 +317,8 @@ spec:
           name: runtimesocketdir
       tolerations:
       affinity: {}
-      serviceAccountName: datadog
+      serviceAccountName: "datadog"
+      automountServiceAccountToken: true
       nodeSelector:
         kubernetes.io/os: linux
   updateStrategy:

@@ -118,7 +118,7 @@ $opts = "-e OMNIBUS_TARGET=main -e RELEASE_VERSION=$RELEASE_VERSION -e MAJOR_VER
 if ($DEBUG) {
     $opts += " -e DEBUG_CUSTOMACTION=yes "
 }
-$cmd += " -m 4096M -v ""$(Get-Location):c:\mnt"" $opts datadog/agent-buildimages-windows_x64:1809 c:\mnt\tasks\winbuildscripts\buildwin.bat"
+$cmd += " -m 8192M -v ""$(Get-Location):c:\mnt"" $opts datadog/agent-buildimages-windows_x64:1809 c:\mnt\tasks\winbuildscripts\buildwin.bat"
 Write-Host $cmd
 Invoke-Expression -Command $cmd
 ```

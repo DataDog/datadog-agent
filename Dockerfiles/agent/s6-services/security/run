@@ -1,4 +1,4 @@
 #!/usr/bin/execlineb -P
 
 foreground { /initlog.sh "starting security-agent" }
-security-agent start -c=/etc/datadog-agent/datadog.yaml
+security-agent start -c=/etc/datadog-agent/datadog.yaml --sysprobe-config=/etc/datadog-agent/system-probe.yaml

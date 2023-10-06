@@ -3,7 +3,6 @@
 # This product includes software developed at Datadog (https:#www.datadoghq.com/).
 # Copyright 2016-present Datadog, Inc.
 require "./lib/ostools.rb"
-
 flavor = ENV['AGENT_FLAVOR']
 
 if flavor.nil? || flavor == 'base'
@@ -16,15 +15,26 @@ end
 license "Apache-2.0"
 license_file "../LICENSE"
 
+third_party_licenses "../LICENSE-3rdparty.csv"
+
 homepage 'http://www.datadoghq.com'
 
-if ohai['platform'] == "windows"
+if windows?
   # Note: this is the path used by Omnibus to build the agent, the final install
   # dir will be determined by the Windows installer. This path must not contain
   # spaces because Omnibus doesn't quote the Git commands it launches.
-  install_dir "C:/opt/datadog-agent/"
-  python_2_embedded "#{install_dir}/embedded2"
-  python_3_embedded "#{install_dir}/embedded3"
+  INSTALL_DIR = 'C:/opt/datadog-agent/'
+  PYTHON_2_EMBEDDED_DIR = format('%s/embedded2', INSTALL_DIR)
+  PYTHON_3_EMBEDDED_DIR = format('%s/embedded3', INSTALL_DIR)
+else
+  INSTALL_DIR = '/opt/datadog-agent'
+end
+
+install_dir INSTALL_DIR
+
+if windows?
+  python_2_embedded PYTHON_2_EMBEDDED_DIR
+  python_3_embedded PYTHON_3_EMBEDDED_DIR
   maintainer 'Datadog Inc.' # Windows doesn't want our e-mail address :(
 else
   if redhat? || suse?
@@ -53,7 +63,7 @@ else
   end
 
   if debian?
-    runtime_recommended_dependency 'datadog-signing-keys (>= 1.1.0)'
+    runtime_recommended_dependency 'datadog-signing-keys (>= 1:1.3.1)'
   end
 
   if osx?
@@ -63,9 +73,9 @@ else
     if ENV['HARDENED_RUNTIME_MAC'] == 'true'
       entitlements_file "#{files_path}/macos/Entitlements.plist"
     end
+  else
+    conflict 'datadog-iot-agent'
   end
-
-  install_dir '/opt/datadog-agent'
 end
 
 # build_version is computed by an invoke command/function.
@@ -137,27 +147,30 @@ package :zip do
   if windows_arch_i386?
     skip_packager true
   else
+    # noinspection RubyLiteralArrayInspection
     extra_package_dirs [
       "#{Omnibus::Config.source_dir()}\\etc\\datadog-agent\\extra_package_files",
-      "#{Omnibus::Config.source_dir()}\\cf-root",
+      "#{Omnibus::Config.source_dir()}\\cf-root"
     ]
 
     # Always sign everything for binaries zip
+    # noinspection RubyLiteralArrayInspection
     additional_sign_files [
-        "#{Omnibus::Config.source_dir()}\\cf-root\\bin\\agent\\security-agent.exe",
-        "#{Omnibus::Config.source_dir()}\\cf-root\\bin\\agent\\process-agent.exe",
-        "#{Omnibus::Config.source_dir()}\\cf-root\\bin\\agent\\trace-agent.exe",
-        "#{Omnibus::Config.source_dir()}\\cf-root\\bin\\agent.exe",
-        "#{Omnibus::Config.source_dir()}\\cf-root\\bin\\libdatadog-agent-three.dll",
-        "#{Omnibus::Config.source_dir()}\\cf-root\\bin\\agent\\install-cmd.exe",
-        "#{Omnibus::Config.source_dir()}\\cf-root\\bin\\agent\\uninstall-cmd.exe"
-      ]
+      "#{Omnibus::Config.source_dir()}\\cf-root\\bin\\agent\\process-agent.exe",
+      "#{Omnibus::Config.source_dir()}\\cf-root\\bin\\agent\\trace-agent.exe",
+      "#{Omnibus::Config.source_dir()}\\cf-root\\bin\\agent.exe",
+      "#{Omnibus::Config.source_dir()}\\cf-root\\bin\\libdatadog-agent-three.dll"
+    ]
     if with_python_runtime? "2"
       additional_sign_files << "#{Omnibus::Config.source_dir()}\\cf-root\\bin\\libdatadog-agent-two.dll"
     end
     if ENV['SIGN_PFX']
       signing_identity_file "#{ENV['SIGN_PFX']}", password: "#{ENV['SIGN_PFX_PW']}", algorithm: "SHA256"
     end
+    if ENV['SIGN_WINDOWS_DD_WCS']
+      dd_wcssign true
+    end
+  
   end
 end
 
@@ -175,28 +188,54 @@ package :msi do
   wix_light_extension 'WixUtilExtension'
   extra_package_dir "#{Omnibus::Config.source_dir()}\\etc\\datadog-agent\\extra_package_files"
 
+  # noinspection RubyLiteralArrayInspection
   additional_sign_files_list = [
-      "#{Omnibus::Config.source_dir()}\\datadog-agent\\src\\github.com\\DataDog\\datadog-agent\\bin\\agent\\security-agent.exe",
-      "#{Omnibus::Config.source_dir()}\\datadog-agent\\src\\github.com\\DataDog\\datadog-agent\\bin\\agent\\process-agent.exe",
-      "#{Omnibus::Config.source_dir()}\\datadog-agent\\src\\github.com\\DataDog\\datadog-agent\\bin\\agent\\trace-agent.exe",
-      "#{Omnibus::Config.source_dir()}\\datadog-agent\\src\\github.com\\DataDog\\datadog-agent\\bin\\agent\\agent.exe",
-      "#{Omnibus::Config.source_dir()}\\datadog-agent\\src\\github.com\\DataDog\\datadog-agent\\bin\\agent\\libdatadog-agent-three.dll",
-      "#{install_dir}\\bin\\agent\\ddtray.exe"
+    "#{Omnibus::Config.source_dir()}\\datadog-agent\\src\\github.com\\DataDog\\datadog-agent\\bin\\agent\\process-agent.exe",
+    "#{Omnibus::Config.source_dir()}\\datadog-agent\\src\\github.com\\DataDog\\datadog-agent\\bin\\agent\\trace-agent.exe",
+    "#{Omnibus::Config.source_dir()}\\datadog-agent\\src\\github.com\\DataDog\\datadog-agent\\bin\\agent\\agent.exe",
+    "#{Omnibus::Config.source_dir()}\\datadog-agent\\src\\github.com\\DataDog\\datadog-agent\\bin\\agent\\libdatadog-agent-three.dll",
+    "#{install_dir}\\bin\\agent\\ddtray.exe",
+    "#{install_dir}\\embedded3\\python.exe",
+    "#{install_dir}\\embedded3\\\\python3.dll",
+    "#{install_dir}\\embedded3\\\\python39.dll",
+    "#{install_dir}\\embedded3\\\\pythonw.exe"
+  ]
+  if with_python_runtime? '2'
+    # noinspection RubyLiteralArrayInspection
+    additional_sign_files_list.concat [
+      "#{Omnibus::Config.source_dir()}\\datadog-agent\\src\\github.com\\DataDog\\datadog-agent\\bin\\agent\\libdatadog-agent-two.dll",
+      "#{install_dir}\\embedded2\\python.exe",
+      "#{install_dir}\\embedded2\\python27.dll",
+      "#{install_dir}\\embedded2\\pythonw.exe"
     ]
-    if with_python_runtime? "2"
-      additional_sign_files_list << "#{Omnibus::Config.source_dir()}\\datadog-agent\\src\\github.com\\DataDog\\datadog-agent\\bin\\agent\\libdatadog-agent-two.dll"
-    end
+  end
   #if ENV['SIGN_WINDOWS']
   #  signing_identity "ECCDAE36FDCB654D2CBAB3E8975AA55469F96E4C", machine_store: true, algorithm: "SHA256"
   #end
   if ENV['SIGN_PFX']
     signing_identity_file "#{ENV['SIGN_PFX']}", password: "#{ENV['SIGN_PFX_PW']}", algorithm: "SHA256"
   end
+  if ENV['SIGN_WINDOWS_DD_WCS']
+    dd_wcssign true
+  end
+
   include_sysprobe = "false"
   if not windows_arch_i386? and ENV['WINDOWS_DDNPM_DRIVER'] and not ENV['WINDOWS_DDNPM_DRIVER'].empty?
     include_sysprobe = "true"
     additional_sign_files_list << "#{Omnibus::Config.source_dir()}\\datadog-agent\\src\\github.com\\DataDog\\datadog-agent\\bin\\agent\\system-probe.exe"
   end
+
+  include_apminject = "false"
+  if not windows_arch_i386? and ENV['WINDOWS_APMINJECT_MODULE'] and not ENV['WINDOWS_APMINJECT_MODULE'].empty?
+    include_apminject = "true"
+  end
+
+  include_procmon = "false"
+  if not windows_arch_i386? and ENV['WINDOWS_DDPROCMON_DRIVER'] and not ENV['WINDOWS_DDPROCMON_DRIVER'].empty?
+    include_procmon = "true"
+    additional_sign_files_list << "#{Omnibus::Config.source_dir()}\\datadog-agent\\src\\github.com\\DataDog\\datadog-agent\\bin\\agent\\security-agent.exe"
+  end
+
   additional_sign_files additional_sign_files_list
   parameters({
     'InstallDir' => install_dir,
@@ -207,6 +246,8 @@ package :msi do
     'IncludePython3' => "#{with_python_runtime? '3'}",
     'Platform' => "#{arch}",
     'IncludeSysprobe' => "#{include_sysprobe}",
+    'IncludeAPMInject' => "#{include_apminject}",
+    'IncludeProcmon' => "#{include_procmon}"
   })
   # This block runs before harvesting with heat.exe
   # It runs in the scope of the packager, so all variables access are from the point-of-view of the packager.
@@ -252,7 +293,7 @@ end
 dependency 'datadog-agent'
 
 # System-probe
-if linux?
+if linux? && !heroku?
   dependency 'system-probe'
 end
 
@@ -260,6 +301,12 @@ end
 if windows?
   if ENV['WINDOWS_DDNPM_DRIVER'] and not ENV['WINDOWS_DDNPM_DRIVER'].empty?
     dependency 'datadog-windows-filter-driver'
+  end
+  if ENV['WINDOWS_APMINJECT_MODULE'] and not ENV['WINDOWS_APMINJECT_MODULE'].empty?
+    dependency 'datadog-windows-apminject'
+  end
+  if ENV['WINDOWS_DDPROCMON_DRIVER'] and not ENV['WINDOWS_DDPROCMON_DRIVER'].empty?
+    dependency 'datadog-windows-procmon-driver'
   end
 end
 # Bundled cacerts file (is this a good idea?)
@@ -325,26 +372,56 @@ if linux?
   extra_package_file '/var/log/datadog/'
 end
 
-# default package_scripts_path and resource_path are based on project name,
-# but we change the name based on flavor, so let's hardcode it to "agent"
-package_scripts_path "#{Omnibus::Config.project_root}/package-scripts/agent"
+# all flavors use the same package scripts
+if linux?
+  if debian?
+    package_scripts_path "#{Omnibus::Config.project_root}/package-scripts/agent-deb"
+  else
+    package_scripts_path "#{Omnibus::Config.project_root}/package-scripts/agent-rpm"
+  end
+elsif osx?
+    package_scripts_path "#{Omnibus::Config.project_root}/package-scripts/agent-dmg"
+end
+
 resources_path "#{Omnibus::Config.project_root}/resources/agent"
 
 exclude '\.git*'
 exclude 'bundler\/git'
 
 if windows?
+  FORBIDDEN_SYMBOLS = [
+    "github.com/golang/glog"
+  ]
+  
+  raise_if_forbidden_symbol_found = Proc.new { |symbols|
+    FORBIDDEN_SYMBOLS.each do |fs|
+      count = symbols.scan(fs).count()
+      if count > 0
+        raise ForbiddenSymbolsFoundError.new("#{fs} should not be present in the Agent binary but #{count} was found")
+      end
+    end
+  }
+
+  # Check the exported symbols from the binary
+  inspect_binary("#{Omnibus::Config.source_dir()}\\datadog-agent\\src\\github.com\\DataDog\\datadog-agent\\bin\\agent\\agent.exe", &raise_if_forbidden_symbol_found)
+  inspect_binary("#{Omnibus::Config.source_dir()}\\datadog-agent\\src\\github.com\\DataDog\\datadog-agent\\bin\\agent\\trace-agent.exe", &raise_if_forbidden_symbol_found)
+  inspect_binary("#{Omnibus::Config.source_dir()}\\datadog-agent\\src\\github.com\\DataDog\\datadog-agent\\bin\\agent\\process-agent.exe", &raise_if_forbidden_symbol_found)
+  inspect_binary("#{Omnibus::Config.source_dir()}\\datadog-agent\\src\\github.com\\DataDog\\datadog-agent\\bin\\agent\\system-probe.exe", &raise_if_forbidden_symbol_found)
+
   #
   # For Windows build, files need to be stripped must be specified here.
   #
-  windows_symbol_stripping_file "#{Omnibus::Config.source_dir()}\\cf-root\\bin\\agent\\security-agent.exe"
   windows_symbol_stripping_file "#{Omnibus::Config.source_dir()}\\cf-root\\bin\\agent\\process-agent.exe"
   windows_symbol_stripping_file "#{Omnibus::Config.source_dir()}\\cf-root\\bin\\agent\\trace-agent.exe"
   windows_symbol_stripping_file "#{Omnibus::Config.source_dir()}\\cf-root\\bin\\agent.exe"
-  windows_symbol_stripping_file "#{Omnibus::Config.source_dir()}\\datadog-agent\\src\\github.com\\DataDog\\datadog-agent\\bin\\agent\\security-agent.exe"
   windows_symbol_stripping_file "#{Omnibus::Config.source_dir()}\\datadog-agent\\src\\github.com\\DataDog\\datadog-agent\\bin\\agent\\process-agent.exe"
   windows_symbol_stripping_file "#{Omnibus::Config.source_dir()}\\datadog-agent\\src\\github.com\\DataDog\\datadog-agent\\bin\\agent\\trace-agent.exe"
   windows_symbol_stripping_file "#{Omnibus::Config.source_dir()}\\datadog-agent\\src\\github.com\\DataDog\\datadog-agent\\bin\\agent\\agent.exe"
+  windows_symbol_stripping_file "#{Omnibus::Config.source_dir()}\\datadog-agent\\src\\github.com\\DataDog\\datadog-agent\\bin\\agent\\system-probe.exe"
+  if not windows_arch_i386? and ENV['WINDOWS_DDPROCMON_DRIVER'] and not ENV['WINDOWS_DDPROCMON_DRIVER'].empty?
+    windows_symbol_stripping_file "#{Omnibus::Config.source_dir()}\\datadog-agent\\src\\github.com\\DataDog\\datadog-agent\\bin\\agent\\security-agent.exe"
+  end
+
 end
 
 if linux? or windows?

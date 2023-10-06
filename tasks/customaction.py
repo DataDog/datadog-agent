@@ -3,6 +3,7 @@ customaction namespaced tasks
 """
 
 
+import glob
 import os
 import shutil
 import sys
@@ -10,8 +11,7 @@ import sys
 from invoke import task
 from invoke.exceptions import Exit
 
-from tasks.libs.common.color import color_message
-
+from .libs.common.color import color_message
 from .utils import get_version, get_version_numeric_only
 
 # constants
@@ -103,3 +103,34 @@ def clean(_, arch="x64", debug=False):
         configuration = "Debug"
 
     shutil.rmtree(f"{CUSTOM_ACTION_ROOT_DIR}\\cal\\{arch}\\{configuration}", BIN_PATH)
+
+
+@task
+def package(
+    ctx,
+    vstudio_root=None,
+    omnibus_base_dir="c:\\omnibus-ruby",
+    arch="x64",
+    major_version='7',
+    debug=False,
+    rebuild=False,
+):
+    if os.getenv("OMNIBUS_BASE_DIR"):
+        omnibus_base_dir = os.getenv("OMNIBUS_BASE_DIR")
+    if rebuild:
+        clean(ctx, arch, debug)
+    build(ctx, vstudio_root, arch, major_version, debug)
+    for file in glob.glob(BIN_PATH + "\\customaction*"):
+        shutil.copy2(
+            file,
+            f"{omnibus_base_dir}\\src\\datadog-agent\\src\\github.com\\DataDog\\datadog-agent\\bin\\agent\\{os.path.basename(file)}",
+        )
+    cmd = "omnibus\\resources\\agent\\msi\\localbuild\\rebuild.bat"
+    res = ctx.run(cmd, warn=True)
+    if res.exited is None or res.exited > 0:
+        print(
+            color_message(
+                f"Failed to run \"{cmd}\"",
+                "orange",
+            )
+        )

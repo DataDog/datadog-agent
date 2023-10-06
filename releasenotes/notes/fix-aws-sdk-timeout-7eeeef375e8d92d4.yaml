@@ -1,0 +1,5 @@
+---
+enhancements:
+  - |
+    The Agent now uses the `ec2_metadata_timeout` value when fetching EC2 instance tags with AWS SDK. The Agent fetches
+    instance tags when `collect_ec2_tags` is set to `true`.

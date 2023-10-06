@@ -14,6 +14,7 @@ directory wrk_dir do
 end
 
 remote_file "#{wrk_dir}/install-script" do
+  sensitive true # to prevent displaying the full install_script in the logs
   source node['dd-agent-install-script']['install_script_url']
 end
 
@@ -65,6 +66,15 @@ end
 directory wrk_dir do
   owner 'installuser'
   mode '0755'
+end
+
+if platform?('centos') && node['dd-agent-rspec'] && node['dd-agent-rspec']['enable_cws']
+  # TODO(lebauce): enable repositories to install package
+  # package 'policycoreutils-python'
+
+  execute 'set SElinux to permissive mode to be able to start system-probe' do
+    command "setenforce 0"
+  end
 end
 
 execute 'run agent install script' do

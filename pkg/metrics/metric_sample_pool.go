@@ -8,8 +8,8 @@ package metrics
 import (
 	"sync"
 
+	"github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
-	telemetry_utils "github.com/DataDog/datadog-agent/pkg/telemetry/utils"
 )
 
 var (
@@ -23,6 +23,8 @@ var (
 
 // MetricSampleBatch is a slice of MetricSample. It is used by the MetricSamplePool
 // to avoid constant reallocation in high throughput pipelines.
+//
+// Can be used for both "on-time" and for "late" metrics.
 type MetricSampleBatch []MetricSample
 
 // MetricSamplePool is a pool of metrics sample
@@ -41,7 +43,7 @@ func NewMetricSamplePool(batchSize int) *MetricSamplePool {
 			},
 		},
 		// telemetry
-		tlmEnabled: telemetry_utils.IsEnabled(),
+		tlmEnabled: utils.IsTelemetryEnabled(),
 	}
 }
 

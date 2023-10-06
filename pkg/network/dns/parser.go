@@ -3,8 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build windows || linux_bpf
-// +build windows linux_bpf
+//go:build (windows && npm) || linux_bpf
 
 package dns
 
@@ -13,13 +12,13 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/network/config"
-	"github.com/DataDog/datadog-agent/pkg/process/util"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/google/gopacket"
 	"github.com/google/gopacket/layers"
 	"github.com/pkg/errors"
-	"go4.org/intern"
+
+	"github.com/DataDog/datadog-agent/pkg/network/config"
+	"github.com/DataDog/datadog-agent/pkg/process/util"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 const maxIPBufferSize = 200
@@ -195,9 +194,9 @@ func (p *dnsParser) parseAnswerInto(
 		pktInfo.pktType = query
 		pktInfo.queryType = QueryType(question.Type)
 		if p.collectDNSDomains {
-			pktInfo.question = intern.GetByString(string(question.Name))
+			pktInfo.question = ToHostname(string(question.Name))
 		} else {
-			pktInfo.question = intern.GetByString("")
+			pktInfo.question = ToHostname("")
 		}
 		return nil
 	}
@@ -211,7 +210,8 @@ func (p *dnsParser) parseAnswerInto(
 	pktInfo.queryType = QueryType(question.Type)
 	alias := p.extractCNAME(question.Name, dns.Answers)
 	p.extractIPsInto(alias, dns.Answers, t)
-	t.dns = string(bytes.ToLower(question.Name))
+	inplaceASCIILower(question.Name)
+	t.dns = HostnameFromBytes(question.Name)
 
 	pktInfo.pktType = successfulResponse
 	return nil
@@ -272,4 +272,16 @@ func getRecordedQueryTypes(cfg *config.Config) map[layers.DNSType]struct{} {
 		return defaultRecordedQueryTypes
 	}
 	return queryTypes
+}
+
+// inplaceASCIILower is an optimized, replace inplace version of bytes.ToLower
+// for byte slices knowing they only contain ASCII characters.
+func inplaceASCIILower(s []byte) {
+	for i := 0; i < len(s); i++ {
+		c := s[i]
+		if 'A' <= c && c <= 'Z' {
+			c += 'a' - 'A'
+		}
+		s[i] = c
+	}
 }

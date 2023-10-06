@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    Support dynamic Auth Tokens in Kubernetes v1.22+ (Bound Service Account Token Volume).

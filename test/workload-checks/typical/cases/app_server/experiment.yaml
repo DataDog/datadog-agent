@@ -1,0 +1,69 @@
+description: >
+  Simulates a relatively busy application server on which DogStatsD metrics,
+  traces and TCP streamed logs are present on which the client user is
+  interested in OTeL but has not made a complete transition. DogStatsD, TCP logs,
+  and APM traces make up the load. We make claims about throughput, UDS packet
+  loss and memory, CPU resource consumption.
+
+teams: []
+
+labels: {}
+
+checks:
+  - name: memory_usage
+    description: "Memory usage"
+    bounds:
+      series: rss_bytes
+      # The machine has 12Gb free.
+      upper_bound: 3.5Gb
+
+  - name: cpu_utilization
+    description: "CPU utilization"
+    bounds:
+      series: cpu_percentage
+      # The machine has 8 cores available.
+      upper_bound: 400
+
+  - name: apm_trace_throughput
+    description: "APM throughput"
+    bounds:
+      series: "rate(bytes_written['traces'])"
+      # Lading is configured to send 8 MB/s on each of two connections. This is
+      # a relatively high priority concern by bounding below close to the
+      # transmission rate.
+      lower_bound: 4b
+      upper_bound: 10Mb
+
+  - name: dogstatsd_throughput
+    description: "DogStatsD throughput"
+    bounds:
+      series: "rate(bytes_written['dogstatsd'])"
+      # Lading is configured to send 64 MB/s on each of two connections. The
+      # lower bound here is reflective of experimentally determined bounds.
+      lower_bound: 0b
+      upper_bound: 66Mb
+
+  - name: tcp_listener_throughput
+    description: "TCP listener throughput"
+    bounds:
+      series: "rate(bytes_written['tcp_logs'])"
+      # Lading is configured to send 10 MB/s. More throughput than this -- owing
+      # to buffering etc -- is fine but less is not.
+      lower_bound: 5Mb
+      upper_bound: 12Mb
+
+  - name: lost_bytes_uds_dogstatsd
+    description: "Lost UDS DogStatsD bytes"
+    percent_error:
+      expected: "bytes_written['dogstatsd']"
+      actual: "target/dogstatsd-uds/Bytes"
+      threshold: 5.0
+
+environment:
+  DD_TELEMETRY_ENABLED: true
+
+profiling_environment:
+  DD_INTERNAL_PROFILING_ENABLED: true
+  DD_INTERNAL_PROFILING_UNIX_SOCKET: /var/run/datadog/apm.socket
+  DD_INTERNAL_PROFILING_DELTA_PROFILES: true
+  DD_INTERNAL_PROFILING_ENABLE_GOROUTINE_STACKTRACES: true

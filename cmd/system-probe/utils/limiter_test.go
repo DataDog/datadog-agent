@@ -1,3 +1,8 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2021-present Datadog, Inc.
+
 package utils
 
 import (
@@ -8,7 +13,7 @@ import (
 	"testing"
 	"time"
 
-	"gotest.tools/assert"
+	"github.com/stretchr/testify/assert"
 )
 
 func TestWithConcurrencyLimit(t *testing.T) {
@@ -48,6 +53,7 @@ func TestWithConcurrencyLimit(t *testing.T) {
 		handler(w, r)
 		resp := w.Result()
 		io.Copy(io.Discard, resp.Body)
+		resp.Body.Close()
 		assert.Equal(t, http.StatusTooManyRequests, resp.StatusCode)
 	}
 
@@ -59,6 +65,7 @@ func TestWithConcurrencyLimit(t *testing.T) {
 	for _, recorder := range recorders {
 		resp := recorder.Result()
 		io.Copy(io.Discard, resp.Body)
+		resp.Body.Close()
 		assert.Equal(t, http.StatusOK, resp.StatusCode)
 	}
 }

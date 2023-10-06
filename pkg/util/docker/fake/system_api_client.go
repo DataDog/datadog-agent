@@ -4,8 +4,8 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build docker
-// +build docker
 
+// Package fake provides a fake Docker client to be used in tests.
 package fake
 
 import (
@@ -16,26 +16,32 @@ import (
 	"github.com/docker/docker/api/types/registry"
 )
 
+// SystemAPIClient is a mock
 type SystemAPIClient struct {
 	InfoFunc func() (types.Info, error)
 }
 
+// Events is a mock method
 func (c *SystemAPIClient) Events(ctx context.Context, options types.EventsOptions) (<-chan events.Message, <-chan error) {
 	return nil, nil
 }
 
+// Info is a mock method
 func (c *SystemAPIClient) Info(ctx context.Context) (types.Info, error) {
 	return c.InfoFunc()
 }
 
+// RegistryLogin is a mock method
 func (c *SystemAPIClient) RegistryLogin(ctx context.Context, auth types.AuthConfig) (registry.AuthenticateOKBody, error) {
 	return registry.AuthenticateOKBody{}, nil
 }
 
-func (c *SystemAPIClient) DiskUsage(ctx context.Context) (types.DiskUsage, error) {
+// DiskUsage is a mock method
+func (c *SystemAPIClient) DiskUsage(ctx context.Context, options types.DiskUsageOptions) (types.DiskUsage, error) {
 	return types.DiskUsage{}, nil
 }
 
+// Ping is a mock method
 func (c *SystemAPIClient) Ping(ctx context.Context) (types.Ping, error) {
 	return types.Ping{}, nil
 }

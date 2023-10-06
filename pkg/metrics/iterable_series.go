@@ -5,78 +5,35 @@
 
 package metrics
 
-import (
-	"context"
-	"sync/atomic"
-
-	"github.com/DataDog/datadog-agent/pkg/util"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
-)
-
-// IterableSeries represents an iterable collection of Serie.
-// Serie can be appended to IterableSeries while IterableSeries is serialized
+// IterableSeries is an specialisation of iterableMetrics for serie.
 type IterableSeries struct {
-	ch                 *util.BufferedChan
-	bufferedChanClosed bool
-	cancel             context.CancelFunc
-	callback           func(*Serie)
-	current            *Serie
-	count              uint64
+	iterableMetrics
 }
 
 // NewIterableSeries creates a new instance of *IterableSeries
-// `callback` is called each time `Append` is called.
+//
+// `callback` is called in the context of the sender's goroutine each time `Append` is called.
 func NewIterableSeries(callback func(*Serie), chanSize int, bufferSize int) *IterableSeries {
-	ctx, cancel := context.WithCancel(context.Background())
 	return &IterableSeries{
-		ch:       util.NewBufferedChan(ctx, chanSize, bufferSize),
-		cancel:   cancel,
-		callback: callback,
-		current:  nil,
+		iterableMetrics: *newIterableMetric(func(value interface{}) {
+			callback(value.(*Serie))
+		}, chanSize, bufferSize),
 	}
 }
 
 // Append appends a serie
-func (series *IterableSeries) Append(serie *Serie) {
-	series.callback(serie)
-	atomic.AddUint64(&series.count, 1)
-	if !series.ch.Put(serie) && !series.bufferedChanClosed {
-		series.bufferedChanClosed = true
-		log.Errorf("Cannot append a serie in a closed buffered channel")
-	}
-}
-
-// SeriesCount returns the number of series appended with `IterableSeries.Append`.
-func (series *IterableSeries) SeriesCount() uint64 {
-	return atomic.LoadUint64(&series.count)
-}
-
-// SenderStopped must be called when sender stop calling Append.
-func (series *IterableSeries) SenderStopped() {
-	series.ch.Close()
-}
-
-// IterationStopped must be called when the receiver stops calling `MoveNext`.
-// This function prevents the case when the receiver stops iterating before the
-// end of the iteration because of an error and so blocks the sender forever
-// as no goroutine read the channel.
-func (series *IterableSeries) IterationStopped() {
-	series.cancel()
-}
-
-// MoveNext advances to the next element.
-// Returns false for the end of the iteration.
-func (series *IterableSeries) MoveNext() bool {
-	v, ok := series.ch.Get()
-	if v != nil {
-		series.current = v.(*Serie)
-	} else {
-		series.current = nil
-	}
-	return ok
+func (it *IterableSeries) Append(serie *Serie) {
+	it.iterableMetrics.Append(serie)
 }
 
 // Current returns the current serie.
-func (series *IterableSeries) Current() *Serie {
-	return series.current
+func (it *IterableSeries) Current() *Serie {
+	return it.iterableMetrics.Current().(*Serie)
+}
+
+// SerieSource is a source of series used by the serializer.
+type SerieSource interface {
+	MoveNext() bool
+	Current() *Serie
+	Count() uint64
 }

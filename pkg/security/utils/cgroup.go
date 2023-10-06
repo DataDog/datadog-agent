@@ -4,8 +4,8 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build linux
-// +build linux
 
+// Package utils holds utils related files
 package utils
 
 import (
@@ -16,7 +16,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
+	"github.com/DataDog/datadog-agent/pkg/security/common/containerutils"
 )
 
 // ContainerID is the type holding the container ID
@@ -49,7 +49,7 @@ type ControlGroup struct {
 
 // GetContainerID returns the container id extracted from the path of the control group
 func (cg ControlGroup) GetContainerID() ContainerID {
-	return ContainerID(model.FindContainerID(cg.Path))
+	return ContainerID(containerutils.FindContainerID(cg.Path))
 }
 
 // GetProcControlGroups returns the cgroup membership of the specified task.

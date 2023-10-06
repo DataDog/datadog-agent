@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build kubeapiserver && kubelet
-// +build kubeapiserver,kubelet
 
 package kubemetadata
 
@@ -16,6 +15,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/assert"
+	"k8s.io/apimachinery/pkg/util/sets"
+
 	apiv1 "github.com/DataDog/datadog-agent/pkg/clusteragent/api/v1"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/clusterchecks/types"
 	"github.com/DataDog/datadog-agent/pkg/util/cache"
@@ -24,9 +26,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet"
 	"github.com/DataDog/datadog-agent/pkg/version"
 	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
-	"github.com/DataDog/datadog-agent/pkg/workloadmeta/collectors/internal/util"
-	"github.com/stretchr/testify/assert"
-	"k8s.io/apimachinery/pkg/util/sets"
 )
 
 type FakeDCAClient struct {
@@ -231,7 +230,7 @@ func TestKubeMetadataCollector_getMetadata(t *testing.T) {
 				}},
 				metadataByNsPods: apiv1.NamespacesPodsStringsSet{
 					"test": apiv1.MapStringSet{
-						"pod-bar": sets.NewString("foo=bar"),
+						"pod-bar": sets.New("foo=bar"),
 					},
 				},
 			},
@@ -469,6 +468,10 @@ func TestKubeMetadataCollector_parsePods(t *testing.T) {
 							Kind: workloadmeta.KindKubernetesPod,
 							ID:   "foouid",
 						},
+						EntityMeta: workloadmeta.EntityMeta{
+							Name:      "foo",
+							Namespace: "default",
+						},
 						KubeServices: []string{"svc1", "svc2"},
 						NamespaceLabels: map[string]string{
 							"label": "value",
@@ -507,6 +510,10 @@ func TestKubeMetadataCollector_parsePods(t *testing.T) {
 							Kind: workloadmeta.KindKubernetesPod,
 							ID:   "foouid",
 						},
+						EntityMeta: workloadmeta.EntityMeta{
+							Name:      "foo",
+							Namespace: "default",
+						},
 						KubeServices: []string{"svc1", "svc2"},
 					},
 				},
@@ -532,6 +539,10 @@ func TestKubeMetadataCollector_parsePods(t *testing.T) {
 							Kind: workloadmeta.KindKubernetesPod,
 							ID:   "foouid",
 						},
+						EntityMeta: workloadmeta.EntityMeta{
+							Name:      "foo",
+							Namespace: "default",
+						},
 						KubeServices: []string{},
 					},
 				},
@@ -549,10 +560,10 @@ func TestKubeMetadataCollector_parsePods(t *testing.T) {
 				updateFreq:             tt.fields.updateFreq,
 				dcaEnabled:             tt.fields.dcaEnabled,
 				collectNamespaceLabels: tt.fields.collectNamespaceLabels,
-				expire:                 util.NewExpire(expireFreq),
+				seen:                   make(map[workloadmeta.EntityID]struct{}),
 			}
 
-			got, err := c.parsePods(context.TODO(), tt.args.pods)
+			got, err := c.parsePods(context.TODO(), tt.args.pods, make(map[workloadmeta.EntityID]struct{}))
 			assert.True(t, (err != nil) == tt.wantErr)
 			assert.ElementsMatch(t, tt.want, got)
 		})

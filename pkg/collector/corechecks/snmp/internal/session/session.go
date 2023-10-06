@@ -8,15 +8,17 @@ package session
 import (
 	"fmt"
 	stdlog "log"
+	"strings"
 	"time"
 
 	"github.com/cihub/seelog"
 	"github.com/gosnmp/gosnmp"
 
+	"github.com/DataDog/datadog-agent/pkg/snmp/gosnmplib"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/checkconfig"
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/gosnmplib"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/valuestore"
 )
 
 const sysObjectIDOid = "1.3.6.1.2.1.1.2.0"
@@ -84,6 +86,13 @@ func NewGosnmpSession(config *checkconfig.CheckConfig) (Session, error) {
 		}
 		s.gosnmpInst.Community = config.CommunityString
 	} else if config.User != "" {
+		if config.AuthKey != "" && config.AuthProtocol == "" {
+			config.AuthProtocol = "md5"
+		}
+		if config.PrivKey != "" && config.PrivProtocol == "" {
+			config.PrivProtocol = "des"
+		}
+
 		authProtocol, err := gosnmplib.GetAuthProtocol(config.AuthProtocol)
 		if err != nil {
 			return nil, err
@@ -146,7 +155,7 @@ func FetchSysObjectID(session Session) (string, error) {
 		return "", fmt.Errorf("expected 1 value, but got %d: variables=%v", len(result.Variables), result.Variables)
 	}
 	pduVar := result.Variables[0]
-	oid, value, err := gosnmplib.GetValueFromPDU(pduVar)
+	oid, value, err := valuestore.GetResultValueFromPDU(pduVar)
 	if err != nil {
 		return "", fmt.Errorf("error getting value from pdu: %s", err)
 	}
@@ -158,4 +167,51 @@ func FetchSysObjectID(session Session) (string, error) {
 		return "", fmt.Errorf("error converting value (%#v) to string : %v", value, err)
 	}
 	return strValue, err
+}
+
+// FetchAllOIDsUsingGetNext fetches all available OIDs
+// Fetch all scalar OIDs and first row of table OIDs.
+func FetchAllOIDsUsingGetNext(session Session) []string {
+	var savedOIDs []string
+	curRequestOid := "1.0"
+	alreadySeenOIDs := make(map[string]bool)
+
+	for {
+		results, err := session.GetNext([]string{curRequestOid})
+		if err != nil {
+			log.Debugf("GetNext error: %s", err)
+			break
+		}
+		if len(results.Variables) != 1 {
+			log.Debugf("Expect 1 variable, but got %d: %+v", len(results.Variables), results.Variables)
+			break
+		}
+		variable := results.Variables[0]
+		if variable.Type == gosnmp.EndOfContents || variable.Type == gosnmp.EndOfMibView {
+			log.Debug("No more OIDs to fetch")
+			break
+		}
+		oid := strings.TrimLeft(variable.Name, ".")
+		if strings.HasSuffix(oid, ".0") { // check if it's a scalar OID
+			curRequestOid = oid
+		} else {
+			nextColumn, err := GetNextColumnOidNaive(oid)
+			if err != nil {
+				log.Debugf("Invalid column oid: %s", oid)
+				curRequestOid = oid // fallback on continuing by using the response oid as next oid to request
+			} else {
+				curRequestOid = nextColumn
+			}
+		}
+
+		if alreadySeenOIDs[curRequestOid] {
+			// breaking on already seen OIDs prevent infinite loop if the device mis behave by responding with non-sequential OIDs when called with GETNEXT
+			log.Debug("error: received non sequential OIDs")
+			break
+		}
+		alreadySeenOIDs[curRequestOid] = true
+
+		savedOIDs = append(savedOIDs, oid)
+	}
+	return savedOIDs
 }

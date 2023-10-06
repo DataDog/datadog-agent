@@ -6,10 +6,18 @@
 package sender
 
 import (
+	"strconv"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/logs/client"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
+	"github.com/DataDog/datadog-agent/pkg/telemetry"
+)
+
+var (
+	tlmPayloadsDropped = telemetry.NewCounter("logs_sender", "payloads_dropped", []string{"reliable", "destination"}, "Payloads dropped")
+	tlmMessagesDropped = telemetry.NewCounter("logs_sender", "messages_dropped", []string{"reliable", "destination"}, "Messages dropped")
+	tlmSendWaitTime    = telemetry.NewCounter("logs_sender", "send_wait", []string{}, "Time spent waiting for all sends to finish")
 )
 
 // Sender sends logs to different destinations. Destinations can be either
@@ -57,6 +65,7 @@ func (s *Sender) run() {
 	unreliableDestinations := buildDestinationSenders(s.destinations.Unreliable, sink, s.bufferSize)
 
 	for payload := range s.inputChan {
+		var startInUse = time.Now()
 
 		sent := false
 		for !sent {
@@ -74,18 +83,27 @@ func (s *Sender) run() {
 			}
 		}
 
-		for _, destSender := range reliableDestinations {
+		for i, destSender := range reliableDestinations {
 			// If an endpoint is stuck in the previous step, try to buffer the payloads if we have room to mitigate
 			// loss on intermittent failures.
 			if !destSender.lastSendSucceeded {
-				destSender.NonBlockingSend(payload)
+				if !destSender.NonBlockingSend(payload) {
+					tlmPayloadsDropped.Inc("true", strconv.Itoa(i))
+					tlmMessagesDropped.Add(float64(len(payload.Messages)), "true", strconv.Itoa(i))
+				}
 			}
 		}
 
 		// Attempt to send to unreliable destinations
-		for _, destSender := range unreliableDestinations {
-			destSender.NonBlockingSend(payload)
+		for i, destSender := range unreliableDestinations {
+			if !destSender.NonBlockingSend(payload) {
+				tlmPayloadsDropped.Inc("false", strconv.Itoa(i))
+				tlmMessagesDropped.Add(float64(len(payload.Messages)), "false", strconv.Itoa(i))
+			}
 		}
+
+		inUse := float64(time.Since(startInUse) / time.Millisecond)
+		tlmSendWaitTime.Add(inUse)
 	}
 
 	// Cleanup the destinations
@@ -103,8 +121,8 @@ func (s *Sender) run() {
 func additionalDestinationsSink(bufferSize int) chan *message.Payload {
 	sink := make(chan *message.Payload, bufferSize)
 	go func() {
-		for {
-			<-sink
+		// drain channel, stop when channel is closed
+		for range sink {
 		}
 	}()
 	return sink

@@ -9,7 +9,6 @@ package common
 
 import (
 	"fmt"
-	"io/ioutil"
 	"os"
 	"os/user"
 	"path/filepath"
@@ -72,12 +71,12 @@ func ImportConfig(oldConfigDir string, newConfigDir string, force bool) error {
 	}
 
 	// move existing config files to the new configuration directory
-	files, err := ioutil.ReadDir(filepath.Join(oldConfigDir, "conf.d"))
+	files, err := os.ReadDir(filepath.Join(oldConfigDir, "conf.d"))
 	if err != nil {
 		if os.IsNotExist(err) {
-			fmt.Fprintln(color.Output,
-				fmt.Sprintf("%s does not exist, no config files to import.",
-					color.BlueString(filepath.Join(oldConfigDir, "conf.d"))),
+			fmt.Fprintf(color.Output,
+				"%s does not exist, no config files to import.\n",
+				color.BlueString(filepath.Join(oldConfigDir, "conf.d")),
 			)
 		} else {
 			return fmt.Errorf("unable to list config files from %s: %v", oldConfigDir, err)
@@ -103,9 +102,9 @@ func ImportConfig(oldConfigDir string, newConfigDir string, force bool) error {
 			continue
 		} else if f.Name() == "docker.yaml" {
 			// if people upgrade from a very old version of the agent who ship the old docker check.
-			fmt.Fprintln(
+			fmt.Fprintf(
 				color.Output,
-				fmt.Sprintf("Ignoring %s, old docker check has been deprecated.", color.YellowString(src)),
+				"Ignoring %s, old docker check has been deprecated.\n", color.YellowString(src),
 			)
 			continue
 		} else if f.Name() == "kubernetes.yaml" {
@@ -120,12 +119,11 @@ func ImportConfig(oldConfigDir string, newConfigDir string, force bool) error {
 			return fmt.Errorf("unable to copy %s to %s: %v", src, dst, err)
 		}
 
-		fmt.Fprintln(
+		fmt.Fprintf(
 			color.Output,
-			fmt.Sprintf("Copied %s over the new %s directory",
-				color.BlueString("conf.d/"+f.Name()),
-				color.BlueString(checkName+dirExt),
-			),
+			"Copied %s over the new %s directory\n",
+			color.BlueString("conf.d/"+f.Name()),
+			color.BlueString(checkName+dirExt),
 		)
 	}
 
@@ -146,26 +144,25 @@ func ImportConfig(oldConfigDir string, newConfigDir string, force bool) error {
 	// dump the current configuration to datadog.yaml
 	// file permissions will be used only to create the file if doesn't exist,
 	// please note on Windows such permissions have no effect.
-	if err = ioutil.WriteFile(datadogYamlPath, b, 0640); err != nil {
+	if err = os.WriteFile(datadogYamlPath, b, 0640); err != nil {
 		return fmt.Errorf("unable to write config to %s: %v", datadogYamlPath, err)
 	}
 
-	fmt.Fprintln(
+	fmt.Fprintf(
 		color.Output,
-		fmt.Sprintf("%s imported the contents of %s into %s",
-			color.GreenString("Success:"),
-			datadogConfPath,
-			datadogYamlPath,
-		),
+		"%s imported the contents of %s into %s\n",
+		color.GreenString("Success:"),
+		datadogConfPath,
+		datadogYamlPath,
 	)
 
 	// move existing config templates to the new auto_conf directory
-	autoConfFiles, err := ioutil.ReadDir(filepath.Join(oldConfigDir, "conf.d", "auto_conf"))
+	autoConfFiles, err := os.ReadDir(filepath.Join(oldConfigDir, "conf.d", "auto_conf"))
 	if err != nil {
 		if os.IsNotExist(err) {
-			fmt.Fprintln(color.Output,
-				fmt.Sprintf("%s does not exist, no auto_conf files to import.",
-					color.BlueString(filepath.Join(oldConfigDir, "conf.d", "auto_conf"))),
+			fmt.Fprintf(color.Output,
+				"%s does not exist, no auto_conf files to import.\n",
+				color.BlueString(filepath.Join(oldConfigDir, "conf.d", "auto_conf")),
 			)
 		} else {
 			return fmt.Errorf("unable to list auto_conf files from %s: %v", oldConfigDir, err)
@@ -187,24 +184,23 @@ func ImportConfig(oldConfigDir string, newConfigDir string, force bool) error {
 		}
 
 		// Transform if needed AD configuration
-		input, err := ioutil.ReadFile(dst)
+		input, err := os.ReadFile(dst)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "unable to open %s", dst)
 			continue
 		}
 		output := strings.Replace(string(input), "docker_images:", "ad_identifiers:", 1)
-		err = ioutil.WriteFile(dst, []byte(output), 0640)
+		err = os.WriteFile(dst, []byte(output), 0640)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "unable to write %s", dst)
 			continue
 		}
 
-		fmt.Fprintln(
+		fmt.Fprintf(
 			color.Output,
-			fmt.Sprintf("Copied %s over the new %s directory",
-				color.BlueString("auto_conf/"+f.Name()),
-				color.BlueString(checkName+dirExt),
-			),
+			"Copied %s over the new %s directory\n",
+			color.BlueString("auto_conf/"+f.Name()),
+			color.BlueString(checkName+dirExt),
 		)
 	}
 
@@ -241,7 +237,7 @@ func copyFile(src, dst string, overwrite bool, transformations []TransformationF
 		return err
 	}
 
-	data, err := ioutil.ReadFile(src)
+	data, err := os.ReadFile(src)
 	if err != nil {
 		return fmt.Errorf("unable to read file %s : %s", src, err)
 	}
@@ -253,7 +249,7 @@ func copyFile(src, dst string, overwrite bool, transformations []TransformationF
 		}
 	}
 
-	ioutil.WriteFile(dst, data, 0640) //nolint:errcheck
+	os.WriteFile(dst, data, 0640) //nolint:errcheck
 
 	ddGroup, errGroup := user.LookupGroup("dd-agent")
 	ddUser, errUser := user.LookupId("dd-agent")

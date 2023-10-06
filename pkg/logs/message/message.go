@@ -9,8 +9,8 @@ import (
 	"context"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/logs/config"
-	"github.com/DataDog/datadog-agent/pkg/util"
+	"github.com/DataDog/datadog-agent/pkg/logs/sources"
+	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 )
 
 // Payload represents an encoded collection of messages ready to be sent to the intake
@@ -29,8 +29,26 @@ type Payload struct {
 type Message struct {
 	Content            []byte
 	Origin             *Origin
-	status             string
+	Status             string
 	IngestionTimestamp int64
+	RawDataLen         int
+	// Extra information from the parsers
+	ParsingExtra
+	// Extra information for Serverless Logs messages
+	ServerlessExtra
+}
+
+// ParsingExtra ships extra information parsers want to make available
+// to the rest of the pipeline.
+// E.g. Timestamp is used by the docker parsers to transmit a tailing offset.
+type ParsingExtra struct {
+	// Used by docker parsers to transmit an offset.
+	Timestamp string
+	IsPartial bool
+}
+
+// ServerlessExtra ships extra information from logs processing in serverless envs.
+type ServerlessExtra struct {
 	// Optional. Must be UTC. If not provided, time.Now().UTC() will be used
 	// Used in the Serverless Agent
 	Timestamp time.Time
@@ -46,7 +64,7 @@ type Lambda struct {
 }
 
 // NewMessageWithSource constructs message with content, status and log source.
-func NewMessageWithSource(content []byte, status string, source *config.LogSource, ingestionTimestamp int64) *Message {
+func NewMessageWithSource(content []byte, status string, source *sources.LogSource, ingestionTimestamp int64) *Message {
 	return NewMessage(content, NewOrigin(source), status, ingestionTimestamp)
 }
 
@@ -55,7 +73,7 @@ func NewMessage(content []byte, origin *Origin, status string, ingestionTimestam
 	return &Message{
 		Content:            content,
 		Origin:             origin,
-		status:             status,
+		Status:             status,
 		IngestionTimestamp: ingestionTimestamp,
 	}
 }
@@ -65,12 +83,14 @@ func NewMessageFromLambda(content []byte, origin *Origin, status string, utcTime
 	return &Message{
 		Content:            content,
 		Origin:             origin,
-		status:             status,
+		Status:             status,
 		IngestionTimestamp: ingestionTimestamp,
-		Timestamp:          utcTime,
-		Lambda: &Lambda{
-			ARN:       ARN,
-			RequestID: reqID,
+		ServerlessExtra: ServerlessExtra{
+			Timestamp: utcTime,
+			Lambda: &Lambda{
+				ARN:       ARN,
+				RequestID: reqID,
+			},
 		},
 	}
 }
@@ -78,10 +98,10 @@ func NewMessageFromLambda(content []byte, origin *Origin, status string, utcTime
 // GetStatus gets the status of the message.
 // if status is not set, StatusInfo will be returned.
 func (m *Message) GetStatus() string {
-	if m.status == "" {
-		m.status = StatusInfo
+	if m.Status == "" {
+		m.Status = StatusInfo
 	}
-	return m.status
+	return m.Status
 }
 
 // GetLatency returns the latency delta from ingestion time until now
@@ -94,11 +114,11 @@ func (m *Message) GetHostname() string {
 	if m.Lambda != nil {
 		return m.Lambda.ARN
 	}
-	hostname, err := util.GetHostname(context.TODO())
+	hname, err := hostname.Get(context.TODO())
 	if err != nil {
 		// this scenario is not likely to happen since
 		// the agent cannot start without a hostname
-		hostname = "unknown"
+		hname = "unknown"
 	}
-	return hostname
+	return hname
 }

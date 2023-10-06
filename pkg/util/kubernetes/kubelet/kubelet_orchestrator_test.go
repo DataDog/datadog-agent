@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build kubelet && orchestrator
-// +build kubelet,orchestrator
 
 package kubelet
 
@@ -25,7 +24,7 @@ type KubeletOrchestratorTestSuite struct {
 
 // Make sure globalKubeUtil is deleted before each test
 func (suite *KubeletOrchestratorTestSuite) SetupTest() {
-	mockConfig := config.Mock()
+	mockConfig := config.Mock(nil)
 
 	ResetGlobalKubeUtil()
 	ResetCache()
@@ -46,13 +45,13 @@ func (suite *KubeletOrchestratorTestSuite) SetupTest() {
 
 func (suite *KubeletOrchestratorTestSuite) TestGetRawLocalPodList() {
 	ctx := context.Background()
-	mockConfig := config.Mock()
+	mockConfig := config.Mock(nil)
 
 	kubelet, err := newDummyKubelet("./testdata/podlist_1.8-2.json")
 	require.Nil(suite.T(), err)
 	ts, kubeletPort, err := kubelet.Start()
-	defer ts.Close()
 	require.Nil(suite.T(), err)
+	defer ts.Close()
 
 	mockConfig.Set("kubernetes_kubelet_host", "localhost")
 	mockConfig.Set("kubernetes_http_kubelet_port", kubeletPort)

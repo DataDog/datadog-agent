@@ -41,6 +41,8 @@ func applyOverrideFuncs(config Config) {
 
 func applyOverrideVars(config Config) {
 	for k, v := range overrideVars {
-		config.Set(k, v)
+		if config.IsKnown(k) {
+			config.Set(k, v)
+		}
 	}
 }

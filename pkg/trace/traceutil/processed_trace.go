@@ -5,9 +5,7 @@
 
 package traceutil
 
-import (
-	"github.com/DataDog/datadog-agent/pkg/trace/pb"
-)
+import pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 
 // ProcessedTrace represents a trace being processed in the agent.
 type ProcessedTrace struct {
@@ -17,4 +15,35 @@ type ProcessedTrace struct {
 	AppVersion             string
 	TracerHostname         string
 	ClientDroppedP0sWeight float64
+}
+
+// Clone creates a copy of ProcessedTrace, cloning p, p.TraceChunk, and p.Root. This means it is
+// safe to modify the returned ProcessedTrace's (pt's) fields along with fields in
+// pt.TraceChunk and fields in pt.Root.
+//
+// The most important consequence of this is that the TraceChunk's Spans field can be assigned,
+// *BUT* the Spans value itself should not be modified. i.e. This is ok:
+//
+//	pt2 := pt.Clone()
+//	pt2.TraceChunk.Spans = make([]*pb.Span)
+//
+// but this is NOT ok:
+//
+//	pt2 := pt.Clone()
+//	pt2.TraceChunk.Spans[0] = &pb.Span{} // This will be visible in pt.
+func (pt *ProcessedTrace) Clone() *ProcessedTrace {
+	if pt == nil {
+		return nil
+	}
+	ptClone := new(ProcessedTrace)
+	*ptClone = *pt
+	if pt.TraceChunk != nil {
+		c := pt.TraceChunk.ShallowCopy()
+		ptClone.TraceChunk = c
+	}
+	if pt.Root != nil {
+		r := pt.Root.ShallowCopy()
+		ptClone.Root = r
+	}
+	return ptClone
 }

@@ -25,7 +25,7 @@ class Gitlab(RemoteAPI):
         self.authorization_error_message = (
             "HTTP 401: Your GITLAB_TOKEN may have expired. You can "
             "check and refresh it at "
-            "https://gitlab.ddbuild.io/profile/personal_access_tokens"
+            "https://gitlab.ddbuild.io/-/profile/personal_access_tokens"
         )
 
     def test_project_found(self):
@@ -122,6 +122,13 @@ class Gitlab(RemoteAPI):
         path = f"/projects/{quote(self.project_name, safe='')}/pipelines/{pipeline_id}/cancel"
         return self.make_request(path, json_output=True, method="POST")
 
+    def cancel_job(self, job_id):
+        """
+        Cancels a given job
+        """
+        path = f"/projects/{quote(self.project_name, safe='')}/jobs/{job_id}/cancel"
+        return self.make_request(path, json_output=True, method="POST")
+
     def commit(self, commit_sha):
         """
         Gets info for a given commit sha.
@@ -159,6 +166,14 @@ class Gitlab(RemoteAPI):
         """
         path = f"/projects/{quote(self.project_name, safe='')}/pipelines/{pipeline_id}/jobs?per_page={per_page}&page={page}"
         return self.make_request(path, json_output=True)
+
+    def job_log(self, job_id):
+        """
+        Gets the log file for a given job.
+        """
+
+        path = f"/projects/{quote(self.project_name, safe='')}/jobs/{job_id}/trace"
+        return self.make_request(path)
 
     def all_pipeline_schedules(self):
         """
@@ -260,7 +275,18 @@ class Gitlab(RemoteAPI):
         Look up a tag by its name.
         """
         path = f"/projects/{quote(self.project_name, safe='')}/repository/tags/{tag_name}"
-        return self.make_request(path, json_output=True)
+        try:
+            response = self.make_request(path, json_output=True)
+            return response
+        except APIError as e:
+            # If Gitlab API returns a "404 not found" error we return an empty dict
+            if e.status_code == 404:
+                print(
+                    f"Couldn't find the {tag_name} tag: Gitlab returned a 404 Not Found instead of a 200 empty response."
+                )
+                return dict()
+            else:
+                raise e
 
     def make_request(
         self, path, headers=None, data=None, json_input=False, json_output=False, stream_output=False, method=None
@@ -301,7 +327,7 @@ def get_gitlab_token():
                 pass
         print(
             "Please create an 'api' access token at "
-            "https://gitlab.ddbuild.io/profile/personal_access_tokens and "
+            "https://gitlab.ddbuild.io/-/profile/personal_access_tokens and "
             "add it as GITLAB_TOKEN in your keychain "
             "or export it from your .bashrc or equivalent."
         )

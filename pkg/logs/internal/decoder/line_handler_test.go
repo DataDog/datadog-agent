@@ -11,28 +11,33 @@ import (
 	"testing"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/logs/config"
+	"github.com/benbjohnson/clock"
 	"github.com/stretchr/testify/assert"
+
+	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
+	"github.com/DataDog/datadog-agent/pkg/logs/internal/status"
+	"github.com/DataDog/datadog-agent/pkg/logs/message"
+	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 )
 
 // All valid whitespace characters
 const whitespace = "\t\n\v\f\r\u0085\u00a0 "
 const contentLenLimit = 100
 
-func getDummyMessage(content string) *Message {
+func getDummyMessage(content string) *message.Message {
 	return NewMessage([]byte(content), "info", len(content), "2018-06-14T18:27:03.246999277Z")
 }
 
-func getDummyMessageWithLF(content string) *Message {
+func getDummyMessageWithLF(content string) *message.Message {
 	return NewMessage([]byte(content), "info", len(content)+1, "2018-06-14T18:27:03.246999277Z")
 }
 
-func lineHandlerChans() (func(*Message), chan *Message) {
-	ch := make(chan *Message, 20)
-	return func(m *Message) { ch <- m }, ch
+func lineHandlerChans() (func(*message.Message), chan *message.Message) {
+	ch := make(chan *message.Message, 20)
+	return func(m *message.Message) { ch <- m }, ch
 }
 
-func assertNothingInChannel(t *testing.T, ch chan *Message) {
+func assertNothingInChannel(t *testing.T, ch chan *message.Message) {
 	select {
 	case <-ch:
 		assert.Fail(t, "unexpected message")
@@ -44,7 +49,7 @@ func TestSingleLineHandler(t *testing.T) {
 	outputFn, outputChan := lineHandlerChans()
 	h := NewSingleLineHandler(outputFn, 100)
 
-	var output *Message
+	var output *message.Message
 	var line string
 
 	// valid line should be sent
@@ -78,11 +83,10 @@ func TestTrimSingleLine(t *testing.T) {
 	outputFn, outputChan := lineHandlerChans()
 	h := NewSingleLineHandler(outputFn, 100)
 
-	var output *Message
-	var line string
+	var output *message.Message
 
 	// All leading and trailing whitespace characters should be trimmed
-	line = whitespace + "foo" + whitespace + "bar" + whitespace
+	line := whitespace + "foo" + whitespace + "bar" + whitespace
 	h.process(getDummyMessageWithLF(line))
 	output = <-outputChan
 	assert.Equal(t, "foo"+whitespace+"bar", string(output.Content))
@@ -90,11 +94,11 @@ func TestTrimSingleLine(t *testing.T) {
 }
 
 func TestMultiLineHandler(t *testing.T) {
-	re := regexp.MustCompile("[0-9]+\\.")
+	re := regexp.MustCompile(`[0-9]+\.`)
 	outputFn, outputChan := lineHandlerChans()
-	h := NewMultiLineHandler(outputFn, re, 10*time.Millisecond, 20)
+	h := NewMultiLineHandler(outputFn, re, 250*time.Millisecond, 20, false)
 
-	var output *Message
+	var output *message.Message
 
 	// two lines long message should be sent
 	h.process(getDummyMessageWithLF("1.first"))
@@ -174,11 +178,11 @@ func TestMultiLineHandler(t *testing.T) {
 }
 
 func TestTrimMultiLine(t *testing.T) {
-	re := regexp.MustCompile("[0-9]+\\.")
+	re := regexp.MustCompile(`[0-9]+\.`)
 	outputFn, outputChan := lineHandlerChans()
-	h := NewMultiLineHandler(outputFn, re, 10*time.Millisecond, 100)
+	h := NewMultiLineHandler(outputFn, re, 250*time.Millisecond, 100, false)
 
-	var output *Message
+	var output *message.Message
 
 	// All leading and trailing whitespace characters should be trimmed
 	h.process(getDummyMessageWithLF(whitespace + "foo" + whitespace + "bar" + whitespace))
@@ -203,16 +207,16 @@ func TestTrimMultiLine(t *testing.T) {
 }
 
 func TestMultiLineHandlerDropsEmptyMessages(t *testing.T) {
-	re := regexp.MustCompile("[0-9]+\\.")
+	re := regexp.MustCompile(`[0-9]+\.`)
 	outputFn, outputChan := lineHandlerChans()
-	h := NewMultiLineHandler(outputFn, re, 10*time.Millisecond, 100)
+	h := NewMultiLineHandler(outputFn, re, 250*time.Millisecond, 100, false)
 
 	h.process(getDummyMessage(""))
 
 	h.process(getDummyMessage("1.third line"))
 	h.process(getDummyMessage("fourth line"))
 
-	var output *Message
+	var output *message.Message
 
 	assertNothingInChannel(t, outputChan)
 	h.flush()
@@ -227,21 +231,19 @@ func TestSingleLineHandlerSendsRawInvalidMessages(t *testing.T) {
 
 	h.process(getDummyMessage("one message"))
 
-	var output *Message
-
-	output = <-outputChan
+	output := <-outputChan
 	assert.Equal(t, "one message", string(output.Content))
 }
 
 func TestMultiLineHandlerSendsRawInvalidMessages(t *testing.T) {
-	re := regexp.MustCompile("[0-9]+\\.")
+	re := regexp.MustCompile(`[0-9]+\.`)
 	outputFn, outputChan := lineHandlerChans()
-	h := NewMultiLineHandler(outputFn, re, 10*time.Millisecond, 100)
+	h := NewMultiLineHandler(outputFn, re, 250*time.Millisecond, 100, false)
 
 	h.process(getDummyMessage("1.third line"))
 	h.process(getDummyMessage("fourth line"))
 
-	var output *Message
+	var output *message.Message
 
 	assertNothingInChannel(t, outputChan)
 	h.flush()
@@ -253,9 +255,9 @@ func TestMultiLineHandlerSendsRawInvalidMessages(t *testing.T) {
 func TestAutoMultiLineHandlerStaysSingleLineMode(t *testing.T) {
 
 	outputFn, outputChan := lineHandlerChans()
-	source := config.NewLogSource("config", &config.LogsConfig{})
+	source := sources.NewReplaceableSource(sources.NewLogSource("config", &config.LogsConfig{}))
 	detectedPattern := &DetectedPattern{}
-	h := NewAutoMultilineHandler(outputFn, 100, 5, 1.0, 10*time.Millisecond, 10*time.Millisecond, source, []*regexp.Regexp{}, detectedPattern)
+	h := NewAutoMultilineHandler(outputFn, 100, 5, 1.0, 250*time.Millisecond, 250*time.Millisecond, source, []*regexp.Regexp{}, detectedPattern, status.NewInfoRegistry())
 
 	for i := 0; i < 6; i++ {
 		h.process(getDummyMessageWithLF("blah"))
@@ -268,9 +270,9 @@ func TestAutoMultiLineHandlerStaysSingleLineMode(t *testing.T) {
 
 func TestAutoMultiLineHandlerSwitchesToMultiLineMode(t *testing.T) {
 	outputFn, outputChan := lineHandlerChans()
-	source := config.NewLogSource("config", &config.LogsConfig{})
+	source := sources.NewReplaceableSource(sources.NewLogSource("config", &config.LogsConfig{}))
 	detectedPattern := &DetectedPattern{}
-	h := NewAutoMultilineHandler(outputFn, 100, 5, 1.0, 10*time.Millisecond, 10*time.Millisecond, source, []*regexp.Regexp{}, detectedPattern)
+	h := NewAutoMultilineHandler(outputFn, 100, 5, 1.0, 250*time.Millisecond, 250*time.Millisecond, source, []*regexp.Regexp{}, detectedPattern, status.NewInfoRegistry())
 
 	for i := 0; i < 6; i++ {
 		h.process(getDummyMessageWithLF("Jul 12, 2021 12:55:15 PM test message"))
@@ -284,8 +286,8 @@ func TestAutoMultiLineHandlerSwitchesToMultiLineMode(t *testing.T) {
 
 func TestAutoMultiLineHandlerHandelsMessage(t *testing.T) {
 	outputFn, outputChan := lineHandlerChans()
-	source := config.NewLogSource("config", &config.LogsConfig{})
-	h := NewAutoMultilineHandler(outputFn, 500, 1, 1.0, 10*time.Millisecond, 10*time.Millisecond, source, []*regexp.Regexp{}, &DetectedPattern{})
+	source := sources.NewReplaceableSource(sources.NewLogSource("config", &config.LogsConfig{}))
+	h := NewAutoMultilineHandler(outputFn, 500, 1, 1.0, 250*time.Millisecond, 250*time.Millisecond, source, []*regexp.Regexp{}, &DetectedPattern{}, status.NewInfoRegistry())
 
 	h.process(getDummyMessageWithLF("Jul 12, 2021 12:55:15 PM test message 1"))
 	<-outputChan
@@ -302,8 +304,8 @@ func TestAutoMultiLineHandlerHandelsMessage(t *testing.T) {
 
 func TestAutoMultiLineHandlerHandelsMessageConflictingPatterns(t *testing.T) {
 	outputFn, outputChan := lineHandlerChans()
-	source := config.NewLogSource("config", &config.LogsConfig{})
-	h := NewAutoMultilineHandler(outputFn, 500, 4, 0.75, 10*time.Millisecond, 10*time.Millisecond, source, []*regexp.Regexp{}, &DetectedPattern{})
+	source := sources.NewReplaceableSource(sources.NewLogSource("config", &config.LogsConfig{}))
+	h := NewAutoMultilineHandler(outputFn, 500, 4, 0.75, 250*time.Millisecond, 250*time.Millisecond, source, []*regexp.Regexp{}, &DetectedPattern{}, status.NewInfoRegistry())
 
 	// we will match both patterns, but one will win with a threshold of 0.75
 	h.process(getDummyMessageWithLF("Jul 12, 2021 12:55:15 PM test message 1"))
@@ -327,8 +329,8 @@ func TestAutoMultiLineHandlerHandelsMessageConflictingPatterns(t *testing.T) {
 
 func TestAutoMultiLineHandlerHandelsMessageConflictingPatternsNoWinner(t *testing.T) {
 	outputFn, outputChan := lineHandlerChans()
-	source := config.NewLogSource("config", &config.LogsConfig{})
-	h := NewAutoMultilineHandler(outputFn, 500, 4, 0.75, 10*time.Millisecond, 10*time.Millisecond, source, []*regexp.Regexp{}, &DetectedPattern{})
+	source := sources.NewReplaceableSource(sources.NewLogSource("config", &config.LogsConfig{}))
+	h := NewAutoMultilineHandler(outputFn, 500, 4, 0.75, 250*time.Millisecond, 250*time.Millisecond, source, []*regexp.Regexp{}, &DetectedPattern{}, status.NewInfoRegistry())
 
 	// we will match both patterns, but neither will win because it doesn't meet the threshold
 	h.process(getDummyMessageWithLF("Jul 12, 2021 12:55:15 PM test message 1"))
@@ -346,4 +348,34 @@ func TestAutoMultiLineHandlerHandelsMessageConflictingPatternsNoWinner(t *testin
 	assert.Nil(t, h.multiLineHandler)
 
 	assert.Equal(t, "Jul 12, 2021 12:55:15 PM test message 2", string(output.Content))
+}
+
+func TestAutoMultiLineHandlerSwitchesToMultiLineModeWithDelay(t *testing.T) {
+	outputFn, _ := lineHandlerChans()
+	source := sources.NewReplaceableSource(sources.NewLogSource("config", &config.LogsConfig{}))
+	detectedPattern := &DetectedPattern{}
+
+	h := NewAutoMultilineHandler(outputFn, 100, 5, 1.0, 250*time.Millisecond, 250*time.Millisecond, source, []*regexp.Regexp{}, detectedPattern, status.NewInfoRegistry())
+	clock := clock.NewMock()
+	h.clk = clock
+
+	// Advance the clock past the (10ms) detection timeout. (timer should not have started yet)
+	clock.Add(time.Second)
+
+	// Process a log that will match - the timer should start now
+	h.process(getDummyMessageWithLF("Jul 12, 2021 12:55:15 PM test message"))
+
+	// Have not finished detection yet
+	assert.NotNil(t, h.singleLineHandler)
+	assert.Nil(t, h.multiLineHandler)
+
+	// Advance the clock past the (10ms) detection timeout.
+	clock.Add(time.Second)
+
+	// Process a log that will match. The timer has already timed out
+	h.process(getDummyMessageWithLF("Jul 12, 2021 12:55:15 PM test message"))
+
+	// Have not finished detection yet
+	assert.Nil(t, h.singleLineHandler)
+	assert.NotNil(t, h.multiLineHandler)
 }

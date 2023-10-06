@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build linux
-// +build linux
 
 package kernel
 
@@ -14,17 +13,20 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
 func TestGetKernelHeaders(t *testing.T) {
 	if _, ok := os.LookupEnv("INTEGRATION"); !ok {
 		t.Skip("set INTEGRATION environment variable to run")
 	}
-	dirs, _, err := GetKernelHeaders(false, nil, "", "", "", "")
-	require.NoError(t, err)
+
+	opts := KernelHeaderOptions{}
+	dirs := GetKernelHeaders(opts, nil)
 	assert.NotZero(t, len(dirs), "expected to find header directories")
 	t.Log(dirs)
+
+	result := HeaderProvider.GetResult()
+	assert.Equal(t, result.IsSuccess(), true)
 }
 
 func TestParseHeaderVersion(t *testing.T) {

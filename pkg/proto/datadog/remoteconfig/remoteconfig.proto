@@ -2,7 +2,7 @@ syntax = "proto3";
 
 package datadog.config;
 
-option go_package = "pkg/proto/pbgo";  // golang
+option go_package = "pkg/proto/pbgo/core"; // golang
 
 // Backend definitions
 
@@ -49,7 +49,11 @@ message LatestConfigsRequest {
   repeated string products = 4;
   repeated string new_products = 5;
   repeated Client active_clients = 6;
-  bytes client_state = 10;
+  bytes backend_client_state = 10;
+  bool has_error = 11;
+  string error = 12;
+  string trace_agent_env = 13;
+  string org_uuid = 14;
 }
 
 message LatestConfigsResponse {
@@ -58,45 +62,72 @@ message LatestConfigsResponse {
   repeated File target_files = 3;
 }
 
-// Client defintions
+message OrgDataResponse {
+  string uuid = 1;
+}
+
+message OrgStatusResponse {
+  bool enabled = 1;
+  bool authorized = 2;
+}
+
+// Client definitions
 
 message Client {
   ClientState state = 1;
   string id = 2;
   repeated string products = 3;
-  string name = 4;
-  string version = 5;
+  reserved 4, 5;
   bool is_tracer = 6;
-  TracerClient tracer_client = 7;
+  ClientTracer client_tracer = 7;
+  bool is_agent = 8;
+  ClientAgent client_agent = 9;
+  uint64 last_seen = 10;
+  bytes capabilities = 11;
 }
 
-message TracerClient {
+message ClientTracer {
   string runtime_id = 1;
   string language = 2;
   string tracer_version = 3;
   string service = 4;
+  repeated string extra_services = 8;
   string env = 5;
   string app_version = 6;
+  repeated string tags = 7;
 }
 
-message Config {
+message ClientAgent {
+  string name = 1;
+  string version = 2;
+  string cluster_name = 3;
+  string cluster_id = 4;
+  repeated string cws_workloads = 5;
+}
+
+message ConfigState {
   string id = 1;
   uint64 version = 2;
+  string product = 3;
+  uint64 apply_state = 4;
+  string apply_error = 5;
 }
 
 message ClientState {
   uint64 root_version = 1;
   uint64 targets_version = 2;
-  repeated Config configs = 3;
+  repeated ConfigState config_states = 3;
   bool has_error = 4;
   string error = 5;
+  bytes backend_client_state = 6;
 }
 
 // Client queries
 
 message TargetFileHash {
   string algorithm = 1;
-  bytes hash = 2;
+  reserved 2; // old hash format
+  string hash = 3;
 }
 
 message TargetFileMeta {
@@ -111,9 +142,10 @@ message ClientGetConfigsRequest {
 }
 
 message ClientGetConfigsResponse {
-  repeated TopMeta roots = 1;
-  TopMeta targets = 2;
+  repeated bytes roots = 1;
+  bytes targets = 2;
   repeated File target_files = 3;
+  repeated string client_configs = 4;
 }
 
 // Full state
@@ -127,4 +159,20 @@ message GetStateConfigResponse {
   map<string, FileMetaState> config_state = 1;
   map<string, FileMetaState> director_state = 2;
   map<string, string> target_filenames = 3;
+  repeated Client active_clients = 4;
+}
+
+
+message TracerPredicateV1 {
+  string clientID = 1;
+  string service = 2;
+  string environment = 3;
+  string appVersion = 4;
+  string tracerVersion = 5;
+  string language = 6;
+  string runtimeID = 7;
+}
+
+message TracerPredicates {
+	repeated TracerPredicateV1 tracer_predicates_v1 = 1;
 }

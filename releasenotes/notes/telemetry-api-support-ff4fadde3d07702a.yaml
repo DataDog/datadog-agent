@@ -1,0 +1,21 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+features:
+  - |
+    Add support for AWS Lambda Telemetry API
+  - |
+    Adds three new metrics collected by the Lambda Extension
+
+    `aws.lambda.enhanced.response_latency`: Measures the elapsed time in milliseconds from when the invocation request is received to when the first byte of response is sent to the client.
+
+    `aws.lambda.enhanced.response_duration`: Measures the elapsed time in milliseconds between sending the first byte of the response to the client and sending the last byte of the response to the client.
+
+    `aws.lambda.enhancdd.produced_bytes`: Measures the number of bytes returned by a function.
+  - |
+    Create cold start span representing time and duration of initialization of an AWS Lambda function.

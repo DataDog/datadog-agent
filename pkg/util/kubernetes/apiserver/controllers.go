@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build kubeapiserver
-// +build kubeapiserver
 
 package apiserver
 
@@ -52,6 +51,7 @@ var controllerCatalog = map[controllerName]controllerFuncs{
 	},
 }
 
+// ControllerContext holds all the attributes needed by the controllers
 type ControllerContext struct {
 	informers          map[InformerName]cache.SharedInformer
 	InformerFactory    informers.SharedInformerFactory
@@ -147,8 +147,8 @@ func startAutoscalersController(ctx ControllerContext, c chan error) {
 	if ctx.WPAInformerFactory != nil {
 		go autoscalersController.RunWPA(ctx.StopCh, ctx.WPAClient, ctx.WPAInformerFactory)
 	}
-	// mutate the Autoscaler controller to embed an informer against the HPAs
-	autoscalersController.EnableHPA(ctx.InformerFactory.Autoscaling().V2beta1().HorizontalPodAutoscalers())
+
+	autoscalersController.enableHPA(ctx.Client, ctx.InformerFactory)
 	go autoscalersController.RunHPA(ctx.StopCh)
 
 	autoscalersController.RunControllerLoop(ctx.StopCh)

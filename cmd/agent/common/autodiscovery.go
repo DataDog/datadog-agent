@@ -7,7 +7,12 @@ package common
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"time"
+
+	"go.uber.org/atomic"
+	utilserror "k8s.io/apimachinery/pkg/util/errors"
 
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
@@ -16,6 +21,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/scheduler"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	confad "github.com/DataDog/datadog-agent/pkg/config/autodiscovery"
+	"github.com/DataDog/datadog-agent/pkg/util/jsonquery"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -27,12 +33,18 @@ var (
 		"kubelet":   {"container": struct{}{}},
 		"container": {"kubelet": struct{}{}},
 	}
+
+	legacyProviders = []string{"kubelet", "container", "docker"}
 )
 
 func setupAutoDiscovery(confSearchPaths []string, metaScheduler *scheduler.MetaScheduler) *autodiscovery.AutoConfig {
 	ad := autodiscovery.NewAutoConfig(metaScheduler)
 	providers.InitConfigFilesReader(confSearchPaths)
-	ad.AddConfigProvider(providers.NewFileConfigProvider(), false, 0)
+	ad.AddConfigProvider(
+		providers.NewFileConfigProvider(),
+		config.Datadog.GetBool("autoconf_config_files_poll"),
+		time.Duration(config.Datadog.GetInt("autoconf_config_files_poll_interval"))*time.Second,
+	)
 
 	// Autodiscovery cannot easily use config.RegisterOverrideFunc() due to Unmarshalling
 	extraConfigProviders, extraConfigListeners := confad.DiscoverComponentsFromConfig()
@@ -63,13 +75,16 @@ func setupAutoDiscovery(confSearchPaths []string, metaScheduler *scheduler.MetaS
 			}
 		}
 
-		// The "docker" config provider was replaced with the "container" one
-		// that supports Docker, but also other runtimes. We need this
-		// conversion to avoid breaking configs that included "docker".
-		if options, found := uniqueConfigProviders["docker"]; found {
-			delete(uniqueConfigProviders, "docker")
-			options.Name = names.Container
-			uniqueConfigProviders["container"] = options
+		var enableContainerProvider bool
+		for _, p := range legacyProviders {
+			if _, found := uniqueConfigProviders[p]; found {
+				enableContainerProvider = true
+				delete(uniqueConfigProviders, p)
+			}
+		}
+
+		if enableContainerProvider {
+			uniqueConfigProviders[names.KubeContainer] = config.ConfigurationProviders{Name: names.KubeContainer}
 		}
 
 		for _, provider := range extraConfigProviders {
@@ -99,11 +114,6 @@ func setupAutoDiscovery(confSearchPaths []string, metaScheduler *scheduler.MetaS
 			}
 
 			pollInterval := providers.GetPollInterval(cp)
-			if cp.Polling {
-				log.Infof("Registering %s config provider polled every %s", cp.Name, pollInterval.String())
-			} else {
-				log.Infof("Registering %s config provider", cp.Name)
-			}
 			ad.AddConfigProvider(configProvider, cp.Polling, pollInterval)
 		} else {
 			log.Errorf("Unable to find this provider in the catalog: %v", cp.Name)
@@ -118,11 +128,12 @@ func setupAutoDiscovery(confSearchPaths []string, metaScheduler *scheduler.MetaS
 			listeners = append(listeners, config.Listeners{Name: name})
 		}
 
-		// The "docker" listener was replaced with the "container" one that
-		// supports Docker, but also other runtimes. We need this conversion to
-		// avoid breaking configs that included "docker".
+		// The "docker" and "ecs" listeners were replaced with the
+		// "container" one that supports several container runtimes. We
+		// need this conversion to avoid breaking older configs that
+		// included the older listeners.
 		for i := range listeners {
-			if listeners[i].Name == "docker" {
+			if listeners[i].Name == "docker" || listeners[i].Name == "ecs" {
 				listeners[i].Name = "container"
 			}
 		}
@@ -182,38 +193,135 @@ func setupAutoDiscovery(confSearchPaths []string, metaScheduler *scheduler.MetaS
 	return ad
 }
 
-// StartAutoConfig starts auto discovery
-func StartAutoConfig() {
-	AC.LoadAndRun()
+// schedulerFunc is a type alias to allow a function to be used as an AD scheduler
+type schedulerFunc func([]integration.Config)
+
+// Schedule implements scheduler.Scheduler#Schedule.
+func (sf schedulerFunc) Schedule(configs []integration.Config) {
+	sf(configs)
 }
 
-// WaitForConfigs retries the collection of Autodiscovery configs until the checkMatcher function (which
-// defines whether the list of integration configs collected is sufficient) returns true or the timeout is reached.
-// Autodiscovery listeners run asynchronously, AC.GetAllConfigs() can fail at the beginning to resolve templated configs
-// depending on non-deterministic factors (system load, network latency, active Autodiscovery listeners and their configurations).
-// This function improves the resiliency of the check command.
-// Note: If the check corresponds to a non-template configuration it should be found on the first try and fast-returned.
-func WaitForConfigs(retryInterval, timeout time.Duration, checkMatcher func([]integration.Config) bool) []integration.Config {
-	allConfigs := AC.GetAllConfigs()
-	if checkMatcher(allConfigs) {
-		return allConfigs
-	}
+// Unschedule implements scheduler.Scheduler#Unschedule.
+func (sf schedulerFunc) Unschedule(configs []integration.Config) {
+	// (do nothing)
+}
 
-	ctx, cancel := context.WithTimeout(context.Background(), timeout)
-	defer cancel()
+// Stop implements scheduler.Scheduler#Stop.
+func (sf schedulerFunc) Stop() {
+}
 
-	retryTicker := time.NewTicker(retryInterval)
-	defer retryTicker.Stop()
+// WaitForConfigsFromAD waits until a count of discoveryMinInstances configs
+// with names in checkNames are scheduled by AD, and returns the matches.
+//
+// If the context is cancelled, then any accumulated, matching changes are
+// returned, even if that is fewer than discoveryMinInstances.
+func WaitForConfigsFromAD(ctx context.Context, checkNames []string, discoveryMinInstances int, instanceFilter string) (configs []integration.Config, lastError error) {
+	return waitForConfigsFromAD(ctx, false, checkNames, discoveryMinInstances, instanceFilter)
+}
 
-	for {
+// WaitForAllConfigsFromAD waits until its context expires, and then returns
+// the full set of checks scheduled by AD.
+func WaitForAllConfigsFromAD(ctx context.Context) (configs []integration.Config, lastError error) {
+	return waitForConfigsFromAD(ctx, true, []string{}, 0, "")
+}
+
+// waitForConfigsFromAD waits for configs from the AD scheduler and returns them.
+//
+// AD scheduling is asynchronous, so this is a time-based process.
+//
+// If wildcard is false, this waits until at least discoveryMinInstances
+// configs with names in checkNames are scheduled by AD, and returns the
+// matches.  If the context is cancelled before that occurs, then any
+// accumulated configs are returned, even if that is fewer than
+// discoveryMinInstances.
+//
+// If wildcard is true, this gathers all configs scheduled before the context
+// is cancelled, and then returns.  It will not return before the context is
+// cancelled.
+func waitForConfigsFromAD(ctx context.Context, wildcard bool, checkNames []string, discoveryMinInstances int, instanceFilter string) (configs []integration.Config, returnErr error) {
+	configChan := make(chan integration.Config)
+
+	// signal to the scheduler when we are no longer waiting, so we do not continue
+	// to push items to configChan
+	waiting := atomic.NewBool(true)
+	defer func() {
+		waiting.Store(false)
+		// ..and drain any message currently pending in the channel
 		select {
-		case <-ctx.Done():
-			return allConfigs
-		case <-retryTicker.C:
-			allConfigs = AC.GetAllConfigs()
-			if checkMatcher(allConfigs) {
-				return allConfigs
+		case <-configChan:
+		default:
+		}
+	}()
+
+	var match func(cfg integration.Config) bool
+	if wildcard {
+		// match all configs
+		match = func(integration.Config) bool { return true }
+	} else {
+		// match configs with names in checkNames
+		match = func(cfg integration.Config) bool {
+			for _, checkName := range checkNames {
+				if cfg.Name == checkName {
+					return true
+				}
 			}
+			return false
 		}
 	}
+
+	stopChan := make(chan struct{})
+	// add the scheduler in a goroutine, since it will schedule any "catch-up" immediately,
+	// placing items in configChan
+	go AC.AddScheduler("check-cmd", schedulerFunc(func(configs []integration.Config) {
+		var errorList []error
+		for _, cfg := range configs {
+			if instanceFilter != "" {
+				instances, filterErrors := filterInstances(cfg.Instances, instanceFilter)
+				if len(filterErrors) > 0 {
+					errorList = append(errorList, filterErrors...)
+					continue
+				}
+				if len(instances) == 0 {
+					continue
+				}
+				cfg.Instances = instances
+			}
+
+			if match(cfg) && waiting.Load() {
+				configChan <- cfg
+			}
+		}
+		if len(errorList) > 0 {
+			returnErr = errors.New(utilserror.NewAggregate(errorList).Error())
+			stopChan <- struct{}{}
+		}
+	}), true)
+
+	for wildcard || len(configs) < discoveryMinInstances {
+		select {
+		case cfg := <-configChan:
+			configs = append(configs, cfg)
+		case <-stopChan:
+			return
+		case <-ctx.Done():
+			return
+		}
+	}
+	return
+}
+
+func filterInstances(instances []integration.Data, instanceFilter string) ([]integration.Data, []error) {
+	var newInstances []integration.Data
+	var errors []error
+	for _, instance := range instances {
+		exist, err := jsonquery.YAMLCheckExist(instance, instanceFilter)
+		if err != nil {
+			errors = append(errors, fmt.Errorf("instance filter error: %v", err))
+			continue
+		}
+		if exist {
+			newInstances = append(newInstances, instance)
+		}
+	}
+	return newInstances, errors
 }

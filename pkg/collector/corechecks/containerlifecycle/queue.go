@@ -14,40 +14,69 @@ import (
 
 type queue struct {
 	chunkSize int
-	data      []model.EventsPayload
+	data      []*model.EventsPayload
 	sync.RWMutex
 }
 
+// newQueue returns a new *queue.
 func newQueue(chunkSize int) *queue {
 	return &queue{
 		chunkSize: chunkSize,
-		data:      []model.EventsPayload{},
+		data:      []*model.EventsPayload{},
 	}
 }
 
-func (q *queue) dump() []model.EventsPayload {
-	q.RLock()
-	defer q.RUnlock()
-
-	return q.data
-}
-
-func (q *queue) reset() {
+// flush returns and resets the queue content. Returns nil if the queue is empty.
+// flush is thread-safe.
+func (q *queue) flush() []*model.EventsPayload {
 	q.Lock()
 	defer q.Unlock()
 
-	q.data = []model.EventsPayload{}
+	if q.isEmpty() {
+		return nil
+	}
+
+	data := q.data
+
+	// Reset the data in the queue.
+	q.data = []*model.EventsPayload{}
+
+	return data
 }
 
+// add enqueues a new event.
+// add is thread-safe.
 func (q *queue) add(ev event) error {
-	if q.isEmpty() || q.isLastPayloadFull() {
-		payload, err := ev.toPayloadModel()
-		if err != nil {
-			return err
-		}
+	q.Lock()
+	defer q.Unlock()
 
-		q.addPayload(payload)
-		return nil
+	if q.isEmpty() || q.isLastPayloadFull() {
+		return q.addPayload(ev)
+	}
+
+	return q.addEvent(ev)
+}
+
+// addPayload enqueues the event in a new payload entry in the queue.
+// To be used if the queue is empty or if the last payload entry in the queue is full.
+// addPayload is not thread-safe, the caller must lock the queue.
+func (q *queue) addPayload(ev event) error {
+	payload, err := ev.toPayloadModel()
+	if err != nil {
+		return err
+	}
+
+	q.data = append(q.data, payload)
+
+	return nil
+}
+
+// addEvent enqueues the event in last payload entry.
+// To be used if the queue is not empty and the last payload entry is not full.
+// addEvent is not thread-safe, the caller must lock the queue.
+func (q *queue) addEvent(ev event) error {
+	if q.isEmpty() {
+		return errors.New("cannot add event to an empty queue")
 	}
 
 	event, err := ev.toEventModel()
@@ -55,44 +84,31 @@ func (q *queue) add(ev event) error {
 		return err
 	}
 
-	q.addEvent(event)
+	lenQueue := len(q.data)
+	q.data[lenQueue-1].Events = append(q.data[lenQueue-1].Events, event)
 
 	return nil
 }
 
-func (q *queue) addPayload(payload model.EventsPayload) {
-	q.Lock()
-	defer q.Unlock()
-
-	q.data = append(q.data, payload)
-}
-
-func (q *queue) addEvent(event *model.Event) {
-	q.Lock()
-	defer q.Unlock()
-
-	lenQueue := len(q.data)
-	q.data[lenQueue-1].Events = append(q.data[lenQueue-1].Events, event)
-}
-
+// isEmpty returns whether the queue is empty.
+// isEmpty is not thread-safe, the caller must lock the queue.
 func (q *queue) isEmpty() bool {
-	q.RLock()
-	defer q.RUnlock()
-
 	return len(q.data) == 0
 }
 
-func (q *queue) lastPayload() (model.EventsPayload, error) {
+// lastPayload returns the last payload entry in the queue.
+// lastPayload is not thread-safe, the caller must lock the queue.
+func (q *queue) lastPayload() (*model.EventsPayload, error) {
 	if q.isEmpty() {
-		return model.EventsPayload{}, errors.New("empty queue")
+		return nil, errors.New("empty queue")
 	}
-
-	q.RLock()
-	defer q.RUnlock()
 
 	return q.data[len(q.data)-1], nil
 }
 
+// isLastPayloadFull returns whether the last payload entry
+// is full compared to the configured chunk size.
+// isLastPayloadFull is not thread-safe, the caller must lock the queue.
 func (q *queue) isLastPayloadFull() bool {
 	lastElem, err := q.lastPayload()
 	if err != nil {

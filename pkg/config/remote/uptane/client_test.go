@@ -9,25 +9,37 @@ import (
 	"crypto/rand"
 	"crypto/sha256"
 	"encoding/json"
+	"fmt"
 	"testing"
 	"time"
 
+	"github.com/DataDog/go-tuf/data"
+	"github.com/DataDog/go-tuf/pkg/keys"
+	"github.com/DataDog/go-tuf/sign"
+	"github.com/stretchr/testify/assert"
+
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/config/remote/meta"
-	"github.com/DataDog/datadog-agent/pkg/proto/pbgo"
-	"github.com/stretchr/testify/assert"
-	"github.com/theupdateframework/go-tuf/data"
-	"github.com/theupdateframework/go-tuf/pkg/keys"
-	"github.com/theupdateframework/go-tuf/sign"
+	pbgo "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
 )
 
+func getTestOrgUUIDProvider(orgID int) OrgUUIDProvider {
+	return func() (string, error) {
+		return getTestOrgUUIDFromId(orgID), nil
+	}
+}
+
+func getTestOrgUUIDFromId(orgID int) string {
+	return fmt.Sprintf("org-%d-uuid", orgID)
+}
+
 func TestClientState(t *testing.T) {
-	testRepository1 := newTestRepository(1, nil, nil, nil)
+	testRepository1 := newTestRepository(2, 1, nil, nil, nil)
 	config.Datadog.Set("remote_configuration.director_root", testRepository1.directorRoot)
 	config.Datadog.Set("remote_configuration.config_root", testRepository1.configRoot)
 
-	db := getTestDB()
-	client1, err := NewClient(db, "testcachekey", 2)
+	db := getTestDB(t)
+	client1, err := NewClient(db, "testcachekey", getTestOrgUUIDProvider(2), WithOrgIDCheck(2))
 	assert.NoError(t, err)
 
 	// Testing default state
@@ -52,7 +64,7 @@ func TestClientState(t *testing.T) {
 	assert.Equal(t, string(testRepository1.directorTargets), string(targets1))
 
 	// Testing state is maintained between runs
-	client2, err := NewClient(db, "testcachekey", 2)
+	client2, err := NewClient(db, "testcachekey", getTestOrgUUIDProvider(2), WithOrgIDCheck(2))
 	assert.NoError(t, err)
 	clientState, err = client2.State()
 	assert.NoError(t, err)
@@ -65,7 +77,7 @@ func TestClientState(t *testing.T) {
 	assert.Equal(t, string(testRepository1.directorTargets), string(targets1))
 
 	// Testing state is isolated by cache key
-	client3, err := NewClient(db, "testcachekey2", 2)
+	client3, err := NewClient(db, "testcachekey2", getTestOrgUUIDProvider(2), WithOrgIDCheck(2))
 	assert.NoError(t, err)
 	clientState, err = client3.State()
 	assert.NoError(t, err)
@@ -85,13 +97,13 @@ func TestClientFullState(t *testing.T) {
 	directorTargets := data.TargetFiles{
 		"datadog/2/APM_SAMPLING/id/1": target1,
 	}
-	testRepository := newTestRepository(1, configTargets, directorTargets, []*pbgo.File{{Path: "datadog/2/APM_SAMPLING/id/1", Raw: target1content}})
+	testRepository := newTestRepository(2, 1, configTargets, directorTargets, []*pbgo.File{{Path: "datadog/2/APM_SAMPLING/id/1", Raw: target1content}})
 	config.Datadog.Set("remote_configuration.director_root", testRepository.directorRoot)
 	config.Datadog.Set("remote_configuration.config_root", testRepository.configRoot)
 
 	// Prepare
-	db := getTestDB()
-	client, err := NewClient(db, "testcachekey", 2)
+	db := getTestDB(t)
+	client, err := NewClient(db, "testcachekey", getTestOrgUUIDProvider(2), WithOrgIDCheck(2))
 	assert.NoError(t, err)
 	err = client.Update(testRepository.toUpdate())
 	assert.NoError(t, err)
@@ -123,21 +135,21 @@ func assertMetaVersion(t *testing.T, state map[string]MetaState, metaName string
 }
 
 func TestClientVerifyTUF(t *testing.T) {
-	testRepository1 := newTestRepository(1, nil, nil, nil)
+	testRepository1 := newTestRepository(2, 1, nil, nil, nil)
 	config.Datadog.Set("remote_configuration.director_root", testRepository1.directorRoot)
 	config.Datadog.Set("remote_configuration.config_root", testRepository1.configRoot)
 
-	db := getTestDB()
+	db := getTestDB(t)
 
 	previousConfigTargets := testRepository1.configTargets
-	client1, err := NewClient(db, "testcachekey1", 2)
+	client1, err := NewClient(db, "testcachekey1", getTestOrgUUIDProvider(2), WithOrgIDCheck(2))
 	assert.NoError(t, err)
 	testRepository1.configTargets = generateTargets(generateKey(), testRepository1.configTargetsVersion, nil)
 	err = client1.Update(testRepository1.toUpdate())
 	assert.Error(t, err)
 
 	testRepository1.configTargets = previousConfigTargets
-	client2, err := NewClient(db, "testcachekey2", 2)
+	client2, err := NewClient(db, "testcachekey2", getTestOrgUUIDProvider(2), WithOrgIDCheck(2))
 	assert.NoError(t, err)
 	testRepository1.directorTargets = generateTargets(generateKey(), testRepository1.directorTargetsVersion, nil)
 	err = client2.Update(testRepository1.toUpdate())
@@ -145,7 +157,7 @@ func TestClientVerifyTUF(t *testing.T) {
 }
 
 func TestClientVerifyUptane(t *testing.T) {
-	db := getTestDB()
+	db := getTestDB(t)
 
 	target1content, target1 := generateTarget()
 	target2content, target2 := generateTarget()
@@ -171,13 +183,13 @@ func TestClientVerifyUptane(t *testing.T) {
 	directorTargets3 := data.TargetFiles{
 		"datadog/2/APM_SAMPLING/id/1": target3,
 	}
-	testRepositoryValid := newTestRepository(1, configTargets1, directorTargets1, []*pbgo.File{{Path: "datadog/2/APM_SAMPLING/id/1", Raw: target1content}})
-	testRepositoryInvalid1 := newTestRepository(1, configTargets2, directorTargets2, []*pbgo.File{{Path: "datadog/2/APM_SAMPLING/id/1", Raw: target1content}, {Path: "datadog/2/APM_SAMPLING/id/2", Raw: target2content}})
-	testRepositoryInvalid2 := newTestRepository(1, configTargets3, directorTargets3, []*pbgo.File{{Path: "datadog/2/APM_SAMPLING/id/1", Raw: target3content}})
+	testRepositoryValid := newTestRepository(2, 1, configTargets1, directorTargets1, []*pbgo.File{{Path: "datadog/2/APM_SAMPLING/id/1", Raw: target1content}})
+	testRepositoryInvalid1 := newTestRepository(2, 1, configTargets2, directorTargets2, []*pbgo.File{{Path: "datadog/2/APM_SAMPLING/id/1", Raw: target1content}, {Path: "datadog/2/APM_SAMPLING/id/2", Raw: target2content}})
+	testRepositoryInvalid2 := newTestRepository(2, 1, configTargets3, directorTargets3, []*pbgo.File{{Path: "datadog/2/APM_SAMPLING/id/1", Raw: target3content}})
 
 	config.Datadog.Set("remote_configuration.director_root", testRepositoryValid.directorRoot)
 	config.Datadog.Set("remote_configuration.config_root", testRepositoryValid.configRoot)
-	client1, err := NewClient(db, "testcachekey1", 2)
+	client1, err := NewClient(db, "testcachekey1", getTestOrgUUIDProvider(2), WithOrgIDCheck(2))
 	assert.NoError(t, err)
 	err = client1.Update(testRepositoryValid.toUpdate())
 	assert.NoError(t, err)
@@ -187,7 +199,7 @@ func TestClientVerifyUptane(t *testing.T) {
 
 	config.Datadog.Set("remote_configuration.director_root", testRepositoryInvalid1.directorRoot)
 	config.Datadog.Set("remote_configuration.config_root", testRepositoryInvalid1.configRoot)
-	client2, err := NewClient(db, "testcachekey2", 2)
+	client2, err := NewClient(db, "testcachekey2", getTestOrgUUIDProvider(2), WithOrgIDCheck(2))
 	assert.NoError(t, err)
 	err = client2.Update(testRepositoryInvalid1.toUpdate())
 	assert.Error(t, err)
@@ -196,7 +208,7 @@ func TestClientVerifyUptane(t *testing.T) {
 
 	config.Datadog.Set("remote_configuration.director_root", testRepositoryInvalid2.directorRoot)
 	config.Datadog.Set("remote_configuration.config_root", testRepositoryInvalid2.configRoot)
-	client3, err := NewClient(db, "testcachekey3", 2)
+	client3, err := NewClient(db, "testcachekey3", getTestOrgUUIDProvider(2), WithOrgIDCheck(2))
 	assert.NoError(t, err)
 	err = client3.Update(testRepositoryInvalid2.toUpdate())
 	assert.Error(t, err)
@@ -205,7 +217,7 @@ func TestClientVerifyUptane(t *testing.T) {
 }
 
 func TestClientVerifyOrgID(t *testing.T) {
-	db := getTestDB()
+	db := getTestDB(t)
 
 	target1content, target1 := generateTarget()
 	_, target2 := generateTarget()
@@ -223,22 +235,96 @@ func TestClientVerifyOrgID(t *testing.T) {
 	directorTargets2 := data.TargetFiles{
 		"datadog/3/APM_SAMPLING/id/1": target1,
 	}
-	testRepositoryValid := newTestRepository(1, configTargets1, directorTargets1, []*pbgo.File{{Path: "datadog/2/APM_SAMPLING/id/1", Raw: target1content}})
-	testRepositoryInvalid := newTestRepository(1, configTargets2, directorTargets2, []*pbgo.File{{Path: "datadog/3/APM_SAMPLING/id/1", Raw: target1content}})
+	testRepositoryValid := newTestRepository(2, 1, configTargets1, directorTargets1, []*pbgo.File{{Path: "datadog/2/APM_SAMPLING/id/1", Raw: target1content}})
+	testRepositoryInvalid := newTestRepository(2, 1, configTargets2, directorTargets2, []*pbgo.File{{Path: "datadog/3/APM_SAMPLING/id/1", Raw: target1content}})
 
 	config.Datadog.Set("remote_configuration.director_root", testRepositoryValid.directorRoot)
 	config.Datadog.Set("remote_configuration.config_root", testRepositoryValid.configRoot)
-	client1, err := NewClient(db, "testcachekey1", 2)
+	client1, err := NewClient(db, "testcachekey1", getTestOrgUUIDProvider(2), WithOrgIDCheck(2))
 	assert.NoError(t, err)
 	err = client1.Update(testRepositoryValid.toUpdate())
 	assert.NoError(t, err)
 
 	config.Datadog.Set("remote_configuration.director_root", testRepositoryInvalid.directorRoot)
 	config.Datadog.Set("remote_configuration.config_root", testRepositoryInvalid.configRoot)
-	client2, err := NewClient(db, "testcachekey2", 2)
+	client2, err := NewClient(db, "testcachekey2", getTestOrgUUIDProvider(2), WithOrgIDCheck(2))
 	assert.NoError(t, err)
 	err = client2.Update(testRepositoryInvalid.toUpdate())
 	assert.Error(t, err)
+}
+
+func TestClientVerifyOrgUUID(t *testing.T) {
+	db := getTestDB(t)
+
+	target1content, target1 := generateTarget()
+	_, target2 := generateTarget()
+	configTargets := data.TargetFiles{
+		"datadog/2/APM_SAMPLING/id/1": target1,
+		"datadog/2/APM_SAMPLING/id/2": target2,
+	}
+	directorTargets := data.TargetFiles{
+		"datadog/2/APM_SAMPLING/id/1": target1,
+	}
+
+	testRepositoryValid := newTestRepository(2, 1, configTargets, directorTargets, []*pbgo.File{{Path: "datadog/2/APM_SAMPLING/id/1", Raw: target1content}})
+	testRepositoryValidNoUUID := newTestRepository(0, 1, configTargets, directorTargets, []*pbgo.File{{Path: "datadog/2/APM_SAMPLING/id/1", Raw: target1content}})
+	testRepositoryInvalid := newTestRepository(3, 1, configTargets, directorTargets, []*pbgo.File{{Path: "datadog/2/APM_SAMPLING/id/1", Raw: target1content}})
+
+	// Valid repository with an orgID and a UUID in the snapshot
+	config.Datadog.Set("remote_configuration.director_root", testRepositoryValid.directorRoot)
+	config.Datadog.Set("remote_configuration.config_root", testRepositoryValid.configRoot)
+	client1, err := NewClient(db, "testcachekey1", getTestOrgUUIDProvider(2), WithOrgIDCheck(2))
+	assert.NoError(t, err)
+	err = client1.Update(testRepositoryValid.toUpdate())
+	assert.NoError(t, err)
+
+	// Valid repository with an orgID but no UUID in the snapshot
+	config.Datadog.Set("remote_configuration.director_root", testRepositoryValidNoUUID.directorRoot)
+	config.Datadog.Set("remote_configuration.config_root", testRepositoryValidNoUUID.configRoot)
+	client2, err := NewClient(db, "testcachekey2", getTestOrgUUIDProvider(2), WithOrgIDCheck(2))
+	assert.NoError(t, err)
+	err = client2.Update(testRepositoryValidNoUUID.toUpdate())
+	assert.NoError(t, err)
+
+	// Invalid repository : receives snapshot with orgUUID for org 2, but is org 3
+	config.Datadog.Set("remote_configuration.director_root", testRepositoryInvalid.directorRoot)
+	config.Datadog.Set("remote_configuration.config_root", testRepositoryInvalid.configRoot)
+	client3, err := NewClient(db, "testcachekey3", getTestOrgUUIDProvider(2), WithOrgIDCheck(2))
+	assert.NoError(t, err)
+	err = client3.Update(testRepositoryInvalid.toUpdate())
+	assert.Error(t, err)
+}
+
+func TestOrgStore(t *testing.T) {
+	db := getTestDB(t)
+	client, err := NewClient(db, "testcachekey", getTestOrgUUIDProvider(2), WithOrgIDCheck(2))
+	assert.NoError(t, err)
+
+	// Store key
+	err = client.orgStore.storeOrgUUID(0, "abc")
+	assert.NoError(t, err)
+
+	// Get stored key
+	uuid, exists, err := client.orgStore.getOrgUUID(0)
+	assert.NoError(t, err)
+	assert.True(t, exists)
+	assert.Equal(t, "abc", uuid)
+
+	// Get non stored key
+	uuid, exists, err = client.orgStore.getOrgUUID(1)
+	assert.NoError(t, err) // Should not error except when store fails
+	assert.False(t, exists)
+	assert.Equal(t, "", uuid)
+
+	// Root rotation!
+	err = client.orgStore.storeOrgUUID(1, "def")
+	assert.NoError(t, err)
+
+	// Possibility to get new UUID
+	uuid, exists, err = client.orgStore.getOrgUUID(1)
+	assert.NoError(t, err)
+	assert.True(t, exists)
+	assert.Equal(t, "def", uuid)
 }
 
 func generateKey() keys.Signer {
@@ -256,14 +342,14 @@ type testRepositories struct {
 	directorSnapshotKey  keys.Signer
 	directorRootKey      keys.Signer
 
-	configTimestampVersion   int
-	configTargetsVersion     int
-	configSnapshotVersion    int
-	configRootVersion        int
-	directorTimestampVersion int
-	directorTargetsVersion   int
-	directorSnapshotVersion  int
-	directorRootVersion      int
+	configTimestampVersion   int64
+	configTargetsVersion     int64
+	configSnapshotVersion    int64
+	configRootVersion        int64
+	directorTimestampVersion int64
+	directorTargetsVersion   int64
+	directorSnapshotVersion  int64
+	directorRootVersion      int64
 
 	configTimestamp   []byte
 	configTargets     []byte
@@ -277,7 +363,7 @@ type testRepositories struct {
 	targetFiles []*pbgo.File
 }
 
-func newTestRepository(version int, configTargets data.TargetFiles, directorTargets data.TargetFiles, targetFiles []*pbgo.File) testRepositories {
+func newTestRepository(snapshotOrgID int, version int64, configTargets data.TargetFiles, directorTargets data.TargetFiles, targetFiles []*pbgo.File) testRepositories {
 	repos := testRepositories{
 		configTimestampKey:   generateKey(),
 		configTargetsKey:     generateKey(),
@@ -297,13 +383,13 @@ func newTestRepository(version int, configTargets data.TargetFiles, directorTarg
 	repos.directorTimestampVersion = 20 + version
 	repos.directorTargetsVersion = 200 + version
 	repos.directorSnapshotVersion = 2000 + version
-	repos.configRoot = generateRoot(repos.configRootKey, version, repos.configTimestampKey, repos.configTargetsKey, repos.configSnapshotKey)
+	repos.configRoot = generateRoot(repos.configRootKey, version, repos.configTimestampKey, repos.configTargetsKey, repos.configSnapshotKey, nil)
 	repos.configTargets = generateTargets(repos.configTargetsKey, 100+version, configTargets)
-	repos.configSnapshot = generateSnapshot(repos.configSnapshotKey, 1000+version, repos.configTargetsVersion)
+	repos.configSnapshot = generateSnapshot(snapshotOrgID, repos.configSnapshotKey, 1000+version, repos.configTargetsVersion)
 	repos.configTimestamp = generateTimestamp(repos.configTimestampKey, 10+version, repos.configSnapshotVersion, repos.configSnapshot)
-	repos.directorRoot = generateRoot(repos.directorRootKey, version, repos.directorTimestampKey, repos.directorTargetsKey, repos.directorSnapshotKey)
+	repos.directorRoot = generateRoot(repos.directorRootKey, version, repos.directorTimestampKey, repos.directorTargetsKey, repos.directorSnapshotKey, nil)
 	repos.directorTargets = generateTargets(repos.directorTargetsKey, 200+version, directorTargets)
-	repos.directorSnapshot = generateSnapshot(repos.directorSnapshotKey, 2000+version, repos.directorTargetsVersion)
+	repos.directorSnapshot = generateSnapshot(snapshotOrgID, repos.directorSnapshotKey, 2000+version, repos.directorTargetsVersion)
 	repos.directorTimestamp = generateTimestamp(repos.directorTimestampKey, 20+version, repos.directorSnapshotVersion, repos.directorSnapshot)
 	return repos
 }
@@ -326,7 +412,7 @@ func (r testRepositories) toUpdate() *pbgo.LatestConfigsResponse {
 	}
 }
 
-func generateRoot(key keys.Signer, version int, timestampKey keys.Signer, targetsKey keys.Signer, snapshotKey keys.Signer) []byte {
+func generateRoot(key keys.Signer, version int64, timestampKey keys.Signer, targetsKey keys.Signer, snapshotKey keys.Signer, previousRootKey keys.Signer) []byte {
 	root := data.NewRoot()
 	root.Version = version
 	root.Expires = time.Now().Add(1 * time.Hour)
@@ -350,24 +436,30 @@ func generateRoot(key keys.Signer, version int, timestampKey keys.Signer, target
 		KeyIDs:    snapshotKey.PublicData().IDs(),
 		Threshold: 1,
 	}
-	signedRoot, _ := sign.Marshal(&root, key)
+
+	rootSigners := []keys.Signer{key}
+	if previousRootKey != nil {
+		rootSigners = append(rootSigners, previousRootKey)
+	}
+
+	signedRoot, _ := sign.Marshal(&root, rootSigners...)
 	serializedRoot, _ := json.Marshal(signedRoot)
 	return serializedRoot
 }
 
-func generateTimestamp(key keys.Signer, version int, snapshotVersion int, snapshot []byte) []byte {
+func generateTimestamp(key keys.Signer, version int64, snapshotVersion int64, snapshot []byte) []byte {
 	meta := data.NewTimestamp()
 	meta.Expires = time.Now().Add(1 * time.Hour)
 	meta.Version = version
-	meta.Meta["snapshot.json"] = data.TimestampFileMeta{Version: snapshotVersion, FileMeta: data.FileMeta{Length: int64(len(snapshot)), Hashes: data.Hashes{
+	meta.Meta["snapshot.json"] = data.TimestampFileMeta{Version: snapshotVersion, Length: int64(len(snapshot)), Hashes: data.Hashes{
 		"sha256": hashSha256(snapshot),
-	}}}
+	}}
 	signed, _ := sign.Marshal(&meta, key)
 	serialized, _ := json.Marshal(signed)
 	return serialized
 }
 
-func generateTargets(key keys.Signer, version int, targets data.TargetFiles) []byte {
+func generateTargets(key keys.Signer, version int64, targets data.TargetFiles) []byte {
 	meta := data.NewTargets()
 	meta.Expires = time.Now().Add(1 * time.Hour)
 	meta.Version = version
@@ -377,11 +469,19 @@ func generateTargets(key keys.Signer, version int, targets data.TargetFiles) []b
 	return serialized
 }
 
-func generateSnapshot(key keys.Signer, version int, targetsVersion int) []byte {
+func generateSnapshot(orgID int, key keys.Signer, version int64, targetsVersion int64) []byte {
 	meta := data.NewSnapshot()
 	meta.Expires = time.Now().Add(1 * time.Hour)
 	meta.Version = version
 	meta.Meta["targets.json"] = data.SnapshotFileMeta{Version: targetsVersion}
+
+	if orgID != 0 {
+		uuid := getTestOrgUUIDFromId(orgID)
+		customData := &snapshotCustomData{OrgUUID: &uuid}
+		customDataBytes, _ := json.Marshal(customData)
+		customDataBytesRaw := json.RawMessage(customDataBytes)
+		meta.Custom = &customDataBytesRaw
+	}
 
 	signed, _ := sign.Marshal(&meta, key)
 	serialized, _ := json.Marshal(signed)

@@ -1,1 +1,0 @@
-../../common/rspec/iot_spec_helper.rb

@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build kubeapiserver
-// +build kubeapiserver
 
 package builder
 
@@ -22,6 +21,7 @@ import (
 	"k8s.io/client-go/tools/cache"
 	ksmbuild "k8s.io/kube-state-metrics/v2/pkg/builder"
 	ksmtypes "k8s.io/kube-state-metrics/v2/pkg/builder/types"
+	"k8s.io/kube-state-metrics/v2/pkg/customresource"
 	generator "k8s.io/kube-state-metrics/v2/pkg/metric_generator"
 	metricsstore "k8s.io/kube-state-metrics/v2/pkg/metrics_store"
 	"k8s.io/kube-state-metrics/v2/pkg/options"
@@ -33,14 +33,16 @@ import (
 type Builder struct {
 	ksmBuilder ksmtypes.BuilderInterface
 
-	kubeClient    clientset.Interface
-	vpaClient     vpaclientset.Interface
-	namespaces    options.NamespaceList
-	ctx           context.Context
-	allowDenyList ksmtypes.AllowDenyLister
-	metrics       *watch.ListWatchMetrics
-	shard         int32
-	totalShards   int
+	customResourceClients map[string]interface{}
+	kubeClient            clientset.Interface
+	vpaClient             vpaclientset.Interface
+	namespaces            options.NamespaceList
+	fieldSelectorFilter   string
+	ctx                   context.Context
+	allowDenyList         generator.FamilyGeneratorFilter
+	metrics               *watch.ListWatchMetrics
+	shard                 int32
+	totalShards           int
 
 	resync time.Duration
 }
@@ -58,11 +60,17 @@ func (b *Builder) WithNamespaces(nss options.NamespaceList) {
 	b.ksmBuilder.WithNamespaces(nss)
 }
 
-// WithAllowDenyList configures the white or blacklisted metric to be exposed
-// by the store build by the Builder.
-func (b *Builder) WithAllowDenyList(l ksmtypes.AllowDenyLister) {
+// WithFamilyGeneratorFilter configures the white or blacklisted metric to be
+// exposed by the store build by the Builder.
+func (b *Builder) WithFamilyGeneratorFilter(l generator.FamilyGeneratorFilter) {
 	b.allowDenyList = l
-	b.ksmBuilder.WithAllowDenyList(l)
+	b.ksmBuilder.WithFamilyGeneratorFilter(l)
+}
+
+// WithFieldSelectorFilter sets the fieldSelector property of a Builder.
+func (b *Builder) WithFieldSelectorFilter(fieldSelectors string) {
+	b.fieldSelectorFilter = fieldSelectors
+	b.ksmBuilder.WithFieldSelectorFilter(fieldSelectors)
 }
 
 // WithSharding sets the shard and totalShards property of a Builder.
@@ -76,6 +84,12 @@ func (b *Builder) WithSharding(shard int32, totalShards int) {
 func (b *Builder) WithKubeClient(c clientset.Interface) {
 	b.kubeClient = c
 	b.ksmBuilder.WithKubeClient(c)
+}
+
+// WithCustomResourceClients sets the customResourceClients property of a Builder.
+func (b *Builder) WithCustomResourceClients(clients map[string]interface{}) {
+	b.customResourceClients = clients
+	b.ksmBuilder.WithCustomResourceClients(clients)
 }
 
 // WithVPAClient sets the vpaClient property of a Builder so that the verticalpodautoscaler collector can query VPA objects.
@@ -101,24 +115,39 @@ func (b *Builder) WithContext(ctx context.Context) {
 	b.ctx = ctx
 }
 
-// DefaultGenerateStoreFunc returns default buildStore function
+// DefaultGenerateStoresFunc returns default buildStore function
 func (b *Builder) DefaultGenerateStoresFunc() ksmtypes.BuildStoresFunc {
 	return b.GenerateStores
 }
 
-// WithGenerateStoreFunc configures a constom generate store function
+// WithGenerateStoresFunc configures a constom generate store function
 func (b *Builder) WithGenerateStoresFunc(f ksmtypes.BuildStoresFunc) {
 	b.ksmBuilder.WithGenerateStoresFunc(f)
 }
 
+// WithGenerateCustomResourceStoresFunc configures a constom generate store function
+func (b *Builder) WithGenerateCustomResourceStoresFunc(f ksmtypes.BuildCustomResourceStoresFunc) {
+	b.ksmBuilder.WithGenerateCustomResourceStoresFunc(f)
+}
+
+// WithCustomResourceStoreFactories configures a constom store factory
+func (b *Builder) WithCustomResourceStoreFactories(fs ...customresource.RegistryFactory) {
+	b.ksmBuilder.WithCustomResourceStoreFactories(fs...)
+}
+
 // WithAllowLabels configures which labels can be returned for metrics
-func (b *Builder) WithAllowLabels(l map[string][]string) {
-	b.ksmBuilder.WithAllowLabels(l)
+func (b *Builder) WithAllowLabels(l map[string][]string) error {
+	return b.ksmBuilder.WithAllowLabels(l)
+}
+
+// WithAllowAnnotations configures which annotations can be returned for metrics
+func (b *Builder) WithAllowAnnotations(l map[string][]string) {
+	b.ksmBuilder.WithAllowAnnotations(l)
 }
 
 // Build initializes and registers all enabled stores.
 // Returns metric writers.
-func (b *Builder) Build() []metricsstore.MetricsWriter {
+func (b *Builder) Build() metricsstore.MetricsWriterList {
 	return b.ksmBuilder.Build()
 }
 
@@ -133,17 +162,21 @@ func (b *Builder) WithResync(r time.Duration) {
 	b.resync = r
 }
 
-// GenerateStores use to generate new Metrics Store for Metrics Families
-func (b *Builder) GenerateStores(metricFamilies []generator.FamilyGenerator,
+// GenerateStores is used to generate new Metrics Store for Metrics Families
+func GenerateStores[T any](
+	b *Builder,
+	metricFamilies []generator.FamilyGenerator,
 	expectedType interface{},
-	listWatchFunc func(kubeClient clientset.Interface, ns string) cache.ListerWatcher,
+	client T,
+	listWatchFunc func(kubeClient T, ns string, fieldSelector string) cache.ListerWatcher,
+	useAPIServerCache bool,
 ) []cache.Store {
-	filteredMetricFamilies := generator.FilterMetricFamilies(b.allowDenyList, metricFamilies)
+	filteredMetricFamilies := generator.FilterFamilyGenerators(b.allowDenyList, metricFamilies)
 	composedMetricGenFuncs := generator.ComposeMetricGenFuncs(filteredMetricFamilies)
 
 	if b.namespaces.IsAllNamespaces() {
 		store := store.NewMetricsStore(composedMetricGenFuncs, reflect.TypeOf(expectedType).String())
-		listWatcher := listWatchFunc(b.kubeClient, corev1.NamespaceAll)
+		listWatcher := listWatchFunc(client, corev1.NamespaceAll, b.fieldSelectorFilter)
 		b.startReflector(expectedType, store, listWatcher)
 		return []cache.Store{store}
 
@@ -152,12 +185,46 @@ func (b *Builder) GenerateStores(metricFamilies []generator.FamilyGenerator,
 	stores := make([]cache.Store, 0, len(b.namespaces))
 	for _, ns := range b.namespaces {
 		store := store.NewMetricsStore(composedMetricGenFuncs, reflect.TypeOf(expectedType).String())
-		listWatcher := listWatchFunc(b.kubeClient, ns)
+		listWatcher := listWatchFunc(client, ns, b.fieldSelectorFilter)
 		b.startReflector(expectedType, store, listWatcher)
 		stores = append(stores, store)
 	}
 
 	return stores
+}
+
+// GenerateStores is used to generate new Metrics Store for the given metric families
+func (b *Builder) GenerateStores(
+	metricFamilies []generator.FamilyGenerator,
+	expectedType interface{},
+	listWatchFunc func(kubeClient clientset.Interface, ns string, fieldSelector string) cache.ListerWatcher,
+	useAPIServerCache bool,
+) []cache.Store {
+	return GenerateStores(b, metricFamilies, expectedType, b.kubeClient, listWatchFunc, useAPIServerCache)
+}
+
+func (b *Builder) getCustomResourceClient(resourceName string) interface{} {
+	if client, ok := b.customResourceClients[resourceName]; ok {
+		return client
+	}
+
+	return b.kubeClient
+}
+
+// GenerateCustomResourceStoresFunc use to generate new Metrics Store for Metrics Families
+func (b *Builder) GenerateCustomResourceStoresFunc(
+	resourceName string,
+	metricFamilies []generator.FamilyGenerator,
+	expectedType interface{},
+	listWatchFunc func(kubeClient interface{}, ns string, fieldSelector string) cache.ListerWatcher,
+	useAPIServerCache bool,
+) []cache.Store {
+	return GenerateStores(b, metricFamilies,
+		expectedType,
+		b.getCustomResourceClient(resourceName),
+		listWatchFunc,
+		useAPIServerCache,
+	)
 }
 
 // startReflector creates a Kubernetes client-go reflector with the given

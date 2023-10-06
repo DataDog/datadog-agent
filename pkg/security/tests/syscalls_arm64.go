@@ -4,9 +4,7 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build (functionaltests && !amd64) || (stresstests && !amd64)
-// +build functionaltests,!amd64 stresstests,!amd64
 
 package tests
 
-//nolint:unused
 var supportedSyscalls = map[string]uintptr{}

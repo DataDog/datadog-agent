@@ -10,7 +10,8 @@ class LogGetter(ABC):
 
 
 def _wait_agent_log(agent_name, log_getter, pattern):
-    for line in log_getter.get_log(agent_name):
+    lines = log_getter.get_log(agent_name)
+    for line in lines:
         if pattern in line:
             return
     raise LookupError(f"{agent_name} | {pattern}")

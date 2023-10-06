@@ -3,8 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build kubeapiserver
-// +build kubeapiserver
+//go:build !race && kubeapiserver
+// +build !race,kubeapiserver
 
 package apiserver
 
@@ -38,12 +38,15 @@ import (
 	"k8s.io/client-go/tools/record"
 	"k8s.io/client-go/util/retry"
 
+	"github.com/DataDog/watermarkpodautoscaler/api/v1alpha1"
+
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/custommetrics"
+	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/errors"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/autoscalers"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/pointer"
 	"github.com/DataDog/datadog-agent/pkg/util/testutil"
-	"github.com/DataDog/watermarkpodautoscaler/api/v1alpha1"
 )
 
 var (
@@ -56,8 +59,11 @@ func init() {
 
 // TestupdateExternalMetrics checks the reconciliation between the local cache and the global store logic
 func TestUpdateWPA(t *testing.T) {
+	mockConfig := config.Mock(t)
+	mockConfig.Set("kube_resources_namespace", "nsfoo")
+
 	name := custommetrics.GetConfigmapName()
-	store, client := newFakeConfigMapStore(t, "default", name, nil)
+	store, client := newFakeConfigMapStore(t, "nsfoo", name, nil)
 	d := &fakeDatadogClient{}
 
 	p := &fakeProcessor{
@@ -87,13 +93,13 @@ func TestUpdateWPA(t *testing.T) {
 	// Start the DCA with already existing Data
 	// Check if nothing in local store and Global Store is full we update the Global Store metrics correctly
 	metricsToStore := map[string]custommetrics.ExternalMetricValue{
-		"external_metric-watermark-default-foo-metric1": {
+		"external_metric-watermark-nsfoo-foo-metric1": {
 			MetricName: "metric1",
 			Labels:     map[string]string{"foo": "bar"},
 			Ref: custommetrics.ObjectReference{
 				Type:      "watermark",
 				Name:      "foo",
-				Namespace: "default",
+				Namespace: "nsfoo",
 			},
 			Value: 1.3,
 			Valid: true,
@@ -120,13 +126,13 @@ func TestUpdateWPA(t *testing.T) {
 	// Fresh start
 	// Check if local store is not empty
 	hctrl.toStore.m.Lock()
-	hctrl.toStore.data["external_metric-watermark-default-foo-metric2"] = custommetrics.ExternalMetricValue{
+	hctrl.toStore.data["external_metric-watermark-nsfoo-foo-metric2"] = custommetrics.ExternalMetricValue{
 		MetricName: "metric2",
 		Labels:     map[string]string{"foo": "bar"},
 		Ref: custommetrics.ObjectReference{
 			Type:      "watermark",
 			Name:      "foo",
-			Namespace: "default",
+			Namespace: "nsfoo",
 		},
 	}
 	require.Len(t, hctrl.toStore.data, 1)
@@ -141,13 +147,13 @@ func TestUpdateWPA(t *testing.T) {
 	// Check that if there is conflicting info from the local store and the Global Store that we merge correctly
 	// Check conflict on metric name and labels
 	hctrl.toStore.m.Lock()
-	hctrl.toStore.data["external_metric-watermark-default-foo-metric2"] = custommetrics.ExternalMetricValue{
+	hctrl.toStore.data["external_metric-watermark-nsfoo-foo-metric2"] = custommetrics.ExternalMetricValue{
 		MetricName: "metric2",
 		Labels:     map[string]string{"foo": "baz"},
 		Ref: custommetrics.ObjectReference{
 			Type:      "watermark",
 			Name:      "foo",
-			Namespace: "default",
+			Namespace: "nsfoo",
 		},
 	}
 	require.Len(t, hctrl.toStore.data, 1)
@@ -212,7 +218,7 @@ func newFakeWatermarkPodAutoscaler(name, ns string, uid types.UID, metricName st
 		},
 	}
 
-	if err := UnstructuredFromWPA(wpa, obj); err != nil {
+	if err := UnstructuredFromAutoscaler(wpa, obj); err != nil {
 		panic("Failed to construct unstructured WPA")
 	}
 
@@ -224,8 +230,11 @@ func TestWPAController(t *testing.T) {
 	logFlush := configureLoggerForTest(t)
 	defer logFlush()
 	metricName := "foo"
-	namespace := "default"
+	namespace := "nsfoo"
 	wpaName := "wpa_1"
+
+	mockConfig := config.Mock(t)
+	mockConfig.Set("kube_resources_namespace", "nsfoo")
 
 	penTime := (int(time.Now().Unix()) - int(maxAge.Seconds()/2)) * 1000
 	name := custommetrics.GetConfigmapName()
@@ -238,7 +247,7 @@ func TestWPAController(t *testing.T) {
 				makePoints(penTime, 14.123),
 				makePoints(0, 25.12),
 			},
-			Scope: makePtr("foo:bar"),
+			Scope: pointer.Ptr("foo:bar"),
 		},
 		{
 			Metric: &metricName,
@@ -247,7 +256,7 @@ func TestWPAController(t *testing.T) {
 				makePoints(penTime, 1.01),
 				makePoints(0, 0.902),
 			},
-			Scope: makePtr("dcos_version:2.1.9"),
+			Scope: pointer.Ptr("dcos_version:2.1.9"),
 		},
 	}
 	d := &fakeDatadogClient{
@@ -374,7 +383,7 @@ func TestWPAController(t *testing.T) {
 				makePoints(penTime, 1.01),
 				makePoints(0, 0.902),
 			},
-			Scope: makePtr("dcos_version:2.1.9"),
+			Scope: pointer.Ptr("dcos_version:2.1.9"),
 		},
 	}
 
@@ -665,7 +674,7 @@ type testWriter struct {
 
 func (tw testWriter) Write(p []byte) (n int, err error) {
 	line := string(p)
-	strings.TrimRight(line, "\r\n")
+	line = strings.TrimRight(line, "\r\n")
 	tw.t.Log(line)
 	return len(p), nil
 }

@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+// Package eval holds eval related files
 package eval
 
 import (
@@ -42,35 +43,67 @@ func TestPatternNextSegment(t *testing.T) {
 }
 
 func TestPatternMatches(t *testing.T) {
-	if !PatternMatches("*test123", "aaatest123") {
-		t.Error("should match")
-	}
+	t.Run("sensitive-case", func(t *testing.T) {
+		if !PatternMatches("*abc*", "/abc/", false) {
+			t.Error("should match")
+		}
 
-	if PatternMatches("*test456", "aaatest123") {
-		t.Error("shouldn't match")
-	}
+		if !PatternMatches("*test123", "aaatest123", false) {
+			t.Error("should match")
+		}
 
-	if !PatternMatches("*", "test123") {
-		t.Error("should match")
-	}
+		if PatternMatches("*test456", "aaatest123", false) {
+			t.Error("shouldn't match")
+		}
 
-	if !PatternMatches("test*", "test123") {
-		t.Error("should match")
-	}
+		if !PatternMatches("*", "test123", false) {
+			t.Error("should match")
+		}
 
-	if !PatternMatches("t*123", "test123") {
-		t.Error("should match")
-	}
+		if !PatternMatches("test*", "test123", false) {
+			t.Error("should match")
+		}
 
-	if !PatternMatches("t*1*3", "test123") {
-		t.Error("should match")
-	}
+		if !PatternMatches("t*123", "test123", false) {
+			t.Error("should match")
+		}
 
-	if !PatternMatches("*t*1*3", "atest123") {
-		t.Error("should match")
-	}
+		if !PatternMatches("t*1*3", "test123", false) {
+			t.Error("should match")
+		}
 
-	if PatternMatches("*t*9*3", "atest123") {
-		t.Error("shouldn't match")
-	}
+		if !PatternMatches("*t*1*3", "atest123", false) {
+			t.Error("should match")
+		}
+
+		if PatternMatches("*t*9*3", "atest123", false) {
+			t.Error("shouldn't match")
+		}
+
+		if PatternMatches("*.c", "test.ct", false) {
+			t.Error("shouldn't match")
+		}
+	})
+
+	t.Run("insensitive-case", func(t *testing.T) {
+		if !PatternMatches("*TEST123", "aaatest123", true) {
+			t.Error("should match")
+		}
+
+		if PatternMatches("*TEST456", "aaatest123", true) {
+			t.Error("shouldn't match")
+		}
+
+		if !PatternMatches("test*", "TEST123", true) {
+			t.Error("should match")
+		}
+
+		if !PatternMatches("T*123", "test123", true) {
+			t.Error("should match")
+		}
+
+		if !PatternMatches("T*t123", "tEsT123", true) {
+			t.Error("should match")
+		}
+	})
 }

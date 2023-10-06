@@ -207,7 +207,7 @@ func main() {
 	 * As it has a `nil` serializer, it will panic if it tries to flush the metrics.
 	 * That’s why we need a big enough flush interval
 	 */
-	aggregator.InitAggregatorWithFlushInterval(nil, "", 1*time.Hour)
+	aggregator.NewBufferedAggregator(nil, "", 1*time.Hour)
 
 	/*
 	 * Wait for informers to get populated
@@ -222,7 +222,6 @@ func main() {
 		log.Printf("Failed to create \"cpuprofile.pprof\": %v\n", err)
 		return
 	}
-	defer file.Close()
 
 	pprof.StartCPUProfile(file)
 	start := time.Now()
@@ -231,6 +230,10 @@ func main() {
 	pprof.StopCPUProfile()
 
 	cancel()
-
 	fmt.Printf("KSMCheck.Run() returned %v in %s\n", err, elapsed)
+
+	if err = file.Close(); err != nil {
+		log.Printf("failed to close \"cpuprofile.pprof\": %v\n", err)
+		return
+	}
 }

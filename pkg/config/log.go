@@ -9,6 +9,7 @@ import (
 	"crypto/tls"
 	"errors"
 	"fmt"
+	"io"
 	"net"
 	"net/url"
 	"os"
@@ -17,14 +18,22 @@ import (
 	"strings"
 	"time"
 
+	"github.com/cihub/seelog"
+
 	seelogCfg "github.com/DataDog/datadog-agent/pkg/config/internal/seelog"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
-	"github.com/cihub/seelog"
 )
 
 // LoggerName specifies the name of an instantiated logger.
 type LoggerName string
+
+// Constant values for LoggerName.
+const (
+	CoreLoggerName      LoggerName = "CORE"
+	JMXLoggerName       LoggerName = "JMXFETCH"
+	DogstatsDLoggerName LoggerName = "DOGSTATSD"
+)
 
 type contextFormat uint8
 
@@ -36,8 +45,11 @@ const (
 
 var syslogTLSConfig *tls.Config
 
-var seelogConfig *seelogCfg.Config
-var jmxSeelogConfig *seelogCfg.Config
+var (
+	seelogConfig          *seelogCfg.Config
+	jmxSeelogConfig       *seelogCfg.Config
+	dogstatsdSeelogConfig *seelogCfg.Config
+)
 
 func getLogDateFormat() string {
 	if Datadog.GetBool("log_format_rfc3339") {
@@ -102,7 +114,7 @@ func SetupLogger(loggerName LoggerName, logLevel, logFile, syslogURI string, sys
 // if a non empty logFile is provided, it will also log to the file
 // a non empty syslogURI will enable syslog, and format them following RFC 5424 if specified
 // you can also specify to log to the console and in JSON format
-func SetupJMXLogger(loggerName LoggerName, logFile, syslogURI string, syslogRFC, logToConsole, jsonFormat bool) error {
+func SetupJMXLogger(logFile, syslogURI string, syslogRFC, logToConsole, jsonFormat bool) error {
 	// The JMX logger always logs at level "info", because JMXFetch does its
 	// own level filtering on and provides all messages to seelog at the info
 	// or error levels, via log.JMXInfo and log.JMXError.
@@ -110,7 +122,7 @@ func SetupJMXLogger(loggerName LoggerName, logFile, syslogURI string, syslogRFC,
 	if err != nil {
 		return err
 	}
-	jmxSeelogConfig, err = buildLoggerConfig(loggerName, seelogLogLevel, logFile, syslogURI, syslogRFC, logToConsole, jsonFormat)
+	jmxSeelogConfig, err = buildLoggerConfig(JMXLoggerName, seelogLogLevel, logFile, syslogURI, syslogRFC, logToConsole, jsonFormat)
 	if err != nil {
 		return err
 	}
@@ -120,6 +132,41 @@ func SetupJMXLogger(loggerName LoggerName, logFile, syslogURI string, syslogRFC,
 	}
 	log.SetupJMXLogger(jmxLoggerInterface, seelogLogLevel)
 	return nil
+}
+
+// SetupDogstatsdLogger sets up a logger with dogstatsd logger name and log level
+// if a non empty logFile is provided, it will also log to the file
+func SetupDogstatsdLogger(logFile string) (seelog.LoggerInterface, error) {
+	seelogLogLevel, err := validateLogLevel("info")
+	if err != nil {
+		return nil, err
+	}
+
+	dogstatsdSeelogConfig = buildDogstatsdLoggerConfig(DogstatsDLoggerName, seelogLogLevel, logFile)
+
+	dogstatsdLoggerInterface, err := GenerateLoggerInterface(dogstatsdSeelogConfig)
+	if err != nil {
+		return nil, err
+	}
+
+	return dogstatsdLoggerInterface, nil
+
+}
+
+func buildDogstatsdLoggerConfig(loggerName LoggerName, seelogLogLevel, logFile string) *seelogCfg.Config {
+	config := seelogCfg.NewSeelogConfig(string(loggerName), seelogLogLevel, "common", "", buildCommonFormat(loggerName), false)
+
+	// Configuring max roll for log file, if dogstatsd_log_file_max_rolls env var is not set (or set improperly ) within datadog.yaml then default value is 3
+	dogstatsd_log_file_max_rolls := Datadog.GetInt("dogstatsd_log_file_max_rolls")
+	if dogstatsd_log_file_max_rolls < 0 {
+		dogstatsd_log_file_max_rolls = 3
+		log.Warnf("Invalid value for dogstatsd_log_file_max_rolls, please make sure the value is equal or higher than 0")
+	}
+
+	// Configure log file, log file max size, log file roll up
+	config.EnableFileLogging(logFile, Datadog.GetSizeInBytes("dogstatsd_log_file_max_size"), uint(dogstatsd_log_file_max_rolls))
+
+	return config
 }
 
 func buildLoggerConfig(loggerName LoggerName, seelogLogLevel, logFile, syslogURI string, syslogRFC, logToConsole, jsonFormat bool) (*seelogCfg.Config, error) {
@@ -150,7 +197,7 @@ func buildLoggerConfig(loggerName LoggerName, seelogLogLevel, logFile, syslogURI
 	return config, nil
 }
 
-//GenerateLoggerInterface return a logger Interface from a log config
+// GenerateLoggerInterface return a logger Interface from a log config
 func GenerateLoggerInterface(logConfig *seelogCfg.Config) (seelog.LoggerInterface, error) {
 	configTemplate, err := logConfig.Render()
 	if err != nil {
@@ -165,14 +212,49 @@ func GenerateLoggerInterface(logConfig *seelogCfg.Config) (seelog.LoggerInterfac
 	return loggerInterface, nil
 }
 
-// ErrorLogWriter is a Writer that logs all written messages with the global seelog logger
-// at an error level
-type ErrorLogWriter struct {
-	AdditionalDepth int
+// logWriter is a Writer that logs all written messages with the global seelog logger
+type logWriter struct {
+	additionalDepth int
+	logFunc         func(int, ...interface{})
 }
 
-func (s *ErrorLogWriter) Write(p []byte) (n int, err error) {
-	log.ErrorStackDepth(s.AdditionalDepth, strings.TrimSpace(string(p)))
+// NewLogWriter returns a logWriter set with given logLevel. Returns an error if logLevel is unknown/not set.
+func NewLogWriter(additionalDepth int, logLevel seelog.LogLevel) (io.Writer, error) {
+	writer := &logWriter{
+		additionalDepth: additionalDepth,
+	}
+
+	switch logLevel {
+	case seelog.TraceLvl:
+		writer.logFunc = log.TraceStackDepth
+	case seelog.DebugLvl:
+		writer.logFunc = log.DebugStackDepth
+	case seelog.InfoLvl:
+		writer.logFunc = log.InfoStackDepth
+	case seelog.WarnLvl:
+		writer.logFunc = func(dept int, v ...interface{}) {
+			_ = log.WarnStackDepth(dept, v...)
+		}
+		writer.additionalDepth++
+	case seelog.ErrorLvl:
+		writer.logFunc = func(dept int, v ...interface{}) {
+			_ = log.ErrorStackDepth(dept, v...)
+		}
+		writer.additionalDepth++
+	case seelog.CriticalLvl:
+		writer.logFunc = func(dept int, v ...interface{}) {
+			_ = log.CriticalStackDepth(dept, v...)
+		}
+		writer.additionalDepth++
+	default:
+		return nil, errors.New("unknown loglevel in logwriter creation")
+	}
+
+	return writer, nil
+}
+
+func (s *logWriter) Write(p []byte) (n int, err error) {
+	s.logFunc(s.additionalDepth, strings.TrimSpace(string(p)))
 	return len(p), nil
 }
 

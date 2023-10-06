@@ -1,4 +1,4 @@
-#!/bin/bash -l
+#!/bin/bash
 
 # This script sets up the environment and then runs the test kitchen itself.
 
@@ -14,48 +14,57 @@ if [ -f "$(pwd)/ssh-key.pub" ]; then
   rm ssh-key.pub
 fi
 
-ssh-keygen -f "$(pwd)/ssh-key" -P "" -t rsa -b 2048
-KITCHEN_SSH_KEY_PATH="$(pwd)/ssh-key"
-export KITCHEN_SSH_KEY_PATH
-
-# show that the ssh key is there
-echo "$(pwd)/ssh-key"
-echo "$KITCHEN_SSH_KEY_PATH"
-
-# start the ssh-agent and add the key
-eval "$(ssh-agent -s)"
-ssh-add "$KITCHEN_SSH_KEY_PATH"
-
 # in docker we cannot interact to do this so we must disable it
 mkdir -p ~/.ssh
 [[ -f /.dockerenv ]] && echo -e "Host *\n\tStrictHostKeyChecking no\n\n" > ~/.ssh/config
 
 if [ "$KITCHEN_PROVIDER" == "azure" ]; then
+  # Generating SSH keys to connect to Azure VMs
+
+  ssh-keygen -f "$(pwd)/ed25519-key" -P "" -a 100 -t ed25519
+  KITCHEN_ED25519_SSH_KEY_PATH="$(pwd)/ed25519-key"
+  export KITCHEN_ED25519_SSH_KEY_PATH
+
+  # show that the ed25519 ssh key is there
+  ls "$(pwd)/ed25519-key"
+
+  ssh-keygen -f "$(pwd)/rsa-key" -P "" -t rsa -b 2048
+  KITCHEN_RSA_SSH_KEY_PATH="$(pwd)/rsa-key"
+  export KITCHEN_RSA_SSH_KEY_PATH
+
+  # show that the rsa ssh key is there
+  ls "$(pwd)/rsa-key"
+
+  # start the ssh-agent and add the keys
+  eval "$(ssh-agent -s)"
+  ssh-add "$KITCHEN_RSA_SSH_KEY_PATH"
+  ssh-add "$KITCHEN_ED25519_SSH_KEY_PATH"
+
   # Setup the azure credentials, grabbing them from AWS if they do not exist in the environment already
   # If running locally, they should be imported into the environment
 
   # These should not be printed out
   set +x
   if [ -z ${AZURE_CLIENT_ID+x} ]; then
-    AZURE_CLIENT_ID=$(aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.azure_client_id --with-decryption --query "Parameter.Value" --out text)
+    AZURE_CLIENT_ID=$(aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.azure_kitchen_client_id --with-decryption --query "Parameter.Value" --out text)
     # make sure whitespace is removed
     AZURE_CLIENT_ID="$(echo -e "${AZURE_CLIENT_ID}" | tr -d '[:space:]')"
     export AZURE_CLIENT_ID
   fi
   if [ -z ${AZURE_CLIENT_SECRET+x} ]; then
-    AZURE_CLIENT_SECRET=$(aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.azure_client_secret --with-decryption --query "Parameter.Value" --out text)
+    AZURE_CLIENT_SECRET=$(aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.azure_kitchen_client_secret --with-decryption --query "Parameter.Value" --out text)
     # make sure whitespace is removed
     AZURE_CLIENT_SECRET="$(echo -e "${AZURE_CLIENT_SECRET}" | tr -d '[:space:]')"
     export AZURE_CLIENT_SECRET
   fi
   if [ -z ${AZURE_TENANT_ID+x} ]; then
-    AZURE_TENANT_ID=$(aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.azure_tenant_id --with-decryption --query "Parameter.Value" --out text)
+    AZURE_TENANT_ID=$(aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.azure_kitchen_tenant_id --with-decryption --query "Parameter.Value" --out text)
     # make sure whitespace is removed
     AZURE_TENANT_ID="$(echo -e "${AZURE_TENANT_ID}" | tr -d '[:space:]')"
     export AZURE_TENANT_ID
   fi
   if [ -z ${AZURE_SUBSCRIPTION_ID+x} ]; then
-    AZURE_SUBSCRIPTION_ID=$(aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.azure_subscription_id --with-decryption --query "Parameter.Value" --out text)
+    AZURE_SUBSCRIPTION_ID=$(aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.azure_kitchen_subscription_id --with-decryption --query "Parameter.Value" --out text)
     # make sure whitespace is removed
     AZURE_SUBSCRIPTION_ID="$(echo -e "${AZURE_SUBSCRIPTION_ID}" | tr -d '[:space:]')"
     export AZURE_SUBSCRIPTION_ID
@@ -73,6 +82,22 @@ if [ "$KITCHEN_PROVIDER" == "azure" ]; then
 
 elif [ "$KITCHEN_PROVIDER" == "ec2" ]; then
   echo "using ec2 kitchen provider"
+
+  # Setup the AWS credentials: grab the ED25519 ssh key that is needed to connect to Amazon Linux 2022 instances
+  # See: https://github.com/test-kitchen/kitchen-ec2/issues/588
+  # Note: this issue happens even when allowing RSA keys in the ssh service of the remote host (which was the fix we did for Ubuntu 22.04),
+  # therefore using the auto-generated SSH key is not possible at all.
+
+  # These should not be printed out
+  set +x
+  if [ -z ${KITCHEN_EC2_SSH_KEY_ID+x} ]; then
+    KITCHEN_EC2_SSH_KEY_ID="datadog-agent-kitchen"
+    export KITCHEN_EC2_SSH_KEY_ID
+    KITCHEN_EC2_SSH_KEY_PATH="$(pwd)/aws-ssh-key"
+    export KITCHEN_EC2_SSH_KEY_PATH
+    aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.aws_ec2_kitchen_ssh_key --with-decryption --query "Parameter.Value" --out text > $KITCHEN_EC2_SSH_KEY_PATH
+  fi
+  set -x
 fi
 
 # Generate a password to use for the windows servers
@@ -132,14 +157,26 @@ for attempt in $(seq 0 "${KITCHEN_INFRASTRUCTURE_FLAKES_RETRY:-2}"); do
   failing_test_suites=$(bundle exec kitchen list --no-log-overwrite --json | jq -cr "[ .[] | select( .last_error != null ) ] | map( .instance ) | .[]")
 
   # Then, destroy the kitchen machines
+  # Do not fail on kitchen destroy, it breaks the infra failures filter
+  set +e
   bundle exec kitchen destroy "$test_suites" --no-log-overwrite
+  destroy_result=$?
+  set -e
+
+  # If the destory operation fails, it is not safe to continue running kitchen
+  # so we just exit with an infrastructure failure message.
+  if [ "$destroy_result" -ne 0 ]; then
+    echo "Failure while destroying kitchen infrastructure, skipping retries"
+    break
+  fi
 
   if [ "$result" -eq 0 ]; then
-      # if kitchen test succeeded, exit with 0
+      echo "Kitchen test succeeded exiting 0"
       exit 0
   else
-    if ! invoke kitchen.should-rerun-failed "/tmp/runlog${attempt}"; then
+    if ! invoke kitchen.should-rerun-failed "/tmp/runlog${attempt}" ; then
       # if kitchen test failed and shouldn't be rerun, exit with 1
+      echo "Kitchen tests failed and it should not be an infrastructure problem"
       exit 1
     else
       cp -R "${DD_AGENT_TESTING_DIR}"/.kitchen/logs "${DD_AGENT_TESTING_DIR}/.kitchen/logs-${attempt}"
@@ -154,4 +191,5 @@ done
 
 # if we ran out of attempts because of infrastructure/networking issues, exit with 1
 echo "Ran out of retry attempts"
+echo "ERROR: The kitchen tests failed due to infrastructure failures."
 exit 1

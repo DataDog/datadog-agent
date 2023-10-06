@@ -4,12 +4,10 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build linux
-// +build linux
 
 package sysctl
 
 import (
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"testing"
@@ -28,7 +26,6 @@ func TestString(t *testing.T) {
 	require.NotEmpty(t, s)
 
 	procRoot := createTmpProcSys(t)
-	defer os.RemoveAll(procRoot)
 
 	createTmpSysctl(t, procRoot, "foo", "bar\n")
 	sctl := NewString(procRoot, "foo", 10*time.Second)
@@ -66,7 +63,6 @@ func TestInt(t *testing.T) {
 	require.NotZero(t, i)
 
 	procRoot := createTmpProcSys(t)
-	defer os.RemoveAll(procRoot)
 
 	createTmpSysctl(t, procRoot, "foo", "12\n")
 	sctl := NewInt(procRoot, "foo", 10*time.Second)
@@ -96,15 +92,12 @@ func TestInt(t *testing.T) {
 }
 
 func createTmpProcSys(t *testing.T) (procRoot string) {
-	d, err := ioutil.TempDir("", "")
-	require.NoError(t, err)
-
-	procRoot = d
+	procRoot = t.TempDir()
 
 	require.NoError(t, os.Mkdir(filepath.Join(procRoot, "sys"), 0777))
 	return procRoot
 }
 
 func createTmpSysctl(t *testing.T, procRoot, sysctl string, v string) {
-	require.NoError(t, ioutil.WriteFile(filepath.Join(procRoot, "sys", sysctl), []byte(v), 0777))
+	require.NoError(t, os.WriteFile(filepath.Join(procRoot, "sys", sysctl), []byte(v), 0777))
 }

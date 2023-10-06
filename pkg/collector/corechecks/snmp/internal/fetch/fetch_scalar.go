@@ -16,9 +16,9 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/common"
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/gosnmplib"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/session"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/valuestore"
+	"github.com/DataDog/datadog-agent/pkg/snmp/gosnmplib"
 )
 
 func fetchScalarOidsWithBatching(sess session.Session, oids []string, oidBatchSize int) (valuestore.ScalarResultValuesType, error) {
@@ -46,7 +46,7 @@ func fetchScalarOids(sess session.Session, oids []string) (valuestore.ScalarResu
 	if err != nil {
 		return nil, err
 	}
-	values := gosnmplib.ResultToScalarValues(packet)
+	values := valuestore.ResultToScalarValues(packet)
 	retryFailedScalarOids(sess, packet, values)
 	return values, nil
 }
@@ -59,7 +59,7 @@ func retryFailedScalarOids(sess session.Session, results *gosnmp.SnmpPacket, val
 	retryOids := make(map[string]string)
 	for _, variable := range results.Variables {
 		oid := strings.TrimLeft(variable.Name, ".")
-		if (variable.Type == gosnmp.NoSuchObject || variable.Type == gosnmp.NoSuchInstance) && !strings.HasSuffix(oid, ".0") {
+		if (variable.Type == gosnmp.NoSuchObject || variable.Type == gosnmp.NoSuchInstance || variable.Type == gosnmp.Null) && !strings.HasSuffix(oid, ".0") {
 			retryOids[oid] = oid + ".0"
 		}
 	}
@@ -73,7 +73,7 @@ func retryFailedScalarOids(sess session.Session, results *gosnmp.SnmpPacket, val
 		if err != nil {
 			log.Debugf("failed to oids `%v` on retry: %v", retryOids, err)
 		} else {
-			retryValues := gosnmplib.ResultToScalarValues(retryResults)
+			retryValues := valuestore.ResultToScalarValues(retryResults)
 			for initialOid, actualOid := range retryOids {
 				if value, ok := retryValues[actualOid]; ok {
 					valuesToUpdate[initialOid] = value

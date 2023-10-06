@@ -4,12 +4,10 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build secrets && !windows
-// +build secrets,!windows
 
 package secrets
 
 import (
-	"io/ioutil"
 	"os"
 	"os/user"
 	"syscall"
@@ -22,12 +20,16 @@ func setCorrectRight(path string) {
 	os.Chmod(path, 0700)
 }
 
+// testCheckRightsStub is a dummy checkRights stub for *nix
+func testCheckRightsStub() {
+}
+
 func TestWrongPath(t *testing.T) {
 	require.NotNil(t, checkRights("does not exists", false))
 }
 
 func TestGroupOtherRights(t *testing.T) {
-	tmpfile, err := ioutil.TempFile("", "agent-collector-test")
+	tmpfile, err := os.CreateTemp("", "agent-collector-test")
 	require.Nil(t, err)
 	defer os.Remove(tmpfile.Name())
 

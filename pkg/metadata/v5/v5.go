@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build linux || windows || darwin
-// +build linux windows darwin
 
 package v5
 
@@ -12,15 +11,15 @@ import (
 	"context"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/gohai"
 	"github.com/DataDog/datadog-agent/pkg/metadata/common"
 	"github.com/DataDog/datadog-agent/pkg/metadata/host"
-	"github.com/DataDog/datadog-agent/pkg/metadata/internal/gohai"
 	"github.com/DataDog/datadog-agent/pkg/metadata/internal/resources"
-	"github.com/DataDog/datadog-agent/pkg/util"
+	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 )
 
 // GetPayload returns the complete metadata payload as seen in Agent v5
-func GetPayload(ctx context.Context, hostnameData util.HostnameData) *Payload {
+func GetPayload(ctx context.Context, hostnameData hostname.Data) *Payload {
 	cp := common.GetPayload(hostnameData.Hostname)
 	hp := host.GetPayload(ctx, hostnameData)
 	rp := resources.GetPayload(hostnameData.Hostname)
@@ -35,7 +34,7 @@ func GetPayload(ctx context.Context, hostnameData util.HostnameData) *Payload {
 	}
 
 	if config.Datadog.GetBool("enable_gohai") {
-		p.GohaiPayload = GohaiPayload{MarshalledGohaiPayload{*gohai.GetPayload()}}
+		p.GohaiPayload = GohaiPayload{MarshalledGohaiPayload{*gohai.GetPayload(config.IsContainerized())}}
 	}
 
 	return p

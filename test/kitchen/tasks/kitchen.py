@@ -1,12 +1,15 @@
 import glob
 import json
-import os.path
+import os
 import re
+import sys
 import traceback
 
 import requests
 from invoke import task
 from invoke.exceptions import Exit
+
+WINDOWS_SKIP_IF_TESTSIGNING = ['.*cn']
 
 
 @task(iterable=['platlist'])
@@ -90,7 +93,7 @@ def genconfig(
         if osversions.lower() == "all":
             osversions = ".*"
 
-        osimages = load_targets(ctx, ar, osversions)
+        osimages = load_targets(ctx, ar, osversions, platform)
 
         print(f"Chose os targets {osimages}\n")
         for osimage in osimages:
@@ -99,25 +102,25 @@ def genconfig(
     elif platlist:
         # platform list should be in the form of driver,os,arch,image
         for entry in platlist:
-            driver, os, arch, image = entry.split(",")
+            driver, osv, arch, image = entry.split(",")
             if provider and driver != provider:
                 raise Exit(message=f"Can only use one driver type per config ( {provider} != {driver} )\n", code=1)
 
             provider = driver
             # check to see if we know this one
-            if not platforms.get(os):
+            if not platforms.get(osv):
                 raise Exit(message=f"Unknown OS in {entry}\n", code=4)
 
-            if not platforms[os].get(driver):
+            if not platforms[osv].get(driver):
                 raise Exit(message=f"Unknown driver in {entry}\n", code=5)
 
-            if not platforms[os][driver].get(arch):
+            if not platforms[osv][driver].get(arch):
                 raise Exit(message=f"Unknown architecture in {entry}\n", code=5)
 
-            if not platforms[os][driver][arch].get(image):
+            if not platforms[osv][driver][arch].get(image):
                 raise Exit(message=f"Unknown image in {entry}\n", code=6)
 
-            testplatformslist.append(f"{image},{platforms[os][driver][arch][image]}")
+            testplatformslist.append(f"{image},{platforms[osv][driver][arch][image]}")
 
     print("Using the following test platform(s)\n")
     for logplat in testplatformslist:
@@ -147,9 +150,17 @@ def genconfig(
     env = {}
     if uservars:
         env = load_user_env(ctx, provider, uservars)
+
+    # set KITCHEN_ARCH if it's not set in the user env
+    if 'KITCHEN_ARCH' not in env and not ('KITCHEN_ARCH' in os.environ.keys()):
+        env['KITCHEN_ARCH'] = arch
+
     env['TEST_PLATFORMS'] = testplatforms
 
-    env['TEST_IMAGE_SIZE'] = imagesize if imagesize else ""
+    if provider == "azure":
+        env['TEST_IMAGE_SIZE'] = imagesize if imagesize else ""
+    elif provider == "ec2" and imagesize:
+        env['KITCHEN_EC2_INSTANCE_TYPE'] = imagesize
 
     if fips:
         env['FIPS'] = 'true'
@@ -161,19 +172,43 @@ def should_rerun_failed(_, runlog):
     """
     Parse a log from kitchen run and see if we should rerun it (e.g. because of a network issue).
     """
-    test_result_re = re.compile(r'\d+\s+examples?,\s+(?P<failures>\d+)\s+failures?')
+    test_result_re_gotest = re.compile(r'--- FAIL: (?P<failures>[A-Z].*) \(.*\)')
+    test_result_re_rspec = re.compile(r'\d+\s+examples?,\s+(?P<failures>\d+)\s+failures?')
+
     with open(runlog, 'r', encoding='utf-8') as f:
         text = f.read()
-        result = set(test_result_re.findall(text))
+        result_rspec = set(test_result_re_rspec.findall(text))
+        result_gotest = set(test_result_re_gotest.findall(text))
+        result = result_rspec.union(result_gotest)
         if result == {'0'} or result == set():
-            print("Seeing no failed tests in log, advising to rerun")
+            print(
+                "Seeing no failed kitchen tests in log this is probably an infrastructure problem, advising to rerun the failed test suite"
+            )
         else:
-            raise Exit("Seeing some failed tests in log, not advising to rerun", 1)
+            raise Exit("Seeing some failed kitchen tests in log, not advising to rerun the failed test suite", 1)
 
 
-def load_targets(_, targethash, selections):
+@task
+def invoke_unit_tests(ctx):
+    """
+    Run the unit tests on the invoke tasks
+    """
+    for _, _, files in os.walk("tasks/unit-tests/"):
+        for file in files:
+            if file[-3:] == ".py" and file != "__init__.py":
+                ctx.run(f"{sys.executable} -m tasks.unit-tests.{file[:-3]}")
+
+
+def load_targets(_, targethash, selections, platform):
     returnlist = []
+    skiplist = []
     commentpattern = re.compile("^comment")
+
+    if platform == "windows":
+        if 'WINDOWS_DDNPM_DRIVER' in os.environ.keys() and os.environ['WINDOWS_DDNPM_DRIVER'] == 'testsigned':
+            for skip in WINDOWS_SKIP_IF_TESTSIGNING:
+                skiplist.append(re.compile(skip))
+
     for selection in selections.split(","):
         selectionpattern = re.compile(f"^{selection}$")
 
@@ -182,11 +217,19 @@ def load_targets(_, targethash, selections):
             if commentpattern.match(key):
                 continue
             if selectionpattern.search(key):
-                matched = True
-                if key not in returnlist:
-                    returnlist.append(key)
+                for skip in skiplist:
+                    if skip.match(key):
+                        print(f"Matched key {key} to skip list, skipping\n")
+                        matched = True
+                        break
                 else:
-                    print(f"Skipping duplicate target key {key} (matched search {selection})\n")
+                    # will only execute if there's not a break in the previous for
+                    # loop.
+                    matched = True
+                    if key not in returnlist:
+                        returnlist.append(key)
+                    else:
+                        print(f"Skipping duplicate target key {key} (matched search {selection})\n")
 
         if not matched:
             raise Exit(message=f"Couldn't find any match for target {selection}\n", code=7)
@@ -197,13 +240,13 @@ def load_user_env(_, provider, varsfile):
     env = {}
     commentpattern = re.compile("^comment")
     if os.path.exists(varsfile):
-        with open("uservars.json", "r") as f:
+        with open(varsfile, "r") as f:
             vars = json.load(f)
-            for key, val in vars['global'].items():
+            for key, val in vars.get("global", {}).items():
                 if commentpattern.match(key):
                     continue
                 env[key] = val
-            for key, val in vars[provider].items():
+            for key, val in vars.get(provider, {}).items():
                 if commentpattern.match(key):
                     continue
                 env[key] = val

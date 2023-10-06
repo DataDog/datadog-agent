@@ -3,7 +3,6 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 //go:build !windows
-// +build !windows
 
 package common
 
@@ -12,8 +11,9 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/util/cache"
 
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 	gopsutilhost "github.com/shirou/gopsutil/v3/host"
+
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 func getUUID() string {

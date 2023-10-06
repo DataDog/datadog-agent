@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build python
-// +build python
 
 package collector
 
@@ -27,8 +26,4 @@ func pyPrepareEnv() error {
 		return python.SetPythonPsutilProcPath(procfsPath)
 	}
 	return nil
-}
-
-func pyTeardown() {
-	python.Destroy()
 }

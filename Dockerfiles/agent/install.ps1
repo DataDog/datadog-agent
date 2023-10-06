@@ -23,7 +23,9 @@ function Install-Service {
 }
 
 if ("$env:WITH_JMX" -ne "false") {
-    Invoke-WebRequest -OutFile jre-11.0.6.zip https://github.com/AdoptOpenJDK/openjdk11-binaries/releases/download/jdk-11.0.6%2B10/OpenJDK11U-jre_x64_windows_hotspot_11.0.6_10.zip
+    $JDK_DOWNLOAD_URL = if ($env:GENERAL_ARTIFACTS_CACHE_BUCKET_URL) {"${env:GENERAL_ARTIFACTS_CACHE_BUCKET_URL}/openjdk"} else {"https://github.com/AdoptOpenJDK/openjdk11-binaries/releases/download/jdk-11.0.6%2B10"}
+    Invoke-WebRequest -OutFile jre-11.0.6.zip "${JDK_DOWNLOAD_URL}/OpenJDK11U-jre_x64_windows_hotspot_11.0.6_10.zip"
+    (Get-FileHash -Algorithm SHA256 jre-11.0.6.zip) -eq "f0d82b256c4aecf051d66ec31920c3527b656159930aa980d37a689a73634e8e"
     Expand-Archive -Path jre-11.0.6.zip -DestinationPath C:/
     Remove-Item jre-11.0.6.zip
     Move-Item C:/jdk-11.0.6+10-jre/ C:/java
@@ -31,14 +33,6 @@ if ("$env:WITH_JMX" -ne "false") {
     setx /m PATH "$Env:Path;C:/java/bin"
     $Env:Path="$Env:Path;C:/java/bin"
 }
-
-Expand-Archive datadog-agent-latest.amd64.zip
-Remove-Item datadog-agent-latest.amd64.zip
-
-Get-ChildItem -Path datadog-agent-* | Rename-Item -NewName "Datadog Agent"
-
-New-Item -ItemType directory -Path "C:/Program Files/Datadog"
-Move-Item "Datadog Agent" "C:/Program Files/Datadog/"
 
 New-Item -ItemType directory -Path 'C:/ProgramData/Datadog'
 Move-Item "C:/Program Files/Datadog/Datadog Agent/EXAMPLECONFSLOCATION" "C:/ProgramData/Datadog/conf.d"

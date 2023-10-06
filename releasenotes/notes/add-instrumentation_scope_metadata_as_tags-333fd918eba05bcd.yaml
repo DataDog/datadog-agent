@@ -1,0 +1,13 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+deprecations:
+  - |
+    Use `instrumentation_scope_metadata_as_tags` instead of `instrumentation_library_metadata_as_tags`
+    in favor of https://github.com/open-telemetry/opentelemetry-proto/releases/tag/v0.15.0
+    Both must not be set at the same time.

@@ -1,0 +1,19 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+enhancements:
+  - |
+    When ``otlp_config.metrics.histograms.send_aggregation_metrics`` is set to ``true``, 
+    the OTLP ingest pipeline will now send min and max metrics for delta OTLP Histograms 
+    and OTLP Exponential Histograms when available, in addition to count and sum metrics.
+
+    The deprecated option ``otlp_config.metrics.histograms.send_count_sum_metrics`` now
+    also sends min and max metrics when available.
+deprecations:
+  - |
+    Deprecate ``otlp_config.metrics.histograms.send_count_sum_metrics`` in favor of ``otlp_config.metrics.histograms.send_aggregation_metrics``.

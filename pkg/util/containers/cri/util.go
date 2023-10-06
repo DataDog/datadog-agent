@@ -4,8 +4,8 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build cri
-// +build cri
 
+// Package cri implements a Container Runtime Interface (CRI) client.
 package cri
 
 import (
@@ -16,7 +16,11 @@ import (
 	"time"
 
 	"google.golang.org/grpc"
-	pb "k8s.io/cri-api/pkg/apis/runtime/v1alpha2"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/credentials/insecure"
+	"google.golang.org/grpc/status"
+	criv1 "k8s.io/cri-api/pkg/apis/runtime/v1"
+	criv1alpha2 "k8s.io/cri-api/pkg/apis/runtime/v1alpha2"
 
 	"github.com/DataDog/datadog-agent/internal/third_party/kubernetes/pkg/kubelet/cri/remote/util"
 	"github.com/DataDog/datadog-agent/pkg/config"
@@ -29,10 +33,10 @@ var (
 	once          sync.Once
 )
 
+// CRIClient abstracts the CRI client methods
 type CRIClient interface {
-	ListContainerStats() (map[string]*pb.ContainerStats, error)
-	GetContainerStats(containerID string) (*pb.ContainerStats, error)
-	GetContainerStatus(containerID string) (*pb.ContainerStatus, error)
+	ListContainerStats() (map[string]*criv1.ContainerStats, error)
+	GetContainerStats(containerID string) (*criv1.ContainerStats, error)
 	GetRuntime() string
 	GetRuntimeVersion() string
 }
@@ -44,7 +48,8 @@ type CRIUtil struct {
 	initRetry retry.Retrier
 
 	sync.Mutex
-	client            pb.RuntimeServiceClient
+	clientV1          criv1.RuntimeServiceClient
+	clientV1alpha2    criv1alpha2.RuntimeServiceClient
 	runtime           string
 	runtimeVersion    string
 	queryTimeout      time.Duration
@@ -71,22 +76,33 @@ func (c *CRIUtil) init() error {
 		return fmt.Errorf("failed to get dialer: %s", err)
 	}
 
-	conn, err := grpc.Dial(c.socketPath, grpc.WithInsecure(), grpc.WithBlock(), grpc.WithTimeout(c.connectionTimeout), grpc.WithContextDialer(dialer))
+	ctx, cancel := context.WithTimeout(context.Background(), c.connectionTimeout)
+	defer cancel()
+
+	conn, err := grpc.DialContext(ctx, c.socketPath, grpc.WithTransportCredentials(insecure.NewCredentials()), grpc.WithBlock(), grpc.WithContextDialer(dialer))
 	if err != nil {
 		return fmt.Errorf("failed to dial: %v", err)
 	}
 
-	c.client = pb.NewRuntimeServiceClient(conn)
-	// validating the connection by fetching the version
-	ctx, cancel := context.WithTimeout(context.Background(), c.connectionTimeout)
-	defer cancel()
-	request := &pb.VersionRequest{}
-	r, err := c.client.Version(ctx, request)
+	var v *criv1.VersionResponse
+	err = c.detectAPIVersion(conn)
+	if err == nil {
+		v, err = c.version()
+	}
+
 	if err != nil {
+		// if detecting the API version fails, conn needs to be closed,
+		// otherwise it'll leak as init may get retried.
+		connErr := conn.Close()
+		if connErr != nil {
+			log.Debugf("failed to close gRPC connection: %s", connErr)
+		}
+
 		return err
 	}
-	c.runtime = r.RuntimeName
-	c.runtimeVersion = r.RuntimeVersion
+
+	c.runtime = v.RuntimeName
+	c.runtimeVersion = v.RuntimeVersion
 	log.Debugf("Successfully connected to CRI %s %s", c.runtime, c.runtimeVersion)
 
 	return nil
@@ -116,14 +132,9 @@ func GetUtil() (*CRIUtil, error) {
 	return globalCRIUtil, nil
 }
 
-// ListContainerStats sends a ListContainerStatsRequest to the server, and parses the returned response
-func (c *CRIUtil) ListContainerStats() (map[string]*pb.ContainerStats, error) {
-	return c.listContainerStatsWithFilter(&pb.ContainerStatsFilter{})
-}
-
 // GetContainerStats returns the stats for the container with the given ID
-func (c *CRIUtil) GetContainerStats(containerID string) (*pb.ContainerStats, error) {
-	stats, err := c.listContainerStatsWithFilter(&pb.ContainerStatsFilter{Id: containerID})
+func (c *CRIUtil) GetContainerStats(containerID string) (*criv1.ContainerStats, error) {
+	stats, err := c.listContainerStatsWithFilter(&criv1.ContainerStatsFilter{Id: containerID})
 	if err != nil {
 		return nil, err
 	}
@@ -136,38 +147,78 @@ func (c *CRIUtil) GetContainerStats(containerID string) (*pb.ContainerStats, err
 	return containerStats, nil
 }
 
-// GetContainerStatus requests a container status by its ID
-func (c *CRIUtil) GetContainerStatus(containerID string) (*pb.ContainerStatus, error) {
-	ctx, cancel := context.WithTimeout(context.Background(), c.queryTimeout)
-	defer cancel()
-	request := &pb.ContainerStatusRequest{ContainerId: containerID}
-	r, err := c.client.ContainerStatus(ctx, request)
-	if err != nil {
-		return nil, err
-	}
-
-	return r.Status, nil
+// ListContainerStats sends a ListContainerStatsRequest to the server, and parses the returned response
+func (c *CRIUtil) ListContainerStats() (map[string]*criv1.ContainerStats, error) {
+	return c.listContainerStatsWithFilter(&criv1.ContainerStatsFilter{})
 }
 
+// GetRuntime returns the CRI runtime
 func (c *CRIUtil) GetRuntime() string {
 	return c.runtime
 }
 
+// GetRuntimeVersion returns the CRI runtime version
 func (c *CRIUtil) GetRuntimeVersion() string {
 	return c.runtimeVersion
 }
 
-func (c *CRIUtil) listContainerStatsWithFilter(filter *pb.ContainerStatsFilter) (map[string]*pb.ContainerStats, error) {
+func (c *CRIUtil) detectAPIVersion(conn *grpc.ClientConn) error {
+	ctx, cancel := context.WithTimeout(context.Background(), c.connectionTimeout)
+	defer cancel()
+
+	clientV1 := criv1.NewRuntimeServiceClient(conn)
+
+	if _, err := clientV1.Version(ctx, &criv1.VersionRequest{}); err == nil {
+		log.Info("Using CRI v1 API")
+		c.clientV1 = clientV1
+	} else if status.Code(err) == codes.Unimplemented {
+		log.Info("Using CRI v1alpha2 API")
+		c.clientV1alpha2 = criv1alpha2.NewRuntimeServiceClient(conn)
+	} else {
+		return err
+	}
+
+	return nil
+}
+
+func (c *CRIUtil) version() (*criv1.VersionResponse, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), c.queryTimeout)
 	defer cancel()
 
-	request := &pb.ListContainerStatsRequest{Filter: filter}
-	r, err := c.client.ListContainerStats(ctx, request)
+	if c.clientV1 != nil {
+		return c.clientV1.Version(ctx, &criv1.VersionRequest{})
+	}
+
+	v, err := c.clientV1alpha2.Version(ctx, &criv1alpha2.VersionRequest{})
 	if err != nil {
 		return nil, err
 	}
 
-	stats := make(map[string]*pb.ContainerStats)
+	return fromV1alpha2VersionResponse(v), nil
+}
+
+func (c *CRIUtil) listContainerStatsWithFilter(filter *criv1.ContainerStatsFilter) (map[string]*criv1.ContainerStats, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), c.queryTimeout)
+	defer cancel()
+
+	var r *criv1.ListContainerStatsResponse
+	var err error
+
+	if c.clientV1 != nil {
+		r, err = c.clientV1.ListContainerStats(ctx, &criv1.ListContainerStatsRequest{Filter: filter})
+	} else {
+		var rv1alpha2 *criv1alpha2.ListContainerStatsResponse
+		rv1alpha2, err = c.clientV1alpha2.ListContainerStats(ctx, &criv1alpha2.ListContainerStatsRequest{Filter: v1alpha2ContainerStatsFilter(filter)})
+		if err == nil {
+			r = fromV1alpha2ListContainerStatsResponse(rv1alpha2)
+		}
+	}
+
+	if err != nil {
+		return nil, err
+	}
+
+	stats := make(map[string]*criv1.ContainerStats)
 	for _, s := range r.GetStats() {
 		stats[s.Attributes.Id] = s
 	}

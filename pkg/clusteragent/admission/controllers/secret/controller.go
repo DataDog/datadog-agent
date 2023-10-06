@@ -4,8 +4,9 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build kubeapiserver
-// +build kubeapiserver
 
+// Package secret implements the secret controller of the Cluster Agent's
+// Admission Controller.
 package secret
 
 import (
@@ -58,11 +59,14 @@ func NewController(client kubernetes.Interface, secretInformer coreinformers.Sec
 		isLeaderFunc:   isLeaderFunc,
 		isLeaderNotif:  isLeaderNotif,
 	}
-	secretInformer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
+	if _, err := secretInformer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
 		AddFunc:    controller.handleObject,
 		UpdateFunc: controller.handleUpdate,
 		DeleteFunc: controller.handleObject,
-	})
+	}); err != nil {
+		log.Errorf("cannot add event handler to secret informer: %v", err)
+		return controller
+	}
 	return controller
 }
 

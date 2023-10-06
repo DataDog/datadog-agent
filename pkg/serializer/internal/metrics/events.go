@@ -17,10 +17,11 @@ import (
 	jsoniter "github.com/json-iterator/go"
 
 	agentpayload "github.com/DataDog/agent-payload/v5/gogen"
-	"github.com/DataDog/datadog-agent/pkg/metrics"
+
+	"github.com/DataDog/datadog-agent/pkg/metrics/event"
 	"github.com/DataDog/datadog-agent/pkg/serializer/marshaler"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
-	"github.com/DataDog/datadog-agent/pkg/util"
+	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 	utiljson "github.com/DataDog/datadog-agent/pkg/util/json"
 )
 
@@ -38,7 +39,7 @@ var (
 )
 
 // Events represents a list of events ready to be serialize
-type Events []*metrics.Event
+type Events []*event.Event
 
 // Marshal serialize events using agent-payload definition
 func (events Events) Marshal() ([]byte, error) {
@@ -65,8 +66,8 @@ func (events Events) Marshal() ([]byte, error) {
 	return proto.Marshal(payload)
 }
 
-func (events Events) getEventsBySourceType() map[string][]*metrics.Event {
-	eventsBySourceType := make(map[string][]*metrics.Event)
+func (events Events) getEventsBySourceType() map[string][]*event.Event {
+	eventsBySourceType := make(map[string][]*event.Event)
 	for _, e := range events {
 		sourceTypeName := e.SourceTypeName
 		if sourceTypeName == "" {
@@ -80,16 +81,16 @@ func (events Events) getEventsBySourceType() map[string][]*metrics.Event {
 
 // MarshalJSON serializes events to JSON so it can be sent to the Agent 5 intake
 // (we don't use the v1 event endpoint because it only supports 1 event per payload)
-//FIXME(olivier): to be removed when v2 endpoints are available
+// FIXME(olivier): to be removed when v2 endpoints are available
 func (events Events) MarshalJSON() ([]byte, error) {
 	// Regroup events by their source type name
 	eventsBySourceType := events.getEventsBySourceType()
-	hostname, _ := util.GetHostname(context.TODO())
+	hname, _ := hostname.Get(context.TODO())
 	// Build intake payload containing events and serialize
 	data := map[string]interface{}{
 		apiKeyJSONField:           "", // legacy field, it isn't actually used by the backend
 		eventsJSONField:           eventsBySourceType,
-		internalHostnameJSONField: hostname,
+		internalHostnameJSONField: hname,
 	}
 	reqBody := &bytes.Buffer{}
 	err := json.NewEncoder(reqBody).Encode(data)
@@ -132,7 +133,7 @@ func (events Events) SplitPayload(times int) ([]marshaler.AbstractMarshaler, err
 // Each item in StreamJSONMarshaler is composed of all events for a specific source type name.
 type eventsSourceType struct {
 	sourceType string
-	events     []*metrics.Event
+	events     []*event.Event
 }
 
 type eventsBySourceTypeMarshaler struct {
@@ -163,9 +164,9 @@ func writeEventsFooter(stream *jsoniter.Stream) error {
 	stream.WriteObjectEnd()
 	stream.WriteMore()
 
-	hostname, _ := util.GetHostname(context.TODO())
+	hname, _ := hostname.Get(context.TODO())
 	stream.WriteObjectField(internalHostnameJSONField)
-	stream.WriteString(hostname)
+	stream.WriteString(hname)
 
 	stream.WriteObjectEnd()
 	return stream.Flush()
@@ -198,7 +199,7 @@ func (e *eventsBySourceTypeMarshaler) DescribeItem(i int) string {
 	return fmt.Sprintf("Source type: %s, events count: %d", e.eventsBySourceType[i].sourceType, len(e.eventsBySourceType[i].events))
 }
 
-func writeEvent(event *metrics.Event, writer *utiljson.RawObjectWriter) error {
+func writeEvent(event *event.Event, writer *utiljson.RawObjectWriter) error {
 	if err := writer.StartObject(); err != nil {
 		return err
 	}
@@ -234,7 +235,7 @@ func writeEvent(event *metrics.Event, writer *utiljson.RawObjectWriter) error {
 // is composed of all events for a specific source type name.
 func (events Events) CreateSingleMarshaler() marshaler.StreamJSONMarshaler {
 	eventsBySourceType := events.getEventsBySourceType()
-	var values []eventsSourceType
+	values := make([]eventsSourceType, 0, len(eventsBySourceType))
 	for sourceType, events := range eventsBySourceType {
 		values = append(values, eventsSourceType{sourceType, events})
 	}
@@ -290,14 +291,15 @@ func (e *eventsMarshaler) DescribeItem(i int) string {
 // Each StreamJSONMarshaler is composed of all events for a specific source type name.
 func (events Events) CreateMarshalersBySourceType() []marshaler.StreamJSONMarshaler {
 	e := events.getEventsBySourceType()
-	var values []marshaler.StreamJSONMarshaler
-	for k, v := range e {
-		values = append(values, &eventsMarshaler{k, v})
-	}
 
 	// Make sure we return at least one marshaler to have non-empty JSON.
-	if len(values) == 0 {
-		values = append(values, &eventsBySourceTypeMarshaler{events, nil})
+	if len(e) == 0 {
+		return []marshaler.StreamJSONMarshaler{&eventsBySourceTypeMarshaler{events, nil}}
+	}
+
+	values := make([]marshaler.StreamJSONMarshaler, 0, len(e))
+	for k, v := range e {
+		values = append(values, &eventsMarshaler{k, v})
 	}
 	return values
 }

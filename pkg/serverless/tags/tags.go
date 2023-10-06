@@ -7,10 +7,10 @@ package tags
 
 import (
 	"fmt"
-	"io/ioutil"
 	"os"
 	"regexp"
 	"strings"
+	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/serverless/proc"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -26,6 +26,7 @@ const (
 	qualifierEnvVar = "AWS_LAMBDA_FUNCTION_VERSION"
 	runtimeVar      = "AWS_EXECUTION_ENV"
 	memorySizeVar   = "AWS_LAMBDA_FUNCTION_MEMORY_SIZE"
+	InitType        = "AWS_LAMBDA_INITIALIZATION_TYPE"
 
 	// FunctionARNKey is the tag key for a function's arn
 	FunctionARNKey = "function_arn"
@@ -47,6 +48,9 @@ const (
 	// ServiceKey is the tag key for a function's service environment variable
 	ServiceKey = "service"
 
+	// SnapStartValue is the Lambda init type env var value indicating SnapStart initialized the function
+	SnapStartValue = "snap-start"
+
 	traceOriginMetadataKey   = "_dd.origin"
 	traceOriginMetadataValue = "lambda"
 
@@ -59,6 +63,13 @@ const (
 	accountIDKey  = "account_id"
 	awsAccountKey = "aws_account"
 	resourceKey   = "resource"
+
+	// X86LambdaPlatform is for the lambda platform X86_64
+	X86LambdaPlatform = "x86_64"
+	// ArmLambdaPlatform is for the lambda platform Arm64
+	ArmLambdaPlatform = "arm64"
+	// AmdLambdaPlatform is for the lambda platform Amd64, which is an extendion of X86_64
+	AmdLambdaPlatform = "amd64"
 )
 
 // currentExtensionVersion represents the current version of the Datadog Lambda Extension.
@@ -73,7 +84,7 @@ func BuildTagMap(arn string, configTags []string) map[string]string {
 	architecture := ResolveRuntimeArch()
 	tags = setIfNotEmpty(tags, ArchitectureKey, architecture)
 
-	tags = setIfNotEmpty(tags, RuntimeKey, getRuntime("/proc", "/etc", runtimeVar))
+	tags = setIfNotEmpty(tags, RuntimeKey, getRuntime("/proc", "/etc", runtimeVar, 5))
 
 	tags = setIfNotEmpty(tags, MemorySizeKey, os.Getenv(memorySizeVar))
 
@@ -81,12 +92,7 @@ func BuildTagMap(arn string, configTags []string) map[string]string {
 	tags = setIfNotEmpty(tags, VersionKey, os.Getenv(versionEnvVar))
 	tags = setIfNotEmpty(tags, ServiceKey, os.Getenv(serviceEnvVar))
 
-	for _, tag := range configTags {
-		splitTags := strings.Split(tag, ",")
-		for _, singleTag := range splitTags {
-			tags = addTag(tags, singleTag)
-		}
-	}
+	tags = MergeWithOverwrite(tags, ArrayToMap(configTags))
 
 	tags = setIfNotEmpty(tags, traceOriginMetadataKey, traceOriginMetadataValue)
 	tags = setIfNotEmpty(tags, computeStatsKey, computeStatsValue)
@@ -115,16 +121,18 @@ func BuildTagMap(arn string, configTags []string) map[string]string {
 	return tags
 }
 
-// BuildTagsFromMap builds an array of tag based on map of tags
-func BuildTagsFromMap(tags map[string]string) []string {
-	tagsMap := make(map[string]string)
-	tagBlackList := []string{traceOriginMetadataKey, computeStatsKey}
-	for k, v := range tags {
-		tagsMap[k] = v
+func ArrayToMap(tagArray []string) map[string]string {
+	tagMap := make(map[string]string)
+	for _, tag := range tagArray {
+		splitTags := strings.Split(tag, ",")
+		for _, singleTag := range splitTags {
+			tagMap = addTag(tagMap, singleTag)
+		}
 	}
-	for _, blackListKey := range tagBlackList {
-		delete(tagsMap, blackListKey)
-	}
+	return tagMap
+}
+
+func MapToArray(tagsMap map[string]string) []string {
 	tagsArray := make([]string, 0, len(tagsMap))
 	for key, value := range tagsMap {
 		tagsArray = append(tagsArray, fmt.Sprintf("%s:%s", key, value))
@@ -132,22 +140,56 @@ func BuildTagsFromMap(tags map[string]string) []string {
 	return tagsArray
 }
 
+func MergeWithOverwrite(tags map[string]string, overwritingTags map[string]string) map[string]string {
+	merged := make(map[string]string)
+	for k, v := range tags {
+		merged[k] = v
+	}
+	for k, v := range overwritingTags {
+		merged[k] = v
+	}
+	return merged
+}
+
+// BuildTagsFromMap builds an array of tag based on map of tags
+func BuildTagsFromMap(tags map[string]string) []string {
+	tagsMap := buildTags(tags, []string{traceOriginMetadataKey, computeStatsKey})
+	return MapToArray(tagsMap)
+}
+
 // BuildTracerTags builds a map of tag from an existing map of tag removing useless tags for traces
 func BuildTracerTags(tags map[string]string) map[string]string {
+	return buildTags(tags, []string{resourceKey})
+}
+
+func buildTags(tags map[string]string, tagsToSkip []string) map[string]string {
 	tagsMap := make(map[string]string)
-	tagBlackList := []string{resourceKey}
 	for k, v := range tags {
 		tagsMap[k] = v
 	}
-	for _, blackListKey := range tagBlackList {
+	for _, blackListKey := range tagsToSkip {
 		delete(tagsMap, blackListKey)
 	}
 	return tagsMap
 }
 
 // AddColdStartTag appends the cold_start tag to existing tags
-func AddColdStartTag(tags []string, coldStart bool) []string {
-	tags = append(tags, fmt.Sprintf("cold_start:%v", coldStart))
+func AddColdStartTag(tags []string, coldStart bool, proactiveInit bool) []string {
+	if proactiveInit {
+		tags = append(tags, "cold_start:false")
+		tags = append(tags, "proactive_initialization:true")
+	} else {
+		tags = append(tags, fmt.Sprintf("cold_start:%v", coldStart))
+	}
+	return tags
+}
+
+// AddInitTypeTag appends the init_type tag to existing tags
+func AddInitTypeTag(tags []string) []string {
+	initType := os.Getenv(InitType)
+	if initType != "" {
+		tags = append(tags, fmt.Sprintf("init_type:%v", initType))
+	}
 	return tags
 }
 
@@ -164,16 +206,18 @@ func setIfNotEmpty(tagMap map[string]string, key string, value string) map[strin
 }
 
 func addTag(tagMap map[string]string, tag string) map[string]string {
-	extract := strings.Split(tag, ":")
+	extract := strings.SplitN(tag, ":", 2)
 	if len(extract) == 2 {
 		tagMap[strings.ToLower(extract[0])] = strings.ToLower(extract[1])
+	} else {
+		log.Warn("Tag" + tag + " has not expected format")
 	}
 	return tagMap
 }
 
 func getRuntimeFromOsReleaseFile(osReleasePath string) string {
 	runtime := ""
-	bytesRead, err := ioutil.ReadFile(fmt.Sprintf("%s/os-release", osReleasePath))
+	bytesRead, err := os.ReadFile(fmt.Sprintf("%s/os-release", osReleasePath))
 	if err != nil {
 		log.Debug("could not read os-release file")
 		return ""
@@ -186,9 +230,21 @@ func getRuntimeFromOsReleaseFile(osReleasePath string) string {
 	return runtime
 }
 
-func getRuntime(procPath string, osReleasePath string, varName string) string {
-	foundRuntimes := proc.SearchProcsForEnvVariable(procPath, varName)
-	runtime := cleanRuntimes(foundRuntimes)
+func getRuntime(procPath string, osReleasePath string, varName string, retries int) string {
+	runtime := ""
+	counter := 0
+	start := time.Now()
+	// Retry as the process holding the runtime env var is sometimes not up during extension init.
+	// This predominantly happens with csharp lambdas.
+	// The max possible wait is 25ms + time taken for proc/env var search, usually ~28ms total.
+	for len(runtime) == 0 && counter <= retries {
+		if counter > 0 {
+			time.Sleep(5 * time.Millisecond)
+		}
+		foundRuntimes := proc.SearchProcsForEnvVariable(procPath, varName)
+		runtime = cleanRuntimes(foundRuntimes)
+		counter++
+	}
 	runtime = strings.Replace(runtime, "AWS_Lambda_", "", 1)
 	if len(runtime) == 0 {
 		runtime = getRuntimeFromOsReleaseFile(osReleasePath)
@@ -197,6 +253,7 @@ func getRuntime(procPath string, osReleasePath string, varName string) string {
 		log.Debug("could not find a valid runtime, defaulting to unknown")
 		runtime = "unknown"
 	}
+	log.Debugf("finding the lambda runtime took %v. found runtime: %s", time.Since(start), runtime)
 	return runtime
 }
 

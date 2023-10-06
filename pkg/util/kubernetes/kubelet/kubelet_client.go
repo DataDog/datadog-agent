@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build kubelet
-// +build kubelet
 
 package kubelet
 
@@ -14,9 +13,10 @@ import (
 	"errors"
 	"expvar"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"net/http"
 	"os"
+	"regexp"
 	"strconv"
 	"strings"
 	"time"
@@ -25,10 +25,13 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/filesystem"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+
+	"k8s.io/client-go/transport"
 )
 
 var (
 	kubeletExpVar = expvar.NewInt("kubeletQueries")
+	ipv6Re        = regexp.MustCompile(`^[0-9a-f:]+$`)
 )
 
 type kubeletClientConfig struct {
@@ -39,12 +42,12 @@ type kubeletClientConfig struct {
 	clientCertPath string
 	clientKeyPath  string
 	token          string
+	tokenPath      string
 }
 
 type kubeletClient struct {
 	client     http.Client
 	kubeletURL string
-	headers    http.Header
 	config     kubeletClientConfig
 }
 
@@ -75,29 +78,31 @@ func newForConfig(config kubeletClientConfig, timeout time.Duration) (*kubeletCl
 			return nil, err
 		}
 	}
-	customTransport.TLSClientConfig = tlsConfig
 
-	// Do not use token in plain text
-	headers := http.Header{}
-	if config.scheme == "https" {
-		if config.token != "" {
-			headers.Set(authorizationHeaderKey, fmt.Sprintf("bearer %s", config.token))
+	customTransport.TLSClientConfig = tlsConfig
+	httpClient := http.Client{
+		Transport: customTransport,
+	}
+
+	if config.scheme == "https" && config.token != "" {
+		// Configure the authentication token.
+		// Support dynamic auth tokens, aka Bound Service Account Token Volume (k8s v1.22+)
+		// This uses the same refresh period used in the client-go (1 minute).
+		httpClient.Transport, err = transport.NewBearerAuthWithRefreshRoundTripper(config.token, config.tokenPath, customTransport)
+		if err != nil {
+			return nil, err
 		}
 	}
 
 	// Defaulting timeout
 	if timeout == 0 {
-		timeout = 30 * time.Second
+		httpClient.Timeout = 30 * time.Second
 	}
 
 	return &kubeletClient{
-		client: http.Client{
-			Transport: customTransport,
-			Timeout:   timeout,
-		},
+		client:     httpClient,
 		kubeletURL: fmt.Sprintf("%s://%s", config.scheme, config.baseURL),
 		config:     config,
-		headers:    headers,
 	}, nil
 }
 
@@ -108,7 +113,7 @@ func (kc *kubeletClient) checkConnection(ctx context.Context) error {
 	}
 
 	if statusCode == http.StatusUnauthorized {
-		return fmt.Errorf("unauthorized to request test kubelet endpoint (/spec) - token used: %t", kc.headers.Get("Authorization") != "")
+		return fmt.Errorf("unauthorized to request test kubelet endpoint (/spec) - token used: %t", kc.config.token != "")
 	}
 
 	return nil
@@ -120,7 +125,6 @@ func (kc *kubeletClient) query(ctx context.Context, path string) ([]byte, int, e
 	if err != nil {
 		return nil, 0, fmt.Errorf("Failed to create new request: %w", err)
 	}
-	req.Header = kc.headers
 
 	response, err := kc.client.Do(req)
 	kubeletExpVar.Add(1)
@@ -141,7 +145,7 @@ func (kc *kubeletClient) query(ctx context.Context, path string) ([]byte, int, e
 	}
 	defer response.Body.Close()
 
-	b, err := ioutil.ReadAll(response.Body)
+	b, err := io.ReadAll(response.Body)
 	if err != nil {
 		log.Debugf("Fail to read request %s body: %s", req.URL.String(), err)
 		return nil, 0, err
@@ -186,6 +190,7 @@ func getKubeletClient(ctx context.Context) (*kubeletClient, error) {
 		clientCertPath: kubeletClientCertPath,
 		clientKeyPath:  kubeletClientKeyPath,
 		token:          kubeletToken,
+		tokenPath:      kubeletTokenPath,
 	}
 
 	// Kubelet is unavailable, proxying calls through the APIServer (for instance EKS Fargate)
@@ -193,7 +198,7 @@ func getKubeletClient(ctx context.Context) (*kubeletClient, error) {
 	if kubeletProxyEnabled {
 		// Explicitly disable HTTP to reach APIServer
 		kubeletHTTPPort = 0
-		httpsPort, err := strconv.ParseInt(os.Getenv("KUBERNETES_SERVICE_PORT"), 10, 64)
+		httpsPort, err := strconv.ParseUint(os.Getenv("KUBERNETES_SERVICE_PORT"), 10, 16)
 		if err != nil {
 			return nil, fmt.Errorf("unable to get APIServer port: %w", err)
 		}
@@ -201,12 +206,12 @@ func getKubeletClient(ctx context.Context) (*kubeletClient, error) {
 
 		if config.Datadog.Get("kubernetes_kubelet_nodename") != "" {
 			kubeletPathPrefix = fmt.Sprintf("/api/v1/nodes/%s/proxy", kubeletNodeName)
-			apiServerHost := os.Getenv("KUBERNETES_SERVICE_HOST")
+			apiServerIP := os.Getenv("KUBERNETES_SERVICE_HOST")
 
 			potentialHosts = &connectionInfo{
-				hostnames: []string{apiServerHost},
+				ips: []string{apiServerIP},
 			}
-			log.Infof("EKS on Fargate mode detected, will proxy calls to the Kubelet through the APIServer at %s:%d%s", apiServerHost, kubeletHTTPSPort, kubeletPathPrefix)
+			log.Infof("EKS on Fargate mode detected, will proxy calls to the Kubelet through the APIServer at %s:%d%s", apiServerIP, kubeletHTTPSPort, kubeletPathPrefix)
 		} else {
 			return nil, errors.New("kubelet proxy mode enabled but nodename is empty - unable to query")
 		}
@@ -256,7 +261,12 @@ func checkKubeletConnection(ctx context.Context, scheme string, port int, prefix
 	clientConfig.scheme = scheme
 
 	for _, ip := range hosts.ips {
-		clientConfig.baseURL = fmt.Sprintf("%s:%d", ip, port)
+		// If `ip` is an IPv6, it must be enclosed in square brackets
+		if ipv6Re.MatchString(ip) {
+			clientConfig.baseURL = fmt.Sprintf("[%s]:%d%s", ip, port, prefix)
+		} else {
+			clientConfig.baseURL = fmt.Sprintf("%s:%d%s", ip, port, prefix)
+		}
 
 		log.Debugf("Trying to reach Kubelet at: %s", clientConfig.baseURL)
 		kubeClient, err = newForConfig(*clientConfig, time.Second)

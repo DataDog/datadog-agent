@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build linux
-// +build linux
 
 package cgroups
 
@@ -32,5 +31,5 @@ func (c *cgroupV1) GetPIDStats(stats *PIDStats) error {
 }
 
 func (c *cgroupV1) GetPIDs(cacheValidity time.Duration) ([]int, error) {
-	return c.pidMapper.getPIDsForCgroup(c.path, cacheValidity), nil
+	return c.pidMapper.getPIDsForCgroup(c.identifier, c.path, cacheValidity), nil
 }

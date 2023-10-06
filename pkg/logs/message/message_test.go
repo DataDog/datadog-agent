@@ -6,7 +6,6 @@
 package message
 
 import (
-	"os"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -25,16 +24,17 @@ func TestMessage(t *testing.T) {
 
 func TestGetHostnameLambda(t *testing.T) {
 	message := Message{
-		Lambda: &Lambda{
-			ARN: "testHostName",
+		ServerlessExtra: ServerlessExtra{
+			Lambda: &Lambda{
+				ARN: "testHostName",
+			},
 		},
 	}
 	assert.Equal(t, "testHostName", message.GetHostname())
 }
 
 func TestGetHostname(t *testing.T) {
-	os.Setenv("DD_HOSTNAME", "testHostnameFromEnvVar")
-	defer os.Unsetenv("DD_HOSTNAME")
+	t.Setenv("DD_HOSTNAME", "testHostnameFromEnvVar")
 	message := Message{Content: []byte("hello")}
 	assert.Equal(t, "testHostnameFromEnvVar", message.GetHostname())
 }

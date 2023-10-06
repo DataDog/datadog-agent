@@ -9,31 +9,33 @@ import (
 	"encoding/json"
 	"fmt"
 	"html"
-	"io/ioutil"
 	"net/http"
+	"os"
 	"strconv"
 	"strings"
 	"time"
 
-	"github.com/DataDog/datadog-agent/cmd/agent/common"
-	"github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/flare"
-	"github.com/DataDog/datadog-agent/pkg/status"
-	"github.com/DataDog/datadog-agent/pkg/util"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/DataDog/datadog-agent/pkg/version"
 	"github.com/gorilla/mux"
 	yaml "gopkg.in/yaml.v2"
+
+	"github.com/DataDog/datadog-agent/cmd/agent/common/path"
+	"github.com/DataDog/datadog-agent/comp/core/flare"
+	"github.com/DataDog/datadog-agent/comp/core/flare/helpers"
+	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/status"
+	"github.com/DataDog/datadog-agent/pkg/util/hostname"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
 // Adds the specific handlers for /agent/ endpoints
-func agentHandler(r *mux.Router) {
+func agentHandler(r *mux.Router, flare flare.Component) {
 	r.HandleFunc("/ping", http.HandlerFunc(ping)).Methods("POST")
 	r.HandleFunc("/status/{type}", http.HandlerFunc(getStatus)).Methods("POST")
 	r.HandleFunc("/version", http.HandlerFunc(getVersion)).Methods("POST")
 	r.HandleFunc("/hostname", http.HandlerFunc(getHostname)).Methods("POST")
 	r.HandleFunc("/log/{flip}", http.HandlerFunc(getLog)).Methods("POST")
-	r.HandleFunc("/flare", http.HandlerFunc(makeFlare)).Methods("POST")
+	r.HandleFunc("/flare", func(w http.ResponseWriter, r *http.Request) { makeFlare(w, r, flare) }).Methods("POST")
 	r.HandleFunc("/restart", http.HandlerFunc(restartAgent)).Methods("POST")
 	r.HandleFunc("/getConfig", http.HandlerFunc(getConfigFile)).Methods("POST")
 	r.HandleFunc("/getConfig/{setting}", http.HandlerFunc(getConfigSetting)).Methods("GET")
@@ -50,7 +52,8 @@ func ping(w http.ResponseWriter, r *http.Request) {
 func getStatus(w http.ResponseWriter, r *http.Request) {
 	statusType := mux.Vars(r)["type"]
 
-	status, e := status.GetStatus()
+	verbose := r.URL.Query().Get("verbose") == "true"
+	status, e := status.GetStatus(verbose)
 	if e != nil {
 		log.Errorf("Error getting status: " + e.Error())
 		w.Write([]byte("Error getting status: " + e.Error()))
@@ -83,14 +86,14 @@ func getVersion(w http.ResponseWriter, r *http.Request) {
 
 // Sends the agent's hostname
 func getHostname(w http.ResponseWriter, r *http.Request) {
-	hostname, e := util.GetHostname(r.Context())
+	hname, e := hostname.Get(r.Context())
 	if e != nil {
 		log.Errorf("Error getting hostname: " + e.Error())
 		w.Write([]byte("Error: " + e.Error()))
 		return
 	}
 
-	res, _ := json.Marshal(hostname)
+	res, _ := json.Marshal(hname)
 	w.Header().Set("Content-Type", "application/json")
 	w.Write(res)
 }
@@ -101,10 +104,10 @@ func getLog(w http.ResponseWriter, r *http.Request) {
 
 	logFile := config.Datadog.GetString("log_file")
 	if logFile == "" {
-		logFile = common.DefaultLogFile
+		logFile = path.DefaultLogFile
 	}
 
-	logFileContents, e := ioutil.ReadFile(logFile)
+	logFileContents, e := os.ReadFile(logFile)
 	if e != nil {
 		w.Write([]byte("Error: " + e.Error()))
 		return
@@ -127,33 +130,27 @@ func getLog(w http.ResponseWriter, r *http.Request) {
 }
 
 // Makes a new flare
-func makeFlare(w http.ResponseWriter, r *http.Request) {
+func makeFlare(w http.ResponseWriter, r *http.Request, flare flare.Component) {
 	payload, e := parseBody(r)
 	if e != nil {
 		w.Write([]byte(e.Error()))
+		return
 	} else if payload.Email == "" || payload.CaseID == "" {
 		w.Write([]byte("Error creating flare: missing information"))
 		return
+	} else if _, err := strconv.ParseInt(payload.CaseID, 10, 0); err != nil {
+		w.Write([]byte("Invalid CaseID (must be a number)"))
+		return
 	}
 
-	logFile := config.Datadog.GetString("log_file")
-	if logFile == "" {
-		logFile = common.DefaultLogFile
-	}
-	jmxLogFile := config.Datadog.GetString("jmx_log_file")
-	if jmxLogFile == "" {
-		jmxLogFile = common.DefaultJmxLogFile
-	}
-
-	filePath, e := flare.CreateArchive(false, common.GetDistPath(), common.PyChecksPath, []string{logFile, jmxLogFile}, nil, nil)
+	filePath, e := flare.Create(nil, nil)
 	if e != nil {
 		w.Write([]byte("Error creating flare zipfile: " + e.Error()))
 		log.Errorf("Error creating flare zipfile: " + e.Error())
 		return
 	}
 
-	// Send the flare
-	res, e := flare.SendFlare(filePath, payload.CaseID, payload.Email)
+	res, e := flare.Send(filePath, payload.CaseID, payload.Email, helpers.NewLocalFlareSource())
 	if e != nil {
 		w.Write([]byte("Flare zipfile successfully created: " + filePath + "<br><br>" + e.Error()))
 		log.Errorf("Flare zipfile successfully created: " + filePath + "\n" + e.Error())
@@ -162,7 +159,6 @@ func makeFlare(w http.ResponseWriter, r *http.Request) {
 
 	w.Write([]byte("Flare zipfile successfully created: " + filePath + "<br><br>" + res))
 	log.Errorf("Flare zipfile successfully created: " + filePath + "\n" + res)
-	return
 }
 
 // Restarts the agent using the appropriate (platform-specific) restart function
@@ -187,6 +183,7 @@ func getConfigSetting(w http.ResponseWriter, r *http.Request) {
 	}[setting]; !ok {
 		w.WriteHeader(http.StatusForbidden)
 		fmt.Fprintf(w, `"error": "requested setting is not whitelisted"`)
+		return
 	}
 	if err := json.NewEncoder(w).Encode(map[string]interface{}{
 		setting: config.Datadog.Get(setting),
@@ -199,7 +196,7 @@ func getConfigSetting(w http.ResponseWriter, r *http.Request) {
 // Sends the configuration (aka datadog.yaml) file
 func getConfigFile(w http.ResponseWriter, r *http.Request) {
 	path := config.Datadog.ConfigFileUsed()
-	settings, e := ioutil.ReadFile(path)
+	settings, e := os.ReadFile(path)
 	if e != nil {
 		w.Write([]byte("Error: " + e.Error()))
 		return
@@ -214,6 +211,7 @@ func setConfigFile(w http.ResponseWriter, r *http.Request) {
 	payload, e := parseBody(r)
 	if e != nil {
 		w.Write([]byte(e.Error()))
+		return
 	}
 	data := []byte(payload.Config)
 
@@ -226,7 +224,7 @@ func setConfigFile(w http.ResponseWriter, r *http.Request) {
 	}
 
 	path := config.Datadog.ConfigFileUsed()
-	e = ioutil.WriteFile(path, data, 0644)
+	e = os.WriteFile(path, data, 0644)
 	if e != nil {
 		w.Write([]byte("Error: " + e.Error()))
 		return

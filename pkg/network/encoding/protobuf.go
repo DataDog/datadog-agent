@@ -7,8 +7,10 @@ package encoding
 
 import (
 	model "github.com/DataDog/agent-payload/v5/process"
-	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/gogo/protobuf/proto"
+	"io"
+
+	"github.com/DataDog/datadog-agent/pkg/network"
 )
 
 // ContentTypeProtobuf holds the HTML content-type of a Protobuf payload
@@ -16,11 +18,10 @@ const ContentTypeProtobuf = "application/protobuf"
 
 type protoSerializer struct{}
 
-func (protoSerializer) Marshal(conns *network.Connections) ([]byte, error) {
-	payload := modelConnections(conns)
-	buf, err := proto.Marshal(payload)
-	returnToPool(payload)
-	return buf, err
+func (protoSerializer) Marshal(conns *network.Connections, writer io.Writer, connsModeler *ConnectionsModeler) error {
+	builder := model.NewConnectionsBuilder(writer)
+	connsModeler.modelConnections(builder, conns)
+	return nil
 }
 
 func (protoSerializer) Unmarshal(blob []byte) (*model.Connections, error) {

@@ -1,0 +1,91 @@
+dd_url: https://app.datadoghq.com
+api_key: api_key_test
+hostname: mymachine
+proxy:
+  https: https://user:password@proxy_for_https:1234
+  no_proxy:
+    - https://my2.endpoint.eu
+use_dogstatsd: yes
+skip_ssl_validation: yes
+dogstatsd_port: 18125
+dogstatsd_non_local_traffic: yes
+log_level: info
+otlp_config:
+  receiver:
+  traces:
+    internal_port: 50053
+    span_name_remappings:
+      a: b
+      c: d
+      "with.dots": "in.side"
+      "and:colons": "in:values"
+    span_name_as_resource_name: true
+    probabilistic_sampler:
+      sampling_percentage: 88.4
+apm_config:
+  enabled: false
+  log_file: abc
+  apm_dd_url: https://datadog.unittests
+  max_cpu_percent: 50
+  max_memory: 123.4
+  max_connections: 12 # deprecated
+  additional_endpoints:
+    https://my1.endpoint.com:
+      - apikey1
+      - apikey2
+    https://my2.endpoint.eu:
+      - apikey3
+      - "apikey4              "
+      - "apikey5\n \n         "
+  env: test
+  receiver_port: 18126
+  connection_limit: 123
+  apm_non_local_traffic: yes
+  extra_sample_rate: 0.5
+  max_traces_per_second: 5
+  max_events_per_second: 50
+  max_remote_traces_per_second: 9999
+  ignore_resources:
+    - /health
+    - /500
+
+  filter_tags:
+    require: ["env:prod", "db:mongodb"]
+    reject: ["outcome:success", "bad-key:bad-value"]
+
+  filter_tags_regex:
+    require: ["env:^prod123$", "type: ^internal$"]
+    reject: ["filter:^true$", "bad-key:$another-bad-value$"]
+
+  replace_tags:
+    - name: "http.method"
+      pattern: "\\?.*$"
+      repl: "GET"
+    - name: "http.url"
+      pattern: "\\?.*$"
+      repl: "!"
+
+  obfuscation:
+    elasticsearch:
+      enabled: true
+      keep_values:
+        - user_id
+        - category_id
+    mongodb:
+      enabled: true
+      keep_values:
+        - uid
+        - cat_id
+    http:
+      remove_query_string: true
+      remove_paths_with_digits: true
+    remove_stack_traces: true
+    redis:
+      enabled: true
+      remove_all_args: true
+    memcached:
+      enabled: true
+      keep_command: true
+    credit_cards:
+      enabled: true
+      luhn: true

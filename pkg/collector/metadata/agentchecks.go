@@ -8,6 +8,7 @@ package metadata
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/metadata/agentchecks"
 	md "github.com/DataDog/datadog-agent/pkg/metadata"
@@ -25,6 +26,11 @@ func (hp *AgentChecksCollector) Send(ctx context.Context, s serializer.MetricSer
 		return fmt.Errorf("unable to submit agentchecks metadata payload, %s", err)
 	}
 	return nil
+}
+
+// FirstRunInterval returns the Interval after which to send the first payload
+func (hp *AgentChecksCollector) FirstRunInterval() time.Duration {
+	return 1 * time.Minute
 }
 
 func init() {

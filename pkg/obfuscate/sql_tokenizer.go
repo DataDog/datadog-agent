@@ -8,6 +8,7 @@ package obfuscate
 import (
 	"bytes"
 	"fmt"
+	"strings"
 	"unicode"
 	"unicode/utf8"
 )
@@ -73,6 +74,18 @@ const (
 	Join
 	TableName
 	ColonCast
+
+	// PostgreSQL specific JSON operators
+	JSONSelect         // ->
+	JSONSelectText     // ->>
+	JSONSelectPath     // #>
+	JSONSelectPathText // #>>
+	JSONContains       // @>
+	JSONContainsLeft   // <@
+	JSONKeyExists      // ?
+	JSONAnyKeysExist   // ?|
+	JSONAllKeysExist   // ?&
+	JSONDelete         // #-
 
 	// FilteredGroupable specifies that the given token has been discarded by one of the
 	// token filters and that it is groupable together with consecutive FilteredGroupable
@@ -140,6 +153,16 @@ var tokenKindStrings = map[TokenKind]string{
 	FilteredGroupableParenthesis: "FilteredGroupableParenthesis",
 	Filtered:                     "Filtered",
 	FilteredBracketedIdentifier:  "FilteredBracketedIdentifier",
+	JSONSelect:                   "JSONSelect",
+	JSONSelectText:               "JSONSelectText",
+	JSONSelectPath:               "JSONSelectPath",
+	JSONSelectPathText:           "JSONSelectPathText",
+	JSONContains:                 "JSONContains",
+	JSONContainsLeft:             "JSONContainsLeft",
+	JSONKeyExists:                "JSONKeyExists",
+	JSONAnyKeysExist:             "JSONAnyKeysExist",
+	JSONAllKeysExist:             "JSONAllKeysExist",
+	JSONDelete:                   "JSONDelete",
 }
 
 func (k TokenKind) String() string {
@@ -153,6 +176,12 @@ func (k TokenKind) String() string {
 const (
 	// DBMSSQLServer is a MS SQL Server
 	DBMSSQLServer = "mssql"
+	// DBMSPostgres is a PostgreSQL Server
+	DBMSPostgres = "postgresql"
+	// DBMSMySQL is a MySQL Server
+	DBMSMySQL = "mysql"
+	// DBMSOracle is an Oracle Server
+	DBMSOracle = "oracle"
 )
 
 const escapeCharacter = '\\'
@@ -243,7 +272,11 @@ func (tkn *SQLTokenizer) Scan() (TokenKind, []byte) {
 	tkn.SkipBlank()
 
 	switch ch := tkn.lastChar; {
-	case isLeadingLetter(ch):
+	case isLeadingLetter(ch) &&
+		!(tkn.cfg.DBMS == DBMSPostgres && ch == '@'):
+		// The '@' symbol should not be considered part of an identifier in
+		// postgres, so we skip this in the case where the DBMS is postgres
+		// and ch is '@'.
 		return tkn.scanIdentifier()
 	case isDigit(ch):
 		return tkn.scanNumber(false)
@@ -280,7 +313,26 @@ func (tkn *SQLTokenizer) Scan() (TokenKind, []byte) {
 			default:
 				return TokenKind(ch), tkn.bytes()
 			}
-		case '=', ',', ';', '(', ')', '+', '*', '&', '|', '^', '[', ']', '?':
+		case '?':
+			if tkn.cfg.DBMS == DBMSPostgres {
+				switch tkn.lastChar {
+				case '|':
+					tkn.advance()
+					return JSONAnyKeysExist, []byte("?|")
+				case '&':
+					tkn.advance()
+					return JSONAllKeysExist, []byte("?&")
+				default:
+					return JSONKeyExists, tkn.bytes()
+				}
+			}
+			fallthrough
+		case '=', ',', ';', '(', ')', '+', '*', '&', '|', '^', ']':
+			return TokenKind(ch), tkn.bytes()
+		case '[':
+			if tkn.cfg.DBMS == DBMSSQLServer {
+				return tkn.scanString(']', DoubleQuotedString)
+			}
 			return TokenKind(ch), tkn.bytes()
 		case '.':
 			if isDigit(tkn.lastChar) {
@@ -303,19 +355,56 @@ func (tkn *SQLTokenizer) Scan() (TokenKind, []byte) {
 			case tkn.lastChar == '-':
 				tkn.advance()
 				return tkn.scanCommentType1("--")
+			case tkn.lastChar == '>':
+				if tkn.cfg.DBMS == DBMSPostgres {
+					tkn.advance()
+					switch tkn.lastChar {
+					case '>':
+						tkn.advance()
+						return JSONSelectText, []byte("->>")
+					default:
+						return JSONSelect, []byte("->")
+					}
+				}
+				fallthrough
 			case isDigit(tkn.lastChar):
+				return tkn.scanNumber(false)
+			case tkn.lastChar == '.':
 				tkn.advance()
-				kind, tokenBytes := tkn.scanNumber(false)
-				return kind, append([]byte{'-'}, tokenBytes...)
+				if isDigit(tkn.lastChar) {
+					return tkn.scanNumber(true)
+				}
+				tkn.lastChar = '.'
+				tkn.pos--
+				fallthrough
 			default:
 				return TokenKind(ch), tkn.bytes()
 			}
 		case '#':
-			if tkn.cfg.DBMS == DBMSSQLServer {
+			switch tkn.cfg.DBMS {
+			case DBMSSQLServer:
 				return tkn.scanIdentifier()
+			case DBMSPostgres:
+				switch tkn.lastChar {
+				case '>':
+					tkn.advance()
+					switch tkn.lastChar {
+					case '>':
+						tkn.advance()
+						return JSONSelectPathText, []byte("#>>")
+					default:
+						return JSONSelectPath, []byte("#>")
+					}
+				case '-':
+					tkn.advance()
+					return JSONDelete, []byte("#-")
+				default:
+					return TokenKind(ch), tkn.bytes()
+				}
+			default:
+				tkn.advance()
+				return tkn.scanCommentType1("#")
 			}
-			tkn.advance()
-			return tkn.scanCommentType1("#")
 		case '<':
 			switch tkn.lastChar {
 			case '>':
@@ -330,6 +419,13 @@ func (tkn *SQLTokenizer) Scan() (TokenKind, []byte) {
 				default:
 					return LE, []byte("<=")
 				}
+			case '@':
+				if tkn.cfg.DBMS == DBMSPostgres {
+					// check for JSONContainsLeft (<@)
+					tkn.advance()
+					return JSONContainsLeft, []byte("<@")
+				}
+				fallthrough
 			default:
 				return TokenKind(ch), tkn.bytes()
 			}
@@ -383,6 +479,18 @@ func (tkn *SQLTokenizer) Scan() (TokenKind, []byte) {
 				// want to cover for this use-case too (e.g. $1$some text$1$).
 				return tkn.scanPreparedStatement('$')
 			}
+
+			// A special case for a string starts with single $ but does not end with $.
+			// For example in SQLServer, you can have "MG..... OUTPUT $action, inserted.*"
+			// $action in the OUTPUT clause of a MERGE statement is a special identifier
+			// that returns one of three values for each row: 'INSERT', 'UPDATE', or 'DELETE'.
+			// See: https://docs.microsoft.com/en-us/sql/t-sql/statements/merge-transact-sql?view=sql-server-ver15
+			if tkn.cfg.DBMS == DBMSSQLServer && isLetter(tkn.lastChar) {
+				// When the DBMS is SQLServer and the last character is a letter,
+				// we should scan an identifier instead of a string.
+				return tkn.scanIdentifier()
+			}
+
 			kind, tok := tkn.scanDollarQuotedString()
 			if kind == DollarQuotedFunc {
 				// this is considered an embedded query, we should try and
@@ -395,6 +503,21 @@ func (tkn *SQLTokenizer) Scan() (TokenKind, []byte) {
 				tok = append(append([]byte("$func$"), []byte(out.Query)...), []byte("$func$")...)
 			}
 			return kind, tok
+		case '@':
+			if tkn.cfg.DBMS == DBMSPostgres {
+				// For postgres the @ symbol is reserved as an operator
+				// https://www.postgresql.org/docs/current/sql-syntax-lexical.html#SQL-SYNTAX-OPERATORS
+				// And is used as a json operator
+				// https://www.postgresql.org/docs/9.5/functions-json.html
+				switch tkn.lastChar {
+				case '>':
+					tkn.advance()
+					return JSONContains, []byte("@>")
+				default:
+					return TokenKind(ch), tkn.bytes()
+				}
+			}
+			fallthrough
 		case '{':
 			if tkn.pos == 1 || tkn.curlys > 0 {
 				// Do not fully obfuscate top-level SQL escape sequences like {{[?=]call procedure-name[([parameter][,parameter]...)]}.
@@ -471,7 +594,7 @@ func toUpper(src, dst []byte) []byte {
 
 func (tkn *SQLTokenizer) scanIdentifier() (TokenKind, []byte) {
 	tkn.advance()
-	for isLetter(tkn.lastChar) || isDigit(tkn.lastChar) || tkn.lastChar == '.' || tkn.lastChar == '*' {
+	for isLetter(tkn.lastChar) || isDigit(tkn.lastChar) || strings.ContainsRune(".*$", tkn.lastChar) {
 		tkn.advance()
 	}
 
@@ -622,20 +745,12 @@ func (tkn *SQLTokenizer) scanNumber(seenDecimalPoint bool) (TokenKind, []byte) {
 			tkn.scanMantissa(16)
 		} else {
 			// octal int or float
-			seenDecimalDigit := false
 			tkn.scanMantissa(8)
 			if tkn.lastChar == '8' || tkn.lastChar == '9' {
-				// illegal octal int or float
-				seenDecimalDigit = true
 				tkn.scanMantissa(10)
 			}
 			if tkn.lastChar == '.' || tkn.lastChar == 'e' || tkn.lastChar == 'E' {
 				goto fraction
-			}
-			// octal int
-			if seenDecimalDigit {
-				// tkn.setErr called in caller
-				return LexError, tkn.bytes()
 			}
 		}
 		goto exit
@@ -662,6 +777,7 @@ exponent:
 exit:
 	t := tkn.bytes()
 	if len(t) == 0 {
+		tkn.setErr("Parse error: ended up with zero-length number.")
 		return LexError, nil
 	}
 	return Number, t

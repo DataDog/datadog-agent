@@ -4,8 +4,8 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build docker
-// +build docker
 
+// Package telemetry defines the telemetry for the ECS client.
 package telemetry
 
 import (

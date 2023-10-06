@@ -12,30 +12,25 @@ package api
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"time"
 
+	workloadmetaServer "github.com/DataDog/datadog-agent/pkg/workloadmeta/server"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/grpclog"
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/emptypb"
 
-	"github.com/DataDog/datadog-agent/cmd/agent/common"
+	dsdReplay "github.com/DataDog/datadog-agent/comp/dogstatsd/replay"
+	dogstatsdServer "github.com/DataDog/datadog-agent/comp/dogstatsd/server"
 	remoteconfig "github.com/DataDog/datadog-agent/pkg/config/remote/service"
-	dsdReplay "github.com/DataDog/datadog-agent/pkg/dogstatsd/replay"
-	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo"
-	pbutils "github.com/DataDog/datadog-agent/pkg/proto/utils"
+	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
 	"github.com/DataDog/datadog-agent/pkg/tagger"
 	"github.com/DataDog/datadog-agent/pkg/tagger/replay"
-	"github.com/DataDog/datadog-agent/pkg/tagger/telemetry"
-	hostutil "github.com/DataDog/datadog-agent/pkg/util"
+	taggerserver "github.com/DataDog/datadog-agent/pkg/tagger/server"
 	"github.com/DataDog/datadog-agent/pkg/util/grpc"
+	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-)
-
-const (
-	taggerStreamSendTimeout = 1 * time.Minute
 )
 
 type server struct {
@@ -44,11 +39,15 @@ type server struct {
 
 type serverSecure struct {
 	pb.UnimplementedAgentSecureServer
-	configService *remoteconfig.Service
+	taggerServer       *taggerserver.Server
+	workloadmetaServer *workloadmetaServer.Server
+	configService      *remoteconfig.Service
+	dogstatsdServer    dogstatsdServer.Component
+	capture            dsdReplay.Component
 }
 
 func (s *server) GetHostname(ctx context.Context, in *pb.HostnameRequest) (*pb.HostnameReply, error) {
-	h, err := hostutil.GetHostname(ctx)
+	h, err := hostname.Get(ctx)
 	if err != nil {
 		return &pb.HostnameReply{}, err
 	}
@@ -63,6 +62,14 @@ func (s *server) AuthFuncOverride(ctx context.Context, fullMethodName string) (c
 	return ctx, nil
 }
 
+func (s *serverSecure) TaggerStreamEntities(req *pb.StreamTagsRequest, srv pb.AgentSecure_TaggerStreamEntitiesServer) error {
+	return s.taggerServer.TaggerStreamEntities(req, srv)
+}
+
+func (s *serverSecure) TaggerFetchEntity(ctx context.Context, req *pb.FetchEntityRequest) (*pb.FetchEntityResponse, error) {
+	return s.taggerServer.TaggerFetchEntity(ctx, req)
+}
+
 // DogstatsdCaptureTrigger triggers a dogstatsd traffic capture for the
 // duration specified in the request. If a capture is already in progress,
 // an error response is sent back.
@@ -72,17 +79,7 @@ func (s *serverSecure) DogstatsdCaptureTrigger(ctx context.Context, req *pb.Capt
 		return &pb.CaptureTriggerResponse{}, err
 	}
 
-	err = common.DSD.Capture(req.GetPath(), d, req.GetCompressed())
-	if err != nil {
-		return &pb.CaptureTriggerResponse{}, err
-	}
-
-	// wait for the capture to start
-	for !common.DSD.TCapture.IsOngoing() {
-		time.Sleep(500 * time.Millisecond)
-	}
-
-	p, err := common.DSD.TCapture.Path()
+	p, err := s.capture.Start(req.GetPath(), d, req.GetCompressed())
 	if err != nil {
 		return &pb.CaptureTriggerResponse{}, err
 	}
@@ -119,94 +116,27 @@ func (s *serverSecure) DogstatsdSetTaggerState(ctx context.Context, req *pb.Tagg
 	return &pb.TaggerStateResponse{Loaded: true}, nil
 }
 
-// TaggerStreamEntities subscribes to added, removed, or changed entities in the Tagger
-// and streams them to clients as pb.StreamTagsResponse events. Filtering is as
-// of yet not implemented.
-func (s *serverSecure) TaggerStreamEntities(in *pb.StreamTagsRequest, out pb.AgentSecure_TaggerStreamEntitiesServer) error {
-	cardinality, err := pbutils.Pb2TaggerCardinality(in.Cardinality)
-	if err != nil {
-		return err
-	}
-
-	// NOTE: StreamTagsRequest can specify filters, but they cannot be
-	// implemented since the tagger has no concept of container metadata.
-	// these filters will be introduced when we implement a container
-	// metadata service that can receive them as is from the tagger.
-
-	t := tagger.GetDefaultTagger()
-	eventCh := t.Subscribe(cardinality)
-	defer t.Unsubscribe(eventCh)
-
-	for {
-		select {
-		case events := <-eventCh:
-			responseEvents := make([]*pb.StreamTagsEvent, 0, len(events))
-			for _, event := range events {
-				e, err := pbutils.Tagger2PbEntityEvent(event)
-				if err != nil {
-					log.Warnf("can't convert tagger entity to protobuf: %s", err)
-					continue
-				}
-
-				responseEvents = append(responseEvents, e)
-			}
-
-			err = grpc.DoWithTimeout(func() error {
-				return out.Send(&pb.StreamTagsResponse{
-					Events: responseEvents,
-				})
-			}, taggerStreamSendTimeout)
-
-			if err != nil {
-				log.Warnf("error sending tagger event: %s", err)
-				telemetry.ServerStreamErrors.Inc()
-				return err
-			}
-
-		case <-out.Context().Done():
-			return nil
-		}
-	}
-}
-
-// TaggerFetchEntity fetches an entity from the Tagger with the desired cardinality tags.
-func (s *serverSecure) TaggerFetchEntity(ctx context.Context, in *pb.FetchEntityRequest) (*pb.FetchEntityResponse, error) {
-	if in.Id == nil {
-		return nil, status.Errorf(codes.InvalidArgument, `missing "id" parameter`)
-	}
-
-	entityID := fmt.Sprintf("%s://%s", in.Id.Prefix, in.Id.Uid)
-	cardinality, err := pbutils.Pb2TaggerCardinality(in.Cardinality)
-	if err != nil {
-		return nil, err
-	}
-
-	tags, err := tagger.Tag(entityID, cardinality)
-	if err != nil {
-		return nil, status.Errorf(codes.InvalidArgument, "%s", err)
-	}
-
-	return &pb.FetchEntityResponse{
-		Id:          in.Id,
-		Cardinality: in.Cardinality,
-		Tags:        tags,
-	}, nil
-}
+var rcNotInitializedErr = status.Error(codes.Unimplemented, "remote configuration service not initialized")
 
 func (s *serverSecure) ClientGetConfigs(ctx context.Context, in *pb.ClientGetConfigsRequest) (*pb.ClientGetConfigsResponse, error) {
 	if s.configService == nil {
-		log.Debug("Remote configuration service not initialized")
-		return nil, errors.New("remote configuration service not initialized")
+		log.Debug(rcNotInitializedErr.Error())
+		return nil, rcNotInitializedErr
 	}
-	return s.configService.ClientGetConfigs(in)
+	return s.configService.ClientGetConfigs(ctx, in)
 }
 
 func (s *serverSecure) GetConfigState(ctx context.Context, e *emptypb.Empty) (*pb.GetStateConfigResponse, error) {
 	if s.configService == nil {
-		log.Debug("Remote configuration service not initialized")
-		return nil, errors.New("remote configuration service not initialized")
+		log.Debug(rcNotInitializedErr.Error())
+		return nil, rcNotInitializedErr
 	}
 	return s.configService.ConfigGetState()
+}
+
+// WorkloadmetaStreamEntities streams entities from the workloadmeta store applying the given filter
+func (s *serverSecure) WorkloadmetaStreamEntities(in *pb.WorkloadmetaStreamRequest, out pb.AgentSecure_WorkloadmetaStreamEntitiesServer) error {
+	return s.workloadmetaServer.StreamEntities(in, out)
 }
 
 func init() {

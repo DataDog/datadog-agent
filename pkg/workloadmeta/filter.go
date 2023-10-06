@@ -5,18 +5,20 @@
 
 package workloadmeta
 
-// Filter allows a subscriber to filter events by entity kind or event source.
+// Filter allows a subscriber to filter events by entity kind, event source, and
+// event type.
 //
 // A nil filter matches all events.
 type Filter struct {
-	kinds  map[Kind]struct{}
-	source Source
+	kinds     map[Kind]struct{}
+	source    Source
+	eventType EventType
 }
 
 // NewFilter creates a new filter for subscribing to workloadmeta events.
 //
 // Only events for entities with one of the given kinds will be delivered.  If
-// kinds is nil or empty, events for entities of of any kind will be delivered.
+// kinds is nil or empty, events for entities of any kind will be delivered.
 //
 // Similarly, only events for entities collected from the given source will be
 // delivered, and the entities in the events will contain data only from that
@@ -24,7 +26,10 @@ type Filter struct {
 // runtime will be delivered, and they will not contain any additional metadata
 // from orchestrators or cluster orchestrators.  Use SourceAll to collect data
 // from all sources.
-func NewFilter(kinds []Kind, source Source) *Filter {
+//
+// Only events of the given type will be delivered. Use EventTypeAll to collect
+// data from all the event types.
+func NewFilter(kinds []Kind, source Source, eventType EventType) *Filter {
 	var kindSet map[Kind]struct{}
 	if len(kinds) > 0 {
 		kindSet = make(map[Kind]struct{})
@@ -34,8 +39,9 @@ func NewFilter(kinds []Kind, source Source) *Filter {
 	}
 
 	return &Filter{
-		kinds:  kindSet,
-		source: source,
+		kinds:     kindSet,
+		source:    source,
+		eventType: eventType,
 	}
 }
 
@@ -57,6 +63,12 @@ func (f *Filter) MatchSource(source Source) bool {
 	return f.Source() == SourceAll || f.Source() == source
 }
 
+// MatchEventType returns true if the filter matches the passed EventType. If
+// the filter is nil, or has EventTypeAll, it always matches.
+func (f *Filter) MatchEventType(eventType EventType) bool {
+	return f.EventType() == EventTypeAll || f.EventType() == eventType
+}
+
 // Source returns the source this filter is filtering by. If the filter is nil,
 // returns SourceAll.
 func (f *Filter) Source() Source {
@@ -67,11 +79,12 @@ func (f *Filter) Source() Source {
 	return f.source
 }
 
-// Match returns true if the filter matches an event.
-func (f *Filter) Match(ev CollectorEvent) bool {
+// EventType returns the event type this filter is filtering by. If the filter
+// is nil, it returns EventTypeAll.
+func (f *Filter) EventType() EventType {
 	if f == nil {
-		return true
+		return EventTypeAll
 	}
 
-	return f.MatchKind(ev.Entity.GetID().Kind) && f.MatchSource(ev.Source)
+	return f.eventType
 }

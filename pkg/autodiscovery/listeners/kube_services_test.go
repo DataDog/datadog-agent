@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build clusterchecks && kubeapiserver
-// +build clusterchecks,kubeapiserver
 
 package listeners
 
@@ -62,7 +61,7 @@ func TestProcessService(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, []ContainerPort{{123, "test1"}, {126, "test2"}}, ports)
 
-	tags, _, err := svc.GetTags()
+	tags, err := svc.GetTags()
 	assert.NoError(t, err)
 	expectedTags := []string{
 		"kube_service:myservice",

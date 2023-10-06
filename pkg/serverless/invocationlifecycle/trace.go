@@ -6,15 +6,20 @@
 package invocationlifecycle
 
 import (
+	"bytes"
 	"encoding/json"
+	"fmt"
+	"net/http"
 	"os"
 	"regexp"
 	"strconv"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/config"
+	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
+	"github.com/DataDog/datadog-agent/pkg/serverless/trace/inferredspan"
 	"github.com/DataDog/datadog-agent/pkg/trace/api"
 	"github.com/DataDog/datadog-agent/pkg/trace/info"
-	"github.com/DataDog/datadog-agent/pkg/trace/pb"
 	"github.com/DataDog/datadog-agent/pkg/trace/sampler"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -23,70 +28,126 @@ const (
 	functionNameEnvVar = "AWS_LAMBDA_FUNCTION_NAME"
 )
 
-// executionStartInfo is saved information from when an execution span was started
-type executionStartInfo struct {
-	startTime time.Time
-	traceID   uint64
-	spanID    uint64
-	parentID  uint64
+var /* const */ runtimeRegex = regexp.MustCompile(`^(dotnet|go|java|ruby)(\d+(\.\d+)*|\d+(\.x))$`)
+
+// ExecutionStartInfo is saved information from when an execution span was started
+type ExecutionStartInfo struct {
+	startTime        time.Time
+	TraceID          uint64
+	SpanID           uint64
+	parentID         uint64
+	requestPayload   []byte
+	SamplingPriority sampler.SamplingPriority
 }
+
 type invocationPayload struct {
 	Headers map[string]string `json:"headers"`
 }
 
-// currentExecutionInfo represents information from the start of the current execution span
-var currentExecutionInfo executionStartInfo
-
 // startExecutionSpan records information from the start of the invocation.
 // It should be called at the start of the invocation.
-func startExecutionSpan(startTime time.Time, rawPayload string) {
-	currentExecutionInfo.startTime = startTime
-	currentExecutionInfo.traceID = random.Uint64()
-	currentExecutionInfo.spanID = random.Uint64()
-	currentExecutionInfo.parentID = 0
-
+func startExecutionSpan(executionContext *ExecutionStartInfo, inferredSpan *inferredspan.InferredSpan, rawPayload []byte, startDetails *InvocationStartDetails, inferredSpansEnabled bool) {
 	payload := convertRawPayload(rawPayload)
+	executionContext.requestPayload = rawPayload
+	executionContext.startTime = startDetails.StartTime
+
+	if inferredSpansEnabled && inferredSpan.Span.Start != 0 {
+		executionContext.TraceID = inferredSpan.Span.TraceID
+		executionContext.parentID = inferredSpan.Span.SpanID
+	}
 
 	if payload.Headers != nil {
-		traceID, e1 := convertStrToUnit64(payload.Headers[TraceIDHeader])
-		parentID, e2 := convertStrToUnit64(payload.Headers[parentIDHeader])
 
-		if e1 == nil {
-			currentExecutionInfo.traceID = traceID
+		traceID, err := strconv.ParseUint(payload.Headers[TraceIDHeader], 0, 64)
+		if err != nil {
+			log.Debug("Unable to parse traceID from payload headers")
+		} else {
+			executionContext.TraceID = traceID
+			if inferredSpansEnabled {
+				inferredSpan.Span.TraceID = traceID
+			}
 		}
 
-		if e2 == nil {
-			currentExecutionInfo.parentID = parentID
+		parentID, err := strconv.ParseUint(payload.Headers[ParentIDHeader], 0, 64)
+		if err != nil {
+			log.Debug("Unable to parse parentID from payload headers")
+		} else {
+			if inferredSpansEnabled {
+				inferredSpan.Span.ParentID = parentID
+			} else {
+				executionContext.parentID = parentID
+			}
+		}
+	} else if startDetails.InvokeEventHeaders.TraceID != "" { // trace context from a direct invocation
+		traceID, err := strconv.ParseUint(startDetails.InvokeEventHeaders.TraceID, 0, 64)
+		if err != nil {
+			log.Debug("Unable to parse traceID from invokeEventHeaders")
+		} else {
+			executionContext.TraceID = traceID
+		}
+
+		parentID, err := strconv.ParseUint(startDetails.InvokeEventHeaders.ParentID, 0, 64)
+		if err != nil {
+			log.Debug("Unable to parse parentID from invokeEventHeaders")
+		} else {
+			executionContext.parentID = parentID
 		}
 	}
+	executionContext.SamplingPriority = getSamplingPriority(payload.Headers[SamplingPriorityHeader], startDetails.InvokeEventHeaders.SamplingPriority)
 }
 
 // endExecutionSpan builds the function execution span and sends it to the intake.
 // It should be called at the end of the invocation.
-func endExecutionSpan(processTrace func(p *api.Payload), requestID string, endTime time.Time, isError bool) {
-	duration := endTime.UnixNano() - currentExecutionInfo.startTime.UnixNano()
+func endExecutionSpan(executionContext *ExecutionStartInfo, triggerTags map[string]string, triggerMetrics map[string]float64, processTrace func(p *api.Payload), endDetails *InvocationEndDetails) {
+	duration := endDetails.EndTime.UnixNano() - executionContext.startTime.UnixNano()
 
 	executionSpan := &pb.Span{
 		Service:  "aws.lambda", // will be replaced by the span processor
 		Name:     "aws.lambda",
 		Resource: os.Getenv(functionNameEnvVar),
 		Type:     "serverless",
-		TraceID:  currentExecutionInfo.traceID,
-		SpanID:   currentExecutionInfo.spanID,
-		ParentID: currentExecutionInfo.parentID,
-		Start:    currentExecutionInfo.startTime.UnixNano(),
+		TraceID:  executionContext.TraceID,
+		SpanID:   executionContext.SpanID,
+		ParentID: executionContext.parentID,
+		Start:    executionContext.startTime.UnixNano(),
 		Duration: duration,
-		Meta: map[string]string{
-			"request_id": requestID,
-		},
+		Meta:     triggerTags,
+		Metrics:  triggerMetrics,
+	}
+	executionSpan.Meta["request_id"] = endDetails.RequestID
+	executionSpan.Meta["cold_start"] = fmt.Sprintf("%t", endDetails.ColdStart)
+	if endDetails.ProactiveInit {
+		executionSpan.Meta["proactive_initialization"] = fmt.Sprintf("%t", endDetails.ProactiveInit)
+	}
+	langMatches := runtimeRegex.FindStringSubmatch(endDetails.Runtime)
+	if len(langMatches) >= 2 {
+		executionSpan.Meta["language"] = langMatches[1]
+	}
+	captureLambdaPayloadEnabled := config.Datadog.GetBool("capture_lambda_payload")
+	if captureLambdaPayloadEnabled {
+		capturePayloadMaxDepth := config.Datadog.GetInt("capture_lambda_payload_max_depth")
+		requestPayloadJSON := make(map[string]interface{})
+		if err := json.Unmarshal(executionContext.requestPayload, &requestPayloadJSON); err != nil {
+			log.Debugf("[lifecycle] Failed to parse request payload: %v", err)
+			executionSpan.Meta["function.request"] = string(executionContext.requestPayload)
+		} else {
+			capturePayloadAsTags(requestPayloadJSON, executionSpan, "function.request", 0, capturePayloadMaxDepth)
+		}
+		responsePayloadJSON := make(map[string]interface{})
+		if err := json.Unmarshal(endDetails.ResponseRawPayload, &responsePayloadJSON); err != nil {
+			log.Debugf("[lifecycle] Failed to parse response payload: %v", err)
+			executionSpan.Meta["function.response"] = string(endDetails.ResponseRawPayload)
+		} else {
+			capturePayloadAsTags(responsePayloadJSON, executionSpan, "function.response", 0, capturePayloadMaxDepth)
+		}
 	}
 
-	if isError {
+	if endDetails.IsError {
 		executionSpan.Error = 1
 	}
 
 	traceChunk := &pb.TraceChunk{
-		Priority: int32(sampler.PriorityNone),
+		Priority: int32(executionContext.SamplingPriority),
 		Spans:    []*pb.Span{executionSpan},
 	}
 
@@ -100,14 +161,22 @@ func endExecutionSpan(processTrace func(p *api.Payload), requestID string, endTi
 	})
 }
 
-func convertRawPayload(rawPayload string) invocationPayload {
-	//Need to remove unwanted text from the initial payload
-	reg := regexp.MustCompile(`{(?:|(.*))*}`)
-	subString := reg.FindString(rawPayload)
+// ParseLambdaPayload removes extra data sent by the proxy that surrounds
+// a JSON payload. For example, for `a5a{"event":"aws_lambda"...}0` it would remove
+// a5a at the front and 0 at the end, and just leave a correct JSON payload.
+func ParseLambdaPayload(rawPayload []byte) []byte {
+	leftIndex := bytes.Index(rawPayload, []byte("{"))
+	rightIndex := bytes.LastIndex(rawPayload, []byte("}"))
+	if leftIndex == -1 || rightIndex == -1 {
+		return rawPayload
+	}
+	return rawPayload[leftIndex : rightIndex+1]
+}
 
+func convertRawPayload(payloadString []byte) invocationPayload {
 	payload := invocationPayload{}
 
-	err := json.Unmarshal([]byte(subString), &payload)
+	err := json.Unmarshal(payloadString, &payload)
 	if err != nil {
 		log.Debug("Could not unmarshal the invocation event payload")
 	}
@@ -118,18 +187,109 @@ func convertRawPayload(rawPayload string) invocationPayload {
 func convertStrToUnit64(s string) (uint64, error) {
 	num, err := strconv.ParseUint(s, 0, 64)
 	if err != nil {
-		log.Debug("Error with string conversion of trace or parent ID")
+		log.Debugf("Error while converting %s, failing with : %s", s, err)
 	}
-
 	return num, err
 }
 
-// TraceID returns the current TraceID
-func TraceID() uint64 {
-	return currentExecutionInfo.traceID
+func getSamplingPriority(header string, directInvokeHeader string) sampler.SamplingPriority {
+	// default priority if nothing is found from headers or direct invocation payload
+	samplingPriority := sampler.PriorityNone
+	if v, err := strconv.ParseInt(header, 10, 8); err == nil {
+		// if the current lambda invocation is not the head of the trace, we need to propagate the sampling decision
+		samplingPriority = sampler.SamplingPriority(v)
+	} else {
+		// try to look for direction invocation headers
+		if v, err := strconv.ParseInt(directInvokeHeader, 10, 8); err == nil {
+			samplingPriority = sampler.SamplingPriority(v)
+		}
+	}
+	return samplingPriority
 }
 
-// SpanID returns the current SpanID
-func SpanID() uint64 {
-	return currentExecutionInfo.spanID
+// InjectContext injects the context
+func InjectContext(executionContext *ExecutionStartInfo, headers http.Header) {
+	if value, err := convertStrToUnit64(headers.Get(TraceIDHeader)); err == nil {
+		log.Debugf("injecting traceID = %v", value)
+		executionContext.TraceID = value
+	}
+	if value, err := convertStrToUnit64(headers.Get(ParentIDHeader)); err == nil {
+		log.Debugf("injecting parentId = %v", value)
+		executionContext.parentID = value
+	}
+	if value, err := strconv.ParseInt(headers.Get(SamplingPriorityHeader), 10, 8); err == nil {
+		log.Debugf("injecting samplingPriority = %v", value)
+		executionContext.SamplingPriority = sampler.SamplingPriority(value)
+	}
+}
+
+// InjectSpanID injects the spanId
+func InjectSpanID(executionContext *ExecutionStartInfo, headers http.Header) {
+	if value, err := strconv.ParseUint(headers.Get(SpanIDHeader), 10, 64); err == nil {
+		log.Debugf("injecting spanID = %v", value)
+		executionContext.SpanID = value
+	}
+}
+
+func capturePayloadAsTags(value interface{}, targetSpan *pb.Span, key string, depth int, maxDepth int) {
+	if key == "" {
+		return
+	}
+	if value == nil {
+		targetSpan.Meta[key] = ""
+		return
+	}
+	if depth >= maxDepth {
+		switch value := value.(type) {
+		case map[string]interface{}:
+			targetSpan.Meta[key] = convertJSONToString(value)
+		default:
+			targetSpan.Meta[key] = fmt.Sprintf("%v", value)
+		}
+		return
+	}
+	switch value := value.(type) {
+	case string:
+		var innerPayloadJSON map[string]interface{}
+		err := json.Unmarshal([]byte(value), &innerPayloadJSON)
+		if err != nil {
+			targetSpan.Meta[key] = fmt.Sprintf("%v", value)
+		} else {
+			capturePayloadAsTags(innerPayloadJSON, targetSpan, key, depth, maxDepth)
+		}
+	case []byte:
+		var innerPayloadJSON map[string]interface{}
+		err := json.Unmarshal(value, &innerPayloadJSON)
+		if err != nil {
+			targetSpan.Meta[key] = fmt.Sprintf("%v", value)
+		} else {
+			capturePayloadAsTags(innerPayloadJSON, targetSpan, key, depth, maxDepth)
+		}
+	case map[string]interface{}:
+		if len(value) == 0 {
+			targetSpan.Meta[key] = "{}"
+			return
+		}
+		for innerKey, value := range value {
+			capturePayloadAsTags(value, targetSpan, key+"."+innerKey, depth+1, maxDepth)
+		}
+	case []interface{}:
+		if len(value) == 0 {
+			targetSpan.Meta[key] = "[]"
+			return
+		}
+		for i, innerValue := range value {
+			capturePayloadAsTags(innerValue, targetSpan, key+"."+strconv.Itoa(i), depth+1, maxDepth)
+		}
+	default:
+		targetSpan.Meta[key] = fmt.Sprintf("%v", value)
+	}
+}
+
+func convertJSONToString(payloadJSON interface{}) string {
+	jsonData, err := json.Marshal(payloadJSON)
+	if err != nil {
+		return fmt.Sprintf("%v", payloadJSON)
+	}
+	return string(jsonData)
 }

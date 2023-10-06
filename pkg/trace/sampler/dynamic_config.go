@@ -9,10 +9,9 @@ import (
 	"math"
 	"strconv"
 	"sync"
-	"sync/atomic"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/trace/pb"
+	"go.uber.org/atomic"
 )
 
 // DynamicConfig contains configuration items which may change
@@ -32,15 +31,14 @@ func NewDynamicConfig() *DynamicConfig {
 
 // State specifies the current state of DynamicConfig
 type State struct {
-	Rates      map[string]float64
-	Mechanisms map[string]pb.SamplingMechanism
-	Version    string
+	Rates   map[string]float64
+	Version string
 }
 
-// rmc specifies a tuplet of rate, limit, and color.
+// rc specifies a pair of rate and color.
 // color is used for detecting changes.
-type rmc struct {
-	rm
+type rc struct {
+	r float64
 	c int8
 }
 
@@ -52,28 +50,28 @@ type RateByService struct {
 	// When `SetAll()` is called, we paint affected keys with `currentColor`.
 	// If there is a key has a color doesn't match `currentColor`, it means that key no longer exists.
 	currentColor int8
-	rates        map[string]*rmc
+	rates        map[string]*rc
 	version      string
 }
 
 // SetAll the sampling rate for all services. If a service/env is not
 // in the map, then the entry is removed.
-func (rbs *RateByService) SetAll(rates map[ServiceSignature]rm) {
+func (rbs *RateByService) SetAll(rates map[ServiceSignature]float64) {
 	rbs.mu.Lock()
 	defer rbs.mu.Unlock()
 
 	rbs.currentColor = 1 - rbs.currentColor
 	changed := false
 	if rbs.rates == nil {
-		rbs.rates = make(map[string]*rmc, len(rates))
+		rbs.rates = make(map[string]*rc, len(rates))
 	}
-	for k, v := range rates {
-		ks := k.String()
-		v.r = math.Min(math.Max(v.r, 0), 1)
-		if oldV, ok := rbs.rates[ks]; !ok || oldV.r != v.r || oldV.m != v.m {
+	for s, r := range rates {
+		ks := s.String()
+		r = math.Min(math.Max(r, 0), 1)
+		if oldV, ok := rbs.rates[ks]; !ok || oldV.r != r {
 			changed = true
-			rbs.rates[ks] = &rmc{
-				rm: v,
+			rbs.rates[ks] = &rc{
+				r: r,
 			}
 		}
 		rbs.rates[ks].c = rbs.currentColor
@@ -100,22 +98,18 @@ func (rbs *RateByService) GetNewState(version string) State {
 		}
 	}
 	ret := State{
-		Rates:      make(map[string]float64, len(rbs.rates)),
-		Mechanisms: make(map[string]pb.SamplingMechanism, len(rbs.rates)),
-		Version:    rbs.version,
+		Rates:   make(map[string]float64, len(rbs.rates)),
+		Version: rbs.version,
 	}
 	for k, v := range rbs.rates {
 		ret.Rates[k] = v.r
-		if v.m != 0 {
-			ret.Mechanisms[k] = v.m
-		}
 	}
 
 	return ret
 }
 
-var localVersion int64
+var localVersion atomic.Int64
 
 func newVersion() string {
-	return strconv.FormatInt(time.Now().Unix(), 16) + "-" + strconv.FormatInt(atomic.AddInt64(&localVersion, 1), 16)
+	return strconv.FormatInt(time.Now().Unix(), 16) + "-" + strconv.FormatInt(localVersion.Inc(), 16)
 }

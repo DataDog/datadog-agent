@@ -8,7 +8,8 @@ package tags
 import (
 	"fmt"
 	"math/bits"
-	"sync/atomic"
+
+	"go.uber.org/atomic"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator/ckey"
 	"github.com/DataDog/datadog-agent/pkg/tagset"
@@ -17,8 +18,16 @@ import (
 
 // Entry is used to keep track of tag slices shared by the contexts.
 type Entry struct {
+	// refs is the refcount of this entity.  If this value is zero, then the
+	// entity may be reclaimed in Shrink().
+	//
+	// This value must be first in the struct to ensure proper alignment.  It
+	// is not used as a pointer to avoid doubling the number of allocations
+	// required per Entry.
+	refs atomic.Uint64
+
+	// tags contains the cached tags in this entry.
 	tags []string
-	refs uint64
 }
 
 // Tags returns the strings stored in the Entry. The slice may be
@@ -34,8 +43,7 @@ func (e *Entry) Tags() []string {
 //
 // Can be called concurrently with other store operations.
 func (e *Entry) Release() {
-	const minusOne = ^uint64(0)
-	atomic.AddUint64(&e.refs, minusOne)
+	e.refs.Dec()
 }
 
 // Store is a reference counted container of tags slices, to be shared
@@ -71,20 +79,19 @@ func (tc *Store) Insert(key ckey.TagsKey, tagsBuffer *tagset.HashingTagsAccumula
 	if !tc.enabled {
 		return &Entry{
 			tags: tagsBuffer.Copy(),
-			refs: 1,
 		}
 	}
 
 	entry := tc.tagsByKey[key]
 	if entry != nil {
 		// Can happen concurrently with Release().
-		atomic.AddUint64(&entry.refs, 1)
+		entry.refs.Inc()
 		tc.telemetry.hits.Inc()
 	} else {
 		entry = &Entry{
 			tags: tagsBuffer.Copy(),
-			refs: 1,
 		}
+		entry.refs.Inc()
 		tc.tagsByKey[key] = entry
 		tc.cap++
 		tc.telemetry.miss.Inc()
@@ -100,7 +107,7 @@ func (tc *Store) Insert(key ckey.TagsKey, tagsBuffer *tagset.HashingTagsAccumula
 func (tc *Store) Shrink() {
 	stats := entryStats{}
 	for key, entry := range tc.tagsByKey {
-		if refs := atomic.LoadUint64(&entry.refs); refs > 0 {
+		if refs := entry.refs.Load(); refs > 0 {
 			stats.visit(entry, refs)
 		} else {
 			delete(tc.tagsByKey, key)

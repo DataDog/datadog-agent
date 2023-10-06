@@ -69,3 +69,16 @@ func CreateMockSession() *MockSession {
 func NewMockSession(config *checkconfig.CheckConfig) (Session, error) {
 	return CreateMockSession(), nil
 }
+
+func CreateGetNextPacket(oid string, varType gosnmp.Asn1BER, value interface{}) *gosnmp.SnmpPacket {
+	packet := gosnmp.SnmpPacket{
+		Variables: []gosnmp.SnmpPDU{
+			{
+				Name:  oid,
+				Type:  varType,
+				Value: value,
+			},
+		},
+	}
+	return &packet
+}

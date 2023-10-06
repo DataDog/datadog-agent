@@ -17,7 +17,6 @@ import (
 	"time"
 
 	model "github.com/DataDog/agent-payload/v5/process"
-	"github.com/DataDog/datadog-agent/pkg/process/config"
 
 	"github.com/dustin/go-humanize"
 )
@@ -47,10 +46,14 @@ var (
 	//go:embed templates/discovery.tmpl
 	discoveryTemplate string
 
+	//go:embed templates/events.tmpl
+	eventsTemplate string
+
 	fnMap = template.FuncMap{
 		"humanize":  humanize.Commaf,
 		"bytes":     humanize.Bytes,
 		"timeMilli": func(v int64) string { return time.UnixMilli(v).UTC().Format(time.RFC3339) },
+		"timeNano":  func(v int64) string { return time.Unix(0, v).UTC().Format(time.RFC3339) },
 		"time":      func(v int64) string { return time.Unix(v, 0).UTC().Format(time.RFC3339) },
 		"cpupct":    func(v float32) string { return humanize.FtoaWithDigits(math.Round(float64(v)*100)/100, 2) + "%" },
 		"io": func(v float32) string {
@@ -65,16 +68,18 @@ var (
 // HumanFormat takes the messages produced by a check run and outputs them in a human-readable format
 func HumanFormat(check string, msgs []model.MessageBody, w io.Writer) error {
 	switch check {
-	case config.ProcessCheckName:
+	case ProcessCheckName:
 		return humanFormatProcess(msgs, w)
-	case config.RTProcessCheckName:
+	case RTProcessCheckName:
 		return humanFormatRealTimeProcess(msgs, w)
-	case config.ContainerCheckName:
+	case ContainerCheckName:
 		return humanFormatContainer(msgs, w)
-	case config.RTContainerCheckName:
+	case RTContainerCheckName:
 		return humanFormatRealTimeContainer(msgs, w)
-	case config.DiscoveryCheckName:
+	case DiscoveryCheckName:
 		return humanFormatProcessDiscovery(msgs, w)
+	case ProcessEventsCheckName:
+		return HumanFormatProcessEvents(msgs, w, true)
 	}
 	return ErrNoHumanFormat
 }
@@ -89,10 +94,9 @@ func humanFormatProcess(msgs []model.MessageBody, w io.Writer) error {
 	}
 
 	var (
-		processes    = map[int32]*model.Process{}
-		containers   = map[string]*model.Container{}
-		pids         []int
-		containerIDs []string
+		processes  = map[int32]*model.Process{}
+		containers = map[string]*model.Container{}
+		pids       []int
 	)
 
 	for _, m := range msgs {
@@ -113,18 +117,21 @@ func humanFormatProcess(msgs []model.MessageBody, w io.Writer) error {
 		}
 	}
 
+	containerIDs := make([]string, 0, len(containers))
 	for cid := range containers {
 		containerIDs = append(containerIDs, cid)
 	}
 
 	pidsSorted := sort.IntSlice(pids)
 	pidsSorted.Sort()
+	data.Processes = make([]*model.Process, 0, len(pidsSorted))
 	for _, pid := range pidsSorted {
 		data.Processes = append(data.Processes, processes[int32(pid)])
 	}
 
 	containerIDsSorted := sort.StringSlice(containerIDs)
 	containerIDsSorted.Sort()
+	data.Containers = make([]*model.Container, 0, len(containerIDsSorted))
 	for _, cid := range containerIDsSorted {
 		data.Containers = append(data.Containers, containers[cid])
 	}
@@ -318,6 +325,49 @@ func humanFormatProcessDiscovery(msgs []model.MessageBody, w io.Writer) error {
 		w,
 		data,
 		discoveryTemplate,
+	)
+}
+
+// HumanFormatProcessEvents takes the messages produced by a process_events run and outputs them in a human-readable format
+func HumanFormatProcessEvents(msgs []model.MessageBody, w io.Writer, checkOutput bool) error {
+	// ProcessEvent's TypedEvent is an interface
+	// As text/template does not cast an interface to the underlying concrete type, we need to perform the cast before
+	// rendering the template
+	type extendedEvent struct {
+		*model.ProcessEvent
+		Exec *model.ProcessExec
+		Exit *model.ProcessExit
+	}
+
+	var data struct {
+		CheckOutput bool
+		Hostname    string
+		Events      []*extendedEvent
+	}
+
+	data.CheckOutput = checkOutput
+	for _, m := range msgs {
+		evtMsg, ok := m.(*model.CollectorProcEvent)
+		if !ok {
+			return ErrUnexpectedMessageType
+		}
+		data.Hostname = evtMsg.Hostname
+
+		for _, e := range evtMsg.Events {
+			extended := &extendedEvent{ProcessEvent: e}
+			switch typedEvent := e.TypedEvent.(type) {
+			case *model.ProcessEvent_Exec:
+				extended.Exec = typedEvent.Exec
+			case *model.ProcessEvent_Exit:
+				extended.Exit = typedEvent.Exit
+			}
+			data.Events = append(data.Events, extended)
+		}
+	}
+	return renderTemplates(
+		w,
+		data,
+		eventsTemplate,
 	)
 }
 

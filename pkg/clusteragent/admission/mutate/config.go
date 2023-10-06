@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build kubeapiserver
-// +build kubeapiserver
 
 package mutate
 
@@ -26,8 +25,10 @@ import (
 
 const (
 	// Env vars
-	agentHostEnvVarName  = "DD_AGENT_HOST"
-	ddEntityIDEnvVarName = "DD_ENTITY_ID"
+	agentHostEnvVarName    = "DD_AGENT_HOST"
+	ddEntityIDEnvVarName   = "DD_ENTITY_ID"
+	traceURLEnvVarName     = "DD_TRACE_AGENT_URL"
+	dogstatsdURLEnvVarName = "DD_DOGSTATSD_URL"
 
 	// Config injection modes
 	hostIP  = "hostip"
@@ -39,7 +40,7 @@ const (
 )
 
 var (
-	agentHostEnvVar = corev1.EnvVar{
+	agentHostIPEnvVar = corev1.EnvVar{
 		Name:  agentHostEnvVarName,
 		Value: "",
 		ValueFrom: &corev1.EnvVarSource{
@@ -47,6 +48,11 @@ var (
 				FieldPath: "status.hostIP",
 			},
 		},
+	}
+
+	agentHostServiceEnvVar = corev1.EnvVar{
+		Name:  agentHostEnvVarName,
+		Value: config.Datadog.GetString("admission_controller.inject_config.local_service_name") + "." + apiCommon.GetMyNamespace() + ".svc.cluster.local",
 	}
 
 	ddEntityIDEnvVar = corev1.EnvVar{
@@ -59,9 +65,14 @@ var (
 		},
 	}
 
-	agentServiceEnvVar = corev1.EnvVar{
-		Name:  agentHostEnvVarName,
-		Value: config.Datadog.GetString("admission_controller.inject_config.local_service_name") + "." + apiCommon.GetMyNamespace() + ".svc.cluster.local",
+	traceURLSocketEnvVar = corev1.EnvVar{
+		Name:  traceURLEnvVarName,
+		Value: config.Datadog.GetString("admission_controller.inject_config.trace_agent_socket"),
+	}
+
+	dogstatsdURLSocketEnvVar = corev1.EnvVar{
+		Name:  dogstatsdURLEnvVarName,
+		Value: config.Datadog.GetString("admission_controller.inject_config.dogstatsd_socket"),
 	}
 )
 
@@ -74,52 +85,38 @@ func InjectConfig(rawPod []byte, ns string, dc dynamic.Interface) ([]byte, error
 func injectConfig(pod *corev1.Pod, _ string, _ dynamic.Interface) error {
 	var injectedConfig, injectedEntity bool
 	defer func() {
-		metrics.MutationAttempts.Inc(metrics.ConfigMutationType, strconv.FormatBool(injectedConfig || injectedEntity))
+		metrics.MutationAttempts.Inc(metrics.ConfigMutationType, strconv.FormatBool(injectedConfig || injectedEntity), "")
 	}()
 
 	if pod == nil {
-		metrics.MutationErrors.Inc(metrics.ConfigMutationType, "nil pod")
+		metrics.MutationErrors.Inc(metrics.ConfigMutationType, "nil pod", "")
 		return errors.New("cannot inject config into nil pod")
 	}
 
-	if !shouldInjectConf(pod) {
+	if !shouldInject(pod) {
 		return nil
 	}
 
 	mode := injectionMode(pod, config.Datadog.GetString("admission_controller.inject_config.mode"))
 	switch mode {
 	case hostIP:
-		injectedConfig = injectEnv(pod, agentHostEnvVar)
+		injectedConfig = injectEnv(pod, agentHostIPEnvVar)
 	case service:
-		injectedConfig = injectEnv(pod, agentServiceEnvVar)
+		injectedConfig = injectEnv(pod, agentHostServiceEnvVar)
 	case socket:
-		volume, volumeMount := buildVolume(datadogVolumeName, config.Datadog.GetString("admission_controller.inject_config.socket_path"))
-		injectedConfig = injectVolume(pod, volume, volumeMount)
+		volume, volumeMount := buildVolume(datadogVolumeName, config.Datadog.GetString("admission_controller.inject_config.socket_path"), true)
+		injectedVol := injectVolume(pod, volume, volumeMount)
+		injectedEnv := injectEnv(pod, traceURLSocketEnvVar)
+		injectedEnv = injectEnv(pod, dogstatsdURLSocketEnvVar) || injectedEnv
+		injectedConfig = injectedEnv || injectedVol
 	default:
-		metrics.MutationErrors.Inc(metrics.ConfigMutationType, "unknown mode")
+		metrics.MutationErrors.Inc(metrics.ConfigMutationType, "unknown mode", "")
 		return fmt.Errorf("invalid injection mode %q", mode)
 	}
 
 	injectedEntity = injectEnv(pod, ddEntityIDEnvVar)
 
 	return nil
-}
-
-// shouldInjectConf returns whether the config should be injected
-// based on the pod labels and the cluster agent config
-func shouldInjectConf(pod *corev1.Pod) bool {
-	if val, found := pod.GetLabels()[admCommon.EnabledLabelKey]; found {
-		switch val {
-		case "true":
-			return true
-		case "false":
-			return false
-		default:
-			log.Warnf("Invalid label value '%s=%s' on pod %s should be either 'true' or 'false', ignoring it", admCommon.EnabledLabelKey, val, podString(pod))
-			return false
-		}
-	}
-	return config.Datadog.GetBool("admission_controller.mutate_unlabelled")
 }
 
 // injectionMode returns the injection mode based on the global mode and pod labels
@@ -138,7 +135,7 @@ func injectionMode(pod *corev1.Pod, globalMode string) string {
 	return globalMode
 }
 
-func buildVolume(volumeName, path string) (corev1.Volume, corev1.VolumeMount) {
+func buildVolume(volumeName, path string, readOnly bool) (corev1.Volume, corev1.VolumeMount) {
 	pathType := corev1.HostPathDirectoryOrCreate
 	volume := corev1.Volume{
 		Name: volumeName,
@@ -153,6 +150,7 @@ func buildVolume(volumeName, path string) (corev1.Volume, corev1.VolumeMount) {
 	volumeMount := corev1.VolumeMount{
 		Name:      volumeName,
 		MountPath: path,
+		ReadOnly:  readOnly,
 	}
 
 	return volume, volumeMount

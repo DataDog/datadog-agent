@@ -4,7 +4,6 @@
 // Copyright 2018-present Datadog, Inc.
 
 //go:build zlib
-// +build zlib
 
 package stream
 
@@ -76,6 +75,7 @@ type Compressor struct {
 	separator           []byte
 }
 
+// NewCompressor returns a new instance of a Compressor
 func NewCompressor(input, output *bytes.Buffer, maxPayloadSize, maxUncompressedSize int, header, footer []byte, separator []byte) (*Compressor, error) {
 	c := &Compressor{
 		header:              header,
@@ -102,7 +102,10 @@ func NewCompressor(input, output *bytes.Buffer, maxPayloadSize, maxUncompressedS
 // that could actually fit after compression. That said it is probably impossible
 // to have a 2MB+ item that is valid for the backend.
 func (c *Compressor) checkItemSize(data []byte) bool {
-	return len(data) < c.maxUnzippedItemSize && compression.CompressBound(len(data)) < c.maxZippedItemSize
+	maxEffectivePayloadSize := (c.maxPayloadSize - len(c.footer) - len(c.header))
+	compressedWillFit := compression.CompressBound(len(data)) < c.maxZippedItemSize && compression.CompressBound(len(data)) < maxEffectivePayloadSize
+
+	return len(data) < c.maxUnzippedItemSize && compressedWillFit
 }
 
 // hasRoomForItem checks if the current payload has enough room to store the given item
@@ -169,6 +172,7 @@ func (c *Compressor) AddItem(data []byte) error {
 	return nil
 }
 
+// Close closes the Compressor, flushing any remaining uncompressed data
 func (c *Compressor) Close() ([]byte, error) {
 	// Flush remaining uncompressed data
 	if c.input.Len() > 0 {

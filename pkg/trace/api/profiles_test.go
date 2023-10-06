@@ -8,15 +8,16 @@ package api
 import (
 	"bytes"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
 	"strings"
 	"testing"
 
-	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/stretchr/testify/assert"
+
+	"github.com/DataDog/datadog-agent/pkg/trace/config"
 )
 
 func makeURLs(t *testing.T, ss ...string) []*url.URL {
@@ -33,7 +34,7 @@ func makeURLs(t *testing.T, ss ...string) []*url.URL {
 
 func TestProfileProxy(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
-		slurp, err := ioutil.ReadAll(req.Body)
+		slurp, err := io.ReadAll(req.Body)
 		req.Body.Close()
 		if err != nil {
 			t.Fatal(err)
@@ -63,7 +64,9 @@ func TestProfileProxy(t *testing.T) {
 	rec := httptest.NewRecorder()
 	c := &config.AgentConfig{}
 	newProfileProxy(c, []*url.URL{u}, []string{"123"}, "key:val").ServeHTTP(rec, req)
-	slurp, err := ioutil.ReadAll(rec.Result().Body)
+	result := rec.Result()
+	slurp, err := io.ReadAll(result.Body)
+	result.Body.Close()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -190,6 +193,7 @@ func TestProfileProxyHandler(t *testing.T) {
 		rec := httptest.NewRecorder()
 		receiver.profileProxyHandler().ServeHTTP(rec, req)
 		resp := rec.Result()
+		resp.Body.Close()
 		assert.Equal(t, http.StatusOK, resp.StatusCode)
 	})
 
@@ -231,7 +235,8 @@ func TestProfileProxyHandler(t *testing.T) {
 		if res.StatusCode != http.StatusInternalServerError {
 			t.Fatalf("invalid response: %s", res.Status)
 		}
-		slurp, err := ioutil.ReadAll(res.Body)
+		slurp, err := io.ReadAll(res.Body)
+		res.Body.Close()
 		if err != nil {
 			t.Fatal(err)
 		}

@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build kubeapiserver
-// +build kubeapiserver
 
 package webhook
 
@@ -53,17 +52,21 @@ func NewControllerV1beta1(client kubernetes.Interface, secretInformer coreinform
 	controller.isLeaderNotif = isLeaderNotif
 	controller.generateTemplates()
 
-	secretInformer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
+	if _, err := secretInformer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
 		AddFunc:    controller.handleSecret,
 		UpdateFunc: controller.handleSecretUpdate,
 		DeleteFunc: controller.handleSecret,
-	})
+	}); err != nil {
+		log.Errorf("cannot add event handler to secret informer: %v", err)
+	}
 
-	webhookInformer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
+	if _, err := webhookInformer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
 		AddFunc:    controller.handleWebhook,
 		UpdateFunc: controller.handleWebhookUpdate,
 		DeleteFunc: controller.handleWebhook,
-	})
+	}); err != nil {
+		log.Errorf("cannot add event handler to webhook informer: %v", err)
+	}
 
 	return controller
 }
@@ -195,6 +198,12 @@ func (c *ControllerV1beta1) generateTemplates() {
 		webhooks = append(webhooks, webhook)
 	}
 
+	// Auto instrumentation - lib injection
+	if config.Datadog.GetBool("admission_controller.auto_instrumentation.enabled") {
+		webhook := c.getWebhookSkeleton("auto-instrumentation", config.Datadog.GetString("admission_controller.auto_instrumentation.endpoint"))
+		webhooks = append(webhooks, webhook)
+	}
+
 	c.webhookTemplates = webhooks
 }
 
@@ -204,6 +213,7 @@ func (c *ControllerV1beta1) getWebhookSkeleton(nameSuffix, path string) admiv1be
 	port := c.config.getServicePort()
 	timeout := c.config.getTimeout()
 	failurePolicy := c.getAdmiV1Beta1FailurePolicy()
+	reinvocationPolicy := c.getReinvocationPolicy()
 	webhook := admiv1beta1.MutatingWebhook{
 		Name: c.config.configName(nameSuffix),
 		ClientConfig: admiv1beta1.WebhookClientConfig{
@@ -226,6 +236,7 @@ func (c *ControllerV1beta1) getWebhookSkeleton(nameSuffix, path string) admiv1be
 				},
 			},
 		},
+		ReinvocationPolicy:      &reinvocationPolicy,
 		FailurePolicy:           &failurePolicy,
 		MatchPolicy:             &matchPolicy,
 		SideEffects:             &sideEffects,
@@ -233,13 +244,7 @@ func (c *ControllerV1beta1) getWebhookSkeleton(nameSuffix, path string) admiv1be
 		AdmissionReviewVersions: []string{"v1beta1"},
 	}
 
-	labelSelector := buildLabelSelector()
-	if c.config.useNamespaceSelector() {
-		webhook.NamespaceSelector = labelSelector
-		return webhook
-	}
-
-	webhook.ObjectSelector = labelSelector
+	webhook.NamespaceSelector, webhook.ObjectSelector = buildLabelSelectors(c.config.useNamespaceSelector())
 
 	return webhook
 }
@@ -254,5 +259,18 @@ func (c *ControllerV1beta1) getAdmiV1Beta1FailurePolicy() admiv1beta1.FailurePol
 	default:
 		_ = log.Warnf("Unknown failure policy %s - defaulting to 'Ignore'", policy)
 		return admiv1beta1.Ignore
+	}
+}
+
+func (c *ControllerV1beta1) getReinvocationPolicy() admiv1beta1.ReinvocationPolicyType {
+	policy := strings.ToLower(c.config.getReinvocationPolicy())
+	switch policy {
+	case "ifneeded":
+		return admiv1beta1.IfNeededReinvocationPolicy
+	case "never":
+		return admiv1beta1.NeverReinvocationPolicy
+	default:
+		log.Warnf("Unknown reinvocation policy %q - defaulting to %q", c.config.getReinvocationPolicy(), admiv1beta1.IfNeededReinvocationPolicy)
+		return admiv1beta1.IfNeededReinvocationPolicy
 	}
 }

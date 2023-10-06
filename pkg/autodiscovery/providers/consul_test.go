@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build consul
-// +build consul
 
 package providers
 
@@ -134,7 +133,7 @@ func TestConsulGetTemplates(t *testing.T) {
 	queryOptions := &consul.QueryOptions{}
 	queryOptions = queryOptions.WithContext(ctx)
 
-	mockConfig := config.Mock()
+	mockConfig := config.Mock(t)
 	mockConfig.Set("autoconf_template_dir", "/datadog/tpl")
 
 	//Restore default
@@ -203,7 +202,7 @@ func TestConsulCollect(t *testing.T) {
 	queryOptions := &consul.QueryOptions{}
 	queryOptions = queryOptions.WithContext(ctx)
 
-	mockConfig := config.Mock()
+	mockConfig := config.Mock(t)
 	mockConfig.Set("autoconf_template_dir", "/datadog/tpl")
 
 	//Restore default

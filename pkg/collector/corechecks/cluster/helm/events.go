@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build kubeapiserver
-// +build kubeapiserver
 
 package helm
 
@@ -13,40 +12,41 @@ import (
 	"sync"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/aggregator"
-	coreMetrics "github.com/DataDog/datadog-agent/pkg/metrics"
+	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
+	"github.com/DataDog/datadog-agent/pkg/metrics/event"
 )
 
 const (
-	eventTitle = "Event on Helm release"
+	eventTitle       = "Event on Helm release"
+	helmStatusFailed = "failed"
 )
 
 type eventsManager struct {
-	events      []coreMetrics.Event
+	events      []event.Event
 	eventsMutex sync.Mutex
 }
 
-func (em *eventsManager) addEventForNewRelease(rel *release, storage helmStorage) {
-	event := eventForRelease(rel, storage, textForAddEvent(rel), false)
+func (em *eventsManager) addEventForNewRelease(rel *release, tags []string) {
+	event := eventForRelease(rel, textForAddEvent(rel), tags)
 	em.storeEvent(event)
 }
 
-func (em *eventsManager) addEventForDeletedRelease(rel *release, storage helmStorage) {
-	event := eventForRelease(rel, storage, textForDeleteEvent(rel), true)
+func (em *eventsManager) addEventForDeletedRelease(rel *release, tags []string) {
+	event := eventForRelease(rel, textForDeleteEvent(rel), tags)
 	em.storeEvent(event)
 }
 
-func (em *eventsManager) addEventForUpdatedRelease(old *release, updated *release, storage helmStorage) {
+func (em *eventsManager) addEventForUpdatedRelease(old *release, updated *release, tags []string) {
 	// nil Info should not happen, so let's ignore those at least for now.
 	if (old.Info == nil || updated.Info == nil) || (old.Info.Status == updated.Info.Status) {
 		return
 	}
 
-	event := eventForRelease(updated, storage, textForChangedStatus(old.Info.Status, updated), false)
+	event := eventForRelease(updated, textForChangedStatus(old.Info.Status, updated), tags)
 	em.storeEvent(event)
 }
 
-func (em *eventsManager) sendEvents(sender aggregator.Sender) {
+func (em *eventsManager) sendEvents(sender sender.Sender) {
 	em.eventsMutex.Lock()
 	eventsToSend := em.events
 	em.events = nil
@@ -57,24 +57,28 @@ func (em *eventsManager) sendEvents(sender aggregator.Sender) {
 	}
 }
 
-func (em *eventsManager) storeEvent(event coreMetrics.Event) {
+func (em *eventsManager) storeEvent(event event.Event) {
 	em.eventsMutex.Lock()
 	defer em.eventsMutex.Unlock()
 	em.events = append(em.events, event)
 }
 
-func eventForRelease(rel *release, storage helmStorage, text string, isDelete bool) coreMetrics.Event {
-	return coreMetrics.Event{
+func eventForRelease(rel *release, text string, tags []string) event.Event {
+	status := ""
+	if rel.Info != nil {
+		status = rel.Info.Status
+	}
+
+	return event.Event{
 		Title:          eventTitle,
 		Text:           text,
 		Ts:             time.Now().Unix(),
-		Priority:       coreMetrics.EventPriorityNormal,
+		Priority:       event.EventPriorityNormal,
 		SourceTypeName: checkName,
 		EventType:      checkName,
 		AggregationKey: fmt.Sprintf("helm_release:%s", rel.namespacedName()),
-
-		// The revision tag is not included in delete events, because we generate a single event for all the revisions.
-		Tags: tagsForMetricsAndEvents(rel, storage, !isDelete),
+		Tags:           tags,
+		AlertType:      alertType(status),
 	}
 }
 
@@ -109,4 +113,12 @@ func textForChangedStatus(previousRelStatus string, updatedRelease *release) str
 		updatedRelease.Namespace,
 		previousRelStatus,
 		updatedRelease.Info.Status)
+}
+
+func alertType(releaseStatus string) event.EventAlertType {
+	if releaseStatus == helmStatusFailed {
+		return event.EventAlertTypeError
+	}
+
+	return event.EventAlertTypeInfo
 }

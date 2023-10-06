@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+// Package local implements a local Tagger.
 package local
 
 import (
@@ -13,7 +14,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/tagset"
 	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
 
-	"github.com/DataDog/datadog-agent/cmd/agent/api/response"
+	tagger_api "github.com/DataDog/datadog-agent/pkg/tagger/api"
 	"github.com/DataDog/datadog-agent/pkg/tagger/collectors"
 	"github.com/DataDog/datadog-agent/pkg/tagger/tagstore"
 	"github.com/DataDog/datadog-agent/pkg/tagger/telemetry"
@@ -82,8 +83,8 @@ func (t *Tagger) getTags(entity string, cardinality collectors.TagCardinality) (
 	return cachedTags, nil
 }
 
-// AccumulateTagsFor appends tags for a given entity from the tagger to the TagAccumulator
-func (t *Tagger) AccumulateTagsFor(entity string, cardinality collectors.TagCardinality, tb tagset.TagAccumulator) error {
+// AccumulateTagsFor appends tags for a given entity from the tagger to the TagsAccumulator
+func (t *Tagger) AccumulateTagsFor(entity string, cardinality collectors.TagCardinality, tb tagset.TagsAccumulator) error {
 	tags, err := t.getTags(entity, cardinality)
 	tb.AppendHashed(tags)
 	return err
@@ -114,7 +115,7 @@ func (t *Tagger) GetEntity(entityID string) (*types.Entity, error) {
 }
 
 // List the content of the tagger
-func (t *Tagger) List(cardinality collectors.TagCardinality) response.TaggerListResponse {
+func (t *Tagger) List(cardinality collectors.TagCardinality) tagger_api.TaggerListResponse {
 	return t.tagStore.List()
 }
 

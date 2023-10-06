@@ -1,3 +1,8 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2022-present Datadog, Inc.
+
 package gui
 
 import (
@@ -7,7 +12,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"html/template"
-	"io/ioutil"
+	"io"
 	"mime"
 	"net"
 	"net/http"
@@ -18,10 +23,12 @@ import (
 	"strings"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/api/security"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/gorilla/mux"
 	"github.com/urfave/negroni"
+
+	"github.com/DataDog/datadog-agent/comp/core/flare"
+	"github.com/DataDog/datadog-agent/pkg/api/security"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 var (
@@ -53,7 +60,7 @@ func StopGUIServer() {
 }
 
 // StartGUIServer creates the router, starts the HTTP server & generates the authentication token for access
-func StartGUIServer(port string) error {
+func StartGUIServer(port string, flare flare.Component) error {
 	// Set start time...
 	startTimestamp = time.Now().Unix()
 
@@ -71,7 +78,7 @@ func StartGUIServer(port string) error {
 
 	// Set up handlers for the API
 	agentRouter := mux.NewRouter().PathPrefix("/agent").Subrouter().StrictSlash(true)
-	agentHandler(agentRouter)
+	agentHandler(agentRouter, flare)
 	checkRouter := mux.NewRouter().PathPrefix("/checks").Subrouter().StrictSlash(true)
 	checkHandler(checkRouter)
 
@@ -216,7 +223,7 @@ func authorizePOST(w http.ResponseWriter, r *http.Request, next http.HandlerFunc
 // Helper function which unmarshals a POST requests data into a Payload object
 func parseBody(r *http.Request) (Payload, error) {
 	var p Payload
-	body, e := ioutil.ReadAll(r.Body)
+	body, e := io.ReadAll(r.Body)
 	if e != nil {
 		return p, e
 	}

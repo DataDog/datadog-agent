@@ -6,9 +6,11 @@
 package check
 
 import (
-	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
-	"github.com/stretchr/testify/assert"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
+
+	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 )
 
 func TestIsJMXInstance(t *testing.T) {

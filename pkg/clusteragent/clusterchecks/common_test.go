@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build clusterchecks
-// +build clusterchecks
 
 package clusterchecks
 
@@ -48,6 +47,11 @@ func isLocked(l lockable) bool {
 	ok := make(chan struct{}, 1)
 	go func() {
 		l.Lock()
+		// Ignore staticcheck SA2001.
+		// This is a valid way of checking if l is locked. We will be able to
+		// simplify all of this when we update to go 1.18, which includes
+		// RWMutex.TryLock().
+		//nolint:staticcheck
 		l.Unlock()
 		ok <- struct{}{}
 	}()
@@ -82,12 +86,10 @@ type mockedPluggableAutoConfig struct {
 
 func (m *mockedPluggableAutoConfig) AddScheduler(name string, s scheduler.Scheduler, replay bool) {
 	m.Called(name, s, replay)
-	return
 }
 
 func (m *mockedPluggableAutoConfig) RemoveScheduler(name string) {
 	m.Called(name)
-	return
 }
 
 type fakeLeaderEngine struct {

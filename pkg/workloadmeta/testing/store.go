@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+// Package testing provides helpers used for testing the Workloadmeta component.
 package testing
 
 import (
@@ -39,11 +40,8 @@ func (s *Store) GetContainer(id string) (*workloadmeta.Container, error) {
 }
 
 // ListContainers returns metadata about all known containers.
-func (s *Store) ListContainers() ([]*workloadmeta.Container, error) {
-	entities, err := s.listEntitiesByKind(workloadmeta.KindContainer)
-	if err != nil {
-		return nil, err
-	}
+func (s *Store) ListContainers() []*workloadmeta.Container {
+	entities := s.listEntitiesByKind(workloadmeta.KindContainer)
 
 	// Not very efficient
 	containers := make([]*workloadmeta.Container, 0, len(entities))
@@ -51,7 +49,56 @@ func (s *Store) ListContainers() ([]*workloadmeta.Container, error) {
 		containers = append(containers, entity.(*workloadmeta.Container))
 	}
 
-	return containers, nil
+	return containers
+}
+
+// ListContainersWithFilter returns metadata about the containers that pass the given filter.
+func (s *Store) ListContainersWithFilter(filter workloadmeta.ContainerFilterFunc) []*workloadmeta.Container {
+	var res []*workloadmeta.Container
+
+	for _, container := range s.ListContainers() {
+		if filter(container) {
+			res = append(res, container)
+		}
+	}
+
+	return res
+}
+
+// GetProcess implements Store#GetProcess.
+func (s *Store) GetProcess(pid int32) (*workloadmeta.Process, error) {
+	id := string(pid)
+	entity, err := s.getEntityByKind(workloadmeta.KindProcess, id)
+	if err != nil {
+		return nil, err
+	}
+
+	return entity.(*workloadmeta.Process), nil
+}
+
+// ListProcesses implements Store#ListProcesses.
+func (s *Store) ListProcesses() []*workloadmeta.Process {
+	entities := s.listEntitiesByKind(workloadmeta.KindProcess)
+
+	processes := make([]*workloadmeta.Process, 0, len(entities))
+	for i := range entities {
+		processes = append(processes, entities[i].(*workloadmeta.Process))
+	}
+
+	return processes
+}
+
+// ListProcessesWithFilter implements Store#ListProcessesWithFilter.
+func (s *Store) ListProcessesWithFilter(filter workloadmeta.ProcessFilterFunc) []*workloadmeta.Process {
+	var res []*workloadmeta.Process
+
+	for _, process := range s.ListProcesses() {
+		if filter(process) {
+			res = append(res, process)
+		}
+	}
+
+	return res
 }
 
 // GetKubernetesPod returns metadata about a Kubernetes pod.
@@ -67,21 +114,55 @@ func (s *Store) GetKubernetesPod(id string) (*workloadmeta.KubernetesPod, error)
 // GetKubernetesPodForContainer returns a KubernetesPod that contains the
 // specified containerID.
 func (s *Store) GetKubernetesPodForContainer(containerID string) (*workloadmeta.KubernetesPod, error) {
-	entities, ok := s.store[workloadmeta.KindKubernetesPod]
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	containerEntities, ok := s.store[workloadmeta.KindContainer]
 	if !ok {
 		return nil, errors.NewNotFound(containerID)
 	}
 
-	for _, e := range entities {
-		pod := e.(*workloadmeta.KubernetesPod)
-		for _, podContainer := range pod.Containers {
-			if podContainer.ID == containerID {
-				return pod, nil
-			}
-		}
+	containerEntity, ok := containerEntities[containerID]
+	if !ok {
+		return nil, errors.NewNotFound(containerID)
 	}
 
-	return nil, errors.NewNotFound(containerID)
+	container := containerEntity.(*workloadmeta.Container)
+	if container.Owner == nil || container.Owner.Kind != workloadmeta.KindKubernetesPod {
+		return nil, errors.NewNotFound(containerID)
+	}
+
+	podEntities, ok := s.store[workloadmeta.KindKubernetesPod]
+	if !ok {
+		return nil, errors.NewNotFound(container.Owner.ID)
+	}
+
+	pod, ok := podEntities[container.Owner.ID]
+	if !ok {
+		return nil, errors.NewNotFound(container.Owner.ID)
+	}
+
+	return pod.(*workloadmeta.KubernetesPod), nil
+}
+
+// GetKubernetesNode returns metadata about a Kubernetes node.
+func (s *Store) GetKubernetesNode(id string) (*workloadmeta.KubernetesNode, error) {
+	entity, err := s.getEntityByKind(workloadmeta.KindKubernetesNode, id)
+	if err != nil {
+		return nil, err
+	}
+
+	return entity.(*workloadmeta.KubernetesNode), nil
+}
+
+// GetKubernetesDeployment implements Store#GetKubernetesDeployment
+func (s *Store) GetKubernetesDeployment(id string) (*workloadmeta.KubernetesDeployment, error) {
+	entity, err := s.getEntityByKind(workloadmeta.KindKubernetesDeployment, id)
+	if err != nil {
+		return nil, err
+	}
+
+	return entity.(*workloadmeta.KubernetesDeployment), nil
 }
 
 // GetECSTask returns metadata about an ECS task.
@@ -92,6 +173,29 @@ func (s *Store) GetECSTask(id string) (*workloadmeta.ECSTask, error) {
 	}
 
 	return entity.(*workloadmeta.ECSTask), nil
+}
+
+// ListImages implements Store#ListImages
+func (s *Store) ListImages() []*workloadmeta.ContainerImageMetadata {
+	entities := s.listEntitiesByKind(workloadmeta.KindContainerImageMetadata)
+
+	images := make([]*workloadmeta.ContainerImageMetadata, 0, len(entities))
+	for _, entity := range entities {
+		image := entity.(*workloadmeta.ContainerImageMetadata)
+		images = append(images, image)
+	}
+
+	return images
+}
+
+// GetImage implements Store#GetImage
+func (s *Store) GetImage(id string) (*workloadmeta.ContainerImageMetadata, error) {
+	entity, err := s.getEntityByKind(workloadmeta.KindContainerImageMetadata, id)
+	if err != nil {
+		return nil, err
+	}
+
+	return entity.(*workloadmeta.ContainerImageMetadata), nil
 }
 
 // Set sets an entity in the store.
@@ -146,14 +250,24 @@ func (s *Store) Dump(verbose bool) workloadmeta.WorkloadDumpResponse {
 	panic("not implemented")
 }
 
+// Reset is not implemented in the testing store.
+func (s *Store) Reset(newEntities []workloadmeta.Entity, source workloadmeta.Source) {
+	panic("not implemented")
+}
+
+// ResetProcesses is not implemented in the testing store.
+func (s *Store) ResetProcesses(newProcesses []workloadmeta.Entity, source workloadmeta.Source) {
+	panic("not implemented")
+}
+
 func (s *Store) getEntityByKind(kind workloadmeta.Kind, id string) (workloadmeta.Entity, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
 	entitiesOfKind, ok := s.store[kind]
 	if !ok {
 		return nil, errors.NewNotFound(id)
 	}
-
-	s.mu.RLock()
-	defer s.mu.RUnlock()
 
 	entity, ok := entitiesOfKind[id]
 	if !ok {
@@ -163,13 +277,13 @@ func (s *Store) getEntityByKind(kind workloadmeta.Kind, id string) (workloadmeta
 	return entity, nil
 }
 
-func (s *Store) listEntitiesByKind(kind workloadmeta.Kind) ([]workloadmeta.Entity, error) {
+func (s *Store) listEntitiesByKind(kind workloadmeta.Kind) []workloadmeta.Entity {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
 	entitiesOfKind, ok := s.store[kind]
 	if !ok {
-		return nil, errors.NewNotFound(string(kind))
+		return nil
 	}
 
 	entities := make([]workloadmeta.Entity, 0, len(entitiesOfKind))
@@ -177,5 +291,5 @@ func (s *Store) listEntitiesByKind(kind workloadmeta.Kind) ([]workloadmeta.Entit
 		entities = append(entities, entity)
 	}
 
-	return entities, nil
+	return entities
 }

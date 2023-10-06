@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+// Package model holds model related files
 package model
 
 import (
@@ -15,6 +16,8 @@ import (
 	"syscall"
 
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
+
+	lru "github.com/hashicorp/golang-lru/v2"
 )
 
 const (
@@ -23,7 +26,7 @@ const (
 
 	// MaxPathDepth defines the maximum depth of a path
 	// see pkg/security/ebpf/c/dentry_resolver.h: DR_MAX_TAIL_CALL * DR_MAX_ITERATION_DEPTH
-	MaxPathDepth = 1350
+	MaxPathDepth = 1363
 
 	// MaxBpfObjName defines the maximum length of a Bpf object name
 	MaxBpfObjName = 16
@@ -36,10 +39,32 @@ const (
 
 	// ContainerIDLen defines the length of a container ID
 	ContainerIDLen = sha256.Size * 2
+
+	// MaxSymlinks maximum symlinks captured
+	MaxSymlinks = 2
+
+	// MaxTracedCgroupsCount hard limit for the count of traced cgroups
+	MaxTracedCgroupsCount = 128
+)
+
+const (
+	// EventFlagsAsync async event
+	EventFlagsAsync = 1 << iota
+
+	// EventFlagsSavedByAD saved by ad
+	EventFlagsSavedByAD
+
+	// EventFlagsActivityDumpSample an AD sample
+	EventFlagsActivityDumpSample
+
+	// EventFlagsSecurityProfileInProfile true if the event was found in a profile
+	EventFlagsSecurityProfileInProfile
 )
 
 var (
-	vmConstants = map[string]int{
+	// vmConstants is the list of protection flags for a virtual memory segment
+	// generate_constants:Virtual Memory flags,Virtual Memory flags define the protection of a virtual memory segment.
+	vmConstants = map[string]uint64{
 		"VM_NONE":         0x0,
 		"VM_READ":         0x1,
 		"VM_WRITE":        0x2,
@@ -75,6 +100,7 @@ var (
 	}
 
 	// BPFCmdConstants is the list of BPF commands
+	// generate_constants:BPF commands,BPF commands are used to specify a command to a bpf syscall.
 	BPFCmdConstants = map[string]BPFCmd{
 		"BPF_MAP_CREATE":                  BpfMapCreateCmd,
 		"BPF_MAP_LOOKUP_ELEM":             BpfMapLookupElemCmd,
@@ -116,6 +142,7 @@ var (
 	}
 
 	// BPFHelperFuncConstants is the list of BPF helper func constants
+	// generate_constants:BPF helper functions,BPF helper functions are the supported BPF helper functions.
 	BPFHelperFuncConstants = map[string]BPFHelperFunc{
 		"BPF_UNSPEC":                         BpfUnspec,
 		"BPF_MAP_LOOKUP_ELEM":                BpfMapLookupElem,
@@ -286,6 +313,7 @@ var (
 	}
 
 	// BPFMapTypeConstants is the list of BPF map type constants
+	// generate_constants:BPF map types,BPF map types are the supported eBPF map types.
 	BPFMapTypeConstants = map[string]BPFMapType{
 		"BPF_MAP_TYPE_UNSPEC":                BpfMapTypeUnspec,
 		"BPF_MAP_TYPE_HASH":                  BpfMapTypeHash,
@@ -320,6 +348,7 @@ var (
 	}
 
 	// BPFProgramTypeConstants is the list of BPF program type constants
+	// generate_constants:BPF program types,BPF program types are the supported eBPF program types.
 	BPFProgramTypeConstants = map[string]BPFProgramType{
 		"BPF_PROG_TYPE_UNSPEC":                  BpfProgTypeUnspec,
 		"BPF_PROG_TYPE_SOCKET_FILTER":           BpfProgTypeSocketFilter,
@@ -355,6 +384,7 @@ var (
 	}
 
 	// BPFAttachTypeConstants is the list of BPF attach type constants
+	// generate_constants:BPF attach types,BPF attach types are the supported eBPF program attach types.
 	BPFAttachTypeConstants = map[string]BPFAttachType{
 		"BPF_CGROUP_INET_INGRESS":      BpfCgroupInetIngress,
 		"BPF_CGROUP_INET_EGRESS":       BpfCgroupInetEgress,
@@ -398,6 +428,7 @@ var (
 	}
 
 	// PipeBufFlagConstants is the list of pipe buffer flags
+	// generate_constants:Pipe buffer flags,Pipe buffer flags are the supported flags for a pipe buffer.
 	PipeBufFlagConstants = map[string]PipeBufFlag{
 		"PIPE_BUF_FLAG_LRU":       PipeBufFlagLRU,
 		"PIPE_BUF_FLAG_ATOMIC":    PipeBufFlagAtomic,
@@ -409,6 +440,7 @@ var (
 	}
 
 	// DNSQTypeConstants see https://www.iana.org/assignments/dns-parameters/dns-parameters.xhtml
+	// generate_constants:DNS qtypes,DNS qtypes are the supported DNS query types.
 	DNSQTypeConstants = map[string]int{
 		"None":       0,
 		"A":          1,
@@ -497,6 +529,7 @@ var (
 	}
 
 	// DNSQClassConstants see https://www.iana.org/assignments/dns-parameters/dns-parameters.xhtml
+	// generate_constants:DNS qclasses,DNS qclasses are the supported DNS query classes.
 	DNSQClassConstants = map[string]int{
 		"CLASS_INET":   1,
 		"CLASS_CSNET":  2,
@@ -506,7 +539,8 @@ var (
 		"CLASS_ANY":    255,
 	}
 
-	// SECLConstants are constants available in runtime security agent rules
+	// SECLConstants are constants supported in runtime security agent rules
+	// generate_constants:SecL constants,SecL constants are the supported generic SecL constants.
 	SECLConstants = map[string]interface{}{
 		// boolean
 		"true":  &eval.BoolEvaluator{Value: true},
@@ -514,6 +548,7 @@ var (
 	}
 
 	// L3ProtocolConstants is the list of supported L3 protocols
+	// generate_constants:L3 protocols,L3 protocols are the supported Layer 3 protocols.
 	L3ProtocolConstants = map[string]L3Protocol{
 		"ETH_P_LOOP":            EthPLOOP,
 		"ETH_P_PUP":             EthPPUP,
@@ -608,6 +643,7 @@ var (
 	}
 
 	// L4ProtocolConstants is the list of supported L4 protocols
+	// generate_constants:L4 protocols,L4 protocols are the supported Layer 4 protocols.
 	L4ProtocolConstants = map[string]L4Protocol{
 		"IP_PROTO_IP":      IPProtoIP,
 		"IP_PROTO_ICMP":    IPProtoICMP,
@@ -637,11 +673,19 @@ var (
 		"IP_PROTO_MPLS":    IPProtoMPLS,
 		"IP_PROTO_RAW":     IPProtoRAW,
 	}
+
+	// exitCauseConstants is the list of supported Exit causes
+	exitCauseConstants = map[string]ExitCause{
+		"EXITED":     ExitExited,
+		"COREDUMPED": ExitCoreDumped,
+		"SIGNALED":   ExitSignaled,
+	}
 )
 
 var (
 	openFlagsStrings          = map[int]string{}
-	chmodModeStrings          = map[int]string{}
+	fileModeStrings           = map[int]string{}
+	inodeModeStrings          = map[int]string{}
 	unlinkFlagsStrings        = map[int]string{}
 	kernelCapabilitiesStrings = map[uint64]string{}
 	bpfCmdStrings             = map[uint32]string{}
@@ -650,15 +694,17 @@ var (
 	bpfProgramTypeStrings     = map[uint32]string{}
 	bpfAttachTypeStrings      = map[uint32]string{}
 	ptraceFlagsStrings        = map[uint32]string{}
-	vmStrings                 = map[int]string{}
+	vmStrings                 = map[uint64]string{}
 	protStrings               = map[int]string{}
-	mmapFlagStrings           = map[int]string{}
+	mmapFlagStrings           = map[uint64]string{}
 	signalStrings             = map[int]string{}
 	pipeBufFlagStrings        = map[int]string{}
 	dnsQTypeStrings           = map[uint32]string{}
 	dnsQClassStrings          = map[uint32]string{}
 	l3ProtocolStrings         = map[L3Protocol]string{}
 	l4ProtocolStrings         = map[L4Protocol]string{}
+	addressFamilyStrings      = map[uint16]string{}
+	exitCauseStrings          = map[ExitCause]string{}
 )
 
 // File flags
@@ -677,10 +723,17 @@ func initOpenConstants() {
 	}
 }
 
-func initChmodConstants() {
-	for k, v := range chmodModeConstants {
+func initFileModeConstants() {
+	for k, v := range fileModeConstants {
 		SECLConstants[k] = &eval.IntEvaluator{Value: v}
-		chmodModeStrings[v] = k
+		fileModeStrings[v] = k
+	}
+}
+
+func initInodeModeConstants() {
+	for k, v := range inodeModeConstants {
+		SECLConstants[k] = &eval.IntEvaluator{Value: v}
+		inodeModeStrings[v] = k
 	}
 }
 
@@ -757,7 +810,7 @@ func initPtraceConstants() {
 
 func initVMConstants() {
 	for k, v := range vmConstants {
-		SECLConstants[k] = &eval.IntEvaluator{Value: v}
+		SECLConstants[k] = &eval.IntEvaluator{Value: int(v)}
 	}
 
 	for k, v := range vmConstants {
@@ -781,7 +834,7 @@ func initMMapFlagsConstants() {
 	}
 
 	for k, v := range mmapFlagConstants {
-		SECLConstants[k] = &eval.IntEvaluator{Value: v}
+		SECLConstants[k] = &eval.IntEvaluator{Value: int(v)}
 	}
 
 	for k, v := range mmapFlagConstants {
@@ -834,10 +887,32 @@ func initL4ProtocolConstants() {
 	}
 }
 
+func initAddressFamilyConstants() {
+	for k, v := range addressFamilyConstants {
+		SECLConstants[k] = &eval.IntEvaluator{Value: int(v)}
+	}
+
+	for k, v := range addressFamilyConstants {
+		addressFamilyStrings[v] = k
+	}
+}
+
+func initExitCauseConstants() {
+	for k, v := range exitCauseConstants {
+		SECLConstants[k] = &eval.IntEvaluator{Value: int(v)}
+		exitCauseStrings[v] = k
+	}
+}
+
+func initBPFMapNamesConstants() {
+	SECLConstants["CWS_MAP_NAMES"] = &eval.StringArrayEvaluator{Values: bpfMapNames}
+}
+
 func initConstants() {
 	initErrorConstants()
 	initOpenConstants()
-	initChmodConstants()
+	initFileModeConstants()
+	initInodeModeConstants()
 	initUnlinkConstanst()
 	initKernelCapabilityConstants()
 	initBPFCmdConstants()
@@ -855,6 +930,9 @@ func initConstants() {
 	initDNSQTypeConstants()
 	initL3ProtocolConstants()
 	initL4ProtocolConstants()
+	initAddressFamilyConstants()
+	initExitCauseConstants()
+	initBPFMapNamesConstants()
 }
 
 func bitmaskToStringArray(bitmask int, intToStrMap map[int]string) []string {
@@ -915,25 +993,45 @@ func bitmaskU64ToString(bitmask uint64, intToStrMap map[uint64]string) string {
 type OpenFlags int
 
 func (f OpenFlags) String() string {
-	if int(f) == syscall.O_RDONLY {
-		return openFlagsStrings[syscall.O_RDONLY]
-	}
-	return bitmaskToString(int(f), openFlagsStrings)
+	return strings.Join(f.StringArray(), " | ")
 }
 
 // StringArray returns the open flags as an array of strings
 func (f OpenFlags) StringArray() []string {
-	if int(f) == syscall.O_RDONLY {
-		return []string{openFlagsStrings[syscall.O_RDONLY]}
+	// open flags are actually composed of 2 sets of flags
+	// the lowest 2 bits manage the read/write access modes
+	readWriteBits := int(f) & 0b11
+	// the other bits manage the general purpose flags (like O_CLOEXEC, or O_TRUNC)
+	flagsBits := int(f) & ^0b11
+
+	// in order to default to O_RDONLY even if other bits are set we convert
+	// both bitmask separately
+	readWrite := bitmaskToStringArray(readWriteBits, openFlagsStrings)
+	flags := bitmaskToStringArray(flagsBits, openFlagsStrings)
+
+	if len(readWrite) == 0 {
+		readWrite = []string{openFlagsStrings[syscall.O_RDONLY]}
 	}
-	return bitmaskToStringArray(int(f), openFlagsStrings)
+
+	if len(flags) == 0 {
+		return readWrite
+	}
+
+	return append(readWrite, flags...)
 }
 
-// ChmodMode represent a chmod mode bitmask value
-type ChmodMode int
+// FileMode represents a file mode bitmask value
+type FileMode int
 
-func (m ChmodMode) String() string {
-	return bitmaskToString(int(m), chmodModeStrings)
+func (m FileMode) String() string {
+	return bitmaskToString(int(m), fileModeStrings)
+}
+
+// InodeMode represents an inode mode bitmask value
+type InodeMode int
+
+func (m InodeMode) String() string {
+	return bitmaskToString(int(m), inodeModeStrings)
 }
 
 // UnlinkFlags represents an unlink flags bitmask value
@@ -959,8 +1057,11 @@ func (f RetValError) String() string {
 	return ""
 }
 
+var capsStringArrayCache *lru.Cache[KernelCapability, []string]
+
 func init() {
 	initConstants()
+	capsStringArrayCache, _ = lru.New[KernelCapability, []string](4)
 }
 
 // KernelCapability represents a kernel capability bitmask value
@@ -972,7 +1073,15 @@ func (kc KernelCapability) String() string {
 
 // StringArray returns the kernel capabilities as an array of strings
 func (kc KernelCapability) StringArray() []string {
-	return bitmaskU64ToStringArray(uint64(kc), kernelCapabilitiesStrings)
+	if kc == 0 {
+		return nil
+	}
+	if value, ok := capsStringArrayCache.Get(kc); ok {
+		return value
+	}
+	computed := bitmaskU64ToStringArray(uint64(kc), kernelCapabilitiesStrings)
+	capsStringArrayCache.Add(kc, computed)
+	return computed
 }
 
 // BPFCmd represents a BPF command
@@ -1651,10 +1760,10 @@ func (f PTraceRequest) String() string {
 }
 
 // VMFlag represents a VM_* bitmask value
-type VMFlag int
+type VMFlag uint64
 
 func (vmf VMFlag) String() string {
-	return bitmaskToString(int(vmf), vmStrings)
+	return bitmaskU64ToString(uint64(vmf), vmStrings)
 }
 
 // Protection represents a virtual memory protection bitmask value
@@ -1665,10 +1774,10 @@ func (p Protection) String() string {
 }
 
 // MMapFlag represents a mmap flag value
-type MMapFlag int
+type MMapFlag uint64
 
 func (mmf MMapFlag) String() string {
-	return bitmaskToString(int(mmf), mmapFlagStrings)
+	return bitmaskU64ToString(uint64(mmf), mmapFlagStrings)
 }
 
 // Signal represents a type of unix signal (ie, SIGKILL, SIGSTOP etc)
@@ -1683,6 +1792,13 @@ type PipeBufFlag int
 
 func (pbf PipeBufFlag) String() string {
 	return bitmaskToString(int(pbf), pipeBufFlagStrings)
+}
+
+// AddressFamily represents a family address (AF_INET, AF_INET6, AF_UNIX etc)
+type AddressFamily int
+
+func (af AddressFamily) String() string {
+	return addressFamilyStrings[uint16(af)]
 }
 
 const (
@@ -1974,4 +2090,20 @@ const (
 	IPProtoMPLS L4Protocol = 137
 	// IPProtoRAW Raw IP packets
 	IPProtoRAW L4Protocol = 255
+)
+
+// ExitCause represents the cause of a process termination
+type ExitCause uint32
+
+func (cause ExitCause) String() string {
+	return exitCauseStrings[cause]
+}
+
+const (
+	// ExitExited Process exited normally
+	ExitExited ExitCause = iota
+	// ExitCoreDumped Process was terminated with a coredump signal
+	ExitCoreDumped
+	// ExitSignaled Process was terminated with a signal other than a coredump
+	ExitSignaled
 )

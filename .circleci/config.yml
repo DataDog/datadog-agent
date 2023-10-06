@@ -15,7 +15,7 @@ experimental:
 templates:
   job_template: &job_template
     docker:
-      - image: datadog/datadog-agent-runner-circle:go1176
+      - image: datadog/agent-buildimages-circleci-runner:v20878799-a2f77ae
         environment:
           USE_SYSTEM_LIBS: "1"
     working_directory: /go/src/github.com/DataDog/datadog-agent
@@ -29,11 +29,11 @@ templates:
           # If incremental dep fails, increase the cache gen number
           # in restore_deps AND save_deps
           # See https://github.com/DataDog/datadog-agent/pull/2384
-          - gen19-godeps-{{ checksum "requirements.txt" }}-{{ checksum ".circleci/requirements.txt" }}-{{ .Branch }}-{{ .Revision }}
-          - gen19-godeps-{{ checksum "requirements.txt" }}-{{ checksum ".circleci/requirements.txt" }}-{{ .Branch }}-
-          - gen19-godeps-{{ checksum "requirements.txt" }}-{{ checksum ".circleci/requirements.txt" }}-main-
+          - gen19-godeps-{{ checksum ".circleci/config.yml" }}-{{ .Branch }}-{{ .Revision }}
+          - gen19-godeps-{{ checksum ".circleci/config.yml" }}-{{ .Branch }}-
+          - gen19-godeps-{{ checksum ".circleci/config.yml" }}-main-
     - save_cache: &save_deps
-        key: gen19-godeps-{{ checksum "requirements.txt" }}-{{ checksum ".circleci/requirements.txt" }}-{{ .Branch }}-{{ .Revision }}
+        key: gen19-godeps-{{ checksum ".circleci/config.yml" }}-{{ .Branch }}-{{ .Revision }}
     - restore_cache: &restore_source
         keys:
           # Cache retrieval is faster than full git checkout
@@ -59,11 +59,9 @@ jobs:
       - restore_cache: *restore_source
       - restore_cache: *restore_deps
       - run:
-          name: setup python deps
+          name: check go version
           command: |
-            python3 -m pip install wheel
-            python3 -m pip install -r requirements.txt
-            python3 -m pip install -r .circleci/requirements.txt
+            inv -e check-go-version
       - run:
           name: grab go deps
           command: |
@@ -91,25 +89,26 @@ jobs:
             - /go/pkg/mod
             - /go/bin
             - /go/src/github.com/DataDog/datadog-agent/dev
-            - /usr/local/lib/python3.6/dist-packages
             - /usr/local/bin
 
   unit_tests:
     <<: *job_template
-    resource_class: large
+    resource_class: xlarge
     steps:
       - restore_cache: *restore_source
       - restore_cache: *restore_deps
       - run:
           name: run unit tests
-          command: inv -e test --rerun-fails=2 --python-runtimes 3 --coverage --race --profile --fail-on-fmt --cpus 3
+          no_output_timeout: 20m
+          command: inv -e test --skip-linters --rerun-fails=2 --python-runtimes 3 --coverage --race --profile --cpus 8
       - run:
           name: upload code coverage results
           # Never fail on coverage upload
-          command: codecov -f profile.cov -F linux || true
+          command: inv -e codecov || true
 
   integration_tests:
     <<: *job_template
+    resource_class: large
     steps:
       - restore_cache: *restore_source
       - restore_cache: *restore_deps
@@ -145,6 +144,17 @@ jobs:
           command: inv -e lint-milestone
           name: run PR check for milestone assignment
 
+  go_linting:
+    <<: *job_template
+    resource_class: xlarge
+    steps:
+      - restore_cache: *restore_source
+      - restore_cache: *restore_deps
+      - run:
+          name: run go linters
+          no_output_timeout: 20m
+          command: inv -e lint-go
+
   licenses_linting:
     <<: *job_template
     steps:
@@ -153,6 +163,15 @@ jobs:
       - run:
           name: run license linting
           command: inv -e lint-licenses
+
+  copyrights_linting:
+    <<: *job_template
+    steps:
+      - restore_cache: *restore_source
+      - restore_cache: *restore_deps
+      - run:
+          name: run copyrights linting
+          command: inv -e lint-copyrights
 
   filename_linting:
     <<: *job_template
@@ -195,6 +214,24 @@ jobs:
           name: lint python files
           command: inv -e lint-python
 
+  component_linting:
+    <<: *job_template
+    steps:
+      - restore_cache: *restore_source
+      - restore_cache: *restore_deps
+      - run:
+          name: run component linting
+          command: inv -e lint-components lint-fxutil-oneshot-test
+
+  codeowner_linting:
+    <<: *job_template
+    steps:
+      - restore_cache: *restore_source
+      - restore_cache: *restore_deps
+      - run:
+          name: run CODEOWNER linting
+          command: inv -e github.lint-codeowner
+
   docker_tests:
     <<: *job_template
     steps:
@@ -210,6 +247,7 @@ jobs:
 
   build_binaries:
     <<: *job_template
+    resource_class: large
     steps:
       - restore_cache: *restore_source
       - restore_cache: *restore_deps
@@ -230,7 +268,7 @@ jobs:
           command: inv -e agent.build --flavor iot
       - run:
           name: test iot agent
-          command: ./bin/agent/agent -c ./bin/agent/dist check cpu
+          command: DD_HOSTNAME=test-circleci-hostname ./bin/agent/agent -c ./bin/agent/dist check cpu
 
   documentation_generation:
     <<: *job_template
@@ -276,7 +314,13 @@ workflows:
                 - main
           requires:
             - dependencies
+      - go_linting:
+          requires:
+            - dependencies
       - licenses_linting:
+          requires:
+            - dependencies
+      - copyrights_linting:
           requires:
             - dependencies
       - filename_linting:
@@ -286,6 +330,12 @@ workflows:
           requires:
             - dependencies
       - python_linting:
+          requires:
+            - dependencies
+      - component_linting:
+          requires:
+            - dependencies
+      - codeowner_linting:
           requires:
             - dependencies
       - docker_tests:

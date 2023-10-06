@@ -8,10 +8,11 @@ package jsonquery
 import (
 	"testing"
 
-	"github.com/DataDog/datadog-agent/pkg/util/cache"
 	"github.com/itchyny/gojq"
 	"github.com/stretchr/testify/assert"
 	"gopkg.in/yaml.v3"
+
+	"github.com/DataDog/datadog-agent/pkg/util/cache"
 )
 
 func TestJsonQueryParse(t *testing.T) {

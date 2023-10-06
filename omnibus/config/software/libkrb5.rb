@@ -1,5 +1,12 @@
 name "libkrb5"
-default_version "1.18.3"
+default_version "1.20.1"
+
+dependency ENV["OMNIBUS_OPENSSL_SOFTWARE"] || "openssl"
+
+version "1.20.1" do
+  source url: "https://kerberos.org/dist/krb5/1.20/krb5-1.20.1.tar.gz"
+  source sha256: "704aed49b19eb5a7178b34b2873620ec299db08752d6a8574f95d41879ab8851"
+end
 
 version "1.18.3" do
   source url: "https://kerberos.org/dist/krb5/1.18/krb5-1.18.3.tar.gz"
@@ -18,6 +25,7 @@ build do
          "--without-keyutils", # this would require additional deps/system deps, disable it
          "--without-system-verto", # do not prefer libverto from the system, if installed
          "--without-libedit", # we don't want to link with libraries outside of the install dir
+         "--disable-static",
          "--prefix=#{install_dir}/embedded"].join(" ")
   env = {
     "LDFLAGS" => "-L#{install_dir}/embedded/lib -I#{install_dir}/embedded/include",

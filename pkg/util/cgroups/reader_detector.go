@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build linux
-// +build linux
 
 package cgroups
 
@@ -54,7 +53,7 @@ func discoverCgroupMountPoints(hostPrefix, procFsPath string) (map[string]string
 				for _, target := range tsp {
 					// In case multiple paths are mounted for a single controller, take the shortest one
 					previousPath := mountPointsv1[target]
-					if previousPath == "" || cgroupPath < previousPath {
+					if previousPath == "" || len(cgroupPath) < len(previousPath) {
 						mountPointsv1[target] = cgroupPath
 					}
 				}

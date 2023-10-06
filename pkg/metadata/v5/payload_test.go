@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build linux || windows || darwin
-// +build linux windows darwin
 
 package v5
 
@@ -12,12 +11,13 @@ import (
 	"encoding/json"
 	"testing"
 
-	"github.com/DataDog/datadog-agent/pkg/metadata/internal/gohai"
 	"github.com/stretchr/testify/require"
+
+	"github.com/DataDog/datadog-agent/pkg/gohai"
 )
 
 func TestGohaiPayloadMarshalling(t *testing.T) {
-	gp := gohai.GetPayload()
+	gp := gohai.GetPayload(true)
 	payload := GohaiPayload{MarshalledGohaiPayload{*gp}}
 	marshalled, err := json.Marshal(payload)
 	require.Nil(t, err)

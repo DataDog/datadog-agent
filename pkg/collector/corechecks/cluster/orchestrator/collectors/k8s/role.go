@@ -4,13 +4,10 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build kubeapiserver && orchestrator
-// +build kubeapiserver,orchestrator
 
 package k8s
 
 import (
-	"sync/atomic"
-
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/collectors"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors"
 	k8sProcessors "github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors/k8s"
@@ -21,6 +18,13 @@ import (
 	rbacv1Listers "k8s.io/client-go/listers/rbac/v1"
 	"k8s.io/client-go/tools/cache"
 )
+
+// NewRoleCollectorVersions builds the group of collector versions.
+func NewRoleCollectorVersions() collectors.CollectorVersions {
+	return collectors.NewCollectorVersions(
+		NewRoleCollector(),
+	)
+}
 
 // RoleCollector is a collector for Kubernetes Roles.
 type RoleCollector struct {
@@ -34,9 +38,14 @@ type RoleCollector struct {
 func NewRoleCollector() *RoleCollector {
 	return &RoleCollector{
 		metadata: &collectors.CollectorMetadata{
-			IsStable: true,
-			Name:     "roles",
-			NodeType: orchestrator.K8sRole,
+			IsDefaultVersion:          true,
+			IsStable:                  true,
+			IsMetadataProducer:        true,
+			IsManifestProducer:        true,
+			SupportsManifestBuffering: true,
+			Name:                      "roles",
+			NodeType:                  orchestrator.K8sRole,
+			Version:                   "rbac.authorization.k8s.io/v1",
 		},
 		processor: processors.NewProcessor(new(k8sProcessors.RoleHandlers)),
 	}
@@ -49,12 +58,9 @@ func (c *RoleCollector) Informer() cache.SharedInformer {
 
 // Init is used to initialize the collector.
 func (c *RoleCollector) Init(rcfg *collectors.CollectorRunConfig) {
-	c.informer = rcfg.APIClient.InformerFactory.Rbac().V1().Roles()
+	c.informer = rcfg.OrchestratorInformerFactory.InformerFactory.Rbac().V1().Roles()
 	c.lister = c.informer.Lister()
 }
-
-// IsAvailable returns whether the collector is available.
-func (c *RoleCollector) IsAvailable() bool { return true }
 
 // Metadata is used to access information about the collector.
 func (c *RoleCollector) Metadata() *collectors.CollectorMetadata {
@@ -68,22 +74,16 @@ func (c *RoleCollector) Run(rcfg *collectors.CollectorRunConfig) (*collectors.Co
 		return nil, collectors.NewListingError(err)
 	}
 
-	ctx := &processors.ProcessorContext{
-		APIClient:  rcfg.APIClient,
-		Cfg:        rcfg.Config,
-		ClusterID:  rcfg.ClusterID,
-		MsgGroupID: atomic.AddInt32(rcfg.MsgGroupRef, 1),
-		NodeType:   c.metadata.NodeType,
-	}
+	ctx := collectors.NewProcessorContext(rcfg, c.metadata)
 
-	messages, processed := c.processor.Process(ctx, list)
+	processResult, processed := c.processor.Process(ctx, list)
 
 	if processed == -1 {
 		return nil, collectors.ErrProcessingPanic
 	}
 
 	result := &collectors.CollectorRunResult{
-		Messages:           messages,
+		Result:             processResult,
 		ResourcesListed:    len(list),
 		ResourcesProcessed: processed,
 	}

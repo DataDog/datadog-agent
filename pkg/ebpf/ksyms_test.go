@@ -23,18 +23,22 @@ var requiredKernelFuncs = []string{
 }
 
 func TestVerifyKernelFuncs(t *testing.T) {
-	missing, err := VerifyKernelFuncs("./testdata/kallsyms.supported", requiredKernelFuncs)
+	fc := newExistCache("./testdata/kallsyms.supported")
+	missing, err := fc.verifyKernelFuncs(requiredKernelFuncs)
 	assert.Empty(t, missing)
 	assert.Empty(t, err)
 
-	missing, err = VerifyKernelFuncs("./testdata/kallsyms.unsupported", requiredKernelFuncs)
-	assert.NotEmpty(t, missing)
+	fc = newExistCache("./testdata/kallsyms.unsupported")
+	missing, err = fc.verifyKernelFuncs(requiredKernelFuncs)
+	assert.Len(t, missing, len(requiredKernelFuncs))
 	assert.Empty(t, err)
 
-	missing, err = VerifyKernelFuncs("./testdata/kallsyms.empty", requiredKernelFuncs)
-	assert.NotEmpty(t, missing)
+	fc = newExistCache("./testdata/kallsyms.empty")
+	missing, err = fc.verifyKernelFuncs(requiredKernelFuncs)
+	assert.Len(t, missing, len(requiredKernelFuncs))
 	assert.Empty(t, err)
 
-	_, err = VerifyKernelFuncs("./testdata/kallsyms.d_o_n_o_t_e_x_i_s_t", requiredKernelFuncs)
+	fc = newExistCache("./testdata/kallsyms.d_o_n_o_t_e_x_i_s_t")
+	_, err = fc.verifyKernelFuncs(requiredKernelFuncs)
 	assert.NotEmpty(t, err)
 }

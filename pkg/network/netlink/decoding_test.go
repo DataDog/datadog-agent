@@ -3,8 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build linux && !android
-// +build linux,!android
+//go:build linux
 
 package netlink
 
@@ -12,8 +11,7 @@ import (
 	"encoding/binary"
 	"fmt"
 	"io"
-	"io/ioutil"
-	"net"
+	"net/netip"
 	"os"
 	"testing"
 
@@ -36,19 +34,19 @@ func TestDecodeAndReleaseEvent(t *testing.T) {
 	assert.Len(t, connections, 1)
 	c := connections[0]
 
-	assert.True(t, net.ParseIP("10.0.2.15").Equal(*c.Origin.Src))
-	assert.True(t, net.ParseIP("2.2.2.2").Equal(*c.Origin.Dst))
+	assert.Equal(t, netip.MustParseAddr("10.0.2.15"), c.Origin.Src.Addr())
+	assert.Equal(t, netip.MustParseAddr("2.2.2.2"), c.Origin.Dst.Addr())
 
-	assert.Equal(t, uint16(58472), *c.Origin.Proto.SrcPort)
-	assert.Equal(t, uint16(5432), *c.Origin.Proto.DstPort)
-	assert.Equal(t, uint8(6), *c.Origin.Proto.Number)
+	assert.Equal(t, uint16(58472), c.Origin.Src.Port())
+	assert.Equal(t, uint16(5432), c.Origin.Dst.Port())
+	assert.Equal(t, uint8(6), c.Origin.Proto)
 
-	assert.True(t, net.ParseIP("1.1.1.1").Equal(*c.Reply.Src))
-	assert.True(t, net.ParseIP("10.0.2.15").Equal(*c.Reply.Dst))
+	assert.Equal(t, netip.MustParseAddr("1.1.1.1"), c.Reply.Src.Addr())
+	assert.Equal(t, netip.MustParseAddr("10.0.2.15"), c.Reply.Dst.Addr())
 
-	assert.Equal(t, uint16(5432), *c.Reply.Proto.SrcPort)
-	assert.Equal(t, uint16(58472), *c.Reply.Proto.DstPort)
-	assert.Equal(t, uint8(6), *c.Reply.Proto.Number)
+	assert.Equal(t, uint16(5432), c.Reply.Src.Port())
+	assert.Equal(t, uint16(58472), c.Reply.Dst.Port())
+	assert.Equal(t, uint8(6), c.Reply.Proto)
 }
 
 func BenchmarkDecodeSingleMessage(b *testing.B) {
@@ -84,7 +82,7 @@ func BenchmarkDecodeMultipleMessages(b *testing.B) {
 }
 
 func loadDumpData() ([]netlink.Message, error) {
-	f, err := ioutil.TempFile("", "message_dump")
+	f, err := os.CreateTemp("", "message_dump")
 	if err != nil {
 		return nil, err
 	}

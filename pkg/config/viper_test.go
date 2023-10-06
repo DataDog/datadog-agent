@@ -8,7 +8,6 @@ package config
 import (
 	"bytes"
 	"fmt"
-	"os"
 	"strings"
 	"sync"
 	"testing"
@@ -154,8 +153,7 @@ float_list:
 
 	config.ReadConfig(bytes.NewBuffer(yamlExample))
 
-	os.Setenv("DD_FLOAT_LIST", "1.1 2.2 3.3")
-	defer os.Unsetenv("DD_FLOAT_LIST")
+	t.Setenv("DD_FLOAT_LIST", "1.1 2.2 3.3")
 
 	list, err := config.GetFloat64SliceE("float_list")
 	assert.Nil(t, err)

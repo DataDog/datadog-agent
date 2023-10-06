@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2022-present Datadog, Inc.package traps
+// Copyright 2022-present Datadog, Inc.
 
 package traps
 
@@ -11,18 +11,27 @@ import (
 	"fmt"
 	"io"
 	"io/fs"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"sort"
 	"strings"
 
+	"gopkg.in/yaml.v2"
+
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"gopkg.in/yaml.v2"
 )
 
 const ddTrapDBFileNamePrefix string = "dd_traps_db"
+
+var nodesOIDThatShouldNeverMatch = []string{
+	"1.3.6.1.4.1", // "iso.org.dod.internet.private.enterprises". This OID and all its parents are known "intermediate" nodes
+	"1.3.6.1.4",   // "iso.org.dod.internet.private"
+	"1.3.6.1",     // "iso.org.dod.internet"
+	"1.3.6",       // "iso.org.dod"
+	"1.3",         // "iso.org"
+	"1",           // "iso"
+}
 
 type unmarshaller func(data []byte, v interface{}) error
 
@@ -51,6 +60,9 @@ func NewMultiFilesOIDResolver() (*MultiFilesOIDResolver, error) {
 	files, err := os.ReadDir(trapsDBRoot)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read dir `%s`: %v", trapsDBRoot, err)
+	}
+	if len(files) == 0 {
+		return nil, fmt.Errorf("dir `%s` does not contain any trap db file", trapsDBRoot)
 	}
 	fileNames := getSortedFileNames(files)
 	for _, fileName := range fileNames {
@@ -82,14 +94,32 @@ func (or *MultiFilesOIDResolver) GetVariableMetadata(trapOID string, varOID stri
 	if !ok {
 		return VariableMetadata{}, fmt.Errorf("trap OID %s is not defined", trapOID)
 	}
-	varData, ok := trapData.variableSpecPtr[varOID]
-	if !ok {
-		return VariableMetadata{}, fmt.Errorf("variable OID %s is not defined", varOID)
+
+	recreatedVarOID := varOID
+	for {
+		varData, ok := trapData.variableSpecPtr[recreatedVarOID]
+		if ok {
+			if varData.isIntermediateNode {
+				// Found a known Node while climibing up the tree, no chance of finding a match higher
+				return VariableMetadata{}, fmt.Errorf("variable OID %s is not defined", varOID)
+			}
+			return varData, nil
+
+		}
+		// No match for the current varOID, climb up the tree and retry
+		lastDot := strings.LastIndex(recreatedVarOID, ".")
+		if lastDot == -1 {
+			break
+		}
+		recreatedVarOID = varOID[:lastDot]
 	}
-	return varData, nil
+	return VariableMetadata{}, fmt.Errorf("variable OID %s is not defined", varOID)
 }
 
 func getSortedFileNames(files []fs.DirEntry) []string {
+	if len(files) == 0 {
+		return []string{}
+	}
 	// There should usually be one file provided by Datadog and zero or more provided by the user
 	userProvidedFileNames := make([]string, 0, len(files)-1)
 	// Using a slice for error-proofing but there will usually be only one dd provided file.
@@ -141,7 +171,7 @@ func (or *MultiFilesOIDResolver) updateFromFile(filePath string) error {
 }
 
 func (or *MultiFilesOIDResolver) updateFromReader(reader io.Reader, unmarshalMethod unmarshaller) error {
-	fileContent, err := ioutil.ReadAll(reader)
+	fileContent, err := io.ReadAll(reader)
 	if err != nil {
 		return err
 	}
@@ -157,12 +187,45 @@ func (or *MultiFilesOIDResolver) updateFromReader(reader io.Reader, unmarshalMet
 
 func (or *MultiFilesOIDResolver) updateResolverWithData(trapDB trapDBFileContent) {
 	definedVariables := variableSpec{}
-	for variableOID, variableData := range trapDB.Variables {
-		variableOID := NormalizeOID(variableOID)
+
+	allOIDs := make([]string, 0, len(trapDB.Variables))
+	for variableOID := range trapDB.Variables {
+		if !IsValidOID(variableOID) {
+			log.Warnf("trap variable OID %s does not look like a valid OID", variableOID)
+			continue
+		}
+		allOIDs = append(allOIDs, NormalizeOID(variableOID))
+	}
+
+	// "Fast" algorithm used to mark OID that act both as a variable and as a parent of other variable
+	// with 'isNode: true'. i.e if an OID <FOO>.<BAR> exists in the trapsDB but <FOO> also exists in the trapsDB
+	// then <FOO> acts as a 'Node' of the OID tree and should not be considered a match for resolving variables.
+	// In this fast algorithm the list is sorted then each OID is compared with its successor. It the successor starts
+	// with the current OID + a dot, then the current OID is a Node. 'Dots' are before digits in the lexicographic order.
+	// Note that in practice, OIDs that act both as Node and Leaf of the OID tree is extremely rare and is not expected
+	// in normal circumstamces. Thing is they sometimes exist.
+	sort.Strings(allOIDs)
+	for idx, variableOID := range allOIDs {
+		isIntermediateNode := false
+		if idx+1 < len(allOIDs) {
+			nextOID := allOIDs[idx+1]
+			isIntermediateNode = strings.HasPrefix(nextOID, variableOID+".")
+		}
+
+		variableData := trapDB.Variables[variableOID]
+		variableData.isIntermediateNode = isIntermediateNode
 		definedVariables[variableOID] = variableData
 	}
 
+	for _, nodeOID := range nodesOIDThatShouldNeverMatch {
+		definedVariables[nodeOID] = VariableMetadata{Name: "unknown", isIntermediateNode: true}
+	}
+
 	for trapOID, trapData := range trapDB.Traps {
+		if !IsValidOID(trapOID) {
+			log.Errorf("trap OID %s does not look like a valid OID", trapOID)
+			continue
+		}
 		trapOID := NormalizeOID(trapOID)
 		if _, trapConflict := or.traps[trapOID]; trapConflict {
 			log.Debugf("a trap with OID %s is defined in multiple traps db files", trapOID)
@@ -170,6 +233,7 @@ func (or *MultiFilesOIDResolver) updateResolverWithData(trapDB trapDBFileContent
 		or.traps[trapOID] = TrapMetadata{
 			Name:            trapData.Name,
 			Description:     trapData.Description,
+			MIBName:         trapData.MIBName,
 			variableSpecPtr: definedVariables,
 		}
 	}

@@ -9,6 +9,7 @@ import (
 	"context"
 	"errors"
 
+	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -28,13 +29,22 @@ type Service interface {
 	GetADIdentifiers(context.Context) ([]string, error)  // identifiers on which templates will be matched
 	GetHosts(context.Context) (map[string]string, error) // network --> IP address
 	GetPorts(context.Context) ([]ContainerPort, error)   // network ports
-	GetTags() ([]string, string, error)                  // tags and tags hash
+	GetTags() ([]string, error)                          // tags
 	GetPid(context.Context) (int, error)                 // process identifier
 	GetHostname(context.Context) (string, error)         // hostname.domainname for the entity
 	IsReady(context.Context) bool                        // is the service ready
 	GetCheckNames(context.Context) []string              // slice of check names defined in kubernetes annotations or container labels
 	HasFilter(containers.FilterType) bool                // whether the service is excluded by metrics or logs exclusion config
-	GetExtraConfig([]byte) ([]byte, error)               // Extra configuration values
+	GetExtraConfig(string) (string, error)               // Extra configuration values
+
+	// FilterTemplates filters the templates which will be resolved against
+	// this service, in a map keyed by template digest.
+	//
+	// This method is called every time the configs for the service change,
+	// with the full set of templates matching this service.  It must not rely
+	// on any non-static information except the given configs, and it must not
+	// modify the configs in the map.
+	FilterTemplates(map[string]integration.Config)
 }
 
 // ServiceListener monitors running services and triggers check (un)scheduling

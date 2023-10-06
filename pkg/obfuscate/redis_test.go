@@ -369,6 +369,88 @@ SET k ?`,
 	}
 }
 
+func TestRemoveAllRedisArgs(t *testing.T) {
+	o := NewObfuscator(Config{})
+
+	for ti, tt := range [...]struct {
+		in, out string
+	}{
+		{
+			"",
+			"",
+		},
+		{
+			"SET key value",
+			"SET ?",
+		},
+		{
+			"GET k",
+			"GET ?",
+		},
+		{
+			"FAKECMD key value hash",
+			"FAKECMD ?",
+		},
+		{
+			"AUTH password",
+			"AUTH ?",
+		},
+		{
+			"GET",
+			"GET",
+		},
+		{
+			"CONFIG SET key value",
+			"CONFIG SET ?",
+		},
+		{
+			"CONFIG GET key",
+			"CONFIG GET ?",
+		},
+		{
+			"CONFIG key",
+			"CONFIG ?",
+		},
+		{
+			"BITFIELD key SET key value GET key",
+			"BITFIELD ? SET ? GET ?",
+		},
+		{
+			"BITFIELD key INCRBY value",
+			"BITFIELD ? INCRBY ?",
+		},
+		{
+			"BITFIELD secret key",
+			"BITFIELD ?",
+		},
+		{
+			"set key value",
+			"set ?",
+		},
+		{
+			"Get key",
+			"Get ?",
+		},
+		{
+			"config key",
+			"config ?",
+		},
+		{
+			"CONFIG get key",
+			"CONFIG get ?",
+		},
+		{
+			"bitfield key SET key value incrby 3",
+			"bitfield ? SET ? incrby ?",
+		},
+	} {
+		t.Run(strconv.Itoa(ti), func(t *testing.T) {
+			out := o.RemoveAllRedisArgs(tt.in)
+			assert.Equal(t, tt.out, out, tt.in)
+		})
+	}
+}
+
 func BenchmarkRedisObfuscator(b *testing.B) {
 	cmd := strings.Repeat("GEOADD key longitude latitude member longitude latitude member longitude latitude member\n", 5)
 	o := NewObfuscator(Config{})

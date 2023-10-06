@@ -4,20 +4,23 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build docker
-// +build docker
 
+// Package docker provides a Docker client.
 package docker
 
 import (
 	"context"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/docker/docker/api/types"
+	"github.com/docker/docker/client"
+
+	"github.com/DataDog/datadog-agent/pkg/util/containers"
 )
 
 // Client defines the interface of our custom Docker client (e.g. DockerUtil)
 type Client interface {
+	RawClient() *client.Client
 	RawContainerList(ctx context.Context, options types.ContainerListOptions) ([]types.Container, error)
 	ResolveImageName(ctx context.Context, image string) (string, error)
 	Images(ctx context.Context, includeIntermediate bool) ([]types.ImageSummary, error)

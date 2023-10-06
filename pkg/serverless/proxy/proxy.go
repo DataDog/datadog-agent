@@ -9,8 +9,6 @@ import (
 	"net/http"
 	"net/http/httputil"
 	"net/url"
-	"os"
-	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/serverless/invocationlifecycle"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -24,17 +22,13 @@ type runtimeProxy struct {
 
 // Start starts the proxy
 // This proxy allows us to inspect traffic from/to the AWS Lambda Runtime API
-func Start(proxyHostPort string, originalRuntimeHostPort string, processor invocationlifecycle.InvocationProcessor) bool {
-	if strings.ToLower(os.Getenv("DD_EXPERIMENTAL_ENABLE_PROXY")) == "true" {
-		log.Debug("the experimental proxy feature is enabled")
-		go setup(proxyHostPort, originalRuntimeHostPort, processor)
-		return true
-	}
-	return false
+func Start(proxyHostPort string, originalRuntimeHostPort string, processor invocationlifecycle.InvocationProcessor) {
+	go setup(proxyHostPort, originalRuntimeHostPort, processor)
 }
 
 func setup(proxyHostPort string, originalRuntimeHostPort string, processor invocationlifecycle.InvocationProcessor) {
-	proxy := startProxy(originalRuntimeHostPort, processor)
+	log.Debugf("runtime api proxy: starting reverse proxy on %s and forwarding to %s", proxyHostPort, originalRuntimeHostPort)
+	proxy := newProxy(originalRuntimeHostPort, processor)
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("/", proxy.handle)
@@ -46,19 +40,19 @@ func setup(proxyHostPort string, originalRuntimeHostPort string, processor invoc
 
 	err := s.ListenAndServe()
 	if err != nil && err != http.ErrServerClosed {
-		log.Errorf("[proxy] error while serving the proxy")
+		log.Errorf("extension api proxy: unexpected error while serving the proxy: %v", err)
 	}
-
 }
 
 func (rp *runtimeProxy) handle(w http.ResponseWriter, r *http.Request) {
+	log.Debug("runtime api proxy: processing request")
 	rp.proxy.Transport = &proxyTransport{
 		processor: rp.processor,
 	}
 	rp.proxy.ServeHTTP(w, r)
 }
 
-func startProxy(target string, processor invocationlifecycle.InvocationProcessor) *runtimeProxy {
+func newProxy(target string, processor invocationlifecycle.InvocationProcessor) *runtimeProxy {
 	url := &url.URL{
 		Scheme: "http",
 		Host:   target,

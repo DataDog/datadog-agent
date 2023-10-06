@@ -1,0 +1,6 @@
+---
+enhancements:
+  - |
+    Add `process_context` tag extraction based on a process's command line arguments for service monitoring.
+    This feature is configured in the `system-probe.yaml` with the following configuration:
+    `service_monitoring_config.process_service_inference.enabled`.

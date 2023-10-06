@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build linux || windows
-// +build linux windows
 
 package config
 
@@ -38,6 +37,7 @@ func init() {
 	registerFeature(Containerd)
 	registerFeature(Cri)
 	registerFeature(Kubernetes)
+	registerFeature(ECSEC2)
 	registerFeature(ECSFargate)
 	registerFeature(EKSFargate)
 	registerFeature(KubeOrchestratorExplorer)
@@ -51,6 +51,7 @@ func IsAnyContainerFeaturePresent() bool {
 		IsFeaturePresent(Containerd) ||
 		IsFeaturePresent(Cri) ||
 		IsFeaturePresent(Kubernetes) ||
+		IsFeaturePresent(ECSEC2) ||
 		IsFeaturePresent(ECSFargate) ||
 		IsFeaturePresent(EKSFargate) ||
 		IsFeaturePresent(CloudFoundry) ||
@@ -61,7 +62,7 @@ func detectContainerFeatures(features FeatureMap) {
 	detectKubernetes(features)
 	detectDocker(features)
 	detectContainerd(features)
-	detectFargate(features)
+	detectAWSEnvironments(features)
 	detectCloudFoundry(features)
 	detectPodman(features)
 }
@@ -132,8 +133,21 @@ func detectContainerd(features FeatureMap) {
 
 	// Merge containerd_namespace with containerd_namespaces
 	namespaces := merge(Datadog.GetStringSlice("containerd_namespaces"), Datadog.GetStringSlice("containerd_namespace"))
-	AddOverride("containerd_namespace", namespaces)
-	AddOverride("containerd_namespaces", namespaces)
+
+	// Workaround: convert to []interface{}.
+	// The MergeConfigOverride func in "github.com/DataDog/viper" (tested in
+	// v1.10.0) raises an error if we send a []string{} in AddOverride():
+	// "svType != tvType; key=containerd_namespace, st=[]interface {}, tt=[]string, sv=[], tv=[]"
+	// The reason is that when reading from a config file, all the arrays are
+	// considered as []interface{} by Viper, and the merge fails when the types
+	// are different.
+	convertedNamespaces := make([]interface{}, len(namespaces))
+	for i, namespace := range namespaces {
+		convertedNamespaces[i] = namespace
+	}
+
+	AddOverride("containerd_namespace", convertedNamespaces)
+	AddOverride("containerd_namespaces", convertedNamespaces)
 }
 
 func isCriSupported() bool {
@@ -142,7 +156,7 @@ func isCriSupported() bool {
 	return IsKubernetes()
 }
 
-func detectFargate(features FeatureMap) {
+func detectAWSEnvironments(features FeatureMap) {
 	if IsECSFargate() {
 		features[ECSFargate] = struct{}{}
 		return
@@ -151,6 +165,11 @@ func detectFargate(features FeatureMap) {
 	if Datadog.GetBool("eks_fargate") {
 		features[EKSFargate] = struct{}{}
 		features[Kubernetes] = struct{}{}
+		return
+	}
+
+	if IsECS() {
+		features[ECSEC2] = struct{}{}
 	}
 }
 

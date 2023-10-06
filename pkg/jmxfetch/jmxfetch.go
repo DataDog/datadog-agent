@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build jmx
-// +build jmx
 
 package jmxfetch
 
@@ -18,14 +17,16 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/DataDog/datadog-agent/cmd/agent/common"
+	"gopkg.in/yaml.v2"
+
+	"github.com/DataDog/datadog-agent/cmd/agent/common/path"
+	global "github.com/DataDog/datadog-agent/cmd/agent/dogstatsd"
 	api "github.com/DataDog/datadog-agent/pkg/api/util"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/status"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"gopkg.in/yaml.v2"
 )
 
 const (
@@ -38,6 +39,7 @@ const (
 	jvmContainerSupport               = " -XX:+UseContainerSupport"
 	defaultJavaBinPath                = "java"
 	defaultLogLevel                   = "info"
+	jmxAllowAttachSelf                = " -Djdk.attach.allowAttachSelf=true"
 )
 
 var (
@@ -107,6 +109,7 @@ type checkInitCfg struct {
 	JavaOptions    string   `yaml:"java_options,omitempty"`
 }
 
+// Monitor monitors this JMXFetch instance, waiting for JMX to stop. Gracefully handles restarting the JMXFetch process.
 func (j *JMXFetch) Monitor() {
 	limiter := newRestartLimiter(config.Datadog.GetInt("jmx_max_restarts"), float64(config.Datadog.GetInt("jmx_restart_interval")))
 	ticker := time.NewTicker(500 * time.Millisecond)
@@ -163,13 +166,18 @@ func (j *JMXFetch) setDefaults() {
 	if j.Output == nil {
 		j.Output = log.JMXInfo
 	}
+	if j.JavaOptions == "" {
+		j.JavaOptions = jmxAllowAttachSelf
+	} else if !strings.Contains(j.JavaOptions, strings.TrimSpace(jmxAllowAttachSelf)) {
+		j.JavaOptions += jmxAllowAttachSelf
+	}
 }
 
 // Start starts the JMXFetch process
 func (j *JMXFetch) Start(manage bool) error {
 	j.setDefaults()
 
-	classpath := filepath.Join(common.GetDistPath(), "jmx", jmxJarName)
+	classpath := filepath.Join(path.GetDistPath(), "jmx", jmxJarName)
 	if j.JavaToolsJarPath != "" {
 		classpath = fmt.Sprintf("%s%s%s", j.JavaToolsJarPath, string(os.PathListSeparator), classpath)
 	}
@@ -190,7 +198,7 @@ func (j *JMXFetch) Start(manage bool) error {
 	case ReporterJSON:
 		reporter = "json"
 	default:
-		if common.DSD != nil && common.DSD.UdsListenerRunning {
+		if global.DSD != nil && global.DSD.UdsListenerRunning() {
 			reporter = fmt.Sprintf("statsd:unix://%s", config.Datadog.GetString("dogstatsd_socket"))
 		} else {
 			bindHost := config.GetBindHost()
@@ -215,6 +223,21 @@ func (j *JMXFetch) Start(manage bool) error {
 		return fmt.Errorf("incompatible options %q and %q", jvmContainerSupport, jvmCgroupMemoryAwareness)
 	} else if useContainerSupport {
 		javaOptions += jvmContainerSupport
+		maxHeapSizeAsPercentRAM := config.Datadog.GetFloat64("jmx_max_ram_percentage")
+		passOption := true
+		// These options overwrite the -XX:MaxRAMPercentage option, log a warning if they are found in the javaOptions
+		if strings.Contains(javaOptions, "Xmx") || strings.Contains(javaOptions, "XX:MaxHeapSize") {
+			log.Warnf("Java option -XX:MaxRAMPercentage will not take effect since either -Xmx or XX:MaxHeapSize is already present. These options override MaxRAMPercentage.")
+			passOption = false
+		}
+		if maxHeapSizeAsPercentRAM < 0.00 || maxHeapSizeAsPercentRAM > 100.0 {
+			log.Warnf("The value for MaxRAMPercentage must be between 0.0 and 100.0 for the option to take effect")
+			passOption = false
+		}
+		if passOption {
+			maxRAMPercentOption := fmt.Sprintf(" -XX:MaxRAMPercentage=%.4f", maxHeapSizeAsPercentRAM)
+			javaOptions += maxRAMPercentOption
+		}
 	} else if useCgroupMemoryLimit {
 		passOption := true
 		// This option is incompatible with the Xmx and Xms options, log a warning if there are found in the javaOptions
@@ -272,6 +295,22 @@ func (j *JMXFetch) Start(manage bool) error {
 
 	if config.Datadog.GetBool("jmx_statsd_telemetry_enabled") {
 		subprocessArgs = append(subprocessArgs, "--statsd_telemetry")
+	}
+
+	if config.Datadog.GetBool("jmx_telemetry_enabled") {
+		subprocessArgs = append(subprocessArgs, "--jmxfetch_telemetry")
+	}
+
+	if config.Datadog.GetBool("jmx_statsd_client_use_non_blocking") {
+		subprocessArgs = append(subprocessArgs, "--statsd_nonblocking")
+	}
+
+	if bufSize := config.Datadog.GetInt("jmx_statsd_client_buffer_size"); bufSize != 0 {
+		subprocessArgs = append(subprocessArgs, "--statsd_buffer_size", fmt.Sprintf("%d", bufSize))
+	}
+
+	if socketTimeout := config.Datadog.GetInt("jmx_statsd_client_socket_timeout"); socketTimeout != 0 {
+		subprocessArgs = append(subprocessArgs, "--statsd_socket_timeout", fmt.Sprintf("%d", socketTimeout))
 	}
 
 	if config.Datadog.GetBool("log_format_rfc3339") {
@@ -429,12 +468,6 @@ func (j *JMXFetch) ConfigureFromInstance(instance integration.Data) error {
 	if j.JavaToolsJarPath == "" {
 		if instanceConf.ToolsJarPath != "" {
 			j.JavaToolsJarPath = instanceConf.ToolsJarPath
-		}
-	}
-
-	if instanceConf.ProcessNameRegex != "" {
-		if j.JavaToolsJarPath == "" {
-			return fmt.Errorf("You must specify the path to tools.jar. See http://docs.datadoghq.com/integrations/java/ for more information")
 		}
 	}
 

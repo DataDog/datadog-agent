@@ -56,6 +56,8 @@ const (
 )
 
 var (
+	// When adding new environment variables, they need to be added to
+	// pkg/util/containers/env_vars_filter.go
 	standardEnvKeys = map[string]string{
 		envVarEnv:     tagKeyEnv,
 		envVarVersion: tagKeyVersion,
@@ -131,8 +133,16 @@ func (c *WorkloadMetaCollector) processEvents(evBundle workloadmeta.EventBundle)
 				tagInfos = append(tagInfos, c.handleContainer(ev)...)
 			case workloadmeta.KindKubernetesPod:
 				tagInfos = append(tagInfos, c.handleKubePod(ev)...)
+			case workloadmeta.KindKubernetesNode:
+				tagInfos = append(tagInfos, c.handleKubeNode(ev)...)
 			case workloadmeta.KindECSTask:
 				tagInfos = append(tagInfos, c.handleECSTask(ev)...)
+			case workloadmeta.KindContainerImageMetadata:
+				tagInfos = append(tagInfos, c.handleContainerImage(ev)...)
+			case workloadmeta.KindProcess:
+				// tagInfos = append(tagInfos, c.handleProcess(ev)...) No tags for now
+			case workloadmeta.KindKubernetesDeployment:
+				// tagInfos = append(tagInfos, c.handleDeployment(ev)...) No tags for now
 			default:
 				log.Errorf("cannot handle event for entity %q with kind %q", entityID.ID, entityID.Kind)
 			}
@@ -181,6 +191,7 @@ func (c *WorkloadMetaCollector) handleContainer(ev workloadmeta.Event) []*TagInf
 	tags.AddLow("image_name", image.Name)
 	tags.AddLow("short_image", image.ShortName)
 	tags.AddLow("image_tag", image.Tag)
+	tags.AddLow("image_id", image.ID)
 
 	if container.Runtime == workloadmeta.ContainerRuntimeDocker {
 		if image.Tag != "" {
@@ -190,25 +201,7 @@ func (c *WorkloadMetaCollector) handleContainer(ev workloadmeta.Event) []*TagInf
 		}
 	}
 
-	// standard tags from labels
-	c.extractFromMapWithFn(container.Labels, standardDockerLabels, tags.AddStandard)
-
-	// container labels as tags
-	for labelName, labelValue := range container.Labels {
-		utils.AddMetadataAsTags(labelName, labelValue, c.containerLabelsAsTags, c.globContainerLabels, tags)
-	}
-
-	// orchestrator tags from labels
-	c.extractFromMapWithFn(container.Labels, lowCardOrchestratorLabels, tags.AddLow)
-	c.extractFromMapWithFn(container.Labels, highCardOrchestratorLabels, tags.AddHigh)
-
-	// extract labels as tags
-	c.extractFromMapNormalizedWithFn(container.Labels, c.containerLabelsAsTags, tags.AddAuto)
-
-	// custom tags from label
-	if lbl, ok := container.Labels[autodiscoveryLabelTagsKey]; ok {
-		parseContainerADTagsLabels(tags, lbl)
-	}
+	c.labelsToTags(container.Labels, tags)
 
 	// standard tags from environment
 	c.extractFromMapWithFn(container.EnvVars, standardEnvKeys, tags.AddStandard)
@@ -220,6 +213,11 @@ func (c *WorkloadMetaCollector) handleContainer(ev workloadmeta.Event) []*TagInf
 	// extract env as tags
 	for envName, envValue := range container.EnvVars {
 		utils.AddMetadataAsTags(envName, envValue, c.containerEnvAsTags, c.globContainerEnvLabels, tags)
+	}
+
+	// static tags for ECS and EKS Fargate containers
+	for tag, value := range c.staticTags {
+		tags.AddLow(tag, value)
 	}
 
 	low, orch, high, standard := tags.Compute()
@@ -235,6 +233,78 @@ func (c *WorkloadMetaCollector) handleContainer(ev workloadmeta.Event) []*TagInf
 	}
 }
 
+func (c *WorkloadMetaCollector) handleContainerImage(ev workloadmeta.Event) []*TagInfo {
+	image := ev.Entity.(*workloadmeta.ContainerImageMetadata)
+
+	tags := utils.NewTagList()
+	tags.AddLow("image_name", image.Name)
+
+	// In containerd some images are created without a repo digest, and it's
+	// also possible to remove repo digests manually.
+	// This means that the set of repos that we need to handle is the union of
+	// the repos present in the repo digests and the ones present in the repo
+	// tags.
+	repos := make(map[string]struct{})
+	for _, repoDigest := range image.RepoDigests {
+		repos[strings.SplitN(repoDigest, "@sha256:", 2)[0]] = struct{}{}
+	}
+	for _, repoTag := range image.RepoTags {
+		repos[strings.SplitN(repoTag, ":", 2)[0]] = struct{}{}
+	}
+	for repo := range repos {
+		repoSplitted := strings.Split(repo, "/")
+		shortName := repoSplitted[len(repoSplitted)-1]
+		tags.AddLow("short_image", shortName)
+	}
+
+	for _, repoTag := range image.RepoTags {
+		repoTagSplitted := strings.SplitN(repoTag, ":", 2)
+		if len(repoTagSplitted) == 2 {
+			tags.AddLow("image_tag", repoTagSplitted[1])
+		}
+	}
+
+	tags.AddLow("os_name", image.OS)
+	tags.AddLow("os_version", image.OSVersion)
+	tags.AddLow("architecture", image.Architecture)
+
+	c.labelsToTags(image.Labels, tags)
+
+	low, orch, high, standard := tags.Compute()
+	return []*TagInfo{
+		{
+			Source:               containerImageSource,
+			Entity:               buildTaggerEntityID(image.EntityID),
+			HighCardTags:         high,
+			OrchestratorCardTags: orch,
+			LowCardTags:          low,
+			StandardTags:         standard,
+		},
+	}
+}
+
+func (c *WorkloadMetaCollector) labelsToTags(labels map[string]string, tags *utils.TagList) {
+	// standard tags from labels
+	c.extractFromMapWithFn(labels, standardDockerLabels, tags.AddStandard)
+
+	// container labels as tags
+	for labelName, labelValue := range labels {
+		utils.AddMetadataAsTags(labelName, labelValue, c.containerLabelsAsTags, c.globContainerLabels, tags)
+	}
+
+	// orchestrator tags from labels
+	c.extractFromMapWithFn(labels, lowCardOrchestratorLabels, tags.AddLow)
+	c.extractFromMapWithFn(labels, highCardOrchestratorLabels, tags.AddHigh)
+
+	// extract labels as tags
+	c.extractFromMapNormalizedWithFn(labels, c.containerLabelsAsTags, tags.AddAuto)
+
+	// custom tags from label
+	if lbl, ok := labels[autodiscoveryLabelTagsKey]; ok {
+		parseContainerADTagsLabels(tags, lbl)
+	}
+}
+
 func (c *WorkloadMetaCollector) handleKubePod(ev workloadmeta.Event) []*TagInfo {
 	pod := ev.Entity.(*workloadmeta.KubernetesPod)
 
@@ -243,6 +313,7 @@ func (c *WorkloadMetaCollector) handleKubePod(ev workloadmeta.Event) []*TagInfo 
 	tags.AddLow(kubernetes.NamespaceTagName, pod.Namespace)
 	tags.AddLow("pod_phase", strings.ToLower(pod.Phase))
 	tags.AddLow("kube_priority_class", pod.PriorityClass)
+	tags.AddLow("kube_qos", pod.QOSClass)
 
 	c.extractTagsFromPodLabels(pod, tags)
 
@@ -254,8 +325,23 @@ func (c *WorkloadMetaCollector) handleKubePod(ev workloadmeta.Event) []*TagInfo 
 		utils.AddMetadataAsTags(name, value, c.nsLabelsAsTags, c.globNsLabels, tags)
 	}
 
-	for _, svc := range pod.KubeServices {
-		tags.AddLow("kube_service", svc)
+	kubeServiceDisabled := false
+	for _, disabledTag := range config.Datadog.GetStringSlice("kubernetes_ad_tags_disabled") {
+		if disabledTag == "kube_service" {
+			kubeServiceDisabled = true
+			break
+		}
+	}
+	for _, disabledTag := range strings.Split(pod.Annotations["tags.datadoghq.com/disable"], ",") {
+		if disabledTag == "kube_service" {
+			kubeServiceDisabled = true
+			break
+		}
+	}
+	if !kubeServiceDisabled {
+		for _, svc := range pod.KubeServices {
+			tags.AddLow("kube_service", svc)
+		}
 	}
 
 	c.extractTagsFromJSONInMap(podTagsAnnotation, pod.Annotations, tags)
@@ -268,11 +354,24 @@ func (c *WorkloadMetaCollector) handleKubePod(ev workloadmeta.Event) []*TagInfo 
 		tags.AddOrchestrator("oshift_deployment", deployName)
 	}
 
+	// Admission + Remote Config correlation tags
+	if rcID, found := pod.Annotations[kubernetes.RcIDAnnotKey]; found {
+		tags.AddLow(kubernetes.RcIDTagName, rcID)
+	}
+	if rcRev, found := pod.Annotations[kubernetes.RcRevisionAnnotKey]; found {
+		tags.AddLow(kubernetes.RcRevisionTagName, rcRev)
+	}
+
 	for _, owner := range pod.Owners {
 		tags.AddLow(kubernetes.OwnerRefKindTagName, strings.ToLower(owner.Kind))
 		tags.AddOrchestrator(kubernetes.OwnerRefNameTagName, owner.Name)
 
 		c.extractTagsFromPodOwner(pod, owner, tags)
+	}
+
+	// static tags for EKS Fargate pods
+	for tag, value := range c.staticTags {
+		tags.AddLow(tag, value)
 	}
 
 	low, orch, high, standard := tags.Compute()
@@ -287,7 +386,7 @@ func (c *WorkloadMetaCollector) handleKubePod(ev workloadmeta.Event) []*TagInfo 
 		},
 	}
 
-	for _, podContainer := range pod.Containers {
+	for _, podContainer := range pod.GetAllContainers() {
 		cTagInfo, err := c.extractTagsFromPodContainer(pod, podContainer, tags.Copy())
 		if err != nil {
 			log.Debugf("cannot extract tags from pod container: %s", err)
@@ -295,6 +394,28 @@ func (c *WorkloadMetaCollector) handleKubePod(ev workloadmeta.Event) []*TagInfo 
 		}
 
 		tagInfos = append(tagInfos, cTagInfo)
+	}
+
+	return tagInfos
+}
+
+func (c *WorkloadMetaCollector) handleKubeNode(ev workloadmeta.Event) []*TagInfo {
+	node := ev.Entity.(*workloadmeta.KubernetesNode)
+
+	tags := utils.NewTagList()
+
+	// Add tags for node here
+
+	low, orch, high, standard := tags.Compute()
+	tagInfos := []*TagInfo{
+		{
+			Source:               nodeSource,
+			Entity:               buildTaggerEntityID(node.EntityID),
+			HighCardTags:         high,
+			OrchestratorCardTags: orch,
+			LowCardTags:          low,
+			StandardTags:         standard,
+		},
 	}
 
 	return tagInfos
@@ -322,7 +443,8 @@ func (c *WorkloadMetaCollector) handleECSTask(ev workloadmeta.Event) []*TagInfo 
 
 	if task.LaunchType == workloadmeta.ECSLaunchTypeFargate {
 		taskTags.AddLow("region", task.Region)
-		taskTags.AddLow("availability_zone", task.AvailabilityZone)
+		taskTags.AddLow("availability_zone", task.AvailabilityZone) // Deprecated
+		taskTags.AddLow("availability-zone", task.AvailabilityZone)
 	} else if c.collectEC2ResourceTags {
 		addResourceTags(taskTags, task.ContainerInstanceTags)
 		addResourceTags(taskTags, task.Tags)
@@ -441,11 +563,6 @@ func (c *WorkloadMetaCollector) extractTagsFromPodOwner(pod *workloadmeta.Kubern
 			tags.AddLow(kubernetes.DeploymentTagName, deployment)
 		}
 		tags.AddLow(kubernetes.ReplicaSetTagName, owner.Name)
-
-	case "":
-
-	default:
-		log.Debugf("unknown owner kind %q for pod %q", owner.Kind, pod.Name)
 	}
 }
 
@@ -527,6 +644,8 @@ func (c *WorkloadMetaCollector) handleDelete(ev workloadmeta.Event) []*TagInfo {
 	})
 	tagInfos = append(tagInfos, c.handleDeleteChildren(source, children)...)
 
+	delete(c.children, taggerEntityID)
+
 	return tagInfos
 }
 
@@ -579,8 +698,16 @@ func buildTaggerEntityID(entityID workloadmeta.EntityID) string {
 		return containers.BuildTaggerEntityName(entityID.ID)
 	case workloadmeta.KindKubernetesPod:
 		return kubelet.PodUIDToTaggerEntityName(entityID.ID)
+	case workloadmeta.KindKubernetesNode:
+		return kubelet.NodeUIDToTaggerEntityName(entityID.ID)
 	case workloadmeta.KindECSTask:
 		return fmt.Sprintf("ecs_task://%s", entityID.ID)
+	case workloadmeta.KindContainerImageMetadata:
+		return fmt.Sprintf("container_image_metadata://%s", entityID.ID)
+	case workloadmeta.KindProcess:
+		return fmt.Sprintf("process://%s", entityID.ID)
+	case workloadmeta.KindKubernetesDeployment:
+		return fmt.Sprintf("deployment://%s", entityID.ID)
 	default:
 		log.Errorf("can't recognize entity %q with kind %q; trying %s://%s as tagger entity",
 			entityID.ID, entityID.Kind, entityID.ID, entityID.Kind)
@@ -632,5 +759,24 @@ func parseContainerADTagsLabels(tags *utils.TagList, labelValue string) {
 			continue
 		}
 		tags.AddHigh(tagParts[0], tagParts[1])
+	}
+}
+
+//lint:ignore U1000 Ignore unused function until the collector is implemented
+func (c *WorkloadMetaCollector) handleProcess(ev workloadmeta.Event) []*TagInfo {
+	process := ev.Entity.(*workloadmeta.Process)
+	tags := utils.NewTagList()
+	if process.Language != nil {
+		tags.AddLow("language", string(process.Language.Name))
+	}
+	low, orch, high, standard := tags.Compute()
+	return []*TagInfo{{
+		Source:               processSource,
+		Entity:               buildTaggerEntityID(process.EntityID),
+		HighCardTags:         high,
+		OrchestratorCardTags: orch,
+		LowCardTags:          low,
+		StandardTags:         standard,
+	},
 	}
 }

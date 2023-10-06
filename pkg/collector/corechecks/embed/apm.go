@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build apm && !windows && !linux
-// +build apm,!windows,!linux
 
 package embed
 
@@ -14,18 +13,23 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
-	"sync/atomic"
 	"time"
 
+	"go.uber.org/atomic"
+	yaml "gopkg.in/yaml.v2"
+
+	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
+	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
+	"github.com/DataDog/datadog-agent/pkg/collector/check/stats"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
 	"github.com/DataDog/datadog-agent/pkg/config"
-	telemetry_utils "github.com/DataDog/datadog-agent/pkg/telemetry/utils"
-	"github.com/DataDog/datadog-agent/pkg/util"
-
+	"github.com/DataDog/datadog-agent/pkg/config/utils"
+	configUtils "github.com/DataDog/datadog-agent/pkg/config/utils"
+	"github.com/DataDog/datadog-agent/pkg/diagnose/diagnosis"
+	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	yaml "gopkg.in/yaml.v2"
 )
 
 type apmCheckConf struct {
@@ -34,33 +38,38 @@ type apmCheckConf struct {
 
 // APMCheck keeps track of the running command
 type APMCheck struct {
-	binPath     string
-	commandOpts []string
-	running     uint32
-	stop        chan struct{}
-	stopDone    chan struct{}
-	source      string
-	telemetry   bool
+	binPath        string
+	commandOpts    []string
+	running        *atomic.Bool
+	stop           chan struct{}
+	stopDone       chan struct{}
+	source         string
+	telemetry      bool
+	initConfig     string
+	instanceConfig string
 }
 
+// String displays the Agent name
 func (c *APMCheck) String() string {
 	return "APM Agent"
 }
 
+// Version displays the command's version
 func (c *APMCheck) Version() string {
 	return ""
 }
 
+// ConfigSource displays the command's source
 func (c *APMCheck) ConfigSource() string {
 	return c.source
 }
 
 // Run executes the check with retries
 func (c *APMCheck) Run() error {
-	atomic.StoreUint32(&c.running, 1)
+	c.running.Store(true)
 	// TODO: retries should be configurable with meaningful default values
 	err := check.Retry(defaultRetryDuration, defaultRetries, c.run, c.String())
-	atomic.StoreUint32(&c.running, 0)
+	c.running.Store(false)
 
 	return err
 }
@@ -78,11 +87,11 @@ func (c *APMCheck) run() error {
 
 	cmd := exec.Command(c.binPath, c.commandOpts...)
 
-	hostname, _ := util.GetHostname(context.TODO())
+	hname, _ := hostname.Get(context.TODO())
 
 	env := os.Environ()
-	env = append(env, fmt.Sprintf("DD_API_KEY=%s", config.SanitizeAPIKey(config.Datadog.GetString("api_key"))))
-	env = append(env, fmt.Sprintf("DD_HOSTNAME=%s", hostname))
+	env = append(env, fmt.Sprintf("DD_API_KEY=%s", configUtils.SanitizeAPIKey(config.Datadog.GetString("api_key"))))
+	env = append(env, fmt.Sprintf("DD_HOSTNAME=%s", hname))
 	env = append(env, fmt.Sprintf("DD_DOGSTATSD_PORT=%s", config.Datadog.GetString("dogstatsd_port")))
 	env = append(env, fmt.Sprintf("DD_LOG_LEVEL=%s", config.Datadog.GetString("log_level")))
 	cmd.Env = env
@@ -137,7 +146,7 @@ func (c *APMCheck) run() error {
 }
 
 // Configure the APMCheck
-func (c *APMCheck) Configure(data integration.Data, initConfig integration.Data, source string) error {
+func (c *APMCheck) Configure(senderManager sender.SenderManager, integrationConfigDigest uint64, data integration.Data, initConfig integration.Data, source string) error {
 	var checkConf apmCheckConf
 	if err := yaml.Unmarshal(data, &checkConf); err != nil {
 		return err
@@ -171,7 +180,9 @@ func (c *APMCheck) Configure(data integration.Data, initConfig integration.Data,
 	}
 
 	c.source = source
-	c.telemetry = telemetry_utils.IsCheckEnabled("apm")
+	c.telemetry = utils.IsCheckTelemetryEnabled("apm")
+	c.initConfig = string(initConfig)
+	c.instanceConfig = string(data)
 	return nil
 }
 
@@ -182,7 +193,7 @@ func (c *APMCheck) Interval() time.Duration {
 }
 
 // ID returns the name of the check since there should be only one instance running
-func (c *APMCheck) ID() check.ID {
+func (c *APMCheck) ID() checkid.ID {
 	return "APM_AGENT"
 }
 
@@ -193,7 +204,7 @@ func (c *APMCheck) IsTelemetryEnabled() bool {
 
 // Stop sends a termination signal to the APM process
 func (c *APMCheck) Stop() {
-	if atomic.LoadUint32(&c.running) == 0 {
+	if !c.running.Load() {
 		log.Info("APM Agent not running.")
 		return
 	}
@@ -211,13 +222,29 @@ func (c *APMCheck) GetWarnings() []error {
 }
 
 // GetSenderStats returns the stats from the last run of the check, but there aren't any
-func (c *APMCheck) GetSenderStats() (check.SenderStats, error) {
-	return check.NewSenderStats(), nil
+func (c *APMCheck) GetSenderStats() (stats.SenderStats, error) {
+	return stats.NewSenderStats(), nil
+}
+
+// InitConfig returns the initConfig for the APM check
+func (c *APMCheck) InitConfig() string {
+	return c.initConfig
+}
+
+// InstanceConfig returns the instance config for the APM check
+func (c *APMCheck) InstanceConfig() string {
+	return c.instanceConfig
+}
+
+// GetDiagnoses returns the diagnoses of the check
+func (c *APMCheck) GetDiagnoses() ([]diagnosis.Diagnosis, error) {
+	return nil, nil
 }
 
 func init() {
 	factory := func() check.Check {
 		return &APMCheck{
+			running:  atomic.NewBool(false),
 			stop:     make(chan struct{}),
 			stopDone: make(chan struct{}),
 		}

@@ -4,28 +4,29 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build linux_bpf
-// +build linux_bpf
 
 package netlink
 
 import (
 	"encoding/binary"
 	"fmt"
-	"io/ioutil"
 	"net"
 	"os"
 	"testing"
 	"time"
 
+	"github.com/mdlayher/netlink"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"github.com/vishvananda/netns"
+
+	"github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/netlink/testutil"
 	nettestutil "github.com/DataDog/datadog-agent/pkg/network/testutil"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
-	"github.com/mdlayher/netlink"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
-	"github.com/vishvananda/netns"
+	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 )
 
 const (
@@ -35,8 +36,7 @@ const (
 
 // keep this test for netlink only, because eBPF listens to all namespaces all the time.
 func TestConnTrackerCrossNamespaceAllNsDisabled(t *testing.T) {
-	defer testutil.TeardownCrossNsDNAT(t)
-	testutil.SetupCrossNsDNAT(t)
+	ns := testutil.SetupCrossNsDNAT(t)
 
 	cfg := config.New()
 	cfg.ConntrackMaxStateSize = 100
@@ -46,15 +46,15 @@ func TestConnTrackerCrossNamespaceAllNsDisabled(t *testing.T) {
 	require.NoError(t, err)
 	time.Sleep(time.Second)
 
-	closer := nettestutil.StartServerTCPNs(t, net.ParseIP("2.2.2.4"), 8080, "test")
+	closer := nettestutil.StartServerTCPNs(t, net.ParseIP("2.2.2.4"), 8080, ns)
 	laddr := nettestutil.PingTCP(t, net.ParseIP("2.2.2.4"), 80).LocalAddr().(*net.TCPAddr)
 	defer closer.Close()
 
-	testNs, err := netns.GetFromName("test")
+	testNs, err := netns.GetFromName(ns)
 	require.NoError(t, err)
 	defer testNs.Close()
 
-	testIno, err := util.GetInoForNs(testNs)
+	testIno, err := kernel.GetInoForNs(testNs)
 	require.NoError(t, err)
 
 	time.Sleep(time.Second)
@@ -77,10 +77,9 @@ func TestConnTrackerCrossNamespaceAllNsDisabled(t *testing.T) {
 func TestMessageDump(t *testing.T) {
 	skipUnless(t, "netlink_dump")
 
-	defer testutil.TeardownDNAT(t)
 	testutil.SetupDNAT(t)
 
-	f, err := ioutil.TempFile("", "message_dump")
+	f, err := os.CreateTemp("", "message_dump")
 	require.NoError(t, err)
 	defer os.Remove(f.Name())
 	defer f.Close()
@@ -91,10 +90,9 @@ func TestMessageDump(t *testing.T) {
 func TestMessageDump6(t *testing.T) {
 	skipUnless(t, "netlink_dump")
 
-	defer testutil.TeardownDNAT6(t)
 	testutil.SetupDNAT6(t)
 
-	f, err := ioutil.TempFile("", "message_dump6")
+	f, err := os.CreateTemp("", "message_dump6")
 	require.NoError(t, err)
 	defer os.Remove(f.Name())
 	defer f.Close()
@@ -103,7 +101,17 @@ func TestMessageDump6(t *testing.T) {
 }
 
 func testMessageDump(t *testing.T, f *os.File, serverIP, clientIP net.IP) {
-	consumer := NewConsumer("/proc", 500, false)
+	consumer, err := NewConsumer(
+		&config.Config{
+			Config: ebpf.Config{
+				ProcRoot: "/proc",
+			},
+			ConntrackRateLimit:           500,
+			ConntrackRateLimitInterval:   time.Second,
+			EnableRootNetNs:              true,
+			EnableConntrackAllNamespaces: false,
+		})
+	require.NoError(t, err)
 	events, err := consumer.Events()
 	require.NoError(t, err)
 
@@ -125,8 +133,10 @@ func testMessageDump(t *testing.T, f *os.File, serverIP, clientIP net.IP) {
 	defer udpServer.Close()
 
 	for i := 0; i < 100; i++ {
-		nettestutil.PingTCP(t, clientIP, natPort)
-		nettestutil.PingUDP(t, clientIP, nonNatPort)
+		tc := nettestutil.PingTCP(t, clientIP, natPort)
+		tc.Close()
+		uc := nettestutil.PingUDP(t, clientIP, nonNatPort)
+		uc.Close()
 	}
 
 	time.Sleep(time.Second)
@@ -143,7 +153,7 @@ func skipUnless(t *testing.T, requiredArg string) {
 
 	t.Skip(
 		fmt.Sprintf(
-			"skipped %s. you can enable it by using running tests with `-args %s`.\n",
+			"skipped %s. you can enable it by using running tests with `-args %s`",
 			t.Name(),
 			requiredArg,
 		),

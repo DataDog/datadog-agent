@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build kubeapiserver
-// +build kubeapiserver
 
 package orchestrator
 
@@ -18,7 +17,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/orchestrator"
 	orchcfg "github.com/DataDog/datadog-agent/pkg/orchestrator/config"
-	"github.com/DataDog/datadog-agent/pkg/util"
+	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/common"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/leaderelection"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/clustername"
@@ -72,6 +71,8 @@ func GetStatus(ctx context.Context, apiCl kubernetes.Interface) map[string]inter
 	status["OrchestratorEndpoints"] = endpoints
 	setCacheInformationDCAMode(status)
 	setCollectionIsWorkingDCAMode(status)
+	setManifestBufferInformationDCAMode(status)
+	setSkippedResourcesInformationDCAMode(status)
 
 	// rewriting DCA Mode in case we are running in cluster check mode.
 	if orchestrator.KubernetesResourceCache.ItemCount() == 0 && config.Datadog.GetBool("cluster_checks.enabled") {
@@ -97,6 +98,10 @@ func GetStatus(ctx context.Context, apiCl kubernetes.Interface) map[string]inter
 	// get options
 	if config.Datadog.GetBool("orchestrator_explorer.container_scrubbing.enabled") {
 		status["ContainerScrubbing"] = "Container scrubbing: enabled"
+	}
+
+	if config.Datadog.GetBool("orchestrator_explorer.manifest_collection.enabled") {
+		status["ManifestCollection"] = "Manifest collection: enabled"
 	}
 
 	return status
@@ -141,11 +146,11 @@ func setCacheInformationDCAMode(status map[string]interface{}) {
 func setClusterName(ctx context.Context, status map[string]interface{}) {
 	errorMsg := "No cluster name was detected. This means resource collection will not work."
 
-	hostname, err := util.GetHostname(ctx)
+	hname, err := hostname.Get(ctx)
 	if err != nil {
 		status["ClusterNameError"] = fmt.Sprintf("Error detecting cluster name: %s.\n%s", err.Error(), errorMsg)
 	} else {
-		if cName := clustername.GetClusterName(ctx, hostname); cName != "" {
+		if cName := clustername.GetClusterName(ctx, hname); cName != "" {
 			status["ClusterName"] = cName
 		} else {
 			status["ClusterName"] = errorMsg
@@ -174,4 +179,33 @@ func setCollectionIsWorkingDCAMode(status map[string]interface{}) {
 		status["CollectionWorking"] = "The collection is not running because this agent is not the leader"
 	}
 
+}
+
+func setManifestBufferInformationDCAMode(status map[string]interface{}) {
+	manifestBufferJSON := []byte(expvar.Get("orchestrator-manifest-buffer").String())
+	manifestBuffer := make(map[string]int64)
+	json.Unmarshal(manifestBufferJSON, &manifestBuffer) //nolint:errcheck
+	status["ManifestsFlushedLastTime"] = manifestBuffer["ManifestsFlushedLastTime"]
+	status["BufferFlushed"] = manifestBuffer["BufferFlushed"]
+	delete(manifestBuffer, "ManifestsFlushedLastTime")
+	delete(manifestBuffer, "BufferFlushed")
+	status["ManifestBuffer"] = manifestBuffer
+
+}
+
+func setSkippedResourcesInformationDCAMode(status map[string]interface{}) {
+	skippedResourcesJSON := []byte(expvar.Get("orchestrator-skipped-resources").String())
+	skippedResources := make(map[string]string)
+	err := json.Unmarshal(skippedResourcesJSON, &skippedResources)
+	if err != nil {
+		return
+	}
+
+	skippedResourcesFiltered := make(map[string]string)
+	for informerName, reason := range skippedResources {
+		if reason != "" {
+			skippedResourcesFiltered[informerName] = reason
+		}
+	}
+	status["SkippedResources"] = skippedResourcesFiltered
 }

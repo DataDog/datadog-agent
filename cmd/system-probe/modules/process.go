@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build linux
-// +build linux
 
 package modules
 
@@ -14,11 +13,14 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
-	"sync/atomic"
 	"time"
+
+	"go.uber.org/atomic"
+	"google.golang.org/grpc"
 
 	"github.com/DataDog/datadog-agent/cmd/system-probe/api/module"
 	"github.com/DataDog/datadog-agent/cmd/system-probe/config"
+	sysconfig "github.com/DataDog/datadog-agent/cmd/system-probe/config"
 	"github.com/DataDog/datadog-agent/pkg/process/encoding"
 	reqEncoding "github.com/DataDog/datadog-agent/pkg/process/encoding/request"
 	"github.com/DataDog/datadog-agent/pkg/process/procutil"
@@ -37,27 +39,33 @@ var Process = module.Factory{
 
 		// we disable returning zero values for stats to reduce parsing work on process-agent side
 		p := procutil.NewProcessProbe(procutil.WithReturnZeroPermStats(false))
-		if p == nil {
-			return nil, ErrProcessUnsupported
-		}
-		return &process{probe: p}, nil
+		return &process{
+			probe:     p,
+			lastCheck: atomic.NewInt64(0),
+		}, nil
 	},
 }
 
 var _ module.Module = &process{}
 
-type process struct{ probe procutil.Probe }
+type process struct {
+	probe     procutil.Probe
+	lastCheck *atomic.Int64
+}
 
 // GetStats returns stats for the module
 func (t *process) GetStats() map[string]interface{} {
-	return nil
+	return map[string]interface{}{
+		"last_check": t.lastCheck.Load(),
+	}
 }
 
 // Register registers endpoints for the module to expose data
 func (t *process) Register(httpMux *module.Router) error {
-	var runCounter uint64
-	httpMux.HandleFunc("/proc/stats", func(w http.ResponseWriter, req *http.Request) {
+	runCounter := atomic.NewUint64(0)
+	httpMux.HandleFunc("/stats", func(w http.ResponseWriter, req *http.Request) {
 		start := time.Now()
+		t.lastCheck.Store(start.Unix())
 		pids, err := getPids(req)
 		if err != nil {
 			log.Errorf("Unable to get PIDs from request: %s", err)
@@ -75,10 +83,15 @@ func (t *process) Register(httpMux *module.Router) error {
 		marshaler := encoding.GetMarshaler(contentType)
 		writeStats(w, marshaler, stats)
 
-		count := atomic.AddUint64(&runCounter, 1)
+		count := runCounter.Inc()
 		logProcTracerRequests(count, len(stats), start)
 	}).Methods("POST")
 
+	return nil
+}
+
+// RegisterGRPC register to system probe gRPC server
+func (t *process) RegisterGRPC(_ grpc.ServiceRegistrar) error {
 	return nil
 }
 
@@ -90,8 +103,8 @@ func (t *process) Close() {
 }
 
 func logProcTracerRequests(count uint64, statsCount int, start time.Time) {
-	args := []interface{}{count, statsCount, time.Now().Sub(start)}
-	msg := "Got request on /proc/stats (count: %d): retrieved %d stats in %s"
+	args := []interface{}{string(sysconfig.ProcessModule), count, statsCount, time.Since(start)}
+	msg := "Got request on /%s/stats (count: %d): retrieved %d stats in %s"
 	switch {
 	case count <= 5, count%20 == 0:
 		log.Infof(msg, args...)
@@ -110,7 +123,7 @@ func writeStats(w http.ResponseWriter, marshaler encoding.Marshaler, stats map[i
 
 	w.Header().Set("Content-type", marshaler.ContentType())
 	w.Write(buf)
-	log.Tracef("/proc/stats: %d stats, %d bytes", len(stats), len(buf))
+	log.Tracef("/%s/stats: %d stats, %d bytes", string(sysconfig.ProcessModule), len(stats), len(buf))
 }
 
 func getPids(r *http.Request) ([]int32, error) {

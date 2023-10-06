@@ -4,14 +4,13 @@
 // Copyright 2019-present Datadog, Inc.
 
 //go:build !zlib
-// +build !zlib
 
 package stream
 
 import (
 	"fmt"
 
-	"github.com/DataDog/datadog-agent/pkg/forwarder"
+	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/transaction"
 	"github.com/DataDog/datadog-agent/pkg/serializer/marshaler"
 )
 
@@ -36,6 +35,6 @@ func NewJSONPayloadBuilder(shareAndLockBuffers bool) *JSONPayloadBuilder {
 }
 
 // BuildWithOnErrItemTooBigPolicy is not implemented when zlib is not available.
-func (b *JSONPayloadBuilder) BuildWithOnErrItemTooBigPolicy(marshaler.IterableStreamJSONMarshaler, OnErrItemTooBigPolicy) (forwarder.Payloads, error) {
+func (b *JSONPayloadBuilder) BuildWithOnErrItemTooBigPolicy(marshaler.IterableStreamJSONMarshaler, OnErrItemTooBigPolicy) (transaction.BytesPayloads, error) {
 	return nil, fmt.Errorf("not implemented")
 }

@@ -71,7 +71,7 @@ func (t CompositeTags) ForEach(callback func(tag string)) {
 	}
 }
 
-// ForEachErr applies `callback` to each tag while `callback`` returns nil.
+// ForEachErr applies `callback` to each tag while `callback“ returns nil.
 // The first error is returned.
 func (t CompositeTags) ForEachErr(callback func(tag string) error) error {
 	for _, t := range t.tags1 {

@@ -5,15 +5,22 @@
 
 package obfuscate
 
-import "strings"
+import (
+	"strings"
+)
 
 // ObfuscateMemcachedString obfuscates the Memcached command cmd.
-func (*Obfuscator) ObfuscateMemcachedString(cmd string) string {
+func (o *Obfuscator) ObfuscateMemcachedString(cmd string) string {
+	if !o.opts.Memcached.KeepCommand {
+		// If the command shouldn't be kept, then the entire tag will
+		// be dropped.
+		return ""
+	}
 	// All memcached commands end with new lines [1]. In the case of storage
 	// commands, key values follow after. Knowing this, all we have to do
-	// to obfuscate sensitive information is to remove everything that follows
+	// to obfuscate the values is to remove everything that follows
 	// a new line. For non-storage commands, this will have no effect.
 	// [1]: https://github.com/memcached/memcached/blob/master/doc/protocol.txt
-	out := strings.SplitN(cmd, "\r\n", 2)[0]
-	return strings.TrimSpace(out)
+	truncated := strings.SplitN(cmd, "\r\n", 2)[0]
+	return strings.TrimSpace(truncated)
 }

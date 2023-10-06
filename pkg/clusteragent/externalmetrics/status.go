@@ -4,7 +4,6 @@
 // Copyright 2021-present Datadog, Inc.
 
 //go:build kubeapiserver
-// +build kubeapiserver
 
 package externalmetrics
 
@@ -14,6 +13,7 @@ import (
 
 var datadogClient autoscalers.DatadogClient
 
+// GetStatus returns the status of the autoscalers
 func GetStatus() map[string]interface{} {
 	return autoscalers.GetStatus(datadogClient)
 }

@@ -4,15 +4,15 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build !otlp
-// +build !otlp
 
 package host
 
 import (
 	"testing"
 
-	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/stretchr/testify/assert"
+
+	"github.com/DataDog/datadog-agent/pkg/config"
 )
 
 func TestGetOtlpMetaWithoutOtlp(t *testing.T) {

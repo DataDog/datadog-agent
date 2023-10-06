@@ -75,7 +75,8 @@ func (cache *templateCache) get(adID string) ([]integration.Config, error) {
 	return nil, fmt.Errorf("AD id %s not found in cache", adID)
 }
 
-// getUnresolvedTemplates returns templates yet to be resolved
+// getUnresolvedTemplates returns all templates in the cache, in their unresolved
+// state.
 func (cache *templateCache) getUnresolvedTemplates() map[string][]integration.Config {
 	tpls := make(map[string][]integration.Config)
 	for d, config := range cache.digestToTemplate {

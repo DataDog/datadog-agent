@@ -13,6 +13,7 @@ import (
 	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
+	configUtils "github.com/DataDog/datadog-agent/pkg/config/utils"
 )
 
 // FromAgentConfig reads the old agentConfig configuration, converts and merges
@@ -71,12 +72,12 @@ func FromAgentConfig(agentConfig Config, converter *config.LegacyConfigConverter
 	// TODO: exclude_process_args
 
 	histogramAggregates := buildHistogramAggregates(agentConfig)
-	if histogramAggregates != nil && len(histogramAggregates) != 0 {
+	if len(histogramAggregates) != 0 {
 		converter.Set("histogram_aggregates", histogramAggregates)
 	}
 
 	histogramPercentiles := buildHistogramPercentiles(agentConfig)
-	if histogramPercentiles != nil && len(histogramPercentiles) != 0 {
+	if len(histogramPercentiles) != 0 {
 		converter.Set("histogram_percentiles", histogramPercentiles)
 	}
 
@@ -245,7 +246,7 @@ func extractURLAPIKeys(agentConfig Config, converter *config.LegacyConfigConvert
 		converter.Set("dd_url", urls[0])
 	}
 
-	converter.Set("api_key", config.SanitizeAPIKey(keys[0]))
+	converter.Set("api_key", configUtils.SanitizeAPIKey(keys[0]))
 	if len(urls) == 1 {
 		return nil
 	}
@@ -258,12 +259,8 @@ func extractURLAPIKeys(agentConfig Config, converter *config.LegacyConfigConvert
 		if url == "" || keys[idx] == "" {
 			return fmt.Errorf("Found empty additional 'dd_url' or 'api_key'. Please check that you don't have any misplaced commas")
 		}
-		keys[idx] = config.SanitizeAPIKey(keys[idx])
-		if _, ok := additionalEndpoints[url]; ok {
-			additionalEndpoints[url] = append(additionalEndpoints[url], keys[idx])
-		} else {
-			additionalEndpoints[url] = []string{keys[idx]}
-		}
+		keys[idx] = configUtils.SanitizeAPIKey(keys[idx])
+		additionalEndpoints[url] = append(additionalEndpoints[url], keys[idx])
 	}
 	converter.Set("additional_endpoints", additionalEndpoints)
 	return nil

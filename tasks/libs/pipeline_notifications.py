@@ -1,48 +1,79 @@
 import json
 import os
+import re
 import subprocess
 from collections import defaultdict
 
 from .common.gitlab import Gitlab, get_gitlab_token
-from .types import Test
+from .types import FailedJobType, Test
 
+DEFAULT_SLACK_CHANNEL = "#agent-platform"
+DEFAULT_JIRA_PROJECT = "AGNTR"
+DATADOG_AGENT_GITHUB_ORG_URL = "https://github.com/DataDog"
+# Map keys in lowercase
+GITHUB_SLACK_MAP = {
+    "@datadog/agent-platform": DEFAULT_SLACK_CHANNEL,
+    "@datadog/documentation": DEFAULT_SLACK_CHANNEL,
+    "@datadog/container-integrations": "#container-integrations",
+    "@datadog/platform-integrations": "#platform-integrations-ops",
+    "@datadog/agent-security": "#security-and-compliance-agent-ops",
+    "@datadog/agent-apm": "#apm-agent",
+    "@datadog/network-device-monitoring": "#network-device-monitoring",
+    "@datadog/processes": "#process-agent-ops",
+    "@datadog/agent-metrics-logs": "#agent-metrics-logs",
+    "@datadog/agent-shared-components": "#agent-shared-components",
+    "@datadog/container-app": "#container-app",
+    "@datadog/metrics-aggregation": "#metrics-aggregation",
+    "@datadog/serverless": "#serverless-agent",
+    "@datadog/remote-config": "#remote-config-monitoring",
+    "@datadog/agent-all": "#datadog-agent-pipelines",
+    "@datadog/ebpf-platform": "#ebpf-platform-ops",
+    "@datadog/networks": "#network-performance-monitoring",
+    "@datadog/universal-service-monitoring": "#universal-service-monitoring",
+    "@datadog/windows-agent": "#windows-agent",
+    "@datadog/windows-kernel-integrations": "#windows-kernel-integrations",
+    "@datadog/opentelemetry": "#opentelemetry-ops",
+    "@datadog/agent-e2e-testing": "#agent-testing-and-qa",
+    "@datadog/software-integrity-and-trust": "#sit",
+    "@datadog/single-machine-performance": "#single-machine-performance",
+    "@datadog/agent-integrations": "#agent-integrations",
+    "@datadog/debugger": "#debugger-ops-prod",
+    "@datadog/database-monitoring": "#database-monitoring",
+    "@datadog/agent-cspm": "#k9-cspm-ops",
+    "@datadog/telemetry-and-analytics": "#instrumentation-telemetry",
+}
 
-def get_failed_jobs(project_name, pipeline_id):
-    gitlab = Gitlab(project_name=project_name, api_token=get_gitlab_token())
-
-    # gitlab.all_jobs yields a generator, it needs to be converted to a list to be able to
-    # go through it twice
-    jobs = list(gitlab.all_jobs(pipeline_id))
-
-    # Get instances of failed jobs
-    failed_jobs = {job["name"]: [] for job in jobs if job["status"] == "failed"}
-
-    # Group jobs per name
-    for job in jobs:
-        if job["name"] in failed_jobs:
-            failed_jobs[job["name"]].append(job)
-
-    # There, we now have the following map:
-    # job name -> list of jobs with that name, including at least one failed job
-
-    final_failed_jobs = []
-    for job_name, jobs in failed_jobs.items():
-        # We sort each list per creation date
-        jobs.sort(key=lambda x: x["created_at"])
-        # Check the final job in the list: it contains the current status of the job
-        final_status = {
-            "name": job_name,
-            "id": jobs[-1]["id"],
-            "stage": jobs[-1]["stage"],
-            "status": jobs[-1]["status"],
-            "allow_failure": jobs[-1]["allow_failure"],
-            "url": jobs[-1]["web_url"],
-            "retry_summary": [job["status"] for job in jobs],
-        }
-        if final_status["status"] == "failed" and not final_status["allow_failure"]:
-            final_failed_jobs.append(final_status)
-
-    return final_failed_jobs
+GITHUB_JIRA_MAP = {
+    "@datadog/agent-platform": "APL",
+    "@datadog/documentation": "DOCS",
+    "@datadog/container-integrations": "CONTINT",
+    "@datadog/platform-integrations": "PLINT",
+    "@datadog/agent-security": "SEC",
+    "@datadog/agent-apm": "AIT",
+    "@datadog/network-device-monitoring": "NDMII",
+    "@datadog/processes": "PROCS",
+    "@datadog/agent-metrics-logs": "AMLII",
+    "@datadog/agent-shared-components": "ASCII",
+    "@datadog/container-app": "CAP",
+    "@datadog/metrics-aggregation": "AGGR",
+    "@datadog/serverless": "SVLS",
+    "@datadog/remote-config": "RC",
+    "@datadog/agent-all": DEFAULT_JIRA_PROJECT,
+    "@datadog/ebpf-platform": "EBPF",
+    "@datadog/networks": "NPM",
+    "@datadog/universal-service-monitoring": "USMON",
+    "@datadog/windows-agent": "WINA",
+    "@datadog/windows-kernel-integrations": "WKINT",
+    "@datadog/opentelemetry": "OTEL",
+    "@datadog/agent-e2e-testing": "AETT",
+    "@datadog/software-integrity-and-trust": "SINT",
+    "@datadog/single-machine-performance": "SMP",
+    "@datadog/agent-integrations": "AI",
+    "@datadog/debugger": "DEBUG",
+    "@datadog/database-monitoring": "DBMON",
+    "@datadog/agent-cspm": "SEC",
+    "@datadog/telemetry-and-analytics": DEFAULT_JIRA_PROJECT,
+}
 
 
 def read_owners(owners_file):
@@ -50,6 +81,23 @@ def read_owners(owners_file):
 
     with open(owners_file, 'r') as f:
         return CodeOwners(f.read())
+
+
+def check_for_missing_owners_slack_and_jira(print_missing_teams=True, owners_file=".github/CODEOWNERS"):
+    owners = read_owners(owners_file)
+    error = False
+    for path in owners.paths:
+        if not path[2] or path[2][0][0] != "TEAM":
+            continue
+        if path[2][0][1].lower() not in GITHUB_SLACK_MAP:
+            error = True
+            if print_missing_teams:
+                print(f"The team {path[2][0][1]} doesn't have a slack team assigned !!")
+        if path[2][0][1].lower() not in GITHUB_JIRA_MAP:
+            error = True
+            if print_missing_teams:
+                print(f"The team {path[2][0][1]} doesn't have a jira project assigned !!")
+    return error
 
 
 def get_failed_tests(project_name, job, owners_file=".github/CODEOWNERS"):
@@ -86,8 +134,9 @@ def find_job_owners(failed_jobs, owners_file=".gitlab/JOBOWNERS"):
     owners_to_notify = defaultdict(list)
 
     for job in failed_jobs:
-        # Exclude jobs that were retried and succeeded
-        # Also exclude jobs allowed to fail
+        # Exclude jobs that failed due to infrastructure failures
+        if job["failure_type"] == FailedJobType.INFRA_FAILURE:
+            continue
         job_owners = owners.of(job["name"])
         # job_owners is a list of tuples containing the type of owner (eg. USERNAME, TEAM) and the name of the owner
         # eg. [('TEAM', '@DataDog/agent-platform')]
@@ -99,20 +148,27 @@ def find_job_owners(failed_jobs, owners_file=".gitlab/JOBOWNERS"):
     return owners_to_notify
 
 
-def base_message(header):
-    return """{header} pipeline <{pipeline_url}|{pipeline_id}> for {commit_ref_name} failed.
-{commit_title} (<{commit_url}|{commit_short_sha}>) by {author}""".format(  # noqa: FS002
-        header=header,
-        pipeline_url=os.getenv("CI_PIPELINE_URL"),
-        pipeline_id=os.getenv("CI_PIPELINE_ID"),
-        commit_ref_name=os.getenv("CI_COMMIT_REF_NAME"),
-        commit_title=os.getenv("CI_COMMIT_TITLE"),
-        commit_url="{project_url}/commit/{commit_sha}".format(  # noqa: FS002
-            project_url=os.getenv("CI_PROJECT_URL"), commit_sha=os.getenv("CI_COMMIT_SHA")
-        ),
-        commit_short_sha=os.getenv("CI_COMMIT_SHORT_SHA"),
-        author=get_git_author(),
-    )
+def base_message(header, state):
+    project_title = os.getenv("CI_PROJECT_TITLE")
+    commit_title = os.getenv("CI_COMMIT_TITLE")
+    pipeline_url = os.getenv("CI_PIPELINE_URL")
+    pipeline_id = os.getenv("CI_PIPELINE_ID")
+    commit_ref_name = os.getenv("CI_COMMIT_REF_NAME")
+    commit_url_gitlab = f"{os.getenv('CI_PROJECT_URL')}/commit/{os.getenv('CI_COMMIT_SHA')}"
+    commit_url_github = f"{DATADOG_AGENT_GITHUB_ORG_URL}/{project_title}/commit/{os.getenv('CI_COMMIT_SHA')}"
+    commit_short_sha = os.getenv("CI_COMMIT_SHORT_SHA")
+    author = get_git_author()
+
+    # Try to find a PR id (e.g #12345) in the commit title and add a link to it in the message if found.
+    parsed_pr_id_found = re.search(r'.*\(#([0-9]*)\)$', commit_title)
+    enhanced_commit_title = commit_title
+    if parsed_pr_id_found:
+        parsed_pr_id = parsed_pr_id_found.group(1)
+        pr_url_github = f"{DATADOG_AGENT_GITHUB_ORG_URL}/{project_title}/pull/{parsed_pr_id}"
+        enhanced_commit_title = enhanced_commit_title.replace(f"#{parsed_pr_id}", f"<{pr_url_github}|#{parsed_pr_id}>")
+
+    return f"""{header} pipeline <{pipeline_url}|{pipeline_id}> for {commit_ref_name} {state}.
+{enhanced_commit_title} (<{commit_url_gitlab}|{commit_short_sha}>)(:github: <{commit_url_github}|link>) by {author}"""
 
 
 def get_git_author():

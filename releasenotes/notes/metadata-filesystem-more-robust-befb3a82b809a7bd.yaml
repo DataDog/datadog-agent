@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    The v5 metadata payload's filesystem information is now more robust against failures in the ``df`` command, such as when a mountpoint is stuck.

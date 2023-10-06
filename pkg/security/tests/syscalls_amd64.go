@@ -4,13 +4,12 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build (functionaltests && amd64) || (stresstests && amd64)
-// +build functionaltests,amd64 stresstests,amd64
 
+// Package tests holds tests related files
 package tests
 
 import "syscall"
 
-//nolint:unused
 var supportedSyscalls = map[string]uintptr{
 	"SYS_CHMOD":  syscall.SYS_CHMOD,
 	"SYS_CHOWN":  syscall.SYS_CHOWN,

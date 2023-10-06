@@ -16,9 +16,26 @@ instances:
     #
     # collect_events: true
 
+    ## @param unbundle_events - boolean - optional - default: false
+    ## Transforms each collected Docker event into its own Datadog
+    ## event, instead of grouping them together by container image.
+    #
+    # unbundle_events: true
+
+    ## @param collected_event_types - array of strings - optional
+    ## Specify which docker events will be collected. Only effective when
+    ## unbundle_events is true, otherwise filtered_event_types is used.
+    ## A list of available types can be found at:
+    ## https://docs.docker.com/engine/reference/commandline/events/#object-types
+    #
+    collected_event_types:
+      - "oom"
+      - "kill"
+
     ## @param filtered_event_types - list of strings - optional - default: ['top', 'exec_start', 'exec_create', 'exec_die']
     ## List of excluded (filtered out) event types. Docker events of this type are not collected.
-    ## A list of available statuses can be found at:
+    ## Only effective when unbundle_events is true, otherwise filtered_event_types is used.
+    ## A list of available types can be found at:
     ## https://docs.docker.com/engine/reference/commandline/events/#object-types
     #
     # filtered_event_types:

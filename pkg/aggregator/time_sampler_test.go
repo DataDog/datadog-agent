@@ -4,11 +4,11 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build test
-// +build test
 
 package aggregator
 
 import (
+	"fmt"
 	"math"
 	"sort"
 	"testing"
@@ -17,10 +17,12 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator/ckey"
+	"github.com/DataDog/datadog-agent/pkg/aggregator/internal/limiter"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/internal/tags"
+	"github.com/DataDog/datadog-agent/pkg/aggregator/internal/tags_limiter"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
-	"github.com/DataDog/datadog-agent/pkg/quantile"
 	"github.com/DataDog/datadog-agent/pkg/tagset"
+	"github.com/DataDog/opentelemetry-mapping-go/pkg/quantile"
 )
 
 func generateSerieContextKey(serie *metrics.Serie) ckey.ContextKey {
@@ -33,7 +35,7 @@ func generateSerieContextKey(serie *metrics.Serie) ckey.ContextKey {
 }
 
 func testTimeSampler() *TimeSampler {
-	sampler := NewTimeSampler(TimeSamplerID(0), 10, tags.NewStore(false, "test"))
+	sampler := NewTimeSampler(TimeSamplerID(0), 10, tags.NewStore(false, "test"), nil, nil, "host")
 	return sampler
 }
 
@@ -270,7 +272,7 @@ func testCounterExpirySeconds(t *testing.T, store *tags.Store) {
 	// Counter2 should still report
 	assert.Equal(t, 1, len(series))
 	assert.Equal(t, 1, len(sampler.counterLastSampledByContext))
-	assert.Equal(t, 2, len(sampler.contextResolver.resolver.contextsByKey))
+	assert.Equal(t, 1, len(sampler.contextResolver.resolver.contextsByKey))
 
 	series, _ = flushSerie(sampler, 1800.0)
 	// Everything stopped reporting and is expired
@@ -332,7 +334,7 @@ func testSketch(t *testing.T, store *tags.Store) {
 		}
 
 		_, flushed := flushSerie(sampler, now)
-		metrics.AssertSketchSeriesEqual(t, metrics.SketchSeries{
+		metrics.AssertSketchSeriesEqual(t, &metrics.SketchSeries{
 			Name:     name,
 			Tags:     tagset.CompositeTagsFromSlice(tags),
 			Host:     host,
@@ -383,7 +385,7 @@ func testSketchBucketSampling(t *testing.T, store *tags.Store) {
 	expSketch.Insert(quantile.Default(), 1, 2)
 
 	assert.Equal(t, 1, len(flushed))
-	metrics.AssertSketchSeriesEqual(t, metrics.SketchSeries{
+	metrics.AssertSketchSeriesEqual(t, &metrics.SketchSeries{
 		Name:     "test.metric.name",
 		Tags:     tagset.CompositeTagsFromSlice([]string{"a", "b"}),
 		Interval: 10,
@@ -430,7 +432,7 @@ func testSketchContextSampling(t *testing.T, store *tags.Store) {
 		return flushed[i].Name < flushed[j].Name
 	})
 
-	metrics.AssertSketchSeriesEqual(t, metrics.SketchSeries{
+	metrics.AssertSketchSeriesEqual(t, &metrics.SketchSeries{
 		Name:     "test.metric.name1",
 		Tags:     tagset.CompositeTagsFromSlice([]string{"a", "b"}),
 		Interval: 10,
@@ -440,7 +442,7 @@ func testSketchContextSampling(t *testing.T, store *tags.Store) {
 		ContextKey: generateContextKey(&mSample1),
 	}, flushed[0])
 
-	metrics.AssertSketchSeriesEqual(t, metrics.SketchSeries{
+	metrics.AssertSketchSeriesEqual(t, &metrics.SketchSeries{
 		Name:     "test.metric.name2",
 		Tags:     tagset.CompositeTagsFromSlice([]string{"a", "c"}),
 		Interval: 10,
@@ -498,7 +500,7 @@ func testBucketSamplingWithSketchAndSeries(t *testing.T, store *tags.Store) {
 	expSketch := &quantile.Sketch{}
 	expSketch.Insert(quantile.Default(), 1)
 
-	metrics.AssertSketchSeriesEqual(t, metrics.SketchSeries{
+	metrics.AssertSketchSeriesEqual(t, &metrics.SketchSeries{
 		Name:     "distribution.metric.name1",
 		Tags:     tagset.CompositeTagsFromSlice([]string{"a", "b"}),
 		Interval: 10,
@@ -514,7 +516,7 @@ func TestBucketSamplingWithSketchAndSeries(t *testing.T) {
 }
 
 func benchmarkTimeSampler(b *testing.B, store *tags.Store) {
-	sampler := testTimeSampler()
+	sampler := NewTimeSampler(TimeSamplerID(0), 10, store, nil, nil, "host")
 
 	sample := metrics.MetricSample{
 		Name:       "my.metric.name",
@@ -532,8 +534,43 @@ func BenchmarkTimeSampler(b *testing.B) {
 	benchWithTagsStore(b, benchmarkTimeSampler)
 }
 
+func BenchmarkTimeSamplerWithLimiter(b *testing.B) {
+	sample1 := metrics.MetricSample{
+		Name:       "foo",
+		Value:      1,
+		Mtype:      metrics.GaugeType,
+		Tags:       []string{"foo", "bar"},
+		SampleRate: 1,
+		Timestamp:  12345.0,
+	}
+	sample2 := metrics.MetricSample{
+		Name:       "bar",
+		Value:      1,
+		Mtype:      metrics.GaugeType,
+		Tags:       []string{"foo", "bar"},
+		SampleRate: 1,
+		Timestamp:  12345.0,
+	}
+
+	for limit := range []int{0, 1, 2, 3} {
+		store := tags.NewStore(false, "test")
+		limiter := limiter.New(limit, "pod", []string{"pod"})
+		tagsLimiter := tags_limiter.New(5)
+		sampler := NewTimeSampler(TimeSamplerID(0), 10, store, limiter, tagsLimiter, "host")
+
+		b.Run(fmt.Sprintf("limit=%d", limit), func(b *testing.B) {
+			for n := 0; n < b.N; n++ {
+				sampler.sample(&sample1, 12345.0)
+				sampler.sample(&sample2, 12345.0)
+			}
+		})
+	}
+}
+
 func flushSerie(sampler *TimeSampler, timestamp float64) (metrics.Series, metrics.SketchSeriesList) {
 	var series metrics.Series
-	sketches := sampler.flush(timestamp, &series)
+	var sketches metrics.SketchSeriesList
+
+	sampler.flush(timestamp, &series, &sketches)
 	return series, sketches
 }

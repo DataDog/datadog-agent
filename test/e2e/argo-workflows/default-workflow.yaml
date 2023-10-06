@@ -11,10 +11,13 @@ spec:
       - name: datadog-agent-image-tag
       - name: datadog-cluster-agent-image-repository
       - name: datadog-cluster-agent-image-tag
+      - name: ci_commit_short_sha
+      - name: ci_pipeline_id
+      - name: ci_job_id
   volumes:
-  - name: datadog-agent-volume
-    hostPath:
-      path: /host/datadog-agent
+    - name: datadog-agent-volume
+      hostPath:
+        path: /host/datadog-agent
   templates:
     - name: main
       inputs:
@@ -23,6 +26,9 @@ spec:
           - name: datadog-agent-image-tag
           - name: datadog-cluster-agent-image-repository
           - name: datadog-cluster-agent-image-tag
+          - name: ci_commit_short_sha
+          - name: ci_pipeline_id
+          - name: ci_job_id
       steps:
         - - name: start-fake-datadog
             templateRef:
@@ -93,20 +99,30 @@ spec:
               template: create
             arguments:
               parameters:
-              - name: namespace
-                value: "{{workflow.namespace}}"
-              - name: agent-image-repository
-                value: "{{inputs.parameters.datadog-agent-image-repository}}"
-              - name: agent-image-tag
-                value: "{{inputs.parameters.datadog-agent-image-tag}}"
-              - name: dd-url
-                value: "http://fake-datadog.{{workflow.namespace}}.svc.cluster.local"
-              - name: site
-                value: ""
-              - name: cluster-agent-image-repository
-                value: "{{inputs.parameters.datadog-cluster-agent-image-repository}}"
-              - name: cluster-agent-image-tag
-                value: "{{inputs.parameters.datadog-cluster-agent-image-tag}}"
+                - name: namespace
+                  value: "{{workflow.namespace}}"
+                - name: agent-image-repository
+                  value: "{{inputs.parameters.datadog-agent-image-repository}}"
+                - name: agent-image-tag
+                  value: "{{inputs.parameters.datadog-agent-image-tag}}"
+                - name: dd-url
+                  value: "http://fake-datadog.{{workflow.namespace}}.svc.cluster.local"
+                - name: site
+                  value: ""
+                - name: cluster-agent-image-repository
+                  value: "{{inputs.parameters.datadog-cluster-agent-image-repository}}"
+                - name: cluster-agent-image-tag
+                  value: "{{inputs.parameters.datadog-cluster-agent-image-tag}}"
+                - name: ci_commit_short_sha
+                  value: "{{inputs.parameters.ci_commit_short_sha}}"
+                - name: ci_pipeline_id
+                  value: "{{inputs.parameters.ci_pipeline_id}}"
+                - name: ci_job_id
+                  value: "{{inputs.parameters.ci_job_id}}"
+                - name: remote_configuration_enabled
+                  value: "false"
+                - name: networkmonitoring_enabled
+                  value: "false"
 
         - - name: wait-datadog-agent
             templateRef:
@@ -114,8 +130,17 @@ spec:
               template: wait
             arguments:
               parameters:
-              - name: namespace
-                value: "{{workflow.namespace}}"
+                - name: namespace
+                  value: "{{workflow.namespace}}"
+
+        - - name: start-busybox
+            templateRef:
+              name: busybox
+              template: create
+            arguments:
+              parameters:
+                - name: namespace
+                  value: "{{workflow.namespace}}"
 
         - - name: test-datadog-agent
             templateRef:
@@ -162,14 +187,23 @@ spec:
                 - name: namespace
                   value: "{{workflow.namespace}}"
 
+          - name: test-busybox
+            templateRef:
+              name: busybox
+              template: test
+            arguments:
+              parameters:
+                - name: namespace
+                  value: "{{workflow.namespace}}"
+
         - - name: stop-redis
             templateRef:
               name: redis
               template: delete
             arguments:
               parameters:
-              - name: namespace
-                value: "{{workflow.namespace}}"
+                - name: namespace
+                  value: "{{workflow.namespace}}"
 
           - name: stop-nginx
             templateRef:
@@ -177,8 +211,8 @@ spec:
               template: delete
             arguments:
               parameters:
-              - name: namespace
-                value: "{{workflow.namespace}}"
+                - name: namespace
+                  value: "{{workflow.namespace}}"
 
         - - name: no-more-redis
             templateRef:
@@ -186,8 +220,8 @@ spec:
               template: no-more-metrics
             arguments:
               parameters:
-              - name: namespace
-                value: "{{workflow.namespace}}"
+                - name: namespace
+                  value: "{{workflow.namespace}}"
 
           - name: no-more-nginx
             templateRef:
@@ -195,8 +229,8 @@ spec:
               template: no-more-metrics
             arguments:
               parameters:
-              - name: namespace
-                value: "{{workflow.namespace}}"
+                - name: namespace
+                  value: "{{workflow.namespace}}"
 
     - name: exit-handler
       steps:
@@ -216,8 +250,8 @@ spec:
               template: delete
             arguments:
               parameters:
-              - name: namespace
-                value: "{{workflow.namespace}}"
+                - name: namespace
+                  value: "{{workflow.namespace}}"
 
           - name: stop-redis
             templateRef:
@@ -273,6 +307,15 @@ spec:
                 - name: namespace
                   value: "{{workflow.namespace}}"
 
+          - name: stop-busybox
+            templateRef:
+              name: busybox
+              template: delete
+            arguments:
+              parameters:
+                - name: namespace
+                  value: "{{workflow.namespace}}"
+
     - name: diagnose
       steps:
         - - name: diagnose-datadog-agent
@@ -281,21 +324,29 @@ spec:
               template: diagnose
             arguments:
               parameters:
-              - name: namespace
-                value: "{{workflow.namespace}}"
+                - name: namespace
+                  value: "{{workflow.namespace}}"
           - name: diagnose-fake-datadog
             templateRef:
               name: fake-datadog
               template: diagnose
             arguments:
               parameters:
-              - name: namespace
-                value: "{{workflow.namespace}}"
+                - name: namespace
+                  value: "{{workflow.namespace}}"
           - name: diagnose-nginx
             templateRef:
               name: nginx
               template: diagnose
             arguments:
               parameters:
-              - name: namespace
-                value: "{{workflow.namespace}}"
+                - name: namespace
+                  value: "{{workflow.namespace}}"
+          - name: diagnose-busybox
+            templateRef:
+              name: busybox
+              template: diagnose
+            arguments:
+              parameters:
+                - name: namespace
+                  value: "{{workflow.namespace}}"

@@ -4,14 +4,15 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build ignore
-// +build ignore
 
 package ebpf
 
 /*
-#include "./c/tracer.h"
+#include "./c/pid_fd.h"
+#include "./c/tracer/tracer.h"
 #include "./c/tcp_states.h"
 #include "./c/prebuilt/offset-guess.h"
+#include "./c/protocols/classification/defs.h"
 */
 import "C"
 
@@ -25,10 +26,13 @@ type PortBinding C.port_binding_t
 type PIDFD C.pid_fd_t
 type UDPRecvSock C.udp_recv_sock_t
 type BindSyscallArgs C.bind_syscall_args_t
+type ProtocolStack C.protocol_stack_t
+type ProtocolStackWrapper C.protocol_stack_wrapper_t
 
 // udp_recv_sock_t have *sock and *msghdr struct members, we make them opaque here
 type _Ctype_struct_sock uint64
 type _Ctype_struct_msghdr uint64
+type _Ctype_struct_sockaddr uint64
 
 type TCPState uint8
 
@@ -45,11 +49,15 @@ const (
 	Assured ConnFlags = C.CONN_ASSURED
 )
 
-type PortState uint8
+const BatchSize = C.CONN_CLOSED_BATCH_SIZE
+const SizeofBatch = C.sizeof_batch_t
+
+const SizeofConn = C.sizeof_conn_t
+
+type ClassificationProgram = uint32
 
 const (
-	PortListening PortState = C.PORT_LISTENING
-	PortClosed    PortState = C.PORT_CLOSED
+	ClassificationQueues ClassificationProgram = C.CLASSIFICATION_QUEUES_PROG
+	ClassificationDBs    ClassificationProgram = C.CLASSIFICATION_DBS_PROG
+	ClassificationGRPC   ClassificationProgram = C.CLASSIFICATION_GRPC_PROG
 )
-
-const BatchSize = C.CONN_CLOSED_BATCH_SIZE

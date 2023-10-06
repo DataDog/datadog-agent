@@ -7,21 +7,24 @@ package metrics
 
 import (
 	"bytes"
-	"encoding/json"
 	"expvar"
 
 	"github.com/DataDog/agent-payload/v5/gogen"
+	"github.com/richardartoul/molecule"
+
+	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/transaction"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/serializer/internal/stream"
 	"github.com/DataDog/datadog-agent/pkg/serializer/marshaler"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
-	"github.com/DataDog/datadog-agent/pkg/util/common"
-	"github.com/richardartoul/molecule"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // A SketchSeriesList implements marshaler.Marshaler
-type SketchSeriesList []metrics.SketchSeries
+type SketchSeriesList struct {
+	metrics.SketchesSource
+}
 
 var (
 	expvars                    = expvar.NewMap("sketch_series")
@@ -42,65 +45,17 @@ func init() {
 	expvars.Set("UnexpectedItemDrops", &expvarsUnexpectedItemDrops)
 }
 
-// MarshalJSON serializes sketch series to JSON.
-// Quite slow, but hopefully this method is called only in the `agent check` command
-func (sl SketchSeriesList) MarshalJSON() ([]byte, error) {
-	// We use this function to customize generated JSON
-	// This function, only used when displaying `bins`, is especially slow
-	// As `StructToMap` function is using reflection to return a generic map[string]interface{}
-	customSketchSeries := func(srcSl SketchSeriesList) []interface{} {
-		dstSl := make([]interface{}, 0, len(srcSl))
-
-		for _, ss := range srcSl {
-			ssMap := common.StructToMap(ss)
-			for i, sketchPoint := range ss.Points {
-				if sketchPoint.Sketch != nil {
-					sketch := ssMap["points"].([]interface{})[i].(map[string]interface{})
-					count, bins := sketchPoint.Sketch.GetRawBins()
-					sketch["binsCount"] = count
-					sketch["bins"] = bins
-				}
-			}
-			// `Tags` type is `*CompositeTags`` which is not handled by `StructToMap``
-			ssMap["tags"] = ss.Tags.UnsafeToReadOnlySliceString()
-			dstSl = append(dstSl, ssMap)
-		}
-
-		return dstSl
-	}
-
-	// use an alias to avoid infinite recursion while serializing a SketchSeriesList
-	if config.Datadog.GetBool("cmd.check.fullsketches") {
-		data := map[string]interface{}{
-			"sketches": customSketchSeries(sl),
-		}
-
-		reqBody := &bytes.Buffer{}
-		err := json.NewEncoder(reqBody).Encode(data)
-		return reqBody.Bytes(), err
-	}
-
-	type SketchSeriesAlias SketchSeriesList
-	data := map[string]SketchSeriesAlias{
-		"sketches": SketchSeriesAlias(sl),
-	}
-
-	reqBody := &bytes.Buffer{}
-	err := json.NewEncoder(reqBody).Encode(data)
-	return reqBody.Bytes(), err
-}
-
 // MarshalSplitCompress uses the stream compressor to marshal and compress sketch series payloads.
 // If a compressed payload is larger than the max, a new payload will be generated. This method returns a slice of
 // compressed protobuf marshaled gogen.SketchPayload objects. gogen.SketchPayload is not directly marshaled - instead
 // it's contents are marshaled individually, packed with the appropriate protobuf metadata, and compressed in stream.
 // The resulting payloads (when decompressed) are binary equal to the result of marshaling the whole object at once.
-func (sl SketchSeriesList) MarshalSplitCompress(bufferContext *marshaler.BufferContext) ([]*[]byte, error) {
+func (sl SketchSeriesList) MarshalSplitCompress(bufferContext *marshaler.BufferContext) (transaction.BytesPayloads, error) {
 	var err error
 	var compressor *stream.Compressor
 	buf := bufferContext.PrecompressionBuf
 	ps := molecule.NewProtoStream(buf)
-	payloads := []*[]byte{}
+	payloads := transaction.BytesPayloads{}
 
 	// constants for the protobuf data we will be writing, taken from
 	// https://github.com/DataDog/agent-payload/v5/blob/a2cd634bc9c088865b75c6410335270e6d780416/proto/metrics/agent_payload.proto#L47-L81
@@ -150,13 +105,14 @@ func (sl SketchSeriesList) MarshalSplitCompress(bufferContext *marshaler.BufferC
 		footer = buf.Bytes()
 	}
 
+	pointCount := 0
 	// Prepare to write the next payload
 	startPayload := func() error {
 		var err error
 
 		bufferContext.CompressorInput.Reset()
 		bufferContext.CompressorOutput.Reset()
-
+		pointCount = 0
 		compressor, err = stream.NewCompressor(
 			bufferContext.CompressorInput, bufferContext.CompressorOutput,
 			maxPayloadSize, maxUncompressedSize,
@@ -175,7 +131,7 @@ func (sl SketchSeriesList) MarshalSplitCompress(bufferContext *marshaler.BufferC
 			return err
 		}
 
-		payloads = append(payloads, &payload)
+		payloads = append(payloads, transaction.NewBytesPayload(payload, pointCount))
 
 		return nil
 	}
@@ -186,7 +142,8 @@ func (sl SketchSeriesList) MarshalSplitCompress(bufferContext *marshaler.BufferC
 		return nil, err
 	}
 
-	for _, ss := range sl {
+	for sl.MoveNext() {
+		ss := sl.Current()
 		buf.Reset()
 		err = ps.Embedded(payloadSketches, func(ps *molecule.ProtoStream) error {
 			var err error
@@ -296,24 +253,29 @@ func (sl SketchSeriesList) MarshalSplitCompress(bufferContext *marshaler.BufferC
 				// Unexpected error bail out
 				expvarsUnexpectedItemDrops.Add(1)
 				tlmUnexpectedItemDrops.Inc()
+				log.Debugf("Unexpected error trying to addItem to new payload after previous payload filled up: %v", err)
 				return nil, err
 			}
+			pointCount += len(ss.Points)
 		case stream.ErrItemTooBig:
 			// Item was too big, drop it
 			expvarsItemTooBig.Add(1)
 			tlmItemTooBig.Add(1)
 		case nil:
+			pointCount += len(ss.Points)
 			continue
 		default:
 			// Unexpected error bail out
 			expvarsUnexpectedItemDrops.Add(1)
 			tlmUnexpectedItemDrops.Inc()
+			log.Debugf("Unexpected error: %v", err)
 			return nil, err
 		}
 	}
 
 	err = finishPayload()
 	if err != nil {
+		log.Debugf("Failed to finish payload with err %v", err)
 		return nil, err
 	}
 
@@ -323,10 +285,11 @@ func (sl SketchSeriesList) MarshalSplitCompress(bufferContext *marshaler.BufferC
 // Marshal encodes this series list.
 func (sl SketchSeriesList) Marshal() ([]byte, error) {
 	pb := &gogen.SketchPayload{
-		Sketches: make([]gogen.SketchPayload_Sketch, 0, len(sl)),
+		Sketches: make([]gogen.SketchPayload_Sketch, 0),
 	}
 
-	for _, ss := range sl {
+	for sl.MoveNext() {
+		ss := sl.Current()
 		dsl := make([]gogen.SketchPayload_Sketch_Dogsketch, 0, len(ss.Points))
 
 		for _, p := range ss.Points {
@@ -356,6 +319,21 @@ func (sl SketchSeriesList) Marshal() ([]byte, error) {
 
 // SplitPayload breaks the payload into times number of pieces
 func (sl SketchSeriesList) SplitPayload(times int) ([]marshaler.AbstractMarshaler, error) {
+	var sketches SketchSeriesSlice
+	for sl.MoveNext() {
+		ss := sl.Current()
+		sketches = append(sketches, ss)
+	}
+	if len(sketches) == 0 {
+		return []marshaler.AbstractMarshaler{}, nil
+	}
+	return sketches.SplitPayload(times)
+}
+
+type SketchSeriesSlice []*metrics.SketchSeries
+
+// SplitPayload breaks the payload into times number of pieces
+func (sl SketchSeriesSlice) SplitPayload(times int) ([]marshaler.AbstractMarshaler, error) {
 	// Only break it down as much as possible
 	if len(sl) < times {
 		times = len(sl)

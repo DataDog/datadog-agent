@@ -1,6 +1,0 @@
-bind_host: bindhost
-
-experimental:
-  otlp:
-    http_port: 1234
-    grpc_port: 5678

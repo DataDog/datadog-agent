@@ -4,12 +4,12 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build orchestrator
-// +build orchestrator
 
 package k8s
 
 import (
 	model "github.com/DataDog/agent-payload/v5/process"
+
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors"
 	k8sTransformers "github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/transformers/k8s"
 	"github.com/DataDog/datadog-agent/pkg/orchestrator/redact"
@@ -19,22 +19,14 @@ import (
 )
 
 // RoleBindingHandlers implements the Handlers interface for Kubernetes RoleBindings.
-type RoleBindingHandlers struct{}
+type RoleBindingHandlers struct {
+	BaseHandlers
+}
 
 // AfterMarshalling is a handler called after resource marshalling.
 func (h *RoleBindingHandlers) AfterMarshalling(ctx *processors.ProcessorContext, resource, resourceModel interface{}, yaml []byte) (skip bool) {
 	m := resourceModel.(*model.RoleBinding)
 	m.Yaml = yaml
-	return
-}
-
-// BeforeCacheCheck is a handler called before cache lookup.
-func (h *RoleBindingHandlers) BeforeCacheCheck(ctx *processors.ProcessorContext, resource, resourceModel interface{}) (skip bool) {
-	return
-}
-
-// BeforeMarshalling is a handler called before resource marshalling.
-func (h *RoleBindingHandlers) BeforeMarshalling(ctx *processors.ProcessorContext, resource, resourceModel interface{}) (skip bool) {
 	return
 }
 
@@ -53,8 +45,7 @@ func (h *RoleBindingHandlers) BuildMessageBody(ctx *processors.ProcessorContext,
 		GroupId:      ctx.MsgGroupID,
 		GroupSize:    int32(groupSize),
 		RoleBindings: models,
-		Tags:         ctx.Cfg.ExtraTags,
-	}
+		Tags:         append(ctx.Cfg.ExtraTags, ctx.ApiGroupVersionTag)}
 }
 
 // ExtractResource is a handler called to extract the resource model out of a raw resource.
@@ -77,7 +68,7 @@ func (h *RoleBindingHandlers) ResourceList(ctx *processors.ProcessorContext, lis
 }
 
 // ResourceUID is a handler called to retrieve the resource UID.
-func (h *RoleBindingHandlers) ResourceUID(ctx *processors.ProcessorContext, resource, resourceModel interface{}) types.UID {
+func (h *RoleBindingHandlers) ResourceUID(ctx *processors.ProcessorContext, resource interface{}) types.UID {
 	return resource.(*rbacv1.RoleBinding).UID
 }
 
@@ -91,9 +82,4 @@ func (h *RoleBindingHandlers) ResourceVersion(ctx *processors.ProcessorContext, 
 func (h *RoleBindingHandlers) ScrubBeforeExtraction(ctx *processors.ProcessorContext, resource interface{}) {
 	r := resource.(*rbacv1.RoleBinding)
 	redact.RemoveLastAppliedConfigurationAnnotation(r.Annotations)
-}
-
-// ScrubBeforeMarshalling is a handler called to redact the raw resource before
-// it is marshalled to generate a manifest.
-func (h *RoleBindingHandlers) ScrubBeforeMarshalling(ctx *processors.ProcessorContext, resource interface{}) {
 }

@@ -3,6 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build !windows
+
 package checks
 
 import (
@@ -15,10 +17,16 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	model "github.com/DataDog/agent-payload/v5/process"
-	"github.com/DataDog/datadog-agent/pkg/process/config"
-	"github.com/DataDog/datadog-agent/pkg/process/procutil"
 	"github.com/DataDog/gopsutil/cpu"
+
+	"github.com/DataDog/datadog-agent/pkg/process/procutil"
 )
+
+func makeContainer(id string) *model.Container {
+	return &model.Container{
+		Id: id,
+	}
+}
 
 // TestBasicProcessMessages tests basic cases for creating payloads by hard-coded scenarios
 func TestBasicProcessMessages(t *testing.T) {
@@ -28,7 +36,7 @@ func TestBasicProcessMessages(t *testing.T) {
 		makeProcess(2, "mine-bitcoins -all -x"),
 		makeProcess(3, "foo --version"),
 		makeProcess(4, "foo -bar -bim"),
-		makeProcess(5, "datadog-process-agent -ddconfig datadog.conf"),
+		makeProcess(5, "datadog-process-agent --cfgpath datadog.conf"),
 	}
 	c := []*model.Container{
 		makeContainer("foo"),
@@ -36,8 +44,8 @@ func TestBasicProcessMessages(t *testing.T) {
 	}
 	lastRun := time.Now().Add(-5 * time.Second)
 	syst1, syst2 := cpu.TimesStat{}, cpu.TimesStat{}
-	cfg := config.NewDefaultAgentConfig()
 	sysInfo := &model.SystemInfo{}
+	hostInfo := &HostInfo{SystemInfo: sysInfo}
 
 	for i, tc := range []struct {
 		testName           string
@@ -45,7 +53,7 @@ func TestBasicProcessMessages(t *testing.T) {
 		containers         []*model.Container
 		pidToCid           map[int]string
 		maxSize            int
-		blacklist          []string
+		disallowList       []string
 		expectedChunks     int
 		expectedProcs      int
 		expectedContainers int
@@ -56,7 +64,7 @@ func TestBasicProcessMessages(t *testing.T) {
 			maxSize:            2,
 			containers:         []*model.Container{},
 			pidToCid:           nil,
-			blacklist:          []string{},
+			disallowList:       []string{},
 			expectedChunks:     2,
 			expectedProcs:      3,
 			expectedContainers: 0,
@@ -67,7 +75,7 @@ func TestBasicProcessMessages(t *testing.T) {
 			maxSize:            2,
 			containers:         []*model.Container{c[0]},
 			pidToCid:           map[int]string{1: "foo", 2: "foo"},
-			blacklist:          []string{},
+			disallowList:       []string{},
 			expectedChunks:     2,
 			expectedProcs:      3,
 			expectedContainers: 1,
@@ -78,7 +86,7 @@ func TestBasicProcessMessages(t *testing.T) {
 			maxSize:            1,
 			containers:         []*model.Container{c[1]},
 			pidToCid:           map[int]string{3: "bar"},
-			blacklist:          []string{},
+			disallowList:       []string{},
 			expectedChunks:     3,
 			expectedProcs:      3,
 			expectedContainers: 1,
@@ -89,7 +97,7 @@ func TestBasicProcessMessages(t *testing.T) {
 			maxSize:            2,
 			containers:         []*model.Container{c[0], c[1]},
 			pidToCid:           map[int]string{1: "foo", 2: "foo", 3: "bar"},
-			blacklist:          []string{},
+			disallowList:       []string{},
 			expectedChunks:     2,
 			expectedProcs:      3,
 			expectedContainers: 2,
@@ -100,22 +108,20 @@ func TestBasicProcessMessages(t *testing.T) {
 			maxSize:            2,
 			containers:         []*model.Container{c[1]},
 			pidToCid:           map[int]string{3: "bar"},
-			blacklist:          []string{"foo"},
+			disallowList:       []string{"foo"},
 			expectedChunks:     1,
 			expectedProcs:      2,
 			expectedContainers: 1,
 		},
 	} {
 		t.Run(tc.testName, func(t *testing.T) {
-			bl := make([]*regexp.Regexp, 0, len(tc.blacklist))
-			for _, s := range tc.blacklist {
-				bl = append(bl, regexp.MustCompile(s))
+			disallowList := make([]*regexp.Regexp, 0, len(tc.disallowList))
+			for _, s := range tc.disallowList {
+				disallowList = append(disallowList, regexp.MustCompile(s))
 			}
-			cfg.Blacklist = bl
-			networks := make(map[int32][]*model.Connection)
 
-			procs := fmtProcesses(cfg, tc.processes, tc.processes, tc.pidToCid, syst2, syst1, lastRun, networks)
-			messages, totalProcs, totalContainers := createProcCtrMessages(procs, tc.containers, cfg, tc.maxSize, maxBatchBytes, sysInfo, int32(i), "nid")
+			procs := fmtProcesses(procutil.NewDefaultDataScrubber(), disallowList, tc.processes, tc.processes, tc.pidToCid, syst2, syst1, lastRun, nil, nil)
+			messages, totalProcs, totalContainers := createProcCtrMessages(hostInfo, procs, tc.containers, tc.maxSize, maxBatchBytes, int32(i), "nid", 0)
 
 			assert.Equal(t, tc.expectedChunks, len(messages))
 
@@ -217,24 +223,23 @@ func TestContainerProcessChunking(t *testing.T) {
 		},
 	} {
 		t.Run(tc.testName, func(t *testing.T) {
-			networks := make(map[int32][]*model.Connection)
 			procs, ctrs, pidToCid := generateCtrProcs(tc.ctrProcs)
 			procsByPid := procsToHash(procs)
 
 			lastRun := time.Now().Add(-5 * time.Second)
 			syst1, syst2 := cpu.TimesStat{}, cpu.TimesStat{}
-			cfg := config.NewDefaultAgentConfig()
 			sysInfo := &model.SystemInfo{}
+			hostInfo := &HostInfo{SystemInfo: sysInfo}
 
-			processes := fmtProcesses(cfg, procsByPid, procsByPid, pidToCid, syst2, syst1, lastRun, networks)
-			messages, totalProcs, totalContainers := createProcCtrMessages(processes, ctrs, cfg, tc.maxSize, maxBatchBytes, sysInfo, int32(i), "nid")
+			processes := fmtProcesses(procutil.NewDefaultDataScrubber(), nil, procsByPid, procsByPid, pidToCid, syst2, syst1, lastRun, nil, nil)
+			messages, totalProcs, totalContainers := createProcCtrMessages(hostInfo, processes, ctrs, tc.maxSize, maxBatchBytes, int32(i), "nid", 0)
 
 			assert.Equal(t, tc.expectedProcCount, totalProcs)
 			assert.Equal(t, tc.expectedCtrCount, totalContainers)
 
 			// sort and verify messages
 			sortMsgs(messages)
-			verifyBatchedMsgs(t, cfg, tc.expectedBatches, messages)
+			verifyBatchedMsgs(t, hostInfo, tc.expectedBatches, messages)
 		})
 	}
 }
@@ -268,7 +273,7 @@ func sortMsgs(m []model.MessageBody) {
 	})
 }
 
-func verifyBatchedMsgs(t *testing.T, cfg *config.AgentConfig, expected []map[string]int, msgs []model.MessageBody) {
+func verifyBatchedMsgs(t *testing.T, hostInfo *HostInfo, expected []map[string]int, msgs []model.MessageBody) {
 	assert := assert.New(t)
 
 	assert.Equal(len(expected), len(msgs), "Number of messages created")
@@ -276,7 +281,7 @@ func verifyBatchedMsgs(t *testing.T, cfg *config.AgentConfig, expected []map[str
 	for i, msg := range msgs {
 		payload := msg.(*model.CollectorProc)
 
-		assert.Equal(cfg.ContainerHostType, payload.ContainerHostType)
+		assert.Equal(hostInfo.ContainerHostType, payload.ContainerHostType)
 
 		actualCtrPIDCounts := map[string]int{}
 
@@ -310,4 +315,56 @@ func generateCtrProcs(ctrProcs []ctrProc) ([]*procutil.Process, []*model.Contain
 		}
 	}
 	return procs, ctrs, pidToCid
+}
+
+func TestFormatCPUTimes(t *testing.T) {
+	oldHostCPUCount := hostCPUCount
+	hostCPUCount = func() int {
+		return 4
+	}
+	defer func() {
+		hostCPUCount = oldHostCPUCount
+	}()
+
+	for name, test := range map[string]struct {
+		statsNow   *procutil.Stats
+		statsPrev  *procutil.CPUTimesStat
+		timeNow    cpu.TimesStat
+		timeBefore cpu.TimesStat
+		expected   *model.CPUStat
+	}{
+		"times": {
+			statsNow: &procutil.Stats{
+				CPUTime: &procutil.CPUTimesStat{
+					User:   101.01,
+					System: 202.02,
+				},
+				NumThreads: 4,
+				Nice:       5,
+			},
+			statsPrev: &procutil.CPUTimesStat{
+				User:   11,
+				System: 22,
+			},
+			timeNow:    cpu.TimesStat{User: 5000},
+			timeBefore: cpu.TimesStat{User: 2500},
+			expected: &model.CPUStat{
+				LastCpu:    "cpu",
+				TotalPct:   43.2048,
+				UserPct:    14.4016,
+				SystemPct:  28.8032,
+				NumThreads: 4,
+				Cpus:       []*model.SingleCPUStat{},
+				Nice:       5,
+				UserTime:   101,
+				SystemTime: 202,
+			},
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			assert.Equal(t, test.expected, formatCPUTimes(
+				test.statsNow, test.statsNow.CPUTime, test.statsPrev, test.timeNow, test.timeBefore,
+			))
+		})
+	}
 }

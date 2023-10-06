@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build clusterchecks && kubeapiserver
-// +build clusterchecks,kubeapiserver
 
 package providers
 
@@ -74,11 +73,13 @@ func NewKubeEndpointsConfigProvider(*config.ConfigurationProviders) (ConfigProvi
 		monitoredEndpoints: make(map[string]bool),
 	}
 
-	servicesInformer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
+	if _, err := servicesInformer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
 		AddFunc:    p.invalidate,
 		UpdateFunc: p.invalidateIfChangedService,
 		DeleteFunc: p.invalidate,
-	})
+	}); err != nil {
+		return nil, fmt.Errorf("cannot add event handler to service informer: %s", err)
+	}
 
 	endpointsInformer := ac.InformerFactory.Core().V1().Endpoints()
 	if endpointsInformer == nil {
@@ -87,9 +88,11 @@ func NewKubeEndpointsConfigProvider(*config.ConfigurationProviders) (ConfigProvi
 
 	p.endpointsLister = endpointsInformer.Lister()
 
-	endpointsInformer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
+	if _, err := endpointsInformer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
 		UpdateFunc: p.invalidateIfChangedEndpoints,
-	})
+	}); err != nil {
+		return nil, fmt.Errorf("cannot add event handler to endpoint informer: %s", err)
+	}
 
 	return p, nil
 }
@@ -132,8 +135,18 @@ func (k *kubeEndpointsConfigProvider) IsUpToDate(ctx context.Context) (bool, err
 func (k *kubeEndpointsConfigProvider) invalidate(obj interface{}) {
 	castedObj, ok := obj.(*v1.Service)
 	if !ok {
-		log.Errorf("Expected a Service type, got: %T", obj)
-		return
+		// It's possible that we got a DeletedFinalStateUnknown here
+		deletedState, ok := obj.(cache.DeletedFinalStateUnknown)
+		if !ok {
+			log.Errorf("Received unexpected object: %T", obj)
+			return
+		}
+
+		castedObj, ok = deletedState.Obj.(*v1.Service)
+		if !ok {
+			log.Errorf("Expected DeletedFinalStateUnknown to contain *v1.Service, got: %T", deletedState.Obj)
+			return
+		}
 	}
 	endpointsID := apiserver.EntityForEndpoints(castedObj.Namespace, castedObj.Name, "")
 	log.Tracef("Invalidating configs on new/deleted service, endpoints entity: %s", endpointsID)
@@ -148,13 +161,13 @@ func (k *kubeEndpointsConfigProvider) invalidateIfChangedService(old, obj interf
 	// nil pointers are safely handled by the casting logic.
 	castedObj, ok := obj.(*v1.Service)
 	if !ok {
-		log.Errorf("Expected a Service type, got: %T", obj)
+		log.Errorf("Expected a *v1.Service type, got: %T", obj)
 		return
 	}
 	// Cast the old object, invalidate on casting error
 	castedOld, ok := old.(*v1.Service)
 	if !ok {
-		log.Errorf("Expected a Service type, got: %T", old)
+		log.Errorf("Expected a *v1.Service type, got: %T", old)
 		k.setUpToDate(false)
 		return
 	}
@@ -174,13 +187,13 @@ func (k *kubeEndpointsConfigProvider) invalidateIfChangedEndpoints(old, obj inte
 	// nil pointers are safely handled by the casting logic.
 	castedObj, ok := obj.(*v1.Endpoints)
 	if !ok {
-		log.Errorf("Expected an Endpoints type, got: %T", obj)
+		log.Errorf("Expected an *v1.Endpoints type, got: %T", obj)
 		return
 	}
 	// Cast the old object, invalidate on casting error
 	castedOld, ok := old.(*v1.Endpoints)
 	if !ok {
-		log.Errorf("Expected a Endpoints type, got: %T", old)
+		log.Errorf("Expected a *v1.Endpoints type, got: %T", old)
 		k.setUpToDate(false)
 		return
 	}
@@ -196,7 +209,6 @@ func (k *kubeEndpointsConfigProvider) invalidateIfChangedEndpoints(old, obj inte
 		// Invalidate only when subsets change
 		k.upToDate = equality.Semantic.DeepEqual(castedObj.Subsets, castedOld.Subsets)
 	}
-	return
 }
 
 // setUpToDate is a thread-safe method to update the upToDate value
@@ -217,7 +229,7 @@ func parseServiceAnnotationsForEndpoints(services []*v1.Service) []configInfo {
 
 		endpointsID := apiserver.EntityForEndpoints(svc.Namespace, svc.Name, "")
 
-		endptConf, errors := utils.ExtractTemplatesFromAnnotations(endpointsID, svc.Annotations, kubeEndpointID)
+		endptConf, errors := utils.ExtractTemplatesFromPodAnnotations(endpointsID, svc.Annotations, kubeEndpointID)
 		for _, err := range errors {
 			log.Errorf("Cannot parse endpoint template for service %s/%s: %s", svc.Namespace, svc.Name, err)
 		}

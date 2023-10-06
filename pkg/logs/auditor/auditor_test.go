@@ -6,9 +6,8 @@
 package auditor
 
 import (
-	"fmt"
-	"io/ioutil"
 	"os"
+	"path/filepath"
 	"testing"
 	"time"
 
@@ -17,38 +16,28 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 
-	"github.com/DataDog/datadog-agent/pkg/logs/config"
+	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
+	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 )
 
 var testpath = "testpath"
 
 type AuditorTestSuite struct {
 	suite.Suite
-	testDir  string
-	testPath string
+	testRunPathDir   string
+	testRegistryPath string
 
 	a      *RegistryAuditor
-	source *config.LogSource
+	source *sources.LogSource
 }
 
 func (suite *AuditorTestSuite) SetupTest() {
-	var err error
+	suite.testRunPathDir = suite.T().TempDir()
 
-	suite.testDir, err = ioutil.TempDir("", "tests")
-	suite.NoError(err)
+	suite.testRegistryPath = filepath.Join(suite.testRunPathDir, "registry.json")
 
-	suite.testPath = fmt.Sprintf("%s/auditor.json", suite.testDir)
-
-	_, err = os.Create(suite.testPath)
-	suite.Nil(err)
-
-	suite.a = New("", DefaultRegistryFilename, time.Hour, health.RegisterLiveness("fake"))
-	suite.a.registryPath = suite.testPath
-	suite.source = config.NewLogSource("", &config.LogsConfig{Path: testpath})
-}
-
-func (suite *AuditorTestSuite) TearDownTest() {
-	os.Remove(suite.testDir)
+	suite.a = New(suite.testRunPathDir, DefaultRegistryFilename, time.Hour, health.RegisterLiveness("fake"))
+	suite.source = sources.NewLogSource("", &config.LogsConfig{Path: testpath})
 }
 
 func (suite *AuditorTestSuite) TestAuditorStartStop() {
@@ -79,9 +68,9 @@ func (suite *AuditorTestSuite) TestAuditorFlushesAndRecoversRegistry() {
 		Offset:      "42",
 		TailingMode: "end",
 	}
-	suite.a.flushRegistry()
-	r, err := ioutil.ReadFile(suite.testPath)
-	suite.Nil(err)
+	suite.NoError(suite.a.flushRegistry())
+	r, err := os.ReadFile(suite.testRegistryPath)
+	suite.NoError(err)
 	suite.Equal("{\"Version\":2,\"Registry\":{\"testpath\":{\"LastUpdated\":\"2006-01-12T01:01:01.000000001Z\",\"Offset\":\"42\",\"TailingMode\":\"end\",\"IngestionTimestamp\":0}}}", string(r))
 
 	suite.a.registry = make(map[string]*RegistryEntry)
@@ -98,7 +87,7 @@ func (suite *AuditorTestSuite) TestAuditorRecoversRegistryForOffset() {
 	offset := suite.a.GetOffset(suite.source.Config.Path)
 	suite.Equal("42", offset)
 
-	othersource := config.NewLogSource("", &config.LogsConfig{Path: "anotherpath"})
+	othersource := sources.NewLogSource("", &config.LogsConfig{Path: "anotherpath"})
 	offset = suite.a.GetOffset(othersource.Config.Path)
 	suite.Equal("", offset)
 }

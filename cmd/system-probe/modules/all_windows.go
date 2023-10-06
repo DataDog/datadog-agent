@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build windows
-// +build windows
 
 package modules
 
@@ -13,23 +12,17 @@ import (
 
 	"github.com/DataDog/datadog-agent/cmd/system-probe/api/module"
 	"github.com/DataDog/datadog-agent/cmd/system-probe/config"
-	"golang.org/x/sys/windows/svc/eventlog"
+	"github.com/DataDog/datadog-agent/pkg/util/winutil"
+	"github.com/DataDog/datadog-agent/pkg/util/winutil/messagestrings"
 )
 
 // All System Probe modules should register their factories here
 var All = []module.Factory{
 	NetworkTracer,
+	EventMonitor,
+	WinCrashProbe,
 }
 
-const (
-	msgSysprobeRestartInactivity = 0x8000000f
-)
-
 func inactivityEventLog(duration time.Duration) {
-	elog, err := eventlog.Open(config.ServiceName)
-	if err != nil {
-		return
-	}
-	defer elog.Close()
-	elog.Warning(msgSysprobeRestartInactivity, duration.String())
+	winutil.LogEventViewer(config.ServiceName, messagestrings.MSG_SYSPROBE_RESTART_INACTIVITY, duration.String())
 }

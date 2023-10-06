@@ -32,7 +32,7 @@ func (h *Historate) addSample(sample *MetricSample, timestamp float64) {
 }
 
 func (h *Historate) flush(timestamp float64) ([]*Serie, error) {
-	if h.sampled == false {
+	if !h.sampled {
 		return []*Serie{}, NoSerieError{}
 	}
 

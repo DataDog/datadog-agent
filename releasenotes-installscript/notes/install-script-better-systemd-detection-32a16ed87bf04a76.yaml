@@ -1,4 +1,0 @@
----
-fixes:
-  - |
-    Improved detection of systemd as init system.

@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build python && test
-// +build python,test
 
 package python
 
@@ -18,6 +17,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/metadata/externalhost"
 	"github.com/DataDog/datadog-agent/pkg/util"
+	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/clustername"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
@@ -38,8 +38,8 @@ func testGetHostname(t *testing.T) {
 	GetHostname(&h)
 	require.NotNil(t, h)
 
-	hostname, _ := util.GetHostname(context.Background())
-	assert.Equal(t, hostname, C.GoString(h))
+	hname, _ := hostname.Get(context.Background())
+	assert.Equal(t, hname, C.GoString(h))
 }
 
 func testGetClusterName(t *testing.T) {

@@ -7,11 +7,13 @@
 package encodedtext
 
 import (
-	"github.com/DataDog/datadog-agent/pkg/logs/internal/parsers"
 	"golang.org/x/text/encoding"
 	"golang.org/x/text/encoding/japanese"
 	"golang.org/x/text/encoding/unicode"
 	"golang.org/x/text/transform"
+
+	"github.com/DataDog/datadog-agent/pkg/logs/internal/parsers"
+	"github.com/DataDog/datadog-agent/pkg/logs/message"
 )
 
 // Encoding specifies the encoding which should be decoded by the DecodingParser
@@ -31,9 +33,10 @@ type encodedText struct {
 }
 
 // Parse implements Parser#Parse
-func (p *encodedText) Parse(msg []byte) (parsers.Message, error) {
-	decoded, _, err := transform.Bytes(p.decoder, msg)
-	return parsers.Message{Content: decoded}, err
+func (p *encodedText) Parse(msg *message.Message) (*message.Message, error) {
+	decoded, _, err := transform.Bytes(p.decoder, msg.Content)
+	msg.Content = decoded
+	return msg, err
 }
 
 // SupportsPartialLine implements Parser#SupportsPartialLine

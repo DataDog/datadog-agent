@@ -4,8 +4,8 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build kubeapiserver
-// +build kubeapiserver
 
+// Package admission implements the admission controller managed by the Cluster Agent.
 package admission
 
 import (
@@ -63,7 +63,7 @@ func StartControllers(ctx ControllerContext) error {
 		return err
 	}
 
-	v1Enabled, err := useAdmissionV1(ctx)
+	v1Enabled, err := UseAdmissionV1(ctx.DiscoveryClient)
 	if err != nil {
 		return err
 	}

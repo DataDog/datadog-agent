@@ -8,13 +8,13 @@ package collector
 import (
 	"sync"
 
-	"github.com/DataDog/datadog-agent/pkg/collector/check"
+	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 )
 
 // collectorErrors holds the error objects
 type collectorErrors struct {
 	loader map[string]map[string]string // check Name -> loader -> error
-	run    map[check.ID]string          // check ID -> error
+	run    map[checkid.ID]string        // check ID -> error
 	m      sync.RWMutex
 }
 
@@ -22,7 +22,7 @@ type collectorErrors struct {
 func newCollectorErrors() *collectorErrors {
 	return &collectorErrors{
 		loader: make(map[string]map[string]string),
-		run:    make(map[check.ID]string),
+		run:    make(map[checkid.ID]string),
 	}
 }
 
@@ -58,18 +58,18 @@ func (ce *collectorErrors) getLoaderErrors() map[string]map[string]string {
 	return errorsCopy
 }
 
-func (ce *collectorErrors) setRunError(checkID check.ID, err string) {
+func (ce *collectorErrors) setRunError(checkID checkid.ID, err string) {
 	ce.m.Lock()
 	defer ce.m.Unlock()
 
 	ce.run[checkID] = err
 }
 
-func (ce *collectorErrors) getRunErrors() map[check.ID]string {
+func (ce *collectorErrors) getRunErrors() map[checkid.ID]string {
 	ce.m.RLock()
 	defer ce.m.RUnlock()
 
-	runCopy := make(map[check.ID]string)
+	runCopy := make(map[checkid.ID]string)
 	for k, v := range ce.run {
 		runCopy[k] = v
 	}

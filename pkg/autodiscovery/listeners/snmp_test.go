@@ -12,6 +12,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/snmp"
+	"github.com/DataDog/datadog-agent/pkg/snmp/snmpintegration"
 
 	"github.com/stretchr/testify/assert"
 )
@@ -31,7 +32,7 @@ func TestSNMPListener(t *testing.T) {
 		Workers: 1,
 	}
 
-	mockConfig := config.Mock()
+	mockConfig := config.Mock(t)
 	mockConfig.Set("snmp_listener", listenerConfig)
 
 	worker = func(l *SNMPListener, jobs <-chan snmpJob) {
@@ -79,7 +80,7 @@ func TestSNMPListenerSubnets(t *testing.T) {
 		listenerConfig.Configs = append(listenerConfig.Configs, snmpConfig)
 	}
 
-	mockConfig := config.Mock()
+	mockConfig := config.Mock(t)
 	mockConfig.Set("snmp_listener", listenerConfig)
 
 	worker = func(l *SNMPListener, jobs <-chan snmpJob) {
@@ -130,7 +131,7 @@ func TestSNMPListenerIgnoredAdresses(t *testing.T) {
 		Workers: 1,
 	}
 
-	mockConfig := config.Mock()
+	mockConfig := config.Mock(t)
 	mockConfig.Set("snmp_listener", listenerConfig)
 
 	worker = func(l *SNMPListener, jobs <-chan snmpJob) {
@@ -163,6 +164,18 @@ func TestExtraConfig(t *testing.T) {
 		Retries:      2,
 		OidBatchSize: 10,
 		Namespace:    "my-ns",
+		InterfaceConfigs: map[string][]snmpintegration.InterfaceConfig{
+			"192.168.0.1": {{
+				MatchField: "name",
+				MatchValue: "eth0",
+				InSpeed:    25,
+				OutSpeed:   10,
+				Tags: []string{
+					"customTag1",
+					"customTag2:value2",
+				},
+			}},
+		},
 	}
 
 	svc := SNMPService{
@@ -172,61 +185,89 @@ func TestExtraConfig(t *testing.T) {
 		config:       snmpConfig,
 	}
 
-	info, err := svc.GetExtraConfig([]byte("autodiscovery_subnet"))
+	info, err := svc.GetExtraConfig("autodiscovery_subnet")
 	assert.Equal(t, nil, err)
-	assert.Equal(t, "192.168.0.0/24", string(info))
+	assert.Equal(t, "192.168.0.0/24", info)
 
-	info, err = svc.GetExtraConfig([]byte("community"))
+	info, err = svc.GetExtraConfig("community")
 	assert.Equal(t, nil, err)
-	assert.Equal(t, "public", string(info))
+	assert.Equal(t, "public", info)
 
-	info, err = svc.GetExtraConfig([]byte("timeout"))
+	info, err = svc.GetExtraConfig("timeout")
 	assert.Equal(t, nil, err)
-	assert.Equal(t, "5", string(info))
+	assert.Equal(t, "5", info)
 
-	info, err = svc.GetExtraConfig([]byte("retries"))
+	info, err = svc.GetExtraConfig("retries")
 	assert.Equal(t, nil, err)
-	assert.Equal(t, "2", string(info))
+	assert.Equal(t, "2", info)
 
-	info, err = svc.GetExtraConfig([]byte("oid_batch_size"))
+	info, err = svc.GetExtraConfig("oid_batch_size")
 	assert.Equal(t, nil, err)
-	assert.Equal(t, "10", string(info))
+	assert.Equal(t, "10", info)
 
-	info, err = svc.GetExtraConfig([]byte("tags"))
+	info, err = svc.GetExtraConfig("tags")
 	assert.Equal(t, nil, err)
-	assert.Equal(t, "", string(info))
+	assert.Equal(t, "", info)
 
-	info, err = svc.GetExtraConfig([]byte("collect_device_metadata"))
+	info, err = svc.GetExtraConfig("collect_device_metadata")
 	assert.Equal(t, nil, err)
-	assert.Equal(t, "false", string(info))
+	assert.Equal(t, "false", info)
 
 	svc.config.CollectDeviceMetadata = true
-	info, err = svc.GetExtraConfig([]byte("collect_device_metadata"))
+	info, err = svc.GetExtraConfig("collect_device_metadata")
 	assert.Equal(t, nil, err)
-	assert.Equal(t, "true", string(info))
+	assert.Equal(t, "true", info)
 
 	svc.config.CollectDeviceMetadata = false
-	info, err = svc.GetExtraConfig([]byte("collect_device_metadata"))
+	info, err = svc.GetExtraConfig("collect_device_metadata")
 	assert.Equal(t, nil, err)
-	assert.Equal(t, "false", string(info))
+	assert.Equal(t, "false", info)
 
-	info, err = svc.GetExtraConfig([]byte("min_collection_interval"))
+	info, err = svc.GetExtraConfig("collect_topology")
 	assert.Equal(t, nil, err)
-	assert.Equal(t, "0", string(info))
+	assert.Equal(t, "false", info)
+
+	svc.config.CollectTopology = true
+	info, err = svc.GetExtraConfig("collect_topology")
+	assert.Equal(t, nil, err)
+	assert.Equal(t, "true", info)
+
+	svc.config.CollectTopology = false
+	info, err = svc.GetExtraConfig("collect_topology")
+	assert.Equal(t, nil, err)
+	assert.Equal(t, "false", info)
+
+	info, err = svc.GetExtraConfig("min_collection_interval")
+	assert.Equal(t, nil, err)
+	assert.Equal(t, "0", info)
 
 	svc.config.UseDeviceIDAsHostname = false
-	info, err = svc.GetExtraConfig([]byte("use_device_id_as_hostname"))
+	info, err = svc.GetExtraConfig("use_device_id_as_hostname")
 	assert.Equal(t, nil, err)
-	assert.Equal(t, "false", string(info))
+	assert.Equal(t, "false", info)
 
 	svc.config.MinCollectionInterval = 60
-	info, err = svc.GetExtraConfig([]byte("min_collection_interval"))
+	info, err = svc.GetExtraConfig("min_collection_interval")
 	assert.Equal(t, nil, err)
-	assert.Equal(t, "60", string(info))
+	assert.Equal(t, "60", info)
 
-	info, err = svc.GetExtraConfig([]byte("namespace"))
+	info, err = svc.GetExtraConfig("namespace")
 	assert.Equal(t, nil, err)
-	assert.Equal(t, "my-ns", string(info))
+	assert.Equal(t, "my-ns", info)
+
+	info, err = svc.GetExtraConfig("interface_configs")
+	assert.Equal(t, nil, err)
+	assert.Equal(t, `[{"match_field":"name","match_value":"eth0","in_speed":25,"out_speed":10,"tags":["customTag1","customTag2:value2"]}]`, info)
+
+	svc = SNMPService{
+		adIdentifier: "snmp",
+		entityID:     "id",
+		deviceIP:     "192.168.0.99", // without matching interface_configs
+		config:       snmpConfig,
+	}
+	info, err = svc.GetExtraConfig("interface_configs")
+	assert.Equal(t, nil, err)
+	assert.Equal(t, ``, info)
 }
 
 func TestExtraConfigExtraTags(t *testing.T) {
@@ -248,9 +289,9 @@ func TestExtraConfigExtraTags(t *testing.T) {
 		config:       snmpConfig,
 	}
 
-	info, err := svc.GetExtraConfig([]byte("tags"))
+	info, err := svc.GetExtraConfig("tags")
 	assert.Equal(t, nil, err)
-	assert.Equal(t, "tag1:val_1_2,tag2:val_2", string(info))
+	assert.Equal(t, "tag1:val_1_2,tag2:val_2", info)
 }
 
 func TestExtraConfigv3(t *testing.T) {
@@ -271,27 +312,27 @@ func TestExtraConfigv3(t *testing.T) {
 		config:       snmpConfig,
 	}
 
-	info, err := svc.GetExtraConfig([]byte("user"))
+	info, err := svc.GetExtraConfig("user")
 	assert.Equal(t, nil, err)
-	assert.Equal(t, "admin", string(info))
+	assert.Equal(t, "admin", info)
 
-	info, err = svc.GetExtraConfig([]byte("auth_key"))
+	info, err = svc.GetExtraConfig("auth_key")
 	assert.Equal(t, nil, err)
-	assert.Equal(t, "secret", string(info))
+	assert.Equal(t, "secret", info)
 
-	info, err = svc.GetExtraConfig([]byte("auth_protocol"))
+	info, err = svc.GetExtraConfig("auth_protocol")
 	assert.Equal(t, nil, err)
-	assert.Equal(t, "SHA", string(info))
+	assert.Equal(t, "SHA", info)
 
-	info, err = svc.GetExtraConfig([]byte("priv_key"))
+	info, err = svc.GetExtraConfig("priv_key")
 	assert.Equal(t, nil, err)
-	assert.Equal(t, "private", string(info))
+	assert.Equal(t, "private", info)
 
-	info, err = svc.GetExtraConfig([]byte("priv_protocol"))
+	info, err = svc.GetExtraConfig("priv_protocol")
 	assert.Equal(t, nil, err)
-	assert.Equal(t, "DES", string(info))
+	assert.Equal(t, "DES", info)
 
-	info, err = svc.GetExtraConfig([]byte("loader"))
+	info, err = svc.GetExtraConfig("loader")
 	assert.Equal(t, nil, err)
-	assert.Equal(t, "core", string(info))
+	assert.Equal(t, "core", info)
 }

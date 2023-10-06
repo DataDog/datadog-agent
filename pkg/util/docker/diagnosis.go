@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build docker
-// +build docker
 
 package docker
 
@@ -17,7 +16,7 @@ import (
 )
 
 func init() {
-	diagnosis.Register("Docker availability", diagnose)
+	diagnosis.RegisterMetadataAvail("Docker availability", diagnose)
 }
 
 // diagnose the docker availability on the system
@@ -28,7 +27,7 @@ func diagnose() error {
 	}
 	log.Info("successfully connected to docker")
 
-	hostname, err := HostnameProvider(context.TODO(), nil)
+	hostname, err := GetHostname(context.TODO())
 	if err != nil {
 		return fmt.Errorf("returned hostname %q with error: %w", hostname, err)
 	}

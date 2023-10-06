@@ -4,7 +4,6 @@
 // Copyright 2018-present Datadog, Inc.
 
 //go:build kubeapiserver && kubelet
-// +build kubeapiserver,kubelet
 
 package apiserver
 
@@ -29,10 +28,10 @@ func ConvertToServiceMapper(m apiv1.NamespacesPodsStringsSet) serviceMapper { //
 // Set updates services for a given namespace and pod name.
 func (m serviceMapper) Set(namespace, podName string, svcs ...string) {
 	if _, ok := m[namespace]; !ok {
-		m[namespace] = make(map[string]sets.String)
+		m[namespace] = make(map[string]sets.Set[string])
 	}
 	if _, ok := m[namespace][podName]; !ok {
-		m[namespace][podName] = sets.NewString()
+		m[namespace][podName] = sets.New[string]()
 	}
 	m[namespace][podName].Insert(svcs...)
 }

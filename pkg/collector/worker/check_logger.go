@@ -9,6 +9,7 @@ import (
 	"fmt"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
+	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	"github.com/DataDog/datadog-agent/pkg/collector/runner/expvars"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -76,7 +77,7 @@ func (cl *CheckLogger) Debug(message string) {
 
 // shouldLogCheck returns if we should log the check start/stop message with higher
 // verbosity and if this is the end of the initial series of check log statements
-func shouldLogCheck(id check.ID) (bool, bool) {
+func shouldLogCheck(id checkid.ID) (shouldLog, lastVerboseLog bool) {
 	loggingFrequency := uint64(config.Datadog.GetInt64(loggingFrequencyConfigKey))
 
 	// If this is the first time we see the check, log it
@@ -86,11 +87,11 @@ func shouldLogCheck(id check.ID) (bool, bool) {
 		return true, false
 	}
 
-	// We print a special message when we change logging frequency
-	lastVerboseLog := stats.TotalRuns == initialCheckLoggingSeriesLimit
-
 	// `currentRun` is `stats.TotalRuns` + 1 as the first run would be 0.
 	currentRun := stats.TotalRuns + 1
+
+	// We print a special message when we change logging frequency
+	lastVerboseLog = currentRun == initialCheckLoggingSeriesLimit
 	// We log the first `initialCheckLoggingSeriesLimit` times, then every `loggingFrequency` times
 	if currentRun <= initialCheckLoggingSeriesLimit ||
 		currentRun%loggingFrequency == 0 {

@@ -10,9 +10,10 @@ import (
 	"bytes"
 	"testing"
 
-	seelogCfg "github.com/DataDog/datadog-agent/pkg/config/internal/seelog"
 	"github.com/cihub/seelog"
 	"github.com/stretchr/testify/assert"
+
+	seelogCfg "github.com/DataDog/datadog-agent/pkg/config/internal/seelog"
 )
 
 func TestExtractShortPathFromFullPath(t *testing.T) {

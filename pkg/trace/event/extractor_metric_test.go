@@ -9,7 +9,7 @@ import (
 	"math/rand"
 	"testing"
 
-	"github.com/DataDog/datadog-agent/pkg/trace/pb"
+	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	"github.com/DataDog/datadog-agent/pkg/trace/sampler"
 )
 
@@ -43,6 +43,8 @@ func TestMetricBasedExtractor(t *testing.T) {
 	}
 
 	for _, test := range tests {
-		testExtractor(t, NewMetricBasedExtractor(), test)
+		t.Run(test.name, func(t *testing.T) {
+			testExtractor(t, NewMetricBasedExtractor(), test)
+		})
 	}
 }

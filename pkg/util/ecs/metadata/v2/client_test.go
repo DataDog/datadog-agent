@@ -4,7 +4,6 @@
 // Copyright 2020-present Datadog, Inc.
 
 //go:build docker
-// +build docker
 
 package v2
 
@@ -14,9 +13,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/util/ecs/metadata/testutil"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/DataDog/datadog-agent/pkg/util/ecs/metadata/testutil"
 )
 
 func TestGetTask(t *testing.T) {
@@ -27,9 +27,8 @@ func TestGetTask(t *testing.T) {
 	)
 	require.Nil(t, err)
 
-	ts, _, err := ecsinterface.Start()
+	ts := ecsinterface.Start()
 	defer ts.Close()
-	require.Nil(t, err)
 
 	expected := &Task{
 		ClusterName: "default",
@@ -128,9 +127,8 @@ func TestGetTaskWithTags(t *testing.T) {
 	)
 	require.Nil(t, err)
 
-	ts, _, err := ecsinterface.Start()
+	ts := ecsinterface.Start()
 	defer ts.Close()
-	require.Nil(t, err)
 
 	expected := &Task{
 		ClusterName: "ecs-cluster",
@@ -451,9 +449,8 @@ func TestGetContainerStats(t *testing.T) {
 			)
 			require.Nil(t, err)
 
-			ts, _, err := ecsinterface.Start()
+			ts := ecsinterface.Start()
 			defer ts.Close()
-			require.Nil(t, err)
 
 			metadata, err := NewClient(ts.URL).GetContainerStats(ctx, test.containerID)
 			assert.Equal(test.expectedStats, metadata)

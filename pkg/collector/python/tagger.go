@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build python
-// +build python
 
 package python
 
@@ -31,6 +30,7 @@ var (
 )
 
 // Tags bridges towards tagger.Tag to retrieve container tags
+//
 //export Tags
 func Tags(id *C.char, cardinality C.int) **C.char {
 	goID := C.GoString(id)

@@ -6,7 +6,10 @@
 // Package noop implements a parser that simply returns its input unchanged.
 package noop
 
-import "github.com/DataDog/datadog-agent/pkg/logs/internal/parsers"
+import (
+	"github.com/DataDog/datadog-agent/pkg/logs/internal/parsers"
+	"github.com/DataDog/datadog-agent/pkg/logs/message"
+)
 
 // New creates a default parser that simply returns lines unchanged as messages
 func New() parsers.Parser {
@@ -16,8 +19,8 @@ func New() parsers.Parser {
 type noop struct{}
 
 // Parse implements Parser#Parse
-func (p *noop) Parse(msg []byte) (parsers.Message, error) {
-	return parsers.Message{Content: msg}, nil
+func (p *noop) Parse(msg *message.Message) (*message.Message, error) {
+	return msg, nil
 }
 
 // SupportsPartialLine implements Parser#SupportsPartialLine

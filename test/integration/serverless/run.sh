@@ -4,9 +4,9 @@
 # NOTE: Use aws-vault clear before running tests to ensure credentials do not expire during a test run
 
 # Run tests:
-#   aws-vault clear && aws-vault exec sandbox-account-admin -- ./run.sh
+#   aws-vault clear && aws-vault exec serverless-sandbox-account-admin -- ./run.sh
 # Regenerate snapshots:
-#   aws-vault clear && UPDATE_SNAPSHOTS=true aws-vault exec sandbox-account-admin -- ./run.sh
+#   aws-vault clear && UPDATE_SNAPSHOTS=true aws-vault exec serverless-sandbox-account-admin -- ./run.sh
 
 # Optional environment variables:
 
@@ -19,10 +19,10 @@
 # ENABLE_RACE_DETECTION [true|false] - Enables go race detection for the lambda extension
 # ARCHITECTURE [arm64|amd64] - Specify the architecture to test. The default is amd64
 
-DEFAULT_NODE_LAYER_VERSION=67
-DEFAULT_PYTHON_LAYER_VERSION=50
-DEFAULT_JAVA_TRACE_LAYER_VERSION=4
-DEFAULT_DOTNET_TRACE_LAYER_VERSION=1
+DEFAULT_NODE_LAYER_VERSION=95
+DEFAULT_PYTHON_LAYER_VERSION=77
+DEFAULT_JAVA_TRACE_LAYER_VERSION=11
+DEFAULT_DOTNET_TRACE_LAYER_VERSION=9
 DEFAULT_ARCHITECTURE=amd64
 
 # Text formatting constants
@@ -36,7 +36,7 @@ set -e
 
 script_utc_start_time=$(date -u +"%Y%m%dT%H%M%S")
 
-if [ -z "$AWS_SECRET_ACCESS_KEY" ]; then
+if [ -z "$AWS_SECRET_ACCESS_KEY" ] && [ -z "$AWS_PROFILE" ]; then
     echo "No AWS credentials were found in the environment."
     echo "Note that only Datadog employees can run these integration tests."
     echo "Exiting without running tests..."
@@ -111,8 +111,15 @@ function remove_stack() {
 # always remove the stack before exiting, no matter what
 trap remove_stack EXIT
 
+# a bug in opentelemetry instrumentation makes it impossible to define a
+# handler inside of a directory
+# see https://github.com/open-telemetry/opentelemetry-lambda/issues/655
+cp $SERVERLESS_INTEGRATION_TESTS_DIR/src/otlpPython.py $SERVERLESS_INTEGRATION_TESTS_DIR/otlpPython.py
+
 # deploy the stack
 serverless deploy --stage "${stage}"
+
+rm $SERVERLESS_INTEGRATION_TESTS_DIR/otlpPython.py
 
 metric_functions=(
     "metric-node"
@@ -148,21 +155,14 @@ trace_functions=(
     "trace-go"
     "trace-csharp"
     "trace-proxy"
+    "otlp-python"
 )
 
 all_functions=("${metric_functions[@]}" "${log_functions[@]}" "${trace_functions[@]}")
 
 # Add a function to this list to skip checking its results
 # This should only be used temporarily while we investigate and fix the test
-functions_to_skip=(
-    # Tagging behavior after a timeout is currently known to be flaky
-    "timeout-node"
-    "timeout-python"
-    "timeout-java"
-    "timeout-go"
-    "timeout-csharp"
-    "timeout-proxy"
-)
+functions_to_skip=()
 
 echo "Invoking functions for the first time..."
 set +e # Don't exit this script if an invocation fails or there's a diff
@@ -179,7 +179,7 @@ sleep $SECONDS_BETWEEN_INVOCATIONS
 # two invocations are needed since enhanced metrics are computed with the REPORT log line (which is created at the end of the first invocation)
 echo "Invoking functions for the second time..."
 for function_name in "${all_functions[@]}"; do
-    serverless invoke --stage "${stage}" -f "${function_name}" &>/dev/null &
+    serverless invoke --stage "${stage}" -f "${function_name}" -d '{"body": "testing request payload"}' &>/dev/null &
 done
 wait
 
@@ -190,6 +190,11 @@ echo "This will be done at $END_OF_WAIT_TIME"
 sleep "$LOGS_WAIT_MINUTES"m
 
 failed_functions=()
+
+if [ -z $RAWLOGS_DIR ]; then
+    RAWLOGS_DIR=$(mktemp -d)
+fi
+echo "Raw logs will be written to ${RAWLOGS_DIR}"
 
 for function_name in "${all_functions[@]}"; do
     echo "Fetching logs for ${function_name}..."
@@ -208,83 +213,26 @@ for function_name in "${all_functions[@]}"; do
     done
     printf "\e[A\e[K" # erase previous log line
 
+    echo $raw_logs > $RAWLOGS_DIR/$function_name
+
     # Replace invocation-specific data like timestamps and IDs with XXX to normalize across executions
     if [[ " ${metric_functions[*]} " =~ " ${function_name} " ]]; then
-        # Normalize metrics
-        logs=$(
-            echo "$raw_logs" |
-                perl -p -e "s/raise Exception/\n/g" |
-                grep -v "\[log\]" |
-                grep "\[sketch\].*" |
-                perl -p -e "s/(ts\":)[0-9]{10}/\1XXX/g" |
-                perl -p -e "s/(min\":)[0-9\.e\-]{1,30}/\1XXX/g" |
-                perl -p -e "s/(max\":)[0-9\.e\-]{1,30}/\1XXX/g" |
-                perl -p -e "s/(cnt\":)[0-9\.e\-]{1,30}/\1XXX/g" |
-                perl -p -e "s/(avg\":)[0-9\.e\-]{1,30}/\1XXX/g" |
-                perl -p -e "s/(sum\":)[0-9\.e\-]{1,30}/\1XXX/g" |
-                perl -p -e "s/(k\":\[)[0-9\.e\-]{1,30}/\1XXX/g" |
-                perl -p -e "s/(datadog-nodev)[0-9]+\.[0-9]+\.[0-9]+/\1X\.X\.X/g" |
-                perl -p -e "s/(datadog_lambda:v)[0-9]+\.[0-9]+\.[0-9]+/\1X\.X\.X/g" |
-                perl -p -e "s/dd_lambda_layer:datadog-go[0-9.]{1,}/dd_lambda_layer:datadog-gox.x.x/g" |
-                perl -p -e "s/(dd_lambda_layer:datadog-python)[0-9_]+\.[0-9]+\.[0-9]+/\1X\.X\.X/g" |
-                perl -p -e "s/(serverless.lambda-extension.integration-test.count)[0-9\.]+/\1/g" |
-                perl -p -e "s/$stage/XXXXXX/g" |
-                perl -p -e "s/[ ]$//g" |
-                sort
-        )
+        norm_type=metrics
     elif [[ " ${log_functions[*]} " =~ " ${function_name} " ]]; then
-        # Normalize logs
-        logs=$(
-            echo "$raw_logs" |
-                grep -v "\[trace\]" |
-                grep -v "\[sketch\]" |
-                grep "\[log\]" |
-                # remove configuration log line from dd-trace-go
-                grep -v "DATADOG TRACER CONFIGURATION" |
-                perl -p -e "s/(timestamp\":)[0-9]{13}/\1TIMESTAMP/g" |
-                perl -p -e "s/\d{4}-\d{2}-\d{2}\s\d{2}:\d{2}:\d{2}/\1TIMESTAMP/g" |
-                perl -p -e "s/\d{4}\/\d{2}\/\d{2}\s\d{2}:\d{2}:\d{2}/\1TIMESTAMP/g" |
-                perl -p -e "s/(TIMESTAMP:)\d{3}/\1XXX/g" |
-                perl -p -e "s/(\"REPORT |START |END ).*/\1XXX\"}}/g" |
-                perl -p -e "s/(,\"request_id\":\")[a-zA-Z0-9\-,]+\"//g" |
-                perl -p -e "s/$stage/STAGE/g" |
-                perl -p -e "s/(\"message\":\").*(XXX LOG)/\1\2\3/g" |
-                perl -p -e "s/[ ]$//g" |
-                # ignore a Lambda error that occurs sporadically for log-csharp
-                # see here for more info: https://repost.aws/questions/QUq2OfIFUNTCyCKsChfJLr5w/lambda-function-working-locally-but-crashing-on-aws
-                perl -n -e "print unless /LAMBDA_RUNTIME Failed to get next invocation. No Response from endpoint/ or \
-                 /An error occurred while attempting to execute your code.: LambdaException/ or \
-                 /terminate called after throwing an instance of 'std::logic_error'/ or \
-                 /basic_string::_M_construct null not valid/"
-        )
+        norm_type=logs
     else
-        # Normalize traces
-        logs=$(
-            echo "$raw_logs" |
-                grep -v "\[log\]" |
-                grep "\[trace\]" |
-                perl -p -e "s/(ts\":)[0-9]{10}/\1XXX/g" |
-                perl -p -e "s/((startTime|endTime|traceID|trace_id|span_id|parent_id|start|system.pid)\":)[0-9]+/\1XXX/g" |
-                perl -p -e "s/(duration\":)[0-9]+/\1XXX/g" |
-                perl -p -e "s/((datadog_lambda|dd_trace)\":\")[0-9]+\.[0-9]+\.[0-9]+/\1X\.X\.X/g" |
-                perl -p -e "s/(,\"request_id\":\")[a-zA-Z0-9\-,]+\"/\1XXX\"/g" |
-                perl -p -e "s/(,\"runtime-id\":\")[a-zA-Z0-9\-,]+\"/\1XXX\"/g" |
-                perl -p -e "s/(,\"system.pid\":\")[a-zA-Z0-9\-,]+\"/\1XXX\"/g" |
-                perl -p -e "s/(\"_dd.no_p_sr\":)[0-9\.]+/\1XXX/g" |
-                perl -p -e "s/$stage/XXXXXX/g" |
-                perl -p -e "s/[ ]$//g" |
-                sort
-        )
+        norm_type=traces
     fi
+    logs=$(python3 log_normalize.py --type $norm_type --logs "$raw_logs" --stage $stage)
 
-    function_snapshot_path="./snapshots/${ARCHITECTURE}/${function_name}"
+    function_snapshot_path="./snapshots/${function_name}"
 
     if [ ! -f "$function_snapshot_path" ]; then
         printf "${MAGENTA} CREATE ${END_COLOR} $function_name\n"
         echo "$logs" >"$function_snapshot_path"
     elif [ "$UPDATE_SNAPSHOTS" == "true" ]; then
         printf "${MAGENTA} UPDATE ${END_COLOR} $function_name\n"
-        echo "$logs" >"$function_snapshot_path"
+        echo "$logs" > "$function_snapshot_path"
     else
         if [[ " ${functions_to_skip[*]} " =~ " ${function_name} " ]]; then
             printf "${YELLOW} SKIP ${END_COLOR} $function_name\n"
@@ -301,15 +249,6 @@ for function_name in "${all_functions[@]}"; do
 
             echo
             printf "${RED} FAIL ${END_COLOR} $function_name\n"
-            echo
-            echo "Expected logs from snapshot:"
-            echo
-            cat $function_snapshot_path
-            echo
-            echo "Actual logs:"
-            echo
-            echo "$logs"
-            echo
             echo "Diff:"
             echo
             echo "$diff_output"
@@ -341,6 +280,8 @@ if [ ${#failed_functions[@]} -gt 0 ]; then
     for function_name in "${failed_functions[@]}"; do
         echo "- $function_name"
     done
+    echo
+    echo "+++ Need help with failures?  Check https://datadoghq.atlassian.net/l/cp/H7CdziU9 for a list of known issues and suggested next steps +++"
     echo
     exit 1
 fi

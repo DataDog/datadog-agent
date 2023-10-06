@@ -3,9 +3,14 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+// Package telemetry defines the Autodiscovery telemetry metrics.
 package telemetry
 
-import "github.com/DataDog/datadog-agent/pkg/telemetry"
+import (
+	"github.com/DataDog/datadog-agent/pkg/telemetry"
+
+	"github.com/prometheus/client_golang/prometheus"
+)
 
 const (
 	subsystem = "autodiscovery"
@@ -21,6 +26,15 @@ var (
 )
 
 var (
+	// ScheduledConfigs tracks how many configs are scheduled.
+	ScheduledConfigs = telemetry.NewGaugeWithOpts(
+		subsystem,
+		"scheduled_configs",
+		[]string{"provider", "type"},
+		"Number of configs scheduled in Autodiscovery by provider and type.",
+		commonOpts,
+	)
+
 	// WatchedResources tracks how many resources are watched by AD listeners.
 	WatchedResources = telemetry.NewGaugeWithOpts(
 		subsystem,
@@ -37,5 +51,16 @@ var (
 		[]string{"provider"},
 		"Number of Autodiscovery errors by provider.",
 		commonOpts,
+	)
+
+	// PollDuration tracks the configs poll duration by AD providers.
+	PollDuration = telemetry.NewHistogramWithOpts(
+		subsystem,
+		"poll_duration",
+		[]string{"provider"},
+		"Poll duration distribution by config provider (in seconds).",
+		// The default prometheus buckets are adapted to measure response time of network services
+		prometheus.DefBuckets,
+		telemetry.Options{NoDoubleUnderscoreSep: true},
 	)
 )

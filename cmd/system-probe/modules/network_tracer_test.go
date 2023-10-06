@@ -4,20 +4,20 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build linux || windows
-// +build linux windows
 
 package modules
 
 import (
+	"bytes"
 	"net/http/httptest"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/network/encoding"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
-
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
 func TestDecode(t *testing.T) {
@@ -27,19 +27,23 @@ func TestDecode(t *testing.T) {
 		BufferedData: network.BufferedData{
 			Conns: []network.ConnectionStats{
 				{
-					Source:               util.AddressFromString("10.1.1.1"),
-					Dest:                 util.AddressFromString("10.2.2.2"),
-					MonotonicSentBytes:   1,
-					LastSentBytes:        2,
-					MonotonicRecvBytes:   100,
-					LastRecvBytes:        101,
-					LastUpdateEpoch:      50,
-					MonotonicRetransmits: 201,
-					LastRetransmits:      201,
-					Pid:                  6000,
-					NetNS:                7,
-					SPort:                1000,
-					DPort:                9000,
+					Source: util.AddressFromString("10.1.1.1"),
+					Dest:   util.AddressFromString("10.2.2.2"),
+					Monotonic: network.StatCounters{
+						SentBytes:   1,
+						RecvBytes:   100,
+						Retransmits: 201,
+					},
+					Last: network.StatCounters{
+						SentBytes:   2,
+						RecvBytes:   101,
+						Retransmits: 201,
+					},
+					LastUpdateEpoch: 50,
+					Pid:             6000,
+					NetNS:           7,
+					SPort:           1000,
+					DPort:           9000,
 					IPTranslation: &network.IPTranslation{
 						ReplSrcIP:   util.AddressFromString("20.1.1.1"),
 						ReplDstIP:   util.AddressFromString("20.1.1.1"),
@@ -56,13 +60,18 @@ func TestDecode(t *testing.T) {
 	}
 
 	marshaller := encoding.GetMarshaler(encoding.ContentTypeJSON)
-	expected, err := marshaller.Marshal(in)
+	ostream := bytes.NewBuffer(nil)
+
+	connectionsModeler := encoding.NewConnectionsModeler(in)
+	defer connectionsModeler.Close()
+
+	err := marshaller.Marshal(in, ostream, connectionsModeler)
 	require.NoError(t, err)
 
 	writeConnections(rec, marshaller, in)
 
 	rec.Flush()
 	out := rec.Body.Bytes()
-	assert.Equal(t, expected, out)
+	assert.Equal(t, ostream.Bytes(), out)
 
 }

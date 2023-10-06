@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build jetson
-// +build jetson
 
 package nvidia
 
@@ -12,7 +11,7 @@ import (
 	"regexp"
 	"strconv"
 
-	"github.com/DataDog/datadog-agent/pkg/aggregator"
+	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 )
 
 type iramMetricSender struct {
@@ -28,7 +27,7 @@ func (iramMetricSender *iramMetricSender) Init() error {
 	return nil
 }
 
-func (iramMetricSender *iramMetricSender) SendMetrics(sender aggregator.Sender, field string) error {
+func (iramMetricSender *iramMetricSender) SendMetrics(sender sender.Sender, field string) error {
 	iramFields := regexFindStringSubmatchMap(iramMetricSender.regex, field)
 	if iramFields == nil {
 		// IRAM is not present on all devices

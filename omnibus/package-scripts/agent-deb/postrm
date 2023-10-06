@@ -1,0 +1,34 @@
+#!/bin/sh
+#
+# Perform necessary datadog-agent removal steps after package is uninstalled.
+#
+# .deb: STEP 3 of 5
+
+INSTALL_DIR=/opt/datadog-agent
+LOG_DIR=/var/log/datadog
+CONFIG_DIR=/etc/datadog-agent
+
+# Remove the symlink to the binary.
+rm -f "/usr/bin/datadog-agent"
+
+set -e
+
+case "$1" in
+    purge)
+        echo "Deleting dd-agent user"
+        deluser dd-agent --quiet
+        echo "Deleting dd-agent group"
+        (getent group dd-agent >/dev/null && delgroup dd-agent --quiet) || true
+        echo "Force-deleting $INSTALL_DIR"
+        rm -rf $INSTALL_DIR
+        rm -rf $LOG_DIR
+        rm -rf $CONFIG_DIR
+    ;;
+    remove)
+        rm "$CONFIG_DIR/install_info" || true
+    ;;
+    *)
+    ;;
+esac
+
+exit 0

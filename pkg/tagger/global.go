@@ -7,11 +7,12 @@ package tagger
 
 import (
 	"context"
+	"errors"
 	"sync"
 
-	"github.com/DataDog/datadog-agent/cmd/agent/api/response"
+	"github.com/DataDog/datadog-agent/comp/dogstatsd/packets"
 	"github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/dogstatsd/packets"
+	tagger_api "github.com/DataDog/datadog-agent/pkg/tagger/api"
 	"github.com/DataDog/datadog-agent/pkg/tagger/collectors"
 	"github.com/DataDog/datadog-agent/pkg/tagger/local"
 	"github.com/DataDog/datadog-agent/pkg/tagger/types"
@@ -19,15 +20,20 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/tagset"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
-	"github.com/DataDog/datadog-agent/pkg/util/containers/v2/metrics"
+	"github.com/DataDog/datadog-agent/pkg/util/containers/metrics"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-// defaultTagger is the shared tagger instance backing the global Tag and Init functions
 var (
+	// defaultTagger is the shared tagger instance backing the global Tag and Init functions
 	defaultTagger Tagger
-	initOnce      sync.Once
-	initErr       error
+
+	// initOnce ensures that the default tagger is only initialized once.  It is reset every
+	// time the default tagger is set.
+	initOnce sync.Once
+
+	// initErr is the error from intializing the default tagger
+	initErr error
 )
 
 // captureTagger is a tagger instance that contains a tagger that will contain the tagger
@@ -71,8 +77,8 @@ func Init(ctx context.Context) error {
 			DogstatsdCardinality = collectors.LowCardinality
 		}
 
-		if config.IsCLCRunner() {
-			log.Infof("Tagger not started on CLC")
+		if defaultTagger == nil {
+			initErr = errors.New("tagger has not been set")
 			return
 		}
 
@@ -116,10 +122,10 @@ func Tag(entity string, cardinality collectors.TagCardinality) ([]string, error)
 }
 
 // AccumulateTagsFor queries the defaultTagger to get entity tags from cache or
-// sources and appends them to the TagAccumulator.  It can return tags at high
+// sources and appends them to the TagsAccumulator.  It can return tags at high
 // cardinality (with tags about individual containers), or at orchestrator
 // cardinality (pod/task level).
-func AccumulateTagsFor(entity string, cardinality collectors.TagCardinality, tb tagset.TagAccumulator) error {
+func AccumulateTagsFor(entity string, cardinality collectors.TagCardinality, tb tagset.TagsAccumulator) error {
 	// TODO: defer unlock once performance overhead of defer is negligible
 	mux.RLock()
 	if captureTagger != nil {
@@ -134,20 +140,14 @@ func AccumulateTagsFor(entity string, cardinality collectors.TagCardinality, tb 
 	return defaultTagger.AccumulateTagsFor(entity, cardinality, tb)
 }
 
-// TagWithHash is similar to Tag but it also computes and returns the hash of the tags found
-func TagWithHash(entity string, cardinality collectors.TagCardinality) ([]string, string, error) {
-	tags, err := Tag(entity, cardinality)
-	if err != nil {
-		return tags, "", err
-	}
-	return tags, utils.ComputeTagsHash(tags), nil
-}
-
 // GetEntityHash returns the hash for the tags associated with the given entity
 // Returns an empty string if the tags lookup fails
 func GetEntityHash(entity string, cardinality collectors.TagCardinality) string {
-	_, hash, _ := TagWithHash(entity, cardinality)
-	return hash
+	tags, err := Tag(entity, cardinality)
+	if err != nil {
+		return ""
+	}
+	return utils.ComputeTagsHash(tags)
 }
 
 // StandardTags queries the defaultTagger to get entity
@@ -199,8 +199,8 @@ func GlobalTags(cardinality collectors.TagCardinality) ([]string, error) {
 }
 
 // globalTagBuilder queries global tags that should apply to all data coming
-// from the agent and appends them to the TagAccumulator
-func globalTagBuilder(cardinality collectors.TagCardinality, tb tagset.TagAccumulator) error {
+// from the agent and appends them to the TagsAccumulator
+func globalTagBuilder(cardinality collectors.TagCardinality, tb tagset.TagsAccumulator) error {
 	mux.RLock()
 	if captureTagger != nil {
 		err := captureTagger.AccumulateTagsFor(collectors.GlobalEntityID, cardinality, tb)
@@ -221,12 +221,14 @@ func Stop() error {
 }
 
 // List the content of the defaulTagger
-func List(cardinality collectors.TagCardinality) response.TaggerListResponse {
+func List(cardinality collectors.TagCardinality) tagger_api.TaggerListResponse {
 	return defaultTagger.List(cardinality)
 }
 
 // SetDefaultTagger sets the global Tagger instance
 func SetDefaultTagger(tagger Tagger) {
+	// reset initOnce so that this new tagger's Init(..) will get called
+	initOnce = sync.Once{}
 	defaultTagger = tagger
 }
 
@@ -262,7 +264,7 @@ func init() {
 // NOTE(remy): it is not needed to sort/dedup the tags anymore since after the
 // enrichment, the metric and its tags is sent to the context key generator, which
 // is taking care of deduping the tags while generating the context key.
-func EnrichTags(tb tagset.TagAccumulator, udsOrigin string, clientOrigin string, cardinalityName string) {
+func EnrichTags(tb tagset.TagsAccumulator, udsOrigin string, clientOrigin string, cardinalityName string) {
 	cardinality := taggerCardinality(cardinalityName)
 
 	if udsOrigin != packets.NoOrigin {

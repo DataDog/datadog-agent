@@ -55,6 +55,11 @@ func (r *runnerWithRealTime) run() {
 		return
 	}
 
+	// Run the check the first time to prime the caches.
+	r.RunCheck(RunOptions{
+		RunStandard: true,
+	})
+
 	ticker := r.newTicker(r.RtInterval)
 	for {
 		select {
@@ -67,7 +72,7 @@ func (r *runnerWithRealTime) run() {
 			if rtEnabled || r.counter == 0 {
 				r.RunCheck(RunOptions{
 					RunStandard: r.counter == 0,
-					RunRealTime: rtEnabled,
+					RunRealtime: rtEnabled,
 				})
 			}
 

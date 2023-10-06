@@ -14,14 +14,15 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/cmd/trace-agent/test"
-	"github.com/DataDog/datadog-agent/pkg/trace/pb"
+	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	"github.com/DataDog/datadog-agent/pkg/trace/testutil"
 
 	"github.com/stretchr/testify/assert"
-	"go.opentelemetry.io/collector/model/otlpgrpc"
-	"go.opentelemetry.io/collector/model/pdata"
+	"go.opentelemetry.io/collector/pdata/ptrace"
+	"go.opentelemetry.io/collector/pdata/ptrace/ptraceotlp"
 
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials/insecure"
 )
 
 func TestOTLPIngest(t *testing.T) {
@@ -52,11 +53,11 @@ apm_config:
 		}
 		defer r.KillAgent()
 
-		conn, err := grpc.Dial(fmt.Sprintf("localhost:%d", port), grpc.WithBlock(), grpc.WithInsecure())
+		conn, err := grpc.Dial(fmt.Sprintf("localhost:%d", port), grpc.WithBlock(), grpc.WithTransportCredentials(insecure.NewCredentials()))
 		if err != nil {
 			log.Fatal("Error dialing: ", err)
 		}
-		client := otlpgrpc.NewTracesClient(conn)
+		client := ptraceotlp.NewGRPCClient(conn)
 		now := uint64(time.Now().UnixNano())
 		pack := testutil.NewOTLPTracesRequest([]testutil.OTLPResourceSpan{
 			{
@@ -66,7 +67,7 @@ apm_config:
 				Spans: []*testutil.OTLPSpan{
 					{
 						Name:       "/path",
-						Kind:       pdata.SpanKindServer,
+						Kind:       ptrace.SpanKindServer,
 						Start:      now,
 						End:        now + 200000000,
 						Attributes: map[string]interface{}{"name": "john"},
@@ -78,7 +79,7 @@ apm_config:
 		if err != nil {
 			log.Fatal("Error calling: ", err)
 		}
-		waitForTrace(t, &r, func(p pb.AgentPayload) {
+		waitForTrace(t, &r, func(p *pb.AgentPayload) {
 			assert := assert.New(t)
 			assert.Equal(p.Env, "my-env")
 			assert.Len(p.TracerPayloads, 1)
@@ -106,11 +107,11 @@ apm_config:
 		}
 		defer r.KillAgent()
 
-		conn, err := grpc.Dial(fmt.Sprintf("localhost:%d", port), grpc.WithBlock(), grpc.WithInsecure())
+		conn, err := grpc.Dial(fmt.Sprintf("localhost:%d", port), grpc.WithBlock(), grpc.WithTransportCredentials(insecure.NewCredentials()))
 		if err != nil {
 			log.Fatal("Error dialing: ", err)
 		}
-		client := otlpgrpc.NewTracesClient(conn)
+		client := ptraceotlp.NewGRPCClient(conn)
 		now := uint64(time.Now().UnixNano())
 		pack := testutil.NewOTLPTracesRequest([]testutil.OTLPResourceSpan{
 			{
@@ -119,18 +120,18 @@ apm_config:
 				Attributes: map[string]interface{}{"service.name": "pylons"},
 				Spans: []*testutil.OTLPSpan{
 					{
-						TraceID: testutil.OTLPFixedTraceID.Bytes(),
-						SpanID:  testutil.OTLPFixedSpanID.Bytes(),
+						TraceID: testutil.OTLPFixedTraceID,
+						SpanID:  testutil.OTLPFixedSpanID,
 						Name:    "/path",
-						Kind:    pdata.SpanKindServer,
+						Kind:    ptrace.SpanKindServer,
 						Start:   now,
 						End:     now + 200000000,
 					},
 					{
-						TraceID: testutil.OTLPFixedTraceID.Bytes(),
-						SpanID:  testutil.OTLPFixedSpanID.Bytes(),
+						TraceID: testutil.OTLPFixedTraceID,
+						SpanID:  testutil.OTLPFixedSpanID,
 						Name:    "/path",
-						Kind:    pdata.SpanKindServer,
+						Kind:    ptrace.SpanKindServer,
 						Start:   now,
 						End:     now + 200000000,
 					},

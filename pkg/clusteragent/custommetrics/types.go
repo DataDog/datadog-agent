@@ -4,10 +4,10 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build kubeapiserver
-// +build kubeapiserver
 
 package custommetrics
 
+// ExternalMetricValue represents external metrics for any autoscaler (HPA, WPA)
 type ExternalMetricValue struct {
 	MetricName string            `json:"metricName"`
 	Labels     map[string]string `json:"labels"`
@@ -17,6 +17,7 @@ type ExternalMetricValue struct {
 	Valid      bool              `json:"valid"`
 }
 
+// DeprecatedExternalMetricValue represents external metrics for HPA only
 type DeprecatedExternalMetricValue struct {
 	MetricName string            `json:"metricName"`
 	Labels     map[string]string `json:"labels"`
@@ -34,6 +35,7 @@ type ObjectReference struct {
 	UID       string `json:"uid"`
 }
 
+// MetricsBundle holds external metrics
 type MetricsBundle struct {
 	External   []ExternalMetricValue
 	Deprecated []DeprecatedExternalMetricValue

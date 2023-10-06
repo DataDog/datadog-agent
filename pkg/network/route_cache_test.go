@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build linux
-// +build linux
 
 package network
 
@@ -12,9 +11,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/process/util"
 	gomock "github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/require"
+
+	"github.com/DataDog/datadog-agent/pkg/process/util"
 )
 
 func TestRouteCacheGet(t *testing.T) {
@@ -32,12 +32,15 @@ func TestRouteCacheGet(t *testing.T) {
 
 		times int
 	}{
-		{source: "127.0.0.1", dest: "127.0.0.1", route: Route{Gateway: nil, IfIndex: 0}, ok: true, times: 1},
+		{source: "127.0.0.1", dest: "127.0.0.1", route: Route{IfIndex: 0}, ok: true, times: 1},
 		{source: "10.0.2.2", dest: "8.8.8.8", route: Route{Gateway: util.AddressFromString("10.0.2.1"), IfIndex: 1}, ok: true, times: 1},
 		{source: "1.2.3.4", dest: "5.6.7.8", route: Route{}, ok: false, times: 2}, // 2 calls expected here since this is not going to be cached
 	}
 
 	cache := NewRouteCache(10, m)
+	defer cache.Close()
+
+	m.EXPECT().Close()
 
 	// run through to fill up cache
 	for _, te := range tests {
@@ -71,6 +74,9 @@ func TestRouteCacheTTL(t *testing.T) {
 	m.EXPECT().Route(gomock.Any(), gomock.Any(), gomock.Any()).Return(route, true).Times(2)
 
 	cache := newRouteCache(10, m, time.Millisecond)
+	defer cache.Close()
+
+	m.EXPECT().Close()
 
 	source := util.AddressFromString("1.1.1.1")
 	dest := util.AddressFromString("1.2.3.4")

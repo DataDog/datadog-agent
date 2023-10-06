@@ -4,12 +4,10 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build linux
-// +build linux
 
 package net
 
 import (
-	"io/ioutil"
 	"net"
 	"os"
 	"testing"
@@ -59,20 +57,17 @@ func testWorkingNewUDSListener(t *testing.T, socketPath string) {
 
 func TestNewUDSListener(t *testing.T) {
 	t.Run("socket_exists_but_is_successfully_removed", func(tt *testing.T) {
-		dir, _ := ioutil.TempDir("", "dd-test-")
-		defer os.RemoveAll(dir) // clean up after
+		dir := t.TempDir()
 		testSocketExistsNewUDSListener(tt, dir+"/net.sock")
 	})
 
 	t.Run("non_socket_exists_and_fails_to_be_removed", func(tt *testing.T) {
-		dir, _ := ioutil.TempDir("", "dd-test-")
-		defer os.RemoveAll(dir) // clean up after
+		dir := t.TempDir()
 		testSocketExistsAsRegularFileNewUDSListener(tt, dir+"/net.sock")
 	})
 
 	t.Run("working", func(tt *testing.T) {
-		dir, _ := ioutil.TempDir("", "dd-test-")
-		defer os.RemoveAll(dir) // clean up after
+		dir := t.TempDir()
 		testWorkingNewUDSListener(tt, dir+"/net.sock")
 	})
 }

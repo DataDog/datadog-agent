@@ -8,8 +8,9 @@ package traceutil
 import (
 	"testing"
 
-	"github.com/DataDog/datadog-agent/pkg/trace/pb"
 	"github.com/stretchr/testify/assert"
+
+	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 )
 
 func TestGetRootFromCompleteTrace(t *testing.T) {

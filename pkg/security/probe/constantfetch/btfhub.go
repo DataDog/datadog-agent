@@ -4,15 +4,16 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build linux
-// +build linux
 
+// Package constantfetch holds constantfetch related files
 package constantfetch
 
 import (
 	_ "embed"
 	"encoding/json"
-	"errors"
+	"fmt"
 	"runtime"
+	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/security/ebpf/kernel"
 )
@@ -25,13 +26,6 @@ type BTFHubConstantFetcher struct {
 	kernelVersion *kernel.Version
 	inStore       map[string]uint64
 	res           map[string]uint64
-}
-
-var idToDistribMapping = map[string]string{
-	"ubuntu": "ubuntu",
-	"debian": "debian",
-	"amzn":   "amzn",
-	"centos": "centos",
 }
 
 var archMapping = map[string]string{
@@ -47,9 +41,9 @@ func NewBTFHubConstantFetcher(kv *kernel.Version) (*BTFHubConstantFetcher, error
 		res:           make(map[string]uint64),
 	}
 
-	currentKernelInfos, ok := newKernelInfos(kv)
-	if !ok {
-		return nil, errors.New("failed to collect current kernel infos")
+	currentKernelInfos, err := newKernelInfos(kv)
+	if err != nil {
+		return nil, fmt.Errorf("failed to collect current kernel infos: %w", err)
 	}
 
 	var constantsInfos BTFHubConstants
@@ -106,25 +100,28 @@ type kernelInfos struct {
 	unameRelease   string
 }
 
-func newKernelInfos(kv *kernel.Version) (*kernelInfos, bool) {
-	releaseID, ok := kv.OsRelease["ID"]
+func newKernelInfos(kv *kernel.Version) (*kernelInfos, error) {
+	distribution, ok := kv.OsRelease["ID"]
 	if !ok {
-		return nil, false
-	}
-
-	distribution, ok := idToDistribMapping[releaseID]
-	if !ok {
-		return nil, false
+		return nil, fmt.Errorf("failed to collect os-release ID")
 	}
 
 	version, ok := kv.OsRelease["VERSION_ID"]
 	if !ok {
-		return nil, false
+		return nil, fmt.Errorf("failed to collect os-release VERSION_ID")
+	}
+
+	// HACK: fix mapping of version for oracle-linux and amazon linux 2018
+	switch {
+	case distribution == "ol" && strings.HasPrefix(version, "7."):
+		version = "7"
+	case distribution == "amzn" && strings.HasPrefix(version, "2018."):
+		version = "2018"
 	}
 
 	arch, ok := archMapping[runtime.GOARCH]
 	if !ok {
-		return nil, false
+		return nil, fmt.Errorf("failed to map runtime arch to btf arch")
 	}
 
 	return &kernelInfos{
@@ -132,12 +129,13 @@ func newKernelInfos(kv *kernel.Version) (*kernelInfos, bool) {
 		distribVersion: version,
 		arch:           arch,
 		unameRelease:   kv.UnameRelease,
-	}, true
+	}, nil
 }
 
 // BTFHubConstants represents all the information required for identifying
 // a unique btf file from BTFHub
 type BTFHubConstants struct {
+	Commit    string              `json:"commit"`
 	Constants []map[string]uint64 `json:"constants"`
 	Kernels   []BTFHubKernel      `json:"kernels"`
 }

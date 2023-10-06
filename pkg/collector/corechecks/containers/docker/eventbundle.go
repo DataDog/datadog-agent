@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build docker
-// +build docker
 
 package docker
 
@@ -14,9 +13,11 @@ import (
 	"strings"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/metrics/event"
+	metricsevent "github.com/DataDog/datadog-agent/pkg/metrics/event"
+	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
-	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/tagger"
 	"github.com/DataDog/datadog-agent/pkg/tagger/collectors"
 	"github.com/DataDog/datadog-agent/pkg/util/docker"
@@ -30,6 +31,7 @@ type dockerEventBundle struct {
 	events        []*docker.ContainerEvent
 	maxTimestamp  time.Time
 	countByAction map[string]int
+	alertType     event.EventAlertType
 }
 
 func newDockerEventBundler(imageName string) *dockerEventBundle {
@@ -37,6 +39,7 @@ func newDockerEventBundler(imageName string) *dockerEventBundle {
 		imageName:     imageName,
 		events:        []*docker.ContainerEvent{},
 		countByAction: make(map[string]int),
+		alertType:     event.EventAlertTypeInfo,
 	}
 }
 
@@ -44,31 +47,40 @@ func (b *dockerEventBundle) addEvent(event *docker.ContainerEvent) error {
 	if event.ImageName != b.imageName {
 		return fmt.Errorf("mismatching image name: %s != %s", event.ImageName, b.imageName)
 	}
+
 	b.events = append(b.events, event)
+	b.countByAction[event.Action]++
+
 	if event.Timestamp.After(b.maxTimestamp) {
 		b.maxTimestamp = event.Timestamp
 	}
-	b.countByAction[event.Action] = b.countByAction[event.Action] + 1
+
+	if isAlertTypeError(event.Action) {
+		b.alertType = metricsevent.EventAlertTypeError
+	}
 
 	return nil
 }
 
-func (b *dockerEventBundle) toDatadogEvent(hostname string) (metrics.Event, error) {
-	output := metrics.Event{
-		Priority:       metrics.EventPriorityNormal,
+func (b *dockerEventBundle) toDatadogEvent(hostname string) (event.Event, error) {
+	if len(b.events) == 0 {
+		return event.Event{}, errors.New("no event to export")
+	}
+
+	output := event.Event{
+		Title: fmt.Sprintf("%s %s on %s",
+			b.imageName,
+			formatStringIntMap(b.countByAction),
+			hostname,
+		),
+		Priority:       event.EventPriorityNormal,
 		Host:           hostname,
 		SourceTypeName: dockerCheckName,
 		EventType:      dockerCheckName,
+		AlertType:      b.alertType,
 		Ts:             b.maxTimestamp.Unix(),
 		AggregationKey: fmt.Sprintf("docker:%s", b.imageName),
 	}
-	if len(b.events) == 0 {
-		return output, errors.New("no event to export")
-	}
-	output.Title = fmt.Sprintf("%s %s on %s",
-		b.imageName,
-		formatStringIntMap(b.countByAction),
-		hostname)
 
 	seenContainers := make(map[string]bool)
 	textLines := []string{"%%% ", output.Title, "```"}
@@ -81,7 +93,7 @@ func (b *dockerEventBundle) toDatadogEvent(hostname string) (metrics.Event, erro
 	output.Text = strings.Join(textLines, "\n")
 
 	for cid := range seenContainers {
-		tags, err := tagger.Tag(docker.ContainerIDToTaggerEntityName(cid), collectors.HighCardinality)
+		tags, err := tagger.Tag(containers.BuildTaggerEntityName(cid), collectors.HighCardinality)
 		if err != nil {
 			log.Debugf("no tags for %s: %s", cid, err)
 		} else {
@@ -89,9 +101,13 @@ func (b *dockerEventBundle) toDatadogEvent(hostname string) (metrics.Event, erro
 		}
 	}
 
-	if b.countByAction["oom"]+b.countByAction["kill"] > 0 {
-		output.AlertType = "error"
-	}
-
 	return output, nil
+}
+
+func formatStringIntMap(input map[string]int) string {
+	var parts []string
+	for k, v := range input {
+		parts = append(parts, fmt.Sprintf("%d %s", v, k))
+	}
+	return strings.Join(parts, " ")
 }

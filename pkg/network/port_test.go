@@ -4,48 +4,60 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build linux_bpf
-// +build linux_bpf
 
 package network
 
 import (
-	"log"
 	"net"
 	"net/url"
+	"os"
 	"os/exec"
 	"strconv"
 	"testing"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/process/util"
+	"github.com/cihub/seelog"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/vishvananda/netns"
+
+	netlinktestutil "github.com/DataDog/datadog-agent/pkg/network/netlink/testutil"
+	"github.com/DataDog/datadog-agent/pkg/util/kernel"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 var testRootNs uint32
 
 func TestMain(m *testing.M) {
-	rootNs, err := util.GetRootNetNamespace("/proc")
+	rootNs, err := kernel.GetRootNetNamespace("/proc")
 	if err != nil {
-		log.Fatal(err)
+		log.Critical(err)
+		os.Exit(1)
 	}
-	testRootNs, err = util.GetInoForNs(rootNs)
+	testRootNs, err = kernel.GetInoForNs(rootNs)
 	if err != nil {
-		log.Fatal(err)
+		log.Critical(err)
+		os.Exit(1)
 	}
 
-	m.Run()
+	logLevel := os.Getenv("DD_LOG_LEVEL")
+	if logLevel == "" {
+		logLevel = "warn"
+	}
+	log.SetupLogger(seelog.Default, logLevel)
+
+	os.Exit(m.Run())
 }
 
 func TestReadInitialTCPState(t *testing.T) {
-	err := exec.Command("testdata/setup_netns.sh").Run()
-	require.NoError(t, err, "setup_netns.sh failed")
-
-	defer func() {
+	nsName := netlinktestutil.AddNS(t)
+	t.Cleanup(func() {
 		err := exec.Command("testdata/teardown_netns.sh").Run()
 		assert.NoError(t, err, "failed to teardown netns")
-	}()
+	})
+
+	err := exec.Command("testdata/setup_netns.sh", nsName).Run()
+	require.NoError(t, err, "setup_netns.sh failed")
 
 	l, err := net.Listen("tcp", ":0")
 	require.NoError(t, err)
@@ -62,11 +74,11 @@ func TestReadInitialTCPState(t *testing.T) {
 		34568,
 	}
 
-	ns, err := netns.GetFromName("test")
+	ns, err := netns.GetFromName(nsName)
 	require.NoError(t, err)
 	defer ns.Close()
 
-	nsIno, err := util.GetInoForNs(ns)
+	nsIno, err := kernel.GetInoForNs(ns)
 	require.NoError(t, err)
 
 	require.Eventually(t, func() bool {
@@ -99,13 +111,14 @@ func TestReadInitialTCPState(t *testing.T) {
 }
 
 func TestReadInitialUDPState(t *testing.T) {
-	err := exec.Command("testdata/setup_netns.sh").Run()
-	require.NoError(t, err, "setup_netns.sh failed")
-
-	defer func() {
+	nsName := netlinktestutil.AddNS(t)
+	t.Cleanup(func() {
 		err := exec.Command("testdata/teardown_netns.sh").Run()
 		assert.NoError(t, err, "failed to teardown netns")
-	}()
+	})
+
+	err := exec.Command("testdata/setup_netns.sh", nsName).Run()
+	require.NoError(t, err, "setup_netns.sh failed")
 
 	l, err := net.ListenUDP("udp", &net.UDPAddr{})
 	require.NoError(t, err)
@@ -122,11 +135,11 @@ func TestReadInitialUDPState(t *testing.T) {
 		34568,
 	}
 
-	ns, err := netns.GetFromName("test")
+	ns, err := netns.GetFromName(nsName)
 	require.NoError(t, err)
 	defer ns.Close()
 
-	nsIno, err := util.GetInoForNs(ns)
+	nsIno, err := kernel.GetInoForNs(ns)
 	require.NoError(t, err)
 
 	require.Eventually(t, func() bool {

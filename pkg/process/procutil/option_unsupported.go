@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build !linux
-// +build !linux
 
 package procutil
 
@@ -18,7 +17,7 @@ func WithReturnZeroPermStats(enabled bool) Option {
 
 // WithPermission configures if process collection should fetch fields
 // that require elevated permission or not
-func WithPermission(enabled bool) Option {
+func WithPermission(elevatedPermissions bool) Option {
 	return func(p Probe) {}
 }
 

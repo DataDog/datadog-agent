@@ -4,18 +4,22 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build functionaltests
-// +build functionaltests
 
+// Package tests holds tests related files
 package tests
 
 import (
+	"errors"
+	"fmt"
 	"os"
 	"syscall"
 	"testing"
 
+	"github.com/iceber/iouring-go"
 	"github.com/stretchr/testify/assert"
+	"golang.org/x/sys/unix"
 
-	sprobe "github.com/DataDog/datadog-agent/pkg/security/probe"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 )
 
@@ -33,7 +37,7 @@ func TestLink(t *testing.T) {
 
 	fileMode := 0o447
 	expectedMode := applyUmask(fileMode)
-	_, testOldFilePtr, err := test.CreateWithOptions("test-link", 98, 99, fileMode)
+	testOldFile, testOldFilePtr, err := test.CreateWithOptions("test-link", 98, 99, fileMode)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -50,7 +54,7 @@ func TestLink(t *testing.T) {
 				return error(errno)
 			}
 			return nil
-		}, func(event *sprobe.Event, rule *rules.Rule) {
+		}, func(event *model.Event, rule *rules.Rule) {
 			assert.Equal(t, "link", event.GetType(), "wrong event type")
 			assert.Equal(t, getInode(t, testNewFile), event.Link.Source.Inode, "wrong inode")
 			assertRights(t, event.Link.Source.Mode, uint16(expectedMode))
@@ -60,9 +64,10 @@ func TestLink(t *testing.T) {
 			assertNearTime(t, event.Link.Target.MTime)
 			assertNearTime(t, event.Link.Target.CTime)
 
-			if !validateLinkSchema(t, event) {
-				t.Error(event.String())
-			}
+			value, _ := event.GetFieldValue("event.async")
+			assert.Equal(t, value.(bool), false)
+
+			test.validateLinkSchema(t, event)
 		})
 
 		if err = os.Remove(testNewFile); err != nil {
@@ -77,7 +82,7 @@ func TestLink(t *testing.T) {
 				return error(errno)
 			}
 			return nil
-		}, func(event *sprobe.Event, rule *rules.Rule) {
+		}, func(event *model.Event, rule *rules.Rule) {
 			assert.Equal(t, "link", event.GetType(), "wrong event type")
 			assert.Equal(t, getInode(t, testNewFile), event.Link.Source.Inode, "wrong inode")
 			assertRights(t, event.Link.Source.Mode, uint16(expectedMode))
@@ -87,9 +92,70 @@ func TestLink(t *testing.T) {
 			assertNearTime(t, event.Link.Target.MTime)
 			assertNearTime(t, event.Link.Target.CTime)
 
-			if !validateLinkSchema(t, event) {
-				t.Error(event.String())
+			value, _ := event.GetFieldValue("event.async")
+			assert.Equal(t, value.(bool), false)
+
+			test.validateLinkSchema(t, event)
+		})
+
+		if err = os.Remove(testNewFile); err != nil {
+			t.Fatal(err)
+		}
+	})
+
+	t.Run("io_uring", func(t *testing.T) {
+		iour, err := iouring.New(1)
+		if err != nil {
+			if errors.Is(err, unix.ENOTSUP) {
+				t.Fatal(err)
 			}
+			t.Skip("io_uring not supported")
+		}
+		defer iour.Close()
+
+		prepRequest, err := iouring.Linkat(unix.AT_FDCWD, testOldFile, unix.AT_FDCWD, testNewFile, 0)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		ch := make(chan iouring.Result, 1)
+
+		test.WaitSignal(t, func() error {
+			if _, err = iour.SubmitRequest(prepRequest, ch); err != nil {
+				return err
+			}
+
+			result := <-ch
+			ret, err := result.ReturnInt()
+			if err != nil {
+				if err == syscall.EBADF || err == syscall.EINVAL {
+					return ErrSkipTest{"linkat not supported by io_uring"}
+				}
+				return err
+			}
+
+			if ret < 0 {
+				return fmt.Errorf("failed to create a link with io_uring: %d", ret)
+			}
+			return nil
+		}, func(event *model.Event, rule *rules.Rule) {
+			assert.Equal(t, "link", event.GetType(), "wrong event type")
+			assert.Equal(t, getInode(t, testNewFile), event.Link.Source.Inode, "wrong inode")
+			assertRights(t, event.Link.Source.Mode, uint16(expectedMode))
+			assertRights(t, event.Link.Target.Mode, uint16(expectedMode))
+			assertNearTime(t, event.Link.Source.MTime)
+			assertNearTime(t, event.Link.Source.CTime)
+			assertNearTime(t, event.Link.Target.MTime)
+			assertNearTime(t, event.Link.Target.CTime)
+
+			value, _ := event.GetFieldValue("event.async")
+			assert.Equal(t, value.(bool), true)
+
+			executable, err := os.Executable()
+			if err != nil {
+				t.Fatal(err)
+			}
+			assertFieldEqual(t, event, "process.file.path", executable)
 		})
 	})
 }

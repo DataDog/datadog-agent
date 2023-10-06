@@ -9,10 +9,12 @@ import (
 	"math/rand"
 	"testing"
 
-	"github.com/DataDog/datadog-agent/pkg/trace/pb"
+	"github.com/stretchr/testify/assert"
+
+	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	"github.com/DataDog/datadog-agent/pkg/trace/sampler"
 	"github.com/DataDog/datadog-agent/pkg/trace/testutil"
-	"github.com/stretchr/testify/assert"
+	"github.com/DataDog/datadog-agent/pkg/trace/traceutil"
 )
 
 func TestProcessor(t *testing.T) {
@@ -84,7 +86,7 @@ func TestProcessor(t *testing.T) {
 			testSampler := &MockEventSampler{Rate: test.samplerRate}
 			p := newProcessor(extractors, testSampler)
 
-			testSpans := createTestSpans("test", "test")
+			testSpans := createNTestSpans(10000, "test", "test")
 			numSpans := len(testSpans)
 			testChunk := testutil.TraceChunkWithSpans(testSpans)
 			root := testSpans[0]
@@ -94,12 +96,15 @@ func TestProcessor(t *testing.T) {
 			testChunk.DroppedTrace = test.droppedTrace
 
 			p.Start()
-			numEvents, extracted := p.Process(root, testChunk)
+			pt := &traceutil.ProcessedTrace{
+				TraceChunk: testChunk,
+				Root:       root,
+			}
+			numEvents, numExtracted, events := p.Process(pt)
 			p.Stop()
-			total := len(testSpans)
 
-			expectedExtracted := float64(total) * test.expectedExtractedPct
-			assert.InDelta(expectedExtracted, extracted, expectedExtracted*test.deltaPct)
+			expectedExtracted := float64(numSpans) * test.expectedExtractedPct
+			assert.InDelta(expectedExtracted, numExtracted, expectedExtracted*test.deltaPct)
 
 			expectedReturned := expectedExtracted * test.expectedSampledPct
 			assert.InDelta(expectedReturned, numEvents, expectedReturned*test.deltaPct)
@@ -107,19 +112,20 @@ func TestProcessor(t *testing.T) {
 			assert.EqualValues(1, testSampler.StartCalls)
 			assert.EqualValues(1, testSampler.StopCalls)
 
-			expectedSampleCalls := extracted
+			expectedSampleCalls := numExtracted
 			if test.priority == sampler.PriorityUserKeep {
 				expectedSampleCalls = 0
 			}
 			assert.EqualValues(expectedSampleCalls, testSampler.SampleCalls)
 
 			if !test.droppedTrace {
+				events = testChunk.Spans // If we aren't going to drop the trace we need to look at the whole list of spans
 				assert.EqualValues(numSpans, len(testChunk.Spans))
 			} else {
-				assert.EqualValues(numEvents, len(testChunk.Spans))
+				assert.EqualValues(numEvents, len(events))
 			}
 
-			for _, event := range testChunk.Spans {
+			for _, event := range events {
 				if !sampler.IsAnalyzedSpan(event) {
 					continue
 				}

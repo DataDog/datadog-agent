@@ -9,28 +9,27 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
-	"github.com/DataDog/datadog-agent/pkg/util/containers/v2/metrics/mock"
-	"github.com/DataDog/datadog-agent/pkg/util/containers/v2/metrics/provider"
+	"github.com/DataDog/datadog-agent/pkg/util/containers/metrics/mock"
+	"github.com/DataDog/datadog-agent/pkg/util/containers/metrics/provider"
 	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
 )
 
 // MockContainerAccessor is a dummy ContainerLister for tests
 type MockContainerAccessor struct {
 	containers []*workloadmeta.Container
-	err        error
 }
 
-// List returns the mocked containers
-func (l *MockContainerAccessor) List() ([]*workloadmeta.Container, error) {
-	return l.containers, l.err
+// ListRunning returns the mocked containers
+func (l *MockContainerAccessor) ListRunning() []*workloadmeta.Container {
+	return l.containers
 }
 
 // CreateTestProcessor returns a ready-to-use Processor
 func CreateTestProcessor(listerContainers []*workloadmeta.Container,
-	listerError error,
 	metricsContainers map[string]mock.ContainerEntry,
 	metricsAdapter MetricsAdapter,
-	containerFilter ContainerFilter) (*mocksender.MockSender, *Processor, ContainerAccessor) {
+	containerFilter ContainerFilter,
+) (*mocksender.MockSender, *Processor, ContainerAccessor) {
 	mockProvider := mock.NewMetricsProvider()
 	mockCollector := mock.NewCollector("testCollector")
 	for _, runtime := range provider.AllLinuxRuntimes {
@@ -42,7 +41,6 @@ func CreateTestProcessor(listerContainers []*workloadmeta.Container,
 
 	mockAccessor := MockContainerAccessor{
 		containers: listerContainers,
-		err:        listerError,
 	}
 
 	mockedSender := mocksender.NewMockSender("generic-container")
@@ -69,8 +67,9 @@ func CreateContainerMeta(runtime, cID string) *workloadmeta.Container {
 		},
 		Runtime: workloadmeta.ContainerRuntime(runtime),
 		State: workloadmeta.ContainerState{
-			Running:   true,
-			StartedAt: time.Now(),
+			Running: true,
+			// Put the creation date in the past as, on Windows, the timer resolution may generate a 0 elapsed.
+			StartedAt: time.Now().Add(-2 * time.Second),
 		},
 	}
 }

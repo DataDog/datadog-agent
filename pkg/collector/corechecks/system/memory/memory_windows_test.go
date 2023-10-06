@@ -4,16 +4,18 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build windows
-// +build windows
 
 package memory
 
 import (
 	"testing"
 
-	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
-	"github.com/DataDog/datadog-agent/pkg/util/winutil"
 	"github.com/stretchr/testify/require"
+
+	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
+	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
+	"github.com/DataDog/datadog-agent/pkg/util/winutil"
+	pdhtest "github.com/DataDog/datadog-agent/pkg/util/winutil/pdhutil"
 )
 
 func VirtualMemory() (*winutil.VirtualMemoryStat, error) {
@@ -43,14 +45,29 @@ func PagefileMemory() (*winutil.PagefileStat, error) {
 	}, nil
 }
 
+func addDefaultQueryReturnValues() {
+	pdhtest.SetQueryReturnValue("\\\\.\\Memory\\Cache Bytes", 3456789000.0)
+	pdhtest.SetQueryReturnValue("\\\\.\\Memory\\Committed Bytes", 2345678000.0)
+	pdhtest.SetQueryReturnValue("\\\\.\\Memory\\Pool Paged Bytes", 323456000.0)
+	pdhtest.SetQueryReturnValue("\\\\.\\Memory\\Pool Nonpaged Bytes", 168900000.0)
+}
+
 func TestMemoryCheckWindows(t *testing.T) {
 	virtualMemory = VirtualMemory
 	swapMemory = SwapMemory
 	pageMemory = PagefileMemory
+
+	pdhtest.SetupTesting("..\\testfiles\\counter_indexes_en-us.txt", "..\\testfiles\\allcounters_en-us.txt")
+	addDefaultQueryReturnValues()
+
 	memCheck := new(Check)
-
 	mock := mocksender.NewMockSender(memCheck.ID())
+	memCheck.Configure(mock.GetSenderManager(), integration.FakeConfigHash, nil, nil, "test")
 
+	mock.On("Gauge", "system.mem.cached", 3456789000.0/mbSize, "", []string(nil)).Return().Times(1)
+	mock.On("Gauge", "system.mem.committed", 2345678000.0/mbSize, "", []string(nil)).Return().Times(1)
+	mock.On("Gauge", "system.mem.paged", 323456000.0/mbSize, "", []string(nil)).Return().Times(1)
+	mock.On("Gauge", "system.mem.nonpaged", 168900000.0/mbSize, "", []string(nil)).Return().Times(1)
 	mock.On("Gauge", "system.mem.free", 234567890.0/mbSize, "", []string(nil)).Return().Times(1)
 	mock.On("Gauge", "system.mem.usable", 234567890.0/mbSize, "", []string(nil)).Return().Times(1)
 	mock.On("Gauge", "system.mem.used", 12111100000.0/mbSize, "", []string(nil)).Return().Times(1)
@@ -72,6 +89,6 @@ func TestMemoryCheckWindows(t *testing.T) {
 	require.Nil(t, err)
 
 	mock.AssertExpectations(t)
-	mock.AssertNumberOfCalls(t, "Gauge", 13)
+	mock.AssertNumberOfCalls(t, "Gauge", 17)
 	mock.AssertNumberOfCalls(t, "Commit", 1)
 }

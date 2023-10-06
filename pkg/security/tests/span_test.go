@@ -4,8 +4,8 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build functionaltests
-// +build functionaltests
 
+// Package tests holds tests related files
 package tests
 
 import (
@@ -14,12 +14,15 @@ import (
 	"os/exec"
 	"testing"
 
-	sprobe "github.com/DataDog/datadog-agent/pkg/security/probe"
-	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 	"github.com/stretchr/testify/assert"
+
+	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 )
 
 func TestSpan(t *testing.T) {
+	executable := which(t, "touch")
+
 	ruleDefs := []*rules.RuleDefinition{
 		{
 			ID:         "test_span_rule_open",
@@ -27,7 +30,7 @@ func TestSpan(t *testing.T) {
 		},
 		{
 			ID:         "test_span_rule_exec",
-			Expression: `exec.file.path == "/usr/bin/touch"`,
+			Expression: fmt.Sprintf(`exec.file.path in [ "/usr/bin/touch", "%s" ] && exec.args_flags == "reference"`, executable),
 		},
 	}
 
@@ -61,12 +64,10 @@ func TestSpan(t *testing.T) {
 			}
 
 			return nil
-		}, func(event *sprobe.Event, rule *rules.Rule) {
+		}, func(event *model.Event, rule *rules.Rule) {
 			assertTriggeredRule(t, rule, "test_span_rule_open")
 
-			if !validateSpanSchema(t, event) {
-				t.Error(event.String())
-			}
+			test.validateSpanSchema(t, event)
 
 			assert.Equal(t, uint64(204), event.SpanContext.SpanID)
 			assert.Equal(t, uint64(104), event.SpanContext.TraceID)
@@ -80,8 +81,13 @@ func TestSpan(t *testing.T) {
 		}
 		defer os.Remove(testFile)
 
-		args := []string{"span-exec", "104", "204", "/usr/bin/touch", testFile}
-		envs := []string{}
+		var args []string
+		var envs []string
+		if kind == dockerWrapperType {
+			args = []string{"span-exec", "104", "204", "/usr/bin/touch", "--reference", "/etc/passwd", testFile}
+		} else if kind == stdWrapperType {
+			args = []string{"span-exec", "104", "204", executable, "--reference", "/etc/passwd", testFile}
+		}
 
 		test.WaitSignal(t, func() error {
 			cmd := cmdFunc(syscallTester, args, envs)
@@ -90,12 +96,10 @@ func TestSpan(t *testing.T) {
 			}
 
 			return nil
-		}, func(event *sprobe.Event, rule *rules.Rule) {
+		}, func(event *model.Event, rule *rules.Rule) {
 			assertTriggeredRule(t, rule, "test_span_rule_exec")
 
-			if !validateSpanSchema(t, event) {
-				t.Error(event.String())
-			}
+			test.validateSpanSchema(t, event)
 
 			assert.Equal(t, uint64(204), event.SpanContext.SpanID)
 			assert.Equal(t, uint64(104), event.SpanContext.TraceID)

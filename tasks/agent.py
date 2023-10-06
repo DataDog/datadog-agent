@@ -4,37 +4,40 @@ Agent namespaced tasks
 
 
 import ast
-import datetime
 import glob
 import os
 import platform
 import re
 import shutil
 import sys
+import tempfile
 from distutils.dir_util import copy_tree
 
 from invoke import task
 from invoke.exceptions import Exit, ParseError
 
 from .build_tags import filter_incompatible_tags, get_build_tags, get_default_build_tags
-from .docker import pull_base_images
+from .docker_tasks import pull_base_images
 from .flavor import AgentFlavor
 from .go import deps
+from .process_agent import build as process_agent_build
 from .rtloader import clean as rtloader_clean
 from .rtloader import install as rtloader_install
 from .rtloader import make as rtloader_make
 from .ssm import get_pfx_pass, get_signing_cert
+from .trace_agent import build as trace_agent_build
 from .utils import (
     REPO_PATH,
     bin_name,
+    cache_version,
     generate_config,
     get_build_flags,
     get_version,
-    get_version_numeric_only,
-    get_win_py_runtime_var,
     has_both_python,
     load_release_versions,
+    timed,
 )
+from .windows_resources import build_messagetable, build_rc, versioninfo_vars
 
 # constants
 BIN_PATH = os.path.join(".", "bin", "agent")
@@ -43,6 +46,8 @@ AGENT_TAG = "datadog/agent:master"
 AGENT_CORECHECKS = [
     "container",
     "containerd",
+    "container_image",
+    "container_lifecycle",
     "cpu",
     "cri",
     "snmp",
@@ -56,12 +61,19 @@ AGENT_CORECHECKS = [
     "memory",
     "ntp",
     "oom_kill",
+    "oracle-dbm",
+    "sbom",
     "systemd",
     "tcp_queue_length",
     "uptime",
-    "winkmem",
     "winproc",
     "jetson",
+]
+
+WINDOWS_CORECHECKS = [
+    "agentcrashdetect",
+    "winkmem",
+    "wincrashdetect",
 ]
 
 IOT_AGENT_CORECHECKS = [
@@ -103,6 +115,7 @@ def build(
     exclude_rtloader=False,
     go_mod="mod",
     windows_sysprobe=False,
+    cmake_options='',
 ):
     """
     Build the agent. If the bits to include in the build are not specified,
@@ -116,7 +129,7 @@ def build(
     if not exclude_rtloader and not flavor.is_iot():
         # If embedded_path is set, we should give it to rtloader as it should install the headers/libs
         # in the embedded path folder because that's what is used in get_build_flags()
-        rtloader_make(ctx, python_runtimes=python_runtimes, install_prefix=embedded_path)
+        rtloader_make(ctx, python_runtimes=python_runtimes, install_prefix=embedded_path, cmake_options=cmake_options)
         rtloader_install(ctx)
 
     ldflags, gcflags, env = get_build_flags(
@@ -130,29 +143,21 @@ def build(
     )
 
     if sys.platform == 'win32':
-        py_runtime_var = get_win_py_runtime_var(python_runtimes)
-
-        windres_target = "pe-x86-64"
-
         # Important for x-compiling
         env["CGO_ENABLED"] = "1"
 
         if arch == "x86":
             env["GOARCH"] = "386"
-            windres_target = "pe-i386"
 
-        # This generates the manifest resource. The manifest resource is necessary for
-        # being able to load the ancient C-runtime that comes along with Python 2.7
-        # command = "rsrc -arch amd64 -manifest cmd/agent/agent.exe.manifest -o cmd/agent/rsrc.syso"
-        ver = get_version_numeric_only(ctx, major_version=major_version)
-        build_maj, build_min, build_patch = ver.split(".")
-
-        command = f"windmc --target {windres_target} -r cmd/agent cmd/agent/agentmsg.mc "
-        ctx.run(command, env=env)
-
-        command = f"windres --target {windres_target} --define {py_runtime_var}=1 --define MAJ_VER={build_maj} --define MIN_VER={build_min} --define PATCH_VER={build_patch} --define BUILD_ARCH_{arch}=1"
-        command += "-i cmd/agent/agent.rc -O coff -o cmd/agent/rsrc.syso"
-        ctx.run(command, env=env)
+        build_messagetable(ctx, arch=arch)
+        vars = versioninfo_vars(ctx, major_version=major_version, python_runtimes=python_runtimes, arch=arch)
+        build_rc(
+            ctx,
+            "cmd/agent/windows_resources/agent.rc",
+            arch=arch,
+            vars=vars,
+            out="cmd/agent/rsrc.syso",
+        )
 
     if flavor.is_iot():
         # Iot mode overrides whatever passed through `--build-exclude` and `--build-include`
@@ -174,7 +179,7 @@ def build(
         "race_opt": "-race" if race else "",
         "build_type": "-a" if rebuild else "",
         "go_build_tags": " ".join(build_tags),
-        "agent_bin": os.path.join(BIN_PATH, bin_name("agent", android=False)),
+        "agent_bin": os.path.join(BIN_PATH, bin_name("agent")),
         "gcflags": gcflags,
         "ldflags": ldflags,
         "REPO_PATH": REPO_PATH,
@@ -235,6 +240,14 @@ def refresh_assets(_, build_tags, development=True, flavor=AgentFlavor.base.name
     for check in AGENT_CORECHECKS if not flavor.is_iot() else IOT_AGENT_CORECHECKS:
         check_dir = os.path.join(dist_folder, f"conf.d/{check}.d/")
         copy_tree(f"./cmd/agent/dist/conf.d/{check}.d/", check_dir)
+
+    ## add additional windows-only corechecks, only on windows. Otherwise the check loader
+    ## on linux will throw an error because the module is not found, but the config is.
+    if sys.platform == 'win32':
+        for check in WINDOWS_CORECHECKS:
+            check_dir = os.path.join(dist_folder, f"conf.d/{check}.d/")
+            copy_tree(f"./cmd/agent/dist/conf.d/{check}.d/", check_dir)
+
     if "apm" in build_tags:
         shutil.copy("./cmd/agent/dist/conf.d/apm.yaml.default", os.path.join(dist_folder, "conf.d/apm.yaml.default"))
     if "process" in build_tags:
@@ -274,6 +287,23 @@ def run(
 
 
 @task
+def exec(
+    ctx,
+    subcommand,
+    config_path=None,
+):
+    """
+    Execute 'agent <subcommand>' against the currently running Agent.
+
+    This works against an agent run via `inv agent.run`.
+    Basically this just simplifies creating the path for both the agent binary and config.
+    """
+    agent_bin = os.path.join(BIN_PATH, bin_name("agent"))
+    config_path = os.path.join(BIN_PATH, "dist", "datadog.yaml") if not config_path else config_path
+    ctx.run(f"{agent_bin} -c {config_path} {subcommand}")
+
+
+@task
 def system_tests(_):
     """
     Run the system testsuite.
@@ -295,7 +325,7 @@ def image_build(ctx, arch='amd64', base_dir="omnibus", python_version="2", skip_
     base_dir = base_dir or os.environ.get("OMNIBUS_BASE_DIR")
     pkg_dir = os.path.join(base_dir, 'pkg')
     deb_glob = f'datadog-agent*_{arch}.deb'
-    dockerfile_path = f"{build_context}/{arch}/Dockerfile"
+    dockerfile_path = f"{build_context}/Dockerfile"
     list_of_files = glob.glob(os.path.join(pkg_dir, deb_glob))
     # get the last debian package built
     if not list_of_files:
@@ -312,11 +342,126 @@ def image_build(ctx, arch='amd64', base_dir="omnibus", python_version="2", skip_
 
     # Build with the testing target
     if not skip_tests:
-        ctx.run(f"docker build {common_build_opts} --target testing {build_context}")
+        ctx.run(f"docker build {common_build_opts} --platform linux/{arch} --target testing {build_context}")
 
     # Build with the release target
-    ctx.run(f"docker build {common_build_opts} --target release {build_context}")
+    ctx.run(f"docker build {common_build_opts} --platform linux/{arch} --target release {build_context}")
     ctx.run(f"rm {build_context}/{deb_glob}")
+
+
+@task
+def hacky_dev_image_build(
+    ctx,
+    base_image=None,
+    target_image="agent",
+    target_tag="latest",
+    process_agent=False,
+    trace_agent=False,
+    push=False,
+    signed_pull=False,
+):
+    if base_image is None:
+        import requests
+        import semver
+
+        # Try to guess what is the latest release of the agent
+        latest_release = semver.VersionInfo(0)
+        tags = requests.get("https://gcr.io/v2/datadoghq/agent/tags/list")
+        for tag in tags.json()['tags']:
+            if not semver.VersionInfo.isvalid(tag):
+                continue
+            ver = semver.VersionInfo.parse(tag)
+            if ver.prerelease or ver.build:
+                continue
+            if ver > latest_release:
+                latest_release = ver
+        base_image = f"gcr.io/datadoghq/agent:{latest_release}"
+
+    # Extract the python library of the docker image
+    with tempfile.TemporaryDirectory() as extracted_python_dir:
+        ctx.run(
+            f"docker run --rm '{base_image}' bash -c 'tar --create /opt/datadog-agent/embedded/{{bin,lib,include}}/*python*' | tar --directory '{extracted_python_dir}' --extract"
+        )
+
+        os.environ["DELVE"] = "1"
+        os.environ["LD_LIBRARY_PATH"] = (
+            os.environ.get("LD_LIBRARY_PATH", "") + f":{extracted_python_dir}/opt/datadog-agent/embedded/lib"
+        )
+        build(
+            ctx,
+            cmake_options=f'-DPython3_ROOT_DIR={extracted_python_dir}/opt/datadog-agent/embedded -DPython3_FIND_STRATEGY=LOCATION',
+        )
+        ctx.run(
+            f'perl -0777 -pe \'s|{extracted_python_dir}(/opt/datadog-agent/embedded/lib/python\\d+\\.\\d+/../..)|substr $1."\\0"x length$&,0,length$&|e or die "pattern not found"\' -i dev/lib/libdatadog-agent-three.so'
+        )
+        if process_agent:
+            process_agent_build(ctx)
+        if trace_agent:
+            trace_agent_build(ctx)
+
+    copy_extra_agents = ""
+    if process_agent:
+        copy_extra_agents += "COPY bin/process-agent/process-agent /opt/datadog-agent/embedded/bin/process-agent\n"
+    if trace_agent:
+        copy_extra_agents += "COPY bin/trace-agent/trace-agent /opt/datadog-agent/embedded/bin/trace-agent\n"
+
+    with tempfile.NamedTemporaryFile(mode='w') as dockerfile:
+        dockerfile.write(
+            f'''FROM ubuntu:latest AS src
+
+COPY . /usr/src/datadog-agent
+
+RUN find /usr/src/datadog-agent -type f \\! -name \\*.go -print0 | xargs -0 rm
+RUN find /usr/src/datadog-agent -type d -empty -print0 | xargs -0 rmdir
+
+FROM ubuntu:latest AS bin
+
+ENV DEBIAN_FRONTEND=noninteractive
+RUN apt-get update && \
+    apt-get install -y patchelf
+
+COPY bin/agent/agent                            /opt/datadog-agent/bin/agent/agent
+COPY dev/lib/libdatadog-agent-rtloader.so.0.1.0 /opt/datadog-agent/embedded/lib/libdatadog-agent-rtloader.so.0.1.0
+COPY dev/lib/libdatadog-agent-three.so          /opt/datadog-agent/embedded/lib/libdatadog-agent-three.so
+
+RUN patchelf --set-rpath /opt/datadog-agent/embedded/lib /opt/datadog-agent/bin/agent/agent
+RUN patchelf --set-rpath /opt/datadog-agent/embedded/lib /opt/datadog-agent/embedded/lib/libdatadog-agent-rtloader.so.0.1.0
+RUN patchelf --set-rpath /opt/datadog-agent/embedded/lib /opt/datadog-agent/embedded/lib/libdatadog-agent-three.so
+
+FROM golang:latest AS dlv
+
+RUN go install github.com/go-delve/delve/cmd/dlv@latest
+
+FROM {base_image}
+
+ENV DEBIAN_FRONTEND=noninteractive
+RUN apt-get update && \
+    apt-get install -y bash-completion less vim tshark && \
+    apt-get clean
+
+ENV DELVE_PAGER=less
+
+COPY --from=dlv /go/bin/dlv /usr/local/bin/dlv
+COPY --from=src /usr/src/datadog-agent {os.getcwd()}
+COPY --from=bin /opt/datadog-agent/bin/agent/agent                                 /opt/datadog-agent/bin/agent/agent
+COPY --from=bin /opt/datadog-agent/embedded/lib/libdatadog-agent-rtloader.so.0.1.0 /opt/datadog-agent/embedded/lib/libdatadog-agent-rtloader.so.0.1.0
+COPY --from=bin /opt/datadog-agent/embedded/lib/libdatadog-agent-three.so          /opt/datadog-agent/embedded/lib/libdatadog-agent-three.so
+{copy_extra_agents}
+RUN agent completion bash > /usr/share/bash-completion/completions/agent
+
+ENV DD_SSLKEYLOGFILE=/tmp/sslkeylog.txt
+'''
+        )
+        dockerfile.flush()
+
+        target_image_name = f'{target_image}:{target_tag}'
+        pull_env = {}
+        if signed_pull:
+            pull_env['DOCKER_CONTENT_TRUST'] = '1'
+        ctx.run(f'docker build -t {target_image_name} -f {dockerfile.name} .', env=pull_env)
+
+        if push:
+            ctx.run(f'docker push {target_image_name}')
 
 
 @task
@@ -362,9 +507,9 @@ def get_omnibus_env(
     python_runtimes='3',
     hardened_runtime=False,
     system_probe_bin=None,
-    nikos_path=None,
     go_mod_cache=None,
     flavor=AgentFlavor.base,
+    pip_config_file="pip.conf",
 ):
     env = load_release_versions(ctx, release_version)
 
@@ -374,6 +519,9 @@ def get_omnibus_env(
 
     if go_mod_cache:
         env['OMNIBUS_GOMODCACHE'] = go_mod_cache
+
+    if int(major_version) > 6:
+        env['OMNIBUS_OPENSSL_SOFTWARE'] = 'openssl3'
 
     integrations_core_version = os.environ.get('INTEGRATIONS_CORE_VERSION')
     # Only overrides the env var if the value is a non-empty string.
@@ -401,11 +549,19 @@ def get_omnibus_env(
     )
     env['MAJOR_VERSION'] = major_version
     env['PY_RUNTIMES'] = python_runtimes
+
+    # Since omnibus and the invoke task won't run in the same folder
+    # we need to input the absolute path of the pip config file
+    env['PIP_CONFIG_FILE'] = os.path.abspath(pip_config_file)
+
     if system_probe_bin:
         env['SYSTEM_PROBE_BIN'] = system_probe_bin
-    if nikos_path:
-        env['NIKOS_PATH'] = nikos_path
     env['AGENT_FLAVOR'] = flavor.name
+
+    # We need to override the workers variable in omnibus build when running on Kubernetes runners,
+    # otherwise, ohai detect the number of CPU on the host and run the make jobs with all the CPU.
+    if os.environ.get('KUBERNETES_CPU_REQUEST'):
+        env['OMNIBUS_WORKERS_OVERRIDE'] = str(int(os.environ.get('KUBERNETES_CPU_REQUEST')) + 1)
 
     return env
 
@@ -478,21 +634,17 @@ def omnibus_build(
     omnibus_s3_cache=False,
     hardened_runtime=False,
     system_probe_bin=None,
-    nikos_path=None,
     go_mod_cache=None,
+    python_mirror=None,
+    pip_config_file="pip.conf",
 ):
     """
     Build the Agent packages with Omnibus Installer.
     """
     flavor = AgentFlavor[flavor]
-    deps_elapsed = None
-    bundle_elapsed = None
-    omnibus_elapsed = None
     if not skip_deps:
-        deps_start = datetime.datetime.now()
-        deps(ctx)
-        deps_end = datetime.datetime.now()
-        deps_elapsed = deps_end - deps_start
+        with timed(quiet=True) as deps_elapsed:
+            deps(ctx)
 
     # base dir (can be overridden through env vars, command line takes precedence)
     base_dir = base_dir or os.environ.get("OMNIBUS_BASE_DIR")
@@ -510,9 +662,9 @@ def omnibus_build(
         python_runtimes=python_runtimes,
         hardened_runtime=hardened_runtime,
         system_probe_bin=system_probe_bin,
-        nikos_path=nikos_path,
         go_mod_cache=go_mod_cache,
         flavor=flavor,
+        pip_config_file=pip_config_file,
     )
 
     target_project = "agent"
@@ -521,29 +673,38 @@ def omnibus_build(
     elif agent_binaries:
         target_project = "agent-binaries"
 
-    bundle_start = datetime.datetime.now()
-    bundle_install_omnibus(ctx, gem_path, env)
-    bundle_done = datetime.datetime.now()
-    bundle_elapsed = bundle_done - bundle_start
+    # Get the python_mirror from the PIP_INDEX_URL environment variable if it is not passed in the args
+    python_mirror = python_mirror or os.environ.get("PIP_INDEX_URL")
 
-    omnibus_start = datetime.datetime.now()
-    omnibus_run_task(
-        ctx=ctx,
-        task="build",
-        target_project=target_project,
-        base_dir=base_dir,
-        env=env,
-        omnibus_s3_cache=omnibus_s3_cache,
-        log_level=log_level,
-    )
-    omnibus_done = datetime.datetime.now()
-    omnibus_elapsed = omnibus_done - omnibus_start
+    # If a python_mirror is set then use it for pip by adding it in the pip.conf file
+    pip_index_url = f"[global]\nindex-url = {python_mirror}" if python_mirror else ""
+
+    # We're passing the --index-url arg through a pip.conf file so that omnibus doesn't leak the token
+    with open(pip_config_file, 'w') as f:
+        f.write(pip_index_url)
+
+    with timed(quiet=True) as bundle_elapsed:
+        bundle_install_omnibus(ctx, gem_path, env)
+
+    with timed(quiet=True) as omnibus_elapsed:
+        omnibus_run_task(
+            ctx=ctx,
+            task="build",
+            target_project=target_project,
+            base_dir=base_dir,
+            env=env,
+            omnibus_s3_cache=omnibus_s3_cache,
+            log_level=log_level,
+        )
+
+    # Delete the temporary pip.conf file once the build is done
+    os.remove(pip_config_file)
 
     print("Build component timing:")
     if not skip_deps:
-        print(f"Deps:    {deps_elapsed}")
-    print(f"Bundle:  {bundle_elapsed}")
-    print(f"Omnibus: {omnibus_elapsed}")
+        print(f"Deps:    {deps_elapsed.duration}")
+    print(f"Bundle:  {bundle_elapsed.duration}")
+    print(f"Omnibus: {omnibus_elapsed.duration}")
 
 
 @task
@@ -694,7 +855,7 @@ def clean(ctx):
 
 
 @task
-def version(ctx, url_safe=False, omnibus_format=False, git_sha_length=7, major_version='7'):
+def version(ctx, url_safe=False, omnibus_format=False, git_sha_length=7, major_version='7', version_cached=False):
     """
     Get the agent version.
     url_safe: get the version that is able to be addressed as a url
@@ -703,7 +864,12 @@ def version(ctx, url_safe=False, omnibus_format=False, git_sha_length=7, major_v
     git_sha_length: different versions of git have a different short sha length,
                     use this to explicitly set the version
                     (the windows builder and the default ubuntu version have such an incompatibility)
+    version_cached: save the version inside a "agent-version.cache" that will be reused
+                    by each next call of version.
     """
+    if version_cached:
+        cache_version(ctx, git_sha_length=git_sha_length)
+
     version = get_version(
         ctx,
         include_git=True,

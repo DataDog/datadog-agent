@@ -5,24 +5,23 @@
 # Copyright (C) 2020-present Datadog
 #
 
-if !platform?('windows')
-  include_recipe "::linux_use_azure_mnt"
+rootdir = value_for_platform(
+  'windows' => { 'default' => ::File.join(Chef::Config[:file_cache_path], 'system-probe') },
+  'default' => '/tmp/ci/system-probe'
+)
+
+directory rootdir do
+  recursive true
 end
 
 # This will copy the whole file tree from COOKBOOK_NAME/files/default/tests
 # to the directory where RSpec is expecting them.
-testdir = value_for_platform(
-  'windows' => { 'default' => ::File.join(Chef::Config[:file_cache_path], 'system-probe-tests') },
-  'default' => '/tmp/system-probe-tests'
-)
-
-remote_directory testdir do
+remote_directory ::File.join(rootdir, "tests") do
   source 'tests'
   mode '755'
   files_mode '755'
   sensitive true
-  case
-  when !platform?('windows')
+  unless platform?('windows')
     files_owner 'root'
   end
 end

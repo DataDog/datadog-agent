@@ -4,39 +4,38 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build docker
-// +build docker
 
+// Package ecs implements the ECS Workloadmeta collector.
 package ecs
 
 import (
 	"context"
 	"strings"
-	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/errors"
-	"github.com/DataDog/datadog-agent/pkg/security/log"
 	ecsutil "github.com/DataDog/datadog-agent/pkg/util/ecs"
 	ecsmeta "github.com/DataDog/datadog-agent/pkg/util/ecs/metadata"
 	v1 "github.com/DataDog/datadog-agent/pkg/util/ecs/metadata/v1"
 	v3or4 "github.com/DataDog/datadog-agent/pkg/util/ecs/metadata/v3or4"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
-	"github.com/DataDog/datadog-agent/pkg/workloadmeta/collectors/internal/util"
 )
 
 const (
 	collectorID   = "ecs"
 	componentName = "workloadmeta-ecs"
-	expireFreq    = 15 * time.Second
 )
 
 type collector struct {
-	store           workloadmeta.Store
-	expire          *util.Expire
-	metaV1          *v1.Client
-	clusterName     string
-	hasResourceTags bool
-	resourceTags    map[string]resourceTags
+	store               workloadmeta.Store
+	metaV1              v1.Client
+	metaV3or4           func(metaURI, metaVersion string) v3or4.Client
+	clusterName         string
+	hasResourceTags     bool
+	collectResourceTags bool
+	resourceTags        map[string]resourceTags
+	seen                map[workloadmeta.EntityID]struct{}
 }
 
 type resourceTags struct {
@@ -48,29 +47,31 @@ func init() {
 	workloadmeta.RegisterCollector(collectorID, func() workloadmeta.Collector {
 		return &collector{
 			resourceTags: make(map[string]resourceTags),
+			seen:         make(map[workloadmeta.EntityID]struct{}),
 		}
 	})
 }
 
 func (c *collector) Start(ctx context.Context, store workloadmeta.Store) error {
-	if !config.IsFeaturePresent(config.Docker) {
-		return errors.NewDisabled(componentName, "Agent is not running on Docker")
-	}
-
-	if ecsutil.IsFargateInstance(ctx) {
-		return errors.NewDisabled(componentName, "ECS collector is disabled on Fargate")
+	if !config.IsFeaturePresent(config.ECSEC2) {
+		return errors.NewDisabled(componentName, "Agent is not running on ECS EC2")
 	}
 
 	var err error
 
 	c.store = store
-	c.expire = util.NewExpire(expireFreq)
 	c.metaV1, err = ecsmeta.V1()
 	if err != nil {
 		return err
 	}
 
+	// This only exists to allow overriding for testing
+	c.metaV3or4 = func(metaURI, metaVersion string) v3or4.Client {
+		return v3or4.NewClient(metaURI, metaVersion)
+	}
+
 	c.hasResourceTags = ecsutil.HasEC2ResourceTags()
+	c.collectResourceTags = config.Datadog.GetBool("ecs_collect_resource_tags_ec2")
 
 	instance, err := c.metaV1.GetInstance(ctx)
 	if err == nil {
@@ -92,30 +93,14 @@ func (c *collector) Pull(ctx context.Context) error {
 	// immutable: the list of containers in the task changes as containers
 	// don't get added until they actually start running, and killed
 	// containers will get re-created.
-	events := c.parseTasks(ctx, tasks)
+	c.store.Notify(c.parseTasks(ctx, tasks))
 
-	expires := c.expire.ComputeExpires()
-	for _, expired := range expires {
-		if c.hasResourceTags && expired.Kind == workloadmeta.KindECSTask {
-			delete(c.resourceTags, expired.ID)
-		}
-
-		events = append(events, workloadmeta.CollectorEvent{
-			Type:   workloadmeta.EventTypeUnset,
-			Source: workloadmeta.SourceNodeOrchestrator,
-			Entity: expired,
-		})
-	}
-
-	c.store.Notify(events)
-
-	return err
+	return nil
 }
 
 func (c *collector) parseTasks(ctx context.Context, tasks []v1.Task) []workloadmeta.CollectorEvent {
 	events := []workloadmeta.CollectorEvent{}
-
-	now := time.Now()
+	seen := make(map[workloadmeta.EntityID]struct{})
 
 	for _, task := range tasks {
 		// We only want to collect tasks without a STOPPED status.
@@ -128,11 +113,11 @@ func (c *collector) parseTasks(ctx context.Context, tasks []v1.Task) []workloadm
 			ID:   task.Arn,
 		}
 
-		c.expire.Update(entityID, now)
+		seen[entityID] = struct{}{}
 
 		arnParts := strings.Split(task.Arn, "/")
 		taskID := arnParts[len(arnParts)-1]
-		taskContainers, containerEvents := c.parseTaskContainers(task)
+		taskContainers, containerEvents := c.parseTaskContainers(task, seen)
 
 		entity := &workloadmeta.ECSTask{
 			EntityID: entityID,
@@ -146,7 +131,8 @@ func (c *collector) parseTasks(ctx context.Context, tasks []v1.Task) []workloadm
 			Containers:  taskContainers,
 		}
 
-		if c.hasResourceTags {
+		// Only fetch tags if they're both available and used
+		if c.hasResourceTags && c.collectResourceTags {
 			rt := c.getResourceTags(ctx, entity)
 			entity.ContainerInstanceTags = rt.containerInstanceTags
 			entity.Tags = rt.tags
@@ -160,14 +146,44 @@ func (c *collector) parseTasks(ctx context.Context, tasks []v1.Task) []workloadm
 		})
 	}
 
+	for seenID := range c.seen {
+		if _, ok := seen[seenID]; ok {
+			continue
+		}
+
+		if c.hasResourceTags && seenID.Kind == workloadmeta.KindECSTask {
+			delete(c.resourceTags, seenID.ID)
+		}
+
+		var entity workloadmeta.Entity
+		switch seenID.Kind {
+		case workloadmeta.KindECSTask:
+			entity = &workloadmeta.ECSTask{EntityID: seenID}
+		case workloadmeta.KindContainer:
+			entity = &workloadmeta.Container{EntityID: seenID}
+		default:
+			log.Errorf("cannot handle expired entity of kind %q, skipping", seenID.Kind)
+			continue
+		}
+
+		events = append(events, workloadmeta.CollectorEvent{
+			Type:   workloadmeta.EventTypeUnset,
+			Source: workloadmeta.SourceNodeOrchestrator,
+			Entity: entity,
+		})
+	}
+
+	c.seen = seen
+
 	return events
 }
 
-func (c *collector) parseTaskContainers(task v1.Task) ([]workloadmeta.OrchestratorContainer, []workloadmeta.CollectorEvent) {
+func (c *collector) parseTaskContainers(
+	task v1.Task,
+	seen map[workloadmeta.EntityID]struct{},
+) ([]workloadmeta.OrchestratorContainer, []workloadmeta.CollectorEvent) {
 	taskContainers := make([]workloadmeta.OrchestratorContainer, 0, len(task.Containers))
 	events := make([]workloadmeta.CollectorEvent, 0, len(task.Containers))
-
-	now := time.Now()
 
 	for _, container := range task.Containers {
 		containerID := container.DockerID
@@ -180,7 +196,7 @@ func (c *collector) parseTaskContainers(task v1.Task) ([]workloadmeta.Orchestrat
 			ID:   containerID,
 		}
 
-		c.expire.Update(entityID, now)
+		seen[entityID] = struct{}{}
 
 		events = append(events, workloadmeta.CollectorEvent{
 			Source: workloadmeta.SourceNodeOrchestrator,
@@ -237,7 +253,7 @@ func (c *collector) getResourceTags(ctx context.Context, entity *workloadmeta.EC
 		return rt
 	}
 
-	metaV3orV4 := v3or4.NewClient(metaURI, metaVersion)
+	metaV3orV4 := c.metaV3or4(metaURI, metaVersion)
 	taskWithTags, err := metaV3orV4.GetTaskWithTags(ctx)
 	if err != nil {
 		log.Errorf("failed to get task with tags from metadata %s API: %s", metaVersion, err)

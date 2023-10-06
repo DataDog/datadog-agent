@@ -86,6 +86,10 @@ typedef enum {
     DATADOG_AGENT_CRITICAL = 50
 } log_level_t;
 
+typedef struct pymem_stats_s {
+    size_t inuse, alloc;
+} pymem_stats_t;
+
 /*
  * custom builtins
  */
@@ -101,7 +105,7 @@ typedef void (*cb_submit_event_t)(char *, event_t *);
 // (id, metric_name, value, lower_bound, upper_bound, monotonic, hostname, tags, flush_first_value)
 typedef void (*cb_submit_histogram_bucket_t)(char *, char *, long long, float, float, int, char *, char **, bool);
 // (id, event, event_type)
-typedef void (*cb_submit_event_platform_event_t)(char *, char *, char *);
+typedef void (*cb_submit_event_platform_event_t)(char *, char *, int, char *);
 
 // datadog_agent
 //

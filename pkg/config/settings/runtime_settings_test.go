@@ -6,7 +6,6 @@
 package settings
 
 import (
-	"strings"
 	"testing"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
@@ -15,7 +14,8 @@ import (
 )
 
 type runtimeTestSetting struct {
-	value int
+	value  int
+	source Source
 }
 
 func (t *runtimeTestSetting) Name() string {
@@ -30,8 +30,9 @@ func (t *runtimeTestSetting) Get() (interface{}, error) {
 	return t.value, nil
 }
 
-func (t *runtimeTestSetting) Set(v interface{}) error {
+func (t *runtimeTestSetting) Set(v interface{}, source Source) error {
 	t.value = v.(int)
+	t.source = source
 	return nil
 }
 
@@ -39,10 +40,8 @@ func (t *runtimeTestSetting) Hidden() bool {
 	return false
 }
 
-func setupConf() config.Config {
-	conf := config.NewConfig("datadog", "DD", strings.NewReplacer(".", "_"))
-	config.InitConfig(conf)
-	return conf
+func (t *runtimeTestSetting) GetSource() Source {
+	return t.source
 }
 
 func cleanRuntimeSetting() {
@@ -51,7 +50,7 @@ func cleanRuntimeSetting() {
 
 func TestRuntimeSettings(t *testing.T) {
 	cleanRuntimeSetting()
-	runtimeSetting := runtimeTestSetting{1}
+	runtimeSetting := runtimeTestSetting{1, SourceDefault}
 
 	err := RegisterRuntimeSetting(&runtimeSetting)
 	assert.Nil(t, err)
@@ -61,7 +60,7 @@ func TestRuntimeSettings(t *testing.T) {
 	assert.Nil(t, err)
 	assert.Equal(t, runtimeSetting.value, v)
 
-	err = SetRuntimeSetting(runtimeSetting.Name(), 123)
+	err = SetRuntimeSetting(runtimeSetting.Name(), 123, SourceDefault)
 	assert.Nil(t, err)
 
 	v, err = GetRuntimeSetting(runtimeSetting.Name())
@@ -80,21 +79,21 @@ func TestLogLevel(t *testing.T) {
 	ll := LogLevelRuntimeSetting{}
 	assert.Equal(t, "log_level", ll.Name())
 
-	err := ll.Set("off")
+	err := ll.Set("off", SourceDefault)
 	assert.Nil(t, err)
 
 	v, err := ll.Get()
 	assert.Equal(t, "off", v)
 	assert.Nil(t, err)
 
-	err = ll.Set("WARNING")
+	err = ll.Set("WARNING", SourceDefault)
 	assert.Nil(t, err)
 
 	v, err = ll.Get()
 	assert.Equal(t, "warn", v)
 	assert.Nil(t, err)
 
-	err = ll.Set("invalid")
+	err = ll.Set("invalid", SourceDefault)
 	assert.NotNil(t, err)
 	assert.Equal(t, "unknown log level: invalid", err.Error())
 
@@ -105,20 +104,27 @@ func TestLogLevel(t *testing.T) {
 
 func TestProfiling(t *testing.T) {
 	cleanRuntimeSetting()
-	setupConf()
+	config.SetupConf()
 
-	ll := ProfilingRuntimeSetting("internal_profiling")
+	ll := ProfilingRuntimeSetting{SettingName: "internal_profiling", Service: "datadog-agent"}
 	assert.Equal(t, "internal_profiling", ll.Name())
+	assert.Equal(t, "datadog-agent", ll.Service)
 
-	err := ll.Set("false")
+	err := ll.Set("false", SourceDefault)
 	assert.Nil(t, err)
 
 	v, err := ll.Get()
 	assert.Equal(t, false, v)
 	assert.Nil(t, err)
 
-	err = ll.Set("on")
+	err = ll.Set("on", SourceDefault)
 	assert.NotNil(t, err)
+
+	ll = ProfilingRuntimeSetting{SettingName: "internal_profiling", Service: "process-agent"}
+	assert.Equal(t, "process-agent", ll.Service)
+
+	ll = ProfilingRuntimeSetting{SettingName: "internal_profiling", Service: "datadog-cluster-agent"}
+	assert.Equal(t, "datadog-cluster-agent", ll.Service)
 }
 
 func TestGetInt(t *testing.T) {

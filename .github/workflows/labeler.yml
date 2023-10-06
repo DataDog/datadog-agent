@@ -1,0 +1,21 @@
+name: "PR labeler"
+
+on:
+  pull_request:
+    branches:
+      - main
+      - 7.[0-9][0-9].x
+
+jobs:
+  label:
+    permissions:
+      contents: read
+      pull-requests: write
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/labeler@v4
+        with:
+          repo-token: "${{ secrets.GITHUB_TOKEN }}"
+          configuration-path: .github/labeler.yml
+          # currently doesn't work
+          sync-labels: true

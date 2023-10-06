@@ -8,10 +8,10 @@ package sampler
 import (
 	"sort"
 	"sync"
-	"sync/atomic"
 	"time"
 
-	ddatomic "github.com/DataDog/datadog-agent/pkg/trace/atomic"
+	"go.uber.org/atomic"
+
 	"github.com/DataDog/datadog-agent/pkg/trace/metrics"
 	"github.com/DataDog/datadog-agent/pkg/trace/watchdog"
 )
@@ -47,12 +47,12 @@ type Sampler struct {
 	muRates sync.RWMutex
 
 	// Maximum limit to the total number of traces per second to sample
-	targetTPS *ddatomic.Float64
+	targetTPS *atomic.Float64
 	// extraRate is an extra raw sampling rate to apply on top of the sampler rate
 	extraRate float64
 
 	totalSeen float32
-	totalKept int64
+	totalKept *atomic.Int64
 
 	tags    []string
 	exit    chan struct{}
@@ -65,8 +65,10 @@ func newSampler(extraRate float64, targetTPS float64, tags []string) *Sampler {
 		seen: make(map[Signature][numBuckets]float32),
 
 		extraRate: extraRate,
-		targetTPS: ddatomic.NewFloat(targetTPS),
+		targetTPS: atomic.NewFloat64(targetTPS),
 		tags:      tags,
+
+		totalKept: atomic.NewInt64(0),
 
 		exit:    make(chan struct{}),
 		stopped: make(chan struct{}),
@@ -245,14 +247,14 @@ func zeroAndGetMax(buckets [numBuckets]float32, previousBucket, newBucket int64)
 
 // countSample counts a trace sampled by the sampler.
 func (s *Sampler) countSample() {
-	atomic.AddInt64(&s.totalKept, 1)
+	s.totalKept.Inc()
 }
 
 // getSignatureSampleRate returns the sampling rate to apply to a signature
 func (s *Sampler) getSignatureSampleRate(sig Signature) float64 {
 	s.muRates.RLock()
-	defer s.muRates.RUnlock()
 	rate, ok := s.rates[sig]
+	s.muRates.RUnlock()
 	if !ok {
 		return s.defaultRate()
 	}
@@ -262,11 +264,11 @@ func (s *Sampler) getSignatureSampleRate(sig Signature) float64 {
 // getAllSignatureSampleRates returns the sampling rate to apply to each signature
 func (s *Sampler) getAllSignatureSampleRates() (map[Signature]float64, float64) {
 	s.muRates.RLock()
-	defer s.muRates.RUnlock()
 	rates := make(map[Signature]float64, len(s.rates))
 	for sig, val := range s.rates {
 		rates[sig] = val * s.extraRate
 	}
+	s.muRates.RUnlock()
 	return rates, s.defaultRate()
 }
 
@@ -281,6 +283,7 @@ func (s *Sampler) defaultRate() float64 {
 
 	var maxSeen float32
 	s.muSeen.RLock()
+	defer s.muSeen.RUnlock()
 	for _, c := range s.allSigsSeen {
 		if c > maxSeen {
 			maxSeen = c
@@ -292,7 +295,6 @@ func (s *Sampler) defaultRate() float64 {
 	if targetTPS < seenTPS && seenTPS > 0 {
 		rate = targetTPS / seenTPS
 	}
-	s.muSeen.RUnlock()
 	if s.lowestRate < rate && s.lowestRate != 0 {
 		return s.lowestRate
 	}
@@ -310,10 +312,10 @@ func (s *Sampler) report() {
 	seen := int64(s.totalSeen)
 	s.totalSeen = 0
 	s.muSeen.Unlock()
-	kept := atomic.SwapInt64(&s.totalKept, 0)
+	kept := s.totalKept.Swap(0)
 	metrics.Count("datadog.trace_agent.sampler.kept", kept, s.tags, 1)
 	metrics.Count("datadog.trace_agent.sampler.seen", seen, s.tags, 1)
-	metrics.Count("datadog.trace_agent.sampler.size", s.size(), s.tags, 1)
+	metrics.Gauge("datadog.trace_agent.sampler.size", float64(s.size()), s.tags, 1)
 }
 
 // Stop stops the main Run loop

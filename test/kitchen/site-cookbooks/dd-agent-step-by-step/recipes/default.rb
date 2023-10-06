@@ -14,7 +14,8 @@ when 'debian'
 
   execute 'create /usr/share keyring and source list' do
     command <<-EOF
-      sudo apt-get install -y apt-transport-https curl gnupg
+      sudo apt-get update
+      sudo DEBIAN_FRONTEND=noninteractive apt-get install -y apt-transport-https curl gnupg
       sudo sh -c "echo \'deb #{node['dd-agent-step-by-step']['aptrepo']} #{node['dd-agent-step-by-step']['aptrepo_dist']} #{node['dd-agent-step-by-step']['agent_major_version']}\' > /etc/apt/sources.list.d/datadog.list"
       sudo touch #{apt_usr_share_keyring} && sudo chmod a+r #{apt_usr_share_keyring}
       for key in DATADOG_APT_KEY_CURRENT.public DATADOG_APT_KEY_F14F620E.public DATADOG_APT_KEY_382E94DE.public; do
@@ -39,6 +40,15 @@ when 'debian'
   end
 
 when 'rhel'
+  if platform?('centos') && node['dd-agent-rspec'] && node['dd-agent-rspec']['enable_cws']
+    # TODO(lebauce): enable repositories to install package
+    # package 'policycoreutils-python'
+
+    execute 'set SElinux to permissive mode to be able to start system-probe' do
+      command "setenforce 0"
+    end
+  end
+
   protocol = node['platform_version'].to_i < 6 ? 'http' : 'https'
   # Because of https://bugzilla.redhat.com/show_bug.cgi?id=1792506, we disable
   # repo_gpgcheck on RHEL/CentOS < 8.2

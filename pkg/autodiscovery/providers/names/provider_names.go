@@ -3,6 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+// Package names defines the name of each config provider ("container",
+// "cluster-checks", "file", etc.).
 package names
 
 // User-facing names for the config providers
@@ -11,10 +13,10 @@ const (
 	Container          = "container"
 	CloudFoundryBBS    = "cloudfoundry-bbs"
 	ClusterChecks      = "cluster-checks"
-	ECS                = "ecs"
 	EndpointsChecks    = "endpoints-checks"
 	Etcd               = "etcd"
 	File               = "file"
+	KubeContainer      = "kubernetes-container-allinone"
 	Kubernetes         = "kubernetes"
 	KubeServices       = "kubernetes-services"
 	KubeServicesFile   = "kubernetes-services-file"
@@ -22,6 +24,7 @@ const (
 	KubeEndpointsFile  = "kubernetes-endpoints-file"
 	PrometheusPods     = "prometheus-pods"
 	PrometheusServices = "prometheus-services"
+	RemoteConfig       = "remote-config"
 	SNMP               = "snmp"
 	Zookeeper          = "zookeeper"
 )
@@ -36,11 +39,13 @@ const (
 	EndpointsChecksRegisterName    = "endpointschecks"
 	EtcdRegisterName               = "etcd"
 	KubeletRegisterName            = "kubelet"
+	KubeContainerRegisterName      = "kubernetes-container-allinone"
 	KubeServicesRegisterName       = "kube_services"
 	KubeServicesFileRegisterName   = "kube_services_file"
 	KubeEndpointsRegisterName      = "kube_endpoints"
 	KubeEndpointsFileRegisterName  = "kube_endpoints_file"
 	PrometheusPodsRegisterName     = "prometheus_pods"
 	PrometheusServicesRegisterName = "prometheus_services"
+	RemoteConfigRegisterName       = "remote_config"
 	ZookeeperRegisterName          = "zookeeper"
 )

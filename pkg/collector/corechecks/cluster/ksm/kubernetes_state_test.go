@@ -4,23 +4,24 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build kubeapiserver
-// +build kubeapiserver
 
 package ksm
 
 import (
 	"reflect"
+	"strings"
 	"testing"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/aggregator"
-	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
-	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
-	"github.com/DataDog/datadog-agent/pkg/config"
-	ksmstore "github.com/DataDog/datadog-agent/pkg/kubestatemetrics/store"
 	"github.com/stretchr/testify/assert"
 	"k8s.io/kube-state-metrics/v2/pkg/allowdenylist"
 	"k8s.io/kube-state-metrics/v2/pkg/options"
+
+	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
+	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
+	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
+	"github.com/DataDog/datadog-agent/pkg/config"
+	ksmstore "github.com/DataDog/datadog-agent/pkg/kubestatemetrics/store"
 )
 
 type metricsExpected struct {
@@ -41,7 +42,7 @@ func TestProcessMetrics(t *testing.T) {
 	}{
 		{
 			name:   "one metric family, default label mapper",
-			config: &KSMConfig{LabelsMapper: defaultLabelsMapper},
+			config: &KSMConfig{LabelsMapper: defaultLabelsMapper()},
 			metricsToProcess: map[string][]ksmstore.DDMetricsFam{
 				"kube_pod_container_status_running": {
 					{
@@ -67,7 +68,7 @@ func TestProcessMetrics(t *testing.T) {
 				},
 			},
 			metricsToGet:       []ksmstore.DDMetricsFam{},
-			metricTransformers: metricTransformers,
+			metricTransformers: defaultMetricTransformers(),
 			expected: []metricsExpected{
 				{
 					name: "kubernetes_state.container.running",
@@ -83,7 +84,7 @@ func TestProcessMetrics(t *testing.T) {
 		},
 		{
 			name:   "host tag via label join, default label mapper, default label joins",
-			config: &KSMConfig{LabelsMapper: defaultLabelsMapper, LabelJoins: defaultLabelJoins},
+			config: &KSMConfig{LabelsMapper: defaultLabelsMapper(), LabelJoins: defaultLabelJoins()},
 			metricsToProcess: map[string][]ksmstore.DDMetricsFam{
 				"kube_pod_container_status_running": {
 					{
@@ -104,7 +105,7 @@ func TestProcessMetrics(t *testing.T) {
 					ListMetrics: []ksmstore.DDMetric{{Labels: map[string]string{"created_by_kind": "ReplicaSet", "created_by_name": "kube-state-metrics-b7fbc487d", "host_ip": "192.168.99.100", "namespace": "default", "node": "minikube", "pod": "kube-state-metrics-b7fbc487d-4phhj", "pod_ip": "172.17.0.7"}}},
 				},
 			},
-			metricTransformers: metricTransformers,
+			metricTransformers: defaultMetricTransformers(),
 			expected: []metricsExpected{
 				{
 					name:     "kubernetes_state.container.running",
@@ -116,7 +117,7 @@ func TestProcessMetrics(t *testing.T) {
 		},
 		{
 			name:   "metadata metric, ignored",
-			config: &KSMConfig{LabelsMapper: defaultLabelsMapper},
+			config: &KSMConfig{LabelsMapper: defaultLabelsMapper()},
 			metricsToProcess: map[string][]ksmstore.DDMetricsFam{
 				"kube_pod_info": {
 					{
@@ -132,12 +133,12 @@ func TestProcessMetrics(t *testing.T) {
 				},
 			},
 			metricsToGet:       []ksmstore.DDMetricsFam{},
-			metricTransformers: metricTransformers,
+			metricTransformers: defaultMetricTransformers(),
 			expected:           []metricsExpected{},
 		},
 		{
 			name:   "datadog standard tags via label join, default label mapper, default label joins (deployment)",
-			config: &KSMConfig{LabelsMapper: defaultLabelsMapper, LabelJoins: defaultLabelJoins},
+			config: &KSMConfig{LabelsMapper: defaultLabelsMapper(), LabelJoins: defaultLabelJoins()},
 			metricsToProcess: map[string][]ksmstore.DDMetricsFam{
 				"kube_deployment_status_replicas": {
 					{
@@ -158,7 +159,7 @@ func TestProcessMetrics(t *testing.T) {
 					ListMetrics: []ksmstore.DDMetric{{Labels: map[string]string{"namespace": "default", "deployment": "redis", "label_tags_datadoghq_com_env": "dev", "label_tags_datadoghq_com_service": "redis", "label_tags_datadoghq_com_version": "v1"}}},
 				},
 			},
-			metricTransformers: metricTransformers,
+			metricTransformers: defaultMetricTransformers(),
 			expected: []metricsExpected{
 				{
 					name:     "kubernetes_state.deployment.replicas",
@@ -169,8 +170,65 @@ func TestProcessMetrics(t *testing.T) {
 			},
 		},
 		{
+			name:   "kubernetes standard tags via label join, default label mapper, default label joins (deployment)",
+			config: &KSMConfig{LabelsMapper: defaultLabelsMapper(), LabelJoins: defaultLabelJoins()},
+			metricsToProcess: map[string][]ksmstore.DDMetricsFam{
+				"kube_deployment_status_replicas": {
+					{
+						Type: "*v1.Deployment",
+						Name: "kube_deployment_status_replicas",
+						ListMetrics: []ksmstore.DDMetric{
+							{
+								Labels: map[string]string{"namespace": "default", "deployment": "mysql"},
+								Val:    1,
+							},
+						},
+					},
+				},
+			},
+			metricsToGet: []ksmstore.DDMetricsFam{
+				{
+					Name: "kube_deployment_labels",
+					ListMetrics: []ksmstore.DDMetric{
+						{
+							Labels: map[string]string{
+								"namespace":                          "default",
+								"deployment":                         "mysql",
+								"label_app_kubernetes_io_name":       "mysql",
+								"label_app_kubernetes_io_instance":   "mysql-123",
+								"label_app_kubernetes_io_version":    "5.7",
+								"label_app_kubernetes_io_component":  "db",
+								"label_app_kubernetes_io_part_of":    "my-app",
+								"label_app_kubernetes_io_managed_by": "helm",
+								"label_helm_sh_chart":                "mysql-2.35.6",
+							},
+						},
+					},
+				},
+			},
+			metricTransformers: defaultMetricTransformers(),
+			expected: []metricsExpected{
+				{
+					name: "kubernetes_state.deployment.replicas",
+					val:  1,
+					tags: []string{
+						"kube_namespace:default",
+						"kube_deployment:mysql",
+						"kube_app_name:mysql",
+						"kube_app_instance:mysql-123",
+						"kube_app_version:5.7",
+						"kube_app_component:db",
+						"kube_app_part_of:my-app",
+						"kube_app_managed_by:helm",
+						"helm_chart:mysql-2.35.6",
+					},
+					hostname: "",
+				},
+			},
+		},
+		{
 			name:   "datadog standard tags via label join, default label mapper, default label joins (statefulset)",
-			config: &KSMConfig{LabelsMapper: defaultLabelsMapper, LabelJoins: defaultLabelJoins},
+			config: &KSMConfig{LabelsMapper: defaultLabelsMapper(), LabelJoins: defaultLabelJoins()},
 			metricsToProcess: map[string][]ksmstore.DDMetricsFam{
 				"kube_statefulset_replicas": {
 					{
@@ -191,7 +249,7 @@ func TestProcessMetrics(t *testing.T) {
 					ListMetrics: []ksmstore.DDMetric{{Labels: map[string]string{"namespace": "default", "statefulset": "redis", "label_tags_datadoghq_com_env": "dev", "label_tags_datadoghq_com_service": "redis", "label_tags_datadoghq_com_version": "v1"}}},
 				},
 			},
-			metricTransformers: metricTransformers,
+			metricTransformers: defaultMetricTransformers(),
 			expected: []metricsExpected{
 				{
 					name:     "kubernetes_state.statefulset.replicas_desired",
@@ -203,7 +261,7 @@ func TestProcessMetrics(t *testing.T) {
 		},
 		{
 			name:   "only consider datadog standard tags in label join",
-			config: &KSMConfig{LabelsMapper: defaultLabelsMapper, LabelJoins: defaultLabelJoins},
+			config: &KSMConfig{LabelsMapper: defaultLabelsMapper(), LabelJoins: defaultLabelJoins()},
 			metricsToProcess: map[string][]ksmstore.DDMetricsFam{
 				"kube_deployment_status_replicas": {
 					{
@@ -224,7 +282,7 @@ func TestProcessMetrics(t *testing.T) {
 					ListMetrics: []ksmstore.DDMetric{{Labels: map[string]string{"namespace": "default", "deployment": "redis", "label_tags_datadoghq_com_env": "dev", "ignore": "this_label"}}},
 				},
 			},
-			metricTransformers: metricTransformers,
+			metricTransformers: defaultMetricTransformers(),
 			expected: []metricsExpected{
 				{
 					name:     "kubernetes_state.deployment.replicas",
@@ -236,7 +294,7 @@ func TestProcessMetrics(t *testing.T) {
 		},
 		{
 			name:   "honour metric transformers",
-			config: &KSMConfig{LabelsMapper: defaultLabelsMapper},
+			config: &KSMConfig{LabelsMapper: defaultLabelsMapper()},
 			metricsToProcess: map[string][]ksmstore.DDMetricsFam{
 				"kube_pod_status_phase": {
 					{
@@ -253,7 +311,7 @@ func TestProcessMetrics(t *testing.T) {
 			},
 			metricsToGet: []ksmstore.DDMetricsFam{},
 			metricTransformers: map[string]metricTransformerFunc{
-				"kube_pod_status_phase": func(s aggregator.Sender, n string, m ksmstore.DDMetric, h string, t []string, c time.Time) {
+				"kube_pod_status_phase": func(s sender.Sender, n string, m ksmstore.DDMetric, h string, t []string, c time.Time) {
 					s.Gauge("kube_pod_status_phase_transformed", 1, "", []string{"transformed:tag"})
 				},
 			},
@@ -268,7 +326,7 @@ func TestProcessMetrics(t *testing.T) {
 		},
 		{
 			name:   "unknown metric",
-			config: &KSMConfig{LabelsMapper: defaultLabelsMapper},
+			config: &KSMConfig{LabelsMapper: defaultLabelsMapper()},
 			metricsToProcess: map[string][]ksmstore.DDMetricsFam{
 				"kube_pod_unknown_metric": {
 					{
@@ -294,12 +352,12 @@ func TestProcessMetrics(t *testing.T) {
 				},
 			},
 			metricsToGet:       []ksmstore.DDMetricsFam{},
-			metricTransformers: metricTransformers,
+			metricTransformers: defaultMetricTransformers(),
 			expected:           []metricsExpected{},
 		},
 		{
 			name:   "kube_zone and kube_region tags from default label joins",
-			config: &KSMConfig{LabelsMapper: defaultLabelsMapper, LabelJoins: defaultLabelJoins},
+			config: &KSMConfig{LabelsMapper: defaultLabelsMapper(), LabelJoins: defaultLabelJoins()},
 			metricsToProcess: map[string][]ksmstore.DDMetricsFam{
 				"kube_node_status_capacity": {
 					{
@@ -320,7 +378,7 @@ func TestProcessMetrics(t *testing.T) {
 					ListMetrics: []ksmstore.DDMetric{{Labels: map[string]string{"node": "nodename", "label_foo": "bar", "label_topology_kubernetes_io_region": "europe-west1", "label_topology_kubernetes_io_zone": "europe-west1-b"}}},
 				},
 			},
-			metricTransformers: metricTransformers,
+			metricTransformers: defaultMetricTransformers(),
 			expected: []metricsExpected{
 				{
 					name:     "kubernetes_state.node.cpu_capacity",
@@ -328,11 +386,16 @@ func TestProcessMetrics(t *testing.T) {
 					tags:     []string{"node:nodename", "resource:cpu", "unit:core", "kube_region:europe-west1", "kube_zone:europe-west1-b"},
 					hostname: "nodename",
 				},
+				{
+					name: "kubernetes_state.node.cpu_capacity.total",
+					val:  4,
+					tags: []string{},
+				},
 			},
 		},
 		{
 			name:   "node info tags from default label joins",
-			config: &KSMConfig{LabelsMapper: defaultLabelsMapper, LabelJoins: defaultLabelJoins},
+			config: &KSMConfig{LabelsMapper: defaultLabelsMapper(), LabelJoins: defaultLabelJoins()},
 			metricsToProcess: map[string][]ksmstore.DDMetricsFam{
 				"kube_node_status_capacity": {
 					{
@@ -353,7 +416,7 @@ func TestProcessMetrics(t *testing.T) {
 					ListMetrics: []ksmstore.DDMetric{{Labels: map[string]string{"node": "nodename", "container_runtime_version": "docker://19.3.15", "kernel_version": "5.4.109+", "kubelet_version": "v1.18.20-gke.901", "os_image": "Container-Optimized OS from Google"}}},
 				},
 			},
-			metricTransformers: metricTransformers,
+			metricTransformers: defaultMetricTransformers(),
 			expected: []metricsExpected{
 				{
 					name:     "kubernetes_state.node.cpu_capacity",
@@ -361,11 +424,16 @@ func TestProcessMetrics(t *testing.T) {
 					tags:     []string{"node:nodename", "resource:cpu", "unit:core", "container_runtime_version:docker://19.3.15", "kernel_version:5.4.109+", "kubelet_version:v1.18.20-gke.901", "os_image:Container-Optimized OS from Google"},
 					hostname: "nodename",
 				},
+				{
+					name: "kubernetes_state.node.cpu_capacity.total",
+					val:  4,
+					tags: []string{},
+				},
 			},
 		},
 		{
 			name:   "phase tag for pod",
-			config: &KSMConfig{LabelsMapper: defaultLabelsMapper},
+			config: &KSMConfig{LabelsMapper: defaultLabelsMapper()},
 			metricsToProcess: map[string][]ksmstore.DDMetricsFam{
 				"kube_pod_status_phase": {
 					{
@@ -381,7 +449,7 @@ func TestProcessMetrics(t *testing.T) {
 				},
 			},
 			metricsToGet:       []ksmstore.DDMetricsFam{},
-			metricTransformers: metricTransformers,
+			metricTransformers: defaultMetricTransformers(),
 			expected: []metricsExpected{
 				{
 					name:     "kubernetes_state.pod.status_phase",
@@ -393,7 +461,7 @@ func TestProcessMetrics(t *testing.T) {
 		},
 		{
 			name:   "phase tag for pvc",
-			config: &KSMConfig{LabelsMapper: defaultLabelsMapper},
+			config: &KSMConfig{LabelsMapper: defaultLabelsMapper()},
 			metricsToProcess: map[string][]ksmstore.DDMetricsFam{
 				"kube_persistentvolumeclaim_status_phase": {
 					{
@@ -409,7 +477,7 @@ func TestProcessMetrics(t *testing.T) {
 				},
 			},
 			metricsToGet:       []ksmstore.DDMetricsFam{},
-			metricTransformers: metricTransformers,
+			metricTransformers: defaultMetricTransformers(),
 			expected: []metricsExpected{
 				{
 					name:     "kubernetes_state.persistentvolumeclaim.status",
@@ -421,7 +489,7 @@ func TestProcessMetrics(t *testing.T) {
 		},
 		{
 			name:   "phase tag for ns",
-			config: &KSMConfig{LabelsMapper: defaultLabelsMapper},
+			config: &KSMConfig{LabelsMapper: defaultLabelsMapper()},
 			metricsToProcess: map[string][]ksmstore.DDMetricsFam{
 				"kube_namespace_status_phase": {
 					{
@@ -437,7 +505,7 @@ func TestProcessMetrics(t *testing.T) {
 				},
 			},
 			metricsToGet:       []ksmstore.DDMetricsFam{},
-			metricTransformers: metricTransformers,
+			metricTransformers: defaultMetricTransformers(),
 			expected: []metricsExpected{
 				{
 					name:     "kubernetes_state.namespace.count",
@@ -447,18 +515,199 @@ func TestProcessMetrics(t *testing.T) {
 				},
 			},
 		},
+		{
+			name:   "ingress metric",
+			config: &KSMConfig{LabelsMapper: defaultLabelsMapper()},
+			metricsToProcess: map[string][]ksmstore.DDMetricsFam{
+				"kube_pod_status_phase": {
+					{
+						Type: "*networking.k8s.io/v1.Ingress",
+						Name: "kube_ingress_path",
+						ListMetrics: []ksmstore.DDMetric{
+							{
+								Labels: map[string]string{"namespace": "default", "ingress": "ingress", "service_name": "svc", "service_port": "80", "host": "host", "path": "path"},
+								Val:    1,
+							},
+						},
+					},
+				},
+			},
+			metricsToGet:       []ksmstore.DDMetricsFam{},
+			metricTransformers: defaultMetricTransformers(),
+			expected: []metricsExpected{
+				{
+					name:     "kubernetes_state.ingress.path",
+					val:      1,
+					tags:     []string{"kube_namespace:default", "kube_ingress:ingress", "kube_service:svc", "kube_service_port:80", "kube_ingress_host:host", "kube_ingress_path:path"},
+					hostname: "",
+				},
+			},
+		},
+		{
+			name:   "node nvidia gpu capacity",
+			config: &KSMConfig{LabelsMapper: defaultLabelsMapper(), LabelJoins: defaultLabelJoins()},
+			metricsToProcess: map[string][]ksmstore.DDMetricsFam{
+				"kube_node_status_capacity": {
+					{
+						Type: "*v1.Node",
+						Name: "kube_node_status_capacity",
+						ListMetrics: []ksmstore.DDMetric{
+							{
+								Labels: map[string]string{"node": "nodename", "resource": "nvidia_com_gpu", "unit": "integer"},
+								Val:    4,
+							},
+						},
+					},
+				},
+			},
+			metricsToGet: []ksmstore.DDMetricsFam{
+				{
+					Name:        "kube_node_info",
+					ListMetrics: []ksmstore.DDMetric{{Labels: map[string]string{"node": "nodename", "container_runtime_version": "docker://19.3.15", "kernel_version": "5.4.109+", "kubelet_version": "v1.18.20-gke.901", "os_image": "Container-Optimized OS from Google"}}},
+				},
+			},
+			metricTransformers: defaultMetricTransformers(),
+			expected: []metricsExpected{
+				{
+					name:     "kubernetes_state.node.gpu_capacity",
+					val:      4,
+					tags:     []string{"node:nodename", "resource:nvidia_com_gpu", "unit:integer", "container_runtime_version:docker://19.3.15", "kernel_version:5.4.109+", "kubelet_version:v1.18.20-gke.901", "os_image:Container-Optimized OS from Google"},
+					hostname: "nodename",
+				},
+				{
+					name: "kubernetes_state.node.gpu_capacity.total",
+					val:  4,
+					tags: []string{},
+				},
+			},
+		},
+		{
+			name:   "node amd gpu capacity",
+			config: &KSMConfig{LabelsMapper: defaultLabelsMapper(), LabelJoins: defaultLabelJoins()},
+			metricsToProcess: map[string][]ksmstore.DDMetricsFam{
+				"kube_node_status_capacity": {
+					{
+						Type: "*v1.Node",
+						Name: "kube_node_status_capacity",
+						ListMetrics: []ksmstore.DDMetric{
+							{
+								Labels: map[string]string{"node": "nodename", "resource": "amd_com_gpu", "unit": "integer"},
+								Val:    4,
+							},
+						},
+					},
+				},
+			},
+			metricsToGet: []ksmstore.DDMetricsFam{
+				{
+					Name:        "kube_node_info",
+					ListMetrics: []ksmstore.DDMetric{{Labels: map[string]string{"node": "nodename", "container_runtime_version": "docker://19.3.15", "kernel_version": "5.4.109+", "kubelet_version": "v1.18.20-gke.901", "os_image": "Container-Optimized OS from Google"}}},
+				},
+			},
+			metricTransformers: defaultMetricTransformers(),
+			expected: []metricsExpected{
+				{
+					name:     "kubernetes_state.node.gpu_capacity",
+					val:      4,
+					tags:     []string{"node:nodename", "resource:amd_com_gpu", "unit:integer", "container_runtime_version:docker://19.3.15", "kernel_version:5.4.109+", "kubelet_version:v1.18.20-gke.901", "os_image:Container-Optimized OS from Google"},
+					hostname: "nodename",
+				},
+				{
+					name: "kubernetes_state.node.gpu_capacity.total",
+					val:  4,
+					tags: []string{},
+				},
+			},
+		},
+		{
+			name:   "node intel gpu capacity",
+			config: &KSMConfig{LabelsMapper: defaultLabelsMapper(), LabelJoins: defaultLabelJoins()},
+			metricsToProcess: map[string][]ksmstore.DDMetricsFam{
+				"kube_node_status_capacity": {
+					{
+						Type: "*v1.Node",
+						Name: "kube_node_status_capacity",
+						ListMetrics: []ksmstore.DDMetric{
+							{
+								Labels: map[string]string{"node": "nodename", "resource": "gpu_intel_com_i915", "unit": "integer"},
+								Val:    4,
+							},
+						},
+					},
+				},
+			},
+			metricsToGet: []ksmstore.DDMetricsFam{
+				{
+					Name:        "kube_node_info",
+					ListMetrics: []ksmstore.DDMetric{{Labels: map[string]string{"node": "nodename", "container_runtime_version": "docker://19.3.15", "kernel_version": "5.4.109+", "kubelet_version": "v1.18.20-gke.901", "os_image": "Container-Optimized OS from Google"}}},
+				},
+			},
+			metricTransformers: defaultMetricTransformers(),
+			expected: []metricsExpected{
+				{
+					name:     "kubernetes_state.node.gpu_capacity",
+					val:      4,
+					tags:     []string{"node:nodename", "resource:gpu_intel_com_i915", "unit:integer", "container_runtime_version:docker://19.3.15", "kernel_version:5.4.109+", "kubelet_version:v1.18.20-gke.901", "os_image:Container-Optimized OS from Google"},
+					hostname: "nodename",
+				},
+				{
+					name: "kubernetes_state.node.gpu_capacity.total",
+					val:  4,
+					tags: []string{},
+				},
+			},
+		},
+		{
+			name:   "node nvidia mig capacity",
+			config: &KSMConfig{LabelsMapper: defaultLabelsMapper(), LabelJoins: defaultLabelJoins()},
+			metricsToProcess: map[string][]ksmstore.DDMetricsFam{
+				"kube_node_status_capacity": {
+					{
+						Type: "*v1.Node",
+						Name: "kube_node_status_capacity",
+						ListMetrics: []ksmstore.DDMetric{
+							{
+								Labels: map[string]string{"node": "nodename", "resource": "nvidia_com_mig_2c_4g_20gb", "unit": "integer"},
+								Val:    4,
+							},
+						},
+					},
+				},
+			},
+			metricsToGet: []ksmstore.DDMetricsFam{
+				{
+					Name:        "kube_node_info",
+					ListMetrics: []ksmstore.DDMetric{{Labels: map[string]string{"node": "nodename", "container_runtime_version": "docker://19.3.15", "kernel_version": "5.4.109+", "kubelet_version": "v1.18.20-gke.901", "os_image": "Container-Optimized OS from Google"}}},
+				},
+			},
+			metricTransformers: defaultMetricTransformers(),
+			expected: []metricsExpected{
+				{
+					name:     "kubernetes_state.node.gpu_capacity",
+					val:      4,
+					tags:     []string{"node:nodename", "resource:nvidia_com_mig_2c_4g_20gb", "unit:integer", "container_runtime_version:docker://19.3.15", "kernel_version:5.4.109+", "kubelet_version:v1.18.20-gke.901", "os_image:Container-Optimized OS from Google", "mig_profile:2c-4g-20gb"},
+					hostname: "nodename",
+				},
+				{
+					name: "kubernetes_state.node.gpu_capacity.total",
+					val:  4,
+					tags: []string{},
+				},
+			},
+		},
 	}
 	for _, test := range tests {
-		kubeStateMetricsSCheck := newKSMCheck(core.NewCheckBase(kubeStateMetricsCheckName), test.config)
-		mocked := mocksender.NewMockSender(kubeStateMetricsSCheck.ID())
+		kubeStateMetricsCheck := newKSMCheck(core.NewCheckBase(kubeStateMetricsCheckName), test.config)
+		mocked := mocksender.NewMockSender(kubeStateMetricsCheck.ID())
 		mocked.SetupAcceptAll()
 
-		metricTransformers = test.metricTransformers
-		labelJoiner := newLabelJoiner(test.config.LabelJoins)
+		kubeStateMetricsCheck.metricTransformers = test.metricTransformers
+		kubeStateMetricsCheck.processLabelJoins()
+		labelJoiner := newLabelJoiner(test.config.labelJoins)
 		for _, metricFam := range test.metricsToGet {
 			labelJoiner.insertFamily(metricFam)
 		}
-		kubeStateMetricsSCheck.processMetrics(mocked, test.metricsToProcess, labelJoiner, time.Now())
+		kubeStateMetricsCheck.processMetrics(mocked, test.metricsToProcess, labelJoiner, time.Now())
 		t.Run(test.name, func(t *testing.T) {
 			for _, expectMetric := range test.expected {
 				mocked.AssertMetric(t, "Gauge", expectMetric.name, expectMetric.val, expectMetric.hostname, expectMetric.tags)
@@ -466,7 +715,7 @@ func TestProcessMetrics(t *testing.T) {
 			if len(test.expected) == 0 {
 				mocked.AssertNotCalled(t, "Gauge")
 			} else {
-				mocked.AssertNumberOfCalls(t, "Gauge", lenMetrics(test.metricsToProcess))
+				mocked.AssertNumberOfCalls(t, "Gauge", len(test.expected))
 			}
 		})
 	}
@@ -481,7 +730,7 @@ func TestProcessTelemetry(t *testing.T) {
 	}{
 		{
 			name:   "pod metrics",
-			config: &KSMConfig{LabelsMapper: defaultLabelsMapper, Telemetry: true},
+			config: &KSMConfig{LabelsMapper: defaultLabelsMapper(), Telemetry: true},
 			metrics: map[string][]ksmstore.DDMetricsFam{
 				"kube_pod_container_status_running": {
 					{
@@ -518,7 +767,7 @@ func TestProcessTelemetry(t *testing.T) {
 		},
 		{
 			name:   "deployment metric",
-			config: &KSMConfig{LabelsMapper: defaultLabelsMapper, Telemetry: true},
+			config: &KSMConfig{LabelsMapper: defaultLabelsMapper(), Telemetry: true},
 			metrics: map[string][]ksmstore.DDMetricsFam{
 				"kube_deployment_status_replicas": {
 					{
@@ -541,7 +790,7 @@ func TestProcessTelemetry(t *testing.T) {
 		},
 		{
 			name:   "telemetry disabled",
-			config: &KSMConfig{LabelsMapper: defaultLabelsMapper},
+			config: &KSMConfig{LabelsMapper: defaultLabelsMapper()},
 			metrics: map[string][]ksmstore.DDMetricsFam{
 				"kube_deployment_status_replicas": {
 					{
@@ -564,7 +813,7 @@ func TestProcessTelemetry(t *testing.T) {
 		},
 		{
 			name:   "unknown metric",
-			config: &KSMConfig{LabelsMapper: defaultLabelsMapper, Telemetry: true},
+			config: &KSMConfig{LabelsMapper: defaultLabelsMapper(), Telemetry: true},
 			metrics: map[string][]ksmstore.DDMetricsFam{
 				"kube_unknown_metric": {
 					{
@@ -587,7 +836,7 @@ func TestProcessTelemetry(t *testing.T) {
 		},
 		{
 			name:   "pod, deployment and unknown metrics",
-			config: &KSMConfig{LabelsMapper: defaultLabelsMapper, Telemetry: true},
+			config: &KSMConfig{LabelsMapper: defaultLabelsMapper(), Telemetry: true},
 			metrics: map[string][]ksmstore.DDMetricsFam{
 				"kube_pod_container_status_running": {
 					{
@@ -744,10 +993,10 @@ func TestKSMCheck_hostnameAndTags(t *testing.T) {
 		{
 			name: "join labels, multiple match",
 			config: &KSMConfig{
-				LabelJoins: map[string]*JoinsConfig{
+				labelJoins: map[string]*joinsConfig{
 					"foo": {
-						LabelsToMatch: []string{"foo_label", "bar_label"},
-						LabelsToGet:   []string{"baz_label"},
+						labelsToMatch: []string{"foo_label", "bar_label"},
+						labelsToGet:   map[string]string{"baz_label": "baz_tag"},
 					},
 				},
 			},
@@ -760,16 +1009,16 @@ func TestKSMCheck_hostnameAndTags(t *testing.T) {
 					},
 				},
 			},
-			wantTags:     []string{"foo_label:foo_value", "bar_label:bar_value", "baz_label:baz_value"},
+			wantTags:     []string{"foo_label:foo_value", "bar_label:bar_value", "baz_tag:baz_value"},
 			wantHostname: "",
 		},
 		{
 			name: "join labels, multiple get",
 			config: &KSMConfig{
-				LabelJoins: map[string]*JoinsConfig{
+				labelJoins: map[string]*joinsConfig{
 					"foo": {
-						LabelsToMatch: []string{"foo_label"},
-						LabelsToGet:   []string{"bar_label", "baz_label"},
+						labelsToMatch: []string{"foo_label"},
+						labelsToGet:   map[string]string{"bar_label": "bar_tag", "baz_label": "baz_tag"},
 					},
 				},
 			},
@@ -782,16 +1031,16 @@ func TestKSMCheck_hostnameAndTags(t *testing.T) {
 					},
 				},
 			},
-			wantTags:     []string{"foo_label:foo_value", "bar_label:bar_value", "baz_label:baz_value"},
+			wantTags:     []string{"foo_label:foo_value", "bar_tag:bar_value", "baz_tag:baz_value"},
 			wantHostname: "",
 		},
 		{
 			name: "no label match",
 			config: &KSMConfig{
-				LabelJoins: map[string]*JoinsConfig{
+				labelJoins: map[string]*joinsConfig{
 					"foo": {
-						LabelsToMatch: []string{"foo_label"},
-						LabelsToGet:   []string{"bar_label"},
+						labelsToMatch: []string{"foo_label"},
+						labelsToGet:   map[string]string{"bar_label": "bar_tag"},
 					},
 				},
 			},
@@ -810,10 +1059,10 @@ func TestKSMCheck_hostnameAndTags(t *testing.T) {
 		{
 			name: "no metric name match",
 			config: &KSMConfig{
-				LabelJoins: map[string]*JoinsConfig{
+				labelJoins: map[string]*joinsConfig{
 					"foo": {
-						LabelsToMatch: []string{"foo_label"},
-						LabelsToGet:   []string{"bar_label"},
+						labelsToMatch: []string{"foo_label"},
+						labelsToGet:   map[string]string{"bar_label": "bar_tag"},
 					},
 				},
 			},
@@ -832,14 +1081,14 @@ func TestKSMCheck_hostnameAndTags(t *testing.T) {
 		{
 			name: "join labels, multiple metric match",
 			config: &KSMConfig{
-				LabelJoins: map[string]*JoinsConfig{
+				labelJoins: map[string]*joinsConfig{
 					"foo": {
-						LabelsToMatch: []string{"foo_label", "bar_label"},
-						LabelsToGet:   []string{"baz_label"},
+						labelsToMatch: []string{"foo_label", "bar_label"},
+						labelsToGet:   map[string]string{"baz_label": "baz_tag"},
 					},
 					"bar": {
-						LabelsToMatch: []string{"bar_label"},
-						LabelsToGet:   []string{"baf_label"},
+						labelsToMatch: []string{"bar_label"},
+						labelsToGet:   map[string]string{"baf_label": "baf_tag"},
 					},
 				},
 			},
@@ -856,16 +1105,16 @@ func TestKSMCheck_hostnameAndTags(t *testing.T) {
 					},
 				},
 			},
-			wantTags:     []string{"foo_label:foo_value", "bar_label:bar_value", "baz_label:baz_value", "baf_label:baf_value"},
+			wantTags:     []string{"foo_label:foo_value", "bar_label:bar_value", "baz_tag:baz_value", "baf_tag:baf_value"},
 			wantHostname: "",
 		},
 		{
 			name: "join all labels",
 			config: &KSMConfig{
-				LabelJoins: map[string]*JoinsConfig{
+				labelJoins: map[string]*joinsConfig{
 					"foo": {
-						LabelsToMatch: []string{"foo_label"},
-						GetAllLabels:  true,
+						labelsToMatch: []string{"foo_label"},
+						getAllLabels:  true,
 					},
 				},
 			},
@@ -904,10 +1153,10 @@ func TestKSMCheck_hostnameAndTags(t *testing.T) {
 		{
 			name: "hostname from label joins",
 			config: &KSMConfig{
-				LabelJoins: map[string]*JoinsConfig{
+				labelJoins: map[string]*joinsConfig{
 					"foo": {
-						LabelsToMatch: []string{"foo_label"},
-						LabelsToGet:   []string{"bar_label", "node"},
+						labelsToMatch: []string{"foo_label"},
+						labelsToGet:   map[string]string{"bar_label": "bar_tag", "node": "node"},
 					},
 				},
 			},
@@ -920,7 +1169,7 @@ func TestKSMCheck_hostnameAndTags(t *testing.T) {
 					},
 				},
 			},
-			wantTags:     []string{"foo_label:foo_value", "bar_label:bar_value", "node:foo"},
+			wantTags:     []string{"foo_label:foo_value", "bar_tag:bar_value", "node:foo"},
 			wantHostname: "foo",
 		},
 		{
@@ -936,10 +1185,10 @@ func TestKSMCheck_hostnameAndTags(t *testing.T) {
 		{
 			name: "cluster name appended to hostname from label joins",
 			config: &KSMConfig{
-				LabelJoins: map[string]*JoinsConfig{
+				labelJoins: map[string]*joinsConfig{
 					"foo": {
-						LabelsToMatch: []string{"foo_label"},
-						LabelsToGet:   []string{"bar_label", "node"},
+						labelsToMatch: []string{"foo_label"},
+						labelsToGet:   map[string]string{"bar_label": "bar_tag", "node": "node"},
 					},
 				},
 			},
@@ -953,16 +1202,16 @@ func TestKSMCheck_hostnameAndTags(t *testing.T) {
 				},
 				clusterName: "bar",
 			},
-			wantTags:     []string{"foo_label:foo_value", "bar_label:bar_value", "node:foo"},
+			wantTags:     []string{"foo_label:foo_value", "bar_tag:bar_value", "node:foo"},
 			wantHostname: "foo-bar",
 		},
 		{
 			name: "created_by_kind/created_by_name",
 			config: &KSMConfig{
-				LabelJoins: map[string]*JoinsConfig{
+				labelJoins: map[string]*joinsConfig{
 					"foo": {
-						LabelsToMatch: []string{"foo_label"},
-						LabelsToGet:   []string{"created_by_kind", "created_by_name"},
+						labelsToMatch: []string{"foo_label"},
+						labelsToGet:   map[string]string{"created_by_kind": "created_by_kind", "created_by_name": "created_by_name"},
 					},
 				},
 			},
@@ -981,10 +1230,10 @@ func TestKSMCheck_hostnameAndTags(t *testing.T) {
 		{
 			name: "owner_kind/owner_name",
 			config: &KSMConfig{
-				LabelJoins: map[string]*JoinsConfig{
+				labelJoins: map[string]*joinsConfig{
 					"foo": {
-						LabelsToMatch: []string{"foo_label"},
-						LabelsToGet:   []string{"owner_kind", "owner_name"},
+						labelsToMatch: []string{"foo_label"},
+						labelsToGet:   map[string]string{"owner_kind": "owner_kind", "owner_name": "owner_name"},
 					},
 				},
 			},
@@ -1015,8 +1264,8 @@ func TestKSMCheck_hostnameAndTags(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			kubeStateMetricsSCheck := newKSMCheck(core.NewCheckBase(kubeStateMetricsCheckName), tt.config)
-			kubeStateMetricsSCheck.clusterName = tt.args.clusterName
-			labelJoiner := newLabelJoiner(tt.config.LabelJoins)
+			kubeStateMetricsSCheck.clusterNameRFC1123 = tt.args.clusterName
+			labelJoiner := newLabelJoiner(tt.config.labelJoins)
 			for _, metricFam := range tt.args.metricsToGet {
 				labelJoiner.insertFamily(metricFam)
 			}
@@ -1032,56 +1281,65 @@ func TestKSMCheck_processLabelsAsTags(t *testing.T) {
 	tests := []struct {
 		name           string
 		config         *KSMConfig
-		expectedJoins  map[string]*JoinsConfig
+		expectedJoins  map[string]*joinsConfig
 		expectedMapper map[string]string
 	}{
 		{
 			name: "Initially empty",
 			config: &KSMConfig{
-				LabelJoins:   map[string]*JoinsConfig{},
+				labelJoins:   map[string]*joinsConfig{},
 				LabelsMapper: map[string]string{},
 				LabelsAsTags: map[string]map[string]string{
 					"pod": {"my_pod_label": "my_pod_tag"},
 				},
 			},
-			expectedJoins: map[string]*JoinsConfig{
+			expectedJoins: map[string]*joinsConfig{
 				"kube_pod_labels": {
-					LabelsToMatch: []string{"pod", "namespace"},
-					LabelsToGet:   []string{"label_my_pod_label"},
+					labelsToMatch: []string{"pod", "namespace"},
+					labelsToGet:   map[string]string{"label_my_pod_label": "my_pod_tag"},
 				},
-			},
-			expectedMapper: map[string]string{
-				"label_my_pod_label": "my_pod_tag",
 			},
 		},
 		{
 			name: "Already initialized",
 			config: &KSMConfig{
-				LabelJoins: map[string]*JoinsConfig{
+				labelJoins: map[string]*joinsConfig{
 					"kube_pod_labels": {
-						LabelsToMatch: []string{"pod", "namespace"},
-						LabelsToGet:   []string{"standard_pod_label"},
+						labelsToMatch: []string{"pod", "namespace"},
+						labelsToGet:   map[string]string{"standard_pod_label": "standard_pod_tag"},
 					},
 				},
-				LabelsMapper: map[string]string{},
 				LabelsAsTags: map[string]map[string]string{
 					"pod":  {"my_pod_label": "my_pod_tag"},
 					"node": {"my_node_label": "my_node_tag"},
 				},
 			},
-			expectedJoins: map[string]*JoinsConfig{
+			expectedJoins: map[string]*joinsConfig{
 				"kube_pod_labels": {
-					LabelsToMatch: []string{"pod", "namespace"},
-					LabelsToGet:   []string{"standard_pod_label", "label_my_pod_label"},
+					labelsToMatch: []string{"pod", "namespace"},
+					labelsToGet:   map[string]string{"standard_pod_label": "standard_pod_tag", "label_my_pod_label": "my_pod_tag"},
 				},
 				"kube_node_labels": {
-					LabelsToMatch: []string{"node"},
-					LabelsToGet:   []string{"label_my_node_label"},
+					labelsToMatch: []string{"node"},
+					labelsToGet:   map[string]string{"label_my_node_label": "my_node_tag"},
 				},
 			},
-			expectedMapper: map[string]string{
-				"label_my_pod_label":  "my_pod_tag",
-				"label_my_node_label": "my_node_tag",
+		},
+		{
+			name: "With labels in CamelCase",
+			// KSM converts labels to snake case.
+			config: &KSMConfig{
+				labelJoins:   map[string]*joinsConfig{},
+				LabelsMapper: map[string]string{},
+				LabelsAsTags: map[string]map[string]string{
+					"pod": {"my_podLabel": "my_pod_tag"}, // CamelCase
+				},
+			},
+			expectedJoins: map[string]*joinsConfig{
+				"kube_pod_labels": {
+					labelsToMatch: []string{"pod", "namespace"},
+					labelsToGet:   map[string]string{"label_my_pod_label": "my_pod_tag"}, // snake_case
+				},
 			},
 		},
 	}
@@ -1089,8 +1347,42 @@ func TestKSMCheck_processLabelsAsTags(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			k := &KSMCheck{instance: tt.config}
 			k.processLabelsAsTags()
-			assert.Equal(t, tt.expectedJoins, k.instance.LabelJoins)
-			assert.Equal(t, tt.expectedMapper, k.instance.LabelsMapper)
+			assert.Equal(t, tt.expectedJoins, k.instance.labelJoins)
+		})
+	}
+}
+
+func TestKSMCheck_processAnnotationsAsTags(t *testing.T) {
+	tests := []struct {
+		name           string
+		config         *KSMConfig
+		expectedJoins  map[string]*joinsConfig
+		expectedMapper map[string]string
+	}{
+		{
+			name: "With labels in CamelCase",
+			// KSM converts labels that contains annotations to snake case.
+			config: &KSMConfig{
+				labelJoins:   map[string]*joinsConfig{},
+				LabelsMapper: map[string]string{},
+				AnnotationsAsTags: map[string]map[string]string{
+					"pod": {"my_podAnnotation": "my_pod_annotation"}, // CamelCase
+				},
+			},
+			expectedJoins: map[string]*joinsConfig{
+				"kube_pod_annotations": {
+					labelsToMatch: []string{"pod", "namespace"},
+					labelsToGet:   map[string]string{"annotation_my_pod_annotation": "my_pod_annotation"}, // snake_case
+				},
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			k := &KSMCheck{instance: tt.config}
+			k.processAnnotationsAsTags()
+			assert.Equal(t, tt.expectedJoins, k.instance.labelJoins)
 		})
 	}
 }
@@ -1136,6 +1428,53 @@ func TestKSMCheck_mergeLabelsMapper(t *testing.T) {
 	}
 }
 
+func TestKSMCheck_mergeAnnotationsAsTags(t *testing.T) {
+	tests := []struct {
+		name     string
+		conf     map[string]map[string]string
+		extra    map[string]map[string]string
+		expected map[string]map[string]string
+	}{
+		{
+			name:     "nominal",
+			conf:     make(map[string]map[string]string),
+			extra:    defaultAnnotationsAsTags(),
+			expected: defaultAnnotationsAsTags(),
+		},
+		{
+			name:     "nil conf",
+			conf:     nil,
+			extra:    defaultAnnotationsAsTags(),
+			expected: defaultAnnotationsAsTags(),
+		},
+		{
+			name:     "collision",
+			conf:     map[string]map[string]string{"pod": {"common_key": "in_val"}},
+			extra:    map[string]map[string]string{"pod": {"common_key": "extra_val", "foo": "bar"}},
+			expected: map[string]map[string]string{"pod": {"common_key": "in_val", "foo": "bar"}},
+		},
+		{
+			name:     "no collision",
+			conf:     map[string]map[string]string{"pod": {"common_key": "in_val"}},
+			extra:    map[string]map[string]string{"deployment": {"common_key": "extra_val", "foo": "bar"}},
+			expected: map[string]map[string]string{"pod": {"common_key": "in_val"}, "deployment": {"common_key": "extra_val", "foo": "bar"}},
+		},
+		{
+			name:     "nil extra",
+			conf:     map[string]map[string]string{"pod": {"common_key": "in_val"}},
+			extra:    nil,
+			expected: map[string]map[string]string{"pod": {"common_key": "in_val"}},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			k := &KSMCheck{instance: &KSMConfig{AnnotationsAsTags: tt.conf}}
+			k.mergeAnnotationsAsTags(tt.extra)
+			assert.True(t, reflect.DeepEqual(tt.expected, k.instance.AnnotationsAsTags))
+		})
+	}
+}
+
 var metadataMetrics = []string{
 	"kube_cronjob_info",
 	"kube_job_info",
@@ -1156,8 +1495,9 @@ var metadataMetrics = []string{
 }
 
 func TestMetadataMetricsRegex(t *testing.T) {
+	check := newKSMCheck(core.NewCheckBase(kubeStateMetricsCheckName), &KSMConfig{})
 	for _, m := range metadataMetrics {
-		assert.True(t, metadataMetricsRegex.MatchString(m))
+		assert.True(t, check.metadataMetricsRegex.MatchString(m))
 	}
 }
 
@@ -1195,13 +1535,13 @@ func TestAllowDeny(t *testing.T) {
 	}
 
 	// Make sure we don't exclude metrics by mistake
-	for metric := range metricNamesMapper {
+	for metric := range defaultMetricNamesMapper() {
 		assert.True(t, allowDenyList.IsIncluded(metric))
 		assert.False(t, allowDenyList.IsExcluded(metric))
 	}
 
 	// Make sure we don't exclude metric transformers
-	for metric := range metricTransformers {
+	for metric := range defaultMetricTransformers() {
 		assert.True(t, allowDenyList.IsIncluded(metric))
 		assert.False(t, allowDenyList.IsExcluded(metric))
 	}
@@ -1243,42 +1583,28 @@ func TestCreationMetricsFiltering(t *testing.T) {
 	}
 }
 
-func lenMetrics(metricsToProcess map[string][]ksmstore.DDMetricsFam) int {
-	count := 0
-	for _, metricFamily := range metricsToProcess {
-		for _, metrics := range metricFamily {
-			count += len(metrics.ListMetrics)
-		}
-	}
-	return count
-}
-
 func TestKSMCheckInitTags(t *testing.T) {
-	mockConfig := config.Mock()
 	type fields struct {
 		instance    *KSMConfig
 		clusterName string
 	}
 	tests := []struct {
-		name      string
-		loadFunc  func()
-		resetFunc func()
-		fields    fields
-		expected  []string
+		name         string
+		tagsInConfig []string
+		fields       fields
+		expected     []string
 	}{
 		{
-			name:      "with check tags",
-			loadFunc:  func() {},
-			resetFunc: func() {},
+			name:         "with check tags",
+			tagsInConfig: nil,
 			fields: fields{
 				instance: &KSMConfig{Tags: []string{"check:tag1", "check:tag2"}},
 			},
 			expected: []string{"check:tag1", "check:tag2"},
 		},
 		{
-			name:      "with cluster name",
-			loadFunc:  func() {},
-			resetFunc: func() {},
+			name:         "with cluster name",
+			tagsInConfig: nil,
 			fields: fields{
 				instance:    &KSMConfig{},
 				clusterName: "clustername",
@@ -1286,16 +1612,14 @@ func TestKSMCheckInitTags(t *testing.T) {
 			expected: []string{"kube_cluster_name:clustername"},
 		},
 		{
-			name:      "with global tags",
-			loadFunc:  func() { mockConfig.Set("tags", []string{"global:tag1", "global:tag2"}) },
-			resetFunc: func() { mockConfig.Set("tags", []string{}) },
-			fields:    fields{instance: &KSMConfig{}},
-			expected:  []string{"global:tag1", "global:tag2"},
+			name:         "with global tags",
+			tagsInConfig: []string{"global:tag1", "global:tag2"},
+			fields:       fields{instance: &KSMConfig{}},
+			expected:     []string{"global:tag1", "global:tag2"},
 		},
 		{
-			name:      "with everything",
-			loadFunc:  func() { mockConfig.Set("tags", []string{"global:tag1", "global:tag2"}) },
-			resetFunc: func() { mockConfig.Set("tags", []string{}) },
+			name:         "with everything",
+			tagsInConfig: []string{"global:tag1", "global:tag2"},
 			fields: fields{
 				instance:    &KSMConfig{Tags: []string{"check:tag1", "check:tag2"}},
 				clusterName: "clustername",
@@ -1303,9 +1627,8 @@ func TestKSMCheckInitTags(t *testing.T) {
 			expected: []string{"check:tag1", "check:tag2", "kube_cluster_name:clustername", "global:tag1", "global:tag2"},
 		},
 		{
-			name:      "with disable_global_tags",
-			loadFunc:  func() { mockConfig.Set("tags", []string{"global:tag1", "global:tag2"}) },
-			resetFunc: func() { mockConfig.Set("tags", []string{}) },
+			name:         "with disable_global_tags",
+			tagsInConfig: []string{"global:tag1", "global:tag2"},
 			fields: fields{
 				instance:    &KSMConfig{Tags: []string{"check:tag1", "check:tag2"}, DisableGlobalTags: true},
 				clusterName: "clustername",
@@ -1313,17 +1636,20 @@ func TestKSMCheckInitTags(t *testing.T) {
 			expected: []string{"check:tag1", "check:tag2", "kube_cluster_name:clustername"},
 		},
 	}
+
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			conf := config.NewConfig("datadog", "DD", strings.NewReplacer(".", "_"))
+			conf.Set("tags", tt.tagsInConfig)
+
 			k := &KSMCheck{
-				instance:    tt.fields.instance,
-				clusterName: tt.fields.clusterName,
+				instance:            tt.fields.instance,
+				clusterNameTagValue: tt.fields.clusterName,
+				agentConfig:         conf,
 			}
 
-			tt.loadFunc()
 			k.initTags()
 			assert.ElementsMatch(t, tt.expected, k.instance.Tags)
-			tt.resetFunc()
 		})
 	}
 }

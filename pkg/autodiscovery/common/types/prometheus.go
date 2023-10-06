@@ -3,15 +3,14 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+// Package types implements common structs used in the Autodiscovery code.
 package types
 
 import (
-	"encoding/json"
 	"fmt"
 	"regexp"
 	"strings"
 
-	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -38,22 +37,10 @@ var (
 		PrometheusPortAnnotation,
 	}
 	// OpenmetricsDefaultMetricsV1 containers the wildcard pattern to match all metrics
-	OpenmetricsDefaultMetricsV1 = []string{"*"}
+	OpenmetricsDefaultMetricsV1 = []interface{}{"*"}
 	// OpenmetricsDefaultMetricsV2 containers the match-all regular expression to match all metrics
-	OpenmetricsDefaultMetricsV2 = []string{".*"}
+	OpenmetricsDefaultMetricsV2 = []interface{}{".*"}
 )
-
-func configPrometheusScrapeChecksTransformer(in string) interface{} {
-	var promChecks []*PrometheusCheck
-	if err := json.Unmarshal([]byte(in), &promChecks); err != nil {
-		log.Warnf(`"prometheus_scrape.checks" can not be parsed: %v`, err)
-	}
-	return promChecks
-}
-
-func init() {
-	config.PrometheusScrapeChecksTransformer = configPrometheusScrapeChecksTransformer
-}
 
 // PrometheusCheck represents the openmetrics check instances and the corresponding autodiscovery rules
 type PrometheusCheck struct {
@@ -65,7 +52,7 @@ type PrometheusCheck struct {
 type OpenmetricsInstance struct {
 	PrometheusURL                 string                      `mapstructure:"prometheus_url" yaml:"prometheus_url,omitempty" json:"prometheus_url,omitempty"`
 	Namespace                     string                      `mapstructure:"namespace" yaml:"namespace,omitempty" json:"namespace"`
-	Metrics                       []string                    `mapstructure:"metrics" yaml:"metrics,omitempty" json:"metrics,omitempty"`
+	Metrics                       []interface{}               `mapstructure:"metrics" yaml:"metrics,omitempty" json:"metrics,omitempty"`
 	PromPrefix                    string                      `mapstructure:"prometheus_metrics_prefix" yaml:"prometheus_metrics_prefix,omitempty" json:"prometheus_metrics_prefix,omitempty"`
 	HealthCheck                   *bool                       `mapstructure:"health_service_check" yaml:"health_service_check,omitempty" json:"health_service_check,omitempty"`
 	LabelToHostname               string                      `mapstructure:"label_to_hostname" yaml:"label_to_hostname,omitempty" json:"label_to_hostname,omitempty"`
@@ -102,16 +89,34 @@ type OpenmetricsInstance struct {
 	MinCollectInterval            int                         `mapstructure:"min_collection_interval" yaml:"min_collection_interval,omitempty" json:"min_collection_interval,omitempty"`
 	EmptyDefaultHost              bool                        `mapstructure:"empty_default_hostname" yaml:"empty_default_hostname,omitempty" json:"empty_default_hostname,omitempty"`
 	MaxReturnedMetrics            int                         `mapstructure:"max_returned_metrics" yaml:"max_returned_metrics,omitempty" json:"max_returned_metrics,omitempty"`
+	TagByEndpoint                 *bool                       `mapstructure:"tag_by_endpoint" yaml:"tag_by_endpoint,omitempty" json:"tag_by_endpoint,omitempty"`
 
 	// openmetrics v2 specific fields
-	OpenMetricsEndpoint             string                       `mapstructure:"openmetrics_endpoint" yaml:"openmetrics_endpoint,omitempty" json:"openmetrics_endpoint,omitempty"`                                           // Supersedes `prometheus_url`
-	ExcludeMetrics                  []string                     `mapstructure:"exclude_metrics" yaml:"exclude_metrics,omitempty" json:"exclude_metrics,omitempty"`                                                          // Supersedes `ignore_metrics`
-	RawPrefix                       string                       `mapstructure:"raw_metric_prefix" yaml:"raw_metric_prefix,omitempty" json:"raw_metric_prefix,omitempty"`                                                    // Supersedes `prometheus_metrics_prefix`
-	EnableHealthCheck               *bool                        `mapstructure:"enable_health_service_check" yaml:"enable_health_service_check,omitempty" json:"enable_health_service_check,omitempty"`                      // Supersedes `health_service_check`
-	RenameLabels                    map[string]string            `mapstructure:"rename_labels" yaml:"rename_labels,omitempty" json:"rename_labels,omitempty"`                                                                // Supersedes `labels_mapper`
-	ShareLabels                     map[string]ShareLabelsConfig `mapstructure:"share_labels" yaml:"share_labels,omitempty" json:"share_labels,omitempty"`                                                                   // Supersedes `label_joins`
-	CollectHistogramBuckets         *bool                        `mapstructure:"collect_histogram_buckets" yaml:"collect_histogram_buckets,omitempty" json:"collect_histogram_buckets,omitempty"`                            // Supersedes `send_histograms_buckets`
-	HistogramBucketsAsDistributions bool                         `mapstructure:"histogram_buckets_as_distributions" yaml:"histogram_buckets_as_distributions,omitempty" json:"histogram_buckets_as_distributions,omitempty"` // Supersedes `send_distribution_buckets`
+	OpenMetricsEndpoint              string                       `mapstructure:"openmetrics_endpoint" yaml:"openmetrics_endpoint,omitempty" json:"openmetrics_endpoint,omitempty"`                // Supersedes `prometheus_url`
+	ExcludeMetrics                   []string                     `mapstructure:"exclude_metrics" yaml:"exclude_metrics,omitempty" json:"exclude_metrics,omitempty"`                               // Supersedes `ignore_metrics`
+	ExcludeMetricsByLabels           map[string]interface{}       `mapstructure:"exclude_metrics_by_labels" yaml:"exclude_metrics_by_labels,omitempty" json:"exclude_metrics_by_labels,omitempty"` // Supersedes `ignore_metrics_by_labels`
+	IncludeLabels                    []string                     `mapstructure:"include_labels" yaml:"include_labels,omitempty" json:"include_labels,omitempty"`
+	RawPrefix                        string                       `mapstructure:"raw_metric_prefix" yaml:"raw_metric_prefix,omitempty" json:"raw_metric_prefix,omitempty"`                               // Supersedes `prometheus_metrics_prefix`
+	EnableHealthCheck                *bool                        `mapstructure:"enable_health_service_check" yaml:"enable_health_service_check,omitempty" json:"enable_health_service_check,omitempty"` // Supersedes `health_service_check`
+	RenameLabels                     map[string]string            `mapstructure:"rename_labels" yaml:"rename_labels,omitempty" json:"rename_labels,omitempty"`                                           // Supersedes `labels_mapper`
+	ShareLabels                      map[string]ShareLabelsConfig `mapstructure:"share_labels" yaml:"share_labels,omitempty" json:"share_labels,omitempty"`                                              // Supersedes `label_joins`
+	CacheSharedLabels                bool                         `mapstructure:"cache_shared_labels" yaml:"cache_shared_labels,omitempty" json:"cache_shared_labels,omitempty"`
+	RawLineFilters                   []string                     `mapstructure:"raw_line_filters" yaml:"raw_line_filters,omitempty" json:"raw_line_filters,omitempty"`
+	CollectHistogramBuckets          *bool                        `mapstructure:"collect_histogram_buckets" yaml:"collect_histogram_buckets,omitempty" json:"collect_histogram_buckets,omitempty"` // Supersedes `send_histograms_buckets`
+	NonCumulativeHistogramBuckets    *bool                        `mapstructure:"non_cumulative_histogram_buckets" yaml:"non_cumulative_histogram_buckets,omitempty" json:"non_cumulative_histogram_buckets,omitempty"`
+	HistogramBucketsAsDistributions  bool                         `mapstructure:"histogram_buckets_as_distributions" yaml:"histogram_buckets_as_distributions,omitempty" json:"histogram_buckets_as_distributions,omitempty"` // Supersedes `send_distribution_buckets`
+	CollectCountersWithDistributions bool                         `mapstructure:"collect_counters_with_distributions" yaml:"collect_counters_with_distributions,omitempty" json:"collect_counters_with_distributions,omitempty"`
+	UseProcessStartTime              *bool                        `mapstructure:"use_process_start_time" yaml:"use_process_start_time,omitempty" json:"use_process_start_time,omitempty"`
+	HostnameLabel                    string                       `mapstructure:"hostname_label" yaml:"hostname_label,omitempty" json:"hostname_label,omitempty"`
+	HostnameFormat                   string                       `mapstructure:"hostname_format" yaml:"hostname_format,omitempty" json:"hostname_format,omitempty"`
+	CacheMetricWildcards             bool                         `mapstructure:"cache_metric_wildcards" yaml:"cache_metric_wildcards,omitempty" json:"cache_metric_wildcards,omitempty"`
+	Telemetry                        *bool                        `mapstructure:"telemetry" yaml:"telemetry,omitempty" json:"telemetry,omitempty"`
+	IgnoreConnectionErrors           *bool                        `mapstructure:"ignore_connection_errors" yaml:"ignore_connection_errors,omitempty" json:"ignore_connection_errors,omitempty"`
+	RequestSize                      int                          `mapstructure:"request_size" yaml:"request_size,omitempty" json:"request_size,omitempty"`
+	LogRequests                      *bool                        `mapstructure:"log_requests" yaml:"log_requests,omitempty" json:"log_requests,omitempty"`
+	PersistConnections               *bool                        `mapstructure:"persist_connections" yaml:"persist_connections,omitempty" json:"persist_connections,omitempty"`
+	AllowRedirects                   bool                         `mapstructure:"allow_redirects" yaml:"allow_redirects,omitempty" json:"allow_redirects,omitempty"`
+	AuthToken                        map[string]interface{}       `mapstructure:"auth_token" yaml:"auth_token,omitempty" json:"auth_token,omitempty"`
 }
 
 // LabelJoinsConfig contains the label join configuration fields
@@ -142,15 +147,14 @@ type InclExcl struct {
 
 // Init prepares the PrometheusCheck structure and defaults its values
 // init must be called only once
-func (pc *PrometheusCheck) Init() error {
-	pc.initInstances()
+func (pc *PrometheusCheck) Init(version int) error {
+	pc.initInstances(version)
 	return pc.initAD()
 }
 
 // initInstances defaults the Instances field in PrometheusCheck
-func (pc *PrometheusCheck) initInstances() {
-	var openmetricsDefaultMetrics []string
-	version := config.Datadog.GetInt("prometheus_scrape.version")
+func (pc *PrometheusCheck) initInstances(version int) {
+	var openmetricsDefaultMetrics []interface{}
 	switch version {
 	case 1:
 		openmetricsDefaultMetrics = OpenmetricsDefaultMetricsV1
@@ -189,7 +193,7 @@ func (pc *PrometheusCheck) initAD() error {
 	return pc.AD.setContainersRegex()
 }
 
-// IsExcluded returns whether is the annotations match an AD exclusion rule
+// IsExcluded returns whether the annotations match an AD exclusion rule
 func (pc *PrometheusCheck) IsExcluded(annotations map[string]string, namespacedName string) bool {
 	for k, v := range pc.AD.KubeAnnotations.Excl {
 		if annotations[k] == v {
@@ -198,6 +202,26 @@ func (pc *PrometheusCheck) IsExcluded(annotations map[string]string, namespacedN
 		}
 	}
 	return false
+}
+
+// IsIncluded returns whether the annotations match an AD inclusion rule and is not excluded
+func (pc *PrometheusCheck) IsIncluded(annotations map[string]string) bool {
+	included := false
+	if pc.AD == nil || pc.AD.KubeAnnotations == nil {
+		return false
+	}
+
+	for k, v := range annotations {
+		if pc.AD.KubeAnnotations.Excl[k] == v {
+			return false
+		}
+
+		if pc.AD.KubeAnnotations.Incl[k] == v {
+			included = true
+		}
+	}
+
+	return included
 }
 
 // GetIncludeAnnotations returns the AD include annotations
@@ -272,7 +296,7 @@ func (ad *ADConfig) MatchContainer(name string) bool {
 var DefaultPrometheusCheck = &PrometheusCheck{
 	Instances: []*OpenmetricsInstance{
 		{
-			Metrics:   []string{"PLACEHOLDER"},
+			Metrics:   []interface{}{"PLACEHOLDER"},
 			Namespace: openmetricsDefaultNS,
 		},
 	},

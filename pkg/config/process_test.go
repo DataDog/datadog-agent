@@ -16,7 +16,7 @@ import (
 
 // TestProcessDefaults tests to ensure that the config has set process settings correctly
 func TestProcessDefaultConfig(t *testing.T) {
-	cfg := setupConf()
+	cfg := SetupConf()
 
 	for _, tc := range []struct {
 		key          string
@@ -36,6 +36,10 @@ func TestProcessDefaultConfig(t *testing.T) {
 		},
 		{
 			key:          "process_config.remote_tagger",
+			defaultValue: false,
+		},
+		{
+			key:          "process_config.remote_workloadmeta",
 			defaultValue: false,
 		},
 		{
@@ -75,6 +79,10 @@ func TestProcessDefaultConfig(t *testing.T) {
 			defaultValue: make(map[string][]string),
 		},
 		{
+			key:          "process_config.events_additional_endpoints",
+			defaultValue: make(map[string][]string),
+		},
+		{
 			key:          "process_config.internal_profiling.enabled",
 			defaultValue: false,
 		},
@@ -94,6 +102,34 @@ func TestProcessDefaultConfig(t *testing.T) {
 			key:          "process_config.cmd_port",
 			defaultValue: DefaultProcessCmdPort,
 		},
+		{
+			key:          "process_config.event_collection.store.max_items",
+			defaultValue: DefaultProcessEventStoreMaxItems,
+		},
+		{
+			key:          "process_config.event_collection.store.max_pending_pushes",
+			defaultValue: DefaultProcessEventStoreMaxPendingPushes,
+		},
+		{
+			key:          "process_config.event_collection.store.max_pending_pulls",
+			defaultValue: DefaultProcessEventStoreMaxPendingPulls,
+		},
+		{
+			key:          "process_config.event_collection.store.stats_interval",
+			defaultValue: DefaultProcessEventStoreStatsInterval,
+		},
+		{
+			key:          "process_config.event_collection.enabled",
+			defaultValue: false,
+		},
+		{
+			key:          "process_config.event_collection.interval",
+			defaultValue: DefaultProcessEventsCheckInterval,
+		},
+		{
+			key:          "process_config.language_detection.grpc_port",
+			defaultValue: DefaultProcessEntityStreamPort,
+		},
 	} {
 		t.Run(tc.key+" default", func(t *testing.T) {
 			assert.Equal(t, tc.defaultValue, cfg.Get(tc.key))
@@ -103,7 +139,7 @@ func TestProcessDefaultConfig(t *testing.T) {
 
 // TestPrefixes tests that for every corresponding `DD_PROCESS_CONFIG` prefix, there is a `DD_PROCESS_AGENT` prefix as well.
 func TestProcessAgentPrefixes(t *testing.T) {
-	envVarSlice := setupConf().GetEnvVars()
+	envVarSlice := SetupConf().GetEnvVars()
 	envVars := make(map[string]struct{}, len(envVarSlice))
 	for _, envVar := range envVarSlice {
 		envVars[envVar] = struct{}{}
@@ -124,7 +160,7 @@ func TestProcessAgentPrefixes(t *testing.T) {
 
 // TestPrefixes tests that for every corresponding `DD_PROCESS_AGENT` prefix, there is a `DD_PROCESS_CONFIG` prefix as well.
 func TestProcessConfigPrefixes(t *testing.T) {
-	envVarSlice := setupConf().GetEnvVars()
+	envVarSlice := SetupConf().GetEnvVars()
 	envVars := make(map[string]struct{}, len(envVarSlice))
 	for _, envVar := range envVarSlice {
 		envVars[envVar] = struct{}{}
@@ -146,7 +182,7 @@ func TestProcessConfigPrefixes(t *testing.T) {
 }
 
 func TestEnvVarOverride(t *testing.T) {
-	cfg := setupConf()
+	cfg := SetupConf()
 
 	for _, tc := range []struct {
 		key, env, value string
@@ -262,6 +298,12 @@ func TestEnvVarOverride(t *testing.T) {
 			expected: "datacat.com",
 		},
 		{
+			key:      "process_config.events_dd_url",
+			env:      "DD_PROCESS_CONFIG_EVENTS_DD_URL",
+			value:    "datacat.com",
+			expected: "datacat.com",
+		},
+		{
 			key:      "process_config.internal_profiling.enabled",
 			env:      "DD_PROCESS_CONFIG_INTERNAL_PROFILING_ENABLED",
 			value:    "true",
@@ -347,33 +389,81 @@ func TestEnvVarOverride(t *testing.T) {
 			expType:  "boolean",
 			expected: true,
 		},
+		{
+			key:      "process_config.event_collection.store.max_items",
+			env:      "DD_PROCESS_CONFIG_EVENT_COLLECTION_STORE_MAX_ITEMS",
+			value:    "400",
+			expected: 400,
+		},
+		{
+			key:      "process_config.event_collection.store.max_pending_pushes",
+			env:      "DD_PROCESS_CONFIG_EVENT_COLLECTION_STORE_MAX_PENDING_PUSHES",
+			value:    "100",
+			expected: 100,
+		},
+		{
+			key:      "process_config.event_collection.store.max_pending_pulls",
+			env:      "DD_PROCESS_CONFIG_EVENT_COLLECTION_STORE_MAX_PENDING_PULLS",
+			value:    "50",
+			expected: 50,
+		},
+		{
+			key:      "process_config.event_collection.store.stats_interval",
+			env:      "DD_PROCESS_CONFIG_EVENT_COLLECTION_STORE_STATS_INTERVAL",
+			value:    "60",
+			expected: 60,
+		},
+		{
+			key:      "process_config.event_collection.enabled",
+			env:      "DD_PROCESS_CONFIG_EVENT_COLLECTION_ENABLED",
+			value:    "true",
+			expected: true,
+		},
+		{
+			key:      "process_config.event_collection.interval",
+			env:      "DD_PROCESS_CONFIG_EVENT_COLLECTION_INTERVAL",
+			value:    "20s",
+			expected: 20 * time.Second,
+		},
+		{
+			key:      "process_config.language_detection.grpc_port",
+			env:      "DD_PROCESS_CONFIG_LANGUAGE_DETECTION_GRPC_PORT",
+			value:    "5431",
+			expected: 5431,
+		},
 	} {
 		t.Run(tc.env, func(t *testing.T) {
-			reset := setEnvForTest(tc.env, tc.value)
+			t.Setenv(tc.env, tc.value)
 			assert.Equal(t, tc.expected, readCfgWithType(cfg, tc.key, tc.expType))
-			reset()
 		})
 
 		// Also test the DD_PROCESS_AGENT prefix if it has one
 		if strings.HasPrefix(tc.env, "DD_PROCESS_CONFIG") {
 			env := strings.Replace(tc.env, "PROCESS_CONFIG", "PROCESS_AGENT", 1)
 			t.Run(env, func(t *testing.T) {
-				reset := setEnvForTest(env, tc.value)
+				t.Setenv(env, tc.value)
 				assert.Equal(t, tc.expected, readCfgWithType(cfg, tc.key, tc.expType))
-				reset()
 			})
 		}
 	}
 
 	// StringMapStringSlice can't be converted by `Config.Get` so we need to test this separately
 	t.Run("DD_PROCESS_CONFIG_ADDITIONAL_ENDPOINTS", func(t *testing.T) {
-		reset := setEnvForTest("DD_PROCESS_CONFIG_ADDITIONAL_ENDPOINTS", `{"https://process.datadoghq.com": ["fakeAPIKey"]}`)
+		t.Setenv("DD_PROCESS_CONFIG_ADDITIONAL_ENDPOINTS", `{"https://process.datadoghq.com": ["fakeAPIKey"]}`)
 		assert.Equal(t, map[string][]string{
 			"https://process.datadoghq.com": {
 				"fakeAPIKey",
 			},
 		}, cfg.GetStringMapStringSlice("process_config.additional_endpoints"))
-		reset()
+	})
+
+	t.Run("DD_PROCESS_CONFIG_EVENTS_ADDITIONAL_ENDPOINTS", func(t *testing.T) {
+		t.Setenv("DD_PROCESS_CONFIG_EVENTS_ADDITIONAL_ENDPOINTS", `{"https://process-events.datadoghq.io": ["fakeAPIKey"]}`)
+		assert.Equal(t, map[string][]string{
+			"https://process-events.datadoghq.io": {
+				"fakeAPIKey",
+			},
+		}, cfg.GetStringMapStringSlice("process_config.events_additional_endpoints"))
 	})
 }
 
@@ -389,7 +479,7 @@ func readCfgWithType(cfg Config, key, expType string) interface{} {
 }
 
 func TestEnvVarCustomSensitiveWords(t *testing.T) {
-	cfg := setupConf()
+	cfg := SetupConf()
 	expectedPrefixes := []string{"DD_", "DD_PROCESS_CONFIG_", "DD_PROCESS_AGENT_"}
 
 	for i, tc := range []struct {
@@ -412,17 +502,16 @@ func TestEnvVarCustomSensitiveWords(t *testing.T) {
 		for _, envPrefix := range expectedPrefixes {
 			e := envPrefix + "CUSTOM_SENSITIVE_WORDS"
 			t.Run(fmt.Sprintf("scrub sensitive words/%d/%s", i, e), func(t *testing.T) {
-				reset := setEnvForTest(e, tc.words)
+				t.Setenv(e, tc.words)
 				args := cfg.GetStringSlice("process_config.custom_sensitive_words")
 				assert.Equal(t, tc.expected, args)
-				reset()
 			})
 		}
 	}
 }
 
 func TestProcBindEnvAndSetDefault(t *testing.T) {
-	cfg := setupConf()
+	cfg := SetupConf()
 	procBindEnvAndSetDefault(cfg, "process_config.foo.bar", "asdf")
 
 	envs := map[string]struct{}{}
@@ -441,7 +530,7 @@ func TestProcBindEnvAndSetDefault(t *testing.T) {
 }
 
 func TestProcBindEnv(t *testing.T) {
-	cfg := setupConf()
+	cfg := SetupConf()
 	procBindEnv(cfg, "process_config.foo.bar")
 
 	envs := map[string]struct{}{}
@@ -459,10 +548,9 @@ func TestProcBindEnv(t *testing.T) {
 	assert.False(t, cfg.IsSet("process_config.foo.bar"))
 
 	// Try and set DD_PROCESS_CONFIG_FOO_BAR and make sure it shows up in the config
-	reset := setEnvForTest("DD_PROCESS_CONFIG_FOO_BAR", "baz")
+	t.Setenv("DD_PROCESS_CONFIG_FOO_BAR", "baz")
 	assert.True(t, cfg.IsSet("process_config.foo.bar"))
 	assert.Equal(t, "baz", cfg.GetString("process_config.foo.bar"))
-	reset()
 }
 
 func TestProcConfigEnabledTransform(t *testing.T) {
@@ -487,7 +575,7 @@ func TestProcConfigEnabledTransform(t *testing.T) {
 		},
 	} {
 		t.Run("process_config.enabled="+tc.procConfigEnabled, func(t *testing.T) {
-			cfg := setupConf()
+			cfg := SetupConf()
 			cfg.Set("process_config.enabled", tc.procConfigEnabled)
 			loadProcessTransforms(cfg)
 

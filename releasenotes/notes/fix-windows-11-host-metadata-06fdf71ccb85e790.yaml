@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    On Windows, the host metadata correctly reflects the Windows 11 version.

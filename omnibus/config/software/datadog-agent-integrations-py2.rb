@@ -13,9 +13,6 @@ dependency 'pip2'
 
 
 if arm?
-  # psycopg2 doesn't come with pre-built wheel on the arm architecture.
-  # to compile from source, it requires the `pg_config` executable present on the $PATH
-  dependency 'postgresql'
   # same with libffi to build the cffi wheel
   dependency 'libffi'
   # same with libxml2 and libxslt to build the lxml wheel
@@ -24,10 +21,19 @@ if arm?
 end
 
 if osx?
+  dependency 'postgresql'
   dependency 'unixodbc'
 end
 
 if linux?
+  # * Psycopg2 doesn't come with pre-built wheel on the arm architecture.
+  #   to compile from source, it requires the `pg_config` executable present on the $PATH
+  # * We also need it to build psycopg[c] Python dependency
+  # * Note: because having unixodbc already built breaks postgresql build,
+  #   we made unixodbc depend on postgresql to ensure proper build order.
+  #   If we're ever removing/changing one of these dependencies, we need to
+  #   take this into account.
+  dependency 'postgresql'
   # add nfsiostat script
   dependency 'unixodbc'
   dependency 'freetds'  # needed for SQL Server integration
@@ -93,6 +99,14 @@ if arm? || !_64_bit?
   blacklist_packages.push(/^orjson==/)
 end
 
+if linux?
+  # We need to use cython<3.0.0 to build pyyaml for py2
+  dependency 'pyyaml-py2'
+  blacklist_packages.push(/^pyyaml==/)
+  dependency 'kubernetes-py2'
+  blacklist_packages.push(/^kubernetes==/)
+end
+
 final_constraints_file = 'final_constraints-py2.txt'
 agent_requirements_file = 'agent_requirements-py2.txt'
 filtered_agent_requirements_in = 'agent_requirements-py2.in'
@@ -119,6 +133,13 @@ build do
     python = "#{install_dir}/embedded/bin/python2"
   end
 
+  # If a python_mirror was set, it's passed through a pip config file so that we're not leaking the API key in the CI Output
+  # Else the pip config file so pip will act casually
+  pip_config_file = ENV['PIP_CONFIG_FILE']
+  pre_build_env = {
+    "PIP_CONFIG_FILE" => "#{pip_config_file}"
+  }
+
   # Install the checks along with their dependencies
   block do
     if windows?
@@ -133,14 +154,15 @@ build do
     # Prepare the build env, these dependencies are only needed to build and
     # install the core integrations.
     #
-    command "#{pip} download --dest #{build_deps_dir} hatchling==0.22.0"
-    command "#{pip} download --dest #{build_deps_dir} setuptools==40.9.0" # Version from ./setuptools2.rb
-    command "#{pip} install wheel==0.34.1"
-    command "#{pip} install setuptools-scm==5.0.2" # Pin to the last version that supports Python 2
-    command "#{pip} install pip-tools==5.4.0"
+    command "#{pip} download --dest #{build_deps_dir} hatchling==0.25.1", :env => pre_build_env
+    command "#{pip} download --dest #{build_deps_dir} setuptools==40.9.0", :env => pre_build_env # Version from ./setuptools2.rb
+    command "#{pip} install wheel==0.37.1", :env => pre_build_env # Pin to the last version that supports Python 2
+    command "#{pip} install setuptools-scm==5.0.2", :env => pre_build_env # Pin to the last version that supports Python 2
+    command "#{pip} install pip-tools==5.4.0", :env => pre_build_env
     uninstall_buildtime_deps = ['rtloader', 'click', 'first', 'pip-tools']
     nix_build_env = {
       "PIP_FIND_LINKS" => "#{build_deps_dir}",
+      "PIP_CONFIG_FILE" => "#{pip_config_file}",
       "CFLAGS" => "-I#{install_dir}/embedded/include -I/opt/mqm/inc",
       "CXXFLAGS" => "-I#{install_dir}/embedded/include -I/opt/mqm/inc",
       "LDFLAGS" => "-L#{install_dir}/embedded/lib -L/opt/mqm/lib64 -L/opt/mqm/lib",
@@ -149,7 +171,14 @@ build do
     }
     win_build_env = {
       "PIP_FIND_LINKS" => "#{build_deps_dir}",
+      "PIP_CONFIG_FILE" => "#{pip_config_file}",
     }
+    # Some libraries (looking at you, aerospike-client-python) need EXT_CFLAGS instead of CFLAGS.
+    nix_specific_build_env = {
+      "aerospike" => nix_build_env.merge({"EXT_CFLAGS" => nix_build_env["CFLAGS"] + " -std=gnu99"}),
+    }
+    win_specific_build_env = {}
+
 
     # On Linux & Windows, specify the C99 standard explicitly to avoid issues while building some
     # wheels (eg. ddtrace).
@@ -171,14 +200,35 @@ build do
     #
     if windows?
       static_reqs_in_file = "#{windows_safe_path(project_dir)}\\datadog_checks_base\\datadog_checks\\base\\data\\#{agent_requirements_in}"
-      static_reqs_out_file = "#{windows_safe_path(project_dir)}\\#{filtered_agent_requirements_in}"
+      static_reqs_out_folder = "#{windows_safe_path(project_dir)}\\"
+      static_reqs_out_file = static_reqs_out_folder + filtered_agent_requirements_in
+      compiled_reqs_file_path = "#{windows_safe_path(install_dir)}\\#{agent_requirements_file}"
     else
       static_reqs_in_file = "#{project_dir}/datadog_checks_base/datadog_checks/base/data/#{agent_requirements_in}"
-      static_reqs_out_file = "#{project_dir}/#{filtered_agent_requirements_in}"
+      static_reqs_out_folder = "#{project_dir}/"
+      static_reqs_out_file = static_reqs_out_folder + filtered_agent_requirements_in
+      compiled_reqs_file_path = "#{install_dir}/#{agent_requirements_file}"
     end
 
     # Remove any blacklisted requirements from the static-environment req file
     requirements = Array.new
+
+    # Creating a hash containing the requirements and requirements file path associated to every lib
+    requirements_custom = Hash.new()
+
+    specific_build_env = windows? ? win_specific_build_env : nix_specific_build_env
+    build_env = windows? ? win_build_env : nix_build_env
+    cwd = windows? ? "#{windows_safe_path(project_dir)}\\datadog_checks_base" : "#{project_dir}/datadog_checks_base"
+
+    specific_build_env.each do |lib, env|
+      lib_compiled_req_file_path = (windows? ? "#{windows_safe_path(install_dir)}\\" : "#{install_dir}/") + "agent_#{lib}_requirements-py2.txt"
+      requirements_custom[lib] = {
+        "req_lines" => Array.new,
+        "req_file_path" => static_reqs_out_folder + lib + "-py2.in",
+        "compiled_req_file_path" => lib_compiled_req_file_path,
+      }
+    end
+
     File.open("#{static_reqs_in_file}", 'r+').readlines().each do |line|
       blacklist_flag = false
       blacklist_packages.each do |blacklist_regex|
@@ -189,6 +239,17 @@ build do
       end
 
       if !blacklist_flag
+        if line.start_with?('psycopg[binary]') && !windows?
+            line.sub! 'psycopg[binary]', 'psycopg[c]'
+        end
+        # Keeping the custom env requirements lines apart to install them with a specific env
+        requirements_custom.each do |lib, lib_req|
+          if Regexp.new('^' + lib + '==').freeze.match line
+            lib_req["req_lines"].push(line)
+          end
+        end
+        # In any case we add the lib to the requirements files to avoid inconsistency in the installed versions
+        # For example if aerospike has dependency A>1.2.3 and a package in the big requirements file has A<1.2.3, the install process would succeed but the integration wouldn't work.
         requirements.push(line)
       end
     end
@@ -202,30 +263,45 @@ build do
         mode: 0640,
         vars: { requirements: requirements }
 
+    # Render the filtered libraries that are to be built with different env var
+    requirements_custom.each do |lib, lib_req|
+      erb source: "static_requirements.txt.erb",
+          dest: "#{lib_req["req_file_path"]}",
+          mode: 0640,
+          vars: { requirements: lib_req["req_lines"] }
+    end
+
+    # Increasing pip max retries (default: 5 times) and pip timeout (default 15 seconds) to avoid blocking network errors
+    pip_max_retries = 20
+    pip_timeout = 20
+
     # Use pip-compile to create the final requirements file. Notice when we invoke `pip` through `python -m pip <...>`,
     # there's no need to refer to `pip`, the interpreter will pick the right script.
-    if windows?
-      command "#{python} -m pip wheel . --no-deps --no-index --wheel-dir=#{wheel_build_dir}", :env => win_build_env, :cwd => "#{windows_safe_path(project_dir)}\\datadog_checks_base"
-      command "#{python} -m pip install datadog_checks_base --no-deps --no-index --find-links=#{wheel_build_dir}"
-      command "#{python} -m pip wheel . --no-deps --no-index --wheel-dir=#{wheel_build_dir}", :env => win_build_env, :cwd => "#{windows_safe_path(project_dir)}\\datadog_checks_downloader"
-      command "#{python} -m pip install datadog_checks_downloader --no-deps --no-index --find-links=#{wheel_build_dir}"
-      command "#{python} -m piptools compile --generate-hashes --output-file #{windows_safe_path(install_dir)}\\#{agent_requirements_file} #{static_reqs_out_file}", :env => win_build_env
-    else
-      command "#{pip} wheel . --no-deps --no-index --wheel-dir=#{wheel_build_dir}", :env => nix_build_env, :cwd => "#{project_dir}/datadog_checks_base"
-      command "#{pip} install datadog_checks_base --no-deps --no-index --find-links=#{wheel_build_dir}"
-      command "#{pip} wheel . --no-deps --no-index --wheel-dir=#{wheel_build_dir}", :env => nix_build_env, :cwd => "#{project_dir}/datadog_checks_downloader"
-      command "#{pip} install datadog_checks_downloader --no-deps --no-index --find-links=#{wheel_build_dir}"
-      command "#{python} -m piptools compile --generate-hashes --output-file #{install_dir}/#{agent_requirements_file} #{static_reqs_out_file}", :env => nix_build_env
+    command "#{python} -m pip wheel . --no-deps --no-index --wheel-dir=#{wheel_build_dir}", :env => build_env, :cwd => cwd
+    command "#{python} -m pip install datadog_checks_base --no-deps --no-index --find-links=#{wheel_build_dir}"
+    command "#{python} -m piptools compile --generate-hashes --output-file #{compiled_reqs_file_path} #{static_reqs_out_file} " \
+      "--pip-args \"--retries #{pip_max_retries} --timeout #{pip_timeout}\"", :env => build_env
+    # Pip-compiling seperately each lib that needs a custom build installation
+    specific_build_env.each do |lib, env|
+      command "#{python} -m piptools compile --generate-hashes --output-file #{requirements_custom[lib]["compiled_req_file_path"]} #{requirements_custom[lib]["req_file_path"]} " \
+      "--pip-args \"--retries #{pip_max_retries} --timeout #{pip_timeout}\"", :env => env
     end
 
     #
     # Install static-environment requirements that the Agent and all checks will use
     #
-    if windows?
-      command "#{python} -m pip install --no-deps --require-hashes -r #{windows_safe_path(install_dir)}\\#{agent_requirements_file}", :env => win_build_env
-    else
-      command "#{pip} install --no-deps --require-hashes -r #{install_dir}/#{agent_requirements_file}", :env => nix_build_env
+
+    # First we install the dependencies that need specific flags
+    specific_build_env.each do |lib, env|
+      command "#{python} -m pip install --no-deps --require-hashes -r #{requirements_custom[lib]["compiled_req_file_path"]}", :env => env
+      # Remove the file after use so it is not shipped
+      delete "#{requirements_custom[lib]["compiled_req_file_path"]}"
     end
+
+    # Then we install the rest (already installed libraries will be ignored) with the main flags
+    command "#{python} -m pip install --no-deps --require-hashes -r #{compiled_reqs_file_path}", :env => build_env
+    # Remove the file after use so it is not shipped
+    delete "#{compiled_reqs_file_path}"
 
     #
     # Install Core integrations
@@ -258,7 +334,17 @@ build do
       File.exist?(manifest_file_path) || next
 
       manifest = JSON.parse(File.read(manifest_file_path))
-      manifest['supported_os'].include?(os) || next
+      if manifest.key?("supported_os")
+        manifest["supported_os"].include?(os) || next
+      else
+        if os == "mac_os"
+          tag = "Supported OS::macOS"
+        else
+          tag = "Supported OS::#{os.capitalize}"
+        end
+
+        manifest["tile"]["classifier_tags"].include?(tag) || next
+      end
 
       File.file?("#{check_dir}/setup.py") || File.file?("#{check_dir}/pyproject.toml") || next
       # Check if it supports Python 2.
@@ -275,7 +361,7 @@ build do
     cache_bucket = ENV.fetch('INTEGRATION_WHEELS_CACHE_BUCKET', '')
     cache_branch = `cd .. && inv release.get-release-json-value base_branch`.strip
     # On windows, `aws` actually executes Ruby's AWS SDK, but we want the Python one
-    awscli = if windows? then '"c:\Program files\python38\scripts\aws"' else 'aws' end
+    awscli = if windows? then '"c:\Program files\python39\scripts\aws"' else 'aws' end
     if cache_bucket != ''
       mkdir cached_wheels_dir
       command "inv -e agent.get-integrations-from-cache " \
@@ -358,9 +444,12 @@ build do
         end
 
         # Copy SNMP profiles
-        profiles = "#{check_dir}/datadog_checks/#{check}/data/profiles"
-        if File.exist? profiles
-          copy profiles, "#{check_conf_dir}/"
+        profile_folders = ['profiles', 'default_profiles']
+        profile_folders.each do |profile_folder|
+            folder_path = "#{check_dir}/datadog_checks/#{check}/data/#{profile_folder}"
+            if File.exist? folder_path
+              copy folder_path, "#{check_conf_dir}/"
+            end
         end
 
         # pip < 21.2 replace underscores by dashes in package names per https://pip.pypa.io/en/stable/news/#v21-2
@@ -406,10 +495,10 @@ build do
       # Patch applies to only one file: set it explicitly as a target, no need for -p
       if windows?
         patch :source => "create-regex-at-runtime.patch", :target => "#{python_2_embedded}/Lib/site-packages/yaml/reader.py"
-        patch :source => "tuf-0.17.0-cve-2021-41131.patch", :target => "#{python_2_embedded}/Lib/site-packages/tuf/client/updater.py"
+        patch :source => "remove-maxfile-maxpath-psutil.patch", :target => "#{python_2_embedded}/Lib/site-packages/psutil/__init__.py"
       else
         patch :source => "create-regex-at-runtime.patch", :target => "#{install_dir}/embedded/lib/python2.7/site-packages/yaml/reader.py"
-        patch :source => "tuf-0.17.0-cve-2021-41131.patch", :target => "#{install_dir}/embedded/lib/python2.7/site-packages/tuf/client/updater.py"
+        patch :source => "remove-maxfile-maxpath-psutil.patch", :target => "#{install_dir}/embedded/lib/python2.7/site-packages/psutil/__init__.py"
       end
 
       # Run pip check to make sure the agent's python environment is clean, all the dependencies are compatible
@@ -417,6 +506,15 @@ build do
         command "#{python} -m pip check"
       else
         command "#{pip} check"
+      end
+    end
+
+    block do
+      # Removing tests that don't need to be shipped in the embedded folder
+      if windows?
+        delete "#{python_2_embedded}/Lib/site-packages/Cryptodome/SelfTest/"
+      else
+        delete "#{install_dir}/embedded/lib/python2.7/site-packages/Cryptodome/SelfTest/"
       end
     end
   end

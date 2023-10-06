@@ -10,7 +10,6 @@
 // license that can be found here: https://github.com/coreos/go-systemd/blob/master/LICENSE
 
 //go:build systemd
-// +build systemd
 
 package systemd
 

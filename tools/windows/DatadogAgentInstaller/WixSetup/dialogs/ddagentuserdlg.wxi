@@ -1,0 +1,46 @@
+<Include>
+  <Dialog Id="DDAgentUserDlg" Width="370" Height="270" Title="!(loc.DDAgentUserDialog_Title)">
+
+    <!-- Username and Password fields
+           Sets the same property as the command line options
+             - DDAGENTUSER_NAME
+             - DDAGENTUSER_PASSWORD
+           If the properties are set on the command line, the controls will be pre-filled
+      -->
+    <Control Id="EnterUserName" Type="Text" Height="15" Width="320" X="25" Y="70"
+             Text="!(loc.DDAgentUserDialogUserNameLabel)" />
+    <Control Id="UserNameFromDefault" Type="Edit" Height="15" Width="320" X="25" Y="86"
+             Property="DDAGENTUSER_NAME" />
+    <Control Id="EnterPassword" Type="Text" Height="30" Width="320" X="25" Y="118"
+             Text="!(loc.DDAgentUserDialogPasswordLabel)" />
+    <Control Id="PasswordFromDefault" Type="Edit" Height="15" Width="320" X="25" Y="149"
+             Password="yes"
+             Property="DDAGENTUSER_PASSWORD" />
+
+    <!-- back button -->
+    <Control Id="Back" Type="PushButton" X="180" Y="243" Width="56" Height="17"
+             Text="Back">
+    </Control>
+
+    <!-- next button -->
+    <Control Id="Next" Type="PushButton" X="236" Y="243" Width="56" Height="17" Default="yes"
+               Text="Next">
+    </Control>
+
+    <!-- cancel button -->
+    <Control Id="Cancel" Type="PushButton" X="304" Y="243" Width="56" Height="17" Cancel="yes"
+               Text="Cancel">
+      <Publish Event="EndDialog" Value="Exit">1</Publish>
+    </Control>
+
+    <!-- Title + Banner -->
+    <Control Id="BannerBitmap" Type="Bitmap" X="0" Y="0" Width="370" Height="44" TabSkip="no" Text="!(loc.LicenseAgreementDlgBannerBitmap)" />
+    <Control Id="BannerLine" Type="Line" X="0" Y="44" Width="370" Height="0" />
+    <Control Id="BottomLine" Type="Line" X="0" Y="234" Width="370" Height="0" />
+    <Control Id="Title" Type="Text" X="15" Y="6" Width="340" Height="15"
+             Transparent="yes" NoPrefix="yes" Text="!(loc.DDAgentUserDialogTitle)" />
+    <Control Id="Description" Type="Text" X="25" Y="23" Width="340" Height="15"
+             Transparent="yes" NoPrefix="yes" Text="!(loc.DDAgentUserDialogDescription)" />
+
+  </Dialog>
+</Include>

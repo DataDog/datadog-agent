@@ -75,7 +75,7 @@ The Cloud Workload Security (CWS) part of the Agent sends events to the backend.
 
 ### Editing files
 
-To change the documentation of one of the fields in the schema, edit the correct field in `pkg/security/probe/serializers.go`. The documentation of a field is added through the `jsonschema_description` tag of the field.
+To change the documentation of one of the fields in the schema, edit the correct field in `pkg/security/probe/serializers.go`. The documentation of a field is added through the commont of the field.
 
 For example:
 

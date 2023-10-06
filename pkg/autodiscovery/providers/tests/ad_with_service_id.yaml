@@ -1,0 +1,13 @@
+ad_identifiers:
+  - foo_id
+  - bar_id
+
+init_config:
+
+instances:
+  # No configuration is needed for this check.
+  - foo: bar
+
+# service_id is here just for testing that the code ignores it. This field is
+# not meant to be set in configs provided by users.
+service_id: some_service_id

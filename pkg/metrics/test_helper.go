@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build test
-// +build test
 
 package metrics
 
@@ -17,10 +16,11 @@ import (
 
 	// 3p
 
-	"github.com/DataDog/datadog-agent/pkg/aggregator/ckey"
-	"github.com/DataDog/datadog-agent/pkg/quantile"
-	"github.com/DataDog/datadog-agent/pkg/tagset"
 	"github.com/stretchr/testify/assert"
+
+	"github.com/DataDog/datadog-agent/pkg/aggregator/ckey"
+	"github.com/DataDog/datadog-agent/pkg/tagset"
+	"github.com/DataDog/opentelemetry-mapping-go/pkg/quantile"
 )
 
 // AssertPointsEqual evaluate if two list of point are equal (order doesn't matters).
@@ -86,20 +86,20 @@ func AssertSerieEqual(t *testing.T, expected, actual *Serie) {
 type sketchComparator func(exp, act *quantile.Sketch) bool
 
 // AssertSketchSeriesEqual checks whether two SketchSeries are equal
-func AssertSketchSeriesEqual(t assert.TestingT, exp, act SketchSeries) {
+func AssertSketchSeriesEqual(t assert.TestingT, exp, act *SketchSeries) {
 	assertSketchSeriesEqualWithComparator(t, exp, act, func(exp, act *quantile.Sketch) bool {
 		return exp.Equals(act)
 	})
 }
 
 // AssertSketchSeriesApproxEqual checks whether two SketchSeries are approximately equal. e represents the acceptable error %
-func AssertSketchSeriesApproxEqual(t assert.TestingT, exp, act SketchSeries, e float64) {
+func AssertSketchSeriesApproxEqual(t assert.TestingT, exp, act *SketchSeries, e float64) {
 	assertSketchSeriesEqualWithComparator(t, exp, act, func(exp, act *quantile.Sketch) bool {
 		return quantile.SketchesApproxEqual(exp, act, e)
 	})
 }
 
-func assertSketchSeriesEqualWithComparator(t assert.TestingT, exp, act SketchSeries, compareFn sketchComparator) {
+func assertSketchSeriesEqualWithComparator(t assert.TestingT, exp, act *SketchSeries, compareFn sketchComparator) {
 	if h, ok := t.(tHelper); ok {
 		h.Helper()
 	}
@@ -147,4 +147,45 @@ func assertSketchSeriesEqualWithComparator(t assert.TestingT, exp, act SketchSer
 
 type tHelper interface {
 	Helper()
+}
+
+var _ SketchesSource = (*SketchesSourceTest)(nil)
+
+type SketchesSourceTest struct {
+	values       SketchSeriesList
+	currentIndex int
+}
+
+func NewSketchesSourceTest() *SketchesSourceTest {
+	return &SketchesSourceTest{
+		currentIndex: -1,
+	}
+}
+
+func (s *SketchesSourceTest) MoveNext() bool {
+	s.currentIndex++
+	return s.currentIndex < len(s.values)
+}
+
+func (s *SketchesSourceTest) Current() *SketchSeries {
+	return s.values[s.currentIndex]
+}
+func (s *SketchesSourceTest) Count() uint64 {
+	return uint64(len(s.values))
+}
+
+func (s *SketchesSourceTest) Append(sketches *SketchSeries) {
+	s.values = append(s.values, sketches)
+}
+
+func (s *SketchesSourceTest) Get(index int) *SketchSeries {
+	return s.values[index]
+}
+
+func (s *SketchesSourceTest) Reset() {
+	s.currentIndex = -1
+}
+
+func (s *SketchesSourceTest) WaitForValue() bool {
+	return true
 }

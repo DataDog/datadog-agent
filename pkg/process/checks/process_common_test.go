@@ -6,25 +6,19 @@
 package checks
 
 import (
+	"math/rand"
 	"runtime"
 	"strings"
 	"testing"
 	"time"
 
+	"github.com/DataDog/gopsutil/cpu"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	model "github.com/DataDog/agent-payload/v5/process"
-	"github.com/DataDog/datadog-agent/pkg/process/config"
 	"github.com/DataDog/datadog-agent/pkg/process/procutil"
-	"github.com/DataDog/datadog-agent/pkg/util/containers"
 )
-
-func makeContainer(id string) *model.Container {
-	return &model.Container{
-		Id: id,
-	}
-}
 
 //nolint:deadcode,unused
 func procsToHash(procs []*procutil.Process) (procsByPid map[int32]*procutil.Process) {
@@ -40,8 +34,14 @@ func makeProcess(pid int32, cmdline string) *procutil.Process {
 		Pid:     pid,
 		Cmdline: strings.Split(cmdline, " "),
 		Stats: &procutil.Stats{
-			CPUTime:     &procutil.CPUTimesStat{},
-			MemInfo:     &procutil.MemoryInfoStat{},
+			CPUPercent: &procutil.CPUPercentStat{
+				UserPct:   float64(rand.Uint64()),
+				SystemPct: float64(rand.Uint64()),
+			},
+			MemInfo: &procutil.MemoryInfoStat{
+				RSS: rand.Uint64(),
+				VMS: rand.Uint64(),
+			},
 			MemInfoEx:   &procutil.MemoryInfoExStat{},
 			IOStat:      &procutil.IOCountersStat{},
 			CtxSwitches: &procutil.NumCtxSwitchesStat{},
@@ -49,40 +49,56 @@ func makeProcess(pid int32, cmdline string) *procutil.Process {
 	}
 }
 
-//nolint:deadcode,unused
-// procMsgsVerification takes raw containers and processes and make sure the chunked messages have all data, and each chunk has the correct grouping
-func procMsgsVerification(t *testing.T, msgs []model.MessageBody, rawContainers []*containers.Container, rawProcesses []*procutil.Process, maxSize int, cfg *config.AgentConfig) {
-	actualProcs := 0
-	for _, msg := range msgs {
-		payload := msg.(*model.CollectorProc)
+func makeProcessWithCreateTime(pid int32, cmdline string, createTime int64) *procutil.Process {
+	p := makeProcess(pid, cmdline)
+	p.Stats.CreateTime = createTime
+	return p
+}
 
-		if len(payload.Containers) > 0 {
-			// assume no blacklist involved
-			assert.Equal(t, len(rawContainers), len(payload.Containers))
+func makeProcessModel(t *testing.T, process *procutil.Process) *model.Process {
+	t.Helper()
 
-			procsByPid := make(map[int32]struct{}, len(payload.Processes))
-			for _, p := range payload.Processes {
-				procsByPid[p.Pid] = struct{}{}
-			}
-
-			// make sure all containerized processes are in the payload
-			containeredProcs := 0
-			for _, ctr := range rawContainers {
-				for _, pid := range ctr.Pids {
-					assert.Contains(t, procsByPid, pid)
-					containeredProcs++
-				}
-			}
-			assert.Equal(t, len(payload.Processes), containeredProcs)
-
-			actualProcs += containeredProcs
-		} else {
-			assert.True(t, len(payload.Processes) <= maxSize)
-			actualProcs += len(payload.Processes)
-		}
-		assert.Equal(t, cfg.ContainerHostType, payload.ContainerHostType)
+	stats := process.Stats
+	mem := stats.MemInfo
+	cpu := stats.CPUPercent
+	return &model.Process{
+		Pid:     process.Pid,
+		Command: &model.Command{Args: process.Cmdline},
+		User:    &model.ProcessUser{},
+		Memory:  &model.MemoryStat{Rss: mem.RSS, Vms: mem.VMS},
+		Cpu: &model.CPUStat{
+			LastCpu:   "cpu",
+			UserPct:   float32(cpu.UserPct),
+			SystemPct: float32(cpu.SystemPct),
+			TotalPct:  float32(cpu.UserPct + cpu.SystemPct),
+		},
+		CreateTime: process.Stats.CreateTime,
+		IoStat:     &model.IOStat{},
 	}
-	assert.Equal(t, len(rawProcesses), actualProcs)
+}
+
+func makeProcessStatModels(t *testing.T, processes ...*procutil.Process) []*model.ProcessStat {
+	t.Helper()
+
+	models := make([]*model.ProcessStat, 0, len(processes))
+	for _, process := range processes {
+		stats := process.Stats
+		mem := stats.MemInfo
+		cpu := stats.CPUPercent
+		models = append(models, &model.ProcessStat{
+			Pid:    process.Pid,
+			Memory: &model.MemoryStat{Rss: mem.RSS, Vms: mem.VMS},
+			Cpu: &model.CPUStat{
+				LastCpu:   "cpu",
+				UserPct:   float32(cpu.UserPct),
+				SystemPct: float32(cpu.SystemPct),
+				TotalPct:  float32(cpu.UserPct + cpu.SystemPct),
+			},
+			IoStat: &model.IOStat{},
+		})
+	}
+
+	return models
 }
 
 func TestPercentCalculation(t *testing.T) {
@@ -92,11 +108,21 @@ func TestPercentCalculation(t *testing.T) {
 	// Zero deltaTime case
 	assert.True(t, floatEquals(calculatePct(100, 0, 8), 0.0))
 
+	// Negative CPU values should be sanitized to 0
+	assert.True(t, floatEquals(calculatePct(100, -200, 1), 0.0))
+	assert.True(t, floatEquals(calculatePct(-100, 200, 1), 0.0))
+
 	assert.True(t, floatEquals(calculatePct(0, 8.08, 8), 0.0))
 	if runtime.GOOS != "windows" {
+		// on *nix systems, CPU utilization is multiplied by number of cores to emulate top
 		assert.True(t, floatEquals(calculatePct(100, 200, 2), 100))
 		assert.True(t, floatEquals(calculatePct(0.04, 8.08, 8), 3.960396))
 		assert.True(t, floatEquals(calculatePct(1.09, 8.08, 8), 107.920792))
+	} else {
+		// on Windows, CPU utilization is not multiplied by number of cores
+		assert.True(t, floatEquals(calculatePct(100, 200, 2), 50))
+		assert.True(t, floatEquals(calculatePct(0.04, 8.08, 8), 0.4950495))
+		assert.True(t, floatEquals(calculatePct(1.09, 8.08, 8), 13.490099))
 	}
 }
 
@@ -112,6 +138,23 @@ func TestRateCalculation(t *testing.T) {
 
 	// Underflow on cur - prev
 	assert.True(t, floatEquals(calculateRate(0, 1, prev), 0))
+}
+
+func TestFormatCommand(t *testing.T) {
+	process := &procutil.Process{
+		Pid:     11,
+		Ppid:    1,
+		Cmdline: []string{"git", "clone", "google.com"},
+		Cwd:     "/home/dog",
+		Exe:     "git",
+	}
+	expected := &model.Command{
+		Args: []string{"git", "clone", "google.com"},
+		Cwd:  "/home/dog",
+		Ppid: 1,
+		Exe:  "git",
+	}
+	assert.Equal(t, expected, formatCommand(process))
 }
 
 func TestFormatIO(t *testing.T) {
@@ -164,6 +207,76 @@ func TestFormatIO(t *testing.T) {
 	assert.Equal(t, float32(8), result.WriteBytesRate)
 }
 
+func TestFormatIORates(t *testing.T) {
+	ioRateStat := &procutil.IOCountersRateStat{
+		ReadRate:       10.1,
+		WriteRate:      20.2,
+		ReadBytesRate:  30.3,
+		WriteBytesRate: 40.4,
+	}
+
+	expected := &model.IOStat{
+		ReadRate:       10.1,
+		WriteRate:      20.2,
+		ReadBytesRate:  30.3,
+		WriteBytesRate: 40.4,
+	}
+
+	assert.Equal(t, expected, formatIORates(ioRateStat))
+}
+
+func TestFormatMemory(t *testing.T) {
+	for name, test := range map[string]struct {
+		stats    *procutil.Stats
+		expected *model.MemoryStat
+	}{
+		"basic": {
+			stats: &procutil.Stats{
+				MemInfo: &procutil.MemoryInfoStat{
+					RSS:  101,
+					VMS:  202,
+					Swap: 303,
+				},
+			},
+			expected: &model.MemoryStat{
+				Rss:  101,
+				Vms:  202,
+				Swap: 303,
+			},
+		},
+		"extended": {
+			stats: &procutil.Stats{
+				MemInfo: &procutil.MemoryInfoStat{
+					RSS:  101,
+					VMS:  202,
+					Swap: 303,
+				},
+				MemInfoEx: &procutil.MemoryInfoExStat{
+					Shared: 404,
+					Text:   505,
+					Lib:    606,
+					Data:   707,
+					Dirty:  808,
+				},
+			},
+			expected: &model.MemoryStat{
+				Rss:    101,
+				Vms:    202,
+				Swap:   303,
+				Shared: 404,
+				Text:   505,
+				Lib:    606,
+				Data:   707,
+				Dirty:  808,
+			},
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			assert.Equal(t, test.expected, formatMemory(test.stats))
+		})
+	}
+}
+
 func TestFormatNetworks(t *testing.T) {
 	for _, tc := range []struct {
 		connsByPID map[int32][]*model.Connection
@@ -212,6 +325,36 @@ func TestFormatNetworks(t *testing.T) {
 	} {
 		result := formatNetworks(tc.connsByPID[tc.pid], tc.interval)
 		assert.EqualValues(t, tc.expected, result)
+	}
+}
+
+func TestFormatCPU(t *testing.T) {
+	for name, test := range map[string]struct {
+		statsNow   *procutil.Stats
+		statsPrev  *procutil.Stats
+		timeNow    cpu.TimesStat
+		timeBefore cpu.TimesStat
+		expected   *model.CPUStat
+	}{
+		"percent": {
+			statsNow: &procutil.Stats{
+				CPUPercent: &procutil.CPUPercentStat{
+					UserPct:   101.01,
+					SystemPct: 202.02,
+				},
+			},
+			expected: &model.CPUStat{
+				LastCpu:   "cpu",
+				TotalPct:  303.03,
+				UserPct:   101.01,
+				SystemPct: 202.02,
+			},
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			assert.Equal(t, test.expected,
+				formatCPU(test.statsNow, test.statsPrev, test.timeNow, test.timeBefore))
+		})
 	}
 }
 

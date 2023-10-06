@@ -4,14 +4,13 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build clusterchecks
-// +build clusterchecks
 
 package clusterchecks
 
 import (
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/clusterchecks/types"
-	"github.com/DataDog/datadog-agent/pkg/collector/check"
+	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	le "github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/leaderelection/metrics"
 )
 
@@ -48,9 +47,14 @@ func (d *dispatcher) addConfig(config integration.Config, targetNodeName string)
 
 	// Register config
 	digest := config.Digest()
+	fastDigest := config.FastDigest()
 	d.store.digestToConfig[digest] = config
 	for _, instance := range config.Instances {
-		d.store.idToDigest[check.BuildID(config.Name, instance, config.InitConfig)] = digest
+		checkID := checkid.BuildID(config.Name, fastDigest, instance, config.InitConfig)
+		d.store.idToDigest[checkID] = digest
+		if targetNodeName != "" {
+			configsInfo.Set(1.0, targetNodeName, config.Name, string(checkID), le.JoinLeaderValue)
+		}
 	}
 
 	// No target node specified: store in danglingConfigs
@@ -85,37 +89,46 @@ func (d *dispatcher) removeConfig(digest string) {
 	defer d.store.Unlock()
 
 	node, found := d.store.getNodeStore(d.store.digestToNode[digest])
+
+	checkName := d.store.digestToConfig[digest].Name
+
 	delete(d.store.digestToNode, digest)
 	delete(d.store.digestToConfig, digest)
 	delete(d.store.danglingConfigs, digest)
 
-	for k, v := range d.store.idToDigest {
-		if v == digest {
-			delete(d.store.idToDigest, k)
+	// This is a list because each instance in a config has its own check ID and
+	// all of them need to be deleted.
+	var checkIDsToRemove []checkid.ID
+	for checkID, checkDigest := range d.store.idToDigest {
+		if checkDigest == digest {
+			checkIDsToRemove = append(checkIDsToRemove, checkID)
+			delete(d.store.idToDigest, checkID)
 		}
 	}
 
+	if !found { // Dangling config. Not assigned to any node.
+		danglingConfigs.Dec(le.JoinLeaderValue)
+		return
+	}
+
 	// Remove from node configs if assigned
-	if found {
-		node.Lock()
-		node.removeConfig(digest)
-		node.Unlock()
+	node.Lock()
+	nodeName := node.name
+	node.removeConfig(digest)
+	node.Unlock()
+
+	for _, checkID := range checkIDsToRemove {
+		configsInfo.Delete(nodeName, checkName, string(checkID), le.JoinLeaderValue)
 	}
 }
 
-// shouldDispatchDanling returns true if there are dangling configs
+// shouldDispatchDangling returns true if there are dangling configs
 // and node registered, available for dispatching.
-func (d *dispatcher) shouldDispatchDanling() bool {
+func (d *dispatcher) shouldDispatchDangling() bool {
 	d.store.RLock()
 	defer d.store.RUnlock()
 
-	if len(d.store.danglingConfigs) == 0 {
-		return false
-	}
-	if len(d.store.nodes) == 0 {
-		return false
-	}
-	return true
+	return len(d.store.danglingConfigs) > 0 && len(d.store.nodes) > 0
 }
 
 // retrieveAndClearDangling extracts dangling configs from the store
@@ -167,6 +180,6 @@ func (d *dispatcher) getConfigAndDigest(checkID string) (integration.Config, str
 	d.store.RLock()
 	defer d.store.RUnlock()
 
-	digest := d.store.idToDigest[check.ID(checkID)]
+	digest := d.store.idToDigest[checkid.ID(checkID)]
 	return d.store.digestToConfig[digest], digest
 }

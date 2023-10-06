@@ -1,0 +1,119 @@
+#!/bin/sh
+#
+# Perform necessary datadog-agent setup steps before package is installed.
+#
+
+INSTALL_DIR=/opt/datadog-agent
+
+# On Mac, the real log folder is located under /opt/datadog-agent/logs, because some MacOS versions deletes
+# /var/log on upgrade. The old log folder now becomes a symbolic link to the new folder.
+LOG_DIR=/opt/datadog-agent/logs
+SYSTEM_LOG_DIR=/var/log/datadog
+SYSTEM_LOG_BASE_DIR=/var/log
+
+mkdir -p $LOG_DIR
+
+CONF_DIR="$INSTALL_DIR/etc"
+APP_DIR="/Applications/Datadog Agent.app"
+
+LOG_FILE="$LOG_DIR/preinstall.log"
+exec > $LOG_FILE 2>&1
+
+if [ -d $SYSTEM_LOG_DIR ]; then
+    # Old log folder exists
+    echo "Old log folder exists."
+
+    if [ -L $SYSTEM_LOG_DIR ]; then
+        # Old log folder is a symblic link already. Nothing to do here.
+        echo "Old log folder is a link, nothing to do here."
+        true
+    else
+        # Old log folder is not a link, copy the files to the new folder.
+        echo "Old log folder is not a link, copying everything to the new location."
+        cp -Rf $SYSTEM_LOG_DIR/* $LOG_DIR
+
+        # Remove the old one
+        echo "Removing the old log folder."
+        rm -rf $SYSTEM_LOG_DIR
+
+        # Create a link
+        echo "Creating a link from old log folder to the new location."
+        ln -s $LOG_DIR $SYSTEM_LOG_DIR
+    fi
+else
+    # Old log folder does not exist. Try to create its base folder in case it does not exist either.
+    echo "Old log folder does not exist. Creating its base folder."
+    mkdir -p $SYSTEM_LOG_BASE_DIR
+
+    # Create a link
+    echo "Creating a link from old log folder to the new location."
+    ln -s $LOG_DIR $SYSTEM_LOG_DIR
+fi
+echo "Log folder migration has completed."
+
+# Determine current user if he is using the Graphical installer
+# shellcheck disable=SC2009
+INSTALL_USER=$(ps aux | grep "CoreServices/Installer" | grep -v grep | awk '{print $1;}')
+
+# Otherwise, we hope he is using the install script and try to use this user
+# If it fails, no choice but to use root :'(
+if [ -z "$INSTALL_USER" ] || [ "$INSTALL_USER" = "root" ]; then
+    INSTALL_USER=$(cat /tmp/datadog-install-user || echo 'root')
+fi
+echo "INSTALL_USER: $INSTALL_USER"
+
+USER_HOME=$(sudo -Hu "$INSTALL_USER" sh -c 'echo $HOME')
+
+if [ -e "$CONF_DIR/datadog.conf" ] || [ -e "$CONF_DIR/datadog.yaml" ]; then
+    echo "# State at the beginning"
+    echo "## Agent version"
+    grep AGENT_VERSION $INSTALL_DIR/agent/config.py || echo "No config.py file (agent 5)"
+    datadog-agent version || echo "No datadog-agent binary version (agent 6)"
+    echo "## $INSTALL_DIR"
+    ls -al $INSTALL_DIR || echo "No agent installed"
+    echo "## $APP_DIR/Contents/Resources"
+    ls -al "$APP_DIR/Contents/Resources" || echo "No app installed"
+
+    echo '# Stop old agent'
+    echo '## Trying to stop agent 5'
+    $INSTALL_DIR/bin/datadog-agent stop || true
+    echo '## Trying to stop agent 6'
+    sudo -Hu "$INSTALL_USER" launchctl stop com.datadoghq.agent || true
+    echo '## Trying to kill agent GUI'
+    kill "$(pgrep -f 'Datadog Agent.app')"
+
+    echo '## Trying to unload agent 6 launchd service'
+    sudo -Hu "$INSTALL_USER" launchctl unload -w "$USER_HOME/Library/LaunchAgents/com.datadoghq.agent.plist" || true
+
+    # Save old conf
+    rm -rvf /tmp/checks.d/* /tmp/conf.d/* /tmp/datadog.conf /tmp/datadog.yaml
+    mkdir -vp /tmp/checks.d
+    mkdir -vp /tmp/conf.d
+    cp -vf $CONF_DIR/datadog.conf /tmp
+    cp -vf $CONF_DIR/datadog.yaml /tmp
+    cp -vfR $CONF_DIR/conf.d/* /tmp/conf.d
+    find /tmp/conf.d '(' -name '*.yaml.example' -o -name '*.yaml.default' ')' -delete -print # don't save old example and default yamls
+    cp -vfR $CONF_DIR/checks.d/* /tmp/checks.d
+fi
+
+echo '# Deleting old datadog-agent link'
+rm -vf /usr/local/bin/datadog-agent
+
+echo '# Deleting old datadog-agent files'
+rm -rf $INSTALL_DIR/agent || true
+rm -rf $INSTALL_DIR/checks.d || true
+
+echo "# Disabling the login launch of the app"
+sudo -u "$INSTALL_USER" osascript -e 'tell application "System Events" to delete every login item whose name is "Datadog Agent"'
+
+# Debriefing time
+echo "# State at the end"
+echo "## Agent version"
+grep AGENT_VERSION $INSTALL_DIR/agent/config.py || echo "No config.py file (agent 5)"
+datadog-agent version || echo "No datadog-agent binary version (agent 6)"
+echo "## $INSTALL_DIR"
+ls -al $INSTALL_DIR || echo "No agent installed"
+echo "## $APP_DIR/Contents/Resources"
+ls -al "$APP_DIR/Contents/Resources" || echo "No app installed"
+
+exit 0

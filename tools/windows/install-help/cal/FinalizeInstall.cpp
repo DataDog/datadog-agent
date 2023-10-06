@@ -171,10 +171,15 @@ UINT doFinalizeInstall(CustomActionData &data)
     // new installation or an upgrade, and what steps need to be taken
     ddUserExists = data.DoesUserExist();
 
-    if (!canInstall(data.GetTargetMachine()->IsDomainController(), ddUserExists, ddServiceExists, data, bResetPassword))
+    if (!canInstall(data, bResetPassword, NULL))
     {
         er = ERROR_INSTALL_FAILURE;
         goto LExit;
+    }
+
+    if (data.value(propertyDDAgentUserPassword, providedPassword))
+    {
+        passToUse = providedPassword.c_str();
     }
 
     // ok.  If we get here, we should be in a sane state (all installation conditions met)
@@ -186,11 +191,7 @@ UINT doFinalizeInstall(CustomActionData &data)
         // generate one
         passbuflen = MAX_PASS_LEN + 2;
 
-        if (data.value(propertyDDAgentUserPassword, providedPassword))
-        {
-            passToUse = providedPassword.c_str();
-        }
-        else
+        if (!data.value(propertyDDAgentUserPassword, providedPassword))
         {
             passbuf = new wchar_t[passbuflen];
             if (!generatePassword(passbuf, passbuflen))
@@ -293,18 +294,6 @@ UINT doFinalizeInstall(CustomActionData &data)
     if (!ddServiceExists)
     {
         WcaLog(LOGMSG_STANDARD, "attempting to install services");
-        if (!passToUse)
-        {
-            if (!data.value(propertyDDAgentUserPassword, providedPassword))
-            {
-                // given all the error conditions checked above, this should *never*
-                // happen.  But we'll check anyway
-                WcaLog(LOGMSG_STANDARD, "Don't have password to register service");
-                er = ERROR_INSTALL_FAILURE;
-                goto LExit;
-            }
-            passToUse = providedPassword.c_str();
-        }
         int ret = installServices(data, data.Sid(), passToUse);
 
         if (ret != 0)
@@ -413,7 +402,7 @@ UINT doFinalizeInstall(CustomActionData &data)
             WcaLog(LOGMSG_STANDARD, "CreateSymbolicLink");
         }
     }
-
+    
     // write out the username & domain we used.  Even write it out if we didn't create it,
     // it's needed on xDCs where we may not have created the user -and- is necessary on upgrade
     // from previous install that didn't write this key

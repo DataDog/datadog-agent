@@ -10,13 +10,14 @@ import (
 	"testing"
 	"time"
 
-	coreConfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/benbjohnson/clock"
 	"github.com/stretchr/testify/require"
+
+	coreConfig "github.com/DataDog/datadog-agent/pkg/config"
 )
 
 func TestProviderExpectedTags(t *testing.T) {
-	m := coreConfig.Mock()
+	m := coreConfig.Mock(t)
 	clock := clock.NewMock()
 
 	oldStartTime := coreConfig.StartTime

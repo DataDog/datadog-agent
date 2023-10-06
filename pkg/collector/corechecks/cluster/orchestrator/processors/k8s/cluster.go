@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build orchestrator
-// +build orchestrator
 
 package k8s
 
@@ -13,6 +12,7 @@ import (
 	"fmt"
 
 	model "github.com/DataDog/agent-payload/v5/process"
+
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors"
 	"github.com/DataDog/datadog-agent/pkg/orchestrator"
 
@@ -43,7 +43,7 @@ func NewClusterProcessor() *ClusterProcessor {
 }
 
 // Process is used to process a list of node resources forming a cluster.
-func (p *ClusterProcessor) Process(ctx *processors.ProcessorContext, list interface{}) (messages []model.MessageBody, processed int, err error) {
+func (p *ClusterProcessor) Process(ctx *processors.ProcessorContext, list interface{}) (processResult processors.ProcessResult, processed int, err error) {
 	processed = -1
 
 	defer processors.RecoverOnPanic()
@@ -60,6 +60,7 @@ func (p *ClusterProcessor) Process(ctx *processors.ProcessorContext, list interf
 	)
 
 	resourceList := p.nodeHandlers.ResourceList(ctx, list)
+	nodeCount := int32(len(resourceList))
 
 	for _, resource := range resourceList {
 		r := resource.(*corev1.Node)
@@ -86,18 +87,19 @@ func (p *ClusterProcessor) Process(ctx *processors.ProcessorContext, list interf
 		KubeletVersions:   kubeletVersions,
 		MemoryAllocatable: memoryAllocatable,
 		MemoryCapacity:    memoryCapacity,
+		NodeCount:         nodeCount,
 		PodAllocatable:    podAllocatable,
 		PodCapacity:       podCapacity,
 	}
 
 	kubeSystemCreationTimestamp, err := getKubeSystemCreationTimeStamp(ctx.APIClient.Cl.CoreV1())
 	if err != nil {
-		return nil, 0, fmt.Errorf("error getting server kube system creation timestamp: %s", err.Error())
+		return processResult, 0, fmt.Errorf("error getting server kube system creation timestamp: %s", err.Error())
 	}
 
 	apiVersion, err := ctx.APIClient.Cl.Discovery().ServerVersion()
 	if err != nil {
-		return messages, 0, fmt.Errorf("error getting server apiVersion: %s", err.Error())
+		return processResult, 0, fmt.Errorf("error getting server apiVersion: %s", err.Error())
 	}
 
 	clusterModel.ApiServerVersions = map[string]int32{apiVersion.String(): 1}
@@ -107,7 +109,7 @@ func (p *ClusterProcessor) Process(ctx *processors.ProcessorContext, list interf
 	}
 
 	if err := fillClusterResourceVersion(clusterModel); err != nil {
-		return messages, 0, fmt.Errorf("failed to compute resource version: %s", err.Error())
+		return processResult, 0, fmt.Errorf("failed to compute resource version: %s", err.Error())
 	}
 
 	if orchestrator.SkipKubernetesResource(types.UID(ctx.ClusterID), clusterModel.ResourceVersion, orchestrator.K8sCluster) {
@@ -117,10 +119,10 @@ func (p *ClusterProcessor) Process(ctx *processors.ProcessorContext, list interf
 			NodeType:  orchestrator.K8sCluster,
 		}
 		orchestrator.KubernetesResourceCache.Set(orchestrator.BuildStatsKey(orchestrator.K8sCluster), stats, orchestrator.NoExpiration)
-		return messages, 0, nil
+		return processResult, 0, nil
 	}
 
-	messages = []model.MessageBody{
+	messages := []model.MessageBody{
 		&model.CollectorCluster{
 			ClusterName: ctx.Cfg.KubeClusterName,
 			ClusterId:   ctx.ClusterID,
@@ -129,8 +131,11 @@ func (p *ClusterProcessor) Process(ctx *processors.ProcessorContext, list interf
 			Tags:        ctx.Cfg.ExtraTags,
 		},
 	}
+	processResult = processors.ProcessResult{
+		MetadataMessages: messages,
+	}
 
-	return messages, 1, nil
+	return processResult, 1, nil
 }
 
 func fillClusterResourceVersion(c *model.Cluster) error {

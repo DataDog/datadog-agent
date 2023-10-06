@@ -4,12 +4,11 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build ignore
-// +build ignore
 
 package ebpf
 
 /*
-#include "./c/tracer.h"
+#include "./c/tracer/tracer.h"
 */
 import "C"
 

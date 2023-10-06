@@ -4,11 +4,11 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build kubeapiserver
-// +build kubeapiserver
 
 package externalmetrics
 
 import (
+	"errors"
 	"fmt"
 	"testing"
 	"time"
@@ -20,6 +20,14 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+// NewDatadogMetricForTests creates a new internal metric for tests.
+func NewDatadogMetricForTests(id, query string, maxAge, timeWindow time.Duration) model.DatadogMetricInternal {
+	metric := model.NewDatadogMetricInternalFromExternalMetric(id, query, id, "")
+	metric.MaxAge = maxAge
+	metric.TimeWindow = timeWindow
+	return metric
+}
+
 type mockedProcessor struct {
 	points map[string]autoscalers.Point
 	err    error
@@ -29,7 +37,7 @@ func (p *mockedProcessor) UpdateExternalMetrics(emList map[string]custommetrics.
 	return nil
 }
 
-func (p *mockedProcessor) QueryExternalMetric(queries []string) (map[string]autoscalers.Point, error) {
+func (p *mockedProcessor) QueryExternalMetric(queries []string, timeWindow time.Duration) (map[string]autoscalers.Point, error) {
 	return p.points, p.err
 }
 
@@ -66,7 +74,7 @@ func (f *metricsFixture) run(t *testing.T, testTime time.Time) {
 		points: f.queryResults,
 		err:    f.queryError,
 	}
-	metricsRetriever, err := NewMetricsRetriever(0, f.maxAge, &mockedProcessor, getIsLeaderFunction(true), &store)
+	metricsRetriever, err := NewMetricsRetriever(0, f.maxAge, &mockedProcessor, getIsLeaderFunction(true), &store, false)
 	assert.Nil(t, err)
 	metricsRetriever.retrieveMetricsValues()
 
@@ -76,7 +84,7 @@ func (f *metricsFixture) run(t *testing.T, testTime time.Time) {
 
 		// Update time will be set to a value (as metricsRetriever uses time.Now()) that should be > testTime
 		// Thus, aligning updateTime to have a working comparison
-		if !expectedDatadogMetric.ddm.Valid && datadogMetric != nil && datadogMetric.Active {
+		if datadogMetric != nil && datadogMetric.Active {
 			assert.Condition(t, func() bool { return datadogMetric.UpdateTime.After(expectedDatadogMetric.ddm.UpdateTime) })
 
 			alignedTime := time.Now().UTC()
@@ -101,21 +109,21 @@ func TestRetrieveMetricsBasic(t *testing.T) {
 			storeContent: []ddmWithQuery{
 				{
 					ddm: model.DatadogMetricInternal{
-						ID:         "metric0",
-						Active:     true,
-						UpdateTime: defaultPreviousUpdateTime,
-						Valid:      true,
-						Error:      nil,
+						ID:       "metric0",
+						Active:   true,
+						DataTime: defaultPreviousUpdateTime,
+						Valid:    true,
+						Error:    nil,
 					},
 					query: "query-metric0",
 				},
 				{
 					ddm: model.DatadogMetricInternal{
-						ID:         "metric1",
-						Active:     true,
-						UpdateTime: defaultPreviousUpdateTime,
-						Valid:      false,
-						Error:      nil,
+						ID:       "metric1",
+						Active:   true,
+						DataTime: defaultPreviousUpdateTime,
+						Valid:    false,
+						Error:    nil,
 					},
 					query: "query-metric1",
 				},
@@ -136,23 +144,23 @@ func TestRetrieveMetricsBasic(t *testing.T) {
 			expected: []ddmWithQuery{
 				{
 					ddm: model.DatadogMetricInternal{
-						ID:         "metric0",
-						Active:     true,
-						Value:      10.0,
-						UpdateTime: defaultTestTime,
-						Valid:      true,
-						Error:      nil,
+						ID:       "metric0",
+						Active:   true,
+						Value:    10.0,
+						DataTime: defaultTestTime,
+						Valid:    true,
+						Error:    nil,
 					},
 					query: "query-metric0",
 				},
 				{
 					ddm: model.DatadogMetricInternal{
-						ID:         "metric1",
-						Active:     true,
-						Value:      11.0,
-						UpdateTime: defaultTestTime,
-						Valid:      true,
-						Error:      nil,
+						ID:       "metric1",
+						Active:   true,
+						Value:    11.0,
+						DataTime: defaultTestTime,
+						Valid:    true,
+						Error:    nil,
 					},
 					query: "query-metric1",
 				},
@@ -180,21 +188,21 @@ func TestRetrieveMetricsErrorCases(t *testing.T) {
 			storeContent: []ddmWithQuery{
 				{
 					ddm: model.DatadogMetricInternal{
-						ID:         "metric0",
-						Active:     true,
-						UpdateTime: defaultPreviousUpdateTime,
-						Valid:      true,
-						Error:      nil,
+						ID:       "metric0",
+						Active:   true,
+						DataTime: defaultPreviousUpdateTime,
+						Valid:    true,
+						Error:    nil,
 					},
 					query: "query-metric0",
 				},
 				{
 					ddm: model.DatadogMetricInternal{
-						ID:         "metric1",
-						Active:     true,
-						UpdateTime: defaultPreviousUpdateTime,
-						Valid:      false,
-						Error:      nil,
+						ID:       "metric1",
+						Active:   true,
+						DataTime: defaultPreviousUpdateTime,
+						Valid:    false,
+						Error:    nil,
 					},
 					query: "query-metric1",
 				},
@@ -215,23 +223,23 @@ func TestRetrieveMetricsErrorCases(t *testing.T) {
 			expected: []ddmWithQuery{
 				{
 					ddm: model.DatadogMetricInternal{
-						ID:         "metric0",
-						Active:     true,
-						Value:      10.0,
-						UpdateTime: defaultTestTime,
-						Valid:      true,
-						Error:      nil,
+						ID:       "metric0",
+						Active:   true,
+						Value:    10.0,
+						DataTime: defaultTestTime,
+						Valid:    true,
+						Error:    nil,
 					},
 					query: "query-metric0",
 				},
 				{
 					ddm: model.DatadogMetricInternal{
-						ID:     "metric1",
-						Active: true,
-						Value:  11.0,
-						Valid:  false,
-						Error:  fmt.Errorf(invalidMetricOutdatedErrorMessage, "query-metric1"),
-						// UpdateTime not set as it will not be compared directly
+						ID:       "metric1",
+						Active:   true,
+						Value:    11.0,
+						DataTime: defaultPreviousUpdateTime,
+						Valid:    false,
+						Error:    fmt.Errorf(invalidMetricOutdatedErrorMessage, "query-metric1"),
 					},
 					query: "query-metric1",
 				},
@@ -243,23 +251,23 @@ func TestRetrieveMetricsErrorCases(t *testing.T) {
 			storeContent: []ddmWithQuery{
 				{
 					ddm: model.DatadogMetricInternal{
-						ID:         "metric0",
-						Active:     true,
-						UpdateTime: defaultPreviousUpdateTime,
-						Valid:      true,
-						Error:      nil,
-						MaxAge:     20 * time.Second,
+						ID:       "metric0",
+						Active:   true,
+						DataTime: defaultPreviousUpdateTime,
+						Valid:    true,
+						Error:    nil,
+						MaxAge:   20 * time.Second,
 					},
 					query: "query-metric0",
 				},
 				{
 					ddm: model.DatadogMetricInternal{
-						ID:         "metric1",
-						Active:     true,
-						UpdateTime: defaultPreviousUpdateTime,
-						Valid:      false,
-						Error:      nil,
-						MaxAge:     5 * time.Second,
+						ID:       "metric1",
+						Active:   true,
+						DataTime: defaultPreviousUpdateTime,
+						Valid:    false,
+						Error:    nil,
+						MaxAge:   5 * time.Second,
 					},
 					query: "query-metric1",
 				},
@@ -280,25 +288,25 @@ func TestRetrieveMetricsErrorCases(t *testing.T) {
 			expected: []ddmWithQuery{
 				{
 					ddm: model.DatadogMetricInternal{
-						ID:         "metric0",
-						Active:     true,
-						Value:      10.0,
-						UpdateTime: defaultTestTime,
-						Valid:      true,
-						Error:      nil,
-						MaxAge:     20 * time.Second,
+						ID:       "metric0",
+						Active:   true,
+						Value:    10.0,
+						DataTime: defaultTestTime,
+						Valid:    true,
+						Error:    nil,
+						MaxAge:   20 * time.Second,
 					},
 					query: "query-metric0",
 				},
 				{
 					ddm: model.DatadogMetricInternal{
-						ID:     "metric1",
-						Active: true,
-						Value:  11.0,
-						Valid:  false,
-						Error:  fmt.Errorf(invalidMetricOutdatedErrorMessage, "query-metric1"),
-						MaxAge: 5 * time.Second,
-						// UpdateTime not set as it will not be compared directly
+						ID:       "metric1",
+						Active:   true,
+						Value:    11.0,
+						DataTime: defaultPreviousUpdateTime,
+						Valid:    false,
+						Error:    fmt.Errorf(invalidMetricOutdatedErrorMessage, "query-metric1"),
+						MaxAge:   5 * time.Second,
 					},
 					query: "query-metric1",
 				},
@@ -310,23 +318,23 @@ func TestRetrieveMetricsErrorCases(t *testing.T) {
 			storeContent: []ddmWithQuery{
 				{
 					ddm: model.DatadogMetricInternal{
-						ID:         "metric0",
-						Active:     true,
-						Value:      8.0,
-						UpdateTime: defaultPreviousUpdateTime,
-						Valid:      true,
-						Error:      nil,
+						ID:       "metric0",
+						Active:   true,
+						Value:    8.0,
+						DataTime: defaultPreviousUpdateTime,
+						Valid:    true,
+						Error:    nil,
 					},
 					query: "query-metric0",
 				},
 				{
 					ddm: model.DatadogMetricInternal{
-						ID:         "metric1",
-						Active:     true,
-						Value:      11.0,
-						UpdateTime: defaultPreviousUpdateTime,
-						Valid:      true,
-						Error:      nil,
+						ID:       "metric1",
+						Active:   true,
+						Value:    11.0,
+						DataTime: defaultPreviousUpdateTime,
+						Valid:    true,
+						Error:    nil,
 					},
 					query: "query-metric1",
 				},
@@ -341,29 +349,30 @@ func TestRetrieveMetricsErrorCases(t *testing.T) {
 					Value:     0,
 					Timestamp: defaultPreviousUpdateTime.Unix(),
 					Valid:     false,
+					Error:     errors.New("some err"),
 				},
 			},
 			queryError: nil,
 			expected: []ddmWithQuery{
 				{
 					ddm: model.DatadogMetricInternal{
-						ID:         "metric0",
-						Active:     true,
-						Value:      10.0,
-						UpdateTime: defaultTestTime,
-						Valid:      true,
-						Error:      nil,
+						ID:       "metric0",
+						Active:   true,
+						Value:    10.0,
+						DataTime: defaultTestTime,
+						Valid:    true,
+						Error:    nil,
 					},
 					query: "query-metric0",
 				},
 				{
 					ddm: model.DatadogMetricInternal{
-						ID:     "metric1",
-						Active: true,
-						Value:  11.0,
-						Valid:  false,
-						Error:  fmt.Errorf(invalidMetricBackendErrorMessage, "query-metric1"),
-						// UpdateTime not set as it will not be compared directly
+						ID:       "metric1",
+						Active:   true,
+						Value:    11.0,
+						DataTime: defaultPreviousUpdateTime,
+						Valid:    false,
+						Error:    fmt.Errorf(invalidMetricErrorMessage, errors.New("some err"), "query-metric1"),
 					},
 					query: "query-metric1",
 				},
@@ -375,23 +384,23 @@ func TestRetrieveMetricsErrorCases(t *testing.T) {
 			storeContent: []ddmWithQuery{
 				{
 					ddm: model.DatadogMetricInternal{
-						ID:         "metric0",
-						Active:     true,
-						Value:      1.0,
-						UpdateTime: defaultPreviousUpdateTime,
-						Valid:      true,
-						Error:      nil,
+						ID:       "metric0",
+						Active:   true,
+						Value:    1.0,
+						DataTime: defaultPreviousUpdateTime,
+						Valid:    true,
+						Error:    nil,
 					},
 					query: "query-metric0",
 				},
 				{
 					ddm: model.DatadogMetricInternal{
-						ID:         "metric1",
-						Active:     true,
-						Value:      2.0,
-						UpdateTime: defaultPreviousUpdateTime,
-						Valid:      false,
-						Error:      nil,
+						ID:       "metric1",
+						Active:   true,
+						Value:    2.0,
+						DataTime: defaultPreviousUpdateTime,
+						Valid:    false,
+						Error:    nil,
 					},
 					query: "query-metric1",
 				},
@@ -401,23 +410,23 @@ func TestRetrieveMetricsErrorCases(t *testing.T) {
 			expected: []ddmWithQuery{
 				{
 					ddm: model.DatadogMetricInternal{
-						ID:     "metric0",
-						Active: true,
-						Value:  1.0,
-						Valid:  false,
-						Error:  fmt.Errorf(invalidMetricGlobalErrorMessage),
-						// UpdateTime not set as it will not be compared directly
+						ID:       "metric0",
+						Active:   true,
+						Value:    1.0,
+						DataTime: defaultPreviousUpdateTime,
+						Valid:    false,
+						Error:    fmt.Errorf(invalidMetricGlobalErrorMessage),
 					},
 					query: "query-metric0",
 				},
 				{
 					ddm: model.DatadogMetricInternal{
-						ID:     "metric1",
-						Active: true,
-						Value:  2.0,
-						Valid:  false,
-						Error:  fmt.Errorf(invalidMetricGlobalErrorMessage),
-						// UpdateTime not set as it will not be compared directly
+						ID:       "metric1",
+						Active:   true,
+						Value:    2.0,
+						DataTime: defaultPreviousUpdateTime,
+						Valid:    false,
+						Error:    fmt.Errorf(invalidMetricGlobalErrorMessage),
 					},
 					query: "query-metric1",
 				},
@@ -429,23 +438,23 @@ func TestRetrieveMetricsErrorCases(t *testing.T) {
 			storeContent: []ddmWithQuery{
 				{
 					ddm: model.DatadogMetricInternal{
-						ID:         "metric0",
-						Active:     true,
-						Value:      1.0,
-						UpdateTime: defaultPreviousUpdateTime,
-						Valid:      true,
-						Error:      nil,
+						ID:       "metric0",
+						Active:   true,
+						Value:    1.0,
+						DataTime: defaultPreviousUpdateTime,
+						Valid:    true,
+						Error:    nil,
 					},
 					query: "query-metric0",
 				},
 				{
 					ddm: model.DatadogMetricInternal{
-						ID:         "metric1",
-						Active:     true,
-						Value:      2.0,
-						UpdateTime: defaultPreviousUpdateTime,
-						Valid:      false,
-						Error:      nil,
+						ID:       "metric1",
+						Active:   true,
+						Value:    2.0,
+						DataTime: defaultPreviousUpdateTime,
+						Valid:    false,
+						Error:    nil,
 					},
 					query: "query-metric1",
 				},
@@ -461,23 +470,23 @@ func TestRetrieveMetricsErrorCases(t *testing.T) {
 			expected: []ddmWithQuery{
 				{
 					ddm: model.DatadogMetricInternal{
-						ID:         "metric0",
-						Active:     true,
-						Value:      10.0,
-						UpdateTime: defaultTestTime,
-						Valid:      true,
-						Error:      nil,
+						ID:       "metric0",
+						Active:   true,
+						Value:    10.0,
+						DataTime: defaultTestTime,
+						Valid:    true,
+						Error:    nil,
 					},
 					query: "query-metric0",
 				},
 				{
 					ddm: model.DatadogMetricInternal{
-						ID:     "metric1",
-						Active: true,
-						Value:  2.0,
-						Valid:  false,
-						Error:  fmt.Errorf(invalidMetricNoDataErrorMessage, "query-metric1"),
-						// UpdateTime not set as it will not be compared directly
+						ID:       "metric1",
+						Active:   true,
+						Value:    2.0,
+						DataTime: defaultPreviousUpdateTime,
+						Valid:    false,
+						Error:    fmt.Errorf(invalidMetricNotFoundErrorMessage, "query-metric1"),
 					},
 					query: "query-metric1",
 				},
@@ -505,21 +514,21 @@ func TestRetrieveMetricsNotActive(t *testing.T) {
 			storeContent: []ddmWithQuery{
 				{
 					ddm: model.DatadogMetricInternal{
-						ID:         "metric0",
-						Active:     true,
-						UpdateTime: defaultPreviousUpdateTime,
-						Valid:      true,
-						Error:      nil,
+						ID:       "metric0",
+						Active:   true,
+						DataTime: defaultPreviousUpdateTime,
+						Valid:    true,
+						Error:    nil,
 					},
 					query: "query-metric0",
 				},
 				{
 					ddm: model.DatadogMetricInternal{
-						ID:         "metric1",
-						Active:     false,
-						UpdateTime: defaultPreviousUpdateTime,
-						Valid:      false,
-						Error:      nil,
+						ID:       "metric1",
+						Active:   false,
+						DataTime: defaultPreviousUpdateTime,
+						Valid:    false,
+						Error:    nil,
 					},
 					query: "query-metric1",
 				},
@@ -540,22 +549,22 @@ func TestRetrieveMetricsNotActive(t *testing.T) {
 			expected: []ddmWithQuery{
 				{
 					ddm: model.DatadogMetricInternal{
-						ID:         "metric0",
-						Active:     true,
-						Value:      10.0,
-						UpdateTime: defaultTestTime,
-						Valid:      true,
-						Error:      nil,
+						ID:       "metric0",
+						Active:   true,
+						Value:    10.0,
+						DataTime: defaultTestTime,
+						Valid:    true,
+						Error:    nil,
 					},
 					query: "query-metric0",
 				},
 				{
 					ddm: model.DatadogMetricInternal{
-						ID:         "metric1",
-						Active:     false,
-						UpdateTime: defaultPreviousUpdateTime,
-						Valid:      false,
-						Error:      nil,
+						ID:       "metric1",
+						Active:   false,
+						DataTime: defaultPreviousUpdateTime,
+						Valid:    false,
+						Error:    nil,
 					},
 					query: "query-metric1",
 				},
@@ -567,21 +576,21 @@ func TestRetrieveMetricsNotActive(t *testing.T) {
 			storeContent: []ddmWithQuery{
 				{
 					ddm: model.DatadogMetricInternal{
-						ID:         "metric0",
-						Active:     false,
-						UpdateTime: defaultPreviousUpdateTime,
-						Valid:      true,
-						Error:      nil,
+						ID:       "metric0",
+						Active:   false,
+						DataTime: defaultPreviousUpdateTime,
+						Valid:    true,
+						Error:    nil,
 					},
 					query: "query-metric0",
 				},
 				{
 					ddm: model.DatadogMetricInternal{
-						ID:         "metric1",
-						Active:     false,
-						UpdateTime: defaultPreviousUpdateTime,
-						Valid:      false,
-						Error:      nil,
+						ID:       "metric1",
+						Active:   false,
+						DataTime: defaultPreviousUpdateTime,
+						Valid:    false,
+						Error:    nil,
 					},
 					query: "query-metric1",
 				},
@@ -602,21 +611,21 @@ func TestRetrieveMetricsNotActive(t *testing.T) {
 			expected: []ddmWithQuery{
 				{
 					ddm: model.DatadogMetricInternal{
-						ID:         "metric0",
-						Active:     false,
-						UpdateTime: defaultPreviousUpdateTime,
-						Valid:      true,
-						Error:      nil,
+						ID:       "metric0",
+						Active:   false,
+						DataTime: defaultPreviousUpdateTime,
+						Valid:    true,
+						Error:    nil,
 					},
 					query: "query-metric0",
 				},
 				{
 					ddm: model.DatadogMetricInternal{
-						ID:         "metric1",
-						Active:     false,
-						UpdateTime: defaultPreviousUpdateTime,
-						Valid:      false,
-						Error:      nil,
+						ID:       "metric1",
+						Active:   false,
+						DataTime: defaultPreviousUpdateTime,
+						Valid:    false,
+						Error:    nil,
 					},
 					query: "query-metric1",
 				},
@@ -629,4 +638,25 @@ func TestRetrieveMetricsNotActive(t *testing.T) {
 			fixture.run(t, defaultTestTime)
 		})
 	}
+}
+
+func TestGetUniqueQueriesByTimeWindow(t *testing.T) {
+	metrics := []model.DatadogMetricInternal{
+		NewDatadogMetricForTests("1", "system.cpu", time.Minute*1, time.Hour*2),
+		NewDatadogMetricForTests("2", "system.cpu", time.Minute*1, time.Hour*2),
+		NewDatadogMetricForTests("3", "system.mem", time.Minute*1, time.Hour*2),
+		NewDatadogMetricForTests("4", "system.mem", time.Minute*1, time.Minute*2),
+		NewDatadogMetricForTests("5", "system.mem", time.Minute*1, time.Minute*1),
+		NewDatadogMetricForTests("6", "system.network", time.Minute*1, time.Minute*1),
+		NewDatadogMetricForTests("7", "system.disk", time.Minute*1, 0),
+	}
+	metricsByTimeWindow := getBatchedQueriesByTimeWindow(metrics)
+	expected := map[time.Duration][]string{
+		// These have a longer than default time window
+		time.Hour * 2: {"system.cpu", "system.mem"},
+		// These do not.
+		autoscalers.GetDefaultTimeWindow(): {"system.mem", "system.network", "system.disk"},
+	}
+
+	assert.Equal(t, expected, metricsByTimeWindow)
 }

@@ -3,10 +3,11 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+// Package eval holds eval related files
 package eval
 
 import (
-	"fmt"
+	"net"
 
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/ast"
 )
@@ -16,7 +17,7 @@ type Evaluator interface {
 	Eval(ctx *Context) interface{}
 	IsDeterministicFor(field Field) bool
 	GetField() string
-	IsScalar() bool
+	IsStatic() bool
 }
 
 // BoolEvaluator returns a bool as result of the evaluation
@@ -46,8 +47,8 @@ func (b *BoolEvaluator) GetField() string {
 	return b.Field
 }
 
-// IsScalar returns whether the evaluator is a scalar
-func (b *BoolEvaluator) IsScalar() bool {
+// IsStatic returns whether the evaluator is a scalar
+func (b *BoolEvaluator) IsStatic() bool {
 	return b.EvalFnc == nil
 }
 
@@ -60,8 +61,9 @@ type IntEvaluator struct {
 	OpOverrides *OpOverrides
 
 	// used during compilation of partial
-	isDeterministic bool
-	isDuration      bool
+	isDeterministic           bool
+	isDuration                bool
+	isFromArithmeticOperation bool
 }
 
 // Eval returns the result of the evaluation
@@ -79,24 +81,23 @@ func (i *IntEvaluator) GetField() string {
 	return i.Field
 }
 
-// IsScalar returns whether the evaluator is a scalar
-func (i *IntEvaluator) IsScalar() bool {
+// IsStatic returns whether the evaluator is a scalar
+func (i *IntEvaluator) IsStatic() bool {
 	return i.EvalFnc == nil
 }
 
 // StringEvaluator returns a string as result of the evaluation
 type StringEvaluator struct {
-	EvalFnc     func(ctx *Context) string
-	Field       Field
-	Value       string
-	Weight      int
-	OpOverrides *OpOverrides
-	ValueType   FieldValueType
+	EvalFnc       func(ctx *Context) string
+	Field         Field
+	Value         string
+	Weight        int
+	OpOverrides   *OpOverrides
+	ValueType     FieldValueType
+	StringCmpOpts StringCmpOpts // only Field evaluator can set this value
 
 	// used during compilation of partial
 	isDeterministic bool
-
-	stringMatcher StringMatcher
 }
 
 // Eval returns the result of the evaluation
@@ -114,8 +115,8 @@ func (s *StringEvaluator) GetField() string {
 	return s.Field
 }
 
-// IsScalar returns whether the evaluator is a scalar
-func (s *StringEvaluator) IsScalar() bool {
+// IsStatic returns whether the evaluator is a scalar
+func (s *StringEvaluator) IsStatic() bool {
 	return s.EvalFnc == nil
 }
 
@@ -127,28 +128,27 @@ func (s *StringEvaluator) GetValue(ctx *Context) string {
 	return s.EvalFnc(ctx)
 }
 
-// Compile compile internal object
-func (s *StringEvaluator) Compile() error {
-	switch s.ValueType {
-	case PatternValueType, RegexpValueType:
-		matcher, err := NewStringMatcher(s.ValueType, s.Value)
+// ToStringMatcher returns a StringMatcher of the evaluator
+func (s *StringEvaluator) ToStringMatcher(opts StringCmpOpts) (StringMatcher, error) {
+	if s.IsStatic() {
+		matcher, err := NewStringMatcher(s.ValueType, s.Value, opts)
 		if err != nil {
-			return err
+			return nil, err
 		}
-		s.stringMatcher = matcher
-	default:
-		return fmt.Errorf("invalid pattern or regexp '%s'", s.Value)
+		return matcher, nil
 	}
-	return nil
+
+	return nil, nil
 }
 
 // StringArrayEvaluator returns an array of strings
 type StringArrayEvaluator struct {
-	EvalFnc     func(ctx *Context) []string
-	Values      []string
-	Field       Field
-	Weight      int
-	OpOverrides *OpOverrides
+	EvalFnc       func(ctx *Context) []string
+	Values        []string
+	Field         Field
+	Weight        int
+	OpOverrides   *OpOverrides
+	StringCmpOpts StringCmpOpts // only Field evaluator can set this value
 
 	// used during compilation of partial
 	isDeterministic bool
@@ -169,8 +169,8 @@ func (s *StringArrayEvaluator) GetField() string {
 	return s.Field
 }
 
-// IsScalar returns whether the evaluator is a scalar
-func (s *StringArrayEvaluator) IsScalar() bool {
+// IsStatic returns whether the evaluator is a scalar
+func (s *StringArrayEvaluator) IsStatic() bool {
 	return s.EvalFnc == nil
 }
 
@@ -204,20 +204,14 @@ func (s *StringValuesEvaluator) GetField() string {
 	return ""
 }
 
-// IsScalar returns whether the evaluator is a scalar
-func (s *StringValuesEvaluator) IsScalar() bool {
+// IsStatic returns whether the evaluator is a scalar
+func (s *StringValuesEvaluator) IsStatic() bool {
 	return s.EvalFnc == nil
 }
 
-// AppendFieldValues append field values
-func (s *StringValuesEvaluator) AppendFieldValues(values ...FieldValue) error {
-	for _, value := range values {
-		if err := s.Values.AppendFieldValue(value); err != nil {
-			return err
-		}
-	}
-
-	return nil
+// Compile the underlying StringValues
+func (s *StringValuesEvaluator) Compile(opts StringCmpOpts) error {
+	return s.Values.Compile(opts)
 }
 
 // SetFieldValues apply field values
@@ -226,11 +220,9 @@ func (s *StringValuesEvaluator) SetFieldValues(values ...FieldValue) error {
 }
 
 // AppendMembers add members to the evaluator
-func (s *StringValuesEvaluator) AppendMembers(members ...ast.StringMember) error {
-	var values []FieldValue
-	var value FieldValue
-
+func (s *StringValuesEvaluator) AppendMembers(members ...ast.StringMember) {
 	for _, member := range members {
+		var value FieldValue
 		if member.Pattern != nil {
 			value = FieldValue{
 				Value: *member.Pattern,
@@ -247,10 +239,8 @@ func (s *StringValuesEvaluator) AppendMembers(members ...ast.StringMember) error
 				Type:  ScalarValueType,
 			}
 		}
-		values = append(values, value)
+		s.Values.AppendFieldValue(value)
 	}
-
-	return s.AppendFieldValues(values...)
 }
 
 // IntArrayEvaluator returns an array of int
@@ -280,8 +270,8 @@ func (i *IntArrayEvaluator) GetField() string {
 	return i.Field
 }
 
-// IsScalar returns whether the evaluator is a scalar
-func (i *IntArrayEvaluator) IsScalar() bool {
+// IsStatic returns whether the evaluator is a scalar
+func (i *IntArrayEvaluator) IsStatic() bool {
 	return i.EvalFnc == nil
 }
 
@@ -317,7 +307,104 @@ func (b *BoolArrayEvaluator) GetField() string {
 	return b.Field
 }
 
-// IsScalar returns whether the evaluator is a scalar
-func (b *BoolArrayEvaluator) IsScalar() bool {
+// IsStatic returns whether the evaluator is a scalar
+func (b *BoolArrayEvaluator) IsStatic() bool {
 	return b.EvalFnc == nil
+}
+
+// CIDREvaluator returns a net.IP
+type CIDREvaluator struct {
+	EvalFnc     func(ctx *Context) net.IPNet
+	Field       Field
+	Value       net.IPNet
+	Weight      int
+	OpOverrides *OpOverrides
+	ValueType   FieldValueType
+
+	// used during compilation of partial
+	isDeterministic bool
+}
+
+// Eval returns the result of the evaluation
+func (s *CIDREvaluator) Eval(ctx *Context) interface{} {
+	return s.EvalFnc(ctx)
+}
+
+// IsDeterministicFor returns whether the evaluator is partial
+func (s *CIDREvaluator) IsDeterministicFor(field Field) bool {
+	return s.isDeterministic || (s.Field != "" && s.Field == field)
+}
+
+// GetField returns field name used by this evaluator
+func (s *CIDREvaluator) GetField() string {
+	return s.Field
+}
+
+// IsStatic returns whether the evaluator is a scalar
+func (s *CIDREvaluator) IsStatic() bool {
+	return s.EvalFnc == nil
+}
+
+// CIDRValuesEvaluator returns a net.IP
+type CIDRValuesEvaluator struct {
+	EvalFnc   func(ctx *Context) *CIDRValues
+	Value     CIDRValues
+	Weight    int
+	ValueType FieldValueType
+
+	// used during compilation of partial
+	isDeterministic bool
+}
+
+// Eval returns the result of the evaluation
+func (s *CIDRValuesEvaluator) Eval(ctx *Context) interface{} {
+	return s.EvalFnc(ctx)
+}
+
+// IsDeterministicFor returns whether the evaluator is partial
+func (s *CIDRValuesEvaluator) IsDeterministicFor(field Field) bool {
+	return s.isDeterministic
+}
+
+// GetField returns field name used by this evaluator
+func (s *CIDRValuesEvaluator) GetField() string {
+	return ""
+}
+
+// IsStatic returns whether the evaluator is a scalar
+func (s *CIDRValuesEvaluator) IsStatic() bool {
+	return s.EvalFnc == nil
+}
+
+// CIDRArrayEvaluator returns an array of net.IPNet
+type CIDRArrayEvaluator struct {
+	EvalFnc     func(ctx *Context) []net.IPNet
+	Field       Field
+	Value       []net.IPNet
+	Weight      int
+	OpOverrides *OpOverrides
+	ValueType   FieldValueType
+
+	// used during compilation of partial
+	isDeterministic bool
+}
+
+// Eval returns the result of the evaluation
+func (s *CIDRArrayEvaluator) Eval(ctx *Context) interface{} {
+	return s.EvalFnc(ctx)
+}
+
+// IsDeterministicFor returns whether the evaluator is partial
+func (s *CIDRArrayEvaluator) IsDeterministicFor(field Field) bool {
+	return s.isDeterministic || (s.Field != "" && s.Field == field)
+}
+
+// GetField returns field name used by this evaluator
+func (s *CIDRArrayEvaluator) GetField() string {
+	return s.Field
+}
+
+// IsStatic returns whether the evaluator is a scalar
+func (s *CIDRArrayEvaluator) IsStatic() bool {
+	return s.EvalFnc == nil
 }

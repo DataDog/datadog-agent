@@ -1,0 +1,3 @@
+features:
+  - |
+   Adds a `diagnose datadog-connectivity` command that displays information about connectivity issues between the Agent and Datadog intake.

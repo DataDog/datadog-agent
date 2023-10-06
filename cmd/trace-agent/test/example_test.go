@@ -7,11 +7,11 @@ package test
 
 import (
 	"fmt"
-	"io/ioutil"
 	"log"
+	"os"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/trace/pb"
+	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	"github.com/DataDog/datadog-agent/pkg/trace/testutil"
 )
 
@@ -25,7 +25,7 @@ func Example() {
 	defer log.Fatal(runner.Shutdown(time.Second))
 
 	// Run an agent with a given config.
-	conf, err := ioutil.ReadFile("/opt/datadog-agent/etc/datadog.yaml")
+	conf, err := os.ReadFile("/opt/datadog-agent/etc/datadog.yaml")
 	if err != nil {
 		log.Fatal(err)
 	}

@@ -16,20 +16,19 @@ import (
 
 func TestSamplerAccessRace(t *testing.T) {
 	s := newSampler(1, 2, nil)
-	testTime := time.Now()
 	var wg sync.WaitGroup
 	wg.Add(5)
 	for j := 0; j < 5; j++ {
-		go func() {
+		go func(j int) {
 			defer wg.Done()
 			for i := 0; i < 10000; i++ {
-				s.countWeightedSig(testTime, Signature(i%3), 5)
+				s.countWeightedSig(time.Now().Add(time.Duration(5*(j+i))*time.Second), Signature(i%3), 5)
 				s.report()
 				s.countSample()
 				s.getSignatureSampleRate(Signature(i % 3))
 				s.getAllSignatureSampleRates()
 			}
-		}()
+		}(j)
 	}
 	wg.Wait()
 }

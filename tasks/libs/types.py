@@ -1,6 +1,7 @@
 import io
 import subprocess
 from collections import defaultdict
+from enum import Enum
 
 
 class Test:
@@ -37,14 +38,31 @@ class Test:
         return (self.name, self.package)
 
 
+class FailedJobType(Enum):
+    JOB_FAILURE = 1
+    INFRA_FAILURE = 2
+
+
+class FailedJobReason(Enum):
+    RUNNER = 1
+    KITCHEN_AZURE = 4
+    FAILED_JOB_SCRIPT = 5
+    GITLAB = 6
+    KITCHEN = 7
+    EC2_SPOT = 8
+
+
 class SlackMessage:
     JOBS_SECTION_HEADER = "Failed jobs:"
+    INFRA_FAILURES_SECTION_HEADER = "Infrastructure failures:"
     TEST_SECTION_HEADER = "Failed unit tests:"
     MAX_JOBS_PER_TEST = 2
 
-    def __init__(self, base_message, jobs=None):
-        self.base_message = base_message
-        self.failed_jobs = jobs if jobs else []
+    def __init__(self, base="", jobs=None):
+        jobs = jobs if jobs else []
+        self.base_message = base
+        self.failed_jobs = [job for job in jobs if job["failure_type"] == FailedJobType.JOB_FAILURE]
+        self.infra_failed_jobs = [job for job in jobs if job["failure_type"] == FailedJobType.INFRA_FAILURE]
         self.failed_tests = defaultdict(list)
         self.coda = ""
 
@@ -56,6 +74,28 @@ class SlackMessage:
 
         jobs_per_stage = defaultdict(list)
         for job in self.failed_jobs:
+            jobs_per_stage[job["stage"]].append(job)
+
+        for stage, jobs in jobs_per_stage.items():
+            jobs_info = []
+            for job in jobs:
+                num_retries = len(job["retry_summary"]) - 1
+                job_info = f"<{job['url']}|{job['name']}>"
+                if num_retries > 0:
+                    job_info += f" ({num_retries} retries)"
+
+                jobs_info.append(job_info)
+
+            print(
+                f"- {', '.join(jobs_info)} (`{stage}` stage)",
+                file=buffer,
+            )
+
+    def __render_infra_jobs_section(self, buffer):
+        print(self.INFRA_FAILURES_SECTION_HEADER, file=buffer)
+
+        jobs_per_stage = defaultdict(list)
+        for job in self.infra_failed_jobs:
             jobs_per_stage[job["stage"]].append(job)
 
         for stage, jobs in jobs_per_stage.items():
@@ -87,6 +127,8 @@ class SlackMessage:
             print(self.base_message, file=buffer)
         if self.failed_jobs:
             self.__render_jobs_section(buffer)
+        if self.infra_failed_jobs:
+            self.__render_infra_jobs_section(buffer)
         if self.failed_tests:
             self.__render_tests_section(buffer)
         if self.coda:

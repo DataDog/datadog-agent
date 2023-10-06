@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build kubelet
-// +build kubelet
 
 package kubelet
 
@@ -13,7 +12,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
-	"strings"
 	"sync"
 	"time"
 
@@ -21,8 +19,10 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/errors"
 	"github.com/DataDog/datadog-agent/pkg/util/cache"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/retry"
+
 	kubeletv1alpha1 "k8s.io/kubelet/pkg/apis/stats/v1alpha1"
 )
 
@@ -85,6 +85,7 @@ func (ku *KubeUtil) init() error {
 	return nil
 }
 
+// NewKubeUtil returns a new KubeUtil
 func NewKubeUtil() *KubeUtil {
 	ku := &KubeUtil{
 		rawConnectionInfo:    make(map[string]string),
@@ -178,10 +179,7 @@ func (ku *KubeUtil) GetNodename(ctx context.Context) (string, error) {
 	return "", fmt.Errorf("failed to get the kubernetes nodename, pod list length: %d", len(pods))
 }
 
-// GetLocalPodList returns the list of pods running on the node.
-// If kubernetes_pod_expiration_duration is set, old exited pods
-// will be filtered out to keep the podlist size down: see json.go
-func (ku *KubeUtil) GetLocalPodList(ctx context.Context) ([]*Pod, error) {
+func (ku *KubeUtil) getLocalPodList(ctx context.Context) (*PodList, error) {
 	var ok bool
 	pods := PodList{}
 
@@ -190,7 +188,7 @@ func (ku *KubeUtil) GetLocalPodList(ctx context.Context) ([]*Pod, error) {
 		if !ok {
 			log.Errorf("Invalid pod list cache format, forcing a cache miss")
 		} else {
-			return pods.Items, nil
+			return &pods, nil
 		}
 	}
 
@@ -211,6 +209,14 @@ func (ku *KubeUtil) GetLocalPodList(ctx context.Context) ([]*Pod, error) {
 	tmpSlice := make([]*Pod, 0, len(pods.Items))
 	for _, pod := range pods.Items {
 		if pod != nil {
+			// Validate allocation size.
+			// Limits hardcoded here are huge enough to never be hit.
+			if len(pod.Status.Containers) > 10000 ||
+				len(pod.Status.InitContainers) > 10000 {
+				log.Errorf("Pod %s has a crazy number of containers: %d or init containers: %d. Skipping it!",
+					pod.Metadata.UID, len(pod.Status.Containers), len(pod.Status.InitContainers))
+				continue
+			}
 			allContainers := make([]ContainerStatus, 0, len(pod.Status.InitContainers)+len(pod.Status.Containers))
 			allContainers = append(allContainers, pod.Status.InitContainers...)
 			allContainers = append(allContainers, pod.Status.Containers...)
@@ -223,13 +229,32 @@ func (ku *KubeUtil) GetLocalPodList(ctx context.Context) ([]*Pod, error) {
 	// cache the podList to reduce pressure on the kubelet
 	cache.Cache.Set(podListCacheKey, pods, ku.podListCacheDuration)
 
+	return &pods, nil
+}
+
+// GetLocalPodList returns the list of pods running on the node.
+// If kubernetes_pod_expiration_duration is set, old exited pods
+// will be filtered out to keep the podlist size down: see json.go
+func (ku *KubeUtil) GetLocalPodList(ctx context.Context) ([]*Pod, error) {
+	pods, err := ku.getLocalPodList(ctx)
+	if err != nil {
+		return nil, err
+	}
+
 	return pods.Items, nil
 }
 
+// GetLocalPodListWithMetadata returns the list of pods running on the node,
+// along with metadata surrounding that list, such as the number of pods
+// which were expired and therefore removed from the list when it was generated.
+func (ku *KubeUtil) GetLocalPodListWithMetadata(ctx context.Context) (*PodList, error) {
+	return ku.getLocalPodList(ctx)
+}
+
 // ForceGetLocalPodList reset podList cache and call GetLocalPodList
-func (ku *KubeUtil) ForceGetLocalPodList(ctx context.Context) ([]*Pod, error) {
+func (ku *KubeUtil) ForceGetLocalPodList(ctx context.Context) (*PodList, error) {
 	ResetCache()
-	return ku.GetLocalPodList(ctx)
+	return ku.GetLocalPodListWithMetadata(ctx)
 }
 
 // GetPodForContainerID fetches the podList and returns the pod running
@@ -237,11 +262,11 @@ func (ku *KubeUtil) ForceGetLocalPodList(ctx context.Context) ([]*Pod, error) {
 // Returns a nil pointer if not found.
 func (ku *KubeUtil) GetPodForContainerID(ctx context.Context, containerID string) (*Pod, error) {
 	// Best case scenario
-	pods, err := ku.GetLocalPodList(ctx)
+	pods, err := ku.GetLocalPodListWithMetadata(ctx)
 	if err != nil {
 		return nil, err
 	}
-	pod, err := ku.searchPodForContainerID(pods, containerID)
+	pod, err := ku.searchPodForContainerID(pods.Items, containerID)
 	if err == nil {
 		return pod, nil
 	}
@@ -253,7 +278,7 @@ func (ku *KubeUtil) GetPodForContainerID(ctx context.Context, containerID string
 		if err != nil {
 			return nil, err
 		}
-		pod, err = ku.searchPodForContainerID(pods, containerID)
+		pod, err = ku.searchPodForContainerID(pods.Items, containerID)
 		if err == nil {
 			return pod, nil
 		}
@@ -277,7 +302,7 @@ func (ku *KubeUtil) GetPodForContainerID(ctx context.Context, containerID string
 			if err != nil {
 				continue
 			}
-			pod, err = ku.searchPodForContainerID(pods, containerID)
+			pod, err = ku.searchPodForContainerID(pods.Items, containerID)
 			if err != nil {
 				continue
 			}
@@ -310,64 +335,7 @@ func (ku *KubeUtil) searchPodForContainerID(podList []*Pod, containerID string) 
 	return nil, errors.NewNotFound(fmt.Sprintf("container %s in PodList", containerID))
 }
 
-// GetStatusForContainerID returns the container status from the pod given an ID
-func (ku *KubeUtil) GetStatusForContainerID(pod *Pod, containerID string) (ContainerStatus, error) {
-	for _, container := range pod.Status.GetAllContainers() {
-		if containerID == container.ID {
-			return container, nil
-		}
-	}
-	return ContainerStatus{}, errors.NewNotFound(fmt.Sprintf("container %s in pod", containerID))
-}
-
-// GetSpecForContainerName returns the container spec from the pod given a name
-// It searches spec.containers then spec.initContainers
-func (ku *KubeUtil) GetSpecForContainerName(pod *Pod, containerName string) (ContainerSpec, error) {
-	for _, containerSpec := range append(pod.Spec.Containers, pod.Spec.InitContainers...) {
-		if containerName == containerSpec.Name {
-			return containerSpec, nil
-		}
-	}
-	return ContainerSpec{}, errors.NewNotFound(fmt.Sprintf("container %s in pod", containerName))
-}
-
-func (ku *KubeUtil) GetPodFromUID(ctx context.Context, podUID string) (*Pod, error) {
-	if podUID == "" {
-		return nil, fmt.Errorf("pod UID is empty")
-	}
-	pods, err := ku.GetLocalPodList(ctx)
-	if err != nil {
-		return nil, err
-	}
-	for _, pod := range pods {
-		if pod.Metadata.UID == podUID {
-			return pod, nil
-		}
-	}
-	log.Debugf("cannot get the pod uid %q: %s, retrying without cache...", podUID, err)
-
-	pods, err = ku.ForceGetLocalPodList(ctx)
-	if err != nil {
-		return nil, err
-	}
-	for _, pod := range pods {
-		if pod.Metadata.UID == podUID {
-			return pod, nil
-		}
-	}
-	return nil, errors.NewNotFound(fmt.Sprintf("pod %s in podlist", podUID))
-}
-
-// GetPodForEntityID returns a pointer to the pod that corresponds to an entity ID.
-// If the pod is not found it returns nil and an error.
-func (ku *KubeUtil) GetPodForEntityID(ctx context.Context, entityID string) (*Pod, error) {
-	if strings.HasPrefix(entityID, KubePodPrefix) {
-		uid := strings.TrimPrefix(entityID, KubePodPrefix)
-		return ku.GetPodFromUID(ctx, uid)
-	}
-	return ku.GetPodForContainerID(ctx, entityID)
-}
-
+// GetLocalStatsSummary returns node and pod stats from kubelet
 func (ku *KubeUtil) GetLocalStatsSummary(ctx context.Context) (*kubeletv1alpha1.Summary, error) {
 	data, code, err := ku.QueryKubelet(ctx, kubeletStatsSummary)
 	if err != nil {
@@ -392,12 +360,8 @@ func (ku *KubeUtil) QueryKubelet(ctx context.Context, path string) ([]byte, int,
 	return ku.kubeletClient.query(ctx, path)
 }
 
-// GetKubeletAPIEndpoint returns the current endpoint used to perform QueryKubelet
-func (ku *KubeUtil) GetKubeletAPIEndpoint() string {
-	return ku.kubeletClient.kubeletURL
-}
-
 // GetRawConnectionInfo returns a map containging the url and credentials to connect to the kubelet
+// It refreshes the auth token on each call.
 // Possible map entries:
 //   - url: full url with scheme (required)
 //   - verify_tls: "true" or "false" string
@@ -406,6 +370,15 @@ func (ku *KubeUtil) GetKubeletAPIEndpoint() string {
 //   - client_crt: path to the client cert if set
 //   - client_key: path to the client key if set
 func (ku *KubeUtil) GetRawConnectionInfo() map[string]string {
+	if ku.kubeletClient.config.scheme == "https" && ku.kubeletClient.config.token != "" {
+		token, err := kubernetes.GetBearerToken(ku.kubeletClient.config.tokenPath)
+		if err != nil {
+			log.Warnf("Couldn't read auth token defined in %q: %v", ku.kubeletClient.config.tokenPath, err)
+		} else {
+			ku.rawConnectionInfo["token"] = token
+		}
+	}
+
 	return ku.rawConnectionInfo
 }
 
@@ -420,20 +393,6 @@ func (ku *KubeUtil) GetRawMetrics(ctx context.Context) ([]byte, error) {
 	}
 
 	return data, nil
-}
-
-// IsAgentHostNetwork returns whether the agent is running inside a container with `hostNetwork` or not
-func (ku *KubeUtil) IsAgentHostNetwork(ctx context.Context, agentContainerID string) (bool, error) {
-	if agentContainerID == "" {
-		return false, fmt.Errorf("unable to determine self container id")
-	}
-
-	pod, err := ku.GetPodForContainerID(ctx, agentContainerID)
-	if err != nil {
-		return false, err
-	}
-
-	return pod.Spec.HostNetwork, nil
 }
 
 // IsPodReady return a bool if the Pod is ready
@@ -461,7 +420,7 @@ func IsPodReady(pod *Pod) bool {
 // isPodStatic identifies whether a pod is static or not based on an annotation
 // Static pods can be sent to the kubelet from files or an http endpoint.
 func isPodStatic(pod *Pod) bool {
-	if source, ok := pod.Metadata.Annotations[configSourceAnnotation]; ok == true && (source == "file" || source == "http") {
+	if source, ok := pod.Metadata.Annotations[configSourceAnnotation]; ok && (source == "file" || source == "http") {
 		return len(pod.Status.Containers) == 0
 	}
 	return false

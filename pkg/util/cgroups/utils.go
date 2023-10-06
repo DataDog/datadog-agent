@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build linux
-// +build linux
 
 package cgroups
 
@@ -19,14 +18,6 @@ import (
 const (
 	UserHZToNano uint64 = uint64(time.Second) / 100
 )
-
-func uint64Ptr(v uint64) *uint64 {
-	return &v
-}
-
-func float64Ptr(v float64) *float64 {
-	return &v
-}
 
 func randToken(n int) (string, error) {
 	bytes := make([]byte, n)

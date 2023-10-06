@@ -8,7 +8,11 @@ package check
 import (
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
+	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
+	"github.com/DataDog/datadog-agent/pkg/collector/check/stats"
+	"github.com/DataDog/datadog-agent/pkg/diagnose/diagnosis"
 )
 
 // Check is an interface for types capable to run checks
@@ -24,19 +28,44 @@ type Check interface {
 	// String provides a printable version of the check name
 	String() string
 	// Configure configures the check
-	Configure(config, initConfig integration.Data, source string) error
+	Configure(senderManger sender.SenderManager, integrationConfigDigest uint64, config, initConfig integration.Data, source string) error
 	// Interval returns the interval time for the check
 	Interval() time.Duration
 	// ID provides a unique identifier for every check instance
-	ID() ID
+	ID() checkid.ID
 	// GetWarnings returns the last warning registered by the check
 	GetWarnings() []error
 	// GetSenderStats returns the stats from the last run of the check.
-	GetSenderStats() (SenderStats, error)
+	GetSenderStats() (stats.SenderStats, error)
 	// Version returns the version of the check if available
 	Version() string
 	// ConfigSource returns the configuration source of the check
 	ConfigSource() string
 	// IsTelemetryEnabled returns if telemetry is enabled for this check
 	IsTelemetryEnabled() bool
+	// InitConfig returns the init_config configuration of the check
+	InitConfig() string
+	// InstanceConfig returns the instance configuration of the check
+	InstanceConfig() string
+	// GetDiagnoses returns the diagnoses cached in last run or diagnose explicitly
+	GetDiagnoses() ([]diagnosis.Diagnosis, error)
+}
+
+// Info is an interface to pull information from types capable to run checks. This is a subsection from the Check
+// interface with only read only method.
+type Info interface {
+	// String provides a printable version of the check name
+	String() string
+	// Interval returns the interval time for the check
+	Interval() time.Duration
+	// ID provides a unique identifier for every check instance
+	ID() checkid.ID
+	// Version returns the version of the check if available
+	Version() string
+	// ConfigSource returns the configuration source of the check
+	ConfigSource() string
+	// InitConfig returns the init_config configuration of the check
+	InitConfig() string
+	// InstanceConfig returns the instance configuration of the check
+	InstanceConfig() string
 }

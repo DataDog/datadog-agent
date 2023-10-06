@@ -40,7 +40,7 @@ func TestConfigureDefault(t *testing.T) {
 }
 
 func TestConfigure(t *testing.T) {
-	mockConfig := config.Mock()
+	mockConfig := config.Mock(t)
 
 	aggregatesBk := config.Datadog.GetStringSlice("histogram_aggregates")
 	percentilesBk := config.Datadog.GetStringSlice("histogram_percentiles")

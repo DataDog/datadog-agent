@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build linux_bpf
-// +build linux_bpf
 
 package tracer
 
@@ -12,20 +11,22 @@ import (
 	"os"
 	"testing"
 
-	"github.com/DataDog/datadog-agent/pkg/network"
-	"github.com/DataDog/datadog-agent/pkg/network/netlink"
-	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/vishvananda/netns"
 	"golang.org/x/sys/unix"
+
+	"github.com/DataDog/datadog-agent/pkg/network"
+	"github.com/DataDog/datadog-agent/pkg/network/netlink"
+	"github.com/DataDog/datadog-agent/pkg/process/util"
 )
 
 func TestEnsureConntrack(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	errorCreator := func(_ int) (netlink.Conntrack, error) { return nil, assert.AnError }
+	errorCreator := func(_ netns.NsHandle) (netlink.Conntrack, error) { return nil, assert.AnError }
 
 	cache := newCachedConntrack("/proc", errorCreator, 1)
 	defer cache.Close()
@@ -37,7 +38,7 @@ func TestEnsureConntrack(t *testing.T) {
 
 	m := netlink.NewMockConntrack(ctrl)
 	n := 0
-	creator := func(_ int) (netlink.Conntrack, error) {
+	creator := func(_ netns.NsHandle) (netlink.Conntrack, error) {
 		n++
 		return m, nil
 	}
@@ -50,23 +51,23 @@ func TestEnsureConntrack(t *testing.T) {
 	// remaining conntrack instance is closed
 	m.EXPECT().Close().Times(2)
 
-	ctrk, err = cache.ensureConntrack(1234, os.Getpid())
+	_, err = cache.ensureConntrack(1234, os.Getpid())
 	require.NoError(t, err)
 	require.Equal(t, 1, n)
 
 	// call again, should get the cached Conntrack
-	ctrk, err = cache.ensureConntrack(1234, os.Getpid())
+	_, err = cache.ensureConntrack(1234, os.Getpid())
 	require.NoError(t, err)
 	require.Equal(t, 1, n)
 
 	// evict the lone conntrack in the cache
-	ctrk, err = cache.ensureConntrack(1235, os.Getpid())
+	_, err = cache.ensureConntrack(1235, os.Getpid())
 	require.NoError(t, err)
 	require.Equal(t, 2, n)
 }
 
 func TestCachedConntrackIgnoreErrExists(t *testing.T) {
-	cache := newCachedConntrack("/proc", func(_ int) (netlink.Conntrack, error) {
+	cache := newCachedConntrack("/proc", func(_ netns.NsHandle) (netlink.Conntrack, error) {
 		require.FailNow(t, "unexpected call to conntrack creator")
 		return nil, nil
 	}, 1)
@@ -83,7 +84,7 @@ func TestCachedConntrackExists(t *testing.T) {
 
 	m := netlink.NewMockConntrack(ctrl)
 	n := 0
-	creator := func(_ int) (netlink.Conntrack, error) {
+	creator := func(_ netns.NsHandle) (netlink.Conntrack, error) {
 		n++
 		return m, nil
 	}
@@ -109,11 +110,11 @@ func TestCachedConntrackExists(t *testing.T) {
 	}
 
 	m.EXPECT().Exists(gomock.Not(gomock.Nil())).Times(1).DoAndReturn(func(c *netlink.Con) (bool, error) {
-		require.Equal(t, saddr.String(), c.Origin.Src.String())
-		require.Equal(t, daddr.String(), c.Origin.Dst.String())
-		require.Equal(t, sport, *c.Origin.Proto.SrcPort)
-		require.Equal(t, dport, *c.Origin.Proto.DstPort)
-		require.Equal(t, uint8(unix.IPPROTO_TCP), *c.Origin.Proto.Number)
+		require.Equal(t, saddr.String(), c.Origin.Src.Addr().String())
+		require.Equal(t, daddr.String(), c.Origin.Dst.Addr().String())
+		require.Equal(t, sport, c.Origin.Src.Port())
+		require.Equal(t, dport, c.Origin.Dst.Port())
+		require.Equal(t, uint8(unix.IPPROTO_TCP), c.Origin.Proto)
 		return true, nil
 	})
 
@@ -127,22 +128,22 @@ func TestCachedConntrackExists(t *testing.T) {
 		i++
 
 		if i == 1 {
-			require.Nil(t, c.Reply)
-			require.Equal(t, saddr.String(), c.Origin.Src.String())
-			require.Equal(t, daddr.String(), c.Origin.Dst.String())
-			require.Equal(t, sport, *c.Origin.Proto.SrcPort)
-			require.Equal(t, dport, *c.Origin.Proto.DstPort)
-			require.Equal(t, uint8(unix.IPPROTO_TCP), *c.Origin.Proto.Number)
+			require.True(t, c.Reply.IsZero())
+			require.Equal(t, saddr.String(), c.Origin.Src.Addr().String())
+			require.Equal(t, daddr.String(), c.Origin.Dst.Addr().String())
+			require.Equal(t, sport, c.Origin.Src.Port())
+			require.Equal(t, dport, c.Origin.Dst.Port())
+			require.Equal(t, uint8(unix.IPPROTO_TCP), c.Origin.Proto)
 			return false, nil
 		}
 
 		if i == 2 {
-			require.Nil(t, c.Origin)
-			require.Equal(t, saddr.String(), c.Reply.Src.String())
-			require.Equal(t, daddr.String(), c.Reply.Dst.String())
-			require.Equal(t, sport, *c.Reply.Proto.SrcPort)
-			require.Equal(t, dport, *c.Reply.Proto.DstPort)
-			require.Equal(t, uint8(unix.IPPROTO_TCP), *c.Reply.Proto.Number)
+			require.True(t, c.Origin.IsZero())
+			require.Equal(t, saddr.String(), c.Reply.Src.Addr().String())
+			require.Equal(t, daddr.String(), c.Reply.Dst.Addr().String())
+			require.Equal(t, sport, c.Reply.Src.Port())
+			require.Equal(t, dport, c.Reply.Dst.Port())
+			require.Equal(t, uint8(unix.IPPROTO_TCP), c.Reply.Proto)
 			return true, nil
 		}
 
@@ -160,7 +161,7 @@ func TestCachedConntrackClose(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	m := netlink.NewMockConntrack(ctrl)
 	n := 0
-	creator := func(_ int) (netlink.Conntrack, error) {
+	creator := func(_ netns.NsHandle) (netlink.Conntrack, error) {
 		n++
 		return m, nil
 	}

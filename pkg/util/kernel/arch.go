@@ -26,6 +26,6 @@ func Arch() string {
 	case "s390x":
 		return "s390"
 	default:
-		return ""
+		return runtime.GOARCH
 	}
 }

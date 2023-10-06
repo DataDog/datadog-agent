@@ -9,8 +9,9 @@ import (
 	"context"
 	"runtime"
 	"sync"
-	"sync/atomic"
 	"time"
+
+	"go.uber.org/atomic"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -20,7 +21,7 @@ const (
 )
 
 var (
-	hostCPUCount           int64
+	hostCPUCount           = atomic.NewInt64(0)
 	hostCPUFailedAttempts  int
 	hostCPUCountUpdateLock sync.Mutex
 	cpuInfoFunc            func(context.Context, bool) (int, error)
@@ -28,7 +29,7 @@ var (
 
 // HostCPUCount returns the number of logical CPUs from host
 func HostCPUCount() int {
-	if v := atomic.LoadInt64(&hostCPUCount); v != 0 {
+	if v := hostCPUCount.Load(); v != 0 {
 		return int(v)
 	}
 
@@ -53,7 +54,7 @@ func HostCPUCount() int {
 			return runtime.NumCPU()
 		}
 	}
-	atomic.StoreInt64(&hostCPUCount, int64(cpuCount))
+	hostCPUCount.Store(int64(cpuCount))
 
 	return cpuCount
 }
