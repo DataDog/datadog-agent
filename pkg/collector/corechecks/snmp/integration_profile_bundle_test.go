@@ -37,7 +37,7 @@ func TestProfileBundleJsonZip(t *testing.T) {
 	rawInstanceConfig := []byte(`
 ip_address: 1.2.3.4
 community_string: public
-profile: apc_ups
+profile: profile-from-ui
 oid_batch_size: 20
 namespace: profile-metadata
 collect_topology: false
