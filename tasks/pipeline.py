@@ -138,7 +138,7 @@ def workflow_rules(gitlab_file=".gitlab-ci.yml"):
 
 @task
 def trigger(
-        _, git_ref=DEFAULT_BRANCH, release_version_6="nightly", release_version_7="nightly-a7", repo_branch="nightly"
+    _, git_ref=DEFAULT_BRANCH, release_version_6="nightly", release_version_7="nightly-a7", repo_branch="nightly"
 ):
     """
     OBSOLETE: Trigger a deploy pipeline on the given git ref. Use pipeline.run with the --deploy option instead.
@@ -204,15 +204,15 @@ def auto_cancel_previous_pipelines(ctx):
 
 @task
 def run(
-        ctx,
-        git_ref=None,
-        here=False,
-        use_release_entries=False,
-        major_versions='6,7',
-        repo_branch="nightly",
-        deploy=False,
-        all_builds=True,
-        kitchen_tests=True,
+    ctx,
+    git_ref=None,
+    here=False,
+    use_release_entries=False,
+    major_versions='6,7',
+    repo_branch="nightly",
+    deploy=False,
+    all_builds=True,
+    kitchen_tests=True,
 ):
     """
     Run a pipeline on the given git ref (--git-ref <git ref>), or on the current branch if --here is given.
@@ -496,9 +496,12 @@ def is_system_probe(owners, files):
 
 @task
 def changelog(ctx, new_commit_sha):
-    old_commit_sha = ctx.run("aws ssm get-parameter --region us-east-1 --name "
-                             "ci.datadog-agent.gitlab_changelog_commit_sha --with-decryption --query "
-                             "\"Parameter.Value\" --out text", hide=False).stdout.strip()
+    old_commit_sha = ctx.run(
+        "aws ssm get-parameter --region us-east-1 --name "
+        "ci.datadog-agent.gitlab_changelog_commit_sha --with-decryption --query "
+        "\"Parameter.Value\" --out text",
+        hide=False,
+    ).stdout.strip()
     print(f"Generating changelog for commit range {old_commit_sha} to {new_commit_sha}")
     commits = ctx.run(f"git log {old_commit_sha}..{new_commit_sha} --pretty=format:%h", hide=True).stdout.split("\n")
     owners = read_owners(".github/CODEOWNERS")
@@ -519,16 +522,21 @@ def changelog(ctx, new_commit_sha):
             else:
                 messages.append(f"<{url}|{title}>")
 
+    commit_range_link = f"https://github.com/DataDog/datadog-agent/compare/{old_commit_sha}..{new_commit_sha}"
+
     slack_message = (
-            f"The nightly deployment is rolling out to Staging :siren: \n"
-            f"Changelog for commit range: `{old_commit_sha}` to `{new_commit_sha}`\n"
-            + "\n".join(messages)
-            + "\n:wave: Authors, please check relevant "
-              "<https://ddstaging.datadoghq.com/dashboard/kfn-zy2-t98|dashboards> for issues"
+        f"The nightly deployment is rolling out to Staging :siren: \n"
+        f"Changelog for commit <{commit_range_link}|range>: `{old_commit_sha}` to `{new_commit_sha}`\n"
+        + "\n".join(messages)
+        + "\n:wave: Authors, please check relevant "
+        "<https://ddstaging.datadoghq.com/dashboard/kfn-zy2-t98|dashboards> for issues"
     )
-    print(f"tagging {new_commit_sha}")
-    # ctx.run(f"aws ssm put-parameter --name ci.datadog-agent.gitlab_changelog_commit_sha --value \"{new_git_sha}\" "
-    #         "--type \"SecureString\" --region us-east-1", hide=False)
+    print(f"Writing {new_commit_sha} to SSM")
+    ctx.run(
+        f"aws ssm put-parameter --name ci.datadog-agent.gitlab_changelog_commit_sha --value {new_commit_sha} "
+        "--type \"SecureString\" --region us-east-1",
+        hide=False,
+    )
     send_slack_message("system-probe-ops", slack_message)
 
 
@@ -662,10 +670,10 @@ def send_stats(_, print_to_stdout=False):
                 timestamp=timestamp,
                 value=count,
                 tags=list(failure_tags)
-                     + [
-                         "repository:datadog-agent",
-                         f"git_ref:{os.getenv('CI_COMMIT_REF_NAME')}",
-                     ],
+                + [
+                    "repository:datadog-agent",
+                    f"git_ref:{os.getenv('CI_COMMIT_REF_NAME')}",
+                ],
             )
         )
 
