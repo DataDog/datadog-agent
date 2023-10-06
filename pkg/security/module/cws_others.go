@@ -13,10 +13,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-func getFamilyAddress(config *config.RuntimeSecurityConfig) (string, string) {
-	return "tcp", config.SocketPath
-}
-
 // UpdateEventMonitorOpts adapt the event monitor option
 func UpdateEventMonitorOpts(opts *eventmonitor.Opts, config *config.Config) {
 	if config.RuntimeSecurity.RemoteConfigurationEnabled {

@@ -50,7 +50,7 @@ type CWSConsumer struct {
 }
 
 // NewCWSConsumer initializes the module with options
-func NewCWSConsumer(evm *eventmonitor.EventMonitor, config *config.RuntimeSecurityConfig, opts Opts) (*CWSConsumer, error) {
+func NewCWSConsumer(evm *eventmonitor.EventMonitor, cfg *config.RuntimeSecurityConfig, opts Opts) (*CWSConsumer, error) {
 	ctx, cancelFnc := context.WithCancel(context.Background())
 
 	selfTester, err := selftests.NewSelfTester(evm.Probe)
@@ -58,17 +58,17 @@ func NewCWSConsumer(evm *eventmonitor.EventMonitor, config *config.RuntimeSecuri
 		seclog.Errorf("unable to instantiate self tests: %s", err)
 	}
 
-	family, address := getFamilyAddress(config)
+	family, address := config.GetFamilyAddress(cfg.SocketPath)
 
 	c := &CWSConsumer{
-		config:       config,
+		config:       cfg,
 		probe:        evm.Probe,
 		statsdClient: evm.StatsdClient,
 		// internals
 		ctx:           ctx,
 		cancelFnc:     cancelFnc,
-		apiServer:     NewAPIServer(config, evm.Probe, evm.StatsdClient, selfTester),
-		rateLimiter:   events.NewRateLimiter(config, evm.StatsdClient),
+		apiServer:     NewAPIServer(cfg, evm.Probe, evm.StatsdClient, selfTester),
+		rateLimiter:   events.NewRateLimiter(cfg, evm.StatsdClient),
 		sendStatsChan: make(chan chan bool, 1),
 		grpcServer:    NewGRPCServer(family, address),
 		selfTester:    selfTester,
@@ -84,7 +84,7 @@ func NewCWSConsumer(evm *eventmonitor.EventMonitor, config *config.RuntimeSecuri
 
 	seclog.Infof("Instantiating CWS rule engine")
 
-	c.ruleEngine, err = rulesmodule.NewRuleEngine(evm, config, evm.Probe, c.rateLimiter, c.apiServer, c.eventSender, c.statsdClient, selfTester)
+	c.ruleEngine, err = rulesmodule.NewRuleEngine(evm, cfg, evm.Probe, c.rateLimiter, c.apiServer, c.eventSender, c.statsdClient, selfTester)
 	if err != nil {
 		return nil, err
 	}
@@ -94,13 +94,13 @@ func NewCWSConsumer(evm *eventmonitor.EventMonitor, config *config.RuntimeSecuri
 		return nil, err
 	}
 
-	seclog.SetPatterns(config.LogPatterns...)
-	seclog.SetTags(config.LogTags...)
+	seclog.SetPatterns(cfg.LogPatterns...)
+	seclog.SetTags(cfg.LogTags...)
 
 	api.RegisterSecurityModuleServer(c.grpcServer.server, c.apiServer)
 
 	// platform specific initialization
-	if err := c.init(evm, config, opts); err != nil {
+	if err := c.init(evm, cfg, opts); err != nil {
 		return nil, err
 	}
 
