@@ -121,7 +121,6 @@ func (c *collector) parsePods(pods []*kubelet.Pod) []workloadmeta.CollectorEvent
 			pod.Status.Containers,
 			&podID,
 		)
-		podContainers = append(podContainers, podInitContainers...)
 
 		podOwners := pod.Owners()
 		owners := make([]workloadmeta.KubernetesPodOwner, 0, len(podOwners))

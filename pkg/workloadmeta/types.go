@@ -781,7 +781,7 @@ func (d KubernetesDeployment) String(verbose bool) string {
 				}
 				_, _ = langSb.WriteString(string(lang.Name))
 			}
-			_, _ = fmt.Fprintf(&sb, "%s %s=>[%s]", ctype, container, langSb.String())
+			_, _ = fmt.Fprintf(&sb, "%s %s=>[%s]\n", ctype, container, langSb.String())
 		}
 	}
 	langPrinter(d.InitContainerLanguages, "InitContainer")
