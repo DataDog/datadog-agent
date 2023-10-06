@@ -53,7 +53,7 @@ func getServiceManager(vmClient *e2eClient.VMClient) ServiceManager {
 }
 
 func getPackageManager(vmClient *e2eClient.VMClient) PackageManager {
-	if _, err := vmClient.ExecuteWithError("apt-get --version"); err == nil {
+	if _, err := vmClient.ExecuteWithError("apt --version"); err == nil {
 		return pkgmanager.NewAptPackageManager(vmClient)
 	}
 	return nil
