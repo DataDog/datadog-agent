@@ -6,7 +6,6 @@
 package server
 
 import (
-	"fmt"
 	"runtime"
 	"sync"
 	"unsafe"
@@ -16,16 +15,15 @@ import (
 )
 
 var (
-	// There are multiple instances of the interner, one per worker (depends on # of virtual CPUs).
-	// Most metrics are tagged with the instance ID, however some are left as global
-	// Note `New` vs `NewSimple`
-	tlmSIREntries = telemetry.NewGauge("dogstatsd", "string_interner_entries", []string{"interner_id"},
+	// There is a single instance of the string interner, so all telemetry can safely
+	// be global and untagged by a particular interner instance
+	tlmSIREntries = telemetry.NewSimpleGauge("dogstatsd", "string_interner_entries",
 		"Number of entries in the string interner")
-	tlmSIRBytes = telemetry.NewGauge("dogstatsd", "string_interner_bytes", []string{"interner_id"},
+	tlmSIRBytes = telemetry.NewSimpleGauge("dogstatsd", "string_interner_bytes",
 		"Number of bytes stored in the string interner")
-	tlmSIRHits = telemetry.NewCounter("dogstatsd", "string_interner_hits", []string{"interner_id"},
+	tlmSIRHits = telemetry.NewSimpleCounter("dogstatsd", "string_interner_hits",
 		"Number of times string interner returned an existing string")
-	tlmSIRMiss = telemetry.NewCounter("dogstatsd", "string_interner_miss", []string{"interner_id"},
+	tlmSIRMiss = telemetry.NewSimpleCounter("dogstatsd", "string_interner_miss",
 		"Number of times string interner created a new string object")
 
 	tlmSIRNew = telemetry.NewSimpleCounter("dogstatsd", "string_interner_new",
@@ -51,17 +49,15 @@ type stringInterner struct {
 	mu           sync.Mutex
 	tlmEnabled   bool
 	valMap       map[string]uintptr
-	id           string
 	totalBytes   uint32
 	totalEntries uint32
 }
 
 // newStringInterner creates a new StringInterner
-func newStringInterner(internerID int) *stringInterner {
+func newStringInterner() *stringInterner {
 	i := &stringInterner{
 		valMap:     make(map[string]uintptr),
 		tlmEnabled: utils.IsTelemetryEnabled(),
-		id:         fmt.Sprintf("interner_%d", internerID),
 	}
 
 	if i.tlmEnabled {
@@ -88,7 +84,7 @@ func (s *stringInterner) LoadOrStore(k []byte) *StringValue {
 		v = (*StringValue)((unsafe.Pointer)(addr))
 		v.resurrected = true
 		if s.tlmEnabled {
-			tlmSIRHits.WithTags(map[string]string{"interner_id": s.id}).Inc()
+			tlmSIRHits.Inc()
 		}
 		return v
 	}
@@ -97,9 +93,9 @@ func (s *stringInterner) LoadOrStore(k []byte) *StringValue {
 	runtime.SetFinalizer(v, s.finalize)
 	s.valMap[string(k)] = uintptr(unsafe.Pointer(v))
 	if s.tlmEnabled {
-		tlmSIRMiss.WithTags(map[string]string{"interner_id": s.id}).Inc()
-		tlmSIRBytes.WithTags(map[string]string{"interner_id": s.id}).Add(float64(len(k)))
-		tlmSIREntries.WithTags(map[string]string{"interner_id": s.id}).Add(1)
+		tlmSIRMiss.Inc()
+		tlmSIRBytes.Add(float64(len(k)))
+		tlmSIREntries.Add(1)
 	}
 	return v
 }
@@ -117,8 +113,8 @@ func (s *stringInterner) finalize(v *StringValue) {
 
 	deadValue := v.Get()
 	if s.tlmEnabled {
-		tlmSIRBytes.WithTags(map[string]string{"interner_id": s.id}).Sub(float64(len(deadValue)))
-		tlmSIREntries.WithTags(map[string]string{"interner_id": s.id}).Sub(1)
+		tlmSIRBytes.Sub(float64(len(deadValue)))
+		tlmSIREntries.Sub(1)
 	}
 	delete(s.valMap, deadValue)
 }
