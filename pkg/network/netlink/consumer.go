@@ -361,7 +361,9 @@ func LoadNfConntrackKernelModule(ns netns.NsHandle) error {
 		Data: dummyTupleData,
 	}
 
-	_, err = conn.Send(req)
+	if _, err = conn.Send(req); err != nil {
+		log.Warnf("Error while sending netlink request: %v", err)
+	}
 	_, _, err = sock.ReceiveAndDiscard()
 	if err != nil {
 		log.Warnf("Error while trying to load dummy entry from netlink: %v", err)
