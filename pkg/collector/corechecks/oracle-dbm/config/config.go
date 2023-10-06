@@ -30,7 +30,7 @@ type QuerySamplesConfig struct {
 	IncludeAllSessions bool `yaml:"include_all_sessions"`
 }
 
-type QueryMetricsTrackerConfig struct {
+type queryMetricsTrackerConfig struct {
 	ContainsText []string `yaml:"contains_text"`
 }
 
@@ -40,7 +40,7 @@ type QueryMetricsConfig struct {
 	DBRowsLimit        int                         `yaml:"db_rows_limit"`
 	DisableLastActive  bool                        `yaml:"disable_last_active"`
 	Lookback           int64                       `yaml:"lookback"`
-	Trackers           []QueryMetricsTrackerConfig `yaml:"trackers"`
+	Trackers           []queryMetricsTrackerConfig `yaml:"trackers"`
 }
 
 type SysMetricsConfig struct {
