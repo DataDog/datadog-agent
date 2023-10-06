@@ -180,7 +180,7 @@ func validateEnrichMetricTag(metricTag *profiledefinition.MetricTagConfig) []str
 	// When users declare metric tag like:
 	//   metric_tags:
 	//     - OID: 1.2.3
-	//       name: aSymbol
+	//       symbol: aSymbol
 	// this will lead to OID stored as MetricTagConfig.OID  and name stored as MetricTagConfig.Symbol.Name
 	// When this happens, we harmonize by moving MetricTagConfig.OID to MetricTagConfig.Symbol.OID.
 	if metricTag.OID != "" && metricTag.Symbol.OID != "" {
