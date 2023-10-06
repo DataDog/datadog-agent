@@ -195,6 +195,36 @@ func (c *ConnectionsCheck) getConnections() (*model.Connections, error) {
 	return tu.GetConnections(c.tracerClientID)
 }
 
+type MyBuffer struct {
+	buf []byte
+}
+
+func NewMyBuffer() *MyBuffer {
+	return &MyBuffer{buf: make([]byte, 0, 512)}
+}
+
+// ReadAll based of io.ReadAll, but sharing the buffer between calls to gain memory improvement.
+func (mb *MyBuffer) ReadAll(r io.Reader) error {
+	for {
+		if len(mb.buf) == cap(mb.buf) {
+			// Add more capacity (let append pick how much).
+			mb.buf = append(mb.buf, 0)[:len(mb.buf)]
+		}
+		n, err := r.Read(mb.buf[len(mb.buf):cap(mb.buf)])
+		mb.buf = mb.buf[:len(mb.buf)+n]
+		if err != nil {
+			if err == io.EOF {
+				err = nil
+			}
+			return err
+		}
+	}
+}
+
+func (mb *MyBuffer) Reset() {
+	mb.buf = mb.buf[:0]
+}
+
 func (c *ConnectionsCheck) getConnectionsWS() (*model.Connections, error) {
 	urrl := fmt.Sprintf("ws://unix/%s/ws-connections?client_id=%s", string(sysconfig.NetworkTracerModule), c.tracerClientID)
 	header := http.Header{}
@@ -209,41 +239,37 @@ func (c *ConnectionsCheck) getConnectionsWS() (*model.Connections, error) {
 	unmarshaler := netEncoding.GetUnmarshaler(netEncoding.ContentTypeProtobuf)
 
 	_, res, err := conn.ReadMessage()
-	if err == nil && len(res) == 0 {
-		log.Error(err)
-	}
-	if errors.Is(err, io.EOF) {
-		log.Error(err)
-
-	}
 	if err != nil {
 		return nil, fmt.Errorf("unable to get response from grpc server due to: %v", err)
 	}
 
-	receivedText := string(res)
-	csLen, err := strconv.Atoi(receivedText)
+	csLen, err := strconv.Atoi(string(res))
 	if err != nil {
-		log.Error(err)
+		return nil, fmt.Errorf("unable to convert first message to connections count: %v", err)
 	}
 
 	outcome := new(model.Connections)
 	outcome.Conns = make([]*model.Connection, 0, csLen)
 	log.Debugf("[grpc] the size of all of the connection is: %d", csLen)
 
+	mb := NewMyBuffer()
+
 	for {
 		currentStreamStartTime := time.Now()
-		_, res, err := conn.ReadMessage()
-		if err == nil && len(res) == 0 {
-			break
-		}
-		if errors.Is(err, io.EOF) {
-			break
-		}
+		_, r, err := conn.NextReader()
 		if err != nil {
-			return nil, fmt.Errorf("unable to get response from grpc server due to: %v", err)
+			return nil, fmt.Errorf("unable to get reader for next message: %v", err)
+		}
+		if err := mb.ReadAll(r); err != nil {
+			return nil, fmt.Errorf("unable to read message: %v", err)
 		}
 
-		batch, err := unmarshaler.Unmarshal(res)
+		// We send in the tracer an empty message.
+		if len(mb.buf) == 0 {
+			break
+		}
+
+		batch, err := unmarshaler.Unmarshal(mb.buf)
 		if err != nil {
 			return nil, fmt.Errorf("unable to unmarshal response due to: %v", err)
 		}
@@ -271,6 +297,7 @@ func (c *ConnectionsCheck) getConnectionsWS() (*model.Connections, error) {
 			outcome.PrebuiltEBPFAssets = batch.PrebuiltEBPFAssets
 		}
 		netEncoding.ConnsToPool(batch)
+		mb.Reset()
 	}
 	return outcome, nil
 }
