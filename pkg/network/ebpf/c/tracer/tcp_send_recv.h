@@ -7,6 +7,7 @@
 #include "tracer/events.h"
 #include "tracer/maps.h"
 #include "sock.h"
+#include "task_event.h"
 
 SEC("kprobe/tcp_recvmsg")
 int kprobe__tcp_recvmsg(struct pt_regs *ctx) {
