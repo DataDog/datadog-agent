@@ -518,9 +518,11 @@ def changelog(ctx, new_commit_sha):
             else:
                 messages.append(f"<{url}|{title}>")
 
+    commit_range_link = f"https://github.com/DataDog/datadog-agent/compare/{old_commit_sha}..{new_commit_sha}"
+
     slack_message = (
         f"The nightly deployment is rolling out to Staging :siren: \n"
-        f"Changelog for commit range: `{old_commit_sha}` to `{new_commit_sha}`\n"
+        f"Changelog for commit <{commit_range_link}|range>: `{old_commit_sha}` to `{new_commit_sha}`\n"
         + "\n".join(messages)
         + "\n:wave: Authors, please check relevant "
         "<https://ddstaging.datadoghq.com/dashboard/kfn-zy2-t98|dashboards> for issues"
@@ -528,7 +530,7 @@ def changelog(ctx, new_commit_sha):
     print(f"tagging {new_commit_sha}")
     ctx.run(
         f"aws ssm put-parameter --name ci.datadog-agent.gitlab_changelog_commit_sha --value {new_commit_sha} "
-        "--type \"SecureString\" --region us-east-1",
+        "--type \"SecureString\" --region us-east-1 --overwrite",
         hide=True,
     )
     send_slack_message("system-probe-ops", slack_message)
