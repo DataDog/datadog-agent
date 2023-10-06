@@ -91,7 +91,7 @@ func (p *Point) UnmarshalJSON(buf []byte) error {
 }
 
 // String could be used for debug logging
-func (serie Serie) String() string {
+func (serie *Serie) String() string {
 	s, err := json.Marshal(serie)
 	if err != nil {
 		return ""

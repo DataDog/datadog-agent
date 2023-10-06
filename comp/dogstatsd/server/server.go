@@ -11,6 +11,7 @@ import (
 	"encoding/json"
 	"expvar"
 	"fmt"
+	"github.com/DataDog/datadog-agent/pkg/util/cache"
 	"net"
 	"os"
 	"path"
@@ -147,6 +148,8 @@ type server struct {
 	enrichConfig enrichConfig
 
 	nrEvents, nrServiceChecks, nrMetricSamples uint64
+
+	interner *cache.KeyedInterner
 }
 
 type profileMetadata struct {
@@ -338,6 +341,16 @@ func newServerCompat(cfg config.ConfigReader, log logComponent.Component, captur
 		}
 	}
 
+	preserveOldSegments := cfg.GetBool("dogstatsd_string_interner_preserve_mmap")
+	stringInternerCacheSize := cfg.GetInt("dogstatsd_string_interner_size")
+
+	interner, err := cache.NewKeyedStringInterner(stringInternerCacheSize, -1, !preserveOldSegments)
+	if err != nil {
+		// TODO: fix
+		panic(err)
+		return nil
+	}
+
 	s := &server{
 		log:                     log,
 		config:                  cfg,
@@ -376,6 +389,7 @@ func newServerCompat(cfg config.ConfigReader, log logComponent.Component, captur
 			serverlessMode:            serverless,
 			originOptOutEnabled:       cfg.GetBool("dogstatsd_origin_optout_enabled"),
 		},
+		interner: interner,
 	}
 	return s
 }
@@ -672,7 +686,7 @@ func (s *server) parsePackets(batcher *batcher, parser *parser, packets []*packe
 
 			switch messageType {
 			case serviceCheckType:
-				serviceCheck, err := s.parseServiceCheckMessage(parser, message, packet.Origin)
+				serviceCheck, err := s.parseServiceCheckMessage(parser, message, packet.Origin, batcher)
 				if err != nil {
 					s.errLog("Dogstatsd: error parsing service check '%q': %s", message, err)
 					continue
@@ -680,7 +694,7 @@ func (s *server) parsePackets(batcher *batcher, parser *parser, packets []*packe
 				atomic.AddUint64(&s.nrServiceChecks, 1)
 				batcher.appendServiceCheck(serviceCheck)
 			case eventType:
-				event, err := s.parseEventMessage(parser, message, packet.Origin)
+				event, err := s.parseEventMessage(parser, message, packet.Origin, batcher)
 				if err != nil {
 					s.errLog("Dogstatsd: error parsing event '%q': %s", message, err)
 					continue
@@ -692,7 +706,7 @@ func (s *server) parsePackets(batcher *batcher, parser *parser, packets []*packe
 
 				samples = samples[0:0]
 
-				samples, err = s.parseMetricMessage(samples, parser, message, packet.Origin, s.originTelemetry)
+				samples, err = s.parseMetricMessage(samples, parser, message, packet.Origin, s.originTelemetry, batcher)
 				if err != nil {
 					s.errLog("Dogstatsd: error parsing metric message '%q': %s", message, err)
 					continue
@@ -769,14 +783,14 @@ func (s *server) getOriginCounter(origin string) (okCnt telemetry.SimpleCounter,
 // which will be slower when processing millions of samples. It could use a boolean returned by `parseMetricSample` which
 // is the first part aware of processing a late metric. Also, it may help us having a telemetry of a "late_metrics" type here
 // which we can't do today.
-func (s *server) parseMetricMessage(metricSamples []metrics.MetricSample, parser *parser, message []byte, origin string, originTelemetry bool) ([]metrics.MetricSample, error) {
+func (s *server) parseMetricMessage(metricSamples []metrics.MetricSample, parser *parser, message []byte, origin string, originTelemetry bool, retainer cache.InternRetainer) ([]metrics.MetricSample, error) {
 	okCnt := tlmProcessedOk
 	errorCnt := tlmProcessedError
 	if origin != "" && originTelemetry {
 		okCnt, errorCnt = s.getOriginCounter(origin)
 	}
 
-	sample, err := parser.parseMetricSample(message)
+	sample, err := parser.parseMetricSample(message, retainer)
 	if err != nil {
 		dogstatsdMetricParseErrors.Add(1)
 		errorCnt.Inc()
@@ -812,8 +826,8 @@ func (s *server) parseMetricMessage(metricSamples []metrics.MetricSample, parser
 	return metricSamples, nil
 }
 
-func (s *server) parseEventMessage(parser *parser, message []byte, origin string) (*event.Event, error) {
-	sample, err := parser.parseEvent(message)
+func (s *server) parseEventMessage(parser *parser, message []byte, origin string, retainer cache.InternRetainer) (*event.Event, error) {
+	sample, err := parser.parseEvent(message, retainer)
 	if err != nil {
 		dogstatsdEventParseErrors.Add(1)
 		tlmProcessed.Inc("events", "error", "")
@@ -826,8 +840,8 @@ func (s *server) parseEventMessage(parser *parser, message []byte, origin string
 	return event, nil
 }
 
-func (s *server) parseServiceCheckMessage(parser *parser, message []byte, origin string) (*servicecheck.ServiceCheck, error) {
-	sample, err := parser.parseServiceCheck(message)
+func (s *server) parseServiceCheckMessage(parser *parser, message []byte, origin string, retainer cache.InternRetainer) (*servicecheck.ServiceCheck, error) {
+	sample, err := parser.parseServiceCheck(message, retainer)
 	if err != nil {
 		dogstatsdServiceCheckParseErrors.Add(1)
 		tlmProcessed.Inc("service_checks", "error", "")

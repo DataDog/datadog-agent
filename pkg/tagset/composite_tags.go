@@ -7,6 +7,7 @@ package tagset
 
 import (
 	"encoding/json"
+	"github.com/DataDog/datadog-agent/pkg/util/cache"
 	"strings"
 )
 
@@ -64,9 +65,15 @@ func (t *CompositeTags) CombineWithSlice(tags []string) {
 // ForEach applies `callback` to each tag
 func (t CompositeTags) ForEach(callback func(tag string)) {
 	for _, t := range t.tags1 {
+		if !cache.Check(t) {
+			continue
+		}
 		callback(t)
 	}
 	for _, t := range t.tags2 {
+		if !cache.Check(t) {
+			continue
+		}
 		callback(t)
 	}
 }
@@ -75,11 +82,17 @@ func (t CompositeTags) ForEach(callback func(tag string)) {
 // The first error is returned.
 func (t CompositeTags) ForEachErr(callback func(tag string) error) error {
 	for _, t := range t.tags1 {
+		if !cache.Check(t) {
+			continue
+		}
 		if err := callback(t); err != nil {
 			return err
 		}
 	}
 	for _, t := range t.tags2 {
+		if !cache.Check(t) {
+			continue
+		}
 		if err := callback(t); err != nil {
 			return err
 		}
@@ -91,11 +104,17 @@ func (t CompositeTags) ForEachErr(callback func(tag string) error) error {
 // Find returns whether `callback` returns true for a tag
 func (t CompositeTags) Find(callback func(tag string) bool) bool {
 	for _, t := range t.tags1 {
+		if !cache.Check(t) {
+			continue
+		}
 		if callback(t) {
 			return true
 		}
 	}
 	for _, t := range t.tags2 {
+		if !cache.Check(t) {
+			continue
+		}
 		if callback(t) {
 			return true
 		}

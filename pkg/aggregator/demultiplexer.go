@@ -7,6 +7,8 @@ package aggregator
 
 import (
 	"errors"
+	"github.com/DataDog/datadog-agent/pkg/util/cache"
+
 	"sync"
 	"time"
 
@@ -106,6 +108,10 @@ type Demultiplexer interface {
 	// Senders API, mainly used by collectors/checks
 	// --
 	sender.SenderManager
+
+	// TakeRetentions accepts retentions and will keep them alive while data is
+	// still in-flight.  The retentions will be released after the data is serialized.
+	TakeRetentions(retentions cache.InternRetainer)
 }
 
 // trigger be used to trigger something in the TimeSampler or the BufferedAggregator.

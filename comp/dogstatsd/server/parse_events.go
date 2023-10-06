@@ -8,6 +8,7 @@ package server
 import (
 	"bytes"
 	"fmt"
+	"github.com/DataDog/datadog-agent/pkg/util/cache"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -145,10 +146,11 @@ func parseEventAlertType(rawAlertType []byte) (alertType, error) {
 	return alertTypeInfo, fmt.Errorf("invalid alert type: %q", rawAlertType)
 }
 
-func (p *parser) applyEventOptionalField(event dogstatsdEvent, optionalField []byte) (dogstatsdEvent, error) {
+func (p *parser) applyEventOptionalField(event dogstatsdEvent, optionalField []byte, retainer cache.InternRetainer) (dogstatsdEvent, error) {
 	newEvent := event
 	var err error
 	switch {
+	// TODO: intern these strings
 	case bytes.HasPrefix(optionalField, eventTimestampPrefix):
 		newEvent.timestamp, err = parseEventTimestamp(optionalField[len(eventTimestampPrefix):])
 	case bytes.HasPrefix(optionalField, eventHostnamePrefix):
@@ -162,7 +164,7 @@ func (p *parser) applyEventOptionalField(event dogstatsdEvent, optionalField []b
 	case bytes.HasPrefix(optionalField, eventAlertTypePrefix):
 		newEvent.alertType, err = parseEventAlertType(optionalField[len(eventAlertTypePrefix):])
 	case bytes.HasPrefix(optionalField, eventTagsPrefix):
-		newEvent.tags = p.parseTags(optionalField[len(eventTagsPrefix):])
+		newEvent.tags = p.parseTags(optionalField[len(eventTagsPrefix):], retainer)
 	case p.dsdOriginEnabled && bytes.HasPrefix(optionalField, containerIDFieldPrefix):
 		newEvent.containerID = p.extractContainerID(optionalField)
 	}
@@ -172,7 +174,7 @@ func (p *parser) applyEventOptionalField(event dogstatsdEvent, optionalField []b
 	return newEvent, nil
 }
 
-func (p *parser) parseEvent(message []byte) (dogstatsdEvent, error) {
+func (p *parser) parseEvent(message []byte, retainer cache.InternRetainer) (dogstatsdEvent, error) {
 	rawHeader, rawEvent, err := splitHeaderEvent(message)
 	if err != nil {
 		return dogstatsdEvent{}, err
@@ -205,7 +207,7 @@ func (p *parser) parseEvent(message []byte) (dogstatsdEvent, error) {
 	var optionalField []byte
 	for optionalFields != nil {
 		optionalField, optionalFields = nextField(optionalFields)
-		event, err = p.applyEventOptionalField(event, optionalField)
+		event, err = p.applyEventOptionalField(event, optionalField, retainer)
 		if err != nil {
 			log.Warnf("invalid event optional field: %v", err)
 		}

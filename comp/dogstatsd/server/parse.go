@@ -8,6 +8,7 @@ package server
 import (
 	"bytes"
 	"fmt"
+	"github.com/DataDog/datadog-agent/pkg/util/cache"
 	"strconv"
 	"time"
 	"unsafe"
@@ -38,7 +39,7 @@ var (
 // parser parses dogstatsd messages
 // not safe for concurent use
 type parser struct {
-	interner    *stringInterner
+	interner    *cache.KeyedInterner
 	float64List *float64ListPool
 
 	// dsdOriginEnabled controls whether the server should honor the container id sent by the
@@ -50,12 +51,10 @@ type parser struct {
 	readTimestamps bool
 }
 
-func newParser(cfg config.ConfigReader, float64List *float64ListPool) *parser {
-	stringInternerCacheSize := cfg.GetInt("dogstatsd_string_interner_size")
+func newParser(cfg config.ConfigReader, float64List *float64ListPool, interner *cache.KeyedInterner) *parser {
 	readTimestamps := cfg.GetBool("dogstatsd_no_aggregation_pipeline")
-
 	return &parser{
-		interner:         newStringInterner(stringInternerCacheSize),
+		interner:         interner,
 		readTimestamps:   readTimestamps,
 		float64List:      float64List,
 		dsdOriginEnabled: cfg.GetBool("dogstatsd_origin_detection_client"),
@@ -84,7 +83,7 @@ func nextField(message []byte) ([]byte, []byte) {
 	return message[:sepIndex], message[sepIndex+1:]
 }
 
-func (p *parser) parseTags(rawTags []byte) []string {
+func (p *parser) parseTags(rawTags []byte, ret cache.InternRetainer) []string {
 	if len(rawTags) == 0 {
 		return nil
 	}
@@ -97,16 +96,16 @@ func (p *parser) parseTags(rawTags []byte) []string {
 		if tagPos < 0 {
 			break
 		}
-		tagsList[i] = p.interner.LoadOrStore(rawTags[:tagPos], "")
+		tagsList[i] = p.interner.LoadOrStore(rawTags[:tagPos], "", ret)
 		rawTags = rawTags[tagPos+len(commaSeparator):]
 		i++
 	}
-	tagsList[i] = p.interner.LoadOrStore(rawTags, "")
+	tagsList[i] = p.interner.LoadOrStore(rawTags, "", ret)
 	return tagsList
 }
 
 // parseMetricSample parses the given message and return the dogstatsdMetricSample read.
-func (p *parser) parseMetricSample(message []byte) (dogstatsdMetricSample, error) {
+func (p *parser) parseMetricSample(message []byte, ret cache.InternRetainer) (dogstatsdMetricSample, error) {
 	// fast path to eliminate most of the gibberish
 	// especially important here since all the unidentified garbage gets
 	// identified as metrics
@@ -161,7 +160,7 @@ func (p *parser) parseMetricSample(message []byte) (dogstatsdMetricSample, error
 		switch {
 		// tags
 		case bytes.HasPrefix(optionalField, tagsFieldPrefix):
-			tags = p.parseTags(optionalField[1:])
+			tags = p.parseTags(optionalField[1:], ret)
 		// sample rate
 		case bytes.HasPrefix(optionalField, sampleRateFieldPrefix):
 			sampleRate, err = parseMetricSampleSampleRate(optionalField[1:])
@@ -188,7 +187,7 @@ func (p *parser) parseMetricSample(message []byte) (dogstatsdMetricSample, error
 	}
 
 	return dogstatsdMetricSample{
-		name:        p.interner.LoadOrStore(name, ""),
+		name:        p.interner.LoadOrStore(name, "", ret),
 		value:       value,
 		values:      values,
 		setValue:    string(setValue),

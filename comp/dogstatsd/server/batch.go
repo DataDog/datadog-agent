@@ -7,6 +7,7 @@
 package server
 
 import (
+	"github.com/DataDog/datadog-agent/pkg/util/cache"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
@@ -55,6 +56,10 @@ type batcher struct {
 	// the batcher can decide to properly distribute these samples on the available
 	// pipelines.
 	noAggPipelineEnabled bool
+
+	// Retain intern'd objects long enough to serialize them back out.
+	retentions map[cache.Refcounted]int32
+	cache.InternRetainer
 }
 
 // Use fastrange instead of a modulo for better performance.
@@ -108,6 +113,7 @@ func newBatcher(demux aggregator.DemultiplexerWithAggregator) *batcher {
 		keyGenerator:  ckey.NewKeyGenerator(),
 
 		noAggPipelineEnabled: demux.Options().EnableNoAggregationPipeline,
+		retentions:           make(map[cache.Refcounted]int32),
 	}
 }
 
@@ -212,6 +218,13 @@ func (b *batcher) flushSamplesWithTs() {
 	}
 }
 
+// forwardRetentions passes all the object retentions we've made onto
+// the demux for processing.  Do this last so our worst mistake is to
+// retain things too long instead of long enough.
+func (b *batcher) forwardRetentions() {
+	b.demux.TakeRetentions(b)
+}
+
 // flush pushes all batched metrics to the aggregator.
 func (b *batcher) flush() {
 	// flush all on-time samples on their respective time sampler
@@ -241,4 +254,25 @@ func (b *batcher) flush() {
 
 		b.serviceChecks = []*servicecheck.ServiceCheck{}
 	}
+
+	b.forwardRetentions()
+}
+
+// Interner Retention
+// -------- ---------
+
+func (b *batcher) Reference(obj cache.Refcounted) {
+	b.retentions[obj] += 1
+}
+func (b *batcher) ReleaseAllWith(callback func(obj cache.Refcounted, count int32)) {
+	for k, v := range b.retentions {
+		callback(k, v)
+		delete(b.retentions, k)
+	}
+}
+
+func (b *batcher) ReleaseAll() {
+	b.ReleaseAllWith(func(obj cache.Refcounted, count int32) {
+		obj.Release(count)
+	})
 }

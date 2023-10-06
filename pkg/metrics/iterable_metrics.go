@@ -7,6 +7,7 @@ package metrics
 
 import (
 	"context"
+	"github.com/DataDog/datadog-agent/pkg/util/cache"
 	"sync"
 
 	"go.uber.org/atomic"
@@ -117,7 +118,8 @@ func Serialize(
 	iterableSketches *IterableSketches,
 	producer func(SerieSink, SketchesSink),
 	serieConsumer func(SerieSource),
-	sketchesConsumer func(SketchesSource)) {
+	sketchesConsumer func(SketchesSource),
+	retentions cache.InternRetainer) {
 	var waitGroup sync.WaitGroup
 	var serieSink SerieSink = noOpSerieSink{}
 	var sketchesSink SketchesSink = noOpSketchesSink{}
@@ -147,6 +149,11 @@ func Serialize(
 		iterableSketches.senderStopped()
 	}
 	waitGroup.Wait()
+
+	// Release any memory-holds that any in-flight data may have held.  Serialization copies everything.
+	if retentions != nil {
+		retentions.ReleaseAll()
+	}
 }
 
 var _ SerieSink = noOpSerieSink{}

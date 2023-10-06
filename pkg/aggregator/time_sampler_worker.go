@@ -60,7 +60,7 @@ func newTimeSamplerWorker(sampler *TimeSampler, flushInterval time.Duration, buf
 	}
 }
 
-// We process all receivend samples in the `select`, but we also process a flush action,
+// We process all received samples in the `select`, but we also process a flush action,
 // meaning that the time sampler does not process any sample while flushing.
 // Note that it was the same design in the BufferedAggregator (but at the aggregator level,
 // not sampler level).
