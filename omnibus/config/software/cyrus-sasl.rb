@@ -3,7 +3,7 @@ default_version "2.1.28"
 
 dependency "lmdb"
 
-if redhat_target?
+if redhat?
     dependency "libcom_err"
 end
 

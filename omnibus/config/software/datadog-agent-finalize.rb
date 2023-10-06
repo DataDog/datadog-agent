@@ -91,7 +91,7 @@ build do
 
         if linux_target?
             # Fix pip after building on extended toolchain in CentOS builder
-            if redhat_target? && ohai["platform_version"].to_i == 6
+            if redhat? && ohai["platform_version"].to_i == 6
               unless arm_target?
                 rhel_toolchain_root = "/opt/rh/devtoolset-1.1/root"
                 # lets be cautious - we first search for the expected toolchain path, if its not there, bail out
