@@ -125,6 +125,8 @@ func (a *APIServer) GetEvents(params *api.GetEventParams, stream api.SecurityMod
 				if err := stream.Send(msg); err != nil {
 					return err
 				}
+			} else {
+				a.expireEvent(msg)
 			}
 		}
 	}
