@@ -99,17 +99,3 @@ func validateUDPConnection(t *testing.T, c *agentmodel.Connection) {
 	// technically possible but in reality no UDP protocol implement that
 	// require.False(t, c.LastBytesSent == 0 && c.LastBytesReceived == 0, "connection with no packet bytes")
 }
-
-func validateDNS(t *testing.T, c *agentmodel.Connection, cc *agentmodel.CollectorConnections, hostname string) {
-	if len(c.DnsStatsByDomainOffsetByQueryType) == 0 {
-		return
-	}
-	for domain, stats := range c.DnsStatsByDomainOffsetByQueryType {
-		for queryType, dnsstat := range stats.DnsStatsByQueryType {
-			domainName, err := cc.GetDNSNameByOffset(domain)
-			require.NoErrorf(t, err, "can't resolve domain tags on %s connection %s", hostname, krpretty.Sprint(c))
-			t.Logf("DNS %s query type %v %s", domainName, queryType, krpretty.Sprint(dnsstat))
-			t.Logf("connection to %s:%d", c.Raddr.Ip, c.Raddr.Port)
-		}
-	}
-}
