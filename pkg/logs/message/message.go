@@ -193,7 +193,7 @@ func NewMessage(content []byte, origin *Origin, status string, ingestionTimestam
 
 // NewStructuredMessage creates a new message that had some structure the moment
 // it has been captured through a tailer.
-// e.g. a journald message which is a JSON containing many information, including
+// e.g. a journald message which is a JSON object containing extra information, including
 // the actual message of the entry. We need these objects to be able to apply
 // processing on the message entry only, while we still have to send all
 // the information to the intake.
