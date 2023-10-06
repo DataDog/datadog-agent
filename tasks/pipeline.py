@@ -534,7 +534,7 @@ def changelog(ctx, new_commit_sha):
     print(f"Writing {new_commit_sha} to SSM")
     ctx.run(
         f"aws ssm put-parameter --name ci.datadog-agent.gitlab_changelog_commit_sha --value {new_commit_sha} "
-        "--type \"SecureString\" --region us-east-1",
+        "--type \"SecureString\" --region us-east-1 --overwrite",
         hide=False,
     )
     send_slack_message("system-probe-ops", slack_message)
