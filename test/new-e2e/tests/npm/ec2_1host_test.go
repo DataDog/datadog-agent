@@ -20,10 +20,8 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-const NPMsystemProbeConfig = `
-network_config:
-  enabled: true
-`
+// go:embed config/npm.yaml
+var npmSystemProbeConfig string
 
 type ec2VMSuite struct {
 	e2e.Suite[e2e.FakeIntakeEnv]
@@ -43,7 +41,7 @@ func TestEC2VMSuite(t *testing.T) {
 	// Source of our kitchen CI images test/kitchen/platforms.json
 	// Other VM image can be used, our kitchen CI images test/kitchen/platforms.json
 	// ec2params.WithImageName("ami-a4dc46db", os.AMD64Arch, ec2os.AmazonLinuxOS) // ubuntu-16-04-4.4
-	e2e.Run(t, s, e2e.FakeIntakeStackDef(e2e.WithAgentParams(agentparams.WithSystemProbeConfig(NPMsystemProbeConfig))), e2eParams...)
+	e2e.Run(t, s, e2e.FakeIntakeStackDef(e2e.WithAgentParams(agentparams.WithSystemProbeConfig(npmSystemProbeConfig))), e2eParams...)
 }
 
 // TestFakeIntakeNPM Validate the agent can communicate with the (fake) backend and send connections every 30 seconds
