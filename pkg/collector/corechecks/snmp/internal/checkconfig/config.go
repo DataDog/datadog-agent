@@ -543,18 +543,21 @@ func getProfiles(initConfig InitConfig) (profileConfigMap, error) {
 		//   There are possibly multiple init configs
 		customProfiles, err := loadProfiles(initConfig.Profiles)
 		if err != nil {
+			// TODO: test me
 			return nil, fmt.Errorf("failed to load initConfig profiles: %s", err)
 		}
 		profiles = customProfiles
 	} else if profileBundleFileExist() {
 		defaultProfiles, err := loadBundleJsonProfiles()
 		if err != nil {
+			// TODO: test me
 			return nil, fmt.Errorf("failed to load bundle json profiles: %s", err)
 		}
 		profiles = defaultProfiles
 	} else {
 		defaultProfiles, err := loadYamlProfiles()
 		if err != nil {
+			// TODO: test me
 			return nil, fmt.Errorf("failed to load yaml profiles: %s", err)
 		}
 		profiles = defaultProfiles
