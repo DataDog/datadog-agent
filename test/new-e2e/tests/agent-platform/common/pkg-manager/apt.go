@@ -24,5 +24,5 @@ func NewAptPackageManager(vmClient *e2eClient.VMClient) *AptPackageManager {
 
 // Remove call remove from apt
 func (s *AptPackageManager) Remove(pkg string) (string, error) {
-	return s.vmClient.ExecuteWithError(fmt.Sprintf("sudo apt-get remove -q -y %s", pkg))
+	return s.vmClient.ExecuteWithError(fmt.Sprintf("sudo apt remove -q -y %s", pkg))
 }
