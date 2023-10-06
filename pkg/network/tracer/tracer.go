@@ -244,10 +244,15 @@ func newConntracker(cfg *config.Config, bpfTelemetry *nettelemetry.EBPFTelemetry
 	var err error
 
 	ns, err := cfg.GetRootNetNs()
-	err = netlink.FetchDummyEntry(ns)
-	c, err = NewEBPFConntracker(cfg, bpfTelemetry)
+	if err != nil {
+		log.Warnf("error fetching root net namespace %s", err)
+	} else {
+		if err = netlink.LoadNfConntrackKernelModule(ns); err != nil {
+			log.Warnf("failed to load conntrack kernel module, though it may already be loaded")
+		}
+	}
 
-	if err == nil {
+	if c, err = NewEBPFConntracker(cfg, bpfTelemetry); err == nil {
 		return c, nil
 	}
 

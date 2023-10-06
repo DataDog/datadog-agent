@@ -337,7 +337,9 @@ func (c *Consumer) dumpTable(family uint8, output chan Event, ns netns.NsHandle)
 	})
 }
 
-func FetchDummyEntry(ns netns.NsHandle) error {
+// LoadNfConntrackKernelModule requests a dummy connection tuple from netlink conntrack which is discarded but has
+// the side effect of loading the nf_conntrack_netlink module
+func LoadNfConntrackKernelModule(ns netns.NsHandle) error {
 	sock, err := NewSocket(ns)
 	if err != nil {
 		return fmt.Errorf("could not open netlink socket for net ns %d: %w", int(ns), err)
