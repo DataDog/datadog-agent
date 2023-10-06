@@ -470,7 +470,7 @@ func (c *Check) StatementMetrics() (int, error) {
 			previousMonotonic, exists := c.statementMetricsMonotonicCountsPrevious[statementMetricRow.StatementMetricsKeyDB]
 			if exists {
 				if trace {
-					log.Infof("%s previous: %+v", c.logPrompt, statementMetricRow)
+					log.Infof("%s previous: %+v %+v", c.logPrompt, statementMetricRow.StatementMetricsKeyDB, previousMonotonic)
 				}
 				diff = OracleRowMonotonicCount{}
 				if diff.ParseCalls = statementMetricRow.ParseCalls - previousMonotonic.ParseCalls; diff.ParseCalls < 0 {
