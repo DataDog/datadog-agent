@@ -10,6 +10,7 @@ import (
 	"crypto/sha256"
 	"encoding/gob"
 	"encoding/hex"
+	ndmtestutils "github.com/DataDog/datadog-agent/pkg/networkdevice/testutils"
 	"net"
 	"testing"
 	"time"
@@ -41,6 +42,9 @@ func (f DummyFormatter) FormatPacket(packet *SnmpPacket) ([]byte, error) {
 }
 
 func createForwarder(t *testing.T) (forwarder *TrapForwarder, err error) {
+	serverPort, err := ndmtestutils.GetFreePort()
+	require.NoError(t, err)
+
 	packetsIn := make(PacketsChannel)
 	mockSender := mocksender.NewMockSender("snmp-traps-listener")
 	mockSender.SetupAcceptAll()

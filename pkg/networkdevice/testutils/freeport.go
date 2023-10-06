@@ -5,7 +5,7 @@
 
 //go:build test
 
-package testutil
+package testutils
 
 import (
 	"net"

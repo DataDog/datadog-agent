@@ -8,9 +8,6 @@
 package traps
 
 import (
-	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
-	"net"
-	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -83,43 +80,6 @@ var (
 		},
 	}
 )
-
-func getFreePort() uint16 {
-	sender := mocksender.NewMockSender("")
-
-	var port uint16
-	for i := 0; i < 5; i++ {
-		conn, err := net.ListenPacket("udp", ":0")
-		if err != nil {
-			continue
-		}
-		conn.Close()
-		port, err = parsePort(conn.LocalAddr().String())
-		if err != nil {
-			continue
-		}
-		listener, err := startSNMPTrapListener(Config{Port: port}, sender, nil)
-		if err != nil {
-			continue
-		}
-		listener.Stop()
-		return port
-	}
-	panic("unable to find free port for starting the trap listener")
-}
-
-func parsePort(addr string) (uint16, error) {
-	_, portString, err := net.SplitHostPort(addr)
-	if err != nil {
-		return 0, err
-	}
-
-	port, err := strconv.ParseUint(portString, 10, 16)
-	if err != nil {
-		return 0, err
-	}
-	return uint16(port), nil
-}
 
 // Configure sets Datadog Agent configuration from a config object.
 func Configure(t *testing.T, trapConfig Config) {

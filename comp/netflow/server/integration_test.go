@@ -22,6 +22,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/netflow/flowaggregator"
 	"github.com/DataDog/datadog-agent/comp/netflow/testutil"
 	"github.com/DataDog/datadog-agent/pkg/epforwarder"
+	ndmtestutils "github.com/DataDog/datadog-agent/pkg/networkdevice/testutils"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
@@ -60,7 +61,7 @@ func assertFlowEventsCount(t *testing.T, port uint16, srv *Server, packetData []
 }
 
 func TestNetFlow_IntegrationTest_NetFlow5(t *testing.T) {
-	port, err := testutil.GetFreePort()
+	port, err := ndmtestutils.GetFreePort()
 	require.NoError(t, err)
 	var epForwarder forwarder.MockComponent
 	srv := fxutil.Test[Component](t, fx.Options(
@@ -85,7 +86,7 @@ func TestNetFlow_IntegrationTest_NetFlow5(t *testing.T) {
 }
 
 func TestNetFlow_IntegrationTest_NetFlow9(t *testing.T) {
-	port, err := testutil.GetFreePort()
+	port, err := ndmtestutils.GetFreePort()
 	require.NoError(t, err)
 	var epForwarder forwarder.MockComponent
 	srv := fxutil.Test[Component](t, fx.Options(
@@ -108,7 +109,7 @@ func TestNetFlow_IntegrationTest_NetFlow9(t *testing.T) {
 }
 
 func TestNetFlow_IntegrationTest_SFlow5(t *testing.T) {
-	port, err := testutil.GetFreePort()
+	port, err := ndmtestutils.GetFreePort()
 	require.NoError(t, err)
 	var epForwarder forwarder.MockComponent
 	srv := fxutil.Test[Component](t, fx.Options(

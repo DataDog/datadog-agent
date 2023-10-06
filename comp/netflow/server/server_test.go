@@ -26,7 +26,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/ndmtmp/sender"
 	nfconfig "github.com/DataDog/datadog-agent/comp/netflow/config"
 	"github.com/DataDog/datadog-agent/comp/netflow/goflowlib"
-	"github.com/DataDog/datadog-agent/comp/netflow/testutil"
+	ndmtestutils "github.com/DataDog/datadog-agent/pkg/networkdevice/testutils"
 )
 
 type dummyFlowProcessor struct {
@@ -81,7 +81,7 @@ var testOptions = fx.Options(
 )
 
 func TestStartServerAndStopServer(t *testing.T) {
-	port, err := testutil.GetFreePort()
+	port, err := ndmtestutils.GetFreePort()
 	require.NoError(t, err)
 	var component Component
 	app := fxtest.New(t, fx.Options(
