@@ -12,7 +12,6 @@ import (
 	"time"
 
 	agentmodel "github.com/DataDog/agent-payload/v5/process"
-	krpretty "github.com/kr/pretty"
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/params"
@@ -112,18 +111,8 @@ func (v *ec2VMSuite) TestFakeIntakeNPM_TCP_UDP_DNS() {
 		cnx, err := v.Env().Fakeintake.GetConnections()
 		require.NoError(c, err)
 
-		var currentHostname string
-		var currentConnection *agentmodel.Connection
-		t.Cleanup(func() {
-			if t.Failed() {
-				t.Logf(krpretty.Sprintf("test failed on host %s at connection %# v", currentHostname, currentConnection))
-			}
-		})
-
 		foundDNS := false
 		cnx.ForeachConnection(func(c *agentmodel.Connection, cc *agentmodel.CollectorConnections, hostname string) {
-			currentHostname = hostname
-			currentConnection = c
 			if len(c.DnsStatsByDomainOffsetByQueryType) > 0 {
 				foundDNS = true
 			}
@@ -139,9 +128,8 @@ func (v *ec2VMSuite) TestFakeIntakeNPM_TCP_UDP_DNS() {
 		}
 		countConnections := make(map[string]*countCnx)
 
+		helperCleanup(t)
 		cnx.ForeachConnection(func(c *agentmodel.Connection, cc *agentmodel.CollectorConnections, hostname string) {
-			currentHostname = hostname
-			currentConnection = c
 			var count *countCnx
 			var found bool
 			if count, found = countConnections[hostname]; !found {

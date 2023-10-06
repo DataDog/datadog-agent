@@ -15,8 +15,19 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+var helperCurrentHostname string
+var helperCurrentConnection *agentmodel.Connection
+
+func helperCleanup(t *testing.T) {
+	t.Cleanup(func() {
+		if t.Failed() {
+			t.Logf(krpretty.Sprintf("test failed on host %s at connection %# v", helperCurrentHostname, helperCurrentConnection))
+		}
+	})
+}
+
 func validateAddr(t *testing.T, addr *agentmodel.Addr) {
-	require.NotEqual(t, 0, len(addr.Ip), "addr.Ip = 0")
+	require.NotEmpty(t, addr.Ip, "addr.Ip = 0")
 	require.GreaterOrEqualf(t, addr.Port, int32(1), "addr.Port < 1 %d", addr.Port)
 	require.Lessf(t, addr.Port, int32(65536), "addr.Port > 16bits %d", addr.Port)
 
@@ -24,6 +35,9 @@ func validateAddr(t *testing.T, addr *agentmodel.Addr) {
 }
 
 func validateConnection(t *testing.T, c *agentmodel.Connection, cc *agentmodel.CollectorConnections, hostname string) {
+	helperCurrentHostname = hostname
+	helperCurrentConnection = c
+
 	require.NotZero(t, c.Pid, "Pid = 0")
 	require.NotZero(t, c.NetNS, "network namespace = 0")
 	require.NotNil(t, c.Laddr, "Laddr is nil")
