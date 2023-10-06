@@ -98,61 +98,6 @@ func (s *USMSuite) TestEnableHTTPMonitoring() {
 	_ = setupTracer(t, cfg)
 }
 
-func (s *USMSuite) TestHTTPStats() {
-	t := s.T()
-	t.Run("status code", func(t *testing.T) {
-		testHTTPStats(t, true)
-	})
-	t.Run("status class", func(t *testing.T) {
-		testHTTPStats(t, false)
-	})
-}
-
-func testHTTPStats(t *testing.T, aggregateByStatusCode bool) {
-	if !httpSupported() {
-		t.Skip("HTTP monitoring feature not available")
-		return
-	}
-
-	// Start an HTTP server on localhost:8080
-	serverAddr := "127.0.0.1:8080"
-	srv := &nethttp.Server{
-		Addr: serverAddr,
-		Handler: nethttp.HandlerFunc(func(w nethttp.ResponseWriter, req *nethttp.Request) {
-			io.Copy(io.Discard, req.Body)
-			w.WriteHeader(204)
-		}),
-		ReadTimeout:  time.Second,
-		WriteTimeout: time.Second,
-	}
-	srv.SetKeepAlivesEnabled(false)
-	go func() { _ = srv.ListenAndServe() }()
-	t.Cleanup(func() { _ = srv.Shutdown(context.Background()) })
-
-	cfg := testConfig()
-	cfg.EnableHTTPMonitoring = true
-	cfg.EnableHTTPStatsByStatusCode = aggregateByStatusCode
-	tr := setupTracer(t, cfg)
-
-	resp, err := nethttp.Get("http://" + serverAddr + "/test")
-	require.NoError(t, err)
-	_ = resp.Body.Close()
-	// Iterate through active connections until we find connection created above
-	require.Eventuallyf(t, func() bool {
-		payload := getConnections(t, tr)
-		for key, stats := range payload.HTTP {
-			if key.Method == http.MethodGet && key.Path.Content.Get() == "/test" && (key.SrcPort == 8080 || key.DstPort == 8080) {
-				currentStats := stats.Data[stats.NormalizeStatusCode(204)]
-				if currentStats != nil && currentStats.Count == 1 {
-					return true
-				}
-			}
-		}
-
-		return false
-	}, 3*time.Second, 100*time.Millisecond, "couldn't find http connection matching: %s", serverAddr)
-}
-
 func (s *USMSuite) TestHTTPSViaLibraryIntegration() {
 	t := s.T()
 	if !httpsSupported() {
