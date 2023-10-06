@@ -499,7 +499,7 @@ def changelog(ctx, new_commit_sha):
         "aws ssm get-parameter --region us-east-1 --name "
         "ci.datadog-agent.gitlab_changelog_commit_sha --with-decryption --query "
         "\"Parameter.Value\" --out text",
-        hide=False,
+        hide=True,
     ).stdout.strip()
     print(f"Generating changelog for commit range {old_commit_sha} to {new_commit_sha}")
     commits = ctx.run(f"git log {old_commit_sha}..{new_commit_sha} --pretty=format:%h", hide=True).stdout.split("\n")
@@ -526,8 +526,11 @@ def changelog(ctx, new_commit_sha):
         "<https://ddstaging.datadoghq.com/dashboard/kfn-zy2-t98|dashboards> for issues"
     )
     print(f"tagging {new_commit_sha}")
-    # ctx.run(f"aws ssm put-parameter --name ci.datadog-agent.gitlab_changelog_commit_sha --value \"{new_git_sha}\" "
-    #         "--type \"SecureString\" --region us-east-1", hide=False)
+    ctx.run(
+        f"aws ssm put-parameter --name ci.datadog-agent.gitlab_changelog_commit_sha --value {new_commit_sha} "
+        "--type \"SecureString\" --region us-east-1",
+        hide=True,
+    )
     send_slack_message("system-probe-ops", slack_message)
 
 
