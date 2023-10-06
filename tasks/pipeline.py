@@ -501,6 +501,12 @@ def changelog(ctx, new_commit_sha):
         "\"Parameter.Value\" --out text",
         hide=True,
     ).stdout.strip()
+    if not new_commit_sha:
+        print("New commit sha not found, exiting")
+        return
+    if not old_commit_sha:
+        print("Old commit sha not found, exiting")
+        return
     print(f"Generating changelog for commit range {old_commit_sha} to {new_commit_sha}")
     commits = ctx.run(f"git log {old_commit_sha}..{new_commit_sha} --pretty=format:%h", hide=True).stdout.split("\n")
     owners = read_owners(".github/CODEOWNERS")
