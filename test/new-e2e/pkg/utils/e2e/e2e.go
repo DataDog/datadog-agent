@@ -144,7 +144,7 @@
 //	}
 //
 //	func (v *agentSuite) TestBasicAgent() {
-//		config := v.Env().Agent.Config()
+//		config, _ := v.Env().Agent.Config()
 //		require.Contains(v.T(), config, "log_level: debug")
 //	}
 //
@@ -260,13 +260,13 @@
 //
 //	func (suite *multipleEnvSuite) TestLogDebug() {
 //		suite.UpdateEnv(e2e.AgentStackDef(e2e.WithAgentParams(agentparams.WithAgentConfig("log_level: debug"))))
-//		config := suite.Env().Agent.Config()
+//		config, _ := suite.Env().Agent.Config()
 //		require.Contains(suite.T(), config, "log_level: debug")
 //	}
 //
 //	func (suite *multipleEnvSuite) TestLogInfo() {
 //		suite.UpdateEnv(e2e.AgentStackDef(e2e.WithAgentParams(agentparams.WithAgentConfig("log_level: info"))))
-//		config := suite.Env().Agent.Config()
+//		config, _ := suite.Env().Agent.Config()
 //		require.Contains(suite.T(), config, "log_level: info")
 //	}
 //
@@ -448,7 +448,7 @@ func (suite *Suite[Env]) Env() *Env {
 // If you override BeforeTest in your custom test suite type, the function must call [e2e.Suite.BeforeTest].
 //
 // [testify Suite]: https://pkg.go.dev/github.com/stretchr/testify/suite
-func (suite *Suite[Env]) BeforeTest(suiteName, testName string) {
+func (suite *Suite[Env]) BeforeTest(_, _ string) {
 	suite.isUpdateEnvCalledInThisTest = false
 }
 

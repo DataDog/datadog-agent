@@ -55,7 +55,7 @@ func (v *agentSuite) TestWithAgentConfig() {
 			agentParams = append(agentParams, agentparams.WithAgentConfig(param.config))
 		}
 		v.UpdateEnv(e2e.AgentStackDef(e2e.WithAgentParams(agentParams...)))
-		config := v.Env().Agent.Config()
+		config, _ := v.Env().Agent.Config()
 		re := regexp.MustCompile(`.*log_level:(.*)\n`)
 		matches := re.FindStringSubmatch(config)
 		require.NotEmpty(v.T(), matches)
@@ -75,10 +75,10 @@ func (v *agentSuite) TestWithTelemetry() {
 }
 
 func (v *agentSuite) TestWithLogs() {
-	config := v.Env().Agent.Config()
+	config, _ := v.Env().Agent.Config()
 	require.Contains(v.T(), config, "logs_enabled: false")
 
 	v.UpdateEnv(e2e.AgentStackDef(e2e.WithAgentParams(agentparams.WithLogs())))
-	config = v.Env().Agent.Config()
+	config, _ = v.Env().Agent.Config()
 	require.Contains(v.T(), config, "logs_enabled: true")
 }
