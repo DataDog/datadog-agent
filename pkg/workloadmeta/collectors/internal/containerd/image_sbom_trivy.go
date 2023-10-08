@@ -76,6 +76,11 @@ func (c *collector) startSBOMCollection(ctx context.Context) error {
 
 	go func() {
 		for result := range resultChan {
+			if result.ImgMeta == nil {
+				log.Errorf("Scan result does not hold the image identifier. Error: %s", result.Error)
+				continue
+			}
+
 			status := workloadmeta.Success
 			reportedError := ""
 			var report *cyclonedx.BOM

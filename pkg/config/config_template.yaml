@@ -1556,7 +1556,7 @@ api_key:
 
   ## @param instrumentation_enabled_namespaces - list of strings - optional
   ## @env DD_APM_INSTRUMENTATION_ENABLED_NAMESPACES - space separated list of strings - optional
-  ## Enables Single Step Instrumentation in specific namespaces, while Single Step Instrumentation is off in the whole cluster. (in beta)
+  ## Enables Single Step Instrumentation in specific namespaces, while Single Step Instrumentation is off in the whole cluster (in beta)
   ## Can only be set if DD_APM_INSTRUMENTATION_ENABLED is false. Cannot be set together with DD_APM_INSTRUMENTATION_DISABLED_NAMESPACES.
   #
   # instrumentation_enabled_namespaces:
@@ -1565,7 +1565,7 @@ api_key:
 
   ## @param instrumentation_disabled_namespaces - list of strings - optional
   ## @env DD_APM_INSTRUMENTATION_DISABLED_NAMESPACES - space separated list of strings - optional
-  ## Disables Single Step Instrumentation in specific namespaces, while Single Step Instrumentation is enabled in the whole cluster. (in beta)
+  ## Disables Single Step Instrumentation in specific namespaces, while Single Step Instrumentation is enabled in the whole cluster (in beta)
   ## Can only be set if DD_APM_INSTRUMENTATION_ENABLED is true. Cannot be set together with DD_APM_INSTRUMENTATION_ENABLED_NAMESPACES.
   #
   # instrumentation_disabled_namespaces:

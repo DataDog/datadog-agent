@@ -33,5 +33,4 @@ instances:
 
     ## @param openmetrics_endpoint - openmetrics endpoint on which containerd runtime exposes metrics
     #  Learn more about exposing containerd openmetrics endpoint: https://github.com/containerd/containerd/blob/main/docs/ops.md
-    #
-    openmetrics_endpoint: http://127.0.0.1:1338
+    # openmetrics_endpoint: http://127.0.0.1:1338

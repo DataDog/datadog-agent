@@ -83,6 +83,13 @@ func TestExtractCloudwatchEventARN(t *testing.T) {
 
 	arn := ExtractCloudwatchEventARN(event)
 	assert.Equal(t, "test-arn", arn)
+
+	eventEmptyResources := events.CloudWatchEvent{
+		Resources: []string{},
+	}
+
+	arnEmpty := ExtractCloudwatchEventARN(eventEmptyResources)
+	assert.Equal(t, "", arnEmpty)
 }
 
 func TestExtractCloudwatchLogsEventARN(t *testing.T) {

@@ -40,7 +40,7 @@ type ProcessSerializer struct {
 	// Container context
 	Container *ContainerContextSerializer `json:"container,omitempty"`
 	// Command line arguments
-	Args string `json:"args,omitempty"`
+	CmdLine string `json:"cmdline,omitempty"`
 }
 
 // FileEventSerializer serializes a file event to JSON
@@ -56,7 +56,7 @@ type NetworkDeviceSerializer struct{}
 // EventSerializer serializes an event to JSON
 // easyjson:json
 type EventSerializer struct {
-	*BaseEventSerializer `json:"evt,omitempty"`
+	*BaseEventSerializer
 }
 
 func newFileSerializer(fe *model.FileEvent, e *model.Event, forceInode ...uint64) *FileSerializer {
@@ -74,7 +74,7 @@ func newProcessSerializer(ps *model.Process, e *model.Event, resolvers *resolver
 		Pid:        ps.Pid,
 		PPid:       getUint32Pointer(&ps.PPid),
 		Executable: newFileSerializer(&ps.FileEvent, e),
-		Args:       ps.Args,
+		CmdLine:    ps.CmdLine,
 	}
 
 	if len(ps.ContainerID) != 0 {

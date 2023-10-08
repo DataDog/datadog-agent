@@ -499,7 +499,7 @@ func (r *defaultResolver) getProcs(ctx context.Context) ([]*process.Process, err
 }
 
 func (r *defaultResolver) resolveGroup(ctx context.Context, spec InputSpecGroup) (interface{}, error) {
-	f, err := os.Open("/etc/group")
+	f, err := os.Open(r.pathNormalizeToHostRoot("/etc/group"))
 	if err != nil {
 		return nil, err
 	}
