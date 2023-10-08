@@ -355,16 +355,16 @@ func (pm *ProcessMonitor) Initialize() error {
 			// Initialize should be called only once after we registered all callbacks. Thus, if we have no registered
 			// callback, no need to scan already running processes.
 			if execCallbacksLength > 0 {
-				//handleProcessExecWrapper := func(pid int) error {
-				//	pm.handleProcessExec(uint32(pid))
-				//	return nil
-				//}
+				handleProcessExecWrapper := func(pid int) error {
+					pm.handleProcessExec(uint32(pid))
+					return nil
+				}
 				// Scanning already running processes
-				//if err := kernel.WithAllProcs(kernel.ProcFSRoot(), handleProcessExecWrapper); err != nil {
-				//	initErr = fmt.Errorf("process monitor init, scanning all process failed %s", err)
-				//	pm.tel.processScanFailed.Add(1)
-				//	return
-				//}
+				if err := kernel.WithAllProcs(kernel.ProcFSRoot(), handleProcessExecWrapper); err != nil {
+					initErr = fmt.Errorf("process monitor init, scanning all process failed %s", err)
+					pm.tel.processScanFailed.Add(1)
+					return
+				}
 			}
 		},
 	)

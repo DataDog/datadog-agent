@@ -347,11 +347,21 @@ typedef struct {
 } process_monitor_event_t;
 
 BPF_PERF_EVENT_ARRAY_MAP(process_monitor_events, __u32);
+// Max PID can be obtained from /proc/sys/kernel/pid_max
+BPF_ARRAY_MAP(process_id_in_flight, bool, 4194304);
 
 SEC("tracepoint/syscalls/sys_enter_connect")
 int tracepoint__syscalls__sys_enter_connect(struct trace_event_raw_sys_enter *ctx) {
     uint32_t tgid = (uint32_t)bpf_get_current_pid_tgid();
     log_debug("tracepoint__syscalls__sys_enter_connect: tgid is %d", tgid);
+
+    bool *val = bpf_map_lookup_elem(&process_id_in_flight, &tgid);
+    if (val && *val == true) {
+        return 0;
+    }
+    bool value = true;
+    bpf_map_update_elem(&process_id_in_flight, &tgid, &value, BPF_NOEXIST);
+
     process_monitor_event_t event;
     event.event_type = CONNECT_EVENT;
     event.pid = tgid;
@@ -363,6 +373,14 @@ SEC("tracepoint/syscalls/sys_enter_bind")
 int tracepoint__syscalls__sys_enter_bind(struct trace_event_raw_sys_enter *ctx) {
     uint32_t tgid = (uint32_t)bpf_get_current_pid_tgid();
     log_debug("tracepoint__syscalls__sys_enter_bind: tgid is %d", tgid);
+
+    bool *val = bpf_map_lookup_elem(&process_id_in_flight, &tgid);
+    if (val && *val == true) {
+        return 0;
+    }
+    bool value = true;
+    bpf_map_update_elem(&process_id_in_flight, &tgid, &value, BPF_NOEXIST);
+
     process_monitor_event_t event;
     event.event_type = BIND_EVENT;
     event.pid = tgid;
@@ -378,6 +396,7 @@ int tracepoint_syscalls_sys_enter_exit(struct trace_event_raw_sys_exit *ctx) {
     event.event_type = PROCESS_EXIT_EVENT;
     event.pid = tgid;
     bpf_perf_event_output_with_telemetry(ctx, &process_monitor_events, BPF_F_CURRENT_CPU, &event, sizeof(event));
+    bpf_map_delete_elem(&process_id_in_flight, &tgid);
     return 0;
 }
 
