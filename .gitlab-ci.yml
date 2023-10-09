@@ -393,6 +393,12 @@ workflow:
     when: never
   - <<: *if_deploy
 
+.on_deploy_a6_failure:
+  - <<: *if_not_version_6
+    when: never
+  - <<: *if_deploy
+    when: on_failure
+
 .on_deploy_a6_rc:
   - <<: *if_not_version_6
     when: never
@@ -475,6 +481,12 @@ workflow:
   - <<: *if_not_version_7
     when: never
   - <<: *if_deploy
+
+.on_deploy_a7_failure:
+  - <<: *if_not_version_7
+    when: never
+  - <<: *if_deploy
+    when: on_failure
 
 .on_deploy_a7_rc:
   - <<: *if_not_version_7

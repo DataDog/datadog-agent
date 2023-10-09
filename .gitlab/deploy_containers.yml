@@ -7,22 +7,45 @@
 #
 
 deploy_containers-a6:
-  stage: test
+  stage: deploy_containers
   rules:
     !reference [.on_deploy_a6]
   variables:
-    PARENT_COMMIT_TAG: $CI_COMMIT_TAG
+    PARENT_PIPELINE_ID: $CI_PIPELINE_ID
     BUCKET_BRANCH: $BUCKET_BRANCH
+  trigger:
+    include: .gitlab/deploy_containers/deploy_containers_a6.yml
+
+deploy_containers-a6-on-failure:
+  stage: deploy_containers
+  rules:
+    !reference [.on_deploy_a6_on_failure]
+  variables:
+    PARENT_PIPELINE_ID: $CI_PIPELINE_ID
+    BUCKET_BRANCH: $BUCKET_BRANCH
+    FORCE_MANUAL: "true"
   trigger:
     include: .gitlab/deploy_containers/deploy_containers_a6.yml
 
   
 deploy_containers-a7:
-  stage: test
+  stage: deploy_containers
   rules:
-    !reference [.on_deploy_a6]
+    !reference [.on_deploy_a7]
   variables:
-    PARENT_COMMIT_TAG: $CI_COMMIT_TAG
+    PARENT_PIPELINE_ID: $CI_PIPELINE_ID
     BUCKET_BRANCH: $BUCKET_BRANCH
+  trigger:
+    include: .gitlab/deploy_containers/deploy_containers_a7.yml
+
+
+deploy_containers-a7-on-failure:
+  stage: deploy_containers
+  rules:
+    !reference [.on_deploy_a7_on_failure]
+  variables:
+    PARENT_PIPELINE_ID: $CI_PIPELINE_ID
+    BUCKET_BRANCH: $BUCKET_BRANCH
+    FORCE_MANUAL: "true"
   trigger:
     include: .gitlab/deploy_containers/deploy_containers_a7.yml
