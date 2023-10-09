@@ -217,7 +217,7 @@ func (c *collector) handleImageEvent(ctx context.Context, containerdEvent *conta
 		c.store.Notify([]workloadmeta.CollectorEvent{
 			{
 				Type:   workloadmeta.EventTypeUnset,
-				Source: workloadmeta.SourceCLI,
+				Source: workloadmeta.SourceRuntime,
 				Entity: &workloadmeta.ContainerImageMetadata{
 					EntityID: workloadmeta.EntityID{
 						Kind: workloadmeta.KindContainerImageMetadata,
@@ -342,7 +342,7 @@ func (c *collector) notifyEventForImage(ctx context.Context, namespace string, i
 	c.store.Notify([]workloadmeta.CollectorEvent{
 		{
 			Type:   workloadmeta.EventTypeSet,
-			Source: workloadmeta.SourceCLI,
+			Source: workloadmeta.SourceRuntime,
 			Entity: &workloadmetaImg,
 		},
 	})
