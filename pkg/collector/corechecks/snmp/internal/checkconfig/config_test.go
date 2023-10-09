@@ -6,7 +6,9 @@
 package checkconfig
 
 import (
+	"path/filepath"
 	"regexp"
+	"sort"
 	"testing"
 	"time"
 
@@ -2318,6 +2320,67 @@ func TestCheckConfig_GetStaticTags(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			assert.ElementsMatch(t, tt.expectedTags, tt.config.GetStaticTags())
+		})
+	}
+}
+
+func Test_getProfiles(t *testing.T) {
+	tests := []struct {
+		name                 string
+		mockConfd            string
+		initConfig           InitConfig
+		expectedProfileNames []string
+		expectedErr          string
+	}{
+		{
+			name:      "OK Use init config profiles",
+			mockConfd: "conf.d",
+			initConfig: InitConfig{
+				Profiles: profileConfigMap{
+					"my-init-config-profile": profileConfig{
+						Definition: profiledefinition.ProfileDefinition{
+							Name: "my-init-config-profile",
+						},
+					},
+				},
+			},
+			expectedProfileNames: []string{
+				"my-init-config-profile",
+			},
+		},
+		{
+			name:      "OK Use json profiles.json.gz profiles",
+			mockConfd: "zipprofiles.d",
+			expectedProfileNames: []string{
+				"my-profile-name",
+				"profile-from-ui",
+			},
+		},
+		{
+			name:      "OK Use yaml profiles",
+			mockConfd: "conf.d",
+			expectedProfileNames: []string{
+				"another_profile",
+				"f5-big-ip",
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			invalidPath, _ := filepath.Abs(filepath.Join("..", "test", tt.mockConfd))
+			coreconfig.Datadog.Set("confd_path", invalidPath)
+
+			actualProfiles, err := getProfiles(tt.initConfig)
+			if tt.expectedErr != "" {
+				assert.ErrorContains(t, err, tt.expectedErr)
+			}
+			var actualProfilesNames []string
+			for profileName := range actualProfiles {
+				actualProfilesNames = append(actualProfilesNames, profileName)
+			}
+			sort.Strings(actualProfilesNames)
+			sort.Strings(tt.expectedProfileNames)
+			assert.Equal(t, tt.expectedProfileNames, actualProfilesNames)
 		})
 	}
 }
