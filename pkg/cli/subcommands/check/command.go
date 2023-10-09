@@ -26,6 +26,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	"github.com/DataDog/datadog-agent/cmd/agent/common/path"
+	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer"
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/log"
@@ -43,7 +44,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/metadata/inventories"
 	"github.com/DataDog/datadog-agent/pkg/status"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
-	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
 )
 
@@ -119,6 +119,15 @@ func MakeCommand(globalParamsGetter func() GlobalParams) *cobra.Command {
 				core.Bundle,
 				forwarder.Bundle,
 				fx.Supply(defaultforwarder.Params{UseNoopForwarder: true}),
+				demultiplexer.Module,
+				fx.Provide(func() demultiplexer.Params {
+					// Initializing the aggregator with a flush interval of 0 (to disable the flush goroutines)
+					opts := aggregator.DefaultAgentDemultiplexerOptions()
+					opts.FlushInterval = 0
+					opts.UseNoopEventPlatformForwarder = true
+					opts.UseNoopOrchestratorForwarder = true
+					return demultiplexer.Params{Options: opts}
+				}),
 			)
 		},
 	}
@@ -159,7 +168,7 @@ func MakeCommand(globalParamsGetter func() GlobalParams) *cobra.Command {
 	return cmd
 }
 
-func run(log log.Component, config config.Component, sysprobeconfig sysprobeconfig.Component, forwarder defaultforwarder.Component, cliParams *cliParams) error {
+func run(log log.Component, config config.Component, sysprobeconfig sysprobeconfig.Component, forwarder defaultforwarder.Component, cliParams *cliParams, demultiplexer demultiplexer.Component) error {
 	previousIntegrationTracing := false
 	previousIntegrationTracingExhaustive := false
 	if cliParams.generateIntegrationTraces {
@@ -180,19 +189,6 @@ func run(log log.Component, config config.Component, sysprobeconfig sysprobeconf
 		cliParams.cmd.Help() //nolint:errcheck
 		return nil
 	}
-
-	hostnameDetected, err := hostname.Get(context.TODO())
-	if err != nil {
-		fmt.Printf("Cannot get hostname, exiting: %v\n", err)
-		return err
-	}
-
-	// Initializing the aggregator with a flush interval of 0 (to disable the flush goroutines)
-	opts := aggregator.DefaultAgentDemultiplexerOptions()
-	opts.FlushInterval = 0
-	opts.UseNoopEventPlatformForwarder = true
-	opts.UseNoopOrchestratorForwarder = true
-	demux := aggregator.InitAndStartAgentDemultiplexer(log, forwarder, opts, hostnameDetected)
 
 	common.LoadComponents(context.Background(), aggregator.GetSenderManager(), pkgconfig.Datadog.GetString("confd_path"))
 	common.AC.LoadAndRun(context.Background())
@@ -362,7 +358,7 @@ func run(log log.Component, config config.Component, sysprobeconfig sysprobeconf
 
 	var checkFileOutput bytes.Buffer
 	var instancesData []interface{}
-	printer := aggregator.AgentDemultiplexerPrinter{AgentDemultiplexer: demux}
+	printer := aggregator.AgentDemultiplexerPrinter{DemultiplexerWithAggregator: demultiplexer}
 	for _, c := range cs {
 		s := runCheck(cliParams, c, printer)
 
