@@ -1836,7 +1836,6 @@ core,golang.org/x/sync/semaphore,BSD-3-Clause,Copyright (c) 2009 The Go Authors.
 core,golang.org/x/sync/singleflight,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
 core,golang.org/x/sys/cpu,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
 core,golang.org/x/sys/execabs,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
-core,golang.org/x/sys/internal/unsafeheader,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
 core,golang.org/x/sys/plan9,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
 core,golang.org/x/sys/unix,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
 core,golang.org/x/sys/windows,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
