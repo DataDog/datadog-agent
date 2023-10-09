@@ -188,6 +188,7 @@ def omnibus_build(
     major_version='7',
     omnibus_s3_cache=False,
     go_mod_cache=None,
+    host_distribution=None,
 ):
     """
     Build the Dogstatsd packages with Omnibus Installer.
@@ -202,6 +203,8 @@ def omnibus_build(
     base_dir = base_dir or os.environ.get("DSD_OMNIBUS_BASE_DIR")
     if base_dir:
         overrides.append(f"base_dir:{base_dir}")
+    if host_distribution:
+        overrides.append(f'host_distribution:{host_distribution}')
 
     overrides_cmd = ""
     if overrides:
