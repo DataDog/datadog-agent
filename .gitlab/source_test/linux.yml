@@ -51,12 +51,16 @@
     - inv -e install-tools
     - inv -e lint-go --cpus $KUBERNETES_CPU_REQUEST $FLAVORS $EXTRA_OPTS
 
-tests_deb-x64-py2:
-  extends: .rtloader_tests
-  rules:
-    !reference [.on_a6]
+.linux_x64:
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
   tags: ["arch:amd64"]
+
+tests_deb-x64-py2:
+  extends:
+    - .rtloader_tests
+    - .linux_x64
+  rules:
+    !reference [.on_a6]
   needs: ["go_deps"]
   variables:
     PYTHON_RUNTIMES: '2'
@@ -66,8 +70,7 @@ tests_deb-x64-py3:
   extends:
     - .rtloader_tests
     - .linux_tests
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
-  tags: ["arch:amd64"]
+    - .linux_x64
   needs: ["go_deps", "go_tools_deps"]
   variables:
     PYTHON_RUNTIMES: '3'
@@ -76,16 +79,14 @@ tests_deb-x64-py3:
 lint_linux-x64:
   extends:
     - .linux_lint
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
-  tags: ["arch:amd64"]
+    - .linux_x64
   needs: ["go_deps", "go_tools_deps"]
 
 tests_flavor_iot_deb-x64:
   extends:
     - .rtloader_tests
     - .linux_tests
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
-  tags: ["arch:amd64"]
+    - .linux_x64
   needs: ["go_deps", "go_tools_deps"]
   variables:
     PYTHON_RUNTIMES: '3'
@@ -95,8 +96,7 @@ tests_flavor_iot_deb-x64:
 lint_flavor_iot_linux-x64:
   extends:
     - .linux_lint
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
-  tags: ["arch:amd64"]
+    - .linux_x64
   needs: ["go_deps", "go_tools_deps"]
   variables:
     FLAVORS: '--flavors iot'
@@ -105,8 +105,7 @@ tests_flavor_dogstatsd_deb-x64:
   extends:
     - .rtloader_tests
     - .linux_tests
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
-  tags: ["arch:amd64"]
+    - .linux_x64
   needs: ["go_deps", "go_tools_deps"]
   variables:
     PYTHON_RUNTIMES: '3'
@@ -116,8 +115,7 @@ tests_flavor_dogstatsd_deb-x64:
 lint_flavor_dogstatsd_linux-x64:
   extends:
     - .linux_lint
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
-  tags: ["arch:amd64"]
+    - .linux_x64
   needs: ["go_deps", "go_tools_deps"]
   variables:
     FLAVORS: '--flavors dogstatsd'
@@ -126,8 +124,7 @@ tests_flavor_heroku_deb-x64:
   extends:
     - .rtloader_tests
     - .linux_tests
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
-  tags: ["arch:amd64"]
+    - .linux_x64
   needs: ["go_deps", "go_tools_deps"]
   variables:
     PYTHON_RUNTIMES: '3'
@@ -137,8 +134,7 @@ tests_flavor_heroku_deb-x64:
 lint_flavor_heroku_linux-x64:
   extends:
     - .linux_lint
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
-  tags: ["arch:amd64"]
+    - .linux_x64
   needs: ["go_deps", "go_tools_deps"]
   variables:
     FLAVORS: '--flavors heroku'
@@ -225,8 +221,7 @@ tests_rpm-arm64-py3:
 # Check consistency of go.mod file with project imports
 go_mod_tidy_check:
   stage: source_test
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
-  tags: ["arch:amd64"]
+  extends: .linux_x64
   needs: ["go_deps"]
   before_script:
     - source /root/.bashrc
