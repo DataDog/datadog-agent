@@ -3,6 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build test
+
 package aggregator
 
 import (
@@ -11,6 +13,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/comp/core/log"
+	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
 	forwarder "github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/epforwarder"
@@ -18,6 +21,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/metrics/event"
 	"github.com/DataDog/datadog-agent/pkg/metrics/servicecheck"
+	"go.uber.org/fx"
 )
 
 // TestAgentDemultiplexer is an implementation of the Demultiplexer which is sending
@@ -179,4 +183,16 @@ func InitTestAgentDemultiplexerWithFlushInterval(log log.Component, flushInterva
 // InitTestAgentDemultiplexer inits a TestAgentDemultiplexer with a long flush interval.
 func InitTestAgentDemultiplexer(log log.Component) *TestAgentDemultiplexer {
 	return InitTestAgentDemultiplexerWithFlushInterval(log, time.Hour) // long flush interval for unit tests
+}
+
+// AggregatorTestDeps contains dependencies for InitAndStartAgentDemultiplexerForTest
+type AggregatorTestDeps struct {
+	fx.In
+	Log             log.Component
+	SharedForwarder defaultforwarder.Component
+}
+
+// InitAndStartAgentDemultiplexerForTest initializes an aggregator for tests.
+func InitAndStartAgentDemultiplexerForTest(deps AggregatorTestDeps, options AgentDemultiplexerOptions, hostname string) *AgentDemultiplexer {
+	return InitAndStartAgentDemultiplexer(deps.Log, deps.SharedForwarder, options, hostname)
 }

@@ -37,7 +37,3 @@ func newDemultiplexer(deps dependencies) (Component, error) {
 
 	return demux, nil
 }
-
-func newMock(deps aggregator.AggregatorTestDeps) Component {
-	return aggregator.InitAndStartAgentDemultiplexerForTest(deps, aggregator.AgentDemultiplexerOptions{}, "")
-}

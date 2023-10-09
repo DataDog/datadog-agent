@@ -12,12 +12,12 @@
 package main
 
 import (
-	"context"
 	"flag"
 	"log"
 	"os"
 	"os/signal"
 
+	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer"
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	corelog "github.com/DataDog/datadog-agent/comp/core/log"
@@ -32,7 +32,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
-	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 
 	"go.uber.org/fx"
 )
@@ -73,8 +72,15 @@ func main() {
 			},
 		),
 		fx.Provide(newForwarderParams),
-		fx.Provide(newDemultiplexer),
+		demultiplexer.Module,
 		fx.Provide(newSerializer),
+		fx.Provide(func(cfg config.Component) demultiplexer.Params {
+			opts := aggregator.DefaultAgentDemultiplexerOptions()
+			opts.EnableNoAggregationPipeline = cfg.GetBool("dogstatsd_no_aggregation_pipeline")
+			opts.UseDogstatsdContextLimiter = true
+			opts.DogstatsdMaxMetricsTags = cfg.GetInt("dogstatsd_max_metrics_tags")
+			return demultiplexer.Params{Options: opts}
+		}),
 	)
 	if err != nil {
 		log.Fatal(err)
@@ -92,21 +98,4 @@ func newForwarderParams(config config.Component, log corelog.Component) defaultf
 
 func newSerializer(demux *aggregator.AgentDemultiplexer) serializer.MetricSerializer {
 	return demux.Serializer()
-}
-
-func newDemultiplexer(logcomp corelog.Component, cfg config.Component, fwd defaultforwarder.Component) *aggregator.AgentDemultiplexer {
-	// TODO(gbbr): improve hostname acquisition
-	//
-	// 1. Try config.Get("hostname")
-	// 2. Try gRPC client like trace-agent (acquireAgent func in pkg/trace/config/config.go)
-	// 3. Use hostname.Get
-	host, err := hostname.Get(context.TODO())
-	if err != nil {
-		log.Fatalf("Error while getting hostname, exiting: %v", err)
-	}
-	opts := aggregator.DefaultAgentDemultiplexerOptions()
-	opts.EnableNoAggregationPipeline = cfg.GetBool("dogstatsd_no_aggregation_pipeline")
-	opts.UseDogstatsdContextLimiter = true
-	opts.DogstatsdMaxMetricsTags = cfg.GetInt("dogstatsd_max_metrics_tags")
-	return aggregator.InitAndStartAgentDemultiplexer(logcomp, fwd, opts, host)
 }
