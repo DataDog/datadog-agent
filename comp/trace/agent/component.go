@@ -6,7 +6,6 @@
 package agent
 
 import (
-	"github.com/DataDog/datadog-agent/pkg/util"
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -16,14 +15,6 @@ import (
 
 // Component is the agent component type.
 type Component interface{}
-
-type component struct {
-	util.Optional[agentComponent]
-}
-
-type agentComponent interface {
-	Run()
-}
 
 // Module defines the fx options for the agent component.
 var Module = fxutil.Component(

@@ -18,7 +18,6 @@ import (
 	"syscall"
 
 	"github.com/DataDog/datadog-agent/pkg/trace/watchdog"
-	"github.com/DataDog/datadog-agent/pkg/util"
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/comp/trace/config"
@@ -47,6 +46,10 @@ type dependencies struct {
 	TelemetryCollector telemetry.TelemetryCollector
 }
 
+type component struct {
+	*agent
+}
+
 type agent struct {
 	*pkgagent.Agent
 
@@ -61,15 +64,12 @@ type agent struct {
 
 func newAgent(deps dependencies) Component {
 	c := component{}
-	deps.Lc.Append(fx.Hook{OnStart: c.start, OnStop: c.stop})
-
 	tracecfg := deps.Config.Object()
 	if !tracecfg.Enabled {
 		log.Info(messageAgentDisabled)
 		deps.TelemetryCollector.SendStartupError(telemetry.TraceAgentNotEnabled, fmt.Errorf(""))
 		return c
 	}
-
 	ctx, cancel := context.WithCancel(deps.Context) // Several related non-components require a shared context to gracefully stop.
 	ag := &agent{
 		Agent: pkgagent.NewAgent(
@@ -85,20 +85,17 @@ func newAgent(deps dependencies) Component {
 		telemetryCollector: deps.TelemetryCollector,
 		wg:                 sync.WaitGroup{},
 	}
-	c.Optional = util.NewOptional[agentComponent](ag)
+	deps.Lc.Append(fx.Hook{
+		// Provided contexts have a timeout, so it can't be used for gracefully stopping long-running components.
+		// These contexts are cancelled on a deadline, so they would have side effects on the agent.
+		OnStart: func(_ context.Context) error { return start(ag) },
+		OnStop:  func(_ context.Context) error { return stop(ag) }})
+	c.agent = ag
 	return c
 }
 
-// Provided ctx has a timeout, so it can't be used for gracefully stopping long-running components.
-// This context is cancelled on a deadline, so it would stop the agent after starting it.
-func (c *component) start(_ context.Context) error {
-	agc, ok := c.Get()
-	if !ok {
-		return ErrAgentDisabled
-	}
-	ag := agc.(*agent)
+func start(ag *agent) error {
 	setupShutdown(ag.ctx, ag.shutdowner)
-
 	if ag.params.CPUProfile != "" {
 		f, err := os.Create(ag.params.CPUProfile)
 		if err != nil {
@@ -117,11 +114,9 @@ func (c *component) start(_ context.Context) error {
 
 		log.Infof("PID '%d' written to PID file '%s'", os.Getpid(), ag.params.PIDFilePath)
 	}
-
 	if err := runAgentSidekicks(ag.ctx, ag.config, ag.telemetryCollector); err != nil {
 		return err
 	}
-
 	ag.wg.Add(1)
 	go func() {
 		defer ag.wg.Done()
@@ -130,12 +125,7 @@ func (c *component) start(_ context.Context) error {
 	return nil
 }
 
-func (c *component) stop(_ context.Context) error {
-	agc, ok := c.Get()
-	if !ok {
-		return ErrAgentDisabled
-	}
-	ag := agc.(*agent)
+func stop(ag *agent) error {
 	ag.cancel()
 	ag.wg.Wait()
 	stopAgentSidekicks(ag.config)
