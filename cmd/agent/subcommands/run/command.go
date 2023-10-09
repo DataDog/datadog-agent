@@ -33,6 +33,7 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/agent/gui"
 	"github.com/DataDog/datadog-agent/cmd/agent/subcommands/run/internal/clcrunnerapi"
 	"github.com/DataDog/datadog-agent/cmd/manager"
+	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer"
 
 	// checks implemented as components
 
@@ -125,7 +126,7 @@ import (
 )
 
 // demux is shared between StartAgent and StopAgent.
-var demux *aggregator.AgentDemultiplexer
+var demux demultiplexer.Component
 
 type cliParams struct {
 	*command.GlobalParams
@@ -188,7 +189,7 @@ func commonRun(log log.Component,
 	forwarder defaultforwarder.Component,
 	rcclient rcclient.Component,
 	metadataRunner runner.Component,
-	demux *aggregator.AgentDemultiplexer,
+	demux demultiplexer.Component,
 	sharedSerializer serializer.MetricSerializer,
 	cliParams *cliParams,
 	logsAgent util.Optional[logsAgent.Component],
@@ -285,23 +286,19 @@ func getSharedFxOption() fx.Option {
 		metadata.Bundle,
 		// injecting the aggregator demultiplexer to FX until we migrate it to a proper component. This allows
 		// other already migrated components to request it.
-		fx.Provide(func(config config.Component, log log.Component, sharedForwarder defaultforwarder.Component) (*aggregator.AgentDemultiplexer, error) {
+		fx.Provide(func(config config.Component) demultiplexer.Params {
 			opts := aggregator.DefaultAgentDemultiplexerOptions()
 			opts.EnableNoAggregationPipeline = config.GetBool("dogstatsd_no_aggregation_pipeline")
 			opts.UseDogstatsdContextLimiter = true
 			opts.DogstatsdMaxMetricsTags = config.GetInt("dogstatsd_max_metrics_tags")
-			hostnameDetected, err := hostname.Get(context.TODO())
-			if err != nil {
-				return nil, log.Errorf("Error while getting hostname, exiting: %v", err)
-			}
-			// demux is currently a global used by start/stop. It will need to be migrated at some point
-			demux = aggregator.InitAndStartAgentDemultiplexer(log, sharedForwarder, opts, hostnameDetected)
-			return demux, nil
+			return demultiplexer.Params{Options: opts}
 		}),
+		demultiplexer.Module,
 		// injecting the shared Serializer to FX until we migrate it to a prpoper component. This allows other
 		// already migrated components to request it.
-		fx.Provide(func(demux *aggregator.AgentDemultiplexer) serializer.MetricSerializer {
-			return demux.Serializer()
+		fx.Provide(func(demuxInstance demultiplexer.Component) serializer.MetricSerializer {
+			demux = demuxInstance
+			return demuxInstance.Serializer()
 		}),
 		ndmtmp.Bundle,
 		netflow.Bundle,

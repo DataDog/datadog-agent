@@ -14,6 +14,7 @@ import (
 
 	// core components
 
+	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/flare"
 	"github.com/DataDog/datadog-agent/comp/core/log"
@@ -28,7 +29,6 @@ import (
 	netflowServer "github.com/DataDog/datadog-agent/comp/netflow/server"
 	otelcollector "github.com/DataDog/datadog-agent/comp/otelcol/collector"
 	"github.com/DataDog/datadog-agent/comp/remote-config/rcclient"
-	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/util"
 	"go.uber.org/fx"
@@ -46,7 +46,7 @@ func run(log log.Component,
 	forwarder defaultforwarder.Component,
 	rcclient rcclient.Component,
 	metadataRunner runner.Component,
-	demux *aggregator.AgentDemultiplexer,
+	demux demultiplexer.Component,
 	sharedSerializer serializer.MetricSerializer,
 	cliParams *cliParams,
 	logsAgent util.Optional[logsAgent.Component],

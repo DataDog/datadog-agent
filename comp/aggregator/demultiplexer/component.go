@@ -25,6 +25,10 @@ type Component interface {
 	Serializer() serializer.MetricSerializer
 
 	aggregator.DemultiplexerWithAggregator
+
+	// AddAgentStartupTelemetry adds a startup event and count (in a DSD time sampler)
+	// to be sent on the next flush.
+	AddAgentStartupTelemetry(agentVersion string)
 }
 
 // Mock implements mock-specific methods.
@@ -35,4 +39,9 @@ type Mock interface {
 // Module defines the fx options for this component.
 var Module = fxutil.Component(
 	fx.Provide(newDemultiplexer),
+)
+
+// MockModule defines the fx options for this component.
+var MockModule = fxutil.Component(
+	fx.Provide(newMock),
 )

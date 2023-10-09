@@ -20,6 +20,7 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/agent/common/signals"
 
 	// checks implemented as components
+	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer"
 	"github.com/DataDog/datadog-agent/comp/checks/agentcrashdetect"
 
 	// core components
@@ -39,7 +40,6 @@ import (
 	otelcollector "github.com/DataDog/datadog-agent/comp/otelcol/collector"
 	"github.com/DataDog/datadog-agent/comp/remote-config/rcclient"
 	comptraceconfig "github.com/DataDog/datadog-agent/comp/trace/config"
-	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -138,7 +138,7 @@ func run(log log.Component,
 	forwarder defaultforwarder.Component,
 	rcclient rcclient.Component,
 	metadataRunner runner.Component,
-	demux *aggregator.AgentDemultiplexer,
+	demux demultiplexer.Component,
 	sharedSerializer serializer.MetricSerializer,
 	cliParams *cliParams,
 	logsAgent util.Optional[logsAgent.Component],
