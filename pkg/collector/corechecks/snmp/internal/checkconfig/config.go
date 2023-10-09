@@ -547,7 +547,7 @@ func getProfiles(initConfig InitConfig) (profileConfigMap, error) {
 		}
 		profiles = customProfiles
 	} else if profileBundleFileExist() {
-		defaultProfiles, err := loadBundleJsonProfiles()
+		defaultProfiles, err := loadBundleJSONProfiles()
 		if err != nil {
 			return nil, fmt.Errorf("failed to load bundle json profiles: %s", err)
 		}

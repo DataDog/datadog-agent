@@ -2379,7 +2379,7 @@ func Test_getProfiles(t *testing.T) {
 		},
 		{
 			name:        "ERROR Invalid profiles.json.gz profiles",
-			mockConfd:   "zipprofiles_invalid.d",
+			mockConfd:   "zipprofiles_err.d",
 			expectedErr: "failed to load bundle json profiles",
 		},
 		// yaml profiles
