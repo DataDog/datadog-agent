@@ -55,7 +55,7 @@ type ProcessMemoryConfig struct {
 	Enabled bool `yaml:"enabled"`
 }
 
-type InactiveSessionsConfig struct {
+type inactiveSessionsConfig struct {
 	Enabled bool `yaml:"enabled"`
 }
 
@@ -111,7 +111,7 @@ type InstanceConfig struct {
 	SysMetrics                         SysMetricsConfig       `yaml:"sysmetrics"`
 	Tablespaces                        TablespacesConfig      `yaml:"tablespaces"`
 	ProcessMemory                      ProcessMemoryConfig    `yaml:"process_memory"`
-	InactiveSessions                   InactiveSessionsConfig `yaml:"inactive_sessions"`
+	InactiveSessions                   inactiveSessionsConfig `yaml:"inactive_sessions"`
 	SharedMemory                       SharedMemoryConfig     `yaml:"shared_memory"`
 	ExecutionPlans                     ExecutionPlansConfig   `yaml:"execution_plans"`
 	AgentSQLTrace                      AgentSQLTrace          `yaml:"agent_sql_trace"`
