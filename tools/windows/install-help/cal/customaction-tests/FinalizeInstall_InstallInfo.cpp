@@ -14,7 +14,7 @@ class InstallInfoTest : public testing::Test
 int getRandomUiLevel(int minLevel, int maxLevel = std::numeric_limits<int>::max())
 {
     // We don't need true random numbers
-    std::srand(std::time(nullptr)); // NOLINT(cert-msc51-cpp, clang-diagnostic-shorten-64-to-32)
+    std::srand(std::time(nullptr)); //nolint(cert-msc51-cpp, clang-diagnostic-shorten-64-to-32)
     return std::min(std::max(std::rand(), minLevel), maxLevel);
 }
 
