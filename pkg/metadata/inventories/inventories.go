@@ -131,9 +131,9 @@ const (
 	// Those are reserved fields for the agentMetadata payload.
 	agentProvidedConf AgentMetadataName = "provided_configuration"
 	agentFullConf     AgentMetadataName = "full_configuration"
-	agentYamlConf     AgentMetadataName = "yaml_configuration"
+	agentFileConf     AgentMetadataName = "yaml_configuration"
 	agentEnvVarConf   AgentMetadataName = "environment_variable_configuration"
-	agentSelfConf     AgentMetadataName = "self_configuration"
+	agentRuntimeConf  AgentMetadataName = "self_configuration"
 	agentRemoteConf   AgentMetadataName = "remote_configuration"
 	agentCliConf      AgentMetadataName = "cli_configuration"
 
@@ -339,14 +339,14 @@ func createPayload(ctx context.Context, hostname string, coll CollectorInterface
 		if providedConf, err := getProvidedAgentConfiguration(); err == nil {
 			payloadAgentMeta[agentProvidedConf] = providedConf
 		}
-		if yamlConf, err := getAgentYamlConfiguration(); err == nil {
-			payloadAgentMeta[agentYamlConf] = yamlConf
+		if fileConf, err := getAgentFileConfiguration(); err == nil {
+			payloadAgentMeta[agentFileConf] = fileConf
 		}
 		if envVarConf, err := getAgentEnvVarConfiguration(); err == nil {
 			payloadAgentMeta[agentEnvVarConf] = envVarConf
 		}
-		if selfConf, err := getAgentSelfConfiguration(); err == nil {
-			payloadAgentMeta[agentSelfConf] = selfConf
+		if runtimeConf, err := getAgentRuntimeConfiguration(); err == nil {
+			payloadAgentMeta[agentRuntimeConf] = runtimeConf
 		}
 		if remoteConf, err := getAgentRemoteConfiguration(); err == nil {
 			payloadAgentMeta[agentRemoteConf] = remoteConf

@@ -54,7 +54,7 @@ func TestMockConfig(t *testing.T) {
 	require.Equal(t, "localhost", config.GetString("ipc_address"))
 
 	// values can also be set by the mock (ConfigWriter)
-	config.(Mock).SetForSource("app_key", "newvalue", ddconfig.SourceSelf)
+	config.(Mock).SetForSource("app_key", "newvalue", ddconfig.SourceAgentRuntime)
 	require.Equal(t, "newvalue", config.GetString("app_key"))
 }
 

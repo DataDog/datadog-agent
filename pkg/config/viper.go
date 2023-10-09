@@ -26,17 +26,17 @@ type Source string
 
 // Declare every known Source
 const (
-	SourceDefault Source = "default"
-	SourceUnknown Source = "unknown"
-	SourceYaml    Source = "yaml"
-	SourceEnvVar  Source = "environment-variable"
-	SourceSelf    Source = "self-config"
-	SourceRC      Source = "remote-config"
-	SourceCLI     Source = "cli"
+	SourceDefault      Source = "default"
+	SourceUnknown      Source = "unknown"
+	SourceFile         Source = "file"
+	SourceEnvVar       Source = "environment-variable"
+	SourceAgentRuntime Source = "agent-runtime"
+	SourceRC           Source = "remote-config"
+	SourceCLI          Source = "cli"
 )
 
 // sources list the known sources, following the order of hierarchy between them
-var sources = []Source{SourceDefault, SourceUnknown, SourceYaml, SourceEnvVar, SourceSelf, SourceRC, SourceCLI}
+var sources = []Source{SourceDefault, SourceUnknown, SourceFile, SourceEnvVar, SourceAgentRuntime, SourceRC, SourceCLI}
 
 // String casts Source into a string
 func (s Source) String() string {
@@ -477,7 +477,7 @@ func (c *safeConfig) ReadConfig(in io.Reader) error {
 	if err != nil {
 		return err
 	}
-	_ = c.configSources[SourceYaml].ReadConfig(bytes.NewReader(b))
+	_ = c.configSources[SourceFile].ReadConfig(bytes.NewReader(b))
 	return c.Viper.ReadConfig(bytes.NewReader(b))
 }
 
@@ -515,14 +515,14 @@ func (c *safeConfig) AllSettingsWithoutDefault() map[string]interface{} {
 	return c.Viper.AllSettingsWithoutDefault()
 }
 
-// AllYamlSettingsWithoutDefault wraps Viper for concurrent access
-func (c *safeConfig) AllYamlSettingsWithoutDefault() map[string]interface{} {
+// AllFileSettingsWithoutDefault wraps Viper for concurrent access
+func (c *safeConfig) AllFileSettingsWithoutDefault() map[string]interface{} {
 	c.Lock()
 	defer c.Unlock()
 
-	// AllYamlSettingsWithoutDefault returns a fresh map, so the caller may do with it
+	// AllFileSettingsWithoutDefault returns a fresh map, so the caller may do with it
 	// as they please without holding the lock.
-	return c.configSources[SourceYaml].AllSettingsWithoutDefault()
+	return c.configSources[SourceFile].AllSettingsWithoutDefault()
 }
 
 // AllEnvVarSettingsWithoutDefault wraps Viper for concurrent access
@@ -535,14 +535,14 @@ func (c *safeConfig) AllEnvVarSettingsWithoutDefault() map[string]interface{} {
 	return c.configSources[SourceEnvVar].AllSettingsWithoutDefault()
 }
 
-// AllSelfSettingsWithoutDefault wraps Viper for concurrent access
-func (c *safeConfig) AllSelfSettingsWithoutDefault() map[string]interface{} {
+// AllAgentRuntimeSettingsWithoutDefault wraps Viper for concurrent access
+func (c *safeConfig) AllAgentRuntimeSettingsWithoutDefault() map[string]interface{} {
 	c.Lock()
 	defer c.Unlock()
 
-	// AllSelfSettingsWithoutDefault returns a fresh map, so the caller may do with it
+	// AllAgentRuntimeSettingsWithoutDefault returns a fresh map, so the caller may do with it
 	// as they please without holding the lock.
-	return c.configSources[SourceSelf].AllSettingsWithoutDefault()
+	return c.configSources[SourceAgentRuntime].AllSettingsWithoutDefault()
 }
 
 // AllRemoteSettingsWithoutDefault wraps Viper for concurrent access
@@ -576,7 +576,7 @@ func (c *safeConfig) AddConfigPath(in string) {
 func (c *safeConfig) SetConfigName(in string) {
 	c.Lock()
 	defer c.Unlock()
-	c.configSources[SourceYaml].SetConfigName(in)
+	c.configSources[SourceFile].SetConfigName(in)
 	c.Viper.SetConfigName(in)
 }
 
@@ -591,7 +591,7 @@ func (c *safeConfig) SetConfigFile(in string) {
 func (c *safeConfig) SetConfigType(in string) {
 	c.Lock()
 	defer c.Unlock()
-	c.configSources[SourceYaml].SetConfigType(in)
+	c.configSources[SourceFile].SetConfigType(in)
 	c.Viper.SetConfigType(in)
 }
 

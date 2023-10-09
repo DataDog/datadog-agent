@@ -119,8 +119,8 @@ func TestPayloadsEmptyServiceCheck(t *testing.T) {
 }
 
 func TestPayloadsServiceChecks(t *testing.T) {
-	config.Datadog.SetForSource("serializer_max_payload_size", 200, config.SourceSelf)
-	defer config.Datadog.UnsetForSource("serializer_max_payload_size", config.SourceSelf)
+	config.Datadog.SetForSource("serializer_max_payload_size", 200, config.SourceAgentRuntime)
+	defer config.Datadog.UnsetForSource("serializer_max_payload_size", config.SourceAgentRuntime)
 
 	serviceCheckCollection := []ServiceChecks{
 		{createServiceCheck("1"), createServiceCheck("2"), createServiceCheck("3")},

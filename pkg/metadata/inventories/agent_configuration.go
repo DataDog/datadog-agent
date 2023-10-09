@@ -47,12 +47,12 @@ func getProvidedAgentConfiguration() (string, error) {
 	return marshalAndScrub(config.Datadog.AllSettingsWithoutDefault())
 }
 
-func getAgentYamlConfiguration() (string, error) {
+func getAgentFileConfiguration() (string, error) {
 	if !config.Datadog.GetBool("inventories_configuration_enabled") {
 		return "", fmt.Errorf("inventories_configuration_enabled is disabled")
 	}
 
-	return marshalAndScrub(config.Datadog.AllYamlSettingsWithoutDefault())
+	return marshalAndScrub(config.Datadog.AllFileSettingsWithoutDefault())
 }
 
 func getAgentEnvVarConfiguration() (string, error) {
@@ -63,12 +63,12 @@ func getAgentEnvVarConfiguration() (string, error) {
 	return marshalAndScrub(config.Datadog.AllEnvVarSettingsWithoutDefault())
 }
 
-func getAgentSelfConfiguration() (string, error) {
+func getAgentRuntimeConfiguration() (string, error) {
 	if !config.Datadog.GetBool("inventories_configuration_enabled") {
 		return "", fmt.Errorf("inventories_configuration_enabled is disabled")
 	}
 
-	return marshalAndScrub(config.Datadog.AllSelfSettingsWithoutDefault())
+	return marshalAndScrub(config.Datadog.AllAgentRuntimeSettingsWithoutDefault())
 }
 
 func getAgentRemoteConfiguration() (string, error) {

@@ -1670,37 +1670,37 @@ func setupFipsEndpoints(config Config) error {
 	protocol := "http://"
 	if config.GetBool("fips.https") {
 		protocol = "https://"
-		config.SetForSource("skip_ssl_validation", !config.GetBool("fips.tls_verify"), SourceYaml)
+		config.SetForSource("skip_ssl_validation", !config.GetBool("fips.tls_verify"), SourceFile)
 	}
 
 	// The following overwrites should be sync with the documentation for the fips.enabled config setting in the
 	// config_template.yaml
 
 	// Metrics
-	config.SetForSource("dd_url", protocol+urlFor(metrics), SourceYaml)
+	config.SetForSource("dd_url", protocol+urlFor(metrics), SourceFile)
 
 	// Logs
 	setupFipsLogsConfig(config, "logs_config.", urlFor(logs))
 
 	// APM
-	config.SetForSource("apm_config.apm_dd_url", protocol+urlFor(traces), SourceYaml)
+	config.SetForSource("apm_config.apm_dd_url", protocol+urlFor(traces), SourceFile)
 	// Adding "/api/v2/profile" because it's not added to the 'apm_config.profiling_dd_url' value by the Agent
-	config.SetForSource("apm_config.profiling_dd_url", protocol+urlFor(profiles)+"/api/v2/profile", SourceYaml)
-	config.SetForSource("apm_config.telemetry.dd_url", protocol+urlFor(instrumentationTelemetry), SourceYaml)
+	config.SetForSource("apm_config.profiling_dd_url", protocol+urlFor(profiles)+"/api/v2/profile", SourceFile)
+	config.SetForSource("apm_config.telemetry.dd_url", protocol+urlFor(instrumentationTelemetry), SourceFile)
 
 	// Processes
-	config.SetForSource("process_config.process_dd_url", protocol+urlFor(processes), SourceYaml)
+	config.SetForSource("process_config.process_dd_url", protocol+urlFor(processes), SourceFile)
 
 	// Database monitoring
-	config.SetForSource("database_monitoring.metrics.dd_url", urlFor(databasesMonitoringMetrics), SourceYaml)
-	config.SetForSource("database_monitoring.activity.dd_url", urlFor(databasesMonitoringMetrics), SourceYaml)
-	config.SetForSource("database_monitoring.samples.dd_url", urlFor(databasesMonitoringSamples), SourceYaml)
+	config.SetForSource("database_monitoring.metrics.dd_url", urlFor(databasesMonitoringMetrics), SourceFile)
+	config.SetForSource("database_monitoring.activity.dd_url", urlFor(databasesMonitoringMetrics), SourceFile)
+	config.SetForSource("database_monitoring.samples.dd_url", urlFor(databasesMonitoringSamples), SourceFile)
 
 	// Network devices
-	config.SetForSource("network_devices.metadata.dd_url", urlFor(networkDevicesMetadata), SourceYaml)
+	config.SetForSource("network_devices.metadata.dd_url", urlFor(networkDevicesMetadata), SourceFile)
 
 	// Orchestrator Explorer
-	config.SetForSource("orchestrator_explorer.orchestrator_dd_url", protocol+urlFor(orchestratorExplorer), SourceYaml)
+	config.SetForSource("orchestrator_explorer.orchestrator_dd_url", protocol+urlFor(orchestratorExplorer), SourceFile)
 
 	// CWS
 	setupFipsLogsConfig(config, "runtime_security_config.endpoints.", urlFor(runtimeSecurity))
@@ -1709,9 +1709,9 @@ func setupFipsEndpoints(config Config) error {
 }
 
 func setupFipsLogsConfig(config Config, configPrefix string, url string) {
-	config.SetForSource(configPrefix+"use_http", true, SourceYaml)
-	config.SetForSource(configPrefix+"logs_no_ssl", !config.GetBool("fips.https"), SourceYaml)
-	config.SetForSource(configPrefix+"logs_dd_url", url, SourceYaml)
+	config.SetForSource(configPrefix+"use_http", true, SourceFile)
+	config.SetForSource(configPrefix+"logs_no_ssl", !config.GetBool("fips.https"), SourceFile)
+	config.SetForSource(configPrefix+"logs_dd_url", url, SourceFile)
 }
 
 // ResolveSecrets merges all the secret values from origin into config. Secret values
@@ -1764,7 +1764,7 @@ func sanitizeAPIKeyConfig(config Config, key string) {
 	if !config.IsKnown(key) {
 		return
 	}
-	config.SetForSource(key, strings.TrimSpace(config.GetString(key)), SourceYaml)
+	config.SetForSource(key, strings.TrimSpace(config.GetString(key)), SourceFile)
 }
 
 // sanitizeExternalMetricsProviderChunkSize ensures the value of `external_metrics_provider.chunk_size` is within an acceptable range
@@ -1776,11 +1776,11 @@ func sanitizeExternalMetricsProviderChunkSize(config Config) {
 	chunkSize := config.GetInt("external_metrics_provider.chunk_size")
 	if chunkSize <= 0 {
 		log.Warnf("external_metrics_provider.chunk_size cannot be negative: %d", chunkSize)
-		config.SetForSource("external_metrics_provider.chunk_size", 1, SourceYaml)
+		config.SetForSource("external_metrics_provider.chunk_size", 1, SourceFile)
 	}
 	if chunkSize > maxExternalMetricsProviderChunkSize {
 		log.Warnf("external_metrics_provider.chunk_size has been set to %d, which is higher than the maximum allowed value %d. Using %d.", chunkSize, maxExternalMetricsProviderChunkSize, maxExternalMetricsProviderChunkSize)
-		config.SetForSource("external_metrics_provider.chunk_size", maxExternalMetricsProviderChunkSize, SourceYaml)
+		config.SetForSource("external_metrics_provider.chunk_size", maxExternalMetricsProviderChunkSize, SourceFile)
 	}
 }
 
@@ -1881,7 +1881,7 @@ func setTracemallocEnabled(config Config) bool {
 	}
 
 	// update config with the actual effective tracemalloc
-	config.SetForSource("tracemalloc_debug", wTracemalloc, SourceYaml)
+	config.SetForSource("tracemalloc_debug", wTracemalloc, SourceFile)
 	return traceMallocEnabledWithPy2
 }
 
@@ -1900,7 +1900,7 @@ func setNumWorkers(config Config) {
 	}
 
 	// update config with the actual effective number of workers
-	config.SetForSource("check_runners", numWorkers, SourceYaml)
+	config.SetForSource("check_runners", numWorkers, SourceFile)
 }
 
 // GetDogstatsdMappingProfiles returns mapping profiles used in DogStatsD mapper

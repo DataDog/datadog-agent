@@ -217,14 +217,14 @@ func loadProcessTransforms(config Config) {
 			"see https://docs.datadoghq.com/infrastructure/process#installation for more information")
 		procConfigEnabled := strings.ToLower(config.GetString("process_config.enabled"))
 		if procConfigEnabled == "disabled" {
-			config.SetForSource("process_config.process_collection.enabled", false, SourceYaml)
-			config.SetForSource("process_config.container_collection.enabled", false, SourceYaml)
+			config.SetForSource("process_config.process_collection.enabled", false, SourceFile)
+			config.SetForSource("process_config.container_collection.enabled", false, SourceFile)
 		} else if enabled, _ := strconv.ParseBool(procConfigEnabled); enabled { // "true"
-			config.SetForSource("process_config.process_collection.enabled", true, SourceYaml)
-			config.SetForSource("process_config.container_collection.enabled", false, SourceYaml)
+			config.SetForSource("process_config.process_collection.enabled", true, SourceFile)
+			config.SetForSource("process_config.container_collection.enabled", false, SourceFile)
 		} else { // "false"
-			config.SetForSource("process_config.process_collection.enabled", false, SourceYaml)
-			config.SetForSource("process_config.container_collection.enabled", true, SourceYaml)
+			config.SetForSource("process_config.process_collection.enabled", false, SourceFile)
+			config.SetForSource("process_config.container_collection.enabled", true, SourceFile)
 		}
 	}
 }
