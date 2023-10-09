@@ -80,6 +80,26 @@ lint_linux-x64:
   tags: ["arch:amd64"]
   needs: ["go_deps", "go_tools_deps"]
 
+# This job lints all the go code, ignoring the new-from-rev golangci-lint key.
+lint_all_linux-x64:
+  stage: source_test
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
+  tags: ["arch:amd64"]
+  needs: ["go_deps", "go_tools_deps"]
+  variables:
+    FLAVORS: '--flavors base'
+    KUBERNETES_CPU_REQUEST: 16
+    KUBERNETES_MEMORY_REQUEST: 16Gi
+    KUBERNETES_MEMORY_LIMIT: 16Gi
+  script:
+    - !reference [.retrieve_linux_go_deps]
+    - !reference [.retrieve_linux_go_tools_deps]
+    - source /root/.bashrc && conda activate ddpy3
+    - inv -e rtloader.make --install-prefix=$CI_PROJECT_DIR/dev --python-runtimes "3"
+    - inv -e rtloader.install
+    - inv -e install-tools
+    - inv -e show-linters-issues --filter-linters "revive" --platforms "linux,amd64"
+
 tests_flavor_iot_deb-x64:
   extends:
     - .rtloader_tests
