@@ -42,6 +42,7 @@ type SecurityProfile struct {
 	sync.Mutex
 	loadedInKernel         bool
 	loadedNano             uint64
+	unloadedNano           uint64
 	selector               cgroupModel.WorkloadSelector
 	profileCookie          uint64
 	anomalyDetectionEvents []model.EventType
@@ -90,6 +91,7 @@ func NewSecurityProfile(selector cgroupModel.WorkloadSelector, anomalyDetectionE
 func (p *SecurityProfile) reset() {
 	p.loadedInKernel = false
 	p.loadedNano = 0
+	p.unloadedNano = 0
 	p.profileCookie = 0
 	p.eventTypeState = make(map[model.EventType]*EventTypeState)
 	p.Instances = nil

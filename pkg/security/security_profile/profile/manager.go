@@ -551,10 +551,15 @@ func (m *SecurityProfileManager) SendStats() error {
 		}
 		profileStats[profile.Status][profile.loadedInKernel]++
 
+		uptime := uint64(0)
+		if !profile.loadedInKernel {
+			uptime = (profile.unloadedNano - profile.loadedNano) / 1000000000
+		}
 		tags := []string{
 			"selector:" + profile.selector.String(),
 			fmt.Sprintf("stable:%v", profile.IsStable()),
 			fmt.Sprintf("anomalies_cpt:%v", profile.anomaliesCpt.Swap(0)),
+			fmt.Sprintf("last_uptime:%v", uptime),
 		}
 		if err := m.statsdClient.Count(metrics.MetricSecurityProfileSelector, 1, tags, 1.0); err != nil {
 			return fmt.Errorf("couldn't send MetricSecurityProfileSelector: %w", err)
@@ -617,6 +622,7 @@ func (m *SecurityProfileManager) prepareProfile(profile *SecurityProfile) {
 func (m *SecurityProfileManager) loadProfile(profile *SecurityProfile) error {
 	profile.loadedInKernel = true
 	profile.loadedNano = uint64(m.resolvers.TimeResolver.ComputeMonotonicTimestamp(time.Now()))
+	profile.unloadedNano = 0
 
 	// push kernel space filters
 	if err := m.securityProfileSyscallsMap.Put(profile.profileCookie, profile.generateSyscallsFilters()); err != nil {
@@ -631,6 +637,8 @@ func (m *SecurityProfileManager) loadProfile(profile *SecurityProfile) error {
 // unloadProfile (thread unsafe) unloads a Security Profile from kernel space
 func (m *SecurityProfileManager) unloadProfile(profile *SecurityProfile) {
 	profile.loadedInKernel = false
+
+	profile.unloadedNano = uint64(m.resolvers.TimeResolver.ComputeMonotonicTimestamp(time.Now()))
 
 	// remove kernel space filters
 	if err := m.securityProfileSyscallsMap.Delete(profile.profileCookie); err != nil {
