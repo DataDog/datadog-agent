@@ -883,6 +883,7 @@ func testHTTPGoTLSCaptureNewProcess(t *testing.T, cfg *config.Config) {
 
 	// spin-up goTLS client and issue requests after initialization
 	command, runRequests := gotlstestutil.NewGoTLSClient(t, serverAddr, expectedOccurrences)
+	runRequests()
 	require.Eventuallyf(t, func() bool {
 		traced := utils.GetTracedPrograms("go-tls")
 		for _, prog := range traced {
@@ -892,7 +893,6 @@ func testHTTPGoTLSCaptureNewProcess(t *testing.T, cfg *config.Config) {
 		}
 		return false
 	}, time.Second*5, time.Millisecond*100, "process %v is not traced by gotls", command.Process.Pid)
-	runRequests()
 	checkRequests(t, tr, expectedOccurrences, reqs)
 }
 
