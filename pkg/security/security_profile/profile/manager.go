@@ -558,7 +558,7 @@ func (m *SecurityProfileManager) SendStats() error {
 		tags := []string{
 			"selector:" + profile.selector.String(),
 			fmt.Sprintf("stable:%v", profile.IsStable()),
-			fmt.Sprintf("anomalies_cpt:%v", profile.anomaliesCpt.Swap(0)),
+			fmt.Sprintf("anomalies_counter:%v", profile.anomaliesCounter.Swap(0)),
 			fmt.Sprintf("last_uptime:%v", uptime),
 		}
 		if err := m.statsdClient.Count(metrics.MetricSecurityProfileSelector, 1, tags, 1.0); err != nil {
@@ -728,7 +728,7 @@ func (m *SecurityProfileManager) LookupEventInProfiles(event *model.Event) {
 			event.AddToFlags(model.EventFlagsSecurityProfileInProfile)
 			m.incrementEventFilteringStat(event.GetEventType(), profileState, InProfile)
 		} else {
-			profile.anomaliesCpt.Inc()
+			profile.anomaliesCounter.Inc()
 			m.incrementEventFilteringStat(event.GetEventType(), profileState, NotInProfile)
 		}
 	}

@@ -250,7 +250,7 @@ var (
 	// Security Profile metrics
 
 	// MetricSecurityProfileSelector is the name of the metric used to report the list seen workloads
-	// Tags: selector (string of the workload selector), stable (true or false), anomalies_cpt (number of anomalies sent)
+	// Tags: selector (string of the workload selector), stable (true or false), anomalies_counter (number of anomalies sent)
 	//       last_uptime (0 if the profile is loaded, duration in secs of its last run otherwise)
 	MetricSecurityProfileSelector = newRuntimeMetric(".security_profile.profile_selector")
 	// MetricSecurityProfileProfiles is the name of the metric used to report the count of Security Profiles per category

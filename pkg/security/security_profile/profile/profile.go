@@ -48,7 +48,7 @@ type SecurityProfile struct {
 	anomalyDetectionEvents []model.EventType
 	eventTypeState         map[model.EventType]*EventTypeState
 	eventTypeStateLock     sync.Mutex
-	anomaliesCpt           *atomic.Uint64
+	anomaliesCounter       *atomic.Uint64
 
 	// Instances is the list of workload instances to witch the profile should apply
 	Instances []*cgroupModel.CacheEntry
@@ -83,7 +83,7 @@ func NewSecurityProfile(selector cgroupModel.WorkloadSelector, anomalyDetectionE
 		selector:               selector,
 		anomalyDetectionEvents: anomalyDetectionEvents,
 		eventTypeState:         make(map[model.EventType]*EventTypeState),
-		anomaliesCpt:           atomic.NewUint64(0),
+		anomaliesCounter:       atomic.NewUint64(0),
 	}
 }
 
@@ -95,7 +95,7 @@ func (p *SecurityProfile) reset() {
 	p.profileCookie = 0
 	p.eventTypeState = make(map[model.EventType]*EventTypeState)
 	p.Instances = nil
-	p.anomaliesCpt.Store(0)
+	p.anomaliesCounter.Store(0)
 }
 
 // generateCookies computes random cookies for all the entries in the profile that require one
