@@ -143,6 +143,7 @@ func (lp *LifecycleProcessor) initFromSNSEvent(event events.SNSEvent) {
 }
 
 func (lp *LifecycleProcessor) initFromSQSEvent(event events.SQSEvent) {
+	log.Debugf("[lifecycle] lp.DetectLambdaLibrary(): %v, lp.InferredSpansEnabled: %v", lp.DetectLambdaLibrary(), lp.InferredSpansEnabled)
 	if !lp.DetectLambdaLibrary() && lp.InferredSpansEnabled {
 		lp.GetInferredSpan().EnrichInferredSpanWithSQSEvent(event)
 	}
