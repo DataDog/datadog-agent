@@ -190,12 +190,12 @@ func run(log log.Component, config config.Component, sysprobeconfig sysprobeconf
 		return nil
 	}
 
-	common.LoadComponents(context.Background(), aggregator.GetSenderManager(), pkgconfig.Datadog.GetString("confd_path"))
+	common.LoadComponents(context.Background(), demultiplexer, pkgconfig.Datadog.GetString("confd_path"))
 	common.AC.LoadAndRun(context.Background())
 
 	// Create the CheckScheduler, but do not attach it to
 	// AutoDiscovery.  NOTE: we do not start common.Coll, either.
-	collector.InitCheckScheduler(common.Coll, aggregator.GetSenderManager())
+	collector.InitCheckScheduler(common.Coll, demultiplexer)
 
 	waitCtx, cancelTimeout := context.WithTimeout(
 		context.Background(), time.Duration(cliParams.discoveryTimeout)*time.Second)
