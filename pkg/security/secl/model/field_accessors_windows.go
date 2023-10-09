@@ -118,6 +118,30 @@ func (ev *Event) GetExecEnvs(desiredKeys map[string]bool) []string {
 	return fieldCopy
 }
 
+// GetExecExecTime returns the value of the field, resolving if necessary
+func (ev *Event) GetExecExecTime() time.Time {
+	zeroValue := time.Time{}
+	if ev.GetEventType().String() != "exec" {
+		return zeroValue
+	}
+	if ev.Exec.Process == nil {
+		return zeroValue
+	}
+	return ev.Exec.Process.ExecTime
+}
+
+// GetExecExitTime returns the value of the field, resolving if necessary
+func (ev *Event) GetExecExitTime() time.Time {
+	zeroValue := time.Time{}
+	if ev.GetEventType().String() != "exec" {
+		return zeroValue
+	}
+	if ev.Exec.Process == nil {
+		return zeroValue
+	}
+	return ev.Exec.Process.ExitTime
+}
+
 // GetExecFileName returns the value of the field, resolving if necessary
 func (ev *Event) GetExecFileName() string {
 	zeroValue := ""
@@ -286,6 +310,30 @@ func (ev *Event) GetExitEnvs(desiredKeys map[string]bool) []string {
 	fieldCopy := make([]string, len(resolvedField))
 	copy(fieldCopy, resolvedField)
 	return fieldCopy
+}
+
+// GetExitExecTime returns the value of the field, resolving if necessary
+func (ev *Event) GetExitExecTime() time.Time {
+	zeroValue := time.Time{}
+	if ev.GetEventType().String() != "exit" {
+		return zeroValue
+	}
+	if ev.Exit.Process == nil {
+		return zeroValue
+	}
+	return ev.Exit.Process.ExecTime
+}
+
+// GetExitExitTime returns the value of the field, resolving if necessary
+func (ev *Event) GetExitExitTime() time.Time {
+	zeroValue := time.Time{}
+	if ev.GetEventType().String() != "exit" {
+		return zeroValue
+	}
+	if ev.Exit.Process == nil {
+		return zeroValue
+	}
+	return ev.Exit.Process.ExitTime
 }
 
 // GetExitFileName returns the value of the field, resolving if necessary
@@ -752,6 +800,24 @@ func (ev *Event) GetProcessEnvs(desiredKeys map[string]bool) []string {
 	fieldCopy := make([]string, len(resolvedField))
 	copy(fieldCopy, resolvedField)
 	return fieldCopy
+}
+
+// GetProcessExecTime returns the value of the field, resolving if necessary
+func (ev *Event) GetProcessExecTime() time.Time {
+	zeroValue := time.Time{}
+	if ev.BaseEvent.ProcessContext == nil {
+		return zeroValue
+	}
+	return ev.BaseEvent.ProcessContext.Process.ExecTime
+}
+
+// GetProcessExitTime returns the value of the field, resolving if necessary
+func (ev *Event) GetProcessExitTime() time.Time {
+	zeroValue := time.Time{}
+	if ev.BaseEvent.ProcessContext == nil {
+		return zeroValue
+	}
+	return ev.BaseEvent.ProcessContext.Process.ExitTime
 }
 
 // GetProcessFileName returns the value of the field, resolving if necessary

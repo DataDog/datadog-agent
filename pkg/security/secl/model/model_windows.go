@@ -50,8 +50,8 @@ type Process struct {
 	SpanID  uint64 `field:"-"`
 	TraceID uint64 `field:"-"`
 
-	ExitTime time.Time `field:"-" json:"-"`
-	ExecTime time.Time `field:"-" json:"-"`
+	ExitTime time.Time `field:"exit_time,opts:getters_only" json:"-"`
+	ExecTime time.Time `field:"exec_time,opts:getters_only" json:"-"`
 
 	CreatedAt uint64 `field:"created_at,handler:ResolveProcessCreatedAt"` // SECLDoc[created_at] Definition:`Timestamp of the creation of the process`
 
