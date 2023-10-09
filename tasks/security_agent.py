@@ -590,6 +590,7 @@ def cws_go_generate(ctx):
 
     ctx.run("go generate ./pkg/security/...")
 
+
 @task
 def generate_syscall_table(ctx):
     def single_run(ctx, table_url, output_file, output_string_file, abis=None):
