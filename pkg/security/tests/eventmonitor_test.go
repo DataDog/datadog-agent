@@ -10,6 +10,8 @@ package tests
 
 import (
 	"errors"
+	"fmt"
+	"os"
 	"os/exec"
 	"sync"
 	"testing"
@@ -17,6 +19,7 @@ import (
 
 	"github.com/avast/retry-go/v4"
 	"github.com/stretchr/testify/assert"
+	"go4.org/intern"
 
 	"github.com/DataDog/datadog-agent/pkg/eventmonitor"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
@@ -25,9 +28,33 @@ import (
 
 type FakeEventConsumer struct {
 	sync.RWMutex
-	exec int
-	fork int
-	exit int
+	exec             int
+	fork             int
+	exit             int
+	lastReceivedExec *FakeConsumerProcess
+	lastReceivedFork *FakeConsumerProcess
+	lastReceivedExit *FakeConsumerProcess
+}
+
+type FakeConsumerProcess struct {
+	EventType      model.EventType
+	Pid            uint32
+	Envs           []string
+	ContainerID    *intern.Value
+	StartTime      int64
+	Expiry         int64
+	CollectionTime time.Time
+	//Ppid           uint32
+	//UID            uint32
+	//GID            uint32
+	//Username       string
+	//Group          string
+	//Exe            string
+	//Cmdline        []string
+	//ForkTime       time.Time
+	//ExecTime       time.Time
+	//ExitTime       time.Time
+	//ExitCode       uint32
 }
 
 func NewFakeEventConsumer(em *eventmonitor.EventMonitor) *FakeEventConsumer {
@@ -70,7 +97,7 @@ func (fc *FakeEventConsumer) GetExecCount() int {
 }
 
 func (fc *FakeEventConsumer) HandleEvent(incomingEvent any) {
-	event, ok := incomingEvent.(*model.Event)
+	event, ok := incomingEvent.(*FakeConsumerProcess)
 	if !ok {
 		log.Error("Event is not a security model event")
 		return
@@ -79,19 +106,39 @@ func (fc *FakeEventConsumer) HandleEvent(incomingEvent any) {
 	fc.Lock()
 	defer fc.Unlock()
 
-	switch event.GetEventType() {
+	switch event.EventType {
 	case model.ExecEventType:
 		fc.exec++
+		fc.lastReceivedExec = event
 	case model.ForkEventType:
 		fc.fork++
+		fc.lastReceivedFork = event
 	case model.ExitEventType:
 		fc.exit++
+		fc.lastReceivedExit = event
 	}
 }
 
-// Copy is no-op function used to satisfy the EventHandler interface
-func (fc *FakeEventConsumer) Copy(incomingEvent *model.Event) any {
-	return incomingEvent
+func (fc *FakeEventConsumer) Copy(ev *model.Event) any {
+	var processStartTime time.Time
+	if ev.GetEventType() == model.ExecEventType {
+		processStartTime = ev.GetProcessExecTime()
+	}
+	if ev.GetEventType() == model.ForkEventType {
+		processStartTime = ev.GetProcessForkTime()
+	}
+
+	return &FakeConsumerProcess{
+		EventType:   ev.GetEventType(),
+		Pid:         ev.GetProcessPid(),
+		ContainerID: intern.GetByString(ev.GetContainerId()),
+		StartTime:   processStartTime.UnixNano(),
+		Envs: ev.GetProcessEnvp(map[string]bool{
+			"DD_SERVICE": true,
+			"DD_VERSION": true,
+			"DD_ENV":     true,
+		}),
+	}
 }
 
 func TestEventMonitor(t *testing.T) {
@@ -116,6 +163,7 @@ func TestEventMonitor(t *testing.T) {
 	t.Run("fork", func(t *testing.T) {
 		forkCount := fc.GetForkCount()
 		cmd := exec.Command(syscallTester, "fork")
+		cmd.Env = append(os.Environ(), "DD_SERVICE=myService", "DD_VERSION=0.1.0", "DD_ENV=myEnv", "EXTRAVAR=extra")
 		_ = cmd.Run()
 
 		err := retry.Do(func() error {
@@ -125,6 +173,9 @@ func TestEventMonitor(t *testing.T) {
 
 			return errors.New("event not received")
 		}, retry.Delay(200*time.Millisecond), retry.Attempts(10))
+		}, retry.Delay(200), retry.Attempts(10))
+		fmt.Printf("%+v\n", fc.lastReceivedFork)
+		assert.Equal(t, []string{"DD_SERVICE=myService", "DD_VERSION=0.1.0", "DD_ENV=myEnv"}, fc.lastReceivedFork.Envs)
 		assert.Nil(t, err)
 	})
 
