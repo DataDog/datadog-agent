@@ -90,16 +90,7 @@ func (c *ExtendedClient) CheckPortBound(port int) error {
 		netstatCmd = "sudo ss -lntp | grep %v"
 	}
 
-	ok := false
-	var err error
-
-	for try := 0; try < 5 && !ok; try++ {
-		_, err = c.VMClient.ExecuteWithError(fmt.Sprintf(netstatCmd, port))
-		if err == nil {
-			ok = true
-		}
-		time.Sleep(1 * time.Second)
-	}
+	_, err := c.ExecuteWithRetry(fmt.Sprintf(netstatCmd, port))
 
 	return err
 }
@@ -123,7 +114,7 @@ func (c *ExtendedClient) SetConfig(confPath string, key string, value string) er
 		if confYaml[keyList[0]] == nil {
 			confYaml[keyList[0]] = map[string]any{keyList[1]: value}
 		} else {
-			confYaml[keyList[0]].(map[string]any)[keyList[1]] = value
+			confYaml[keyList[0]].(map[interface{}]any)[keyList[1]] = value
 		}
 	}
 
@@ -157,4 +148,23 @@ func (c *ExtendedClient) GetPythonVersion() (string, error) {
 	pythonVersion := statusJSON["python_version"].(string)
 
 	return pythonVersion, nil
+}
+
+// ExecuteWithRetry execute the command with retry
+func (c *ExtendedClient) ExecuteWithRetry(cmd string) (string, error) {
+	ok := false
+
+	var err error
+	var output string
+
+	for try := 0; try < 5 && !ok; try++ {
+		output, err = c.VMClient.ExecuteWithError(cmd)
+		if err == nil {
+			ok = true
+		}
+		time.Sleep(1 * time.Second)
+	}
+
+	return output, err
+
 }
