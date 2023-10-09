@@ -550,6 +550,15 @@ func (m *SecurityProfileManager) SendStats() error {
 			profileStats[profile.Status] = make(map[bool]float64)
 		}
 		profileStats[profile.Status][profile.loadedInKernel]++
+
+		tags := []string{
+			"selector:" + profile.selector.String(),
+			fmt.Sprintf("stable:%v", profile.IsStable()),
+			fmt.Sprintf("anomalies_cpt:%v", profile.anomaliesCpt.Swap(0)),
+		}
+		if err := m.statsdClient.Count(metrics.MetricSecurityProfileSelector, 1, tags, 1.0); err != nil {
+			return fmt.Errorf("couldn't send MetricSecurityProfileSelector: %w", err)
+		}
 	}
 
 	for status, counts := range profileStats {
@@ -711,6 +720,7 @@ func (m *SecurityProfileManager) LookupEventInProfiles(event *model.Event) {
 			event.AddToFlags(model.EventFlagsSecurityProfileInProfile)
 			m.incrementEventFilteringStat(event.GetEventType(), profileState, InProfile)
 		} else {
+			profile.anomaliesCpt.Inc()
 			m.incrementEventFilteringStat(event.GetEventType(), profileState, NotInProfile)
 		}
 	}

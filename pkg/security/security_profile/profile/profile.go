@@ -15,6 +15,7 @@ import (
 	"sync"
 	"time"
 
+	"go.uber.org/atomic"
 	"golang.org/x/exp/slices"
 
 	proto "github.com/DataDog/agent-payload/v5/cws/dumpsv1"
@@ -46,6 +47,7 @@ type SecurityProfile struct {
 	anomalyDetectionEvents []model.EventType
 	eventTypeState         map[model.EventType]*EventTypeState
 	eventTypeStateLock     sync.Mutex
+	anomaliesCpt           *atomic.Uint64
 
 	// Instances is the list of workload instances to witch the profile should apply
 	Instances []*cgroupModel.CacheEntry
@@ -80,6 +82,7 @@ func NewSecurityProfile(selector cgroupModel.WorkloadSelector, anomalyDetectionE
 		selector:               selector,
 		anomalyDetectionEvents: anomalyDetectionEvents,
 		eventTypeState:         make(map[model.EventType]*EventTypeState),
+		anomaliesCpt:           atomic.NewUint64(0),
 	}
 }
 
@@ -90,6 +93,7 @@ func (p *SecurityProfile) reset() {
 	p.profileCookie = 0
 	p.eventTypeState = make(map[model.EventType]*EventTypeState)
 	p.Instances = nil
+	p.anomaliesCpt.Store(0)
 }
 
 // generateCookies computes random cookies for all the entries in the profile that require one
@@ -214,4 +218,16 @@ func (p *SecurityProfile) ToSecurityProfileMessage(timeResolver *timeResolver.Re
 		})
 	}
 	return msg
+}
+
+// IsStable returns true if profile is stable for every even types
+func (p *SecurityProfile) IsStable() bool {
+	p.eventTypeStateLock.Lock()
+	defer p.eventTypeStateLock.Unlock()
+	for _, evType := range p.anomalyDetectionEvents {
+		if p.eventTypeState[evType].state != StableEventType {
+			return false
+		}
+	}
+	return true
 }
