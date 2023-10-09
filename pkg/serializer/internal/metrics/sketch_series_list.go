@@ -8,6 +8,7 @@ package metrics
 import (
 	"bytes"
 	"expvar"
+	"github.com/DataDog/datadog-agent/pkg/util/cache"
 
 	"github.com/DataDog/agent-payload/v5/gogen"
 	"github.com/richardartoul/molecule"
@@ -148,18 +149,18 @@ func (sl SketchSeriesList) MarshalSplitCompress(bufferContext *marshaler.BufferC
 		err = ps.Embedded(payloadSketches, func(ps *molecule.ProtoStream) error {
 			var err error
 
-			err = ps.String(sketchMetric, ss.Name)
+			err = ps.String(sketchMetric, cache.CheckDefault(ss.Name))
 			if err != nil {
 				return err
 			}
 
-			err = ps.String(sketchHost, ss.Host)
+			err = ps.String(sketchHost, cache.CheckDefault(ss.Host))
 			if err != nil {
 				return err
 			}
 
 			err = ss.Tags.ForEachErr(func(tag string) error {
-				return ps.String(sketchTags, tag)
+				return ps.String(sketchTags, cache.CheckDefault(tag))
 			})
 			if err != nil {
 				return err

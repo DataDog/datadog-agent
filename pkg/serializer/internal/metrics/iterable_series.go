@@ -10,7 +10,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-
+	"github.com/DataDog/datadog-agent/pkg/util/cache"
 	jsoniter "github.com/json-iterator/go"
 	"github.com/richardartoul/molecule"
 
@@ -233,7 +233,7 @@ func (series *IterableSeries) MarshalSplitCompress(bufferContext *marshaler.Buff
 					return err
 				}
 
-				err = ps.String(resourceName, serie.Host)
+				err = ps.String(resourceName, cache.CheckDefault(serie.Host))
 				if err != nil {
 					return err
 				}
@@ -251,7 +251,7 @@ func (series *IterableSeries) MarshalSplitCompress(bufferContext *marshaler.Buff
 						return err
 					}
 
-					err = ps.String(resourceName, serie.Device)
+					err = ps.String(resourceName, cache.CheckDefault(serie.Device))
 					if err != nil {
 						return err
 					}
@@ -266,12 +266,12 @@ func (series *IterableSeries) MarshalSplitCompress(bufferContext *marshaler.Buff
 			if len(serie.Resources) > 0 {
 				for _, r := range serie.Resources {
 					err = ps.Embedded(seriesResources, func(ps *molecule.ProtoStream) error {
-						err = ps.String(resourceType, r.Type)
+						err = ps.String(resourceType, cache.CheckDefault(r.Type))
 						if err != nil {
 							return err
 						}
 
-						err = ps.String(resourceName, r.Name)
+						err = ps.String(resourceName, cache.CheckDefault(r.Name))
 						if err != nil {
 							return err
 						}
@@ -284,13 +284,13 @@ func (series *IterableSeries) MarshalSplitCompress(bufferContext *marshaler.Buff
 				}
 			}
 
-			err = ps.String(seriesMetric, serie.Name)
+			err = ps.String(seriesMetric, cache.CheckDefault(serie.Name))
 			if err != nil {
 				return err
 			}
 
 			err = serie.Tags.ForEachErr(func(tag string) error {
-				return ps.String(seriesTags, tag)
+				return ps.String(seriesTags, cache.CheckDefault(tag))
 			})
 			if err != nil {
 				return err
@@ -301,7 +301,7 @@ func (series *IterableSeries) MarshalSplitCompress(bufferContext *marshaler.Buff
 				return err
 			}
 
-			err = ps.String(seriesSourceTypeName, serie.SourceTypeName)
+			err = ps.String(seriesSourceTypeName, cache.CheckDefault(serie.SourceTypeName))
 			if err != nil {
 				return err
 			}

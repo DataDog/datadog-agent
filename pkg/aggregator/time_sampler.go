@@ -7,6 +7,7 @@ package aggregator
 
 import (
 	"fmt"
+	"github.com/DataDog/datadog-agent/pkg/util/cache"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator/ckey"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/internal/limiter"
@@ -175,7 +176,7 @@ func (s *TimeSampler) dedupSerieBySerieSignature(
 
 	// rawSeries have the same context key.
 	for _, serie := range rawSeries {
-		serieSignature := SerieSignature{serie.MType, serie.NameSuffix}
+		serieSignature := SerieSignature{serie.MType, cache.CheckDefault(serie.NameSuffix)}
 
 		if existingSerie, ok := serieBySignature[serieSignature]; ok {
 			existingSerie.Points = append(existingSerie.Points, serie.Points[0])
@@ -186,9 +187,10 @@ func (s *TimeSampler) dedupSerieBySerieSignature(
 				log.Errorf("TimeSampler #%d Ignoring all metrics on context key '%v': inconsistent context resolver state: the context is not tracked", s.id, serie.ContextKey)
 				continue
 			}
-			serie.Name = context.Name + serie.NameSuffix
+			suffix := cache.CheckDefault(serie.NameSuffix)
+			serie.Name = cache.CheckDefault(context.Name) + suffix
 			serie.Tags = context.Tags()
-			serie.Host = context.Host
+			serie.Host = cache.CheckDefault(context.Host)
 			serie.NoIndex = context.noIndex
 			serie.Interval = s.interval
 			serie.Source = context.source
