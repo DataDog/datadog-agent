@@ -46,9 +46,7 @@ type dependencies struct {
 	TelemetryCollector telemetry.TelemetryCollector
 }
 
-type component struct {
-	*agent
-}
+type component struct{}
 
 type agent struct {
 	*pkgagent.Agent
@@ -92,7 +90,6 @@ func newAgent(deps dependencies) Component {
 		// These contexts are cancelled on a deadline, so they would have side effects on the agent.
 		OnStart: func(_ context.Context) error { return start(ag) },
 		OnStop:  func(_ context.Context) error { return stop(ag) }})
-	c.agent = ag
 	return c
 }
 
