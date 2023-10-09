@@ -553,7 +553,7 @@ func (m *SecurityProfileManager) SendStats() error {
 
 		uptime := uint64(0)
 		if !profile.loadedInKernel {
-			uptime = (profile.unloadedNano - profile.loadedNano) / 1000000000
+			uptime = uint64(time.Duration(profile.unloadedNano - profile.loadedNano).Seconds())
 		}
 		tags := []string{
 			"selector:" + profile.selector.String(),
