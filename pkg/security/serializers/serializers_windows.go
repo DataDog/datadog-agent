@@ -11,56 +11,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 )
 
-<<<<<<< HEAD
-<<<<<<< HEAD
-// FileSerializer serializes a file to JSON
-// easyjson:json
-type FileSerializer struct {
-	// File path
-	Path string `json:"path,omitempty"`
-	// File basename
-	Name string `json:"name,omitempty"`
-}
-
-// ProcessSerializer serializes a process to JSON
-// easyjson:json
-type ProcessSerializer struct {
-	// Process ID
-	Pid uint32 `json:"pid,omitempty"`
-	// Parent Process ID
-	PPid *uint32 `json:"ppid,omitempty"`
-	// Exec time of the process
-	ExecTime *utils.EasyjsonTime `json:"exec_time,omitempty"`
-	// Exit time of the process
-	ExitTime *utils.EasyjsonTime `json:"exit_time,omitempty"`
-	// File information of the executable
-	Executable *FileSerializer `json:"executable,omitempty"`
-	// Container context
-	Container *ContainerContextSerializer `json:"container,omitempty"`
-	// Command line arguments
-	CmdLine string `json:"cmdline,omitempty"`
-}
-
-// FileEventSerializer serializes a file event to JSON
-// easyjson:json
-type FileEventSerializer struct {
-	FileSerializer
-}
-
-// NetworkDeviceSerializer serializes the network device context to JSON
-// easyjson:json
-type NetworkDeviceSerializer struct{}
-
-// EventSerializer serializes an event to JSON
-// easyjson:json
-type EventSerializer struct {
-	*BaseEventSerializer
-}
-
-=======
->>>>>>> 9469c1850f... new easyjson
-=======
->>>>>>> e62e34ec99... add windows field accessors
 func newFileSerializer(fe *model.FileEvent, e *model.Event, forceInode ...uint64) *FileSerializer {
 	return &FileSerializer{
 		Path: e.FieldHandlers.ResolveFilePath(e, fe),

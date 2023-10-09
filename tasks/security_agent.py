@@ -575,11 +575,11 @@ def cws_go_generate(ctx):
     with ctx.cd("./pkg/security/secl"):
         ctx.run("go install ./compiler/generators/accessors/...")
         ctx.run("go install ./compiler/generators/operators/...")
-        ctx.run("go generate ./...")
         if sys.platform == "linux":
             ctx.run("GOOS=windows go generate ./...")
         elif sys.platform == "win32":
             ctx.run("set GOOS=linux && go generate ./...")
+        ctx.run("go generate ./...")
 
     shutil.copy(
         "./pkg/security/serializers/model/model_windows_easyjson.mock",
