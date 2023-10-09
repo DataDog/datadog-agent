@@ -39,10 +39,10 @@ var (
 	// namespace yet.
 	ErrNoNetworkNamespaceHandle = fmt.Errorf("no network namespace handle")
 
-	// lonelyTimeout is the timeout past which a lonely network namespace is expired
-	lonelyTimeout = 30 * time.Second
-	// flushNamespacesPeriod is the period at which the resolver checks if a namespace should be flushed
-	flushNamespacesPeriod = 30 * time.Second
+	// defaultLonelyTimeout is the timeout past which a lonely network namespace is expired
+	defaultLonelyTimeout = 30 * time.Second
+	// FlushNamespacesPeriod is the period at which the resolver checks if a namespace should be flushed
+	FlushNamespacesPeriod = 30 * time.Second
 )
 
 // NetworkNamespace is used to hold a handle to a network namespace
@@ -401,7 +401,7 @@ func (nr *Resolver) Start(ctx context.Context) error {
 }
 
 func (nr *Resolver) flushNamespaces(ctx context.Context) {
-	ticker := time.NewTicker(flushNamespacesPeriod)
+	ticker := time.NewTicker(FlushNamespacesPeriod)
 	defer ticker.Stop()
 
 	for {
@@ -416,7 +416,7 @@ func (nr *Resolver) flushNamespaces(ctx context.Context) {
 			// To detect this race, compute the list of namespaces that are in cache, but for which we do not have any
 			// device. Defer a snapshot process for each of those namespaces, and delete them if the snapshot yields
 			// no new device.
-			nr.preventNetworkNamespaceDrift(probesCount)
+			nr.PreventNetworkNamespaceDrift(probesCount, defaultLonelyTimeout)
 		}
 	}
 }
@@ -461,8 +461,8 @@ func (nr *Resolver) flushNetworkNamespace(netns *NetworkNamespace) {
 	_ = nr.manager.CleanupNetworkNamespace(netns.nsID)
 }
 
-// preventNetworkNamespaceDrift ensures that we do not keep network namespace handles indefinitely
-func (nr *Resolver) preventNetworkNamespaceDrift(probesCount map[uint32]int) {
+// PreventNetworkNamespaceDrift ensures that we do not keep network namespace handles indefinitely
+func (nr *Resolver) PreventNetworkNamespaceDrift(probesCount map[uint32]int, lonelyTimeout time.Duration) {
 	nr.Lock()
 	defer nr.Unlock()
 
