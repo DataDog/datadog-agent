@@ -218,7 +218,13 @@ func (a *APIServer) sendToSecurityAgent(m *api.SecurityEventMessage) {
 		break
 	default:
 		// The channel is full, consume the oldest event
-		oldestMsg := <-a.msgs
+		select {
+		case oldestMsg := <-a.msgs:
+			a.expireEvent(oldestMsg)
+		default:
+			break
+		}
+
 		// Try to send the event again
 		select {
 		case a.msgs <- m:
@@ -228,7 +234,6 @@ func (a *APIServer) sendToSecurityAgent(m *api.SecurityEventMessage) {
 			a.expireEvent(m)
 			break
 		}
-		a.expireEvent(oldestMsg)
 		break
 	}
 }
