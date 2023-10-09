@@ -19,7 +19,6 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
 	workloadmetaServer "github.com/DataDog/datadog-agent/pkg/workloadmeta/server"
 	"github.com/cihub/seelog"
@@ -56,7 +55,6 @@ func StartServer(
 	capture replay.Component,
 	serverDebug dogstatsdDebug.Component,
 	logsAgent pkgUtil.Optional[logsAgent.Component],
-	senderManager sender.SenderManager,
 ) error {
 	initializeTLS()
 
@@ -122,7 +120,7 @@ func StartServer(
 	checkMux.Use(validateToken)
 
 	mux := http.NewServeMux()
-	mux.Handle("/agent/", http.StripPrefix("/agent", agent.SetupHandlers(agentMux, flare, dogstatsdServer, serverDebug, logsAgent, senderManager)))
+	mux.Handle("/agent/", http.StripPrefix("/agent", agent.SetupHandlers(agentMux, flare, dogstatsdServer, serverDebug, logsAgent)))
 	mux.Handle("/check/", http.StripPrefix("/check", check.SetupHandlers(checkMux)))
 	mux.Handle("/", gwmux)
 

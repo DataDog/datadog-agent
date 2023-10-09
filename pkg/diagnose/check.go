@@ -13,7 +13,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/log"
 	forwarder "github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
-	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/collector"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/DataDog/datadog-agent/pkg/config"
@@ -27,12 +26,12 @@ func init() {
 	diagnosis.Register("check-datadog", diagnose)
 }
 
-func diagnose(diagCfg diagnosis.Config, senderManager sender.SenderManager) []diagnosis.Diagnosis {
+func diagnose(diagCfg diagnosis.Config) []diagnosis.Diagnosis {
 	if diagCfg.RunningInAgentProcess && common.Coll != nil {
 		return diagnoseChecksInAgentProcess()
 	}
 
-	return diagnoseChecksInCLIProcess(diagCfg, senderManager)
+	return diagnoseChecksInCLIProcess(diagCfg)
 }
 
 func getInstanceDiagnoses(instance check.Check) []diagnosis.Diagnosis {
@@ -83,7 +82,7 @@ func diagnoseChecksInAgentProcess() []diagnosis.Diagnosis {
 	return diagnoses
 }
 
-func diagnoseChecksInCLIProcess(diagCfg diagnosis.Config, senderManager sender.SenderManager) []diagnosis.Diagnosis {
+func diagnoseChecksInCLIProcess(diagCfg diagnosis.Config) []diagnosis.Diagnosis {
 	// other choices
 	// 	run() github.com\DataDog\datadog-agent\pkg\cli\subcommands\check\command.go
 	//  runCheck() github.com\DataDog\datadog-agent\cmd\agent\gui\checks.go
@@ -110,7 +109,7 @@ func diagnoseChecksInCLIProcess(diagCfg diagnosis.Config, senderManager sender.S
 	log := log.NewTemporaryLoggerWithoutInit()
 
 	forwarder := forwarder.NewDefaultForwarder(config.Datadog, log, forwarder.NewOptions(config.Datadog, log, nil))
-	aggregator.InitAndStartAgentDemultiplexer(log, forwarder, opts, hostnameDetected)
+	senderManager := aggregator.InitAndStartAgentDemultiplexer(log, forwarder, opts, hostnameDetected)
 
 	common.LoadComponents(context.Background(), senderManager, pkgconfig.Datadog.GetString("confd_path"))
 	common.AC.LoadAndRun(context.Background())

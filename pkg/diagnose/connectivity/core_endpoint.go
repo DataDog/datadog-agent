@@ -19,7 +19,6 @@ import (
 	"strings"
 
 	forwarder "github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
-	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/config/resolver"
 	"github.com/DataDog/datadog-agent/pkg/config/utils"
@@ -31,7 +30,7 @@ func init() {
 	diagnosis.Register("connectivity-datadog-core-endpoints", diagnose)
 }
 
-func diagnose(diagCfg diagnosis.Config, senderManager sender.SenderManager) []diagnosis.Diagnosis {
+func diagnose(diagCfg diagnosis.Config) []diagnosis.Diagnosis {
 
 	// Create domain resolvers
 	keysPerDomain, err := utils.GetMultipleEndpoints(config.Datadog)

@@ -18,7 +18,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/flare/types"
 	"github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/comp/remote-config/rcclient"
-	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/config/utils"
 	pkgFlare "github.com/DataDog/datadog-agent/pkg/flare"
 )
@@ -113,7 +112,7 @@ func (f *flare) Create(pdata ProfileData, ipcError error) (string, error) {
 	providers := append(
 		f.providers,
 		types.FlareProvider{Callback: func(fb types.FlareBuilder) error {
-			return pkgFlare.CompleteFlare(fb, aggregator.GetSenderManager())
+			return pkgFlare.CompleteFlare(fb)
 		}},
 		types.FlareProvider{Callback: f.collectLogsFiles},
 		types.FlareProvider{Callback: f.collectConfigFiles},
