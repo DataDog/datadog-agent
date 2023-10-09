@@ -10,7 +10,7 @@ replace (
 
 require (
 	github.com/DataDog/datadog-agent/pkg/util/log v0.0.0-00010101000000-000000000000
-	github.com/hectane/go-acl v0.0.0-20230122075934-ca0b05cb1adb
+	github.com/hectane/go-acl v0.0.0-20190604041725-da78bae5fc95
 	github.com/shirou/gopsutil/v3 v3.23.9
 	github.com/stretchr/testify v1.8.4
 	golang.org/x/sys v0.12.0
