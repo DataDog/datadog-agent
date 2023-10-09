@@ -5,6 +5,7 @@
 
 //go:build (linux && !linux_bpf) || (windows && !npm) || (!linux && !windows)
 
+//nolint:revive // TODO fix revive should have a package comment
 package tracer
 
 import (

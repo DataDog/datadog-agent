@@ -132,7 +132,7 @@ func NewTracer(config *config.Config) (*Tracer, error) {
 // Stop function stops running tracer
 func (t *Tracer) Stop() {
 	close(t.stopChan)
-	if t.usmMonitor != nil { //nolint
+	if t.usmMonitor != nil {
 		_ = t.usmMonitor.Stop()
 	}
 	t.reverseDNS.Close()
@@ -177,7 +177,7 @@ func (t *Tracer) GetActiveConnections(clientID string) (*network.Connections, er
 	t.state.StoreClosedConnections(closedConnStats)
 
 	var delta network.Delta
-	if t.usmMonitor != nil { //nolint
+	if t.usmMonitor != nil {
 		delta = t.state.GetDelta(clientID, uint64(time.Now().Nanosecond()), activeConnStats, t.reverseDNS.GetDNSStats(), t.usmMonitor.GetHTTPStats())
 	} else {
 		delta = t.state.GetDelta(clientID, uint64(time.Now().Nanosecond()), activeConnStats, t.reverseDNS.GetDNSStats(), nil)

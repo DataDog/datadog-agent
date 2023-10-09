@@ -270,7 +270,7 @@ func getStreamFunc(messageReceiverFunc func() *diagnostic.BufferedMessageReceive
 		for {
 			// Handlers for detecting a closed connection (from either the server or client)
 			select {
-			case <-w.(http.CloseNotifier).CloseNotify(): //nolint
+			case <-w.(http.CloseNotifier).CloseNotify():
 				return
 			case <-r.Context().Done():
 				return
