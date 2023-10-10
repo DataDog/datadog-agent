@@ -2,3 +2,4 @@
 features:
   - |
     DBM: Add configuration option to SQL obfuscator to use go-sqllexer package to run SQL obfuscation and normalization
+  
