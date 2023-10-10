@@ -19,7 +19,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/metadata/externalhost"
 	"github.com/DataDog/datadog-agent/pkg/metrics/servicecheck"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname/validate"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
+	log "github.com/DataDog/datadog-agent/pkg/util/snmplog"
 
 	"github.com/DataDog/datadog-agent/pkg/networkdevice/metadata"
 	"github.com/DataDog/datadog-agent/pkg/networkdevice/profile/profiledefinition"
@@ -62,6 +62,8 @@ type DeviceCheck struct {
 // NewDeviceCheck returns a new DeviceCheck
 func NewDeviceCheck(config *checkconfig.CheckConfig, ipAddress string, sessionFactory session.Factory) (*DeviceCheck, error) {
 	newConfig := config.CopyWithNewIP(ipAddress)
+
+	log.SetupSNMPLogger("test", ipAddress)
 
 	sess, err := sessionFactory(newConfig)
 	if err != nil {
@@ -195,8 +197,10 @@ func (d *DeviceCheck) getValuesAndTags() (bool, []string, *valuestore.ResultValu
 		deviceReachable = false
 		d.diagnoses.Add("error", "SNMP_FAILED_TO_POLL_DEVICE", "Agent failed to poll this network device. Check the authentication method and ensure the agent can ping it.")
 		checkErrors = append(checkErrors, fmt.Sprintf("check device reachable: failed: %s", err))
+		log.Error("OMG ITS BORKED!!!")
 	} else {
 		deviceReachable = true
+		log.Error("OMG ITS NOT BORKED!!!")
 		if log.ShouldLog(seelog.DebugLvl) {
 			log.Debugf("check device reachable: success: %v", gosnmplib.PacketAsString(getNextValue))
 		}
