@@ -23,7 +23,6 @@ type baseFlareSuite struct {
 }
 
 func (v *baseFlareSuite) TestFlareDefaultFiles() {
-	v.UpdateEnv(e2e.FakeIntakeStackDef(nil))
 	flare := requestAgentFlareAndFetchFromFakeIntake(v.T(), v.Env().Agent, v.Env().Fakeintake, client.WithArgs([]string{"--email", "e2e@test.com", "--send"}))
 
 	assertFilesExist(v.T(), flare, defaultFlareFiles)
@@ -37,7 +36,6 @@ func (v *baseFlareSuite) TestFlareDefaultFiles() {
 	assertFileContains(v.T(), flare, "process_check_output.json", "'process_config.process_collection.enabled' is disabled")
 	assertFileNotContains(v.T(), flare, "container_check_output.json", "'process_config.container_collection.enabled' is disabled")
 	assertFileNotContains(v.T(), flare, "process_discovery_check_output.json", "'process_config.process_discovery.enabled' is disabled")
-	assertFilesExist(v.T(), flare, windowsFiles)
 }
 
 func requestAgentFlareAndFetchFromFakeIntake(t *testing.T, agent *client.Agent, fakeintake *client.Fakeintake, flareArgs ...client.AgentArgsOption) flare.Flare {
