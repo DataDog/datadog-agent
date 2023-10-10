@@ -3,31 +3,17 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build !windows
+package agent
 
-package run
+// team: agent-apm
 
-import (
-	"context"
-
-	"github.com/spf13/cobra"
-
-	"github.com/DataDog/datadog-agent/cmd/trace-agent/subcommands"
-)
-
-type RunParams struct {
-	*subcommands.GlobalParams
-
+// Params replicates the run.RunParams needed by the tracer agent.
+// This is required to avoid cyclic dependencies.
+type Params struct {
 	// PIDFilePath contains the value of the --pidfile flag.
 	PIDFilePath string
 	// CPUProfile contains the value for the --cpu-profile flag.
 	CPUProfile string
 	// MemProfile contains the value for the --mem-profile flag.
 	MemProfile string
-}
-
-func setOSSpecificParamFlags(cmd *cobra.Command, cliParams *RunParams) {}
-
-func runTraceAgent(cliParams *RunParams, defaultConfPath string) error {
-	return runFx(context.Background(), cliParams, defaultConfPath)
 }

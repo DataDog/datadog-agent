@@ -187,9 +187,7 @@ func (a *Agent) loop() {
 	<-a.ctx.Done()
 	log.Info("Exiting...")
 
-	// Stop OTLPReceiver before Receiver to avoid sending to closed channel
-	a.OTLPReceiver.Stop()
-
+	a.OTLPReceiver.Stop() // Stop OTLPReceiver before Receiver to avoid sending to closed channel
 	if err := a.Receiver.Stop(); err != nil {
 		log.Error(err)
 	}

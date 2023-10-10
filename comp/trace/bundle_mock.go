@@ -3,12 +3,16 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-// Package trace implements the "trace" bundle, providing components for the Trace Agent
+// Package core implements the "core" bundle, providing services common to all
+// agent flavors and binaries.
 //
 // The constituent components serve as utilities and are mostly independent of
 // one another.  Other components should depend on any components they need.
 //
 // This bundle does not depend on any other bundles.
+
+//go:build test
+
 package trace
 
 import (
@@ -19,8 +23,8 @@ import (
 
 // team: agent-apm
 
-// Bundle defines the fx options for this bundle.
-var Bundle = fxutil.Bundle(
-	config.Module,
-	agent.Module,
+// MockBundle defines the fx options for this bundle.
+var MockBundle = fxutil.Bundle(
+	config.MockModule,
+	agent.MockModule,
 )

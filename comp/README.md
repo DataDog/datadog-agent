@@ -252,6 +252,10 @@ Package systray provides a component for the system tray application
 
 Package trace implements the "trace" bundle, providing components for the Trace Agent
 
+### [comp/trace/agent](https://pkg.go.dev/github.com/DataDog/dd-agent-comp-experiments/comp/trace/agent)
+
+
+
 ### [comp/trace/config](https://pkg.go.dev/github.com/DataDog/dd-agent-comp-experiments/comp/trace/config)
 
 Package config implements a component to handle trace-agent configuration.  This

@@ -3,17 +3,17 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package main
+//go:build !windows
+
+package agent
 
 import (
-	"os"
+	"context"
 
-	"github.com/DataDog/datadog-agent/cmd/internal/runcmd"
-	"github.com/DataDog/datadog-agent/cmd/trace-agent/command"
+	"go.uber.org/fx"
 )
 
-func main() {
-	os.Args = command.FixDeprecatedFlags(os.Args, os.Stdout)
-
-	os.Exit(runcmd.Run(command.MakeRootCommand()))
+func setupShutdown(_ context.Context, shutdowner fx.Shutdowner) {
+	// Handle stops properly
+	go handleSignal(shutdowner)
 }
