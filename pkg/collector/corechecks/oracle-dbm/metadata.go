@@ -43,7 +43,7 @@ func sendDbInstanceMetadata(c *Check) error {
 		ConnectionHost: config.GetConnectData(c.config.InstanceConfig),
 	}
 	e := dbInstanceEvent{
-		Host:               c.dbHostname,
+		Host:               fmt.Sprintf("%s/%s", c.dbHostname, c.cdbName),
 		AgentVersion:       c.agentVersion,
 		Dbms:               common.IntegrationName,
 		Kind:               "database_instance",
