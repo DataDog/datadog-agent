@@ -27,7 +27,7 @@ type UDSDatagramListener struct {
 }
 
 // NewUDSDatagramListener returns an idle UDS datagram Statsd listener
-func NewUDSDatagramListener(packetOut chan packets.Packets, sharedPacketPoolManager *packets.PoolManager, sharedOobPoolManager *packets.PoolManager, cfg config.ConfigReader, capture replay.Component) (*UDSDatagramListener, error) {
+func NewUDSDatagramListener(packetOut chan packets.Packets, sharedPacketPoolManager *packets.PoolManager, sharedOobPoolManager *packets.PoolManager, cfg config.Reader, capture replay.Component) (*UDSDatagramListener, error) {
 	socketPath := cfg.GetString("dogstatsd_socket")
 	network := "unixgram"
 

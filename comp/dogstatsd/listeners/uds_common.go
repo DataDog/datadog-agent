@@ -56,7 +56,7 @@ type UDSListener struct {
 	dogstatsdMemBasedRateLimiter bool
 }
 
-func setupUnixConn(conn *net.UnixConn, originDetection bool, config config.ConfigReader) (bool, error) {
+func setupUnixConn(conn *net.UnixConn, originDetection bool, config config.Reader) (bool, error) {
 	if originDetection {
 		err := enableUDSPassCred(conn)
 		if err != nil {
@@ -116,7 +116,7 @@ func NewUDSOobPoolManager() *packets.PoolManager {
 }
 
 // NewUDSListener returns an idle UDS Statsd listener
-func NewUDSListener(packetOut chan packets.Packets, sharedPacketPoolManager *packets.PoolManager, sharedOobPacketPoolManager *packets.PoolManager, cfg config.ConfigReader, capture replay.Component, network string) (*UDSListener, error) {
+func NewUDSListener(packetOut chan packets.Packets, sharedPacketPoolManager *packets.PoolManager, sharedOobPacketPoolManager *packets.PoolManager, cfg config.Reader, capture replay.Component, network string) (*UDSListener, error) {
 	originDetection := cfg.GetBool("dogstatsd_origin_detection")
 
 	listener := &UDSListener{
