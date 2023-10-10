@@ -38,10 +38,8 @@ func (d dependencies) getParams() *Params {
 	return &d.Params
 }
 
-// TODO: serverless must be eventually migrated to fx, this workaround
-//
-//	will then become obsolete - ts should not be created
-//	directly in this fashion.
+// NewServerlessConfig initializes a config component from the given config file
+// TODO: serverless must be eventually migrated to fx, this workaround will then become obsolete - ts should not be created directly in this fashion.
 func NewServerlessConfig(path string) (Component, error) {
 	options := []func(*Params){WithConfigName("serverless"), WithConfigLoadSecrets(true)}
 
