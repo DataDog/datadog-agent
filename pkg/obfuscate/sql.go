@@ -301,7 +301,7 @@ func (o *Obfuscator) ObfuscateSQLStringWithOptions(in string, opts *SQLConfig) (
 	if opts.ObfuscateOnly || opts.ObfuscateAndNormalize {
 		// If obfuscation option is specifies, we will use go-sqllexer pkg
 		// to obfuscate (and normalize) the query.
-		return o.ObfuscateWithSqlLexer(in, opts)
+		return o.ObfuscateWithSQLLexer(in, opts)
 	}
 
 	if v, ok := o.queryCache.Get(in); ok {
@@ -423,7 +423,9 @@ func (o *Obfuscator) ObfuscateSQLExecPlan(jsonPlan string, normalize bool) (stri
 	return o.sqlExecPlan.obfuscate([]byte(jsonPlan))
 }
 
-func (o *Obfuscator) ObfuscateWithSqlLexer(in string, opts *SQLConfig) (*ObfuscatedQuery, error) {
+// ObfuscateWithSQLLexer obfuscates the given SQL query using the go-sqllexer package.
+// If ObfuscateOnly is set to true, the query will be obfuscated without normalizing it.
+func (o *Obfuscator) ObfuscateWithSQLLexer(in string, opts *SQLConfig) (*ObfuscatedQuery, error) {
 	obfuscator := sqllexer.NewObfuscator(
 		sqllexer.WithReplaceDigits(opts.ReplaceDigits),
 		sqllexer.WithDollarQuotedFunc(opts.DollarQuotedFunc),
@@ -437,31 +439,31 @@ func (o *Obfuscator) ObfuscateWithSqlLexer(in string, opts *SQLConfig) (*Obfusca
 		return &ObfuscatedQuery{
 			Query: out,
 		}, nil
-	} else {
-		// Obfuscate the query and normalize it.
-		normalizer := sqllexer.NewNormalizer(
-			sqllexer.WithCollectComments(opts.CollectComments),
-			sqllexer.WithCollectCommands(opts.CollectCommands),
-			sqllexer.WithCollectTables(opts.TableNames),
-			sqllexer.WithKeepSQLAlias(opts.KeepSQLAlias),
-		)
-		out, statementMetadata, err := sqllexer.ObfuscateAndNormalize(
-			in,
-			obfuscator,
-			normalizer,
-			sqllexer.WithDBMS(sqllexer.DBMSType(opts.DBMS)),
-		)
-		if err != nil {
-			return nil, err
-		}
-		return &ObfuscatedQuery{
-			Query: out,
-			Metadata: SQLMetadata{
-				Size:      int64(statementMetadata.Size),
-				TablesCSV: strings.Join(statementMetadata.Tables, ","),
-				Commands:  statementMetadata.Commands,
-				Comments:  statementMetadata.Comments,
-			},
-		}, nil
 	}
+
+	// Obfuscate the query and normalize it.
+	normalizer := sqllexer.NewNormalizer(
+		sqllexer.WithCollectComments(opts.CollectComments),
+		sqllexer.WithCollectCommands(opts.CollectCommands),
+		sqllexer.WithCollectTables(opts.TableNames),
+		sqllexer.WithKeepSQLAlias(opts.KeepSQLAlias),
+	)
+	out, statementMetadata, err := sqllexer.ObfuscateAndNormalize(
+		in,
+		obfuscator,
+		normalizer,
+		sqllexer.WithDBMS(sqllexer.DBMSType(opts.DBMS)),
+	)
+	if err != nil {
+		return nil, err
+	}
+	return &ObfuscatedQuery{
+		Query: out,
+		Metadata: SQLMetadata{
+			Size:      int64(statementMetadata.Size),
+			TablesCSV: strings.Join(statementMetadata.Tables, ","),
+			Commands:  statementMetadata.Commands,
+			Comments:  statementMetadata.Comments,
+		},
+	}, nil
 }
