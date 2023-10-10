@@ -539,7 +539,10 @@ def changelog(ctx, new_commit_sha):
             "<https://ddstaging.datadoghq.com/dashboard/kfn-zy2-t98|dashboards> for issues"
         )
     else:
-        slack_message += "No new System Probe commits in this release :cricket:"
+        slack_message += (
+            f"Changelog for commit <{commit_range_link}|range>: `{old_commit_sha}` to `{new_commit_sha}`:\n"
+            + "No new System Probe commits in this release :cricket:"
+        )
     print(f"Pushing new tag: {new_commit_sha} to SSM")
     ctx.run(
         f"aws ssm put-parameter --name ci.datadog-agent.gitlab_changelog_commit_sha --value {new_commit_sha} "
