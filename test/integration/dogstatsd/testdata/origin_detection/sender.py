@@ -6,6 +6,7 @@ import datadog
 
 SOCKET_PATH = os.getenv("SOCKET_PATH", "/tmp/scratch/dsd.socket")
 
+
 def send_dagagram():
     client = datadog.dogstatsd.base.DogStatsd(socket_path=SOCKET_PATH)
 
