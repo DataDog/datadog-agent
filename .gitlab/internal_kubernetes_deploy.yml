@@ -34,8 +34,7 @@ notify-slack:
   stage: internal_kubernetes_deploy
   image: registry.ddbuild.io/slack-notifier:sdm
   tags: ["arch:amd64"]
-  needs:
-    - job: internal_kubernetes_deploy_experimental
+  needs: ["internal_kubernetes_deploy_experimental"]
   script:
     - python3 -m pip install -r tasks/libs/requirements-notifications.txt
     - inv pipeline.changelog ${CI_COMMIT_SHORT_SHA}

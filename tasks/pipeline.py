@@ -518,7 +518,7 @@ def changelog(ctx, new_commit_sha):
         title, author, author_email, files, url = parse(commit_str)
         if is_system_probe(owners, files):
             author_handle = ctx.run(f"email2slackid {author_email.strip()}", hide=True).stdout or author_email
-            time.sleep(1)
+            time.sleep(1)  # necessary to prevent slack/sdm API rate limits
             if "dependabot" not in author_email and "github-actions" not in author_email:
                 messages.append(f"<{url}|{title}> <@{author_handle}>")
             else:
