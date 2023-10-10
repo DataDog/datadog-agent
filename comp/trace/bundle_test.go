@@ -10,13 +10,13 @@ import (
 	"os"
 	"testing"
 
-	"github.com/DataDog/datadog-agent/comp/trace/agent"
-	"github.com/DataDog/datadog-agent/pkg/trace/telemetry"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/fx"
 
 	coreconfig "github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/trace/agent"
 	"github.com/DataDog/datadog-agent/comp/trace/config"
+	"github.com/DataDog/datadog-agent/pkg/trace/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
