@@ -14,6 +14,6 @@ import (
 
 // ConfFileDirectory returns the absolute path to the folder containing the config
 // file used to populate the registry
-func ConfFileDirectory(c config.ConfigReader) string {
+func ConfFileDirectory(c config.Reader) string {
 	return filepath.Dir(c.ConfigFileUsed())
 }

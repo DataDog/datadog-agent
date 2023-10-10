@@ -8,6 +8,8 @@
 package mutate
 
 import (
+	appsv1 "k8s.io/api/apps/v1"
+	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
@@ -94,6 +96,55 @@ func fakePodWithAnnotation(k, v string) *corev1.Pod {
 		},
 	}
 	return withContainer(pod, "-container")
+}
+
+func fakePodWithParent(ns string, as, ls map[string]string, es []corev1.EnvVar, parentKind, parentName string) *corev1.Pod {
+	pod := &corev1.Pod{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:            "pod",
+			Namespace:       ns,
+			Annotations:     as,
+			Labels:          ls,
+			OwnerReferences: []metav1.OwnerReference{},
+		},
+	}
+	pod.Spec.Containers = append(pod.Spec.Containers, corev1.Container{
+		Name: pod.Name,
+		Env:  es,
+	})
+
+	var ownerRef *metav1.OwnerReference
+	objMeta := metav1.ObjectMeta{
+		Name:      parentName,
+		Namespace: ns,
+	}
+
+	if parentKind == "replicaset" {
+		rs := &appsv1.ReplicaSet{
+			ObjectMeta: objMeta,
+		}
+		ownerRef = metav1.NewControllerRef(rs, appsv1.SchemeGroupVersion.WithKind("ReplicaSet"))
+	} else if parentKind == "statefulset" {
+		ss := &appsv1.StatefulSet{
+			ObjectMeta: objMeta,
+		}
+		ownerRef = metav1.NewControllerRef(ss, appsv1.SchemeGroupVersion.WithKind("StatefulSet"))
+	} else if parentKind == "job" {
+		j := &batchv1.Job{
+			ObjectMeta: objMeta,
+		}
+		ownerRef = metav1.NewControllerRef(j, batchv1.SchemeGroupVersion.WithKind("Job"))
+	} else if parentKind == "daemonset" {
+		ds := &appsv1.DaemonSet{
+			ObjectMeta: objMeta,
+		}
+		ownerRef = metav1.NewControllerRef(ds, appsv1.SchemeGroupVersion.WithKind("DaemonSet"))
+	} else {
+		return pod
+	}
+	pod.ObjectMeta.OwnerReferences = append(pod.ObjectMeta.OwnerReferences, *ownerRef)
+
+	return pod
 }
 
 func fakePodWithAnnotations(as map[string]string) *corev1.Pod {

@@ -107,7 +107,7 @@ func StartAgentWithDefaults(ctxChan <-chan context.Context) (<-chan error, error
 			fx.Supply(core.BundleParams{
 				ConfigParams:         config.NewAgentParamsWithSecrets(""),
 				SysprobeConfigParams: sysprobeconfig.NewParams(),
-				LogParams:            log.LogForDaemon(command.LoggerName, "log_file", path.DefaultLogFile),
+				LogParams:            log.ForDaemon(command.LoggerName, "log_file", path.DefaultLogFile),
 			}),
 			getSharedFxOption(),
 			getPlatformModules(),
@@ -158,5 +158,8 @@ func getPlatformModules() fx.Option {
 	return fx.Options(
 		agentcrashdetect.Module,
 		comptraceconfig.Module,
+		fx.Replace(comptraceconfig.Params{
+			FailIfAPIKeyMissing: false,
+		}),
 	)
 }

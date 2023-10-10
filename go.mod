@@ -43,15 +43,15 @@ require (
 	code.cloudfoundry.org/lager v2.0.0+incompatible
 	github.com/CycloneDX/cyclonedx-go v0.7.1
 	github.com/DataDog/appsec-internal-go v1.0.1-0.20230723140106-7cb513f54ce1
-	github.com/DataDog/datadog-agent/pkg/gohai v0.49.0-rc.1
-	github.com/DataDog/datadog-agent/pkg/obfuscate v0.49.0-rc.1
-	github.com/DataDog/datadog-agent/pkg/remoteconfig/state v0.49.0-rc.1
-	github.com/DataDog/datadog-agent/pkg/security/secl v0.49.0-rc.1
-	github.com/DataDog/datadog-agent/pkg/trace v0.49.0-rc.1
-	github.com/DataDog/datadog-agent/pkg/util/cgroups v0.49.0-rc.1
-	github.com/DataDog/datadog-agent/pkg/util/log v0.49.0-rc.1
-	github.com/DataDog/datadog-agent/pkg/util/pointer v0.49.0-rc.1
-	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.49.0-rc.1
+	github.com/DataDog/datadog-agent/pkg/gohai v0.49.0-rc.2
+	github.com/DataDog/datadog-agent/pkg/obfuscate v0.49.0-rc.2
+	github.com/DataDog/datadog-agent/pkg/remoteconfig/state v0.49.0-rc.2
+	github.com/DataDog/datadog-agent/pkg/security/secl v0.49.0-rc.2
+	github.com/DataDog/datadog-agent/pkg/trace v0.49.0-rc.2
+	github.com/DataDog/datadog-agent/pkg/util/cgroups v0.49.0-rc.2
+	github.com/DataDog/datadog-agent/pkg/util/log v0.49.0-rc.2
+	github.com/DataDog/datadog-agent/pkg/util/pointer v0.49.0-rc.2
+	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.49.0-rc.2
 	github.com/DataDog/datadog-go/v5 v5.3.0
 	github.com/DataDog/datadog-operator v1.1.0
 	github.com/DataDog/ebpf-manager v0.3.1
@@ -126,7 +126,7 @@ require (
 	github.com/h2non/filetype v1.1.3
 	github.com/hashicorp/consul/api v1.24.0
 	github.com/hashicorp/go-multierror v1.1.1
-	github.com/hashicorp/golang-lru/v2 v2.0.6
+	github.com/hashicorp/golang-lru/v2 v2.0.7
 	github.com/hectane/go-acl v0.0.0-20190604041725-da78bae5fc95
 	github.com/iceber/iouring-go v0.0.0-20230403020409-002cfd2e2a90
 	github.com/imdario/mergo v0.3.16
@@ -208,12 +208,12 @@ require (
 	go4.org/netipx v0.0.0-20220812043211-3cc044ffd68d
 	golang.org/x/arch v0.5.0
 	golang.org/x/exp v0.0.0-20230905200255-921286631fa9
-	golang.org/x/net v0.15.0
-	golang.org/x/sync v0.3.0
-	golang.org/x/sys v0.12.0
+	golang.org/x/net v0.16.0
+	golang.org/x/sync v0.4.0
+	golang.org/x/sys v0.13.0
 	golang.org/x/text v0.13.0
 	golang.org/x/time v0.3.0
-	golang.org/x/tools v0.13.0
+	golang.org/x/tools v0.14.0
 	golang.org/x/xerrors v0.0.0-20220907171357-04be3eba64a2
 	google.golang.org/genproto v0.0.0-20230706204954-ccb25ca9f130 // indirect
 	google.golang.org/grpc v1.57.0
@@ -518,10 +518,10 @@ require (
 	go.opentelemetry.io/otel/sdk/metric v0.39.0
 	go.opentelemetry.io/otel/trace v1.16.0 // indirect
 	go.opentelemetry.io/proto/otlp v0.19.0 // indirect
-	golang.org/x/crypto v0.13.0 // indirect
-	golang.org/x/mod v0.12.0
+	golang.org/x/crypto v0.14.0 // indirect
+	golang.org/x/mod v0.13.0
 	golang.org/x/oauth2 v0.10.0 // indirect
-	golang.org/x/term v0.12.0 // indirect
+	golang.org/x/term v0.13.0 // indirect
 	gonum.org/v1/gonum v0.14.0 // indirect
 	google.golang.org/api v0.134.0 // indirect
 	google.golang.org/appengine v1.6.7 // indirect
@@ -555,8 +555,8 @@ require github.com/lorenzosaino/go-sysctl v0.3.1
 require (
 	github.com/DATA-DOG/go-sqlmock v1.5.0
 	github.com/DataDog/agent-payload/v5 v5.0.97
-	github.com/DataDog/datadog-agent/pkg/networkdevice/profile v0.49.0-rc.1
-	github.com/DataDog/datadog-agent/pkg/proto v0.49.0-rc.1
+	github.com/DataDog/datadog-agent/pkg/networkdevice/profile v0.49.0-rc.2
+	github.com/DataDog/datadog-agent/pkg/proto v0.49.0-rc.2
 	github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/logs v0.8.0
 	github.com/aquasecurity/trivy v0.0.0-00010101000000-000000000000
 	github.com/cloudfoundry-community/go-cfclient/v2 v2.0.1-0.20230503155151-3d15366c5820

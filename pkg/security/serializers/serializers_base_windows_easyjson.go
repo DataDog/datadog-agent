@@ -138,8 +138,8 @@ func easyjson6b24c4ebDecodeGithubComDataDogDatadogAgentPkgSecuritySerializers(in
 				}
 				(*out.Container).UnmarshalEasyJSON(in)
 			}
-		case "args":
-			out.Args = string(in.String())
+		case "cmdline":
+			out.CmdLine = string(in.String())
 		default:
 			in.SkipRecursive()
 		}
@@ -243,15 +243,15 @@ func easyjson6b24c4ebEncodeGithubComDataDogDatadogAgentPkgSecuritySerializers(ou
 		}
 		(*in.Container).MarshalEasyJSON(out)
 	}
-	if in.Args != "" {
-		const prefix string = ",\"args\":"
+	if in.CmdLine != "" {
+		const prefix string = ",\"cmdline\":"
 		if first {
 			first = false
 			out.RawString(prefix[1:])
 		} else {
 			out.RawString(prefix)
 		}
-		out.String(string(in.Args))
+		out.String(string(in.CmdLine))
 	}
 	out.RawByte('}')
 }

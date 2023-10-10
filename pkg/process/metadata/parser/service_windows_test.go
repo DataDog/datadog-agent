@@ -73,7 +73,7 @@ func TestWindowsExtractServiceMetadata(t *testing.T) {
 }
 
 func TestWindowsExtractServiceWithSCMReader(t *testing.T) {
-	makeServiceExtractor := func(t *testing.T, sysprobeConfig ddconfig.ConfigReader) (*ServiceExtractor, *mockSCM) {
+	makeServiceExtractor := func(t *testing.T, sysprobeConfig ddconfig.Reader) (*ServiceExtractor, *mockSCM) {
 		se := NewServiceExtractor(sysprobeConfig)
 		procsByPid := map[int32]*procutil.Process{1: {
 			Pid:     1,
