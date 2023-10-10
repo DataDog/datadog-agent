@@ -66,14 +66,7 @@ if arm?
 end
 
 if redhat? && !arm?
-<<<<<<< HEAD
-  blacklist_packages.push(/^pydantic-core==/)
-=======
-  # RPM builds are done on CentOS 6 which is based on glibc v2.12 however newer libraries require v2.17, see:
-  # https://blog.rust-lang.org/2022/08/01/Increasing-glibc-kernel-requirements.html
-  dependency 'pydantic-core-py3'
   excluded_packages.push(/^pydantic-core==/)
->>>>>>> 884306d858 (omnibus: agent-integrations: use excluded instead of blacklist)
 end
 
 # _64_bit checks the kernel arch.  On windows, the builder is 64 bit
