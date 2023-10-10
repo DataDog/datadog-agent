@@ -1238,8 +1238,6 @@ github.com/mwitkow/go-conntrack v0.0.0-20190716064945-2f068394615f/go.mod h1:qRW
 github.com/mxk/go-flowrate v0.0.0-20140419014527-cca7078d478f h1:y5//uYreIhSUg3J1GEMiLbxo1LJaP8RfCpH6pymGZus=
 github.com/mxk/go-flowrate v0.0.0-20140419014527-cca7078d478f/go.mod h1:ZdcZmHo+o7JKHSa8/e818NopupXU1YMK5fe1lsApnBw=
 github.com/ncw/swift v1.0.30/go.mod h1:23YIA4yWVnGwv2dQlN4bB7egfYX6YLn0Yo/S6zZO/ZM=
-github.com/netsampler/goflow2 v1.3.3 h1:uheCMgWwbaHnVdsvc2bqbdQe93E73pVF77WGu/kPE7U=
-github.com/netsampler/goflow2 v1.3.3/go.mod h1:mUjr4ERDTtNUAVtf2EomWHmr6Xvz2N9DahhFkhNnFkQ=
 github.com/netsampler/goflow2/v2 v2.0.1-0.20231002013550-8428ddad9123 h1:XCs/GoDOaJ2zWKiykE2r6eUmrZWpKf+1j10w5lF6B9E=
 github.com/netsampler/goflow2/v2 v2.0.1-0.20231002013550-8428ddad9123/go.mod h1:ukZvnBygXBdj29ujoFNiuVZ5xUxJC5DbWLziR8bnvEE=
 github.com/niemeyer/pretty v0.0.0-20200227124842-a10e7caefd8e/go.mod h1:zD1mROLANZcx1PVRCS0qkT7pwLkGfwJo4zjcN/Tysno=
