@@ -54,7 +54,6 @@ default:
 
 stages:
   - .pre
-  - test
   - setup
   - maintenance_jobs
   - deps_build
