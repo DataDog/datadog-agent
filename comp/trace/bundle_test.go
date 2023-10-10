@@ -15,6 +15,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/fx"
 
+	"github.com/DataDog/datadog-agent/comp/core"
 	coreconfig "github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -23,18 +24,7 @@ import (
 // team: agent-apm
 
 func TestBundleDependencies(t *testing.T) {
-	require.NoError(t, fx.ValidateApp(
-		// instantiate all of the core components, since this is not done
-		// automatically. Use fx.Invoke to make sure components are initialized
-		// and all the providers are called.
-		fx.Provide(func() context.Context { return context.TODO() }), // fx.Supply(ctx) fails with a missing type error.
-		fx.Supply(coreconfig.Params{}),
-		coreconfig.Module,
-		fx.Invoke(func(_ config.Component) {}),
-		fx.Provide(func(cfg config.Component) telemetry.TelemetryCollector { return telemetry.NewCollector(cfg.Object()) }),
-		fx.Supply(&agent.Params{}),
-		fx.Invoke(func(_ agent.Component) {}),
-		Bundle))
+	fxutil.TestBundle(t, Bundle)
 }
 
 func TestMockBundleDependencies(t *testing.T) {
