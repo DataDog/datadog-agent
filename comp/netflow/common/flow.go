@@ -66,6 +66,8 @@ type Flow struct {
 	Tos uint32 // FLOW KEY
 
 	NextHop []byte // FLOW KEY
+
+	AdditionalFields map[string]any
 }
 
 // AggregationHash return a hash used as aggregation key

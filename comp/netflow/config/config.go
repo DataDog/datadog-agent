@@ -41,6 +41,32 @@ type ListenerConfig struct {
 	BindHost  string          `mapstructure:"bind_host"`
 	Workers   int             `mapstructure:"workers"`
 	Namespace string          `mapstructure:"namespace"`
+	Mapping   Mapping         `mapstructure:"mapping"`
+}
+
+type Mapping struct {
+	IPFIX     []NetFlowMapping `mapstructure:"ipfix"`
+	NetFlowV9 []NetFlowMapping `mapstructure:"netflow"`
+	SFlow     []HeaderMapping  `mapstructure:"sflow"`
+}
+
+type NetFlowMapping struct {
+	PenProvided bool   `mapstructure:"penprovided"`
+	Field       uint16 `mapstructure:"field"`
+	Pen         uint32 `mapstructure:"pen"`
+
+	Destination string            `mapstructure:"destination"`
+	Endian      common.EndianType `mapstructure:"endianness"`
+	Type        common.FieldType  `mapstructure:"type"`
+}
+
+type HeaderMapping struct {
+	Layer  string `mapstructure:"layer"`
+	Offset int    `mapstructure:"offset"` // offset in bits
+	Length int    `mapstructure:"length"` // length in bits
+
+	Destination string            `mapstructure:"destination"`
+	Endian      common.EndianType `mapstructure:"endianness"`
 }
 
 // ReadConfig builds and returns configuration from Agent configuration.

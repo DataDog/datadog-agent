@@ -155,8 +155,8 @@ require (
 	github.com/pahanini/go-grpc-bidirectional-streaming-example v0.0.0-20211027164128-cc6111af44be
 	github.com/patrickmn/go-cache v2.1.0+incompatible
 	github.com/pkg/errors v0.9.1
-	github.com/prometheus/client_golang v1.16.0
-	github.com/prometheus/client_model v0.4.0
+	github.com/prometheus/client_golang v1.17.0
+	github.com/prometheus/client_model v0.4.1-0.20230718164431-9a2bf3000d16
 	github.com/prometheus/procfs v0.12.0
 	github.com/richardartoul/molecule v1.0.1-0.20221107223329-32cfee06a052
 	github.com/robfig/cron/v3 v3.0.1
@@ -405,7 +405,7 @@ require (
 	github.com/knqyf263/go-rpmdb v0.0.0-20221030142135-919c8a52f04f
 	github.com/knqyf263/nested v0.0.1 // indirect
 	github.com/liamg/jfather v0.0.7 // indirect
-	github.com/libp2p/go-reuseport v0.2.0 // indirect
+	github.com/libp2p/go-reuseport v0.4.0 // indirect
 	github.com/lufia/plan9stats v0.0.0-20220913051719-115f729f3c8c // indirect
 	github.com/lunixbochs/struc v0.0.0-20200707160740-784aaebc1d40 // indirect
 	github.com/magiconair/properties v1.8.7 // indirect
@@ -566,6 +566,7 @@ require (
 	github.com/godror/godror v0.37.0
 	github.com/jmoiron/sqlx v1.3.5
 	github.com/kr/pretty v0.3.1
+	github.com/netsampler/goflow2/v2 v2.0.1-0.20231002013550-8428ddad9123
 	github.com/protocolbuffers/protoscope v0.0.0-20221109213918-8e7a6aafa2c9
 	github.com/sijms/go-ora/v2 v2.7.6
 	go.opentelemetry.io/collector/extension v0.84.0

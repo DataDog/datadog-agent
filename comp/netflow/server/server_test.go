@@ -8,12 +8,9 @@
 package server
 
 import (
-	"context"
 	"testing"
 	"time"
 
-	"github.com/netsampler/goflow2/utils"
-	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/fx"
 	"go.uber.org/fx/fxtest"
@@ -24,38 +21,8 @@ import (
 	"github.com/DataDog/datadog-agent/comp/ndmtmp/forwarder"
 	"github.com/DataDog/datadog-agent/comp/ndmtmp/sender"
 	nfconfig "github.com/DataDog/datadog-agent/comp/netflow/config"
-	"github.com/DataDog/datadog-agent/comp/netflow/goflowlib"
 	"github.com/DataDog/datadog-agent/comp/netflow/testutil"
 )
-
-type dummyFlowProcessor struct {
-	receivedMessages chan interface{}
-	stopped          bool
-}
-
-func (d *dummyFlowProcessor) FlowRoutine(workers int, addr string, port int, reuseport bool) error {
-	return utils.UDPStoppableRoutine(make(chan struct{}), "test_udp", func(msg interface{}) error {
-		d.receivedMessages <- msg
-		return nil
-	}, 3, addr, port, false, logrus.StandardLogger())
-}
-
-func (d *dummyFlowProcessor) Shutdown() {
-	d.stopped = true
-}
-
-func replaceWithDummyFlowProcessor(server *Server) *dummyFlowProcessor {
-	// Testing using a dummyFlowProcessor since we can't test using real goflow flow processor
-	// due to this race condition https://github.com/netsampler/goflow2/issues/83
-	flowProcessor := &dummyFlowProcessor{}
-	listener := server.listeners[0]
-	listener.flowState = &goflowlib.FlowStateWrapper{
-		State:    flowProcessor,
-		Hostname: "abc",
-		Port:     0,
-	}
-	return flowProcessor
-}
 
 // testOptions is an fx collection of common dependencies for all tests
 var testOptions = fx.Options(
@@ -69,13 +36,6 @@ var testOptions = fx.Options(
 	fx.Invoke(func(lc fx.Lifecycle, c Component) {
 		// Set the internal flush frequency to a small number so tests don't take forever
 		c.(*Server).FlowAgg.FlushFlowsToSendInterval = 100 * time.Millisecond
-		lc.Append(fx.Hook{
-			OnStop: func(ctx context.Context) error {
-				// Remove the flow processor to avoid a spurious race detection error
-				replaceWithDummyFlowProcessor(c.(*Server))
-				return nil
-			},
-		})
 	}),
 )
 
