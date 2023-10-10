@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package config
+package env
 
 import (
 	"os"
@@ -13,6 +13,8 @@ import (
 	"sync"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+
+	"github.com/DataDog/datadog-agent/pkg/conf"
 )
 
 const (
@@ -74,28 +76,35 @@ func IsFeaturePresent(feature Feature) bool {
 }
 
 // IsAutoconfigEnabled returns if autoconfig from environment is activated or not
-func IsAutoconfigEnabled() bool {
+func IsAutoconfigEnabled(cfg conf.ConfigReader) bool {
 	// Usage of pure environment variables should be deprecated
 	for _, envVar := range []string{autoconfEnvironmentVariable, autoconfEnvironmentVariableWithTypo} {
 		if autoconfStr, found := os.LookupEnv(envVar); found {
 			activateAutoconfFromEnv, err := strconv.ParseBool(autoconfStr)
 			if err != nil {
-				log.Errorf("Unable to parse Autoconf value: '%s', err: %v - autoconfig from environment will be deactivated", autoconfStr, err)
+				log.Errorf(
+					"Unable to parse Autoconf value: '%s', err: %v - autoconfig from environment will be deactivated",
+					autoconfStr,
+					err,
+				)
 				return false
 			}
 
-			log.Warnf("Usage of '%s' variable is deprecated - please use DD_AUTOCONFIG_FROM_ENVIRONMENT or 'autoconfig_from_environment' in config file", envVar)
+			log.Warnf(
+				"Usage of '%s' variable is deprecated - please use DD_AUTOCONFIG_FROM_ENVIRONMENT or 'autoconfig_from_environment' in config file",
+				envVar,
+			)
 			return activateAutoconfFromEnv
 		}
 	}
 
-	return Datadog.GetBool("autoconfig_from_environment")
+	return cfg.GetBool("autoconfig_from_environment")
 }
 
 // DetectFeatures runs the feature detection.
 // We guarantee that Datadog configuration is entirely loaded (env + YAML)
 // before this function is called
-func detectFeatures() {
+func DetectFeatures(cfg conf.ConfigReader) {
 	featureLock.Lock()
 	defer featureLock.Unlock()
 
@@ -105,12 +114,12 @@ func detectFeatures() {
 	}
 
 	newFeatures := make(FeatureMap)
-	if IsAutoconfigEnabled() {
+	if IsAutoconfigEnabled(cfg) {
 		detectContainerFeatures(newFeatures)
-		excludedFeatures := Datadog.GetStringSlice("autoconfig_exclude_features")
+		excludedFeatures := cfg.GetStringSlice("autoconfig_exclude_features")
 		excludeFeatures(newFeatures, excludedFeatures)
 
-		includedFeatures := Datadog.GetStringSlice("autoconfig_include_features")
+		includedFeatures := cfg.GetStringSlice("autoconfig_include_features")
 		for _, f := range includedFeatures {
 			f = strings.ToLower(f)
 			if _, found := knownFeatures[Feature(f)]; found {

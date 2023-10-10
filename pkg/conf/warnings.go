@@ -3,14 +3,10 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build !(linux || windows)
+package conf
 
-package config
-
-// IsAnyContainerFeaturePresent checks if any of known container features is present
-func IsAnyContainerFeaturePresent() bool {
-	return false
-}
-
-func detectContainerFeatures(features FeatureMap) {
+// Warnings represent the warnings in the config
+type Warnings struct {
+	TraceMallocEnabledWithPy2 bool
+	Err                       error
 }

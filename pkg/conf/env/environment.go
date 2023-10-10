@@ -3,10 +3,12 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package config
+package env
 
 import (
 	"os"
+
+	"github.com/DataDog/datadog-agent/pkg/conf"
 )
 
 // GetEnvDefault retrieves a value from the environment named by the key or return def if not set.
@@ -75,7 +77,7 @@ func IsECSFargate() bool {
 // IsHostProcAvailable returns whether host proc is available or not
 func IsHostProcAvailable() bool {
 	if IsContainerized() {
-		return pathExists("/host/proc")
+		return conf.PathExists("/host/proc")
 	}
 	return true
 }
@@ -83,7 +85,7 @@ func IsHostProcAvailable() bool {
 // IsHostSysAvailable returns whether host proc is available or not
 func IsHostSysAvailable() bool {
 	if IsContainerized() {
-		return pathExists("/host/sys")
+		return conf.PathExists("/host/sys")
 	}
 	return true
 }

@@ -3,11 +3,14 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package system
+//go:build !(linux || windows)
 
-import "github.com/DataDog/datadog-agent/pkg/util/system/socket"
+package env
 
-// CheckSocketAvailable returns named pipe availability
-// as on Windows, sockets do not exist
-var CheckSocketAvailable = socket.CheckSocketAvailable
+// IsAnyContainerFeaturePresent checks if any of known container features is present
+func IsAnyContainerFeaturePresent() bool {
+	return false
+}
 
+func detectContainerFeatures(features FeatureMap) {
+}
