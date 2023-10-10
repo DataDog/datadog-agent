@@ -57,7 +57,7 @@ func (v *agentConfigSuite) TestDefaultConfig() {
 	v.UpdateEnv(e2e.AgentStackDef())
 	config := getFullConfig(v)
 
-	assertConfigValueEqual(v.T(), config, "api_key", "********")
+	assertConfigValueContains(v.T(), config, "api_key", "***************************")
 	assertConfigValueEqual(v.T(), config, "fips.enabled", false)
 	assertConfigValueEqual(v.T(), config, "expvar_port", "5000")
 	assertConfigValueEqual(v.T(), config, "network_devices.snmp_traps.forwarder.logs_no_ssl", false)
