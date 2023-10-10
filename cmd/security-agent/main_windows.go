@@ -87,11 +87,7 @@ func (s *service) Run(svcctx context.Context) error {
 		fx.Supply(core.BundleParams{
 			ConfigParams:         config.NewSecurityAgentParams(defaultSecurityAgentConfigFilePaths),
 			SysprobeConfigParams: sysprobeconfig.NewParams(sysprobeconfig.WithSysProbeConfFilePath(defaultSysProbeConfPath)),
-<<<<<<< HEAD
-			LogParams:            log.LogForDaemon(command.LoggerName, "security_agent.log_file", pkgconfig.DefaultSecurityAgentLogFile),>>>>>>> 6393ce58be ([windows][cws] Make security-agent run as service)
-=======
 			LogParams:            log.ForDaemon(command.LoggerName, "security_agent.log_file", pkgconfig.DefaultSecurityAgentLogFile),
->>>>>>> b65895d17e (fix messed up rebase again)
 		}),
 		core.Bundle,
 		forwarder.Bundle,
