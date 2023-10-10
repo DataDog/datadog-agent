@@ -607,6 +607,7 @@ def cws_go_generate(ctx):
     ctx.run("sed -i -e 's/windows_tmp/windows/' ./pkg/security/serializers/model/model_windows_easyjson.go")
     ctx.run("sed -i -e 's/windows_tmp/windows/' ./pkg/security/serializers/model/model_base_windows_easyjson.go")
 
+
 @task
 def generate_syscall_table(ctx):
     def single_run(ctx, table_url, output_file, output_string_file, abis=None):
