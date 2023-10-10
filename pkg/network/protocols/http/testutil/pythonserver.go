@@ -53,7 +53,7 @@ finally:
 `
 )
 
-// HTTPPythonServer launches a HTTP python server.
+// HTTPPythonServer launches an HTTP python server.
 func HTTPPythonServer(t *testing.T, addr string, options Options) *exec.Cmd {
 	host, port, err := net.SplitHostPort(addr)
 	require.NoError(t, err)
