@@ -56,6 +56,12 @@ func NewUDSDatagramListener(packetOut chan packets.Packets, sharedPacketPoolMana
 		conn:        conn,
 	}
 
+	// Setup origin detection early
+	l.OriginDetection, err = setupUnixConn(conn, l.OriginDetection, l.config)
+	if err != nil {
+		return nil, err
+	}
+
 	log.Infof("dogstatsd-uds: %s successfully initialized", conn.LocalAddr())
 	return listener, nil
 }
