@@ -16,13 +16,23 @@ void __attribute__((always_inline)) monitor_syscalls(u64 event_type, int delta) 
         return;
     }
 
-    u32 key = event_type;
-    u32 *value = bpf_map_lookup_elem(&syscalls_stats, &key);
-    if (value == NULL) {
+    u32 key = 0;
+    u32 *value = bpf_map_lookup_elem(&syscalls_stats_enabled, &key);
+    if (value == NULL || !*value) {
         return;
     }
 
-    __sync_fetch_and_add(value, delta);
+    key = event_type;
+    struct syscalls_stats_t *stats = bpf_map_lookup_elem(&syscalls_stats, &key);
+    if (stats == NULL) {
+        return;
+    }
+    if (delta < 0 && !stats->active) {
+        return;
+    }
+    stats->active = 1;
+
+    __sync_fetch_and_add(&stats->count, delta);
 }
 
 struct policy_t __attribute__((always_inline)) fetch_policy(u64 event_type) {

@@ -1407,6 +1407,17 @@ func (p *Probe) ApplyRuleSet(rs *rules.RuleSet) (*kfilters.ApplyRuleSetReport, e
 		return nil, fmt.Errorf("failed to select probes: %w", err)
 	}
 
+	// kprobes & kretprobes should be now all installed
+	table, err := managerhelper.Map(p.Manager, "syscalls_stats_enabled")
+	if err != nil {
+		return nil, err
+	}
+
+	enabled := uint32(1)
+	if err := table.Put(ebpf.ZeroUint32MapItem, enabled); err != nil {
+		return nil, err
+	}
+
 	return ars, nil
 }
 

@@ -25,7 +25,6 @@ import (
 type Monitor struct {
 	statsdClient statsd.ClientInterface
 	stats        *lib.Map
-	prevStats    [model.MaxAllEventType]uint32
 	collected    [model.MaxAllEventType]bool
 	numCPU       int
 }
@@ -33,7 +32,7 @@ type Monitor struct {
 // SendStats send stats
 func (d *Monitor) SendStats() error {
 	iterator := d.stats.Iterate()
-	statsAcrossAllCPUs := make([]uint32, d.numCPU)
+	statsAcrossAllCPUs := make([][]byte, d.numCPU)
 	statsByEventType := make([]uint32, model.MaxAllEventType)
 
 	var eventType uint32
@@ -45,7 +44,8 @@ func (d *Monitor) SendStats() error {
 
 		// aggregate all cpu stats
 		for _, stat := range statsAcrossAllCPUs {
-			statsByEventType[eventType] += stat
+			count := model.ByteOrder.Uint32(stat[0:4])
+			statsByEventType[eventType] += count
 		}
 	}
 
@@ -56,12 +56,8 @@ func (d *Monitor) SendStats() error {
 		}
 
 		if d.collected[eventType] {
-			value := float64(int32(inflight) - int32(d.prevStats[eventType]))
-			if value > 0 {
-				_ = d.statsdClient.Gauge(metrics.MetricSyscallsInFlight, value, tagsEvents, 1.0)
-			}
+			_ = d.statsdClient.Count(metrics.MetricSyscallsInFlight, int64(inflight), tagsEvents, 1.0)
 		}
-		d.prevStats[eventType] = inflight
 		d.collected[eventType] = true
 	}
 
