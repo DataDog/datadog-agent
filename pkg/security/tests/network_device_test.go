@@ -145,6 +145,11 @@ func TestTCFilters(t *testing.T) {
 		return kv.IsRH7Kernel() || kv.IsOracleUEKKernel() || kv.IsSLESKernel()
 	})
 
+	// skip the test to avoid nested namespaces issues
+	if testEnvironment == DockerEnvironment {
+		t.Skip("skipping tc filters test in docker")
+	}
+
 	// dummy rule to force the activation of netdev-related probes
 	rule := &rules.RuleDefinition{
 		ID:         "test_rule",
