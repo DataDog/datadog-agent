@@ -117,6 +117,7 @@ func testHTTPStats(t *testing.T, aggregateByStatusCode bool) {
 	srvDoneFn := testutil.HTTPServer(t, serverAddr, testutil.Options{
 		EnableKeepAlive: true,
 	})
+	t.Cleanup(srvDoneFn)
 
 	cfg := networkconfig.New()
 	cfg.EnableHTTPStatsByStatusCode = aggregateByStatusCode
