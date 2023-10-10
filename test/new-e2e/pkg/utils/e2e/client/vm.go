@@ -13,6 +13,7 @@ import (
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/runner"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/runner/parameters"
 	"github.com/DataDog/test-infra-definitions/common/utils"
+	commonos "github.com/DataDog/test-infra-definitions/components/os"
 	commonvm "github.com/DataDog/test-infra-definitions/components/vm"
 	"github.com/pulumi/pulumi/sdk/v3/go/auto"
 )
@@ -23,11 +24,12 @@ var _ stackInitializer = (*VM)(nil)
 type VM struct {
 	deserializer utils.RemoteServiceDeserializer[commonvm.ClientData]
 	*vmClient
+	os commonos.OS
 }
 
 // NewVM creates a new instance of VM
 func NewVM(infraVM commonvm.VM) *VM {
-	return &VM{deserializer: infraVM}
+	return &VM{deserializer: infraVM, os: infraVM.GetOS()}
 }
 
 //lint:ignore U1000 Ignore unused function as this function is called using reflection
@@ -51,6 +53,6 @@ func (vm *VM) setStack(t *testing.T, stackResult auto.UpResult) error {
 		}
 	}
 
-	vm.vmClient, err = newVMClient(t, privateSSHKey, &clientData.Connection)
+	vm.vmClient, err = newVMClient(t, privateSSHKey, &clientData.Connection, vm.os)
 	return err
 }
