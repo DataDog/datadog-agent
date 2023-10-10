@@ -96,6 +96,7 @@ func testUDSOriginDetection(t *testing.T, network string) {
 	output, err := compose.Start()
 	defer compose.Stop()
 	require.Nil(t, err, string(output))
+	t.Logf("Docker output: %s", output)
 
 	containers, err := compose.ListContainers()
 	require.Nil(t, err)
@@ -111,10 +112,24 @@ func testUDSOriginDetection(t *testing.T, network string) {
 	case packets := <-packetsChannel:
 		packet := packets[0]
 		require.NotNil(t, packet)
-		require.Equal(t, "custom_counter1:1|c", string(packet.Contents))
+		// The content could be there multiple times, and there could be a \n suffix.
+		require.Contains(t, string(packet.Contents), "custom_counter1:1|c")
 		require.Equal(t, fmt.Sprintf("container_id://%s", containerId), packet.Origin)
 		sharedPacketPool.Put(packet)
 	case <-time.After(2 * time.Second):
+		// Get container logs to ease debugging
+		logsCmd := exec.Command("docker", "logs", containerId)
+		output, err = logsCmd.CombinedOutput()
+		if err != nil {
+			t.Logf("Error getting logs from container %s: %s", containerId, err)
+		}
+		err = logsCmd.Run()
+		if err != nil {
+			t.Logf("Error getting logs from container %s: %s", containerId, err)
+		}
+
+		t.Logf("Container logs: %s", output)
+
 		assert.FailNow(t, "Timeout on receive channel")
 	}
 }

@@ -2,12 +2,11 @@ import time
 import os
 import socket
 
+import datadog
+
 SOCKET_PATH = os.getenv("SOCKET_PATH", "/tmp/scratch/dsd.socket")
 
-
 def send_dagagram():
-    import datadog
-
     client = datadog.dogstatsd.base.DogStatsd(socket_path=SOCKET_PATH)
 
     # Send 4 packets/s until killed
@@ -32,8 +31,8 @@ def send_stream():
 
 
 def main():
-    socket_type = os.environ.get('SOCKET_TYPE', None)
-    print("Socket type: " + socket_type)
+    socket_type = os.environ.get('SOCKET_TYPE', 'unixgram')
+    print("Socket type: " + str(socket_type))
     if socket_type == 'unixgram':
         send_dagagram()
     elif socket_type == 'unix':

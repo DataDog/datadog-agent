@@ -1,6 +1,6 @@
-FROM datadog/docker-library:python_2_7-alpine3_6
+FROM python:3.11-alpine
 
-RUN pip install --no-cache-dir datadogpy
+RUN pip install --no-cache-dir datadog
 COPY sender.py /sender.py
 
 CMD [ "python", "/sender.py" ]
