@@ -12,27 +12,31 @@ import (
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/runner"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/runner/parameters"
+	"github.com/DataDog/test-infra-definitions/common/utils"
 	commonvm "github.com/DataDog/test-infra-definitions/components/vm"
+	"github.com/pulumi/pulumi/sdk/v3/go/auto"
 )
 
-var _ clientService[commonvm.ClientData] = (*VM)(nil)
+var _ stackInitializer = (*VM)(nil)
 
 // VM is a client VM that is connected to a VM defined in test-infra-definition.
 type VM struct {
-	*UpResultDeserializer[commonvm.ClientData]
+	deserializer utils.RemoteServiceDeserializer[commonvm.ClientData]
 	*vmClient
 }
 
 // NewVM creates a new instance of VM
 func NewVM(infraVM commonvm.VM) *VM {
-	vm := &VM{}
-	vm.UpResultDeserializer = NewUpResultDeserializer[commonvm.ClientData](infraVM, vm)
-	return vm
+	return &VM{deserializer: infraVM}
 }
 
-//lint:ignore U1000 Ignore unused function as this function is call using reflection
-func (vm *VM) initService(t *testing.T, data *commonvm.ClientData) error {
-	var err error
+//lint:ignore U1000 Ignore unused function as this function is called using reflection
+func (vm *VM) setStack(t *testing.T, stackResult auto.UpResult) error {
+	clientData, err := vm.deserializer.Deserialize(stackResult)
+	if err != nil {
+		return err
+	}
+
 	var privateSSHKey []byte
 
 	privateKeyPath, err := runner.GetProfile().ParamStore().GetWithDefault(parameters.PrivateKeyPath, "")
@@ -47,6 +51,6 @@ func (vm *VM) initService(t *testing.T, data *commonvm.ClientData) error {
 		}
 	}
 
-	vm.vmClient, err = newVMClient(t, privateSSHKey, &data.Connection)
+	vm.vmClient, err = newVMClient(t, privateSSHKey, &clientData.Connection)
 	return err
 }
