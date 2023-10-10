@@ -11,6 +11,7 @@ import (
 	"fmt"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/common/path"
+	"github.com/DataDog/datadog-agent/comp/aggregator/diagnosesendermanager"
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/flare/helpers"
@@ -78,6 +79,7 @@ func MakeCommand(globalParamsGetter func() GlobalParams) *cobra.Command {
 					LogParams:    log.LogForOneShot(LoggerName, DefaultLogLevel, true),
 				}),
 				core.Bundle,
+				diagnosesendermanager.Module,
 			)
 		},
 	}
@@ -138,7 +140,7 @@ func readProfileData(seconds int) (flare.ProfileData, error) {
 	return pdata, nil
 }
 
-func run(log log.Component, config config.Component, cliParams *cliParams) error {
+func run(log log.Component, config config.Component, cliParams *cliParams, diagnoseSenderManager diagnosesendermanager.Component) error {
 	fmt.Fprintln(color.Output, color.BlueString("Asking the Cluster Agent to build the flare archive."))
 	var (
 		profile flare.ProfileData
@@ -197,7 +199,7 @@ func run(log log.Component, config config.Component, cliParams *cliParams) error
 			fmt.Fprintln(color.Output, color.RedString("The agent was unable to make a full flare: %s.", e.Error()))
 		}
 		fmt.Fprintln(color.Output, color.YellowString("Initiating flare locally, some logs will be missing."))
-		filePath, e = flare.CreateDCAArchive(true, path.GetDistPath(), logFile, profile)
+		filePath, e = flare.CreateDCAArchive(true, path.GetDistPath(), logFile, profile, diagnoseSenderManager)
 		if e != nil {
 			fmt.Printf("The flare zipfile failed to be created: %s\n", e)
 			return e

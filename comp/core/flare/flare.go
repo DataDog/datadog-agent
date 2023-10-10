@@ -13,6 +13,7 @@ import (
 
 	"go.uber.org/fx"
 
+	"github.com/DataDog/datadog-agent/comp/aggregator/diagnosesendermanager"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/flare/helpers"
 	"github.com/DataDog/datadog-agent/comp/core/flare/types"
@@ -28,25 +29,28 @@ type ProfileData map[string][]byte
 type dependencies struct {
 	fx.In
 
-	Log       log.Component
-	Config    config.Component
-	Params    Params
-	Providers []types.FlareProvider `group:"flare"`
+	Log                   log.Component
+	Config                config.Component
+	Diagnosesendermanager diagnosesendermanager.Component
+	Params                Params
+	Providers             []types.FlareProvider `group:"flare"`
 }
 
 type flare struct {
-	log       log.Component
-	config    config.Component
-	params    Params
-	providers []types.FlareProvider
+	log                   log.Component
+	config                config.Component
+	diagnosesendermanager diagnosesendermanager.Component
+	params                Params
+	providers             []types.FlareProvider
 }
 
 func newFlare(deps dependencies) (Component, rcclient.ListenerProvider, error) {
 	f := &flare{
-		log:       deps.Log,
-		config:    deps.Config,
-		params:    deps.Params,
-		providers: deps.Providers,
+		log:                   deps.Log,
+		config:                deps.Config,
+		params:                deps.Params,
+		providers:             deps.Providers,
+		diagnosesendermanager: deps.Diagnosesendermanager,
 	}
 
 	rcListener := rcclient.ListenerProvider{
@@ -112,7 +116,7 @@ func (f *flare) Create(pdata ProfileData, ipcError error) (string, error) {
 	providers := append(
 		f.providers,
 		types.FlareProvider{Callback: func(fb types.FlareBuilder) error {
-			return pkgFlare.CompleteFlare(fb)
+			return pkgFlare.CompleteFlare(fb, f.diagnosesendermanager)
 		}},
 		types.FlareProvider{Callback: f.collectLogsFiles},
 		types.FlareProvider{Callback: f.collectConfigFiles},

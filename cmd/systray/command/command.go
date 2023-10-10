@@ -16,6 +16,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/common/path"
+	"github.com/DataDog/datadog-agent/comp/aggregator/diagnosesendermanager"
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/flare"
@@ -95,6 +96,7 @@ func MakeCommand() *cobra.Command {
 					path.DefaultDogstatsDLogFile,
 				)),
 				flare.Module,
+				diagnosesendermanager.Module,
 				// systray
 				fx.Supply(systrayParams),
 				systray.Module,

@@ -12,5 +12,7 @@ import (
 )
 
 func newMock(deps aggregator.AggregatorTestDeps) Component {
-	return aggregator.InitAndStartAgentDemultiplexerForTest(deps, aggregator.AgentDemultiplexerOptions{}, "")
+	return demultiplexer{
+		AgentDemultiplexer: aggregator.InitAndStartAgentDemultiplexerForTest(deps, aggregator.AgentDemultiplexerOptions{}, ""),
+	}
 }

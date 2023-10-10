@@ -37,3 +37,8 @@ func (NoOpSenderManager) DestroySender(id checkid.ID) {}
 func (NoOpSenderManager) GetDefaultSender() (sender.Sender, error) {
 	return nil, errors.New("NotImplemented")
 }
+
+// LazyGetSenderManager gets an instance of SenderManager lazily.
+func (sender NoOpSenderManager) LazyGetSenderManager() sender.SenderManager {
+	return sender
+}

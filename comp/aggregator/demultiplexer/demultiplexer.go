@@ -8,9 +8,11 @@ package demultiplexer
 import (
 	"context"
 
+	"github.com/DataDog/datadog-agent/comp/aggregator/diagnosesendermanager"
 	"github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
+	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 	"go.uber.org/fx"
 )
@@ -23,17 +25,31 @@ type dependencies struct {
 	Params Params
 }
 
-func newDemultiplexer(deps dependencies) (Component, error) {
+type demultiplexer struct {
+	*aggregator.AgentDemultiplexer
+}
+
+func newDemultiplexer(deps dependencies) (Component, diagnosesendermanager.Component, error) {
 	hostnameDetected, err := hostname.Get(context.TODO())
 	if err != nil {
-		return nil, deps.Log.Errorf("Error while getting hostname, exiting: %v", err)
+		return nil, nil, deps.Log.Errorf("Error while getting hostname, exiting: %v", err)
 	}
 
-	demux := aggregator.InitAndStartAgentDemultiplexer(
+	agentDemultiplexer := aggregator.InitAndStartAgentDemultiplexer(
 		deps.Log,
 		deps.SharedForwarder,
 		deps.Params.Options,
 		hostnameDetected)
+	demultiplexer := demultiplexer{
+		AgentDemultiplexer: agentDemultiplexer,
+	}
 
-	return demux, nil
+	// Implement also diagnosesendermanager.Component to make sure
+	// either demultiplexer.Component nor diagnosesendermanager.Component is created.
+	return demultiplexer, demultiplexer, nil
+}
+
+// LazyGetSenderManager gets an instance of SenderManager lazily.
+func (demux demultiplexer) LazyGetSenderManager() sender.SenderManager {
+	return demux
 }

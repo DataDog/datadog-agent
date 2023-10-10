@@ -13,6 +13,7 @@ import (
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/command"
+	"github.com/DataDog/datadog-agent/comp/aggregator/diagnosesendermanager"
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/log"
@@ -78,6 +79,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 					ConfigParams: config.NewAgentParamsWithoutSecrets(globalParams.ConfFilePath),
 					LogParams:    log.LogForOneShot("CORE", "off", true)}),
 				core.Bundle,
+				diagnosesendermanager.Module,
 			)
 		},
 	}
@@ -146,7 +148,7 @@ This command print the last Inventory metadata payload sent by the Agent. This p
 	return []*cobra.Command{diagnoseCommand}
 }
 
-func cmdDiagnose(log log.Component, config config.Component, cliParams *cliParams) error {
+func cmdDiagnose(log log.Component, config config.Component, cliParams *cliParams, senderManager diagnosesendermanager.Component) error {
 	diagCfg := diagnosis.Config{
 		Verbose:  cliParams.verbose,
 		RunLocal: cliParams.runLocal,
@@ -161,7 +163,7 @@ func cmdDiagnose(log log.Component, config config.Component, cliParams *cliParam
 	}
 
 	// Run command
-	return pkgdiagnose.RunStdOut(color.Output, diagCfg)
+	return pkgdiagnose.RunStdOut(color.Output, diagCfg, senderManager)
 }
 
 // NOTE: This and related will be moved to separate "agent telemetry" command in future

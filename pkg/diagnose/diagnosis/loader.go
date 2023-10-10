@@ -7,6 +7,7 @@
 package diagnosis
 
 import (
+	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -34,7 +35,7 @@ func RegisterMetadataAvail(name string, d MetadataAvailDiagnose) {
 // Diagnose (all subcommand)
 
 // Diagnose interface function
-type Diagnose func(Config) []Diagnosis
+type Diagnose func(Config, sender.DiagnoseSenderManager) []Diagnosis
 
 // Catalog is a global list of registered Diagnose functions
 var Catalog = make([]Suite, 0)
