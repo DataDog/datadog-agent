@@ -18,6 +18,12 @@ import (
 
 var questionMark = []byte("?")
 
+// ObfuscationMode valid values
+const (
+	ObfuscateOnly         = "obfuscate_only"
+	ObfuscateAndNormalize = "obfuscate_and_normalize"
+)
+
 // metadataFinderFilter is a filter which attempts to collect metadata from a query, such as comments and tables.
 // It is meant to run before all the other filters.
 type metadataFinderFilter struct {

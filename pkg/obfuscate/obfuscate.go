@@ -102,11 +102,6 @@ type StatsClient interface {
 	Gauge(name string, value float64, tags []string, rate float64) error
 }
 
-const (
-	ObfuscateOnly         = "obfuscate_only"
-	ObfuscateAndNormalize = "obfuscate_and_normalize"
-)
-
 // SQLConfig holds the config for obfuscating SQL.
 type SQLConfig struct {
 	// DBMS identifies the type of database management system (e.g. MySQL, Postgres, and SQL Server).
