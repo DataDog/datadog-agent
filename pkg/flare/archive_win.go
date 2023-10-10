@@ -289,6 +289,43 @@ func getDatadogRegistry(fb flaretypes.FlareBuilder) error {
 	return fb.AddFile("datadog.reg", data)
 }
 
+func getEventLogConfig(fb flaretypes.FlareBuilder) error {
+	cancelctx, cancelfunc := context.WithTimeout(context.Background(), execTimeout)
+	defer cancelfunc()
+
+	var out bytes.Buffer
+	// creating a buffer to append all cmd outputs
+	fullOutput := &bytes.Buffer{}
+	channels := [3]string{"Application", "System", "Security"}
+
+	for _, channel := range channels {
+		cmd := exec.CommandContext(cancelctx, "wevtutil", "gl", channel)
+		cmd.Stdout = &out
+		err := cmd.Run()
+		if err != nil {
+			log.Warnf("Error getting config for %s: %v", channel, err)
+			return err
+		}
+		_, err = fullOutput.Write(out.Bytes())
+		if err != nil {
+			log.Warnf("Error writing file %v", err)
+			return err
+		}
+
+		// adding a newline character to make the file easier to read
+		_, err = fullOutput.Write([]byte("\n"))
+		if err != nil {
+			log.Warnf("Error writing file %v", err)
+			return err
+		}
+
+		out.Reset()
+	}
+
+	return fb.AddFile("eventlogconfig.txt", fullOutput.Bytes())
+
+}
+
 func getWindowsData(fb flaretypes.FlareBuilder) {
 	getTypeperfData(fb)     //nolint:errcheck
 	getLodctrOutput(fb)     //nolint:errcheck
@@ -296,4 +333,5 @@ func getWindowsData(fb flaretypes.FlareBuilder) {
 	getWindowsEventLogs(fb) //nolint:errcheck
 	getServiceStatus(fb)    //nolint:errcheck
 	getDatadogRegistry(fb)  //nolint:errcheck
+	getEventLogConfig(fb)   //nolint:errcheck
 }
