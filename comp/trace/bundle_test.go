@@ -15,7 +15,6 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/fx"
 
-	"github.com/DataDog/datadog-agent/comp/core"
 	coreconfig "github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -24,7 +23,13 @@ import (
 // team: agent-apm
 
 func TestBundleDependencies(t *testing.T) {
-	fxutil.TestBundle(t, Bundle)
+	fxutil.TestBundle(t, Bundle,
+		fx.Provide(func() context.Context { return context.TODO() }), // fx.Supply(ctx) fails with a missing type error.
+		fx.Supply(coreconfig.Params{}),
+		coreconfig.Module,
+		fx.Provide(func(cfg config.Component) telemetry.TelemetryCollector { return telemetry.NewCollector(cfg.Object()) }),
+		fx.Supply(&agent.Params{}),
+	)
 }
 
 func TestMockBundleDependencies(t *testing.T) {
