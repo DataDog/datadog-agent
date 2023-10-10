@@ -251,6 +251,7 @@ func tcFiltersExist(netNs *utils.NetNSPath, linkName string, ingressFilterNamePr
 	if err != nil {
 		return
 	}
+	defer netlinkHandle.Close()
 
 	link, err := netlinkHandle.LinkByName(linkName)
 	if err != nil {
