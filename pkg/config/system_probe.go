@@ -123,8 +123,8 @@ func InitSystemProbeConfig(cfg Config) {
 	cfg.BindEnvAndSetDefault(join(spNS, "internal_profiling.enable_goroutine_stacktraces"), false)
 	cfg.BindEnvAndSetDefault(join(spNS, "internal_profiling.delta_profiles"), true)
 	cfg.BindEnvAndSetDefault(join(spNS, "internal_profiling.custom_attributes"), []string{"module"})
-	cfg.BindEnvAndSetDefault(join(spNS, "internal_profiling.unix_socket"), "")
-	cfg.BindEnvAndSetDefault(join(spNS, "internal_profiling.extra_tags"), []string{})
+	cfg.BindEnvAndSetDefault(join(spNS, "internal_profiling.unix_socket"), "", "DD_SYSTEM_PROBE_INTERNAL_PROFILING_UNIX_SOCKET")
+	cfg.BindEnvAndSetDefault(join(spNS, "internal_profiling.extra_tags"), []string{}, "DD_SYSTEM_PROBE_INTERNAL_PROFILING_EXTRA_TAGS")
 
 	cfg.BindEnvAndSetDefault(join(spNS, "memory_controller.enabled"), false)
 	cfg.BindEnvAndSetDefault(join(spNS, "memory_controller.hierarchy"), "v1")
