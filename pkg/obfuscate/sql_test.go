@@ -2061,36 +2061,43 @@ func TestToUpper(t *testing.T) {
 
 func TestSQLLexerObfuscation(t *testing.T) {
 	tests := []struct {
+		name             string
 		query            string
 		expected         string
 		replaceDigits    bool
 		dollarQuotedFunc bool
 	}{
 		{
+			name:     "simple query obfuscation",
 			query:    "SELECT * FROM users WHERE id = 1",
 			expected: "SELECT * FROM users WHERE id = ?",
 		},
 		{
+			name:          "simple query obfuscation with replace digits",
 			query:         "SELECT * FROM users123 WHERE id = 1",
 			expected:      "SELECT * FROM users? WHERE id = ?",
 			replaceDigits: true,
 		},
 		{
+			name:          "simple query obfuscation without replace digits",
 			query:         "SELECT * FROM users123 WHERE id = 1",
 			expected:      "SELECT * FROM users123 WHERE id = ?",
 			replaceDigits: false,
 		},
 		{
+			name:             "query with dollar quoted function",
 			query:            "SELECT $func$INSERT INTO table VALUES ('a', 1, 2)$func$ FROM users",
 			expected:         "SELECT $func$INSERT INTO table VALUES (?, ?, ?)$func$ FROM users",
 			dollarQuotedFunc: true,
 		},
 		{
+			name:             "query without dollar quoted function",
 			query:            "SELECT $func$INSERT INTO table VALUES ('a', 1, 2)$func$ FROM users",
 			expected:         "SELECT ? FROM users",
 			dollarQuotedFunc: false,
 		},
 		{
+			name:             "query with dollar quoted function and replace digits",
 			query:            "SELECT * FROM users123 WHERE id = $tag$1$tag$",
 			expected:         "SELECT * FROM users? WHERE id = ?",
 			replaceDigits:    true,
@@ -2099,7 +2106,7 @@ func TestSQLLexerObfuscation(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		t.Run("sqllexer in ObfuscateOnly mode", func(t *testing.T) {
+		t.Run(fmt.Sprintf("sqllexer in ObfuscateOnly mode-%s", tt.name), func(t *testing.T) {
 			oq, err := NewObfuscator(Config{
 				SQL: SQLConfig{
 					ObfuscationMode:  ObfuscateOnly,
@@ -2116,6 +2123,7 @@ func TestSQLLexerObfuscation(t *testing.T) {
 
 func TestSQLLexerObfuscationAndNormalization(t *testing.T) {
 	tests := []struct {
+		name             string
 		query            string
 		expected         string
 		replaceDigits    bool
@@ -2124,6 +2132,7 @@ func TestSQLLexerObfuscationAndNormalization(t *testing.T) {
 		metadata         SQLMetadata
 	}{
 		{
+			name:     "simple query obfuscation and normalization",
 			query:    "SELECT * FROM users WHERE id = 1",
 			expected: "SELECT * FROM users WHERE id = ?",
 			metadata: SQLMetadata{
@@ -2136,6 +2145,7 @@ func TestSQLLexerObfuscationAndNormalization(t *testing.T) {
 			},
 		},
 		{
+			name:          "simple query obfuscation and normalization with replace digits",
 			query:         "SELECT * FROM users123 WHERE id = 1",
 			expected:      "SELECT * FROM users? WHERE id = ?",
 			replaceDigits: true,
@@ -2149,6 +2159,7 @@ func TestSQLLexerObfuscationAndNormalization(t *testing.T) {
 			},
 		},
 		{
+			name: "normalizaton with comments and keepSQLAlias",
 			query: `
 			-- comment
 			/* comment */
@@ -2169,6 +2180,7 @@ func TestSQLLexerObfuscationAndNormalization(t *testing.T) {
 			},
 		},
 		{
+			name:             "normalizaton with dollar quoted function",
 			query:            "SELECT $func$INSERT INTO table VALUES ('a', 1, 2)$func$ FROM users",
 			expected:         "SELECT $func$INSERT INTO table VALUES ( ? )$func$ FROM users",
 			dollarQuotedFunc: true,
@@ -2182,6 +2194,7 @@ func TestSQLLexerObfuscationAndNormalization(t *testing.T) {
 			},
 		},
 		{
+			name:             "normalizaton without dollar quoted function",
 			query:            "SELECT $func$INSERT INTO table VALUES ('a', 1, 2)$func$ FROM users",
 			expected:         "SELECT ? FROM users",
 			dollarQuotedFunc: false,
@@ -2195,6 +2208,7 @@ func TestSQLLexerObfuscationAndNormalization(t *testing.T) {
 			},
 		},
 		{
+			name:             "normalizaton with dollar quoted function and replace digits",
 			query:            "SELECT * FROM users123 WHERE id = $tag$1$tag$",
 			expected:         "SELECT * FROM users? WHERE id = ?",
 			replaceDigits:    true,
@@ -2211,7 +2225,7 @@ func TestSQLLexerObfuscationAndNormalization(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		t.Run("sqllexer in ObfuscateAndNormalize mode", func(t *testing.T) {
+		t.Run(fmt.Sprintf("sqllexer in ObfuscateAndNormalization mode-%s", tt.name), func(t *testing.T) {
 			oq, err := NewObfuscator(Config{
 				SQL: SQLConfig{
 					ObfuscationMode:  ObfuscateAndNormalize,
@@ -2251,6 +2265,7 @@ func TestSQLLexerObfuscationModeInvalid(t *testing.T) {
 
 func TestSQLLexerObfuscationModeNotSet(t *testing.T) {
 	tests := []struct {
+		name             string
 		query            string
 		expected         string
 		replaceDigits    bool
@@ -2259,6 +2274,7 @@ func TestSQLLexerObfuscationModeNotSet(t *testing.T) {
 		metadata         SQLMetadata
 	}{
 		{
+			name:     "simple select query",
 			query:    "SELECT * FROM users WHERE id = 1",
 			expected: "SELECT * FROM users WHERE id = ?",
 			metadata: SQLMetadata{
@@ -2270,6 +2286,7 @@ func TestSQLLexerObfuscationModeNotSet(t *testing.T) {
 			},
 		},
 		{
+			name:          "simple select query with replace digits",
 			query:         "SELECT * FROM users123 WHERE id = 1",
 			expected:      "SELECT * FROM users? WHERE id = ?",
 			replaceDigits: true,
@@ -2284,7 +2301,7 @@ func TestSQLLexerObfuscationModeNotSet(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		t.Run("ObfuscateMode not set", func(t *testing.T) {
+		t.Run(fmt.Sprintf("ObfuscateMode not set-%s", tt.name), func(t *testing.T) {
 			oq, err := NewObfuscator(Config{
 				SQL: SQLConfig{
 					ReplaceDigits:    tt.replaceDigits,
