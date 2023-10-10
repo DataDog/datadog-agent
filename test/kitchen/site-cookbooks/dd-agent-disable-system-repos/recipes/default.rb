@@ -13,6 +13,8 @@ if ['redhat', 'centos', 'fedora'].include?(node[:platform])
   end
 elsif ['suse', 'opensuseleap'].include?(node[:platform])
   execute 'disable all zypper repositories' do
-    command 'zypper mr -da'
+    # Zypper appears to be running when the VM starts, so we
+    # wait for up to 2 minutes for it to release its lock
+    command 'ZYPP_LOCK_TIMEOUT=120 zypper mr -da'
   end
 end
