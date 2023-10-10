@@ -194,12 +194,7 @@ build do
     end
 
     File.open("#{static_reqs_in_file}", 'r+').readlines().each do |line|
-      excluded_packages.each do |package_regex|
-        re = Regexp.new(package_regex).freeze
-        if re.match line
-          next
-        end
-      end
+      next if excluded_packages.any? { |package_regex| line.match(package_regex) }
 
       if line.start_with?('psycopg[binary]') && !windows?
           line.sub! 'psycopg[binary]', 'psycopg[c]'
