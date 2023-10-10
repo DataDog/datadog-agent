@@ -102,6 +102,11 @@ type StatsClient interface {
 	Gauge(name string, value float64, tags []string, rate float64) error
 }
 
+const (
+	ObfuscateOnly         = "obfuscate_only"
+	ObfuscateAndNormalize = "obfuscate_and_normalize"
+)
+
 // SQLConfig holds the config for obfuscating SQL.
 type SQLConfig struct {
 	// DBMS identifies the type of database management system (e.g. MySQL, Postgres, and SQL Server).
@@ -131,13 +136,10 @@ type SQLConfig struct {
 	// https://www.postgresql.org/docs/current/sql-syntax-lexical.html#SQL-SYNTAX-DOLLAR-QUOTING
 	DollarQuotedFunc bool `json:"dollar_quoted_func"`
 
-	// ObfuscateOnly specifies whether the obfuscator should only obfuscate SQL queries but not normalize them.
-	// This option will use go-sqllexer pkg to obfuscate SQL queries.
-	ObfuscateOnly bool `json:"obfuscate_only" yaml:"obfuscate_only"`
-
-	// ObfuscateAndNormalize specifies whether the obfuscator should obfuscate and normalize SQL queries.
-	// This option will use go-sqllexer pkg to obfuscate and normalize SQL queries.
-	ObfuscateAndNormalize bool `json:"obfuscate_and_normalize" yaml:"obfuscate_and_normalize"`
+	// ObfuscationMode specifies the obfuscation mode to use for go-sqllexer pkg.
+	// When specified, obfuscator will attempt to use go-sqllexer pkg to obfuscate (and normalize) SQL queries.
+	// Valid values are "obfuscate_only", "obfuscate_and_normalize"
+	ObfuscationMode string `json:"obfuscation_mode" yaml:"obfuscation_mode"`
 
 	// Cache reports whether the obfuscator should use a LRU look-up cache for SQL obfuscations.
 	Cache bool

@@ -2099,10 +2099,10 @@ func TestSQLLexerObfuscation(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		t.Run("", func(t *testing.T) {
+		t.Run("sqllexer in ObfuscateOnly mode", func(t *testing.T) {
 			oq, err := NewObfuscator(Config{
 				SQL: SQLConfig{
-					ObfuscateOnly:    true,
+					ObfuscationMode:  ObfuscateOnly,
 					ReplaceDigits:    tt.replaceDigits,
 					DollarQuotedFunc: tt.dollarQuotedFunc,
 				},
@@ -2211,16 +2211,88 @@ func TestSQLLexerObfuscationAndNormalization(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		t.Run("", func(t *testing.T) {
+		t.Run("sqllexer in ObfuscateAndNormalize mode", func(t *testing.T) {
 			oq, err := NewObfuscator(Config{
 				SQL: SQLConfig{
-					ObfuscateAndNormalize: true,
-					ReplaceDigits:         tt.replaceDigits,
-					DollarQuotedFunc:      tt.dollarQuotedFunc,
-					KeepSQLAlias:          tt.keepSQLAlias,
-					TableNames:            true,
-					CollectCommands:       true,
-					CollectComments:       true,
+					ObfuscationMode:  ObfuscateAndNormalize,
+					ReplaceDigits:    tt.replaceDigits,
+					DollarQuotedFunc: tt.dollarQuotedFunc,
+					KeepSQLAlias:     tt.keepSQLAlias,
+					TableNames:       true,
+					CollectCommands:  true,
+					CollectComments:  true,
+				},
+			}).ObfuscateSQLString(tt.query)
+			require.NoError(t, err)
+			require.NotNil(t, oq)
+			assert.Equal(t, tt.expected, oq.Query)
+			assert.Equal(t, tt.metadata, oq.Metadata)
+		})
+	}
+}
+
+func TestSQLLexerObfuscationModeInvalid(t *testing.T) {
+	t.Run("ObfuscateMode with invalid value", func(t *testing.T) {
+		oq, err := NewObfuscator(Config{
+			SQL: SQLConfig{
+				ObfuscationMode:  "some_invalid_mode",
+				ReplaceDigits:    true,
+				DollarQuotedFunc: true,
+				KeepSQLAlias:     true,
+				TableNames:       true,
+				CollectCommands:  true,
+				CollectComments:  true,
+			},
+		}).ObfuscateSQLString("SELECT * FROM users WHERE id = 1")
+		require.Error(t, err)
+		require.Nil(t, oq)
+	})
+}
+
+func TestSQLLexerObfuscationModeNotSet(t *testing.T) {
+	tests := []struct {
+		query            string
+		expected         string
+		replaceDigits    bool
+		dollarQuotedFunc bool
+		keepSQLAlias     bool
+		metadata         SQLMetadata
+	}{
+		{
+			query:    "SELECT * FROM users WHERE id = 1",
+			expected: "SELECT * FROM users WHERE id = ?",
+			metadata: SQLMetadata{
+				Size:      11,
+				TablesCSV: "users",
+				Commands: []string{
+					"SELECT",
+				},
+			},
+		},
+		{
+			query:         "SELECT * FROM users123 WHERE id = 1",
+			expected:      "SELECT * FROM users? WHERE id = ?",
+			replaceDigits: true,
+			metadata: SQLMetadata{
+				Size:      12,
+				TablesCSV: "users?",
+				Commands: []string{
+					"SELECT",
+				},
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run("ObfuscateMode not set", func(t *testing.T) {
+			oq, err := NewObfuscator(Config{
+				SQL: SQLConfig{
+					ReplaceDigits:    tt.replaceDigits,
+					DollarQuotedFunc: tt.dollarQuotedFunc,
+					KeepSQLAlias:     tt.keepSQLAlias,
+					TableNames:       true,
+					CollectCommands:  true,
+					CollectComments:  true,
 				},
 			}).ObfuscateSQLString(tt.query)
 			require.NoError(t, err)

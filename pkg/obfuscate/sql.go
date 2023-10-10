@@ -298,8 +298,8 @@ func (o *Obfuscator) ObfuscateSQLString(in string) (*ObfuscatedQuery, error) {
 // to quantize and obfuscate the given input SQL query string. Quantization removes some elements such as comments
 // and aliases and obfuscation attempts to hide sensitive information in strings and numbers by redacting them.
 func (o *Obfuscator) ObfuscateSQLStringWithOptions(in string, opts *SQLConfig) (*ObfuscatedQuery, error) {
-	if opts.ObfuscateOnly || opts.ObfuscateAndNormalize {
-		// If obfuscation option is specifies, we will use go-sqllexer pkg
+	if opts.ObfuscationMode != "" {
+		// If obfuscation mode is specifies, we will use go-sqllexer pkg
 		// to obfuscate (and normalize) the query.
 		return o.ObfuscateWithSQLLexer(in, opts)
 	}
@@ -426,6 +426,10 @@ func (o *Obfuscator) ObfuscateSQLExecPlan(jsonPlan string, normalize bool) (stri
 // ObfuscateWithSQLLexer obfuscates the given SQL query using the go-sqllexer package.
 // If ObfuscateOnly is set to true, the query will be obfuscated without normalizing it.
 func (o *Obfuscator) ObfuscateWithSQLLexer(in string, opts *SQLConfig) (*ObfuscatedQuery, error) {
+	if opts.ObfuscationMode != ObfuscateOnly && opts.ObfuscationMode != ObfuscateAndNormalize {
+		return nil, fmt.Errorf("invalid obfuscation mode: %s", opts.ObfuscationMode)
+	}
+
 	obfuscator := sqllexer.NewObfuscator(
 		sqllexer.WithReplaceDigits(opts.ReplaceDigits),
 		sqllexer.WithDollarQuotedFunc(opts.DollarQuotedFunc),
@@ -433,7 +437,7 @@ func (o *Obfuscator) ObfuscateWithSQLLexer(in string, opts *SQLConfig) (*Obfusca
 		sqllexer.WithReplaceBoolean(true),
 		sqllexer.WithReplaceNull(true),
 	)
-	if opts.ObfuscateOnly {
+	if opts.ObfuscationMode == ObfuscateOnly {
 		// Obfuscate the query without normalizing it.
 		out := obfuscator.Obfuscate(in, sqllexer.WithDBMS(sqllexer.DBMSType(opts.DBMS)))
 		return &ObfuscatedQuery{

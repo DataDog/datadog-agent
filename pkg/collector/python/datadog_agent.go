@@ -248,10 +248,11 @@ type sqlConfig struct {
 	DollarQuotedFunc bool `json:"dollar_quoted_func"`
 	// ReturnJSONMetadata specifies whether the stub will return metadata as JSON.
 	ReturnJSONMetadata bool `json:"return_json_metadata"`
-	// ObfuscateOnly specifies whether the obfuscator should only obfuscate SQL queries but not normalize them.
-	ObfuscateOnly bool `json:"obfuscate_only"`
-	// ObfuscateAndNormalize specifies whether the obfuscator should obfuscate and normalize SQL queries.
-	ObfuscateAndNormalize bool `json:"obfuscate_and_normalize"`
+
+	// ObfuscationMode specifies the obfuscation mode to use for go-sqllexer pkg.
+	// When specified, obfuscator will attempt to use go-sqllexer pkg to obfuscate (and normalize) SQL queries.
+	// Valid values are "obfuscate_only", "obfuscate_and_normalize"
+	ObfuscationMode string `json:"obfuscation_mode" yaml:"obfuscation_mode"`
 }
 
 // ObfuscateSQL obfuscates & normalizes the provided SQL query, writing the error into errResult if the operation
@@ -271,15 +272,14 @@ func ObfuscateSQL(rawQuery, opts *C.char, errResult **C.char) *C.char {
 	}
 	s := C.GoString(rawQuery)
 	obfuscatedQuery, err := lazyInitObfuscator().ObfuscateSQLStringWithOptions(s, &obfuscate.SQLConfig{
-		DBMS:                  sqlOpts.DBMS,
-		TableNames:            sqlOpts.TableNames,
-		CollectCommands:       sqlOpts.CollectCommands,
-		CollectComments:       sqlOpts.CollectComments,
-		ReplaceDigits:         sqlOpts.ReplaceDigits,
-		KeepSQLAlias:          sqlOpts.KeepSQLAlias,
-		DollarQuotedFunc:      sqlOpts.DollarQuotedFunc,
-		ObfuscateOnly:         sqlOpts.ObfuscateOnly,
-		ObfuscateAndNormalize: sqlOpts.ObfuscateAndNormalize,
+		DBMS:             sqlOpts.DBMS,
+		TableNames:       sqlOpts.TableNames,
+		CollectCommands:  sqlOpts.CollectCommands,
+		CollectComments:  sqlOpts.CollectComments,
+		ReplaceDigits:    sqlOpts.ReplaceDigits,
+		KeepSQLAlias:     sqlOpts.KeepSQLAlias,
+		DollarQuotedFunc: sqlOpts.DollarQuotedFunc,
+		ObfuscationMode:  sqlOpts.ObfuscationMode,
 	})
 	if err != nil {
 		// memory will be freed by caller
