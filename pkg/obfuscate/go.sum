@@ -1,7 +1,5 @@
 github.com/DataDog/datadog-go/v5 v5.1.1 h1:JLZ6s2K1pG2h9GkvEvMdEGqMDyVLEAccdX5TltWcLMU=
 github.com/DataDog/datadog-go/v5 v5.1.1/go.mod h1:KhiYb2Badlv9/rofz+OznKoEF5XKTonWyhx5K83AP8E=
-github.com/DataDog/go-sqllexer v0.0.4 h1:DjuAkGxmMQ/NG/ivMAuk0lvDEKo9XT7AIkM/1ODaXa0=
-github.com/DataDog/go-sqllexer v0.0.4/go.mod h1:nB4Ea2YNsqMwtbWMc4Fm/oP98IIrSPapqwOwPioMspY=
 github.com/DataDog/go-sqllexer v0.0.5 h1:c1DAp0OD5EOQeu/JFLM6P7ytPpzviRYERYeE6oaPABA=
 github.com/DataDog/go-sqllexer v0.0.5/go.mod h1:nB4Ea2YNsqMwtbWMc4Fm/oP98IIrSPapqwOwPioMspY=
 github.com/Microsoft/go-winio v0.5.0/go.mod h1:JPGBdM1cNvN/6ISo+n8V5iA4v8pBzdOpzfwIujj1a84=
