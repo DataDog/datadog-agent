@@ -482,7 +482,7 @@ func newFileSerializer(fe *model.FileEvent, e *model.Event, forceInode ...uint64
 	}
 
 	// lazy hash serialization: we don't want to hash files for every event
-	if fe.HashState == model.Done {
+	if fe.HashState == model.Done || e.IsAnomalyDetectionEvent() {
 		fs.Hashes = e.FieldHandlers.ResolveHashesFromEvent(e, fe)
 	}
 	return fs
