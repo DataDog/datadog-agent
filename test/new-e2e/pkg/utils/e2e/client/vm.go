@@ -12,8 +12,8 @@ import (
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/runner"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/runner/parameters"
-	commonos "github.com/DataDog/test-infra-definitions/components/os"
 	"github.com/DataDog/test-infra-definitions/common/utils"
+	commonos "github.com/DataDog/test-infra-definitions/components/os"
 	commonvm "github.com/DataDog/test-infra-definitions/components/vm"
 	"github.com/pulumi/pulumi/sdk/v3/go/auto"
 )
@@ -29,7 +29,7 @@ type VM struct {
 
 // NewVM creates a new instance of VM
 func NewVM(infraVM commonvm.VM) *VM {
-  return &VM{deserializer: infraVM, os: infraVM.GetOS()}
+	return &VM{deserializer: infraVM, os: infraVM.GetOS()}
 }
 
 //lint:ignore U1000 Ignore unused function as this function is called using reflection
