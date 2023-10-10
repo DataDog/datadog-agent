@@ -12,7 +12,6 @@
 package trace
 
 import (
-	coreconfig "github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
@@ -22,11 +21,9 @@ import (
 // Bundle defines the fx options for this bundle.
 var Bundle = fxutil.Bundle(
 	config.Module,
-	coreconfig.Module,
 )
 
 // Bundle defines the fx options for this bundle.
 var MockBundle = fxutil.Bundle(
 	config.MockModule,
-	coreconfig.MockModule,
 )

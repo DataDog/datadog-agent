@@ -307,6 +307,9 @@
 /pkg/proto/                             @DataDog/agent-shared-components
 /pkg/proto/connectionserver/            @DataDog/universal-service-monitoring @DataDog/Networks
 /pkg/proto/datadog/languagedetection    @DataDog/processes
+/pkg/proto/datadog/process              @DataDog/processes
+/pkg/proto/datadog/trace                @DataDog/agent-apm
+/pkg/proto/pbgo/trace                   @DataDog/agent-apm
 /pkg/remoteconfig/                      @DataDog/remote-config
 /pkg/runtime/                           @DataDog/agent-shared-components
 /pkg/secrets/                           @DataDog/agent-shared-components
@@ -370,6 +373,7 @@
 /pkg/network/protocols/http/*_windows*.go       @DataDog/windows-kernel-integrations
 /pkg/network/tracer/*classification*.go         @DataDog/universal-service-monitoring
 /pkg/network/tracer/testutil/grpc/              @DataDog/universal-service-monitoring
+/pkg/network/tracer/testutil/prefetch_file/     @DataDog/universal-service-monitoring
 /pkg/network/tracer/tracer_usm_linux_test.go    @DataDog/universal-service-monitoring
 /pkg/network/tracer/*_windows*.go               @DataDog/windows-kernel-integrations
 /pkg/network/usm/                       @DataDog/universal-service-monitoring

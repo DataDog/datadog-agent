@@ -10,12 +10,14 @@ import (
 	_ "embed"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/DataDog/datadog-agent/test/fakeintake/client/flare"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client"
 	"github.com/DataDog/test-infra-definitions/components/datadog/agentparams"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 type commandFlareSuite struct {
@@ -27,10 +29,15 @@ func TestFlareSuite(t *testing.T) {
 }
 
 func requestAgentFlareAndFetchFromFakeIntake(v *commandFlareSuite, flareArgs ...client.AgentArgsOption) flare.Flare {
+	// Wait for the fakeintake to be ready to avoid 503 when sending the flare
+	v.EventuallyWithT(func(c *assert.CollectT) {
+		assert.NoError(c, v.Env().Fakeintake.Client.GetServerHealth())
+	}, 5*time.Minute, 20*time.Second)
+
 	_ = v.Env().Agent.Flare(flareArgs...)
 
 	flare, err := v.Env().Fakeintake.Client.GetLatestFlare()
-	assert.NoError(v.T(), err)
+	require.NoError(v.T(), err)
 
 	return flare
 }
@@ -77,8 +84,8 @@ func (v *commandFlareSuite) TestFlareWithAllConfiguration() {
 
 	withFiles := []agentparams.Option{
 		// TODO: use dedicated functions when https://github.com/DataDog/test-infra-definitions/pull/309 is merged
-		agentparams.WithFile("/etc/datadog-agent/system-probe.yaml", string(systemProbeConfiguration), useSudo),
-		agentparams.WithFile("/etc/datadog-agent/security-agent.yaml", string(securityAgentConfiguration), useSudo),
+		agentparams.WithSystemProbeConfig(string(systemProbeConfiguration)),
+		agentparams.WithSecurityAgentConfig(string(securityAgentConfiguration)),
 		agentparams.WithFile(confdPath+"test.yaml", "dummy content", useSudo),
 		agentparams.WithFile(confdPath+"test.yml", "dummy content", useSudo),
 		agentparams.WithFile(confdPath+"test.yml.test", "dummy content", useSudo),

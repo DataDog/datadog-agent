@@ -14,18 +14,20 @@ import (
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/runner"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/runner/parameters"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client/agentclientparams"
+	"github.com/DataDog/test-infra-definitions/common/utils"
 	"github.com/DataDog/test-infra-definitions/components/datadog/agent"
 	e2eOs "github.com/DataDog/test-infra-definitions/components/os"
+	"github.com/pulumi/pulumi/sdk/v3/go/auto"
 )
 
-var _ clientService[agent.ClientData] = (*Agent)(nil)
+var _ stackInitializer = (*Agent)(nil)
 
 // An Agent that is connected to an [agent.Installer].
 //
 // [agent.Installer]: https://pkg.go.dev/github.com/DataDog/test-infra-definitions@main/components/datadog/agent#Installer
 type Agent struct {
-	*UpResultDeserializer[agent.ClientData]
-	os e2eOs.OS
+	deserializer utils.RemoteServiceDeserializer[agent.ClientData]
+	os           e2eOs.OS
 	*AgentCommandRunner
 	vmClient           *vmClient
 	shouldWaitForReady bool
@@ -39,14 +41,18 @@ func NewAgent(installer *agent.Installer, agentClientOptions ...agentclientparam
 	agentInstance := &Agent{
 		os:                 installer.VM().GetOS(),
 		shouldWaitForReady: agentClientParams.ShouldWaitForReady,
+		deserializer:       installer,
 	}
-	agentInstance.UpResultDeserializer = NewUpResultDeserializer[agent.ClientData](installer, agentInstance)
 	return agentInstance
 }
 
 //lint:ignore U1000 Ignore unused function as this function is called using reflection
-func (agent *Agent) initService(t *testing.T, data *agent.ClientData) error {
-	var err error
+func (agent *Agent) setStack(t *testing.T, stackResult auto.UpResult) error {
+	clientData, err := agent.deserializer.Deserialize(stackResult)
+	if err != nil {
+		return err
+	}
+
 	var privateSSHKey []byte
 
 	privateKeyPath, err := runner.GetProfile().ParamStore().GetWithDefault(parameters.PrivateKeyPath, "")
@@ -61,7 +67,7 @@ func (agent *Agent) initService(t *testing.T, data *agent.ClientData) error {
 		}
 	}
 
-	agent.vmClient, err = newVMClient(t, privateSSHKey, &data.Connection)
+	agent.vmClient, err = newVMClient(t, privateSSHKey, &clientData.Connection)
 	if err != nil {
 		return err
 	}
