@@ -21,7 +21,8 @@ import (
 
 // InitConfig is used to deserialize integration init config.
 type InitConfig struct {
-	MinCollectionInterval int `yaml:"min_collection_interval"`
+	MinCollectionInterval int           `yaml:"min_collection_interval"`
+	CustomQueries         []CustomQuery `yaml:"custom_queries"`
 }
 
 type QuerySamplesConfig struct {
@@ -29,13 +30,17 @@ type QuerySamplesConfig struct {
 	IncludeAllSessions bool `yaml:"include_all_sessions"`
 }
 
+type queryMetricsTrackerConfig struct {
+	ContainsText []string `yaml:"contains_text"`
+}
+
 type QueryMetricsConfig struct {
-	Enabled            bool  `yaml:"enabled"`
-	CollectionInterval int64 `yaml:"collection_interval"`
-	DBRowsLimit        int   `yaml:"db_rows_limit"`
-	PlanCacheRetention int   `yaml:"plan_cache_retention"`
-	DisableLastActive  bool  `yaml:"disable_last_active"`
-	Lookback           int64 `yaml:"lookback"`
+	Enabled            bool                        `yaml:"enabled"`
+	CollectionInterval int64                       `yaml:"collection_interval"`
+	DBRowsLimit        int                         `yaml:"db_rows_limit"`
+	DisableLastActive  bool                        `yaml:"disable_last_active"`
+	Lookback           int64                       `yaml:"lookback"`
+	Trackers           []queryMetricsTrackerConfig `yaml:"trackers"`
 }
 
 type SysMetricsConfig struct {
@@ -56,6 +61,7 @@ type SharedMemoryConfig struct {
 
 type ExecutionPlansConfig struct {
 	Enabled              bool `yaml:"enabled"`
+	PlanCacheRetention   int  `yaml:"plan_cache_retention"`
 	LogUnobfuscatedPlans bool `yaml:"log_unobfuscated_plans"`
 }
 
@@ -104,6 +110,7 @@ type InstanceConfig struct {
 	SharedMemory             SharedMemoryConfig   `yaml:"shared_memory"`
 	ExecutionPlans           ExecutionPlansConfig `yaml:"execution_plans"`
 	AgentSQLTrace            AgentSQLTrace        `yaml:"agent_sql_trace"`
+	UseGlobalCustomQueries   string               `yaml:"use_global_custom_queries"`
 	CustomQueries            []CustomQuery        `yaml:"custom_queries"`
 	MetricCollectionInterval int64                `yaml:"metric_collection_interval"`
 }
@@ -142,7 +149,8 @@ func NewCheckConfig(rawInstance integration.Data, rawInitConfig integration.Data
 	instance.QueryMetrics.Enabled = true
 	instance.QueryMetrics.CollectionInterval = defaultMetricCollectionInterval
 	instance.QueryMetrics.DBRowsLimit = 10000
-	instance.QueryMetrics.PlanCacheRetention = 15
+
+	instance.ExecutionPlans.PlanCacheRetention = 15
 
 	instance.SysMetrics.Enabled = true
 	instance.Tablespaces.Enabled = true
@@ -150,6 +158,8 @@ func NewCheckConfig(rawInstance integration.Data, rawInitConfig integration.Data
 	instance.SharedMemory.Enabled = true
 
 	instance.ExecutionPlans.Enabled = true
+
+	instance.UseGlobalCustomQueries = "true"
 	// Defaults end
 
 	if err := yaml.Unmarshal(rawInstance, &instance); err != nil {
@@ -194,6 +204,9 @@ func GetLogPrompt(c InstanceConfig) string {
 	var p string
 	if c.Server != "" {
 		p = c.Server
+		if c.ReportedHostname != "" {
+			p = fmt.Sprintf("%s[%s]", p, c.ReportedHostname)
+		}
 	}
 	if c.Port != 0 {
 		p = fmt.Sprintf("%s:%d", p, c.Port)
@@ -201,5 +214,6 @@ func GetLogPrompt(c InstanceConfig) string {
 	if c.ServiceName != "" {
 		p = fmt.Sprintf("%s/%s", p, c.ServiceName)
 	}
+	p = fmt.Sprintf("%s>", p)
 	return p
 }

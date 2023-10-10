@@ -22,22 +22,26 @@ func TestOrphanEntries(t *testing.T) {
 		now := time.Now()
 		tel := NewTelemetry("http")
 		buffer := newIncompleteBuffer(config.New(), tel)
-		request := &EbpfTx{
-			Request_fragment: requestFragment([]byte("GET /foo/bar")),
-			Request_started:  uint64(now.UnixNano()),
+		request := &EbpfEvent{
+			Http: EbpfTx{
+				Request_fragment: requestFragment([]byte("GET /foo/bar")),
+				Request_started:  uint64(now.UnixNano()),
+			},
 		}
-		request.Tup.Sport = 60000
+		request.Tuple.Sport = 60000
 
 		buffer.Add(request)
 		now = now.Add(5 * time.Second)
 		complete := buffer.Flush(now)
 		assert.Len(t, complete, 0)
 
-		response := &EbpfTx{
-			Response_status_code: 200,
-			Response_last_seen:   uint64(now.UnixNano()),
+		response := &EbpfEvent{
+			Http: EbpfTx{
+				Response_status_code: 200,
+				Response_last_seen:   uint64(now.UnixNano()),
+			},
 		}
-		response.Tup.Sport = 60000
+		response.Tuple.Sport = 60000
 		buffer.Add(response)
 		complete = buffer.Flush(now)
 		require.Len(t, complete, 1)
@@ -53,9 +57,11 @@ func TestOrphanEntries(t *testing.T) {
 		buffer := newIncompleteBuffer(config.New(), tel)
 		now := time.Now()
 		buffer.minAgeNano = (30 * time.Second).Nanoseconds()
-		request := &EbpfTx{
-			Request_fragment: requestFragment([]byte("GET /foo/bar")),
-			Request_started:  uint64(now.UnixNano()),
+		request := &EbpfEvent{
+			Http: EbpfTx{
+				Request_fragment: requestFragment([]byte("GET /foo/bar")),
+				Request_started:  uint64(now.UnixNano()),
+			},
 		}
 		buffer.Add(request)
 		_ = buffer.Flush(now)

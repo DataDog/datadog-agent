@@ -4,7 +4,7 @@
 // Copyright 2016-present Datadog, Inc.
 //go:build windows
 
-// Package systray
+// Package systray provides a component for the system tray application
 package systray
 
 import (
@@ -14,15 +14,18 @@ import (
 
 // team: windows-agent
 
+// Params for ddtray component
 type Params struct {
 	LaunchGuiFlag      bool
 	LaunchElevatedFlag bool
 	LaunchCommand      string
 }
 
+// Component for ddtray
 type Component interface {
 }
 
+// Module for ddtray
 var Module = fxutil.Component(
 	fx.Provide(newSystray),
 )

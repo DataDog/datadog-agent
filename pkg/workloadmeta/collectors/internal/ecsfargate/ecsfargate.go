@@ -5,6 +5,7 @@
 
 //go:build docker
 
+// Package ecsfargate implements the ECS Fargate Workloadmeta collector.
 package ecsfargate
 
 import (

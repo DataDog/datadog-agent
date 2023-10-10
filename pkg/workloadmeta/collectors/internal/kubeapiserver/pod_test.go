@@ -117,25 +117,23 @@ func Test_PodsFakeKubernetesClient(t *testing.T) {
 		_, err := cl.CoreV1().Pods(metav1.NamespaceAll).Create(context.TODO(), &corev1.Pod{ObjectMeta: objectMeta}, metav1.CreateOptions{})
 		return err
 	}
-	expected := []workloadmeta.EventBundle{
-		{
-			Events: []workloadmeta.Event{
-				{
-					Type: workloadmeta.EventTypeSet,
-					Entity: &workloadmeta.KubernetesPod{
-						EntityID: workloadmeta.EntityID{
-							ID:   string(objectMeta.UID),
-							Kind: workloadmeta.KindKubernetesPod,
-						},
-						EntityMeta: workloadmeta.EntityMeta{
-							Name:   objectMeta.Name,
-							Labels: objectMeta.Labels,
-						},
-						Owners: []workloadmeta.KubernetesPodOwner{},
+	expected := workloadmeta.EventBundle{
+		Events: []workloadmeta.Event{
+			{
+				Type: workloadmeta.EventTypeSet,
+				Entity: &workloadmeta.KubernetesPod{
+					EntityID: workloadmeta.EntityID{
+						ID:   string(objectMeta.UID),
+						Kind: workloadmeta.KindKubernetesPod,
 					},
+					EntityMeta: workloadmeta.EntityMeta{
+						Name:   objectMeta.Name,
+						Labels: objectMeta.Labels,
+					},
+					Owners: []workloadmeta.KubernetesPodOwner{},
 				},
 			},
 		},
 	}
-	testFakeHelper(t, createResource, newPodStore, expected)
+	testCollectEvent(t, createResource, newPodStore, expected)
 }

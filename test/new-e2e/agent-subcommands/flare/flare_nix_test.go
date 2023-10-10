@@ -33,7 +33,7 @@ type linuxFlareSuite struct {
 
 func TestLinuxFlareSuite(t *testing.T) {
 	t.Parallel()
-	e2e.Run(t, &linuxFlareSuite{}, e2e.FakeIntakeStackDef([]ec2params.Option{ec2params.WithOS(ec2os.UbuntuOS)}))
+	e2e.Run(t, &linuxFlareSuite{}, e2e.FakeIntakeStackDef(e2e.WithVMParams(ec2params.WithOS(ec2os.UbuntuOS))))
 }
 
 func (v *linuxFlareSuite) TestFlareWithAllConfiguration() {
@@ -61,7 +61,7 @@ func (v *linuxFlareSuite) TestFlareWithAllConfiguration() {
 
 	agentOptions := append(withFiles, agentparams.WithAgentConfig(string(agentConfiguration)))
 
-	v.UpdateEnv(e2e.FakeIntakeStackDef(nil, agentOptions...))
+	v.UpdateEnv(e2e.FakeIntakeStackDef(e2e.WithAgentParams(agentOptions...)))
 
 	flare := requestAgentFlareAndFetchFromFakeIntake(v.T(), v.Env().Agent, v.Env().Fakeintake, client.WithArgs([]string{"--email", "e2e@test.com", "--send"}))
 

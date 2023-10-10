@@ -163,7 +163,7 @@ func TestActivityTree_CreateProcessNode(t *testing.T) {
 			differentContainerID:  true,
 			resultNodeShouldBeNil: true,
 			resultNewProcessNode:  false,
-			resultErr:             activity_tree.ErrContainerIDNotEqual,
+			resultErr:             nil,
 			resultTree:            map[string][]string{},
 		},
 
@@ -697,7 +697,7 @@ func TestActivityTree_CreateProcessNode(t *testing.T) {
 
 						process := craftFakeProcess(defaultContainerID, &ti)
 
-						node, _, newProcessNode, err := at.CreateProcessNode(process, []*model.ProcessCacheEntry{}, gentype, dryRun, nil)
+						node, newProcessNode, err := at.CreateProcessNode(process, gentype, dryRun, nil)
 
 						assert.Equal(t, ti.resultErr, err)
 						assert.Equal(t, ti.resultNewProcessNode, newProcessNode)

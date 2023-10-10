@@ -34,7 +34,7 @@ type HostInfo struct {
 }
 
 // CollectHostInfo collects host information
-func CollectHostInfo(config config.ConfigReader) (*HostInfo, error) {
+func CollectHostInfo(config config.Reader) (*HostInfo, error) {
 	sysInfo, err := CollectSystemInfo()
 	if err != nil {
 		return nil, err
@@ -52,7 +52,7 @@ func CollectHostInfo(config config.ConfigReader) (*HostInfo, error) {
 	}, nil
 }
 
-func resolveHostName(config config.ConfigReader) (string, error) {
+func resolveHostName(config config.Reader) (string, error) {
 	var hostName string
 	if config.IsSet("hostname") {
 		hostName = config.GetString("hostname")

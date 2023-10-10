@@ -20,7 +20,7 @@ type agentConfigCheckSuite struct {
 }
 
 func TestAgentConfigCheckSuite(t *testing.T) {
-	e2e.Run(t, &agentConfigCheckSuite{}, e2e.AgentStackDef(nil))
+	e2e.Run(t, &agentConfigCheckSuite{}, e2e.AgentStackDef())
 }
 
 type CheckConfigOutput struct {
@@ -104,7 +104,7 @@ Config for instance ID: cpu:e331d61ed1323219
 
 // cpu, disk, file_handle, io, load, memory, network, ntp, uptime
 func (v *agentConfigCheckSuite) TestDefaultInstalledChecks() {
-	v.UpdateEnv(e2e.AgentStackDef(nil))
+	v.UpdateEnv(e2e.AgentStackDef())
 
 	testChecks := []CheckConfigOutput{
 		{
@@ -184,7 +184,7 @@ func (v *agentConfigCheckSuite) TestWithBadConfigCheck() {
 	- name: bad yaml formatting via tab
 `
 	integration := agentparams.WithIntegration("http_check.d", config)
-	v.UpdateEnv(e2e.AgentStackDef(nil, integration))
+	v.UpdateEnv(e2e.AgentStackDef(e2e.WithAgentParams(integration)))
 
 	output := v.Env().Agent.ConfigCheck()
 
@@ -197,7 +197,7 @@ func (v *agentConfigCheckSuite) TestWithAddedIntegrationsCheck() {
     url: http://some.url.example.com
 `
 	integration := agentparams.WithIntegration("http_check.d", config)
-	v.UpdateEnv(e2e.AgentStackDef(nil, integration))
+	v.UpdateEnv(e2e.AgentStackDef(e2e.WithAgentParams(integration)))
 
 	output := v.Env().Agent.ConfigCheck()
 

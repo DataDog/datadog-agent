@@ -33,8 +33,8 @@ int hook_get_pipe_info(ctx_t *ctx) {
     if (!syscall->splice.file_found) {
         struct file *f = (struct file*) CTX_PARM1(ctx);
         syscall->splice.dentry = get_file_dentry(f);
-        set_file_inode(syscall->splice.dentry, &syscall->splice.file, 0);
         syscall->splice.file.path_key.mount_id = get_file_mount_id(f);
+        set_file_inode(syscall->splice.dentry, &syscall->splice.file, 0);
     }
 
     return 0;
@@ -91,7 +91,7 @@ int __attribute__((always_inline)) sys_splice_ret(void *ctx, int retval) {
     }
 
     if (filter_syscall(syscall, splice_approvers)) {
-        return discard_syscall(syscall);
+        return 0;
     }
 
     struct splice_event_t event = {

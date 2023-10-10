@@ -24,7 +24,7 @@ import (
 
 type dependencies struct {
 	fx.In
-
+	Params Params
 	Config coreconfig.Component
 }
 
@@ -43,8 +43,12 @@ type cfg struct {
 
 func newConfig(deps dependencies) (Component, error) {
 	tracecfg, err := setupConfig(deps, "")
+
 	if err != nil {
-		return nil, err
+		// Allow main Agent to start with missing API key
+		if !(err == traceconfig.ErrMissingAPIKey && !deps.Params.FailIfAPIKeyMissing) {
+			return nil, err
+		}
 	}
 
 	c := cfg{

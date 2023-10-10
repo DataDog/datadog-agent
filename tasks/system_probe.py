@@ -292,8 +292,8 @@ def ninja_runtime_compilation_files(nw, gobin):
         )
 
     runtime_compiler_files = {
-        "pkg/collector/corechecks/ebpf/probe/oom_kill.go": "oom-kill",
-        "pkg/collector/corechecks/ebpf/probe/tcp_queue_length.go": "tcp-queue-length",
+        "pkg/collector/corechecks/ebpf/probe/oomkill/oom_kill.go": "oom-kill",
+        "pkg/collector/corechecks/ebpf/probe/tcpqueuelength/tcp_queue_length.go": "tcp-queue-length",
         "pkg/network/usm/compile.go": "usm",
         "pkg/network/usm/sharedlibraries/compile.go": "shared-libraries",
         "pkg/network/tracer/compile.go": "conntrack",
@@ -379,7 +379,7 @@ def ninja_cgo_type_files(nw, windows):
             "pkg/network/protocols/events/types.go": [
                 "pkg/network/ebpf/c/protocols/events-types.h",
             ],
-            "pkg/collector/corechecks/ebpf/probe/tcp_queue_length_kern_types.go": [
+            "pkg/collector/corechecks/ebpf/probe/tcpqueuelength/tcp_queue_length_kern_types.go": [
                 "pkg/collector/corechecks/ebpf/c/runtime/tcp-queue-length-kern-user.h",
             ],
             "pkg/network/usm/sharedlibraries/types.go": [

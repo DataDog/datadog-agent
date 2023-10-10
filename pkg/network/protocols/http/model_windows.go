@@ -168,3 +168,9 @@ func (tx *WinHttpTransaction) RequestStarted() uint64 {
 func (tx *WinHttpTransaction) SetRequestMethod(m Method) {
 	tx.Txn.RequestMethod = uint32(m)
 }
+
+func isEncrypted(tx Transaction) bool {
+	// TODO: add windows-specifc implementation for this
+	// Note this only affects internal-telemetry so it's OK to leave as it is for now
+	return false
+}

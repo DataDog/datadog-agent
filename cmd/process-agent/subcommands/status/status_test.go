@@ -18,12 +18,14 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/DataDog/datadog-agent/cmd/process-agent/command"
 	hostMetadataUtils "github.com/DataDog/datadog-agent/comp/metadata/host/utils"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/metadata/host"
 	"github.com/DataDog/datadog-agent/pkg/process/util/status"
 	ddstatus "github.com/DataDog/datadog-agent/pkg/status"
 	"github.com/DataDog/datadog-agent/pkg/trace/log"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
 func fakeStatusServer(t *testing.T, stats status.Status) *httptest.Server {
@@ -100,4 +102,12 @@ func TestError(t *testing.T) {
 	require.NoError(t, err)
 
 	assert.Equal(t, expectedErrText.String(), errText.String())
+}
+
+func TestRunStatusCommand(t *testing.T) {
+	fxutil.TestOneShotSubcommand(t,
+		Commands(&command.GlobalParams{}),
+		[]string{"status"},
+		runStatus,
+		func() {})
 }

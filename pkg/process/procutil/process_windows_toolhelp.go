@@ -263,3 +263,24 @@ func (cp *cachedProcess) close() {
 		cp.procHandle = windows.Handle(0)
 	}
 }
+
+// GetParentPid looks up the parent process given a pid
+func GetParentPid(pid uint32) (uint32, error) {
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+
+	var pe32 w32.PROCESSENTRY32
+	pe32.DwSize = uint32(unsafe.Sizeof(pe32))
+
+	allProcsSnap := w32.CreateToolhelp32Snapshot(w32.TH32CS_SNAPPROCESS, 0)
+	if allProcsSnap == 0 {
+		return 0, windows.GetLastError()
+	}
+	defer w32.CloseHandle(allProcsSnap)
+	for success := w32.Process32First(allProcsSnap, &pe32); success; success = w32.Process32Next(allProcsSnap, &pe32) {
+		if pid == pe32.Th32ProcessID {
+			return pe32.Th32ParentProcessID, nil
+		}
+	}
+	return 0, nil
+}

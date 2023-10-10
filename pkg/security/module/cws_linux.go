@@ -15,9 +15,10 @@ func getFamilyAddress(config *config.RuntimeSecurityConfig) (string, string) {
 }
 
 // UpdateEventMonitorOpts adapt the event monitor options
-func UpdateEventMonitorOpts(opts *eventmonitor.Opts) {
+func UpdateEventMonitorOpts(opts *eventmonitor.Opts, config *config.Config) {
 	opts.ProbeOpts.PathResolutionEnabled = true
 	opts.ProbeOpts.TTYFallbackEnabled = true
+	opts.ProbeOpts.SyscallsMonitorEnabled = config.Probe.SyscallsMonitorEnabled
 }
 
 // DisableRuntimeSecurity disables all the runtime security features

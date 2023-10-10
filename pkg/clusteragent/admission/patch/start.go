@@ -29,7 +29,10 @@ type ControllerContext struct {
 // StartControllers starts the patch controllers
 func StartControllers(ctx ControllerContext) error {
 	log.Info("Starting patch controllers")
-	telemetryCollector := telemetry.NewCollector(ctx.RcClient.ID, ctx.ClusterID)
+	telemetryCollector := telemetry.NewNoopCollector()
+	if ctx.RcClient != nil {
+		telemetryCollector = telemetry.NewCollector(ctx.RcClient.ID, ctx.ClusterID)
+	}
 	provider, err := newPatchProvider(ctx.RcClient, ctx.LeaderSubscribeFunc(), telemetryCollector, ctx.ClusterName)
 	if err != nil {
 		return err

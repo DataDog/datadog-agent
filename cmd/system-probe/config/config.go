@@ -142,7 +142,6 @@ func load() (*Config, error) {
 	if cfg.GetBool(spNS("enable_oom_kill")) {
 		c.EnabledModules[OOMKillProbeModule] = struct{}{}
 	}
-
 	if cfg.GetBool(secNS("enabled")) ||
 		cfg.GetBool(secNS("fim_enabled")) ||
 		cfg.GetBool(evNS("process.enabled")) ||

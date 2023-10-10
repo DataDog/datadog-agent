@@ -17,19 +17,14 @@ import (
 	"go.uber.org/atomic"
 	"golang.org/x/sys/windows"
 
+	"github.com/DataDog/datadog-agent/comp/core/flare/helpers"
 	"github.com/DataDog/datadog-agent/pkg/api/util"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	pkglog "github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-const (
-	IDD_DIALOG1     = 101
-	IDC_TICKET_EDIT = 1001
-	IDC_EMAIL_EDIT  = 1002
-)
-
 var (
-	validemail = regexp.MustCompile("^[\\w-\\.]+@([\\w-]+\\.)+[\\w-]{2,4}$")
+	validemail = regexp.MustCompile(`^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$`)
 	moduser32  = windows.NewLazyDLL("user32.dll")
 
 	procGetDlgItem       = moduser32.NewProc("GetDlgItem")
@@ -113,7 +108,6 @@ func dialogProc(hwnd win.HWND, msg uint32, wParam, lParam uintptr) (result uintp
 					}
 				}
 			}
-			break
 		case win.IDOK:
 			buf := make([]uint16, 256)
 
@@ -214,7 +208,7 @@ func requestFlare(s *systray, caseID, customerEmail string) (response string, e 
 
 	s.log.Warnf("%s is going to be uploaded to Datadog\n", filePath)
 
-	response, e = s.flare.Send(filePath, caseID, customerEmail, "local")
+	response, e = s.flare.Send(filePath, caseID, customerEmail, helpers.NewLocalFlareSource())
 	s.log.Debug(response)
 	if e != nil {
 		return

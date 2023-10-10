@@ -11,6 +11,7 @@ COPY go.sum ./
 RUN go mod download
 
 COPY server/*.go ./server/
+COPY server/serverstore/*.go ./server/serverstore/
 COPY api/*.go ./api/
 COPY app/*.go ./app/
 COPY aggregator/*.go ./aggregator/

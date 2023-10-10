@@ -22,11 +22,11 @@ type windowsFlareSuite struct {
 
 func TestWindowsFlareSuite(t *testing.T) {
 	t.Parallel()
-	e2e.Run(t, &windowsFlareSuite{}, e2e.FakeIntakeStackDef([]ec2params.Option{ec2params.WithOS(ec2os.WindowsOS)}))
+	e2e.Run(t, &windowsFlareSuite{}, e2e.FakeIntakeStackDef(e2e.WithVMParams(ec2params.WithOS(ec2os.WindowsOS))))
 }
 
 func (v *windowsFlareSuite) TestFlareWindows() {
-	v.UpdateEnv(e2e.FakeIntakeStackDef([]ec2params.Option{ec2params.WithOS(ec2os.WindowsOS)}))
+	v.UpdateEnv(e2e.FakeIntakeStackDef(e2e.WithVMParams(ec2params.WithOS(ec2os.WindowsOS))))
 	flare := requestAgentFlareAndFetchFromFakeIntake(v.T(), v.Env().Agent, v.Env().Fakeintake, client.WithArgs([]string{"--email", "e2e@test.com", "--send"}))
 
 	assertFilesExist(v.T(), flare, windowsFiles)
