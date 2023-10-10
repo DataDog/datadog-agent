@@ -51,6 +51,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/connection"
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/offsetguess"
 	tracertest "github.com/DataDog/datadog-agent/pkg/network/tracer/testutil"
+	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -508,7 +509,6 @@ func (s *TracerSuite) TestTranslationBindingRegression() {
 	tr := setupTracer(t, testConfig())
 
 	// Setup TCP server
-	rand.Seed(time.Now().UnixNano())
 	port := 5430 + rand.Intn(100)
 	server := NewTCPServerOnAddress(fmt.Sprintf("1.1.1.1:%d", port), func(c net.Conn) {
 		wg.Add(1)
@@ -528,8 +528,20 @@ func (s *TracerSuite) TestTranslationBindingRegression() {
 	_, err = c.Write([]byte("ping"))
 	require.NoError(t, err)
 
-	// Give enough time for conntrack cache to be populated
-	time.Sleep(100 * time.Millisecond)
+	// wait for conntrack update
+	laddr := c.LocalAddr().(*net.TCPAddr)
+	raddr := c.RemoteAddr().(*net.TCPAddr)
+	cs := network.ConnectionStats{
+		DPort:  uint16(raddr.Port),
+		Dest:   util.AddressFromNetIP(raddr.IP),
+		Family: network.AFINET,
+		SPort:  uint16(laddr.Port),
+		Source: util.AddressFromNetIP(laddr.IP),
+		Type:   network.TCP,
+	}
+	require.Eventually(t, func() bool {
+		return tr.conntracker.GetTranslationForConn(cs) != nil
+	}, 3*time.Second, 100*time.Millisecond, "timed out waiting for conntrack update")
 
 	// Assert that the connection to 2.2.2.2 has an IPTranslation object bound to it
 	connections := getConnections(t, tr)
