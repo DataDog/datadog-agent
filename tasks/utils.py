@@ -366,7 +366,14 @@ def cache_version(ctx, git_sha_length=7, prefix=None):
 
 
 def get_version(
-    ctx, include_git=False, url_safe=False, git_sha_length=7, prefix=None, major_version='7', include_pipeline_id=False, pipeline_id=""
+    ctx,
+    include_git=False,
+    url_safe=False,
+    git_sha_length=7,
+    prefix=None,
+    major_version='7',
+    include_pipeline_id=False,
+    pipeline_id="",
 ):
     version = ""
     if pipeline_id == "":
