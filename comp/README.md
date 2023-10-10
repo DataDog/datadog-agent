@@ -112,7 +112,7 @@ by the Agent.
 
 ### [comp/metadata/resources](https://pkg.go.dev/github.com/DataDog/dd-agent-comp-experiments/comp/metadata/resources)
 
-Package runner implements a component to generate the 'resources' metadata payload.
+Package resources implements a component to generate the 'resources' metadata payload.
 
 ### [comp/metadata/runner](https://pkg.go.dev/github.com/DataDog/dd-agent-comp-experiments/comp/metadata/runner)
 
@@ -247,6 +247,10 @@ Package systray provides a component for the system tray application
 *Datadog Team*: agent-apm
 
 Package trace implements the "trace" bundle, providing components for the Trace Agent
+
+### [comp/trace/agent](https://pkg.go.dev/github.com/DataDog/dd-agent-comp-experiments/comp/trace/agent)
+
+
 
 ### [comp/trace/config](https://pkg.go.dev/github.com/DataDog/dd-agent-comp-experiments/comp/trace/config)
 

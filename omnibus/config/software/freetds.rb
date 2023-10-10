@@ -23,9 +23,7 @@ build do
     "--disable-static",
   ]
 
-  configure_command = configure_args.unshift("./configure").join(" ")
-
-  command configure_command, env: env, in_msys_bash: true
+  configure(*configure_args, env: env)
   command "make -j #{workers}", env: env
 
   # Only `libtdsodbc.so/libtdsodbc.so.0.0.0` are needed for SQLServer integration.

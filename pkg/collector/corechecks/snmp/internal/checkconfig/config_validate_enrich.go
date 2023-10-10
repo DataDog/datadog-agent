@@ -175,6 +175,26 @@ func validateEnrichMetricTag(metricTag *profiledefinition.MetricTagConfig) []str
 	if metricTag.Column.OID != "" || metricTag.Column.Name != "" {
 		errors = append(errors, validateEnrichSymbol(&metricTag.Column, MetricTagSymbol)...)
 	}
+
+	// OID/Name to Symbol harmonization:
+	// When users declare metric tag like:
+	//   metric_tags:
+	//     - OID: 1.2.3
+	//       symbol: aSymbol
+	// this will lead to OID stored as MetricTagConfig.OID  and name stored as MetricTagConfig.Symbol.Name
+	// When this happens, we harmonize by moving MetricTagConfig.OID to MetricTagConfig.Symbol.OID.
+	if metricTag.OID != "" && metricTag.Symbol.OID != "" {
+		errors = append(errors, fmt.Sprintf("metric tag OID and symbol.OID cannot be both declared: OID=%s, symbol.OID=%s", metricTag.OID, metricTag.Symbol.OID))
+	}
+	if metricTag.OID != "" && metricTag.Symbol.OID == "" {
+		metricTag.Symbol.OID = metricTag.OID
+		metricTag.OID = ""
+	}
+	if metricTag.Symbol.OID != "" || metricTag.Symbol.Name != "" {
+		symbol := profiledefinition.SymbolConfig(metricTag.Symbol)
+		errors = append(errors, validateEnrichSymbol(&symbol, MetricTagSymbol)...)
+		metricTag.Symbol = profiledefinition.SymbolConfigCompat(symbol)
+	}
 	if metricTag.Match != "" {
 		pattern, err := regexp.Compile(metricTag.Match)
 		if err != nil {

@@ -68,7 +68,7 @@ func main() {
 		fx.Supply(
 			core.BundleParams{
 				ConfigParams: config.NewAgentParamsWithSecrets(*cfgPath),
-				LogParams:    corelog.LogForOneShot(loggerName, "debug", true),
+				LogParams:    corelog.ForOneShot(loggerName, "debug", true),
 			},
 		),
 		fx.Provide(newForwarderParams),

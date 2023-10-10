@@ -8,35 +8,25 @@ package ndmtmp
 import (
 	"testing"
 
-	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer"
-	"github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/comp/core/log"
-	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
-	"github.com/DataDog/datadog-agent/comp/ndmtmp/forwarder"
-	"github.com/stretchr/testify/require"
+	"github.com/DataDog/datadog-agent/comp/core"
+	ddagg "github.com/DataDog/datadog-agent/pkg/aggregator"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"go.uber.org/fx"
 )
 
 func TestBundleDependencies(t *testing.T) {
-	require.NoError(t, fx.ValidateApp(
-		fx.Supply(fx.Annotate(t, fx.As(new(testing.TB)))),
-		// instantiate all of the ndmtmp components, since this is not done
-		// automatically.
-		fx.Invoke(func(forwarder.Component) {}),
-		demultiplexer.MockModule,
-		log.MockModule,
-		config.MockModule,
-		defaultforwarder.MockModule,
-		Bundle,
-	))
+	fxutil.TestBundle(t, Bundle,
+		fx.Provide(func() *ddagg.AgentDemultiplexer {
+			return &ddagg.AgentDemultiplexer{}
+		}),
+	)
 }
 
 func TestMockBundleDependencies(t *testing.T) {
-	require.NoError(t, fx.ValidateApp(
-		log.MockModule,
-		fx.Supply(fx.Annotate(t, fx.As(new(testing.TB)))),
-		fx.Invoke(func(forwarder.Component) {}),
-		demultiplexer.MockModule,
-		MockBundle,
-	))
+	fxutil.TestBundle(t, MockBundle,
+		core.MockBundle,
+		fx.Provide(func() *ddagg.AgentDemultiplexer {
+			return &ddagg.AgentDemultiplexer{}
+		}),
+	)
 }
