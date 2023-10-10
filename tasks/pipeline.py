@@ -138,9 +138,7 @@ def workflow_rules(gitlab_file=".gitlab-ci.yml"):
 
 
 @task
-def trigger(
-    _, git_ref=DEFAULT_BRANCH, release_version_6="dev", release_version_7="dev-a7", repo_branch="dev"
-):
+def trigger(_, git_ref=DEFAULT_BRANCH, release_version_6="dev", release_version_7="dev-a7", repo_branch="dev"):
     """
     OBSOLETE: Trigger a deploy pipeline on the given git ref. Use pipeline.run with the --deploy option instead.
     """
@@ -148,7 +146,12 @@ def trigger(
     use_release_entries = ""
     major_versions = []
 
-    if release_version_6 != "nightly" and release_version_7 != "nightly-a7" and release_version_6 != "dev" and release_version_7 != "dev-a7":
+    if (
+        release_version_6 != "nightly"
+        and release_version_7 != "nightly-a7"
+        and release_version_6 != "dev"
+        and release_version_7 != "dev-a7"
+    ):
         use_release_entries = "--use-release-entries "
 
     if release_version_6 != "":
