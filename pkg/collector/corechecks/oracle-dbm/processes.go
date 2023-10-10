@@ -16,15 +16,30 @@ import (
 )
 
 const pgaQuery12 = `SELECT 
-  c.name as pdb_name, 
-  p.pid as pid, p.program as server_process,
-  s.sid as sid, s.username as username, s.program as program, s.machine as machine, s.osuser as osuser,
-  s.status as status, last_call_et,
-  module, client_info,
-  FROM v$process p, v$containers c, v$session s
-  WHERE
-  	c.con_id(+) = p.con_id
-		AND s.paddr(+) = p.addr`
+	c.name as pdb_name, 
+	p.pid as pid, p.program as server_process,
+	s.sid as sid, s.username as username, s.program as program, s.machine as machine, s.osuser as osuser,
+	s.status as status, last_call_et,
+	module, client_info,
+	nvl(pga_used_mem,0) pga_used_mem, 
+	nvl(pga_alloc_mem,0) pga_alloc_mem, 
+	nvl(pga_freeable_mem,0) pga_freeable_mem, 
+	nvl(pga_max_mem,0) pga_max_mem
+FROM v$process p, v$containers c, v$session s
+WHERE
+  c.con_id(+) = p.con_id
+	AND s.paddr(+) = p.addr`
+
+const pgaQuery11 = `SELECT  
+	p.pid as pid, p.program as server_process,
+	s.sid as sid, s.username as username, s.program as program, s.machine as machine, s.osuser as osuser,
+	s.status as status, last_call_et,
+	nvl(pga_used_mem,0) pga_used_mem, 
+	nvl(pga_alloc_mem,0) pga_alloc_mem, 
+	nvl(pga_freeable_mem,0) pga_freeable_mem, 
+	nvl(pga_max_mem,0) pga_max_mem
+FROM v$process p, v$session s
+WHERE s.paddr(+) = p.addr`
 
 type sessionTagColumns struct {
 	Sid      sql.NullInt64  `db:"SID"`
@@ -35,15 +50,13 @@ type sessionTagColumns struct {
 }
 
 const pgaQuery11 = `SELECT  
-  p.pid as pid, p.program as server_process,
-  s.sid as sid, s.username as username, s.program as program, s.machine as machine, s.osuser as osuser,
-  s.status as status, last_call_et,
-  module, client_info,
+	pid, 
+	program, 
 	nvl(pga_used_mem,0) pga_used_mem, 
 	nvl(pga_alloc_mem,0) pga_alloc_mem, 
 	nvl(pga_freeable_mem,0) pga_freeable_mem, 
 	nvl(pga_max_mem,0) pga_max_mem
-  FROM v$process p, v$session s`
+  FROM v$process p`
 
 type ProcessesRowDB struct {
 	PdbName        sql.NullString `db:"PDB_NAME"`
