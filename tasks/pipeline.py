@@ -531,7 +531,7 @@ def changelog(ctx, new_commit_sha):
         messages.append(f"{message_link} {author_handle}")
 
     commit_range_link = f"https://github.com/DataDog/datadog-agent/compare/{old_commit_sha}..{new_commit_sha}"
-    slack_message = f"The nightly deployment is rolling out to Staging :siren: \n"
+    slack_message = "The nightly deployment is rolling out to Staging :siren: \n"
     if messages:
         slack_message += (
             f"Changelog for <{commit_range_link}|commit range>: `{old_commit_sha}` to `{new_commit_sha}`:\n"
