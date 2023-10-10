@@ -93,7 +93,7 @@ func (c *tcpCloseConsumer) Start(callback func([]network.ConnectionStats)) {
 	}
 
 	var (
-		then        time.Time = time.Now()
+		then        = time.Now()
 		closedCount uint64
 		lostCount   uint64
 	)
