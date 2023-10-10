@@ -146,12 +146,7 @@ def trigger(_, git_ref=DEFAULT_BRANCH, release_version_6="dev", release_version_
     use_release_entries = ""
     major_versions = []
 
-    if (
-        release_version_6 != "nightly"
-        and release_version_7 != "nightly-a7"
-        and release_version_6 != "dev"
-        and release_version_7 != "dev-a7"
-    ):
+    if release_version_6 != "nightly" and release_version_7 != "nightly-a7":
         use_release_entries = "--use-release-entries "
 
     if release_version_6 != "":
