@@ -30,12 +30,17 @@ type QuerySamplesConfig struct {
 	IncludeAllSessions bool `yaml:"include_all_sessions"`
 }
 
+type queryMetricsTrackerConfig struct {
+	ContainsText []string `yaml:"contains_text"`
+}
+
 type QueryMetricsConfig struct {
-	Enabled            bool  `yaml:"enabled"`
-	CollectionInterval int64 `yaml:"collection_interval"`
-	DBRowsLimit        int   `yaml:"db_rows_limit"`
-	DisableLastActive  bool  `yaml:"disable_last_active"`
-	Lookback           int64 `yaml:"lookback"`
+	Enabled            bool                        `yaml:"enabled"`
+	CollectionInterval int64                       `yaml:"collection_interval"`
+	DBRowsLimit        int                         `yaml:"db_rows_limit"`
+	DisableLastActive  bool                        `yaml:"disable_last_active"`
+	Lookback           int64                       `yaml:"lookback"`
+	Trackers           []queryMetricsTrackerConfig `yaml:"trackers"`
 }
 
 type SysMetricsConfig struct {
