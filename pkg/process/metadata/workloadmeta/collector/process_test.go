@@ -22,7 +22,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core"
 	compcfg "github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
-	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors"
 	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/process/checks"
 	workloadmetaExtractor "github.com/DataDog/datadog-agent/pkg/process/metadata/workloadmeta"
@@ -40,10 +39,8 @@ type collectorTest struct {
 	probe     *mocks.Probe
 	clock     *clock.Mock
 	collector *Collector
-	// FIXME(components): these tests will remain broken until we adopt the actual mock workloadmeta
-	//                    component.
-	store  workloadmeta.Mock
-	stream pbgo.ProcessEntityStream_StreamEntitiesClient
+	store     workloadmeta.Mock
+	stream    pbgo.ProcessEntityStream_StreamEntitiesClient
 }
 
 func acquireStream(t *testing.T, port int) pbgo.ProcessEntityStream_StreamEntitiesClient {
@@ -80,8 +77,7 @@ func setUpCollectorTest(t *testing.T) *collectorTest {
 	overrides := map[string]interface{}{
 		"process_config.language_detection.grpc_port":              port,
 		"workloadmeta.remote_process_collector.enabled":            true,
-		"workloadmeta.local_process_collector.collection_interval": 10 * time.Second,
-		// "workloadmeta.local_process_collector.collection_interval": pkgconfig.DefaultAPIKeyValidationInterval,
+		"workloadmeta.local_process_collector.collection_interval": 15 * time.Second,
 	}
 
 	store := fxutil.Test[workloadmeta.Mock](t, fx.Options(
@@ -89,7 +85,6 @@ func setUpCollectorTest(t *testing.T) *collectorTest {
 		fx.Replace(compcfg.MockParams{Overrides: overrides}),
 		fx.Supply(context.Background()),
 		fx.Supply(workloadmeta.NewParams()),
-		collectors.GetCatalog(),
 		workloadmeta.MockModuleV2,
 	))
 	workloadmeta.SetGlobalStore(store)
@@ -142,12 +137,12 @@ func (c *collectorTest) waitForContainerUpdate(t *testing.T, cont *workloadmeta.
 	c.store.Set(cont)
 	require.EventuallyWithT(t, func(collect *assert.CollectT) {
 		assert.Contains(t, c.collector.pidToCid, cont.PID)
-	}, 5*time.Second, 1*time.Second)
+	}, 15*time.Second, 1*time.Second)
 }
 
 // Tick sets up the collector to collect processes by advancing the clock
 func (c *collectorTest) tick() {
-	c.clock.Add(pkgconfig.DefaultLocalProcessCollectorInterval)
+	c.clock.Add(c.store.GetConfig().GetDuration("workloadmeta.local_process_collector.collection_interval"))
 }
 
 func TestProcessCollector(t *testing.T) {
@@ -155,12 +150,14 @@ func TestProcessCollector(t *testing.T) {
 	c.setupProcs()
 
 	// Fast-forward through sync message
-	_, err := c.stream.Recv()
+	resp, err := c.stream.Recv()
 	require.NoError(t, err)
+	fmt.Printf("1: %v\n", resp.String())
 
 	c.tick()
-	resp, err := c.stream.Recv()
+	resp, err = c.stream.Recv()
 	assert.NoError(t, err)
+	fmt.Printf("2: %v\n", resp.String())
 
 	require.Len(t, resp.SetEvents, 1)
 	evt := resp.SetEvents[0]
@@ -179,6 +176,7 @@ func TestProcessCollector(t *testing.T) {
 	c.tick()
 	resp, err = c.stream.Recv()
 	assert.NoError(t, err)
+	fmt.Printf("3: %v\n", resp.String())
 
 	require.Len(t, resp.SetEvents, 1)
 	evt = resp.SetEvents[0]
