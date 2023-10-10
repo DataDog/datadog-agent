@@ -60,7 +60,7 @@ func IsAnyContainerFeaturePresent() bool {
 		IsFeaturePresent(Podman)
 }
 
-func detectContainerFeatures(features FeatureMap, cfg conf.ConfigReader) {
+func detectContainerFeatures(features FeatureMap, cfg conf.Reader) {
 	detectKubernetes(features, cfg)
 	detectDocker(features)
 	detectContainerd(features, cfg)
@@ -102,7 +102,7 @@ func detectDocker(features FeatureMap) {
 	}
 }
 
-func detectContainerd(features FeatureMap, cfg conf.ConfigReader) {
+func detectContainerd(features FeatureMap, cfg conf.Reader) {
 	// CRI Socket - Do not automatically default socket path if the Agent runs in Docker
 	// as we'll very likely discover the containerd instance wrapped by Docker.
 	criSocket := cfg.GetString("cri_socket_path")
@@ -164,7 +164,7 @@ func isCriSupported() bool {
 	return IsKubernetes()
 }
 
-func detectAWSEnvironments(features FeatureMap, cfg conf.ConfigReader) {
+func detectAWSEnvironments(features FeatureMap, cfg conf.Reader) {
 	if IsECSFargate() {
 		features[ECSFargate] = struct{}{}
 		return
@@ -181,7 +181,7 @@ func detectAWSEnvironments(features FeatureMap, cfg conf.ConfigReader) {
 	}
 }
 
-func detectCloudFoundry(features FeatureMap, cfg conf.ConfigReader) {
+func detectCloudFoundry(features FeatureMap, cfg conf.Reader) {
 	if cfg.GetBool("cloud_foundry") {
 		features[CloudFoundry] = struct{}{}
 	}

@@ -52,7 +52,11 @@ func (fs *containerFS) Open(filename string) (fs.File, error) {
 	for _, rootCandidatePID := range fs.cgroup.GetPIDs() {
 		file, err := os.Open(filepath.Join(utils.ProcRootPath(rootCandidatePID), filename))
 		if err != nil {
-			seclog.Errorf("failed to read %s for pid %d of container %s: %s", filename, rootCandidatePID, fs.cgroup.ID, err)
+			if os.IsNotExist(err) {
+				seclog.Tracef("failed to read %s for pid %d of container %s: %s", filename, rootCandidatePID, fs.cgroup.ID, err)
+			} else {
+				seclog.Debugf("failed to read %s for pid %d of container %s: %s", filename, rootCandidatePID, fs.cgroup.ID, err)
+			}
 			continue
 		}
 

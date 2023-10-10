@@ -15,10 +15,10 @@ type (
 	// Proxy represents the configuration for proxies in the agent
 	Proxy = conf.Proxy
 	// ConfigReader is a subset of Config that only allows reading of configuration
-	ConfigReader       = conf.ConfigReader
-	ConfigWriter       = conf.ConfigWriter
-	ConfigReaderWriter = conf.ConfigReaderWriter
-	ConfigLoader       = conf.ConfigLoader
+	Reader       = conf.Reader
+	Writer       = conf.Writer
+	ReaderWriter = conf.ReaderWriter
+	Loader       = conf.Loader
 	// Config represents an object that can load and store configuration parameters
 	// coming from different kind of sources:
 	// - defaults

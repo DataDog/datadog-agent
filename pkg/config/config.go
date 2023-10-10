@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+// Package config defines the configuration of the agent
 package config
 
 import (
@@ -1849,12 +1850,8 @@ func checkConflictingOptions(config Config) error {
 	return nil
 }
 
-func LoadDatadogCustom(
-	config Config,
-	origin string,
-	loadSecret bool,
-	additionalKnownEnvVars []string,
-) (*Warnings, error) {
+// LoadDatadogCustom loads the datadog config in the given config
+func LoadDatadogCustom(config Config, origin string, loadSecret bool, additionalKnownEnvVars []string) (*Warnings, error) {
 	// Feature detection running in a defer func as it always  need to run (whether config load has been successful or not)
 	// Because some Agents (e.g. trace-agent) will run even if config file does not exist
 	defer func() {
@@ -2332,7 +2329,8 @@ func GetBindHost() string {
 	return GetBindHostFromConfig(Datadog)
 }
 
-func GetBindHostFromConfig(cfg ConfigReader) string {
+// GetBindHostFromConfig returns the bind_host value from the config
+func GetBindHostFromConfig(cfg Reader) string {
 	if cfg.IsSet("bind_host") {
 		return cfg.GetString("bind_host")
 	}
@@ -2403,7 +2401,7 @@ func getObsPipelineURLForPrefix(datatype DataType, prefix string) (string, error
 }
 
 // IsRemoteConfigEnabled returns true if Remote Configuration should be enabled
-func IsRemoteConfigEnabled(cfg ConfigReader) bool {
+func IsRemoteConfigEnabled(cfg Reader) bool {
 	// Disable Remote Config for GovCloud
 	if cfg.GetBool("fips.enabled") || cfg.GetString("site") == "ddog-gov.com" {
 		return false
