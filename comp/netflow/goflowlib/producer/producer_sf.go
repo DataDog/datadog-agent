@@ -3,20 +3,8 @@ package producer
 import (
 	"github.com/DataDog/datadog-agent/comp/netflow/common"
 	"github.com/netsampler/goflow2/v2/decoders/sflow"
+	protoproducer "github.com/netsampler/goflow2/v2/producer/proto"
 )
-
-func GetSFlowFlowSamples(packet *sflow.Packet) []interface{} {
-	var flowSamples []interface{}
-	for _, sample := range packet.Samples {
-		switch sample.(type) {
-		case sflow.FlowSample:
-			flowSamples = append(flowSamples, sample)
-		case sflow.ExpandedFlowSample:
-			flowSamples = append(flowSamples, sample)
-		}
-	}
-	return flowSamples
-}
 
 func ParseSampledHeaderConfig(flow *common.Flow, sampledHeader *sflow.SampledHeader, config *HeaderMapper) error {
 	data := (*sampledHeader).HeaderData
@@ -101,7 +89,7 @@ func ProcessMessageSFlowConfig(packet *sflow.Packet, config *configMapped, expor
 		cfg = config.SFlow
 	}
 
-	flowSamples := GetSFlowFlowSamples(packet)
+	flowSamples := protoproducer.GetSFlowFlowSamples(packet)
 	flows := SearchSFlowSamplesConfig(flowSamples, cfg)
 	for _, flow := range flows {
 		flow.ExporterAddr = agent

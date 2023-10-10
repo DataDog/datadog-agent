@@ -225,46 +225,6 @@ func SearchNetFlowDataSets(version uint16, baseTime uint32, uptime uint32, dataF
 	return flows
 }
 
-func SplitNetFlowSets(packetNFv9 netflow.NFv9Packet) ([]netflow.DataFlowSet, []netflow.TemplateFlowSet, []netflow.NFv9OptionsTemplateFlowSet, []netflow.OptionsDataFlowSet) {
-	var dataFlowSet []netflow.DataFlowSet
-	var templatesFlowSet []netflow.TemplateFlowSet
-	var optionsTemplatesFlowSet []netflow.NFv9OptionsTemplateFlowSet
-	var optionsDataFlowSet []netflow.OptionsDataFlowSet
-	for _, flowSet := range packetNFv9.FlowSets {
-		switch tFlowSet := flowSet.(type) {
-		case netflow.TemplateFlowSet:
-			templatesFlowSet = append(templatesFlowSet, tFlowSet)
-		case netflow.NFv9OptionsTemplateFlowSet:
-			optionsTemplatesFlowSet = append(optionsTemplatesFlowSet, tFlowSet)
-		case netflow.DataFlowSet:
-			dataFlowSet = append(dataFlowSet, tFlowSet)
-		case netflow.OptionsDataFlowSet:
-			optionsDataFlowSet = append(optionsDataFlowSet, tFlowSet)
-		}
-	}
-	return dataFlowSet, templatesFlowSet, optionsTemplatesFlowSet, optionsDataFlowSet
-}
-
-func SplitIPFIXSets(packetIPFIX netflow.IPFIXPacket) ([]netflow.DataFlowSet, []netflow.TemplateFlowSet, []netflow.IPFIXOptionsTemplateFlowSet, []netflow.OptionsDataFlowSet) {
-	var dataFlowSet []netflow.DataFlowSet
-	var templatesFlowSet []netflow.TemplateFlowSet
-	var optionsTemplatesFlowSet []netflow.IPFIXOptionsTemplateFlowSet
-	var optionsDataFlowSet []netflow.OptionsDataFlowSet
-	for _, flowSet := range packetIPFIX.FlowSets {
-		switch tFlowSet := flowSet.(type) {
-		case netflow.TemplateFlowSet:
-			templatesFlowSet = append(templatesFlowSet, tFlowSet)
-		case netflow.IPFIXOptionsTemplateFlowSet:
-			optionsTemplatesFlowSet = append(optionsTemplatesFlowSet, tFlowSet)
-		case netflow.DataFlowSet:
-			dataFlowSet = append(dataFlowSet, tFlowSet)
-		case netflow.OptionsDataFlowSet:
-			optionsDataFlowSet = append(optionsDataFlowSet, tFlowSet)
-		}
-	}
-	return dataFlowSet, templatesFlowSet, optionsTemplatesFlowSet, optionsDataFlowSet
-}
-
 // Convert a NetFlow datastructure to common.Flow struct
 func ProcessMessageNetFlowConfig(msgDec interface{}, samplingRateSys protoproducer.SamplingRateSystem, config *configMapped, exporterAddress []byte) ([]*common.Flow, error) {
 	seqnum := uint32(0)
@@ -275,7 +235,7 @@ func ProcessMessageNetFlowConfig(msgDec interface{}, samplingRateSys protoproduc
 
 	switch msgDecConv := msgDec.(type) {
 	case *netflow.NFv9Packet:
-		dataFlowSet, _, _, optionDataFlowSet := SplitNetFlowSets(*msgDecConv)
+		dataFlowSet, _, _, optionDataFlowSet := protoproducer.SplitNetFlowSets(*msgDecConv)
 
 		seqnum = msgDecConv.SequenceNumber
 		baseTime = msgDecConv.UnixSeconds
@@ -301,7 +261,7 @@ func ProcessMessageNetFlowConfig(msgDec interface{}, samplingRateSys protoproduc
 			flow.ExporterAddr = exporterAddress
 		}
 	case *netflow.IPFIXPacket:
-		dataFlowSet, _, _, optionDataFlowSet := SplitIPFIXSets(*msgDecConv)
+		dataFlowSet, _, _, optionDataFlowSet := protoproducer.SplitIPFIXSets(*msgDecConv)
 
 		seqnum = msgDecConv.SequenceNumber
 		baseTime = msgDecConv.ExportTime
