@@ -198,6 +198,7 @@ func GetLogPrompt(c InstanceConfig) string {
 	return fmt.Sprintf("%s>", GetConnectData(c))
 }
 
+// GetConnectData returns the connection configuration
 func GetConnectData(c InstanceConfig) string {
 	if c.TnsAlias != "" {
 		return c.TnsAlias
