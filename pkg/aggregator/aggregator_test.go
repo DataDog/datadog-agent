@@ -111,7 +111,7 @@ func TestDeregisterCheckSampler(t *testing.T) {
 	// -
 
 	opts := demuxTestOptions()
-	deps := fxutil.Test[AggregatorTestDeps](t, defaultforwarder.MockModule, config.MockModule, log.MockModule)
+	deps := fxutil.Test[TestDeps](t, defaultforwarder.MockModule, config.MockModule, log.MockModule)
 	demux := InitAndStartAgentDemultiplexerForTest(deps, opts, defaultHostname)
 
 	defer demux.Stop(false)
@@ -291,7 +291,7 @@ func TestSeriesTooManyTags(t *testing.T) {
 		return func(t *testing.T) {
 			s := &MockSerializerIterableSerie{}
 			opts := demuxTestOptions()
-			deps := fxutil.Test[AggregatorTestDeps](t, defaultforwarder.MockModule, config.MockModule, log.MockModule)
+			deps := fxutil.Test[TestDeps](t, defaultforwarder.MockModule, config.MockModule, log.MockModule)
 			demux := InitAndStartAgentDemultiplexerForTest(deps, opts, "")
 
 			demux.sharedSerializer = s
@@ -356,7 +356,7 @@ func TestDistributionsTooManyTags(t *testing.T) {
 		return func(t *testing.T) {
 			s := &MockSerializerIterableSerie{}
 			opts := demuxTestOptions()
-			deps := fxutil.Test[AggregatorTestDeps](t, defaultforwarder.MockModule, config.MockModule, log.MockModule)
+			deps := fxutil.Test[TestDeps](t, defaultforwarder.MockModule, config.MockModule, log.MockModule)
 			demux := InitAndStartAgentDemultiplexerForTest(deps, opts, "")
 
 			demux.sharedSerializer = s
@@ -412,7 +412,7 @@ func TestRecurrentSeries(t *testing.T) {
 
 	s := &MockSerializerIterableSerie{}
 	opts := demuxTestOptions()
-	deps := fxutil.Test[AggregatorTestDeps](t, defaultforwarder.MockModule, config.MockModule, log.MockModule)
+	deps := fxutil.Test[TestDeps](t, defaultforwarder.MockModule, config.MockModule, log.MockModule)
 	demux := InitAndStartAgentDemultiplexerForTest(deps, opts, "")
 
 	demux.aggregator.serializer = s
@@ -598,7 +598,7 @@ func TestTimeSamplerFlush(t *testing.T) {
 	s := &MockSerializerIterableSerie{}
 	s.On("SendServiceChecks", mock.Anything).Return(nil)
 	opts := demuxTestOptions()
-	deps := fxutil.Test[AggregatorTestDeps](t, defaultforwarder.MockModule, config.MockModule, log.MockModule)
+	deps := fxutil.Test[TestDeps](t, defaultforwarder.MockModule, config.MockModule, log.MockModule)
 	demux := InitAndStartAgentDemultiplexerForTest(deps, opts, "")
 
 	demux.aggregator.serializer = s

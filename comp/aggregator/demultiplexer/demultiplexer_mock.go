@@ -11,7 +11,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 )
 
-func newMock(deps aggregator.AggregatorTestDeps) Component {
+func newMock(deps aggregator.TestDeps) Component {
 	return demultiplexer{
 		AgentDemultiplexer: aggregator.InitAndStartAgentDemultiplexerForTest(deps, aggregator.AgentDemultiplexerOptions{}, ""),
 	}
