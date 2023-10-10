@@ -11,6 +11,9 @@ namespace WixSetup.Datadog
         public string ProcessAgent => $@"{_binSource}\agent\process-agent.exe";
         public string SystemProbe => $@"{_binSource}\agent\system-probe.exe";
         public string TraceAgent => $@"{_binSource}\agent\trace-agent.exe";
+        // this will only be actually used when the procmon driver is present
+        // if (!string.IsNullOrEmpty(Environment.GetEnvironmentVariable("WINDOWS_DDPROCMON_DRIVER")))
+        public string SecurityAgent => $@"{_binSource}\agent\security-agent.exe";
         public string LibDatadogAgentThree => $@"{_binSource}\agent\libdatadog-agent-three.dll";
 
         public string[] PythonThreeBinaries;

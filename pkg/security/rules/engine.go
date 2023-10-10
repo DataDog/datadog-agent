@@ -283,6 +283,8 @@ func (e *RuleEngine) LoadPolicies(policyProviders []rules.PolicyProvider, sendLo
 func (e *RuleEngine) gatherPolicyProviders() []rules.PolicyProvider {
 	var policyProviders []rules.PolicyProvider
 
+	policyProviders = append(policyProviders, &BundledPolicyProvider{})
+
 	// add remote config as config provider if enabled.
 	if e.config.RemoteConfigurationEnabled {
 		rcPolicyProvider, err := rconfig.NewRCPolicyProvider()
@@ -323,6 +325,16 @@ func (e *RuleEngine) RuleMatch(rule *rules.Rule, event eval.Event) bool {
 
 	// do not send broken event
 	if ev.Error != nil {
+		return false
+	}
+
+	for _, action := range rule.Definition.Actions {
+		if action.InternalCallbackDefinition != nil && rule.ID == refreshUserCacheRuleID {
+			_ = e.probe.RefreshUserCache(ev.ContainerContext.ID)
+		}
+	}
+
+	if rule.Definition.Silent {
 		return false
 	}
 

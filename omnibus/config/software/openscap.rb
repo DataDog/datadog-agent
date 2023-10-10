@@ -54,12 +54,16 @@ build do
 
   patch source: "010_perlpm_install_fix.patch", env: env # fix build of perl bindings
   patch source: "dpkginfo-cacheconfig.patch", env: env # work around incomplete pkgcache path
-  patch source: "dpkginfo-cache-no-open.patch", env: env # reduce memory footprint of dpkginfo probe
+  patch source: "dpkginfo-cache-fixes.patch", env: env # reduce memory footprint of dpkginfo probe
   patch source: "fsdev-ignore-host.patch", env: env # ignore /host directory in fsdev probe
   patch source: "systemd-dbus-address.patch", env: env # fix dbus address in systemd probe
   patch source: "rpm-verbosity-err.patch", env: env # decrease rpmlog verbosity level to ERR
   patch source: "session-print-syschar.patch", env: env # add a function to print system characteristics
   patch source: "memusage-cgroup.patch", env: env # consider cgroup when determining memory usage
+
+  patch source: "1001-Fix-probe_reset.patch", env: env # fix probe_reset
+  patch source: "dpkginfo-cache-close.patch", env: env # close cache at the end of dpkginfo_get_by_name
+  patch source: "oval_probe_session_reset.patch", env: env # use oval_probe_session_reset instead of oval_probe_session_reinit
 
   patch source: "oscap-io.patch", env: env # add new oscap-io tool
 

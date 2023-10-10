@@ -6,7 +6,6 @@
 package checkconfig
 
 import (
-	"encoding/json"
 	"regexp"
 	"testing"
 	"time"
@@ -246,9 +245,7 @@ bulk_max_repetitions: 20
 		{Tag: "snmp_host", OID: "1.3.6.1.2.1.1.5.0", Name: "sysName"},
 	}
 
-	expectedMetricsJSON, _ := json.MarshalIndent(expectedMetrics, "", "\t")
-	actualMetricsJSON, _ := json.MarshalIndent(config.Metrics, "", "\t")
-	assert.JSONEq(t, string(expectedMetricsJSON), string(actualMetricsJSON))
+	assert.Equal(t, expectedMetrics, config.Metrics)
 	assert.Equal(t, expectedMetricTags, config.MetricTags)
 	assert.Equal(t, []string{"snmp_profile:f5-big-ip", "device_vendor:f5", "static_tag:from_profile_root", "static_tag:from_base_profile"}, config.ProfileTags)
 	assert.Equal(t, 1, len(config.Profiles))

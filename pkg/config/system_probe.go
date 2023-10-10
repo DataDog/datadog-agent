@@ -68,9 +68,8 @@ func InitSystemProbeConfig(cfg Config) {
 	cfg.BindEnvAndSetDefault("sbom.host.analyzers", []string{"os"})
 	cfg.BindEnvAndSetDefault("sbom.cache_directory", filepath.Join(defaultRunPath, "sbom-sysprobe"))
 	cfg.BindEnvAndSetDefault("sbom.clear_cache_on_exit", false)
-	cfg.BindEnvAndSetDefault("sbom.cache.enabled", false)
+	cfg.BindEnvAndSetDefault("sbom.cache.enabled", true)
 	cfg.BindEnvAndSetDefault("sbom.cache.max_disk_size", 1000*1000*100) // used by custom cache: max disk space used by cached objects. Not equal to max disk usage
-	cfg.BindEnvAndSetDefault("sbom.cache.max_cache_entries", 10000)     // used by custom cache keys stored in memory
 	cfg.BindEnvAndSetDefault("sbom.cache.clean_interval", "30m")        // used by custom cache.
 
 	// Auto exit configuration
@@ -207,7 +206,7 @@ func InitSystemProbeConfig(cfg Config) {
 	cfg.BindEnv(join(smNS, "tls", "native", "enabled"))
 
 	// For backward compatibility
-	cfg.BindEnvAndSetDefault(join(smNS, "enable_go_tls_support"), false)
+	cfg.BindEnv(join(smNS, "enable_go_tls_support"))
 	cfg.BindEnv(join(smNS, "tls", "go", "enabled"))
 
 	cfg.BindEnvAndSetDefault(join(smNS, "enable_http2_monitoring"), false)
@@ -224,6 +223,7 @@ func InitSystemProbeConfig(cfg Config) {
 	cfg.BindEnv(join(netNS, "max_http_stats_buffered"), "DD_SYSTEM_PROBE_NETWORK_MAX_HTTP_STATS_BUFFERED")
 	cfg.BindEnv(join(smNS, "max_http_stats_buffered"))
 	cfg.BindEnvAndSetDefault(join(smNS, "max_kafka_stats_buffered"), 100000)
+	cfg.BindEnv(join(smNS, "max_concurrent_requests"))
 
 	oldHTTPRules := join(netNS, "http_replace_rules")
 	newHTTPRules := join(smNS, "http_replace_rules")
@@ -261,6 +261,7 @@ func InitSystemProbeConfig(cfg Config) {
 
 	// oom_kill module
 	cfg.BindEnvAndSetDefault(join(spNS, "enable_oom_kill"), false)
+
 	// tcp_queue_length module
 	cfg.BindEnvAndSetDefault(join(spNS, "enable_tcp_queue_length"), false)
 	// process module

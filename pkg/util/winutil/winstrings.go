@@ -5,6 +5,7 @@
 
 //go:build windows
 
+// Package winutil provides windows utilities
 package winutil
 
 import (

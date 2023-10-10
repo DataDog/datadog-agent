@@ -29,11 +29,11 @@ type cloudResourceType string
 type cloudProvider string
 
 const (
-	awsLambda                     cloudResourceType = "AWS Lambda"
-	awsFargate                    cloudResourceType = "AWS Fargate"
-	cloudRun                      cloudResourceType = "GCP Cloud Run"
-	azureAppService               cloudResourceType = "Azure App Service"
-	azureContainerApp             cloudResourceType = "Azure Container App"
+	awsLambda                     cloudResourceType = "AWSLambda"
+	awsFargate                    cloudResourceType = "AWSFargate"
+	cloudRun                      cloudResourceType = "GCPCloudRun"
+	azureAppService               cloudResourceType = "AzureAppService"
+	azureContainerApp             cloudResourceType = "AzureContainerApp"
 	aws                           cloudProvider     = "AWS"
 	gcp                           cloudProvider     = "GCP"
 	azure                         cloudProvider     = "Azure"

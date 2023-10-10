@@ -121,7 +121,7 @@ func (pc *ProcessCacheEntry) Equals(entry *ProcessCacheEntry) bool {
 		pc.EnvsEntry.Equals(entry.EnvsEntry))
 }
 
-func (pc *ProcessCacheEntry) markFileEventAsResovled() {
+func (pc *ProcessCacheEntry) markFileEventAsResolved() {
 	// mark file path as resolved
 	pc.FileEvent.SetPathnameStr("")
 	pc.FileEvent.SetBasenameStr("")
@@ -133,16 +133,25 @@ func (pc *ProcessCacheEntry) markFileEventAsResovled() {
 
 // NewPlaceholderProcessCacheEntry returns a new empty process cache entry for failed process resolutions
 func NewPlaceholderProcessCacheEntry(pid uint32, tid uint32, isKworker bool) *ProcessCacheEntry {
-	entry := &ProcessCacheEntry{ProcessContext: ProcessContext{Process: Process{PIDContext: PIDContext{Pid: pid, Tid: tid, IsKworker: isKworker}}}}
-	entry.markFileEventAsResovled()
+	entry := &ProcessCacheEntry{
+		ProcessContext: ProcessContext{
+			Process: Process{
+				PIDContext: PIDContext{Pid: pid, Tid: tid, IsKworker: isKworker},
+				Source:     ProcessCacheEntryFromPlaceholder,
+			},
+		},
+	}
+	entry.markFileEventAsResolved()
 	return entry
 }
+
+var processContextZero = ProcessCacheEntry{ProcessContext: ProcessContext{Process: Process{Source: ProcessCacheEntryFromPlaceholder}}}
 
 // GetPlaceholderProcessCacheEntry returns an empty process cache entry for failed process resolutions
 func GetPlaceholderProcessCacheEntry(pid uint32, tid uint32, isKworker bool) *ProcessCacheEntry {
 	processContextZero.Pid = pid
 	processContextZero.Tid = tid
 	processContextZero.IsKworker = isKworker
-	processContextZero.markFileEventAsResovled()
+	processContextZero.markFileEventAsResolved()
 	return &processContextZero
 }

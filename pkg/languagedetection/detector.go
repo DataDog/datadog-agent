@@ -117,7 +117,7 @@ func DetectLanguage(procs []languagemodels.Process, sysprobeConfig config.Config
 		}
 
 		if langs[i] != nil {
-			break
+			continue
 		}
 
 		exe := getExe(proc.GetCmdline())

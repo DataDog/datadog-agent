@@ -95,37 +95,6 @@ func Test_injectTagsFromLabels(t *testing.T) {
 	}
 }
 
-func Test_shouldInjectTags(t *testing.T) {
-	tests := []struct {
-		name string
-		pod  *corev1.Pod
-		want bool
-	}{
-		{
-			name: "no admission label",
-			pod:  fakePodWithLabel("k", "v"),
-			want: true,
-		},
-		{
-			name: "admission label enabled",
-			pod:  fakePodWithLabel("k", "v"),
-			want: true,
-		},
-		{
-			name: "admission label disabled",
-			pod:  fakePodWithLabel("admission.datadoghq.com/enabled", "false"),
-			want: false,
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			if got := shouldInjectTags(tt.pod); got != tt.want {
-				t.Errorf("shouldInjectTags() = %v, want %v", got, tt.want)
-			}
-		})
-	}
-}
-
 func Test_getOwnerInfo(t *testing.T) {
 	tests := []struct {
 		name    string

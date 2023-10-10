@@ -96,3 +96,8 @@ func (p *Probe) GetResolvers() *resolvers.Resolvers {
 func (p *Probe) FlushDiscarders() error {
 	return nil
 }
+
+// RefreshUserCache refreshes the user cache
+func (p *Probe) RefreshUserCache(containerID string) error {
+	return nil
+}

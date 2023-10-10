@@ -204,10 +204,16 @@ namespace Datadog.CustomActions
 
                 // Stop each service individually in case the install is broken
                 // e.g. datadogagent doesn't exist or the service dependencies are not correect.
+                //
+                // ** some services are optionally included in the package at build time.  Including
+                // them here will simply cause a spurious "Service X not found" in the log if the
+                // installer is built without that component.
                 var ddservices = new []
                 {
                     Constants.SystemProbeServiceName,
                     Constants.NpmServiceName,
+                    Constants.ProcmonServiceName,       // might not exist depending on compile time options**
+                    Constants.SecurityAgentServiceName, // might not exist depending on compile time options**
                     Constants.ProcessAgentServiceName,
                     Constants.TraceAgentServiceName,
                     Constants.AgentServiceName

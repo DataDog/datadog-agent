@@ -14,6 +14,18 @@ Package aggregator implements the "aggregator" bundle,
 
 Package demultiplexer defines the aggregator demultiplexer
 
+## [comp/checks](https://pkg.go.dev/github.com/DataDog/dd-agent-comp-experiments/comp/checks) (Component Bundle)
+
+*Datadog Team*: agent-shared-components
+
+Package checks implements the "checks" bundle, for all of the component based agent checks
+
+### [comp/checks/agentcrashdetect](https://pkg.go.dev/github.com/DataDog/dd-agent-comp-experiments/comp/checks/agentcrashdetect)
+
+*Datadog Team*: windows-kernel-integrations
+
+Package agentcrashdetect ... /* TODO: detailed doc comment for the component */
+
 ## [comp/core](https://pkg.go.dev/github.com/DataDog/dd-agent-comp-experiments/comp/core) (Component Bundle)
 
 *Datadog Team*: agent-shared-components
@@ -121,6 +133,24 @@ Package forwarder exposes the event platform forwarder for netflow.
 ### [comp/ndmtmp/sender](https://pkg.go.dev/github.com/DataDog/dd-agent-comp-experiments/comp/ndmtmp/sender)
 
 Package sender exposes a Sender for netflow.
+
+## [comp/netflow](https://pkg.go.dev/github.com/DataDog/dd-agent-comp-experiments/comp/netflow) (Component Bundle)
+
+*Datadog Team*: network-device-monitoring
+
+Package netflow implements the "netflow" bundle, which listens for netflow
+packets, processes them, and forwards relevant data to the backend.
+
+### [comp/netflow/config](https://pkg.go.dev/github.com/DataDog/dd-agent-comp-experiments/comp/netflow/config)
+
+Package config exposes the netflow configuration as a component.
+
+### [comp/netflow/server](https://pkg.go.dev/github.com/DataDog/dd-agent-comp-experiments/comp/netflow/server)
+
+Package server implements a component that runs the netflow server.
+When running, it listens for network traffic according to configured
+listeners and aggregates traffic data to send to the backend.
+It does not expose any public methods.
 
 ## [comp/otelcol](https://pkg.go.dev/github.com/DataDog/dd-agent-comp-experiments/comp/otelcol) (Component Bundle)
 

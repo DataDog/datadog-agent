@@ -230,7 +230,7 @@ func TestInfoHandler(t *testing.T) {
 		},
 		RemoveStackTraces: false,
 		Redis:             obfuscate.RedisConfig{Enabled: true},
-		Memcached:         config.Enablable{Enabled: false},
+		Memcached:         obfuscate.MemcachedConfig{Enabled: false},
 	}
 	conf := &config.AgentConfig{
 		Enabled:      true,

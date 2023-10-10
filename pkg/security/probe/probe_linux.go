@@ -134,7 +134,20 @@ func (p *Probe) GetKernelVersion() (*kernel.Version, error) {
 
 // UseRingBuffers returns true if eBPF ring buffers are supported and used
 func (p *Probe) UseRingBuffers() bool {
-	return p.kernelVersion.HaveRingBuffers() && p.Config.Probe.EventStreamUseRingBuffer
+	return p.Config.Probe.EventStreamUseRingBuffer && p.kernelVersion.HaveRingBuffers()
+}
+
+func (p *Probe) selectFentryMode() {
+	if !p.Config.Probe.EventStreamUseFentry {
+		p.useFentry = false
+		return
+	}
+
+	supported := p.kernelVersion.HaveFentrySupport()
+	if !supported {
+		seclog.Errorf("fentry enabled but not supported, falling back to kprobe mode")
+	}
+	p.useFentry = supported
 }
 
 func (p *Probe) sanityChecks() error {
@@ -1234,6 +1247,11 @@ func (p *Probe) FlushDiscarders() error {
 	return bumpDiscardersRevision(p.Erpc)
 }
 
+// RefreshUserCache refreshes the user cache
+func (p *Probe) RefreshUserCache(containerID string) error {
+	return p.GetResolvers().UserGroupResolver.RefreshCache(containerID)
+}
+
 // Snapshot runs the different snapshot functions of the resolvers that
 // require to sync with the current state of the system
 func (p *Probe) Snapshot() error {
@@ -1420,7 +1438,6 @@ func NewProbe(config *config.Config, opts Opts) (*Probe, error) {
 			Erpc:               nerpc,
 			erpcRequest:        &erpc.Request{},
 			isRuntimeDiscarded: !opts.DontDiscardRuntime,
-			useFentry:          config.Probe.EventStreamUseFentry,
 		},
 	}
 
@@ -1440,6 +1457,8 @@ func NewProbe(config *config.Config, opts Opts) (*Probe, error) {
 	if err := p.VerifyEnvironment(); err != nil {
 		seclog.Warnf("the current environment may be misconfigured: %v", err)
 	}
+
+	p.selectFentryMode()
 
 	useRingBuffers := p.UseRingBuffers()
 	useMmapableMaps := p.kernelVersion.HaveMmapableMaps()

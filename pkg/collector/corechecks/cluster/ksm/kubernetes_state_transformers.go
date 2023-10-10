@@ -23,6 +23,65 @@ import (
 // For name translation only please use metricNamesMapper instead
 type metricTransformerFunc = func(sender.Sender, string, ksmstore.DDMetric, string, []string, time.Time)
 
+var renamedResource = map[string]string{
+	"nvidia_com_gpu":     "gpu",
+	"amd_com_gpu":        "gpu",
+	"gpu_intel_com_i915": "gpu",
+	// Note: the following does not work out of the box, because it is filtered out of KSM metrics by default.
+	//       and needs to be grabbed some other way. At time of commit, this is via customresources/node.go.
+	//       More info: https://github.com/kubernetes/kube-state-metrics/issues/2027
+	"kubernetes_io_network_bandwidth": "network_bandwidth",
+}
+
+var nodeAllowedResources = map[string]struct{}{
+	"cpu":               {},
+	"memory":            {},
+	"pods":              {},
+	"ephemeral_storage": {},
+	"network_bandwidth": {},
+	"gpu":               {},
+}
+
+var containerAllowedResources = map[string]struct{}{
+	"cpu":               {},
+	"memory":            {},
+	"network_bandwidth": {},
+	"gpu":               {},
+}
+
+func renameResource(resource string) string {
+	if strings.HasPrefix(resource, "nvidia_com_mig") {
+		return "gpu"
+	}
+
+	if renamed, found := renamedResource[resource]; found {
+		return renamed
+	}
+
+	return resource
+}
+
+func resourceExtraTag(resource string) []string {
+	if suffix, found := strings.CutPrefix(resource, "nvidia_com_mig_"); found {
+		return []string{"mig_profile:" + strings.ReplaceAll(suffix, "_", "-")}
+	}
+	return nil
+}
+
+// resourceDDName returns the datadog name of the given resource with possibly extra tags.
+func resourceDDName(resource string, allowedResources map[string]struct{}) (ddname string, extraTag []string, allowed bool) {
+	// Add an extra tag
+	extraTag = resourceExtraTag(resource)
+
+	// Rename the resource
+	ddname = renameResource(resource)
+
+	// Check if the renamed resource is allowed
+	_, allowed = allowedResources[ddname]
+
+	return
+}
+
 // defaultMetricTransformers returns a map that contains KSM metric names and their corresponding transformer functions
 // These metrics require more than a name translation to generate Datadog metrics, as opposed to the metrics in defaultMetricNamesMapper
 // For reference see METRIC_TRANSFORMERS in KSM check V1
@@ -228,27 +287,19 @@ func containerResourceLimitsTransformer(s sender.Sender, name string, metric ksm
 // submitContainerResourceMetric can be called by container resource metric transformers to submit resource-specific metrics
 // metricSuffix can be either requested or limit
 func submitContainerResourceMetric(s sender.Sender, name string, metric ksmstore.DDMetric, hostname string, tags []string, metricSuffix string) {
-
-	var allowedResources = map[string]string{
-		"cpu":    "cpu",
-		"memory": "memory",
-		// Note: the following does not work out of the box, because it is filtered out of KSM metrics by default.
-		//       and needs to be grabbed some other way. At time of commit, this is via customresources/pod.go.
-		//       More info: https://github.com/kubernetes/kube-state-metrics/issues/2027
-		"kubernetes_io_network_bandwidth": "network_bandwidth",
-	}
-
 	resource, found := metric.Labels["resource"]
 	if !found {
 		log.Debugf("Couldn't find 'resource' label, ignoring resource metric '%s'", name)
 		return
 	}
 
-	if ddname, allowed := allowedResources[resource]; allowed {
+	if ddname, extraTags, allowed := resourceDDName(resource, containerAllowedResources); allowed {
+		tags = append(tags, extraTags...)
 		s.Gauge(ksmMetricPrefix+"container."+ddname+"_"+metricSuffix, metric.Val, hostname, tags)
-	} else {
-		log.Tracef("Ignoring container resource metric '%s': resource '%s' is not supported", name, resource)
+		return
 	}
+	log.Tracef("Ignoring container resource metric '%s': resource '%s' is not supported", name, resource)
+
 }
 
 // nodeAllocatableTransformer transforms the generic ksm node allocatable metrics into resource-specific metrics
@@ -264,25 +315,14 @@ func nodeCapacityTransformer(s sender.Sender, name string, metric ksmstore.DDMet
 // submitNodeResourceMetric can be called by node resource metric transformers to submit resource-specific metrics
 // metricSuffix can be either allocatable or capacity
 func submitNodeResourceMetric(s sender.Sender, name string, metric ksmstore.DDMetric, hostname string, tags []string, metricSuffix string) {
-
-	var allowedResources = map[string]string{
-		"cpu":               "cpu",
-		"memory":            "memory",
-		"pods":              "pods",
-		"ephemeral_storage": "ephemeral_storage",
-		// Note: the following does not work out of the box, because it is filtered out of KSM metrics by default.
-		//       and needs to be grabbed some other way. At time of commit, this is via customresources/node.go.
-		//       More info: https://github.com/kubernetes/kube-state-metrics/issues/2027
-		"kubernetes_io_network_bandwidth": "network_bandwidth",
-	}
-
 	resource, found := metric.Labels["resource"]
 	if !found {
 		log.Debugf("Couldn't find 'resource' label, ignoring resource metric '%s'", name)
 		return
 	}
 
-	if ddname, allowed := allowedResources[resource]; allowed {
+	if ddname, extraTags, allowed := resourceDDName(resource, nodeAllowedResources); allowed {
+		tags = append(tags, extraTags...)
 		s.Gauge(ksmMetricPrefix+"node."+ddname+"_"+metricSuffix, metric.Val, hostname, tags)
 	} else {
 		log.Tracef("Ignoring node resource metric '%s': resource '%s' is not supported", name, resource)
