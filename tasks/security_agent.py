@@ -574,7 +574,7 @@ RUN ln -s $(which llc-14) /opt/datadog-agent/embedded/bin/llc-bpf
     cmd += '-v /usr/lib/os-release:/host/usr/lib/os-release '
     cmd += '-v /etc/passwd:/etc/passwd '
     cmd += '-v /etc/group:/etc/group '
-    cmd += '-v {GOPATH}/src/{REPO_PATH}/pkg/security/tests:/tests {image_tag} sleep 3600'
+    cmd += '-v ./pkg/security/tests:/tests {image_tag} sleep 3600'
 
     args = {
         "GOPATH": get_gopath(ctx),
