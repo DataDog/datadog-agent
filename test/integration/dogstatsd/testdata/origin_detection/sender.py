@@ -4,6 +4,7 @@ import socket
 
 SOCKET_PATH = os.getenv("SOCKET_PATH", "/tmp/scratch/dsd.socket")
 
+
 def send_dagagram():
     import datadog
 
@@ -13,6 +14,7 @@ def send_dagagram():
     while True:
         client.increment('custom_counter1')
         time.sleep(0.25)
+
 
 def send_stream():
     # TODO: switch to DogStatsdClient when it supports unix stream sockets
@@ -28,6 +30,7 @@ def send_stream():
         s.send(msg)
         time.sleep(0.25)
 
+
 def main():
     socket_type = os.environ.get('SOCKET_TYPE', None)
     print("Socket type: " + socket_type)
@@ -35,6 +38,7 @@ def main():
         send_dagagram()
     elif socket_type == 'unix':
         send_stream()
+
 
 if __name__ == '__main__':
     main()

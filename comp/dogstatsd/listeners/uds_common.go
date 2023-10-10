@@ -56,7 +56,7 @@ type UDSListener struct {
 	dogstatsdMemBasedRateLimiter bool
 }
 
-func setupUnixConn(conn *net.UnixConn, originDetection bool, config config.ConfigReader) error {
+func setupUnixConn(conn *net.UnixConn, originDetection bool, config config.ConfigReader) (bool, error) {
 	if originDetection {
 		err := enableUDSPassCred(conn)
 		if err != nil {
@@ -69,10 +69,10 @@ func setupUnixConn(conn *net.UnixConn, originDetection bool, config config.Confi
 
 	if rcvbuf := config.GetInt("dogstatsd_so_rcvbuf"); rcvbuf != 0 {
 		if err := conn.SetReadBuffer(rcvbuf); err != nil {
-			return fmt.Errorf("could not set socket rcvbuf: %s", err)
+			return originDetection, fmt.Errorf("could not set socket rcvbuf: %s", err)
 		}
 	}
-	return nil
+	return originDetection, nil
 }
 
 func setupSocketBeforeListen(socketPath string, network string) (*net.UnixAddr, error) {
@@ -150,7 +150,8 @@ func (l *UDSListener) handleConnection(conn *net.UnixConn) error {
 	}()
 	tlmUDSConnections.Inc(l.network)
 
-	err := setupUnixConn(conn, l.OriginDetection, l.config)
+	var err error
+	l.OriginDetection, err = setupUnixConn(conn, l.OriginDetection, l.config)
 	if err != nil {
 		return err
 	}

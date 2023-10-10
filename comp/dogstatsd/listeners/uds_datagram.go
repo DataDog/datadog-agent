@@ -19,6 +19,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
+// UDSDatagramListener implements the StatsdListener interface for Unix Domain (datagrams)
 type UDSDatagramListener struct {
 	UDSListener
 

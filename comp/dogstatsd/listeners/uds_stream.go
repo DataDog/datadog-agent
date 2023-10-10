@@ -20,6 +20,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
+// UDSStreamListener implements the StatsdListener interface for Unix Domain (streams)
 type UDSStreamListener struct {
 	UDSListener
 
