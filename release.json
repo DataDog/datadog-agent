@@ -1,5 +1,5 @@
 {
-    "base_branch": "main",
+    "base_branch": "7.49.x",
     "last_stable": {
         "6": "6.47.1",
         "7": "7.47.1"
