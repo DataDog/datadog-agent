@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package run
+package agent
 
 import (
 	"context"
@@ -13,7 +13,6 @@ import (
 	"os"
 	"runtime"
 	"runtime/debug"
-	"runtime/pprof"
 	"time"
 
 	"github.com/DataDog/datadog-agent/cmd/manager"
@@ -21,15 +20,13 @@ import (
 	"github.com/DataDog/datadog-agent/comp/trace/config"
 	coreconfig "github.com/DataDog/datadog-agent/pkg/config"
 	rc "github.com/DataDog/datadog-agent/pkg/config/remote"
-	"github.com/DataDog/datadog-agent/pkg/pidfile"
+	agentrt "github.com/DataDog/datadog-agent/pkg/runtime"
 	"github.com/DataDog/datadog-agent/pkg/tagger"
 	"github.com/DataDog/datadog-agent/pkg/tagger/local"
 	"github.com/DataDog/datadog-agent/pkg/tagger/remote"
-	"github.com/DataDog/datadog-agent/pkg/trace/agent"
 	"github.com/DataDog/datadog-agent/pkg/trace/api"
 	tracecfg "github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/info"
-	tracelog "github.com/DataDog/datadog-agent/pkg/trace/log"
 	"github.com/DataDog/datadog-agent/pkg/trace/metrics"
 	"github.com/DataDog/datadog-agent/pkg/trace/metrics/timing"
 	"github.com/DataDog/datadog-agent/pkg/trace/telemetry"
@@ -39,75 +36,19 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/profiling"
 	"github.com/DataDog/datadog-agent/pkg/version"
 	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
-
-	agentrt "github.com/DataDog/datadog-agent/pkg/runtime"
-
 	// register all workloadmeta collectors
 	_ "github.com/DataDog/datadog-agent/pkg/workloadmeta/collectors"
 )
 
-const messageAgentDisabled = `trace-agent not enabled. Set the environment variable
-DD_APM_ENABLED=true or add "apm_config.enabled: true" entry
-to your datadog.yaml. Exiting...`
-
-// Stack depth of 3 since the `corelogger` struct adds a layer above the logger
-const stackDepth = 3
-
-// Run is the entrypoint of our code, which starts the agent.
-func runAgent(ctx context.Context, cliParams *RunParams, cfg config.Component) error {
-
+// runAgentSidekicks is the entrypoint for running non-components that run along the agent.
+func runAgentSidekicks(ctx context.Context, cfg config.Component, telemetryCollector telemetry.TelemetryCollector) error {
 	tracecfg := cfg.Object()
 	err := info.InitInfo(tracecfg) // for expvar & -info option
 	if err != nil {
 		return err
 	}
 
-	telemetryCollector := telemetry.NewCollector(tracecfg)
-
-	if err := coreconfig.SetupLogger(
-		coreconfig.LoggerName("TRACE"),
-		coreconfig.Datadog.GetString("log_level"),
-		tracecfg.LogFilePath,
-		coreconfig.GetSyslogURI(),
-		coreconfig.Datadog.GetBool("syslog_rfc"),
-		coreconfig.Datadog.GetBool("log_to_console"),
-		coreconfig.Datadog.GetBool("log_format_json"),
-	); err != nil {
-		telemetryCollector.SendStartupError(telemetry.CantCreateLogger, err)
-		return fmt.Errorf("Cannot create logger: %v", err)
-	}
-	tracelog.SetLogger(corelogger{})
-	defer log.Flush()
-
-	if !tracecfg.Enabled {
-		log.Info(messageAgentDisabled)
-		telemetryCollector.SendStartupError(telemetry.TraceAgentNotEnabled, fmt.Errorf(""))
-		return nil
-	}
-
 	defer watchdog.LogOnPanic()
-
-	if cliParams.CPUProfile != "" {
-		f, err := os.Create(cliParams.CPUProfile)
-		if err != nil {
-			log.Error(err)
-		}
-		pprof.StartCPUProfile(f) //nolint:errcheck
-		log.Info("CPU profiling started...")
-		defer pprof.StopCPUProfile()
-	}
-
-	if cliParams.PIDFilePath != "" {
-		err := pidfile.WritePID(cliParams.PIDFilePath)
-		if err != nil {
-			telemetryCollector.SendStartupError(telemetry.CantWritePIDFile, err)
-			log.Criticalf("Error writing PID file, exiting: %v", err)
-			os.Exit(1)
-		}
-
-		log.Infof("PID '%d' written to PID file '%s'", os.Getpid(), cliParams.PIDFilePath)
-		defer os.Remove(cliParams.PIDFilePath)
-	}
 
 	if err := util.SetupCoreDump(coreconfig.Datadog); err != nil {
 		log.Warnf("Can't setup core dumps: %v, core dumps might not be available after a crash", err)
@@ -124,8 +65,6 @@ func runAgent(ctx context.Context, cliParams *RunParams, cfg config.Component) e
 		telemetryCollector.SendStartupError(telemetry.CantConfigureDogstatsd, err)
 		return fmt.Errorf("cannot configure dogstatsd: %v", err)
 	}
-	defer metrics.Flush()
-	defer timing.Stop()
 
 	metrics.Count("datadog.trace_agent.started", 1, nil, 1)
 
@@ -157,13 +96,6 @@ func runAgent(ctx context.Context, cliParams *RunParams, cfg config.Component) e
 			log.Errorf("failed to start the tagger: %s", err)
 		}
 	}
-
-	defer func() {
-		err := tagger.Stop()
-		if err != nil {
-			log.Error(err)
-		}
-	}()
 
 	if coreconfig.IsRemoteConfigEnabled(coreconfig.Datadog) {
 		// Auth tokens are handled by the rcClient
@@ -228,7 +160,6 @@ func runAgent(ctx context.Context, cliParams *RunParams, cfg config.Component) e
 		log.Infof("Memory constrained by cgroup. GOMEMLIMIT is: %vMiB", cgmem/(1024*1024))
 	}
 
-	agnt := agent.NewAgent(ctx, tracecfg, telemetryCollector)
 	log.Infof("Trace agent running on host %s", tracecfg.Hostname)
 	if pcfg := profilingConfig(tracecfg); pcfg != nil {
 		if err := profiling.Start(*pcfg); err != nil {
@@ -236,86 +167,31 @@ func runAgent(ctx context.Context, cliParams *RunParams, cfg config.Component) e
 		} else {
 			log.Infof("Internal profiling enabled: %s.", pcfg)
 		}
-		defer profiling.Stop()
 	}
 	go func() {
 		time.Sleep(time.Second * 30)
 		telemetryCollector.SendStartupSuccess()
 	}()
-	agnt.Run()
-
-	// collect memory profile
-	if cliParams.MemProfile != "" {
-		f, err := os.Create(cliParams.MemProfile)
-		if err != nil {
-			log.Error("Could not create memory profile: ", err)
-		}
-
-		// get up-to-date statistics
-		runtime.GC()
-		// Not using WriteHeapProfile but instead calling WriteTo to
-		// make sure we pass debug=1 and resolve pointers to names.
-		if err := pprof.Lookup("heap").WriteTo(f, 1); err != nil {
-			log.Error("Could not write memory profile: ", err)
-		}
-		f.Close()
-	}
 
 	return nil
 }
 
-type corelogger struct{}
+func stopAgentSidekicks(cfg config.Component) {
+	defer watchdog.LogOnPanic()
 
-// Trace implements Logger.
-func (corelogger) Trace(v ...interface{}) { log.TraceStackDepth(stackDepth, v...) }
+	log.Flush()
+	metrics.Flush()
 
-// Tracef implements Logger.
-func (corelogger) Tracef(format string, params ...interface{}) {
-	log.TracefStackDepth(stackDepth, format, params...)
+	timing.Stop()
+	err := tagger.Stop()
+	if err != nil {
+		log.Error(err)
+	}
+	tracecfg := cfg.Object()
+	if pcfg := profilingConfig(tracecfg); pcfg != nil {
+		profiling.Stop()
+	}
 }
-
-// Debug implements Logger.
-func (corelogger) Debug(v ...interface{}) { log.DebugStackDepth(stackDepth, v...) }
-
-// Debugf implements Logger.
-func (corelogger) Debugf(format string, params ...interface{}) {
-	log.DebugfStackDepth(stackDepth, format, params...)
-}
-
-// Info implements Logger.
-func (corelogger) Info(v ...interface{}) { log.InfoStackDepth(stackDepth, v...) }
-
-// Infof implements Logger.
-func (corelogger) Infof(format string, params ...interface{}) {
-	log.InfofStackDepth(stackDepth, format, params...)
-}
-
-// Warn implements Logger.
-func (corelogger) Warn(v ...interface{}) error { return log.WarnStackDepth(stackDepth, v...) }
-
-// Warnf implements Logger.
-func (corelogger) Warnf(format string, params ...interface{}) error {
-	return log.WarnfStackDepth(stackDepth, format, params...)
-}
-
-// Error implements Logger.
-func (corelogger) Error(v ...interface{}) error { return log.ErrorStackDepth(stackDepth, v...) }
-
-// Errorf implements Logger.
-func (corelogger) Errorf(format string, params ...interface{}) error {
-	return log.ErrorfStackDepth(stackDepth, format, params...)
-}
-
-// Critical implements Logger.
-func (corelogger) Critical(v ...interface{}) error { return log.CriticalStackDepth(stackDepth, v...) }
-
-// Criticalf implements Logger.
-func (corelogger) Criticalf(format string, params ...interface{}) error {
-	return log.CriticalfStackDepth(stackDepth, format, params...)
-}
-
-// Flush implements Logger.
-func (corelogger) Flush() { log.Flush() }
 
 func profilingConfig(tracecfg *tracecfg.AgentConfig) *profiling.Settings {
 	if !coreconfig.Datadog.GetBool("apm_config.internal_profiling.enabled") {

@@ -77,7 +77,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				fx.Supply(cliParams),
 				fx.Supply(core.BundleParams{
 					ConfigParams: config.NewAgentParamsWithoutSecrets(globalParams.ConfFilePath),
-					LogParams:    log.LogForOneShot("CORE", "off", true)}),
+					LogParams:    log.ForOneShot("CORE", "off", true)}),
 				core.Bundle,
 			)
 		},
