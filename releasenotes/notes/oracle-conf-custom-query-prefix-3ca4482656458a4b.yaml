@@ -8,4 +8,4 @@
 ---
 fixes:
   - |
-    Add query metrics `metric_prefix` parameter.
+    Document query metrics `metric_prefix` parameter.
