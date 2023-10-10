@@ -120,16 +120,7 @@ type dataOutputs struct {
 // in goroutines. As of today, only the embedded BufferedAggregator needs a separate goroutine.
 // In the future, goroutines will be started for the event platform forwarder and/or orchestrator forwarder.
 func InitAndStartAgentDemultiplexer(log log.Component, sharedForwarder forwarder.Forwarder, options AgentDemultiplexerOptions, hostname string) *AgentDemultiplexer {
-	demultiplexerInstanceMu.Lock()
-	defer demultiplexerInstanceMu.Unlock()
-
 	demux := initAgentDemultiplexer(log, sharedForwarder, options, hostname)
-
-	if demultiplexerInstance != nil {
-		log.Warn("A DemultiplexerInstance is already existing but InitAndStartAgentDemultiplexer has been called again. Current instance will be overridden")
-	}
-	demultiplexerInstance = demux
-
 	go demux.Run()
 	return demux
 }
@@ -418,7 +409,6 @@ func (d *AgentDemultiplexer) Stop(flush bool) {
 
 	d.dataOutputs.sharedSerializer = nil
 	d.senders = nil
-	demultiplexerInstance = nil
 }
 
 // ForceFlushToSerializer triggers the execution of a flush from all data of samplers

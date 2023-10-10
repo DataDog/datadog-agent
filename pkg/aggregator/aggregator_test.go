@@ -48,15 +48,6 @@ func init() {
 }
 
 func initF() {
-	demultiplexerInstance = nil
-	opts := DefaultAgentDemultiplexerOptions()
-	opts.FlushInterval = 1 * time.Hour
-	opts.DontStartForwarders = true
-	log := log.NewTemporaryLoggerWithoutInit()
-	forwarder := defaultforwarder.NewDefaultForwarder(pkgconfig.Datadog, log, defaultforwarder.NewOptions(pkgconfig.Datadog, log, nil))
-	demux := InitAndStartAgentDemultiplexer(log, forwarder, opts, defaultHostname)
-
-	demux.Aggregator().tlmContainerTagsEnabled = false // do not use a ContainerImpl
 	recurrentSeries = metrics.Series{}
 	tagsetTlm.reset()
 }
@@ -77,10 +68,15 @@ func testNewFlushTrigger(start time.Time, waitForSerializer bool) flushTrigger {
 }
 
 func getAggregator() *BufferedAggregator {
-	if demultiplexerInstance == nil {
-		initF()
-	}
-	return demultiplexerInstance.(*AgentDemultiplexer).Aggregator()
+	opts := DefaultAgentDemultiplexerOptions()
+	opts.FlushInterval = 1 * time.Hour
+	opts.DontStartForwarders = true
+	log := log.NewTemporaryLoggerWithoutInit()
+	forwarder := defaultforwarder.NewDefaultForwarder(pkgconfig.Datadog, log, defaultforwarder.NewOptions(pkgconfig.Datadog, log, nil))
+	demux := InitAndStartAgentDemultiplexer(log, forwarder, opts, defaultHostname)
+
+	demux.Aggregator().tlmContainerTagsEnabled = false // do not use a ContainerImpl
+	return demux.Aggregator()
 }
 
 func TestRegisterCheckSampler(t *testing.T) {

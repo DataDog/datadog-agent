@@ -44,8 +44,6 @@ func TestDemuxIsSetAsGlobalInstance(t *testing.T) {
 
 	require.NotNil(demux)
 	require.NotNil(demux.aggregator)
-	require.Equal(demux, demultiplexerInstance)
-
 	demux.Stop(false)
 }
 

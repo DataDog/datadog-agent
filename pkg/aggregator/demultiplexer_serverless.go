@@ -61,9 +61,6 @@ func InitAndStartServerlessDemultiplexer(domainResolvers map[string]resolver.Dom
 		flushAndSerializeInParallel: flushAndSerializeInParallel,
 	}
 
-	// set the global instance
-	demultiplexerInstance = demux
-
 	// start routines
 	go demux.Run()
 
