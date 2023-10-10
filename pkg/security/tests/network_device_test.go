@@ -217,6 +217,7 @@ func TestTCFilters(t *testing.T) {
 
 		test.Close()
 		test.cleanup()
+		testMod = nil // force a full testModule reinitialization
 		testModuleCleanedUp = true
 
 		ingressExists, egressExists, err = tcFiltersExist(netNs, "lo", "classifier_ingress", "classifier_egress")
