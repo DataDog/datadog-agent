@@ -18,7 +18,7 @@ import (
 )
 
 // CheckAgentBehaviour runs test to check the agent is behaving as expected
-func CheckAgentBehaviour(t *testing.T, client *ExtendedClient) {
+func CheckAgentBehaviour(t *testing.T, client *TestClient) {
 	t.Run("datadog-agent service running", func(tt *testing.T) {
 		_, err := client.SvcManager.Status("datadog-agent")
 		require.NoError(tt, err, "datadog-agent service should be running")
@@ -59,7 +59,7 @@ func CheckAgentBehaviour(t *testing.T, client *ExtendedClient) {
 }
 
 // CheckAgentStops runs tests to check the agent can stop properly
-func CheckAgentStops(t *testing.T, client *ExtendedClient) {
+func CheckAgentStops(t *testing.T, client *TestClient) {
 	t.Run("stops", func(tt *testing.T) {
 		_, err := client.SvcManager.Stop("datadog-agent")
 		require.NoError(tt, err)
@@ -91,7 +91,7 @@ func CheckAgentStops(t *testing.T, client *ExtendedClient) {
 }
 
 // CheckAgentRestarts runs tests to check the agent can restart properly
-func CheckAgentRestarts(t *testing.T, client *ExtendedClient) {
+func CheckAgentRestarts(t *testing.T, client *TestClient) {
 
 	t.Run("restart when stopped", func(tt *testing.T) {
 		_, err := client.SvcManager.Stop("datadog-agent")
@@ -117,7 +117,7 @@ func CheckAgentRestarts(t *testing.T, client *ExtendedClient) {
 }
 
 // CheckAgentPython runs tests to check the agent use the correct python version
-func CheckAgentPython(t *testing.T, client *ExtendedClient, version string) {
+func CheckAgentPython(t *testing.T, client *TestClient, version string) {
 	t.Run(fmt.Sprintf("set python version %s and restarts", version), func(tt *testing.T) {
 		err := client.SetConfig("/etc/datadog-agent/datadog.yaml", "python_version", version)
 		require.NoError(tt, err, "failed to set python version: ", err)
@@ -136,7 +136,7 @@ func CheckAgentPython(t *testing.T, client *ExtendedClient, version string) {
 }
 
 // CheckApmEnabled runs tests to check the agent behave properly with APM enabled
-func CheckApmEnabled(t *testing.T, client *ExtendedClient) {
+func CheckApmEnabled(t *testing.T, client *TestClient) {
 	t.Run("port bound apm enabled", func(tt *testing.T) {
 		err := client.CheckPortBound(8126)
 		require.NoError(tt, err, "port 8196 should be bound when APM is enabled")
@@ -144,7 +144,7 @@ func CheckApmEnabled(t *testing.T, client *ExtendedClient) {
 }
 
 // CheckApmDisabled runs tests to check the agent behave properly when APM is disabled
-func CheckApmDisabled(t *testing.T, client *ExtendedClient) {
+func CheckApmDisabled(t *testing.T, client *TestClient) {
 	t.Run("port not bound when disabled", func(tt *testing.T) {
 		configFilePath := client.Helper.GetConfigFolder() + "datadog.yaml"
 
@@ -160,7 +160,7 @@ func CheckApmDisabled(t *testing.T, client *ExtendedClient) {
 }
 
 // CheckCWSBehaviour runs tests to check the agent behave correctly when CWS is enabled
-func CheckCWSBehaviour(t *testing.T, client *ExtendedClient) {
+func CheckCWSBehaviour(t *testing.T, client *TestClient) {
 	t.Run("enable CWS and restarts", func(tt *testing.T) {
 
 		err := client.SetConfig(client.Helper.GetConfigFolder()+"system-probe.yaml", "runtime_security_config.enabled", "true")

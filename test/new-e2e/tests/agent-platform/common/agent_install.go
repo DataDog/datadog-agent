@@ -15,7 +15,7 @@ import (
 )
 
 // CheckInstallation run tests to check the installation of the agent
-func CheckInstallation(t *testing.T, client *ExtendedClient) {
+func CheckInstallation(t *testing.T, client *TestClient) {
 
 	t.Run("example config file", func(tt *testing.T) {
 
@@ -43,7 +43,7 @@ func CheckInstallation(t *testing.T, client *ExtendedClient) {
 }
 
 // CheckInstallationInstallScript run tests to check the installation of the agent with the install script
-func CheckInstallationInstallScript(t *testing.T, client *ExtendedClient) {
+func CheckInstallationInstallScript(t *testing.T, client *TestClient) {
 
 	t.Run("site config attribute", func(tt *testing.T) {
 		configFilePath := client.Helper.GetConfigFolder() + "datadog.yaml"
@@ -78,7 +78,7 @@ func CheckInstallationInstallScript(t *testing.T, client *ExtendedClient) {
 }
 
 // CheckUninstallation runs check to see if the agent uninstall properly
-func CheckUninstallation(t *testing.T, client *ExtendedClient) {
+func CheckUninstallation(t *testing.T, client *TestClient) {
 
 	t.Run("remove the agent", func(tt *testing.T) {
 		_, err := client.PkgManager.Remove("datadog-agent")

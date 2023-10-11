@@ -17,7 +17,7 @@ import (
 )
 
 // Unix install the agent from install script, by default will install the agent 7 build corresponding to the CI if running in the CI, else the latest Agent 7 version
-func Unix(t *testing.T, client *common.ExtendedClient, options ...installparams.Option) {
+func Unix(t *testing.T, client *common.TestClient, options ...installparams.Option) {
 
 	params := installparams.NewParams(options...)
 	commandLine := ""

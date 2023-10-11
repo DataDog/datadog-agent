@@ -14,7 +14,7 @@ import (
 )
 
 // CheckIntegrationInstall run test to test installation of integrations
-func CheckIntegrationInstall(t *testing.T, client *ExtendedClient) {
+func CheckIntegrationInstall(t *testing.T, client *TestClient) {
 
 	requirementIntegrationPath := client.Helper.GetInstallFolder() + "requirements-agent-release.txt"
 

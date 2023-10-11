@@ -59,8 +59,8 @@ func getPackageManager(vmClient *e2eClient.VMClient) PackageManager {
 	return nil
 }
 
-// ExtendedClient contain the Agent Env and SvcManager and PkgManager for tests
-type ExtendedClient struct {
+// TestClient contain the Agent Env and SvcManager and PkgManager for tests
+type TestClient struct {
 	VMClient    *e2eClient.VMClient
 	AgentClient *e2eClient.AgentCommandRunner
 	Helper      Helper
@@ -70,10 +70,10 @@ type ExtendedClient struct {
 }
 
 // NewTestClient create a an ExtendedClient from VMClient and AgentCommandRunner, includes svcManager and pkgManager to write agent-platform tests
-func NewTestClient(vmClient *e2eClient.VMClient, agentClient *e2eClient.AgentCommandRunner, fileManager FileManager, helper Helper) *ExtendedClient {
+func NewTestClient(vmClient *e2eClient.VMClient, agentClient *e2eClient.AgentCommandRunner, fileManager FileManager, helper Helper) *TestClient {
 	svcManager := getServiceManager(vmClient)
 	pkgManager := getPackageManager(vmClient)
-	return &ExtendedClient{
+	return &TestClient{
 		VMClient:    vmClient,
 		AgentClient: agentClient,
 		Helper:      helper,
@@ -84,7 +84,7 @@ func NewTestClient(vmClient *e2eClient.VMClient, agentClient *e2eClient.AgentCom
 }
 
 // CheckPortBound check if the port is currently bound, use netstat or ss
-func (c *ExtendedClient) CheckPortBound(port int) error {
+func (c *TestClient) CheckPortBound(port int) error {
 	netstatCmd := "sudo netstat -lntp | grep %v"
 	if _, err := c.VMClient.ExecuteWithError("command -v netstat"); err != nil {
 		netstatCmd = "sudo ss -lntp | grep %v"
@@ -96,7 +96,7 @@ func (c *ExtendedClient) CheckPortBound(port int) error {
 }
 
 // SetConfig set config given a key and a path to a yaml config file, support key nested twice at most
-func (c *ExtendedClient) SetConfig(confPath string, key string, value string) error {
+func (c *TestClient) SetConfig(confPath string, key string, value string) error {
 	confYaml := map[string]any{}
 	conf, err := c.FileManager.ReadFile(confPath)
 	if err != nil {
@@ -127,7 +127,7 @@ func (c *ExtendedClient) SetConfig(confPath string, key string, value string) er
 }
 
 // GetPythonVersion returns python version from the Agent status
-func (c *ExtendedClient) GetPythonVersion() (string, error) {
+func (c *TestClient) GetPythonVersion() (string, error) {
 	statusJSON := map[string]any{}
 	ok := false
 	var statusString string
@@ -151,7 +151,7 @@ func (c *ExtendedClient) GetPythonVersion() (string, error) {
 }
 
 // ExecuteWithRetry execute the command with retry
-func (c *ExtendedClient) ExecuteWithRetry(cmd string) (string, error) {
+func (c *TestClient) ExecuteWithRetry(cmd string) (string, error) {
 	ok := false
 
 	var err error
