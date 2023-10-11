@@ -19,6 +19,8 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 	"github.com/DataDog/datadog-agent/pkg/epforwarder"
+
+	ndmtestutils "github.com/DataDog/datadog-agent/pkg/networkdevice/testutils"
 )
 
 type DummyFormatter struct{}
@@ -41,6 +43,9 @@ func (f DummyFormatter) FormatPacket(packet *SnmpPacket) ([]byte, error) {
 }
 
 func createForwarder(t *testing.T) (forwarder *TrapForwarder, err error) {
+	serverPort, err := ndmtestutils.GetFreePort()
+	require.NoError(t, err)
+
 	packetsIn := make(PacketsChannel)
 	mockSender := mocksender.NewMockSender("snmp-traps-listener")
 	mockSender.SetupAcceptAll()
