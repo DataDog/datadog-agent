@@ -46,14 +46,14 @@ type Helper interface {
 }
 
 func getServiceManager(vmClient *e2eClient.VMClient) ServiceManager {
-	if _, err := vmClient.ExecuteWithError("systemctl --version"); err == nil {
+	if _, err := vmClient.ExecuteWithError("command -v systemctl"); err == nil {
 		return svcmanager.NewSystemctlSvcManager(vmClient)
 	}
 	return nil
 }
 
 func getPackageManager(vmClient *e2eClient.VMClient) PackageManager {
-	if _, err := vmClient.ExecuteWithError("apt --version"); err == nil {
+	if _, err := vmClient.ExecuteWithError("command -v apt"); err == nil {
 		return pkgmanager.NewAptPackageManager(vmClient)
 	}
 	return nil
@@ -86,7 +86,7 @@ func NewTestClient(vmClient *e2eClient.VMClient, agentClient *e2eClient.AgentCom
 // CheckPortBound check if the port is currently bound, use netstat or ss
 func (c *ExtendedClient) CheckPortBound(port int) error {
 	netstatCmd := "sudo netstat -lntp | grep %v"
-	if _, err := c.VMClient.ExecuteWithError("sudo netstat --version"); err != nil {
+	if _, err := c.VMClient.ExecuteWithError("command -v netstat"); err != nil {
 		netstatCmd = "sudo ss -lntp | grep %v"
 	}
 

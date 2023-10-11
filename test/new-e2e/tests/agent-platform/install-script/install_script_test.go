@@ -14,6 +14,8 @@ import (
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-platform/common"
 	filemanager "github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-platform/common/file-manager"
 	helpers "github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-platform/common/helper"
+	"github.com/DataDog/datadog-agent/test/new-e2e/tests/platforms"
+	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client"
@@ -36,15 +38,21 @@ type installScriptSuite struct {
 }
 
 func TestInstallScript(t *testing.T) {
+	osMapping := map[string]ec2os.Type{
+		"debian":      ec2os.DebianOS,
+		"ubuntu":      ec2os.UbuntuOS,
+		"centos":      ec2os.CentOS,
+		"amazonlinux": ec2os.AmazonLinuxOS,
+		"redhat":      ec2os.RedHatOS,
+		"windows":     ec2os.WindowsOS,
+		"fedora":      ec2os.FedoraOS,
+		"suse":        ec2os.SuseOS,
+	}
 	platformJSON := map[string]map[string]string{}
-	platformFileContent, err := os.ReadFile("../platforms.json")
-	if err != nil {
-		panic(fmt.Sprintf("failed to read platform file: %v", err))
-	}
-	err = json.Unmarshal(platformFileContent, &platformJSON)
-	if err != nil {
-		panic(fmt.Sprintf("failed to umarshall platform file: %v", err))
-	}
+
+	err := json.Unmarshal(platforms.Content, &platformJSON)
+	require.NoErrorf(t, err, "failed to umarshall platform file: %v", err)
+
 	osVersions := strings.Split(*osVersion, ",")
 	cwsSupportedOsVersionList := strings.Split(*cwsSupportedOsVersion, ",")
 
@@ -61,7 +69,7 @@ func TestInstallScript(t *testing.T) {
 		t.Run(fmt.Sprintf("test install script on %s", osVers), func(tt *testing.T) {
 			tt.Parallel()
 			fmt.Printf("Testing %s", osVers)
-			e2e.Run(tt, &installScriptSuite{cwsSupported: cwsSupported}, e2e.EC2VMStackDef(ec2params.WithImageName(platformJSON[*platform][osVers], e2eOs.AMD64Arch, ec2os.DebianOS)), params.WithStackName(fmt.Sprintf("install-script-test-%v-%v", os.Getenv("CI_PIPELINE_ID"), osVers)))
+			e2e.Run(tt, &installScriptSuite{cwsSupported: cwsSupported}, e2e.EC2VMStackDef(ec2params.WithImageName(platformJSON[*platform][osVers], e2eOs.AMD64Arch, osMapping[*platform])), params.WithStackName(fmt.Sprintf("install-script-test-%v-%v", os.Getenv("CI_PIPELINE_ID"), osVers)))
 		})
 	}
 }

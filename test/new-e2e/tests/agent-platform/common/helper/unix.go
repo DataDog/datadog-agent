@@ -3,8 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-// Package helpers implement interfaces to get some information that can be OS specific
-package helpers
+// Package helper implement interfaces to get some information that can be OS specific
+package helper
 
 // Unix implement helper function for Unix distributions
 type Unix struct{}

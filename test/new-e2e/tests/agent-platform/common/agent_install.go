@@ -38,7 +38,7 @@ func CheckInstallation(t *testing.T, client *ExtendedClient) {
 			tt.Skip()
 		}
 		_, err := client.VMClient.ExecuteWithError(("dpkg -l datadog-signing-keys"))
-		require.NoError(tt, err, "datadog-singing-keys package should be installed")
+		require.NoError(tt, err, "datadog-signing-keys package should be installed")
 	})
 }
 
@@ -48,13 +48,13 @@ func CheckInstallationInstallScript(t *testing.T, client *ExtendedClient) {
 	t.Run("site config attribute", func(tt *testing.T) {
 		configFilePath := client.Helper.GetConfigFolder() + "datadog.yaml"
 
-		var configJSON map[string]any
+		var configYAML map[string]any
 		config, err := client.FileManager.ReadFile(configFilePath)
 		require.NoError(tt, err)
 
-		err = yaml.Unmarshal([]byte(config), &configJSON)
+		err = yaml.Unmarshal([]byte(config), &configYAML)
 		require.NoError(tt, err)
-		require.Equal(tt, configJSON["site"], "datadoghq.eu")
+		require.Equal(tt, configYAML["site"], "datadoghq.eu")
 	})
 
 	t.Run("install info file", func(tt *testing.T) {
