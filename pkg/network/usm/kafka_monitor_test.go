@@ -14,7 +14,6 @@ import (
 	"io"
 	"net"
 	nethttp "net/http"
-	"strings"
 	"testing"
 	"time"
 
@@ -102,11 +101,6 @@ func testKafkaProtocolParsing(t *testing.T) {
 		}
 		if client, ok := ctx.extras["client"].(*kafka.Client); ok {
 			defer client.Client.Close()
-			for k, value := range ctx.extras {
-				if strings.HasPrefix(k, "topic_name") {
-					_ = client.DeleteTopic(value.(string))
-				}
-			}
 		}
 	}
 
