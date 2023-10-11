@@ -216,21 +216,35 @@ instances:
     ## @param custom_queries - list of mappings - optional
     ## Each query must have 2 fields, and can have a third optional field:
     ##
-    ## 1. query - The SQL to execute. It can be a simple statement or a multi-line script.
+    ## 1. metric_prefix - Each metric starts with the chosen prefix.
+    ## 2. query - The SQL to execute. It can be a simple statement or a multi-line script.
     ##            Use the pipe `|` if you require a multi-line script.
-    ## 2. columns - The list representing each column, ordered sequentially from left to right.
+    ## 3. columns - The list representing each column, ordered sequentially from left to right.
     ##              The number of columns must equal the number of columns returned in the query.
     ##              There are 2 required pieces of data:
-    ##                a. name - The suffix to append to `<INTEGRATION>.` to form
-    ##                          the full metric name. If `type` is a `tag` type, this column is
+    ##                a. name - The suffix to append to `metric_prefix` to form
+    ##                          the full metric name. If `type` is `tag`, this column is
     ##                          considered a tag and applied to every
     ##                          metric collected by this particular query.
-    ##                b. type - The submission method (gauge, monotonic_count, etc.) or tag.
-    ## 3. tags (optional) - A list of tags to apply to each metric.
-    ## 4. pdb (optional) - A PDB against which the query will be run. Default is CDB$ROOT.
-                           The parameter can be defined on a self-managed instance, which
-                           connects to CDB. The Agent needs to have `set container` privilege
-                           on the PDB where the custom query is running.
+    ##                b. type - The submission method (gauge, monotonic_count, etc.).
+    ##                          This can also be set to `tag` to tag each metric in the row
+    ##                          with the name and value of the item in this column. You can
+    ##                          use the `count` type to perform aggregation for queries that
+    ##                          return multiple rows with the same or no tags.
+    ##              Columns without a name are ignored. To skip a column, enter:
+    ##                - {}
+    ## 4. tags (optional) - A list of tags to apply to each metric.
+    #
+    custom_queries:
+      - metric_prefix: oracle.custom_query.table_events
+        query: SELECT program, COUNT(*) FROM table_events GROUP BY program
+        columns:
+        - name: foo
+          type: tag
+        - name: total
+          type: gauge
+        tags:
+        - tag1:value1
 
     ## WARNING: Running custom queries may result in additional costs or fees assessed by Oracle.
     
