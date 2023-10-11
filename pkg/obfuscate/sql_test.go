@@ -2375,6 +2375,10 @@ func TestSQLLexerOutputsSameAsObfuscator(t *testing.T) {
 			name:  "query with newlines",
 			query: "   -- get user \n--\n select * \n   from users \n    where\n       id = 214325346    ",
 		},
+		{
+			name:  "query with array param",
+			query: "SELECT * FROM users WHERE id in (1,2,3,4)",
+		},
 	}
 
 	for _, tt := range tests {
