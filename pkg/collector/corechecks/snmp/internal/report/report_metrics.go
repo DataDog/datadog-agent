@@ -88,8 +88,10 @@ func (ms *MetricSender) GetCheckInstanceMetricTags(metricTags []profiledefinitio
 		if err != nil {
 			continue
 		}
+		// TODO: TEST ME
 		newValue, err := processValueUsingSymbolConfig(value, profiledefinition.SymbolConfig(metricTag.Symbol))
 		if err != nil {
+			// TODO: TEST ME
 			log.Debugf("error processing value using symbol config (%#v) to string : %v", value, err)
 			continue
 		}
