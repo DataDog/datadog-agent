@@ -130,7 +130,7 @@ func (s *HTTPTestSuite) TestHTTPMonitorCaptureRequestMultipleTimes() {
 				resp, err := client.Do(req)
 				require.NoError(t, err)
 				// Have to read the response body to ensure the client will be able to properly close the connection.
-				io.ReadAll(resp.Body)
+				io.Copy(io.Discard, resp.Body)
 				resp.Body.Close()
 			}
 			srvDoneFn()
