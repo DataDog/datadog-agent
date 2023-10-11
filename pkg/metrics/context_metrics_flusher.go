@@ -42,8 +42,12 @@ func (f *ContextMetricsFlusher) Append(bucketTimestamp float64, contextMetrics C
 // `callback`. Any errors encountered flushing the Metric instances are returned,
 // but such errors do not interrupt the flushing operation.
 func (f *ContextMetricsFlusher) FlushAndClear(callback func([]*Serie)) map[ckey.ContextKey][]error {
-	errors := make(map[ckey.ContextKey][]error)
-	var series []*Serie
+	// NOTE in practice this function and its call-chain are allocation
+	// hotspots in Agent when counter metrics are dominate. We pre-allocate
+	// these structures to arbitrary, smallish sizes to avoid needing to
+	// grow from 0-size.
+	series := make([]*Serie, 0, 32)
+	errors := make(map[ckey.ContextKey][]error, 32)
 
 	contextMetricsCollection := make([]ContextMetrics, 0, len(f.metrics))
 	for _, m := range f.metrics {

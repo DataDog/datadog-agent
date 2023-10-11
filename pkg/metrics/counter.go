@@ -5,6 +5,8 @@
 
 package metrics
 
+var emptySeries = []*Serie{}
+
 // Counter tracks how many times something happened per second. Counters are
 // only used by DogStatsD and are very similar to Count: the main diffence is
 // that they are sent as Rate.
@@ -32,7 +34,7 @@ func (c *Counter) flush(timestamp float64) ([]*Serie, error) {
 	c.value, c.sampled = 0, false
 
 	if !sampled {
-		return []*Serie{}, NoSerieError{}
+		return emptySeries, NoSerieError{}
 	}
 
 	return []*Serie{
