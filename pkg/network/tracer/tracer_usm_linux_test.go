@@ -20,6 +20,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"regexp"
+	"strconv"
 	"strings"
 	"syscall"
 	"testing"
@@ -1033,6 +1034,18 @@ type tlsTestCommand struct {
 	openSSLCommand string
 }
 
+func getFreePort() (port uint16, err error) {
+	var a *net.TCPAddr
+	if a, err = net.ResolveTCPAddr("tcp", "localhost:0"); err == nil {
+		var l *net.TCPListener
+		if l, err = net.ListenTCP("tcp", a); err == nil {
+			defer l.Close()
+			return uint16(l.Addr().(*net.TCPAddr).Port), nil
+		}
+	}
+	return
+}
+
 // TLS classification tests
 func (s *USMSuite) TestTLSClassification() {
 	t := s.T()
@@ -1063,7 +1076,11 @@ func (s *USMSuite) TestTLSClassification() {
 			openSSLCommand: "-tls1_3",
 		},
 	}
-	require.NoError(t, prototls.RunServerOpenssl(t, "44330", len(scenarios), "-www"))
+
+	port, err := getFreePort()
+	require.NoError(t, err)
+	portAsString := strconv.Itoa(int(port))
+	require.NoError(t, prototls.RunServerOpenssl(t, portAsString, len(scenarios), "-www"))
 
 	tr := setupTracer(t, cfg)
 
@@ -1077,19 +1094,19 @@ func (s *USMSuite) TestTLSClassification() {
 		tests = append(tests, tlsTest{
 			name: "TLS-" + scenario.version + "_docker",
 			postTracerSetup: func(t *testing.T) {
-				require.True(t, prototls.RunClientOpenssl(t, "localhost", "44330", scenario.openSSLCommand))
+				require.True(t, prototls.RunClientOpenssl(t, "localhost", portAsString, scenario.openSSLCommand))
 			},
 			validation: func(t *testing.T, tr *Tracer) {
 				// Iterate through active connections until we find connection created above
-				require.Eventually(t, func() bool {
+				require.Eventuallyf(t, func() bool {
 					payload := getConnections(t, tr)
 					for _, c := range payload.Conns {
-						if c.DPort == 44330 && c.ProtocolStack.Contains(protocols.TLS) {
+						if c.DPort == port && c.ProtocolStack.Contains(protocols.TLS) {
 							return true
 						}
 					}
 					return false
-				}, 4*time.Second, 100*time.Millisecond, "couldn't find TLS connection matching: dst port 44330")
+				}, 4*time.Second, 100*time.Millisecond, "couldn't find TLS connection matching: dst port %v", portAsString)
 			},
 		})
 	}
