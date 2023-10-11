@@ -576,7 +576,7 @@ func simpleGetRequestsGenerator(t *testing.T, targetAddr string) (*nethttp.Clien
 		resp, err := client.Do(req)
 		require.NoError(t, err)
 		require.Equal(t, status, resp.StatusCode)
-		io.ReadAll(resp.Body)
+		io.Copy(io.Discard, resp.Body)
 		resp.Body.Close()
 		return req
 	}
