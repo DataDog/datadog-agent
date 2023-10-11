@@ -74,3 +74,17 @@ func GetAllFlowTypes() []FlowType {
 	}
 	return flowTypes
 }
+
+type EndianType string
+
+var (
+	BigEndian    EndianType = "big"
+	LittleEndian EndianType = "little"
+)
+
+type FieldType string
+
+var (
+	String FieldType = "string"
+	Varint FieldType = "varint"
+)

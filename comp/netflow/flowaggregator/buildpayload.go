@@ -59,5 +59,6 @@ func buildPayload(aggFlow *common.Flow, hostname string, flushTime time.Time) pa
 		NextHop: payload.NextHop{
 			IP: format.IPAddr(aggFlow.NextHop),
 		},
+		AdditionalFields: aggFlow.AdditionalFields,
 	}
 }

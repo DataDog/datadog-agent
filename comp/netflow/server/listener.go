@@ -15,22 +15,22 @@ import (
 // netflowListener contains state of goflow listener and the related netflow config
 // flowState can be of type *utils.StateNetFlow/StateSFlow/StateNFLegacy
 type netflowListener struct {
-	flowState *goflowlib.FlowStateWrapper
-	config    config.ListenerConfig
+	flowPipe *goflowlib.FlowPipeWrapper
+	config   config.ListenerConfig
 }
 
 // Shutdown will close the goflow listener state
 func (l *netflowListener) shutdown() {
-	l.flowState.Shutdown()
+	l.flowPipe.Shutdown()
 }
 
 func startFlowListener(listenerConfig config.ListenerConfig, flowAgg *flowaggregator.FlowAggregator, logger log.Component) (*netflowListener, error) {
-	flowState, err := goflowlib.StartFlowRoutine(listenerConfig.FlowType, listenerConfig.BindHost, listenerConfig.Port, listenerConfig.Workers, listenerConfig.Namespace, flowAgg.GetFlowInChan(), logger)
+	flowPipe, err := goflowlib.StartFlowPipe(listenerConfig.FlowType, listenerConfig.BindHost, listenerConfig.Port, listenerConfig.Workers, listenerConfig.Namespace, listenerConfig.Mapping, flowAgg.GetFlowInChan(), logger)
 	if err != nil {
 		return nil, err
 	}
 	return &netflowListener{
-		flowState: flowState,
-		config:    listenerConfig,
+		flowPipe: flowPipe,
+		config:   listenerConfig,
 	}, nil
 }
