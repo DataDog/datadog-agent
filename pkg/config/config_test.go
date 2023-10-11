@@ -16,7 +16,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/common/types"
-	"github.com/DataDog/datadog-agent/pkg/conf/env"
 )
 
 func unsetEnvForTest(t *testing.T, env string) {
@@ -31,8 +30,6 @@ func unsetEnvForTest(t *testing.T, env string) {
 		}
 	})
 }
-
-var SetFeatures = env.SetFeatures
 
 func TestDefaults(t *testing.T) {
 	config := SetupConf()

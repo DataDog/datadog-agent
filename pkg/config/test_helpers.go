@@ -12,7 +12,12 @@ import (
 	"log"
 	"strings"
 	"testing"
+
+	"github.com/DataDog/datadog-agent/pkg/conf/env"
 )
+
+// SetFeatures is alias from env
+var SetFeatures = env.SetFeatures
 
 // SetupConf generates and returns a new configuration
 func SetupConf() Config {
