@@ -342,7 +342,11 @@ func (c *Consumer) dumpTable(family uint8, output chan Event, ns netns.NsHandle)
 func LoadNfConntrackKernelModule(ns netns.NsHandle) error {
 	sock, err := NewSocket(ns)
 	if err != nil {
-		return fmt.Errorf("could not open netlink socket for net ns %d: %w", int(ns), err)
+		ino, errIno := kernel.GetInoForNs(ns)
+		if errIno != nil {
+			return fmt.Errorf("failed to create new socket for net ns %d and failed to get inode: %v,  %w", int(ns), errIno, err)
+		}
+		return fmt.Errorf("could not open netlink socket for net ns %d and ino %d: %w", int(ns), ino, err)
 	}
 	defer sock.Close()
 
@@ -351,6 +355,8 @@ func LoadNfConntrackKernelModule(ns netns.NsHandle) error {
 		_ = conn.Close()
 	}()
 
+	// Create a dummy request to netlink for a tuple with 0 values except for the first element which specifies IPv4.
+	// The values are irrelevant, the objective is to trigger a netlink call that forces loading of the module.
 	dummyTupleData := []byte{0x2, 0, 0, 0, 0, 0, 0}
 
 	req := netlink.Message{
@@ -362,12 +368,11 @@ func LoadNfConntrackKernelModule(ns netns.NsHandle) error {
 	}
 
 	if _, err = conn.Send(req); err != nil {
-		log.Warnf("Error while sending netlink request: %v", err)
+		return fmt.Errorf("error while sending netlink request: %w", err)
 	}
 	_, _, err = sock.ReceiveAndDiscard()
 	if err != nil {
-		log.Warnf("Error while trying to load dummy entry from netlink: %v", err)
-		return err
+		return fmt.Errorf("error while trying to load dummy entry from netlink: %w", err)
 	}
 	return nil
 }
