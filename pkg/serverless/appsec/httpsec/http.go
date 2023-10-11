@@ -264,6 +264,9 @@ func toMultiValueMap(m map[string]string) map[string][]string {
 // xmlMap is used to parse XML documents into a schema-agnostic format (essentially, a `map[string]any`).
 type xmlMap map[string]any
 
+// UnmarshalXML implements custom parsing from XML documents into a map-based generic format, because encoding/xml does
+// not provide a built-in unmarshal to map (any data that does not fit an `xml` tagged field, or that does not fit the
+// shape of that field, is silently ignored).
 func (m *xmlMap) UnmarshalXML(d *xml.Decoder, start xml.StartElement) error {
 	var children []any
 out:
