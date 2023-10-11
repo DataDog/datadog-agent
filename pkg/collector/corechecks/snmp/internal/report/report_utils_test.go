@@ -224,7 +224,7 @@ func Test_getColumnValueFromSymbol(t *testing.T) {
 			values:         mockValues,
 			symbol:         profiledefinition.SymbolConfig{OID: "1.2.3.99", Name: "mySymbol"},
 			expectedValues: nil,
-			expectedError:  "value for Symbol OID `1.2.3.99` not found in results",
+			expectedError:  "value for Column OID `1.2.3.99` not found in results",
 		},
 		{
 			name:   "invalid extract value pattern",
@@ -598,7 +598,7 @@ metric_tags:
 			},
 			expectedTags: []string(nil),
 			expectedLogs: []logCount{
-				{"[DEBUG] getTagsFromMetricTagConfigList: error getting column value: value for Symbol OID `1.2.3.4.8.1.2`", 1},
+				{"[DEBUG] getTagsFromMetricTagConfigList: error getting column value: value for Column OID `1.2.3.4.8.1.2`", 1},
 			},
 		},
 		{
