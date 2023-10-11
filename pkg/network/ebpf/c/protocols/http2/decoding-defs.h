@@ -81,6 +81,7 @@ typedef struct {
     conn_tuple_t tup;
     __u64 response_last_seen;
     __u64 request_started;
+    __u64 tags;
 
     __u16 response_status_code;
     __u8 request_method;

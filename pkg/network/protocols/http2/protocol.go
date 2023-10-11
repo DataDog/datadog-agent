@@ -25,6 +25,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/events"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http"
 	"github.com/DataDog/datadog-agent/pkg/network/usm/utils"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 type protocol struct {
@@ -211,6 +212,7 @@ func (p *protocol) DumpMaps(output *strings.Builder, mapName string, currentMap 
 
 func (p *protocol) processHTTP2(data []byte) {
 	tx := (*EbpfTx)(unsafe.Pointer(&data[0]))
+	log.Debugf("Statig tags: %v", tx.StaticTags())
 	p.telemetry.Count(tx)
 	p.statkeeper.Process(tx)
 }

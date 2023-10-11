@@ -113,7 +113,7 @@ func (tx *EbpfTx) SetRequestMethod(m http.Method) {
 }
 
 func (tx *EbpfTx) StaticTags() uint64 {
-	return 0
+	return tx.Tags
 }
 
 func (tx *EbpfTx) DynamicTags() []string {

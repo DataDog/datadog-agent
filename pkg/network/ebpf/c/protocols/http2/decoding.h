@@ -15,6 +15,7 @@
 #include "protocols/http2/maps-defs.h"
 #include "protocols/http2/tls-decoding.h"
 #include "protocols/http2/usm-events.h"
+#include "protocols/tls/tags-types.h"
 
 // Similar to read_var_int, but with a small optimization of getting the current character as input argument.
 static __always_inline bool read_var_int_with_given_current_char(struct __sk_buff *skb, skb_info_t *skb_info, __u8 current_char_as_number, __u8 max_number_for_bits, __u8 *out) {
@@ -249,7 +250,7 @@ static __always_inline void parse_frame(struct __sk_buff *skb, skb_info_t *skb_i
     }
 
     if ((current_frame->flags & HTTP2_END_OF_STREAM) == HTTP2_END_OF_STREAM) {
-        handle_end_of_stream(current_stream, &http2_ctx->http2_stream_key);
+        handle_end_of_stream(current_stream, &http2_ctx->http2_stream_key, NO_TAGS);
     }
 
     return;
@@ -426,6 +427,7 @@ delete_iteration:
 SEC("uprobe/http2_tls_entry")
 int uprobe__http2_tls_entry(struct pt_regs *ctx) {
     const u32 zero = 0;
+    http2_tls_state_t new_state;
 
     tls_dispatcher_arguments_t *info = bpf_map_lookup_elem(&tls_dispatcher_arguments, &zero);
     if (info == NULL) {
@@ -464,37 +466,49 @@ int uprobe__http2_tls_entry(struct pt_regs *ctx) {
     key.tup = info->tup;
     key.length = info->len;
     http2_tls_state_t *state = bpf_map_lookup_elem(&http2_tls_states, &key);
-    if (state) {
-        log_debug("[grpctls] state found");
-        if (state->should_skip) {
-            log_debug("[grpctls] should_skip true");
+    if (!state) {
+        log_debug("[grpctls] state not found");
+        // filter frames
+        struct http2_frame header;
+        bool relevant = is_relevant_frame_tls(info, &header);
+        if (!relevant) {
+            log_debug("[grpctls] not relevant frame");
             return 0;
         }
 
-        bpf_tail_call_compat(ctx, &tls_process_progs, TLS_HTTP2_FRAMES_PARSER);
-        return 0;
+        log_debug("[grpctls] relevant frame");
+
+        bpf_memset(&new_state, 0, sizeof(new_state));
+        new_state.should_skip = !relevant;
+        new_state.stream_id = header.stream_id;
+        new_state.frame_flags = header.flags;
+
+        bool header_only = info->len == HTTP2_FRAME_HEADER_SIZE;
+
+        if (!header_only && new_state.should_skip) {
+            // The buffer seems to contain the whole frame, we skip it without
+            // storing some state.
+            goto exit;
+        }
+
+        key.length = header_only ? header.length : info->len;
+
+        bpf_map_update_elem(&http2_tls_states, &key, &new_state, BPF_ANY);
+        if (!header_only)
+            goto parser;
+
+        goto exit;
     }
 
-    // filter frames
-    struct http2_frame header;
-    bool relevant = is_relevant_frame_tls(info, &header);
-    if (!relevant) {
-        log_debug("[grpctls] not relevant frame");
-        return 0;
+    if (state->should_skip) {
+        log_debug("[grpctls] should_skip true");
+        bpf_map_delete_elem(&http2_tls_states, &key);
+        goto exit;
     }
 
-    log_debug("[grpctls] relevant frame");
-
-    http2_tls_state_t new_state;
-    bpf_memset(&new_state, 0, sizeof(new_state));
-    new_state.should_skip = !relevant;
-    new_state.stream_id = header.stream_id;
-    new_state.frame_flags = header.flags;
-
-    key.length = header.length;
-
-    bpf_map_update_elem(&http2_tls_states, &key, &new_state, BPF_ANY);
-
+parser:
+    bpf_tail_call_compat(ctx, &tls_process_progs, TLS_HTTP2_FRAMES_PARSER);
+exit:
     return 0;
 }
 

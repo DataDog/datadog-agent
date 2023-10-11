@@ -91,7 +91,7 @@ static __always_inline void parse_field_indexed(dynamic_table_index_t *dynamic_i
     return;
 }
 
-static __always_inline void handle_end_of_stream(http2_stream_t *current_stream, http2_stream_key_t *http2_stream_key_template) {
+static __always_inline void handle_end_of_stream(http2_stream_t *current_stream, http2_stream_key_t *http2_stream_key_template, __u64 tags) {
     if (!current_stream->request_end_of_stream) {
         current_stream->request_end_of_stream = true;
         return;
@@ -102,6 +102,7 @@ static __always_inline void handle_end_of_stream(http2_stream_t *current_stream,
     // response end of stream;
     current_stream->response_last_seen = bpf_ktime_get_ns();
     current_stream->tup = http2_stream_key_template->tup;
+    current_stream->tags = tags;
 
     // enqueue
     http2_batch_enqueue(current_stream);

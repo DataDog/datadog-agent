@@ -22,6 +22,7 @@ type EbpfTx struct {
 	Tup                   connTuple
 	Response_last_seen    uint64
 	Request_started       uint64
+	Tags                  uint64
 	Response_status_code  uint16
 	Request_method        uint8
 	Path_size             uint8
