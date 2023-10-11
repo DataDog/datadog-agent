@@ -1,6 +1,6 @@
-import time
 import os
 import socket
+import time
 
 import datadog
 
