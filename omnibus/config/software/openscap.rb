@@ -54,6 +54,7 @@ build do
 
   patch source: "010_perlpm_install_fix.patch", env: env # fix build of perl bindings
   patch source: "dpkginfo-cacheconfig.patch", env: env # work around incomplete pkgcache path
+  patch source: "dpkginfo-config-arch.patch", env: env # work around empty list of architectures
   patch source: "dpkginfo-cache-fixes.patch", env: env # reduce memory footprint of dpkginfo probe
   patch source: "fsdev-ignore-host.patch", env: env # ignore /host directory in fsdev probe
   patch source: "systemd-dbus-address.patch", env: env # fix dbus address in systemd probe

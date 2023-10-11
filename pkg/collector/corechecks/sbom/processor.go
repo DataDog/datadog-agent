@@ -68,6 +68,7 @@ func newProcessor(workloadmetaStore workloadmeta.Store, sender sender.Sender, ma
 				Source:   &sourceAgent,
 				Entities: entities,
 				DdEnv:    &envVarEnv,
+				Host:     hostname,
 			})
 			if err != nil {
 				log.Errorf("Unable to encode message: %+v", err)
