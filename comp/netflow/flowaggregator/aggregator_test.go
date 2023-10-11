@@ -36,6 +36,7 @@ import (
 	ddlog "github.com/DataDog/datadog-agent/pkg/util/log"
 
 	"github.com/DataDog/datadog-agent/pkg/networkdevice/metadata"
+	ndmtestutils "github.com/DataDog/datadog-agent/pkg/networkdevice/testutils"
 
 	"github.com/DataDog/datadog-agent/comp/netflow/common"
 	"github.com/DataDog/datadog-agent/comp/netflow/config"
@@ -214,7 +215,7 @@ stopLoop:
 }
 
 func TestAggregator_withMockPayload(t *testing.T) {
-	port, err := testutil.GetFreePort()
+	port, err := ndmtestutils.GetFreePort()
 	require.NoError(t, err)
 	flushTime, _ := time.Parse(time.RFC3339, "2019-02-18T16:00:06Z")
 
