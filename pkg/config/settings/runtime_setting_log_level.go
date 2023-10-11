@@ -13,11 +13,12 @@ import (
 
 // LogLevelRuntimeSetting wraps operations to change log level at runtime.
 type LogLevelRuntimeSetting struct {
-	Config    config.ConfigReaderWriter
+	Config    config.ReaderWriter
 	ConfigKey string
 	source    Source
 }
 
+// NewLogLevelRuntimeSetting returns a new LogLevelRuntimeSetting
 func NewLogLevelRuntimeSetting() *LogLevelRuntimeSetting {
 	return &LogLevelRuntimeSetting{source: SourceDefault}
 }
@@ -46,6 +47,7 @@ func (l *LogLevelRuntimeSetting) Get() (interface{}, error) {
 	return level.String(), nil
 }
 
+// GetSource returns the source of the LogLevelRuntimeSetting
 func (l *LogLevelRuntimeSetting) GetSource() Source {
 	return l.source
 }
@@ -65,7 +67,7 @@ func (l *LogLevelRuntimeSetting) Set(v interface{}, source Source) error {
 	if l.ConfigKey != "" {
 		key = l.ConfigKey
 	}
-	var cfg config.ConfigReaderWriter = config.Datadog
+	var cfg config.ReaderWriter = config.Datadog
 	if l.Config != nil {
 		cfg = l.Config
 	}

@@ -18,9 +18,8 @@ import (
 	"reflect"
 	"regexp"
 	"strings"
-	"time"
-
 	"testing"
+	"time"
 
 	"github.com/cihub/seelog"
 	"github.com/stretchr/testify/assert"

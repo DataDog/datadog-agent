@@ -125,7 +125,7 @@ func OverrideTime(t time.Time) StatusOption {
 	}
 }
 
-func getCoreStatus(coreConfig ddconfig.ConfigReader) (s CoreStatus) {
+func getCoreStatus(coreConfig ddconfig.Reader) (s CoreStatus) {
 	hostnameData, err := hostname.GetWithProvider(context.Background())
 	var metadata *host.Payload
 	if err != nil {
@@ -158,7 +158,7 @@ func getExpvars(expVarURL string) (s ProcessExpvars, err error) {
 }
 
 // GetStatus returns a Status object with runtime information about process-agent
-func GetStatus(coreConfig ddconfig.ConfigReader, expVarURL string) (*Status, error) {
+func GetStatus(coreConfig ddconfig.Reader, expVarURL string) (*Status, error) {
 	coreStatus := getCoreStatus(coreConfig)
 	processExpVars, err := getExpvars(expVarURL)
 	if err != nil {

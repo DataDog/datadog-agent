@@ -9,7 +9,7 @@ go 1.20
 replace github.com/DataDog/datadog-agent/test/fakeintake => ../fakeintake
 
 require (
-	github.com/DataDog/datadog-agent/test/fakeintake v0.49.0-rc.1
+	github.com/DataDog/datadog-agent/test/fakeintake v0.49.0-rc.2
 	// Are you bumping github.com/DataDog/test-infra-definitions ?
 	// You should bump `TEST_INFRA_DEFINITIONS_BUILDIMAGES` in `.gitlab-ci.yml`
 	// `TEST_INFRA_DEFINITIONS_BUILDIMAGES` matches the commit sha in the module version
@@ -72,6 +72,7 @@ require (
 	github.com/aws/smithy-go v1.14.2 // indirect
 	github.com/aymanbagabas/go-osc52/v2 v2.0.1 // indirect
 	github.com/blang/semver v3.5.1+incompatible // indirect
+	github.com/cenkalti/backoff/v4 v4.2.1 // indirect
 	github.com/charmbracelet/bubbles v0.16.1 // indirect
 	github.com/charmbracelet/bubbletea v0.24.2 // indirect
 	github.com/charmbracelet/lipgloss v0.7.1 // indirect

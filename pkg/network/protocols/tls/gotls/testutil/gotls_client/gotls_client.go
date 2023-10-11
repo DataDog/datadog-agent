@@ -36,6 +36,7 @@ func main() {
 		},
 	}
 
+	defer client.CloseIdleConnections()
 	in := make([]byte, 1)
 	_, err = io.ReadFull(os.Stdin, in)
 	if err != nil {

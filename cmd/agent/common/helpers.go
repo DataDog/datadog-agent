@@ -84,7 +84,7 @@ func SelectedCheckMatcherBuilder(checkNames []string, minInstances uint) func(co
 }
 
 // SetupInternalProfiling is a common helper to configure runtime settings for internal profiling.
-func SetupInternalProfiling(cfg config.ConfigReader, configPrefix string) {
+func SetupInternalProfiling(cfg config.Reader, configPrefix string) {
 	if v := cfg.GetInt(configPrefix + "internal_profiling.block_profile_rate"); v > 0 {
 		if err := settings.SetRuntimeSetting("runtime_block_profile_rate", v, settings.SourceConfig); err != nil {
 			log.Errorf("Error setting block profile rate: %v", err)
