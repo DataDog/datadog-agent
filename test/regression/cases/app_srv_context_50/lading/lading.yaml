@@ -7,8 +7,8 @@ generator:
       path: "/tmp/dsd.socket"
       variant:
         dogstatsd:
-          contexts_minimum: 1000
-          contexts_maximum: 10000
+          contexts_minimum: 49
+          contexts_maximum: 50
           name_length_minimum: 1
           name_length_maximum: 200
           tag_key_length_minimum: 1
