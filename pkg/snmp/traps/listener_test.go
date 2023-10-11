@@ -7,16 +7,18 @@ package traps
 
 import (
 	"errors"
-	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 	"testing"
 	"time"
 
 	"github.com/gosnmp/gosnmp"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
+
+	ndmtestutils "github.com/DataDog/datadog-agent/pkg/networkdevice/testutils"
 )
 
-var serverPort = getFreePort()
 var initialTrapsPacketsAuthErrors int64
 
 const defaultTimeout = 1 * time.Second
@@ -38,6 +40,8 @@ func listenerTestSetup(t *testing.T, config Config) (*mocksender.MockSender, *Tr
 }
 
 func TestListenV1GenericTrap(t *testing.T) {
+	serverPort, err := ndmtestutils.GetFreePort()
+	require.NoError(t, err)
 	config := Config{Port: serverPort, CommunityStrings: []string{"public"}, Namespace: "totoro"}
 	_, trapListener := listenerTestSetup(t, config)
 	defer trapListener.Stop()
@@ -50,6 +54,8 @@ func TestListenV1GenericTrap(t *testing.T) {
 }
 
 func TestServerV1SpecificTrap(t *testing.T) {
+	serverPort, err := ndmtestutils.GetFreePort()
+	require.NoError(t, err)
 	config := Config{Port: serverPort, CommunityStrings: []string{"public"}}
 	_, trapListener := listenerTestSetup(t, config)
 	defer trapListener.Stop()
@@ -62,6 +68,8 @@ func TestServerV1SpecificTrap(t *testing.T) {
 }
 
 func TestServerV2(t *testing.T) {
+	serverPort, err := ndmtestutils.GetFreePort()
+	require.NoError(t, err)
 	config := Config{Port: serverPort, CommunityStrings: []string{"public"}}
 	_, trapListener := listenerTestSetup(t, config)
 	defer trapListener.Stop()
@@ -74,6 +82,8 @@ func TestServerV2(t *testing.T) {
 }
 
 func TestServerV2BadCredentials(t *testing.T) {
+	serverPort, err := ndmtestutils.GetFreePort()
+	require.NoError(t, err)
 	config := Config{Port: serverPort, CommunityStrings: []string{"public"}, Namespace: "totoro"}
 	mockSender, trapListener := listenerTestSetup(t, config)
 	defer trapListener.Stop()
@@ -87,6 +97,8 @@ func TestServerV2BadCredentials(t *testing.T) {
 }
 
 func TestServerV3(t *testing.T) {
+	serverPort, err := ndmtestutils.GetFreePort()
+	require.NoError(t, err)
 	userV3 := UserV3{Username: "user", AuthKey: "password", AuthProtocol: "sha", PrivKey: "password", PrivProtocol: "aes"}
 	config := Config{Port: serverPort, Users: []UserV3{userV3}}
 	_, trapListener := listenerTestSetup(t, config)
@@ -106,6 +118,8 @@ func TestServerV3(t *testing.T) {
 }
 
 func TestServerV3BadCredentials(t *testing.T) {
+	serverPort, err := ndmtestutils.GetFreePort()
+	require.NoError(t, err)
 	userV3 := UserV3{Username: "user", AuthKey: "password", AuthProtocol: "sha", PrivKey: "password", PrivProtocol: "aes"}
 	config := Config{Port: serverPort, Users: []UserV3{userV3}}
 	_, trapListener := listenerTestSetup(t, config)
@@ -123,6 +137,8 @@ func TestServerV3BadCredentials(t *testing.T) {
 }
 
 func TestListenerTrapsReceivedTelemetry(t *testing.T) {
+	serverPort, err := ndmtestutils.GetFreePort()
+	require.NoError(t, err)
 	config := Config{Port: serverPort, CommunityStrings: []string{"public"}, Namespace: "totoro"}
 	mockSender, trapListener := listenerTestSetup(t, config)
 	defer trapListener.Stop()
