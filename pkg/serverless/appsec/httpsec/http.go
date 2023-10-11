@@ -75,7 +75,8 @@ func parseBody(headers map[string][]string, rawBody *string, isBodyBase64 bool) 
 	if isBodyBase64 {
 		rawBodyDecoded, err := base64.StdEncoding.DecodeString(bodyDecoded)
 		if err != nil {
-			panic(err)
+			log.Warnf("cannot encode '%s' as base64: %v", bodyDecoded, err)
+			return nil
 		}
 
 		bodyDecoded = string(rawBodyDecoded)
