@@ -531,12 +531,13 @@ def changelog(ctx, new_commit_sha):
         messages.append(f"{message_link} {author_handle}")
 
     commit_range_link = f"https://github.com/DataDog/datadog-agent/compare/{old_commit_sha}..{new_commit_sha}"
-    slack_message = "The nightly deployment is rolling out to Staging :siren: \n"
+    slack_message = (
+        "The nightly deployment is rolling out to Staging :siren: \n"
+        + f"Changelog for <{commit_range_link}|commit range>: `{old_commit_sha}` to `{new_commit_sha}`:\n"
+    )
     if messages:
         slack_message += (
-            f"Changelog for <{commit_range_link}|commit range>: `{old_commit_sha}` to `{new_commit_sha}`:\n"
-            + "\n".join(messages)
-            + "\n:wave: Authors, please check relevant "
+            "\n".join(messages) + "\n:wave: Authors, please check relevant "
             "<https://ddstaging.datadoghq.com/dashboard/kfn-zy2-t98|dashboards> for issues"
         )
     else:
@@ -544,7 +545,7 @@ def changelog(ctx, new_commit_sha):
 
     print(f"Posting message to slack \n {slack_message}")
     send_slack_message("system-probe-ops", slack_message)
-    print(f"tagging {new_commit_sha}")
+    print(f"Writing new commit sha: {new_commit_sha} to SSM")
     ctx.run(
         f"aws ssm put-parameter --name ci.datadog-agent.gitlab_changelog_commit_sha --value {new_commit_sha} "
         "--type \"SecureString\" --region us-east-1 --overwrite",
