@@ -8,4 +8,4 @@
 ---
 enhancements:
   - |
-    [corechecks/snmp] Support ``extract_value`` for global metric tags and metadata tags.
+    [corechecks/snmp] Support symbol modifiers for global metric tags and metadata tags.
