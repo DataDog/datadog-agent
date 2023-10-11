@@ -800,7 +800,7 @@ func newProcessContextSerializer(pc *model.ProcessContext, e *model.Event, resol
 		first = false
 
 		// dedup args/envs
-		if ancestor != nil && ancestor.ArgsEntry == pce.ArgsEntry {
+		if ancestor != nil && ancestor.ArgsEntry != nil && ancestor.ArgsEntry == pce.ArgsEntry {
 			prev.Args, prev.ArgsTruncated = prev.Args[0:0], false
 			prev.Envs, prev.EnvsTruncated = prev.Envs[0:0], false
 			prev.Argv0 = ""
