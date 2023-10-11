@@ -3,9 +3,12 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package config
+package conf
 
-var overrideVars = make(map[string]interface{})
+var (
+	overrideVars  = make(map[string]interface{})
+	overrideFuncs = make([]func(Config), 0)
+)
 
 func init() {
 	AddOverrideFunc(applyOverrideVars)
@@ -33,7 +36,8 @@ func AddOverrides(vars map[string]interface{}) {
 	}
 }
 
-func applyOverrideFuncs(config Config) {
+// ApplyOverrideFuncs calls overrideFuncs
+func ApplyOverrideFuncs(config Config) {
 	for _, f := range overrideFuncs {
 		f(config)
 	}

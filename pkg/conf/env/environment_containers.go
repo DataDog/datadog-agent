@@ -69,7 +69,7 @@ func detectContainerFeatures(features FeatureMap, cfg conf.Reader) {
 	detectPodman(features)
 }
 
-func detectKubernetes(features FeatureMap, cfg conf.ConfigReader) {
+func detectKubernetes(features FeatureMap, cfg conf.Reader) {
 	if IsKubernetes() {
 		features[Kubernetes] = struct{}{}
 		if cfg.GetBool("orchestrator_explorer.enabled") {

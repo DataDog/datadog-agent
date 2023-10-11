@@ -5,7 +5,7 @@
 
 //go:build !windows
 
-package system
+package socket
 
 import (
 	"errors"

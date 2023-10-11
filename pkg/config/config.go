@@ -1858,7 +1858,7 @@ func LoadDatadogCustom(config Config, origin string, loadSecret bool, additional
 		// Environment feature detection needs to run before applying override funcs
 		// as it may provide such overrides
 		env.DetectFeatures(config)
-		applyOverrideFuncs(config)
+		conf.ApplyOverrideFuncs(config)
 	}()
 
 	warnings, err := LoadCustom(config, origin, loadSecret, additionalKnownEnvVars)

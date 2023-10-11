@@ -30,6 +30,7 @@ type (
 
 var NewConfig = conf.NewConfig
 
+// environment Aliases
 var (
 	IsFeaturePresent             = env.IsFeaturePresent
 	IsECS                        = env.IsECS
@@ -66,3 +67,11 @@ const (
 func IsAutoconfigEnabled() bool {
 	return env.IsAutoconfigEnabled(Datadog)
 }
+
+// Aliases for config overrides
+var (
+	AddOverride        = conf.AddOverride
+	AddOverrides       = conf.AddOverrides
+	AddOverrideFunc    = conf.AddOverrideFunc
+	applyOverrideFuncs = conf.ApplyOverrideFuncs
+)
