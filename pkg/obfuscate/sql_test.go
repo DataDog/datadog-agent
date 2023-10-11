@@ -2319,3 +2319,94 @@ func TestSQLLexerObfuscationModeNotSet(t *testing.T) {
 		})
 	}
 }
+
+func TestSQLLexerOutputsSameAsObfuscator(t *testing.T) {
+	tests := []struct {
+		name     string
+		query    string
+		expected string
+	}{
+		{
+			name:  "simple query obfuscation",
+			query: "SELECT * FROM users WHERE id = 1",
+		},
+		{
+			name:  "simple query obfuscation with replace digits",
+			query: "SELECT * FROM users123 WHERE id = 1",
+		},
+		{
+			name:  "simple query obfuscation without replace digits",
+			query: "SELECT * FROM users123 WHERE id = 1",
+		},
+		{
+			name:  "query with dollar quoted function",
+			query: "SELECT $func$INSERT INTO table VALUES ('a', 1, 2)$func$ FROM users",
+		},
+		{
+			name:  "query without dollar quoted function",
+			query: "SELECT $func$INSERT INTO table VALUES ('a', 1, 2)$func$ FROM users",
+		},
+		{
+			name:  "query with dollar quoted function and replace digits",
+			query: "SELECT * FROM users123 WHERE id = $tag$1$tag$",
+		},
+		{
+			name:  "query with alias",
+			query: "SELECT username AS person FROM users WHERE id=4",
+		},
+		{
+			name: "query with multiline comments",
+			query: `/* Multi-line comment */
+			SELECT * FROM clients WHERE (clients.first_name = 'Andy') LIMIT 1 BEGIN INSERT INTO owners (created_at, first_name, locked, orders_count, updated_at) VALUES ('2011-08-30 05:22:57', 'Andy', 1, NULL, '2011-08-30 05:22:57') COMMIT`,
+		},
+		{
+			name: "query with singleline comments",
+			query: `
+			-- Single line comment
+			-- Another single line comment
+			-- Another another single line comment
+			GRANT USAGE, DELETE ON SCHEMA datadog TO datadog`,
+		},
+		{
+			name:  "query with replace digits",
+			query: "REPLACE INTO sales_2019_07_01 (itemID, date, qty, pric) VALUES ((SELECT itemID FROM item1001 WHERE sku = [sku]), CURDATE(), [qty], 0.00)",
+		},
+		{
+			name:  "query with newlines",
+			query: "   -- get user \n--\n select * \n   from users \n    where\n       id = 214325346    ",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(fmt.Sprintf("ObfuscateMode not set-%s", tt.name), func(t *testing.T) {
+			obfuscator := NewObfuscator(Config{
+				SQL: SQLConfig{
+					ReplaceDigits:    true,
+					DollarQuotedFunc: true,
+					KeepSQLAlias:     true,
+					TableNames:       true,
+					CollectCommands:  true,
+					CollectComments:  true,
+				},
+			})
+			obfuscatorWithLexer := NewObfuscator(Config{
+				SQL: SQLConfig{
+					ObfuscationMode:  "obfuscate_and_normalize",
+					ReplaceDigits:    true,
+					DollarQuotedFunc: true,
+					KeepSQLAlias:     true,
+					TableNames:       true,
+					CollectCommands:  true,
+					CollectComments:  true,
+				},
+			})
+			oq, err := obfuscator.ObfuscateSQLString(tt.query)
+			require.NoError(t, err)
+			require.NotNil(t, oq)
+			oqWithLexer, err := obfuscatorWithLexer.ObfuscateSQLString(tt.query)
+			require.NoError(t, err)
+			require.NotNil(t, oqWithLexer)
+			assert.Equal(t, oq.Query, oqWithLexer.Query)
+		})
+	}
+}
