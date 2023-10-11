@@ -24,7 +24,6 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/security/ebpf/kernel"
-	netnsresolver "github.com/DataDog/datadog-agent/pkg/security/resolvers/netns"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
@@ -195,7 +194,14 @@ func TestTCFilters(t *testing.T) {
 		}
 
 		netNs := utils.NetNSPathFromPid(sleepProcPid)
-		time.Sleep(3 * time.Second) // wait a bit for the tc probes to be attach to the new interface
+		// wait for the new net namespace to be created
+		// and for the tc probes to be attached to the new interface
+		time.Sleep(1 * time.Second)
+		nsid, err := netNs.GetProcessNetworkNamespace()
+		if err != nil {
+			t.Fatal(err)
+		}
+
 		ingressExists, egressExists, err := tcFiltersExist(netNs, "lo", "classifier_ingress", "classifier_egress")
 		if err != nil {
 			t.Fatal(err)
@@ -208,17 +214,9 @@ func TestTCFilters(t *testing.T) {
 			t.Fatalf("Egress tc classifier does not exist")
 		}
 
-		lonelyTimeoutDuration := 1 * time.Second
-		// force a first NetworkNamespaceDrift check to set the timeout for the newly created interface,
-		// basically mimicking what resolver.flushNamespaces() is doing
-		resolver := test.probe.GetResolvers().NamespaceResolver
-		probesCount := test.probe.GetResolvers().TCResolver.FlushInactiveProbes(test.probe.Manager, resolver.IsLazyDeletionInterface)
-		resolver.PreventNetworkNamespaceDrift(probesCount, lonelyTimeoutDuration)
-
-		// wait for the netns resolver go routine to perform the second NetworkNamespaceDrift check that will trigger the eviction of the lonely interface probes
-		sleepDuration := netnsresolver.FlushNamespacesPeriod + lonelyTimeoutDuration + 1*time.Second
-		t.Logf("Waiting %s for the NetworkNamespaceDrift netns resolver timeout to fire", sleepDuration.String())
-		time.Sleep(sleepDuration)
+		if err := test.probe.Manager.CleanupNetworkNamespace(nsid); err != nil {
+			t.Fatal(err)
+		}
 
 		test.Close()
 		test.cleanup()
