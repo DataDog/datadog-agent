@@ -45,7 +45,7 @@ var (
 )
 
 // NewConnectionsCheck returns an instance of the ConnectionsCheck.
-func NewConnectionsCheck(config, sysprobeYamlConfig config.ConfigReader, syscfg *sysconfig.Config) *ConnectionsCheck {
+func NewConnectionsCheck(config, sysprobeYamlConfig config.Reader, syscfg *sysconfig.Config) *ConnectionsCheck {
 	return &ConnectionsCheck{
 		config:             config,
 		syscfg:             syscfg,
@@ -56,8 +56,8 @@ func NewConnectionsCheck(config, sysprobeYamlConfig config.ConfigReader, syscfg 
 // ConnectionsCheck collects statistics about live TCP and UDP connections.
 type ConnectionsCheck struct {
 	syscfg             *sysconfig.Config
-	sysprobeYamlConfig config.ConfigReader
-	config             config.ConfigReader
+	sysprobeYamlConfig config.Reader
+	config             config.Reader
 
 	hostInfo               *HostInfo
 	maxConnsPerMessage     int
@@ -302,7 +302,7 @@ func (c *ConnectionsCheck) getConnectionsWS() (*model.Connections, error) {
 	return outcome, nil
 }
 
-func (c *ConnectionsCheck) notifyProcessConnRates(config config.ConfigReader, conns *model.Connections) {
+func (c *ConnectionsCheck) notifyProcessConnRates(config config.Reader, conns *model.Connections) {
 	if len(c.processConnRatesTransmitter.Chs) == 0 {
 		return
 	}

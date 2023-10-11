@@ -32,7 +32,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/events"
 	"github.com/DataDog/datadog-agent/pkg/network/netlink"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http"
-	"github.com/DataDog/datadog-agent/pkg/network/protocols/http2"
 	nettelemetry "github.com/DataDog/datadog-agent/pkg/network/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/connection"
 	"github.com/DataDog/datadog-agent/pkg/network/usm"
@@ -142,13 +141,7 @@ func newTracer(cfg *config.Config) (_ *Tracer, reterr error) {
 			}
 			log.Warnf("%s. NPM is explicitly enabled, so system-probe will continue with only NPM features enabled.", errStr)
 			cfg.EnableHTTPMonitoring = false
-			cfg.EnableHTTP2Monitoring = false
 			cfg.EnableNativeTLSMonitoring = false
-		}
-
-		if !http2.Supported() {
-			cfg.EnableHTTP2Monitoring = false
-			log.Warnf("http2 requires a Linux kernel version of %s or higher. We detected %s", http2.MinimumKernelVersion, currKernelVersion)
 		}
 	}
 

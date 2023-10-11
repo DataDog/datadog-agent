@@ -77,7 +77,8 @@ func (s *SharedLibrarySuite) TestSharedLibraryDetection() {
 	launchProcessMonitor(t)
 
 	// create files
-	command1 := fileopener.OpenFromAnotherProcess(t, fooPath1)
+	command1, err := fileopener.OpenFromAnotherProcess(t, fooPath1)
+	require.NoError(t, err)
 
 	require.Eventuallyf(t, func() bool {
 		return registerRecorder.CallsForPathID(fooPathID1) == 1
@@ -184,7 +185,8 @@ func (s *SharedLibrarySuite) TestSameInodeRegression() {
 	t.Cleanup(watcher.Stop)
 	launchProcessMonitor(t)
 
-	command1 := fileopener.OpenFromAnotherProcess(t, fooPath1, fooPath2)
+	command1, err := fileopener.OpenFromAnotherProcess(t, fooPath1, fooPath2)
+	require.NoError(t, err)
 
 	require.Eventually(t, func() bool {
 		return registerRecorder.CallsForPathID(fooPathID1) == 1 &&
@@ -231,7 +233,8 @@ func (s *SharedLibrarySuite) TestSoWatcherLeaks() {
 	t.Cleanup(watcher.Stop)
 	launchProcessMonitor(t)
 
-	command1 := fileopener.OpenFromAnotherProcess(t, fooPath1, fooPath2)
+	command1, err := fileopener.OpenFromAnotherProcess(t, fooPath1, fooPath2)
+	require.NoError(t, err)
 
 	require.Eventually(t, func() bool {
 		// Checking register callback was executed once for each library
@@ -241,7 +244,8 @@ func (s *SharedLibrarySuite) TestSoWatcherLeaks() {
 			hasPID(watcher, command1)
 	}, time.Second*10, 100*time.Millisecond)
 
-	command2 := fileopener.OpenFromAnotherProcess(t, fooPath1)
+	command2, err := fileopener.OpenFromAnotherProcess(t, fooPath1)
+	require.NoError(t, err)
 
 	require.Eventually(t, func() bool {
 		// Check that no more callbacks were executed, but we're tracking two PIDs now
@@ -294,9 +298,11 @@ func (s *SharedLibrarySuite) TestSoWatcherProcessAlreadyHoldingReferences() {
 	)
 	require.NoError(t, err)
 
-	command1 := fileopener.OpenFromAnotherProcess(t, fooPath1, fooPath2)
-	command2 := fileopener.OpenFromAnotherProcess(t, fooPath1)
-	time.Sleep(time.Second)
+	command1, err := fileopener.OpenFromAnotherProcess(t, fooPath1, fooPath2)
+	require.NoError(t, err)
+	command2, err := fileopener.OpenFromAnotherProcess(t, fooPath1)
+	require.NoError(t, err)
+
 	watcher.Start()
 	t.Cleanup(watcher.Stop)
 	launchProcessMonitor(t)

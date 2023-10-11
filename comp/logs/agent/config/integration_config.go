@@ -235,7 +235,7 @@ func (c *LogsConfig) validateTailingMode() error {
 // AutoMultiLineEnabled determines whether auto multi line detection is enabled for this config,
 // considering both the agent-wide logs_config.auto_multi_line_detection and any config for this
 // particular log source.
-func (c *LogsConfig) AutoMultiLineEnabled(coreConfig pkgConfig.ConfigReader) bool {
+func (c *LogsConfig) AutoMultiLineEnabled(coreConfig pkgConfig.Reader) bool {
 	if c.AutoMultiLine != nil {
 		return *c.AutoMultiLine
 	}

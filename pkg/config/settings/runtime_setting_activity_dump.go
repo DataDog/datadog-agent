@@ -69,6 +69,7 @@ func (l *ActivityDumpRuntimeSetting) Set(v interface{}, source Source) error {
 	return nil
 }
 
+// GetSource returns the source of the ActivityDumpRuntimeSetting
 func (l *ActivityDumpRuntimeSetting) GetSource() Source {
 	return l.source
 }
