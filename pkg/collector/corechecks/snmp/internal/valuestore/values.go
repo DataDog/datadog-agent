@@ -48,7 +48,7 @@ func (v *ResultValueStore) GetScalarValue(oid string) (ResultValue, error) {
 func (v *ResultValueStore) GetColumnValues(oid string) (map[string]ResultValue, error) {
 	values, ok := v.ColumnValues[oid]
 	if !ok {
-		return nil, fmt.Errorf("value for Column OID `%s` not found in results", oid)
+		return nil, fmt.Errorf("value for Symbol OID `%s` not found in results", oid)
 	}
 	retValues := make(map[string]ResultValue, len(values))
 	for index, value := range values {
@@ -62,11 +62,11 @@ func (v *ResultValueStore) GetColumnValues(oid string) (map[string]ResultValue, 
 func (v *ResultValueStore) getColumnValue(oid string, index string) (ResultValue, error) {
 	values, ok := v.ColumnValues[oid]
 	if !ok {
-		return ResultValue{}, fmt.Errorf("value for Column OID `%s` not found in results", oid)
+		return ResultValue{}, fmt.Errorf("value for Symbol OID `%s` not found in results", oid)
 	}
 	value, ok := values[index]
 	if !ok {
-		return ResultValue{}, fmt.Errorf("value for Column OID `%s` and index `%s` not found in results", oid, index)
+		return ResultValue{}, fmt.Errorf("value for Symbol OID `%s` and index `%s` not found in results", oid, index)
 	}
 	return value, nil
 }

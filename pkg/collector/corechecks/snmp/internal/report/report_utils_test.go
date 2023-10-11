@@ -224,7 +224,7 @@ func Test_getColumnValueFromSymbol(t *testing.T) {
 			values:         mockValues,
 			symbol:         profiledefinition.SymbolConfig{OID: "1.2.3.99", Name: "mySymbol"},
 			expectedValues: nil,
-			expectedError:  "value for Column OID `1.2.3.99` not found in results",
+			expectedError:  "value for Symbol OID `1.2.3.99` not found in results",
 		},
 		{
 			name:   "invalid extract value pattern",
@@ -598,7 +598,7 @@ metric_tags:
 			},
 			expectedTags: []string(nil),
 			expectedLogs: []logCount{
-				{"[DEBUG] getTagsFromMetricTagConfigList: error getting column value: value for Column OID `1.2.3.4.8.1.2`", 1},
+				{"[DEBUG] getTagsFromMetricTagConfigList: error getting column value: value for Symbol OID `1.2.3.4.8.1.2`", 1},
 			},
 		},
 		{
@@ -921,7 +921,7 @@ func Test_getContantMetricValues(t *testing.T) {
 		{
 			name: "One metric tag",
 			metricTags: profiledefinition.MetricTagConfigList{{
-				Column: profiledefinition.SymbolConfig{
+				Symbol: profiledefinition.SymbolConfigCompat{
 					OID:  "1.2.3",
 					Name: "value",
 				},
@@ -949,14 +949,14 @@ func Test_getContantMetricValues(t *testing.T) {
 		{
 			name: "Two metric tags",
 			metricTags: profiledefinition.MetricTagConfigList{{
-				Column: profiledefinition.SymbolConfig{
+				Symbol: profiledefinition.SymbolConfigCompat{
 					OID:  "1.2.3",
 					Name: "value",
 				},
 				Tag: "my_first_tag",
 			},
 				{
-					Column: profiledefinition.SymbolConfig{
+					Symbol: profiledefinition.SymbolConfigCompat{
 						OID:  "1.2.4",
 						Name: "value",
 					},
@@ -986,14 +986,14 @@ func Test_getContantMetricValues(t *testing.T) {
 		{
 			name: "Two metric tags with index overlap",
 			metricTags: profiledefinition.MetricTagConfigList{{
-				Column: profiledefinition.SymbolConfig{
+				Symbol: profiledefinition.SymbolConfigCompat{
 					OID:  "1.2.3",
 					Name: "value",
 				},
 				Tag: "my_first_tag",
 			},
 				{
-					Column: profiledefinition.SymbolConfig{
+					Symbol: profiledefinition.SymbolConfigCompat{
 						OID:  "1.2.4",
 						Name: "value",
 					},
@@ -1029,14 +1029,14 @@ func Test_getContantMetricValues(t *testing.T) {
 		{
 			name: "Should ignore metric tags with index transform",
 			metricTags: profiledefinition.MetricTagConfigList{{
-				Column: profiledefinition.SymbolConfig{
+				Symbol: profiledefinition.SymbolConfigCompat{
 					OID:  "1.2.3",
 					Name: "value",
 				},
 				Tag: "my_first_tag",
 			},
 				{
-					Column: profiledefinition.SymbolConfig{
+					Symbol: profiledefinition.SymbolConfigCompat{
 						OID:  "1.2.4",
 						Name: "value",
 					},
@@ -1067,7 +1067,7 @@ func Test_getContantMetricValues(t *testing.T) {
 		{
 			name: "Value not found",
 			metricTags: profiledefinition.MetricTagConfigList{{
-				Column: profiledefinition.SymbolConfig{
+				Symbol: profiledefinition.SymbolConfigCompat{
 					OID:  "1.2.3",
 					Name: "value",
 				},

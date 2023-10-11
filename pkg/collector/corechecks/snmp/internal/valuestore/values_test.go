@@ -41,7 +41,7 @@ func Test_resultValueStore_getColumnValueAsFloat(t *testing.T) {
 
 func Test_resultValueStore_GetColumnIndexes(t *testing.T) {
 	indexes, err := storeMock.GetColumnIndexes("0.0")
-	assert.EqualError(t, err, "error getting column value oid=0.0: value for Column OID `0.0` not found in results")
+	assert.EqualError(t, err, "error getting column value oid=0.0: value for Symbol OID `0.0` not found in results")
 	assert.Nil(t, indexes)
 
 	indexes, err = storeMock.GetColumnIndexes("1.1.1")
