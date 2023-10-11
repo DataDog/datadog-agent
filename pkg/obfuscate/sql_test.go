@@ -2109,7 +2109,7 @@ func TestSQLLexerObfuscation(t *testing.T) {
 		t.Run(fmt.Sprintf("sqllexer in ObfuscateOnly mode-%s", tt.name), func(t *testing.T) {
 			oq, err := NewObfuscator(Config{
 				SQL: SQLConfig{
-					ObfuscationMode:  ObfuscateOnly,
+					ObfuscationMode:  "obfuscate_only",
 					ReplaceDigits:    tt.replaceDigits,
 					DollarQuotedFunc: tt.dollarQuotedFunc,
 				},
@@ -2228,7 +2228,7 @@ func TestSQLLexerObfuscationAndNormalization(t *testing.T) {
 		t.Run(fmt.Sprintf("sqllexer in ObfuscateAndNormalization mode-%s", tt.name), func(t *testing.T) {
 			oq, err := NewObfuscator(Config{
 				SQL: SQLConfig{
-					ObfuscationMode:  ObfuscateAndNormalize,
+					ObfuscationMode:  "obfuscate_and_normalize",
 					ReplaceDigits:    tt.replaceDigits,
 					DollarQuotedFunc: tt.dollarQuotedFunc,
 					KeepSQLAlias:     tt.keepSQLAlias,
