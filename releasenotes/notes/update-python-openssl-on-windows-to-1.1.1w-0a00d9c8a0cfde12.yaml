@@ -8,7 +8,7 @@
 ---
 upgrade:
   - |
-    Upgrade Python 3.9 to Python 3.9.18
+    Upgraded Python 3.9 to Python 3.9.18
 
 security:
   - |
