@@ -217,6 +217,22 @@ new-e2e-language-detection-main:
   variables:
     TARGETS: ./language-detection
     TEAM: processes
+
+new-e2e-npm-dev:
+  extends: .new_e2e_template
+  rules: !reference [.on_dev_branch_manual]
+  needs: []
+  variables:
+    TARGETS: ./tests/npm
+
+new-e2e-npm-main:
+  extends: .new_e2e_template
+  rules: !reference [.on_main_and_no_skip_e2e]
+  variables:
+    TARGETS: ./tests/npm
+  # Temporary, until we manage to stabilize those tests.
+  allow_failure: true
+
 #   ^    If you create a new job here that extends `.new_e2e_template`,
 #  /!\   do not forget to add it in the `dependencies` statement of the
 # /___\  `e2e_test_junit_upload` job in the `.gitlab/e2e_test_junit_upload.yml` file

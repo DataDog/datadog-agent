@@ -42,3 +42,8 @@ func (t EasyjsonTime) MarshalEasyJSON(w *jwriter.Writer) {
 func (t *EasyjsonTime) UnmarshalJSON(b []byte) error {
 	return t.inner.UnmarshalJSON(b)
 }
+
+// GetInnerTime returns the inner time
+func (t *EasyjsonTime) GetInnerTime() time.Time {
+	return t.inner
+}
