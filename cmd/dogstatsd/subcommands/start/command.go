@@ -104,7 +104,7 @@ func RunDogstatsdFct(cliParams *CLIParams, defaultConfPath string, defaultLogFil
 		forwarder.Bundle,
 		fx.Provide(defaultforwarder.NewParams),
 		demultiplexer.Module,
-		fx.Supply(func(config config.Component) demultiplexer.Params {
+		fx.Provide(func(config config.Component) demultiplexer.Params {
 			opts := aggregator.DefaultAgentDemultiplexerOptions()
 			opts.UseOrchestratorForwarder = false
 			opts.UseEventPlatformForwarder = false
@@ -126,7 +126,7 @@ func start(cliParams *CLIParams, config config.Component, log log.Component, par
 	stopCh := make(chan struct{})
 	go handleSignals(stopCh)
 
-	err := runAgent(ctx, cliParams, config, log, params, components, forwarder, demultiplexer)
+	err := RunAgent(ctx, cliParams, config, log, params, components, forwarder, demultiplexer)
 	if err != nil {
 		return err
 	}
@@ -137,7 +137,8 @@ func start(cliParams *CLIParams, config config.Component, log log.Component, par
 	return nil
 }
 
-func runAgent(ctx context.Context, cliParams *CLIParams, config config.Component, log log.Component, params *Params, components *DogstatsdComponents, forwarder defaultforwarder.Component, demultiplexer demultiplexer.Component) (err error) {
+// RunAgent runs dogstatsd
+func RunAgent(ctx context.Context, cliParams *CLIParams, config config.Component, log log.Component, params *Params, components *DogstatsdComponents, forwarder defaultforwarder.Component, demultiplexer demultiplexer.Component) (err error) {
 	if len(cliParams.confPath) == 0 {
 		log.Infof("Config will be read from env variables")
 	}

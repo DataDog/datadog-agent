@@ -13,6 +13,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/cmd/dogstatsd/command"
 	"github.com/DataDog/datadog-agent/cmd/dogstatsd/subcommands/start"
+	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/log"
 	dogstatsdServer "github.com/DataDog/datadog-agent/comp/dogstatsd/server"
@@ -82,13 +83,13 @@ func (s *service) Run(ctx context.Context) error {
 		cliParams,
 		DefaultConfPath,
 		defaultLogFile,
-		func(config config.Component, log log.Component, params *start.Params, server dogstatsdServer.Component, forwarder defaultforwarder.Component) error {
+		func(config config.Component, log log.Component, params *start.Params, server dogstatsdServer.Component, forwarder defaultforwarder.Component, demultiplexer demultiplexer.Component) error {
 			components := &start.DogstatsdComponents{
 				DogstatsdServer: server,
 			}
 			defer start.StopAgent(cancel, components)
 
-			err := start.RunAgent(ctx, cliParams, config, log, params, components, forwarder)
+			err := start.RunAgent(ctx, cliParams, config, log, params, components, forwarder, demultiplexer)
 			if err != nil {
 				log.Errorf("Failed to start agent %v", err)
 				return err

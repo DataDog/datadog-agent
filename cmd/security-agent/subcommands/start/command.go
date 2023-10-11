@@ -101,7 +101,7 @@ func start(log log.Component, config config.Component, sysprobeconfig sysprobeco
 	ctx, cancel := context.WithCancel(context.Background())
 	defer StopAgent(cancel, log)
 
-	err := runAgent(ctx, log, config, sysprobeconfig, telemetry, forwarder, params.pidfilePath, demultiplexer)
+	err := RunAgent(ctx, log, config, sysprobeconfig, telemetry, forwarder, params.pidfilePath, demultiplexer)
 	if errors.Is(err, errAllComponentsDisabled) || errors.Is(err, errNoAPIKeyConfigured) {
 		return nil
 	}
@@ -153,8 +153,8 @@ var (
 var errAllComponentsDisabled = errors.New("all security-agent component are disabled")
 var errNoAPIKeyConfigured = errors.New("no API key configured")
 
-// runAgent initialized resources and starts API server
-func runAgent(ctx context.Context, log log.Component, config config.Component, sysprobeconfig sysprobeconfig.Component, telemetry telemetry.Component, forwarder defaultforwarder.Component, pidfilePath string, demultiplexer demultiplexer.Component) (err error) {
+// RunAgent initialized resources and starts API server
+func RunAgent(ctx context.Context, log log.Component, config config.Component, sysprobeconfig sysprobeconfig.Component, telemetry telemetry.Component, forwarder defaultforwarder.Component, pidfilePath string, demultiplexer demultiplexer.Component) (err error) {
 	if err := util.SetupCoreDump(config); err != nil {
 		log.Warnf("Can't setup core dumps: %v, core dumps might not be available after a crash", err)
 	}
