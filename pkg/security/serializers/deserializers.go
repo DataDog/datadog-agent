@@ -64,14 +64,20 @@ func newProcess(ps *ProcessSerializer) model.Process {
 		EnvsTruncated: ps.EnvsTruncated,
 		IsThread:      ps.IsThread,
 		IsExecChild:   ps.IsExecChild,
-		ForkTime:      ps.ForkTime.GetInnerTime(),
-		ExecTime:      ps.ExecTime.GetInnerTime(),
-		ExitTime:      ps.ExitTime.GetInnerTime(),
 		PIDContext: model.PIDContext{
 			Pid:       ps.Pid,
 			Tid:       ps.Tid,
 			IsKworker: ps.IsKworker,
 		},
+	}
+	if ps.ForkTime != nil {
+		p.ForkTime = ps.ForkTime.GetInnerTime()
+	}
+	if ps.ExecTime != nil {
+		p.ExecTime = ps.ExecTime.GetInnerTime()
+	}
+	if ps.ExitTime != nil {
+		p.ExitTime = ps.ExitTime.GetInnerTime()
 	}
 	if ps.Container != nil {
 		p.ContainerID = ps.Container.ID
