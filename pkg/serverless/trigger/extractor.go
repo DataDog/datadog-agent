@@ -142,11 +142,15 @@ func GetTagsFromAPIGatewayV2HTTPRequest(event events.APIGatewayV2HTTPRequest) ma
 // GetTagsFromAPIGatewayCustomAuthorizerEvent returns a tagset containing http tags from an
 // APIGatewayCustomAuthorizerRequest
 func GetTagsFromAPIGatewayCustomAuthorizerEvent(event events.APIGatewayCustomAuthorizerRequest) map[string]string {
-	httpTags := make(map[string]string)
+	httpTags := make(map[string]string, 2)
 
 	if methodArn, err := arn.Parse(event.MethodArn); err == nil {
 		// Format is: api-id/stage/http-verb/path...
 		parts := strings.SplitN(methodArn.Resource, "/", 4)
+		if len(parts) != 4 {
+			return nil
+		}
+
 		httpTags["http.method"] = parts[2]
 		httpTags["http.url_details.path"] = "/" + parts[3]
 	}
