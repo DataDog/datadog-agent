@@ -80,16 +80,15 @@ func (m ContextMetrics) AddSample(contextKey ckey.ContextKey, sample *MetricSamp
 // Flush flushes every metrics in the ContextMetrics.
 // Returns the slice of Series and a map of errors by context key.
 func (m ContextMetrics) Flush(timestamp float64) ([]*Serie, map[ckey.ContextKey]error) {
-	var series []*Serie
-	errors := make(map[ckey.ContextKey]error)
+	// NOTE in practice this function and its call-chain are allocation
+	// hotspots in Agent when counter metrics are dominate. We pre-allocate
+	// these structures to arbitrary, smallish sizes to avoid needing to
+	// grow from 0-size.
+	series := make([]*Serie, 0, 32)
+	errors := make(map[ckey.ContextKey]error, 32)
 
 	for contextKey, metric := range m {
-		series = flushToSeries(
-			contextKey,
-			metric,
-			timestamp,
-			series,
-			errors)
+		flushToSeries(contextKey, metric, timestamp, series, errors)
 	}
 
 	return series, errors
@@ -100,7 +99,8 @@ func flushToSeries(
 	metric Metric,
 	bucketTimestamp float64,
 	series []*Serie,
-	errors map[ckey.ContextKey]error) []*Serie {
+	errors map[ckey.ContextKey]error) {
+
 	metricSeries, err := metric.flush(bucketTimestamp)
 
 	if err == nil {
@@ -108,15 +108,11 @@ func flushToSeries(
 			serie.ContextKey = contextKey
 			series = append(series, serie)
 		}
-	} else {
-		switch err.(type) {
-		case NoSerieError:
-			// this error happens in nominal conditions and shouldn't be returned
-		default:
-			errors[contextKey] = err
-		}
+	} else if _, ok := err.(NoSerieError); !ok {
+		// FYI an empty serie happens in nominal conditions. All other
+		// errors are non-nominal.
+		errors[contextKey] = err
 	}
-	return series
 }
 
 // aggregateContextMetricsByContextKey orders all Metric instances by context key,
