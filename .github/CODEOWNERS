@@ -395,7 +395,6 @@
 /pkg/compliance/                        @DataDog/agent-cspm
 /pkg/kubestatemetrics                   @DataDog/container-integrations
 /pkg/security/                          @DataDog/agent-security
-/pkg/netflow/                           @DataDog/network-device-monitoring
 /pkg/networkdevice/                     @DataDog/network-device-monitoring
 /pkg/snmp/                              @DataDog/network-device-monitoring
 /pkg/windowsdriver/                     @DataDog/windows-kernel-integrations
