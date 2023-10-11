@@ -21,8 +21,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
-
 	ndmtestutils "github.com/DataDog/datadog-agent/pkg/networkdevice/testutils"
 )
 
@@ -56,8 +54,6 @@ func TestListenV1GenericTrap(t *testing.T) {
 }
 
 func TestServerV1SpecificTrap(t *testing.T) {
-	serverPort, err := ndmtestutils.GetFreePort()
-	require.NoError(t, err)
 	serverPort, err := ndmtestutils.GetFreePort()
 	require.NoError(t, err)
 	config := &config.TrapsConfig{Port: serverPort, CommunityStrings: []string{"public"}}
