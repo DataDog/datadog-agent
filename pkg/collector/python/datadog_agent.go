@@ -252,7 +252,7 @@ type sqlConfig struct {
 	// ObfuscationMode specifies the obfuscation mode to use for go-sqllexer pkg.
 	// When specified, obfuscator will attempt to use go-sqllexer pkg to obfuscate (and normalize) SQL queries.
 	// Valid values are "obfuscate_only", "obfuscate_and_normalize"
-	ObfuscationMode string `json:"obfuscation_mode" yaml:"obfuscation_mode"`
+	ObfuscationMode obfuscate.ObfuscationMode `json:"obfuscation_mode" yaml:"obfuscation_mode"`
 }
 
 // ObfuscateSQL obfuscates & normalizes the provided SQL query, writing the error into errResult if the operation

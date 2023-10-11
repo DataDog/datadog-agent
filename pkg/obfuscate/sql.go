@@ -18,14 +18,6 @@ import (
 
 var questionMark = []byte("?")
 
-type obfuscationMode string
-
-// ObfuscationMode valid values
-const (
-	ObfuscateOnly         = obfuscationMode("obfuscate_only")
-	ObfuscateAndNormalize = obfuscationMode("obfuscate_and_normalize")
-)
-
 // metadataFinderFilter is a filter which attempts to collect metadata from a query, such as comments and tables.
 // It is meant to run before all the other filters.
 type metadataFinderFilter struct {
@@ -434,7 +426,7 @@ func (o *Obfuscator) ObfuscateSQLExecPlan(jsonPlan string, normalize bool) (stri
 // ObfuscateWithSQLLexer obfuscates the given SQL query using the go-sqllexer package.
 // If ObfuscationMode is set to ObfuscateOnly, the query will be obfuscated without normalizing it.
 func (o *Obfuscator) ObfuscateWithSQLLexer(in string, opts *SQLConfig) (*ObfuscatedQuery, error) {
-	if opts.ObfuscationMode != string(ObfuscateOnly) && opts.ObfuscationMode != string(ObfuscateAndNormalize) {
+	if opts.ObfuscationMode != ObfuscateOnly && opts.ObfuscationMode != ObfuscateAndNormalize {
 		return nil, fmt.Errorf("invalid obfuscation mode: %s", opts.ObfuscationMode)
 	}
 
@@ -445,7 +437,7 @@ func (o *Obfuscator) ObfuscateWithSQLLexer(in string, opts *SQLConfig) (*Obfusca
 		sqllexer.WithReplaceBoolean(true),
 		sqllexer.WithReplaceNull(true),
 	)
-	if opts.ObfuscationMode == string(ObfuscateOnly) {
+	if opts.ObfuscationMode == ObfuscateOnly {
 		// Obfuscate the query without normalizing it.
 		out := obfuscator.Obfuscate(in, sqllexer.WithDBMS(sqllexer.DBMSType(opts.DBMS)))
 		return &ObfuscatedQuery{
