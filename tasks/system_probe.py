@@ -1656,7 +1656,7 @@ def start_microvms(
         f"--dependencies-dir {dependencies_dir}" if dependencies_dir else "",
         f"--name {stack_name}",
         f"--vmconfig {vmconfig}" if vmconfig else "",
-        f"--run-provision" if provision else "",
+        "--run-provision" if provision else "",
         "--local" if local else "",
     ]
 
