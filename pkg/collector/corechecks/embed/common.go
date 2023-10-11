@@ -19,7 +19,7 @@ const defaultRetries = 3
 // retryExitError converts `exec.ExitError`s to `check.RetryableError`s, so that checks using this
 // are retried.
 // embed checks must use this from their `Run` method when exit errors need to be retried.
-func retryExitError(err error) error {
+func retryExitError(err error) error { //nolint:unused // TODO fix func `retryExitError` is unused
 	switch err.(type) {
 	case *exec.ExitError: // error type returned when the process exits with non-zero status
 		return check.RetryableError{Err: err}
