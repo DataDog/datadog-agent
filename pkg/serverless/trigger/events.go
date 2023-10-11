@@ -167,10 +167,10 @@ func Unmarshal(payload []byte) (map[string]any, error) {
 }
 
 func isAPIGatewayEvent(event map[string]any) bool {
-	return json.GetNestedValue(event, "type") == nil && // If there is a Type key, this is a Lambda Authorizer request...
-		json.GetNestedValue(event, "requestcontext") != nil &&
+	return json.GetNestedValue(event, "requestcontext") != nil &&
 		json.GetNestedValue(event, "httpmethod") != nil &&
-		json.GetNestedValue(event, "resource") != nil
+		json.GetNestedValue(event, "resource") != nil &&
+		!isAPIGatewayLambdaAuthorizerRequestParametersEvent(event)
 }
 
 func isAPIGatewayV2Event(event map[string]any) bool {
