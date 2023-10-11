@@ -2,6 +2,7 @@ import io
 import os
 import pprint
 import re
+import time
 import traceback
 from collections import defaultdict
 from datetime import datetime
@@ -21,6 +22,7 @@ from .libs.pipeline_notifications import (
     check_for_missing_owners_slack_and_jira,
     find_job_owners,
     get_failed_tests,
+    read_owners,
     send_slack_message,
 )
 from .libs.pipeline_stats import get_failed_jobs_stats
@@ -461,6 +463,94 @@ def trigger_child_pipeline(_, git_ref, project_name, variables="", follow=True):
             raise Exit(f"Error: child pipeline status {pipestatus.title()}", code=1)
 
         print("Child pipeline finished successfully")
+
+
+def parse(commit_str):
+    lines = commit_str.split("\n")
+    title = lines[0]
+    url = "NO_URL"
+    pr_id_match = re.search(r".*\(#(\d+)\)", title)
+    if pr_id_match is not None:
+        url = f"https://github.com/DataDog/datadog-agent/pull/{pr_id_match.group(1)}"
+    author = lines[1]
+    author_email = lines[2]
+    files = lines[3:]
+    return title, author, author_email, files, url
+
+
+def is_system_probe(owners, files):
+    target = {
+        ("TEAM", "@DataDog/Networks"),
+        ("TEAM", "@DataDog/universal-service-monitoring"),
+        ("TEAM", "@DataDog/ebpf-platform"),
+        ("TEAM", "@DataDog/agent-security"),
+    }
+    for f in files:
+        match_teams = set(owners.of(f)) & target
+        if len(match_teams) != 0:
+            return True
+
+    return False
+
+
+@task
+def changelog(ctx, new_commit_sha):
+    old_commit_sha = ctx.run(
+        "aws ssm get-parameter --region us-east-1 --name "
+        "ci.datadog-agent.gitlab_changelog_commit_sha --with-decryption --query "
+        "\"Parameter.Value\" --out text",
+        hide=True,
+    ).stdout.strip()
+    if not new_commit_sha:
+        print("New commit sha not found, exiting")
+        return
+    if not old_commit_sha:
+        print("Old commit sha not found, exiting")
+        return
+    print(f"Generating changelog for commit range {old_commit_sha} to {new_commit_sha}")
+    commits = ctx.run(f"git log {old_commit_sha}..{new_commit_sha} --pretty=format:%h", hide=True).stdout.split("\n")
+    owners = read_owners(".github/CODEOWNERS")
+    messages = []
+
+    for commit in commits:
+        # see https://git-scm.com/docs/pretty-formats for format string
+        commit_str = ctx.run(f"git show --name-only --pretty=format:%s%n%aN%n%aE {commit}", hide=True).stdout
+        title, author, author_email, files, url = parse(commit_str)
+        if not is_system_probe(owners, files):
+            continue
+        message_link = f"• <{url}|{title}>"
+        if "dependabot" in author_email or "github-actions" in author_email:
+            messages.append(f"{message_link}")
+            continue
+        author_handle = ctx.run(f"email2slackid {author_email.strip()}", hide=True).stdout
+        if author_handle:
+            author_handle = f"<@{author_handle}>"
+        else:
+            author_handle = author_email
+        time.sleep(1)  # necessary to prevent slack/sdm API rate limits
+        messages.append(f"{message_link} {author_handle}")
+
+    commit_range_link = f"https://github.com/DataDog/datadog-agent/compare/{old_commit_sha}..{new_commit_sha}"
+    slack_message = (
+        "The nightly deployment is rolling out to Staging :siren: \n"
+        + f"Changelog for <{commit_range_link}|commit range>: `{old_commit_sha}` to `{new_commit_sha}`:\n"
+    )
+    if messages:
+        slack_message += (
+            "\n".join(messages) + "\n:wave: Authors, please check relevant "
+            "<https://ddstaging.datadoghq.com/dashboard/kfn-zy2-t98|dashboards> for issues"
+        )
+    else:
+        slack_message += "No new System Probe related commits in this release :cricket:"
+
+    print(f"Posting message to slack \n {slack_message}")
+    send_slack_message("system-probe-ops", slack_message)
+    print(f"Writing new commit sha: {new_commit_sha} to SSM")
+    ctx.run(
+        f"aws ssm put-parameter --name ci.datadog-agent.gitlab_changelog_commit_sha --value {new_commit_sha} "
+        "--type \"SecureString\" --region us-east-1 --overwrite",
+        hide=True,
+    )
 
 
 @task
