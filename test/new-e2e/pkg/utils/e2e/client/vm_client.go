@@ -25,7 +25,7 @@ type VMClient struct {
 	t      *testing.T
 }
 
-func newVMClient(t *testing.T, sshKey []byte, connection *utils.Connection, os commonos.OS) (*vmClient, error) {
+func newVMClient(t *testing.T, sshKey []byte, connection *utils.Connection, os commonos.OS) (*VMClient, error) {
 	t.Logf("connecting to remote VM at %s:%s", connection.User, connection.Host)
 	client, _, err := clients.GetSSHClient(
 		connection.User,
