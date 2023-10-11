@@ -257,7 +257,6 @@ func loadTracerFromAsset(buf bytecode.AssetReader, runtimeTracer, coreTracer boo
 	// exclude all maps responsible for storing argument values between kprobes and kretprobes
 	if fentrySupported() {
 		mgrOpts.ExcludedMaps = append(mgrOpts.ExcludedMaps, probes.TcpSendMsgArgsMap)
-		mgrOpts.ExcludedMaps = append(mgrOpts.ExcludedMaps, probes.TcpRecvMsgArgsMap)
 	}
 
 	var tailCallsIdentifiersSet map[manager.ProbeIdentificationPair]struct{}
