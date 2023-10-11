@@ -41,6 +41,7 @@ func getColumnValueFromSymbol(values *valuestore.ResultValueStore, symbol profil
 	for index, value := range columnValues {
 		newValue, err := processValueUsingSymbolConfig(value, symbol)
 		if err != nil {
+			log.Debugf("error processing value using symbolConfig (oid=%s, name=%s): %s", symbol.OID, symbol.Name, err)
 			continue
 		}
 		newValues[index] = newValue

@@ -1237,6 +1237,33 @@ service_monitoring_config:
 	})
 }
 
+func TestMaxUSMConcurrentRequests(t *testing.T) {
+	t.Run("default value", func(t *testing.T) {
+		aconfig.ResetSystemProbeConfig(t)
+		cfg := New()
+		// Assert that if not explicitly set this param defaults to `MaxTrackedConnections`
+		// Note this behavior should be deprecated on 7.50
+		assert.Equal(t, cfg.MaxTrackedConnections, cfg.MaxUSMConcurrentRequests)
+	})
+
+	t.Run("via yaml", func(t *testing.T) {
+		aconfig.ResetSystemProbeConfig(t)
+		cfg := configurationFromYAML(t, `
+service_monitoring_config:
+  max_concurrent_requests: 1000
+`)
+		assert.Equal(t, uint32(1000), cfg.MaxUSMConcurrentRequests)
+	})
+
+	t.Run("via ENV variable", func(t *testing.T) {
+		aconfig.ResetSystemProbeConfig(t)
+		t.Setenv("DD_SERVICE_MONITORING_CONFIG_MAX_CONCURRENT_REQUESTS", "3000")
+
+		cfg := New()
+		assert.Equal(t, uint32(3000), cfg.MaxUSMConcurrentRequests)
+	})
+}
+
 func TestUSMTLSNativeEnabled(t *testing.T) {
 	t.Run("via deprecated YAML", func(t *testing.T) {
 		aconfig.ResetSystemProbeConfig(t)

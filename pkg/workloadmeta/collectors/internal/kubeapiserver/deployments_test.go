@@ -149,7 +149,7 @@ func Test_DeploymentsFakeKubernetesClient(t *testing.T) {
 		name           string
 		createResource func(cl *fake.Clientset) error
 		deployment     *workloadmeta.KubernetesDeployment
-		expected       []workloadmeta.EventBundle
+		expected       workloadmeta.EventBundle
 	}{
 		{
 			name: "has env label",
@@ -165,20 +165,18 @@ func Test_DeploymentsFakeKubernetesClient(t *testing.T) {
 				)
 				return err
 			},
-			expected: []workloadmeta.EventBundle{
-				{
-					Events: []workloadmeta.Event{
-						{
-							Type: workloadmeta.EventTypeSet,
-							Entity: &workloadmeta.KubernetesDeployment{
-								EntityID: workloadmeta.EntityID{
-									ID:   "test-namespace/test-deployment",
-									Kind: workloadmeta.KindKubernetesDeployment,
-								},
-								Env:                    "env",
-								ContainerLanguages:     map[string][]languagemodels.Language{},
-								InitContainerLanguages: map[string][]languagemodels.Language{},
+			expected: workloadmeta.EventBundle{
+				Events: []workloadmeta.Event{
+					{
+						Type: workloadmeta.EventTypeSet,
+						Entity: &workloadmeta.KubernetesDeployment{
+							EntityID: workloadmeta.EntityID{
+								ID:   "test-namespace/test-deployment",
+								Kind: workloadmeta.KindKubernetesDeployment,
 							},
+							Env:                    "env",
+							ContainerLanguages:     map[string][]languagemodels.Language{},
+							InitContainerLanguages: map[string][]languagemodels.Language{},
 						},
 					},
 				},
@@ -201,22 +199,20 @@ func Test_DeploymentsFakeKubernetesClient(t *testing.T) {
 				)
 				return err
 			},
-			expected: []workloadmeta.EventBundle{
-				{
-					Events: []workloadmeta.Event{
-						{
-							Type: workloadmeta.EventTypeSet,
-							Entity: &workloadmeta.KubernetesDeployment{
-								EntityID: workloadmeta.EntityID{
-									ID:   "test-namespace/test-deployment",
-									Kind: workloadmeta.KindKubernetesDeployment,
-								},
-								ContainerLanguages: map[string][]languagemodels.Language{
-									"nginx": {{Name: languagemodels.Go}, {Name: languagemodels.Java}},
-								},
-								InitContainerLanguages: map[string][]languagemodels.Language{
-									"redis": {{Name: languagemodels.Go}, {Name: languagemodels.Python}},
-								},
+			expected: workloadmeta.EventBundle{
+				Events: []workloadmeta.Event{
+					{
+						Type: workloadmeta.EventTypeSet,
+						Entity: &workloadmeta.KubernetesDeployment{
+							EntityID: workloadmeta.EntityID{
+								ID:   "test-namespace/test-deployment",
+								Kind: workloadmeta.KindKubernetesDeployment,
+							},
+							ContainerLanguages: map[string][]languagemodels.Language{
+								"nginx": {{Name: languagemodels.Go}, {Name: languagemodels.Java}},
+							},
+							InitContainerLanguages: map[string][]languagemodels.Language{
+								"redis": {{Name: languagemodels.Go}, {Name: languagemodels.Python}},
 							},
 						},
 					},

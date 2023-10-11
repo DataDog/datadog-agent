@@ -18,7 +18,9 @@ import (
 func buildLabelSelectors(useNamespaceSelector bool) (namespaceSelector, objectSelector *metav1.LabelSelector) {
 	var labelSelector metav1.LabelSelector
 
-	if config.Datadog.GetBool("admission_controller.mutate_unlabelled") {
+	if config.Datadog.GetBool("admission_controller.mutate_unlabelled") ||
+		config.Datadog.GetBool("apm_config.instrumentation.enabled") ||
+		len(config.Datadog.GetStringSlice("apm_config.instrumentation.enabled_namespaces")) > 0 {
 		// Accept all, ignore pods if they're explicitly filtered-out
 		labelSelector = metav1.LabelSelector{
 			MatchExpressions: []metav1.LabelSelectorRequirement{
@@ -60,7 +62,7 @@ func aksSelectors(useNamespaceSelector bool, labelSelector metav1.LabelSelector)
 	if useNamespaceSelector {
 		labelSelector.MatchExpressions = append(
 			labelSelector.MatchExpressions,
-			azureAKSLabelSelectorRequirement(),
+			azureAKSLabelSelectorRequirement()...,
 		)
 		return &labelSelector, nil
 	}
@@ -68,15 +70,25 @@ func aksSelectors(useNamespaceSelector bool, labelSelector metav1.LabelSelector)
 	// Azure AKS adds the namespace selector even in Kubernetes versions that
 	// support object selectors, so we need to add it to avoid conflicts.
 	return &metav1.LabelSelector{
-		MatchExpressions: []metav1.LabelSelectorRequirement{
-			azureAKSLabelSelectorRequirement(),
-		},
+		MatchExpressions: azureAKSLabelSelectorRequirement(),
 	}, &labelSelector
 }
 
-func azureAKSLabelSelectorRequirement() metav1.LabelSelectorRequirement {
-	return metav1.LabelSelectorRequirement{
-		Key:      "control-plane",
-		Operator: metav1.LabelSelectorOpDoesNotExist,
+func azureAKSLabelSelectorRequirement() []metav1.LabelSelectorRequirement {
+	return []metav1.LabelSelectorRequirement{
+		{
+			Key:      "control-plane",
+			Operator: metav1.LabelSelectorOpDoesNotExist,
+		},
+		{
+			Key:      "control-plane",
+			Operator: metav1.LabelSelectorOpNotIn,
+			Values:   []string{"true"},
+		},
+		{
+			Key:      "kubernetes.azure.com/managedby",
+			Operator: metav1.LabelSelectorOpNotIn,
+			Values:   []string{"aks"},
+		},
 	}
 }

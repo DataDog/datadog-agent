@@ -13,7 +13,6 @@ import (
 	"net/http"
 	"os"
 	"strconv"
-	"time"
 )
 
 func main() {
@@ -37,14 +36,12 @@ func main() {
 		},
 	}
 
+	defer client.CloseIdleConnections()
 	in := make([]byte, 1)
 	_, err = io.ReadFull(os.Stdin, in)
 	if err != nil {
 		log.Fatalf("could not read from stdin: %s", err)
 	}
-
-	// Needed to give time to the tracer to hook GoTLS functions
-	time.Sleep(5 * time.Second)
 
 	for i := 0; i < reqCount; i++ {
 		req, err := http.NewRequest(http.MethodGet, fmt.Sprintf("https://%s/%d/request-%d", serverAddr, http.StatusOK, i), nil)

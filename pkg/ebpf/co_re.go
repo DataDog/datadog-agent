@@ -11,35 +11,48 @@ import (
 	"errors"
 	"fmt"
 	"path"
-	"path/filepath"
 	"strings"
 
 	manager "github.com/DataDog/ebpf-manager"
 	bpflib "github.com/cilium/ebpf"
-	"github.com/cilium/ebpf/btf"
 
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode"
 )
 
+type coreAssetLoader struct {
+	coreDir   string
+	btfLoader orderedBTFLoader
+}
+
 // LoadCOREAsset attempts to find kernel BTF, reads the CO-RE object file, and then calls the callback function with the
 // asset and BTF options pre-filled. You should attempt to load the CO-RE program in the startFn func for telemetry to
 // be correctly recorded.
-func LoadCOREAsset(cfg *Config, filename string, startFn func(bytecode.AssetReader, manager.Options) error) error {
+func LoadCOREAsset(filename string, startFn func(bytecode.AssetReader, manager.Options) error) error {
+	loader, err := coreLoader(NewConfig())
+	if err != nil {
+		return err
+	}
+	return loader.loadCOREAsset(filename, startFn)
+}
+
+func (c *coreAssetLoader) loadCOREAsset(filename string, startFn func(bytecode.AssetReader, manager.Options) error) error {
 	var telemetry COREResult
 	base := strings.TrimSuffix(filename, path.Ext(filename))
 	defer func() {
-		StoreCORETelemetryForAsset(base, telemetry)
+		storeCORETelemetryForAsset(base, telemetry)
 	}()
 
-	var btfData *btf.Spec
-	btfData, telemetry = GetBTF(cfg.BTFPath, cfg.BPFDir)
+	btfData, telemetry, err := c.btfLoader.Get()
+	if err != nil {
+		return fmt.Errorf("BTF load: %w", err)
+	}
 	if btfData == nil {
-		return fmt.Errorf("could not find BTF data on host")
+		return fmt.Errorf("no BTF data")
 	}
 
-	buf, err := bytecode.GetReader(filepath.Join(cfg.BPFDir, "co-re"), filename)
+	buf, err := bytecode.GetReader(c.coreDir, filename)
 	if err != nil {
-		telemetry = AssetReadError
+		telemetry = assetReadError
 		return fmt.Errorf("error reading %s: %s", filename, err)
 	}
 	defer buf.Close()
@@ -56,9 +69,9 @@ func LoadCOREAsset(cfg *Config, filename string, startFn func(bytecode.AssetRead
 	if err != nil {
 		var ve *bpflib.VerifierError
 		if errors.As(err, &ve) {
-			telemetry = VerifierError
+			telemetry = verifierError
 		} else {
-			telemetry = LoaderError
+			telemetry = loaderError
 		}
 	}
 	return err

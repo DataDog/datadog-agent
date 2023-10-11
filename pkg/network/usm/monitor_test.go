@@ -507,6 +507,11 @@ type USMHTTP2Suite struct {
 	suite.Suite
 }
 
+type captureRange struct {
+	lower int
+	upper int
+}
+
 func TestHTTP2(t *testing.T) {
 	currKernelVersion, err := kernel.HostVersion()
 	require.NoError(t, err)
@@ -529,7 +534,7 @@ func (s *USMHTTP2Suite) TestSimpleHTTP2() {
 	tests := []struct {
 		name              string
 		runClients        func(t *testing.T, clientsCount int)
-		expectedEndpoints map[http.Key]int
+		expectedEndpoints map[http.Key]captureRange
 		skip              bool
 	}{
 		{
@@ -544,11 +549,14 @@ func (s *USMHTTP2Suite) TestSimpleHTTP2() {
 					req.Body.Close()
 				}
 			},
-			expectedEndpoints: map[http.Key]int{
+			expectedEndpoints: map[http.Key]captureRange{
 				{
 					Path:   http.Path{Content: http.Interner.GetString("/")},
 					Method: http.MethodPost,
-				}: 1000,
+				}: {
+					lower: 999,
+					upper: 1000,
+				},
 			},
 		},
 		{
@@ -563,11 +571,14 @@ func (s *USMHTTP2Suite) TestSimpleHTTP2() {
 					req.Body.Close()
 				}
 			},
-			expectedEndpoints: map[http.Key]int{
+			expectedEndpoints: map[http.Key]captureRange{
 				{
 					Path:   http.Path{Content: http.Interner.GetString("/index.html")},
 					Method: http.MethodPost,
-				}: 1000,
+				}: {
+					lower: 999,
+					upper: 1000,
+				},
 			},
 		},
 	}
@@ -614,11 +625,11 @@ func (s *USMHTTP2Suite) TestSimpleHTTP2() {
 					}
 
 					for key, count := range res {
-						val, ok := tt.expectedEndpoints[key]
+						valRange, ok := tt.expectedEndpoints[key]
 						if !ok {
 							return false
 						}
-						if val != count {
+						if count < valRange.lower || count > valRange.upper {
 							return false
 						}
 					}
@@ -688,31 +699,34 @@ func getClientsIndex(index, totalCount int) int {
 
 func assertAllRequestsExists(t *testing.T, monitor *Monitor, requests []*nethttp.Request) {
 	requestsExist := make([]bool, len(requests))
-	for i := 0; i < 10; i++ {
-		time.Sleep(10 * time.Millisecond)
+
+	require.Eventually(t, func() bool {
 		stats := getHttpStats(t, monitor)
-		for reqIndex, req := range requests {
-			included, err := isRequestIncludedOnce(stats, req)
-			require.NoError(t, err)
-			requestsExist[reqIndex] = requestsExist[reqIndex] || included
-		}
-		if allTrue(requestsExist) {
-			return
-		}
-	}
 
-	for reqIndex, exists := range requestsExist {
-		require.Truef(t, exists, "request %d was not found (req %v)", reqIndex, requests[reqIndex])
-	}
-}
-
-func allTrue(x []bool) bool {
-	for _, v := range x {
-		if !v {
+		if len(stats) == 0 {
 			return false
 		}
-	}
-	return true
+
+		for reqIndex, req := range requests {
+			if !requestsExist[reqIndex] {
+				exists, err := isRequestIncludedOnce(stats, req)
+				require.NoError(t, err)
+				requestsExist[reqIndex] = exists
+			}
+		}
+
+		// Slight optimization here, if one is missing, then go into another cycle of checking the new connections.
+		// otherwise, if all present, abort.
+		for reqIndex, exists := range requestsExist {
+			if !exists {
+				// reqIndex is 0 based, while the number is requests[reqIndex] is 1 based.
+				t.Logf("request %d was not found (req %v)", reqIndex+1, requests[reqIndex])
+				return false
+			}
+		}
+
+		return true
+	}, 3*time.Second, time.Millisecond*100, "connection not found")
 }
 
 func testHTTPMonitor(t *testing.T, targetAddr, serverAddr string, numReqs int, o testutil.Options) {

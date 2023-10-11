@@ -1054,12 +1054,13 @@ func (tm *testModule) reloadPolicies() error {
 	log.Debugf("reload policies with testDir: %s", tm.Root())
 	policiesDir := tm.Root()
 
-	provider, err := rules.NewPoliciesDirProvider(policiesDir, false)
+	bundledPolicyProvider := &rulesmodule.BundledPolicyProvider{}
+	policyDirProvider, err := rules.NewPoliciesDirProvider(policiesDir, false)
 	if err != nil {
 		return err
 	}
 
-	if err := tm.ruleEngine.LoadPolicies([]rules.PolicyProvider{provider}, true); err != nil {
+	if err := tm.ruleEngine.LoadPolicies([]rules.PolicyProvider{bundledPolicyProvider, policyDirProvider}, true); err != nil {
 		return fmt.Errorf("failed to reload test module: %w", err)
 	}
 

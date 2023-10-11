@@ -10,7 +10,7 @@ package trivy
 import (
 	"context"
 	"encoding/json"
-	"strings"
+	"fmt"
 	"testing"
 	"time"
 
@@ -20,12 +20,11 @@ import (
 )
 
 var (
-	defaultCacheSize = 100
-	defaultDiskSize  = 1000000
+	defaultDiskSize = 1000000
 )
 
 func TestCustomBoltCache_Artifacts(t *testing.T) {
-	cache, _, err := NewCustomBoltCache(t.TempDir(), defaultCacheSize, defaultDiskSize)
+	cache, _, err := NewCustomBoltCache(t.TempDir(), defaultDiskSize)
 	require.NoError(t, err)
 	defer func() {
 		require.NoError(t, cache.Close())
@@ -46,7 +45,7 @@ func TestCustomBoltCache_Artifacts(t *testing.T) {
 }
 
 func TestCustomBoltCache_Blobs(t *testing.T) {
-	cache, _, err := NewCustomBoltCache(t.TempDir(), defaultCacheSize, defaultDiskSize)
+	cache, _, err := NewCustomBoltCache(t.TempDir(), defaultDiskSize)
 	require.NoError(t, err)
 	defer func() {
 		require.NoError(t, cache.Close())
@@ -67,7 +66,7 @@ func TestCustomBoltCache_Blobs(t *testing.T) {
 }
 
 func TestCustomBoltCache_MissingBlobs(t *testing.T) {
-	cache, _, err := NewCustomBoltCache(t.TempDir(), defaultCacheSize, defaultDiskSize)
+	cache, _, err := NewCustomBoltCache(t.TempDir(), defaultDiskSize)
 	require.NoError(t, err)
 	defer func() {
 		require.NoError(t, cache.Close())
@@ -99,7 +98,7 @@ func TestCustomBoltCache_MissingBlobs(t *testing.T) {
 }
 
 func TestCustomBoltCache_Clear(t *testing.T) {
-	cache, _, err := NewCustomBoltCache(t.TempDir(), defaultCacheSize, defaultDiskSize)
+	cache, _, err := NewCustomBoltCache(t.TempDir(), defaultDiskSize)
 	require.NoError(t, err)
 	defer func() {
 		require.NoError(t, cache.Close())
@@ -118,7 +117,7 @@ func TestCustomBoltCache_Clear(t *testing.T) {
 }
 
 func TestCustomBoltCache_CurrentObjectSize(t *testing.T) {
-	cache, _, err := NewCustomBoltCache(t.TempDir(), defaultCacheSize, defaultDiskSize)
+	cache, _, err := NewCustomBoltCache(t.TempDir(), defaultDiskSize)
 	require.NoError(t, err)
 	defer func() {
 		require.NoError(t, cache.Close())
@@ -150,40 +149,37 @@ func TestCustomBoltCache_CurrentObjectSize(t *testing.T) {
 }
 
 func TestCustomBoltCache_Eviction(t *testing.T) {
-	// Set the maximum cache entries to 2
-	cache, _, err := NewCustomBoltCache(t.TempDir(), 2, defaultDiskSize)
+	cache, _, err := NewCustomBoltCache(t.TempDir(), defaultDiskSize)
 	require.NoError(t, err)
 	defer func() {
 		require.NoError(t, cache.Close())
 	}()
 
 	// store 3 artifacts with different sizes
-	artifactIDs := []string{"key1", "key2", "key3"}
 	artifactSize := make(map[string]int)
-	for i, id := range artifactIDs {
-
+	totalSize := 0
+	for i := 0; i < cacheSize+1; i++ {
+		id := fmt.Sprintf("key%d", i)
 		artifact := newTestArtifactInfo()
-		artifact.Architecture = strings.Repeat("A", i*7)
-
+		artifact.Architecture = "A"
 		serializedArtifactInfo, err := json.Marshal(artifact)
 		require.NoError(t, err)
 		artifactSize[id] = len(serializedArtifactInfo)
-
+		totalSize += len(serializedArtifactInfo)
 		err = cache.PutArtifact(id, artifact)
 		require.NoError(t, err)
 	}
 
-	// Make sure only the artifact 2 and 3 are stored and currentCachedObjectTotalSize is correctly updated
+	// Make sure the first artifact is evicted while others are still there
 	persistentCache := cache.(*ScannerCache).Cache.(*PersistentCache)
-	require.Equal(t, artifactSize["key2"]+artifactSize["key3"], persistentCache.GetCurrentCachedObjectTotalSize())
+	require.Equal(t, totalSize-artifactSize["key0"], persistentCache.GetCurrentCachedObjectTotalSize())
 
-	_, err = cache.GetArtifact("key2")
-	require.NoError(t, err)
+	for i := 1; i < cacheSize+1; i++ {
+		_, err = cache.GetArtifact(fmt.Sprintf("key%d", i))
+		require.NoError(t, err)
+	}
 
-	_, err = cache.GetArtifact("key3")
-	require.NoError(t, err)
-
-	_, err = cache.GetArtifact("key1")
+	_, err = cache.GetArtifact("key0")
 	require.Error(t, err)
 }
 
@@ -194,7 +190,7 @@ func TestCustomBoltCache_DiskSizeLimit(t *testing.T) {
 	serializedArtifactInfo, err := json.Marshal(artifact)
 	require.NoError(t, err)
 
-	cache, _, err := NewCustomBoltCache(t.TempDir(), defaultCacheSize, len(serializedArtifactInfo))
+	cache, _, err := NewCustomBoltCache(t.TempDir(), len(serializedArtifactInfo))
 	require.NoError(t, err)
 	defer func() {
 		require.NoError(t, cache.Close())
@@ -247,7 +243,7 @@ func TestCustomBoltCache_GarbageCollector(t *testing.T) {
 
 	globalStore.Reset([]workloadmeta.Entity{image1, image2, image3}, workloadmeta.SourceAll)
 
-	cache, cacheCleaner, err := NewCustomBoltCache(t.TempDir(), defaultCacheSize, defaultDiskSize)
+	cache, cacheCleaner, err := NewCustomBoltCache(t.TempDir(), defaultDiskSize)
 	require.NoError(t, err)
 	defer func() {
 		require.NoError(t, cache.Close())

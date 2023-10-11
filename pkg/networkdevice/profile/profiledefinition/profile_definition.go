@@ -22,12 +22,14 @@ type ProfileDefinition struct {
 	Description  string            `yaml:"description,omitempty" json:"description,omitempty"`
 	SysObjectIds StringArray       `yaml:"sysobjectid,omitempty" json:"sysobjectid,omitempty"`
 	Extends      []string          `yaml:"extends,omitempty" json:"extends,omitempty"`
-	Metadata     MetadataConfig    `yaml:"metadata,omitempty" json:"metadata,omitempty"`
+	Metadata     MetadataConfig    `yaml:"metadata,omitempty" json:"metadata,omitempty" jsonschema:"-"`
 	MetricTags   []MetricTagConfig `yaml:"metric_tags,omitempty" json:"metric_tags,omitempty"`
 	StaticTags   []string          `yaml:"static_tags,omitempty" json:"static_tags,omitempty"`
 	Metrics      []MetricsConfig   `yaml:"metrics,omitempty" json:"metrics,omitempty"`
 
-	Device DeviceMeta `yaml:"device,omitempty" json:"device,omitempty" jsonschema:"-"` // DEPRECATED
+	// Used previously to pass device vendor field (has been replaced by Metadata).
+	// Used in RC for passing device vendor field.
+	Device DeviceMeta `yaml:"device,omitempty" json:"device,omitempty" jsonschema:"device,omitempty"` // DEPRECATED
 }
 
 // DeviceProfileRcConfig represent the profile stored in remote config.

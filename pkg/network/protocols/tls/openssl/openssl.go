@@ -7,15 +7,18 @@ package openssl
 
 import (
 	"regexp"
+	"strconv"
 	"testing"
 
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http/testutil"
 	protocolsUtils "github.com/DataDog/datadog-agent/pkg/network/protocols/testutil"
 )
 
-func RunServerOpenssl(t *testing.T, serverPort string, args ...string) error {
+// RunServerOpenssl launches an openssl server.
+func RunServerOpenssl(t *testing.T, serverPort string, clientCount int, args ...string) error {
 	env := []string{
 		"OPENSSL_PORT=" + serverPort,
+		"CLIENTS=" + strconv.Itoa(clientCount),
 	}
 	if len(args) > 0 {
 		env = append(env, "OPENSSL_ARGS="+args[0])
@@ -23,10 +26,11 @@ func RunServerOpenssl(t *testing.T, serverPort string, args ...string) error {
 
 	t.Helper()
 	dir, _ := testutil.CurDir()
-	return protocolsUtils.RunDockerServer(t, "openssl-server", dir+"/testdata/docker-compose.yml", env, regexp.MustCompile("exited with code"), protocolsUtils.DefaultTimeout)
+	return protocolsUtils.RunDockerServer(t, "openssl-server", dir+"/testdata/docker-compose.yml", env, regexp.MustCompile("ACCEPT"), protocolsUtils.DefaultTimeout)
 }
 
-func RunClientOpenssl(t *testing.T, addr string, port string, args string) bool {
+// RunClientOpenssl launches an openssl client.
+func RunClientOpenssl(t *testing.T, addr, port, args string) bool {
 	command := []string{
 		"docker", "run", "--network=host", "menci/archlinuxarm:base",
 		"openssl", "s_client", "-connect", addr + ":" + port, args,

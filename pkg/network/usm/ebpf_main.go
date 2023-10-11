@@ -22,6 +22,7 @@ import (
 
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode"
+	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	netebpf "github.com/DataDog/datadog-agent/pkg/network/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/network/ebpf/probes"
@@ -248,7 +249,7 @@ func (e *ebpfProgram) Close() error {
 
 func (e *ebpfProgram) initCORE() error {
 	assetName := getAssetName("usm", e.cfg.BPFDebug)
-	return ddebpf.LoadCOREAsset(&e.cfg.Config, assetName, e.init)
+	return ddebpf.LoadCOREAsset(assetName, e.init)
 }
 
 func (e *ebpfProgram) initRuntimeCompiler() error {
@@ -303,6 +304,11 @@ func (e *ebpfProgram) init(buf bytecode.AssetReader, options manager.Options) er
 		}
 		options.MapEditors[probes.ConnectionProtocolMap] = e.connectionProtocolMap
 	}
+
+	begin, end := network.EphemeralRange()
+	options.ConstantEditors = append(options.ConstantEditors,
+		manager.ConstantEditor{Name: "ephemeral_range_begin", Value: uint64(begin)},
+		manager.ConstantEditor{Name: "ephemeral_range_end", Value: uint64(end)})
 
 	options.TailCallRouter = e.tailCallRouter
 	options.ActivatedProbes = []manager.ProbesSelector{
