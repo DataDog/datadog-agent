@@ -445,6 +445,11 @@ func (o *Obfuscator) ObfuscateWithSQLLexer(in string, opts *SQLConfig) (*Obfusca
 		}, nil
 	}
 
+	// we only want to cache normalized queries
+	if v, ok := o.queryCache.Get(in); ok {
+		return v.(*ObfuscatedQuery), nil
+	}
+
 	// Obfuscate the query and normalize it.
 	normalizer := sqllexer.NewNormalizer(
 		sqllexer.WithCollectComments(opts.CollectComments),
@@ -461,7 +466,7 @@ func (o *Obfuscator) ObfuscateWithSQLLexer(in string, opts *SQLConfig) (*Obfusca
 	if err != nil {
 		return nil, err
 	}
-	return &ObfuscatedQuery{
+	oq := &ObfuscatedQuery{
 		Query: out,
 		Metadata: SQLMetadata{
 			Size:      int64(statementMetadata.Size),
@@ -469,5 +474,9 @@ func (o *Obfuscator) ObfuscateWithSQLLexer(in string, opts *SQLConfig) (*Obfusca
 			Commands:  statementMetadata.Commands,
 			Comments:  statementMetadata.Comments,
 		},
-	}, nil
+	}
+
+	o.queryCache.Set(in, oq, oq.Cost())
+
+	return oq, nil
 }
