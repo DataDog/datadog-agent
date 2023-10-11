@@ -11,10 +11,8 @@ import (
 	json "encoding/json"
 	"fmt"
 	"os"
-	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
-	"github.com/DataDog/datadog-agent/pkg/security/utils"
 )
 
 func getPointerValue[T uint32 | uint64 | bool](p *T) T {
@@ -23,13 +21,6 @@ func getPointerValue[T uint32 | uint64 | bool](p *T) T {
 	}
 	var def T
 	return def
-}
-
-func getInnerTime(et *utils.EasyjsonTime) time.Time {
-	if et == nil {
-		return time.Time{}
-	}
-	return et.Inner
 }
 
 func newFileEvent(fs *FileSerializer) model.FileEvent {
@@ -44,8 +35,8 @@ func newFileEvent(fs *FileSerializer) model.FileEvent {
 			Group:        fs.Group,
 			InUpperLayer: getPointerValue(fs.InUpperLayer),
 			Mode:         uint16(getPointerValue(fs.Mode)),
-			MTime:        uint64(fs.Mtime.Inner.UnixMicro()),
-			CTime:        uint64(fs.Ctime.Inner.UnixMicro()),
+			MTime:        uint64(fs.Mtime.GetInnerTime().UnixMicro()),
+			CTime:        uint64(fs.Ctime.GetInnerTime().UnixMicro()),
 			PathKey: model.PathKey{
 				Inode:   getPointerValue(fs.Inode),
 				MountID: getPointerValue(fs.MountID),
@@ -73,9 +64,9 @@ func newProcess(ps *ProcessSerializer) model.Process {
 		EnvsTruncated: ps.EnvsTruncated,
 		IsThread:      ps.IsThread,
 		IsExecChild:   ps.IsExecChild,
-		ForkTime:      getInnerTime(ps.ForkTime),
-		ExecTime:      getInnerTime(ps.ExecTime),
-		ExitTime:      getInnerTime(ps.ExitTime),
+		ForkTime:      ps.ForkTime.GetInnerTime(),
+		ExecTime:      ps.ExecTime.GetInnerTime(),
+		ExitTime:      ps.ExitTime.GetInnerTime(),
 		PIDContext: model.PIDContext{
 			Pid:       ps.Pid,
 			Tid:       ps.Tid,
