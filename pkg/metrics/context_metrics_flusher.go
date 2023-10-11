@@ -47,7 +47,7 @@ func (f *ContextMetricsFlusher) FlushAndClear(callback func([]*Serie)) map[ckey.
 	// these structures to arbitrary, smallish sizes to avoid needing to
 	// grow from 0-size.
 	series := make([]*Serie, 0, 32)
-	errors := make(map[ckey.ContextKey]error, 32)
+	errors := make(map[ckey.ContextKey][]error, 32)
 
 	contextMetricsCollection := make([]ContextMetrics, 0, len(f.metrics))
 	for _, m := range f.metrics {
