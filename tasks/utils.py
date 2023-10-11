@@ -481,12 +481,6 @@ def generate_config(ctx, build_type, output_file, env=None):
 ##
 
 
-def dev_entry_for(agent_major_version):
-    if agent_major_version == 6:
-        return "dev"
-    return f"dev-a{agent_major_version}"
-
-
 def nightly_entry_for(agent_major_version):
     if agent_major_version == 6:
         return "nightly"

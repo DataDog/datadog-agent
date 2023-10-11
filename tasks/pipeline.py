@@ -40,7 +40,6 @@ from .utils import (
     DEFAULT_BRANCH,
     GITHUB_REPO_NAME,
     check_clean_branch_state,
-    dev_entry_for,
     get_all_allowed_repo_branches,
     is_allowed_repo_branch,
     nightly_entry_for,
@@ -206,7 +205,6 @@ def run(
     ctx,
     git_ref=None,
     here=False,
-    use_nightly_entries=False,
     use_release_entries=False,
     major_versions='6,7',
     repo_branch="dev",
@@ -257,12 +255,9 @@ def run(
     if use_release_entries:
         release_version_6 = release_entry_for(6)
         release_version_7 = release_entry_for(7)
-    elif use_nightly_entries:
+    else:
         release_version_6 = nightly_entry_for(6)
         release_version_7 = nightly_entry_for(7)
-    else:
-        release_version_6 = dev_entry_for(6)
-        release_version_7 = dev_entry_for(7)
 
     major_versions = major_versions.split(',')
     if '6' not in major_versions:
