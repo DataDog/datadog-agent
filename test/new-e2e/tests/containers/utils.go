@@ -8,18 +8,11 @@ package containers
 import (
 	"errors"
 	"fmt"
-	"math"
 	"regexp"
 	"strings"
 
 	"github.com/samber/lo"
 )
-
-const float64EqualityThreshold = 1e-9
-
-func almostEqual(a, b float64) bool {
-	return math.Abs(a-b) <= float64EqualityThreshold
-}
 
 func assertTags(actualTags []string, expectedTags []*regexp.Regexp) error {
 	missingTags := make([]*regexp.Regexp, len(expectedTags))
