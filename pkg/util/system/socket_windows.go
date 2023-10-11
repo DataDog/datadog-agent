@@ -10,4 +10,3 @@ import "github.com/DataDog/datadog-agent/pkg/util/system/socket"
 // CheckSocketAvailable returns named pipe availability
 // as on Windows, sockets do not exist
 var CheckSocketAvailable = socket.CheckSocketAvailable
-

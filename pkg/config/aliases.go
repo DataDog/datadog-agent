@@ -12,23 +12,25 @@ import (
 
 // Aliases to conf package
 type (
-	// Proxy represents the configuration for proxies in the agent
+	// Proxy alias to conf.Proxy
 	Proxy = conf.Proxy
-	// ConfigReader is a subset of Config that only allows reading of configuration
-	Reader       = conf.Reader
-	Writer       = conf.Writer
+	// Reader is alias to Conf.Reader
+	Reader = conf.Reader
+	// Writer is alias to Conf.Reader
+	Writer = conf.Writer
+	// ReaderWriter is alias to Conf.ReaderWriter
 	ReaderWriter = conf.ReaderWriter
-	Loader       = conf.Loader
-	// Config represents an object that can load and store configuration parameters
-	// coming from different kind of sources:
-	// - defaults
-	// - files
-	// - environment variables
-	// - flags
+	// Loader is alias to Conf.Loader
+	Loader = conf.Loader
+	// Config is alias to conf.Config
 	Config = conf.Config
 )
 
+// NewConfig is alias for Config object.
 var NewConfig = conf.NewConfig
+
+// Warnings represent the warnings in the config
+type Warnings = conf.Warnings
 
 // environment Aliases
 var (
@@ -47,10 +49,13 @@ var (
 )
 
 type (
-	Feature    = env.Feature
+	// Feature Alias
+	Feature = env.Feature
+	// FeatureMap Alias
 	FeatureMap = env.FeatureMap
 )
 
+// Aliases for constants
 const (
 	ECSFargate               = env.ECSFargate
 	Podman                   = env.Podman
@@ -64,6 +69,7 @@ const (
 	KubeOrchestratorExplorer = env.KubeOrchestratorExplorer
 )
 
+// IsAutoconfigEnabled is alias for conf.IsAutoconfigEnabled
 func IsAutoconfigEnabled() bool {
 	return env.IsAutoconfigEnabled(Datadog)
 }
