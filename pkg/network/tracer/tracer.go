@@ -249,7 +249,7 @@ func newConntracker(cfg *config.Config, bpfTelemetry *nettelemetry.EBPFTelemetry
 	} else {
 		defer ns.Close()
 		if err = netlink.LoadNfConntrackKernelModule(ns); err != nil {
-			log.Warnf("failed to load conntrack kernel module, though it may already be loaded")
+			log.Warnf("failed to load conntrack kernel module, though it may already be loaded: %s", err)
 		}
 	}
 
