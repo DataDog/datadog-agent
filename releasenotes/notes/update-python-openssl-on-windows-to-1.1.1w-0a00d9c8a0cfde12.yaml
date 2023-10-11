@@ -12,4 +12,4 @@ upgrade:
 
 security:
   - |
-    Updated the version of OpenSSL used by Python on Windows to `1.1.1w`; addressed CVE-2023-4807, CVE-2023-3817 and CVE-2023-3446.
+    Updated the version of OpenSSL used by Python on Windows to `1.1.1w`; addressed CVE-2023-4807, CVE-2023-3817, and CVE-2023-3446
