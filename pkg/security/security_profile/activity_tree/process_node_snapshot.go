@@ -82,6 +82,10 @@ func (pn *ProcessNode) snapshotFiles(p *process.Process, stats *Stats, newEvent 
 
 	files := make([]string, 0, preAlloc)
 	for _, fd := range fileFDs {
+		if len(files) >= maxFDsPerProcessSnapshot {
+			break
+		}
+
 		if !isSampling || rand.Int63n(int64(len(fileFDs))) < maxFDsPerProcessSnapshot {
 			files = append(files, fd.Path)
 		}
