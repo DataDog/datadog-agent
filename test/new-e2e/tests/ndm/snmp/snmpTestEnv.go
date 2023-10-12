@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+// Package snmp contains e2e tests for snmp
 package snmp
 
 import (
@@ -20,6 +21,7 @@ import (
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 )
 
+// TestEnv implements a test environment for NDM. Deprecated, should port to TestSuite
 type TestEnv struct {
 	context context.Context
 	name    string
@@ -38,6 +40,7 @@ const (
 	composeDataPath = "compose/data"
 )
 
+// NewTestEnv creates a new test environment for NDM. Deprecated, should port to NDM
 func NewTestEnv() (*TestEnv, error) {
 	snmpTestEnv := &TestEnv{
 		context: context.Background(),
@@ -117,6 +120,7 @@ func NewTestEnv() (*TestEnv, error) {
 	return snmpTestEnv, nil
 }
 
+// Destroy delete the NDM stack. Deprecated, should port to NDM
 func (testEnv *TestEnv) Destroy() error {
 	return infra.GetStackManager().DeleteStack(testEnv.context, testEnv.name)
 }
