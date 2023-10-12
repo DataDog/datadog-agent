@@ -63,6 +63,7 @@ build do
 
   patch source: "1001-Fix-probe_reset.patch", env: env # fix probe_reset
   patch source: "dpkginfo-cache-close.patch", env: env # close cache at the end of dpkginfo_get_by_name
+  patch source: "dpkginfo-cache-no-close.patch", env: env # work around memory leak in libapt
   patch source: "oval_probe_session_reset.patch", env: env # use oval_probe_session_reset instead of oval_probe_session_reinit
 
   patch source: "oscap-io.patch", env: env # add new oscap-io tool
