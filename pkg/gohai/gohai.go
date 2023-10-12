@@ -16,6 +16,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/gohai/memory"
 	"github.com/DataDog/datadog-agent/pkg/gohai/network"
 	"github.com/DataDog/datadog-agent/pkg/gohai/platform"
+	"github.com/DataDog/datadog-agent/pkg/gohai/processes"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -41,6 +42,7 @@ type gohai struct {
 	Memory     interface{} `json:"memory"`
 	Network    interface{} `json:"network"`
 	Platform   interface{} `json:"platform"`
+	Processes  interface{} `json:"processes,omitempty"`
 }
 
 // Payload handles the JSON unmarshalling of the metadata payload
@@ -49,13 +51,19 @@ type Payload struct {
 }
 
 // GetPayload builds a payload of every metadata collected with gohai except processes metadata.
-func GetPayload(IsContainerized bool) *Payload {
+func GetPayload(isContainerized bool) *Payload {
 	return &Payload{
-		Gohai: getGohaiInfo(IsContainerized),
+		Gohai: getGohaiInfo(isContainerized, false),
 	}
 }
 
-func getGohaiInfo(IsContainerized bool) *gohai {
+func GetPayloadWithProcesses(isContainerized bool) *Payload {
+	return &Payload{
+		Gohai: getGohaiInfo(isContainerized, true),
+	}
+}
+
+func getGohaiInfo(isContainerized, withProcesses bool) *gohai {
 	res := new(gohai)
 
 	cpuPayload, _, err := cpu.CollectInfo().AsJSON()
@@ -83,7 +91,7 @@ func getGohaiInfo(IsContainerized bool) *gohai {
 		log.Errorf("Failed to retrieve memory metadata: %s", err)
 	}
 
-	if !IsContainerized || detectDocker0() {
+	if !isContainerized || detectDocker0() {
 		var networkPayload interface{}
 		networkInfo, err := network.CollectInfo()
 		if err == nil {
@@ -101,6 +109,19 @@ func getGohaiInfo(IsContainerized bool) *gohai {
 		res.Platform = platformPayload
 	} else {
 		log.Errorf("Failed to retrieve platform metadata: %s", err)
+	}
+
+	if withProcesses {
+		var processesPayload interface{}
+		processesInfo, err := processes.CollectInfo()
+		if err == nil {
+			processesPayload, _, err = processesInfo.AsJSON()
+		}
+		if err == nil {
+			res.Processes = processesPayload
+		} else {
+			log.Errorf("Failed to retrieve processes metadata: %s", err)
+		}
 	}
 
 	return res
