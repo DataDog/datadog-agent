@@ -89,13 +89,13 @@ def run(
         test_run_arg = f"-run {test_run_name}"
 
     cmd = f'gotestsum --format {gotestsum_format} '
-    cmd += '{junit_file_flag} --packages="{packages}" -- -ldflags="-X {REPO_PATH}/test/new-e2e/containers.GitCommit={commit}" {verbose} -mod={go_mod} -vet=off -timeout {timeout} -tags {go_build_tags} {nocache} {run} {skip} {coverage_opt} {test_run_arg}'
+    cmd += '{junit_file_flag} --packages="{packages}" -- -ldflags="-X {REPO_PATH}/test/new-e2e/tests/containers.GitCommit={commit}" {verbose} -mod={go_mod} -vet=off -timeout {timeout} -tags {go_build_tags} {nocache} {run} {skip} {coverage_opt} {test_run_arg}'
     if osversion != "" or platform != "" or cws_supported_osversion != "":
         cmd += "-args"
         cmd += " -osversion {osversion}" if osversion else ""
         cmd += " -platform {platform}" if platform else ""
         cmd += " -cws-supported-osversion {cws_supported_osversion}" if cws_supported_osversion else ""
-
+ 
     args = {
         "go_mod": "mod",
         "timeout": "4h",

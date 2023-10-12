@@ -74,7 +74,9 @@ def split_junitxml(xml_path, codeowners, output_dir):
         jira_project = GITHUB_JIRA_MAP.get(f"{CODEOWNERS_ORG_PREFIX}{main_owner}".casefold(), DEFAULT_JIRA_PROJECT)
         for test_case in suite.iter("testcase"):
             if any(child.tag == "failure" for child in test_case):
-                if jira_project == "USMON" or "TestUSMSuite" in test_case.attrib["name"]:
+                if jira_project == "USMON" or any(
+                    test in test_case.attrib["name"] for test in ["TestUSMSuite", "TestHTTPGoTLSAttachProbes"]
+                ):
                     # USM tests don't want aggregation per parent test
                     test_name = f"{path}/{test_case.attrib['name']}"
                 else:
