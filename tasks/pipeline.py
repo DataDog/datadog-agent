@@ -524,15 +524,16 @@ def changelog(ctx, new_commit_sha):
         if "dependabot" in author_email or "github-actions" in author_email:
             messages.append(f"{message_link}")
             continue
-        author_handle = ctx.run(f"email2slackid {author_email.strip()}", hide=True).stdout
+        if author_email is "guy20495@gmail.com":
+            author_handle = "U03LJSCAPK2"
+        else:
+            author_handle = ctx.run(f"email2slackid {author_email.strip()}", hide=True).stdout
         if author_handle:
             author_handle = f"<@{author_handle.strip()}>"
-            print(f"Author handle: {author_handle}")
         else:
             author_handle = author_email
         time.sleep(1)  # necessary to prevent slack/sdm API rate limits
         messages.append(f"{message_link} {author_handle}\n")
-        print(f"Message: {message_link} {author_handle}")
 
     commit_range_link = f"https://github.com/DataDog/datadog-agent/compare/{old_commit_sha}..{new_commit_sha}"
     slack_message = (
@@ -547,7 +548,7 @@ def changelog(ctx, new_commit_sha):
     else:
         slack_message += "\nNo new System Probe related commits in this release :cricket:"
 
-    print(f"Posting message to slack \n {slack_message}")
+    print(f"Posting message to slack: \n {slack_message}")
     # send_slack_message("adamk-test", slack_message)
     # print(f"Writing new commit sha: {new_commit_sha} to SSM")
     # ctx.run(
