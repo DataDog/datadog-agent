@@ -74,3 +74,19 @@ func GetAllFlowTypes() []FlowType {
 	}
 	return flowTypes
 }
+
+type EndianType string
+
+var (
+	BigEndian    EndianType = "big"
+	LittleEndian EndianType = "little"
+)
+
+// TODO : use goflow types for this
+type FieldType string
+
+var (
+	String FieldType = "string"
+	Bytes  FieldType = "bytes"
+	Varint FieldType = "varint"
+)

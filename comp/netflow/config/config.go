@@ -36,11 +36,19 @@ type NetflowConfig struct {
 
 // ListenerConfig contains configuration for a single flow listener
 type ListenerConfig struct {
-	FlowType  common.FlowType `mapstructure:"flow_type"`
-	Port      uint16          `mapstructure:"port"`
-	BindHost  string          `mapstructure:"bind_host"`
-	Workers   int             `mapstructure:"workers"`
-	Namespace string          `mapstructure:"namespace"`
+	FlowType  common.FlowType  `mapstructure:"flow_type"`
+	Port      uint16           `mapstructure:"port"`
+	BindHost  string           `mapstructure:"bind_host"`
+	Workers   int              `mapstructure:"workers"`
+	Namespace string           `mapstructure:"namespace"`
+	Mapping   []NetFlowMapping `mapstructure:"mapping"`
+}
+
+type NetFlowMapping struct {
+	Field       uint16            `mapstructure:"field"`
+	Destination string            `mapstructure:"destination"`
+	Endian      common.EndianType `mapstructure:"endianness"`
+	Type        common.FieldType  `mapstructure:"type"`
 }
 
 // ReadConfig builds and returns configuration from Agent configuration.
@@ -88,6 +96,17 @@ func (mainConfig *NetflowConfig) SetDefaults(namespace string) error {
 			return fmt.Errorf("invalid namespace `%s` error: %s", listenerConfig.Namespace, err)
 		}
 		listenerConfig.Namespace = normalizedNamespace
+
+		for j := range listenerConfig.Mapping {
+			listenerMappingConfig := &listenerConfig.Mapping[j]
+
+			if listenerMappingConfig.Type == "" {
+				listenerMappingConfig.Type = common.Bytes
+			}
+			if listenerMappingConfig.Endian == "" {
+				listenerMappingConfig.Endian = common.LittleEndian
+			}
+		}
 	}
 
 	if mainConfig.StopTimeout == 0 {

@@ -8,22 +8,25 @@ package goflowlib
 import (
 	"context"
 	"fmt"
+	"github.com/DataDog/datadog-agent/comp/netflow/config"
+	protoproducer "github.com/netsampler/goflow2/v2/producer/proto"
 
 	"github.com/DataDog/datadog-agent/comp/netflow/common"
-	flowpb "github.com/netsampler/goflow2/pb"
 )
 
 // AggregatorFormatDriver is used as goflow formatter to forward flow data to aggregator/EP Forwarder
 type AggregatorFormatDriver struct {
-	namespace string
-	flowAggIn chan *common.Flow
+	namespace  string
+	flowAggIn  chan *common.Flow
+	fieldsById map[int32]config.NetFlowMapping
 }
 
 // NewAggregatorFormatDriver returns a new AggregatorFormatDriver
-func NewAggregatorFormatDriver(flowAgg chan *common.Flow, namespace string) *AggregatorFormatDriver {
+func NewAggregatorFormatDriver(flowAgg chan *common.Flow, namespace string, fieldsById map[int32]config.NetFlowMapping) *AggregatorFormatDriver {
 	return &AggregatorFormatDriver{
-		namespace: namespace,
-		flowAggIn: flowAgg,
+		namespace:  namespace,
+		flowAggIn:  flowAgg,
+		fieldsById: fieldsById,
 	}
 }
 
@@ -39,10 +42,10 @@ func (d *AggregatorFormatDriver) Init(context.Context) error {
 
 // Format desc
 func (d *AggregatorFormatDriver) Format(data interface{}) ([]byte, []byte, error) {
-	flow, ok := data.(*flowpb.FlowMessage)
+	flow, ok := data.(*protoproducer.ProtoProducerMessage)
 	if !ok {
 		return nil, nil, fmt.Errorf("message is not flowpb.FlowMessage")
 	}
-	d.flowAggIn <- ConvertFlow(flow, d.namespace)
+	d.flowAggIn <- ConvertFlow(flow, d.namespace, d.fieldsById)
 	return nil, nil, nil
 }

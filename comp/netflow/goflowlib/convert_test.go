@@ -6,9 +6,10 @@
 package goflowlib
 
 import (
+	protoproducer "github.com/netsampler/goflow2/v2/producer/proto"
 	"testing"
 
-	flowpb "github.com/netsampler/goflow2/pb"
+	flowpb "github.com/netsampler/goflow2/v2/pb"
 	"github.com/stretchr/testify/assert"
 
 	"github.com/DataDog/datadog-agent/comp/netflow/common"
@@ -48,32 +49,33 @@ func Test_convertFlowType(t *testing.T) {
 }
 
 func TestConvertFlow(t *testing.T) {
-	srcFlow := flowpb.FlowMessage{
-		Type:           flowpb.FlowMessage_NETFLOW_V9,
-		TimeReceived:   1234567,
-		SequenceNum:    20,
-		SamplingRate:   10,
-		FlowDirection:  1,
-		SamplerAddress: []byte{127, 0, 0, 1},
-		TimeFlowStart:  1234568,
-		TimeFlowEnd:    1234569,
-		Bytes:          10,
-		Packets:        2,
-		SrcAddr:        []byte{10, 10, 10, 10},
-		DstAddr:        []byte{10, 10, 10, 20},
-		SrcMac:         uint64(10),
-		DstMac:         uint64(20),
-		SrcNet:         uint32(10),
-		DstNet:         uint32(20),
-		Etype:          uint32(1),
-		Proto:          uint32(6),
-		SrcPort:        uint32(2000),
-		DstPort:        uint32(80),
-		InIf:           10,
-		OutIf:          20,
-		IpTos:          3,
-		NextHop:        []byte{10, 10, 10, 30},
-	}
+	srcFlow := protoproducer.ProtoProducerMessage{
+		FlowMessage: flowpb.FlowMessage{
+			Type:           flowpb.FlowMessage_NETFLOW_V9,
+			TimeReceivedNs: 1234567000000000,
+			SequenceNum:    20,
+			SamplingRate:   10,
+			// FlowDirection:  1,
+			SamplerAddress:  []byte{127, 0, 0, 1},
+			TimeFlowStartNs: 1234568000000000,
+			TimeFlowEndNs:   1234569000000000,
+			Bytes:           10,
+			Packets:         2,
+			SrcAddr:         []byte{10, 10, 10, 10},
+			DstAddr:         []byte{10, 10, 10, 20},
+			SrcMac:          uint64(10),
+			DstMac:          uint64(20),
+			SrcNet:          uint32(10),
+			DstNet:          uint32(20),
+			Etype:           uint32(1),
+			Proto:           uint32(6),
+			SrcPort:         uint32(2000),
+			DstPort:         uint32(80),
+			InIf:            10,
+			OutIf:           20,
+			IpTos:           3,
+			NextHop:         []byte{10, 10, 10, 30},
+		}}
 	expectedFlow := common.Flow{
 		Namespace:       "my-ns",
 		FlowType:        common.TypeNetFlow9,
@@ -100,6 +102,6 @@ func TestConvertFlow(t *testing.T) {
 		Tos:             3,
 		NextHop:         []byte{10, 10, 10, 30},
 	}
-	actualFlow := ConvertFlow(&srcFlow, "my-ns")
+	actualFlow := ConvertFlow(&srcFlow, "my-ns", nil)
 	assert.Equal(t, expectedFlow, *actualFlow)
 }
