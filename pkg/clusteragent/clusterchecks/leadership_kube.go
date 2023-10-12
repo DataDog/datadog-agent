@@ -8,12 +8,14 @@
 package clusterchecks
 
 import (
+	"context"
+
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/clusterchecks/types"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/leaderelection"
 )
 
 func getLeaderIPCallback() (types.LeaderIPCallback, error) {
-	engine, err := leaderelection.GetLeaderEngine()
+	engine, err := leaderelection.GetLeaderEngine(context.Background())
 	if err != nil {
 		return nil, err
 	}

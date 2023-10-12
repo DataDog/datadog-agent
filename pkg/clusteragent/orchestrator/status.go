@@ -160,7 +160,7 @@ func setClusterName(ctx context.Context, status map[string]interface{}) {
 
 // setCollectionIsWorkingDCAMode checks whether collection is running by checking telemetry/cache data
 func setCollectionIsWorkingDCAMode(status map[string]interface{}) {
-	engine, err := leaderelection.GetLeaderEngine()
+	engine, err := leaderelection.GetLeaderEngine(context.Background())
 	if err != nil {
 		status["CollectionWorking"] = "The collection has not run successfully because no leader has been elected."
 		status["LeaderError"] = err

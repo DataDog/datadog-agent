@@ -8,6 +8,8 @@
 package cluster
 
 import (
+	"context"
+
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/leaderelection"
 )
@@ -16,7 +18,7 @@ import (
 // It returns leader name and a nil error if leader.
 // It returns leader name and a ErrNotLeader error if not leader.
 func RunLeaderElection() (string, error) {
-	leaderEngine, err := leaderelection.GetLeaderEngine()
+	leaderEngine, err := leaderelection.GetLeaderEngine(context.Background())
 	if err != nil {
 		return "", err
 	}

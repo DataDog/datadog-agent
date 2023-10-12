@@ -45,6 +45,7 @@ var globalLeaderEngine *LeaderEngine
 // LeaderEngine is a structure for the LeaderEngine client to run leader election
 // on Kubernetes clusters
 type LeaderEngine struct {
+	ctx       context.Context
 	initRetry retry.Retrier
 
 	running bool
@@ -70,8 +71,9 @@ type LeaderEngine struct {
 	leaderMetric telemetry.Gauge
 }
 
-func newLeaderEngine() *LeaderEngine {
+func newLeaderEngine(ctx context.Context) *LeaderEngine {
 	return &LeaderEngine{
+		ctx:             ctx,
 		LeaseName:       config.Datadog.GetString("leader_lease_name"),
 		LeaderNamespace: common.GetResourcesNamespace(),
 		ServiceName:     config.Datadog.GetString("cluster_agent.kubernetes_service_name"),
@@ -88,14 +90,14 @@ func ResetGlobalLeaderEngine() {
 }
 
 // GetLeaderEngine returns a leader engine client with default parameters.
-func GetLeaderEngine() (*LeaderEngine, error) {
-	return GetCustomLeaderEngine("", defaultLeaderLeaseDuration)
+func GetLeaderEngine(ctx context.Context) (*LeaderEngine, error) {
+	return GetCustomLeaderEngine(ctx, "", defaultLeaderLeaseDuration)
 }
 
 // GetCustomLeaderEngine wraps GetLeaderEngine for testing purposes.
-func GetCustomLeaderEngine(holderIdentity string, ttl time.Duration) (*LeaderEngine, error) {
+func GetCustomLeaderEngine(ctx context.Context, holderIdentity string, ttl time.Duration) (*LeaderEngine, error) {
 	if globalLeaderEngine == nil {
-		globalLeaderEngine = newLeaderEngine()
+		globalLeaderEngine = newLeaderEngine(ctx)
 		globalLeaderEngine.HolderIdentity = holderIdentity
 		globalLeaderEngine.LeaseDuration = ttl
 		globalLeaderEngine.initRetry.SetupRetrier(&retry.Config{ //nolint:errcheck
@@ -215,7 +217,7 @@ func (le *LeaderEngine) EnsureLeaderElectionRuns() error {
 func (le *LeaderEngine) runLeaderElection() {
 	for {
 		log.Infof("Starting leader election process for %q...", le.HolderIdentity)
-		le.leaderElector.Run(context.Background())
+		le.leaderElector.Run(le.ctx)
 		log.Info("Leader election lost")
 	}
 }
