@@ -10,7 +10,6 @@ import (
 	"os"
 	"testing"
 
-	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -45,7 +44,7 @@ func TestFhCheckLinux(t *testing.T) {
 	fileNrHandle = writeSampleFile(tmpFile, samplecontent1)
 	t.Logf("Testing from file %s", fileNrHandle) // To pass circle ci tests
 
-	// we have to init the mocked sender here before fileHandleCheck.Configure(aggregator.GetSenderManager(), integration.FakeConfigHash, ...)
+	// we have to init the mocked sender here before fileHandleCheck.Configure(mock.GetSenderManager(), integration.FakeConfigHash, ...)
 	// (and append it to the aggregator, which is automatically done in NewMockSender)
 	// because the FinalizeCheckServiceTag is called in Configure.
 	// Hopefully, the check ID is an empty string while running unit tests;
@@ -53,7 +52,7 @@ func TestFhCheckLinux(t *testing.T) {
 	mock.On("FinalizeCheckServiceTag").Return()
 
 	fileHandleCheck := new(fhCheck)
-	fileHandleCheck.Configure(aggregator.GetSenderManager(), integration.FakeConfigHash, nil, nil, "test")
+	fileHandleCheck.Configure(mock.GetSenderManager(), integration.FakeConfigHash, nil, nil, "test")
 
 	// reset the check ID for the sake of correctness
 	mocksender.SetSender(mock, fileHandleCheck.ID())

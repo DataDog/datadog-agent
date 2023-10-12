@@ -140,7 +140,6 @@ func runAgent(stopCh chan struct{}) (serverlessDaemon *daemon.Daemon, err error)
 	if err != nil {
 		log.Debug("Unable to restore the state from file")
 	} else {
-		serverlessDaemon.ComputeGlobalTags(configUtils.GetConfiguredTags(config.Datadog, true))
 		serverlessDaemon.StartLogCollection()
 	}
 	// serverless parts
@@ -275,7 +274,11 @@ func runAgent(stopCh chan struct{}) (serverlessDaemon *daemon.Daemon, err error)
 		if logRegistrationError != nil {
 			log.Error("Can't subscribe to logs:", logRegistrationError)
 		} else {
-			serverlessLogs.SetupLogAgent(logChannel, "AWS Logs", "lambda")
+			logsAgent, err := serverlessLogs.SetupLogAgent(logChannel, "AWS Logs", "lambda")
+			if err != nil {
+				log.Errorf("Error setting up the logs agent: %s", err)
+			}
+			serverlessDaemon.SetLogsAgent(logsAgent)
 		}
 	}()
 

@@ -12,10 +12,12 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/DataDog/datadog-agent/comp/core/flare/types"
 )
 
 type FlareBuilderMock struct {
-	Fb   FlareBuilder
+	Fb   types.FlareBuilder
 	Root string
 	t    *testing.T
 }

@@ -5,11 +5,15 @@
 
 package checkconfig
 
+import (
+	"github.com/DataDog/datadog-agent/pkg/networkdevice/profile/profiledefinition"
+)
+
 type profileConfigMap map[string]profileConfig
 
 type profileConfig struct {
-	DefinitionFile string            `yaml:"definition_file"`
-	Definition     profileDefinition `yaml:"definition"`
+	DefinitionFile string                              `yaml:"definition_file"`
+	Definition     profiledefinition.ProfileDefinition `yaml:"definition"`
 
 	isUserProfile bool `yaml:"-"`
 }

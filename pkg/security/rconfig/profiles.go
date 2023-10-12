@@ -5,6 +5,7 @@
 
 //go:build linux
 
+// Package rconfig holds rconfig related files
 package rconfig
 
 import (
@@ -14,6 +15,7 @@ import (
 	"sync"
 
 	proto "github.com/DataDog/agent-payload/v5/cws/dumpsv1"
+	"github.com/DataDog/datadog-go/v5/statsd"
 
 	"github.com/DataDog/datadog-agent/pkg/config/remote"
 	"github.com/DataDog/datadog-agent/pkg/config/remote/data"
@@ -28,11 +30,13 @@ const (
 	separator = ":::"
 )
 
+// ProfileConfig defines a profile config
 type ProfileConfig struct {
 	Tags    []string
 	Profile []byte
 }
 
+// RCProfileProvider defines a RC profile provider
 type RCProfileProvider struct {
 	sync.RWMutex
 
@@ -41,7 +45,7 @@ type RCProfileProvider struct {
 	onNewProfileCallback func(selector cgroupModel.WorkloadSelector, profile *proto.SecurityProfile)
 }
 
-// Close stops the client
+// Stop stops the client
 func (r *RCProfileProvider) Stop() error {
 	r.client.Close()
 	return nil
@@ -126,7 +130,12 @@ func (r *RCProfileProvider) SetOnNewProfileCallback(onNewProfileCallback func(se
 	r.onNewProfileCallback = onNewProfileCallback
 }
 
-// NewRCPolicyProvider returns a new Remote Config based policy provider
+// SendStats sends the metrics of the directory provider
+func (r *RCProfileProvider) SendStats(_ statsd.ClientInterface) error {
+	return nil
+}
+
+// NewRCProfileProvider returns a new Remote Config based policy provider
 func NewRCProfileProvider() (*RCProfileProvider, error) {
 	agentVersion, err := utils.GetAgentSemverVersion()
 	if err != nil {

@@ -6,7 +6,7 @@
 require './lib/cmake.rb'
 
 name 'apt'
-default_version '2.5.5'
+default_version '2.7.3'
 
 dependency 'bzip2'
 dependency 'gnutls'
@@ -22,7 +22,7 @@ license 'GPLv2'
 license_file "COPYING"
 skip_transitive_dependency_licensing true
 
-version("2.5.5") { source sha256: "488d858485bd87369338cdbe3dcd74437379eebea9c9adf272df1e4a05714f3c" }
+version("2.7.3") { source sha256: "67bf0a8f167a4124f9e93d06e17e40a77cce3032b146f6084acf9cc99011fca7" }
 
 ship_source_offer true
 

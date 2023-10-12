@@ -128,6 +128,20 @@ func (lp *LifecycleProcessor) OnInvokeStart(startDetails *InvocationStartDetails
 			break
 		}
 		lp.initFromAPIGatewayWebsocketEvent(event, region)
+	case trigger.APIGatewayLambdaAuthorizerTokenEvent:
+		var event events.APIGatewayCustomAuthorizerRequest
+		if err := json.Unmarshal(payloadBytes, &event); err != nil {
+			log.Debugf("Failed to unmarshal %s event: %s", apiGateway, err)
+			break
+		}
+		lp.initFromAPIGatewayLambdaAuthorizerTokenEvent(event)
+	case trigger.APIGatewayLambdaAuthorizerRequestParametersEvent:
+		var event events.APIGatewayCustomAuthorizerRequestTypeRequest
+		if err := json.Unmarshal(payloadBytes, &event); err != nil {
+			log.Debugf("Failed to unmarshal %s event: %s", apiGateway, err)
+			break
+		}
+		lp.initFromAPIGatewayLambdaAuthorizerRequestParametersEvent(event)
 	case trigger.ALBEvent:
 		var event events.ALBTargetGroupRequest
 		if err := json.Unmarshal(payloadBytes, &event); err != nil {

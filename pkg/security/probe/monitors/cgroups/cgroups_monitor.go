@@ -5,6 +5,7 @@
 
 //go:build linux
 
+// Package cgroups holds cgroups related files
 package cgroups
 
 import (
@@ -14,22 +15,22 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/cgroup"
 )
 
-// CgroupsMonitor defines a cgroup monitor
-type CgroupsMonitor struct {
+// Monitor defines a cgroup monitor
+type Monitor struct {
 	statsdClient    statsd.ClientInterface
 	cgroupsResolver *cgroup.Resolver
 }
 
 // SendStats send stats
-func (cm *CgroupsMonitor) SendStats() error {
+func (cm *Monitor) SendStats() error {
 	count := cm.cgroupsResolver.Len()
 	_ = cm.statsdClient.Gauge(metrics.MetricRuntimeCgroupsRunning, float64(count), []string{}, 1.0)
 	return nil
 }
 
 // NewCgroupsMonitor returns a new cgroups monitor
-func NewCgroupsMonitor(statsdClient statsd.ClientInterface, cgrouspResolver *cgroup.Resolver) *CgroupsMonitor {
-	return &CgroupsMonitor{
+func NewCgroupsMonitor(statsdClient statsd.ClientInterface, cgrouspResolver *cgroup.Resolver) *Monitor {
+	return &Monitor{
 		statsdClient:    statsdClient,
 		cgroupsResolver: cgrouspResolver,
 	}

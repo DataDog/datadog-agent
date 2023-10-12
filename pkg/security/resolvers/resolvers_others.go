@@ -5,6 +5,7 @@
 
 //go:build !linux && !windows
 
+// Package resolvers holds resolvers related files
 package resolvers
 
 import (

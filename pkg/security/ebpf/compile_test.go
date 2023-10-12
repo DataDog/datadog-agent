@@ -5,6 +5,7 @@
 
 //go:build linux_bpf
 
+// Package ebpf holds ebpf related files
 package ebpf
 
 import (

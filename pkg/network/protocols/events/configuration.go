@@ -12,7 +12,6 @@ import (
 	"sync"
 
 	manager "github.com/DataDog/ebpf-manager"
-	"github.com/cilium/ebpf"
 
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
@@ -42,7 +41,6 @@ func Configure(proto string, m *manager.Manager, o *manager.Options) {
 	}
 
 	o.MapSpecEditors[proto+batchMapSuffix] = manager.MapSpecEditor{
-		Type:       ebpf.Hash,
 		MaxEntries: uint32(onlineCPUs * batchPagesPerCPU),
 		EditorFlag: manager.EditMaxEntries,
 	}

@@ -18,6 +18,7 @@ import (
 	"time"
 
 	"go.uber.org/atomic"
+	"google.golang.org/grpc"
 
 	"github.com/DataDog/datadog-agent/cmd/system-probe/api/module"
 	"github.com/DataDog/datadog-agent/cmd/system-probe/config"
@@ -29,6 +30,7 @@ import (
 	kafkadebugging "github.com/DataDog/datadog-agent/pkg/network/protocols/kafka/debugging"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/network/tracer"
+	usm "github.com/DataDog/datadog-agent/pkg/network/usm/utils"
 	"github.com/DataDog/datadog-agent/pkg/process/statsd"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -83,6 +85,11 @@ type networkTracer struct {
 func (nt *networkTracer) GetStats() map[string]interface{} {
 	stats, _ := nt.tracer.GetStats()
 	return stats
+}
+
+// RegisterGRPC register system probe grpc server
+func (nt *networkTracer) RegisterGRPC(_ grpc.ServiceRegistrar) error {
+	return nil
 }
 
 // Register all networkTracer endpoints
@@ -239,6 +246,7 @@ func (nt *networkTracer) Register(httpMux *module.Router) error {
 	})
 
 	httpMux.HandleFunc("/debug/usm_telemetry", telemetry.Handler)
+	httpMux.HandleFunc("/debug/usm_traced_programs", usm.TracedProgramsEndpoint)
 
 	// Convenience logging if nothing has made any requests to the system-probe in some time, let's log something.
 	// This should be helpful for customers + support to debug the underlying issue.
@@ -290,7 +298,10 @@ func writeConnections(w http.ResponseWriter, marshaler encoding.Marshaler, cs *n
 
 	w.Header().Set("Content-type", marshaler.ContentType())
 
-	err := marshaler.Marshal(cs, w)
+	connectionsModeler := encoding.NewConnectionsModeler(cs)
+	defer connectionsModeler.Close()
+
+	err := marshaler.Marshal(cs, w, connectionsModeler)
 	if err != nil {
 		log.Errorf("unable to marshall connections with type %s: %s", marshaler.ContentType(), err)
 		w.WriteHeader(500)

@@ -12,6 +12,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"strings"
 	"testing"
 	"time"
 
@@ -802,25 +803,31 @@ func TestProcessMultipleLogMessagesTimeoutLogFromReportLog(t *testing.T) {
 			createStringRecordForReportLog(lc.invocationStartTime, lc.invocationEndTime, &reportLogMessageTwo),
 		},
 	}
-	expectedErrors := map[string][]bool{
-		"myRequestID-1": {false, true},
-		"myRequestID-2": {false},
-	}
 
-	for reqId, logsSlice := range expectedLogs {
-		for i := 0; i < len(logsSlice); i++ {
-			select {
-			case received := <-logChannel:
-				assert.NotNil(t, received)
-				assert.Equal(t, "my-arn", received.Lambda.ARN)
-				assert.Equal(t, reqId, received.Lambda.RequestID)
-				assert.Equal(t, logsSlice[i], string(received.Content))
-				assert.Equal(t, expectedErrors[reqId][i], received.IsError)
-			case <-time.After(100 * time.Millisecond):
-				assert.Fail(t, "We should have received logs")
+	for i := 0; i < 3; i++ {
+		select {
+		case received := <-logChannel:
+			assert.NotNil(t, received)
+			logs := expectedLogs[received.Lambda.RequestID]
+			assert.NotEmpty(t, logs)
+			logMatch := false
+			for _, logString := range logs {
+				if logString == string(received.Content) {
+					logMatch = true
+				}
 			}
+			assert.True(t, logMatch)
+			assert.Equal(t, "my-arn", received.Lambda.ARN)
+			if strings.Contains(string(received.Content), "Task timed out") {
+				assert.True(t, received.IsError)
+			} else {
+				assert.False(t, received.IsError)
+			}
+		case <-time.After(100 * time.Millisecond):
+			assert.Fail(t, "We should have received logs")
 		}
 	}
+
 }
 
 func TestProcessLogMessagesOutOfMemoryError(t *testing.T) {

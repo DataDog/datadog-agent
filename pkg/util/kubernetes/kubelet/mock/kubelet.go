@@ -5,6 +5,7 @@
 
 //go:build kubelet
 
+// Package mock provides a fake Kubelet client to be used in tests.
 package mock
 
 import (

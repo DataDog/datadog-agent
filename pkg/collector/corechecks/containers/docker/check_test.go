@@ -11,6 +11,8 @@ import (
 	"regexp"
 	"testing"
 
+	"github.com/DataDog/datadog-agent/pkg/util/containers/metrics"
+	"github.com/DataDog/datadog-agent/pkg/util/pointer"
 	dockerTypes "github.com/docker/docker/api/types"
 	"github.com/stretchr/testify/assert"
 
@@ -290,4 +292,57 @@ func TestContainersRunning(t *testing.T) {
 
 	mockSender.AssertMetric(t, "Gauge", "docker.containers.running", 2, "", []string{"image_name:datadog/agent", "short:agent", "tag:latest", "service:s1"})
 	mockSender.AssertMetric(t, "Gauge", "docker.containers.running", 1, "", []string{"image_name:datadog/agent", "short:agent", "tag:latest", "service:s2"})
+}
+
+func TestProcess_CPUSharesMetric(t *testing.T) {
+	containersMeta := []*workloadmeta.Container{
+		generic.CreateContainerMeta("docker", "cID100"),
+		generic.CreateContainerMeta("docker", "cID101"),
+		generic.CreateContainerMeta("docker", "cID102"),
+	}
+
+	containersStats := map[string]mock.ContainerEntry{
+		"cID100": { // container with CPU shares (cgroups v1)
+			ContainerStats: &metrics.ContainerStats{
+				CPU: &metrics.ContainerCPUStats{
+					Shares: pointer.Ptr(1024.0),
+				},
+			},
+		},
+		"cID101": { // container with CPU weight (cgroups v2)
+			ContainerStats: &metrics.ContainerStats{
+				CPU: &metrics.ContainerCPUStats{
+					Weight: pointer.Ptr(100.0), // 2597 shares
+				},
+			},
+		},
+		"cID102": { // shares/weight not available
+			ContainerStats: &metrics.ContainerStats{
+				CPU: &metrics.ContainerCPUStats{
+					Total: pointer.Ptr(100.0),
+				},
+			},
+		},
+	}
+
+	// Inject mock processor in check
+	mockSender, processor, _ := generic.CreateTestProcessor(containersMeta, containersStats, metricsAdapter{}, getProcessorFilter(nil))
+	processor.RegisterExtension("docker-custom-metrics", &dockerCustomMetricsExtension{})
+
+	// Create Docker check
+	check := DockerCheck{
+		instance:       &DockerConfig{},
+		processor:      *processor,
+		dockerHostname: "testhostname",
+	}
+
+	err := check.runProcessor(mockSender)
+	assert.NoError(t, err)
+
+	expectedTags := []string{"runtime:docker"}
+
+	mockSender.AssertMetricInRange(t, "Gauge", "docker.uptime", 0, 600, "", expectedTags)
+	mockSender.AssertMetric(t, "Gauge", "docker.cpu.shares", 1024, "", expectedTags)
+	mockSender.AssertMetric(t, "Gauge", "docker.cpu.shares", 2597, "", expectedTags)
+	mockSender.AssertNotCalled(t, "Gauge", "docker.cpu.shares", 0.0, "", mocksender.MatchTagsContains(expectedTags))
 }

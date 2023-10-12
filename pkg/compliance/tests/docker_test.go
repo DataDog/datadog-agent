@@ -25,7 +25,7 @@ func TestDockerInfoInput(t *testing.T) {
 		t.Skipf("could not connect to docker to start testing: %v", err)
 	}
 
-	b := NewTestBench(t).
+	b := newTestBench(t).
 		WithHostname(dockerHostname).
 		WithDockerClient(dockerCl)
 	defer b.Run()

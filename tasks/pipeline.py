@@ -2,6 +2,7 @@ import io
 import os
 import pprint
 import re
+import time
 import traceback
 from collections import defaultdict
 from datetime import datetime
@@ -11,7 +12,7 @@ from invoke import task
 from invoke.exceptions import Exit
 
 from .libs.common.color import color_message
-from .libs.common.github_api import GithubAPI, get_github_token
+from .libs.common.github_api import GithubAPI
 from .libs.common.gitlab import Gitlab, get_gitlab_bot_token, get_gitlab_token
 from .libs.datadog_api import create_count, send_metrics
 from .libs.pipeline_data import get_failed_jobs
@@ -21,6 +22,7 @@ from .libs.pipeline_notifications import (
     check_for_missing_owners_slack_and_jira,
     find_job_owners,
     get_failed_tests,
+    read_owners,
     send_slack_message,
 )
 from .libs.pipeline_stats import get_failed_jobs_stats
@@ -28,6 +30,7 @@ from .libs.pipeline_tools import (
     FilteredOutException,
     cancel_pipelines_with_confirmation,
     get_running_pipelines_on_same_ref,
+    gracefully_cancel_pipeline,
     trigger_agent_pipeline,
     wait_for_pipeline,
 )
@@ -158,6 +161,44 @@ def trigger(
 instead.""",
         1,
     )
+
+
+@task
+def auto_cancel_previous_pipelines(ctx):
+    """
+    Automatically cancel previous pipelines running on the same ref
+    """
+
+    project_name = "DataDog/datadog-agent"
+    if not os.environ.get('GITLAB_TOKEN'):
+        raise Exit("GITLAB_TOKEN variable needed to cancel pipelines on the same ref.", 1)
+
+    gitlab = Gitlab(project_name=project_name, api_token=get_gitlab_token())
+    gitlab.test_project_found()
+
+    git_ref = os.getenv("CI_COMMIT_REF_NAME")
+    git_sha = os.getenv("CI_COMMIT_SHA")
+
+    pipelines = get_running_pipelines_on_same_ref(gitlab, git_ref)
+    pipelines_without_current = [p for p in pipelines if p["sha"] != git_sha]
+
+    for pipeline in pipelines_without_current:
+        # We cancel pipeline only if it correspond to a commit that is an ancestor of the current commit
+        is_ancestor = ctx.run(f'git merge-base --is-ancestor {pipeline["sha"]} {git_sha}', warn=True, hide="both")
+        if is_ancestor.exited == 0:
+            print(
+                f'Gracefully canceling jobs that are not canceled on pipeline {pipeline["id"]} ({pipeline["web_url"]})'
+            )
+            gracefully_cancel_pipeline(gitlab, pipeline, force_cancel_stages=["package_build"])
+        elif is_ancestor.exited == 1:
+            print(f'{pipeline["sha"]} is not an ancestor of {git_sha}, not cancelling pipeline {pipeline["id"]}')
+        elif is_ancestor.exited == 128:
+            print(
+                f'Could not determine if {pipeline["sha"]} is an ancestor of {git_sha}, probably because it has been deleted from the history because of force push'
+            )
+        else:
+            print(is_ancestor.stderr)
+            raise Exit(1)
 
 
 @task
@@ -422,6 +463,94 @@ def trigger_child_pipeline(_, git_ref, project_name, variables="", follow=True):
             raise Exit(f"Error: child pipeline status {pipestatus.title()}", code=1)
 
         print("Child pipeline finished successfully")
+
+
+def parse(commit_str):
+    lines = commit_str.split("\n")
+    title = lines[0]
+    url = "NO_URL"
+    pr_id_match = re.search(r".*\(#(\d+)\)", title)
+    if pr_id_match is not None:
+        url = f"https://github.com/DataDog/datadog-agent/pull/{pr_id_match.group(1)}"
+    author = lines[1]
+    author_email = lines[2]
+    files = lines[3:]
+    return title, author, author_email, files, url
+
+
+def is_system_probe(owners, files):
+    target = {
+        ("TEAM", "@DataDog/Networks"),
+        ("TEAM", "@DataDog/universal-service-monitoring"),
+        ("TEAM", "@DataDog/ebpf-platform"),
+        ("TEAM", "@DataDog/agent-security"),
+    }
+    for f in files:
+        match_teams = set(owners.of(f)) & target
+        if len(match_teams) != 0:
+            return True
+
+    return False
+
+
+@task
+def changelog(ctx, new_commit_sha):
+    old_commit_sha = ctx.run(
+        "aws ssm get-parameter --region us-east-1 --name "
+        "ci.datadog-agent.gitlab_changelog_commit_sha --with-decryption --query "
+        "\"Parameter.Value\" --out text",
+        hide=True,
+    ).stdout.strip()
+    if not new_commit_sha:
+        print("New commit sha not found, exiting")
+        return
+    if not old_commit_sha:
+        print("Old commit sha not found, exiting")
+        return
+    print(f"Generating changelog for commit range {old_commit_sha} to {new_commit_sha}")
+    commits = ctx.run(f"git log {old_commit_sha}..{new_commit_sha} --pretty=format:%h", hide=True).stdout.split("\n")
+    owners = read_owners(".github/CODEOWNERS")
+    messages = []
+
+    for commit in commits:
+        # see https://git-scm.com/docs/pretty-formats for format string
+        commit_str = ctx.run(f"git show --name-only --pretty=format:%s%n%aN%n%aE {commit}", hide=True).stdout
+        title, author, author_email, files, url = parse(commit_str)
+        if not is_system_probe(owners, files):
+            continue
+        message_link = f"• <{url}|{title}>"
+        if "dependabot" in author_email or "github-actions" in author_email:
+            messages.append(f"{message_link}")
+            continue
+        author_handle = ctx.run(f"email2slackid {author_email.strip()}", hide=True).stdout
+        if author_handle:
+            author_handle = f"<@{author_handle}>"
+        else:
+            author_handle = author_email
+        time.sleep(1)  # necessary to prevent slack/sdm API rate limits
+        messages.append(f"{message_link} {author_handle}")
+
+    commit_range_link = f"https://github.com/DataDog/datadog-agent/compare/{old_commit_sha}..{new_commit_sha}"
+    slack_message = (
+        "The nightly deployment is rolling out to Staging :siren: \n"
+        + f"Changelog for <{commit_range_link}|commit range>: `{old_commit_sha}` to `{new_commit_sha}`:\n"
+    )
+    if messages:
+        slack_message += (
+            "\n".join(messages) + "\n:wave: Authors, please check relevant "
+            "<https://ddstaging.datadoghq.com/dashboard/kfn-zy2-t98|dashboards> for issues"
+        )
+    else:
+        slack_message += "No new System Probe related commits in this release :cricket:"
+
+    print(f"Posting message to slack \n {slack_message}")
+    send_slack_message("system-probe-ops", slack_message)
+    print(f"Writing new commit sha: {new_commit_sha} to SSM")
+    ctx.run(
+        f"aws ssm put-parameter --name ci.datadog-agent.gitlab_changelog_commit_sha --value {new_commit_sha} "
+        "--type \"SecureString\" --region us-east-1 --overwrite",
+        hide=True,
+    )
 
 
 @task
@@ -712,7 +841,7 @@ def verify_workspace(ctx, branch_name=None):
     if branch_name is None:
         user_name = ctx.run("whoami", hide="out")
         branch_name = f"{user_name.stdout.rstrip()}/test_buildimages"
-        github = GithubAPI(repository=GITHUB_REPO_NAME, api_token=get_github_token())
+        github = GithubAPI(repository=GITHUB_REPO_NAME)
         check_clean_branch_state(ctx, github, branch_name)
     return branch_name
 

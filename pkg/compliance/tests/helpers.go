@@ -21,6 +21,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/compliance"
 	"github.com/stretchr/testify/assert"
+	"k8s.io/client-go/discovery"
 	"k8s.io/client-go/dynamic"
 )
 
@@ -52,7 +53,7 @@ type assertedRule struct {
 	expectErr bool
 }
 
-func NewTestBench(t *testing.T) *suite {
+func newTestBench(t *testing.T) *suite {
 	rootDir := t.TempDir()
 	return &suite{
 		t:       t,
@@ -111,7 +112,9 @@ func (s *suite) Run() {
 				options.DockerProvider = func(ctx context.Context) (docker.CommonAPIClient, error) { return s.dockerClient, nil }
 			}
 			if s.kubeClient != nil {
-				options.KubernetesProvider = func(ctx context.Context) (dynamic.Interface, error) { return s.kubeClient, nil }
+				options.KubernetesProvider = func(ctx context.Context) (dynamic.Interface, discovery.DiscoveryInterface, error) {
+					return s.kubeClient, nil, nil
+				}
 			}
 			c.run(t, options)
 		})
@@ -262,7 +265,13 @@ func (c *assertedRule) run(t *testing.T, options compliance.ResolverOptions) {
 	defer resolver.Close()
 	benchmark := benchmarks[0]
 	for _, rule := range benchmark.Rules {
-		events := compliance.ResolveAndEvaluateRegoRule(ctx, resolver, benchmark, rule)
+		inputs, err := resolver.ResolveInputs(ctx, rule)
+		var events []*compliance.CheckEvent
+		if err != nil {
+			events = append(events, compliance.CheckEventFromError(compliance.RegoEvaluator, rule, benchmark, err))
+		} else {
+			events = compliance.EvaluateRegoRule(ctx, inputs, benchmark, rule)
+		}
 		if c.noEvent {
 			if len(events) > 0 {
 				for _, event := range events {

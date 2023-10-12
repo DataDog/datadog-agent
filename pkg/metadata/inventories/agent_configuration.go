@@ -23,7 +23,7 @@ func marshalAndScrub(conf map[string]interface{}) (string, error) {
 		return "", log.Errorf("could not marshal agent configuration: %s", err)
 	}
 
-	scrubbed, err := flareScrubber.ScrubBytes(provided)
+	scrubbed, err := flareScrubber.ScrubYaml(provided)
 	if err != nil {
 		return "", log.Errorf("could not scrubb agent configuration: %s", err)
 	}

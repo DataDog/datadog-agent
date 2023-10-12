@@ -12,7 +12,6 @@ import (
 	"fmt"
 
 	"github.com/cilium/ebpf"
-	"github.com/cilium/ebpf/features"
 
 	manager "github.com/DataDog/ebpf-manager"
 
@@ -227,21 +226,6 @@ func loadTracerFromAsset(buf bytecode.AssetReader, runtimeTracer, coreTracer boo
 		}
 	}
 
-	// Replace ebpf telemetry maps with Percpu maps if kernel supports
-	if features.HaveMapType(ebpf.PerCPUHash) == nil {
-		if mgrOpts.MapSpecEditors == nil {
-			mgrOpts.MapSpecEditors = make(map[string]manager.MapSpecEditor)
-		}
-		mgrOpts.MapSpecEditors[probes.MapErrTelemetryMap] = manager.MapSpecEditor{
-			Type:       ebpf.PerCPUHash,
-			EditorFlag: manager.EditType,
-		}
-		mgrOpts.MapSpecEditors[probes.HelperErrTelemetryMap] = manager.MapSpecEditor{
-			Type:       ebpf.PerCPUHash,
-			EditorFlag: manager.EditType,
-		}
-	}
-
 	if err := errtelemetry.ActivateBPFTelemetry(m, undefinedProbes); err != nil {
 		return nil, nil, fmt.Errorf("could not activate ebpf telemetry: %w", err)
 	}
@@ -294,7 +278,7 @@ func loadCORETracer(config *config.Config, mgrOpts manager.Options, perfHandlerT
 	var m *manager.Manager
 	var closeFn func()
 	var err error
-	err = ddebpf.LoadCOREAsset(&config.Config, netebpf.ModuleFileName("tracer", config.BPFDebug), func(ar bytecode.AssetReader, o manager.Options) error {
+	err = ddebpf.LoadCOREAsset(netebpf.ModuleFileName("tracer", config.BPFDebug), func(ar bytecode.AssetReader, o manager.Options) error {
 		o.RLimit = mgrOpts.RLimit
 		o.MapSpecEditors = mgrOpts.MapSpecEditors
 		o.ConstantEditors = mgrOpts.ConstantEditors

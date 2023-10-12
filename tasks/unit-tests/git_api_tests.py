@@ -4,18 +4,13 @@ from unittest import mock
 
 from invoke.exceptions import Exit
 
-from .. import release
-from ..libs.common.github_api import GithubAPI
-from ..libs.common.github_workflows import GithubException, GithubWorkflows
 from ..libs.common.gitlab import Gitlab, get_gitlab_token
 from ..libs.common.remote_api import APIError
-from ..libs.version import Version
 
 
 class MockResponse:
     def __init__(self, content, status_code):
         self.content = content
-        self.json_data = content
         self.status_code = status_code
 
     def json(self):
@@ -43,38 +38,6 @@ def mocked_gitlab_project_request(*_args, **_kwargs):
     return MockResponse("name", 200)
 
 
-##################### MOCKED GITHUB #####################
-
-
-def mocked_github_requests_get(*_args, **_kwargs):
-    return MockResponse(
-        [
-            {"ref": "7.28.0-rc.1"},
-            {"ref": "7.28.0"},
-            {"ref": "7.28.1-rc.1"},
-            {"ref": "7.28.1"},
-            {"ref": "7.29.0-rc.1"},
-            {"ref": "7.29.0"},
-        ],
-        200,
-    )
-
-
-def mocked_502_github_requests(*_args, **_kwargs):
-    return MockResponse([], 502)
-
-
-##################### MOCKED GITHUB WORKFLOW #####################
-
-
-def mocked_502_github_workflow_requests(*_args, **_kwargs):
-    return MockResponse([], 502)
-
-
-def mocked_github_workflow_requests(*_args, **_kwargs):
-    return MockResponse("valid content", 200)
-
-
 class SideEffect:
     def __init__(self, *fargs):
         self.functions = cycle(fargs)
@@ -85,73 +48,6 @@ class SideEffect:
 
 
 class TestStatusCode5XX(unittest.TestCase):
-    @mock.patch('requests.get', side_effect=SideEffect(mocked_502_github_requests, mocked_github_requests_get))
-    def test_github_one_fail_one_success(self, _):
-        version = release._get_highest_repo_version(
-            "FAKE_TOKEN",
-            "target-repo",
-            "",
-            release.build_compatible_version_re(release.COMPATIBLE_MAJOR_VERSIONS[7], 29),
-            release.COMPATIBLE_MAJOR_VERSIONS[7],
-            request_retry_sleep_time=0,
-        )
-        self.assertEqual(version, Version(major=7, minor=29, patch=0))
-
-    @mock.patch(
-        'requests.get',
-        side_effect=SideEffect(
-            mocked_502_github_requests,
-            mocked_502_github_requests,
-            mocked_502_github_requests,
-            mocked_502_github_requests,
-            mocked_github_requests_get,
-        ),
-    )
-    def test_github_last_one_success(self, _):
-        version = release._get_highest_repo_version(
-            "FAKE_TOKEN",
-            "target-repo",
-            "",
-            release.build_compatible_version_re(release.COMPATIBLE_MAJOR_VERSIONS[7], 29),
-            release.COMPATIBLE_MAJOR_VERSIONS[7],
-            request_retry_sleep_time=0,
-        )
-        self.assertEqual(version, Version(major=7, minor=29, patch=0))
-
-    @mock.patch('requests.get', side_effect=SideEffect(mocked_502_github_requests))
-    def test_github_full_fail(self, _):
-        failed = False
-        try:
-            release._get_highest_repo_version(
-                "FAKE_TOKEN",
-                "target-repo",
-                "",
-                release.build_compatible_version_re(release.COMPATIBLE_MAJOR_VERSIONS[7], 29),
-                release.COMPATIBLE_MAJOR_VERSIONS[7],
-                request_retry_sleep_time=0,
-            )
-        except Exit:
-            failed = True
-        if not failed:
-            Exit("GithubAPI was expected to fail !")
-
-    @mock.patch('requests.get', side_effect=SideEffect(fail_not_found_request, mocked_github_requests_get))
-    def test_github_real_fail(self, _):
-        failed = False
-        try:
-            release._get_highest_repo_version(
-                "FAKE_TOKEN",
-                "target-repo",
-                "",
-                release.build_compatible_version_re(release.COMPATIBLE_MAJOR_VERSIONS[7], 29),
-                release.COMPATIBLE_MAJOR_VERSIONS[7],
-                request_retry_sleep_time=0,
-            )
-        except Exit:
-            failed = True
-        if not failed:
-            Exit("GithubAPI was expected to fail !")
-
     @mock.patch('requests.get', side_effect=SideEffect(mocked_502_gitlab_requests, mocked_gitlab_project_request))
     def test_gitlab_one_fail_one_success(self, _):
         project_name = "DataDog/datadog-agent"
@@ -200,100 +96,6 @@ class TestStatusCode5XX(unittest.TestCase):
             failed = True
         if not failed:
             Exit("GitlabAPI was expected to fail")
-
-    @mock.patch(
-        'requests.get', side_effect=SideEffect(mocked_502_github_workflow_requests, mocked_github_workflow_requests)
-    )
-    def test_github_workflow_one_fail_one_success(self, _):
-        workflow = GithubWorkflows()
-        workflow.requests_sleep_time = 0
-        assert workflow.repo() == "valid content"
-
-    @mock.patch(
-        'requests.get',
-        side_effect=SideEffect(
-            mocked_502_github_workflow_requests,
-            mocked_502_github_workflow_requests,
-            mocked_502_github_workflow_requests,
-            mocked_502_github_workflow_requests,
-            mocked_github_workflow_requests,
-        ),
-    )
-    def test_github_workflow_last_one_success(self, _):
-        workflow = GithubWorkflows()
-        workflow.requests_sleep_time = 0
-        assert workflow.repo() == "valid content"
-
-    @mock.patch('requests.get', side_effect=SideEffect(mocked_502_github_workflow_requests))
-    def test_github_workflow_full_fail(self, _):
-        failed = False
-        try:
-            workflow = GithubWorkflows()
-            workflow.requests_sleep_time = 0
-            workflow.repo()
-        except GithubException:
-            failed = True
-        if not failed:
-            Exit("Github Workflow API was expected to fail !")
-
-    @mock.patch('requests.get', side_effect=SideEffect(fail_not_found_request, mocked_github_workflow_requests))
-    def test_github_workflow_real_fail(self, _):
-        failed = False
-        try:
-            workflow = GithubWorkflows()
-            workflow.requests_sleep_time = 0
-            workflow.repo()
-        except APIError:
-            failed = True
-        if not failed:
-            Exit("Github Workflow API was expected to fail !")
-
-    @mock.patch(
-        'requests.get', side_effect=SideEffect(mocked_502_github_workflow_requests, mocked_github_workflow_requests)
-    )
-    def test_githubapi_one_fail_one_success(self, _):
-        workflow = GithubAPI()
-        workflow.requests_sleep_time = 0
-        assert workflow.repo() == "valid content"
-
-    @mock.patch(
-        'requests.get',
-        side_effect=SideEffect(
-            mocked_502_github_workflow_requests,
-            mocked_502_github_workflow_requests,
-            mocked_502_github_workflow_requests,
-            mocked_502_github_workflow_requests,
-            mocked_github_workflow_requests,
-        ),
-    )
-    def test_githubapi_last_one_success(self, _):
-        workflow = GithubAPI()
-        workflow.requests_sleep_time = 0
-        assert workflow.repo() == "valid content"
-
-    @mock.patch('requests.get', side_effect=SideEffect(mocked_502_github_workflow_requests))
-    def test_githubapi_full_fail(self, _):
-        failed = False
-        try:
-            workflow = GithubAPI()
-            workflow.requests_sleep_time = 0
-            workflow.repo()
-        except Exit:
-            failed = True
-        if not failed:
-            Exit("Github Workflow API was expected to fail !")
-
-    @mock.patch('requests.get', side_effect=SideEffect(fail_not_found_request, mocked_github_workflow_requests))
-    def test_githubapi_real_fail(self, _):
-        failed = False
-        try:
-            workflow = GithubAPI()
-            workflow.requests_sleep_time = 0
-            workflow.repo()
-        except APIError:
-            failed = True
-        if not failed:
-            Exit("Github Workflow API was expected to fail !")
 
 
 if __name__ == "__main__":

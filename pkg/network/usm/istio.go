@@ -37,22 +37,7 @@ var istioProbes = []manager.ProbesSelector{
 			},
 			&manager.ProbeSelector{
 				ProbeIdentificationPair: manager.ProbeIdentificationPair{
-					EBPFFuncName: sslConnectProbe,
-				},
-			},
-			&manager.ProbeSelector{
-				ProbeIdentificationPair: manager.ProbeIdentificationPair{
-					EBPFFuncName: sslConnectRetprobe,
-				},
-			},
-			&manager.ProbeSelector{
-				ProbeIdentificationPair: manager.ProbeIdentificationPair{
 					EBPFFuncName: sslSetBioProbe,
-				},
-			},
-			&manager.ProbeSelector{
-				ProbeIdentificationPair: manager.ProbeIdentificationPair{
-					EBPFFuncName: sslSetFDProbe,
 				},
 			},
 			&manager.ProbeSelector{

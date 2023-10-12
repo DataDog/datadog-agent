@@ -27,6 +27,11 @@ const (
 // - serverStartRegex is a regex to be matched on the server logs to ensure it started correctly.
 func RunDockerServer(t testing.TB, serverName, dockerPath string, env []string, serverStartRegex *regexp.Regexp, timeout time.Duration) error {
 	t.Helper()
+	// Ensuring no previous instances exists.
+	c := exec.Command("docker-compose", "-f", dockerPath, "down", "--remove-orphans")
+	c.Env = append(c.Env, env...)
+	_ = c.Run()
+
 	ctx, cancel := context.WithCancel(context.Background())
 	t.Cleanup(cancel)
 
@@ -44,7 +49,8 @@ func RunDockerServer(t testing.TB, serverName, dockerPath string, env []string, 
 
 		c := exec.Command("docker-compose", "-f", dockerPath, "down", "--remove-orphans")
 		c.Env = append(c.Env, env...)
-		_ = c.Run()
+		// Not waiting for its finish.
+		_ = c.Start()
 	})
 
 	for {
@@ -75,8 +81,8 @@ func RunHostServer(t *testing.T, command []string, env []string, serverStartRege
 		t.Fatalf("command not set %v host server", command)
 	}
 	t.Helper()
-	ctx, cancel := context.WithCancel(context.Background())
-	t.Cleanup(cancel)
+	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
+	defer cancel()
 
 	cmd := exec.CommandContext(ctx, command[0], command[1:]...)
 	serverName := cmd.String()
@@ -88,7 +94,6 @@ func RunHostServer(t *testing.T, command []string, env []string, serverStartRege
 	err := cmd.Start()
 	require.NoErrorf(t, err, "could not start %s on host", serverName)
 	t.Cleanup(func() {
-		cancel()
 		_ = cmd.Wait()
 	})
 
@@ -104,11 +109,6 @@ func RunHostServer(t *testing.T, command []string, env []string, serverStartRege
 			t.Logf("%s host server pid %d is ready", serverName, cmd.Process.Pid)
 			patternScanner.PrintLogs(t)
 			return true
-		case <-time.After(time.Second * 60):
-			patternScanner.PrintLogs(t)
-			// please don't use t.Fatalf() here as we could test if it failed later
-			t.Errorf("failed to start %s host server pid %d", serverName, cmd.Process.Pid)
-			return false
 		}
 	}
 }

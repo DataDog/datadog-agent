@@ -6,12 +6,11 @@
 package examples
 
 import (
-	"errors"
 	"testing"
 	"time"
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e"
-	"github.com/cenkalti/backoff/v4"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
@@ -20,20 +19,13 @@ type agentSuiteEx5 struct {
 }
 
 func TestAgentSuiteEx5(t *testing.T) {
-	e2e.Run(t, &agentSuiteEx5{}, e2e.FakeIntakeStackDef(nil))
+	e2e.Run(t, &agentSuiteEx5{}, e2e.FakeIntakeStackDef())
 }
 
 func (s *agentSuiteEx5) TestCheckRuns() {
-	t := s.T()
-	err := backoff.Retry(func() error {
+	s.EventuallyWithT(func(c *assert.CollectT) {
 		checkRuns, err := s.Env().Fakeintake.Client.GetCheckRun("datadog.agent.up")
-		if err != nil {
-			return err
-		}
-		if len(checkRuns) == 0 {
-			return errors.New("no check run yet")
-		}
-		return nil
-	}, backoff.WithMaxRetries(backoff.NewConstantBackOff(500*time.Millisecond), 60))
-	require.NoError(t, err)
+		require.NoError(c, err)
+		assert.Greater(c, len(checkRuns), 0)
+	}, 30*time.Second, 500*time.Millisecond)
 }

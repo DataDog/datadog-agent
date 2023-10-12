@@ -10,7 +10,7 @@ package tests
 import "testing"
 
 func TestNoDocker(t *testing.T) {
-	b := NewTestBench(t)
+	b := newTestBench(t)
 	defer b.Run()
 
 	b.AddRule("NoDockerNoneScope").
@@ -82,7 +82,7 @@ findings[f] {
 }
 
 func TestNoKubernetes(t *testing.T) {
-	b := NewTestBench(t)
+	b := newTestBench(t)
 	defer b.Run()
 
 	b.AddRule("NoKubernetesNode").

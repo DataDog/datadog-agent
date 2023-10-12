@@ -5,6 +5,7 @@
 
 //go:build linux
 
+// Package netns holds netns related files
 package netns
 
 import (
@@ -38,8 +39,8 @@ var (
 	// namespace yet.
 	ErrNoNetworkNamespaceHandle = fmt.Errorf("no network namespace handle")
 
-	// lonelyTimeout is the timeout past which a lonely network namespace is expired
-	lonelyTimeout = 30 * time.Second
+	// lonelyNamespaceTimeout is the timeout past which a lonely network namespace is expired
+	lonelyNamespaceTimeout = 30 * time.Second
 	// flushNamespacesPeriod is the period at which the resolver checks if a namespace should be flushed
 	flushNamespacesPeriod = 30 * time.Second
 )
@@ -68,8 +69,8 @@ type NetworkNamespace struct {
 }
 
 // ID returns the network namespace ID
-func (ns *NetworkNamespace) ID() uint32 {
-	return ns.nsID
+func (nn *NetworkNamespace) ID() uint32 {
+	return nn.nsID
 }
 
 // NewNetworkNamespace returns a new NetworkNamespace instance
@@ -466,7 +467,7 @@ func (nr *Resolver) preventNetworkNamespaceDrift(probesCount map[uint32]int) {
 	defer nr.Unlock()
 
 	now := time.Now()
-	timeout := now.Add(lonelyTimeout)
+	timeout := now.Add(lonelyNamespaceTimeout)
 
 	// compute the list of network namespaces without any probe
 	for _, nsID := range nr.networkNamespaces.Keys() {

@@ -39,6 +39,7 @@ type NetworkDevicesMetadata struct {
 	IPAddresses      []IPAddressMetadata    `json:"ip_addresses,omitempty"`
 	Links            []TopologyLinkMetadata `json:"links,omitempty"`
 	NetflowExporters []NetflowExporter      `json:"netflow_exporters,omitempty"`
+	Diagnoses        []DiagnosisMetadata    `json:"diagnoses,omitempty"`
 	CollectTimestamp int64                  `json:"collect_timestamp"`
 }
 
@@ -125,4 +126,18 @@ type NetflowExporter struct {
 	ID        string `json:"id"` // used by backend as unique id (e.g. in cache)
 	IPAddress string `json:"ip_address"`
 	FlowType  string `json:"flow_type"`
+}
+
+// Diagnosis contain data for a diagnosis
+type Diagnosis struct {
+	Severity string `json:"severity"`
+	Message  string `json:"message"`
+	Code     string `json:"code"`
+}
+
+// DiagnosisMetadata contains diagnoses info
+type DiagnosisMetadata struct {
+	ResourceType string      `json:"resource_type"`
+	ResourceID   string      `json:"resource_id"`
+	Diagnoses    []Diagnosis `json:"diagnoses"`
 }

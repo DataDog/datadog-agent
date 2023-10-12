@@ -14,11 +14,10 @@ import (
 	"sync"
 	"time"
 
+	"github.com/DataDog/ebpf-manager/tracefs"
 	"github.com/cihub/seelog"
 	"github.com/cilium/ebpf"
 	"go.uber.org/atomic"
-
-	"github.com/DataDog/ebpf-manager/tracefs"
 
 	coretelemetry "github.com/DataDog/datadog-agent/comp/core/telemetry"
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
@@ -32,7 +31,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/events"
 	"github.com/DataDog/datadog-agent/pkg/network/netlink"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http"
-	"github.com/DataDog/datadog-agent/pkg/network/protocols/http2"
 	nettelemetry "github.com/DataDog/datadog-agent/pkg/network/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/connection"
 	"github.com/DataDog/datadog-agent/pkg/network/usm"
@@ -84,8 +82,7 @@ type Tracer struct {
 	bpfTelemetry *nettelemetry.EBPFTelemetry
 	lastCheck    *atomic.Int64
 
-	activeBuffer *network.ConnectionBuffer
-	bufferLock   sync.Mutex
+	bufferLock sync.Mutex
 
 	// Connections for the tracer to exclude
 	sourceExcludes []*network.ConnectionFilter
@@ -143,13 +140,7 @@ func newTracer(cfg *config.Config) (_ *Tracer, reterr error) {
 			}
 			log.Warnf("%s. NPM is explicitly enabled, so system-probe will continue with only NPM features enabled.", errStr)
 			cfg.EnableHTTPMonitoring = false
-			cfg.EnableHTTP2Monitoring = false
-			cfg.EnableHTTPSMonitoring = false
-		}
-
-		if !http2.Supported() {
-			cfg.EnableHTTP2Monitoring = false
-			log.Warnf("http2 requires a Linux kernel version of %s or higher. We detected %s", http2.MinimumKernelVersion, currKernelVersion)
+			cfg.EnableNativeTLSMonitoring = false
 		}
 	}
 
@@ -206,7 +197,6 @@ func newTracer(cfg *config.Config) (_ *Tracer, reterr error) {
 		}
 	}
 
-	tr.activeBuffer = network.NewConnectionBuffer(512, 256)
 	tr.sourceExcludes = network.ParseConnectionFilters(cfg.ExcludedSourceConnections)
 	tr.destExcludes = network.ParseConnectionFilters(cfg.ExcludedDestinationConnections)
 	tr.state = network.NewState(
@@ -245,6 +235,17 @@ func newConntracker(cfg *config.Config, bpfTelemetry *nettelemetry.EBPFTelemetry
 
 	var c netlink.Conntracker
 	var err error
+
+	ns, err := cfg.GetRootNetNs()
+	if err != nil {
+		log.Warnf("error fetching root net namespace, will not attempt to load nf_conntrack_netlink module: %s", err)
+	} else {
+		defer ns.Close()
+		if err = netlink.LoadNfConntrackKernelModule(ns); err != nil {
+			log.Warnf("failed to load conntrack kernel module, though it may already be loaded: %s", err)
+		}
+	}
+
 	if c, err = NewEBPFConntracker(cfg, bpfTelemetry); err == nil {
 		return c, nil
 	}
@@ -324,7 +325,7 @@ func (t *Tracer) addProcessInfo(c *network.ConnectionStats) {
 	}
 
 	if c.Tags == nil {
-		c.Tags = make(map[string]struct{})
+		c.Tags = make(map[string]struct{}, 3)
 	}
 
 	addTag := func(k, v string) {
@@ -334,12 +335,13 @@ func (t *Tracer) addProcessInfo(c *network.ConnectionStats) {
 		c.Tags[k+":"+v] = struct{}{}
 	}
 
-	addTag("env", p.Envs["DD_ENV"])
-	addTag("version", p.Envs["DD_VERSION"])
-	addTag("service", p.Envs["DD_SERVICE"])
+	addTag("env", p.Env("DD_ENV"))
+	addTag("version", p.Env("DD_VERSION"))
+	addTag("service", p.Env("DD_SERVICE"))
 
-	if p.ContainerID != "" {
-		c.ContainerID = &p.ContainerID
+	containerID := p.ContainerID.Get().(string)
+	if containerID != "" {
+		c.ContainerID = &containerID
 	}
 }
 
@@ -380,13 +382,14 @@ func (t *Tracer) GetActiveConnections(clientID string) (*network.Connections, er
 		log.Tracef("GetActiveConnections clientID=%s", clientID)
 	}
 	t.ebpfTracer.FlushPending()
-	latestTime, active, err := t.getConnections(t.activeBuffer)
+
+	buffer := network.ClientPool.Get(clientID)
+	latestTime, active, err := t.getConnections(buffer.ConnectionBuffer)
 	if err != nil {
 		return nil, fmt.Errorf("error retrieving connections: %s", err)
 	}
 
 	delta := t.state.GetDelta(clientID, latestTime, active, t.reverseDNS.GetDNSStats(), t.usmMonitor.GetProtocolStats())
-	t.activeBuffer.Reset()
 
 	ips := make(map[util.Address]struct{}, len(delta.Conns)/2)
 	var udpConns, tcpConns int
@@ -404,27 +407,22 @@ func (t *Tracer) GetActiveConnections(clientID string) (*network.Connections, er
 
 	tracerTelemetry.payloadSizePerClient.Set(float64(udpConns), clientID, network.UDP.String())
 	tracerTelemetry.payloadSizePerClient.Set(float64(tcpConns), clientID, network.TCP.String())
-	names := t.reverseDNS.Resolve(ips)
-	ctm := t.state.GetTelemetryDelta(clientID, t.getConnTelemetry(len(active)))
-	rctm := t.getRuntimeCompilationTelemetry()
-	khfr := int32(kernel.HeaderProvider.GetResult())
-	coretm := ddebpf.GetCORETelemetryByAsset()
-	pbassets := netebpf.GetModulesInUse()
+
+	buffer.ConnectionBuffer.Assign(delta.Conns)
+	conns := network.NewConnections(buffer)
+	conns.DNS = t.reverseDNS.Resolve(ips)
+	conns.DNSStats = delta.DNSStats
+	conns.HTTP = delta.HTTP
+	conns.HTTP2 = delta.HTTP2
+	conns.Kafka = delta.Kafka
+	conns.ConnTelemetry = t.state.GetTelemetryDelta(clientID, t.getConnTelemetry(len(active)))
+	conns.CompilationTelemetryByAsset = t.getRuntimeCompilationTelemetry()
+	conns.KernelHeaderFetchResult = int32(kernel.HeaderProvider.GetResult())
+	conns.CORETelemetryByAsset = ddebpf.GetCORETelemetryByAsset()
+	conns.PrebuiltAssets = netebpf.GetModulesInUse()
 	t.lastCheck.Store(time.Now().Unix())
 
-	return &network.Connections{
-		BufferedData:                delta.BufferedData,
-		DNS:                         names,
-		DNSStats:                    delta.DNSStats,
-		HTTP:                        delta.HTTP,
-		HTTP2:                       delta.HTTP2,
-		Kafka:                       delta.Kafka,
-		ConnTelemetry:               ctm,
-		KernelHeaderFetchResult:     khfr,
-		CompilationTelemetryByAsset: rctm,
-		CORETelemetryByAsset:        coretm,
-		PrebuiltAssets:              pbassets,
-	}, nil
+	return conns, nil
 }
 
 // RegisterClient registers a clientID with the tracer

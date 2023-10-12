@@ -5,11 +5,12 @@
 
 //go:build linux
 
+// Package path holds path related files
 package path
 
 import "fmt"
 
-// ErrResolutionNotCritical defines a non critical error
+// ErrPathResolutionNotCritical defines a non critical error
 type ErrPathResolutionNotCritical struct {
 	Err error
 }

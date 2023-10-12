@@ -45,7 +45,7 @@ int hook_security_inode_getattr(ctx_t *ctx) {
         .flags = flags,
     };
 
-    fill_file_metadata(dentry, &entry.metadata);
+    fill_file(dentry, &entry);
 
     bpf_map_update_elem(&exec_file_cache, &inode, &entry, BPF_NOEXIST);
 

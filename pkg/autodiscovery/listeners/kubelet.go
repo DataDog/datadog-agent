@@ -52,8 +52,9 @@ func NewKubeletListener(Config) (ServiceListener, error) {
 func (l *KubeletListener) processPod(entity workloadmeta.Entity) {
 	pod := entity.(*workloadmeta.KubernetesPod)
 
-	containers := make([]*workloadmeta.Container, 0, len(pod.Containers))
-	for _, podContainer := range pod.Containers {
+	wlmContainers := pod.GetAllContainers()
+	containers := make([]*workloadmeta.Container, 0, len(wlmContainers))
+	for _, podContainer := range wlmContainers {
 		container, err := l.Store().GetContainer(podContainer.ID)
 		if err != nil {
 			log.Debugf("pod %q has reference to non-existing container %q", pod.Name, podContainer.ID)

@@ -374,3 +374,37 @@ func testCheckHistogramBucketInfinityBucket(t *testing.T, store *tags.Store) {
 func TestCheckHistogramBucketInfinityBucket(t *testing.T) {
 	testWithTagsStore(t, testCheckHistogramBucketInfinityBucket)
 }
+
+func testCheckDistribution(t *testing.T, store *tags.Store) {
+	checkSampler := newCheckSampler(1, true, 1*time.Second, store)
+
+	mSample1 := metrics.MetricSample{
+		Name:       "my.metric.name",
+		Value:      1,
+		Mtype:      metrics.DistributionType,
+		Tags:       []string{"foo", "bar"},
+		SampleRate: 1,
+		Timestamp:  12345.0,
+	}
+
+	checkSampler.addSample(&mSample1)
+	checkSampler.commit(12349.0)
+
+	_, sketches := checkSampler.flush()
+
+	expSketch := &quantile.Sketch{}
+	expSketch.Insert(quantile.Default(), 1)
+
+	metrics.AssertSketchSeriesEqual(t, &metrics.SketchSeries{
+		Name: "my.metric.name",
+		Tags: tagset.CompositeTagsFromSlice([]string{"foo", "bar"}),
+		Points: []metrics.SketchPoint{
+			{Ts: 12345.0, Sketch: expSketch},
+		},
+		ContextKey: generateContextKey(&mSample1),
+	}, sketches[0])
+}
+
+func TestCheckDistribution(t *testing.T) {
+	testWithTagsStore(t, testCheckDistribution)
+}

@@ -5,16 +5,17 @@
 
 //go:build linux
 
+// Package metadata holds metadata related files
 package metadata
 
 import (
 	adproto "github.com/DataDog/agent-payload/v5/cws/dumpsv1"
 
-	"github.com/DataDog/datadog-agent/pkg/security/security_profile/activity_tree"
+	activity_tree "github.com/DataDog/datadog-agent/pkg/security/security_profile/activity_tree"
 )
 
-// MetadataToProto encodes a Metadata structure
-func MetadataToProto(meta *Metadata) *adproto.Metadata {
+// ToProto encodes a Metadata structure
+func ToProto(meta *Metadata) *adproto.Metadata {
 	if meta == nil {
 		return nil
 	}

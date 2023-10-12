@@ -104,8 +104,8 @@ func (c *unbundledTransformer) getTagsFromTagger(obj v1.ObjectReference, tagsAcc
 	}
 	switch obj.Kind {
 	case podKind:
-		entityId := fmt.Sprintf("kubernetes_pod_uid://%s", obj.UID)
-		entity, err := c.taggerInstance.GetEntity(entityId)
+		entityID := fmt.Sprintf("kubernetes_pod_uid://%s", obj.UID)
+		entity, err := c.taggerInstance.GetEntity(entityID)
 		if err != nil {
 			return
 		}

@@ -111,6 +111,7 @@ func TestAsJSON(t *testing.T) {
 // Helpers
 
 func assertIPv4(t *testing.T, addr string) {
+	t.Helper()
 	res := net.ParseIP(addr)
 	if assert.NotNil(t, res, "not a valid ipv4 address: %s", addr) {
 		assert.NotNil(t, res.To4())
@@ -118,6 +119,7 @@ func assertIPv4(t *testing.T, addr string) {
 }
 
 func assertIPv6(t *testing.T, addr string) {
+	t.Helper()
 	res := net.ParseIP(addr)
 	if assert.NotNil(t, res, "not a valid ipv6 address: %s", addr) {
 		assert.NotNil(t, res.To16())
@@ -125,6 +127,7 @@ func assertIPv6(t *testing.T, addr string) {
 }
 
 func assertValueIPv6(t *testing.T, addr utils.Value[string]) {
+	t.Helper()
 	if ipv6, err := addr.Value(); err == nil {
 		assertIPv6(t, ipv6)
 	} else {
@@ -133,11 +136,13 @@ func assertValueIPv6(t *testing.T, addr utils.Value[string]) {
 }
 
 func assertMac(t *testing.T, addr string) {
+	t.Helper()
 	_, err := net.ParseMAC(addr)
 	assert.NoError(t, err)
 }
 
 func assertValueMac(t *testing.T, addr utils.Value[string]) {
+	t.Helper()
 	if mac, err := addr.Value(); err == nil {
 		assertMac(t, mac)
 	} else {
@@ -146,11 +151,13 @@ func assertValueMac(t *testing.T, addr utils.Value[string]) {
 }
 
 func assertCIDR(t *testing.T, addr string) {
+	t.Helper()
 	_, _, err := net.ParseCIDR(addr)
 	assert.NoError(t, err)
 }
 
 func assertValueCIDR(t *testing.T, addr utils.Value[string]) {
+	t.Helper()
 	if addr, err := addr.Value(); err == nil {
 		assertCIDR(t, addr)
 	} else {

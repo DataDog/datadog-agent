@@ -135,6 +135,7 @@ def go_deps(ctx, baseline_ref=None, report_file=None):
             pr_comment = [
                 f"Baseline: {baseline_ref}",
                 f"Comparison: {commit_sha}\n",
+                "<table><thead><tr><th>binary</th><th>os</th><th>arch</th><th>change</th></tr></thead><tbody>",
             ]
             for binary, details in binaries.items():
                 for combo in details.get("platforms"):
@@ -151,12 +152,15 @@ def go_deps(ctx, baseline_ref=None, report_file=None):
                         print(f"== {prettytarget} {color_add}, {color_remove} ==")
                         print(f"{color_patch(targetdiffs)}\n")
 
-                        summary = f"<summary>{prettytarget} +{add}, -{remove}</summary>"
-                        diff_block = f"\n```diff\n{targetdiffs}\n```\n"
-                        pr_comment.append(f"<details>{summary}\n{diff_block}</details>\n")
+                        summary = f"<summary>+{add}, -{remove}</summary>"
+                        diff_block = f"<pre lang='diff'>\n{targetdiffs}\n</pre>"
+                        pr_comment.append(
+                            f"<tr><td>{binary}</td><td>{goos}</td><td>{goarch}</td><td><details>{summary}\n{diff_block}</details></td></tr>"
+                        )
                     else:
                         print(f"== {prettytarget} ==\nno changes\n")
 
+            pr_comment.append("</tbody></table>")
             if report_file:
                 with open(report_file, 'w') as f:
                     f.write("\n".join(pr_comment))

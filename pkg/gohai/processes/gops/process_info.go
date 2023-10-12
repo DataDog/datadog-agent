@@ -4,7 +4,6 @@
 // Copyright 2014-present Datadog, Inc.
 
 //go:build linux || darwin
-// +build linux darwin
 
 // Package gops extracts the information on running processes from gopsutil
 package gops

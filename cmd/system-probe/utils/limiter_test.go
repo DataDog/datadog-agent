@@ -13,7 +13,7 @@ import (
 	"testing"
 	"time"
 
-	"gotest.tools/assert"
+	"github.com/stretchr/testify/assert"
 )
 
 func TestWithConcurrencyLimit(t *testing.T) {

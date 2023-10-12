@@ -18,9 +18,9 @@ const ContentTypeProtobuf = "application/protobuf"
 
 type protoSerializer struct{}
 
-func (protoSerializer) Marshal(conns *network.Connections, writer io.Writer) error {
+func (protoSerializer) Marshal(conns *network.Connections, writer io.Writer, connsModeler *ConnectionsModeler) error {
 	builder := model.NewConnectionsBuilder(writer)
-	modelConnections(builder, conns)
+	connsModeler.modelConnections(builder, conns)
 	return nil
 }
 

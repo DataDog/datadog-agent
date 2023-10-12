@@ -6,7 +6,6 @@
 package aggregator
 
 import (
-	"errors"
 	"fmt"
 	"sync"
 	"time"
@@ -116,16 +115,6 @@ func newCheckSender(
 		orchestratorManifestOut: orchestratorManifestOut,
 		eventPlatformOut:        eventPlatformOut,
 	}
-}
-
-// GetSender returns a Sender with passed ID, properly registered with the aggregator
-// If no error is returned here, DestroySender must be called with the same ID
-// once the sender is not used anymore
-func GetSender(id checkid.ID) (sender.Sender, error) {
-	if demultiplexerInstance == nil {
-		return nil, errors.New("Demultiplexer was not initialized")
-	}
-	return demultiplexerInstance.GetSender(id)
 }
 
 // DisableDefaultHostname allows check to override the default hostname that will be injected
@@ -306,6 +295,10 @@ func (s *checkSender) HistogramBucket(metric string, value int64, lowerBound, up
 // Warning this doesn't use the harmonic mean, beware of what it means when using it.
 func (s *checkSender) Historate(metric string, value float64, hostname string, tags []string) {
 	s.sendMetricSample(metric, value, hostname, tags, metrics.HistorateType, false, false)
+}
+
+func (s *checkSender) Distribution(metric string, value float64, hostname string, tags []string) {
+	s.sendMetricSample(metric, value, hostname, tags, metrics.DistributionType, false, false)
 }
 
 // SendRawServiceCheck sends the raw service check

@@ -5,6 +5,7 @@
 
 //go:build linux
 
+// Package path holds path related files
 package path
 
 import (
@@ -17,6 +18,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 )
 
+// ResolverInterface defines the resolver interface
 type ResolverInterface interface {
 	ResolveBasename(e *model.FileFields) string
 	ResolveFileFieldsPath(e *model.FileFields, pidCtx *model.PIDContext, ctrCtx *model.ContainerContext) (string, error)
@@ -90,7 +92,7 @@ func (r *Resolver) ResolveFileFieldsPath(e *model.FileFields, pidCtx *model.PIDC
 		return pathStr, nil
 	}
 
-	mountPath, err := r.mountResolver.ResolveMountPath(e.MountID, pidCtx.Pid, ctrCtx.ID)
+	mountPath, err := r.mountResolver.ResolveMountPath(e.MountID, e.Device, pidCtx.Pid, ctrCtx.ID)
 	if err != nil {
 		if _, err := r.mountResolver.IsMountIDValid(e.MountID); errors.Is(err, mount.ErrMountKernelID) {
 			return pathStr, &ErrPathResolutionNotCritical{Err: fmt.Errorf("mount ID(%d) invalid: %w", e.MountID, err)}
@@ -98,13 +100,14 @@ func (r *Resolver) ResolveFileFieldsPath(e *model.FileFields, pidCtx *model.PIDC
 		return pathStr, &ErrPathResolution{Err: err}
 	}
 
-	rootPath, err := r.mountResolver.ResolveMountRoot(e.MountID, pidCtx.Pid, ctrCtx.ID)
+	rootPath, err := r.mountResolver.ResolveMountRoot(e.MountID, e.Device, pidCtx.Pid, ctrCtx.ID)
 	if err != nil {
 		if _, err := r.mountResolver.IsMountIDValid(e.MountID); errors.Is(err, mount.ErrMountKernelID) {
 			return pathStr, &ErrPathResolutionNotCritical{Err: fmt.Errorf("mount ID(%d) invalid: %w", e.MountID, err)}
 		}
 		return pathStr, &ErrPathResolution{Err: err}
 	}
+
 	// This aims to handle bind mounts
 	if strings.HasPrefix(pathStr, rootPath) && rootPath != "/" {
 		pathStr = strings.Replace(pathStr, rootPath, "", 1)

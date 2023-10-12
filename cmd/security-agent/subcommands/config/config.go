@@ -5,10 +5,12 @@
 
 //go:build kubeapiserver
 
+// Package config holds config related files
 package config
 
 import (
 	"fmt"
+
 	"github.com/spf13/cobra"
 	"go.uber.org/fx"
 
@@ -31,6 +33,7 @@ type cliParams struct {
 	getClient settings.ClientBuilder
 }
 
+// Commands returns the config commands
 func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 	cliParams := &cliParams{
 		GlobalParams: globalParams,
@@ -53,7 +56,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				fx.Supply(cliParams),
 				fx.Supply(core.BundleParams{
 					ConfigParams: config.NewSecurityAgentParams(globalParams.ConfigFilePaths),
-					LogParams:    log.LogForOneShot(command.LoggerName, "off", true)}),
+					LogParams:    log.ForOneShot(command.LoggerName, "off", true)}),
 				core.Bundle,
 			)
 		},
@@ -71,7 +74,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 					fx.Supply(cliParams),
 					fx.Supply(core.BundleParams{
 						ConfigParams: config.NewSecurityAgentParams(globalParams.ConfigFilePaths),
-						LogParams:    log.LogForOneShot(command.LoggerName, "off", true)}),
+						LogParams:    log.ForOneShot(command.LoggerName, "off", true)}),
 					core.Bundle,
 				)
 			},
@@ -90,7 +93,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 					fx.Supply(cliParams),
 					fx.Supply(core.BundleParams{
 						ConfigParams: config.NewSecurityAgentParams(globalParams.ConfigFilePaths),
-						LogParams:    log.LogForOneShot(command.LoggerName, "off", true)}),
+						LogParams:    log.ForOneShot(command.LoggerName, "off", true)}),
 					core.Bundle,
 				)
 			},
@@ -109,7 +112,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 					fx.Supply(cliParams),
 					fx.Supply(core.BundleParams{
 						ConfigParams: config.NewSecurityAgentParams(globalParams.ConfigFilePaths),
-						LogParams:    log.LogForOneShot(command.LoggerName, "off", true)}),
+						LogParams:    log.ForOneShot(command.LoggerName, "off", true)}),
 					core.Bundle,
 				)
 			},

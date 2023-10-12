@@ -5,6 +5,7 @@
 
 //go:build functionaltests && !386
 
+// Package tests holds tests related files
 package tests
 
 import (

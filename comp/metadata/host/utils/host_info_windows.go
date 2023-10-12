@@ -65,8 +65,8 @@ func GetInformation() *InfoStat {
 			info.KernelArch = runtime.GOARCH
 
 			pi := platform.CollectInfo()
-			info.Platform, _ = pi.OS.Value()
-			info.PlatformFamily, _ = pi.OS.Value()
+			info.Platform = pi.OS.ValueOrDefault()
+			info.PlatformFamily = pi.OS.ValueOrDefault()
 
 			info.PlatformVersion, _ = winutil.GetWindowsBuildString()
 			info.HostID = common.GetUUID()

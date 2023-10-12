@@ -29,7 +29,7 @@
               "cold_start": "false",
               "dd_extension_version": "123",
               "env": "integration-tests-env",
-              "function.request": "{\"body\":\"testing request payload\"}",
+              "function.request.body": "testing request payload",
               "function.response": "{}",
               "function_arn": "arn:aws:lambda:eu-west-1:425362996713:function:integration-tests-extension-XXXXXX-trace-java",
               "functionname": "integration-tests-extension-XXXXXX-trace-java",

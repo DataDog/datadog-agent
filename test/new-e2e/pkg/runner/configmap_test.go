@@ -3,6 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build test
+
 package runner
 
 import (
@@ -35,5 +37,6 @@ func Test_BuildStackParameters(t *testing.T) {
 		"ddinfra:extraResourcesTags":        auto.ConfigValue{Value: "extra_resources_tags", Secret: false},
 		"ddinfra:aws/defaultPublicKeyPath":  auto.ConfigValue{Value: "public_key_path", Secret: false},
 		"ddinfra:aws/defaultPrivateKeyPath": auto.ConfigValue{Value: "private_key_path", Secret: false},
+		"ddagent:pipeline_id":               auto.ConfigValue{Value: "pipeline_id", Secret: false},
 	}, configMap)
 }

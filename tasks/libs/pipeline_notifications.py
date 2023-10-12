@@ -8,7 +8,7 @@ from .common.gitlab import Gitlab, get_gitlab_token
 from .types import FailedJobType, Test
 
 DEFAULT_SLACK_CHANNEL = "#agent-platform"
-DEFAULT_JIRA_PROJECT = "AGENTR"
+DEFAULT_JIRA_PROJECT = "AGNTR"
 DATADOG_AGENT_GITHUB_ORG_URL = "https://github.com/DataDog"
 # Map keys in lowercase
 GITHUB_SLACK_MAP = {
@@ -30,7 +30,7 @@ GITHUB_SLACK_MAP = {
     "@datadog/ebpf-platform": "#ebpf-platform-ops",
     "@datadog/networks": "#network-performance-monitoring",
     "@datadog/universal-service-monitoring": "#universal-service-monitoring",
-    "@datadog/windows-agent": "#windows-agent",
+    "@datadog/windows-agent": "#windows-agent-ops",
     "@datadog/windows-kernel-integrations": "#windows-kernel-integrations",
     "@datadog/opentelemetry": "#opentelemetry-ops",
     "@datadog/agent-e2e-testing": "#agent-testing-and-qa",
@@ -44,33 +44,33 @@ GITHUB_SLACK_MAP = {
 }
 
 GITHUB_JIRA_MAP = {
-    "@datadog/agent-platform": "AP",
+    "@datadog/agent-platform": "APL",
     "@datadog/documentation": "DOCS",
-    "@datadog/container-integrations": "CONT",
-    "@datadog/platform-integrations": "PINT",
+    "@datadog/container-integrations": "CONTINT",
+    "@datadog/platform-integrations": "PLINT",
     "@datadog/agent-security": "SEC",
     "@datadog/agent-apm": "AIT",
-    "@datadog/network-device-monitoring": "NDM",
-    "@datadog/processes": "PROC",
-    "@datadog/agent-metrics-logs": "AML",
-    "@datadog/agent-shared-components": "ASC",
+    "@datadog/network-device-monitoring": "NDMII",
+    "@datadog/processes": "PROCS",
+    "@datadog/agent-metrics-logs": "AMLII",
+    "@datadog/agent-shared-components": "ASCII",
     "@datadog/container-app": "CAP",
     "@datadog/metrics-aggregation": "AGGR",
-    "@datadog/serverless": "SLS",
-    "@datadog/remote-config": "RCM",
+    "@datadog/serverless": "SVLS",
+    "@datadog/remote-config": "RC",
     "@datadog/agent-all": DEFAULT_JIRA_PROJECT,
     "@datadog/ebpf-platform": "EBPF",
     "@datadog/networks": "NPM",
-    "@datadog/universal-service-monitoring": "USMO",
-    "@datadog/windows-agent": "WA",
-    "@datadog/windows-kernel-integrations": "WKIT",
+    "@datadog/universal-service-monitoring": "USMON",
+    "@datadog/windows-agent": "WINA",
+    "@datadog/windows-kernel-integrations": "WKINT",
     "@datadog/opentelemetry": "OTEL",
     "@datadog/agent-e2e-testing": "AETT",
     "@datadog/software-integrity-and-trust": "SINT",
     "@datadog/single-machine-performance": "SMP",
-    "@datadog/agent-integrations": "AIT",
+    "@datadog/agent-integrations": "AI",
     "@datadog/debugger": "DEBUG",
-    "@datadog/database-monitoring": "DBM",
+    "@datadog/database-monitoring": "DBMON",
     "@datadog/agent-cspm": "SEC",
     "@datadog/telemetry-and-analytics": DEFAULT_JIRA_PROJECT,
 }

@@ -56,7 +56,7 @@ func TestLoad(t *testing.T) {
 	cc := integration.Config{Name: "foo", Instances: i}
 	l, _ := NewGoCheckLoader()
 
-	_, err := l.Load(aggregator.GetSenderManager(), cc, i[0])
+	_, err := l.Load(aggregator.NewNoOpSenderManager(), cc, i[0])
 	if err != nil {
 		t.Fatalf("Expected nil error, found: %v", err)
 	}
@@ -67,7 +67,7 @@ func TestLoad(t *testing.T) {
 	}
 	cc = integration.Config{Name: "foo", Instances: i}
 
-	_, err = l.Load(aggregator.GetSenderManager(), cc, i[0])
+	_, err = l.Load(aggregator.NewNoOpSenderManager(), cc, i[0])
 
 	if err == nil {
 		t.Fatalf("Expected error, found: nil")
@@ -79,7 +79,7 @@ func TestLoad(t *testing.T) {
 	}
 	cc = integration.Config{Name: "bar", Instances: i}
 
-	_, err = l.Load(aggregator.GetSenderManager(), cc, i[0])
+	_, err = l.Load(aggregator.NewNoOpSenderManager(), cc, i[0])
 
 	if err == nil {
 		t.Fatal("Expected error, found: nil")

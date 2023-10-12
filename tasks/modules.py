@@ -143,7 +143,6 @@ DEFAULT_MODULES = {
     "test/new-e2e": GoModule(
         "test/new-e2e",
         independent=True,
-        should_tag=False,
         targets=["./pkg/runner", "./pkg/utils/e2e/client"],
         lint_targets=["."],
     ),
@@ -158,6 +157,15 @@ DEFAULT_MODULES = {
     "pkg/util/log": GoModule("pkg/util/log", independent=True),
     "pkg/util/pointer": GoModule("pkg/util/pointer", independent=True),
     "pkg/util/scrubber": GoModule("pkg/util/scrubber", independent=True),
+    "pkg/util/backoff": GoModule("pkg/util/backoff", independent=True),
+    "pkg/util/common": GoModule("pkg/util/common", independent=True),
+    "pkg/util/compression": GoModule("pkg/util/compression", independent=True),
+    "pkg/util/executable": GoModule("pkg/util/executable", independent=True),
+    "pkg/util/filesystem": GoModule("pkg/util/filesystem", independent=True),
+    "pkg/util/fxutil": GoModule("pkg/util/fxutil", independent=True),
+    "pkg/util/json": GoModule("pkg/util/json", independent=True),
+    "pkg/util/testutil": GoModule("pkg/util/testutil", independent=True),
+    "pkg/networkdevice/profile": GoModule("pkg/networkdevice/profile", independent=True),
 }
 
 MAIN_TEMPLATE = """package main

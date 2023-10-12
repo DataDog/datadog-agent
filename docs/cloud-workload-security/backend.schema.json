@@ -1247,8 +1247,33 @@
     "evt": {
       "$ref": "#/$defs/EventContext"
     },
+    "date": {
+      "type": "string",
+      "format": "date-time"
+    },
     "file": {
       "$ref": "#/$defs/FileEvent"
+    },
+    "dns": {
+      "$ref": "#/$defs/DNSEvent"
+    },
+    "network": {
+      "$ref": "#/$defs/NetworkContext"
+    },
+    "exit": {
+      "$ref": "#/$defs/ExitEvent"
+    },
+    "process": {
+      "$ref": "#/$defs/ProcessContext"
+    },
+    "dd": {
+      "$ref": "#/$defs/DDContext"
+    },
+    "container": {
+      "$ref": "#/$defs/ContainerContext"
+    },
+    "security_profile": {
+      "$ref": "#/$defs/SecurityProfileContext"
     },
     "selinux": {
       "$ref": "#/$defs/SELinuxEvent"
@@ -1274,17 +1299,8 @@
     "splice": {
       "$ref": "#/$defs/SpliceEvent"
     },
-    "dns": {
-      "$ref": "#/$defs/DNSEvent"
-    },
-    "network": {
-      "$ref": "#/$defs/NetworkContext"
-    },
     "bind": {
       "$ref": "#/$defs/BindEvent"
-    },
-    "exit": {
-      "$ref": "#/$defs/ExitEvent"
     },
     "mount": {
       "$ref": "#/$defs/MountEvent"
@@ -1294,22 +1310,6 @@
     },
     "usr": {
       "$ref": "#/$defs/UserContext"
-    },
-    "process": {
-      "$ref": "#/$defs/ProcessContext"
-    },
-    "dd": {
-      "$ref": "#/$defs/DDContext"
-    },
-    "container": {
-      "$ref": "#/$defs/ContainerContext"
-    },
-    "security_profile": {
-      "$ref": "#/$defs/SecurityProfileContext"
-    },
-    "date": {
-      "type": "string",
-      "format": "date-time"
     }
   },
   "additionalProperties": false,

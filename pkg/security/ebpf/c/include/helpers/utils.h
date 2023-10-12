@@ -73,4 +73,12 @@ int __attribute__((always_inline)) parse_buf_to_bool(const char *buf) {
     return 0;
 }
 
+u32 __attribute__((always_inline)) rand32() {
+    return bpf_get_prandom_u32();
+}
+
+u64 __attribute__((always_inline)) rand64() {
+    return (u64)rand32() << 32 | bpf_ktime_get_ns();
+}
+
 #endif

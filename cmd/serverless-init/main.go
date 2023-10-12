@@ -16,6 +16,7 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/serverless-init/log"
 	"github.com/DataDog/datadog-agent/cmd/serverless-init/metric"
 	"github.com/DataDog/datadog-agent/cmd/serverless-init/tag"
+	logsAgent "github.com/DataDog/datadog-agent/comp/logs/agent"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	configUtils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/serverless/metrics"
@@ -37,13 +38,12 @@ func main() {
 	if len(os.Args) < 2 {
 		panic("[datadog init process] invalid argument count, did you forget to set CMD ?")
 	} else {
-		cloudService, logConfig, traceAgent, metricAgent := setup()
-		initcontainer.Run(cloudService, logConfig, metricAgent, traceAgent, os.Args[1:])
+		cloudService, logConfig, traceAgent, metricAgent, logsAgent := setup()
+		initcontainer.Run(cloudService, logConfig, metricAgent, traceAgent, logsAgent, os.Args[1:])
 	}
 }
 
-func setup() (cloudservice.CloudService, *log.Config, *trace.ServerlessTraceAgent, *metrics.ServerlessMetricAgent) {
-	// Set up our local logger. This is for serverless-init logging, not customer logging.
+func setup() (cloudservice.CloudService, *log.Config, *trace.ServerlessTraceAgent, *metrics.ServerlessMetricAgent, logsAgent.ServerlessLogsAgent) {
 	if err := config.SetupLogger(
 		loggerName,
 		"error", // will be re-set later with the value from the env var
@@ -78,7 +78,11 @@ func setup() (cloudservice.CloudService, *log.Config, *trace.ServerlessTraceAgen
 	prefix := cloudService.GetPrefix()
 
 	logConfig := log.CreateConfig(origin)
-	log.SetupLog(logConfig, tags)
+	logsAgent := log.SetupLog(logConfig, tags)
+
+	// Disable remote configuration for now as it just spams the debug logs
+	// and provides no value.
+	os.Setenv("DD_REMOTE_CONFIGURATION_ENABLED", "false")
 
 	// The datadog-agent requires Load to be called or it could
 	// panic down the line.
@@ -96,7 +100,7 @@ func setup() (cloudservice.CloudService, *log.Config, *trace.ServerlessTraceAgen
 	setupOtlpAgent(metricAgent)
 
 	go flushMetricsAgent(metricAgent)
-	return cloudService, logConfig, traceAgent, metricAgent
+	return cloudService, logConfig, traceAgent, metricAgent, logsAgent
 }
 
 func setupTraceAgent(traceAgent *trace.ServerlessTraceAgent, tags map[string]string) {

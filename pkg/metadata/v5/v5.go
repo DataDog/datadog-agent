@@ -11,9 +11,9 @@ import (
 	"context"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/gohai"
 	"github.com/DataDog/datadog-agent/pkg/metadata/common"
 	"github.com/DataDog/datadog-agent/pkg/metadata/host"
-	"github.com/DataDog/datadog-agent/pkg/metadata/internal/gohai"
 	"github.com/DataDog/datadog-agent/pkg/metadata/internal/resources"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 )
@@ -34,7 +34,7 @@ func GetPayload(ctx context.Context, hostnameData hostname.Data) *Payload {
 	}
 
 	if config.Datadog.GetBool("enable_gohai") {
-		p.GohaiPayload = GohaiPayload{MarshalledGohaiPayload{*gohai.GetPayload()}}
+		p.GohaiPayload = GohaiPayload{MarshalledGohaiPayload{*gohai.GetPayload(config.IsContainerized())}}
 	}
 
 	return p

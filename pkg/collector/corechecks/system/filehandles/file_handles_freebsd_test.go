@@ -24,7 +24,7 @@ func TestFhCheckFreeBSD(t *testing.T) {
 	getInt64 = GetInt64
 
 	fileHandleCheck := new(fhCheck)
-	fileHandleCheck.Configure(aggregator.GetSenderManager(), integration.FakeConfigHash, nil, nil, "test")
+	fileHandleCheck.Configure(aggregator.NewNoOpSenderManager(), integration.FakeConfigHash, nil, nil, "test")
 
 	mock := mocksender.NewMockSender(fileHandleCheck.ID())
 

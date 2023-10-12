@@ -12,6 +12,7 @@ import (
 	"fmt"
 	"sort"
 
+	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/diagnose/diagnosis"
 )
 
@@ -19,7 +20,7 @@ func init() {
 	diagnosis.Register("connectivity-datadog-autodiscovery", diagnoseMetadataAutodiscoveryConnectivity)
 }
 
-func diagnoseMetadataAutodiscoveryConnectivity(cfg diagnosis.Config) []diagnosis.Diagnosis {
+func diagnoseMetadataAutodiscoveryConnectivity(cfg diagnosis.Config, senderManager sender.SenderManager) []diagnosis.Diagnosis {
 	if len(diagnosis.MetadataAvailCatalog) == 0 {
 		return nil
 	}

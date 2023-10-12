@@ -73,7 +73,7 @@ tests_deb-x64-py3:
     PYTHON_RUNTIMES: '3'
     CONDA_ENV: ddpy3
 
-lint_deb-x64:
+lint_linux-x64:
   extends:
     - .linux_lint
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
@@ -92,7 +92,7 @@ tests_flavor_iot_deb-x64:
     CONDA_ENV: ddpy3
     FLAVORS: '--flavors iot'
 
-lint_flavor_iot_deb-x64:
+lint_flavor_iot_linux-x64:
   extends:
     - .linux_lint
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
@@ -113,7 +113,7 @@ tests_flavor_dogstatsd_deb-x64:
     CONDA_ENV: ddpy3
     FLAVORS: '--flavors dogstatsd'
 
-lint_flavor_dogstatsd_deb-x64:
+lint_flavor_dogstatsd_linux-x64:
   extends:
     - .linux_lint
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
@@ -134,7 +134,7 @@ tests_flavor_heroku_deb-x64:
     CONDA_ENV: ddpy3
     FLAVORS: '--flavors heroku'
 
-lint_flavor_heroku_deb-x64:
+lint_flavor_heroku_linux-x64:
   extends:
     - .linux_lint
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
@@ -170,14 +170,6 @@ tests_rpm-x64-py3:
     CONDA_ENV: ddpy3
     EXTRA_OPTS: '--build-exclude=systemd'
 
-lint_rpm-x64:
-  extends:
-    - .linux_lint
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/rpm_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
-  tags: ["arch:amd64"]
-  needs: ["go_deps", "go_tools_deps"]
-  variables:
-    EXTRA_OPTS: '--build-exclude=systemd'
 
 tests_deb-arm64-py2:
   extends: .rtloader_tests
@@ -201,7 +193,7 @@ tests_deb-arm64-py3:
     PYTHON_RUNTIMES: '3'
     CONDA_ENV: ddpy3
 
-lint_deb-arm64:
+lint_linux-arm64:
   extends:
     - .linux_lint
   needs: ["go_deps", "go_tools_deps"]
@@ -229,13 +221,6 @@ tests_rpm-arm64-py3:
   variables:
     PYTHON_RUNTIMES: '3'
     CONDA_ENV: ddpy3
-
-lint_rpm-arm64:
-  extends:
-    - .linux_lint
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/rpm_arm64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
-  tags: ["arch:arm64"]
-  needs: ["go_deps", "go_tools_deps"]
 
 # Check consistency of go.mod file with project imports
 go_mod_tidy_check:

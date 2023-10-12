@@ -148,6 +148,6 @@ func (h *PodHandlers) ScrubBeforeExtraction(ctx *processors.ProcessorContext, re
 func (h *PodHandlers) ScrubBeforeMarshalling(ctx *processors.ProcessorContext, resource interface{}) {
 	r := resource.(*corev1.Pod)
 	if ctx.Cfg.IsScrubbingEnabled {
-		redact.ScrubPodSpec(&r.Spec, ctx.Cfg.Scrubber)
+		redact.ScrubPod(r, ctx.Cfg.Scrubber)
 	}
 }

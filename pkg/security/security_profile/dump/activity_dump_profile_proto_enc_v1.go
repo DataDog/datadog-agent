@@ -5,14 +5,15 @@
 
 //go:build linux
 
+// Package dump holds dump related files
 package dump
 
 import (
 	proto "github.com/DataDog/agent-payload/v5/cws/dumpsv1"
 
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
-	"github.com/DataDog/datadog-agent/pkg/security/security_profile"
-	"github.com/DataDog/datadog-agent/pkg/security/security_profile/activity_tree"
+	security_profile "github.com/DataDog/datadog-agent/pkg/security/security_profile"
+	activity_tree "github.com/DataDog/datadog-agent/pkg/security/security_profile/activity_tree"
 	mtdt "github.com/DataDog/datadog-agent/pkg/security/security_profile/activity_tree/metadata"
 )
 
@@ -25,10 +26,10 @@ func ActivityDumpToSecurityProfileProto(input *ActivityDump) *proto.SecurityProf
 	output := proto.SecurityProfile{
 		Status:   uint32(model.AnomalyDetection),
 		Version:  security_profile.LocalProfileVersion,
-		Metadata: mtdt.MetadataToProto(&input.Metadata),
+		Metadata: mtdt.ToProto(&input.Metadata),
 		Syscalls: input.ActivityTree.ComputeSyscallsList(),
 		Tags:     make([]string, len(input.Tags)),
-		Tree:     activity_tree.ActivityTreeToProto(input.ActivityTree),
+		Tree:     activity_tree.ToProto(input.ActivityTree),
 	}
 	copy(output.Tags, input.Tags)
 

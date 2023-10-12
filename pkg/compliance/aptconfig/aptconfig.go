@@ -3,6 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+// Package aptconfig is a compliance submodule that is able to parse the APT tool
+// configuration and export it as a log.
 package aptconfig
 
 import (

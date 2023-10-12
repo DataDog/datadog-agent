@@ -15,7 +15,7 @@ Then, migrate the code related to your component's domain from `pkg/flare` to yo
 
 To add data to a flare you will first need to register a callback, aka a `FlareBuilder`.
 
-Within your component create a method with the following signature `func (c *yourComp) fillFlare(fb flarehelpers.FlareBuilder) error`.
+Within your component create a method with the following signature `func (c *yourComp) fillFlare(fb flaretypes.FlareBuilder) error`.
 
 This function is called every time the Agent generates a flare, either from the CLI or from the running Agent. This
 callback receives a `comp/core/flare/helpers:FlareBuilder`. The `FlareBuilder` interface provides all the
@@ -27,10 +27,10 @@ Example:
 import (
 	yaml "gopkg.in/yaml.v2"
 
-	flarehelpers "github.com/DataDog/datadog-agent/comp/core/flare/helpers"
+	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
 )
 
-func (c *myComponent) fillFlare(fb flarehelpers.FlareBuilder) error {
+func (c *myComponent) fillFlare(fb flaretypes.FlareBuilder) error {
 	fb.AddFileFromFunc(
 		"runtime_config_dump.yaml",
 		func () ([]byte, error) {
@@ -59,14 +59,14 @@ need to provide a new `comp/core/flare/helpers:Provider`. Use `comp/core/flare/h
 Example:
 ```golang
 import (
-	flarehelpers "github.com/DataDog/datadog-agent/comp/core/flare/helpers"
+	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
 )
 
 type provides struct {
 	fx.Out
 
 	// [...]
-	FlareProvider flarehelpers.Provider // Your component will provides a new FlareProvider
+	FlareProvider flaretypes.Provider // Your component will provides a new FlareProvider
 	// [...]
 }
 
@@ -74,7 +74,7 @@ func newComponent(deps dependencies) (provides, error) {
 	// [...]
 	return provides{
 		// [...]
-		FlareProvider: flarehelpers.NewProvider(myComponent.fillFlare), // NewProvider will wrap your callback in order to be use as a 'FlareProvider'
+		FlareProvider: flaretypes.NewProvider(myComponent.fillFlare), // NewProvider will wrap your callback in order to be use as a 'FlareProvider'
 		// [...]
 	}, nil
 }
@@ -84,6 +84,6 @@ func newComponent(deps dependencies) (provides, error) {
 
 Now migrate the require code from `pkg/flare` to you component callback. The code in `pkg/flare` already uses the
 `FlareBuilder` interface, simplifying migration. Don't forget to migrate the tests too and expand them (most of the
-flare features are not tested). `flarehelpers.NewFlareBuilderMock` will provides helpers for your tests.
+flare features are not tested). `comp/core/flare/helpers::NewFlareBuilderMock` will provides helpers for your tests.
 
 Keep in mind that the goal is to delete `pkg/flare` once the migration to component is done.

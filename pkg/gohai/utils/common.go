@@ -2,6 +2,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2014-present Datadog, Inc.
 
+// Package utils provides various helper functions used in the library.
 package utils
 
 import (

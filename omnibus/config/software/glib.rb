@@ -15,7 +15,7 @@
 #
 
 name "glib"
-default_version "2.75.2"
+default_version "2.78.0"
 
 license "LGPL-2.1"
 license_file "COPYING"
@@ -25,7 +25,7 @@ dependency "libffi"
 dependency "pcre"
 dependency "elfutils"
 
-version("2.75.2") { source sha256: "4d5aa6c1c491dfe061fea9ee76e21c66e78ccd99fb0f4ae341c4eea5102bef4c" }
+version("2.78.0") { source sha256: "a12ecee4622bc193bf32d683101ac486c74f1918abeb25ed0c8f644eedc5b5d4" }
 
 ship_source_offer true
 

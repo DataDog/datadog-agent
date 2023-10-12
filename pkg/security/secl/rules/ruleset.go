@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+// Package rules holds rules related files
 package rules
 
 import (
@@ -90,6 +91,7 @@ type RuleDefinition struct {
 	Actions                []ActionDefinition `yaml:"actions"`
 	Every                  time.Duration      `yaml:"every"`
 	Policy                 *Policy
+	Silent                 bool
 }
 
 // GetTag returns the tag value associated with a tag key
@@ -117,21 +119,24 @@ func (rd *RuleDefinition) MergeWith(rd2 *RuleDefinition) error {
 
 // ActionDefinition describes a rule action section
 type ActionDefinition struct {
-	Set *SetDefinition `yaml:"set"`
+	Set                        *SetDefinition `yaml:"set"`
+	InternalCallbackDefinition *InternalCallbackDefinition
 }
 
 // Check returns an error if the action in invalid
 func (a *ActionDefinition) Check() error {
-	if a.Set == nil {
+	if a.Set == nil && a.InternalCallbackDefinition == nil {
 		return errors.New("missing 'set' section in action")
 	}
 
-	if a.Set.Name == "" {
-		return errors.New("action name is empty")
-	}
+	if a.Set != nil {
+		if a.Set.Name == "" {
+			return errors.New("action name is empty")
+		}
 
-	if (a.Set.Value == nil && a.Set.Field == "") || (a.Set.Value != nil && a.Set.Field != "") {
-		return errors.New("either 'value' or 'field' must be specified")
+		if (a.Set.Value == nil && a.Set.Field == "") || (a.Set.Value != nil && a.Set.Field != "") {
+			return errors.New("either 'value' or 'field' must be specified")
+		}
 	}
 
 	return nil
@@ -148,6 +153,9 @@ type SetDefinition struct {
 	Append bool        `yaml:"append"`
 	Scope  Scope       `yaml:"scope"`
 }
+
+// InternalCallbackDefinition describes an internal rule action
+type InternalCallbackDefinition struct{}
 
 // Rule describes a rule of a ruleset
 type Rule struct {
@@ -264,10 +272,6 @@ func (rs *RuleSet) AddRules(parsingContext *ast.ParsingContext, rules []*RuleDef
 		if _, err := rs.AddRule(parsingContext, ruleDef); err != nil {
 			result = multierror.Append(result, err)
 		}
-	}
-
-	if err := rs.generatePartials(); err != nil {
-		result = multierror.Append(result, fmt.Errorf("couldn't generate partials for rule: %w", err))
 	}
 
 	return result
@@ -735,21 +739,7 @@ NewFields:
 	}
 }
 
-// generatePartials generates the partials of the ruleset. A partial is a boolean evalution function that only depends
-// on one field. The goal of partial is to determine if a rule depends on a specific field, so that we can decide if
-// we should create an in-kernel filter for that field.
-func (rs *RuleSet) generatePartials() error {
-	// Compute the partials of each rule
-	for _, bucket := range rs.eventRuleBuckets {
-		for _, rule := range bucket.GetRules() {
-			if err := rule.GenPartials(); err != nil {
-				return err
-			}
-		}
-	}
-	return nil
-}
-
+// StopEventCollector stops the event collector
 func (rs *RuleSet) StopEventCollector() []CollectedEvent {
 	return rs.eventCollector.Stop()
 }

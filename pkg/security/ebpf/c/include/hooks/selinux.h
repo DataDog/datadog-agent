@@ -50,7 +50,7 @@ int __attribute__((always_inline)) handle_selinux_event(void *ctx, struct file *
     }
     // otherwise let's keep the value = error state.
 
-    fill_file_metadata(syscall.selinux.dentry, &syscall.selinux.file.metadata);
+    fill_file(syscall.selinux.dentry, &syscall.selinux.file);
     set_file_inode(syscall.selinux.dentry, &syscall.selinux.file, 0);
 
     syscall.resolver.key = syscall.selinux.file.path_key;

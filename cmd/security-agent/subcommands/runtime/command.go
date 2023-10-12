@@ -3,8 +3,9 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build linux
+//go:build linux || windows
 
+// Package runtime holds runtime related files
 package runtime
 
 import (
@@ -15,11 +16,12 @@ import (
 	"io"
 	"os"
 	"path"
-	"strings"
 	"time"
 
 	"github.com/spf13/cobra"
 	"go.uber.org/fx"
+
+	ddgostatsd "github.com/DataDog/datadog-go/v5/statsd"
 
 	"github.com/DataDog/datadog-agent/cmd/security-agent/command"
 	"github.com/DataDog/datadog-agent/cmd/security-agent/flags"
@@ -44,29 +46,7 @@ import (
 	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
 	"github.com/DataDog/datadog-agent/pkg/util/startstop"
 	"github.com/DataDog/datadog-agent/pkg/version"
-	ddgostatsd "github.com/DataDog/datadog-go/v5/statsd"
 )
-
-func Commands(globalParams *command.GlobalParams) []*cobra.Command {
-	runtimeCmd := &cobra.Command{
-		Use:   "runtime",
-		Short: "runtime Agent utility commands",
-	}
-
-	runtimeCmd.AddCommand(commonPolicyCommands(globalParams)...)
-	runtimeCmd.AddCommand(selfTestCommands(globalParams)...)
-	runtimeCmd.AddCommand(activityDumpCommands(globalParams)...)
-	runtimeCmd.AddCommand(securityProfileCommands(globalParams)...)
-	runtimeCmd.AddCommand(processCacheCommands(globalParams)...)
-	runtimeCmd.AddCommand(networkNamespaceCommands(globalParams)...)
-	runtimeCmd.AddCommand(discardersCommands(globalParams)...)
-
-	// Deprecated
-	runtimeCmd.AddCommand(checkPoliciesCommands(globalParams)...)
-	runtimeCmd.AddCommand(reloadPoliciesCommands(globalParams)...)
-
-	return []*cobra.Command{runtimeCmd}
-}
 
 type checkPoliciesCliParams struct {
 	*command.GlobalParams
@@ -111,7 +91,7 @@ func evalCommands(globalParams *command.GlobalParams) []*cobra.Command {
 				fx.Supply(evalArgs),
 				fx.Supply(core.BundleParams{
 					ConfigParams: config.NewSecurityAgentParams(globalParams.ConfigFilePaths),
-					LogParams:    log.LogForOneShot(command.LoggerName, "off", false)}),
+					LogParams:    log.ForOneShot(command.LoggerName, "off", false)}),
 				core.Bundle,
 			)
 		},
@@ -140,7 +120,7 @@ func commonCheckPoliciesCommands(globalParams *command.GlobalParams) []*cobra.Co
 				fx.Supply(cliParams),
 				fx.Supply(core.BundleParams{
 					ConfigParams: config.NewSecurityAgentParams(globalParams.ConfigFilePaths),
-					LogParams:    log.LogForOneShot(command.LoggerName, "off", false)}),
+					LogParams:    log.ForOneShot(command.LoggerName, "off", false)}),
 				core.Bundle,
 			)
 		},
@@ -160,7 +140,7 @@ func commonReloadPoliciesCommands(globalParams *command.GlobalParams) []*cobra.C
 			return fxutil.OneShot(reloadRuntimePolicies,
 				fx.Supply(core.BundleParams{
 					ConfigParams: config.NewSecurityAgentParams(globalParams.ConfigFilePaths),
-					LogParams:    log.LogForOneShot(command.LoggerName, "info", true)}),
+					LogParams:    log.ForOneShot(command.LoggerName, "info", true)}),
 				core.Bundle,
 			)
 		},
@@ -176,7 +156,7 @@ func selfTestCommands(globalParams *command.GlobalParams) []*cobra.Command {
 			return fxutil.OneShot(runRuntimeSelfTest,
 				fx.Supply(core.BundleParams{
 					ConfigParams: config.NewSecurityAgentParams(globalParams.ConfigFilePaths),
-					LogParams:    log.LogForOneShot(command.LoggerName, "info", true)}),
+					LogParams:    log.ForOneShot(command.LoggerName, "info", true)}),
 				core.Bundle,
 			)
 		},
@@ -205,7 +185,7 @@ func downloadPolicyCommands(globalParams *command.GlobalParams) []*cobra.Command
 				fx.Supply(downloadPolicyArgs),
 				fx.Supply(core.BundleParams{
 					ConfigParams: config.NewSecurityAgentParams(globalParams.ConfigFilePaths),
-					LogParams:    log.LogForOneShot(command.LoggerName, "off", false)}),
+					LogParams:    log.ForOneShot(command.LoggerName, "off", false)}),
 				core.Bundle,
 			)
 		},
@@ -236,7 +216,7 @@ func processCacheCommands(globalParams *command.GlobalParams) []*cobra.Command {
 				fx.Supply(cliParams),
 				fx.Supply(core.BundleParams{
 					ConfigParams: config.NewSecurityAgentParams(globalParams.ConfigFilePaths),
-					LogParams:    log.LogForOneShot(command.LoggerName, "info", true)}),
+					LogParams:    log.ForOneShot(command.LoggerName, "info", true)}),
 				core.Bundle,
 			)
 		},
@@ -271,7 +251,7 @@ func networkNamespaceCommands(globalParams *command.GlobalParams) []*cobra.Comma
 				fx.Supply(cliParams),
 				fx.Supply(core.BundleParams{
 					ConfigParams: config.NewSecurityAgentParams(globalParams.ConfigFilePaths),
-					LogParams:    log.LogForOneShot(command.LoggerName, "info", true)}),
+					LogParams:    log.ForOneShot(command.LoggerName, "info", true)}),
 				core.Bundle,
 			)
 		},
@@ -296,7 +276,7 @@ func discardersCommands(globalParams *command.GlobalParams) []*cobra.Command {
 			return fxutil.OneShot(dumpDiscarders,
 				fx.Supply(core.BundleParams{
 					ConfigParams: config.NewSecurityAgentParams(globalParams.ConfigFilePaths),
-					LogParams:    log.LogForOneShot(command.LoggerName, "info", true)}),
+					LogParams:    log.ForOneShot(command.LoggerName, "info", true)}),
 				core.Bundle,
 			)
 		},
@@ -356,29 +336,6 @@ func printStorageRequestMessage(prefix string, storage *api.StorageRequestMessag
 	fmt.Printf("%s  compression: %v\n", prefix, storage.GetCompression())
 }
 
-func printSecurityActivityDumpMessage(prefix string, msg *api.ActivityDumpMessage) {
-	fmt.Printf("%s- name: %s\n", prefix, msg.GetMetadata().GetName())
-	fmt.Printf("%s  start: %s\n", prefix, msg.GetMetadata().GetStart())
-	fmt.Printf("%s  timeout: %s\n", prefix, msg.GetMetadata().GetTimeout())
-	if len(msg.GetMetadata().GetComm()) > 0 {
-		fmt.Printf("%s  comm: %s\n", prefix, msg.GetMetadata().GetComm())
-	}
-	if len(msg.GetMetadata().GetContainerID()) > 0 {
-		fmt.Printf("%s  container ID: %s\n", prefix, msg.GetMetadata().GetContainerID())
-	}
-	if len(msg.GetTags()) > 0 {
-		fmt.Printf("%s  tags: %s\n", prefix, strings.Join(msg.GetTags(), ", "))
-	}
-	fmt.Printf("%s  differentiate args: %v\n", prefix, msg.GetMetadata().GetDifferentiateArgs())
-	printActivityTreeStats(prefix, msg.GetStats())
-	if len(msg.GetStorage()) > 0 {
-		fmt.Printf("%s  storage:\n", prefix)
-		for _, storage := range msg.GetStorage() {
-			printStorageRequestMessage(prefix+"\t", storage)
-		}
-	}
-}
-
 func newAgentVersionFilter() (*rules.AgentVersionFilter, error) {
 	agentVersion, err := utils.GetAgentSemverVersion()
 	if err != nil {
@@ -397,9 +354,8 @@ func checkPolicies(log log.Component, config config.Component, args *checkPolici
 		defer client.Close()
 
 		return checkPoliciesLoaded(client, os.Stdout)
-	} else {
-		return checkPoliciesLocal(args, os.Stdout)
 	}
+	return checkPoliciesLocal(args, os.Stdout)
 }
 
 func checkPoliciesLoaded(client secagent.SecurityModuleClientWrapper, writer io.Writer) error {
@@ -650,6 +606,7 @@ func reloadRuntimePolicies(log log.Component, config config.Component) error {
 	return nil
 }
 
+// StartRuntimeSecurity starts runtime security
 func StartRuntimeSecurity(log log.Component, config config.Component, hostname string, stopper startstop.Stopper, statsdClient *ddgostatsd.Client, senderManager sender.SenderManager) (*secagent.RuntimeSecurityAgent, error) {
 	enabled := config.GetBool("runtime_security_config.enabled")
 	if !enabled {
@@ -668,7 +625,8 @@ func StartRuntimeSecurity(log log.Component, config config.Component, hostname s
 	}
 	stopper.Add(agent)
 
-	endpoints, ctx, err := common.NewLogContextRuntime()
+	useSecRuntimeTrack := config.GetBool("runtime_security_config.use_secruntime_track")
+	endpoints, ctx, err := common.NewLogContextRuntime(useSecRuntimeTrack)
 	if err != nil {
 		_ = log.Error(err)
 	}

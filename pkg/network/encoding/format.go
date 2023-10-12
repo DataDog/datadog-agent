@@ -91,21 +91,12 @@ func FormatConnection(builder *model.ConnectionBuilder, conn network.ConnectionS
 	builder.SetRouteIdx(formatRouteIdx(conn.Via, routes))
 	dnsFormatter.FormatConnectionDNS(conn, builder)
 
-	// TODO: optimize httpEncoder to take a writer and use gostreamer
-	httpStats, staticTags, dynamicTags := httpEncoder.GetHTTPAggregationsAndTags(conn)
-	if len(httpStats) != 0 {
-		builder.SetHttpAggregations(func(b *bytes.Buffer) {
-			b.Write(httpStats)
-		})
-	}
-
-	// TODO: optimize httpEncoder2 to take a writer and use gostreamer
-	http2Stats, _, _ := http2Encoder.GetHTTP2AggregationsAndTags(conn)
-	if len(http2Stats) != 0 {
-		builder.SetHttp2Aggregations(func(b *bytes.Buffer) {
-			b.Write(http2Stats)
-		})
-	}
+	var (
+		staticTags  uint64
+		dynamicTags map[string]struct{}
+	)
+	staticTags, dynamicTags = httpEncoder.GetHTTPAggregationsAndTags(conn, builder)
+	_, _ = http2Encoder.WriteHTTP2AggregationsAndTags(conn, builder)
 
 	// TODO: optimize kafkEncoder to take a writer and use gostreamer
 	if dsa := kafkaEncoder.GetKafkaAggregations(conn); dsa != nil {

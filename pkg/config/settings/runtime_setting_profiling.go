@@ -19,11 +19,12 @@ type ProfilingRuntimeSetting struct {
 	SettingName string
 	Service     string
 
-	Config       config.ConfigReaderWriter
+	Config       config.ReaderWriter
 	ConfigPrefix string
 	source       Source
 }
 
+// NewProfilingRuntimeSetting returns a new ProfilingRuntimeSetting
 func NewProfilingRuntimeSetting(settingName string, service string) *ProfilingRuntimeSetting {
 	return &ProfilingRuntimeSetting{
 		SettingName: settingName,
@@ -49,7 +50,7 @@ func (l *ProfilingRuntimeSetting) Name() string {
 
 // Get returns the current value of the runtime setting
 func (l *ProfilingRuntimeSetting) Get() (interface{}, error) {
-	var cfg config.ConfigReaderWriter = config.Datadog
+	var cfg config.ReaderWriter = config.Datadog
 	if l.Config != nil {
 		cfg = l.Config
 	}
@@ -74,7 +75,7 @@ func (l *ProfilingRuntimeSetting) Set(v interface{}, source Source) error {
 		return fmt.Errorf("Unsupported type for profile runtime setting: %v", err)
 	}
 
-	var cfg config.ConfigReaderWriter = config.Datadog
+	var cfg config.ReaderWriter = config.Datadog
 	if l.Config != nil {
 		cfg = l.Config
 	}
@@ -111,6 +112,7 @@ func (l *ProfilingRuntimeSetting) Set(v interface{}, source Source) error {
 			WithGoroutineProfile: cfg.GetBool(l.ConfigPrefix + "internal_profiling.enable_goroutine_stacktraces"),
 			WithDeltaProfiles:    cfg.GetBool(l.ConfigPrefix + "internal_profiling.delta_profiles"),
 			Tags:                 tags,
+			CustomAttributes:     cfg.GetStringSlice(l.ConfigPrefix + "internal_profiling.custom_attributes"),
 		}
 		err := profiling.Start(settings)
 		if err == nil {
@@ -125,6 +127,7 @@ func (l *ProfilingRuntimeSetting) Set(v interface{}, source Source) error {
 	return nil
 }
 
+// GetSource returns the source of the ProfilingRuntimeSetting
 func (l *ProfilingRuntimeSetting) GetSource() Source {
 	return l.source
 }

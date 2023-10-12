@@ -21,6 +21,8 @@ import (
 // decoded should be a string read by unmarshalling a json, and value the original Value[T]
 // which corresponds to that string.
 func AssertDecodedValue[T any](t *testing.T, decoded string, value *Value[T], unit string) {
+	t.Helper()
+
 	val, err := value.Value()
 	if err == nil {
 		// if the field is a real value then it should have the following format once rendered
@@ -38,6 +40,8 @@ func AssertDecodedValue[T any](t *testing.T, decoded string, value *Value[T], un
 // - the JSON can be unmarshalled into the given decoded struct
 // - the JSON doesn't contain unexpected fields
 func RequireMarshallJSON[T Jsonable, U any](t *testing.T, info T, decoded *U) {
+	t.Helper()
+
 	marshallable, _, err := info.AsJSON()
 	require.NoError(t, err)
 

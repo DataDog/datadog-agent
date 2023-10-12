@@ -7,6 +7,7 @@ package client
 
 import (
 	"errors"
+	"fmt"
 	"strings"
 	"testing"
 	"time"
@@ -35,7 +36,27 @@ func newAgentCommandRunner(t *testing.T, executeAgentCmdWithError executeAgentCm
 	return agent
 }
 
+// NewAgentCommandRunnerFromVM create a AgentCommandRunner from a VM
+func NewAgentCommandRunnerFromVM(t *testing.T, vm *VM) *AgentCommandRunner {
+
+	return newAgentCommandRunner(t, func(arguments []string) (string, error) {
+		parameters := ""
+		if len(arguments) > 0 {
+			parameters = `"` + strings.Join(arguments, `" "`) + `"`
+		}
+		cmd := vm.os.GetRunAgentCmd(parameters)
+		return vm.ExecuteWithError(cmd)
+	})
+}
+
 func (agent *AgentCommandRunner) executeCommand(command string, commandArgs ...AgentArgsOption) string {
+
+	output, err := agent.executeCommandWithError(command, commandArgs...)
+	require.NoError(agent.t, err)
+	return output
+}
+
+func (agent *AgentCommandRunner) executeCommandWithError(command string, commandArgs ...AgentArgsOption) (string, error) {
 	if !agent.isReady {
 		err := agent.waitForReadyTimeout(1 * time.Minute)
 		require.NoErrorf(agent.t, err, "the agent is not ready")
@@ -45,8 +66,7 @@ func (agent *AgentCommandRunner) executeCommand(command string, commandArgs ...A
 	arguments := []string{command}
 	arguments = append(arguments, args.Args...)
 	output, err := agent.executeAgentCmdWithError(arguments)
-	require.NoError(agent.t, err)
-	return output
+	return output, err
 }
 
 // Version runs version command returns the runtime Agent version
@@ -65,6 +85,11 @@ func (agent *AgentCommandRunner) Config(commandArgs ...AgentArgsOption) string {
 	return agent.executeCommand("config", commandArgs...)
 }
 
+// Flare runs flare command and returns the output. You should use the FakeIntake client to fetch the flare archive
+func (agent *AgentCommandRunner) Flare(commandArgs ...AgentArgsOption) string {
+	return agent.executeCommand("flare", commandArgs...)
+}
+
 // Health runs health command and returns the runtime agent health
 func (agent *AgentCommandRunner) Health() (string, error) {
 	arguments := []string{"health"}
@@ -75,6 +100,21 @@ func (agent *AgentCommandRunner) Health() (string, error) {
 // ConfigCheck runs configcheck command and returns the runtime agent configcheck
 func (agent *AgentCommandRunner) ConfigCheck(commandArgs ...AgentArgsOption) string {
 	return agent.executeCommand("configcheck", commandArgs...)
+}
+
+// Integration run integration command and returns the output
+func (agent *AgentCommandRunner) Integration(commandArgs ...AgentArgsOption) string {
+	return agent.executeCommand("integration", commandArgs...)
+}
+
+// IntegrationWithError run integration command and returns the output
+func (agent *AgentCommandRunner) IntegrationWithError(commandArgs ...AgentArgsOption) (string, error) {
+	return agent.executeCommandWithError("integration", commandArgs...)
+}
+
+// Secret runs the secret command
+func (agent *AgentCommandRunner) Secret(commandArgs ...AgentArgsOption) string {
+	return agent.executeCommand("secret", commandArgs...)
 }
 
 // IsReady runs status command and returns true if the command returns a zero exit code.
@@ -99,7 +139,13 @@ func (agent *AgentCommandRunner) Status(commandArgs ...AgentArgsOption) *Status 
 	return newStatus(agent.executeCommand("status", commandArgs...))
 }
 
-// WaitForReady blocks up to timeout waiting for agent to be ready.
+// StatusWithError runs status command and returns a Status struct and error
+func (agent *AgentCommandRunner) StatusWithError(commandArgs ...AgentArgsOption) (*Status, error) {
+	status, err := agent.executeCommandWithError("status", commandArgs...)
+	return newStatus(status), err
+}
+
+// waitForReadyTimeout blocks up to timeout waiting for agent to be ready.
 // Retries every 100 ms up to timeout.
 // Returns error on failure.
 func (agent *AgentCommandRunner) waitForReadyTimeout(timeout time.Duration) error {
@@ -112,5 +158,24 @@ func (agent *AgentCommandRunner) waitForReadyTimeout(timeout time.Duration) erro
 		}
 		return nil
 	}, backoff.WithMaxRetries(backoff.NewConstantBackOff(interval), uint64(maxRetries)))
+	return err
+}
+
+// WaitAgentLogs waits for the agent log corresponding to the pattern
+// agent-name can be: datadog-agent, system-probe, security-agent
+// pattern: is the log that we are looking for
+// Retries every 500 ms up to timeout.
+// Returns error on failure.
+func (a *Agent) WaitAgentLogs(agentName string, pattern string) error {
+	err := backoff.Retry(func() error {
+		output, err := a.vmClient.ExecuteWithError(fmt.Sprintf("cat /var/log/datadog/%s.log", agentName))
+		if err != nil {
+			return err
+		}
+		if strings.Contains(output, pattern) {
+			return nil
+		}
+		return errors.New("no log found")
+	}, backoff.WithMaxRetries(backoff.NewConstantBackOff(500*time.Millisecond), 60))
 	return err
 }

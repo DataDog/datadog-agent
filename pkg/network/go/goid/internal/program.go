@@ -5,6 +5,7 @@
 
 //go:build ignore
 
+// Package main holds main related files
 package main
 
 func main() {

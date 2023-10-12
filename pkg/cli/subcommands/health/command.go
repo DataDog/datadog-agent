@@ -33,6 +33,10 @@ type cliParams struct {
 	timeout int
 }
 
+// GlobalParams contains the values of agent-global Cobra flags.
+//
+// A pointer to this type is passed to SubcommandFactory's, but its contents
+// are not valid until Cobra calls the subcommand's Run or RunE function.
 type GlobalParams struct {
 	ConfFilePath string
 	ConfigName   string
@@ -53,7 +57,7 @@ func MakeCommand(globalParamsGetter func() GlobalParams) *cobra.Command {
 				fx.Supply(cliParams),
 				fx.Supply(core.BundleParams{
 					ConfigParams: config.NewAgentParamsWithoutSecrets(globalParams.ConfFilePath, config.WithConfigName(globalParams.ConfigName)),
-					LogParams:    log.LogForOneShot(globalParams.LoggerName, "off", true)}),
+					LogParams:    log.ForOneShot(globalParams.LoggerName, "off", true)}),
 				core.Bundle,
 			)
 		},
@@ -96,12 +100,12 @@ func requestHealth(log log.Component, config config.Component, cliParams *cliPar
 			err = fmt.Errorf(e)
 		}
 
-		return fmt.Errorf("Could not reach agent: %v \nMake sure the agent is running before requesting the status and contact support if you continue having issues.", err)
+		return fmt.Errorf("could not reach agent: %v \nMake sure the agent is running before requesting the status and contact support if you continue having issues", err)
 	}
 
 	s := new(health.Status)
 	if err = json.Unmarshal(r, s); err != nil {
-		return fmt.Errorf("Error unmarshalling json: %s", err)
+		return fmt.Errorf("error unmarshalling json: %s", err)
 	}
 
 	sort.Strings(s.Unhealthy)

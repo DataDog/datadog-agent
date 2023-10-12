@@ -5,7 +5,7 @@
 #include "helpers/filesystem.h"
 #include "helpers/syscalls.h"
 
-int __attribute__((always_inline)) trace_init_module(u32 loaded_from_memory) {
+int __attribute__((always_inline)) trace_init_module(u32 loaded_from_memory, const char *uargs) {
     struct policy_t policy = fetch_policy(EVENT_INIT_MODULE);
     if (is_discarded_by_process(policy.mode, EVENT_INIT_MODULE)) {
         return 0;
@@ -18,16 +18,21 @@ int __attribute__((always_inline)) trace_init_module(u32 loaded_from_memory) {
         },
     };
 
+	int len = bpf_probe_read_user_str(&syscall.init_module.args, sizeof(syscall.init_module.args), uargs);
+    if (len == sizeof(syscall.init_module.args)) {
+        syscall.init_module.args_truncated = 1;
+    }
+
     cache_syscall(&syscall);
     return 0;
 }
 
-HOOK_SYSCALL_ENTRY0(init_module) {
-    return trace_init_module(1);
+HOOK_SYSCALL_ENTRY3(init_module, void *, umod, unsigned long, len, const char *, uargs) {
+    return trace_init_module(1, uargs);
 }
 
-HOOK_SYSCALL_ENTRY0(finit_module) {
-    return trace_init_module(0);
+HOOK_SYSCALL_ENTRY3(finit_module, int, fd, const char *, uargs, int, flags) {
+    return trace_init_module(0, uargs);
 }
 
 int __attribute__((always_inline)) trace_kernel_file(ctx_t *ctx, struct file *f, int dr_type) {
@@ -37,8 +42,8 @@ int __attribute__((always_inline)) trace_kernel_file(ctx_t *ctx, struct file *f,
     }
 
     syscall->init_module.dentry = get_file_dentry(f);
-    set_file_inode(syscall->init_module.dentry, &syscall->init_module.file, 0);
     syscall->init_module.file.path_key.mount_id = get_file_mount_id(f);
+    set_file_inode(syscall->init_module.dentry, &syscall->init_module.file, 0);
 
     syscall->resolver.key = syscall->init_module.file.path_key;
     syscall->resolver.dentry = syscall->init_module.dentry;
@@ -55,24 +60,30 @@ int __attribute__((always_inline)) trace_kernel_file(ctx_t *ctx, struct file *f,
     return 0;
 }
 
-// fentry blocked by: parse args special bug
-SEC("kprobe/parse_args")
-int kprobe_parse_args(struct pt_regs *ctx) {
-    struct syscall_cache_t *syscall = peek_syscall(EVENT_INIT_MODULE);
+int __attribute__((always_inline)) fetch_mod_name_common(struct module *m) {
+	struct syscall_cache_t *syscall = peek_syscall(EVENT_INIT_MODULE);
     if (!syscall) {
         return 0;
     }
 
-    char *name = (char *)PT_REGS_PARM1(ctx);
-    char *args = (char *)PT_REGS_PARM2(ctx);
-
-    bpf_probe_read_str(&syscall->init_module.name, sizeof(syscall->init_module.name), name);
-
-    int len = bpf_probe_read_str(&syscall->init_module.args, sizeof(syscall->init_module.args), args);
-    if (len == sizeof(syscall->init_module.args)) {
-        syscall->init_module.args_truncated = 1;
+    if (syscall->init_module.name[0] != 0) {
+        return 0;
     }
+
+    bpf_probe_read_str(&syscall->init_module.name, sizeof(syscall->init_module.name), &m->name);
     return 0;
+}
+
+HOOK_ENTRY("mod_sysfs_setup")
+int hook_mod_sysfs_setup(ctx_t *ctx) {
+    struct module *m = (struct module*)CTX_PARM1(ctx);
+    return fetch_mod_name_common(m);
+}
+
+HOOK_ENTRY("module_param_sysfs_setup")
+int hook_module_param_sysfs_setup(ctx_t *ctx) {
+    struct module *m = (struct module*)CTX_PARM1(ctx);
+    return fetch_mod_name_common(m);
 }
 
 HOOK_ENTRY("security_kernel_module_from_file")
@@ -109,7 +120,7 @@ int __attribute__((always_inline)) trace_init_module_ret(void *ctx, int retval, 
     }
 
     if (syscall->init_module.dentry != NULL) {
-        fill_file_metadata(syscall->init_module.dentry, &event.file.metadata);
+        fill_file(syscall->init_module.dentry, &event.file);
     }
 
     struct proc_cache_t *entry = fill_process_context(&event.process);

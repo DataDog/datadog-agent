@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+// Package utils holds utils related files
 package utils
 
 import (
@@ -40,4 +41,9 @@ func (t EasyjsonTime) MarshalEasyJSON(w *jwriter.Writer) {
 // UnmarshalJSON does JSON unmarshaling
 func (t *EasyjsonTime) UnmarshalJSON(b []byte) error {
 	return t.inner.UnmarshalJSON(b)
+}
+
+// GetInnerTime returns the inner time
+func (t *EasyjsonTime) GetInnerTime() time.Time {
+	return t.inner
 }

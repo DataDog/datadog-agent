@@ -11,17 +11,10 @@ import (
 	"golang.org/x/sys/windows"
 )
 
-// Handle represents a pointer used by FindFirstVolumeW and similar functions
-type Handle uintptr
-
 // InvalidHandle is the value returned in case of error
-const InvalidHandle Handle = ^Handle(0)
-
-// ERRORMoreData is the error returned when the size is not big enough
-const ERRORMoreData windows.Errno = 234
+const InvalidHandle windows.Handle = ^windows.Handle(0)
 
 // this would probably go in a common utilities rather than here
-
 func convertWindowsStringList(winput []uint16) []string {
 	var retstrings []string
 	var rsindex = 0
@@ -89,7 +82,7 @@ func getMountPoints(vol string) []string {
 		2,
 		uintptr(unsafe.Pointer(&objlistsize)))
 
-	if status != 0 || errno != ERRORMoreData {
+	if status != 0 || errno != windows.ERROR_MORE_DATA {
 		// unexpected
 		return retval
 	}
@@ -112,12 +105,10 @@ func getFileSystemInfo() ([]MountInfo, error) {
 	var findNext = mod.NewProc("FindNextVolumeW")
 	var findClose = mod.NewProc("FindVolumeClose")
 
-	//var findHandle Handle
 	buf := make([]uint16, 512)
 	var sz int32 = 512
-	fh, _, _ := findFirst.Call(uintptr(unsafe.Pointer(&buf[0])),
-		uintptr(sz))
-	var findHandle = Handle(fh)
+	fh, _, _ := findFirst.Call(uintptr(unsafe.Pointer(&buf[0])), uintptr(sz))
+	var findHandle = windows.Handle(fh)
 	var fileSystemInfo []MountInfo
 
 	if findHandle != InvalidHandle {

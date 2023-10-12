@@ -665,6 +665,7 @@ func TestHandleContainer(t *testing.T) {
 						"image_name:datadog/agent",
 						"image_tag:latest",
 						"short_image:agent",
+						"image_id:datadog/agent@sha256:a63d3f66fb2f69d955d4f2ca0b229385537a77872ffc04290acae65aed5317d2",
 					}, standardTags...),
 					StandardTags: standardTags,
 				},

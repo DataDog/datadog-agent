@@ -3,12 +3,14 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build linux_bpf
+//go:build linux
 
 package utils
 
 import (
+	"errors"
 	"fmt"
+	"os"
 	"sync"
 
 	"github.com/cihub/seelog"
@@ -82,13 +84,19 @@ func NewFileRegistry(programName string) *FileRegistry {
 		log.Warnf("running without block cache list, creation error: %s", err)
 		blocklistByID = nil
 	}
-	return &FileRegistry{
+	r := &FileRegistry{
 		procRoot:      kernel.ProcFSRoot(),
 		byID:          make(map[PathIdentifier]*registration),
 		byPID:         make(map[uint32]pathIdentifierSet),
 		blocklistByID: blocklistByID,
 		telemetry:     newRegistryTelemetry(programName),
 	}
+
+	// Add self to the debugger so we can inspect internal state of this
+	// FileRegistry using our debugging endpoint
+	debugger.Add(r)
+
+	return r
 }
 
 // Register inserts or updates a new file registration within to the `FileRegistry`;
@@ -140,6 +148,12 @@ func (r *FileRegistry) Register(namespacedPath string, pid uint32, activationCB,
 	}
 
 	if err := activationCB(path); err != nil {
+		// short living process would be hard to catch and will failed when we try to open the library
+		// so let's failed silently
+		if errors.Is(err, os.ErrNotExist) {
+			return
+		}
+
 		// we are calling `deactivationCB` here as some uprobes could be already attached
 		_ = deactivationCB(FilePath{ID: pathID})
 		if r.blocklistByID != nil {
@@ -151,7 +165,7 @@ func (r *FileRegistry) Register(namespacedPath string, pid uint32, activationCB,
 		return
 	}
 
-	reg := r.newRegistration(deactivationCB)
+	reg := r.newRegistration(namespacedPath, deactivationCB)
 	r.byID[pathID] = reg
 	if len(r.byPID[pid]) == 0 {
 		r.byPID[pid] = pathIdentifierSet{}
@@ -231,11 +245,12 @@ func (r *FileRegistry) Clear() {
 	r.stopped = true
 }
 
-func (r *FileRegistry) newRegistration(deactivationCB callback) *registration {
+func (r *FileRegistry) newRegistration(sampleFilePath string, deactivationCB callback) *registration {
 	return &registration{
 		deactivationCB:       deactivationCB,
 		uniqueProcessesCount: atomic.NewInt32(1),
 		telemetry:            &r.telemetry,
+		sampleFilePath:       sampleFilePath,
 	}
 }
 
@@ -245,6 +260,14 @@ type registration struct {
 
 	// we are sharing the telemetry from FileRegistry
 	telemetry *registryTelemetry
+
+	// Note about the motivation for this field:
+	// a registration is tied to a PathIdentifier which is basically a global
+	// identifier to a file (dev, inode). Multiple file paths can point to the
+	// same underlying (dev, inode), so the `sampleFilePath` here happens to be
+	// simply *one* of these file paths and we use this only for debugging
+	// purposes.
+	sampleFilePath string
 }
 
 // unregister return true if there are no more reference to this registration

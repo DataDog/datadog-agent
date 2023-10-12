@@ -12,23 +12,91 @@ import (
 	"golang.org/x/sys/windows"
 )
 
-// SYSTEM_LOGICAL_PROCESSOR_INFORMATION_SIZE is the size of
-// SYSTEM_LOGICAL_PROCESSOR_INFORMATION struct
+// GROUP_AFFINITY represents a processor group-specific affinity,
+// such as the affinity of a thread.
+// see https://learn.microsoft.com/en-us/windows/win32/api/winnt/ns-winnt-group_affinity
 //
 //nolint:revive
-const SYSTEM_LOGICAL_PROCESSOR_INFORMATION_SIZE = 32
-
-//nolint:unused
-func getSystemLogicalProcessorInformationSize() int {
-	return SYSTEM_LOGICAL_PROCESSOR_INFORMATION_SIZE
+type GROUP_AFFINITY struct {
+	Mask     uintptr
+	Group    uint16
+	Reserved [3]uint16
 }
 
-//nolint:unused
-func byteArrayToProcessorStruct(data []byte) (info SYSTEM_LOGICAL_PROCESSOR_INFORMATION) {
-	info.ProcessorMask = uintptr(binary.LittleEndian.Uint64(data))
-	info.Relationship = int(binary.LittleEndian.Uint64(data[8:]))
-	copy(info.dataunion[0:16], data[16:32])
-	return
+// NUMA_NODE_RELATIONSHIP represents information about a NUMA node
+// in a processor group.
+// see https://learn.microsoft.com/en-us/windows/win32/api/winnt/ns-winnt-numa_node_relationship
+//
+//nolint:revive
+type NUMA_NODE_RELATIONSHIP struct {
+	NodeNumber uint32
+	Reserved   [20]uint8
+	GroupMask  GROUP_AFFINITY
+}
+
+// CACHE_RELATIONSHIP describes cache attributes.
+// see https://learn.microsoft.com/en-us/windows/win32/api/winnt/ns-winnt-cache_relationship
+//
+//nolint:revive
+type CACHE_RELATIONSHIP struct {
+	Level         uint8
+	Associativity uint8
+	LineSize      uint16
+	CacheSize     uint32
+	CacheType     int // enum in C
+	Reserved      [20]uint8
+	GroupMask     GROUP_AFFINITY
+}
+
+// PROCESSOR_GROUP_INFO represents the number and affinity of processors
+// in a processor group.
+// see https://learn.microsoft.com/en-us/windows/win32/api/winnt/ns-winnt-processor_group_info
+//
+//nolint:revive
+type PROCESSOR_GROUP_INFO struct {
+	MaximumProcessorCount uint8
+	ActiveProcessorCount  uint8
+	Reserved              [38]uint8
+	ActiveProcessorMask   uintptr
+}
+
+// GROUP_RELATIONSHIP represents information about processor groups.
+// see https://learn.microsoft.com/en-us/windows/win32/api/winnt/ns-winnt-group_relationship
+//
+//nolint:revive
+type GROUP_RELATIONSHIP struct {
+	MaximumGroupCount uint16
+	ActiveGroupCount  uint16
+	Reserved          [20]uint8
+	// variable size array of PROCESSOR_GROUP_INFO
+}
+
+// PROCESSOR_RELATIONSHIP represents information about affinity
+// within a processor group.
+// see https://learn.microsoft.com/en-us/windows/win32/api/winnt/ns-winnt-processor_relationship
+//
+//nolint:revive
+type PROCESSOR_RELATIONSHIP struct {
+	Flags           uint8
+	EfficiencyClass uint8
+	WReserved       [20]uint8
+	GroupCount      uint16
+	// what follows is an array of zero or more GROUP_AFFINITY structures
+}
+
+// SYSTEM_LOGICAL_PROCESSOR_INFORMATION_EX contains information about
+// the relationships of logical processors and related hardware.
+// https://learn.microsoft.com/en-us/windows/win32/api/winnt/ns-winnt-system_logical_processor_information_ex
+//
+//nolint:revive
+type SYSTEM_LOGICAL_PROCESSOR_INFORMATION_EX struct {
+	Relationship int
+	Size         uint32
+	// what follows is a C union of
+	// PROCESSOR_RELATIONSHIP,
+	// NUMA_NODE_RELATIONSHIP,
+	// CACHE_RELATIONSHIP,
+	// GROUP_RELATIONSHIP
 }
 
 func byteArrayToGroupAffinity(data []byte) (affinity GROUP_AFFINITY, consumed uint32, err error) {
@@ -128,7 +196,7 @@ func computeCoresAndProcessors() (CPU_INFO, error) {
 		uintptr(0),
 		uintptr(unsafe.Pointer(&buflen)))
 	if status == 0 {
-		if callErr != ERROR_INSUFFICIENT_BUFFER {
+		if callErr != windows.ERROR_INSUFFICIENT_BUFFER {
 			// only error we're expecing here is insufficient buffer
 			// anything else is a failure
 			return cpuInfo, callErr

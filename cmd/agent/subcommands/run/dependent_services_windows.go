@@ -53,8 +53,9 @@ var subservices = []Servicedef{
 	{
 		name: "sysprobe",
 		configKeys: map[string]config.Config{
-			"network_config.enabled":      config.SystemProbe,
-			"system_probe_config.enabled": config.SystemProbe,
+			"network_config.enabled":          config.SystemProbe,
+			"system_probe_config.enabled":     config.SystemProbe,
+			"windows_crash_detection.enabled": config.SystemProbe,
 		},
 		serviceName: "datadog-system-probe",
 		serviceInit: sysprobeInit,

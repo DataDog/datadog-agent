@@ -16,7 +16,7 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/mock"
+	testifyMock "github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/fx"
 
@@ -84,7 +84,7 @@ func TestCollect(t *testing.T) {
 
 	s := &serializer.MockSerializer{}
 	s.On("SendProcessesMetadata",
-		mock.MatchedBy(func(payload map[string]interface{}) bool {
+		testifyMock.MatchedBy(func(payload map[string]interface{}) bool {
 			jsonPayload, err := json.Marshal(payload)
 			require.NoError(t, err)
 			assert.Equal(t, expectedPayload, string(jsonPayload))

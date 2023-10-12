@@ -102,6 +102,11 @@ int hook_vfs_truncate(ctx_t *ctx) {
     struct path *path = (struct path *)CTX_PARM1(ctx);
     struct dentry *dentry = get_path_dentry(path);
 
+    if (is_non_mountable_dentry(dentry)) {
+        pop_syscall(EVENT_OPEN);
+        return 0;
+    }
+
     syscall->open.dentry = dentry;
     syscall->open.file.path_key = get_dentry_key_path(syscall->open.dentry, path);
 
@@ -125,6 +130,11 @@ int hook_vfs_open(ctx_t *ctx) {
     struct file *file = (struct file *)CTX_PARM2(ctx);
     struct dentry *dentry = get_path_dentry(path);
     struct inode *inode = get_dentry_inode(dentry);
+
+    if (is_non_mountable_dentry(dentry)) {
+        pop_syscall(EVENT_OPEN);
+        return 0;
+    }
 
     return handle_open_event(syscall, file, path, inode);
 }
@@ -290,7 +300,7 @@ int __attribute__((always_inline)) dr_open_callback(void *ctx) {
         .mode = syscall->open.mode,
     };
 
-    fill_file_metadata(syscall->open.dentry, &event.file.metadata);
+    fill_file(syscall->open.dentry, &event.file);
     struct proc_cache_t *entry;
     if (syscall->open.pid_tgid != 0) {
         entry = fill_process_context_with_pid_tgid(&event.process, syscall->open.pid_tgid);

@@ -255,6 +255,15 @@ func (ev *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 			return values, nil
 		{{else}}
 			{{$Return := $Field.Name | printf "ev.%s"}}
+
+			{{$Checks := $Field | GetChecks $.AllFields}}
+			{{range $Check := $Checks}}
+				{{$Check = $Check | printf "ev.%s"}}
+				if !{{$Check}}() {
+					return {{$Field.GetDefaultReturnValue}}, &eval.ErrNotSupported{Field: field}
+				}
+			{{end}}
+
 			{{if $Field.IsLength}}
 			{{$Return = ".length" | TrimSuffix $Field.Name | printf "len(ev.%s)"}}
 			{{end}}

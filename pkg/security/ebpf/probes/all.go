@@ -5,6 +5,7 @@
 
 //go:build linux
 
+// Package probes holds probes related files
 package probes
 
 import (
@@ -44,11 +45,9 @@ func computeDefaultEventsRingBufferSize() uint32 {
 
 	if numCPU <= 16 {
 		return uint32(8 * 256 * os.Getpagesize())
-	} else if numCPU <= 64 {
-		return uint32(16 * 256 * os.Getpagesize())
 	}
 
-	return uint32(32 * 256 * os.Getpagesize())
+	return uint32(16 * 256 * os.Getpagesize())
 }
 
 // AllProbes returns the list of all the probes of the runtime security module
@@ -80,7 +79,6 @@ func AllProbes(fentry bool) []*manager.Probe {
 	allProbes = append(allProbes, GetTCProbes()...)
 	allProbes = append(allProbes, getBindProbes(fentry)...)
 	allProbes = append(allProbes, getSyscallMonitorProbes()...)
-	allProbes = append(allProbes, getPipeProbes()...)
 
 	allProbes = append(allProbes,
 		&manager.Probe{

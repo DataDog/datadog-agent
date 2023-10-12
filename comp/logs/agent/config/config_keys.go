@@ -10,6 +10,7 @@ import (
 	"time"
 
 	coreConfig "github.com/DataDog/datadog-agent/pkg/config"
+	configUtils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -17,30 +18,30 @@ import (
 type LogsConfigKeys struct {
 	prefix       string
 	vectorPrefix string
-	config       coreConfig.ConfigReader
+	config       coreConfig.Reader
 }
 
 // defaultLogsConfigKeys defines the default YAML keys used to retrieve logs configuration
-func defaultLogsConfigKeys(config coreConfig.ConfigReader) *LogsConfigKeys {
+func defaultLogsConfigKeys(config coreConfig.Reader) *LogsConfigKeys {
 	return NewLogsConfigKeys("logs_config.", config)
 }
 
 // defaultLogsConfigKeys defines the default YAML keys used to retrieve logs configuration
-func defaultLogsConfigKeysWithVectorOverride(config coreConfig.ConfigReader) *LogsConfigKeys {
+func defaultLogsConfigKeysWithVectorOverride(config coreConfig.Reader) *LogsConfigKeys {
 	return NewLogsConfigKeysWithVector("logs_config.", "logs.", config)
 }
 
 // NewLogsConfigKeys returns a new logs configuration keys set
-func NewLogsConfigKeys(configPrefix string, config coreConfig.ConfigReader) *LogsConfigKeys {
+func NewLogsConfigKeys(configPrefix string, config coreConfig.Reader) *LogsConfigKeys {
 	return &LogsConfigKeys{prefix: configPrefix, vectorPrefix: "", config: config}
 }
 
 // NewLogsConfigKeysWithVector returns a new logs configuration keys set with vector config keys enabled
-func NewLogsConfigKeysWithVector(configPrefix, vectorPrefix string, config coreConfig.ConfigReader) *LogsConfigKeys {
+func NewLogsConfigKeysWithVector(configPrefix, vectorPrefix string, config coreConfig.Reader) *LogsConfigKeys {
 	return &LogsConfigKeys{prefix: configPrefix, vectorPrefix: vectorPrefix, config: config}
 }
 
-func (l *LogsConfigKeys) getConfig() coreConfig.ConfigReader {
+func (l *LogsConfigKeys) getConfig() coreConfig.Reader {
 	return l.config
 }
 
@@ -48,7 +49,7 @@ func (l *LogsConfigKeys) getConfigKey(key string) string {
 	return l.prefix + key
 }
 
-func isSetAndNotEmpty(config coreConfig.ConfigReader, key string) bool {
+func isSetAndNotEmpty(config coreConfig.Reader, key string) bool {
 	return config.IsSet(key) && len(config.GetString(key)) > 0
 }
 
@@ -95,6 +96,10 @@ func (l *LogsConfigKeys) logsNoSSL() bool {
 	return l.getConfig().GetBool(l.getConfigKey("logs_no_ssl"))
 }
 
+func (l *LogsConfigKeys) maxMessageSizeBytes() int {
+	return l.getConfig().GetInt(l.getConfigKey("max_message_size_bytes"))
+}
+
 func (l *LogsConfigKeys) devModeNoSSL() bool {
 	return l.getConfig().GetBool(l.getConfigKey("dev_mode_no_ssl"))
 }
@@ -118,9 +123,9 @@ func (l *LogsConfigKeys) hasAdditionalEndpoints() bool {
 // getLogsAPIKey provides the dd api key used by the main logs agent sender.
 func (l *LogsConfigKeys) getLogsAPIKey() string {
 	if configKey := l.getConfigKey("api_key"); l.isSetAndNotEmpty(configKey) {
-		return coreConfig.SanitizeAPIKey(l.getConfig().GetString(configKey))
+		return configUtils.SanitizeAPIKey(l.getConfig().GetString(configKey))
 	}
-	return coreConfig.SanitizeAPIKey(l.getConfig().GetString("api_key"))
+	return configUtils.SanitizeAPIKey(l.getConfig().GetString("api_key"))
 }
 
 func (l *LogsConfigKeys) connectionResetInterval() time.Duration {

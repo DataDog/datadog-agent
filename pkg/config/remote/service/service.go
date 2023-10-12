@@ -182,7 +182,7 @@ func NewService() (*Service, error) {
 	if config.Datadog.IsSet("remote_configuration.api_key") {
 		apiKey = config.Datadog.GetString("remote_configuration.api_key")
 	}
-	apiKey = config.SanitizeAPIKey(apiKey)
+	apiKey = configUtils.SanitizeAPIKey(apiKey)
 	rcKey := config.Datadog.GetString("remote_configuration.key")
 	authKeys, err := getRemoteConfigAuthKeys(apiKey, rcKey)
 	if err != nil {

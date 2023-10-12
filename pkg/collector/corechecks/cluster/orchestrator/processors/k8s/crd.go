@@ -28,6 +28,7 @@ func (crd *CRDHandlers) BuildManifestMessageBody(ctx *processors.ProcessorContex
 	cm := ExtractModelManifests(ctx, resourceManifests, groupSize)
 	return &model.CollectorManifestCRD{
 		Manifest: cm,
+		Tags:     append(ctx.Cfg.ExtraTags, ctx.ApiGroupVersionTag),
 	}
 }
 

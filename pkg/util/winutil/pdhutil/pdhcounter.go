@@ -11,6 +11,8 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+
+	"golang.org/x/sys/windows"
 )
 
 // NOTE TO DEVELOPER
@@ -35,7 +37,7 @@ var (
 // should be included, false otherwise
 type CounterInstanceVerify func(string) bool
 
-// Manages a PDH Query
+// PdhQuery manages a PDH Query
 // https://learn.microsoft.com/en-us/windows/win32/perfctrs/creating-a-query
 // https://learn.microsoft.com/en-us/windows/win32/api/pdh/nf-pdh-pdhopenqueryw
 type PdhQuery struct {
@@ -43,7 +45,7 @@ type PdhQuery struct {
 	counters []PdhCounter
 }
 
-// Manages behavior common to all types of PDH counters
+// PdhCounter manages behavior common to all types of PDH counters
 // https://learn.microsoft.com/en-us/windows/win32/api/pdh/nf-pdh-pdhaddenglishcounterw
 type PdhCounter interface {
 	// Return true if a query should attempt to initialize this counter.
@@ -62,7 +64,7 @@ type PdhCounter interface {
 	Remove() error
 }
 
-// Manages a PDH counter with no instance or for a specific instance
+// PdhSingleInstanceCounter manages a PDH counter with no instance or for a specific instance
 // Only a single value is returned.
 // https://learn.microsoft.com/en-us/windows/win32/perfctrs/specifying-a-counter-path
 type PdhSingleInstanceCounter interface {
@@ -71,7 +73,7 @@ type PdhSingleInstanceCounter interface {
 	GetValue() (float64, error)
 }
 
-// Manages a PDH counter that can have multiple instances
+// PdhMultiInstanceCounter manages a PDH counter that can have multiple instances
 // Returns a value for every instance
 // https://learn.microsoft.com/en-us/windows/win32/perfctrs/specifying-a-counter-path
 type PdhMultiInstanceCounter interface {
@@ -98,13 +100,13 @@ type pdhEnglishCounter struct {
 	pdhCounter
 }
 
-// pdhEnglishSingleInstanceCounter is a specialization for single-instance counters
+// PdhEnglishSingleInstanceCounter is a specialization for single-instance counters
 // https://learn.microsoft.com/en-us/windows/win32/perfctrs/about-performance-counters
 type PdhEnglishSingleInstanceCounter struct {
 	pdhEnglishCounter
 }
 
-// pdhMultiInstanceCounterSet is a specialization for a multi-instance counters
+// PdhEnglishMultiInstanceCounter is a specialization for multi-instance counters
 // https://learn.microsoft.com/en-us/windows/win32/perfctrs/about-performance-counters
 type PdhEnglishMultiInstanceCounter struct {
 	pdhEnglishCounter
@@ -118,7 +120,7 @@ func (counter *pdhCounter) ShouldInit() bool {
 	}
 	var initFailLimit = config.Datadog.GetInt("windows_counter_init_failure_limit")
 	if initFailLimit > 0 && counter.initFailCount >= initFailLimit {
-		counter.initError = fmt.Errorf("Counter exceeded the maximum number of failed initialization attempts. This error indicates that the Windows performance counter database may need to be rebuilt.")
+		counter.initError = fmt.Errorf("counter exceeded the maximum number of failed initialization attempts. This error indicates that the Windows performance counter database may need to be rebuilt")
 		// attempts exceeded
 		return false
 	}
@@ -131,7 +133,7 @@ func (counter *pdhCounter) SetInitError(err error) error {
 		return nil
 	}
 
-	counter.initFailCount += 1
+	counter.initFailCount++
 	var initFailLimit = config.Datadog.GetInt("windows_counter_init_failure_limit")
 	if initFailLimit > 0 && counter.initFailCount >= initFailLimit {
 		err = fmt.Errorf("%v. Counter exceeded the maximum number of failed initialization attempts", err)
@@ -150,7 +152,7 @@ func (counter *pdhCounter) Remove() error {
 	}
 
 	pdherror := pfnPdhRemoveCounter(counter.handle)
-	if ERROR_SUCCESS != pdherror {
+	if windows.ERROR_SUCCESS != windows.Errno(pdherror) {
 		return fmt.Errorf("RemoveCounter failed: %#x", pdherror)
 	}
 
@@ -165,19 +167,21 @@ func (counter *pdhEnglishCounter) AddToQuery(query *PdhQuery) error {
 		return fmt.Errorf("Failed to make counter path (\\%s(%s)\\%s): %v", counter.ObjectName, counter.InstanceName, counter.CounterName, err)
 	}
 	pdherror := pfnPdhAddEnglishCounter(query.Handle, path, uintptr(0), &counter.handle)
-	if ERROR_SUCCESS != pdherror {
+	if windows.ERROR_SUCCESS != windows.Errno(pdherror) {
 		return fmt.Errorf("Failed to add english counter (%s): %#x", path, pdherror)
 	}
 	return nil
 }
 
-// Calls PdhCounter.AddToQuery and handles initError logic
+// AddToQuery calls PdhCounter.AddToQuery and handles initError logic
 // Counters should implement PdhCounter.AddToQuery to override init logic
 func AddToQuery(query *PdhQuery, counter PdhCounter) error {
 	err := counter.AddToQuery(query)
 	return counter.SetInitError(err)
 }
 
+// AddCounter adds a counter to the list of counters managed by a PdhQuery.
+// It does NOT add the Windows counter to the Windows query.
 func (query *PdhQuery) AddCounter(counter PdhCounter) {
 	query.counters = append(query.counters, counter)
 }
@@ -215,7 +219,7 @@ func (query *PdhQuery) AddEnglishSingleInstanceCounter(objectName string, counte
 	return query.AddEnglishCounterInstance(objectName, counterName, "")
 }
 
-// AddMultiInstanceCounter returns a PdhMultiInstanceCounter that will fetch values for all instances of a counter.
+// AddEnglishMultiInstanceCounter returns a PdhMultiInstanceCounter that will fetch values for all instances of a counter.
 // This uses a '*' wildcard to collect values for all instances of a counter.
 // Instances/values can be filtered manually once returned from GetAllValues() or with verifyfn (see CounterInstanceVerify)
 //
@@ -229,6 +233,10 @@ func (query *PdhQuery) AddEnglishMultiInstanceCounter(objectName string, counter
 	return &p
 }
 
+// CollectQueryData updates the counter values managed by the query.
+//
+// Adds any Windows counters not yet added to the Windows query.
+//
 // Must be called before GetValue/GetAllValues to make new counter values available.
 // https://learn.microsoft.com/en-us/windows/win32/api/pdh/nf-pdh-pdhcollectquerydata
 func (query *PdhQuery) CollectQueryData() error {
@@ -256,14 +264,14 @@ func (query *PdhQuery) CollectQueryData() error {
 		// before they can return a value.
 		err := PdhCollectQueryData(query.Handle)
 		if err != nil {
-			return fmt.Errorf("%v. This error indicates that the Windows performance counter database may need to be rebuilt.", err)
+			return fmt.Errorf("%v. This error indicates that the Windows performance counter database may need to be rebuilt", err)
 		}
 	}
 
 	// Update the counters
 	err := PdhCollectQueryData(query.Handle)
 	if err != nil {
-		return fmt.Errorf("%v. This error indicates that the Windows performance counter database may need to be rebuilt.", err)
+		return fmt.Errorf("%v. This error indicates that the Windows performance counter database may need to be rebuilt", err)
 	}
 	return nil
 }
@@ -324,12 +332,14 @@ func (counter *PdhEnglishSingleInstanceCounter) GetValue() (float64, error) {
 	return pfnPdhGetFormattedCounterValueFloat(counter.handle)
 }
 
-// Create a query that can have counters added to it
+// CreatePdhQuery creates a query that can have counters added to it
+//
+// https://learn.microsoft.com/en-us/windows/win32/api/pdh/nf-pdh-pdhopenqueryw
 func CreatePdhQuery() (*PdhQuery, error) {
 	var q PdhQuery
 
 	pdherror := pfnPdhOpenQuery(uintptr(0), uintptr(0), &q.Handle)
-	if ERROR_SUCCESS != pdherror {
+	if windows.ERROR_SUCCESS != windows.Errno(pdherror) {
 		err := fmt.Errorf("failed to open PDH query handle %#x", pdherror)
 		return nil, err
 	}
@@ -347,12 +357,15 @@ func (query *PdhQuery) Close() {
 	}
 }
 
+// PdhCollectQueryData Windows API
+//
+// https://learn.microsoft.com/en-us/windows/win32/api/pdh/nf-pdh-pdhcollectquerydata
 func PdhCollectQueryData(hQuery PDH_HQUERY) error {
 	if hQuery == PDH_HQUERY(0) {
 		return fmt.Errorf("invalid query handle")
 	}
 	pdherror := pfnPdhCollectQueryData(hQuery)
-	if ERROR_SUCCESS != pdherror {
+	if windows.ERROR_SUCCESS != windows.Errno(pdherror) {
 		return fmt.Errorf("failed to collect query data %#x", pdherror)
 	}
 	return nil

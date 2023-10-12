@@ -8,14 +8,42 @@
 package kubeapiserver
 
 import (
+	"context"
 	"regexp"
 
 	corev1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/watch"
+	"k8s.io/client-go/kubernetes"
+	"k8s.io/client-go/tools/cache"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
 )
+
+func newPodStore(ctx context.Context, wlm workloadmeta.Store, client kubernetes.Interface) (*cache.Reflector, *reflectorStore) {
+	podListerWatcher := &cache.ListWatch{
+		ListFunc: func(options metav1.ListOptions) (runtime.Object, error) {
+			return client.CoreV1().Pods(metav1.NamespaceAll).List(ctx, options)
+		},
+		WatchFunc: func(options metav1.ListOptions) (watch.Interface, error) {
+			return client.CoreV1().Pods(metav1.NamespaceAll).Watch(ctx, options)
+		},
+	}
+
+	podStore := newPodReflectorStore(wlm)
+	podReflector := cache.NewNamedReflector(
+		componentName,
+		podListerWatcher,
+		&corev1.Pod{},
+		podStore,
+		noResync,
+	)
+	log.Debug("pod reflector enabled")
+	return podReflector, podStore
+}
 
 func newPodReflectorStore(wlmetaStore workloadmeta.Store) *reflectorStore {
 	annotationsExclude := config.Datadog.GetStringSlice("cluster_agent.kubernetes_resources_collection.pod_annotations_exclude")

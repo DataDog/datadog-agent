@@ -23,7 +23,6 @@ import (
 	"k8s.io/client-go/informers"
 	"k8s.io/client-go/kubernetes/fake"
 
-	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 	"github.com/DataDog/datadog-agent/pkg/metrics/servicecheck"
 )
@@ -279,7 +278,7 @@ func TestRun(t *testing.T) {
 			// are not necessarily emitted in the first run. It depends on
 			// whether the check had time to process the events.
 
-			check.CommonConfigure(aggregator.GetSenderManager(), 0, nil, nil, "")
+			check.CommonConfigure(mockedSender.GetSenderManager(), 0, nil, nil, "")
 			err := check.Run()
 			assert.NoError(t, err)
 
@@ -331,7 +330,7 @@ func TestRun_withCollectEvents(t *testing.T) {
 	mockedSender.SetupAcceptAll()
 
 	// First run to set up the informers.
-	check.CommonConfigure(aggregator.GetSenderManager(), 0, nil, nil, "")
+	check.CommonConfigure(mockedSender.GetSenderManager(), 0, nil, nil, "")
 	err = check.Run()
 	assert.NoError(t, err)
 
@@ -420,7 +419,7 @@ func TestRun_skipEventForExistingRelease(t *testing.T) {
 	// Create a new release and check that we never send an event for it
 	_, err = k8sClient.CoreV1().Secrets("default").Create(context.TODO(), secret, metav1.CreateOptions{})
 	assert.NoError(t, err)
-	check.CommonConfigure(aggregator.GetSenderManager(), 0, nil, nil, "")
+	check.CommonConfigure(mockedSender.GetSenderManager(), 0, nil, nil, "")
 	err = check.Run()
 	assert.NoError(t, err)
 	mockedSender.AssertNotCalled(t, "Event")
@@ -554,7 +553,7 @@ func TestRun_ServiceCheck(t *testing.T) {
 
 			k8sClient := fake.NewSimpleClientset()
 			check.informerFactory = informers.NewSharedInformerFactory(k8sClient, time.Minute)
-			check.CommonConfigure(aggregator.GetSenderManager(), 0, nil, nil, "")
+			check.CommonConfigure(mockedSender.GetSenderManager(), 0, nil, nil, "")
 			err := check.Run()
 			assert.NoError(t, err)
 

@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+// Package config holds config related files
 package config
 
 import (
@@ -18,6 +19,7 @@ const (
 	evNS = "event_monitoring_config"
 )
 
+// Config defines the config
 type Config struct {
 	// SocketPath is the path to the socket that is used to communicate with the security agent and process agent
 	SocketPath string

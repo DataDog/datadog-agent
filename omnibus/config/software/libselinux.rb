@@ -15,7 +15,7 @@
 #
 
 name "libselinux"
-default_version "3.4"
+default_version "3.5"
 
 dependency 'pcre2'
 dependency 'libsepol'
@@ -24,7 +24,7 @@ license "Public-Domain"
 license_file "LICENSE"
 skip_transitive_dependency_licensing true
 
-version("3.4") { source sha256: "77c294a927e6795c2e98f74b5c3adde9c8839690e9255b767c5fca6acff9b779" }
+version("3.5") { source sha256: "9a3a3705ac13a2ccca2de6d652b6356fead10f36fb33115c185c5ccdf29eec19" }
 
 source url: "https://github.com/SELinuxProject/selinux/releases/download/#{version}/libselinux-#{version}.tar.gz"
 

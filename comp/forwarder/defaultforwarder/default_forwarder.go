@@ -24,6 +24,7 @@ import (
 	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/config/resolver"
 	"github.com/DataDog/datadog-agent/pkg/config/utils"
+	configUtils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/filesystem"
 	"github.com/DataDog/datadog-agent/pkg/version"
@@ -271,7 +272,7 @@ func NewDefaultForwarder(config config.Component, log log.Component, options *Op
 	transactionContainerSort := transaction.SortByCreatedTimeAndPriority{HighPriorityFirst: false}
 
 	for domain, resolver := range options.DomainResolvers {
-		domain, _ := pkgconfig.AddAgentVersionToDomain(domain, "app")
+		domain, _ := configUtils.AddAgentVersionToDomain(domain, "app")
 		resolver.SetBaseDomain(domain)
 		if resolver.GetAPIKeys() == nil || len(resolver.GetAPIKeys()) == 0 {
 			log.Errorf("No API keys for domain '%s', dropping domain ", domain)

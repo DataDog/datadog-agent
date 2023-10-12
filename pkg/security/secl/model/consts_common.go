@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+// Package model holds model related files
 package model
 
 import (
@@ -56,7 +57,7 @@ const (
 	// EventFlagsActivityDumpSample an AD sample
 	EventFlagsActivityDumpSample
 
-	// InProfile true if the event was found in a profile
+	// EventFlagsSecurityProfileInProfile true if the event was found in a profile
 	EventFlagsSecurityProfileInProfile
 )
 

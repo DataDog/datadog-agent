@@ -21,19 +21,26 @@ import (
 
 // InitConfig is used to deserialize integration init config.
 type InitConfig struct {
-	MinCollectionInterval int `yaml:"min_collection_interval"`
+	MinCollectionInterval int           `yaml:"min_collection_interval"`
+	CustomQueries         []CustomQuery `yaml:"custom_queries"`
 }
 
 type QuerySamplesConfig struct {
-	Enabled bool `yaml:"enabled"`
+	Enabled            bool `yaml:"enabled"`
+	IncludeAllSessions bool `yaml:"include_all_sessions"`
+}
+
+type queryMetricsTrackerConfig struct {
+	ContainsText []string `yaml:"contains_text"`
 }
 
 type QueryMetricsConfig struct {
-	Enabled            bool  `yaml:"enabled"`
-	CollectionInterval int64 `yaml:"collection_interval"`
-	DBRowsLimit        int   `yaml:"db_rows_limit"`
-	PlanCacheRetention int   `yaml:"plan_cache_retention"`
-	DisableLastActive  bool  `yaml:"disable_last_active"`
+	Enabled            bool                        `yaml:"enabled"`
+	CollectionInterval int64                       `yaml:"collection_interval"`
+	DBRowsLimit        int                         `yaml:"db_rows_limit"`
+	DisableLastActive  bool                        `yaml:"disable_last_active"`
+	Lookback           int64                       `yaml:"lookback"`
+	Trackers           []queryMetricsTrackerConfig `yaml:"trackers"`
 }
 
 type SysMetricsConfig struct {
@@ -53,7 +60,9 @@ type SharedMemoryConfig struct {
 }
 
 type ExecutionPlansConfig struct {
-	Enabled bool `yaml:"enabled"`
+	Enabled              bool `yaml:"enabled"`
+	PlanCacheRetention   int  `yaml:"plan_cache_retention"`
+	LogUnobfuscatedPlans bool `yaml:"log_unobfuscated_plans"`
 }
 
 type AgentSQLTrace struct {
@@ -78,31 +87,33 @@ type CustomQuery struct {
 
 // InstanceConfig is used to deserialize integration instance config.
 type InstanceConfig struct {
-	Server                   string               `yaml:"server"`
-	Port                     int                  `yaml:"port"`
-	ServiceName              string               `yaml:"service_name"`
-	Username                 string               `yaml:"username"`
-	Password                 string               `yaml:"password"`
-	TnsAlias                 string               `yaml:"tns_alias"`
-	TnsAdmin                 string               `yaml:"tns_admin"`
-	Protocol                 string               `yaml:"protocol"`
-	Wallet                   string               `yaml:"wallet"`
-	DBM                      bool                 `yaml:"dbm"`
-	Tags                     []string             `yaml:"tags"`
-	LogUnobfuscatedQueries   bool                 `yaml:"log_unobfuscated_queries"`
-	ObfuscatorOptions        obfuscate.SQLConfig  `yaml:"obfuscator_options"`
-	InstantClient            bool                 `yaml:"instant_client"`
-	ReportedHostname         string               `yaml:"reported_hostname"`
-	QuerySamples             QuerySamplesConfig   `yaml:"query_samples"`
-	QueryMetrics             QueryMetricsConfig   `yaml:"query_metrics"`
-	SysMetrics               SysMetricsConfig     `yaml:"sysmetrics"`
-	Tablespaces              TablespacesConfig    `yaml:"tablespaces"`
-	ProcessMemory            ProcessMemoryConfig  `yaml:"process_memory"`
-	SharedMemory             SharedMemoryConfig   `yaml:"shared_memory"`
-	ExecutionPlans           ExecutionPlansConfig `yaml:"execution_plans"`
-	AgentSQLTrace            AgentSQLTrace        `yaml:"agent_sql_trace"`
-	CustomQueries            []CustomQuery        `yaml:"custom_queries"`
-	MetricCollectionInterval int64                `yaml:"metric_collection_interval"`
+	Server                             string               `yaml:"server"`
+	Port                               int                  `yaml:"port"`
+	ServiceName                        string               `yaml:"service_name"`
+	Username                           string               `yaml:"username"`
+	Password                           string               `yaml:"password"`
+	TnsAlias                           string               `yaml:"tns_alias"`
+	TnsAdmin                           string               `yaml:"tns_admin"`
+	Protocol                           string               `yaml:"protocol"`
+	Wallet                             string               `yaml:"wallet"`
+	DBM                                bool                 `yaml:"dbm"`
+	Tags                               []string             `yaml:"tags"`
+	LogUnobfuscatedQueries             bool                 `yaml:"log_unobfuscated_queries"`
+	ObfuscatorOptions                  obfuscate.SQLConfig  `yaml:"obfuscator_options"`
+	InstantClient                      bool                 `yaml:"instant_client"`
+	ReportedHostname                   string               `yaml:"reported_hostname"`
+	QuerySamples                       QuerySamplesConfig   `yaml:"query_samples"`
+	QueryMetrics                       QueryMetricsConfig   `yaml:"query_metrics"`
+	SysMetrics                         SysMetricsConfig     `yaml:"sysmetrics"`
+	Tablespaces                        TablespacesConfig    `yaml:"tablespaces"`
+	ProcessMemory                      ProcessMemoryConfig  `yaml:"process_memory"`
+	SharedMemory                       SharedMemoryConfig   `yaml:"shared_memory"`
+	ExecutionPlans                     ExecutionPlansConfig `yaml:"execution_plans"`
+	AgentSQLTrace                      AgentSQLTrace        `yaml:"agent_sql_trace"`
+	UseGlobalCustomQueries             string               `yaml:"use_global_custom_queries"`
+	CustomQueries                      []CustomQuery        `yaml:"custom_queries"`
+	MetricCollectionInterval           int64                `yaml:"metric_collection_interval"`
+	DatabaseInstanceCollectionInterval uint64               `yaml:"database_instance_collection_interval"`
 }
 
 // CheckConfig holds the config needed for an integration instance to run.
@@ -139,12 +150,19 @@ func NewCheckConfig(rawInstance integration.Data, rawInitConfig integration.Data
 	instance.QueryMetrics.Enabled = true
 	instance.QueryMetrics.CollectionInterval = defaultMetricCollectionInterval
 	instance.QueryMetrics.DBRowsLimit = 10000
-	instance.QueryMetrics.PlanCacheRetention = 15
+
+	instance.ExecutionPlans.PlanCacheRetention = 15
 
 	instance.SysMetrics.Enabled = true
 	instance.Tablespaces.Enabled = true
 	instance.ProcessMemory.Enabled = true
 	instance.SharedMemory.Enabled = true
+
+	instance.ExecutionPlans.Enabled = true
+
+	instance.UseGlobalCustomQueries = "true"
+
+	instance.DatabaseInstanceCollectionInterval = 1800
 	// Defaults end
 
 	if err := yaml.Unmarshal(rawInstance, &instance); err != nil {
@@ -175,7 +193,34 @@ func NewCheckConfig(rawInstance integration.Data, rawInitConfig integration.Data
 		InitConfig:     initCfg,
 	}
 
-	log.Debugf("Oracle config: %s", c.String())
+	log.Debugf("%s@%d/%s Oracle config: %s", instance.Server, instance.Port, instance.ServiceName, c.String())
 
 	return c, nil
+}
+
+// GetLogPrompt returns a config based prompt
+func GetLogPrompt(c InstanceConfig) string {
+	return fmt.Sprintf("%s>", GetConnectData(c))
+}
+
+// GetConnectData returns the connection configuration
+func GetConnectData(c InstanceConfig) string {
+	if c.TnsAlias != "" {
+		return c.TnsAlias
+	}
+
+	var p string
+	if c.Server != "" {
+		p = c.Server
+		if c.ReportedHostname != "" {
+			p = fmt.Sprintf("%s[%s]", p, c.ReportedHostname)
+		}
+	}
+	if c.Port != 0 {
+		p = fmt.Sprintf("%s:%d", p, c.Port)
+	}
+	if c.ServiceName != "" {
+		p = fmt.Sprintf("%s/%s", p, c.ServiceName)
+	}
+	return p
 }

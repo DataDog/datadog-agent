@@ -4,7 +4,6 @@ Agent namespaced tasks
 
 
 import ast
-import datetime
 import glob
 import os
 import platform
@@ -36,6 +35,7 @@ from .utils import (
     get_version,
     has_both_python,
     load_release_versions,
+    timed,
 )
 from .windows_resources import build_messagetable, build_rc, versioninfo_vars
 
@@ -66,9 +66,14 @@ AGENT_CORECHECKS = [
     "systemd",
     "tcp_queue_length",
     "uptime",
-    "winkmem",
     "winproc",
     "jetson",
+]
+
+WINDOWS_CORECHECKS = [
+    "agentcrashdetect",
+    "winkmem",
+    "wincrashdetect",
 ]
 
 IOT_AGENT_CORECHECKS = [
@@ -110,6 +115,7 @@ def build(
     exclude_rtloader=False,
     go_mod="mod",
     windows_sysprobe=False,
+    cmake_options='',
 ):
     """
     Build the agent. If the bits to include in the build are not specified,
@@ -123,7 +129,7 @@ def build(
     if not exclude_rtloader and not flavor.is_iot():
         # If embedded_path is set, we should give it to rtloader as it should install the headers/libs
         # in the embedded path folder because that's what is used in get_build_flags()
-        rtloader_make(ctx, python_runtimes=python_runtimes, install_prefix=embedded_path)
+        rtloader_make(ctx, python_runtimes=python_runtimes, install_prefix=embedded_path, cmake_options=cmake_options)
         rtloader_install(ctx)
 
     ldflags, gcflags, env = get_build_flags(
@@ -234,6 +240,14 @@ def refresh_assets(_, build_tags, development=True, flavor=AgentFlavor.base.name
     for check in AGENT_CORECHECKS if not flavor.is_iot() else IOT_AGENT_CORECHECKS:
         check_dir = os.path.join(dist_folder, f"conf.d/{check}.d/")
         copy_tree(f"./cmd/agent/dist/conf.d/{check}.d/", check_dir)
+
+    ## add additional windows-only corechecks, only on windows. Otherwise the check loader
+    ## on linux will throw an error because the module is not found, but the config is.
+    if sys.platform == 'win32':
+        for check in WINDOWS_CORECHECKS:
+            check_dir = os.path.join(dist_folder, f"conf.d/{check}.d/")
+            copy_tree(f"./cmd/agent/dist/conf.d/{check}.d/", check_dir)
+
     if "apm" in build_tags:
         shutil.copy("./cmd/agent/dist/conf.d/apm.yaml.default", os.path.join(dist_folder, "conf.d/apm.yaml.default"))
     if "process" in build_tags:
@@ -346,13 +360,6 @@ def hacky_dev_image_build(
     push=False,
     signed_pull=False,
 ):
-    os.environ["DELVE"] = "1"
-    build(ctx)
-    if process_agent:
-        process_agent_build(ctx)
-    if trace_agent:
-        trace_agent_build(ctx)
-
     if base_image is None:
         import requests
         import semver
@@ -361,7 +368,7 @@ def hacky_dev_image_build(
         latest_release = semver.VersionInfo(0)
         tags = requests.get("https://gcr.io/v2/datadoghq/agent/tags/list")
         for tag in tags.json()['tags']:
-            if not semver.VersionInfo.is_valid(tag):
+            if not semver.VersionInfo.isvalid(tag):
                 continue
             ver = semver.VersionInfo.parse(tag)
             if ver.prerelease or ver.build:
@@ -369,6 +376,28 @@ def hacky_dev_image_build(
             if ver > latest_release:
                 latest_release = ver
         base_image = f"gcr.io/datadoghq/agent:{latest_release}"
+
+    # Extract the python library of the docker image
+    with tempfile.TemporaryDirectory() as extracted_python_dir:
+        ctx.run(
+            f"docker run --rm '{base_image}' bash -c 'tar --create /opt/datadog-agent/embedded/{{bin,lib,include}}/*python*' | tar --directory '{extracted_python_dir}' --extract"
+        )
+
+        os.environ["DELVE"] = "1"
+        os.environ["LD_LIBRARY_PATH"] = (
+            os.environ.get("LD_LIBRARY_PATH", "") + f":{extracted_python_dir}/opt/datadog-agent/embedded/lib"
+        )
+        build(
+            ctx,
+            cmake_options=f'-DPython3_ROOT_DIR={extracted_python_dir}/opt/datadog-agent/embedded -DPython3_FIND_STRATEGY=LOCATION',
+        )
+        ctx.run(
+            f'perl -0777 -pe \'s|{extracted_python_dir}(/opt/datadog-agent/embedded/lib/python\\d+\\.\\d+/../..)|substr $1."\\0"x length$&,0,length$&|e or die "pattern not found"\' -i dev/lib/libdatadog-agent-three.so'
+        )
+        if process_agent:
+            process_agent_build(ctx)
+        if trace_agent:
+            trace_agent_build(ctx)
 
     copy_extra_agents = ""
     if process_agent:
@@ -391,9 +420,13 @@ ENV DEBIAN_FRONTEND=noninteractive
 RUN apt-get update && \
     apt-get install -y patchelf
 
-COPY bin/agent/agent /opt/datadog-agent/bin/agent/agent
+COPY bin/agent/agent                            /opt/datadog-agent/bin/agent/agent
+COPY dev/lib/libdatadog-agent-rtloader.so.0.1.0 /opt/datadog-agent/embedded/lib/libdatadog-agent-rtloader.so.0.1.0
+COPY dev/lib/libdatadog-agent-three.so          /opt/datadog-agent/embedded/lib/libdatadog-agent-three.so
 
 RUN patchelf --set-rpath /opt/datadog-agent/embedded/lib /opt/datadog-agent/bin/agent/agent
+RUN patchelf --set-rpath /opt/datadog-agent/embedded/lib /opt/datadog-agent/embedded/lib/libdatadog-agent-rtloader.so.0.1.0
+RUN patchelf --set-rpath /opt/datadog-agent/embedded/lib /opt/datadog-agent/embedded/lib/libdatadog-agent-three.so
 
 FROM golang:latest AS dlv
 
@@ -410,8 +443,9 @@ ENV DELVE_PAGER=less
 
 COPY --from=dlv /go/bin/dlv /usr/local/bin/dlv
 COPY --from=src /usr/src/datadog-agent {os.getcwd()}
-COPY --from=bin /opt/datadog-agent/bin/agent/agent /opt/datadog-agent/bin/agent/agent
-COPY dev/lib/libdatadog-agent-* /opt/datadog-agent/embedded/lib/
+COPY --from=bin /opt/datadog-agent/bin/agent/agent                                 /opt/datadog-agent/bin/agent/agent
+COPY --from=bin /opt/datadog-agent/embedded/lib/libdatadog-agent-rtloader.so.0.1.0 /opt/datadog-agent/embedded/lib/libdatadog-agent-rtloader.so.0.1.0
+COPY --from=bin /opt/datadog-agent/embedded/lib/libdatadog-agent-three.so          /opt/datadog-agent/embedded/lib/libdatadog-agent-three.so
 {copy_extra_agents}
 RUN agent completion bash > /usr/share/bash-completion/completions/agent
 
@@ -438,6 +472,41 @@ def integration_tests(ctx, install_deps=False, race=False, remote_docker=False, 
     if install_deps:
         deps(ctx)
 
+    if sys.platform == 'win32':
+        return _windows_integration_tests(ctx, race=race, go_mod=go_mod, arch=arch)
+    else:
+        # TODO: See if these will function on Windows
+        return _linux_integration_tests(ctx, race=race, remote_docker=remote_docker, go_mod=go_mod, arch=arch)
+
+
+def _windows_integration_tests(ctx, race=False, go_mod="mod", arch="x64"):
+    test_args = {
+        "go_mod": go_mod,
+        "go_build_tags": " ".join(get_default_build_tags(build="test", arch=arch)),
+        "race_opt": "-race" if race else "",
+        "exec_opts": "",
+    }
+
+    go_cmd = 'go test -mod={go_mod} {race_opt} -tags "{go_build_tags}" {exec_opts}'.format(**test_args)  # noqa: FS002
+
+    tests = [
+        {
+            # Run eventlog tests with the Windows API, which depend on the EventLog service
+            'prefix': './pkg/util/winutil/eventlog/...',
+            'extra_args': '-evtapi Windows',
+        },
+        {
+            # Run eventlog tailer tests with the Windows API, which depend on the EventLog service
+            'prefix': './pkg/logs/tailers/windowsevent/...',
+            'extra_args': '-evtapi Windows',
+        },
+    ]
+
+    for test in tests:
+        ctx.run(f"{go_cmd} {test['prefix']} {test['extra_args']}")
+
+
+def _linux_integration_tests(ctx, race=False, remote_docker=False, go_mod="mod", arch="x64"):
     test_args = {
         "go_mod": go_mod,
         "go_build_tags": " ".join(get_default_build_tags(build="test", arch=arch)),
@@ -608,14 +677,9 @@ def omnibus_build(
     Build the Agent packages with Omnibus Installer.
     """
     flavor = AgentFlavor[flavor]
-    deps_elapsed = None
-    bundle_elapsed = None
-    omnibus_elapsed = None
     if not skip_deps:
-        deps_start = datetime.datetime.now()
-        deps(ctx)
-        deps_end = datetime.datetime.now()
-        deps_elapsed = deps_end - deps_start
+        with timed(quiet=True) as deps_elapsed:
+            deps(ctx)
 
     # base dir (can be overridden through env vars, command line takes precedence)
     base_dir = base_dir or os.environ.get("OMNIBUS_BASE_DIR")
@@ -654,32 +718,28 @@ def omnibus_build(
     with open(pip_config_file, 'w') as f:
         f.write(pip_index_url)
 
-    bundle_start = datetime.datetime.now()
-    bundle_install_omnibus(ctx, gem_path, env)
-    bundle_done = datetime.datetime.now()
-    bundle_elapsed = bundle_done - bundle_start
+    with timed(quiet=True) as bundle_elapsed:
+        bundle_install_omnibus(ctx, gem_path, env)
 
-    omnibus_start = datetime.datetime.now()
-    omnibus_run_task(
-        ctx=ctx,
-        task="build",
-        target_project=target_project,
-        base_dir=base_dir,
-        env=env,
-        omnibus_s3_cache=omnibus_s3_cache,
-        log_level=log_level,
-    )
-    omnibus_done = datetime.datetime.now()
-    omnibus_elapsed = omnibus_done - omnibus_start
+    with timed(quiet=True) as omnibus_elapsed:
+        omnibus_run_task(
+            ctx=ctx,
+            task="build",
+            target_project=target_project,
+            base_dir=base_dir,
+            env=env,
+            omnibus_s3_cache=omnibus_s3_cache,
+            log_level=log_level,
+        )
 
     # Delete the temporary pip.conf file once the build is done
     os.remove(pip_config_file)
 
     print("Build component timing:")
     if not skip_deps:
-        print(f"Deps:    {deps_elapsed}")
-    print(f"Bundle:  {bundle_elapsed}")
-    print(f"Omnibus: {omnibus_elapsed}")
+        print(f"Deps:    {deps_elapsed.duration}")
+    print(f"Bundle:  {bundle_elapsed.duration}")
+    print(f"Omnibus: {omnibus_elapsed.duration}")
 
 
 @task

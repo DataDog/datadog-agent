@@ -13,11 +13,11 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/DataDog/datadog-agent/pkg/metadata/internal/gohai"
+	"github.com/DataDog/datadog-agent/pkg/gohai"
 )
 
 func TestGohaiPayloadMarshalling(t *testing.T) {
-	gp := gohai.GetPayload()
+	gp := gohai.GetPayload(true)
 	payload := GohaiPayload{MarshalledGohaiPayload{*gp}}
 	marshalled, err := json.Marshal(payload)
 	require.Nil(t, err)

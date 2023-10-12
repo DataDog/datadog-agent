@@ -21,12 +21,12 @@ import (
 	"time"
 
 	corecompcfg "github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/otelcol/otlp"
 	coreconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/config/remote"
 	"github.com/DataDog/datadog-agent/pkg/config/remote/data"
 	"github.com/DataDog/datadog-agent/pkg/config/utils"
 	configUtils "github.com/DataDog/datadog-agent/pkg/config/utils"
-	"github.com/DataDog/datadog-agent/pkg/otlp"
 	pbgo "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
 	"github.com/DataDog/datadog-agent/pkg/tagger"
 	"github.com/DataDog/datadog-agent/pkg/tagger/collectors"
@@ -139,7 +139,7 @@ func appendEndpoints(endpoints []*config.Endpoint, cfgKey string) []*config.Endp
 			continue
 		}
 		for _, key := range keys {
-			endpoints = append(endpoints, &config.Endpoint{Host: url, APIKey: coreconfig.SanitizeAPIKey(key)})
+			endpoints = append(endpoints, &config.Endpoint{Host: url, APIKey: configUtils.SanitizeAPIKey(key)})
 		}
 	}
 	return endpoints
@@ -150,7 +150,7 @@ func applyDatadogConfig(c *config.AgentConfig, core corecompcfg.Component) error
 		c.Endpoints = []*config.Endpoint{{}}
 	}
 	if core.IsSet("api_key") {
-		c.Endpoints[0].APIKey = coreconfig.SanitizeAPIKey(coreconfig.Datadog.GetString("api_key"))
+		c.Endpoints[0].APIKey = configUtils.SanitizeAPIKey(coreconfig.Datadog.GetString("api_key"))
 	}
 	if core.IsSet("hostname") {
 		c.Hostname = core.GetString("hostname")
@@ -223,6 +223,9 @@ func applyDatadogConfig(c *config.AgentConfig, core corecompcfg.Component) error
 	}
 	c.PeerServiceAggregation = core.GetBool("apm_config.peer_service_aggregation")
 	c.ComputeStatsBySpanKind = core.GetBool("apm_config.compute_stats_by_span_kind")
+	if core.IsSet("apm_config.peer_tags") {
+		c.PeerTags = core.GetStringSlice("apm_config.peer_tags")
+	}
 	if core.IsSet("apm_config.extra_sample_rate") {
 		c.ExtraSampleRate = core.GetFloat64("apm_config.extra_sample_rate")
 	}
@@ -355,6 +358,14 @@ func applyDatadogConfig(c *config.AgentConfig, core corecompcfg.Component) error
 		}
 	}
 	{
+		// Obfuscation of database statements will be ON by default. Any new obfuscators should likely be
+		// enabled by default as well. This can be explicitly disabled with the agent config. Any changes
+		// to obfuscation options or defaults must be reflected in the public docs.
+		c.Obfuscation.ES.Enabled = true
+		c.Obfuscation.Mongo.Enabled = true
+		c.Obfuscation.Memcached.Enabled = true
+		c.Obfuscation.Redis.Enabled = true
+
 		// TODO(x): There is an issue with coreconfig.Datadog.IsSet("apm_config.obfuscation"), probably coming from Viper,
 		// where it returns false even is "apm_config.obfuscation.credit_cards.enabled" is set via an environment
 		// variable, so we need a temporary workaround by specifically setting env. var. accessible fields.
@@ -381,6 +392,9 @@ func applyDatadogConfig(c *config.AgentConfig, core corecompcfg.Component) error
 		}
 		if coreconfig.Datadog.IsSet("apm_config.obfuscation.memcached.enabled") {
 			c.Obfuscation.Memcached.Enabled = coreconfig.Datadog.GetBool("apm_config.obfuscation.memcached.enabled")
+		}
+		if coreconfig.Datadog.IsSet("apm_config.obfuscation.memcached.keep_command") {
+			c.Obfuscation.Memcached.KeepCommand = coreconfig.Datadog.GetBool("apm_config.obfuscation.memcached.keep_command")
 		}
 		if coreconfig.Datadog.IsSet("apm_config.obfuscation.mongodb.enabled") {
 			c.Obfuscation.Mongo.Enabled = coreconfig.Datadog.GetBool("apm_config.obfuscation.mongodb.enabled")
@@ -430,6 +444,29 @@ func applyDatadogConfig(c *config.AgentConfig, core corecompcfg.Component) error
 		tags := core.GetStringSlice("apm_config.filter_tags.reject")
 		for _, tag := range tags {
 			c.RejectTags = append(c.RejectTags, splitTag(tag))
+		}
+	}
+
+	if coreconfig.Datadog.IsSet("apm_config.filter_tags_regex.require") {
+		tags := coreconfig.Datadog.GetStringSlice("apm_config.filter_tags_regex.require")
+		for _, tag := range tags {
+			splitTag := splitTagRegex(tag)
+			if containsKey(c.RequireTags, splitTag.K) {
+				// RequireTags already has this tag, so skip the regexp.
+				continue
+			}
+			c.RequireTagsRegex = append(c.RequireTagsRegex, splitTag)
+		}
+	}
+	if coreconfig.Datadog.IsSet("apm_config.filter_tags_regex.reject") {
+		tags := coreconfig.Datadog.GetStringSlice("apm_config.filter_tags_regex.reject")
+		for _, tag := range tags {
+			splitTag := splitTagRegex(tag)
+			if containsKey(c.RejectTags, splitTag.K) {
+				// RejectTags already has this tag, so skip the regexp.
+				continue
+			}
+			c.RejectTagsRegex = append(c.RejectTagsRegex, splitTag)
 		}
 	}
 
@@ -564,7 +601,7 @@ func applyDatadogConfig(c *config.AgentConfig, core corecompcfg.Component) error
 func loadDeprecatedValues(c *config.AgentConfig) error {
 	cfg := coreconfig.Datadog
 	if cfg.IsSet("apm_config.api_key") {
-		c.Endpoints[0].APIKey = coreconfig.SanitizeAPIKey(cfg.GetString("apm_config.api_key"))
+		c.Endpoints[0].APIKey = configUtils.SanitizeAPIKey(cfg.GetString("apm_config.api_key"))
 	}
 	if cfg.IsSet("apm_config.log_throttling") {
 		c.LogThrottling = cfg.GetBool("apm_config.log_throttling")
@@ -664,6 +701,16 @@ func toFloat64(val interface{}) (float64, error) {
 	}
 }
 
+// containsKey return true if slice of tag contains tag with the specified key.
+func containsKey(t []*config.Tag, k string) bool {
+	for _, tag := range t {
+		if tag.K == k {
+			return true
+		}
+	}
+	return false
+}
+
 // splitTag splits a "k:v" formatted string and returns a Tag.
 func splitTag(tag string) *config.Tag {
 	parts := strings.SplitN(tag, ":", 2)
@@ -674,6 +721,24 @@ func splitTag(tag string) *config.Tag {
 		if v := strings.TrimSpace(parts[1]); v != "" {
 			kv.V = v
 		}
+	}
+	return kv
+}
+
+// splitTag splits a "k:v" formatted string and returns a TagRegex.
+func splitTagRegex(tag string) *config.TagRegex {
+	parts := strings.SplitN(tag, ":", 2)
+	kv := &config.TagRegex{
+		K: strings.TrimSpace(parts[0]),
+	}
+	if len(parts) > 1 {
+		v := strings.TrimSpace(parts[1])
+		re, err := regexp.Compile(v)
+		if err != nil {
+			log.Errorf("Invalid regex pattern in tag filter: %q:%q", kv.K, v)
+			return nil
+		}
+		kv.V = re
 	}
 	return kv
 }

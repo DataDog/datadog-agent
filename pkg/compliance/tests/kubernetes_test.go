@@ -49,7 +49,7 @@ func TestKubernetesCluster(t *testing.T) {
 		newMyObj("testns3", "dummy3", "105"),
 	)
 
-	b := NewTestBench(t).WithKubeClient(kubeClient)
+	b := newTestBench(t).WithKubeClient(kubeClient)
 	defer b.Run()
 
 	b.

@@ -47,10 +47,6 @@ int __attribute__((always_inline)) sys_chmod_ret(void *ctx, int retval) {
         return 0;
     }
 
-    if (is_pipefs_mount_id(syscall->setattr.file.path_key.mount_id)) {
-        return 0;
-    }
-
     struct chmod_event_t event = {
         .syscall.retval = retval,
         .file = syscall->setattr.file,

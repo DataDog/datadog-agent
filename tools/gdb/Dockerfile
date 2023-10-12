@@ -6,7 +6,7 @@ RUN rm -vf /etc/ssl/openssl.cnf
 RUN DEBIAN_FRONTEND=noninteractive TZ=Etc/UTC apt-get install -y gdb build-essential strace less vim
 
 # Install go
-RUN curl -fSL -o golang.tgz https://go.dev/dl/go1.20.7.linux-amd64.tar.gz
+RUN curl -fSL -o golang.tgz https://go.dev/dl/go1.20.8.linux-amd64.tar.gz
 RUN tar xzvf golang.tgz
 RUN ln -s /go /goroot
 

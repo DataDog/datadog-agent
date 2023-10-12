@@ -239,7 +239,7 @@ func (sl *rateLimitedListener) Accept() (net.Conn, error) {
 
 // Close wraps the Close method of the underlying tcp listener
 func (sl *rateLimitedListener) Close() error {
-	if !sl.closed.CAS(0, 1) {
+	if !sl.closed.CompareAndSwap(0, 1) {
 		// already closed; avoid multiple calls if we're on go1.10
 		// https://golang.org/issue/24803
 		return nil

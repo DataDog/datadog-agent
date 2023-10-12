@@ -11,7 +11,6 @@ from .. import pipeline
 
 class TestVerifyWorkspace(unittest.TestCase):
     @patch('tasks.pipeline.GithubAPI', autospec=True)
-    @patch('tasks.pipeline.get_github_token', new=MagicMock())
     @patch('tasks.pipeline.check_clean_branch_state', new=MagicMock())
     def test_with_branch(self, mock_gh):
         branch_test_name = "tryphon_tournesol"
@@ -21,7 +20,6 @@ class TestVerifyWorkspace(unittest.TestCase):
         mock_gh.assert_not_called()
 
     @patch('tasks.pipeline.GithubAPI', autospec=True)
-    @patch('tasks.pipeline.get_github_token', new=MagicMock())
     @patch('tasks.pipeline.check_clean_branch_state', new=MagicMock())
     def test_without_branch(self, mock_gh):
         context_mock = MockContext(run=Result("haddock"))
@@ -30,7 +28,6 @@ class TestVerifyWorkspace(unittest.TestCase):
         mock_gh.assert_called()
 
     @patch('tasks.pipeline.GithubAPI', autospec=True)
-    @patch('tasks.pipeline.get_github_token', new=MagicMock())
     def test_bad_workspace(self, _):
         with open(".gitignore", "a") as f:
             f.write("# test comment")

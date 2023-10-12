@@ -84,6 +84,12 @@ var javaTLSSpec = &protocols.ProtocolSpec{
 		{
 			Name: javaTLSConnectionsMap,
 		},
+		{
+			Name: javaDomainsToConnectionsMap,
+		},
+		{
+			Name: eRPCHandlersMap,
+		},
 	},
 	Probes: []*manager.Probe{
 		{
@@ -157,13 +163,11 @@ func (p *javaTLSProgram) Name() string {
 
 func (p *javaTLSProgram) ConfigureOptions(_ *manager.Manager, options *manager.Options) {
 	options.MapSpecEditors[javaTLSConnectionsMap] = manager.MapSpecEditor{
-		Type:       ebpf.Hash,
-		MaxEntries: p.cfg.MaxTrackedConnections,
+		MaxEntries: p.cfg.MaxUSMConcurrentRequests,
 		EditorFlag: manager.EditMaxEntries,
 	}
 	options.MapSpecEditors[javaDomainsToConnectionsMap] = manager.MapSpecEditor{
-		Type:       ebpf.Hash,
-		MaxEntries: p.cfg.MaxTrackedConnections,
+		MaxEntries: p.cfg.MaxUSMConcurrentRequests,
 		EditorFlag: manager.EditMaxEntries,
 	}
 	options.ActivatedProbes = append(options.ActivatedProbes,

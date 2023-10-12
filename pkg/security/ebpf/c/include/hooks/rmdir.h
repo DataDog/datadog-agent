@@ -52,7 +52,7 @@ int hook_security_inode_rmdir(ctx_t *ctx) {
             // we resolve all the information before the file is actually removed
             dentry = (struct dentry *)CTX_PARM2(ctx);
             set_file_inode(dentry, &syscall->rmdir.file, 1);
-            fill_file_metadata(dentry, &syscall->rmdir.file.metadata);
+            fill_file(dentry, &syscall->rmdir.file);
 
             // the mount id of path_key is resolved by kprobe/mnt_want_write. It is already set by the time we reach this probe.
             key = syscall->rmdir.file.path_key;
@@ -71,7 +71,7 @@ int hook_security_inode_rmdir(ctx_t *ctx) {
             // we resolve all the information before the file is actually removed
             dentry = (struct dentry *) CTX_PARM2(ctx);
             set_file_inode(dentry, &syscall->unlink.file, 1);
-            fill_file_metadata(dentry, &syscall->unlink.file.metadata);
+            fill_file(dentry, &syscall->unlink.file);
 
             // the mount id of path_key is resolved by kprobe/mnt_want_write. It is already set by the time we reach this probe.
             key = syscall->unlink.file.path_key;

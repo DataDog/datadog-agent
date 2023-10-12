@@ -8,6 +8,8 @@
 package http
 
 import (
+	"time"
+
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 )
 
@@ -19,5 +21,5 @@ func newIncompleteBuffer(c *config.Config, telemetry *Telemetry) *incompleteBuff
 	return &incompleteBuffer{}
 }
 
-func (b *incompleteBuffer) Add(tx Transaction)            {}
-func (b *incompleteBuffer) Flush(now int64) []Transaction { return nil }
+func (b *incompleteBuffer) Add(tx Transaction)                {}
+func (b *incompleteBuffer) Flush(now time.Time) []Transaction { return nil }

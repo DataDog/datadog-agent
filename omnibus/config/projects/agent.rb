@@ -73,6 +73,8 @@ else
     if ENV['HARDENED_RUNTIME_MAC'] == 'true'
       entitlements_file "#{files_path}/macos/Entitlements.plist"
     end
+  else
+    conflict 'datadog-iot-agent'
   end
 end
 
@@ -168,7 +170,7 @@ package :zip do
     if ENV['SIGN_WINDOWS_DD_WCS']
       dd_wcssign true
     end
-  
+
   end
 end
 
@@ -228,6 +230,12 @@ package :msi do
     include_apminject = "true"
   end
 
+  include_procmon = "false"
+  if not windows_arch_i386? and ENV['WINDOWS_DDPROCMON_DRIVER'] and not ENV['WINDOWS_DDPROCMON_DRIVER'].empty?
+    include_procmon = "true"
+    additional_sign_files_list << "#{Omnibus::Config.source_dir()}\\datadog-agent\\src\\github.com\\DataDog\\datadog-agent\\bin\\agent\\security-agent.exe"
+  end
+
   additional_sign_files additional_sign_files_list
   parameters({
     'InstallDir' => install_dir,
@@ -238,7 +246,8 @@ package :msi do
     'IncludePython3' => "#{with_python_runtime? '3'}",
     'Platform' => "#{arch}",
     'IncludeSysprobe' => "#{include_sysprobe}",
-    'IncludeAPMInject' => "#{include_apminject}"
+    'IncludeAPMInject' => "#{include_apminject}",
+    'IncludeProcmon' => "#{include_procmon}"
   })
   # This block runs before harvesting with heat.exe
   # It runs in the scope of the packager, so all variables access are from the point-of-view of the packager.
@@ -274,11 +283,7 @@ end
 # creates required build directories
 dependency 'datadog-agent-prepare'
 
-# Linux-specific dependencies
-if linux?
-  dependency 'procps-ng'
-  dependency 'curl'
-end
+dependency 'agent-dependencies'
 
 # Datadog agent
 dependency 'datadog-agent'
@@ -287,21 +292,6 @@ dependency 'datadog-agent'
 if linux? && !heroku?
   dependency 'system-probe'
 end
-
-# Additional software
-if windows?
-  if ENV['WINDOWS_DDNPM_DRIVER'] and not ENV['WINDOWS_DDNPM_DRIVER'].empty?
-    dependency 'datadog-windows-filter-driver'
-  end
-  if ENV['WINDOWS_APMINJECT_MODULE'] and not ENV['WINDOWS_APMINJECT_MODULE'].empty?
-    dependency 'datadog-windows-apminject'
-  end
-  if ENV['WINDOWS_DDPROCMON_DRIVER'] and not ENV['WINDOWS_DDPROCMON_DRIVER'].empty?
-    dependency 'datadog-windows-procmon-driver'
-  end
-end
-# Bundled cacerts file (is this a good idea?)
-dependency 'cacerts'
 
 if osx?
   dependency 'datadog-agent-mac-app'
@@ -323,12 +313,6 @@ end
 # Include traps db file in snmp.d/traps_db/
 dependency 'snmp-traps'
 
-# External agents
-dependency 'jmxfetch'
-
-# version manifest file
-dependency 'version-manifest'
-
 # this dependency puts few files out of the omnibus install dir and move them
 # in the final destination. This way such files will be listed in the packages
 # manifest and owned by the package manager. This is the only point in the build
@@ -337,6 +321,19 @@ dependency 'version-manifest'
 # This must be the last dependency in the project.
 dependency 'datadog-agent-finalize'
 dependency 'datadog-cf-finalize'
+
+# Additional software
+if windows?
+  if ENV['WINDOWS_DDNPM_DRIVER'] and not ENV['WINDOWS_DDNPM_DRIVER'].empty?
+    dependency 'datadog-windows-filter-driver'
+  end
+  if ENV['WINDOWS_APMINJECT_MODULE'] and not ENV['WINDOWS_APMINJECT_MODULE'].empty?
+    dependency 'datadog-windows-apminject'
+  end
+  if ENV['WINDOWS_DDPROCMON_DRIVER'] and not ENV['WINDOWS_DDPROCMON_DRIVER'].empty?
+    dependency 'datadog-windows-procmon-driver'
+  end
+end
 
 if linux?
   extra_package_file '/etc/init/datadog-agent.conf'
@@ -380,6 +377,25 @@ exclude '\.git*'
 exclude 'bundler\/git'
 
 if windows?
+  FORBIDDEN_SYMBOLS = [
+    "github.com/golang/glog"
+  ]
+
+  raise_if_forbidden_symbol_found = Proc.new { |symbols|
+    FORBIDDEN_SYMBOLS.each do |fs|
+      count = symbols.scan(fs).count()
+      if count > 0
+        raise ForbiddenSymbolsFoundError.new("#{fs} should not be present in the Agent binary but #{count} was found")
+      end
+    end
+  }
+
+  # Check the exported symbols from the binary
+  inspect_binary("#{Omnibus::Config.source_dir()}\\datadog-agent\\src\\github.com\\DataDog\\datadog-agent\\bin\\agent\\agent.exe", &raise_if_forbidden_symbol_found)
+  inspect_binary("#{Omnibus::Config.source_dir()}\\datadog-agent\\src\\github.com\\DataDog\\datadog-agent\\bin\\agent\\trace-agent.exe", &raise_if_forbidden_symbol_found)
+  inspect_binary("#{Omnibus::Config.source_dir()}\\datadog-agent\\src\\github.com\\DataDog\\datadog-agent\\bin\\agent\\process-agent.exe", &raise_if_forbidden_symbol_found)
+  inspect_binary("#{Omnibus::Config.source_dir()}\\datadog-agent\\src\\github.com\\DataDog\\datadog-agent\\bin\\agent\\system-probe.exe", &raise_if_forbidden_symbol_found)
+
   #
   # For Windows build, files need to be stripped must be specified here.
   #
@@ -389,6 +405,11 @@ if windows?
   windows_symbol_stripping_file "#{Omnibus::Config.source_dir()}\\datadog-agent\\src\\github.com\\DataDog\\datadog-agent\\bin\\agent\\process-agent.exe"
   windows_symbol_stripping_file "#{Omnibus::Config.source_dir()}\\datadog-agent\\src\\github.com\\DataDog\\datadog-agent\\bin\\agent\\trace-agent.exe"
   windows_symbol_stripping_file "#{Omnibus::Config.source_dir()}\\datadog-agent\\src\\github.com\\DataDog\\datadog-agent\\bin\\agent\\agent.exe"
+  windows_symbol_stripping_file "#{Omnibus::Config.source_dir()}\\datadog-agent\\src\\github.com\\DataDog\\datadog-agent\\bin\\agent\\system-probe.exe"
+  if not windows_arch_i386? and ENV['WINDOWS_DDPROCMON_DRIVER'] and not ENV['WINDOWS_DDPROCMON_DRIVER'].empty?
+    windows_symbol_stripping_file "#{Omnibus::Config.source_dir()}\\datadog-agent\\src\\github.com\\DataDog\\datadog-agent\\bin\\agent\\security-agent.exe"
+  end
+
 end
 
 if linux? or windows?

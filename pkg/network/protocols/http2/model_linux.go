@@ -109,7 +109,7 @@ func (tx *EbpfTx) RequestStarted() uint64 {
 }
 
 func (tx *EbpfTx) SetRequestMethod(m http.Method) {
-	tx.Request_method = uint32(m)
+	tx.Request_method = uint8(m)
 }
 
 func (tx *EbpfTx) StaticTags() uint64 {
@@ -123,11 +123,11 @@ func (tx *EbpfTx) DynamicTags() []string {
 func (tx *EbpfTx) String() string {
 	var output strings.Builder
 	output.WriteString("http2.ebpfTx{")
-	output.WriteString("Method: '" + http.Method(tx.Request_method).String() + "', ")
+	output.WriteString("Method: '" + tx.Method().String() + "', ")
 	buf := make([]byte, 0, tx.Path_size)
 	path, ok := tx.Path(buf)
 	if ok {
-		output.WriteString("Path: '" + string(path) + "', ")
+		output.WriteString("Path: '" + string(path))
 	}
 	output.WriteString("}")
 	return output.String()

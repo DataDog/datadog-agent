@@ -153,6 +153,9 @@ def stop(flavor)
     end
   end
   wait_until_service_stopped(service)
+  if result == nil || result == false
+      log_trace "datadog-agent", "stop"
+  end
   result
 end
 
@@ -171,6 +174,9 @@ def start(flavor)
     end
   end
   wait_until_service_started(service)
+  if result == nil || result == false
+      log_trace "datadog-agent", "start"
+  end
   result
 end
 
@@ -204,7 +210,30 @@ def restart(flavor)
       wait_until_service_started(service, 5)
     end
   end
+  if result == nil || result == false
+      log_trace "datadog-agent", "restart"
+  end
   result
+end
+
+def log_trace(flavor, action)
+  service = get_service_name(flavor)
+  if os == :windows
+    if action == "stop" || action == "restart"
+      system "wevtutil qe System /q:\"*[System[(EventID=7040) and (EventData[Data[@Name='param1']='#{service}'])]\""
+    end
+    if action == "start" || action == "restart"
+      system "wevtutil qe System /q:\"*[System[(EventID=7036) and (EventData[Data[@Name='param1']='#{service}'])]\""
+    end
+  else
+    if has_systemctl
+      system "sudo journalctl -u #{service} -xe --no-pager"
+    elsif has_upstart
+      system "sudo grep #{service} /var/log/upstart"
+    else
+      system "sudo grep #{service} /var/log/message"
+    end
+  end
 end
 
 def has_systemctl
@@ -304,6 +333,13 @@ end
 
 def agent_processes_running?
   %w(datadog-agent agent.exe).each do |p|
+    return true if is_process_running?(p)
+  end
+  false
+end
+
+def trace_processes_running?
+  %w(trace-agent trace-agent.exe).each do |p|
     return true if is_process_running?(p)
   end
   false
@@ -666,6 +702,7 @@ shared_examples_for 'an Agent that stops' do
 
   it 'is not running any agent processes' do
     expect(agent_processes_running?).to be_falsey
+    expect(trace_processes_running?).to be_falsey
     expect(security_agent_running?).to be_falsey
     expect(system_probe_running?).to be_falsey
   end
@@ -829,6 +866,7 @@ shared_examples_for 'an Agent that is removed' do
   it 'should not be running the agent after removal' do
     sleep 15
     expect(agent_processes_running?).to be_falsey
+    expect(trace_processes_running?).to be_falsey
     expect(security_agent_running?).to be_falsey
     expect(system_probe_running?).to be_falsey
   end

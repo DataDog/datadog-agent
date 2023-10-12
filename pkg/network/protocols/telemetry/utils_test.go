@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"k8s.io/apimachinery/pkg/util/sets"
 )
 
 func TestSplitTagsAndOpts(t *testing.T) {
@@ -16,13 +17,13 @@ func TestSplitTagsAndOpts(t *testing.T) {
 
 	t.Run("only tags", func(t *testing.T) {
 		tags, opts := splitTagsAndOptions([]string{"tag:a", "tag:c", "tag:b"})
-		assert.Equal([]string{"tag:a", "tag:b", "tag:c"}, tags.List())
+		assert.Equal([]string{"tag:a", "tag:b", "tag:c"}, sets.List(tags))
 		assert.Len(opts, 0)
 	})
 
 	t.Run("only opts", func(t *testing.T) {
 		tags, opts := splitTagsAndOptions([]string{"_opt3", "_opt2", "_opt1"})
-		assert.Equal([]string{"_opt1", "_opt2", "_opt3"}, opts.List())
+		assert.Equal([]string{"_opt1", "_opt2", "_opt3"}, sets.List(opts))
 		assert.Len(tags, 0)
 	})
 
@@ -31,8 +32,8 @@ func TestSplitTagsAndOpts(t *testing.T) {
 			[]string{"_opt3", "tag:a", "_opt2", "tag:b", "_opt1", "tag:c"},
 		)
 
-		assert.Equal([]string{"tag:a", "tag:b", "tag:c"}, tags.List())
-		assert.Equal([]string{"_opt1", "_opt2", "_opt3"}, opts.List())
+		assert.Equal([]string{"tag:a", "tag:b", "tag:c"}, sets.List(tags))
+		assert.Equal([]string{"_opt1", "_opt2", "_opt3"}, sets.List(opts))
 	})
 
 }

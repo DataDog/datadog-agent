@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+// Package config defines the configuration of the agent
 package config
 
 import (
@@ -15,7 +16,6 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
-	"regexp"
 	"runtime"
 	"strconv"
 	"strings"
@@ -26,7 +26,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/secrets"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname/validate"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/DataDog/datadog-agent/pkg/version"
 
 	"gopkg.in/yaml.v2"
 )
@@ -98,6 +97,10 @@ const (
 	// DefaultLocalProcessCollectorInterval is the interval at which processes are collected and sent to the workloadmeta
 	// in the core agent if the process check is disabled.
 	DefaultLocalProcessCollectorInterval = 1 * time.Minute
+
+	// DefaultMaxMessageSizeBytes is the default value for max_message_size_bytes
+	// If a log message is larger than this byte limit, the overflow bytes will be truncated.
+	DefaultMaxMessageSizeBytes = 256 * 1000
 )
 
 // Datadog is the global configuration object
@@ -241,6 +244,7 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("confd_path", defaultConfdPath)
 	config.BindEnvAndSetDefault("additional_checksd", defaultAdditionalChecksPath)
 	config.BindEnvAndSetDefault("jmx_log_file", "")
+	// If enabling log_payloads, ensure the log level is set to at least DEBUG to be able to see the logs
 	config.BindEnvAndSetDefault("log_payloads", false)
 	config.BindEnvAndSetDefault("log_file", "")
 	config.BindEnvAndSetDefault("log_file_max_size", "10Mb")
@@ -299,6 +303,7 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("remote_configuration.clients.cache_bypass_limit", 5)
 	// Remote config products
 	config.BindEnvAndSetDefault("remote_configuration.apm_sampling.enabled", true)
+	config.BindEnvAndSetDefault("remote_configuration.agent_integrations.enabled", false)
 
 	// Auto exit configuration
 	config.BindEnvAndSetDefault("auto_exit.validation_period", 60)
@@ -832,6 +837,7 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("jmx_check_period", int(defaults.DefaultCheckInterval/time.Millisecond))
 	config.BindEnvAndSetDefault("jmx_reconnection_timeout", 60)
 	config.BindEnvAndSetDefault("jmx_statsd_telemetry_enabled", false)
+	config.BindEnvAndSetDefault("jmx_telemetry_enabled", false)
 	// The following jmx_statsd_client-* options are internal and will not be documented
 	// the queue size is the no. of elements (metrics, event, service checks) it can hold.
 	config.BindEnvAndSetDefault("jmx_statsd_client_queue_size", 4096)
@@ -877,13 +883,16 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("logs_config.use_port_443", false)
 	// increase the read buffer size of the UDP sockets:
 	config.BindEnvAndSetDefault("logs_config.frame_size", 9000)
+	// maximum log message size in bytes
+	config.BindEnvAndSetDefault("logs_config.max_message_size_bytes", DefaultMaxMessageSizeBytes)
 
 	// increase the number of files that can be tailed in parallel:
-	if runtime.GOOS == "windows" || runtime.GOOS == "darwin" {
-		// The OS max for windows is 512, and the default limit on darwin is 256.
+	if runtime.GOOS == "darwin" {
+		// The default limit on darwin is 256.
 		// This is configurable per process on darwin with `ulimit -n` or a launchDaemon config.
 		config.BindEnvAndSetDefault("logs_config.open_files_limit", 200)
 	} else {
+		// There is no effective limit for windows due to use of CreateFile win32 API
 		// The OS default for most linux distributions is 1024
 		config.BindEnvAndSetDefault("logs_config.open_files_limit", 500)
 	}
@@ -1105,6 +1114,7 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("orchestrator_explorer.manifest_collection.enabled", true)
 	config.BindEnvAndSetDefault("orchestrator_explorer.manifest_collection.buffer_manifest", true)
 	config.BindEnvAndSetDefault("orchestrator_explorer.manifest_collection.buffer_flush_interval", 20*time.Second)
+	config.BindEnvAndSetDefault("orchestrator_explorer.run_on_node_agent", false)
 
 	// Container lifecycle configuration
 	config.BindEnvAndSetDefault("container_lifecycle.enabled", false)
@@ -1123,10 +1133,9 @@ func InitConfig(config Config) {
 
 	config.BindEnvAndSetDefault("sbom.cache_directory", filepath.Join(defaultRunPath, "sbom-agent"))
 	config.BindEnvAndSetDefault("sbom.clear_cache_on_exit", false)
-	config.BindEnvAndSetDefault("sbom.cache.enabled", false)
+	config.BindEnvAndSetDefault("sbom.cache.enabled", true)
 	config.BindEnvAndSetDefault("sbom.cache.max_disk_size", 1000*1000*100) // used by custom cache: max disk space used by cached objects. Not equal to max disk usage
-	config.BindEnvAndSetDefault("sbom.cache.max_cache_entries", 10000)     // used by custom cache keys stored in memory
-	config.BindEnvAndSetDefault("sbom.cache.clean_interval", "30m")        // used by custom cache.
+	config.BindEnvAndSetDefault("sbom.cache.clean_interval", "1h")         // used by custom cache.
 
 	// Container SBOM configuration
 	config.BindEnvAndSetDefault("sbom.container_image.enabled", false)
@@ -1155,7 +1164,7 @@ func InitConfig(config Config) {
 	// inventories
 	config.BindEnvAndSetDefault("inventories_enabled", true)
 	config.BindEnvAndSetDefault("inventories_configuration_enabled", true)             // controls the agent configurations
-	config.BindEnvAndSetDefault("inventories_checks_configuration_enabled", false)     // controls the checks configurations
+	config.BindEnvAndSetDefault("inventories_checks_configuration_enabled", true)      // controls the checks configurations
 	config.BindEnvAndSetDefault("inventories_collect_cloud_provider_account_id", true) // collect collection of `cloud_provider_account_id`
 	// when updating the default here also update pkg/metadata/inventories/README.md
 	config.BindEnvAndSetDefault("inventories_max_interval", DefaultInventoriesMaxInterval) // integer seconds
@@ -1179,6 +1188,8 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("security_agent.internal_profiling.block_profile_rate", 0)
 	config.BindEnvAndSetDefault("security_agent.internal_profiling.enable_goroutine_stacktraces", false)
 	config.BindEnvAndSetDefault("security_agent.internal_profiling.delta_profiles", true)
+	config.BindEnvAndSetDefault("security_agent.internal_profiling.unix_socket", "")
+	config.BindEnvAndSetDefault("security_agent.internal_profiling.extra_tags", []string{})
 
 	// Datadog security agent (compliance)
 	config.BindEnvAndSetDefault("compliance_config.enabled", false)
@@ -1199,6 +1210,7 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("runtime_security_config.run_path", defaultRunPath)
 	config.BindEnvAndSetDefault("runtime_security_config.log_profiled_workloads", false)
 	config.BindEnvAndSetDefault("runtime_security_config.telemetry.ignore_dd_agent_containers", true)
+	config.BindEnvAndSetDefault("runtime_security_config.use_secruntime_track", false)
 	bindEnvAndSetLogsConfigKeys(config, "runtime_security_config.endpoints.")
 	bindEnvAndSetLogsConfigKeys(config, "runtime_security_config.activity_dump.remote_storage.endpoints.")
 
@@ -1207,6 +1219,7 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("serverless.logs_enabled", true)
 	config.BindEnvAndSetDefault("enhanced_metrics", true)
 	config.BindEnvAndSetDefault("capture_lambda_payload", false)
+	config.BindEnvAndSetDefault("capture_lambda_payload_max_depth", 10)
 	config.BindEnvAndSetDefault("serverless.trace_enabled", false, "DD_TRACE_ENABLED")
 	config.BindEnvAndSetDefault("serverless.trace_managed_services", true, "DD_TRACE_MANAGED_SERVICES")
 	config.BindEnvAndSetDefault("serverless.service_mapping", nil, "DD_SERVICE_MAPPING")
@@ -1262,10 +1275,6 @@ func InitConfig(config Config) {
 	SetupOTLP(config)
 	setupProcesses(config)
 }
-
-// ddURLRegexp determines if an URL belongs to Datadog or not. If the URL belongs to Datadog it's prefixed with the Agent
-// version (see AddAgentVersionToDomain).
-var ddURLRegexp = regexp.MustCompile(`^app(\.[a-z]{2}\d)?\.(datad(oghq|0g)\.(com|eu)|ddog-gov\.com)$`)
 
 // LoadProxyFromEnv overrides the proxy settings with environment variables
 func LoadProxyFromEnv(config Config) {
@@ -1508,7 +1517,7 @@ func useHostEtc(config Config) {
 
 func checkConflictingOptions(config Config) error {
 	// Verify that either use_podman_logs OR docker_path_override are set since they conflict
-	if config.GetBool("logs_config.use_podman_logs") && config.IsSet("logs_config.docker_path_override") {
+	if config.GetBool("logs_config.use_podman_logs") && len(config.GetString("logs_config.docker_path_override")) > 0 {
 		log.Warnf("'use_podman_logs' is set to true and 'docker_path_override' is set, please use one or the other")
 		return errors.New("'use_podman_logs' is set to true and 'docker_path_override' is set, please use one or the other")
 	}
@@ -1516,6 +1525,7 @@ func checkConflictingOptions(config Config) error {
 	return nil
 }
 
+// LoadDatadogCustom loads the datadog config in the given config
 func LoadDatadogCustom(config Config, origin string, loadSecret bool, additionalKnownEnvVars []string) (*Warnings, error) {
 	// Feature detection running in a defer func as it always  need to run (whether config load has been successful or not)
 	// Because some Agents (e.g. trace-agent) will run even if config file does not exist
@@ -1552,8 +1562,8 @@ func LoadDatadogCustom(config Config, origin string, loadSecret bool, additional
 		AddOverride("python_version", DefaultPython)
 	}
 
-	SanitizeAPIKeyConfig(config, "api_key")
-	SanitizeAPIKeyConfig(config, "logs_config.api_key")
+	sanitizeAPIKeyConfig(config, "api_key")
+	sanitizeAPIKeyConfig(config, "logs_config.api_key")
 	// setTracemallocEnabled *must* be called before setNumWorkers
 	warnings.TraceMallocEnabledWithPy2 = setTracemallocEnabled(config)
 	setNumWorkers(config)
@@ -1752,12 +1762,12 @@ func EnvVarAreSetAndNotEqual(lhsName string, rhsName string) bool {
 	return lhsIsSet && rhsIsSet && lhsValue != rhsValue
 }
 
-// SanitizeAPIKeyConfig strips newlines and other control characters from a given key.
-func SanitizeAPIKeyConfig(config Config, key string) {
+// sanitizeAPIKeyConfig strips newlines and other control characters from a given key.
+func sanitizeAPIKeyConfig(config Config, key string) {
 	if !config.IsKnown(key) {
 		return
 	}
-	config.Set(key, SanitizeAPIKey(config.GetString(key)))
+	config.Set(key, strings.TrimSpace(config.GetString(key)))
 }
 
 // sanitizeExternalMetricsProviderChunkSize ensures the value of `external_metrics_provider.chunk_size` is within an acceptable range
@@ -1775,11 +1785,6 @@ func sanitizeExternalMetricsProviderChunkSize(config Config) {
 		log.Warnf("external_metrics_provider.chunk_size has been set to %d, which is higher than the maximum allowed value %d. Using %d.", chunkSize, maxExternalMetricsProviderChunkSize, maxExternalMetricsProviderChunkSize)
 		config.Set("external_metrics_provider.chunk_size", maxExternalMetricsProviderChunkSize)
 	}
-}
-
-// SanitizeAPIKey strips newlines and other control characters from a given string.
-func SanitizeAPIKey(key string) string {
-	return strings.TrimSpace(key)
 }
 
 func bindEnvAndSetLogsConfigKeys(config Config, prefix string) {
@@ -1801,31 +1806,6 @@ func bindEnvAndSetLogsConfigKeys(config Config, prefix string) {
 	config.BindEnvAndSetDefault(prefix+"sender_recovery_interval", DefaultForwarderRecoveryInterval)
 	config.BindEnvAndSetDefault(prefix+"sender_recovery_reset", false)
 	config.BindEnvAndSetDefault(prefix+"use_v2_api", true)
-}
-
-// getDomainPrefix provides the right prefix for agent X.Y.Z
-func getDomainPrefix(app string) string {
-	v, _ := version.Agent()
-	return fmt.Sprintf("%d-%d-%d-%s.agent", v.Major, v.Minor, v.Patch, app)
-}
-
-// AddAgentVersionToDomain prefixes the domain with the agent version: X-Y-Z.domain
-func AddAgentVersionToDomain(DDURL string, app string) (string, error) {
-	u, err := url.Parse(DDURL)
-	if err != nil {
-		return "", err
-	}
-
-	// we don't update unknown URLs (ie: proxy or custom DD domain)
-	if !ddURLRegexp.MatchString(u.Host) {
-		return DDURL, nil
-	}
-
-	subdomain := strings.Split(u.Host, ".")[0]
-	newSubdomain := getDomainPrefix(app)
-
-	u.Host = strings.Replace(u.Host, subdomain, newSubdomain, 1)
-	return u.String(), nil
 }
 
 // IsCloudProviderEnabled checks the cloud provider family provided in
@@ -1979,7 +1959,8 @@ func GetBindHost() string {
 	return GetBindHostFromConfig(Datadog)
 }
 
-func GetBindHostFromConfig(cfg ConfigReader) string {
+// GetBindHostFromConfig returns the bind_host value from the config
+func GetBindHostFromConfig(cfg Reader) string {
 	if cfg.IsSet("bind_host") {
 		return cfg.GetString("bind_host")
 	}
@@ -2041,7 +2022,7 @@ func getObsPipelineURLForPrefix(datatype DataType, prefix string) (string, error
 }
 
 // IsRemoteConfigEnabled returns true if Remote Configuration should be enabled
-func IsRemoteConfigEnabled(cfg ConfigReader) bool {
+func IsRemoteConfigEnabled(cfg Reader) bool {
 	// Disable Remote Config for GovCloud
 	if cfg.GetBool("fips.enabled") || cfg.GetString("site") == "ddog-gov.com" {
 		return false

@@ -44,7 +44,7 @@ func testFormatHTTPStats(t *testing.T, aggregateByStatusCode bool) {
 		localhost,
 		clientPort,
 		serverPort,
-		"/testpath-1",
+		[]byte("/testpath-1"),
 		true,
 		http.MethodGet,
 	)
@@ -55,7 +55,7 @@ func testFormatHTTPStats(t *testing.T, aggregateByStatusCode bool) {
 
 	httpKey2 := httpKey1
 	httpKey2.Path = http.Path{
-		Content:  "/testpath-2",
+		Content:  http.Interner.GetString("/testpath-2"),
 		FullPath: true,
 	}
 	httpStats2 := http.NewRequestStats(aggregateByStatusCode)
@@ -146,7 +146,7 @@ func testFormatHTTPStatsByPath(t *testing.T, aggregateByStatusCode bool) {
 		util.AddressFromString("10.2.2.2"),
 		60000,
 		80,
-		"/testpath",
+		[]byte("/testpath"),
 		true,
 		http.MethodGet,
 	)
@@ -229,7 +229,7 @@ func testIDCollisionRegression(t *testing.T, aggregateByStatusCode bool) {
 		util.AddressFromString("2.2.2.2"),
 		60000,
 		80,
-		"/",
+		[]byte("/"),
 		true,
 		http.MethodGet,
 	)
@@ -255,8 +255,12 @@ func testIDCollisionRegression(t *testing.T, aggregateByStatusCode bool) {
 	// assert that the other connections sharing the same (source,destination)
 	// addresses but different PIDs *won't* be associated with the HTTP stats
 	// object
-	httpBlob, _, _ := httpEncoder.GetHTTPAggregationsAndTags(connections[1])
-	assert.Nil(httpBlob)
+	streamer := NewProtoTestStreamer[*model.Connection]()
+	httpEncoder.GetHTTPAggregationsAndTags(connections[1], model.NewConnectionBuilder(streamer))
+
+	var conn model.Connection
+	streamer.Unwrap(t, &conn)
+	assert.Empty(conn.HttpAggregations)
 }
 
 func TestLocalhostScenario(t *testing.T) {
@@ -293,7 +297,7 @@ func testLocalhostScenario(t *testing.T, aggregateByStatusCode bool) {
 		util.AddressFromString("127.0.0.1"),
 		60000,
 		80,
-		"/",
+		[]byte("/"),
 		true,
 		http.MethodGet,
 	)
@@ -319,7 +323,7 @@ func testLocalhostScenario(t *testing.T, aggregateByStatusCode bool) {
 			util.AddressFromString("127.0.0.1"),
 			80,
 			60000,
-			"/",
+			[]byte("/"),
 			true,
 			http.MethodGet,
 		)
@@ -341,14 +345,17 @@ func testLocalhostScenario(t *testing.T, aggregateByStatusCode bool) {
 }
 
 func getHTTPAggregations(t *testing.T, encoder *httpEncoder, c network.ConnectionStats) (*model.HTTPAggregations, uint64, map[string]struct{}) {
-	httpBlob, staticTags, dynamicTags := encoder.GetHTTPAggregationsAndTags(c)
-	require.NotNil(t, httpBlob)
+	streamer := NewProtoTestStreamer[*model.Connection]()
+	staticTags, dynamicTags := encoder.GetHTTPAggregationsAndTags(c, model.NewConnectionBuilder(streamer))
 
-	aggregations := new(model.HTTPAggregations)
-	err := proto.Unmarshal(httpBlob, aggregations)
+	var conn model.Connection
+	streamer.Unwrap(t, &conn)
+
+	var aggregations model.HTTPAggregations
+	err := proto.Unmarshal(conn.HttpAggregations, &aggregations)
 	require.NoError(t, err)
 
-	return aggregations, staticTags, dynamicTags
+	return &aggregations, staticTags, dynamicTags
 }
 
 func unmarshalSketch(t *testing.T, bytes []byte) *ddsketch.DDSketch {
@@ -410,7 +417,7 @@ func generateBenchMarkPayload(sourcePortsMax, destPortsMax uint16) network.Conne
 				localhost,
 				sport+1,
 				dport+1,
-				fmt.Sprintf("/api/%d-%d", sport+1, dport+1),
+				[]byte(fmt.Sprintf("/api/%d-%d", sport+1, dport+1)),
 				true,
 				http.MethodGet,
 			)] = httpStats

@@ -41,7 +41,7 @@ void __attribute__((always_inline)) copy_pid_cache_except_exit_ts(struct pid_cac
     dst->credentials = src->credentials;
 }
 
-struct proc_cache_t __attribute__((always_inline)) *get_proc_from_cookie(u32 cookie) {
+struct proc_cache_t __attribute__((always_inline)) *get_proc_from_cookie(u64 cookie) {
     if (!cookie) {
         return NULL;
     }

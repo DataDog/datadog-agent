@@ -36,7 +36,8 @@ type Telemetry struct {
 
 	hits1XX, hits2XX, hits3XX, hits4XX, hits5XX *libtelemetry.Counter
 
-	totalHits                                                        *libtelemetry.Counter
+	totalHitsPlain                                                   *libtelemetry.Counter
+	totalHitsEncrypted                                               *libtelemetry.Counter
 	dropped                                                          *libtelemetry.Counter // this happens when statKeeper reaches capacity
 	rejected                                                         *libtelemetry.Counter // this happens when an user-defined reject-filter matches a request
 	emptyPath, unknownMethod, invalidLatency, nonPrintableCharacters *libtelemetry.Counter // this happens when the request doesn't have the expected format
@@ -61,7 +62,8 @@ func NewTelemetry(protocol string) *Telemetry {
 		aggregations: metricGroup.NewCounter("aggregations", libtelemetry.OptPrometheus),
 
 		// these metrics are also exported as statsd metrics
-		totalHits:              metricGroup.NewCounter("total_hits", libtelemetry.OptStatsd, libtelemetry.OptPayloadTelemetry),
+		totalHitsPlain:         metricGroup.NewCounter("total_hits", "encrypted:false", libtelemetry.OptStatsd, libtelemetry.OptPayloadTelemetry),
+		totalHitsEncrypted:     metricGroup.NewCounter("total_hits", "encrypted:true", libtelemetry.OptStatsd, libtelemetry.OptPayloadTelemetry),
 		dropped:                metricGroup.NewCounter("dropped", libtelemetry.OptStatsd),
 		rejected:               metricGroup.NewCounter("rejected", libtelemetry.OptStatsd),
 		emptyPath:              metricGroup.NewCounter("malformed", "type:empty-path", libtelemetry.OptStatsd),
@@ -93,7 +95,13 @@ func (t *Telemetry) Count(tx Transaction) {
 	case 500:
 		t.hits5XX.Add(1)
 	}
-	t.totalHits.Add(1)
+
+	if isEncrypted(tx) {
+		t.totalHitsEncrypted.Add(1)
+		return
+	}
+
+	t.totalHitsPlain.Add(1)
 }
 
 func (t *Telemetry) Log() {

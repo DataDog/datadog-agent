@@ -6,6 +6,8 @@
 // !!!
 // This is a generated file: regenerate with go run ./pkg/compliance/tools/k8s_types_generator.go
 // !!!
+//
+//revive:disable
 package k8sconfig
 
 import (

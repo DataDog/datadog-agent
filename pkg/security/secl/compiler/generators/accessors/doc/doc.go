@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+// Package doc holds doc related files
 package doc
 
 import (
@@ -22,7 +23,7 @@ import (
 
 const (
 	generateConstantsAnnotationPrefix = "// generate_constants:"
-	SECLDocForLength                  = "SECLDoc[length] Definition:`Length of the corresponding string`"
+	SECLDocForLength                  = "SECLDoc[length] Definition:`Length of the corresponding string`" // SECLDocForLength defines SECL doc for length
 )
 
 type documentation struct {

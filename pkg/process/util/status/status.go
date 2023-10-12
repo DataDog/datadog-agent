@@ -93,6 +93,9 @@ type ProcessExpvars struct {
 	DropCheckPayloads               []string            `json:"drop_check_payloads"`
 	SystemProbeProcessModuleEnabled bool                `json:"system_probe_process_module_enabled"`
 	LanguageDetectionEnabled        bool                `json:"language_detection_enabled"`
+	WlmExtractorCacheSize           int                 `json:"workloadmeta_extractor_cache_size"`
+	WlmExtractorStaleDiffs          int                 `json:"workloadmeta_extractor_stale_diffs"`
+	WlmExtractorDiffsDropped        int                 `json:"workloadmeta_extractor_diffs_dropped"`
 }
 
 // Status holds runtime information from process-agent
@@ -122,7 +125,7 @@ func OverrideTime(t time.Time) StatusOption {
 	}
 }
 
-func getCoreStatus(coreConfig ddconfig.ConfigReader) (s CoreStatus) {
+func getCoreStatus(coreConfig ddconfig.Reader) (s CoreStatus) {
 	hostnameData, err := hostname.GetWithProvider(context.Background())
 	var metadata *host.Payload
 	if err != nil {
@@ -155,7 +158,7 @@ func getExpvars(expVarURL string) (s ProcessExpvars, err error) {
 }
 
 // GetStatus returns a Status object with runtime information about process-agent
-func GetStatus(coreConfig ddconfig.ConfigReader, expVarURL string) (*Status, error) {
+func GetStatus(coreConfig ddconfig.Reader, expVarURL string) (*Status, error) {
 	coreStatus := getCoreStatus(coreConfig)
 	processExpVars, err := getExpvars(expVarURL)
 	if err != nil {

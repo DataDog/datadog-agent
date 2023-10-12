@@ -13,24 +13,26 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/log"
 	forwarder "github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
+	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/collector"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/diagnose/diagnosis"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname"
+	pkglog "github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 func init() {
 	diagnosis.Register("check-datadog", diagnose)
 }
 
-func diagnose(diagCfg diagnosis.Config) []diagnosis.Diagnosis {
+func diagnose(diagCfg diagnosis.Config, senderManager sender.SenderManager) []diagnosis.Diagnosis {
 	if diagCfg.RunningInAgentProcess && common.Coll != nil {
 		return diagnoseChecksInAgentProcess()
 	}
 
-	return diagnoseChecksInCLIProcess(diagCfg)
+	return diagnoseChecksInCLIProcess(diagCfg, senderManager)
 }
 
 func getInstanceDiagnoses(instance check.Check) []diagnosis.Diagnosis {
@@ -70,6 +72,10 @@ func diagnoseChecksInAgentProcess() []diagnosis.Diagnosis {
 
 	// get diagnoses from each
 	for _, ch := range checks {
+		if ch.Interval() == 0 {
+			pkglog.Infof("Ignoring long running check %s", ch.String())
+			continue
+		}
 		instanceDiagnoses := getInstanceDiagnoses(ch)
 		diagnoses = append(diagnoses, instanceDiagnoses...)
 	}
@@ -77,14 +83,10 @@ func diagnoseChecksInAgentProcess() []diagnosis.Diagnosis {
 	return diagnoses
 }
 
-func diagnoseChecksInCLIProcess(diagCfg diagnosis.Config) []diagnosis.Diagnosis {
+func diagnoseChecksInCLIProcess(diagCfg diagnosis.Config, senderManager sender.SenderManager) []diagnosis.Diagnosis {
 	// other choices
 	// 	run() github.com\DataDog\datadog-agent\pkg\cli\subcommands\check\command.go
 	//  runCheck() github.com\DataDog\datadog-agent\cmd\agent\gui\checks.go
-
-	// Always disable SBOM collection in `check` command to avoid BoltDB flock issue
-	// and consuming CPU & Memory for asynchronous scans that would not be shown in `agent check` output.
-	pkgconfig.Datadog.Set("container_image_collection.sbom.enabled", "false")
 
 	hostnameDetected, err := hostname.Get(context.TODO())
 	if err != nil {
@@ -110,12 +112,12 @@ func diagnoseChecksInCLIProcess(diagCfg diagnosis.Config) []diagnosis.Diagnosis 
 	forwarder := forwarder.NewDefaultForwarder(config.Datadog, log, forwarder.NewOptions(config.Datadog, log, nil))
 	aggregator.InitAndStartAgentDemultiplexer(log, forwarder, opts, hostnameDetected)
 
-	common.LoadComponents(context.Background(), aggregator.GetSenderManager(), pkgconfig.Datadog.GetString("confd_path"))
+	common.LoadComponents(context.Background(), senderManager, pkgconfig.Datadog.GetString("confd_path"))
 	common.AC.LoadAndRun(context.Background())
 
 	// Create the CheckScheduler, but do not attach it to
 	// AutoDiscovery.  NOTE: we do not start common.Coll, either.
-	collector.InitCheckScheduler(common.Coll, aggregator.GetSenderManager())
+	collector.InitCheckScheduler(common.Coll, senderManager)
 
 	// Load matching configurations (should we use common.AC.GetAllConfigs())
 	waitCtx, cancelTimeout := context.WithTimeout(context.Background(), time.Duration(5*time.Second))
@@ -143,6 +145,10 @@ func diagnoseChecksInCLIProcess(diagCfg diagnosis.Config) []diagnosis.Diagnosis 
 		checkName := diagnoseConfig.Name
 		instances := collector.GetChecksByNameForConfigs(checkName, diagnoseConfigs)
 		for _, instance := range instances {
+			if instance.Interval() == 0 {
+				pkglog.Infof("Ignoring long running check %s", instance.String())
+				continue
+			}
 			instanceDiagnoses := getInstanceDiagnoses(instance)
 			diagnoses = append(diagnoses, instanceDiagnoses...)
 		}

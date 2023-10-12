@@ -6,12 +6,13 @@
 //go:build linux
 // +build linux
 
+// Package profile holds profile related files
 package profile
 
 import (
 	proto "github.com/DataDog/agent-payload/v5/cws/dumpsv1"
 
-	"github.com/DataDog/datadog-agent/pkg/security/security_profile/activity_tree"
+	activity_tree "github.com/DataDog/datadog-agent/pkg/security/security_profile/activity_tree"
 	mtdt "github.com/DataDog/datadog-agent/pkg/security/security_profile/activity_tree/metadata"
 )
 
@@ -24,10 +25,10 @@ func SecurityProfileToProto(input *SecurityProfile) *proto.SecurityProfile {
 	output := proto.SecurityProfile{
 		Status:   uint32(input.Status),
 		Version:  input.Version,
-		Metadata: mtdt.MetadataToProto(&input.Metadata),
+		Metadata: mtdt.ToProto(&input.Metadata),
 		Syscalls: input.Syscalls,
 		Tags:     make([]string, len(input.Tags)),
-		Tree:     activity_tree.ActivityTreeToProto(input.ActivityTree),
+		Tree:     activity_tree.ToProto(input.ActivityTree),
 	}
 	copy(output.Tags, input.Tags)
 

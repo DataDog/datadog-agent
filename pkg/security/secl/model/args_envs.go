@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+// Package model holds model related files
 package model
 
 import (
@@ -75,6 +76,26 @@ func (p *EnvsEntry) FilterEnvs(envsWithValue map[string]bool) ([]string, bool) {
 	}
 
 	return p.filteredEnvs, p.Truncated
+}
+
+// FilterEnvs returns an array of environment variable key value pairs matching the desired keys
+//
+//nolint:unused
+func filterEnvs(allEnvVars []string, desiredKeys map[string]bool) []string {
+	if len(allEnvVars) == 0 {
+		return nil
+	}
+
+	filteredEnvs := make([]string, 0, len(desiredKeys))
+
+	for _, value := range allEnvVars {
+		k, _, _ := strings.Cut(value, "=")
+		if desiredKeys[k] {
+			filteredEnvs = append(filteredEnvs, value)
+		}
+	}
+
+	return filteredEnvs
 }
 
 func (p *EnvsEntry) toMap() {

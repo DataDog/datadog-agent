@@ -5,6 +5,7 @@
 
 //go:build linux
 
+// Package selinux holds selinux related files
 package selinux
 
 import (
@@ -23,6 +24,7 @@ const (
 	SELinuxStatusEnforceKey uint32 = 1
 )
 
+// SnapshotSELinux snapshots SELinux
 func SnapshotSELinux(selinuxStatusMap *ebpf.Map) error {
 	currentStatus := func() string {
 		output, err := exec.Command("getenforce").Output()

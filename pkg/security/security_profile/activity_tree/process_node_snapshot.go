@@ -5,7 +5,8 @@
 
 //go:build linux
 
-package activity_tree
+// Package activitytree holds activitytree related files
+package activitytree
 
 import (
 	"fmt"
@@ -31,7 +32,7 @@ import (
 )
 
 // snapshot uses procfs to retrieve information about the current process
-func (pn *ProcessNode) snapshot(owner ActivityTreeOwner, stats *ActivityTreeStats, newEvent func() *model.Event, reducer *PathsReducer) {
+func (pn *ProcessNode) snapshot(owner Owner, stats *Stats, newEvent func() *model.Event, reducer *PathsReducer) {
 	// call snapshot for all the children of the current node
 	for _, child := range pn.Children {
 		child.snapshot(owner, stats, newEvent, reducer)
@@ -57,7 +58,7 @@ func (pn *ProcessNode) snapshot(owner ActivityTreeOwner, stats *ActivityTreeStat
 	}
 }
 
-func (pn *ProcessNode) snapshotFiles(p *process.Process, stats *ActivityTreeStats, newEvent func() *model.Event, reducer *PathsReducer) {
+func (pn *ProcessNode) snapshotFiles(p *process.Process, stats *Stats, newEvent func() *model.Event, reducer *PathsReducer) {
 	// list the files opened by the process
 	fileFDs, err := p.OpenFiles()
 	if err != nil {
@@ -129,7 +130,8 @@ func (pn *ProcessNode) snapshotFiles(p *process.Process, stats *ActivityTreeStat
 	}
 }
 
-const MAX_MMAPED_FILES = 128
+// MaxMmapedFiles defines the max mmaped files
+const MaxMmapedFiles = 128
 
 func snapshotMemoryMappedFiles(pid int32, processEventPath string) ([]string, error) {
 	fakeprocess := legacyprocess.Process{Pid: pid}
@@ -138,9 +140,9 @@ func snapshotMemoryMappedFiles(pid int32, processEventPath string) ([]string, er
 		return nil, err
 	}
 
-	files := make([]string, 0, MAX_MMAPED_FILES)
+	files := make([]string, 0, MaxMmapedFiles)
 	for _, mm := range *stats {
-		if len(files) >= MAX_MMAPED_FILES {
+		if len(files) >= MaxMmapedFiles {
 			break
 		}
 
@@ -157,7 +159,7 @@ func snapshotMemoryMappedFiles(pid int32, processEventPath string) ([]string, er
 	return files, nil
 }
 
-func (pn *ProcessNode) snapshotBoundSockets(p *process.Process, stats *ActivityTreeStats, newEvent func() *model.Event) {
+func (pn *ProcessNode) snapshotBoundSockets(p *process.Process, stats *Stats, newEvent func() *model.Event) {
 	// list all the file descriptors opened by the process
 	FDs, err := p.OpenFiles()
 	if err != nil {
@@ -238,7 +240,7 @@ func (pn *ProcessNode) snapshotBoundSockets(p *process.Process, stats *ActivityT
 	}
 }
 
-func (pn *ProcessNode) insertSnapshottedSocket(family uint16, ip net.IP, port uint16, stats *ActivityTreeStats, newEvent func() *model.Event) {
+func (pn *ProcessNode) insertSnapshottedSocket(family uint16, ip net.IP, port uint16, stats *Stats, newEvent func() *model.Event) {
 	evt := newEvent()
 	evt.Type = uint32(model.BindEventType)
 

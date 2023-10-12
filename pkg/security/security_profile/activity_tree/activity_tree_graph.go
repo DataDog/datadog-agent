@@ -5,7 +5,8 @@
 
 //go:build linux
 
-package activity_tree
+// Package activitytree holds activitytree related files
+package activitytree
 
 import (
 	"fmt"
@@ -53,7 +54,7 @@ func (at *ActivityTree) prepareProcessNode(p *ProcessNode, data *utils.Graph, re
 	var args string
 	var argv []string
 	if resolver != nil {
-		argv, _ = resolver.GetProcessScrubbedArgv(&p.Process)
+		argv, _ = resolver.GetProcessArgvScrubbed(&p.Process)
 	} else {
 		argv, _ = process.GetProcessArgv(&p.Process)
 	}
