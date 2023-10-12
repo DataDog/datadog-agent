@@ -5,6 +5,7 @@
 
 //go:build !otlp
 
+//nolint:revive // TODO package-comments: should have a package comment
 package otlp
 
 import (

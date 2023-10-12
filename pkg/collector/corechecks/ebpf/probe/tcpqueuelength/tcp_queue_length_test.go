@@ -98,7 +98,7 @@ func extractGlobalStats(t *testing.T, tracer *Tracer) model.TCPQueueLengthStatsV
 // - reading small chunks at a time
 // - reducing the RECV buffer size
 
-var Addr *net.TCPAddr = &net.TCPAddr{
+var Addr *net.TCPAddr = &net.TCPAddr{ //nolint:revive // TODO var-declaration: should omit type *net.TCPAddr from declaration of var Addr; it will be inferred from the right-hand side
 	Port: 25568,
 }
 
