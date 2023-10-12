@@ -42,6 +42,9 @@ def run(
     verbose=True,
     run="",
     skip="",
+    osversion="",
+    platform="",
+    cws_supported_osversion="",
     cache=False,
     junit_tar="",
     coverage=False,
@@ -87,6 +90,12 @@ def run(
 
     cmd = f'gotestsum --format {gotestsum_format} '
     cmd += '{junit_file_flag} --packages="{packages}" -- -ldflags="-X {REPO_PATH}/test/new-e2e/tests/containers.GitCommit={commit}" {verbose} -mod={go_mod} -vet=off -timeout {timeout} -tags {go_build_tags} {nocache} {run} {skip} {coverage_opt} {test_run_arg}'
+    if osversion != "" or platform != "" or cws_supported_osversion != "":
+        cmd += "-args"
+        cmd += " -osversion {osversion}" if osversion else ""
+        cmd += " -platform {platform}" if platform else ""
+        cmd += " -cws-supported-osversion {cws_supported_osversion}" if cws_supported_osversion else ""
+
     args = {
         "go_mod": "mod",
         "timeout": "4h",
@@ -98,6 +107,9 @@ def run(
         "skip": '-test.skip ' + skip if skip else '',
         "coverage_opt": coverage_opt,
         "test_run_arg": test_run_arg,
+        "osversion": osversion,
+        "platform": platform,
+        "cws_supported_osversion": cws_supported_osversion,
     }
 
     test_res = test_flavor(
