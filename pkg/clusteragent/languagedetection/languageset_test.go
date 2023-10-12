@@ -18,14 +18,12 @@ func TestAdd(t *testing.T) {
 	mockLanguageSet.Add("cpp")
 	mockLanguageSet.Add("java")
 
-	expectedLanguages := map[string]struct{}{
+	expectedLanguages := LanguageSet{
 		"cpp":  {},
 		"java": {},
 	}
 
-	actualLanguages := mockLanguageSet.languages
-
-	assert.Equal(t, expectedLanguages, actualLanguages)
+	assert.Equal(t, expectedLanguages, mockLanguageSet)
 }
 
 func TestParse(t *testing.T) {
@@ -33,24 +31,44 @@ func TestParse(t *testing.T) {
 	mockLanguages := "cpp,java,ruby"
 	languageSet.Parse(mockLanguages)
 
-	expectedLanguages := map[string]struct{}{
+	expectedLanguages := LanguageSet{
 		"cpp":  {},
 		"java": {},
 		"ruby": {},
 	}
 
-	actualLanguages := languageSet.languages
+	assert.Equal(t, expectedLanguages, languageSet)
+}
 
-	assert.Equal(t, expectedLanguages, actualLanguages)
+func TestMerge(t *testing.T) {
+	languageSet := LanguageSet{
+		"cpp":  {},
+		"java": {},
+		"ruby": {},
+	}
+
+	languageSetToMerge := LanguageSet{
+		"cpp":    {},
+		"python": {},
+		"ruby":   {},
+	}
+
+	expectedLanguageSet := LanguageSet{
+		"cpp":    {},
+		"java":   {},
+		"ruby":   {},
+		"python": {},
+	}
+
+	languageSet.Merge(languageSetToMerge)
+	assert.Equal(t, expectedLanguageSet, languageSet)
 }
 
 func TestString(t *testing.T) {
 	languageSet := &LanguageSet{
-		languages: map[string]struct{}{
-			"cpp":  {},
-			"ruby": {},
-			"java": {},
-		},
+		"cpp":  {},
+		"ruby": {},
+		"java": {},
 	}
 
 	expectedOutput := "cpp,java,ruby"

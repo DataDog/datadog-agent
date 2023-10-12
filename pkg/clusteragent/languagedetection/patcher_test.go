@@ -5,15 +5,15 @@
 
 //go:build kubeapiserver
 
-package v1
+package languagedetection
 
 import (
 	"context"
+	"fmt"
 	"reflect"
 	"testing"
 
 	pbgo "github.com/DataDog/datadog-agent/pkg/proto/pbgo/process"
-	"github.com/DataDog/datadog-agent/pkg/util/languagedetection"
 	"github.com/stretchr/testify/assert"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -24,7 +24,7 @@ import (
 
 func TestGetContainersLanguagesFromPodDetail(t *testing.T) {
 
-	lp := &languagePatcher{
+	lp := &LanguagePatcher{
 		k8sClient: nil,
 	}
 
@@ -64,17 +64,17 @@ func TestGetContainersLanguagesFromPodDetail(t *testing.T) {
 
 	containerslanguages := lp.getContainersLanguagesFromPodDetail(podLanguageDetails)
 
-	expectedContainersLanguages := languagedetection.NewContainersLanguages()
+	expectedContainersLanguages := NewContainersLanguages()
 
-	expectedContainersLanguages.Parse("mono-lang", "java")
-	expectedContainersLanguages.Parse("bi-lang", "java,cpp")
-	expectedContainersLanguages.Parse("tri-lang", "java,go,python")
+	expectedContainersLanguages.GetOrInitializeLanguageset("mono-lang").Parse("java")
+	expectedContainersLanguages.GetOrInitializeLanguageset("bi-lang").Parse("java,cpp")
+	expectedContainersLanguages.GetOrInitializeLanguageset("tri-lang").Parse("java,go,python")
 
 	assert.True(t, reflect.DeepEqual(containerslanguages, expectedContainersLanguages))
 }
 
 func TestGetOwnersLanguages(t *testing.T) {
-	lp := &languagePatcher{
+	lp := &LanguagePatcher{
 		k8sClient: dynamicfake.NewSimpleDynamicClient(runtime.NewScheme()),
 	}
 
@@ -174,23 +174,23 @@ func TestGetOwnersLanguages(t *testing.T) {
 		},
 	}
 
-	expectedContainersLanguagesA := languagedetection.NewContainersLanguages()
+	expectedContainersLanguagesA := NewContainersLanguages()
 
-	expectedContainersLanguagesA.Parse("container-1", "java,cpp,go")
-	expectedContainersLanguagesA.Parse("container-2", "java,python")
-	expectedContainersLanguagesA.Parse("init.container-3", "java,cpp")
-	expectedContainersLanguagesA.Parse("init.container-4", "java,python")
+	expectedContainersLanguagesA.GetOrInitializeLanguageset("container-1").Parse("java,cpp,go")
+	expectedContainersLanguagesA.GetOrInitializeLanguageset("container-2").Parse("java,python")
+	expectedContainersLanguagesA.GetOrInitializeLanguageset("init.container-3").Parse("java,cpp")
+	expectedContainersLanguagesA.GetOrInitializeLanguageset("init.container-4").Parse("java,python")
 
-	expectedContainersLanguagesB := languagedetection.NewContainersLanguages()
+	expectedContainersLanguagesB := NewContainersLanguages()
 
-	expectedContainersLanguagesB.Parse("container-5", "python,cpp,go")
-	expectedContainersLanguagesB.Parse("container-6", "java,ruby")
-	expectedContainersLanguagesB.Parse("init.container-7", "java,cpp")
-	expectedContainersLanguagesB.Parse("init.container-8", "java,python")
+	expectedContainersLanguagesB.GetOrInitializeLanguageset("container-5").Parse("python,cpp,go")
+	expectedContainersLanguagesB.GetOrInitializeLanguageset("container-6").Parse("java,ruby")
+	expectedContainersLanguagesB.GetOrInitializeLanguageset("init.container-7").Parse("java,cpp")
+	expectedContainersLanguagesB.GetOrInitializeLanguageset("init.container-8").Parse("java,python")
 
 	expectedOwnersLanguages := &OwnersLanguages{
-		*newOwnerInfo("dummyrs-1", "default", "deployment"): expectedContainersLanguagesA,
-		*newOwnerInfo("dummyrs-2", "custom", "deployment"):  expectedContainersLanguagesB,
+		NewNamespacedOwnerReference("apps/v1", "deployment", "dummyrs-1", "dummyId-1", "default"): expectedContainersLanguagesA,
+		NewNamespacedOwnerReference("apps/v1", "deployment", "dummyrs-2", "dummyId-2", "custom"):  expectedContainersLanguagesB,
 	}
 
 	actualOwnersLanguages := lp.getOwnersLanguages(mockRequestData)
@@ -199,16 +199,16 @@ func TestGetOwnersLanguages(t *testing.T) {
 
 }
 
-func TestUpdatedOwnerAnnotations(t *testing.T) {
-	lp := &languagePatcher{
+func TestGetUpdatedOwnerAnnotations(t *testing.T) {
+	lp := &LanguagePatcher{
 		k8sClient: nil,
 	}
 
-	mockContainersLanguages := languagedetection.NewContainersLanguages()
-	mockContainersLanguages.Parse("container-1", "cpp,java,python")
-	mockContainersLanguages.Parse("container-2", "python,ruby")
-	mockContainersLanguages.Parse("container-3", "cpp")
-	mockContainersLanguages.Parse("container-4", "")
+	mockContainersLanguages := NewContainersLanguages()
+	mockContainersLanguages.GetOrInitializeLanguageset("container-1").Parse("cpp,java,python")
+	mockContainersLanguages.GetOrInitializeLanguageset("container-2").Parse("python,ruby")
+	mockContainersLanguages.GetOrInitializeLanguageset("container-3").Parse("cpp")
+	mockContainersLanguages.GetOrInitializeLanguageset("container-4").Parse("")
 
 	// Case of existing annotations
 	mockCurrentAnnotations := map[string]string{
@@ -255,7 +255,7 @@ func TestPatchOwner(t *testing.T) {
 
 	mockK8sClient := dynamicfake.NewSimpleDynamicClient(runtime.NewScheme())
 
-	lp := &languagePatcher{
+	lp := &LanguagePatcher{
 		k8sClient: mockK8sClient,
 	}
 
@@ -263,13 +263,13 @@ func TestPatchOwner(t *testing.T) {
 	ns := "test-namespace"
 	gvr := schema.GroupVersionResource{Group: "apps", Version: "v1", Resource: "deployments"}
 
-	ownerinfo := newOwnerInfo(deploymentName, ns, "deployment")
+	namespacedOwnerReference := NewNamespacedOwnerReference("apps/v1", "deployment", deploymentName, "uid-dummy", ns)
 
-	mockContainersLanguages := languagedetection.NewContainersLanguages()
-	mockContainersLanguages.Parse("container-1", "cpp,java,python")
-	mockContainersLanguages.Parse("container-2", "python,ruby")
-	mockContainersLanguages.Parse("container-3", "cpp")
-	mockContainersLanguages.Parse("container-4", "")
+	mockContainersLanguages := NewContainersLanguages()
+	mockContainersLanguages.GetOrInitializeLanguageset("container-1").Parse("cpp,java,python")
+	mockContainersLanguages.GetOrInitializeLanguageset("container-2").Parse("python,ruby")
+	mockContainersLanguages.GetOrInitializeLanguageset("container-3").Parse("cpp")
+	mockContainersLanguages.GetOrInitializeLanguageset("container-4").Parse("")
 
 	// Create target deployment
 	deploymentObject := &unstructured.Unstructured{
@@ -293,7 +293,7 @@ func TestPatchOwner(t *testing.T) {
 	assert.NoError(t, err)
 
 	// Apply the patch
-	assert.NoError(t, lp.patchOwner(ownerinfo, mockContainersLanguages))
+	assert.NoError(t, lp.patchOwner(&namespacedOwnerReference, mockContainersLanguages))
 
 	// Check the patch
 	got, err := lp.k8sClient.Resource(gvr).Namespace(ns).Get(context.TODO(), deploymentName, metav1.GetOptions{})
@@ -303,23 +303,21 @@ func TestPatchOwner(t *testing.T) {
 	assert.NoError(t, err)
 	assert.True(t, found)
 
-	// Assert correct number of annotations
-	assert.Equal(t, 5, len(annotations))
+	expectedAnnotations := map[string]string{
+		"apm.datadoghq.com/container-1.languages": "cpp,java,python",
+		"apm.datadoghq.com/container-2.languages": "cpp,python,ruby",
+		"apm.datadoghq.com/container-3.languages": "cpp",
+		"annotationkey1": "annotationvalue1",
+		"annotationkey2": "annotationvalue2",
+	}
 
-	//Assert that language annotation are correctly set
-	assert.Equal(t, annotations["apm.datadoghq.com/container-1.languages"], "cpp,java,python")
-	assert.Equal(t, annotations["apm.datadoghq.com/container-2.languages"], "cpp,python,ruby")
-	assert.Equal(t, annotations["apm.datadoghq.com/container-3.languages"], "cpp")
-
-	//Assert that other annotations are not modified
-	assert.Equal(t, annotations["annotationkey1"], "annotationvalue1")
-	assert.Equal(t, annotations["annotationkey2"], "annotationvalue2")
+	assert.True(t, reflect.DeepEqual(expectedAnnotations, annotations))
 }
 
 func TestPatchAllOwners(t *testing.T) {
 	mockK8sClient := dynamicfake.NewSimpleDynamicClient(runtime.NewScheme())
 
-	lp := &languagePatcher{
+	lp := &LanguagePatcher{
 		k8sClient: mockK8sClient,
 	}
 
@@ -328,26 +326,86 @@ func TestPatchAllOwners(t *testing.T) {
 	// Mock definition for deployment A
 	deploymentAName := "test-deployment-A"
 	nsA := "test-namespace-A"
-	ownerAinfo := newOwnerInfo(deploymentAName, nsA, "deployment")
 
-	// Define mock containers languages for deployment A
-	mockContainersLanguagesA := languagedetection.NewContainersLanguages()
-	mockContainersLanguagesA.Parse("container-1", "cpp,java,python")
-	mockContainersLanguagesA.Parse("container-2", "python,ruby")
-	mockContainersLanguagesA.Parse("container-3", "cpp")
-	mockContainersLanguagesA.Parse("container-4", "")
+	podALanguageDetails := &pbgo.PodLanguageDetails{
+		Namespace: nsA,
+		Name:      "pod-a",
+		ContainerDetails: []*pbgo.ContainerLanguageDetails{
+			{
+				ContainerName: "container-1",
+				Languages: []*pbgo.Language{
+					{Name: "java"},
+					{Name: "cpp"},
+					{Name: "python"},
+				},
+			},
+			{
+				ContainerName: "container-2",
+				Languages: []*pbgo.Language{
+					{Name: "ruby"},
+					{Name: "python"},
+				},
+			},
+		},
+		InitContainerDetails: []*pbgo.ContainerLanguageDetails{
+			{
+				ContainerName: "container-3",
+				Languages: []*pbgo.Language{
+					{Name: "cpp"},
+				},
+			},
+			{
+				ContainerName: "container-4",
+				Languages:     []*pbgo.Language{},
+			},
+		},
+		Ownerref: &pbgo.KubeOwnerInfo{
+			Id:   "dummyId-1",
+			Kind: "replicaset",
+			Name: "test-deployment-A-2342347",
+		},
+	}
 
 	// Mock definition for deployment B
 	deploymentBName := "test-deployment-B"
 	nsB := "test-namespace-B"
-	ownerBinfo := newOwnerInfo(deploymentBName, nsB, "deployment")
 
-	// Define mock containers languages for deployment B
-	mockContainersLanguagesB := languagedetection.NewContainersLanguages()
-	mockContainersLanguagesB.Parse("container-1", "python")
-	mockContainersLanguagesB.Parse("container-2", "golang")
-	mockContainersLanguagesB.Parse("container-3", "cpp,java")
-	mockContainersLanguagesB.Parse("container-4", "")
+	podBLanguageDetails := &pbgo.PodLanguageDetails{
+		Namespace: nsB,
+		Name:      "pod-b",
+		ContainerDetails: []*pbgo.ContainerLanguageDetails{
+			{
+				ContainerName: "container-1",
+				Languages: []*pbgo.Language{
+					{Name: "python"},
+				},
+			},
+			{
+				ContainerName: "container-2",
+				Languages: []*pbgo.Language{
+					{Name: "golang"},
+				},
+			},
+		},
+		InitContainerDetails: []*pbgo.ContainerLanguageDetails{
+			{
+				ContainerName: "container-3",
+				Languages: []*pbgo.Language{
+					{Name: "cpp"},
+					{Name: "java"},
+				},
+			},
+			{
+				ContainerName: "container-4",
+				Languages:     []*pbgo.Language{},
+			},
+		},
+		Ownerref: &pbgo.KubeOwnerInfo{
+			Id:   "dummyId-2",
+			Kind: "replicaset",
+			Name: "test-deployment-B-2342347",
+		},
+	}
 
 	// Create target deployment A
 	deploymentAObject := &unstructured.Unstructured{
@@ -385,13 +443,15 @@ func TestPatchAllOwners(t *testing.T) {
 	_, err = mockK8sClient.Resource(gvr).Namespace(nsB).Create(context.TODO(), deploymentBObject, metav1.CreateOptions{})
 	assert.NoError(t, err)
 
-	ownerslanguages := &OwnersLanguages{
-		*ownerAinfo: mockContainersLanguagesA,
-		*ownerBinfo: mockContainersLanguagesB,
+	mockRequestData := &pbgo.ParentLanguageAnnotationRequest{
+		PodDetails: []*pbgo.PodLanguageDetails{
+			podALanguageDetails,
+			podBLanguageDetails,
+		},
 	}
 
 	// Apply the patches to all owners
-	lp.patchAllOwners(ownerslanguages)
+	lp.PatchAllOwners(mockRequestData)
 
 	// Check the patch of owner A
 	got, err := lp.k8sClient.Resource(gvr).Namespace(nsA).Get(context.TODO(), deploymentAName, metav1.GetOptions{})
@@ -401,17 +461,17 @@ func TestPatchAllOwners(t *testing.T) {
 	assert.NoError(t, err)
 	assert.True(t, found)
 
-	// Assert correct number of annotations
-	assert.Equal(t, 5, len(annotations))
+	expectedAnnotationsA := map[string]string{
+		"apm.datadoghq.com/container-1.languages":      "cpp,java,python",
+		"apm.datadoghq.com/container-2.languages":      "cpp,python,ruby",
+		"apm.datadoghq.com/init.container-3.languages": "cpp",
+		"annotationkey1": "annotationvalue1",
+		"annotationkey2": "annotationvalue2",
+	}
 
-	//Assert that language annotation are correctly set
-	assert.Equal(t, annotations["apm.datadoghq.com/container-1.languages"], "cpp,java,python")
-	assert.Equal(t, annotations["apm.datadoghq.com/container-2.languages"], "cpp,python,ruby")
-	assert.Equal(t, annotations["apm.datadoghq.com/container-3.languages"], "cpp")
-
-	//Assert that other annotations are not modified
-	assert.Equal(t, annotations["annotationkey1"], "annotationvalue1")
-	assert.Equal(t, annotations["annotationkey2"], "annotationvalue2")
+	fmt.Println(expectedAnnotationsA)
+	fmt.Println(annotations)
+	assert.True(t, reflect.DeepEqual(expectedAnnotationsA, annotations))
 
 	// Check the patch of owner B
 	got, err = lp.k8sClient.Resource(gvr).Namespace(nsB).Get(context.TODO(), deploymentBName, metav1.GetOptions{})
@@ -421,11 +481,12 @@ func TestPatchAllOwners(t *testing.T) {
 	assert.NoError(t, err)
 	assert.True(t, found)
 
-	// Assert correct number of annotations
-	assert.Equal(t, 3, len(annotations))
+	expectedAnnotationsB := map[string]string{
+		"apm.datadoghq.com/container-1.languages":      "python",
+		"apm.datadoghq.com/container-2.languages":      "golang",
+		"apm.datadoghq.com/init.container-3.languages": "cpp,java",
+	}
 
-	// Assert that language annotation are correctly set
-	assert.Equal(t, annotations["apm.datadoghq.com/container-1.languages"], "python")
-	assert.Equal(t, annotations["apm.datadoghq.com/container-2.languages"], "golang")
-	assert.Equal(t, annotations["apm.datadoghq.com/container-3.languages"], "cpp,java")
+	assert.True(t, reflect.DeepEqual(expectedAnnotationsB, annotations))
+
 }

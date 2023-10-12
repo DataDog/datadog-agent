@@ -10,40 +10,21 @@ import (
 	"strings"
 )
 
-// LanguageSetInterface is an interface defining the behaviour of a language set
-type LanguageSetInterface interface {
-	Add(languageName string)
-	Parse(languages string)
-	String() string
-}
-
 // LanguageSet is a set of languages
-type LanguageSet struct {
-	languages map[string]struct{}
-}
+type LanguageSet map[string]struct{}
 
 // NewLanguageSet initializes and returns a new LanguageSet object
-func NewLanguageSet() *LanguageSet {
-	return &LanguageSet{
-		languages: make(map[string]struct{}),
-	}
+func NewLanguageSet() LanguageSet {
+	return make(LanguageSet)
 }
 
 // Add adds a new language to the language set
-func (langSet *LanguageSet) Add(languageName string) {
-	if langSet.languages == nil {
-		langSet.languages = make(map[string]struct{})
-	}
-
-	langSet.languages[languageName] = struct{}{}
+func (langSet LanguageSet) Add(languageName string) {
+	langSet[languageName] = struct{}{}
 }
 
 // Parse parses a comma-separated languages string and adds the languages to the language set
-func (langSet *LanguageSet) Parse(languages string) {
-	if langSet.languages == nil {
-		langSet.languages = map[string]struct{}{}
-	}
-
+func (langSet LanguageSet) Parse(languages string) {
 	for _, languageName := range strings.Split(languages, ",") {
 		if languageName != "" {
 			langSet.Add(languageName)
@@ -51,10 +32,17 @@ func (langSet *LanguageSet) Parse(languages string) {
 	}
 }
 
+// Merge merges a set of languages with the current languages set
+func (langSet LanguageSet) Merge(languages LanguageSet) {
+	for languageName := range languages {
+		langSet.Add(languageName)
+	}
+}
+
 // String prints the languages of the language set in sorted order in a comma-separated string format
-func (langSet *LanguageSet) String() string {
-	langNames := make([]string, 0, len(langSet.languages))
-	for name := range langSet.languages {
+func (langSet LanguageSet) String() string {
+	langNames := make([]string, 0, len(langSet))
+	for name := range langSet {
 		langNames = append(langNames, name)
 	}
 	sort.Strings(langNames)
