@@ -72,6 +72,10 @@ func (lp *ProxyLifecycleProcessor) OnInvokeStart(startDetails *invocationlifecyc
 		event = &events.APIGatewayV2HTTPRequest{}
 	case trigger.APIGatewayWebsocketEvent:
 		event = &events.APIGatewayWebsocketProxyRequest{}
+	case trigger.APIGatewayLambdaAuthorizerTokenEvent:
+		event = &events.APIGatewayCustomAuthorizerRequest{}
+	case trigger.APIGatewayLambdaAuthorizerRequestParametersEvent:
+		event = &events.APIGatewayCustomAuthorizerRequestTypeRequest{}
 	case trigger.ALBEvent:
 		event = &events.ALBTargetGroupRequest{}
 	case trigger.LambdaFunctionURLEvent:
@@ -150,6 +154,29 @@ func (lp *ProxyLifecycleProcessor) spanModifier(lastReqId string, chunk *pb.Trac
 			event.PathParameters,
 			event.RequestContext.Identity.SourceIP,
 			&event.Body,
+		)
+
+	case *events.APIGatewayCustomAuthorizerRequest:
+		makeContext(
+			&ctx,
+			nil,
+			// NOTE: The header name could have been different (depends on API GW configuration)
+			map[string][]string{"Authorization": {event.AuthorizationToken}},
+			nil,
+			nil,
+			"", // Not provided by API Gateway
+			nil,
+		)
+
+	case *events.APIGatewayCustomAuthorizerRequestTypeRequest:
+		makeContext(
+			&ctx,
+			&event.Path,
+			event.MultiValueHeaders,
+			event.MultiValueQueryStringParameters,
+			event.PathParameters,
+			event.RequestContext.Identity.SourceIP,
+			nil,
 		)
 
 	case *events.ALBTargetGroupRequest:

@@ -83,7 +83,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 
 			// Disable logging if `--json` is specified. This way the check command will output proper json.
 			if cliParams.checkOutputJSON {
-				bundleParams.LogParams = log.LogForOneShot(string(command.LoggerName), "off", true)
+				bundleParams.LogParams = log.ForOneShot(string(command.LoggerName), "off", true)
 			}
 
 			return fxutil.OneShot(runCheckCmd,

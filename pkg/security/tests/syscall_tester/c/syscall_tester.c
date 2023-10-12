@@ -640,6 +640,22 @@ int test_memfd_create(int argc, char **argv) {
     return EXIT_SUCCESS;
 }
 
+int test_new_netns_exec(int argc, char **argv) {
+    if (argc < 2) {
+        fprintf(stderr, "Please specify at least an executable path\n");
+        return EXIT_FAILURE;
+    }
+
+    if (unshare(CLONE_NEWNET)) {
+        perror("unshare");
+        return EXIT_FAILURE;
+    }
+
+    execv(argv[1], argv + 1);
+    fprintf(stderr, "execv failed: %s\n", argv[1]);
+    return EXIT_FAILURE;
+}
+
 int main(int argc, char **argv) {
     if (argc <= 1) {
         fprintf(stderr, "Please pass a command\n");
@@ -707,6 +723,8 @@ int main(int argc, char **argv) {
             exit_code = test_sleep(sub_argc, sub_argv);
         } else if (strcmp(cmd, "fileless") == 0) {
             exit_code = test_memfd_create(sub_argc, sub_argv);
+        } else if (strcmp(cmd, "new_netns_exec") == 0) {
+            exit_code = test_new_netns_exec(sub_argc, sub_argv);
         } else {
             fprintf(stderr, "Unknown command `%s`\n", cmd);
             exit_code = EXIT_FAILURE;
