@@ -12,6 +12,7 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"github.com/DataDog/datadog-agent/pkg/network/tracer/testutil/testdns"
 	"io"
 	"math"
 	"math/rand"
@@ -1354,14 +1355,14 @@ func (s *TracerSuite) TestDNSStatsWithNAT() {
 	t := s.T()
 	testutil.IptablesSave(t)
 	// Setup a NAT rule to translate 2.2.2.2 to 8.8.8.8 and issue a DNS request to 2.2.2.2
-	cmds := []string{"iptables -t nat -A OUTPUT -d 2.2.2.2 -j DNAT --to-destination 8.8.8.8"}
+	cmds := []string{"iptables -t nat -A OUTPUT -d 2.2.2.2 -j DNAT --to-destination " + testdns.GetServerIP(t).String()}
 	testutil.RunCommands(t, cmds, true)
 
 	cfg := testConfig()
 	cfg.CollectDNSStats = true
 	cfg.DNSTimeout = 1 * time.Second
 	tr := setupTracer(t, cfg)
-	testDNSStats(t, tr, "golang.org", 1, 0, 0, "2.2.2.2")
+	testDNSStats(t, tr, "good.com", 1, 0, 0, "2.2.2.2")
 }
 
 func iptablesWrapper(t *testing.T, f func()) {

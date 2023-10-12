@@ -14,6 +14,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/DataDog/datadog-agent/pkg/network/tracer/testutil/testdns"
 	"io"
 	"math/rand"
 	"net"
@@ -999,10 +1000,6 @@ func getConnections(t require.TestingT, tr *Tracer) *network.Connections {
 	return connections
 }
 
-const (
-	validDNSServer = "8.8.8.8"
-)
-
 func testDNSStats(t *testing.T, tr *Tracer, domain string, success, failure, timeout int, serverIP string) {
 	tr.removeClient(clientID)
 	initTracerState(t, tr)
@@ -1070,10 +1067,10 @@ func (s *TracerSuite) TestDNSStats() {
 	cfg.DNSTimeout = 1 * time.Second
 	tr := setupTracer(t, cfg)
 	t.Run("valid domain", func(t *testing.T) {
-		testDNSStats(t, tr, "golang.org", 1, 0, 0, validDNSServer)
+		testDNSStats(t, tr, "good.com", 1, 0, 0, testdns.GetServerIP(t).String())
 	})
 	t.Run("invalid domain", func(t *testing.T) {
-		testDNSStats(t, tr, "abcdedfg", 0, 1, 0, validDNSServer)
+		testDNSStats(t, tr, "abcdedfg", 0, 1, 0, testdns.GetServerIP(t).String())
 	})
 	t.Run("timeout", func(t *testing.T) {
 		testDNSStats(t, tr, "golang.org", 0, 0, 1, "1.2.3.4")
