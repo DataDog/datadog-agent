@@ -716,6 +716,10 @@ runtime_security_config:
     endpoints:
         logs_dd_url: somehost:1234
 
+compliance_config:
+    endpoints:
+        logs_dd_url: somehost:1234
+
 proxy:
   http: http://localhost:1234
   https: https://localhost:1234
@@ -732,6 +736,8 @@ proxy:
 	assert.Equal(t, false, testConfig.GetBool("logs_config.logs_no_ssl"))
 	assert.Equal(t, false, testConfig.GetBool("runtime_security_config.endpoints.use_http"))
 	assert.Equal(t, false, testConfig.GetBool("runtime_security_config.endpoints.logs_no_ssl"))
+	assert.Equal(t, false, testConfig.GetBool("compliance_config.endpoints.use_http"))
+	assert.Equal(t, false, testConfig.GetBool("compliance_config.endpoints.logs_no_ssl"))
 	assert.NotNil(t, testConfig.GetProxies())
 
 	datadogYamlFips := datadogYaml + `
@@ -754,6 +760,8 @@ fips:
 	assert.Equal(t, true, testConfig.GetBool("logs_config.logs_no_ssl"))
 	assert.Equal(t, true, testConfig.GetBool("runtime_security_config.endpoints.use_http"))
 	assert.Equal(t, true, testConfig.GetBool("runtime_security_config.endpoints.logs_no_ssl"))
+	assert.Equal(t, true, testConfig.GetBool("compliance_config.endpoints.use_http"))
+	assert.Equal(t, true, testConfig.GetBool("compliance_config.endpoints.logs_no_ssl"))
 	assert.Nil(t, testConfig.GetProxies())
 
 	datadogYamlFips = datadogYaml + `
@@ -804,6 +812,7 @@ func assertFipsProxyExpectedConfig(t *testing.T, expectedBaseHTTPURL, expectedBa
 		assert.Equal(t, expectedBaseURL+"08", c.GetString("network_devices.metadata.dd_url"))
 		assert.Equal(t, expectedBaseHTTPURL+"12", c.GetString("orchestrator_explorer.orchestrator_dd_url"))
 		assert.Equal(t, expectedBaseURL+"13", c.GetString("runtime_security_config.endpoints.logs_dd_url"))
+		assert.Equal(t, expectedBaseURL+"14", c.GetString("compliance_config.endpoints.logs_dd_url"))
 
 	} else {
 		assert.Equal(t, expectedBaseHTTPURL, c.GetString("dd_url"))
@@ -818,6 +827,7 @@ func assertFipsProxyExpectedConfig(t *testing.T, expectedBaseHTTPURL, expectedBa
 		assert.Equal(t, expectedBaseURL, c.GetString("network_devices.metadata.dd_url"))
 		assert.Equal(t, expectedBaseHTTPURL, c.GetString("orchestrator_explorer.orchestrator_dd_url"))
 		assert.Equal(t, expectedBaseURL, c.GetString("runtime_security_config.endpoints.logs_dd_url"))
+		assert.Equal(t, expectedBaseURL, c.GetString("compliance_config.endpoints.logs_dd_url"))
 	}
 }
 

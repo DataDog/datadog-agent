@@ -1632,6 +1632,7 @@ func setupFipsEndpoints(config Config) error {
 	// port_range_start + 11: appsec events (unused)
 	// port_range_start + 12: orchestrator explorer
 	// port_range_start + 13: runtime security
+	// port_range_start + 14: compliance
 
 	if !config.GetBool("fips.enabled") {
 		log.Debug("FIPS mode is disabled")
@@ -1653,6 +1654,7 @@ func setupFipsEndpoints(config Config) error {
 		appsecEvents               = 11
 		orchestratorExplorer       = 12
 		runtimeSecurity            = 13
+		compliance                 = 14
 	)
 
 	localAddress, err := isLocalAddress(config.GetString("fips.local_address"))
@@ -1707,6 +1709,9 @@ func setupFipsEndpoints(config Config) error {
 
 	// CWS
 	setupFipsLogsConfig(config, "runtime_security_config.endpoints.", urlFor(runtimeSecurity))
+
+	// Compliance
+	setupFipsLogsConfig(config, "compliance_config.endpoints.", urlFor(compliance))
 
 	return nil
 }
