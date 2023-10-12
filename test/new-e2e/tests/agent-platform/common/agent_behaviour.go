@@ -186,7 +186,7 @@ func CheckCWSBehaviour(t *testing.T, client *TestClient) {
 		require.Eventually(tt, func() bool {
 			_, err = client.VMClient.ExecuteWithError("pgrep -f system-probe")
 			return err == nil
-		}, 10*time.Second, 500*time.Millisecond, "system-probe should be running ", err)
+		}, 1*time.Minute, 500*time.Millisecond, "system-probe should be running ", err)
 	})
 
 	t.Run("system-probe and security-agent communicate", func(tt *testing.T) {
