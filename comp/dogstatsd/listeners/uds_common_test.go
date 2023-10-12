@@ -137,12 +137,12 @@ func testUDSReceive(t *testing.T, listenerFactory udsListenerFactory, network st
 	defer conn.Close()
 
 	if network == "unix" {
-		binary.Write(conn, binary.BigEndian, int32(len(contents0)))
+		binary.Write(conn, binary.LittleEndian, int32(len(contents0)))
 	}
 	conn.Write(contents0)
 
 	if network == "unix" {
-		binary.Write(conn, binary.BigEndian, int32(len(contents1)))
+		binary.Write(conn, binary.LittleEndian, int32(len(contents1)))
 	}
 	conn.Write(contents1)
 

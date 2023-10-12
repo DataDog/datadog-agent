@@ -214,7 +214,7 @@ func (l *UDSListener) handleConnection(conn *net.UnixConn) error {
 		var maxPacketLength int32
 		if l.network == "unix" {
 			// Read the expected packet length (in stream mode)
-			err = binary.Read(conn, binary.BigEndian, &expectedPacketLength)
+			err = binary.Read(conn, binary.LittleEndian, &expectedPacketLength)
 			switch {
 			case err == io.EOF, errors.Is(err, io.ErrUnexpectedEOF):
 				log.Debugf("dogstatsd-uds: %s connection closed", l.network)

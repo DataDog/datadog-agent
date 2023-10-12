@@ -26,7 +26,7 @@ def send_stream():
     # Send 4 packets/s until killed
     while True:
         msg = b"custom_counter1:1|c"
-        s.send(len(msg).to_bytes(4, byteorder='big'))
+        s.send(len(msg).to_bytes(4, byteorder='little'))
         s.send(msg)
         time.sleep(0.25)
 
