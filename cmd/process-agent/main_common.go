@@ -207,7 +207,7 @@ func anyChecksEnabled(checks []types.CheckComponent) bool {
 	return false
 }
 
-func shouldEnableProcessAgent(checks []types.CheckComponent, cfg ddconfig.ConfigReader) bool {
+func shouldEnableProcessAgent(checks []types.CheckComponent, cfg ddconfig.Reader) bool {
 	return anyChecksEnabled(checks) || collector.Enabled(cfg)
 }
 

@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2019-present Datadog, Inc.
 
+// Package jsonquery interacts with jq queries
 package jsonquery
 
 import (

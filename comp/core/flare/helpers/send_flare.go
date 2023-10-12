@@ -50,7 +50,7 @@ func NewLocalFlareSource() FlareSource {
 // NewRemoteConfigFlareSource returns a flare source struct for remote-config
 func NewRemoteConfigFlareSource(rcTaskUUID string) FlareSource {
 	return FlareSource{
-		sourceType: "local",
+		sourceType: "remote-config",
 		rcTaskUUID: rcTaskUUID,
 	}
 }

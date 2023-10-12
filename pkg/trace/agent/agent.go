@@ -187,9 +187,7 @@ func (a *Agent) loop() {
 	<-a.ctx.Done()
 	log.Info("Exiting...")
 
-	// Stop OTLPReceiver before Receiver to avoid sending to closed channel
-	a.OTLPReceiver.Stop()
-
+	a.OTLPReceiver.Stop() // Stop OTLPReceiver before Receiver to avoid sending to closed channel
 	if err := a.Receiver.Stop(); err != nil {
 		log.Error(err)
 	}
@@ -268,7 +266,7 @@ func (a *Agent) Process(p *api.Payload) {
 			continue
 		}
 
-		if filteredByTags(root, a.conf.RequireTags, a.conf.RejectTags) {
+		if filteredByTags(root, a.conf.RequireTags, a.conf.RejectTags, a.conf.RequireTagsRegex, a.conf.RejectTagsRegex) {
 			log.Debugf("Trace rejected as it fails to meet tag requirements. root: %v", root)
 			ts.TracesFiltered.Inc()
 			ts.SpansFiltered.Add(tracen)
@@ -580,15 +578,26 @@ func traceContainsError(trace pb.Trace) bool {
 	return false
 }
 
-func filteredByTags(root *pb.Span, require, reject []*config.Tag) bool {
+func filteredByTags(root *pb.Span, require, reject []*config.Tag, requireRegex, rejectRegex []*config.TagRegex) bool {
 	for _, tag := range reject {
 		if v, ok := root.Meta[tag.K]; ok && (tag.V == "" || v == tag.V) {
+			return true
+		}
+	}
+	for _, tag := range rejectRegex {
+		if v, ok := root.Meta[tag.K]; ok && (tag.V == nil || tag.V.MatchString(v)) {
 			return true
 		}
 	}
 	for _, tag := range require {
 		v, ok := root.Meta[tag.K]
 		if !ok || (tag.V != "" && v != tag.V) {
+			return true
+		}
+	}
+	for _, tag := range requireRegex {
+		v, ok := root.Meta[tag.K]
+		if !ok || (tag.V != nil && !tag.V.MatchString(v)) {
 			return true
 		}
 	}

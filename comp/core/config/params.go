@@ -86,6 +86,7 @@ func NewSecurityAgentParams(securityAgentConfigFilePaths []string, options ...fu
 	return params
 }
 
+// NewClusterAgentParams returns a new Params struct for the cluster agent
 func NewClusterAgentParams(configFilePath string, options ...func(*Params)) Params {
 	params := NewParams(DefaultConfPath, options...)
 	params.ConfFilePath = configFilePath
@@ -93,42 +94,49 @@ func NewClusterAgentParams(configFilePath string, options ...func(*Params)) Para
 	return params
 }
 
+// WithConfigName returns an option which sets the config name
 func WithConfigName(name string) func(*Params) {
 	return func(b *Params) {
 		b.configName = name
 	}
 }
 
+// WithConfigMissingOK returns an option which sets configMissingOK
 func WithConfigMissingOK(v bool) func(*Params) {
 	return func(b *Params) {
 		b.configMissingOK = v
 	}
 }
 
+// WithIgnoreErrors returns an option which sets ignoreErrors
 func WithIgnoreErrors(v bool) func(*Params) {
 	return func(b *Params) {
 		b.ignoreErrors = v
 	}
 }
 
+// WithSecurityAgentConfigFilePaths returns an option which sets securityAgentConfigFilePaths
 func WithSecurityAgentConfigFilePaths(securityAgentConfigFilePaths []string) func(*Params) {
 	return func(b *Params) {
 		b.securityAgentConfigFilePaths = securityAgentConfigFilePaths
 	}
 }
 
+// WithConfigLoadSecurityAgent returns an option which sets configLoadSecurityAgent
 func WithConfigLoadSecurityAgent(configLoadSecurityAgent bool) func(*Params) {
 	return func(b *Params) {
 		b.configLoadSecurityAgent = configLoadSecurityAgent
 	}
 }
 
+// WithConfFilePath returns an option which sets ConfFilePath
 func WithConfFilePath(confFilePath string) func(*Params) {
 	return func(b *Params) {
 		b.ConfFilePath = confFilePath
 	}
 }
 
+// WithConfigLoadSecrets returns an option which sets configLoadSecrets
 func WithConfigLoadSecrets(configLoadSecrets bool) func(*Params) {
 	return func(b *Params) {
 		b.configLoadSecrets = configLoadSecrets

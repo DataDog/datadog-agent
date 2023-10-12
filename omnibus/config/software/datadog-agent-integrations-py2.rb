@@ -9,40 +9,7 @@ require 'json'
 name 'datadog-agent-integrations-py2'
 
 dependency 'datadog-agent'
-dependency 'pip2'
-
-
-if arm?
-  # same with libffi to build the cffi wheel
-  dependency 'libffi'
-  # same with libxml2 and libxslt to build the lxml wheel
-  dependency 'libxml2'
-  dependency 'libxslt'
-end
-
-if osx?
-  dependency 'postgresql'
-  dependency 'unixodbc'
-end
-
-if linux?
-  # * Psycopg2 doesn't come with pre-built wheel on the arm architecture.
-  #   to compile from source, it requires the `pg_config` executable present on the $PATH
-  # * We also need it to build psycopg[c] Python dependency
-  # * Note: because having unixodbc already built breaks postgresql build,
-  #   we made unixodbc depend on postgresql to ensure proper build order.
-  #   If we're ever removing/changing one of these dependencies, we need to
-  #   take this into account.
-  dependency 'postgresql'
-  # add nfsiostat script
-  dependency 'unixodbc'
-  dependency 'freetds'  # needed for SQL Server integration
-  dependency 'nfsiostat'
-  # add libkrb5 for all integrations supporting kerberos auth with `requests-kerberos`
-  dependency 'libkrb5'
-  # needed for glusterfs
-  dependency 'gstatus'
-end
+dependency 'datadog-agent-integrations-py2-dependencies'
 
 relative_path 'integrations-core'
 whitelist_file "embedded/lib/python2.7/site-packages/.libsaerospike"
@@ -59,7 +26,7 @@ end
 default_version integrations_core_version
 
 # folder names containing integrations from -core that won't be packaged with the Agent
-blacklist_folders = [
+excluded_folders = [
   'datadog_checks_base',           # namespacing package for wheels (NOT AN INTEGRATION)
   'datadog_checks_dev',            # Development package, (NOT AN INTEGRATION)
   'datadog_checks_tests_helper',   # Testing and Development package, (NOT AN INTEGRATION)
@@ -67,44 +34,41 @@ blacklist_folders = [
 ]
 
 # package names of dependencies that won't be added to the Agent Python environment
-blacklist_packages = Array.new
+excluded_packages = Array.new
 
 
 if suse?
-  # Temporarily blacklist Aerospike until builder supports new dependency
-  blacklist_packages.push(/^aerospike==/)
-  blacklist_folders.push('aerospike')
+  # Temporarily exclude Aerospike until builder supports new dependency
+  excluded_packages.push(/^aerospike==/)
+  excluded_folders.push('aerospike')
 end
 
 if osx?
-  # Blacklist aerospike, new version 3.10 is not supported on MacOS yet
-  blacklist_folders.push('aerospike')
+  # exclude aerospike, new version 3.10 is not supported on MacOS yet
+  excluded_folders.push('aerospike')
 
-  # Temporarily blacklist Aerospike until builder supports new dependency
-  blacklist_packages.push(/^aerospike==/)
-  blacklist_folders.push('aerospike')
+  # Temporarily exclude Aerospike until builder supports new dependency
+  excluded_packages.push(/^aerospike==/)
+  excluded_folders.push('aerospike')
 end
 
 if arm?
-  # Temporarily blacklist Aerospike until builder supports new dependency
-  blacklist_folders.push('aerospike')
-  blacklist_packages.push(/^aerospike==/)
+  # Temporarily exclude Aerospike until builder supports new dependency
+  excluded_folders.push('aerospike')
+  excluded_packages.push(/^aerospike==/)
 
   # This doesn't build on ARM
-  blacklist_folders.push('ibm_mq')
-  blacklist_packages.push(/^pymqi==/)
+  excluded_folders.push('ibm_mq')
+  excluded_packages.push(/^pymqi==/)
 end
 
 if arm? || !_64_bit?
-  blacklist_packages.push(/^orjson==/)
+  excluded_packages.push(/^orjson==/)
 end
 
 if linux?
-  # We need to use cython<3.0.0 to build pyyaml for py2
-  dependency 'pyyaml-py2'
-  blacklist_packages.push(/^pyyaml==/)
-  dependency 'kubernetes-py2'
-  blacklist_packages.push(/^kubernetes==/)
+  excluded_packages.push(/^pyyaml==/)
+  excluded_packages.push(/^kubernetes==/)
 end
 
 final_constraints_file = 'final_constraints-py2.txt'
@@ -210,7 +174,7 @@ build do
       compiled_reqs_file_path = "#{install_dir}/#{agent_requirements_file}"
     end
 
-    # Remove any blacklisted requirements from the static-environment req file
+    # Remove any excluded requirements from the static-environment req file
     requirements = Array.new
 
     # Creating a hash containing the requirements and requirements file path associated to every lib
@@ -230,28 +194,20 @@ build do
     end
 
     File.open("#{static_reqs_in_file}", 'r+').readlines().each do |line|
-      blacklist_flag = false
-      blacklist_packages.each do |blacklist_regex|
-        re = Regexp.new(blacklist_regex).freeze
-        if re.match line
-          blacklist_flag = true
-        end
-      end
+      next if excluded_packages.any? { |package_regex| line.match(package_regex) }
 
-      if !blacklist_flag
-        if line.start_with?('psycopg[binary]') && !windows?
-            line.sub! 'psycopg[binary]', 'psycopg[c]'
-        end
-        # Keeping the custom env requirements lines apart to install them with a specific env
-        requirements_custom.each do |lib, lib_req|
-          if Regexp.new('^' + lib + '==').freeze.match line
-            lib_req["req_lines"].push(line)
-          end
-        end
-        # In any case we add the lib to the requirements files to avoid inconsistency in the installed versions
-        # For example if aerospike has dependency A>1.2.3 and a package in the big requirements file has A<1.2.3, the install process would succeed but the integration wouldn't work.
-        requirements.push(line)
+      if line.start_with?('psycopg[binary]') && !windows?
+          line.sub! 'psycopg[binary]', 'psycopg[c]'
       end
+      # Keeping the custom env requirements lines apart to install them with a specific env
+      requirements_custom.each do |lib, lib_req|
+        if Regexp.new('^' + lib + '==').freeze.match line
+          lib_req["req_lines"].push(line)
+        end
+      end
+      # In any case we add the lib to the requirements files to avoid inconsistency in the installed versions
+      # For example if aerospike has dependency A>1.2.3 and a package in the big requirements file has A<1.2.3, the install process would succeed but the integration wouldn't work.
+      requirements.push(line)
     end
 
     # Adding pympler for memory debug purposes
@@ -322,8 +278,8 @@ build do
     Dir.glob("#{project_dir}/*").each do |check_dir|
       check = check_dir.split('/').last
 
-      # do not install blacklisted integrations
-      next if !File.directory?("#{check_dir}") || blacklist_folders.include?(check)
+      # do not install excluded integrations
+      next if !File.directory?("#{check_dir}") || excluded_folders.include?(check)
 
       # If there is no manifest file, then we should assume the folder does not
       # contain a working check and move onto the next

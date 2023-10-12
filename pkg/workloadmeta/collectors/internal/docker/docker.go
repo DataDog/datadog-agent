@@ -535,7 +535,7 @@ func (c *collector) handleImageEvent(ctx context.Context, event *docker.ImageEve
 	return nil
 }
 
-func (c *collector) getImageMetadata(ctx context.Context, imageID string, bom *workloadmeta.SBOM) (*workloadmeta.ContainerImageMetadata, error) {
+func (c *collector) getImageMetadata(ctx context.Context, imageID string, newSBOM *workloadmeta.SBOM) (*workloadmeta.ContainerImageMetadata, error) {
 	imgInspect, err := c.dockerUtil.ImageInspect(ctx, imageID)
 	if err != nil {
 		return nil, err
@@ -560,7 +560,7 @@ func (c *collector) getImageMetadata(ctx context.Context, imageID string, bom *w
 		imgInspect.RepoDigests,
 	)
 
-	existingBOM := bom
+	sbom := newSBOM
 	// We can get "create" events for images that already exist. That happens
 	// when the same image is referenced with different names. For example,
 	// datadog/agent:latest and datadog/agent:7 might refer to the same image.
@@ -579,8 +579,14 @@ func (c *collector) getImageMetadata(ctx context.Context, imageID string, bom *w
 			imageName = existingImg.Name
 		}
 
-		if existingBOM == nil && existingImg.SBOM != nil {
-			existingBOM = existingImg.SBOM
+		if sbom == nil && existingImg.SBOM.Status != workloadmeta.Pending {
+			sbom = existingImg.SBOM
+		}
+	}
+
+	if sbom == nil {
+		sbom = &workloadmeta.SBOM{
+			Status: workloadmeta.Pending,
 		}
 	}
 
@@ -601,7 +607,7 @@ func (c *collector) getImageMetadata(ctx context.Context, imageID string, bom *w
 		Architecture: imgInspect.Architecture,
 		Variant:      imgInspect.Variant,
 		Layers:       layersFromDockerHistory(imageHistory),
-		SBOM:         existingBOM,
+		SBOM:         sbom,
 	}, nil
 }
 

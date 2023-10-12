@@ -14,6 +14,18 @@ Package aggregator implements the "aggregator" bundle,
 
 Package demultiplexer defines the aggregator demultiplexer
 
+## [comp/checks](https://pkg.go.dev/github.com/DataDog/dd-agent-comp-experiments/comp/checks) (Component Bundle)
+
+*Datadog Team*: agent-shared-components
+
+Package checks implements the "checks" bundle, for all of the component based agent checks
+
+### [comp/checks/agentcrashdetect](https://pkg.go.dev/github.com/DataDog/dd-agent-comp-experiments/comp/checks/agentcrashdetect)
+
+*Datadog Team*: windows-kernel-integrations
+
+Package agentcrashdetect ... /* TODO: detailed doc comment for the component */
+
 ## [comp/core](https://pkg.go.dev/github.com/DataDog/dd-agent-comp-experiments/comp/core) (Component Bundle)
 
 *Datadog Team*: agent-shared-components
@@ -96,7 +108,7 @@ by the Agent.
 
 ### [comp/metadata/resources](https://pkg.go.dev/github.com/DataDog/dd-agent-comp-experiments/comp/metadata/resources)
 
-Package runner implements a component to generate the 'resources' metadata payload.
+Package resources implements a component to generate the 'resources' metadata payload.
 
 ### [comp/metadata/runner](https://pkg.go.dev/github.com/DataDog/dd-agent-comp-experiments/comp/metadata/runner)
 
@@ -239,6 +251,10 @@ Package systray provides a component for the system tray application
 *Datadog Team*: agent-apm
 
 Package trace implements the "trace" bundle, providing components for the Trace Agent
+
+### [comp/trace/agent](https://pkg.go.dev/github.com/DataDog/dd-agent-comp-experiments/comp/trace/agent)
+
+
 
 ### [comp/trace/config](https://pkg.go.dev/github.com/DataDog/dd-agent-comp-experiments/comp/trace/config)
 

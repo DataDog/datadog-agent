@@ -114,6 +114,25 @@ func (z *ClientGroupedStats) DecodeMsg(dc *msgp.Reader) (err error) {
 				err = msgp.WrapError(err, "SpanKind")
 				return
 			}
+		case "PeerTags":
+			var zb0002 uint32
+			zb0002, err = dc.ReadArrayHeader()
+			if err != nil {
+				err = msgp.WrapError(err, "PeerTags")
+				return
+			}
+			if cap(z.PeerTags) >= int(zb0002) {
+				z.PeerTags = (z.PeerTags)[:zb0002]
+			} else {
+				z.PeerTags = make([]string, zb0002)
+			}
+			for za0001 := range z.PeerTags {
+				z.PeerTags[za0001], err = dc.ReadString()
+				if err != nil {
+					err = msgp.WrapError(err, "PeerTags", za0001)
+					return
+				}
+			}
 		default:
 			err = dc.Skip()
 			if err != nil {
@@ -127,9 +146,9 @@ func (z *ClientGroupedStats) DecodeMsg(dc *msgp.Reader) (err error) {
 
 // EncodeMsg implements msgp.Encodable
 func (z *ClientGroupedStats) EncodeMsg(en *msgp.Writer) (err error) {
-	// map header, size 15
+	// map header, size 16
 	// write "Service"
-	err = en.Append(0x8f, 0xa7, 0x53, 0x65, 0x72, 0x76, 0x69, 0x63, 0x65)
+	err = en.Append(0xde, 0x0, 0x10, 0xa7, 0x53, 0x65, 0x72, 0x76, 0x69, 0x63, 0x65)
 	if err != nil {
 		return
 	}
@@ -278,15 +297,32 @@ func (z *ClientGroupedStats) EncodeMsg(en *msgp.Writer) (err error) {
 		err = msgp.WrapError(err, "SpanKind")
 		return
 	}
+	// write "PeerTags"
+	err = en.Append(0xa8, 0x50, 0x65, 0x65, 0x72, 0x54, 0x61, 0x67, 0x73)
+	if err != nil {
+		return
+	}
+	err = en.WriteArrayHeader(uint32(len(z.PeerTags)))
+	if err != nil {
+		err = msgp.WrapError(err, "PeerTags")
+		return
+	}
+	for za0001 := range z.PeerTags {
+		err = en.WriteString(z.PeerTags[za0001])
+		if err != nil {
+			err = msgp.WrapError(err, "PeerTags", za0001)
+			return
+		}
+	}
 	return
 }
 
 // MarshalMsg implements msgp.Marshaler
 func (z *ClientGroupedStats) MarshalMsg(b []byte) (o []byte, err error) {
 	o = msgp.Require(b, z.Msgsize())
-	// map header, size 15
+	// map header, size 16
 	// string "Service"
-	o = append(o, 0x8f, 0xa7, 0x53, 0x65, 0x72, 0x76, 0x69, 0x63, 0x65)
+	o = append(o, 0xde, 0x0, 0x10, 0xa7, 0x53, 0x65, 0x72, 0x76, 0x69, 0x63, 0x65)
 	o = msgp.AppendString(o, z.Service)
 	// string "Name"
 	o = append(o, 0xa4, 0x4e, 0x61, 0x6d, 0x65)
@@ -330,6 +366,12 @@ func (z *ClientGroupedStats) MarshalMsg(b []byte) (o []byte, err error) {
 	// string "SpanKind"
 	o = append(o, 0xa8, 0x53, 0x70, 0x61, 0x6e, 0x4b, 0x69, 0x6e, 0x64)
 	o = msgp.AppendString(o, z.SpanKind)
+	// string "PeerTags"
+	o = append(o, 0xa8, 0x50, 0x65, 0x65, 0x72, 0x54, 0x61, 0x67, 0x73)
+	o = msgp.AppendArrayHeader(o, uint32(len(z.PeerTags)))
+	for za0001 := range z.PeerTags {
+		o = msgp.AppendString(o, z.PeerTags[za0001])
+	}
 	return
 }
 
@@ -441,6 +483,25 @@ func (z *ClientGroupedStats) UnmarshalMsg(bts []byte) (o []byte, err error) {
 				err = msgp.WrapError(err, "SpanKind")
 				return
 			}
+		case "PeerTags":
+			var zb0002 uint32
+			zb0002, bts, err = msgp.ReadArrayHeaderBytes(bts)
+			if err != nil {
+				err = msgp.WrapError(err, "PeerTags")
+				return
+			}
+			if cap(z.PeerTags) >= int(zb0002) {
+				z.PeerTags = (z.PeerTags)[:zb0002]
+			} else {
+				z.PeerTags = make([]string, zb0002)
+			}
+			for za0001 := range z.PeerTags {
+				z.PeerTags[za0001], bts, err = msgp.ReadStringBytes(bts)
+				if err != nil {
+					err = msgp.WrapError(err, "PeerTags", za0001)
+					return
+				}
+			}
 		default:
 			bts, err = msgp.Skip(bts)
 			if err != nil {
@@ -455,7 +516,10 @@ func (z *ClientGroupedStats) UnmarshalMsg(bts []byte) (o []byte, err error) {
 
 // Msgsize returns an upper bound estimate of the number of bytes occupied by the serialized message
 func (z *ClientGroupedStats) Msgsize() (s int) {
-	s = 1 + 8 + msgp.StringPrefixSize + len(z.Service) + 5 + msgp.StringPrefixSize + len(z.Name) + 9 + msgp.StringPrefixSize + len(z.Resource) + 15 + msgp.Uint32Size + 5 + msgp.StringPrefixSize + len(z.Type) + 7 + msgp.StringPrefixSize + len(z.DBType) + 5 + msgp.Uint64Size + 7 + msgp.Uint64Size + 9 + msgp.Uint64Size + 10 + msgp.BytesPrefixSize + len(z.OkSummary) + 13 + msgp.BytesPrefixSize + len(z.ErrorSummary) + 11 + msgp.BoolSize + 13 + msgp.Uint64Size + 12 + msgp.StringPrefixSize + len(z.PeerService) + 9 + msgp.StringPrefixSize + len(z.SpanKind)
+	s = 3 + 8 + msgp.StringPrefixSize + len(z.Service) + 5 + msgp.StringPrefixSize + len(z.Name) + 9 + msgp.StringPrefixSize + len(z.Resource) + 15 + msgp.Uint32Size + 5 + msgp.StringPrefixSize + len(z.Type) + 7 + msgp.StringPrefixSize + len(z.DBType) + 5 + msgp.Uint64Size + 7 + msgp.Uint64Size + 9 + msgp.Uint64Size + 10 + msgp.BytesPrefixSize + len(z.OkSummary) + 13 + msgp.BytesPrefixSize + len(z.ErrorSummary) + 11 + msgp.BoolSize + 13 + msgp.Uint64Size + 12 + msgp.StringPrefixSize + len(z.PeerService) + 9 + msgp.StringPrefixSize + len(z.SpanKind) + 9 + msgp.ArrayHeaderSize
+	for za0001 := range z.PeerTags {
+		s += msgp.StringPrefixSize + len(z.PeerTags[za0001])
+	}
 	return
 }
 

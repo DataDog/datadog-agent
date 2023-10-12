@@ -113,7 +113,7 @@ func (p *Resolver) AddNewEntry(pid uint32, ppid uint32, file string, commandLine
 	e.PIDContext.Pid = pid
 	e.PPid = ppid
 
-	e.Process.Args = commandLine
+	e.Process.CmdLine = commandLine
 	e.Process.FileEvent.PathnameStr = file
 	e.Process.FileEvent.BasenameStr = filepath.Base(e.Process.FileEvent.PathnameStr)
 	e.ExecTime = time.Now()
@@ -198,10 +198,10 @@ func (p *Resolver) Snapshot() {
 		e.PIDContext.Pid = Pid(pid)
 		e.PPid = Pid(proc.Ppid)
 
-		e.Process.Args = strings.Join(proc.GetCmdline(), " ")
+		e.Process.CmdLine = strings.Join(proc.GetCmdline(), " ")
 		e.Process.FileEvent.PathnameStr = proc.Exe
 		e.Process.FileEvent.BasenameStr = filepath.Base(e.Process.FileEvent.PathnameStr)
-		e.ExecTime = time.Unix(0, proc.Stats.CreateTime)
+		e.ExecTime = time.Unix(0, proc.Stats.CreateTime*int64(time.Millisecond))
 
 		entries = append(entries, e)
 
