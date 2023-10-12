@@ -90,7 +90,13 @@ func ResetGlobalLeaderEngine() {
 }
 
 // GetLeaderEngine returns a leader engine client with default parameters.
-func GetLeaderEngine(ctx context.Context) (*LeaderEngine, error) {
+func GetLeaderEngine() (*LeaderEngine, error) {
+	return GetCustomLeaderEngine(context.Background(), "", defaultLeaderLeaseDuration)
+}
+
+// CreateLeaderEngine should be called at start with the main context to release the lease on shutdown.
+// It initializes the leader election client.
+func CreateLeaderEngine(ctx context.Context) (*LeaderEngine, error) {
 	return GetCustomLeaderEngine(ctx, "", defaultLeaderLeaseDuration)
 }
 

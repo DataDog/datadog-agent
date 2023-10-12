@@ -192,7 +192,7 @@ func start(log log.Component, config config.Component, telemetry telemetry.Compo
 	demux := aggregator.InitAndStartAgentDemultiplexer(log, forwarder, opts, hname)
 	demux.AddAgentStartupTelemetry(fmt.Sprintf("%s - Datadog Cluster Agent", version.AgentVersion))
 
-	le, err := leaderelection.GetLeaderEngine(mainCtx)
+	le, err := leaderelection.CreateLeaderEngine(mainCtx)
 	if err != nil {
 		return err
 	}

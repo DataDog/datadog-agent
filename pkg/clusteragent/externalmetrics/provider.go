@@ -47,7 +47,7 @@ func NewDatadogMetricProvider(ctx context.Context, apiCl *apiserver.APIClient) (
 		return nil, fmt.Errorf("Impossible to create DatadogMetricProvider without valid APIClient")
 	}
 
-	le, err := leaderelection.GetLeaderEngine(context.Background())
+	le, err := leaderelection.GetLeaderEngine()
 	if err != nil {
 		return nil, fmt.Errorf("Unable to create DatadogMetricProvider as LeaderElection failed with: %v", err)
 	}
