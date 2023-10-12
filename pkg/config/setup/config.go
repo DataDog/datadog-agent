@@ -1644,6 +1644,7 @@ func setupFipsEndpoints(config pkgconfigmodel.Config) error {
 	// port_range_start + 11: appsec events (unused)
 	// port_range_start + 12: orchestrator explorer
 	// port_range_start + 13: runtime security
+	// port_range_start + 14: compliance
 	// port_range_start + 15: network devices netflow
 
 	if !config.GetBool("fips.enabled") {
@@ -1666,7 +1667,8 @@ func setupFipsEndpoints(config pkgconfigmodel.Config) error {
 		appsecEvents               = 11
 		orchestratorExplorer       = 12
 		runtimeSecurity            = 13
-		networkDevicesNetflow      = 15 // 14 is reserved for compliance (#20230)
+		compliance                 = 14
+		networkDevicesNetflow      = 15
 	)
 
 	localAddress, err := system.IsLocalAddress(config.GetString("fips.local_address"))
@@ -1737,6 +1739,9 @@ func setupFipsEndpoints(config pkgconfigmodel.Config) error {
 
 	// CWS
 	setupFipsLogsConfig(config, "runtime_security_config.endpoints.", urlFor(runtimeSecurity))
+
+	// Compliance
+	setupFipsLogsConfig(config, "compliance_config.endpoints.", urlFor(compliance))
 
 	return nil
 }
