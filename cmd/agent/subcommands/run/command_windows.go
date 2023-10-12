@@ -37,6 +37,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
 	logsAgent "github.com/DataDog/datadog-agent/comp/logs/agent"
 	"github.com/DataDog/datadog-agent/comp/metadata/host"
+	"github.com/DataDog/datadog-agent/comp/metadata/inventoryagent"
 	"github.com/DataDog/datadog-agent/comp/metadata/runner"
 	netflowServer "github.com/DataDog/datadog-agent/comp/netflow/server"
 	otelcollector "github.com/DataDog/datadog-agent/comp/otelcol/collector"
@@ -77,12 +78,29 @@ func StartAgentWithDefaults(ctxChan <-chan context.Context) (<-chan error, error
 			otelcollector otelcollector.Component,
 			demultiplexer demultiplexer.Component,
 			hostMetadata host.Component,
+			invAgent inventoryagent.Component,
 			_ netflowServer.Component,
 		) error {
 
 			defer StopAgentWithDefaults(server, demultiplexer)
 
-			err := startAgent(&cliParams{GlobalParams: &command.GlobalParams{}}, log, flare, telemetry, sysprobeconfig, server, capture, serverDebug, rcclient, logsAgent, forwarder, sharedSerializer, otelcollector, demultiplexer, hostMetadata)
+			err := startAgent(
+				&cliParams{GlobalParams: &command.GlobalParams{}},
+				log,
+				flare,
+				telemetry,
+				sysprobeconfig,
+				server,
+				capture,
+				serverDebug,
+				rcclient,
+				logsAgent,
+				forwarder,
+				sharedSerializer,
+				otelcollector,
+				demultiplexer,
+				hostMetadata,
+				invAgent)
 			if err != nil {
 				return err
 			}
