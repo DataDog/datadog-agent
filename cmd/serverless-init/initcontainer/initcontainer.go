@@ -129,12 +129,7 @@ func handleSignals(
 					_ = syscall.Kill(process.Pid, sig.(syscall.Signal))
 				}
 				if sig == syscall.SIGTERM {
-					_, err := process.Wait()
-					if err != nil {
-						serverlessLog.Write(config, []byte(fmt.Sprintf("[datadog init process] exiting with code = %s", err)), false)
-					} else {
-						serverlessLog.Write(config, []byte("[datadog init process] exiting successfully"), false)
-					}
+					serverlessLog.Write(config, []byte("[datadog init process] child process received SIGTERM. Flushing shutdown metrics and terminate when/if the child process does"), false)
 					metric.AddShutdownMetric(cloudService.GetPrefix(), metricAgent.GetExtraTags(), time.Now(), metricAgent.Demux)
 					flush(config.FlushTimeout, metricAgent, traceAgent, logsAgent)
 				}
