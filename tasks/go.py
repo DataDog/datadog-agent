@@ -4,11 +4,11 @@ Golang related tasks go here
 
 import glob
 import os
+import re
 import shutil
 import textwrap
-from pathlib import Path
-import re
 from collections import defaultdict
+from pathlib import Path
 
 
 from invoke import task
