@@ -313,10 +313,10 @@ func Test_loadProfiles(t *testing.T) {
 					DefinitionFile: validationErrorProfile,
 				},
 			},
-			expectedProfileDefMap: nil,
-			expectedIncludeErrors: []string{
-				"cannot compile `match` (`global_metric_tags[\\w)(\\w+)`)",
-				"cannot compile `match` (`table_match[\\w)`)",
+			expectedProfileDefMap: profileConfigMap{},
+			expectedLogs: []logCount{
+				{"cannot compile `match` (`global_metric_tags[\\w)(\\w+)`)", 1},
+				{"cannot compile `match` (`table_match[\\w)`)", 1},
 			},
 		},
 	}
