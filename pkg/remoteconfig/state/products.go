@@ -6,6 +6,7 @@
 package state
 
 var validProducts = map[string]struct{}{
+	ProductDebug:             {},
 	ProductAgentConfig:       {},
 	ProductAgentTask:         {},
 	ProductAgentIntegrations: {},
@@ -23,6 +24,8 @@ var validProducts = map[string]struct{}{
 }
 
 const (
+	// ProductDebug is to receive debug configurations
+	ProductDebug = "DEBUG"
 	// ProductAgentConfig is to receive agent configurations, like the log level
 	ProductAgentConfig = "AGENT_CONFIG"
 	// ProductAgentIntegrations is to receive integrations to schedule

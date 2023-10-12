@@ -14,6 +14,8 @@ const (
 	defaultGuiPort              = -1
 	// DefaultSecurityAgentLogFile points to the log file that will be used by the security-agent if not configured
 	DefaultSecurityAgentLogFile = "/var/log/datadog/security-agent.log"
+	// DefaultSideScannerLogFile points to the log file that will be used by the side-scanner if not configured
+	DefaultSideScannerLogFile = "/var/log/datadog/side-scanner.log"
 	// DefaultProcessAgentLogFile is the default process-agent log file
 	DefaultProcessAgentLogFile = "/var/log/datadog/process-agent.log"
 
