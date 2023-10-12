@@ -495,12 +495,14 @@ def is_system_probe(owners, files):
 
 @task
 def changelog(ctx, new_commit_sha):
-    old_commit_sha = ctx.run(
-        "aws ssm get-parameter --region us-east-1 --name "
-        "ci.datadog-agent.gitlab_changelog_commit_sha --with-decryption --query "
-        "\"Parameter.Value\" --out text",
-        hide=True,
-    ).stdout.strip()
+    # old_commit_sha = ctx.run(
+    #     "aws ssm get-parameter --region us-east-1 --name "
+    #     "ci.datadog-agent.gitlab_changelog_commit_sha --with-decryption --query "
+    #     "\"Parameter.Value\" --out text",
+    #     hide=True,
+    # ).stdout.strip()
+    old_commit_sha = "33cdb548"
+    new_commit_sha = "ec96f3c2"
     if not new_commit_sha:
         print("New commit sha not found, exiting")
         return
@@ -525,14 +527,16 @@ def changelog(ctx, new_commit_sha):
         author_handle = ctx.run(f"email2slackid {author_email.strip()}", hide=True).stdout
         if author_handle:
             author_handle = f"<@{author_handle}>"
+            print(f"Author handle: {author_handle}")
         else:
             author_handle = author_email
         time.sleep(1)  # necessary to prevent slack/sdm API rate limits
-        messages.append(f"{message_link} {author_handle}")
+        messages.append(f"{message_link} {author_handle}\n")
+        print(f"Message: {message_link} {author_handle}")
 
     commit_range_link = f"https://github.com/DataDog/datadog-agent/compare/{old_commit_sha}..{new_commit_sha}"
     slack_message = (
-        "The nightly deployment is rolling out to Staging :siren: \n"
+        "The nightly deployment is rolling out to Staging :siren:"
         + f"Changelog for <{commit_range_link}|commit range>: `{old_commit_sha}` to `{new_commit_sha}`:\n"
     )
     if messages:
@@ -541,16 +545,16 @@ def changelog(ctx, new_commit_sha):
             "<https://ddstaging.datadoghq.com/dashboard/kfn-zy2-t98|dashboards> for issues"
         )
     else:
-        slack_message += "No new System Probe related commits in this release :cricket:"
+        slack_message += "\nNo new System Probe related commits in this release :cricket:"
 
     print(f"Posting message to slack \n {slack_message}")
-    send_slack_message("system-probe-ops", slack_message)
-    print(f"Writing new commit sha: {new_commit_sha} to SSM")
-    ctx.run(
-        f"aws ssm put-parameter --name ci.datadog-agent.gitlab_changelog_commit_sha --value {new_commit_sha} "
-        "--type \"SecureString\" --region us-east-1 --overwrite",
-        hide=True,
-    )
+    # send_slack_message("adamk-test", slack_message)
+    # print(f"Writing new commit sha: {new_commit_sha} to SSM")
+    # ctx.run(
+    #     f"aws ssm put-parameter --name ci.datadog-agent.gitlab_changelog_commit_sha --value {new_commit_sha} "
+    #     "--type \"SecureString\" --region us-east-1 --overwrite",
+    #     hide=True,
+    # )
 
 
 @task
