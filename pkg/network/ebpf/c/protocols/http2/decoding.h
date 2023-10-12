@@ -157,7 +157,6 @@ static __always_inline __u8 filter_relevant_headers(struct __sk_buff *skb, skb_i
             }
         }
     }
-    log_debug("[grpcplain] >> interesting headers: %d\n", interesting_headers);
 
     return interesting_headers;
 }
@@ -187,11 +186,9 @@ static __always_inline void process_headers(struct __sk_buff *skb, dynamic_table
             } else if (current_header->index >= k200 && current_header->index <= k500) {
                 current_stream->response_status_code = *static_value;
             } else if (current_header->index == kEmptyPath) {
-                log_debug("[grpcplain] >>>> empty path");
                 current_stream->path_size = HTTP_ROOT_PATH_LEN;
                 bpf_memcpy(current_stream->request_path, HTTP_ROOT_PATH, HTTP_ROOT_PATH_LEN);
             } else if (current_header->index == kIndexPath) {
-                log_debug("[grpcplain] >>>> index path");
                 current_stream->path_size = HTTP_INDEX_PATH_LEN;
                 bpf_memcpy(current_stream->request_path, HTTP_INDEX_PATH, HTTP_INDEX_PATH_LEN);
             }
@@ -229,7 +226,6 @@ static __always_inline void process_headers_frame(struct __sk_buff *skb, http2_s
     bpf_memset(headers_to_process, 0, HTTP2_MAX_HEADERS_COUNT_FOR_PROCESSING * sizeof(http2_header_t));
 
     __u8 interesting_headers = filter_relevant_headers(skb, skb_info, tup, dynamic_index, headers_to_process, current_frame_header->length);
-    log_debug("[grpcplain] >> relevant headers %u", interesting_headers);
     if (interesting_headers > 0) {
         process_headers(skb, dynamic_index, current_stream, headers_to_process, interesting_headers);
     }
@@ -315,16 +311,6 @@ int socket__http2_filter(struct __sk_buff *skb) {
         return 0;
     }
 
-    log_debug("[http2_filter] conn tuple: saddr_h=%lu saddr_l=%lu",
-        dispatcher_args_copy.tup.saddr_h,
-        dispatcher_args_copy.tup.saddr_l);
-    log_debug("[http2_filter] conn tuple: daddr_h=%lu daddr_l=%lu",
-        dispatcher_args_copy.tup.daddr_h,
-        dispatcher_args_copy.tup.daddr_l);
-    log_debug("[http2_filter] conn tuple: sport=%u dport=%u",
-        dispatcher_args_copy.tup.sport,
-        dispatcher_args_copy.tup.dport);
-
     // If we detected a tcp termination we should stop processing the packet, and clear its dynamic table by deleting the counter.
     if (is_tcp_termination(&dispatcher_args_copy.skb_info)) {
         // Deleting the entry for the original tuple.
@@ -350,7 +336,6 @@ int socket__http2_filter(struct __sk_buff *skb) {
 
     // filter frames
     iteration_value.frames_count = find_relevant_headers(skb, &local_skb_info, iteration_value.frames_array);
-    log_debug("[grpcplain] > frames count: %d\n", iteration_value.frames_count);
     if (iteration_value.frames_count == 0) {
         return 0;
     }
@@ -435,18 +420,6 @@ int uprobe__http2_tls_entry(struct pt_regs *ctx) {
         return 0;
     }
 
-    /* log_debug("[grpctls - info tup] conn tuple: saddr_h=%lu saddr_l=%lu", */
-    /*     info->tup.saddr_h, */
-    /*     info->tup.saddr_l); */
-    /* log_debug("[grpctls - info tup] conn tuple: daddr_h=%lu daddr_l=%lu", */
-    /*     info->tup.daddr_h, */
-    /*     info->tup.daddr_l); */
-    /* log_debug("[grpctls - info tup] conn tuple: sport=%u dport=%u", */
-    /*     info->tup.sport, */
-    /*     info->tup.dport); */
-
-    log_debug("[grpctls] --- info: buf=%p, len=%lu ---", info->buf, info->len);
-
     // TODO: from tls_info: add bool from tls_finish to trigger this case
     //
     // If we detected a tcp termination we should stop processing the packet, and clear its dynamic table by deleting the counter.
@@ -467,16 +440,12 @@ int uprobe__http2_tls_entry(struct pt_regs *ctx) {
     key.length = info->len;
     http2_tls_state_t *state = bpf_map_lookup_elem(&http2_tls_states, &key);
     if (!state) {
-        log_debug("[grpctls] state not found");
         // filter frames
         struct http2_frame header;
         bool relevant = is_relevant_frame_tls(info, &header);
         if (!relevant) {
-            log_debug("[grpctls] not relevant frame");
             return 0;
         }
-
-        log_debug("[grpctls] relevant frame");
 
         bpf_memset(&new_state, 0, sizeof(new_state));
         new_state.should_skip = !relevant;
@@ -501,7 +470,6 @@ int uprobe__http2_tls_entry(struct pt_regs *ctx) {
     }
 
     if (state->should_skip) {
-        log_debug("[grpctls] should_skip true");
         bpf_map_delete_elem(&http2_tls_states, &key);
         goto exit;
     }
@@ -530,7 +498,6 @@ int uprobe__http2_tls_frames_parser(struct pt_regs *ctx) {
     key.length = info->len;
     http2_tls_state_t *state = bpf_map_lookup_elem(&http2_tls_states, &key);
     if (!state) {
-        log_debug("[grpctls] could not get state from frame parser");
         goto exit;
     }
 
@@ -545,16 +512,6 @@ int uprobe__http2_tls_frames_parser(struct pt_regs *ctx) {
     normalize_tuple(&http2_ctx->http2_stream_key.tup);
     http2_ctx->dynamic_index.tup = info->tup;
     http2_ctx->http2_stream_key.stream_id = state->stream_id;
-
-    log_debug("[http2_tls_frames_parser] conn tuple: saddr_h=%lu saddr_l=%lu",
-        http2_ctx->http2_stream_key.tup.saddr_h,
-        http2_ctx->http2_stream_key.tup.saddr_l);
-    log_debug("[http2_tls_frames_parser] conn tuple: daddr_h=%lu daddr_l=%lu",
-        http2_ctx->http2_stream_key.tup.daddr_h,
-        http2_ctx->http2_stream_key.tup.daddr_l);
-    log_debug("[http2_tls_frames_parser] conn tuple: sport=%u dport=%u",
-        http2_ctx->http2_stream_key.tup.sport,
-        http2_ctx->http2_stream_key.tup.dport);
 
     parse_frame_tls(info, http2_ctx, state->frame_flags);
     if (info->off >= info->len) {

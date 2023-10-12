@@ -79,19 +79,14 @@ static __always_inline bool is_relevant_frame_tls(tls_dispatcher_arguments_t *in
 
     // Checking we can read HTTP2_FRAME_HEADER_SIZE from the skb.
     if (info->off + HTTP2_FRAME_HEADER_SIZE > info->len) {
-        log_debug("[grpctls] could not read frame header");
         return false;
     }
 
     read_into_user_buffer_http2_frame_header((char *)header, info->buf + info->off);
     info->off += HTTP2_FRAME_HEADER_SIZE;
     if (!format_http2_frame_header(header)) {
-        log_debug("[grpctls] could not read frame header");
         return false;
     }
-
-    log_debug("[grpctls] frame: len=%u, type=%u", header->length, header->type);
-    log_debug("[grpctls] info->off: %u, info->len=%u", info->off, info->len);
 
     // END_STREAM can appear only in Headers and Data frames.
     // Check out https://datatracker.ietf.org/doc/html/rfc7540#section-6.1 for data frame, and
@@ -199,8 +194,6 @@ static __always_inline __u8 filter_relevant_headers_tls(tls_dispatcher_arguments
         }
     }
 
-    log_debug("[grpctls] >> interesting headers: %d\n", interesting_headers);
-
     return interesting_headers;
 }
 
@@ -213,31 +206,24 @@ static __always_inline void process_headers_tls(tls_dispatcher_arguments_t *info
         if (iteration >= interesting_headers) {
             break;
         }
-        log_debug("[grpctls] >>> iteration %u", iteration);
-
         current_header = &headers_to_process[iteration];
 
         if (current_header->type == kStaticHeader) {
-            log_debug("[grpctls] static header");
             static_table_value_t *static_value = bpf_map_lookup_elem(&http2_static_table, &current_header->index);
             if (static_value == NULL) {
                 break;
             }
 
             if (current_header->index == kPOST || current_header->index == kGET) {
-                log_debug("[grpctls] POST or GET");
                 // TODO: mark request
                 current_stream->request_started = bpf_ktime_get_ns();
                 current_stream->request_method = *static_value;
             } else if (current_header->index >= k200 && current_header->index <= k500) {
-                log_debug("[grpctls] status code");
                 current_stream->response_status_code = *static_value;
             } else if (current_header->index == kEmptyPath) {
-                log_debug("[grpctls] >>>> empty path");
                 current_stream->path_size = HTTP_ROOT_PATH_LEN;
                 bpf_memcpy(current_stream->request_path, HTTP_ROOT_PATH, HTTP_ROOT_PATH_LEN);
             } else if (current_header->index == kIndexPath) {
-                log_debug("[grpctls] >>>> index path");
                 current_stream->path_size = HTTP_INDEX_PATH_LEN;
                 bpf_memcpy(current_stream->request_path, HTTP_INDEX_PATH, HTTP_INDEX_PATH_LEN);
             }
@@ -246,7 +232,6 @@ static __always_inline void process_headers_tls(tls_dispatcher_arguments_t *info
 
         dynamic_index->index = current_header->index;
         if (current_header->type == kExistingDynamicHeader) {
-            log_debug("[grpctls] existing dynamic header");
             dynamic_table_entry_t *dynamic_value = bpf_map_lookup_elem(&http2_dynamic_table, dynamic_index);
             if (dynamic_value == NULL) {
                 break;
@@ -254,7 +239,6 @@ static __always_inline void process_headers_tls(tls_dispatcher_arguments_t *info
             current_stream->path_size = dynamic_value->string_len;
             bpf_memcpy(current_stream->request_path, dynamic_value->buffer, HTTP2_MAX_PATH_LEN);
         } else {
-            log_debug("[grpctls] new dynamic header - value size: %u", current_header->new_dynamic_value_size);
             dynamic_value.string_len = current_header->new_dynamic_value_size;
 
             // create the new dynamic value which will be added to the internal table.
@@ -277,7 +261,6 @@ static __always_inline void process_headers_frame_tls(tls_dispatcher_arguments_t
     bpf_memset(headers_to_process, 0, HTTP2_MAX_HEADERS_COUNT_FOR_PROCESSING * sizeof(http2_header_t));
 
     __u8 interesting_headers = filter_relevant_headers_tls(info, dynamic_index, headers_to_process);
-    log_debug("[grpctls] >> relevant headers %u", interesting_headers);
     if (interesting_headers > 0) {
         process_headers_tls(info, dynamic_index, current_stream, headers_to_process, interesting_headers);
     }
@@ -292,7 +275,6 @@ static __always_inline void parse_frame_tls(tls_dispatcher_arguments_t *info, ht
     process_headers_frame_tls(info, current_stream, &http2_ctx->dynamic_index);
 
     if ((frame_flags & HTTP2_END_OF_STREAM) == HTTP2_END_OF_STREAM) {
-        log_debug("[grpctls] end of stream: tags %u", info->tags);
         handle_end_of_stream(current_stream, &http2_ctx->http2_stream_key, info->tags);
     }
 

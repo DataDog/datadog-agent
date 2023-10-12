@@ -28,8 +28,6 @@ static __always_inline bool format_http2_frame_header(struct http2_frame *out) {
     out->length = bpf_ntohl(out->length << 8);
     out->stream_id = bpf_ntohl(out->stream_id << 1);
 
-    log_debug("[grpctls] length: %d, type: %d", out->length, out->type);
-
     return out->type <= kContinuationFrame;
 }
 
@@ -96,8 +94,6 @@ static __always_inline void handle_end_of_stream(http2_stream_t *current_stream,
         current_stream->request_end_of_stream = true;
         return;
     }
-
-    log_debug("Got EndOfStream event");
 
     // response end of stream;
     current_stream->response_last_seen = bpf_ktime_get_ns();
