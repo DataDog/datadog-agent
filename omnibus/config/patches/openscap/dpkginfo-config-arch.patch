@@ -1,0 +1,16 @@
+--- a/src/OVAL/probes/unix/linux/dpkginfo-helper.cxx
++++ b/src/OVAL/probes/unix/linux/dpkginfo-helper.cxx
+@@ -42,6 +42,13 @@ static int opencache (void) {
+             if (SrcCacheFileName.empty() == false) {
+                 _config->Set("Dir::Cache::srcpkgcache","srcpkgcache.bin");
+             }
++
++            string const arch = _config->Find("APT::Architecture");
++            std::vector<std::string> static archs = _config->FindVector("APT::Architectures");
++
++            if (archs.empty()) {
++                _config->Set("APT::Architectures",arch);
++            }
+         }
+ 
+         if (pkgInitSystem (*_config, _system) == false) return 0;
