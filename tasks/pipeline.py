@@ -528,9 +528,9 @@ def changelog(ctx, new_commit_sha):
         if author_email in EMAIL_SLACK_ID_MAP:
             author_handle = EMAIL_SLACK_ID_MAP[author_email]
         else:
-            author_handle = ctx.run(f"email2slackid {author_email.strip()}", hide=True).stdout
+            author_handle = ctx.run(f"email2slackid {author_email.strip()}", hide=True).stdout.strip()
         if author_handle:
-            author_handle = f"<@{author_handle.strip()}>"
+            author_handle = f"<@{author_handle}>"
         else:
             author_handle = author_email
         time.sleep(1)  # necessary to prevent slack/sdm API rate limits
