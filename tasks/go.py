@@ -7,6 +7,9 @@ import os
 import shutil
 import textwrap
 from pathlib import Path
+import re
+from collections import defaultdict
+
 
 from invoke import task
 from invoke.exceptions import Exit
@@ -15,6 +18,7 @@ from .build_tags import ALL_TAGS, UNIT_TEST_TAGS, get_default_build_tags
 from .licenses import get_licenses_list
 from .modules import DEFAULT_MODULES, generate_dummy_package
 from .utils import get_build_flags, timed
+
 
 GOOS_MAPPING = {
     "win32": "windows",
@@ -425,3 +429,76 @@ def go_fix(ctx, fix=None):
             for osname in oslist:
                 tags = set(ALL_TAGS).union({osname, "ebpf_bindata"})
                 ctx.run(f"go fix{fixarg} -tags {','.join(tags)} ./...")
+
+
+@task
+def go_mod_diffs(ctx, targets=''):
+    """
+    Lists differences in versions of libraries in the repo,
+    optionally compared to a list of target go.mod files.
+
+    Parameters:
+    - targets (str): Comma-separated list of paths to target go.mod files.
+    """
+    # Convert the comma-separated list to an actual list
+    target_list = [target.strip() for target in targets.split(',')] if targets else []
+
+    # Find all go.mod files in the repo
+    result = ctx.run("find . -name go.mod", hide=True)
+    all_go_mod_files = result.stdout.splitlines()
+
+    # Validate the provided targets
+    for target in target_list:
+        if target not in all_go_mod_files:
+            print(f"Error: Target go.mod file '{target}' not found.")
+            return
+
+    for target in target_list:
+        all_go_mod_files.remove(target)
+
+    # Dictionary to store library versions
+    library_versions = defaultdict(lambda: defaultdict(set))
+
+    # Regular expression to match require statements in go.mod
+    require_pattern = re.compile(r'^\s*([a-zA-Z0-9.\-/]+)\s+([a-zA-Z0-9.\-+]+)')
+
+    # Process each go.mod file
+    for go_mod_file in all_go_mod_files + target_list:
+        with open(go_mod_file, 'r') as f:
+            inside_require_block = False
+            for line in f:
+                line = line.strip()
+                if line == "require (":
+                    inside_require_block = True
+                    continue
+                elif inside_require_block and line == ")":
+                    inside_require_block = False
+                    continue
+                if inside_require_block or line.startswith("require "):
+                    match = require_pattern.match(line)
+                    if match:
+                        library, version = match.groups()
+                        if not library.startswith("github.com/DataDog/datadog-agent/"):
+                            library_versions[library][version].add(go_mod_file)
+
+    # List libraries with multiple versions
+    for library, versions in library_versions.items():
+        if target_list:
+            relevant_paths = {
+                path for version_paths in versions.values() for path in version_paths if path in target_list
+            }
+            if relevant_paths:
+                print(f"Library {library} differs in:")
+                for version, paths in versions.items():
+                    intersecting_paths = set(paths).intersection(target_list)
+                    if intersecting_paths:
+                        print(f"  - Version {version} in:")
+                        for path in intersecting_paths:
+                            print(f"    * {path}")
+        else:
+            if len(versions) > 1:
+                print(f"Library {library} has different versions:")
+                for version, paths in versions.items():
+                    print(f"  - Version {version} in:")
+                    for path in paths:
+                        print(f"    * {path}")
