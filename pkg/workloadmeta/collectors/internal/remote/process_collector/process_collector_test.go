@@ -102,7 +102,7 @@ func TestCollection(t *testing.T) {
 						Kind: workloadmeta.KindProcess,
 					},
 					NsPid:        345,
-					ContainerId:  "cid",
+					ContainerID:  "cid",
 					Language:     &languagemodels.Language{Name: languagemodels.Java},
 					CreationTime: time.UnixMilli(creationTime),
 				},
@@ -144,7 +144,7 @@ func TestCollection(t *testing.T) {
 						Kind: workloadmeta.KindProcess,
 					},
 					NsPid:        345,
-					ContainerId:  "cid",
+					ContainerID:  "cid",
 					Language:     &languagemodels.Language{Name: languagemodels.Java},
 					CreationTime: time.UnixMilli(creationTime),
 				},
@@ -154,7 +154,7 @@ func TestCollection(t *testing.T) {
 						Kind: workloadmeta.KindProcess,
 					},
 					NsPid:        567,
-					ContainerId:  "cid",
+					ContainerID:  "cid",
 					Language:     &languagemodels.Language{Name: languagemodels.Java},
 					CreationTime: time.UnixMilli(creationTime),
 				},
@@ -198,7 +198,7 @@ func TestCollection(t *testing.T) {
 							Kind: workloadmeta.KindProcess,
 						},
 						NsPid:        345,
-						ContainerId:  "cid",
+						ContainerID:  "cid",
 						Language:     &languagemodels.Language{Name: languagemodels.Java},
 						CreationTime: time.UnixMilli(creationTime),
 					},
@@ -225,7 +225,7 @@ func TestCollection(t *testing.T) {
 						Kind: workloadmeta.KindProcess,
 					},
 					NsPid:        678,
-					ContainerId:  "cid",
+					ContainerID:  "cid",
 					Language:     &languagemodels.Language{Name: languagemodels.Java},
 					CreationTime: time.UnixMilli(creationTime),
 				},
@@ -285,11 +285,9 @@ func TestCollection(t *testing.T) {
 				numberOfReponse++
 			}
 			go func() {
-				j := 0
 				for i := 0; i < numberOfReponse; i++ {
 					bundle := <-ch
 					close(bundle.Ch)
-					j++
 				}
 				close(doneCh)
 				mockStore.Unsubscribe(ch)

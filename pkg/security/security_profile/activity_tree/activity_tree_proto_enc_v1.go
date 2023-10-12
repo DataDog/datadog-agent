@@ -97,7 +97,7 @@ func processNodeToProto(p *model.Process) *adproto.ProcessInfo {
 
 		Credentials: credentialsToProto(&p.Credentials),
 
-		Args:          copyAndEscape(p.ScrubbedArgv),
+		Args:          copyAndEscape(p.Argv),
 		Argv0:         escape(p.Argv0),
 		ArgsTruncated: p.ArgsTruncated,
 

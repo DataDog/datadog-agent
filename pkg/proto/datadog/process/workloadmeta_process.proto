@@ -44,6 +44,7 @@ message PodLanguageDetails {
   string name = 2;
   repeated ContainerLanguageDetails containerDetails = 3;
   KubeOwnerInfo ownerref = 4;
+  repeated ContainerLanguageDetails initContainerDetails = 5;
 }
 
 // ContainerLanguageDetails contains the different languages used in a container

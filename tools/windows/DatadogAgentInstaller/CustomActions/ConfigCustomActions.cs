@@ -344,7 +344,8 @@ namespace Datadog.CustomActions
             var configFolder = session.Property("APPLICATIONDATADIRECTORY");
             var datadogYaml = Path.Combine(configFolder, "datadog.yaml");
             var systemProbeYaml = Path.Combine(configFolder, "system-probe.yaml");
-
+            var securityAgentYaml = Path.Combine(configFolder, "security-agent.yaml");
+            var injectionControllerYaml = Path.Combine(configFolder, "apm-inject.yaml");
             try
             {
                 if (!File.Exists(systemProbeYaml))
@@ -370,6 +371,25 @@ namespace Datadog.CustomActions
                     output.Write(yaml);
                 }
 
+                // Conditionally include the security agent YAML while it is in active development to make it easier
+                // to build/ship without it.
+                if (File.Exists(securityAgentYaml + ".example"))
+                {
+                    if (!File.Exists(securityAgentYaml))
+                    {
+                        File.Copy(securityAgentYaml + ".example", securityAgentYaml);
+                    }
+                }
+
+                // Conditionally include the APM injection MSM while it is in active development to make it easier
+                // to build/ship without it.
+                if (File.Exists(injectionControllerYaml + ".example"))
+                {
+                    if (!File.Exists(injectionControllerYaml))
+                    {
+                        File.Copy(injectionControllerYaml + ".example", injectionControllerYaml);
+                    }
+                }
             }
             catch (Exception e)
             {

@@ -3,6 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+// Package retry implements a configurable retry mechanism that can be embedded
+// in any class needing a retry-on-error system.
 package retry
 
 import (

@@ -204,6 +204,10 @@ func (t *Tracer) RegisterClient(clientID string) error {
 	return nil
 }
 
+func (t *Tracer) removeClient(clientID string) {
+	t.state.RemoveClient(clientID)
+}
+
 func (t *Tracer) getConnTelemetry() map[network.ConnTelemetryType]int64 {
 	return map[network.ConnTelemetryType]int64{
 		network.MonotonicDNSPacketsDropped: driver.HandleTelemetry.ReadPacketsSkipped.Load(),
@@ -253,7 +257,7 @@ func (t *Tracer) DebugDumpProcessCache(ctx context.Context) (interface{}, error)
 }
 
 func newUSMMonitor(c *config.Config, dh driver.Handle) usm.Monitor {
-	if !c.EnableHTTPMonitoring && !c.EnableHTTPSMonitoring {
+	if !c.EnableHTTPMonitoring && !c.EnableNativeTLSMonitoring {
 		return nil
 	}
 	log.Infof("http monitoring has been enabled")

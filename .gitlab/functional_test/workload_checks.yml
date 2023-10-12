@@ -3,7 +3,7 @@ single-machine-performance-workload-checks:
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/docker_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
   tags: ["runner:docker"]
   rules:
-    !reference [.on_deploy_nightly_repo_branch_a7]
+    !reference [.on_scheduled_main]
   needs:
     - job: single_machine_performance-nightly-amd64-a7
       artifacts: false

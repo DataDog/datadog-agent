@@ -664,6 +664,19 @@ logs_config:
 	assert.NotNil(t, err)
 }
 
+func TestUsePodmanLogs(t *testing.T) {
+	// If use_podman_logs is true and docker_path_override is not set, the config should not return an error
+	datadogYaml := `
+logs_config:
+  use_podman_logs: true
+`
+
+	config := SetupConfFromYAML(datadogYaml)
+	err := checkConflictingOptions(config)
+
+	assert.Nil(t, err)
+}
+
 func TestSetupFipsEndpoints(t *testing.T) {
 	datadogYaml := `
 dd_url: https://somehost:1234
@@ -902,4 +915,25 @@ func TestLanguageDetectionSettings(t *testing.T) {
 	t.Setenv("DD_LANGUAGE_DETECTION_ENABLED", "true")
 	testConfig = SetupConfFromYAML("")
 	require.True(t, testConfig.GetBool("language_detection.enabled"))
+}
+
+func TestPeerTagsYAML(t *testing.T) {
+	testConfig := SetupConfFromYAML("")
+	require.Nil(t, testConfig.GetStringSlice("apm_config.peer_tags"))
+
+	datadogYaml := `
+apm_config:
+  peer_tags: ["aws.s3.bucket", "db.instance", "db.system"]
+`
+	testConfig = SetupConfFromYAML(datadogYaml)
+	require.Equal(t, []string{"aws.s3.bucket", "db.instance", "db.system"}, testConfig.GetStringSlice("apm_config.peer_tags"))
+}
+
+func TestPeerTagsEnv(t *testing.T) {
+	testConfig := SetupConfFromYAML("")
+	require.Nil(t, testConfig.GetStringSlice("apm_config.peer_tags"))
+
+	t.Setenv("DD_APM_PEER_TAGS", `["aws.s3.bucket","db.instance","db.system"]`)
+	testConfig = SetupConfFromYAML("")
+	require.Equal(t, []string{"aws.s3.bucket", "db.instance", "db.system"}, testConfig.GetStringSlice("apm_config.peer_tags"))
 }

@@ -45,12 +45,12 @@ const (
 	DD_FILE_FULL            = (windows.STANDARD_RIGHTS_REQUIRED | windows.SYNCHRONIZE | 0x1FF)
 )
 
-func getFileDacl(fileName string) (*winutil.Acl, winutil.AclSizeInformation, error) {
-	var aclInfo winutil.AclSizeInformation
-	var fileDacl *winutil.Acl
+func getFileDacl(fileName string) (*winutil.ACL, winutil.ACL_SIZE_INFORMATION, error) {
+	var aclInfo winutil.ACL_SIZE_INFORMATION
+	var fileDacl *winutil.ACL
 	err := winutil.GetNamedSecurityInfo(fileName,
-		winutil.SE_FILE_OBJECT,
-		winutil.DACL_SECURITY_INFORMATION,
+		windows.SE_FILE_OBJECT,
+		windows.DACL_SECURITY_INFORMATION,
 		nil,
 		nil,
 		&fileDacl,
@@ -60,7 +60,7 @@ func getFileDacl(fileName string) (*winutil.Acl, winutil.AclSizeInformation, err
 		return nil, aclInfo, fmt.Errorf("cannot get security info for file '%s', error `%s`", fileName, err)
 	}
 
-	err = winutil.GetAclInformation(fileDacl, &aclInfo, winutil.AclSizeInformationEnum)
+	err = winutil.GetAclInformation(fileDacl, &aclInfo, winutil.AclSizeInformation)
 	if err != nil {
 		return nil, aclInfo, fmt.Errorf("cannot get acl info for file '%s', error `%s`", fileName, err)
 	}
@@ -76,8 +76,8 @@ func getFileDacl(fileName string) (*winutil.Acl, winutil.AclSizeInformation, err
 //
 // ACCESS_ALLOWED_ACE and ACCESS_DENIED_ACE are the same and we can use winutil.AccessAllowedAce
 // and quickly bailout if other ACE type is used. We may extend it in the future
-func getAce(fileName string, acl *winutil.Acl, idx uint32) (*winutil.AccessAllowedAce, error) {
-	var ace *winutil.AccessAllowedAce
+func getAce(fileName string, acl *winutil.ACL, idx uint32) (*winutil.ACCESS_ALLOWED_ACE, error) {
+	var ace *winutil.ACCESS_ALLOWED_ACE
 	if err := winutil.GetAce(acl, idx, &ace); err != nil {
 		return nil, fmt.Errorf("could not query a ACE on '%s': %s", fileName, err)
 	}

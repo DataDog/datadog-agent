@@ -80,15 +80,17 @@ struct syscall_cache_t {
         } setattr;
 
         struct {
-            struct mount *src_mnt;
-            struct mount *dest_mnt;
-            struct mount *bind_src_mnt;
-            struct mountpoint *dest_mountpoint;
-            struct path_key_t root_key;
-            struct path_key_t path_key;
-            struct path_key_t bind_src_key;
+            // collected from kernel functions arguments
+            struct mount *newmnt;
+            struct mount *parent;
+            struct dentry *mountpoint_dentry;
+            u32 bind_src_mount_id;
+            // populated from collected
             const char *fstype;
-        } mount;
+            struct path_key_t root_key;
+            struct path_key_t mountpoint_key;
+            dev_t device;
+         } mount;
 
         struct {
             struct vfsmount *vfs;
@@ -195,16 +197,6 @@ struct syscall_cache_t {
             u16 family;
             u16 port;
         } bind;
-
-        struct {
-            struct mount *mnt;
-            struct mount *parent;
-            struct dentry *mp_dentry;
-            const char *fstype;
-            struct path_key_t root_key;
-            struct path_key_t path_key;
-            unsigned long flags;
-        } unshare_mntns;
     };
 };
 

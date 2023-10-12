@@ -112,6 +112,7 @@ const (
 
 	// System Probe general config values
 	AgentSPOOMKillEnabled                AgentMetadataName = "feature_oom_kill_enabled"
+	AgentSPWinCrashEnabled               AgentMetadataName = "feature_windows_crash_detection_enabled"
 	AgentSPTCPQueueLengthEnabled         AgentMetadataName = "feature_tcp_queue_length_enabled"
 	AgentSPTelemetryEnabled              AgentMetadataName = "system_probe_telemetry_enabled"
 	AgentSPCOREEnabled                   AgentMetadataName = "system_probe_core_enabled"
@@ -468,15 +469,15 @@ func initializeConfig(cfg config.Config) {
 	SetAgentMetadata(AgentProcessesContainerEnabled, cfg.GetBool("process_config.container_collection.enabled"))
 	SetAgentMetadata(AgentNetworksEnabled, config.SystemProbe.GetBool("network_config.enabled"))
 	SetAgentMetadata(AgentNetworksHTTPEnabled, config.SystemProbe.GetBool("service_monitoring_config.enable_http_monitoring"))
-	SetAgentMetadata(AgentNetworksHTTPSEnabled, config.SystemProbe.GetBool("network_config.enable_https_monitoring"))
+	SetAgentMetadata(AgentNetworksHTTPSEnabled, config.SystemProbe.GetBool("service_monitoring_config.tls.native.enabled"))
 	SetAgentMetadata(AgentUSMEnabled, config.SystemProbe.GetBool("service_monitoring_config.enabled"))
 	SetAgentMetadata(AgentUSMKafkaEnabled, config.SystemProbe.GetBool("data_streams_config.enabled"))
 	SetAgentMetadata(AgentRemoteConfigEnabled, cfg.GetBool("remote_configuration.enabled"))
-	SetAgentMetadata(AgentUSMJavaTLSEnabled, config.SystemProbe.GetBool("service_monitoring_config.enable_java_tls_support"))
+	SetAgentMetadata(AgentUSMJavaTLSEnabled, config.SystemProbe.GetBool("service_monitoring_config.tls.java.enabled"))
 	SetAgentMetadata(AgentUSMHTTP2Enabled, config.SystemProbe.GetBool("service_monitoring_config.enable_http2_monitoring"))
-	SetAgentMetadata(AgentUSMIstioEnabled, config.SystemProbe.GetBool("service_monitoring_config.enable_istio_monitoring"))
+	SetAgentMetadata(AgentUSMIstioEnabled, config.SystemProbe.GetBool("service_monitoring_config.tls.istio.enabled"))
 	SetAgentMetadata(AgentUSMHTTPStatsByStatusCodeEnabled, config.SystemProbe.GetBool("service_monitoring_config.enable_http_stats_by_status_code"))
-	SetAgentMetadata(AgentUSMGoTLSEnabled, config.SystemProbe.GetBool("service_monitoring_config.enable_go_tls_support"))
+	SetAgentMetadata(AgentUSMGoTLSEnabled, config.SystemProbe.GetBool("service_monitoring_config.tls.go.enabled"))
 	SetAgentMetadata(AgentDIEnabled, config.SystemProbe.GetBool("dynamic_instrumentation.enabled"))
 	SetAgentMetadata(AgentLogsEnabled, cfg.GetBool("logs_enabled"))
 	SetAgentMetadata(AgentCSPMEnabled, cfg.GetBool("compliance_config.enabled"))
@@ -489,6 +490,7 @@ func initializeConfig(cfg config.Config) {
 	// SystemProbe module level configuration
 	SetAgentMetadata(AgentSPTCPQueueLengthEnabled, config.SystemProbe.GetBool("system_probe_config.enable_tcp_queue_length"))
 	SetAgentMetadata(AgentSPOOMKillEnabled, config.SystemProbe.GetBool("system_probe_config.enable_oom_kill"))
+	SetAgentMetadata(AgentSPWinCrashEnabled, config.SystemProbe.GetBool("windows_crash_detection.enabled"))
 	SetAgentMetadata(AgentSPCOREEnabled, config.SystemProbe.GetBool("system_probe_config.enable_co_re"))
 	SetAgentMetadata(AgentSPRuntimeCompilationEnabled, config.SystemProbe.GetBool("system_probe_config.enable_runtime_compiler"))
 	SetAgentMetadata(AgentSPKernelHeadersDownloadEnabled, config.SystemProbe.GetBool("system_probe_config.enable_kernel_header_download"))

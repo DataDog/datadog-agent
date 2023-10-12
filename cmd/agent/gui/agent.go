@@ -20,6 +20,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/cmd/agent/common/path"
 	"github.com/DataDog/datadog-agent/comp/core/flare"
+	"github.com/DataDog/datadog-agent/comp/core/flare/helpers"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/status"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname"
@@ -149,7 +150,7 @@ func makeFlare(w http.ResponseWriter, r *http.Request, flare flare.Component) {
 		return
 	}
 
-	res, e := flare.Send(filePath, payload.CaseID, payload.Email, "local")
+	res, e := flare.Send(filePath, payload.CaseID, payload.Email, helpers.NewLocalFlareSource())
 	if e != nil {
 		w.Write([]byte("Flare zipfile successfully created: " + filePath + "<br><br>" + e.Error()))
 		log.Errorf("Flare zipfile successfully created: " + filePath + "\n" + e.Error())

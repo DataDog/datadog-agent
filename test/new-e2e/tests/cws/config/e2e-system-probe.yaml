@@ -1,0 +1,7 @@
+system_probe_config:
+  enabled: true
+  log_level: trace
+runtime_security_config:
+  enabled: true
+log_patterns:
+  - module.APIServer.*"

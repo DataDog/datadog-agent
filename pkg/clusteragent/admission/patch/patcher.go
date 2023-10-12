@@ -5,12 +5,14 @@
 
 //go:build kubeapiserver
 
+// Package patch implements the patching of Kubernetes deployments.
 package patch
 
 import (
 	"context"
 	"encoding/json"
 	"fmt"
+
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/common"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/metrics"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/telemetry"
@@ -27,7 +29,7 @@ import (
 type patcher struct {
 	k8sClient          kubernetes.Interface
 	isLeader           func() bool
-	deploymentsQueue   chan PatchRequest
+	deploymentsQueue   chan Request
 	telemetryCollector telemetry.TelemetryCollector
 }
 
@@ -57,7 +59,7 @@ func (p *patcher) start(stopCh <-chan struct{}) {
 }
 
 // patchDeployment applies a patch request to a k8s target deployment
-func (p *patcher) patchDeployment(req PatchRequest) error {
+func (p *patcher) patchDeployment(req Request) error {
 	if !p.isLeader() {
 		log.Debug("Not leader, skipping")
 		return nil
@@ -112,7 +114,7 @@ func (p *patcher) patchDeployment(req PatchRequest) error {
 	return nil
 }
 
-func enableConfig(deploy *corev1.Deployment, req PatchRequest) error {
+func enableConfig(deploy *corev1.Deployment, req Request) error {
 	if deploy.Spec.Template.Labels == nil {
 		deploy.Spec.Template.Labels = make(map[string]string)
 	}
@@ -133,7 +135,7 @@ func enableConfig(deploy *corev1.Deployment, req PatchRequest) error {
 	return nil
 }
 
-func disableConfig(deploy *corev1.Deployment, req PatchRequest) {
+func disableConfig(deploy *corev1.Deployment, req Request) {
 	if deploy.Spec.Template.Labels == nil {
 		deploy.Spec.Template.Labels = make(map[string]string)
 	}

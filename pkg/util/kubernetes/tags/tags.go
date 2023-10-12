@@ -5,6 +5,7 @@
 
 //go:build kubeapiserver
 
+// Package tags provides helpers to extract tags from Kubernetes objects.
 package tags
 
 import (

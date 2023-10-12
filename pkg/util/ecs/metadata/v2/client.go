@@ -5,6 +5,7 @@
 
 //go:build docker
 
+// Package v2 provides an ECS client for v2 of the API.
 package v2
 
 import (
@@ -31,6 +32,7 @@ const (
 	containerStatsPath       = "/stats"
 )
 
+// Client is an interface for ECS metadata v2 API clients.
 type Client interface {
 	GetContainerStats(ctx context.Context, id string) (*ContainerStats, error)
 	GetTask(ctx context.Context) (*Task, error)

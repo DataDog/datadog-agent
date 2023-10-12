@@ -37,6 +37,7 @@ type groupedStats struct {
 	duration        float64
 	okDistribution  *ddsketch.DDSketch
 	errDistribution *ddsketch.DDSketch
+	peerTags        []string
 }
 
 // round a float to an int, uniformly choosing
@@ -75,6 +76,7 @@ func (s *groupedStats) export(a Aggregation) (*pb.ClientGroupedStats, error) {
 		Synthetics:     a.Synthetics,
 		PeerService:    a.PeerService,
 		SpanKind:       a.SpanKind,
+		PeerTags:       s.peerTags,
 	}, nil
 }
 
@@ -147,20 +149,21 @@ func (sb *RawBucket) Export() map[PayloadAggregationKey]*pb.ClientStatsBucket {
 }
 
 // HandleSpan adds the span to this bucket stats, aggregated with the finest grain matching given aggregators
-func (sb *RawBucket) HandleSpan(s *pb.Span, weight float64, isTop bool, origin string, aggKey PayloadAggregationKey, enablePeerSvcAgg bool) {
+func (sb *RawBucket) HandleSpan(s *pb.Span, weight float64, isTop bool, origin string, aggKey PayloadAggregationKey, enablePeerSvcAgg bool, peerTagKeys []string) {
 	if aggKey.Env == "" {
 		panic("env should never be empty")
 	}
-	aggr := NewAggregationFromSpan(s, origin, aggKey, enablePeerSvcAgg)
-	sb.add(s, weight, isTop, aggr)
+	aggr, peerTags := NewAggregationFromSpan(s, origin, aggKey, enablePeerSvcAgg, peerTagKeys)
+	sb.add(s, weight, isTop, aggr, peerTags)
 }
 
-func (sb *RawBucket) add(s *pb.Span, weight float64, isTop bool, aggr Aggregation) {
+func (sb *RawBucket) add(s *pb.Span, weight float64, isTop bool, aggr Aggregation, peerTags []string) {
 	var gs *groupedStats
 	var ok bool
 
 	if gs, ok = sb.data[aggr]; !ok {
 		gs = newGroupedStats()
+		gs.peerTags = peerTags
 		sb.data[aggr] = gs
 	}
 	if isTop {

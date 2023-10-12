@@ -17,6 +17,7 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/security-agent/flags"
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/core/flare/helpers"
 	"github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/pkg/api/util"
 	"github.com/DataDog/datadog-agent/pkg/flare"
@@ -51,7 +52,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				fx.Supply(cliParams),
 				fx.Supply(core.BundleParams{
 					ConfigParams: config.NewSecurityAgentParams(globalParams.ConfigFilePaths, config.WithIgnoreErrors(true)),
-					LogParams:    log.LogForOneShot(command.LoggerName, "off", true)}),
+					LogParams:    log.ForOneShot(command.LoggerName, "off", true)}),
 				core.Bundle,
 			)
 		},
@@ -119,7 +120,7 @@ func requestFlare(log log.Component, config config.Component, params *cliParams)
 		}
 	}
 
-	response, e := flare.SendFlare(filePath, params.caseID, params.customerEmail, "local")
+	response, e := flare.SendFlare(filePath, params.caseID, params.customerEmail, helpers.NewLocalFlareSource())
 	fmt.Println(response)
 	if e != nil {
 		return e

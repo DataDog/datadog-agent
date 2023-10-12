@@ -21,9 +21,19 @@ import "C"
 const Signature = C.DD_PROCMONDRIVER_SIGNATURE
 
 const (
+	ProcmonStartIOCTL = C.DDPROCMONDRIVER_IOCTL_START
+	ProcmonStopIOCTL  = C.DDPROCMONDRIVER_IOCTL_STOP
+	ProcmonStatsIOCTL = C.DDPROCMONDRIVER_IOCTL_GETSTATS
+
+	ProcmonSignature = C.DD_PROCMONDRIVER_SIGNATURE
+)
+
+const (
 	ProcmonNotifyStop  = C.DD_NOTIFY_STOP
 	ProcmonNotifyStart = C.DD_NOTIFY_START
 )
+
+type DDProcmonStats C.struct__dd_procmon_stats
 
 type DDProcessNotifyType C.enum__dd_notify_type
 type DDProcessNotification C.struct__dd_process_notification

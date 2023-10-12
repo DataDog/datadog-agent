@@ -11,11 +11,18 @@ import (
 	"testing"
 
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
+	"github.com/DataDog/datadog-agent/pkg/security/seclog"
 )
 
 type MockEventHandler struct{}
 
-func (MockEventHandler) HandleEvent(event *model.Event) {
+func (MockEventHandler) HandleEvent(incomingEvent any) {
+	event, ok := incomingEvent.(*model.Event)
+	if !ok {
+		seclog.Errorf("Event is not a security model event")
+		return
+	}
+
 	// event already marked with an error, skip it
 	if event.Error != nil {
 		return
@@ -27,7 +34,11 @@ func (MockEventHandler) HandleEvent(event *model.Event) {
 	}
 }
 
-// go test github.com/DataDog/datadog-agent/pkg/security/probe -v -bench="BenchmarkSendSpecificEvent" -run=^# -benchtime=10s -count=7 | tee old.txt
+func (MockEventHandler) Copy(incomingEvent *model.Event) any {
+	return incomingEvent
+}
+
+// go test github.com/DataDog/datadog-agent/pkg/security/probe -v -bench="BenchmarkSendSpecificEvent" -run=^# -benchtime=10s -count=7 | tee new.txt
 // benchstat old.txt new.txt
 func BenchmarkSendSpecificEvent(b *testing.B) {
 	eventHandler := MockEventHandler{}

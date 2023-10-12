@@ -36,6 +36,11 @@ type ScanRequest struct {
 	FromFilesystem   bool
 }
 
+// GetImgMetadata returns the image metadata
+func (r *ScanRequest) GetImgMetadata() *workloadmeta.ContainerImageMetadata {
+	return r.ImageMeta
+}
+
 // Collector returns the collector name
 func (r *ScanRequest) Collector() string {
 	return collectorName
@@ -61,7 +66,7 @@ type Collector struct {
 
 // CleanCache cleans the cache
 func (c *Collector) CleanCache() error {
-	return c.trivyCollector.GetCacheCleaner().Clean()
+	return c.trivyCollector.CleanCache()
 }
 
 // Init initializes the collector

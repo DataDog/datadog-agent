@@ -321,32 +321,36 @@ collect_topology: false
 		{Symbol: profiledefinition.SymbolConfig{OID: "1.3.6.1.4.1.318.1.1.1.11.1.1.0", Name: "upsBasicStateOutputState"}, MetricType: "flag_stream", Options: profiledefinition.MetricsConfigOption{Placement: 2, MetricSuffix: "ReplaceBattery"}},
 		{
 			MetricType: profiledefinition.ProfileMetricTypeMonotonicCount,
+			MIB:        "IF-MIB",
+			Table: profiledefinition.SymbolConfig{
+				OID:  "1.3.6.1.2.1.2.2",
+				Name: "ifTable",
+			},
 			Symbols: []profiledefinition.SymbolConfig{
 				{OID: "1.3.6.1.2.1.2.2.1.14", Name: "ifInErrors", ScaleFactor: 0.5},
 				{OID: "1.3.6.1.2.1.2.2.1.13", Name: "ifInDiscards"},
 			},
 			MetricTags: []profiledefinition.MetricTagConfig{
-				{Tag: "interface", Column: profiledefinition.SymbolConfig{OID: "1.3.6.1.2.1.31.1.1.1.1", Name: "ifName"}},
-				{Tag: "interface_alias", Column: profiledefinition.SymbolConfig{OID: "1.3.6.1.2.1.31.1.1.1.18", Name: "ifAlias"}},
-				{Tag: "mac_address", Column: profiledefinition.SymbolConfig{OID: "1.3.6.1.2.1.2.2.1.6", Name: "ifPhysAddress", Format: "mac_address"}},
+				{Tag: "interface", Symbol: profiledefinition.SymbolConfigCompat{OID: "1.3.6.1.2.1.31.1.1.1.1", Name: "ifName"}},
+				{Tag: "interface_alias", Symbol: profiledefinition.SymbolConfigCompat{OID: "1.3.6.1.2.1.31.1.1.1.18", Name: "ifAlias"}},
+				{Tag: "mac_address", Symbol: profiledefinition.SymbolConfigCompat{OID: "1.3.6.1.2.1.2.2.1.6", Name: "ifPhysAddress", Format: "mac_address"}},
 			},
 			StaticTags: []string{"table_static_tag:val"},
 		},
 	}
 
 	expectedMetricTags := []profiledefinition.MetricTagConfig{
-		{Tag: "snmp_host2", Column: profiledefinition.SymbolConfig{OID: "1.3.6.1.2.1.1.5.0", Name: "sysName"}},
+		{Tag: "snmp_host2", Symbol: profiledefinition.SymbolConfigCompat{OID: "1.3.6.1.2.1.1.5.0", Name: "sysName"}},
 		{
-			OID:   "1.3.6.1.2.1.1.5.0",
-			Name:  "sysName",
-			Match: "(\\w)(\\w+)",
+			Symbol: profiledefinition.SymbolConfigCompat{OID: "1.3.6.1.2.1.1.5.0", Name: "sysName"},
+			Match:  "(\\w)(\\w+)",
 			Tags: map[string]string{
 				"prefix":   "\\1",
 				"suffix":   "\\2",
 				"some_tag": "some_tag_value",
 			},
 		},
-		{Tag: "snmp_host", OID: "1.3.6.1.2.1.1.5.0", Name: "sysName"},
+		{Tag: "snmp_host", Symbol: profiledefinition.SymbolConfigCompat{OID: "1.3.6.1.2.1.1.5.0", Name: "sysName"}},
 	}
 	checkconfig.ValidateEnrichMetrics(expectedMetrics)
 	checkconfig.ValidateEnrichMetricTags(expectedMetricTags)
@@ -368,6 +372,7 @@ collect_topology: false
 	sender.AssertMetric(t, "Gauge", "snmp.sysStatMemoryTotal", float64(60), "", snmpTags)
 
 	expectedMetrics = append(expectedMetrics, profiledefinition.MetricsConfig{
+		MIB:        "F5-BIGIP-SYSTEM-MIB",
 		Symbol:     profiledefinition.SymbolConfig{OID: "1.3.6.1.4.1.3375.2.1.1.2.1.44.0", Name: "sysStatMemoryTotal", ScaleFactor: 2},
 		MetricType: profiledefinition.ProfileMetricTypeGauge,
 	})
@@ -906,19 +911,25 @@ community_string: public
 
 	expectedMetricsConfigs := []profiledefinition.MetricsConfig{
 		{
+			MIB:        "F5-BIGIP-SYSTEM-MIB",
 			Symbol:     profiledefinition.SymbolConfig{OID: "1.3.6.1.4.1.3375.2.1.1.2.1.44.0", Name: "sysStatMemoryTotal", ScaleFactor: 2},
 			MetricType: profiledefinition.ProfileMetricTypeGauge,
 		},
 		{
+			MIB: "IF-MIB",
+			Table: profiledefinition.SymbolConfig{
+				OID:  "1.3.6.1.2.1.2.2",
+				Name: "ifTable",
+			},
 			MetricType: profiledefinition.ProfileMetricTypeMonotonicCount,
 			Symbols: []profiledefinition.SymbolConfig{
 				{OID: "1.3.6.1.2.1.2.2.1.14", Name: "ifInErrors", ScaleFactor: 0.5},
 				{OID: "1.3.6.1.2.1.2.2.1.13", Name: "ifInDiscards"},
 			},
 			MetricTags: []profiledefinition.MetricTagConfig{
-				{Tag: "interface", Column: profiledefinition.SymbolConfig{OID: "1.3.6.1.2.1.31.1.1.1.1", Name: "ifName"}},
-				{Tag: "interface_alias", Column: profiledefinition.SymbolConfig{OID: "1.3.6.1.2.1.31.1.1.1.18", Name: "ifAlias"}},
-				{Tag: "mac_address", Column: profiledefinition.SymbolConfig{OID: "1.3.6.1.2.1.2.2.1.6", Name: "ifPhysAddress", Format: "mac_address"}},
+				{Tag: "interface", Symbol: profiledefinition.SymbolConfigCompat{OID: "1.3.6.1.2.1.31.1.1.1.1", Name: "ifName"}},
+				{Tag: "interface_alias", Symbol: profiledefinition.SymbolConfigCompat{OID: "1.3.6.1.2.1.31.1.1.1.18", Name: "ifAlias"}},
+				{Tag: "mac_address", Symbol: profiledefinition.SymbolConfigCompat{OID: "1.3.6.1.2.1.2.2.1.6", Name: "ifPhysAddress", Format: "mac_address"}},
 			},
 			StaticTags: []string{"table_static_tag:val"},
 		},
@@ -927,17 +938,16 @@ community_string: public
 
 	expectedMetricsTagConfigs := []profiledefinition.MetricTagConfig{
 		{
-			OID:   "1.3.6.1.2.1.1.5.0",
-			Name:  "sysName",
-			Match: "(\\w)(\\w+)",
+			Symbol: profiledefinition.SymbolConfigCompat{OID: "1.3.6.1.2.1.1.5.0", Name: "sysName"},
+			Match:  "(\\w)(\\w+)",
 			Tags: map[string]string{
 				"some_tag": "some_tag_value",
 				"prefix":   "\\1",
 				"suffix":   "\\2",
 			},
 		},
-		{Tag: "snmp_host", OID: "1.3.6.1.2.1.1.5.0", Name: "sysName"},
-		{Tag: "snmp_host2", Column: profiledefinition.SymbolConfig{OID: "1.3.6.1.2.1.1.5.0", Name: "sysName"}},
+		{Tag: "snmp_host", Symbol: profiledefinition.SymbolConfigCompat{OID: "1.3.6.1.2.1.1.5.0", Name: "sysName"}},
+		{Tag: "snmp_host2", Symbol: profiledefinition.SymbolConfigCompat{OID: "1.3.6.1.2.1.1.5.0", Name: "sysName"}},
 	}
 
 	checkconfig.ValidateEnrichMetricTags(expectedMetricsTagConfigs)

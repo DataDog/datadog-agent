@@ -11,7 +11,7 @@ package collector
 import (
 	"go.uber.org/fx"
 
-	"github.com/DataDog/datadog-agent/pkg/otlp"
+	"github.com/DataDog/datadog-agent/comp/otelcol/otlp"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 

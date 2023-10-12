@@ -34,12 +34,12 @@ const (
 
 var letterRunes = []rune("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ")
 
-func randStringRunes(n int) string {
+func randStringRunes(n int) []rune {
 	b := make([]rune, n)
 	for i := range b {
 		b[i] = letterRunes[rand.Intn(len(letterRunes))]
 	}
-	return string(b)
+	return b
 }
 
 type USMgRPCSuite struct {
@@ -107,7 +107,7 @@ func (s *USMgRPCSuite) TestSimpleGRPCScenarios() {
 			},
 			expectedEndpoints: map[http.Key]int{
 				{
-					Path:   http.Path{Content: "/helloworld.Greeter/SayHello"},
+					Path:   http.Path{Content: http.Interner.GetString("/helloworld.Greeter/SayHello")},
 					Method: http.MethodPost,
 				}: 1000,
 			},
@@ -123,11 +123,11 @@ func (s *USMgRPCSuite) TestSimpleGRPCScenarios() {
 			},
 			expectedEndpoints: map[http.Key]int{
 				{
-					Path:   http.Path{Content: "/helloworld.Greeter/SayHello"},
+					Path:   http.Path{Content: http.Interner.GetString("/helloworld.Greeter/SayHello")},
 					Method: http.MethodPost,
 				}: 2,
 				{
-					Path:   http.Path{Content: "/routeguide.RouteGuide/GetFeature"},
+					Path:   http.Path{Content: http.Interner.GetString("/routeguide.RouteGuide/GetFeature")},
 					Method: http.MethodPost,
 				}: 1,
 			},
@@ -144,11 +144,11 @@ func (s *USMgRPCSuite) TestSimpleGRPCScenarios() {
 			},
 			expectedEndpoints: map[http.Key]int{
 				{
-					Path:   http.Path{Content: "/helloworld.Greeter/SayHello"},
+					Path:   http.Path{Content: http.Interner.GetString("/helloworld.Greeter/SayHello")},
 					Method: http.MethodPost,
 				}: 2,
 				{
-					Path:   http.Path{Content: "/routeguide.RouteGuide/GetFeature"},
+					Path:   http.Path{Content: http.Interner.GetString("/routeguide.RouteGuide/GetFeature")},
 					Method: http.MethodPost,
 				}: 2,
 			},
@@ -165,11 +165,11 @@ func (s *USMgRPCSuite) TestSimpleGRPCScenarios() {
 			},
 			expectedEndpoints: map[http.Key]int{
 				{
-					Path:   http.Path{Content: "/helloworld.Greeter/SayHello"},
+					Path:   http.Path{Content: http.Interner.GetString("/helloworld.Greeter/SayHello")},
 					Method: http.MethodPost,
 				}: 2,
 				{
-					Path:   http.Path{Content: "/routeguide.RouteGuide/GetFeature"},
+					Path:   http.Path{Content: http.Interner.GetString("/routeguide.RouteGuide/GetFeature")},
 					Method: http.MethodPost,
 				}: 2,
 			},
@@ -186,7 +186,7 @@ func (s *USMgRPCSuite) TestSimpleGRPCScenarios() {
 			},
 			expectedEndpoints: map[http.Key]int{
 				{
-					Path:   http.Path{Content: "/protobuf.Math/Max"},
+					Path:   http.Path{Content: http.Interner.GetString("/protobuf.Math/Max")},
 					Method: http.MethodPost,
 				}: 25,
 			},
@@ -203,11 +203,11 @@ func (s *USMgRPCSuite) TestSimpleGRPCScenarios() {
 			},
 			expectedEndpoints: map[http.Key]int{
 				{
-					Path:   http.Path{Content: "/protobuf.Math/Max"},
+					Path:   http.Path{Content: http.Interner.GetString("/protobuf.Math/Max")},
 					Method: http.MethodPost,
 				}: 2,
 				{
-					Path:   http.Path{Content: "/helloworld.Greeter/SayHello"},
+					Path:   http.Path{Content: http.Interner.GetString("/helloworld.Greeter/SayHello")},
 					Method: http.MethodPost,
 				}: 2,
 			},
@@ -226,18 +226,18 @@ func (s *USMgRPCSuite) TestSimpleGRPCScenarios() {
 				md := metadata.New(headers)
 				ctxWithHeaders = metadata.NewOutgoingContext(ctxWithHeaders, md)
 				longName := randStringRunes(1024 * 1024)
-				require.NoError(t, clients[getClientsIndex(0, clientsCount)].HandleUnary(ctxWithHeaders, longName))
+				require.NoError(t, clients[getClientsIndex(0, clientsCount)].HandleUnary(ctxWithHeaders, string(longName)))
 				require.NoError(t, clients[getClientsIndex(1, clientsCount)].GetFeature(ctxWithoutHeaders, -746143763, 407838351))
-				require.NoError(t, clients[getClientsIndex(2, clientsCount)].HandleUnary(ctxWithHeaders, longName))
+				require.NoError(t, clients[getClientsIndex(2, clientsCount)].HandleUnary(ctxWithHeaders, string(longName)))
 				require.NoError(t, clients[getClientsIndex(3, clientsCount)].GetFeature(ctxWithoutHeaders, -743999179, 408122808))
 			},
 			expectedEndpoints: map[http.Key]int{
 				{
-					Path:   http.Path{Content: "/routeguide.RouteGuide/GetFeature"},
+					Path:   http.Path{Content: http.Interner.GetString("/routeguide.RouteGuide/GetFeature")},
 					Method: http.MethodPost,
 				}: 2,
 				{
-					Path:   http.Path{Content: "/helloworld.Greeter/SayHello"},
+					Path:   http.Path{Content: http.Interner.GetString("/helloworld.Greeter/SayHello")},
 					Method: http.MethodPost,
 				}: 2,
 			},
@@ -257,18 +257,18 @@ func (s *USMgRPCSuite) TestSimpleGRPCScenarios() {
 				md := metadata.New(headers)
 				ctxWithHeaders = metadata.NewOutgoingContext(ctxWithHeaders, md)
 				longName := randStringRunes(1024 * 1024)
-				require.NoError(t, clients[getClientsIndex(0, clientsCount)].HandleUnary(ctxWithHeaders, longName))
+				require.NoError(t, clients[getClientsIndex(0, clientsCount)].HandleUnary(ctxWithHeaders, string(longName)))
 				require.NoError(t, clients[getClientsIndex(0, clientsCount)].GetFeature(ctxWithoutHeaders, -746143763, 407838351))
-				require.NoError(t, clients[getClientsIndex(0, clientsCount)].HandleUnary(ctxWithHeaders, longName))
+				require.NoError(t, clients[getClientsIndex(0, clientsCount)].HandleUnary(ctxWithHeaders, string(longName)))
 				require.NoError(t, clients[getClientsIndex(0, clientsCount)].GetFeature(ctxWithoutHeaders, -743999179, 408122808))
 			},
 			expectedEndpoints: map[http.Key]int{
 				{
-					Path:   http.Path{Content: "/routeguide.RouteGuide/GetFeature"},
+					Path:   http.Path{Content: http.Interner.GetString("/routeguide.RouteGuide/GetFeature")},
 					Method: http.MethodPost,
 				}: 2,
 				{
-					Path:   http.Path{Content: "/helloworld.Greeter/SayHello"},
+					Path:   http.Path{Content: http.Interner.GetString("/helloworld.Greeter/SayHello")},
 					Method: http.MethodPost,
 				}: 2,
 			},
@@ -352,6 +352,11 @@ func (s *USMgRPCSuite) TestLargeBodiesGRPCScenarios() {
 	t.Cleanup(srv.Stop)
 	defaultCtx := context.Background()
 
+	// Random string generation is an heavy operation, and it's proportional for the length (30MB)
+	// Instead of generating the same long string (long name) for every test, we're generating it only once.
+	longRandomString := randStringRunes(30 * 1024 * 1024)
+	shortRandomString := longRandomString[:5*1024*1024]
+
 	// c is a stream endpoint
 	// a + b are unary endpoints
 	tests := []struct {
@@ -360,18 +365,19 @@ func (s *USMgRPCSuite) TestLargeBodiesGRPCScenarios() {
 		expectedEndpoints map[http.Key]captureRange
 	}{
 		{
-			name: "request with large body (50MB)",
+			name: "request with large body (30MB)",
 			runClients: func(t *testing.T, clientsCount int) {
 				clients := getClientsArray(t, clientsCount, grpc.Options{})
 
+				longRandomString[0] = '0' + rune(clientsCount)
 				for i := 0; i < 5; i++ {
-					longName := randStringRunes(50 * 1024 * 1024)
-					require.NoError(t, clients[getClientsIndex(i, clientsCount)].HandleUnary(defaultCtx, longName))
+					longRandomString[1] = 'a' + rune(i)
+					require.NoError(t, clients[getClientsIndex(i, clientsCount)].HandleUnary(defaultCtx, string(longRandomString)))
 				}
 			},
 			expectedEndpoints: map[http.Key]captureRange{
 				{
-					Path:   http.Path{Content: "/helloworld.Greeter/SayHello"},
+					Path:   http.Path{Content: http.Interner.GetString("/helloworld.Greeter/SayHello")},
 					Method: http.MethodPost,
 				}: {
 					lower: 4,
@@ -384,23 +390,23 @@ func (s *USMgRPCSuite) TestLargeBodiesGRPCScenarios() {
 			runClients: func(t *testing.T, clientsCount int) {
 				clients := getClientsArray(t, clientsCount, grpc.Options{})
 
-				longName := randStringRunes(5 * 1024 * 1024)
+				longRandomString[3] = '0' + rune(clientsCount)
 
-				require.NoError(t, clients[getClientsIndex(0, clientsCount)].HandleUnary(defaultCtx, longName))
+				require.NoError(t, clients[getClientsIndex(0, clientsCount)].HandleUnary(defaultCtx, string(shortRandomString)))
 				require.NoError(t, clients[getClientsIndex(1, clientsCount)].GetFeature(defaultCtx, -746143763, 407838351))
-				require.NoError(t, clients[getClientsIndex(2, clientsCount)].HandleUnary(defaultCtx, longName))
+				require.NoError(t, clients[getClientsIndex(2, clientsCount)].HandleUnary(defaultCtx, string(shortRandomString)))
 				require.NoError(t, clients[getClientsIndex(3, clientsCount)].GetFeature(defaultCtx, -743999179, 408122808))
 			},
 			expectedEndpoints: map[http.Key]captureRange{
 				{
-					Path:   http.Path{Content: "/routeguide.RouteGuide/GetFeature"},
+					Path:   http.Path{Content: http.Interner.GetString("/routeguide.RouteGuide/GetFeature")},
 					Method: http.MethodPost,
 				}: {
 					lower: 2,
 					upper: 2,
 				},
 				{
-					Path:   http.Path{Content: "/helloworld.Greeter/SayHello"},
+					Path:   http.Path{Content: http.Interner.GetString("/helloworld.Greeter/SayHello")},
 					Method: http.MethodPost,
 				}: {
 					lower: 1,
