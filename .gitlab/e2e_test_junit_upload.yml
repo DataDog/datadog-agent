@@ -13,6 +13,7 @@ e2e_test_junit_upload:
     - new-e2e-containers-main
     - new-e2e-agent-subcommands-main
     - new-e2e-language-detection-main
+    - new-e2e-agent-platform-install-script-debian-a7-x64
     - new-e2e-npm-main
   script:
     - set +x
