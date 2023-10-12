@@ -526,7 +526,7 @@ def changelog(ctx, new_commit_sha):
             continue
         author_handle = ctx.run(f"email2slackid {author_email.strip()}", hide=True).stdout
         if author_handle:
-            author_handle = f"<@{author_handle.strip}>"
+            author_handle = f"<@{author_handle.strip()}>"
             print(f"Author handle: {author_handle}")
         else:
             author_handle = author_email
