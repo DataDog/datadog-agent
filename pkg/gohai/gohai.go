@@ -57,6 +57,7 @@ func GetPayload(isContainerized bool) *Payload {
 	}
 }
 
+// GetPayloadWithProcesses builds a pyaload of all metdata including processes
 func GetPayloadWithProcesses(isContainerized bool) *Payload {
 	return &Payload{
 		Gohai: getGohaiInfo(isContainerized, true),
