@@ -10,6 +10,7 @@ package activitytree
 
 import (
 	"fmt"
+	"math/rand"
 	"net"
 	"os"
 	"path"
@@ -58,6 +59,10 @@ func (pn *ProcessNode) snapshot(owner Owner, stats *Stats, newEvent func() *mode
 	}
 }
 
+// MAX_FDS_PER_PROCESS_SNAPSHOT represents the maximum number of FDs we will collect per process while snapshotting
+// this value was selected because it represents the default upper bound for the number of FDs a linux process can have
+const MAX_FDS_PER_PROCESS_SNAPSHOT = 1024
+
 func (pn *ProcessNode) snapshotFiles(p *process.Process, stats *Stats, newEvent func() *model.Event, reducer *PathsReducer) {
 	// list the files opened by the process
 	fileFDs, err := p.OpenFiles()
@@ -65,9 +70,21 @@ func (pn *ProcessNode) snapshotFiles(p *process.Process, stats *Stats, newEvent 
 		seclog.Warnf("error while listing files (pid: %v): %s", p.Pid, err)
 	}
 
-	var files []string
+	var (
+		isSampling = false
+		preAlloc   = len(fileFDs)
+	)
+
+	if len(fileFDs) > MAX_FDS_PER_PROCESS_SNAPSHOT {
+		isSampling = true
+		preAlloc = 1024
+	}
+
+	files := make([]string, 0, preAlloc)
 	for _, fd := range fileFDs {
-		files = append(files, fd.Path)
+		if !isSampling || rand.Int63n(int64(len(fileFDs))) < MAX_FDS_PER_PROCESS_SNAPSHOT {
+			files = append(files, fd.Path)
+		}
 	}
 
 	// list the mmaped files of the process
