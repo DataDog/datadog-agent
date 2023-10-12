@@ -12,11 +12,12 @@ import (
 
 // RuntimeBlockProfileRate wraps runtime.SetBlockProfileRate setting
 type RuntimeBlockProfileRate struct {
-	Config       config.ConfigReaderWriter
+	Config       config.ReaderWriter
 	ConfigPrefix string
 	source       Source
 }
 
+// NewRuntimeBlockProfileRate returns a new RuntimeBlockProfileRate
 func NewRuntimeBlockProfileRate() *RuntimeBlockProfileRate {
 	return &RuntimeBlockProfileRate{source: SourceDefault}
 }
@@ -54,7 +55,7 @@ func (r *RuntimeBlockProfileRate) Set(value interface{}, source Source) error {
 	err = checkProfilingNeedsRestart(profiling.GetBlockProfileRate(), rate)
 
 	profiling.SetBlockProfileRate(rate)
-	var cfg config.ConfigReaderWriter = config.Datadog
+	var cfg config.ReaderWriter = config.Datadog
 	if r.Config != nil {
 		cfg = r.Config
 	}
@@ -64,6 +65,7 @@ func (r *RuntimeBlockProfileRate) Set(value interface{}, source Source) error {
 	return err
 }
 
+// GetSource returns the source of the RuntimeBlockProfileRate
 func (r *RuntimeBlockProfileRate) GetSource() Source {
 	return r.source
 }

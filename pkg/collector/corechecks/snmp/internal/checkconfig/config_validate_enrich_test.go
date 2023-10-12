@@ -141,12 +141,12 @@ func Test_ValidateEnrichMetrics(t *testing.T) {
 					},
 					MetricTags: profiledefinition.MetricTagConfigList{
 						profiledefinition.MetricTagConfig{
-							Column: profiledefinition.SymbolConfig{
+							Symbol: profiledefinition.SymbolConfigCompat{
 								OID: "1.2.3",
 							},
 						},
 						profiledefinition.MetricTagConfig{
-							Column: profiledefinition.SymbolConfig{
+							Symbol: profiledefinition.SymbolConfigCompat{
 								Name: "abc",
 							},
 						},
@@ -187,12 +187,12 @@ func Test_ValidateEnrichMetrics(t *testing.T) {
 					},
 					MetricTags: profiledefinition.MetricTagConfigList{
 						profiledefinition.MetricTagConfig{
-							Column: profiledefinition.SymbolConfig{
+							Symbol: profiledefinition.SymbolConfigCompat{
 								OID: "1.2.3",
 							},
 						},
 						profiledefinition.MetricTagConfig{
-							Column: profiledefinition.SymbolConfig{
+							Symbol: profiledefinition.SymbolConfigCompat{
 								Name: "abc",
 							},
 						},
@@ -216,7 +216,7 @@ func Test_ValidateEnrichMetrics(t *testing.T) {
 					},
 					MetricTags: profiledefinition.MetricTagConfigList{
 						profiledefinition.MetricTagConfig{
-							Column: profiledefinition.SymbolConfig{
+							Symbol: profiledefinition.SymbolConfigCompat{
 								OID:  "1.2.3",
 								Name: "abc",
 							},
@@ -241,7 +241,7 @@ func Test_ValidateEnrichMetrics(t *testing.T) {
 					},
 					MetricTags: profiledefinition.MetricTagConfigList{
 						profiledefinition.MetricTagConfig{
-							Column: profiledefinition.SymbolConfig{
+							Symbol: profiledefinition.SymbolConfigCompat{
 								OID:  "1.2.3",
 								Name: "abc",
 							},
@@ -269,7 +269,7 @@ func Test_ValidateEnrichMetrics(t *testing.T) {
 					},
 					MetricTags: profiledefinition.MetricTagConfigList{
 						profiledefinition.MetricTagConfig{
-							Column: profiledefinition.SymbolConfig{
+							Symbol: profiledefinition.SymbolConfigCompat{
 								OID:  "1.2.3",
 								Name: "abc",
 							},
@@ -308,7 +308,7 @@ func Test_ValidateEnrichMetrics(t *testing.T) {
 					},
 					MetricTags: profiledefinition.MetricTagConfigList{
 						profiledefinition.MetricTagConfig{
-							Column: profiledefinition.SymbolConfig{
+							Symbol: profiledefinition.SymbolConfigCompat{
 								OID:          "1.2.3",
 								Name:         "abc",
 								ExtractValue: `(\d+)C`,
@@ -338,7 +338,7 @@ func Test_ValidateEnrichMetrics(t *testing.T) {
 					},
 					MetricTags: profiledefinition.MetricTagConfigList{
 						profiledefinition.MetricTagConfig{
-							Column: profiledefinition.SymbolConfig{
+							Symbol: profiledefinition.SymbolConfigCompat{
 								OID:                  "1.2.3",
 								Name:                 "abc",
 								ExtractValue:         `(\d+)C`,
@@ -378,7 +378,7 @@ func Test_ValidateEnrichMetrics(t *testing.T) {
 					},
 					MetricTags: profiledefinition.MetricTagConfigList{
 						profiledefinition.MetricTagConfig{
-							Column: profiledefinition.SymbolConfig{
+							Symbol: profiledefinition.SymbolConfigCompat{
 								Name: "abc",
 								OID:  "1.2.3",
 							},
@@ -430,7 +430,7 @@ func Test_ValidateEnrichMetrics(t *testing.T) {
 					},
 					MetricTags: profiledefinition.MetricTagConfigList{
 						profiledefinition.MetricTagConfig{
-							Column: profiledefinition.SymbolConfig{
+							Symbol: profiledefinition.SymbolConfigCompat{
 								Name:             "abc",
 								ConstantValueOne: true,
 							},
@@ -457,7 +457,7 @@ func Test_ValidateEnrichMetrics(t *testing.T) {
 					},
 					MetricTags: profiledefinition.MetricTagConfigList{
 						profiledefinition.MetricTagConfig{
-							Column: profiledefinition.SymbolConfig{
+							Symbol: profiledefinition.SymbolConfigCompat{
 								Name: "abc",
 								OID:  "1.2.3",
 							},
@@ -493,7 +493,7 @@ func Test_ValidateEnrichMetrics(t *testing.T) {
 					},
 					MetricTags: profiledefinition.MetricTagConfigList{
 						profiledefinition.MetricTagConfig{
-							Column: profiledefinition.SymbolConfig{
+							Symbol: profiledefinition.SymbolConfigCompat{
 								Name:       "abc",
 								OID:        "1.2.3",
 								MetricType: profiledefinition.ProfileMetricTypeCounter,
@@ -520,7 +520,7 @@ func Test_ValidateEnrichMetrics(t *testing.T) {
 					},
 					MetricTags: profiledefinition.MetricTagConfigList{
 						profiledefinition.MetricTagConfig{
-							Column: profiledefinition.SymbolConfig{
+							Symbol: profiledefinition.SymbolConfigCompat{
 								Name: "abc",
 								OID:  "1.2.3",
 							},
@@ -540,7 +540,7 @@ func Test_ValidateEnrichMetrics(t *testing.T) {
 					},
 					MetricTags: profiledefinition.MetricTagConfigList{
 						profiledefinition.MetricTagConfig{
-							Column: profiledefinition.SymbolConfig{
+							Symbol: profiledefinition.SymbolConfigCompat{
 								Name: "abc",
 								OID:  "1.2.3",
 							},
@@ -562,7 +562,7 @@ func Test_ValidateEnrichMetrics(t *testing.T) {
 					},
 					MetricTags: profiledefinition.MetricTagConfigList{
 						profiledefinition.MetricTagConfig{
-							Column: profiledefinition.SymbolConfig{
+							Symbol: profiledefinition.SymbolConfigCompat{
 								OID:  "1.2",
 								Name: "abc",
 							},
@@ -592,6 +592,112 @@ func Test_ValidateEnrichMetrics(t *testing.T) {
 			log.SetupLogger(l, "debug")
 
 			errors := ValidateEnrichMetrics(tt.metrics)
+			assert.Equal(t, len(tt.expectedErrors), len(errors), fmt.Sprintf("ERRORS: %v", errors))
+			for i := range errors {
+				assert.Contains(t, errors[i], tt.expectedErrors[i])
+			}
+			if tt.expectedMetrics != nil {
+				assert.Equal(t, tt.expectedMetrics, tt.metrics)
+			}
+
+			w.Flush()
+			logs := b.String()
+
+			for _, aLogCount := range tt.expectedLogs {
+				assert.Equal(t, aLogCount.count, strings.Count(logs, aLogCount.log), logs)
+			}
+		})
+	}
+}
+
+func Test_ValidateEnrichMetricTags(t *testing.T) {
+	type logCount struct {
+		log   string
+		count int
+	}
+
+	tests := []struct {
+		name            string
+		metrics         []profiledefinition.MetricTagConfig
+		expectedErrors  []string
+		expectedMetrics []profiledefinition.MetricTagConfig
+		expectedLogs    []logCount
+	}{
+		{
+			name: "Move OID to Symbol",
+			metrics: []profiledefinition.MetricTagConfig{
+				{
+					OID: "1.2.3.4",
+					Symbol: profiledefinition.SymbolConfigCompat{
+						Name: "mySymbol",
+					},
+				},
+			},
+			expectedMetrics: []profiledefinition.MetricTagConfig{
+				{
+					Symbol: profiledefinition.SymbolConfigCompat{
+						OID:  "1.2.3.4",
+						Name: "mySymbol",
+					},
+				},
+			},
+		},
+		{
+			name: "Metric tag OID and symbol.OID cannot be both declared",
+			metrics: []profiledefinition.MetricTagConfig{
+				{
+					OID: "1.2.3.4",
+					Symbol: profiledefinition.SymbolConfigCompat{
+						OID:  "1.2.3.5",
+						Name: "mySymbol",
+					},
+				},
+			},
+			expectedErrors: []string{
+				"metric tag OID and symbol.OID cannot be both declared",
+			},
+		},
+		{
+			name: "metric tag symbol and column cannot be both declared",
+			metrics: []profiledefinition.MetricTagConfig{
+				{
+					Symbol: profiledefinition.SymbolConfigCompat{
+						OID:  "1.2.3.5",
+						Name: "mySymbol",
+					},
+					Column: profiledefinition.SymbolConfig{
+						OID:  "1.2.3.5",
+						Name: "mySymbol",
+					},
+				},
+			},
+			expectedErrors: []string{
+				"metric tag symbol and column cannot be both declared",
+			},
+		},
+		{
+			name: "Missing OID",
+			metrics: []profiledefinition.MetricTagConfig{
+				{
+					Symbol: profiledefinition.SymbolConfigCompat{
+						Name: "mySymbol",
+					},
+				},
+			},
+			expectedErrors: []string{
+				"symbol oid missing",
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var b bytes.Buffer
+			w := bufio.NewWriter(&b)
+			l, err := seelog.LoggerFromWriterWithMinLevelAndFormat(w, seelog.DebugLvl, "[%LEVEL] %FuncShort: %Msg")
+			assert.Nil(t, err)
+			log.SetupLogger(l, "debug")
+
+			errors := ValidateEnrichMetricTags(tt.metrics)
 			assert.Equal(t, len(tt.expectedErrors), len(errors), fmt.Sprintf("ERRORS: %v", errors))
 			for i := range errors {
 				assert.Contains(t, errors[i], tt.expectedErrors[i])
@@ -758,7 +864,7 @@ func Test_validateEnrichMetadata(t *testing.T) {
 					},
 					IDTags: profiledefinition.MetricTagConfigList{
 						profiledefinition.MetricTagConfig{
-							Column: profiledefinition.SymbolConfig{
+							Symbol: profiledefinition.SymbolConfigCompat{
 								OID:  "1.2.3",
 								Name: "abc",
 							},
@@ -786,7 +892,7 @@ func Test_validateEnrichMetadata(t *testing.T) {
 					},
 					IDTags: profiledefinition.MetricTagConfigList{
 						profiledefinition.MetricTagConfig{
-							Column: profiledefinition.SymbolConfig{
+							Symbol: profiledefinition.SymbolConfigCompat{
 								OID:  "1.2.3",
 								Name: "abc",
 							},
@@ -813,3 +919,5 @@ func Test_validateEnrichMetadata(t *testing.T) {
 		})
 	}
 }
+
+// TODO: Add test for ValidateEnrichMetricTags

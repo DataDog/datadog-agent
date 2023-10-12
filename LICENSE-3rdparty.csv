@@ -1774,7 +1774,6 @@ core,golang.org/x/crypto/cryptobyte,BSD-3-Clause,Copyright (c) 2009 The Go Autho
 core,golang.org/x/crypto/cryptobyte/asn1,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
 core,golang.org/x/crypto/curve25519,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
 core,golang.org/x/crypto/curve25519/internal/field,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
-core,golang.org/x/crypto/ed25519,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
 core,golang.org/x/crypto/hkdf,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
 core,golang.org/x/crypto/internal/alias,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
 core,golang.org/x/crypto/internal/poly1305,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
@@ -1836,7 +1835,6 @@ core,golang.org/x/sync/semaphore,BSD-3-Clause,Copyright (c) 2009 The Go Authors.
 core,golang.org/x/sync/singleflight,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
 core,golang.org/x/sys/cpu,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
 core,golang.org/x/sys/execabs,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
-core,golang.org/x/sys/internal/unsafeheader,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
 core,golang.org/x/sys/plan9,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
 core,golang.org/x/sys/unix,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
 core,golang.org/x/sys/windows,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved

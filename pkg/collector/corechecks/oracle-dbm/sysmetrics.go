@@ -16,7 +16,13 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-const SYSMETRICS_QUERY = `SELECT 
+const sysMetricsQuery11 = `SELECT 
+	metric_name,
+	value, 
+	metric_unit
+  FROM %s s`
+
+const sysMetricsQuery12 = `SELECT 
 	metric_name,
 	value, 
 	metric_unit, 
@@ -51,63 +57,62 @@ var SYSMETRICS_COLS = map[string]sysMetricsDefinition{
 	"Consistent Read Gets Per Sec":                  {DDmetric: "consistent_read_gets", DBM: true},
 	"CPU Usage Per Sec":                             {DDmetric: "active_sessions_on_cpu", DBM: true},
 	"Current OS Load":                               {DDmetric: "os_load", DBM: true},
-	//"Cursor Cache Hit Ratio":                        {DDmetric: "cursor_cachehit_ratio"},
-	"Database CPU Time Ratio":                  {DDmetric: "database_cpu_time_ratio", DBM: true},
-	"Database Wait Time Ratio":                 {DDmetric: "database_wait_time_ratio"},
-	"DB Block Changes Per Sec":                 {DDmetric: "db_block_changes", DBM: true},
-	"DB Block Gets Per Sec":                    {DDmetric: "db_block_gets", DBM: true},
-	"DBWR Checkpoints Per Sec":                 {DDmetric: "dbwr_checkpoints", DBM: true},
-	"Disk Sort Per Sec":                        {DDmetric: "disk_sorts"},
-	"Enqueue Deadlocks Per Sec":                {DDmetric: "enqueue_deadlocks", DBM: true},
-	"Enqueue Timeouts Per Sec":                 {DDmetric: "enqueue_timeouts"},
-	"Execute Without Parse Ratio":              {DDmetric: "execute_without_parse", DBM: true},
-	"GC CR Block Received Per Second":          {DDmetric: "gc_cr_block_received"},
-	"GC Current Block Received Per Second":     {DDmetric: "gc_current_block_received", DBM: true},
-	"Global Cache Average CR Get Time":         {DDmetric: "gc_average_cr_get_time", DBM: true},
-	"Global Cache Average Current Get Time":    {DDmetric: "gc_average_current_get_time", DBM: true},
-	"Global Cache Blocks Corrupted":            {DDmetric: "cache_blocks_corrupt"},
-	"Global Cache Blocks Lost":                 {DDmetric: "cache_blocks_lost"},
-	"Hard Parse Count Per Sec":                 {DDmetric: "hard_parses", DBM: true},
-	"Host CPU Utilization (%)":                 {DDmetric: "host_cpu_utilization", DBM: true},
-	"Leaf Node Splits Per Sec":                 {DDmetric: "leaf_nodes_splits", DBM: true},
-	"Library Cache Hit Ratio":                  {DDmetric: "library_cachehit_ratio"},
-	"Logical Reads Per Sec":                    {DDmetric: "logical_reads", DBM: true},
-	"Logons Per Sec":                           {DDmetric: "logons"},
-	"Long Table Scans Per Sec":                 {DDmetric: "long_table_scans"},
-	"Memory Sorts Ratio":                       {DDmetric: "memory_sorts_ratio"},
-	"Network Traffic Volume Per Sec":           {DDmetric: "network_traffic_volume", DBM: true},
-	"PGA Cache Hit %":                          {DDmetric: "pga_cache_hit", DBM: true},
-	"Parse Failure Count Per Sec":              {DDmetric: "parse_failures", DBM: true},
-	"Physical Read Bytes Per Sec":              {DDmetric: "physical_read_bytes", DBM: true},
-	"Physical Read IO Requests Per Sec":        {DDmetric: "physical_read_io_requests", DBM: true},
-	"Physical Read Total IO Requests Per Sec":  {DDmetric: "physical_read_total_io_requests", DBM: true},
-	"Physical Reads Direct Lobs Per Sec":       {DDmetric: "physical_reads_direct_lobs", DBM: true},
-	"Physical Read Total Bytes Per Sec":        {DDmetric: "physical_read_total_bytes", DBM: true},
-	"Physical Reads Direct Per Sec":            {DDmetric: "physical_reads_direct", DBM: true},
-	"Physical Reads Per Sec":                   {DDmetric: "physical_reads"},
-	"Physical Write Bytes Per Sec":             {DDmetric: "physical_write_bytes", DBM: true},
-	"Physical Write IO Requests Per Sec":       {DDmetric: "physical_write_io_requests", DBM: true},
-	"Physical Write Total Bytes Per Sec":       {DDmetric: "physical_write_total_bytes", DBM: true},
-	"Physical Write Total IO Requests Per Sec": {DDmetric: "physical_write_total_io_requests", DBM: true},
-	"Physical Writes Direct Lobs Per Sec":      {DDmetric: "physical_writes_direct_lobs", DBM: true},
-	"Physical Writes Direct Per Sec":           {DDmetric: "physical_writes_direct", DBM: true},
-	"Physical Writes Per Sec":                  {DDmetric: "physical_writes"},
-	"Process Limit %":                          {DDmetric: "process_limit", DBM: true},
-	"Redo Allocation Hit Ratio":                {DDmetric: "redo_allocation_hit_ratio", DBM: true},
-	"Redo Generated Per Sec":                   {DDmetric: "redo_generated", DBM: true},
-	"Redo Writes Per Sec":                      {DDmetric: "redo_writes", DBM: true},
-	"Row Cache Hit Ratio":                      {DDmetric: "row_cache_hit_ratio", DBM: true},
-	"Rows Per Sort":                            {DDmetric: "rows_per_sort"},
-	"SQL Service Response Time":                {DDmetric: "service_response_time"},
-	"Session Count":                            {DDmetric: "session_count"},
-	"Session Limit %":                          {DDmetric: "session_limit_usage"},
-	"Shared Pool Free %":                       {DDmetric: "shared_pool_free"},
-	"Soft Parse Ratio":                         {DDmetric: "soft_parse_ratio", DBM: true},
-	"Temp Space Used":                          {DDmetric: "temp_space_used"},
-	"Total Parse Count Per Sec":                {DDmetric: "total_parse_count", DBM: true},
-	"Total Sorts Per User Call":                {DDmetric: "sorts_per_user_call"},
-	"User Commits Per Sec":                     {DDmetric: "user_commits", DBM: true},
-	"User Rollbacks Per Sec":                   {DDmetric: "user_rollbacks"},
+	"Database CPU Time Ratio":                       {DDmetric: "database_cpu_time_ratio", DBM: true},
+	"Database Wait Time Ratio":                      {DDmetric: "database_wait_time_ratio"},
+	"DB Block Changes Per Sec":                      {DDmetric: "db_block_changes", DBM: true},
+	"DB Block Gets Per Sec":                         {DDmetric: "db_block_gets", DBM: true},
+	"DBWR Checkpoints Per Sec":                      {DDmetric: "dbwr_checkpoints", DBM: true},
+	"Disk Sort Per Sec":                             {DDmetric: "disk_sorts"},
+	"Enqueue Deadlocks Per Sec":                     {DDmetric: "enqueue_deadlocks", DBM: true},
+	"Enqueue Timeouts Per Sec":                      {DDmetric: "enqueue_timeouts"},
+	"Execute Without Parse Ratio":                   {DDmetric: "execute_without_parse", DBM: true},
+	"GC CR Block Received Per Second":               {DDmetric: "gc_cr_block_received"},
+	"GC Current Block Received Per Second":          {DDmetric: "gc_current_block_received", DBM: true},
+	"Global Cache Average CR Get Time":              {DDmetric: "gc_average_cr_get_time", DBM: true},
+	"Global Cache Average Current Get Time":         {DDmetric: "gc_average_current_get_time", DBM: true},
+	"Global Cache Blocks Corrupted":                 {DDmetric: "cache_blocks_corrupt"},
+	"Global Cache Blocks Lost":                      {DDmetric: "cache_blocks_lost"},
+	"Hard Parse Count Per Sec":                      {DDmetric: "hard_parses", DBM: true},
+	"Host CPU Utilization (%)":                      {DDmetric: "host_cpu_utilization", DBM: true},
+	"Leaf Node Splits Per Sec":                      {DDmetric: "leaf_nodes_splits", DBM: true},
+	"Library Cache Hit Ratio":                       {DDmetric: "library_cachehit_ratio"},
+	"Logical Reads Per Sec":                         {DDmetric: "logical_reads", DBM: true},
+	"Logons Per Sec":                                {DDmetric: "logons"},
+	"Long Table Scans Per Sec":                      {DDmetric: "long_table_scans"},
+	"Memory Sorts Ratio":                            {DDmetric: "memory_sorts_ratio"},
+	"Network Traffic Volume Per Sec":                {DDmetric: "network_traffic_volume", DBM: true},
+	"PGA Cache Hit %":                               {DDmetric: "pga_cache_hit", DBM: true},
+	"Parse Failure Count Per Sec":                   {DDmetric: "parse_failures", DBM: true},
+	"Physical Read Bytes Per Sec":                   {DDmetric: "physical_read_bytes", DBM: true},
+	"Physical Read IO Requests Per Sec":             {DDmetric: "physical_read_io_requests", DBM: true},
+	"Physical Read Total IO Requests Per Sec":       {DDmetric: "physical_read_total_io_requests", DBM: true},
+	"Physical Reads Direct Lobs Per Sec":            {DDmetric: "physical_reads_direct_lobs", DBM: true},
+	"Physical Read Total Bytes Per Sec":             {DDmetric: "physical_read_total_bytes", DBM: true},
+	"Physical Reads Direct Per Sec":                 {DDmetric: "physical_reads_direct", DBM: true},
+	"Physical Reads Per Sec":                        {DDmetric: "physical_reads"},
+	"Physical Write Bytes Per Sec":                  {DDmetric: "physical_write_bytes", DBM: true},
+	"Physical Write IO Requests Per Sec":            {DDmetric: "physical_write_io_requests", DBM: true},
+	"Physical Write Total Bytes Per Sec":            {DDmetric: "physical_write_total_bytes", DBM: true},
+	"Physical Write Total IO Requests Per Sec":      {DDmetric: "physical_write_total_io_requests", DBM: true},
+	"Physical Writes Direct Lobs Per Sec":           {DDmetric: "physical_writes_direct_lobs", DBM: true},
+	"Physical Writes Direct Per Sec":                {DDmetric: "physical_writes_direct", DBM: true},
+	"Physical Writes Per Sec":                       {DDmetric: "physical_writes"},
+	"Process Limit %":                               {DDmetric: "process_limit", DBM: true},
+	"Redo Allocation Hit Ratio":                     {DDmetric: "redo_allocation_hit_ratio", DBM: true},
+	"Redo Generated Per Sec":                        {DDmetric: "redo_generated", DBM: true},
+	"Redo Writes Per Sec":                           {DDmetric: "redo_writes", DBM: true},
+	"Row Cache Hit Ratio":                           {DDmetric: "row_cache_hit_ratio", DBM: true},
+	"Rows Per Sort":                                 {DDmetric: "rows_per_sort"},
+	"SQL Service Response Time":                     {DDmetric: "service_response_time"},
+	"Session Count":                                 {DDmetric: "session_count"},
+	"Session Limit %":                               {DDmetric: "session_limit_usage"},
+	"Shared Pool Free %":                            {DDmetric: "shared_pool_free"},
+	"Soft Parse Ratio":                              {DDmetric: "soft_parse_ratio", DBM: true},
+	"Temp Space Used":                               {DDmetric: "temp_space_used"},
+	"Total Parse Count Per Sec":                     {DDmetric: "total_parse_count", DBM: true},
+	"Total Sorts Per User Call":                     {DDmetric: "sorts_per_user_call"},
+	"User Commits Per Sec":                          {DDmetric: "user_commits", DBM: true},
+	"User Rollbacks Per Sec":                        {DDmetric: "user_rollbacks"},
 }
 
 func (c *Check) sendMetric(s sender.Sender, r SysmetricsRowDB, seen map[string]bool) {
@@ -131,17 +136,28 @@ func (c *Check) SysMetrics() error {
 	}
 
 	metricRows := []SysmetricsRowDB{}
-	err = selectWrapper(c, &metricRows, fmt.Sprintf(SYSMETRICS_QUERY, "v$con_sysmetric"))
-	if err != nil {
-		return fmt.Errorf("failed to collect container sysmetrics: %w", err)
+
+	var sysMetricsQuery string
+	if isDbVersionGreaterOrEqualThan(c, minMultitenantVersion) {
+		sysMetricsQuery = sysMetricsQuery12
+	} else {
+		sysMetricsQuery = sysMetricsQuery11
 	}
+
+	if isDbVersionGreaterOrEqualThan(c, "18") {
+		err = selectWrapper(c, &metricRows, fmt.Sprintf(sysMetricsQuery, "v$con_sysmetric"))
+		if err != nil {
+			return fmt.Errorf("failed to collect container sysmetrics: %w", err)
+		}
+	}
+
 	seenInContainerMetrics := make(map[string]bool)
 	for _, r := range metricRows {
 		c.sendMetric(sender, r, seenInContainerMetrics)
 	}
 
 	seenInGlobalMetrics := make(map[string]bool)
-	err = selectWrapper(c, &metricRows, fmt.Sprintf(SYSMETRICS_QUERY, "v$sysmetric")+" ORDER BY begin_time ASC, metric_name ASC")
+	err = selectWrapper(c, &metricRows, fmt.Sprintf(sysMetricsQuery, "v$sysmetric")+" ORDER BY begin_time ASC, metric_name ASC")
 	if err != nil {
 		return fmt.Errorf("failed to collect sysmetrics: %w", err)
 	}
