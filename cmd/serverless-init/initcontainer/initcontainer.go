@@ -156,7 +156,7 @@ func flush(flushTimeout time.Duration, metricAgent serverless.FlushableAgent, tr
 	return hasTimeout.Load() > 0
 }
 
-func flushWithContext(ctx context.Context, timeout time.Duration, timeoutchan chan struct{}, flushFunction func()) {
+func flushWithContext(ctx context.Context, timeoutchan chan struct{}, flushFunction func()) {
 	flushFunction()
 	select {
 	case timeoutchan <- struct{}{}:
@@ -171,7 +171,7 @@ func flushAndWait(flushTimeout time.Duration, wg *sync.WaitGroup, agent serverle
 	childCtx, cancel := context.WithTimeout(context.Background(), flushTimeout)
 	defer cancel()
 	ch := make(chan struct{}, 1)
-	go flushWithContext(childCtx, flushTimeout, ch, agent.Flush)
+	go flushWithContext(childCtx, ch, agent.Flush)
 	select {
 	case <-childCtx.Done():
 		hasTimeout.Inc()
