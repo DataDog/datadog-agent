@@ -49,10 +49,10 @@ func unmarshallProfilesBundleJSON(jsonStr []byte) (profileConfigMap, error) {
 			log.Warnf("duplicate profile found: %s", profile.Profile.Name)
 			continue
 		}
-		isUserProfile := profile.Metadata.Source == profiledefinition.SourceCustom
+		// TODO: (separate PR) resolve extends with custom + local default profiles (yaml)
 		profiles[profile.Profile.Name] = profileConfig{
 			Definition:    profile.Profile,
-			isUserProfile: isUserProfile,
+			isUserProfile: true,
 		}
 	}
 	return profiles, nil
