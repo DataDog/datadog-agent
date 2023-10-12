@@ -143,8 +143,6 @@ func (suite *k8sSuite) TestAgent() {
 }
 
 func (suite *k8sSuite) TestNginx() {
-	// suite.T().Parallel()
-
 	// `nginx` check is configured via AD annotation on pods
 	// Test it is properly scheduled
 	suite.testMetric("nginx.net.request_per_s",
@@ -205,8 +203,6 @@ func (suite *k8sSuite) TestNginx() {
 }
 
 func (suite *k8sSuite) TestRedis() {
-	// suite.T().Parallel()
-
 	// `redis` check is auto-configured due to image name
 	// Test it is properly scheduled
 	suite.testMetric("redis.net.instantaneous_ops_per_sec",
@@ -254,8 +250,6 @@ func (suite *k8sSuite) TestRedis() {
 }
 
 func (suite *k8sSuite) TestDogstatsd() {
-	// suite.T().Parallel()
-
 	// Test dogstatsd origin detection with UDS
 	suite.testMetric("custom.metric",
 		[]string{
@@ -306,8 +300,6 @@ func (suite *k8sSuite) TestDogstatsd() {
 }
 
 func (suite *k8sSuite) TestPrometheus() {
-	// suite.T().Parallel()
-
 	// Test Prometheus check
 	suite.testMetric("prom_gauge",
 		[]string{
@@ -341,8 +333,6 @@ func (suite *k8sSuite) TestPrometheus() {
 
 func (suite *k8sSuite) testMetric(metricName string, filterTags []string, expectedTags []*regexp.Regexp) {
 	suite.Run(fmt.Sprintf("%s{%s}", metricName, strings.Join(filterTags, ",")), func() {
-		// suite.T().Parallel()
-
 		suite.EventuallyWithTf(func(collect *assert.CollectT) {
 			metrics, err := suite.Fakeintake.FilterMetrics(
 				metricName,
@@ -368,8 +358,6 @@ func (suite *k8sSuite) testMetric(metricName string, filterTags []string, expect
 
 func (suite *k8sSuite) testHPA(namespace, deployment string) {
 	suite.Run(fmt.Sprintf("kubernetes_state.deployment.replicas_available{kube_namespace:%s,kube_deployment:%s}", namespace, deployment), func() {
-		// suite.T().Parallel()
-
 		suite.EventuallyWithTf(func(collect *assert.CollectT) {
 			metrics, err := suite.Fakeintake.FilterMetrics(
 				"kubernetes_state.deployment.replicas_available",
