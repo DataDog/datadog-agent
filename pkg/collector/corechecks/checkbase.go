@@ -18,6 +18,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/check/stats"
 	"github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/diagnose/diagnosis"
+	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -121,6 +122,9 @@ func (c *CheckBase) CommonConfigure(senderManager sender.SenderManager, integrat
 
 		// Set custom tags configured for this check
 		if len(commonOptions.Tags) > 0 {
+			// Tags are sorted and duplicates are removed in the aggregator. Pre-sorting a subslice can speed up the next call
+			// of SortUniqInPlace in the aggregator
+			util.SortUniqInPlace(commonOptions.Tags)
 			s, err := c.GetSender()
 			if err != nil {
 				log.Errorf("failed to retrieve a sender for check %s: %s", string(c.ID()), err)

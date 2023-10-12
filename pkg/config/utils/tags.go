@@ -5,7 +5,28 @@
 
 package utils
 
-import "github.com/DataDog/datadog-agent/pkg/config"
+import (
+	"sort"
+
+	"github.com/DataDog/datadog-agent/pkg/config"
+)
+
+// removeDuplicatesAndSort sorts and removes duplicates from a slice without doing it in place.
+// The final slice should have len(res) == len(res). It is already defined in pkg/util but can not be imported
+// because of an import cycle.
+func removeDuplicatesAndSort(elements []string) []string {
+	found := make(map[string]bool)
+	unique := []string{}
+
+	for v := range elements {
+		if !found[elements[v]] {
+			unique = append(unique, elements[v])
+			found[elements[v]] = true
+		}
+	}
+	sort.Strings(unique)
+	return unique
+}
 
 // GetConfiguredTags returns list of tags from a configuration, based on
 // `tags` (DD_TAGS) and `extra_tags“ (DD_EXTRA_TAGS), with `dogstatsd_tags` (DD_DOGSTATSD_TAGS)
@@ -24,5 +45,9 @@ func GetConfiguredTags(c config.Reader, includeDogstatsd bool) []string {
 	combined = append(combined, extraTags...)
 	combined = append(combined, dsdTags...)
 
+	// The aggregator should sort and remove duplicates in place. Pre-sorting part of the tags should
+	// make the insertion sort in the aggregator faster. Moreover, it is better to allocate a slice with
+	// len(slice) == cap(slice) as it ensures that any call to append() will allocate a new slice.
+	combined = removeDuplicatesAndSort(combined)
 	return combined
 }

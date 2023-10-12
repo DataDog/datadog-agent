@@ -37,3 +37,19 @@ func uniqSorted(elements []string) []string {
 	}
 	return elements[:j+1]
 }
+
+// RemoveDuplicatesAndSort sorts and removes duplicates from a slice without doing it in place.
+// The final slice should have len(res) == len(res).
+func RemoveDuplicatesAndSort(elements []string) []string {
+	found := make(map[string]bool)
+	unique := []string{}
+
+	for v := range elements {
+		if !found[elements[v]] {
+			unique = append(unique, elements[v])
+			found[elements[v]] = true
+		}
+	}
+	sort.Strings(unique)
+	return unique
+}

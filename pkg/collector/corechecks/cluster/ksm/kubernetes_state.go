@@ -26,6 +26,7 @@ import (
 	configUtils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	kubestatemetrics "github.com/DataDog/datadog-agent/pkg/kubestatemetrics/builder"
 	ksmstore "github.com/DataDog/datadog-agent/pkg/kubestatemetrics/store"
+	"github.com/DataDog/datadog-agent/pkg/util"
 	hostnameUtil "github.com/DataDog/datadog-agent/pkg/util/hostname"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
@@ -113,6 +114,7 @@ type KSMConfig struct {
 	LabelsMapper map[string]string `yaml:"labels_mapper"`
 
 	// Tags contains the list of tags to attach to every metric, event and service check emitted by this integration.
+	// They are added in `checkbase.CommonConfigure` function.
 	// Example:
 	// tags:
 	//   - env:prod
@@ -149,6 +151,7 @@ type KSMCheck struct {
 	core.CheckBase
 	agentConfig          config.Config
 	instance             *KSMConfig
+	globalTags           []string
 	allStores            [][]cache.Store
 	telemetry            *telemetryCache
 	cancel               context.CancelFunc
@@ -626,7 +629,7 @@ func (k *KSMCheck) hostnameAndTags(labels map[string]string, labelJoiner *labelJ
 		tags = append(tags, owners...)
 	}
 
-	return hostname, append(tags, k.instance.Tags...)
+	return hostname, append(tags, k.globalTags...)
 }
 
 // familyFilter is a metric families filter for label joins
@@ -775,17 +778,22 @@ func (k *KSMCheck) getClusterName() {
 // Sets the kube_cluster_name tag for all metrics.
 // Adds the global user-defined tags from the Agent config.
 func (k *KSMCheck) initTags() {
-	if k.instance.Tags == nil {
-		k.instance.Tags = []string{}
-	}
+	k.globalTags = []string{}
 
 	if k.clusterNameTagValue != "" {
-		k.instance.Tags = append(k.instance.Tags, "kube_cluster_name:"+k.clusterNameTagValue)
+		k.globalTags = append(k.globalTags, "kube_cluster_name:"+k.clusterNameTagValue)
 	}
 
 	if !k.instance.DisableGlobalTags {
-		k.instance.Tags = append(k.instance.Tags, configUtils.GetConfiguredTags(k.agentConfig, false)...)
+		k.globalTags = append(k.globalTags, configUtils.GetConfiguredTags(k.agentConfig, false)...)
 	}
+
+	// This function guarantees:
+	// - len(k.globalTags) == cap(k.globalTags) => Any call to append() will copy the underlying array, making append() safe
+	// - The slice is sorted with no duplicates => Any call to the aggregator will either add tags to the array (and copy it)
+	// or it will not modify the array since it's already sorted
+	// Thus, it should be safe to use it directly in the aggregator.
+	k.globalTags = util.RemoveDuplicatesAndSort(k.globalTags)
 }
 
 // processTelemetry accumulates the telemetry metric values, it can be called multiple times
@@ -824,10 +832,10 @@ func (k *KSMCheck) sendTelemetry(s sender.Sender) {
 	// reset the cache for the next check run
 	defer k.telemetry.reset()
 
-	s.Gauge(ksmMetricPrefix+"telemetry.metrics.count.total", float64(k.telemetry.getTotal()), "", k.instance.Tags)
-	s.Gauge(ksmMetricPrefix+"telemetry.unknown_metrics.count", float64(k.telemetry.getUnknown()), "", k.instance.Tags) // useful to track metrics that aren't mapped to DD metrics
+	s.Gauge(ksmMetricPrefix+"telemetry.metrics.count.total", float64(k.telemetry.getTotal()), "", k.globalTags)
+	s.Gauge(ksmMetricPrefix+"telemetry.unknown_metrics.count", float64(k.telemetry.getUnknown()), "", k.globalTags)
 	for resource, count := range k.telemetry.getResourcesCount() {
-		s.Gauge(ksmMetricPrefix+"telemetry.metrics.count", float64(count), "", append(k.instance.Tags, "resource_name:"+resource))
+		s.Gauge(ksmMetricPrefix+"telemetry.metrics.count", float64(count), "", append(k.globalTags, "resource_name:"+resource))
 	}
 }
 

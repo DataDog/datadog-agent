@@ -20,6 +20,15 @@ func TestSortUniqInPlace(t *testing.T) {
 	assert.ElementsMatch(t, elements, []string{"tag1:tagval", "tag2:tagval", "tag3:tagggg"})
 }
 
+func TestRemoveDuplicatesAndSort(t *testing.T) {
+	elements := []string{"tag1:value1", "tag1:value1", "tag2:value2"}
+	elements = RemoveDuplicatesAndSort(elements)
+
+	assert.ElementsMatch(t, elements, []string{"tag1:value1", "tag2:value2"})
+	assert.Equal(t, 2, len(elements))
+	assert.Equal(t, 2, cap(elements))
+}
+
 func benchmarkDeduplicateTags(b *testing.B, numberOfTags int) {
 	tags := make([]string, 0, numberOfTags+1)
 	for i := 0; i < numberOfTags; i++ {
