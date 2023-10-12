@@ -3,6 +3,7 @@ import os
 import re
 import subprocess
 from collections import defaultdict
+from typing import Dict
 
 from .common.gitlab import Gitlab, get_gitlab_token
 from .types import FailedJobs, Test
@@ -129,7 +130,7 @@ def get_failed_tests(project_name, job, owners_file=".github/CODEOWNERS"):
     return failed_tests.values()
 
 
-def find_job_owners(failed_jobs: FailedJobs, owners_file: str = ".gitlab/JOBOWNERS") -> dict[str, FailedJobs]:
+def find_job_owners(failed_jobs: FailedJobs, owners_file: str = ".gitlab/JOBOWNERS") -> Dict[str, FailedJobs]:
     owners = read_owners(owners_file)
     owners_to_notify = defaultdict(FailedJobs)
 
