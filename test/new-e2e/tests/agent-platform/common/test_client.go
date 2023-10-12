@@ -33,7 +33,7 @@ type PackageManager interface {
 // FileManager generic interface
 type FileManager interface {
 	ReadFile(path string) (string, error)
-	CheckFile(path string) (string, error)
+	FileExists(path string) (string, error)
 	FindFileInFolder(path string) (string, error)
 	WriteFile(path string, content string) (string, error)
 }

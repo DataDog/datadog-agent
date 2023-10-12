@@ -21,7 +21,7 @@ func CheckInstallation(t *testing.T, client *TestClient) {
 
 		exampleFilePath := client.Helper.GetConfigFolder() + "datadog.yaml.example"
 
-		_, err := client.FileManager.CheckFile(exampleFilePath)
+		_, err := client.FileManager.FileExists(exampleFilePath)
 		require.NoError(tt, err, "Example config file should be present")
 	})
 
@@ -29,7 +29,7 @@ func CheckInstallation(t *testing.T, client *TestClient) {
 
 		binaryPath := client.Helper.GetBinaryPath()
 
-		_, err := client.FileManager.CheckFile(binaryPath)
+		_, err := client.FileManager.FileExists(binaryPath)
 		require.NoError(tt, err, "datadog-agent binary should be present")
 	})
 

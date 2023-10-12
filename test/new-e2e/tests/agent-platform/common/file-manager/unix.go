@@ -22,8 +22,8 @@ func NewUnixFileManager(vmClient *client.VMClient) *Unix {
 	return &Unix{vmClient: vmClient}
 }
 
-// CheckFile check if the file exists, return an error if it does not
-func (u *Unix) CheckFile(path string) (string, error) {
+// FileExists check if the file exists, return an error if it does not
+func (u *Unix) FileExists(path string) (string, error) {
 	return u.vmClient.ExecuteWithError(fmt.Sprintf("sudo stat %s", path))
 }
 
