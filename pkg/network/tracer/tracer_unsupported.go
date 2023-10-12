@@ -32,7 +32,7 @@ func (t *Tracer) GetActiveConnections(_ string) (*network.Connections, error) {
 }
 
 // RegisterClient registers the client
-func (t *Tracer) RegisterClient(clientID string) error { // nolint:revive // TODO fix revive unused-parameter
+func (t *Tracer) RegisterClient(clientID string) error { //nolint:revive // TODO fix revive unused-parameter
 	return ebpf.ErrNotImplemented
 }
 
@@ -42,7 +42,7 @@ func (t *Tracer) GetStats() (map[string]interface{}, error) {
 }
 
 // DebugNetworkState is not implemented on this OS for Tracer
-func (t *Tracer) DebugNetworkState(clientID string) (map[string]interface{}, error) { // nolint:revive // TODO fix revive unused-parameter
+func (t *Tracer) DebugNetworkState(clientID string) (map[string]interface{}, error) { //nolint:revive // TODO fix revive unused-parameter
 	return nil, ebpf.ErrNotImplemented
 }
 
@@ -52,7 +52,7 @@ func (t *Tracer) DebugNetworkMaps() (*network.Connections, error) {
 }
 
 // DebugEBPFMaps is not implemented on this OS for Tracer
-func (t *Tracer) DebugEBPFMaps(maps ...string) (string, error) { // nolint:revive // TODO fix revive unused-parameter
+func (t *Tracer) DebugEBPFMaps(maps ...string) (string, error) { //nolint:revive // TODO fix revive unused-parameter
 	return "", ebpf.ErrNotImplemented
 }
 
