@@ -383,12 +383,12 @@ func (suite *k8sSuite) testHPA(namespace, deployment string) {
 		out:
 			for _, metric := range metrics {
 				for _, value := range lo.Map(metric.GetPoints(), func(point *gogen.MetricPayload_MetricPoint, _ int) float64 { return point.GetValue() }) {
-					if almostEqual(value-prevValue, 1) {
+					if value > prevValue+0.5 {
 						scaleUp = true
 						if scaleDown {
 							break out
 						}
-					} else if almostEqual(value-prevValue, -1) {
+					} else if value < prevValue-0.5 {
 						scaleDown = true
 						if scaleUp {
 							break out
