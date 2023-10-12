@@ -906,19 +906,19 @@ func TestProcessTelemetry(t *testing.T) {
 func TestSendTelemetry(t *testing.T) {
 	tests := []struct {
 		name     string
-		config   *KSMConfig
 		cache    *telemetryCache
+		config   *KSMConfig
 		expected []metricsExpected
 	}{
 		{
 			name:     "telemetry disabled",
-			config:   &KSMConfig{},
 			cache:    newTelemetryCache(),
+			config:   &KSMConfig{},
 			expected: []metricsExpected{},
 		},
 		{
 			name:   "populated cache",
-			config: &KSMConfig{Tags: []string{"kube_cluster_name:foo"}, Telemetry: true},
+			config: &KSMConfig{Telemetry: true},
 			cache: &telemetryCache{
 				totalCount:             5,
 				unknownMetricsCount:    1,
@@ -928,25 +928,25 @@ func TestSendTelemetry(t *testing.T) {
 				{
 					name:     "kubernetes_state.telemetry.metrics.count.total",
 					val:      5,
-					tags:     []string{"kube_cluster_name:foo"},
+					tags:     []string{},
 					hostname: "",
 				},
 				{
 					name:     "kubernetes_state.telemetry.metrics.count",
 					val:      2,
-					tags:     []string{"kube_cluster_name:foo", "resource_name:baz"},
+					tags:     []string{"resource_name:baz"},
 					hostname: "",
 				},
 				{
 					name:     "kubernetes_state.telemetry.metrics.count",
 					val:      3,
-					tags:     []string{"kube_cluster_name:foo", "resource_name:bar"},
+					tags:     []string{"resource_name:bar"},
 					hostname: "",
 				},
 				{
 					name:     "kubernetes_state.telemetry.unknown_metrics.count",
 					val:      1,
-					tags:     []string{"kube_cluster_name:foo"},
+					tags:     []string{},
 					hostname: "",
 				},
 			},
@@ -1600,7 +1600,7 @@ func TestKSMCheckInitTags(t *testing.T) {
 			fields: fields{
 				instance: &KSMConfig{Tags: []string{"check:tag1", "check:tag2"}},
 			},
-			expected: []string{"check:tag1", "check:tag2"},
+			expected: []string{},
 		},
 		{
 			name:         "with cluster name",
@@ -1612,28 +1612,30 @@ func TestKSMCheckInitTags(t *testing.T) {
 			expected: []string{"kube_cluster_name:clustername"},
 		},
 		{
-			name:         "with global tags",
-			tagsInConfig: []string{"global:tag1", "global:tag2"},
-			fields:       fields{instance: &KSMConfig{}},
-			expected:     []string{"global:tag1", "global:tag2"},
+			name:         "with unsorted global tags",
+			tagsInConfig: []string{"global2:tag2", "global1:tag1"},
+			fields: fields{
+				instance: &KSMConfig{},
+			},
+			expected: []string{"global1:tag1", "global2:tag2"},
 		},
 		{
 			name:         "with everything",
-			tagsInConfig: []string{"global:tag1", "global:tag2"},
+			tagsInConfig: []string{"global1:tag1", "global2:tag2"},
 			fields: fields{
-				instance:    &KSMConfig{Tags: []string{"check:tag1", "check:tag2"}},
+				instance:    &KSMConfig{},
 				clusterName: "clustername",
 			},
-			expected: []string{"check:tag1", "check:tag2", "kube_cluster_name:clustername", "global:tag1", "global:tag2"},
+			expected: []string{"global1:tag1", "global2:tag2", "kube_cluster_name:clustername"},
 		},
 		{
 			name:         "with disable_global_tags",
-			tagsInConfig: []string{"global:tag1", "global:tag2"},
+			tagsInConfig: []string{"global1:tag1", "global2:tag2"},
 			fields: fields{
-				instance:    &KSMConfig{Tags: []string{"check:tag1", "check:tag2"}, DisableGlobalTags: true},
+				instance:    &KSMConfig{DisableGlobalTags: true},
 				clusterName: "clustername",
 			},
-			expected: []string{"check:tag1", "check:tag2", "kube_cluster_name:clustername"},
+			expected: []string{"kube_cluster_name:clustername"},
 		},
 	}
 
@@ -1649,7 +1651,7 @@ func TestKSMCheckInitTags(t *testing.T) {
 			}
 
 			k.initTags()
-			assert.ElementsMatch(t, tt.expected, k.instance.Tags)
+			assert.ElementsMatch(t, tt.expected, k.globalTags)
 		})
 	}
 }
