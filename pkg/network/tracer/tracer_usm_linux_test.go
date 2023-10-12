@@ -163,7 +163,7 @@ func (s *USMSuite) TestHTTPSViaLibraryIntegration() {
 	} {
 		t.Run(keepAlive.name, func(t *testing.T) {
 			// Spin-up HTTPS server
-			serverDoneFn := testutil.HTTPServer(t, "127.0.0.1:443", testutil.Options{
+			srv, serverDoneFn := testutil.HTTPServer(t, "127.0.0.1:0", testutil.Options{
 				EnableTLS:       true,
 				EnableKeepAlive: keepAlive.value,
 			})
@@ -182,7 +182,7 @@ func (s *USMSuite) TestHTTPSViaLibraryIntegration() {
 					if len(test.prefetchLibs) == 0 {
 						t.Fatalf("%s not linked with any of these libs %v", test.name, tlsLibs)
 					}
-					testHTTPSLibrary(t, test.fetchCmd, test.prefetchLibs)
+					testHTTPSLibrary(t, srv.Addr, test.fetchCmd, test.prefetchLibs)
 				})
 			}
 		})
@@ -226,7 +226,7 @@ func prefetchLib(t *testing.T, filenames ...string) *exec.Cmd {
 	return cmd
 }
 
-func testHTTPSLibrary(t *testing.T, fetchCmd []string, prefetchLibs []string) {
+func testHTTPSLibrary(t *testing.T, srvAddr string, fetchCmd []string, prefetchLibs []string) {
 	// Start tracer with HTTPS support
 	cfg := testConfig()
 	cfg.EnableHTTPMonitoring = true
@@ -253,7 +253,7 @@ func testHTTPSLibrary(t *testing.T, fetchCmd []string, prefetchLibs []string) {
 	// Issue request using fetchCmd (wget, curl, ...)
 	// This is necessary (as opposed to using net/http) because we want to
 	// test a HTTP client linked to OpenSSL or GnuTLS
-	const targetURL = "https://127.0.0.1:443/200/foobar"
+	targetURL := fmt.Sprintf("https://%s/200/foobar", srvAddr)
 	cmd := append(fetchCmd, targetURL)
 
 	t.Log("run 3 clients request as we can have a race between the closing tcp socket and the http response")
@@ -697,17 +697,19 @@ func (s *USMSuite) TestJavaInjection() {
 				cfg.CollectTCPv4Conns = true
 				cfg.CollectTCPv6Conns = true
 
-				serverDoneFn := testutil.HTTPServer(t, "0.0.0.0:5443", testutil.Options{
+				srv, serverDoneFn := testutil.HTTPServer(t, "0.0.0.0:0", testutil.Options{
 					EnableTLS: true,
 				})
 				t.Cleanup(serverDoneFn)
+				ctx.extras["port"] = testutil.GetPort(t, srv.Addr)
 			},
 			postTracerSetup: func(t *testing.T, ctx testContext) {
-				require.NoError(t, javatestutil.RunJavaVersion(t, "openjdk:15-oraclelinux8", "Wget https://host.docker.internal:5443/200/anything/java-tls-request", "./", regexp.MustCompile("Response code = .*")), "Failed running Java version")
+				command := fmt.Sprintf("Wget https://host.docker.internal:%v/200/anything/java-tls-request", ctx.extras["port"])
+				require.NoError(t, javatestutil.RunJavaVersion(t, "openjdk:15-oraclelinux8", command, "./", regexp.MustCompile("Response code = .*")), "Failed running Java version")
 			},
 			validation: func(t *testing.T, ctx testContext, tr *Tracer) {
 				// Iterate through active connections until we find connection created above
-				require.Eventually(t, func() bool {
+				require.Eventuallyf(t, func() bool {
 					payload := getConnections(t, tr)
 					for key, stats := range payload.HTTP {
 						if key.Path.Content.Get() == "/200/anything/java-tls-request" {
@@ -740,7 +742,7 @@ func (s *USMSuite) TestJavaInjection() {
 					}
 
 					return false
-				}, 4*time.Second, 100*time.Millisecond, "couldn't find http connection matching: https://host.docker.internal:5443/200/anything/java-tls-request")
+				}, 4*time.Second, 100*time.Millisecond, "couldn't find http connection matching: https://host.docker.internal:%v/200/anything/java-tls-request", ctx.extras["port"])
 			},
 		},
 	}
@@ -812,12 +814,11 @@ func TestHTTPSGoTLSAttachProbesOnContainer(t *testing.T) {
 // tracer.
 func testHTTPGoTLSCaptureNewProcess(t *testing.T, cfg *config.Config) {
 	const (
-		serverAddr          = "localhost:8081"
 		expectedOccurrences = 10
 	)
 
 	// Setup
-	closeServer := testutil.HTTPServer(t, serverAddr, testutil.Options{
+	srv, closeServer := testutil.HTTPServer(t, "localhost:0", testutil.Options{
 		EnableTLS:       true,
 		EnableKeepAlive: true,
 	})
@@ -831,13 +832,13 @@ func testHTTPGoTLSCaptureNewProcess(t *testing.T, cfg *config.Config) {
 	// This maps will keep track of whether the tracer saw this request already or not
 	reqs := make(requestsMap)
 	for i := 0; i < expectedOccurrences; i++ {
-		req, err := nethttp.NewRequest(nethttp.MethodGet, fmt.Sprintf("https://%s/%d/request-%d", serverAddr, nethttp.StatusOK, i), nil)
+		req, err := nethttp.NewRequest(nethttp.MethodGet, fmt.Sprintf("https://%s/%d/request-%d", srv.Addr, nethttp.StatusOK, i), nil)
 		require.NoError(t, err)
 		reqs[req] = false
 	}
 
 	// spin-up goTLS client and issue requests after initialization
-	command, runRequests := gotlstestutil.NewGoTLSClient(t, serverAddr, expectedOccurrences)
+	command, runRequests := gotlstestutil.NewGoTLSClient(t, srv.Addr, expectedOccurrences)
 	require.Eventuallyf(t, func() bool {
 		traced := utils.GetTracedPrograms("go-tls")
 		for _, prog := range traced {
@@ -853,19 +854,18 @@ func testHTTPGoTLSCaptureNewProcess(t *testing.T, cfg *config.Config) {
 
 func testHTTPGoTLSCaptureAlreadyRunning(t *testing.T, cfg *config.Config) {
 	const (
-		serverAddr          = "localhost:8081"
 		expectedOccurrences = 10
 	)
 
 	// Setup
-	closeServer := testutil.HTTPServer(t, serverAddr, testutil.Options{
+	srv, closeServer := testutil.HTTPServer(t, "localhost:0", testutil.Options{
 		EnableTLS:       true,
 		EnableKeepAlive: true,
 	})
 	t.Cleanup(closeServer)
 
 	// spin-up goTLS client but don't issue requests yet
-	command, issueRequestsFn := gotlstestutil.NewGoTLSClient(t, serverAddr, expectedOccurrences)
+	command, issueRequestsFn := gotlstestutil.NewGoTLSClient(t, srv.Addr, expectedOccurrences)
 
 	cfg.EnableGoTLSSupport = true
 	cfg.EnableHTTPMonitoring = true
@@ -875,7 +875,7 @@ func testHTTPGoTLSCaptureAlreadyRunning(t *testing.T, cfg *config.Config) {
 	// This maps will keep track of whether the tracer saw this request already or not
 	reqs := make(requestsMap)
 	for i := 0; i < expectedOccurrences; i++ {
-		req, err := nethttp.NewRequest(nethttp.MethodGet, fmt.Sprintf("https://%s/%d/request-%d", serverAddr, nethttp.StatusOK, i), nil)
+		req, err := nethttp.NewRequest(nethttp.MethodGet, fmt.Sprintf("https://%s/%d/request-%d", srv.Addr, nethttp.StatusOK, i), nil)
 		require.NoError(t, err)
 		reqs[req] = false
 	}

@@ -21,7 +21,8 @@ import (
 	"testing"
 	"time"
 
-	sysctl "github.com/lorenzosaino/go-sysctl"
+	"github.com/lorenzosaino/go-sysctl"
+	"github.com/stretchr/testify/require"
 )
 
 // Options wraps all configurable params for the HTTPServer
@@ -69,13 +70,32 @@ func SetupNetIPV4TCPTimestamp(t *testing.T, enable bool) {
 	t.Cleanup(func() { setNetIPV4TCPTimestamp(t, oldTCPTS) })
 }
 
+// GetPort extracts the port from the given address.
+func GetPort(t *testing.T, addr string) uint16 {
+	_, srvPortString, err := net.SplitHostPort(addr)
+	require.NoError(t, err)
+	srvPort, err := strconv.Atoi(srvPortString)
+	require.NoError(t, err)
+	return uint16(srvPort)
+}
+
+// SwitchIP builds a new address and replaces the original ip with the given target.
+func SwitchIP(t *testing.T, originalAddr, targetIP string) string {
+	_, srvPortString, err := net.SplitHostPort(originalAddr)
+	require.NoError(t, err)
+	return net.JoinHostPort(targetIP, srvPortString)
+}
+
 // HTTPServer spins up a HTTP test server that returns the status code included in the URL
 // Example:
 // * GET /200/foo returns a 200 status code;
 // * PUT /404/bar returns a 404 status code;
-// Optional TLS support using a self-signed certificate can be enabled trough the `enableTLS` argument
+// Optional TLS support using a self-signed certificate can be enabled through the `enableTLS` argument
 // nolint
-func HTTPServer(t *testing.T, addr string, options Options) func() {
+func HTTPServer(t *testing.T, addr string, options Options) (*http.Server, func()) {
+	ln, err := net.Listen("tcp", addr)
+	require.NoError(t, err)
+
 	handler := func(w http.ResponseWriter, req *http.Request) {
 		if options.SlowResponse != 0 {
 			time.Sleep(options.SlowResponse)
@@ -96,7 +116,7 @@ func HTTPServer(t *testing.T, addr string, options Options) func() {
 	}
 
 	srv := &http.Server{
-		Addr:         addr,
+		Addr:         ln.Addr().String(),
 		Handler:      http.HandlerFunc(handler),
 		ReadTimeout:  time.Second,
 		WriteTimeout: time.Second,
@@ -107,12 +127,8 @@ func HTTPServer(t *testing.T, addr string, options Options) func() {
 	}
 	srv.SetKeepAlivesEnabled(options.EnableKeepAlive)
 
-	listenFn := func() error {
-		ln, err := net.Listen("tcp", srv.Addr)
-		if err == nil {
-			go func() { _ = srv.Serve(ln) }()
-		}
-		return err
+	serveFn := func() {
+		_ = srv.Serve(ln)
 	}
 	if options.ReadTimeout != 0 {
 		srv.ReadTimeout = options.ReadTimeout
@@ -127,20 +143,15 @@ func HTTPServer(t *testing.T, addr string, options Options) func() {
 		curDir, _ := CurDir()
 		crtPath := filepath.Join(curDir, "testdata/cert.pem.0")
 		keyPath := filepath.Join(curDir, "testdata/server.key")
-		listenFn = func() error {
-			ln, err := net.Listen("tcp", srv.Addr)
-			if err == nil {
-				go func() { _ = srv.ServeTLS(ln, crtPath, keyPath) }()
-			}
-			return err
+		serveFn = func() {
+			_ = srv.ServeTLS(ln, crtPath, keyPath)
 		}
 	}
 
-	if err := listenFn(); err != nil {
-		t.Fatalf("server listen: %s", err)
-	}
-	return func() {
-		srv.Shutdown(context.Background())
+	go serveFn()
+	t.Log("http server listens on", ln.Addr().String())
+	return srv, func() {
+		_ = srv.Shutdown(context.Background())
 	}
 }
 

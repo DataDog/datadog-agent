@@ -288,12 +288,11 @@ func (s *KafkaProtocolParsingSuite) TestKafkaProtocolParsing() {
 				require.NoError(t, client.Client.ProduceSync(ctxTimeout, record).FirstErr(), "record had a produce error while synchronously producing")
 				cancel()
 
-				serverAddr := "localhost:8081"
-				srvDoneFn := testutil.HTTPServer(t, serverAddr, testutil.Options{})
+				srv, srvDoneFn := testutil.HTTPServer(t, "localhost:0", testutil.Options{})
 				t.Cleanup(srvDoneFn)
 				httpClient := nethttp.Client{}
 
-				req, err := nethttp.NewRequest(httpMethods[0], fmt.Sprintf("http://%s/%d/request", serverAddr, nethttp.StatusOK), nil)
+				req, err := nethttp.NewRequest(httpMethods[0], fmt.Sprintf("http://%s/%d/request", srv.Addr, nethttp.StatusOK), nil)
 				require.NoError(t, err)
 
 				httpRequestCount := 10

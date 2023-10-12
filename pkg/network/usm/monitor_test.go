@@ -110,17 +110,17 @@ func (s *HTTPTestSuite) TestHTTPStats() {
 
 func testHTTPStats(t *testing.T, aggregateByStatusCode bool) {
 	// Start an HTTP server on localhost:8080
-	serverAddr := "127.0.0.1:8080"
-	srvDoneFn := testutil.HTTPServer(t, serverAddr, testutil.Options{
+	srv, srvDoneFn := testutil.HTTPServer(t, "127.0.0.1:0", testutil.Options{
 		EnableKeepAlive: true,
 	})
+	srvPort := testutil.GetPort(t, srv.Addr)
 	t.Cleanup(srvDoneFn)
 
 	cfg := networkconfig.New()
 	cfg.EnableHTTPStatsByStatusCode = aggregateByStatusCode
 	monitor := newHTTPMonitorWithCfg(t, cfg)
 
-	resp, err := nethttp.Get(fmt.Sprintf("http://%s/%d/test", serverAddr, nethttp.StatusNoContent))
+	resp, err := nethttp.Get(fmt.Sprintf("http://%s/%d/test", srv.Addr, nethttp.StatusNoContent))
 	require.NoError(t, err)
 	_ = resp.Body.Close()
 	srvDoneFn()
@@ -130,7 +130,7 @@ func testHTTPStats(t *testing.T, aggregateByStatusCode bool) {
 		stats := getHttpStats(t, monitor)
 
 		for key, reqStats := range stats {
-			if key.Method == http.MethodGet && strings.HasSuffix(key.Path.Content.Get(), "/test") && (key.SrcPort == 8080 || key.DstPort == 8080) {
+			if key.Method == http.MethodGet && strings.HasSuffix(key.Path.Content.Get(), "/test") && (key.SrcPort == srvPort || key.DstPort == srvPort) {
 				currentStats := reqStats.Data[reqStats.NormalizeStatusCode(204)]
 				if currentStats != nil && currentStats.Count == 1 {
 					return true
@@ -139,7 +139,7 @@ func testHTTPStats(t *testing.T, aggregateByStatusCode bool) {
 		}
 
 		return false
-	}, 3*time.Second, 100*time.Millisecond, "couldn't find http connection matching: %s", serverAddr)
+	}, 3*time.Second, 100*time.Millisecond, "couldn't find http connection matching: %s", srv.Addr)
 }
 
 func (s *HTTPTestSuite) TestHTTPMonitorCaptureRequestMultipleTimes() {
@@ -156,14 +156,13 @@ func (s *HTTPTestSuite) TestHTTPMonitorCaptureRequestMultipleTimes() {
 
 			monitor := newHTTPMonitor(t)
 
-			serverAddr := "localhost:8081"
-			srvDoneFn := testutil.HTTPServer(t, serverAddr, testutil.Options{
+			srv, srvDoneFn := testutil.HTTPServer(t, "localhost:0", testutil.Options{
 				EnableTCPTimestamp: &TCPTimestamp.value,
 			})
 
 			client := nethttp.Client{}
 
-			req, err := nethttp.NewRequest(httpMethods[0], fmt.Sprintf("http://%s/%d/request", serverAddr, nethttp.StatusOK), nil)
+			req, err := nethttp.NewRequest(httpMethods[0], fmt.Sprintf("http://%s/%d/request", srv.Addr, nethttp.StatusOK), nil)
 			require.NoError(t, err)
 
 			expectedOccurrences := 10
@@ -191,18 +190,15 @@ func (s *HTTPTestSuite) TestHTTPMonitorCaptureRequestMultipleTimes() {
 func (s *HTTPTestSuite) TestHTTPMonitorLoadWithIncompleteBuffers() {
 	t := s.T()
 
-	slowServerAddr := "localhost:8080"
-	fastServerAddr := "localhost:8081"
-
 	monitor := newHTTPMonitor(t)
-	slowSrvDoneFn := testutil.HTTPServer(t, slowServerAddr, testutil.Options{
+	slowSrv, slowSrvDoneFn := testutil.HTTPServer(t, "localhost:0", testutil.Options{
 		SlowResponse: time.Millisecond * 500, // Half a second.
 		WriteTimeout: time.Millisecond * 200,
 		ReadTimeout:  time.Millisecond * 200,
 	})
 
-	fastSrvDoneFn := testutil.HTTPServer(t, fastServerAddr, testutil.Options{})
-	abortedRequestFn := requestGenerator(t, fmt.Sprintf("%s/ignore", slowServerAddr), emptyBody)
+	fastSrv, fastSrvDoneFn := testutil.HTTPServer(t, "localhost:0", testutil.Options{})
+	abortedRequestFn := requestGenerator(t, fmt.Sprintf("%s/ignore", slowSrv.Addr), emptyBody)
 	wg := sync.WaitGroup{}
 	abortedRequests := make(chan *nethttp.Request, 100)
 	for i := 0; i < 100; i++ {
@@ -213,7 +209,7 @@ func (s *HTTPTestSuite) TestHTTPMonitorLoadWithIncompleteBuffers() {
 			abortedRequests <- req
 		}()
 	}
-	fastReq := requestGenerator(t, fastServerAddr, emptyBody)()
+	fastReq := requestGenerator(t, fastSrv.Addr, emptyBody)()
 	wg.Wait()
 	close(abortedRequests)
 	slowSrvDoneFn()
@@ -240,8 +236,6 @@ func (s *HTTPTestSuite) TestHTTPMonitorLoadWithIncompleteBuffers() {
 
 func (s *HTTPTestSuite) TestHTTPMonitorIntegrationWithResponseBody() {
 	t := s.T()
-	targetAddr := "localhost:8080"
-	serverAddr := "localhost:8080"
 
 	tests := []struct {
 		name            string
@@ -279,12 +273,12 @@ func (s *HTTPTestSuite) TestHTTPMonitorIntegrationWithResponseBody() {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			monitor := newHTTPMonitor(t)
-			srvDoneFn := testutil.HTTPServer(t, serverAddr, testutil.Options{
+			srv, srvDoneFn := testutil.HTTPServer(t, "localhost:0", testutil.Options{
 				EnableKeepAlive: true,
 			})
 			t.Cleanup(srvDoneFn)
 
-			requestFn := requestGenerator(t, targetAddr, bytes.Repeat([]byte("a"), tt.requestBodySize))
+			requestFn := requestGenerator(t, srv.Addr, bytes.Repeat([]byte("a"), tt.requestBodySize))
 			var requests []*nethttp.Request
 			for i := 0; i < 100; i++ {
 				requests = append(requests, requestFn())
@@ -298,8 +292,6 @@ func (s *HTTPTestSuite) TestHTTPMonitorIntegrationWithResponseBody() {
 
 func (s *HTTPTestSuite) TestHTTPMonitorIntegrationSlowResponse() {
 	t := s.T()
-	targetAddr := "localhost:8080"
-	serverAddr := "localhost:8080"
 
 	tests := []struct {
 		name                         string
@@ -339,7 +331,7 @@ func (s *HTTPTestSuite) TestHTTPMonitorIntegrationSlowResponse() {
 
 			slowResponseTimeout := time.Duration(tt.slowResponseTime) * time.Second
 			serverTimeout := slowResponseTimeout + time.Second
-			srvDoneFn := testutil.HTTPServer(t, serverAddr, testutil.Options{
+			srv, srvDoneFn := testutil.HTTPServer(t, "localhost:0", testutil.Options{
 				WriteTimeout: serverTimeout,
 				ReadTimeout:  serverTimeout,
 				SlowResponse: slowResponseTimeout,
@@ -347,7 +339,7 @@ func (s *HTTPTestSuite) TestHTTPMonitorIntegrationSlowResponse() {
 			t.Cleanup(srvDoneFn)
 
 			// Perform a number of random requests
-			req := requestGenerator(t, targetAddr, emptyBody)()
+			req := requestGenerator(t, srv.Addr, emptyBody)()
 			srvDoneFn()
 
 			// Ensure all captured transactions get sent to user-space
@@ -365,8 +357,8 @@ func (s *HTTPTestSuite) TestHTTPMonitorIntegrationSlowResponse() {
 
 func (s *HTTPTestSuite) TestHTTPMonitorIntegration() {
 	t := s.T()
-	targetAddr := "localhost:8080"
-	serverAddr := "localhost:8080"
+	targetAddr := "localhost"
+	serverAddr := "localhost"
 
 	t.Run("with keep-alives", func(t *testing.T) {
 		testHTTPMonitor(t, targetAddr, serverAddr, 100, testutil.Options{
@@ -385,8 +377,8 @@ func (s *HTTPTestSuite) TestHTTPMonitorIntegrationWithNAT() {
 	// SetupDNAT sets up a NAT translation from 2.2.2.2 to 1.1.1.1
 	netlink.SetupDNAT(t)
 
-	targetAddr := "2.2.2.2:8080"
-	serverAddr := "1.1.1.1:8080"
+	targetAddr := "2.2.2.2"
+	serverAddr := "1.1.1.1"
 
 	t.Run("with keep-alives", func(t *testing.T) {
 		testHTTPMonitor(t, targetAddr, serverAddr, 100, testutil.Options{
@@ -405,8 +397,7 @@ func (s *HTTPTestSuite) TestRSTPacketRegression() {
 
 	monitor := newHTTPMonitor(t)
 
-	serverAddr := "127.0.0.1:8080"
-	srvDoneFn := testutil.HTTPServer(t, serverAddr, testutil.Options{
+	srv, srvDoneFn := testutil.HTTPServer(t, "127.0.0.1:0", testutil.Options{
 		EnableKeepAlive: true,
 	})
 	t.Cleanup(srvDoneFn)
@@ -414,25 +405,25 @@ func (s *HTTPTestSuite) TestRSTPacketRegression() {
 	// Create a "raw" TCP socket that will serve as our HTTP client
 	// We do this in order to configure the socket option SO_LINGER
 	// so we can force a RST packet to be sent during termination
-	c, err := net.DialTimeout("tcp", serverAddr, 5*time.Second)
+	c, err := net.DialTimeout("tcp", srv.Addr, 5*time.Second)
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	// Issue HTTP request
-	c.Write([]byte("GET /200/foobar HTTP/1.1\nHost: 127.0.0.1:8080\n\n"))
-	io.Copy(io.Discard, c)
+	_, _ = c.Write([]byte(fmt.Sprintf("GET /200/foobar HTTP/1.1\nHost: %s\n\n", srv.Addr)))
+	_, _ = io.Copy(io.Discard, c)
 
 	// Configure SO_LINGER to 0 so that triggers an RST when the socket is terminated
 	require.NoError(t, c.(*net.TCPConn).SetLinger(0))
-	c.Close()
+	_ = c.Close()
 	time.Sleep(100 * time.Millisecond)
 
 	// Assert that the HTTP request was correctly handled despite its forceful termination
 	stats := getHttpStats(t, monitor)
-	url, err := url.Parse("http://127.0.0.1:8080/200/foobar")
+	parsedURL, err := url.Parse(fmt.Sprintf("http://%s/200/foobar", srv.Addr))
 	require.NoError(t, err)
-	includesRequest(t, stats, &nethttp.Request{URL: url})
+	includesRequest(t, stats, &nethttp.Request{URL: parsedURL})
 }
 
 func (s *HTTPTestSuite) TestKeepAliveWithIncompleteResponseRegression() {
@@ -721,11 +712,12 @@ func assertAllRequestsExists(t *testing.T, monitor *Monitor, requests []*nethttp
 	}, 3*time.Second, time.Millisecond*100, "connection not found")
 }
 
-func testHTTPMonitor(t *testing.T, targetAddr, serverAddr string, numReqs int, o testutil.Options) {
+func testHTTPMonitor(t *testing.T, targetIP, serverIP string, numReqs int, o testutil.Options) {
 	monitor := newHTTPMonitor(t)
 
-	srvDoneFn := testutil.HTTPServer(t, serverAddr, o)
+	srv, srvDoneFn := testutil.HTTPServer(t, net.JoinHostPort(serverIP, "0"), o)
 	t.Cleanup(srvDoneFn)
+	targetAddr := testutil.SwitchIP(t, srv.Addr, targetIP)
 
 	// Perform a number of random requests
 	requestFn := requestGenerator(t, targetAddr, emptyBody)
