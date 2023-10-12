@@ -524,7 +524,7 @@ def changelog(ctx, new_commit_sha):
         if "dependabot" in author_email or "github-actions" in author_email:
             messages.append(f"{message_link}")
             continue
-        if author_email is "guy20495@gmail.com":
+        if author_email == "guy20495@gmail.com":
             author_handle = "U03LJSCAPK2"
         else:
             author_handle = ctx.run(f"email2slackid {author_email.strip()}", hide=True).stdout
