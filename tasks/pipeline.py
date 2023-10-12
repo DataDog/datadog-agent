@@ -493,6 +493,9 @@ def is_system_probe(owners, files):
     return False
 
 
+EMAIL_SLACK_ID_MAP = {"guy20495@gmail.com": "U03LJSCAPK2"}
+
+
 @task
 def changelog(ctx, new_commit_sha):
     old_commit_sha = ctx.run(
@@ -522,8 +525,8 @@ def changelog(ctx, new_commit_sha):
         if "dependabot" in author_email or "github-actions" in author_email:
             messages.append(f"{message_link}")
             continue
-        if author_email == "guy20495@gmail.com":
-            author_handle = "U03LJSCAPK2"
+        if author_email in EMAIL_SLACK_ID_MAP:
+            author_handle = EMAIL_SLACK_ID_MAP[author_email]
         else:
             author_handle = ctx.run(f"email2slackid {author_email.strip()}", hide=True).stdout
         if author_handle:
