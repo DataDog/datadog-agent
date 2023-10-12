@@ -514,10 +514,9 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("dogstatsd_packet_buffer_flush_timeout", 100*time.Millisecond)
 	config.BindEnvAndSetDefault("dogstatsd_queue_size", 1024)
 
-	config.BindEnvAndSetDefault("dogstatsd_experimental_and_not_yet_supported", false) // Disabled by default, allows to use experimental features
 	config.BindEnvAndSetDefault("dogstatsd_non_local_traffic", false)
 	config.BindEnvAndSetDefault("dogstatsd_socket", "")        // Notice: empty means feature disabled
-	config.BindEnvAndSetDefault("dogstatsd_stream_socket", "") // Notice: empty means feature disabled
+	config.BindEnvAndSetDefault("dogstatsd_stream_socket", "") // Experimental || Notice: empty means feature disabled
 	config.BindEnvAndSetDefault("dogstatsd_pipeline_autoadjust", false)
 	config.BindEnvAndSetDefault("dogstatsd_pipeline_count", 1)
 	config.BindEnvAndSetDefault("dogstatsd_stats_port", 5000)

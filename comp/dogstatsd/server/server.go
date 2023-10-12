@@ -319,7 +319,6 @@ func (s *server) Start(demultiplexer aggregator.Demultiplexer) error {
 
 	udsListenerRunning := false
 
-	experimental := s.config.GetBool("dogstatsd_experimental_and_not_yet_supported")
 	socketPath := s.config.GetString("dogstatsd_socket")
 	socketStreamPath := s.config.GetString("dogstatsd_stream_socket")
 	originDetection := s.config.GetBool("dogstatsd_origin_detection")
@@ -350,16 +349,12 @@ func (s *server) Start(demultiplexer aggregator.Demultiplexer) error {
 	}
 
 	if len(socketStreamPath) > 0 {
-		if experimental {
-			s.log.Warnf("dogstatsd_stream_socket is not yet supported, run it at your own risk")
-			unixListener, err := listeners.NewUDSStreamListener(packetsChannel, sharedPacketPoolManager, sharedUDSOobPoolManager, s.config, s.tCapture)
-			if err != nil {
-				s.log.Errorf("Can't init listener: %s", err.Error())
-			} else {
-				tmpListeners = append(tmpListeners, unixListener)
-			}
+		s.log.Warnf("dogstatsd_stream_socket is not yet supported, run it at your own risk")
+		unixListener, err := listeners.NewUDSStreamListener(packetsChannel, sharedPacketPoolManager, sharedUDSOobPoolManager, s.config, s.tCapture)
+		if err != nil {
+			s.log.Errorf("Can't init listener: %s", err.Error())
 		} else {
-			s.log.Warnf("dogstatsd_stream_socket is not yet supported, please enable the experimental flag (dogstatsd_experimental_and_not_yet_supported)")
+			tmpListeners = append(tmpListeners, unixListener)
 		}
 	}
 
