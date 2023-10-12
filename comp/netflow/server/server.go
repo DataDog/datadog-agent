@@ -8,6 +8,7 @@ package server
 import (
 	"context"
 	"errors"
+	"fmt"
 	"net/http"
 	"time"
 
@@ -44,7 +45,22 @@ func newServer(lc fx.Lifecycle, deps dependencies) (Component, error) {
 		// netflow is enabled, so start the server
 		lc.Append(fx.Hook{
 			OnStart: func(ctx context.Context) error {
-				return server.Start()
+
+				err := server.Start()
+				server.PrintListenerInfo()
+
+				go func() {
+					uptimeTicker := time.NewTicker(5 * time.Second)
+
+					for {
+						select {
+						case <-uptimeTicker.C:
+							server.PrintListenerInfo()
+						}
+					}
+				}()
+
+				return err
 			},
 			OnStop: func(context.Context) error {
 				server.Stop()
@@ -93,6 +109,7 @@ func (s *Server) Start() error {
 			continue
 		}
 		s.listeners = append(s.listeners, listener)
+
 	}
 	return nil
 }
@@ -122,4 +139,22 @@ func (s *Server) Stop() {
 		}
 	}
 	s.running = false
+}
+
+func (s *Server) PrintListenerInfo() {
+	for _, listener := range s.listeners {
+		// Print listener information here
+		fmt.Printf("Listener ID: %v\n", listener.statistics.ID)
+		fmt.Printf("BindHost: %s\n", listener.statistics.BindHost)
+		fmt.Printf("FlowType: %s\n", listener.statistics.FlowType)
+		fmt.Printf("Port: %d\n", listener.statistics.Port)
+		fmt.Printf("Workers: %d\n", listener.statistics.Workers)
+		fmt.Printf("Namespace: %s\n", listener.statistics.Namespace)
+		if listener.statistics.Error != nil {
+			fmt.Printf("Error: %s\n", listener.statistics.Error.Error())
+		} else {
+			fmt.Println("No Error")
+		}
+		fmt.Println("---------------------------")
+	}
 }

@@ -39,7 +39,7 @@ type FlowRunnableState interface {
 }
 
 // StartFlowRoutine starts one of the goflow flow routine depending on the flow type
-func StartFlowRoutine(flowType common.FlowType, hostname string, port uint16, workers int, namespace string, flowInChan chan *common.Flow, logger log.Component) (*FlowStateWrapper, error) {
+func StartFlowRoutine(flowType common.FlowType, hostname string, port uint16, workers int, namespace string, flowInChan chan *common.Flow, logger log.Component, errCh chan error) (*FlowStateWrapper, error) {
 	var flowState FlowRunnableState
 
 	formatDriver := NewAggregatorFormatDriver(flowInChan, namespace)
@@ -77,8 +77,10 @@ func StartFlowRoutine(flowType common.FlowType, hostname string, port uint16, wo
 		err := flowState.FlowRoutine(workers, hostname, int(port), reusePort)
 		if err != nil {
 			logger.Errorf("Error listening to %s: %s", flowType, err)
+			errCh <- err
 		}
 	}()
+
 	return &FlowStateWrapper{
 		State:    flowState,
 		Hostname: hostname,
