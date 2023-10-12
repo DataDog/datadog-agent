@@ -1,4 +1,4 @@
 
 fixes:
   - |
-    Fixed a bug in the ``kubernetes_state_core`` check causing tag corruption when ``telemetry`` is set to ``true``.
+    Fixed a bug in the ``kubernetes_state_core`` check that caused tag corruption when ``telemetry`` was set to ``true``.
