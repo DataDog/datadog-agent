@@ -5,16 +5,6 @@
 
 package profiledefinition
 
-// ProfileSource is the type used to indicate the source (e.g. custom or default) of the profile
-type ProfileSource string
-
-const (
-	// SourceCustom enum for custom profile source
-	SourceCustom ProfileSource = "custom"
-	// SourceDefault enum for default profile source
-	SourceDefault ProfileSource = "default"
-)
-
 // ProfileBundleProfileItem represent a profile entry with metadata.
 type ProfileBundleProfileItem struct {
 	Profile ProfileDefinition `json:"profile"`
