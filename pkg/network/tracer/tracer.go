@@ -15,7 +15,6 @@ import (
 	"time"
 
 	"github.com/DataDog/ebpf-manager/tracefs"
-	"github.com/avast/retry-go/v4"
 	"github.com/cihub/seelog"
 	"github.com/cilium/ebpf"
 	"go.uber.org/atomic"
@@ -237,16 +236,17 @@ func newConntracker(cfg *config.Config, bpfTelemetry *nettelemetry.EBPFTelemetry
 	var c netlink.Conntracker
 	var err error
 
-	// try creating ebpf conntracker 3 times in case the module is not loaded on the host yet
-	err = retry.Do(
-		func() error {
-			c, err = NewEBPFConntracker(cfg, bpfTelemetry)
-			return err
-		},
-		retry.Attempts(3),
-		retry.Delay(1*time.Second),
-	)
-	if err == nil {
+	ns, err := cfg.GetRootNetNs()
+	if err != nil {
+		log.Warnf("error fetching root net namespace, will not attempt to load nf_conntrack_netlink module: %s", err)
+	} else {
+		defer ns.Close()
+		if err = netlink.LoadNfConntrackKernelModule(ns); err != nil {
+			log.Warnf("failed to load conntrack kernel module, though it may already be loaded: %s", err)
+		}
+	}
+
+	if c, err = NewEBPFConntracker(cfg, bpfTelemetry); err == nil {
 		return c, nil
 	}
 
