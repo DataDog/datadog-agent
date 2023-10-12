@@ -7,17 +7,27 @@ package aggregator
 
 import (
 	_ "embed"
+	"github.com/DataDog/datadog-agent/test/fakeintake/api"
+	"github.com/stretchr/testify/assert"
 	"testing"
 )
 
-/*
-//go:embed fixtures/metric_bytes
-var metricsData []byte
-*/
+//go:embed fixtures/metric_bytes_v1
+var metricsDatav1 []byte
+
 func TestV1MetricPayloads(t *testing.T) {
-	t.Run("ParseV1MetricSeries ", func(t *testing.T) {
-		data := []byte("eJy8ktFqMjEQhd9lrmNIdvdfNa/xX8qyhDiuKd1JSCaCiO9e1lbQamFbSm9PTma+4ZwTZEweM5jNCUbk5B0Y2Fq22zBIOyCxzGwT4xYExOCJJ+9Gt+u2qatGKaG7TgDbYdLhgCn7QGYpm6XU0AnYh8xgwC+U1m27a1y9quqq+edqEMDHiGDAhUIMAjwxpoN9BaPVWdwA5WNmHKWLRVIZexcS5uc8a1Hd8MzcP9gy4N1+JSCHkhz2k6UnO06+/xcMuEMjjjLsdhn5K6CFkkopVderVv8t232O8cj7QPIjoqe0+lOc71/6a6oT1mXWVelH+xKSWT7qnkIyzeNDtOz2ZnYzfu/6VIg8DbPO/lmLv8vand8CAAD//+MjG/o=")
-		enflated, _ := enflate(data, "deflate")
-		println(enflated)
+	t.Run("parseMetricSeries empty body should return error", func(t *testing.T) {
+		metrics, err := ParseV1MetricSeries(api.Payload{
+			Data:     []byte(""),
+			Encoding: encodingDeflate,
+		})
+		assert.Error(t, err)
+		assert.Nil(t, metrics)
+	})
+	t.Run("parseMetricSeries valid body should parse metrics", func(t *testing.T) {
+		metrics, err := ParseV1MetricSeries(api.Payload{Data: metricsDatav1, Encoding: encodingDeflate})
+		assert.NoError(t, err)
+		assert.Equal(t, len(metrics), 2)
+
 	})
 }
