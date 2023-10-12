@@ -1,7 +1,7 @@
 import os
 import sys
 
-from invoke import task
+from invoke import Exit, task
 
 from .build_tags import filter_incompatible_tags, get_build_tags, get_default_build_tags
 from .flavor import AgentFlavor
@@ -78,6 +78,9 @@ def integration_tests(ctx, install_deps=False, race=False, go_mod="mod"):
     """
     Run integration tests for trace agent
     """
+    if sys.platform == 'win32':
+        raise Exit(message='trace-agent integration tests are not supported on Windows', code=0)
+
     if install_deps:
         deps(ctx)
 

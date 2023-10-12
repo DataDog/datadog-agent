@@ -46,6 +46,9 @@ import (
 	"net/http"
 	"regexp"
 	"strings"
+	"time"
+
+	"github.com/cenkalti/backoff/v4"
 
 	"github.com/DataDog/datadog-agent/test/fakeintake/aggregator"
 	"github.com/DataDog/datadog-agent/test/fakeintake/api"
@@ -131,17 +134,19 @@ func (c *Client) GetLatestFlare() (flare.Flare, error) {
 }
 
 func (c *Client) getFakePayloads(endpoint string) (rawPayloads []api.Payload, err error) {
-	resp, err := http.Get(fmt.Sprintf("%s/fakeintake/payloads?endpoint=%s", c.fakeIntakeURL, endpoint))
-	if err != nil {
-		return nil, err
-	}
-
-	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("error querying fake payloads, status code %s", resp.Status)
-	}
-
-	defer resp.Body.Close()
-	body, err := io.ReadAll(resp.Body)
+	var body []byte
+	err = backoff.Retry(func() error {
+		tmpResp, err := http.Get(fmt.Sprintf("%s/fakeintake/payloads?endpoint=%s", c.fakeIntakeURL, endpoint))
+		if err != nil {
+			return err
+		}
+		defer tmpResp.Body.Close()
+		if tmpResp.StatusCode != http.StatusOK {
+			return fmt.Errorf("Expected %d got %d", http.StatusOK, tmpResp.StatusCode)
+		}
+		body, err = io.ReadAll(tmpResp.Body)
+		return err
+	}, backoff.WithMaxRetries(backoff.NewConstantBackOff(5*time.Second), 4))
 	if err != nil {
 		return nil, err
 	}

@@ -8,6 +8,7 @@
 package sbom
 
 import (
+	"context"
 	"errors"
 	"os"
 	"strings"
@@ -20,10 +21,10 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/sbom"
 	"github.com/DataDog/datadog-agent/pkg/sbom/collectors/host"
 	sbomscanner "github.com/DataDog/datadog-agent/pkg/sbom/scanner"
-	"github.com/DataDog/datadog-agent/pkg/security/utils"
 	"github.com/DataDog/datadog-agent/pkg/tagger"
 	"github.com/DataDog/datadog-agent/pkg/tagger/collectors"
 	queue "github.com/DataDog/datadog-agent/pkg/util/aggregatingqueue"
+	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
 
@@ -59,12 +60,16 @@ func newProcessor(workloadmetaStore workloadmeta.Store, sender sender.Sender, ma
 	if sbomScanner == nil {
 		return nil, errors.New("failed to get global SBOM scanner")
 	}
-	hostname, _ := utils.GetHostname()
+	hname, err := hostname.Get(context.TODO())
+	if err != nil {
+		log.Warnf("Error getting hostname: %v", err)
+	}
 
 	return &processor{
 		queue: queue.NewQueue(maxNbItem, maxRetentionTime, func(entities []*model.SBOMEntity) {
 			encoded, err := proto.Marshal(&model.SBOMPayload{
 				Version:  1,
+				Host:     hname,
 				Source:   &sourceAgent,
 				Entities: entities,
 				DdEnv:    &envVarEnv,
@@ -82,7 +87,7 @@ func newProcessor(workloadmetaStore workloadmeta.Store, sender sender.Sender, ma
 		sbomScanner:           sbomScanner,
 		hostSBOM:              hostSBOM,
 		hostScanOpts:          hostScanOpts,
-		hostname:              hostname,
+		hostname:              hname,
 		hostHeartbeatValidity: hostHeartbeatValidity,
 	}, nil
 }
