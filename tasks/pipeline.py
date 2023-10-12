@@ -531,11 +531,11 @@ def changelog(ctx, new_commit_sha):
         else:
             author_handle = author_email
         time.sleep(1)  # necessary to prevent slack/sdm API rate limits
-        messages.append(f"{message_link} {author_handle}\n")
+        messages.append(f"{message_link} {author_handle}")
 
     commit_range_link = f"https://github.com/DataDog/datadog-agent/compare/{old_commit_sha}..{new_commit_sha}"
     slack_message = (
-        "The nightly deployment is rolling out to Staging :siren:\n"
+        "The nightly deployment is rolling out to Staging :siren: \n"
         + f"Changelog for <{commit_range_link}|commit range>: `{old_commit_sha}` to `{new_commit_sha}`:\n"
     )
     if messages:
