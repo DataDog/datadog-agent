@@ -26,14 +26,14 @@ type UDSStreamListener struct {
 // NewUDSStreamListener returns an idle UDS datagram Statsd listener
 func NewUDSStreamListener(packetOut chan packets.Packets, sharedPacketPoolManager *packets.PoolManager, sharedOobPacketPoolManager *packets.PoolManager, cfg config.Reader, capture replay.Component) (*UDSStreamListener, error) {
 	socketPath := cfg.GetString("dogstatsd_stream_socket")
-	network := "unix"
+	transport := "unix"
 
-	address, err := setupSocketBeforeListen(socketPath, network)
+	address, err := setupSocketBeforeListen(socketPath, transport)
 	if err != nil {
 		return nil, err
 	}
 
-	conn, err := net.ListenUnix(network, address)
+	conn, err := net.ListenUnix(transport, address)
 	if err != nil {
 		return nil, fmt.Errorf("can't listen: %s", err)
 	}
@@ -43,7 +43,7 @@ func NewUDSStreamListener(packetOut chan packets.Packets, sharedPacketPoolManage
 		return nil, err
 	}
 
-	l, err := NewUDSListener(packetOut, sharedPacketPoolManager, sharedOobPacketPoolManager, cfg, capture, network)
+	l, err := NewUDSListener(packetOut, sharedPacketPoolManager, sharedOobPacketPoolManager, cfg, capture, transport)
 	if err != nil {
 		return nil, err
 	}

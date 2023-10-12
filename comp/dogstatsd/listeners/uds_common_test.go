@@ -26,8 +26,8 @@ import (
 
 type udsListenerFactory func(packetOut chan packets.Packets, manager *packets.PoolManager, cfg config.Component) (StatsdListener, error)
 
-func socketPathConfKey(network string) string {
-	if network == "unix" {
+func socketPathConfKey(transport string) string {
+	if transport == "unix" {
 		return "dogstatsd_stream_socket"
 	}
 	return "dogstatsd_socket"
@@ -74,11 +74,11 @@ func testWorkingNewUDSListener(t *testing.T, socketPath string, cfg map[string]i
 	assert.Equal(t, "Srwx-w--w-", fi.Mode().String())
 }
 
-func testNewUDSListener(t *testing.T, listenerFactory udsListenerFactory, network string) {
+func testNewUDSListener(t *testing.T, listenerFactory udsListenerFactory, transport string) {
 	socketPath := testSocketPath(t)
 
 	mockConfig := map[string]interface{}{}
-	mockConfig[socketPathConfKey(network)] = socketPath
+	mockConfig[socketPathConfKey(transport)] = socketPath
 
 	t.Run("fail_file_exists", func(tt *testing.T) {
 		testFileExistsNewUDSListener(tt, socketPath, mockConfig, listenerFactory)
@@ -91,11 +91,11 @@ func testNewUDSListener(t *testing.T, listenerFactory udsListenerFactory, networ
 	})
 }
 
-func testStartStopUDSListener(t *testing.T, listenerFactory udsListenerFactory, network string) {
+func testStartStopUDSListener(t *testing.T, listenerFactory udsListenerFactory, transport string) {
 	socketPath := testSocketPath(t)
 
 	mockConfig := map[string]interface{}{}
-	mockConfig[socketPathConfKey(network)] = socketPath
+	mockConfig[socketPathConfKey(transport)] = socketPath
 	mockConfig["dogstatsd_origin_detection"] = false
 
 	config := fulfillDepsWithConfig(t, mockConfig)
@@ -104,20 +104,20 @@ func testStartStopUDSListener(t *testing.T, listenerFactory udsListenerFactory, 
 	assert.NotNil(t, s)
 
 	go s.Listen()
-	conn, err := net.Dial(network, socketPath)
+	conn, err := net.Dial(transport, socketPath)
 	assert.Nil(t, err)
 	conn.Close()
 
 	s.Stop()
-	_, err = net.Dial(network, socketPath)
+	_, err = net.Dial(transport, socketPath)
 	assert.NotNil(t, err)
 }
 
-func testUDSReceive(t *testing.T, listenerFactory udsListenerFactory, network string) {
+func testUDSReceive(t *testing.T, listenerFactory udsListenerFactory, transport string) {
 	socketPath := testSocketPath(t)
 
 	mockConfig := map[string]interface{}{}
-	mockConfig[socketPathConfKey(network)] = socketPath
+	mockConfig[socketPathConfKey(transport)] = socketPath
 	mockConfig["dogstatsd_origin_detection"] = false
 
 	var contents0 = []byte("daemon:666|g|#sometag1:somevalue1,sometag2:somevalue2")
@@ -132,16 +132,16 @@ func testUDSReceive(t *testing.T, listenerFactory udsListenerFactory, network st
 
 	go s.Listen()
 	defer s.Stop()
-	conn, err := net.Dial(network, socketPath)
+	conn, err := net.Dial(transport, socketPath)
 	assert.Nil(t, err)
 	defer conn.Close()
 
-	if network == "unix" {
+	if transport == "unix" {
 		binary.Write(conn, binary.LittleEndian, int32(len(contents0)))
 	}
 	conn.Write(contents0)
 
-	if network == "unix" {
+	if transport == "unix" {
 		binary.Write(conn, binary.LittleEndian, int32(len(contents1)))
 	}
 	conn.Write(contents1)
