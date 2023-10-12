@@ -49,7 +49,7 @@ func TestToMessageStructuredContent(t *testing.T) {
 	source := sources.NewLogSource("", &config.LogsConfig{})
 	tailer := NewTailer(source, &Config{ChannelPath: "System"}, nil)
 
-	tailer.config.V1Behavior = false
+	tailer.config.V1ProcessingBehavior = false
 
 	for _, testCase := range testData {
 		actual, _ := tailer.toMessage(richEventFromXML(testCase[0]))
@@ -64,7 +64,7 @@ func TestToMessage(t *testing.T) {
 	source := sources.NewLogSource("", &config.LogsConfig{})
 	tailer := NewTailer(source, &Config{ChannelPath: "System"}, nil)
 
-	tailer.config.V1Behavior = true
+	tailer.config.V1ProcessingBehavior = true
 
 	for _, testCase := range testData {
 		actual, _ := tailer.toMessage(richEventFromXML(testCase[0]))
@@ -93,11 +93,11 @@ func TestTailerCompareUnstructuredAndStructured(t *testing.T) {
 	assert := assert.New(t)
 	sourceV1 := sources.NewLogSource("", &config.LogsConfig{})
 	tailerV1 := NewTailer(sourceV1, &Config{ChannelPath: "System"}, nil)
-	tailerV1.config.V1Behavior = true
+	tailerV1.config.V1ProcessingBehavior = true
 
 	sourceV2 := sources.NewLogSource("", &config.LogsConfig{})
 	tailerV2 := NewTailer(sourceV2, &Config{ChannelPath: "System"}, nil)
-	tailerV2.config.V1Behavior = false
+	tailerV2.config.V1ProcessingBehavior = false
 
 	for _, testCase := range testData {
 		ev1 := &richEvent{

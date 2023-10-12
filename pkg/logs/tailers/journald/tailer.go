@@ -45,14 +45,14 @@ type Tailer struct {
 	}
 	stop chan struct{}
 	done chan struct{}
-	// v1behavior indicates if we want to process and send the whole structured log message
+	// v1ProcessingBehavior indicates if we want to process and send the whole structured log message
 	// instead of on the logs content. Note that the default behavior is now to only send
 	// the logs content, as other tailers do.
-	v1behavior bool
+	v1ProcessingBehavior bool
 }
 
 // NewTailer returns a new tailer.
-func NewTailer(source *sources.LogSource, outputChan chan *message.Message, journal Journal, v1behavior bool) *Tailer {
+func NewTailer(source *sources.LogSource, outputChan chan *message.Message, journal Journal, v1ProcessingBehavior bool) *Tailer {
 	return &Tailer{
 		decoder:    decoder.NewDecoderWithFraming(sources.NewReplaceableSource(source), noop.New(), framer.NoFraming, nil, status.NewInfoRegistry()),
 		source:     source,
@@ -60,7 +60,7 @@ func NewTailer(source *sources.LogSource, outputChan chan *message.Message, jour
 		journal:    journal,
 		stop:       make(chan struct{}, 1),
 		done:       make(chan struct{}, 1),
-		v1behavior: v1behavior,
+		v1ProcessingBehavior: v1ProcessingBehavior,
 	}
 }
 
@@ -250,7 +250,7 @@ func (t *Tailer) tail() {
 
 			structuredContent, jsonMarshaled := t.getContent(entry)
 			var msg *message.Message
-			if t.v1behavior {
+			if t.v1ProcessingBehavior {
 				msg = message.NewMessage(
 					jsonMarshaled,
 					t.getOrigin(entry),
@@ -352,9 +352,12 @@ func (t *Tailer) getContent(entry *sdjournal.JournalEntry) (message.BasicStructu
 	jsonMarshaled, err := json.Marshal(payload.Data)
 	if err != nil {
 		log.Error("can't marshal journald tailed log", err)
+		// if we're running with the old behavior,
 		// ensure the message has some content if the json encoding failed
-		value, _ := entry.Fields[sdjournal.SD_JOURNAL_FIELD_MESSAGE]
-		payload.SetContent([]byte(value)) // best effort trying to have something in the log
+		if t.v1ProcessingBehavior {
+    		value, _ := entry.Fields[sdjournal.SD_JOURNAL_FIELD_MESSAGE]
+    		payload.SetContent([]byte(value)) // best effort trying to have something in the log
+		}
 	}
 	t.source.BytesRead.Add(int64(len(jsonMarshaled)))
 	return payload, jsonMarshaled

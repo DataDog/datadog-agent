@@ -49,12 +49,12 @@ func NewMessage(content []byte, status string, rawDataLen int, readTimestamp str
 // Decoder translates a sequence of byte buffers (such as from a file or a
 // network socket) into log messages.
 //
-// Decoder is structured as an actor with InputChan of type *decoder.Input and
-// OutputChan of type *decoder.Message.
+// Decoder is structured as an actor receiving messages on `InputChan` and
+// writing its output in `OutputChan`
 //
 // The Decoder's run() takes data from InputChan, uses a Framer to break it into frames.
-// The LineBreaker passes that data to a LineParser, which uses a Parser to convert it to
-// parsers.Message, converts that to decoder.Message, and passes that to the LineHandler.
+// The Framer passes that data to a LineParser, which uses a Parser to parse it and
+// to pass it to the LineHander.
 //
 // The LineHandler processes the messages it as necessary (as single lines,
 // multiple lines, or auto-detecting the two), and sends the result to the

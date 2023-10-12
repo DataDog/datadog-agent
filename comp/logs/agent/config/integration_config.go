@@ -88,7 +88,7 @@ type LogsConfig struct {
 	// for journald) for post-processing. Which is the behavior of Agent < 7.50.0.
 	// Otherwise, the message content is extracted from the structured message and
 	// only this part is post-processed and sent to the intake.
-	V1Behavior bool `mapstructure:"v1_behavior" json:"v1_behavior"`
+	V1ProcessingBehavior bool `mapstructure:"v1_processing_behavior" json:"v1_processing_behavior"`
 
 	AutoMultiLine               *bool   `mapstructure:"auto_multi_line_detection" json:"auto_multi_line_detection"`
 	AutoMultiLineSampleSize     int     `mapstructure:"auto_multi_line_sample_size" json:"auto_multi_line_sample_size"`
