@@ -122,9 +122,9 @@ static __always_inline void tls_finish(struct pt_regs *ctx, conn_tuple_t *t) {
     case PROTOCOL_HTTP:
         prog = TLS_HTTP_TERMINATION;
         break;
-    /* case PROTOCOL_HTTP2: */
-    /*     prog = TLS_HTTP2_PROCESS; */
-    /*     break; */
+    case PROTOCOL_HTTP2:
+        prog = TLS_HTTP2_TERMINATION;
+        break;
     default:
         return;
     }

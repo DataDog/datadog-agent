@@ -38,16 +38,17 @@ type protocol struct {
 }
 
 const (
-	inFlightMap          = "http2_in_flight"
-	dynamicTable         = "http2_dynamic_table"
-	dynamicTableCounter  = "http2_dynamic_counter_table"
-	http2IterationsTable = "http2_iterations"
-	staticTable          = "http2_static_table"
-	filterTailCall       = "socket__http2_filter"
-	parserTailCall       = "socket__http2_frames_parser"
-	eventStream          = "http2"
-	tlsEntryTailCall     = "uprobe__http2_tls_entry"
-	tlsParserTailCall    = "uprobe__http2_tls_frames_parser"
+	inFlightMap            = "http2_in_flight"
+	dynamicTable           = "http2_dynamic_table"
+	dynamicTableCounter    = "http2_dynamic_counter_table"
+	http2IterationsTable   = "http2_iterations"
+	staticTable            = "http2_static_table"
+	filterTailCall         = "socket__http2_filter"
+	parserTailCall         = "socket__http2_frames_parser"
+	eventStream            = "http2"
+	tlsEntryTailCall       = "uprobe__http2_tls_entry"
+	tlsParserTailCall      = "uprobe__http2_tls_frames_parser"
+	tlsTerminationTailCall = "uprobe__http2_tls_termination"
 )
 
 var Spec = &protocols.ProtocolSpec{
@@ -105,6 +106,13 @@ var Spec = &protocols.ProtocolSpec{
 			Key:           uint32(protocols.ProgramTLSHTTP2FramesParser),
 			ProbeIdentificationPair: manager.ProbeIdentificationPair{
 				EBPFFuncName: tlsParserTailCall,
+			},
+		},
+		{
+			ProgArrayName: protocols.TLSDispatcherProgramsMap,
+			Key:           uint32(protocols.ProgramTLSHTTP2Termination),
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				EBPFFuncName: tlsTerminationTailCall,
 			},
 		},
 	},

@@ -420,19 +420,6 @@ int uprobe__http2_tls_entry(struct pt_regs *ctx) {
         return 0;
     }
 
-    // TODO: from tls_info: add bool from tls_finish to trigger this case
-    //
-    // If we detected a tcp termination we should stop processing the packet, and clear its dynamic table by deleting the counter.
-    /* if (is_tcp_termination(&dispatcher_args_copy.skb_info)) { */
-    /*     // Deleting the entry for the original tuple. */
-    /*     bpf_map_delete_elem(&http2_dynamic_counter_table, &dispatcher_args_copy.tup); */
-    /*     // In case of local host, the protocol will be deleted for both (client->server) and (server->client), */
-    /*     // so we won't reach for that path again in the code, so we're deleting the opposite side as well. */
-    /*     flip_tuple(&dispatcher_args_copy.tup); */
-    /*     bpf_map_delete_elem(&http2_dynamic_counter_table, &dispatcher_args_copy.tup); */
-    /*     return 0; */
-    /* } */
-
     http2_tls_state_key_t key;
     bpf_memset(&key, 0, sizeof(key));
 
@@ -519,6 +506,27 @@ int uprobe__http2_tls_frames_parser(struct pt_regs *ctx) {
     }
 
 exit:
+    return 0;
+}
+
+SEC("uprobe/http2_tls_termination")
+int uprobe__http2_tls_termination(struct pt_regs *ctx) {
+    const u32 zero = 0;
+
+    tls_dispatcher_arguments_t *info = bpf_map_lookup_elem(&tls_dispatcher_arguments, &zero);
+    if (info == NULL) {
+        log_debug("[http2_tls_termination] could not get tls info from map");
+        return 0;
+    }
+
+    // Deleting the entry for the original tuple.
+    bpf_map_delete_elem(&http2_dynamic_counter_table, &info->tup);
+
+    // In case of local host, the protocol will be deleted for both (client->server) and (server->client),
+    // so we won't reach for that path again in the code, so we're deleting the opposite side as well.
+    flip_tuple(&info->tup);
+    bpf_map_delete_elem(&http2_dynamic_counter_table, &info->tup);
+
     return 0;
 }
 

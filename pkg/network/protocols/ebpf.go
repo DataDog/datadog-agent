@@ -94,4 +94,6 @@ const (
 	ProgramTLSHTTP2 TLSProgramType = C.TLS_HTTP2_PROCESS
 	// ProgramTLSHTTP2FramesParser is tail call to process http2 frames.
 	ProgramTLSHTTP2FramesParser TLSProgramType = C.TLS_HTTP2_FRAMES_PARSER
+	// ProgramTLSHTTP2Termination is tail call to process http2 termination..
+	ProgramTLSHTTP2Termination TLSProgramType = C.TLS_HTTP2_TERMINATION
 )

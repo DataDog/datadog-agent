@@ -148,6 +148,7 @@ typedef enum {
     TLS_HTTP_TERMINATION,
     TLS_HTTP2_PROCESS,
     TLS_HTTP2_FRAMES_PARSER,
+    TLS_HTTP2_TERMINATION,
     TLS_PROG_MAX,
 } tls_prog_t;
 
