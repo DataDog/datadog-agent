@@ -123,11 +123,10 @@ type dataOutputs struct {
 // InitAndStartAgentDemultiplexer creates a new Demultiplexer and runs what's necessary
 // in goroutines. As of today, only the embedded BufferedAggregator needs a separate goroutine.
 // In the future, goroutines will be started for the event platform forwarder and/or orchestrator forwarder.
-func InitAndStartAgentDemultiplexer(log log.Component, sharedForwarder forwarder.Forwarder, options AgentDemultiplexerOptions, hostname string) *AgentDemultiplexer {
+func InitAndStartAgentDemultiplexer(log log.Component, sharedForwarder forwarder.Forwarder, options AgentDemultiplexerOptions, hostname string, interner *cache.KeyedInterner) *AgentDemultiplexer {
 	demultiplexerInstanceMu.Lock()
 	defer demultiplexerInstanceMu.Unlock()
-
-	demux := initAgentDemultiplexer(log, sharedForwarder, options, hostname)
+	demux := initAgentDemultiplexer(log, sharedForwarder, options, hostname, interner)
 
 	if demultiplexerInstance != nil {
 		log.Warn("A DemultiplexerInstance is already existing but InitAndStartAgentDemultiplexer has been called again. Current instance will be overridden")
@@ -142,16 +141,16 @@ type AggregatorTestDeps struct {
 	fx.In
 	Log             log.Component
 	SharedForwarder defaultforwarder.Component
+	Interner        *cache.KeyedInterner
 }
 
-func InitAndStartAgentDemultiplexerForTest(deps AggregatorTestDeps, options AgentDemultiplexerOptions, hostname string) *AgentDemultiplexer {
-	return InitAndStartAgentDemultiplexer(deps.Log, deps.SharedForwarder, options, hostname)
+func InitAndStartAgentDemultiplexerForTest(deps AggregatorTestDeps, options AgentDemultiplexerOptions, hostname string, interner *cache.KeyedInterner) *AgentDemultiplexer {
+	return InitAndStartAgentDemultiplexer(deps.Log, deps.SharedForwarder, options, hostname, interner)
 }
 
-func initAgentDemultiplexer(log log.Component, sharedForwarder forwarder.Forwarder, options AgentDemultiplexerOptions, hostname string) *AgentDemultiplexer {
+func initAgentDemultiplexer(log log.Component, sharedForwarder forwarder.Forwarder, options AgentDemultiplexerOptions, hostname string, interner *cache.KeyedInterner) *AgentDemultiplexer {
 	// prepare the multiple forwarders
 	// -------------------------------
-
 	log.Debugf("Creating forwarders")
 	// orchestrator forwarder
 	var orchestratorForwarder forwarder.Forwarder
@@ -195,13 +194,18 @@ func initAgentDemultiplexer(log log.Component, sharedForwarder forwarder.Forward
 
 	statsdWorkers := make([]*timeSamplerWorker, statsdPipelinesCount)
 
+	if interner == nil {
+		// Test cases don't require an interner to work, don't require that they create one for us.
+		interner = cache.NewKeyedStringInternerVals(16384, false)
+	}
+
 	for i := 0; i < statsdPipelinesCount; i++ {
 		// the sampler
 		tagsStore := tags.NewStore(config.Datadog.GetBool("aggregator_use_tags_store"), fmt.Sprintf("timesampler #%d", i))
 		tagsLimiter := tags_limiter.New(options.DogstatsdMaxMetricsTags)
 		contextsLimiter := limiter.FromConfig(statsdPipelinesCount, options.UseDogstatsdContextLimiter)
 
-		statsdSampler := NewTimeSampler(TimeSamplerID(i), bucketSize, tagsStore, contextsLimiter, tagsLimiter, agg.hostname)
+		statsdSampler := NewTimeSampler(TimeSamplerID(i), bucketSize, tagsStore, contextsLimiter, tagsLimiter, agg.hostname, interner)
 
 		// its worker (process loop + flush/serialization mechanism)
 

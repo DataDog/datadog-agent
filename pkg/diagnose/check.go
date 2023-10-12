@@ -109,7 +109,7 @@ func diagnoseChecksInCLIProcess(diagCfg diagnosis.Config, senderManager sender.S
 	log := log.NewTemporaryLoggerWithoutInit()
 
 	forwarder := forwarder.NewDefaultForwarder(config.Datadog, log, forwarder.NewOptions(config.Datadog, log, nil))
-	aggregator.InitAndStartAgentDemultiplexer(log, forwarder, opts, hostnameDetected)
+	aggregator.InitAndStartAgentDemultiplexer(log, forwarder, opts, hostnameDetected, nil)
 
 	common.LoadComponents(context.Background(), senderManager, pkgconfig.Datadog.GetString("confd_path"))
 	common.AC.LoadAndRun(context.Background())

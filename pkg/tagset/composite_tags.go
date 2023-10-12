@@ -123,6 +123,20 @@ func (t CompositeTags) Find(callback func(tag string) bool) bool {
 	return false
 }
 
+func (t CompositeTags) Apply(callback func(tag string) string) CompositeTags {
+	for n, tag := range t.tags1 {
+		if cache.Check(tag) {
+			t.tags1[n] = callback(tag)
+		}
+	}
+	for n, tag := range t.tags2 {
+		if cache.Check(tag) {
+			t.tags2[n] = callback(tag)
+		}
+	}
+	return t
+}
+
 // Len returns the length of the tags
 func (t CompositeTags) Len() int {
 	return len(t.tags1) + len(t.tags2)

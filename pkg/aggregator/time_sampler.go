@@ -36,7 +36,7 @@ type TimeSampler struct {
 	counterLastSampledByContext map[ckey.ContextKey]float64
 	lastCutOffTime              int64
 	sketchMap                   sketchMap
-
+	internerContext             cache.InternerContext
 	// id is a number to differentiate multiple time samplers
 	// since we start running more than one with the demultiplexer introduction
 	id TimeSamplerID
@@ -45,7 +45,8 @@ type TimeSampler struct {
 }
 
 // NewTimeSampler returns a newly initialized TimeSampler
-func NewTimeSampler(id TimeSamplerID, interval int64, cache *tags.Store, contextsLimiter *limiter.Limiter, tagsLimiter *tags_limiter.Limiter, hostname string) *TimeSampler {
+func NewTimeSampler(id TimeSamplerID, interval int64, tagStore *tags.Store, contextsLimiter *limiter.Limiter, tagsLimiter *tags_limiter.Limiter, hostname string,
+	interner *cache.KeyedInterner) *TimeSampler {
 	if interval == 0 {
 		interval = bucketSize
 	}
@@ -54,10 +55,11 @@ func NewTimeSampler(id TimeSamplerID, interval int64, cache *tags.Store, context
 
 	s := &TimeSampler{
 		interval:                    interval,
-		contextResolver:             newTimestampContextResolver(cache, contextsLimiter, tagsLimiter),
+		contextResolver:             newTimestampContextResolver(tagStore, contextsLimiter, tagsLimiter),
 		metricsByTimestamp:          map[int64]metrics.ContextMetrics{},
 		counterLastSampledByContext: map[ckey.ContextKey]float64{},
 		sketchMap:                   make(sketchMap),
+		internerContext:             cache.NewInternerContext(interner, "timesampler", cache.NewRetainerBlock()),
 		id:                          id,
 		hostname:                    hostname,
 	}
@@ -111,9 +113,9 @@ func (s *TimeSampler) sample(metricSample *metrics.MetricSample, timestamp float
 func (s *TimeSampler) newSketchSeries(ck ckey.ContextKey, points []metrics.SketchPoint) *metrics.SketchSeries {
 	ctx, _ := s.contextResolver.get(ck)
 	ss := &metrics.SketchSeries{
-		Name:       ctx.Name,
-		Tags:       ctx.Tags(),
-		Host:       ctx.Host,
+		Name:       s.internerContext.UseString(ctx.Name),
+		Tags:       ctx.Tags().Apply(s.internerContext.UseString),
+		Host:       s.internerContext.UseString(ctx.Host),
 		Interval:   s.interval,
 		Points:     points,
 		ContextKey: ck,
@@ -245,6 +247,7 @@ func (s *TimeSampler) flush(timestamp float64, series metrics.SerieSink, sketche
 	}
 
 	s.sendTelemetry(timestamp, series)
+	s.internerContext.ReleaseAll()
 }
 
 // flushContextMetrics flushes the contextMetrics inside contextMetricsFlusher, handles its errors,

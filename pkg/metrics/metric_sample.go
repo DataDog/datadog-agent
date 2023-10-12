@@ -99,6 +99,7 @@ type MetricSample struct {
 	OriginFromClient string
 	Cardinality      string
 	NoIndex          bool
+	Origin           string
 	Source           MetricSource
 }
 

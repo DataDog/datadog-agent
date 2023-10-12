@@ -71,11 +71,12 @@ var (
 type dependencies struct {
 	fx.In
 
-	Log    logComponent.Component
-	Config configComponent.Component
-	Debug  serverDebug.Component
-	Replay replay.Component
-	Params Params
+	Log      logComponent.Component
+	Config   configComponent.Component
+	Debug    serverDebug.Component
+	Replay   replay.Component
+	Interner *cache.KeyedInterner
+	Params   Params
 }
 
 // When the internal telemetry is enabled, used to tag the origin
@@ -270,15 +271,16 @@ func initTelemetry(cfg config.ConfigReader, logger logComponent.Component) {
 
 // TODO: (components) - remove once serverless is an FX app
 func NewServerlessServer() Component {
-	return newServerCompat(config.Datadog, logComponent.NewTemporaryLoggerWithoutInit(), replay.NewServerlessTrafficCapture(), serverDebug.NewServerlessServerDebug(), true)
+	return newServerCompat(config.Datadog, logComponent.NewTemporaryLoggerWithoutInit(), replay.NewServerlessTrafficCapture(), serverDebug.NewServerlessServerDebug(), true,
+		cache.NewKeyedStringInternerVals(20240, false))
 }
 
 // TODO: (components) - merge with newServerCompat once NewServerlessServer is removed
 func newServer(deps dependencies) Component {
-	return newServerCompat(deps.Config, deps.Log, deps.Replay, deps.Debug, deps.Params.Serverless)
+	return newServerCompat(deps.Config, deps.Log, deps.Replay, deps.Debug, deps.Params.Serverless, deps.Interner)
 }
 
-func newServerCompat(cfg config.ConfigReader, log logComponent.Component, capture replay.Component, debug serverDebug.Component, serverless bool) Component {
+func newServerCompat(cfg config.ConfigReader, log logComponent.Component, capture replay.Component, debug serverDebug.Component, serverless bool, interner *cache.KeyedInterner) Component {
 	// This needs to be done after the configuration is loaded
 	once.Do(func() { initTelemetry(cfg, log) })
 
@@ -339,16 +341,6 @@ func newServerCompat(cfg config.ConfigReader, log logComponent.Component, captur
 		default:
 			log.Errorf("Invalid dogstatsd_eol_required value: %s", v)
 		}
-	}
-
-	preserveOldSegments := cfg.GetBool("dogstatsd_string_interner_preserve_mmap")
-	stringInternerCacheSize := cfg.GetInt("dogstatsd_string_interner_size")
-
-	interner, err := cache.NewKeyedStringInterner(stringInternerCacheSize, -1, !preserveOldSegments)
-	if err != nil {
-		// TODO: fix
-		panic(err)
-		return nil
 	}
 
 	s := &server{

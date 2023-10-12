@@ -11,6 +11,7 @@ import (
 	"errors"
 	_ "expvar" // Blank import used because this isn't directly used in this file
 	"fmt"
+	"github.com/DataDog/datadog-agent/pkg/util/cache"
 	"net/http"
 	_ "net/http/pprof" // Blank import used because this isn't directly used in this file
 	"os"
@@ -328,6 +329,7 @@ func getSharedFxOption() fx.Option {
 			params.Options.EnabledFeatures = pkgforwarder.SetFeature(params.Options.EnabledFeatures, pkgforwarder.CoreFeatures)
 			return params
 		}),
+		fx.Provide(cache.NewKeyedStringInterner),
 		dogstatsd.Bundle,
 		otelcol.Bundle,
 		rcclient.Module,
@@ -351,7 +353,8 @@ func getSharedFxOption() fx.Option {
 		metadata.Bundle,
 		// injecting the aggregator demultiplexer to FX until we migrate it to a proper component. This allows
 		// other already migrated components to request it.
-		fx.Provide(func(config config.Component, log log.Component, sharedForwarder defaultforwarder.Component) (*aggregator.AgentDemultiplexer, error) {
+		fx.Provide(func(config config.Component, log log.Component, sharedForwarder defaultforwarder.Component,
+			interner *cache.KeyedInterner) (*aggregator.AgentDemultiplexer, error) {
 			opts := aggregator.DefaultAgentDemultiplexerOptions()
 			opts.EnableNoAggregationPipeline = config.GetBool("dogstatsd_no_aggregation_pipeline")
 			opts.UseDogstatsdContextLimiter = true
@@ -361,7 +364,7 @@ func getSharedFxOption() fx.Option {
 				return nil, log.Errorf("Error while getting hostname, exiting: %v", err)
 			}
 			// demux is currently a global used by start/stop. It will need to be migrated at some point
-			demux = aggregator.InitAndStartAgentDemultiplexer(log, sharedForwarder, opts, hostnameDetected)
+			demux = aggregator.InitAndStartAgentDemultiplexer(log, sharedForwarder, opts, hostnameDetected, interner)
 			return demux, nil
 		}),
 		// injecting the shared Serializer to FX until we migrate it to a prpoper component. This allows other
