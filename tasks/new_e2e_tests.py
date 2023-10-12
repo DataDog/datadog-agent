@@ -95,7 +95,7 @@ def run(
         cmd += " -osversion {osversion}" if osversion else ""
         cmd += " -platform {platform}" if platform else ""
         cmd += " -cws-supported-osversion {cws_supported_osversion}" if cws_supported_osversion else ""
- 
+
     args = {
         "go_mod": "mod",
         "timeout": "4h",
