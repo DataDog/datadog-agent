@@ -23,6 +23,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/filter"
 	errtelemetry "github.com/DataDog/datadog-agent/pkg/network/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/offsetguess"
+	skernel "github.com/DataDog/datadog-agent/pkg/security/ebpf/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -108,12 +109,12 @@ func ClassificationSupported(config *config.Config) bool {
 }
 
 func fentrySupported() bool {
-	kv, err := kernel.HostVersion()
+	kv, err := skernel.NewKernelVersion()
 	if err != nil {
 		log.Warn("could not determine the current kernel version. fentry/fexit support disabled.")
 		return false
 	}
-	return kv >= fentryMinimumKernel
+	return kv.HaveFentrySupport()
 }
 
 func addBoolConst(options *manager.Options, flag bool, name string) {

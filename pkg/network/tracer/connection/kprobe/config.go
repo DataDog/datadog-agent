@@ -10,6 +10,8 @@ package kprobe
 import (
 	"fmt"
 
+	skernel "github.com/DataDog/datadog-agent/pkg/security/ebpf/kernel"
+
 	"github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/ebpf/probes"
@@ -28,7 +30,6 @@ func enabledProbes(c *config.Config, runtimeTracer, coreTracer bool) (map[probes
 
 	kv410 := kernel.VersionCode(4, 1, 0)
 	kv470 := kernel.VersionCode(4, 7, 0)
-	kv550 := kernel.VersionCode(5, 5, 0)
 	kv5180 := kernel.VersionCode(5, 18, 0)
 	kv5190 := kernel.VersionCode(5, 19, 0)
 	kv, err := kernel.HostVersion()
@@ -45,7 +46,8 @@ func enabledProbes(c *config.Config, runtimeTracer, coreTracer bool) (map[probes
 			enableProbe(enabled, probes.NetDevQueue)
 			enableProbe(enabled, probes.TCPCloseCleanProtocolsReturn)
 		}
-		if kv >= kv550 {
+		secKv, err := skernel.NewKernelVersion()
+		if err == nil && secKv.HaveFentrySupport() {
 			enableProbe(enabled, fentry.TCPSendMsgReturn)
 			// set runtimeTracer arg to false to do strict version based selection
 			enableProbe(enabled, selectVersionBasedProbe(false, kv, fentry.TCPRecvMsgReturn, fentry.TCPRecvMsgPre5190Return, kv5190))
