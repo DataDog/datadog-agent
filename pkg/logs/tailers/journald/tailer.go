@@ -54,12 +54,12 @@ type Tailer struct {
 // NewTailer returns a new tailer.
 func NewTailer(source *sources.LogSource, outputChan chan *message.Message, journal Journal, v1ProcessingBehavior bool) *Tailer {
 	return &Tailer{
-		decoder:    decoder.NewDecoderWithFraming(sources.NewReplaceableSource(source), noop.New(), framer.NoFraming, nil, status.NewInfoRegistry()),
-		source:     source,
-		outputChan: outputChan,
-		journal:    journal,
-		stop:       make(chan struct{}, 1),
-		done:       make(chan struct{}, 1),
+		decoder:              decoder.NewDecoderWithFraming(sources.NewReplaceableSource(source), noop.New(), framer.NoFraming, nil, status.NewInfoRegistry()),
+		source:               source,
+		outputChan:           outputChan,
+		journal:              journal,
+		stop:                 make(chan struct{}, 1),
+		done:                 make(chan struct{}, 1),
 		v1ProcessingBehavior: v1ProcessingBehavior,
 	}
 }
@@ -313,7 +313,7 @@ func (t *Tailer) shouldDrop(entry *sdjournal.JournalEntry) bool {
 // one being a structured log message, the second one being the old marshaled
 // format used for an unstrucutred message.
 // Note that for the former, we would not need to marshal the data, but it still
-// needed nowadays to compute the amount of bytes read for the source telemetry.
+// needed for now to compute the amount of bytes read for the source telemetry.
 //
 // In the marshaled data, "MESSAGE" is remapped into "message" and
 // all the other keys are accessible in a "journald" attribute.
@@ -355,8 +355,7 @@ func (t *Tailer) getContent(entry *sdjournal.JournalEntry) (message.BasicStructu
 		// if we're running with the old behavior,
 		// ensure the message has some content if the json encoding failed
 		if t.v1ProcessingBehavior {
-    		value, _ := entry.Fields[sdjournal.SD_JOURNAL_FIELD_MESSAGE]
-    		payload.SetContent([]byte(value)) // best effort trying to have something in the log
+			jsonMarshaled = []byte(msg)
 		}
 	}
 	t.source.BytesRead.Add(int64(len(jsonMarshaled)))

@@ -27,7 +27,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 
 	bundleParams := core.BundleParams{
 		ConfigParams: config.NewClusterAgentParams(""),
-		LogParams:    log.LogForOneShot(command.LoggerName, command.DefaultLogLevel, true),
+		LogParams:    log.ForOneShot(command.LoggerName, command.DefaultLogLevel, true),
 	}
 
 	complianceCmd.AddCommand(check.ClusterAgentCommands(bundleParams)...)

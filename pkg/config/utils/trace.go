@@ -13,7 +13,7 @@ import (
 )
 
 // GetTraceAgentDefaultEnv returns the default env for the trace agent
-func GetTraceAgentDefaultEnv(c config.ConfigReader) string {
+func GetTraceAgentDefaultEnv(c config.Reader) string {
 	defaultEnv := ""
 	if c.IsSet("apm_config.env") {
 		defaultEnv = c.GetString("apm_config.env")

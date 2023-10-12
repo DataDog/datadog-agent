@@ -678,7 +678,7 @@ func (c *CheckConfig) parseScalarOids(metrics []profiledefinition.MetricsConfig,
 		oids = append(oids, metric.Symbol.OID)
 	}
 	for _, metricTag := range metricTags {
-		oids = append(oids, metricTag.OID)
+		oids = append(oids, metricTag.Symbol.OID)
 	}
 	if c.CollectDeviceMetadata {
 		for resource, metadataConfig := range metadataConfigs {
@@ -706,7 +706,7 @@ func (c *CheckConfig) parseColumnOids(metrics []profiledefinition.MetricsConfig,
 			oids = append(oids, symbol.OID)
 		}
 		for _, metricTag := range metric.MetricTags {
-			oids = append(oids, metricTag.Column.OID)
+			oids = append(oids, metricTag.Symbol.OID)
 		}
 	}
 	if c.CollectDeviceMetadata {
@@ -721,7 +721,7 @@ func (c *CheckConfig) parseColumnOids(metrics []profiledefinition.MetricsConfig,
 				}
 			}
 			for _, tagConfig := range metadataConfig.IDTags {
-				oids = append(oids, tagConfig.Column.OID)
+				oids = append(oids, tagConfig.Symbol.OID)
 			}
 		}
 	}
