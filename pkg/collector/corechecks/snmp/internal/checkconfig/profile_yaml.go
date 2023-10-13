@@ -41,10 +41,10 @@ func loadYamlProfiles() (profileConfigMap, error) {
 	defer defaultProfilesMu.Unlock()
 
 	if globalProfileConfigMap != nil {
-		log.Debugf("loader default profiles from cache")
+		log.Debugf("load yaml profiles from cache")
 		return globalProfileConfigMap, nil
 	}
-	log.Debugf("build default profiles")
+	log.Debugf("build yaml profiles")
 
 	pConfig, err := getDefaultProfilesDefinitionFiles()
 	if err != nil {
