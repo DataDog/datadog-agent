@@ -8,6 +8,7 @@ package devicecheck
 import (
 	"errors"
 	"fmt"
+	common2 "github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/common"
 	"strings"
 	"time"
 
@@ -25,7 +26,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/networkdevice/profile/profiledefinition"
 	coresnmp "github.com/DataDog/datadog-agent/pkg/snmp"
 
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/common"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/checkconfig"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/fetch"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/report"
@@ -115,7 +115,7 @@ func (d *DeviceCheck) Run(collectionTime time.Time) error {
 	var deviceStatus metadata.DeviceStatus
 
 	deviceReachable, dynamicTags, values, checkErr := d.getValuesAndTags()
-	tags := common.CopyStrings(staticTags)
+	tags := common2.CopyStrings(staticTags)
 	if checkErr != nil {
 		tags = append(tags, d.savedDynamicTags...)
 		d.sender.ServiceCheck(serviceCheckName, servicecheck.ServiceCheckCritical, tags, checkErr.Error())
@@ -124,8 +124,8 @@ func (d *DeviceCheck) Run(collectionTime time.Time) error {
 		tags = append(tags, dynamicTags...)
 		d.sender.ServiceCheck(serviceCheckName, servicecheck.ServiceCheckOK, tags, "")
 	}
-	d.sender.Gauge(deviceReachableMetric, common.BoolToFloat64(deviceReachable), tags)
-	d.sender.Gauge(deviceUnreachableMetric, common.BoolToFloat64(!deviceReachable), tags)
+	d.sender.Gauge(deviceReachableMetric, common2.BoolToFloat64(deviceReachable), tags)
+	d.sender.Gauge(deviceUnreachableMetric, common2.BoolToFloat64(!deviceReachable), tags)
 
 	if values != nil {
 		d.sender.ReportMetrics(d.config.Metrics, values, tags)
@@ -147,8 +147,8 @@ func (d *DeviceCheck) Run(collectionTime time.Time) error {
 		// We include instance tags to `deviceMetadataTags` since device metadata tags are not enriched with `checkSender.checkTags`.
 		// `checkSender.checkTags` are added for metrics, service checks, events only.
 		// Note that we don't add some extra tags like `service` tag that might be present in `checkSender.checkTags`.
-		deviceMetadataTags := append(common.CopyStrings(tags), d.config.InstanceTags...)
-		deviceMetadataTags = append(deviceMetadataTags, common.GetAgentVersionTag())
+		deviceMetadataTags := append(common2.CopyStrings(tags), d.config.InstanceTags...)
+		deviceMetadataTags = append(deviceMetadataTags, common2.GetAgentVersionTag())
 
 		deviceDiagnosis := d.diagnoses.Report()
 
@@ -167,7 +167,7 @@ func (d *DeviceCheck) setDeviceHostExternalTags() {
 	}
 	agentTags := configUtils.GetConfiguredTags(config.Datadog, false)
 	log.Debugf("Set external tags for device host, host=`%s`, agentTags=`%v`", deviceHostname, agentTags)
-	externalhost.SetExternalTags(deviceHostname, common.SnmpExternalTagsSourceType, agentTags)
+	externalhost.SetExternalTags(deviceHostname, common2.SnmpExternalTagsSourceType, agentTags)
 }
 
 func (d *DeviceCheck) getValuesAndTags() (bool, []string, *valuestore.ResultValueStore, error) {
@@ -264,7 +264,7 @@ func (d *DeviceCheck) detectAvailableMetrics() ([]profiledefinition.MetricsConfi
 	fetchedOIDs := session.FetchAllOIDsUsingGetNext(d.session)
 	log.Debugf("fetched OIDs: %v", fetchedOIDs)
 
-	root := common.BuildOidTrie(fetchedOIDs)
+	root := common2.BuildOidTrie(fetchedOIDs)
 	if log.ShouldLog(seelog.DebugLvl) {
 		root.DebugPrint()
 	}
@@ -332,7 +332,7 @@ func (d *DeviceCheck) detectAvailableMetrics() ([]profiledefinition.MetricsConfi
 }
 
 func (d *DeviceCheck) submitTelemetryMetrics(startTime time.Time, tags []string) {
-	newTags := append(common.CopyStrings(tags), snmpLoaderTag, common.GetAgentVersionTag())
+	newTags := append(common2.CopyStrings(tags), snmpLoaderTag, common2.GetAgentVersionTag())
 
 	d.sender.Gauge("snmp.devices_monitored", float64(1), newTags)
 

@@ -7,6 +7,7 @@ package devicecheck
 
 import (
 	"fmt"
+	common2 "github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/common"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/configvalidation"
 	"path/filepath"
 	"strings"
@@ -25,7 +26,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/networkdevice/profile/profiledefinition"
 	"github.com/DataDog/datadog-agent/pkg/snmp/gosnmplib"
 
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/common"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/checkconfig"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/report"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/session"
@@ -108,9 +108,9 @@ profiles:
 		"some_tag:some_tag_value",
 		"prefix:f",
 		"suffix:oo_sys_name"}
-	telemetryTags := append(common.CopyStrings(snmpTags), "agent_version:"+version.AgentVersion)
-	row1Tags := append(common.CopyStrings(snmpTags), "interface:nameRow1", "interface_alias:descRow1", "table_static_tag:val")
-	row2Tags := append(common.CopyStrings(snmpTags), "interface:nameRow2", "interface_alias:descRow2", "table_static_tag:val")
+	telemetryTags := append(common2.CopyStrings(snmpTags), "agent_version:"+version.AgentVersion)
+	row1Tags := append(common2.CopyStrings(snmpTags), "interface:nameRow1", "interface_alias:descRow1", "table_static_tag:val")
+	row2Tags := append(common2.CopyStrings(snmpTags), "interface:nameRow2", "interface_alias:descRow2", "table_static_tag:val")
 
 	sender.AssertMetric(t, "Gauge", "snmp.sysUpTimeInstance", float64(20), "", snmpTags)
 	sender.AssertMetric(t, "MonotonicCount", "snmp.ifInErrors", float64(70.5), "", row1Tags)
@@ -144,7 +144,7 @@ profiles:
 		"snmp_device:1.2.3.4",
 		"snmp_profile:another-profile",
 		"unknown_symbol:100"}
-	telemetryTags = append(common.CopyStrings(snmpTags), "agent_version:"+version.AgentVersion)
+	telemetryTags = append(common2.CopyStrings(snmpTags), "agent_version:"+version.AgentVersion)
 
 	sender.AssertMetric(t, "Gauge", "snmp.sysUpTimeInstance", float64(20), "", snmpTags)
 
@@ -228,7 +228,7 @@ global_metrics:
 }
 
 func TestDetectMetricsToCollect(t *testing.T) {
-	timeNow = common.MockTimeNow
+	timeNow = common2.MockTimeNow
 	defer func() { timeNow = time.Now }()
 
 	profilesWithInvalidExtendConfdPath, _ := filepath.Abs(filepath.Join("..", "test", "detectmetr.d"))
@@ -297,9 +297,9 @@ collect_topology: false
 	assert.Nil(t, err)
 
 	snmpTags := []string{"snmp_device:1.2.3.4"}
-	telemetryTags := append(common.CopyStrings(snmpTags), "agent_version:"+version.AgentVersion)
-	row1Tags := append(common.CopyStrings(snmpTags), "interface:nameRow1", "interface_alias:descRow1", "table_static_tag:val")
-	row2Tags := append(common.CopyStrings(snmpTags), "interface:nameRow2", "interface_alias:descRow2", "table_static_tag:val")
+	telemetryTags := append(common2.CopyStrings(snmpTags), "agent_version:"+version.AgentVersion)
+	row1Tags := append(common2.CopyStrings(snmpTags), "interface:nameRow1", "interface_alias:descRow1", "table_static_tag:val")
+	row2Tags := append(common2.CopyStrings(snmpTags), "interface:nameRow2", "interface_alias:descRow2", "table_static_tag:val")
 
 	sender.AssertMetric(t, "Gauge", "snmp.sysUpTimeInstance", float64(20), "", snmpTags)
 	sender.AssertMetric(t, "MonotonicCount", "snmp.ifInErrors", float64(70.5), "", row1Tags)
@@ -364,7 +364,7 @@ collect_topology: false
 	sess.SetInt("1.3.6.1.4.1.3375.2.1.1.2.1.44.0", 30)
 	sender.ResetCalls()
 	timeNow = func() time.Time {
-		return common.MockTimeNow().Add(time.Second * 100)
+		return common2.MockTimeNow().Add(time.Second * 100)
 	}
 
 	err = deviceCk.Run(timeNow())
@@ -383,7 +383,7 @@ collect_topology: false
 }
 
 func TestDetectMetricsToCollect_detectMetricsToMonitor_nextAutodetectMetrics(t *testing.T) {
-	timeNow = common.MockTimeNow
+	timeNow = common2.MockTimeNow
 	defer func() { timeNow = time.Now }()
 
 	sess := session.CreateMockSession()
@@ -417,27 +417,27 @@ profiles:
 
 	deviceCk.detectMetricsToMonitor(sess)
 
-	expectedNextAutodetectMetricsTime := common.MockTimeNow().Add(600 * time.Second)
+	expectedNextAutodetectMetricsTime := common2.MockTimeNow().Add(600 * time.Second)
 	assert.Equal(t, expectedNextAutodetectMetricsTime, deviceCk.nextAutodetectMetrics)
 
 	// 10 seconds after
 	timeNow = func() time.Time {
-		return common.MockTimeNow().Add(10 * time.Second)
+		return common2.MockTimeNow().Add(10 * time.Second)
 	}
 	deviceCk.detectMetricsToMonitor(sess)
 	assert.Equal(t, expectedNextAutodetectMetricsTime, deviceCk.nextAutodetectMetrics)
 
 	// 599 seconds after
 	timeNow = func() time.Time {
-		return common.MockTimeNow().Add(599 * time.Second)
+		return common2.MockTimeNow().Add(599 * time.Second)
 	}
 	deviceCk.detectMetricsToMonitor(sess)
 	assert.Equal(t, expectedNextAutodetectMetricsTime, deviceCk.nextAutodetectMetrics)
 
 	// 600 seconds after
-	expectedNextAutodetectMetricsTime = common.MockTimeNow().Add(1200 * time.Second)
+	expectedNextAutodetectMetricsTime = common2.MockTimeNow().Add(1200 * time.Second)
 	timeNow = func() time.Time {
-		return common.MockTimeNow().Add(600 * time.Second)
+		return common2.MockTimeNow().Add(600 * time.Second)
 	}
 	deviceCk.detectMetricsToMonitor(sess)
 	assert.Equal(t, expectedNextAutodetectMetricsTime, deviceCk.nextAutodetectMetrics)
