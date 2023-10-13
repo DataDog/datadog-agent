@@ -89,7 +89,12 @@ func (ev *Event) resolveFields(forADs bool) {
 type FieldHandlers interface {
     {{$Handlers := .Fields | GetHandlers}}
     {{range $Proto, $Impl := $Handlers}}
-        {{$Proto}}
+        {{ if NeedScrubbed $Proto }}
+            {{$Proto}}
+            {{$Proto | AddSuffixToFuncPrototype "Scrubbed"}}
+        {{else}}
+            {{$Proto}}
+        {{ end }}
     {{end}}
 
     // custom handlers not tied to any fields
@@ -100,5 +105,10 @@ type DefaultFieldHandlers struct {}
 
 {{$Handlers := .Fields | GetHandlers}}
 {{range $Proto, $Impl := $Handlers}}
-        func (dfh *DefaultFieldHandlers) {{$Proto}} {{$Impl}}
+        {{ if NeedScrubbed $Proto }}
+            func (dfh *DefaultFieldHandlers) {{$Proto}} {{$Impl}}
+            func (dfh *DefaultFieldHandlers) {{$Proto | AddSuffixToFuncPrototype "Scrubbed"}} {{$Impl}}
+		{{else}}
+            func (dfh *DefaultFieldHandlers) {{$Proto}} {{$Impl}}
+        {{ end }}
 {{end}}

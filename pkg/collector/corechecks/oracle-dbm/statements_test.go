@@ -59,7 +59,6 @@ func TestUInt64Binding(t *testing.T) {
 
 		m := make(map[string]int)
 		m["2267897546238586672"] = 1
-		chk.statementsFilter = StatementsFilter{ForceMatchingSignatures: m}
 
 		err = chk.db.Get(&r, "select force_matching_signature, sql_text from v$sqlstats where sql_text like '%t111%'") // force_matching_signature=17202440635181618732
 		assert.NoError(t, err, "running statement with large force_matching_signature with %s driver", driver)

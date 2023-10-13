@@ -18,13 +18,14 @@ import (
 )
 
 type LookupIdProbe struct {
-	config config.ConfigReader
+	config config.Reader
 
 	lookupIdCache *cache.Cache
 	lookupId      func(uid string) (*user.User, error)
 }
 
-func NewLookupIdProbe(coreConfig config.ConfigReader) *LookupIdProbe {
+// NewLookupIDProbe returns a new LookupIdProbe from the config
+func NewLookupIDProbe(coreConfig config.Reader) *LookupIdProbe {
 	if coreConfig.GetBool("process_config.cache_lookupid") {
 		log.Debug("Using cached calls to `user.LookupID`")
 	}

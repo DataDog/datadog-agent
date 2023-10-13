@@ -10,19 +10,24 @@ package usm
 import (
 	"fmt"
 	"math"
+	"strings"
 	"time"
+	"unsafe"
 
 	"github.com/cilium/ebpf"
+	"github.com/davecgh/go-spew/spew"
 	"golang.org/x/sys/unix"
 
 	manager "github.com/DataDog/ebpf-manager"
 
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode"
+	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	netebpf "github.com/DataDog/datadog-agent/pkg/network/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/network/ebpf/probes"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols"
+	"github.com/DataDog/datadog-agent/pkg/network/protocols/http"
 	errtelemetry "github.com/DataDog/datadog-agent/pkg/network/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/offsetguess"
 	"github.com/DataDog/datadog-agent/pkg/network/usm/utils"
@@ -244,7 +249,7 @@ func (e *ebpfProgram) Close() error {
 
 func (e *ebpfProgram) initCORE() error {
 	assetName := getAssetName("usm", e.cfg.BPFDebug)
-	return ddebpf.LoadCOREAsset(&e.cfg.Config, assetName, e.init)
+	return ddebpf.LoadCOREAsset(assetName, e.init)
 }
 
 func (e *ebpfProgram) initRuntimeCompiler() error {
@@ -288,17 +293,22 @@ func (e *ebpfProgram) init(buf bytecode.AssetReader, options manager.Options) er
 			EditorFlag: manager.EditMaxEntries,
 		},
 	}
+
+	options.MapSpecEditors[probes.ConnectionProtocolMap] = manager.MapSpecEditor{
+		MaxEntries: e.cfg.MaxTrackedConnections,
+		EditorFlag: manager.EditMaxEntries,
+	}
 	if e.connectionProtocolMap != nil {
 		if options.MapEditors == nil {
 			options.MapEditors = make(map[string]*ebpf.Map)
 		}
 		options.MapEditors[probes.ConnectionProtocolMap] = e.connectionProtocolMap
-	} else {
-		options.MapSpecEditors[probes.ConnectionProtocolMap] = manager.MapSpecEditor{
-			MaxEntries: e.cfg.MaxTrackedConnections,
-			EditorFlag: manager.EditMaxEntries,
-		}
 	}
+
+	begin, end := network.EphemeralRange()
+	options.ConstantEditors = append(options.ConstantEditors,
+		manager.ConstantEditor{Name: "ephemeral_range_begin", Value: uint64(begin)},
+		manager.ConstantEditor{Name: "ephemeral_range_end", Value: uint64(end)})
 
 	options.TailCallRouter = e.tailCallRouter
 	options.ActivatedProbes = []manager.ProbesSelector{
@@ -390,4 +400,25 @@ func getAssetName(module string, debug bool) string {
 	}
 
 	return fmt.Sprintf("%s.o", module)
+}
+
+func (e *ebpfProgram) dumpMapsHandler(_ *manager.Manager, mapName string, currentMap *ebpf.Map) string {
+	var output strings.Builder
+
+	switch mapName {
+	case connectionStatesMap: // maps/connection_states (BPF_MAP_TYPE_HASH), key C.conn_tuple_t, value C.__u32
+		output.WriteString("Map: '" + mapName + "', key: 'C.conn_tuple_t', value: 'C.__u32'\n")
+		iter := currentMap.Iterate()
+		var key http.ConnTuple
+		var value uint32
+		for iter.Next(unsafe.Pointer(&key), unsafe.Pointer(&value)) {
+			output.WriteString(spew.Sdump(key, value))
+		}
+
+	default: // Go through enabled protocols in case one of them now how to handle the current map
+		for _, p := range e.enabledProtocols {
+			p.DumpMaps(&output, mapName, currentMap)
+		}
+	}
+	return output.String()
 }

@@ -15,8 +15,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/pointer"
 	"github.com/DataDog/datadog-agent/pkg/util/system"
 
-	v1 "github.com/containerd/cgroups/stats/v1"
-	v2 "github.com/containerd/cgroups/v2/stats"
+	v1 "github.com/containerd/cgroups/v3/cgroup1/stats"
+	v2 "github.com/containerd/cgroups/v3/cgroup2/stats"
 	"github.com/containerd/containerd/oci"
 	"github.com/opencontainers/runtime-spec/specs-go"
 )

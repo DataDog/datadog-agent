@@ -11,6 +11,9 @@ import (
 	"strings"
 	"sync"
 
+	"golang.org/x/text/cases"
+	"golang.org/x/text/language"
+
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
@@ -220,7 +223,8 @@ func GetChecksByNameForConfigs(checkName string, configs []integration.Config) [
 		return checks
 	}
 	// try to also match `FooCheck` if `foo` was passed
-	titleCheck := fmt.Sprintf("%s%s", strings.Title(checkName), "Check")
+	titled := cases.Title(language.English, cases.NoLower).String(checkName)
+	titleCheck := fmt.Sprintf("%s%s", titled, "Check")
 
 	for _, c := range checkScheduler.GetChecksFromConfigs(configs, false) {
 		if checkName == c.String() || titleCheck == c.String() {

@@ -5,6 +5,8 @@
 
 //go:build kubeapiserver
 
+// Package secret implements the secret controller of the Cluster Agent's
+// Admission Controller.
 package secret
 
 import (

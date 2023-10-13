@@ -42,6 +42,9 @@ def run(
     verbose=True,
     run="",
     skip="",
+    osversion="",
+    platform="",
+    cws_supported_osversion="",
     cache=False,
     junit_tar="",
     coverage=False,
@@ -86,7 +89,13 @@ def run(
         test_run_arg = f"-run {test_run_name}"
 
     cmd = f'gotestsum --format {gotestsum_format} '
-    cmd += '{junit_file_flag} --packages="{packages}" -- -ldflags="-X {REPO_PATH}/test/new-e2e/containers.GitCommit={commit}" {verbose} -mod={go_mod} -vet=off -timeout {timeout} -tags {go_build_tags} {nocache} {run} {skip} {coverage_opt} {test_run_arg}'
+    cmd += '{junit_file_flag} --packages="{packages}" -- -ldflags="-X {REPO_PATH}/test/new-e2e/tests/containers.GitCommit={commit}" {verbose} -mod={go_mod} -vet=off -timeout {timeout} -tags {go_build_tags} {nocache} {run} {skip} {coverage_opt} {test_run_arg}'
+    if osversion != "" or platform != "" or cws_supported_osversion != "":
+        cmd += "-args"
+        cmd += " -osversion {osversion}" if osversion else ""
+        cmd += " -platform {platform}" if platform else ""
+        cmd += " -cws-supported-osversion {cws_supported_osversion}" if cws_supported_osversion else ""
+
     args = {
         "go_mod": "mod",
         "timeout": "4h",
@@ -98,6 +107,9 @@ def run(
         "skip": '-test.skip ' + skip if skip else '',
         "coverage_opt": coverage_opt,
         "test_run_arg": test_run_arg,
+        "osversion": osversion,
+        "platform": platform,
+        "cws_supported_osversion": cws_supported_osversion,
     }
 
     test_res = test_flavor(
@@ -150,6 +162,8 @@ def clean(ctx, locks=True, stacks=False):
 
     if locks:
         _clean_locks()
+        if not stacks:
+            print("If you still have issues, try running with -s option to clean up stacks")
 
     if stacks:
         _clean_stacks(ctx)
@@ -171,9 +185,14 @@ def _clean_locks():
 
 
 def _clean_stacks(ctx: Context):
-    print("🧹 Clean up stacks")
+    print("🧹 Clean up stack")
     stacks = _get_existing_stacks(ctx)
 
+    for stack in stacks:
+        print(f"🗑️  Destroying stack {stack}")
+        _destroy_stack(ctx, stack)
+
+    stacks = _get_existing_stacks(ctx)
     for stack in stacks:
         print(f"🗑️ Cleaning up stack {stack}")
         _remove_stack(ctx, stack)
@@ -183,7 +202,7 @@ def _get_existing_stacks(ctx: Context) -> List[str]:
     # running in temp dir as this is where datadog-agent test
     # stacks are stored
     with ctx.cd(tempfile.gettempdir()):
-        output = ctx.run("pulumi stack ls --all", pty=True)
+        output = ctx.run("PULUMI_SKIP_UPDATE_CHECK=true pulumi stack ls --all", pty=True)
         if output is None or not output:
             return []
         lines = output.stdout.splitlines()
@@ -196,15 +215,34 @@ def _get_existing_stacks(ctx: Context) -> List[str]:
         return e2e_stacks
 
 
+def _destroy_stack(ctx: Context, stack_name: str):
+    # running in temp dir as this is where datadog-agent test
+    # stacks are stored. It is expected to fail on stacks existing locally
+    # with resources removed by agent-sandbox clean up job
+    with ctx.cd(tempfile.gettempdir()):
+        ret = ctx.run(
+            f"PULUMI_SKIP_UPDATE_CHECK=true pulumi destroy --stack {stack_name} --yes --remove --skip-preview",
+            pty=True,
+            warn=True,
+        )
+        if ret is not None and ret.exited != 0:
+            # run with refresh on first destroy attempt failure
+            ctx.run(
+                f"PULUMI_SKIP_UPDATE_CHECK=true pulumi destroy --stack {stack_name} -r --yes --remove --skip-preview",
+                pty=True,
+                warn=True,
+            )
+
+
 def _remove_stack(ctx: Context, stack_name: str):
     # running in temp dir as this is where datadog-agent test
     # stacks are stored
     with ctx.cd(tempfile.gettempdir()):
-        ctx.run(f"pulumi stack rm --force --yes --stack {stack_name}", pty=True)
+        ctx.run(f"PULUMI_SKIP_UPDATE_CHECK=true pulumi stack rm --force --yes --stack {stack_name}", pty=True)
 
 
 def _get_pulumi_about(ctx: Context) -> dict:
-    output = ctx.run("pulumi about --json", pty=True, hide=True)
+    output = ctx.run("PULUMI_SKIP_UPDATE_CHECK=true pulumi about --json", pty=True, hide=True)
     if output is None or not output:
         return ""
     return json.loads(output.stdout)

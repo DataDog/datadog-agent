@@ -180,6 +180,10 @@ namespace Datadog.CustomActions
             {
                 using var subkey =
                     _registryServices.OpenRegistryKey(Registries.LocalMachine, Constants.DatadogAgentRegistryKey);
+                if (subkey == null)
+                {
+                    throw new Exception("Datadog registry key does not exist");
+                }
                 var domain = subkey.GetValue("installedDomain")?.ToString();
                 var user = subkey.GetValue("installedUser")?.ToString();
                 if (string.IsNullOrEmpty(domain) || string.IsNullOrEmpty(user))

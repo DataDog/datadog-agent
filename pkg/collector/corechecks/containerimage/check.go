@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2022-present Datadog, Inc.
 
+// Package containerimage implements the container image check.
 package containerimage
 
 import (
@@ -36,41 +37,42 @@ type Config struct {
 }
 
 type configValueRange struct {
-	min      int
-	max      int
-	default_ int
+	min          int
+	max          int
+	defaultValue int
 }
 
 var /* const */ (
 	chunkSizeValueRange = &configValueRange{
-		min:      1,
-		max:      100,
-		default_: 10,
+		min:          1,
+		max:          100,
+		defaultValue: 10,
 	}
 
 	newImagesMaxLatencySecondsValueRange = &configValueRange{
-		min:      1,   // 1 s
-		max:      300, // 5 min
-		default_: 30,  // 30 s
+		min:          1,   // 1 s
+		max:          300, // 5 min
+		defaultValue: 30,  // 30 s
 	}
 
 	periodicRefreshSecondsValueRange = &configValueRange{
-		min:      60,    // 1 min
-		max:      86400, // 1 day
-		default_: 300,   // 5 min
+		min:          60,    // 1 min
+		max:          86400, // 1 day
+		defaultValue: 300,   // 5 min
 	}
 )
 
-func validateValue(val *int, range_ *configValueRange) {
+func validateValue(val *int, valueRange *configValueRange) {
 	if *val == 0 {
-		*val = range_.default_
-	} else if *val < range_.min {
-		*val = range_.min
-	} else if *val > range_.max {
-		*val = range_.max
+		*val = valueRange.defaultValue
+	} else if *val < valueRange.min {
+		*val = valueRange.min
+	} else if *val > valueRange.max {
+		*val = valueRange.max
 	}
 }
 
+// Parse parses the configuration
 func (c *Config) Parse(data []byte) error {
 	if err := yaml.Unmarshal(data, c); err != nil {
 		return err

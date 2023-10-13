@@ -8,5 +8,5 @@
 package collectors
 
 import (
-	_ "github.com/DataDog/datadog-agent/pkg/workloadmeta/collectors/internal/remote/process_collector"
+	_ "github.com/DataDog/datadog-agent/pkg/workloadmeta/collectors/internal/remote/process_collector" // Load the collectors
 )

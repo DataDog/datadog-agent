@@ -86,7 +86,7 @@ func NewConfig() *Config {
 	cfg := aconfig.SystemProbe
 	sysconfig.Adjust(cfg)
 
-	return &Config{
+	c := &Config{
 		BPFDebug:                 cfg.GetBool(key(spNS, "bpf_debug")),
 		BPFDir:                   cfg.GetString(key(spNS, "bpf_dir")),
 		JavaDir:                  cfg.GetString(key(spNS, "java_dir")),
@@ -110,4 +110,6 @@ func NewConfig() *Config {
 
 		AttachKprobesWithKprobeEventsABI: cfg.GetBool(key(spNS, "attach_kprobes_with_kprobe_events_abi")),
 	}
+
+	return c
 }

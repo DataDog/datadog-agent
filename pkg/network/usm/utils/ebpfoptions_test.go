@@ -8,8 +8,9 @@
 package utils
 
 import (
-	"github.com/stretchr/testify/require"
 	"testing"
+
+	"github.com/stretchr/testify/require"
 
 	manager "github.com/DataDog/ebpf-manager"
 )

@@ -14,6 +14,9 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config"
 )
 
+// Reader is a subset of Config that only allows reading of configuration
+type Reader = config.Reader //nolint:revive
+
 // cfg implements the Component.
 type cfg struct {
 	// this component is currently implementing a thin wrapper around pkg/config,
@@ -38,10 +41,8 @@ func (d dependencies) getParams() *Params {
 	return &d.Params
 }
 
-// TODO: serverless must be eventually migrated to fx, this workaround
-//
-//	will then become obsolete - ts should not be created
-//	directly in this fashion.
+// NewServerlessConfig initializes a config component from the given config file
+// TODO: serverless must be eventually migrated to fx, this workaround will then become obsolete - ts should not be created directly in this fashion.
 func NewServerlessConfig(path string) (Component, error) {
 	options := []func(*Params){WithConfigName("serverless"), WithConfigLoadSecrets(true)}
 
@@ -87,6 +88,6 @@ func (c *cfg) Warnings() *config.Warnings {
 	return c.warnings
 }
 
-func (c *cfg) Object() config.ConfigReader {
+func (c *cfg) Object() config.Reader {
 	return c.Config
 }

@@ -285,7 +285,7 @@ func (s *sender) sendPayload(p *payload) {
 		for {
 			// interlock with other sends to avoid setting the same value
 			attempt := s.attempt.Load()
-			if s.attempt.CAS(attempt, attempt/2) {
+			if s.attempt.CompareAndSwap(attempt, attempt/2) {
 				break
 			}
 		}

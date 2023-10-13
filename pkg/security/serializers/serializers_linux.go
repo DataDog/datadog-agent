@@ -482,7 +482,7 @@ func newFileSerializer(fe *model.FileEvent, e *model.Event, forceInode ...uint64
 	}
 
 	// lazy hash serialization: we don't want to hash files for every event
-	if fe.HashState == model.Done {
+	if fe.HashState == model.Done || e.IsAnomalyDetectionEvent() {
 		fs.Hashes = e.FieldHandlers.ResolveHashesFromEvent(e, fe)
 	}
 	return fs
@@ -509,7 +509,7 @@ func newCredentialsSerializer(ce *model.Credentials) *CredentialsSerializer {
 
 func newProcessSerializer(ps *model.Process, e *model.Event, resolvers *resolvers.Resolvers) *ProcessSerializer {
 	if ps.IsNotKworker() {
-		argv, argvTruncated := resolvers.ProcessResolver.GetProcessScrubbedArgv(ps)
+		argv, argvTruncated := resolvers.ProcessResolver.GetProcessArgvScrubbed(ps)
 		envs, EnvsTruncated := resolvers.ProcessResolver.GetProcessEnvs(ps)
 		argv0, _ := sprocess.GetProcessArgv0(ps)
 
@@ -800,7 +800,7 @@ func newProcessContextSerializer(pc *model.ProcessContext, e *model.Event, resol
 		first = false
 
 		// dedup args/envs
-		if ancestor != nil && ancestor.ArgsEntry == pce.ArgsEntry {
+		if ancestor != nil && ancestor.ArgsEntry != nil && ancestor.ArgsEntry == pce.ArgsEntry {
 			prev.Args, prev.ArgsTruncated = prev.Args[0:0], false
 			prev.Envs, prev.EnvsTruncated = prev.Envs[0:0], false
 			prev.Argv0 = ""

@@ -16,7 +16,7 @@ typedef __int64 LONG64;
 typedef unsigned char       uint8_t;
 
 // define a version signature so that the driver won't load out of date structures, etc.
-#define DD_PROCMONDRIVER_VERSION       0x01
+#define DD_PROCMONDRIVER_VERSION       0x02
 #define DD_PROCMONDRIVER_SIGNATURE     ((uint64_t)0xDD01 << 32 | DD_PROCMONDRIVER_VERSION)
 #define DD_PROCMONDRIVER_DEVICE_TYPE   FILE_DEVICE_UNKNOWN
 // for more information on defining control codes, see
@@ -26,14 +26,19 @@ typedef unsigned char       uint8_t;
 
 
 
-#define DDPROCMONDRIVER_IOCTL_GET_NEWPROCS  CTL_CODE(DD_PROCMONDRIVER_DEVICE_TYPE, \
+#define DDPROCMONDRIVER_IOCTL_START  CTL_CODE(DD_PROCMONDRIVER_DEVICE_TYPE, \
                                               0x801, \
-                                              METHOD_BUFFERED,\
+                                              METHOD_OUT_DIRECT,\
                                               FILE_ANY_ACCESS)
 
-#define DDPROCMONDRIVER_IOCTL_GET_DEADPROCS  CTL_CODE(DD_PROCMONDRIVER_DEVICE_TYPE, \
+#define DDPROCMONDRIVER_IOCTL_STOP  CTL_CODE(DD_PROCMONDRIVER_DEVICE_TYPE, \
                                               0x802, \
-                                              METHOD_BUFFERED,\
+                                              METHOD_OUT_DIRECT,\
+                                              FILE_ANY_ACCESS)
+
+#define DDPROCMONDRIVER_IOCTL_GETSTATS  CTL_CODE(DD_PROCMONDRIVER_DEVICE_TYPE, \
+                                              0x803, \
+                                              METHOD_OUT_DIRECT,\
                                               FILE_ANY_ACCESS)
 
 typedef enum _dd_notify_type {
@@ -41,6 +46,15 @@ typedef enum _dd_notify_type {
     DD_NOTIFY_START = 1,
 } DD_NOTIFY_TYPE;
 
+typedef struct _dd_procmon_stats {
+    uint64_t            processStartCount;
+    uint64_t            processStopCount;
+
+    uint64_t            missedNotifications;
+    uint64_t            allocationFailures;
+    uint64_t            workItemFailures;
+
+} DD_PROCMON_STATS;
 
 typedef struct _dd_process_notification {
     uint64_t            size;  // total size of structure.

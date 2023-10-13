@@ -43,7 +43,7 @@ func StopService() error {
 	} else {
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()
-		if err = winutil.WaitForState(config.ServiceName, svc.Stopped, ctx); err != nil {
+		if err = winutil.WaitForState(ctx, config.ServiceName, svc.Stopped); err != nil {
 			if errors.Is(err, context.DeadlineExceeded) {
 				return fmt.Errorf("timed out waiting for %s service to stop", config.ServiceName)
 			} else {

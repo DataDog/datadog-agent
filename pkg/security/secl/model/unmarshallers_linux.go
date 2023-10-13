@@ -388,34 +388,32 @@ func (e *MkdirEvent) UnmarshalBinary(data []byte) (int, error) {
 
 // UnmarshalBinary unmarshalls a binary representation of itself
 func (m *Mount) UnmarshalBinary(data []byte) (int, error) {
-	if len(data) < 64 {
+	if len(data) < 56 {
 		return 0, ErrNotEnoughData
 	}
 
-	n, err := m.ParentPathKey.UnmarshalBinary(data)
+	n, err := m.RootPathKey.UnmarshalBinary(data)
 	if err != nil {
 		return 0, err
 	}
 	data = data[n:]
 
-	n, err = m.RootPathKey.UnmarshalBinary(data)
+	n, err = m.ParentPathKey.UnmarshalBinary(data)
 	if err != nil {
 		return 0, err
 	}
 	data = data[n:]
 
 	m.Device = ByteOrder.Uint32(data[0:4])
-	m.MountID = ByteOrder.Uint32(data[4:8])
-	m.BindSrcMountID = ByteOrder.Uint32(data[8:12])
-
-	// +4 for padding
-
-	m.FSType, err = UnmarshalString(data[16:], 16)
+	m.BindSrcMountID = ByteOrder.Uint32(data[4:8])
+	m.FSType, err = UnmarshalString(data[8:], 16)
 	if err != nil {
 		return 0, err
 	}
 
-	return 64, nil
+	m.MountID = m.RootPathKey.MountID
+
+	return 56, nil
 }
 
 // UnmarshalBinary unmarshalls a binary representation of itself

@@ -339,6 +339,41 @@ func TestServer(t *testing.T) {
 
 		fi.Stop()
 	})
+
+	t.Run("should clean parsed payloads", func(t *testing.T) {
+		clock := clock.NewMock()
+		fi := NewServer(WithClock(clock))
+		fi.Start()
+
+		request, err := http.NewRequest(http.MethodGet, "/fakeintake/payloads?endpoint=/api/v2/logs&format=json", nil)
+		assert.NoError(t, err, "Error creating GET request")
+
+		postSomeRealisticPayloads(t, fi)
+
+		clock.Add(10 * time.Minute)
+
+		postSomeRealisticPayloads(t, fi)
+
+		response10Min := httptest.NewRecorder()
+		var getResponse10Min api.APIFakeIntakePayloadsJsonGETResponse
+
+		fi.handleGetPayloads(response10Min, request)
+		json.NewDecoder(response10Min.Body).Decode(&getResponse10Min)
+
+		assert.Len(t, getResponse10Min.Payloads, 2, "should contain 2 elements before cleanup")
+
+		clock.Add(10 * time.Minute)
+
+		response20Min := httptest.NewRecorder()
+		var getResponse20Min api.APIFakeIntakePayloadsJsonGETResponse
+
+		fi.handleGetPayloads(response20Min, request)
+		json.NewDecoder(response20Min.Body).Decode(&getResponse20Min)
+
+		assert.Len(t, getResponse20Min.Payloads, 1, "should contain 1 elements after cleanup of only older elements")
+
+		fi.Stop()
+	})
 }
 
 func postSomeFakePayloads(t *testing.T, fi *Server) {

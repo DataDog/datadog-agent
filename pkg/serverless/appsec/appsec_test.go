@@ -6,22 +6,29 @@
 package appsec
 
 import (
+	"fmt"
 	"strconv"
 	"testing"
 
-	"github.com/DataDog/go-libddwaf"
+	waf "github.com/DataDog/go-libddwaf"
+
 	"github.com/stretchr/testify/require"
 )
 
 func TestNew(t *testing.T) {
 	for _, appsecEnabled := range []bool{true, false} {
 		appsecEnabledStr := strconv.FormatBool(appsecEnabled)
-		t.Run("new", func(t *testing.T) {
+		t.Run(fmt.Sprintf("DD_SERVERLESS_APPSEC_ENABLED=%s", appsecEnabledStr), func(t *testing.T) {
 			t.Setenv("DD_SERVERLESS_APPSEC_ENABLED", appsecEnabledStr)
 			lp, err := New()
-			if err := waf.Health(); err != nil {
-				// host not supported by appsec
-				require.Error(t, err)
+			if err := wafHealth(); err != nil {
+				if ok, _ := waf.SupportsTarget(); ok {
+					// host should be supported by appsec, error is unexpected
+					require.NoError(t, err)
+				} else {
+					// host not supported by appsec
+					require.Error(t, err)
+				}
 				return
 			}
 
@@ -36,7 +43,7 @@ func TestNew(t *testing.T) {
 }
 
 func TestMonitor(t *testing.T) {
-	if err := waf.Health(); err != nil {
+	if err := wafHealth(); err != nil {
 		t.Skip("host not supported by appsec", err)
 	}
 

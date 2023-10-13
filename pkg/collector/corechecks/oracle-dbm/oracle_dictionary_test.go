@@ -31,10 +31,11 @@ func TestGetFullSqlText(t *testing.T) {
 		} else {
 			driver = common.Godror
 		}
-		chk.Run()
+		err := chk.Run()
+		assert.NoError(t, err, "check run")
 
 		var SQLStatement string
-		err := getFullSQLText(&chk, &SQLStatement, "sql_id", "A")
+		err = getFullSQLText(&chk, &SQLStatement, "sql_id", "A")
 		assert.NoError(t, err, "no rows returned an error with %s driver", driver)
 	}
 }

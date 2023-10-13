@@ -75,18 +75,18 @@ func newDummyClusterAgent() (*dummyClusterAgent, error) {
 				"node1": {
 					Services: apiv1.NamespacesPodsStringsSet{
 						"foo": {
-							"pod-00001": sets.NewString("kube_service:svc1"),
-							"pod-00002": sets.NewString("kube_service:svc1", "kube_service:svc2"),
+							"pod-00001": sets.New("kube_service:svc1"),
+							"pod-00002": sets.New("kube_service:svc1", "kube_service:svc2"),
 						},
 						"bar": {
-							"pod-00004": sets.NewString("kube_service:svc2"),
+							"pod-00004": sets.New("kube_service:svc2"),
 						},
 					},
 				},
 				"node2": {
 					Services: apiv1.NamespacesPodsStringsSet{
 						"foo": {
-							"pod-00003": sets.NewString("kube_service:svc1"),
+							"pod-00003": sets.New("kube_service:svc1"),
 						},
 					},
 				},
@@ -653,11 +653,11 @@ func (suite *clusterAgentSuite) TestGetPodsMetadataForNode() {
 			nodeName: "node1",
 			expectedMetadatas: apiv1.NamespacesPodsStringsSet{
 				"foo": apiv1.MapStringSet{
-					"pod-00001": sets.NewString("kube_service:svc1"),
-					"pod-00002": sets.NewString("kube_service:svc1", "kube_service:svc2"),
+					"pod-00001": sets.New("kube_service:svc1"),
+					"pod-00002": sets.New("kube_service:svc1", "kube_service:svc2"),
 				},
 				"bar": {
-					"pod-00004": sets.NewString("kube_service:svc2"),
+					"pod-00004": sets.New("kube_service:svc2"),
 				},
 			},
 		},
@@ -666,7 +666,7 @@ func (suite *clusterAgentSuite) TestGetPodsMetadataForNode() {
 			nodeName: "node2",
 			expectedMetadatas: apiv1.NamespacesPodsStringsSet{
 				"foo": apiv1.MapStringSet{
-					"pod-00003": sets.NewString("kube_service:svc1"),
+					"pod-00003": sets.New("kube_service:svc1"),
 				},
 			},
 		},
@@ -691,8 +691,8 @@ func (suite *clusterAgentSuite) TestGetPodsMetadataForNode() {
 				require.Equal(t, len(testCase.expectedMetadatas), len(metadatas))
 				for ns, expectedNSValues := range testCase.expectedMetadatas {
 					for podName, expectedMetadatas := range expectedNSValues {
-						for _, elt := range expectedMetadatas.List() {
-							assert.Contains(t, metadatas[ns][podName].List(), elt)
+						for _, elt := range sets.List(expectedMetadatas) {
+							assert.Contains(t, sets.List(metadatas[ns][podName]), elt)
 						}
 					}
 				}

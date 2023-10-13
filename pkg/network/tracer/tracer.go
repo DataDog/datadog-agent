@@ -11,7 +11,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"os/exec"
 	"sync"
 	"time"
 
@@ -32,7 +31,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/events"
 	"github.com/DataDog/datadog-agent/pkg/network/netlink"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http"
-	"github.com/DataDog/datadog-agent/pkg/network/protocols/http2"
 	nettelemetry "github.com/DataDog/datadog-agent/pkg/network/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/connection"
 	"github.com/DataDog/datadog-agent/pkg/network/usm"
@@ -142,13 +140,7 @@ func newTracer(cfg *config.Config) (_ *Tracer, reterr error) {
 			}
 			log.Warnf("%s. NPM is explicitly enabled, so system-probe will continue with only NPM features enabled.", errStr)
 			cfg.EnableHTTPMonitoring = false
-			cfg.EnableHTTP2Monitoring = false
-			cfg.EnableHTTPSMonitoring = false
-		}
-
-		if !http2.Supported() {
-			cfg.EnableHTTP2Monitoring = false
-			log.Warnf("http2 requires a Linux kernel version of %s or higher. We detected %s", http2.MinimumKernelVersion, currKernelVersion)
+			cfg.EnableNativeTLSMonitoring = false
 		}
 	}
 
@@ -244,11 +236,18 @@ func newConntracker(cfg *config.Config, bpfTelemetry *nettelemetry.EBPFTelemetry
 	var c netlink.Conntracker
 	var err error
 
-	cmd := exec.Command("modprobe", "nf_conntrack_netlink")
-	if err = cmd.Run(); err == nil {
-		if c, err = NewEBPFConntracker(cfg, bpfTelemetry); err == nil {
-			return c, nil
+	ns, err := cfg.GetRootNetNs()
+	if err != nil {
+		log.Warnf("error fetching root net namespace, will not attempt to load nf_conntrack_netlink module: %s", err)
+	} else {
+		defer ns.Close()
+		if err = netlink.LoadNfConntrackKernelModule(ns); err != nil {
+			log.Warnf("failed to load conntrack kernel module, though it may already be loaded: %s", err)
 		}
+	}
+
+	if c, err = NewEBPFConntracker(cfg, bpfTelemetry); err == nil {
+		return c, nil
 	}
 
 	if cfg.AllowNetlinkConntrackerFallback {
@@ -336,9 +335,9 @@ func (t *Tracer) addProcessInfo(c *network.ConnectionStats) {
 		c.Tags[k+":"+v] = struct{}{}
 	}
 
-	addTag("env", p.Envs["DD_ENV"])
-	addTag("version", p.Envs["DD_VERSION"])
-	addTag("service", p.Envs["DD_SERVICE"])
+	addTag("env", p.Env("DD_ENV"))
+	addTag("version", p.Env("DD_VERSION"))
+	addTag("service", p.Env("DD_SERVICE"))
 
 	containerID := p.ContainerID.Get().(string)
 	if containerID != "" {

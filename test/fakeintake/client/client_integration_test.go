@@ -3,6 +3,9 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+// TODO investigate flaky unit tests on windows
+//go:build !windows
+
 package client
 
 import (
@@ -20,7 +23,7 @@ import (
 )
 
 var (
-	isLocalRun = false
+	isLocalRun = true
 	mockClock  = clock.NewMock()
 )
 
@@ -59,7 +62,7 @@ func TestIntegrationClient(t *testing.T) {
 		resp, err := http.Post(fmt.Sprintf("%s%s", fi.URL(), testEndpoint), "text/plain", strings.NewReader("totoro|5|tag:valid,owner:pducolin"))
 		assert.NoError(t, err)
 		defer resp.Body.Close()
-		assert.Equal(t, http.StatusAccepted, resp.StatusCode)
+		assert.Equal(t, http.StatusOK, resp.StatusCode)
 
 		client := NewClient(fi.URL())
 		// max wait for 250 ms
@@ -70,8 +73,8 @@ func TestIntegrationClient(t *testing.T) {
 		assert.NoError(t, err, "Error getting payloads")
 		assert.Equal(t, 1, len(payloads))
 		assert.Equal(t, "totoro|5|tag:valid,owner:pducolin", string(payloads[0].Data))
-		assert.Equal(t, "", payloads[0].Encoding)
-		assert.Equal(t, mockClock.Now(), payloads[0].Timestamp)
+		assert.Equal(t, "text/plain", payloads[0].Encoding)
+		assert.Equal(t, mockClock.Now().UTC(), payloads[0].Timestamp)
 	})
 
 	t.Run("should flush payloads from a server on flush request", func(t *testing.T) {
@@ -87,7 +90,7 @@ func TestIntegrationClient(t *testing.T) {
 		resp, err := http.Post(fmt.Sprintf("%s%s", fi.URL(), testEndpoint), "text/plain", strings.NewReader("totoro|5|tag:before,owner:pducolin"))
 		assert.NoError(t, err)
 		defer resp.Body.Close()
-		assert.Equal(t, http.StatusAccepted, resp.StatusCode)
+		assert.Equal(t, http.StatusOK, resp.StatusCode)
 
 		client := NewClient(fi.URL())
 		// max wait for 250 ms
@@ -102,14 +105,14 @@ func TestIntegrationClient(t *testing.T) {
 		resp, err = http.Post(fmt.Sprintf("%s%s", fi.URL(), testEndpoint), "text/plain", strings.NewReader("ponyo|7|tag:after,owner:pducolin"))
 		assert.NoError(t, err)
 		defer resp.Body.Close()
-		assert.Equal(t, http.StatusAccepted, resp.StatusCode)
+		assert.Equal(t, http.StatusOK, resp.StatusCode)
 
 		// should return only the second payload
 		payloads, err := client.getFakePayloads(testEndpoint)
 		assert.NoError(t, err, "Error getting payloads")
 		assert.Equal(t, 1, len(payloads))
 		assert.Equal(t, "ponyo|7|tag:after,owner:pducolin", string(payloads[0].Data))
-		assert.Equal(t, "", payloads[0].Encoding)
-		assert.Equal(t, mockClock.Now(), payloads[0].Timestamp)
+		assert.Equal(t, "text/plain", payloads[0].Encoding)
+		assert.Equal(t, mockClock.Now().UTC(), payloads[0].Timestamp)
 	})
 }

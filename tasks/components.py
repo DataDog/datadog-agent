@@ -2,6 +2,7 @@
 Invoke entrypoint, import here all the tasks we want to make available
 """
 import os
+import pathlib
 from collections import namedtuple
 from string import Template
 
@@ -317,3 +318,41 @@ def read_file_content(template_path):
     """
     with open(template_path, "r") as file:
         return file.read()
+
+
+@task
+def lint_fxutil_oneshot_test(_):
+    """
+    Verify each fxutil.OneShot has an unit test
+    """
+    folders = ["./cmd", "./pkg/cli", "./comp"]
+    errors = []
+    for folder in folders:
+        folder_path = pathlib.Path(folder)
+        for file in folder_path.rglob("*.go"):
+            if str(file).endswith("_test.go") or str(file).endswith("main.go") or str(file).endswith("main_windows.go"):
+                continue
+
+            # The code in this file cannot be easily tested
+            if "cmd/system-probe/subcommands/run/command.go" in str(file):
+                continue
+
+            # remove this file from the linting check pending a solution to the
+            # tests not being run properly due to mismatched arguments
+            if "cmd/agent/subcommands/run/command_windows.go" in str(file):
+                continue
+
+            one_shot_count = file.read_text().count("fxutil.OneShot(")
+            if one_shot_count > 0:
+                test_path = file.parent.joinpath(f"{file.stem}_test.go")
+                if not test_path.exists():
+                    errors.append(f"The file {file} contains fxutil.OneShot but the file {test_path} doesn't exist.")
+                else:
+                    test_one_shot_count = test_path.read_text().count("fxutil.TestOneShotSubcommand(")
+                    if one_shot_count > test_one_shot_count:
+                        errors.append(
+                            f"The file {file} contains {one_shot_count} call(s) to `fxutil.OneShot` but {test_path} contains only {test_one_shot_count} call(s) to `fxutil.TestOneShotSubcommand`"
+                        )
+    if len(errors) > 0:
+        msg = '\n'.join(errors)
+        raise Exit(f"Missings tests: {msg}")

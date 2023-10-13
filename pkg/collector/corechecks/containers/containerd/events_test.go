@@ -304,9 +304,8 @@ func TestCheckEvents_PauseContainers(t *testing.T) {
 					flushed = sub.Flush(time.Now().Unix())
 					if test.generateCreateEvent {
 						return len(flushed) == 3 // create container + delete task + delete container
-					} else {
-						return len(flushed) == 2 // delete task + delete container
 					}
+					return len(flushed) == 2 // delete task + delete container
 				}, testTimeout, testTicker)
 			} else {
 				assert.Empty(t, sub.Flush(time.Now().Unix()))

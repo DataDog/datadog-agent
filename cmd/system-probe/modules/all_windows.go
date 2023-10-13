@@ -20,6 +20,7 @@ import (
 var All = []module.Factory{
 	NetworkTracer,
 	EventMonitor,
+	WinCrashProbe,
 }
 
 func inactivityEventLog(duration time.Duration) {

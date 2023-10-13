@@ -11,6 +11,8 @@ import (
 	"net/http"
 	"sort"
 
+	"k8s.io/apimachinery/pkg/util/sets"
+
 	"github.com/DataDog/datadog-agent/cmd/system-probe/utils"
 )
 
@@ -33,8 +35,8 @@ func (mm MarshableMetric) MarshalJSON() ([]byte, error) {
 	}{
 		Name:  base.name,
 		Type:  fmt.Sprintf("%T", metric),
-		Tags:  base.tags.List(),
-		Opts:  base.opts.List(),
+		Tags:  sets.List(base.tags),
+		Opts:  sets.List(base.opts),
 		Value: base.Get(),
 	})
 }
