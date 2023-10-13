@@ -22,6 +22,7 @@ import (
 	"github.com/vishvananda/netns"
 
 	netlinktestutil "github.com/DataDog/datadog-agent/pkg/network/netlink/testutil"
+	nettestutil "github.com/DataDog/datadog-agent/pkg/network/testutil"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -120,11 +121,11 @@ func TestReadInitialUDPState(t *testing.T) {
 	err := exec.Command("testdata/setup_netns.sh", nsName).Run()
 	require.NoError(t, err, "setup_netns.sh failed")
 
-	l, err := netlinktestutil.StartServerUDP(t, net.ParseIP("fd00.1"), 0)
+	l, err := nettestutil.StartServerUDP(t, net.ParseIP("fd00.1"), 0)
 	require.NoError(t, err)
 	defer func() { _ = l.Close() }()
 
-	l6, err := netlinktestutil.StartServerUDP(t, net.ParseIP("fd00::1"), 0)
+	l6, err := nettestutil.StartServerUDP(t, net.ParseIP("fd00::1"), 0)
 	require.NoError(t, err)
 	defer func() { _ = l.Close() }()
 
