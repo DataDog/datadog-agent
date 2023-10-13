@@ -29,10 +29,19 @@ type demultiplexer struct {
 	*aggregator.AgentDemultiplexer
 }
 
-func newDemultiplexer(deps dependencies) (Component, diagnosesendermanager.Component, error) {
+type provides struct {
+	fx.Out
+	Comp Component
+
+	// Implement also diagnosesendermanager.Component to make sure
+	// either demultiplexer.Component nor diagnosesendermanager.Component is created.
+	SenderManager diagnosesendermanager.Component
+}
+
+func newDemultiplexer(deps dependencies) (provides, error) {
 	hostnameDetected, err := hostname.Get(context.TODO())
 	if err != nil {
-		return nil, nil, deps.Log.Errorf("Error while getting hostname, exiting: %v", err)
+		return provides{}, deps.Log.Errorf("Error while getting hostname, exiting: %v", err)
 	}
 
 	agentDemultiplexer := aggregator.InitAndStartAgentDemultiplexer(
@@ -44,9 +53,10 @@ func newDemultiplexer(deps dependencies) (Component, diagnosesendermanager.Compo
 		AgentDemultiplexer: agentDemultiplexer,
 	}
 
-	// Implement also diagnosesendermanager.Component to make sure
-	// either demultiplexer.Component nor diagnosesendermanager.Component is created.
-	return demultiplexer, demultiplexer, nil
+	return provides{
+		Comp:          demultiplexer,
+		SenderManager: demultiplexer,
+	}, nil
 }
 
 // LazyGetSenderManager gets an instance of SenderManager lazily.
