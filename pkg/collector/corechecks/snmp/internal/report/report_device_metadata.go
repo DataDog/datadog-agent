@@ -87,31 +87,31 @@ func (ms *MetricSender) ReportNetworkDeviceMetadata(config *checkconfig.CheckCon
 }
 
 func computeInterfaceStatus(adminStatus devicemetadata.IfAdminStatus, operStatus devicemetadata.IfOperStatus) devicemetadata.InterfaceStatus {
-	if adminStatus == devicemetadata.AdminStatus_Up {
+	if adminStatus == devicemetadata.AdminStatusUp {
 		switch {
-		case operStatus == devicemetadata.OperStatus_Up:
-			return devicemetadata.InterfaceStatus_Up
-		case operStatus == devicemetadata.OperStatus_Down:
-			return devicemetadata.InterfaceStatus_Down
+		case operStatus == devicemetadata.OperStatusUp:
+			return devicemetadata.InterfaceStatusUp
+		case operStatus == devicemetadata.OperStatusDown:
+			return devicemetadata.InterfaceStatusDown
 		}
-		return devicemetadata.InterfaceStatus_Warning
+		return devicemetadata.InterfaceStatusWarning
 	}
-	if adminStatus == devicemetadata.AdminStatus_Down {
+	if adminStatus == devicemetadata.AdminStatusDown {
 		switch {
-		case operStatus == devicemetadata.OperStatus_Up:
-			return devicemetadata.InterfaceStatus_Down
-		case operStatus == devicemetadata.OperStatus_Down:
-			return devicemetadata.InterfaceStatus_Off
+		case operStatus == devicemetadata.OperStatusUp:
+			return devicemetadata.InterfaceStatusDown
+		case operStatus == devicemetadata.OperStatusDown:
+			return devicemetadata.InterfaceStatusOff
 		}
-		return devicemetadata.InterfaceStatus_Warning
+		return devicemetadata.InterfaceStatusWarning
 	}
-	if adminStatus == devicemetadata.AdminStatus_Testing {
+	if adminStatus == devicemetadata.AdminStatusTesting {
 		switch {
-		case operStatus != devicemetadata.OperStatus_Down:
-			return devicemetadata.InterfaceStatus_Warning
+		case operStatus != devicemetadata.OperStatusDown:
+			return devicemetadata.InterfaceStatusWarning
 		}
 	}
-	return devicemetadata.InterfaceStatus_Down
+	return devicemetadata.InterfaceStatusDown
 }
 
 func buildMetadataStore(metadataConfigs profiledefinition.MetadataConfig, values *valuestore.ResultValueStore) *metadata.Store {

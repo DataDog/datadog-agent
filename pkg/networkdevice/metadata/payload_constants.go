@@ -5,63 +5,71 @@
 
 package metadata
 
+// IfAdminStatus interface admin status type
 type IfAdminStatus int
 
+// IfAdminStatus enums
 const (
-	AdminStatus_Up      IfAdminStatus = 1
-	AdminStatus_Down    IfAdminStatus = 2
-	AdminStatus_Testing IfAdminStatus = 3
+	AdminStatusUp      IfAdminStatus = 1
+	AdminStatusDown    IfAdminStatus = 2
+	AdminStatusTesting IfAdminStatus = 3
 )
 
-var adminStatus_StringMap map[IfAdminStatus]string = map[IfAdminStatus]string{
-	AdminStatus_Up:      "up",
-	AdminStatus_Down:    "down",
-	AdminStatus_Testing: "testing",
+var adminStatusStringMap = map[IfAdminStatus]string{
+	AdminStatusUp:      "up",
+	AdminStatusDown:    "down",
+	AdminStatusTesting: "testing",
 }
 
+// AsString convert to string value
 func (i IfAdminStatus) AsString() string {
-	status, ok := adminStatus_StringMap[i]
+	status, ok := adminStatusStringMap[i]
 	if !ok {
 		return "unknown"
 	}
 	return status
 }
 
+// IfOperStatus interface oper status type
 type IfOperStatus int
 
+// IfOperStatus enums
 const (
-	OperStatus_Up             IfOperStatus = 1
-	OperStatus_Down           IfOperStatus = 2
-	OperStatus_Testing        IfOperStatus = 3
-	OperStatus_Unknown        IfOperStatus = 4
-	OperStatus_Dormant        IfOperStatus = 5
-	OperStatus_NotPresent     IfOperStatus = 6
-	OperStatus_LowerLayerDown IfOperStatus = 7
+	OperStatusUp             IfOperStatus = 1
+	OperStatusDown           IfOperStatus = 2
+	OperStatusTesting        IfOperStatus = 3
+	OperStatusUnknown        IfOperStatus = 4
+	OperStatusDormant        IfOperStatus = 5
+	OperStatusNotPresent     IfOperStatus = 6
+	OperStatusLowerLayerDown IfOperStatus = 7
 )
 
-var operStatus_StringMap map[IfOperStatus]string = map[IfOperStatus]string{
-	OperStatus_Up:             "up",
-	OperStatus_Down:           "down",
-	OperStatus_Testing:        "testing",
-	OperStatus_Unknown:        "unknown",
-	OperStatus_Dormant:        "dormant",
-	OperStatus_NotPresent:     "not_present",
-	OperStatus_LowerLayerDown: "lower_layer_down",
+var operStatusStringMap = map[IfOperStatus]string{
+	OperStatusUp:             "up",
+	OperStatusDown:           "down",
+	OperStatusTesting:        "testing",
+	OperStatusUnknown:        "unknown",
+	OperStatusDormant:        "dormant",
+	OperStatusNotPresent:     "not_present",
+	OperStatusLowerLayerDown: "lower_layer_down",
 }
 
+// AsString convert to string value
 func (i IfOperStatus) AsString() string {
-	status, ok := operStatus_StringMap[i]
+	status, ok := operStatusStringMap[i]
 	if !ok {
 		return "unknown"
 	}
 	return status
 }
 
+// InterfaceStatus interface status
 type InterfaceStatus string
 
+// InterfaceStatus enums
 const (
-	InterfaceStatus_Up      InterfaceStatus = "up"
-	InterfaceStatus_Down    InterfaceStatus = "down"
-	InterfaceStatus_Warning InterfaceStatus = "warning"
-	InterfaceStatus_Off     InterfaceStatus = "off"
+	InterfaceStatusUp      InterfaceStatus = "up"
+	InterfaceStatusDown    InterfaceStatus = "down"
+	InterfaceStatusWarning InterfaceStatus = "warning"
+	InterfaceStatusOff     InterfaceStatus = "off"
 )
