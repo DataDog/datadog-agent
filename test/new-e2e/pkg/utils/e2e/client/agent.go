@@ -29,7 +29,7 @@ type Agent struct {
 	deserializer utils.RemoteServiceDeserializer[agent.ClientData]
 	os           e2eOs.OS
 	*AgentCommandRunner
-	vmClient           *vmClient
+	vmClient           *VMClient
 	shouldWaitForReady bool
 }
 
@@ -67,7 +67,7 @@ func (agent *Agent) setStack(t *testing.T, stackResult auto.UpResult) error {
 		}
 	}
 
-	agent.vmClient, err = newVMClient(t, privateSSHKey, &clientData.Connection)
+	agent.vmClient, err = newVMClient(t, privateSSHKey, &clientData.Connection, agent.os)
 	if err != nil {
 		return err
 	}

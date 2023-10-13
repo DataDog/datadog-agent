@@ -132,7 +132,7 @@ func (g *gatewayLookup) Lookup(cs *network.ConnectionStats) *network.Via {
 			var ifi *net.Interface
 			ifi, err = net.InterfaceByIndex(r.IfIndex)
 			if err != nil {
-				log.Errorf("error getting interface for interface index %d: %s", r.IfIndex, err)
+				log.Debugf("error getting interface for interface index %d: %s", r.IfIndex, err)
 				// negative cache for 1 minute
 				g.subnetCache.Add(r.IfIndex, time.Now().Add(1*time.Minute))
 				gatewayLookupTelemetry.subnetCacheSize.Inc()
@@ -149,7 +149,7 @@ func (g *gatewayLookup) Lookup(cs *network.ConnectionStats) *network.Via {
 			gatewayLookupTelemetry.subnetLookups.Inc()
 			if s, err = g.subnetForHwAddrFunc(ifi.HardwareAddr); err != nil {
 				gatewayLookupTelemetry.subnetLookupErrors.Inc()
-				log.Errorf("error getting subnet info for interface index %d: %s", r.IfIndex, err)
+				log.Debugf("error getting subnet info for interface index %d: %s", r.IfIndex, err)
 
 				// cache an empty result so that we don't keep hitting the
 				// ec2 metadata endpoint for this interface

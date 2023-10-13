@@ -338,6 +338,13 @@ def agent_processes_running?
   false
 end
 
+def trace_processes_running?
+  %w(trace-agent trace-agent.exe).each do |p|
+    return true if is_process_running?(p)
+  end
+  false
+end
+
 def security_agent_running?
   %w(security-agent security-agent.exe).each do |p|
     return true if is_process_running?(p)
@@ -695,6 +702,7 @@ shared_examples_for 'an Agent that stops' do
 
   it 'is not running any agent processes' do
     expect(agent_processes_running?).to be_falsey
+    expect(trace_processes_running?).to be_falsey
     expect(security_agent_running?).to be_falsey
     expect(system_probe_running?).to be_falsey
   end
@@ -858,6 +866,7 @@ shared_examples_for 'an Agent that is removed' do
   it 'should not be running the agent after removal' do
     sleep 15
     expect(agent_processes_running?).to be_falsey
+    expect(trace_processes_running?).to be_falsey
     expect(security_agent_running?).to be_falsey
     expect(system_probe_running?).to be_falsey
   end

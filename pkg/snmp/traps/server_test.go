@@ -11,15 +11,17 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
-)
 
-var freePort = getFreePort()
+	ndmtestutils "github.com/DataDog/datadog-agent/pkg/networkdevice/testutils"
+)
 
 func TestStartFailure(t *testing.T) {
 	/*
 		Start two servers with the same config to trigger an "address already in use" error.
 	*/
 
+	freePort, err := ndmtestutils.GetFreePort()
+	require.NoError(t, err)
 	config := Config{Port: freePort, CommunityStrings: []string{"public"}}
 	Configure(t, config)
 
