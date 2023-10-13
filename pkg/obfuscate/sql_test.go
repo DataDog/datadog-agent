@@ -2106,7 +2106,7 @@ func TestSQLLexerObfuscation(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		t.Run(fmt.Sprintf("sqllexer in ObfuscateOnly mode-%s", tt.name), func(t *testing.T) {
+		t.Run(tt.name, func(t *testing.T) {
 			oq, err := NewObfuscator(Config{
 				SQL: SQLConfig{
 					ObfuscationMode:  "obfuscate_only",
@@ -2225,7 +2225,7 @@ func TestSQLLexerObfuscationAndNormalization(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		t.Run(fmt.Sprintf("sqllexer in ObfuscateAndNormalization mode-%s", tt.name), func(t *testing.T) {
+		t.Run(tt.name, func(t *testing.T) {
 			oq, err := NewObfuscator(Config{
 				SQL: SQLConfig{
 					ObfuscationMode:  "obfuscate_and_normalize",
@@ -2301,7 +2301,7 @@ func TestSQLLexerObfuscationModeNotSet(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		t.Run(fmt.Sprintf("ObfuscateMode not set-%s", tt.name), func(t *testing.T) {
+		t.Run(tt.name, func(t *testing.T) {
 			oq, err := NewObfuscator(Config{
 				SQL: SQLConfig{
 					ReplaceDigits:    tt.replaceDigits,
@@ -2382,7 +2382,7 @@ func TestSQLLexerOutputsSameAsObfuscator(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		t.Run(fmt.Sprintf("ObfuscateMode not set-%s", tt.name), func(t *testing.T) {
+		t.Run(tt.name, func(t *testing.T) {
 			obfuscator := NewObfuscator(Config{
 				SQL: SQLConfig{
 					ReplaceDigits:    true,
