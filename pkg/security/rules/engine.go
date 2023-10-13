@@ -126,7 +126,7 @@ func (e *RuleEngine) Start(ctx context.Context, reloadChan <-chan struct{}, wg *
 		RuleFilters:  ruleFilters,
 	}
 
-	if err := e.LoadPolicies(true); err != nil {
+	if err := e.LoadPolicies(e.policyProviders, true); err != nil {
 		return fmt.Errorf("failed to load policies: %s", err)
 	}
 
@@ -191,7 +191,7 @@ func (e *RuleEngine) Start(ctx context.Context, reloadChan <-chan struct{}, wg *
 func (e *RuleEngine) ReloadPolicies() error {
 	seclog.Infof("reload policies")
 
-	return e.LoadPolicies(true)
+	return e.LoadPolicies(e.policyProviders, true)
 }
 
 // AddPolicyProvider add a provider
@@ -202,7 +202,7 @@ func (e *RuleEngine) AddPolicyProvider(provider rules.PolicyProvider) {
 }
 
 // LoadPolicies loads the policies
-func (e *RuleEngine) LoadPolicies(sendLoadedReport bool) error {
+func (e *RuleEngine) LoadPolicies(providers []rules.PolicyProvider, sendLoadedReport bool) error {
 	seclog.Infof("load policies")
 
 	e.Lock()
@@ -212,7 +212,7 @@ func (e *RuleEngine) LoadPolicies(sendLoadedReport bool) error {
 	defer e.reloading.Store(false)
 
 	// load policies
-	e.policyLoader.SetProviders(e.policyProviders)
+	e.policyLoader.SetProviders(providers)
 
 	evaluationSet, err := e.probe.NewEvaluationSet(e.getEventTypeEnabled(), []string{ProbeEvaluationRuleSetTagValue, ThreatScoreRuleSetTagValue})
 	if err != nil {
