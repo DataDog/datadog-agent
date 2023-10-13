@@ -13,6 +13,8 @@ import (
 	"go.uber.org/fx"
 )
 
+type resources struct{}
+
 type provides struct {
 	fx.Out
 
@@ -22,6 +24,11 @@ type provides struct {
 func newResourcesProvider(log log.Component, config config.Component) provides { //nolint:revive // TODO fix revive unused-parameter
 	return provides{
 		// We return a dummy Component
-		Comp: struct{}{},
+		Comp: &resources{},
 	}
+}
+
+// Get returns nil payload on unsuported platforms
+func (r *resources) Get() map[string]interface{} {
+	return nil
 }
