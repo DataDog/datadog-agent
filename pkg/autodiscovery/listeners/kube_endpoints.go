@@ -322,6 +322,12 @@ func (l *KubeEndpointsListener) createService(kep *v1.Endpoints, checkServiceAnn
 			kep.Name,
 			"",
 			kep.Namespace,
+		) || l.containerFilters.IsExcluded(
+			containers.GlobalFilter,
+			kep.GetAnnotations(),
+			kep.Name,
+			"",
+			kep.Namespace,
 		)
 	}
 
@@ -475,7 +481,7 @@ func (s *KubeEndpointService) GetCheckNames(context.Context) []string {
 // HasFilter returns whether the kube endpoint should not collect certain metrics
 // due to filtering applied.
 func (s *KubeEndpointService) HasFilter(filter containers.FilterType) bool {
-	if filter == containers.MetricsFilter {
+	if filter == containers.MetricsFilter || filter == containers.GlobalFilter {
 		return s.metricsExcluded
 	}
 	return false

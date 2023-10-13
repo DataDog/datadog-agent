@@ -96,7 +96,7 @@ func (d *dispatcher) Schedule(configs []integration.Config) {
 			continue // Ignore non cluster-check configs
 		}
 
-		if c.HasFilter(containers.MetricsFilter) {
+		if c.HasFilter(containers.MetricsFilter) || c.HasFilter(containers.GlobalFilter) {
 			log.Debugf("Config %s is filtered out for metrics collection, ignoring it", c.Name)
 			continue
 		}
