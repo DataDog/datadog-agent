@@ -11,6 +11,7 @@ package selftests
 import (
 	"fmt"
 	"os/exec"
+	"path"
 
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -23,7 +24,7 @@ type ChmodSelfTest struct{}
 func (o *ChmodSelfTest) GetRuleDefinition(filename string) *rules.RuleDefinition {
 	return &rules.RuleDefinition{
 		ID:         fmt.Sprintf("%s_chmod", ruleIDPrefix),
-		Expression: fmt.Sprintf(`chmod.file.path == "%s"`, filename),
+		Expression: fmt.Sprintf(`chmod.file.path == "%s" && chmod.file.name == "%s"`, filename, path.Base(filename)),
 	}
 }
 

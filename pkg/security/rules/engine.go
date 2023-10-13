@@ -87,6 +87,8 @@ func NewRuleEngine(evm *eventmonitor.EventMonitor, config *config.RuntimeSecurit
 		return nil, err
 	}
 
+	engine.policyProviders = engine.gatherDefaultPolicyProviders()
+
 	return engine, nil
 }
 
@@ -124,8 +126,7 @@ func (e *RuleEngine) Start(ctx context.Context, reloadChan <-chan struct{}, wg *
 		RuleFilters:  ruleFilters,
 	}
 
-	policyProviders := e.gatherPolicyProviders()
-	if err := e.LoadPolicies(policyProviders, true); err != nil {
+	if err := e.LoadPolicies(true); err != nil {
 		return fmt.Errorf("failed to load policies: %s", err)
 	}
 
@@ -190,11 +191,17 @@ func (e *RuleEngine) Start(ctx context.Context, reloadChan <-chan struct{}, wg *
 func (e *RuleEngine) ReloadPolicies() error {
 	seclog.Infof("reload policies")
 
-	return e.LoadPolicies(e.policyProviders, true)
+	return e.LoadPolicies(true)
+}
+
+func (e *RuleEngine) AddPolicyProvider(provider rules.PolicyProvider) {
+	e.Lock()
+	defer e.Unlock()
+	e.policyProviders = append(e.policyProviders, provider)
 }
 
 // LoadPolicies loads the policies
-func (e *RuleEngine) LoadPolicies(policyProviders []rules.PolicyProvider, sendLoadedReport bool) error {
+func (e *RuleEngine) LoadPolicies(sendLoadedReport bool) error {
 	seclog.Infof("load policies")
 
 	e.Lock()
@@ -204,7 +211,7 @@ func (e *RuleEngine) LoadPolicies(policyProviders []rules.PolicyProvider, sendLo
 	defer e.reloading.Store(false)
 
 	// load policies
-	e.policyLoader.SetProviders(policyProviders)
+	e.policyLoader.SetProviders(e.policyProviders)
 
 	evaluationSet, err := e.probe.NewEvaluationSet(e.getEventTypeEnabled(), []string{ProbeEvaluationRuleSetTagValue, ThreatScoreRuleSetTagValue})
 	if err != nil {
@@ -218,7 +225,6 @@ func (e *RuleEngine) LoadPolicies(policyProviders []rules.PolicyProvider, sendLo
 
 	// update current policies related module attributes
 	e.policiesVersions = getPoliciesVersions(evaluationSet)
-	e.policyProviders = policyProviders
 
 	// notify listeners
 	if e.rulesLoaded != nil {
@@ -280,7 +286,7 @@ func (e *RuleEngine) LoadPolicies(policyProviders []rules.PolicyProvider, sendLo
 	return nil
 }
 
-func (e *RuleEngine) gatherPolicyProviders() []rules.PolicyProvider {
+func (e *RuleEngine) gatherDefaultPolicyProviders() []rules.PolicyProvider {
 	var policyProviders []rules.PolicyProvider
 
 	policyProviders = append(policyProviders, &BundledPolicyProvider{})
@@ -303,11 +309,6 @@ func (e *RuleEngine) gatherPolicyProviders() []rules.PolicyProvider {
 	}
 
 	return policyProviders
-}
-
-// GetPolicyProviders returns the active policy providers
-func (e *RuleEngine) GetPolicyProviders() []rules.PolicyProvider {
-	return e.policyProviders
 }
 
 // EventDiscarderFound is called by the ruleset when a new discarder discovered

@@ -11,6 +11,7 @@ package selftests
 import (
 	"fmt"
 	"os/exec"
+	"path"
 
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -24,7 +25,7 @@ type OpenSelfTest struct {
 func (o *OpenSelfTest) GetRuleDefinition(filename string) *rules.RuleDefinition {
 	return &rules.RuleDefinition{
 		ID:         fmt.Sprintf("%s_open", ruleIDPrefix),
-		Expression: fmt.Sprintf(`open.file.path == "%s"`, filename),
+		Expression: fmt.Sprintf(`open.file.path == "%s" && open.flags & O_CREAT > 0 && open.file.name == "%s"`, filename, path.Base(filename)),
 	}
 }
 
