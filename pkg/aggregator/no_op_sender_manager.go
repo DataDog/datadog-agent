@@ -31,7 +31,7 @@ func (NoOpSenderManager) SetSender(sender.Sender, checkid.ID) error { //nolint:r
 }
 
 // DestroySender frees up the resources used by the sender with passed ID (by deregistering it from the aggregator)
-func (NoOpSenderManager) DestroySender(id checkid.ID) {}
+func (NoOpSenderManager) DestroySender(id checkid.ID) {} //nolint:revive // TODO fix revive unused-parameter
 
 // GetDefaultSender returns a default sender.
 func (NoOpSenderManager) GetDefaultSender() (sender.Sender, error) { //nolint:revive // TODO fix revive unused-parameter

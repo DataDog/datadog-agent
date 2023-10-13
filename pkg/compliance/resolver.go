@@ -69,7 +69,7 @@ func DefaultDockerProvider(ctx context.Context) (docker.CommonAPIClient, error) 
 }
 
 // DefaultLinuxAuditProvider returns the default Linux Audit client.
-func DefaultLinuxAuditProvider(ctx context.Context) (LinuxAuditClient, error) {
+func DefaultLinuxAuditProvider(ctx context.Context) (LinuxAuditClient, error) { //nolint:revive // TODO fix revive unused-parameter
 	return newLinuxAuditClient()
 }
 
