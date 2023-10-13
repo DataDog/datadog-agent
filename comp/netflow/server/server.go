@@ -31,6 +31,8 @@ type dependencies struct {
 	Hostname  hostname.Component
 }
 
+// Status represents the status of the server including details about
+// listeners which are working and those which have closed.
 type Status struct {
 	TotalListeners         int
 	OpenListeners          int
@@ -165,10 +167,14 @@ func extractListenerDetails(listeners []*netflowListener) []map[string]interface
 	return details
 }
 
+// IsEnabled checks if the netflow functionality is enabled in the configuration.
+
 func IsEnabled() bool {
 	return config.Datadog.GetBool("network_devices.netflow.enabled")
 }
 
+// GetStatus retrieves the current status of the server with details about
+// all listeners and categorizes them into working and closed.
 func GetStatus() Status {
 	workingListeners := []*netflowListener{}
 	closedListenersList := []*netflowListener{}
