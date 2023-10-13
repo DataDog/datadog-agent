@@ -52,8 +52,7 @@ func GetConfiguredTags(c config.Reader, includeDogstatsd bool) []string {
 	combined = append(combined, dsdTags...)
 
 	// The aggregator should sort and remove duplicates in place. Pre-sorting part of the tags should
-	// make the insertion sort in the aggregator faster. Moreover, it is better to allocate a slice with
-	// len(slice) == cap(slice) as it ensures that any call to append() will allocate a new slice.
+	// improve the performances of the insertion sort in the aggregators.
 	combined = removeDuplicatesAndSort(combined)
 	return combined
 }

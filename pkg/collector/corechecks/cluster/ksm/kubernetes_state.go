@@ -788,11 +788,6 @@ func (k *KSMCheck) initTags() {
 		k.globalTags = append(k.globalTags, configUtils.GetConfiguredTags(k.agentConfig, false)...)
 	}
 
-	// This function guarantees:
-	// - len(k.globalTags) == cap(k.globalTags) => Any call to append() will copy the underlying array, making append() safe
-	// - The slice is sorted with no duplicates => Any call to the aggregator will either add tags to the array (and copy it)
-	// or it will not modify the array since it's already sorted
-	// Thus, it should be safe to use it directly in the aggregator.
 	k.globalTags = util.RemoveDuplicatesAndSort(k.globalTags)
 }
 
