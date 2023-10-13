@@ -67,7 +67,7 @@ func (s *Store) tryParseAndAppendPayload(rawPayload api.Payload, route string) e
 func (s *Store) CleanUpPayloadsOlderThan(time time.Time) {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
-	log.Printf("Cleaning up payloads")
+	log.Println("Cleaning up payloads")
 	// clean up raw payloads
 	for route, payloads := range s.rawPayloads {
 		lastInvalidPayloadIndex := -1
@@ -77,6 +77,7 @@ func (s *Store) CleanUpPayloadsOlderThan(time time.Time) {
 			}
 		}
 		s.rawPayloads[route] = s.rawPayloads[route][lastInvalidPayloadIndex+1:]
+		log.Printf("Cleaned %d payloads on raw store on route [%s]", lastInvalidPayloadIndex+1, route)
 	}
 	// clean up parsed payloads
 	for route, payloads := range s.jsonPayloads {
@@ -88,6 +89,7 @@ func (s *Store) CleanUpPayloadsOlderThan(time time.Time) {
 			}
 		}
 		s.jsonPayloads[route] = s.jsonPayloads[route][lastInvalidPayloadIndex+1:]
+		log.Printf("Cleaned %d payloads on json store on route [%s]", lastInvalidPayloadIndex+1, route)
 	}
 }
 
