@@ -43,6 +43,7 @@ type NetflowServerStatus struct {
 
 var statusInstance = &NetflowServerStatus{}
 
+// globalServer is only used on getting the status of the server.
 var globalServer = &Server{}
 
 // newServer configures a netflow server.
