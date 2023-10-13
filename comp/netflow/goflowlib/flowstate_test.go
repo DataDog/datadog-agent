@@ -17,7 +17,7 @@ import (
 
 func TestStartFlowRoutine_invalidType(t *testing.T) {
 	logger := fxutil.Test[log.Component](t, log.MockModule)
-	errCh := make(chan error, 1) // Buffered channel to hold at least one error
+	errCh := make(chan error) // Buffered channel to hold at least one error
 
 	// Use a type of common.FlowType for the first argument
 	invalidType := common.FlowType("invalid")
