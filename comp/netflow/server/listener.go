@@ -49,7 +49,7 @@ func startFlowListener(listenerConfig config.ListenerConfig, flowAgg *flowaggreg
 		errCh:     errCh,
 	}
 
-	go listener.errorHandler(logger)
+	go listener.errorHandler()
 
 	return listener, err
 }
