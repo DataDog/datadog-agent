@@ -11,10 +11,9 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config"
 )
 
-// removeDuplicatesAndSort sorts and removes duplicates from a slice without doing it in place.
-// The final slice should have len(res) == len(res). It is already defined in pkg/util but can not be imported
-// because of an import cycle.
+// removeDuplicatesAndSort returns a new array, sorted without duplicates.
 func removeDuplicatesAndSort(elements []string) []string {
+	// isolate unique elements
 	found := make(map[string]bool)
 	unique := []string{}
 
@@ -24,8 +23,15 @@ func removeDuplicatesAndSort(elements []string) []string {
 			found[elements[v]] = true
 		}
 	}
+
+	// sort the array
 	sort.Strings(unique)
-	return unique
+
+	// copying the array with exactly enough capacity should make it more resilient
+	// against cases where `append` mutates the original array
+	res := make([]string, len(unique))
+	copy(res, unique)
+	return res
 }
 
 // GetConfiguredTags returns list of tags from a configuration, based on

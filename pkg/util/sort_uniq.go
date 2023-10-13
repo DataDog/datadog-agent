@@ -39,8 +39,8 @@ func uniqSorted(elements []string) []string {
 }
 
 // RemoveDuplicatesAndSort sorts and removes duplicates from a slice without doing it in place.
-// The final slice should have len(res) == len(res).
 func RemoveDuplicatesAndSort(elements []string) []string {
+	// isolate unique elements
 	found := make(map[string]bool)
 	unique := []string{}
 
@@ -50,6 +50,18 @@ func RemoveDuplicatesAndSort(elements []string) []string {
 			found[elements[v]] = true
 		}
 	}
+
+	// sort the array
 	sort.Strings(unique)
-	return unique
+
+	// copying the array with exactly enough capacity should make it more resilient
+	// against cases where `append` mutates the original array
+	return CopyArray(unique)
+}
+
+// CopyArray returns a copied array
+func CopyArray[T any](array []T) []T {
+	res := make([]T, len(array))
+	copy(res, array)
+	return res
 }
