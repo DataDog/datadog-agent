@@ -9,8 +9,6 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
-	common2 "github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/common"
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/profile"
 	"testing"
 	"time"
 
@@ -35,8 +33,10 @@ import (
 
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/checkconfig"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/common"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/devicecheck"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/discovery"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/profile"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/session"
 	"github.com/DataDog/datadog-agent/pkg/snmp/gosnmplib"
 )
@@ -314,12 +314,12 @@ tags:
 	assert.Nil(t, err)
 
 	snmpTags := []string{"snmp_device:1.2.3.4"}
-	snmpGlobalTags := append(common2.CopyStrings(snmpTags), "snmp_host:foo_sys_name")
-	snmpGlobalTagsWithLoader := append(common2.CopyStrings(snmpGlobalTags), "loader:core")
-	telemetryTags := append(common2.CopyStrings(snmpGlobalTagsWithLoader), "agent_version:"+version.AgentVersion)
-	row1Tags := append(common2.CopyStrings(snmpGlobalTags), "if_index:1", "if_desc:desc1")
-	row2Tags := append(common2.CopyStrings(snmpGlobalTags), "if_index:2", "if_desc:desc2")
-	scalarTags := append(common2.CopyStrings(snmpGlobalTags), "symboltag1:1", "symboltag2:2")
+	snmpGlobalTags := append(common.CopyStrings(snmpTags), "snmp_host:foo_sys_name")
+	snmpGlobalTagsWithLoader := append(common.CopyStrings(snmpGlobalTags), "loader:core")
+	telemetryTags := append(common.CopyStrings(snmpGlobalTagsWithLoader), "agent_version:"+version.AgentVersion)
+	row1Tags := append(common.CopyStrings(snmpGlobalTags), "if_index:1", "if_desc:desc1")
+	row2Tags := append(common.CopyStrings(snmpGlobalTags), "if_index:2", "if_desc:desc2")
+	scalarTags := append(common.CopyStrings(snmpGlobalTags), "symboltag1:1", "symboltag2:2")
 
 	sender.AssertMetric(t, "Gauge", "snmp.devices_monitored", float64(1), "", snmpGlobalTags)
 	sender.AssertMetric(t, "Gauge", "snmp.sysUpTimeInstance", float64(20), "", snmpGlobalTags)
@@ -550,7 +550,7 @@ metrics:
 }
 
 func TestProfile(t *testing.T) {
-	timeNow = common2.MockTimeNow
+	timeNow = common.MockTimeNow
 
 	deps := createDeps(t)
 	senderManager := aggregator.InitAndStartAgentDemultiplexer(deps.Log, deps.Forwarder, demuxOpts(), "")
@@ -835,8 +835,8 @@ profiles:
 		"static_tag:from_profile_root",
 		"static_tag:from_base_profile",
 	}
-	row1Tags := append(common2.CopyStrings(snmpTags), "interface:nameRow1", "interface_alias:descRow1", "mac_address:00:00:00:00:00:01", "table_static_tag:val")
-	row2Tags := append(common2.CopyStrings(snmpTags), "interface:nameRow2", "interface_alias:descRow2", "mac_address:00:00:00:00:00:02", "table_static_tag:val")
+	row1Tags := append(common.CopyStrings(snmpTags), "interface:nameRow1", "interface_alias:descRow1", "mac_address:00:00:00:00:00:01", "table_static_tag:val")
+	row2Tags := append(common.CopyStrings(snmpTags), "interface:nameRow2", "interface_alias:descRow2", "mac_address:00:00:00:00:00:02", "table_static_tag:val")
 
 	sender.AssertMetric(t, "Gauge", "snmp.devices_monitored", float64(1), "", snmpTags)
 	sender.AssertMetric(t, "Gauge", "snmp.sysUpTimeInstance", float64(20), "", snmpTags)
@@ -1281,7 +1281,7 @@ metrics:
 }
 
 func TestReportDeviceMetadataEvenOnProfileError(t *testing.T) {
-	timeNow = common2.MockTimeNow
+	timeNow = common.MockTimeNow
 
 	deps := createDeps(t)
 	senderManager := aggregator.InitAndStartAgentDemultiplexer(deps.Log, deps.Forwarder, demuxOpts(), "")
@@ -1587,7 +1587,7 @@ tags:
 }
 
 func TestReportDeviceMetadataWithFetchError(t *testing.T) {
-	timeNow = common2.MockTimeNow
+	timeNow = common.MockTimeNow
 	deps := createDeps(t)
 	senderManager := aggregator.InitAndStartAgentDemultiplexer(deps.Log, deps.Forwarder, demuxOpts(), "")
 
@@ -1696,7 +1696,7 @@ tags:
 
 func TestDiscovery(t *testing.T) {
 	deps := createDeps(t)
-	timeNow = common2.MockTimeNow
+	timeNow = common.MockTimeNow
 	profile.SetConfdPathAndCleanProfiles()
 	sess := session.CreateMockSession()
 	sessionFactory := func(*checkconfig.CheckConfig) (session.Session, error) {
@@ -1938,9 +1938,9 @@ metric_tags:
 
 	for _, deviceData := range deviceMap {
 		snmpTags := []string{"device_namespace:default", "snmp_device:" + deviceData.ipAddress, "autodiscovery_subnet:10.10.0.0/30"}
-		snmpGlobalTags := append(common2.CopyStrings(snmpTags), "snmp_host:foo_sys_name")
-		snmpGlobalTagsWithLoader := append(common2.CopyStrings(snmpGlobalTags), "loader:core")
-		scalarTags := append(common2.CopyStrings(snmpGlobalTags), "symboltag1:1", "symboltag2:2")
+		snmpGlobalTags := append(common.CopyStrings(snmpTags), "snmp_host:foo_sys_name")
+		snmpGlobalTagsWithLoader := append(common.CopyStrings(snmpGlobalTags), "loader:core")
+		scalarTags := append(common.CopyStrings(snmpGlobalTags), "symboltag1:1", "symboltag2:2")
 
 		sender.AssertMetric(t, "Gauge", "snmp.devices_monitored", float64(1), "", snmpGlobalTags)
 		sender.AssertMetric(t, "Gauge", "snmp.sysUpTimeInstance", float64(20), "", snmpGlobalTags)
@@ -2097,8 +2097,8 @@ metric_tags:
 
 	for i := 0; i < 4; i++ {
 		snmpTags := []string{fmt.Sprintf("snmp_device:10.10.0.%d", i)}
-		snmpGlobalTags := common2.CopyStrings(snmpTags)
-		snmpGlobalTagsWithLoader := append(common2.CopyStrings(snmpGlobalTags), "loader:core")
+		snmpGlobalTags := common.CopyStrings(snmpTags)
+		snmpGlobalTagsWithLoader := append(common.CopyStrings(snmpGlobalTags), "loader:core")
 
 		sender.AssertMetric(t, "Gauge", "snmp.devices_monitored", float64(1), "", snmpGlobalTags)
 		sender.AssertMetricTaggedWith(t, "MonotonicCount", "datadog.snmp.check_interval", snmpGlobalTagsWithLoader)
@@ -2271,9 +2271,9 @@ use_device_id_as_hostname: true
 
 	hostname := "device:default:1.2.3.4"
 	snmpTags := []string{"snmp_device:1.2.3.4"}
-	snmpGlobalTags := common2.CopyStrings(snmpTags)
-	snmpGlobalTagsWithLoader := append(common2.CopyStrings(snmpGlobalTags), "loader:core")
-	scalarTags := append(common2.CopyStrings(snmpGlobalTags), "symboltag1:1", "symboltag2:2")
+	snmpGlobalTags := common.CopyStrings(snmpTags)
+	snmpGlobalTagsWithLoader := append(common.CopyStrings(snmpGlobalTags), "loader:core")
+	scalarTags := append(common.CopyStrings(snmpGlobalTags), "symboltag1:1", "symboltag2:2")
 
 	sender.AssertMetric(t, "Gauge", "snmp.devices_monitored", float64(1), hostname, snmpGlobalTags)
 	sender.AssertMetric(t, "Gauge", "snmp.sysUpTimeInstance", float64(20), hostname, snmpGlobalTags)
@@ -2303,7 +2303,7 @@ use_device_id_as_hostname: true
 func TestDiscoveryDeviceIDAsHostname(t *testing.T) {
 	deps := createDeps(t)
 	cache.Cache.Delete(cache.BuildAgentKey("hostname")) // clean existing hostname cache
-	timeNow = common2.MockTimeNow
+	timeNow = common.MockTimeNow
 	profile.SetConfdPathAndCleanProfiles()
 	sess := session.CreateMockSession()
 	sessionFactory := func(*checkconfig.CheckConfig) (session.Session, error) {
@@ -2491,9 +2491,9 @@ metrics:
 	for _, deviceData := range deviceMap {
 		hostname := "device:" + deviceData.deviceID
 		snmpTags := []string{"snmp_device:" + deviceData.ipAddress, "autodiscovery_subnet:10.10.0.0/30", "agent_host:my-hostname"}
-		snmpGlobalTags := common2.CopyStrings(snmpTags)
-		snmpGlobalTagsWithLoader := append(common2.CopyStrings(snmpGlobalTags), "loader:core")
-		scalarTags := append(common2.CopyStrings(snmpGlobalTags), "symboltag1:1", "symboltag2:2")
+		snmpGlobalTags := common.CopyStrings(snmpTags)
+		snmpGlobalTagsWithLoader := append(common.CopyStrings(snmpGlobalTags), "loader:core")
+		scalarTags := append(common.CopyStrings(snmpGlobalTags), "symboltag1:1", "symboltag2:2")
 
 		sender.AssertMetric(t, "Gauge", "snmp.devices_monitored", float64(1), hostname, snmpGlobalTags)
 		sender.AssertMetric(t, "Gauge", "snmp.sysUpTimeInstance", float64(20), hostname, snmpGlobalTags)
