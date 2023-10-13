@@ -43,6 +43,7 @@ var validMetadataResources = map[string]map[string]bool{
 // SymbolContext represent the context in which the symbol is used
 type SymbolContext int64
 
+// ScalarSymbol enums
 const (
 	ScalarSymbol SymbolContext = iota
 	ColumnSymbol
