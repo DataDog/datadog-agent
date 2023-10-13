@@ -209,7 +209,7 @@ func (c *ScannerCache) MissingBlobs(artifactID string, blobIDs []string) (bool, 
 }
 
 // PutArtifact implements cache.Cache#PutArtifact
-func (c *ScannerCache) PutArtifact(artifactID string, artifactInfo types.ArtifactInfo) error {
+func (c *ScannerCache) PutArtifact(artifactID string, artifactInfo types.ArtifactInfo) error { //nolint:revive // TODO fix revive unusued-parameter
 	return trivyCachePut(c, artifactID, artifactInfo)
 }
 

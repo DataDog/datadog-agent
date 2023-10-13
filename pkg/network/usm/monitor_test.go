@@ -685,7 +685,7 @@ func (s *USMHTTP2Suite) TestSimpleHTTP2() {
 	}
 }
 
-func getClientsArray(t *testing.T, size int, options grpc.Options) []*nethttp.Client {
+func getClientsArray(t *testing.T, size int, options grpc.Options) []*nethttp.Client { //nolint:revive // TODO fix revive unused-parameter
 	t.Helper()
 
 	res := make([]*nethttp.Client, size)
