@@ -63,6 +63,7 @@ func newServer(lc fx.Lifecycle, deps dependencies) (Component, error) {
 	}
 
 	globalServer = server
+	ServerEnabled = true
 
 	if conf.Enabled {
 		// netflow is enabled, so start the server
@@ -175,7 +176,6 @@ func extractListenerDetails(listeners []*netflowListener) []map[string]interface
 }
 
 func IsServerEnabled() bool {
-	ServerEnabled = true
 	return ServerEnabled
 }
 

@@ -14,6 +14,7 @@ import (
 	"path"
 	"text/template"
 
+	"github.com/DataDog/datadog-agent/comp/netflow/server"
 	"github.com/DataDog/datadog-agent/comp/otelcol/otlp"
 	checkstats "github.com/DataDog/datadog-agent/pkg/collector/check/stats"
 	"github.com/DataDog/datadog-agent/pkg/config"
@@ -92,7 +93,10 @@ func FormatStatus(data []byte) (string, error) {
 	}
 
 	netflowFunc := func() error {
-		return RenderStatusTemplate(b, "/netflow.tmpl", netflowStats)
+		if server.IsServerEnabled() {
+			return RenderStatusTemplate(b, "/netflow.tmpl", netflowStats)
+		}
+		return nil
 	}
 
 	autodiscoveryFunc := func() error {
