@@ -7,6 +7,7 @@ package checkconfig
 
 import (
 	"fmt"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/profile"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -30,13 +31,13 @@ const profilesJSONGzipFile = "profiles.json.gz"
 
 var defaultProfilesMu = &sync.Mutex{}
 
-var globalProfileConfigMap ProfileConfigMap
+var globalProfileConfigMap profile.ProfileConfigMap
 
 // loadYamlProfiles will load the profiles from disk only once and store it
 // in globalProfileConfigMap. The subsequent call to it will return profiles stored in
 // globalProfileConfigMap. The mutex will help loading once when `loadYamlProfiles`
 // is called by multiple check instances.
-func loadYamlProfiles() (ProfileConfigMap, error) {
+func loadYamlProfiles() (profile.ProfileConfigMap, error) {
 	defaultProfilesMu.Lock()
 	defer defaultProfilesMu.Unlock()
 
@@ -58,12 +59,12 @@ func loadYamlProfiles() (ProfileConfigMap, error) {
 	return profiles, nil
 }
 
-func getDefaultProfilesDefinitionFiles() (ProfileConfigMap, error) {
+func getDefaultProfilesDefinitionFiles() (profile.ProfileConfigMap, error) {
 	// Get default profiles
 	profiles, err := getProfilesDefinitionFiles(defaultProfilesFolder)
 	if err != nil {
 		log.Warnf("failed to read default_profiles: %s", err)
-		profiles = make(ProfileConfigMap)
+		profiles = make(profile.ProfileConfigMap)
 	}
 	// Get user profiles
 	// User profiles have precedence over default profiles
@@ -79,14 +80,14 @@ func getDefaultProfilesDefinitionFiles() (ProfileConfigMap, error) {
 	return profiles, nil
 }
 
-func getProfilesDefinitionFiles(profilesFolder string) (ProfileConfigMap, error) {
+func getProfilesDefinitionFiles(profilesFolder string) (profile.ProfileConfigMap, error) {
 	profilesRoot := getProfileConfdRoot(profilesFolder)
 	files, err := os.ReadDir(profilesRoot)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read dir `%s`: %v", profilesRoot, err)
 	}
 
-	profiles := make(ProfileConfigMap)
+	profiles := make(profile.ProfileConfigMap)
 	for _, f := range files {
 		fName := f.Name()
 		// Skip partial profiles
@@ -98,13 +99,13 @@ func getProfilesDefinitionFiles(profilesFolder string) (ProfileConfigMap, error)
 			continue
 		}
 		profileName := fName[:len(fName)-len(".yaml")]
-		profiles[profileName] = ProfileConfig{DefinitionFile: filepath.Join(profilesRoot, fName)}
+		profiles[profileName] = profile.ProfileConfig{DefinitionFile: filepath.Join(profilesRoot, fName)}
 	}
 	return profiles, nil
 }
 
-func loadProfiles(pConfig ProfileConfigMap) (ProfileConfigMap, error) {
-	profiles := make(ProfileConfigMap, len(pConfig))
+func loadProfiles(pConfig profile.ProfileConfigMap) (profile.ProfileConfigMap, error) {
+	profiles := make(profile.ProfileConfigMap, len(pConfig))
 
 	for name, profConfig := range pConfig {
 		if profConfig.DefinitionFile != "" {
