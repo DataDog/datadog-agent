@@ -169,6 +169,7 @@ func (lp *ProxyLifecycleProcessor) spanModifier(lastReqId string, chunk *pb.Trac
 			nil,
 			"", // Not provided by API Gateway
 			nil,
+			false,
 		)
 
 	case *events.APIGatewayCustomAuthorizerRequestTypeRequest:
@@ -180,6 +181,7 @@ func (lp *ProxyLifecycleProcessor) spanModifier(lastReqId string, chunk *pb.Trac
 			event.PathParameters,
 			event.RequestContext.Identity.SourceIP,
 			nil,
+			false,
 		)
 
 	case *events.ALBTargetGroupRequest:
