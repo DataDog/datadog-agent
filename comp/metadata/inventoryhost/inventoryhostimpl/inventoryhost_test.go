@@ -1,54 +1,30 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2022-present Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
-package inventories
+package inventoryhostimpl
 
 import (
 	"fmt"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
+	"go.uber.org/fx"
+
+	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/core/log"
+	"github.com/DataDog/datadog-agent/comp/metadata/host/utils"
 	"github.com/DataDog/datadog-agent/pkg/gohai/cpu"
 	"github.com/DataDog/datadog-agent/pkg/gohai/memory"
 	"github.com/DataDog/datadog-agent/pkg/gohai/network"
 	"github.com/DataDog/datadog-agent/pkg/gohai/platform"
 	gohaiutils "github.com/DataDog/datadog-agent/pkg/gohai/utils"
-	"github.com/stretchr/testify/assert"
-
+	"github.com/DataDog/datadog-agent/pkg/serializer"
+	"github.com/DataDog/datadog-agent/pkg/util/cloudproviders"
 	"github.com/DataDog/datadog-agent/pkg/util/dmi"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/version"
-)
-
-var (
-	expectedMetadata = &HostMetadata{
-		CPUCores:             6,
-		CPULogicalProcessors: 6,
-		CPUVendor:            "GenuineIntel",
-		CPUModel:             "Intel_i7-8750H",
-		CPUModelID:           "158",
-		CPUFamily:            "6",
-		CPUStepping:          "10",
-		CPUFrequency:         2208.006,
-		CPUCacheSize:         9437184,
-		KernelName:           "Linux",
-		KernelRelease:        "5.17.0-1-amd64",
-		KernelVersion:        "Debian_5.17.3-1",
-		OS:                   "GNU/Linux",
-		CPUArchitecture:      "unknown",
-		MemoryTotalKb:        1205632,
-		MemorySwapTotalKb:    1205632,
-		IPAddress:            "192.168.24.138",
-		IPv6Address:          "fe80::20c:29ff:feb6:d232",
-		MacAddress:           "00:0c:29:b6:d2:32",
-		AgentVersion:         version.AgentVersion,
-		CloudProvider:        "some_cloud_provider",
-		OsVersion:            "testOS",
-		HypervisorGuestUUID:  "hypervisorUUID",
-		DmiProductUUID:       "dmiUUID",
-		DmiBoardAssetTag:     "boardTag",
-		DmiBoardVendor:       "boardVendor",
-	}
 )
 
 func cpuMock() *cpu.Info {
@@ -102,47 +78,31 @@ func platformMock() *platform.Info {
 	}
 }
 
+func cpuErrorMock() *cpu.Info                  { return &cpu.Info{} }
+func memoryErrorMock() *memory.Info            { return &memory.Info{} }
+func networkErrorMock() (*network.Info, error) { return nil, fmt.Errorf("err") }
+func platformErrorMock() *platform.Info        { return &platform.Info{} }
+
 func setupHostMetadataMock(t *testing.T) {
 	t.Cleanup(func() {
 		cpuGet = cpu.CollectInfo
 		memoryGet = memory.CollectInfo
 		networkGet = network.CollectInfo
 		platformGet = platform.CollectInfo
-
-		inventoryMutex.Lock()
-		delete(hostMetadata, HostOSVersion)
-		inventoryMutex.Unlock()
+		osVersionGet = utils.GetOSVersion
 	})
 
 	cpuGet = cpuMock
 	memoryGet = memoryMock
 	networkGet = networkMock
 	platformGet = platformMock
+	osVersionGet = func() string { return "testOS" }
 	dmi.SetupMock(t, "hypervisorUUID", "dmiUUID", "boardTag", "boardVendor")
-
-	SetHostMetadata(HostCloudProvider, "some_cloud_provider")
-	SetHostMetadata(HostOSVersion, "testOS")
+	cloudproviders.Mock(t, "some_cloud_provider", "some_host_id", "test_source", "test_id_1234")
 }
-
-func TestGetHostMetadata(t *testing.T) {
-	setupHostMetadataMock(t)
-
-	m := getHostMetadata()
-	assert.Equal(t, expectedMetadata, m)
-}
-
-func cpuErrorMock() *cpu.Info                  { return &cpu.Info{} }
-func memoryErrorMock() *memory.Info            { return &memory.Info{} }
-func networkErrorMock() (*network.Info, error) { return nil, fmt.Errorf("err") }
-func platformErrorMock() *platform.Info        { return &platform.Info{} }
 
 func setupHostMetadataErrorMock(t *testing.T) {
-	t.Cleanup(func() {
-		cpuGet = cpu.CollectInfo
-		memoryGet = memory.CollectInfo
-		networkGet = network.CollectInfo
-		platformGet = platform.CollectInfo
-	})
+	setupHostMetadataMock(t)
 
 	cpuGet = cpuErrorMock
 	memoryGet = memoryErrorMock
@@ -151,10 +111,72 @@ func setupHostMetadataErrorMock(t *testing.T) {
 	dmi.SetupMock(t, "", "", "", "")
 }
 
-func TestGetHostMetadataError(t *testing.T) {
+func getTestInventoryHost(t *testing.T) *invHost {
+	p := newInventoryHostProvider(
+		fxutil.Test[dependencies](
+			t,
+			log.MockModule,
+			config.MockModule,
+			fx.Provide(func() serializer.MetricSerializer { return &serializer.MockSerializer{} }),
+		),
+	)
+	return p.Comp.(*invHost)
+}
+
+func TestGetPayload(t *testing.T) {
+	setupHostMetadataMock(t)
+
+	expectedMetadata := &hostMetadata{
+		CPUCores:               6,
+		CPULogicalProcessors:   6,
+		CPUVendor:              "GenuineIntel",
+		CPUModel:               "Intel_i7-8750H",
+		CPUModelID:             "158",
+		CPUFamily:              "6",
+		CPUStepping:            "10",
+		CPUFrequency:           2208.006,
+		CPUCacheSize:           9437184,
+		KernelName:             "Linux",
+		KernelRelease:          "5.17.0-1-amd64",
+		KernelVersion:          "Debian_5.17.3-1",
+		OS:                     "GNU/Linux",
+		CPUArchitecture:        "unknown",
+		MemoryTotalKb:          1205632,
+		MemorySwapTotalKb:      1205632,
+		IPAddress:              "192.168.24.138",
+		IPv6Address:            "fe80::20c:29ff:feb6:d232",
+		MacAddress:             "00:0c:29:b6:d2:32",
+		AgentVersion:           version.AgentVersion,
+		CloudProvider:          "some_cloud_provider",
+		CloudProviderAccountID: "some_host_id",
+		CloudProviderSource:    "test_source",
+		CloudProviderHostID:    "test_id_1234",
+		OsVersion:              "testOS",
+		HypervisorGuestUUID:    "hypervisorUUID",
+		DmiProductUUID:         "dmiUUID",
+		DmiBoardAssetTag:       "boardTag",
+		DmiBoardVendor:         "boardVendor",
+	}
+
+	ih := getTestInventoryHost(t)
+
+	p := ih.getPayload().(*Payload)
+	assert.Equal(t, expectedMetadata, p.Metadata)
+}
+
+func TestGetPayloadError(t *testing.T) {
 	setupHostMetadataErrorMock(t)
 
-	m := getHostMetadata()
-	expected := &HostMetadata{AgentVersion: version.AgentVersion, CloudProvider: "some_cloud_provider"}
-	assert.Equal(t, expected, m)
+	ih := getTestInventoryHost(t)
+
+	p := ih.getPayload().(*Payload)
+	expected := &hostMetadata{
+		AgentVersion:           version.AgentVersion,
+		CloudProvider:          "some_cloud_provider",
+		CloudProviderAccountID: "some_host_id",
+		CloudProviderSource:    "test_source",
+		CloudProviderHostID:    "test_id_1234",
+		OsVersion:              "testOS",
+	}
+	assert.Equal(t, expected, p.Metadata)
 }
