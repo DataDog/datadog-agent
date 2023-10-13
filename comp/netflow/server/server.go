@@ -31,7 +31,7 @@ type dependencies struct {
 	Hostname  hostname.Component
 }
 
-// Status represents the status of the server including details about
+// NetflowServerStatus represents the status of the server including details about
 // listeners which are working and those which have closed.
 type NetflowServerStatus struct {
 	TotalListeners         int
