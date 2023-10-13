@@ -64,7 +64,7 @@ type DeviceDigest string
 
 // InitConfig is used to deserialize integration init config
 type InitConfig struct {
-	Profiles                     profileConfigMap                  `yaml:"profiles"`
+	Profiles                     ProfileConfigMap                  `yaml:"profiles"`
 	GlobalMetrics                []profiledefinition.MetricsConfig `yaml:"global_metrics"`
 	OidBatchSize                 Number                            `yaml:"oid_batch_size"`
 	BulkMaxRepetitions           Number                            `yaml:"bulk_max_repetitions"`
@@ -166,7 +166,7 @@ type CheckConfig struct {
 	MetricTags            []profiledefinition.MetricTagConfig
 	OidBatchSize          int
 	BulkMaxRepetitions    uint32
-	Profiles              profileConfigMap
+	Profiles              ProfileConfigMap
 	ProfileTags           []string
 	Profile               string
 	ProfileDef            *profiledefinition.ProfileDefinition
@@ -536,8 +536,8 @@ func NewCheckConfig(rawInstance integration.Data, rawInitConfig integration.Data
 	return c, nil
 }
 
-func getProfiles(initConfig InitConfig) (profileConfigMap, error) {
-	var profiles profileConfigMap
+func getProfiles(initConfig InitConfig) (ProfileConfigMap, error) {
+	var profiles ProfileConfigMap
 	if len(initConfig.Profiles) > 0 {
 		// TODO: [PERFORMANCE] Load init config custom profiles once for all integrations
 		//   There are possibly multiple init configs
@@ -742,7 +742,7 @@ func (c *CheckConfig) parseColumnOids(metrics []profiledefinition.MetricsConfig,
 }
 
 // GetProfileForSysObjectID return a profile for a sys object id
-func GetProfileForSysObjectID(profiles profileConfigMap, sysObjectID string) (string, error) {
+func GetProfileForSysObjectID(profiles ProfileConfigMap, sysObjectID string) (string, error) {
 	tmpSysOidToProfile := map[string]string{}
 	var matchedOids []string
 
@@ -757,10 +757,10 @@ func GetProfileForSysObjectID(profiles profileConfigMap, sysObjectID string) (st
 				continue
 			}
 			if prevMatchedProfile, ok := tmpSysOidToProfile[oidPattern]; ok {
-				if profiles[prevMatchedProfile].isUserProfile && !profConfig.isUserProfile {
+				if profiles[prevMatchedProfile].IsUserProfile && !profConfig.IsUserProfile {
 					continue
 				}
-				if profiles[prevMatchedProfile].isUserProfile == profConfig.isUserProfile {
+				if profiles[prevMatchedProfile].IsUserProfile == profConfig.IsUserProfile {
 					return "", fmt.Errorf("profile %s has the same sysObjectID (%s) as %s", profile, oidPattern, prevMatchedProfile)
 				}
 			}

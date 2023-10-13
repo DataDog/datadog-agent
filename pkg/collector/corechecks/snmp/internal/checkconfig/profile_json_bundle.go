@@ -18,7 +18,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/networkdevice/profile/profiledefinition"
 )
 
-func loadBundleJSONProfiles() (profileConfigMap, error) {
+func loadBundleJSONProfiles() (ProfileConfigMap, error) {
 	jsonStr, err := getProfilesBundleJSON()
 	if err != nil {
 		return nil, err
@@ -31,14 +31,14 @@ func loadBundleJSONProfiles() (profileConfigMap, error) {
 	return profiles, nil
 }
 
-func unmarshallProfilesBundleJSON(jsonStr []byte) (profileConfigMap, error) {
+func unmarshallProfilesBundleJSON(jsonStr []byte) (ProfileConfigMap, error) {
 	bundle := profiledefinition.ProfileBundle{}
 	err := json.Unmarshal(jsonStr, &bundle)
 	if err != nil {
 		return nil, err
 	}
 
-	profiles := make(profileConfigMap)
+	profiles := make(ProfileConfigMap)
 	for _, profile := range bundle.Profiles {
 		if profile.Profile.Name == "" {
 			log.Warnf("Profile with missing name: %s", profile.Profile.Name)
@@ -50,9 +50,9 @@ func unmarshallProfilesBundleJSON(jsonStr []byte) (profileConfigMap, error) {
 			continue
 		}
 		// TODO: (separate PR) resolve extends with custom + local default profiles (yaml)
-		profiles[profile.Profile.Name] = profileConfig{
+		profiles[profile.Profile.Name] = ProfileConfig{
 			Definition:    profile.Profile,
-			isUserProfile: true,
+			IsUserProfile: true,
 		}
 	}
 	return profiles, nil

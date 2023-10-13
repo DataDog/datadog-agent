@@ -32,7 +32,7 @@ func getMetricFromProfile(p profiledefinition.ProfileDefinition, metricName stri
 	return nil
 }
 
-func fixtureProfileDefinitionMap() profileConfigMap {
+func fixtureProfileDefinitionMap() ProfileConfigMap {
 	metrics := []profiledefinition.MetricsConfig{
 		{MIB: "F5-BIGIP-SYSTEM-MIB", Symbol: profiledefinition.SymbolConfig{OID: "1.3.6.1.4.1.3375.2.1.1.2.1.44.0", Name: "sysStatMemoryTotal", ScaleFactor: 2}, MetricType: profiledefinition.ProfileMetricTypeGauge},
 		{MIB: "F5-BIGIP-SYSTEM-MIB", Symbol: profiledefinition.SymbolConfig{OID: "1.3.6.1.4.1.3375.2.1.1.2.1.44.999", Name: "oldSyntax"}},
@@ -56,8 +56,8 @@ func fixtureProfileDefinitionMap() profileConfigMap {
 		},
 		{MIB: "SOME-MIB", Symbol: profiledefinition.SymbolConfig{OID: "1.2.3.4.5", Name: "someMetric"}},
 	}
-	return profileConfigMap{
-		"f5-big-ip": profileConfig{
+	return ProfileConfigMap{
+		"f5-big-ip": ProfileConfig{
 			Definition: profiledefinition.ProfileDefinition{
 				Metrics:      metrics,
 				Extends:      []string{"_base.yaml", "_generic-if.yaml"},
@@ -171,9 +171,9 @@ func fixtureProfileDefinitionMap() profileConfigMap {
 					},
 				},
 			},
-			isUserProfile: true,
+			IsUserProfile: true,
 		},
-		"another_profile": profileConfig{
+		"another_profile": ProfileConfig{
 			Definition: profiledefinition.ProfileDefinition{
 				SysObjectIds: profiledefinition.StringArray{"1.3.6.1.4.1.32473.1.1"},
 				Metrics: []profiledefinition.MetricsConfig{
@@ -185,7 +185,7 @@ func fixtureProfileDefinitionMap() profileConfigMap {
 				},
 				Metadata: profiledefinition.MetadataConfig{},
 			},
-			isUserProfile: true,
+			IsUserProfile: true,
 		},
 	}
 }
@@ -196,14 +196,14 @@ func Test_getDefaultProfilesDefinitionFiles(t *testing.T) {
 	assert.Nil(t, err)
 
 	confdPath := config.Datadog.GetString("confd_path")
-	expectedProfileConfig := profileConfigMap{
+	expectedProfileConfig := ProfileConfigMap{
 		"f5-big-ip": {
 			DefinitionFile: filepath.Join(confdPath, "snmp.d", "profiles", "f5-big-ip.yaml"),
-			isUserProfile:  true,
+			IsUserProfile:  true,
 		},
 		"another_profile": {
 			DefinitionFile: filepath.Join(confdPath, "snmp.d", "profiles", "another_profile.yaml"),
-			isUserProfile:  true,
+			IsUserProfile:  true,
 		},
 	}
 
@@ -229,8 +229,8 @@ func Test_loadProfiles(t *testing.T) {
 	tests := []struct {
 		name                  string
 		confdPath             string
-		inputProfileConfigMap profileConfigMap
-		expectedProfileDefMap profileConfigMap
+		inputProfileConfigMap ProfileConfigMap
+		expectedProfileDefMap ProfileConfigMap
 		expectedIncludeErrors []string
 		expectedLogs          []logCount
 	}{
@@ -243,26 +243,26 @@ func Test_loadProfiles(t *testing.T) {
 		},
 		{
 			name: "failed to read profile",
-			inputProfileConfigMap: profileConfigMap{
+			inputProfileConfigMap: ProfileConfigMap{
 				"f5-big-ip": {
 					DefinitionFile: filepath.Join(string(filepath.Separator), "does", "not", "exist"),
-					isUserProfile:  true,
+					IsUserProfile:  true,
 				},
 			},
-			expectedProfileDefMap: profileConfigMap{},
+			expectedProfileDefMap: ProfileConfigMap{},
 			expectedLogs: []logCount{
 				{"[WARN] loadProfiles: failed to read profile definition `f5-big-ip`: failed to read file", 1},
 			},
 		},
 		{
 			name: "invalid extends",
-			inputProfileConfigMap: profileConfigMap{
+			inputProfileConfigMap: ProfileConfigMap{
 				"f5-big-ip": {
 					DefinitionFile: profileWithInvalidExtends,
-					isUserProfile:  true,
+					IsUserProfile:  true,
 				},
 			},
-			expectedProfileDefMap: profileConfigMap{},
+			expectedProfileDefMap: ProfileConfigMap{},
 			expectedLogs: []logCount{
 				{"[WARN] loadProfiles: failed to expand profile `f5-big-ip`: failed to read file", 1},
 			},
@@ -270,12 +270,12 @@ func Test_loadProfiles(t *testing.T) {
 		{
 			name:      "invalid recursive extends",
 			confdPath: profilesWithInvalidExtendConfdPath,
-			inputProfileConfigMap: profileConfigMap{
+			inputProfileConfigMap: ProfileConfigMap{
 				"f5-big-ip": {
 					DefinitionFile: "f5-big-ip.yaml",
 				},
 			},
-			expectedProfileDefMap: profileConfigMap{},
+			expectedProfileDefMap: ProfileConfigMap{},
 			expectedLogs: []logCount{
 				{"[WARN] loadProfiles: failed to expand profile `f5-big-ip`", 1},
 				{"invalid.yaml", 2},
@@ -284,36 +284,36 @@ func Test_loadProfiles(t *testing.T) {
 		{
 			name:      "invalid cyclic extends",
 			confdPath: invalidCyclicConfdPath,
-			inputProfileConfigMap: profileConfigMap{
+			inputProfileConfigMap: ProfileConfigMap{
 				"f5-big-ip": {
 					DefinitionFile: "f5-big-ip.yaml",
 				},
 			},
-			expectedProfileDefMap: profileConfigMap{},
+			expectedProfileDefMap: ProfileConfigMap{},
 			expectedLogs: []logCount{
 				{"[WARN] loadProfiles: failed to expand profile `f5-big-ip`: cyclic profile extend detected, `_extend1.yaml` has already been extended, extendsHistory=`[_extend1.yaml _extend2.yaml]", 1},
 			},
 		},
 		{
 			name: "invalid yaml profile",
-			inputProfileConfigMap: profileConfigMap{
+			inputProfileConfigMap: ProfileConfigMap{
 				"f5-big-ip": {
 					DefinitionFile: invalidYamlProfile,
 				},
 			},
-			expectedProfileDefMap: profileConfigMap{},
+			expectedProfileDefMap: ProfileConfigMap{},
 			expectedLogs: []logCount{
 				{"failed to read profile definition `f5-big-ip`: failed to unmarshall", 1},
 			},
 		},
 		{
 			name: "validation error profile",
-			inputProfileConfigMap: profileConfigMap{
+			inputProfileConfigMap: ProfileConfigMap{
 				"f5-big-ip": {
 					DefinitionFile: validationErrorProfile,
 				},
 			},
-			expectedProfileDefMap: profileConfigMap{},
+			expectedProfileDefMap: ProfileConfigMap{},
 			expectedLogs: []logCount{
 				{"cannot compile `match` (`global_metric_tags[\\w)(\\w+)`)", 1},
 				{"cannot compile `match` (`table_match[\\w)`)", 1},
@@ -520,7 +520,7 @@ func Test_loadDefaultProfiles_invalidExtendProfile(t *testing.T) {
 	assert.Nil(t, err)
 
 	assert.Equal(t, 1, strings.Count(logs, "[WARN] loadProfiles: failed to expand profile `f5-big-ip"), logs)
-	assert.Equal(t, profileConfigMap{}, defaultProfiles)
+	assert.Equal(t, ProfileConfigMap{}, defaultProfiles)
 }
 
 func Test_loadDefaultProfiles_validAndInvalidProfiles(t *testing.T) {

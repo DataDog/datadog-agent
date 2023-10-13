@@ -9,11 +9,11 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/networkdevice/profile/profiledefinition"
 )
 
-type profileConfigMap map[string]profileConfig
+type ProfileConfigMap map[string]ProfileConfig
 
-type profileConfig struct {
+type ProfileConfig struct {
 	DefinitionFile string                              `yaml:"definition_file"`
 	Definition     profiledefinition.ProfileDefinition `yaml:"definition"`
 
-	isUserProfile bool `yaml:"-"`
+	IsUserProfile bool `yaml:"-"`
 }

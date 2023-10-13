@@ -30,13 +30,13 @@ const profilesJSONGzipFile = "profiles.json.gz"
 
 var defaultProfilesMu = &sync.Mutex{}
 
-var globalProfileConfigMap profileConfigMap
+var globalProfileConfigMap ProfileConfigMap
 
 // loadYamlProfiles will load the profiles from disk only once and store it
 // in globalProfileConfigMap. The subsequent call to it will return profiles stored in
 // globalProfileConfigMap. The mutex will help loading once when `loadYamlProfiles`
 // is called by multiple check instances.
-func loadYamlProfiles() (profileConfigMap, error) {
+func loadYamlProfiles() (ProfileConfigMap, error) {
 	defaultProfilesMu.Lock()
 	defer defaultProfilesMu.Unlock()
 
@@ -58,12 +58,12 @@ func loadYamlProfiles() (profileConfigMap, error) {
 	return profiles, nil
 }
 
-func getDefaultProfilesDefinitionFiles() (profileConfigMap, error) {
+func getDefaultProfilesDefinitionFiles() (ProfileConfigMap, error) {
 	// Get default profiles
 	profiles, err := getProfilesDefinitionFiles(defaultProfilesFolder)
 	if err != nil {
 		log.Warnf("failed to read default_profiles: %s", err)
-		profiles = make(profileConfigMap)
+		profiles = make(ProfileConfigMap)
 	}
 	// Get user profiles
 	// User profiles have precedence over default profiles
@@ -72,21 +72,21 @@ func getDefaultProfilesDefinitionFiles() (profileConfigMap, error) {
 		log.Warnf("failed to read user_profiles: %s", err)
 	} else {
 		for profileName, profileDef := range userProfiles {
-			profileDef.isUserProfile = true
+			profileDef.IsUserProfile = true
 			profiles[profileName] = profileDef
 		}
 	}
 	return profiles, nil
 }
 
-func getProfilesDefinitionFiles(profilesFolder string) (profileConfigMap, error) {
+func getProfilesDefinitionFiles(profilesFolder string) (ProfileConfigMap, error) {
 	profilesRoot := getProfileConfdRoot(profilesFolder)
 	files, err := os.ReadDir(profilesRoot)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read dir `%s`: %v", profilesRoot, err)
 	}
 
-	profiles := make(profileConfigMap)
+	profiles := make(ProfileConfigMap)
 	for _, f := range files {
 		fName := f.Name()
 		// Skip partial profiles
@@ -98,13 +98,13 @@ func getProfilesDefinitionFiles(profilesFolder string) (profileConfigMap, error)
 			continue
 		}
 		profileName := fName[:len(fName)-len(".yaml")]
-		profiles[profileName] = profileConfig{DefinitionFile: filepath.Join(profilesRoot, fName)}
+		profiles[profileName] = ProfileConfig{DefinitionFile: filepath.Join(profilesRoot, fName)}
 	}
 	return profiles, nil
 }
 
-func loadProfiles(pConfig profileConfigMap) (profileConfigMap, error) {
-	profiles := make(profileConfigMap, len(pConfig))
+func loadProfiles(pConfig ProfileConfigMap) (ProfileConfigMap, error) {
+	profiles := make(ProfileConfigMap, len(pConfig))
 
 	for name, profConfig := range pConfig {
 		if profConfig.DefinitionFile != "" {
