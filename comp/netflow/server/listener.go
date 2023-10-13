@@ -27,7 +27,7 @@ func (l *netflowListener) shutdown() {
 	l.flowState.Shutdown()
 }
 
-func (l *netflowListener) errorHandler(logger log.Component) {
+func (l *netflowListener) errorHandler() {
 	for {
 		select {
 		case err := <-l.errCh:
