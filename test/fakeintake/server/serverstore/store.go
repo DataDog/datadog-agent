@@ -70,26 +70,28 @@ func (s *Store) CleanUpPayloadsOlderThan(time time.Time) {
 	log.Println("Cleaning up payloads")
 	// clean up raw payloads
 	for route, payloads := range s.rawPayloads {
-		lastInvalidPayloadIndex := -1
+		firstValidIndex := len(payloads)
 		for i, payload := range payloads {
-			if payload.Timestamp.Before(time) {
-				lastInvalidPayloadIndex = i
+			if payload.Timestamp.After(time) {
+				firstValidIndex = i
+				break
 			}
 		}
-		s.rawPayloads[route] = s.rawPayloads[route][lastInvalidPayloadIndex+1:]
-		log.Printf("Cleaned %d payloads on raw store on route [%s]", lastInvalidPayloadIndex+1, route)
+		s.rawPayloads[route] = s.rawPayloads[route][firstValidIndex:]
+		log.Printf("Cleaned %d payloads on raw store on route [%s]", firstValidIndex, route)
 	}
 	// clean up parsed payloads
 	for route, payloads := range s.jsonPayloads {
 		// cleanup raw store
-		lastInvalidPayloadIndex := -1
+		firstValidIndex := len(payloads)
 		for i, payload := range payloads {
-			if payload.Timestamp.Before(time) {
-				lastInvalidPayloadIndex = i
+			if payload.Timestamp.After(time) {
+				firstValidIndex = i
+				break
 			}
 		}
-		s.jsonPayloads[route] = s.jsonPayloads[route][lastInvalidPayloadIndex+1:]
-		log.Printf("Cleaned %d payloads on json store on route [%s]", lastInvalidPayloadIndex+1, route)
+		s.jsonPayloads[route] = s.jsonPayloads[route][firstValidIndex:]
+		log.Printf("Cleaned %d payloads on json store on route [%s]", firstValidIndex, route)
 	}
 }
 
