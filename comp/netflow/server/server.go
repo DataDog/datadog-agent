@@ -9,7 +9,6 @@ import (
 	"context"
 	"errors"
 	"net/http"
-	"sync"
 	"time"
 
 	"github.com/DataDog/datadog-agent/comp/core/hostname"
@@ -40,14 +39,7 @@ type Status struct {
 	ClosedListenerDetails  []map[string]interface{}
 }
 
-type ListenerStats struct {
-	TotalListeners  int64
-	OpenListeners   int64
-	ClosedListeners int64
-	sync.Mutex      // Embed a mutex for safe concurrent updates
-}
-
-var listenerStats = &ListenerStats{}
+var statusInstance = &Status{}
 
 var globalServer = &Server{}
 
@@ -189,16 +181,14 @@ func GetStatus() Status {
 		}
 	}
 
-	listenerStats.Lock() // Lock for concurrent access
-	listenerStats.TotalListeners = int64(len(globalServer.listeners))
-	listenerStats.OpenListeners = int64(len(workingListeners))
-	listenerStats.ClosedListeners = int64(len(closedListenersList))
-	listenerStats.Unlock() // Unlock after update
+	statusInstance.TotalListeners = int(len(globalServer.listeners))
+	statusInstance.OpenListeners = int(len(workingListeners))
+	statusInstance.ClosedListeners = int(len(closedListenersList))
 
 	return Status{
-		TotalListeners:         int(listenerStats.TotalListeners),
-		OpenListeners:          int(listenerStats.OpenListeners),
-		ClosedListeners:        int(listenerStats.ClosedListeners),
+		TotalListeners:         int(statusInstance.TotalListeners),
+		OpenListeners:          int(statusInstance.OpenListeners),
+		ClosedListeners:        int(statusInstance.ClosedListeners),
 		WorkingListenerDetails: extractListenerDetails(workingListeners),
 		ClosedListenerDetails:  extractListenerDetails(closedListenersList),
 	}

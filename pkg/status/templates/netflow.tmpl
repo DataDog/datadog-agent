@@ -1,11 +1,11 @@
+
 ==========
 NetFlow Server
 ==========
-
 Total Listeners: {{.TotalListeners}}
 Open Listeners: {{.OpenListeners}}
 Closed Listeners: {{.ClosedListeners}}
-
+{{ if .OpenListeners }}
 === Open Listener Details ===
 {{- range $index, $listener := .WorkingListenerDetails }}
 ---------
@@ -17,7 +17,9 @@ Namespace: {{$listener.Namespace}}
 Error: {{$listener.Error}}
 ---------
 {{- end }}
+{{ end }}
 
+{{ if .ClosedListeners }}
 === Closed Listener Details ===
 {{- range $index, $listener := .ClosedListenerDetails }}
 ---------
@@ -29,3 +31,4 @@ Namespace: {{$listener.Namespace}}
 Error: {{$listener.Error}}
 ---------
 {{- end }}
+{{ end }}
