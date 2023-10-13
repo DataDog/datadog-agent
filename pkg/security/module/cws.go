@@ -154,7 +154,7 @@ func (c *CWSConsumer) PostProbeStart() error {
 
 			case <-time.After(30 * time.Second):
 				if _, err := c.RunSelfTest(true); err != nil {
-					seclog.Warnf("failed to run self test: %w", err)
+					seclog.Warnf("failed to run self test: %s", err)
 				}
 			}
 		}()

@@ -194,6 +194,7 @@ func (e *RuleEngine) ReloadPolicies() error {
 	return e.LoadPolicies(true)
 }
 
+// AddPolicyProvider add a provider
 func (e *RuleEngine) AddPolicyProvider(provider rules.PolicyProvider) {
 	e.Lock()
 	defer e.Unlock()
