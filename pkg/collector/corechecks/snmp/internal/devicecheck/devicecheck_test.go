@@ -9,6 +9,7 @@ import (
 	"fmt"
 	common2 "github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/common"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/configvalidation"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/profile"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -32,7 +33,7 @@ import (
 )
 
 func TestProfileWithSysObjectIdDetection(t *testing.T) {
-	checkconfig.SetConfdPathAndCleanProfiles()
+	profile.SetConfdPathAndCleanProfiles()
 	sess := session.CreateFakeSession()
 	sessionFactory := func(*checkconfig.CheckConfig) (session.Session, error) {
 		return sess, nil
@@ -163,7 +164,7 @@ profiles:
 }
 
 func TestProfileDetectionPreservesGlobals(t *testing.T) {
-	checkconfig.SetConfdPathAndCleanProfiles()
+	profile.SetConfdPathAndCleanProfiles()
 	sess := session.CreateFakeSession()
 	sessionFactory := func(*checkconfig.CheckConfig) (session.Session, error) {
 		return sess, nil
@@ -444,7 +445,7 @@ profiles:
 }
 
 func TestDeviceCheck_Hostname(t *testing.T) {
-	checkconfig.SetConfdPathAndCleanProfiles()
+	profile.SetConfdPathAndCleanProfiles()
 	// language=yaml
 	rawInstanceConfig := []byte(`
 ip_address: 1.2.3.4
@@ -475,7 +476,7 @@ community_string: public
 }
 
 func TestDeviceCheck_GetHostname(t *testing.T) {
-	checkconfig.SetConfdPathAndCleanProfiles()
+	profile.SetConfdPathAndCleanProfiles()
 	// language=yaml
 	rawInstanceConfig := []byte(`
 ip_address: 1.2.3.4
@@ -532,7 +533,7 @@ community_string: public
 }
 
 func TestDynamicTagsAreSaved(t *testing.T) {
-	checkconfig.SetConfdPathAndCleanProfiles()
+	profile.SetConfdPathAndCleanProfiles()
 	sess := session.CreateMockSession()
 	sessionFactory := func(*checkconfig.CheckConfig) (session.Session, error) {
 		return sess, nil
@@ -825,7 +826,7 @@ profiles:
 }
 
 func TestRun_sessionCloseError(t *testing.T) {
-	checkconfig.SetConfdPathAndCleanProfiles()
+	profile.SetConfdPathAndCleanProfiles()
 	sess := session.CreateMockSession()
 	sess.CloseErr = fmt.Errorf("close error")
 	sessionFactory := func(*checkconfig.CheckConfig) (session.Session, error) {
@@ -873,7 +874,7 @@ profiles:
 }
 
 func TestDeviceCheck_detectAvailableMetrics(t *testing.T) {
-	checkconfig.SetConfdPathAndCleanProfiles()
+	profile.SetConfdPathAndCleanProfiles()
 
 	sess := session.CreateMockSession()
 	sessionFactory := func(*checkconfig.CheckConfig) (session.Session, error) {

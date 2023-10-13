@@ -192,7 +192,7 @@ func fixtureProfileDefinitionMap() profile.ProfileConfigMap {
 }
 
 func Test_getDefaultProfilesDefinitionFiles(t *testing.T) {
-	SetConfdPathAndCleanProfiles()
+	profile.SetConfdPathAndCleanProfiles()
 	actualProfileConfig, err := getDefaultProfilesDefinitionFiles()
 	assert.Nil(t, err)
 
@@ -453,7 +453,7 @@ func Test_resolveProfileDefinitionPath(t *testing.T) {
 }
 
 func Test_loadDefaultProfiles(t *testing.T) {
-	SetConfdPathAndCleanProfiles()
+	profile.SetConfdPathAndCleanProfiles()
 	profile.SetGlobalProfileConfigMap(nil)
 	defaultProfiles, err := loadYamlProfiles()
 	assert.Nil(t, err)

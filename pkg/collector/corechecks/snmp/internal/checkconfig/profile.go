@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/profile"
 	"github.com/DataDog/datadog-agent/pkg/networkdevice/profile/profiledefinition"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"path/filepath"
 )
 
 func GetProfiles(initConfigProfiles profile.ProfileConfigMap) (profile.ProfileConfigMap, error) {
@@ -33,4 +35,38 @@ func GetProfiles(initConfigProfiles profile.ProfileConfigMap) (profile.ProfileCo
 		profiledefinition.NormalizeMetrics(profileDef.Definition.Metrics)
 	}
 	return profiles, nil
+}
+
+// GetProfileForSysObjectID return a profile for a sys object id
+func GetProfileForSysObjectID(profiles profile.ProfileConfigMap, sysObjectID string) (string, error) {
+	tmpSysOidToProfile := map[string]string{}
+	var matchedOids []string
+
+	for profile, profConfig := range profiles {
+		for _, oidPattern := range profConfig.Definition.SysObjectIds {
+			found, err := filepath.Match(oidPattern, sysObjectID)
+			if err != nil {
+				log.Debugf("pattern error: %s", err)
+				continue
+			}
+			if !found {
+				continue
+			}
+			if prevMatchedProfile, ok := tmpSysOidToProfile[oidPattern]; ok {
+				if profiles[prevMatchedProfile].IsUserProfile && !profConfig.IsUserProfile {
+					continue
+				}
+				if profiles[prevMatchedProfile].IsUserProfile == profConfig.IsUserProfile {
+					return "", fmt.Errorf("profile %s has the same sysObjectID (%s) as %s", profile, oidPattern, prevMatchedProfile)
+				}
+			}
+			tmpSysOidToProfile[oidPattern] = profile
+			matchedOids = append(matchedOids, oidPattern)
+		}
+	}
+	oid, err := getMostSpecificOid(matchedOids)
+	if err != nil {
+		return "", fmt.Errorf("failed to get most specific profile for sysObjectID `%s`, for matched oids %v: %s", sysObjectID, matchedOids, err)
+	}
+	return tmpSysOidToProfile[oid], nil
 }
