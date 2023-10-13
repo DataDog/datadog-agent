@@ -16,6 +16,8 @@ import (
 // team: agent-shared-components
 
 // Component is the component type.
+// This component must not be used with demultiplexer.Component
+// See demultiplexer.provides for more information.
 type Component interface {
 	sender.DiagnoseSenderManager
 }

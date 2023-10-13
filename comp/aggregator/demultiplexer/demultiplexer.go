@@ -33,8 +33,13 @@ type provides struct {
 	fx.Out
 	Comp Component
 
-	// Implement also diagnosesendermanager.Component to make sure
-	// either demultiplexer.Component nor diagnosesendermanager.Component is created.
+	// Both demultiplexer.Component and diagnosesendermanager.Component expose a different instance of SenderManager.
+	// It means that diagnosesendermanager.Component must not be used when there is demultiplexer.Component instance.
+	//
+	// newDemultiplexer returns both demultiplexer.Component and diagnosesendermanager.Component (Note: demultiplexer.Component
+	// implements diagnosesendermanager.Component). This has the nice consequence of preventing having
+	// demultiplexer.Module and diagnosesendermanager.Module in the same fx.App because there would
+	// be two ways to create diagnosesendermanager.Component.
 	SenderManager diagnosesendermanager.Component
 }
 
