@@ -121,17 +121,15 @@ func TestReadInitialUDPState(t *testing.T) {
 	err := exec.Command("testdata/setup_netns.sh", nsName).Run()
 	require.NoError(t, err, "setup_netns.sh failed")
 
-	l, err := nettestutil.StartServerUDP(t, net.ParseIP("1.1.1.1"), 0)
-	require.NoError(t, err)
-	defer func() { _ = l.Close() }()
+	l := nettestutil.StartServerUDP(t, net.ParseIP("0.0.0.0"), 5432)
+	defer l.Close()
 
-	l6, err := nettestutil.StartServerUDP(t, net.ParseIP("fd00::1"), 0)
-	require.NoError(t, err)
-	defer func() { _ = l.Close() }()
+	l6 := nettestutil.StartServerUDP(t, net.ParseIP("::"), 8080)
+	defer l6.Close()
 
 	ports := []uint16{
-		getPortUDP(t, l),
-		getPortUDP(t, l6),
+		5432,
+		8080,
 		34567,
 		34568,
 	}
@@ -178,8 +176,4 @@ func getPort(t *testing.T, listener net.Listener) uint16 {
 	port, err := strconv.Atoi(listenerURL.Port())
 	require.NoError(t, err)
 	return uint16(port)
-}
-
-func getPortUDP(_ *testing.T, udpConn *net.UDPConn) uint16 {
-	return uint16(udpConn.LocalAddr().(*net.UDPAddr).Port)
 }
