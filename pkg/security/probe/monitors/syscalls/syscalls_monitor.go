@@ -11,6 +11,7 @@ package syscalls
 import (
 	"fmt"
 
+	"github.com/DataDog/datadog-agent/pkg/security/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/security/probe/managerhelper"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
 	manager "github.com/DataDog/ebpf-manager"
@@ -25,7 +26,7 @@ import (
 type Monitor struct {
 	statsdClient statsd.ClientInterface
 	stats        *lib.Map
-	collected    [model.MaxAllEventType]bool
+	enabled      *lib.Map
 	numCPU       int
 }
 
@@ -54,13 +55,30 @@ func (d *Monitor) SendStats() error {
 		tagsEvents := []string{
 			eventTypeTag,
 		}
-
-		if d.collected[eventType] {
-			_ = d.statsdClient.Count(metrics.MetricSyscallsInFlight, int64(inflight), tagsEvents, 1.0)
-		}
-		d.collected[eventType] = true
+		_ = d.statsdClient.Count(metrics.MetricSyscallsInFlight, int64(inflight), tagsEvents, 1.0)
 	}
 
+	return nil
+}
+
+// Enable the monitor
+func (d *Monitor) Enable() error {
+	enabled := uint32(1)
+	return d.enabled.Put(ebpf.ZeroUint32MapItem, enabled)
+}
+
+// Disable the monitor
+func (d *Monitor) Disable() error {
+	enabled := uint32(0)
+	return d.enabled.Put(ebpf.ZeroUint32MapItem, enabled)
+}
+
+// Flush flush stat entries
+func (d *Monitor) Flush() error {
+	stats := make([][8]byte, d.numCPU)
+	for key := uint32(0); key != uint32(model.MaxKernelEventType); key++ {
+		_ = d.stats.Update(key, stats, lib.UpdateAny)
+	}
 	return nil
 }
 
@@ -81,6 +99,13 @@ func NewSyscallsMonitor(manager *manager.Manager, statsdClient statsd.ClientInte
 		return nil, err
 	}
 	monitor.stats = stats
+
+	// kprobes & kretprobes should be now all installed
+	enabled, err := managerhelper.Map(manager, "syscalls_stats_enabled")
+	if err != nil {
+		return nil, err
+	}
+	monitor.enabled = enabled
 
 	return monitor, nil
 }
