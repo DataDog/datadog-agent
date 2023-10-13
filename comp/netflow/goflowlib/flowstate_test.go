@@ -19,9 +19,7 @@ func TestStartFlowRoutine_invalidType(t *testing.T) {
 	logger := fxutil.Test[log.Component](t, log.MockModule)
 	errCh := make(chan error) // Buffered channel to hold at least one error
 
-	// Use a type of common.FlowType for the first argument
-	invalidType := common.FlowType("invalid")
-	state, err := StartFlowRoutine(invalidType, "my-hostname", 1234, 1, "my-ns", make(chan *common.Flow), logger, errCh)
+	state, err := StartFlowRoutine("invalid", "my-hostname", 1234, 1, "my-ns", make(chan *common.Flow), logger, errCh)
 
 	assert.EqualError(t, err, "unknown flow type: invalid")
 	assert.Nil(t, state)
