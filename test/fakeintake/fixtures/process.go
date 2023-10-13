@@ -1,3 +1,9 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
+
+// Package fixtures contains test fixtures used by other fakeintake packages.
 package fixtures
 
 import (
@@ -7,6 +13,8 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// CollectorProcPayload serializes an agentmodel.CollectorProc into a []byte payload.
+// It should use the same serialization steps as the process-agent's EncodePayload function.
 func CollectorProcPayload(t *testing.T) []byte {
 	body := agentmodel.CollectorProc{
 		HostName:  "i-078e212",
