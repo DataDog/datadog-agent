@@ -167,7 +167,6 @@ func extractListenerDetails(listeners []*netflowListener) []map[string]interface
 }
 
 // IsEnabled checks if the netflow functionality is enabled in the configuration.
-
 func IsEnabled() bool {
 	return config.Datadog.GetBool("network_devices.netflow.enabled")
 }
