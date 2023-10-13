@@ -18,6 +18,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
+const OriginTimeSampler = "!Timesampler"
+
 // SerieSignature holds the elements that allow to know whether two similar `Serie`s
 // from the same bucket can be merged into one. Series must have the same contextKey.
 type SerieSignature struct {
@@ -55,11 +57,11 @@ func NewTimeSampler(id TimeSamplerID, interval int64, tagStore *tags.Store, cont
 
 	s := &TimeSampler{
 		interval:                    interval,
-		contextResolver:             newTimestampContextResolver(tagStore, contextsLimiter, tagsLimiter),
+		contextResolver:             newTimestampContextResolver(tagStore, contextsLimiter, tagsLimiter, interner),
 		metricsByTimestamp:          map[int64]metrics.ContextMetrics{},
 		counterLastSampledByContext: map[ckey.ContextKey]float64{},
 		sketchMap:                   make(sketchMap),
-		internerContext:             cache.NewInternerContext(interner, "timesampler", cache.NewRetainerBlock()),
+		internerContext:             cache.NewInternerContext(interner, OriginTimeSampler, cache.NewRetainerBlock()),
 		id:                          id,
 		hostname:                    hostname,
 	}

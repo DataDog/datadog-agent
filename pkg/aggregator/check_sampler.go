@@ -6,6 +6,7 @@
 package aggregator
 
 import (
+	"github.com/DataDog/datadog-agent/pkg/util/cache"
 	"math"
 	"time"
 
@@ -29,11 +30,14 @@ type CheckSampler struct {
 }
 
 // newCheckSampler returns a newly initialized CheckSampler
-func newCheckSampler(expirationCount int, expireMetrics bool, statefulTimeout time.Duration, cache *tags.Store) *CheckSampler {
+func newCheckSampler(expirationCount int, expireMetrics bool, statefulTimeout time.Duration, tagCache *tags.Store, interner *cache.KeyedInterner) *CheckSampler {
+	if interner == nil {
+		interner = cache.NewKeyedStringInternerMemOnly(512)
+	}
 	return &CheckSampler{
 		series:          make([]*metrics.Serie, 0),
 		sketches:        make(metrics.SketchSeriesList, 0),
-		contextResolver: newCountBasedContextResolver(expirationCount, cache),
+		contextResolver: newCountBasedContextResolver(expirationCount, tagCache, interner),
 		metrics:         metrics.NewCheckMetrics(expireMetrics, statefulTimeout),
 		sketchMap:       make(sketchMap),
 		lastBucketValue: make(map[ckey.ContextKey]int64),

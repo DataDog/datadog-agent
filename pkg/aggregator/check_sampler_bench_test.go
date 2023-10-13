@@ -6,6 +6,7 @@
 package aggregator
 
 import (
+	"github.com/DataDog/datadog-agent/pkg/util/cache"
 	"testing"
 
 	"github.com/DataDog/datadog-agent/comp/core/log"
@@ -28,10 +29,11 @@ func benchmarkAddBucket(bucketValue int64, b *testing.B) {
 	options := DefaultAgentDemultiplexerOptions()
 	options.DontStartForwarders = true
 	sharedForwarder := forwarder.NewDefaultForwarder(config.Datadog, log, forwarderOpts)
-	demux := InitAndStartAgentDemultiplexer(log, sharedForwarder, options, "hostname")
+	interner := cache.NewKeyedStringInternerMemOnly(2048)
+	demux := InitAndStartAgentDemultiplexer(log, sharedForwarder, options, "hostname", interner)
 	defer demux.Stop(true)
 
-	checkSampler := newCheckSampler(1, true, 1000, tags.NewStore(true, "bench"))
+	checkSampler := newCheckSampler(1, true, 1000, tags.NewStore(true, "bench", interner), interner)
 
 	bucket := &metrics.HistogramBucket{
 		Name:       "my.histogram",
@@ -50,7 +52,8 @@ func benchmarkAddBucket(bucketValue int64, b *testing.B) {
 }
 
 func benchmarkAddBucketWideBounds(bucketValue int64, b *testing.B) {
-	checkSampler := newCheckSampler(1, true, 1000, tags.NewStore(true, "bench"))
+	interner := cache.NewKeyedStringInternerMemOnly(2048)
+	checkSampler := newCheckSampler(1, true, 1000, tags.NewStore(true, "bench", interner), interner)
 
 	bounds := []float64{0, .0005, .001, .003, .005, .007, .01, .015, .02, .025, .03, .04, .05, .06, .07, .08, .09, .1, .5, 1, 5, 10}
 	bucket := &metrics.HistogramBucket{

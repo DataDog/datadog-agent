@@ -7,6 +7,7 @@ package aggregator
 
 import (
 	"fmt"
+	"github.com/DataDog/datadog-agent/pkg/util/cache"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator/ckey"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/internal/limiter"
@@ -15,6 +16,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/tagset"
 )
+
+const OriginContextResolver = "!ContextResolver"
 
 // Context holds the elements that form a context, and can be serialized into a context key
 type Context struct {
@@ -25,6 +28,7 @@ type Context struct {
 	metricTags *tags.Entry
 	noIndex    bool
 	source     metrics.MetricSource
+	references cache.SmallRetainer // Retain references for Name and Host.
 }
 
 // Tags returns tags for the context.
@@ -35,6 +39,7 @@ func (c *Context) Tags() tagset.CompositeTags {
 func (c *Context) release() {
 	c.taggerTags.Release()
 	c.metricTags.Release()
+	c.references.ReleaseAll()
 }
 
 // contextResolver allows tracking and expiring contexts
@@ -47,6 +52,7 @@ type contextResolver struct {
 	metricBuffer    *tagset.HashingTagsAccumulator
 	contextsLimiter *limiter.Limiter
 	tagsLimiter     *tags_limiter.Limiter
+	interner        *cache.KeyedInterner
 }
 
 // generateContextKey generates the contextKey associated with the context of the metricSample
@@ -54,7 +60,7 @@ func (cr *contextResolver) generateContextKey(metricSampleContext metrics.Metric
 	return cr.keyGenerator.GenerateWithTags2(metricSampleContext.GetName(), metricSampleContext.GetHost(), cr.taggerBuffer, cr.metricBuffer)
 }
 
-func newContextResolver(cache *tags.Store, contextsLimiter *limiter.Limiter, tagsLimiter *tags_limiter.Limiter) *contextResolver {
+func newContextResolver(cache *tags.Store, contextsLimiter *limiter.Limiter, tagsLimiter *tags_limiter.Limiter, interner *cache.KeyedInterner) *contextResolver {
 	return &contextResolver{
 		contextsByKey:   make(map[ckey.ContextKey]*Context),
 		countsByMtype:   make([]uint64, metrics.NumMetricTypes),
@@ -64,6 +70,7 @@ func newContextResolver(cache *tags.Store, contextsLimiter *limiter.Limiter, tag
 		metricBuffer:    tagset.NewHashingTagsAccumulator(),
 		contextsLimiter: contextsLimiter,
 		tagsLimiter:     tagsLimiter,
+		interner:        interner,
 	}
 }
 
@@ -84,8 +91,7 @@ func (cr *contextResolver) trackContext(metricSampleContext metrics.MetricSample
 		// split these out for easier memory analysis
 		tagTags := cr.tagsCache.Insert(taggerKey, cr.taggerBuffer)
 		metTags := cr.tagsCache.Insert(metricKey, cr.metricBuffer)
-		cr.contextsByKey[contextKey] = &Context{
-			Name:       metricSampleContext.GetName(),
+		context := &Context{
 			taggerTags: tagTags,
 			metricTags: metTags,
 			Host:       metricSampleContext.GetHost(),
@@ -93,6 +99,12 @@ func (cr *contextResolver) trackContext(metricSampleContext metrics.MetricSample
 			noIndex:    metricSampleContext.IsNoIndex(),
 			source:     metricSampleContext.GetSource(),
 		}
+		context.Host = cr.interner.LoadOrStoreString(metricSampleContext.GetHost(),
+			OriginContextResolver, &context.references)
+		context.Name = cr.interner.LoadOrStoreString(metricSampleContext.GetName(),
+			OriginContextResolver, &context.references)
+		cr.contextsByKey[contextKey] = context
+
 		cr.countsByMtype[mtype]++
 	}
 
@@ -183,9 +195,9 @@ type timestampContextResolver struct {
 	lastSeenByKey map[ckey.ContextKey]float64
 }
 
-func newTimestampContextResolver(cache *tags.Store, contextsLimiter *limiter.Limiter, tagsLimiter *tags_limiter.Limiter) *timestampContextResolver {
+func newTimestampContextResolver(cache *tags.Store, contextsLimiter *limiter.Limiter, tagsLimiter *tags_limiter.Limiter, interner *cache.KeyedInterner) *timestampContextResolver {
 	return &timestampContextResolver{
-		resolver:      newContextResolver(cache, contextsLimiter, tagsLimiter),
+		resolver:      newContextResolver(cache, contextsLimiter, tagsLimiter, interner),
 		lastSeenByKey: make(map[ckey.ContextKey]float64),
 	}
 }
@@ -253,9 +265,12 @@ type countBasedContextResolver struct {
 	expireCountInterval int64
 }
 
-func newCountBasedContextResolver(expireCountInterval int, cache *tags.Store) *countBasedContextResolver {
+func newCountBasedContextResolver(expireCountInterval int, tagCache *tags.Store, interner *cache.KeyedInterner) *countBasedContextResolver {
+	if interner == nil {
+		interner = cache.NewKeyedStringInternerMemOnly(512)
+	}
 	return &countBasedContextResolver{
-		resolver:            newContextResolver(cache, nil, nil),
+		resolver:            newContextResolver(tagCache, nil, nil, interner),
 		expireCountByKey:    make(map[ckey.ContextKey]int64),
 		expireCount:         0,
 		expireCountInterval: int64(expireCountInterval),

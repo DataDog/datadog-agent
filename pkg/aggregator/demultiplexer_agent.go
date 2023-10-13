@@ -181,7 +181,7 @@ func initAgentDemultiplexer(log log.Component, sharedForwarder forwarder.Forward
 	// prepare the embedded aggregator
 	// --
 
-	agg := NewBufferedAggregator(sharedSerializer, eventPlatformForwarder, hostname, options.FlushInterval)
+	agg := NewBufferedAggregator(sharedSerializer, eventPlatformForwarder, hostname, options.FlushInterval, interner)
 
 	// statsd samplers
 	// ---------------
@@ -201,7 +201,7 @@ func initAgentDemultiplexer(log log.Component, sharedForwarder forwarder.Forward
 
 	for i := 0; i < statsdPipelinesCount; i++ {
 		// the sampler
-		tagsStore := tags.NewStore(config.Datadog.GetBool("aggregator_use_tags_store"), fmt.Sprintf("timesampler #%d", i))
+		tagsStore := tags.NewStore(config.Datadog.GetBool("aggregator_use_tags_store"), fmt.Sprintf("timesampler #%d", i), interner)
 		tagsLimiter := tags_limiter.New(options.DogstatsdMaxMetricsTags)
 		contextsLimiter := limiter.FromConfig(statsdPipelinesCount, options.UseDogstatsdContextLimiter)
 

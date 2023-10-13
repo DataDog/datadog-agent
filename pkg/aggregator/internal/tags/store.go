@@ -7,6 +7,7 @@ package tags
 
 import (
 	"fmt"
+	"github.com/DataDog/datadog-agent/pkg/util/cache"
 	"math/bits"
 
 	"go.uber.org/atomic"
@@ -15,6 +16,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/tagset"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
 )
+
+const OriginTagStore = "!ContextResolver"
 
 // Entry is used to keep track of tag slices shared by the contexts.
 type Entry struct {
@@ -27,7 +30,8 @@ type Entry struct {
 	refs atomic.Uint64
 
 	// tags contains the cached tags in this entry.
-	tags []string
+	tags     []string
+	retainer cache.SmallRetainer
 }
 
 // Tags returns the strings stored in the Entry. The slice may be
@@ -56,15 +60,28 @@ type Store struct {
 	cap       int
 	enabled   bool
 	telemetry storeTelemetry
+	interner  *cache.KeyedInterner
 }
 
 // NewStore returns new empty Store.
-func NewStore(enabled bool, name string) *Store {
+func NewStore(enabled bool, name string, interner *cache.KeyedInterner) *Store {
 	return &Store{
 		tagsByKey: map[ckey.TagsKey]*Entry{},
 		enabled:   enabled,
 		telemetry: newStoreTelemetry(name),
+		interner:  interner,
 	}
+}
+
+func makeEntry(tagsBuffer *tagset.HashingTagsAccumulator, interner *cache.KeyedInterner) *Entry {
+	result := &Entry{
+		tags: make([]string, tagsBuffer.Len()),
+	}
+
+	for n, t := range tagsBuffer.Copy() {
+		result.tags[n] = interner.LoadOrStoreString(t, OriginTagStore, &result.retainer)
+	}
+	return result
 }
 
 // Insert returns an Entry that corresponds to the key. If the key is
@@ -77,9 +94,7 @@ func NewStore(enabled bool, name string) *Store {
 // concurrently with other methods.
 func (tc *Store) Insert(key ckey.TagsKey, tagsBuffer *tagset.HashingTagsAccumulator) *Entry {
 	if !tc.enabled {
-		return &Entry{
-			tags: tagsBuffer.Copy(),
-		}
+		return makeEntry(tagsBuffer, tc.interner)
 	}
 
 	entry := tc.tagsByKey[key]
@@ -88,9 +103,7 @@ func (tc *Store) Insert(key ckey.TagsKey, tagsBuffer *tagset.HashingTagsAccumula
 		entry.refs.Inc()
 		tc.telemetry.hits.Inc()
 	} else {
-		entry = &Entry{
-			tags: tagsBuffer.Copy(),
-		}
+		entry = makeEntry(tagsBuffer, tc.interner)
 		entry.refs.Inc()
 		tc.tagsByKey[key] = entry
 		tc.cap++
@@ -110,6 +123,7 @@ func (tc *Store) Shrink() {
 		if refs := entry.refs.Load(); refs > 0 {
 			stats.visit(entry, refs)
 		} else {
+			entry.retainer.ReleaseAll()
 			delete(tc.tagsByKey, key)
 		}
 	}

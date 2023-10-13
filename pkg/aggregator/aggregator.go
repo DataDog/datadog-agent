@@ -9,6 +9,7 @@ import (
 	"errors"
 	"expvar"
 	"fmt"
+	"github.com/DataDog/datadog-agent/pkg/util/cache"
 	"sync"
 	"time"
 
@@ -233,6 +234,7 @@ type BufferedAggregator struct {
 	globalTags              func(collectors.TagCardinality) ([]string, error) // This function gets global tags from the tagger when host tags are not available
 
 	flushAndSerializeInParallel FlushAndSerializeInParallel
+	interner                    *cache.KeyedInterner
 }
 
 // FlushAndSerializeInParallel contains options for flushing metrics and serializing in parallel.
@@ -250,7 +252,8 @@ func NewFlushAndSerializeInParallel(config config.Config) FlushAndSerializeInPar
 }
 
 // NewBufferedAggregator instantiates a BufferedAggregator
-func NewBufferedAggregator(s serializer.MetricSerializer, eventPlatformForwarder epforwarder.EventPlatformForwarder, hostname string, flushInterval time.Duration) *BufferedAggregator {
+func NewBufferedAggregator(s serializer.MetricSerializer, eventPlatformForwarder epforwarder.EventPlatformForwarder, hostname string, flushInterval time.Duration,
+	interner *cache.KeyedInterner) *BufferedAggregator {
 	bufferSize := config.Datadog.GetInt("aggregator_buffer_size")
 
 	agentName := flavor.GetFlavor()
@@ -265,7 +268,7 @@ func NewBufferedAggregator(s serializer.MetricSerializer, eventPlatformForwarder
 		agentName = flavor.HerokuAgent
 	}
 
-	tagsStore := tags.NewStore(config.Datadog.GetBool("aggregator_use_tags_store"), "aggregator")
+	tagsStore := tags.NewStore(config.Datadog.GetBool("aggregator_use_tags_store"), "aggregator", interner)
 
 	aggregator := &BufferedAggregator{
 		bufferedServiceCheckIn: make(chan []*servicecheck.ServiceCheck, bufferSize),
@@ -296,6 +299,7 @@ func NewBufferedAggregator(s serializer.MetricSerializer, eventPlatformForwarder
 		agentTags:                   tagger.AgentTags,
 		globalTags:                  tagger.GlobalTags,
 		flushAndSerializeInParallel: NewFlushAndSerializeInParallel(config.Datadog),
+		interner:                    interner,
 	}
 
 	return aggregator
@@ -901,5 +905,6 @@ func (agg *BufferedAggregator) handleRegisterSampler(id checkid.ID) {
 		config.Datadog.GetBool("check_sampler_expire_metrics"),
 		config.Datadog.GetDuration("check_sampler_stateful_metric_expiration_time"),
 		agg.tagsStore,
+		agg.interner,
 	)
 }
