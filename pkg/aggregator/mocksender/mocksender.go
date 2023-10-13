@@ -107,6 +107,11 @@ func (m *MockSender) SetupAcceptAll() {
 	m.On("FinalizeCheckServiceTag").Return()
 	m.On("SetNoIndex").Return()
 	m.On("Commit").Return()
+	m.On("OrchestratorMetadata",
+		mock.AnythingOfType("[]process.MessageBody"),
+		mock.AnythingOfType("string"),
+		mock.AnythingOfType("int"),
+	).Return()
 }
 
 // ResetCalls makes the mock forget previous calls

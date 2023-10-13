@@ -21,6 +21,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/compliance"
 	"github.com/stretchr/testify/assert"
+	"k8s.io/client-go/discovery"
 	"k8s.io/client-go/dynamic"
 )
 
@@ -111,7 +112,9 @@ func (s *suite) Run() {
 				options.DockerProvider = func(ctx context.Context) (docker.CommonAPIClient, error) { return s.dockerClient, nil }
 			}
 			if s.kubeClient != nil {
-				options.KubernetesProvider = func(ctx context.Context) (dynamic.Interface, error) { return s.kubeClient, nil }
+				options.KubernetesProvider = func(ctx context.Context) (dynamic.Interface, discovery.DiscoveryInterface, error) {
+					return s.kubeClient, nil, nil
+				}
 			}
 			c.run(t, options)
 		})

@@ -54,6 +54,7 @@ type DirectoryProvider struct {
 	sync.Mutex
 	directory      string
 	watcherEnabled bool
+	status         model.Status
 
 	// attributes used by the inotify watcher
 	cancelFnc         func()
@@ -73,7 +74,7 @@ type DirectoryProvider struct {
 }
 
 // NewDirectoryProvider returns a new instance of DirectoryProvider
-func NewDirectoryProvider(directory string, watch bool) (*DirectoryProvider, error) {
+func NewDirectoryProvider(directory string, watch bool, status model.Status) (*DirectoryProvider, error) {
 	// check if the provided directory exists
 	if _, err := os.Stat(directory); err != nil {
 		if os.IsNotExist(err) {
@@ -90,6 +91,7 @@ func NewDirectoryProvider(directory string, watch bool) (*DirectoryProvider, err
 		watcherEnabled: watch,
 		profileMapping: make(map[cgroupModel.WorkloadSelector]profileFSEntry),
 		newFiles:       make(map[string]bool),
+		status:         status,
 	}
 	dp.workloadSelectorDebouncer = debouncer.New(workloadSelectorDebounceDelay, dp.onNewProfileDebouncerCallback)
 	dp.newFilesDebouncer = debouncer.New(newFileDebounceDelay, dp.onHandleFilesFromWatcher)
@@ -207,6 +209,11 @@ func (dp *DirectoryProvider) loadProfile(profilePath string) error {
 	if err != nil {
 		return fmt.Errorf("couldn't load profile %s: %w", profilePath, err)
 	}
+
+	if dp.status != 0 {
+		profile.Status = uint32(dp.status)
+	}
+
 	workloadSelector, err := cgroupModel.NewWorkloadSelector(utils.GetTagValue("image_name", profile.Tags), utils.GetTagValue("image_tag", profile.Tags))
 	if err != nil {
 		return err

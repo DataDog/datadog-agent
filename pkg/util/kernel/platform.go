@@ -13,8 +13,25 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/funcs"
 )
 
+type platformInfo struct {
+	platform string
+	family   string
+	version  string
+}
+
 // Platform is the string describing the Linux distribution (ubuntu, debian, fedora, etc.)
 var Platform = funcs.Memoize(func() (string, error) {
-	platform, _, _, err := gopsutilhost.PlatformInformation()
-	return platform, err
+	pi, err := platformInformation()
+	return pi.platform, err
+})
+
+// PlatformVersion is the string describing the platform version (`22.04` for Ubuntu jammy, etc.)
+var PlatformVersion = funcs.Memoize(func() (string, error) {
+	pi, err := platformInformation()
+	return pi.version, err
+})
+
+var platformInformation = funcs.Memoize(func() (platformInfo, error) {
+	platform, family, version, err := gopsutilhost.PlatformInformation()
+	return platformInfo{platform, family, version}, err
 })

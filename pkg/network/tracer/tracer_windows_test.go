@@ -8,8 +8,14 @@
 package tracer
 
 import (
+	syscfg "github.com/DataDog/datadog-agent/cmd/system-probe/config"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
+	"github.com/DataDog/datadog-agent/pkg/network/driver"
 )
+
+func platformInit() {
+	_ = driver.Init(&syscfg.Config{})
+}
 
 func httpSupported() bool {
 	return false

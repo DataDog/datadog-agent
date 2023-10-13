@@ -10,7 +10,8 @@ package process
 
 import (
 	"fmt"
-	"path"
+	"path/filepath"
+	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -82,6 +83,8 @@ func (p *Resolver) insertEntry(entry *model.ProcessCacheEntry) {
 	parent := p.processes[entry.PPid]
 	if parent != nil {
 		entry.SetAncestor(parent)
+	} else {
+		log.Tracef("unable to find parent of %v\n", entry)
 	}
 }
 
@@ -110,9 +113,9 @@ func (p *Resolver) AddNewEntry(pid uint32, ppid uint32, file string, commandLine
 	e.PIDContext.Pid = pid
 	e.PPid = ppid
 
-	e.Process.Args = commandLine
+	e.Process.CmdLine = commandLine
 	e.Process.FileEvent.PathnameStr = file
-	e.Process.FileEvent.BasenameStr = path.Base(e.Process.FileEvent.PathnameStr)
+	e.Process.FileEvent.BasenameStr = filepath.Base(e.Process.FileEvent.PathnameStr)
 	e.ExecTime = time.Now()
 
 	p.insertEntry(e)
@@ -179,6 +182,7 @@ func (p *Resolver) Snapshot() {
 	if err != nil {
 		return
 	}
+
 	// the list returned is a map of pid to procutil.Process.
 	// The processes can be iterated with the following caveats
 	// Pid should be valid
@@ -187,28 +191,49 @@ func (p *Resolver) Snapshot() {
 	// the `Cmdline` is an array of strings, parsed on ` ` boundaries
 	// the `stats` field is mostly not filled in because of the `false` argument to `ProcessesByPID()`
 	//     however, the create time will be filled in
+	entries := make([]*model.ProcessCacheEntry, 0, len(pmap))
+
 	for pid, proc := range pmap {
 		e := p.processCacheEntryPool.Get()
 		e.PIDContext.Pid = Pid(pid)
 		e.PPid = Pid(proc.Ppid)
 
-		e.Process.Args = strings.Join(proc.GetCmdline(), " ")
+		e.Process.CmdLine = strings.Join(proc.GetCmdline(), " ")
 		e.Process.FileEvent.PathnameStr = proc.Exe
-		e.Process.FileEvent.BasenameStr = path.Base(e.Process.FileEvent.PathnameStr)
-		e.ExecTime = time.Now()
+		e.Process.FileEvent.BasenameStr = filepath.Base(e.Process.FileEvent.PathnameStr)
+		e.ExecTime = time.Unix(0, proc.Stats.CreateTime*int64(time.Millisecond))
 
-		p.insertEntry(e)
+		entries = append(entries, e)
 
 		log.Tracef("PID %d  %d PPID %d\n", pid, proc.Pid, proc.Ppid)
 		log.Tracef("  executable %s\n", proc.Exe)
 		log.Tracef("  executable %v\n", proc.GetCmdline())
 		log.Tracef("  createtime %v\n", proc.Stats.CreateTime)
-	}
-	// another note on PPids.  Windows reuses process IDS.  So consider the following
+		log.Tracef("  exectime %s\n", e.ExecTime)
 
-	// process 1 starts
-	// process 1 starts process 2 (so 1 is the parent of 2)
-	// process 1 ends/dies
-	// another process starts and is given the pid (1)
-	// process 2's PPid will still be 2, but the current Pid(1) was not the one that created pid 2.
+		// TODO:
+		// another note on PPids.  Windows reuses process IDS.  So consider the following
+
+		// process 1 starts
+		// process 1 starts process 2 (so 1 is the parent of 2)
+		// process 1 ends/dies
+		// another process starts and is given the pid (1)
+		// process 2's PPid will still be 2, but the current Pid(1) was not the one that created pid 2.
+	}
+
+	// make sure to insert them in the creation time order
+	sort.Slice(entries, func(i, j int) bool {
+		entryA := entries[i]
+		entryB := entries[j]
+
+		if entryA.ExecTime.Equal(entryB.ExecTime) {
+			return entries[i].Pid < entries[j].Pid
+		}
+
+		return entryA.ExecTime.Before(entryB.ExecTime)
+	})
+
+	for _, e := range entries {
+		p.insertEntry(e)
+	}
 }

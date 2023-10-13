@@ -488,25 +488,9 @@ func NewCheckConfig(rawInstance integration.Data, rawInitConfig integration.Data
 		return nil, err
 	}
 
-	// Profile Configs
-	var profiles profileConfigMap
-	if len(initConfig.Profiles) > 0 {
-		// TODO: [PERFORMANCE] Load init config custom profiles once for all integrations
-		//   There are possibly multiple init configs
-		customProfiles, err := loadProfiles(initConfig.Profiles)
-		if err != nil {
-			return nil, fmt.Errorf("failed to load custom profiles: %s", err)
-		}
-		profiles = customProfiles
-	} else {
-		defaultProfiles, err := loadDefaultProfiles()
-		if err != nil {
-			return nil, fmt.Errorf("failed to load default profiles: %s", err)
-		}
-		profiles = defaultProfiles
-	}
-	for _, profileDef := range profiles {
-		profiledefinition.NormalizeMetrics(profileDef.Definition.Metrics)
+	profiles, err := getProfiles(initConfig)
+	if err != nil {
+		return nil, err
 	}
 	c.Profiles = profiles
 
@@ -550,6 +534,35 @@ func NewCheckConfig(rawInstance integration.Data, rawInitConfig integration.Data
 
 	c.ResolvedSubnetName = c.getResolvedSubnetName()
 	return c, nil
+}
+
+func getProfiles(initConfig InitConfig) (profileConfigMap, error) {
+	var profiles profileConfigMap
+	if len(initConfig.Profiles) > 0 {
+		// TODO: [PERFORMANCE] Load init config custom profiles once for all integrations
+		//   There are possibly multiple init configs
+		customProfiles, err := loadProfiles(initConfig.Profiles)
+		if err != nil {
+			return nil, fmt.Errorf("failed to load initConfig profiles: %s", err)
+		}
+		profiles = customProfiles
+	} else if profileBundleFileExist() {
+		defaultProfiles, err := loadBundleJSONProfiles()
+		if err != nil {
+			return nil, fmt.Errorf("failed to load bundle json profiles: %s", err)
+		}
+		profiles = defaultProfiles
+	} else {
+		defaultProfiles, err := loadYamlProfiles()
+		if err != nil {
+			return nil, fmt.Errorf("failed to load yaml profiles: %s", err)
+		}
+		profiles = defaultProfiles
+	}
+	for _, profileDef := range profiles {
+		profiledefinition.NormalizeMetrics(profileDef.Definition.Metrics)
+	}
+	return profiles, nil
 }
 
 func (c *CheckConfig) getResolvedSubnetName() string {
@@ -678,7 +691,7 @@ func (c *CheckConfig) parseScalarOids(metrics []profiledefinition.MetricsConfig,
 		oids = append(oids, metric.Symbol.OID)
 	}
 	for _, metricTag := range metricTags {
-		oids = append(oids, metricTag.OID)
+		oids = append(oids, metricTag.Symbol.OID)
 	}
 	if c.CollectDeviceMetadata {
 		for resource, metadataConfig := range metadataConfigs {
@@ -706,7 +719,7 @@ func (c *CheckConfig) parseColumnOids(metrics []profiledefinition.MetricsConfig,
 			oids = append(oids, symbol.OID)
 		}
 		for _, metricTag := range metric.MetricTags {
-			oids = append(oids, metricTag.Column.OID)
+			oids = append(oids, metricTag.Symbol.OID)
 		}
 	}
 	if c.CollectDeviceMetadata {
@@ -721,7 +734,7 @@ func (c *CheckConfig) parseColumnOids(metrics []profiledefinition.MetricsConfig,
 				}
 			}
 			for _, tagConfig := range metadataConfig.IDTags {
-				oids = append(oids, tagConfig.Column.OID)
+				oids = append(oids, tagConfig.Symbol.OID)
 			}
 		}
 	}
