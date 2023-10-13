@@ -490,7 +490,7 @@ func NewCheckConfig(rawInstance integration.Data, rawInitConfig integration.Data
 		return nil, err
 	}
 
-	profiles, err := getProfiles(initConfig)
+	profiles, err := getProfiles(initConfig.Profiles)
 	if err != nil {
 		return nil, err
 	}
@@ -538,12 +538,12 @@ func NewCheckConfig(rawInstance integration.Data, rawInitConfig integration.Data
 	return c, nil
 }
 
-func getProfiles(initConfig InitConfig) (profile.ProfileConfigMap, error) {
+func getProfiles(initConfigProfiles profile.ProfileConfigMap) (profile.ProfileConfigMap, error) {
 	var profiles profile.ProfileConfigMap
-	if len(initConfig.Profiles) > 0 {
+	if len(initConfigProfiles) > 0 {
 		// TODO: [PERFORMANCE] Load init config custom profiles once for all integrations
 		//   There are possibly multiple init configs
-		customProfiles, err := loadProfiles(initConfig.Profiles)
+		customProfiles, err := loadProfiles(initConfigProfiles)
 		if err != nil {
 			return nil, fmt.Errorf("failed to load initConfig profiles: %s", err)
 		}

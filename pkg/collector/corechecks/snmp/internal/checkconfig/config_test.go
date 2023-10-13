@@ -2330,19 +2330,17 @@ func Test_getProfiles(t *testing.T) {
 	tests := []struct {
 		name                 string
 		mockConfd            string
-		initConfig           InitConfig
+		profiles             profile.ProfileConfigMap
 		expectedProfileNames []string
 		expectedErr          string
 	}{
 		{
 			name:      "OK Use init config profiles",
 			mockConfd: "conf.d",
-			initConfig: InitConfig{
-				Profiles: profile.ProfileConfigMap{
-					"my-init-config-profile": profile.ProfileConfig{
-						Definition: profiledefinition.ProfileDefinition{
-							Name: "my-init-config-profile",
-						},
+			profiles: profile.ProfileConfigMap{
+				"my-init-config-profile": profile.ProfileConfig{
+					Definition: profiledefinition.ProfileDefinition{
+						Name: "my-init-config-profile",
 					},
 				},
 			},
@@ -2353,15 +2351,13 @@ func Test_getProfiles(t *testing.T) {
 		{
 			name:      "OK init config contains invalid profiles with warnings logs",
 			mockConfd: "conf.d",
-			initConfig: InitConfig{
-				Profiles: profile.ProfileConfigMap{
-					"my-init-config-profile": profile.ProfileConfig{
-						Definition: profiledefinition.ProfileDefinition{
-							Name: "my-init-config-profile",
-							MetricTags: profiledefinition.MetricTagConfigList{
-								{
-									Match: "invalidRegex({[",
-								},
+			profiles: profile.ProfileConfigMap{
+				"my-init-config-profile": profile.ProfileConfig{
+					Definition: profiledefinition.ProfileDefinition{
+						Name: "my-init-config-profile",
+						MetricTags: profiledefinition.MetricTagConfigList{
+							{
+								Match: "invalidRegex({[",
 							},
 						},
 					},
@@ -2405,7 +2401,7 @@ func Test_getProfiles(t *testing.T) {
 			path, _ := filepath.Abs(filepath.Join("..", "test", tt.mockConfd))
 			coreconfig.Datadog.Set("confd_path", path)
 
-			actualProfiles, err := getProfiles(tt.initConfig)
+			actualProfiles, err := getProfiles(tt.profiles)
 			if tt.expectedErr != "" {
 				assert.ErrorContains(t, err, tt.expectedErr)
 			}
