@@ -209,7 +209,7 @@ func (c *ScannerCache) MissingBlobs(artifactID string, blobIDs []string) (bool, 
 }
 
 // PutArtifact implements cache.Cache#PutArtifact
-func (c *ScannerCache) PutArtifact(artifactID string, artifactInfo types.ArtifactInfo) error { //nolint:revive // TODO fix revive unusued-parameter
+func (c *ScannerCache) PutArtifact(artifactID string, artifactInfo types.ArtifactInfo) error {
 	return trivyCachePut(c, artifactID, artifactInfo)
 }
 
@@ -220,7 +220,7 @@ func (c *ScannerCache) PutBlob(blobID string, blobInfo types.BlobInfo) error {
 
 // DeleteBlobs implements cache.Cache#DeleteBlobs does nothing because the cache cleaning logic is
 // managed by CacheCleaner
-func (c *ScannerCache) DeleteBlobs(blobIDs []string) error {
+func (c *ScannerCache) DeleteBlobs(blobIDs []string) error { //nolint:revive // TODO fix revive unusued-parameter
 	return nil
 }
 
