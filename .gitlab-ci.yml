@@ -15,6 +15,8 @@ include:
   - /.gitlab/kitchen_deploy.yml
   - /.gitlab/kitchen_testing.yml
   - /.gitlab/kitchen_tests_upload.yml
+  - /.gitlab/new-e2e_testing.yml
+  - /.gitlab/new-e2e_common/testing.yml
   - /.gitlab/install_script_testing.yml
   - /.gitlab/pkg_metrics.yml
   - /.gitlab/container_build.yml
@@ -164,7 +166,7 @@ variables:
   DATADOG_AGENT_NIKOS_BUILDIMAGES: v20878799-a2f77ae
   DATADOG_AGENT_BTF_GEN_BUILDIMAGES_SUFFIX: ""
   DATADOG_AGENT_BTF_GEN_BUILDIMAGES: v20878799-a2f77ae
-  TEST_INFRA_DEFINITIONS_BUILDIMAGES: cb9e86993fd5
+  TEST_INFRA_DEFINITIONS_BUILDIMAGES: 40c538510ddf
   DATADOG_AGENT_BUILDERS: v19474930-fe4bcd9
 
   DATADOG_AGENT_EMBEDDED_PATH: /opt/datadog-agent/embedded
@@ -832,6 +834,14 @@ workflow:
   - <<: *if_default_kitchen
     variables:
       KITCHEN_OSVERS: $DEFAULT_KITCHEN_OSVERS
+
+.on_default_new-e2e_tests_a7:
+  - <<: *if_not_version_7
+    when: never
+  - <<: *if_kitchen
+  - <<: *if_default_kitchen
+    variables:
+      E2E_OSVERS: $E2E_BRANCH_OSVERS
 
 .on_default_kitchen_tests_a7_always:
   - <<: *if_not_version_7

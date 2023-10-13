@@ -15,6 +15,7 @@ import (
 	"github.com/netsampler/goflow2/utils"
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"go.uber.org/fx"
 	"go.uber.org/fx/fxtest"
 
@@ -23,9 +24,11 @@ import (
 	"github.com/DataDog/datadog-agent/comp/ndmtmp/aggregator"
 	"github.com/DataDog/datadog-agent/comp/ndmtmp/forwarder"
 	"github.com/DataDog/datadog-agent/comp/ndmtmp/sender"
+
+	ndmtestutils "github.com/DataDog/datadog-agent/pkg/networkdevice/testutils"
+
 	nfconfig "github.com/DataDog/datadog-agent/comp/netflow/config"
 	"github.com/DataDog/datadog-agent/comp/netflow/goflowlib"
-	"github.com/DataDog/datadog-agent/comp/netflow/testutil"
 )
 
 type dummyFlowProcessor struct {
@@ -80,7 +83,8 @@ var testOptions = fx.Options(
 )
 
 func TestStartServerAndStopServer(t *testing.T) {
-	port := testutil.GetFreePort()
+	port, err := ndmtestutils.GetFreePort()
+	require.NoError(t, err)
 	var component Component
 	app := fxtest.New(t, fx.Options(
 		testOptions,

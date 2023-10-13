@@ -23,7 +23,7 @@ var _ stackInitializer = (*VM)(nil)
 // VM is a client VM that is connected to a VM defined in test-infra-definition.
 type VM struct {
 	deserializer utils.RemoteServiceDeserializer[commonvm.ClientData]
-	*vmClient
+	*VMClient
 	os commonos.OS
 }
 
@@ -53,6 +53,6 @@ func (vm *VM) setStack(t *testing.T, stackResult auto.UpResult) error {
 		}
 	}
 
-	vm.vmClient, err = newVMClient(t, privateSSHKey, &clientData.Connection, vm.os)
+	vm.VMClient, err = newVMClient(t, privateSSHKey, &clientData.Connection, vm.os)
 	return err
 }
