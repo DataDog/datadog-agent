@@ -3,7 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2022-present Datadog, Inc.
 
-package traps
+// Package oidresolver resolves OIDs to metadata about those OIDs.
+package oidresolver
 
 import (
 	"compress/gzip"
@@ -15,11 +16,11 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+	"unicode"
 
 	"gopkg.in/yaml.v2"
 
-	"github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/comp/core/log"
 )
 
 const ddTrapDBFileNamePrefix string = "dd_traps_db"
@@ -48,14 +49,17 @@ type OIDResolver interface {
 // exist in a single file (after the previous conflict resolution), meaning that we get the variable
 // metadata from that same file.
 type MultiFilesOIDResolver struct {
-	traps TrapSpec
+	traps  TrapSpec
+	logger log.Component
 }
 
 // NewMultiFilesOIDResolver creates a new MultiFilesOIDResolver instance by loading json or yaml files
 // (optionnally gzipped) located in the directory snmp.d/traps_db/
-func NewMultiFilesOIDResolver() (*MultiFilesOIDResolver, error) {
-	oidResolver := &MultiFilesOIDResolver{traps: make(TrapSpec)}
-	confdPath := config.Datadog.GetString("confd_path")
+func NewMultiFilesOIDResolver(confdPath string, logger log.Component) (*MultiFilesOIDResolver, error) {
+	oidResolver := &MultiFilesOIDResolver{
+		traps:  make(TrapSpec),
+		logger: logger,
+	}
 	trapsDBRoot := filepath.Join(confdPath, "snmp.d", "traps_db")
 	files, err := os.ReadDir(trapsDBRoot)
 	if err != nil {
@@ -64,11 +68,11 @@ func NewMultiFilesOIDResolver() (*MultiFilesOIDResolver, error) {
 	if len(files) == 0 {
 		return nil, fmt.Errorf("dir `%s` does not contain any trap db file", trapsDBRoot)
 	}
-	fileNames := getSortedFileNames(files)
+	fileNames := getSortedFileNames(files, logger)
 	for _, fileName := range fileNames {
 		err := oidResolver.updateFromFile(filepath.Join(trapsDBRoot, fileName))
 		if err != nil {
-			log.Warnf("unable to load trap db file %s: %s", fileName, err)
+			logger.Warnf("unable to load trap db file %s: %s", fileName, err)
 		}
 	}
 	return oidResolver, nil
@@ -116,7 +120,7 @@ func (or *MultiFilesOIDResolver) GetVariableMetadata(trapOID string, varOID stri
 	return VariableMetadata{}, fmt.Errorf("variable OID %s is not defined", varOID)
 }
 
-func getSortedFileNames(files []fs.DirEntry) []string {
+func getSortedFileNames(files []fs.DirEntry, logger log.Component) []string {
 	if len(files) == 0 {
 		return []string{}
 	}
@@ -126,7 +130,7 @@ func getSortedFileNames(files []fs.DirEntry) []string {
 	ddProvidedFileNames := make([]string, 0, 1)
 	for _, file := range files {
 		if file.IsDir() {
-			log.Debugf("not loading traps data from path %s: file is directory", file.Name())
+			logger.Debugf("not loading traps data from path %s: file is directory", file.Name())
 			continue
 		}
 		fileName := file.Name()
@@ -175,7 +179,7 @@ func (or *MultiFilesOIDResolver) updateFromReader(reader io.Reader, unmarshalMet
 	if err != nil {
 		return err
 	}
-	var trapData trapDBFileContent
+	var trapData TrapDBFileContent
 	err = unmarshalMethod(fileContent, &trapData)
 	if err != nil {
 		return err
@@ -185,13 +189,13 @@ func (or *MultiFilesOIDResolver) updateFromReader(reader io.Reader, unmarshalMet
 	return nil
 }
 
-func (or *MultiFilesOIDResolver) updateResolverWithData(trapDB trapDBFileContent) {
+func (or *MultiFilesOIDResolver) updateResolverWithData(trapDB TrapDBFileContent) {
 	definedVariables := variableSpec{}
 
 	allOIDs := make([]string, 0, len(trapDB.Variables))
 	for variableOID := range trapDB.Variables {
 		if !IsValidOID(variableOID) {
-			log.Warnf("trap variable OID %s does not look like a valid OID", variableOID)
+			or.logger.Warnf("trap variable OID %s does not look like a valid OID", variableOID)
 			continue
 		}
 		allOIDs = append(allOIDs, NormalizeOID(variableOID))
@@ -223,12 +227,12 @@ func (or *MultiFilesOIDResolver) updateResolverWithData(trapDB trapDBFileContent
 
 	for trapOID, trapData := range trapDB.Traps {
 		if !IsValidOID(trapOID) {
-			log.Errorf("trap OID %s does not look like a valid OID", trapOID)
+			or.logger.Errorf("trap OID %s does not look like a valid OID", trapOID)
 			continue
 		}
 		trapOID := NormalizeOID(trapOID)
 		if _, trapConflict := or.traps[trapOID]; trapConflict {
-			log.Debugf("a trap with OID %s is defined in multiple traps db files", trapOID)
+			or.logger.Debugf("a trap with OID %s is defined in multiple traps db files", trapOID)
 		}
 		or.traps[trapOID] = TrapMetadata{
 			Name:            trapData.Name,
@@ -237,4 +241,28 @@ func (or *MultiFilesOIDResolver) updateResolverWithData(trapDB trapDBFileContent
 			variableSpecPtr: definedVariables,
 		}
 	}
+}
+
+// NormalizeOID converts an OID from the absolute form ".1.2.3..." to a relative form "1.2.3..."
+func NormalizeOID(value string) string {
+	// OIDs can be formatted as ".1.2.3..." ("absolute form") or "1.2.3..." ("relative form").
+	// Convert everything to relative form, like we do in the Python check.
+	return strings.TrimLeft(value, ".")
+}
+
+// IsValidOID returns true if value looks like a valid OID.
+// An OID is made of digits and dots, but OIDs do not end with a dot and there are always
+// digits between dots.
+func IsValidOID(value string) bool {
+	var previousChar rune
+	for _, char := range value {
+		if char != '.' && !unicode.IsDigit(char) {
+			return false
+		}
+		if char == '.' && previousChar == '.' {
+			return false
+		}
+		previousChar = char
+	}
+	return previousChar != '.'
 }

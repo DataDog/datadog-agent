@@ -3,11 +3,10 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package traps
+package config
 
 const (
 	defaultPort        = uint16(9162) // Standard UDP port for traps.
 	defaultStopTimeout = 5
 	packetsChanSize    = 100
-	genericTrapOid     = "1.3.6.1.6.3.1.1.5"
 )
