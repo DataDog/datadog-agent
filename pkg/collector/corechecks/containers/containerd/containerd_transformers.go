@@ -35,7 +35,7 @@ func grpcServerHandlerTransformer(s sender.Sender, name string, sample model.Sam
 	}
 }
 
-func imagePullMetricTransformer(s sender.Sender, name string, sample model.Sample) {
+func imagePullMetricTransformer(s sender.Sender, name string, sample model.Sample) { //nolint:revive // TODO fix revive unused-parameter
 	metric := sample.Metric
 
 	grpcCode, ok := metric["grpc_code"]

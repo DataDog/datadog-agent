@@ -49,7 +49,7 @@ func NewSelfTestEvent(success []string, fails []string, testEvents map[string]*s
 }
 
 // SetOnNewPoliciesReadyCb implements the PolicyProvider interface
-func (t *SelfTester) SetOnNewPoliciesReadyCb(cb func()) {
+func (t *SelfTester) SetOnNewPoliciesReadyCb(cb func()) { //nolint:revive // TODO fix revive unused-parameter
 }
 
 // Type return the type of this policy provider
@@ -64,5 +64,5 @@ func (t *SelfTester) RuleMatch(rule *rules.Rule, event eval.Event) bool {
 }
 
 // EventDiscarderFound implement the rule engine interface
-func (t *SelfTester) EventDiscarderFound(rs *rules.RuleSet, event eval.Event, field eval.Field, eventType eval.EventType) {
+func (t *SelfTester) EventDiscarderFound(rs *rules.RuleSet, event eval.Event, field eval.Field, eventType eval.EventType) { //nolint:revive // TODO fix revive unused-parameter
 }

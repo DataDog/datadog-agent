@@ -21,12 +21,12 @@ func NewNoOpSenderManager() NoOpSenderManager {
 }
 
 // GetSender returns a sender.Sender with passed ID
-func (NoOpSenderManager) GetSender(id checkid.ID) (sender.Sender, error) {
+func (NoOpSenderManager) GetSender(id checkid.ID) (sender.Sender, error) { //nolint:revive // TODO fix revive unused-parameter
 	return nil, errors.New("NotImplemented")
 }
 
 // SetSender returns the passed sender with the passed ID.
-func (NoOpSenderManager) SetSender(sender.Sender, checkid.ID) error {
+func (NoOpSenderManager) SetSender(sender.Sender, checkid.ID) error { //nolint:revive // TODO fix revive unused-parameter
 	return errors.New("NotImplemented")
 }
 
@@ -34,6 +34,6 @@ func (NoOpSenderManager) SetSender(sender.Sender, checkid.ID) error {
 func (NoOpSenderManager) DestroySender(id checkid.ID) {}
 
 // GetDefaultSender returns a default sender.
-func (NoOpSenderManager) GetDefaultSender() (sender.Sender, error) {
+func (NoOpSenderManager) GetDefaultSender() (sender.Sender, error) { //nolint:revive // TODO fix revive unused-parameter
 	return nil, errors.New("NotImplemented")
 }
