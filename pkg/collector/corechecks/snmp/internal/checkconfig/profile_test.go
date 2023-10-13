@@ -85,7 +85,7 @@ func Test_getProfiles(t *testing.T) {
 			path, _ := filepath.Abs(filepath.Join("..", "test", tt.mockConfd))
 			coreconfig.Datadog.Set("confd_path", path)
 
-			actualProfiles, err := getProfiles(tt.profiles)
+			actualProfiles, err := GetProfiles(tt.profiles)
 			if tt.expectedErr != "" {
 				assert.ErrorContains(t, err, tt.expectedErr)
 			}

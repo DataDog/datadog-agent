@@ -6,7 +6,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/networkdevice/profile/profiledefinition"
 )
 
-func getProfiles(initConfigProfiles profile.ProfileConfigMap) (profile.ProfileConfigMap, error) {
+func GetProfiles(initConfigProfiles profile.ProfileConfigMap) (profile.ProfileConfigMap, error) {
 	var profiles profile.ProfileConfigMap
 	if len(initConfigProfiles) > 0 {
 		// TODO: [PERFORMANCE] Load init config custom profiles once for all integrations

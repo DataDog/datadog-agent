@@ -490,7 +490,7 @@ func NewCheckConfig(rawInstance integration.Data, rawInitConfig integration.Data
 		return nil, err
 	}
 
-	profiles, err := getProfiles(initConfig.Profiles)
+	profiles, err := GetProfiles(initConfig.Profiles)
 	if err != nil {
 		return nil, err
 	}
