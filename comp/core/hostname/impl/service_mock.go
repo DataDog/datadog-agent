@@ -3,19 +3,34 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2023-present Datadog, Inc.
 
-package hostname
+//go:build test
+
+package impl
 
 import (
 	"context"
 
-	"github.com/DataDog/datadog-agent/pkg/util/hostname"
+	"github.com/DataDog/datadog-agent/comp/core/hostname"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
+	pkghostname "github.com/DataDog/datadog-agent/pkg/util/hostname"
+	"go.uber.org/fx"
+)
+
+// MockModule defines the fx options for the mock component.
+// Injecting MockModule will provide the hostname 'my-hostname';
+// override this with fx.Replace(hostname.MockHostname("whatever")).
+var MockModule = fxutil.Component(
+	fx.Provide(
+		newMock,
+	),
+	fx.Supply(MockHostname("my-hostname")),
 )
 
 type mockService struct {
 	name string
 }
 
-var _ Component = (*mockService)(nil)
+var _ hostname.Mock = (*mockService)(nil)
 
 func (m *mockService) Get(ctx context.Context) (string, error) {
 	return m.name, nil
@@ -30,8 +45,8 @@ func (m *mockService) Set(name string) {
 }
 
 // GetWithProvider returns the hostname for the Agent and the provider that was use to retrieve it.
-func (m *mockService) GetWithProvider(ctx context.Context) (hostname.Data, error) {
-	return hostname.Data{
+func (m *mockService) GetWithProvider(ctx context.Context) (pkghostname.Data, error) {
+	return pkghostname.Data{
 		Hostname: m.name,
 		Provider: "mockService",
 	}, nil
@@ -41,6 +56,6 @@ func (m *mockService) GetWithProvider(ctx context.Context) (hostname.Data, error
 // Usage: fx.Replace(hostname.MockHostname("whatever"))
 type MockHostname string
 
-func newMock(name MockHostname) Component {
+func newMock(name MockHostname) hostname.Mock {
 	return &mockService{string(name)}
 }
