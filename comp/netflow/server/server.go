@@ -148,7 +148,6 @@ func extractListenerDetails(listeners []*netflowListener) []map[string]interface
 
 	for _, listener := range listeners {
 		lDetail := map[string]interface{}{
-			"ID":        listener.statistics.ID,
 			"BindHost":  listener.statistics.BindHost,
 			"FlowType":  listener.statistics.FlowType,
 			"Port":      listener.statistics.Port,

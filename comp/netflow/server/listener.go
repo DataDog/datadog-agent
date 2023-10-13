@@ -6,8 +6,6 @@
 package server
 
 import (
-	"unsafe"
-
 	"github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/comp/netflow/common"
 	"github.com/DataDog/datadog-agent/comp/netflow/config"
@@ -26,7 +24,6 @@ type netflowListener struct {
 }
 
 type listenerstatistics struct {
-	ID        uintptr
 	BindHost  string
 	FlowType  common.FlowType
 	Port      uint16
@@ -44,7 +41,6 @@ func (l *netflowListener) errorHandler(logger log.Component) {
 	for {
 		select {
 		case err := <-l.errCh:
-			logger.Errorf("Error for listener ID %v: %v", l.statistics.ID, err)
 			l.statistics.Error = err
 		case <-l.shutdownCh:
 			return
@@ -67,9 +63,6 @@ func startFlowListener(listenerConfig config.ListenerConfig, flowAgg *flowaggreg
 	}
 
 	go listener.errorHandler(logger)
-
-	// Set the ID using the memory address of the listener object
-	listener.statistics.ID = uintptr(unsafe.Pointer(listener))
 
 	return listener, err
 }
