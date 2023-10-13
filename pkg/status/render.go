@@ -55,6 +55,7 @@ func FormatStatus(data []byte) (string, error) {
 	systemProbeStats := stats["systemProbeStats"]
 	processAgentStatus := stats["processAgentStatus"]
 	snmpTrapsStats := stats["snmpTrapsStats"]
+	netflowStats := stats["netflowStats"]
 	title := fmt.Sprintf("Agent (v%s)", stats["version"])
 	stats["title"] = title
 
@@ -89,6 +90,11 @@ func FormatStatus(data []byte) (string, error) {
 		}
 		return nil
 	}
+
+	netflowFunc := func() error {
+		return RenderStatusTemplate(b, "/netflow.tmpl", netflowStats)
+	}
+
 	autodiscoveryFunc := func() error {
 		if config.IsContainerized() {
 			return renderAutodiscoveryStats(b, stats["adEnabledFeatures"], stats["adConfigErrors"],
@@ -113,7 +119,7 @@ func FormatStatus(data []byte) (string, error) {
 	} else {
 		renderFuncs = []func() error{headerFunc, checkStatsFunc, jmxFetchFunc, forwarderFunc, endpointsFunc,
 			logsAgentFunc, systemProbeFunc, processAgentFunc, traceAgentFunc, aggregatorFunc, dogstatsdFunc,
-			clusterAgentFunc, snmpTrapFunc, autodiscoveryFunc, remoteConfigFunc, otlpFunc}
+			clusterAgentFunc, snmpTrapFunc, netflowFunc, autodiscoveryFunc, remoteConfigFunc, otlpFunc}
 	}
 	var errs []error
 	for _, f := range renderFuncs {

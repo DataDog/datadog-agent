@@ -8,8 +8,8 @@ package server
 import (
 	"context"
 	"errors"
-	"fmt"
 	"net/http"
+	"sync"
 	"time"
 
 	"github.com/DataDog/datadog-agent/comp/core/hostname"
@@ -31,35 +31,45 @@ type dependencies struct {
 	Hostname  hostname.Component
 }
 
+type Status struct {
+	TotalListeners         int
+	OpenListeners          int
+	ClosedListeners        int
+	WorkingListenerDetails []map[string]interface{}
+	ClosedListenerDetails  []map[string]interface{}
+}
+
+type ListenerStats struct {
+	TotalListeners  int64
+	OpenListeners   int64
+	ClosedListeners int64
+	sync.Mutex      // Embed a mutex for safe concurrent updates
+}
+
+var ServerEnabled bool
+
+var listenerStats = &ListenerStats{}
+
+var globalServer = &Server{}
+
 // newServer configures a netflow server.
 func newServer(lc fx.Lifecycle, deps dependencies) (Component, error) {
 	conf := deps.Config.Get()
 	flowAgg := flowaggregator.NewFlowAggregator(deps.Sender, deps.Forwarder, conf, deps.Hostname.GetSafe(context.Background()), deps.Logger)
-
 	server := &Server{
 		config:  conf,
 		FlowAgg: flowAgg,
 		logger:  deps.Logger,
 	}
+
+	globalServer = server
+
 	if conf.Enabled {
 		// netflow is enabled, so start the server
 		lc.Append(fx.Hook{
 			OnStart: func(ctx context.Context) error {
 
 				err := server.Start()
-				server.PrintListenerInfo()
-
-				go func() {
-					uptimeTicker := time.NewTicker(5 * time.Second)
-
-					for {
-						select {
-						case <-uptimeTicker.C:
-							server.PrintListenerInfo()
-						}
-					}
-				}()
-
 				return err
 			},
 			OnStop: func(context.Context) error {
@@ -68,7 +78,6 @@ func newServer(lc fx.Lifecycle, deps dependencies) (Component, error) {
 			},
 		})
 	}
-
 	return server, nil
 }
 
@@ -141,20 +150,58 @@ func (s *Server) Stop() {
 	s.running = false
 }
 
-func (s *Server) PrintListenerInfo() {
-	for _, listener := range s.listeners {
-		// Print listener information here
-		fmt.Printf("Listener ID: %v\n", listener.statistics.ID)
-		fmt.Printf("BindHost: %s\n", listener.statistics.BindHost)
-		fmt.Printf("FlowType: %s\n", listener.statistics.FlowType)
-		fmt.Printf("Port: %d\n", listener.statistics.Port)
-		fmt.Printf("Workers: %d\n", listener.statistics.Workers)
-		fmt.Printf("Namespace: %s\n", listener.statistics.Namespace)
-		if listener.statistics.Error != nil {
-			fmt.Printf("Error: %s\n", listener.statistics.Error.Error())
-		} else {
-			fmt.Println("No Error")
+func extractListenerDetails(listeners []*netflowListener) []map[string]interface{} {
+	details := make([]map[string]interface{}, 0, len(listeners))
+
+	for _, listener := range listeners {
+		lDetail := map[string]interface{}{
+			"ID":        listener.statistics.ID,
+			"BindHost":  listener.statistics.BindHost,
+			"FlowType":  listener.statistics.FlowType,
+			"Port":      listener.statistics.Port,
+			"Workers":   listener.statistics.Workers,
+			"Namespace": listener.statistics.Namespace,
 		}
-		fmt.Println("---------------------------")
+
+		if listener.statistics.Error != nil {
+			lDetail["Error"] = listener.statistics.Error.Error()
+		} else {
+			lDetail["Error"] = "No Errors"
+		}
+
+		details = append(details, lDetail)
+	}
+	return details
+}
+
+func IsServerEnabled() bool {
+	ServerEnabled = true
+	return ServerEnabled
+}
+
+func GetStatus() Status {
+	workingListeners := []*netflowListener{}
+	closedListenersList := []*netflowListener{}
+
+	for _, listener := range globalServer.listeners {
+		if listener.statistics.Error != nil {
+			closedListenersList = append(closedListenersList, listener)
+		} else {
+			workingListeners = append(workingListeners, listener)
+		}
+	}
+
+	listenerStats.Lock() // Lock for concurrent access
+	listenerStats.TotalListeners = int64(len(globalServer.listeners))
+	listenerStats.OpenListeners = int64(len(workingListeners))
+	listenerStats.ClosedListeners = int64(len(closedListenersList))
+	listenerStats.Unlock() // Unlock after update
+
+	return Status{
+		TotalListeners:         int(listenerStats.TotalListeners),
+		OpenListeners:          int(listenerStats.OpenListeners),
+		ClosedListeners:        int(listenerStats.ClosedListeners),
+		WorkingListenerDetails: extractListenerDetails(workingListeners),
+		ClosedListenerDetails:  extractListenerDetails(closedListenersList),
 	}
 }

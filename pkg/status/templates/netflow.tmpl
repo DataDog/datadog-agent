@@ -1,0 +1,31 @@
+==========
+NetFlow Server
+==========
+
+Total Listeners: {{.TotalListeners}}
+Open Listeners: {{.OpenListeners}}
+Closed Listeners: {{.ClosedListeners}}
+
+=== Open Listener Details ===
+{{- range $index, $listener := .WorkingListenerDetails }}
+---------
+BindHost: {{$listener.BindHost}}
+FlowType: {{$listener.FlowType}}
+Port: {{$listener.Port}}
+Workers: {{$listener.Workers}}
+Namespace: {{$listener.Namespace}}
+Error: {{$listener.Error}}
+---------
+{{- end }}
+
+=== Closed Listener Details ===
+{{- range $index, $listener := .ClosedListenerDetails }}
+---------
+BindHost: {{$listener.BindHost}}
+FlowType: {{$listener.FlowType}}
+Port: {{$listener.Port}}
+Workers: {{$listener.Workers}}
+Namespace: {{$listener.Namespace}}
+Error: {{$listener.Error}}
+---------
+{{- end }}
