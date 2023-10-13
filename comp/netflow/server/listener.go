@@ -53,7 +53,3 @@ func startFlowListener(listenerConfig config.ListenerConfig, flowAgg *flowaggreg
 
 	return listener, err
 }
-
-func (l *netflowListener) GetStatistics() netflowListener {
-	return *l
-}
