@@ -396,3 +396,7 @@ func (c *Client) GetConnectionsNames() ([]string, error) {
 	}
 	return c.connectionAggregator.GetNames(), nil
 }
+
+func (c *Client) URL() string {
+	return c.fakeIntakeURL
+}
