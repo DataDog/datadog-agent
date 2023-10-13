@@ -33,7 +33,7 @@ type dependencies struct {
 
 // Status represents the status of the server including details about
 // listeners which are working and those which have closed.
-type Status struct {
+type NetflowServerStatus struct {
 	TotalListeners         int
 	OpenListeners          int
 	ClosedListeners        int
@@ -41,7 +41,7 @@ type Status struct {
 	ClosedListenerDetails  []map[string]interface{}
 }
 
-var statusInstance = &Status{}
+var statusInstance = &NetflowServerStatus{}
 
 var globalServer = &Server{}
 
@@ -173,7 +173,7 @@ func IsEnabled() bool {
 
 // GetStatus retrieves the current status of the server with details about
 // all listeners and categorizes them into working and closed.
-func GetStatus() Status {
+func GetStatus() NetflowServerStatus {
 	workingListeners := []*netflowListener{}
 	closedListenersList := []*netflowListener{}
 
@@ -189,7 +189,7 @@ func GetStatus() Status {
 	statusInstance.OpenListeners = int(len(workingListeners))
 	statusInstance.ClosedListeners = int(len(closedListenersList))
 
-	return Status{
+	return NetflowServerStatus{
 		TotalListeners:         int(statusInstance.TotalListeners),
 		OpenListeners:          int(statusInstance.OpenListeners),
 		ClosedListeners:        int(statusInstance.ClosedListeners),
