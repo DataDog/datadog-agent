@@ -58,8 +58,6 @@ func (s *service) Init() error {
 
 type cliParams struct {
 	*command.GlobalParams
-
-	pidfilePath string
 }
 
 // Run actually runs the service; blocks until service exits.
