@@ -11,18 +11,24 @@ import (
 	"time"
 )
 
+// DatadogMetricType represent different metrics types
 type DatadogMetricType string
 
 const (
+	// Gauge DatadogMetricType
 	Gauge DatadogMetricType = "gauge"
+	// Count DatadogMetricType
 	Count DatadogMetricType = "count"
-	Rate  DatadogMetricType = "rate"
+	// Rate DatadogMetricType
+	Rate DatadogMetricType = "rate"
 )
 
+// MetricSeriesV1Header contains a MetricSeriesV1
 type MetricSeriesV1Header struct {
 	Series []*MetricSeriesV1 `json:"series"`
 }
 
+// MetricSeriesV1 contains all information of a metric in V1
 type MetricSeriesV1 struct {
 	collectedTime  time.Time
 	Metric         string                      `json:"metric"`
@@ -36,10 +42,12 @@ type MetricSeriesV1 struct {
 	Metadata       DatadogSeriesMetricMetadata `json:"metadata,omitempty"`
 }
 
+// DatadogSeriesMetricMetadata contains DatadogMetricMetadata
 type DatadogSeriesMetricMetadata struct {
 	Origin DatadogMetricOriginMetadata `json:"origin,omitempty"`
 }
 
+// DatadogMetricOriginMetadata informations
 type DatadogMetricOriginMetadata struct {
 	// OriginProduct
 	Product uint32 `json:"product,omitempty"`
@@ -63,7 +71,7 @@ func (mp *MetricSeriesV1) GetCollectedTime() time.Time {
 	return mp.collectedTime
 }
 
-// ParseMetricSeries return the parsed metrics from payload
+// ParseV1MetricSeries return the parsed metrics from payload
 func ParseV1MetricSeries(payload api.Payload) (metrics []*MetricSeriesV1, err error) {
 	enflated, err := enflate(payload.Data, payload.Encoding)
 	if err != nil {
@@ -81,6 +89,7 @@ func ParseV1MetricSeries(payload api.Payload) (metrics []*MetricSeriesV1, err er
 
 }
 
+// MetricAggregatorV1 Aggregator
 type MetricAggregatorV1 struct {
 	Aggregator[*MetricSeriesV1]
 }
