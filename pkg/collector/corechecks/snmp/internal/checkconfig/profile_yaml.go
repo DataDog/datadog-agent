@@ -31,8 +31,6 @@ const profilesJSONGzipFile = "profiles.json.gz"
 
 var defaultProfilesMu = &sync.Mutex{}
 
-var globalProfileConfigMap profile.ProfileConfigMap
-
 // loadYamlProfiles will load the profiles from disk only once and store it
 // in globalProfileConfigMap. The subsequent call to it will return profiles stored in
 // globalProfileConfigMap. The mutex will help loading once when `loadYamlProfiles`
@@ -41,9 +39,10 @@ func loadYamlProfiles() (profile.ProfileConfigMap, error) {
 	defaultProfilesMu.Lock()
 	defer defaultProfilesMu.Unlock()
 
-	if globalProfileConfigMap != nil {
+	profileConfigMap := profile.GetGlobalProfileConfigMap()
+	if profileConfigMap != nil {
 		log.Debugf("load yaml profiles from cache")
-		return globalProfileConfigMap, nil
+		return profileConfigMap, nil
 	}
 	log.Debugf("build yaml profiles")
 
@@ -55,7 +54,7 @@ func loadYamlProfiles() (profile.ProfileConfigMap, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to load default profiles: %s", err)
 	}
-	globalProfileConfigMap = profiles
+	profile.SetGlobalProfileConfigMap(profiles)
 	return profiles, nil
 }
 

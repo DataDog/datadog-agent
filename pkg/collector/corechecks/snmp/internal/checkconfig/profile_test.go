@@ -81,7 +81,7 @@ func Test_getProfiles(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			globalProfileConfigMap = nil
+			profile.SetGlobalProfileConfigMap(nil)
 			path, _ := filepath.Abs(filepath.Join("..", "test", tt.mockConfd))
 			coreconfig.Datadog.Set("confd_path", path)
 

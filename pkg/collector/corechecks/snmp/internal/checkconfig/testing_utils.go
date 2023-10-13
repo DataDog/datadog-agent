@@ -6,6 +6,7 @@
 package checkconfig
 
 import (
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/profile"
 	"os"
 	"path/filepath"
 
@@ -16,7 +17,7 @@ import (
 
 // SetConfdPathAndCleanProfiles is used for testing only
 func SetConfdPathAndCleanProfiles() {
-	globalProfileConfigMap = nil // make sure from the new confd path will be reloaded
+	profile.SetGlobalProfileConfigMap(nil) // make sure from the new confd path will be reloaded
 	file, _ := filepath.Abs(filepath.Join(".", "test", "conf.d"))
 	if !pathExists(file) {
 		file, _ = filepath.Abs(filepath.Join("..", "test", "conf.d"))

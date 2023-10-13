@@ -454,7 +454,7 @@ func Test_resolveProfileDefinitionPath(t *testing.T) {
 
 func Test_loadDefaultProfiles(t *testing.T) {
 	SetConfdPathAndCleanProfiles()
-	globalProfileConfigMap = nil
+	profile.SetGlobalProfileConfigMap(nil)
 	defaultProfiles, err := loadYamlProfiles()
 	assert.Nil(t, err)
 	defaultProfiles2, err := loadYamlProfiles()
@@ -464,8 +464,8 @@ func Test_loadDefaultProfiles(t *testing.T) {
 }
 
 func Test_loadDefaultProfiles_withUserProfiles(t *testing.T) {
-	globalProfileConfigMap = nil
 	defaultTestConfdPath, _ := filepath.Abs(filepath.Join("..", "test", "user_profiles.d"))
+	profile.SetGlobalProfileConfigMap(nil)
 	config.Datadog.Set("confd_path", defaultTestConfdPath)
 
 	defaultProfiles, err := loadYamlProfiles()
@@ -496,7 +496,7 @@ func Test_loadDefaultProfiles_withUserProfiles(t *testing.T) {
 func Test_loadDefaultProfiles_invalidDir(t *testing.T) {
 	invalidPath, _ := filepath.Abs(filepath.Join(".", "tmp", "invalidPath"))
 	config.Datadog.Set("confd_path", invalidPath)
-	globalProfileConfigMap = nil
+	profile.SetGlobalProfileConfigMap(nil)
 
 	defaultProfiles, err := loadYamlProfiles()
 	assert.Nil(t, err)
@@ -512,7 +512,7 @@ func Test_loadDefaultProfiles_invalidExtendProfile(t *testing.T) {
 
 	profilesWithInvalidExtendConfdPath, _ := filepath.Abs(filepath.Join("..", "test", "invalid_ext.d"))
 	config.Datadog.Set("confd_path", profilesWithInvalidExtendConfdPath)
-	globalProfileConfigMap = nil
+	profile.SetGlobalProfileConfigMap(nil)
 
 	defaultProfiles, err := loadYamlProfiles()
 
@@ -534,7 +534,7 @@ func Test_loadDefaultProfiles_validAndInvalidProfiles(t *testing.T) {
 
 	profilesWithInvalidExtendConfdPath, _ := filepath.Abs(filepath.Join("..", "test", "valid_invalid.d"))
 	config.Datadog.Set("confd_path", profilesWithInvalidExtendConfdPath)
-	globalProfileConfigMap = nil
+	profile.SetGlobalProfileConfigMap(nil)
 
 	defaultProfiles, err := loadYamlProfiles()
 
