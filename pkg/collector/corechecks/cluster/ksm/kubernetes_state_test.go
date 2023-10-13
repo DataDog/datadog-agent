@@ -1131,14 +1131,14 @@ func TestKSMCheck_hostnameAndTags(t *testing.T) {
 			wantHostname: "",
 		},
 		{
-			name: "add check instance tags",
+			name: "do not add check instance tags",
 			config: &KSMConfig{
 				Tags: []string{"instance:tag"},
 			},
 			args: args{
 				labels: map[string]string{"foo_label": "foo_value"},
 			},
-			wantTags:     []string{"foo_label:foo_value", "instance:tag"},
+			wantTags:     []string{"foo_label:foo_value"},
 			wantHostname: "",
 		},
 		{
