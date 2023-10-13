@@ -335,7 +335,7 @@ func (fi *Server) handleGetPayloads(w http.ResponseWriter, req *http.Request) {
 	}
 	// send response
 	writeHTTPResponse(w, httpResponse{
-		contentType: "application/octet-stream",
+		contentType: "application/json",
 		statusCode:  http.StatusOK,
 		body:        jsonResp,
 	})
