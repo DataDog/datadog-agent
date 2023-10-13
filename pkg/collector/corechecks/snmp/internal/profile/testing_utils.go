@@ -32,6 +32,7 @@ func pathExists(path string) bool {
 	return !os.IsNotExist(err)
 }
 
+// FixtureProfileDefinitionMap returns a fixture of ProfileConfigMap with `f5-big-ip` profile
 func FixtureProfileDefinitionMap() ProfileConfigMap {
 	metrics := []profiledefinition.MetricsConfig{
 		{MIB: "F5-BIGIP-SYSTEM-MIB", Symbol: profiledefinition.SymbolConfig{OID: "1.3.6.1.4.1.3375.2.1.1.2.1.44.0", Name: "sysStatMemoryTotal", ScaleFactor: 2}, MetricType: profiledefinition.ProfileMetricTypeGauge},

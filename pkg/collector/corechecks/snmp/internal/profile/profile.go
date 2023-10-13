@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2023-present Datadog, Inc.
 
+// Package profile contains profile related code
 package profile
 
 import (
@@ -12,6 +13,11 @@ import (
 	"path/filepath"
 )
 
+// GetProfiles returns profiles depending on various sources:
+//   - init config profiles
+//   - yaml profiles
+//   - downloaded json gzip profiles
+//   - remote config profiles
 func GetProfiles(initConfigProfiles ProfileConfigMap) (ProfileConfigMap, error) {
 	var profiles ProfileConfigMap
 	if len(initConfigProfiles) > 0 {

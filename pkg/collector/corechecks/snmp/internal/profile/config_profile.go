@@ -9,8 +9,10 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/networkdevice/profile/profiledefinition"
 )
 
+// ProfileConfigMap represent a map of ProfileConfig
 type ProfileConfigMap map[string]ProfileConfig
 
+// ProfileConfig represent a profile configuration
 type ProfileConfig struct {
 	DefinitionFile string                              `yaml:"definition_file"`
 	Definition     profiledefinition.ProfileDefinition `yaml:"definition"`

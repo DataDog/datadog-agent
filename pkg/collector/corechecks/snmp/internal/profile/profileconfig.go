@@ -7,10 +7,12 @@ package profile
 
 var globalProfileConfigMap ProfileConfigMap
 
+// SetGlobalProfileConfigMap sets global globalProfileConfigMap
 func SetGlobalProfileConfigMap(configMap ProfileConfigMap) {
 	globalProfileConfigMap = configMap
 }
 
+// GetGlobalProfileConfigMap gets global globalProfileConfigMap
 func GetGlobalProfileConfigMap() ProfileConfigMap {
 	return globalProfileConfigMap
 }
