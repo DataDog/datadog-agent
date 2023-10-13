@@ -148,15 +148,15 @@ func extractListenerDetails(listeners []*netflowListener) []map[string]interface
 
 	for _, listener := range listeners {
 		lDetail := map[string]interface{}{
-			"BindHost":  listener.statistics.BindHost,
-			"FlowType":  listener.statistics.FlowType,
-			"Port":      listener.statistics.Port,
-			"Workers":   listener.statistics.Workers,
-			"Namespace": listener.statistics.Namespace,
+			"BindHost":  listener.config.BindHost,
+			"FlowType":  listener.config.FlowType,
+			"Port":      listener.config.Port,
+			"Workers":   listener.config.Workers,
+			"Namespace": listener.config.Namespace,
 		}
 
-		if listener.statistics.Error != nil {
-			lDetail["Error"] = listener.statistics.Error.Error()
+		if listener.Error != nil {
+			lDetail["Error"] = listener.Error.Error()
 		} else {
 			lDetail["Error"] = "No Errors"
 		}
@@ -179,7 +179,7 @@ func GetStatus() Status {
 	closedListenersList := []*netflowListener{}
 
 	for _, listener := range globalServer.listeners {
-		if listener.statistics.Error != nil {
+		if listener.Error != nil {
 			closedListenersList = append(closedListenersList, listener)
 		} else {
 			workingListeners = append(workingListeners, listener)
