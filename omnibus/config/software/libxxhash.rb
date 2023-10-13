@@ -31,6 +31,6 @@ build do
   env = with_standard_compiler_flags(with_embedded_path)
   env["CFLAGS"] << " -fPIC"
 
-  make "-j #{workers} PREFIX=/ DESTDIR=#{install_dir}/embedded", env: env
-  make "install PREFIX=/ DESTDIR=#{install_dir}/embedded", env: env
+  make "-j #{workers} PREFIX=/ DESTDIR=#{install_dir}/embedded libxxhash", env: env
+  make "install_libxxhash install_libxxhash.includes PREFIX=/ DESTDIR=#{install_dir}/embedded", env: env
 end
