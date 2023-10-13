@@ -23,7 +23,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/snmp/snmpintegration"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/common"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/checkconfig"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/valuestore"
 )
@@ -472,57 +471,57 @@ func Test_metricSender_reportNetworkDeviceMetadata_fallbackOnFieldValue(t *testi
 
 func TestComputeInterfaceStatus(t *testing.T) {
 	type testCase struct {
-		ifAdminStatus common.IfAdminStatus
-		ifOperStatus  common.IfOperStatus
-		status        common.InterfaceStatus
+		ifAdminStatus metadata.IfAdminStatus
+		ifOperStatus  metadata.IfOperStatus
+		status        metadata.InterfaceStatus
 	}
 
 	// Test the method with only valid input for ifAdminStatus and ifOperStatus
 	allTests := []testCase{
 		// Valid test cases
-		{common.AdminStatus_Up, common.OperStatus_Up, common.InterfaceStatus_Up},
-		{common.AdminStatus_Up, common.OperStatus_Down, common.InterfaceStatus_Down},
-		{common.AdminStatus_Up, common.OperStatus_Testing, common.InterfaceStatus_Warning},
-		{common.AdminStatus_Up, common.OperStatus_Unknown, common.InterfaceStatus_Warning},
-		{common.AdminStatus_Up, common.OperStatus_Dormant, common.InterfaceStatus_Warning},
-		{common.AdminStatus_Up, common.OperStatus_NotPresent, common.InterfaceStatus_Warning},
-		{common.AdminStatus_Up, common.OperStatus_LowerLayerDown, common.InterfaceStatus_Warning},
-		{common.AdminStatus_Down, common.OperStatus_Up, common.InterfaceStatus_Down},
-		{common.AdminStatus_Down, common.OperStatus_Down, common.InterfaceStatus_Off},
-		{common.AdminStatus_Down, common.OperStatus_Testing, common.InterfaceStatus_Warning},
-		{common.AdminStatus_Down, common.OperStatus_Unknown, common.InterfaceStatus_Warning},
-		{common.AdminStatus_Down, common.OperStatus_Dormant, common.InterfaceStatus_Warning},
-		{common.AdminStatus_Down, common.OperStatus_NotPresent, common.InterfaceStatus_Warning},
-		{common.AdminStatus_Down, common.OperStatus_LowerLayerDown, common.InterfaceStatus_Warning},
-		{common.AdminStatus_Testing, common.OperStatus_Up, common.InterfaceStatus_Warning},
-		{common.AdminStatus_Testing, common.OperStatus_Down, common.InterfaceStatus_Down},
-		{common.AdminStatus_Testing, common.OperStatus_Testing, common.InterfaceStatus_Warning},
-		{common.AdminStatus_Testing, common.OperStatus_Unknown, common.InterfaceStatus_Warning},
-		{common.AdminStatus_Testing, common.OperStatus_Dormant, common.InterfaceStatus_Warning},
-		{common.AdminStatus_Testing, common.OperStatus_NotPresent, common.InterfaceStatus_Warning},
-		{common.AdminStatus_Testing, common.OperStatus_LowerLayerDown, common.InterfaceStatus_Warning},
+		{metadata.AdminStatus_Up, metadata.OperStatus_Up, metadata.InterfaceStatus_Up},
+		{metadata.AdminStatus_Up, metadata.OperStatus_Down, metadata.InterfaceStatus_Down},
+		{metadata.AdminStatus_Up, metadata.OperStatus_Testing, metadata.InterfaceStatus_Warning},
+		{metadata.AdminStatus_Up, metadata.OperStatus_Unknown, metadata.InterfaceStatus_Warning},
+		{metadata.AdminStatus_Up, metadata.OperStatus_Dormant, metadata.InterfaceStatus_Warning},
+		{metadata.AdminStatus_Up, metadata.OperStatus_NotPresent, metadata.InterfaceStatus_Warning},
+		{metadata.AdminStatus_Up, metadata.OperStatus_LowerLayerDown, metadata.InterfaceStatus_Warning},
+		{metadata.AdminStatus_Down, metadata.OperStatus_Up, metadata.InterfaceStatus_Down},
+		{metadata.AdminStatus_Down, metadata.OperStatus_Down, metadata.InterfaceStatus_Off},
+		{metadata.AdminStatus_Down, metadata.OperStatus_Testing, metadata.InterfaceStatus_Warning},
+		{metadata.AdminStatus_Down, metadata.OperStatus_Unknown, metadata.InterfaceStatus_Warning},
+		{metadata.AdminStatus_Down, metadata.OperStatus_Dormant, metadata.InterfaceStatus_Warning},
+		{metadata.AdminStatus_Down, metadata.OperStatus_NotPresent, metadata.InterfaceStatus_Warning},
+		{metadata.AdminStatus_Down, metadata.OperStatus_LowerLayerDown, metadata.InterfaceStatus_Warning},
+		{metadata.AdminStatus_Testing, metadata.OperStatus_Up, metadata.InterfaceStatus_Warning},
+		{metadata.AdminStatus_Testing, metadata.OperStatus_Down, metadata.InterfaceStatus_Down},
+		{metadata.AdminStatus_Testing, metadata.OperStatus_Testing, metadata.InterfaceStatus_Warning},
+		{metadata.AdminStatus_Testing, metadata.OperStatus_Unknown, metadata.InterfaceStatus_Warning},
+		{metadata.AdminStatus_Testing, metadata.OperStatus_Dormant, metadata.InterfaceStatus_Warning},
+		{metadata.AdminStatus_Testing, metadata.OperStatus_NotPresent, metadata.InterfaceStatus_Warning},
+		{metadata.AdminStatus_Testing, metadata.OperStatus_LowerLayerDown, metadata.InterfaceStatus_Warning},
 
 		// Invalid ifOperStatus
-		{common.AdminStatus_Up, 0, common.InterfaceStatus_Warning},
-		{common.AdminStatus_Up, 8, common.InterfaceStatus_Warning},
-		{common.AdminStatus_Up, 100, common.InterfaceStatus_Warning},
-		{common.AdminStatus_Down, 0, common.InterfaceStatus_Warning},
-		{common.AdminStatus_Down, 8, common.InterfaceStatus_Warning},
-		{common.AdminStatus_Down, 100, common.InterfaceStatus_Warning},
-		{common.AdminStatus_Testing, 0, common.InterfaceStatus_Warning},
-		{common.AdminStatus_Testing, 8, common.InterfaceStatus_Warning},
-		{common.AdminStatus_Testing, 100, common.InterfaceStatus_Warning},
+		{metadata.AdminStatus_Up, 0, metadata.InterfaceStatus_Warning},
+		{metadata.AdminStatus_Up, 8, metadata.InterfaceStatus_Warning},
+		{metadata.AdminStatus_Up, 100, metadata.InterfaceStatus_Warning},
+		{metadata.AdminStatus_Down, 0, metadata.InterfaceStatus_Warning},
+		{metadata.AdminStatus_Down, 8, metadata.InterfaceStatus_Warning},
+		{metadata.AdminStatus_Down, 100, metadata.InterfaceStatus_Warning},
+		{metadata.AdminStatus_Testing, 0, metadata.InterfaceStatus_Warning},
+		{metadata.AdminStatus_Testing, 8, metadata.InterfaceStatus_Warning},
+		{metadata.AdminStatus_Testing, 100, metadata.InterfaceStatus_Warning},
 
 		// Invalid ifAdminStatus
-		{0, common.OperStatus_Unknown, common.InterfaceStatus_Down},
-		{0, common.OperStatus_Down, common.InterfaceStatus_Down},
-		{0, common.OperStatus_Up, common.InterfaceStatus_Down},
-		{4, common.OperStatus_Up, common.InterfaceStatus_Down},
-		{4, common.OperStatus_Down, common.InterfaceStatus_Down},
-		{4, common.OperStatus_Testing, common.InterfaceStatus_Down},
-		{100, common.OperStatus_Up, common.InterfaceStatus_Down},
-		{100, common.OperStatus_Down, common.InterfaceStatus_Down},
-		{100, common.OperStatus_Testing, common.InterfaceStatus_Down},
+		{0, metadata.OperStatus_Unknown, metadata.InterfaceStatus_Down},
+		{0, metadata.OperStatus_Down, metadata.InterfaceStatus_Down},
+		{0, metadata.OperStatus_Up, metadata.InterfaceStatus_Down},
+		{4, metadata.OperStatus_Up, metadata.InterfaceStatus_Down},
+		{4, metadata.OperStatus_Down, metadata.InterfaceStatus_Down},
+		{4, metadata.OperStatus_Testing, metadata.InterfaceStatus_Down},
+		{100, metadata.OperStatus_Up, metadata.InterfaceStatus_Down},
+		{100, metadata.OperStatus_Down, metadata.InterfaceStatus_Down},
+		{100, metadata.OperStatus_Testing, metadata.InterfaceStatus_Down},
 	}
 	for _, test := range allTests {
 		assert.Equal(t, test.status, computeInterfaceStatus(test.ifAdminStatus, test.ifOperStatus))

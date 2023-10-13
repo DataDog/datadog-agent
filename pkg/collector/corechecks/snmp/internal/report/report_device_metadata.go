@@ -86,32 +86,32 @@ func (ms *MetricSender) ReportNetworkDeviceMetadata(config *checkconfig.CheckCon
 	}
 }
 
-func computeInterfaceStatus(adminStatus common.IfAdminStatus, operStatus common.IfOperStatus) common.InterfaceStatus {
-	if adminStatus == common.AdminStatus_Up {
+func computeInterfaceStatus(adminStatus devicemetadata.IfAdminStatus, operStatus devicemetadata.IfOperStatus) devicemetadata.InterfaceStatus {
+	if adminStatus == devicemetadata.AdminStatus_Up {
 		switch {
-		case operStatus == common.OperStatus_Up:
-			return common.InterfaceStatus_Up
-		case operStatus == common.OperStatus_Down:
-			return common.InterfaceStatus_Down
+		case operStatus == devicemetadata.OperStatus_Up:
+			return devicemetadata.InterfaceStatus_Up
+		case operStatus == devicemetadata.OperStatus_Down:
+			return devicemetadata.InterfaceStatus_Down
 		}
-		return common.InterfaceStatus_Warning
+		return devicemetadata.InterfaceStatus_Warning
 	}
-	if adminStatus == common.AdminStatus_Down {
+	if adminStatus == devicemetadata.AdminStatus_Down {
 		switch {
-		case operStatus == common.OperStatus_Up:
-			return common.InterfaceStatus_Down
-		case operStatus == common.OperStatus_Down:
-			return common.InterfaceStatus_Off
+		case operStatus == devicemetadata.OperStatus_Up:
+			return devicemetadata.InterfaceStatus_Down
+		case operStatus == devicemetadata.OperStatus_Down:
+			return devicemetadata.InterfaceStatus_Off
 		}
-		return common.InterfaceStatus_Warning
+		return devicemetadata.InterfaceStatus_Warning
 	}
-	if adminStatus == common.AdminStatus_Testing {
+	if adminStatus == devicemetadata.AdminStatus_Testing {
 		switch {
-		case operStatus != common.OperStatus_Down:
-			return common.InterfaceStatus_Warning
+		case operStatus != devicemetadata.OperStatus_Down:
+			return devicemetadata.InterfaceStatus_Warning
 		}
 	}
-	return common.InterfaceStatus_Down
+	return devicemetadata.InterfaceStatus_Down
 }
 
 func buildMetadataStore(metadataConfigs profiledefinition.MetadataConfig, values *valuestore.ResultValueStore) *metadata.Store {
@@ -249,8 +249,8 @@ func buildNetworkInterfacesMetadata(deviceID string, store *metadata.Store) []de
 			Alias:       store.GetColumnAsString("interface.alias", strIndex),
 			Description: store.GetColumnAsString("interface.description", strIndex),
 			MacAddress:  store.GetColumnAsString("interface.mac_address", strIndex),
-			AdminStatus: common.IfAdminStatus((store.GetColumnAsFloat("interface.admin_status", strIndex))),
-			OperStatus:  common.IfOperStatus((store.GetColumnAsFloat("interface.oper_status", strIndex))),
+			AdminStatus: devicemetadata.IfAdminStatus((store.GetColumnAsFloat("interface.admin_status", strIndex))),
+			OperStatus:  devicemetadata.IfOperStatus((store.GetColumnAsFloat("interface.oper_status", strIndex))),
 			IDTags:      ifIDTags,
 		}
 		interfaces = append(interfaces, networkInterface)
