@@ -210,19 +210,26 @@ func (l *UDSListener) handleConnection(conn *net.UnixConn) error {
 		t2 = time.Now()
 		tlmListener.Observe(float64(t2.Sub(t1).Nanoseconds()), l.transport, "uds")
 
-		var expectedPacketLength int32
-		var maxPacketLength int32
+		var expectedPacketLength uint32
+		var maxPacketLength uint32
 		if l.transport == "unix" {
 			// Read the expected packet length (in stream mode)
-			err = binary.Read(conn, binary.LittleEndian, &expectedPacketLength)
+			b := []byte{0, 0, 0, 0}
+			_, err := io.ReadFull(conn, b)
+			expectedPacketLength := binary.LittleEndian.Uint32(b)
+
 			switch {
 			case err == io.EOF, errors.Is(err, io.ErrUnexpectedEOF):
 				log.Debugf("dogstatsd-uds: %s connection closed", l.transport)
 				return nil
 			}
+			if expectedPacketLength > uint32(len(packet.Buffer)) {
+				log.Info("dogstatsd-uds: packet length too large, dropping connection")
+				return nil
+			}
 			maxPacketLength = expectedPacketLength
 		} else {
-			maxPacketLength = int32(len(packet.Buffer))
+			maxPacketLength = uint32(len(packet.Buffer))
 		}
 
 		for err == nil {
@@ -240,10 +247,10 @@ func (l *UDSListener) handleConnection(conn *net.UnixConn) error {
 				break
 			}
 			// Otherwise see if we need to continue to accumulate bytes or not
-			if int32(n) == expectedPacketLength {
+			if uint32(n) == expectedPacketLength {
 				break
 			}
-			if int32(n) > expectedPacketLength {
+			if uint32(n) > expectedPacketLength {
 				log.Info("dogstatsd-uds: read length mismatch, dropping connection")
 				return nil
 			}
