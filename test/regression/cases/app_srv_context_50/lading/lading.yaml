@@ -7,18 +7,28 @@ generator:
       path: "/tmp/dsd.socket"
       variant:
         dogstatsd:
-          contexts_minimum: 49
-          contexts_maximum: 50
-          name_length_minimum: 1
-          name_length_maximum: 200
-          tag_key_length_minimum: 1
-          tag_key_length_maximum: 100
-          tag_value_length_minimum: 1
-          tag_value_length_maximum: 100
-          tags_per_msg_minimum: 2
-          tags_per_msg_maximum: 50
-          multivalue_count_minimum: 2
-          multivalue_count_maximum: 32
+          contexts:
+            constant: 50
+          name_length:
+            inclusive:
+              min: 1
+              max: 200
+          tag_key_length:
+            inclusive:
+              min: 1
+              max: 100
+          tag_value_length:
+            inclusive:
+              min: 1
+              max: 100
+          tags_per_msg:
+            inclusive:
+              min: 2
+              max: 50
+          multivalue_count:
+            inclusive:
+              min: 2
+              max: 32
           multivalue_pack_probability: 0.08
           kind_weights:
             metric: 90
