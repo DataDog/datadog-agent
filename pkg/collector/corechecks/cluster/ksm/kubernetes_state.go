@@ -837,7 +837,7 @@ func (k *KSMCheck) sendTelemetry(s sender.Sender) {
 	for resource, count := range k.telemetry.getResourcesCount() {
         tags := make([]string, len(k.globalTags)+1)
         copy(tags, k.globalTags)
-        tags[len(k.globalTags)] = "resource_name:"+resource)
+        tags[len(k.globalTags)] = "resource_name:"+resource
 		s.Gauge(ksmMetricPrefix+"telemetry.metrics.count", float64(count), "", tags)
 	}
 }
