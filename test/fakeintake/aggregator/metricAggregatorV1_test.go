@@ -9,6 +9,7 @@ import (
 	_ "embed"
 	"github.com/DataDog/datadog-agent/test/fakeintake/api"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"testing"
 )
 
@@ -22,12 +23,14 @@ func TestV1MetricPayloads(t *testing.T) {
 			Encoding: encodingDeflate,
 		})
 		assert.Error(t, err)
-		assert.Nil(t, metrics)
+		assert.Empty(t, metrics)
 	})
-	/*t.Run("parseMetricSeries valid body should parse metrics", func(t *testing.T) {
+	t.Run("parseMetricSeries valid body should parse metrics", func(t *testing.T) {
 		metrics, err := ParseV1MetricSeries(api.Payload{Data: metricsDatav1, Encoding: encodingDeflate})
-		assert.NoError(t, err)
-		assert.Equal(t, len(metrics), 2)
+		require.NoError(t, err)
+		assert.Equal(t, metrics[0].Metric, "datadog.trace_agent.started")
+		assert.Equal(t, metrics[0].Host, "COMP-WY4M717J6J")
+		assert.Equal(t, metrics[0].Points[0][0].(float64), float64(1697177070))
 
-	})*/
+	})
 }

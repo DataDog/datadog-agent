@@ -7,7 +7,6 @@ package aggregator
 
 import (
 	"encoding/json"
-	"fmt"
 	"github.com/DataDog/datadog-agent/test/fakeintake/api"
 	"time"
 )
@@ -20,35 +19,34 @@ const (
 	Rate  DatadogMetricType = "rate"
 )
 
+type MetricSeriesV1Header struct {
+	Series []*MetricSeriesV1 `json:"series"`
+}
+
 type MetricSeriesV1 struct {
 	collectedTime  time.Time
-	Metric         string                       `json:"metric"`
-	Type           DatadogMetricType            `json:"type"`
-	Interval       *uint32                      `json:"interval,omitempty"`
-	Points         []DatadogPoint               `json:"points"`
-	Tags           []string                     `json:"tags,omitempty"`
-	Host           *string                      `json:"host,omitempty"`
-	SourceTypeName *string                      `json:"source_type_name,omitempty"`
-	Device         *string                      `json:"device,omitempty"`
-	Metadata       *DatadogSeriesMetricMetadata `json:"metadata,omitempty"`
+	Metric         string                      `json:"metric"`
+	Type           DatadogMetricType           `json:"type"`
+	Interval       uint32                      `json:"interval,omitempty"`
+	Points         [][2]interface{}            `json:"points"`
+	Tags           []string                    `json:"tags,omitempty"`
+	Host           string                      `json:"host,omitempty"`
+	SourceTypeName string                      `json:"source_type_name,omitempty"`
+	Device         string                      `json:"device,omitempty"`
+	Metadata       DatadogSeriesMetricMetadata `json:"metadata,omitempty"`
 }
 
 type DatadogSeriesMetricMetadata struct {
-	Origin *DatadogMetricOriginMetadata `json:"origin,omitempty"`
-}
-
-type DatadogPoint struct {
-	Time  int64   `json:"time"`
-	Value float64 `json:"value"`
+	Origin DatadogMetricOriginMetadata `json:"origin,omitempty"`
 }
 
 type DatadogMetricOriginMetadata struct {
 	// OriginProduct
-	Product *uint32 `json:"product,omitempty"`
+	Product uint32 `json:"product,omitempty"`
 	// OriginCategory
-	Category *uint32 `json:"category,omitempty"`
+	Category uint32 `json:"category,omitempty"`
 	// OriginService
-	Service *uint32 `json:"service,omitempty"`
+	Service uint32 `json:"service,omitempty"`
 }
 
 func (mp *MetricSeriesV1) name() string {
@@ -71,25 +69,18 @@ func ParseV1MetricSeries(payload api.Payload) (metrics []*MetricSeriesV1, err er
 	if err != nil {
 		return nil, err
 	}
-	fmt.Printf("%s\n", enflated)
-	metrics = []*MetricSeriesV1{}
-	err = json.Unmarshal(enflated, &metrics)
+	header := MetricSeriesV1Header{Series: []*MetricSeriesV1{}}
+	err = json.Unmarshal(enflated, &header)
 	if err != nil {
 		return nil, err
 	}
-	for _, l := range metrics {
+	for _, l := range header.Series {
 		l.collectedTime = payload.Timestamp
 	}
-	return metrics, err
+	return header.Series, err
 
 }
 
 type MetricAggregatorV1 struct {
 	Aggregator[*MetricSeriesV1]
-}
-
-func NewMetricAggregatorV1() MetricAggregatorV1 {
-	return MetricAggregatorV1{
-		Aggregator: newAggregator(ParseV1MetricSeries),
-	}
 }
