@@ -7,6 +7,7 @@ package devicecheck
 
 import (
 	"fmt"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/configvalidation"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -352,8 +353,8 @@ collect_topology: false
 		},
 		{Tag: "snmp_host", Symbol: profiledefinition.SymbolConfigCompat{OID: "1.3.6.1.2.1.1.5.0", Name: "sysName"}},
 	}
-	checkconfig.ValidateEnrichMetrics(expectedMetrics)
-	checkconfig.ValidateEnrichMetricTags(expectedMetricTags)
+	configvalidation.ValidateEnrichMetrics(expectedMetrics)
+	configvalidation.ValidateEnrichMetricTags(expectedMetricTags)
 
 	assert.ElementsMatch(t, deviceCk.config.Metrics, expectedMetrics)
 
@@ -950,7 +951,7 @@ community_string: public
 		{Tag: "snmp_host2", Symbol: profiledefinition.SymbolConfigCompat{OID: "1.3.6.1.2.1.1.5.0", Name: "sysName"}},
 	}
 
-	checkconfig.ValidateEnrichMetricTags(expectedMetricsTagConfigs)
+	configvalidation.ValidateEnrichMetricTags(expectedMetricsTagConfigs)
 
 	assert.ElementsMatch(t, expectedMetricsTagConfigs, metricTagConfigs)
 }

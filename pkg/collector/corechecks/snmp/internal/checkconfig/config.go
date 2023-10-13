@@ -8,6 +8,7 @@ package checkconfig
 import (
 	"context"
 	"fmt"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/configvalidation"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/profile"
 	"hash/fnv"
 	"net"
@@ -516,8 +517,8 @@ func NewCheckConfig(rawInstance integration.Data, rawInitConfig integration.Data
 	c.RequestedMetrics = append(c.RequestedMetrics, uptimeMetricConfig)
 	profiledefinition.NormalizeMetrics(c.RequestedMetrics)
 	c.RequestedMetricTags = instance.MetricTags
-	errors := ValidateEnrichMetrics(c.RequestedMetrics)
-	errors = append(errors, ValidateEnrichMetricTags(c.RequestedMetricTags)...)
+	errors := configvalidation.ValidateEnrichMetrics(c.RequestedMetrics)
+	errors = append(errors, configvalidation.ValidateEnrichMetricTags(c.RequestedMetricTags)...)
 	if len(errors) > 0 {
 		return nil, fmt.Errorf("validation errors: %s", strings.Join(errors, "\n"))
 	}

@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package checkconfig
+package configvalidation
 
 import (
 	"fmt"
@@ -97,8 +97,8 @@ func ValidateEnrichMetrics(metrics []profiledefinition.MetricsConfig) []string {
 	return errors
 }
 
-// validateEnrichMetadata will validate MetadataConfig and enrich it.
-func validateEnrichMetadata(metadata profiledefinition.MetadataConfig) []string {
+// ValidateEnrichMetadata will validate MetadataConfig and enrich it.
+func ValidateEnrichMetadata(metadata profiledefinition.MetadataConfig) []string {
 	var errors []string
 	for resName := range metadata {
 		_, isValidRes := validMetadataResources[resName]

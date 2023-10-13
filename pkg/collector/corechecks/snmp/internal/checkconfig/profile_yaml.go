@@ -7,6 +7,7 @@ package checkconfig
 
 import (
 	"fmt"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/configvalidation"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/profile"
 	"os"
 	"path/filepath"
@@ -123,9 +124,9 @@ func loadProfiles(pConfig profile.ProfileConfigMap) (profile.ProfileConfigMap, e
 			profConfig.Definition = *profDefinition
 		}
 		profiledefinition.NormalizeMetrics(profConfig.Definition.Metrics)
-		errors := validateEnrichMetadata(profConfig.Definition.Metadata)
-		errors = append(errors, ValidateEnrichMetrics(profConfig.Definition.Metrics)...)
-		errors = append(errors, ValidateEnrichMetricTags(profConfig.Definition.MetricTags)...)
+		errors := configvalidation.ValidateEnrichMetadata(profConfig.Definition.Metadata)
+		errors = append(errors, configvalidation.ValidateEnrichMetrics(profConfig.Definition.Metrics)...)
+		errors = append(errors, configvalidation.ValidateEnrichMetricTags(profConfig.Definition.MetricTags)...)
 		if len(errors) > 0 {
 			log.Warnf("validation errors: %s", strings.Join(errors, "\n"))
 			continue
