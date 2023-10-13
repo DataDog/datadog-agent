@@ -8,16 +8,19 @@ package client
 import (
 	_ "embed"
 
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 
-	"github.com/DataDog/datadog-agent/test/fakeintake/aggregator"
-	"github.com/DataDog/datadog-agent/test/fakeintake/api"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/DataDog/datadog-agent/test/fakeintake/aggregator"
+	"github.com/DataDog/datadog-agent/test/fakeintake/api"
+	"github.com/DataDog/datadog-agent/test/fakeintake/fixtures"
 )
 
 //go:embed fixtures/api_v2_series_response
@@ -28,9 +31,6 @@ var apiV1CheckRunResponse []byte
 
 //go:embed fixtures/api_v2_logs_response
 var apiV2LogsResponse []byte
-
-//go:embed fixtures/process_payload_response
-var processPayloadResponse []byte
 
 //go:embed fixtures/api_support_flare_response
 var supportFlareResponse []byte
@@ -239,15 +239,27 @@ func TestClient(t *testing.T) {
 	})
 
 	t.Run("getProcesses", func(t *testing.T) {
+		payload := fixtures.CollectorProcPayload(t)
+		response := fmt.Sprintf(
+			`{
+				"payloads": [
+					{
+						"timestamp": "2023-07-12T11:05:20.847091908Z",
+						"data": "%s",
+						"encoding": "protobuf"
+					}
+				]
+			}`, base64.StdEncoding.EncodeToString(payload))
+
 		ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			w.Write(processPayloadResponse)
+			w.Write([]byte(response))
 		}))
 		defer ts.Close()
 
 		client := NewClient(ts.URL)
 		err := client.getProcesses()
 		require.NoError(t, err)
-		assert.True(t, client.processAggregator.ContainsPayloadName("i-078e212ca9b2c518f"))
+		assert.True(t, client.processAggregator.ContainsPayloadName("i-078e212"))
 		assert.False(t, client.processAggregator.ContainsPayloadName("totoro"))
 	})
 }

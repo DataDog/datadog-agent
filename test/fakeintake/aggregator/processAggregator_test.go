@@ -6,18 +6,18 @@
 package aggregator
 
 import (
-	_ "embed"
 	"testing"
 
-	"github.com/DataDog/datadog-agent/test/fakeintake/api"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/DataDog/datadog-agent/test/fakeintake/api"
+	"github.com/DataDog/datadog-agent/test/fakeintake/fixtures"
 )
 
-//go:embed fixtures/process_payload_bytes
-var processPayload []byte
-
 func TestProcessAggregator(t *testing.T) {
+	payload := fixtures.CollectorProcPayload(t)
+
 	t.Run("empty payload", func(t *testing.T) {
 		payloads, err := ParseProcessPayload(api.Payload{Data: []byte("")})
 		assert.Error(t, err)
@@ -31,12 +31,12 @@ func TestProcessAggregator(t *testing.T) {
 	})
 
 	t.Run("valid payload", func(t *testing.T) {
-		payloads, err := ParseProcessPayload(api.Payload{Data: processPayload})
+		payloads, err := ParseProcessPayload(api.Payload{Data: payload})
 		require.NoError(t, err)
 		require.Len(t, payloads, 1)
 
 		payload := payloads[0]
-		assert.Equal(t, "i-078e212ca9b2c518f", payload.HostName)
-		assert.Len(t, payload.Processes, 32)
+		assert.Equal(t, "i-078e212", payload.HostName)
+		assert.Len(t, payload.Processes, 6)
 	})
 }
