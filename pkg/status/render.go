@@ -93,7 +93,7 @@ func FormatStatus(data []byte) (string, error) {
 	}
 
 	netflowFunc := func() error {
-		if server.IsServerEnabled() {
+		if server.IsEnabled() {
 			return RenderStatusTemplate(b, "/netflow.tmpl", netflowStats)
 		}
 		return nil

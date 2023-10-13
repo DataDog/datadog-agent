@@ -18,6 +18,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/ndmtmp/sender"
 	nfconfig "github.com/DataDog/datadog-agent/comp/netflow/config"
 	"github.com/DataDog/datadog-agent/comp/netflow/flowaggregator"
+	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"go.uber.org/fx"
 )
@@ -46,8 +47,6 @@ type ListenerStats struct {
 	sync.Mutex      // Embed a mutex for safe concurrent updates
 }
 
-var ServerEnabled bool
-
 var listenerStats = &ListenerStats{}
 
 var globalServer = &Server{}
@@ -63,7 +62,6 @@ func newServer(lc fx.Lifecycle, deps dependencies) (Component, error) {
 	}
 
 	globalServer = server
-	ServerEnabled = true
 
 	if conf.Enabled {
 		// netflow is enabled, so start the server
@@ -175,8 +173,8 @@ func extractListenerDetails(listeners []*netflowListener) []map[string]interface
 	return details
 }
 
-func IsServerEnabled() bool {
-	return ServerEnabled
+func IsEnabled() bool {
+	return config.Datadog.GetBool("network_devices.netflow.enabled")
 }
 
 func GetStatus() Status {
