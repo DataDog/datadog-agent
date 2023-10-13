@@ -3,13 +3,12 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package checkconfig
+package profile
 
 import (
 	"compress/gzip"
 	"encoding/json"
 	"errors"
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/profile"
 	"io"
 	"os"
 	"path/filepath"
@@ -19,7 +18,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/networkdevice/profile/profiledefinition"
 )
 
-func loadBundleJSONProfiles() (profile.ProfileConfigMap, error) {
+func loadBundleJSONProfiles() (ProfileConfigMap, error) {
 	jsonStr, err := getProfilesBundleJSON()
 	if err != nil {
 		return nil, err
@@ -32,14 +31,14 @@ func loadBundleJSONProfiles() (profile.ProfileConfigMap, error) {
 	return profiles, nil
 }
 
-func unmarshallProfilesBundleJSON(jsonStr []byte) (profile.ProfileConfigMap, error) {
+func unmarshallProfilesBundleJSON(jsonStr []byte) (ProfileConfigMap, error) {
 	bundle := profiledefinition.ProfileBundle{}
 	err := json.Unmarshal(jsonStr, &bundle)
 	if err != nil {
 		return nil, err
 	}
 
-	profiles := make(profile.ProfileConfigMap)
+	profiles := make(ProfileConfigMap)
 	for _, p := range bundle.Profiles {
 		if p.Profile.Name == "" {
 			log.Warnf("Profile with missing name: %s", p.Profile.Name)
@@ -51,7 +50,7 @@ func unmarshallProfilesBundleJSON(jsonStr []byte) (profile.ProfileConfigMap, err
 			continue
 		}
 		// TODO: (separate PR) resolve extends with custom + local default profiles (yaml)
-		profiles[p.Profile.Name] = profile.ProfileConfig{
+		profiles[p.Profile.Name] = ProfileConfig{
 			Definition:    p.Profile,
 			IsUserProfile: true,
 		}

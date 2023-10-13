@@ -217,7 +217,7 @@ bulk_max_repetitions: 20
 		{Symbol: profiledefinition.SymbolConfig{OID: "1.2.3.4", Name: "aGlobalMetric"}},
 	}
 	expectedMetrics = append(expectedMetrics, profiledefinition.MetricsConfig{Symbol: profiledefinition.SymbolConfig{OID: "1.3.6.1.2.1.1.3.0", Name: "sysUpTimeInstance"}})
-	expectedMetrics = append(expectedMetrics, fixtureProfileDefinitionMap()["f5-big-ip"].Definition.Metrics...)
+	expectedMetrics = append(expectedMetrics, profile.FixtureProfileDefinitionMap()["f5-big-ip"].Definition.Metrics...)
 
 	expectedMetricTags := []profiledefinition.MetricTagConfig{
 		{Tag: "my_symbol", Symbol: profiledefinition.SymbolConfigCompat{OID: "1.2.3", Name: "mySymbol"}},
@@ -404,7 +404,7 @@ community_string: abc
 	assert.Equal(t, metrics, config.Metrics)
 	assert.Equal(t, metricsTags, config.MetricTags)
 	assert.Equal(t, 2, len(config.Profiles))
-	assert.Equal(t, fixtureProfileDefinitionMap()["f5-big-ip"].Definition.Metrics, config.Profiles["f5-big-ip"].Definition.Metrics)
+	assert.Equal(t, profile.FixtureProfileDefinitionMap()["f5-big-ip"].Definition.Metrics, config.Profiles["f5-big-ip"].Definition.Metrics)
 }
 
 func TestPortConfiguration(t *testing.T) {
@@ -936,7 +936,7 @@ func Test_getProfileForSysObjectID(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			profile, err := GetProfileForSysObjectID(tt.profiles, tt.sysObjectID)
+			profile, err := profile.GetProfileForSysObjectID(tt.profiles, tt.sysObjectID)
 			if tt.expectedError == "" {
 				assert.Nil(t, err)
 			} else {

@@ -9,6 +9,7 @@ import (
 	"errors"
 	"fmt"
 	common2 "github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/common"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/profile"
 	"strings"
 	"time"
 
@@ -244,7 +245,7 @@ func (d *DeviceCheck) detectMetricsToMonitor(sess session.Session) error {
 		if err != nil {
 			return fmt.Errorf("failed to fetch sysobjectid: %s", err)
 		}
-		profile, err := checkconfig.GetProfileForSysObjectID(d.config.Profiles, sysObjectID)
+		profile, err := profile.GetProfileForSysObjectID(d.config.Profiles, sysObjectID)
 		if err != nil {
 			return fmt.Errorf("failed to get profile sys object id for `%s`: %s", sysObjectID, err)
 		}

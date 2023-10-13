@@ -3,15 +3,13 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package checkconfig
+package profile
 
 import (
 	"bufio"
 	"bytes"
 	"fmt"
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/profile"
 	"path/filepath"
-	"regexp"
 	"strings"
 	"testing"
 
@@ -33,171 +31,13 @@ func getMetricFromProfile(p profiledefinition.ProfileDefinition, metricName stri
 	return nil
 }
 
-func fixtureProfileDefinitionMap() profile.ProfileConfigMap {
-	metrics := []profiledefinition.MetricsConfig{
-		{MIB: "F5-BIGIP-SYSTEM-MIB", Symbol: profiledefinition.SymbolConfig{OID: "1.3.6.1.4.1.3375.2.1.1.2.1.44.0", Name: "sysStatMemoryTotal", ScaleFactor: 2}, MetricType: profiledefinition.ProfileMetricTypeGauge},
-		{MIB: "F5-BIGIP-SYSTEM-MIB", Symbol: profiledefinition.SymbolConfig{OID: "1.3.6.1.4.1.3375.2.1.1.2.1.44.999", Name: "oldSyntax"}},
-		{
-			MIB: "IF-MIB",
-			Table: profiledefinition.SymbolConfig{
-				OID:  "1.3.6.1.2.1.2.2",
-				Name: "ifTable",
-			},
-			MetricType: profiledefinition.ProfileMetricTypeMonotonicCount,
-			Symbols: []profiledefinition.SymbolConfig{
-				{OID: "1.3.6.1.2.1.2.2.1.14", Name: "ifInErrors", ScaleFactor: 0.5},
-				{OID: "1.3.6.1.2.1.2.2.1.13", Name: "ifInDiscards"},
-			},
-			MetricTags: []profiledefinition.MetricTagConfig{
-				{Tag: "interface", Symbol: profiledefinition.SymbolConfigCompat{OID: "1.3.6.1.2.1.31.1.1.1.1", Name: "ifName"}},
-				{Tag: "interface_alias", Symbol: profiledefinition.SymbolConfigCompat{OID: "1.3.6.1.2.1.31.1.1.1.18", Name: "ifAlias"}},
-				{Tag: "mac_address", Symbol: profiledefinition.SymbolConfigCompat{OID: "1.3.6.1.2.1.2.2.1.6", Name: "ifPhysAddress", Format: "mac_address"}},
-			},
-			StaticTags: []string{"table_static_tag:val"},
-		},
-		{MIB: "SOME-MIB", Symbol: profiledefinition.SymbolConfig{OID: "1.2.3.4.5", Name: "someMetric"}},
-	}
-	return profile.ProfileConfigMap{
-		"f5-big-ip": profile.ProfileConfig{
-			Definition: profiledefinition.ProfileDefinition{
-				Metrics:      metrics,
-				Extends:      []string{"_base.yaml", "_generic-if.yaml"},
-				Device:       profiledefinition.DeviceMeta{Vendor: "f5"},
-				SysObjectIds: profiledefinition.StringArray{"1.3.6.1.4.1.3375.2.1.3.4.*"},
-				StaticTags:   []string{"static_tag:from_profile_root", "static_tag:from_base_profile"},
-				MetricTags: []profiledefinition.MetricTagConfig{
-					{
-						Symbol:  profiledefinition.SymbolConfigCompat{OID: "1.3.6.1.2.1.1.5.0", Name: "sysName"},
-						Match:   "(\\w)(\\w+)",
-						Pattern: regexp.MustCompile(`(\w)(\w+)`),
-						Tags: map[string]string{
-							"some_tag": "some_tag_value",
-							"prefix":   "\\1",
-							"suffix":   "\\2",
-						},
-					},
-					{Tag: "snmp_host", Index: 0x0, Symbol: profiledefinition.SymbolConfigCompat{OID: "1.3.6.1.2.1.1.5.0", Name: "sysName"}},
-				},
-				Metadata: profiledefinition.MetadataConfig{
-					"device": {
-						Fields: map[string]profiledefinition.MetadataField{
-							"vendor": {
-								Value: "f5",
-							},
-							"description": {
-								Symbol: profiledefinition.SymbolConfig{
-									OID:  "1.3.6.1.2.1.1.1.0",
-									Name: "sysDescr",
-								},
-							},
-							"name": {
-								Symbol: profiledefinition.SymbolConfig{
-									OID:  "1.3.6.1.2.1.1.5.0",
-									Name: "sysName",
-								},
-							},
-							"serial_number": {
-								Symbol: profiledefinition.SymbolConfig{
-									OID:  "1.3.6.1.4.1.3375.2.1.3.3.3.0",
-									Name: "sysGeneralChassisSerialNum",
-								},
-							},
-							"sys_object_id": {
-								Symbol: profiledefinition.SymbolConfig{
-									OID:  "1.3.6.1.2.1.1.2.0",
-									Name: "sysObjectID",
-								},
-							},
-						},
-					},
-					"interface": {
-						Fields: map[string]profiledefinition.MetadataField{
-							"admin_status": {
-								Symbol: profiledefinition.SymbolConfig{
-
-									OID:  "1.3.6.1.2.1.2.2.1.7",
-									Name: "ifAdminStatus",
-								},
-							},
-							"alias": {
-								Symbol: profiledefinition.SymbolConfig{
-									OID:  "1.3.6.1.2.1.31.1.1.1.18",
-									Name: "ifAlias",
-								},
-							},
-							"description": {
-								Symbol: profiledefinition.SymbolConfig{
-									OID:                  "1.3.6.1.2.1.31.1.1.1.1",
-									Name:                 "ifName",
-									ExtractValue:         "(Row\\d)",
-									ExtractValueCompiled: regexp.MustCompile(`(Row\d)`),
-								},
-							},
-							"mac_address": {
-								Symbol: profiledefinition.SymbolConfig{
-									OID:    "1.3.6.1.2.1.2.2.1.6",
-									Name:   "ifPhysAddress",
-									Format: "mac_address",
-								},
-							},
-							"name": {
-								Symbol: profiledefinition.SymbolConfig{
-									OID:  "1.3.6.1.2.1.31.1.1.1.1",
-									Name: "ifName",
-								},
-							},
-							"oper_status": {
-								Symbol: profiledefinition.SymbolConfig{
-									OID:  "1.3.6.1.2.1.2.2.1.8",
-									Name: "ifOperStatus",
-								},
-							},
-						},
-						IDTags: profiledefinition.MetricTagConfigList{
-							{
-								Tag: "custom-tag",
-								Symbol: profiledefinition.SymbolConfigCompat{
-									OID:  "1.3.6.1.2.1.31.1.1.1.1",
-									Name: "ifAlias",
-								},
-							},
-							{
-								Tag: "interface",
-								Symbol: profiledefinition.SymbolConfigCompat{
-									OID:  "1.3.6.1.2.1.31.1.1.1.1",
-									Name: "ifName",
-								},
-							},
-						},
-					},
-				},
-			},
-			IsUserProfile: true,
-		},
-		"another_profile": profile.ProfileConfig{
-			Definition: profiledefinition.ProfileDefinition{
-				SysObjectIds: profiledefinition.StringArray{"1.3.6.1.4.1.32473.1.1"},
-				Metrics: []profiledefinition.MetricsConfig{
-					{Symbol: profiledefinition.SymbolConfig{OID: "1.3.6.1.2.1.1.999.0", Name: "anotherMetric"}, MetricType: ""},
-				},
-				MetricTags: []profiledefinition.MetricTagConfig{
-					{Tag: "snmp_host2", Symbol: profiledefinition.SymbolConfigCompat{OID: "1.3.6.1.2.1.1.5.0", Name: "sysName"}},
-					{Tag: "unknown_symbol", Symbol: profiledefinition.SymbolConfigCompat{OID: "1.3.6.1.2.1.1.999.0", Name: "unknownSymbol"}},
-				},
-				Metadata: profiledefinition.MetadataConfig{},
-			},
-			IsUserProfile: true,
-		},
-	}
-}
-
 func Test_getDefaultProfilesDefinitionFiles(t *testing.T) {
-	profile.SetConfdPathAndCleanProfiles()
+	SetConfdPathAndCleanProfiles()
 	actualProfileConfig, err := getDefaultProfilesDefinitionFiles()
 	assert.Nil(t, err)
 
 	confdPath := config.Datadog.GetString("confd_path")
-	expectedProfileConfig := profile.ProfileConfigMap{
+	expectedProfileConfig := ProfileConfigMap{
 		"f5-big-ip": {
 			DefinitionFile: filepath.Join(confdPath, "snmp.d", "profiles", "f5-big-ip.yaml"),
 			IsUserProfile:  true,
@@ -230,8 +70,8 @@ func Test_loadProfiles(t *testing.T) {
 	tests := []struct {
 		name                  string
 		confdPath             string
-		inputProfileConfigMap profile.ProfileConfigMap
-		expectedProfileDefMap profile.ProfileConfigMap
+		inputProfileConfigMap ProfileConfigMap
+		expectedProfileDefMap ProfileConfigMap
 		expectedIncludeErrors []string
 		expectedLogs          []logCount
 	}{
@@ -239,31 +79,31 @@ func Test_loadProfiles(t *testing.T) {
 			name:                  "ok case",
 			confdPath:             defaultTestConfdPath,
 			inputProfileConfigMap: defaultProfilesDef,
-			expectedProfileDefMap: fixtureProfileDefinitionMap(),
+			expectedProfileDefMap: FixtureProfileDefinitionMap(),
 			expectedIncludeErrors: []string{},
 		},
 		{
 			name: "failed to read profile",
-			inputProfileConfigMap: profile.ProfileConfigMap{
+			inputProfileConfigMap: ProfileConfigMap{
 				"f5-big-ip": {
 					DefinitionFile: filepath.Join(string(filepath.Separator), "does", "not", "exist"),
 					IsUserProfile:  true,
 				},
 			},
-			expectedProfileDefMap: profile.ProfileConfigMap{},
+			expectedProfileDefMap: ProfileConfigMap{},
 			expectedLogs: []logCount{
 				{"[WARN] loadProfiles: failed to read profile definition `f5-big-ip`: failed to read file", 1},
 			},
 		},
 		{
 			name: "invalid extends",
-			inputProfileConfigMap: profile.ProfileConfigMap{
+			inputProfileConfigMap: ProfileConfigMap{
 				"f5-big-ip": {
 					DefinitionFile: profileWithInvalidExtends,
 					IsUserProfile:  true,
 				},
 			},
-			expectedProfileDefMap: profile.ProfileConfigMap{},
+			expectedProfileDefMap: ProfileConfigMap{},
 			expectedLogs: []logCount{
 				{"[WARN] loadProfiles: failed to expand profile `f5-big-ip`: failed to read file", 1},
 			},
@@ -271,12 +111,12 @@ func Test_loadProfiles(t *testing.T) {
 		{
 			name:      "invalid recursive extends",
 			confdPath: profilesWithInvalidExtendConfdPath,
-			inputProfileConfigMap: profile.ProfileConfigMap{
+			inputProfileConfigMap: ProfileConfigMap{
 				"f5-big-ip": {
 					DefinitionFile: "f5-big-ip.yaml",
 				},
 			},
-			expectedProfileDefMap: profile.ProfileConfigMap{},
+			expectedProfileDefMap: ProfileConfigMap{},
 			expectedLogs: []logCount{
 				{"[WARN] loadProfiles: failed to expand profile `f5-big-ip`", 1},
 				{"invalid.yaml", 2},
@@ -285,36 +125,36 @@ func Test_loadProfiles(t *testing.T) {
 		{
 			name:      "invalid cyclic extends",
 			confdPath: invalidCyclicConfdPath,
-			inputProfileConfigMap: profile.ProfileConfigMap{
+			inputProfileConfigMap: ProfileConfigMap{
 				"f5-big-ip": {
 					DefinitionFile: "f5-big-ip.yaml",
 				},
 			},
-			expectedProfileDefMap: profile.ProfileConfigMap{},
+			expectedProfileDefMap: ProfileConfigMap{},
 			expectedLogs: []logCount{
 				{"[WARN] loadProfiles: failed to expand profile `f5-big-ip`: cyclic profile extend detected, `_extend1.yaml` has already been extended, extendsHistory=`[_extend1.yaml _extend2.yaml]", 1},
 			},
 		},
 		{
 			name: "invalid yaml profile",
-			inputProfileConfigMap: profile.ProfileConfigMap{
+			inputProfileConfigMap: ProfileConfigMap{
 				"f5-big-ip": {
 					DefinitionFile: invalidYamlProfile,
 				},
 			},
-			expectedProfileDefMap: profile.ProfileConfigMap{},
+			expectedProfileDefMap: ProfileConfigMap{},
 			expectedLogs: []logCount{
 				{"failed to read profile definition `f5-big-ip`: failed to unmarshall", 1},
 			},
 		},
 		{
 			name: "validation error profile",
-			inputProfileConfigMap: profile.ProfileConfigMap{
+			inputProfileConfigMap: ProfileConfigMap{
 				"f5-big-ip": {
 					DefinitionFile: validationErrorProfile,
 				},
 			},
-			expectedProfileDefMap: profile.ProfileConfigMap{},
+			expectedProfileDefMap: ProfileConfigMap{},
 			expectedLogs: []logCount{
 				{"cannot compile `match` (`global_metric_tags[\\w)(\\w+)`)", 1},
 				{"cannot compile `match` (`table_match[\\w)`)", 1},
@@ -453,8 +293,8 @@ func Test_resolveProfileDefinitionPath(t *testing.T) {
 }
 
 func Test_loadDefaultProfiles(t *testing.T) {
-	profile.SetConfdPathAndCleanProfiles()
-	profile.SetGlobalProfileConfigMap(nil)
+	SetConfdPathAndCleanProfiles()
+	SetGlobalProfileConfigMap(nil)
 	defaultProfiles, err := loadYamlProfiles()
 	assert.Nil(t, err)
 	defaultProfiles2, err := loadYamlProfiles()
@@ -465,7 +305,7 @@ func Test_loadDefaultProfiles(t *testing.T) {
 
 func Test_loadDefaultProfiles_withUserProfiles(t *testing.T) {
 	defaultTestConfdPath, _ := filepath.Abs(filepath.Join("..", "test", "user_profiles.d"))
-	profile.SetGlobalProfileConfigMap(nil)
+	SetGlobalProfileConfigMap(nil)
 	config.Datadog.Set("confd_path", defaultTestConfdPath)
 
 	defaultProfiles, err := loadYamlProfiles()
@@ -496,7 +336,7 @@ func Test_loadDefaultProfiles_withUserProfiles(t *testing.T) {
 func Test_loadDefaultProfiles_invalidDir(t *testing.T) {
 	invalidPath, _ := filepath.Abs(filepath.Join(".", "tmp", "invalidPath"))
 	config.Datadog.Set("confd_path", invalidPath)
-	profile.SetGlobalProfileConfigMap(nil)
+	SetGlobalProfileConfigMap(nil)
 
 	defaultProfiles, err := loadYamlProfiles()
 	assert.Nil(t, err)
@@ -512,7 +352,7 @@ func Test_loadDefaultProfiles_invalidExtendProfile(t *testing.T) {
 
 	profilesWithInvalidExtendConfdPath, _ := filepath.Abs(filepath.Join("..", "test", "invalid_ext.d"))
 	config.Datadog.Set("confd_path", profilesWithInvalidExtendConfdPath)
-	profile.SetGlobalProfileConfigMap(nil)
+	SetGlobalProfileConfigMap(nil)
 
 	defaultProfiles, err := loadYamlProfiles()
 
@@ -521,7 +361,7 @@ func Test_loadDefaultProfiles_invalidExtendProfile(t *testing.T) {
 	assert.Nil(t, err)
 
 	assert.Equal(t, 1, strings.Count(logs, "[WARN] loadProfiles: failed to expand profile `f5-big-ip"), logs)
-	assert.Equal(t, profile.ProfileConfigMap{}, defaultProfiles)
+	assert.Equal(t, ProfileConfigMap{}, defaultProfiles)
 }
 
 func Test_loadDefaultProfiles_validAndInvalidProfiles(t *testing.T) {
@@ -534,7 +374,7 @@ func Test_loadDefaultProfiles_validAndInvalidProfiles(t *testing.T) {
 
 	profilesWithInvalidExtendConfdPath, _ := filepath.Abs(filepath.Join("..", "test", "valid_invalid.d"))
 	config.Datadog.Set("confd_path", profilesWithInvalidExtendConfdPath)
-	profile.SetGlobalProfileConfigMap(nil)
+	SetGlobalProfileConfigMap(nil)
 
 	defaultProfiles, err := loadYamlProfiles()
 
@@ -649,8 +489,8 @@ func Test_mergeProfileDefinition(t *testing.T) {
 	}{
 		{
 			name:             "merge case",
-			baseDefinition:   profile.CopyProfileDefinition(okBaseDefinition),
-			targetDefinition: profile.CopyProfileDefinition(okTargetDefinition),
+			baseDefinition:   CopyProfileDefinition(okBaseDefinition),
+			targetDefinition: CopyProfileDefinition(okTargetDefinition),
 			expectedDefinition: profiledefinition.ProfileDefinition{
 				Metrics: []profiledefinition.MetricsConfig{
 					{Symbol: profiledefinition.SymbolConfig{OID: "1.2", Name: "metric2"}, MetricType: profiledefinition.ProfileMetricTypeGauge},
@@ -724,8 +564,8 @@ func Test_mergeProfileDefinition(t *testing.T) {
 		},
 		{
 			name:             "empty base definition",
-			baseDefinition:   profile.CopyProfileDefinition(emptyBaseDefinition),
-			targetDefinition: profile.CopyProfileDefinition(okTargetDefinition),
+			baseDefinition:   CopyProfileDefinition(emptyBaseDefinition),
+			targetDefinition: CopyProfileDefinition(okTargetDefinition),
 			expectedDefinition: profiledefinition.ProfileDefinition{
 				Metrics: []profiledefinition.MetricsConfig{
 					{Symbol: profiledefinition.SymbolConfig{OID: "1.2", Name: "metric2"}, MetricType: profiledefinition.ProfileMetricTypeGauge},
@@ -771,8 +611,8 @@ func Test_mergeProfileDefinition(t *testing.T) {
 		},
 		{
 			name:             "empty taget definition",
-			baseDefinition:   profile.CopyProfileDefinition(okBaseDefinition),
-			targetDefinition: profile.CopyProfileDefinition(emptyBaseDefinition),
+			baseDefinition:   CopyProfileDefinition(okBaseDefinition),
+			targetDefinition: CopyProfileDefinition(emptyBaseDefinition),
 			expectedDefinition: profiledefinition.ProfileDefinition{
 				Metrics: []profiledefinition.MetricsConfig{
 					{Symbol: profiledefinition.SymbolConfig{OID: "1.1", Name: "metric1"}, MetricType: profiledefinition.ProfileMetricTypeGauge},

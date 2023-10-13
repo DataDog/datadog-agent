@@ -1,15 +1,14 @@
-package checkconfig
+package profile
 
 import (
 	"fmt"
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/profile"
 	"github.com/DataDog/datadog-agent/pkg/networkdevice/profile/profiledefinition"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"path/filepath"
 )
 
-func GetProfiles(initConfigProfiles profile.ProfileConfigMap) (profile.ProfileConfigMap, error) {
-	var profiles profile.ProfileConfigMap
+func GetProfiles(initConfigProfiles ProfileConfigMap) (ProfileConfigMap, error) {
+	var profiles ProfileConfigMap
 	if len(initConfigProfiles) > 0 {
 		// TODO: [PERFORMANCE] Load init config custom profiles once for all integrations
 		//   There are possibly multiple init configs
@@ -38,7 +37,7 @@ func GetProfiles(initConfigProfiles profile.ProfileConfigMap) (profile.ProfileCo
 }
 
 // GetProfileForSysObjectID return a profile for a sys object id
-func GetProfileForSysObjectID(profiles profile.ProfileConfigMap, sysObjectID string) (string, error) {
+func GetProfileForSysObjectID(profiles ProfileConfigMap, sysObjectID string) (string, error) {
 	tmpSysOidToProfile := map[string]string{}
 	var matchedOids []string
 

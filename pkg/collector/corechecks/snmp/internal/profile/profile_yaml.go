@@ -3,13 +3,12 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package checkconfig
+package profile
 
 import (
 	"fmt"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/common"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/configvalidation"
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/profile"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -35,11 +34,11 @@ var defaultProfilesMu = &sync.Mutex{}
 // in globalProfileConfigMap. The subsequent call to it will return profiles stored in
 // globalProfileConfigMap. The mutex will help loading once when `loadYamlProfiles`
 // is called by multiple check instances.
-func loadYamlProfiles() (profile.ProfileConfigMap, error) {
+func loadYamlProfiles() (ProfileConfigMap, error) {
 	defaultProfilesMu.Lock()
 	defer defaultProfilesMu.Unlock()
 
-	profileConfigMap := profile.GetGlobalProfileConfigMap()
+	profileConfigMap := GetGlobalProfileConfigMap()
 	if profileConfigMap != nil {
 		log.Debugf("load yaml profiles from cache")
 		return profileConfigMap, nil
@@ -54,16 +53,16 @@ func loadYamlProfiles() (profile.ProfileConfigMap, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to load default profiles: %s", err)
 	}
-	profile.SetGlobalProfileConfigMap(profiles)
+	SetGlobalProfileConfigMap(profiles)
 	return profiles, nil
 }
 
-func getDefaultProfilesDefinitionFiles() (profile.ProfileConfigMap, error) {
+func getDefaultProfilesDefinitionFiles() (ProfileConfigMap, error) {
 	// Get default profiles
 	profiles, err := getProfilesDefinitionFiles(defaultProfilesFolder)
 	if err != nil {
 		log.Warnf("failed to read default_profiles: %s", err)
-		profiles = make(profile.ProfileConfigMap)
+		profiles = make(ProfileConfigMap)
 	}
 	// Get user profiles
 	// User profiles have precedence over default profiles
@@ -79,14 +78,14 @@ func getDefaultProfilesDefinitionFiles() (profile.ProfileConfigMap, error) {
 	return profiles, nil
 }
 
-func getProfilesDefinitionFiles(profilesFolder string) (profile.ProfileConfigMap, error) {
+func getProfilesDefinitionFiles(profilesFolder string) (ProfileConfigMap, error) {
 	profilesRoot := getProfileConfdRoot(profilesFolder)
 	files, err := os.ReadDir(profilesRoot)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read dir `%s`: %v", profilesRoot, err)
 	}
 
-	profiles := make(profile.ProfileConfigMap)
+	profiles := make(ProfileConfigMap)
 	for _, f := range files {
 		fName := f.Name()
 		// Skip partial profiles
@@ -98,13 +97,13 @@ func getProfilesDefinitionFiles(profilesFolder string) (profile.ProfileConfigMap
 			continue
 		}
 		profileName := fName[:len(fName)-len(".yaml")]
-		profiles[profileName] = profile.ProfileConfig{DefinitionFile: filepath.Join(profilesRoot, fName)}
+		profiles[profileName] = ProfileConfig{DefinitionFile: filepath.Join(profilesRoot, fName)}
 	}
 	return profiles, nil
 }
 
-func loadProfiles(pConfig profile.ProfileConfigMap) (profile.ProfileConfigMap, error) {
-	profiles := make(profile.ProfileConfigMap, len(pConfig))
+func loadProfiles(pConfig ProfileConfigMap) (ProfileConfigMap, error) {
+	profiles := make(ProfileConfigMap, len(pConfig))
 
 	for name, profConfig := range pConfig {
 		if profConfig.DefinitionFile != "" {
