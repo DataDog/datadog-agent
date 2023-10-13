@@ -121,6 +121,7 @@ func TestParseBodyXml(t *testing.T) {
 		payload := parseBody(
 			map[string][]string{"content-type": {ct}},
 			&rawBody,
+			false,
 		)
 
 		require.Equal(t,
