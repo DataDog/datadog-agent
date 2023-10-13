@@ -140,6 +140,10 @@ Package host implements a component to generate the 'host' metadata payload (als
 
 Package inventoryagent implements a component to generate the 'datadog_agent' metadata payload for inventory.
 
+### [comp/metadata/inventoryhost](https://pkg.go.dev/github.com/DataDog/dd-agent-comp-experiments/comp/metadata/inventoryhost)
+
+Package inventoryhost exposes the interface for the component to generate the 'host_metadata' metadata payload for inventory.
+
 ### [comp/metadata/resources](https://pkg.go.dev/github.com/DataDog/dd-agent-comp-experiments/comp/metadata/resources)
 
 Package resources implements a component to generate the 'resources' metadata payload.
