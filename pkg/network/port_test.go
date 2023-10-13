@@ -122,10 +122,14 @@ func TestReadInitialUDPState(t *testing.T) {
 	require.NoError(t, err, "setup_netns.sh failed")
 
 	l := nettestutil.StartServerUDP(t, net.ParseIP("0.0.0.0"), 5432)
-	defer l.Close()
+	t.Cleanup(func() {
+		defer l.Close()
+	})
 
 	l6 := nettestutil.StartServerUDP(t, net.ParseIP("::"), 8080)
-	defer l6.Close()
+	t.Cleanup(func() {
+		defer l6.Close()
+	})
 
 	ports := []uint16{
 		5432,
