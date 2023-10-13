@@ -173,13 +173,20 @@ func CheckCWSBehaviour(t *testing.T, client *TestClient) {
 	})
 
 	t.Run("security-agent is running", func(tt *testing.T) {
-		_, err := client.VMClient.ExecuteWithError("pgrep -f security-agent")
-		require.NoError(tt, err, "security-agent should be running")
+		var err error
+		require.Eventually(tt, func() bool {
+			_, err = client.VMClient.ExecuteWithError("pgrep -f security-agent")
+			return err == nil
+		}, 1*time.Minute, 500*time.Millisecond, "security-agent should be running ", err)
+
 	})
 
 	t.Run("system-probe is running", func(tt *testing.T) {
-		_, err := client.VMClient.ExecuteWithError("pgrep -f system-probe")
-		require.NoError(tt, err, "security-agent should be running")
+		var err error
+		require.Eventually(tt, func() bool {
+			_, err = client.VMClient.ExecuteWithError("pgrep -f system-probe")
+			return err == nil
+		}, 1*time.Minute, 500*time.Millisecond, "system-probe should be running ", err)
 	})
 
 	t.Run("system-probe and security-agent communicate", func(tt *testing.T) {

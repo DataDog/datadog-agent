@@ -78,7 +78,7 @@ func (m *WindowsEventMessage) Render() ([]byte, error) {
 // GetContent returns the content part of the structured log.
 func (m *WindowsEventMessage) GetContent() []byte {
 	if message, exists := m.data["message"]; exists {
-		return message.([]byte)
+		return []byte(message.(string))
 	}
 	log.Error("WindowsEventMessage not containing any message")
 	return []byte{}
@@ -86,7 +86,9 @@ func (m *WindowsEventMessage) GetContent() []byte {
 
 // SetContent sets the content part of the structured log.
 func (m *WindowsEventMessage) SetContent(content []byte) {
-	_ = m.data.SetValueForPath(content, "message")
+	// we want to store it typed as a string for the json
+	// marshaling to properly marshal it as a string.
+	_ = m.data.SetValueForPath(string(content), "message")
 }
 
 // richEvent carries rendered information to create a richer log

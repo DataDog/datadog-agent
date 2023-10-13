@@ -26,16 +26,17 @@ import (
 
 const defaultProfilesFolder = "default_profiles"
 const userProfilesFolder = "profiles"
+const profilesJSONGzipFile = "profiles.json.gz"
 
 var defaultProfilesMu = &sync.Mutex{}
 
 var globalProfileConfigMap profileConfigMap
 
-// loadDefaultProfiles will load the profiles from disk only once and store it
+// loadYamlProfiles will load the profiles from disk only once and store it
 // in globalProfileConfigMap. The subsequent call to it will return profiles stored in
-// globalProfileConfigMap. The mutex will help loading once when `loadDefaultProfiles`
+// globalProfileConfigMap. The mutex will help loading once when `loadYamlProfiles`
 // is called by multiple check instances.
-func loadDefaultProfiles() (profileConfigMap, error) {
+func loadYamlProfiles() (profileConfigMap, error) {
 	defaultProfilesMu.Lock()
 	defer defaultProfilesMu.Unlock()
 
@@ -125,7 +126,8 @@ func loadProfiles(pConfig profileConfigMap) (profileConfigMap, error) {
 		errors = append(errors, ValidateEnrichMetrics(profConfig.Definition.Metrics)...)
 		errors = append(errors, ValidateEnrichMetricTags(profConfig.Definition.MetricTags)...)
 		if len(errors) > 0 {
-			return nil, fmt.Errorf("validation errors: %s", strings.Join(errors, "\n"))
+			log.Warnf("validation errors: %s", strings.Join(errors, "\n"))
+			continue
 		}
 		profiles[name] = profConfig
 	}

@@ -35,6 +35,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/diagnose"
 	"github.com/DataDog/datadog-agent/pkg/diagnose/diagnosis"
 	"github.com/DataDog/datadog-agent/pkg/epforwarder"
+	"github.com/DataDog/datadog-agent/pkg/gohai"
 	"github.com/DataDog/datadog-agent/pkg/logs/diagnostic"
 	"github.com/DataDog/datadog-agent/pkg/metadata/inventories"
 	v5 "github.com/DataDog/datadog-agent/pkg/metadata/v5"
@@ -448,6 +449,19 @@ func metadataPayload(w http.ResponseWriter, r *http.Request) {
 		scrubbed, err = scrubber.ScrubBytes(jsonPayload)
 		if err != nil {
 			setJSONError(w, log.Errorf("Unable to scrub metadata payload: %s", err), 500)
+			return
+		}
+	case "gohai":
+		payload := gohai.GetPayloadWithProcesses(config.IsContainerized())
+		jsonPayload, err := json.MarshalIndent(payload, "", "  ")
+		if err != nil {
+			setJSONError(w, log.Errorf("Unable to marshal gohai metadata payload: %s", err), 500)
+			return
+		}
+
+		scrubbed, err = scrubber.ScrubBytes(jsonPayload)
+		if err != nil {
+			setJSONError(w, log.Errorf("Unable to scrub gohai metadata payload: %s", err), 500)
 			return
 		}
 	case "inventory":

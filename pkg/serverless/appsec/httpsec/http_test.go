@@ -6,9 +6,10 @@
 package httpsec
 
 import (
-	"github.com/stretchr/testify/require"
 	"strings"
 	"testing"
+
+	"github.com/stretchr/testify/require"
 )
 
 func TestParseBodyJson(t *testing.T) {
@@ -83,4 +84,55 @@ func TestParseBodyMultipartFormData(t *testing.T) {
 		},
 		"broken": map[string]any{"filename": "bad.json", "data": nil},
 	}, payload)
+}
+
+func TestParseBodyXml(t *testing.T) {
+	rawBody := strings.Join(
+		[]string{
+			"<?xml version=\"1.0\" encoding=\"UTF-8\"?>",
+			"<dd:Message priority=\"0\" xmlns:dd=\"https://datadoghq.com\" xmlns:alt=\"https://datadoghq.com/phony-alt\">",
+			"  <Code>1337</Code>",
+			"  <!-- Now this is a nice comment! -->",
+			"  <alt:Text lang=\"en_US\"><![CDATA[This is a <test> message]]></alt:Text>",
+			"  And then some rogue text is here.",
+			"</dd:Message>",
+		}, "\n",
+	)
+
+	for _, ct := range []string{"application/xml", "text/xml", "application/xml;encoding=utf-8"} {
+		payload := parseBody(
+			map[string][]string{"content-type": {ct}},
+			&rawBody,
+		)
+
+		require.Equal(t,
+			map[string]any{
+				"Message": map[string]any{
+					":ns":        "https://datadoghq.com",
+					"@xmlns:alt": "https://datadoghq.com/phony-alt",
+					"@xmlns:dd":  "https://datadoghq.com",
+					"@priority":  "0",
+					"children": []any{
+						map[string]any{
+							"Code": map[string]any{
+								"children": []any{"1337"},
+							},
+						},
+						map[string]string{
+							"#": "Now this is a nice comment!",
+						},
+						map[string]any{
+							"Text": map[string]any{
+								":ns":      "https://datadoghq.com/phony-alt",
+								"@lang":    "en_US",
+								"children": []any{"This is a <test> message"},
+							},
+						},
+						"And then some rogue text is here.",
+					},
+				},
+			},
+			payload,
+		)
+	}
 }

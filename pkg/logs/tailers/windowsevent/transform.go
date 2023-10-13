@@ -79,7 +79,8 @@ func eventToMessage(re *richEvent, source *sources.LogSource, v1ProcessingBehavi
 
 	// new behaviour returning a structured message
 	return message.NewStructuredMessage(
-		&WindowsEventMessage{data: mv}, message.NewOrigin(source),
+		&WindowsEventMessage{data: mv},
+		message.NewOrigin(source),
 		message.StatusInfo,
 		time.Now().UnixNano(),
 	), nil

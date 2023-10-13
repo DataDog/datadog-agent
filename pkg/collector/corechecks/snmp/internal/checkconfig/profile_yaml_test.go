@@ -313,10 +313,10 @@ func Test_loadProfiles(t *testing.T) {
 					DefinitionFile: validationErrorProfile,
 				},
 			},
-			expectedProfileDefMap: nil,
-			expectedIncludeErrors: []string{
-				"cannot compile `match` (`global_metric_tags[\\w)(\\w+)`)",
-				"cannot compile `match` (`table_match[\\w)`)",
+			expectedProfileDefMap: profileConfigMap{},
+			expectedLogs: []logCount{
+				{"cannot compile `match` (`global_metric_tags[\\w)(\\w+)`)", 1},
+				{"cannot compile `match` (`table_match[\\w)`)", 1},
 			},
 		},
 	}
@@ -454,9 +454,9 @@ func Test_resolveProfileDefinitionPath(t *testing.T) {
 func Test_loadDefaultProfiles(t *testing.T) {
 	SetConfdPathAndCleanProfiles()
 	globalProfileConfigMap = nil
-	defaultProfiles, err := loadDefaultProfiles()
+	defaultProfiles, err := loadYamlProfiles()
 	assert.Nil(t, err)
-	defaultProfiles2, err := loadDefaultProfiles()
+	defaultProfiles2, err := loadYamlProfiles()
 	assert.Nil(t, err)
 
 	assert.Equal(t, fmt.Sprintf("%p", defaultProfiles), fmt.Sprintf("%p", defaultProfiles2))
@@ -467,7 +467,7 @@ func Test_loadDefaultProfiles_withUserProfiles(t *testing.T) {
 	defaultTestConfdPath, _ := filepath.Abs(filepath.Join("..", "test", "user_profiles.d"))
 	config.Datadog.Set("confd_path", defaultTestConfdPath)
 
-	defaultProfiles, err := loadDefaultProfiles()
+	defaultProfiles, err := loadYamlProfiles()
 	assert.Nil(t, err)
 
 	assert.Len(t, defaultProfiles, 4)
@@ -497,7 +497,7 @@ func Test_loadDefaultProfiles_invalidDir(t *testing.T) {
 	config.Datadog.Set("confd_path", invalidPath)
 	globalProfileConfigMap = nil
 
-	defaultProfiles, err := loadDefaultProfiles()
+	defaultProfiles, err := loadYamlProfiles()
 	assert.Nil(t, err)
 	assert.Len(t, defaultProfiles, 0)
 }
@@ -513,7 +513,7 @@ func Test_loadDefaultProfiles_invalidExtendProfile(t *testing.T) {
 	config.Datadog.Set("confd_path", profilesWithInvalidExtendConfdPath)
 	globalProfileConfigMap = nil
 
-	defaultProfiles, err := loadDefaultProfiles()
+	defaultProfiles, err := loadYamlProfiles()
 
 	w.Flush()
 	logs := b.String()
@@ -535,7 +535,7 @@ func Test_loadDefaultProfiles_validAndInvalidProfiles(t *testing.T) {
 	config.Datadog.Set("confd_path", profilesWithInvalidExtendConfdPath)
 	globalProfileConfigMap = nil
 
-	defaultProfiles, err := loadDefaultProfiles()
+	defaultProfiles, err := loadYamlProfiles()
 
 	for _, profile := range defaultProfiles {
 		profiledefinition.NormalizeMetrics(profile.Definition.Metrics)

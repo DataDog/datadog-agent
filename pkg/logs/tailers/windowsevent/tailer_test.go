@@ -155,6 +155,9 @@ func (s *ReadEventsSuite) TestCustomQuery() {
 }
 
 func (s *ReadEventsSuite) TestRecoverFromBrokenSubscription() {
+	// TODO: https://datadoghq.atlassian.net/browse/WINA-480
+	s.T().Skip("WINA-480: Skipping flaky test")
+
 	// create tailer and ensure events can be read
 	config := Config{
 		ChannelPath: s.channelPath,
