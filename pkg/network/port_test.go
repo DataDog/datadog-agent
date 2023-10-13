@@ -120,11 +120,11 @@ func TestReadInitialUDPState(t *testing.T) {
 	err := exec.Command("testdata/setup_netns.sh", nsName).Run()
 	require.NoError(t, err, "setup_netns.sh failed")
 
-	l, err := net.ListenUDP("udp", &net.UDPAddr{})
+	l, err := netlinktestutil.StartServerUDP(t, net.ParseIP("fd00.1"), 0)
 	require.NoError(t, err)
 	defer func() { _ = l.Close() }()
 
-	l6, err := net.ListenUDP("udp6", &net.UDPAddr{})
+	l6, err := netlinktestutil.StartServerUDP(t, net.ParseIP("fd00::1"), 0)
 	require.NoError(t, err)
 	defer func() { _ = l.Close() }()
 
