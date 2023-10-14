@@ -90,6 +90,9 @@ func (pn *ProcessNode) snapshotFiles(p *process.Process, stats *Stats, newEvent 
 			files = append(files, fd.Path)
 		}
 	}
+	if isSampling {
+		seclog.Warnf("sampled open files while snapshotting: kept %d of %d files", len(files), len(fileFDs))
+	}
 
 	// list the mmaped files of the process
 	mmapedFiles, err := snapshotMemoryMappedFiles(p.Pid, pn.Process.FileEvent.PathnameStr)
