@@ -84,6 +84,23 @@ func (l *TagList) AddAuto(name, value string) {
 	l.AddLow(name, value)
 }
 
+// RemoveTag removes a tag from the list
+func (l *TagList) RemoveTag(tag string) {
+	l.lowCardTags = removeTagFromMap(l.lowCardTags, tag)
+	l.orchestratorCardTags = removeTagFromMap(l.orchestratorCardTags, tag)
+	l.highCardTags = removeTagFromMap(l.highCardTags, tag)
+	l.standardTags = removeTagFromMap(l.standardTags, tag)
+}
+
+func removeTagFromMap(tagMap map[string]bool, tag string) map[string]bool {
+	for k := range tagMap {
+		if strings.HasPrefix(k, tag+":") {
+			delete(tagMap, k)
+		}
+	}
+	return tagMap
+}
+
 // Compute returns four string arrays in the format "tag:value"
 // - low cardinality
 // - orchestrator cardinality

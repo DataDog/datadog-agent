@@ -219,3 +219,48 @@ func TestCopy(t *testing.T) {
 	require.Contains(t, standard3, "env:dev")
 	require.Contains(t, standard3, "service:foo")
 }
+
+func TestRemoveTag(t *testing.T) {
+	list := NewTagList()
+	list.splitList = map[string]string{
+		"values":  ",",
+		"missing": " ",
+	}
+
+	// Add some tags
+	list.AddLow("removelow", "yes")
+	list.AddHigh("removehigh", "no")
+	list.AddStandard("env", "dev")
+
+	// Check if tag is removed from low
+	// Standard should still be in low
+	list.RemoveTag("removelow")
+	require.Len(t, list.lowCardTags, 1)
+	require.Contains(t, list.lowCardTags, "env:dev")
+
+	// Check if high is empty after removing
+	list.RemoveTag("removehigh")
+	require.Empty(t, list.highCardTags)
+
+	// Check if the standard tag is still in the list
+	require.Len(t, list.standardTags, 1)
+	require.Contains(t, list.standardTags, "env:dev")
+
+	// Remove standard tag and check
+	list.RemoveTag("env")
+	require.Len(t, list.standardTags, 0)
+	require.Empty(t, list.highCardTags)
+	require.Empty(t, list.lowCardTags)
+
+	// Add some tags
+	list.AddLow("removelow", "yes")
+	list.AddLow("donotremovelow", "yes")
+	list.AddLow("somethingelse", "no")
+	list.AddHigh("donotremovehigh", "yes")
+	list.RemoveTag("removelow")
+	require.Len(t, list.lowCardTags, 2)
+	low, _, high, _ := list.Compute()
+	require.Contains(t, low, "donotremovelow:yes")
+	require.Contains(t, low, "somethingelse:no")
+	require.Contains(t, high, "donotremovehigh:yes")
+}

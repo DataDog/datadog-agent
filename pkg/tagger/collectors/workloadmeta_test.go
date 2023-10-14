@@ -422,6 +422,108 @@ func TestHandleKubePod(t *testing.T) {
 				},
 			},
 		},
+		{
+			name: "disable single tag",
+			pod: workloadmeta.KubernetesPod{
+				EntityID: podEntityID,
+				EntityMeta: workloadmeta.EntityMeta{
+					Name:      podName,
+					Namespace: podNamespace,
+					Annotations: map[string]string{
+						"tags.datadoghq.com/disable": "pod_name",
+					},
+				},
+			},
+			expected: []*TagInfo{
+				{
+					Source:               podSource,
+					Entity:               podTaggerEntityID,
+					HighCardTags:         []string{},
+					OrchestratorCardTags: []string{}, // No pod_name tag
+					LowCardTags: []string{
+						fmt.Sprintf("kube_namespace:%s", podNamespace),
+					},
+					StandardTags: []string{},
+				},
+			},
+		},
+		{
+			name: "disable multiple tags",
+			pod: workloadmeta.KubernetesPod{
+				EntityID: podEntityID,
+				EntityMeta: workloadmeta.EntityMeta{
+					Name:      podName,
+					Namespace: podNamespace,
+					Annotations: map[string]string{
+						"tags.datadoghq.com/disable": "pod_name,kube_namespace",
+					},
+				},
+			},
+			expected: []*TagInfo{
+				{
+					Source:               podSource,
+					Entity:               podTaggerEntityID,
+					HighCardTags:         []string{},
+					OrchestratorCardTags: []string{}, // No pod_name tag
+					LowCardTags:          []string{}, // No kube_namespace tag
+					StandardTags:         []string{},
+				},
+			},
+		},
+		{
+			name: "disable non-existing tag",
+			pod: workloadmeta.KubernetesPod{
+				EntityID: podEntityID,
+				EntityMeta: workloadmeta.EntityMeta{
+					Name:      podName,
+					Namespace: podNamespace,
+					Annotations: map[string]string{
+						"tags.datadoghq.com/disable": "non_existing_tag",
+					},
+				},
+			},
+			expected: []*TagInfo{
+				{
+					Source:       podSource,
+					Entity:       podTaggerEntityID,
+					HighCardTags: []string{},
+					OrchestratorCardTags: []string{
+						fmt.Sprintf("pod_name:%s", podName),
+					},
+					LowCardTags: []string{
+						fmt.Sprintf("kube_namespace:%s", podNamespace),
+					},
+					StandardTags: []string{},
+				},
+			},
+		},
+		{
+			name: "disable tag with empty value",
+			pod: workloadmeta.KubernetesPod{
+				EntityID: podEntityID,
+				EntityMeta: workloadmeta.EntityMeta{
+					Name:      podName,
+					Namespace: podNamespace,
+					Annotations: map[string]string{
+						"tags.datadoghq.com/disable": "",
+					},
+				},
+			},
+			expected: []*TagInfo{
+				{
+					Source:       podSource,
+					Entity:       podTaggerEntityID,
+					HighCardTags: []string{},
+					OrchestratorCardTags: []string{
+						fmt.Sprintf("pod_name:%s", podName),
+					},
+					LowCardTags: []string{
+						fmt.Sprintf("kube_namespace:%s", podNamespace),
+					},
+					StandardTags: []string{},
+				},
+			},
+		},
 	}
 
 	for _, tt := range tests {
