@@ -45,22 +45,22 @@ type Tailer struct {
 	}
 	stop chan struct{}
 	done chan struct{}
-	// v1ProcessingBehavior indicates if we want to process and send the whole structured log message
+	// processRawMessage indicates if we want to process and send the whole structured log message
 	// instead of on the logs content. Note that the default behavior is now to only send
 	// the logs content, as other tailers do.
-	v1ProcessingBehavior bool
+	processRawMessage bool
 }
 
 // NewTailer returns a new tailer.
-func NewTailer(source *sources.LogSource, outputChan chan *message.Message, journal Journal, v1ProcessingBehavior bool) *Tailer {
+func NewTailer(source *sources.LogSource, outputChan chan *message.Message, journal Journal, processRawMessage bool) *Tailer {
 	return &Tailer{
-		decoder:              decoder.NewDecoderWithFraming(sources.NewReplaceableSource(source), noop.New(), framer.NoFraming, nil, status.NewInfoRegistry()),
-		source:               source,
-		outputChan:           outputChan,
-		journal:              journal,
-		stop:                 make(chan struct{}, 1),
-		done:                 make(chan struct{}, 1),
-		v1ProcessingBehavior: v1ProcessingBehavior,
+		decoder:           decoder.NewDecoderWithFraming(sources.NewReplaceableSource(source), noop.New(), framer.NoFraming, nil, status.NewInfoRegistry()),
+		source:            source,
+		outputChan:        outputChan,
+		journal:           journal,
+		stop:              make(chan struct{}, 1),
+		done:              make(chan struct{}, 1),
+		processRawMessage: processRawMessage,
 	}
 }
 
@@ -250,7 +250,7 @@ func (t *Tailer) tail() {
 
 			structuredContent, jsonMarshaled := t.getContent(entry)
 			var msg *message.Message
-			if t.v1ProcessingBehavior {
+			if t.processRawMessage {
 				msg = message.NewMessage(
 					jsonMarshaled,
 					t.getOrigin(entry),
@@ -354,7 +354,7 @@ func (t *Tailer) getContent(entry *sdjournal.JournalEntry) (message.BasicStructu
 		log.Error("can't marshal journald tailed log", err)
 		// if we're running with the old behavior,
 		// ensure the message has some content if the json encoding failed
-		if t.v1ProcessingBehavior {
+		if t.processRawMessage {
 			jsonMarshaled = []byte(msg)
 		}
 	}

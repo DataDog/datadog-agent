@@ -74,7 +74,7 @@ func TestTransformToMessageStructuredContent(t *testing.T) {
 	source := sources.NewLogSource("", &config.LogsConfig{})
 	tailer := NewTailer(nil, source, &Config{ChannelPath: "System"}, nil)
 
-	tailer.config.V1ProcessingBehavior = false
+	tailer.config.ProcessRawMessage = false
 
 	for _, testCase := range testData {
 		actual, _ := tailer.toMessage(richEventFromXML(testCase[0]))
@@ -89,7 +89,7 @@ func TestTransformToMessage(t *testing.T) {
 	source := sources.NewLogSource("", &config.LogsConfig{})
 	tailer := NewTailer(nil, source, &Config{ChannelPath: "System"}, nil)
 
-	tailer.config.V1ProcessingBehavior = true
+	tailer.config.ProcessRawMessage = true
 
 	for _, testCase := range testData {
 		actual, _ := tailer.toMessage(richEventFromXML(testCase[0]))

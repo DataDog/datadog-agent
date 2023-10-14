@@ -348,11 +348,11 @@ func TestTailerCompareUnstructuredAndStructured(t *testing.T) {
 	assert := assert.New(t)
 	sourceV1 := sources.NewLogSource("", &logconfig.LogsConfig{})
 	tailerV1 := NewTailer(nil, sourceV1, &Config{ChannelPath: "System"}, nil)
-	tailerV1.config.V1ProcessingBehavior = true
+	tailerV1.config.ProcessRawMessage = true
 
 	sourceV2 := sources.NewLogSource("", &logconfig.LogsConfig{})
 	tailerV2 := NewTailer(nil, sourceV2, &Config{ChannelPath: "System"}, nil)
-	tailerV2.config.V1ProcessingBehavior = false
+	tailerV2.config.ProcessRawMessage = false
 
 	for _, testCase := range testData {
 		ev1 := &richEvent{

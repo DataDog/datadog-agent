@@ -24,7 +24,7 @@ import (
 
 // eventToJSON converts an XML message into either an unstructured message.Message
 // or a structured one.
-func eventToMessage(re *richEvent, source *sources.LogSource, v1ProcessingBehavior bool) (*message.Message, error) {
+func eventToMessage(re *richEvent, source *sources.LogSource, processRawMessage bool) (*message.Message, error) {
 	event := re.xmlEvent
 	log.Trace("Rendered XML:", event)
 	mxj.PrependAttrWithHyphen(false)
@@ -67,7 +67,7 @@ func eventToMessage(re *richEvent, source *sources.LogSource, v1ProcessingBehavi
 	}
 
 	// old behaviour using an unstructured message with raw data
-	if v1ProcessingBehavior {
+	if processRawMessage {
 		jsonEvent, err := mv.Json(false)
 		if err != nil {
 			return nil, err

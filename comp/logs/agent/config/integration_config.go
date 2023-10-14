@@ -81,14 +81,8 @@ type LogsConfig struct {
 	SourceCategory  string
 	Tags            []string
 	ProcessingRules []*ProcessingRule `mapstructure:"log_processing_rules" json:"log_processing_rules"`
-
-	// This is tightly linked to how messages are transmitted through the pipeline.
-	// If set to true, tailers using structured message (journald, windowsevents)
-	// will fall back to previous behavior of sending the whole message (e.g. JSON
-	// for journald) for post-processing. Which is the behavior of Agent < 7.50.0.
-	// Otherwise, the message content is extracted from the structured message and
-	// only this part is post-processed and sent to the intake.
-	V1ProcessingBehavior bool `mapstructure:"v1_processing_behavior" json:"v1_processing_behavior"`
+	// See ShouldProcessRawMessage comment for information about ExperimentalProcessContentOnly.
+	ExperimentalProcessContentOnly bool `mapstructure:"experimental_process_content_only" json:"experimental_process_content_only"`
 
 	AutoMultiLine               *bool   `mapstructure:"auto_multi_line_detection" json:"auto_multi_line_detection"`
 	AutoMultiLineSampleSize     int     `mapstructure:"auto_multi_line_sample_size" json:"auto_multi_line_sample_size"`
@@ -150,6 +144,8 @@ func (c *LogsConfig) Dump(multiline bool) string {
 	fmt.Fprintf(&b, ws("SourceCategory: %#v,"), c.SourceCategory)
 	fmt.Fprintf(&b, ws("Tags: %#v,"), c.Tags)
 	fmt.Fprintf(&b, ws("ProcessingRules: %#v,"), c.ProcessingRules)
+	fmt.Fprintf(&b, ws("ExperimentalProcessContentOnly: %#v,"), c.ExperimentalProcessContentOnly)
+	fmt.Fprintf(&b, ws("ShouldProcessRawMessage(): %#v,"), c.ShouldProcessRawMessage())
 	if c.AutoMultiLine != nil {
 		fmt.Fprintf(&b, ws("AutoMultiLine: %t,"), *c.AutoMultiLine)
 	} else {
@@ -248,6 +244,22 @@ func (c *LogsConfig) AutoMultiLineEnabled(coreConfig pkgConfig.Reader) bool {
 		return *c.AutoMultiLine
 	}
 	return coreConfig.GetBool("logs_config.auto_multi_line_detection")
+}
+
+// ShouldProcessRawMessage returns if the raw message should be processed instead
+// of only the message content.
+// This is tightly linked to how messages are transmitted through the pipeline.
+// If returning true, tailers using structured message (journald, windowsevents)
+// will fall back to previous behavior of sending the whole message (e.g. JSON
+// for journald) for post-processing. Which is the behavior of Agent <= 7.50.0.
+// Otherwise, the message content is extracted from the structured message and
+// only this part is post-processed and sent to the intake.
+func (c *LogsConfig) ShouldProcessRawMessage() bool {
+	if c.ExperimentalProcessContentOnly { //nolint:gosimple
+		return false // process only the message content
+	}
+
+	return true // default behaviour when nothing's been configured
 }
 
 // ContainsWildcard returns true if the path contains any wildcard character

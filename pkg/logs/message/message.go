@@ -98,7 +98,7 @@ const (
 //	Sep 12 14:38:14 user my-app[1316]: time="2023-09-12T14:38:14Z" level=info msg="Starting the main execution"
 //
 // It would only return the `[]byte` containing "Starting the main execution"
-// While for unstructured log and for source configured with V1ProcessingBehavior=true,
+// While for unstructured log and for source configured with ProcessRawMessage=true,
 // the whole `[]byte` content is returned.
 // See `MessageContent` comment for more information as this method could also
 // return the message content in different state (rendered, encoded).

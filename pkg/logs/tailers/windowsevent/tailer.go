@@ -47,10 +47,8 @@ const (
 type Config struct {
 	ChannelPath string
 	Query       string
-	// V1ProcessingBehavior indicates ifq we want to process and send the whole structured log message
-	// instead of on the logs content. Note that the default behavior is now to only send
-	// the logs content, as other tailers do.
-	V1ProcessingBehavior bool
+	// See LogsConfig.ShouldProcessRawMessage() comment.
+	ProcessRawMessage bool
 }
 
 // eventContext links go and c
@@ -142,7 +140,7 @@ func (t *Tailer) Identifier() string {
 }
 
 func (t *Tailer) toMessage(re *richEvent) (*message.Message, error) {
-	return eventToMessage(re, t.source, t.config.V1ProcessingBehavior)
+	return eventToMessage(re, t.source, t.config.ProcessRawMessage)
 }
 
 // Start starts tailing the event log.
