@@ -168,9 +168,9 @@ func OpenFile(fs afero.Fs, l string, defaultLocation string) (afero.File, string
 
 // Capture start the traffic capture and writes the packets to file at the
 // specified location and for the specified duration.
-func (tc *TrafficCaptureWriter) Capture(target io.WriteCloser, d time.Duration, compressed bool) {
+func (tc *TrafficCaptureWriter) Capture(target io.WriteCloser, d time.Duration, compressed bool, destinationName string) {
 	defer target.Close()
-	log.Debug("Starting capture...")
+	log.Infof("Starting capture writing to %q. Capture will be stopped after %v", destinationName, d)
 
 	if compressed {
 		tc.zWriter = zstd.NewWriter(target)
@@ -202,24 +202,29 @@ func (tc *TrafficCaptureWriter) Capture(target io.WriteCloser, d time.Duration, 
 		tc.oobPacketPoolManager.SetPassthru(false)
 	}
 
-	done := make(chan struct{})
-	defer close(done)
-	go func() {
-		log.Debugf("Capture will be stopped after %v", d)
-
-		select {
-		case <-time.After(d):
-			tc.StopCapture()
-		case <-done:
+	delay := time.After(d)
+Loop:
+	for {
+		if !tc.accepting {
+			// Drain the channel of any msgs that were enqueued in between the last message getting drained
+			// and the timer going off.
+			// this is racy if multiple writers are in play, however we have a single codepath to
+			// write to this channel which is in Enqueue and is protected by a 'is accepting' check
+			for len(tc.Traffic) > 0 {
+				<-tc.Traffic
+			}
+			break
 		}
-	}()
+		select {
+		case <-delay:
+			break Loop
+		case msg := <-tc.Traffic:
+			err = tc.processMessage(msg)
 
-	for msg := range tc.Traffic {
-		err = tc.processMessage(msg)
-
-		if err != nil {
-			log.Errorf("There was an issue writing the captured message to disk, stopping capture: %v", err)
-			tc.StopCapture()
+			if err != nil {
+				log.Errorf("There was an issue writing the captured message to disk, stopping capture: %v", err)
+				tc.StopCapture()
+			}
 		}
 	}
 
@@ -227,7 +232,7 @@ func (tc *TrafficCaptureWriter) Capture(target io.WriteCloser, d time.Duration, 
 	if err != nil {
 		log.Warnf("There was an issue writing the capture state, capture file may be corrupt: %v", err)
 	} else {
-		log.Warnf("Wrote %d bytes for capture tagger state", n)
+		log.Debugf("Wrote %d bytes for capture tagger state", n)
 	}
 
 	err = tc.writer.Flush()
@@ -245,6 +250,8 @@ func (tc *TrafficCaptureWriter) Capture(target io.WriteCloser, d time.Duration, 
 	tc.Lock()
 	defer tc.Unlock()
 	tc.ongoing = false
+	tc.accepting = false
+	log.Debugf("Capture routine completed.")
 }
 
 // StopCapture stops the ongoing capture if in process.
@@ -253,11 +260,12 @@ func (tc *TrafficCaptureWriter) StopCapture() {
 	defer tc.Unlock()
 
 	if !tc.ongoing {
+		log.Debugf("StopCapture was invoked, but no capture ongoing, returning...", tc)
 		return
 	}
 
 	if tc.accepting {
-		close(tc.Traffic)
+		// Channel stays open, we only mark it as not accepting any further msgs
 		tc.accepting = false
 	}
 
@@ -268,7 +276,7 @@ func (tc *TrafficCaptureWriter) StopCapture() {
 		tc.oobPacketPoolManager.SetPassthru(true)
 	}
 
-	log.Debug("Capture was stopped")
+	log.Infof("Capture was stopped")
 }
 
 // Enqueue enqueues a capture buffer so it's written to file.
@@ -359,8 +367,8 @@ func (tc *TrafficCaptureWriter) writeState() (int, error) {
 		return 0, err
 	}
 
-	// Record State Separator
-	if n, err := tc.writer.Write([]byte{0, 0, 0, 0}); err != nil {
+	recordStateSeparator := []byte{0, 0, 0, 0}
+	if n, err := tc.writer.Write(recordStateSeparator); err != nil {
 		return n, err
 	}
 
@@ -375,8 +383,7 @@ func (tc *TrafficCaptureWriter) writeState() (int, error) {
 		return n, err
 	}
 
-	// n + 4 bytes for separator + 4 bytes for state size
-	return n + 8, err
+	return n + len(recordStateSeparator) + len(buf), err
 }
 
 // writeNext writes the next CaptureBuffer after serializing it to a protobuf format.
@@ -404,5 +411,5 @@ func (tc *TrafficCaptureWriter) Write(p []byte) (int, error) {
 	// Record
 	n, err := tc.writer.Write(p)
 
-	return n + 4, err
+	return n + len(buf), err
 }

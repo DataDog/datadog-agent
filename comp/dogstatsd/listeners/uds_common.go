@@ -141,6 +141,19 @@ func NewUDSListener(packetOut chan packets.Packets, sharedPacketPoolManager *pac
 	return listener, nil
 }
 
+func (l *UDSListener) grabCapBuffIfEnabled() *replay.CaptureBuffer {
+	var capBuff *replay.CaptureBuffer
+	if l.trafficCapture != nil && l.trafficCapture.IsOngoing() {
+		capBuff = replay.CapPool.Get().(*replay.CaptureBuffer)
+		capBuff.Pb.Ancillary = nil
+		capBuff.Pb.Payload = nil
+		capBuff.ContainerID = ""
+		log.Infof("Created a capBuff %p", capBuff)
+	}
+
+	return capBuff
+}
+
 // Listen runs the intake loop. Should be called in its own goroutine
 func (l *UDSListener) Listen() {
 	t1 := time.Now()
@@ -166,14 +179,7 @@ func (l *UDSListener) Listen() {
 		// which will be pushed back by the server when processed.
 		packet := l.sharedPacketPoolManager.Get().(*packets.Packet)
 		udsPackets.Add(1)
-
 		var capBuff *replay.CaptureBuffer
-		if l.trafficCapture != nil && l.trafficCapture.IsOngoing() {
-			capBuff = replay.CapPool.Get().(*replay.CaptureBuffer)
-			capBuff.Pb.Ancillary = nil
-			capBuff.Pb.Payload = nil
-			capBuff.ContainerID = ""
-		}
 
 		if l.OriginDetection {
 			// Read datagram + credentials in ancillary data
@@ -191,6 +197,7 @@ func (l *UDSListener) Listen() {
 			tlmListener.Observe(float64(t2.Sub(t1).Nanoseconds()), "uds")
 
 			n, oobn, _, _, err = l.conn.ReadMsgUnix(packet.Buffer, oobS)
+			capBuff = l.grabCapBuffIfEnabled()
 
 			t1 = time.Now()
 
@@ -233,6 +240,7 @@ func (l *UDSListener) Listen() {
 
 			// Read only datagram contents with no credentials
 			n, _, err = l.conn.ReadFromUnix(packet.Buffer)
+			capBuff = l.grabCapBuffIfEnabled()
 
 			t1 = time.Now()
 
