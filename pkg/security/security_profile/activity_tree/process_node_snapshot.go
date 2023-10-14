@@ -99,14 +99,15 @@ func (pn *ProcessNode) snapshotFiles(p *process.Process, stats *Stats, newEvent 
 	if err != nil {
 		seclog.Warnf("error while listing memory maps (pid: %v): %s", p.Pid, err)
 	}
+	// often the mmaped files are already nearly sorted, so we take the quick win and de-duplicate without sorting
+	mmapedFiles = slices.Compact(mmapedFiles)
 
 	files = append(files, mmapedFiles...)
-
 	if len(files) == 0 {
 		return
 	}
 
-	// often the mmaped files are already nearly sorted, so we take the quick win and de-duplicate without sorting
+	slices.Sort(files)
 	files = slices.Compact(files)
 
 	// insert files
