@@ -5,10 +5,7 @@ on:
     branches:
       - main
       - 7.[0-9][0-9].x
-  pull_request:
-    branches:
-      - main
-      - 7.[0-9][0-9].x
+      - klai/cryptographic-footprint
 
 jobs:
   CodeQL-Build:
@@ -43,6 +40,7 @@ jobs:
         with:
           languages: go, javascript, python, cpp
           setup-python-dependencies: false
+          config-file: .github/codeql_config.yml
           # Defining a fixed CodeQL bundle version
           tools: https://github.com/github/codeql-action/releases/download/codeql-bundle-20230207/codeql-bundle-linux64.tar.gz
 
@@ -59,3 +57,21 @@ jobs:
 
       - name: Perform CodeQL Analysis
         uses: github/codeql-action/analyze@v2
+
+      - name: Copy go sarif to working directory
+        run: |
+          cp ../results/go.sarif ./go.sarif
+
+      - name: Install codeowners for cryptographic summary parsing
+        run: |
+          pip install "codeowners==0.4.1"
+
+      - name: Create Cryptographic Summary
+        run: |
+          python cryptographic-summary-sarif.py
+
+      - name: Upload the summary as an artifact
+        uses: actions/upload-artifact@v2
+        with:
+          name: summary.txt
+          path: summary.txt

@@ -1,0 +1,8 @@
+name: "CodeQL config"
+disable-default-queries: true
+queries:
+  - name: Go Custom Crypto Queries
+    uses: datadog/qlpack/go-queries/CryptographicFootprint@klai/cryptographic-footprint
+paths-ignore:
+  - 'test/**'
+  - 'pkg/trace/testutil/**'
