@@ -49,15 +49,6 @@ type sessionTagColumns struct {
 	OsUser   sql.NullString `db:"OSUSER"`
 }
 
-const pgaQuery11 = `SELECT  
-	pid, 
-	program, 
-	nvl(pga_used_mem,0) pga_used_mem, 
-	nvl(pga_alloc_mem,0) pga_alloc_mem, 
-	nvl(pga_freeable_mem,0) pga_freeable_mem, 
-	nvl(pga_max_mem,0) pga_max_mem
-  FROM v$process p`
-
 type ProcessesRowDB struct {
 	PdbName        sql.NullString `db:"PDB_NAME"`
 	PID            uint64         `db:"PID"`
