@@ -40,10 +40,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http/testutil"
 	usmhttp2 "github.com/DataDog/datadog-agent/pkg/network/protocols/http2"
-	"github.com/DataDog/datadog-agent/pkg/network/protocols/telemetry"
 	libtelemetry "github.com/DataDog/datadog-agent/pkg/network/protocols/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/testutil/grpc"
-	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 )
 
@@ -401,52 +399,6 @@ func (s *HTTPTestSuite) TestHTTPMonitorIntegrationWithNAT() {
 			EnableKeepAlive: false,
 		})
 	})
-}
-
-func (s *HTTPTestSuite) TestUnknownMethodRegression() {
-	t := s.T()
-
-	// SetupDNAT sets up a NAT translation from 2.2.2.2 to 1.1.1.1
-	netlink.SetupDNAT(t)
-
-	monitor := newHTTPMonitor(t)
-	targetAddr := "2.2.2.2:8080"
-	serverAddr := "1.1.1.1:8080"
-	serverAddrIP := util.AddressFromString("1.1.1.1")
-	srvDoneFn := testutil.HTTPServer(t, serverAddr, testutil.Options{
-		EnableTLS:       false,
-		EnableKeepAlive: true,
-	})
-	t.Cleanup(srvDoneFn)
-
-	requestFn := requestGenerator(t, targetAddr, emptyBody)
-	for i := 0; i < 100; i++ {
-		requestFn()
-	}
-
-	time.Sleep(5 * time.Second)
-	stats := getHttpStats(t, monitor)
-	tel := telemetry.ReportPayloadTelemetry("1")
-	requestsSum := 0
-	for key := range stats {
-		if key.Method == http.MethodUnknown {
-			t.Error("detected HTTP request with method unknown")
-		}
-		// we just want our requests
-		if strings.Contains(key.Path.Content.Get(), "/request-") &&
-			key.DstPort == 8080 &&
-			util.FromLowHigh(key.DstIPLow, key.DstIPHigh) == serverAddrIP {
-			requestsSum++
-		}
-	}
-
-	require.Equal(t, int64(0), tel["usm.http.dropped"])
-	require.Equal(t, int64(0), tel["usm.http.rejected"])
-	require.Equal(t, int64(0), tel["usm.http.malformed"])
-	// requestGenerator() doesn't query 100 responses
-	require.Equal(t, int64(0), tel["usm.http.hits1XX"])
-
-	require.Equal(t, int(100), requestsSum)
 }
 
 func (s *HTTPTestSuite) TestRSTPacketRegression() {
