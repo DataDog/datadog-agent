@@ -8,29 +8,24 @@ package containers
 import (
 	"errors"
 	"fmt"
-	"math"
 	"regexp"
 	"strings"
 
 	"github.com/samber/lo"
 )
 
-const float64EqualityThreshold = 1e-9
-
-func almostEqual(a, b float64) bool {
-	return math.Abs(a-b) <= float64EqualityThreshold
-}
-
 func assertTags(actualTags []string, expectedTags []*regexp.Regexp) error {
+	missingTags := make([]*regexp.Regexp, len(expectedTags))
+	copy(missingTags, expectedTags)
 	unexpectedTags := []string{}
 
 	for _, actualTag := range actualTags {
 		found := false
-		for i, expectedTag := range expectedTags {
+		for i, expectedTag := range missingTags {
 			if expectedTag.MatchString(actualTag) {
 				found = true
-				expectedTags[i] = expectedTags[len(expectedTags)-1]
-				expectedTags = expectedTags[:len(expectedTags)-1]
+				missingTags[i] = missingTags[len(missingTags)-1]
+				missingTags = missingTags[:len(missingTags)-1]
 				break
 			}
 		}
@@ -39,25 +34,15 @@ func assertTags(actualTags []string, expectedTags []*regexp.Regexp) error {
 		}
 	}
 
-	if len(unexpectedTags) > 0 || len(expectedTags) > 0 {
+	if len(unexpectedTags) > 0 || len(missingTags) > 0 {
 		errs := make([]error, 0, 2)
 		if len(unexpectedTags) > 0 {
 			errs = append(errs, fmt.Errorf("unexpected tags: %s", strings.Join(unexpectedTags, ", ")))
 		}
-		if len(expectedTags) > 0 {
-			errs = append(errs, fmt.Errorf("missing tags: %s", strings.Join(lo.Map(expectedTags, func(re *regexp.Regexp, _ int) string { return re.String() }), ", ")))
+		if len(missingTags) > 0 {
+			errs = append(errs, fmt.Errorf("missing tags: %s", strings.Join(lo.Map(missingTags, func(re *regexp.Regexp, _ int) string { return re.String() }), ", ")))
 		}
-		// replace with
-		// errors.Join(errs...)
-		// once migrated to go 1.20
-		errMsgs := make([]string, 0, 2)
-		for _, err := range errs {
-			if err == nil {
-				continue
-			}
-			errMsgs = append(errMsgs, err.Error())
-		}
-		return errors.New(strings.Join(errMsgs, "\n"))
+		return errors.Join(errs...)
 	}
 
 	return nil
