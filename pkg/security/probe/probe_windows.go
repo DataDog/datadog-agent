@@ -51,7 +51,9 @@ func (p *Probe) Setup() error {
 }
 
 // Stop the probe
-func (p *Probe) Stop() {}
+func (p *Probe) Stop() {
+	p.pm.Stop()
+}
 
 // Start processing events
 func (p *Probe) Start() error {

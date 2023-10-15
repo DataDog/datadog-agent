@@ -40,4 +40,6 @@ build do
 
   make "-j #{workers} PREFIX=/ DESTDIR=#{install_dir}/embedded", env: env
   make "-j #{workers} install PREFIX=/ DESTDIR=#{install_dir}/embedded", env: env
+
+  delete "#{install_dir}/embedded/lib/libselinux.a"
 end
