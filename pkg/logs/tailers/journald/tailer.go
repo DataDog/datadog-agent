@@ -53,6 +53,13 @@ type Tailer struct {
 
 // NewTailer returns a new tailer.
 func NewTailer(source *sources.LogSource, outputChan chan *message.Message, journal Journal, processRawMessage bool) *Tailer {
+	if len(source.Config.ProcessingRules) > 0 {
+		log.Warn("Log processing rules with the journald collection will change in a future version of the Agent:")
+		log.Warn("The processing will soon apply on the message content instead of the structured log (e.g. XML or JSON).")
+		log.Warn("A flag will make possible to use the original behavior but will have to set through configuration.")
+		log.Warn("Please reach Datadog support if you have more questions.")
+	}
+
 	return &Tailer{
 		decoder:           decoder.NewDecoderWithFraming(sources.NewReplaceableSource(source), noop.New(), framer.NoFraming, nil, status.NewInfoRegistry()),
 		source:            source,

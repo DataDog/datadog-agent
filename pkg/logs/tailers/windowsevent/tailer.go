@@ -120,6 +120,13 @@ func NewTailer(evtapi evtapi.API, source *sources.LogSource, config *Config, out
 		evtapi = winevtapi.New()
 	}
 
+	if len(source.Config.ProcessingRules) > 0 {
+		log.Warn("Log processing rules with the Windows Events collection will change in a future version of the Agent:")
+		log.Warn("The processing will soon apply on the message content instead of the structured log (e.g. XML or JSON).")
+		log.Warn("A flag will make possible to use the original behavior but will have to set through configuration.")
+		log.Warn("Please reach Datadog support if you have more questions.")
+	}
+
 	return &Tailer{
 		evtapi:     evtapi,
 		source:     source,
