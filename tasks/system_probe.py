@@ -495,6 +495,7 @@ def build(
     strip_object_files=False,
     strip_binary=False,
     with_unit_test=False,
+    ebpfless=False
 ):
     """
     Build the system-probe
@@ -520,6 +521,7 @@ def build(
         race=race,
         incremental_build=incremental_build,
         strip_binary=strip_binary,
+        ebpfless=ebpfless
     )
 
 
@@ -549,6 +551,7 @@ def build_sysprobe_binary(
     binary=BIN_PATH,
     bundle_ebpf=False,
     strip_binary=False,
+    ebpfless=False,
 ):
     ldflags, gcflags, env = get_build_flags(
         ctx,
@@ -561,6 +564,8 @@ def build_sysprobe_binary(
         build_tags.append(BUNDLE_TAG)
     if strip_binary:
         ldflags += ' -s -w'
+    if ebpfless:
+        build_tags.append("ebpfless")
 
     cmd = 'go build -mod={go_mod}{race_opt}{build_type} -tags "{go_build_tags}" '
     cmd += '-o {agent_bin} -gcflags="{gcflags}" -ldflags="{ldflags}" {REPO_PATH}/cmd/system-probe'
