@@ -14,6 +14,7 @@ import (
 	"net"
 
 	"github.com/DataDog/datadog-agent/pkg/security/config"
+	"github.com/DataDog/datadog-agent/pkg/security/ebpf/kernel"
 	"github.com/safchain/rstrace/pkg/rstrace"
 	"google.golang.org/grpc"
 )
@@ -21,6 +22,8 @@ import (
 type PlatformProbe struct {
 	// internals
 	rstrace.UnimplementedSyscallStreamServer
+
+	kernelVersion *kernel.Version
 }
 
 func (p *Probe) SendSyscall(ctx context.Context, syscall *rstrace.Syscall) (*rstrace.Response, error) {
@@ -60,8 +63,24 @@ func (p *Probe) Start() error {
 	return nil
 }
 
+func (p *Probe) detectKernelVersion() error {
+	kernelVersion, err := kernel.NewKernelVersion()
+	if err != nil {
+		return fmt.Errorf("unable to detect the kernel version: %w", err)
+	}
+	p.kernelVersion = kernelVersion
+	return nil
+}
+
 func NewProbe(config *config.Config) (*Probe, error) {
-	return &Probe{
+	p := &Probe{
 		Config: config,
-	}, nil
+	}
+
+	if err := p.detectKernelVersion(); err != nil {
+		// we need the kernel version to start, fail if we can't get it
+		return nil, err
+	}
+
+	return p, nil
 }
