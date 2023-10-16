@@ -9,6 +9,7 @@ import (
 	"context"
 	"errors"
 	"net/http"
+	"sync"
 	"time"
 
 	"github.com/DataDog/datadog-agent/comp/core/hostname"
@@ -48,7 +49,10 @@ type NetflowListenerStatus struct {
 }
 
 // globalServer is only used on getting the status of the server.
-var globalServer = &Server{}
+var (
+	globalServer   = &Server{}
+	globalServerMu sync.Mutex
+)
 
 // newServer configures a netflow server.
 func newServer(lc fx.Lifecycle, deps dependencies) (Component, error) {
@@ -60,7 +64,9 @@ func newServer(lc fx.Lifecycle, deps dependencies) (Component, error) {
 		logger:  deps.Logger,
 	}
 
+	globalServerMu.Lock()
 	globalServer = server
+	globalServerMu.Unlock()
 
 	if conf.Enabled {
 		// netflow is enabled, so start the server
@@ -156,6 +162,9 @@ func IsEnabled() bool {
 // GetStatus retrieves the current status of the server with details about
 // all listeners and categorizes them into working and closed.
 func GetStatus() NetflowServerStatus {
+	globalServerMu.Lock()
+	defer globalServerMu.Unlock()
+
 	if globalServer == nil {
 		return NetflowServerStatus{
 			TotalListeners:         0,
