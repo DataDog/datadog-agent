@@ -270,7 +270,7 @@ func (rc rcClient) agentTaskUpdateCallback(updates map[string]state.RawConfig, a
 		return
 	case <-time.After(agentTaskTimeout):
 		// timed out
-		pkglog.Errorf("Timeout of at least one agent task configuration")
+		pkglog.Warnf("Timeout of at least one agent task configuration")
 	}
 }
 
