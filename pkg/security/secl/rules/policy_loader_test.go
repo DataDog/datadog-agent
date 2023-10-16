@@ -471,7 +471,7 @@ func (d dummyDirProvider) LoadPolicies(_ []MacroFilter, _ []RuleFilter) ([]*Poli
 	return d.dummyLoadPoliciesFunc()
 }
 
-func (dummyDirProvider) SetOnNewPoliciesReadyCb(f func()) {}
+func (dummyDirProvider) SetOnNewPoliciesReadyCb(f func()) {} //nolint:revive // TODO fix revive unused-parameter
 
 func (dummyDirProvider) Start() {}
 
@@ -491,7 +491,7 @@ func (d dummyRCProvider) LoadPolicies(_ []MacroFilter, _ []RuleFilter) ([]*Polic
 	return d.dummyLoadPoliciesFunc()
 }
 
-func (dummyRCProvider) SetOnNewPoliciesReadyCb(f func()) {}
+func (dummyRCProvider) SetOnNewPoliciesReadyCb(f func()) {} //nolint:revive // TODO fix revive unused-parameter
 
 func (dummyRCProvider) Start() {}
 

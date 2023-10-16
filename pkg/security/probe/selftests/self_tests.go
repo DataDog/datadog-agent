@@ -17,10 +17,10 @@ import (
 )
 
 const (
-	policySource  = "self-test"                          // nolint: deadcode, unused
-	policyVersion = "1.0.0"                              // nolint: deadcode, unused
-	policyName    = "datadog-agent-cws-self-test-policy" // nolint: deadcode, unused
-	ruleIDPrefix  = "datadog_agent_cws_self_test_rule"   // nolint: deadcode, unused
+	policySource  = "self-test"                          //nolint: deadcode, unused
+	policyVersion = "1.0.0"                              //nolint: deadcode, unused
+	policyName    = "datadog-agent-cws-self-test-policy" //nolint: deadcode, unused
+	ruleIDPrefix  = "datadog_agent_cws_self_test_rule"   //nolint: deadcode, unused
 
 	// PolicyProviderType name of the self test policy provider
 	PolicyProviderType = "selfTesterPolicyProvider"
@@ -49,7 +49,7 @@ func NewSelfTestEvent(success []string, fails []string, testEvents map[string]*s
 }
 
 // SetOnNewPoliciesReadyCb implements the PolicyProvider interface
-func (t *SelfTester) SetOnNewPoliciesReadyCb(cb func()) {
+func (t *SelfTester) SetOnNewPoliciesReadyCb(cb func()) { //nolint:revive // TODO fix revive unused-parameter
 }
 
 // Type return the type of this policy provider
@@ -64,5 +64,5 @@ func (t *SelfTester) RuleMatch(rule *rules.Rule, event eval.Event) bool {
 }
 
 // EventDiscarderFound implement the rule engine interface
-func (t *SelfTester) EventDiscarderFound(rs *rules.RuleSet, event eval.Event, field eval.Field, eventType eval.EventType) {
+func (t *SelfTester) EventDiscarderFound(rs *rules.RuleSet, event eval.Event, field eval.Field, eventType eval.EventType) { //nolint:revive // TODO fix revive unused-parameter
 }

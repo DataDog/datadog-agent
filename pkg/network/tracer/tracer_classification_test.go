@@ -1691,7 +1691,7 @@ func testEdgeCasesProtocolClassification(t *testing.T, tr *Tracer, clientHost, t
 				require.NoError(t, err)
 				defer c.Close()
 				c.Write([]byte("hello\n"))
-				io.ReadAll(c)
+				io.Copy(io.Discard, c)
 			},
 			teardown:   teardown,
 			validation: validateProtocolConnection(&protocols.Stack{}),
@@ -1726,10 +1726,10 @@ func testEdgeCasesProtocolClassification(t *testing.T, tr *Tracer, clientHost, t
 				require.NoError(t, err)
 				defer c.Close()
 				c.Write([]byte("GET /200/foobar HTTP/1.1\n"))
-				io.ReadAll(c)
+				io.Copy(io.Discard, c)
 				// http2 prefix.
 				c.Write([]byte("PRI * HTTP/2.0\r\n\r\nSM\r\n\r\n"))
-				io.ReadAll(c)
+				io.Copy(io.Discard, c)
 			},
 			teardown:   teardown,
 			validation: validateProtocolConnection(&protocols.Stack{Application: protocols.HTTP}),
