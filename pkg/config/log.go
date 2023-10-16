@@ -157,14 +157,14 @@ func buildDogstatsdLoggerConfig(loggerName LoggerName, seelogLogLevel, logFile s
 	config := seelogCfg.NewSeelogConfig(string(loggerName), seelogLogLevel, "common", "", buildCommonFormat(loggerName), false)
 
 	// Configuring max roll for log file, if dogstatsd_log_file_max_rolls env var is not set (or set improperly ) within datadog.yaml then default value is 3
-	dogstatsd_log_file_max_rolls := Datadog.GetInt("dogstatsd_log_file_max_rolls")
-	if dogstatsd_log_file_max_rolls < 0 {
-		dogstatsd_log_file_max_rolls = 3
+	dogstatsdLogFileMaxRolls := Datadog.GetInt("dogstatsd_log_file_max_rolls")
+	if dogstatsdLogFileMaxRolls < 0 {
+		dogstatsdLogFileMaxRolls = 3
 		log.Warnf("Invalid value for dogstatsd_log_file_max_rolls, please make sure the value is equal or higher than 0")
 	}
 
 	// Configure log file, log file max size, log file roll up
-	config.EnableFileLogging(logFile, Datadog.GetSizeInBytes("dogstatsd_log_file_max_size"), uint(dogstatsd_log_file_max_rolls))
+	config.EnableFileLogging(logFile, Datadog.GetSizeInBytes("dogstatsd_log_file_max_size"), uint(dogstatsdLogFileMaxRolls))
 
 	return config
 }

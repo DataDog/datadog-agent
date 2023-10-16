@@ -10,7 +10,6 @@ import (
 	"fmt"
 
 	hostMetadataUtils "github.com/DataDog/datadog-agent/comp/metadata/host/utils"
-	"github.com/DataDog/datadog-agent/pkg/metadata/common"
 	"github.com/DataDog/datadog-agent/pkg/metadata/externalhost"
 	"github.com/DataDog/datadog-agent/pkg/serializer/marshaler"
 )
@@ -30,7 +29,7 @@ type MetaPayload struct {
 
 // CommonPayload wraps Payload from the common package
 type CommonPayload struct {
-	common.Payload
+	hostMetadataUtils.CommonPayload
 }
 
 // ACPayload wraps the Agent Checks payload

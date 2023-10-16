@@ -28,11 +28,9 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/diagnose"
 	"github.com/DataDog/datadog-agent/pkg/diagnose/diagnosis"
 	"github.com/DataDog/datadog-agent/pkg/metadata/inventories"
-	v5 "github.com/DataDog/datadog-agent/pkg/metadata/v5"
 	"github.com/DataDog/datadog-agent/pkg/secrets"
 	"github.com/DataDog/datadog-agent/pkg/status"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
-	host "github.com/DataDog/datadog-agent/pkg/util/hostname"
 	"github.com/DataDog/datadog-agent/pkg/util/installinfo"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
@@ -93,7 +91,6 @@ func CompleteFlare(fb flaretypes.FlareBuilder, senderManager sender.SenderManage
 	fb.AddFileFromFunc("secrets.log", getSecrets)
 	fb.AddFileFromFunc("envvars.log", getEnvVars)
 	fb.AddFileFromFunc("metadata_inventories.json", inventories.GetLastPayload)
-	fb.AddFileFromFunc("metadata_v5.json", getMetadataV5)
 	fb.AddFileFromFunc("health.yaml", getHealth)
 	fb.AddFileFromFunc("go-routine-dump.log", func() ([]byte, error) { return getHTTPCallContent(pprofURL) })
 	fb.AddFileFromFunc("docker_inspect.log", getDockerSelfInspect)
@@ -127,19 +124,6 @@ func getVersionHistory(fb flaretypes.FlareBuilder) {
 
 func getRegistryJSON(fb flaretypes.FlareBuilder) {
 	fb.CopyFile(filepath.Join(config.Datadog.GetString("logs_config.run_path"), "registry.json"))
-}
-
-func getMetadataV5() ([]byte, error) {
-	ctx := context.Background()
-	hostnameData, _ := host.GetWithProvider(ctx)
-	payload := v5.GetPayload(ctx, hostnameData)
-
-	data, err := json.MarshalIndent(payload, "", "    ")
-	if err != nil {
-		return nil, err
-	}
-
-	return data, nil
 }
 
 func getLogFiles(fb flaretypes.FlareBuilder, logFileDir string) {
