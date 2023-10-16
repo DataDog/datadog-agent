@@ -9,10 +9,10 @@ package tracer
 
 // IsTracerSupportedByOS returns whether or not the current kernel version supports tracer functionality
 // along with some context on why it's not supported
-func IsTracerSupportedByOS(exclusionList []string) (bool, string) {
+func IsTracerSupportedByOS(exclusionList []string) (bool, string) { //nolint:revive // TODO fix revive unused-parameter
 	return verifyOSVersion(0, "", nil)
 }
 
-func verifyOSVersion(kernelCode uint32, platform string, exclusionList []string) (bool, string) {
+func verifyOSVersion(kernelCode uint32, platform string, exclusionList []string) (bool, string) { //nolint:revive // TODO fix revive unused-parameter
 	return false, "unsupported architecture"
 }

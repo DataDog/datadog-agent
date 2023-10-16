@@ -15,7 +15,9 @@ import (
 // team: agent-shared-components
 
 // Component is the component type.
-type Component interface{}
+type Component interface {
+	Get() map[string]interface{}
+}
 
 // Module defines the fx options for this component.
 var Module = fxutil.Component(
