@@ -144,6 +144,12 @@ func endExecutionSpan(executionContext *ExecutionStartInfo, triggerTags map[stri
 
 	if endDetails.IsError {
 		executionSpan.Error = 1
+		if len(endDetails.ErrorMsg) > 0 {
+			executionSpan.Meta["error.msg"] = endDetails.ErrorMsg
+		}
+		if len(endDetails.ErrorStack) > 0 {
+			executionSpan.Meta["error.stack"] = endDetails.ErrorStack
+		}
 	}
 
 	traceChunk := &pb.TraceChunk{

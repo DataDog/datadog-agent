@@ -40,4 +40,6 @@ type InvocationEndDetails struct {
 	ColdStart          bool
 	ProactiveInit      bool
 	Runtime            string
+	ErrorMsg           string
+	ErrorStack         string
 }
