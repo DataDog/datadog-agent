@@ -26,7 +26,8 @@ type TaskType string
 
 const (
 	// TaskFlare is the task sent to request a flare from the agent
-	TaskFlare TaskType = "flare"
+	TaskFlare        TaskType = "flare"
+	agentTaskTimeout          = 5 * time.Minute
 )
 
 // RCAgentTaskListener is the FX-compatible listener, so RC can push updates through it
@@ -194,57 +195,82 @@ func (rc rcClient) agentConfigUpdateCallback(updates map[string]state.RawConfig,
 func (rc rcClient) agentTaskUpdateCallback(updates map[string]state.RawConfig, applyStateCallback func(string, state.ApplyStatus)) {
 	rc.m.Lock()
 	defer rc.m.Unlock()
-	for configPath, c := range updates {
-		task, err := parseConfigAgentTask(c.Config, c.Metadata)
-		if err != nil {
-			rc.client.UpdateApplyStatus(configPath, state.ApplyStatus{
-				State: state.ApplyStateError,
-				Error: err.Error(),
-			})
-			continue
-		}
 
-		// Check that the flare task wasn't already processed
-		if !rc.taskProcessed[task.Config.UUID] {
-			rc.taskProcessed[task.Config.UUID] = true
+	wg := &sync.WaitGroup{}
+	wg.Add(len(updates))
 
-			// Mark it as unack first
-			applyStateCallback(configPath, state.ApplyStatus{
-				State: state.ApplyStateUnacknowledged,
-			})
-
-			var err error
-			var processed bool
-			// Call all the listeners component
-			for _, l := range rc.taskListeners {
-				oneProcessed, oneErr := l(TaskType(task.Config.TaskType), task)
-				// Check if the task was processed at least once
-				processed = oneProcessed || processed
-				if oneErr != nil {
-					if err == nil {
-						err = oneErr
-					} else {
-						err = errors.Wrap(oneErr, err.Error())
-					}
-				}
-			}
-			if processed && err != nil {
-				// One failure
-				applyStateCallback(configPath, state.ApplyStatus{
+	// Executes all AGENT_TASK in separate routines, so we don't block if one of them deadlock
+	for originalConfigPath, originalConfig := range updates {
+		go func(configPath string, c state.RawConfig) {
+			defer wg.Done()
+			defer pkglog.Debugf("Agent task %s completed", configPath)
+			task, err := parseConfigAgentTask(c.Config, c.Metadata)
+			if err != nil {
+				rc.client.UpdateApplyStatus(configPath, state.ApplyStatus{
 					State: state.ApplyStateError,
 					Error: err.Error(),
 				})
-			} else if processed && err == nil {
-				// Only success
-				applyStateCallback(configPath, state.ApplyStatus{
-					State: state.ApplyStateAcknowledged,
-				})
-			} else {
-				applyStateCallback(configPath, state.ApplyStatus{
-					State: state.ApplyStateUnknown,
-				})
+				return
 			}
-		}
+
+			// Check that the flare task wasn't already processed
+			if !rc.taskProcessed[task.Config.UUID] {
+				rc.taskProcessed[task.Config.UUID] = true
+
+				// Mark it as unack first
+				applyStateCallback(configPath, state.ApplyStatus{
+					State: state.ApplyStateUnacknowledged,
+				})
+
+				var err error
+				var processed bool
+				// Call all the listeners component
+				for _, l := range rc.taskListeners {
+					oneProcessed, oneErr := l(TaskType(task.Config.TaskType), task)
+					// Check if the task was processed at least once
+					processed = oneProcessed || processed
+					if oneErr != nil {
+						if err == nil {
+							err = oneErr
+						} else {
+							err = errors.Wrap(oneErr, err.Error())
+						}
+					}
+				}
+				if processed && err != nil {
+					// One failure
+					applyStateCallback(configPath, state.ApplyStatus{
+						State: state.ApplyStateError,
+						Error: err.Error(),
+					})
+				} else if processed && err == nil {
+					// Only success
+					applyStateCallback(configPath, state.ApplyStatus{
+						State: state.ApplyStateAcknowledged,
+					})
+				} else {
+					applyStateCallback(configPath, state.ApplyStatus{
+						State: state.ApplyStateUnknown,
+					})
+				}
+			}
+		}(originalConfigPath, originalConfig)
+	}
+
+	// Check if one of the task reaches timeout
+	c := make(chan struct{})
+	go func() {
+		defer close(c)
+		wg.Wait()
+	}()
+	select {
+	case <-c:
+		// completed normally
+		pkglog.Debugf("All %d agent tasks were applied successfully", len(updates))
+		return
+	case <-time.After(agentTaskTimeout):
+		// timed out
+		pkglog.Errorf("Timeout of at least one agent task configuration")
 	}
 }
 
