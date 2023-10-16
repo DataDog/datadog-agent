@@ -169,6 +169,15 @@ func CheckCWSBehaviour(t *testing.T, client *TestClient) {
 		require.NoError(tt, err)
 
 		_, err = client.SvcManager.Restart("datadog-agent")
+		// DEBUG: Will be removed, used to try to understand why the test is flaky
+		if err != nil {
+			time.Sleep(10 * time.Second)
+			output, _ := client.VMClient.ExecuteWithError("sudo cat /var/log/datadog/agent.log")
+			output2, _ := client.VMClient.ExecuteWithError("sudo journalctl -xe")
+			t.Log("AGENT LOG: ", output)
+			t.Log("JOURNALCTL LOG: ", output2)
+		}
+
 		require.NoError(tt, err, "datadog-agent should restart after CWS is enabled")
 	})
 

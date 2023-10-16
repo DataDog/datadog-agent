@@ -23,6 +23,7 @@ type Component interface {
 	// SubscribeAgentTask subscribe the remote-config client to AGENT_TASK
 	SubscribeAgentTask()
 	// Subscribe is the generic way to start listening to a specific product update
+	// Component can also automatically subscribe to updates by returning a `ListenerProvider` struct
 	Subscribe(product data.Product, fn func(update map[string]state.RawConfig, applyStateCallback func(string, state.ApplyStatus)))
 }
 

@@ -1,0 +1,3 @@
+process_config:
+  process_collection:
+    enabled: true
