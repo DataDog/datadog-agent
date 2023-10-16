@@ -17,7 +17,6 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
-	"github.com/DataDog/datadog-agent/pkg/serverless/trace/inferredspan"
 	"github.com/DataDog/datadog-agent/pkg/trace/api"
 	"github.com/DataDog/datadog-agent/pkg/trace/info"
 	"github.com/DataDog/datadog-agent/pkg/trace/sampler"
@@ -46,12 +45,14 @@ type invocationPayload struct {
 
 // startExecutionSpan records information from the start of the invocation.
 // It should be called at the start of the invocation.
-func startExecutionSpan(executionContext *ExecutionStartInfo, inferredSpan *inferredspan.InferredSpan, rawPayload []byte, startDetails *InvocationStartDetails, inferredSpansEnabled bool) {
+func (lp *LifecycleProcessor) startExecutionSpan(rawPayload []byte, startDetails *InvocationStartDetails) {
 	payload := convertRawPayload(rawPayload)
+	inferredSpan := lp.GetInferredSpan()
+	executionContext := lp.GetExecutionInfo()
 	executionContext.requestPayload = rawPayload
 	executionContext.startTime = startDetails.StartTime
 
-	if inferredSpansEnabled && inferredSpan.Span.Start != 0 {
+	if lp.InferredSpansEnabled && inferredSpan.Span.Start != 0 {
 		executionContext.TraceID = inferredSpan.Span.TraceID
 		executionContext.parentID = inferredSpan.Span.SpanID
 	}
@@ -63,7 +64,7 @@ func startExecutionSpan(executionContext *ExecutionStartInfo, inferredSpan *infe
 			log.Debug("Unable to parse traceID from payload headers")
 		} else {
 			executionContext.TraceID = traceID
-			if inferredSpansEnabled {
+			if lp.InferredSpansEnabled {
 				inferredSpan.Span.TraceID = traceID
 			}
 		}
@@ -72,7 +73,7 @@ func startExecutionSpan(executionContext *ExecutionStartInfo, inferredSpan *infe
 		if err != nil {
 			log.Debug("Unable to parse parentID from payload headers")
 		} else {
-			if inferredSpansEnabled {
+			if lp.InferredSpansEnabled {
 				inferredSpan.Span.ParentID = parentID
 			} else {
 				executionContext.parentID = parentID

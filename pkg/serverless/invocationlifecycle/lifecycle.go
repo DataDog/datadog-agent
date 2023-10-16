@@ -221,7 +221,7 @@ func (lp *LifecycleProcessor) OnInvokeStart(startDetails *InvocationStartDetails
 	}
 
 	if !lp.DetectLambdaLibrary() {
-		startExecutionSpan(lp.GetExecutionInfo(), lp.GetInferredSpan(), payloadBytes, startDetails, lp.InferredSpansEnabled)
+		lp.startExecutionSpan(payloadBytes, startDetails)
 	}
 }
 
