@@ -22,7 +22,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/api/util"
-	apiutil "github.com/DataDog/datadog-agent/pkg/api/util"
 	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/config/settings"
 	settingshttp "github.com/DataDog/datadog-agent/pkg/config/settings/http"
@@ -105,7 +104,7 @@ func MakeCommand(globalParamsGetter func() GlobalParams) *cobra.Command {
 
 func readProfileData(seconds int) (flare.ProfileData, error) {
 	pdata := flare.ProfileData{}
-	c := apiutil.GetClient(false)
+	c := util.GetClient(false)
 
 	fmt.Fprintln(color.Output, color.BlueString("Getting a %ds profile snapshot from datadog-cluster-agent.", seconds))
 	pprofURL := fmt.Sprintf("http://127.0.0.1:%d/debug/pprof", pkgconfig.Datadog.GetInt("expvar_port"))
@@ -137,7 +136,7 @@ func readProfileData(seconds int) (flare.ProfileData, error) {
 			URL:  pprofURL + "/block",
 		},
 	} {
-		b, err := apiutil.DoGet(c, prof.URL, apiutil.LeaveConnectionOpen)
+		b, err := util.DoGet(c, prof.URL, util.LeaveConnectionOpen)
 		if err != nil {
 			return pdata, err
 		}
