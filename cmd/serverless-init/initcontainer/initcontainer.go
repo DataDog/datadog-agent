@@ -42,22 +42,17 @@ func Run(
 	args []string,
 ) {
 	serverlessLog.Write(logConfig, []byte(fmt.Sprintf("[datadog init process] running cmd = >%v<", args)), false)
-	err := execute(cloudService, logConfig, metricAgent, traceAgent, logsAgent, args)
+	err := execute(logConfig, args)
 	if err != nil {
 		serverlessLog.Write(logConfig, []byte(fmt.Sprintf("[datadog init process] exiting with code = %s", err)), false)
 	} else {
 		serverlessLog.Write(logConfig, []byte("[datadog init process] exiting successfully"), false)
 	}
+	metric.AddShutdownMetric(cloudService.GetPrefix(), metricAgent.GetExtraTags(), time.Now(), metricAgent.Demux)
+	flush(logConfig.FlushTimeout, metricAgent, traceAgent, logsAgent)
 }
 
-func execute(
-	cloudService cloudservice.CloudService,
-	config *serverlessLog.Config,
-	metricAgent *metrics.ServerlessMetricAgent,
-	traceAgent *trace.ServerlessTraceAgent,
-	logsAgent logsAgent.ServerlessLogsAgent,
-	args []string,
-) error {
+func execute(logConfig *serverlessLog.Config, args []string) error {
 	commandName, commandArgs := buildCommandParam(args)
 
 	// Add our tracer settings
@@ -69,7 +64,7 @@ func execute(
 	shouldBuffer := calculateShouldBuffer(commandName)
 
 	cmd.Stdout = &serverlessLog.CustomWriter{
-		LogConfig:  config,
+		LogConfig:  logConfig,
 		LineBuffer: bytes.Buffer{},
 		// Dotnet occasionally writes to stdout in multiple chunks causing log splitting issues.
 		// This happens regardless of logging library (and happens with Console.WriteLine).
@@ -78,7 +73,7 @@ func execute(
 		ShouldBuffer: shouldBuffer,
 	}
 	cmd.Stderr = &serverlessLog.CustomWriter{
-		LogConfig:    config,
+		LogConfig:    logConfig,
 		LineBuffer:   bytes.Buffer{},
 		ShouldBuffer: shouldBuffer,
 		IsError:      true,
@@ -87,15 +82,8 @@ func execute(
 	if err != nil {
 		return err
 	}
-	go forwardSignals(cmd.Process, config)
+	go forwardSignals(cmd.Process, logConfig)
 	err = cmd.Wait()
-	if err != nil {
-		serverlessLog.Write(config, []byte(fmt.Sprintf("[datadog init process] exiting with code = %s", err)), false)
-	} else {
-		serverlessLog.Write(config, []byte("[datadog init process] exiting successfully"), false)
-	}
-	metric.AddShutdownMetric(cloudService.GetPrefix(), metricAgent.GetExtraTags(), time.Now(), metricAgent.Demux)
-	flush(config.FlushTimeout, metricAgent, traceAgent, logsAgent)
 	return err
 }
 
