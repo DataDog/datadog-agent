@@ -28,7 +28,7 @@ func NewFakeintake(exporter *infraFakeintake.ConnectionExporter) *Fakeintake {
 }
 
 //lint:ignore U1000 Ignore unused function as this function is call using reflection
-func (fi *Fakeintake) setStack(t *testing.T, stackResult auto.UpResult) error {
+func (fi *Fakeintake) setStack(_ *testing.T, stackResult auto.UpResult) error {
 	clientData, err := fi.deserializer.Deserialize(stackResult)
 	if err != nil {
 		return err

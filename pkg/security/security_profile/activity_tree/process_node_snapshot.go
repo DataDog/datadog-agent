@@ -90,19 +90,24 @@ func (pn *ProcessNode) snapshotFiles(p *process.Process, stats *Stats, newEvent 
 			files = append(files, fd.Path)
 		}
 	}
+	if isSampling {
+		seclog.Warnf("sampled open files while snapshotting (pid: %v): kept %d of %d files", p.Pid, len(files), len(fileFDs))
+	}
 
 	// list the mmaped files of the process
 	mmapedFiles, err := snapshotMemoryMappedFiles(p.Pid, pn.Process.FileEvent.PathnameStr)
 	if err != nil {
 		seclog.Warnf("error while listing memory maps (pid: %v): %s", p.Pid, err)
 	}
+	// often the mmaped files are already nearly sorted, so we take the quick win and de-duplicate without sorting
+	mmapedFiles = slices.Compact(mmapedFiles)
 
+	files = append(files, mmapedFiles...)
 	if len(files) == 0 {
 		return
 	}
-	files = append(files, mmapedFiles...)
 
-	// often the mmaped files are already nearly sorted, so we take the quick win and de-duplicate without sorting
+	slices.Sort(files)
 	files = slices.Compact(files)
 
 	// insert files

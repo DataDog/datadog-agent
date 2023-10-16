@@ -19,7 +19,7 @@ import (
 )
 
 // Commands returns a slice of subcommands for the 'trace-agent' command.
-func Commands(globalParamsGetter func() *subcommands.GlobalParams) []*cobra.Command {
+func Commands(globalParamsGetter func() *subcommands.GlobalParams) []*cobra.Command { //nolint:revive // TODO fix revive unused-parameter
 	startCmd := &cobra.Command{
 		Use:     "start-service",
 		Aliases: []string{"startservice"},
