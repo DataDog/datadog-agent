@@ -11,6 +11,7 @@ import (
 	serverlessLog "github.com/DataDog/datadog-agent/cmd/serverless-init/log"
 	"os"
 	"os/exec"
+	"runtime"
 	"strconv"
 	"syscall"
 	"testing"
@@ -70,33 +71,50 @@ func TestFlushTimeout(t *testing.T) {
 }
 
 func TestPropagateChildSuccess(t *testing.T) {
-	err := execute(&serverlessLog.Config{}, []string{"bash", "-c", "exit 0"})
-	assert.Equal(t, nil, err)
+	runTestOnLinuxOnly(t, func(t *testing.T) {
+		err := execute(&serverlessLog.Config{}, []string{"bash", "-c", "exit 0"})
+		assert.Equal(t, nil, err)
+	})
 }
 
 func TestPropagateChildError(t *testing.T) {
-	expectedError := 123
-	err := execute(&serverlessLog.Config{}, []string{"bash", "-c", "exit " + strconv.Itoa(expectedError)})
-	assert.Equal(t, expectedError<<8, int(err.(*exec.ExitError).ProcessState.Sys().(syscall.WaitStatus)))
+	runTestOnLinuxOnly(t, func(t *testing.T) {
+		expectedError := 123
+		err := execute(&serverlessLog.Config{}, []string{"bash", "-c", "exit " + strconv.Itoa(expectedError)})
+		assert.Equal(t, expectedError<<8, int(err.(*exec.ExitError).ProcessState.Sys().(syscall.WaitStatus)))
+	})
 }
 
 func TestForwardSignalToChild(t *testing.T) {
-	resultChan := make(chan error)
-	terminatingSignal := syscall.SIGUSR1
-	cmd := exec.Command("sleep", "2s")
-	cmd.Start()
-	sigs := make(chan os.Signal, 1)
-	go forwardSignals(cmd.Process, &serverlessLog.Config{}, sigs)
+	runTestOnLinuxOnly(t, func(t *testing.T) {
+		resultChan := make(chan error)
+		terminatingSignal := syscall.SIGUSR1
+		cmd := exec.Command("sleep", "2s")
+		cmd.Start()
+		sigs := make(chan os.Signal, 1)
+		go forwardSignals(cmd.Process, &serverlessLog.Config{}, sigs)
 
-	go func() {
-		err := cmd.Wait()
-		resultChan <- err
-	}()
+		go func() {
+			err := cmd.Wait()
+			resultChan <- err
+		}()
 
-	sigs <- syscall.SIGSTOP
-	sigs <- syscall.SIGCONT
-	sigs <- terminatingSignal
+		sigs <- syscall.SIGSTOP
+		sigs <- syscall.SIGCONT
+		sigs <- terminatingSignal
 
-	err := <-resultChan
-	assert.Equal(t, int(terminatingSignal), int(err.(*exec.ExitError).ProcessState.Sys().(syscall.WaitStatus)))
+		err := <-resultChan
+		assert.Equal(t, int(terminatingSignal), int(err.(*exec.ExitError).ProcessState.Sys().(syscall.WaitStatus)))
+	},
+	)
+}
+
+func runTestOnLinuxOnly(t *testing.T, targetTest func(*testing.T)) {
+	if runtime.GOOS == "linux" {
+		t.Run("Test on Linux", func(t *testing.T) {
+			targetTest(t)
+		})
+	} else {
+		t.Skip("Test case is skipped on this platform")
+	}
 }
