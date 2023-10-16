@@ -76,7 +76,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 	return []*cobra.Command{startCmd}
 }
 
-func run(config config.Component, cliParams *command.GlobalParams, demultiplexer demultiplexer.Component) error {
+func run(log log.Component, config config.Component, cliParams *command.GlobalParams, demultiplexer demultiplexer.Component) error {
 	mainCtx, mainCtxCancel := context.WithCancel(context.Background())
 	defer mainCtxCancel() // Calling cancel twice is safe
 
