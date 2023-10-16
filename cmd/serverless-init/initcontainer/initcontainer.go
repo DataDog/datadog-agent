@@ -11,6 +11,7 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"github.com/DataDog/datadog-agent/cmd/serverless-init/metric"
 	"os"
 	"os/exec"
 	"os/signal"
@@ -93,7 +94,7 @@ func execute(
 	} else {
 		serverlessLog.Write(config, []byte("[datadog init process] exiting successfully"), false)
 	}
-
+	metric.AddShutdownMetric(cloudService.GetPrefix(), metricAgent.GetExtraTags(), time.Now(), metricAgent.Demux)
 	flush(config.FlushTimeout, metricAgent, traceAgent, logsAgent)
 	return err
 }
