@@ -46,8 +46,3 @@ type MockComponent interface {
 	AssertEventPlatformEvent(t *testing.T, expectedRawEvent []byte, expectedEventType string) bool
 	AssertEventMissing(t *testing.T, expectedEvent event.Event, allowedDelta time.Duration) bool
 }
-
-// MockModule provides a MockSender as the sender Component.
-var MockModule = fxutil.Component(
-	fx.Provide(newMockSender),
-)

@@ -45,7 +45,7 @@ func newGlobalParamsTest(t *testing.T) *command.GlobalParams {
 	// Because getSharedFxOption uses fx.Invoke, demultiplexer component is built
 	// which lead to build:
 	//   - config.Component which requires a valid datadog.yaml
-	//   - hostname.Component wich requires a valid hostname
+	//   - hostname.Component which requires a valid hostname
 	config := path.Join(t.TempDir(), "datadog.yaml")
 	err := os.WriteFile(config, []byte("hostname: test"), 0644)
 	require.NoError(t, err)

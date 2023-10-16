@@ -37,7 +37,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/tagger/local"
 	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
-	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 	pkglog "github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/version"
 	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
@@ -82,24 +81,6 @@ func MakeCommand(defaultLogFile string) *cobra.Command {
 
 type Params struct {
 	DefaultLogFile string
-}
-
-// provideAggregator inject the aggregator demultiplexer to FX until we migrate it to a proper component. This allows
-// other already migrated components to request it.
-func provideAggregator(config config.Component, log log.Component, sharedForwarder defaultforwarder.Component) (*aggregator.AgentDemultiplexer, error) {
-	opts := aggregator.DefaultAgentDemultiplexerOptions()
-	opts.UseOrchestratorForwarder = false
-	opts.UseEventPlatformForwarder = false
-	opts.EnableNoAggregationPipeline = config.GetBool("dogstatsd_no_aggregation_pipeline")
-	hname, err := hostname.Get(context.TODO())
-	if err != nil {
-		log.Warnf("Error getting hostname: %s", err)
-		hname = ""
-	}
-	log.Debugf("Using hostname: %s", hname)
-	demux := aggregator.InitAndStartAgentDemultiplexer(log, sharedForwarder, opts, hname)
-	demux.AddAgentStartupTelemetry(version.AgentVersion)
-	return demux, nil
 }
 
 func RunDogstatsdFct(cliParams *CLIParams, defaultConfPath string, defaultLogFile string, fct interface{}) error {
@@ -150,7 +131,7 @@ func start(cliParams *CLIParams, config config.Component, log log.Component, par
 	stopCh := make(chan struct{})
 	go handleSignals(stopCh)
 
-	err := RunDogstatsd(ctx, cliParams, config, log, params, components, demux, demultiplexer)
+	err := RunDogstatsd(ctx, cliParams, config, log, params, components, demultiplexer)
 	if err != nil {
 		return err
 	}
@@ -225,8 +206,10 @@ func RunDogstatsd(ctx context.Context, cliParams *CLIParams, config config.Compo
 		log.Debugf("Health check listening on port %d", healthPort)
 	}
 
+	demultiplexer.AddAgentStartupTelemetry(version.AgentVersion)
+
 	// setup the pkgmetadata collector
-	components.MetaScheduler = pkgmetadata.NewScheduler(demux) //nolint:staticcheck
+	components.MetaScheduler = pkgmetadata.NewScheduler(demultiplexer) //nolint:staticcheck
 	if err = pkgmetadata.SetupInventories(components.MetaScheduler, nil); err != nil {
 		return
 	}
