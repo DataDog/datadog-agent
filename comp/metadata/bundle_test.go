@@ -8,17 +8,20 @@ package metadata
 import (
 	"testing"
 
+	"github.com/DataDog/datadog-agent/comp/core"
+	"github.com/DataDog/datadog-agent/comp/metadata/runner"
+	"github.com/DataDog/datadog-agent/pkg/serializer"
+	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
+	"go.uber.org/fx"
 )
 
-// This test is disabled for now. This is because TestBundle expect all types returned by comp to be instantiable by FX.
-// But types returned in `group` are not (ex comp/core/flare/types:Provider).
-//func TestBundleDependencies(t *testing.T) {
-//	fxutil.TestBundle(t, Bundle, core.MockBundle,
-//		fx.Supply(util.NewNoneOptional[runner.MetadataProvider]()),
-//		fx.Provide(func() serializer.MetricSerializer { return nil }),
-//	)
-//}
+func TestBundleDependencies(t *testing.T) {
+	fxutil.TestBundle(t, Bundle, core.MockBundle,
+		fx.Supply(util.NewNoneOptional[runner.MetadataProvider]()),
+		fx.Provide(func() serializer.MetricSerializer { return nil }),
+	)
+}
 
 func TestMockBundleDependencies(t *testing.T) {
 	fxutil.TestBundle(t, MockBundle)
