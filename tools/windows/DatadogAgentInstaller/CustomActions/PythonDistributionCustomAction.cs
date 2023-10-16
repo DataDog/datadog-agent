@@ -113,7 +113,7 @@ namespace Datadog.CustomActions
                     if (embedded.Contains("embedded3"))
                     {
                         throw new InvalidOperationException($"The file {embedded} doesn't exist, but it should");
-                        
+
                     }
                     session.Log($"{embedded} not found, skipping decompression.");
                 }
@@ -143,7 +143,7 @@ namespace Datadog.CustomActions
             var embedded3Size = session.Property("embedded3_SIZE");
             if (!string.IsNullOrEmpty(embedded3Size))
             {
-                size  = int.Parse(embedded3Size);
+                size = int.Parse(embedded3Size);
             }
             return DecompressPythonDistribution(session, "embedded3", "embedded3.COMPRESSED", "Python 3", size);
         }

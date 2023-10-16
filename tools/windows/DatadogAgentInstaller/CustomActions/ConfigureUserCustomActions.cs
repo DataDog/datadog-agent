@@ -269,7 +269,7 @@ namespace Datadog.CustomActions
                 }
             }
             // add specific files
-            fsEnum.Add( new List<string>
+            fsEnum.Add(new List<string>
                 {
                     Path.Combine(configRoot, "datadog.yaml"),
                     Path.Combine(configRoot, "system-probe.yaml"),

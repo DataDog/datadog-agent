@@ -26,7 +26,7 @@ namespace Datadog.CustomActions.Interfaces
                     {
                         installMethod = "windows_msi_quiet";
                     }
-                    
+
                 }
 
                 // Leave "windows_msi_next_gen" to leave a trace that
