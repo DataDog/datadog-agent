@@ -7,6 +7,8 @@
 
 package env
 
+import "github.com/DataDog/datadog-agent/pkg/conf"
+
 // IsAnyContainerFeaturePresent checks if any of known container features is present
 func IsAnyContainerFeaturePresent() bool {
 	return false
