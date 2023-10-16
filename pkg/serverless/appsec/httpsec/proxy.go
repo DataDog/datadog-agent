@@ -72,6 +72,10 @@ func (lp *ProxyLifecycleProcessor) OnInvokeStart(startDetails *invocationlifecyc
 		event = &events.APIGatewayV2HTTPRequest{}
 	case trigger.APIGatewayWebsocketEvent:
 		event = &events.APIGatewayWebsocketProxyRequest{}
+	case trigger.APIGatewayLambdaAuthorizerTokenEvent:
+		event = &events.APIGatewayCustomAuthorizerRequest{}
+	case trigger.APIGatewayLambdaAuthorizerRequestParametersEvent:
+		event = &events.APIGatewayCustomAuthorizerRequestTypeRequest{}
 	case trigger.ALBEvent:
 		event = &events.ALBTargetGroupRequest{}
 	case trigger.LambdaFunctionURLEvent:
@@ -128,6 +132,7 @@ func (lp *ProxyLifecycleProcessor) spanModifier(lastReqId string, chunk *pb.Trac
 			event.PathParameters,
 			event.RequestContext.Identity.SourceIP,
 			&event.Body,
+			event.IsBase64Encoded,
 		)
 
 	case *events.APIGatewayV2HTTPRequest:
@@ -139,6 +144,7 @@ func (lp *ProxyLifecycleProcessor) spanModifier(lastReqId string, chunk *pb.Trac
 			event.PathParameters,
 			event.RequestContext.HTTP.SourceIP,
 			&event.Body,
+			event.IsBase64Encoded,
 		)
 
 	case *events.APIGatewayWebsocketProxyRequest:
@@ -150,6 +156,32 @@ func (lp *ProxyLifecycleProcessor) spanModifier(lastReqId string, chunk *pb.Trac
 			event.PathParameters,
 			event.RequestContext.Identity.SourceIP,
 			&event.Body,
+			event.IsBase64Encoded,
+		)
+
+	case *events.APIGatewayCustomAuthorizerRequest:
+		makeContext(
+			&ctx,
+			nil,
+			// NOTE: The header name could have been different (depends on API GW configuration)
+			map[string][]string{"Authorization": {event.AuthorizationToken}},
+			nil,
+			nil,
+			"", // Not provided by API Gateway
+			nil,
+			false,
+		)
+
+	case *events.APIGatewayCustomAuthorizerRequestTypeRequest:
+		makeContext(
+			&ctx,
+			&event.Path,
+			event.MultiValueHeaders,
+			event.MultiValueQueryStringParameters,
+			event.PathParameters,
+			event.RequestContext.Identity.SourceIP,
+			nil,
+			false,
 		)
 
 	case *events.ALBTargetGroupRequest:
@@ -161,6 +193,7 @@ func (lp *ProxyLifecycleProcessor) spanModifier(lastReqId string, chunk *pb.Trac
 			nil,
 			"",
 			&event.Body,
+			event.IsBase64Encoded,
 		)
 
 	case *events.LambdaFunctionURLRequest:
@@ -172,6 +205,7 @@ func (lp *ProxyLifecycleProcessor) spanModifier(lastReqId string, chunk *pb.Trac
 			nil,
 			event.RequestContext.HTTP.SourceIP,
 			&event.Body,
+			event.IsBase64Encoded,
 		)
 	}
 

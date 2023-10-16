@@ -110,14 +110,19 @@ func StartServerUDP(t *testing.T, ip net.IP, port int) io.Closer {
 		Port: port,
 	}
 
-	l, err := net.ListenUDP(network, addr)
+	udpConn, err := net.ListenUDP(network, addr)
 	require.NoError(t, err)
 	go func() {
 		close(ch)
 
 		for {
 			bs := make([]byte, 10)
-			_, err := l.Read(bs)
+			_, addr, err := udpConn.ReadFrom(bs)
+			if err != nil {
+				return
+			}
+
+			_, err = udpConn.WriteTo([]byte("pong"), addr)
 			if err != nil {
 				return
 			}
@@ -132,5 +137,5 @@ func StartServerUDP(t *testing.T, ip net.IP, port int) io.Closer {
 		}
 	}, 3*time.Second, 10*time.Millisecond, "timed out waiting for UDP server to come up")
 
-	return l
+	return udpConn
 }

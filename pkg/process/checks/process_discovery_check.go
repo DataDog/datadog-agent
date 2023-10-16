@@ -18,10 +18,10 @@ import (
 )
 
 // NewProcessDiscoveryCheck returns an instance of the ProcessDiscoveryCheck.
-func NewProcessDiscoveryCheck(config ddconfig.ConfigReader) *ProcessDiscoveryCheck {
+func NewProcessDiscoveryCheck(config ddconfig.Reader) *ProcessDiscoveryCheck {
 	return &ProcessDiscoveryCheck{
 		config:    config,
-		userProbe: NewLookupIdProbe(config),
+		userProbe: NewLookupIDProbe(config),
 	}
 }
 
@@ -29,7 +29,7 @@ func NewProcessDiscoveryCheck(config ddconfig.ConfigReader) *ProcessDiscoveryChe
 // It uses its own ProcessDiscovery payload.
 // The goal of this check is to collect information about possible integrations that may be enabled by the end user.
 type ProcessDiscoveryCheck struct {
-	config ddconfig.ConfigReader
+	config ddconfig.Reader
 
 	probe      procutil.Probe
 	userProbe  *LookupIdProbe

@@ -1,0 +1,142 @@
+{
+  "usr": {},
+  "evt": {
+    "name": "exec",
+    "category": "Process Activity",
+    "outcome": "Success"
+  },
+  "date": "0001-01-01T00:00:00Z",
+  "file": {
+    "path": "/bin/2",
+    "name": "2",
+    "inode": 2,
+    "uid": 0,
+    "gid": 0,
+    "modification_time": "1970-01-01T01:00:00+01:00",
+    "change_time": "1970-01-01T01:00:00+01:00",
+    "hash_state": "NoHash"
+  },
+  "process": {
+    "parent": {
+      "pid": 14,
+      "uid": 0,
+      "gid": 0,
+      "comm": "4",
+      "credentials": {
+        "uid": 0,
+        "gid": 0,
+        "euid": 0,
+        "egid": 0,
+        "fsuid": 0,
+        "fsgid": 0,
+        "cap_effective": [],
+        "cap_permitted": []
+      },
+      "executable": {
+        "path": "/bin/4",
+        "name": "4",
+        "inode": 4,
+        "uid": 0,
+        "gid": 0,
+        "modification_time": "1970-01-01T01:00:00+01:00",
+        "change_time": "1970-01-01T01:00:00+01:00",
+        "hash_state": "NoHash"
+      },
+      "container": {
+        "id": "123"
+      },
+      "argv0": "4",
+      "source": "unknown"
+    },
+    "ancestors": [
+      {
+        "pid": 14,
+        "uid": 0,
+        "gid": 0,
+        "comm": "4",
+        "credentials": {
+          "uid": 0,
+          "gid": 0,
+          "euid": 0,
+          "egid": 0,
+          "fsuid": 0,
+          "fsgid": 0,
+          "cap_effective": [],
+          "cap_permitted": []
+        },
+        "executable": {
+          "path": "/bin/4",
+          "name": "4",
+          "inode": 4,
+          "uid": 0,
+          "gid": 0,
+          "modification_time": "1970-01-01T01:00:00+01:00",
+          "change_time": "1970-01-01T01:00:00+01:00",
+          "hash_state": "NoHash"
+        },
+        "container": {
+          "id": "123"
+        },
+        "argv0": "4",
+        "source": "unknown"
+      },
+      {
+        "pid": 1,
+        "uid": 0,
+        "gid": 0,
+        "comm": "systemd",
+        "credentials": {
+          "uid": 0,
+          "gid": 0,
+          "euid": 0,
+          "egid": 0,
+          "fsuid": 0,
+          "fsgid": 0,
+          "cap_effective": [],
+          "cap_permitted": []
+        },
+        "executable": {
+          "path": "/bin/systemd",
+          "name": "systemd",
+          "inode": 42,
+          "uid": 0,
+          "gid": 0,
+          "modification_time": "1970-01-01T01:00:00+01:00",
+          "change_time": "1970-01-01T01:00:00+01:00",
+          "hash_state": "NoHash"
+        },
+        "source": "unknown"
+      }
+    ],
+    "pid": 12,
+    "uid": 0,
+    "gid": 0,
+    "comm": "2",
+    "credentials": {
+      "uid": 0,
+      "gid": 0,
+      "euid": 0,
+      "egid": 0,
+      "fsuid": 0,
+      "fsgid": 0,
+      "cap_effective": [],
+      "cap_permitted": []
+    },
+    "executable": {
+      "path": "/bin/2",
+      "name": "2",
+      "inode": 2,
+      "uid": 0,
+      "gid": 0,
+      "modification_time": "1970-01-01T01:00:00+01:00",
+      "change_time": "1970-01-01T01:00:00+01:00",
+      "hash_state": "NoHash"
+    },
+    "container": {
+      "id": "123"
+    },
+    "argv0": "2",
+    "source": "unknown"
+  },
+  "dd": {}
+}

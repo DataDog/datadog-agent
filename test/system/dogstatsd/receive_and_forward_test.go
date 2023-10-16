@@ -15,7 +15,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/DataDog/datadog-agent/pkg/metadata/v5"
+	"github.com/DataDog/datadog-agent/comp/metadata/host"
 	"github.com/DataDog/datadog-agent/pkg/metrics/servicecheck"
 	"github.com/DataDog/datadog-agent/pkg/util/compression"
 )
@@ -32,7 +32,7 @@ func testMetadata(t *testing.T, d *dogstatsdTest) {
 	requests := d.getRequests()
 	require.Len(t, requests, 1)
 
-	metadata := v5.Payload{}
+	metadata := host.Payload{}
 	err := json.Unmarshal([]byte(requests[0]), &metadata)
 	require.NoError(t, err, "Could not Unmarshal metadata request")
 
