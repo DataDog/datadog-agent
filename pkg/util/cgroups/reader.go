@@ -17,6 +17,7 @@ import (
 )
 
 const (
+	// ContainerRegexpStr defines the regexp used to match container IDs
 	ContainerRegexpStr = "([0-9a-f]{64})|([0-9a-f]{8}(-[0-9a-f]{4}){4}$)"
 )
 

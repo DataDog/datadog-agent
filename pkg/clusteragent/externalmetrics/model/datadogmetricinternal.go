@@ -5,6 +5,7 @@
 
 //go:build kubeapiserver
 
+// Package model implements the Datadog metric internal type.
 package model
 
 import (
@@ -137,7 +138,7 @@ func NewDatadogMetricInternalFromExternalMetric(id, query, metricName, autoscale
 	}
 }
 
-// query returns the query that should be used to fetch metrics
+// Query returns the query that should be used to fetch metrics
 func (d *DatadogMetricInternal) Query() string {
 	if d.resolvedQuery != nil {
 		return *d.resolvedQuery

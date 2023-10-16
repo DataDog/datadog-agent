@@ -66,9 +66,14 @@ AGENT_CORECHECKS = [
     "systemd",
     "tcp_queue_length",
     "uptime",
-    "winkmem",
     "winproc",
     "jetson",
+]
+
+WINDOWS_CORECHECKS = [
+    "agentcrashdetect",
+    "winkmem",
+    "wincrashdetect",
 ]
 
 IOT_AGENT_CORECHECKS = [
@@ -235,6 +240,14 @@ def refresh_assets(_, build_tags, development=True, flavor=AgentFlavor.base.name
     for check in AGENT_CORECHECKS if not flavor.is_iot() else IOT_AGENT_CORECHECKS:
         check_dir = os.path.join(dist_folder, f"conf.d/{check}.d/")
         copy_tree(f"./cmd/agent/dist/conf.d/{check}.d/", check_dir)
+
+    ## add additional windows-only corechecks, only on windows. Otherwise the check loader
+    ## on linux will throw an error because the module is not found, but the config is.
+    if sys.platform == 'win32':
+        for check in WINDOWS_CORECHECKS:
+            check_dir = os.path.join(dist_folder, f"conf.d/{check}.d/")
+            copy_tree(f"./cmd/agent/dist/conf.d/{check}.d/", check_dir)
+
     if "apm" in build_tags:
         shutil.copy("./cmd/agent/dist/conf.d/apm.yaml.default", os.path.join(dist_folder, "conf.d/apm.yaml.default"))
     if "process" in build_tags:
@@ -459,6 +472,41 @@ def integration_tests(ctx, install_deps=False, race=False, remote_docker=False, 
     if install_deps:
         deps(ctx)
 
+    if sys.platform == 'win32':
+        return _windows_integration_tests(ctx, race=race, go_mod=go_mod, arch=arch)
+    else:
+        # TODO: See if these will function on Windows
+        return _linux_integration_tests(ctx, race=race, remote_docker=remote_docker, go_mod=go_mod, arch=arch)
+
+
+def _windows_integration_tests(ctx, race=False, go_mod="mod", arch="x64"):
+    test_args = {
+        "go_mod": go_mod,
+        "go_build_tags": " ".join(get_default_build_tags(build="test", arch=arch)),
+        "race_opt": "-race" if race else "",
+        "exec_opts": "",
+    }
+
+    go_cmd = 'go test -mod={go_mod} {race_opt} -tags "{go_build_tags}" {exec_opts}'.format(**test_args)  # noqa: FS002
+
+    tests = [
+        {
+            # Run eventlog tests with the Windows API, which depend on the EventLog service
+            'prefix': './pkg/util/winutil/eventlog/...',
+            'extra_args': '-evtapi Windows',
+        },
+        {
+            # Run eventlog tailer tests with the Windows API, which depend on the EventLog service
+            'prefix': './pkg/logs/tailers/windowsevent/...',
+            'extra_args': '-evtapi Windows',
+        },
+    ]
+
+    for test in tests:
+        ctx.run(f"{go_cmd} {test['prefix']} {test['extra_args']}")
+
+
+def _linux_integration_tests(ctx, race=False, remote_docker=False, go_mod="mod", arch="x64"):
     test_args = {
         "go_mod": go_mod,
         "go_build_tags": " ".join(get_default_build_tags(build="test", arch=arch)),

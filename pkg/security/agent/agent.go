@@ -9,7 +9,6 @@ package agent
 import (
 	"bytes"
 	"context"
-	"errors"
 	"fmt"
 	"io"
 	"sync"
@@ -21,7 +20,6 @@ import (
 	"google.golang.org/grpc/status"
 
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
-	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/security/common"
 	"github.com/DataDog/datadog-agent/pkg/security/proto/api"
 	"github.com/DataDog/datadog-agent/pkg/security/security_profile/dump"
@@ -52,35 +50,6 @@ type RSAOptions struct {
 	IgnoreDDAgentContainers bool
 }
 
-// NewRuntimeSecurityAgent instantiates a new RuntimeSecurityAgent
-func NewRuntimeSecurityAgent(senderManager sender.SenderManager, hostname string, opts RSAOptions) (*RuntimeSecurityAgent, error) {
-	client, err := NewRuntimeSecurityClient()
-	if err != nil {
-		return nil, err
-	}
-
-	telemetry, err := newTelemetry(senderManager, opts.LogProfiledWorkloads, opts.IgnoreDDAgentContainers)
-	if err != nil {
-		return nil, errors.New("failed to initialize the telemetry reporter")
-	}
-
-	storage, err := dump.NewSecurityAgentStorageManager(senderManager)
-	if err != nil {
-		return nil, err
-	}
-
-	return &RuntimeSecurityAgent{
-		client:               client,
-		hostname:             hostname,
-		telemetry:            telemetry,
-		storage:              storage,
-		running:              atomic.NewBool(false),
-		connected:            atomic.NewBool(false),
-		eventReceived:        atomic.NewUint64(0),
-		activityDumpReceived: atomic.NewUint64(0),
-	}, nil
-}
-
 // Start the runtime security agent
 func (rsa *RuntimeSecurityAgent) Start(reporter common.RawReporter, endpoints *config.Endpoints) {
 	rsa.reporter = reporter
@@ -94,8 +63,11 @@ func (rsa *RuntimeSecurityAgent) Start(reporter common.RawReporter, endpoints *c
 	go rsa.StartEventListener()
 	// Start activity dumps listener
 	go rsa.StartActivityDumpListener()
-	// Send Runtime Security Agent telemetry
-	go rsa.telemetry.run(ctx, rsa)
+
+	if rsa.telemetry != nil {
+		// Send Runtime Security Agent telemetry
+		go rsa.telemetry.run(ctx, rsa)
+	}
 }
 
 // Stop the runtime recurity agent
@@ -207,16 +179,17 @@ func (rsa *RuntimeSecurityAgent) DispatchActivityDump(msg *api.ActivityDumpStrea
 		log.Errorf("%v", err)
 		return
 	}
+	if rsa.telemetry != nil {
+		// register for telemetry for this container
+		imageName, imageTag := dump.GetImageNameTag()
+		rsa.telemetry.registerProfiledContainer(imageName, imageTag)
 
-	// register for telemetry for this container
-	imageName, imageTag := dump.GetImageNameTag()
-	rsa.telemetry.registerProfiledContainer(imageName, imageTag)
+		raw := bytes.NewBuffer(msg.GetData())
 
-	raw := bytes.NewBuffer(msg.GetData())
-
-	for _, requests := range dump.StorageRequests {
-		if err := rsa.storage.PersistRaw(requests, dump, raw); err != nil {
-			log.Errorf("%v", err)
+		for _, requests := range dump.StorageRequests {
+			if err := rsa.storage.PersistRaw(requests, dump, raw); err != nil {
+				log.Errorf("%v", err)
+			}
 		}
 	}
 }

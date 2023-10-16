@@ -5,6 +5,8 @@
 
 //go:build kubelet
 
+// Package health is responsible for emitting the Kubelet check metrics that are
+// collected from the `/healthz` endpoint.
 package health
 
 import (
@@ -26,12 +28,14 @@ type Provider struct {
 	config *common.KubeletConfig
 }
 
+// NewProvider returns a new Provider
 func NewProvider(config *common.KubeletConfig) *Provider {
 	return &Provider{
 		config: config,
 	}
 }
 
+// Provide sends the service checks related to the `/healthz` Kubelet endpoint
 func (p *Provider) Provide(kc kubelet.KubeUtilInterface, sender sender.Sender) error {
 	serviceCheckBase := common.KubeletMetricsPrefix + "kubelet.check"
 	// Collect raw data

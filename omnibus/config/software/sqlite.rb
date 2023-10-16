@@ -35,7 +35,12 @@ build do
 
   env["CFLAGS"] << " -fPIC"
 
-  configure "--enable-pic", env: env
+  configure_opts = [
+    "--enable-pic",
+    "--disable-static",
+    "--enable-shared",
+  ]
+  configure configure_opts, env: env
 
   make "-j #{workers}", env: env
   make "install", env: env

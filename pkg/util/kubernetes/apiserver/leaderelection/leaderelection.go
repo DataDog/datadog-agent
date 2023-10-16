@@ -5,6 +5,8 @@
 
 //go:build kubeapiserver
 
+// Package leaderelection provides functions related with the leader election
+// mechanism offered in Kubernetes.
 package leaderelection
 
 import (

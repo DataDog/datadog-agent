@@ -22,6 +22,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/exp/slices"
+	"golang.org/x/sys/unix"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/ebpf/probe/ebpfcheck/model"
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
@@ -119,28 +120,32 @@ func TestMinMapSize(t *testing.T) {
 		require.NoError(t, err)
 		t.Cleanup(probe.Close)
 
-		mapTypes := []struct {
-			typ     ebpf.MapType
-			keySize uint32
-		}{
-			{typ: ebpf.Array, keySize: 4},
-			{typ: ebpf.PerCPUArray, keySize: 4},
-			{typ: ebpf.Hash, keySize: keySize},
-			{typ: ebpf.LRUHash, keySize: keySize},
-			{typ: ebpf.LRUCPUHash, keySize: keySize},
-			{typ: ebpf.PerCPUHash, keySize: keySize},
+		mapTypes := []*ebpf.MapSpec{
+			{Type: ebpf.Array, KeySize: 4},
+			{Type: ebpf.PerCPUArray, KeySize: 4},
+			{Type: ebpf.Hash, KeySize: keySize},
+			{Type: ebpf.LRUHash, KeySize: keySize},
+			{Type: ebpf.LRUCPUHash, KeySize: keySize},
+			{Type: ebpf.PerCPUHash, KeySize: keySize},
+			{Type: ebpf.LPMTrie, KeySize: 8, ValueSize: 8, Flags: unix.BPF_F_NO_PREALLOC},
 		}
 
 		// create all the maps
 		ids := make(map[ebpf.MapType]ebpf.MapID)
 		for _, mt := range mapTypes {
-			testMapSpec := &ebpf.MapSpec{Name: fmt.Sprintf("et_%s", mt.typ), Type: mt.typ, KeySize: mt.keySize, ValueSize: valueSize, MaxEntries: maxEntries}
-			testMap, err := ebpf.NewMap(testMapSpec)
-			require.NoError(t, err, mt.typ)
+			if mt.ValueSize == 0 {
+				mt.ValueSize = valueSize
+			}
+			if mt.MaxEntries == 0 {
+				mt.MaxEntries = maxEntries
+			}
+			mt.Name = fmt.Sprintf("et_%s", mt.Type)
+			testMap, err := ebpf.NewMap(mt)
+			require.NoError(t, err, mt.Type)
 			t.Cleanup(func() { _ = testMap.Close() })
 			info, err := testMap.Info()
-			require.NoError(t, err, mt.typ)
-			ids[mt.typ], _ = info.ID()
+			require.NoError(t, err, mt.Type)
+			ids[mt.Type], _ = info.ID()
 		}
 
 		// wait until we have stats about all maps
@@ -162,26 +167,26 @@ func TestMinMapSize(t *testing.T) {
 		// assert max size is at least the naive map size
 		for _, mt := range mapTypes {
 			idx := slices.IndexFunc(result, func(stats model.EBPFMapStats) bool {
-				return stats.ID == uint32(ids[mt.typ])
+				return stats.ID == uint32(ids[mt.Type])
 			})
 			typStats := result[idx]
 
-			ks := uint64(keySize)
-			switch mt.typ {
+			ks := uint64(mt.KeySize)
+			switch mt.Type {
 			case ebpf.Array, ebpf.PerCPUArray:
 				// array types don't use space for the indexes
 				ks = 1
 			}
 
 			minSize := uint64(0)
-			if isPerCPU(mt.typ) {
+			if isPerCPU(mt.Type) {
 				// hash of key -> ~per-cpu array
-				minSize = (ks * uint64(maxEntries)) + (uint64(valueSize) * uint64(maxEntries) * nrcpus)
+				minSize = (ks * uint64(mt.MaxEntries)) + (uint64(mt.ValueSize) * uint64(mt.MaxEntries) * nrcpus)
 			} else {
-				minSize = (ks + valueSize) * maxEntries
+				minSize = (ks + uint64(mt.ValueSize)) * uint64(mt.MaxEntries)
 			}
-			t.Logf("typ: %s min: %d val: %d", mt.typ, minSize, typStats.MaxSize)
-			assert.GreaterOrEqual(t, typStats.MaxSize, minSize, "map type: %s", mt.typ.String())
+			t.Logf("type: %s min: %d val: %d", mt.Type, minSize, typStats.MaxSize)
+			assert.GreaterOrEqual(t, typStats.MaxSize, minSize, "map type: %s", mt.Type)
 		}
 	})
 }

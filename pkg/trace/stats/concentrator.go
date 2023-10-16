@@ -6,6 +6,7 @@
 package stats
 
 import (
+	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -46,8 +47,25 @@ type Concentrator struct {
 	agentEnv               string
 	agentHostname          string
 	agentVersion           string
-	peerSvcAggregation     bool // flag to enable peer.service aggregation
-	computeStatsBySpanKind bool // flag to enable computation of stats through checking the span.kind field
+	peerSvcAggregation     bool     // flag to enable peer.service aggregation
+	computeStatsBySpanKind bool     // flag to enable computation of stats through checking the span.kind field
+	peerTagKeys            []string // keys for supplementary tags that describe peer.service entities
+}
+
+func prepareTagKeys(tags ...string) []string {
+	if len(tags) == 0 {
+		return nil
+	}
+	var deduped []string
+	seen := make(map[string]bool)
+	for _, t := range tags {
+		if !seen[t] {
+			seen[t] = true
+			deduped = append(deduped, t)
+		}
+	}
+	sort.Strings(deduped)
+	return deduped
 }
 
 // NewConcentrator initializes a new concentrator ready to be started
@@ -69,6 +87,9 @@ func NewConcentrator(conf *config.AgentConfig, out chan *pb.StatsPayload, now ti
 		agentVersion:           conf.AgentVersion,
 		peerSvcAggregation:     conf.PeerServiceAggregation,
 		computeStatsBySpanKind: conf.ComputeStatsBySpanKind,
+	}
+	if conf.PeerServiceAggregation {
+		c.peerTagKeys = prepareTagKeys(conf.PeerTags...)
 	}
 	return &c
 }
@@ -198,7 +219,7 @@ func (c *Concentrator) addNow(pt *traceutil.ProcessedTrace, containerID string) 
 			b = NewRawBucket(uint64(btime), uint64(c.bsize))
 			c.buckets[btime] = b
 		}
-		b.HandleSpan(s, weight, isTop, pt.TraceChunk.Origin, aggKey, c.peerSvcAggregation)
+		b.HandleSpan(s, weight, isTop, pt.TraceChunk.Origin, aggKey, c.peerSvcAggregation, c.peerTagKeys)
 	}
 }
 

@@ -22,6 +22,7 @@ type PdhCounterValue struct {
 	Long    int32
 }
 
+// PdhCounterValueItem contains the counter value for an instance
 type PdhCounterValueItem struct {
 	instance string
 	value    PdhCounterValue

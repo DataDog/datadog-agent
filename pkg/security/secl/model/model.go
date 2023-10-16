@@ -24,7 +24,6 @@ type Model struct {
 	ExtraValidateFieldFnc func(field eval.Field, fieldValue eval.FieldValue) error
 }
 
-var processContextZero = ProcessCacheEntry{}
 var eventZero = Event{BaseEvent: BaseEvent{ContainerContext: &ContainerContext{}}}
 var containerContextZero ContainerContext
 
@@ -167,7 +166,7 @@ type BaseEvent struct {
 	Type         uint32         `field:"-"`
 	Flags        uint32         `field:"-"`
 	TimestampRaw uint64         `field:"event.timestamp,handler:ResolveEventTimestamp" event:"*"` // SECLDoc[event.timestamp] Definition:`Timestamp of the event`
-	Timestamp    time.Time      `field:"-"`
+	Timestamp    time.Time      `field:"timestamp,opts:getters_only,handler:ResolveEventTime"`
 	Rules        []*MatchedRule `field:"-"`
 
 	// context shared with all events

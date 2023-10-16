@@ -28,11 +28,9 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/diagnose"
 	"github.com/DataDog/datadog-agent/pkg/diagnose/diagnosis"
 	"github.com/DataDog/datadog-agent/pkg/metadata/inventories"
-	v5 "github.com/DataDog/datadog-agent/pkg/metadata/v5"
 	"github.com/DataDog/datadog-agent/pkg/secrets"
 	"github.com/DataDog/datadog-agent/pkg/status"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
-	host "github.com/DataDog/datadog-agent/pkg/util/hostname"
 	"github.com/DataDog/datadog-agent/pkg/util/installinfo"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
@@ -89,11 +87,10 @@ func CompleteFlare(fb flaretypes.FlareBuilder, senderManager sender.SenderManage
 	fb.AddFileFromFunc("process_agent_runtime_config_dump.yaml", getProcessAgentFullConfig)
 	fb.AddFileFromFunc("runtime_config_dump.yaml", func() ([]byte, error) { return yaml.Marshal(config.Datadog.AllSettings()) })
 	fb.AddFileFromFunc("system_probe_runtime_config_dump.yaml", func() ([]byte, error) { return yaml.Marshal(config.SystemProbe.AllSettings()) })
-	fb.AddFileFromFunc("diagnose.log", func() ([]byte, error) { return getDiagnoses(senderManager) })
+	fb.AddFileFromFunc("diagnose.log", getDiagnoses(fb.IsLocal(), senderManager))
 	fb.AddFileFromFunc("secrets.log", getSecrets)
 	fb.AddFileFromFunc("envvars.log", getEnvVars)
 	fb.AddFileFromFunc("metadata_inventories.json", inventories.GetLastPayload)
-	fb.AddFileFromFunc("metadata_v5.json", getMetadataV5)
 	fb.AddFileFromFunc("health.yaml", getHealth)
 	fb.AddFileFromFunc("go-routine-dump.log", func() ([]byte, error) { return getHTTPCallContent(pprofURL) })
 	fb.AddFileFromFunc("docker_inspect.log", getDockerSelfInspect)
@@ -127,19 +124,6 @@ func getVersionHistory(fb flaretypes.FlareBuilder) {
 
 func getRegistryJSON(fb flaretypes.FlareBuilder) {
 	fb.CopyFile(filepath.Join(config.Datadog.GetString("logs_config.run_path"), "registry.json"))
-}
-
-func getMetadataV5() ([]byte, error) {
-	ctx := context.Background()
-	hostnameData, _ := host.GetWithProvider(ctx)
-	payload := v5.GetPayload(ctx, hostnameData)
-
-	data, err := json.MarshalIndent(payload, "", "    ")
-	if err != nil {
-		return nil, err
-	}
-
-	return data, nil
 }
 
 func getLogFiles(fb flaretypes.FlareBuilder, logFileDir string) {
@@ -296,22 +280,25 @@ func getProcessChecks(fb flaretypes.FlareBuilder, getAddressPort func() (url str
 	getCheck("process_discovery", "process_config.process_discovery.enabled")
 }
 
-func getDiagnoses(senderManager sender.SenderManager) ([]byte, error) {
+func getDiagnoses(isFlareLocal bool, senderManager sender.SenderManager) func() ([]byte, error) {
+
 	fct := func(w io.Writer) error {
-		// Run agent diagnose command to be verbose and remote. If Agent is running small performance hit
-		// since this code will get diagnoses using Agent’s local port listener (instead of calling a
-		// function directly since the caller and callee are in the same process).However, the same code
-		// will continue to work well because agent diagnose command works locally as well (if it cannot
-		// connect to the running Agent).
+		// Run diagnose always "local" (in the host process that is)
 		diagCfg := diagnosis.Config{
 			Verbose:  true,
-			RunLocal: false,
+			RunLocal: true,
+		}
+
+		// ... but when running within Agent some diagnose suites need to know
+		// that to run more optimally/differently by using existing in-memory objects
+		if !isFlareLocal {
+			diagCfg.RunningInAgentProcess = true
 		}
 
 		return diagnose.RunStdOut(w, diagCfg, senderManager)
 	}
 
-	return functionOutputToBytes(fct), nil
+	return func() ([]byte, error) { return functionOutputToBytes(fct), nil }
 }
 
 func getConfigCheck() ([]byte, error) {

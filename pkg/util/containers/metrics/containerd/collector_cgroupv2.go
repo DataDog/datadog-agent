@@ -11,7 +11,7 @@ import (
 	"fmt"
 	"time"
 
-	v2 "github.com/containerd/cgroups/v2/stats"
+	v2 "github.com/containerd/cgroups/v3/cgroup2/stats"
 
 	"github.com/DataDog/datadog-agent/pkg/util/containers/metrics/provider"
 	"github.com/DataDog/datadog-agent/pkg/util/pointer"
@@ -60,6 +60,8 @@ func getMemoryStatsCgroupV2(memStat *v2.MemoryStat, memEvents *v2.MemoryEvents) 
 		KernelMemory: pointer.Ptr(float64(memStat.Slab + memStat.KernelStack)),
 		Limit:        pointer.Ptr(float64(memStat.UsageLimit)), // TODO: Check value if no limit
 		Swap:         pointer.Ptr(float64(memStat.SwapUsage)),
+		Pgfault:      pointer.Ptr(float64(memStat.Pgfault)),
+		Pgmajfault:   pointer.Ptr(float64(memStat.Pgmajfault)),
 	}
 
 	if memEvents != nil {

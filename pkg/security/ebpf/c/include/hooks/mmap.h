@@ -40,7 +40,7 @@ int __attribute__((always_inline)) sys_mmap_ret(void *ctx, int retval, u64 addr)
     }
 
     if (filter_syscall(syscall, mmap_approvers)) {
-        return discard_syscall(syscall);
+        return 0;
     }
 
     if (retval != -1) {
@@ -81,8 +81,8 @@ int rethook_fget(ctx_t *ctx) {
 
     struct file *f = (struct file*) CTX_PARMRET(ctx, 1);
     syscall->mmap.dentry = get_file_dentry(f);
-    set_file_inode(syscall->mmap.dentry, &syscall->mmap.file, 0);
     syscall->mmap.file.path_key.mount_id = get_file_mount_id(f);
+    set_file_inode(syscall->mmap.dentry, &syscall->mmap.file, 0);
 
     syscall->resolver.key = syscall->mmap.file.path_key;
     syscall->resolver.dentry = syscall->mmap.dentry;

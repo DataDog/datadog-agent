@@ -34,6 +34,10 @@ var dockerImageLibrary = map[string][]string{
 		"ubuntu:20.04",
 		"public.ecr.aws/ubuntu/ubuntu:20.04",
 	},
+	"centos": {
+		"centos:7",
+		"public.ecr.aws/centos/centos:7",
+	},
 	"alpine": {
 		"alpine",
 		"public.ecr.aws/docker/library/alpine:latest",

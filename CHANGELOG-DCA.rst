@@ -2,6 +2,56 @@
 Release Notes
 =============
 
+.. _Release Notes_7.48.0:
+
+7.48.0 / 6.48.0
+======
+
+.. _Release Notes_7.48.0_New Features:
+
+New Features
+------------
+
+- Added the kubernetes_state.pod.tolerations metric to the KSM core check
+
+- Add ``HorizontalPodAutoscaler`` collection in the orchestrator check.
+
+
+.. _Release Notes_7.48.0_Enhancement Notes:
+
+Enhancement Notes
+-----------------
+
+- Add safeguards for orchestrator CRD collection.
+
+- The Datadog cluster-agent container image is now using Ubuntu 23.04 lunar
+  as the base image.
+
+
+.. _Release Notes_7.48.0_Bug Fixes:
+
+Bug Fixes
+---------
+
+- Fixed an error in the calculations performed by the algorithm that rebalances cluster checks. Cluster checks are now more evenly distributed when advanced dispatching is enabled (``cluster_checks.advanced_dispatching_enabled`` is set to true).
+
+- Service checks are no longer excluded from rebalancing decisions when advanced dispatching is enabled (``cluster_checks.advanced_dispatching_enabled`` is set to true).
+
+- Fixes a rare bug in the Kubernetes State check that causes the Agent to incorrectly tag the ``kubernetes_state.job.complete`` service check.
+
+- Removes an incorrect warning log message that mentions that the DD_POD_NAME
+  env var is unknown.
+
+- Fixes the KSM check to support HPA v2beta2 again. This stopped working in Agent v7.44.0.
+
+- Adds the `kube_cluster_name` tag as a static global tag to the cluster agent when the `DD_CLUSTER_NAME` config option is set.
+  This should fix an issue where the tag is not being attached to metrics in certain environments, such as EKS Fargate.
+
+- Fixed a bug in the advanced dispatching of cluster checks. All the checks
+  scheduled since the last rebalance were being scheduled in the same node.
+  Now they should be distributed among the available nodes.
+
+
 .. _Release Notes_7.47.0:
 
 7.47.0 / 6.47.0

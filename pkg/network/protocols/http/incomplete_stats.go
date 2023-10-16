@@ -93,13 +93,13 @@ func (b *incompleteBuffer) Add(tx Transaction) {
 
 	// copy underlying httpTX value. this is now needed because these objects are
 	// now coming directly from pooled perf records
-	ebpfTX, ok := tx.(*EbpfTx)
+	ebpfTX, ok := tx.(*EbpfEvent)
 	if !ok {
 		// should never happen
 		return
 	}
 
-	ebpfTxCopy := new(EbpfTx)
+	ebpfTxCopy := new(EbpfEvent)
 	*ebpfTxCopy = *ebpfTX
 	tx = ebpfTxCopy
 

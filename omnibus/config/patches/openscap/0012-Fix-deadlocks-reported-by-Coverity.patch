@@ -1,0 +1,74 @@
+From dd51ba5c6a6b8f36952c668675dc720868c743a2 Mon Sep 17 00:00:00 2001
+From: David du Colombier <djc@datadoghq.com>
+Date: Wed, 20 Sep 2023 11:29:27 +0200
+Subject: [PATCH 12/16] Fix deadlocks reported by Coverity
+
+---
+ src/OVAL/probes/SEAP/seap-packetq.c | 4 +++-
+ src/OVAL/probes/probe/icache.c      | 5 +++++
+ 2 files changed, 8 insertions(+), 1 deletion(-)
+
+diff --git a/src/OVAL/probes/SEAP/seap-packetq.c b/src/OVAL/probes/SEAP/seap-packetq.c
+index 18dcfc655..126354520 100644
+--- a/src/OVAL/probes/SEAP/seap-packetq.c
++++ b/src/OVAL/probes/SEAP/seap-packetq.c
+@@ -117,9 +117,11 @@ int SEAP_packetq_put(SEAP_packetq_t *queue, SEAP_packet_t *packet)
+ 		queue->last  = queue->first;
+ 	} else {
+ 		if (queue->last == NULL) {
+-			return -1; /* XXX: unlock */
++			pthread_mutex_unlock(&queue->lock);
++			return -1;
+ 		}
+ 		if (queue->last->next != NULL) {
++			pthread_mutex_unlock(&queue->lock);
+ 			return -1;
+ 		}
+ 
+diff --git a/src/OVAL/probes/probe/icache.c b/src/OVAL/probes/probe/icache.c
+index 04ddbfb9e..80dd849e3 100644
+--- a/src/OVAL/probes/probe/icache.c
++++ b/src/OVAL/probes/probe/icache.c
+@@ -214,6 +214,7 @@ const char* thread_name = "icache_worker";
+ 
+         while(pthread_cond_wait(&cache->queue_notempty, &cache->queue_mutex) == 0) {
+ 			if (cache->queue_cnt <= 0) {
++				pthread_mutex_unlock(&cache->queue_mutex);
+ 				return NULL;
+ 			}
+         do {
+@@ -234,6 +235,7 @@ const char* thread_name = "icache_worker";
+ 		if (cache->queue_cnt == 0 ?
+ 			cache->queue_end != cache->queue_beg :
+ 			cache->queue_end == cache->queue_beg) {
++			pthread_mutex_unlock(&cache->queue_mutex);
+ 			return NULL;
+ 		}
+ 
+@@ -412,6 +414,7 @@ int probe_icache_add(probe_icache_t *cache, SEXP_t *cobj, SEXP_t *item)
+         if (pthread_cond_signal(&cache->queue_notempty) != 0) {
+                 dE("An error ocured while signaling the `notempty' condition: %u, %s",
+                    errno, strerror(errno));
++                pthread_mutex_unlock(&cache->queue_mutex);
+                 return (-1);
+         }
+ 
+@@ -442,6 +445,7 @@ int probe_icache_nop(probe_icache_t *cache)
+         if (pthread_cond_init(&cond, NULL) != 0) {
+                 dE("Can't initialize icache queue condition variable (NOP): %u, %s",
+                    errno, strerror(errno));
++                pthread_mutex_unlock(&cache->queue_mutex);
+                 return (-1);
+         }
+ 
+@@ -463,6 +467,7 @@ int probe_icache_nop(probe_icache_t *cache)
+                    errno, strerror(errno));
+ 
+                 pthread_cond_destroy(&cond);
++                pthread_mutex_unlock(&cache->queue_mutex);
+                 return (-1);
+         }
+ 
+-- 
+2.34.1
+

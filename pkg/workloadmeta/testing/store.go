@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+// Package testing provides helpers used for testing the Workloadmeta component.
 package testing
 
 import (
@@ -225,36 +226,37 @@ func (s *Store) Unset(entity workloadmeta.Entity) {
 }
 
 // Start is not implemented in the testing store.
-func (s *Store) Start(ctx context.Context) {
+func (s *Store) Start(context.Context) {
 	panic("not implemented")
 }
 
 // Subscribe is not implemented in the testing store.
-func (s *Store) Subscribe(name string, _ workloadmeta.SubscriberPriority, filter *workloadmeta.Filter) chan workloadmeta.EventBundle {
+func (s *Store) Subscribe(name string, _ workloadmeta.SubscriberPriority, filter *workloadmeta.Filter) chan workloadmeta.EventBundle { //nolint:revive // TODO fix revive unused-parameter
 	panic("not implemented")
 }
 
 // Unsubscribe is not implemented in the testing store.
-func (s *Store) Unsubscribe(ch chan workloadmeta.EventBundle) {
+func (s *Store) Unsubscribe(chan workloadmeta.EventBundle) {
 	panic("not implemented")
 }
 
 // Notify is not implemented in the testing store.
-func (s *Store) Notify(events []workloadmeta.CollectorEvent) {
+func (s *Store) Notify([]workloadmeta.CollectorEvent) {
 	panic("not implemented")
 }
 
 // Dump is not implemented in the testing store.
-func (s *Store) Dump(verbose bool) workloadmeta.WorkloadDumpResponse {
+func (s *Store) Dump(verbose bool) workloadmeta.WorkloadDumpResponse { //nolint:revive // TODO fix revive unused-parameter
 	panic("not implemented")
 }
 
 // Reset is not implemented in the testing store.
-func (s *Store) Reset(newEntities []workloadmeta.Entity, source workloadmeta.Source) {
+func (s *Store) Reset(newEntities []workloadmeta.Entity, source workloadmeta.Source) { //nolint:revive // TODO fix revive unused-parameter
 	panic("not implemented")
 }
 
-func (s *Store) ResetProcesses(newProcesses []workloadmeta.Entity, source workloadmeta.Source) {
+// ResetProcesses is not implemented in the testing store.
+func (s *Store) ResetProcesses(newProcesses []workloadmeta.Entity, source workloadmeta.Source) { //nolint:revive // TODO fix revive unused-parameter
 	panic("not implemented")
 }
 

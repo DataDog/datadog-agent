@@ -5,6 +5,8 @@
 
 //go:build kubelet
 
+// Package pod is responsible for emitting the Kubelet check metrics that are
+// collected from the pod endpoints.
 package pod
 
 import (
@@ -47,6 +49,7 @@ type Provider struct {
 	config *common.KubeletConfig
 }
 
+// NewProvider returns a new Provider
 func NewProvider(filter *containers.Filter, config *common.KubeletConfig) *Provider {
 	return &Provider{
 		filter: filter,
@@ -54,6 +57,7 @@ func NewProvider(filter *containers.Filter, config *common.KubeletConfig) *Provi
 	}
 }
 
+// Provide provides the metrics related to a Kubelet pods
 func (p *Provider) Provide(kc kubelet.KubeUtilInterface, sender sender.Sender) error {
 	// Collect raw data
 	pods, err := kc.GetLocalPodListWithMetadata(context.TODO())
@@ -107,7 +111,7 @@ func (p *Provider) Provide(kc kubelet.KubeUtilInterface, sender sender.Sender) e
 	return nil
 }
 
-func (p *Provider) generateContainerSpecMetrics(sender sender.Sender, pod *kubelet.Pod, container *kubelet.ContainerSpec, cStatus *kubelet.ContainerStatus, containerID string) {
+func (p *Provider) generateContainerSpecMetrics(sender sender.Sender, pod *kubelet.Pod, container *kubelet.ContainerSpec, cStatus *kubelet.ContainerStatus, containerID string) { //nolint:revive // TODO fix revive unused-parameter
 	if pod.Status.Phase != "Running" && pod.Status.Phase != "Pending" {
 		return
 	}
@@ -130,7 +134,7 @@ func (p *Provider) generateContainerSpecMetrics(sender sender.Sender, pod *kubel
 	}
 }
 
-func (p *Provider) generateContainerStatusMetrics(sender sender.Sender, pod *kubelet.Pod, container *kubelet.ContainerSpec, cStatus *kubelet.ContainerStatus, containerID string) {
+func (p *Provider) generateContainerStatusMetrics(sender sender.Sender, pod *kubelet.Pod, container *kubelet.ContainerSpec, cStatus *kubelet.ContainerStatus, containerID string) { //nolint:revive // TODO fix revive unused-parameter
 	if pod.Metadata.UID == "" || pod.Metadata.Name == "" {
 		return
 	}

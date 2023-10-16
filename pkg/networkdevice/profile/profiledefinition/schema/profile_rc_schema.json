@@ -3,6 +3,15 @@
   "$id": "https://github.com/DataDog/datadog-agent/pkg/networkdevice/profile/profiledefinition/device-profile-rc-config",
   "$ref": "#/$defs/DeviceProfileRcConfig",
   "$defs": {
+    "DeviceMeta": {
+      "properties": {
+        "vendor": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
+    },
     "DeviceProfileRcConfig": {
       "properties": {
         "profile_definition": {
@@ -15,47 +24,24 @@
         "profile_definition"
       ]
     },
-    "MetadataConfig": {
-      "additionalProperties": {
-        "$ref": "#/$defs/MetadataResourceConfig"
-      },
-      "type": "object"
-    },
-    "MetadataField": {
-      "properties": {
-        "symbol": {
-          "$ref": "#/$defs/SymbolConfig"
-        },
-        "symbols": {
-          "items": {
-            "$ref": "#/$defs/SymbolConfig"
+    "ListMap[string]": {
+      "items": {
+        "properties": {
+          "key": {
+            "type": "string"
           },
-          "type": "array"
+          "value": {
+            "type": "string"
+          }
         },
-        "value": {
-          "type": "string"
-        }
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "key",
+          "value"
+        ]
       },
-      "additionalProperties": false,
-      "type": "object"
-    },
-    "MetadataResourceConfig": {
-      "properties": {
-        "fields": {
-          "additionalProperties": {
-            "$ref": "#/$defs/MetadataField"
-          },
-          "type": "object"
-        },
-        "id_tags": {
-          "$ref": "#/$defs/MetricTagConfigList"
-        }
-      },
-      "additionalProperties": false,
-      "type": "object",
-      "required": [
-        "fields"
-      ]
+      "type": "array"
     },
     "MetricIndexTransform": {
       "properties": {
@@ -81,14 +67,8 @@
         "index": {
           "type": "integer"
         },
-        "column": {
-          "$ref": "#/$defs/SymbolConfig"
-        },
-        "OID": {
-          "type": "string"
-        },
         "symbol": {
-          "type": "string"
+          "$ref": "#/$defs/SymbolConfigCompat"
         },
         "index_transform": {
           "items": {
@@ -97,19 +77,7 @@
           "type": "array"
         },
         "mapping": {
-          "additionalProperties": {
-            "type": "string"
-          },
-          "type": "object"
-        },
-        "match": {
-          "type": "string"
-        },
-        "tags": {
-          "additionalProperties": {
-            "type": "string"
-          },
-          "type": "object"
+          "$ref": "#/$defs/ListMap[string]"
         }
       },
       "additionalProperties": false,
@@ -141,31 +109,10 @@
           },
           "type": "array"
         },
-        "static_tags": {
-          "items": {
-            "type": "string"
-          },
-          "type": "array"
-        },
         "metric_tags": {
           "$ref": "#/$defs/MetricTagConfigList"
         },
         "metric_type": {
-          "type": "string"
-        },
-        "options": {
-          "$ref": "#/$defs/MetricsConfigOption"
-        }
-      },
-      "additionalProperties": false,
-      "type": "object"
-    },
-    "MetricsConfigOption": {
-      "properties": {
-        "placement": {
-          "type": "integer"
-        },
-        "metric_suffix": {
           "type": "string"
         }
       },
@@ -189,9 +136,6 @@
           },
           "type": "array"
         },
-        "metadata": {
-          "$ref": "#/$defs/MetadataConfig"
-        },
         "metric_tags": {
           "items": {
             "$ref": "#/$defs/MetricTagConfig"
@@ -209,6 +153,9 @@
             "$ref": "#/$defs/MetricsConfig"
           },
           "type": "array"
+        },
+        "device": {
+          "$ref": "#/$defs/DeviceMeta"
         }
       },
       "additionalProperties": false,
@@ -234,10 +181,31 @@
         "extract_value": {
           "type": "string"
         },
-        "match_pattern": {
+        "scale_factor": {
+          "type": "number"
+        },
+        "format": {
           "type": "string"
         },
-        "match_value": {
+        "constant_value_one": {
+          "type": "boolean"
+        },
+        "metric_type": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
+    },
+    "SymbolConfigCompat": {
+      "properties": {
+        "OID": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "extract_value": {
           "type": "string"
         },
         "scale_factor": {

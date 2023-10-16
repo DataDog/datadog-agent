@@ -3,6 +3,9 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2021-present Datadog, Inc.
 
+// Package provider defines the Provider interface which allows to get metrics
+// collectors for the different container runtimes supported (Docker,
+// containerd, etc.).
 package provider
 
 import (
@@ -48,7 +51,7 @@ var (
 	}
 
 	// AllLinuxRuntimes lists all runtimes available on Linux
-	// nolint: deadcode, unused
+	//nolint: deadcode, unused
 	AllLinuxRuntimes = []string{
 		RuntimeNameDocker,
 		RuntimeNameContainerd,
@@ -58,7 +61,7 @@ var (
 	}
 
 	// AllWindowsRuntimes lists all runtimes available on Windows
-	// nolint: deadcode, unused
+	//nolint: deadcode, unused
 	AllWindowsRuntimes = []string{
 		RuntimeNameDocker,
 		RuntimeNameContainerd,

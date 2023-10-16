@@ -66,8 +66,17 @@ type menuItem struct {
 	enabled bool
 }
 
+//revive:disable:var-naming Name is intended to match the Windows const name from RC file
 const (
-	RSRC_MAIN_ICON        = 1
+	RSRC_MAIN_ICON  = 1
+	IDD_DIALOG1     = 101
+	IDC_TICKET_EDIT = 1001
+	IDC_EMAIL_EDIT  = 1002
+)
+
+//revive:enable:var-naming (const)
+
+const (
 	launchGraceTime       = 2
 	eventname             = "ddtray-event"
 	cmdTextStartService   = "StartService"

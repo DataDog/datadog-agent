@@ -5,6 +5,7 @@
 
 //go:build docker
 
+// Package v3or4 provides an ECS client for the version v3 and v4 of the API.
 package v3or4
 
 import (
@@ -31,6 +32,7 @@ const (
 	taskMetadataWithTagsPath = "/taskWithTags"
 )
 
+// Client is an interface for ECS metadata v3 and v4 API clients.
 type Client interface {
 	GetTask(ctx context.Context) (*Task, error)
 	GetContainer(ctx context.Context) (*Container, error)

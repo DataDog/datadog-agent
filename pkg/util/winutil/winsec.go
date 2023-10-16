@@ -17,18 +17,28 @@ import (
 var (
 	advapi32 = syscall.NewLazyDLL("advapi32.dll")
 
+	//revive:disable:var-naming Name is intended to match the Windows API name
 	procGetAclInformation    = advapi32.NewProc("GetAclInformation")
 	procGetNamedSecurityInfo = advapi32.NewProc("GetNamedSecurityInfoW")
 	procGetAce               = advapi32.NewProc("GetAce")
+	//revive:enable:var-naming
 )
 
-type AclSizeInformation struct {
+// ACL_SIZE_INFORMATION struct
+//
+// https://learn.microsoft.com/en-us/windows/win32/api/winnt/ns-winnt-acl_size_information
+//
+//revive:disable:var-naming Name is intended to match the Windows type name
+type ACL_SIZE_INFORMATION struct {
 	AceCount      uint32
 	AclBytesInUse uint32
 	AclBytesFree  uint32
 }
 
-type Acl struct {
+// ACL struct
+//
+// https://learn.microsoft.com/en-us/windows/win32/api/winnt/ns-winnt-acl
+type ACL struct {
 	AclRevision uint8
 	Sbz1        uint8
 	AclSize     uint16
@@ -36,7 +46,10 @@ type Acl struct {
 	Sbz2        uint16
 }
 
-type AccessAllowedAce struct {
+// ACCESS_ALLOWED_ACE struct
+//
+// https://learn.microsoft.com/en-us/windows/win32/api/winnt/ns-winnt-access_allowed_ace
+type ACCESS_ALLOWED_ACE struct {
 	AceType    uint8
 	AceFlags   uint8
 	AceSize    uint16
@@ -44,54 +57,33 @@ type AccessAllowedAce struct {
 	SidStart   uint32
 }
 
+//revive:enable:var-naming (types)
+
+//revive:disable:var-naming Name is intended to match the Windows const name
+
+// ACL_INFORMATION_CLASS enum
+//
+// https://learn.microsoft.com/en-us/windows/win32/api/winnt/ne-winnt-acl_information_class
 const (
-	AclRevisionInformationEnum = 1
-	AclSizeInformationEnum     = 2
+	AclRevisionInformation = 1
+	AclSizeInformation     = 2
 )
 
+// https://learn.microsoft.com/en-us/windows/win32/api/winnt/ns-winnt-ace_header
 const (
 	ACCESS_ALLOWED_ACE_TYPE = 0
 	ACCESS_DENIED_ACE_TYPE  = 1
 )
 
-// https://msdn.microsoft.com/en-us/library/windows/desktop/aa379593.aspx
-const (
-	SE_UNKNOWN_OBJECT_TYPE = iota
-	SE_FILE_OBJECT
-	SE_SERVICE
-	SE_PRINTER
-	SE_REGISTRY_KEY
-	SE_LMSHARE
-	SE_KERNEL_OBJECT
-	SE_WINDOW_OBJECT
-	SE_DS_OBJECT
-	SE_DS_OBJECT_ALL
-	SE_PROVIDER_DEFINED_OBJECT
-	SE_WMIGUID_OBJECT
-	SE_REGISTRY_WOW64_32KEY
-)
-
-// https://msdn.microsoft.com/en-us/library/windows/desktop/aa379573.aspx
-const (
-	OWNER_SECURITY_INFORMATION               = 0x00001
-	GROUP_SECURITY_INFORMATION               = 0x00002
-	DACL_SECURITY_INFORMATION                = 0x00004
-	SACL_SECURITY_INFORMATION                = 0x00008
-	LABEL_SECURITY_INFORMATION               = 0x00010
-	ATTRIBUTE_SECURITY_INFORMATION           = 0x00020
-	SCOPE_SECURITY_INFORMATION               = 0x00040
-	PROCESS_TRUST_LABEL_SECURITY_INFORMATION = 0x00080
-	BACKUP_SECURITY_INFORMATION              = 0x10000
-
-	PROTECTED_DACL_SECURITY_INFORMATION   = 0x80000000
-	PROTECTED_SACL_SECURITY_INFORMATION   = 0x40000000
-	UNPROTECTED_DACL_SECURITY_INFORMATION = 0x20000000
-	UNPROTECTED_SACL_SECURITY_INFORMATION = 0x10000000
-)
+//revive:enable:var-naming (const)
 
 // GetAclInformation calls windows 'GetAclInformation' function to retrieve
 // information about an access control list (ACL).
-func GetAclInformation(acl *Acl, info *AclSizeInformation, class uint32) error {
+//
+// https://learn.microsoft.com/en-us/windows/win32/api/securitybaseapi/nf-securitybaseapi-getaclinformation
+//
+//revive:disable-next-line:var-naming Name is intended to match the Windows API name
+func GetAclInformation(acl *ACL, info *ACL_SIZE_INFORMATION, class uint32) error {
 	length := unsafe.Sizeof(*info)
 	ret, _, _ := procGetAclInformation.Call(
 		uintptr(unsafe.Pointer(acl)),
@@ -107,7 +99,11 @@ func GetAclInformation(acl *Acl, info *AclSizeInformation, class uint32) error {
 
 // GetNamedSecurityInfo calls Windows 'GetNamedSecurityInfo' function to
 // retrieve a copy of the security descriptor for an object specified by name.
-func GetNamedSecurityInfo(objectName string, objectType int32, secInfo uint32, owner, group **windows.SID, dacl, sacl **Acl, secDesc *windows.Handle) error {
+//
+// https://learn.microsoft.com/en-us/windows/win32/api/aclapi/nf-aclapi-getnamedsecurityinfow
+//
+//revive:disable-next-line:var-naming Name is intended to match the Windows API name
+func GetNamedSecurityInfo(objectName string, objectType int32, secInfo uint32, owner, group **windows.SID, dacl, sacl **ACL, secDesc *windows.Handle) error {
 	ret, _, err := procGetNamedSecurityInfo.Call(
 		uintptr(unsafe.Pointer(windows.StringToUTF16Ptr(objectName))),
 		uintptr(objectType),
@@ -126,7 +122,11 @@ func GetNamedSecurityInfo(objectName string, objectType int32, secInfo uint32, o
 
 // GetAce calls Windows 'GetAce' function to obtain a pointer to an access
 // control entry (ACE) in an access control list (ACL).
-func GetAce(acl *Acl, index uint32, ace **AccessAllowedAce) error {
+//
+// https://learn.microsoft.com/en-us/windows/win32/api/securitybaseapi/nf-securitybaseapi-getace
+//
+//revive:disable-next-line:var-naming Name is intended to match the Windows API name
+func GetAce(acl *ACL, index uint32, ace **ACCESS_ALLOWED_ACE) error {
 	ret, _, _ := procGetAce.Call(uintptr(unsafe.Pointer(acl)), uintptr(index), uintptr(unsafe.Pointer(ace)))
 	if int(ret) != 0 {
 		return windows.GetLastError()

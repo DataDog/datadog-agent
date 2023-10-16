@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+// Package mock implements a fake metrics collector to be used in tests.
 package mock
 
 import (
@@ -105,7 +106,7 @@ func (mp *Collector) Clear() {
 }
 
 // GetContainerStats returns stats from MockContainerEntry
-func (mp *Collector) GetContainerStats(containerNS, containerID string, cacheValidity time.Duration) (*provider.ContainerStats, error) {
+func (mp *Collector) GetContainerStats(containerNS, containerID string, cacheValidity time.Duration) (*provider.ContainerStats, error) { //nolint:revive // TODO fix revive unused-parameter
 	if entry, found := mp.containers[containerID]; found {
 		return entry.ContainerStats, entry.Error
 	}
@@ -114,7 +115,7 @@ func (mp *Collector) GetContainerStats(containerNS, containerID string, cacheVal
 }
 
 // GetContainerOpenFilesCount returns stats from MockContainerEntry
-func (mp *Collector) GetContainerOpenFilesCount(containerNS, containerID string, cacheValidity time.Duration) (*uint64, error) {
+func (mp *Collector) GetContainerOpenFilesCount(containerNS, containerID string, cacheValidity time.Duration) (*uint64, error) { //nolint:revive // TODO fix revive unused-parameter
 	if entry, found := mp.containers[containerID]; found {
 		return entry.OpenFiles, entry.Error
 	}
@@ -123,7 +124,7 @@ func (mp *Collector) GetContainerOpenFilesCount(containerNS, containerID string,
 }
 
 // GetContainerNetworkStats returns stats from MockContainerEntry
-func (mp *Collector) GetContainerNetworkStats(containerNS, containerID string, cacheValidity time.Duration) (*provider.ContainerNetworkStats, error) {
+func (mp *Collector) GetContainerNetworkStats(containerNS, containerID string, cacheValidity time.Duration) (*provider.ContainerNetworkStats, error) { //nolint:revive // TODO fix revive unused-parameter
 	if entry, found := mp.containers[containerID]; found {
 		return entry.NetworkStats, entry.Error
 	}
@@ -132,7 +133,7 @@ func (mp *Collector) GetContainerNetworkStats(containerNS, containerID string, c
 }
 
 // GetContainerIDForPID returns a container ID for given PID.
-func (mp *Collector) GetContainerIDForPID(pid int, cacheValidity time.Duration) (string, error) {
+func (mp *Collector) GetContainerIDForPID(pid int, cacheValidity time.Duration) (string, error) { //nolint:revive // TODO fix revive unused-parameter
 	return "", nil
 }
 

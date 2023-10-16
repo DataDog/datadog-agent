@@ -157,6 +157,10 @@ type Config struct {
 	// get flushed on every client request (default 30s check interval)
 	MaxDNSStatsBuffered int
 
+	// MaxUSMConcurrentRequests represents the maximum number of requests (for a single protocol)
+	// that can happen concurrently at a given point in time. This parameter is used for sizing our eBPF maps.
+	MaxUSMConcurrentRequests uint32
+
 	// MaxHTTPStatsBuffered represents the maximum number of HTTP stats we'll buffer in memory. These stats
 	// get flushed on every client request (default 30s check interval)
 	MaxHTTPStatsBuffered int
@@ -303,6 +307,7 @@ func New() *Config {
 		EnableHTTP2Monitoring:     cfg.GetBool(join(smNS, "enable_http2_monitoring")),
 		EnableNativeTLSMonitoring: cfg.GetBool(join(smNS, "tls", "native", "enabled")),
 		EnableIstioMonitoring:     cfg.GetBool(join(smNS, "tls", "istio", "enabled")),
+		MaxUSMConcurrentRequests:  uint32(cfg.GetInt(join(smNS, "max_concurrent_requests"))),
 		MaxHTTPStatsBuffered:      cfg.GetInt(join(smNS, "max_http_stats_buffered")),
 		MaxKafkaStatsBuffered:     cfg.GetInt(join(smNS, "max_kafka_stats_buffered")),
 
