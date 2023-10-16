@@ -69,9 +69,9 @@ func (c *collector) startSBOMCollection(ctx context.Context) error {
 					if len(image.RepoDigests) == 0 {
 						// Skip images without RepoDigest because:
 						// 1- Back-end does not process images without repodigest
-						// 2- For each image, it is possible to have multiple Create/Update events, some with a repodigest
-						// and some without. If the first processed event does not have the repodigest then the SBOM
-						// will not be updated with the RepoDigest later and image scans will be thrown away.
+						// 2- For a given image, it is possible to have multiple Create/Update events.
+						// It is possible that the first event the scanner processes does not have a repodigest.
+						// In that case SBOM will not have a RepoDigest, it won't be updated later and image scans will be ignored by the back-end.
 						log.Debugf("Image: %s/%s (id %s) doesn't have a repodigest", image.Namespace, image.Name, image.ID)
 						continue
 					}
