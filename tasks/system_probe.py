@@ -302,7 +302,10 @@ def ninja_runtime_compilation_files(nw, gobin):
         "pkg/security/ebpf/compile.go": "runtime-security",
     }
 
-    nw.rule(name="headerincl", command="go generate -mod=mod -tags linux_bpf $in", depfile="$out.d")
+    nw.rule(
+        name="headerincl", command="go generate -run=\"include_headers\" -mod=mod -tags linux_bpf $in", depfile="$out.d"
+    )
+    nw.rule(name="integrity", command="go generate -run=\"integrity\" -mod=mod -tags linux_bpf $in", depfile="$out.d")
     hash_dir = os.path.join(bc_dir, "runtime")
     rc_dir = os.path.join(build_dir, "runtime")
     for in_path, out_filename in runtime_compiler_files.items():
@@ -310,10 +313,15 @@ def ninja_runtime_compilation_files(nw, gobin):
         hash_file = os.path.join(hash_dir, f"{out_filename}.go")
         nw.build(
             inputs=[in_path],
-            outputs=[c_file],
             implicit=toolpaths,
-            implicit_outputs=[hash_file],
+            outputs=[c_file],
             rule="headerincl",
+        )
+        nw.build(
+            inputs=[in_path],
+            implicit=toolpaths + [c_file],
+            outputs=[hash_file],
+            rule="integrity",
         )
 
 
