@@ -8,13 +8,18 @@
 package http2
 
 import (
+	"fmt"
+	"net"
+	"strconv"
 	"strings"
 
 	"golang.org/x/net/http2/hpack"
 
+	"github.com/DataDog/datadog-agent/pkg/network/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http"
 	"github.com/DataDog/datadog-agent/pkg/network/types"
+	"github.com/DataDog/datadog-agent/pkg/process/util"
 )
 
 // Path returns the URL from the request fragment captured in eBPF.
@@ -131,4 +136,61 @@ func (tx *EbpfTx) String() string {
 	}
 	output.WriteString("}")
 	return output.String()
+}
+
+func (t http2StreamKey) family() ebpf.ConnFamily {
+	if t.Tup.Metadata&uint32(ebpf.IPv6) != 0 {
+		return ebpf.IPv6
+	}
+	return ebpf.IPv4
+}
+
+func (t http2StreamKey) sourceAddress() util.Address {
+	if t.family() == ebpf.IPv4 {
+		return util.V4Address(uint32(t.Tup.Saddr_l))
+	}
+	return util.V6Address(t.Tup.Saddr_l, t.Tup.Saddr_h)
+}
+
+func (t http2StreamKey) sourceEndpoint() string {
+	return net.JoinHostPort(t.sourceAddress().String(), strconv.Itoa(int(t.Tup.Sport)))
+}
+
+func (t http2StreamKey) destAddress() util.Address {
+	if t.family() == ebpf.IPv4 {
+		return util.V4Address(uint32(t.Tup.Daddr_l))
+	}
+	return util.V6Address(t.Tup.Daddr_l, t.Tup.Daddr_h)
+}
+
+func (t http2StreamKey) destEndpoint() string {
+	return net.JoinHostPort(t.destAddress().String(), strconv.Itoa(int(t.Tup.Dport)))
+}
+
+func (t http2StreamKey) String() string {
+	return fmt.Sprintf(
+		"[%s] [%s ⇄ %s] (stream id %d)",
+		t.family(),
+		t.sourceEndpoint(),
+		t.destEndpoint(),
+		t.Id,
+	)
+}
+
+func (t http2DynamicTableEntry) String() string {
+	if t.Len == 0 {
+		return ""
+	}
+
+	b := make([]byte, t.Len)
+	for i := uint8(0); i < t.Len; i++ {
+		b[i] = byte(t.Buffer[i])
+	}
+	// trim null byte + after
+	str, err := hpack.HuffmanDecodeToString(b)
+	if err != nil {
+		return ""
+	}
+
+	return str
 }
