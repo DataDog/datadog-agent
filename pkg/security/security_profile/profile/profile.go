@@ -227,7 +227,8 @@ func (p *SecurityProfile) IsStable() bool {
 	p.eventTypeStateLock.Lock()
 	defer p.eventTypeStateLock.Unlock()
 	for _, evType := range p.anomalyDetectionEvents {
-		if p.eventTypeState[evType].state != StableEventType {
+		eventState, ok := p.eventTypeState[evType]
+		if !ok || eventState.state != StableEventType {
 			return false
 		}
 	}
