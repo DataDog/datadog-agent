@@ -58,11 +58,11 @@ func (s *service) Init() error {
 func (s *service) Run(svcctx context.Context) error {
 
 	err := fxutil.OneShot(
-		func(log log.Component, config config.Component, sysprobeconfig sysprobeconfig.Component, telemetry telemetry.Component, forwarder defaultforwarder.Component, pidfilePath string, demultiplexer demultiplexer.Component) error {
+		func(log log.Component, config config.Component, sysprobeconfig sysprobeconfig.Component, telemetry telemetry.Component, pidfilePath string, demultiplexer demultiplexer.Component) error {
 			ctx, cancel := context.WithCancel(context.Background())
 			defer start.StopAgent(cancel, log)
 
-			err := start.RunAgent(ctx, log, config, sysprobeconfig, telemetry, forwarder, "", demultiplexer)
+			err := start.RunAgent(ctx, log, config, sysprobeconfig, telemetry, "", demultiplexer)
 			if err != nil {
 				return err
 			}

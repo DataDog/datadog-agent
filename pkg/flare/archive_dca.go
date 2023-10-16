@@ -60,11 +60,11 @@ func createDCAArchive(fb flaretypes.FlareBuilder, confSearchPaths map[string]str
 
 	getLogFiles(fb, logFilePath)
 	getConfigFiles(fb, confSearchPaths)
-	getClusterAgentConfigCheck(fb, senderManager) //nolint:errcheck
-	getExpVar(fb)                                 //nolint:errcheck
-	getMetadataMap(fb)                            //nolint:errcheck
-	getClusterAgentClusterChecks(fb)              //nolint:errcheck
-	getClusterAgentDiagnose(fb, senderManager)    //nolint:errcheck
+	getClusterAgentConfigCheck(fb)             //nolint:errcheck
+	getExpVar(fb)                              //nolint:errcheck
+	getMetadataMap(fb)                         //nolint:errcheck
+	getClusterAgentClusterChecks(fb)           //nolint:errcheck
+	getClusterAgentDiagnose(fb, senderManager) //nolint:errcheck
 	fb.AddFileFromFunc("agent-daemonset.yaml", getAgentDaemonSet)
 	fb.AddFileFromFunc("cluster-agent-deployment.yaml", getClusterAgentDeployment)
 	fb.AddFileFromFunc("helm-values.yaml", getHelmValues)
@@ -146,7 +146,7 @@ func getHPAStatus(fb flaretypes.FlareBuilder) error {
 	return fb.AddFile("custommetricsprovider.log", []byte(str))
 }
 
-func getClusterAgentConfigCheck(fb flaretypes.FlareBuilder, senderManager sender.DiagnoseSenderManager) error {
+func getClusterAgentConfigCheck(fb flaretypes.FlareBuilder) error {
 	var b bytes.Buffer
 
 	writer := bufio.NewWriter(&b)
