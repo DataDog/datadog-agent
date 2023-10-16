@@ -360,7 +360,10 @@ def prepare(ctx, vms, stack=None, arch=None, ssh_key="", rebuild_deps=False, pac
 
 
 @task
-def test(ctx, vms, stack=None, packages="", run=None, retry=2, rebuild_deps=False, ssh_key="", go_version=_get_repo_go_version()):
+def test(ctx, vms, stack=None, packages="", run=None, retry=2, rebuild_deps=False, ssh_key="", go_version=None):
+    if not go_version:
+        go_version = _get_repo_go_version()
+
     stack = check_and_get_stack(stack)
     if not stacks.stack_exists(stack):
         raise Exit(f"Stack {stack} does not exist. Please create with 'inv kmt.stack-create --stack=<name>'")
