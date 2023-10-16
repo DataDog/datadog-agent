@@ -152,6 +152,17 @@ func Test_injectTags(t *testing.T) {
 				return *pod
 			},
 		},
+		{
+			name: "tag label found but not injected, injection label not set",
+			pod: withLabels(
+				fakePodWithEnv("foo-pod", "DD_ENV"),
+				map[string]string{"tags.datadoghq.com/env": "dev"},
+			),
+			wantPodFunc: func() corev1.Pod {
+				pod := fakePodWithEnv("foo-pod", "DD_ENV")
+				return *pod
+			},
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
