@@ -91,7 +91,7 @@ func (pn *ProcessNode) snapshotFiles(p *process.Process, stats *Stats, newEvent 
 		}
 	}
 	if isSampling {
-		seclog.Warnf("sampled open files while snapshotting: kept %d of %d files", len(files), len(fileFDs))
+		seclog.Warnf("sampled open files while snapshotting (pid: %v): kept %d of %d files", p.Pid, len(files), len(fileFDs))
 	}
 
 	// list the mmaped files of the process
