@@ -44,7 +44,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 	return []*cobra.Command{cmd}
 }
 
-func run(log log.Component, config config.Component, diagnoseSenderManager diagnosesendermanager.Component) error {
+func run(diagnoseSenderManager diagnosesendermanager.Component) error {
 	// Verbose:  true - to show details like if was done a while ago
 	// RunLocal: true - do not attept to run in actual running agent but
 	//                  may need to implement it in future

@@ -164,7 +164,7 @@ This command print the last Inventory metadata payload sent by the Agent. This p
 	return []*cobra.Command{diagnoseCommand}
 }
 
-func cmdDiagnose(log log.Component, config config.Component, cliParams *cliParams, senderManager diagnosesendermanager.Component) error {
+func cmdDiagnose(cliParams *cliParams, senderManager diagnosesendermanager.Component) error {
 	diagCfg := diagnosis.Config{
 		Verbose:  cliParams.verbose,
 		RunLocal: cliParams.runLocal,

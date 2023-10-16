@@ -172,7 +172,7 @@ func MakeCommand(globalParamsGetter func() GlobalParams) *cobra.Command {
 	return cmd
 }
 
-func run(log log.Component, config config.Component, sysprobeconfig sysprobeconfig.Component, cliParams *cliParams, demultiplexer demultiplexer.Component) error {
+func run(config config.Component, cliParams *cliParams, demultiplexer demultiplexer.Component) error {
 	previousIntegrationTracing := false
 	previousIntegrationTracingExhaustive := false
 	if cliParams.generateIntegrationTraces {

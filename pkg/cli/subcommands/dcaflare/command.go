@@ -148,7 +148,7 @@ func readProfileData(seconds int) (flare.ProfileData, error) {
 	return pdata, nil
 }
 
-func run(log log.Component, config config.Component, cliParams *cliParams, diagnoseSenderManager diagnosesendermanager.Component) error {
+func run(cliParams *cliParams, diagnoseSenderManager diagnosesendermanager.Component) error {
 	fmt.Fprintln(color.Output, color.BlueString("Asking the Cluster Agent to build the flare archive."))
 	var (
 		profile flare.ProfileData
