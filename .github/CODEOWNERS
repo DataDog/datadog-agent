@@ -281,12 +281,11 @@
 /pkg/collector/corechecks/system/winproc/         @DataDog/windows-agent
 /pkg/collector/corechecks/systemd/      @DataDog/agent-integrations
 /pkg/collector/corechecks/nvidia/       @DataDog/agent-platform
-/pkg/conf/                              @DataDog/agent-shared-components
-/pkg/conf/env                           @DataDog/container-integrations @DataDog/container-app
 /pkg/config/                            @DataDog/agent-shared-components
 /pkg/config/config_template.yaml        @DataDog/agent-shared-components @DataDog/documentation
 /pkg/config/apm.go                      @DataDog/agent-apm
 /pkg/config/autodiscovery/              @Datadog/container-integrations
+/pkg/config/env                         @DataDog/container-integrations @DataDog/container-app
 /pkg/config/log*.go                     @Datadog/agent-platform
 /pkg/config/process*.go                 @DataDog/processes
 /pkg/config/system_probe.go               @DataDog/ebpf-platform
