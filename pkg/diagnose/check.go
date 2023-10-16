@@ -83,7 +83,7 @@ func diagnoseChecksInAgentProcess() []diagnosis.Diagnosis {
 	return diagnoses
 }
 
-func diagnoseChecksInCLIProcess(diagCfg diagnosis.Config, senderManager sender.SenderManager) []diagnosis.Diagnosis {
+func diagnoseChecksInCLIProcess(diagCfg diagnosis.Config, senderManager sender.SenderManager) []diagnosis.Diagnosis { //nolint:revive // TODO fix revive unused-parameter
 	// other choices
 	// 	run() github.com\DataDog\datadog-agent\pkg\cli\subcommands\check\command.go
 	//  runCheck() github.com\DataDog\datadog-agent\cmd\agent\gui\checks.go

@@ -136,7 +136,7 @@ func RunDogstatsdFct(cliParams *CLIParams, defaultConfPath string, defaultLogFil
 	)
 }
 
-func start(cliParams *CLIParams, config config.Component, log log.Component, params *Params, server dogstatsdServer.Component, sharedForwarder defaultforwarder.Component, metadataRunner runner.Component, hostComp host.Component, demux *aggregator.AgentDemultiplexer) error {
+func start(cliParams *CLIParams, config config.Component, log log.Component, params *Params, server dogstatsdServer.Component, sharedForwarder defaultforwarder.Component, metadataRunner runner.Component, hostComp host.Component, demux *aggregator.AgentDemultiplexer) error { //nolint:revive // TODO fix revive unusued-parameter
 	// Main context passed to components
 	ctx, cancel := context.WithCancel(context.Background())
 
