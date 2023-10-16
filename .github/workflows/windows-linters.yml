@@ -48,7 +48,13 @@ jobs:
           inv -e deps
           If ($lastExitCode -ne "0") { throw "Previous command returned $lastExitCode" }
 
-      - name: Run linters
+      # Run this first as it's quite quick compared to Go
+      - name: Run Dotnet linter
+        shell: bash # using bash so we don't have to check $lastExitCode all the time
+        run: |
+          dotnet format --verify-no-changes .\tools\windows\DatadogAgentInstaller
+
+      - name: Run Go linters
         shell: bash # using bash so we don't have to check $lastExitCode all the time
         run: |
           export PATH="/c/msys64/mingw64/bin:/c/msys64/usr/bin/:$PATH" # prepend msys, otherwise make from mingw gets used
@@ -56,4 +62,4 @@ jobs:
           powershell.exe -Command ./tasks/winbuildscripts/pre-go-build.ps1
           inv -e rtloader.format --raise-if-changed
           inv -e lint-go --timeout 30
-          dotnet format --verify-no-changes
+
