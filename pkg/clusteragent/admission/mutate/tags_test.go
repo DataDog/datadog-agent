@@ -122,7 +122,7 @@ func Test_injectTags(t *testing.T) {
 			},
 		},
 		{
-			name: "no labels and injectione on",
+			name: "no labels and injection on",
 			pod:  withLabels(fakePod("foo-pod"), map[string]string{"admission.datadoghq.com/enabled": "true"}),
 			wantPodFunc: func() corev1.Pod {
 				pod := withLabels(fakePod("foo-pod"), map[string]string{"admission.datadoghq.com/enabled": "true"})
@@ -130,7 +130,7 @@ func Test_injectTags(t *testing.T) {
 			},
 		},
 		{
-			name: "env only and injectione on",
+			name: "env only and injection on",
 			pod: withLabels(
 				fakePod("foo-pod"),
 				map[string]string{"admission.datadoghq.com/enabled": "true", "tags.datadoghq.com/env": "dev"},
@@ -142,7 +142,7 @@ func Test_injectTags(t *testing.T) {
 			},
 		},
 		{
-			name: "label found but not injected",
+			name: "tag label found but not injected, injection on",
 			pod: withLabels(
 				fakePodWithEnv("foo-pod", "DD_ENV"),
 				map[string]string{"admission.datadoghq.com/enabled": "true", "tags.datadoghq.com/env": "dev"},
