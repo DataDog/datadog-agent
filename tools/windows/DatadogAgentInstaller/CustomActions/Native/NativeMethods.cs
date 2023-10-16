@@ -7,6 +7,7 @@ using System.Runtime.InteropServices;
 using System.Security.Principal;
 using System.Text;
 using Datadog.CustomActions.Interfaces;
+// ReSharper disable InconsistentNaming
 
 namespace Datadog.CustomActions.Native
 {
@@ -467,7 +468,7 @@ namespace Datadog.CustomActions.Native
             var name = new StringBuilder();
             uint cchReferencedDomainName = 0;
             var referencedDomainName = new StringBuilder();
-            ReturnCodes err = ReturnCodes.ERROR_NONE_MAPPED;
+            var err = ReturnCodes.ERROR_NONE_MAPPED;
             if (!LookupAccountSid(null, groupSid, name, ref cchName, referencedDomainName, ref cchReferencedDomainName, out _))
             {
                 err = (ReturnCodes)Marshal.GetLastWin32Error();
@@ -599,7 +600,7 @@ namespace Datadog.CustomActions.Native
                 return false;
             }
 
-            IntPtr pDCI = IntPtr.Zero;
+            var pDCI = IntPtr.Zero;
             try
             {
                 var result = DsGetDcName(null, null, null, null, 0, out pDCI);

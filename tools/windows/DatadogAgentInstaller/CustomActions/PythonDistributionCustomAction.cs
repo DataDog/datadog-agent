@@ -129,7 +129,7 @@ namespace Datadog.CustomActions
 
         private static ActionResult DecompressPythonDistributions(ISession session)
         {
-            int size = 0;
+            var size = 0;
             var embedded2Size = session.Property("embedded2_SIZE");
             if (!string.IsNullOrEmpty(embedded2Size))
             {
@@ -158,7 +158,7 @@ namespace Datadog.CustomActions
         {
             try
             {
-                int total = 0;
+                var total = 0;
                 var embedded2Size = session.Property("embedded2_SIZE");
                 if (!string.IsNullOrEmpty(embedded2Size))
                 {
