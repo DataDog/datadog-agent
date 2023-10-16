@@ -293,6 +293,7 @@ int tail_call_target_erpc_resolve_path_watermark_reader(void *ctx) {
     }
 
     if (state->path_reader_state == READ_FRONTWATERMARK) {
+        // write the challenge here so that the main eRPC eBPF program doesn't use the `bpf_probe_write_user` helper.
         int ret = bpf_probe_write_user((void *)state->userspace_buffer, &state->challenge, sizeof(state->challenge));
         if (ret < 0) {
             err = ret == -14 ? DR_ERPC_WRITE_PAGE_FAULT : DR_ERPC_UNKNOWN_ERROR;
