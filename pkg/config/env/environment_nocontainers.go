@@ -7,12 +7,12 @@
 
 package env
 
-import "github.com/DataDog/datadog-agent/pkg/conf"
+import "github.com/DataDog/datadog-agent/pkg/config/model"
 
 // IsAnyContainerFeaturePresent checks if any of known container features is present
 func IsAnyContainerFeaturePresent() bool {
 	return false
 }
 
-func detectContainerFeatures(features FeatureMap, cfg conf.Reader) {
+func detectContainerFeatures(features FeatureMap, cfg model.Reader) {
 }

@@ -8,7 +8,7 @@ package env
 import (
 	"os"
 
-	"github.com/DataDog/datadog-agent/pkg/conf"
+	"github.com/DataDog/datadog-agent/pkg/util/filesystem"
 )
 
 // GetEnvDefault retrieves a value from the environment named by the key or return def if not set.
@@ -77,7 +77,7 @@ func IsECSFargate() bool {
 // IsHostProcAvailable returns whether host proc is available or not
 func IsHostProcAvailable() bool {
 	if IsContainerized() {
-		return conf.PathExists("/host/proc")
+		return filesystem.FileExists("/host/proc")
 	}
 	return true
 }
@@ -85,7 +85,7 @@ func IsHostProcAvailable() bool {
 // IsHostSysAvailable returns whether host proc is available or not
 func IsHostSysAvailable() bool {
 	if IsContainerized() {
-		return conf.PathExists("/host/sys")
+		return filesystem.FileExists("/host/sys")
 	}
 	return true
 }

@@ -12,7 +12,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"gopkg.in/yaml.v2"
 	"net"
 	"net/url"
 	"os"
@@ -22,10 +21,12 @@ import (
 	"strings"
 	"time"
 
+	"gopkg.in/yaml.v2"
+
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/common/types"
 	"github.com/DataDog/datadog-agent/pkg/collector/check/defaults"
-	"github.com/DataDog/datadog-agent/pkg/conf"
-	"github.com/DataDog/datadog-agent/pkg/conf/env"
+	"github.com/DataDog/datadog-agent/pkg/config/env"
+	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/secrets"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname/validate"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -1532,7 +1533,7 @@ func LoadDatadogCustom(config Config, origin string, loadSecret bool, additional
 		// Environment feature detection needs to run before applying override funcs
 		// as it may provide such overrides
 		env.DetectFeatures(config)
-		conf.ApplyOverrideFuncs(config)
+		model.ApplyOverrideFuncs(config)
 	}()
 
 	warnings, err := LoadCustom(config, origin, loadSecret, additionalKnownEnvVars)

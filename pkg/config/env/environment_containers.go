@@ -14,10 +14,9 @@ import (
 	"strings"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/system/socket"
-
-	"github.com/DataDog/datadog-agent/pkg/conf"
 )
 
 const (
@@ -60,7 +59,7 @@ func IsAnyContainerFeaturePresent() bool {
 		IsFeaturePresent(Podman)
 }
 
-func detectContainerFeatures(features FeatureMap, cfg conf.Reader) {
+func detectContainerFeatures(features FeatureMap, cfg model.Reader) {
 	detectKubernetes(features, cfg)
 	detectDocker(features)
 	detectContainerd(features, cfg)
@@ -69,7 +68,7 @@ func detectContainerFeatures(features FeatureMap, cfg conf.Reader) {
 	detectPodman(features)
 }
 
-func detectKubernetes(features FeatureMap, cfg conf.Reader) {
+func detectKubernetes(features FeatureMap, cfg model.Reader) {
 	if IsKubernetes() {
 		features[Kubernetes] = struct{}{}
 		if cfg.GetBool("orchestrator_explorer.enabled") {
@@ -93,7 +92,7 @@ func detectDocker(features FeatureMap) {
 				features[Docker] = struct{}{}
 
 				// Even though it does not modify configuration, using the OverrideFunc mechanism for uniformity
-				conf.AddOverrideFunc(func(conf.Config) {
+				model.AddOverrideFunc(func(model.Config) {
 					os.Setenv("DOCKER_HOST", getDefaultDockerSocketType()+defaultDockerSocketPath)
 				})
 				break
@@ -102,7 +101,7 @@ func detectDocker(features FeatureMap) {
 	}
 }
 
-func detectContainerd(features FeatureMap, cfg conf.Reader) {
+func detectContainerd(features FeatureMap, cfg model.Reader) {
 	// CRI Socket - Do not automatically default socket path if the Agent runs in Docker
 	// as we'll very likely discover the containerd instance wrapped by Docker.
 	criSocket := cfg.GetString("cri_socket_path")
@@ -119,7 +118,7 @@ func detectContainerd(features FeatureMap, cfg conf.Reader) {
 
 			if exists && reachable {
 				criSocket = defaultCriPath
-				conf.AddOverride("cri_socket_path", defaultCriPath)
+				model.AddOverride("cri_socket_path", defaultCriPath)
 				// Currently we do not support multiple CRI paths
 				break
 			}
@@ -154,8 +153,8 @@ func detectContainerd(features FeatureMap, cfg conf.Reader) {
 		convertedNamespaces[i] = namespace
 	}
 
-	conf.AddOverride("containerd_namespace", convertedNamespaces)
-	conf.AddOverride("containerd_namespaces", convertedNamespaces)
+	model.AddOverride("containerd_namespace", convertedNamespaces)
+	model.AddOverride("containerd_namespaces", convertedNamespaces)
 }
 
 func isCriSupported() bool {
@@ -164,7 +163,7 @@ func isCriSupported() bool {
 	return IsKubernetes()
 }
 
-func detectAWSEnvironments(features FeatureMap, cfg conf.Reader) {
+func detectAWSEnvironments(features FeatureMap, cfg model.Reader) {
 	if IsECSFargate() {
 		features[ECSFargate] = struct{}{}
 		return
@@ -181,7 +180,7 @@ func detectAWSEnvironments(features FeatureMap, cfg conf.Reader) {
 	}
 }
 
-func detectCloudFoundry(features FeatureMap, cfg conf.Reader) {
+func detectCloudFoundry(features FeatureMap, cfg model.Reader) {
 	if cfg.GetBool("cloud_foundry") {
 		features[CloudFoundry] = struct{}{}
 	}

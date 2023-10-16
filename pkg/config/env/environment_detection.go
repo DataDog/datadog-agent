@@ -12,9 +12,8 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-
-	"github.com/DataDog/datadog-agent/pkg/conf"
 )
 
 const (
@@ -76,7 +75,7 @@ func IsFeaturePresent(feature Feature) bool {
 }
 
 // IsAutoconfigEnabled returns if autoconfig from environment is activated or not
-func IsAutoconfigEnabled(cfg conf.Reader) bool {
+func IsAutoconfigEnabled(cfg model.Reader) bool {
 	// Usage of pure environment variables should be deprecated
 	for _, envVar := range []string{autoconfEnvironmentVariable, autoconfEnvironmentVariableWithTypo} {
 		if autoconfStr, found := os.LookupEnv(envVar); found {
@@ -104,7 +103,7 @@ func IsAutoconfigEnabled(cfg conf.Reader) bool {
 // DetectFeatures runs the feature detection.
 // We guarantee that Datadog configuration is entirely loaded (env + YAML)
 // before this function is called
-func DetectFeatures(cfg conf.Reader) {
+func DetectFeatures(cfg model.Reader) {
 	featureLock.Lock()
 	defer featureLock.Unlock()
 

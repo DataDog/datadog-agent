@@ -6,31 +6,31 @@
 package config
 
 import (
-	"github.com/DataDog/datadog-agent/pkg/conf"
-	"github.com/DataDog/datadog-agent/pkg/conf/env"
+	"github.com/DataDog/datadog-agent/pkg/config/env"
+	"github.com/DataDog/datadog-agent/pkg/config/model"
 )
 
 // Aliases to conf package
 type (
-	// Proxy alias to conf.Proxy
-	Proxy = conf.Proxy
-	// Reader is alias to Conf.Reader
-	Reader = conf.Reader
-	// Writer is alias to Conf.Reader
-	Writer = conf.Writer
-	// ReaderWriter is alias to Conf.ReaderWriter
-	ReaderWriter = conf.ReaderWriter
-	// Loader is alias to Conf.Loader
-	Loader = conf.Loader
-	// Config is alias to conf.Config
-	Config = conf.Config
+	// Proxy alias to model.Proxy
+	Proxy = model.Proxy
+	// Reader is alias to model.Reader
+	Reader = model.Reader
+	// Writer is alias to model.Reader
+	Writer = model.Writer
+	// ReaderWriter is alias to model.ReaderWriter
+	ReaderWriter = model.ReaderWriter
+	// Loader is alias to model.Loader
+	Loader = model.Loader
+	// Config is alias to model.Config
+	Config = model.Config
 )
 
 // NewConfig is alias for Config object.
-var NewConfig = conf.NewConfig
+var NewConfig = model.NewConfig
 
 // Warnings represent the warnings in the config
-type Warnings = conf.Warnings
+type Warnings = model.Warnings
 
 // environment Aliases
 var (
@@ -69,15 +69,15 @@ const (
 	KubeOrchestratorExplorer = env.KubeOrchestratorExplorer
 )
 
-// IsAutoconfigEnabled is alias for conf.IsAutoconfigEnabled
+// IsAutoconfigEnabled is alias for model.IsAutoconfigEnabled
 func IsAutoconfigEnabled() bool {
 	return env.IsAutoconfigEnabled(Datadog)
 }
 
 // Aliases for config overrides
 var (
-	AddOverride        = conf.AddOverride
-	AddOverrides       = conf.AddOverrides
-	AddOverrideFunc    = conf.AddOverrideFunc
-	applyOverrideFuncs = conf.ApplyOverrideFuncs
+	AddOverride        = model.AddOverride
+	AddOverrides       = model.AddOverrides
+	AddOverrideFunc    = model.AddOverrideFunc
+	applyOverrideFuncs = model.ApplyOverrideFuncs
 )

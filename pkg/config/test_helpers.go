@@ -13,7 +13,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/DataDog/datadog-agent/pkg/conf/env"
+	"github.com/DataDog/datadog-agent/pkg/config/env"
 )
 
 var (

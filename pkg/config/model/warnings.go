@@ -3,12 +3,10 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package conf
+package model
 
-import "os"
-
-// PathExists returns true if the given path exists
-func PathExists(path string) bool {
-	_, err := os.Stat(path)
-	return !os.IsNotExist(err)
+// Warnings represent the warnings in the config
+type Warnings struct {
+	TraceMallocEnabledWithPy2 bool
+	Err                       error
 }
