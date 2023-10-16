@@ -29,8 +29,8 @@ type Mock interface {
 	// Unset removes an entity from the workloadmeta store
 	Unset(entity Entity)
 
-	// GetConfig returns a ConfigReader for the internal injected config
-	GetConfig() config.ConfigReader
+	// GetConfig returns a Config Reader for the internal injected config
+	GetConfig() config.Reader
 }
 
 // MockModule defines the fx options for the mock component.

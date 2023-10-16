@@ -309,8 +309,8 @@ func (w *workloadmetamock) listEntitiesByKind(kind Kind) []Entity {
 	return entities
 }
 
-// GetConfig returns a ConfigReader for the internal injected config
-func (w *workloadmetamock) GetConfig() pkgconfig.ConfigReader {
+// GetConfig returns a Config Reader for the internal injected config
+func (w *workloadmetamock) GetConfig() pkgconfig.Reader {
 	return w.config
 }
 
@@ -347,8 +347,8 @@ func (w *workloadMetaMockV2) Set(e Entity) {
 	})
 }
 
-// GetConfig returns a ConfigReader for the internal injected config
-func (w *workloadMetaMockV2) GetConfig() pkgconfig.ConfigReader {
+// GetConfig returns a Config Reader for the internal injected config
+func (w *workloadMetaMockV2) GetConfig() pkgconfig.Reader {
 	return w.config
 }
 

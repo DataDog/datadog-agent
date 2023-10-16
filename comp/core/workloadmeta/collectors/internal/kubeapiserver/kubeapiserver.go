@@ -32,7 +32,7 @@ const (
 // storeGenerator returns a new store specific to a given resource
 type storeGenerator func(context.Context, workloadmeta.Component, kubernetes.Interface) (*cache.Reflector, *reflectorStore)
 
-func storeGenerators(cfg config.ConfigReader) []storeGenerator {
+func storeGenerators(cfg config.Reader) []storeGenerator {
 	generators := []storeGenerator{newNodeStore}
 
 	if cfg.GetBool("cluster_agent.collect_kubernetes_tags") {

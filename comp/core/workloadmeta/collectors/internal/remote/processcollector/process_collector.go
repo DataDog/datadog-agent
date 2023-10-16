@@ -106,7 +106,7 @@ func (s *stream) Recv() (interface{}, error) {
 
 type streamHandler struct {
 	port int
-	config.ConfigReader
+	config.Reader
 }
 
 // NewCollector returns a remote process collector for workloadmeta if any
@@ -115,7 +115,7 @@ func NewCollector() (workloadmeta.CollectorProvider, error) {
 		Collector: &remote.GenericCollector{
 			CollectorID: collectorID,
 			// TODO(components): make sure StreamHandler uses the config component not pkg/config
-			StreamHandler: &streamHandler{ConfigReader: config.Datadog},
+			StreamHandler: &streamHandler{Reader: config.Datadog},
 			Catalog:       workloadmeta.Remote,
 			Insecure:      true, // wlm extractor currently does not support TLS
 		},
@@ -134,7 +134,7 @@ func init() {
 
 func (s *streamHandler) Port() int {
 	if s.port == 0 {
-		return s.ConfigReader.GetInt("process_config.language_detection.grpc_port")
+		return s.Reader.GetInt("process_config.language_detection.grpc_port")
 	}
 	// for test purposes
 	return s.port
@@ -144,7 +144,7 @@ func (s *streamHandler) IsEnabled() bool {
 	if flavor.GetFlavor() != flavor.DefaultAgent {
 		return false
 	}
-	return s.ConfigReader.GetBool("language_detection.enabled")
+	return s.Reader.GetBool("language_detection.enabled")
 }
 
 func (s *streamHandler) NewClient(cc grpc.ClientConnInterface) remote.GrpcClient {
