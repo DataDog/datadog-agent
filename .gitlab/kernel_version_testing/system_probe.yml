@@ -315,8 +315,6 @@ kernel_matrix_testing_setup_env:
 .kernel_matrix_testing_run_tests:
   stage: kernel_matrix_testing
   allow_failure: true
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/test-infra-definitions/runner$TEST_INFRA_DEFINITIONS_BUILDIMAGES_SUFFIX:$TEST_INFRA_DEFINITIONS_BUILDIMAGES
-  tags: ["arch:amd64"]
   rules:
     !reference [ .on_system_probe_changes_or_manual ]
   variables:
@@ -342,7 +340,7 @@ kernel_matrix_testing_setup_env:
     - !reference [.setup_ssh_config]
     # ssh into each micro-vm and run initialization script. This script will also run the tests.
     - NESTED_VM_CMD="/home/ubuntu/connector -host ${MICRO_VM_IP} -user root -ssh-file /home/kernel-version-testing/ddvm_rsa -vm-cmd 'bash /root/fetch_dependencies.sh ${ARCH} && /micro-vm-init.sh ${GO_VERSION} ${RETRY} ${ARCH}'"
-    - $CI_PROJECT_DIR/connector-x86_64 -host $INSTANCE_IP -user ubuntu -ssh-file $AWS_EC2_SSH_KEY_FILE -vm-cmd "${NESTED_VM_CMD}"
+    - $CI_PROJECT_DIR/connector-$ARCH -host $INSTANCE_IP -user ubuntu -ssh-file $AWS_EC2_SSH_KEY_FILE -vm-cmd "${NESTED_VM_CMD}"
     - ssh metal_instance "scp ${MICRO_VM_IP}:/ci-visibility/junit.tar.gz /home/ubuntu/junit.tar.gz"
     - ssh metal_instance "scp ${MICRO_VM_IP}:/ci-visibility/testjson.tar.gz /home/ubuntu/testjson.tar.gz"
     - scp metal_instance:/home/ubuntu/testjson.tar.gz $DD_AGENT_TESTING_DIR/
@@ -352,6 +350,8 @@ kernel_matrix_testing_setup_env:
 kernel_matrix_testing_run_tests_x64:
   extends:
     - .kernel_matrix_testing_run_tests
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/test-infra-definitions/system-probe_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
+  tags: ["arch:amd64"]
   needs: ["kernel_matrix_testing_setup_env", "upload_dependencies_x64", "upload_system_probe_tests_x64", "upload_minimized_btfs_x64"]
   timeout: 3h
   variables:
@@ -363,7 +363,9 @@ kernel_matrix_testing_run_tests_x64:
 kernel_matrix_testing_run_tests_arm64:
   extends:
     - .kernel_matrix_testing_run_tests
-  needs: ["kernel_matrix_testing_setup_env", "upload_dependencies_arm64", "upload_system_probe_tests_x64", "upload_system_probe_tests_arm64", "upload_minimized_btfs_arm64"]
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/test-infra-definitions/system-probe_arm64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
+  tags: ["arch:arm64"]
+  needs: ["kernel_matrix_testing_setup_env", "upload_dependencies_arm64", "upload_system_probe_tests_arm64", "upload_minimized_btfs_arm64"]
   timeout: 3h
   variables:
     ARCH: "arm64"
