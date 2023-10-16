@@ -68,7 +68,9 @@ int __attribute__((always_inline)) resolve_dentry_chain(void *ctx, struct dentry
         }
 
         if (len == 2 && name[0] == '/') {
-            if (rb_ctx->len == 0) { // we want to push '/' only if we are resolving a root path
+            // we only want to push '/' if we are resolving the root path
+            // and we resolve the root path if it's the first dentry name being push to the ring buffer
+            if (rb_ctx->len == sizeof(rb_ctx->watermark)) {
                 rb_push_char(rb, rb_ctx, '/');
             }
             rb_push_char(rb, rb_ctx, '\0');
