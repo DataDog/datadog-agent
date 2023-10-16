@@ -41,8 +41,6 @@ type NetflowServerStatus struct {
 	ClosedListenerDetails  []map[string]interface{}
 }
 
-var statusInstance = &NetflowServerStatus{}
-
 // globalServer is only used on getting the status of the server.
 var globalServer = &Server{}
 
@@ -186,14 +184,10 @@ func GetStatus() NetflowServerStatus {
 		}
 	}
 
-	statusInstance.TotalListeners = int(len(globalServer.listeners))
-	statusInstance.OpenListeners = int(len(workingListeners))
-	statusInstance.ClosedListeners = int(len(closedListenersList))
-
 	return NetflowServerStatus{
-		TotalListeners:         int(statusInstance.TotalListeners),
-		OpenListeners:          int(statusInstance.OpenListeners),
-		ClosedListeners:        int(statusInstance.ClosedListeners),
+		TotalListeners:         int(len(globalServer.listeners)),
+		OpenListeners:          int(len(workingListeners)),
+		ClosedListeners:        int(len(closedListenersList)),
 		WorkingListenerDetails: extractListenerDetails(workingListeners),
 		ClosedListenerDetails:  extractListenerDetails(closedListenersList),
 	}
