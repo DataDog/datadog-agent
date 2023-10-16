@@ -52,7 +52,7 @@ jobs:
       - name: Run Dotnet linter
         shell: bash # using bash so we don't have to check $lastExitCode all the time
         run: |
-          dotnet format --verify-no-changes .\tools\windows\DatadogAgentInstaller
+          dotnet format --verify-no-changes .\\tools\\windows\\DatadogAgentInstaller
 
       - name: Run Go linters
         shell: bash # using bash so we don't have to check $lastExitCode all the time
