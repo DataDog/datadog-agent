@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package examples
+package forwarder
 
 import (
 	"fmt"
@@ -46,8 +46,9 @@ const (
 
 // for local dev purpose
 var testParams = []params.Option{
-	params.WithDevMode(),
-	params.WithStackName("pgimalac-examples-multifakeintakesuite-000002"),
+	// params.WithDevMode(),
+	// params.WithSkipDeleteOnFailure(),
+	// params.WithStackName("pgimalac-examples-multifakeintakesuite-000007"),
 }
 
 func multiFakeintakeStackDef(agentOptions ...agentparams.Option) *e2e.StackDefinition[multiFakeIntakeEnv] {
@@ -95,6 +96,7 @@ func TestMultiFakeintakeSuite(t *testing.T) {
 }
 
 func (v *multiFakeIntakeSuite) TestCleanup() {
+	// flush both fakeintakes, useful for local testing
 	v.NoError(v.Env().Fakeintake1.FlushServerAndResetAggregators())
 	v.NoError(v.Env().Fakeintake2.FlushServerAndResetAggregators())
 }
@@ -110,10 +112,11 @@ func (v *multiFakeIntakeSuite) TestDNSFailover() {
 	v.UpdateEnv(multiFakeintakeStackDef(agentparams.WithAgentConfig(agentConfig)))
 
 	// check that fakeintake1 does receive metrics
+	v.T().Logf("checking that the agent contacts main intake at %s", fakeintake1IP)
 	v.EventuallyWithT(func(c *assert.CollectT) {
 		metricNames, err := v.Env().Fakeintake1.GetMetricNames()
 		require.NoError(c, err)
-		require.NotEmpty(c, metricNames)
+		assert.NotEmpty(c, metricNames)
 	}, intakeMaxWaitTime, intakeTick)
 
 	// check that fakeintake2 doesn't receive metrics
@@ -127,30 +130,43 @@ func (v *multiFakeIntakeSuite) TestDNSFailover() {
 	setHostEntry(v.T(), v.Env().VM, intakeName, fakeintake2IP)
 
 	// check that fakeintake2 receives metrics
+	v.T().Logf("checking that the agent contacts fallback intake at %s", fakeintake2IP)
 	v.EventuallyWithT(func(c *assert.CollectT) {
 		metricNames, err := v.Env().Fakeintake2.GetMetricNames()
 		require.NoError(c, err)
-		require.NotEmpty(c, metricNames)
+		assert.NotEmpty(c, metricNames)
 	}, connectionResetInterval*time.Second+intakeMaxWaitTime, intakeTick)
 }
 
+// setHostEntry adds an entry in /etc/hosts for the given hostname and hostIP
+// if there is already an entry for that hostname, it is replaced
 func setHostEntry(t *testing.T, vm *client.VM, hostname string, hostIP string) {
 	// we could remove the line and then add the new one,
 	// but it's better to avoid not having the line in the file between the two operations
 
+	t.Logf("set host entry for %s: %s", hostname, hostIP)
+
 	hostfile := vm.Execute("sudo cat /etc/hosts")
-	hostPattern := fmt.Sprintf("^.* %s$", hostname)
-	matched, err := regexp.MatchString(hostPattern, hostfile)
+
+	// pattern to match the hostname entry
+	hostPattern := fmt.Sprintf("^.* %s$", regexp.QuoteMeta(hostname))
+	// enable multi-line mode in the Go regex
+	goHostPattern := fmt.Sprintf("(?m:%s)", hostPattern)
+	matched, err := regexp.MatchString(goHostPattern, hostfile)
 	require.NoError(t, err)
 
 	entry := fmt.Sprintf("%s %s", hostIP, hostname)
 	if matched {
+		t.Logf("replace existing host entry for %s (%s)", hostname, hostIP)
 		vm.Execute(fmt.Sprintf("sudo sed -i 's/%s/%s/g' /etc/hosts", hostPattern, entry))
 	} else {
+		t.Logf("append new host entry for %s (%s)", hostname, hostIP)
 		vm.Execute(fmt.Sprintf("echo '%s' | sudo tee -a /etc/hosts", entry))
 	}
 }
 
+// hostIPFromURL extracts the host from the given URL and returns any IP associated to that host
+// or an error
 func hostIPFromURL(fakeintakeURL string) (string, error) {
 	parsed, err := url.Parse(fakeintakeURL)
 	if err != nil {
