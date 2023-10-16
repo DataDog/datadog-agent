@@ -391,14 +391,14 @@ func (r *Resolver) resolvePathFromCache(key *model.DentryKey) string {
 	return path
 }
 
-func (r *Resolver) resolvePath(ref *model.PathRingBufferRef, key *model.DentryKey) (string, error) {
+func (r *Resolver) resolvePath(ref *model.PathRingBufferRef, key *model.DentryKey, cache bool) (string, error) {
 	var path string
 	var err error
 
 	if r.opts.UseRingBuffers {
 		path, err = r.resolvePathFromRingBuffers(ref)
 		if err == nil {
-			if r.opts.PathCacheSize > 0 {
+			if r.opts.PathCacheSize > 0 && cache {
 				r.pathCache.Add(*key, path)
 			}
 			return path, nil
@@ -415,7 +415,7 @@ func (r *Resolver) resolvePath(ref *model.PathRingBufferRef, key *model.DentryKe
 	if r.opts.UseERPC {
 		path, err = r.resolvePathFromERPC(ref)
 		if err == nil {
-			if r.opts.PathCacheSize > 0 {
+			if r.opts.PathCacheSize > 0 && cache {
 				r.pathCache.Add(*key, path)
 			}
 			return path, nil
@@ -427,7 +427,7 @@ func (r *Resolver) resolvePath(ref *model.PathRingBufferRef, key *model.DentryKe
 
 // ResolveBasename resolves a path ringbuffer reference or an inode/mount ID pair to a file basename
 func (r *Resolver) ResolveBasename(e *model.FileFields) string {
-	resolvedPath, err := r.resolvePath(&e.PathRef, &e.DentryKey)
+	resolvedPath, err := r.resolvePath(&e.PathRef, &e.DentryKey, !e.HasHardLinks())
 	if err != nil {
 		return ""
 	}
@@ -436,7 +436,7 @@ func (r *Resolver) ResolveBasename(e *model.FileFields) string {
 
 // ResolveFileFieldsPath resolves a path ringbuffer reference or an inode/mount ID pair to a full path
 func (r *Resolver) ResolveFileFieldsPath(e *model.FileFields, pidCtx *model.PIDContext, ctrCtx *model.ContainerContext) (string, error) {
-	pathStr, err := r.resolvePath(&e.PathRef, &e.DentryKey)
+	pathStr, err := r.resolvePath(&e.PathRef, &e.DentryKey, !e.HasHardLinks())
 	if err != nil {
 		if _, err := r.mountResolver.IsMountIDValid(e.MountID); errors.Is(err, mount.ErrMountKernelID) {
 			return pathStr, &ErrPathResolutionNotCritical{Err: err}
@@ -479,7 +479,7 @@ func (r *Resolver) ResolveFileFieldsPath(e *model.FileFields, pidCtx *model.PIDC
 // SetMountRoot sets the root path of the mountpoint
 func (r *Resolver) SetMountRoot(ev *model.Event, e *model.Mount) error {
 	var err error
-	e.RootStr, err = r.resolvePath(&e.RootStrPathRef, &e.RootDentryKey)
+	e.RootStr, err = r.resolvePath(&e.RootStrPathRef, &e.RootDentryKey, true)
 	if err != nil {
 		return &ErrPathResolutionNotCritical{Err: err}
 	}
@@ -499,7 +499,7 @@ func (r *Resolver) ResolveMountRoot(ev *model.Event, e *model.Mount) (string, er
 // SetMountPoint set the mount point information
 func (r *Resolver) SetMountPoint(ev *model.Event, e *model.Mount) error {
 	var err error
-	e.MountPointStr, err = r.resolvePath(&e.MountPointPathRef, &e.ParentDentryKey)
+	e.MountPointStr, err = r.resolvePath(&e.MountPointPathRef, &e.ParentDentryKey, true)
 	if err != nil {
 		return &ErrPathResolutionNotCritical{Err: err}
 	}
