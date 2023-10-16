@@ -10,10 +10,10 @@ enhancements:
   - |
     The logs collection pipeline has been through a refactor to support 
     processing only the message content (instead of the whole raw message)
-    in the journald & windows events tailers.
+    in the journald and Windows events tailers.
     This feature is experimental and off by default since it changes how
-    existing `log_processing_rules` behaves with journald & windows events
+    existing `log_processing_rules` behaves with journald and Windows events
     tailer.
-    Note that it'll be switched on by default in a future release of the Agent.
-    A warning notifying about this is visible when the journald & windows events
+    Note that it will be switched on by default in a future release of the Agent.
+    A warning notifying about this is shown when the journald and Windows events
     tailers are used with some `log_processing_rules`.
