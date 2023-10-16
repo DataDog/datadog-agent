@@ -82,7 +82,9 @@ func execute(logConfig *serverlessLog.Config, args []string) error {
 	if err != nil {
 		return err
 	}
-	go forwardSignals(cmd.Process, logConfig)
+	sigs := make(chan os.Signal, 1)
+	signal.Notify(sigs)
+	go forwardSignals(cmd.Process, logConfig, sigs)
 	err = cmd.Wait()
 	return err
 }
@@ -103,9 +105,7 @@ func buildCommandParam(cmdArg []string) (string, []string) {
 	return commandName, []string{}
 }
 
-func forwardSignals(process *os.Process, config *serverlessLog.Config) {
-	sigs := make(chan os.Signal, 1)
-	signal.Notify(sigs)
+func forwardSignals(process *os.Process, config *serverlessLog.Config, sigs chan os.Signal) {
 	for sig := range sigs {
 		if sig != syscall.SIGURG {
 			serverlessLog.Write(config, []byte(fmt.Sprintf("[datadog init process] %s received", sig)), false)
