@@ -41,6 +41,7 @@ type NetflowServerStatus struct {
 	ClosedListenerDetails  []NetflowListenerStatus
 }
 
+// NetflowListenerStatus handles logic related to pulling config information and associating it to an error.
 type NetflowListenerStatus struct {
 	Config nfconfig.ListenerConfig
 	Error  string
