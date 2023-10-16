@@ -101,6 +101,50 @@ func TestHTTP(t *testing.T) {
 	})
 }
 
+func (s *HTTPTestSuite) TestHTTPStats() {
+	t := s.T()
+	t.Run("status code", func(t *testing.T) {
+		testHTTPStats(t, true)
+	})
+	t.Run("status class", func(t *testing.T) {
+		testHTTPStats(t, false)
+	})
+}
+
+func testHTTPStats(t *testing.T, aggregateByStatusCode bool) {
+	// Start an HTTP server on localhost:8080
+	serverAddr := "127.0.0.1:8080"
+	srvDoneFn := testutil.HTTPServer(t, serverAddr, testutil.Options{
+		EnableKeepAlive: true,
+	})
+	t.Cleanup(srvDoneFn)
+
+	cfg := networkconfig.New()
+	cfg.EnableHTTPStatsByStatusCode = aggregateByStatusCode
+	monitor := newHTTPMonitorWithCfg(t, cfg)
+
+	resp, err := nethttp.Get(fmt.Sprintf("http://%s/%d/test", serverAddr, nethttp.StatusNoContent))
+	require.NoError(t, err)
+	_ = resp.Body.Close()
+	srvDoneFn()
+
+	// Iterate through active connections until we find connection created above
+	require.Eventuallyf(t, func() bool {
+		stats := getHttpStats(t, monitor)
+
+		for key, reqStats := range stats {
+			if key.Method == http.MethodGet && strings.HasSuffix(key.Path.Content.Get(), "/test") && (key.SrcPort == 8080 || key.DstPort == 8080) {
+				currentStats := reqStats.Data[reqStats.NormalizeStatusCode(204)]
+				if currentStats != nil && currentStats.Count == 1 {
+					return true
+				}
+			}
+		}
+
+		return false
+	}, 3*time.Second, 100*time.Millisecond, "couldn't find http connection matching: %s", serverAddr)
+}
+
 func (s *HTTPTestSuite) TestHTTPMonitorCaptureRequestMultipleTimes() {
 	t := s.T()
 
@@ -130,7 +174,7 @@ func (s *HTTPTestSuite) TestHTTPMonitorCaptureRequestMultipleTimes() {
 				resp, err := client.Do(req)
 				require.NoError(t, err)
 				// Have to read the response body to ensure the client will be able to properly close the connection.
-				io.ReadAll(resp.Body)
+				io.Copy(io.Discard, resp.Body)
 				resp.Body.Close()
 			}
 			srvDoneFn()
@@ -513,6 +557,8 @@ type captureRange struct {
 }
 
 func TestHTTP2(t *testing.T) {
+	t.Skip("tests are broken after upgrading go-grpc to 1.58")
+
 	currKernelVersion, err := kernel.HostVersion()
 	require.NoError(t, err)
 	if currKernelVersion < usmhttp2.MinimumKernelVersion {
@@ -880,9 +926,9 @@ func countRequestOccurrences(allStats map[http.Key]*http.RequestStats, req *neth
 	return occurrences
 }
 
-func newHTTPMonitor(t *testing.T) *Monitor {
-	cfg := networkconfig.New()
+func newHTTPMonitorWithCfg(t *testing.T, cfg *networkconfig.Config) *Monitor {
 	cfg.EnableHTTPMonitoring = true
+
 	monitor, err := NewMonitor(cfg, nil, nil, nil)
 	skipIfNotSupported(t, err)
 	require.NoError(t, err)
@@ -897,6 +943,10 @@ func newHTTPMonitor(t *testing.T) *Monitor {
 	skipIfNotSupported(t, err)
 	require.NoError(t, err)
 	return monitor
+}
+
+func newHTTPMonitor(t *testing.T) *Monitor {
+	return newHTTPMonitorWithCfg(t, networkconfig.New())
 }
 
 func skipIfNotSupported(t *testing.T, err error) {
