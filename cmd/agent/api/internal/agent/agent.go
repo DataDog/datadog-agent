@@ -28,6 +28,7 @@ import (
 	dogstatsdServer "github.com/DataDog/datadog-agent/comp/dogstatsd/server"
 	dogstatsdDebug "github.com/DataDog/datadog-agent/comp/dogstatsd/serverDebug"
 	logsAgent "github.com/DataDog/datadog-agent/comp/logs/agent"
+	"github.com/DataDog/datadog-agent/comp/metadata/host"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery"
 	"github.com/DataDog/datadog-agent/pkg/config"
@@ -35,9 +36,9 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/diagnose"
 	"github.com/DataDog/datadog-agent/pkg/diagnose/diagnosis"
 	"github.com/DataDog/datadog-agent/pkg/epforwarder"
+	"github.com/DataDog/datadog-agent/pkg/gohai"
 	"github.com/DataDog/datadog-agent/pkg/logs/diagnostic"
 	"github.com/DataDog/datadog-agent/pkg/metadata/inventories"
-	v5 "github.com/DataDog/datadog-agent/pkg/metadata/v5"
 	"github.com/DataDog/datadog-agent/pkg/secrets"
 	"github.com/DataDog/datadog-agent/pkg/status"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
@@ -59,6 +60,7 @@ func SetupHandlers(
 	serverDebug dogstatsdDebug.Component,
 	logsAgent util.Optional[logsAgent.Component],
 	senderManager sender.DiagnoseSenderManager,
+	hostMetadata host.Component,
 ) *mux.Router {
 
 	r.HandleFunc("/version", common.GetVersion).Methods("GET")
@@ -81,7 +83,7 @@ func SetupHandlers(
 	r.HandleFunc("/tagger-list", getTaggerList).Methods("GET")
 	r.HandleFunc("/workload-list", getWorkloadList).Methods("GET")
 	r.HandleFunc("/secrets", secretInfo).Methods("GET")
-	r.HandleFunc("/metadata/{payload}", metadataPayload).Methods("GET")
+	r.HandleFunc("/metadata/{payload}", func(w http.ResponseWriter, r *http.Request) { metadataPayload(w, r, hostMetadata) }).Methods("GET")
 	r.HandleFunc("/diagnose", func(w http.ResponseWriter, r *http.Request) { getDiagnose(w, r, senderManager) }).Methods("POST")
 
 	// Some agent subcommands do not provide these dependencies (such as JMX)
@@ -422,7 +424,7 @@ func secretInfo(w http.ResponseWriter, r *http.Request) {
 	secrets.GetDebugInfo(w)
 }
 
-func metadataPayload(w http.ResponseWriter, r *http.Request) {
+func metadataPayload(w http.ResponseWriter, r *http.Request, hostMetadataComp host.Component) {
 	vars := mux.Vars(r)
 	payloadType := vars["payload"]
 
@@ -431,15 +433,7 @@ func metadataPayload(w http.ResponseWriter, r *http.Request) {
 
 	switch payloadType {
 	case "v5":
-		ctx := context.Background()
-		hostnameDetected, err := hostname.GetWithProvider(ctx)
-		if err != nil {
-			setJSONError(w, err, 500)
-			return
-		}
-
-		payload := v5.GetPayload(ctx, hostnameDetected)
-		jsonPayload, err := json.MarshalIndent(payload, "", "    ")
+		jsonPayload, err := hostMetadataComp.GetPayloadAsJSON(context.Background())
 		if err != nil {
 			setJSONError(w, log.Errorf("Unable to marshal v5 metadata payload: %s", err), 500)
 			return
@@ -448,6 +442,19 @@ func metadataPayload(w http.ResponseWriter, r *http.Request) {
 		scrubbed, err = scrubber.ScrubBytes(jsonPayload)
 		if err != nil {
 			setJSONError(w, log.Errorf("Unable to scrub metadata payload: %s", err), 500)
+			return
+		}
+	case "gohai":
+		payload := gohai.GetPayloadWithProcesses(config.IsContainerized())
+		jsonPayload, err := json.MarshalIndent(payload, "", "  ")
+		if err != nil {
+			setJSONError(w, log.Errorf("Unable to marshal gohai metadata payload: %s", err), 500)
+			return
+		}
+
+		scrubbed, err = scrubber.ScrubBytes(jsonPayload)
+		if err != nil {
+			setJSONError(w, log.Errorf("Unable to scrub gohai metadata payload: %s", err), 500)
 			return
 		}
 	case "inventory":

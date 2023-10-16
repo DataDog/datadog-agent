@@ -230,7 +230,7 @@ func init() {
 }
 
 // Enumerate known epforwarder pipelines and endpoints to test each of them connectivity
-func diagnose(diagnoseCfg diagnosis.Config, _ aggsender.DiagnoseSenderManager) []diagnosis.Diagnosis {
+func diagnose(diagnoseCfg diagnosis.Config, _ aggsender.DiagnoseSenderManager) []diagnosis.Diagnosis { //nolint:revive // TODO fix revive unused-parameter
 
 	var diagnoses []diagnosis.Diagnosis
 

@@ -131,12 +131,12 @@ func (a *agent) start(context.Context) error {
 }
 
 func (a *agent) setupAgent() error {
-
-	status.CurrentTransport = status.TransportTCP
 	if a.endpoints.UseHTTP {
-		status.CurrentTransport = status.TransportHTTP
+		status.SetCurrentTransport(status.TransportHTTP)
+	} else {
+		status.SetCurrentTransport(status.TransportTCP)
 	}
-	inventories.SetAgentMetadata(inventories.AgentLogsTransport, status.CurrentTransport)
+	inventories.SetAgentMetadata(inventories.AgentLogsTransport, string(status.GetCurrentTransport()))
 
 	// setup global processing rules
 	processingRules, err := config.GlobalProcessingRules(a.config)

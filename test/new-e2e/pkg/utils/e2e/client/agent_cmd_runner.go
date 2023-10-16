@@ -36,13 +36,37 @@ func newAgentCommandRunner(t *testing.T, executeAgentCmdWithError executeAgentCm
 	return agent
 }
 
+// NewAgentCommandRunnerFromVM create a AgentCommandRunner from a VM
+func NewAgentCommandRunnerFromVM(t *testing.T, vm *VM) *AgentCommandRunner {
+
+	return newAgentCommandRunner(t, func(arguments []string) (string, error) {
+		parameters := ""
+		if len(arguments) > 0 {
+			parameters = `"` + strings.Join(arguments, `" "`) + `"`
+		}
+		cmd := vm.os.GetRunAgentCmd(parameters)
+		return vm.ExecuteWithError(cmd)
+	})
+}
+
 func (agent *AgentCommandRunner) executeCommand(command string, commandArgs ...AgentArgsOption) string {
+
+	output, err := agent.executeCommandWithError(command, commandArgs...)
+	require.NoError(agent.t, err)
+	return output
+}
+
+func (agent *AgentCommandRunner) executeCommandWithError(command string, commandArgs ...AgentArgsOption) (string, error) {
+	if !agent.isReady {
+		err := agent.waitForReadyTimeout(1 * time.Minute)
+		require.NoErrorf(agent.t, err, "the agent is not ready")
+		agent.isReady = true
+	}
 	args := newAgentArgs(commandArgs...)
 	arguments := []string{command}
 	arguments = append(arguments, args.Args...)
 	output, err := agent.executeAgentCmdWithError(arguments)
-	require.NoError(agent.t, err)
-	return output
+	return output, err
 }
 
 // Version runs version command returns the runtime Agent version
@@ -78,6 +102,16 @@ func (agent *AgentCommandRunner) ConfigCheck(commandArgs ...AgentArgsOption) str
 	return agent.executeCommand("configcheck", commandArgs...)
 }
 
+// Integration run integration command and returns the output
+func (agent *AgentCommandRunner) Integration(commandArgs ...AgentArgsOption) string {
+	return agent.executeCommand("integration", commandArgs...)
+}
+
+// IntegrationWithError run integration command and returns the output
+func (agent *AgentCommandRunner) IntegrationWithError(commandArgs ...AgentArgsOption) (string, error) {
+	return agent.executeCommandWithError("integration", commandArgs...)
+}
+
 // Secret runs the secret command
 func (agent *AgentCommandRunner) Secret(commandArgs ...AgentArgsOption) string {
 	return agent.executeCommand("secret", commandArgs...)
@@ -103,6 +137,12 @@ func newStatus(s string) *Status {
 func (agent *AgentCommandRunner) Status(commandArgs ...AgentArgsOption) *Status {
 
 	return newStatus(agent.executeCommand("status", commandArgs...))
+}
+
+// StatusWithError runs status command and returns a Status struct and error
+func (agent *AgentCommandRunner) StatusWithError(commandArgs ...AgentArgsOption) (*Status, error) {
+	status, err := agent.executeCommandWithError("status", commandArgs...)
+	return newStatus(status), err
 }
 
 // waitForReadyTimeout blocks up to timeout waiting for agent to be ready.

@@ -127,6 +127,21 @@ This command print the V5 metadata payload for the Agent. This payload is used t
 		},
 	}
 
+	payloadGohaiCmd := &cobra.Command{
+		Use:   "gohai",
+		Short: "Print the gohai payload for the agent.",
+		Long: `
+This command prints the gohai data sent by the Agent, including current processes running on the machine.`,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			cliParams.payloadName = "gohai"
+			return fxutil.OneShot(printPayload,
+				fx.Supply(cliParams),
+				fx.Supply(command.GetDefaultCoreBundleParams(cliParams.GlobalParams)),
+				core.Bundle,
+			)
+		},
+	}
+
 	payloadInventoriesCmd := &cobra.Command{
 		Use:   "inventory",
 		Short: "Print the Inventory metadata payload for the agent.",
@@ -142,6 +157,7 @@ This command print the last Inventory metadata payload sent by the Agent. This p
 		},
 	}
 	showPayloadCommand.AddCommand(payloadV5Cmd)
+	showPayloadCommand.AddCommand(payloadGohaiCmd)
 	showPayloadCommand.AddCommand(payloadInventoriesCmd)
 	diagnoseCommand.AddCommand(showPayloadCommand)
 

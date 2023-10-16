@@ -88,7 +88,7 @@ func (s *service) Run(ctx context.Context) error {
 			}
 			defer start.StopAgent(cancel, components)
 
-			err := start.RunAgent(ctx, cliParams, config, log, params, components, demultiplexer)
+			err := start.RunDogstatsd(ctx, cliParams, config, log, params, components, demux)
 			if err != nil {
 				log.Errorf("Failed to start agent %v", err)
 				return err

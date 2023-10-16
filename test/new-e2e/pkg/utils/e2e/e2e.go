@@ -449,6 +449,8 @@ func (suite *Suite[Env]) Env() *Env {
 //
 // [testify Suite]: https://pkg.go.dev/github.com/stretchr/testify/suite
 func (suite *Suite[Env]) BeforeTest(suiteName, testName string) {
+	_ = suiteName
+	_ = testName
 	suite.isUpdateEnvCalledInThisTest = false
 }
 

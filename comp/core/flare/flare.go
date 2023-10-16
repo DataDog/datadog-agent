@@ -44,7 +44,7 @@ type flare struct {
 	providers             []types.FlareProvider
 }
 
-func newFlare(deps dependencies) (Component, rcclient.ListenerProvider, error) {
+func newFlare(deps dependencies) (Component, rcclient.TaskListenerProvider, error) {
 	f := &flare{
 		log:                   deps.Log,
 		config:                deps.Config,
@@ -53,7 +53,7 @@ func newFlare(deps dependencies) (Component, rcclient.ListenerProvider, error) {
 		diagnosesendermanager: deps.Diagnosesendermanager,
 	}
 
-	rcListener := rcclient.ListenerProvider{
+	rcListener := rcclient.TaskListenerProvider{
 		Listener: f.onAgentTaskEvent,
 	}
 

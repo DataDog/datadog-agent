@@ -54,6 +54,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/logs"
 	logsAgent "github.com/DataDog/datadog-agent/comp/logs/agent"
 	"github.com/DataDog/datadog-agent/comp/metadata"
+	"github.com/DataDog/datadog-agent/comp/metadata/host"
 	"github.com/DataDog/datadog-agent/comp/metadata/runner"
 	"github.com/DataDog/datadog-agent/comp/ndmtmp"
 	"github.com/DataDog/datadog-agent/comp/netflow"
@@ -71,7 +72,6 @@ import (
 	remoteconfig "github.com/DataDog/datadog-agent/pkg/config/remote/service"
 	adScheduler "github.com/DataDog/datadog-agent/pkg/logs/schedulers/ad"
 	pkgMetadata "github.com/DataDog/datadog-agent/pkg/metadata"
-	"github.com/DataDog/datadog-agent/pkg/metadata/host"
 	"github.com/DataDog/datadog-agent/pkg/pidfile"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/snmp/traps"
@@ -191,6 +191,7 @@ func commonRun(log log.Component,
 	cliParams *cliParams,
 	logsAgent util.Optional[logsAgent.Component],
 	otelcollector otelcollector.Component,
+	hostMetadata host.Component,
 ) error {
 	defer func() {
 		stopAgent(cliParams, server, demultiplexer)
@@ -232,7 +233,7 @@ func commonRun(log log.Component,
 		}
 	}()
 
-	if err := startAgent(cliParams, log, flare, telemetry, sysprobeconfig, server, capture, serverDebug, rcclient, logsAgent, forwarder, sharedSerializer, otelcollector, demultiplexer); err != nil {
+	if err := startAgent(cliParams, log, flare, telemetry, sysprobeconfig, server, capture, serverDebug, rcclient, logsAgent, forwarder, sharedSerializer, otelcollector, demultiplexer, hostMetadata); err != nil {
 		return err
 	}
 
@@ -317,6 +318,7 @@ func startAgent(
 	sharedSerializer serializer.MetricSerializer,
 	otelcollector otelcollector.Component,
 	demultiplexer demultiplexer.Component,
+	hostMetadata host.Component,
 ) error {
 
 	var err error
@@ -413,13 +415,6 @@ func startAgent(
 	}
 	log.Infof("Hostname is: %s", hostnameDetected)
 
-	// HACK: init host metadata module (CPU) early to avoid any
-	//       COM threading model conflict with the python checks
-	err = host.InitHostMetadata()
-	if err != nil {
-		log.Errorf("Unable to initialize host metadata: %v", err)
-	}
-
 	// start remote configuration management
 	var configService *remoteconfig.Service
 	if pkgconfig.IsRemoteConfigEnabled(pkgconfig.Datadog) {
@@ -462,7 +457,7 @@ func startAgent(
 	}
 
 	// start the cmd HTTP server
-	if err = api.StartServer(configService, flare, server, capture, serverDebug, logsAgent, demultiplexer); err != nil {
+	if err = api.StartServer(configService, flare, server, capture, serverDebug, logsAgent, demultiplexer, hostMetadata); err != nil {
 		return log.Errorf("Error while starting api server, exiting: %v", err)
 	}
 
@@ -491,8 +486,8 @@ func startAgent(
 	}
 
 	// Start SNMP trap server
-	if traps.IsEnabled() {
-		err = traps.StartServer(hostnameDetected, demultiplexer)
+	if traps.IsEnabled(pkgconfig.Datadog) {
+		err = traps.StartServer(hostnameDetected, demultiplexer, pkgconfig.Datadog, log)
 		if err != nil {
 			log.Errorf("Failed to start snmp-traps server: %s", err)
 		}

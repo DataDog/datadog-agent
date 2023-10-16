@@ -174,7 +174,7 @@ func (fh *FieldHandlers) ResolveProcessArgv(ev *model.Event, process *model.Proc
 }
 
 // ResolveProcessArgvScrubbed resolves the args of the process as an array
-func (fh *FieldHandlers) ResolveProcessArgvScrubbed(ev *model.Event, process *model.Process) []string {
+func (fh *FieldHandlers) ResolveProcessArgvScrubbed(ev *model.Event, process *model.Process) []string { //nolint:revive // TODO fix revive unused-parameter
 	argv, _ := fh.resolvers.ProcessResolver.GetProcessArgvScrubbed(process)
 	return argv
 }

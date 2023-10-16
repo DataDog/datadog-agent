@@ -31,6 +31,6 @@ build do
   env = with_standard_compiler_flags(with_embedded_path)
   env["CFLAGS"] << " -fPIC"
 
-  make "-j #{workers} PREFIX=/ DESTDIR=#{install_dir}/embedded", env: env
-  make "install PREFIX=/ DESTDIR=#{install_dir}/embedded", env: env
+  make "-C lib/ -j #{workers} PREFIX=/ DESTDIR=#{install_dir}/embedded BUILD_STATIC=no", env: env
+  make "-C lib/ install PREFIX=/ DESTDIR=#{install_dir}/embedded BUILD_STATIC=no", env: env
 end
