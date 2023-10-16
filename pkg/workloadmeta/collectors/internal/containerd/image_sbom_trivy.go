@@ -60,9 +60,19 @@ func (c *collector) startSBOMCollection(ctx context.Context) error {
 					image := event.Entity.(*workloadmeta.ContainerImageMetadata)
 
 					if image.SBOM.Status != workloadmeta.Pending {
-						// BOM already stored. Can happen when the same image ID
+						// SBOM already stored. Can happen when the same image ID
 						// is referenced with different names.
 						log.Debugf("Image: %s/%s (id %s) SBOM already available", image.Namespace, image.Name, image.ID)
+						continue
+					}
+
+					if len(image.RepoDigests) == 0 {
+						// Skip images without RepoDigest because:
+						// 1- Back-end does not process images without repodigest
+						// 2- For each image, it is possible to have multiple Create/Update events, some with a repodigest
+						// and some without. If the first processed event does not have the repodigest then the SBOM
+						// will not be updated with the RepoDigest later and image scans will be thrown away.
+						log.Debugf("Image: %s/%s (id %s) doesn't have a repodigest", image.Namespace, image.Name, image.ID)
 						continue
 					}
 
