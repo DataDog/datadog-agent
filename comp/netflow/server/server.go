@@ -37,8 +37,13 @@ type NetflowServerStatus struct {
 	TotalListeners         int
 	OpenListeners          int
 	ClosedListeners        int
-	WorkingListenerDetails []map[string]interface{}
-	ClosedListenerDetails  []map[string]interface{}
+	WorkingListenerDetails []NetflowListenerStatus
+	ClosedListenerDetails  []NetflowListenerStatus
+}
+
+type NetflowListenerStatus struct {
+	Config nfconfig.ListenerConfig
+	Error  string
 }
 
 // globalServer is only used on getting the status of the server.
@@ -142,29 +147,6 @@ func (s *Server) Stop() {
 	s.running = false
 }
 
-func extractListenerDetails(listeners []*netflowListener) []map[string]interface{} {
-	details := make([]map[string]interface{}, 0, len(listeners))
-
-	for _, listener := range listeners {
-		lDetail := map[string]interface{}{
-			"BindHost":  listener.config.BindHost,
-			"FlowType":  listener.config.FlowType,
-			"Port":      listener.config.Port,
-			"Workers":   listener.config.Workers,
-			"Namespace": listener.config.Namespace,
-		}
-
-		if listener.Error != nil {
-			lDetail["Error"] = listener.Error.Error()
-		} else {
-			lDetail["Error"] = "No Errors"
-		}
-
-		details = append(details, lDetail)
-	}
-	return details
-}
-
 // IsEnabled checks if the netflow functionality is enabled in the configuration.
 func IsEnabled() bool {
 	return config.Datadog.GetBool("network_devices.netflow.enabled")
@@ -173,14 +155,20 @@ func IsEnabled() bool {
 // GetStatus retrieves the current status of the server with details about
 // all listeners and categorizes them into working and closed.
 func GetStatus() NetflowServerStatus {
-	workingListeners := []*netflowListener{}
-	closedListenersList := []*netflowListener{}
+	workingListeners := []NetflowListenerStatus{}
+	closedListenersList := []NetflowListenerStatus{}
 
 	for _, listener := range globalServer.listeners {
 		if listener.Error != nil {
-			closedListenersList = append(closedListenersList, listener)
+			closedListenersList = append(closedListenersList, NetflowListenerStatus{
+				Config: listener.config,
+				Error:  listener.Error.Error(),
+			})
 		} else {
-			workingListeners = append(workingListeners, listener)
+			workingListeners = append(workingListeners, NetflowListenerStatus{
+				Config: listener.config,
+				Error:  "No Error(s) Found",
+			})
 		}
 	}
 
@@ -188,7 +176,7 @@ func GetStatus() NetflowServerStatus {
 		TotalListeners:         int(len(globalServer.listeners)),
 		OpenListeners:          int(len(workingListeners)),
 		ClosedListeners:        int(len(closedListenersList)),
-		WorkingListenerDetails: extractListenerDetails(workingListeners),
-		ClosedListenerDetails:  extractListenerDetails(closedListenersList),
+		WorkingListenerDetails: workingListeners,
+		ClosedListenerDetails:  closedListenersList,
 	}
 }

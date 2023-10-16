@@ -7,28 +7,28 @@ Open Listeners: {{.OpenListeners}}
 Closed Listeners: {{.ClosedListeners}}
 {{ if .OpenListeners }}
 === Open Listener Details ===
-{{- range $index, $listener := .WorkingListenerDetails }}
+{{- range $index, $NetflowListenerStatus := .WorkingListenerDetails }}
 ---------
-BindHost: {{$listener.BindHost}}
-FlowType: {{$listener.FlowType}}
-Port: {{$listener.Port}}
-Workers: {{$listener.Workers}}
-Namespace: {{$listener.Namespace}}
-Error: {{$listener.Error}}
+BindHost: {{$NetflowListenerStatus.Config.BindHost}}
+FlowType: {{$NetflowListenerStatus.Config.FlowType}}
+Port: {{$NetflowListenerStatus.Config.Port}}
+Workers: {{$NetflowListenerStatus.Config.Workers}}
+Namespace: {{$NetflowListenerStatus.Config.Namespace}}
+Error: {{$NetflowListenerStatus.Error}}
 ---------
 {{- end }}
 {{ end }}
 
 {{ if .ClosedListeners }}
 === Closed Listener Details ===
-{{- range $index, $listener := .ClosedListenerDetails }}
+{{- range $index, $NetflowListenerStatus := .ClosedListenerDetails }}
 ---------
-BindHost: {{$listener.BindHost}}
-FlowType: {{$listener.FlowType}}
-Port: {{$listener.Port}}
-Workers: {{$listener.Workers}}
-Namespace: {{$listener.Namespace}}
-Error: {{$listener.Error}}
+BindHost: {{$NetflowListenerStatus.Config.BindHost}}
+FlowType: {{$NetflowListenerStatus.Config.FlowType}}
+Port: {{$NetflowListenerStatus.Config.Port}}
+Workers: {{$NetflowListenerStatus.Config.Workers}}
+Namespace: {{$NetflowListenerStatus.Config.Namespace}}
+Error: {{$NetflowListenerStatus.Error}}
 ---------
 {{- end }}
 {{ end }}
