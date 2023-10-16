@@ -151,6 +151,8 @@ DEFAULT_MODULES = {
     "pkg/gohai": GoModule("pkg/gohai", independent=True, importable=False),
     "pkg/proto": GoModule("pkg/proto", independent=True),
     "pkg/trace": GoModule("pkg/trace", independent=True),
+    "pkg/telemetry": GoModule("pkg/telemetry", independent=True),
+    "comp/core/telemetry": GoModule("comp/core/telemetry", independent=True),
     "pkg/security/secl": GoModule("pkg/security/secl", independent=True),
     "pkg/remoteconfig/state": GoModule("pkg/remoteconfig/state", independent=True),
     "pkg/util/cgroups": GoModule("pkg/util/cgroups", independent=True, condition=lambda: sys.platform == "linux"),
