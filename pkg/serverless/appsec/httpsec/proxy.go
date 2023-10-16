@@ -132,6 +132,7 @@ func (lp *ProxyLifecycleProcessor) spanModifier(lastReqId string, chunk *pb.Trac
 			event.PathParameters,
 			event.RequestContext.Identity.SourceIP,
 			&event.Body,
+			event.IsBase64Encoded,
 		)
 
 	case *events.APIGatewayV2HTTPRequest:
@@ -143,6 +144,7 @@ func (lp *ProxyLifecycleProcessor) spanModifier(lastReqId string, chunk *pb.Trac
 			event.PathParameters,
 			event.RequestContext.HTTP.SourceIP,
 			&event.Body,
+			event.IsBase64Encoded,
 		)
 
 	case *events.APIGatewayWebsocketProxyRequest:
@@ -154,6 +156,7 @@ func (lp *ProxyLifecycleProcessor) spanModifier(lastReqId string, chunk *pb.Trac
 			event.PathParameters,
 			event.RequestContext.Identity.SourceIP,
 			&event.Body,
+			event.IsBase64Encoded,
 		)
 
 	case *events.APIGatewayCustomAuthorizerRequest:
@@ -166,6 +169,7 @@ func (lp *ProxyLifecycleProcessor) spanModifier(lastReqId string, chunk *pb.Trac
 			nil,
 			"", // Not provided by API Gateway
 			nil,
+			false,
 		)
 
 	case *events.APIGatewayCustomAuthorizerRequestTypeRequest:
@@ -177,6 +181,7 @@ func (lp *ProxyLifecycleProcessor) spanModifier(lastReqId string, chunk *pb.Trac
 			event.PathParameters,
 			event.RequestContext.Identity.SourceIP,
 			nil,
+			false,
 		)
 
 	case *events.ALBTargetGroupRequest:
@@ -188,6 +193,7 @@ func (lp *ProxyLifecycleProcessor) spanModifier(lastReqId string, chunk *pb.Trac
 			nil,
 			"",
 			&event.Body,
+			event.IsBase64Encoded,
 		)
 
 	case *events.LambdaFunctionURLRequest:
@@ -199,6 +205,7 @@ func (lp *ProxyLifecycleProcessor) spanModifier(lastReqId string, chunk *pb.Trac
 			nil,
 			event.RequestContext.HTTP.SourceIP,
 			&event.Body,
+			event.IsBase64Encoded,
 		)
 	}
 

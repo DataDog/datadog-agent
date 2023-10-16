@@ -17,7 +17,7 @@ import (
 type Probe struct{}
 
 // NewProbe is not implemented on non-linux systems
-func NewProbe(cfg *ebpf.Config) (*Probe, error) {
+func NewProbe(*ebpf.Config) (*Probe, error) {
 	return nil, ebpf.ErrNotImplemented
 }
 

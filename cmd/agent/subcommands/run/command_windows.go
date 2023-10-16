@@ -34,6 +34,7 @@ import (
 	dogstatsdDebug "github.com/DataDog/datadog-agent/comp/dogstatsd/serverDebug"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
 	logsAgent "github.com/DataDog/datadog-agent/comp/logs/agent"
+	"github.com/DataDog/datadog-agent/comp/metadata/host"
 	"github.com/DataDog/datadog-agent/comp/metadata/runner"
 	netflowServer "github.com/DataDog/datadog-agent/comp/netflow/server"
 	otelcollector "github.com/DataDog/datadog-agent/comp/otelcol/collector"
@@ -74,6 +75,7 @@ func StartAgentWithDefaults(ctxChan <-chan context.Context) (<-chan error, error
 			metadataRunner runner.Component,
 			sharedSerializer serializer.MetricSerializer,
 			otelcollector otelcollector.Component,
+			hostMetadata host.Component,
 			_ netflowServer.Component,
 			_ agentcrashdetect.Component,
 			_ comptraceconfig.Component,
@@ -81,7 +83,7 @@ func StartAgentWithDefaults(ctxChan <-chan context.Context) (<-chan error, error
 
 			defer StopAgentWithDefaults(server)
 
-			err := startAgent(&cliParams{GlobalParams: &command.GlobalParams{}}, log, flare, telemetry, sysprobeconfig, server, capture, serverDebug, rcclient, logsAgent, forwarder, sharedSerializer, otelcollector)
+			err := startAgent(&cliParams{GlobalParams: &command.GlobalParams{}}, log, flare, telemetry, sysprobeconfig, server, capture, serverDebug, rcclient, logsAgent, forwarder, sharedSerializer, otelcollector, hostMetadata)
 			if err != nil {
 				return err
 			}
@@ -143,6 +145,7 @@ func run(log log.Component,
 	cliParams *cliParams,
 	logsAgent util.Optional[logsAgent.Component],
 	otelcollector otelcollector.Component,
+	hostMetadata host.Component,
 	_ netflowServer.Component,
 	_ agentcrashdetect.Component,
 	_ comptraceconfig.Component,
@@ -151,7 +154,7 @@ func run(log log.Component,
 	// (i.e. here `_ netflowServer`, `_ agentcrashdetect`, etc.).  The run function can have different
 	// parameters on different platforms based on platform-specific components.  commonRun is the shared initialization.
 
-	return commonRun(log, config, flare, telemetry, sysprobeconfig, server, capture, serverDebug, forwarder, rcclient, metadataRunner, demux, sharedSerializer, cliParams, logsAgent, otelcollector)
+	return commonRun(log, config, flare, telemetry, sysprobeconfig, server, capture, serverDebug, forwarder, rcclient, metadataRunner, demux, sharedSerializer, cliParams, logsAgent, otelcollector, hostMetadata)
 }
 
 func getPlatformModules() fx.Option {
