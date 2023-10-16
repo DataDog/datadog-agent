@@ -1,0 +1,4 @@
+
+fixes:
+  - |
+    Fixed an issue where the Agent could emit SBOMs without the ``RepoDigest`` field, despite it being available.
