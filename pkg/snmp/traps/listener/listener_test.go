@@ -149,7 +149,7 @@ func TestListenerTrapsReceivedTelemetry(t *testing.T) {
 	mockSender.AssertMetric(t, "Count", "datadog.snmp_traps.received", 1, "", []string{"snmp_device:127.0.0.1", "device_namespace:totoro", "snmp_version:1"})
 }
 
-func receivePacket(t *testing.T, listener *TrapListener, timeoutDuration time.Duration, status status.Manager) (*packetModule.SnmpPacket, error) {
+func receivePacket(t *testing.T, listener *TrapListener, timeoutDuration time.Duration, status status.Manager) (*packetModule.SnmpPacket, error) { //nolint:revive // TODO fix revive unused-parameter
 	timeout := time.After(timeoutDuration)
 	ticker := time.NewTicker(20 * time.Millisecond)
 	defer ticker.Stop()

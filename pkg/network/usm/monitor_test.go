@@ -41,7 +41,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http/testutil"
 	usmhttp2 "github.com/DataDog/datadog-agent/pkg/network/protocols/http2"
 	libtelemetry "github.com/DataDog/datadog-agent/pkg/network/protocols/telemetry"
-	"github.com/DataDog/datadog-agent/pkg/network/tracer/testutil/grpc"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 )
 
@@ -533,12 +532,11 @@ func (s *USMHTTP2Suite) TestSimpleHTTP2() {
 		name              string
 		runClients        func(t *testing.T, clientsCount int)
 		expectedEndpoints map[http.Key]captureRange
-		skip              bool
 	}{
 		{
 			name: " / path",
 			runClients: func(t *testing.T, clientsCount int) {
-				clients := getClientsArray(t, clientsCount, grpc.Options{})
+				clients := getClientsArray(t, clientsCount)
 
 				for i := 0; i < 1000; i++ {
 					client := clients[getClientsIndex(i, clientsCount)]
@@ -560,7 +558,7 @@ func (s *USMHTTP2Suite) TestSimpleHTTP2() {
 		{
 			name: " /index.html path",
 			runClients: func(t *testing.T, clientsCount int) {
-				clients := getClientsArray(t, clientsCount, grpc.Options{})
+				clients := getClientsArray(t, clientsCount)
 
 				for i := 0; i < 1000; i++ {
 					client := clients[getClientsIndex(i, clientsCount)]
@@ -584,10 +582,6 @@ func (s *USMHTTP2Suite) TestSimpleHTTP2() {
 		for _, clientCount := range []int{1, 2, 5} {
 			testNameSuffix := fmt.Sprintf("-different clients - %v", clientCount)
 			t.Run(tt.name+testNameSuffix, func(t *testing.T) {
-				if tt.skip {
-					t.Skip("Skipping test due to known issue")
-				}
-
 				monitor, err := NewMonitor(cfg, nil, nil, nil)
 				require.NoError(t, err)
 				require.NoError(t, monitor.Start())
@@ -639,7 +633,7 @@ func (s *USMHTTP2Suite) TestSimpleHTTP2() {
 	}
 }
 
-func getClientsArray(t *testing.T, size int, options grpc.Options) []*nethttp.Client {
+func getClientsArray(t *testing.T, size int) []*nethttp.Client {
 	t.Helper()
 
 	res := make([]*nethttp.Client, size)
