@@ -99,7 +99,8 @@ func (lp *LifecycleProcessor) startExecutionSpan(rawPayload []byte, startDetails
 
 // endExecutionSpan builds the function execution span and sends it to the intake.
 // It should be called at the end of the invocation.
-func endExecutionSpan(executionContext *ExecutionStartInfo, triggerTags map[string]string, triggerMetrics map[string]float64, processTrace func(p *api.Payload), endDetails *InvocationEndDetails) {
+func (lp *LifecycleProcessor) endExecutionSpan(endDetails *InvocationEndDetails) {
+	executionContext := lp.GetExecutionInfo()
 	duration := endDetails.EndTime.UnixNano() - executionContext.startTime.UnixNano()
 
 	executionSpan := &pb.Span{
@@ -112,8 +113,8 @@ func endExecutionSpan(executionContext *ExecutionStartInfo, triggerTags map[stri
 		ParentID: executionContext.parentID,
 		Start:    executionContext.startTime.UnixNano(),
 		Duration: duration,
-		Meta:     triggerTags,
-		Metrics:  triggerMetrics,
+		Meta:     lp.requestHandler.triggerTags,
+		Metrics:  lp.requestHandler.triggerMetrics,
 	}
 	executionSpan.Meta["request_id"] = endDetails.RequestID
 	executionSpan.Meta["cold_start"] = fmt.Sprintf("%t", endDetails.ColdStart)
@@ -156,7 +157,7 @@ func endExecutionSpan(executionContext *ExecutionStartInfo, triggerTags map[stri
 		Chunks: []*pb.TraceChunk{traceChunk},
 	}
 
-	processTrace(&api.Payload{
+	lp.ProcessTrace(&api.Payload{
 		Source:        info.NewReceiverStats().GetTagStats(info.Tags{}),
 		TracerPayload: tracerPayload,
 	})

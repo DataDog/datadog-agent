@@ -239,9 +239,14 @@ func TestEndExecutionSpanWithEmptyObjectRequestResponse(t *testing.T) {
 	t.Setenv(functionNameEnvVar, "TestFunction")
 	t.Setenv("DD_CAPTURE_LAMBDA_PAYLOAD", "true")
 	startTime := time.Now()
+	var tracePayload *api.Payload
 	lp := &LifecycleProcessor{
 		requestHandler: &RequestHandler{
 			executionInfo: currentExecutionInfo,
+			triggerTags:   make(map[string]string),
+		},
+		ProcessTrace: func(payload *api.Payload) {
+			tracePayload = payload
 		},
 	}
 	startDetails := &InvocationStartDetails{
@@ -253,10 +258,6 @@ func TestEndExecutionSpanWithEmptyObjectRequestResponse(t *testing.T) {
 
 	duration := 1 * time.Second
 	endTime := startTime.Add(duration)
-	var tracePayload *api.Payload
-	mockProcessTrace := func(payload *api.Payload) {
-		tracePayload = payload
-	}
 
 	endDetails := &InvocationEndDetails{
 		EndTime:            endTime,
@@ -268,7 +269,7 @@ func TestEndExecutionSpanWithEmptyObjectRequestResponse(t *testing.T) {
 		Runtime:            "dotnet6",
 	}
 
-	endExecutionSpan(currentExecutionInfo, make(map[string]string), nil, mockProcessTrace, endDetails)
+	lp.endExecutionSpan(endDetails)
 	executionSpan := tracePayload.TracerPayload.Chunks[0].Spans[0]
 	expectingResultMetaMap := map[string]string{
 		"request_id":        "test-request-id",
@@ -293,9 +294,14 @@ func TestEndExecutionSpanWithNullRequestResponse(t *testing.T) {
 	t.Setenv(functionNameEnvVar, "TestFunction")
 	t.Setenv("DD_CAPTURE_LAMBDA_PAYLOAD", "true")
 	startTime := time.Now()
+	var tracePayload *api.Payload
 	lp := &LifecycleProcessor{
 		requestHandler: &RequestHandler{
 			executionInfo: currentExecutionInfo,
+			triggerTags:   make(map[string]string),
+		},
+		ProcessTrace: func(payload *api.Payload) {
+			tracePayload = payload
 		},
 	}
 	startDetails := &InvocationStartDetails{
@@ -307,10 +313,6 @@ func TestEndExecutionSpanWithNullRequestResponse(t *testing.T) {
 
 	duration := 1 * time.Second
 	endTime := startTime.Add(duration)
-	var tracePayload *api.Payload
-	mockProcessTrace := func(payload *api.Payload) {
-		tracePayload = payload
-	}
 
 	endDetails := &InvocationEndDetails{
 		EndTime:            endTime,
@@ -322,7 +324,7 @@ func TestEndExecutionSpanWithNullRequestResponse(t *testing.T) {
 		Runtime:            "dotnet6",
 	}
 
-	endExecutionSpan(currentExecutionInfo, make(map[string]string), nil, mockProcessTrace, endDetails)
+	lp.endExecutionSpan(endDetails)
 	executionSpan := tracePayload.TracerPayload.Chunks[0].Spans[0]
 	expectingResultMetaMap := map[string]string{
 		"request_id":        "test-request-id",
@@ -344,9 +346,14 @@ func TestEndExecutionSpanWithNullRequestResponse(t *testing.T) {
 
 func TestEndExecutionSpanWithNoError(t *testing.T) {
 	currentExecutionInfo := &ExecutionStartInfo{}
+	var tracePayload *api.Payload
 	lp := &LifecycleProcessor{
 		requestHandler: &RequestHandler{
 			executionInfo: currentExecutionInfo,
+			triggerTags:   make(map[string]string),
+		},
+		ProcessTrace: func(payload *api.Payload) {
+			tracePayload = payload
 		},
 	}
 	t.Setenv(functionNameEnvVar, "TestFunction")
@@ -362,10 +369,6 @@ func TestEndExecutionSpanWithNoError(t *testing.T) {
 
 	duration := 1 * time.Second
 	endTime := startTime.Add(duration)
-	var tracePayload *api.Payload
-	mockProcessTrace := func(payload *api.Payload) {
-		tracePayload = payload
-	}
 
 	endDetails := &InvocationEndDetails{
 		EndTime:            endTime,
@@ -377,7 +380,7 @@ func TestEndExecutionSpanWithNoError(t *testing.T) {
 		Runtime:            "dotnet6",
 	}
 
-	endExecutionSpan(currentExecutionInfo, make(map[string]string), nil, mockProcessTrace, endDetails)
+	lp.endExecutionSpan(endDetails)
 	executionSpan := tracePayload.TracerPayload.Chunks[0].Spans[0]
 	expectingResultMetaMap := map[string]string{
 		"request_id":                "test-request-id",
@@ -406,9 +409,14 @@ func TestEndExecutionSpanWithNoError(t *testing.T) {
 
 func TestEndExecutionSpanProactInit(t *testing.T) {
 	currentExecutionInfo := &ExecutionStartInfo{}
+	var tracePayload *api.Payload
 	lp := &LifecycleProcessor{
 		requestHandler: &RequestHandler{
 			executionInfo: currentExecutionInfo,
+			triggerTags:   make(map[string]string),
+		},
+		ProcessTrace: func(payload *api.Payload) {
+			tracePayload = payload
 		},
 	}
 	t.Setenv(functionNameEnvVar, "TestFunction")
@@ -424,10 +432,6 @@ func TestEndExecutionSpanProactInit(t *testing.T) {
 
 	duration := 1 * time.Second
 	endTime := startTime.Add(duration)
-	var tracePayload *api.Payload
-	mockProcessTrace := func(payload *api.Payload) {
-		tracePayload = payload
-	}
 
 	endDetails := &InvocationEndDetails{
 		EndTime:            endTime,
@@ -438,7 +442,7 @@ func TestEndExecutionSpanProactInit(t *testing.T) {
 		ProactiveInit:      true,
 	}
 
-	endExecutionSpan(currentExecutionInfo, make(map[string]string), nil, mockProcessTrace, endDetails)
+	lp.endExecutionSpan(endDetails)
 	executionSpan := tracePayload.TracerPayload.Chunks[0].Spans[0]
 	expectingResultMetaMap := map[string]string{
 		"request_id":                                           "test-request-id",
@@ -471,9 +475,14 @@ func TestEndExecutionSpanWithInvalidCaptureLambdaPayloadValue(t *testing.T) {
 	testString := `{"resource":"/users/create","path":"/users/create","httpMethod":"GET","headers":{"Accept":"*/*","Accept-Encoding":"gzip","x-datadog-parent-id":"1480558859903409531","x-datadog-sampling-priority":"1","x-datadog-trace-id":"5736943178450432258"}}`
 	startTime := time.Now()
 	currentExecutionInfo := &ExecutionStartInfo{}
+	var tracePayload *api.Payload
 	lp := &LifecycleProcessor{
 		requestHandler: &RequestHandler{
 			executionInfo: currentExecutionInfo,
+			triggerTags:   make(map[string]string),
+		},
+		ProcessTrace: func(payload *api.Payload) {
+			tracePayload = payload
 		},
 	}
 	startDetails := &InvocationStartDetails{
@@ -485,11 +494,6 @@ func TestEndExecutionSpanWithInvalidCaptureLambdaPayloadValue(t *testing.T) {
 	duration := 1 * time.Second
 	endTime := startTime.Add(duration)
 
-	var tracePayload *api.Payload
-	mockProcessTrace := func(payload *api.Payload) {
-		tracePayload = payload
-	}
-
 	endDetails := &InvocationEndDetails{
 		EndTime:            endTime,
 		IsError:            false,
@@ -497,7 +501,7 @@ func TestEndExecutionSpanWithInvalidCaptureLambdaPayloadValue(t *testing.T) {
 		ResponseRawPayload: []byte(`{"response":"test response payload"}`),
 	}
 
-	endExecutionSpan(currentExecutionInfo, make(map[string]string), nil, mockProcessTrace, endDetails)
+	lp.endExecutionSpan(endDetails)
 	executionSpan := tracePayload.TracerPayload.Chunks[0].Spans[0]
 	assert.Equal(t, "aws.lambda", executionSpan.Name)
 	assert.Equal(t, "aws.lambda", executionSpan.Service)
@@ -514,9 +518,14 @@ func TestEndExecutionSpanWithInvalidCaptureLambdaPayloadValue(t *testing.T) {
 
 func TestEndExecutionSpanWithError(t *testing.T) {
 	currentExecutionInfo := &ExecutionStartInfo{}
+	var tracePayload *api.Payload
 	lp := &LifecycleProcessor{
 		requestHandler: &RequestHandler{
 			executionInfo: currentExecutionInfo,
+			triggerTags:   make(map[string]string),
+		},
+		ProcessTrace: func(payload *api.Payload) {
+			tracePayload = payload
 		},
 	}
 	t.Setenv(functionNameEnvVar, "TestFunction")
@@ -530,10 +539,6 @@ func TestEndExecutionSpanWithError(t *testing.T) {
 
 	duration := 1 * time.Second
 	endTime := startTime.Add(duration)
-	var tracePayload *api.Payload
-	mockProcessTrace := func(payload *api.Payload) {
-		tracePayload = payload
-	}
 
 	endDetails := &InvocationEndDetails{
 		EndTime:            endTime,
@@ -541,7 +546,7 @@ func TestEndExecutionSpanWithError(t *testing.T) {
 		RequestID:          "test-request-id",
 		ResponseRawPayload: []byte(`{}`),
 	}
-	endExecutionSpan(currentExecutionInfo, make(map[string]string), nil, mockProcessTrace, endDetails)
+	lp.endExecutionSpan(endDetails)
 	executionSpan := tracePayload.TracerPayload.Chunks[0].Spans[0]
 	assert.Equal(t, executionSpan.Error, int32(1))
 }
@@ -595,9 +600,14 @@ func TestLanguageTag(t *testing.T) {
 
 	for _, tc := range testCases {
 		currentExecutionInfo := &ExecutionStartInfo{}
+		var tracePayload *api.Payload
 		lp := &LifecycleProcessor{
 			requestHandler: &RequestHandler{
 				executionInfo: currentExecutionInfo,
+				triggerTags:   make(map[string]string),
+			},
+			ProcessTrace: func(payload *api.Payload) {
+				tracePayload = payload
 			},
 		}
 		t.Setenv(functionNameEnvVar, "TestFunction")
@@ -612,10 +622,6 @@ func TestLanguageTag(t *testing.T) {
 
 		duration := 1 * time.Second
 		endTime := startTime.Add(duration)
-		var tracePayload *api.Payload
-		mockProcessTrace := func(payload *api.Payload) {
-			tracePayload = payload
-		}
 
 		endDetails := &InvocationEndDetails{
 			EndTime:            endTime,
@@ -627,7 +633,7 @@ func TestLanguageTag(t *testing.T) {
 			Runtime:            tc.runtime, // add runtime
 		}
 
-		endExecutionSpan(currentExecutionInfo, make(map[string]string), nil, mockProcessTrace, endDetails)
+		lp.endExecutionSpan(endDetails)
 		executionSpan := tracePayload.TracerPayload.Chunks[0].Spans[0]
 		assert.Equal(t, "aws.lambda", executionSpan.Name)
 		assert.Equal(t, "aws.lambda", executionSpan.Service)

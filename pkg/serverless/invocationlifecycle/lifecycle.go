@@ -258,7 +258,7 @@ func (lp *LifecycleProcessor) OnInvokeEnd(endDetails *InvocationEndDetails) {
 			endDetails.IsError = true
 		}
 
-		endExecutionSpan(lp.GetExecutionInfo(), lp.requestHandler.triggerTags, lp.requestHandler.triggerMetrics, lp.ProcessTrace, endDetails)
+		lp.endExecutionSpan(endDetails)
 
 		if lp.InferredSpansEnabled {
 			log.Debug("[lifecycle] Attempting to complete the inferred span")
