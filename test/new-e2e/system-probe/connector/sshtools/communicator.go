@@ -423,9 +423,5 @@ func scpUploadFile(dst io.Writer, src io.Reader, stdout *bufio.Reader, file stri
 	}
 
 	fmt.Fprint(dst, "\x00")
-	if err := checkSCPStatus(stdout); err != nil {
-		return err
-	}
-
-	return nil
+	return checkSCPStatus(stdout)
 }
