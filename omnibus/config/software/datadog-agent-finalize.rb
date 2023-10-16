@@ -203,6 +203,10 @@ build do
             # Do not strip eBPF programs
             strip_exclude("#{install_dir}/embedded/share/system-probe/ebpf/*.o")
             strip_exclude("#{install_dir}/embedded/share/system-probe/ebpf/co-re/*.o")
+
+            # Most postgres binaries are removed in postgres' own software
+            # recipe, but we need pg_config to build psycopq.
+            delete "#{install_dir}/embedded/bin/pg_config"
         end
 
         if osx?
