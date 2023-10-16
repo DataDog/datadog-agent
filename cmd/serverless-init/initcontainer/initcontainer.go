@@ -23,7 +23,6 @@ import (
 
 	"github.com/DataDog/datadog-agent/cmd/serverless-init/cloudservice"
 	serverlessLog "github.com/DataDog/datadog-agent/cmd/serverless-init/log"
-	"github.com/DataDog/datadog-agent/cmd/serverless-init/metric"
 	logsAgent "github.com/DataDog/datadog-agent/comp/logs/agent"
 	"github.com/DataDog/datadog-agent/pkg/serverless"
 	"github.com/DataDog/datadog-agent/pkg/serverless/metrics"
@@ -87,8 +86,14 @@ func execute(
 	if err != nil {
 		return err
 	}
-	handleSignals(cloudService, cmd.Process, config, metricAgent, traceAgent, logsAgent)
+	go forwardSignals(cmd.Process, config)
 	err = cmd.Wait()
+	if err != nil {
+		serverlessLog.Write(config, []byte(fmt.Sprintf("[datadog init process] exiting with code = %s", err)), false)
+	} else {
+		serverlessLog.Write(config, []byte("[datadog init process] exiting successfully"), false)
+	}
+
 	flush(config.FlushTimeout, metricAgent, traceAgent, logsAgent)
 	return err
 }
@@ -109,33 +114,19 @@ func buildCommandParam(cmdArg []string) (string, []string) {
 	return commandName, []string{}
 }
 
-func handleSignals(
-	cloudService cloudservice.CloudService,
-	process *os.Process,
-	config *serverlessLog.Config,
-	metricAgent *metrics.ServerlessMetricAgent,
-	traceAgent *trace.ServerlessTraceAgent,
-	logsAgent logsAgent.ServerlessLogsAgent,
-) {
-	go func() {
-		sigs := make(chan os.Signal, 1)
-		signal.Notify(sigs)
-		for sig := range sigs {
-			if sig != syscall.SIGURG {
-				serverlessLog.Write(config, []byte(fmt.Sprintf("[datadog init process] %s received", sig)), false)
-			}
-			if sig != syscall.SIGCHLD {
-				if process != nil {
-					_ = syscall.Kill(process.Pid, sig.(syscall.Signal))
-				}
-				if sig == syscall.SIGTERM {
-					serverlessLog.Write(config, []byte("[datadog init process] child process received SIGTERM. Flushing shutdown metrics and terminate when/if the child process does"), false)
-					metric.AddShutdownMetric(cloudService.GetPrefix(), metricAgent.GetExtraTags(), time.Now(), metricAgent.Demux)
-					flush(config.FlushTimeout, metricAgent, traceAgent, logsAgent)
-				}
+func forwardSignals(process *os.Process, config *serverlessLog.Config) {
+	sigs := make(chan os.Signal, 1)
+	signal.Notify(sigs)
+	for sig := range sigs {
+		if sig != syscall.SIGURG {
+			serverlessLog.Write(config, []byte(fmt.Sprintf("[datadog init process] %s received", sig)), false)
+		}
+		if sig != syscall.SIGCHLD {
+			if process != nil {
+				_ = syscall.Kill(process.Pid, sig.(syscall.Signal))
 			}
 		}
-	}()
+	}
 }
 
 func flush(flushTimeout time.Duration, metricAgent serverless.FlushableAgent, traceAgent serverless.FlushableAgent, logsAgent logsAgent.ServerlessLogsAgent) bool {
