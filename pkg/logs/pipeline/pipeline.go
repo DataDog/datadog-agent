@@ -37,7 +37,7 @@ func NewPipeline(outputChan chan *message.Payload,
 	serverless bool,
 	pipelineID int) *Pipeline {
 
-	mainDestinations := getDestinations(endpoints, destinationsContext, pipelineID)
+	mainDestinations := getDestinations(endpoints, destinationsContext, pipelineID, serverless)
 
 	strategyInput := make(chan *message.Message, config.ChanSize)
 	senderInput := make(chan *message.Payload, 1) // Only buffer 1 message since payloads can be large
@@ -91,14 +91,14 @@ func (p *Pipeline) Flush(ctx context.Context) {
 	p.processor.Flush(ctx) // flush messages in the processor into the sender
 }
 
-func getDestinations(endpoints *config.Endpoints, destinationsContext *client.DestinationsContext, pipelineID int) *client.Destinations {
+func getDestinations(endpoints *config.Endpoints, destinationsContext *client.DestinationsContext, pipelineID int, serverless bool) *client.Destinations {
 	reliable := []client.Destination{}
 	additionals := []client.Destination{}
 
 	if endpoints.UseHTTP {
 		for i, endpoint := range endpoints.GetReliableEndpoints() {
 			telemetryName := fmt.Sprintf("logs_%d_reliable_%d", pipelineID, i)
-			reliable = append(reliable, http.NewDestination(endpoint, http.JSONContentType, destinationsContext, endpoints.BatchMaxConcurrentSend, true, telemetryName))
+			reliable = append(reliable, http.NewDestination(endpoint, http.JSONContentType, destinationsContext, endpoints.BatchMaxConcurrentSend, !serverless, telemetryName))
 		}
 		for i, endpoint := range endpoints.GetUnReliableEndpoints() {
 			telemetryName := fmt.Sprintf("logs_%d_unreliable_%d", pipelineID, i)
@@ -107,7 +107,7 @@ func getDestinations(endpoints *config.Endpoints, destinationsContext *client.De
 		return client.NewDestinations(reliable, additionals)
 	}
 	for _, endpoint := range endpoints.GetReliableEndpoints() {
-		reliable = append(reliable, tcp.NewDestination(endpoint, endpoints.UseProto, destinationsContext, true))
+		reliable = append(reliable, tcp.NewDestination(endpoint, endpoints.UseProto, destinationsContext, !serverless))
 	}
 	for _, endpoint := range endpoints.GetUnReliableEndpoints() {
 		additionals = append(additionals, tcp.NewDestination(endpoint, endpoints.UseProto, destinationsContext, false))
