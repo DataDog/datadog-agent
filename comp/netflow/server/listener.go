@@ -1,8 +1,3 @@
-// Unless explicitly stated otherwise all files in this repository are licensed
-// under the Apache License Version 2.0.
-// This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2022-present Datadog, Inc.
-
 package server
 
 import (
@@ -12,8 +7,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/netflow/goflowlib"
 )
 
-// netflowListener contains state of goflow listener and the related netflow config
-// flowState can be of type *utils.StateNetFlow/StateSFlow/StateNFLegacy
 type netflowListener struct {
 	flowState  *goflowlib.FlowStateWrapper
 	config     config.ListenerConfig
@@ -22,8 +15,8 @@ type netflowListener struct {
 	shutdownCh chan struct{}
 }
 
-// Shutdown will close the goflow listener state
 func (l *netflowListener) shutdown() {
+	close(l.shutdownCh)
 	l.flowState.Shutdown()
 }
 
@@ -44,9 +37,10 @@ func startFlowListener(listenerConfig config.ListenerConfig, flowAgg *flowaggreg
 	flowState, err := goflowlib.StartFlowRoutine(listenerConfig.FlowType, listenerConfig.BindHost, listenerConfig.Port, listenerConfig.Workers, listenerConfig.Namespace, flowAgg.GetFlowInChan(), logger, errCh)
 
 	listener := &netflowListener{
-		flowState: flowState,
-		config:    listenerConfig,
-		errCh:     errCh,
+		flowState:  flowState,
+		config:     listenerConfig,
+		errCh:      errCh,
+		shutdownCh: make(chan struct{}),
 	}
 
 	go listener.errorHandler()
