@@ -156,6 +156,16 @@ func IsEnabled() bool {
 // GetStatus retrieves the current status of the server with details about
 // all listeners and categorizes them into working and closed.
 func GetStatus() NetflowServerStatus {
+	if globalServer == nil {
+		return NetflowServerStatus{
+			TotalListeners:         0,
+			OpenListeners:          0,
+			ClosedListeners:        0,
+			WorkingListenerDetails: []NetflowListenerStatus{},
+			ClosedListenerDetails:  []NetflowListenerStatus{},
+		}
+	}
+
 	workingListeners := []NetflowListenerStatus{}
 	closedListenersList := []NetflowListenerStatus{}
 
