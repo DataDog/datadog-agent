@@ -153,7 +153,7 @@ func (c *CWSConsumer) PostProbeStart() error {
 			case <-c.ctx.Done():
 
 			case <-time.After(15 * time.Second):
-				if _, err := c.RunSelfTest(true); err != nil {
+				if _, err := c.RunSelfTest(c.config.SelfTestSendReport); err != nil {
 					seclog.Warnf("failed to run self test: %s", err)
 				}
 			}
@@ -177,7 +177,7 @@ func (c *CWSConsumer) RunSelfTest(sendLoadedReport bool) (bool, error) {
 	seclog.Debugf("self-test results : success : %v, failed : %v", success, fails)
 
 	// send the report
-	if c.config.SelfTestSendReport {
+	if sendLoadedReport {
 		ReportSelfTest(c.eventSender, c.statsdClient, success, fails, testEvents)
 	}
 
