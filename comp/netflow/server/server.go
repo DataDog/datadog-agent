@@ -48,6 +48,9 @@ type NetflowListenerStatus struct {
 	Error  string
 }
 
+// TODO: (components)
+// The Status command is not yet a component.
+// Therefore, the globalServer variable below is used as a temporary workaround.
 // globalServer is only used on getting the status of the server.
 var (
 	globalServer   = &Server{}
