@@ -65,6 +65,6 @@ func newDemultiplexer(deps dependencies) (provides, error) {
 }
 
 // LazyGetSenderManager gets an instance of SenderManager lazily.
-func (demux demultiplexer) LazyGetSenderManager() sender.SenderManager {
-	return demux
+func (demux demultiplexer) LazyGetSenderManager() (sender.SenderManager, error) {
+	return demux, nil
 }

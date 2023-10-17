@@ -50,5 +50,5 @@ type SenderManager interface {
 // DiagnoseSenderManager is the SenderManager used by the diagnose command
 // It creates an instance of senderManager lazily to keep the same behavior as before.
 type DiagnoseSenderManager interface {
-	LazyGetSenderManager() SenderManager
+	LazyGetSenderManager() (SenderManager, error)
 }

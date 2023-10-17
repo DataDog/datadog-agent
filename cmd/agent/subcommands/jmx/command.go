@@ -236,7 +236,10 @@ func runJmxCommandConsole(config config.Component, cliParams *cliParams, diagnos
 		return fmt.Errorf("Unable to set up JMX logger: %v", err)
 	}
 
-	senderManager := diagnoseSendermanager.LazyGetSenderManager()
+	senderManager, err := diagnoseSendermanager.LazyGetSenderManager()
+	if err != nil {
+		return err
+	}
 	common.LoadComponents(context.Background(), senderManager, config.GetString("confd_path"))
 	common.AC.LoadAndRun(context.Background())
 

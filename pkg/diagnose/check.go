@@ -84,7 +84,19 @@ func diagnoseChecksInCLIProcess(diagCfg diagnosis.Config, senderManager diagnose
 	// 	run() github.com\DataDog\datadog-agent\pkg\cli\subcommands\check\command.go
 	//  runCheck() github.com\DataDog\datadog-agent\cmd\agent\gui\checks.go
 
-	senderManagerInstance := senderManager.LazyGetSenderManager()
+	senderManagerInstance, err := senderManager.LazyGetSenderManager()
+	if err != nil {
+		return []diagnosis.Diagnosis{
+			{
+				Result:      diagnosis.DiagnosisFail,
+				Name:        err.Error(),
+				Diagnosis:   err.Error(),
+				Remediation: err.Error(),
+				RawError:    err.Error(),
+			},
+		}
+	}
+
 	// Initializing the aggregator with a flush interval of 0 (to disable the flush goroutines)
 	common.LoadComponents(context.Background(), senderManagerInstance, pkgconfig.Datadog.GetString("confd_path"))
 	common.AC.LoadAndRun(context.Background())

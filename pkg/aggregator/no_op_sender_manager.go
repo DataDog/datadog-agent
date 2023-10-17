@@ -39,6 +39,6 @@ func (NoOpSenderManager) GetDefaultSender() (sender.Sender, error) { //nolint:re
 }
 
 // LazyGetSenderManager gets an instance of SenderManager lazily.
-func (sender NoOpSenderManager) LazyGetSenderManager() sender.SenderManager {
-	return sender
+func (sender NoOpSenderManager) LazyGetSenderManager() (sender.SenderManager, error) {
+	return sender, nil
 }

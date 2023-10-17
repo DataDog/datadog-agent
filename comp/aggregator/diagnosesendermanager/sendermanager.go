@@ -25,25 +25,24 @@ type dependencies struct {
 }
 
 type diagnoseSenderManager struct {
-	senderManager    util.Optional[sender.SenderManager]
-	deps             dependencies
-	hostnameDetected string
+	senderManager util.Optional[sender.SenderManager]
+	deps          dependencies
 }
 
-func newDiagnoseSenderManager(deps dependencies) (Component, error) {
-	hostnameDetected, err := hostname.Get(context.TODO())
-	if err != nil {
-		return nil, deps.Log.Errorf("Error while getting hostname, exiting: %v", err)
-	}
-
-	return &diagnoseSenderManager{deps: deps, hostnameDetected: hostnameDetected}, nil
+func newDiagnoseSenderManager(deps dependencies) Component {
+	return &diagnoseSenderManager{deps: deps}
 }
 
 // LazyGetSenderManager gets an instance of SenderManager lazily.
-func (sender *diagnoseSenderManager) LazyGetSenderManager() sender.SenderManager {
+func (sender *diagnoseSenderManager) LazyGetSenderManager() (sender.SenderManager, error) {
 	senderManager, found := sender.senderManager.Get()
 	if found {
-		return senderManager
+		return senderManager, nil
+	}
+
+	hostnameDetected, err := hostname.Get(context.TODO())
+	if err != nil {
+		return nil, sender.deps.Log.Errorf("Error while getting hostname, exiting: %v", err)
 	}
 
 	// Initializing the aggregator with a flush interval of 0 (to disable the flush goroutines)
@@ -60,8 +59,8 @@ func (sender *diagnoseSenderManager) LazyGetSenderManager() sender.SenderManager
 		log,
 		forwarder,
 		opts,
-		sender.hostnameDetected)
+		hostnameDetected)
 
 	sender.senderManager.Set(senderManager)
-	return senderManager
+	return senderManager, nil
 }
