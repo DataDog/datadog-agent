@@ -64,6 +64,10 @@ func StartCompliance(log log.Component, config config.Component, sysprobeconfig 
 		ConfigDir:       configDir,
 		Reporter:        reporter,
 		CheckInterval:   checkInterval,
+		EnabledConfigurationExporters: []compliance.ConfigurationExporter{
+			compliance.AptExporter,
+			compliance.KubernetesExporter,
+		},
 	})
 	err = agent.Start()
 	if err != nil {
