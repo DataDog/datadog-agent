@@ -346,11 +346,14 @@ workflow:
     when: manual
     allow_failure: true
 
-.on_dev_branch_manual:
+.on_dev_branch:
   - <<: *if_main_branch
     when: never
   - <<: *if_tagged_commit
     when: never
+
+.on_dev_branch_manual:
+  !reference[.on_dev_branch]
   - when: manual
     allow_failure: true
 
