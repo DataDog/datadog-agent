@@ -155,11 +155,8 @@ func (a *APIServer) GetStatus(ctx context.Context, params *api.GetStatusParams) 
 	}
 
 	apiStatus.Environment.KernelLockdown = string(kernel.GetLockdownMode())
-
-	if kernel, err := a.probe.GetKernelVersion(); err == nil {
-		apiStatus.Environment.UseMmapableMaps = kernel.HaveMmapableMaps()
-		apiStatus.Environment.UseRingBuffer = a.probe.UseRingBuffers()
-	}
+	apiStatus.Environment.UseMmapableMaps = a.probe.GetKernelVersion().HaveMmapableMaps()
+	apiStatus.Environment.UseRingBuffer = a.probe.UseRingBuffers()
 
 	return apiStatus, nil
 }
