@@ -202,6 +202,7 @@ func (rc rcClient) agentTaskUpdateCallback(updates map[string]state.RawConfig, a
 	// Executes all AGENT_TASK in separate routines, so we don't block if one of them deadlock
 	for originalConfigPath, originalConfig := range updates {
 		go func(configPath string, c state.RawConfig) {
+			pkglog.Debugf("Agent task %s started", configPath)
 			defer wg.Done()
 			defer pkglog.Debugf("Agent task %s completed", configPath)
 			task, err := parseConfigAgentTask(c.Config, c.Metadata)
