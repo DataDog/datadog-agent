@@ -229,6 +229,9 @@ variables:
 .if_not_nightly_repo_branch: &if_not_nightly_repo_branch
   if: $BUCKET_BRANCH != "nightly" && $BUCKET_BRANCH != "oldnightly"
 
+.if_not_nightly_or_dev_repo_branch: &if_not_nightly_or_dev_repo_branch
+  if: $BUCKET_BRANCH != "nightly" && $BUCKET_BRANCH != "oldnightly" && $BUCKET_BRANCH != "dev"
+
 .if_not_stable_or_beta_repo_branch: &if_not_stable_or_beta_repo_branch
   if: $BUCKET_BRANCH != "beta" && $BUCKET_BRANCH != "stable"
 
@@ -614,14 +617,14 @@ workflow:
 .on_deploy_nightly_repo_branch_a6:
   - <<: *if_not_version_6
     when: never
-  - <<: *if_not_nightly_repo_branch
+  - <<: *if_not_nightly_or_dev_repo_branch
     when: never
   - <<: *if_deploy
 
 .on_deploy_nightly_repo_branch_a7:
   - <<: *if_not_version_7
     when: never
-  - <<: *if_not_nightly_repo_branch
+  - <<: *if_not_nightly_or_dev_repo_branch
     when: never
   - <<: *if_deploy
 
