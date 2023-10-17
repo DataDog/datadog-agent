@@ -32,6 +32,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/api/healthprobe"
 	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
 	pkgmetadata "github.com/DataDog/datadog-agent/pkg/metadata"
+	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 	"github.com/DataDog/datadog-agent/pkg/tagger"
 	"github.com/DataDog/datadog-agent/pkg/tagger/local"
@@ -107,6 +108,11 @@ func RunDogstatsdFct(cliParams *CLIParams, defaultConfPath string, defaultLogFil
 		forwarder.Bundle,
 		fx.Provide(defaultforwarder.NewParams),
 		demultiplexer.Module,
+		// injecting the shared Serializer to FX until we migrate it to a prpoper component. This allows other
+		// already migrated components to request it.
+		fx.Provide(func(demuxInstance demultiplexer.Component) serializer.MetricSerializer {
+			return demuxInstance.Serializer()
+		}),
 		fx.Provide(func(config config.Component) demultiplexer.Params {
 			opts := aggregator.DefaultAgentDemultiplexerOptions()
 			opts.UseOrchestratorForwarder = false
@@ -119,7 +125,7 @@ func RunDogstatsdFct(cliParams *CLIParams, defaultConfPath string, defaultLogFil
 	)
 }
 
-func start(cliParams *CLIParams, config config.Component, log log.Component, params *Params, server dogstatsdServer.Component, sharedForwarder defaultforwarder.Component, demultiplexer demultiplexer.Component, metadataRunner runner.Component, hostComp host.Component, demux *aggregator.AgentDemultiplexer) error { //nolint:revive // TODO fix revive unusued-parameter
+func start(cliParams *CLIParams, config config.Component, log log.Component, params *Params, server dogstatsdServer.Component, sharedForwarder defaultforwarder.Component, demultiplexer demultiplexer.Component, metadataRunner runner.Component, hostComp host.Component) error { //nolint:revive // TODO fix revive unusued-parameter
 	// Main context passed to components
 	ctx, cancel := context.WithCancel(context.Background())
 
