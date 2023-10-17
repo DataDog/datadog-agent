@@ -165,6 +165,7 @@ DEFAULT_MODULES = {
     "pkg/util/fxutil": GoModule("pkg/util/fxutil", independent=True),
     "pkg/util/json": GoModule("pkg/util/json", independent=True),
     "pkg/util/testutil": GoModule("pkg/util/testutil", independent=True),
+    "pkg/version": GoModule("pkg/version", independent=True),
     "pkg/networkdevice/profile": GoModule("pkg/networkdevice/profile", independent=True),
 }
 
