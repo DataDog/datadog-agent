@@ -12,7 +12,6 @@ import (
 	"fmt"
 	"os/exec"
 	"os/user"
-	"path"
 
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -25,7 +24,7 @@ type ChownSelfTest struct{}
 func (o *ChownSelfTest) GetRuleDefinition(filename string) *rules.RuleDefinition {
 	return &rules.RuleDefinition{
 		ID:         fmt.Sprintf("%s_chown", ruleIDPrefix),
-		Expression: fmt.Sprintf(`chown.file.path == "%s" && chown.file.name == "%s"`, filename, path.Base(filename)),
+		Expression: fmt.Sprintf(`chown.file.path == "%s"`, filename),
 	}
 }
 
