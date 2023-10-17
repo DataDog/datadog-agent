@@ -22,8 +22,8 @@ import (
 	nettestutil "github.com/DataDog/datadog-agent/pkg/network/testutil"
 )
 
-func createJavaTempFile(t *testing.T, dir string) string {
-	tempfile, err := os.CreateTemp(dir, "TestAgentLoaded.agentmain.*")
+func createJavaTempFile(t *testing.T) string {
+	tempfile, err := os.CreateTemp("", "TestAgentLoaded.agentmain.*")
 	require.NoError(t, err)
 	tempfile.Close()
 	os.Remove(tempfile.Name())
@@ -81,8 +81,7 @@ func TestJavaInjection(t *testing.T) {
 			preTracerSetup: func(t *testing.T, ctx map[string]interface{}) {
 				cfg.JavaDir = fakeAgentDir
 				ctx["JavaAgentArgs"] = cfg.JavaAgentArgs
-
-				ctx["testfile"] = createJavaTempFile(t, testdataDir)
+				ctx["testfile"] = createJavaTempFile(t)
 				cfg.JavaAgentArgs += ",testfile=/v/" + filepath.Base(ctx["testfile"].(string))
 			},
 			postTracerSetup: func(t *testing.T, ctx map[string]interface{}) {
@@ -99,8 +98,7 @@ func TestJavaInjection(t *testing.T) {
 			preTracerSetup: func(t *testing.T, ctx map[string]interface{}) {
 				cfg.JavaDir = fakeAgentDir
 				ctx["JavaAgentArgs"] = cfg.JavaAgentArgs
-
-				ctx["testfile"] = createJavaTempFile(t, testdataDir)
+				ctx["testfile"] = createJavaTempFile(t)
 				cfg.JavaAgentArgs += ",testfile=/v/" + filepath.Base(ctx["testfile"].(string))
 
 				// testing allow/block list, as Allow list have higher priority
@@ -122,8 +120,7 @@ func TestJavaInjection(t *testing.T) {
 			context: make(map[string]interface{}),
 			preTracerSetup: func(t *testing.T, ctx map[string]interface{}) {
 				ctx["JavaAgentArgs"] = cfg.JavaAgentArgs
-
-				ctx["testfile"] = createJavaTempFile(t, testdataDir)
+				ctx["testfile"] = createJavaTempFile(t)
 				cfg.JavaAgentArgs += ",testfile=/v/" + filepath.Base(ctx["testfile"].(string))
 
 				// block the agent attachment
@@ -143,8 +140,7 @@ func TestJavaInjection(t *testing.T) {
 			context: make(map[string]interface{}),
 			preTracerSetup: func(t *testing.T, ctx map[string]interface{}) {
 				ctx["JavaAgentArgs"] = cfg.JavaAgentArgs
-
-				ctx["testfile"] = createJavaTempFile(t, testdataDir)
+				ctx["testfile"] = createJavaTempFile(t)
 				cfg.JavaAgentArgs += ",testfile=/v/" + filepath.Base(ctx["testfile"].(string))
 
 				// block the agent attachment
@@ -163,8 +159,7 @@ func TestJavaInjection(t *testing.T) {
 			context: make(map[string]interface{}),
 			preTracerSetup: func(t *testing.T, ctx map[string]interface{}) {
 				ctx["JavaAgentArgs"] = cfg.JavaAgentArgs
-
-				ctx["testfile"] = createJavaTempFile(t, testdataDir)
+				ctx["testfile"] = createJavaTempFile(t)
 				cfg.JavaAgentArgs += ",testfile=/v/" + filepath.Base(ctx["testfile"].(string))
 
 				// allow has a higher priority
