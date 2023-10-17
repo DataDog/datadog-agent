@@ -102,8 +102,7 @@ func newSubscriptionSignalEvent() (evtapi.WaitEventHandle, error) {
 	// Now WaitForMultipleObjects will block and we won't see the second set of events until a third
 	// set arrives.
 	// Instead, to avoid this race we use an auto reset event, which is unset when WaitForMultipleObjects
-	// returns. When EvtNext returns more items we call SetEvent to unblock WaitForMultipleObjects again.
-	// When EvtNext returns ERROR_NO_MORE_ITEMS the event is already unset and we don't need to do anything.
+	// returns. When EvtNext returns ERROR_NO_MORE_ITEMS the event is already unset and we don't need to do anything.
 	hEvent, err := windows.CreateEvent(nil, 0, 1, nil)
 	return evtapi.WaitEventHandle(hEvent), err
 }
