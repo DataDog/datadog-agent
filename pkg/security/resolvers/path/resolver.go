@@ -134,32 +134,34 @@ type Resolver struct {
 
 // NewResolver returns a new path resolver
 func NewResolver(opts ResolverOpts, mountResolver *mount.Resolver, eRPC *erpc.ERPC, statsdClient statsd.ClientInterface) (*Resolver, error) {
-	pr := &Resolver{
+	r := &Resolver{
 		opts:          opts,
 		mountResolver: mountResolver,
 		statsdClient:  statsdClient,
 		erpc:          eRPC,
 	}
 
-	if pr.opts.UseRingBuffers {
+	if r.opts.UseRingBuffers || r.opts.UseERPC {
 		for i := 0; i < int(maxPathResolutionFailureCause); i++ {
-			pr.failureCounters[i] = atomic.NewInt64(0)
+			r.failureCounters[i] = atomic.NewInt64(0)
 		}
-		pr.successCounter = atomic.NewInt64(0)
-		pr.watermarkBuffer = bytes.NewBuffer(make([]byte, 0, WatermarkSize))
+		r.successCounter = atomic.NewInt64(0)
+		if r.opts.UseRingBuffers {
+			r.watermarkBuffer = bytes.NewBuffer(make([]byte, 0, WatermarkSize))
+		}
 	}
 
-	if opts.PathCacheSize > 0 {
-		pathCache, err := simplelru.NewLRU[model.DentryKey, string](int(opts.PathCacheSize), nil)
+	if r.opts.PathCacheSize > 0 {
+		pathCache, err := simplelru.NewLRU[model.DentryKey, string](int(r.opts.PathCacheSize), nil)
 		if err != nil {
 			return nil, fmt.Errorf("couldn't create path resolver: %w", err)
 		}
-		pr.pathCache = pathCache
-		pr.cacheMissCounter = atomic.NewInt64(0)
-		pr.cacheHitCounter = atomic.NewInt64(0)
+		r.pathCache = pathCache
+		r.cacheMissCounter = atomic.NewInt64(0)
+		r.cacheHitCounter = atomic.NewInt64(0)
 	}
 
-	return pr, nil
+	return r, nil
 }
 
 func reversePathParts(pathStr string) string {
@@ -191,53 +193,61 @@ func reversePathParts(pathStr string) string {
 	return builder.String()
 }
 
-// resolvePathFromRingBuffers resolves the path of the given path ringbuffer reference using ringbuffers
-func (r *Resolver) resolvePathFromRingBuffers(ref *model.PathRingBufferRef) (string, error) {
+func (r *Resolver) pathRefErrorChecks(ref *model.PathRingBufferRef) error {
 	if ref.Length > PathRingBuffersSize {
 		errCode := math.MaxUint32 - ref.Length
 		switch errCode {
 		case uint32(drUnknown):
 			r.failureCounters[drUnknown].Inc()
-			return "", errDrUnknown
+			return errDrUnknown
 		case uint32(drInvalidInode):
 			r.failureCounters[drInvalidInode].Inc()
-			return "", errDrInvalidInode
+			return errDrInvalidInode
 		case uint32(drDentryDiscarded):
 			r.failureCounters[drDentryDiscarded].Inc()
-			return "", errDrDentryDiscarded
+			return errDrDentryDiscarded
 		case uint32(drDentryResolution):
 			r.failureCounters[drDentryResolution].Inc()
-			return "", errDrDentryResolution
+			return errDrDentryResolution
 		case uint32(drDentryBadName):
 			r.failureCounters[drDentryBadName].Inc()
-			return "", errDrDentryBadName
+			return errDrDentryBadName
 		case uint32(drDentryMaxTailCall):
 			r.failureCounters[drDentryMaxTailCall].Inc()
-			return "", errDrDentryMaxTailCall
+			return errDrDentryMaxTailCall
 		default:
 			r.failureCounters[pathRefLengthTooBig].Inc()
-			return "", errPathRefLengthTooBig
+			return errPathRefLengthTooBig
 		}
 	}
 
 	if ref.Length == 0 {
 		r.failureCounters[pathRefLengthZero].Inc()
-		return "", errPathRefLengthZero
+		return errPathRefLengthZero
 	}
 
 	if ref.Length <= 2*WatermarkSize {
 		r.failureCounters[pathRefLengthTooSmall].Inc()
-		return "", errPathRefLengthTooSmall
+		return errPathRefLengthTooSmall
 	}
 
 	if ref.ReadCursor > PathRingBuffersSize {
 		r.failureCounters[pathRefReadCursorOOB].Inc()
-		return "", errPathRefReadCursorOOB
+		return errPathRefReadCursorOOB
 	}
 
 	if ref.CPU >= uint32(r.numCPU) {
 		r.failureCounters[pathRefInvalidCPU].Inc()
-		return "", errPathRefInvalidCPU
+		return errPathRefInvalidCPU
+	}
+
+	return nil
+}
+
+// resolvePathFromRingBuffers resolves the path of the given path ringbuffer reference using ringbuffers
+func (r *Resolver) resolvePathFromRingBuffers(ref *model.PathRingBufferRef) (string, error) {
+	if err := r.pathRefErrorChecks(ref); err != nil {
+		return "", err
 	}
 
 	cpuOffset := ref.CPU * PathRingBuffersSize
@@ -332,6 +342,10 @@ func (r *Resolver) preventBufferMajorPageFault() {
 
 // resolvePathFromERPC resolves the path of the given path ringbuffer reference using an eRPC call
 func (r *Resolver) resolvePathFromERPC(ref *model.PathRingBufferRef) (string, error) {
+	if err := r.pathRefErrorChecks(ref); err != nil {
+		return "", err
+	}
+
 	if 4+2*WatermarkSize+ref.Length > uint32(len(r.erpcBuffer)) {
 		return "", fmt.Errorf("path ref is too big: %d bytes", ref.Length)
 	}
@@ -561,7 +575,7 @@ func (r *Resolver) Close() error {
 
 // SendStats sends the path resolver metrics
 func (r *Resolver) SendStats() error {
-	if r.opts.UseRingBuffers {
+	if r.opts.UseRingBuffers || r.opts.UseERPC {
 		for cause, counter := range r.failureCounters {
 			val := counter.Swap(0)
 			if val > 0 {
