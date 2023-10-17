@@ -30,7 +30,7 @@ func (store *fakeWorkloadmetaStore) Notify(events []workloadmeta.CollectorEvent)
 	store.notifiedEvents = append(store.notifiedEvents, events...)
 }
 
-func (store *fakeWorkloadmetaStore) GetContainer(id string) (*workloadmeta.Container, error) {
+func (store *fakeWorkloadmetaStore) GetContainer(_ string) (*workloadmeta.Container, error) {
 	return &workloadmeta.Container{
 		EnvVars: map[string]string{
 			v3or4.DefaultMetadataURIv4EnvVariable: "fake_uri",
@@ -46,7 +46,7 @@ func (c *fakev1EcsClient) GetTasks(ctx context.Context) ([]v1.Task, error) {
 	return c.mockGetTasks(ctx)
 }
 
-func (c *fakev1EcsClient) GetInstance(ctx context.Context) (*v1.Instance, error) {
+func (c *fakev1EcsClient) GetInstance(_ context.Context) (*v1.Instance, error) {
 	return nil, errors.New("unimplemented")
 }
 

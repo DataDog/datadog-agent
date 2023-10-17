@@ -12,7 +12,7 @@ import (
 
 	tassert "github.com/stretchr/testify/assert"
 	"go.uber.org/fx"
-	"gotest.tools/assert"
+	"gotest.tools/assert" //nolint:depguard
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/log"

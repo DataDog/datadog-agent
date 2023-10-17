@@ -76,35 +76,35 @@ func (f *FakeDCAClient) GetVersion() (version.Version, error) {
 	return f.LocalVersion, f.VersionErr
 }
 
-func (f *FakeDCAClient) GetNodeLabels(nodeName string) (map[string]string, error) {
+func (f *FakeDCAClient) GetNodeLabels(_ string) (map[string]string, error) {
 	return f.NodeLabels, f.NodeLabelsErr
 }
 
-func (f *FakeDCAClient) GetNodeAnnotations(nodeName string) (map[string]string, error) {
+func (f *FakeDCAClient) GetNodeAnnotations(_ string) (map[string]string, error) {
 	return f.NodeAnnotations, f.NodeLabelsErr
 }
 
-func (f *FakeDCAClient) GetNamespaceLabels(nsName string) (map[string]string, error) {
+func (f *FakeDCAClient) GetNamespaceLabels(_ string) (map[string]string, error) {
 	return f.NamespaceLabels, f.NamespaceLabelsErr
 }
 
-func (f *FakeDCAClient) GetPodsMetadataForNode(nodeName string) (apiv1.NamespacesPodsStringsSet, error) {
+func (f *FakeDCAClient) GetPodsMetadataForNode(_ string) (apiv1.NamespacesPodsStringsSet, error) {
 	return f.PodMetadataForNode, f.PodMetadataForNodeErr
 }
 
-func (f *FakeDCAClient) GetKubernetesMetadataNames(nodeName, ns, podName string) ([]string, error) {
+func (f *FakeDCAClient) GetKubernetesMetadataNames(_, _, _ string) ([]string, error) {
 	return f.KubernetesMetadataNames, f.KubernetesMetadataNamesErr
 }
 
-func (f *FakeDCAClient) PostClusterCheckStatus(ctx context.Context, identifier string, status types.NodeStatus) (types.StatusResponse, error) {
+func (f *FakeDCAClient) PostClusterCheckStatus(_ context.Context, _ string, _ types.NodeStatus) (types.StatusResponse, error) {
 	return f.ClusterCheckStatus, f.ClusterCheckStatusErr
 }
 
-func (f *FakeDCAClient) GetClusterCheckConfigs(ctx context.Context, identifier string) (types.ConfigResponse, error) {
+func (f *FakeDCAClient) GetClusterCheckConfigs(_ context.Context, _ string) (types.ConfigResponse, error) {
 	return f.ClusterCheckConfigs, f.ClusterCheckConfigsErr
 }
 
-func (f *FakeDCAClient) GetEndpointsCheckConfigs(ctx context.Context, nodeName string) (types.ConfigResponse, error) {
+func (f *FakeDCAClient) GetEndpointsCheckConfigs(_ context.Context, _ string) (types.ConfigResponse, error) {
 	return f.EndpointsCheckConfigs, f.EndpointsCheckConfigsErr
 }
 

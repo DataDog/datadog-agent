@@ -169,7 +169,7 @@ func (c *collector) Start(ctx context.Context, store workloadmeta.Component) err
 	return nil
 }
 
-func (c *collector) Pull(ctx context.Context) error {
+func (c *collector) Pull(_ context.Context) error {
 	return nil
 }
 

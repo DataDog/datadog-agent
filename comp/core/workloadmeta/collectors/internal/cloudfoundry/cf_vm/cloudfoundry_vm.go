@@ -56,7 +56,7 @@ func GetFxOptions() fx.Option {
 	return fx.Provide(NewCollector)
 }
 
-func (c *collector) Start(ctx context.Context, store workloadmeta.Component) error {
+func (c *collector) Start(_ context.Context, store workloadmeta.Component) error {
 	if !config.IsFeaturePresent(config.CloudFoundry) {
 		return errors.NewDisabled(componentName, "Agent is not running on CloudFoundry")
 	}
@@ -79,7 +79,7 @@ func (c *collector) Start(ctx context.Context, store workloadmeta.Component) err
 	return nil
 }
 
-func (c *collector) Pull(ctx context.Context) error {
+func (c *collector) Pull(_ context.Context) error {
 	containers, err := c.gardenUtil.ListContainers()
 	if err != nil {
 		return err

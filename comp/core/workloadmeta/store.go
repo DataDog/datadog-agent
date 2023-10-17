@@ -525,10 +525,10 @@ func (w *workloadmeta) pull(ctx context.Context) {
 			}
 			w.ongoingPullsMut.Unlock()
 			continue
-		} else {
-			w.ongoingPulls[id] = time.Now()
-			w.ongoingPullsMut.Unlock()
 		}
+
+		w.ongoingPulls[id] = time.Now()
+		w.ongoingPullsMut.Unlock()
 
 		// Run each pull in its own separate goroutine to reduce
 		// latency and unlock the main goroutine to do other work.

@@ -76,7 +76,7 @@ func testCollectEvent(t *testing.T, createResource func(*fake.Clientset) error, 
 	}, 30*time.Second, 500*time.Millisecond)
 
 	// Retrieving the resource in an event bundle
-	bundle := <-ch
+	bundle = <-ch
 	if bundle.Ch != nil {
 		close(bundle.Ch)
 	}

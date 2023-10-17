@@ -45,7 +45,7 @@ type mockedImage struct {
 	mockConfig func() (ocispec.Descriptor, error)
 }
 
-func (m *mockedImage) Config(ctx context.Context) (ocispec.Descriptor, error) {
+func (m *mockedImage) Config(_ context.Context) (ocispec.Descriptor, error) {
 	return m.mockConfig()
 }
 

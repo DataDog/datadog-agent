@@ -30,7 +30,7 @@ type client struct {
 	cl pb.AgentSecureClient
 }
 
-func (c *client) StreamEntities(ctx context.Context, opts ...grpc.CallOption) (remote.Stream, error) {
+func (c *client) StreamEntities(ctx context.Context, _ ...grpc.CallOption) (remote.Stream, error) {
 	streamcl, err := c.cl.WorkloadmetaStreamEntities(
 		ctx,
 		&pb.WorkloadmetaStreamRequest{

@@ -51,7 +51,7 @@ func GetFxOptions() fx.Option {
 	return fx.Provide(NewCollector)
 }
 
-func (c *collector) Start(ctx context.Context, store workloadmeta.Component) error {
+func (c *collector) Start(_ context.Context, store workloadmeta.Component) error {
 	if !config.IsFeaturePresent(config.ECSFargate) {
 		return errors.NewDisabled(componentName, "Agent is not running on ECS Fargate")
 	}

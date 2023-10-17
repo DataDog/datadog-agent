@@ -242,36 +242,36 @@ func (w *workloadmetamock) Unset(entity Entity) {
 }
 
 // Start is not implemented in the testing store.
-func (w *workloadmetamock) Start(ctx context.Context) {
+func (w *workloadmetamock) Start(_ context.Context) {
 	panic("not implemented")
 }
 
 // Subscribe is not implemented in the testing store.
-func (w *workloadmetamock) Subscribe(name string, _ SubscriberPriority, filter *Filter) chan EventBundle {
+func (w *workloadmetamock) Subscribe(_ string, _ SubscriberPriority, _ *Filter) chan EventBundle {
 	panic("not implemented")
 }
 
 // Unsubscribe is not implemented in the testing store.
-func (w *workloadmetamock) Unsubscribe(ch chan EventBundle) {
+func (w *workloadmetamock) Unsubscribe(_ chan EventBundle) {
 	panic("not implemented")
 }
 
 // Notify is not implemented in the testing store.
-func (w *workloadmetamock) Notify(events []CollectorEvent) {
+func (w *workloadmetamock) Notify(_ []CollectorEvent) {
 	panic("not implemented")
 }
 
 // Dump is not implemented in the testing store.
-func (w *workloadmetamock) Dump(verbose bool) WorkloadDumpResponse {
+func (w *workloadmetamock) Dump(_ bool) WorkloadDumpResponse {
 	panic("not implemented")
 }
 
 // Reset is not implemented in the testing store.
-func (w *workloadmetamock) Reset(newEntities []Entity, source Source) {
+func (w *workloadmetamock) Reset(_ []Entity, _ Source) {
 	panic("not implemented")
 }
 
-func (w *workloadmetamock) ResetProcesses(newProcesses []Entity, source Source) {
+func (w *workloadmetamock) ResetProcesses(_ []Entity, _ Source) {
 	panic("not implemented")
 }
 
