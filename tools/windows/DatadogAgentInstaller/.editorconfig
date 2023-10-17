@@ -143,7 +143,7 @@ csharp_indent_labels = flush_left
 #### Prefer "var" everywhere #### 
 csharp_style_var_for_built_in_types = true:error
 csharp_style_var_when_type_is_apparent = true:error
-csharp_style_var_elsewhere = true:error
+csharp_style_var_elsewhere = false
 
 # NativeMethods.cs contains interop code with Win32
 # It's much better to keep the native naming conventions there
