@@ -5,6 +5,7 @@
 
 //go:build !windows
 
+// Package socket provides method to check if socket path is available.
 package socket
 
 import (
