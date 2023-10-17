@@ -160,14 +160,17 @@ func (p *Resolver) GetEnvp(pr *model.Process) []string {
 }
 
 // GetProcessCmdLineScrubbed returns the scrubbed cmdline
-func (p *Resolver) GetProcessCmdLineScrubbed(pr *model.Process) []string {
+func (p *Resolver) GetProcessCmdLineScrubbed(pr *model.Process) string {
 	if pr.ScrubbedCmdLineResolved {
 		return pr.CmdLine
 	}
 
 	if p.scrubber != nil && len(pr.CmdLine) > 0 {
 		// replace with the scrubbed version
-		pr.CmdLine, _ = p.scrubber.ScrubCommand(pr.CmdLine)
+		scrubbed, _ := p.scrubber.ScrubCommand([]string{pr.CmdLine})
+		if len(scrubbed) > 0 {
+			pr.CmdLine = strings.Join(scrubbed, " ")
+		}
 	}
 
 	return pr.CmdLine
