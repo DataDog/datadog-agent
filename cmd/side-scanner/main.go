@@ -273,6 +273,8 @@ func (s *sideScanner) start(ctx context.Context) {
 	s.rcClient.Start()
 	defer s.rcClient.Close()
 
+	scansInProgress = make(map[string]struct{})
+
 	scansCh := make(chan scanTask)
 	s.rcClient.Subscribe(state.ProductDebug, func(update map[string]state.RawConfig, _ func(string, state.ApplyStatus)) {
 		for _, cfg := range update {
@@ -394,6 +396,8 @@ func deleteEBSSnapshot(ctx context.Context, svc *ec2.EC2, snapshotID string) err
 	return err
 }
 
+var scansInProgress map[string]struct{}
+
 func scanEBS(ctx context.Context, log log.Component, statsd ddgostatsd.ClientInterface, hostname string, scan *ebsScan) (*sbommodel.SBOMEntity, error) {
 	if scan.Region == "" {
 		return nil, fmt.Errorf("ebs-scan: missing region")
@@ -401,6 +405,13 @@ func scanEBS(ctx context.Context, log log.Component, statsd ddgostatsd.ClientInt
 	if scan.Hostname == "" {
 		return nil, fmt.Errorf("ebs-scan: missing hostname")
 	}
+
+	if _, ok := scansInProgress[scan.Hostname]; ok {
+		log.Debugf("scan in progress for hostname %s; skipping", scan.Hostname)
+		return nil, nil
+	}
+	scansInProgress[scan.Hostname] = struct{}{}
+	defer delete(scansInProgress, scan.Hostname)
 
 	defer statsd.Flush()
 
