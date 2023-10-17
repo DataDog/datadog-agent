@@ -166,13 +166,7 @@ func GetStatus() NetflowServerStatus {
 	defer globalServerMu.Unlock()
 
 	if globalServer == nil {
-		return NetflowServerStatus{
-			TotalListeners:         0,
-			OpenListeners:          0,
-			ClosedListeners:        0,
-			WorkingListenerDetails: []NetflowListenerStatus{},
-			ClosedListenerDetails:  []NetflowListenerStatus{},
-		}
+		return NetflowServerStatus{}
 	}
 
 	workingListeners := []NetflowListenerStatus{}
@@ -187,7 +181,6 @@ func GetStatus() NetflowServerStatus {
 		} else {
 			workingListeners = append(workingListeners, NetflowListenerStatus{
 				Config: listener.config,
-				Error:  "No Error(s) Found",
 			})
 		}
 	}

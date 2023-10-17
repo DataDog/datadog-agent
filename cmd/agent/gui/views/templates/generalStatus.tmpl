@@ -505,15 +505,13 @@
         <br>Open Listeners: {{.netflowStats.OpenListeners}}
         <br>Closed Listeners: {{.netflowStats.ClosedListeners}}
         {{ if .netflowStats.OpenListeners }}
-        <br>
         <span class="stat_subtitle">Open Listener Details</span>
-        {{- range $index, $NetflowListenerStatus := .netflowStats.WorkingListenerDetails }}
-        <br>BindHost: {{$NetflowListenerStatus.Config.BindHost}}
+        {{- range $index, $NetflowListenerStatus := .netflowStats.WorkingListenerDetails -}}
+        BindHost: {{$NetflowListenerStatus.Config.BindHost}}
         <br>FlowType: {{$NetflowListenerStatus.Config.FlowType}}
         <br>Port: {{$NetflowListenerStatus.Config.Port}}
         <br>Workers: {{$NetflowListenerStatus.Config.Workers}}
         <br>Namespace: {{$NetflowListenerStatus.Config.Namespace}}
-        <br>Error: {{$NetflowListenerStatus.Error}}
         <br>
         {{- end }}
         {{ end }}
@@ -522,7 +520,7 @@
         <br>
         <span class="stat_subtitle">Closed Listener Details</span>
         {{- range $index, $NetflowListenerStatus := .netflowStats.ClosedListenerDetails }}
-        <br>BindHost: {{$NetflowListenerStatus.Config.BindHost}}
+        BindHost: {{$NetflowListenerStatus.Config.BindHost}}
         <br>FlowType: {{$NetflowListenerStatus.Config.FlowType}}
         <br>Port: {{$NetflowListenerStatus.Config.Port}}
         <br>Workers: {{$NetflowListenerStatus.Config.Workers}}
