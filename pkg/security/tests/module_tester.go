@@ -1324,11 +1324,11 @@ func (tm *testModule) getSignal(tb testing.TB, action func() error, cb func(*mod
 			switch msg {
 			case Continue:
 				if err := cb(e, r); err != nil {
-					if errors.Is(err, errSkipEvent) {
+					if !errors.Is(err, errSkipEvent) {
+						tb.Error(err)
+					} else {
 						message <- Continue
 						return
-					} else {
-						tb.Error(err)
 					}
 				}
 				if tb.Skipped() || tb.Failed() {
