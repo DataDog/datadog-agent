@@ -31,6 +31,5 @@ func TestV1MetricPayloads(t *testing.T) {
 		assert.Equal(t, metrics[0].Metric, "datadog.trace_agent.started")
 		assert.Equal(t, metrics[0].Host, "COMP-WY4M717J6J")
 		assert.Equal(t, metrics[0].Points[0][0].(float64), float64(1697177070))
-
 	})
 }
