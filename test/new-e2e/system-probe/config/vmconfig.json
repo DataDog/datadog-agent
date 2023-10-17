@@ -7,18 +7,18 @@
             "kernels": [
                 {
                     "dir": "bionic-server-cloudimg-amd64.qcow2",
-                    "tag": "bionic",
+                    "tag": "ubuntu_18.04",
                     "image_source": "https://dd-agent-omnibus.s3.amazonaws.com/kernel-version-testing/rootfs/bionic-server-cloudimg-amd64.qcow2"
                 },
                 {
-                    "dir": "jammy-server-cloudimg-amd64.qcow2",
-                    "tag": "jammy",
-                    "image_source": "https://dd-agent-omnibus.s3.amazonaws.com/kernel-version-testing/rootfs/jammy-server-cloudimg-amd64.qcow2"
+                    "dir": "focal-server-cloudimg-amd64.qcow2",
+                    "tag": "ubuntu_20.04",
+                    "image_source": "https://dd-agent-omnibus.s3.amazonaws.com/kernel-version-testing/rootfs/focal-server-cloudimg-amd64.qcow2"
                 },
                 {
-                    "dir": "focal-server-cloudimg-amd64.qcow2",
-                    "tag": "focal",
-                    "image_source": "https://dd-agent-omnibus.s3.amazonaws.com/kernel-version-testing/rootfs/focal-server-cloudimg-amd64.qcow2"
+                    "dir": "jammy-server-cloudimg-amd64.qcow2",
+                    "tag": "ubuntu_22.04",
+                    "image_source": "https://dd-agent-omnibus.s3.amazonaws.com/kernel-version-testing/rootfs/jammy-server-cloudimg-amd64.qcow2"
                 },
                 {
                     "dir": "amzn2-kvm-2.0-amd64-4.14.qcow2",
@@ -54,8 +54,17 @@
                     "dir": "Fedora-Cloud-Base-38.amd64.qcow2",
                     "tag": "fedora_38",
                     "image_source": "https://dd-agent-omnibus.s3.amazonaws.com/kernel-version-testing/rootfs/Fedora-Cloud-Base-38.amd64.qcow2"
+                },
+                {
+                    "dir": "debian-10-generic-amd64.qcow2",
+                    "tag": "debian_10",
+                    "image_source": "https://dd-agent-omnibus.s3.amazonaws.com/kernel-version-testing/rootfs/debian-10-generic-amd64.qcow2"
+                },
+                {
+                    "dir": "debian-11-generic-amd64.qcow2",
+                    "tag": "debian_11",
+                    "image_source": "https://dd-agent-omnibus.s3.amazonaws.com/kernel-version-testing/rootfs/debian-11-generic-amd64.qcow2"
                 }
-
             ],
             "vcpu": [
                 4
@@ -71,12 +80,12 @@
             "kernels": [
                 {
                     "dir": "focal-server-cloudimg-arm64.qcow2",
-                    "tag": "focal",
+                    "tag": "ubuntu_20.04",
                     "image_source": "https://dd-agent-omnibus.s3.amazonaws.com/kernel-version-testing/rootfs/focal-server-cloudimg-arm64.qcow2"
                 },
                 {
                     "dir": "jammy-server-cloudimg-arm64.qcow2",
-                    "tag": "jammy",
+                    "tag": "ubuntu_22.04",
                     "image_source": "https://dd-agent-omnibus.s3.amazonaws.com/kernel-version-testing/rootfs/jammy-server-cloudimg-arm64.qcow2"
                 },
                 {
@@ -113,8 +122,17 @@
                     "dir": "Fedora-Cloud-Base-38.arm64.qcow2",
                     "tag": "fedora_38",
                     "image_source": "https://dd-agent-omnibus.s3.amazonaws.com/kernel-version-testing/rootfs/Fedora-Cloud-Base-38.arm64.qcow2"
+                },
+                {
+                    "dir": "debian-10-generic-arm64.qcow2",
+                    "tag": "debian_10",
+                    "image_source": "https://dd-agent-omnibus.s3.amazonaws.com/kernel-version-testing/rootfs/debian-10-generic-arm64.qcow2"
+                },
+                {
+                    "dir": "debian-11-generic-arm64.qcow2",
+                    "tag": "debian_11",
+                    "image_source": "https://dd-agent-omnibus.s3.amazonaws.com/kernel-version-testing/rootfs/debian-11-generic-arm64.qcow2"
                 }
-
             ],
             "machine": "virt",
             "vcpu": [
