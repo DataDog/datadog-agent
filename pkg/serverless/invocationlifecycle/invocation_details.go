@@ -41,5 +41,6 @@ type InvocationEndDetails struct {
 	ProactiveInit      bool
 	Runtime            string
 	ErrorMsg           string
+	ErrorType          string
 	ErrorStack         string
 }

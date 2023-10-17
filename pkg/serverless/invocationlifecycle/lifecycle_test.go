@@ -230,6 +230,7 @@ func TestEndExecutionSpanWithTraceMetadata(t *testing.T) {
 		IsError:    true,
 		RequestID:  "test-request-id",
 		ErrorMsg:   "custom exception",
+		ErrorType:  "Exception",
 		ErrorStack: "exception",
 	}
 	samplingPriority := sampler.SamplingPriority(1)
@@ -259,6 +260,7 @@ func TestEndExecutionSpanWithTraceMetadata(t *testing.T) {
 	assert.Equal(t, "serverless", executionSpan.Type)
 	assert.Equal(t, int32(1), executionSpan.Error)
 	assert.Equal(t, "custom exception", executionSpan.Meta["error.msg"])
+	assert.Equal(t, "Exception", executionSpan.Meta["error.type"])
 	assert.Equal(t, "exception", executionSpan.Meta["error.stack"])
 }
 

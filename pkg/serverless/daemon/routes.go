@@ -100,6 +100,7 @@ func (e *EndInvocation) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	errorMsg := r.Header.Get(invocationlifecycle.InvocationErrorMsgHeader)
+	errorType := r.Header.Get(invocationlifecycle.InvocationErrorTypeHeader)
 	errorStack := r.Header.Get(invocationlifecycle.InvocationErrorStackHeader)
 	if decodedStack, err := base64.StdEncoding.DecodeString(errorStack); err != nil {
 		log.Debug("Could not decode error stack header")
@@ -107,7 +108,7 @@ func (e *EndInvocation) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		errorStack = string(decodedStack)
 	}
 	// If any error metadata is received, always mark the span as an error
-	isError := r.Header.Get(invocationlifecycle.InvocationErrorHeader) == "true" || len(errorMsg) > 0 || len(errorStack) > 0
+	isError := r.Header.Get(invocationlifecycle.InvocationErrorHeader) == "true" || len(errorMsg) > 0 || len(errorType) > 0 || len(errorStack) > 0
 
 	var endDetails = invocationlifecycle.InvocationEndDetails{
 		EndTime:            endTime,
@@ -118,6 +119,7 @@ func (e *EndInvocation) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		ProactiveInit:      coldStartTags.IsProactiveInit,
 		Runtime:            ecs.Runtime,
 		ErrorMsg:           errorMsg,
+		ErrorType:          errorType,
 		ErrorStack:         errorStack,
 	}
 	executionContext := e.daemon.InvocationProcessor.GetExecutionInfo()
