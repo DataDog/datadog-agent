@@ -29,6 +29,8 @@ type MetricSeriesV1Header struct {
 }
 
 // MetricSeriesV1 contains all information of a metric in V1
+// Following API specifications V1 https://docs.datadoghq.com/api/latest/metrics/#submit-metrics
+// Agent submit implementation is https://github.com/DataDog/datadog-agent/blob/af712ce616266987e35e621f0c8f78cbc81716f9/pkg/metrics/series.go#L49-L63
 type MetricSeriesV1 struct {
 	collectedTime  time.Time
 	Metric         string                      `json:"metric"`
