@@ -19,7 +19,7 @@ import (
 	"go.uber.org/fx"
 	"go.uber.org/fx/fxtest"
 
-	"github.com/DataDog/datadog-agent/comp/core/hostname"
+	hostname "github.com/DataDog/datadog-agent/comp/core/hostname/impl"
 	"github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/comp/ndmtmp/aggregator"
 	"github.com/DataDog/datadog-agent/comp/ndmtmp/forwarder"
