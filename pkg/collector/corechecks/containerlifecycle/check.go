@@ -98,7 +98,7 @@ func (c *Check) Run() error {
 		workloadmeta.NormalPriority,
 		workloadmeta.NewFilter(
 			[]workloadmeta.Kind{workloadmeta.KindContainer},
-			workloadmeta.SourceCLI,
+			workloadmeta.SourceRuntime,
 			workloadmeta.EventTypeUnset,
 		),
 	)

@@ -60,7 +60,7 @@ func (p *processor) processEvents(evBundle workloadmeta.EventBundle) {
 				continue
 			}
 
-			err := p.processContainer(container, []workloadmeta.Source{workloadmeta.SourceCLI})
+			err := p.processContainer(container, []workloadmeta.Source{workloadmeta.SourceRuntime})
 			if err != nil {
 				log.Debugf("Couldn't process container %q: %v", container.ID, err)
 			}
