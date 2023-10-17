@@ -14,11 +14,11 @@ import (
 	"time"
 )
 
-// CheckSocketAvailable returns if a socket at path is available
+// IsAvailable returns if a socket at path is available
 // first boolean returns if socket path exists
 // second boolean returns if socket is reachable
-func CheckSocketAvailable(path string, timeout time.Duration) (bool, bool) {
-	if !checkSocketExists(path) {
+func IsAvailable(path string, timeout time.Duration) (bool, bool) {
+	if !checkExists(path) {
 		return false, false
 	}
 
@@ -41,7 +41,7 @@ func CheckSocketAvailable(path string, timeout time.Duration) (bool, bool) {
 	return true, true
 }
 
-func checkSocketExists(path string) bool {
+func checkExists(path string) bool {
 	f, err := os.Stat(path)
 	if err != nil {
 		return false

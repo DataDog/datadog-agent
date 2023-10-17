@@ -12,10 +12,10 @@ import (
 	"github.com/Microsoft/go-winio"
 )
 
-// CheckSocketAvailable returns named pipe availability
+// IsAvailable returns named pipe availability
 // as on Windows, sockets do not exist
-func CheckSocketAvailable(path string, timeout time.Duration) (bool, bool) {
-	if !checkSocketExists(path) {
+func IsAvailable(path string, timeout time.Duration) (bool, bool) {
+	if !checktExists(path) {
 		return false, false
 	}
 
@@ -31,7 +31,7 @@ func CheckSocketAvailable(path string, timeout time.Duration) (bool, bool) {
 	return true, true
 }
 
-func checkSocketExists(path string) bool {
+func checkExists(path string) bool {
 	// On Windows there's not easy way to check if a path is a named pipe
 	_, err := os.Stat(path)
 	return err == nil

@@ -82,7 +82,7 @@ func detectDocker(features FeatureMap) {
 		features[Docker] = struct{}{}
 	} else {
 		for _, defaultDockerSocketPath := range getDefaultDockerPaths() {
-			exists, reachable := socket.CheckSocketAvailable(defaultDockerSocketPath, socketTimeout)
+			exists, reachable := socket.IsAvailable(defaultDockerSocketPath, socketTimeout)
 			if exists && !reachable {
 				log.Infof("Agent found Docker socket at: %s but socket not reachable (permissions?)", defaultDockerSocketPath)
 				continue
@@ -107,7 +107,7 @@ func detectContainerd(features FeatureMap, cfg model.Reader) {
 	criSocket := cfg.GetString("cri_socket_path")
 	if criSocket == "" && !IsDockerRuntime() {
 		for _, defaultCriPath := range getDefaultCriPaths() {
-			exists, reachable := socket.CheckSocketAvailable(defaultCriPath, socketTimeout)
+			exists, reachable := socket.IsAvailable(defaultCriPath, socketTimeout)
 			if exists && !reachable {
 				log.Infof(
 					"Agent found cri socket at: %s but socket not reachable (permissions?)",
