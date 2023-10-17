@@ -36,7 +36,6 @@ import (
 	configUtils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	pbgo "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
 	"github.com/DataDog/datadog-agent/pkg/util/backoff"
-	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -133,7 +132,7 @@ func init() {
 }
 
 // NewService instantiates a new remote configuration management service
-func NewService() (*Service, error) {
+func NewService(rcDBPath string) (*Service, error) {
 	refreshIntervalOverrideAllowed := false // If a user provides a value we don't want to override
 
 	var refreshInterval time.Duration
@@ -192,11 +191,14 @@ func NewService() (*Service, error) {
 	if err != nil {
 		return nil, err
 	}
-	hname, err := hostname.Get(context.Background())
-	if err != nil {
-		return nil, err
-	}
-	dbPath := path.Join(config.Datadog.GetString("run_path"), "remote-config.db")
+
+	// hardcoded
+	hname := "hostname-detect"
+	// if err != nil {
+	// 	return nil, err
+	// }
+
+	dbPath := path.Join(config.Datadog.GetString("run_path"), rcDBPath)
 	db, err := openCacheDB(dbPath)
 	if err != nil {
 		return nil, err

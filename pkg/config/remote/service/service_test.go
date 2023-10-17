@@ -115,7 +115,7 @@ func newTestService(t *testing.T, api *mockAPI, uptane *mockUptane, clock clock.
 	config.Datadog.SetWithoutSource("run_path", dir)
 	serializedKey, _ := testRCKey.MarshalMsg(nil)
 	config.Datadog.SetWithoutSource("remote_configuration.key", base32.StdEncoding.WithPadding(base32.NoPadding).EncodeToString(serializedKey))
-	service, err := NewService()
+	service, err := NewService("remote-config.db")
 	t.Cleanup(func() { service.Stop() })
 	assert.NoError(t, err)
 	service.api = api

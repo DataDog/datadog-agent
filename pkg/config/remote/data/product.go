@@ -27,6 +27,8 @@ const (
 	ProductAgentConfig = "AGENT_CONFIG"
 	// ProductAgentIntegrations is to receive integrations to schedule
 	ProductAgentIntegrations = "AGENT_INTEGRATIONS"
+	// ProductUpdaterData ...
+	ProductUpdaterData = "UPDATER_DATA"
 )
 
 // ProductListToString converts a product list to string list
