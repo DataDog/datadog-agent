@@ -644,37 +644,48 @@ CSM Threats logs have the following JSON schema:
         "MountEvent": {
             "properties": {
                 "mp": {
-                    "$ref": "#/$defs/File"
+                    "$ref": "#/$defs/File",
+                    "description": "Mount point file information"
                 },
                 "root": {
-                    "$ref": "#/$defs/File"
+                    "$ref": "#/$defs/File",
+                    "description": "Root file information"
                 },
                 "mount_id": {
-                    "type": "integer"
+                    "type": "integer",
+                    "description": "Mount ID of the new mount"
                 },
                 "parent_mount_id": {
-                    "type": "integer"
+                    "type": "integer",
+                    "description": "Mount ID of the parent mount"
                 },
                 "bind_src_mount_id": {
-                    "type": "integer"
+                    "type": "integer",
+                    "description": "Mount ID of the source of a bind mount"
                 },
                 "device": {
-                    "type": "integer"
+                    "type": "integer",
+                    "description": "Device associated with the file"
                 },
                 "fs_type": {
-                    "type": "string"
+                    "type": "string",
+                    "description": "Filesystem type"
                 },
                 "mountpoint.path": {
-                    "type": "string"
+                    "type": "string",
+                    "description": "Mount point path"
                 },
                 "source.path": {
-                    "type": "string"
+                    "type": "string",
+                    "description": "Mount source path"
                 },
                 "mountpoint.path_error": {
-                    "type": "string"
+                    "type": "string",
+                    "description": "Mount point path error"
                 },
                 "source.path_error": {
-                    "type": "string"
+                    "type": "string",
+                    "description": "Mount source path error"
                 }
             },
             "additionalProperties": false,
@@ -2311,37 +2322,48 @@ CSM Threats logs have the following JSON schema:
 {
     "properties": {
         "mp": {
-            "$ref": "#/$defs/File"
+            "$ref": "#/$defs/File",
+            "description": "Mount point file information"
         },
         "root": {
-            "$ref": "#/$defs/File"
+            "$ref": "#/$defs/File",
+            "description": "Root file information"
         },
         "mount_id": {
-            "type": "integer"
+            "type": "integer",
+            "description": "Mount ID of the new mount"
         },
         "parent_mount_id": {
-            "type": "integer"
+            "type": "integer",
+            "description": "Mount ID of the parent mount"
         },
         "bind_src_mount_id": {
-            "type": "integer"
+            "type": "integer",
+            "description": "Mount ID of the source of a bind mount"
         },
         "device": {
-            "type": "integer"
+            "type": "integer",
+            "description": "Device associated with the file"
         },
         "fs_type": {
-            "type": "string"
+            "type": "string",
+            "description": "Filesystem type"
         },
         "mountpoint.path": {
-            "type": "string"
+            "type": "string",
+            "description": "Mount point path"
         },
         "source.path": {
-            "type": "string"
+            "type": "string",
+            "description": "Mount source path"
         },
         "mountpoint.path_error": {
-            "type": "string"
+            "type": "string",
+            "description": "Mount point path error"
         },
         "source.path_error": {
-            "type": "string"
+            "type": "string",
+            "description": "Mount source path error"
         }
     },
     "additionalProperties": false,
@@ -2357,6 +2379,19 @@ CSM Threats logs have the following JSON schema:
 
 {{< /code-block >}}
 
+| Field | Description |
+| ----- | ----------- |
+| `mp` | Mount point file information |
+| `root` | Root file information |
+| `mount_id` | Mount ID of the new mount |
+| `parent_mount_id` | Mount ID of the parent mount |
+| `bind_src_mount_id` | Mount ID of the source of a bind mount |
+| `device` | Device associated with the file |
+| `fs_type` | Filesystem type |
+| `mountpoint.path` | Mount point path |
+| `source.path` | Mount source path |
+| `mountpoint.path_error` | Mount point path error |
+| `source.path_error` | Mount source path error |
 
 | References |
 | ---------- |
