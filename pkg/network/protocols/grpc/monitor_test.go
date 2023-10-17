@@ -44,6 +44,7 @@ func randStringRunes(n int) string {
 
 type USMgRPCSuite struct {
 	suite.Suite
+	withTls bool
 }
 
 func TestGRPCScenarios(t *testing.T) {
@@ -56,7 +57,18 @@ func TestGRPCScenarios(t *testing.T) {
 	rand.Seed(time.Now().UnixNano())
 
 	ebpftest.TestBuildModes(t, []ebpftest.BuildMode{ebpftest.Prebuilt, ebpftest.RuntimeCompiled, ebpftest.CORE}, "", func(t *testing.T) {
-		suite.Run(t, new(USMgRPCSuite))
+
+		t.Run("without TLS", func(t *testing.T) {
+			usmSuite := new(USMgRPCSuite)
+			usmSuite.withTls = false
+			suite.Run(t, usmSuite)
+		})
+
+		t.Run("with TLS", func(t *testing.T) {
+			usmSuite := new(USMgRPCSuite)
+			usmSuite.withTls = true
+			suite.Run(t, usmSuite)
+		})
 	})
 }
 
@@ -81,7 +93,11 @@ func (s *USMgRPCSuite) TestSimpleGRPCScenarios() {
 	cfg := config.New()
 	cfg.EnableHTTP2Monitoring = true
 
-	srv, err := grpc.NewServer(srvAddr)
+	if s.withTls {
+		cfg.EnableGoTLSSupport = true
+	}
+
+	srv, err := grpc.NewServer(srvAddr, s.withTls)
 	require.NoError(t, err)
 	srv.Run()
 	t.Cleanup(srv.Stop)
@@ -346,7 +362,7 @@ func (s *USMgRPCSuite) TestLargeBodiesGRPCScenarios() {
 	cfg := config.New()
 	cfg.EnableHTTP2Monitoring = true
 
-	srv, err := grpc.NewServer(srvAddr)
+	srv, err := grpc.NewServer(srvAddr, false)
 	require.NoError(t, err)
 	srv.Run()
 	t.Cleanup(srv.Stop)

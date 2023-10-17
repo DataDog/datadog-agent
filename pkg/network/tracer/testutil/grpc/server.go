@@ -13,12 +13,16 @@ import (
 	"log"
 	"math"
 	"net"
+	"path/filepath"
 	"sync"
 	"time"
+
+	httputil "github.com/DataDog/datadog-agent/pkg/network/protocols/http/testutil"
 
 	"github.com/golang/protobuf/proto"
 	pbStream "github.com/pahanini/go-grpc-bidirectional-streaming-example/src/proto"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials"
 	pb "google.golang.org/grpc/examples/helloworld/helloworld"
 	"google.golang.org/grpc/examples/route_guide/routeguide"
 )
@@ -220,15 +224,33 @@ func serialize(point *routeguide.Point) string {
 }
 
 // NewServer returns a new instance of the gRPC server.
-func NewServer(addr string) (*Server, error) {
+func NewServer(addr string, enableTls bool) (*Server, error) {
 	lis, err := net.Listen("tcp", addr)
 	if err != nil {
 		return nil, err
 	}
 
+	opts := []grpc.ServerOption{
+		grpc.MaxRecvMsgSize(100 * 1024 * 1024),
+		grpc.MaxSendMsgSize(100 * 1024 * 1024),
+	}
+
+	if enableTls {
+		curDir, _ := httputil.CurDir()
+		crtPath := filepath.Join(curDir, "testdata/cert.pem.0")
+		keyPath := filepath.Join(curDir, "testdata/server.key")
+
+		creds, err := credentials.NewServerTLSFromFile(crtPath, keyPath)
+		if err != nil {
+			return nil, err
+		}
+
+		opts = append(opts, grpc.Creds(creds))
+	}
+
 	server := &Server{
 		Address:    lis.Addr().String(),
-		grpcSrv:    grpc.NewServer(grpc.MaxRecvMsgSize(100*1024*1024), grpc.MaxSendMsgSize(100*1024*1024)),
+		grpcSrv:    grpc.NewServer(opts...),
 		lis:        lis,
 		routeNotes: make(map[string][]*routeguide.RouteNote),
 	}
