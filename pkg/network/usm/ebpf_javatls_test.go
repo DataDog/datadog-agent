@@ -49,6 +49,8 @@ func TestJavaInjection(t *testing.T) {
 	defer os.RemoveAll(fakeAgentDir)
 	_, err = nettestutil.RunCommand("install -m444 " + filepath.Join(testdataDir, "TestAgentLoaded.jar") + " " + filepath.Join(fakeAgentDir, "agent-usm.jar"))
 	require.NoError(t, err)
+	_, err = nettestutil.RunCommand("install -m444 " + filepath.Join(testdataDir, "Wait.class") + " " + filepath.Join(fakeAgentDir, "Wait.class"))
+	require.NoError(t, err)
 
 	commonTearDown := func(t *testing.T, ctx map[string]interface{}) {
 		cfg.JavaAgentArgs = ctx["JavaAgentArgs"].(string)
