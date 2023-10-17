@@ -157,7 +157,7 @@ func newExecTestEventWithAncestors(lineage []model.Process) *model.Event {
 		FileEvent: model.FileEvent{
 			PathnameStr: "/bin/systemd",
 			FileFields: model.FileFields{
-				PathKey: model.PathKey{
+				DentryKey: model.DentryKey{
 					Inode: math.MaxUint64,
 				},
 			},
@@ -211,7 +211,7 @@ var activityTreeInsertExecEventTestCases = []struct {
 				FileEvent: model.FileEvent{
 					PathnameStr: "/bin/bash",
 					FileFields: model.FileFields{
-						PathKey: model.PathKey{
+						DentryKey: model.DentryKey{
 							Inode: 1,
 						},
 					},
@@ -222,7 +222,7 @@ var activityTreeInsertExecEventTestCases = []struct {
 				FileEvent: model.FileEvent{
 					PathnameStr: "/bin/ls",
 					FileFields: model.FileFields{
-						PathKey: model.PathKey{
+						DentryKey: model.DentryKey{
 							Inode: 2,
 						},
 					},
@@ -286,7 +286,7 @@ var activityTreeInsertExecEventTestCases = []struct {
 				FileEvent: model.FileEvent{
 					PathnameStr: "/bin/bash",
 					FileFields: model.FileFields{
-						PathKey: model.PathKey{
+						DentryKey: model.DentryKey{
 							Inode: 1,
 						},
 					},
@@ -297,7 +297,7 @@ var activityTreeInsertExecEventTestCases = []struct {
 				FileEvent: model.FileEvent{
 					PathnameStr: "/bin/ls",
 					FileFields: model.FileFields{
-						PathKey: model.PathKey{
+						DentryKey: model.DentryKey{
 							Inode: 2,
 						},
 					},
@@ -381,7 +381,7 @@ var activityTreeInsertExecEventTestCases = []struct {
 				FileEvent: model.FileEvent{
 					PathnameStr: "/bin/bash",
 					FileFields: model.FileFields{
-						PathKey: model.PathKey{
+						DentryKey: model.DentryKey{
 							Inode: 1,
 						},
 					},
@@ -392,7 +392,7 @@ var activityTreeInsertExecEventTestCases = []struct {
 				FileEvent: model.FileEvent{
 					PathnameStr: "/bin/ls",
 					FileFields: model.FileFields{
-						PathKey: model.PathKey{
+						DentryKey: model.DentryKey{
 							Inode: 2,
 						},
 					},
@@ -493,7 +493,7 @@ var activityTreeInsertExecEventTestCases = []struct {
 				FileEvent: model.FileEvent{
 					PathnameStr: "/bin/bash",
 					FileFields: model.FileFields{
-						PathKey: model.PathKey{
+						DentryKey: model.DentryKey{
 							Inode: 1,
 						},
 					},
@@ -504,7 +504,7 @@ var activityTreeInsertExecEventTestCases = []struct {
 				FileEvent: model.FileEvent{
 					PathnameStr: "/bin/ls",
 					FileFields: model.FileFields{
-						PathKey: model.PathKey{
+						DentryKey: model.DentryKey{
 							Inode: 2,
 						},
 					},
@@ -607,7 +607,7 @@ var activityTreeInsertExecEventTestCases = []struct {
 				FileEvent: model.FileEvent{
 					PathnameStr: "/bin/bash",
 					FileFields: model.FileFields{
-						PathKey: model.PathKey{
+						DentryKey: model.DentryKey{
 							Inode: 1,
 						},
 					},
@@ -618,7 +618,7 @@ var activityTreeInsertExecEventTestCases = []struct {
 				FileEvent: model.FileEvent{
 					PathnameStr: "/bin/ls",
 					FileFields: model.FileFields{
-						PathKey: model.PathKey{
+						DentryKey: model.DentryKey{
 							Inode: 2,
 						},
 					},
@@ -710,7 +710,7 @@ var activityTreeInsertExecEventTestCases = []struct {
 				FileEvent: model.FileEvent{
 					PathnameStr: "/bin/ls",
 					FileFields: model.FileFields{
-						PathKey: model.PathKey{
+						DentryKey: model.DentryKey{
 							Inode: 2,
 						},
 					},
@@ -857,7 +857,7 @@ var activityTreeInsertExecEventTestCases = []struct {
 				FileEvent: model.FileEvent{
 					PathnameStr: "/bin/bash",
 					FileFields: model.FileFields{
-						PathKey: model.PathKey{
+						DentryKey: model.DentryKey{
 							Inode: 1,
 						},
 					},
@@ -868,7 +868,7 @@ var activityTreeInsertExecEventTestCases = []struct {
 				FileEvent: model.FileEvent{
 					PathnameStr: "/bin/ls",
 					FileFields: model.FileFields{
-						PathKey: model.PathKey{
+						DentryKey: model.DentryKey{
 							Inode: 2,
 						},
 					},
@@ -1066,7 +1066,7 @@ var activityTreeInsertExecEventTestCases = []struct {
 				FileEvent: model.FileEvent{
 					PathnameStr: "/bin/ls",
 					FileFields: model.FileFields{
-						PathKey: model.PathKey{
+						DentryKey: model.DentryKey{
 							Inode: 2,
 						},
 					},
@@ -1195,7 +1195,7 @@ var activityTreeInsertExecEventTestCases = []struct {
 				FileEvent: model.FileEvent{
 					PathnameStr: "/bin/bash",
 					FileFields: model.FileFields{
-						PathKey: model.PathKey{
+						DentryKey: model.DentryKey{
 							Inode: 1,
 						},
 					},
@@ -1206,7 +1206,7 @@ var activityTreeInsertExecEventTestCases = []struct {
 				FileEvent: model.FileEvent{
 					PathnameStr: "/bin/webserver",
 					FileFields: model.FileFields{
-						PathKey: model.PathKey{
+						DentryKey: model.DentryKey{
 							Inode: 2,
 						},
 					},
@@ -1218,7 +1218,7 @@ var activityTreeInsertExecEventTestCases = []struct {
 				FileEvent: model.FileEvent{
 					PathnameStr: "/bin/ls",
 					FileFields: model.FileFields{
-						PathKey: model.PathKey{
+						DentryKey: model.DentryKey{
 							Inode: 3,
 						},
 					},
@@ -1303,7 +1303,7 @@ var activityTreeInsertExecEventTestCases = []struct {
 				FileEvent: model.FileEvent{
 					PathnameStr: "/bin/bash",
 					FileFields: model.FileFields{
-						PathKey: model.PathKey{
+						DentryKey: model.DentryKey{
 							Inode: 1,
 						},
 					},
@@ -1315,7 +1315,7 @@ var activityTreeInsertExecEventTestCases = []struct {
 				FileEvent: model.FileEvent{
 					PathnameStr: "/bin/webserver",
 					FileFields: model.FileFields{
-						PathKey: model.PathKey{
+						DentryKey: model.DentryKey{
 							Inode: 2,
 						},
 					},
@@ -1326,7 +1326,7 @@ var activityTreeInsertExecEventTestCases = []struct {
 				FileEvent: model.FileEvent{
 					PathnameStr: "/bin/ls",
 					FileFields: model.FileFields{
-						PathKey: model.PathKey{
+						DentryKey: model.DentryKey{
 							Inode: 3,
 						},
 					},
@@ -1413,7 +1413,7 @@ var activityTreeInsertExecEventTestCases = []struct {
 				FileEvent: model.FileEvent{
 					PathnameStr: "/bin/bash",
 					FileFields: model.FileFields{
-						PathKey: model.PathKey{
+						DentryKey: model.DentryKey{
 							Inode: 1,
 						},
 					},
@@ -1425,7 +1425,7 @@ var activityTreeInsertExecEventTestCases = []struct {
 				FileEvent: model.FileEvent{
 					PathnameStr: "/bin/webserver",
 					FileFields: model.FileFields{
-						PathKey: model.PathKey{
+						DentryKey: model.DentryKey{
 							Inode: 2,
 						},
 					},
@@ -1437,7 +1437,7 @@ var activityTreeInsertExecEventTestCases = []struct {
 				FileEvent: model.FileEvent{
 					PathnameStr: "/bin/apache",
 					FileFields: model.FileFields{
-						PathKey: model.PathKey{
+						DentryKey: model.DentryKey{
 							Inode: 3,
 						},
 					},
@@ -1448,7 +1448,7 @@ var activityTreeInsertExecEventTestCases = []struct {
 				FileEvent: model.FileEvent{
 					PathnameStr: "/bin/ls",
 					FileFields: model.FileFields{
-						PathKey: model.PathKey{
+						DentryKey: model.DentryKey{
 							Inode: 4,
 						},
 					},
@@ -1552,7 +1552,7 @@ var activityTreeInsertExecEventTestCases = []struct {
 				FileEvent: model.FileEvent{
 					PathnameStr: "/bin/bash",
 					FileFields: model.FileFields{
-						PathKey: model.PathKey{
+						DentryKey: model.DentryKey{
 							Inode: 1,
 						},
 					},
@@ -1564,7 +1564,7 @@ var activityTreeInsertExecEventTestCases = []struct {
 				FileEvent: model.FileEvent{
 					PathnameStr: "/bin/webserver",
 					FileFields: model.FileFields{
-						PathKey: model.PathKey{
+						DentryKey: model.DentryKey{
 							Inode: 2,
 						},
 					},
@@ -1576,7 +1576,7 @@ var activityTreeInsertExecEventTestCases = []struct {
 				FileEvent: model.FileEvent{
 					PathnameStr: "/bin/apache",
 					FileFields: model.FileFields{
-						PathKey: model.PathKey{
+						DentryKey: model.DentryKey{
 							Inode: 3,
 						},
 					},
@@ -1587,7 +1587,7 @@ var activityTreeInsertExecEventTestCases = []struct {
 				FileEvent: model.FileEvent{
 					PathnameStr: "/bin/ls",
 					FileFields: model.FileFields{
-						PathKey: model.PathKey{
+						DentryKey: model.DentryKey{
 							Inode: 4,
 						},
 					},
@@ -1714,7 +1714,7 @@ var activityTreeInsertExecEventTestCases = []struct {
 				FileEvent: model.FileEvent{
 					PathnameStr: "/bin/bash",
 					FileFields: model.FileFields{
-						PathKey: model.PathKey{
+						DentryKey: model.DentryKey{
 							Inode: 1,
 						},
 					},
@@ -1726,7 +1726,7 @@ var activityTreeInsertExecEventTestCases = []struct {
 				FileEvent: model.FileEvent{
 					PathnameStr: "/bin/webserver",
 					FileFields: model.FileFields{
-						PathKey: model.PathKey{
+						DentryKey: model.DentryKey{
 							Inode: 2,
 						},
 					},
@@ -1738,7 +1738,7 @@ var activityTreeInsertExecEventTestCases = []struct {
 				FileEvent: model.FileEvent{
 					PathnameStr: "/bin/apache",
 					FileFields: model.FileFields{
-						PathKey: model.PathKey{
+						DentryKey: model.DentryKey{
 							Inode: 3,
 						},
 					},
@@ -1749,7 +1749,7 @@ var activityTreeInsertExecEventTestCases = []struct {
 				FileEvent: model.FileEvent{
 					PathnameStr: "/bin/wc",
 					FileFields: model.FileFields{
-						PathKey: model.PathKey{
+						DentryKey: model.DentryKey{
 							Inode: 4,
 						},
 					},
@@ -1761,7 +1761,7 @@ var activityTreeInsertExecEventTestCases = []struct {
 				FileEvent: model.FileEvent{
 					PathnameStr: "/bin/id",
 					FileFields: model.FileFields{
-						PathKey: model.PathKey{
+						DentryKey: model.DentryKey{
 							Inode: 5,
 						},
 					},
@@ -1773,7 +1773,7 @@ var activityTreeInsertExecEventTestCases = []struct {
 				FileEvent: model.FileEvent{
 					PathnameStr: "/bin/ls",
 					FileFields: model.FileFields{
-						PathKey: model.PathKey{
+						DentryKey: model.DentryKey{
 							Inode: 6,
 						},
 					},
@@ -1784,7 +1784,7 @@ var activityTreeInsertExecEventTestCases = []struct {
 				FileEvent: model.FileEvent{
 					PathnameStr: "/bin/date",
 					FileFields: model.FileFields{
-						PathKey: model.PathKey{
+						DentryKey: model.DentryKey{
 							Inode: 7,
 						},
 					},
@@ -1795,7 +1795,7 @@ var activityTreeInsertExecEventTestCases = []struct {
 				FileEvent: model.FileEvent{
 					PathnameStr: "/bin/passwd",
 					FileFields: model.FileFields{
-						PathKey: model.PathKey{
+						DentryKey: model.DentryKey{
 							Inode: 8,
 						},
 					},
@@ -1807,7 +1807,7 @@ var activityTreeInsertExecEventTestCases = []struct {
 				FileEvent: model.FileEvent{
 					PathnameStr: "/bin/bpftool",
 					FileFields: model.FileFields{
-						PathKey: model.PathKey{
+						DentryKey: model.DentryKey{
 							Inode: 9,
 						},
 					},
@@ -1819,7 +1819,7 @@ var activityTreeInsertExecEventTestCases = []struct {
 				FileEvent: model.FileEvent{
 					PathnameStr: "/bin/du",
 					FileFields: model.FileFields{
-						PathKey: model.PathKey{
+						DentryKey: model.DentryKey{
 							Inode: 10,
 						},
 					},
@@ -2004,7 +2004,7 @@ var activityTreeInsertExecEventTestCases = []struct {
 				FileEvent: model.FileEvent{
 					PathnameStr: "/bin/bash",
 					FileFields: model.FileFields{
-						PathKey: model.PathKey{
+						DentryKey: model.DentryKey{
 							Inode: 1,
 						},
 					},
@@ -2015,7 +2015,7 @@ var activityTreeInsertExecEventTestCases = []struct {
 				FileEvent: model.FileEvent{
 					PathnameStr: "/bin/webserver",
 					FileFields: model.FileFields{
-						PathKey: model.PathKey{
+						DentryKey: model.DentryKey{
 							Inode: 2,
 						},
 					},
@@ -2026,7 +2026,7 @@ var activityTreeInsertExecEventTestCases = []struct {
 				FileEvent: model.FileEvent{
 					PathnameStr: "/bin/apache",
 					FileFields: model.FileFields{
-						PathKey: model.PathKey{
+						DentryKey: model.DentryKey{
 							Inode: 3,
 						},
 					},
@@ -2037,7 +2037,7 @@ var activityTreeInsertExecEventTestCases = []struct {
 				FileEvent: model.FileEvent{
 					PathnameStr: "/bin/wc",
 					FileFields: model.FileFields{
-						PathKey: model.PathKey{
+						DentryKey: model.DentryKey{
 							Inode: 4,
 						},
 					},
@@ -2048,7 +2048,7 @@ var activityTreeInsertExecEventTestCases = []struct {
 				FileEvent: model.FileEvent{
 					PathnameStr: "/bin/id",
 					FileFields: model.FileFields{
-						PathKey: model.PathKey{
+						DentryKey: model.DentryKey{
 							Inode: 5,
 						},
 					},
@@ -2059,7 +2059,7 @@ var activityTreeInsertExecEventTestCases = []struct {
 				FileEvent: model.FileEvent{
 					PathnameStr: "/bin/ls",
 					FileFields: model.FileFields{
-						PathKey: model.PathKey{
+						DentryKey: model.DentryKey{
 							Inode: 6,
 						},
 					},
@@ -2070,7 +2070,7 @@ var activityTreeInsertExecEventTestCases = []struct {
 				FileEvent: model.FileEvent{
 					PathnameStr: "/bin/date",
 					FileFields: model.FileFields{
-						PathKey: model.PathKey{
+						DentryKey: model.DentryKey{
 							Inode: 7,
 						},
 					},
@@ -2081,7 +2081,7 @@ var activityTreeInsertExecEventTestCases = []struct {
 				FileEvent: model.FileEvent{
 					PathnameStr: "/bin/passwd",
 					FileFields: model.FileFields{
-						PathKey: model.PathKey{
+						DentryKey: model.DentryKey{
 							Inode: 8,
 						},
 					},
@@ -2092,7 +2092,7 @@ var activityTreeInsertExecEventTestCases = []struct {
 				FileEvent: model.FileEvent{
 					PathnameStr: "/bin/bpftool",
 					FileFields: model.FileFields{
-						PathKey: model.PathKey{
+						DentryKey: model.DentryKey{
 							Inode: 9,
 						},
 					},
@@ -2103,7 +2103,7 @@ var activityTreeInsertExecEventTestCases = []struct {
 				FileEvent: model.FileEvent{
 					PathnameStr: "/bin/du",
 					FileFields: model.FileFields{
-						PathKey: model.PathKey{
+						DentryKey: model.DentryKey{
 							Inode: 10,
 						},
 					},
@@ -2296,7 +2296,7 @@ var activityTreeInsertExecEventTestCases = []struct {
 				FileEvent: model.FileEvent{
 					PathnameStr: "/bin/bash",
 					FileFields: model.FileFields{
-						PathKey: model.PathKey{
+						DentryKey: model.DentryKey{
 							Inode: 1,
 						},
 					},
@@ -2308,7 +2308,7 @@ var activityTreeInsertExecEventTestCases = []struct {
 				FileEvent: model.FileEvent{
 					PathnameStr: "/bin/webserver",
 					FileFields: model.FileFields{
-						PathKey: model.PathKey{
+						DentryKey: model.DentryKey{
 							Inode: 2,
 						},
 					},
@@ -2319,7 +2319,7 @@ var activityTreeInsertExecEventTestCases = []struct {
 				FileEvent: model.FileEvent{
 					PathnameStr: "/bin/ls",
 					FileFields: model.FileFields{
-						PathKey: model.PathKey{
+						DentryKey: model.DentryKey{
 							Inode: 3,
 						},
 					},
@@ -2426,7 +2426,7 @@ var activityTreeInsertExecEventTestCases = []struct {
 				FileEvent: model.FileEvent{
 					PathnameStr: "/bin/bash",
 					FileFields: model.FileFields{
-						PathKey: model.PathKey{
+						DentryKey: model.DentryKey{
 							Inode: 1,
 						},
 					},
@@ -2438,7 +2438,7 @@ var activityTreeInsertExecEventTestCases = []struct {
 				FileEvent: model.FileEvent{
 					PathnameStr: "/bin/apache",
 					FileFields: model.FileFields{
-						PathKey: model.PathKey{
+						DentryKey: model.DentryKey{
 							Inode: 2,
 						},
 					},
@@ -2449,7 +2449,7 @@ var activityTreeInsertExecEventTestCases = []struct {
 				FileEvent: model.FileEvent{
 					PathnameStr: "/bin/ls",
 					FileFields: model.FileFields{
-						PathKey: model.PathKey{
+						DentryKey: model.DentryKey{
 							Inode: 3,
 						},
 					},
@@ -2577,7 +2577,7 @@ var activityTreeInsertExecEventTestCases = []struct {
 				FileEvent: model.FileEvent{
 					PathnameStr: "/bin/bash",
 					FileFields: model.FileFields{
-						PathKey: model.PathKey{
+						DentryKey: model.DentryKey{
 							Inode: 1,
 						},
 					},
@@ -2589,7 +2589,7 @@ var activityTreeInsertExecEventTestCases = []struct {
 				FileEvent: model.FileEvent{
 					PathnameStr: "/bin/du",
 					FileFields: model.FileFields{
-						PathKey: model.PathKey{
+						DentryKey: model.DentryKey{
 							Inode: 2,
 						},
 					},
@@ -2601,7 +2601,7 @@ var activityTreeInsertExecEventTestCases = []struct {
 				FileEvent: model.FileEvent{
 					PathnameStr: "/bin/apache",
 					FileFields: model.FileFields{
-						PathKey: model.PathKey{
+						DentryKey: model.DentryKey{
 							Inode: 3,
 						},
 					},
@@ -2612,7 +2612,7 @@ var activityTreeInsertExecEventTestCases = []struct {
 				FileEvent: model.FileEvent{
 					PathnameStr: "/bin/ls",
 					FileFields: model.FileFields{
-						PathKey: model.PathKey{
+						DentryKey: model.DentryKey{
 							Inode: 4,
 						},
 					},
@@ -2804,7 +2804,7 @@ var activityTreeInsertExecEventTestCases = []struct {
 				FileEvent: model.FileEvent{
 					PathnameStr: "/bin/bash",
 					FileFields: model.FileFields{
-						PathKey: model.PathKey{
+						DentryKey: model.DentryKey{
 							Inode: 1,
 						},
 					},
@@ -2815,7 +2815,7 @@ var activityTreeInsertExecEventTestCases = []struct {
 				FileEvent: model.FileEvent{
 					PathnameStr: "/bin/webserver3",
 					FileFields: model.FileFields{
-						PathKey: model.PathKey{
+						DentryKey: model.DentryKey{
 							Inode: 2,
 						},
 					},
@@ -2826,7 +2826,7 @@ var activityTreeInsertExecEventTestCases = []struct {
 				FileEvent: model.FileEvent{
 					PathnameStr: "/bin/ls",
 					FileFields: model.FileFields{
-						PathKey: model.PathKey{
+						DentryKey: model.DentryKey{
 							Inode: 3,
 						},
 					},
@@ -2837,7 +2837,7 @@ var activityTreeInsertExecEventTestCases = []struct {
 				FileEvent: model.FileEvent{
 					PathnameStr: "/bin/date",
 					FileFields: model.FileFields{
-						PathKey: model.PathKey{
+						DentryKey: model.DentryKey{
 							Inode: 4,
 						},
 					},
@@ -2990,7 +2990,7 @@ var activityTreeInsertExecEventTestCases = []struct {
 				FileEvent: model.FileEvent{
 					PathnameStr: "/bin/bash",
 					FileFields: model.FileFields{
-						PathKey: model.PathKey{
+						DentryKey: model.DentryKey{
 							Inode: 1,
 						},
 					},
@@ -3001,7 +3001,7 @@ var activityTreeInsertExecEventTestCases = []struct {
 				FileEvent: model.FileEvent{
 					PathnameStr: "/bin/apache",
 					FileFields: model.FileFields{
-						PathKey: model.PathKey{
+						DentryKey: model.DentryKey{
 							Inode: 2,
 						},
 					},
@@ -3013,7 +3013,7 @@ var activityTreeInsertExecEventTestCases = []struct {
 				FileEvent: model.FileEvent{
 					PathnameStr: "/bin/webserver1",
 					FileFields: model.FileFields{
-						PathKey: model.PathKey{
+						DentryKey: model.DentryKey{
 							Inode: 3,
 						},
 					},
@@ -3105,7 +3105,7 @@ var activityTreeInsertExecEventTestCases = []struct {
 				FileEvent: model.FileEvent{
 					PathnameStr: "/bin/bash",
 					FileFields: model.FileFields{
-						PathKey: model.PathKey{
+						DentryKey: model.DentryKey{
 							Inode: 1,
 						},
 					},
@@ -3117,7 +3117,7 @@ var activityTreeInsertExecEventTestCases = []struct {
 				FileEvent: model.FileEvent{
 					PathnameStr: "/bin/apache",
 					FileFields: model.FileFields{
-						PathKey: model.PathKey{
+						DentryKey: model.DentryKey{
 							Inode: 2,
 						},
 					},
@@ -3222,7 +3222,7 @@ var activityTreeInsertExecEventTestCases = []struct {
 				FileEvent: model.FileEvent{
 					PathnameStr: "/bin/bash",
 					FileFields: model.FileFields{
-						PathKey: model.PathKey{
+						DentryKey: model.DentryKey{
 							Inode: 1,
 						},
 					},
@@ -3233,7 +3233,7 @@ var activityTreeInsertExecEventTestCases = []struct {
 				FileEvent: model.FileEvent{
 					PathnameStr: "/bin/apache",
 					FileFields: model.FileFields{
-						PathKey: model.PathKey{
+						DentryKey: model.DentryKey{
 							Inode: 2,
 						},
 					},
@@ -3245,7 +3245,7 @@ var activityTreeInsertExecEventTestCases = []struct {
 				FileEvent: model.FileEvent{
 					PathnameStr: "/bin/webserver1",
 					FileFields: model.FileFields{
-						PathKey: model.PathKey{
+						DentryKey: model.DentryKey{
 							Inode: 3,
 						},
 					},
@@ -3257,7 +3257,7 @@ var activityTreeInsertExecEventTestCases = []struct {
 				FileEvent: model.FileEvent{
 					PathnameStr: "/bin/webserver3",
 					FileFields: model.FileFields{
-						PathKey: model.PathKey{
+						DentryKey: model.DentryKey{
 							Inode: 4,
 						},
 					},
@@ -3367,7 +3367,7 @@ var activityTreeInsertExecEventTestCases = []struct {
 				FileEvent: model.FileEvent{
 					PathnameStr: "/bin/4",
 					FileFields: model.FileFields{
-						PathKey: model.PathKey{
+						DentryKey: model.DentryKey{
 							Inode: 4,
 						},
 					},
@@ -3378,7 +3378,7 @@ var activityTreeInsertExecEventTestCases = []struct {
 				FileEvent: model.FileEvent{
 					PathnameStr: "/bin/2",
 					FileFields: model.FileFields{
-						PathKey: model.PathKey{
+						DentryKey: model.DentryKey{
 							Inode: 2,
 						},
 					},
@@ -3496,7 +3496,7 @@ var activityTreeInsertExecEventTestCases = []struct {
 				FileEvent: model.FileEvent{
 					PathnameStr: "/bin/4",
 					FileFields: model.FileFields{
-						PathKey: model.PathKey{
+						DentryKey: model.DentryKey{
 							Inode: 4,
 						},
 					},
@@ -3508,7 +3508,7 @@ var activityTreeInsertExecEventTestCases = []struct {
 				FileEvent: model.FileEvent{
 					PathnameStr: "/bin/2",
 					FileFields: model.FileFields{
-						PathKey: model.PathKey{
+						DentryKey: model.DentryKey{
 							Inode: 2,
 						},
 					},
@@ -3624,7 +3624,7 @@ var activityTreeInsertExecEventTestCases = []struct {
 				FileEvent: model.FileEvent{
 					PathnameStr: "/bin/4",
 					FileFields: model.FileFields{
-						PathKey: model.PathKey{
+						DentryKey: model.DentryKey{
 							Inode: 4,
 						},
 					},
@@ -3636,7 +3636,7 @@ var activityTreeInsertExecEventTestCases = []struct {
 				FileEvent: model.FileEvent{
 					PathnameStr: "/bin/2",
 					FileFields: model.FileFields{
-						PathKey: model.PathKey{
+						DentryKey: model.DentryKey{
 							Inode: 2,
 						},
 					},
@@ -3785,7 +3785,7 @@ var activityTreeInsertExecEventTestCases = []struct {
 				FileEvent: model.FileEvent{
 					PathnameStr: "/dash",
 					FileFields: model.FileFields{
-						PathKey: model.PathKey{
+						DentryKey: model.DentryKey{
 							Inode: 1,
 						},
 					},
@@ -3797,7 +3797,7 @@ var activityTreeInsertExecEventTestCases = []struct {
 				FileEvent: model.FileEvent{
 					PathnameStr: "/bash",
 					FileFields: model.FileFields{
-						PathKey: model.PathKey{
+						DentryKey: model.DentryKey{
 							Inode: 2,
 						},
 					},
@@ -3809,7 +3809,7 @@ var activityTreeInsertExecEventTestCases = []struct {
 				FileEvent: model.FileEvent{
 					PathnameStr: "/ddtrace",
 					FileFields: model.FileFields{
-						PathKey: model.PathKey{
+						DentryKey: model.DentryKey{
 							Inode: 3,
 						},
 					},
@@ -3821,7 +3821,7 @@ var activityTreeInsertExecEventTestCases = []struct {
 				FileEvent: model.FileEvent{
 					PathnameStr: "/tools",
 					FileFields: model.FileFields{
-						PathKey: model.PathKey{
+						DentryKey: model.DentryKey{
 							Inode: 4,
 						},
 					},
@@ -3833,7 +3833,7 @@ var activityTreeInsertExecEventTestCases = []struct {
 				FileEvent: model.FileEvent{
 					PathnameStr: "/utils",
 					FileFields: model.FileFields{
-						PathKey: model.PathKey{
+						DentryKey: model.DentryKey{
 							Inode: 5,
 						},
 					},
@@ -3845,7 +3845,7 @@ var activityTreeInsertExecEventTestCases = []struct {
 				FileEvent: model.FileEvent{
 					PathnameStr: "/uwsgi",
 					FileFields: model.FileFields{
-						PathKey: model.PathKey{
+						DentryKey: model.DentryKey{
 							Inode: 6,
 						},
 					},
@@ -3948,7 +3948,7 @@ func TestActivityTree_Patterns(t *testing.T) {
 				FileEvent: model.FileEvent{
 					PathnameStr: "/tmp/123456789/script.sh",
 					FileFields: model.FileFields{
-						PathKey: model.PathKey{
+						DentryKey: model.DentryKey{
 							Inode: 1,
 						},
 					},
@@ -3980,7 +3980,7 @@ func TestActivityTree_Patterns(t *testing.T) {
 				FileEvent: model.FileEvent{
 					PathnameStr: "/tmp/987654321/script.sh",
 					FileFields: model.FileFields{
-						PathKey: model.PathKey{
+						DentryKey: model.DentryKey{
 							Inode: 1,
 						},
 					},
@@ -4023,7 +4023,7 @@ func TestActivityTree_Patterns(t *testing.T) {
 				FileEvent: model.FileEvent{
 					PathnameStr: "/tmp/123456789/script.sh",
 					FileFields: model.FileFields{
-						PathKey: model.PathKey{
+						DentryKey: model.DentryKey{
 							Inode: 1,
 						},
 					},
@@ -4055,7 +4055,7 @@ func TestActivityTree_Patterns(t *testing.T) {
 				FileEvent: model.FileEvent{
 					PathnameStr: "/var/123456789/script.sh",
 					FileFields: model.FileFields{
-						PathKey: model.PathKey{
+						DentryKey: model.DentryKey{
 							Inode: 1,
 						},
 					},

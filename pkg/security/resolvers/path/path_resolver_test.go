@@ -5,10 +5,11 @@
 
 //go:build linux
 
-// Package dentry holds dentry related files
-package dentry
+// Package path holds path related files
+package path
 
 import (
+	"path"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -40,7 +41,7 @@ func TestComputeFilenameFromParts(t *testing.T) {
 
 	for _, entry := range entries {
 		t.Run(entry.name, func(t *testing.T) {
-			assert.Equal(t, entry.expected, ComputeFilenameFromParts(entry.parts))
+			assert.Equal(t, entry.expected, reversePathParts(path.Join(entry.parts...)))
 		})
 	}
 }

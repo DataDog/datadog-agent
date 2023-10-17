@@ -49,7 +49,7 @@ func TestMountResolver(t *testing.T) {
 							Mount: model.Mount{
 								MountID: 27,
 								Device:  1,
-								ParentPathKey: model.PathKey{
+								ParentDentryKey: model.DentryKey{
 									MountID: 1,
 								},
 								FSType:        "ext4",
@@ -78,7 +78,7 @@ func TestMountResolver(t *testing.T) {
 							Mount: model.Mount{
 								MountID: 127,
 								Device:  52,
-								ParentPathKey: model.PathKey{
+								ParentDentryKey: model.DentryKey{
 									MountID: 27,
 								},
 								FSType:        "overlay",
@@ -119,7 +119,7 @@ func TestMountResolver(t *testing.T) {
 							Mount: model.Mount{
 								MountID: 458,
 								Device:  44,
-								ParentPathKey: model.PathKey{
+								ParentDentryKey: model.DentryKey{
 									MountID: 27,
 								},
 								MountPointStr: "/usr",
@@ -167,7 +167,7 @@ func TestMountResolver(t *testing.T) {
 							Mount: model.Mount{
 								MountID: 27,
 								Device:  1,
-								ParentPathKey: model.PathKey{
+								ParentDentryKey: model.DentryKey{
 									MountID: 1,
 								},
 								FSType:        "ext4",
@@ -181,7 +181,7 @@ func TestMountResolver(t *testing.T) {
 							Mount: model.Mount{
 								MountID: 22,
 								Device:  21,
-								ParentPathKey: model.PathKey{
+								ParentDentryKey: model.DentryKey{
 									MountID: 27,
 								},
 								FSType:        "sysfs",
@@ -195,7 +195,7 @@ func TestMountResolver(t *testing.T) {
 							Mount: model.Mount{
 								MountID: 31,
 								Device:  26,
-								ParentPathKey: model.PathKey{
+								ParentDentryKey: model.DentryKey{
 									MountID: 22,
 								},
 								FSType:        "tmpfs",
@@ -268,7 +268,7 @@ func TestMountResolver(t *testing.T) {
 							Mount: model.Mount{
 								MountID: 27,
 								Device:  1,
-								ParentPathKey: model.PathKey{
+								ParentDentryKey: model.DentryKey{
 									MountID: 1,
 								},
 								FSType:        "ext4",
@@ -282,7 +282,7 @@ func TestMountResolver(t *testing.T) {
 							Mount: model.Mount{
 								MountID: 176,
 								Device:  52,
-								ParentPathKey: model.PathKey{
+								ParentDentryKey: model.DentryKey{
 									MountID: 27,
 								},
 								FSType:        "overlay",
@@ -296,7 +296,7 @@ func TestMountResolver(t *testing.T) {
 							Mount: model.Mount{
 								MountID: 638,
 								Device:  53,
-								ParentPathKey: model.PathKey{
+								ParentDentryKey: model.DentryKey{
 									MountID: 635,
 								},
 								FSType:        "bind",
@@ -310,7 +310,7 @@ func TestMountResolver(t *testing.T) {
 							Mount: model.Mount{
 								MountID: 639,
 								Device:  54,
-								ParentPathKey: model.PathKey{
+								ParentDentryKey: model.DentryKey{
 									MountID: 638,
 								},
 								FSType:        "proc",
@@ -376,7 +376,7 @@ func TestMountResolver(t *testing.T) {
 							Mount: model.Mount{
 								MountID: 32,
 								Device:  97,
-								ParentPathKey: model.PathKey{
+								ParentDentryKey: model.DentryKey{
 									MountID: 638,
 								},
 								MountPointStr: "/",
@@ -388,7 +388,7 @@ func TestMountResolver(t *testing.T) {
 							Mount: model.Mount{
 								MountID: 41,
 								Device:  98,
-								ParentPathKey: model.PathKey{
+								ParentDentryKey: model.DentryKey{
 									MountID: 32,
 								},
 								MountPointStr: "/tmp",
@@ -400,7 +400,7 @@ func TestMountResolver(t *testing.T) {
 							Mount: model.Mount{
 								MountID: 42,
 								Device:  99,
-								ParentPathKey: model.PathKey{
+								ParentDentryKey: model.DentryKey{
 									MountID: 41,
 								},
 								MountPointStr: "/tmp",
@@ -483,21 +483,21 @@ func TestMountGetParentPath(t *testing.T) {
 			},
 			2: {
 				MountID: 2,
-				ParentPathKey: model.PathKey{
+				ParentDentryKey: model.DentryKey{
 					MountID: 1,
 				},
 				MountPointStr: "/a",
 			},
 			3: {
 				MountID: 3,
-				ParentPathKey: model.PathKey{
+				ParentDentryKey: model.DentryKey{
 					MountID: 2,
 				},
 				MountPointStr: "/b",
 			},
 			4: {
 				MountID: 4,
-				ParentPathKey: model.PathKey{
+				ParentDentryKey: model.DentryKey{
 					MountID: 3,
 				},
 				MountPointStr: "/c",
@@ -519,21 +519,21 @@ func TestMountLoop(t *testing.T) {
 			},
 			2: {
 				MountID: 2,
-				ParentPathKey: model.PathKey{
+				ParentDentryKey: model.DentryKey{
 					MountID: 4,
 				},
 				MountPointStr: "/a",
 			},
 			3: {
 				MountID: 3,
-				ParentPathKey: model.PathKey{
+				ParentDentryKey: model.DentryKey{
 					MountID: 2,
 				},
 				MountPointStr: "/b",
 			},
 			4: {
 				MountID: 4,
-				ParentPathKey: model.PathKey{
+				ParentDentryKey: model.DentryKey{
 					MountID: 3,
 				},
 				MountPointStr: "/c",
@@ -559,7 +559,7 @@ func BenchmarkGetParentPath(b *testing.B) {
 	for i := uint32(1); i != 100; i++ {
 		mr.mounts[i+1] = &model.Mount{
 			MountID: i + 1,
-			ParentPathKey: model.PathKey{
+			ParentDentryKey: model.DentryKey{
 				MountID: i,
 			},
 			MountPointStr: fmt.Sprintf("/%d", i+1),
