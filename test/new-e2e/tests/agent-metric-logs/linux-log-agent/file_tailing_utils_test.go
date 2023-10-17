@@ -1,4 +1,9 @@
-package logAgent
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
+
+package logagent
 
 import (
 	"errors"
@@ -81,7 +86,7 @@ func (s *vmFakeintakeSuite) getOSType() (string, error) {
 		return "windows", nil
 	}
 
-	return "", errors.New("Unable to determine OS type.")
+	return "", errors.New("unable to determine OS type.")
 }
 
 // cleanUp cleans up any existing log files.

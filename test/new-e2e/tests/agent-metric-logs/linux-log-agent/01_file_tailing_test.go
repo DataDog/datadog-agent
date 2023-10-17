@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package logAgent
+package logagent
 
 import (
 	"strings"
@@ -16,7 +16,6 @@ import (
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/params"
 	"github.com/DataDog/test-infra-definitions/components/datadog/agentparams"
-	"github.com/DataDog/test-infra-definitions/scenarios/aws/vm/ec2params"
 )
 
 // vmFakeintakeSuite defines a test suite for the log agent interacting with a virtual machine and fake intake.
@@ -25,7 +24,7 @@ type vmFakeintakeSuite struct {
 }
 
 // logsExampleStackDef returns the stack definition required for the log agent test suite.
-func logsExampleStackDef(vmParams []ec2params.Option, agentParams ...agentparams.Option) *e2e.StackDefinition[e2e.FakeIntakeEnv] {
+func logsExampleStackDef() *e2e.StackDefinition[e2e.FakeIntakeEnv] {
 	config :=
 		`logs:
   - type: file
@@ -42,17 +41,17 @@ func logsExampleStackDef(vmParams []ec2params.Option, agentParams ...agentparams
 
 // TestE2EVMFakeintakeSuite runs the E2E test suite for the log agent with a VM and fake intake.
 func TestE2EVMFakeintakeSuite(t *testing.T) {
-	e2e.Run(t, &vmFakeintakeSuite{}, logsExampleStackDef(nil), params.WithDevMode())
+	e2e.Run(t, &vmFakeintakeSuite{}, logsExampleStackDef(), params.WithDevMode())
 }
 
 func (s *vmFakeintakeSuite) TestLinuxLogTailing() {
 	// Clean up once test is finished running
 	s.cleanUp()
-	// defer s.cleanUp()
+	defer s.cleanUp()
 
 	// Flush server and reset aggregators
 	s.Env().Fakeintake.FlushServerAndResetAggregators()
-	// defer s.Env().Fakeintake.FlushServerAndResetAggregators()
+	defer s.Env().Fakeintake.FlushServerAndResetAggregators()
 
 	// Run test cases
 	s.T().Run("LogCollection", func(t *testing.T) {
