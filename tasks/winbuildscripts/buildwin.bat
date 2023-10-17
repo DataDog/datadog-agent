@@ -24,9 +24,7 @@ dir %BUILD_ROOT%\datadog-agent\omnibus\pkg\
 
 REM copy resulting packages to expected location for collection by gitlab.
 if not exist c:\mnt\omnibus\pkg\ mkdir c:\mnt\omnibus\pkg\ || exit /b 5
-
-REM copy installer
-copy %BUILD_ROOT%\datadog-agent\tools\windows\DatadogAgentInstaller\WixSetup\*.msi c:\mnt\omnibus\pkg\ || exit /b 6
+copy %BUILD_ROOT%\datadog-agent\omnibus\pkg\* c:\mnt\omnibus\pkg\ || exit /b 6
 
 REM show output binary directories (for debugging)
 dir C:\opt\datadog-agent\bin\agent\
