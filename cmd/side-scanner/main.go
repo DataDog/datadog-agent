@@ -355,7 +355,7 @@ func launchScan(ctx context.Context, log log.Component, statsd ddgostatsd.Client
 	}
 }
 
-func createEBSSnapshot(ctx context.Context, svc *ec2.EC2, scan *ebsScan) (string, error) {
+func createEBSSnapshot(ctx context.Context, log log.Component, svc *ec2.EC2, scan *ebsScan) (string, error) {
 	retries := 0
 retry:
 	result, err := svc.CreateSnapshotWithContext(ctx, &ec2.CreateSnapshotInput{
@@ -368,10 +368,13 @@ retry:
 				if aerr.Code() == "SnapshotCreationPerVolumeRateExceeded" {
 					// https://docs.aws.amazon.com/AWSEC2/latest/APIReference/errors-overview.html
 					// Wait at least 15 seconds between concurrent volume snapshots.
-					time.Sleep(15 * time.Second)
+					d := 15 * time.Second
+					log.Debugf("snapshot creation rate exceeded for volume %s; retrying after %v (%d/%d)", scan.VolumeID, d, retries, MaxSnapshotRetries)
+					time.Sleep(d)
 					goto retry
 				}
 			}
+			log.Debugf("snapshot creation rate exceeded for volume %s; skipping)", scan.VolumeID)
 		}
 		return "", err
 	}
@@ -422,7 +425,7 @@ func scanEBS(ctx context.Context, log log.Component, statsd ddgostatsd.ClientInt
 		svc := ec2.New(sess)
 		statsd.Count("datadog.sidescanner.snapshots.started", 1.0, tags, 1.0)
 		log.Debugf("starting volume snapshotting %q", scan.VolumeID)
-		snapshotID, err = createEBSSnapshot(ctx, svc, scan)
+		snapshotID, err = createEBSSnapshot(ctx, log, svc, scan)
 		if err != nil {
 			return nil, err
 		}
