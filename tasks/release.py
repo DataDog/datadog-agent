@@ -466,9 +466,6 @@ COMPATIBLE_MAJOR_VERSIONS = {6: ["6", "7"], 7: ["7"]}
 # Message templates for the below functions
 # Defined here either because they're long and would make the code less legible,
 # or because they're used multiple times.
-DIFFERENT_TAGS_TEMPLATE = (
-    "The latest version of {} ({}) does not match the version used in the previous release entry ({})."
-)
 RC_TAG_QUESTION_TEMPLATE = "The {} tag found is an RC tag: {}. Are you sure you want to use it?"
 TAG_FOUND_TEMPLATE = "The {} tag is {}"
 
