@@ -782,7 +782,7 @@ func (s *server) parseMetricMessage(metricSamples []metrics.MetricSample, parser
 		okCnt, errorCnt = s.getOriginCounter(origin)
 	}
 
-	sample, err := parser.parseMetricSample(message, retainer)
+	sample, err := parser.parseMetricSample(message, cache.NewInternerContext(s.interner, origin, retainer))
 	if err != nil {
 		dogstatsdMetricParseErrors.Add(1)
 		errorCnt.Inc()
@@ -819,7 +819,7 @@ func (s *server) parseMetricMessage(metricSamples []metrics.MetricSample, parser
 }
 
 func (s *server) parseEventMessage(parser *parser, message []byte, origin string, retainer cache.InternRetainer) (*event.Event, error) {
-	sample, err := parser.parseEvent(message, retainer)
+	sample, err := parser.parseEvent(message, cache.NewInternerContext(s.interner, origin, retainer))
 	if err != nil {
 		dogstatsdEventParseErrors.Add(1)
 		tlmProcessed.Inc("events", "error", "")
@@ -833,7 +833,7 @@ func (s *server) parseEventMessage(parser *parser, message []byte, origin string
 }
 
 func (s *server) parseServiceCheckMessage(parser *parser, message []byte, origin string, retainer cache.InternRetainer) (*servicecheck.ServiceCheck, error) {
-	sample, err := parser.parseServiceCheck(message, retainer)
+	sample, err := parser.parseServiceCheck(message, cache.NewInternerContext(s.interner, origin, retainer))
 	if err != nil {
 		dogstatsdServiceCheckParseErrors.Add(1)
 		tlmProcessed.Inc("service_checks", "error", "")

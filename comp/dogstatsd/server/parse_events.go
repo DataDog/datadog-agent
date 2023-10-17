@@ -146,7 +146,7 @@ func parseEventAlertType(rawAlertType []byte) (alertType, error) {
 	return alertTypeInfo, fmt.Errorf("invalid alert type: %q", rawAlertType)
 }
 
-func (p *parser) applyEventOptionalField(event dogstatsdEvent, optionalField []byte, retainer cache.InternRetainer) (dogstatsdEvent, error) {
+func (p *parser) applyEventOptionalField(event dogstatsdEvent, optionalField []byte, intContext cache.InternerContext) (dogstatsdEvent, error) {
 	newEvent := event
 	var err error
 	switch {
@@ -164,7 +164,7 @@ func (p *parser) applyEventOptionalField(event dogstatsdEvent, optionalField []b
 	case bytes.HasPrefix(optionalField, eventAlertTypePrefix):
 		newEvent.alertType, err = parseEventAlertType(optionalField[len(eventAlertTypePrefix):])
 	case bytes.HasPrefix(optionalField, eventTagsPrefix):
-		newEvent.tags = p.parseTags(optionalField[len(eventTagsPrefix):], retainer)
+		newEvent.tags = p.parseTags(optionalField[len(eventTagsPrefix):], intContext)
 	case p.dsdOriginEnabled && bytes.HasPrefix(optionalField, containerIDFieldPrefix):
 		newEvent.containerID = p.extractContainerID(optionalField)
 	}
@@ -174,7 +174,7 @@ func (p *parser) applyEventOptionalField(event dogstatsdEvent, optionalField []b
 	return newEvent, nil
 }
 
-func (p *parser) parseEvent(message []byte, retainer cache.InternRetainer) (dogstatsdEvent, error) {
+func (p *parser) parseEvent(message []byte, intCtx cache.InternerContext) (dogstatsdEvent, error) {
 	rawHeader, rawEvent, err := splitHeaderEvent(message)
 	if err != nil {
 		return dogstatsdEvent{}, err
@@ -207,7 +207,7 @@ func (p *parser) parseEvent(message []byte, retainer cache.InternRetainer) (dogs
 	var optionalField []byte
 	for optionalFields != nil {
 		optionalField, optionalFields = nextField(optionalFields)
-		event, err = p.applyEventOptionalField(event, optionalField, retainer)
+		event, err = p.applyEventOptionalField(event, optionalField, intCtx)
 		if err != nil {
 			log.Warnf("invalid event optional field: %v", err)
 		}

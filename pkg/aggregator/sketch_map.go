@@ -6,6 +6,7 @@
 package aggregator
 
 import (
+	"github.com/DataDog/datadog-agent/pkg/util/cache"
 	"math"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator/ckey"
@@ -13,7 +14,11 @@ import (
 	"github.com/DataDog/opentelemetry-mapping-go/pkg/quantile"
 )
 
-type sketchMap map[int64]map[ckey.ContextKey]*quantile.Agent
+type sketchMapValue struct {
+	agent *quantile.Agent
+	refs  cache.SmallRetainer
+}
+type sketchMap map[int64]map[ckey.ContextKey]sketchMapValue
 
 // Len returns the number of sketches stored
 func (m sketchMap) Len() int {
@@ -26,16 +31,16 @@ func (m sketchMap) Len() int {
 
 // insert v into a sketch for the given (ts, contextKey)
 // NOTE: ts is truncated to bucketSize
-func (m sketchMap) insert(ts int64, ck ckey.ContextKey, v float64, sampleRate float64) bool {
+func (m sketchMap) insert(ts int64, ck ckey.ContextKey, v float64, sampleRate float64, refs cache.InternRetainer) bool {
 	if math.IsInf(v, 0) || math.IsNaN(v) {
 		return false
 	}
 
-	m.getOrCreate(ts, ck).Insert(v, sampleRate)
+	m.getOrCreate(ts, ck, refs).Insert(v, sampleRate)
 	return true
 }
 
-func (m sketchMap) insertInterp(ts int64, ck ckey.ContextKey, lower float64, upper float64, count uint) bool {
+func (m sketchMap) insertInterp(ts int64, ck ckey.ContextKey, lower float64, upper float64, count uint, refs cache.InternRetainer) bool {
 	if math.IsInf(lower, 0) || math.IsNaN(lower) {
 		return false
 	}
@@ -44,26 +49,31 @@ func (m sketchMap) insertInterp(ts int64, ck ckey.ContextKey, lower float64, upp
 		return false
 	}
 
-	m.getOrCreate(ts, ck).InsertInterpolate(lower, upper, count)
+	m.getOrCreate(ts, ck, refs).InsertInterpolate(lower, upper, count)
 	return true
 }
 
-func (m sketchMap) getOrCreate(ts int64, ck ckey.ContextKey) *quantile.Agent {
+// Note: refs will have all its references Import-ed.
+func (m sketchMap) getOrCreate(ts int64, ck ckey.ContextKey, refs cache.InternRetainer) *quantile.Agent {
 	// level 1: ts -> ctx
 	byCtx, ok := m[ts]
 	if !ok {
-		byCtx = make(map[ckey.ContextKey]*quantile.Agent)
+		byCtx = make(map[ckey.ContextKey]sketchMapValue)
 		m[ts] = byCtx
 	}
 
 	// level 2: ctx -> sketch
 	s, ok := byCtx[ck]
 	if !ok {
-		s = &quantile.Agent{}
+		s = sketchMapValue{agent: &quantile.Agent{}}
 		m[ts][ck] = s
 	}
 
-	return s
+	// Keep references for this context's dependencies.
+	retainer := m[ts][ck].refs
+	retainer.Import(refs)
+
+	return s.agent
 }
 
 // flushBefore calls f for every sketch inserted before beforeTs, removing flushed sketches
@@ -76,9 +86,10 @@ func (m sketchMap) flushBefore(beforeTs int64, f func(ckey.ContextKey, metrics.S
 
 		for ck, as := range byCtx {
 			f(ck, metrics.SketchPoint{
-				Sketch: as.Finish(),
+				Sketch: as.agent.Finish(),
 				Ts:     ts,
 			})
+			as.refs.ReleaseAll()
 		}
 
 		delete(m, ts)

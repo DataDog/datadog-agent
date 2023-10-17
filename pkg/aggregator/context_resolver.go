@@ -17,8 +17,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/tagset"
 )
 
-const OriginContextResolver = "!ContextResolver"
-
 // Context holds the elements that form a context, and can be serialized into a context key
 type Context struct {
 	Name       string
@@ -99,16 +97,33 @@ func (cr *contextResolver) trackContext(metricSampleContext metrics.MetricSample
 			noIndex:    metricSampleContext.IsNoIndex(),
 			source:     metricSampleContext.GetSource(),
 		}
+		// TagsCache keeps its own references.
 		context.Host = cr.interner.LoadOrStoreString(metricSampleContext.GetHost(),
-			OriginContextResolver, &context.references)
+			cache.OriginContextResolver, &context.references)
 		context.Name = cr.interner.LoadOrStoreString(metricSampleContext.GetName(),
-			OriginContextResolver, &context.references)
+			cache.OriginContextResolver, &context.references)
+
 		cr.contextsByKey[contextKey] = context
 
 		cr.countsByMtype[mtype]++
 	}
 
 	return contextKey, true
+}
+
+// referenceContext adds references to 'refs' for everything we use in the keyed context.
+// This will increase the number of references to each string in this context.  Returns true
+// if the context key exists.
+func (cr *contextResolver) referenceContext(contextKey ckey.ContextKey) (cache.SmallRetainer, bool) {
+	refs := cache.SmallRetainer{}
+	if ctx, ok := cr.contextsByKey[contextKey]; ok {
+		ctx.taggerTags.Retainer.CopyTo(&refs)
+		ctx.metricTags.Retainer.CopyTo(&refs)
+		ctx.references.CopyTo(&refs)
+		return refs, true
+	} else {
+		return refs, false
+	}
 }
 
 func (cr *contextResolver) tryAdd(taggerKey ckey.TagsKey) bool {

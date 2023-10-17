@@ -31,7 +31,7 @@ type Entry struct {
 
 	// tags contains the cached tags in this entry.
 	tags     []string
-	retainer cache.SmallRetainer
+	Retainer cache.SmallRetainer
 }
 
 // Tags returns the strings stored in the Entry. The slice may be
@@ -79,7 +79,7 @@ func makeEntry(tagsBuffer *tagset.HashingTagsAccumulator, interner *cache.KeyedI
 	}
 
 	for n, t := range tagsBuffer.Copy() {
-		result.tags[n] = interner.LoadOrStoreString(t, OriginTagStore, &result.retainer)
+		result.tags[n] = interner.LoadOrStoreString(t, OriginTagStore, &result.Retainer)
 	}
 	return result
 }
@@ -123,7 +123,7 @@ func (tc *Store) Shrink() {
 		if refs := entry.refs.Load(); refs > 0 {
 			stats.visit(entry, refs)
 		} else {
-			entry.retainer.ReleaseAll()
+			entry.Retainer.ReleaseAll()
 			delete(tc.tagsByKey, key)
 		}
 	}

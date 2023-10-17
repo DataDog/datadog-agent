@@ -86,7 +86,7 @@ func parseServiceCheckTimestamp(rawTimestamp []byte) (int64, error) {
 	return strconv.ParseInt(string(rawTimestamp), 10, 64)
 }
 
-func (p *parser) applyServiceCheckOptionalField(serviceCheck dogstatsdServiceCheck, optionalField []byte, retainer cache.InternRetainer) (dogstatsdServiceCheck, error) {
+func (p *parser) applyServiceCheckOptionalField(serviceCheck dogstatsdServiceCheck, optionalField []byte, intContext cache.InternerContext) (dogstatsdServiceCheck, error) {
 	newServiceCheck := serviceCheck
 	var err error
 	switch {
@@ -95,7 +95,7 @@ func (p *parser) applyServiceCheckOptionalField(serviceCheck dogstatsdServiceChe
 	case bytes.HasPrefix(optionalField, serviceCheckHostnamePrefix):
 		newServiceCheck.hostname = string(optionalField[len(serviceCheckHostnamePrefix):])
 	case bytes.HasPrefix(optionalField, serviceCheckTagsPrefix):
-		newServiceCheck.tags = p.parseTags(optionalField[len(serviceCheckTagsPrefix):], retainer)
+		newServiceCheck.tags = p.parseTags(optionalField[len(serviceCheckTagsPrefix):], intContext)
 	case bytes.HasPrefix(optionalField, serviceCheckMessagePrefix):
 		newServiceCheck.message = string(optionalField[len(serviceCheckMessagePrefix):])
 	case p.dsdOriginEnabled && bytes.HasPrefix(optionalField, containerIDFieldPrefix):
@@ -107,7 +107,7 @@ func (p *parser) applyServiceCheckOptionalField(serviceCheck dogstatsdServiceChe
 	return newServiceCheck, nil
 }
 
-func (p *parser) parseServiceCheck(message []byte, retainer cache.InternRetainer) (dogstatsdServiceCheck, error) {
+func (p *parser) parseServiceCheck(message []byte, intContext cache.InternerContext) (dogstatsdServiceCheck, error) {
 	if !hasServiceCheckFormat(message) {
 		return dogstatsdServiceCheck{}, fmt.Errorf("invalid dogstatsd service check format")
 	}
@@ -134,7 +134,7 @@ func (p *parser) parseServiceCheck(message []byte, retainer cache.InternRetainer
 	var optionalField []byte
 	for message != nil {
 		optionalField, message = nextField(message)
-		serviceCheck, err = p.applyServiceCheckOptionalField(serviceCheck, optionalField, retainer)
+		serviceCheck, err = p.applyServiceCheckOptionalField(serviceCheck, optionalField, intContext)
 		if err != nil {
 			log.Warnf("invalid service check optional field: %v", err)
 		}

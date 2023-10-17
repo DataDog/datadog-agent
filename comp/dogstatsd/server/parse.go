@@ -83,7 +83,7 @@ func nextField(message []byte) ([]byte, []byte) {
 	return message[:sepIndex], message[sepIndex+1:]
 }
 
-func (p *parser) parseTags(rawTags []byte, ret cache.InternRetainer) []string {
+func (p *parser) parseTags(rawTags []byte, intContext cache.InternerContext) []string {
 	if len(rawTags) == 0 {
 		return nil
 	}
@@ -96,16 +96,16 @@ func (p *parser) parseTags(rawTags []byte, ret cache.InternRetainer) []string {
 		if tagPos < 0 {
 			break
 		}
-		tagsList[i] = p.interner.LoadOrStore(rawTags[:tagPos], "", ret)
+		tagsList[i] = intContext.UseStringBytes(rawTags[:tagPos])
 		rawTags = rawTags[tagPos+len(commaSeparator):]
 		i++
 	}
-	tagsList[i] = p.interner.LoadOrStore(rawTags, "", ret)
+	tagsList[i] = intContext.UseStringBytes(rawTags)
 	return tagsList
 }
 
 // parseMetricSample parses the given message and return the dogstatsdMetricSample read.
-func (p *parser) parseMetricSample(message []byte, ret cache.InternRetainer) (dogstatsdMetricSample, error) {
+func (p *parser) parseMetricSample(message []byte, intContext cache.InternerContext) (dogstatsdMetricSample, error) {
 	// fast path to eliminate most of the gibberish
 	// especially important here since all the unidentified garbage gets
 	// identified as metrics
@@ -160,7 +160,7 @@ func (p *parser) parseMetricSample(message []byte, ret cache.InternRetainer) (do
 		switch {
 		// tags
 		case bytes.HasPrefix(optionalField, tagsFieldPrefix):
-			tags = p.parseTags(optionalField[1:], ret)
+			tags = p.parseTags(optionalField[1:], intContext)
 		// sample rate
 		case bytes.HasPrefix(optionalField, sampleRateFieldPrefix):
 			sampleRate, err = parseMetricSampleSampleRate(optionalField[1:])
@@ -187,7 +187,7 @@ func (p *parser) parseMetricSample(message []byte, ret cache.InternRetainer) (do
 	}
 
 	return dogstatsdMetricSample{
-		name:        p.interner.LoadOrStore(name, "", ret),
+		name:        intContext.UseStringBytes(name),
 		value:       value,
 		values:      values,
 		setValue:    string(setValue),

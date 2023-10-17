@@ -48,7 +48,8 @@ func (cs *CheckSampler) addSample(metricSample *metrics.MetricSample) {
 	contextKey := cs.contextResolver.trackContext(metricSample)
 
 	if metricSample.Mtype == metrics.DistributionType {
-		cs.sketchMap.insert(int64(metricSample.Timestamp), contextKey, metricSample.Value, metricSample.SampleRate)
+		refs, _ := cs.contextResolver.resolver.referenceContext(contextKey)
+		cs.sketchMap.insert(int64(metricSample.Timestamp), contextKey, metricSample.Value, metricSample.SampleRate, &refs)
 		return
 	}
 
@@ -91,6 +92,7 @@ func (cs *CheckSampler) addBucket(bucket *metrics.HistogramBucket) {
 	}
 
 	contextKey := cs.contextResolver.trackContext(bucket)
+	refs, _ := cs.contextResolver.resolver.referenceContext(contextKey)
 
 	// if the bucket is monotonic and we have already seen the bucket we only send the delta
 	if bucket.Monotonic {
@@ -118,7 +120,7 @@ func (cs *CheckSampler) addBucket(bucket *metrics.HistogramBucket) {
 
 	// "if the quantile falls into the highest bucket, the upper bound of the 2nd highest bucket is returned"
 	if math.IsInf(bucket.UpperBound, 1) {
-		cs.sketchMap.insertInterp(int64(bucket.Timestamp), contextKey, bucket.LowerBound, bucket.LowerBound, uint(bucket.Value))
+		cs.sketchMap.insertInterp(int64(bucket.Timestamp), contextKey, bucket.LowerBound, bucket.LowerBound, uint(bucket.Value), &refs)
 		return
 	}
 
@@ -126,7 +128,7 @@ func (cs *CheckSampler) addBucket(bucket *metrics.HistogramBucket) {
 		"Interpolating %d values over the [%f-%f] bucket",
 		bucket.Value, bucket.LowerBound, bucket.UpperBound,
 	)
-	cs.sketchMap.insertInterp(int64(bucket.Timestamp), contextKey, bucket.LowerBound, bucket.UpperBound, uint(bucket.Value))
+	cs.sketchMap.insertInterp(int64(bucket.Timestamp), contextKey, bucket.LowerBound, bucket.UpperBound, uint(bucket.Value), &refs)
 }
 
 func (cs *CheckSampler) commitSeries(timestamp float64) {
