@@ -57,6 +57,9 @@ func StartServer(senderManager sender.SenderManager) error {
 	// API V1 Metadata APIs
 	v1.InstallMetadataEndpoints(apiRouter)
 
+	// API V1 Language Detection APIs
+	v1.InstallLanguageDetectionEndpoints(apiRouter)
+
 	// Validate token for every request
 	router.Use(validateToken)
 
