@@ -182,7 +182,7 @@ func parseCrashDump(wcs *WinCrashStatus) {
 		if strings.HasPrefix(line, retAddrPrefix) {
 			continue
 		}
-		
+
 		// as shown above, there might be a stray "symbols could not be loaded line".  This would then
 		// cause the split on ":" below  to not work, and then things would get worse from there.  so
 		// just skip this line because it's expected.
