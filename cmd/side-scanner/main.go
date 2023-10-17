@@ -438,7 +438,7 @@ func scanEBS(ctx context.Context, log log.Component, statsd ddgostatsd.ClientInt
 	log.Infof("start EBS scanning %s", scan)
 	statsd.Count("datadog.sidescanner.scans.started", 1.0, tags, 1.0)
 	scanStartedAt := time.Now()
-	target := "ebs:" + scan.SnapshotID
+	target := "ebs:" + snapshotID
 	trivyCache := newMemoryCache()
 	trivyDisabledAnalyzers := []analyzer.Type{analyzer.TypeSecret, analyzer.TypeLicenseFile}
 	trivyDisabledAnalyzers = append(trivyDisabledAnalyzers, analyzer.TypeConfigFiles...)
