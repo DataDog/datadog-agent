@@ -215,7 +215,7 @@ func (s *defaultEventPlatformForwarder) SendEventPlatformEvent(e *message.Messag
 	}
 
 	// Stream to console if debug mode is enabled
-	p.diagnosticMessageReceiver.HandleMessage(*e, eventType, nil)
+	p.diagnosticMessageReceiver.HandleMessage(e, []byte{}, eventType)
 
 	select {
 	case p.in <- e:
@@ -281,7 +281,7 @@ func (s *defaultEventPlatformForwarder) SendEventPlatformEventBlocking(e *messag
 	}
 
 	// Stream to console if debug mode is enabled
-	p.diagnosticMessageReceiver.HandleMessage(*e, eventType, nil)
+	p.diagnosticMessageReceiver.HandleMessage(e, []byte{}, eventType)
 
 	p.in <- e
 	return nil
