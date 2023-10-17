@@ -175,6 +175,19 @@ func (s *Store) GetECSTask(id string) (*workloadmeta.ECSTask, error) {
 	return entity.(*workloadmeta.ECSTask), nil
 }
 
+// ListECSTasks returns metadata about an ECS task.
+func (s *Store) ListECSTasks() []*workloadmeta.ECSTask {
+	entities := s.listEntitiesByKind(workloadmeta.KindECSTask)
+
+	tasks := make([]*workloadmeta.ECSTask, 0, len(entities))
+	for _, entity := range entities {
+		image := entity.(*workloadmeta.ECSTask)
+		tasks = append(tasks, image)
+	}
+
+	return tasks
+}
+
 // ListImages implements Store#ListImages
 func (s *Store) ListImages() []*workloadmeta.ContainerImageMetadata {
 	entities := s.listEntitiesByKind(workloadmeta.KindContainerImageMetadata)

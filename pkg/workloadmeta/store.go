@@ -13,12 +13,13 @@ import (
 	"sync"
 	"time"
 
+	"github.com/cenkalti/backoff"
+
 	"github.com/DataDog/datadog-agent/pkg/errors"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/retry"
 	"github.com/DataDog/datadog-agent/pkg/workloadmeta/telemetry"
-	"github.com/cenkalti/backoff"
 )
 
 var (
@@ -377,6 +378,19 @@ func (s *store) GetECSTask(id string) (*ECSTask, error) {
 	}
 
 	return entity.(*ECSTask), nil
+}
+
+// ListECSTasks implements Store#ListECSTasks
+func (s *store) ListECSTasks() []*ECSTask {
+	entities := s.listEntitiesByKind(KindECSTask)
+
+	tasks := make([]*ECSTask, 0, len(entities))
+	for _, entity := range entities {
+		image := entity.(*ECSTask)
+		tasks = append(tasks, image)
+	}
+
+	return tasks
 }
 
 // ListImages implements Store#ListImages

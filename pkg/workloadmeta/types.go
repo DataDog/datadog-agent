@@ -88,6 +88,10 @@ type Store interface {
 	// kind KindECSTask and the given ID.
 	GetECSTask(id string) (*ECSTask, error)
 
+	// ListECSTasks returns metadata about an ECS task.  It fetches the entity with
+	// kind KindECSTask and the given ID.
+	ListECSTasks() []*ECSTask
+
 	// ListImages returns metadata about all known images, equivalent to all
 	// entities with kind KindContainerImageMetadata.
 	ListImages() []*ContainerImageMetadata

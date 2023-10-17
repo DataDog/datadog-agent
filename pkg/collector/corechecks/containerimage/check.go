@@ -150,6 +150,14 @@ func (c *Check) Run() error {
 		case eventBundle := <-imgEventsCh:
 			c.processor.processEvents(eventBundle)
 		case <-imgRefreshTicker.C:
+			log.Error("list-tasks start")
+			tasks := c.workloadmetaStore.ListECSTasks()
+			for _, t := range tasks {
+				if t != nil {
+					log.Error("list-tasks: ", *t)
+				}
+			}
+			log.Error("list-tasks end")
 			c.processor.processRefresh(c.workloadmetaStore.ListImages())
 		case <-c.stopCh:
 			c.processor.stop()
