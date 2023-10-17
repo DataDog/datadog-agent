@@ -118,7 +118,7 @@ func RunDogstatsdFct(cliParams *CLIParams, defaultConfPath string, defaultLogFil
 			opts.UseOrchestratorForwarder = false
 			opts.UseEventPlatformForwarder = false
 			opts.EnableNoAggregationPipeline = config.GetBool("dogstatsd_no_aggregation_pipeline")
-			return demultiplexer.Params{Options: opts}
+			return demultiplexer.Params{Options: opts, ContinueOnMissingHostname: true}
 		}),
 		fx.Supply(resources.Disabled()),
 		metadata.Bundle,

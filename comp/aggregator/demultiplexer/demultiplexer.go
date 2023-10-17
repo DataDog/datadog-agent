@@ -46,7 +46,12 @@ type provides struct {
 func newDemultiplexer(deps dependencies) (provides, error) {
 	hostnameDetected, err := hostname.Get(context.TODO())
 	if err != nil {
-		return provides{}, deps.Log.Errorf("Error while getting hostname, exiting: %v", err)
+		if deps.Params.ContinueOnMissingHostname {
+			deps.Log.Warnf("Error getting hostname: %s", err)
+			hostnameDetected = ""
+		} else {
+			return provides{}, deps.Log.Errorf("Error while getting hostname, exiting: %v", err)
+		}
 	}
 
 	agentDemultiplexer := aggregator.InitAndStartAgentDemultiplexer(
