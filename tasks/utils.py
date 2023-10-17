@@ -373,11 +373,12 @@ def get_version(
     prefix=None,
     major_version='7',
     include_pipeline_id=False,
-    pipeline_id="",
+    pipeline_id=None,
 ):
     version = ""
-    if pipeline_id == "":
+    if pipeline_id is None:
         pipeline_id = os.getenv("CI_PIPELINE_ID")
+
     project_name = os.getenv("CI_PROJECT_NAME")
     try:
         agent_version_cache_file_exist = os.path.exists(AGENT_VERSION_CACHE_NAME)

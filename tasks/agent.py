@@ -856,7 +856,13 @@ def clean(ctx):
 
 @task
 def version(
-    ctx, url_safe=False, omnibus_format=False, git_sha_length=7, major_version='7', version_cached=False, pipeline_id=""
+    ctx,
+    url_safe=False,
+    omnibus_format=False,
+    git_sha_length=7,
+    major_version='7',
+    version_cached=False,
+    pipeline_id=None,
 ):
     """
     Get the agent version.
