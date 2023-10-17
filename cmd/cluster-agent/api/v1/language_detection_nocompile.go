@@ -12,4 +12,4 @@ import (
 )
 
 // InstallLanguageDetectionEndpoints installs language detection endpoints
-func InstallLanguageDetectionEndpoints(r *mux.Router) {}
+func InstallLanguageDetectionEndpoints(_ *mux.Router) {}
