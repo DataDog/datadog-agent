@@ -1,0 +1,61 @@
+No .natvis files found at C:\WINDOWS\SYSTEM32\Visualizers.
+No .natvis files found at C:\Users\Administrator\AppData\Local\Dbg\Visualizers.
+
+Microsoft (R) Windows Debugger Version 10.0.20348.859 AMD64
+Copyright (c) Microsoft Corporation. All rights reserved.
+
+
+Loading Dump File [C:\users\Administrator\MEMORY1.DMP]
+Kernel Bitmap Dump File: Kernel address space is available, User address space may not be available.
+
+Symbol search path is: srv*
+Executable search path is: 
+Unable to load image \SystemRoot\system32\ntoskrnl.exe, Win32 error 0n2
+Windows 10 Kernel Version 20348 MP (2 procs) Free x64
+Product: Server, suite: TerminalServer SingleUserTS
+Edition build lab: 20348.859.amd64fre.fe_release_svc_prod2.220707-1832
+Machine Name:
+Kernel base = 0xfffff802`71000000 PsLoadedModuleList = 0xfffff802`71c33dc0
+Debug session time: Thu Oct 12 14:48:06.609 2023 (UTC - 7:00)
+System Uptime: 0 days 0:01:53.439
+Unable to load image \SystemRoot\system32\ntoskrnl.exe, Win32 error 0n2
+Loading Kernel Symbols
+...............................................................
+........Page 102e00 not present in the dump file. Type ".hh dbgerr004" for details
+........................................................
+..............................
+Loading User Symbols
+PEB is paged out (Peb.Ldr = 00000030`7aadd018).  Type ".hh dbgerr001" for details
+Loading unloaded module list
+.......
+
+************* Symbol Loading Error Summary **************
+Module name            Error
+ntkrnlmp               The system cannot find the file specified
+
+You can troubleshoot most symbol related issues by turning on symbol loading diagnostics (!sym noisy) and repeating the command that caused symbols to be loaded.
+You should also verify that your symbol search path (.sympath) is correct.
+Unable to add extension DLL: kdexts
+Unable to add extension DLL: kext
+Unable to add extension DLL: exts
+SECURE: File not allowed to be loaded - C:\WINDOWS\SYSTEM32\dbghelp.dll
+Error code: Win32 error 0n5
+The call to LoadLibrary(ext) failed, Win32 error 0n2
+    "The system cannot find the file specified."
+Please check your debugger configuration and/or network access.
+For analysis of this file, run !analyze -v
+RetAddr               : Args to Child                                                           : Call Site
+fffff802`715dc7dc     : 00000000`0000013a 00000000`00000008 ffffd084`c1202140 ffffd084`c51effe0 : nt!KeBugCheckEx
+fffff802`715dc83c     : 00000000`00000008 ffffca03`84d837f9 ffffd084`c1202140 ffffd084`c62b7980 : nt!RtlTraceDatabaseValidate+0x3b3c
+fffff802`715dc469     : ffffd084`c51e1000 00000000`00002bed 00000000`00000000 ffffd084`c51eff80 : nt!RtlTraceDatabaseValidate+0x3b9c
+fffff802`71471519     : ffffd084`c51e1000 ffffca03`84d837f9 00000000`000000da ffffca03`84d83768 : nt!RtlTraceDatabaseValidate+0x37c9
+fffff802`71236b84     : ffffd084`00000000 00000000`00000000 00000000`00000000 00000000`00000000 : nt!WmiTraceMessageVa+0x20e69
+fffff802`71a47019     : 00000000`00000910 01000000`00000a10 00000000`00000910 00000000`00000000 : nt!IoGetStackLimits+0x814
+fffff802`716a68f7     : ffffd084`c5ff7050 ffffd084`c5ff7050 ffffd084`c18df820 ffffd084`c46b7d40 : nt!ExFreePool+0x9
+fffff802`716a6708     : 00000000`00000000 00000000`00000000 00000000`00000000 00000000`00000000 : nt!ObWaitForMultipleObjects+0x887
+fffff802`712360a7     : 00000000`00000000 00000000`00000000 ffffca03`84d83a49 ffffd084`c5ff7080 : nt!ObWaitForMultipleObjects+0x698
+fffff802`716a46bd     : 00000000`00000001 ffffd084`c5ff7050 ffffffff`ffffffff ffffd084`c5ff7050 : nt!ObfDereferenceObjectWithTag+0xc7
+fffff802`716a2e29     : ffffd084`c5ffb080 000001dc`65bfe900 00000000`0000036c ffffd084`c5b672c0 : nt!NtClose+0x18cd
+fffff802`71434685     : ffffd084`c5ffb080 ffffd084`c531e660 00007ff8`084dcf20 ffffd084`00000000 : nt!NtClose+0x39
+00007ff8`093a03b4     : 00000000`00000000 00000000`00000000 00000000`00000000 00000000`00000000 : nt!setjmpex+0x8985
+00000000`00000000     : 00000000`00000000 00000000`00000000 00000000`00000000 00000000`00000000 : 0x00007ff8`093a03b4
