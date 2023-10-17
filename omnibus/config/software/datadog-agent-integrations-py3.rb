@@ -167,7 +167,7 @@ build do
     # Some libraries (looking at you, aerospike-client-python) need EXT_CFLAGS instead of CFLAGS.
     nix_specific_build_env = {
       "aerospike" => nix_build_env.merge({"EXT_CFLAGS" => nix_build_env["CFLAGS"] + " -std=gnu99"}),
-      "pyodbc" => nix_build_env.merge({"CPPFLAGS" => "-L#{install_dir}/embedded/include"}),
+      "pyodbc" => nix_build_env.merge({"CPPFLAGS" => "-I#{install_dir}/embedded/include"}),
     }
 
     win_specific_build_env = {}
