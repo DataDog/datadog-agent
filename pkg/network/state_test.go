@@ -456,7 +456,7 @@ func TestLastStatsForClosedConnection(t *testing.T) {
 	assert.Equal(t, conn2.Monotonic.Retransmits, conns[0].Monotonic.Retransmits)
 }
 
-func TestRaceConditions(t *testing.T) {
+func TestRaceConditions(t *testing.T) { //nolint:revive // TODO fix revive unused-parameter
 	nClients := 10
 
 	// Generate random conns
