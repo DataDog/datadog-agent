@@ -267,6 +267,12 @@ func (c *collector) notifyEventForImage(ctx context.Context, namespace string, i
 		return fmt.Errorf("error getting image platforms: %w", err)
 	}
 
+	labels, err := getImageLabels(ctxWithNamespace, img)
+	if err != nil {
+		log.Warnf("error while getting all the image labels. The list might be incomplete: %s", err)
+		// Continue and use the labels available instead of returning.
+	}
+
 	imageName := img.Name()
 	imageID := manifest.Config.Digest.String()
 
@@ -325,7 +331,7 @@ func (c *collector) notifyEventForImage(ctx context.Context, namespace string, i
 		EntityMeta: workloadmeta.EntityMeta{
 			Name:      imageName,
 			Namespace: namespace,
-			Labels:    img.Labels(),
+			Labels:    labels,
 		},
 		RepoTags:     c.knownImages.getRepoTags(imageID),
 		RepoDigests:  c.knownImages.getRepoDigests(imageID),
@@ -402,4 +408,37 @@ func getLayersWithHistory(ctx context.Context, store content.Store, manifest oci
 	}
 
 	return layers, nil
+}
+
+func getImageLabels(ctx context.Context, img containerd.Image) (map[string]string, error) {
+	// Labels() does not return the labels set in the Dockerfile. They are in
+	// the config descriptor.
+	// When running on Kubernetes Labels() only returns io.cri-containerd
+	// labels.
+	labels := map[string]string{}
+
+	for labelName, labelValue := range img.Labels() {
+		labels[labelName] = labelValue
+	}
+
+	configDescriptor, err := img.Config(ctx)
+	if err != nil {
+		return labels, err
+	}
+
+	contents, err := content.ReadBlob(ctx, img.ContentStore(), configDescriptor)
+	if err != nil {
+		return labels, err
+	}
+
+	var config ocispec.Image
+	if err = json.Unmarshal(contents, &config); err != nil {
+		return labels, err
+	}
+
+	for labelName, labelValue := range config.Config.Labels {
+		labels[labelName] = labelValue
+	}
+
+	return labels, nil
 }

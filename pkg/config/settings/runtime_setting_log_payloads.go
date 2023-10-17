@@ -15,6 +15,7 @@ import (
 type LogPayloadsRuntimeSetting struct {
 }
 
+// NewLogPayloadsRuntimeSetting returns a new LogPayloadsRuntimeSetting
 func NewLogPayloadsRuntimeSetting() *LogPayloadsRuntimeSetting {
 	return &LogPayloadsRuntimeSetting{}
 }

@@ -628,7 +628,7 @@ func (c *safeConfig) Warnings() *Warnings {
 	return nil
 }
 
-func (c *safeConfig) Object() ConfigReader {
+func (c *safeConfig) Object() Reader {
 	return c
 }
 

@@ -374,7 +374,7 @@ func GetNextAncestorBinaryOrArgv0(entry *model.ProcessContext) *model.ProcessCac
 		if ancestor.FileEvent.Inode == 0 {
 			return nil
 		}
-		if current.FileEvent.Inode != ancestor.FileEvent.Inode {
+		if current.FileEvent.PathnameStr != ancestor.FileEvent.PathnameStr {
 			return ancestor
 		}
 		if process.IsBusybox(current.FileEvent.PathnameStr) && process.IsBusybox(ancestor.FileEvent.PathnameStr) {

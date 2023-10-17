@@ -33,12 +33,17 @@ const (
 // RCAgentTaskListener is the FX-compatible listener, so RC can push updates through it
 type RCAgentTaskListener func(taskType TaskType, task AgentTaskConfig) (bool, error)
 
+// RCListener is the generic type for components to register a callback for any product
+type RCListener map[data.Product]func(updates map[string]state.RawConfig, applyStateCallback func(string, state.ApplyStatus))
+
 type rcClient struct {
 	client        *remote.Client
 	m             *sync.Mutex
 	taskProcessed map[string]bool
 
-	listeners []RCAgentTaskListener
+	listeners []RCListener
+	// Tasks are separated from the other products, because they must be executed once
+	taskListeners []RCAgentTaskListener
 }
 
 type dependencies struct {
@@ -46,7 +51,8 @@ type dependencies struct {
 
 	Log log.Component
 
-	Listeners []RCAgentTaskListener `group:"rCAgentTaskListener"` // <-- Fill automatically by Fx
+	Listeners     []RCListener          `group:"rCListener"`          // <-- Fill automatically by Fx
+	TaskListeners []RCAgentTaskListener `group:"rCAgentTaskListener"` // <-- Fill automatically by Fx
 }
 
 func newRemoteConfigClient(deps dependencies) (Component, error) {
@@ -59,9 +65,10 @@ func newRemoteConfigClient(deps dependencies) (Component, error) {
 	}
 
 	rc := rcClient{
-		listeners: deps.Listeners,
-		m:         &sync.Mutex{},
-		client:    c,
+		listeners:     deps.Listeners,
+		taskListeners: deps.TaskListeners,
+		m:             &sync.Mutex{},
+		client:        c,
 	}
 
 	return rc, nil
@@ -72,6 +79,13 @@ func (rc rcClient) Start(agentName string) error {
 	rc.client.SetAgentName(agentName)
 
 	rc.client.Subscribe(state.ProductAgentConfig, rc.agentConfigUpdateCallback)
+
+	// Register every product for every listener
+	for _, l := range rc.listeners {
+		for product, callback := range l {
+			rc.client.Subscribe(string(product), callback)
+		}
+	}
 
 	rc.client.Start()
 
@@ -173,7 +187,7 @@ func (rc rcClient) agentTaskUpdateCallback(updates map[string]state.RawConfig, a
 			var err error
 			var processed bool
 			// Call all the listeners component
-			for _, l := range rc.listeners {
+			for _, l := range rc.taskListeners {
 				oneProcessed, oneErr := l(TaskType(task.Config.TaskType), task)
 				// Check if the task was processed at least once
 				processed = oneProcessed || processed
@@ -205,9 +219,16 @@ func (rc rcClient) agentTaskUpdateCallback(updates map[string]state.RawConfig, a
 	}
 }
 
-// ListenerProvider defines component that can receive RC updates
-type ListenerProvider struct {
+// TaskListenerProvider defines component that can receive RC updates
+type TaskListenerProvider struct {
 	fx.Out
 
 	Listener RCAgentTaskListener `group:"rCAgentTaskListener"`
+}
+
+// ListenerProvider defines component that can receive RC updates for any product
+type ListenerProvider struct {
+	fx.Out
+
+	ListenerProvider RCListener `group:"rCListener"`
 }

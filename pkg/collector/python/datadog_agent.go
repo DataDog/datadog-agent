@@ -248,6 +248,11 @@ type sqlConfig struct {
 	DollarQuotedFunc bool `json:"dollar_quoted_func"`
 	// ReturnJSONMetadata specifies whether the stub will return metadata as JSON.
 	ReturnJSONMetadata bool `json:"return_json_metadata"`
+
+	// ObfuscationMode specifies the obfuscation mode to use for go-sqllexer pkg.
+	// When specified, obfuscator will attempt to use go-sqllexer pkg to obfuscate (and normalize) SQL queries.
+	// Valid values are "obfuscate_only", "obfuscate_and_normalize"
+	ObfuscationMode obfuscate.ObfuscationMode `json:"obfuscation_mode" yaml:"obfuscation_mode"`
 }
 
 // ObfuscateSQL obfuscates & normalizes the provided SQL query, writing the error into errResult if the operation
@@ -274,6 +279,7 @@ func ObfuscateSQL(rawQuery, opts *C.char, errResult **C.char) *C.char {
 		ReplaceDigits:    sqlOpts.ReplaceDigits,
 		KeepSQLAlias:     sqlOpts.KeepSQLAlias,
 		DollarQuotedFunc: sqlOpts.DollarQuotedFunc,
+		ObfuscationMode:  sqlOpts.ObfuscationMode,
 	})
 	if err != nil {
 		// memory will be freed by caller

@@ -69,7 +69,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				fx.Supply(cliParams),
 				fx.Supply(config.NewAgentParamsWithoutSecrets("", config.WithConfigMissingOK(true))),
 				fx.Supply(sysprobeconfig.NewParams(sysprobeconfig.WithSysProbeConfFilePath(globalParams.ConfFilePath))),
-				fx.Supply(log.LogForDaemon("SYS-PROBE", "log_file", common.DefaultLogFile)),
+				fx.Supply(log.ForDaemon("SYS-PROBE", "log_file", common.DefaultLogFile)),
 				config.Module,
 				telemetry.Module,
 				sysprobeconfig.Module,
@@ -182,7 +182,7 @@ func StartSystemProbeWithDefaults(ctxChan <-chan context.Context) (<-chan error,
 			// no config file path specification in this situation
 			fx.Supply(config.NewAgentParamsWithoutSecrets("", config.WithConfigMissingOK(true))),
 			fx.Supply(sysprobeconfig.NewParams(sysprobeconfig.WithSysProbeConfFilePath(""))),
-			fx.Supply(log.LogForDaemon("SYS-PROBE", "log_file", common.DefaultLogFile)),
+			fx.Supply(log.ForDaemon("SYS-PROBE", "log_file", common.DefaultLogFile)),
 			rcclient.Module,
 			config.Module,
 			telemetry.Module,
@@ -317,7 +317,7 @@ func stopSystemProbe(cliParams *cliParams) {
 }
 
 // setupInternalProfiling is a common helper to configure runtime settings for internal profiling.
-func setupInternalProfiling(cfg ddconfig.ConfigReader, configPrefix string, log log.Component) {
+func setupInternalProfiling(cfg ddconfig.Reader, configPrefix string, log log.Component) {
 	if v := cfg.GetInt(configPrefix + "internal_profiling.block_profile_rate"); v > 0 {
 		if err := settings.SetRuntimeSetting("runtime_block_profile_rate", v, ddconfig.SourceAgentRuntime); err != nil {
 			log.Errorf("Error setting block profile rate: %v", err)

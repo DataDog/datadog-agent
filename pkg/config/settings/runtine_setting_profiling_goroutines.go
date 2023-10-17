@@ -11,10 +11,11 @@ import (
 
 // ProfilingGoroutines wraps runtime.SetBlockProfileRate setting
 type ProfilingGoroutines struct {
-	Config       config.ConfigReaderWriter
+	Config       config.ReaderWriter
 	ConfigPrefix string
 }
 
+// NewProfilingGoroutines returns a new ProfilingGoroutines
 func NewProfilingGoroutines() *ProfilingGoroutines {
 	return &ProfilingGoroutines{}
 }
@@ -36,7 +37,7 @@ func (r *ProfilingGoroutines) Hidden() bool {
 
 // Get returns the current value of the runtime setting
 func (r *ProfilingGoroutines) Get() (interface{}, error) {
-	var cfg config.ConfigReaderWriter = config.Datadog
+	var cfg config.ReaderWriter = config.Datadog
 	if r.Config != nil {
 		cfg = r.Config
 	}
@@ -50,6 +51,10 @@ func (r *ProfilingGoroutines) Set(value interface{}, source config.Source) error
 		return err
 	}
 
-	config.Datadog.SetForSource(r.ConfigPrefix+"internal_profiling.enable_goroutine_stacktraces", enabled, source)
+	var cfg config.ReaderWriter = config.Datadog
+	if r.Config != nil {
+		cfg = r.Config
+	}
+	cfg.SetForSource(r.ConfigPrefix+"internal_profiling.enable_goroutine_stacktraces", enabled, source)
 	return nil
 }

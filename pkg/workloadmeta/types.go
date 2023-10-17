@@ -781,7 +781,7 @@ func (d KubernetesDeployment) String(verbose bool) string {
 				}
 				_, _ = langSb.WriteString(string(lang.Name))
 			}
-			_, _ = fmt.Fprintf(&sb, "%s %s=>[%s]", ctype, container, langSb.String())
+			_, _ = fmt.Fprintf(&sb, "%s %s=>[%s]\n", ctype, container, langSb.String())
 		}
 	}
 	langPrinter(d.InitContainerLanguages, "InitContainer")
@@ -1011,7 +1011,7 @@ func (p *Process) Merge(e Entity) error {
 }
 
 // String implements Entity#String.
-func (p Process) String(verbose bool) string {
+func (p Process) String(verbose bool) string { //nolint:revive // TODO fix revive unused-parameter
 	var sb strings.Builder
 
 	_, _ = fmt.Fprintln(&sb, "----------- Entity ID -----------")

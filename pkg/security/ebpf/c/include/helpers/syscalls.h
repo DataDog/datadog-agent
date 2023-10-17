@@ -93,7 +93,7 @@ struct syscall_cache_t *__attribute__((always_inline)) pop_task_syscall(u64 pid_
     if (!type || syscall->type == type) {
         bpf_map_delete_elem(&syscalls, &pid_tgid);
 
-        monitor_syscalls(type, -1);
+        monitor_syscalls(syscall->type, -1);
         return syscall;
     }
     return NULL;
@@ -180,23 +180,23 @@ struct syscall_cache_t *__attribute__((always_inline)) peek_current_or_impersona
 
 struct syscall_cache_t *__attribute__((always_inline)) pop_current_or_impersonated_exec_syscall() {
     struct syscall_cache_t *syscall = pop_syscall(EVENT_EXEC);
-    if (!syscall) {
-        u64 pid_tgid = bpf_get_current_pid_tgid();
-        u32 tgid = pid_tgid >> 32;
-        u32 pid = pid_tgid;
-        u64 *pid_tgid_execing_ptr = (u64 *)bpf_map_lookup_elem(&exec_pid_transfer, &tgid);
-        if (!pid_tgid_execing_ptr) {
-            return NULL;
-        }
+
+    u64 pid_tgid = bpf_get_current_pid_tgid();
+    u32 tgid = pid_tgid >> 32;
+    u32 pid = pid_tgid;
+    u64 *pid_tgid_execing_ptr = (u64 *)bpf_map_lookup_elem(&exec_pid_transfer, &tgid);
+    if (pid_tgid_execing_ptr) {
         u64 pid_tgid_execing = *pid_tgid_execing_ptr;
+        struct syscall_cache_t *imp_syscall = pop_task_syscall(pid_tgid_execing, EVENT_EXEC);
+
         u32 tgid_execing = pid_tgid_execing >> 32;
         u32 pid_execing = pid_tgid_execing;
-        if (tgid != tgid_execing || pid == pid_execing) {
-            return NULL;
+        if (tgid == tgid_execing && pid != pid_execing && !syscall) {
+            // the current task is impersonating its thread group leader
+            syscall = imp_syscall;
         }
-        // the current task is impersonating its thread group leader
-        syscall = pop_task_syscall(pid_tgid_execing, EVENT_EXEC);
     }
+
     return syscall;
 }
 
