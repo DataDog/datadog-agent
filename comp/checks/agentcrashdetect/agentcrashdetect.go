@@ -151,6 +151,11 @@ func (wcd *AgentCrashDetect) Run() error {
 	}
 
 	// check to see if the crash is one of ours
+	if len(crash.Offender) == 0 {
+		// weren't able to determine crashing driver.  Don't log internally.
+		log.Warnf("Crash detected, but module could not be determined.  Not reporting crash")
+		return nil
+	}
 	offender := strings.Split(crash.Offender, "+")[0]
 	if _, ok := ddDrivers[offender]; !ok {
 		log.Infof("non-dd crash detected %s", offender)
