@@ -29,6 +29,7 @@ import (
 	"go.uber.org/fx"
 
 	"github.com/aws/aws-sdk-go/aws"
+	"github.com/aws/aws-sdk-go/aws/awserr"
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/ec2"
 	"github.com/aws/aws-sdk-go/service/lambda"
@@ -65,6 +66,10 @@ import (
 	"github.com/aquasecurity/trivy/pkg/vulnerability"
 
 	"github.com/spf13/cobra"
+)
+
+const (
+	MaxSnapshotRetries = 3
 )
 
 var (
@@ -351,10 +356,23 @@ func launchScan(ctx context.Context, log log.Component, statsd ddgostatsd.Client
 }
 
 func createEBSSnapshot(ctx context.Context, svc *ec2.EC2, scan *ebsScan) (string, error) {
+	retries := 0
+retry:
 	result, err := svc.CreateSnapshotWithContext(ctx, &ec2.CreateSnapshotInput{
 		VolumeId: aws.String(scan.VolumeID),
 	})
 	if err != nil {
+		if aerr, ok := err.(awserr.Error); ok {
+			if retries <= MaxSnapshotRetries {
+				retries++
+				if aerr.Code() == "SnapshotCreationPerVolumeRateExceeded" {
+					// https://docs.aws.amazon.com/AWSEC2/latest/APIReference/errors-overview.html
+					// Wait at least 15 seconds between concurrent volume snapshots.
+					time.Sleep(15 * time.Second)
+					goto retry
+				}
+			}
+		}
 		return "", err
 	}
 	err = svc.WaitUntilSnapshotCompletedWithContext(ctx, &ec2.DescribeSnapshotsInput{
