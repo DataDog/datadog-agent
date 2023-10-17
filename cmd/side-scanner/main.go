@@ -420,7 +420,7 @@ func scanEBS(ctx context.Context, log log.Component, statsd ddgostatsd.ClientInt
 			return nil, err
 		}
 		svc := ec2.New(sess)
-		statsd.Count("datadog.sidescanner.snapshotstarted", 1.0, tags, 1.0)
+		statsd.Count("datadog.sidescanner.snapshots.started", 1.0, tags, 1.0)
 		log.Debugf("starting volume snapshotting %q", scan.VolumeID)
 		snapshotID, err = createEBSSnapshot(ctx, svc, scan)
 		if err != nil {
@@ -436,7 +436,7 @@ func scanEBS(ctx context.Context, log log.Component, statsd ddgostatsd.ClientInt
 	}
 
 	log.Infof("start EBS scanning %s", scan)
-	statsd.Count("datadog.sidescanner.scanstarted", 1.0, tags, 1.0)
+	statsd.Count("datadog.sidescanner.scans.started", 1.0, tags, 1.0)
 	scanStartedAt := time.Now()
 	target := "ebs:" + scan.SnapshotID
 	trivyCache := newMemoryCache()
