@@ -506,7 +506,7 @@
         <br>Closed Listeners: {{.netflowStats.ClosedListeners}}
         {{ if .netflowStats.OpenListeners }}
         <span class="stat_subtitle">Open Listener Details</span>
-        {{- range $index, $NetflowListenerStatus := .netflowStats.WorkingListenerDetails -}}
+        {{- range $index, $NetflowListenerStatus := .netflowStats.WorkingListenerDetails }}
         BindHost: {{$NetflowListenerStatus.Config.BindHost}}
         <br>FlowType: {{$NetflowListenerStatus.Config.FlowType}}
         <br>Port: {{$NetflowListenerStatus.Config.Port}}
