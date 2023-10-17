@@ -20,6 +20,7 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/agent/common/signals"
 
 	// checks implemented as components
+	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer"
 	"github.com/DataDog/datadog-agent/comp/checks/agentcrashdetect"
 
 	// core components
@@ -34,12 +35,12 @@ import (
 	dogstatsdDebug "github.com/DataDog/datadog-agent/comp/dogstatsd/serverDebug"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
 	logsAgent "github.com/DataDog/datadog-agent/comp/logs/agent"
+	"github.com/DataDog/datadog-agent/comp/metadata/host"
 	"github.com/DataDog/datadog-agent/comp/metadata/runner"
 	netflowServer "github.com/DataDog/datadog-agent/comp/netflow/server"
 	otelcollector "github.com/DataDog/datadog-agent/comp/otelcol/collector"
 	"github.com/DataDog/datadog-agent/comp/remote-config/rcclient"
 	comptraceconfig "github.com/DataDog/datadog-agent/comp/trace/config"
-	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -74,14 +75,16 @@ func StartAgentWithDefaults(ctxChan <-chan context.Context) (<-chan error, error
 			metadataRunner runner.Component,
 			sharedSerializer serializer.MetricSerializer,
 			otelcollector otelcollector.Component,
+			demultiplexer demultiplexer.Component,
+			hostMetadata host.Component,
 			_ netflowServer.Component,
 			_ agentcrashdetect.Component,
 			_ comptraceconfig.Component,
 		) error {
 
-			defer StopAgentWithDefaults(server)
+			defer StopAgentWithDefaults(server, demultiplexer)
 
-			err := startAgent(&cliParams{GlobalParams: &command.GlobalParams{}}, log, flare, telemetry, sysprobeconfig, server, capture, serverDebug, rcclient, logsAgent, forwarder, sharedSerializer, otelcollector)
+			err := startAgent(&cliParams{GlobalParams: &command.GlobalParams{}}, log, flare, telemetry, sysprobeconfig, server, capture, serverDebug, rcclient, logsAgent, forwarder, sharedSerializer, otelcollector, demultiplexer, hostMetadata)
 			if err != nil {
 				return err
 			}
@@ -138,11 +141,12 @@ func run(log log.Component,
 	forwarder defaultforwarder.Component,
 	rcclient rcclient.Component,
 	metadataRunner runner.Component,
-	demux *aggregator.AgentDemultiplexer,
+	demux demultiplexer.Component,
 	sharedSerializer serializer.MetricSerializer,
 	cliParams *cliParams,
 	logsAgent util.Optional[logsAgent.Component],
 	otelcollector otelcollector.Component,
+	hostMetadata host.Component,
 	_ netflowServer.Component,
 	_ agentcrashdetect.Component,
 	_ comptraceconfig.Component,
@@ -151,7 +155,7 @@ func run(log log.Component,
 	// (i.e. here `_ netflowServer`, `_ agentcrashdetect`, etc.).  The run function can have different
 	// parameters on different platforms based on platform-specific components.  commonRun is the shared initialization.
 
-	return commonRun(log, config, flare, telemetry, sysprobeconfig, server, capture, serverDebug, forwarder, rcclient, metadataRunner, demux, sharedSerializer, cliParams, logsAgent, otelcollector)
+	return commonRun(log, config, flare, telemetry, sysprobeconfig, server, capture, serverDebug, forwarder, rcclient, metadataRunner, demux, sharedSerializer, cliParams, logsAgent, otelcollector, hostMetadata)
 }
 
 func getPlatformModules() fx.Option {

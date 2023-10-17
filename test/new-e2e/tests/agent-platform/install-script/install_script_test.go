@@ -84,9 +84,9 @@ func (is *installScriptSuite) TestInstallAgent() {
 
 	common.CheckInstallation(is.T(), client)
 	common.CheckAgentBehaviour(is.T(), client)
-	common.CheckIntegrationInstall(is.T(), client)
 	common.CheckAgentStops(is.T(), client)
 	common.CheckAgentRestarts(is.T(), client)
+	common.CheckIntegrationInstall(is.T(), client)
 	common.CheckAgentPython(is.T(), client, "3")
 	common.CheckApmEnabled(is.T(), client)
 	common.CheckApmDisabled(is.T(), client)

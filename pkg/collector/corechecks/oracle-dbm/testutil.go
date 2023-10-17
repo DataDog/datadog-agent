@@ -11,12 +11,11 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/stretchr/testify/require"
 )
 
-func initCheck(t *testing.T, server string, port int, user string, password string, serviceName string) (Check, error) {
+func initCheck(t *testing.T, senderManager sender.senderManager, server string, port int, user string, password string, serviceName string) (Check, error) {
 	c := Check{}
 	rawInstanceConfig := []byte(fmt.Sprintf(`
 server: %s
@@ -25,7 +24,7 @@ username: %s
 password: %s
 service_name: %s
 `, server, port, user, password, serviceName))
-	err := c.Configure(aggregator.GetSenderManager(), integration.FakeConfigHash, rawInstanceConfig, []byte(``), "oracle_test")
+	err := c.Configure(senderManager, integration.FakeConfigHash, rawInstanceConfig, []byte(``), "oracle_test")
 	require.NoError(t, err)
 	initAndStartAgentDemultiplexer(t)
 
