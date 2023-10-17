@@ -23,7 +23,7 @@ func (r MockResolver) GetTrapMetadata(trapOid string) (TrapMetadata, error) {
 }
 
 // GetVariableMetadata implements OIDResolver#GetVariableMetadata.
-func (r MockResolver) GetVariableMetadata(string, varOid string) (VariableMetadata, error) {
+func (r MockResolver) GetVariableMetadata(string, varOid string) (VariableMetadata, error) { //nolint:revive // TODO fix revive unusued-parameter
 	varOid = NormalizeOID(varOid)
 	varData, ok := r.content.Variables[varOid]
 	if !ok {

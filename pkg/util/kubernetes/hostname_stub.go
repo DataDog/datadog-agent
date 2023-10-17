@@ -13,6 +13,6 @@ import (
 )
 
 // GetKubeAPIServerHostname returns the hostname from kubeapiserver
-func GetKubeAPIServerHostname(ctx context.Context) (string, error) {
+func GetKubeAPIServerHostname(context.Context) (string, error) {
 	return "", fmt.Errorf("kubeapiserver hostname provider is not enabled")
 }

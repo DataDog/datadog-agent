@@ -25,7 +25,7 @@ require (
 	github.com/pulumi/pulumi/sdk/v3 v3.88.1
 	github.com/samber/lo v1.38.1
 	github.com/sethvargo/go-retry v0.2.4
-	github.com/stretchr/testify v1.8.4
+	github.com/stretchr/testify v1.8.5-0.20231013065317-89920137cdfa
 	golang.org/x/crypto v0.14.0
 	golang.org/x/sys v0.13.0
 	golang.org/x/term v0.13.0
