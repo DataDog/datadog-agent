@@ -189,7 +189,7 @@ func (t http2DynamicTableEntry) String() string {
 	// trim null byte + after
 	str, err := hpack.HuffmanDecodeToString(b)
 	if err != nil {
-		return ""
+		return fmt.Sprintf("FAILED: %s", err)
 	}
 
 	return str

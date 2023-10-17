@@ -469,10 +469,18 @@ func (s *USMgRPCSuite) TestLargeBodiesGRPCScenarios() {
 				}, time.Second*5, time.Millisecond*100, "%v != %v", res, tt.expectedEndpoints)
 
 				if t.Failed() {
-					o, _ := monitor.DumpMaps("http2_in_flight")
-					t.Log(o)
-					o, _ = monitor.DumpMaps("http2_dynamic_table")
-					t.Log(o)
+					o, err := monitor.DumpMaps("http2_in_flight")
+					if err != nil {
+						t.Logf("failed dumping http2_in_flight: %s", err)
+					} else {
+						t.Log(o)
+					}
+					o, err = monitor.DumpMaps("http2_dynamic_table")
+					if err != nil {
+						t.Logf("failed dumping http2_dynamic_table: %s", err)
+					} else {
+						t.Log(o)
+					}
 				}
 			})
 		}
