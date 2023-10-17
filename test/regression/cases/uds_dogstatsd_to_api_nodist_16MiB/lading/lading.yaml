@@ -8,23 +8,29 @@ generator:
       variant:
         dogstatsd:
           contexts:
-            min: 1000
-            max: 10000
+            inclusive:
+              min: 1000
+              max: 10000
           name_length:
-            min: 1
-            max: 200
+            inclusive:
+              min: 1
+              max: 200
           tag_key_length:
-            min: 1
-            max: 100
+            inclusive:
+              min: 1
+              max: 100
           tag_value_length:
-            min: 1
-            max: 100
+            inclusive:
+              min: 1
+              max: 100
           tags_per_msg:
-            min: 2
-            max: 50
+            inclusive:
+              min: 2
+              max: 50
           multivalue_count:
-            min: 2
-            max: 32
+            inclusive:
+              min: 2
+              max: 32
           multivalue_pack_probability: 0.08
           kind_weights:
             metric: 90
