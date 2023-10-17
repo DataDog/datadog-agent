@@ -16,7 +16,7 @@ import (
 // IsAvailable returns named pipe availability
 // as on Windows, sockets do not exist
 func IsAvailable(path string, timeout time.Duration) (bool, bool) {
-	if !checktExists(path) {
+	if !checkExists(path) {
 		return false, false
 	}
 
