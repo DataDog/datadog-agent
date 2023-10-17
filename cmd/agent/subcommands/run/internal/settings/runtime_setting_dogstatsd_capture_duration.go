@@ -60,6 +60,6 @@ func (l *DsdCaptureDurationRuntimeSetting) Set(v interface{}, source config.Sour
 
 	// TODO
 	// common.DSD.Capture.SetDuration(d)
-	// use SetForSource to update the configuration
+	config.Datadog.SetForSource(l.value, s, source)
 	return nil
 }
