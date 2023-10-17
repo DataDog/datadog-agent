@@ -135,7 +135,6 @@ func (p *Probe) DispatchEvent(event *model.Event) {
 
 	// send event to specific event handlers, like the event monitor consumers, subsequently
 	p.sendEventToSpecificEventTypeHandlers(event)
-
 }
 
 func (p *Probe) sendEventToWildcardHandlers(event *model.Event) {
