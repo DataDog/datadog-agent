@@ -98,7 +98,7 @@ func newSubscriptionSignalEvent() (evtapi.WaitEventHandle, error) {
 	// 3. WaitForMultipleObjects returns
 	// 4. EvtNext is called and returns the events and ERROR_NO_MORE_ITEMS
 	// 5. (in background) Events arrive and the handle is set
-	// 6. We handle the ERROR_NO_MOTE_ITEMS result and call ResetEvent to unset the event handle
+	// 6. We handle the ERROR_NO_MORE_ITEMS result and call ResetEvent to unset the event handle
 	// Now WaitForMultipleObjects will block and we won't see the second set of events until a third
 	// set arrives.
 	// Instead, to avoid this race we use an auto reset event, which is unset when WaitForMultipleObjects
