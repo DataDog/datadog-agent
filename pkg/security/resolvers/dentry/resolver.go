@@ -54,7 +54,7 @@ type Resolver struct {
 	erpcStats             [2]*lib.Map
 	bufferSelector        *lib.Map
 	activeERPCStatsBuffer uint32
-	cache                 map[uint32]*lru.Cache[model.DentryKey, *DentryCacheEntry]
+	cache                 map[uint32]*lru.Cache[model.DentryKey, *cacheEntry]
 	erpc                  *erpc.ERPC
 	erpcSegment           []byte
 	erpcSegmentSize       int
@@ -71,7 +71,8 @@ type Resolver struct {
 // ErrEntryNotFound is thrown when a path key was not found in the cache
 var ErrEntryNotFound = errors.New("entry not found")
 
-type DentryCacheEntry struct {
+// cacheEntry holds data stored in the dentry cache
+type cacheEntry struct {
 	Parent model.DentryKey
 }
 
@@ -176,15 +177,15 @@ func (dr *Resolver) DelCacheEntries(mountID uint32) {
 	delete(dr.cache, mountID)
 }
 
-func (dr *Resolver) lookupInodeFromCache(key model.DentryKey) (*DentryCacheEntry, error) {
+func (dr *Resolver) lookupInodeFromCache(key model.DentryKey) (*cacheEntry, error) {
 	entries, exists := dr.cache[key.MountID]
 	if !exists {
-		return &DentryCacheEntry{}, ErrEntryNotFound
+		return &cacheEntry{}, ErrEntryNotFound
 	}
 
 	entry, exists := entries.Get(key)
 	if !exists {
-		return &DentryCacheEntry{}, ErrEntryNotFound
+		return &cacheEntry{}, ErrEntryNotFound
 	}
 
 	return entry, nil
@@ -192,12 +193,12 @@ func (dr *Resolver) lookupInodeFromCache(key model.DentryKey) (*DentryCacheEntry
 
 // We need to cache inode by inode instead of caching the whole path in order to be
 // able to invalidate the whole path if one of its element got rename or removed.
-func (dr *Resolver) cacheInode(key model.DentryKey, entry *DentryCacheEntry) error {
+func (dr *Resolver) cacheInode(key model.DentryKey, entry *cacheEntry) error {
 	entries, exists := dr.cache[key.MountID]
 	if !exists {
 		var err error
 
-		entries, err = lru.New[model.DentryKey, *DentryCacheEntry](dr.config.DentryCacheSize)
+		entries, err = lru.New[model.DentryKey, *cacheEntry](dr.config.DentryCacheSize)
 		if err != nil {
 			return err
 		}
@@ -217,8 +218,8 @@ func (dr *Resolver) lookupInodeFromMap(pathKey model.DentryKey) (model.DentryLea
 	return pathLeaf, nil
 }
 
-func (dr *Resolver) newDentryCacheEntry(parent model.DentryKey) *DentryCacheEntry {
-	return &DentryCacheEntry{
+func (dr *Resolver) newcacheEntry(parent model.DentryKey) *cacheEntry {
+	return &cacheEntry{
 		Parent: parent,
 	}
 }
@@ -321,7 +322,7 @@ func (dr *Resolver) GetParent(pathKey model.DentryKey) (model.DentryKey, error) 
 	if err != nil && dr.config.ERPCDentryResolutionEnabled {
 		parentKey, err = dr.ResolveParentFromERPC(pathKey)
 		if err == nil && parentKey.MountID != 0 && parentKey.Inode != 0 && !IsFakeInode(parentKey.Inode) {
-			entry := dr.newDentryCacheEntry(parentKey)
+			entry := dr.newcacheEntry(parentKey)
 			_ = dr.cacheInode(pathKey, entry)
 		}
 	}
@@ -329,7 +330,7 @@ func (dr *Resolver) GetParent(pathKey model.DentryKey) (model.DentryKey, error) 
 	if err != nil && dr.config.MapDentryResolutionEnabled {
 		parentKey, err = dr.ResolveParentFromMap(pathKey)
 		if err == nil && parentKey.MountID != 0 && parentKey.Inode != 0 && !IsFakeInode(parentKey.Inode) {
-			entry := dr.newDentryCacheEntry(parentKey)
+			entry := dr.newcacheEntry(parentKey)
 			_ = dr.cacheInode(pathKey, entry)
 		}
 	}
@@ -431,7 +432,7 @@ func NewResolver(config *config.Config, statsdClient statsd.ClientInterface, e *
 	return &Resolver{
 		config:        config,
 		statsdClient:  statsdClient,
-		cache:         make(map[uint32]*lru.Cache[model.DentryKey, *DentryCacheEntry]),
+		cache:         make(map[uint32]*lru.Cache[model.DentryKey, *cacheEntry]),
 		erpc:          e,
 		erpcRequest:   erpc.Request{},
 		erpcStatsZero: make([]eRPCStats, numCPU),
