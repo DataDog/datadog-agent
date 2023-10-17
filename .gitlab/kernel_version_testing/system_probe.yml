@@ -251,7 +251,7 @@ kernel_matrix_testing_setup_env:
   stage: kernel_matrix_testing
   rules:
     !reference [ .on_system_probe_changes_or_manual ]
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/test-infra-definitions/runner:$TEST_INFRA_DEFINITIONS_BUILDIMAGES
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/test-infra-definitions/runner$TEST_INFRA_DEFINITIONS_BUILDIMAGES_SUFFIX:$TEST_INFRA_DEFINITIONS_BUILDIMAGES
   needs: ["go_deps", "go_tools_deps"]
   tags: ["arch:amd64"]
   variables:
@@ -294,7 +294,7 @@ kernel_matrix_testing_setup_env:
 .kernel_matrix_testing_run_tests:
   stage: kernel_matrix_testing
   allow_failure: true
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/test-infra-definitions/runner:$TEST_INFRA_DEFINITIONS_BUILDIMAGES
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/test-infra-definitions/runner$TEST_INFRA_DEFINITIONS_BUILDIMAGES_SUFFIX:$TEST_INFRA_DEFINITIONS_BUILDIMAGES
   tags: ["arch:amd64"]
   rules:
     !reference [ .on_system_probe_changes_or_manual ]
@@ -348,7 +348,7 @@ kernel_matrix_testing_run_tests_arm64:
 
 kernel_matrix_testing_cleanup:
   stage: kernel_matrix_testing
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/test-infra-definitions/runner:$TEST_INFRA_DEFINITIONS_BUILDIMAGES
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/test-infra-definitions/runner$TEST_INFRA_DEFINITIONS_BUILDIMAGES_SUFFIX:$TEST_INFRA_DEFINITIONS_BUILDIMAGES
   needs: ["kernel_matrix_testing_setup_env", "kernel_matrix_testing_run_tests_x64", "kernel_matrix_testing_run_tests_arm64"]
   when: always
   tags: ["arch:amd64"]
