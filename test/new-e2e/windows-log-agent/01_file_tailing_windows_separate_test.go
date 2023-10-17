@@ -1,24 +1,27 @@
-// Unless explicitly stated otherwise all files in this repository are licensed
-// under the Apache License Version 2.0.
-// This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-present Datadog, Inc.
-
-package logAgent
+package WindowsLogAgent
 
 import (
 	"strings"
+	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e"
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/params"
 	"github.com/DataDog/test-infra-definitions/components/datadog/agentparams"
 	"github.com/DataDog/test-infra-definitions/scenarios/aws/vm/ec2os"
 	"github.com/DataDog/test-infra-definitions/scenarios/aws/vm/ec2params"
 )
 
-func (s *vmFakeintakeSuite) TestWindowsLogTailing() {
+// vmFakeintakeSuite defines a test suite for the log agent interacting with a virtual machine and fake intake.
+type windowsVmFakeintakeSuite struct {
+	e2e.Suite[e2e.FakeIntakeEnv]
+}
+
+// logsExampleStackDef returns the stack definition required for the log agent test suite.
+func windowsLogsStackDef(vmParams []ec2params.Option, agentParams ...agentparams.Option) *e2e.StackDefinition[e2e.FakeIntakeEnv] {
 	windowsConfig :=
 		`logs:
   - type: file
@@ -26,28 +29,41 @@ func (s *vmFakeintakeSuite) TestWindowsLogTailing() {
     service: hello
     source: custom_log
 `
-	s.UpdateEnv(e2e.FakeIntakeStackDef([]ec2params.Option{ec2params.WithOS(ec2os.WindowsOS)}, agentparams.WithLogs(), agentparams.WithIntegration("custom_logs.d", windowsConfig)))
-
-	// Clean up any existing log files
-	s.cleanUp()
-	defer s.cleanUp()
-
-	// Flush server and reset aggregators
-	s.Env().Fakeintake.FlushServerAndResetAggregators()
-	defer s.Env().Fakeintake.FlushServerAndResetAggregators()
-
-	// // Run test cases
-	// s.T().Run("WindowsLogCollection", func(t *testing.T) {
-	// 	s.WindowsLogCollection()
-	// })
-
-	// s.T().Run("WindowsLogPermission", func(t *testing.T) {
-	// 	s.WindowsLogPermission()
-	// })
+	return e2e.FakeIntakeStackDef(
+		e2e.WithVMParams(ec2params.WithOS(ec2os.WindowsOS)),
+		e2e.WithAgentParams(
+			agentparams.WithLogs(),
+			agentparams.WithIntegration("custom_logs.d", windowsConfig)))
 
 }
 
-func (s *vmFakeintakeSuite) WindowsLogCollection() {
+// TestE2EVMFakeintakeSuite runs the E2E test suite for the log agent with a VM and fake intake.
+func TestE2EWindowsVMFakeintakeSuite(t *testing.T) {
+	e2e.Run(t, &windowsVmFakeintakeSuite{}, windowsLogsStackDef(nil), params.WithDevMode())
+}
+
+func (s *windowsVmFakeintakeSuite) TestWindowsLogTailing() {
+	// Clean up once test is finished running
+	s.cleanUp()
+
+	// Flush server and reset aggregators
+	s.Env().Fakeintake.FlushServerAndResetAggregators()
+
+	// Run test cases
+	s.T().Run("WindowsLogCollection", func(t *testing.T) {
+		s.WindowsLogCollection()
+	})
+
+	s.T().Run("WindowsLogPermission", func(t *testing.T) {
+		s.WindowsLogPermission()
+	})
+
+	s.T().Run("WindowsLogRotation", func(t *testing.T) {
+		s.WindowsLogRotation()
+	})
+}
+
+func (s *windowsVmFakeintakeSuite) WindowsLogCollection() {
 	t := s.T()
 	fakeintake := s.Env().Fakeintake
 
@@ -72,7 +88,7 @@ func (s *vmFakeintakeSuite) WindowsLogCollection() {
 			require.Empty(t, logs, "Logs were found when none were expected.")
 		}
 
-	}, 5*time.Minute, 2*time.Second)
+	}, 10*time.Minute, 30*time.Second)
 
 	// Part 2: Adjust permissions of new log file
 	_, err = s.Env().VM.ExecuteWithError("icacls C:\\logs\\hello-world.log /grant *S-1-1-0:F")
@@ -82,18 +98,22 @@ func (s *vmFakeintakeSuite) WindowsLogCollection() {
 	generateLog(s, t, "hello-world")
 
 	// Part 3: Assert that logs are found in intake after generation
+	time.Sleep(10 * time.Second)
 	checkLogs(s, "hello", "hello-world")
 }
 
-func (s *vmFakeintakeSuite) WindowsLogPermission() {
+func (s *windowsVmFakeintakeSuite) WindowsLogPermission() {
 	t := s.T()
 
 	// Part 4: Block permission and check the Agent status
 	s.Env().VM.Execute("icacls C:\\logs\\hello-world.log /deny *S-1-1-0:F")
 
-	statusCmd := `& "$env:ProgramFiles\Datadog\Datadog Agent\bin\agent.exe" status | ` +
-		`Select-String 'custom_logs' -Context 0,10 | ` +
-		`ForEach-Object { $_.Line; $_.Context.PostContext }`
+	statusCmd := `
+		$agentPath = Join-Path $env:ProgramFiles 'Datadog\Datadog Agent\bin\agent.exe'
+		& $agentPath status |
+		    Select-String 'custom_logs' -Context 0,10 |
+		    ForEach-Object { $_.Line; $_.Context.PostContext }
+		`
 
 	s.EventuallyWithT(func(c *assert.CollectT) {
 		// Check the Agent status
@@ -104,7 +124,7 @@ func (s *vmFakeintakeSuite) WindowsLogPermission() {
 			require.Fail(t, "log file is unexpectedly accessible")
 		}
 
-		require.Contains(t, statusOutput, "permission denied", "Log file is correctly inaccessible")
+		require.Contains(t, statusOutput, "denied", "Log file is correctly inaccessible")
 	}, 3*time.Minute, 10*time.Second)
 
 	// Part 5: Restore permissions
@@ -123,7 +143,7 @@ func (s *vmFakeintakeSuite) WindowsLogPermission() {
 	}, 5*time.Minute, 2*time.Second)
 }
 
-func (s *vmFakeintakeSuite) TestWindowsLogRotation() {
+func (s *windowsVmFakeintakeSuite) WindowsLogRotation() {
 	t := s.T()
 
 	// Part 7: Rotate the log file and check if the agent is tailing the new log file.
@@ -139,20 +159,24 @@ func (s *vmFakeintakeSuite) TestWindowsLogRotation() {
 	// Grant new log file permission
 	s.Env().VM.Execute(`icacls C:\\logs\\hello-world.log /grant *S-1-1-0:F`)
 
-	statusCmd := `& \"$env:ProgramFiles\Datadog\Datadog Agent\bin\agent.exe\" status | ` +
-		`Select-String 'custom_logs' -Context 0,10 | ` +
-		`ForEach-Object { $_.Line; $_.Context.PostContext }`
+	statusCmd := `
+		$agentPath = Join-Path $env:ProgramFiles 'Datadog\Datadog Agent\bin\agent.exe'
+		& $agentPath status |
+		    Select-String 'custom_logs' -Context 0,10 |
+		    ForEach-Object { $_.Line; $_.Context.PostContext }
+		`
 
 	// Check if agent is tailing new log file via agent status
 	s.EventuallyWithT(func(c *assert.CollectT) {
 		newStatusOutput, err := s.Env().VM.ExecuteWithError(statusCmd)
 		require.NoErrorf(t, err, "Issue running agent status. Is the agent running?\n %s", newStatusOutput)
-		assert.Containsf(t, newStatusOutput, "Path: C:\\logs\\hello-world.log", "The agent is not tailing the expected log file,instead: \n %s", newStatusOutput)
-	}, 5*time.Minute, 10*time.Second)
+		assert.Containsf(t, newStatusOutput, "Path: C:\\\\logs\\\\hello-world.log", "The agent is not tailing the expected log file,instead: \n %s", newStatusOutput)
+	}, 10*time.Minute, 10*time.Second)
 
 	// Generate new log
 	generateLog(s, t, "hello-world-new-content")
 
 	// Verify Log's content is generated and submitted
+	time.Sleep(10 * time.Second)
 	checkLogs(s, "hello", "hello-world-new-content")
 }

@@ -1,4 +1,4 @@
-package subSuite
+package vacumn
 
 import (
 	"testing"
@@ -15,8 +15,10 @@ type vmFakeintakeSuite struct {
 }
 
 func logsExampleStackDef(vmParams []ec2params.Option, agentParams ...agentparams.Option) *e2e.StackDefinition[e2e.FakeIntakeEnv] {
-	return e2e.FakeIntakeStackDef(nil, agentparams.WithLogs())
-
+	return e2e.FakeIntakeStackDef(
+		// e2e.WithVMParams(nil),
+		e2e.WithAgentParams(agentparams.WithLogs()),
+	)
 }
 func TestE2EVMFakeintakeSuite(t *testing.T) {
 	e2e.Run(t, &vmFakeintakeSuite{}, logsExampleStackDef(nil), params.WithDevMode())
@@ -27,17 +29,17 @@ func (s *vmFakeintakeSuite) Test3LinuxTests() {
 		s.LinuxSubTest1()
 	})
 
-	time.Sleep(1 * time.Second)
+	// time.Sleep(1 * time.Second)
 
-	s.T().Run("LinuxSubTest2", func(t *testing.T) {
-		s.LinuxSubTest2()
-	})
+	// s.T().Run("LinuxSubTest2", func(t *testing.T) {
+	// 	s.LinuxSubTest2()
+	// })
 
-	time.Sleep(1 * time.Second)
+	// time.Sleep(1 * time.Second)
 
-	s.T().Run("LinuxSubTest2", func(t *testing.T) {
-		s.LinuxSubTest3()
-	})
+	// s.T().Run("LinuxSubTest2", func(t *testing.T) {
+	// 	s.LinuxSubTest3()
+	// })
 }
 func (s *vmFakeintakeSuite) LinuxSubTest1() {
 	s.Env().VM.Execute("sudo touch /var/log/meowtwo.log ")

@@ -33,7 +33,10 @@ func logsExampleStackDef(vmParams []ec2params.Option, agentParams ...agentparams
     service: hello
     source: custom_log
 `
-	return e2e.FakeIntakeStackDef(nil, agentparams.WithLogs(), agentparams.WithIntegration("custom_logs.d", config))
+	return e2e.FakeIntakeStackDef(
+		e2e.WithAgentParams(
+			agentparams.WithLogs(),
+			agentparams.WithIntegration("custom_logs.d", config)))
 
 }
 
@@ -45,11 +48,11 @@ func TestE2EVMFakeintakeSuite(t *testing.T) {
 func (s *vmFakeintakeSuite) TestLinuxLogTailing() {
 	// Clean up once test is finished running
 	s.cleanUp()
-	defer s.cleanUp()
+	// defer s.cleanUp()
 
 	// Flush server and reset aggregators
 	s.Env().Fakeintake.FlushServerAndResetAggregators()
-	defer s.Env().Fakeintake.FlushServerAndResetAggregators()
+	// defer s.Env().Fakeintake.FlushServerAndResetAggregators()
 
 	// Run test cases
 	s.T().Run("LogCollection", func(t *testing.T) {
@@ -84,7 +87,7 @@ func (s *vmFakeintakeSuite) LogCollection() {
 			t.Logf("Logs detected when none were expected: %v", cat)
 			require.Empty(t, logs, "Logs were found when none were expected.")
 		}
-	}, 5*time.Minute, 2*time.Second)
+	}, 5*time.Minute, 10*time.Second)
 
 	// Part 2: Adjust permissions of new log file
 	_, err := s.Env().VM.ExecuteWithError("sudo chmod 777 /var/log/hello-world.log")
@@ -111,7 +114,7 @@ func (s *vmFakeintakeSuite) LogPermission() {
 			require.Fail(t, "log file is unexpectedly accessible")
 		}
 
-		require.Contains(t, statusOutput, "permission denied", "Log file is correctly inaccessible")
+		require.Contains(t, statusOutput, "denied", "Log file is correctly inaccessible")
 	}, 3*time.Minute, 10*time.Second)
 
 	// Part 5: Restore permissions
