@@ -8,6 +8,7 @@ package config
 
 import (
 	"fmt"
+	"strings"
 	"time"
 
 	sysconfig "github.com/DataDog/datadog-agent/cmd/system-probe/config"
@@ -464,6 +465,14 @@ func parseHashAlgorithmStringSlice(algorithms []string) []model.HashAlgorithm {
 		}
 	}
 	return output
+}
+
+// GetFamilyAddress returns the address famility to use for system-probe <-> security-agent communication
+func GetFamilyAddress(path string) (string, string) {
+	if strings.HasPrefix(path, "/") {
+		return "unix", path
+	}
+	return "tcp", path
 }
 
 var (

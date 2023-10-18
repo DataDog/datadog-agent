@@ -88,7 +88,7 @@ const (
 	DefaultLogsSenderBackoffRecoveryInterval = 2
 
 	// DefaultInventoriesMinInterval is the default value for inventories_min_interval, in seconds
-	DefaultInventoriesMinInterval = 5 * 60
+	DefaultInventoriesMinInterval = 60
 
 	// DefaultInventoriesMaxInterval is the default value for inventories_max_interval, in seconds
 	DefaultInventoriesMaxInterval = 10 * 60
@@ -1222,7 +1222,6 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("serverless.trace_enabled", false, "DD_TRACE_ENABLED")
 	config.BindEnvAndSetDefault("serverless.trace_managed_services", true, "DD_TRACE_MANAGED_SERVICES")
 	config.BindEnvAndSetDefault("serverless.service_mapping", nil, "DD_SERVICE_MAPPING")
-	config.BindEnvAndSetDefault("serverless.constant_backoff_interval", 100*time.Millisecond)
 
 	// trace-agent's evp_proxy
 	config.BindEnv("evp_proxy_config.enabled")

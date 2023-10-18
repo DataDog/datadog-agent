@@ -146,10 +146,11 @@ namespace Datadog.CustomActions
                 _serviceController.SetCredentials(Constants.SystemProbeServiceName, "LocalSystem", "");
                 _serviceController.SetCredentials(Constants.ProcessAgentServiceName, "LocalSystem", "");
 
-                 var installCWS = _session.Property("INSTALL_CWS");
-                 if(!string.IsNullOrEmpty(installCWS)){
+                var installCWS = _session.Property("INSTALL_CWS");
+                if (!string.IsNullOrEmpty(installCWS))
+                {
                     _serviceController.SetCredentials(Constants.SecurityAgentServiceName, ddAgentUserName, ddAgentUserPassword);
-                 }
+                }
             }
             catch (Exception e)
             {
@@ -213,7 +214,7 @@ namespace Datadog.CustomActions
                 // ** some services are optionally included in the package at build time.  Including
                 // them here will simply cause a spurious "Service X not found" in the log if the
                 // installer is built without that component.
-                var ddservices = new []
+                var ddservices = new[]
                 {
                     Constants.SystemProbeServiceName,
                     Constants.NpmServiceName,

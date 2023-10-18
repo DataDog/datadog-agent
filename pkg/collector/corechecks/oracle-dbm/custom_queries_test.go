@@ -9,8 +9,9 @@ package oracle
 
 import (
 	"fmt"
+	"testing"
+
 	"github.com/DATA-DOG/go-sqlmock"
-	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/oracle-dbm/config"
@@ -18,7 +19,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
-	"testing"
 )
 
 var chk Check
@@ -44,8 +44,8 @@ service_name: %s
 tns_alias: %s
 tns_admin: %s
 `, HOST, PORT, USER, PASSWORD, SERVICE_NAME, TNS_ALIAS, TNS_ADMIN))
-
-	err := chk.Configure(aggregator.GetSenderManager(), integration.FakeConfigHash, rawInstanceConfig, []byte(``), "oracle_test")
+	senderManager := mocksender.CreateDefaultDemultiplexer()
+	err := chk.Configure(senderManager, integration.FakeConfigHash, rawInstanceConfig, []byte(``), "oracle_test")
 	require.NoError(t, err)
 
 	assert.Equal(t, chk.config.InstanceConfig.Server, HOST)

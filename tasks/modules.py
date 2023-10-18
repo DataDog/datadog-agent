@@ -147,6 +147,7 @@ DEFAULT_MODULES = {
         lint_targets=["."],
     ),
     "test/fakeintake": GoModule("test/fakeintake", independent=True),
+    "pkg/errors": GoModule("pkg/errors", independent=True),
     "pkg/obfuscate": GoModule("pkg/obfuscate", independent=True),
     "pkg/gohai": GoModule("pkg/gohai", independent=True, importable=False),
     "pkg/proto": GoModule("pkg/proto", independent=True),
@@ -154,6 +155,7 @@ DEFAULT_MODULES = {
     "pkg/config/model": GoModule("pkg/config/model", independent=True),
     "pkg/config/env": GoModule("pkg/config/env", independent=True),
     "pkg/security/secl": GoModule("pkg/security/secl", independent=True),
+    "pkg/status/health": GoModule("pkg/status/health", independent=True),
     "pkg/remoteconfig/state": GoModule("pkg/remoteconfig/state", independent=True),
     "pkg/util/cgroups": GoModule("pkg/util/cgroups", independent=True, condition=lambda: sys.platform == "linux"),
     "pkg/util/log": GoModule("pkg/util/log", independent=True),
@@ -168,6 +170,7 @@ DEFAULT_MODULES = {
     "pkg/util/json": GoModule("pkg/util/json", independent=True),
     "pkg/util/system/socket": GoModule("pkg/util/system/socket", independent=True),
     "pkg/util/testutil": GoModule("pkg/util/testutil", independent=True),
+    "pkg/version": GoModule("pkg/version", independent=True),
     "pkg/networkdevice/profile": GoModule("pkg/networkdevice/profile", independent=True),
 }
 

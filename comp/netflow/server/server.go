@@ -11,10 +11,10 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer"
 	"github.com/DataDog/datadog-agent/comp/core/hostname"
 	"github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/comp/ndmtmp/forwarder"
-	"github.com/DataDog/datadog-agent/comp/ndmtmp/sender"
 	nfconfig "github.com/DataDog/datadog-agent/comp/netflow/config"
 	"github.com/DataDog/datadog-agent/comp/netflow/flowaggregator"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
@@ -23,17 +23,21 @@ import (
 
 type dependencies struct {
 	fx.In
-	Config    nfconfig.Component
-	Logger    log.Component
-	Sender    sender.Component
-	Forwarder forwarder.Component
-	Hostname  hostname.Component
+	Config        nfconfig.Component
+	Logger        log.Component
+	Demultiplexer demultiplexer.Component
+	Forwarder     forwarder.Component
+	Hostname      hostname.Component
 }
 
 // newServer configures a netflow server.
 func newServer(lc fx.Lifecycle, deps dependencies) (Component, error) {
 	conf := deps.Config.Get()
-	flowAgg := flowaggregator.NewFlowAggregator(deps.Sender, deps.Forwarder, conf, deps.Hostname.GetSafe(context.Background()), deps.Logger)
+	sender, err := deps.Demultiplexer.GetDefaultSender()
+	if err != nil {
+		return nil, err
+	}
+	flowAgg := flowaggregator.NewFlowAggregator(sender, deps.Forwarder, conf, deps.Hostname.GetSafe(context.Background()), deps.Logger)
 
 	server := &Server{
 		config:  conf,

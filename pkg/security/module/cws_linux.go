@@ -10,10 +10,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/config"
 )
 
-func getFamilyAddress(config *config.RuntimeSecurityConfig) (string, string) {
-	return "unix", config.SocketPath
-}
-
 // UpdateEventMonitorOpts adapt the event monitor options
 func UpdateEventMonitorOpts(opts *eventmonitor.Opts, config *config.Config) {
 	opts.ProbeOpts.PathResolutionEnabled = true
