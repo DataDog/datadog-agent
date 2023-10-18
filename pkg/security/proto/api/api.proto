@@ -250,13 +250,14 @@ message SecurityProfileMessage {
     WorkloadSelectorMessage Selector = 3;
     uint64 ProfileCookie = 4;
     repeated string EventTypes = 5;
-    repeated LastAnomalyTimestampMessage LastAnomalies = 6;
+    repeated LastAnomalyTimestampMessage LastAnomalies = 6 [deprecated = true];
     repeated InstanceMessage Instances = 7;
     string Status = 8;
-    string Version = 9;
+    string Version = 9 [deprecated = true];
     MetadataMessage Metadata = 10;
-    repeated string Tags = 11;
+    repeated string Tags = 11 [deprecated = true];
     ActivityTreeStatsMessage Stats = 12;
+    string ProfileGlobalState = 13;
 }
 
 message SecurityProfileListParams {

@@ -12,23 +12,30 @@ import (
 	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
+	"github.com/DataDog/datadog-agent/pkg/security/utils"
+	"golang.org/x/exp/slices"
 )
 
 // DNSNode is used to store a DNS node
 type DNSNode struct {
 	MatchedRules []*model.MatchedRule
+	ImageTags    []string
 
 	GenerationType NodeGenerationType
 	Requests       []model.DNSEvent
 }
 
 // NewDNSNode returns a new DNSNode instance
-func NewDNSNode(event *model.DNSEvent, rules []*model.MatchedRule, generationType NodeGenerationType) *DNSNode {
-	return &DNSNode{
+func NewDNSNode(event *model.DNSEvent, rules []*model.MatchedRule, generationType NodeGenerationType, imageTag string) *DNSNode {
+	node := &DNSNode{
 		MatchedRules:   rules,
 		GenerationType: generationType,
 		Requests:       []model.DNSEvent{*event},
 	}
+	if imageTag != "" {
+		node.ImageTags = []string{imageTag}
+	}
+	return node
 }
 
 func dnsFilterSubdomains(name string, maxDepth int) string {
@@ -44,4 +51,24 @@ func dnsFilterSubdomains(name string, maxDepth int) string {
 		result = tab[len(tab)-i-1] + result
 	}
 	return result
+}
+
+func (dn *DNSNode) appendImageTag(imageTag string) {
+	if imageTag != "" && !slices.Contains(dn.ImageTags, imageTag) {
+		dn.ImageTags = append(dn.ImageTags, imageTag)
+	}
+}
+
+func (dn *DNSNode) evictImageTag(imageTag string, DNSNames *utils.StringKeys) bool {
+	if imageTag != "" && slices.Contains(dn.ImageTags, imageTag) {
+		dn.ImageTags = removeImageTagFromList(dn.ImageTags, imageTag)
+		if len(dn.ImageTags) == 0 {
+			return true
+		}
+	}
+	// also, reconstruct the list of all DNS requests
+	if len(dn.Requests) > 0 {
+		DNSNames.Insert(dn.Requests[0].Name)
+	}
+	return false
 }

@@ -167,7 +167,6 @@ func printSecurityProfileMessage(msg *api.SecurityProfileMessage) {
 	fmt.Printf("%s  workload_selector:\n", prefix)
 	fmt.Printf("%s    image_name: %v\n", prefix, msg.GetSelector().GetName())
 	fmt.Printf("%s    image_tag: %v\n", prefix, msg.GetSelector().GetTag())
-	fmt.Printf("%s  version: %v\n", prefix, msg.GetVersion())
 	fmt.Printf("%s  status: %v\n", prefix, msg.GetStatus())
 	fmt.Printf("%s  kernel_space:\n", prefix)
 	fmt.Printf("%s    loaded: %v\n", prefix, msg.GetLoadedInKernel())
@@ -176,14 +175,7 @@ func printSecurityProfileMessage(msg *api.SecurityProfileMessage) {
 		fmt.Printf("%s    cookie: %v - 0x%x\n", prefix, msg.GetProfileCookie(), msg.GetProfileCookie())
 	}
 	fmt.Printf("%s  event_types: %v\n", prefix, msg.GetEventTypes())
-	if len(msg.GetLastAnomalies()) > 0 {
-		fmt.Printf("%s  last_anomalies:\n", prefix)
-		for _, ano := range msg.GetLastAnomalies() {
-			fmt.Printf("%s    - event_type: %s\n", prefix, ano.GetEventType())
-			fmt.Printf("%s      timestamp: %s\n", prefix, ano.GetTimestamp())
-			fmt.Printf("%s      is_stable: %v\n", prefix, ano.GetIsStableEventType())
-		}
-	}
+	fmt.Printf("%s  global_state: %v\n", prefix, msg.GetProfileGlobalState())
 	if len(msg.GetInstances()) > 0 {
 		fmt.Printf("%s  instances:\n", prefix)
 		for _, inst := range msg.GetInstances() {
@@ -191,7 +183,6 @@ func printSecurityProfileMessage(msg *api.SecurityProfileMessage) {
 			fmt.Printf("%s      tags: %v\n", prefix, inst.GetTags())
 		}
 	}
-	fmt.Printf("%s  tags: %v\n", prefix, msg.GetTags())
 	printActivityTreeStats(prefix, msg.GetStats())
 }
 
