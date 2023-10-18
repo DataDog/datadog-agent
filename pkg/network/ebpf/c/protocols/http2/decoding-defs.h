@@ -132,15 +132,9 @@ typedef struct {
 } http2_tls_state_key_t;
 
 typedef struct {
-    bool should_skip;
+    bool relevant;
     __u32 stream_id;
     __u8 frame_flags;
 } http2_tls_state_t;
-
-typedef struct {
-    __u8 iteration;
-    __u8 frames_count;
-    http2_frame_with_offset frames_array[HTTP2_MAX_FRAMES_ITERATIONS] __attribute__((aligned(8)));
-} http2_tls_tail_call_state_t;
 
 #endif

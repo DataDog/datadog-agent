@@ -14,8 +14,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/cihub/seelog"
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
 	"google.golang.org/grpc/metadata"
 
@@ -27,6 +27,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/tracer"
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/testutil/grpc"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 const (
@@ -58,19 +59,16 @@ func TestGRPCScenarios(t *testing.T) {
 
 	rand.Seed(time.Now().UnixNano())
 
-	ebpftest.TestBuildModes(t, []ebpftest.BuildMode{ebpftest.Prebuilt, ebpftest.RuntimeCompiled, ebpftest.CORE}, "", func(t *testing.T) {
+	ebpftest.TestBuildModes(t, []ebpftest.BuildMode{ebpftest.Prebuilt, ebpftest.RuntimeCompiled, ebpftest.CORE}, "without TLS", func(t *testing.T) {
+		usmSuite := new(USMgRPCSuite)
+		usmSuite.withTls = false
+		suite.Run(t, usmSuite)
+	})
 
-		t.Run("without TLS", func(t *testing.T) {
-			usmSuite := new(USMgRPCSuite)
-			usmSuite.withTls = false
-			suite.Run(t, usmSuite)
-		})
-
-		t.Run("with TLS", func(t *testing.T) {
-			usmSuite := new(USMgRPCSuite)
-			usmSuite.withTls = true
-			suite.Run(t, usmSuite)
-		})
+	ebpftest.TestBuildModes(t, []ebpftest.BuildMode{ebpftest.RuntimeCompiled, ebpftest.CORE}, "with TLS", func(t *testing.T) {
+		usmSuite := new(USMgRPCSuite)
+		usmSuite.withTls = true
+		suite.Run(t, usmSuite)
 	})
 }
 
@@ -98,8 +96,8 @@ func (s *USMgRPCSuite) TestSimpleGRPCScenarios() {
 	cfg.EnableGoTLSSupport = s.withTls
 	cfg.BPFDebug = true
 
-	if s.withTls && isPrebuilt(cfg) {
-		t.Skip("TLS tests are not supported on prebuilt")
+	if s.withTls {
+		log.SetupLogger(seelog.Default, "debug")
 	}
 
 	srv, err := grpc.NewServer(srvAddr, s.withTls)
@@ -362,9 +360,10 @@ func (s *USMgRPCSuite) TestLargeBodiesGRPCScenarios() {
 	cfg := config.New()
 	cfg.EnableHTTP2Monitoring = true
 	cfg.EnableGoTLSSupport = s.withTls
+	cfg.BPFDebug = true
 
-	if s.withTls && isPrebuilt(cfg) {
-		t.Skip("TLS tests are not supported on prebuilt")
+	if s.withTls {
+		log.SetupLogger(seelog.Default, "debug")
 	}
 
 	srv, err := grpc.NewServer(srvAddr, s.withTls)

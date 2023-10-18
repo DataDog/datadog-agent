@@ -58,16 +58,6 @@ static __always_inline void tls_process(struct pt_regs *ctx, conn_tuple_t *t, vo
     if (!stack) {
         return;
     }
-    log_debug("tls process entry");
-    log_debug("[tls_process] conn tuple: saddr_h=%lu saddr_l=%lu",
-        t->saddr_h,
-        t->saddr_l);
-    log_debug("[tls_process] conn tuple: daddr_h=%lu daddr_l=%lu",
-        t->daddr_h,
-        t->daddr_l);
-    log_debug("[tls_process] conn tuple: sport=%u dport=%u",
-        t->sport,
-        t->dport);
 
     const __u32 zero = 0;
     protocol_t protocol = get_protocol_from_stack(stack, LAYER_APPLICATION);

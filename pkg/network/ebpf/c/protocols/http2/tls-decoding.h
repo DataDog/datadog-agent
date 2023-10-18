@@ -2,17 +2,11 @@
 #define TLS_DECODING_H_
 
 #include "bpf_builtins.h"
-/* #include "bpf_helpers.h" */
-/* #include "ip.h" */
-/* #include "map-defs.h" */
-
-/* #include "protocols/classification/defs.h" */
-/* #include "protocols/http/types.h" */
 #include "helpers.h"
+
 #include "protocols/http/buffer.h"
 #include "protocols/http2/decoding-common.h"
 #include "protocols/http2/maps-defs.h"
-/* #include "protocols/http2/usm-events.h" */
 #include "protocols/tls/https-maps.h"
 
 READ_INTO_USER_BUFFER(http2_preface, HTTP2_MARKER_SIZE)

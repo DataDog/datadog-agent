@@ -412,64 +412,51 @@ delete_iteration:
 SEC("uprobe/http2_tls_entry")
 int uprobe__http2_tls_entry(struct pt_regs *ctx) {
     const u32 zero = 0;
-    http2_tls_state_t new_state;
-
     tls_dispatcher_arguments_t *info = bpf_map_lookup_elem(&tls_dispatcher_arguments, &zero);
     if (info == NULL) {
         log_debug("[http2_tls_entry] could not get tls info from map");
         return 0;
     }
 
-    http2_tls_state_key_t key;
-    bpf_memset(&key, 0, sizeof(key));
-
+    http2_tls_state_key_t key = { 0 };
     key.tup = info->tup;
     key.length = info->len;
     http2_tls_state_t *state = bpf_map_lookup_elem(&http2_tls_states, &key);
-    if (!state) {
-        // filter frames
-        struct http2_frame header;
-        bool relevant = is_relevant_frame_tls(info, &header);
-        if (!relevant) {
-            return 0;
-        }
 
-        bpf_memset(&new_state, 0, sizeof(new_state));
-        new_state.should_skip = !relevant;
-        new_state.stream_id = header.stream_id;
-        new_state.frame_flags = header.flags;
+    if (!state) {
+        struct http2_frame header = { 0 };
+        bool relevant = is_relevant_frame_tls(info, &header);
 
         bool header_only = info->len == HTTP2_FRAME_HEADER_SIZE;
-
-        if (!header_only && new_state.should_skip) {
-            // The buffer seems to contain the whole frame, we skip it without
-            // storing some state.
+        if (!header_only && !relevant) {
+            // The buffer seems to contain the whole frame, and the frame is not
+            // relevant: we skip it without storing some state.
             goto exit;
         }
+
+        http2_tls_state_t new_state = { 0 };
+        new_state.relevant = relevant;
+        new_state.stream_id = header.stream_id;
+        new_state.frame_flags = header.flags;
 
         key.length = header_only ? header.length : info->len;
 
         bpf_map_update_elem(&http2_tls_states, &key, &new_state, BPF_ANY);
-        if (!header_only)
-            goto parser;
-
-        goto exit;
-    }
-
-    if (state->should_skip) {
+        if (header_only)
+            goto exit;
+    } else if (!state->relevant) {
         bpf_map_delete_elem(&http2_tls_states, &key);
         goto exit;
     }
 
-parser:
     bpf_tail_call_compat(ctx, &tls_process_progs, TLS_HTTP2_FRAMES_PARSER);
+
 exit:
     return 0;
 }
 
 SEC("uprobe/http2_tls_frames_parser")
 int uprobe__http2_tls_frames_parser(struct pt_regs *ctx) {
-    log_debug("http2_tls_frames_parser: after tail call");
     const u32 zero = 0;
 
     tls_dispatcher_arguments_t *info = bpf_map_lookup_elem(&tls_dispatcher_arguments, &zero);
@@ -478,8 +465,7 @@ int uprobe__http2_tls_frames_parser(struct pt_regs *ctx) {
         return 0;
     }
 
-    http2_tls_state_key_t key;
-    bpf_memset(&key, 0, sizeof(key));
+    http2_tls_state_key_t key = { 0 };
 
     key.tup = info->tup;
     key.length = info->len;
@@ -490,7 +476,7 @@ int uprobe__http2_tls_frames_parser(struct pt_regs *ctx) {
 
     http2_ctx_t *http2_ctx = bpf_map_lookup_elem(&http2_ctx_heap, &zero);
     if (http2_ctx == NULL) {
-        goto exit;
+        goto state_delete;
     }
 
     // create the http2 ctx for the current http2 frame.
@@ -502,9 +488,11 @@ int uprobe__http2_tls_frames_parser(struct pt_regs *ctx) {
 
     parse_frame_tls(info, http2_ctx, state->frame_flags);
     if (info->off >= info->len) {
-        goto exit;
+        goto state_delete;
     }
 
+state_delete:
+    bpf_map_delete_elem(&http2_tls_states, &key);
 exit:
     return 0;
 }
