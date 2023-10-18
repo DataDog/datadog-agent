@@ -95,6 +95,9 @@ build do
             delete "#{install_dir}/embedded/lib/pkgconfig"
             # Same goes for .cmake files
             delete "#{install_dir}/embedded/lib/cmake"
+            # and for libtool files
+            delete "#{install_dir}/embedded/lib/*.la"
+
         end
 
         if linux?
