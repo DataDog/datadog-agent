@@ -67,6 +67,7 @@ func NewTimeSampler(id TimeSamplerID, interval int64, cache *tags.Store, context
 	return s
 }
 
+// TimeSamplerID returns the ID of the time sampler
 func (s *TimeSampler) TimeSamplerID() TimeSamplerID {
 	return s.id
 }
