@@ -19,6 +19,10 @@ type netflowListener struct {
 	Error     *atomic.String
 }
 
+func (l *netflowListener) shutdown() {
+	l.flowState.Shutdown()
+}
+
 func startFlowListener(listenerConfig config.ListenerConfig, flowAgg *flowaggregator.FlowAggregator, logger log.Component) (*netflowListener, error) {
 	atomicErr := atomic.NewString("")
 
