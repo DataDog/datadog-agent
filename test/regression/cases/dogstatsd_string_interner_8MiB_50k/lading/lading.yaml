@@ -1,3 +1,5 @@
+# If you update this configuration please update `uds_dogstatsd_*` experiments
+# to match, where reasonable.
 generator:
   - unix_datagram:
       seed: [2, 3, 5, 7, 11, 13, 17, 19, 23, 29, 31, 37, 41, 43, 47, 53,
@@ -6,9 +8,7 @@ generator:
       variant:
         dogstatsd:
           contexts:
-            inclusive:
-              min: 1000
-              max: 10000
+            constant: 50000
           name_length:
             inclusive:
               min: 1
@@ -38,10 +38,10 @@ generator:
             count: 100
             gauge: 10
             timer: 0
-            distribution: 0
+            distribution: 50
             set: 0
-            histogram: 0
-      bytes_per_second: "100 MiB"
+            histogram: 1
+      bytes_per_second: "8 MiB"
       block_sizes: ["256b", "512b", "1Kb", "2Kb", "3Kb", "4Kb", "5Kb", "6Kb"]
       maximum_prebuild_cache_size_bytes: "500 Mb"
 
