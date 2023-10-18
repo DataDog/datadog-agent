@@ -492,10 +492,11 @@ func scanEBS(ctx context.Context, statsd ddgostatsd.ClientInterface, scan ebsSca
 		log.Debugf("starting volume snapshotting %q", scan.VolumeID)
 		snapshotID, err = createEBSSnapshot(ctx, svc, scan)
 		if err != nil {
+			statsd.Count("datadog.sidescanner.snapshots.finished", 1.0, tagFailure(tags), 1.0)
 			return nil, err
 		}
 		log.Debugf("volume snapshotting finished sucessfully %q", snapshotID)
-		statsd.Count("datadog.sidescanner.snapshots.finished", 1.0, tags, 1.0)
+		statsd.Count("datadog.sidescanner.snapshots.finished", 1.0, tagSuccess(tags), 1.0)
 		statsd.Histogram("datadog.sidescanner.snapshots.duration", float64(time.Since(snapshotStartedAt).Milliseconds()), tags, 1.0)
 		defer func() {
 			log.Debugf("deleting snapshot %q", snapshotID)
@@ -522,6 +523,7 @@ func scanEBS(ctx context.Context, statsd ddgostatsd.ClientInterface, scan ebsSca
 		AWSRegion:         scan.Region,
 	})
 	if err != nil {
+		statsd.Count("datadog.sidescanner.scans.finished", 1.0, tagFailure(tags), 1.0)
 		return nil, fmt.Errorf("unable to create artifact from image: %w", err)
 	}
 	trivyDetector := ospkg.Detector{}
@@ -535,7 +537,7 @@ func scanEBS(ctx context.Context, statsd ddgostatsd.ClientInterface, scan ebsSca
 		ScanRemovedPackages: false,
 		ListAllPackages:     true,
 	})
-	statsd.Count("datadog.sidescanner.scans.finished", 1.0, tags, 1.0)
+	statsd.Count("datadog.sidescanner.scans.finished", 1.0, tagSuccess(tags), 1.0)
 	statsd.Histogram("datadog.sidescanner.scans.duration", float64(time.Since(scanStartedAt).Milliseconds()), tags, 1.0)
 	if err != nil {
 		return nil, fmt.Errorf("unable to marshal report to sbom format: %w", err)
