@@ -63,6 +63,7 @@ HEADER_EXCLUSION_REGEX = [
     '^// Copyright 2017 Kinvolk',
     '^// Copyright 2021 The Vitess Authors.',
     '^// This file is licensed under the MIT License.',
+    '^// Copyright \\(C\\) 2017 ScyllaDB',
 ]
 
 

@@ -1,0 +1,25 @@
+
+.new-e2e_os_debian:
+  variables:
+    E2E_PLATFORM: debian
+
+.new-e2e_debian_a7_x64:
+  variables:
+    E2E_OSVERS: "debian-10,debian-11,debian-12"
+    E2E_CWS_SUPPORTED_OSVERS: "debian-10,debian-11"
+    E2E_BRANCH_OSVERS: "debian-11"
+  needs: ["deploy_deb_testing-a7_x64"]
+
+new-e2e-agent-platform-install-script-debian-a7-x64:
+  stage: kitchen_testing
+  extends: 
+    - .new_e2e_template
+    - .new-e2e_os_debian
+    - .new-e2e_debian_a7_x64
+    - .new-e2e_agent_a7
+  rules:
+    !reference [.on_default_new-e2e_tests_a7]
+  variables:
+    TARGETS: ./tests/agent-platform/install-script
+    TEAM: agent-platform
+    EXTRA_PARAMS: --osversion $E2E_OSVERS --platform $E2E_PLATFORM --cws-supported-osversion $E2E_CWS_SUPPORTED_OSVERS

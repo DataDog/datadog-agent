@@ -6,6 +6,7 @@
 package containerimage
 
 import (
+	"context"
 	"strings"
 	"time"
 
@@ -14,6 +15,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/tagger"
 	"github.com/DataDog/datadog-agent/pkg/tagger/collectors"
 	queue "github.com/DataDog/datadog-agent/pkg/util/aggregatingqueue"
+	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
 
@@ -32,10 +34,16 @@ type processor struct {
 }
 
 func newProcessor(sender sender.Sender, maxNbItem int, maxRetentionTime time.Duration) *processor {
+	hname, err := hostname.Get(context.TODO())
+	if err != nil {
+		log.Warnf("Error getting hostname: %v", err)
+	}
+
 	return &processor{
 		queue: queue.NewQueue(maxNbItem, maxRetentionTime, func(images []*model.ContainerImage) {
 			encoded, err := proto.Marshal(&model.ContainerImagePayload{
 				Version: "v1",
+				Host:    hname,
 				Source:  &sourceAgent,
 				Images:  images,
 			})

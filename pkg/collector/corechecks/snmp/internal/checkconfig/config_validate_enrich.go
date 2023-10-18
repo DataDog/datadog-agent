@@ -172,8 +172,14 @@ func validateEnrichSymbol(symbol *profiledefinition.SymbolConfig, symbolContext 
 }
 func validateEnrichMetricTag(metricTag *profiledefinition.MetricTagConfig) []string {
 	var errors []string
+	if (metricTag.Column.OID != "" || metricTag.Column.Name != "") && (metricTag.Symbol.OID != "" || metricTag.Symbol.Name != "") {
+		errors = append(errors, fmt.Sprintf("metric tag symbol and column cannot be both declared: symbol=%v, column=%v", metricTag.Symbol, metricTag.Column))
+	}
+
+	// Move deprecated metricTag.Column to metricTag.Symbol
 	if metricTag.Column.OID != "" || metricTag.Column.Name != "" {
-		errors = append(errors, validateEnrichSymbol(&metricTag.Column, MetricTagSymbol)...)
+		metricTag.Symbol = profiledefinition.SymbolConfigCompat(metricTag.Column)
+		metricTag.Column = profiledefinition.SymbolConfig{}
 	}
 
 	// OID/Name to Symbol harmonization:
