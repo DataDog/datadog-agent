@@ -12,6 +12,6 @@ import (
 	"github.com/gorilla/mux"
 )
 
-func installCloudFoundryMetadataEndpoints(r *mux.Router) {}
+func installCloudFoundryMetadataEndpoints(_ *mux.Router) {}
 
-func installKubernetesMetadataEndpoints(r *mux.Router, w workloadmeta.Component) {}
+func installKubernetesMetadataEndpoints(_ *mux.Router, _ workloadmeta.Component) {}

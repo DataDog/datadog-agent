@@ -192,12 +192,12 @@ func (r *reflectorStore) ListKeys() []string {
 }
 
 // Get is not implemented
-func (r *reflectorStore) Get(obj interface{}) (item interface{}, exists bool, err error) {
+func (r *reflectorStore) Get(_ interface{}) (item interface{}, exists bool, err error) {
 	panic("not implemented")
 }
 
 // GetByKey is not implemented
-func (r *reflectorStore) GetByKey(key string) (item interface{}, exists bool, err error) {
+func (r *reflectorStore) GetByKey(_ string) (item interface{}, exists bool, err error) {
 	panic("not implemented")
 }
 
