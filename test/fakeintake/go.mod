@@ -3,7 +3,7 @@ module github.com/DataDog/datadog-agent/test/fakeintake
 go 1.20
 
 require (
-	github.com/DataDog/agent-payload/v5 v5.0.73
+	github.com/DataDog/agent-payload/v5 v5.0.98
 	github.com/benbjohnson/clock v1.3.0
 	github.com/cenkalti/backoff v2.2.1+incompatible
 	github.com/cenkalti/backoff/v4 v4.2.1
@@ -20,5 +20,6 @@ require (
 	github.com/kr/text v0.2.0 // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect
 	github.com/rogpeppe/go-internal v1.9.0 // indirect
+	google.golang.org/protobuf v1.28.1 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
