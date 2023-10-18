@@ -1389,8 +1389,10 @@ func (p *Probe) applyDefaultFilterPolicies() {
 
 // ApplyRuleSet setup the probes for the provided set of rules and returns the policy report.
 func (p *Probe) ApplyRuleSet(rs *rules.RuleSet) (*kfilters.ApplyRuleSetReport, error) {
-	if err := p.monitors.syscallsMonitor.Disable(); err != nil {
-		return nil, err
+	if p.Opts.SyscallsMonitorEnabled {
+		if err := p.monitors.syscallsMonitor.Disable(); err != nil {
+			return nil, err
+		}
 	}
 
 	ars, err := kfilters.NewApplyRuleSetReport(p.Config.Probe, rs)
@@ -1411,11 +1413,13 @@ func (p *Probe) ApplyRuleSet(rs *rules.RuleSet) (*kfilters.ApplyRuleSetReport, e
 		return nil, fmt.Errorf("failed to select probes: %w", err)
 	}
 
-	if err := p.monitors.syscallsMonitor.Flush(); err != nil {
-		return nil, err
-	}
-	if err := p.monitors.syscallsMonitor.Enable(); err != nil {
-		return nil, err
+	if p.Opts.SyscallsMonitorEnabled {
+		if err := p.monitors.syscallsMonitor.Flush(); err != nil {
+			return nil, err
+		}
+		if err := p.monitors.syscallsMonitor.Enable(); err != nil {
+			return nil, err
+		}
 	}
 
 	return ars, nil
