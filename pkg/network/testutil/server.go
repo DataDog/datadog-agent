@@ -114,8 +114,8 @@ func StartServerUDP(t *testing.T, ip net.IP, port int) io.Closer {
 
 	udpConn, err := net.ListenUDP(network, addr)
 	assert.Nil(t, err)
-	
-	if port == 0{
+
+	if port == 0 {
 		addrStr := udpConn.LocalAddr().String()
 		_, portStr, err := net.SplitHostPort(addrStr)
 		assert.Nil(t, err)
