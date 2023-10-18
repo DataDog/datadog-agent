@@ -91,7 +91,7 @@ func ResetGlobalLeaderEngine() {
 }
 
 // Initialize initializes the leader engine
-func (le *LeaderEngine) Initialize() error {
+func (le *LeaderEngine) Initialize() *retry.Error {
 	err := globalLeaderEngine.initRetry.TriggerRetry()
 	if err != nil {
 		log.Debugf("Leader Election init error: %s", err)
