@@ -185,11 +185,6 @@ func scanCmd(rawScan []byte) error {
 
 	common.SetupInternalProfiling(pkgconfig.Datadog, "")
 
-	hostname, err := utils.GetHostnameWithContext(ctx)
-	if err != nil {
-		return fmt.Errorf("could not fetch hostname: %w", err)
-	}
-
 	// Create a statsd Client
 	statsdAddr := os.Getenv("STATSD_URL")
 	if statsdAddr == "" {
@@ -210,7 +205,7 @@ func scanCmd(rawScan []byte) error {
 	}
 
 	for _, scan := range scans {
-		entity, err := launchScan(ctx, statsd, hostname, scan)
+		entity, err := launchScan(ctx, statsd, scan)
 		if err != nil {
 			log.Errorf("error scanning task %s: %s", err)
 		} else {
@@ -312,7 +307,7 @@ func newSideScanner(hostname string, statsd ddgostatsd.ClientInterface, rcClient
 }
 
 func (s *sideScanner) start(ctx context.Context) {
-	log.Infof("starting side-scanner main loop %s with %d scan workers", s.hostname, scansWorkerPoolSize)
+	log.Infof("starting side-scanner main loop with %d scan workers", scansWorkerPoolSize)
 	defer log.Infof("stopped side-scanner main loop")
 
 	s.eventForwarder.Start()
@@ -384,7 +379,7 @@ func (s *sideScanner) launchScanAndSendResult(ctx context.Context, scan scanTask
 		s.scansInProgressMu.Unlock()
 	}()
 
-	entity, err := launchScan(ctx, s.statsd, s.hostname, scan)
+	entity, err := launchScan(ctx, s.statsd, scan)
 	if err != nil {
 		return err
 	}
@@ -410,14 +405,14 @@ func (s *sideScanner) sendSBOM(entity *sbommodel.SBOMEntity) error {
 	return s.eventForwarder.SendEventPlatformEvent(m, epforwarder.EventTypeContainerSBOM)
 }
 
-func launchScan(ctx context.Context, statsd ddgostatsd.ClientInterface, hostname string, scan scanTask) (*sbommodel.SBOMEntity, error) {
+func launchScan(ctx context.Context, statsd ddgostatsd.ClientInterface, scan scanTask) (*sbommodel.SBOMEntity, error) {
 	switch scan.Type {
 	case "ebs-scan":
 		defer log.Debugf("finished ebs-scan of %s", scan)
-		return scanEBS(ctx, statsd, hostname, scan.Scan.(ebsScan))
+		return scanEBS(ctx, statsd, scan.Scan.(ebsScan))
 	case "lambda-scan":
 		defer log.Debugf("finished lambda-scan of %s", scan)
-		return scanLambda(ctx, statsd, hostname, scan.Scan.(lambdaScan))
+		return scanLambda(ctx, statsd, scan.Scan.(lambdaScan))
 	default:
 		return nil, fmt.Errorf("unknown scan type: %s", scan.Type)
 	}
@@ -465,7 +460,7 @@ func deleteEBSSnapshot(ctx context.Context, svc *ec2.EC2, snapshotID string) err
 	return err
 }
 
-func scanEBS(ctx context.Context, statsd ddgostatsd.ClientInterface, hostname string, scan ebsScan) (*sbommodel.SBOMEntity, error) {
+func scanEBS(ctx context.Context, statsd ddgostatsd.ClientInterface, scan ebsScan) (*sbommodel.SBOMEntity, error) {
 	if scan.Region == "" {
 		return nil, fmt.Errorf("ebs-scan: missing region")
 	}
@@ -570,7 +565,7 @@ func scanEBS(ctx context.Context, statsd ddgostatsd.ClientInterface, hostname st
 	return entity, nil
 }
 
-func scanLambda(ctx context.Context, statsd ddgostatsd.ClientInterface, hostname string, scan lambdaScan) (*sbommodel.SBOMEntity, error) {
+func scanLambda(ctx context.Context, statsd ddgostatsd.ClientInterface, scan lambdaScan) (*sbommodel.SBOMEntity, error) {
 	if scan.Region == "" {
 		return nil, fmt.Errorf("ebs-scan: missing region")
 	}
