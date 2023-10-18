@@ -24,6 +24,7 @@ replace (
 )
 
 replace (
+	github.com/DataDog/datadog-agent/cmd/agent/common/path => ./cmd/agent/common/path
 	github.com/DataDog/datadog-agent/pkg/errors => ./pkg/errors
 	github.com/DataDog/datadog-agent/pkg/gohai => ./pkg/gohai
 	github.com/DataDog/datadog-agent/pkg/networkdevice/profile => ./pkg/networkdevice/profile
@@ -565,6 +566,7 @@ require github.com/lorenzosaino/go-sysctl v0.3.1
 require (
 	github.com/DATA-DOG/go-sqlmock v1.5.0
 	github.com/DataDog/agent-payload/v5 v5.0.97
+	github.com/DataDog/datadog-agent/cmd/agent/common/path v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/pkg/errors v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/pkg/networkdevice/profile v0.49.0-rc.2
 	github.com/DataDog/datadog-agent/pkg/proto v0.49.0-rc.2

@@ -134,6 +134,7 @@ DEFAULT_MODULES = {
         ".",
         targets=["./pkg", "./cmd", "./comp"],
     ),
+    "cmd/agent/common/path": GoModule("cmd/agent/common/path", independent=True),
     "internal/tools": GoModule("internal/tools", condition=lambda: False, should_tag=False),
     "internal/tools/proto": GoModule("internal/tools/proto", condition=lambda: False, should_tag=False),
     "internal/tools/modparser": GoModule("internal/tools/modparser", condition=lambda: False, should_tag=False),
