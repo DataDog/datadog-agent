@@ -148,7 +148,6 @@ func (s *Server) Stop() {
 
 		go func() {
 			s.logger.Infof("Listener `%s` shutting down", listener.config.Addr())
-			listener.shutdown()
 			close(stopped)
 		}()
 
@@ -184,7 +183,7 @@ func GetStatus() NetflowServerStatus {
 		if listener.Error != nil {
 			closedListenersList = append(closedListenersList, NetflowListenerStatus{
 				Config: listener.config,
-				Error:  listener.Error.Error(),
+				Error:  listener.Error.String(),
 			})
 		} else {
 			workingListeners = append(workingListeners, NetflowListenerStatus{

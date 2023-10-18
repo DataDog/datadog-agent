@@ -8,6 +8,7 @@ package goflowlib
 import (
 	"context"
 	"fmt"
+	"go.uber.org/atomic"
 
 	"github.com/netsampler/goflow2/decoders/netflow/templates"
 	// install the in-memory template manager
@@ -39,7 +40,7 @@ type FlowRunnableState interface {
 }
 
 // StartFlowRoutine starts one of the goflow flow routine depending on the flow type
-func StartFlowRoutine(flowType common.FlowType, hostname string, port uint16, workers int, namespace string, flowInChan chan *common.Flow, logger log.Component, errCh chan error) (*FlowStateWrapper, error) {
+func StartFlowRoutine(flowType common.FlowType, hostname string, port uint16, workers int, namespace string, flowInChan chan *common.Flow, logger log.Component, atomicErr *atomic.String) (*FlowStateWrapper, error) {
 	var flowState FlowRunnableState
 
 	formatDriver := NewAggregatorFormatDriver(flowInChan, namespace)
@@ -77,7 +78,7 @@ func StartFlowRoutine(flowType common.FlowType, hostname string, port uint16, wo
 		err := flowState.FlowRoutine(workers, hostname, int(port), reusePort)
 		if err != nil {
 			logger.Errorf("Error listening to %s: %s", flowType, err)
-			errCh <- err
+			atomicErr.Store(err.Error())
 		}
 	}()
 
