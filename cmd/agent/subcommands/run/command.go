@@ -61,6 +61,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/metadata"
 	"github.com/DataDog/datadog-agent/comp/metadata/host"
 	"github.com/DataDog/datadog-agent/comp/metadata/inventoryagent"
+	"github.com/DataDog/datadog-agent/comp/metadata/inventoryhost"
 	"github.com/DataDog/datadog-agent/comp/metadata/runner"
 	"github.com/DataDog/datadog-agent/comp/ndmtmp"
 	"github.com/DataDog/datadog-agent/comp/netflow"
@@ -200,6 +201,7 @@ func run(log log.Component,
 	otelcollector otelcollector.Component,
 	hostMetadata host.Component,
 	invAgent inventoryagent.Component,
+	invHost inventoryhost.Component,
 	_ netflowServer.Component,
 	_ langDetectionCl.Component,
 ) error {
@@ -243,7 +245,25 @@ func run(log log.Component,
 		}
 	}()
 
-	if err := startAgent(cliParams, log, flare, telemetry, sysprobeconfig, server, capture, serverDebug, wmeta, rcclient, logsAgent, forwarder, sharedSerializer, otelcollector, demultiplexer, hostMetadata, invAgent); err != nil {
+	if err := startAgent(cliParams,
+		log,
+		flare,
+		telemetry,
+		sysprobeconfig,
+		server,
+		capture,
+		serverDebug,
+		wmeta,
+		rcclient,
+		logsAgent,
+		forwarder,
+		sharedSerializer,
+		otelcollector,
+		demultiplexer,
+		hostMetadata,
+		invAgent,
+		invHost,
+	); err != nil {
 		return err
 	}
 
@@ -365,6 +385,7 @@ func startAgent(
 	demultiplexer demultiplexer.Component,
 	hostMetadata host.Component,
 	invAgent inventoryagent.Component,
+	invHost inventoryhost.Component,
 ) error {
 
 	var err error
@@ -515,6 +536,7 @@ func startAgent(
 		demultiplexer,
 		hostMetadata,
 		invAgent,
+		invHost,
 	); err != nil {
 		return log.Errorf("Error while starting api server, exiting: %v", err)
 	}
