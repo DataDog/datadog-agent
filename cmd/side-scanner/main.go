@@ -70,7 +70,8 @@ import (
 )
 
 const (
-	MaxSnapshotRetries = 3
+	maxSnapshotRetries  = 3
+	scansWorkerPoolSize = 10
 )
 
 var (
@@ -311,7 +312,8 @@ func newSideScanner(hostname string, statsd ddgostatsd.ClientInterface, rcClient
 }
 
 func (s *sideScanner) start(ctx context.Context) {
-	log.Infof("Starting side-scanner with hostname %s", s.hostname)
+	log.Infof("starting side-scanner main loop %s with %d scan workers", s.hostname, scansWorkerPoolSize)
+	defer log.Infof("stopped side-scanner main loop")
 
 	s.eventForwarder.Start()
 	defer s.eventForwarder.Stop()
@@ -319,22 +321,19 @@ func (s *sideScanner) start(ctx context.Context) {
 	s.rcClient.Start()
 	defer s.rcClient.Close()
 
-	var wg sync.WaitGroup
-
 	s.rcClient.Subscribe(state.ProductDebug, func(update map[string]state.RawConfig, _ func(string, state.ApplyStatus)) {
 		for _, rawConfig := range update {
 			s.pushOrSkipScan(ctx, rawConfig)
 		}
 	})
 
-	const workerPoolSize = 10
-	for i := 0; i < workerPoolSize; i++ {
-		wg.Add(1)
+	done := make(chan struct{})
+	for i := 0; i < scansWorkerPoolSize; i++ {
 		go func() {
-			defer wg.Done()
 			for {
 				select {
 				case <-ctx.Done():
+					done <- struct{}{}
 					return
 				case scan := <-s.scansCh:
 					if err := s.launchScanAndSendResult(ctx, scan); err != nil {
@@ -344,8 +343,11 @@ func (s *sideScanner) start(ctx context.Context) {
 			}
 		}()
 	}
+	for i := 0; i < scansWorkerPoolSize; i++ {
+		<-done
+	}
+	<-ctx.Done()
 
-	wg.Wait()
 }
 
 func (s *sideScanner) pushOrSkipScan(ctx context.Context, rawConfig state.RawConfig) {
@@ -430,13 +432,13 @@ retry:
 	if err != nil {
 		if aerr, ok := err.(awserr.Error); ok {
 			isRateExceededError := aerr.Code() == "SnapshotCreationPerVolumeRateExceeded"
-			if retries <= MaxSnapshotRetries {
+			if retries <= maxSnapshotRetries {
 				retries++
 				if isRateExceededError {
 					// https://docs.aws.amazon.com/AWSEC2/latest/APIReference/errors-overview.html
 					// Wait at least 15 seconds between concurrent volume snapshots.
 					d := 15 * time.Second
-					log.Debugf("snapshot creation rate exceeded for volume %s; retrying after %v (%d/%d)", scan.VolumeID, d, retries, MaxSnapshotRetries)
+					log.Debugf("snapshot creation rate exceeded for volume %s; retrying after %v (%d/%d)", scan.VolumeID, d, retries, maxSnapshotRetries)
 					time.Sleep(d)
 					goto retry
 				}
