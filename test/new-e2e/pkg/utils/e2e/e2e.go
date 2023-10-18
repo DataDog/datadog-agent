@@ -448,7 +448,9 @@ func (suite *Suite[Env]) Env() *Env {
 // If you override BeforeTest in your custom test suite type, the function must call [e2e.Suite.BeforeTest].
 //
 // [testify Suite]: https://pkg.go.dev/github.com/stretchr/testify/suite
-func (suite *Suite[Env]) BeforeTest(_, _ string) {
+func (suite *Suite[Env]) BeforeTest(suiteName, testName string) {
+	_ = suiteName
+	_ = testName
 	suite.isUpdateEnvCalledInThisTest = false
 }
 

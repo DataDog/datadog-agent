@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:generate go run github.com/DataDog/datadog-agent/pkg/security/secl/compiler/generators/accessors -tags windows -types-file model.go -output accessors_windows.go -field-handlers field_handlers_windows.go -field-accessors-output field_accessors_windows.go
+//go:generate accessors -tags windows -types-file model.go -output accessors_windows.go -field-handlers field_handlers_windows.go -field-accessors-output field_accessors_windows.go
 
 // Package model holds model related files
 package model
@@ -65,7 +65,8 @@ type Process struct {
 	Envp    []string `field:"envp,handler:ResolveProcessEnvp:100"` // SECLDoc[envp] Definition:`Environment variables of the process`                                                                                                                         // SECLDoc[envp] Definition:`Environment variables of the process`
 
 	// cache version
-	Variables eval.Variables `field:"-" json:"-"`
+	Variables               eval.Variables `field:"-" json:"-"`
+	ScrubbedCmdLineResolved bool           `field:"-" json:"-"`
 }
 
 // ExecEvent represents a exec event

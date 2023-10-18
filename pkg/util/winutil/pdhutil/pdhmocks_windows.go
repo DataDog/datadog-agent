@@ -49,7 +49,7 @@ func mockCounterFromString(path string) mockCounter {
 	}
 }
 
-func mockPdhOpenQuery(szDataSource uintptr, dwUserData uintptr, phQuery *PDH_HQUERY) uint32 {
+func mockPdhOpenQuery(szDataSource uintptr, dwUserData uintptr, phQuery *PDH_HQUERY) uint32 { //nolint:revive // TODO fix revive unused-parameter
 	var mq mockQuery
 	mq.counters = make(map[int]mockCounter)
 	openQueriesIndex++
@@ -59,7 +59,7 @@ func mockPdhOpenQuery(szDataSource uintptr, dwUserData uintptr, phQuery *PDH_HQU
 	return 0
 }
 
-func mockPdhAddEnglishCounter(hQuery PDH_HQUERY, szFullCounterPath string, dwUserData uintptr, phCounter *PDH_HCOUNTER) uint32 {
+func mockPdhAddEnglishCounter(hQuery PDH_HQUERY, szFullCounterPath string, dwUserData uintptr, phCounter *PDH_HCOUNTER) uint32 { //nolint:revive // TODO fix revive unused-parameter
 	ndx := int(hQuery)
 	var thisQuery mockQuery
 	var ok bool
@@ -75,7 +75,7 @@ func mockPdhAddEnglishCounter(hQuery PDH_HQUERY, szFullCounterPath string, dwUse
 	return 0
 }
 
-func mockPdhCollectQueryData(hQuery PDH_HQUERY) uint32 {
+func mockPdhCollectQueryData(hQuery PDH_HQUERY) uint32 { //nolint:revive // TODO fix revive unused-parameter
 	return 0
 }
 
@@ -104,7 +104,7 @@ func mockCounterFromHandle(hCounter PDH_HCOUNTER) (mockCounter, error) {
 	return ctr, nil
 
 }
-func mockPdhGetFormattedCounterArray(hCounter PDH_HCOUNTER, format uint32) (outItems []PdhCounterValueItem, err error) {
+func mockPdhGetFormattedCounterArray(hCounter PDH_HCOUNTER, format uint32) (outItems []PdhCounterValueItem, err error) { //nolint:revive // TODO fix revive unused-parameter
 	ctr, err := mockCounterFromHandle(hCounter)
 	if err != nil {
 		return nil, err
@@ -162,7 +162,7 @@ func mockpdhMakeCounterPath(machine string, object string, instance string, coun
 }
 
 // SetupTesting initializes the PDH libarary with the mock functions rather than the real thing
-func SetupTesting(counterstringsfile, countersfile string) {
+func SetupTesting(counterstringsfile, countersfile string) { //nolint:revive // TODO fix revive unused-parameter
 	activeAvailableCounters, _ = ReadCounters(countersfile)
 	// For testing
 	pfnPdhOpenQuery = mockPdhOpenQuery

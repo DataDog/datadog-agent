@@ -73,7 +73,7 @@ func injectTags(pod *corev1.Pod, ns string, dc dynamic.Interface) error {
 		return errors.New("cannot inject tags into nil pod")
 	}
 
-	if shouldInject(pod) {
+	if !shouldInject(pod) {
 		// Ignore pod if it has the label admission.datadoghq.com/enabled=false or Single step configuration is disabled
 		return nil
 	}

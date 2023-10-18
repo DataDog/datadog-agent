@@ -67,10 +67,10 @@ func (mc *metaCollector) ID() string {
 	panic("Should never be called")
 }
 
-func (mc *metaCollector) GetContainerStats(containerID string, cacheValidity time.Duration) (*ContainerStats, error) {
+func (mc *metaCollector) GetContainerStats(containerID string, cacheValidity time.Duration) (*ContainerStats, error) { //nolint:revive // TODO fix revive unused-parameter
 	panic("Should never be called")
 }
 
-func (mc *metaCollector) GetContainerNetworkStats(containerID string, cacheValidity time.Duration) (*ContainerNetworkStats, error) {
+func (mc *metaCollector) GetContainerNetworkStats(containerID string, cacheValidity time.Duration) (*ContainerNetworkStats, error) { //nolint:revive // TODO fix revive unused-parameter
 	panic("Should never be called")
 }

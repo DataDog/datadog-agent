@@ -67,9 +67,6 @@ type expectedSection struct {
 }
 
 func (v *subcommandSuite) TestDefaultInstallStatus() {
-
-	v.UpdateEnv(e2e.FakeIntakeStackDef())
-
 	metadata := client.NewEC2Metadata(v.Env().VM)
 	resourceID := metadata.Get("instance-id")
 
@@ -217,7 +214,6 @@ func verifySectionContent(t *testing.T, statusOutput string, section expectedSec
 }
 
 func (v *subcommandSuite) TestDefaultInstallHealthy() {
-	v.UpdateEnv(e2e.FakeIntakeStackDef())
 	interval := 1 * time.Second
 
 	var output string

@@ -51,7 +51,7 @@ var (
 	}
 
 	// AllLinuxRuntimes lists all runtimes available on Linux
-	// nolint: deadcode, unused
+	//nolint: deadcode, unused
 	AllLinuxRuntimes = []string{
 		RuntimeNameDocker,
 		RuntimeNameContainerd,
@@ -61,7 +61,7 @@ var (
 	}
 
 	// AllWindowsRuntimes lists all runtimes available on Windows
-	// nolint: deadcode, unused
+	//nolint: deadcode, unused
 	AllWindowsRuntimes = []string{
 		RuntimeNameDocker,
 		RuntimeNameContainerd,
