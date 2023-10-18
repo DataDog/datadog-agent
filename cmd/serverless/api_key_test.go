@@ -7,11 +7,11 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"errors"
 	"testing"
 
-	"github.com/aws/aws-sdk-go/service/kms"
-	"github.com/aws/aws-sdk-go/service/kms/kmsiface"
+	"github.com/aws/aws-sdk-go-v2/service/kms"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -37,15 +37,14 @@ const mockMalformedPrefixSecretsManagerAPIKeyArn string = "aws:secretsmanager:us
 var mockFunctionName = "my-Function"
 
 type mockKMSClientWithEncryptionContext struct {
-	kmsiface.KMSAPI
 }
 
-func (mockKMSClientWithEncryptionContext) Decrypt(params *kms.DecryptInput) (*kms.DecryptOutput, error) {
+func (mockKMSClientWithEncryptionContext) Decrypt(_ context.Context, params *kms.DecryptInput, _ ...func(*kms.Options)) (*kms.DecryptOutput, error) {
 	encryptionContextPointer, exists := params.EncryptionContext[encryptionContextKey]
 	if !exists {
 		return nil, errors.New("InvalidCiphertextException")
 	}
-	if *encryptionContextPointer != mockFunctionName {
+	if encryptionContextPointer != mockFunctionName {
 		return nil, errors.New("InvalidCiphertextException")
 	}
 	if bytes.Equal(params.CiphertextBlob, []byte(mockDecodedEncryptedAPIKey)) {
@@ -57,11 +56,10 @@ func (mockKMSClientWithEncryptionContext) Decrypt(params *kms.DecryptInput) (*km
 }
 
 type mockKMSClientNoEncryptionContext struct {
-	kmsiface.KMSAPI
 }
 
-func (mockKMSClientNoEncryptionContext) Decrypt(params *kms.DecryptInput) (*kms.DecryptOutput, error) {
-	if params.EncryptionContext[encryptionContextKey] != nil {
+func (mockKMSClientNoEncryptionContext) Decrypt(_ context.Context, params *kms.DecryptInput, _ ...func(*kms.Options)) (*kms.DecryptOutput, error) {
+	if params.EncryptionContext[encryptionContextKey] != "" {
 		return nil, errors.New("InvalidCiphertextException")
 	}
 	if bytes.Equal(params.CiphertextBlob, []byte(mockDecodedEncryptedAPIKey)) {
