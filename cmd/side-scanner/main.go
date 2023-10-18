@@ -447,6 +447,14 @@ func deleteEBSSnapshot(ctx context.Context, svc *ec2.EC2, snapshotID string) err
 	return err
 }
 
+func tagFailure(s []string) []string {
+	return append(s, fmt.Sprint("status:failure"))
+}
+
+func tagSuccess(s []string) []string {
+	return append(s, fmt.Sprint("status:success"))
+}
+
 func scanEBS(ctx context.Context, scan ebsScan) (*sbommodel.SBOMEntity, error) {
 	if scan.Region == "" {
 		return nil, fmt.Errorf("ebs-scan: missing region")
