@@ -114,7 +114,7 @@ func GetLeaderEngine() (*LeaderEngine, error) {
 // CreateGlobalLeaderEngine returns a non initialized leader engine client
 func CreateGlobalLeaderEngine(ctx context.Context) *LeaderEngine {
 	if globalLeaderEngine == nil {
-		globalLeaderEngine = newLeaderEngine()
+		globalLeaderEngine = newLeaderEngine(ctx)
 		globalLeaderEngine.initRetry.SetupRetrier(&retry.Config{ //nolint:errcheck
 			Name:              "leaderElection",
 			AttemptMethod:     globalLeaderEngine.init,
