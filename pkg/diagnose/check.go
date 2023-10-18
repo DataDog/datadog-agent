@@ -10,16 +10,12 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
-	"github.com/DataDog/datadog-agent/comp/core/log"
-	forwarder "github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
-	"github.com/DataDog/datadog-agent/pkg/aggregator"
+	"github.com/DataDog/datadog-agent/comp/aggregator/diagnosesendermanager"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/collector"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
-	"github.com/DataDog/datadog-agent/pkg/config"
 	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/diagnose/diagnosis"
-	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 	pkglog "github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -27,7 +23,7 @@ func init() {
 	diagnosis.Register("check-datadog", diagnose)
 }
 
-func diagnose(diagCfg diagnosis.Config, senderManager sender.SenderManager) []diagnosis.Diagnosis {
+func diagnose(diagCfg diagnosis.Config, senderManager sender.DiagnoseSenderManager) []diagnosis.Diagnosis {
 	if diagCfg.RunningInAgentProcess && common.Coll != nil {
 		return diagnoseChecksInAgentProcess()
 	}
@@ -83,41 +79,31 @@ func diagnoseChecksInAgentProcess() []diagnosis.Diagnosis {
 	return diagnoses
 }
 
-func diagnoseChecksInCLIProcess(diagCfg diagnosis.Config, senderManager sender.SenderManager) []diagnosis.Diagnosis {
+func diagnoseChecksInCLIProcess(diagCfg diagnosis.Config, senderManager diagnosesendermanager.Component) []diagnosis.Diagnosis { //nolint:revive // TODO fix revive unused-parameter
 	// other choices
 	// 	run() github.com\DataDog\datadog-agent\pkg\cli\subcommands\check\command.go
 	//  runCheck() github.com\DataDog\datadog-agent\cmd\agent\gui\checks.go
 
-	hostnameDetected, err := hostname.Get(context.TODO())
+	senderManagerInstance, err := senderManager.LazyGetSenderManager()
 	if err != nil {
 		return []diagnosis.Diagnosis{
 			{
 				Result:      diagnosis.DiagnosisFail,
-				Name:        "Host name detection",
-				Diagnosis:   "Failed to get host name and cannot continue to run checks diagnostics",
-				Remediation: "Please validate host environment",
+				Name:        err.Error(),
+				Diagnosis:   err.Error(),
+				Remediation: err.Error(),
 				RawError:    err.Error(),
 			},
 		}
 	}
 
 	// Initializing the aggregator with a flush interval of 0 (to disable the flush goroutines)
-	opts := aggregator.DefaultAgentDemultiplexerOptions()
-	opts.FlushInterval = 0
-	opts.DontStartForwarders = true
-	opts.UseNoopEventPlatformForwarder = true
-	opts.UseNoopOrchestratorForwarder = true
-	log := log.NewTemporaryLoggerWithoutInit()
-
-	forwarder := forwarder.NewDefaultForwarder(config.Datadog, log, forwarder.NewOptions(config.Datadog, log, nil))
-	aggregator.InitAndStartAgentDemultiplexer(log, forwarder, opts, hostnameDetected)
-
-	common.LoadComponents(context.Background(), senderManager, pkgconfig.Datadog.GetString("confd_path"))
+	common.LoadComponents(context.Background(), senderManagerInstance, pkgconfig.Datadog.GetString("confd_path"))
 	common.AC.LoadAndRun(context.Background())
 
 	// Create the CheckScheduler, but do not attach it to
 	// AutoDiscovery.  NOTE: we do not start common.Coll, either.
-	collector.InitCheckScheduler(common.Coll, senderManager)
+	collector.InitCheckScheduler(common.Coll, senderManagerInstance)
 
 	// Load matching configurations (should we use common.AC.GetAllConfigs())
 	waitCtx, cancelTimeout := context.WithTimeout(context.Background(), time.Duration(5*time.Second))

@@ -50,7 +50,7 @@ type ResolverOpts struct {
 }
 
 // NewResolver returns a new process resolver
-func NewResolver(config *config.Config, statsdClient statsd.ClientInterface, scrubber *procutil.DataScrubber,
+func NewResolver(config *config.Config, statsdClient statsd.ClientInterface, scrubber *procutil.DataScrubber, //nolint:revive // TODO fix revive unused-parameter
 	opts ResolverOpts) (*Resolver, error) {
 
 	p := &Resolver{
@@ -113,7 +113,7 @@ func (p *Resolver) AddNewEntry(pid uint32, ppid uint32, file string, commandLine
 	e.PIDContext.Pid = pid
 	e.PPid = ppid
 
-	e.Process.Args = commandLine
+	e.Process.CmdLine = commandLine
 	e.Process.FileEvent.PathnameStr = file
 	e.Process.FileEvent.BasenameStr = filepath.Base(e.Process.FileEvent.PathnameStr)
 	e.ExecTime = time.Now()
@@ -134,7 +134,7 @@ func (p *Resolver) GetEntry(pid Pid) *model.ProcessCacheEntry {
 }
 
 // Resolve returns the cache entry for the given pid
-func (p *Resolver) Resolve(pid, tid uint32, inode uint64, useFallBack bool) *model.ProcessCacheEntry {
+func (p *Resolver) Resolve(pid, tid uint32, inode uint64, useFallBack bool) *model.ProcessCacheEntry { //nolint:revive // TODO fix revive unused-parameter
 	return p.GetEntry(pid)
 }
 
@@ -157,6 +157,23 @@ func (p *Resolver) GetEnvp(pr *model.Process) []string {
 
 	pr.Envp = pr.EnvsEntry.Values
 	return pr.Envp
+}
+
+// GetProcessCmdLineScrubbed returns the scrubbed cmdline
+func (p *Resolver) GetProcessCmdLineScrubbed(pr *model.Process) string {
+	if pr.ScrubbedCmdLineResolved {
+		return pr.CmdLine
+	}
+
+	if p.scrubber != nil && len(pr.CmdLine) > 0 {
+		// replace with the scrubbed version
+		scrubbed, _ := p.scrubber.ScrubCommand([]string{pr.CmdLine})
+		if len(scrubbed) > 0 {
+			pr.CmdLine = strings.Join(scrubbed, " ")
+		}
+	}
+
+	return pr.CmdLine
 }
 
 // getCacheSize returns the cache size of the process resolver
@@ -198,10 +215,10 @@ func (p *Resolver) Snapshot() {
 		e.PIDContext.Pid = Pid(pid)
 		e.PPid = Pid(proc.Ppid)
 
-		e.Process.Args = strings.Join(proc.GetCmdline(), " ")
+		e.Process.CmdLine = strings.Join(proc.GetCmdline(), " ")
 		e.Process.FileEvent.PathnameStr = proc.Exe
 		e.Process.FileEvent.BasenameStr = filepath.Base(e.Process.FileEvent.PathnameStr)
-		e.ExecTime = time.Unix(0, proc.Stats.CreateTime)
+		e.ExecTime = time.Unix(0, proc.Stats.CreateTime*int64(time.Millisecond))
 
 		entries = append(entries, e)
 

@@ -8,6 +8,7 @@ package config
 
 import (
 	"fmt"
+	"strings"
 	"time"
 
 	sysconfig "github.com/DataDog/datadog-agent/cmd/system-probe/config"
@@ -116,6 +117,10 @@ type RuntimeSecurityConfig struct {
 	ActivityDumpSyscallMonitorPeriod time.Duration
 	// ActivityDumpMaxDumpCountPerWorkload defines the maximum amount of dumps that the agent should send for a workload
 	ActivityDumpMaxDumpCountPerWorkload int
+	// ActivityDumpWorkloadDenyList defines the list of workloads for which we shouldn't generate dumps. Workloads should
+	// be provided as strings in the following format "{image_name}:[{image_tag}|*]". If "*" is provided instead of a
+	// specific image tag, then the entry will match any workload with the input {image_name} regardless of their tag.
+	ActivityDumpWorkloadDenyList []string
 	// ActivityDumpTagRulesEnabled enable the tagging of nodes with matched rules (only for rules having the tag ruleset:threat_score)
 	ActivityDumpTagRulesEnabled bool
 	// ActivityDumpSilentWorkloadsDelay defines the minimum amount of time to wait before the activity dump manager will start tracing silent workloads
@@ -273,8 +278,8 @@ func NewRuntimeSecurityConfig() (*RuntimeSecurityConfig, error) {
 		ActivityDumpTagRulesEnabled:           coreconfig.SystemProbe.GetBool("runtime_security_config.activity_dump.tag_rules.enabled"),
 		ActivityDumpSilentWorkloadsDelay:      coreconfig.SystemProbe.GetDuration("runtime_security_config.activity_dump.silent_workloads.delay"),
 		ActivityDumpSilentWorkloadsTicker:     coreconfig.SystemProbe.GetDuration("runtime_security_config.activity_dump.silent_workloads.ticker"),
-
-		ActivityDumpAutoSuppressionEnabled: coreconfig.SystemProbe.GetBool("runtime_security_config.security_profile.anomaly_detection.auto_suppression.enabled"),
+		ActivityDumpWorkloadDenyList:          coreconfig.SystemProbe.GetStringSlice("runtime_security_config.activity_dump.workload_deny_list"),
+		ActivityDumpAutoSuppressionEnabled:    coreconfig.SystemProbe.GetBool("runtime_security_config.security_profile.anomaly_detection.auto_suppression.enabled"),
 		// activity dump dynamic fields
 		ActivityDumpMaxDumpSize: func() int {
 			mds := coreconfig.SystemProbe.GetInt("runtime_security_config.activity_dump.max_dump_size")
@@ -460,6 +465,14 @@ func parseHashAlgorithmStringSlice(algorithms []string) []model.HashAlgorithm {
 		}
 	}
 	return output
+}
+
+// GetFamilyAddress returns the address famility to use for system-probe <-> security-agent communication
+func GetFamilyAddress(path string) (string, string) {
+	if strings.HasPrefix(path, "/") {
+		return "unix", path
+	}
+	return "tcp", path
 }
 
 var (

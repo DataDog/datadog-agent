@@ -27,10 +27,15 @@ const (
 // - serverStartRegex is a regex to be matched on the server logs to ensure it started correctly.
 func RunDockerServer(t testing.TB, serverName, dockerPath string, env []string, serverStartRegex *regexp.Regexp, timeout time.Duration) error {
 	t.Helper()
+	// Ensuring no previous instances exists.
+	c := exec.Command("docker-compose", "-f", dockerPath, "down", "--remove-orphans")
+	c.Env = append(c.Env, env...)
+	_ = c.Run()
+
 	ctx, cancel := context.WithCancel(context.Background())
 	t.Cleanup(cancel)
 
-	cmd := exec.CommandContext(ctx, "docker-compose", "-f", dockerPath, "up")
+	cmd := exec.CommandContext(ctx, "docker-compose", "-f", dockerPath, "up", "--force-recreate", "--remove-orphans")
 	patternScanner := NewScanner(serverStartRegex, make(chan struct{}, 1))
 
 	cmd.Stdout = patternScanner
@@ -44,7 +49,8 @@ func RunDockerServer(t testing.TB, serverName, dockerPath string, env []string, 
 
 		c := exec.Command("docker-compose", "-f", dockerPath, "down", "--remove-orphans")
 		c.Env = append(c.Env, env...)
-		_ = c.Run()
+		// Not waiting for its finish.
+		_ = c.Start()
 	})
 
 	for {

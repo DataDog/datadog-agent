@@ -406,6 +406,17 @@
       </Component>
       <?endif ?>
 
+      <?if $(var.IncludeAPMInject) = true ?>
+      <Component Id="apm_inject.yaml.example"
+                Guid="9D1D8978-49B4-4483-A931-B138233015E1"
+                NeverOverwrite="yes"
+                Permanent="yes">
+        <File Id="apm_inject.yaml.example"
+          Name="apm-inject.yaml"
+          KeyPath="yes"
+          Source="$(var.EtcFiles)\apm-inject.yaml.example"/>
+      </Component>
+      <?endif ?>
 
       <Directory Id="checks.d" Name="checks.d">
         <Component Id="checks.d"
@@ -512,6 +523,8 @@
         <ComponentRef Id="system_probe.yaml.example" />        
         <MergeRef Id="ddnpminstall"/>
         <?if $(var.IncludeAPMInject) = true ?>
+          <ComponentRef Id="apm_inject.yaml.example" />
+      
           <MergeRef Id="ddapminstall"/>
         <?endif ?>
         

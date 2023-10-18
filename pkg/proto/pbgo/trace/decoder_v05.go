@@ -34,16 +34,13 @@ func dictionaryString(bts []byte, dict []string) (string, []byte, error) {
 // For details, see the documentation for endpoint v0.5 in pkg/trace/api/version.go
 func (t *Traces) UnmarshalMsgDictionary(bts []byte) error {
 	var err error
-	if _, bts, err = msgp.ReadArrayHeaderBytes(bts); err != nil {
+	if _, bts, err = safeReadHeaderBytes(bts, msgp.ReadArrayHeaderBytes); err != nil {
 		return err
 	}
 	// read dictionary
 	var sz uint32
-	if sz, bts, err = msgp.ReadArrayHeaderBytes(bts); err != nil {
+	if sz, bts, err = safeReadHeaderBytes(bts, msgp.ReadArrayHeaderBytes); err != nil {
 		return err
-	}
-	if sz > 25*1e6 { // Dictionary can't be larger than 25 MB
-		return errors.New("too long payload")
 	}
 	dict := make([]string, sz)
 	for i := range dict {
@@ -55,7 +52,7 @@ func (t *Traces) UnmarshalMsgDictionary(bts []byte) error {
 		dict[i] = str
 	}
 	// read traces
-	sz, bts, err = msgp.ReadArrayHeaderBytes(bts)
+	sz, bts, err = safeReadHeaderBytes(bts, msgp.ReadArrayHeaderBytes)
 	if err != nil {
 		return err
 	}
@@ -65,7 +62,7 @@ func (t *Traces) UnmarshalMsgDictionary(bts []byte) error {
 		*t = make(Traces, sz)
 	}
 	for i := range *t {
-		sz, bts, err = msgp.ReadArrayHeaderBytes(bts)
+		sz, bts, err = safeReadHeaderBytes(bts, msgp.ReadArrayHeaderBytes)
 		if err != nil {
 			return err
 		}
@@ -98,7 +95,7 @@ func (z *Span) UnmarshalMsgDictionary(bts []byte, dict []string) ([]byte, error)
 		sz  uint32
 		err error
 	)
-	sz, bts, err = msgp.ReadArrayHeaderBytes(bts)
+	sz, bts, err = safeReadHeaderBytes(bts, msgp.ReadArrayHeaderBytes)
 	if err != nil {
 		return bts, err
 	}
@@ -151,12 +148,9 @@ func (z *Span) UnmarshalMsgDictionary(bts []byte, dict []string) ([]byte, error)
 		return bts, err
 	}
 	// Meta (9)
-	sz, bts, err = msgp.ReadMapHeaderBytes(bts)
+	sz, bts, err = safeReadHeaderBytes(bts, msgp.ReadMapHeaderBytes)
 	if err != nil {
 		return bts, err
-	}
-	if sz > 25*1e6 { // Dictionary can't be larger than 25 MB
-		return bts, errors.New("too long payload")
 	}
 	if z.Meta == nil && sz > 0 {
 		z.Meta = make(map[string]string, sz)
@@ -184,7 +178,7 @@ func (z *Span) UnmarshalMsgDictionary(bts []byte, dict []string) ([]byte, error)
 		}
 	}
 	// Metrics (10)
-	sz, bts, err = msgp.ReadMapHeaderBytes(bts)
+	sz, bts, err = safeReadHeaderBytes(bts, msgp.ReadMapHeaderBytes)
 	if err != nil {
 		return bts, err
 	}
@@ -217,4 +211,18 @@ func (z *Span) UnmarshalMsgDictionary(bts []byte, dict []string) ([]byte, error)
 		return bts, err
 	}
 	return bts, nil
+}
+
+// safeReadHeaderBytes wraps msgp header readers (typically ReadArrayHeaderBytes and ReadMapHeaderBytes).
+// It enforces the dictionary max size of 25MB and protects the caller from making unbounded allocations through `make(any, sz)`.
+func safeReadHeaderBytes(b []byte, read func([]byte) (uint32, []byte, error)) (uint32, []byte, error) {
+	sz, bts, err := read(b)
+	if err != nil {
+		return 0, nil, err
+	}
+	if sz > 25*1e6 {
+		// Dictionary can't be larger than 25 MB
+		return 0, nil, errors.New("too long payload")
+	}
+	return sz, bts, err
 }

@@ -18,6 +18,8 @@ suites:
         <% if ENV['WINDOWS_AGENT_FILE'] %>
         windows_agent_filename: "<%= ENV['WINDOWS_AGENT_FILE'] %>"
         <% end %>
+        agent_install_options: >
+          APIKEY=<%= api_key %>
       dd-agent-rspec:
         skip_windows_signing_test: &skip_windows_signing_test <%= ENV['SKIP_SIGNATURE_TEST'] || false %>
 

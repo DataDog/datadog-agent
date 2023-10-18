@@ -155,7 +155,7 @@ func (p *protocol) DumpMaps(output *strings.Builder, mapName string, currentMap 
 		output.WriteString("Map: '" + mapName + "', key: 'ConnTuple', value: 'httpTX'\n")
 		iter := currentMap.Iterate()
 		var key netebpf.ConnTuple
-		var value Transaction
+		var value EbpfTx
 		for iter.Next(unsafe.Pointer(&key), unsafe.Pointer(&value)) {
 			output.WriteString(spew.Sdump(key, value))
 		}

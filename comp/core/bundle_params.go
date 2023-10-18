@@ -15,7 +15,7 @@ import (
 //
 // Logs-related parameters are implemented as unexported fields containing
 // callbacks.  These fields can be set with the `LogXxx()` methods, which
-// return the updated BundleParams.  One of `LogForOneShot` or `LogForDaemon`
+// return the updated BundleParams.  One of `log.ForOneShot` or `log.ForDaemon`
 // must be called.
 type BundleParams struct {
 	ConfigParams
@@ -23,6 +23,11 @@ type BundleParams struct {
 	LogParams
 }
 
+// ConfigParams defines the parameters of the config component
 type ConfigParams = config.Params
+
+// LogParams defines the parameters of the log component
 type LogParams = log.Params
+
+// SysprobeConfigParams defines the parameters of the system-probe config component
 type SysprobeConfigParams = sysprobeconfig.Params

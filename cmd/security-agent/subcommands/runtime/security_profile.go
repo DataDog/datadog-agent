@@ -60,7 +60,7 @@ func securityProfileShowCommands(globalParams *command.GlobalParams) []*cobra.Co
 				fx.Supply(cliParams),
 				fx.Supply(core.BundleParams{
 					ConfigParams: config.NewSecurityAgentParams(globalParams.ConfigFilePaths),
-					LogParams:    log.LogForOneShot(command.LoggerName, "info", true)}),
+					LogParams:    log.ForOneShot(command.LoggerName, "info", true)}),
 				core.Bundle,
 			)
 		},
@@ -105,7 +105,7 @@ func listSecurityProfileCommands(globalParams *command.GlobalParams) []*cobra.Co
 				fx.Supply(cliParams),
 				fx.Supply(core.BundleParams{
 					ConfigParams: config.NewSecurityAgentParams(globalParams.ConfigFilePaths),
-					LogParams:    log.LogForOneShot(command.LoggerName, "info", true)}),
+					LogParams:    log.ForOneShot(command.LoggerName, "info", true)}),
 				core.Bundle,
 			)
 		},
@@ -204,7 +204,7 @@ func saveSecurityProfileCommands(globalParams *command.GlobalParams) []*cobra.Co
 				fx.Supply(cliParams),
 				fx.Supply(core.BundleParams{
 					ConfigParams: config.NewSecurityAgentParams(globalParams.ConfigFilePaths),
-					LogParams:    log.LogForOneShot(command.LoggerName, "info", true)}),
+					LogParams:    log.ForOneShot(command.LoggerName, "info", true)}),
 				core.Bundle,
 			)
 		},

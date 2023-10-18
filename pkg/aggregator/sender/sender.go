@@ -46,3 +46,9 @@ type SenderManager interface {
 	DestroySender(id checkid.ID)
 	GetDefaultSender() (Sender, error)
 }
+
+// DiagnoseSenderManager is the SenderManager used by the diagnose command
+// It creates an instance of senderManager lazily to keep the same behavior as before.
+type DiagnoseSenderManager interface {
+	LazyGetSenderManager() (SenderManager, error)
+}
