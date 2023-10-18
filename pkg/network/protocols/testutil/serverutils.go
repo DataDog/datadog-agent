@@ -35,7 +35,7 @@ func RunDockerServer(t testing.TB, serverName, dockerPath string, env []string, 
 	ctx, cancel := context.WithCancel(context.Background())
 	t.Cleanup(cancel)
 
-	cmd := exec.CommandContext(ctx, "docker-compose", "-f", dockerPath, "up")
+	cmd := exec.CommandContext(ctx, "docker-compose", "-f", dockerPath, "up", "--force-recreate", "--remove-orphans")
 	patternScanner := NewScanner(serverStartRegex, make(chan struct{}, 1))
 
 	cmd.Stdout = patternScanner

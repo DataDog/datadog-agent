@@ -28,10 +28,10 @@ namespace Datadog.CustomActions.Native
             }
         }
 
-        public Tuple<string,string>[] GetServiceNames()
+        public Tuple<string, string>[] GetServiceNames()
         {
             return Services
-                .Select(svc => Tuple.Create(svc.ServiceName,svc.DisplayName))
+                .Select(svc => Tuple.Create(svc.ServiceName, svc.DisplayName))
                 .ToArray();
         }
 
