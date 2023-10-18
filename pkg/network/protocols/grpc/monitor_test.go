@@ -365,7 +365,7 @@ func (s *USMgRPCSuite) TestLargeBodiesGRPCScenarios() {
 		t.Skip("TLS tests are not supported on prebuilt")
 	}
 
-	srv, err := grpc.NewServer(srvAddr, false)
+	srv, err := grpc.NewServer(srvAddr, s.withTls)
 	require.NoError(t, err)
 	srv.Run()
 	t.Cleanup(srv.Stop)
