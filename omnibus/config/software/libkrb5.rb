@@ -24,7 +24,8 @@ build do
   configure_options = ["--without-keyutils", # this would require additional deps/system deps, disable it
          "--without-system-verto", # do not prefer libverto from the system, if installed
          "--without-libedit", # we don't want to link with libraries outside of the install dir
-         "--disable-static"
+         "--disable-static",
+         "--disable-nls"
   ]
   env = with_standard_compiler_flags(with_embedded_path)
   configure(*configure_options, :env => env)
