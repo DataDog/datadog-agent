@@ -2,7 +2,10 @@ module github.com/DataDog/datadog-agent/pkg/autodiscovery/common/types
 
 go 1.20
 
-replace github.com/DataDog/datadog-agent/pkg/util/log => ../../../util/log/
+replace (
+	github.com/DataDog/datadog-agent/pkg/util/log => ../../../util/log/
+	github.com/DataDog/datadog-agent/pkg/util/scrubber => ../../../util/scrubber/
+)
 
 require (
 	github.com/DataDog/datadog-agent/pkg/util/log v0.0.0-00010101000000-000000000000
