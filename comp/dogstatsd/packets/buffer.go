@@ -13,7 +13,7 @@ import (
 // Buffer is a buffer of packets that will automatically flush to the given
 // output channel when it is full or after a configurable duration.
 type Buffer struct {
-	listenerId    string
+	listenerID    string
 	packets       Packets
 	flushTimer    *time.Ticker
 	bufferSize    uint
@@ -25,7 +25,7 @@ type Buffer struct {
 // NewBuffer creates a new buffer of packets of specified size
 func NewBuffer(bufferSize uint, flushTimer time.Duration, outputChannel chan Packets, listenerID string) *Buffer {
 	pb := &Buffer{
-		listenerId:    listenerID,
+		listenerID:    listenerID,
 		bufferSize:    bufferSize,
 		flushTimer:    time.NewTicker(flushTimer),
 		outputChannel: outputChannel,
@@ -42,7 +42,7 @@ func (pb *Buffer) flushLoop() {
 		case <-pb.flushTimer.C:
 			pb.m.Lock()
 			pb.flush()
-			tlmBufferFlushedTimer.Inc(pb.listenerId)
+			tlmBufferFlushedTimer.Inc(pb.listenerID)
 			pb.m.Unlock()
 		case <-pb.closeChannel:
 			return
@@ -56,11 +56,11 @@ func (pb *Buffer) Append(packet *Packet) {
 	defer pb.m.Unlock()
 	pb.packets = append(pb.packets, packet)
 
-	tlmBufferSize.Set(float64(len(pb.packets)), pb.listenerId)
+	tlmBufferSize.Set(float64(len(pb.packets)), pb.listenerID)
 
 	if uint(len(pb.packets)) >= pb.bufferSize {
 		pb.flush()
-		tlmBufferFlushedFull.Inc(pb.listenerId)
+		tlmBufferFlushedFull.Inc(pb.listenerID)
 	}
 }
 
@@ -69,20 +69,20 @@ func (pb *Buffer) flush() {
 		t1 := time.Now()
 		pb.outputChannel <- pb.packets
 		t2 := time.Now()
-		tlmListenerChannel.Observe(float64(t2.Sub(t1).Nanoseconds()), pb.listenerId)
+		tlmListenerChannel.Observe(float64(t2.Sub(t1).Nanoseconds()), pb.listenerID)
 
 		pb.packets = make(Packets, 0, pb.bufferSize)
 	}
-	tlmBufferSize.Set(float64(len(pb.packets)), pb.listenerId)
+	tlmBufferSize.Set(float64(len(pb.packets)), pb.listenerID)
 	// FIXME: it's not per listener
-	tlmChannelSize.Set(float64(len(pb.outputChannel)), pb.listenerId)
+	tlmChannelSize.Set(float64(len(pb.outputChannel)), pb.listenerID)
 }
 
 // Close closes the packet buffer
 func (pb *Buffer) Close() {
 	close(pb.closeChannel)
-	tlmBufferSize.Delete(pb.listenerId)
-	tlmChannelSize.Delete(pb.listenerId)
-	tlmBufferFlushedFull.Delete(pb.listenerId)
-	tlmBufferFlushedTimer.Delete(pb.listenerId)
+	tlmBufferSize.Delete(pb.listenerID)
+	tlmChannelSize.Delete(pb.listenerID)
+	tlmBufferFlushedFull.Delete(pb.listenerID)
+	tlmBufferFlushedTimer.Delete(pb.listenerID)
 }
