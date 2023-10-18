@@ -31,6 +31,14 @@ func TestTokenizer(t *testing.T) {
 			expected: nil,
 		},
 		{
+			path:     []byte("/1"),
+			expected: []val{{tokenWildcard, []byte("1")}},
+		},
+		{
+			path:     []byte("/foo/1"),
+			expected: []val{{tokenString, []byte("foo")}, {tokenWildcard, []byte("1")}},
+		},
+		{
 			path:     []byte("/abc/def"),
 			expected: []val{{tokenString, []byte("abc")}, {tokenString, []byte("def")}},
 		},
@@ -65,7 +73,7 @@ func TestTokenizer(t *testing.T) {
 			got = append(got, val{tokenType, data})
 		}
 
-		assert.Equalf(t, tc.expected, got, "tokenization of %s should have returned %+v. got %+v", tc.path, tc.expected, got)
+		assert.Equalf(t, tc.expected, got, "tokenization of %s should have returned %s. got %s", tc.path, tc.expected, got)
 	}
 }
 
@@ -81,6 +89,14 @@ func TestURLQuantizer(t *testing.T) {
 		{
 			path:     []byte("/"),
 			expected: []byte("/"),
+		},
+		{
+			path:     []byte("/a"),
+			expected: []byte("/a"),
+		},
+		{
+			path:     []byte("/1"),
+			expected: []byte("/*"),
 		},
 		{
 			path:     []byte("/abc"),
@@ -130,7 +146,7 @@ func TestURLQuantizer(t *testing.T) {
 
 	for _, tc := range testCases {
 		result := quantizer.Quantize(tc.path)
-		assert.Equal(t, tc.expected, result)
+		assert.Equalf(t, tc.expected, result, "expected: %s, got: %s", tc.expected, result)
 
 		// Test quantization a second time to ensure idempotency.
 		// We do this to validate that bringing the quantization code to
@@ -138,7 +154,7 @@ func TestURLQuantizer(t *testing.T) {
 		// similar set of heuristics. In other words, an agent payload with
 		// pre-quantized endpoint arriving at the backend should be a no-op.
 		result = quantizer.Quantize(result)
-		assert.Equal(t, tc.expected, result)
+		assert.Equalf(t, tc.expected, result, "expected: %s, got: %s", tc.expected, result)
 	}
 }
 

@@ -97,7 +97,7 @@ func (t *tokenizer) Next() bool {
 	t.countSpecialChars = 0
 	t.i = t.j + 1
 
-	if t.i >= len(t.path)-1 {
+	if t.i >= len(t.path) {
 		return false
 	}
 
