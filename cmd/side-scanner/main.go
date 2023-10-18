@@ -80,6 +80,8 @@ var (
 	globalParams struct {
 		ConfigFilePath string
 	}
+
+	configPath string
 )
 
 func main() {
@@ -98,6 +100,7 @@ func rootCommand() *cobra.Command {
 		},
 	}
 
+	sideScannerCmd.PersistentFlags().StringVarP(&configPath, "config-path", "c", path.Join(commonpath.DefaultConfPath, "side-scanner.yaml"), "specify the path to side-scanner configuration yaml file")
 	sideScannerCmd.AddCommand(runCommand())
 	sideScannerCmd.AddCommand(scanCommand())
 
@@ -113,7 +116,7 @@ func runCommand() *cobra.Command {
 				func(_ complog.Component, _ compconfig.Component) error {
 					return runCmd()
 				},
-				fx.Supply(compconfig.NewAgentParamsWithSecrets(path.Join(commonpath.DefaultConfPath, "side-scanner.yaml"))),
+				fx.Supply(compconfig.NewAgentParamsWithSecrets(configPath)),
 				fx.Supply(complog.ForDaemon("SIDESCANNER", "log_file", pkgconfig.DefaultSideScannerLogFile)),
 				complog.Module,
 				compconfig.Module,
@@ -134,7 +137,7 @@ func scanCommand() *cobra.Command {
 				func(_ complog.Component, _ compconfig.Component) error {
 					return scanCmd([]byte(cliArgs.RawScan))
 				},
-				fx.Supply(compconfig.NewAgentParamsWithSecrets(path.Join(commonpath.DefaultConfPath, "side-scanner.yaml"))),
+				fx.Supply(compconfig.NewAgentParamsWithSecrets(configPath)),
 				fx.Supply(complog.ForDaemon("SIDESCANNER", "log_file", pkgconfig.DefaultSideScannerLogFile)),
 				complog.Module,
 				compconfig.Module,
