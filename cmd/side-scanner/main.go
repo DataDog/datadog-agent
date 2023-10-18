@@ -102,7 +102,7 @@ func runCommand() *cobra.Command {
 		Use:   "run",
 		Short: "Runs the side-scanner",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return fxutil.OneShot(run,
+			return fxutil.OneShot(runCmd,
 				fx.Supply(config.NewAgentParamsWithSecrets(path.Join(commonpath.DefaultConfPath, "side-scanner.yaml"))),
 				fx.Supply(log.ForDaemon("SIDESCANNER", "log_file", pkgconfig.DefaultSideScannerLogFile)),
 				log.Module,
@@ -123,7 +123,7 @@ func scanCommand() *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return fxutil.OneShot(
 				func(log log.Component, config config.Component) error {
-					return scan(log, config, cliArgs.ScanType, []byte(cliArgs.RawScan))
+					return scanCmd(log, config, []byte(cliArgs.RawScan))
 				},
 				fx.Supply(config.NewAgentParamsWithSecrets(path.Join(commonpath.DefaultConfPath, "side-scanner.yaml"))),
 				fx.Supply(log.ForDaemon("SIDESCANNER", "log_file", pkgconfig.DefaultSideScannerLogFile)),
@@ -141,13 +141,13 @@ func scanCommand() *cobra.Command {
 	return cmd
 }
 
-func run(log log.Component, _ config.Component) error {
+func runCmd(log log.Component, _ config.Component) error {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
 	defer stop()
 
 	common.SetupInternalProfiling(pkgconfig.Datadog, "")
 
-	hostname, err := utils.GetHostname()
+	hostname, err := utils.GetHostnameWithContext(ctx)
 	if err != nil {
 		return fmt.Errorf("could not fetch hostname: %w", err)
 	}
@@ -176,13 +176,13 @@ func run(log log.Component, _ config.Component) error {
 	return nil
 }
 
-func scan(log log.Component, _ config.Component, scanType string, rawScan []byte) error {
+func scanCmd(log log.Component, _ config.Component, rawScan []byte) error {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
 	defer stop()
 
 	common.SetupInternalProfiling(pkgconfig.Datadog, "")
 
-	hostname, err := utils.GetHostname()
+	hostname, err := utils.GetHostnameWithContext(ctx)
 	if err != nil {
 		return fmt.Errorf("could not fetch hostname: %w", err)
 	}
