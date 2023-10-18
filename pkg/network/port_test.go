@@ -141,7 +141,7 @@ func TestReadInitialUDPState(t *testing.T) {
 
 	_, portStr, err := net.SplitHostPort(addr)
 	_, portStrl6, err := net.SplitHostPort(addrl6)
-	
+
 	port, _ := strconv.Atoi(portStr)
 	portl6, _ := strconv.Atoi(portStrl6)
 
