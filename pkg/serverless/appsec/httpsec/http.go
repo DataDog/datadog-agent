@@ -11,9 +11,10 @@
 package httpsec
 
 import (
+	"encoding/base64"
 	"encoding/json"
+	"encoding/xml"
 	"fmt"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"io"
 	"mime"
 	"mime/multipart"
@@ -21,6 +22,8 @@ import (
 	"net/textproto"
 	"net/url"
 	"strings"
+
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // Monitorer is the interface type expected by the httpsec invocation
@@ -46,10 +49,10 @@ type context struct {
 }
 
 // makeContext creates a http monitoring context out of the provided arguments.
-func makeContext(ctx *context, path *string, headers, queryParams map[string][]string, pathParams map[string]string, sourceIP string, rawBody *string) {
+func makeContext(ctx *context, path *string, headers, queryParams map[string][]string, pathParams map[string]string, sourceIP string, rawBody *string, isBodyBase64 bool) {
 	headers, rawCookies := filterHeaders(headers)
 	cookies := parseCookies(rawCookies)
-	body := parseBody(headers, rawBody)
+	body := parseBody(headers, rawBody, isBodyBase64)
 	*ctx = context{
 		requestSourceIP:   sourceIP,
 		requestRawURI:     path,
@@ -63,9 +66,20 @@ func makeContext(ctx *context, path *string, headers, queryParams map[string][]s
 
 // parseBody attempts to parse the payload found in rawBody according to the presentation headers. Returns nil if the
 // request body could not be parsed (either due to an error, or because no suitable parsing strategy is implemented).
-func parseBody(headers map[string][]string, rawBody *string) (body any) {
+func parseBody(headers map[string][]string, rawBody *string, isBodyBase64 bool) any {
 	if rawBody == nil {
 		return nil
+	}
+
+	bodyDecoded := *rawBody
+	if isBodyBase64 {
+		rawBodyDecoded, err := base64.StdEncoding.DecodeString(bodyDecoded)
+		if err != nil {
+			log.Errorf("cannot decode '%s' from base64: %v", bodyDecoded, err)
+			return nil
+		}
+
+		bodyDecoded = string(rawBodyDecoded)
 	}
 
 	// textproto.MIMEHeader normalizes the header names, so we don't have to worry about text case.
@@ -76,7 +90,7 @@ func parseBody(headers map[string][]string, rawBody *string) (body any) {
 		}
 	}
 
-	result, err := tryParseBody(mimeHeaders, *rawBody)
+	result, err := tryParseBody(mimeHeaders, bodyDecoded)
 	if err != nil {
 		log.Warnf("unable to parse request body: %v", err)
 		return nil
@@ -115,6 +129,14 @@ func tryParseBody(headers textproto.MIMEHeader, raw string) (body any, err error
 			return nil, err
 		}
 		return map[string][]string(values), nil
+
+	case "application/xml", "text/xml":
+		var value xmlMap
+		if err := xml.Unmarshal([]byte(raw), &value); err != nil {
+			return nil, err
+		}
+		// Unwrap the value to avoid surfacing our implementation details out
+		return map[string]any(value), nil
 
 	case "multipart/form-data":
 		boundary, ok := params["boundary"]
@@ -249,4 +271,68 @@ func toMultiValueMap(m map[string]string) map[string][]string {
 		res[k] = []string{v}
 	}
 	return res
+}
+
+// xmlMap is used to parse XML documents into a schema-agnostic format (essentially, a `map[string]any`).
+type xmlMap map[string]any
+
+// UnmarshalXML implements custom parsing from XML documents into a map-based generic format, because encoding/xml does
+// not provide a built-in unmarshal to map (any data that does not fit an `xml` tagged field, or that does not fit the
+// shape of that field, is silently ignored).
+func (m *xmlMap) UnmarshalXML(d *xml.Decoder, start xml.StartElement) error {
+	var children []any
+out:
+	for {
+		token, err := d.Token()
+		if err != nil {
+			return err
+		}
+
+		switch token := token.(type) {
+		case xml.StartElement:
+			var child xmlMap
+			if err := child.UnmarshalXML(d, token); err != nil {
+				return err
+			}
+			// Unwrap so we don't surface our implementation details out to the world...
+			children = append(children, map[string]any(child))
+		case xml.EndElement:
+			if token.Name.Local != start.Name.Local || token.Name.Space != start.Name.Space {
+				return fmt.Errorf("unexpected end of element %s", token.Name.Local)
+			}
+			break out
+		case xml.CharData:
+			str := strings.TrimSpace(string(token))
+			if str != "" {
+				children = append(children, str)
+			}
+		case xml.Comment:
+			str := strings.TrimSpace(string(token))
+			children = append(children, map[string]string{"#": str})
+		case xml.ProcInst:
+			children = append(children, map[string]any{"?": map[string]string{
+				"target":      token.Target,
+				"instruction": string(token.Inst),
+			}})
+		case xml.Directive:
+			children = append(children, map[string]any{"!": string(token)})
+		default:
+			return fmt.Errorf("not implemented: %T", token)
+		}
+	}
+
+	element := map[string]any{"children": children}
+	if start.Name.Space != "" {
+		element[":ns"] = start.Name.Space
+	}
+	for _, attr := range start.Attr {
+		prefix := ""
+		if attr.Name.Space != "" {
+			prefix = attr.Name.Space + ":"
+		}
+		element[fmt.Sprintf("@%s%s", prefix, attr.Name.Local)] = attr.Value
+	}
+
+	*m = xmlMap{start.Name.Local: element}
+	return nil
 }

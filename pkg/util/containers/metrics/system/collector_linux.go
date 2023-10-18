@@ -101,7 +101,7 @@ func (c *systemCollector) ID() string {
 	return systemCollectorID
 }
 
-func (c *systemCollector) GetContainerStats(containerNS, containerID string, cacheValidity time.Duration) (*provider.ContainerStats, error) {
+func (c *systemCollector) GetContainerStats(containerNS, containerID string, cacheValidity time.Duration) (*provider.ContainerStats, error) { //nolint:revive // TODO fix revive unused-parameter
 	cg, err := c.getCgroup(containerID, cacheValidity)
 	if err != nil {
 		return nil, err
@@ -110,7 +110,7 @@ func (c *systemCollector) GetContainerStats(containerNS, containerID string, cac
 	return c.buildContainerMetrics(cg, cacheValidity)
 }
 
-func (c *systemCollector) GetContainerOpenFilesCount(containerNS, containerID string, cacheValidity time.Duration) (*uint64, error) {
+func (c *systemCollector) GetContainerOpenFilesCount(containerNS, containerID string, cacheValidity time.Duration) (*uint64, error) { //nolint:revive // TODO fix revive unused-parameter
 	cg, err := c.getCgroup(containerID, cacheValidity)
 	if err != nil {
 		return nil, err
@@ -130,7 +130,7 @@ func (c *systemCollector) GetContainerOpenFilesCount(containerNS, containerID st
 	return &ofCount, nil
 }
 
-func (c *systemCollector) GetContainerNetworkStats(containerNS, containerID string, cacheValidity time.Duration) (*provider.ContainerNetworkStats, error) {
+func (c *systemCollector) GetContainerNetworkStats(containerNS, containerID string, cacheValidity time.Duration) (*provider.ContainerNetworkStats, error) { //nolint:revive // TODO fix revive unused-parameter
 	cg, err := c.getCgroup(containerID, cacheValidity)
 	if err != nil {
 		return nil, err
@@ -144,7 +144,7 @@ func (c *systemCollector) GetContainerNetworkStats(containerNS, containerID stri
 	return buildNetworkStats(c.procPath, pids)
 }
 
-func (c *systemCollector) GetContainerIDForPID(pid int, cacheValidity time.Duration) (string, error) {
+func (c *systemCollector) GetContainerIDForPID(pid int, cacheValidity time.Duration) (string, error) { //nolint:revive // TODO fix revive unused-parameter
 	containerID, err := cgroups.IdentiferFromCgroupReferences(c.procPath, strconv.Itoa(pid), c.baseController, cgroups.ContainerFilter)
 	return containerID, err
 }

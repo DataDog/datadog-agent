@@ -201,8 +201,8 @@ type IterableStreamJSONMarshalerMock struct {
 	maxIndex int
 }
 
-func (i *IterableStreamJSONMarshalerMock) WriteHeader(stream *jsoniter.Stream) error { return nil }
-func (i *IterableStreamJSONMarshalerMock) WriteFooter(stream *jsoniter.Stream) error { return nil }
+func (i *IterableStreamJSONMarshalerMock) WriteHeader(*jsoniter.Stream) error { return nil }
+func (i *IterableStreamJSONMarshalerMock) WriteFooter(*jsoniter.Stream) error { return nil }
 func (i *IterableStreamJSONMarshalerMock) WriteCurrentItem(stream *jsoniter.Stream) error {
 	stream.WriteString(fmt.Sprintf("Item%v", i.index))
 	return nil

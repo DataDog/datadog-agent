@@ -23,17 +23,17 @@ func SetupHandlers(r *mux.Router) *mux.Router {
 	return r
 }
 
-func reloadCheck(w http.ResponseWriter, r *http.Request) {
+func reloadCheck(w http.ResponseWriter, r *http.Request) { //nolint:revive // TODO fix revive unused-parameter
 	w.Header().Set("Content-Type", "text/plain")
 	w.Write([]byte("Not yet implemented."))
 }
 
-func listChecks(w http.ResponseWriter, r *http.Request) {
+func listChecks(w http.ResponseWriter, r *http.Request) { //nolint:revive // TODO fix revive unused-parameter
 	w.Header().Set("Content-Type", "text/plain")
 	w.Write([]byte("Not yet implemented."))
 }
 
-func listCheck(w http.ResponseWriter, r *http.Request) {
+func listCheck(w http.ResponseWriter, r *http.Request) { //nolint:revive // TODO fix revive unused-parameter
 	w.Header().Set("Content-Type", "text/plain")
 	w.Write([]byte("Not yet implemented."))
 }
