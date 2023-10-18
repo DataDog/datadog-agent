@@ -15,9 +15,10 @@ require (
 	// `TEST_INFRA_DEFINITIONS_BUILDIMAGES` matches the commit sha in the module version
 	// Example: 	github.com/DataDog/test-infra-definitions v0.0.0-YYYYMMDDHHmmSS-0123456789AB
 	// => TEST_INFRA_DEFINITIONS_BUILDIMAGES: 0123456789AB
-	github.com/DataDog/test-infra-definitions v0.0.0-20231016133926-2c1b7c55a327
+	github.com/DataDog/test-infra-definitions v0.0.0-20231017144910-d2510f65b6fe
 	github.com/aws/aws-sdk-go-v2 v1.21.2
 	github.com/aws/aws-sdk-go-v2/config v1.18.40
+	github.com/aws/aws-sdk-go-v2/service/eks v1.29.7
 	github.com/aws/aws-sdk-go-v2/service/ssm v1.36.4
 	github.com/cenkalti/backoff v2.2.1+incompatible
 	github.com/fatih/color v1.13.0
@@ -36,7 +37,7 @@ require (
 require (
 	github.com/DataDog/agent-payload/v5 v5.0.73
 	github.com/DataDog/datadog-api-client-go v1.16.0
-	github.com/aws/aws-sdk-go-v2/service/eks v1.29.7
+	github.com/DataDog/datadog-api-client-go/v2 v2.15.0
 	github.com/docker/cli v24.0.4+incompatible
 	github.com/docker/docker v24.0.4+incompatible
 	github.com/google/uuid v1.3.0
@@ -53,7 +54,7 @@ require (
 	dario.cat/mergo v1.0.0 // indirect
 	github.com/Azure/go-ansiterm v0.0.0-20210617225240-d185dfc1b5a1 // indirect
 	github.com/DataDog/mmh3 v0.0.0-20200805151601-30884ca2197a // indirect
-	github.com/DataDog/zstd v1.5.0 // indirect
+	github.com/DataDog/zstd v1.5.2 // indirect
 	github.com/DataDog/zstd_0 v0.0.0-20210310093942-586c1286621f // indirect
 	github.com/MakeNowJust/heredoc v1.0.0 // indirect
 	github.com/Masterminds/semver v1.5.0 // indirect
@@ -105,6 +106,7 @@ require (
 	github.com/go-openapi/jsonpointer v0.19.6 // indirect
 	github.com/go-openapi/jsonreference v0.20.2 // indirect
 	github.com/go-openapi/swag v0.22.3 // indirect
+	github.com/goccy/go-json v0.10.2 // indirect
 	github.com/gogo/protobuf v1.3.2 // indirect
 	github.com/golang/glog v1.1.1 // indirect
 	github.com/golang/groupcache v0.0.0-20210331224755-41bb18bfe9da // indirect
@@ -164,7 +166,7 @@ require (
 	github.com/pulumi/pulumi-eks/sdk v1.0.2 // indirect
 	github.com/pulumi/pulumi-kubernetes/sdk/v3 v3.30.2 // indirect
 	github.com/pulumi/pulumi-libvirt/sdk v0.4.0 // indirect
-	github.com/pulumi/pulumi-random/sdk/v4 v4.13.4 // indirect
+	github.com/pulumi/pulumi-random/sdk/v4 v4.14.0 // indirect
 	github.com/rivo/uniseg v0.4.4 // indirect
 	github.com/rogpeppe/go-internal v1.11.0 // indirect
 	github.com/russross/blackfriday/v2 v2.1.0 // indirect

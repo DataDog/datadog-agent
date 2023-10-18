@@ -3,8 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2023-present Datadog, Inc.
 
-// Package sender exposes a Sender for netflow.
-package sender
+// Package diagnosesendermanager defines the sender manager for the local diagnose check
+package diagnosesendermanager
 
 import (
 	"testing"
@@ -18,16 +18,18 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
-// team: network-device-monitoring
+// team: agent-shared-components
 
 // Component is the component type.
+// This component must not be used with demultiplexer.Component
+// See demultiplexer.provides for more information.
 type Component interface {
-	sender.Sender
+	sender.DiagnoseSenderManager
 }
 
 // Module defines the fx options for this component.
 var Module = fxutil.Component(
-	fx.Provide(getDefaultSender),
+	fx.Provide(newDiagnoseSenderManager),
 )
 
 // MockComponent is an interface satisfied by mocksender.MockSender.
@@ -44,8 +46,3 @@ type MockComponent interface {
 	AssertEventPlatformEvent(t *testing.T, expectedRawEvent []byte, expectedEventType string) bool
 	AssertEventMissing(t *testing.T, expectedEvent event.Event, allowedDelta time.Duration) bool
 }
-
-// MockModule provides a MockSender as the sender Component.
-var MockModule = fxutil.Component(
-	fx.Provide(newMockSender),
-)

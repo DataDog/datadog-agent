@@ -347,7 +347,7 @@ func (t *Tailer) forwardMessages() {
 		origin.Offset = strconv.FormatInt(offset, 10)
 		origin.SetTags(append(t.tags, t.tagProvider.GetTags()...))
 		// Ignore empty lines once the registry offset is updated
-		if len(output.Content) == 0 {
+		if len(output.GetContent()) == 0 {
 			continue
 		}
 		// Make the write to the output chan cancellable to be able to stop the tailer
@@ -355,7 +355,8 @@ func (t *Tailer) forwardMessages() {
 		// We don't return directly to keep the same shutdown sequence that in the
 		// normal case.
 		select {
-		case t.outputChan <- message.NewMessage(output.Content, origin, output.Status, output.IngestionTimestamp):
+		// XXX(remy): is it ok recreating a message like this here?
+		case t.outputChan <- message.NewMessage(output.GetContent(), origin, output.Status, output.IngestionTimestamp):
 		case <-t.forwardContext.Done():
 		}
 	}
