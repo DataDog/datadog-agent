@@ -2,9 +2,11 @@ module github.com/DataDog/datadog-agent/cmd/agent/common/path
 
 go 1.20
 
-replace github.com/DataDog/datadog-agent/pkg/util/executable => ../../../../pkg/util/executable
-
-replace github.com/DataDog/datadog-agent/pkg/util/log => ../../../../pkg/util/log
+replace (
+	github.com/DataDog/datadog-agent/pkg/util/executable => ../../../../pkg/util/executable
+	github.com/DataDog/datadog-agent/pkg/util/log => ../../../../pkg/util/log
+	github.com/DataDog/datadog-agent/pkg/util/scrubber => ../../../../pkg/util/scrubber
+)
 
 require (
 	github.com/DataDog/datadog-agent/pkg/util/executable v0.0.0-00010101000000-000000000000
