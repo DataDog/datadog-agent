@@ -391,7 +391,7 @@ func (s *sideScanner) sendSBOM(entity *sbommodel.SBOMEntity) error {
 		return fmt.Errorf("unable to proto marhsal sbom: %w", err)
 	}
 
-	m := &message.Message{Content: rawEvent}
+	m := message.NewMessage(rawEvent, nil, "", 0)
 	return s.eventForwarder.SendEventPlatformEvent(m, epforwarder.EventTypeContainerSBOM)
 }
 
