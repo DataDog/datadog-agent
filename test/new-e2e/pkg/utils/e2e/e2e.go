@@ -427,6 +427,10 @@ func (suite *Suite[Env]) initSuite(stackName string, stackDef *StackDefinition[E
 	for _, o := range options {
 		o(&suite.params)
 	}
+	if suite.params.LazyEnvironment {
+		return
+	}
+	suite.UpdateEnv(suite.defaultStackDef)
 }
 
 // Env returns the current environment.
