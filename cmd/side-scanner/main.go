@@ -409,10 +409,15 @@ func launchScan(ctx context.Context, scan scanTask) (*sbommodel.SBOMEntity, erro
 }
 
 func createEBSSnapshot(ctx context.Context, svc *ec2.EC2, scan ebsScan) (string, error) {
+	tagList := &ec2.TagSpecification{
+		Tags:         []*ec2.Tag{{Key: aws.String("source"), Value: aws.String("datadog-side-scanner")}},
+		ResourceType: aws.String(ec2.ResourceTypeSnapshot),
+	}
 	retries := 0
 retry:
 	result, err := svc.CreateSnapshotWithContext(ctx, &ec2.CreateSnapshotInput{
-		VolumeId: aws.String(scan.VolumeID),
+		VolumeId:          aws.String(scan.VolumeID),
+		TagSpecifications: []*ec2.TagSpecification{tagList},
 	})
 	if err != nil {
 		if aerr, ok := err.(awserr.Error); ok {
