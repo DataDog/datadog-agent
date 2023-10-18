@@ -11,6 +11,7 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"github.com/DataDog/datadog-agent/cmd/serverless-init/metric"
 	"os"
 	"os/exec"
 	"os/signal"
@@ -23,8 +24,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/cmd/serverless-init/cloudservice"
 	serverlessLog "github.com/DataDog/datadog-agent/cmd/serverless-init/log"
-	"github.com/DataDog/datadog-agent/cmd/serverless-init/metric"
-	"github.com/DataDog/datadog-agent/pkg/logs"
+	logsAgent "github.com/DataDog/datadog-agent/comp/logs/agent"
 	"github.com/DataDog/datadog-agent/pkg/serverless"
 	"github.com/DataDog/datadog-agent/pkg/serverless/metrics"
 	"github.com/DataDog/datadog-agent/pkg/serverless/trace"
@@ -33,17 +33,26 @@ import (
 )
 
 // Run is the entrypoint of the init process. It will spawn the customer process
-func Run(cloudService cloudservice.CloudService, logConfig *serverlessLog.Config, metricAgent *metrics.ServerlessMetricAgent, traceAgent *trace.ServerlessTraceAgent, args []string) {
+func Run(
+	cloudService cloudservice.CloudService,
+	logConfig *serverlessLog.Config,
+	metricAgent *metrics.ServerlessMetricAgent,
+	traceAgent *trace.ServerlessTraceAgent,
+	logsAgent logsAgent.ServerlessLogsAgent,
+	args []string,
+) {
 	serverlessLog.Write(logConfig, []byte(fmt.Sprintf("[datadog init process] running cmd = >%v<", args)), false)
-	err := execute(cloudService, logConfig, metricAgent, traceAgent, args)
+	err := execute(logConfig, args)
 	if err != nil {
 		serverlessLog.Write(logConfig, []byte(fmt.Sprintf("[datadog init process] exiting with code = %s", err)), false)
 	} else {
 		serverlessLog.Write(logConfig, []byte("[datadog init process] exiting successfully"), false)
 	}
+	metric.AddShutdownMetric(cloudService.GetPrefix(), metricAgent.GetExtraTags(), time.Now(), metricAgent.Demux)
+	flush(logConfig.FlushTimeout, metricAgent, traceAgent, logsAgent)
 }
 
-func execute(cloudService cloudservice.CloudService, config *serverlessLog.Config, metricAgent *metrics.ServerlessMetricAgent, traceAgent *trace.ServerlessTraceAgent, args []string) error {
+func execute(logConfig *serverlessLog.Config, args []string) error {
 	commandName, commandArgs := buildCommandParam(args)
 
 	// Add our tracer settings
@@ -55,7 +64,7 @@ func execute(cloudService cloudservice.CloudService, config *serverlessLog.Confi
 	shouldBuffer := calculateShouldBuffer(commandName)
 
 	cmd.Stdout = &serverlessLog.CustomWriter{
-		LogConfig:  config,
+		LogConfig:  logConfig,
 		LineBuffer: bytes.Buffer{},
 		// Dotnet occasionally writes to stdout in multiple chunks causing log splitting issues.
 		// This happens regardless of logging library (and happens with Console.WriteLine).
@@ -64,7 +73,7 @@ func execute(cloudService cloudservice.CloudService, config *serverlessLog.Confi
 		ShouldBuffer: shouldBuffer,
 	}
 	cmd.Stderr = &serverlessLog.CustomWriter{
-		LogConfig:    config,
+		LogConfig:    logConfig,
 		LineBuffer:   bytes.Buffer{},
 		ShouldBuffer: shouldBuffer,
 		IsError:      true,
@@ -73,9 +82,10 @@ func execute(cloudService cloudservice.CloudService, config *serverlessLog.Confi
 	if err != nil {
 		return err
 	}
-	handleSignals(cloudService, cmd.Process, config, metricAgent, traceAgent)
+	sigs := make(chan os.Signal, 1)
+	signal.Notify(sigs)
+	go forwardSignals(cmd.Process, logConfig, sigs)
 	err = cmd.Wait()
-	flush(config.FlushTimeout, metricAgent, traceAgent)
 	return err
 }
 
@@ -95,35 +105,20 @@ func buildCommandParam(cmdArg []string) (string, []string) {
 	return commandName, []string{}
 }
 
-func handleSignals(cloudService cloudservice.CloudService, process *os.Process, config *serverlessLog.Config, metricAgent *metrics.ServerlessMetricAgent, traceAgent *trace.ServerlessTraceAgent) {
-	go func() {
-		sigs := make(chan os.Signal, 1)
-		signal.Notify(sigs)
-		for sig := range sigs {
-			if sig != syscall.SIGURG {
-				serverlessLog.Write(config, []byte(fmt.Sprintf("[datadog init process] %s received", sig)), false)
-			}
-			if sig != syscall.SIGCHLD {
-				if process != nil {
-					_ = syscall.Kill(process.Pid, sig.(syscall.Signal))
-					_, err := process.Wait()
-					if err != nil {
-						serverlessLog.Write(config, []byte(fmt.Sprintf("[datadog init process] exiting with code = %s", err)), false)
-					} else {
-						serverlessLog.Write(config, []byte("[datadog init process] exiting successfully"), false)
-					}
-				}
-			}
-			if sig == syscall.SIGTERM {
-				metric.AddShutdownMetric(cloudService.GetPrefix(), metricAgent.GetExtraTags(), time.Now(), metricAgent.Demux)
-				flush(config.FlushTimeout, metricAgent, traceAgent)
-				os.Exit(0)
+func forwardSignals(process *os.Process, config *serverlessLog.Config, sigs chan os.Signal) {
+	for sig := range sigs {
+		if sig != syscall.SIGURG {
+			serverlessLog.Write(config, []byte(fmt.Sprintf("[datadog init process] %s received", sig)), false)
+		}
+		if sig != syscall.SIGCHLD {
+			if process != nil {
+				_ = syscall.Kill(process.Pid, sig.(syscall.Signal))
 			}
 		}
-	}()
+	}
 }
 
-func flush(flushTimeout time.Duration, metricAgent serverless.FlushableAgent, traceAgent serverless.FlushableAgent) bool {
+func flush(flushTimeout time.Duration, metricAgent serverless.FlushableAgent, traceAgent serverless.FlushableAgent, logsAgent logsAgent.ServerlessLogsAgent) bool {
 	hasTimeout := atomic.NewInt32(0)
 	wg := &sync.WaitGroup{}
 	wg.Add(3)
@@ -132,14 +127,16 @@ func flush(flushTimeout time.Duration, metricAgent serverless.FlushableAgent, tr
 	childCtx, cancel := context.WithTimeout(context.Background(), flushTimeout)
 	defer cancel()
 	go func(wg *sync.WaitGroup, ctx context.Context) {
-		logs.Flush(ctx)
+		if logsAgent != nil {
+			logsAgent.Flush(ctx)
+		}
 		wg.Done()
 	}(wg, childCtx)
 	wg.Wait()
 	return hasTimeout.Load() > 0
 }
 
-func flushWithContext(ctx context.Context, timeout time.Duration, timeoutchan chan struct{}, flushFunction func()) {
+func flushWithContext(ctx context.Context, timeoutchan chan struct{}, flushFunction func()) {
 	flushFunction()
 	select {
 	case timeoutchan <- struct{}{}:
@@ -154,7 +151,7 @@ func flushAndWait(flushTimeout time.Duration, wg *sync.WaitGroup, agent serverle
 	childCtx, cancel := context.WithTimeout(context.Background(), flushTimeout)
 	defer cancel()
 	ch := make(chan struct{}, 1)
-	go flushWithContext(childCtx, flushTimeout, ch, agent.Flush)
+	go flushWithContext(childCtx, ch, agent.Flush)
 	select {
 	case <-childCtx.Done():
 		hasTimeout.Inc()

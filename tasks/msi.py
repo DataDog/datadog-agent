@@ -7,11 +7,20 @@ import mmap
 import os
 import shutil
 import sys
+from contextlib import contextmanager
 
 from invoke import task
 from invoke.exceptions import Exit, UnexpectedExit
 
 from tasks.utils import get_version, load_release_versions, timed
+
+# Windows only import
+try:
+    import msilib
+except ImportError:
+    if sys.platform == "win32":
+        raise
+    msilib = None
 
 # constants
 OUTPUT_PATH = os.path.join(os.getcwd(), "omnibus", "pkg")
@@ -174,7 +183,7 @@ def _build(
 
     # Construct build command line
     cmd = _get_vs_build_command(
-        f'cd {BUILD_SOURCE_DIR} && nuget restore && msbuild {project} /p:Configuration={configuration} /p:Platform="{arch}"',
+        f'cd {BUILD_SOURCE_DIR} && msbuild {project} /restore /p:Configuration={configuration} /p:Platform="{arch}"',
         vstudio_root,
     )
     print(f"Build Command: {cmd}")
@@ -231,8 +240,8 @@ def _build_msi(ctx, env, outdir, name):
     if not succeeded:
         raise Exit("Failed to build the MSI installer.", code=1)
 
-    # sign the MSI
     out_file = os.path.join(outdir, f"{name}.msi")
+    validate_msi(ctx, out_file)
     sign_file(ctx, out_file)
 
 
@@ -289,7 +298,7 @@ def build(
 
     # Run WiX to turn the WXS into an MSI
     with timed("Building MSI"):
-        msi_name = f"datadog-agent-ng-{env['PACKAGE_VERSION']}-1-x86_64"
+        msi_name = f"datadog-agent-{env['PACKAGE_VERSION']}-1-x86_64"
         _build_msi(
             ctx,
             env,
@@ -301,7 +310,7 @@ def build(
         shutil.copy2(os.path.join(build_outdir, msi_name + '.msi'), OUTPUT_PATH)
 
     # if the optional upgrade test helper exists then build that too
-    optional_name = "datadog-agent-ng-7.43.0~rc.3+git.485.14b9337-1-x86_64"
+    optional_name = "datadog-agent-7.43.0~rc.3+git.485.14b9337-1-x86_64"
     if os.path.exists(os.path.join(build_outdir, optional_name + ".wxs")):
         with timed("Building optional MSI"):
             _build_msi(
@@ -346,3 +355,55 @@ def test(
 
     if not ctx.run(f'dotnet test {build_outdir}\\WixSetup.Tests.dll', warn=True, env=env):
         raise Exit(code=1)
+
+
+def validate_msi_createfolder_table(db):
+    """
+    Checks that the CreateFolder MSI table only contains certain directories.
+
+    We found that WiX# was causing directories like TARGETDIR (C:\\) and ProgramFiles64Folder
+    (C:\\Program Files\\) to end up in the CrateFolder MSI table. Then because MSI.dll CreateFolder rollback
+    uses the obsolete SetFileSecurityW function the AI DACL flag is removed from those directories
+    on rollback.
+    https://github.com/oleg-shilo/wixsharp/issues/1336
+
+    If you think you need to add a new directory to this list, perform the following checks:
+    * Ensure the directory and its parents are deleted or persisted on uninstall as expected
+    * If the directory may be persisted after rollback, check if AI flag is removed and consider if that's okay or not
+
+    TODO: We don't want the AI flag to be removed from the directories in the allow list either, but
+          this behavior was also present in the original installer so leave them for now.
+    """
+    allowlist = ["APPLICATIONDATADIRECTORY", "checks.d", "run", "logs", "ProgramMenuDatadog"]
+
+    with MsiClosing(db.OpenView("Select Directory_ FROM CreateFolder")) as view:
+        view.Execute(None)
+        record = view.Fetch()
+        unexpected = set()
+        while record:
+            directory = record.GetString(1)
+            if directory not in allowlist:
+                unexpected.add(directory)
+            record = view.Fetch()
+
+    if unexpected:
+        for directory in unexpected:
+            print(f"Unexpected directory '{directory}' in MSI CreateFolder table")
+        raise Exit(f"{len(unexpected)} unexpected directories in MSI CreateFolder table")
+
+
+@task
+def validate_msi(_ctx, msi=None):
+    with MsiClosing(msilib.OpenDatabase(msi, msilib.MSIDBOPEN_READONLY)) as db:
+        validate_msi_createfolder_table(db)
+
+
+@contextmanager
+def MsiClosing(obj):
+    """
+    The MSI objects use Close() instead of close() so we can't use the built-in closing()
+    """
+    try:
+        yield obj
+    finally:
+        obj.Close()

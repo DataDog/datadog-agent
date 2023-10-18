@@ -5,11 +5,15 @@
 
 //go:build windows
 
+// Package messagestrings defines the MESSAGETABLE constants used by agent binaries
 package messagestrings
 
 //#include "messagestrings.h"
 import "C"
 
+//revive:disable:var-naming Name is intended to match the Windows const name
+
+// MESSAGETABLE constants used for formatting messages
 const (
 	MSG_AGENT_START_FAILURE         = C.MSG_AGENT_START_FAILURE
 	MSG_SERVICE_FAILED              = C.MSG_SERVICE_FAILED
@@ -22,3 +26,5 @@ const (
 	MSG_WARN_CONFIGUPGRADE_FAILED   = C.MSG_WARN_CONFIGUPGRADE_FAILED
 	MSG_WARNING_PROGRAMDATA_ERROR   = C.MSG_WARNING_PROGRAMDATA_ERROR
 )
+
+//revive:enable:var-naming

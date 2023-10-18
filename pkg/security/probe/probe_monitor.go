@@ -66,9 +66,12 @@ func (m *Monitor) Init() error {
 	if err != nil {
 		return fmt.Errorf("couldn't create the approver monitor: %w", err)
 	}
-	m.syscallsMonitor, err = syscalls.NewSyscallsMonitor(p.Manager, p.StatsdClient)
-	if err != nil {
-		return fmt.Errorf("couldn't create the approver monitor: %w", err)
+
+	if p.Opts.SyscallsMonitorEnabled {
+		m.syscallsMonitor, err = syscalls.NewSyscallsMonitor(p.Manager, p.StatsdClient)
+		if err != nil {
+			return fmt.Errorf("couldn't create the approver monitor: %w", err)
+		}
 	}
 
 	m.cgroupsMonitor = cgroups.NewCgroupsMonitor(p.StatsdClient, p.resolvers.CGroupResolver)
@@ -137,8 +140,10 @@ func (m *Monitor) SendStats() error {
 		return fmt.Errorf("failed to send evaluation set stats: %w", err)
 	}
 
-	if err := m.syscallsMonitor.SendStats(); err != nil {
-		return fmt.Errorf("failed to send evaluation set stats: %w", err)
+	if m.probe.Opts.SyscallsMonitorEnabled {
+		if err := m.syscallsMonitor.SendStats(); err != nil {
+			return fmt.Errorf("failed to send evaluation set stats: %w", err)
+		}
 	}
 
 	return nil

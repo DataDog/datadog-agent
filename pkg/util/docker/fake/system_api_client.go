@@ -5,6 +5,7 @@
 
 //go:build docker
 
+// Package fake provides a fake Docker client to be used in tests.
 package fake
 
 import (

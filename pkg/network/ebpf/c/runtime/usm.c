@@ -166,10 +166,9 @@ int uprobe__crypto_tls_Conn_Write__return(struct pt_regs *ctx) {
     }
 
     log_debug("[go-tls-write] processing %s\n", call_data_ptr->b_data);
-    https_process(t, (void*) call_data_ptr->b_data, bytes_written, GO);
-    http_batch_flush(ctx);
-
+    char *buffer_ptr = (char*)call_data_ptr->b_data;
     bpf_map_delete_elem(&go_tls_write_args, &call_key);
+    tls_process(ctx, t, buffer_ptr, bytes_written, GO);
     return 0;
 }
 
@@ -219,13 +218,18 @@ int uprobe__crypto_tls_Conn_Read__return(struct pt_regs *ctx) {
         return 0;
     }
 
+    // On 4.14 kernels we suffered from a verifier issue, that lost track on `call_key` and failed later when accessing
+    // to it. The workaround was to delay its creation, so we're getting the goroutine separately.
+    __s64 goroutine_id = 0;
     // Read the PID and goroutine ID to make the partial call key
-    go_tls_function_args_key_t call_key = {0};
-    call_key.pid = pid;
-    if (read_goroutine_id(ctx, &od->goroutine_id, &call_key.goroutine_id)) {
+    if (read_goroutine_id(ctx, &od->goroutine_id, &goroutine_id)) {
         log_debug("[go-tls-read-return] failed reading go routine id for pid %d\n", pid);
         return 0;
     }
+
+    go_tls_function_args_key_t call_key = {0};
+    call_key.pid = pid;
+    call_key.goroutine_id = goroutine_id;
 
     go_tls_read_args_data_t* call_data_ptr = bpf_map_lookup_elem(&go_tls_read_args, &call_key);
     if (call_data_ptr == NULL) {
@@ -256,11 +260,10 @@ int uprobe__crypto_tls_Conn_Read__return(struct pt_regs *ctx) {
         return 0;
     }
 
-    log_debug("[go-tls-read] processing %s\n", call_data_ptr->b_data);
-    https_process(t, (void*) call_data_ptr->b_data, bytes_read, GO);
-    http_batch_flush(ctx);
+    char *buffer_ptr = (char*)call_data_ptr->b_data;
+    bpf_map_delete_elem(&go_tls_read_args, (go_tls_function_args_key_t*)&call_key);
 
-    bpf_map_delete_elem(&go_tls_read_args, &call_key);
+    tls_process(ctx, t, buffer_ptr, bytes_read, GO);
     return 0;
 }
 
@@ -294,12 +297,11 @@ int uprobe__crypto_tls_Conn_Close(struct pt_regs *ctx) {
         return 0;
     }
 
-    https_finish(t);
-    http_batch_flush(ctx);
-
     // Clear the element in the map since this connection is closed
     bpf_map_delete_elem(&conn_tup_by_go_tls_conn, &conn_pointer);
 
+    // tls_finish can launch a tail call, thus cleanup should be done before.
+    tls_finish(ctx, t);
     return 0;
 }
 

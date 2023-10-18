@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/cmd/serverless-init/tag"
+	logsAgent "github.com/DataDog/datadog-agent/comp/logs/agent"
 	logConfig "github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	serverlessLogs "github.com/DataDog/datadog-agent/pkg/serverless/logs"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -68,9 +69,10 @@ func Write(conf *Config, msgToSend []byte, isError bool) {
 }
 
 // SetupLog creates the log agent and sets the base tags
-func SetupLog(conf *Config, tags map[string]string) {
-	serverlessLogs.SetupLogAgent(conf.channel, sourceName, conf.source)
+func SetupLog(conf *Config, tags map[string]string) logsAgent.ServerlessLogsAgent {
+	logsAgent, _ := serverlessLogs.SetupLogAgent(conf.channel, sourceName, conf.source)
 	serverlessLogs.SetLogsTags(tag.GetBaseTagsArrayWithMetadataTags(tags))
+	return logsAgent
 }
 
 func (cw *CustomWriter) Write(p []byte) (n int, err error) {

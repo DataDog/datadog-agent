@@ -1,4 +1,4 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-exec /opt/datadog-agent/embedded/bin/security-agent start -c=/etc/datadog-agent/datadog.yaml
+exec /opt/datadog-agent/embedded/bin/security-agent start -c=/etc/datadog-agent/datadog.yaml --sysprobe-config=/etc/datadog-agent/system-probe.yaml

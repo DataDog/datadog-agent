@@ -20,6 +20,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/common/utils"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/providers/names"
+	"github.com/DataDog/datadog-agent/pkg/autodiscovery/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -42,11 +43,13 @@ func NewKubeServiceConfigProvider(*config.ConfigurationProviders) (ConfigProvide
 	// Using GetAPIClient() (no retry)
 	ac, err := apiserver.GetAPIClient()
 	if err != nil {
+		telemetry.Errors.Inc(names.KubeServices)
 		return nil, fmt.Errorf("cannot connect to apiserver: %s", err)
 	}
 
 	servicesInformer := ac.InformerFactory.Core().V1().Services()
 	if servicesInformer == nil {
+		telemetry.Errors.Inc(names.KubeServices)
 		return nil, fmt.Errorf("cannot get service informer: %s", err)
 	}
 
@@ -59,6 +62,7 @@ func NewKubeServiceConfigProvider(*config.ConfigurationProviders) (ConfigProvide
 		UpdateFunc: p.invalidateIfChanged,
 		DeleteFunc: p.invalidate,
 	}); err != nil {
+		telemetry.Errors.Inc(names.KubeServices)
 		return nil, fmt.Errorf("cannot add event handler to services informer: %s", err)
 	}
 
@@ -98,12 +102,14 @@ func (k *KubeServiceConfigProvider) invalidateIfChanged(old, obj interface{}) {
 	// nil pointers are safely handled by the casting logic.
 	castedObj, ok := obj.(*v1.Service)
 	if !ok {
+		telemetry.Errors.Inc(names.KubeServices)
 		log.Errorf("Expected a *v1.Service type, got: %T", obj)
 		return
 	}
 	// Cast the old object, invalidate on casting error
 	castedOld, ok := old.(*v1.Service)
 	if !ok {
+		telemetry.Errors.Inc(names.KubeServices)
 		log.Errorf("Expected a *v1.Service type, got: %T", old)
 		k.upToDate = false
 		return
@@ -158,6 +164,7 @@ func parseServiceAnnotations(services []*v1.Service) ([]integration.Config, erro
 		serviceID := apiserver.EntityForService(svc)
 		svcConf, errors := utils.ExtractTemplatesFromPodAnnotations(serviceID, svc.Annotations, kubeServiceID)
 		for _, err := range errors {
+			telemetry.Errors.Inc(names.KubeServices)
 			log.Errorf("Cannot parse service template for service %s/%s: %s", svc.Namespace, svc.Name, err)
 		}
 

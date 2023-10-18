@@ -11,10 +11,10 @@ import (
 
 	"github.com/gosnmp/gosnmp"
 
-	"github.com/DataDog/datadog-agent/pkg/snmp/gosnmplib"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/checkconfig"
+	"github.com/DataDog/datadog-agent/pkg/networkdevice/profile/profiledefinition"
+	"github.com/DataDog/datadog-agent/pkg/snmp/gosnmplib"
 )
 
 // GetResultValueFromPDU converts gosnmp.SnmpPDU to ResultValue
@@ -100,14 +100,14 @@ func shouldSkip(berType gosnmp.Asn1BER) bool {
 //
 // ZeroBasedCounter64: We don't handle ZeroBasedCounter64 since it's not a type currently provided by gosnmp.
 // This type is currently supported by python impl: https://github.com/DataDog/integrations-core/blob/d6add1dfcd99c3610f45390b8d4cd97390af1f69/snmp/datadog_checks/snmp/pysnmp_inspect.py#L37-L38
-func getSubmissionType(gosnmpType gosnmp.Asn1BER) checkconfig.ProfileMetricType {
+func getSubmissionType(gosnmpType gosnmp.Asn1BER) profiledefinition.ProfileMetricType {
 	switch gosnmpType {
 	// Counter Types: From the snmp doc: The Counter32 type represents a non-negative integer which monotonically increases until it reaches a maximum
 	// value of 2^32-1 (4294967295 decimal), when it wraps around and starts increasing again from zero.
 	// We convert snmp counters by default to `rate` submission type, but sometimes `monotonic_count` might be more appropriate.
 	// To achieve that, we can use `metric_type: monotonic_count` or `metric_type: monotonic_count_and_rate`.
 	case gosnmp.Counter32, gosnmp.Counter64:
-		return checkconfig.ProfileMetricTypeCounter
+		return profiledefinition.ProfileMetricTypeCounter
 	}
 	return ""
 }

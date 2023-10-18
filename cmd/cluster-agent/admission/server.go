@@ -5,6 +5,7 @@
 
 //go:build kubeapiserver
 
+// Package admission runs the admission controller managed by the Cluster Agent.
 package admission
 
 import (

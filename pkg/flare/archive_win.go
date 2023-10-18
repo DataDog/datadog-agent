@@ -10,6 +10,7 @@ package flare
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
 	"os"
 	"os/exec"
@@ -180,79 +181,30 @@ func exportWindowsEventLog(fb flaretypes.FlareBuilder, eventLogChannel, eventLog
 
 func getServiceStatus(fb flaretypes.FlareBuilder) error {
 	return fb.AddFileFromFunc(
-		"servicestatus.txt",
+		"servicestatus.json",
 		func() ([]byte, error) {
-			cancelctx, cancelfunc := context.WithTimeout(context.Background(), execTimeout)
-			defer cancelfunc()
-
-			cmd := exec.CommandContext(cancelctx, "powershell", "-c", "get-service", "data*,ddnpm", "|", "fl")
-
-			var out bytes.Buffer
-			cmd.Stdout = &out
-			err := cmd.Run()
+			manager, err := winutil.OpenSCManager(scManagerAccess)
 			if err != nil {
-				log.Warnf("Error running powershell command %v", err)
-				// keep trying to get data even if this fails
-			}
-
-			f := &bytes.Buffer{}
-			_, err = f.Write(out.Bytes())
-			if err != nil {
-				log.Warnf("Error writing file %v", err)
+				log.Warnf("Error connecting to service control manager %v", err)
 				return nil, err
 			}
-			out.Reset()
-			// get the full driver configuration information
-			cmd = exec.CommandContext(cancelctx, "powershell", "-c", "sc.exe", "qc", "ddnpm")
+			defer manager.Disconnect()
 
-			cmd.Stdout = &out
-			err = cmd.Run()
+			ddServices, err := getDDServices(manager)
 			if err != nil {
-				log.Warnf("Error running powershell command %v", err)
-				// don't fail if this command fails; there's still lots of good data here
-			}
-
-			_, err = f.Write(out.Bytes())
-			if err != nil {
-				log.Warnf("Error writing file %v", err)
+				log.Warnf("Error getting service information %v", err)
 				return nil, err
 			}
 
-			// compute the location of the driver
-			ddroot, err := winutil.GetProgramFilesDirForProduct("DataDog Agent")
-			if err == nil {
-				pathtodriver := filepath.Join(ddroot, "bin", "agent", "driver", "ddnpm.sys")
-				fi, err := os.Stat(pathtodriver)
-				if err != nil {
-					f.Write([]byte(fmt.Sprintf("Failed to stat file %v %v\n", pathtodriver, err))) //nolint:errcheck
-				} else {
-					f.Write([]byte(fmt.Sprintf("Driver last modification time : %v\n", fi.ModTime().Format(time.UnixDate)))) //nolint:errcheck
-					// also show the file version resource
-					out.Reset()
-
-					quotedPath := fmt.Sprintf("\"%s\"", pathtodriver)
-					cmd = exec.CommandContext(cancelctx, "powershell", "-c", "gci", quotedPath, "|", "fl")
-
-					cmd.Stdout = &out
-					err = cmd.Run()
-					if err != nil {
-						log.Warnf("Error running powershell command %v", err)
-						// we've gotten a lot of data to this point.  don't fail just because this fails
-
-					}
-
-					_, err = f.Write(out.Bytes())
-					if err != nil {
-						log.Warnf("Error writing file %v", err)
-						return nil, err
-					}
-				}
-			} else {
-				return nil, fmt.Errorf("Error getting path to datadog agent binaries %v", err)
+			ddJSON, err := json.MarshalIndent(ddServices, "", "  ")
+			if err != nil {
+				log.Warnf("Error Marshaling to JSON %v", err)
+				return nil, err
 			}
 
-			return f.Bytes(), nil
-		})
+			return ddJSON, err
+		},
+	)
 }
 
 // getDatadogRegistry function saves all Datadog registry keys and values from HKLM\Software\Datadog.
@@ -289,6 +241,43 @@ func getDatadogRegistry(fb flaretypes.FlareBuilder) error {
 	return fb.AddFile("datadog.reg", data)
 }
 
+func getEventLogConfig(fb flaretypes.FlareBuilder) error {
+	cancelctx, cancelfunc := context.WithTimeout(context.Background(), execTimeout)
+	defer cancelfunc()
+
+	var out bytes.Buffer
+	// creating a buffer to append all cmd outputs
+	fullOutput := &bytes.Buffer{}
+	channels := [3]string{"Application", "System", "Security"}
+
+	for _, channel := range channels {
+		cmd := exec.CommandContext(cancelctx, "wevtutil", "gl", channel)
+		cmd.Stdout = &out
+		err := cmd.Run()
+		if err != nil {
+			log.Warnf("Error getting config for %s: %v", channel, err)
+			return err
+		}
+		_, err = fullOutput.Write(out.Bytes())
+		if err != nil {
+			log.Warnf("Error writing file %v", err)
+			return err
+		}
+
+		// adding a newline character to make the file easier to read
+		_, err = fullOutput.Write([]byte("\n"))
+		if err != nil {
+			log.Warnf("Error writing file %v", err)
+			return err
+		}
+
+		out.Reset()
+	}
+
+	return fb.AddFile("eventlogconfig.txt", fullOutput.Bytes())
+
+}
+
 func getWindowsData(fb flaretypes.FlareBuilder) {
 	getTypeperfData(fb)     //nolint:errcheck
 	getLodctrOutput(fb)     //nolint:errcheck
@@ -296,4 +285,5 @@ func getWindowsData(fb flaretypes.FlareBuilder) {
 	getWindowsEventLogs(fb) //nolint:errcheck
 	getServiceStatus(fb)    //nolint:errcheck
 	getDatadogRegistry(fb)  //nolint:errcheck
+	getEventLogConfig(fb)   //nolint:errcheck
 }

@@ -7,8 +7,11 @@ package checkconfig
 
 import (
 	"fmt"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"regexp"
+
+	"github.com/DataDog/datadog-agent/pkg/util/log"
+
+	"github.com/DataDog/datadog-agent/pkg/networkdevice/profile/profiledefinition"
 )
 
 var validMetadataResources = map[string]map[string]bool{
@@ -46,7 +49,7 @@ const (
 )
 
 // ValidateEnrichMetricTags validates and enrich metric tags
-func ValidateEnrichMetricTags(metricTags []MetricTagConfig) []string {
+func ValidateEnrichMetricTags(metricTags []profiledefinition.MetricTagConfig) []string {
 	var errors []string
 	for i := range metricTags {
 		errors = append(errors, validateEnrichMetricTag(&metricTags[i])...)
@@ -57,7 +60,7 @@ func ValidateEnrichMetricTags(metricTags []MetricTagConfig) []string {
 // ValidateEnrichMetrics will validate MetricsConfig and enrich it.
 // Example of enrichment:
 // - storage of compiled regex pattern
-func ValidateEnrichMetrics(metrics []MetricsConfig) []string {
+func ValidateEnrichMetrics(metrics []profiledefinition.MetricsConfig) []string {
 	var errors []string
 	for i := range metrics {
 		metricConfig := &metrics[i]
@@ -95,7 +98,7 @@ func ValidateEnrichMetrics(metrics []MetricsConfig) []string {
 }
 
 // validateEnrichMetadata will validate MetadataConfig and enrich it.
-func validateEnrichMetadata(metadata MetadataConfig) []string {
+func validateEnrichMetadata(metadata profiledefinition.MetadataConfig) []string {
 	var errors []string
 	for resName := range metadata {
 		_, isValidRes := validMetadataResources[resName]
@@ -131,7 +134,7 @@ func validateEnrichMetadata(metadata MetadataConfig) []string {
 	return errors
 }
 
-func validateEnrichSymbol(symbol *SymbolConfig, symbolContext SymbolContext) []string {
+func validateEnrichSymbol(symbol *profiledefinition.SymbolConfig, symbolContext SymbolContext) []string {
 	var errors []string
 	if symbol.Name == "" {
 		errors = append(errors, fmt.Sprintf("symbol name missing: name=`%s` oid=`%s`", symbol.Name, symbol.OID))
@@ -167,17 +170,43 @@ func validateEnrichSymbol(symbol *SymbolConfig, symbolContext SymbolContext) []s
 	}
 	return errors
 }
-func validateEnrichMetricTag(metricTag *MetricTagConfig) []string {
+func validateEnrichMetricTag(metricTag *profiledefinition.MetricTagConfig) []string {
 	var errors []string
+	if (metricTag.Column.OID != "" || metricTag.Column.Name != "") && (metricTag.Symbol.OID != "" || metricTag.Symbol.Name != "") {
+		errors = append(errors, fmt.Sprintf("metric tag symbol and column cannot be both declared: symbol=%v, column=%v", metricTag.Symbol, metricTag.Column))
+	}
+
+	// Move deprecated metricTag.Column to metricTag.Symbol
 	if metricTag.Column.OID != "" || metricTag.Column.Name != "" {
-		errors = append(errors, validateEnrichSymbol(&metricTag.Column, MetricTagSymbol)...)
+		metricTag.Symbol = profiledefinition.SymbolConfigCompat(metricTag.Column)
+		metricTag.Column = profiledefinition.SymbolConfig{}
+	}
+
+	// OID/Name to Symbol harmonization:
+	// When users declare metric tag like:
+	//   metric_tags:
+	//     - OID: 1.2.3
+	//       symbol: aSymbol
+	// this will lead to OID stored as MetricTagConfig.OID  and name stored as MetricTagConfig.Symbol.Name
+	// When this happens, we harmonize by moving MetricTagConfig.OID to MetricTagConfig.Symbol.OID.
+	if metricTag.OID != "" && metricTag.Symbol.OID != "" {
+		errors = append(errors, fmt.Sprintf("metric tag OID and symbol.OID cannot be both declared: OID=%s, symbol.OID=%s", metricTag.OID, metricTag.Symbol.OID))
+	}
+	if metricTag.OID != "" && metricTag.Symbol.OID == "" {
+		metricTag.Symbol.OID = metricTag.OID
+		metricTag.OID = ""
+	}
+	if metricTag.Symbol.OID != "" || metricTag.Symbol.Name != "" {
+		symbol := profiledefinition.SymbolConfig(metricTag.Symbol)
+		errors = append(errors, validateEnrichSymbol(&symbol, MetricTagSymbol)...)
+		metricTag.Symbol = profiledefinition.SymbolConfigCompat(symbol)
 	}
 	if metricTag.Match != "" {
 		pattern, err := regexp.Compile(metricTag.Match)
 		if err != nil {
 			errors = append(errors, fmt.Sprintf("cannot compile `match` (`%s`): %s", metricTag.Match, err.Error()))
 		} else {
-			metricTag.pattern = pattern
+			metricTag.Pattern = pattern
 		}
 		if len(metricTag.Tags) == 0 {
 			errors = append(errors, fmt.Sprintf("`tags` mapping must be provided if `match` (`%s`) is defined", metricTag.Match))

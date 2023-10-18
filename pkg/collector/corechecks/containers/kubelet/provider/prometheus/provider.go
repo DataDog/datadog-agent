@@ -5,10 +5,11 @@
 
 //go:build kubelet
 
+// Package prometheus implements data collection from a prometheus Kubelet
+// endpoint.
 package prometheus
 
 import (
-	"bytes"
 	"context"
 	"fmt"
 	"math"
@@ -16,18 +17,16 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/prometheus/common/expfmt"
 	"github.com/prometheus/common/model"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/containers/kubelet/common"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/prometheus"
 )
 
 const (
-	// TypeLabel is the special tag which signifies the type of the metric collected from Prometheus
-	TypeLabel = "__type__"
 	// NameLabel is the special tag which signifies the name of the metric collected from Prometheus
 	NameLabel             = "__name__"
 	microsecondsInSeconds = 1000000
@@ -59,12 +58,14 @@ type Provider struct {
 	ignoredMetricsRegex *regexp.Regexp
 }
 
+// ScraperConfig contains the configuration of the Prometheus scraper.
 type ScraperConfig struct {
 	Path string
 	// AllowNotFound determines whether the check should error out or just return nothing when a 404 status code is encountered
 	AllowNotFound bool
 }
 
+// NewProvider returns a new Provider.
 func NewProvider(config *common.KubeletConfig, transformers Transformers, scraperConfig *ScraperConfig) (Provider, error) {
 	if config == nil {
 		config = &common.KubeletConfig{}
@@ -145,6 +146,7 @@ func NewProvider(config *common.KubeletConfig, transformers Transformers, scrape
 	}, nil
 }
 
+// Provide sends the metrics collected.
 func (p *Provider) Provide(kc kubelet.KubeUtilInterface, sender sender.Sender) error {
 	// Collect raw data
 	data, status, err := kc.QueryKubelet(context.TODO(), p.ScraperConfig.Path)
@@ -156,7 +158,7 @@ func (p *Provider) Provide(kc kubelet.KubeUtilInterface, sender sender.Sender) e
 		return nil
 	}
 
-	metrics, err := ParseMetrics(data)
+	metrics, err := prometheus.ParseMetrics(data)
 	if err != nil {
 		return err
 	}
@@ -174,7 +176,7 @@ func (p *Provider) Provide(kc kubelet.KubeUtilInterface, sender sender.Sender) e
 
 		// The parsing library we are using appends some suffixes to the metric name for samples in a histogram or summary,
 		// To ensure backwards compatibility, we will remove these
-		if metric.Metric[TypeLabel] == metricTypeSummary || metric.Metric[TypeLabel] == metricTypeHistogram {
+		if metric.Metric[prometheus.TypeLabel] == metricTypeSummary || metric.Metric[prometheus.TypeLabel] == metricTypeHistogram {
 			if strings.HasSuffix(metricName, "_bucket") {
 				metricName = strings.TrimSuffix(metricName, "_bucket")
 			} else if strings.HasSuffix(metricName, "_count") {
@@ -214,7 +216,7 @@ func (p *Provider) Provide(kc kubelet.KubeUtilInterface, sender sender.Sender) e
 
 // SubmitMetric forwards a given metric to the sender.Sender, using the passed in metricName as the name of the submitted metric.
 func (p *Provider) SubmitMetric(metric *model.Sample, metricName string, sender sender.Sender) {
-	metricType := metric.Metric[TypeLabel]
+	metricType := metric.Metric[prometheus.TypeLabel]
 
 	if p.ignoreMetricByLabel(metric, metricName) {
 		return
@@ -299,7 +301,7 @@ func (p *Provider) sendDistributionCount(metric string, value float64, hostname 
 func (p *Provider) MetricTags(metric *model.Sample) []string {
 	tags := p.Config.Tags
 	for lName, lVal := range metric.Metric {
-		shouldExclude := lName == NameLabel || lName == TypeLabel
+		shouldExclude := lName == NameLabel || lName == prometheus.TypeLabel
 		if shouldExclude {
 			continue
 		}
@@ -378,31 +380,4 @@ func (p *Provider) metricNameWithNamespace(metricName string) string {
 		nameWithNamespace = fmt.Sprintf("%s.%s", strings.TrimSuffix(p.Config.Namespace, "."), metricName)
 	}
 	return nameWithNamespace
-}
-
-// ParseMetrics parses prometheus-formatted metrics from the input data.
-func ParseMetrics(data []byte) (model.Vector, error) {
-	// the prometheus TextParser does not support windows line separators, so we need to explicitly remove them
-	data = bytes.Replace(data, []byte("\r"), []byte(""), -1)
-
-	reader := bytes.NewReader(data)
-	var parser expfmt.TextParser
-	mf, err := parser.TextToMetricFamilies(reader)
-	if err != nil {
-		return nil, err
-	}
-
-	var metrics model.Vector
-	for _, family := range mf {
-		samples, err := expfmt.ExtractSamples(&expfmt.DecodeOptions{Timestamp: model.Now()}, family)
-		if err != nil {
-			return nil, err
-		}
-		for i := range samples {
-			// explicitly set the metric type as a label, as it will help when handling the metric
-			samples[i].Metric[TypeLabel] = model.LabelValue(family.Type.String())
-		}
-		metrics = append(metrics, samples...)
-	}
-	return metrics, nil
 }

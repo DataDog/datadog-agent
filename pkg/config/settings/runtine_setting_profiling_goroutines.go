@@ -11,11 +11,12 @@ import (
 
 // ProfilingGoroutines wraps runtime.SetBlockProfileRate setting
 type ProfilingGoroutines struct {
-	Config       config.ConfigReaderWriter
+	Config       config.ReaderWriter
 	ConfigPrefix string
 	source       Source
 }
 
+// NewProfilingGoroutines returns a new ProfilingGoroutines
 func NewProfilingGoroutines() *ProfilingGoroutines {
 	return &ProfilingGoroutines{source: SourceDefault}
 }
@@ -37,7 +38,7 @@ func (r *ProfilingGoroutines) Hidden() bool {
 
 // Get returns the current value of the runtime setting
 func (r *ProfilingGoroutines) Get() (interface{}, error) {
-	var cfg config.ConfigReaderWriter = config.Datadog
+	var cfg config.ReaderWriter = config.Datadog
 	if r.Config != nil {
 		cfg = r.Config
 	}
@@ -51,7 +52,7 @@ func (r *ProfilingGoroutines) Set(value interface{}, source Source) error {
 		return err
 	}
 
-	var cfg config.ConfigReaderWriter = config.Datadog
+	var cfg config.ReaderWriter = config.Datadog
 	if r.Config != nil {
 		cfg = r.Config
 	}
@@ -61,6 +62,7 @@ func (r *ProfilingGoroutines) Set(value interface{}, source Source) error {
 	return nil
 }
 
+// GetSource returns the source of the ProfilingGoroutines
 func (r *ProfilingGoroutines) GetSource() Source {
 	return r.source
 }

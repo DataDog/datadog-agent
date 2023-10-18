@@ -10,7 +10,6 @@ import (
 	"html"
 	"net/http"
 	"strings"
-	"testing"
 
 	"go.uber.org/fx"
 
@@ -24,7 +23,7 @@ import (
 
 type dependencies struct {
 	fx.In
-
+	Params Params
 	Config coreconfig.Component
 }
 
@@ -43,8 +42,12 @@ type cfg struct {
 
 func newConfig(deps dependencies) (Component, error) {
 	tracecfg, err := setupConfig(deps, "")
+
 	if err != nil {
-		return nil, err
+		// Allow main Agent to start with missing API key
+		if !(err == traceconfig.ErrMissingAPIKey && !deps.Params.FailIfAPIKeyMissing) {
+			return nil, err
+		}
 	}
 
 	c := cfg{
@@ -99,7 +102,6 @@ func (c *cfg) SetHandler() http.Handler {
 // If the agent is containerized, max_memory and max_cpu_percent are disabled by default.
 // Resource limits are better handled by container runtimes and orchestrators.
 func (c *cfg) SetMaxMemCPU(isContainerized bool) {
-
 	if c.coreConfig.Object().IsSet("apm_config.max_cpu_percent") {
 		c.MaxCPU = c.coreConfig.Object().GetFloat64("apm_config.max_cpu_percent") / 100
 	} else if isContainerized {
@@ -113,24 +115,4 @@ func (c *cfg) SetMaxMemCPU(isContainerized bool) {
 		log.Debug("Running in a container and apm_config.max_memory is not set, setting it to 0")
 		c.MaxMemory = 0
 	}
-}
-
-func newMock(deps dependencies, t testing.TB) (Component, error) {
-	// injected Agentconfig should be a mock
-
-	tracecfg, err := setupConfig(deps, "apikey")
-	if err != nil {
-		return nil, err
-	}
-
-	c := cfg{
-		warnings:    &pkgconfig.Warnings{},
-		coreConfig:  deps.Config,
-		AgentConfig: tracecfg,
-	}
-
-	c.SetMaxMemCPU(pkgconfig.IsContainerized())
-
-	return &c, nil
-
 }

@@ -58,7 +58,7 @@ func getLogDateFormat() string {
 	return logDateFormat
 }
 
-func createQuoteMsgFormatter(params string) seelog.FormatterFunc {
+func createQuoteMsgFormatter(params string) seelog.FormatterFunc { //nolint:revive // TODO fix revive unused-parameter
 	return func(message string, level seelog.LogLevel, context seelog.LogContextInterface) interface{} {
 		return strconv.Quote(message)
 	}
@@ -157,14 +157,14 @@ func buildDogstatsdLoggerConfig(loggerName LoggerName, seelogLogLevel, logFile s
 	config := seelogCfg.NewSeelogConfig(string(loggerName), seelogLogLevel, "common", "", buildCommonFormat(loggerName), false)
 
 	// Configuring max roll for log file, if dogstatsd_log_file_max_rolls env var is not set (or set improperly ) within datadog.yaml then default value is 3
-	dogstatsd_log_file_max_rolls := Datadog.GetInt("dogstatsd_log_file_max_rolls")
-	if dogstatsd_log_file_max_rolls < 0 {
-		dogstatsd_log_file_max_rolls = 3
+	dogstatsdLogFileMaxRolls := Datadog.GetInt("dogstatsd_log_file_max_rolls")
+	if dogstatsdLogFileMaxRolls < 0 {
+		dogstatsdLogFileMaxRolls = 3
 		log.Warnf("Invalid value for dogstatsd_log_file_max_rolls, please make sure the value is equal or higher than 0")
 	}
 
 	// Configure log file, log file max size, log file roll up
-	config.EnableFileLogging(logFile, Datadog.GetSizeInBytes("dogstatsd_log_file_max_size"), uint(dogstatsd_log_file_max_rolls))
+	config.EnableFileLogging(logFile, Datadog.GetSizeInBytes("dogstatsd_log_file_max_size"), uint(dogstatsdLogFileMaxRolls))
 
 	return config
 }
@@ -352,7 +352,7 @@ func getSyslogConnection(uri *url.URL, secure bool) (net.Conn, error) {
 }
 
 // ReceiveMessage process current log message
-func (s *SyslogReceiver) ReceiveMessage(message string, level seelog.LogLevel, context seelog.LogContextInterface) error {
+func (s *SyslogReceiver) ReceiveMessage(message string, level seelog.LogLevel, context seelog.LogContextInterface) error { //nolint:revive // TODO fix revive unused-parameter
 	if !s.enabled {
 		return nil
 	}
@@ -429,7 +429,7 @@ func (s *SyslogReceiver) Close() error {
 	return nil
 }
 
-func parseShortFilePath(params string) seelog.FormatterFunc {
+func parseShortFilePath(params string) seelog.FormatterFunc { //nolint:revive // TODO fix revive unused-parameter
 	return func(message string, level seelog.LogLevel, context seelog.LogContextInterface) interface{} {
 		return extractShortPathFromFullPath(context.FullPath())
 	}
@@ -457,7 +457,7 @@ func extractShortPathFromFullPath(fullPath string) string {
 	return shortPath
 }
 
-func createExtraJSONContext(params string) seelog.FormatterFunc {
+func createExtraJSONContext(params string) seelog.FormatterFunc { //nolint:revive // TODO fix revive unused-parameter
 	return func(message string, level seelog.LogLevel, context seelog.LogContextInterface) interface{} {
 		contextList, ok := context.CustomContext().([]interface{})
 		if len(contextList) == 0 || !ok {
@@ -467,7 +467,7 @@ func createExtraJSONContext(params string) seelog.FormatterFunc {
 	}
 }
 
-func createExtraTextContext(params string) seelog.FormatterFunc {
+func createExtraTextContext(params string) seelog.FormatterFunc { //nolint:revive // TODO fix revive unused-parameter
 	return func(message string, level seelog.LogLevel, context seelog.LogContextInterface) interface{} {
 		contextList, ok := context.CustomContext().([]interface{})
 		if len(contextList) == 0 || !ok {

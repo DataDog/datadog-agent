@@ -25,27 +25,22 @@ func (fh *FieldHandlers) ResolveContainerContext(ev *model.Event) (*model.Contai
 	return ev.ContainerContext, ev.ContainerContext != nil
 }
 
-// ResolveProcessArgv resolves the args of the event as an array
-func (fh *FieldHandlers) ResolveProcessArgv(ev *model.Event, process *model.Process) []string {
-	return process.Argv
-}
-
 // ResolveFilePath resolves the inode to a full path
-func (fh *FieldHandlers) ResolveFilePath(ev *model.Event, f *model.FileEvent) string {
+func (fh *FieldHandlers) ResolveFilePath(ev *model.Event, f *model.FileEvent) string { //nolint:revive // TODO fix revive unused-parameter
 	return f.PathnameStr
 }
 
 // ResolveFileBasename resolves the inode to a full path
-func (fh *FieldHandlers) ResolveFileBasename(ev *model.Event, f *model.FileEvent) string {
+func (fh *FieldHandlers) ResolveFileBasename(ev *model.Event, f *model.FileEvent) string { //nolint:revive // TODO fix revive unused-parameter
 	return f.BasenameStr
 }
 
 // ResolveProcessEnvp resolves the envp of the event as an array
-func (fh *FieldHandlers) ResolveProcessEnvp(ev *model.Event, process *model.Process) []string {
-	return fh.resolvers.ProcessResolver.GetProcessEnvp(process)
+func (fh *FieldHandlers) ResolveProcessEnvp(ev *model.Event, process *model.Process) []string { //nolint:revive // TODO fix revive unused-parameter
+	return fh.resolvers.ProcessResolver.GetEnvp(process)
 }
 
 // ResolveProcessEnvs resolves the envs of the event
-func (fh *FieldHandlers) ResolveProcessEnvs(ev *model.Event, process *model.Process) []string {
-	return fh.resolvers.ProcessResolver.GetProcessEnvs(process)
+func (fh *FieldHandlers) ResolveProcessEnvs(ev *model.Event, process *model.Process) []string { //nolint:revive // TODO fix revive unused-parameter
+	return fh.resolvers.ProcessResolver.GetEnvs(process)
 }

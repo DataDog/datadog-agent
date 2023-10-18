@@ -141,4 +141,11 @@ typedef enum {
     PROG_MAX,
 } protocol_prog_t;
 
+typedef enum {
+    TLS_PROG_UNKNOWN = 0,
+    TLS_HTTP_PROCESS,
+    TLS_HTTP_TERMINATION,
+    TLS_PROG_MAX,
+} tls_prog_t;
+
 #endif

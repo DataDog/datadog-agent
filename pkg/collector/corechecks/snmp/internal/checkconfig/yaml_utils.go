@@ -13,11 +13,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/snmp/snmpintegration"
 )
 
-// StringArray is list of string with a yaml un-marshaller that support both array and string.
-// See test file for example usage.
-// Credit: https://github.com/go-yaml/yaml/issues/100#issuecomment-324964723
-type StringArray []string
-
 // Number can unmarshal yaml string or integer
 type Number int
 
@@ -27,23 +22,6 @@ type Boolean bool
 // InterfaceConfigs can unmarshal yaml []snmpintegration.InterfaceConfig or interface configs in json format
 // Example of interface configs in json format: `[{"match_field":"name","match_value":"eth0","in_speed":25,"out_speed":10}]`
 type InterfaceConfigs []snmpintegration.InterfaceConfig
-
-// UnmarshalYAML unmarshalls StringArray
-func (a *StringArray) UnmarshalYAML(unmarshal func(interface{}) error) error {
-	var multi []string
-	err := unmarshal(&multi)
-	if err != nil {
-		var single string
-		err := unmarshal(&single)
-		if err != nil {
-			return err
-		}
-		*a = []string{single}
-	} else {
-		*a = multi
-	}
-	return nil
-}
 
 // UnmarshalYAML unmarshalls Number
 func (n *Number) UnmarshalYAML(unmarshal func(interface{}) error) error {
@@ -89,25 +67,6 @@ func (b *Boolean) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	} else {
 		*b = Boolean(value)
 	}
-	return nil
-}
-
-// UnmarshalYAML unmarshalls MetricTagConfigList
-func (mtcl *MetricTagConfigList) UnmarshalYAML(unmarshal func(interface{}) error) error {
-	var multi []MetricTagConfig
-	err := unmarshal(&multi)
-	if err != nil {
-		var tags []string
-		err := unmarshal(&tags)
-		if err != nil {
-			return err
-		}
-		multi = []MetricTagConfig{}
-		for _, tag := range tags {
-			multi = append(multi, MetricTagConfig{symbolTag: tag})
-		}
-	}
-	*mtcl = multi
 	return nil
 }
 

@@ -47,13 +47,15 @@ func convertMemoryStats(memStats *types.MemoryStats) *provider.ContainerMemStats
 		Limit:      pointer.Ptr(float64(memStats.Limit)),
 		OOMEvents:  pointer.Ptr(float64(memStats.Failcnt)),
 		// keys are cgroupv1, cgroupv2
-		RSS:   getFieldFromMap(memStats.Stats, "total_rss", "anon"),
-		Cache: getFieldFromMap(memStats.Stats, "total_cache", "file"),
+		RSS:        getFieldFromMap(memStats.Stats, "total_rss", "anon"),
+		Cache:      getFieldFromMap(memStats.Stats, "total_cache", "file"),
+		Pgfault:    getFieldFromMap(memStats.Stats, "pgfault", "pgfault"),
+		Pgmajfault: getFieldFromMap(memStats.Stats, "pgmajfault", "pgmajfault"),
 	}
 
-	inactive_file := getFieldFromMap(memStats.Stats, "total_inactive_file", "inactive_file")
-	if inactive_file != nil {
-		containerMemStats.WorkingSet = pointer.Ptr(*containerMemStats.UsageTotal - *inactive_file)
+	inactiveFile := getFieldFromMap(memStats.Stats, "total_inactive_file", "inactive_file")
+	if inactiveFile != nil {
+		containerMemStats.WorkingSet = pointer.Ptr(*containerMemStats.UsageTotal - *inactiveFile)
 	}
 
 	// `kernel_stack` and `slab`, which are used to compute `KernelMemory` are available only with cgroup v2

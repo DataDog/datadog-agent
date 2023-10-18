@@ -14,9 +14,9 @@ import (
 	"path"
 	"text/template"
 
+	"github.com/DataDog/datadog-agent/comp/otelcol/otlp"
 	checkstats "github.com/DataDog/datadog-agent/pkg/collector/check/stats"
 	"github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/otlp"
 	"github.com/DataDog/datadog-agent/pkg/snmp/traps"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -84,7 +84,7 @@ func FormatStatus(data []byte) (string, error) {
 		return nil
 	}
 	snmpTrapFunc := func() error {
-		if traps.IsEnabled() {
+		if traps.IsEnabled(config.Datadog) {
 			return RenderStatusTemplate(b, "/snmp-traps.tmpl", snmpTrapsStats)
 		}
 		return nil

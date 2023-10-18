@@ -46,6 +46,9 @@ import (
 	"net/http"
 	"regexp"
 	"strings"
+	"time"
+
+	"github.com/cenkalti/backoff/v4"
 
 	"github.com/DataDog/datadog-agent/test/fakeintake/aggregator"
 	"github.com/DataDog/datadog-agent/test/fakeintake/api"
@@ -55,19 +58,23 @@ import (
 type Client struct {
 	fakeIntakeURL string
 
-	metricAggregator   aggregator.MetricAggregator
-	checkRunAggregator aggregator.CheckRunAggregator
-	logAggregator      aggregator.LogAggregator
+	metricAggregator     aggregator.MetricAggregator
+	checkRunAggregator   aggregator.CheckRunAggregator
+	logAggregator        aggregator.LogAggregator
+	connectionAggregator aggregator.ConnectionsAggregator
+	processAggregator    aggregator.ProcessAggregator
 }
 
 // NewClient creates a new fake intake client
 // fakeIntakeURL: the host of the fake Datadog intake server
 func NewClient(fakeIntakeURL string) *Client {
 	return &Client{
-		fakeIntakeURL:      strings.TrimSuffix(fakeIntakeURL, "/"),
-		metricAggregator:   aggregator.NewMetricAggregator(),
-		checkRunAggregator: aggregator.NewCheckRunAggregator(),
-		logAggregator:      aggregator.NewLogAggregator(),
+		fakeIntakeURL:        strings.TrimSuffix(fakeIntakeURL, "/"),
+		metricAggregator:     aggregator.NewMetricAggregator(),
+		checkRunAggregator:   aggregator.NewCheckRunAggregator(),
+		logAggregator:        aggregator.NewLogAggregator(),
+		connectionAggregator: aggregator.NewConnectionsAggregator(),
+		processAggregator:    aggregator.NewProcessAggregator(),
 	}
 }
 
@@ -95,6 +102,22 @@ func (c *Client) getLogs() error {
 	return c.logAggregator.UnmarshallPayloads(payloads)
 }
 
+func (c *Client) getConnections() error {
+	payloads, err := c.getFakePayloads("/api/v1/connections")
+	if err != nil {
+		return err
+	}
+	return c.connectionAggregator.UnmarshallPayloads(payloads)
+}
+
+func (c *Client) getProcesses() error {
+	payloads, err := c.getFakePayloads("/api/v1/collector")
+	if err != nil {
+		return err
+	}
+	return c.processAggregator.UnmarshallPayloads(payloads)
+}
+
 // GetLatestFlare queries the Fake Intake to fetch flares that were sent by a Datadog Agent and returns the latest flare as a Flare struct
 // TODO: handle multiple flares / flush when returning latest flare
 func (c *Client) GetLatestFlare() (flare.Flare, error) {
@@ -111,17 +134,19 @@ func (c *Client) GetLatestFlare() (flare.Flare, error) {
 }
 
 func (c *Client) getFakePayloads(endpoint string) (rawPayloads []api.Payload, err error) {
-	resp, err := http.Get(fmt.Sprintf("%s/fakeintake/payloads?endpoint=%s", c.fakeIntakeURL, endpoint))
-	if err != nil {
-		return nil, err
-	}
-
-	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("error querying fake payloads, status code %s", resp.Status)
-	}
-
-	defer resp.Body.Close()
-	body, err := io.ReadAll(resp.Body)
+	var body []byte
+	err = backoff.Retry(func() error {
+		tmpResp, err := http.Get(fmt.Sprintf("%s/fakeintake/payloads?endpoint=%s", c.fakeIntakeURL, endpoint))
+		if err != nil {
+			return err
+		}
+		defer tmpResp.Body.Close()
+		if tmpResp.StatusCode != http.StatusOK {
+			return fmt.Errorf("Expected %d got %d", http.StatusOK, tmpResp.StatusCode)
+		}
+		body, err = io.ReadAll(tmpResp.Body)
+		return err
+	}, backoff.WithMaxRetries(backoff.NewConstantBackOff(5*time.Second), 4))
 	if err != nil {
 		return nil, err
 	}
@@ -360,4 +385,40 @@ func (c *Client) flushPayloads() error {
 		return fmt.Errorf("error code %v", resp.StatusCode)
 	}
 	return nil
+}
+
+// GetConnections fetches fakeintake on `/api/v1/connections` endpoint and returns
+// all received connections
+func (c *Client) GetConnections() (conns *aggregator.ConnectionsAggregator, err error) {
+	err = c.getConnections()
+	if err != nil {
+		return nil, err
+	}
+	return &c.connectionAggregator, nil
+}
+
+// GetConnectionsNames fetches fakeintake on `/api/v1/connections` endpoint and returns
+// all received connections from hostname+network_id
+func (c *Client) GetConnectionsNames() ([]string, error) {
+	err := c.getConnections()
+	if err != nil {
+		return []string{}, err
+	}
+	return c.connectionAggregator.GetNames(), nil
+}
+
+// GetProcesses fetches fakeintake on `/api/v1/collector` endpoint and returns
+// all received process payloads
+func (c *Client) GetProcesses() ([]*aggregator.ProcessPayload, error) {
+	err := c.getProcesses()
+	if err != nil {
+		return nil, err
+	}
+
+	var procs []*aggregator.ProcessPayload
+	for _, name := range c.processAggregator.GetNames() {
+		procs = append(procs, c.processAggregator.GetPayloadsByName(name)...)
+	}
+
+	return procs, nil
 }

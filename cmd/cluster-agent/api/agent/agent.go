@@ -11,6 +11,7 @@ package agent
 import (
 	"encoding/json"
 	"errors"
+	"io"
 	"net/http"
 	"sort"
 
@@ -36,7 +37,7 @@ import (
 )
 
 // SetupHandlers adds the specific handlers for cluster agent endpoints
-func SetupHandlers(r *mux.Router, senderManager sender.SenderManager) {
+func SetupHandlers(r *mux.Router, senderManager sender.DiagnoseSenderManager) {
 	r.HandleFunc("/version", getVersion).Methods("GET")
 	r.HandleFunc("/hostname", getHostname).Methods("GET")
 	r.HandleFunc("/flare", func(w http.ResponseWriter, r *http.Request) { makeFlare(w, r, senderManager) }).Methods("POST")
@@ -125,14 +126,30 @@ func getHostname(w http.ResponseWriter, r *http.Request) {
 	w.Write(j)
 }
 
-func makeFlare(w http.ResponseWriter, r *http.Request, senderManager sender.SenderManager) {
+func makeFlare(w http.ResponseWriter, r *http.Request, senderManager sender.DiagnoseSenderManager) {
 	log.Infof("Making a flare")
 	w.Header().Set("Content-Type", "application/json")
+
+	var profile flare.ProfileData
+
+	if r.Body != http.NoBody {
+		body, err := io.ReadAll(r.Body)
+		if err != nil {
+			http.Error(w, log.Errorf("Error while reading HTTP request body: %s", err).Error(), 500)
+			return
+		}
+
+		if err := json.Unmarshal(body, &profile); err != nil {
+			http.Error(w, log.Errorf("Error while unmarshaling JSON from request body: %s", err).Error(), 500)
+			return
+		}
+	}
+
 	logFile := config.Datadog.GetString("log_file")
 	if logFile == "" {
 		logFile = path.DefaultDCALogFile
 	}
-	filePath, err := flare.CreateDCAArchive(false, path.GetDistPath(), logFile, senderManager)
+	filePath, err := flare.CreateDCAArchive(false, path.GetDistPath(), logFile, profile, senderManager)
 	if err != nil || filePath == "" {
 		if err != nil {
 			log.Errorf("The flare failed to be created: %s", err)
