@@ -11,7 +11,6 @@ Package kubelet exposes a metric provider to handle metrics exposed by the main 
 package kubelet
 
 import (
-	"fmt"
 	"net/url"
 
 	"github.com/prometheus/common/model"
@@ -22,7 +21,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/tagger"
 	"github.com/DataDog/datadog-agent/pkg/tagger/collectors"
 	"github.com/DataDog/datadog-agent/pkg/tagger/utils"
-	"github.com/DataDog/datadog-agent/pkg/util/cache"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
@@ -90,13 +88,14 @@ var (
 
 // Provider provides the metrics related to data collected from the `/metrics` Kubelet endpoint
 type Provider struct {
-	filter *containers.Filter
-	store  workloadmeta.Store
+	filter   *containers.Filter
+	store    workloadmeta.Store
+	podUtils *common.PodUtils
 	prometheus.Provider
 }
 
 // NewProvider creates and returns a new Provider, configured based on the values passed in.
-func NewProvider(filter *containers.Filter, config *common.KubeletConfig, store workloadmeta.Store) (*Provider, error) {
+func NewProvider(filter *containers.Filter, config *common.KubeletConfig, store workloadmeta.Store, podUtils *common.PodUtils) (*Provider, error) {
 	// clone instance configuration so we can set our default metrics
 	kubeletConfig := *config
 
@@ -110,8 +109,9 @@ func NewProvider(filter *containers.Filter, config *common.KubeletConfig, store 
 	}
 
 	provider := &Provider{
-		filter: filter,
-		store:  store,
+		filter:   filter,
+		store:    store,
+		podUtils: podUtils,
 	}
 
 	transformers := prometheus.Transformers{
@@ -162,8 +162,8 @@ func (p *Provider) appendPodTagsToVolumeMetrics(metric *model.Sample, sender sen
 		return
 	}
 	tags := p.MetricTags(metric)
-	if podTags, found := cache.Cache.Get(fmt.Sprintf("check/kubelet/pvc/%s/%s", namespace, pvcName)); found {
-		tags = utils.ConcatenateTags(tags, podTags.([]string))
+	if podTags := p.podUtils.GetPodTagsByPVC(string(namespace), string(pvcName)); len(podTags) > 0 {
+		tags = utils.ConcatenateTags(tags, podTags)
 	}
 	sender.Gauge(metricNameWithNamespace, float64(metric.Value), "", tags)
 }

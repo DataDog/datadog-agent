@@ -199,8 +199,10 @@ func (suite *ProviderTestSuite) SetupTest() {
 	}
 	tagger.SetDefaultTagger(fakeTagger)
 
+	podUtils := common.NewPodUtils()
+
 	podsFile := "../../testdata/pods.json"
-	store, err := storePopulatedFromFile(podsFile)
+	store, err := storePopulatedFromFile(podsFile, podUtils)
 	if err != nil {
 		suite.T().Errorf("unable to populate store from file at: %s, err: %v", podsFile, err)
 	}
@@ -222,6 +224,7 @@ func (suite *ProviderTestSuite) SetupTest() {
 		},
 		config,
 		store,
+		podUtils,
 	)
 	assert.NoError(suite.T(), err)
 	suite.provider = p
@@ -548,7 +551,7 @@ func createKubeletMock(response endpointResponse) (*mock.KubeletMock, error) {
 	return kubeletMock, nil
 }
 
-func storePopulatedFromFile(filename string) (*workloadmetatesting.Store, error) {
+func storePopulatedFromFile(filename string, podUtils *common.PodUtils) (*workloadmetatesting.Store, error) {
 	store := workloadmetatesting.NewStore()
 
 	if filename == "" {
@@ -624,7 +627,7 @@ func storePopulatedFromFile(filename string) (*workloadmetatesting.Store, error)
 			},
 			Containers: podContainers,
 		})
-		common.CachePodTagsByPVC(pod)
+		podUtils.ComputePodTagsByPVC(pod)
 	}
 	return store, err
 }

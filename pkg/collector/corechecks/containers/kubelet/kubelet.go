@@ -41,6 +41,7 @@ type KubeletCheck struct {
 	instance  *common.KubeletConfig
 	filter    *containers.Filter
 	providers []Provider
+	podUtils  *common.PodUtils
 }
 
 // NewKubeletCheck returns a new KubeletCheck
@@ -51,14 +52,14 @@ func NewKubeletCheck(base core.CheckBase, instance *common.KubeletConfig) *Kubel
 	}
 }
 
-func initProviders(filter *containers.Filter, config *common.KubeletConfig) []Provider {
-	podProvider := pod.NewProvider(filter, config)
+func initProviders(filter *containers.Filter, config *common.KubeletConfig, podUtils *common.PodUtils) []Provider {
+	podProvider := pod.NewProvider(filter, config, podUtils)
 	// nodeProvider collects from the /spec endpoint, which was hidden by default in k8s 1.18 and removed in k8s 1.19.
 	// It is here for backwards compatibility.
 	nodeProvider := node.NewProvider(config)
 	healthProvider := health.NewProvider(config)
 	probeProvider, err := probe.NewProvider(filter, config, workloadmeta.GetGlobalStore())
-	kubeletProvider, err := kube.NewProvider(filter, config, workloadmeta.GetGlobalStore())
+	kubeletProvider, err := kube.NewProvider(filter, config, workloadmeta.GetGlobalStore(), podUtils)
 	summaryProvider := summary.NewProvider(filter, config, workloadmeta.GetGlobalStore())
 	if err != nil {
 		log.Warnf("Can't get probe provider: %v", err)
@@ -103,7 +104,8 @@ func (k *KubeletCheck) Configure(senderManager sender.SenderManager, integration
 		k.instance.SendHistogramBuckets = &sendBuckets
 	}
 
-	k.providers = initProviders(filter, k.instance)
+	k.podUtils = common.NewPodUtils()
+	k.providers = initProviders(filter, k.instance, k.podUtils)
 
 	return nil
 }
@@ -115,6 +117,7 @@ func (k *KubeletCheck) Run() error {
 		return err
 	}
 	defer sender.Commit()
+	defer k.podUtils.Reset()
 
 	// Get client
 	kc, err := kubelet.GetKubeUtil()

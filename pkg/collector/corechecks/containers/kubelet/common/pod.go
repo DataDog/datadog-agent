@@ -15,24 +15,36 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/tagger"
 	"github.com/DataDog/datadog-agent/pkg/tagger/collectors"
-	"github.com/DataDog/datadog-agent/pkg/util/cache"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
 )
 
-const (
-	pvcKeyPrefix = "check/kubelet/pvc"
-)
-
 var (
 	volumeTagKeysToExclude = []string{"persistentvolumeclaim", "pod_phase"}
 )
 
-// CachePodTagsByPVC stores the tags for a given pod in a global caching layer, indexed by pod namespace and persistent
+// PodUtils is used to cache computed pod metadata during check execution, which would otherwise be too
+// computationally heavy to do in place.
+type PodUtils struct {
+	podTagsByPVC map[string][]string
+}
+
+// NewPodUtils creates a new instance of PodUtils
+func NewPodUtils() *PodUtils {
+	return &PodUtils{podTagsByPVC: map[string][]string{}}
+}
+
+// Reset sets the PodUtils instance back to a default state. It should be called at the end of a check run to prevent
+// stale data from impacting overall memory usage.
+func (p *PodUtils) Reset() {
+	p.podTagsByPVC = map[string][]string{}
+}
+
+// ComputePodTagsByPVC stores the tags for a given pod in a global caching layer, indexed by pod namespace and persistent
 // volume name.
-func CachePodTagsByPVC(pod *kubelet.Pod) {
+func (p *PodUtils) ComputePodTagsByPVC(pod *kubelet.Pod) {
 	podUID := kubelet.PodUIDToTaggerEntityName(pod.Metadata.UID)
 	tags, _ := tagger.Tag(podUID, collectors.OrchestratorCardinality)
 	if len(tags) == 0 {
@@ -57,7 +69,7 @@ func CachePodTagsByPVC(pod *kubelet.Pod) {
 		if v.PersistentVolumeClaim != nil {
 			pvcName := v.PersistentVolumeClaim.ClaimName
 			if pvcName != "" {
-				cache.Cache.Set(fmt.Sprintf("%s/%s/%s", pvcKeyPrefix, pod.Metadata.Namespace, pvcName), filteredTags, 0)
+				p.podTagsByPVC[fmt.Sprintf("%s/%s", pod.Metadata.Namespace, pvcName)] = filteredTags
 			}
 		}
 
@@ -68,10 +80,15 @@ func CachePodTagsByPVC(pod *kubelet.Pod) {
 			ephemeral := v.Ephemeral.VolumeClaimTemplate
 			volumeName := v.Name
 			if ephemeral != nil && volumeName != "" {
-				cache.Cache.Set(fmt.Sprintf("%s/%s/%s-%s", pvcKeyPrefix, pod.Metadata.Namespace, pod.Metadata.Name, volumeName), filteredTags, 0)
+				p.podTagsByPVC[fmt.Sprintf("%s/%s-%s", pod.Metadata.Namespace, pod.Metadata.Name, volumeName)] = filteredTags
 			}
 		}
 	}
+}
+
+// GetPodTagsByPVC returns the computed pod tags for a PVC with a given name in a given namespace.
+func (p *PodUtils) GetPodTagsByPVC(namespace, pvcName string) []string {
+	return p.podTagsByPVC[fmt.Sprintf("%s/%s", namespace, pvcName)]
 }
 
 // GetContainerID returns the container ID from the workloadmeta.Store for a given set of metric labels.
