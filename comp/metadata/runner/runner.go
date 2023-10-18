@@ -74,15 +74,19 @@ func createRunner(deps dependencies) *runner {
 func newRunner(lc fx.Lifecycle, deps dependencies) Component {
 	r := createRunner(deps)
 
-	// We rely on FX to start and stop the metadata runner
-	lc.Append(fx.Hook{
-		OnStart: func(ctx context.Context) error {
-			return r.start()
-		},
-		OnStop: func(ctx context.Context) error {
-			return r.stop()
-		},
-	})
+	if deps.Config.GetBool("enable_metadata_collection") {
+		// We rely on FX to start and stop the metadata runner
+		lc.Append(fx.Hook{
+			OnStart: func(ctx context.Context) error {
+				return r.start()
+			},
+			OnStop: func(ctx context.Context) error {
+				return r.stop()
+			},
+		})
+	} else {
+		deps.Log.Info("Metadata collection is disabled, only do this if another agent/dogstatsd is running on this host")
+	}
 	return r
 }
 

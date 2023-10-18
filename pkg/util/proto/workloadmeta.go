@@ -270,11 +270,17 @@ func protoKubernetesPodFromWorkloadmetaKubernetesPod(kubernetesPod *workloadmeta
 		protoOrchestratorContainers = append(protoOrchestratorContainers, toProtoOrchestratorContainer(container))
 	}
 
+	var protoInitContainers []*pb.OrchestratorContainer
+	for _, container := range kubernetesPod.InitContainers {
+		protoInitContainers = append(protoInitContainers, toProtoOrchestratorContainer(container))
+	}
+
 	return &pb.KubernetesPod{
 		EntityId:                   protoEntityID,
 		EntityMeta:                 toProtoEntityMetaFromKubernetesPod(kubernetesPod),
 		Owners:                     protoKubernetesPodOwners,
 		PersistentVolumeClaimNames: kubernetesPod.PersistentVolumeClaimNames,
+		InitContainers:             protoInitContainers,
 		Containers:                 protoOrchestratorContainers,
 		Ready:                      kubernetesPod.Ready,
 		Phase:                      kubernetesPod.Phase,

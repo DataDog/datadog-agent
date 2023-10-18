@@ -10,6 +10,7 @@ package tracer
 import (
 	"bufio"
 	"bytes"
+	"context"
 	"fmt"
 	"io"
 	"math"
@@ -50,12 +51,17 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/connection"
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/offsetguess"
 	tracertest "github.com/DataDog/datadog-agent/pkg/network/tracer/testutil"
+	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 var kv470 = kernel.VersionCode(4, 7, 0)
 var kv = kernel.MustHostVersion()
+
+func platformInit() {
+	// linux-specific tasks here
+}
 
 func doDNSQuery(t *testing.T, domain string, serverIP string) (*net.UDPAddr, *net.UDPAddr) {
 	dnsServerAddr := &net.UDPAddr{IP: net.ParseIP(serverIP), Port: 53}
@@ -503,7 +509,6 @@ func (s *TracerSuite) TestTranslationBindingRegression() {
 	tr := setupTracer(t, testConfig())
 
 	// Setup TCP server
-	rand.Seed(time.Now().UnixNano())
 	port := 5430 + rand.Intn(100)
 	server := NewTCPServerOnAddress(fmt.Sprintf("1.1.1.1:%d", port), func(c net.Conn) {
 		wg.Add(1)
@@ -523,8 +528,20 @@ func (s *TracerSuite) TestTranslationBindingRegression() {
 	_, err = c.Write([]byte("ping"))
 	require.NoError(t, err)
 
-	// Give enough time for conntrack cache to be populated
-	time.Sleep(100 * time.Millisecond)
+	// wait for conntrack update
+	laddr := c.LocalAddr().(*net.TCPAddr)
+	raddr := c.RemoteAddr().(*net.TCPAddr)
+	cs := network.ConnectionStats{
+		DPort:  uint16(raddr.Port),
+		Dest:   util.AddressFromNetIP(raddr.IP),
+		Family: network.AFINET,
+		SPort:  uint16(laddr.Port),
+		Source: util.AddressFromNetIP(laddr.IP),
+		Type:   network.TCP,
+	}
+	require.Eventually(t, func() bool {
+		return tr.conntracker.GetTranslationForConn(cs) != nil
+	}, 3*time.Second, 100*time.Millisecond, "timed out waiting for conntrack update")
 
 	// Assert that the connection to 2.2.2.2 has an IPTranslation object bound to it
 	connections := getConnections(t, tr)
@@ -970,12 +987,17 @@ func (s *TracerSuite) TestDNATIntraHostIntegration() {
 		onMessage: func(c net.Conn) {
 			serverAddr.local = c.LocalAddr()
 			serverAddr.remote = c.RemoteAddr()
-			bs := make([]byte, 1)
-			_, err := c.Read(bs)
-			require.NoError(t, err, "error reading in server")
+			for {
+				bs := make([]byte, 4)
+				_, err := c.Read(bs)
+				if err == io.EOF {
+					return
+				}
+				require.NoError(t, err, "error reading in server")
 
-			_, err = c.Write([]byte("Ping back"))
-			require.NoError(t, err, "error writing back in server")
+				_, err = c.Write([]byte("pong"))
+				require.NoError(t, err, "error writing back in server")
+			}
 		},
 	}
 	t.Cleanup(server.Shutdown)
@@ -983,27 +1005,47 @@ func (s *TracerSuite) TestDNATIntraHostIntegration() {
 
 	_, port, err := net.SplitHostPort(server.address)
 	require.NoError(t, err)
-	conn, err := net.Dial("tcp", "2.2.2.2:"+port)
-	require.NoError(t, err, "error connecting to client")
-	defer conn.Close()
 
-	_, err = conn.Write([]byte("ping"))
-	require.NoError(t, err, "error writing in client")
+	var conn net.Conn
+	t.Cleanup(func() {
+		if conn != nil {
+			conn.Close()
+		}
+	})
 
-	bs := make([]byte, 1)
-	_, err = conn.Read(bs)
-	require.NoError(t, err)
+	var incoming, outgoing *network.ConnectionStats
+	require.Eventually(t, func() bool {
+		if conn == nil {
+			conn, err = net.Dial("tcp", "2.2.2.2:"+port)
+			if !assert.NoError(t, err, "error connecting to client") {
+				return false
+			}
+		}
 
-	conns := getConnections(t, tr)
-	c, found := findConnection(conn.LocalAddr(), conn.RemoteAddr(), conns)
-	require.True(t, found, "could not find outgoing connection %+v", conns)
-	require.NotNil(t, c, "could not find outgoing connection %+v", conns)
-	assert.True(t, c.IntraHost, "did not find outgoing connection classified as local: %v", c)
+		_, err = conn.Write([]byte("ping"))
+		if !assert.NoError(t, err, "error writing in client") {
+			return false
+		}
 
-	c, found = findConnection(serverAddr.local, serverAddr.remote, conns)
-	require.True(t, found, "could not find incoming connection %+v", conns)
-	require.NotNil(t, c, "could not find incoming connection %+v", conns)
-	assert.True(t, c.IntraHost, "did not find incoming connection classified as local: %v", c)
+		bs := make([]byte, 4)
+		_, err = conn.Read(bs)
+		if !assert.NoError(t, err) {
+			return false
+		}
+
+		conns := getConnections(t, tr)
+		t.Log(conns)
+
+		outgoing, _ = findConnection(conn.LocalAddr(), conn.RemoteAddr(), conns)
+		incoming, _ = findConnection(serverAddr.local, serverAddr.remote, conns)
+
+		t.Logf("incoming: %+v, outgoing: %+v", incoming, outgoing)
+
+		return outgoing != nil && incoming != nil
+	}, 3*time.Second, 100*time.Millisecond, "failed to get both incoming and outgoing connection")
+
+	assert.True(t, outgoing.IntraHost, "did not find outgoing connection classified as local: %v", outgoing)
+	assert.True(t, incoming.IntraHost, "did not find incoming connection classified as local: %v", incoming)
 }
 
 func (s *TracerSuite) TestSelfConnect() {
@@ -1013,29 +1055,26 @@ func (s *TracerSuite) TestSelfConnect() {
 	cfg.TCPConnTimeout = 3 * time.Second
 	tr := setupTracer(t, cfg)
 
-	started := make(chan struct{})
-	cmd := exec.Command("testdata/fork.py")
-	stdOutReader, stdOutWriter := io.Pipe()
-	go func() {
-		var stderr bytes.Buffer
-		cmd.Stderr = &stderr
-		cmd.Stdout = stdOutWriter
-		err := cmd.Start()
-		close(started)
-		require.NoError(t, err)
+	ctx, cancel := context.WithTimeout(context.Background(), 1*time.Minute)
+	t.Cleanup(cancel)
+
+	cmd := exec.CommandContext(ctx, "testdata/fork.py")
+	var stderr bytes.Buffer
+	cmd.Stderr = &stderr
+	cmd.WaitDelay = 10 * time.Second
+	stdOutReader, err := cmd.StdoutPipe()
+	require.NoError(t, err)
+	require.NoError(t, cmd.Start())
+	t.Cleanup(func() {
+		cancel()
 		if err := cmd.Wait(); err != nil {
 			status := cmd.ProcessState.Sys().(syscall.WaitStatus)
-			require.Equal(t, syscall.SIGKILL, status.Signal(), "fork.py output: %s", stderr.String())
+			assert.Equal(t, syscall.SIGKILL, status.Signal(), "fork.py output: %s", stderr.String())
 		}
-	}()
-
-	<-started
-
-	defer cmd.Process.Kill()
+	})
 
 	portStr, err := bufio.NewReader(stdOutReader).ReadString('\n')
 	require.NoError(t, err, "error reading port from fork.py")
-	stdOutReader.Close()
 
 	port, err := strconv.ParseUint(strings.TrimSpace(portStr), 10, 16)
 	require.NoError(t, err, "could not convert %s to integer port", portStr)
@@ -1318,7 +1357,11 @@ func (s *TracerSuite) TestDNSStatsWithNAT() {
 	cmds := []string{"iptables -t nat -A OUTPUT -d 2.2.2.2 -j DNAT --to-destination 8.8.8.8"}
 	testutil.RunCommands(t, cmds, true)
 
-	testDNSStats(t, "golang.org", 1, 0, 0, "2.2.2.2")
+	cfg := testConfig()
+	cfg.CollectDNSStats = true
+	cfg.DNSTimeout = 1 * time.Second
+	tr := setupTracer(t, cfg)
+	testDNSStats(t, tr, "golang.org", 1, 0, 0, "2.2.2.2")
 }
 
 func iptablesWrapper(t *testing.T, f func()) {
@@ -1707,8 +1750,6 @@ func (s *TracerSuite) TestTCPDirectionWithPreexistingConnection() {
 
 	// start tracer so it dumps port bindings
 	cfg := testConfig()
-	// delay from gateway lookup timeout can cause test failure
-	cfg.EnableGatewayLookup = false
 	tr := setupTracer(t, cfg)
 
 	// open and close another client connection to force port binding delete
@@ -1883,7 +1924,7 @@ func (s *TracerSuite) TestGetHelpersTelemetry() {
 
 	t.Setenv("DD_SYSTEM_PROBE_SERVICE_MONITORING_ENABLED", "true")
 	cfg := testConfig()
-	cfg.EnableHTTPSMonitoring = true
+	cfg.EnableNativeTLSMonitoring = true
 	cfg.EnableHTTPMonitoring = true
 	tr := setupTracer(t, cfg)
 
@@ -2029,6 +2070,8 @@ func testConfig() *config.Config {
 	if isPrebuilt(cfg) && kv >= kernel.VersionCode(5, 18, 0) {
 		cfg.CollectUDPv6Conns = false
 	}
+
+	cfg.EnableGatewayLookup = false
 	return cfg
 }
 

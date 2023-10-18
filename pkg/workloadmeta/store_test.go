@@ -600,6 +600,43 @@ func TestSubscribe(t *testing.T) {
 	}
 }
 
+func TestGetKubernetesDeployment(t *testing.T) {
+	s := newTestStore()
+
+	deployment := &KubernetesDeployment{
+		EntityID: EntityID{
+			Kind: KindKubernetesDeployment,
+			ID:   "datadog-cluster-agent",
+		},
+	}
+
+	s.handleEvents([]CollectorEvent{
+		{
+			Type:   EventTypeSet,
+			Source: fooSource,
+			Entity: deployment,
+		},
+	})
+
+	retrievedDeployment, err := s.GetKubernetesDeployment("datadog-cluster-agent")
+	assert.NoError(t, err)
+
+	if !reflect.DeepEqual(deployment, retrievedDeployment) {
+		t.Errorf("expected deployment %q to match the one in the store", retrievedDeployment.ID)
+	}
+
+	s.handleEvents([]CollectorEvent{
+		{
+			Type:   EventTypeUnset,
+			Source: fooSource,
+			Entity: deployment,
+		},
+	})
+
+	_, err = s.GetKubernetesDeployment("datadog-cluster-agent")
+	assert.True(t, errors.IsNotFound(err))
+}
+
 func TestGetProcess(t *testing.T) {
 	s := newTestStore()
 
@@ -805,11 +842,7 @@ func TestListProcessesWithFilter(t *testing.T) {
 	})
 
 	retrievedProcesses := testStore.ListProcessesWithFilter(func(p *Process) bool {
-		if p.Language.Name == languagemodels.Java {
-			return true
-		} else {
-			return false
-		}
+		return p.Language.Name == languagemodels.Java
 	})
 
 	assert.Equal(t, []*Process{javaProcess}, retrievedProcesses)
@@ -1212,7 +1245,7 @@ func TestReset(t *testing.T) {
 	}
 }
 
-func TestNoDataRace(t *testing.T) {
+func TestNoDataRace(t *testing.T) { //nolint:revive // TODO fix revive unused-parameter
 	// This test ensures that no race conditions are encountered when the "--race" flag is passed
 	// to the test process and an entity is accessed in a different thread than the one handling events
 	s := newTestStore()

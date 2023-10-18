@@ -11,6 +11,8 @@ import (
 	"fmt"
 	"regexp"
 	"strings"
+
+	"golang.org/x/exp/slices"
 )
 
 // StringCmpOpts defines options to apply during string comparison
@@ -30,10 +32,8 @@ type StringValues struct {
 	stringMatchers []StringMatcher
 
 	// caches
-	scalarCache map[string]bool
+	scalarCache []string
 	fieldValues []FieldValue
-
-	exists map[interface{}]bool
 }
 
 // GetFieldValues return the list of FieldValue stored in the StringValues
@@ -43,17 +43,9 @@ func (s *StringValues) GetFieldValues() []FieldValue {
 
 // AppendFieldValue append a FieldValue
 func (s *StringValues) AppendFieldValue(value FieldValue) {
-	if s.scalarCache == nil {
-		s.scalarCache = make(map[string]bool)
-	}
-
-	if s.exists[value.Value] {
+	if slices.Contains(s.fieldValues, value) {
 		return
 	}
-	if s.exists == nil {
-		s.exists = make(map[interface{}]bool)
-	}
-	s.exists[value.Value] = true
 
 	if value.Type == ScalarValueType {
 		s.scalars = append(s.scalars, value.Value.(string))
@@ -69,7 +61,7 @@ func (s *StringValues) Compile(opts StringCmpOpts) error {
 		if opts == DefaultStringCmpOpts && value.Type == ScalarValueType {
 			str := value.Value.(string)
 			s.scalars = append(s.scalars, str)
-			s.scalarCache[str] = true
+			s.scalarCache = append(s.scalarCache, str)
 		} else {
 			str, ok := value.Value.(string)
 			if !ok {
@@ -102,7 +94,6 @@ func (s *StringValues) SetFieldValues(values ...FieldValue) error {
 	// reset internal caches
 	s.stringMatchers = s.stringMatchers[:0]
 	s.scalarCache = nil
-	s.exists = nil
 
 	for _, value := range values {
 		s.AppendFieldValue(value)
@@ -118,7 +109,7 @@ func (s *StringValues) AppendScalarValue(value string) {
 
 // Matches returns whether the value matches the string values
 func (s *StringValues) Matches(value string) bool {
-	if s.scalarCache != nil && s.scalarCache[value] {
+	if slices.Contains(s.scalarCache, value) {
 		return true
 	}
 	for _, pm := range s.stringMatchers {

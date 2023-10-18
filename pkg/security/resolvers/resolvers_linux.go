@@ -45,6 +45,7 @@ type Opts struct {
 	PathResolutionEnabled bool
 	TagsResolver          tags.Resolver
 	UseRingBuffer         bool
+	TTYFallbackEnabled    bool
 }
 
 // Resolvers holds the list of the event attribute resolvers
@@ -77,11 +78,6 @@ func NewResolvers(config *config.Config, manager *manager.Manager, statsdClient 
 		return nil, err
 	}
 
-	userGroupResolver, err := usergroup.NewResolver()
-	if err != nil {
-		return nil, err
-	}
-
 	tcResolver := tc.NewResolver(config.Probe)
 
 	namespaceResolver, err := netns.NewResolver(config.Probe, manager, statsdClient, tcResolver)
@@ -109,9 +105,22 @@ func NewResolvers(config *config.Config, manager *manager.Manager, statsdClient 
 		return nil, err
 	}
 
+	userGroupResolver, err := usergroup.NewResolver(cgroupsResolver)
+	if err != nil {
+		return nil, err
+	}
+
 	if config.RuntimeSecurity.SBOMResolverEnabled {
-		_ = cgroupsResolver.RegisterListener(cgroup.CGroupDeleted, sbomResolver.OnCGroupDeletedEvent)
-		_ = cgroupsResolver.RegisterListener(cgroup.WorkloadSelectorResolved, sbomResolver.OnWorkloadSelectorResolvedEvent)
+		if err := cgroupsResolver.RegisterListener(cgroup.CGroupDeleted, sbomResolver.OnCGroupDeletedEvent); err != nil {
+			return nil, err
+		}
+		if err := cgroupsResolver.RegisterListener(cgroup.WorkloadSelectorResolved, sbomResolver.OnWorkloadSelectorResolvedEvent); err != nil {
+			return nil, err
+		}
+	}
+
+	if err := cgroupsResolver.RegisterListener(cgroup.CGroupDeleted, userGroupResolver.OnCGroupDeletedEvent); err != nil {
+		return nil, err
 	}
 
 	// Force the use of redemption for now, as it seems that the kernel reference counter on mounts used to remove mounts is not working properly.
@@ -131,6 +140,9 @@ func NewResolvers(config *config.Config, manager *manager.Manager, statsdClient 
 
 	processOpts := process.NewResolverOpts()
 	processOpts.WithEnvsValue(config.Probe.EnvsWithValue)
+	if opts.TTYFallbackEnabled {
+		processOpts.WithTTYFallbackEnabled()
+	}
 
 	processResolver, err := process.NewResolver(manager, config.Probe, statsdClient,
 		scrubber, containerResolver, mountResolver, cgroupsResolver, userGroupResolver, timeResolver, pathResolver, processOpts)

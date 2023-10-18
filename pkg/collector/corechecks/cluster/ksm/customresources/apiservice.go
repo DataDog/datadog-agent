@@ -16,6 +16,7 @@ import (
 	"k8s.io/apimachinery/pkg/watch"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/cache"
+	basemetrics "k8s.io/component-base/metrics"
 	v1 "k8s.io/kube-aggregator/pkg/apis/apiregistration/v1"
 	apiregistrationclient "k8s.io/kube-aggregator/pkg/client/clientset_generated/clientset/typed/apiregistration/v1"
 	"k8s.io/kube-state-metrics/v2/pkg/customresource"
@@ -24,11 +25,11 @@ import (
 )
 
 var (
-	descApiServiceAnnotationsName     = "kube_apiservice_annotations"
-	descApiServiceAnnotationsHelp     = "Kubernetes annotations converted to Prometheus labels."
-	descApiServiceLabelsName          = "kube_apiservice_labels"
-	descApiServiceLabelsHelp          = "Kubernetes labels converted to Prometheus labels."
-	descApiServiceLabelsDefaultLabels = []string{"apiservice"}
+	descAPIServiceAnnotationsName     = "kube_apiservice_annotations"
+	descAPIServiceAnnotationsHelp     = "Kubernetes annotations converted to Prometheus labels."
+	descAPIServiceLabelsName          = "kube_apiservice_labels"
+	descAPIServiceLabelsHelp          = "Kubernetes labels converted to Prometheus labels."
+	descAPIServiceLabelsDefaultLabels = []string{"apiservice"}
 )
 
 // NewAPIServiceFactory returns a new APIService metric family generator factory.
@@ -52,10 +53,11 @@ func (f *apiserviceFactory) Name() string {
 
 func (f *apiserviceFactory) MetricFamilyGenerators(allowAnnotationsList, allowLabelsList []string) []generator.FamilyGenerator {
 	return []generator.FamilyGenerator{
-		*generator.NewFamilyGenerator(
-			descApiServiceAnnotationsName,
-			descApiServiceAnnotationsHelp,
+		*generator.NewFamilyGeneratorWithStability(
+			descAPIServiceAnnotationsName,
+			descAPIServiceAnnotationsHelp,
 			metric.Gauge,
+			basemetrics.ALPHA,
 			"",
 			wrapAPIServiceFunc(func(a *v1.APIService) *metric.Family {
 				annotationKeys, annotationValues := createPrometheusLabelKeysValues("annotation", a.Annotations, allowAnnotationsList)
@@ -70,10 +72,11 @@ func (f *apiserviceFactory) MetricFamilyGenerators(allowAnnotationsList, allowLa
 				}
 			}),
 		),
-		*generator.NewFamilyGenerator(
-			descApiServiceLabelsName,
-			descApiServiceLabelsHelp,
+		*generator.NewFamilyGeneratorWithStability(
+			descAPIServiceLabelsName,
+			descAPIServiceLabelsHelp,
 			metric.Gauge,
+			basemetrics.ALPHA,
 			"",
 			wrapAPIServiceFunc(func(a *v1.APIService) *metric.Family {
 				labelKeys, labelValues := createPrometheusLabelKeysValues("label", a.Labels, allowLabelsList)
@@ -88,10 +91,11 @@ func (f *apiserviceFactory) MetricFamilyGenerators(allowAnnotationsList, allowLa
 				}
 			}),
 		),
-		*generator.NewFamilyGenerator(
+		*generator.NewFamilyGeneratorWithStability(
 			"kube_apiservice_status_condition",
 			"The condition of this APIService.",
 			metric.Gauge,
+			basemetrics.ALPHA,
 			"",
 			wrapAPIServiceFunc(func(a *v1.APIService) *metric.Family {
 				ms := make([]*metric.Metric, 0, len(a.Status.Conditions)*len(conditionStatusesAPIServicesV1))
@@ -138,7 +142,7 @@ func wrapAPIServiceFunc(f func(*v1.APIService) *metric.Family) func(interface{})
 		metricFamily := f(apiservice)
 
 		for _, m := range metricFamily.Metrics {
-			m.LabelKeys, m.LabelValues = mergeKeyValues(descApiServiceLabelsDefaultLabels, []string{apiservice.Name}, m.LabelKeys, m.LabelValues)
+			m.LabelKeys, m.LabelValues = mergeKeyValues(descAPIServiceLabelsDefaultLabels, []string{apiservice.Name}, m.LabelKeys, m.LabelValues)
 		}
 		return metricFamily
 	}

@@ -9,6 +9,7 @@ import (
 	"context"
 	"testing"
 
+	"github.com/DataDog/datadog-agent/pkg/obfuscate"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/telemetry"
@@ -141,7 +142,7 @@ func TestObfuscateConfig(t *testing.T) {
 		"redis.raw_command",
 		"SET key val",
 		"SET key ?",
-		&config.ObfuscationConfig{Redis: config.RedisObfuscationConfig{Enabled: true}},
+		&config.ObfuscationConfig{Redis: obfuscate.RedisConfig{Enabled: true}},
 	))
 
 	t.Run("redis/remove_all_args", testConfig(
@@ -149,7 +150,7 @@ func TestObfuscateConfig(t *testing.T) {
 		"redis.raw_command",
 		"SET key val",
 		"SET ?",
-		&config.ObfuscationConfig{Redis: config.RedisObfuscationConfig{
+		&config.ObfuscationConfig{Redis: obfuscate.RedisConfig{
 			Enabled:       true,
 			RemoveAllArgs: true,
 		}},
@@ -168,7 +169,7 @@ func TestObfuscateConfig(t *testing.T) {
 		"http.url",
 		"http://mysite.mydomain/1/2?q=asd",
 		"http://mysite.mydomain/?/??",
-		&config.ObfuscationConfig{HTTP: config.HTTPObfuscationConfig{
+		&config.ObfuscationConfig{HTTP: obfuscate.HTTPConfig{
 			RemovePathDigits:  true,
 			RemoveQueryString: true,
 		}},
@@ -187,7 +188,7 @@ func TestObfuscateConfig(t *testing.T) {
 		"http.url",
 		"http://mysite.mydomain/1/2?q=asd",
 		"http://mysite.mydomain/?/??",
-		&config.ObfuscationConfig{HTTP: config.HTTPObfuscationConfig{
+		&config.ObfuscationConfig{HTTP: obfuscate.HTTPConfig{
 			RemovePathDigits:  true,
 			RemoveQueryString: true,
 		}},
@@ -207,7 +208,7 @@ func TestObfuscateConfig(t *testing.T) {
 		`{"role": "database"}`,
 		`{"role":"?"}`,
 		&config.ObfuscationConfig{
-			ES: config.JSONObfuscationConfig{Enabled: true},
+			ES: obfuscate.JSONConfig{Enabled: true},
 		},
 	))
 
@@ -223,8 +224,19 @@ func TestObfuscateConfig(t *testing.T) {
 		"memcached",
 		"memcached.command",
 		"set key 0 0 0\r\nvalue",
+		"",
+		&config.ObfuscationConfig{Memcached: obfuscate.MemcachedConfig{Enabled: true}},
+	))
+
+	t.Run("memcached/keep_command", testConfig(
+		"memcached",
+		"memcached.command",
+		"set key 0 0 0\r\nvalue",
 		"set key 0 0 0",
-		&config.ObfuscationConfig{Memcached: config.Enablable{Enabled: true}},
+		&config.ObfuscationConfig{Memcached: obfuscate.MemcachedConfig{
+			Enabled:     true,
+			KeepCommand: true,
+		}},
 	))
 
 	t.Run("memcached/disabled", testConfig(

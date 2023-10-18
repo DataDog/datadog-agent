@@ -60,6 +60,7 @@ static __always_inline __u64 *get_dynamic_counter(conn_tuple_t *tup) {
     return bpf_map_lookup_elem(&http2_dynamic_counter_table, tup);
 }
 
+// parse_field_indexed is handling the case in which the header frame is part of the static table.
 static __always_inline void parse_field_indexed(dynamic_table_index_t *dynamic_index, http2_header_t *headers_to_process, __u8 index, __u64 global_dynamic_counter, __u8 *interesting_headers_counter) {
     if (headers_to_process == NULL) {
         return;

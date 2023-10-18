@@ -177,7 +177,7 @@ func (tf *factory) makeK8sFileSource(source *sources.LogSource) (*sources.LogSou
 	}
 
 	var container *workloadmeta.OrchestratorContainer
-	for _, pc := range pod.Containers {
+	for _, pc := range pod.GetAllContainers() {
 		if pc.ID == containerID {
 			container = &pc
 			break

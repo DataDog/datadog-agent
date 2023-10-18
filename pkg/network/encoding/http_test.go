@@ -44,7 +44,7 @@ func testFormatHTTPStats(t *testing.T, aggregateByStatusCode bool) {
 		localhost,
 		clientPort,
 		serverPort,
-		"/testpath-1",
+		[]byte("/testpath-1"),
 		true,
 		http.MethodGet,
 	)
@@ -55,7 +55,7 @@ func testFormatHTTPStats(t *testing.T, aggregateByStatusCode bool) {
 
 	httpKey2 := httpKey1
 	httpKey2.Path = http.Path{
-		Content:  "/testpath-2",
+		Content:  http.Interner.GetString("/testpath-2"),
 		FullPath: true,
 	}
 	httpStats2 := http.NewRequestStats(aggregateByStatusCode)
@@ -146,7 +146,7 @@ func testFormatHTTPStatsByPath(t *testing.T, aggregateByStatusCode bool) {
 		util.AddressFromString("10.2.2.2"),
 		60000,
 		80,
-		"/testpath",
+		[]byte("/testpath"),
 		true,
 		http.MethodGet,
 	)
@@ -229,7 +229,7 @@ func testIDCollisionRegression(t *testing.T, aggregateByStatusCode bool) {
 		util.AddressFromString("2.2.2.2"),
 		60000,
 		80,
-		"/",
+		[]byte("/"),
 		true,
 		http.MethodGet,
 	)
@@ -297,7 +297,7 @@ func testLocalhostScenario(t *testing.T, aggregateByStatusCode bool) {
 		util.AddressFromString("127.0.0.1"),
 		60000,
 		80,
-		"/",
+		[]byte("/"),
 		true,
 		http.MethodGet,
 	)
@@ -323,7 +323,7 @@ func testLocalhostScenario(t *testing.T, aggregateByStatusCode bool) {
 			util.AddressFromString("127.0.0.1"),
 			80,
 			60000,
-			"/",
+			[]byte("/"),
 			true,
 			http.MethodGet,
 		)
@@ -417,7 +417,7 @@ func generateBenchMarkPayload(sourcePortsMax, destPortsMax uint16) network.Conne
 				localhost,
 				sport+1,
 				dport+1,
-				fmt.Sprintf("/api/%d-%d", sport+1, dport+1),
+				[]byte(fmt.Sprintf("/api/%d-%d", sport+1, dport+1)),
 				true,
 				http.MethodGet,
 			)] = httpStats

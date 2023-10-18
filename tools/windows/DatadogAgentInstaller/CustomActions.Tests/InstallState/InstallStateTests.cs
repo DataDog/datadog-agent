@@ -33,12 +33,12 @@ namespace CustomActions.Tests.InstallState
         public void ReadInstallState_Can_Read_Registry_Keys()
         {
             Test.WithRegistryKey(Registries.LocalMachine, Constants.DatadogAgentRegistryKey, new()
-                {
-                    ["installedDomain"] = "testDomain",
-                    ["installedUser"] = "testUser",
-                    ["InstallPath"] = @"C:\datadog",
-                    ["ConfigRoot"] = @"D:\data"
-                })
+            {
+                ["installedDomain"] = "testDomain",
+                ["installedUser"] = "testUser",
+                ["InstallPath"] = @"C:\datadog",
+                ["ConfigRoot"] = @"D:\data"
+            })
                 .WithRegistryKey(Registries.LocalMachine, @"Software\Microsoft\Windows NT\CurrentVersion", new()
                 {
                     ["CurrentBuild"] = "z_1234567890",

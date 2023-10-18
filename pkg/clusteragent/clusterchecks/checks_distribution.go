@@ -12,11 +12,13 @@ import (
 	"sort"
 )
 
+// CheckStatus represents the status of a check
 type CheckStatus struct {
 	WorkersNeeded float64
 	Runner        string
 }
 
+// RunnerStatus represents the status of a check runner
 type RunnerStatus struct {
 	Workers     int
 	WorkersUsed float64
@@ -100,7 +102,7 @@ func (distribution *checksDistribution) addCheck(checkID string, workersNeeded f
 	runnerInfo, runnerExists := distribution.Runners[runner]
 	if runnerExists {
 		runnerInfo.WorkersUsed += workersNeeded
-		runnerInfo.NumChecks += 1
+		runnerInfo.NumChecks++
 	} else {
 		distribution.Runners[runner] = &RunnerStatus{
 			WorkersUsed: workersNeeded,
@@ -175,7 +177,7 @@ func (distribution *checksDistribution) numEmptyRunners() int {
 
 	for _, runnerStatus := range distribution.Runners {
 		if runnerStatus.NumChecks == 0 {
-			empty += 1
+			empty++
 		}
 	}
 
@@ -187,7 +189,7 @@ func (distribution *checksDistribution) numRunnersWithHighUtilization() int {
 
 	for _, runnerStatus := range distribution.Runners {
 		if runnerStatus.utilization() > 0.8 {
-			withHighUtilization += 1
+			withHighUtilization++
 		}
 	}
 

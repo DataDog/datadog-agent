@@ -3,6 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+// Package metrics provides telemetry to know who's the leader in Kubernetes
+// objects that implement the leader/follower pattern.
 package metrics
 
 import (

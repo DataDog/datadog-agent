@@ -27,6 +27,23 @@ func (a *StringArray) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	return nil
 }
 
+// UnmarshalYAML unmarshalls SymbolConfig
+func (a *SymbolConfigCompat) UnmarshalYAML(unmarshal func(interface{}) error) error {
+	var symbol SymbolConfig
+	err := unmarshal(&symbol)
+	if err != nil {
+		var str string
+		err := unmarshal(&str)
+		if err != nil {
+			return err
+		}
+		*a = SymbolConfigCompat(SymbolConfig{Name: str})
+	} else {
+		*a = SymbolConfigCompat(symbol)
+	}
+	return nil
+}
+
 // UnmarshalYAML unmarshalls MetricTagConfigList
 func (mtcl *MetricTagConfigList) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	var multi []MetricTagConfig

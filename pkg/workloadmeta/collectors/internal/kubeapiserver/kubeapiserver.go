@@ -5,6 +5,7 @@
 
 //go:build kubeapiserver
 
+// Package kubeapiserver implements the kubeapiserver Workloadmeta collector.
 package kubeapiserver
 
 import (
@@ -38,6 +39,10 @@ func storeGenerators(cfg config.Config) []storeGenerator {
 
 	if cfg.GetBool("cluster_agent.collect_kubernetes_tags") {
 		generators = append(generators, newPodStore)
+	}
+
+	if cfg.GetBool("language_detection.enabled") {
+		generators = append(generators, newDeploymentStore)
 	}
 
 	return generators

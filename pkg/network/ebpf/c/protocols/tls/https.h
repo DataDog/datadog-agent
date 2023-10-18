@@ -3,8 +3,8 @@
 
 #ifdef COMPILE_CORE
 #include "ktypes.h"
-#define MINORBITS  20
-#define MINORMASK  ((1U << MINORBITS) - 1)
+#define MINORBITS 20
+#define MINORMASK ((1U << MINORBITS) - 1)
 #define MAJOR(dev) ((unsigned int)((dev) >> MINORBITS))
 #define MINOR(dev) ((unsigned int)((dev)&MINORMASK))
 #else
@@ -31,7 +31,7 @@
 
 #define HTTPS_PORT 443
 
-static __always_inline void http_process(http_transaction_t *http_stack, skb_info_t *skb_info, __u64 tags);
+static __always_inline void http_process(http_event_t *event, skb_info_t *skb_info, __u64 tags);
 
 /* this function is called by all TLS hookpoints (OpenSSL, GnuTLS and GoTLS, JavaTLS) and */
 /* it's used for classify the subset of protocols that is supported by `classify_protocol_for_dispatcher` */
@@ -101,7 +101,7 @@ static __always_inline void tls_process(struct pt_regs *ctx, conn_tuple_t *t, vo
 
     *args = (tls_dispatcher_arguments_t){
         .tup = *t,
-        .buf = buffer_ptr,
+        .buffer_ptr = buffer_ptr,
         .tags = tags,
         .len = len,
         .off = 0,

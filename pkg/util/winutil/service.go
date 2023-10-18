@@ -33,6 +33,9 @@ var (
 
 type enumServiceState uint32
 
+// OpenSCManager connects to SCM
+//
+// https://learn.microsoft.com/en-us/windows/win32/api/winsvc/nf-winsvc-openscmanagerw
 func OpenSCManager(desiredAccess uint32) (*mgr.Mgr, error) {
 	h, err := windows.OpenSCManager(nil, nil, desiredAccess)
 	if err != nil {
@@ -41,6 +44,9 @@ func OpenSCManager(desiredAccess uint32) (*mgr.Mgr, error) {
 	return &mgr.Mgr{Handle: h}, nil
 }
 
+// OpenService opens a handle for serviceName
+//
+// https://learn.microsoft.com/en-us/windows/win32/api/winsvc/nf-winsvc-openservicew
 func OpenService(manager *mgr.Mgr, serviceName string, desiredAccess uint32) (*mgr.Service, error) {
 	h, err := windows.OpenService(manager.Handle, windows.StringToUTF16Ptr(serviceName), desiredAccess)
 	if err != nil {
@@ -49,7 +55,8 @@ func OpenService(manager *mgr.Mgr, serviceName string, desiredAccess uint32) (*m
 	return &mgr.Service{Name: serviceName, Handle: h}, nil
 }
 
-// Start serviceName via SCM
+// StartService starts serviceName via SCM.
+//
 // Does not block until service is started
 // https://learn.microsoft.com/en-us/windows/win32/api/winsvc/nf-winsvc-startservicea#remarks
 func StartService(serviceName string, serviceArgs ...string) error {
@@ -73,8 +80,12 @@ func StartService(serviceName string, serviceArgs ...string) error {
 	return nil
 }
 
-// This function sends a control code to a specified service and waits up to
+// ControlService sends a control code to a specified service and waits up to
 // timeout for the service to transition to the requested state
+//
+// https://learn.microsoft.com/en-us/windows/win32/api/winsvc/nf-winsvc-controlservice
+//
+//revive:disable-next-line:var-naming Name is intended to match the Windows API name
 func ControlService(serviceName string, command svc.Cmd, to svc.State, desiredAccess uint32, timeout int64) error {
 
 	manager, err := OpenSCManager(windows.SC_MANAGER_CONNECT)
@@ -112,6 +123,7 @@ func doStopService(serviceName string) error {
 	return ControlService(serviceName, svc.Stop, svc.Stopped, windows.SERVICE_STOP|windows.SERVICE_QUERY_STATUS, defaultServiceCommandTimeout)
 }
 
+// StopService stops a service and any services that depend on it
 func StopService(serviceName string) error {
 
 	deps, err := ListDependentServices(serviceName, windows.SERVICE_ACTIVE)
@@ -130,7 +142,7 @@ func StopService(serviceName string) error {
 
 // WaitForState waits for the service to become the desired state. A timeout can be specified
 // with a context. Returns nil if/when the service becomes the desired state.
-func WaitForState(serviceName string, desiredState svc.State, ctx context.Context) error {
+func WaitForState(ctx context.Context, serviceName string, desiredState svc.State) error {
 	// open handle to service
 	manager, err := OpenSCManager(windows.SC_MANAGER_CONNECT)
 	if err != nil {
@@ -171,13 +183,13 @@ func WaitForState(serviceName string, desiredState svc.State, ctx context.Contex
 			}
 			if status.State == desiredState {
 				return nil
-			} else {
-				return ctx.Err()
 			}
+			return ctx.Err()
 		}
 	}
 }
 
+// RestartService stops a service and thenif the stop was successful starts it again
 func RestartService(serviceName string) error {
 	var err error
 	if err = StopService(serviceName); err == nil {
@@ -186,6 +198,10 @@ func RestartService(serviceName string) error {
 	return err
 }
 
+// ListDependentServices returns the services that depend on serviceName
+//
+// https://learn.microsoft.com/en-us/windows/win32/api/winsvc/nf-winsvc-enumdependentservicesw
+//
 // when Go has their version, replace ours with the upstream
 // https://github.com/golang/go/issues/56766
 func ListDependentServices(serviceName string, state enumServiceState) ([]EnumServiceStatus, error) {
@@ -208,6 +224,7 @@ func ListDependentServices(serviceName string, state enumServiceState) ([]EnumSe
 	return deps, nil
 }
 
+// IsServiceDisabled returns true if serviceName is disabled
 func IsServiceDisabled(serviceName string) (enabled bool, err error) {
 	enabled = false
 
@@ -230,6 +247,7 @@ func IsServiceDisabled(serviceName string) (enabled bool, err error) {
 	return (serviceConfig.StartType == windows.SERVICE_DISABLED), nil
 }
 
+// IsServiceRunning returns true if serviceName's state is SERVICE_RUNNING
 func IsServiceRunning(serviceName string) (running bool, err error) {
 	running = false
 

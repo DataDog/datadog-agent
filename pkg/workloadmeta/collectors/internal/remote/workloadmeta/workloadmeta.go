@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+// Package workloadmeta implements the remote workloadmeta Collector.
 package workloadmeta
 
 import (
@@ -73,7 +74,7 @@ func (s *streamHandler) Port() int {
 	return s.port
 }
 
-func (s *streamHandler) NewClient(cc grpc.ClientConnInterface) remote.RemoteGrpcClient {
+func (s *streamHandler) NewClient(cc grpc.ClientConnInterface) remote.GrpcClient {
 	return &client{cl: pb.NewAgentSecureClient(cc)}
 }
 

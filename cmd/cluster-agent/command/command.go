@@ -16,6 +16,7 @@ import (
 	"github.com/spf13/cobra"
 )
 
+// common constants for all the datadog-cluster subcommands.
 const (
 	ConfigName      = "datadog-cluster"
 	LoggerName      = "CLUSTER"

@@ -18,7 +18,9 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func NewGoTLSClient(t *testing.T, serverAddr string, numRequests int) func() {
+// NewGoTLSClient triggers an external go tls client that runs `numRequests` HTTPs requests to `serverAddr`.
+// Returns the command executed and a callback to start sending requests.
+func NewGoTLSClient(t *testing.T, serverAddr string, numRequests int) (*exec.Cmd, func()) {
 	clientBin := buildGoTLSClientBin(t)
 	clientCmd := fmt.Sprintf("%s %s %d", clientBin, serverAddr, numRequests)
 
@@ -26,7 +28,7 @@ func NewGoTLSClient(t *testing.T, serverAddr string, numRequests int) func() {
 	c, clientInput, err := nettestutil.StartCommandCtx(timedCtx, clientCmd)
 
 	require.NoError(t, err)
-	return func() {
+	return c, func() {
 		defer cancel()
 		_, err = clientInput.Write([]byte{1})
 		require.NoError(t, err)

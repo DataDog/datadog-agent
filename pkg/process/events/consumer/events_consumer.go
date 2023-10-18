@@ -13,6 +13,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/eventmonitor"
 	"github.com/DataDog/datadog-agent/pkg/eventmonitor/proto/api"
+	"github.com/DataDog/datadog-agent/pkg/process/events/model"
 	"github.com/DataDog/datadog-agent/pkg/security/metrics"
 	smodel "github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -75,8 +76,12 @@ func (p *ProcessConsumer) SendStats() {
 }
 
 // HandleEvent implement the event monitor EventHandler interface
-func (p *ProcessConsumer) HandleEvent(event *smodel.Event) {
-	e := p.newProcessEvent(event)
+func (p *ProcessConsumer) HandleEvent(event any) {
+	e, ok := event.(*model.ProcessEvent)
+	if !ok {
+		log.Errorf("Event is not a Process Lifecycle Event")
+		return
+	}
 
 	data, err := e.MarshalMsg(nil)
 	if err != nil {

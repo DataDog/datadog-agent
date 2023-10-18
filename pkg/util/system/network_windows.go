@@ -22,7 +22,7 @@ import (
 )
 
 // ParseProcessRoutes uses routing table
-func ParseProcessRoutes(procPath string, pid int) ([]NetworkRoute, error) {
+func ParseProcessRoutes(procPath string, pid int) ([]NetworkRoute, error) { //nolint:revive // TODO fix revive unused-parameter
 	// TODO: Filter by PID
 	routingTable, err := iphelper.GetIPv4RouteTable()
 	if err != nil {
@@ -36,7 +36,7 @@ func ParseProcessRoutes(procPath string, pid int) ([]NetworkRoute, error) {
 	for _, row := range routingTable {
 		itf := interfaceTable[row.DwForwardIfIndex]
 		netDest := NetworkRoute{
-			Interface: windows.UTF16ToString(itf.WszName[:]),
+			Interface: windows.UTF16ToString(itf.Name[:]),
 			Subnet:    uint64(row.DwForwardDest),
 			Mask:      uint64(row.DwForwardMask),
 			Gateway:   uint64(row.DwForwardNextHop),
@@ -47,7 +47,7 @@ func ParseProcessRoutes(procPath string, pid int) ([]NetworkRoute, error) {
 }
 
 // GetDefaultGateway returns the default gateway used by container implementation
-func GetDefaultGateway(procPath string) (net.IP, error) {
+func GetDefaultGateway(procPath string) (net.IP, error) { //nolint:revive // TODO fix revive unused-parameter
 	fields, err := defaultGatewayFields()
 	if err != nil {
 		return nil, err

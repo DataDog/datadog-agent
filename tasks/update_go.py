@@ -11,6 +11,12 @@ from .pipeline import update_circleci_config, update_gitlab_config
 GO_VERSION_FILE = "./.go-version"
 
 
+@task
+def go_version(_):
+    current_version = _get_repo_go_version()
+    print(current_version)
+
+
 @task(
     help={
         "version": "The version of Go to use",

@@ -17,8 +17,8 @@ import (
 
 	"github.com/DataDog/datadog-agent/cmd/system-probe/api/module"
 	"github.com/DataDog/datadog-agent/cmd/system-probe/config"
-	"github.com/DataDog/datadog-agent/pkg/languagedetection"
 	"github.com/DataDog/datadog-agent/pkg/languagedetection/languagemodels"
+	"github.com/DataDog/datadog-agent/pkg/languagedetection/privileged"
 	languageDetectionProto "github.com/DataDog/datadog-agent/pkg/proto/pbgo/languagedetection"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -28,13 +28,13 @@ var LanguageDetectionModule = module.Factory{
 	ConfigNamespaces: []string{"language_detection"},
 	Fn: func(cfg *config.Config) (module.Module, error) {
 		return &languageDetectionModule{
-			languageDetector: languagedetection.NewPrivilegedLanguageDetector(),
+			languageDetector: privileged.NewLanguageDetector(),
 		}, nil
 	},
 }
 
 type languageDetectionModule struct {
-	languageDetector languagedetection.PrivilegedLanguageDetector
+	languageDetector privileged.LanguageDetector
 }
 
 func (l *languageDetectionModule) GetStats() map[string]interface{} {

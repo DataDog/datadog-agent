@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+// Package config defines the configuration of the agent
 package config
 
 import (
@@ -85,7 +86,7 @@ const (
 	DefaultLogsSenderBackoffRecoveryInterval = 2
 
 	// DefaultInventoriesMinInterval is the default value for inventories_min_interval, in seconds
-	DefaultInventoriesMinInterval = 5 * 60
+	DefaultInventoriesMinInterval = 60
 
 	// DefaultInventoriesMaxInterval is the default value for inventories_max_interval, in seconds
 	DefaultInventoriesMaxInterval = 10 * 60
@@ -243,6 +244,7 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("confd_path", defaultConfdPath)
 	config.BindEnvAndSetDefault("additional_checksd", defaultAdditionalChecksPath)
 	config.BindEnvAndSetDefault("jmx_log_file", "")
+	// If enabling log_payloads, ensure the log level is set to at least DEBUG to be able to see the logs
 	config.BindEnvAndSetDefault("log_payloads", false)
 	config.BindEnvAndSetDefault("log_file", "")
 	config.BindEnvAndSetDefault("log_file_max_size", "10Mb")
@@ -835,6 +837,7 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("jmx_check_period", int(defaults.DefaultCheckInterval/time.Millisecond))
 	config.BindEnvAndSetDefault("jmx_reconnection_timeout", 60)
 	config.BindEnvAndSetDefault("jmx_statsd_telemetry_enabled", false)
+	config.BindEnvAndSetDefault("jmx_telemetry_enabled", false)
 	// The following jmx_statsd_client-* options are internal and will not be documented
 	// the queue size is the no. of elements (metrics, event, service checks) it can hold.
 	config.BindEnvAndSetDefault("jmx_statsd_client_queue_size", 4096)
@@ -884,11 +887,12 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("logs_config.max_message_size_bytes", DefaultMaxMessageSizeBytes)
 
 	// increase the number of files that can be tailed in parallel:
-	if runtime.GOOS == "windows" || runtime.GOOS == "darwin" {
-		// The OS max for windows is 512, and the default limit on darwin is 256.
+	if runtime.GOOS == "darwin" {
+		// The default limit on darwin is 256.
 		// This is configurable per process on darwin with `ulimit -n` or a launchDaemon config.
 		config.BindEnvAndSetDefault("logs_config.open_files_limit", 200)
 	} else {
+		// There is no effective limit for windows due to use of CreateFile win32 API
 		// The OS default for most linux distributions is 1024
 		config.BindEnvAndSetDefault("logs_config.open_files_limit", 500)
 	}
@@ -1110,6 +1114,7 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("orchestrator_explorer.manifest_collection.enabled", true)
 	config.BindEnvAndSetDefault("orchestrator_explorer.manifest_collection.buffer_manifest", true)
 	config.BindEnvAndSetDefault("orchestrator_explorer.manifest_collection.buffer_flush_interval", 20*time.Second)
+	config.BindEnvAndSetDefault("orchestrator_explorer.run_on_node_agent", false)
 
 	// Container lifecycle configuration
 	config.BindEnvAndSetDefault("container_lifecycle.enabled", false)
@@ -1128,10 +1133,9 @@ func InitConfig(config Config) {
 
 	config.BindEnvAndSetDefault("sbom.cache_directory", filepath.Join(defaultRunPath, "sbom-agent"))
 	config.BindEnvAndSetDefault("sbom.clear_cache_on_exit", false)
-	config.BindEnvAndSetDefault("sbom.cache.enabled", false)
+	config.BindEnvAndSetDefault("sbom.cache.enabled", true)
 	config.BindEnvAndSetDefault("sbom.cache.max_disk_size", 1000*1000*100) // used by custom cache: max disk space used by cached objects. Not equal to max disk usage
-	config.BindEnvAndSetDefault("sbom.cache.max_cache_entries", 10000)     // used by custom cache keys stored in memory
-	config.BindEnvAndSetDefault("sbom.cache.clean_interval", "30m")        // used by custom cache.
+	config.BindEnvAndSetDefault("sbom.cache.clean_interval", "1h")         // used by custom cache.
 
 	// Container SBOM configuration
 	config.BindEnvAndSetDefault("sbom.container_image.enabled", false)
@@ -1160,7 +1164,7 @@ func InitConfig(config Config) {
 	// inventories
 	config.BindEnvAndSetDefault("inventories_enabled", true)
 	config.BindEnvAndSetDefault("inventories_configuration_enabled", true)             // controls the agent configurations
-	config.BindEnvAndSetDefault("inventories_checks_configuration_enabled", false)     // controls the checks configurations
+	config.BindEnvAndSetDefault("inventories_checks_configuration_enabled", true)      // controls the checks configurations
 	config.BindEnvAndSetDefault("inventories_collect_cloud_provider_account_id", true) // collect collection of `cloud_provider_account_id`
 	// when updating the default here also update pkg/metadata/inventories/README.md
 	config.BindEnvAndSetDefault("inventories_max_interval", DefaultInventoriesMaxInterval) // integer seconds
@@ -1202,7 +1206,11 @@ func InitConfig(config Config) {
 
 	// Datadog security agent (runtime)
 	config.BindEnvAndSetDefault("runtime_security_config.enabled", false)
-	config.BindEnvAndSetDefault("runtime_security_config.socket", "/opt/datadog-agent/run/runtime-security.sock")
+	if runtime.GOOS == "windows" {
+		config.BindEnvAndSetDefault("runtime_security_config.socket", "localhost:3334")
+	} else {
+		config.BindEnvAndSetDefault("runtime_security_config.socket", "/opt/datadog-agent/run/runtime-security.sock")
+	}
 	config.BindEnvAndSetDefault("runtime_security_config.run_path", defaultRunPath)
 	config.BindEnvAndSetDefault("runtime_security_config.log_profiled_workloads", false)
 	config.BindEnvAndSetDefault("runtime_security_config.telemetry.ignore_dd_agent_containers", true)
@@ -1215,10 +1223,10 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("serverless.logs_enabled", true)
 	config.BindEnvAndSetDefault("enhanced_metrics", true)
 	config.BindEnvAndSetDefault("capture_lambda_payload", false)
+	config.BindEnvAndSetDefault("capture_lambda_payload_max_depth", 10)
 	config.BindEnvAndSetDefault("serverless.trace_enabled", false, "DD_TRACE_ENABLED")
 	config.BindEnvAndSetDefault("serverless.trace_managed_services", true, "DD_TRACE_MANAGED_SERVICES")
 	config.BindEnvAndSetDefault("serverless.service_mapping", nil, "DD_SERVICE_MAPPING")
-	config.BindEnvAndSetDefault("serverless.constant_backoff_interval", 100*time.Millisecond)
 
 	// trace-agent's evp_proxy
 	config.BindEnv("evp_proxy_config.enabled")
@@ -1512,7 +1520,7 @@ func useHostEtc(config Config) {
 
 func checkConflictingOptions(config Config) error {
 	// Verify that either use_podman_logs OR docker_path_override are set since they conflict
-	if config.GetBool("logs_config.use_podman_logs") && config.IsSet("logs_config.docker_path_override") {
+	if config.GetBool("logs_config.use_podman_logs") && len(config.GetString("logs_config.docker_path_override")) > 0 {
 		log.Warnf("'use_podman_logs' is set to true and 'docker_path_override' is set, please use one or the other")
 		return errors.New("'use_podman_logs' is set to true and 'docker_path_override' is set, please use one or the other")
 	}
@@ -1520,6 +1528,7 @@ func checkConflictingOptions(config Config) error {
 	return nil
 }
 
+// LoadDatadogCustom loads the datadog config in the given config
 func LoadDatadogCustom(config Config, origin string, loadSecret bool, additionalKnownEnvVars []string) (*Warnings, error) {
 	// Feature detection running in a defer func as it always  need to run (whether config load has been successful or not)
 	// Because some Agents (e.g. trace-agent) will run even if config file does not exist
@@ -1953,7 +1962,8 @@ func GetBindHost() string {
 	return GetBindHostFromConfig(Datadog)
 }
 
-func GetBindHostFromConfig(cfg ConfigReader) string {
+// GetBindHostFromConfig returns the bind_host value from the config
+func GetBindHostFromConfig(cfg Reader) string {
 	if cfg.IsSet("bind_host") {
 		return cfg.GetString("bind_host")
 	}
@@ -2015,7 +2025,7 @@ func getObsPipelineURLForPrefix(datatype DataType, prefix string) (string, error
 }
 
 // IsRemoteConfigEnabled returns true if Remote Configuration should be enabled
-func IsRemoteConfigEnabled(cfg ConfigReader) bool {
+func IsRemoteConfigEnabled(cfg Reader) bool {
 	// Disable Remote Config for GovCloud
 	if cfg.GetBool("fips.enabled") || cfg.GetString("site") == "ddog-gov.com" {
 		return false

@@ -35,7 +35,7 @@ type Flush struct {
 
 func (f *Flush) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	log.Debug("Hit on the serverless.Flush route.")
-	if len(os.Getenv(LocalTestEnvVar)) > 0 {
+	if os.Getenv(LocalTestEnvVar) == "true" || os.Getenv(LocalTestEnvVar) == "1" {
 		// used only for testing purpose as the Logs API is not supported by the Lambda Emulator
 		// thus we canot get the REPORT log line telling that the invocation is finished
 		f.daemon.HandleRuntimeDone()

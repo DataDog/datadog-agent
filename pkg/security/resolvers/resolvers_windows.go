@@ -24,7 +24,6 @@ type Resolvers struct {
 
 // NewResolvers creates a new instance of Resolvers
 func NewResolvers(config *config.Config, statsdClient statsd.ClientInterface, scrubber *procutil.DataScrubber) (*Resolvers, error) {
-
 	processResolver, err := process.NewResolver(config, statsdClient, scrubber, process.NewResolverOpts())
 	if err != nil {
 		return nil, err
@@ -43,4 +42,10 @@ func NewResolvers(config *config.Config, statsdClient statsd.ClientInterface, sc
 		HashResolver:    hashResolver,
 	}
 	return resolvers, nil
+}
+
+// Snapshot collects data on the current state of the system
+func (r *Resolvers) Snapshot() error {
+	r.ProcessResolver.Snapshot()
+	return nil
 }

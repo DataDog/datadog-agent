@@ -1,0 +1,24 @@
+---
+features:
+  - |
+    CWS: Detect patterns in processes and files paths to improve
+    accuracy of anomaly detections.
+enhancements:
+  - |
+    CWS: Support fentry/fexit eBPF probes which provide lower overhead than
+    kprobe/kretprobes (currently disabled by default and supported only
+    on Linux kernel 5.10 and later).
+  - |
+    CWS: Improved username resolution in containers and handle their creation
+    and deletion at runtime.
+  - |
+    CWS: Apply policy rules on processes already present at startup.
+  - |
+    CWS: Reduce memory usage of BTF symbols.
+fixes:
+  - |
+    CWS: Scope network context to DNS events only as it may not be available
+    to all events.
+  - |
+    CWS: Fix a bug that caused security profiles of already running workloads
+    to be empty.

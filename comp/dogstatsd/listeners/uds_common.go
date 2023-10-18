@@ -47,13 +47,13 @@ type UDSListener struct {
 	oobPoolManager          *packets.PoolManager
 	trafficCapture          replay.Component
 	OriginDetection         bool
-	config                  config.ConfigReader
+	config                  config.Reader
 
 	dogstatsdMemBasedRateLimiter bool
 }
 
 // NewUDSListener returns an idle UDS Statsd listener
-func NewUDSListener(packetOut chan packets.Packets, sharedPacketPoolManager *packets.PoolManager, cfg config.ConfigReader, capture replay.Component) (*UDSListener, error) {
+func NewUDSListener(packetOut chan packets.Packets, sharedPacketPoolManager *packets.PoolManager, cfg config.Reader, capture replay.Component) (*UDSListener, error) {
 	socketPath := cfg.GetString("dogstatsd_socket")
 	originDetection := cfg.GetBool("dogstatsd_origin_detection")
 

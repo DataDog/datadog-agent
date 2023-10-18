@@ -21,6 +21,7 @@ import (
 	clientset "k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/cache"
+	basemetrics "k8s.io/component-base/metrics"
 	"k8s.io/kube-state-metrics/v2/pkg/constant"
 	"k8s.io/kube-state-metrics/v2/pkg/customresource"
 	"k8s.io/kube-state-metrics/v2/pkg/metric"
@@ -61,37 +62,41 @@ func (f *extendedPodFactory) MetricFamilyGenerators(allowAnnotationsList, allowL
 	// type, as the default KSM offering explicitly filters out anything that is prefixed with "kubernetes.io/"
 	// More information can be found here: https://github.com/kubernetes/kube-state-metrics/issues/2027
 	return []generator.FamilyGenerator{
-		*generator.NewFamilyGenerator(
+		*generator.NewFamilyGeneratorWithStability(
 			"kube_pod_container_extended_resource_requests",
 			"The number of additional requested request resource by a container, which otherwise might have been filtered out by kube-state-metrics.",
 			metric.Gauge,
+			basemetrics.ALPHA,
 			"",
 			wrapPodFunc(func(p *v1.Pod) *metric.Family {
 				return f.customResourceGenerator(p, resourceRequests)
 			}),
 		),
-		*generator.NewFamilyGenerator(
+		*generator.NewFamilyGeneratorWithStability(
 			"kube_pod_container_extended_resource_limits",
 			"The number of additional requested limit resource by a container, which otherwise might have been filtered out by kube-state-metrics.",
 			metric.Gauge,
+			basemetrics.ALPHA,
 			"",
 			wrapPodFunc(func(p *v1.Pod) *metric.Family {
 				return f.customResourceGenerator(p, resourcelimits)
 			}),
 		),
-		*generator.NewFamilyGenerator(
+		*generator.NewFamilyGeneratorWithStability(
 			"kube_pod_container_resource_with_owner_tag_requests",
 			"The number of requested request resource by a container, including pod owner information.",
 			metric.Gauge,
+			basemetrics.ALPHA,
 			"",
 			wrapPodFunc(func(p *v1.Pod) *metric.Family {
 				return f.customResourceOwnerGenerator(p, resourceRequests)
 			}),
 		),
-		*generator.NewFamilyGenerator(
+		*generator.NewFamilyGeneratorWithStability(
 			"kube_pod_container_resource_with_owner_tag_limits",
 			"The number of requested limit resource by a container, including pod owner information.",
 			metric.Gauge,
+			basemetrics.ALPHA,
 			"",
 			wrapPodFunc(func(p *v1.Pod) *metric.Family {
 				return f.customResourceOwnerGenerator(p, resourcelimits)

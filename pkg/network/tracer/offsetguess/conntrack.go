@@ -129,8 +129,15 @@ func (c *conntrackOffsetGuesser) checkAndUpdateCurrentOffset(mp *ebpf.Map, expec
 		time.Sleep(10 * time.Millisecond)
 		return nil
 	}
+	var overlapped bool
 	switch GuessWhat(c.status.What) {
 	case GuessCtTupleOrigin:
+		c.status.Offset_origin, overlapped = skipOverlaps(c.status.Offset_origin, c.nfConnRanges())
+		if overlapped {
+			// adjusted offset from eBPF overlapped with another field, we need to check new offset
+			break
+		}
+
 		if c.status.Saddr == expected.saddr {
 			// the reply tuple comes always after the origin tuple
 			c.status.Offset_reply = c.status.Offset_origin + sizeofNfConntrackTuple
@@ -138,29 +145,47 @@ func (c *conntrackOffsetGuesser) checkAndUpdateCurrentOffset(mp *ebpf.Map, expec
 			break
 		}
 		c.status.Offset_origin++
-		c.status.Saddr = expected.saddr
+		c.status.Offset_origin, _ = skipOverlaps(c.status.Offset_origin, c.nfConnRanges())
 	case GuessCtTupleReply:
+		c.status.Offset_reply, overlapped = skipOverlaps(c.status.Offset_reply, c.nfConnRanges())
+		if overlapped {
+			// adjusted offset from eBPF overlapped with another field, we need to check new offset
+			break
+		}
+
 		if c.status.Saddr == expected.daddr {
 			c.logAndAdvance(c.status.Offset_reply, GuessCtStatus)
 			break
 		}
 		c.status.Offset_reply++
-		c.status.Saddr = expected.saddr
+		c.status.Offset_reply, _ = skipOverlaps(c.status.Offset_reply, c.nfConnRanges())
 	case GuessCtStatus:
+		c.status.Offset_status, overlapped = skipOverlaps(c.status.Offset_status, c.nfConnRanges())
+		if overlapped {
+			// adjusted offset from eBPF overlapped with another field, we need to check new offset
+			break
+		}
+
 		if c.status.Status == expected.ctStatus {
 			c.status.Offset_netns = c.status.Offset_status + 1
 			c.logAndAdvance(c.status.Offset_status, GuessCtNet)
 			break
 		}
 		c.status.Offset_status++
-		c.status.Status = expected.ctStatus
+		c.status.Offset_status, _ = skipOverlaps(c.status.Offset_status, c.nfConnRanges())
 	case GuessCtNet:
+		c.status.Offset_netns, overlapped = skipOverlaps(c.status.Offset_netns, c.nfConnRanges())
+		if overlapped {
+			// adjusted offset from eBPF overlapped with another field, we need to check new offset
+			break
+		}
+
 		if c.status.Netns == expected.netns {
 			c.logAndAdvance(c.status.Offset_netns, GuessNotApplicable)
 			return c.setReadyState(mp)
 		}
 		c.status.Offset_netns++
-		c.status.Netns = expected.netns
+		c.status.Offset_netns, _ = skipOverlaps(c.status.Offset_netns, c.nfConnRanges())
 	default:
 		return fmt.Errorf("unexpected field to guess: %v", whatString[GuessWhat(c.status.What)])
 	}

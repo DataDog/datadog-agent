@@ -100,7 +100,7 @@ func (p CombinedRunResult) RealtimePayloads() []model.MessageBody {
 // All is a list of all runnable checks. Putting a check in here does not guarantee it will be run,
 // it just guarantees that the collector will be able to find the check.
 // If you want to add a check you MUST register it here.
-func All(config, sysprobeYamlCfg ddconfig.ConfigReaderWriter, syscfg *sysconfig.Config) []Check {
+func All(config, sysprobeYamlCfg ddconfig.ReaderWriter, syscfg *sysconfig.Config) []Check {
 	return []Check{
 		NewProcessCheck(config),
 		NewContainerCheck(config),
@@ -124,7 +124,7 @@ func RTName(checkName string) string {
 	}
 }
 
-func canEnableContainerChecks(config ddconfig.ConfigReader, displayFeatureWarning bool) bool {
+func canEnableContainerChecks(config ddconfig.Reader, displayFeatureWarning bool) bool {
 	// The process and container checks are mutually exclusive
 	if config.GetBool("process_config.process_collection.enabled") {
 		return false

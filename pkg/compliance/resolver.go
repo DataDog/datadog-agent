@@ -39,6 +39,7 @@ import (
 	kubemetav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	kubeunstructured "k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	kubeschema "k8s.io/apimachinery/pkg/runtime/schema"
+	kubediscovery "k8s.io/client-go/discovery"
 	kubedynamic "k8s.io/client-go/dynamic"
 )
 
@@ -46,15 +47,11 @@ import (
 // Rule.
 const inputsResolveTimeout = 5 * time.Second
 
-// ErrIncompatibleEnvironment is returns by the resolver to signal that the
-// given rule's inputs are not resolvable in the current environment.
-var ErrIncompatibleEnvironment = errors.New("environment not compatible this type of input")
-
 // DockerProvider is a function returning a Docker client.
 type DockerProvider func(context.Context) (docker.CommonAPIClient, error)
 
 // KubernetesProvider is a function returning a Kubernetes client.
-type KubernetesProvider func(context.Context) (kubedynamic.Interface, error)
+type KubernetesProvider func(context.Context) (kubedynamic.Interface, kubediscovery.DiscoveryInterface, error)
 
 // LinuxAuditProvider is a function returning a Linux Audit client.
 type LinuxAuditProvider func(context.Context) (LinuxAuditClient, error)
@@ -72,7 +69,7 @@ func DefaultDockerProvider(ctx context.Context) (docker.CommonAPIClient, error) 
 }
 
 // DefaultLinuxAuditProvider returns the default Linux Audit client.
-func DefaultLinuxAuditProvider(ctx context.Context) (LinuxAuditClient, error) {
+func DefaultLinuxAuditProvider(ctx context.Context) (LinuxAuditClient, error) { //nolint:revive // TODO fix revive unused-parameter
 	return newLinuxAuditClient()
 }
 
@@ -114,10 +111,12 @@ type defaultResolver struct {
 	filesCache         []fileMeta
 	pkgsCache          map[string]*packageInfo
 	kubeClusterIDCache string
+	kubeResourcesCache *[]*kubemetav1.APIResourceList
 
-	dockerCl     docker.CommonAPIClient
-	kubernetesCl kubedynamic.Interface
-	linuxAuditCl LinuxAuditClient
+	dockerCl          docker.CommonAPIClient
+	kubernetesCl      kubedynamic.Interface
+	kubernetesDiscoCl kubediscovery.DiscoveryInterface
+	linuxAuditCl      LinuxAuditClient
 }
 
 type fileMeta struct {
@@ -141,7 +140,7 @@ func NewResolver(ctx context.Context, opts ResolverOptions) Resolver {
 		r.dockerCl, _ = opts.DockerProvider(ctx)
 	}
 	if opts.KubernetesProvider != nil {
-		r.kubernetesCl, _ = opts.KubernetesProvider(ctx)
+		r.kubernetesCl, r.kubernetesDiscoCl, _ = opts.KubernetesProvider(ctx)
 	}
 	if opts.LinuxAuditProvider != nil {
 		r.linuxAuditCl, _ = opts.LinuxAuditProvider(ctx)
@@ -159,11 +158,13 @@ func (r *defaultResolver) Close() {
 		r.linuxAuditCl = nil
 	}
 	r.kubernetesCl = nil
+	r.kubernetesDiscoCl = nil
 
 	r.procsCache = nil
 	r.filesCache = nil
 	r.pkgsCache = nil
 	r.kubeClusterIDCache = ""
+	r.kubeResourcesCache = nil
 }
 
 func (r *defaultResolver) ResolveInputs(ctx context.Context, rule *Rule) (ResolvedInputs, error) {
@@ -365,7 +366,7 @@ func (r *defaultResolver) resolveFile(ctx context.Context, rootPath string, spec
 	return
 }
 
-func (r *defaultResolver) resolveFilePath(ctx context.Context, rootPath, path, parser string) (interface{}, error) {
+func (r *defaultResolver) resolveFilePath(ctx context.Context, rootPath, path, parser string) (interface{}, error) { //nolint:revive // TODO fix revive unused-parameter
 	path = r.pathNormalize(rootPath, path)
 	file, err := r.getFileMeta(path)
 	if err != nil {
@@ -498,7 +499,7 @@ func (r *defaultResolver) getProcs(ctx context.Context) ([]*process.Process, err
 }
 
 func (r *defaultResolver) resolveGroup(ctx context.Context, spec InputSpecGroup) (interface{}, error) {
-	f, err := os.Open("/etc/group")
+	f, err := os.Open(r.pathNormalizeToHostRoot("/etc/group"))
 	if err != nil {
 		return nil, err
 	}
@@ -691,10 +692,21 @@ func (r *defaultResolver) resolveKubeApiserver(ctx context.Context, spec InputSp
 		spec.Version = "v1"
 	}
 
+	// podsecuritypolicies have been deprecated as part of Kubernetes v1.25
+
 	resourceSchema := kubeschema.GroupVersionResource{
 		Group:    spec.Group,
 		Resource: spec.Kind,
 		Version:  spec.Version,
+	}
+
+	resourceSupported, err := r.checkKubeServerResourceSupport(resourceSchema)
+	if err != nil {
+		return nil, fmt.Errorf("unable to check for Kube resource support:'%v', ns:'%s' err: %w",
+			resourceSchema, spec.Namespace, err)
+	}
+	if !resourceSupported {
+		return nil, ErrIncompatibleEnvironment
 	}
 
 	resourceDef := cl.Resource(resourceSchema)
@@ -744,6 +756,32 @@ func (r *defaultResolver) resolveKubeApiserver(ctx context.Context, spec InputSp
 	return resolved, nil
 }
 
+func (r *defaultResolver) checkKubeServerResourceSupport(resourceSchema kubeschema.GroupVersionResource) (bool, error) {
+	if r.kubernetesDiscoCl == nil {
+		return true, nil
+	}
+
+	if r.kubeResourcesCache == nil {
+		_, resources, err := r.kubernetesDiscoCl.ServerGroupsAndResources()
+		if err != nil {
+			return false, fmt.Errorf("could not fetch kubernetes resources: %w", err)
+		}
+		r.kubeResourcesCache = &resources
+	}
+
+	groupVersion := resourceSchema.GroupVersion().String()
+	for _, list := range *r.kubeResourcesCache {
+		if groupVersion == list.GroupVersion {
+			for _, r := range list.APIResources {
+				if r.Name == resourceSchema.Resource {
+					return true, nil
+				}
+			}
+		}
+	}
+	return false, nil
+}
+
 const (
 	apkDb     = "/lib/apk/db/installed"
 	dpkgDb    = "/var/lib/dpkg/status"
@@ -759,7 +797,7 @@ var rpmDbs = []string{
 	"/var/lib/rpm/Packages",
 }
 
-func (r *defaultResolver) resolvePackage(ctx context.Context, spec InputSpecPackage) (pkg *packageInfo, err error) {
+func (r *defaultResolver) resolvePackage(ctx context.Context, spec InputSpecPackage) (pkg *packageInfo, err error) { //nolint:revive // TODO fix revive unused-parameter
 	if len(spec.Names) == 0 {
 		return nil, nil
 	}

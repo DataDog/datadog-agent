@@ -8,7 +8,7 @@ package diagnose
 import (
 	"testing"
 
-	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
+	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/diagnose/diagnosis"
 
@@ -17,7 +17,7 @@ import (
 
 func TestDiagnoseAllBasicRegAndRunNoDiagnoses(t *testing.T) {
 
-	diagnosis.Register("TestDiagnoseAllBasicRegAndRunNoDiagnoses", func(cfg diagnosis.Config, senderManager sender.SenderManager) []diagnosis.Diagnosis {
+	diagnosis.Register("TestDiagnoseAllBasicRegAndRunNoDiagnoses", func(cfg diagnosis.Config, _ sender.DiagnoseSenderManager) []diagnosis.Diagnosis {
 		return nil
 	})
 
@@ -25,7 +25,7 @@ func TestDiagnoseAllBasicRegAndRunNoDiagnoses(t *testing.T) {
 		Include:  []string{"TestDiagnoseAllBasicRegAndRunNoDiagnoses"},
 		RunLocal: true,
 	}
-	senderManager := mocksender.CreateDefaultDemultiplexer()
+	senderManager := aggregator.NewNoOpSenderManager()
 	diagnoses, err := Run(diagCfg, senderManager)
 	assert.NoError(t, err)
 	assert.Len(t, diagnoses, 0)
@@ -52,11 +52,11 @@ func TestDiagnoseAllBasicRegAndRunSomeDiagnosis(t *testing.T) {
 		},
 	}
 
-	diagnosis.Register("TestDiagnoseAllBasicRegAndRunSomeDiagnosis-a", func(cfg diagnosis.Config, senderManager sender.SenderManager) []diagnosis.Diagnosis {
+	diagnosis.Register("TestDiagnoseAllBasicRegAndRunSomeDiagnosis-a", func(cfg diagnosis.Config, _ sender.DiagnoseSenderManager) []diagnosis.Diagnosis {
 		return inDiagnoses
 	})
 
-	diagnosis.Register("TestDiagnoseAllBasicRegAndRunSomeDiagnosis-b", func(cfg diagnosis.Config, senderManager sender.SenderManager) []diagnosis.Diagnosis {
+	diagnosis.Register("TestDiagnoseAllBasicRegAndRunSomeDiagnosis-b", func(cfg diagnosis.Config, _ sender.DiagnoseSenderManager) []diagnosis.Diagnosis {
 		return inDiagnoses
 	})
 
@@ -65,7 +65,7 @@ func TestDiagnoseAllBasicRegAndRunSomeDiagnosis(t *testing.T) {
 		Include:  []string{"TestDiagnoseAllBasicRegAndRunSomeDiagnosis"},
 		RunLocal: true,
 	}
-	senderManager := mocksender.CreateDefaultDemultiplexer()
+	senderManager := aggregator.NewNoOpSenderManager()
 	outSuitesDiagnosesInclude, err := Run(diagCfgInclude, senderManager)
 	assert.NoError(t, err)
 	assert.Len(t, outSuitesDiagnosesInclude, 2)

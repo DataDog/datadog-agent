@@ -24,7 +24,7 @@ static __always_inline void skip_preface_tls(tls_dispatcher_arguments_t *info) {
     if (info->off + HTTP2_MARKER_SIZE <= info->len) {
         char preface[HTTP2_MARKER_SIZE];
         bpf_memset((char *)preface, 0, HTTP2_MARKER_SIZE);
-        read_into_user_buffer_http2_preface(preface, info->buf + info->off);
+        read_into_user_buffer_http2_preface(preface, info->buffer_ptr + info->off);
         if (is_http2_preface(preface, HTTP2_MARKER_SIZE)) {
             info->off += HTTP2_MARKER_SIZE;
         }
@@ -42,7 +42,7 @@ static __always_inline bool read_var_int_with_given_current_char_tls(tls_dispatc
 
     if (info->off <= info->len) {
         __u8 next_char = 0;
-        read_into_user_buffer_http2_char(&next_char, info->buf + info->off);
+        read_into_user_buffer_http2_char(&next_char, info->buffer_ptr + info->off);
         if ((next_char & 128) == 0) {
             info->off++;
             *out = current_char_as_number + next_char & 127;
@@ -65,7 +65,7 @@ static __always_inline bool read_var_int_tls(tls_dispatcher_arguments_t *info, _
         return false;
     }
     __u8 current_char_as_number = 0;
-    read_into_user_buffer_http2_char(&current_char_as_number, info->buf + info->off);
+    read_into_user_buffer_http2_char(&current_char_as_number, info->buffer_ptr + info->off);
     info->off++;
 
     return read_var_int_with_given_current_char_tls(info, current_char_as_number, max_number_for_bits, out);
@@ -82,7 +82,7 @@ static __always_inline bool is_relevant_frame_tls(tls_dispatcher_arguments_t *in
         return false;
     }
 
-    read_into_user_buffer_http2_frame_header((char *)header, info->buf + info->off);
+    read_into_user_buffer_http2_frame_header((char *)header, info->buffer_ptr + info->off);
     info->off += HTTP2_FRAME_HEADER_SIZE;
     if (!format_http2_frame_header(header)) {
         return false;
@@ -154,7 +154,7 @@ static __always_inline __u8 filter_relevant_headers_tls(tls_dispatcher_arguments
         if (info->off >= end) {
             break;
         }
-        read_into_user_buffer_http2_char(&current_ch, info->buf + info->off);
+        read_into_user_buffer_http2_char(&current_ch, info->buffer_ptr + info->off);
         info->off++;
 
         is_indexed = (current_ch & 128) != 0;
@@ -242,7 +242,7 @@ static __always_inline void process_headers_tls(tls_dispatcher_arguments_t *info
             dynamic_value.string_len = current_header->new_dynamic_value_size;
 
             // create the new dynamic value which will be added to the internal table.
-            read_into_user_buffer_path((char *)&dynamic_value.buffer, info->buf + current_header->new_dynamic_value_offset);
+            read_into_user_buffer_path((char *)&dynamic_value.buffer, info->buffer_ptr + current_header->new_dynamic_value_offset);
             bpf_map_update_elem(&http2_dynamic_table, dynamic_index, &dynamic_value, BPF_ANY);
             current_stream->path_size = current_header->new_dynamic_value_size;
             bpf_memcpy(current_stream->request_path, dynamic_value.buffer, HTTP2_MAX_PATH_LEN);

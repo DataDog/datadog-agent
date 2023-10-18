@@ -41,6 +41,9 @@
 
 #define HTTP2_CONTENT_TYPE_IDX 31
 
+// Huffman-encoded strings for paths "/" and "/index.html". Needed for HTTP2
+// decoding, as these two paths are in the static table, we need to add the
+// encoded string ourselves instead of reading them from the Header.
 #define HTTP_ROOT_PATH "\x63"
 #define HTTP_ROOT_PATH_LEN (sizeof(HTTP_ROOT_PATH) - 1)
 #define HTTP_INDEX_PATH "\x60\xd5\x48\x5f\x2b\xce\x9a\x68"

@@ -15,6 +15,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/stretchr/testify/assert"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -185,4 +186,12 @@ func secretAbsPath(secretName string) string {
 	// Windows uses "\" as the directory separator. "\" is the escape char in
 	// JSON, so we need to escape them.
 	return strings.ReplaceAll(absPath, "\\", "\\\\")
+}
+
+func TestReadCmdCommand(t *testing.T) {
+	fxutil.TestOneShotSubcommand(t,
+		Commands(),
+		[]string{"secret-helper", "read"},
+		readCmd,
+		func() {})
 }
