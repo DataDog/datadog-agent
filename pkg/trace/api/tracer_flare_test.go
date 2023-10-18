@@ -29,6 +29,10 @@ func getTraceFlareBody(multipartBoundary string) io.ReadCloser {
 		defer writer.Close()
 
 		archive, err := os.Create("flare.zip")
+		if err != nil {
+			bodyWriter.CloseWithError(err)
+			return
+		}
 		archive.Close()
 		defer os.Remove("flare.zip")
 
