@@ -397,6 +397,7 @@ func deleteEBSSnapshot(ctx context.Context, svc *ec2.EC2, snapshotID string) err
 }
 
 var scansInProgress map[string]struct{}
+var scansInProgressMu sync.Mutex
 
 func scanEBS(ctx context.Context, log log.Component, statsd ddgostatsd.ClientInterface, hostname string, scan *ebsScan) (*sbommodel.SBOMEntity, error) {
 	if scan.Region == "" {
@@ -406,12 +407,15 @@ func scanEBS(ctx context.Context, log log.Component, statsd ddgostatsd.ClientInt
 		return nil, fmt.Errorf("ebs-scan: missing hostname")
 	}
 
+	scansInProgressMu.Lock()
 	if _, ok := scansInProgress[scan.Hostname]; ok {
 		log.Debugf("scan in progress for hostname %s; skipping", scan.Hostname)
+		scansInProgressMu.Unlock()
 		return nil, nil
 	}
 	scansInProgress[scan.Hostname] = struct{}{}
 	defer delete(scansInProgress, scan.Hostname)
+	scansInProgressMu.Unlock()
 
 	defer statsd.Flush()
 
