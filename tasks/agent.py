@@ -967,20 +967,20 @@ def omnibus_build(
 
     if use_omnibus_git_cache and use_remote_cache:
         with timed(quiet=True) as update_cache:
-            if base_branch == os.environ['CI_COMMIT_BRANCH']:
-                # Purge the cache manually as omnibus will stick to not restoring a tag when
-                # a mismatch is detected, but will keep the old cached tags.
-                # Do this before checking for tag differences, in order to remove staled tags
-                # in case they were included in the bundle in a previous build
-                # Allow the command to fail since an empty cache will cause a git reflog failure
-                stale_tags = ctx.run(f'git -C {omnibus_cache_dir} tag --no-merged', warn=True).stdout
-                for _, tag in enumerate(stale_tags.split(os.linesep)):
-                    ctx.run(f'git -C {omnibus_cache_dir} tag -d {tag}')
-                if ctx.run(f"git -C {omnibus_cache_dir} tag -l").stdout != cache_state:
-                    ctx.run(f"git -C {omnibus_cache_dir} bundle create {bundle_path} --tags")
-                    ctx.run(f"aws s3 cp --only-show-errors {bundle_path} {git_cache_url}")
-            else:
-                print("Not updating omnibus cache from a feature branch")
+            # if base_branch == os.environ['CI_COMMIT_BRANCH'] or True:
+            # Purge the cache manually as omnibus will stick to not restoring a tag when
+            # a mismatch is detected, but will keep the old cached tags.
+            # Do this before checking for tag differences, in order to remove staled tags
+            # in case they were included in the bundle in a previous build
+            # Allow the command to fail since an empty cache will cause a git reflog failure
+            stale_tags = ctx.run(f'git -C {omnibus_cache_dir} tag --no-merged', warn=True).stdout
+            for _, tag in enumerate(stale_tags.split(os.linesep)):
+                ctx.run(f'git -C {omnibus_cache_dir} tag -d {tag}')
+            if ctx.run(f"git -C {omnibus_cache_dir} tag -l").stdout != cache_state:
+                ctx.run(f"git -C {omnibus_cache_dir} bundle create {bundle_path} --tags")
+                ctx.run(f"aws s3 cp --only-show-errors {bundle_path} {git_cache_url}")
+            # else:
+            #    print("Not updating omnibus cache from a feature branch")
 
     # Delete the temporary pip.conf file once the build is done
     os.remove(pip_config_file)
