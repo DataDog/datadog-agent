@@ -147,6 +147,7 @@ DEFAULT_MODULES = {
         lint_targets=["."],
     ),
     "test/fakeintake": GoModule("test/fakeintake", independent=True),
+    "pkg/autodiscovery/common/types": GoModule("pkg/autodiscovery/common/types", independent=True),
     "pkg/errors": GoModule("pkg/errors", independent=True),
     "pkg/obfuscate": GoModule("pkg/obfuscate", independent=True),
     "pkg/gohai": GoModule("pkg/gohai", independent=True, importable=False),
