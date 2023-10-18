@@ -76,7 +76,6 @@ func runFx(ctx context.Context, cliParams *RunParams, defaultConfPath string) er
 			AgentType:  workloadmeta.NodeAgent,
 			InitHelper: common.GetWorkloadmetaInit(),
 		}),
-		fx.Supply(context.Background()),
 		workloadmeta.Module,
 		fx.Invoke(func(_ config.Component) {}),
 		// Required to avoid cyclic imports.

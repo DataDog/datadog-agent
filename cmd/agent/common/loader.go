@@ -68,7 +68,7 @@ func LoadComponents(ctx context.Context, senderManager sender.SenderManager, con
 
 	// TODO(components): revise this pattern.
 	// Currently the workloadmeta init hook will initialize the tagger.
-	// No big concern here, but be sure to understand there is an mplicit
+	// No big concern here, but be sure to understand there is an implicit
 	// assumption about the initializtion of the tagger prior to being here.
 	// because of subscription to metadata store.
 	AC = setupAutoDiscovery(confSearchPaths, scheduler.NewMetaScheduler())

@@ -47,7 +47,6 @@ type dependencies struct {
 	fx.In
 
 	Lc fx.Lifecycle
-	// Ctx context.Context // TODO: maybe this should be removed
 
 	Log     log.Component
 	Config  config.Component
@@ -77,7 +76,6 @@ func newWorkloadMeta(deps dependencies) Component {
 		ongoingPulls: make(map[string]time.Time),
 	}
 
-	// TODO: we probably need something here
 	deps.Lc.Append(fx.Hook{OnStart: func(c context.Context) error {
 		// create and setup the Autoconfig instance
 		if deps.Params.InitHelper != nil {
@@ -87,6 +85,7 @@ func newWorkloadMeta(deps dependencies) Component {
 		return nil
 	}})
 	deps.Lc.Append(fx.Hook{OnStop: func(context.Context) error {
+		// TODO(components): workloadmeta should probably be stopped cleanly
 		return nil
 	}})
 
