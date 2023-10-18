@@ -13,6 +13,7 @@ import (
 // Buffer is a buffer of packets that will automatically flush to the given
 // output channel when it is full or after a configurable duration.
 type Buffer struct {
+	listenerId    string
 	packets       Packets
 	flushTimer    *time.Ticker
 	bufferSize    uint
@@ -22,8 +23,9 @@ type Buffer struct {
 }
 
 // NewBuffer creates a new buffer of packets of specified size
-func NewBuffer(bufferSize uint, flushTimer time.Duration, outputChannel chan Packets) *Buffer {
+func NewBuffer(bufferSize uint, flushTimer time.Duration, outputChannel chan Packets, listenerID string) *Buffer {
 	pb := &Buffer{
+		listenerId:    listenerID,
 		bufferSize:    bufferSize,
 		flushTimer:    time.NewTicker(flushTimer),
 		outputChannel: outputChannel,
@@ -40,7 +42,7 @@ func (pb *Buffer) flushLoop() {
 		case <-pb.flushTimer.C:
 			pb.m.Lock()
 			pb.flush()
-			tlmBufferFlushedTimer.Inc()
+			tlmBufferFlushedTimer.Inc(pb.listenerId)
 			pb.m.Unlock()
 		case <-pb.closeChannel:
 			return
@@ -53,9 +55,12 @@ func (pb *Buffer) Append(packet *Packet) {
 	pb.m.Lock()
 	defer pb.m.Unlock()
 	pb.packets = append(pb.packets, packet)
+
+	tlmBufferSize.Set(float64(len(pb.packets)), pb.listenerId)
+
 	if uint(len(pb.packets)) >= pb.bufferSize {
 		pb.flush()
-		tlmBufferFlushedFull.Inc()
+		tlmBufferFlushedFull.Inc(pb.listenerId)
 	}
 }
 
@@ -64,14 +69,20 @@ func (pb *Buffer) flush() {
 		t1 := time.Now()
 		pb.outputChannel <- pb.packets
 		t2 := time.Now()
-		tlmListenerChannel.Observe(float64(t2.Sub(t1).Nanoseconds()))
+		tlmListenerChannel.Observe(float64(t2.Sub(t1).Nanoseconds()), pb.listenerId)
 
-		tlmChannelSize.Set(float64(len(pb.outputChannel)))
 		pb.packets = make(Packets, 0, pb.bufferSize)
 	}
+	tlmBufferSize.Set(float64(len(pb.packets)), pb.listenerId)
+	// FIXME: it's not per listener
+	tlmChannelSize.Set(float64(len(pb.outputChannel)), pb.listenerId)
 }
 
 // Close closes the packet buffer
 func (pb *Buffer) Close() {
 	close(pb.closeChannel)
+	tlmBufferSize.Delete(pb.listenerId)
+	tlmChannelSize.Delete(pb.listenerId)
+	tlmBufferFlushedFull.Delete(pb.listenerId)
+	tlmBufferFlushedTimer.Delete(pb.listenerId)
 }
