@@ -151,7 +151,7 @@ func (c *WorkloadMetaCollector) stream(ctx context.Context) {
 }
 
 // NewWorkloadMetaCollector returns a new WorkloadMetaCollector.
-func NewWorkloadMetaCollector(ctx context.Context, store workloadmeta.Component, p processor) *WorkloadMetaCollector {
+func NewWorkloadMetaCollector(_ context.Context, store workloadmeta.Component, p processor) *WorkloadMetaCollector {
 	c := &WorkloadMetaCollector{
 		tagProcessor:           p,
 		store:                  store,
