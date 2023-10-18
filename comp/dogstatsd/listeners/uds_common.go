@@ -13,6 +13,7 @@ import (
 	"io"
 	"net"
 	"os"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -44,7 +45,7 @@ func init() {
 // back packets ready to be processed.
 // Origin detection will be implemented for UDS.
 type UDSListener struct {
-	packetsBuffer           *packets.Buffer
+	packetOut               chan packets.Packets
 	sharedPacketPoolManager *packets.PoolManager
 	oobPoolManager          *packets.PoolManager
 	trafficCapture          replay.Component
@@ -120,9 +121,8 @@ func NewUDSListener(packetOut chan packets.Packets, sharedPacketPoolManager *pac
 	originDetection := cfg.GetBool("dogstatsd_origin_detection")
 
 	listener := &UDSListener{
-		OriginDetection: originDetection,
-		packetsBuffer: packets.NewBuffer(uint(cfg.GetInt("dogstatsd_packet_buffer_size")),
-			cfg.GetDuration("dogstatsd_packet_buffer_flush_timeout"), packetOut),
+		OriginDetection:              originDetection,
+		packetOut:                    packetOut,
 		sharedPacketPoolManager:      sharedPacketPoolManager,
 		trafficCapture:               capture,
 		dogstatsdMemBasedRateLimiter: cfg.GetBool("dogstatsd_mem_based_rate_limiter.enabled"),
@@ -144,11 +144,16 @@ func NewUDSListener(packetOut chan packets.Packets, sharedPacketPoolManager *pac
 
 // Listen runs the intake loop. Should be called in its own goroutine
 func (l *UDSListener) handleConnection(conn *net.UnixConn) error {
+	listenerID := getListenerID(conn)
+	packetsBuffer := packets.NewBuffer(uint(l.config.GetInt("dogstatsd_packet_buffer_size")), l.config.GetDuration("dogstatsd_packet_buffer_flush_timeout"), l.packetOut, listenerID)
+	defer packetsBuffer.Close()
+	defer l.clearTelemetry(listenerID)
+
 	defer func() {
-		tlmUDSConnections.Dec(l.transport)
+		tlmUDSConnections.Dec(listenerID, l.transport)
 		_ = conn.Close()
 	}()
-	tlmUDSConnections.Inc(l.transport)
+	tlmUDSConnections.Inc(listenerID, l.transport)
 
 	var err error
 	l.OriginDetection, err = setupUnixConn(conn, l.OriginDetection, l.config)
@@ -208,7 +213,7 @@ func (l *UDSListener) handleConnection(conn *net.UnixConn) error {
 		}
 
 		t2 = time.Now()
-		tlmListener.Observe(float64(t2.Sub(t1).Nanoseconds()), l.transport, "uds")
+		tlmListener.Observe(float64(t2.Sub(t1).Nanoseconds()), listenerID, l.transport, "uds")
 
 		var expectedPacketLength uint32
 		var maxPacketLength uint32
@@ -264,7 +269,7 @@ func (l *UDSListener) handleConnection(conn *net.UnixConn) error {
 			if taggingErr != nil {
 				log.Warnf("dogstatsd-uds: error processing origin, data will not be tagged : %v", taggingErr)
 				udsOriginDetectionErrors.Add(1)
-				tlmUDSOriginDetectionError.Inc(l.transport)
+				tlmUDSOriginDetectionError.Inc(listenerID, l.transport)
 			} else {
 				packet.Origin = container
 				if capBuff != nil {
@@ -299,23 +304,40 @@ func (l *UDSListener) handleConnection(conn *net.UnixConn) error {
 
 			log.Errorf("dogstatsd-uds: error reading packet: %v", err)
 			udsPacketReadingErrors.Add(1)
-			tlmUDSPackets.Inc(l.transport, "error")
+			tlmUDSPackets.Inc(listenerID, l.transport, "error")
 			continue
 		}
-		tlmUDSPackets.Inc(l.transport, "ok")
+		tlmUDSPackets.Inc(listenerID, l.transport, "ok")
 
 		udsBytes.Add(int64(n))
-		tlmUDSPacketsBytes.Add(float64(n), l.transport)
+		tlmUDSPacketsBytes.Add(float64(n), listenerID, l.transport)
 		packet.Contents = packet.Buffer[:n]
 		packet.Source = packets.UDS
 
 		// packetsBuffer handles the forwarding of the packets to the dogstatsd server intake channel
-		l.packetsBuffer.Append(packet)
+		packetsBuffer.Append(packet)
 	}
+}
+
+func getListenerID(conn *net.UnixConn) string {
+	f, err := conn.File()
+	if err != nil {
+		log.Errorf("dogstatsd-uds: error getting file from connection: %s", err)
+	}
+	return "uds-" + conn.LocalAddr().Network() + "-" + strconv.Itoa(int(f.Fd()))
 }
 
 // Stop closes the UDS connection and stops listening
 func (l *UDSListener) Stop() {
-	l.packetsBuffer.Close()
 	// Socket cleanup on exit is not necessary as sockets are automatically removed by go.
+}
+
+func (l *UDSListener) clearTelemetry(id string) {
+	// Since the listener id is volatile we need to make sure we clear the telemetry.
+	tlmListener.Delete(id, l.transport)
+	tlmUDSConnections.Delete(id, l.transport)
+	tlmUDSPackets.Delete(id, l.transport, "error")
+	tlmUDSPackets.Delete(id, l.transport, "ok")
+	tlmUDSPacketsBytes.Delete(id, l.transport)
+
 }
