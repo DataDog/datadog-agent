@@ -473,7 +473,6 @@ func scanEBS(ctx context.Context, log log.Component, statsd ddgostatsd.ClientInt
 	tags := []string{
 		fmt.Sprintf("region:%s", scan.Region),
 		fmt.Sprintf("type:%s", "ebs-scan"),
-		fmt.Sprintf("host:%s", hostname),
 	}
 
 	snapshotID := scan.SnapshotID
