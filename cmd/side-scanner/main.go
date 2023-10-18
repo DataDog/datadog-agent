@@ -19,8 +19,8 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	commonpath "github.com/DataDog/datadog-agent/cmd/agent/common/path"
 	"github.com/DataDog/datadog-agent/cmd/internal/runcmd"
-	"github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/comp/core/log"
+	compconfig "github.com/DataDog/datadog-agent/comp/core/config"
+	complog "github.com/DataDog/datadog-agent/comp/core/log"
 	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
@@ -46,6 +46,7 @@ import (
 	// DataDog agent: logs stuffs
 	"github.com/DataDog/datadog-agent/pkg/epforwarder"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	// DataDog agent: metrics Statsd
 	ddgostatsd "github.com/DataDog/datadog-go/v5/statsd"
@@ -102,11 +103,14 @@ func runCommand() *cobra.Command {
 		Use:   "run",
 		Short: "Runs the side-scanner",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return fxutil.OneShot(runCmd,
-				fx.Supply(config.NewAgentParamsWithSecrets(path.Join(commonpath.DefaultConfPath, "side-scanner.yaml"))),
-				fx.Supply(log.ForDaemon("SIDESCANNER", "log_file", pkgconfig.DefaultSideScannerLogFile)),
-				log.Module,
-				config.Module,
+			return fxutil.OneShot(
+				func(_ complog.Component, _ compconfig.Component) error {
+					return runCmd()
+				},
+				fx.Supply(compconfig.NewAgentParamsWithSecrets(path.Join(commonpath.DefaultConfPath, "side-scanner.yaml"))),
+				fx.Supply(complog.ForDaemon("SIDESCANNER", "log_file", pkgconfig.DefaultSideScannerLogFile)),
+				complog.Module,
+				compconfig.Module,
 			)
 		},
 	}
@@ -121,13 +125,13 @@ func scanCommand() *cobra.Command {
 		Short: "execute a scan",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return fxutil.OneShot(
-				func(log log.Component, config config.Component) error {
-					return scanCmd(log, config, []byte(cliArgs.RawScan))
+				func(_ complog.Component, _ compconfig.Component) error {
+					return scanCmd([]byte(cliArgs.RawScan))
 				},
-				fx.Supply(config.NewAgentParamsWithSecrets(path.Join(commonpath.DefaultConfPath, "side-scanner.yaml"))),
-				fx.Supply(log.ForDaemon("SIDESCANNER", "log_file", pkgconfig.DefaultSideScannerLogFile)),
-				log.Module,
-				config.Module,
+				fx.Supply(compconfig.NewAgentParamsWithSecrets(path.Join(commonpath.DefaultConfPath, "side-scanner.yaml"))),
+				fx.Supply(complog.ForDaemon("SIDESCANNER", "log_file", pkgconfig.DefaultSideScannerLogFile)),
+				complog.Module,
+				compconfig.Module,
 			)
 		},
 	}
@@ -139,7 +143,7 @@ func scanCommand() *cobra.Command {
 	return cmd
 }
 
-func runCmd(log log.Component, _ config.Component) error {
+func runCmd() error {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
 	defer stop()
 
@@ -169,12 +173,12 @@ func runCmd(log log.Component, _ config.Component) error {
 		return fmt.Errorf("could not init statsd client: %w", err)
 	}
 
-	scanner := newSideScanner(hostname, statsd, log, rcClient)
+	scanner := newSideScanner(hostname, statsd, rcClient)
 	scanner.start(ctx)
 	return nil
 }
 
-func scanCmd(log log.Component, _ config.Component, rawScan []byte) error {
+func scanCmd(rawScan []byte) error {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
 	defer stop()
 
@@ -205,7 +209,7 @@ func scanCmd(log log.Component, _ config.Component, rawScan []byte) error {
 	}
 
 	for _, scan := range scans {
-		entity, err := launchScan(ctx, log, statsd, hostname, scan)
+		entity, err := launchScan(ctx, statsd, hostname, scan)
 		if err != nil {
 			log.Errorf("error scanning task %s: %s", err)
 		} else {
@@ -285,7 +289,7 @@ func (s lambdaScan) String() string {
 type sideScanner struct {
 	hostname       string
 	statsd         ddgostatsd.ClientInterface
-	log            log.Component
+	log            complog.Component
 	rcClient       *remote.Client
 	eventForwarder epforwarder.EventPlatformForwarder
 
@@ -294,12 +298,11 @@ type sideScanner struct {
 	scansInProgressMu sync.RWMutex
 }
 
-func newSideScanner(hostname string, statsd ddgostatsd.ClientInterface, log log.Component, rcClient *remote.Client) *sideScanner {
+func newSideScanner(hostname string, statsd ddgostatsd.ClientInterface, rcClient *remote.Client) *sideScanner {
 	eventForwarder := epforwarder.NewEventPlatformForwarder()
 	return &sideScanner{
 		hostname:        hostname,
 		statsd:          statsd,
-		log:             log,
 		rcClient:        rcClient,
 		eventForwarder:  eventForwarder,
 		scansCh:         make(chan scanTask),
@@ -308,7 +311,7 @@ func newSideScanner(hostname string, statsd ddgostatsd.ClientInterface, log log.
 }
 
 func (s *sideScanner) start(ctx context.Context) {
-	s.log.Infof("Starting side-scanner with hostname %s", s.hostname)
+	log.Infof("Starting side-scanner with hostname %s", s.hostname)
 
 	s.eventForwarder.Start()
 	defer s.eventForwarder.Stop()
@@ -335,7 +338,7 @@ func (s *sideScanner) start(ctx context.Context) {
 					return
 				case scan := <-s.scansCh:
 					if err := s.launchScanAndSendResult(ctx, scan); err != nil {
-						s.log.Errorf("error scanning task %s: %s", scan, err)
+						log.Errorf("error scanning task %s: %s", scan, err)
 					}
 				}
 			}
@@ -346,16 +349,16 @@ func (s *sideScanner) start(ctx context.Context) {
 }
 
 func (s *sideScanner) pushOrSkipScan(ctx context.Context, rawConfig state.RawConfig) {
-	s.log.Debugf("received new task from remote-config: %s", rawConfig.Metadata.ID)
+	log.Debugf("received new task from remote-config: %s", rawConfig.Metadata.ID)
 	scans, err := unmarshalScanTasks(rawConfig.Config)
 	if err != nil {
-		s.log.Errorf("could not parse side-scanner task: %w", err)
+		log.Errorf("could not parse side-scanner task: %w", err)
 		return
 	}
 	for _, scan := range scans {
 		s.scansInProgressMu.RLock()
 		if _, ok := s.scansInProgress[scan]; ok {
-			s.log.Debugf("scan in progress %s; skipping", scan)
+			log.Debugf("scan in progress %s; skipping", scan)
 			s.scansInProgressMu.RUnlock()
 		} else {
 			s.scansInProgressMu.RUnlock()
@@ -379,7 +382,7 @@ func (s *sideScanner) launchScanAndSendResult(ctx context.Context, scan scanTask
 		s.scansInProgressMu.Unlock()
 	}()
 
-	entity, err := launchScan(ctx, s.log, s.statsd, s.hostname, scan)
+	entity, err := launchScan(ctx, s.statsd, s.hostname, scan)
 	if err != nil {
 		return err
 	}
@@ -405,20 +408,20 @@ func (s *sideScanner) sendSBOM(entity *sbommodel.SBOMEntity) error {
 	return s.eventForwarder.SendEventPlatformEvent(m, epforwarder.EventTypeContainerSBOM)
 }
 
-func launchScan(ctx context.Context, log log.Component, statsd ddgostatsd.ClientInterface, hostname string, scan scanTask) (*sbommodel.SBOMEntity, error) {
+func launchScan(ctx context.Context, statsd ddgostatsd.ClientInterface, hostname string, scan scanTask) (*sbommodel.SBOMEntity, error) {
 	switch scan.Type {
 	case "ebs-scan":
 		defer log.Debugf("finished ebs-scan of %s", scan)
-		return scanEBS(ctx, log, statsd, hostname, scan.Scan.(ebsScan))
+		return scanEBS(ctx, statsd, hostname, scan.Scan.(ebsScan))
 	case "lambda-scan":
 		defer log.Debugf("finished lambda-scan of %s", scan)
-		return scanLambda(ctx, log, statsd, hostname, scan.Scan.(lambdaScan))
+		return scanLambda(ctx, statsd, hostname, scan.Scan.(lambdaScan))
 	default:
 		return nil, fmt.Errorf("unknown scan type: %s", scan.Type)
 	}
 }
 
-func createEBSSnapshot(ctx context.Context, log log.Component, svc *ec2.EC2, scan ebsScan) (string, error) {
+func createEBSSnapshot(ctx context.Context, svc *ec2.EC2, scan ebsScan) (string, error) {
 	retries := 0
 retry:
 	result, err := svc.CreateSnapshotWithContext(ctx, &ec2.CreateSnapshotInput{
@@ -460,7 +463,7 @@ func deleteEBSSnapshot(ctx context.Context, svc *ec2.EC2, snapshotID string) err
 	return err
 }
 
-func scanEBS(ctx context.Context, log log.Component, statsd ddgostatsd.ClientInterface, hostname string, scan ebsScan) (*sbommodel.SBOMEntity, error) {
+func scanEBS(ctx context.Context, statsd ddgostatsd.ClientInterface, hostname string, scan ebsScan) (*sbommodel.SBOMEntity, error) {
 	if scan.Region == "" {
 		return nil, fmt.Errorf("ebs-scan: missing region")
 	}
@@ -490,7 +493,7 @@ func scanEBS(ctx context.Context, log log.Component, statsd ddgostatsd.ClientInt
 		svc := ec2.New(sess)
 		statsd.Count("datadog.sidescanner.snapshots.started", 1.0, tags, 1.0)
 		log.Debugf("starting volume snapshotting %q", scan.VolumeID)
-		snapshotID, err = createEBSSnapshot(ctx, log, svc, scan)
+		snapshotID, err = createEBSSnapshot(ctx, svc, scan)
 		if err != nil {
 			return nil, err
 		}
@@ -565,7 +568,7 @@ func scanEBS(ctx context.Context, log log.Component, statsd ddgostatsd.ClientInt
 	return entity, nil
 }
 
-func scanLambda(ctx context.Context, log log.Component, statsd ddgostatsd.ClientInterface, hostname string, scan lambdaScan) (*sbommodel.SBOMEntity, error) {
+func scanLambda(ctx context.Context, statsd ddgostatsd.ClientInterface, hostname string, scan lambdaScan) (*sbommodel.SBOMEntity, error) {
 	if scan.Region == "" {
 		return nil, fmt.Errorf("ebs-scan: missing region")
 	}
