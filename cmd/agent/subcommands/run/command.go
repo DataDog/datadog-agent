@@ -83,6 +83,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 	"github.com/DataDog/datadog-agent/pkg/util/installinfo"
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/leaderelection"
 	pkglog "github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/version"
 
@@ -476,6 +477,9 @@ func startAgent(
 			return log.Errorf("Error while starting clc runner api server, exiting: %v", err)
 		}
 	}
+
+	// Create the Leader election engine without initializing it
+	leaderelection.CreateGlobalLeaderEngine(common.MainCtx)
 
 	// start the GUI server
 	guiPort := pkgconfig.Datadog.GetString("GUI_port")
