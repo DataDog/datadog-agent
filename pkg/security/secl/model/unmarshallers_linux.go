@@ -136,8 +136,11 @@ func (e *Credentials) UnmarshalBinary(data []byte) (int, error) {
 
 func unmarshalTime(data []byte) time.Time {
 	if t := int64(ByteOrder.Uint64(data)); t != 0 {
+		fmt.Printf("non zero time:%v\n", t)
 		return time.Unix(0, t)
 	}
+
+	fmt.Println("zero time")
 	return time.Time{}
 }
 
@@ -159,6 +162,7 @@ func (e *Process) UnmarshalProcEntryBinary(data []byte) (int, error) {
 	}
 
 	e.ExecTime = unmarshalTime(data[read : read+8])
+	fmt.Printf("Exec Time:%+v\n", e.ExecTime)
 	read += 8
 
 	var ttyRaw [64]byte
@@ -202,6 +206,7 @@ func (e *Process) UnmarshalPidCacheBinary(data []byte) (int, error) {
 	// padding
 
 	e.ForkTime = unmarshalTime(data[16:24])
+	fmt.Printf("Fork Time:%+v\n", e.ForkTime)
 	e.ExitTime = unmarshalTime(data[24:32])
 	e.UserSession.ID = ByteOrder.Uint64(data[32:40])
 
@@ -234,6 +239,7 @@ func (e *Process) UnmarshalBinary(data []byte) (int, error) {
 		return 0, err
 	}
 	read += n
+	fmt.Printf("Fork Time at unmarshalBinary:%+v\n", e.ForkTime)
 
 	// interpreter part
 	var pathKey PathKey

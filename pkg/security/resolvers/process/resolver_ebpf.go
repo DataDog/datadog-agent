@@ -800,6 +800,7 @@ func (p *EBPFResolver) resolveFromKernelMaps(pid, tid uint32, inode uint64) *mod
 	if _, err := entry.UnmarshalPidCacheBinary(pidCache); err != nil {
 		return nil
 	}
+	fmt.Printf("Fork Time at resolver_linux:%+v\n", entry.ForkTime)
 
 	// resolve paths and other context fields
 	if err = p.ResolveNewProcessCacheEntry(entry, &ctrCtx); err != nil {
