@@ -183,7 +183,7 @@ func GetStatus() NetflowServerStatus {
 		if listener.error != nil {
 			closedListenersList = append(closedListenersList, NetflowListenerStatus{
 				Config: listener.config,
-				Error:  listener.error.String(),
+				Error:  listener.error.Load(),
 			})
 		} else {
 			workingListeners = append(workingListeners, NetflowListenerStatus{
