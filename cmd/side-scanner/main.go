@@ -114,8 +114,7 @@ func runCommand() *cobra.Command {
 
 func scanCommand() *cobra.Command {
 	var cliArgs struct {
-		ScanType string
-		RawScan  string
+		RawScan string
 	}
 	cmd := &cobra.Command{
 		Use:   "scan",
@@ -133,7 +132,6 @@ func scanCommand() *cobra.Command {
 		},
 	}
 
-	cmd.Flags().StringVarP(&cliArgs.ScanType, "scan-type", "", "", "specify the type of scan (ebs-scan or lambda-scan)")
 	cmd.Flags().StringVarP(&cliArgs.RawScan, "raw-scan-data", "", "", "scan data in JSON")
 
 	cmd.MarkFlagRequired("scan-type")
@@ -201,22 +199,61 @@ func scanCmd(log log.Component, _ config.Component, rawScan []byte) error {
 		return fmt.Errorf("could not init statsd client: %w", err)
 	}
 
-	entity, err := launchScan(ctx, log, statsd, hostname, scanType, rawScan)
+	scans, err := unmarshalScanTasks(rawScan)
 	if err != nil {
 		return err
 	}
-	fmt.Println(entity)
+
+	for _, scan := range scans {
+		entity, err := launchScan(ctx, log, statsd, hostname, scan)
+		if err != nil {
+			log.Errorf("error scanning task %s: %s", err)
+		} else {
+			fmt.Printf("scanning result %s: %s\n", scan, entity)
+		}
+	}
 	return nil
 }
 
-type scanTasks struct {
+type scansTask struct {
 	Type     string            `json:"type"`
 	RawScans []json.RawMessage `json:"scans"`
 }
 
 type scanTask struct {
-	Type    string          `json:"type"`
-	RawScan json.RawMessage `json:"scans"`
+	Type string
+	Scan interface{}
+}
+
+func unmarshalScanTasks(b []byte) ([]scanTask, error) {
+	var task scansTask
+	if err := json.Unmarshal(b, &task); err != nil {
+		return nil, err
+	}
+	tasks := make([]scanTask, 0, len(task.RawScans))
+	for _, rawScan := range task.RawScans {
+		switch task.Type {
+		case "ebs-scan":
+			var scan ebsScan
+			if err := json.Unmarshal(rawScan, &scan); err != nil {
+				return nil, err
+			}
+			tasks = append(tasks, scanTask{
+				Type: task.Type,
+				Scan: scan,
+			})
+		case "lambda-scan":
+			var scan lambdaScan
+			if err := json.Unmarshal(rawScan, &scan); err != nil {
+				return nil, err
+			}
+			tasks = append(tasks, scanTask{
+				Type: task.Type,
+				Scan: scan,
+			})
+		}
+	}
+	return tasks, nil
 }
 
 type ebsScan struct {
@@ -251,16 +288,22 @@ type sideScanner struct {
 	log            log.Component
 	rcClient       *remote.Client
 	eventForwarder epforwarder.EventPlatformForwarder
+
+	scansCh           chan scanTask
+	scansInProgress   map[interface{}]struct{}
+	scansInProgressMu sync.RWMutex
 }
 
 func newSideScanner(hostname string, statsd ddgostatsd.ClientInterface, log log.Component, rcClient *remote.Client) *sideScanner {
 	eventForwarder := epforwarder.NewEventPlatformForwarder()
 	return &sideScanner{
-		hostname:       hostname,
-		statsd:         statsd,
-		log:            log,
-		rcClient:       rcClient,
-		eventForwarder: eventForwarder,
+		hostname:        hostname,
+		statsd:          statsd,
+		log:             log,
+		rcClient:        rcClient,
+		eventForwarder:  eventForwarder,
+		scansCh:         make(chan scanTask),
+		scansInProgress: make(map[interface{}]struct{}),
 	}
 }
 
@@ -273,49 +316,75 @@ func (s *sideScanner) start(ctx context.Context) {
 	s.rcClient.Start()
 	defer s.rcClient.Close()
 
-	scansInProgress = make(map[string]struct{})
+	var wg sync.WaitGroup
 
-	scansCh := make(chan scanTask)
 	s.rcClient.Subscribe(state.ProductDebug, func(update map[string]state.RawConfig, _ func(string, state.ApplyStatus)) {
-		for _, cfg := range update {
-			s.log.Debugf("received new task from remote-config: %s", cfg.Metadata.ID)
-			var task scanTasks
-			err := json.Unmarshal(cfg.Config, &task)
-			if err != nil {
-				s.log.Errorf("could not parse side-scanner task: %w", err)
-				return
-			}
-			for _, rawScan := range task.RawScans {
-				select {
-				case <-ctx.Done():
-					return
-				case scansCh <- scanTask{task.Type, rawScan}:
-				}
-			}
+		for _, rawConfig := range update {
+			s.pushOrSkipScan(ctx, rawConfig)
 		}
 	})
-
-	var wg sync.WaitGroup
 
 	const workerPoolSize = 10
 	for i := 0; i < workerPoolSize; i++ {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			for scan := range scansCh {
-				entity, err := launchScan(ctx, s.log, s.statsd, s.hostname, scan.Type, scan.RawScan)
-				if err != nil {
-					s.log.Errorf("error scanning task: %s", err)
-				} else {
-					s.sendSBOM(entity)
+			for {
+				select {
+				case <-ctx.Done():
+					return
+				case scan := <-s.scansCh:
+					if err := s.launchScanAndSendResult(ctx, scan); err != nil {
+						s.log.Errorf("error scanning task %s: %s", scan, err)
+					}
 				}
 			}
 		}()
 	}
 
-	<-ctx.Done()
-	close(scansCh)
 	wg.Wait()
+}
+
+func (s *sideScanner) pushOrSkipScan(ctx context.Context, rawConfig state.RawConfig) {
+	s.log.Debugf("received new task from remote-config: %s", rawConfig.Metadata.ID)
+	scans, err := unmarshalScanTasks(rawConfig.Config)
+	if err != nil {
+		s.log.Errorf("could not parse side-scanner task: %w", err)
+		return
+	}
+	for _, scan := range scans {
+		s.scansInProgressMu.RLock()
+		if _, ok := s.scansInProgress[scan]; ok {
+			s.log.Debugf("scan in progress %s; skipping", scan)
+			s.scansInProgressMu.RUnlock()
+		} else {
+			s.scansInProgressMu.RUnlock()
+			select {
+			case <-ctx.Done():
+				return
+			case s.scansCh <- scan:
+			}
+		}
+	}
+}
+
+func (s *sideScanner) launchScanAndSendResult(ctx context.Context, scan scanTask) error {
+	s.scansInProgressMu.Lock()
+	s.scansInProgress[scan] = struct{}{}
+	s.scansInProgressMu.Unlock()
+
+	defer func() {
+		s.scansInProgressMu.Lock()
+		delete(s.scansInProgress, scan)
+		s.scansInProgressMu.Unlock()
+	}()
+
+	entity, err := launchScan(ctx, s.log, s.statsd, s.hostname, scan)
+	if err != nil {
+		return err
+	}
+
+	return s.sendSBOM(entity)
 }
 
 func (s *sideScanner) sendSBOM(entity *sbommodel.SBOMEntity) error {
@@ -336,28 +405,20 @@ func (s *sideScanner) sendSBOM(entity *sbommodel.SBOMEntity) error {
 	return s.eventForwarder.SendEventPlatformEvent(m, epforwarder.EventTypeContainerSBOM)
 }
 
-func launchScan(ctx context.Context, log log.Component, statsd ddgostatsd.ClientInterface, hostname string, scanType string, rawScan []byte) (*sbommodel.SBOMEntity, error) {
-	switch scanType {
+func launchScan(ctx context.Context, log log.Component, statsd ddgostatsd.ClientInterface, hostname string, scan scanTask) (*sbommodel.SBOMEntity, error) {
+	switch scan.Type {
 	case "ebs-scan":
-		var scan ebsScan
-		if err := json.Unmarshal(rawScan, &scan); err != nil {
-			return nil, err
-		}
 		defer log.Debugf("finished ebs-scan of %s", scan)
-		return scanEBS(ctx, log, statsd, hostname, &scan)
+		return scanEBS(ctx, log, statsd, hostname, scan.Scan.(ebsScan))
 	case "lambda-scan":
-		var scan lambdaScan
-		if err := json.Unmarshal(rawScan, &scan); err != nil {
-			return nil, err
-		}
 		defer log.Debugf("finished lambda-scan of %s", scan)
-		return scanLambda(ctx, log, statsd, hostname, &scan)
+		return scanLambda(ctx, log, statsd, hostname, scan.Scan.(lambdaScan))
 	default:
-		return nil, fmt.Errorf("unknown scan type: %s", scanType)
+		return nil, fmt.Errorf("unknown scan type: %s", scan.Type)
 	}
 }
 
-func createEBSSnapshot(ctx context.Context, log log.Component, svc *ec2.EC2, scan *ebsScan) (string, error) {
+func createEBSSnapshot(ctx context.Context, log log.Component, svc *ec2.EC2, scan ebsScan) (string, error) {
 	retries := 0
 retry:
 	result, err := svc.CreateSnapshotWithContext(ctx, &ec2.CreateSnapshotInput{
@@ -365,9 +426,10 @@ retry:
 	})
 	if err != nil {
 		if aerr, ok := err.(awserr.Error); ok {
+			isRateExceededError := aerr.Code() == "SnapshotCreationPerVolumeRateExceeded"
 			if retries <= MaxSnapshotRetries {
 				retries++
-				if aerr.Code() == "SnapshotCreationPerVolumeRateExceeded" {
+				if isRateExceededError {
 					// https://docs.aws.amazon.com/AWSEC2/latest/APIReference/errors-overview.html
 					// Wait at least 15 seconds between concurrent volume snapshots.
 					d := 15 * time.Second
@@ -376,7 +438,9 @@ retry:
 					goto retry
 				}
 			}
-			log.Debugf("snapshot creation rate exceeded for volume %s; skipping)", scan.VolumeID)
+			if isRateExceededError {
+				log.Debugf("snapshot creation rate exceeded for volume %s; skipping)", scan.VolumeID)
+			}
 		}
 		return "", err
 	}
@@ -396,26 +460,13 @@ func deleteEBSSnapshot(ctx context.Context, svc *ec2.EC2, snapshotID string) err
 	return err
 }
 
-var scansInProgress map[string]struct{}
-var scansInProgressMu sync.Mutex
-
-func scanEBS(ctx context.Context, log log.Component, statsd ddgostatsd.ClientInterface, hostname string, scan *ebsScan) (*sbommodel.SBOMEntity, error) {
+func scanEBS(ctx context.Context, log log.Component, statsd ddgostatsd.ClientInterface, hostname string, scan ebsScan) (*sbommodel.SBOMEntity, error) {
 	if scan.Region == "" {
 		return nil, fmt.Errorf("ebs-scan: missing region")
 	}
 	if scan.Hostname == "" {
 		return nil, fmt.Errorf("ebs-scan: missing hostname")
 	}
-
-	scansInProgressMu.Lock()
-	if _, ok := scansInProgress[scan.Hostname]; ok {
-		log.Debugf("scan in progress for hostname %s; skipping", scan.Hostname)
-		scansInProgressMu.Unlock()
-		return nil, nil
-	}
-	scansInProgress[scan.Hostname] = struct{}{}
-	defer delete(scansInProgress, scan.Hostname)
-	scansInProgressMu.Unlock()
 
 	defer statsd.Flush()
 
@@ -515,7 +566,7 @@ func scanEBS(ctx context.Context, log log.Component, statsd ddgostatsd.ClientInt
 	return entity, nil
 }
 
-func scanLambda(ctx context.Context, log log.Component, statsd ddgostatsd.ClientInterface, hostname string, scan *lambdaScan) (*sbommodel.SBOMEntity, error) {
+func scanLambda(ctx context.Context, log log.Component, statsd ddgostatsd.ClientInterface, hostname string, scan lambdaScan) (*sbommodel.SBOMEntity, error) {
 	if scan.Region == "" {
 		return nil, fmt.Errorf("ebs-scan: missing region")
 	}
