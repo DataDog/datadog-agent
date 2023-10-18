@@ -16,7 +16,7 @@ import (
 type netflowListener struct {
 	flowState *goflowlib.FlowStateWrapper
 	config    config.ListenerConfig
-	Error     *atomic.String
+	error     *atomic.String
 }
 
 func (l *netflowListener) shutdown() {
@@ -31,7 +31,7 @@ func startFlowListener(listenerConfig config.ListenerConfig, flowAgg *flowaggreg
 	listener := &netflowListener{
 		flowState: flowState,
 		config:    listenerConfig,
-		Error:     atomicErr,
+		error:     atomicErr,
 	}
 
 	return listener, err

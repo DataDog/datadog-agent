@@ -180,10 +180,10 @@ func GetStatus() NetflowServerStatus {
 	closedListenersList := []NetflowListenerStatus{}
 
 	for _, listener := range globalServer.listeners {
-		if listener.Error != nil {
+		if listener.error != nil {
 			closedListenersList = append(closedListenersList, NetflowListenerStatus{
 				Config: listener.config,
-				Error:  listener.Error.String(),
+				Error:  listener.error.String(),
 			})
 		} else {
 			workingListeners = append(workingListeners, NetflowListenerStatus{
