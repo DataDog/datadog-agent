@@ -8,7 +8,6 @@ golang_deps_diff:
   rules: # this should only run on dev branches
     - !reference [ .except_main_or_release_branch ]
     - when: on_success
-
   needs: ["go_deps"]
   before_script:
     - source /root/.bashrc
