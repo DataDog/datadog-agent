@@ -1,6 +1,6 @@
 
 # Rule to make job manual when running deploy pipelines, or automatic and on success on RC pipelines
-.manual_auto_on_rc:
+.manual_on_deploy_auto_on_rc:
   - if: $BUCKET_BRANCH != "beta" && $BUCKET_BRANCH != "stable"
     when: manual
     allow_failure: true

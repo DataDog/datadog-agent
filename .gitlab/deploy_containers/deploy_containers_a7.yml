@@ -45,7 +45,7 @@ include:
 deploy_containers-a7:
   extends: .deploy_containers-a7_external
   rules:
-    !reference [.manual_auto_on_rc]
+    !reference [.manual_on_deploy_auto_on_rc]
 
 deploy_containers-a7-rc:
   extends: .deploy_containers-a7_external
@@ -58,7 +58,7 @@ deploy_containers-dogstatsd:
   extends: .docker_publish_job_definition
   stage: deploy_containers
   rules:
-    !reference [.manual_auto_on_rc]
+    !reference [.manual_on_deploy_auto_on_rc]
   dependencies: []
   before_script:
     - source /root/.bashrc

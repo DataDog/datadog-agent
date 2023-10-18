@@ -35,7 +35,7 @@ include:
 deploy_containers-a6:
   extends: .deploy_containers-a6-base
   rules:
-    !reference [.manual_auto_on_rc]
+    !reference [.manual_on_deploy_auto_on_rc]
 
 
 
