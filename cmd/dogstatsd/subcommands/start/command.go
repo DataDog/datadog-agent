@@ -23,10 +23,15 @@ import (
 	dogstatsdServer "github.com/DataDog/datadog-agent/comp/dogstatsd/server"
 	"github.com/DataDog/datadog-agent/comp/forwarder"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
+	"github.com/DataDog/datadog-agent/comp/metadata"
+	"github.com/DataDog/datadog-agent/comp/metadata/host"
+	"github.com/DataDog/datadog-agent/comp/metadata/resources"
+	"github.com/DataDog/datadog-agent/comp/metadata/runner"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/api/healthprobe"
 	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/metadata"
+	pkgmetadata "github.com/DataDog/datadog-agent/pkg/metadata"
+	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 	"github.com/DataDog/datadog-agent/pkg/tagger"
 	"github.com/DataDog/datadog-agent/pkg/tagger/local"
@@ -45,7 +50,7 @@ type CLIParams struct {
 type DogstatsdComponents struct {
 	DogstatsdServer dogstatsdServer.Component
 	DogstatsdStats  *http.Server
-	MetaScheduler   *metadata.Scheduler
+	MetaScheduler   *pkgmetadata.Scheduler
 }
 
 const (
@@ -79,6 +84,24 @@ type Params struct {
 	DefaultLogFile string
 }
 
+// provideAggregator inject the aggregator demultiplexer to FX until we migrate it to a proper component. This allows
+// other already migrated components to request it.
+func provideAggregator(config config.Component, log log.Component, sharedForwarder defaultforwarder.Component) (*aggregator.AgentDemultiplexer, error) {
+	opts := aggregator.DefaultAgentDemultiplexerOptions()
+	opts.UseOrchestratorForwarder = false
+	opts.UseEventPlatformForwarder = false
+	opts.EnableNoAggregationPipeline = config.GetBool("dogstatsd_no_aggregation_pipeline")
+	hname, err := hostname.Get(context.TODO())
+	if err != nil {
+		log.Warnf("Error getting hostname: %s", err)
+		hname = ""
+	}
+	log.Debugf("Using hostname: %s", hname)
+	demux := aggregator.InitAndStartAgentDemultiplexer(log, sharedForwarder, opts, hname)
+	demux.AddAgentStartupTelemetry(version.AgentVersion)
+	return demux, nil
+}
+
 func RunDogstatsdFct(cliParams *CLIParams, defaultConfPath string, defaultLogFile string, fct interface{}) error {
 	params := &Params{
 		DefaultLogFile: defaultLogFile,
@@ -102,10 +125,18 @@ func RunDogstatsdFct(cliParams *CLIParams, defaultConfPath string, defaultLogFil
 		dogstatsd.Bundle,
 		forwarder.Bundle,
 		fx.Provide(defaultforwarder.NewParams),
+		fx.Provide(provideAggregator),
+		// injecting the shared Serializer to FX until we migrate it to a prpoper component. This allows other
+		// already migrated components to request it.
+		fx.Provide(func(demux *aggregator.AgentDemultiplexer) serializer.MetricSerializer {
+			return demux.Serializer()
+		}),
+		fx.Supply(resources.Disabled()),
+		metadata.Bundle,
 	)
 }
 
-func start(cliParams *CLIParams, config config.Component, log log.Component, params *Params, server dogstatsdServer.Component, forwarder defaultforwarder.Component) error {
+func start(cliParams *CLIParams, config config.Component, log log.Component, params *Params, server dogstatsdServer.Component, sharedForwarder defaultforwarder.Component, metadataRunner runner.Component, hostComp host.Component, demux *aggregator.AgentDemultiplexer) error { //nolint:revive // TODO fix revive unusued-parameter
 	// Main context passed to components
 	ctx, cancel := context.WithCancel(context.Background())
 
@@ -117,7 +148,7 @@ func start(cliParams *CLIParams, config config.Component, log log.Component, par
 	stopCh := make(chan struct{})
 	go handleSignals(stopCh)
 
-	err := RunAgent(ctx, cliParams, config, log, params, components, forwarder)
+	err := RunDogstatsd(ctx, cliParams, config, log, params, components, demux)
 	if err != nil {
 		return err
 	}
@@ -128,7 +159,8 @@ func start(cliParams *CLIParams, config config.Component, log log.Component, par
 	return nil
 }
 
-func RunAgent(ctx context.Context, cliParams *CLIParams, config config.Component, log log.Component, params *Params, components *DogstatsdComponents, forwarder defaultforwarder.Component) (err error) {
+// RunDogstatsd starts the dogstatsd server
+func RunDogstatsd(ctx context.Context, cliParams *CLIParams, config config.Component, log log.Component, params *Params, components *DogstatsdComponents, demux *aggregator.AgentDemultiplexer) (err error) {
 	if len(cliParams.confPath) == 0 {
 		log.Infof("Config will be read from env variables")
 	}
@@ -191,27 +223,9 @@ func RunAgent(ctx context.Context, cliParams *CLIParams, config config.Component
 		log.Debugf("Health check listening on port %d", healthPort)
 	}
 
-	opts := aggregator.DefaultAgentDemultiplexerOptions()
-	opts.UseOrchestratorForwarder = false
-	opts.UseEventPlatformForwarder = false
-	opts.EnableNoAggregationPipeline = config.GetBool("dogstatsd_no_aggregation_pipeline")
-	hname, err := hostname.Get(context.TODO())
-	if err != nil {
-		log.Warnf("Error getting hostname: %s", err)
-		hname = ""
-	}
-	log.Debugf("Using hostname: %s", hname)
-	demux := aggregator.InitAndStartAgentDemultiplexer(log, forwarder, opts, hname)
-	demux.AddAgentStartupTelemetry(version.AgentVersion)
-
-	// setup the metadata collector
-	components.MetaScheduler = metadata.NewScheduler(demux) //nolint:staticcheck
-	if err = metadata.SetupMetadataCollection(components.MetaScheduler, []string{"host"}); err != nil {
-		components.MetaScheduler.Stop()
-		return
-	}
-
-	if err = metadata.SetupInventories(components.MetaScheduler, nil); err != nil {
+	// setup the pkgmetadata collector
+	components.MetaScheduler = pkgmetadata.NewScheduler(demux) //nolint:staticcheck
+	if err = pkgmetadata.SetupInventories(components.MetaScheduler, nil); err != nil {
 		return
 	}
 

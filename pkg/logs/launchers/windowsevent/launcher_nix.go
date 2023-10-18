@@ -19,7 +19,7 @@ import (
 type Launcher struct{}
 
 // Start is a stub for non-windows platforms
-func (l *Launcher) Start(sourceProvider launchers.SourceProvider, pipelineProvider pipeline.Provider, registry auditor.Registry, tracker *tailers.TailerTracker) {
+func (l *Launcher) Start(sourceProvider launchers.SourceProvider, pipelineProvider pipeline.Provider, registry auditor.Registry, tracker *tailers.TailerTracker) { //nolint:revive // TODO fix revive unused-parameter
 }
 
 // Stop is a stub for non-windows platforms

@@ -111,7 +111,7 @@ func TestRegisterSuccess(t *testing.T) {
 
 	baseRuntime := strings.Replace(ts.URL, "http://", "", 1)
 	t.Setenv("AWS_LAMBDA_RUNTIME_API", baseRuntime)
-	id, functionArn, err := RegisterExtension(baseRuntime, "/myRoute", registerExtensionTimeout)
+	id, functionArn, err := RegisterExtension("/myRoute", registerExtensionTimeout)
 
 	assert.Equal(t, expectedId, id.String())
 	assert.Equal(t, expectedFunctionARN, string(functionArn))
@@ -129,7 +129,7 @@ func TestRegisterErrorNoExtensionId(t *testing.T) {
 	defer ts.Close()
 
 	t.Setenv("AWS_LAMBDA_RUNTIME_API", ts.URL)
-	id, functionArn, err := RegisterExtension(strings.Replace(ts.URL, "http://", "", 1), "", registerExtensionTimeout)
+	id, functionArn, err := RegisterExtension("", registerExtensionTimeout)
 
 	assert.Empty(t, id.String())
 	assert.Empty(t, string(functionArn))
@@ -144,7 +144,7 @@ func TestRegisterErrorHttp(t *testing.T) {
 	}))
 	defer ts.Close()
 
-	id, functionArn, err := RegisterExtension(strings.Replace(ts.URL, "http://", "", 1), "", registerExtensionTimeout)
+	id, functionArn, err := RegisterExtension("", registerExtensionTimeout)
 
 	assert.Empty(t, id.String())
 	assert.Empty(t, string(functionArn))
@@ -152,7 +152,7 @@ func TestRegisterErrorHttp(t *testing.T) {
 }
 
 func TestRegisterErrorTimeout(t *testing.T) {
-	id, functionArn, err := RegisterExtension(":invalidURL:", "", registerExtensionTimeout)
+	id, functionArn, err := RegisterExtension("", registerExtensionTimeout)
 	assert.Empty(t, id.String())
 	assert.Empty(t, string(functionArn))
 	assert.NotNil(t, err)
@@ -166,7 +166,7 @@ func TestRegisterErrorBuildRequest(t *testing.T) {
 	}))
 	defer ts.Close()
 
-	id, functionArn, err := RegisterExtension(ts.URL, "", registerExtensionTimeout)
+	id, functionArn, err := RegisterExtension("", registerExtensionTimeout)
 
 	assert.Empty(t, id.String())
 	assert.Empty(t, string(functionArn))
@@ -174,7 +174,7 @@ func TestRegisterErrorBuildRequest(t *testing.T) {
 }
 
 func TestRegisterInvalidUrl(t *testing.T) {
-	id, functionArn, err := RegisterExtension(":inv al id:", "", registerExtensionTimeout)
+	id, functionArn, err := RegisterExtension("", registerExtensionTimeout)
 	assert.Empty(t, id.String())
 	assert.Empty(t, string(functionArn))
 	assert.NotNil(t, err)

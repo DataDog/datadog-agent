@@ -68,9 +68,6 @@ func mockNewTimerNoTick(d time.Duration) *time.Timer {
 }
 
 func TestNewScheduler(t *testing.T) {
-	enableFirstRunCollection = false
-	defer func() { enableFirstRunCollection = true }()
-
 	opts := aggregator.DefaultAgentDemultiplexerOptions()
 	opts.DontStartForwarders = true
 	deps := fxutil.Test[aggregator.AggregatorTestDeps](t, defaultforwarder.MockModule, config.MockModule, log.MockModule)
@@ -82,8 +79,6 @@ func TestNewScheduler(t *testing.T) {
 }
 
 func TestStopScheduler(t *testing.T) {
-	enableFirstRunCollection = false
-	defer func() { enableFirstRunCollection = true }()
 	deps := fxutil.Test[aggregator.AggregatorTestDeps](t, defaultforwarder.MockModule, config.MockModule, log.MockModule)
 	demux := buildDemultiplexer(deps)
 	c := NewScheduler(demux)
@@ -100,9 +95,6 @@ func TestStopScheduler(t *testing.T) {
 }
 
 func TestAddCollector(t *testing.T) {
-	enableFirstRunCollection = false
-	defer func() { enableFirstRunCollection = true }()
-
 	newTimer = mockNewTimer
 	defer func() { newTimer = time.NewTimer }()
 
@@ -137,9 +129,6 @@ func TestAddCollector(t *testing.T) {
 }
 
 func TestAddCollectorWithInit(t *testing.T) {
-	enableFirstRunCollection = false
-	defer func() { enableFirstRunCollection = true }()
-
 	mockCollectorWithInit := &MockCollectorWithInit{
 		InitCalledC: make(chan bool, 1),
 	}
@@ -172,9 +161,6 @@ func TestAddCollectorWithInit(t *testing.T) {
 }
 
 func TestAddCollectorWithFirstRun(t *testing.T) {
-	enableFirstRunCollection = false
-	defer func() { enableFirstRunCollection = true }()
-
 	mockCollector := &mockCollectorWithFirstRun{
 		sendCalledC: make(chan bool, 1),
 	}
@@ -201,9 +187,6 @@ func TestAddCollectorWithFirstRun(t *testing.T) {
 }
 
 func TestTriggerAndResetCollectorTimer(t *testing.T) {
-	enableFirstRunCollection = false
-	defer func() { enableFirstRunCollection = true }()
-
 	newTimer = mockNewTimerNoTick
 	defer func() { newTimer = time.NewTimer }()
 

@@ -71,7 +71,8 @@ type APIServer struct {
 	selfTester        *selftests.SelfTester
 	cwsConsumer       *CWSConsumer
 
-	stopper startstop.Stopper
+	stopChan chan struct{}
+	stopper  startstop.Stopper
 }
 
 // GetActivityDumpStream waits for activity dumps and forwards them to the stream
@@ -113,33 +114,22 @@ func (a *APIServer) SendActivityDump(dump *api.ActivityDumpStreamMessage) {
 
 // GetEvents waits for security events
 func (a *APIServer) GetEvents(params *api.GetEventParams, stream api.SecurityModule_GetEventsServer) error {
-	// Read 10 security events per call
-	msgs := 10
-LOOP:
 	for {
-		// Check that the limit is not reached
-		if !a.limiter.Allow(nil) {
-			return nil
-		}
-
-		// Read one message
 		select {
+		case <-stream.Context().Done():
+			return nil
+		case <-a.stopChan:
+			return nil
 		case msg := <-a.msgs:
-			if err := stream.Send(msg); err != nil {
-				return err
+			if a.limiter.Allow(nil) {
+				if err := stream.Send(msg); err != nil {
+					return err
+				}
+			} else {
+				a.expireEvent(msg)
 			}
-			msgs--
-		case <-time.After(time.Second):
-			break LOOP
-		}
-
-		// Stop the loop when 10 messages were retrieved
-		if msgs <= 0 {
-			break
 		}
 	}
-
-	return nil
 }
 
 // RuleEvent is a wrapper used to send an event to the backend
@@ -216,6 +206,7 @@ func (a *APIServer) start(ctx context.Context) {
 				}
 			})
 		case <-ctx.Done():
+			a.stopChan <- struct{}{}
 			return
 		}
 	}
@@ -227,7 +218,13 @@ func (a *APIServer) sendToSecurityAgent(m *api.SecurityEventMessage) {
 		break
 	default:
 		// The channel is full, consume the oldest event
-		oldestMsg := <-a.msgs
+		select {
+		case oldestMsg := <-a.msgs:
+			a.expireEvent(oldestMsg)
+		default:
+			break
+		}
+
 		// Try to send the event again
 		select {
 		case a.msgs <- m:
@@ -237,7 +234,6 @@ func (a *APIServer) sendToSecurityAgent(m *api.SecurityEventMessage) {
 			a.expireEvent(m)
 			break
 		}
-		a.expireEvent(oldestMsg)
 		break
 	}
 }
@@ -460,6 +456,7 @@ func NewAPIServer(cfg *config.RuntimeSecurityConfig, probe *sprobe.Probe, client
 		cfg:            cfg,
 		stopper:        stopper,
 		selfTester:     selfTester,
+		stopChan:       make(chan struct{}),
 	}
 	return es
 }
