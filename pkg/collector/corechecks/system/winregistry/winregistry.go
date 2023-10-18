@@ -34,6 +34,7 @@ const (
 type registryValueCfg struct {
 	Name         string                 `yaml:"name"` // The metric name of the registry value
 	DefaultValue util.Optional[float64] `yaml:"default_value"`
+	Mappings     []map[string]float64   `yaml:"mapping"`
 }
 
 type registryKeyCfg struct {
@@ -197,8 +198,19 @@ func processRegistryKeyMetrics(sender sender.Sender, regKey registry.Key, regKey
 				if parsedVal, err := strconv.ParseFloat(val, 64); err == nil {
 					sender.Gauge(gaugeName, parsedVal, "", nil)
 				} else {
-					log.Warnf("value %s of key %s cannot be parsed", valueName, regKeyCfg.originalKeyPath)
-					trySendDefaultValue(sender, regValueCfg, gaugeName)
+					// Value can't be parsed, let's check the mappings
+					var mappingFound = false
+					for _, mapping := range regValueCfg.Mappings {
+						if mappedValue, found := mapping[val]; found {
+							sender.Gauge(gaugeName, mappedValue, "", nil)
+							mappingFound = true
+							break
+						}
+					}
+					if !mappingFound {
+						log.Warnf("value %s of key %s cannot be parsed", valueName, regKeyCfg.originalKeyPath)
+						trySendDefaultValue(sender, regValueCfg, gaugeName)
+					}
 				}
 			default:
 				log.Warnf("unsupported data type of value %s for key %s: %d", valueName, regKeyCfg.originalKeyPath, valueType)
