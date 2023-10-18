@@ -74,6 +74,8 @@ const (
 	scansWorkerPoolSize = 10
 )
 
+var statsd *ddgostatsd.Client
+
 var (
 	globalParams struct {
 		ConfigFilePath string
@@ -91,6 +93,9 @@ func rootCommand() *cobra.Command {
 		Short:        "Datadog Side Scanner at your service.",
 		Long:         `Datadog Side Scanner scans your cloud environment for vulnerabilities, compliance and security issues.`,
 		SilenceUsage: true,
+		PersistentPreRun: func(cmd *cobra.Command, args []string) {
+			initStatsdClient()
+		},
 	}
 
 	sideScannerCmd.AddCommand(runCommand())
@@ -144,6 +149,17 @@ func scanCommand() *cobra.Command {
 	return cmd
 }
 
+func initStatsdClient() {
+	statsdHost := pkgconfig.GetBindHost()
+	statsdPort := pkgconfig.Datadog.GetInt("dogstatsd_port")
+	statsdAddr := fmt.Sprintf("%s:%d", statsdHost, statsdPort)
+	var err error
+	statsd, err = ddgostatsd.New(statsdAddr)
+	if err != nil {
+		log.Warnf("could not init dogstatsd client: %s", err)
+	}
+}
+
 func runCmd() error {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
 	defer stop()
@@ -160,21 +176,9 @@ func runCmd() error {
 		return fmt.Errorf("could not init Remote Config client: %w", err)
 	}
 
-	// Create a statsd Client
-	statsdAddr := os.Getenv("STATSD_URL")
-	if statsdAddr == "" {
-		// Retrieve statsd host and port from the datadog agent configuration file
-		statsdHost := pkgconfig.GetBindHost()
-		statsdPort := pkgconfig.Datadog.GetInt("dogstatsd_port")
-		statsdAddr = fmt.Sprintf("%s:%d", statsdHost, statsdPort)
-	}
+	eventForwarder := epforwarder.NewEventPlatformForwarder()
 
-	statsd, err := ddgostatsd.New(statsdAddr)
-	if err != nil {
-		return fmt.Errorf("could not init statsd client: %w", err)
-	}
-
-	scanner := newSideScanner(hostname, statsd, rcClient)
+	scanner := newSideScanner(hostname, rcClient, eventForwarder)
 	scanner.start(ctx)
 	return nil
 }
@@ -185,27 +189,13 @@ func scanCmd(rawScan []byte) error {
 
 	common.SetupInternalProfiling(pkgconfig.Datadog, "")
 
-	// Create a statsd Client
-	statsdAddr := os.Getenv("STATSD_URL")
-	if statsdAddr == "" {
-		// Retrieve statsd host and port from the datadog agent configuration file
-		statsdHost := pkgconfig.GetBindHost()
-		statsdPort := pkgconfig.Datadog.GetInt("dogstatsd_port")
-		statsdAddr = fmt.Sprintf("%s:%d", statsdHost, statsdPort)
-	}
-
-	statsd, err := ddgostatsd.New(statsdAddr)
-	if err != nil {
-		return fmt.Errorf("could not init statsd client: %w", err)
-	}
-
 	scans, err := unmarshalScanTasks(rawScan)
 	if err != nil {
 		return err
 	}
 
 	for _, scan := range scans {
-		entity, err := launchScan(ctx, statsd, scan)
+		entity, err := launchScan(ctx, scan)
 		if err != nil {
 			log.Errorf("error scanning task %s: %s", err)
 		} else {
@@ -284,7 +274,6 @@ func (s lambdaScan) String() string {
 
 type sideScanner struct {
 	hostname       string
-	statsd         ddgostatsd.ClientInterface
 	log            complog.Component
 	rcClient       *remote.Client
 	eventForwarder epforwarder.EventPlatformForwarder
@@ -294,11 +283,9 @@ type sideScanner struct {
 	scansInProgressMu sync.RWMutex
 }
 
-func newSideScanner(hostname string, statsd ddgostatsd.ClientInterface, rcClient *remote.Client) *sideScanner {
-	eventForwarder := epforwarder.NewEventPlatformForwarder()
+func newSideScanner(hostname string, rcClient *remote.Client, eventForwarder epforwarder.EventPlatformForwarder) *sideScanner {
 	return &sideScanner{
 		hostname:        hostname,
-		statsd:          statsd,
 		rcClient:        rcClient,
 		eventForwarder:  eventForwarder,
 		scansCh:         make(chan scanTask),
@@ -379,7 +366,7 @@ func (s *sideScanner) launchScanAndSendResult(ctx context.Context, scan scanTask
 		s.scansInProgressMu.Unlock()
 	}()
 
-	entity, err := launchScan(ctx, s.statsd, scan)
+	entity, err := launchScan(ctx, scan)
 	if err != nil {
 		return err
 	}
@@ -405,14 +392,14 @@ func (s *sideScanner) sendSBOM(entity *sbommodel.SBOMEntity) error {
 	return s.eventForwarder.SendEventPlatformEvent(m, epforwarder.EventTypeContainerSBOM)
 }
 
-func launchScan(ctx context.Context, statsd ddgostatsd.ClientInterface, scan scanTask) (*sbommodel.SBOMEntity, error) {
+func launchScan(ctx context.Context, scan scanTask) (*sbommodel.SBOMEntity, error) {
 	switch scan.Type {
 	case "ebs-scan":
 		defer log.Debugf("finished ebs-scan of %s", scan)
-		return scanEBS(ctx, statsd, scan.Scan.(ebsScan))
+		return scanEBS(ctx, scan.Scan.(ebsScan))
 	case "lambda-scan":
 		defer log.Debugf("finished lambda-scan of %s", scan)
-		return scanLambda(ctx, statsd, scan.Scan.(lambdaScan))
+		return scanLambda(ctx, scan.Scan.(lambdaScan))
 	default:
 		return nil, fmt.Errorf("unknown scan type: %s", scan.Type)
 	}
@@ -460,7 +447,7 @@ func deleteEBSSnapshot(ctx context.Context, svc *ec2.EC2, snapshotID string) err
 	return err
 }
 
-func scanEBS(ctx context.Context, statsd ddgostatsd.ClientInterface, scan ebsScan) (*sbommodel.SBOMEntity, error) {
+func scanEBS(ctx context.Context, scan ebsScan) (*sbommodel.SBOMEntity, error) {
 	if scan.Region == "" {
 		return nil, fmt.Errorf("ebs-scan: missing region")
 	}
@@ -567,7 +554,7 @@ func scanEBS(ctx context.Context, statsd ddgostatsd.ClientInterface, scan ebsSca
 	return entity, nil
 }
 
-func scanLambda(ctx context.Context, statsd ddgostatsd.ClientInterface, scan lambdaScan) (*sbommodel.SBOMEntity, error) {
+func scanLambda(ctx context.Context, scan lambdaScan) (*sbommodel.SBOMEntity, error) {
 	if scan.Region == "" {
 		return nil, fmt.Errorf("ebs-scan: missing region")
 	}
