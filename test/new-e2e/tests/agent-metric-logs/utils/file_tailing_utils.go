@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package linuxlogagent
+package utils
 
 import (
 	"errors"
@@ -17,8 +17,25 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+type VMFakeIntakeInterface interface {
+    Env() interface {
+        VM interface {
+            Execute(string) string
+            ExecuteWithError(string) (string, error)
+        }
+        FakeIntake interface {
+            FlushServerAndResetAggregators()
+            FilterLogs(string) ([]interface{}, error)  // Assume Log is represented as interface{} here
+        }
+    }
+    T() *testing.T
+    EventuallyWithT(func(c *assert.CollectT), time.Duration, time.Duration)
+}
+
+
+
 // generateLog generates and verifies log contents.
-func generateLog(s *vmFakeintakeSuite, t *testing.T, content string) {
+func GenerateLog(s *vmFakeintakeSuite, t *testing.T, content string) {
 	// Determine the OS and set the appropriate log path and command.
 	var logPath, cmd, checkCmd string
 
@@ -52,7 +69,7 @@ func generateLog(s *vmFakeintakeSuite, t *testing.T, content string) {
 }
 
 // checkLogs checks and verifies logs inside the intake.
-func checkLogs(fakeintake *vmFakeintakeSuite, service, content string) {
+func CheckLogs(fakeintake *vmFakeintakeSuite, service, content string) {
 	client := fakeintake.Env().Fakeintake
 	t := fakeintake.T()
 
@@ -73,7 +90,7 @@ func checkLogs(fakeintake *vmFakeintakeSuite, service, content string) {
 
 }
 
-func (s *vmFakeintakeSuite) getOSType() (string, error) {
+func (s *vmFakeintakeSuite) GetOSType() (string, error) {
 	// Get Linux OS.
 	output, err := s.Env().VM.ExecuteWithError("cat /etc/os-release")
 	if err == nil && strings.Contains(output, "ID=ubuntu") {
@@ -90,7 +107,7 @@ func (s *vmFakeintakeSuite) getOSType() (string, error) {
 }
 
 // cleanUp cleans up any existing log files.
-func (s *vmFakeintakeSuite) cleanUp() {
+func (s *vmFakeintakeSuite) CleanUp() {
 	t := s.T()
 	osType, err := s.getOSType()
 	if err != nil {

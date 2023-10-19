@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package linuxlogagent
+package windowslogagent
 
 import (
 	"errors"
@@ -55,12 +55,16 @@ func generateLog(s *vmFakeintakeSuite, t *testing.T, content string) {
 func checkLogs(fakeintake *vmFakeintakeSuite, service, content string) {
 	client := fakeintake.Env().Fakeintake
 	t := fakeintake.T()
+	t.Logf("service is '%s', with this content '%s'", service, content)
+
+	err := client.GetServerHealth()
+	assert.NoErrorf(t, err, "intake is not ready: %s", err)
 
 	fakeintake.EventuallyWithT(func(c *assert.CollectT) {
 		names, err := client.GetLogServiceNames()
 		assert.NoErrorf(t, err, "Error found: %s", err)
 
-		if len(names) > 0 {
+		if len(names) != 0 {
 			logs, err := client.FilterLogs(service)
 			assert.NoErrorf(t, err, "Error found: %s", err)
 			assert.NotEmpty(t, logs, "No logs with service matching '%s' found, instead got '%s'", service, names)
@@ -69,24 +73,8 @@ func checkLogs(fakeintake *vmFakeintakeSuite, service, content string) {
 			assert.NoErrorf(t, err, "Error found: %s", err)
 			assert.True(t, len(logs) > 0, "Expected at least 1 log with content: '%s', but received %v logs.", content, len(logs))
 		}
-	}, 10*time.Minute, 10*time.Second)
+	}, 10*time.Minute, 1*time.Second)
 
-}
-
-func (s *vmFakeintakeSuite) getOSType() (string, error) {
-	// Get Linux OS.
-	output, err := s.Env().VM.ExecuteWithError("cat /etc/os-release")
-	if err == nil && strings.Contains(output, "ID=ubuntu") {
-		return "linux", nil
-	}
-
-	// Get Windows OS.
-	output, err = s.Env().VM.ExecuteWithError("wmic os get Caption")
-	if err == nil && strings.Contains(output, "Windows") {
-		return "windows", nil
-	}
-
-	return "", errors.New("unable to determine OS type.")
 }
 
 // cleanUp cleans up any existing log files.
@@ -122,4 +110,20 @@ func (s *vmFakeintakeSuite) cleanUp() {
 			t.Log("Successfully cleaned up.")
 		}
 	}, 5*time.Minute, 2*time.Second)
+}
+
+func (s *vmFakeintakeSuite) getOSType() (string, error) {
+	// Get Linux OS.
+	output, err := s.Env().VM.ExecuteWithError("cat /etc/os-release")
+	if err == nil && strings.Contains(output, "ID=ubuntu") {
+		return "linux", nil
+	}
+
+	// Get Windows OS.
+	output, err = s.Env().VM.ExecuteWithError("wmic os get Caption")
+	if err == nil && strings.Contains(output, "Windows") {
+		return "windows", nil
+	}
+
+	return "", errors.New("unable to determine OS type")
 }
