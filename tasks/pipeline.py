@@ -494,7 +494,7 @@ def is_system_probe(owners, files):
     return False
 
 
-EMAIL_SLACK_ID_MAP = {"guy20495@gmail.com": "U03LJSCAPK2", "safchain@gmail.com": "UKZD6T3TM"}
+EMAIL_SLACK_ID_MAP = {"guy20495@gmail.com": "U03LJSCAPK2", "safchain@gmail.com": "U01009CUG9X"}
 
 
 @task
