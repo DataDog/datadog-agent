@@ -115,13 +115,11 @@ func StartServerUDP(t *testing.T, ip net.IP, port int) io.Closer {
 	udpConn, err := net.ListenUDP(network, addr)
 	assert.Nil(t, err)
 
-	if port == 0 {
-		addrStr := udpConn.LocalAddr().String()
-		_, portStr, err := net.SplitHostPort(addrStr)
-		assert.Nil(t, err)
-		port, err = strconv.Atoi(portStr)
-		assert.Nil(t, err)
-	}
+	addrStr := udpConn.LocalAddr().String()
+	_, portStr, err := net.SplitHostPort(addrStr)
+	assert.Nil(t, err)
+	port, err = strconv.Atoi(portStr)
+	assert.Nil(t, err)
 
 	require.NoError(t, err)
 	go func() {
