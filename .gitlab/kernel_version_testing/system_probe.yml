@@ -302,6 +302,11 @@ kernel_matrix_testing_setup_env:
     - inv -e system-probe.start-microvms --provision --instance-type-x86=$EC2_X86_INSTANCE_TYPE --instance-type-arm=$EC2_ARM_INSTANCE_TYPE --x86-ami-id=$X86_AMI_ID --arm-ami-id=$ARM_AMI_ID --ssh-key-name=$AWS_EC2_SSH_KEY_NAME --ssh-key-path=$AWS_EC2_SSH_KEY_FILE --infra-env=$INFRA_ENV --stack-name=kernel-matrix-testing-$CI_PIPELINE_ID
     - cat $CI_PROJECT_DIR/stack.outputs
     - pulumi logout
+    - mkdir -p $CI_PROJECT_DIR/libvirt/log/x86_64 $CI_PROJECT_DIR/libvirt/log/arm64
+    - X64_INSTANCE_IP=$(cat $CI_PROJECT_DIR/stack.outputs | grep x86_64-instance-ip | cut -d ' ' -f 2)
+    - scp -o StrictHostKeyChecking=no -i $AWS_EC2_SSH_KEY_FILE "ubuntu@$X64_INSTANCE_IP:/tmp/ddvm-*.log" $CI_PROJECT_DIR/libvirt/log/x86_64/
+    - ARM64_INSTANCE_IP=$(cat $CI_PROJECT_DIR/stack.outputs | grep arm64-instance-ip | cut -d ' ' -f 2)
+    - scp -o StrictHostKeyChecking=no -i $AWS_EC2_SSH_KEY_FILE "ubuntu@$ARM64_INSTANCE_IP:/tmp/ddvm-*.log" $CI_PROJECT_DIR/libvirt/log/arm64/
   artifacts:
     when: always
     paths:
@@ -311,6 +316,7 @@ kernel_matrix_testing_setup_env:
       - $LibvirtSSHKeyARM.pub
       - $STACK_DIR
       - $CI_PROJECT_DIR/stack.outputs
+      - $CI_PROJECT_DIR/libvirt
 
 .kernel_matrix_testing_run_tests:
   stage: kernel_matrix_testing
