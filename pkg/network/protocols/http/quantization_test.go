@@ -172,9 +172,28 @@ func BenchmarkQuantization(b *testing.B) {
 	b.ReportAllocs()
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		quantizer.Quantize(path)
+		path = quantizer.Quantize(path)
 
 		// Restore path to it's original value
 		path[numberIndex] = '1'
+	}
+}
+
+// This benchmark represents the case where a path does *not* trigger a quantization
+func BenchmarkQuantizationHappyPath(b *testing.B) {
+	quantizer := NewURLQuantizer()
+	path := []byte("/foo/bar")
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		quantizer.Quantize(path)
+	}
+
+	b.StopTimer()
+	// Sanity check to ensure that no quantization was triggered and to make sure
+	// that the code above doesn't get optimized away
+	if !bytes.Equal([]byte("/foo/bar"), path) {
+		path = quantizer.Quantize(path)
+		panic("this path benchmark shouldn't trigger a quantization")
 	}
 }
