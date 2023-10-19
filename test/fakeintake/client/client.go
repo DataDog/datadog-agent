@@ -191,7 +191,7 @@ type MatchOpt[P aggregator.PayloadItem] func(payload P) (bool, error)
 func (c *Client) GetMetricNames() ([]string, error) {
 	err := c.getMetrics()
 	if err != nil {
-		return []string{}, nil
+		return nil, err
 	}
 	return c.metricAggregator.GetNames(), nil
 }
@@ -285,7 +285,7 @@ func (c *Client) getLog(service string) ([]*aggregator.Log, error) {
 func (c *Client) GetLogServiceNames() ([]string, error) {
 	err := c.getLogs()
 	if err != nil {
-		return []string{}, nil
+		return nil, err
 	}
 	return c.logAggregator.GetNames(), nil
 }
