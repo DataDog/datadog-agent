@@ -90,6 +90,14 @@ build do
 
             # Remove the development headers as they are not required during runtime
             delete "#{install_dir}/embedded/include/"
+
+            # Delete .pc files which aren't needed after building
+            delete "#{install_dir}/embedded/lib/pkgconfig"
+            # Same goes for .cmake files
+            delete "#{install_dir}/embedded/lib/cmake"
+            # and for libtool files
+            delete "#{install_dir}/embedded/lib/*.la"
+
         end
 
         if linux?

@@ -1,5 +1,3 @@
-# If you update this configuration please update `uds_dogstatsd_*` experiments
-# to match, where reasonable.
 generator:
   - unix_datagram:
       seed: [2, 3, 5, 7, 11, 13, 17, 19, 23, 29, 31, 37, 41, 43, 47, 53,
@@ -40,9 +38,9 @@ generator:
             count: 100
             gauge: 10
             timer: 0
-            distribution: 50
+            distribution: 0
             set: 0
-            histogram: 1
+            histogram: 0
       bytes_per_second: "100 MiB"
       block_sizes: ["256b", "512b", "1Kb", "2Kb", "3Kb", "4Kb", "5Kb", "6Kb"]
       maximum_prebuild_cache_size_bytes: "500 Mb"
@@ -55,4 +53,4 @@ blackhole:
 
 target_metrics:
   - prometheus:
-      uri: "http://127.0.0.1:9000"
+      uri: "http://127.0.0.1:5000/telemetry"
