@@ -15,7 +15,7 @@ struct syscall_monitor_entry_t {
 };
 
 struct syscalls_stats_t {
-    u32 count;
+    s32 count;
     u32 active;
 };
 

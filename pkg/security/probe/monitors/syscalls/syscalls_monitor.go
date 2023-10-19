@@ -12,12 +12,12 @@ import (
 	"fmt"
 
 	"github.com/DataDog/datadog-agent/pkg/security/ebpf"
+	"github.com/DataDog/datadog-agent/pkg/security/metrics"
 	"github.com/DataDog/datadog-agent/pkg/security/probe/managerhelper"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
 	manager "github.com/DataDog/ebpf-manager"
 	lib "github.com/cilium/ebpf"
 
-	"github.com/DataDog/datadog-agent/pkg/security/metrics"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-go/v5/statsd"
 )
@@ -33,8 +33,8 @@ type Monitor struct {
 // SendStats send stats
 func (d *Monitor) SendStats() error {
 	iterator := d.stats.Iterate()
-	statsAcrossAllCPUs := make([][]byte, d.numCPU)
-	statsByEventType := make([]uint32, model.MaxAllEventType)
+	statsAcrossAllCPUs := make([][8]byte, d.numCPU)
+	statsByEventType := make([]int32, model.MaxAllEventType)
 
 	var eventType uint32
 	for iterator.Next(&eventType, &statsAcrossAllCPUs) {
@@ -45,8 +45,7 @@ func (d *Monitor) SendStats() error {
 
 		// aggregate all cpu stats
 		for _, stat := range statsAcrossAllCPUs {
-			count := model.ByteOrder.Uint32(stat[0:4])
-			statsByEventType[eventType] += count
+			statsByEventType[eventType] += int32(model.ByteOrder.Uint32(stat[0:4]))
 		}
 	}
 
