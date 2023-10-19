@@ -48,6 +48,10 @@ type client struct {
 	langDetectionCl clusteragent.LanguageDetectionClient
 	telemetry       *componentTelemetry
 	currentBatch    batch
+	// there is a race between the process check and the kubelet. In that case we
+	// want to retry after waiting that workloadmeta pulled metadata from the kubelet
+	processesWithoutPod []workloadmeta.Event
+	retryProcessWithoutPodPeriod time.Duration
 }
 
 // newClient creates a new Client
@@ -69,6 +73,8 @@ func newClient(
 		mutex:        sync.Mutex{},
 		telemetry:    newComponentTelemetry(deps.Telemetry),
 		currentBatch: make(batch),
+		processesWithoutPod: make([]workloadmeta.Event, 0),
+		retryProcessWithoutPodsPeriod: deps.Config.GetInt("kubelet_listener_polling_interval") * time.Second,
 	}
 	deps.Lc.Append(fx.Hook{
 		OnStart: cl.start,
@@ -78,34 +84,64 @@ func newClient(
 	return util.NewOptional[Component](cl)
 }
 
+func (c *client) retryProcessEventsWithoutPod()() {
+	for _, event := c.processesWithoutPod {
+		c.processProcessEvent(event)
+	}
+	c.processesWithoutPod = make([]workloadmeta.Event, 0)
+}
+
+func (c *client) processProcessEvent(processEvent workloadmeta.Event) {
+	if processEvent.Type != workloadmeta.EventTypeSet {
+		return
+	}
+
+	process := processEvent.Entity.(*workloadmeta.Process)
+	if process.Language == nil {
+		return
+	}
+
+	pod, err := c.store.GetKubernetesPodForContainer(process.ContainerID)
+	if err != nil {
+		c.logger.Debug("skipping language detection for process %s, will retry in %v", process.ID, retryPeriod)
+		c.processesWithoutPod = append(c.processesWithoutPod, processEvent)
+		return
+	}
+	if !podHasOwner(pod) {
+		c.logger.Debug("pod %s has no owner, skipping %s", pod.Name, process.ID)
+		return
+	}
+	containerName, isInitcontainer, ok := getContainerInfoFromPod(process.ContainerID, pod)
+	if !ok {
+		c.logger.Debug("container name not found for %s", process.ContainerID)
+		return
+	}
+	podInfo := c.currentBatch.getOrAddPodInfo(pod.Name, pod.Namespace, &pod.Owners[0])
+	containerInfo := podInfo.getOrAddContainerInfo(containerName, isInitcontainer)
+	containerInfo.add(string(process.Language.Name))
+	c.telemetry.ProcessedEvents.Inc(pod.Name, containerName, string(process.Language.Name))
+}
+
+func (c *client) processPodEvent(podEvent workloadmeta.Event) {
+	if podEvent.Type == workloadmeta.EventTypeUnset {
+		pod := podEvent.Entity.(*workloadmeta.KubernetesPod)
+		delete(c.currentBatch, pod.Name)
+	}
+}
+
 func (c *client) processEvent(evBundle workloadmeta.EventBundle) {
 	close(evBundle.Ch)
 	c.mutex.Lock()
 	defer c.mutex.Unlock()
 	c.logger.Tracef("Processing %d events", len(evBundle.Events))
 	for _, event := range evBundle.Events {
-		process := event.Entity.(*workloadmeta.Process)
-		if process.Language == nil {
-			continue
+		switch event.Entity.GetID().Kind {
+		case workloadmeta.KindProcess:
+			c.processProcessEvent(event)
+		case workloadmeta.KindKubernetesPod:
+			c.processPodEvent(event)
 		}
-		pod, err := c.store.GetKubernetesPodForContainer(process.ContainerID)
-		if err != nil {
-			c.logger.Debug("skipping language detection for process %s", process.ID)
-			continue
-		}
-		if !podHasOwner(pod) {
-			c.logger.Debug("pod %s has no owner, skipping %s", pod.Name, process.ID)
-			continue
-		}
-		containerName, isInitcontainer, ok := getContainerInfoFromPod(process.ContainerID, pod)
-		if !ok {
-			c.logger.Debug("container name not found for %s", process.ContainerID)
-			continue
-		}
-		podInfo := c.currentBatch.getOrAddPodInfo(pod.Name, pod.Namespace, &pod.Owners[0])
-		containerInfo := podInfo.getOrAddcontainerInfo(containerName, isInitcontainer)
-		containerInfo.add(string(process.Language.Name))
-		c.telemetry.ProcessedEvents.Inc(pod.Name, containerName, string(process.Language.Name))
+
 	}
 }
 
@@ -129,27 +165,33 @@ func (c *client) run() {
 		c.store = workloadmeta.GetGlobalStore() // TODO(components): should be replaced by components
 	}
 
-	processEventCh := c.store.Subscribe(
+	eventCh := c.store.Subscribe(
 		subscriber,
 		workloadmeta.NormalPriority,
 		workloadmeta.NewFilter(
 			[]workloadmeta.Kind{
-				workloadmeta.KindProcess,
+				workloadmeta.KindKubernetesPod, // Subscribe to pod events to clean up the current batch when a pod is deleted
+				workloadmeta.KindProcess,       // Subscribe to process events to populate the current batch
 			},
 			workloadmeta.SourceAll,
-			workloadmeta.EventTypeSet,
+			workloadmeta.EventTypeAll,
 		),
 	)
 
 	metricTicker := time.NewTicker(runningMetricPeriod)
 	defer metricTicker.Stop()
 
+	retryProcessWithoutPodTicker := time.NewTicker(c.retryProcessWithoutPodPeriod)
+	defer retryProcessWithoutPodTicker.Stop()
+
 	go c.startStreaming()
 
 	for {
 		select {
-		case eventBundle := <-processEventCh:
+		case eventBundle := <-eventCh:
 			c.processEvent(eventBundle)
+		case retryProcessWithoutPodTicker.C:
+			c.retryProcessEventsWithoutPod()
 		case <-metricTicker.C:
 			c.telemetry.Running.Set(1)
 		case <-c.ctx.Done():
@@ -203,7 +245,7 @@ func (c *client) flush() {
 	t := time.Now()
 	err := c.langDetectionCl.PostLanguageMetadata(c.ctx, data.toProto())
 	if err != nil {
-		c.logger.Errorf("failed to ")
+		c.logger.Errorf("failed to post language metadata %v", err)
 		c.mergeBatchAfterError(data)
 		c.telemetry.Requests.Inc(statusError)
 		return

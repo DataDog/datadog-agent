@@ -4,7 +4,6 @@
 // Copyright 2023-present Datadog, Inc.
 
 // Package client holds the client to send data to the Cluster-Agent
-// Package client holds the client to send data to the Cluster-Agent
 package client
 
 import (
@@ -111,7 +110,7 @@ func (p *podInfo) toProto(podName string) *pbgo.PodLanguageDetails {
 	}
 }
 
-func (p *podInfo) getOrAddcontainerInfo(containerName string, isInitContainer bool) languageSet {
+func (p *podInfo) getOrAddContainerInfo(containerName string, isInitContainer bool) languageSet {
 	cInfo := p.containerInfo
 	if isInitContainer {
 		cInfo = p.initContainerInfo
