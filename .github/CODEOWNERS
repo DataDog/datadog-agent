@@ -232,6 +232,7 @@
 /pkg/metrics/                           @DataDog/agent-metrics-logs
 /pkg/serializer/                        @DataDog/agent-metrics-logs
 /pkg/serverless/                        @DataDog/serverless
+/pkg/serverless/appsec/                 @DataDog/asm-go
 /pkg/status/                            @DataDog/agent-shared-components
 /pkg/status/templates/trace-agent.tmpl  @DataDog/agent-apm
 /pkg/status/templates/process-agent.tmpl    @DataDog/processes

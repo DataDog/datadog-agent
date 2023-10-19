@@ -37,7 +37,7 @@ def update_go(
     """
     import semver
 
-    if not semver.Version.is_valid(version):
+    if not semver.VersionInfo.isvalid(version):
         raise exceptions.Exit(f"The version {version} isn't valid.")
 
     current_version = _get_repo_go_version()
@@ -134,7 +134,7 @@ def _get_repo_go_version() -> str:
 def _get_major_version(version: str) -> str:
     import semver
 
-    ver = semver.Version.parse(version)
+    ver = semver.VersionInfo.parse(version)
     return f"{ver.major}.{ver.minor}"
 
 

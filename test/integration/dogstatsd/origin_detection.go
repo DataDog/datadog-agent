@@ -35,7 +35,7 @@ const (
 // a metric from a container. As we need the origin PID to stay running,
 // we can't just `netcat` to the socket, that's why we run a custom python
 // script that will stay up after sending packets.
-func testUDSOriginDetection(t *testing.T) {
+func testUDSOriginDetection(t *testing.T, network string) {
 	coreConfig.SetFeatures(t, coreConfig.Docker)
 
 	cfg := map[string]any{}
@@ -54,7 +54,12 @@ func testUDSOriginDetection(t *testing.T) {
 		composeFile = "mount_volume.compose"
 	}
 	socketPath := filepath.Join(dir, "dsd.socket")
-	cfg["dogstatsd_socket"] = socketPath
+	if network == "unixgram" {
+		cfg["dogstatsd_socket"] = socketPath
+	} else if network == "unix" {
+		cfg["dogstatsd_stream_socket"] = socketPath
+	}
+	cfg["dogstatsd_experimental_and_not_yet_supported"] = "true"
 	cfg["dogstatsd_origin_detection"] = true
 
 	confComponent := fxutil.Test[config.Component](t, fx.Options(
@@ -66,7 +71,14 @@ func testUDSOriginDetection(t *testing.T) {
 	packetsChannel := make(chan packets.Packets)
 	sharedPacketPool := packets.NewPool(32)
 	sharedPacketPoolManager := packets.NewPoolManager(sharedPacketPool)
-	s, err := listeners.NewUDSListener(packetsChannel, sharedPacketPoolManager, confComponent, nil)
+	var err error
+	var s listeners.StatsdListener
+	if network == "unixgram" {
+		s, err = listeners.NewUDSDatagramListener(packetsChannel, sharedPacketPoolManager, nil, confComponent, nil)
+	} else if network == "unix" {
+		s, err = listeners.NewUDSStreamListener(packetsChannel, sharedPacketPoolManager, nil, confComponent, nil)
+	}
+	require.NotNil(t, s)
 	require.Nil(t, err)
 
 	go s.Listen()
@@ -75,12 +87,16 @@ func testUDSOriginDetection(t *testing.T) {
 	compose := &utils.ComposeConf{
 		ProjectName: "origin-detection-test",
 		FilePath:    fmt.Sprintf("testdata/origin_detection/%s", composeFile),
-		Variables:   map[string]string{"socket_dir_path": socketVolume},
+		Variables: map[string]string{
+			"socket_dir_path": socketVolume,
+			"socket_type":     network,
+		},
 	}
 
 	output, err := compose.Start()
 	defer compose.Stop()
 	require.Nil(t, err, string(output))
+	t.Logf("Docker output: %s", output)
 
 	containers, err := compose.ListContainers()
 	require.Nil(t, err)
@@ -96,10 +112,24 @@ func testUDSOriginDetection(t *testing.T) {
 	case packets := <-packetsChannel:
 		packet := packets[0]
 		require.NotNil(t, packet)
-		require.Equal(t, "custom_counter1:1|c", string(packet.Contents))
+		// The content could be there multiple times, and there could be a \n suffix.
+		require.Contains(t, string(packet.Contents), "custom_counter1:1|c")
 		require.Equal(t, fmt.Sprintf("container_id://%s", containerId), packet.Origin)
 		sharedPacketPool.Put(packet)
 	case <-time.After(2 * time.Second):
+		// Get container logs to ease debugging
+		logsCmd := exec.Command("docker", "logs", containerId)
+		output, err = logsCmd.CombinedOutput()
+		if err != nil {
+			t.Logf("Error getting logs from container %s: %s", containerId, err)
+		}
+		err = logsCmd.Run()
+		if err != nil {
+			t.Logf("Error getting logs from container %s: %s", containerId, err)
+		}
+
+		t.Logf("Container logs: %s", output)
+
 		assert.FailNow(t, "Timeout on receive channel")
 	}
 }
