@@ -6,7 +6,6 @@
 package decoder
 
 import (
-	"fmt"
 	"regexp"
 	"time"
 
@@ -222,12 +221,10 @@ func (d *Decoder) run() {
 		select {
 		case msg, isOpen := <-d.InputChan:
 			if !isOpen {
-				fmt.Println("INPUT CHAN CLOSED!!!!")
 				// InputChan has been closed, no more lines are expected
 				return
 			}
 
-			fmt.Printf("Processing message: %v\n", string(msg.GetContent()))
 			d.framer.Process(msg)
 
 		case <-d.lineParser.flushChan():
