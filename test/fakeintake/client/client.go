@@ -282,7 +282,7 @@ func (c *Client) getLog(service string) ([]*aggregator.Log, error) {
 func (c *Client) GetLogServiceNames() ([]string, error) {
 	err := c.getLogs()
 	if err != nil {
-		return []string{}, nil
+		return nil, err
 	}
 	return c.logAggregator.GetNames(), nil
 }
