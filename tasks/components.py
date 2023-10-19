@@ -337,21 +337,20 @@ def lint_fxutil_oneshot_test(_):
             if "cmd/system-probe/subcommands/run/command.go" in str(file):
                 continue
 
-            # remove this file from the linting check pending a solution to the
-            # tests not being run properly due to mismatched arguments
-            if "cmd/agent/subcommands/run/command_windows.go" in str(file):
-                continue
-
             one_shot_count = file.read_text().count("fxutil.OneShot(")
             if one_shot_count > 0:
                 test_path = file.parent.joinpath(f"{file.stem}_test.go")
                 if not test_path.exists():
                     errors.append(f"The file {file} contains fxutil.OneShot but the file {test_path} doesn't exist.")
                 else:
-                    test_one_shot_count = test_path.read_text().count("fxutil.TestOneShotSubcommand(")
-                    if one_shot_count > test_one_shot_count:
+                    content = test_path.read_text()
+                    sub_cmd_count = content.count("fxutil.TestOneShotSubcommand(")
+                    test_one_shot_count = content.count("fxutil.TestOneShot(")
+                    if one_shot_count > sub_cmd_count + test_one_shot_count:
                         errors.append(
-                            f"The file {file} contains {one_shot_count} call(s) to `fxutil.OneShot` but {test_path} contains only {test_one_shot_count} call(s) to `fxutil.TestOneShotSubcommand`"
+                            f"The file {file} contains {one_shot_count} call(s) to `fxutil.OneShot`"
+                            + f"but {test_path} contains only {sub_cmd_count} call(s) to `fxutil.TestOneShotSubcommand`"
+                            + f"and {test_one_shot_count} call(s) to `fxutil.TestOneShot`"
                         )
     if len(errors) > 0:
         msg = '\n'.join(errors)
