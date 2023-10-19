@@ -21,7 +21,7 @@ import (
 
 type coreAssetLoader struct {
 	coreDir   string
-	btfLoader orderedBTFLoader
+	btfLoader *orderedBTFLoader
 }
 
 // LoadCOREAsset attempts to find kernel BTF, reads the CO-RE object file, and then calls the callback function with the
