@@ -436,20 +436,6 @@ func (p *Probe) DispatchCustomEvent(rule *rules.Rule, event *events.CustomEvent)
 	}
 }
 
-func traceEvent(fmt string, marshaller func() ([]byte, model.EventType, error)) {
-	if !seclog.DefaultLogger.IsTracing() {
-		return
-	}
-
-	eventJSON, eventType, err := marshaller()
-	if err != nil {
-		seclog.DefaultLogger.TraceTagf(eventType, fmt, err)
-		return
-	}
-
-	seclog.DefaultLogger.TraceTagf(eventType, fmt, string(eventJSON))
-}
-
 // SendStats sends statistics about the probe to Datadog
 func (p *Probe) SendStats() error {
 	p.resolvers.TCResolver.SendTCProgramsStats(p.StatsdClient)

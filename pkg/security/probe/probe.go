@@ -109,6 +109,20 @@ func (p *Probe) AddCustomEventHandler(eventType model.EventType, handler CustomE
 	return nil
 }
 
+func traceEvent(fmt string, marshaller func() ([]byte, model.EventType, error)) {
+	if !seclog.DefaultLogger.IsTracing() {
+		return
+	}
+
+	eventJSON, eventType, err := marshaller()
+	if err != nil {
+		seclog.DefaultLogger.TraceTagf(eventType, fmt, err)
+		return
+	}
+
+	seclog.DefaultLogger.TraceTagf(eventType, fmt, string(eventJSON))
+}
+
 func (p *Probe) zeroEvent() *model.Event {
 	p.event.Zero()
 	p.event.FieldHandlers = p.fieldHandlers

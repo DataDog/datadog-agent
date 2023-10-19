@@ -9,6 +9,7 @@
 package probe
 
 import (
+	"github.com/DataDog/datadog-agent/pkg/security/resolvers/tags"
 	"github.com/DataDog/datadog-go/v5/statsd"
 )
 
@@ -16,6 +17,8 @@ import (
 type Opts struct {
 	// StatsdClient to be used for probe stats
 	StatsdClient statsd.ClientInterface
+	// TagsResolver will override the default one. Mainly here for tests.
+	TagsResolver tags.Resolver
 }
 
 func (o *Opts) normalize() {

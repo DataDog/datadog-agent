@@ -53,12 +53,10 @@ func (o *ResolverOpts) WithEnvsValue(envsWithValue []string) *ResolverOpts {
 }
 
 // NewResolver returns a new process resolver
-func NewResolver(config *config.Config, statsdClient statsd.ClientInterface, scrubber *procutil.DataScrubber,
-	opts ResolverOpts) (*Resolver, error) {
-
+func NewResolver(config *config.Config, statsdClient statsd.ClientInterface, scrubber *procutil.DataScrubber, opts *ResolverOpts) (*Resolver, error) {
 	p := &Resolver{
 		entryCache:   make(map[uint32]*model.ProcessCacheEntry),
-		opts:         opts,
+		opts:         *opts,
 		scrubber:     scrubber,
 		cacheSize:    atomic.NewInt64(0),
 		statsdClient: statsdClient,
@@ -70,8 +68,10 @@ func NewResolver(config *config.Config, statsdClient statsd.ClientInterface, scr
 }
 
 // NewResolverOpts returns a new set of process resolver options
-func NewResolverOpts() ResolverOpts {
-	return ResolverOpts{}
+func NewResolverOpts() *ResolverOpts {
+	return &ResolverOpts{
+		envsWithValue: make(map[string]bool),
+	}
 }
 
 func (p *Resolver) deleteEntry(pid uint32, exitTime time.Time) {
@@ -112,13 +112,15 @@ func (p *Resolver) AddExecEntry(pid uint32, file string, argv []string, envs []s
 	entry := p.processCacheEntryPool.Get()
 	entry.PIDContext.Pid = pid
 
-	entry.Process.Argv = argv
+	entry.Process.ArgsEntry = &model.ArgsEntry{Values: argv}
 	if len(argv) > 0 {
 		entry.Process.Argv0 = argv[0]
 	}
-	entry.Process.Envs = envs
-	entry.Process.FileEvent.PathnameStr = file
-	entry.Process.FileEvent.BasenameStr = filepath.Base(entry.Process.FileEvent.PathnameStr)
+	entry.Process.EnvsEntry = &model.EnvsEntry{Values: envs}
+	entry.Process.FileEvent.SetPathnameStr(file)
+	entry.Process.FileEvent.SetBasenameStr(filepath.Base(entry.Process.FileEvent.PathnameStr))
+
+	// TODO fix timestamp
 	entry.ExecTime = time.Now()
 
 	p.Lock()
@@ -170,34 +172,13 @@ func (p *Resolver) insertExecEntry(entry *model.ProcessCacheEntry, source uint64
 }
 
 // Resolve returns the cache entry for the given pid
-func (p *Resolver) Resolve(pid uint32) *model.ProcessCacheEntry {
+func (p *Resolver) Resolve(pid, tid uint32, inode uint64, useProcFS bool) *model.ProcessCacheEntry {
 	p.Lock()
 	defer p.Unlock()
 	if e, ok := p.entryCache[pid]; ok {
 		return e
 	}
 	return nil
-}
-
-// GetEnvs returns the envs of the event
-func (p *Resolver) GetEnvs(pr *model.Process) []string {
-	if pr.EnvsEntry == nil {
-		return pr.Envs
-	}
-
-	keys, _ := pr.EnvsEntry.FilterEnvs(p.opts.envsWithValue)
-	pr.Envs = keys
-	return pr.Envs
-}
-
-// GetEnvp returns the envs of the event with their values
-func (p *Resolver) GetEnvp(pr *model.Process) []string {
-	if pr.EnvsEntry == nil {
-		return pr.Envp
-	}
-
-	pr.Envp = pr.EnvsEntry.Values
-	return pr.Envp
 }
 
 // getCacheSize returns the cache size of the process resolver
@@ -216,22 +197,6 @@ func (p *Resolver) SendStats() error {
 	return nil
 }
 
-// GetProcessArgvScrubbed returns the scrubbed args of the event as an array
-func (p *Resolver) GetProcessArgvScrubbed(pr *model.Process) ([]string, bool) {
-	argv, _ := p.scrubber.ScrubCommand(pr.Argv)
-	return argv, false
-}
-
-// GetProcessEnvs returns the envs of the event
-func (p *Resolver) GetProcessEnvs(pr *model.Process) ([]string, bool) {
-	return pr.Envs, false
-}
-
-// GetProcessArgv0 returns the first arg of the event and whether the process arguments are truncated
-func GetProcessArgv0(pr *model.Process) (string, bool) {
-	return pr.Argv0, false
-}
-
 // Start starts the resolver
 func (p *Resolver) Start(ctx context.Context) error {
 	return nil
@@ -239,3 +204,73 @@ func (p *Resolver) Start(ctx context.Context) error {
 
 // Snapshot snapshot existing entryCache
 func (p *Resolver) Snapshot() {}
+
+// GetProcessArgvScrubbed returns the scrubbed args of the event as an array
+func (p *Resolver) GetProcessArgvScrubbed(pr *model.Process) ([]string, bool) {
+	if pr.ArgsEntry == nil || pr.ScrubbedArgvResolved {
+		return pr.Argv, pr.ArgsTruncated
+	}
+
+	argv, truncated := GetProcessArgv(pr)
+
+	if p.scrubber != nil && len(argv) > 0 {
+		// replace with the scrubbed version
+		argv, _ = p.scrubber.ScrubCommand(argv)
+		pr.ArgsEntry.Values = []string{pr.ArgsEntry.Values[0]}
+		pr.ArgsEntry.Values = append(pr.ArgsEntry.Values, argv...)
+	}
+
+	return argv, truncated
+}
+
+// GetProcessEnvs returns the envs of the event
+func (p *Resolver) GetProcessEnvs(pr *model.Process) ([]string, bool) {
+	if pr.EnvsEntry == nil {
+		return pr.Envs, pr.EnvsTruncated
+	}
+
+	keys, truncated := pr.EnvsEntry.FilterEnvs(p.opts.envsWithValue)
+	pr.Envs = keys
+	pr.EnvsTruncated = pr.EnvsTruncated || truncated
+	return pr.Envs, pr.EnvsTruncated
+}
+
+// GetProcessArgv returns the unscrubbed args of the event as an array. Use with caution.
+func GetProcessArgv(pr *model.Process) ([]string, bool) {
+	if pr.ArgsEntry == nil {
+		return pr.Argv, pr.ArgsTruncated
+	}
+
+	argv := pr.ArgsEntry.Values
+	if len(argv) > 0 {
+		argv = argv[1:]
+	}
+	pr.Argv = argv
+	pr.ArgsTruncated = pr.ArgsTruncated || pr.ArgsEntry.Truncated
+	return pr.Argv, pr.ArgsTruncated
+}
+
+// GetProcessArgv0 returns the first arg of the event and whether the process arguments are truncated
+func GetProcessArgv0(pr *model.Process) (string, bool) {
+	if pr.ArgsEntry == nil {
+		return pr.Argv0, pr.ArgsTruncated
+	}
+
+	argv := pr.ArgsEntry.Values
+	if len(argv) > 0 {
+		pr.Argv0 = argv[0]
+	}
+	pr.ArgsTruncated = pr.ArgsTruncated || pr.ArgsEntry.Truncated
+	return pr.Argv0, pr.ArgsTruncated
+}
+
+// GetProcessEnvp returns the unscrubbed envs of the event with their values. Use with caution.
+func (p *Resolver) GetProcessEnvp(pr *model.Process) ([]string, bool) {
+	if pr.EnvsEntry == nil {
+		return pr.Envp, pr.EnvsTruncated
+	}
+
+	pr.Envp = pr.EnvsEntry.Values
+	pr.EnvsTruncated = pr.EnvsTruncated || pr.EnvsEntry.Truncated
+	return pr.Envp, pr.EnvsTruncated
+}

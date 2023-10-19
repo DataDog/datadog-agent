@@ -12,51 +12,72 @@ import (
 	"context"
 	"fmt"
 	"net"
+	"path/filepath"
 	"time"
+
+	manager "github.com/DataDog/ebpf-manager"
+	"github.com/safchain/rstrace/pkg/proto"
+	"google.golang.org/grpc"
 
 	"github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/ebpf/kernel"
 	"github.com/DataDog/datadog-agent/pkg/security/probe/kfilters"
+	"github.com/DataDog/datadog-agent/pkg/security/resolvers"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
-	manager "github.com/DataDog/ebpf-manager"
-	"github.com/safchain/rstrace/pkg/rstrace"
-	"google.golang.org/grpc"
+	"github.com/DataDog/datadog-agent/pkg/security/serializers"
 )
 
 type PlatformProbe struct {
 	Manager *manager.Manager
 
 	// internals
-	rstrace.UnimplementedSyscallStreamServer
+	proto.UnimplementedSyscallMsgStreamServer
 
 	kernelVersion *kernel.Version
+	server        *grpc.Server
 }
 
-func (p *Probe) SendSyscall(ctx context.Context, syscall *rstrace.Syscall) (*rstrace.Response, error) {
-	ev := p.zeroEvent()
+func (p *Probe) SendSyscallMsg(ctx context.Context, syscallMsg *proto.SyscallMsg) (*proto.Response, error) {
+	event := p.zeroEvent()
 
-	switch syscall.Type {
-	case rstrace.ExecSyscallType:
-		entry := p.resolvers.AddExecEntry(syscall.PID, syscall.Exec.Filename, syscall.Exec.Args, syscall.Exec.Envs)
+	switch syscallMsg.Type {
+	case proto.SyscallType_Exec:
+		event.Type = uint32(model.ExecEventType)
+		entry := p.resolvers.ProcessResolver.AddExecEntry(syscallMsg.PID, syscallMsg.Exec.Filename, syscallMsg.Exec.Args, syscallMsg.Exec.Envs)
 		event.Exec.Process = &entry.Process
-	case rstrace.ForkSyscallType:
-		p.resolvers.AddForkEntry(syscall.PID, syscall.Fork.PPID)
-	case rstrace.OpenSyscallType:
-		ev.Type = uint32(model.FileOpenEventType)
-		ev.OpenFile.SetPathnameStr(syscall.Open.Filename)
+	case proto.SyscallType_Fork:
+		event.Type = uint32(model.ForkEventType)
+		p.resolvers.ProcessResolver.AddForkEntry(syscallMsg.PID, syscallMsg.Fork.PPID)
+	case proto.SyscallType_Open:
+		event.Type = uint32(model.FileOpenEventType)
+		event.Open.File.SetPathnameStr(syscallMsg.Open.Filename)
+		event.Open.File.SetBasenameStr(filepath.Base(syscallMsg.Open.Filename))
+		event.Open.Flags = syscallMsg.Open.Flags
+		event.Open.Mode = syscallMsg.Open.Mode
 	default:
-		return &rstrace.Response{}, nil
+		return &proto.Response{}, nil
+	}
+
+	// container context
+	event.ContainerContext.ID = syscallMsg.ContainerContext.ID
+	event.ContainerContext.CreatedAt = syscallMsg.ContainerContext.CreatedAt
+	event.ContainerContext.Tags = []string{
+		"image_name:" + syscallMsg.ContainerContext.Name,
+		"image_tag:" + syscallMsg.ContainerContext.Tag,
 	}
 
 	// use ProcessCacheEntry process context as process context
-	ev.ProcessCacheEntry = p.resolvers.ProcessResolver.Resolve(syscall.PID)
-	ev.ProcessContext = &pce.ProcessContext
+	event.ProcessCacheEntry = p.resolvers.ProcessResolver.Resolve(syscallMsg.PID, syscallMsg.PID, 0, false)
+	if event.ProcessCacheEntry == nil {
+		event.ProcessCacheEntry = model.NewPlaceholderProcessCacheEntry(syscallMsg.PID, syscallMsg.PID, false)
+	}
+	event.ProcessContext = &event.ProcessCacheEntry.ProcessContext
 
-	p.DispatchEvent(ev)
+	p.DispatchEvent(event)
 
-	return &rstrace.Response{}, nil
+	return &proto.Response{}, nil
 }
 
 func (p *Probe) Setup() error {
@@ -65,6 +86,10 @@ func (p *Probe) Setup() error {
 
 func (p *Probe) Init() error {
 	p.startTime = time.Now()
+
+	if err := p.resolvers.Start(p.ctx); err != nil {
+		return err
+	}
 
 	return nil
 }
@@ -76,6 +101,9 @@ func (p *Probe) Snapshot() error {
 func (p *Probe) Stop() {}
 
 func (p *Probe) Close() error {
+	p.server.GracefulStop()
+	p.cancelFnc()
+
 	return nil
 }
 
@@ -93,6 +121,10 @@ func (p *Probe) sendEventToSpecificEventTypeHandlers(event *model.Event) {
 
 // DispatchEvent sends an event to the probe event handler
 func (p *Probe) DispatchEvent(event *model.Event) {
+	traceEvent("Dispatching event %s", func() ([]byte, model.EventType, error) {
+		eventJSON, err := serializers.MarshalEvent(event, p.resolvers)
+		return eventJSON, event.GetEventType(), err
+	})
 
 	// send event to wildcard handlers, like the CWS rule engine, first
 	p.sendEventToWildcardHandlers(event)
@@ -106,12 +138,8 @@ func (p *Probe) Start() error {
 	if err != nil {
 		return err
 	}
-	var opts []grpc.ServerOption
 
-	grpcServer := grpc.NewServer(opts...)
-	rstrace.RegisterSyscallStreamServer(grpcServer, p)
-
-	go grpcServer.Serve(lis)
+	go p.server.Serve(lis)
 
 	return nil
 }
@@ -158,20 +186,44 @@ func (p *Probe) RefreshUserCache(containerID string) error {
 }
 
 func NewProbe(config *config.Config, opts Opts) (*Probe, error) {
-	fmt.Printf("---- EBPFLESS!!!!!!!!!\n")
-
 	opts.normalize()
 
+	ctx, cancel := context.WithCancel(context.Background())
+
+	var grpcOpts []grpc.ServerOption
 	p := &Probe{
-		Config: config,
+		Opts:      opts,
+		Config:    config,
+		ctx:       ctx,
+		cancelFnc: cancel,
+		PlatformProbe: PlatformProbe{
+			server: grpc.NewServer(grpcOpts...),
+		},
 	}
+
+	proto.RegisterSyscallMsgStreamServer(p.server, p)
+
+	resolversOpts := resolvers.Opts{
+		TagsResolver: opts.TagsResolver,
+	}
+
+	var err error
+	p.resolvers, err = resolvers.NewResolvers(config, p.StatsdClient, p.scrubber, resolversOpts)
+	if err != nil {
+		return nil, err
+	}
+
+	p.fieldHandlers = &FieldHandlers{resolvers: p.resolvers}
+
+	p.event = NewEvent(p.fieldHandlers)
+
+	// be sure to zero the probe event before everything else
+	p.zeroEvent()
 
 	if err := p.detectKernelVersion(); err != nil {
 		// we need the kernel version to start, fail if we can't get it
 		return nil, err
 	}
-
-	fmt.Printf("+++++ EBPFLESS!!!!!!!!!\n")
 
 	return p, nil
 }
