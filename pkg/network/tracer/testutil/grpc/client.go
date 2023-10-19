@@ -7,15 +7,12 @@ package grpc
 
 import (
 	"context"
-	"crypto/tls"
 	"fmt"
+	"google.golang.org/grpc/examples/route_guide/routeguide"
 	"io"
 	"math/rand"
 	"net"
 	"time"
-
-	"google.golang.org/grpc/credentials"
-	"google.golang.org/grpc/examples/route_guide/routeguide"
 
 	pbStream "github.com/pahanini/go-grpc-bidirectional-streaming-example/src/proto"
 	"google.golang.org/grpc"
@@ -143,20 +140,13 @@ type Options struct {
 	DialTimeout time.Duration
 	// CustomDialer allows to modify the underlying dialer used by grpc package. Set nil for the default dialer.
 	CustomDialer *net.Dialer
-	// WithTls makes the clients Dial using TLS
-	WithTls bool
 }
 
 // NewClient returns a new gRPC client
 func NewClient(addr string, options Options) (Client, error) {
-	gRPCOptions := []grpc.DialOption{}
-
-	if options.WithTls {
-		gRPCOptions = append(gRPCOptions, grpc.WithTransportCredentials(credentials.NewTLS(&tls.Config{ServerName: "", InsecureSkipVerify: true})))
-	} else {
-		gRPCOptions = append(gRPCOptions, grpc.WithTransportCredentials(insecure.NewCredentials()))
+	gRPCOptions := []grpc.DialOption{
+		grpc.WithTransportCredentials(insecure.NewCredentials()),
 	}
-
 	if options.CustomDialer != nil {
 		gRPCOptions = append(gRPCOptions, grpc.WithContextDialer(func(ctx context.Context, addr string) (net.Conn, error) {
 			return options.CustomDialer.DialContext(ctx, "tcp", addr)

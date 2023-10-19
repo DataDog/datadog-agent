@@ -57,7 +57,6 @@ static __always_inline bool read_var_int(struct __sk_buff *skb, skb_info_t *skb_
     return read_var_int_with_given_current_char(skb, skb_info, current_char_as_number, max_number_for_bits, out);
 }
 
-// parse_field_indexed is handling the case which the header frame is part of the static table.
 READ_INTO_BUFFER(path, HTTP2_MAX_PATH_LEN, BLK_SIZE)
 
 // parse_field_literal handling the case when the key is part of the static table and the value is a dynamic string
@@ -423,12 +422,17 @@ int uprobe__http2_tls_entry(struct pt_regs *ctx) {
     key.length = info->len;
     http2_tls_state_t *state = bpf_map_lookup_elem(&http2_tls_states, &key);
 
+    if (state && !state->relevant) {
+        bpf_map_delete_elem(&http2_tls_states, &key);
+        goto exit;
+    }
+
     if (!state) {
         struct http2_frame header = { 0 };
         bool relevant = is_relevant_frame_tls(info, &header);
 
-        bool header_only = info->len == HTTP2_FRAME_HEADER_SIZE;
-        if (!header_only && !relevant) {
+        bool frame_header_only = info->len == HTTP2_FRAME_HEADER_SIZE;
+        if (!frame_header_only && !relevant) {
             // The buffer seems to contain the whole frame, and the frame is not
             // relevant: we skip it without storing some state.
             goto exit;
@@ -439,14 +443,12 @@ int uprobe__http2_tls_entry(struct pt_regs *ctx) {
         new_state.stream_id = header.stream_id;
         new_state.frame_flags = header.flags;
 
-        key.length = header_only ? header.length : info->len;
+        key.length = frame_header_only ? header.length : info->len;
 
         bpf_map_update_elem(&http2_tls_states, &key, &new_state, BPF_ANY);
-        if (header_only)
+        if (frame_header_only) {
             goto exit;
-    } else if (!state->relevant) {
-        bpf_map_delete_elem(&http2_tls_states, &key);
-        goto exit;
+        }
     }
 
     bpf_tail_call_compat(ctx, &tls_process_progs, TLS_HTTP2_FRAMES_PARSER);
@@ -487,9 +489,6 @@ int uprobe__http2_tls_frames_parser(struct pt_regs *ctx) {
     http2_ctx->http2_stream_key.stream_id = state->stream_id;
 
     parse_frame_tls(info, http2_ctx, state->frame_flags);
-    if (info->off >= info->len) {
-        goto state_delete;
-    }
 
 state_delete:
     bpf_map_delete_elem(&http2_tls_states, &key);

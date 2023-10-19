@@ -1,5 +1,5 @@
-#ifndef TLS_DECODING_H_
-#define TLS_DECODING_H_
+#ifndef __TLS_DECODING_H_
+#define __TLS_DECODING_H_
 
 #include "bpf_builtins.h"
 #include "helpers.h"
@@ -12,7 +12,7 @@
 READ_INTO_USER_BUFFER(http2_preface, HTTP2_MARKER_SIZE)
 READ_INTO_USER_BUFFER(http2_frame_header, HTTP2_FRAME_HEADER_SIZE)
 READ_INTO_USER_BUFFER(http2_char, sizeof(__u8))
-READ_INTO_USER_BUFFER(path, HTTP2_MAX_PATH_LEN)
+READ_INTO_USER_BUFFER(http2_path, HTTP2_MAX_PATH_LEN)
 
 static __always_inline void skip_preface_tls(tls_dispatcher_arguments_t *info) {
     if (info->off + HTTP2_MARKER_SIZE <= info->len) {
@@ -236,7 +236,7 @@ static __always_inline void process_headers_tls(tls_dispatcher_arguments_t *info
             dynamic_value.string_len = current_header->new_dynamic_value_size;
 
             // create the new dynamic value which will be added to the internal table.
-            read_into_user_buffer_path((char *)&dynamic_value.buffer, info->buffer_ptr + current_header->new_dynamic_value_offset);
+            read_into_user_buffer_http2_path((char *)&dynamic_value.buffer, info->buffer_ptr + current_header->new_dynamic_value_offset);
             bpf_map_update_elem(&http2_dynamic_table, dynamic_index, &dynamic_value, BPF_ANY);
             current_stream->path_size = current_header->new_dynamic_value_size;
             bpf_memcpy(current_stream->request_path, dynamic_value.buffer, HTTP2_MAX_PATH_LEN);

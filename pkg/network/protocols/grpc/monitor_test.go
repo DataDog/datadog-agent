@@ -14,20 +14,19 @@ import (
 	"testing"
 	"time"
 
-	"github.com/cihub/seelog"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
 	"google.golang.org/grpc/metadata"
 
 	"github.com/DataDog/datadog-agent/pkg/ebpf/ebpftest"
-	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
+	"github.com/DataDog/datadog-agent/pkg/network/protocols"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http2"
-	"github.com/DataDog/datadog-agent/pkg/network/tracer"
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/testutil/grpc"
+	"github.com/DataDog/datadog-agent/pkg/network/usm"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 const (
@@ -46,7 +45,6 @@ func randStringRunes(n int) []rune {
 
 type USMgRPCSuite struct {
 	suite.Suite
-	withTls bool
 }
 
 func TestGRPCScenarios(t *testing.T) {
@@ -59,16 +57,8 @@ func TestGRPCScenarios(t *testing.T) {
 
 	rand.Seed(time.Now().UnixNano())
 
-	ebpftest.TestBuildModes(t, []ebpftest.BuildMode{ebpftest.Prebuilt, ebpftest.RuntimeCompiled, ebpftest.CORE}, "without TLS", func(t *testing.T) {
-		usmSuite := new(USMgRPCSuite)
-		usmSuite.withTls = false
-		suite.Run(t, usmSuite)
-	})
-
-	ebpftest.TestBuildModes(t, []ebpftest.BuildMode{ebpftest.RuntimeCompiled, ebpftest.CORE}, "with TLS", func(t *testing.T) {
-		usmSuite := new(USMgRPCSuite)
-		usmSuite.withTls = true
-		suite.Run(t, usmSuite)
+	ebpftest.TestBuildModes(t, []ebpftest.BuildMode{ebpftest.Prebuilt, ebpftest.RuntimeCompiled, ebpftest.CORE}, "", func(t *testing.T) {
+		suite.Run(t, new(USMgRPCSuite))
 	})
 }
 
@@ -90,17 +80,10 @@ func getClientsIndex(index, totalCount int) int {
 
 func (s *USMgRPCSuite) TestSimpleGRPCScenarios() {
 	t := s.T()
-
 	cfg := config.New()
 	cfg.EnableHTTP2Monitoring = true
-	cfg.EnableGoTLSSupport = s.withTls
-	cfg.BPFDebug = true
 
-	if s.withTls {
-		log.SetupLogger(seelog.Default, "debug")
-	}
-
-	srv, err := grpc.NewServer(srvAddr, s.withTls)
+	srv, err := grpc.NewServer(srvAddr)
 	require.NoError(t, err)
 	srv.Run()
 	t.Cleanup(srv.Stop)
@@ -117,7 +100,7 @@ func (s *USMgRPCSuite) TestSimpleGRPCScenarios() {
 		{
 			name: "simple unary - multiple requests",
 			runClients: func(t *testing.T, clientsCount int) {
-				clients := getClientsArray(t, clientsCount, grpc.Options{WithTls: s.withTls})
+				clients := getClientsArray(t, clientsCount)
 
 				for i := 0; i < 1000; i++ {
 					client := clients[getClientsIndex(i, clientsCount)]
@@ -134,7 +117,7 @@ func (s *USMgRPCSuite) TestSimpleGRPCScenarios() {
 		{
 			name: "unary, a->b->a",
 			runClients: func(t *testing.T, clientsCount int) {
-				clients := getClientsArray(t, clientsCount, grpc.Options{WithTls: s.withTls})
+				clients := getClientsArray(t, clientsCount)
 
 				require.NoError(t, clients[getClientsIndex(0, clientsCount)].HandleUnary(defaultCtx, "first"))
 				require.NoError(t, clients[getClientsIndex(1, clientsCount)].GetFeature(defaultCtx, -746143763, 407838351))
@@ -154,7 +137,7 @@ func (s *USMgRPCSuite) TestSimpleGRPCScenarios() {
 		{
 			name: "unary, a->b->a->b",
 			runClients: func(t *testing.T, clientsCount int) {
-				clients := getClientsArray(t, clientsCount, grpc.Options{WithTls: s.withTls})
+				clients := getClientsArray(t, clientsCount)
 
 				require.NoError(t, clients[getClientsIndex(0, clientsCount)].HandleUnary(defaultCtx, "first"))
 				require.NoError(t, clients[getClientsIndex(1, clientsCount)].GetFeature(defaultCtx, -746143763, 407838351))
@@ -175,7 +158,7 @@ func (s *USMgRPCSuite) TestSimpleGRPCScenarios() {
 		{
 			name: "unary, a->b->b->a",
 			runClients: func(t *testing.T, clientsCount int) {
-				clients := getClientsArray(t, clientsCount, grpc.Options{WithTls: s.withTls})
+				clients := getClientsArray(t, clientsCount)
 
 				require.NoError(t, clients[getClientsIndex(0, clientsCount)].HandleUnary(defaultCtx, "first"))
 				require.NoError(t, clients[getClientsIndex(1, clientsCount)].GetFeature(defaultCtx, -746143763, 407838351))
@@ -196,7 +179,7 @@ func (s *USMgRPCSuite) TestSimpleGRPCScenarios() {
 		{
 			name: "stream, c",
 			runClients: func(t *testing.T, clientsCount int) {
-				clients := getClientsArray(t, clientsCount, grpc.Options{WithTls: s.withTls})
+				clients := getClientsArray(t, clientsCount)
 
 				for i := 0; i < 25; i++ {
 					client := clients[getClientsIndex(i, clientsCount)]
@@ -213,7 +196,7 @@ func (s *USMgRPCSuite) TestSimpleGRPCScenarios() {
 		{
 			name: "mixed, c->b->c->b",
 			runClients: func(t *testing.T, clientsCount int) {
-				clients := getClientsArray(t, clientsCount, grpc.Options{WithTls: s.withTls})
+				clients := getClientsArray(t, clientsCount)
 
 				require.NoError(t, clients[getClientsIndex(0, clientsCount)].HandleStream(defaultCtx, 10))
 				require.NoError(t, clients[getClientsIndex(1, clientsCount)].HandleUnary(defaultCtx, "first"))
@@ -234,7 +217,7 @@ func (s *USMgRPCSuite) TestSimpleGRPCScenarios() {
 		{
 			name: "500 headers -> b -> 500 headers -> b",
 			runClients: func(t *testing.T, clientsCount int) {
-				clients := getClientsArray(t, clientsCount, grpc.Options{WithTls: s.withTls})
+				clients := getClientsArray(t, clientsCount)
 
 				ctxWithoutHeaders := context.Background()
 				ctxWithHeaders := context.Background()
@@ -265,7 +248,7 @@ func (s *USMgRPCSuite) TestSimpleGRPCScenarios() {
 		{
 			name: "duplicated headers -> b -> duplicated headers -> b",
 			runClients: func(t *testing.T, clientsCount int) {
-				clients := getClientsArray(t, clientsCount, grpc.Options{WithTls: s.withTls})
+				clients := getClientsArray(t, clientsCount)
 
 				ctxWithoutHeaders := context.Background()
 				ctxWithHeaders := context.Background()
@@ -304,17 +287,22 @@ func (s *USMgRPCSuite) TestSimpleGRPCScenarios() {
 					t.Skip("Skipping test due to known issue")
 				}
 
-				tracer, err := tracer.NewTracer(cfg)
+				monitor, err := usm.NewMonitor(cfg, nil, nil, nil)
 				require.NoError(t, err)
-				defer tracer.Stop()
+				require.NoError(t, monitor.Start())
+				defer monitor.Stop()
 
 				tt.runClients(t, clientCount)
 
 				res := make(map[http.Key]int)
 				require.Eventually(t, func() bool {
-					conns := getConnections(t, tracer)
-					http2Stats := conns.HTTP2
-					for key, stat := range http2Stats {
+					stats := monitor.GetProtocolStats()
+					http2Stats, ok := stats[protocols.HTTP2]
+					if !ok {
+						return false
+					}
+					http2StatsTyped := http2Stats.(map[http.Key]*http.RequestStats)
+					for key, stat := range http2StatsTyped {
 						if key.DstPort == 5050 || key.SrcPort == 5050 {
 							count := stat.Data[200].Count
 							newKey := http.Key{
@@ -359,14 +347,8 @@ func (s *USMgRPCSuite) TestLargeBodiesGRPCScenarios() {
 	t := s.T()
 	cfg := config.New()
 	cfg.EnableHTTP2Monitoring = true
-	cfg.EnableGoTLSSupport = s.withTls
-	cfg.BPFDebug = true
 
-	if s.withTls {
-		log.SetupLogger(seelog.Default, "debug")
-	}
-
-	srv, err := grpc.NewServer(srvAddr, s.withTls)
+	srv, err := grpc.NewServer(srvAddr)
 	require.NoError(t, err)
 	srv.Run()
 	t.Cleanup(srv.Stop)
@@ -387,7 +369,7 @@ func (s *USMgRPCSuite) TestLargeBodiesGRPCScenarios() {
 		{
 			name: "request with large body (30MB)",
 			runClients: func(t *testing.T, clientsCount int) {
-				clients := getClientsArray(t, clientsCount, grpc.Options{WithTls: s.withTls})
+				clients := getClientsArray(t, clientsCount)
 
 				longRandomString[0] = '0' + rune(clientsCount)
 				for i := 0; i < 5; i++ {
@@ -408,7 +390,7 @@ func (s *USMgRPCSuite) TestLargeBodiesGRPCScenarios() {
 		{
 			name: "request with large body (5MB) -> b -> request with large body (5MB) -> b",
 			runClients: func(t *testing.T, clientsCount int) {
-				clients := getClientsArray(t, clientsCount, grpc.Options{WithTls: s.withTls})
+				clients := getClientsArray(t, clientsCount)
 
 				longRandomString[3] = '0' + rune(clientsCount)
 
@@ -439,17 +421,22 @@ func (s *USMgRPCSuite) TestLargeBodiesGRPCScenarios() {
 		for _, clientCount := range []int{1, 2, 5} {
 			testNameSuffix := fmt.Sprintf("-different clients - %v", clientCount)
 			t.Run(tt.name+testNameSuffix, func(t *testing.T) {
-				tracer, err := tracer.NewTracer(cfg)
+				monitor, err := usm.NewMonitor(cfg, nil, nil, nil)
 				require.NoError(t, err)
-				defer tracer.Stop()
+				require.NoError(t, monitor.Start())
+				defer monitor.Stop()
 
 				tt.runClients(t, clientCount)
 
 				res := make(map[http.Key]int)
 				assert.Eventually(t, func() bool {
-					conns := getConnections(t, tracer)
-					http2Stats := conns.HTTP2
-					for key, stat := range http2Stats {
+					stats := monitor.GetProtocolStats()
+					http2Stats, ok := stats[protocols.HTTP2]
+					if !ok {
+						return false
+					}
+					http2StatsTyped := http2Stats.(map[http.Key]*http.RequestStats)
+					for key, stat := range http2StatsTyped {
 						if key.DstPort == 5050 || key.SrcPort == 5050 {
 							count := stat.Data[200].Count
 							newKey := http.Key{
@@ -498,17 +485,4 @@ func (s *USMgRPCSuite) TestLargeBodiesGRPCScenarios() {
 			})
 		}
 	}
-}
-
-const clientID = "1"
-
-func getConnections(t *testing.T, tr *tracer.Tracer) *network.Connections {
-	// Iterate through active connections until we find connection created above, and confirm send + recv counts
-	connections, err := tr.GetActiveConnections(clientID)
-	require.NoError(t, err)
-	return connections
-}
-
-func isPrebuilt(cfg *config.Config) bool {
-	return !(cfg.EnableRuntimeCompiler || cfg.EnableCORE)
 }
