@@ -188,7 +188,7 @@ type MatchOpt[P aggregator.PayloadItem] func(payload P) (bool, error)
 func (c *Client) GetMetricNames() ([]string, error) {
 	err := c.getMetrics()
 	if err != nil {
-		return []string{}, nil
+		return nil, err
 	}
 	return c.metricAggregator.GetNames(), nil
 }
