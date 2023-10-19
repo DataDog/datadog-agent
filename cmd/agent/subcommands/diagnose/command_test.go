@@ -36,6 +36,17 @@ func TestShowMetadataV5Command(t *testing.T) {
 		})
 }
 
+func TestShowMetadataGohaiCommand(t *testing.T) {
+	fxutil.TestOneShotSubcommand(t,
+		Commands(&command.GlobalParams{}),
+		[]string{"diagnose", "show-metadata", "gohai"},
+		printPayload,
+		func(cliParams *cliParams, coreParams core.BundleParams) {
+			require.Equal(t, false, coreParams.ConfigLoadSecrets())
+			require.Equal(t, "gohai", cliParams.payloadName)
+		})
+}
+
 func TestShowMetadataInventoryCommand(t *testing.T) {
 	fxutil.TestOneShotSubcommand(t,
 		Commands(&command.GlobalParams{}),

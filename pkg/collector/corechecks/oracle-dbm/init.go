@@ -51,18 +51,17 @@ func (c *Check) init() error {
 
 	if c.config.ReportedHostname != "" {
 		c.dbHostname = c.config.ReportedHostname
-	} else {
-		if i.HostName.Valid {
-			c.dbHostname = i.HostName.String
-		} else {
-			// host_name is null on Oracle Autonomous Database
-			c.dbHostname = i.InstanceName
-		}
+	} else if i.HostName.Valid {
+		c.dbHostname = i.HostName.String
 	}
 	if i.HostName.Valid {
 		tags = append(tags, fmt.Sprintf("real_hostname:%s", i.HostName.String))
 	}
-	tags = append(tags, fmt.Sprintf("host:%s", c.dbHostname), fmt.Sprintf("oracle_version:%s", c.dbVersion))
+	if c.dbHostname != "" {
+		tags = append(tags, fmt.Sprintf("host:%s", c.dbHostname), fmt.Sprintf("db_server:%s", c.dbHostname))
+	}
+	tags = append(tags, fmt.Sprintf("oracle_version:%s", c.dbVersion))
+	tags = append(tags, fmt.Sprintf("dd.internal.resource:database_instance:%s/%s", c.dbHostname, c.cdbName))
 
 	var d vDatabase
 	if isDbVersionGreaterOrEqualThan(c, minMultitenantVersion) {

@@ -20,6 +20,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/common/utils"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/providers/names"
+	"github.com/DataDog/datadog-agent/pkg/autodiscovery/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -49,6 +50,7 @@ func NewZookeeperConfigProvider(providerConfig *config.ConfigurationProviders) (
 
 	c, _, err := zk.Connect(urls, sessionTimeout)
 	if err != nil {
+		telemetry.Errors.Inc(names.Zookeeper)
 		return nil, fmt.Errorf("ZookeeperConfigProvider: couldn't connect to %q (%s): %s", providerConfig.TemplateURL, strings.Join(urls, ", "), err)
 	}
 	cache := newProviderCache()
@@ -70,6 +72,7 @@ func (z *ZookeeperConfigProvider) Collect(ctx context.Context) ([]integration.Co
 	configs := make([]integration.Config, 0)
 	identifiers, err := z.getIdentifiers(z.templateDir)
 	if err != nil {
+		telemetry.Errors.Inc(names.Zookeeper)
 		return nil, err
 	}
 	for _, id := range identifiers {
@@ -89,6 +92,7 @@ func (z *ZookeeperConfigProvider) IsUpToDate(ctx context.Context) (bool, error) 
 
 	identifiers, err := z.getIdentifiers(z.templateDir)
 	if err != nil {
+		telemetry.Errors.Inc(names.Zookeeper)
 		return false, err
 	}
 	outdated := z.cache.mostRecentMod
@@ -113,6 +117,7 @@ func (z *ZookeeperConfigProvider) IsUpToDate(ctx context.Context) (bool, error) 
 			gcnPath := path.Join(identifier, gcn)
 			_, stat, err := z.client.Get(gcnPath)
 			if err != nil {
+				telemetry.Errors.Inc(names.Zookeeper)
 				return false, fmt.Errorf("couldn't get key '%s' from zookeeper: %s", identifier, err)
 			}
 			outdated = math.Max(float64(stat.Mtime), outdated)
@@ -171,24 +176,28 @@ func (z *ZookeeperConfigProvider) getTemplates(key string) []integration.Config 
 
 	rawNames, _, err := z.client.Get(checkNameKey)
 	if err != nil {
+		telemetry.Errors.Inc(names.Zookeeper)
 		log.Errorf("Couldn't get check names from key '%s' in zookeeper: %s", key, err)
 		return nil
 	}
 
 	checkNames, err := utils.ParseCheckNames(string(rawNames))
 	if err != nil {
+		telemetry.Errors.Inc(names.Zookeeper)
 		log.Errorf("Failed to retrieve check names at %s. Error: %s", checkNameKey, err)
 		return nil
 	}
 
 	initConfigs, err := z.getJSONValue(initKey)
 	if err != nil {
+		telemetry.Errors.Inc(names.Zookeeper)
 		log.Errorf("Failed to retrieve init configs at %s. Error: %s", initKey, err)
 		return nil
 	}
 
 	instances, err := z.getJSONValue(instanceKey)
 	if err != nil {
+		telemetry.Errors.Inc(names.Zookeeper)
 		log.Errorf("Failed to retrieve instances at %s. Error: %s", instanceKey, err)
 		return nil
 	}

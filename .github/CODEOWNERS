@@ -38,6 +38,7 @@
 /.github/dependabot.yaml                            @DataDog/agent-platform
 /.github/workflows/serverless-binary-size.yml       @DataDog/serverless
 /.github/workflows/serverless-integration.yml       @DataDog/serverless
+/.github/workflows/windows-*.yml                    @DataDog/windows-agent
 /.github/workflows/cws-btfhub-sync.yml              @DataDog/agent-security
 
 # Gitlab files
@@ -79,6 +80,8 @@
 /.gitlab/functional_test/serverless.yml              @DataDog/serverless @DataDog/agent-platform
 /.gitlab/functional_test/system_probe.yml            @DataDog/ebpf-platform @DataDog/agent-platform
 /.gitlab/functional_test_cleanup.yml                 @DataDog/agent-security @DataDog/ebpf-platform @DataDog/agent-platform
+
+/.gitlab/integration_test/windows.yml                @DataDog/agent-platform @DataDog/windows-agent
 
 /.gitlab/kernel_version_testing                      @DataDog/ebpf-platform
 
@@ -299,6 +302,9 @@
 /pkg/dynamicinstrumentation/            @DataDog/debugger
 /pkg/epforwarder/                       @DataDog/agent-shared-components @DataDog/agent-metrics-logs
 /pkg/flare/                             @DataDog/agent-shared-components
+/pkg/flare/*_win.go                     @Datadog/windows-agent
+/pkg/flare/*_windows.go                 @Datadog/windows-agent
+/pkg/flare/*_windows_test.go            @Datadog/windows-agent
 /pkg/otlp/                              @DataDog/opentelemetry
 /pkg/otlp/*_serverless*.go              @DataDog/serverless
 /pkg/otlp/*_not_serverless*.go          @DataDog/opentelemetry
@@ -338,6 +344,8 @@
 /pkg/util/winutil/                      @DataDog/windows-agent
 /pkg/languagedetection                  @DataDog/processes @DataDog/universal-service-monitoring
 /pkg/logs/                              @DataDog/agent-metrics-logs
+/pkg/logs/launchers/windowsevent        @DataDog/agent-metrics-logs @DataDog/windows-agent
+/pkg/logs/tailers/windowsevent          @DataDog/agent-metrics-logs @DataDog/windows-agent
 /pkg/process/                           @DataDog/processes
 /pkg/process/util/address*.go           @DataDog/Networks
 /pkg/process/util/netns*.go             @DataDog/Networks
@@ -388,7 +396,6 @@
 /pkg/compliance/                        @DataDog/agent-cspm
 /pkg/kubestatemetrics                   @DataDog/container-integrations
 /pkg/security/                          @DataDog/agent-security
-/pkg/netflow/                           @DataDog/network-device-monitoring
 /pkg/networkdevice/                     @DataDog/network-device-monitoring
 /pkg/snmp/                              @DataDog/network-device-monitoring
 /pkg/windowsdriver/                     @DataDog/windows-kernel-integrations
@@ -449,14 +456,15 @@
 /test/kitchen/test/integration/win-user/ @DataDog/windows-agent
 /test/fakeintake/                       @DataDog/agent-e2e-testing
 /test/new-e2e/                          @DataDog/agent-e2e-testing
-/test/new-e2e/agent-subcommands         @DataDog/agent-shared-components
 /test/new-e2e/language-detection        @DataDog/processes
-/test/new-e2e/ndm                       @DataDog/network-device-monitoring
-/test/new-e2e/scenarios/ndm             @DataDog/network-device-monitoring
 /test/new-e2e/system-probe              @DataDog/ebpf-platform
 /test/new-e2e/scenarios/system-probe    @DataDog/ebpf-platform
+/test/new-e2e/tests/agent-subcommands   @DataDog/agent-shared-components
 /test/new-e2e/tests/containers          @DataDog/container-integrations
+/test/new-e2e/tests/language-detection  @DataDog/processes
+/test/new-e2e/tests/ndm                 @DataDog/network-device-monitoring
 /test/new-e2e/tests/npm                 @DataDog/Networks
+/test/new-e2e/tests/agent-platform      @DataDog/agent-platform
 /test/system/                           @DataDog/agent-shared-components
 /test/system/dogstatsd/                 @DataDog/agent-metrics-logs
 /test/benchmarks/apm_scripts/           @DataDog/agent-apm

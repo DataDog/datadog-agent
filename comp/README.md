@@ -14,6 +14,10 @@ Package aggregator implements the "aggregator" bundle,
 
 Package demultiplexer defines the aggregator demultiplexer
 
+### [comp/aggregator/diagnosesendermanager](https://pkg.go.dev/github.com/DataDog/dd-agent-comp-experiments/comp/aggregator/diagnosesendermanager)
+
+Package diagnosesendermanager defines the sender manager for the local diagnose check
+
 ## [comp/checks](https://pkg.go.dev/github.com/DataDog/dd-agent-comp-experiments/comp/checks) (Component Bundle)
 
 *Datadog Team*: agent-shared-components
@@ -106,6 +110,10 @@ Package agent contains logs agent component.
 Package metadata implements the "metadata" bundle, providing services and support for all the metadata payload sent
 by the Agent.
 
+### [comp/metadata/host](https://pkg.go.dev/github.com/DataDog/dd-agent-comp-experiments/comp/metadata/host)
+
+Package host implements a component to generate the 'host' metadata payload (also known as "v5").
+
 ### [comp/metadata/resources](https://pkg.go.dev/github.com/DataDog/dd-agent-comp-experiments/comp/metadata/resources)
 
 Package resources implements a component to generate the 'resources' metadata payload.
@@ -122,17 +130,9 @@ Package ndmtmp implements the "ndmtmp" bundle, which exposes the default
 sender.Sender and the event platform forwarder. This is a temporary module
 intended for ndm internal use until these pieces are properly componentized.
 
-### [comp/ndmtmp/aggregator](https://pkg.go.dev/github.com/DataDog/dd-agent-comp-experiments/comp/ndmtmp/aggregator)
-
-Package aggregator exposes the AgentDemultiplexer as a DemultiplexerWithAggregator
-
 ### [comp/ndmtmp/forwarder](https://pkg.go.dev/github.com/DataDog/dd-agent-comp-experiments/comp/ndmtmp/forwarder)
 
 Package forwarder exposes the event platform forwarder for netflow.
-
-### [comp/ndmtmp/sender](https://pkg.go.dev/github.com/DataDog/dd-agent-comp-experiments/comp/ndmtmp/sender)
-
-Package sender exposes a Sender for netflow.
 
 ## [comp/netflow](https://pkg.go.dev/github.com/DataDog/dd-agent-comp-experiments/comp/netflow) (Component Bundle)
 
@@ -251,6 +251,10 @@ Package systray provides a component for the system tray application
 *Datadog Team*: agent-apm
 
 Package trace implements the "trace" bundle, providing components for the Trace Agent
+
+### [comp/trace/agent](https://pkg.go.dev/github.com/DataDog/dd-agent-comp-experiments/comp/trace/agent)
+
+
 
 ### [comp/trace/config](https://pkg.go.dev/github.com/DataDog/dd-agent-comp-experiments/comp/trace/config)
 

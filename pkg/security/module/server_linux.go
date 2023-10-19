@@ -18,7 +18,7 @@ import (
 )
 
 // DumpDiscarders handles discarder dump requests
-func (a *APIServer) DumpDiscarders(ctx context.Context, params *api.DumpDiscardersParams) (*api.DumpDiscardersMessage, error) {
+func (a *APIServer) DumpDiscarders(ctx context.Context, params *api.DumpDiscardersParams) (*api.DumpDiscardersMessage, error) { //nolint:revive // TODO fix revive unused-parameter
 	filePath, err := a.probe.DumpDiscarders()
 	if err != nil {
 		return nil, err
@@ -29,7 +29,7 @@ func (a *APIServer) DumpDiscarders(ctx context.Context, params *api.DumpDiscarde
 }
 
 // DumpProcessCache handles process cache dump requests
-func (a *APIServer) DumpProcessCache(ctx context.Context, params *api.DumpProcessCacheParams) (*api.SecurityDumpProcessCacheMessage, error) {
+func (a *APIServer) DumpProcessCache(ctx context.Context, params *api.DumpProcessCacheParams) (*api.SecurityDumpProcessCacheMessage, error) { //nolint:revive // TODO fix revive unused-parameter
 	resolvers := a.probe.GetResolvers()
 
 	filename, err := resolvers.ProcessResolver.Dump(params.WithArgs)
@@ -43,7 +43,7 @@ func (a *APIServer) DumpProcessCache(ctx context.Context, params *api.DumpProces
 }
 
 // DumpActivity handle an activity dump request
-func (a *APIServer) DumpActivity(ctx context.Context, params *api.ActivityDumpParams) (*api.ActivityDumpMessage, error) {
+func (a *APIServer) DumpActivity(ctx context.Context, params *api.ActivityDumpParams) (*api.ActivityDumpMessage, error) { //nolint:revive // TODO fix revive unused-parameter
 	if managers := a.probe.GetProfileManagers(); managers != nil {
 		msg, err := managers.DumpActivity(params)
 		if err != nil {
@@ -56,7 +56,7 @@ func (a *APIServer) DumpActivity(ctx context.Context, params *api.ActivityDumpPa
 }
 
 // ListActivityDumps returns the list of active dumps
-func (a *APIServer) ListActivityDumps(ctx context.Context, params *api.ActivityDumpListParams) (*api.ActivityDumpListMessage, error) {
+func (a *APIServer) ListActivityDumps(ctx context.Context, params *api.ActivityDumpListParams) (*api.ActivityDumpListMessage, error) { //nolint:revive // TODO fix revive unused-parameter
 	if managers := a.probe.GetProfileManagers(); managers != nil {
 		msg, err := managers.ListActivityDumps(params)
 		if err != nil {
@@ -69,7 +69,7 @@ func (a *APIServer) ListActivityDumps(ctx context.Context, params *api.ActivityD
 }
 
 // StopActivityDump stops an active activity dump if it exists
-func (a *APIServer) StopActivityDump(ctx context.Context, params *api.ActivityDumpStopParams) (*api.ActivityDumpStopMessage, error) {
+func (a *APIServer) StopActivityDump(ctx context.Context, params *api.ActivityDumpStopParams) (*api.ActivityDumpStopMessage, error) { //nolint:revive // TODO fix revive unused-parameter
 	if managers := a.probe.GetProfileManagers(); managers != nil {
 		msg, err := managers.StopActivityDump(params)
 		if err != nil {
@@ -82,7 +82,7 @@ func (a *APIServer) StopActivityDump(ctx context.Context, params *api.ActivityDu
 }
 
 // TranscodingRequest encodes an activity dump following the requested parameters
-func (a *APIServer) TranscodingRequest(ctx context.Context, params *api.TranscodingRequestParams) (*api.TranscodingRequestMessage, error) {
+func (a *APIServer) TranscodingRequest(ctx context.Context, params *api.TranscodingRequestParams) (*api.TranscodingRequestMessage, error) { //nolint:revive // TODO fix revive unused-parameter
 	if managers := a.probe.GetProfileManagers(); managers != nil {
 		msg, err := managers.GenerateTranscoding(params)
 		if err != nil {
@@ -95,7 +95,7 @@ func (a *APIServer) TranscodingRequest(ctx context.Context, params *api.Transcod
 }
 
 // ListSecurityProfiles returns the list of security profiles
-func (a *APIServer) ListSecurityProfiles(ctx context.Context, params *api.SecurityProfileListParams) (*api.SecurityProfileListMessage, error) {
+func (a *APIServer) ListSecurityProfiles(ctx context.Context, params *api.SecurityProfileListParams) (*api.SecurityProfileListMessage, error) { //nolint:revive // TODO fix revive unused-parameter
 	if managers := a.probe.GetProfileManagers(); managers != nil {
 		msg, err := managers.ListSecurityProfiles(params)
 		if err != nil {
@@ -108,7 +108,7 @@ func (a *APIServer) ListSecurityProfiles(ctx context.Context, params *api.Securi
 }
 
 // SaveSecurityProfile saves the requested security profile to disk
-func (a *APIServer) SaveSecurityProfile(ctx context.Context, params *api.SecurityProfileSaveParams) (*api.SecurityProfileSaveMessage, error) {
+func (a *APIServer) SaveSecurityProfile(ctx context.Context, params *api.SecurityProfileSaveParams) (*api.SecurityProfileSaveMessage, error) { //nolint:revive // TODO fix revive unused-parameter
 	if managers := a.probe.GetProfileManagers(); managers != nil {
 		msg, err := managers.SaveSecurityProfile(params)
 		if err != nil {
@@ -121,7 +121,7 @@ func (a *APIServer) SaveSecurityProfile(ctx context.Context, params *api.Securit
 }
 
 // GetStatus returns the status of the module
-func (a *APIServer) GetStatus(ctx context.Context, params *api.GetStatusParams) (*api.Status, error) {
+func (a *APIServer) GetStatus(ctx context.Context, params *api.GetStatusParams) (*api.Status, error) { //nolint:revive // TODO fix revive unused-parameter
 	status, err := a.probe.GetConstantFetcherStatus()
 	if err != nil {
 		return nil, err
@@ -155,22 +155,19 @@ func (a *APIServer) GetStatus(ctx context.Context, params *api.GetStatusParams) 
 	}
 
 	apiStatus.Environment.KernelLockdown = string(kernel.GetLockdownMode())
-
-	if kernel, err := a.probe.GetKernelVersion(); err == nil {
-		apiStatus.Environment.UseMmapableMaps = kernel.HaveMmapableMaps()
-		apiStatus.Environment.UseRingBuffer = a.probe.UseRingBuffers()
-	}
+	apiStatus.Environment.UseMmapableMaps = a.probe.GetKernelVersion().HaveMmapableMaps()
+	apiStatus.Environment.UseRingBuffer = a.probe.UseRingBuffers()
 
 	return apiStatus, nil
 }
 
 // DumpNetworkNamespace handles network namespace cache dump requests
-func (a *APIServer) DumpNetworkNamespace(ctx context.Context, params *api.DumpNetworkNamespaceParams) (*api.DumpNetworkNamespaceMessage, error) {
+func (a *APIServer) DumpNetworkNamespace(ctx context.Context, params *api.DumpNetworkNamespaceParams) (*api.DumpNetworkNamespaceMessage, error) { //nolint:revive // TODO fix revive unused-parameter
 	return a.probe.GetResolvers().NamespaceResolver.DumpNetworkNamespaces(params), nil
 }
 
 // RunSelfTest runs self test and then reload the current policies
-func (a *APIServer) RunSelfTest(ctx context.Context, params *api.RunSelfTestParams) (*api.SecuritySelfTestResultMessage, error) {
+func (a *APIServer) RunSelfTest(ctx context.Context, params *api.RunSelfTestParams) (*api.SecuritySelfTestResultMessage, error) { //nolint:revive // TODO fix revive unused-parameter
 	if a.cwsConsumer == nil {
 		return nil, errors.New("failed to found module in APIServer")
 	}

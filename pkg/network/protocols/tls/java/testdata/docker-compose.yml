@@ -13,4 +13,4 @@ services:
         soft: 1024
         hard: 524288
     volumes:
-      - ./:/v:z
+      - ${TESTDIR}:/v:z

@@ -44,9 +44,13 @@ build do
       "--disable-nls",
       "--enable-pic"
     ]
-  
+
     configure(*configure_options, env: env)
-  
+
     make "-j #{workers}", env: env
     make "install", env: env
+
+    delete "#{install_dir}/embedded/lib/libdw.a"
+    delete "#{install_dir}/embedded/lib/libelf.a"
+    delete "#{install_dir}/embedded/lib/libasm.a"
   end
