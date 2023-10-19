@@ -152,22 +152,24 @@ func (p *containerProvider) GetContainers(cacheValidity time.Duration, previousC
 
 		containerStats, err := collector.GetContainerStats(container.Namespace, container.ID, cacheValidity)
 		if err != nil || containerStats == nil {
-			log.Debugf("Container stats for: %+v not available through collector %q, err: %v", container, collector.ID(), err)
+			log.Debugf("Container stats for: %+v not available, err: %v", container, err)
 			// If main container stats are missing, we skip the container
 			continue
 		}
 		computeContainerStats(hostCPUCount, containerStats, previousContainerRates, &outPreviousStats, processContainer)
 
 		// Building PID to CID mapping for NPM
-		if containerStats.PID != nil {
-			for _, pid := range containerStats.PID.PIDs {
+		pids, err := collector.GetPIDs(container.Namespace, container.ID, cacheValidity)
+		if err == nil && pids != nil {
+			log.Debugf("PIDs for: %+v not available, err: %v", err)
+			for _, pid := range pids {
 				pidToCid[pid] = container.ID
 			}
 		}
 
 		containerNetworkStats, err := collector.GetContainerNetworkStats(container.Namespace, container.ID, cacheValidity)
 		if err != nil {
-			log.Debugf("Container network stats for: %+v not available through collector %q, err: %v", container, collector.ID(), err)
+			log.Debugf("Container network stats for: %+v not available, err: %v", container, err)
 		}
 		computeContainerNetworkStats(containerNetworkStats, previousContainerRates, &outPreviousStats, processContainer)
 

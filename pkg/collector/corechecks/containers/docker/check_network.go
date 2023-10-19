@@ -106,8 +106,11 @@ func (dn *dockerNetworkExtension) Process(tags []string, container *workloadmeta
 		tags:         tags,
 	}
 
-	if containerStats.PID != nil {
-		containerEntry.pids = containerStats.PID.PIDs
+	pids, err := collector.GetPIDs(container.Namespace, container.ID, cacheValidity)
+	if err == nil && pids != nil {
+		containerEntry.pids = pids
+	} else if err != nil {
+		log.Debugf("Metrics provider returned nil pids for container: %v", container)
 	}
 
 	dn.containerNetworkEntries[container.ID] = containerEntry

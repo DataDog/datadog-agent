@@ -25,22 +25,19 @@ import (
 )
 
 const (
-	dockerCollectorID = "docker"
+	collectorID       = "docker"
+	collectorPriority = 1
 
 	pidCacheGCInterval     = 60 * time.Second
 	pidCacheFullRefreshKey = "refreshTime"
 )
 
 func init() {
-	provider.GetProvider().RegisterCollector(provider.CollectorMetadata{
-		ID: dockerCollectorID,
-		// This collector has a lower priority than the system collector
-		Priority: 1,
-		Runtimes: []string{provider.RuntimeNameDocker},
-		Factory: func() (provider.Collector, error) {
-			return newDockerCollector()
+	provider.RegisterCollector(provider.CollectorFactory{
+		ID: collectorID,
+		Constructor: func(cache *provider.Cache) (provider.CollectorMetadata, error) {
+			return newDockerCollector(cache)
 		},
-		DelegateCache: true,
 	})
 }
 
@@ -50,25 +47,37 @@ type dockerCollector struct {
 	metadataStore workloadmeta.Store
 }
 
-func newDockerCollector() (*dockerCollector, error) {
+func newDockerCollector(cache *provider.Cache) (provider.CollectorMetadata, error) {
+	var collectorMetadata provider.CollectorMetadata
+
 	if !config.IsFeaturePresent(config.Docker) {
-		return nil, provider.ErrPermaFail
+		return collectorMetadata, provider.ErrPermaFail
 	}
 
 	du, err := docker.GetDockerUtil()
 	if err != nil {
-		return nil, provider.ConvertRetrierErr(err)
+		return collectorMetadata, provider.ConvertRetrierErr(err)
 	}
 
-	return &dockerCollector{
+	collector := &dockerCollector{
 		du:            du,
 		pidCache:      provider.NewCache(pidCacheGCInterval),
 		metadataStore: workloadmeta.GetGlobalStore(),
-	}, nil
-}
+	}
 
-func (d *dockerCollector) ID() string {
-	return dockerCollectorID
+	collectors := &provider.Collectors{
+		Stats:             provider.MakeRef[provider.ContainerStatsGetter](collector, collectorPriority),
+		Network:           provider.MakeRef[provider.ContainerNetworkStatsGetter](collector, collectorPriority),
+		PIDs:              provider.MakeRef[provider.ContainerPIDsGetter](collector, collectorPriority),
+		ContainerIDForPID: provider.MakeRef[provider.ContainerIDForPIDRetriever](collector, collectorPriority),
+	}
+
+	return provider.CollectorMetadata{
+		ID: collectorID,
+		Collectors: provider.CollectorCatalog{
+			provider.RuntimeNameContainerd: provider.MakeCached(collectorID, cache, collectors),
+		},
+	}, nil
 }
 
 // GetContainerStats returns stats by container ID.
@@ -79,12 +88,6 @@ func (d *dockerCollector) GetContainerStats(containerNS, containerID string, cac
 	}
 	outStats := convertContainerStats(&stats.Stats)
 
-	// Try to collect the container's PIDs via Docker API, if we can't spec() will fill in the entry PID
-	outStats.PID.PIDs, err = d.pids(containerID)
-	if err != nil {
-		log.Warnf("Unable to collect container's PIDs via Docker API, PID list will be incomplete, cid: %s, err: %v", containerID, err)
-	}
-
 	contSpec, err := d.spec(containerID)
 	if err == nil {
 		fillStatsFromSpec(outStats, contSpec)
@@ -92,12 +95,6 @@ func (d *dockerCollector) GetContainerStats(containerNS, containerID string, cac
 		log.Debugf("Unable to inspect container some metrics will be missing, cid: %s, err: %v", containerID, err)
 	}
 	return outStats, nil
-}
-
-// GetContainerOpenFilesCount returns open files count by container ID.
-func (d *dockerCollector) GetContainerOpenFilesCount(containerNS, containerID string, cacheValidity time.Duration) (*uint64, error) {
-	// Not available
-	return nil, nil
 }
 
 // GetContainerNetworkStats returns network stats by container ID.
@@ -108,6 +105,28 @@ func (d *dockerCollector) GetContainerNetworkStats(containerNS, containerID stri
 	}
 
 	return convertNetworkStats(stats), nil
+}
+
+// GetPIDs returns the list of PIDs by container ID.
+func (d *dockerCollector) GetPIDs(containerNS, containerID string, cacheValidity time.Duration) ([]int, error) {
+	// Try to collect the container's PIDs via Docker API, if we can't spec() will fill in the entry PID
+	pids, err := d.pids(containerID)
+	if err == nil {
+		return pids, nil
+	} else {
+		log.Warnf("Unable to collect container's PIDs via Docker API, PID list will be incomplete, cid: %s, err: %v", containerID, err)
+	}
+
+	spec, err := d.spec(containerID)
+	if err != nil {
+		return nil, err
+	}
+
+	if spec.State != nil && spec.State.Pid > 0 {
+		pids = []int{spec.State.Pid}
+	}
+
+	return pids, nil
 }
 
 // GetContainerIDForPID returns the container ID for given PID
@@ -197,14 +216,6 @@ func (d *dockerCollector) refreshPIDCache(currentTime time.Time, cacheValidity t
 func fillStatsFromSpec(containerStats *provider.ContainerStats, spec *types.ContainerJSON) {
 	if spec == nil || containerStats == nil {
 		return
-	}
-
-	if spec.State != nil && spec.State.Pid > 0 {
-		if containerStats.PID == nil {
-			containerStats.PID = &provider.ContainerPIDStats{}
-		}
-
-		containerStats.PID.PIDs = append(containerStats.PID.PIDs, spec.State.Pid)
 	}
 
 	computeCPULimit(containerStats, spec)

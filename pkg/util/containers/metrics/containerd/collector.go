@@ -26,21 +26,19 @@ import (
 )
 
 const (
-	containerdCollectorID = "containerd"
+	collectorID       = "containerd"
+	collectorPriority = 1
 
 	pidCacheGCInterval     = 60 * time.Second
 	pidCacheFullRefreshKey = "refreshTime"
 )
 
 func init() {
-	provider.GetProvider().RegisterCollector(provider.CollectorMetadata{
-		ID:       containerdCollectorID,
-		Priority: 1, // Less than the "system" collector, so we can rely on cgroups directly if possible
-		Runtimes: []string{provider.RuntimeNameContainerd},
-		Factory: func() (provider.Collector, error) {
-			return newContainerdCollector()
+	provider.RegisterCollector(provider.CollectorFactory{
+		ID: collectorID,
+		Constructor: func(cache *provider.Cache) (provider.CollectorMetadata, error) {
+			return newContainerdCollector(cache)
 		},
-		DelegateCache: true,
 	})
 }
 
@@ -50,26 +48,37 @@ type containerdCollector struct {
 	pidCache          *provider.Cache
 }
 
-func newContainerdCollector() (*containerdCollector, error) {
+func newContainerdCollector(cache *provider.Cache) (provider.CollectorMetadata, error) {
+	var collectorMetadata provider.CollectorMetadata
+
 	if !config.IsFeaturePresent(config.Containerd) {
-		return nil, provider.ErrPermaFail
+		return collectorMetadata, provider.ErrPermaFail
 	}
 
 	client, err := cutil.NewContainerdUtil()
 	if err != nil {
-		return nil, provider.ConvertRetrierErr(err)
+		return collectorMetadata, provider.ConvertRetrierErr(err)
 	}
 
-	return &containerdCollector{
+	collector := &containerdCollector{
 		client:            client,
 		workloadmetaStore: workloadmeta.GetGlobalStore(),
 		pidCache:          provider.NewCache(pidCacheGCInterval),
-	}, nil
-}
+	}
 
-// ID returns the collector ID.
-func (c *containerdCollector) ID() string {
-	return containerdCollectorID
+	collectors := &provider.Collectors{
+		Stats:             provider.MakeRef[provider.ContainerStatsGetter](collector, collectorPriority),
+		Network:           provider.MakeRef[provider.ContainerNetworkStatsGetter](collector, collectorPriority),
+		PIDs:              provider.MakeRef[provider.ContainerPIDsGetter](collector, collectorPriority),
+		ContainerIDForPID: provider.MakeRef[provider.ContainerIDForPIDRetriever](collector, collectorPriority),
+	}
+
+	return provider.CollectorMetadata{
+		ID: collectorID,
+		Collectors: provider.CollectorCatalog{
+			provider.RuntimeNameContainerd: provider.MakeCached(collectorID, cache, collectors),
+		},
+	}, nil
 }
 
 // GetContainerStats returns stats by container ID.
@@ -91,24 +100,6 @@ func (c *containerdCollector) GetContainerStats(containerNS, containerID string,
 		return containerStats, nil
 	}
 
-	// Filling the PIDs if returned
-	processes, err := c.client.TaskPids(containerNS, container)
-	if err == nil {
-		if len(processes) > 0 {
-			if containerStats.PID == nil {
-				containerStats.PID = &provider.ContainerPIDStats{
-					PIDs: make([]int, len(processes)),
-				}
-			}
-
-			for _, process := range processes {
-				containerStats.PID.PIDs = append(containerStats.PID.PIDs, int(process.Pid))
-			}
-		}
-	} else {
-		log.Debugf("Unable to get TaskPids for containerwith ID %s: %v", containerID, err)
-	}
-
 	// Filling information from Spec
 	var OCISpec *oci.Spec
 	info, err := c.client.Info(containerNS, container)
@@ -125,12 +116,6 @@ func (c *containerdCollector) GetContainerStats(containerNS, containerID string,
 	return containerStats, nil
 }
 
-// GetContainerOpenFilesCount returns open files count by container ID.
-func (c *containerdCollector) GetContainerOpenFilesCount(containerNS, containerID string, cacheValidity time.Duration) (*uint64, error) {
-	// Not available
-	return nil, nil
-}
-
 // GetContainerNetworkStats returns network stats by container ID.
 func (c *containerdCollector) GetContainerNetworkStats(containerNS, containerID string, cacheValidity time.Duration) (*provider.ContainerNetworkStats, error) {
 	metrics, err := c.getContainerdMetrics(containerNS, containerID)
@@ -139,6 +124,27 @@ func (c *containerdCollector) GetContainerNetworkStats(containerNS, containerID 
 	}
 
 	return processContainerNetworkStats(containerID, metrics)
+}
+
+// GetPIDs returns the list of PIDs by container ID.
+func (c *containerdCollector) GetPIDs(containerNS, containerID string, cacheValidity time.Duration) ([]int, error) {
+	container, err := c.client.Container(containerNS, containerID)
+	if err != nil {
+		log.Debugf("Could not fetch container with ID %s: %v", containerID, err)
+		return nil, err
+	}
+
+	processes, err := c.client.TaskPids(containerNS, container)
+	if err != nil || len(processes) == 0 {
+		log.Debugf("Unable to get TaskPids for containerwith ID %s: %v", containerID, err)
+		return nil, err
+	}
+
+	pids := make([]int, len(processes))
+	for _, process := range processes {
+		pids = append(pids, int(process.Pid))
+	}
+	return pids, nil
 }
 
 // GetContainerIDForPID returns the container ID for given PID
@@ -161,12 +167,6 @@ func (c *containerdCollector) GetContainerIDForPID(pid int, cacheValidity time.D
 		return cID.(string), nil
 	}
 
-	return "", nil
-}
-
-// GetSelfContainerID returns current process container ID
-func (c *containerdCollector) GetSelfContainerID() (string, error) {
-	// Not available
 	return "", nil
 }
 
