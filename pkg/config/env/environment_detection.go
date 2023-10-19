@@ -81,18 +81,11 @@ func IsAutoconfigEnabled(cfg model.Reader) bool {
 		if autoconfStr, found := os.LookupEnv(envVar); found {
 			activateAutoconfFromEnv, err := strconv.ParseBool(autoconfStr)
 			if err != nil {
-				log.Errorf(
-					"Unable to parse Autoconf value: '%s', err: %v - autoconfig from environment will be deactivated",
-					autoconfStr,
-					err,
-				)
+				log.Errorf("Unable to parse Autoconf value: '%s', err: %v - autoconfig from environment will be deactivated", autoconfStr, err)
 				return false
 			}
 
-			log.Warnf(
-				"Usage of '%s' variable is deprecated - please use DD_AUTOCONFIG_FROM_ENVIRONMENT or 'autoconfig_from_environment' in config file",
-				envVar,
-			)
+			log.Warnf("Usage of '%s' variable is deprecated - please use DD_AUTOCONFIG_FROM_ENVIRONMENT or 'autoconfig_from_environment' in config file",envVar)
 			return activateAutoconfFromEnv
 		}
 	}
