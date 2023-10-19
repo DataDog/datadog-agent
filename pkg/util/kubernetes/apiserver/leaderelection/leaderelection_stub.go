@@ -12,4 +12,4 @@ package leaderelection
 import "context"
 
 // CreateGlobalLeaderEngine does nothing
-func CreateGlobalLeaderEngine(ctx context.Context) {}
+func CreateGlobalLeaderEngine(_ context.Context) {}
