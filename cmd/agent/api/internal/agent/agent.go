@@ -69,9 +69,9 @@ func SetupHandlers(
 	r.HandleFunc("/hostname", getHostname).Methods("GET")
 	r.HandleFunc("/flare", func(w http.ResponseWriter, r *http.Request) { makeFlare(w, r, flareComp) }).Methods("POST")
 	r.HandleFunc("/stop", stopAgent).Methods("POST")
-	r.HandleFunc("/status", getStatus).Methods("GET")
+	r.HandleFunc("/status", func(w http.ResponseWriter, r *http.Request) { getStatus(w, r, invAgent) }).Methods("GET")
 	r.HandleFunc("/stream-event-platform", streamEventPlatform()).Methods("POST")
-	r.HandleFunc("/status/formatted", getFormattedStatus).Methods("GET")
+	r.HandleFunc("/status/formatted", func(w http.ResponseWriter, r *http.Request) { getFormattedStatus(w, r, invAgent) }).Methods("GET")
 	r.HandleFunc("/status/health", getHealth).Methods("GET")
 	r.HandleFunc("/{component}/status", componentStatusGetterHandler).Methods("GET")
 	r.HandleFunc("/{component}/status", componentStatusHandler).Methods("POST")
@@ -193,10 +193,10 @@ func componentStatusHandler(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func getStatus(w http.ResponseWriter, r *http.Request) {
+func getStatus(w http.ResponseWriter, r *http.Request, invAgent inventoryagent.Component) {
 	log.Info("Got a request for the status. Making status.")
 	verbose := r.URL.Query().Get("verbose") == "true"
-	s, err := status.GetStatus(verbose)
+	s, err := status.GetStatus(verbose, invAgent)
 	w.Header().Set("Content-Type", "application/json")
 	if err != nil {
 		setJSONError(w, log.Errorf("Error getting status. Error: %v, Status: %v", err, s), 500)
@@ -331,9 +331,9 @@ func getDogstatsdStats(w http.ResponseWriter, _ *http.Request, dogstatsdServer d
 	w.Write(jsonStats)
 }
 
-func getFormattedStatus(w http.ResponseWriter, r *http.Request) {
+func getFormattedStatus(w http.ResponseWriter, _ *http.Request, invAgent inventoryagent.Component) {
 	log.Info("Got a request for the formatted status. Making formatted status.")
-	s, err := status.GetAndFormatStatus()
+	s, err := status.GetAndFormatStatus(invAgent)
 	if err != nil {
 		setJSONError(w, log.Errorf("Error getting status: %v %v", err, s), 500)
 		return
