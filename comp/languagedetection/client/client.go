@@ -204,16 +204,11 @@ func (c *client) startStreaming() {
 		select {
 		// frequently send only fresh updates
 		case <-freshUpdateTimer.C:
-			data := c.getFreshBatch()
+			data := c.getFreshBatchProto()
 			c.send(data)
 		// less frequently, send the entire batch
 		case <-periodicFlushTimer.C:
-			var data *process.ParentLanguageAnnotationRequest
-			c.mutex.Lock()
-			if len(c.currentBatch) > 0 {
-				data = c.currentBatch.toProto()
-			}
-			c.mutex.Unlock()
+			data := c.getCurrentBatchProto()
 			c.send(data)
 		case <-c.ctx.Done():
 			return
@@ -242,6 +237,8 @@ func (c *client) send(data *process.ParentLanguageAnnotationRequest) {
 // pod was not found because it is possible that the pod will be added to workloadmeta after the
 // kubelet collector pulls data
 func (c *client) retryProcessEventsWithoutPod() {
+	c.mutex.Lock()
+	defer c.mutex.Unlock()
 	for _, event := range c.processesWithoutPod {
 		c.processProcessEvent(event, true)
 	}
@@ -291,11 +288,20 @@ func (c *client) processPodEvent(podEvent workloadmeta.Event) {
 	if podEvent.Type == workloadmeta.EventTypeUnset {
 		pod := podEvent.Entity.(*workloadmeta.KubernetesPod)
 		delete(c.currentBatch, pod.Name)
+		delete(c.freshlyUpdatedPods, pod.Name)
 	}
 }
 
+func (c *client) getCurrentBatchProto() *process.ParentLanguageAnnotationRequest {
+	c.mutex.Lock()
+	defer c.mutex.Unlock()
+	return c.currentBatch.toProto()
+}
+
 // getFreshBatch returns a batch with only freshly updated pods
-func (c *client) getFreshBatch() *process.ParentLanguageAnnotationRequest {
+func (c *client) getFreshBatchProto() *process.ParentLanguageAnnotationRequest {
+	c.mutex.Lock()
+	defer c.mutex.Unlock()
 	batch := make(batch)
 
 	for podName := range c.freshlyUpdatedPods {
@@ -304,11 +310,11 @@ func (c *client) getFreshBatch() *process.ParentLanguageAnnotationRequest {
 		}
 	}
 
+	c.freshlyUpdatedPods = make(map[string]struct{}, 0)
+
 	if len(batch) > 0 {
 		return batch.toProto()
 	}
-
-	c.freshlyUpdatedPods = make(map[string]struct{}, 0)
 
 	return nil
 }

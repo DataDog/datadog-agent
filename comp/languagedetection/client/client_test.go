@@ -139,6 +139,61 @@ func TestClientSend(t *testing.T) {
 	assert.Equal(t, client.currentBatch, batch{podName: podInfo})
 }
 
+func TestClientSendFreshPods(t *testing.T) {
+	client, _, _ := newTestClient(t, nil)
+	container := containerInfo{
+		"java-cont": {
+			"java": {},
+		},
+	}
+
+	initContainer := containerInfo{
+		"go-cont": {
+			"go": {},
+		},
+	}
+
+	podInfo := &podInfo{
+		namespace:         "default",
+		containerInfo:     container,
+		initContainerInfo: initContainer,
+		ownerRef: &workloadmeta.KubernetesPodOwner{
+			Name: "dummyrs",
+			Kind: "replicaset",
+			ID:   "dummyid",
+		},
+	}
+	podName := "nginx"
+	client.currentBatch[podName] = podInfo
+
+	// since `freshlyUpdatedPods` is empty, `getFreshBatchProto` should return Nil
+	freshData := client.getFreshBatchProto()
+	assert.Nil(t, freshData)
+
+	client.freshlyUpdatedPods = map[string]struct{}{"nginx": {}}
+
+	freshData = client.getFreshBatchProto()
+	assert.Equal(t, &pbgo.ParentLanguageAnnotationRequest{
+		PodDetails: []*pbgo.PodLanguageDetails{
+			{
+				Name:                 podName,
+				Namespace:            podInfo.namespace,
+				InitContainerDetails: podInfo.initContainerInfo.toProto(),
+				ContainerDetails:     podInfo.containerInfo.toProto(),
+				Ownerref: &pbgo.KubeOwnerInfo{
+					Name: "dummyrs",
+					Kind: "replicaset",
+					Id:   "dummyid",
+				},
+			},
+		},
+	}, freshData)
+	// make sure we didn't touch the current batch
+	assert.Equal(t, client.currentBatch, batch{podName: podInfo})
+	// make sure `freshlyUpdatedPods` is emptied
+	assert.Empty(t, client.freshlyUpdatedPods)
+}
+
 func TestClientProcessEvent_EveryEntityStored(t *testing.T) {
 	mockStore := workloadmeta.NewMockStore()
 	client, _, _ := newTestClient(t, mockStore)
@@ -308,6 +363,193 @@ func TestClientProcessEvent_EveryEntityStored(t *testing.T) {
 
 	client.processEvent(unsetPodEventBundle)
 	assert.Empty(t, client.currentBatch)
+	assert.Empty(t, client.freshlyUpdatedPods)
+}
+
+func TestClientProcessEvent_PodMissing(t *testing.T) {
+	mockStore := workloadmeta.NewMockStore()
+	client, _, _ := newTestClient(t, mockStore)
+
+	container := &workloadmeta.Container{
+		EntityID: workloadmeta.EntityID{
+			ID:   "nginx-cont-id",
+			Kind: workloadmeta.KindContainer,
+		},
+		EntityMeta: workloadmeta.EntityMeta{
+			Name: "nginx-cont-name",
+		},
+		Owner: &workloadmeta.EntityID{
+			ID:   "nginx-pod-id",
+			Kind: workloadmeta.KindKubernetesPod,
+		},
+	}
+
+	initContainer := &workloadmeta.Container{
+		EntityID: workloadmeta.EntityID{
+			ID:   "init-nginx-cont-id",
+			Kind: workloadmeta.KindContainer,
+		},
+		EntityMeta: workloadmeta.EntityMeta{
+			Name: "nginx-cont-name",
+		},
+		Owner: &workloadmeta.EntityID{
+			ID:   "nginx-pod-id",
+			Kind: workloadmeta.KindKubernetesPod,
+		},
+	}
+
+	pod := &workloadmeta.KubernetesPod{
+		EntityID: workloadmeta.EntityID{
+			ID:   "nginx-pod-id",
+			Kind: workloadmeta.KindKubernetesPod,
+		},
+		EntityMeta: workloadmeta.EntityMeta{
+			Name:      "nginx-pod-name",
+			Namespace: "nginx-pod-namespace",
+		},
+		Containers: []workloadmeta.OrchestratorContainer{
+			{
+				ID:   "nginx-cont-id",
+				Name: "nginx-cont-name",
+			},
+		},
+		InitContainers: []workloadmeta.OrchestratorContainer{
+			{
+				ID:   "init-nginx-cont-id",
+				Name: "nginx-cont-name",
+			},
+		},
+		Owners: []workloadmeta.KubernetesPodOwner{
+			{
+				ID:   "nginx-replicaset-id",
+				Name: "nginx-replicaset-name",
+				Kind: "replicaset",
+			},
+		},
+	}
+
+	process := &workloadmeta.Process{
+		EntityID: workloadmeta.EntityID{
+			Kind: workloadmeta.KindProcess,
+			ID:   "123",
+		},
+		Language: &languagemodels.Language{
+			Name: "java",
+		},
+		ContainerID: "nginx-cont-id",
+	}
+
+	initProcess := &workloadmeta.Process{
+		EntityID: workloadmeta.EntityID{
+			Kind: workloadmeta.KindProcess,
+			ID:   "123",
+		},
+		Language: &languagemodels.Language{
+			Name: "go",
+		},
+		ContainerID: "init-nginx-cont-id",
+	}
+
+	eventBundle := workloadmeta.EventBundle{
+		Events: []workloadmeta.Event{
+			{
+				Entity: initProcess,
+				Type:   workloadmeta.EventTypeSet,
+			},
+			{
+				Entity: process,
+				Type:   workloadmeta.EventTypeSet,
+			},
+		},
+		Ch: make(chan struct{}),
+	}
+
+	collectorEvents := []workloadmeta.CollectorEvent{
+		{
+			Type:   workloadmeta.EventTypeSet,
+			Source: workloadmeta.SourceAll,
+			Entity: container,
+		},
+		{
+			Type:   workloadmeta.EventTypeSet,
+			Source: workloadmeta.SourceAll,
+			Entity: initContainer,
+		},
+		{
+			Type:   workloadmeta.EventTypeSet,
+			Source: workloadmeta.SourceAll,
+			Entity: initProcess,
+		},
+		{
+			Type:   workloadmeta.EventTypeSet,
+			Source: workloadmeta.SourceAll,
+			Entity: process,
+		},
+	}
+
+	// store everything but the pod
+	mockStore.Notify(collectorEvents)
+
+	// process the events
+	client.processEvent(eventBundle)
+
+	// make sure the current batch is not updated
+	assert.Empty(t, client.currentBatch)
+
+	// make sure the events are added in `processesWithoutPod` so processing can be retried
+	assert.Equal(t, eventBundle.Events, client.processesWithoutPod)
+	assert.Empty(t, client.freshlyUpdatedPods)
+
+	// add the pod in workloadmeta
+	mockStore.Notify([]workloadmeta.CollectorEvent{
+		{
+			Type:   workloadmeta.EventTypeSet,
+			Source: workloadmeta.SourceAll,
+			Entity: pod,
+		},
+	})
+
+	// retry processing processes without pod
+	client.retryProcessEventsWithoutPod()
+	assert.Equal(t,
+		batch{
+			"nginx-pod-name": {
+				namespace: "nginx-pod-namespace",
+				containerInfo: containerInfo{
+					"nginx-cont-name": {
+						"java": {},
+					},
+				},
+				initContainerInfo: containerInfo{
+					"nginx-cont-name": {
+						"go": {},
+					},
+				},
+				ownerRef: &workloadmeta.KubernetesPodOwner{
+					ID:   "nginx-replicaset-id",
+					Name: "nginx-replicaset-name",
+					Kind: "replicaset",
+				},
+			},
+		},
+		client.currentBatch,
+	)
+	assert.Empty(t, client.processesWithoutPod)
+	assert.Equal(t, client.freshlyUpdatedPods, map[string]struct{}{"nginx-pod-name": {}})
+
+	unsetPodEventBundle := workloadmeta.EventBundle{
+		Events: []workloadmeta.Event{
+			{
+				Entity: pod,
+				Type:   workloadmeta.EventTypeUnset,
+			},
+		},
+		Ch: make(chan struct{}),
+	}
+
+	client.processEvent(unsetPodEventBundle)
+	assert.Empty(t, client.currentBatch)
+	assert.Empty(t, client.freshlyUpdatedPods)
 }
 
 func TestGetContainerInfoFromPod(t *testing.T) {
