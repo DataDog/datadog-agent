@@ -85,7 +85,7 @@ func connectToDB(driver string) (*sqlx.DB, error) {
 }
 
 func initAndStartAgentDemultiplexer(t *testing.T) {
-	deps := fxutil.Test[aggregator.AggregatorTestDeps](t, defaultforwarder.MockModule, config.MockModule, log.MockModule)
+	deps := fxutil.Test[aggregator.TestDeps](t, defaultforwarder.MockModule, config.MockModule, log.MockModule)
 	opts := aggregator.DefaultAgentDemultiplexerOptions()
 	opts.DontStartForwarders = true
 

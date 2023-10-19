@@ -14,7 +14,7 @@ single-machine-performance-workload-checks:
     when: always
   variables:
     SMP_VERSION: 0.10.0
-    LADING_VERSION: 0.18.0
+    LADING_VERSION: 0.19.1
     WARMUP_SECONDS: 45
     TOTAL_SAMPLES: 600
     REPLICAS: 5

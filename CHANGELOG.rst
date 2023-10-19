@@ -2,6 +2,49 @@
 Release Notes
 =============
 
+.. _Release Notes_7.48.1:
+
+7.48.1 / 6.48.1
+======
+
+.. _Release Notes_7.48.1_Prelude:
+
+Prelude
+-------
+
+Release on: 2023-10-17
+
+- Please refer to the `7.48.1 tag on integrations-core <https://github.com/DataDog/integrations-core/blob/master/AGENT_CHANGELOG.md#datadog-agent-version-7481>`_ for the list of changes on the Core Checks
+
+
+.. _Release Notes_7.48.1_Upgrade Notes:
+
+Upgrade Notes
+-------------
+
+- Upgraded Python 3.9 to Python 3.9.18
+
+
+.. _Release Notes_7.48.1_Security Notes:
+
+Security Notes
+--------------
+
+- Bump embedded curl version to 8.4.0 to fix CVE-2023-38545 and CVE-2023-38546
+
+- Updated the version of OpenSSL used by Python on Windows to `1.1.1w`; addressed CVE-2023-4807, CVE-2023-3817, and CVE-2023-3446
+
+
+.. _Release Notes_7.48.1_Bug Fixes:
+
+Bug Fixes
+---------
+
+- On some slow drives, when the Agent shuts down suddenly the Logs Agent registry file can become corrupt.
+  This means that when the Agent starts again the registry file can't be read and therefore the Logs Agent reads logs from the beginning again.
+  With this update, the Agent now attempts to update the registry file atomically to reduce the chances of a corrupted file.
+
+
 .. _Release Notes_7.48.0:
 
 7.48.0 / 6.48.0

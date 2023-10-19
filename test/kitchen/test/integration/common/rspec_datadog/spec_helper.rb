@@ -219,12 +219,10 @@ end
 def log_trace(flavor, action)
   service = get_service_name(flavor)
   if os == :windows
-    if action == "stop" || action == "restart"
-      system "wevtutil qe System /q:\"*[System[(EventID=7040) and (EventData[Data[@Name='param1']='#{service}'])]\""
-    end
-    if action == "start" || action == "restart"
-      system "wevtutil qe System /q:\"*[System[(EventID=7036) and (EventData[Data[@Name='param1']='#{service}'])]\""
-    end
+    # Collect events from DatadogAgent and this service, since this service may depend on datadogagent it may be
+    # that the actual error is coming from datadogagent failing to start.
+    system "powershell.exe -Command \"Get-EventLog -LogName Application -Newest 10 -Source datadogagent,#{service} | fl\""
+    system "powershell.exe -Command \"Get-EventLog -LogName System -Newest 10 -Source \\\"Service Control Manager\\\" | fl\""
   else
     if has_systemctl
       system "sudo journalctl -u #{service} -xe --no-pager"
@@ -491,10 +489,6 @@ end
 
 shared_examples_for 'Agent uninstall' do
   it_behaves_like 'an Agent that is removed'
-end
-
-def is_ng_installer()
-  parse_dna().fetch('dd-agent-rspec').fetch('ng_installer')
 end
 
 shared_examples_for "an installed Agent" do
