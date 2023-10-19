@@ -26,8 +26,13 @@ func (c containerInfo) toProto() []*pbgo.ContainerLanguageDetails {
 	return res
 }
 
-func (l languageSet) add(language string) {
+// add returns if a language was added
+func (l languageSet) add(language string) bool {
+	if _, ok := l[language]; ok {
+		return false
+	}
 	l[language] = struct{}{}
+	return true
 }
 
 func (l languageSet) merge(lang languageSet) {

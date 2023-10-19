@@ -29,7 +29,7 @@ type MockDCAClient struct {
 
 func (m *MockDCAClient) PostLanguageMetadata(ctx context.Context, request *pbgo.ParentLanguageAnnotationRequest) error {
 	m.payload = append(m.payload, request)
-	m.doneCh <- struct{}{}
+	go func() { m.doneCh <- struct{}{} }()
 	return nil
 }
 
@@ -57,7 +57,7 @@ func newTestClient(t *testing.T, store workloadmeta.Store) (*client, *MockDCACli
 	return client, mockDCAClient, doneCh
 }
 
-func TestClientDisabled(t *testing.T) {
+func TestClientEnabled(t *testing.T) {
 	testCases := []struct {
 		languageEnabled     string
 		clusterAgentEnabled string
@@ -87,7 +87,7 @@ func TestClientDisabled(t *testing.T) {
 	}
 }
 
-func TestClientFlush(t *testing.T) {
+func TestClientSend(t *testing.T) {
 	client, mockDCAClient, doneCh := newTestClient(t, nil)
 	container := containerInfo{
 		"java-cont": {
@@ -114,8 +114,9 @@ func TestClientFlush(t *testing.T) {
 	podName := "nginx"
 	client.currentBatch[podName] = podInfo
 
-	// flush the batch as it is done in the client
-	go client.startStreaming()
+	client.send(client.currentBatch.toProto())
+
+	// wait that the mock dca client processes the message
 	<-doneCh
 	assert.Equal(t, []*pbgo.ParentLanguageAnnotationRequest{
 		{
@@ -135,12 +136,10 @@ func TestClientFlush(t *testing.T) {
 		},
 	}, mockDCAClient.payload)
 	// make sure we didn't touch the current batch
-	client.mutex.Lock()
-	defer client.mutex.Unlock()
-	assert.Len(t, client.currentBatch, 0)
+	assert.Equal(t, client.currentBatch, batch{podName: podInfo})
 }
 
-func TestClientProcessEvent(t *testing.T) {
+func TestClientProcessEvent_EveryEntityStored(t *testing.T) {
 	mockStore := workloadmeta.NewMockStore()
 	client, _, _ := newTestClient(t, mockStore)
 
@@ -242,6 +241,11 @@ func TestClientProcessEvent(t *testing.T) {
 		{
 			Type:   workloadmeta.EventTypeSet,
 			Source: workloadmeta.SourceAll,
+			Entity: pod,
+		},
+		{
+			Type:   workloadmeta.EventTypeSet,
+			Source: workloadmeta.SourceAll,
 			Entity: container,
 		},
 		{
@@ -258,11 +262,6 @@ func TestClientProcessEvent(t *testing.T) {
 			Type:   workloadmeta.EventTypeSet,
 			Source: workloadmeta.SourceAll,
 			Entity: process,
-		},
-		{
-			Type:   workloadmeta.EventTypeSet,
-			Source: workloadmeta.SourceAll,
-			Entity: pod,
 		},
 	}
 
@@ -294,6 +293,21 @@ func TestClientProcessEvent(t *testing.T) {
 		},
 		client.currentBatch,
 	)
+	assert.Empty(t, client.processesWithoutPod)
+	assert.Equal(t, client.freshlyUpdatedPods, map[string]struct{}{"nginx-pod-name": {}})
+
+	unsetPodEventBundle := workloadmeta.EventBundle{
+		Events: []workloadmeta.Event{
+			{
+				Entity: pod,
+				Type:   workloadmeta.EventTypeUnset,
+			},
+		},
+		Ch: make(chan struct{}),
+	}
+
+	client.processEvent(unsetPodEventBundle)
+	assert.Empty(t, client.currentBatch)
 }
 
 func TestGetContainerInfoFromPod(t *testing.T) {
