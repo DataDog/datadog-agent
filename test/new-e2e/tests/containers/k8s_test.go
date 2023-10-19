@@ -15,7 +15,6 @@ import (
 	"github.com/DataDog/agent-payload/v5/gogen"
 	"github.com/samber/lo"
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/suite"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/fields"
@@ -31,14 +30,13 @@ import (
 var GitCommit string
 
 type k8sSuite struct {
-	suite.Suite
+	baseSuite
 
 	AgentLinuxHelmInstallName   string
 	AgentWindowsHelmInstallName string
 
-	Fakeintake *fakeintake.Client
-	K8sConfig  *restclient.Config
-	K8sClient  *kubernetes.Clientset
+	K8sConfig *restclient.Config
+	K8sClient *kubernetes.Clientset
 }
 
 func (suite *k8sSuite) TestAgent() {
@@ -329,31 +327,6 @@ func (suite *k8sSuite) TestPrometheus() {
 			regexp.MustCompile(`^short_image:apps-prometheus$`),
 		},
 	)
-}
-
-func (suite *k8sSuite) testMetric(metricName string, filterTags []string, expectedTags []*regexp.Regexp) {
-	suite.Run(fmt.Sprintf("%s{%s}", metricName, strings.Join(filterTags, ",")), func() {
-		suite.EventuallyWithTf(func(collect *assert.CollectT) {
-			metrics, err := suite.Fakeintake.FilterMetrics(
-				metricName,
-				fakeintake.WithTags[*aggregator.MetricSeries](filterTags),
-			)
-			if err != nil {
-				collect.Errorf("%w", err)
-				return
-			}
-			if len(metrics) == 0 {
-				collect.Errorf("No `%s{%s}` metrics yet", metricName, strings.Join(filterTags, ","))
-				return
-			}
-
-			// Check tags
-			if err := assertTags(metrics[len(metrics)-1].GetTags(), expectedTags); err != nil {
-				collect.Errorf("Tags mismatch on `%s`: %w", metricName, err)
-				return
-			}
-		}, 2*time.Minute, 10*time.Second, "Failed finding %s{%s} with proper tags", metricName, strings.Join(filterTags, ","))
-	})
 }
 
 func (suite *k8sSuite) testHPA(namespace, deployment string) {

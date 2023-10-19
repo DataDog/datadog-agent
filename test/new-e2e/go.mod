@@ -30,7 +30,6 @@ require (
 	golang.org/x/sys v0.10.0
 	golang.org/x/term v0.10.0
 	gopkg.in/yaml.v2 v2.4.0
-	gopkg.in/zorkian/go-datadog-api.v2 v2.30.0
 )
 
 require (
@@ -170,7 +169,6 @@ require (
 	github.com/uber/jaeger-lib v2.4.1+incompatible // indirect
 	github.com/xanzy/ssh-agent v0.3.3 // indirect
 	github.com/zclconf/go-cty v1.13.2 // indirect
-	github.com/zorkian/go-datadog-api v2.30.0+incompatible // indirect
 	go.uber.org/atomic v1.11.0 // indirect
 	golang.org/x/exp v0.0.0-20230725093048-515e97ebf090 // indirect
 	golang.org/x/mod v0.12.0 // indirect
