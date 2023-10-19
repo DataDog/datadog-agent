@@ -6,11 +6,16 @@
 package channel
 
 import (
+	"fmt"
 	"os"
 	"strings"
 	"time"
 
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
+	"github.com/DataDog/datadog-agent/pkg/logs/internal/decoder"
+	"github.com/DataDog/datadog-agent/pkg/logs/internal/framer"
+	"github.com/DataDog/datadog-agent/pkg/logs/internal/parsers/noop"
+	"github.com/DataDog/datadog-agent/pkg/logs/internal/status"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 )
@@ -33,6 +38,7 @@ type Tailer struct {
 	source     *sources.LogSource
 	inputChan  chan *config.ChannelMessage
 	outputChan chan *message.Message
+	decoder    *decoder.Decoder
 	done       chan interface{}
 }
 
@@ -42,6 +48,7 @@ func NewTailer(source *sources.LogSource, inputChan chan *config.ChannelMessage,
 		source:     source,
 		inputChan:  inputChan,
 		outputChan: outputChan,
+		decoder:    decoder.NewDecoderWithFraming(sources.NewReplaceableSource(source), noop.New(), framer.UTF8Newline, nil, status.NewInfoRegistry()),
 		done:       make(chan interface{}, 1),
 	}
 }
@@ -64,8 +71,11 @@ func (t *Tailer) run() {
 		t.done <- true
 	}()
 
+	t.decoder.Start()
+
 	// Loop terminates when the channel is closed.
 	for logline := range t.inputChan {
+		fmt.Printf("Processing log line %v\n", string(logline.Content))
 		origin := message.NewOrigin(t.source)
 		origin.SetService(getServiceName())
 
@@ -81,7 +91,17 @@ func (t *Tailer) run() {
 			origin.SetTags(channelTags)
 		}
 
-		t.outputChan <- buildMessage(logline, origin)
+		msg := buildMessage(logline, origin)
+
+		fmt.Printf("Message sent to decoder: %v\n", string(msg.MessageContent.GetContent()))
+
+		t.decoder.InputChan <- msg
+
+		transformed := <-t.decoder.OutputChan
+
+		fmt.Printf("Message received from decoder: %v\n", string(transformed.GetContent()))
+
+		t.outputChan <- transformed
 	}
 }
 
