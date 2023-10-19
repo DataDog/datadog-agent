@@ -31,6 +31,8 @@ type Aggregator[P PayloadItem] struct {
 
 const (
 	encodingGzip     = "gzip"
+	encodingEmpty    = ""
+	encodingJSON     = "application/json"
 	encodingDeflate  = "deflate"
 	encodingProtobuf = "protobuf"
 )
