@@ -30,6 +30,22 @@ def check_if_team_exists(team: str):
         print("[WARNING] No team entered. Displaying linters errors for all teams.\n")
 
 
+def run_linters_for_each_os_x_arch(ctx, platforms, command, show_output):
+    """
+    Run the linters for different OSxArch combinations by using GOOS & GOARCH.
+    """
+    results_per_os_x_arch = dict()
+    platforms = platforms if platforms else CI_TESTED_OS_AND_ARCH
+    platforms = [p.split(',') for p in platforms]
+    for tested_os, tested_arch in platforms:
+        env = {"GOOS": tested_os, "GOARCH": tested_arch}
+        print(f"Running linters for {tested_os}_{tested_arch}...")
+        results_per_os_x_arch[f"{tested_os}_{tested_arch}"] = ctx.run(
+            command, env=env, warn=True, hide=not show_output
+        ).stdout
+    return merge_results(results_per_os_x_arch)
+
+
 @task(iterable=['platforms'])
 def show_linters_issues(
     ctx,
@@ -62,17 +78,7 @@ def show_linters_issues(
     if build_tags:
         command += f" --build-tags \"{build_tags}\""
 
-    # Run the linters for every OS x Arch and merge the results
-    results_per_os_x_arch = dict()
-    platforms = platforms if platforms else CI_TESTED_OS_AND_ARCH
-    platforms = [p.split(',') for p in platforms]
-    for tested_os, tested_arch in platforms:
-        env = {"GOOS": tested_os, "GOARCH": tested_arch}
-        print(f"Running linters for {tested_os}_{tested_arch}...")
-        results_per_os_x_arch[f"{tested_os}_{tested_arch}"] = ctx.run(
-            command, env=env, warn=True, hide=not show_output
-        ).stdout
-    merged_results = merge_results(results_per_os_x_arch)
+    merged_results = run_linters_for_each_os_x_arch(ctx, platforms, command, show_output)
 
     # Filter the results by filtering with filter_team and filter_linters.
     lints_filtered_by_team = filter_lints(merged_results, filter_team, filter_linters)
