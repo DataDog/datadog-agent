@@ -13,6 +13,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/configresolver"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/listeners"
+	"github.com/DataDog/datadog-agent/pkg/autodiscovery/providers/names"
+	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -30,7 +32,7 @@ type configManager interface {
 	processDelService(ctx context.Context, svc listeners.Service) integration.ConfigChanges
 
 	// processNewConfig handles a new config
-	processNewConfig(config integration.Config) integration.ConfigChanges
+	processNewConfig(config integration.Config) (integration.ConfigChanges, map[checkid.ID]checkid.ID)
 
 	// processDelConfigs handles removal of a config, unscheduling the config
 	// itself or, if it is a template, any configs resolved from it.  Note that
@@ -171,14 +173,16 @@ func (cm *reconcilingConfigManager) processDelService(_ context.Context, svc lis
 }
 
 // processNewConfig implements configManager#processNewConfig.
-func (cm *reconcilingConfigManager) processNewConfig(config integration.Config) integration.ConfigChanges {
+func (cm *reconcilingConfigManager) processNewConfig(config integration.Config) (integration.ConfigChanges, map[checkid.ID]checkid.ID) {
 	cm.m.Lock()
 	defer cm.m.Unlock()
+
+	changedIDsOfSecretsWithConfigs := make(map[checkid.ID]checkid.ID)
 
 	digest := config.Digest()
 	if _, found := cm.activeConfigs[digest]; found {
 		log.Debugf("Config %s (digest %s) is already tracked by autodiscovery", config.Name, config.Digest())
-		return integration.ConfigChanges{}
+		return integration.ConfigChanges{}, changedIDsOfSecretsWithConfigs
 	}
 
 	// Execute the steps outlined in the comment on reconcilingConfigManager:
@@ -203,16 +207,27 @@ func (cm *reconcilingConfigManager) processNewConfig(config integration.Config) 
 		}
 	} else {
 		// Secrets always need to be resolved (done in reconcileService if template)
-		config, err := decryptConfig(config)
+		decryptedConfig, err := decryptConfig(config)
 		if err != nil {
 			log.Errorf("Unable to resolve secrets for config '%s', dropping check configuration, err: %s", config.Name, err.Error())
 		}
 
-		changes.ScheduleConfig(config)
+		// Instances of the decrypted config change their ID when secrets are
+		// resolved.
+		// We're only interested in cluster checks because the change of ID only
+		// causes issues when there is a mismatch between the ID seen by the
+		// Cluster Agent when it does not decrypt secrets (config option
+		// secret_backend_skip_checks set to true) and the Runner when it
+		// decrypts secrets.
+		if config.Provider == names.ClusterChecks {
+			changedIDsOfSecretsWithConfigs = changedCheckIDs(config, decryptedConfig)
+		}
+
+		changes.ScheduleConfig(decryptedConfig)
 	}
 
 	//  4. update scheduledConfigs
-	return cm.applyChanges(changes)
+	return cm.applyChanges(changes), changedIDsOfSecretsWithConfigs
 }
 
 // processDelConfigs implements configManager#processDelConfigs.
@@ -376,4 +391,25 @@ func (cm *reconcilingConfigManager) applyChanges(changes integration.ConfigChang
 	}
 
 	return changes
+}
+
+// changedCheckIDs returns a map with the config instance IDs that changed
+// between the 2 given configs.
+func changedCheckIDs(originalConfig integration.Config, newConfig integration.Config) map[checkid.ID]checkid.ID {
+	res := make(map[checkid.ID]checkid.ID)
+
+	if len(originalConfig.Instances) != len(newConfig.Instances) {
+		log.Warn("Inconsistency detected. Original config and new one have a different number of instances")
+		return res
+	}
+
+	for i := 0; i < len(newConfig.Instances); i++ {
+		newID := checkid.BuildID(newConfig.Name, newConfig.FastDigest(), newConfig.Instances[i], newConfig.InitConfig)
+		originalID := checkid.BuildID(originalConfig.Name, originalConfig.FastDigest(), originalConfig.Instances[i], originalConfig.InitConfig)
+		if newID != originalID {
+			res[newID] = originalID
+		}
+	}
+
+	return res
 }
