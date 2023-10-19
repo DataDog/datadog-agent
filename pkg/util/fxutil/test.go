@@ -189,8 +189,16 @@ func getComponents(t *testing.T, mainType reflect.Type) []reflect.Type {
 	if isFxOutType(mainType) {
 		var types []reflect.Type
 		for i := 0; i < mainType.NumField(); i++ {
-			fieldType := mainType.Field(i).Type
-			if fieldType != fxOutType {
+			field := mainType.Field(i)
+			fieldType := field.Type
+
+			// Ignore fx groups because returning an instance of
+			// type Provider struct {
+			//   fx.Out
+			//   Provider MyProvider `group:"myGroup"`
+			// }
+			// doesn't satisfy fx.Invoke(_ MyProvider)
+			if fieldType != fxOutType && field.Tag.Get("group") == "" {
 				types = append(types, getComponents(t, fieldType)...)
 			}
 		}

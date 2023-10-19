@@ -21,6 +21,7 @@ import (
 	saconfig "github.com/DataDog/datadog-agent/cmd/security-agent/config"
 	"github.com/DataDog/datadog-agent/cmd/security-agent/subcommands"
 	"github.com/DataDog/datadog-agent/cmd/security-agent/subcommands/start"
+	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer"
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/log"
@@ -38,10 +39,13 @@ import (
 type service struct {
 }
 
-var defaultSecurityAgentConfigFilePaths = []string{
-	path.Join(commonpath.DefaultConfPath, "datadog.yaml"),
-	path.Join(commonpath.DefaultConfPath, "security-agent.yaml"),
-}
+var (
+	defaultSecurityAgentConfigFilePaths = []string{
+		path.Join(commonpath.DefaultConfPath, "datadog.yaml"),
+		path.Join(commonpath.DefaultConfPath, "security-agent.yaml"),
+	}
+	defaultSysProbeConfPath = path.Join(commonpath.DefaultConfPath, "system-probe.yaml")
+)
 
 // Name returns the service name
 func (s *service) Name() string {
@@ -53,15 +57,21 @@ func (s *service) Init() error {
 	return nil
 }
 
+type cliParams struct {
+	*command.GlobalParams
+}
+
 // Run actually runs the service; blocks until service exits.
 func (s *service) Run(svcctx context.Context) error {
 
+	params := &cliParams{}
 	err := fxutil.OneShot(
-		func(log log.Component, config config.Component, sysprobeconfig sysprobeconfig.Component, telemetry telemetry.Component, forwarder defaultforwarder.Component, pidfilePath string) error {
+		func(log log.Component, config config.Component, sysprobeconfig sysprobeconfig.Component,
+			telemetry telemetry.Component, params *cliParams, demultiplexer demultiplexer.Component) error {
 			ctx, cancel := context.WithCancel(context.Background())
 			defer start.StopAgent(cancel, log)
 
-			err := start.RunAgent(ctx, log, config, sysprobeconfig, telemetry, forwarder, "")
+			err := start.RunAgent(ctx, log, config, sysprobeconfig, telemetry, "", demultiplexer)
 			if err != nil {
 				return err
 			}
@@ -72,9 +82,11 @@ func (s *service) Run(svcctx context.Context) error {
 
 			return nil
 		},
+		fx.Supply(params),
 		fx.Supply(core.BundleParams{
-			ConfigParams: config.NewSecurityAgentParams(defaultSecurityAgentConfigFilePaths),
-			LogParams:    log.ForDaemon(command.LoggerName, "security_agent.log_file", pkgconfig.DefaultSecurityAgentLogFile),
+			ConfigParams:         config.NewSecurityAgentParams(defaultSecurityAgentConfigFilePaths),
+			SysprobeConfigParams: sysprobeconfig.NewParams(sysprobeconfig.WithSysProbeConfFilePath(defaultSysProbeConfPath)),
+			LogParams:            log.ForDaemon(command.LoggerName, "security_agent.log_file", pkgconfig.DefaultSecurityAgentLogFile),
 		}),
 		core.Bundle,
 		forwarder.Bundle,

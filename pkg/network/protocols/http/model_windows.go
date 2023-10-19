@@ -169,7 +169,7 @@ func (tx *WinHttpTransaction) SetRequestMethod(m Method) {
 	tx.Txn.RequestMethod = uint32(m)
 }
 
-func isEncrypted(tx Transaction) bool {
+func isEncrypted(tx Transaction) bool { //nolint:revive // TODO fix revive unused-parameter
 	// TODO: add windows-specifc implementation for this
 	// Note this only affects internal-telemetry so it's OK to leave as it is for now
 	return false

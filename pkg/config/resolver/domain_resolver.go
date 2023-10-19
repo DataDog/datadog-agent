@@ -62,7 +62,7 @@ func NewSingleDomainResolvers(keysPerDomain map[string][]string) map[string]Doma
 }
 
 // Resolve always returns the only destination available for a SingleDomainResolver
-func (r *SingleDomainResolver) Resolve(endpoint transaction.Endpoint) (string, DestinationType) {
+func (r *SingleDomainResolver) Resolve(transaction.Endpoint) (string, DestinationType) {
 	return r.domain, Datadog
 }
 
