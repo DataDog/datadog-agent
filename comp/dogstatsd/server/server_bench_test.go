@@ -122,7 +122,7 @@ func BenchmarkPbarseMetricMessage(b *testing.B) {
 	b.RunParallel(func(pb *testing.PB) {
 		samplesBench = make([]metrics.MetricSample, 0, 512)
 		for pb.Next() {
-			s.parseMetricMessage(samplesBench, parser, message, "", false)
+			s.parseMetricMessage(samplesBench, parser, message, "", "", false)
 			samplesBench = samplesBench[0:0]
 		}
 	})
