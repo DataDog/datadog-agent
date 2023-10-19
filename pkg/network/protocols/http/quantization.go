@@ -75,7 +75,16 @@ const (
 
 // tokenizer provides a stream of tokens for a given URL
 type tokenizer struct {
+	// These variables represent the moving cursors (left and right side
+	// respectively) of the tokenizer. After each "Next()" execution, they will
+	// point to the beginning and end of a segment like the following:
+	//
+	// /segment1/segment2/segment3
+	// ----------^-------^--------
+	//           i       j
+	//
 	i, j int
+
 	path []byte
 
 	countAllowedChars int // a-Z, "-", "_"
@@ -129,14 +138,19 @@ func (t *tokenizer) Value() (tokenType, []byte) {
 }
 
 func (t *tokenizer) getType() tokenType {
+	// This matches segments like "v1"
 	if t.countAllowedChars == 1 && t.countNumbers > 0 && t.path[t.i] == 'v' {
 		return tokenAPIVersion
 	}
 
+	// A segment that contains one or more special characters or numbers is
+	// considered a wildcard token
 	if t.countSpecialChars > 0 || t.countNumbers > 0 {
 		return tokenWildcard
 	}
 
+	// If the segment is comprised by only allowed chars, we classify it as a
+	// string token which is preserved as it is by the quantizer
 	if t.countAllowedChars > 0 && t.countSpecialChars == 0 && t.countNumbers == 0 {
 		return tokenString
 	}
