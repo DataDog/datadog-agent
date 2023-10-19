@@ -82,7 +82,7 @@ func newContainerdCollector(cache *provider.Cache) (provider.CollectorMetadata, 
 }
 
 // GetContainerStats returns stats by container ID.
-func (c *containerdCollector) GetContainerStats(containerNS, containerID string, cacheValidity time.Duration) (*provider.ContainerStats, error) {
+func (c *containerdCollector) GetContainerStats(containerNS, containerID string, _ time.Duration) (*provider.ContainerStats, error) {
 	metrics, err := c.getContainerdMetrics(containerNS, containerID)
 	if err != nil {
 		return nil, err
@@ -117,7 +117,7 @@ func (c *containerdCollector) GetContainerStats(containerNS, containerID string,
 }
 
 // GetContainerNetworkStats returns network stats by container ID.
-func (c *containerdCollector) GetContainerNetworkStats(containerNS, containerID string, cacheValidity time.Duration) (*provider.ContainerNetworkStats, error) {
+func (c *containerdCollector) GetContainerNetworkStats(containerNS, containerID string, _ time.Duration) (*provider.ContainerNetworkStats, error) {
 	metrics, err := c.getContainerdMetrics(containerNS, containerID)
 	if err != nil {
 		return nil, err
@@ -127,7 +127,7 @@ func (c *containerdCollector) GetContainerNetworkStats(containerNS, containerID 
 }
 
 // GetPIDs returns the list of PIDs by container ID.
-func (c *containerdCollector) GetPIDs(containerNS, containerID string, cacheValidity time.Duration) ([]int, error) {
+func (c *containerdCollector) GetPIDs(containerNS, containerID string, _ time.Duration) ([]int, error) {
 	container, err := c.client.Container(containerNS, containerID)
 	if err != nil {
 		log.Debugf("Could not fetch container with ID %s: %v", containerID, err)

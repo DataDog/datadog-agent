@@ -81,7 +81,7 @@ func newDockerCollector(cache *provider.Cache) (provider.CollectorMetadata, erro
 }
 
 // GetContainerStats returns stats by container ID.
-func (d *dockerCollector) GetContainerStats(containerNS, containerID string, cacheValidity time.Duration) (*provider.ContainerStats, error) {
+func (d *dockerCollector) GetContainerStats(_, containerID string, _ time.Duration) (*provider.ContainerStats, error) {
 	stats, err := d.stats(containerID)
 	if err != nil {
 		return nil, err
@@ -98,7 +98,7 @@ func (d *dockerCollector) GetContainerStats(containerNS, containerID string, cac
 }
 
 // GetContainerNetworkStats returns network stats by container ID.
-func (d *dockerCollector) GetContainerNetworkStats(containerNS, containerID string, cacheValidity time.Duration) (*provider.ContainerNetworkStats, error) {
+func (d *dockerCollector) GetContainerNetworkStats(_, containerID string, _ time.Duration) (*provider.ContainerNetworkStats, error) {
 	stats, err := d.stats(containerID)
 	if err != nil {
 		return nil, err
@@ -108,14 +108,13 @@ func (d *dockerCollector) GetContainerNetworkStats(containerNS, containerID stri
 }
 
 // GetPIDs returns the list of PIDs by container ID.
-func (d *dockerCollector) GetPIDs(containerNS, containerID string, cacheValidity time.Duration) ([]int, error) {
+func (d *dockerCollector) GetPIDs(_, containerID string, _ time.Duration) ([]int, error) {
 	// Try to collect the container's PIDs via Docker API, if we can't spec() will fill in the entry PID
 	pids, err := d.pids(containerID)
 	if err == nil {
 		return pids, nil
-	} else {
-		log.Warnf("Unable to collect container's PIDs via Docker API, PID list will be incomplete, cid: %s, err: %v", containerID, err)
 	}
+	log.Warnf("Unable to collect container's PIDs via Docker API, PID list will be incomplete, cid: %s, err: %v", containerID, err)
 
 	spec, err := d.spec(containerID)
 	if err != nil {

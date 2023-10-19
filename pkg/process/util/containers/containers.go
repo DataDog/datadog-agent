@@ -161,10 +161,11 @@ func (p *containerProvider) GetContainers(cacheValidity time.Duration, previousC
 		// Building PID to CID mapping for NPM
 		pids, err := collector.GetPIDs(container.Namespace, container.ID, cacheValidity)
 		if err == nil && pids != nil {
-			log.Debugf("PIDs for: %+v not available, err: %v", err)
 			for _, pid := range pids {
 				pidToCid[pid] = container.ID
 			}
+		} else {
+			log.Debugf("PIDs for: %+v not available, err: %v", container, err)
 		}
 
 		containerNetworkStats, err := collector.GetContainerNetworkStats(container.Namespace, container.ID, cacheValidity)

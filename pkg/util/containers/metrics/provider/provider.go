@@ -16,6 +16,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/retry"
 )
 
+// Runtime is a typed string for supported container runtimes
 type Runtime string
 
 // Known container runtimes

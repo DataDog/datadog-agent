@@ -120,7 +120,7 @@ func (cr *collectorRegistry) retryCollectors(cache *Cache) int {
 		if err == nil {
 			// No need to register a collector without actual collectors
 			if collectorMetadata.Collectors == nil {
-				log.Debugf("Skipped registering collector %s as no collectors")
+				log.Debugf("Skipped registering collector %s as no collectors", collectorFactory.ID)
 				continue
 			}
 
@@ -135,7 +135,7 @@ func (cr *collectorRegistry) retryCollectors(cache *Cache) int {
 		}
 	}
 
-	if collectorsUpdated {
+	if collectorsUpdated && cr.catalogUpdatedCallback != nil {
 		cr.catalogUpdatedCallback(cr.effectiveCollectors)
 	}
 	return len(cr.registeredCollectors)

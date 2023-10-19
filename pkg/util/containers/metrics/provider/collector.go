@@ -19,6 +19,7 @@ type CollectorRef[T comparable] struct {
 	Priority  uint8
 }
 
+// MakeRef returns a CollectorRef[T] given a T and a priority
 func MakeRef[T comparable](collector T, priority uint8) CollectorRef[T] {
 	return CollectorRef[T]{
 		Collector: collector,
@@ -31,7 +32,7 @@ func (pc CollectorRef[T]) bestCollector(runtime Runtime, otherID string, oth Col
 	var zero T
 
 	if pc.Collector == zero || (oth.Collector != zero && oth.Priority < pc.Priority) {
-		log.Debugf("Using collector id: %s for type: %T and runtime: %s", otherID, zero, runtime)
+		log.Debugf("Using collector id: %s for type: %T and runtime: %s", otherID, pc, runtime)
 		return oth
 	}
 
@@ -64,19 +65,19 @@ func (c *Collectors) merge(runtime Runtime, otherID string, oth *Collectors) {
 // noImplCollector implements the Collector interface with all not implemented responses
 type noImplCollector struct{}
 
-func (noImplCollector) GetContainerStats(containerNS, containerID string, cacheValidity time.Duration) (*ContainerStats, error) {
+func (noImplCollector) GetContainerStats(_, _ string, _ time.Duration) (*ContainerStats, error) {
 	return nil, nil
 }
 
-func (noImplCollector) GetContainerNetworkStats(containerNS, containerID string, cacheValidity time.Duration) (*ContainerNetworkStats, error) {
+func (noImplCollector) GetContainerNetworkStats(_, _ string, _ time.Duration) (*ContainerNetworkStats, error) {
 	return nil, nil
 }
 
-func (noImplCollector) GetContainerOpenFilesCount(containerNS, containerID string, cacheValidity time.Duration) (*uint64, error) {
+func (noImplCollector) GetContainerOpenFilesCount(_, _ string, _ time.Duration) (*uint64, error) {
 	return nil, nil
 }
 
-func (noImplCollector) GetPIDs(containerNS, containerID string, cacheValidity time.Duration) ([]int, error) {
+func (noImplCollector) GetPIDs(_, _ string, _ time.Duration) ([]int, error) {
 	return nil, nil
 }
 

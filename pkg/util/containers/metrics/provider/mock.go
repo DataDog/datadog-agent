@@ -39,27 +39,27 @@ func (d *dummyCollector) constructor(priority uint8, runtimes ...Runtime) (Colle
 	return metadata, d.err
 }
 
-func (d *dummyCollector) GetContainerStats(containerNS, containerID string, cacheValidity time.Duration) (*ContainerStats, error) {
+func (d *dummyCollector) GetContainerStats(containerNS, containerID string, _ time.Duration) (*ContainerStats, error) {
 	return d.cStats[containerNS+containerID], d.err
 }
 
-func (d *dummyCollector) GetContainerPIDStats(containerNS, containerID string, cacheValidity time.Duration) (*ContainerPIDStats, error) {
+func (d *dummyCollector) GetContainerPIDStats(containerNS, containerID string, _ time.Duration) (*ContainerPIDStats, error) {
 	return d.cPIDStats[containerNS+containerID], d.err
 }
 
-func (d *dummyCollector) GetContainerOpenFilesCount(containerNS, containerID string, cacheValidity time.Duration) (*uint64, error) {
+func (d *dummyCollector) GetContainerOpenFilesCount(containerNS, containerID string, _ time.Duration) (*uint64, error) {
 	return d.cOpenFilesCount[containerNS+containerID], d.err
 }
 
-func (d *dummyCollector) GetContainerNetworkStats(containerNS, containerID string, cacheValidity time.Duration) (*ContainerNetworkStats, error) {
+func (d *dummyCollector) GetContainerNetworkStats(containerNS, containerID string, _ time.Duration) (*ContainerNetworkStats, error) {
 	return d.cNetStats[containerNS+containerID], d.err
 }
 
-func (d *dummyCollector) GetContainerIDForPID(pid int, cacheValidity time.Duration) (string, error) {
+func (d *dummyCollector) GetContainerIDForPID(pid int, _ time.Duration) (string, error) {
 	return d.cIDForPID[pid], d.err
 }
 
-func (d *dummyCollector) GetPIDs(containerNS, containerID string, cacheValidity time.Duration) ([]int, error) {
+func (d *dummyCollector) GetPIDs(containerNS, containerID string, _ time.Duration) ([]int, error) {
 	return d.cPIDs[containerNS+containerID], nil
 }
 

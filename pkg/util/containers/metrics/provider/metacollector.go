@@ -7,11 +7,13 @@ package provider
 
 import (
 	"sort"
+	"sync"
 	"time"
 )
 
 // MetaCollector is a special collector that uses all available collectors, by priority order.
 type metaCollector struct {
+	lock                         sync.RWMutex
 	selfContainerIDcollectors    []CollectorRef[SelfContainerIDRetriever]
 	containerIDFromPIDcollectors []CollectorRef[ContainerIDForPIDRetriever]
 }
@@ -21,12 +23,18 @@ func newMetaCollector() *metaCollector {
 }
 
 func (mc *metaCollector) collectorsUpdatedCallback(collectorsCatalog CollectorCatalog) {
+	mc.lock.Lock()
+	defer mc.lock.Unlock()
+
 	mc.selfContainerIDcollectors = buildUniqueCollectors(collectorsCatalog, func(c *Collectors) CollectorRef[SelfContainerIDRetriever] { return c.SelfContainerID })
 	mc.containerIDFromPIDcollectors = buildUniqueCollectors(collectorsCatalog, func(c *Collectors) CollectorRef[ContainerIDForPIDRetriever] { return c.ContainerIDForPID })
 }
 
 // GetSelfContainerID returns the container ID for current container.
 func (mc *metaCollector) GetSelfContainerID() (string, error) {
+	mc.lock.RLock()
+	defer mc.lock.RUnlock()
+
 	for _, collectorRef := range mc.selfContainerIDcollectors {
 		val, err := collectorRef.Collector.GetSelfContainerID()
 		if err != nil {
@@ -43,6 +51,9 @@ func (mc *metaCollector) GetSelfContainerID() (string, error) {
 
 // GetContainerIDForPID returns a container ID for given PID.
 func (mc *metaCollector) GetContainerIDForPID(pid int, cacheValidity time.Duration) (string, error) {
+	mc.lock.RLock()
+	defer mc.lock.RUnlock()
+
 	for _, collectorRef := range mc.containerIDFromPIDcollectors {
 		val, err := collectorRef.Collector.GetContainerIDForPID(pid, cacheValidity)
 		if err != nil {

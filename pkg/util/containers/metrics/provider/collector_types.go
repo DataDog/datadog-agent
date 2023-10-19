@@ -10,28 +10,35 @@ import (
 )
 
 // Individual interfaces, used to dynamically register available implementations
+
+// ContainerStatsGetter interface
 type ContainerStatsGetter interface {
 	GetContainerStats(containerNS, containerID string, cacheValidity time.Duration) (*ContainerStats, error)
 }
 
+// ContainerNetworkStatsGetter interface
 type ContainerNetworkStatsGetter interface {
 	GetContainerNetworkStats(containerNS, containerID string, cacheValidity time.Duration) (*ContainerNetworkStats, error)
 }
 
+// ContainerOpenFilesCountGetter interface
 type ContainerOpenFilesCountGetter interface {
 	GetContainerOpenFilesCount(containerNS, containerID string, cacheValidity time.Duration) (*uint64, error)
 }
 
+// ContainerPIDsGetter interface
 type ContainerPIDsGetter interface {
 	GetPIDs(containerNS, containerID string, cacheValidity time.Duration) ([]int, error)
 }
 
+// ContainerIDForPIDRetriever interface
 type ContainerIDForPIDRetriever interface {
 	// GetContainerIDForPID returns a container ID for given PID.
 	// ("", nil) will be returned if no error but the containerd ID was not found.
 	GetContainerIDForPID(pid int, cacheValidity time.Duration) (string, error)
 }
 
+// SelfContainerIDRetriever interface
 type SelfContainerIDRetriever interface {
 	// GetSelfContainerID returns the container ID for current container.
 	// ("", nil) will be returned if not possible to get ID for current container.

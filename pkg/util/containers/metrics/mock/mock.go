@@ -39,7 +39,7 @@ func (mp *MetricsProvider) GetMetaCollector() provider.MetaCollector {
 }
 
 // RegisterCollector registers a collector
-func (mp *MetricsProvider) RegisterCollector(collectorFactory provider.CollectorFactory) {
+func (mp *MetricsProvider) RegisterCollector(provider.CollectorFactory) {
 }
 
 // RegisterConcreteCollector registers a collector
@@ -108,7 +108,7 @@ func (mp *Collector) Clear() {
 }
 
 // GetContainerStats returns stats from MockContainerEntry
-func (mp *Collector) GetContainerStats(containerNS, containerID string, cacheValidity time.Duration) (*provider.ContainerStats, error) { //nolint:revive // TODO fix revive unused-parameter
+func (mp *Collector) GetContainerStats(_, containerID string, _ time.Duration) (*provider.ContainerStats, error) {
 	if entry, found := mp.containers[containerID]; found {
 		return entry.ContainerStats, entry.Error
 	}
@@ -117,7 +117,7 @@ func (mp *Collector) GetContainerStats(containerNS, containerID string, cacheVal
 }
 
 // GetContainerOpenFilesCount returns stats from MockContainerEntry
-func (mp *Collector) GetContainerOpenFilesCount(containerNS, containerID string, cacheValidity time.Duration) (*uint64, error) { //nolint:revive // TODO fix revive unused-parameter
+func (mp *Collector) GetContainerOpenFilesCount(_, containerID string, _ time.Duration) (*uint64, error) {
 	if entry, found := mp.containers[containerID]; found {
 		return entry.OpenFiles, entry.Error
 	}
@@ -126,7 +126,7 @@ func (mp *Collector) GetContainerOpenFilesCount(containerNS, containerID string,
 }
 
 // GetContainerNetworkStats returns stats from MockContainerEntry
-func (mp *Collector) GetContainerNetworkStats(containerNS, containerID string, cacheValidity time.Duration) (*provider.ContainerNetworkStats, error) { //nolint:revive // TODO fix revive unused-parameter
+func (mp *Collector) GetContainerNetworkStats(_, containerID string, _ time.Duration) (*provider.ContainerNetworkStats, error) {
 	if entry, found := mp.containers[containerID]; found {
 		return entry.NetworkStats, entry.Error
 	}
@@ -135,7 +135,7 @@ func (mp *Collector) GetContainerNetworkStats(containerNS, containerID string, c
 }
 
 // GetPIDs returns pids from MockContainerEntry
-func (mp *Collector) GetPIDs(containerNS, containerID string, cacheValidity time.Duration) ([]int, error) {
+func (mp *Collector) GetPIDs(_, containerID string, _ time.Duration) ([]int, error) {
 	if entry, found := mp.containers[containerID]; found {
 		return entry.PIDs, entry.Error
 	}
@@ -144,7 +144,7 @@ func (mp *Collector) GetPIDs(containerNS, containerID string, cacheValidity time
 }
 
 // GetContainerIDForPID returns a container ID for given PID.
-func (mp *Collector) GetContainerIDForPID(pid int, cacheValidity time.Duration) (string, error) { //nolint:revive // TODO fix revive unused-parameter
+func (mp *Collector) GetContainerIDForPID(int, time.Duration) (string, error) {
 	return "", nil
 }
 

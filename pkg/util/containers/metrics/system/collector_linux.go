@@ -42,6 +42,7 @@ func init() {
 
 type systemCollector struct {
 	reader              *cgroups.Reader
+	pidMapper           cgroups.StandalonePIDMapper
 	procPath            string
 	baseController      string
 	hostCgroupNamespace bool
@@ -112,6 +113,8 @@ func newSystemCollector(cache *provider.Cache) (provider.CollectorMetadata, erro
 		} else if isAgentSidecar {
 			// When side car with sharedPIDNamespace, we can get the same data.
 			// As we don't know if we are sharedPIDNamespace, adding as low priority.
+			systemCollector.pidMapper = cgroups.NewStandalonePIDMapper(systemCollector.procPath, systemCollector.baseController, cgroups.ContainerFilter)
+
 			collectors.Network = provider.MakeRef[provider.ContainerNetworkStatsGetter](systemCollector, collectorLowPriority)
 			collectors.OpenFilesCount = provider.MakeRef[provider.ContainerOpenFilesCountGetter](systemCollector, collectorLowPriority)
 			collectors.PIDs = provider.MakeRef[provider.ContainerPIDsGetter](systemCollector, collectorLowPriority)
@@ -164,33 +167,22 @@ func (c *systemCollector) GetContainerStats(containerNS, containerID string, cac
 	return c.buildContainerMetrics(cg, cacheValidity)
 }
 
-func (c *systemCollector) GetContainerOpenFilesCount(containerNS, containerID string, cacheValidity time.Duration) (*uint64, error) { //nolint:revive // TODO fix revive unused-parameter
-	cg, err := c.getCgroup(containerID, cacheValidity)
+func (c *systemCollector) GetContainerOpenFilesCount(containerNS, containerID string, cacheValidity time.Duration) (*uint64, error) {
+	pids, err := c.getPIDs(containerID, cacheValidity)
 	if err != nil {
-		return nil, err
-	}
-
-	// Get PIDs
-	pids, err := cg.GetPIDs(cacheValidity)
-	if err != nil {
-		return nil, fmt.Errorf("unable to get PIDs for cgroup id: %s. Unable to get count of open files", cg.Identifier())
+		return nil, fmt.Errorf("unable to get PIDs for cgroup id: %s. Unable to get count of open files", containerID)
 	}
 
 	ofCount, allFailed := systemutils.CountProcessesFileDescriptors(c.procPath, pids)
 	if allFailed {
-		return nil, fmt.Errorf("unable to read any PID open FDs for cgroup id: %s. Unable to get count of open files", cg.Identifier())
+		return nil, fmt.Errorf("unable to read any PID open FDs for cgroup id: %s. Unable to get count of open files", containerID)
 	}
 
 	return &ofCount, nil
 }
 
-func (c *systemCollector) GetContainerNetworkStats(containerNS, containerID string, cacheValidity time.Duration) (*provider.ContainerNetworkStats, error) { //nolint:revive // TODO fix revive unused-parameter
-	cg, err := c.getCgroup(containerID, cacheValidity)
-	if err != nil {
-		return nil, err
-	}
-
-	pids, err := cg.GetPIDs(cacheValidity)
+func (c *systemCollector) GetContainerNetworkStats(containerNS, containerID string, cacheValidity time.Duration) (*provider.ContainerNetworkStats, error) {
+	pids, err := c.getPIDs(containerID, cacheValidity)
 	if err != nil {
 		return nil, err
 	}
@@ -198,18 +190,8 @@ func (c *systemCollector) GetContainerNetworkStats(containerNS, containerID stri
 	return buildNetworkStats(c.procPath, pids)
 }
 
-func (c *systemCollector) GetPIDs(containerNS, containerID string, cacheValidity time.Duration) ([]int, error) {
-	cg, err := c.getCgroup(containerID, cacheValidity)
-	if err != nil {
-		return nil, err
-	}
-
-	pids, err := cg.GetPIDs(cacheValidity)
-	if err != nil {
-		log.Debugf("Unable to get PIDs for cgroup id: %s. Metrics will be missing", cg.Identifier())
-	}
-
-	return pids, err
+func (c *systemCollector) GetPIDs(_, containerID string, cacheValidity time.Duration) ([]int, error) {
+	return c.getPIDs(containerID, cacheValidity)
 }
 
 func (c *systemCollector) GetContainerIDForPID(pid int, cacheValidity time.Duration) (string, error) {
@@ -236,6 +218,19 @@ func (c *systemCollector) getCgroup(containerID string, cacheValidity time.Durat
 	}
 
 	return cg, nil
+}
+
+func (c *systemCollector) getPIDs(containerID string, cacheValidity time.Duration) ([]int, error) {
+	if c.pidMapper == nil {
+		cg, err := c.getCgroup(containerID, cacheValidity)
+		if err != nil {
+			return nil, err
+		}
+
+		return cg.GetPIDs(cacheValidity)
+	}
+
+	return c.pidMapper.GetPIDs(containerID, cacheValidity), nil
 }
 
 func (c *systemCollector) buildContainerMetrics(cg cgroups.Cgroup, cacheValidity time.Duration) (*provider.ContainerStats, error) {

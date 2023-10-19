@@ -77,18 +77,6 @@ func (dn *dockerNetworkExtension) PreProcess(sender generic.SenderFunc, aggSende
 // Process is called after core process (regardless of encountered error)
 func (dn *dockerNetworkExtension) Process(tags []string, container *workloadmeta.Container, collector metrics.Collector, cacheValidity time.Duration) {
 	// Duplicate call with generic.Processor, but cache should allow for a fast response.
-	// We only need it for PIDs
-	containerStats, err := collector.GetContainerStats(container.Namespace, container.ID, cacheValidity)
-	if err != nil {
-		log.Debugf("Gathering container metrics for container: %v failed, metrics may be missing, err: %v", container, err)
-		return
-	}
-
-	if containerStats == nil {
-		log.Debugf("Metrics provider returned nil stats for container: %v", container)
-		return
-	}
-
 	containerNetworkStats, err := collector.GetContainerNetworkStats(container.Namespace, container.ID, cacheValidity)
 	if err != nil {
 		log.Debugf("Gathering network metrics for container: %v failed, metrics may be missing, err: %v", container, err)
