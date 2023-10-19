@@ -1327,9 +1327,9 @@ func (tm *testModule) getSignal(tb testing.TB, action func() error, cb func(*mod
 					if errors.Is(err, errSkipEvent) {
 						message <- Continue
 						return
-					} else {
-						tb.Error(err)
 					}
+
+					tb.Error(err)
 				}
 				if tb.Skipped() || tb.Failed() {
 					failNow <- true

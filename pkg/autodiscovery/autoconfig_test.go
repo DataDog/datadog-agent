@@ -19,7 +19,9 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/listeners"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/providers"
+	"github.com/DataDog/datadog-agent/pkg/autodiscovery/providers/names"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/scheduler"
+	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/retry"
 )
@@ -446,4 +448,53 @@ func TestDecryptConfig(t *testing.T) {
 	assert.Equal(t, resolved, changes.Schedule[0])
 
 	assert.True(t, mockDecrypt.haveAllScenariosBeenCalled())
+}
+
+func TestProcessClusterCheckConfigWithSecrets(t *testing.T) {
+	configName := "testConfig"
+
+	mockDecrypt := MockSecretDecrypt{t, []mockSecretScenario{
+		{
+			expectedData:   []byte("foo: ENC[bar]"),
+			expectedOrigin: configName,
+			returnedData:   []byte("foo: barDecoded"),
+			returnedError:  nil,
+		},
+		{
+			expectedData:   []byte{},
+			expectedOrigin: configName,
+			returnedData:   []byte{},
+			returnedError:  nil,
+		},
+	}}
+	defer mockDecrypt.install()()
+
+	ac := NewAutoConfig(scheduler.NewMetaScheduler())
+
+	tpl := integration.Config{
+		Provider:     names.ClusterChecks,
+		Name:         configName,
+		InitConfig:   integration.Data{},
+		Instances:    []integration.Data{integration.Data("foo: ENC[bar]")},
+		MetricConfig: integration.Data{},
+		LogsConfig:   integration.Data{},
+	}
+	changes := ac.processNewConfig(tpl)
+
+	require.Len(t, changes.Schedule, 1)
+
+	resolved := integration.Config{
+		Provider:     names.ClusterChecks,
+		Name:         configName,
+		InitConfig:   integration.Data{},
+		Instances:    []integration.Data{integration.Data("foo: barDecoded")},
+		MetricConfig: integration.Data{},
+		LogsConfig:   integration.Data{},
+	}
+	assert.Equal(t, resolved, changes.Schedule[0])
+
+	// Check that the mapping with the changeIDs is stored
+	originalCheckID := checkid.BuildID(tpl.Name, tpl.FastDigest(), tpl.Instances[0], tpl.InitConfig)
+	newCheckID := checkid.BuildID(resolved.Name, resolved.FastDigest(), resolved.Instances[0], resolved.InitConfig)
+	assert.Equal(t, originalCheckID, ac.GetIDOfCheckWithEncryptedSecrets(newCheckID))
 }

@@ -125,24 +125,6 @@ func (m *EBPFCheck) Run() error {
 		reportBaseMap(mapInfo)
 	}
 
-	for _, pbInfo := range stats.PerfBuffers {
-		reportBaseMap(pbInfo.EBPFMapStats)
-		for _, cpub := range pbInfo.CPUBuffers {
-			cputags := []string{
-				"map_name:" + pbInfo.Name,
-				"map_type:" + pbInfo.Type.String(),
-				"module:" + pbInfo.Module,
-				fmt.Sprintf("cpu_num:%d", cpub.CPU),
-			}
-			if cpub.RSS > 0 {
-				sender.Gauge("ebpf.maps.memory_rss_percpu", float64(cpub.RSS), "", cputags)
-			}
-			if cpub.Size > 0 {
-				sender.Gauge("ebpf.maps.memory_max_percpu", float64(cpub.Size), "", cputags)
-			}
-		}
-	}
-
 	if totalMapMaxSize > 0 {
 		sender.Gauge("ebpf.maps.memory_max_total", float64(totalMapMaxSize), "", nil)
 	}
