@@ -73,7 +73,7 @@ def show_linters_issues(
         filter_team = filter_team.lower()
     check_if_team_exists(filter_team)
     golangci_lint_kwargs = f'"--new-from-rev {from_commit_hash} --print-issued-lines=false"'
-    command = f"inv lint-go --golangci-lint-kwargs {golangci_lint_kwargs}"
+    command = f"inv lint-go --golangci-lint-kwargs {golangci_lint_kwargs} --headless-mode"
 
     if build_tags:
         command += f" --build-tags \"{build_tags}\""
