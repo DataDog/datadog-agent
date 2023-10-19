@@ -15,13 +15,15 @@ import (
 	"github.com/prometheus/common/model"
 )
 
-const (
-	// TypeLabel is the special tag which signifies the type of the metric collected from Prometheus
-	TypeLabel = "__type__"
-)
+// MetricFamily represents a metric family that is returned by a prometheus endpoint
+type MetricFamily struct {
+	Name    string
+	Type    string
+	Samples model.Vector
+}
 
 // ParseMetrics parses prometheus-formatted metrics from the input data.
-func ParseMetrics(data []byte) (model.Vector, error) {
+func ParseMetrics(data []byte) ([]*MetricFamily, error) {
 	// the prometheus TextParser does not support windows line separators, so we need to explicitly remove them
 	data = bytes.Replace(data, []byte("\r"), []byte(""), -1)
 
@@ -32,17 +34,18 @@ func ParseMetrics(data []byte) (model.Vector, error) {
 		return nil, err
 	}
 
-	var metrics model.Vector
+	var metrics []*MetricFamily
 	for _, family := range mf {
 		samples, err := expfmt.ExtractSamples(&expfmt.DecodeOptions{Timestamp: model.Now()}, family)
 		if err != nil {
 			return nil, err
 		}
-		for i := range samples {
-			// explicitly set the metric type as a label, as it will help when handling the metric
-			samples[i].Metric[TypeLabel] = model.LabelValue(family.Type.String())
+		metricFam := &MetricFamily{
+			Name:    *family.Name,
+			Type:    family.Type.String(),
+			Samples: samples,
 		}
-		metrics = append(metrics, samples...)
+		metrics = append(metrics, metricFam)
 	}
 	return metrics, nil
 }
