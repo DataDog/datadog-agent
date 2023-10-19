@@ -346,7 +346,7 @@ func WithMessageMatching(pattern string) MatchOpt[*aggregator.Log] {
 func (c *Client) GetCheckRunNames() ([]string, error) {
 	err := c.getCheckRuns()
 	if err != nil {
-		return []string{}, nil
+		return nil, err
 	}
 	return c.checkRunAggregator.GetNames(), nil
 }
