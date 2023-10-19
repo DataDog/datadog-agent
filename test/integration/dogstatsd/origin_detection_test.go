@@ -11,7 +11,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config"
 )
 
-func TestUDSOriginDetection(t *testing.T) {
+func TestUDSOriginDetectionDatagram(t *testing.T) {
 	config.SetupLogger(
 		config.LoggerName("test"),
 		"debug",
@@ -22,5 +22,19 @@ func TestUDSOriginDetection(t *testing.T) {
 		false,
 	)
 
-	testUDSOriginDetection(t)
+	testUDSOriginDetection(t, "unixgram")
+}
+
+func TestUDSOriginDetectionStream(t *testing.T) {
+	config.SetupLogger(
+		config.LoggerName("test"),
+		"debug",
+		"",
+		"",
+		false,
+		true,
+		false,
+	)
+
+	testUDSOriginDetection(t, "unix")
 }

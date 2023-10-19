@@ -11,9 +11,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/util/winutil/eventlog/api"
-	"github.com/DataDog/datadog-agent/pkg/util/winutil/eventlog/subscription"
-	"github.com/DataDog/datadog-agent/pkg/util/winutil/eventlog/test"
+	evtapi "github.com/DataDog/datadog-agent/pkg/util/winutil/eventlog/api"
+	evtsubscribe "github.com/DataDog/datadog-agent/pkg/util/winutil/eventlog/subscription"
+	eventlog_test "github.com/DataDog/datadog-agent/pkg/util/winutil/eventlog/test"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -22,7 +22,7 @@ import (
 
 // Example usage of the eventlog utility library to get event records from the Windows Event Log
 // while using a channel to be notified when new events are available.
-func testSubscriptionExample(t testing.TB, ti eventlog_test.APITester, stop chan struct{}, done chan struct{}, channelPath string, numEvents uint) {
+func testSubscriptionExample(t testing.TB, ti eventlog_test.APITester, stop chan struct{}, done chan struct{}, channelPath string, numEvents uint) { //nolint:revive // TODO fix revive unused-parameter
 	defer close(done)
 
 	// Choose the Windows Event Log API implementation

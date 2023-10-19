@@ -17,11 +17,11 @@ type mockService struct {
 
 var _ Component = (*mockService)(nil)
 
-func (m *mockService) Get(ctx context.Context) (string, error) {
+func (m *mockService) Get(context.Context) (string, error) {
 	return m.name, nil
 }
 
-func (m *mockService) GetSafe(ctx context.Context) string {
+func (m *mockService) GetSafe(context.Context) string {
 	return m.name
 }
 
@@ -30,7 +30,7 @@ func (m *mockService) Set(name string) {
 }
 
 // GetWithProvider returns the hostname for the Agent and the provider that was use to retrieve it.
-func (m *mockService) GetWithProvider(ctx context.Context) (hostname.Data, error) {
+func (m *mockService) GetWithProvider(context.Context) (hostname.Data, error) {
 	return hostname.Data{
 		Hostname: m.name,
 		Provider: "mockService",

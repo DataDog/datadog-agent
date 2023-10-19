@@ -10,6 +10,7 @@ include:
   - /.gitlab/source_test_junit_upload.yml
   - /.gitlab/binary_build.yml
   - /.gitlab/cancel-prev-pipelines.yml
+  - /.gitlab/do_not_merge.yml
   - /.gitlab/integration_test.yml
   - /.gitlab/package_build.yml
   - /.gitlab/kitchen_deploy.yml
@@ -166,8 +167,11 @@ variables:
   DATADOG_AGENT_NIKOS_BUILDIMAGES: v20878799-a2f77ae
   DATADOG_AGENT_BTF_GEN_BUILDIMAGES_SUFFIX: ""
   DATADOG_AGENT_BTF_GEN_BUILDIMAGES: v20878799-a2f77ae
-  TEST_INFRA_DEFINITIONS_BUILDIMAGES: 40c538510ddf
-  DATADOG_AGENT_BUILDERS: v19474930-fe4bcd9
+  # To use images from test-infra-definitions dev branches, set the SUFFIX variable to -dev
+  # and check the job creating the image to make sure you have the right SHA prefix
+  TEST_INFRA_DEFINITIONS_BUILDIMAGES_SUFFIX: ""
+  TEST_INFRA_DEFINITIONS_BUILDIMAGES: d2510f65b6fe
+  DATADOG_AGENT_BUILDERS: v21429255-6b46caa
 
   DATADOG_AGENT_EMBEDDED_PATH: /opt/datadog-agent/embedded
   DEB_GPG_KEY_ID: ad9589b7
@@ -751,7 +755,6 @@ workflow:
     when: never
   - <<: *if_release_branch
     when: never
-  - when: on_success
 
 .on_main_or_release_branch_or_deploy_always:
   - <<: *if_deploy

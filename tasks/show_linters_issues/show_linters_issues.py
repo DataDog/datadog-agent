@@ -38,6 +38,7 @@ def show_linters_issues(
     filter_linters: str = "revive",
     show_output=False,
     platforms=None,
+    build_tags: str = None,
 ):
     """
     This function displays the list of files that need fixing for a specific team and for specific linters.
@@ -57,6 +58,9 @@ def show_linters_issues(
     check_if_team_exists(filter_team)
     golangci_lint_kwargs = f'"--new-from-rev {from_commit_hash} --print-issued-lines=false"'
     command = f"inv lint-go --golangci-lint-kwargs {golangci_lint_kwargs}"
+
+    if build_tags:
+        command += f" --build-tags \"{build_tags}\""
 
     # Run the linters for every OS x Arch and merge the results
     results_per_os_x_arch = dict()

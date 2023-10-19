@@ -14,52 +14,35 @@ import (
 
 // EBPFStats contains the statistics from the ebpf check
 type EBPFStats struct {
-	Maps        []EBPFMapStats
-	PerfBuffers []EBPFPerfBufferStats
-	Programs    []EBPFProgramStats
+	Maps     []EBPFMapStats
+	Programs []EBPFProgramStats
 }
 
 // EBPFMapStats are the basic statistics for ebpf maps
 type EBPFMapStats struct {
 	ID         uint32
+	MaxEntries uint32
 	Name       string
 	Module     string
 	RSS        uint64
 	MaxSize    uint64
-	MaxEntries uint32
 	Type       ebpf.MapType
+
+	// used only for tests
+	NumCPUs uint32
 }
 
 // EBPFProgramStats are the basic statistics for ebpf programs
 type EBPFProgramStats struct {
 	ID              uint32
+	XlatedProgLen   uint32
 	Name            string
 	Module          string
 	Tag             string
 	RSS             uint64
 	RunCount        uint64
 	RecursionMisses uint64
-	XlatedProgLen   uint32
-	VerifiedInsns   uint32
 	Runtime         time.Duration
+	VerifiedInsns   uint32
 	Type            ebpf.ProgramType
-}
-
-// EBPFMmapStats is the detailed statistics for mmap-ed regions
-type EBPFMmapStats struct {
-	Addr uintptr
-	Size uint64
-	RSS  uint64
-}
-
-// EBPFCPUPerfBufferStats is the per-CPU statistics of a mmap region for a perf buffer
-type EBPFCPUPerfBufferStats struct {
-	EBPFMmapStats
-	CPU uint32
-}
-
-// EBPFPerfBufferStats is the detailed statistics for a perf buffer
-type EBPFPerfBufferStats struct {
-	CPUBuffers []EBPFCPUPerfBufferStats
-	EBPFMapStats
 }

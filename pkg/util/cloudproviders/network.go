@@ -16,6 +16,10 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
+const (
+	networkIDCacheKey = "networkID"
+)
+
 // GetNetworkID retrieves the network_id which can be used to improve network
 // connection resolution. This can be configured or detected.  The
 // following sources will be queried:
@@ -23,31 +27,27 @@ import (
 // * GCE
 // * EC2
 func GetNetworkID(ctx context.Context) (string, error) {
-	cacheNetworkIDKey := cache.BuildAgentKey("networkID")
-	if cacheNetworkID, found := cache.Cache.Get(cacheNetworkIDKey); found {
-		return cacheNetworkID.(string), nil
-	}
+	return cache.Get[string](
+		networkIDCacheKey,
+		func() (string, error) {
+			// the the id from configuration
+			if networkID := config.Datadog.GetString("network.id"); networkID != "" {
+				log.Debugf("GetNetworkID: using configured network ID: %s", networkID)
+				return networkID, nil
+			}
 
-	// the the id from configuration
-	if networkID := config.Datadog.GetString("network.id"); networkID != "" {
-		cache.Cache.Set(cacheNetworkIDKey, networkID, cache.NoExpiration)
-		log.Debugf("GetNetworkID: using configured network ID: %s", networkID)
-		return networkID, nil
-	}
+			log.Debugf("GetNetworkID trying GCE")
+			if networkID, err := gce.GetNetworkID(ctx); err == nil {
+				log.Debugf("GetNetworkID: using network ID from GCE metadata: %s", networkID)
+				return networkID, nil
+			}
 
-	log.Debugf("GetNetworkID trying GCE")
-	if networkID, err := gce.GetNetworkID(ctx); err == nil {
-		cache.Cache.Set(cacheNetworkIDKey, networkID, cache.NoExpiration)
-		log.Debugf("GetNetworkID: using network ID from GCE metadata: %s", networkID)
-		return networkID, nil
-	}
+			log.Debugf("GetNetworkID trying EC2")
+			if networkID, err := ec2.GetNetworkID(ctx); err == nil {
+				log.Debugf("GetNetworkID: using network ID from EC2 metadata: %s", networkID)
+				return networkID, nil
+			}
 
-	log.Debugf("GetNetworkID trying EC2")
-	if networkID, err := ec2.GetNetworkID(ctx); err == nil {
-		cache.Cache.Set(cacheNetworkIDKey, networkID, cache.NoExpiration)
-		log.Debugf("GetNetworkID: using network ID from EC2 metadata: %s", networkID)
-		return networkID, nil
-	}
-
-	return "", fmt.Errorf("could not detect network ID")
+			return "", fmt.Errorf("could not detect network ID")
+		})
 }
