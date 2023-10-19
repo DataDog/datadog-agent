@@ -20,5 +20,4 @@ benchmark:
       - reports/
     expire_in: 3 months
   variables:
-    KUBERNETES_SERVICE_ACCOUNT_OVERWRITE: datadog-agent
     FF_USE_LEGACY_KUBERNETES_EXECUTION_STRATEGY: "true"
