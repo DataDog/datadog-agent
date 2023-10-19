@@ -85,7 +85,7 @@ func IsAutoconfigEnabled(cfg model.Reader) bool {
 				return false
 			}
 
-			log.Warnf("Usage of '%s' variable is deprecated - please use DD_AUTOCONFIG_FROM_ENVIRONMENT or 'autoconfig_from_environment' in config file",envVar)
+			log.Warnf("Usage of '%s' variable is deprecated - please use DD_AUTOCONFIG_FROM_ENVIRONMENT or 'autoconfig_from_environment' in config file", envVar)
 			return activateAutoconfFromEnv
 		}
 	}
