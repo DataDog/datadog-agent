@@ -14,6 +14,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	logComponent "github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
+	"github.com/DataDog/datadog-agent/pkg/proto/pbgo/process"
 	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/clusteragent"
 	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
@@ -86,12 +87,12 @@ func newClient(
 
 func (c *client) retryProcessEventsWithoutPod()() {
 	for _, event := c.processesWithoutPod {
-		c.processProcessEvent(event)
+		c.processProcessEvent(event, true)
 	}
 	c.processesWithoutPod = make([]workloadmeta.Event, 0)
 }
 
-func (c *client) processProcessEvent(processEvent workloadmeta.Event) {
+func (c *client) processProcessEvent(processEvent workloadmeta.Event, isRetry bool) {
 	if processEvent.Type != workloadmeta.EventTypeSet {
 		return
 	}
@@ -104,7 +105,10 @@ func (c *client) processProcessEvent(processEvent workloadmeta.Event) {
 	pod, err := c.store.GetKubernetesPodForContainer(process.ContainerID)
 	if err != nil {
 		c.logger.Debug("skipping language detection for process %s, will retry in %v", process.ID, retryPeriod)
-		c.processesWithoutPod = append(c.processesWithoutPod, processEvent)
+		if !isRetry {
+			c.telemetry.ProcessWithoutPod.Inc()
+			c.processesWithoutPod = append(c.processesWithoutPod, processEvent)
+		}
 		return
 	}
 	if !podHasOwner(pod) {
@@ -137,7 +141,7 @@ func (c *client) processEvent(evBundle workloadmeta.EventBundle) {
 	for _, event := range evBundle.Events {
 		switch event.Entity.GetID().Kind {
 		case workloadmeta.KindProcess:
-			c.processProcessEvent(event)
+			c.processProcessEvent(event, false)
 		case workloadmeta.KindKubernetesPod:
 			c.processPodEvent(event)
 		}
@@ -220,7 +224,10 @@ func (c *client) startStreaming() {
 	for {
 		select {
 		case <-periodicFlushTimer.C:
-			c.flush()
+			c.mutex.Lock()
+			data := c.currentBatch.toProto()
+			c.mutex.Unlock()
+			c.flush(data)
 		case <-c.ctx.Done():
 			return
 		}
@@ -228,25 +235,11 @@ func (c *client) startStreaming() {
 }
 
 // flush sends the current batch to the cluster-agent
-func (c *client) flush() {
-	// To avoid blocking the loop processing events for too long, we retrieve the current batch and release the mutex. On failures, items are added back to the current batch.
-	var data batch
-	c.mutex.Lock()
-	if len(c.currentBatch) > 0 {
-		data = c.currentBatch
-		c.currentBatch = make(batch)
-	}
-	c.mutex.Unlock()
-	// if no data was found
-	if data == nil {
-		return
-	}
-
+func (c *client) flush(data *process.ParentLanguageAnnotationRequest) {
 	t := time.Now()
-	err := c.langDetectionCl.PostLanguageMetadata(c.ctx, data.toProto())
+	err := c.langDetectionCl.PostLanguageMetadata(c.ctx, data)
 	if err != nil {
 		c.logger.Errorf("failed to post language metadata %v", err)
-		c.mergeBatchAfterError(data)
 		c.telemetry.Requests.Inc(statusError)
 		return
 	}
@@ -254,8 +247,3 @@ func (c *client) flush() {
 	c.telemetry.Requests.Inc(statusSuccess)
 }
 
-func (c *client) mergeBatchAfterError(b batch) {
-	c.mutex.Lock()
-	defer c.mutex.Unlock()
-	c.currentBatch.merge(b)
-}

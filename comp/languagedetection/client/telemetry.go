@@ -10,10 +10,11 @@ import "github.com/DataDog/datadog-agent/comp/core/telemetry"
 const subsystem = "language_detection_dca_client"
 
 type componentTelemetry struct {
-	Running         telemetry.SimpleGauge
-	ProcessedEvents telemetry.Counter
-	Latency         telemetry.Histogram
-	Requests        telemetry.Counter
+	Running           telemetry.SimpleGauge
+	ProcessedEvents   telemetry.Counter
+	ProcessWithoutPod telemetry.Counter
+	Latency           telemetry.Histogram
+	Requests          telemetry.Counter
 }
 
 var (
@@ -51,6 +52,15 @@ func newComponentTelemetry(telemetry telemetry.Component) *componentTelemetry {
 			[]string{},
 			"The time it takes to pull from the collectors (in seconds)",
 			[]float64{0.25, 0.5, 0.75, 1, 2, 5, 10, 15, 30, 45, 60},
+			commonOpts,
+		),
+
+		// ProcessWithoutPod counts the number of process events for which the associated pod was not found.
+		ProcessWithoutPod: telemetry.NewCounterWithOpts(
+			subsystem,
+			"process_without_pod",
+			[]string{},
+			"Number of process events that have been retried because the associated pod was missing",
 			commonOpts,
 		),
 
