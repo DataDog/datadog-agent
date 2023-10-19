@@ -1,0 +1,105 @@
+No .natvis files found at C:\Windows\SYSTEM32\Visualizers.
+No .natvis files found at C:\Users\db\AppData\Local\Dbg\Visualizers.
+
+Microsoft (R) Windows Debugger Version 10.0.22621.755 AMD64
+Copyright (c) Microsoft Corporation. All rights reserved.
+
+
+Loading Dump File [D:\tmp\dump\active.dmp]
+Kernel Bitmap Dump File: Active memory is available
+
+Symbol search path is: srv*
+Executable search path is: 
+Unable to load image \SystemRoot\system32\ntoskrnl.exe, Win32 error 0n2
+*************************************************************************
+***                                                                   ***
+***                                                                   ***
+***    Either you specified an unqualified symbol, or your debugger   ***
+***    doesn't have full symbol information.  Unqualified symbol      ***
+***    resolution is turned off by default. Please either specify a   ***
+***    fully qualified symbol module!symbolname, or enable resolution ***
+***    of unqualified symbols by typing ".symopt- 100". Note that     ***
+***    enabling unqualified symbol resolution with network symbol     ***
+***    server shares in the symbol path may cause the debugger to     ***
+***    appear to hang for long periods of time when an incorrect      ***
+***    symbol name is typed or the network symbol server is down.     ***
+***                                                                   ***
+***    For some commands to work properly, your symbol path           ***
+***    must point to .pdb files that have full type information.      ***
+***                                                                   ***
+***    Certain .pdb files (such as the public OS symbols) do not      ***
+***    contain the required information.  Contact the group that      ***
+***    provided you with these symbols if you need this command to    ***
+***    work.                                                          ***
+***                                                                   ***
+***    Type referenced: nt!_MMPTE_TRANSITION                          ***
+***                                                                   ***
+*************************************************************************
+Windows 10 Kernel Version 14393 MP (2 procs) Free x64
+Product: Server, suite: TerminalServer SingleUserTS
+Edition build lab: 14393.5989.amd64fre.GitEnlistment.230602-1907
+Machine Name:
+Kernel base = 0xfffff800`5701a000 PsLoadedModuleList = 0xfffff800`5731fcf0
+Debug session time: Mon Jun 26 22:07:25.382 2023 (UTC - 7:00)
+System Uptime: 0 days 0:00:23.613
+Unable to load image \SystemRoot\system32\ntoskrnl.exe, Win32 error 0n2
+*************************************************************************
+***                                                                   ***
+***                                                                   ***
+***    Either you specified an unqualified symbol, or your debugger   ***
+***    doesn't have full symbol information.  Unqualified symbol      ***
+***    resolution is turned off by default. Please either specify a   ***
+***    fully qualified symbol module!symbolname, or enable resolution ***
+***    of unqualified symbols by typing ".symopt- 100". Note that     ***
+***    enabling unqualified symbol resolution with network symbol     ***
+***    server shares in the symbol path may cause the debugger to     ***
+***    appear to hang for long periods of time when an incorrect      ***
+***    symbol name is typed or the network symbol server is down.     ***
+***                                                                   ***
+***    For some commands to work properly, your symbol path           ***
+***    must point to .pdb files that have full type information.      ***
+***                                                                   ***
+***    Certain .pdb files (such as the public OS symbols) do not      ***
+***    contain the required information.  Contact the group that      ***
+***    provided you with these symbols if you need this command to    ***
+***    work.                                                          ***
+***                                                                   ***
+***    Type referenced: nt!_MMPTE_TRANSITION                          ***
+***                                                                   ***
+*************************************************************************
+Loading Kernel Symbols
+...............................................................
+................................................................
+........................
+Loading User Symbols
+
+Loading unloaded module list
+.......
+
+************* Symbol Loading Error Summary **************
+Module name            Error
+ntkrnlmp               The system cannot find the file specified
+
+You can troubleshoot most symbol related issues by turning on symbol loading diagnostics (!sym noisy) and repeating the command that caused symbols to be loaded.
+You should also verify that your symbol search path (.sympath) is correct.
+Unable to add extension DLL: kdexts
+Unable to add extension DLL: kext
+Unable to add extension DLL: exts
+For analysis of this file, run !analyze -v
+RetAddr               : Args to Child                                                           : Call Site
+fffff800`5718fdb0     : 00000000`0000007e ffffffff`c0000005 fffff801`ecc210e6 ffffad80`081306a8 : nt!KeBugCheckEx
+fffff800`571667bf     : 00000000`00000004 00000000`00000000 00007fff`ffff0000 ffffd883`1adf9040 : nt!memset+0x5530
+fffff800`5718102d     : ffffad80`08131000 ffffad80`0812f8c0 00000000`00000000 00000000`00000050 : nt!_C_specific_handler+0x9f
+fffff800`5710f2a1     : ffffad80`08131000 00000000`00000000 ffffad80`0812b000 00000000`00000000 : nt!_chkstk+0x5d
+fffff800`5710e0c4     : ffffad80`081306a8 ffffad80`081303f0 ffffad80`081306a8 ffffad80`08130570 : nt!KeQuerySystemTimePrecise+0x27d1
+fffff800`57189482     : 0000186c`00000000 fffff800`5723cd00 00000000`00000000 fffff800`5772f0c4 : nt!KeQuerySystemTimePrecise+0x15f4
+fffff800`57185fc0     : 00000000`00000000 fffff800`57432fe0 ffff8903`13e0dc50 ffffd883`1cb53080 : nt!setjmpex+0x7622
+fffff801`ecc210e6     : 00000000`00000001 00000000`00000000 ffffd883`19e08000 fffff800`57081511 : nt!setjmpex+0x4160
+Unable to load image \??\c:\users\Administrator\ddapmcrash.sys, Win32 error 0n2
+fffff801`ecc27020     : ffffd883`1cb53080 ffffd883`1cb85000 ffffd883`1cb53080 ffff0c05`3d3c7a54 : ddapmcrash+0x10e6
+fffff800`574ce8f7     : 00000000`00000000 00000000`00000000 ffffd883`1cb53080 ffffffff`000001c8 : ddapmcrash+0x7020
+fffff800`5746c40e     : ffffd883`1b20d180 00000000`00000000 00000000`00000000 fffff800`573d92c0 : nt!FsRtlNotifyVolumeEventEx+0x243b
+fffff800`570b0dc9     : fffff800`00000000 ffffffff`80000dc8 ffffd883`1adf9040 fffff800`573d92c0 : nt!MmGetPhysicalMemoryRangesEx+0xb56
+fffff800`57061f85     : ffffd883`1adf9040 00000000`00000080 ffffd883`19e6d040 ffffd883`1adf9040 : nt!KdPollBreakIn+0x8059
+fffff800`5717fdf6     : fffff800`5735d180 ffffd883`1adf9040 fffff800`57061f44 00000000`00000000 : nt!PsGetProcessSessionIdEx+0x2d5
+00000000`00000000     : ffffad80`08131000 ffffad80`0812b000 00000000`00000000 00000000`00000000 : nt!KeSynchronizeExecution+0x7756

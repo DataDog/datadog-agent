@@ -38,6 +38,7 @@ const (
 	retAddrPrefix          = "RetAddr"
 	unableToLoadPrefix     = "Unable to"
 	ntBangPrefix           = "nt!"
+	keBugCheckPrefix       = "nt!KeBugCheckEx"
 )
 
 func min(a, b int) int {
@@ -169,6 +170,9 @@ func parseCrashDump(wcs *WinCrashStatus) {
 			continue
 		}
 
+		// some versions of the OS have the `BugcheckCode line`, some don't.  If we get into
+		// the actual call stack, read the keBugCheck stack trace line, and get the bug check
+		// code from the first argument on the stack
 		if strings.HasPrefix(line, bugcheckCodePrefix) {
 			codeAsString := strings.TrimSpace(line[len(bugcheckCodePrefix)+1:])
 			wcs.BugCheck = codeAsString
@@ -178,6 +182,7 @@ func parseCrashDump(wcs *WinCrashStatus) {
 		if strings.HasPrefix(line, retAddrPrefix) {
 			continue
 		}
+
 		// as shown above, there might be a stray "symbols could not be loaded line".  This would then
 		// cause the split on ":" below  to not work, and then things would get worse from there.  so
 		// just skip this line because it's expected.
@@ -189,6 +194,31 @@ func parseCrashDump(wcs *WinCrashStatus) {
 			continue
 		}
 		callsite := strings.TrimSpace(parts[2])
+
+		if len(wcs.BugCheck) == 0 {
+			if strings.HasPrefix(callsite, keBugCheckPrefix) {
+				// line looks like this
+				// fffff800`457f4db0 : 00000000`0000007e ffffffff`c0000005 fffff806`f7e010e6 ffffb481`789326a8 : nt!KeBugCheckEx
+
+				// first, get the args section (between the `:`)
+				sections := strings.Split(line, ":")
+				if len(sections) == 3 {
+					// otherwise don't try to parse it
+					args := strings.TrimSpace(sections[1]) // the middle section
+
+					// now split it along space lines; we only need the first one
+					firstarg, _, found := strings.Cut(args, " ")
+					if found {
+						// now we should be down to 00000000`0000007e
+						_, code, found := strings.Cut(firstarg, "`")
+						if found {
+							wcs.BugCheck = code
+						}
+					}
+				}
+			}
+		}
+
 		if strings.HasPrefix(callsite, ntBangPrefix) {
 			// we're still in ntoskernel, keep looking
 			continue
