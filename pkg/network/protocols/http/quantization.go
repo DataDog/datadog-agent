@@ -118,7 +118,7 @@ func (t *tokenizer) Next() bool {
 	return true
 }
 
-// Value returns the current token along with it's byte value
+// Value returns the current token along with its byte value
 // Note that the byte value is only valid until the next call to `Reset()`
 func (t *tokenizer) Value() (tokenType, []byte) {
 	if t.i < 0 || t.j > len(t.path) || t.i >= t.j {
