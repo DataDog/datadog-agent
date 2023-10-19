@@ -1,5 +1,5 @@
-#ifndef DECODING_COMMON_H_
-#define DECODING_COMMON_H_
+#ifndef __DECODING_COMMON_H_
+#define __DECODING_COMMON_H_
 
 #include "protocols/http2/helpers.h"
 #include "protocols/http2/maps-defs.h"

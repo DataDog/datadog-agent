@@ -1,5 +1,5 @@
-#ifndef HTTPS_MAPS_H_
-#define HTTPS_MAPS_H_
+#ifndef __HTTPS_MAPS_H_
+#define __HTTPS_MAPS_H_
 
 #include "protocols/http2/decoding-defs.h"
 
