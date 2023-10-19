@@ -6,10 +6,12 @@
 package forwarder
 
 import (
+	_ "embed"
 	"fmt"
 	"net"
 	"net/url"
 	"regexp"
+	"strings"
 	"testing"
 	"time"
 
@@ -22,6 +24,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	// fiClient "github.com/DataDog/datadog-agent/test/fakeintake/client"
+	fiClient "github.com/DataDog/datadog-agent/test/fakeintake/client"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/params"
@@ -39,17 +43,20 @@ const (
 	intakeName              = "ddintake"
 	connectionResetInterval = 120 // seconds
 	intakeMaxWaitTime       = 5 * time.Minute
-	intakeTick              = 10 * time.Second
+	intakeTick              = 20 * time.Second
 	fakeintake1Name         = "1fakeintake"
 	fakeintake2Name         = "2fakeintake"
 )
 
 // for local dev purpose
 var testParams = []params.Option{
-	// params.WithDevMode(),
+	params.WithDevMode(),
 	// params.WithSkipDeleteOnFailure(),
-	// params.WithStackName("pgimalac-examples-multifakeintakesuite-000007"),
+	// params.WithStackName("pgimalac-examples-multifakeintakesuite-000008"),
 }
+
+//go:embed testfixtures/custom_logs.yaml
+var customLogsConfig string
 
 func multiFakeintakeStackDef(agentOptions ...agentparams.Option) *e2e.StackDefinition[multiFakeIntakeEnv] {
 	return e2e.EnvFactoryStackDef(func(ctx *pulumi.Context) (*multiFakeIntakeEnv, error) {
@@ -96,6 +103,14 @@ func TestMultiFakeintakeSuite(t *testing.T) {
 }
 
 func (v *multiFakeIntakeSuite) TestCleanup() {
+	v.Env() // update the environment outside EventuallyWithT
+
+	// Wait for the fakeintake to be ready to avoid 503
+	require.EventuallyWithT(v.T(), func(c *assert.CollectT) {
+		assert.NoError(c, v.Env().Fakeintake1.Client.GetServerHealth())
+		assert.NoError(c, v.Env().Fakeintake2.Client.GetServerHealth())
+	}, 5*time.Minute, 20*time.Second)
+
 	// flush both fakeintakes, useful for local testing
 	v.NoError(v.Env().Fakeintake1.FlushServerAndResetAggregators())
 	v.NoError(v.Env().Fakeintake2.FlushServerAndResetAggregators())
@@ -107,22 +122,26 @@ func (v *multiFakeIntakeSuite) TestDNSFailover() {
 	v.NoError(err)
 	setHostEntry(v.T(), v.Env().VM, intakeName, fakeintake1IP)
 
-	// configure agent to use the custom intake and set connection_reset_interval
-	agentConfig := fmt.Sprintf("%s\n%s", getDDUrlConf(intakeName), getConnectionResetConf(connectionResetInterval))
-	v.UpdateEnv(multiFakeintakeStackDef(agentparams.WithAgentConfig(agentConfig)))
+	// configure agent to use the custom intake, set connection_reset_interval, use logs, and processes
+	agentOptions := []agentparams.Option{
+		agentparams.WithAgentConfig(getAgentConfig(intakeName, connectionResetInterval)),
+		agentparams.WithLogs(),
+		agentparams.WithIntegration("custom_logs.d", customLogsConfig),
+	}
+	v.UpdateEnv(multiFakeintakeStackDef(agentOptions...))
+	v.Env() // update the environment outside EventuallyWithT
 
 	// check that fakeintake1 does receive metrics
 	v.T().Logf("checking that the agent contacts main intake at %s", fakeintake1IP)
-	v.EventuallyWithT(func(c *assert.CollectT) {
-		metricNames, err := v.Env().Fakeintake1.GetMetricNames()
-		require.NoError(c, err)
-		assert.NotEmpty(c, metricNames)
-	}, intakeMaxWaitTime, intakeTick)
+	require.EventuallyWithT(
+		v.T(),
+		assertIntakeIsUsed(v.Env().VM, v.Env().Fakeintake1, v.Env().Agent),
+		intakeMaxWaitTime,
+		intakeTick,
+	)
 
 	// check that fakeintake2 doesn't receive metrics
-	metricNames, err := v.Env().Fakeintake2.GetMetricNames()
-	v.NoError(err)
-	v.Empty(metricNames)
+	assertIntakeNotUsed(v.T(), v.Env().VM, v.Env().Fakeintake2, v.Env().Agent)
 
 	// perform local version of DNS failover
 	fakeintake2IP, err := hostIPFromURL(v.Env().Fakeintake2.URL())
@@ -131,11 +150,59 @@ func (v *multiFakeIntakeSuite) TestDNSFailover() {
 
 	// check that fakeintake2 receives metrics
 	v.T().Logf("checking that the agent contacts fallback intake at %s", fakeintake2IP)
-	v.EventuallyWithT(func(c *assert.CollectT) {
-		metricNames, err := v.Env().Fakeintake2.GetMetricNames()
-		require.NoError(c, err)
-		assert.NotEmpty(c, metricNames)
-	}, connectionResetInterval*time.Second+intakeMaxWaitTime, intakeTick)
+	require.EventuallyWithT(
+		v.T(),
+		assertIntakeIsUsed(v.Env().VM, v.Env().Fakeintake2, v.Env().Agent),
+		connectionResetInterval*time.Second+intakeMaxWaitTime,
+		intakeTick,
+	)
+}
+
+func assertIntakeIsUsed(vm *client.VM, intake *client.Fakeintake, agent *client.Agent) func(*assert.CollectT) {
+	return func(t *assert.CollectT) {
+		fmt.Println(time.Now(), "assertIntakeIsUsed", intake.URL())
+
+		// check metrics
+		metricNames, err := intake.GetMetricNames()
+		require.NoError(t, err)
+		if assert.NotEmpty(t, metricNames) {
+			fmt.Println("intake received metrics")
+		}
+
+		// check logs
+		vm.Execute("echo 'totoro' >> /tmp/test.log")
+		logs, err := intake.FilterLogs("custom_logs")
+		if assert.NoError(t, err) && assert.NotEmpty(t, logs) {
+			fmt.Println("intake received logs")
+		}
+
+		// check flares
+		agent.Flare(client.WithArgs([]string{"--email", "e2e@test.com", "--send"}))
+		_, err = intake.GetLatestFlare()
+		if assert.NoError(t, err) {
+			fmt.Println("intake received flare")
+		}
+	}
+}
+
+func assertIntakeNotUsed(t *testing.T, vm *client.VM, intake *client.Fakeintake, agent *client.Agent) {
+	fmt.Println(time.Now(), "assertIntakeNotUsed", intake.URL())
+
+	// check metrics
+	metricNames, err := intake.GetMetricNames()
+	require.NoError(t, err)
+	assert.Empty(t, metricNames)
+
+	// check logs
+	vm.Execute("echo 'totoro' >> /tmp/test.log")
+	logs, err := intake.FilterLogs("custom_logs")
+	assert.NoError(t, err)
+	assert.Empty(t, logs)
+
+	// check flares
+	agent.Flare(client.WithArgs([]string{"--email", "e2e@test.com", "--send"}))
+	_, err = intake.GetLatestFlare()
+	assert.ErrorIs(t, err, fiClient.ErrNoFlareAvailable)
 }
 
 // setHostEntry adds an entry in /etc/hosts for the given hostname and hostIP
@@ -185,6 +252,13 @@ func hostIPFromURL(fakeintakeURL string) (string, error) {
 
 	// return any valid ip
 	return ips[0].String(), nil
+}
+
+func getAgentConfig(intake string, interval int) string {
+	return strings.Join([]string{
+		getDDUrlConf(intake),
+		getConnectionResetConf(interval),
+	}, "\n")
 }
 
 func getDDUrlConf(intake string) string {
