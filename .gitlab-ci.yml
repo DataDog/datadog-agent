@@ -297,6 +297,10 @@ variables:
 .if_scheduled_main: &if_scheduled_main
   if: $CI_PIPELINE_SOURCE == "schedule" && $CI_COMMIT_BRANCH == "main"
 
+# Rule to trigger jobs only when a branch matches the mergequeue pattern.
+.if_mergequeue: &if_mergequeue
+  if: $PIPELINE_TYPE == "mergequeue"
+
 #
 # Workflow rules
 # Rules used to define whether a pipeline should run, and with which variables
@@ -326,6 +330,9 @@ workflow:
       variables:
         USE_CACHING_PROXY_PYTHON: "false"
         USE_CACHING_PROXY_RUBY: "false"
+    - if: '$CI_COMMIT_BRANCH =~ /^mq-working-branch-/'
+      variables:
+        PIPELINE_TYPE: 'mergequeue'
 
 #
 # List of rule blocks used in the pipeline
@@ -952,3 +959,7 @@ workflow:
     when: never
   - <<: *if_main_branch
     when: on_success
+
+.except_mergequeue:
+  - <<: *if_mergequeue
+    when: never
