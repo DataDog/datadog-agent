@@ -9,6 +9,7 @@ import (
 	"context"
 	"fmt"
 	"testing"
+	"time"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/log"
@@ -19,6 +20,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"go.uber.org/fx"
 )
 
@@ -442,7 +444,7 @@ func TestClientProcessEvent_PodMissing(t *testing.T) {
 	initProcess := &workloadmeta.Process{
 		EntityID: workloadmeta.EntityID{
 			Kind: workloadmeta.KindProcess,
-			ID:   "123",
+			ID:   "012",
 		},
 		Language: &languagemodels.Language{
 			Name: "go",
@@ -689,4 +691,266 @@ func TestPodHasOwner(t *testing.T) {
 			assert.Equal(t, tt.expected, hasOwner)
 		})
 	}
+}
+
+// TestRun checks that the client runs as expected and will help to identify potential data races
+func TestRun(t *testing.T) {
+	mockStore := workloadmeta.NewMockStore()
+	client, mockDCAClient, doneCh := newTestClient(t, mockStore)
+	client.newUpdatePeriod = 50 * time.Millisecond
+	client.periodicalFlushPeriod = 1 * time.Second
+	client.retryProcessWithoutPodPeriod = 100 * time.Millisecond
+
+	err := client.start(context.Background())
+	require.NoError(t, err)
+
+	container1 := &workloadmeta.Container{
+		EntityID: workloadmeta.EntityID{
+			ID:   "nginx-cont-id1",
+			Kind: workloadmeta.KindContainer,
+		},
+		EntityMeta: workloadmeta.EntityMeta{
+			Name: "nginx-cont-name1",
+		},
+		Owner: &workloadmeta.EntityID{
+			ID:   "nginx-pod-id1",
+			Kind: workloadmeta.KindKubernetesPod,
+		},
+	}
+
+	container2 := &workloadmeta.Container{
+		EntityID: workloadmeta.EntityID{
+			ID:   "nginx-cont-id2",
+			Kind: workloadmeta.KindContainer,
+		},
+		EntityMeta: workloadmeta.EntityMeta{
+			Name: "nginx-cont-name-2",
+		},
+		Owner: &workloadmeta.EntityID{
+			ID:   "nginx-pod-id2",
+			Kind: workloadmeta.KindKubernetesPod,
+		},
+	}
+
+	pod1 := &workloadmeta.KubernetesPod{
+		EntityID: workloadmeta.EntityID{
+			ID:   "nginx-pod-id1",
+			Kind: workloadmeta.KindKubernetesPod,
+		},
+		EntityMeta: workloadmeta.EntityMeta{
+			Name:      "nginx-pod-name1",
+			Namespace: "nginx-pod-namespace1",
+		},
+		Containers: []workloadmeta.OrchestratorContainer{
+			{
+				ID:   "nginx-cont-id1",
+				Name: "nginx-cont-name1",
+			},
+		},
+		Owners: []workloadmeta.KubernetesPodOwner{
+			{
+				ID:   "nginx-replicaset-id1",
+				Name: "nginx-replicaset-name1",
+				Kind: "replicaset",
+			},
+		},
+	}
+
+	pod2 := &workloadmeta.KubernetesPod{
+		EntityID: workloadmeta.EntityID{
+			ID:   "nginx-pod-id2",
+			Kind: workloadmeta.KindKubernetesPod,
+		},
+		EntityMeta: workloadmeta.EntityMeta{
+			Name:      "nginx-pod-name2",
+			Namespace: "nginx-pod-namespace2",
+		},
+		Containers: []workloadmeta.OrchestratorContainer{
+			{
+				ID:   "nginx-cont-id2",
+				Name: "nginx-cont-name2",
+			},
+		},
+		Owners: []workloadmeta.KubernetesPodOwner{
+			{
+				ID:   "nginx-replicaset-id2",
+				Name: "nginx-replicaset-name2",
+				Kind: "replicaset",
+			},
+		},
+	}
+
+	process1 := &workloadmeta.Process{
+		EntityID: workloadmeta.EntityID{
+			Kind: workloadmeta.KindProcess,
+			ID:   "123",
+		},
+		Language: &languagemodels.Language{
+			Name: "java",
+		},
+		ContainerID: "nginx-cont-id1",
+	}
+
+	processWithoutPod := &workloadmeta.Process{
+		EntityID: workloadmeta.EntityID{
+			Kind: workloadmeta.KindProcess,
+			ID:   "1234",
+		},
+		Language: &languagemodels.Language{
+			Name: "java",
+		},
+		ContainerID: "unknown-container",
+	}
+
+	process2 := &workloadmeta.Process{
+		EntityID: workloadmeta.EntityID{
+			Kind: workloadmeta.KindProcess,
+			ID:   "012",
+		},
+		Language: &languagemodels.Language{
+			Name: "go",
+		},
+		ContainerID: "nginx-cont-id2",
+	}
+
+	collectorEvents1 := []workloadmeta.CollectorEvent{
+		{
+			Type:   workloadmeta.EventTypeSet,
+			Source: workloadmeta.SourceAll,
+			Entity: pod1,
+		},
+		{
+			Type:   workloadmeta.EventTypeSet,
+			Source: workloadmeta.SourceAll,
+			Entity: container1,
+		},
+		{
+			Type:   workloadmeta.EventTypeSet,
+			Source: workloadmeta.SourceAll,
+			Entity: process1,
+		},
+		{
+			Type:   workloadmeta.EventTypeSet,
+			Source: workloadmeta.SourceAll,
+			Entity: processWithoutPod,
+		},
+	}
+
+	mockStore.Notify(collectorEvents1)
+
+	// The entire batch should be sent with the first event, we can wait only once
+	<-doneCh
+	assert.Equal(t,
+		batch{
+			"nginx-pod-name1": {
+				namespace: "nginx-pod-namespace1",
+				containerInfo: containerInfo{
+					"nginx-cont-name1": {
+						"java": {},
+					},
+				},
+				ownerRef: &workloadmeta.KubernetesPodOwner{
+					ID:   "nginx-replicaset-id1",
+					Name: "nginx-replicaset-name1",
+					Kind: "replicaset",
+				},
+			},
+		}.toProto(),
+		mockDCAClient.payload[0],
+	)
+
+	collectorEvents2 := []workloadmeta.CollectorEvent{
+		{
+			Type:   workloadmeta.EventTypeSet,
+			Source: workloadmeta.SourceAll,
+			Entity: pod2,
+		},
+		{
+			Type:   workloadmeta.EventTypeSet,
+			Source: workloadmeta.SourceAll,
+			Entity: container2,
+		},
+		{
+			Type:   workloadmeta.EventTypeSet,
+			Source: workloadmeta.SourceAll,
+			Entity: process2,
+		},
+	}
+
+	mockStore.Notify(collectorEvents2)
+
+	b := batch{
+		"nginx-pod-name2": {
+			namespace: "nginx-pod-namespace2",
+			containerInfo: containerInfo{
+				"nginx-cont-name2": {
+					"go": {},
+				},
+			},
+			ownerRef: &workloadmeta.KubernetesPodOwner{
+				ID:   "nginx-replicaset-id2",
+				Name: "nginx-replicaset-name2",
+				Kind: "replicaset",
+			},
+		},
+		"nginx-pod-name1": {
+			namespace: "nginx-pod-namespace1",
+			containerInfo: containerInfo{
+				"nginx-cont-name1": {
+					"java": {},
+				},
+			},
+			ownerRef: &workloadmeta.KubernetesPodOwner{
+				ID:   "nginx-replicaset-id1",
+				Name: "nginx-replicaset-name1",
+				Kind: "replicaset",
+			},
+		},
+	}.toProto()
+
+	// the periodic flush mechanism should send the entire data every 100ms
+	assert.Eventually(t, func() bool {
+		<-doneCh
+		return mockDCAClient.payload[len(mockDCAClient.payload)-1].String() == b.String()
+	},
+		5*time.Second,
+		100*time.Millisecond,
+	)
+
+	unsetPodEvent := []workloadmeta.CollectorEvent{
+		{
+			Type:   workloadmeta.EventTypeUnset,
+			Source: workloadmeta.SourceAll,
+			Entity: pod2,
+		},
+	}
+
+	mockStore.Notify(unsetPodEvent)
+
+	// the periodic flush mechanism should send the up to date data after removing the pod
+	b = batch{
+		"nginx-pod-name1": {
+			namespace: "nginx-pod-namespace1",
+			containerInfo: containerInfo{
+				"nginx-cont-name1": {
+					"java": {},
+				},
+			},
+			ownerRef: &workloadmeta.KubernetesPodOwner{
+				ID:   "nginx-replicaset-id1",
+				Name: "nginx-replicaset-name1",
+				Kind: "replicaset",
+			},
+		},
+	}.toProto()
+
+	assert.Eventually(t, func() bool {
+		<-doneCh
+		return mockDCAClient.payload[len(mockDCAClient.payload)-1].String() == b.String()
+	},
+		5*time.Second,
+		100*time.Millisecond,
+	)
+
+	client.stop(context.Background())
 }

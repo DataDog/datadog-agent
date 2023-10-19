@@ -74,6 +74,9 @@ type client struct {
 	//  from the kubelet
 	processesWithoutPod          []workloadmeta.Event
 	retryProcessWithoutPodPeriod time.Duration
+
+	// periodicalFlushPeriod sets the interval between two periodical flushes
+	periodicalFlushPeriod time.Duration
 }
 
 // newClient creates a new Client
@@ -96,8 +99,9 @@ func newClient(
 		telemetry:                    newComponentTelemetry(deps.Telemetry),
 		currentBatch:                 make(batch),
 		processesWithoutPod:          make([]workloadmeta.Event, 0),
-		retryProcessWithoutPodPeriod: time.Second * deps.Config.GetDuration("kubelet_cache_pods_duration"),
+		retryProcessWithoutPodPeriod: deps.Config.GetDuration("kubelet_cache_pods_duration") * time.Second,
 		freshlyUpdatedPods:           make(map[string]struct{}),
+		periodicalFlushPeriod:        periodicalFlushPeriod,
 	}
 	deps.Lc.Append(fx.Hook{
 		OnStart: cl.start,
@@ -185,7 +189,7 @@ func (c *client) startStreaming() {
 	freshUpdateTimer := time.NewTicker(c.newUpdatePeriod)
 	defer freshUpdateTimer.Stop()
 
-	periodicFlushTimer := time.NewTicker(periodicalFlushPeriod)
+	periodicFlushTimer := time.NewTicker(c.periodicalFlushPeriod)
 	defer periodicFlushTimer.Stop()
 
 	if c.langDetectionCl == nil {
@@ -295,6 +299,9 @@ func (c *client) processPodEvent(podEvent workloadmeta.Event) {
 func (c *client) getCurrentBatchProto() *process.ParentLanguageAnnotationRequest {
 	c.mutex.Lock()
 	defer c.mutex.Unlock()
+	if len(c.currentBatch) == 0 {
+		return nil
+	}
 	return c.currentBatch.toProto()
 }
 
