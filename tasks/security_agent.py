@@ -16,6 +16,7 @@ from invoke.exceptions import Exit
 from .build_tags import get_default_build_tags
 from .go import run_golangci_lint
 from .libs.ninja_syntax import NinjaWriter
+from .process_agent import TempDir
 from .system_probe import (
     CURRENT_ARCH,
     build_cws_object_files,
@@ -120,18 +121,6 @@ def build(
         shutil.copy("./cmd/agent/dist/security-agent.yaml", os.path.join(dist_folder, "security-agent.yaml"))
 
 
-class TempDir:
-    def __enter__(self):
-        self.fname = tempfile.mkdtemp()
-        print(f"created tempdir: {self.fname}")
-        return self.fname
-
-    # The _ in front of the unused arguments are needed to pass lint check
-    def __exit__(self, _exception_type, _exception_value, _exception_traceback):
-        print(f"deleting tempdir: {self.fname}")
-        shutil.rmtree(self.fname)
-
-
 @task
 def build_dev_image(ctx, image=None, push=False, base_image="datadog/agent:latest", include_agent_binary=False):
     """
@@ -165,7 +154,6 @@ def build_dev_image(ctx, image=None, push=False, base_image="datadog/agent:lates
         ctx.run(f"chmod 0444 {docker_context}/*.o {docker_context}/*.c {docker_context}/co-re/*.o")
         ctx.run(f"cp /opt/datadog-agent/embedded/bin/clang-bpf {docker_context}")
         ctx.run(f"cp /opt/datadog-agent/embedded/bin/llc-bpf {docker_context}")
-        ctx.run(f"cp pkg/network/protocols/tls/java/agent-usm.jar {docker_context}")
 
         with ctx.cd(docker_context):
             # --pull in the build will force docker to grab the latest base image
