@@ -106,10 +106,6 @@ func (t *tokenizer) Next() bool {
 	t.countSpecialChars = 0
 	t.i = t.j + 1
 
-	if t.i >= len(t.path) {
-		return false
-	}
-
 	for t.j = t.i; t.j < len(t.path); t.j++ {
 		c := t.path[t.j]
 
@@ -124,7 +120,7 @@ func (t *tokenizer) Next() bool {
 		}
 	}
 
-	return true
+	return t.i < len(t.path)
 }
 
 // Value returns the current token along with its byte value
