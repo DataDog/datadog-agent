@@ -123,7 +123,7 @@ func TestReadInitialUDPState(t *testing.T) {
 
 	l := nettestutil.StartServerUDP(t, net.ParseIP("0.0.0.0"), 0)
 	t.Cleanup(func() {
-		defer l.Close()
+		l.Close()
 	})
 
 	l6 := nettestutil.StartServerUDP(t, net.ParseIP("::"), 0)
@@ -132,24 +132,13 @@ func TestReadInitialUDPState(t *testing.T) {
 	})
 
 	conn, ok := l.(*net.UDPConn)
-	assert.True(t, ok)
+	require.True(t, ok)
 	connl6, ok := l6.(*net.UDPConn)
 	assert.True(t, ok)
 
-	addr := conn.LocalAddr().String()
-	addrl6 := connl6.LocalAddr().String()
-
-	_, portStr, err := net.SplitHostPort(addr)
-	assert.Nil(t, err)
-	_, portStrl6, err := net.SplitHostPort(addrl6)
-	assert.Nil(t, err)
-
-	port, _ := strconv.Atoi(portStr)
-	portl6, _ := strconv.Atoi(portStrl6)
-
 	ports := []uint16{
-		uint16(port),
-		uint16(portl6),
+		getPortUDP(t, conn),
+		getPortUDP(t, connl6),
 		34567,
 		34568,
 	}
@@ -196,4 +185,8 @@ func getPort(t *testing.T, listener net.Listener) uint16 {
 	port, err := strconv.Atoi(listenerURL.Port())
 	require.NoError(t, err)
 	return uint16(port)
+}
+
+func getPortUDP(_ *testing.T, udpConn *net.UDPConn) uint16 {
+	return uint16(udpConn.LocalAddr().(*net.UDPAddr).Port)
 }
