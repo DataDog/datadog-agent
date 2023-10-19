@@ -11,3 +11,4 @@ logs_enabled: true
 logs_config:
   logs_dd_url: 127.0.0.1:9091
   file_scan_period: 1
+  logs_no_ssl: true
