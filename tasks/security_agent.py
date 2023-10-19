@@ -120,6 +120,63 @@ def build(
         shutil.copy("./cmd/agent/dist/security-agent.yaml", os.path.join(dist_folder, "security-agent.yaml"))
 
 
+class TempDir:
+    def __enter__(self):
+        self.fname = tempfile.mkdtemp()
+        print(f"created tempdir: {self.fname}")
+        return self.fname
+
+    # The _ in front of the unused arguments are needed to pass lint check
+    def __exit__(self, _exception_type, _exception_value, _exception_traceback):
+        print(f"deleting tempdir: {self.fname}")
+        shutil.rmtree(self.fname)
+
+
+@task
+def build_dev_image(ctx, image=None, push=False, base_image="datadog/agent:latest", include_agent_binary=False):
+    """
+    Build a dev image of the security-agent based off an existing datadog-agent image
+
+    image: the image name used to tag the image
+    push: if true, run a docker push on the image
+    base_image: base the docker image off this already build image (default: datadog/agent:latest)
+    include_agent_binary: if true, use the agent binary in bin/agent/agent as opposite to the base image's binary
+    """
+    if image is None:
+        raise Exit(message="image was not specified")
+
+    with TempDir() as docker_context:
+        ctx.run(f"cp tools/ebpf/Dockerfiles/Dockerfile-security-agent-dev {docker_context + '/Dockerfile'}")
+
+        ctx.run(f"cp bin/security-agent/security-agent {docker_context + '/security-agent'}")
+        ctx.run(f"cp bin/system-probe/system-probe {docker_context + '/system-probe'}")
+        if include_agent_binary:
+            ctx.run(f"cp bin/agent/agent {docker_context + '/agent'}")
+            core_agent_dest = "/opt/datadog-agent/bin/agent/agent"
+        else:
+            # this is necessary so that the docker build doesn't fail while attempting to copy the agent binary
+            ctx.run(f"touch {docker_context}/agent")
+            core_agent_dest = "/dev/null"
+
+        ctx.run(f"cp pkg/ebpf/bytecode/build/*.o {docker_context}")
+        ctx.run(f"mkdir {docker_context}/co-re")
+        ctx.run(f"cp pkg/ebpf/bytecode/build/co-re/*.o {docker_context}/co-re/")
+        ctx.run(f"cp pkg/ebpf/bytecode/build/runtime/*.c {docker_context}")
+        ctx.run(f"chmod 0444 {docker_context}/*.o {docker_context}/*.c {docker_context}/co-re/*.o")
+        ctx.run(f"cp /opt/datadog-agent/embedded/bin/clang-bpf {docker_context}")
+        ctx.run(f"cp /opt/datadog-agent/embedded/bin/llc-bpf {docker_context}")
+        ctx.run(f"cp pkg/network/protocols/tls/java/agent-usm.jar {docker_context}")
+
+        with ctx.cd(docker_context):
+            # --pull in the build will force docker to grab the latest base image
+            ctx.run(
+                f"docker build --pull --tag {image} --build-arg AGENT_BASE={base_image} --build-arg CORE_AGENT_DEST={core_agent_dest} ."
+            )
+
+    if push:
+        ctx.run(f"docker push {image}")
+
+
 @task()
 def gen_mocks(ctx):
     """
