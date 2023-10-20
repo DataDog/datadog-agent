@@ -121,12 +121,8 @@ func (a *APIServer) GetEvents(params *api.GetEventParams, stream api.SecurityMod
 		case <-a.stopChan:
 			return nil
 		case msg := <-a.msgs:
-			if a.limiter.Allow(nil) {
-				if err := stream.Send(msg); err != nil {
-					return err
-				}
-			} else {
-				a.expireEvent(msg)
+			if err := stream.Send(msg); err != nil {
+				return err
 			}
 		}
 	}
