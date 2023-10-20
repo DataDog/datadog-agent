@@ -50,16 +50,17 @@ type parser struct {
 	readTimestamps bool
 }
 
-func newParser(cfg config.Reader, float64List *float64ListPool) *parser {
+func newParser(cfg config.Reader, float64List *float64ListPool, workerNum int) *parser {
 	stringInternerCacheSize := cfg.GetInt("dogstatsd_string_interner_size")
 	readTimestamps := cfg.GetBool("dogstatsd_no_aggregation_pipeline")
 
-	return &parser{
-		interner:         newStringInterner(stringInternerCacheSize),
+	p := &parser{
+		interner:         newStringInterner(stringInternerCacheSize, workerNum),
 		readTimestamps:   readTimestamps,
 		float64List:      float64List,
 		dsdOriginEnabled: cfg.GetBool("dogstatsd_origin_detection_client"),
 	}
+	return p
 }
 
 func findMessageType(message []byte) messageType {
