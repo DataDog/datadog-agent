@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package checkconfig
+package profile
 
 import (
 	"compress/gzip"
@@ -18,7 +18,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/networkdevice/profile/profiledefinition"
 )
 
-func loadBundleJSONProfiles() (profileConfigMap, error) {
+func loadBundleJSONProfiles() (ProfileConfigMap, error) {
 	jsonStr, err := getProfilesBundleJSON()
 	if err != nil {
 		return nil, err
@@ -31,28 +31,28 @@ func loadBundleJSONProfiles() (profileConfigMap, error) {
 	return profiles, nil
 }
 
-func unmarshallProfilesBundleJSON(jsonStr []byte) (profileConfigMap, error) {
+func unmarshallProfilesBundleJSON(jsonStr []byte) (ProfileConfigMap, error) {
 	bundle := profiledefinition.ProfileBundle{}
 	err := json.Unmarshal(jsonStr, &bundle)
 	if err != nil {
 		return nil, err
 	}
 
-	profiles := make(profileConfigMap)
-	for _, profile := range bundle.Profiles {
-		if profile.Profile.Name == "" {
-			log.Warnf("Profile with missing name: %s", profile.Profile.Name)
+	profiles := make(ProfileConfigMap)
+	for _, p := range bundle.Profiles {
+		if p.Profile.Name == "" {
+			log.Warnf("Profile with missing name: %s", p.Profile.Name)
 			continue
 		}
 
-		if _, exist := profiles[profile.Profile.Name]; exist {
-			log.Warnf("duplicate profile found: %s", profile.Profile.Name)
+		if _, exist := profiles[p.Profile.Name]; exist {
+			log.Warnf("duplicate profile found: %s", p.Profile.Name)
 			continue
 		}
 		// TODO: (separate PR) resolve extends with custom + local default profiles (yaml)
-		profiles[profile.Profile.Name] = profileConfig{
-			Definition:    profile.Profile,
-			isUserProfile: true,
+		profiles[p.Profile.Name] = ProfileConfig{
+			Definition:    p.Profile,
+			IsUserProfile: true,
 		}
 	}
 	return profiles, nil

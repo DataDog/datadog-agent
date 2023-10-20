@@ -3,7 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package checkconfig
+// Package configvalidation contains validation and enrichment functions
+package configvalidation
 
 import (
 	"fmt"
@@ -39,8 +40,10 @@ var validMetadataResources = map[string]map[string]bool{
 	},
 }
 
+// SymbolContext represent the context in which the symbol is used
 type SymbolContext int64
 
+// ScalarSymbol enums
 const (
 	ScalarSymbol SymbolContext = iota
 	ColumnSymbol
@@ -97,8 +100,8 @@ func ValidateEnrichMetrics(metrics []profiledefinition.MetricsConfig) []string {
 	return errors
 }
 
-// validateEnrichMetadata will validate MetadataConfig and enrich it.
-func validateEnrichMetadata(metadata profiledefinition.MetadataConfig) []string {
+// ValidateEnrichMetadata will validate MetadataConfig and enrich it.
+func ValidateEnrichMetadata(metadata profiledefinition.MetadataConfig) []string {
 	var errors []string
 	for resName := range metadata {
 		_, isValidRes := validMetadataResources[resName]

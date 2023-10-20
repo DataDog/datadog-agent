@@ -89,7 +89,7 @@ require (
 	github.com/aquasecurity/trivy-db v0.0.0-20230105123735-5ce110fc82e1
 	github.com/avast/retry-go/v4 v4.5.0
 	github.com/aws/aws-lambda-go v1.37.0
-	github.com/aws/aws-sdk-go v1.45.27
+	github.com/aws/aws-sdk-go v1.45.28
 	github.com/beevik/ntp v0.3.0
 	github.com/benbjohnson/clock v1.3.0
 	github.com/bhmj/jsonslice v0.0.0-20200323023432-92c3edaad8e2
@@ -315,7 +315,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/internal/endpoints/v2 v2.4.37 // indirect
 	github.com/aws/aws-sdk-go-v2/internal/ini v1.3.35 // indirect
 	github.com/aws/aws-sdk-go-v2/service/ebs v1.15.19 // indirect
-	github.com/aws/aws-sdk-go-v2/service/ec2 v1.118.0
+	github.com/aws/aws-sdk-go-v2/service/ec2 v1.125.0
 	github.com/aws/aws-sdk-go-v2/service/internal/presigned-url v1.9.37 // indirect
 	github.com/aws/aws-sdk-go-v2/service/sso v1.15.2 // indirect
 	github.com/aws/aws-sdk-go-v2/service/ssooidc v1.17.3 // indirect
