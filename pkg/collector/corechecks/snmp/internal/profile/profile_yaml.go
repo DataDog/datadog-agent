@@ -235,33 +235,6 @@ func recursivelyExpandBaseProfiles(parentPath string, definition *profiledefinit
 	return nil
 }
 
-func mergeProfileDefinition(targetDefinition *profiledefinition.ProfileDefinition, baseDefinition *profiledefinition.ProfileDefinition) {
-	targetDefinition.Metrics = append(targetDefinition.Metrics, baseDefinition.Metrics...)
-	targetDefinition.MetricTags = append(targetDefinition.MetricTags, baseDefinition.MetricTags...)
-	targetDefinition.StaticTags = append(targetDefinition.StaticTags, baseDefinition.StaticTags...)
-	for baseResName, baseResource := range baseDefinition.Metadata {
-		if _, ok := targetDefinition.Metadata[baseResName]; !ok {
-			targetDefinition.Metadata[baseResName] = profiledefinition.NewMetadataResourceConfig()
-		}
-		if resource, ok := targetDefinition.Metadata[baseResName]; ok {
-			for _, tagConfig := range baseResource.IDTags {
-				resource.IDTags = append(targetDefinition.Metadata[baseResName].IDTags, tagConfig)
-			}
-
-			if resource.Fields == nil {
-				resource.Fields = make(map[string]profiledefinition.MetadataField, len(baseResource.Fields))
-			}
-			for field, symbol := range baseResource.Fields {
-				if _, ok := resource.Fields[field]; !ok {
-					resource.Fields[field] = symbol
-				}
-			}
-
-			targetDefinition.Metadata[baseResName] = resource
-		}
-	}
-}
-
 func getMostSpecificOid(oids []string) (string, error) {
 	var mostSpecificParts []int
 	var mostSpecificOid string
