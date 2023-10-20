@@ -41,7 +41,7 @@ func Run(
 	logsAgent logsAgent.ServerlessLogsAgent,
 	args []string,
 ) {
-	// serverlessLog.Write(logConfig, []byte(fmt.Sprintf("[datadog init process] running cmd = >%v<", args)), false)
+	log.Debug("Launching subprocess %v\n", args)
 	err := execute(logConfig, args)
 	if err != nil {
 		log.Debugf("Error exiting: %v\n", err)
