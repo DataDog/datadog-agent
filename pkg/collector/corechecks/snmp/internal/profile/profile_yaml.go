@@ -59,6 +59,7 @@ func loadProfilesV3(initConfigProfiles ProfileConfigMap, userProfiles ProfileCon
 		defaultProfiles = nil
 	}
 	if userProfiles == nil {
+		// TODO: TESTME
 		userProfiles, err = getProfilesDefinitionFilesV2(userProfilesFolder, true)
 		if err != nil {
 			// TODO: Return error?
