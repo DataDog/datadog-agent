@@ -6,6 +6,8 @@
 package logagent
 
 import (
+	_ "embed"
+	"os"
 	"strings"
 	"testing"
 	"time"
@@ -14,45 +16,55 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/params"
 	"github.com/DataDog/test-infra-definitions/components/datadog/agentparams"
 )
 
 // vmFakeintakeSuite defines a test suite for the log agent interacting with a virtual machine and fake intake.
 type vmFakeintakeSuite struct {
 	e2e.Suite[e2e.FakeIntakeEnv]
+	DevMode bool
 }
+
+//go:embed log-config/log-config.yaml
+var logConfig []byte
 
 // logsExampleStackDef returns the stack definition required for the log agent test suite.
 func logsExampleStackDef() *e2e.StackDefinition[e2e.FakeIntakeEnv] {
-	config :=
-		`logs:
-  - type: file
-    path: '/var/log/hello-world.log'
-    service: hello
-    source: custom_log
-`
+
 	return e2e.FakeIntakeStackDef(
 		e2e.WithAgentParams(
 			agentparams.WithLogs(),
-			agentparams.WithIntegration("custom_logs.d", config)))
+			agentparams.WithIntegration("custom_logs.d", string(logConfig))))
 
 }
 
 // TestE2EVMFakeintakeSuite runs the E2E test suite for the log agent with a VM and fake intake.
 func TestE2EVMFakeintakeSuite(t *testing.T) {
-	e2e.Run(t, &vmFakeintakeSuite{}, logsExampleStackDef(), params.WithDevMode())
+	s := &vmFakeintakeSuite{}
+	if _, devmode := os.LookupEnv("TESTS_E2E_DEVMODE"); devmode {
+		s.DevMode = true
+	}
+
+	e2e.Run(t, &vmFakeintakeSuite{}, logsExampleStackDef())
+}
+
+func (s *vmFakeintakeSuite) BeforeTest(suiteName, testName string) {
+	// Flush server and reset aggregators before the test is ran
+	if s.DevMode {
+		s.cleanUp()
+	}
+	s.Env().Fakeintake.FlushServerAndResetAggregators()
+}
+
+func (s *vmFakeintakeSuite) TearDownSuite() {
+	// Flush server and reset aggregators after the test is ran
+	if s.DevMode {
+		s.cleanUp()
+	}
+	s.Env().Fakeintake.FlushServerAndResetAggregators()
 }
 
 func (s *vmFakeintakeSuite) TestLinuxLogTailing() {
-	// Clean up once test is finished running
-	s.cleanUp()
-	defer s.cleanUp()
-
-	// Flush server and reset aggregators
-	s.Env().Fakeintake.FlushServerAndResetAggregators()
-	defer s.Env().Fakeintake.FlushServerAndResetAggregators()
-
 	// Run test cases
 	s.T().Run("LogCollection", func(t *testing.T) {
 		s.LogCollection()
@@ -93,7 +105,7 @@ func (s *vmFakeintakeSuite) LogCollection() {
 	require.NoError(t, err, "Unable to adjust permissions for the log file '/var/log/hello-world.log'.")
 
 	// Generate log
-	generateLog(s, t, "hello-world")
+	generateLog(s, "hello-world")
 
 	// Part 3: Assert that logs are found in intake after generation
 	checkLogs(s, "hello", "hello-world")
@@ -122,7 +134,7 @@ func (s *vmFakeintakeSuite) LogPermission() {
 	// Part 6: Restart the agent, generate new logs
 	s.Env().VM.Execute("sudo service datadog-agent restart")
 
-	generateLog(s, s.T(), "hello-world")
+	generateLog(s, "hello-world")
 
 	// Check the Agent status
 	s.EventuallyWithT(func(c *assert.CollectT) {
@@ -154,7 +166,7 @@ func (s *vmFakeintakeSuite) LogRotation() {
 	}, 5*time.Minute, 10*time.Second)
 
 	// Generate new log
-	generateLog(s, t, "hello-world-new-content")
+	generateLog(s, "hello-world-new-content")
 
 	// Verify Log's content is generated and submitted
 	checkLogs(s, "hello", "hello-world-new-content")

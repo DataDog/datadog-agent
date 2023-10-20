@@ -21,7 +21,7 @@ import (
 // VMClient wrap testing struct and SSH client
 type VMClient struct {
 	client *ssh.Client
-	os     commonos.OS
+	OS     commonos.OS
 	t      *testing.T
 }
 
@@ -34,7 +34,7 @@ func newVMClient(t *testing.T, sshKey []byte, connection *utils.Connection, os c
 		2*time.Second, 5)
 	return &VMClient{
 		client: client,
-		os:     os,
+		OS:     os,
 		t:      t,
 	}, err
 }
@@ -76,7 +76,7 @@ func (vmClient *VMClient) CopyFolder(srcFolder string, dstFolder string) {
 func (vmClient *VMClient) setEnvVariables(command string, envVar executeparams.EnvVar) string {
 
 	cmd := ""
-	if vmClient.os.GetType() == commonos.WindowsType {
+	if vmClient.OS.GetType() == commonos.WindowsType {
 		envVarSave := map[string]string{}
 		for envName, envValue := range envVar {
 			previousEnvVar, err := vmClient.ExecuteWithError(fmt.Sprintf("$env:%s", envName))
