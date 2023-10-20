@@ -20,8 +20,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	"github.com/DataDog/datadog-agent/pkg/networkdevice/profile/profiledefinition"
-
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/common"
 )
 
 const defaultProfilesFolder = "default_profiles"
@@ -171,27 +169,6 @@ func getProfilesDefinitionFilesV2(profilesFolder string, isUserProfile bool) (Pr
 	return profiles, nil
 }
 
-func loadProfilesForInitConfig(pConfig ProfileConfigMap) (ProfileConfigMap, error) {
-	profiles := make(ProfileConfigMap, len(pConfig))
-
-	for name, profConfig := range pConfig {
-		if profConfig.DefinitionFile != "" {
-			profDefinition, err := readProfileDefinition(profConfig.DefinitionFile)
-			if err != nil {
-				log.Warnf("failed to read profile definition `%s`: %s", name, err)
-				continue
-			}
-			profConfig.Definition = *profDefinition
-		}
-		profiles[name] = profConfig
-	}
-	resolvedProfiles, err := loadProfilesV3(profiles)
-	if err != nil {
-		return nil, err
-	}
-	return resolvedProfiles, nil
-}
-
 func readProfileDefinition(definitionFile string) (*profiledefinition.ProfileDefinition, error) {
 	filePath := resolveProfileDefinitionPath(definitionFile)
 	buf, err := os.ReadFile(filePath)
@@ -221,35 +198,6 @@ func resolveProfileDefinitionPath(definitionFile string) string {
 func getProfileConfdRoot(profileFolderName string) string {
 	confdPath := config.Datadog.GetString("confd_path")
 	return filepath.Join(confdPath, "snmp.d", profileFolderName)
-}
-
-func recursivelyExpandBaseProfiles(parentPath string, definition *profiledefinition.ProfileDefinition, extends []string, extendsHistory []string) error {
-	parentBasePath := filepath.Base(parentPath)
-	for _, extendEntry := range extends {
-		// User profile can extend default profile by extending the default profile.
-		// If the extend entry has the same name as the profile name, we assume the extend entry is referring to a default profile.
-		if extendEntry == parentBasePath {
-			extendEntry = filepath.Join(getProfileConfdRoot(defaultProfilesFolder), extendEntry)
-		}
-		for _, extend := range extendsHistory {
-			if extend == extendEntry {
-				return fmt.Errorf("cyclic profile extend detected, `%s` has already been extended, extendsHistory=`%v`", extendEntry, extendsHistory)
-			}
-		}
-		baseDefinition, err := readProfileDefinition(extendEntry)
-		if err != nil {
-			return err
-		}
-
-		mergeProfileDefinition(definition, baseDefinition)
-
-		newExtendsHistory := append(common.CopyStrings(extendsHistory), extendEntry)
-		err = recursivelyExpandBaseProfiles(extendEntry, definition, baseDefinition.Extends, newExtendsHistory)
-		if err != nil {
-			return err
-		}
-	}
-	return nil
 }
 
 func getMostSpecificOid(oids []string) (string, error) {
