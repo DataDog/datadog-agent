@@ -6,5 +6,6 @@
 #
 # Each section note must be formatted as reStructuredText.
 ---
+enhancements:
   - |
     Update the go-systemd package to the latest version (22.5.0).
