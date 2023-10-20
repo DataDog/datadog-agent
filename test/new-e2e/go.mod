@@ -19,7 +19,7 @@ require (
 	github.com/aws/aws-sdk-go-v2 v1.21.2
 	github.com/aws/aws-sdk-go-v2/config v1.18.40
 	github.com/aws/aws-sdk-go-v2/service/eks v1.29.7
-	github.com/aws/aws-sdk-go-v2/service/ssm v1.36.4
+	github.com/aws/aws-sdk-go-v2/service/ssm v1.38.2
 	github.com/cenkalti/backoff v2.2.1+incompatible
 	github.com/fatih/color v1.13.0
 	github.com/pulumi/pulumi-command/sdk v0.9.0 // indirect
