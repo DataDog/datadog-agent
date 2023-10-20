@@ -3,6 +3,9 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+// Package log is responsible for settings around logging output from customer functions
+// to be sent to Datadog (logs monitoring product).
+// It does *NOT* control the internal debug logging of the agent.
 package log
 
 import (
@@ -29,7 +32,7 @@ type Config struct {
 	FlushTimeout time.Duration
 	Channel      chan *logConfig.ChannelMessage
 	source       string
-	isEnabled    bool
+	IsEnabled    bool
 }
 
 // CustomWriter wraps the log config to allow stdout/stderr redirection
@@ -48,9 +51,10 @@ func CreateConfig(origin string) *Config {
 	}
 	return &Config{
 		FlushTimeout: defaultFlushTimeout,
-		Channel:      make(chan *logConfig.ChannelMessage),
-		source:       source,
-		isEnabled:    isEnabled(os.Getenv(logEnabledEnvVar)),
+		// Use a buffered channel with size 10000
+		Channel:   make(chan *logConfig.ChannelMessage, 10000),
+		source:    source,
+		IsEnabled: isEnabled(os.Getenv(logEnabledEnvVar)),
 	}
 }
 

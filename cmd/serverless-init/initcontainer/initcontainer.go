@@ -8,9 +8,7 @@
 package initcontainer
 
 import (
-	"bufio"
 	"context"
-	"fmt"
 	"io"
 	"os"
 	"os/exec"
@@ -27,7 +25,6 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/serverless-init/cloudservice"
 	serverlessLog "github.com/DataDog/datadog-agent/cmd/serverless-init/log"
 	logsAgent "github.com/DataDog/datadog-agent/comp/logs/agent"
-	logConfig "github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	"github.com/DataDog/datadog-agent/pkg/serverless"
 	"github.com/DataDog/datadog-agent/pkg/serverless/metrics"
 	"github.com/DataDog/datadog-agent/pkg/serverless/trace"
@@ -47,34 +44,10 @@ func Run(
 	// serverlessLog.Write(logConfig, []byte(fmt.Sprintf("[datadog init process] running cmd = >%v<", args)), false)
 	err := execute(logConfig, args)
 	if err != nil {
-		serverlessLog.Write(logConfig, []byte(fmt.Sprintf("[datadog init process] exiting with code = %s", err)), false)
-	} else {
-		serverlessLog.Write(logConfig, []byte("[datadog init process] exiting successfully"), false)
+		log.Debugf("Error exiting: %v\n", err)
 	}
 	metric.AddShutdownMetric(cloudService.GetPrefix(), metricAgent.GetExtraTags(), time.Now(), metricAgent.Demux)
 	flush(logConfig.FlushTimeout, metricAgent, traceAgent, logsAgent)
-}
-
-func pollOutput(output io.ReadCloser, ch chan<- *logConfig.ChannelMessage) {
-	go func() {
-		reader := bufio.NewReader(stdout)
-		for {
-			line, err := reader.ReadString('\n')
-			logMessage := &logConfig.ChannelMessage{
-				Content: []byte(line),
-				IsError: false,
-			}
-			if err != nil {
-				// If there's an EOF and some content was read, send it to the channel.
-				if err == io.EOF && len(line) != 0 {
-					ch <- logMessage
-				}
-				close(ch)
-				return
-			}
-			ch <- logMessage
-		}
-	}()
 }
 
 func execute(logConfig *serverlessLog.Config, args []string) error {
@@ -86,20 +59,15 @@ func execute(logConfig *serverlessLog.Config, args []string) error {
 
 	cmd := exec.Command(commandName, commandArgs...)
 
-	stdout, err := cmd.StdoutPipe()
-	if err != nil {
-		panic(err)
+	cmd.Stdout = io.Writer(os.Stdout)
+	cmd.Stderr = io.Writer(os.Stderr)
+
+	if logConfig.IsEnabled {
+		cmd.Stdout = io.MultiWriter(os.Stdout, serverlessLog.NewChannelWriter(logConfig.Channel, false))
+		cmd.Stderr = io.MultiWriter(os.Stderr, serverlessLog.NewChannelWriter(logConfig.Channel, true))
 	}
 
-	stderr, err := cmd.StderrPipe()
-	if err != nil {
-		panic(err)
-	}
-
-	pollOutput(stdout, logConfig.Channel)
-	pollOutput(stderr, logConfig.Channel)
-
-	err = cmd.Start()
+	err := cmd.Start()
 	if err != nil {
 		return err
 	}
