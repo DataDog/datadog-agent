@@ -1,10 +1,12 @@
 package profile
 
 import (
-	"github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/stretchr/testify/assert"
 	"path/filepath"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
+
+	"github.com/DataDog/datadog-agent/pkg/config"
 )
 
 func Test_loadBundleJSONProfiles(t *testing.T) {
