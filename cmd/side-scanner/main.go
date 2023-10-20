@@ -200,7 +200,7 @@ func scanCmd(rawScan []byte) error {
 	for _, scan := range scans {
 		entity, err := launchScan(ctx, scan)
 		if err != nil {
-			log.Errorf("error scanning task %s: %s", err)
+			log.Errorf("error scanning task %s: %s", scan, err)
 		} else {
 			fmt.Printf("scanning result %s: %s\n", scan, entity)
 		}
@@ -592,7 +592,7 @@ func scanLambda(ctx context.Context, scan lambdaScan) (*sbommodel.SBOMEntity, er
 		return nil, err
 	}
 
-	tempDir, err := os.MkdirTemp("", "zipPath")
+	tempDir, err := os.MkdirTemp("", "aws-lambda")
 	if err != nil {
 		return nil, err
 	}
@@ -685,31 +685,35 @@ func scanLambda(ctx context.Context, scan lambdaScan) (*sbommodel.SBOMEntity, er
 func extractZip(zipPath, destinationPath string) error {
 	r, err := zip.OpenReader(zipPath)
 	if err != nil {
-		return err
+		return fmt.Errorf("extractZip: openreader: %w", err)
 	}
 	defer r.Close()
 
+	// TODO: be more rebust against zip bombs
 	for _, f := range r.File {
 		dest := filepath.Join(destinationPath, f.Name)
+		destDir := filepath.Dir(dest)
+		if err := os.MkdirAll(destDir, 0700); err != nil {
+			return err
+		}
 		if strings.HasSuffix(f.Name, "/") {
-			err = os.MkdirAll(dest, 0700)
-			if err != nil {
+			if err := os.Mkdir(dest, 0700); err != nil {
 				return err
 			}
 		} else {
 			reader, err := f.Open()
 			if err != nil {
-				return err
+				return fmt.Errorf("extractZip: open: %w", err)
 			}
 			defer reader.Close()
 			writer, err := os.OpenFile(dest, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0600)
 			if err != nil {
-				return err
+				return fmt.Errorf("extractZip: write: %w", err)
 			}
 			defer writer.Close()
 			_, err = io.Copy(writer, reader)
 			if err != nil {
-				return err
+				return fmt.Errorf("extractZip: copy: %w", err)
 			}
 		}
 	}
