@@ -77,7 +77,7 @@ func loadProfiles(initConfigProfiles ProfileConfigMap, userProfiles ProfileConfi
 		log.Warnf("failed to get default profile definitions: %s", err)
 		defaultProfiles = nil
 	}
-	resolvedProfiles, err := resolveProfiles(defaultProfiles, userProfiles)
+	resolvedProfiles, err := resolveProfiles(userProfiles, defaultProfiles)
 	if err != nil {
 		return nil, err
 	}

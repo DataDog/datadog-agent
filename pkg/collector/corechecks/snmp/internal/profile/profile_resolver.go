@@ -17,7 +17,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/configvalidation"
 )
 
-func resolveProfiles(defaultProfiles ProfileConfigMap, userProfiles ProfileConfigMap) (ProfileConfigMap, error) {
+func resolveProfiles(userProfiles, defaultProfiles ProfileConfigMap) (ProfileConfigMap, error) {
 	defaultExpandedProfiles, err := loadResolveProfiles(defaultProfiles, nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed to load default profiles: %s", err)

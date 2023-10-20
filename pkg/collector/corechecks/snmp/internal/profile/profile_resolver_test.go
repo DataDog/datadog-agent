@@ -141,7 +141,7 @@ func Test_resolveProfiles(t *testing.T) {
 
 			//config.Datadog.Set("confd_path", tt.confdPath)
 
-			profiles, err := resolveProfiles(tt.profileConfigMap, tt.defaultProfileConfigMap)
+			profiles, err := resolveProfiles(tt.defaultProfileConfigMap, tt.profileConfigMap)
 			for _, errorMsg := range tt.expectedIncludeErrors {
 				assert.Contains(t, err.Error(), errorMsg)
 			}
