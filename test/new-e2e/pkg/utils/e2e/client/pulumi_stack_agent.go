@@ -17,12 +17,12 @@ import (
 	"github.com/pulumi/pulumi/sdk/v3/go/auto"
 )
 
-var _ stackInitializer = (*Agent)(nil)
+var _ stackInitializer = (*PulumiStackAgent)(nil)
 
-// An Agent that is connected to an [agent.Installer].
+// PulumiStackAgent is an agent connected to [agent.Installer] which is created from a pulumi stack.
 //
 // [agent.Installer]: https://pkg.go.dev/github.com/DataDog/test-infra-definitions@main/components/datadog/agent#Installer
-type Agent struct {
+type PulumiStackAgent struct {
 	deserializer utils.RemoteServiceDeserializer[agent.ClientData]
 	os           e2eOs.OS
 	*AgentCommandRunner
@@ -30,12 +30,12 @@ type Agent struct {
 	shouldWaitForReady bool
 }
 
-// NewAgent creates a new instance of an Agent connected to an [agent.Installer].
+// NewPulumiStackAgent creates a new instance of an Agent connected to an [agent.Installer].
 //
 // [agent.Installer]: https://pkg.go.dev/github.com/DataDog/test-infra-definitions@main/components/datadog/agent#Installer
-func NewAgent(installer *agent.Installer, agentClientOptions ...agentclientparams.Option) *Agent {
+func NewPulumiStackAgent(installer *agent.Installer, agentClientOptions ...agentclientparams.Option) *PulumiStackAgent {
 	agentClientParams := agentclientparams.NewParams(agentClientOptions...)
-	agentInstance := &Agent{
+	agentInstance := &PulumiStackAgent{
 		os:                 installer.VM().GetOS(),
 		shouldWaitForReady: agentClientParams.ShouldWaitForReady,
 		deserializer:       installer,
@@ -44,7 +44,7 @@ func NewAgent(installer *agent.Installer, agentClientOptions ...agentclientparam
 }
 
 //lint:ignore U1000 Ignore unused function as this function is called using reflection
-func (agent *Agent) setStack(t *testing.T, stackResult auto.UpResult) error {
+func (agent *PulumiStackAgent) setStack(t *testing.T, stackResult auto.UpResult) error {
 	clientData, err := agent.deserializer.Deserialize(stackResult)
 	if err != nil {
 		return err
@@ -61,7 +61,7 @@ func (agent *Agent) setStack(t *testing.T, stackResult auto.UpResult) error {
 	return agent.waitForReadyTimeout(1 * time.Minute)
 }
 
-func (agent *Agent) executeAgentCmdWithError(arguments []string) (string, error) {
+func (agent *PulumiStackAgent) executeAgentCmdWithError(arguments []string) (string, error) {
 	parameters := ""
 	if len(arguments) > 0 {
 		parameters = `"` + strings.Join(arguments, `" "`) + `"`

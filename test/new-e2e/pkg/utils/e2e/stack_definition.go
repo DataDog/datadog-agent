@@ -70,7 +70,7 @@ func CustomEC2VMStackDef[T any](fct func(vm.VM) (T, error), options ...ec2params
 // AgentEnv contains an Agent VM environment
 type AgentEnv struct {
 	VM    client.VM
-	Agent *client.Agent
+	Agent *client.PulumiStackAgent
 }
 
 // AgentStackDefParam defines the parameters for a stack with a VM and the Datadog Agent
@@ -156,7 +156,7 @@ func AgentStackDef(options ...func(*AgentStackDefParam) error) *StackDefinition[
 			}
 			return &AgentEnv{
 				VM:    client.NewPulumiStackVM(vm),
-				Agent: client.NewAgent(installer, params.agentClientParams...),
+				Agent: client.NewPulumiStackAgent(installer, params.agentClientParams...),
 			}, nil
 		},
 	)
@@ -176,7 +176,7 @@ func AgentStackDefWithDefaultVMAndAgentClient(options ...agentparams.Option) *St
 // installed on a VM and a dedicated fakeintake
 type FakeIntakeEnv struct {
 	VM         client.VM
-	Agent      *client.Agent
+	Agent      *client.PulumiStackAgent
 	Fakeintake *client.Fakeintake
 }
 
@@ -215,7 +215,7 @@ func FakeIntakeStackDef(options ...func(*AgentStackDefParam) error) *StackDefini
 			}
 			return &FakeIntakeEnv{
 				VM:         client.NewPulumiStackVM(vm),
-				Agent:      client.NewAgent(installer, params.agentClientParams...),
+				Agent:      client.NewPulumiStackAgent(installer, params.agentClientParams...),
 				Fakeintake: client.NewFakeintake(fakeintakeExporter),
 			}, nil
 		},
