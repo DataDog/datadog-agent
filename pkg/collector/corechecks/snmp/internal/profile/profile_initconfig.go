@@ -21,7 +21,7 @@ func loadProfilesForInitConfig(pConfig ProfileConfigMap) (ProfileConfigMap, erro
 		}
 		profiles[name] = profConfig
 	}
-	resolvedProfiles, err := loadProfilesV3(profiles)
+	resolvedProfiles, err := loadProfilesV3(profiles, nil)
 	if err != nil {
 		return nil, err
 	}
