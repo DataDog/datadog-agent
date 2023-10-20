@@ -39,13 +39,11 @@ func TestDemuxIsSetAsGlobalInstance(t *testing.T) {
 	require := require.New(t)
 
 	opts := demuxTestOptions()
-	deps := fxutil.Test[AggregatorTestDeps](t, defaultforwarder.MockModule, config.MockModule, log.MockModule)
+	deps := fxutil.Test[TestDeps](t, defaultforwarder.MockModule, config.MockModule, log.MockModule)
 	demux := InitAndStartAgentDemultiplexerForTest(deps, opts, "")
 
 	require.NotNil(demux)
 	require.NotNil(demux.aggregator)
-	require.Equal(demux, demultiplexerInstance)
-
 	demux.Stop(false)
 }
 
@@ -57,7 +55,7 @@ func TestDemuxForwardersCreated(t *testing.T) {
 
 	opts := demuxTestOptions()
 	modules := fx.Options(defaultforwarder.MockModule, config.MockModule, log.MockModule)
-	deps := fxutil.Test[AggregatorTestDeps](t, modules)
+	deps := fxutil.Test[TestDeps](t, modules)
 	demux := InitAndStartAgentDemultiplexerForTest(deps, opts, "")
 
 	require.NotNil(demux)
@@ -70,7 +68,7 @@ func TestDemuxForwardersCreated(t *testing.T) {
 
 	opts = demuxTestOptions()
 	opts.UseEventPlatformForwarder = false
-	deps = fxutil.Test[AggregatorTestDeps](t, modules)
+	deps = fxutil.Test[TestDeps](t, modules)
 	demux = InitAndStartAgentDemultiplexerForTest(deps, opts, "")
 	require.NotNil(demux)
 	require.Nil(demux.forwarders.eventPlatform)
@@ -82,7 +80,7 @@ func TestDemuxForwardersCreated(t *testing.T) {
 
 	opts = demuxTestOptions()
 	opts.UseNoopEventPlatformForwarder = true
-	deps = fxutil.Test[AggregatorTestDeps](t, modules)
+	deps = fxutil.Test[TestDeps](t, modules)
 	demux = InitAndStartAgentDemultiplexerForTest(deps, opts, "")
 	require.NotNil(demux)
 	require.NotNil(demux.forwarders.eventPlatform)
@@ -108,7 +106,7 @@ func TestDemuxForwardersCreated(t *testing.T) {
 	// needed feature above, we should have an orchestrator forwarder instantiated now
 
 	opts = demuxTestOptions()
-	deps = fxutil.Test[AggregatorTestDeps](t, modules)
+	deps = fxutil.Test[TestDeps](t, modules)
 	demux = InitAndStartAgentDemultiplexerForTest(deps, opts, "")
 	require.NotNil(demux)
 	require.NotNil(demux.forwarders.eventPlatform)
@@ -124,7 +122,7 @@ func TestDemuxForwardersCreated(t *testing.T) {
 
 	opts = demuxTestOptions()
 	opts.UseOrchestratorForwarder = false
-	deps = fxutil.Test[AggregatorTestDeps](t, modules)
+	deps = fxutil.Test[TestDeps](t, modules)
 	demux = InitAndStartAgentDemultiplexerForTest(deps, opts, "")
 	require.NotNil(demux)
 	require.NotNil(demux.forwarders.eventPlatform)
@@ -136,7 +134,7 @@ func TestDemuxForwardersCreated(t *testing.T) {
 
 	opts = demuxTestOptions()
 	opts.UseNoopOrchestratorForwarder = true
-	deps = fxutil.Test[AggregatorTestDeps](t, modules)
+	deps = fxutil.Test[TestDeps](t, modules)
 	demux = InitAndStartAgentDemultiplexerForTest(deps, opts, "")
 	require.NotNil(demux)
 	require.NotNil(demux.forwarders.eventPlatform)
@@ -149,7 +147,7 @@ func TestDemuxForwardersCreated(t *testing.T) {
 	pkgconfig.Datadog.Set("orchestrator_explorer.enabled", false)
 
 	opts = demuxTestOptions()
-	deps = fxutil.Test[AggregatorTestDeps](t, modules)
+	deps = fxutil.Test[TestDeps](t, modules)
 	demux = InitAndStartAgentDemultiplexerForTest(deps, opts, "")
 	require.NotNil(demux)
 	require.NotNil(demux.forwarders.eventPlatform)
@@ -165,7 +163,7 @@ func TestDemuxSerializerCreated(t *testing.T) {
 	// forwarders since we're not in a cluster-agent environment
 
 	opts := demuxTestOptions()
-	deps := fxutil.Test[AggregatorTestDeps](t, defaultforwarder.MockModule, config.MockModule, log.MockModule)
+	deps := fxutil.Test[TestDeps](t, defaultforwarder.MockModule, config.MockModule, log.MockModule)
 	demux := InitAndStartAgentDemultiplexerForTest(deps, opts, "")
 
 	require.NotNil(demux)
@@ -182,7 +180,7 @@ func TestDemuxFlushAggregatorToSerializer(t *testing.T) {
 
 	opts := demuxTestOptions()
 	opts.FlushInterval = time.Hour
-	deps := fxutil.Test[AggregatorTestDeps](t, defaultforwarder.MockModule, config.MockModule, log.MockModule)
+	deps := fxutil.Test[TestDeps](t, defaultforwarder.MockModule, config.MockModule, log.MockModule)
 	demux := initAgentDemultiplexer(deps.Log, deps.SharedForwarder, opts, "")
 	demux.Aggregator().tlmContainerTagsEnabled = false
 	require.NotNil(demux)

@@ -21,6 +21,7 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/agent/command"
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	commonpath "github.com/DataDog/datadog-agent/cmd/agent/common/path"
+	"github.com/DataDog/datadog-agent/comp/aggregator/diagnosesendermanager"
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/flare"
@@ -78,7 +79,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				fx.Supply(core.BundleParams{
 					ConfigParams:         config,
 					SysprobeConfigParams: sysprobeconfig.NewParams(sysprobeconfig.WithSysProbeConfFilePath(globalParams.SysProbeConfFilePath)),
-					LogParams:            log.LogForOneShot(command.LoggerName, "off", false),
+					LogParams:            log.ForOneShot(command.LoggerName, "off", false),
 				}),
 				fx.Supply(flare.NewLocalParams(
 					commonpath.GetDistPath(),
@@ -88,6 +89,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 					commonpath.DefaultDogstatsDLogFile,
 				)),
 				flare.Module,
+				diagnosesendermanager.Module,
 				core.Bundle,
 			)
 		},

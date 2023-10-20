@@ -3,6 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build test
+
 package mocksender
 
 import (
@@ -107,6 +109,11 @@ func (m *MockSender) SetupAcceptAll() {
 	m.On("FinalizeCheckServiceTag").Return()
 	m.On("SetNoIndex").Return()
 	m.On("Commit").Return()
+	m.On("OrchestratorMetadata",
+		mock.AnythingOfType("[]process.MessageBody"),
+		mock.AnythingOfType("string"),
+		mock.AnythingOfType("int"),
+	).Return()
 }
 
 // ResetCalls makes the mock forget previous calls

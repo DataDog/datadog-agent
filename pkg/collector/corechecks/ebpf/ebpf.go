@@ -118,29 +118,11 @@ func (m *EBPFCheck) Run() error {
 		moduleTotalMapMaxSize[mapStats.Module] += mapStats.MaxSize
 		moduleTotalMapRSS[mapStats.Module] += mapStats.RSS
 
-		log.Debugf("ebpf check: map=%s maxsize=%d type=%s", mapStats.Name, mapStats.MaxSize, mapStats.Type.String())
+		log.Tracef("ebpf check: map=%s maxsize=%d type=%s", mapStats.Name, mapStats.MaxSize, mapStats.Type.String())
 	}
 
 	for _, mapInfo := range stats.Maps {
 		reportBaseMap(mapInfo)
-	}
-
-	for _, pbInfo := range stats.PerfBuffers {
-		reportBaseMap(pbInfo.EBPFMapStats)
-		for _, cpub := range pbInfo.CPUBuffers {
-			cputags := []string{
-				"map_name:" + pbInfo.Name,
-				"map_type:" + pbInfo.Type.String(),
-				"module:" + pbInfo.Module,
-				fmt.Sprintf("cpu_num:%d", cpub.CPU),
-			}
-			if cpub.RSS > 0 {
-				sender.Gauge("ebpf.maps.memory_rss_percpu", float64(cpub.RSS), "", cputags)
-			}
-			if cpub.Size > 0 {
-				sender.Gauge("ebpf.maps.memory_max_percpu", float64(cpub.Size), "", cputags)
-			}
-		}
 	}
 
 	if totalMapMaxSize > 0 {
@@ -170,7 +152,7 @@ func (m *EBPFCheck) Run() error {
 			tags = append(tags, "program_tag:"+progInfo.Tag)
 		}
 		var debuglogs []string
-		if log.ShouldLog(seelog.DebugLvl) {
+		if log.ShouldLog(seelog.TraceLvl) {
 			debuglogs = []string{"program=" + progInfo.Name, "type=" + progInfo.Type.String()}
 		}
 
@@ -184,7 +166,7 @@ func (m *EBPFCheck) Run() error {
 				continue
 			}
 			sender.Gauge("ebpf.programs."+k, v, "", tags)
-			if log.ShouldLog(seelog.DebugLvl) {
+			if log.ShouldLog(seelog.TraceLvl) {
 				debuglogs = append(debuglogs, fmt.Sprintf("%s=%.0f", k, v))
 			}
 		}
@@ -203,13 +185,13 @@ func (m *EBPFCheck) Run() error {
 				continue
 			}
 			sender.MonotonicCountWithFlushFirstValue("ebpf.programs."+k, v, "", tags, true)
-			if log.ShouldLog(seelog.DebugLvl) {
+			if log.ShouldLog(seelog.TraceLvl) {
 				debuglogs = append(debuglogs, fmt.Sprintf("%s=%.0f", k, v))
 			}
 		}
 
-		if log.ShouldLog(seelog.DebugLvl) {
-			log.Debugf("ebpf check: %s", strings.Join(debuglogs, " "))
+		if log.ShouldLog(seelog.TraceLvl) {
+			log.Tracef("ebpf check: %s", strings.Join(debuglogs, " "))
 		}
 	}
 	if totalProgRSS > 0 {

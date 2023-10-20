@@ -78,7 +78,7 @@ func (kc *kubeletCollector) ID() string {
 
 // GetContainerIDForPID returns a container ID for given PID.
 // ("", nil) will be returned if no error but the containerd ID was not found.
-func (kc *kubeletCollector) GetContainerIDForPID(pid int, cacheValidity time.Duration) (string, error) {
+func (kc *kubeletCollector) GetContainerIDForPID(pid int, cacheValidity time.Duration) (string, error) { //nolint:revive // TODO fix revive unused-parameter
 	// Not implemented
 	return "", nil
 }
@@ -90,7 +90,7 @@ func (kc *kubeletCollector) GetSelfContainerID() (string, error) {
 }
 
 // GetContainerStats returns stats by container ID.
-func (kc *kubeletCollector) GetContainerStats(containerNS, containerID string, cacheValidity time.Duration) (*provider.ContainerStats, error) {
+func (kc *kubeletCollector) GetContainerStats(containerNS, containerID string, cacheValidity time.Duration) (*provider.ContainerStats, error) { //nolint:revive // TODO fix revive unused-parameter
 	currentTime := time.Now()
 
 	containerStats, found, err := kc.statsCache.Get(currentTime, contStatsCachePrefix+containerID, cacheValidity)
@@ -118,19 +118,19 @@ func (kc *kubeletCollector) GetContainerStats(containerNS, containerID string, c
 }
 
 // GetContainerPIDStats returns pid stats by container ID.
-func (kc *kubeletCollector) GetContainerPIDStats(containerNS, containerID string, cacheValidity time.Duration) (*provider.ContainerPIDStats, error) {
+func (kc *kubeletCollector) GetContainerPIDStats(containerNS, containerID string, cacheValidity time.Duration) (*provider.ContainerPIDStats, error) { //nolint:revive // TODO fix revive unused-parameter
 	// Not available
 	return nil, nil
 }
 
 // GetContainerOpenFilesCount returns open files count by container ID.
-func (kc *kubeletCollector) GetContainerOpenFilesCount(containerNS, containerID string, cacheValidity time.Duration) (*uint64, error) {
+func (kc *kubeletCollector) GetContainerOpenFilesCount(containerNS, containerID string, cacheValidity time.Duration) (*uint64, error) { //nolint:revive // TODO fix revive unused-parameter
 	// Not available
 	return nil, nil
 }
 
 // GetContainerNetworkStats returns network stats by container ID.
-func (kc *kubeletCollector) GetContainerNetworkStats(containerNS, containerID string, cacheValidity time.Duration) (*provider.ContainerNetworkStats, error) {
+func (kc *kubeletCollector) GetContainerNetworkStats(containerNS, containerID string, cacheValidity time.Duration) (*provider.ContainerNetworkStats, error) { //nolint:revive // TODO fix revive unused-parameter
 	currentTime := time.Now()
 
 	containerNetworkStats, found, err := kc.statsCache.Get(currentTime, contNetStatsCachePrefix+containerID, cacheValidity)

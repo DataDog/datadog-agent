@@ -1013,13 +1013,13 @@ func (p *Resolver) SetProcessTTY(pce *model.ProcessCacheEntry) string {
 
 // SetProcessUsersGroups resolves and set users and groups
 func (p *Resolver) SetProcessUsersGroups(pce *model.ProcessCacheEntry) {
-	pce.User, _ = p.userGroupResolver.ResolveUser(int(pce.Credentials.UID))
-	pce.EUser, _ = p.userGroupResolver.ResolveUser(int(pce.Credentials.EUID))
-	pce.FSUser, _ = p.userGroupResolver.ResolveUser(int(pce.Credentials.FSUID))
+	pce.User, _ = p.userGroupResolver.ResolveUser(int(pce.Credentials.UID), pce.ContainerID)
+	pce.EUser, _ = p.userGroupResolver.ResolveUser(int(pce.Credentials.EUID), pce.ContainerID)
+	pce.FSUser, _ = p.userGroupResolver.ResolveUser(int(pce.Credentials.FSUID), pce.ContainerID)
 
-	pce.Group, _ = p.userGroupResolver.ResolveGroup(int(pce.Credentials.GID))
-	pce.EGroup, _ = p.userGroupResolver.ResolveGroup(int(pce.Credentials.EGID))
-	pce.FSGroup, _ = p.userGroupResolver.ResolveGroup(int(pce.Credentials.FSGID))
+	pce.Group, _ = p.userGroupResolver.ResolveGroup(int(pce.Credentials.GID), pce.ContainerID)
+	pce.EGroup, _ = p.userGroupResolver.ResolveGroup(int(pce.Credentials.EGID), pce.ContainerID)
+	pce.FSGroup, _ = p.userGroupResolver.ResolveGroup(int(pce.Credentials.FSGID), pce.ContainerID)
 }
 
 // Get returns the cache entry for a specified pid

@@ -6,8 +6,8 @@
 package auditor
 
 import (
-	"fmt"
 	"os"
+	"path/filepath"
 	"testing"
 	"time"
 
@@ -24,26 +24,19 @@ var testpath = "testpath"
 
 type AuditorTestSuite struct {
 	suite.Suite
-	testDir  string
-	testPath string
+	testRunPathDir   string
+	testRegistryPath string
 
 	a      *RegistryAuditor
 	source *sources.LogSource
 }
 
 func (suite *AuditorTestSuite) SetupTest() {
-	suite.testDir = suite.T().TempDir()
+	suite.testRunPathDir = suite.T().TempDir()
 
-	suite.testPath = fmt.Sprintf("%s/auditor.json", suite.testDir)
+	suite.testRegistryPath = filepath.Join(suite.testRunPathDir, "registry.json")
 
-	f, err := os.Create(suite.testPath)
-	suite.Nil(err)
-	suite.T().Cleanup(func() {
-		suite.NoError(f.Close())
-	})
-
-	suite.a = New("", DefaultRegistryFilename, time.Hour, health.RegisterLiveness("fake"))
-	suite.a.registryPath = suite.testPath
+	suite.a = New(suite.testRunPathDir, DefaultRegistryFilename, time.Hour, health.RegisterLiveness("fake"))
 	suite.source = sources.NewLogSource("", &config.LogsConfig{Path: testpath})
 }
 
@@ -75,9 +68,9 @@ func (suite *AuditorTestSuite) TestAuditorFlushesAndRecoversRegistry() {
 		Offset:      "42",
 		TailingMode: "end",
 	}
-	suite.a.flushRegistry()
-	r, err := os.ReadFile(suite.testPath)
-	suite.Nil(err)
+	suite.NoError(suite.a.flushRegistry())
+	r, err := os.ReadFile(suite.testRegistryPath)
+	suite.NoError(err)
 	suite.Equal("{\"Version\":2,\"Registry\":{\"testpath\":{\"LastUpdated\":\"2006-01-12T01:01:01.000000001Z\",\"Offset\":\"42\",\"TailingMode\":\"end\",\"IngestionTimestamp\":0}}}", string(r))
 
 	suite.a.registry = make(map[string]*RegistryEntry)

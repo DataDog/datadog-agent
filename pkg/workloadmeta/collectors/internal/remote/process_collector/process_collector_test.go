@@ -40,7 +40,7 @@ type mockServer struct {
 	currentResponse int
 }
 
-func (s *mockServer) StreamEntities(req *pbgo.ProcessStreamEntitiesRequest, out pbgo.ProcessEntityStream_StreamEntitiesServer) error {
+func (s *mockServer) StreamEntities(req *pbgo.ProcessStreamEntitiesRequest, out pbgo.ProcessEntityStream_StreamEntitiesServer) error { //nolint:revive // TODO fix revive unused-parameter
 	// Handle error response for the first request
 	if s.errorResponse {
 		s.errorResponse = false // Reset error response for subsequent requests

@@ -1,0 +1,165 @@
+From 985bb6c5758e5596a08caa6fa97bd9836e43bc0d Mon Sep 17 00:00:00 2001
+From: David du Colombier <djc@datadoghq.com>
+Date: Wed, 20 Sep 2023 11:26:16 +0200
+Subject: [PATCH 11/16] Fix memory leaks reported by Coverity
+
+---
+ src/DS/sds.c                                        | 3 ++-
+ src/OVAL/oval_component.c                           | 1 +
+ src/OVAL/probes/independent/textfilecontent_probe.c | 2 +-
+ src/OVAL/probes/oval_fts.c                          | 2 ++
+ src/OVAL/probes/probe/input_handler.c               | 1 +
+ src/OVAL/probes/unix/linux/dpkginfo_probe.c         | 3 +++
+ src/OVAL/probes/unix/linux/fwupdsecattr_probe.c     | 2 ++
+ src/XCCDF/item.c                                    | 1 +
+ src/XCCDF_POLICY/xccdf_policy_remediate.c           | 3 +++
+ 9 files changed, 16 insertions(+), 2 deletions(-)
+
+diff --git a/src/DS/sds.c b/src/DS/sds.c
+index c640c5452..3314a567f 100644
+--- a/src/DS/sds.c
++++ b/src/DS/sds.c
+@@ -411,7 +411,7 @@ static int _handle_disabled_downloads(struct ds_sds_session *session, const char
+ 			"WARNING: Using local file '%s' instead of '%s'",
+ 			local_filepath, xlink_href);
+ 		struct oscap_source *source_file = oscap_source_new_from_file(local_filepath);
+-		xmlDoc *doc = oscap_source_get_xmlDoc(source_file);
++		xmlDoc *doc = oscap_source_pop_xmlDoc(source_file);
+ 		if (doc == NULL) {
+ 			free(local_filepath);
+ 			oscap_source_free(source_file);
+@@ -425,6 +425,7 @@ static int _handle_disabled_downloads(struct ds_sds_session *session, const char
+ 			return -1;
+ 		}
+ 		free(local_filepath);
++		oscap_source_free(source_file);
+ 		return 0;
+ 	}
+ 	ds_sds_session_remote_resources_progress(session)(true,
+diff --git a/src/OVAL/oval_component.c b/src/OVAL/oval_component.c
+index 472cf9782..00a9c7557 100644
+--- a/src/OVAL/oval_component.c
++++ b/src/OVAL/oval_component.c
+@@ -1617,6 +1617,7 @@ static oval_syschar_collection_flag_t _oval_component_evaluate_CONCAT(oval_argu_
+ 				texts[idx0] = oval_value_get_text(oval_value_iterator_next(comp_values));
+ 				not_finished = true;
+ 			} else {
++				oval_value_iterator_free(comp_values);
+ 				oval_collection_free_items(component_colls[idx0],
+ 							   (oscap_destruct_func) oval_value_free);
+ 				component_colls[idx0] = NULL;
+diff --git a/src/OVAL/probes/independent/textfilecontent_probe.c b/src/OVAL/probes/independent/textfilecontent_probe.c
+index d4c1f62bd..1f2f9bf2e 100644
+--- a/src/OVAL/probes/independent/textfilecontent_probe.c
++++ b/src/OVAL/probes/independent/textfilecontent_probe.c
+@@ -209,8 +209,8 @@ static int process_file(const char *prefix, const char *path, const char *filena
+ 
+ 			for (k = 0; k < substr_cnt; ++k)
+ 				free(substrs[k]);
+-			free(substrs);
+ 		}
++		free(substrs);
+ 	}
+ 
+  cleanup:
+diff --git a/src/OVAL/probes/oval_fts.c b/src/OVAL/probes/oval_fts.c
+index e41067202..1968afd25 100644
+--- a/src/OVAL/probes/oval_fts.c
++++ b/src/OVAL/probes/oval_fts.c
+@@ -499,6 +499,8 @@ static int process_pattern_match(const char *path, oscap_pcre_t **regex_out)
+ 		   "pattern: '%s'.", pattern);
+ 		if (regex_out != NULL)
+ 			*regex_out = regex;
++		else
++			oscap_pcre_free(regex);
+ 	}
+ 
+ 	free(pattern);
+diff --git a/src/OVAL/probes/probe/input_handler.c b/src/OVAL/probes/probe/input_handler.c
+index 1b53c7ea5..41691a288 100644
+--- a/src/OVAL/probes/probe/input_handler.c
++++ b/src/OVAL/probes/probe/input_handler.c
+@@ -226,6 +226,7 @@ void *probe_input_handler(void *arg)
+ 
+ 				break;
+ 			}
++			SEXP_free(probe_in);
+ 		} else {
+ 			SEXP_VALIDATE(probe_out);
+ 
+diff --git a/src/OVAL/probes/unix/linux/dpkginfo_probe.c b/src/OVAL/probes/unix/linux/dpkginfo_probe.c
+index 1afd5f6bb..2cfd4425a 100644
+--- a/src/OVAL/probes/unix/linux/dpkginfo_probe.c
++++ b/src/OVAL/probes/unix/linux/dpkginfo_probe.c
+@@ -138,13 +138,16 @@ int dpkginfo_probe_main (probe_ctx *ctx, void *arg)
+                 switch (errno) {
+                 case EINVAL:
+                         dD("%s: invalid value type", "name");
++			SEXP_free (ent);
+ 			return PROBE_EINVAL;
+                         break;
+                 case EFAULT:
+                         dD("%s: element not found", "name");
++			SEXP_free (ent);
+ 			return PROBE_ENOELM;
+                         break;
+ 		default:
++			SEXP_free (ent);
+ 			return PROBE_EUNKNOWN;
+                 }
+         }
+diff --git a/src/OVAL/probes/unix/linux/fwupdsecattr_probe.c b/src/OVAL/probes/unix/linux/fwupdsecattr_probe.c
+index f29886cce..5a967906f 100644
+--- a/src/OVAL/probes/unix/linux/fwupdsecattr_probe.c
++++ b/src/OVAL/probes/unix/linux/fwupdsecattr_probe.c
+@@ -237,6 +237,8 @@ cleanup:
+ 	if (msg != NULL)
+ 		dbus_message_unref(msg);
+ 
++	free(appstream_name);
++
+ 	return ret;
+ }
+ 
+diff --git a/src/XCCDF/item.c b/src/XCCDF/item.c
+index 042d9b3d7..fe2c9ce17 100644
+--- a/src/XCCDF/item.c
++++ b/src/XCCDF/item.c
+@@ -772,6 +772,7 @@ void xccdf_item_add_applicable_platform(struct xccdf_item *item, xmlTextReaderPt
+ 	int erroffset = 0;
+ 	oscap_pcre_t *regex = oscap_pcre_compile("^(cpe:/o:microsoft:windows)(7.*)", 0, &pcreerror, &erroffset);
+ 	if (regex == NULL) {
++		free(platform_idref);
+ 		oscap_pcre_err_free(pcreerror);
+ 		return;
+ 	}
+diff --git a/src/XCCDF_POLICY/xccdf_policy_remediate.c b/src/XCCDF_POLICY/xccdf_policy_remediate.c
+index 9d4ba16e6..521633dd6 100644
+--- a/src/XCCDF_POLICY/xccdf_policy_remediate.c
++++ b/src/XCCDF_POLICY/xccdf_policy_remediate.c
+@@ -422,12 +422,14 @@ static inline int _xccdf_fix_execute(struct xccdf_rule_result *rr, struct xccdf_
+ 	int fd = oscap_acquire_temp_file(temp_dir, "fix-XXXXXXXX", &temp_file);
+ 	if (fd == -1) {
+ 		_rule_add_info_message(rr, "mkstemp failed: %s", strerror(errno));
++		free(temp_file);
+ 		goto cleanup;
+ 	}
+ 
+ 	if (_write_text_to_fd(fd, fix_text) != 0) {
+ 		_rule_add_info_message(rr, "Could not write to the temp file: %s", strerror(errno));
+ 		(void) close(fd);
++		free(temp_file);
+ 		goto cleanup;
+ 	}
+ 
+@@ -437,6 +439,7 @@ static inline int _xccdf_fix_execute(struct xccdf_rule_result *rr, struct xccdf_
+ 	int pipefd[2];
+ 	if (pipe(pipefd) == -1) {
+ 		_rule_add_info_message(rr, "Could not create pipe: %s", strerror(errno));
++		free(temp_file);
+ 		goto cleanup;
+ 	}
+ 
+-- 
+2.34.1
+

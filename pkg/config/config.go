@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+// Package config defines the configuration of the agent
 package config
 
 import (
@@ -85,7 +86,7 @@ const (
 	DefaultLogsSenderBackoffRecoveryInterval = 2
 
 	// DefaultInventoriesMinInterval is the default value for inventories_min_interval, in seconds
-	DefaultInventoriesMinInterval = 5 * 60
+	DefaultInventoriesMinInterval = 60
 
 	// DefaultInventoriesMaxInterval is the default value for inventories_max_interval, in seconds
 	DefaultInventoriesMaxInterval = 10 * 60
@@ -243,6 +244,7 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("confd_path", defaultConfdPath)
 	config.BindEnvAndSetDefault("additional_checksd", defaultAdditionalChecksPath)
 	config.BindEnvAndSetDefault("jmx_log_file", "")
+	// If enabling log_payloads, ensure the log level is set to at least DEBUG to be able to see the logs
 	config.BindEnvAndSetDefault("log_payloads", false)
 	config.BindEnvAndSetDefault("log_file", "")
 	config.BindEnvAndSetDefault("log_file_max_size", "10Mb")
@@ -514,7 +516,8 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("dogstatsd_queue_size", 1024)
 
 	config.BindEnvAndSetDefault("dogstatsd_non_local_traffic", false)
-	config.BindEnvAndSetDefault("dogstatsd_socket", "") // Notice: empty means feature disabled
+	config.BindEnvAndSetDefault("dogstatsd_socket", "")        // Notice: empty means feature disabled
+	config.BindEnvAndSetDefault("dogstatsd_stream_socket", "") // Experimental || Notice: empty means feature disabled
 	config.BindEnvAndSetDefault("dogstatsd_pipeline_autoadjust", false)
 	config.BindEnvAndSetDefault("dogstatsd_pipeline_count", 1)
 	config.BindEnvAndSetDefault("dogstatsd_stats_port", 5000)
@@ -835,6 +838,7 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("jmx_check_period", int(defaults.DefaultCheckInterval/time.Millisecond))
 	config.BindEnvAndSetDefault("jmx_reconnection_timeout", 60)
 	config.BindEnvAndSetDefault("jmx_statsd_telemetry_enabled", false)
+	config.BindEnvAndSetDefault("jmx_telemetry_enabled", false)
 	// The following jmx_statsd_client-* options are internal and will not be documented
 	// the queue size is the no. of elements (metrics, event, service checks) it can hold.
 	config.BindEnvAndSetDefault("jmx_statsd_client_queue_size", 4096)
@@ -1111,6 +1115,7 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("orchestrator_explorer.manifest_collection.enabled", true)
 	config.BindEnvAndSetDefault("orchestrator_explorer.manifest_collection.buffer_manifest", true)
 	config.BindEnvAndSetDefault("orchestrator_explorer.manifest_collection.buffer_flush_interval", 20*time.Second)
+	config.BindEnvAndSetDefault("orchestrator_explorer.run_on_node_agent", false)
 
 	// Container lifecycle configuration
 	config.BindEnvAndSetDefault("container_lifecycle.enabled", false)
@@ -1131,7 +1136,6 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("sbom.clear_cache_on_exit", false)
 	config.BindEnvAndSetDefault("sbom.cache.enabled", true)
 	config.BindEnvAndSetDefault("sbom.cache.max_disk_size", 1000*1000*100) // used by custom cache: max disk space used by cached objects. Not equal to max disk usage
-	config.BindEnvAndSetDefault("sbom.cache.max_cache_entries", 100000)    // used by custom cache keys stored in memory
 	config.BindEnvAndSetDefault("sbom.cache.clean_interval", "1h")         // used by custom cache.
 
 	// Container SBOM configuration
@@ -1203,7 +1207,11 @@ func InitConfig(config Config) {
 
 	// Datadog security agent (runtime)
 	config.BindEnvAndSetDefault("runtime_security_config.enabled", false)
-	config.BindEnvAndSetDefault("runtime_security_config.socket", "/opt/datadog-agent/run/runtime-security.sock")
+	if runtime.GOOS == "windows" {
+		config.BindEnvAndSetDefault("runtime_security_config.socket", "localhost:3334")
+	} else {
+		config.BindEnvAndSetDefault("runtime_security_config.socket", "/opt/datadog-agent/run/runtime-security.sock")
+	}
 	config.BindEnvAndSetDefault("runtime_security_config.run_path", defaultRunPath)
 	config.BindEnvAndSetDefault("runtime_security_config.log_profiled_workloads", false)
 	config.BindEnvAndSetDefault("runtime_security_config.telemetry.ignore_dd_agent_containers", true)
@@ -1217,10 +1225,9 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("enhanced_metrics", true)
 	config.BindEnvAndSetDefault("capture_lambda_payload", false)
 	config.BindEnvAndSetDefault("capture_lambda_payload_max_depth", 10)
-	config.BindEnvAndSetDefault("serverless.trace_enabled", false, "DD_TRACE_ENABLED")
+	config.BindEnvAndSetDefault("serverless.trace_enabled", true, "DD_TRACE_ENABLED")
 	config.BindEnvAndSetDefault("serverless.trace_managed_services", true, "DD_TRACE_MANAGED_SERVICES")
 	config.BindEnvAndSetDefault("serverless.service_mapping", nil, "DD_SERVICE_MAPPING")
-	config.BindEnvAndSetDefault("serverless.constant_backoff_interval", 100*time.Millisecond)
 
 	// trace-agent's evp_proxy
 	config.BindEnv("evp_proxy_config.enabled")
@@ -1523,6 +1530,7 @@ func checkConflictingOptions(config Config) error {
 	return nil
 }
 
+// LoadDatadogCustom loads the datadog config in the given config
 func LoadDatadogCustom(config Config, origin string, loadSecret bool, additionalKnownEnvVars []string) (*Warnings, error) {
 	// Feature detection running in a defer func as it always  need to run (whether config load has been successful or not)
 	// Because some Agents (e.g. trace-agent) will run even if config file does not exist
@@ -1956,7 +1964,8 @@ func GetBindHost() string {
 	return GetBindHostFromConfig(Datadog)
 }
 
-func GetBindHostFromConfig(cfg ConfigReader) string {
+// GetBindHostFromConfig returns the bind_host value from the config
+func GetBindHostFromConfig(cfg Reader) string {
 	if cfg.IsSet("bind_host") {
 		return cfg.GetString("bind_host")
 	}
@@ -2018,7 +2027,7 @@ func getObsPipelineURLForPrefix(datatype DataType, prefix string) (string, error
 }
 
 // IsRemoteConfigEnabled returns true if Remote Configuration should be enabled
-func IsRemoteConfigEnabled(cfg ConfigReader) bool {
+func IsRemoteConfigEnabled(cfg Reader) bool {
 	// Disable Remote Config for GovCloud
 	if cfg.GetBool("fips.enabled") || cfg.GetString("site") == "ddog-gov.com" {
 		return false

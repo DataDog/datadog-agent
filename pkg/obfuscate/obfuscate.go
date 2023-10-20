@@ -85,6 +85,9 @@ type Config struct {
 	// Redis holds the obfuscation settings for Redis commands.
 	Redis RedisConfig
 
+	// Memcached holds the obfuscation settings for Memcached commands.
+	Memcached MemcachedConfig
+
 	// Statsd specifies the statsd client to use for reporting metrics.
 	Statsd StatsClient
 
@@ -98,6 +101,15 @@ type StatsClient interface {
 	// Gauge reports a gauge stat with the given name, value, tags and rate.
 	Gauge(name string, value float64, tags []string, rate float64) error
 }
+
+// ObfuscationMode specifies the obfuscation mode to use for go-sqllexer pkg.
+type ObfuscationMode string
+
+// ObfuscationMode valid values
+const (
+	ObfuscateOnly         = ObfuscationMode("obfuscate_only")
+	ObfuscateAndNormalize = ObfuscationMode("obfuscate_and_normalize")
+)
 
 // SQLConfig holds the config for obfuscating SQL.
 type SQLConfig struct {
@@ -127,6 +139,11 @@ type SQLConfig struct {
 	//
 	// https://www.postgresql.org/docs/current/sql-syntax-lexical.html#SQL-SYNTAX-DOLLAR-QUOTING
 	DollarQuotedFunc bool `json:"dollar_quoted_func"`
+
+	// ObfuscationMode specifies the obfuscation mode to use for go-sqllexer pkg.
+	// When specified, obfuscator will attempt to use go-sqllexer pkg to obfuscate (and normalize) SQL queries.
+	// Valid values are "obfuscate_only", "obfuscate_and_normalize"
+	ObfuscationMode ObfuscationMode `json:"obfuscation_mode" yaml:"obfuscation_mode"`
 
 	// Cache reports whether the obfuscator should use a LRU look-up cache for SQL obfuscations.
 	Cache bool
@@ -163,6 +180,16 @@ type RedisConfig struct {
 	// RemoveAllArgs specifies whether all arguments to a given Redis
 	// command should be obfuscated.
 	RemoveAllArgs bool `mapstructure:"remove_all_args"`
+}
+
+// MemcachedConfig holds the configuration settings for Memcached obfuscation
+type MemcachedConfig struct {
+	// Enabled specifies whether this feature should be enabled.
+	Enabled bool `mapstructure:"enabled"`
+
+	// KeepCommand specifies whether the command of a given Memcached
+	// query should be kept. If false, the entire tag is removed.
+	KeepCommand bool `mapstructure:"keep_command"`
 }
 
 // JSONConfig holds the obfuscation configuration for sensitive

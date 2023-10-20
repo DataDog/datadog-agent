@@ -3,7 +3,7 @@
 # Contains jobs which send slack notifications depending on pipeline status.
 
 include:
-  - https://gitlab-templates.ddbuild.io/slack-notifier/v1/template.yml
+  - https://gitlab-templates.ddbuild.io/slack-notifier/sdm/template.yml
 
 notify-on-tagged-success:
   extends: .slack-notifier-base
@@ -42,7 +42,7 @@ notify:
 
 send_pipeline_stats:
   stage: notify
-  # Using the buildimages image and not slack-notifier because we need Python 3.7+
+  # Using a buildimage image with python 3.7+, datadog-api-client and invoke installed
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/datadog-ci-uploader$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
   tags: ["arch:amd64"]
   when: always

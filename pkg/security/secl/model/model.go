@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:generate go run golang.org/x/tools/cmd/stringer -type=HashState -linecomment -output model_string.go
+//go:generate stringer -type=HashState -linecomment -output model_string.go
 
 // Package model holds model related files
 package model
@@ -24,7 +24,6 @@ type Model struct {
 	ExtraValidateFieldFnc func(field eval.Field, fieldValue eval.FieldValue) error
 }
 
-var processContextZero = ProcessCacheEntry{}
 var eventZero = Event{BaseEvent: BaseEvent{ContainerContext: &ContainerContext{}}}
 var containerContextZero ContainerContext
 

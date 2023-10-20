@@ -24,6 +24,7 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/cluster-agent-cloudfoundry/command"
 	"github.com/DataDog/datadog-agent/cmd/cluster-agent/api"
 	dcav1 "github.com/DataDog/datadog-agent/cmd/cluster-agent/api/v1"
+	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer"
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/log"
@@ -56,11 +57,18 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				fx.Supply(globalParams),
 				fx.Supply(core.BundleParams{
 					ConfigParams: config.NewClusterAgentParams(globalParams.ConfFilePath, config.WithConfigLoadSecrets(true)),
-					LogParams:    log.LogForDaemon(command.LoggerName, "log_file", path.DefaultDCALogFile),
+					LogParams:    log.ForDaemon(command.LoggerName, "log_file", path.DefaultDCALogFile),
 				}),
 				core.Bundle,
 				forwarder.Bundle,
 				fx.Provide(defaultforwarder.NewParamsWithResolvers),
+				demultiplexer.Module,
+				fx.Provide(func() demultiplexer.Params {
+					opts := aggregator.DefaultAgentDemultiplexerOptions()
+					opts.UseEventPlatformForwarder = false
+					opts.UseOrchestratorForwarder = false
+					return demultiplexer.Params{Options: opts}
+				}),
 			)
 		},
 	}
@@ -68,7 +76,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 	return []*cobra.Command{startCmd}
 }
 
-func run(log log.Component, config config.Component, forwarder defaultforwarder.Component, cliParams *command.GlobalParams) error {
+func run(log log.Component, demultiplexer demultiplexer.Component) error {
 	mainCtx, mainCtxCancel := context.WithCancel(context.Background())
 	defer mainCtxCancel() // Calling cancel twice is safe
 
@@ -94,11 +102,7 @@ func run(log log.Component, config config.Component, forwarder defaultforwarder.
 	}
 	pkglog.Infof("Hostname is: %s", hname)
 
-	opts := aggregator.DefaultAgentDemultiplexerOptions()
-	opts.UseEventPlatformForwarder = false
-	opts.UseOrchestratorForwarder = false
-	demux := aggregator.InitAndStartAgentDemultiplexer(log, forwarder, opts, hname)
-	demux.AddAgentStartupTelemetry(fmt.Sprintf("%s - Datadog Cluster Agent", version.AgentVersion))
+	demultiplexer.AddAgentStartupTelemetry(fmt.Sprintf("%s - Datadog Cluster Agent", version.AgentVersion))
 
 	pkglog.Infof("Datadog Cluster Agent is now running.")
 
@@ -117,16 +121,16 @@ func run(log log.Component, config config.Component, forwarder defaultforwarder.
 	}
 
 	// create and setup the Autoconfig instance
-	common.LoadComponents(mainCtx, aggregator.GetSenderManager(), pkgconfig.Datadog.GetString("confd_path"))
+	common.LoadComponents(mainCtx, demultiplexer, pkgconfig.Datadog.GetString("confd_path"))
 
 	// Set up check collector
-	common.AC.AddScheduler("check", collector.InitCheckScheduler(common.Coll, aggregator.GetSenderManager()), true)
+	common.AC.AddScheduler("check", collector.InitCheckScheduler(common.Coll, demultiplexer), true)
 	common.Coll.Start()
 
 	// start the autoconfig, this will immediately run any configured check
 	common.AC.LoadAndRun(mainCtx)
 
-	if err = api.StartServer(aggregator.GetSenderManager()); err != nil {
+	if err = api.StartServer(demultiplexer); err != nil {
 		return log.Errorf("Error while starting agent API, exiting: %v", err)
 	}
 
