@@ -24,11 +24,9 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	// fiClient "github.com/DataDog/datadog-agent/test/fakeintake/client"
-	fiClient "github.com/DataDog/datadog-agent/test/fakeintake/client"
+	fi "github.com/DataDog/datadog-agent/test/fakeintake/client"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/params"
 )
 
 type multiFakeIntakeEnv struct {
@@ -47,13 +45,6 @@ const (
 	fakeintake1Name         = "1fakeintake"
 	fakeintake2Name         = "2fakeintake"
 )
-
-// for local dev purpose
-var testParams = []params.Option{
-	params.WithDevMode(),
-	// params.WithSkipDeleteOnFailure(),
-	// params.WithStackName("pgimalac-examples-multifakeintakesuite-000008"),
-}
 
 //go:embed testfixtures/custom_logs.yaml
 var customLogsConfig string
@@ -99,7 +90,7 @@ type multiFakeIntakeSuite struct {
 }
 
 func TestMultiFakeintakeSuite(t *testing.T) {
-	e2e.Run(t, &multiFakeIntakeSuite{}, multiFakeintakeStackDef(), testParams...)
+	e2e.Run(t, &multiFakeIntakeSuite{}, multiFakeintakeStackDef())
 }
 
 func (v *multiFakeIntakeSuite) TestCleanup() {
@@ -129,7 +120,6 @@ func (v *multiFakeIntakeSuite) TestDNSFailover() {
 		agentparams.WithIntegration("custom_logs.d", customLogsConfig),
 	}
 	v.UpdateEnv(multiFakeintakeStackDef(agentOptions...))
-	v.Env() // update the environment outside EventuallyWithT
 
 	// check that fakeintake1 does receive metrics
 	v.T().Logf("checking that the agent contacts main intake at %s", fakeintake1IP)
@@ -160,34 +150,28 @@ func (v *multiFakeIntakeSuite) TestDNSFailover() {
 
 func assertIntakeIsUsed(vm *client.VM, intake *client.Fakeintake, agent *client.Agent) func(*assert.CollectT) {
 	return func(t *assert.CollectT) {
-		fmt.Println(time.Now(), "assertIntakeIsUsed", intake.URL())
-
 		// check metrics
 		metricNames, err := intake.GetMetricNames()
 		require.NoError(t, err)
-		if assert.NotEmpty(t, metricNames) {
-			fmt.Println("intake received metrics")
-		}
+		assert.NotEmpty(t, metricNames)
 
 		// check logs
 		vm.Execute("echo 'totoro' >> /tmp/test.log")
 		logs, err := intake.FilterLogs("custom_logs")
-		if assert.NoError(t, err) && assert.NotEmpty(t, logs) {
-			fmt.Println("intake received logs")
-		}
+		require.NoError(t, err)
+		assert.NotEmpty(t, logs)
 
 		// check flares
 		agent.Flare(client.WithArgs([]string{"--email", "e2e@test.com", "--send"}))
 		_, err = intake.GetLatestFlare()
-		if assert.NoError(t, err) {
-			fmt.Println("intake received flare")
+		if err != nil {
+			require.ErrorIs(t, err, fi.ErrNoFlareAvailable)
 		}
+		assert.NoError(t, err)
 	}
 }
 
 func assertIntakeNotUsed(t *testing.T, vm *client.VM, intake *client.Fakeintake, agent *client.Agent) {
-	fmt.Println(time.Now(), "assertIntakeNotUsed", intake.URL())
-
 	// check metrics
 	metricNames, err := intake.GetMetricNames()
 	require.NoError(t, err)
@@ -196,13 +180,13 @@ func assertIntakeNotUsed(t *testing.T, vm *client.VM, intake *client.Fakeintake,
 	// check logs
 	vm.Execute("echo 'totoro' >> /tmp/test.log")
 	logs, err := intake.FilterLogs("custom_logs")
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.Empty(t, logs)
 
 	// check flares
 	agent.Flare(client.WithArgs([]string{"--email", "e2e@test.com", "--send"}))
 	_, err = intake.GetLatestFlare()
-	assert.ErrorIs(t, err, fiClient.ErrNoFlareAvailable)
+	assert.ErrorIs(t, err, fi.ErrNoFlareAvailable)
 }
 
 // setHostEntry adds an entry in /etc/hosts for the given hostname and hostIP
