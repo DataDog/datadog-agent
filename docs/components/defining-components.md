@@ -16,7 +16,7 @@ The package must have the following defined in:
       It should have a formulaic doc string like `// Component is the component type.`, deferring documentation to the package docs.
       All interface methods should be exported and thoroughly documented.
   * `impl/your_filename.go`      
-    * `Module` -- an `fx.Option` that can be included in the bundle's `Module` or an `fx.App` to make this component available.
+    * `Module` -- an `fx.Option` that can be included in the bundle's `Module` or an `fx.App` to make this component available. The `Module` is defined in a separate package from the component. This allows a package using only the component interface to not have to import the dependencies of the implementation of this component.
       To assist with debugging, use `fxutil.Component(options...)`.
       This item should have a formulaic doc string like `// Module defines the fx options for this component.`
 
