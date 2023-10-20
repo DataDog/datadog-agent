@@ -324,11 +324,14 @@ func (l *UDSListener) handleConnection(conn *net.UnixConn) error {
 }
 
 func getListenerID(conn *net.UnixConn) string {
-	f, err := conn.File()
+	var fdConn uintptr
+	rawConn, err := conn.SyscallConn()
 	if err != nil {
 		log.Errorf("dogstatsd-uds: error getting file from connection: %s", err)
+	} else {
+		rawConn.Control(func(fd uintptr) { fdConn = fd })
 	}
-	return "uds-" + conn.LocalAddr().Network() + "-" + strconv.Itoa(int(f.Fd()))
+	return "uds-" + conn.LocalAddr().Network() + "-" + strconv.Itoa(int(fdConn))
 }
 
 // Stop closes the UDS connection and stops listening
@@ -343,5 +346,4 @@ func (l *UDSListener) clearTelemetry(id string) {
 	tlmUDSPackets.Delete(id, l.transport, "error")
 	tlmUDSPackets.Delete(id, l.transport, "ok")
 	tlmUDSPacketsBytes.Delete(id, l.transport)
-
 }
