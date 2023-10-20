@@ -449,7 +449,8 @@ retry:
 }
 
 func deleteEBSSnapshot(ctx context.Context, svc *ec2.EC2, snapshotID string) error {
-	_, err := svc.DeleteSnapshotWithContext(ctx, &ec2.DeleteSnapshotInput{
+	// do not use context here: we want to force snapshot deletion
+	_, err := svc.DeleteSnapshot(&ec2.DeleteSnapshotInput{
 		SnapshotId: &snapshotID,
 	})
 	return err
