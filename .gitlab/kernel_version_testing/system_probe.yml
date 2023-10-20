@@ -111,7 +111,7 @@ upload_dependencies_x64:
   variables:
     ARCHIVE_NAME: dependencies-x86_64.tar.gz
     ARCH: amd64
-    INSTANCE_TYPE: m5.metal
+    INSTANCE_TYPE: m5d.metal
 
 upload_dependencies_arm64:
   extends:
@@ -120,7 +120,7 @@ upload_dependencies_arm64:
   variables:
     ARCHIVE_NAME: dependencies-arm64.tar.gz
     ARCH: arm64
-    INSTANCE_TYPE: m6g.metal
+    INSTANCE_TYPE: m6gd.metal
 
 .upload_system_probe_tests:
   stage: kernel_matrix_testing
@@ -195,7 +195,7 @@ upload_system_probe_tests_x64:
   variables:
     ARCHIVE_NAME: tests-x86_64.tar.gz
     ARCH: x86_64
-    INSTANCE_TYPE: m5.metal
+    INSTANCE_TYPE: m5d.metal
 
 upload_system_probe_tests_arm64:
   extends:
@@ -206,7 +206,7 @@ upload_system_probe_tests_arm64:
   variables:
     ARCHIVE_NAME: tests-arm64.tar.gz
     ARCH: arm64
-    INSTANCE_TYPE: m6g.metal
+    INSTANCE_TYPE: m6gd.metal
 
 .upload_minimized_btfs:
   stage: kernel_matrix_testing
@@ -248,7 +248,7 @@ upload_minimized_btfs_x64:
   variables:
     ARCHIVE_NAME: btfs-x86_64.tar.gz
     ARCH: x86_64
-    INSTANCE_TYPE: m5.metal
+    INSTANCE_TYPE: m5d.metal
 
 upload_minimized_btfs_arm64:
   extends:
@@ -257,7 +257,7 @@ upload_minimized_btfs_arm64:
   variables:
     ARCHIVE_NAME: btfs-arm64.tar.gz
     ARCH: arm64
-    INSTANCE_TYPE: m6g.metal
+    INSTANCE_TYPE: m6gd.metal
 
 .kernel_matrix_testing_new_profile:
   - mkdir -p ~/.aws
@@ -276,8 +276,8 @@ kernel_matrix_testing_setup_env:
   needs: ["go_deps", "go_tools_deps"]
   tags: ["arch:amd64"]
   variables:
-    EC2_X86_INSTANCE_TYPE: "m5.metal"
-    EC2_ARM_INSTANCE_TYPE: "m6g.metal"
+    EC2_X86_INSTANCE_TYPE: "m5d.metal"
+    EC2_ARM_INSTANCE_TYPE: "m6gd.metal"
     X86_AMI_ID: $KERNEL_MATRIX_TESTING_X86_AMI_ID
     ARM_AMI_ID: $KERNEL_MATRIX_TESTING_ARM_AMI_ID
     AWS_REGION: us-east-1
