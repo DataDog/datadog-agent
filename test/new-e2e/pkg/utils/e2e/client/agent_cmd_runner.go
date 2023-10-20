@@ -119,8 +119,8 @@ func (agent *AgentCommandRunner) Secret(commandArgs ...AgentArgsOption) string {
 
 // IsReady runs status command and returns true if the command returns a zero exit code.
 // This function should rarely be used.
-func (a *PulumiStackAgent) IsReady() bool {
-	_, err := a.executeAgentCmdWithError([]string{"status"})
+func (agent *AgentCommandRunner) IsReady() bool {
+	_, err := agent.executeAgentCmdWithError([]string{"status"})
 	return err == nil
 }
 
@@ -166,9 +166,9 @@ func (agent *AgentCommandRunner) waitForReadyTimeout(timeout time.Duration) erro
 // pattern: is the log that we are looking for
 // Retries every 500 ms up to timeout.
 // Returns error on failure.
-func (a *PulumiStackAgent) WaitAgentLogs(agentName string, pattern string) error {
+func (agent *AgentCommandRunner) WaitAgentLogs(agentName string, pattern string) error {
 	err := backoff.Retry(func() error {
-		output, err := a.vmClient.ExecuteWithError(fmt.Sprintf("cat /var/log/datadog/%s.log", agentName))
+		output, err := agent.executeAgentCmdWithError([]string{fmt.Sprintf("cat /var/log/datadog/%s.log", agentName)})
 		if err != nil {
 			return err
 		}
