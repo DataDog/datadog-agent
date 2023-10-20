@@ -20,8 +20,6 @@ Suite "7.47 non-canonical bug upgrade test suite" {
             $installResult = Install-MSI -installerName datadog-agent-7.47.0-1.x86_64.msi -msiArgs "WIXFAILWHENDEFERRED=1"
             Assert_InstallFinishedWithCode $installResult 1603
 
-            $installResult.InstallLogs | Select-String -Pattern "Calling custom action" -Context 3 | Write-Host
-
             Assert_DaclAutoInherited_Flag_NotSet "C:\"
             # Assert_DaclAutoInherited_Flag_Set "C:\Program Files\Datadog"
             # Sometimes this is set, sometimes not :/
@@ -30,15 +28,20 @@ Suite "7.47 non-canonical bug upgrade test suite" {
         }
     }
 
-    # This test case demonstrates the bug fixed in 7.49
-    Case "Upgrade 7.44.0 to 7.49.0 with rollback" {
+    # This test case demonstrates the bug fixed in 7.50
+    Case "Upgrade 7.44.0 to 7.50.0 with rollback" {
         Require @(
             "ddagent-cli-7.44.1.msi",
-            "datadog-agent-ng-7.49.0-devel.git.350.f8a8c7e-1-x86_64.msi"
+            "datadog-agent-ng-7.49.0-devel.git.532.2e75f76-1-x86_64.msi"
         )
         Test {
-            $installResult = Install-MSI -installerName datadog-agent-ng-7.49.0-devel.git.350.f8a8c7e-1-x86_64.msi -msiArgs "WIXFAILWHENDEFERRED=1"
+            # First rollback causes the AI flag to be removed
+            $installResult = Install-MSI -installerName datadog-agent-ng-7.49.0-devel.git.532.2e75f76-1-x86_64.msi -msiArgs "WIXFAILWHENDEFERRED=1"
             Assert_InstallFinishedWithCode $installResult 1603
+
+            # But a successful install puts it back
+            $installResult = Install-MSI -installerName datadog-agent-ng-7.49.0-devel.git.532.2e75f76-1-x86_64.msi
+            Assert_InstallSuccess $installResult
 
             Assert_DaclAutoInherited_Flag_Set "C:\"
             Assert_DaclAutoInherited_Flag_Set "C:\Program Files\Datadog"
@@ -48,10 +51,10 @@ Suite "7.47 non-canonical bug upgrade test suite" {
 }
 
 Suite "7.47 non-canonical bug new installs test suite" {
-    Case "New 7.49 install with uninstall" {
-        Require @("datadog-agent-ng-7.49.0-devel.git.350.f8a8c7e-1-x86_64.msi")
+    Case "New 7.50 install with uninstall" {
+        Require @("datadog-agent-ng-7.49.0-devel.git.532.2e75f76-1-x86_64.msi")
         Test {
-            $installResult = Install-MSI -installerName datadog-agent-ng-7.49.0-devel.git.350.f8a8c7e-1-x86_64.msi
+            $installResult = Install-MSI -installerName datadog-agent-ng-7.49.0-devel.git.532.2e75f76-1-x86_64.msi
             Assert_InstallSuccess $installResult
     
             Assert_DaclAutoInherited_Flag_Set "C:\"
@@ -66,10 +69,10 @@ Suite "7.47 non-canonical bug new installs test suite" {
         }
     }
     
-    Case "New 7.49 install with rollback" {
-        Require @("datadog-agent-ng-7.49.0-devel.git.350.f8a8c7e-1-x86_64.msi")
+    Case "New 7.50 install with rollback" {
+        Require @("datadog-agent-ng-7.49.0-devel.git.532.2e75f76-1-x86_64.msi")
         Test {
-            $installResult = Install-MSI -installerName datadog-agent-ng-7.49.0-devel.git.350.f8a8c7e-1-x86_64.msi -msiArgs "WIXFAILWHENDEFERRED=1"
+            $installResult = Install-MSI -installerName datadog-agent-ng-7.49.0-devel.git.532.2e75f76-1-x86_64.msi -msiArgs "WIXFAILWHENDEFERRED=1"
             Assert_InstallFinishedWithCode $installResult 1603
     
             Assert_DaclAutoInherited_Flag_Set "C:\"
@@ -78,10 +81,10 @@ Suite "7.47 non-canonical bug new installs test suite" {
         }
     }
     
-    Case "New 7.49 install in a different directory" {
-        Require @("datadog-agent-ng-7.49.0-devel.git.350.f8a8c7e-1-x86_64.msi")
+    Case "New 7.50 install in a different directory" {
+        Require @("datadog-agent-ng-7.49.0-devel.git.532.2e75f76-1-x86_64.msi")
         Test {
-            $installResult = Install-MSI -installerName datadog-agent-ng-7.49.0-devel.git.350.f8a8c7e-1-x86_64.msi -msiArgs "PROJECTLOCATION=C:\datadog APPLICATIONDATADIRECTORY=C:\datadog_data"
+            $installResult = Install-MSI -installerName datadog-agent-ng-7.49.0-devel.git.532.2e75f76-1-x86_64.msi -msiArgs "PROJECTLOCATION=C:\datadog APPLICATIONDATADIRECTORY=C:\datadog_data"
             Assert_InstallSuccess $installResult
     
             Assert_DaclAutoInherited_Flag_Set "C:\"
@@ -94,10 +97,10 @@ Suite "7.47 non-canonical bug new installs test suite" {
         }
     }
 
-    Case "New 7.49 install in a different directory with rollback" {
-        Require @("datadog-agent-ng-7.49.0-devel.git.350.f8a8c7e-1-x86_64.msi")
+    Case "New 7.50 install in a different directory with rollback" {
+        Require @("datadog-agent-ng-7.49.0-devel.git.532.2e75f76-1-x86_64.msi")
         Test {
-            $installResult = Install-MSI -installerName datadog-agent-ng-7.49.0-devel.git.350.f8a8c7e-1-x86_64.msi -msiArgs "PROJECTLOCATION=C:\datadog APPLICATIONDATADIRECTORY=C:\datadog_data WIXFAILWHENDEFERRED=1"
+            $installResult = Install-MSI -installerName datadog-agent-ng-7.49.0-devel.git.532.2e75f76-1-x86_64.msi -msiArgs "PROJECTLOCATION=C:\datadog APPLICATIONDATADIRECTORY=C:\datadog_data WIXFAILWHENDEFERRED=1"
             Assert_InstallFinishedWithCode $installResult 1603
 
             Assert_DaclAutoInherited_Flag_Set "C:\"

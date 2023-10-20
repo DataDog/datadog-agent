@@ -1,6 +1,6 @@
 # Semi-automated QA tests for the Windows installer
 
-This folder contains a set of PowerShell script to help run QA tests for the Windows installer.
+This folder contains a set of PowerShell script to help run QA tests for the Windows installer. This is **not** intended as a replacement / substitution for e2e tests but are merely a collection of scripts to quickly run installer tests on a given Hyper-V VM.
 
 # Motivation
 
