@@ -6,7 +6,6 @@
 package aggregator
 
 import (
-	"strconv"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator/internal/tags"
@@ -68,7 +67,7 @@ func newTimeSamplerWorker(sampler *TimeSampler, flushInterval time.Duration, buf
 // If we want to move to a design where we can flush while we are processing samples,
 // we could consider implementing double-buffering or locking for every sample reception.
 func (w *timeSamplerWorker) run() {
-	shard := strconv.Itoa(int(w.sampler.TimeSamplerID()))
+	shard := w.sampler.idString
 
 	for {
 		tlmChannelSize.Set(float64(len(w.samplesChan)), shard)

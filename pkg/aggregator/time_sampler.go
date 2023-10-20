@@ -67,11 +67,6 @@ func NewTimeSampler(id TimeSamplerID, interval int64, cache *tags.Store, context
 	return s
 }
 
-// TimeSamplerID returns the ID of the time sampler
-func (s *TimeSampler) TimeSamplerID() TimeSamplerID {
-	return s.id
-}
-
 func (s *TimeSampler) calculateBucketStart(timestamp float64) int64 {
 	return int64(timestamp) - int64(timestamp)%s.interval
 }
