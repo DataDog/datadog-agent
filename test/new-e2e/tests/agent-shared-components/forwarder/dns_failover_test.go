@@ -37,7 +37,7 @@ type multiFakeIntakeEnv struct {
 }
 
 const (
-	// should only contains alphanumerical characters to ease pattern matching /etc/hosts
+	// intakeName should only contains alphanumerical characters to ease pattern matching /etc/hosts
 	intakeName              = "ddintake"
 	connectionResetInterval = 120 // seconds
 	intakeMaxWaitTime       = 5 * time.Minute
@@ -93,20 +93,33 @@ func TestMultiFakeintakeSuite(t *testing.T) {
 	e2e.Run(t, &multiFakeIntakeSuite{}, multiFakeintakeStackDef())
 }
 
-func (v *multiFakeIntakeSuite) TestCleanup() {
+// SetupSuite waits for both fakeintakes to be ready before running tests.
+func (v *multiFakeIntakeSuite) SetupSuite() {
 	v.Env() // update the environment outside EventuallyWithT
 
 	// Wait for the fakeintake to be ready to avoid 503
 	require.EventuallyWithT(v.T(), func(c *assert.CollectT) {
 		assert.NoError(c, v.Env().Fakeintake1.Client.GetServerHealth())
 		assert.NoError(c, v.Env().Fakeintake2.Client.GetServerHealth())
-	}, 5*time.Minute, 20*time.Second)
+	}, intakeMaxWaitTime, intakeTick)
+}
 
-	// flush both fakeintakes, useful for local testing
+// BeforeTest flushes both fakeintakes before starting each test.
+func (v *multiFakeIntakeSuite) SetupTest() {
 	v.NoError(v.Env().Fakeintake1.FlushServerAndResetAggregators())
 	v.NoError(v.Env().Fakeintake2.FlushServerAndResetAggregators())
 }
 
+// TestDNSFailover tests that the agent correctly picks-up a change in the DNS entry of the intake.
+//
+// The test uses two fakeintakes to represent two backends, and the /etc/hosts file as a DNS,
+// setting-up an entry for the intake, pointing to the first fakeintake, then changing that entry
+// to point to the second fakeintake without restarting the agent.
+//
+// The test checks that metrics, logs, and flares are properly received by the first intake before
+// the failover, and by the second one after.
+//
+// TODO: handle APM traces
 func (v *multiFakeIntakeSuite) TestDNSFailover() {
 	// setup local version of DNS entry for intake
 	fakeintake1IP, err := hostIPFromURL(v.Env().Fakeintake1.URL())
@@ -148,6 +161,7 @@ func (v *multiFakeIntakeSuite) TestDNSFailover() {
 	)
 }
 
+// assertIntakeIsUsed asserts the the given intakes receives metrics, logs, and flares
 func assertIntakeIsUsed(vm *client.VM, intake *client.Fakeintake, agent *client.Agent) func(*assert.CollectT) {
 	return func(t *assert.CollectT) {
 		// check metrics
@@ -171,22 +185,23 @@ func assertIntakeIsUsed(vm *client.VM, intake *client.Fakeintake, agent *client.
 	}
 }
 
+// assertIntakeNotUsed asserts that the given intake doesn't receive metrics, logs, and flares
 func assertIntakeNotUsed(t *testing.T, vm *client.VM, intake *client.Fakeintake, agent *client.Agent) {
 	// check metrics
 	metricNames, err := intake.GetMetricNames()
 	require.NoError(t, err)
-	assert.Empty(t, metricNames)
+	require.Empty(t, metricNames)
 
 	// check logs
 	vm.Execute("echo 'totoro' >> /tmp/test.log")
 	logs, err := intake.FilterLogs("custom_logs")
 	require.NoError(t, err)
-	assert.Empty(t, logs)
+	require.Empty(t, logs)
 
 	// check flares
 	agent.Flare(client.WithArgs([]string{"--email", "e2e@test.com", "--send"}))
 	_, err = intake.GetLatestFlare()
-	assert.ErrorIs(t, err, fi.ErrNoFlareAvailable)
+	require.ErrorIs(t, err, fi.ErrNoFlareAvailable)
 }
 
 // setHostEntry adds an entry in /etc/hosts for the given hostname and hostIP
