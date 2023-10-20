@@ -386,7 +386,7 @@ func Test_loadDefaultProfiles_validAndInvalidProfiles(t *testing.T) {
 	logs := b.String()
 	assert.Nil(t, err)
 
-	assert.Equal(t, 1, strings.Count(logs, "[WARN] loadProfilesV2: failed to read profile definition `f5-invalid`"), logs)
+	assert.Equal(t, 1, strings.Count(logs, "unmarshal errors"), logs)
 	assert.Contains(t, defaultProfiles, "f5-big-ip")
 	assert.NotContains(t, defaultProfiles, "f5-invalid")
 }
