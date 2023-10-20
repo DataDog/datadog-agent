@@ -1,0 +1,49 @@
+{
+    "created_timestamp": 1696604081807,
+    "profiles": [
+        {
+            "metadata": {
+                "source": "custom"
+            },
+            "profile": {
+                "name": "profile-from-ui",
+                "description": "abc",
+                "sysobjectid": [
+                    "1.3.6.1.4.1.43.1.999",
+                    "1.2.4"
+                ],
+                "metrics": [
+                    {
+                        "table": {},
+                        "symbol": {
+                            "OID": "1.3.6.1.2.1.2.1.0",
+                            "name": "metricFromUi2"
+                        }
+                    },
+                    {
+                        "table": {},
+                        "symbol": {
+                            "OID": "1.3.6.1.2.1.2.1.0",
+                            "name": "metricFromUi3"
+                        }
+                    }
+                ],
+                "device": {}
+            }
+        },
+        {
+            "metadata": {
+                "source": "custom"
+            },
+            "profile": {
+                "name": "my-profile-name",
+                "description": "abc",
+                "sysobjectid": [
+                    "1.2.3",
+                    "1.2.4"
+                ],
+                "device": {}
+            }
+        }
+    ]
+}
