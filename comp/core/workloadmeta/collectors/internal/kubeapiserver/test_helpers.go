@@ -43,12 +43,12 @@ func testCollectEvent(t *testing.T, createResource func(*fake.Clientset) error, 
 		fx.Replace(config.MockParams{Overrides: overrides}),
 		fx.Supply(context.Background()),
 		fx.Supply(workloadmeta.NewParams()),
-		// GetFxOptions(),
 		workloadmeta.MockModuleV2,
 	))
-	wlm.Start(context.Background())
+	ctx := context.TODO()
+	wlm.Start(ctx)
 
-	store, _ := newStore(context.TODO(), wlm, client)
+	store, _ := newStore(ctx, wlm, client)
 	stopStore := make(chan struct{})
 	go store.Run(stopStore)
 
@@ -56,14 +56,16 @@ func testCollectEvent(t *testing.T, createResource func(*fake.Clientset) error, 
 	// - The reflector has already populated wlm with the resource, in that case the first call to <-ch will contain the event
 	// - The reflector is still initializing. In that case the second call to <-ch will contain the event
 
-	// time.Sleep(5 * time.Second)
+	time.Sleep(5 * time.Second)
 
 	ch := wlm.Subscribe(dummySubscriber, workloadmeta.NormalPriority, nil)
 	var bundle workloadmeta.EventBundle
-	assert.Eventually(t, func() bool {
+	read := assert.Eventually(t, func() bool {
 		select {
 		case bundle = <-ch:
-			close(bundle.Ch)
+			if bundle.Ch != nil {
+				close(bundle.Ch)
+			}
 			if len(bundle.Events) == 0 {
 				return false
 			}
@@ -76,9 +78,11 @@ func testCollectEvent(t *testing.T, createResource func(*fake.Clientset) error, 
 	}, 30*time.Second, 500*time.Millisecond)
 
 	// Retrieving the resource in an event bundle
-	bundle = <-ch
-	if bundle.Ch != nil {
-		close(bundle.Ch)
+	if !read {
+		bundle = <-ch
+		if bundle.Ch != nil {
+			close(bundle.Ch)
+		}
 	}
 
 	// nil the bundle's Ch so we can

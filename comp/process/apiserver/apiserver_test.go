@@ -6,7 +6,6 @@
 package apiserver
 
 import (
-	"context"
 	"net/http"
 	"testing"
 	"time"
@@ -23,7 +22,6 @@ func TestLifecycle(t *testing.T) {
 	_ = fxutil.Test[Component](t, fx.Options(
 		Module,
 		core.MockBundle,
-		fx.Supply(context.Background()),
 		fx.Supply(workloadmeta.NewParams()),
 		workloadmeta.Module,
 	))

@@ -179,6 +179,10 @@ func MakeCommand(globalParamsGetter func() GlobalParams) *cobra.Command {
 	return cmd
 }
 
+// run executes the CLI check command
+// TODO(components): note how workloadmeta is injected as an anonymous param, this is so because underlying logic
+// uses the workloadmeta component as a global. Eventually such logic will be removed and require the component
+// be passed along.
 func run(config config.Component, cliParams *cliParams, demultiplexer demultiplexer.Component, _ workloadmeta.Component) error {
 	previousIntegrationTracing := false
 	previousIntegrationTracingExhaustive := false
