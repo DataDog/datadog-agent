@@ -37,7 +37,7 @@ func newAgentCommandRunner(t *testing.T, executeAgentCmdWithError executeAgentCm
 }
 
 // NewAgentCommandRunnerFromVM create a AgentCommandRunner from a VM
-func NewAgentCommandRunnerFromVM(t *testing.T, vm *VM) *AgentCommandRunner {
+func NewAgentCommandRunnerFromVM(t *testing.T, vm *PulumiStackVM) *AgentCommandRunner {
 
 	return newAgentCommandRunner(t, func(arguments []string) (string, error) {
 		parameters := ""

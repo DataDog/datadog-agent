@@ -18,22 +18,23 @@ import (
 	"github.com/pulumi/pulumi/sdk/v3/go/auto"
 )
 
-var _ stackInitializer = (*VM)(nil)
+var _ stackInitializer = (*PulumiStackVM)(nil)
 
-// VM is a client VM that is connected to a VM defined in test-infra-definition.
-type VM struct {
+// PulumiStackVM is a type to help creating a VM client connecting to a
+// test-infra-definiting VM from a pulumi stack.
+type PulumiStackVM struct {
 	deserializer utils.RemoteServiceDeserializer[commonvm.ClientData]
 	*VMClient
 	os commonos.OS
 }
 
-// NewVM creates a new instance of VM
-func NewVM(infraVM commonvm.VM) *VM {
-	return &VM{deserializer: infraVM, os: infraVM.GetOS()}
+// NewPulumiStackVM creates a new instance of PulumiStackVM
+func NewPulumiStackVM(infraVM commonvm.VM) *PulumiStackVM {
+	return &PulumiStackVM{deserializer: infraVM, os: infraVM.GetOS()}
 }
 
 //lint:ignore U1000 Ignore unused function as this function is called using reflection
-func (vm *VM) setStack(t *testing.T, stackResult auto.UpResult) error {
+func (vm *PulumiStackVM) setStack(t *testing.T, stackResult auto.UpResult) error {
 	clientData, err := vm.deserializer.Deserialize(stackResult)
 	if err != nil {
 		return err
