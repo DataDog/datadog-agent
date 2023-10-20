@@ -42,6 +42,7 @@ GITHUB_SLACK_MAP = {
     "@datadog/database-monitoring": "#database-monitoring",
     "@datadog/agent-cspm": "#k9-cspm-ops",
     "@datadog/telemetry-and-analytics": "#instrumentation-telemetry",
+    "@datadog/asm-go": "#k9-asm-library-go",
 }
 
 GITHUB_JIRA_MAP = {
@@ -74,6 +75,7 @@ GITHUB_JIRA_MAP = {
     "@datadog/database-monitoring": "DBMON",
     "@datadog/agent-cspm": "SEC",
     "@datadog/telemetry-and-analytics": DEFAULT_JIRA_PROJECT,
+    "@datadog/asm-go": "APPSEC",
 }
 
 

@@ -8,6 +8,7 @@ package goflowlib
 import (
 	"context"
 	"fmt"
+	"go.uber.org/atomic"
 
 	"github.com/DataDog/datadog-agent/comp/netflow/common"
 	flowpb "github.com/netsampler/goflow2/pb"
@@ -15,15 +16,17 @@ import (
 
 // AggregatorFormatDriver is used as goflow formatter to forward flow data to aggregator/EP Forwarder
 type AggregatorFormatDriver struct {
-	namespace string
-	flowAggIn chan *common.Flow
+	namespace         string
+	flowAggIn         chan *common.Flow
+	listenerFlowCount *atomic.Int64
 }
 
 // NewAggregatorFormatDriver returns a new AggregatorFormatDriver
-func NewAggregatorFormatDriver(flowAgg chan *common.Flow, namespace string) *AggregatorFormatDriver {
+func NewAggregatorFormatDriver(flowAgg chan *common.Flow, namespace string, listenerFlowCount *atomic.Int64) *AggregatorFormatDriver {
 	return &AggregatorFormatDriver{
-		namespace: namespace,
-		flowAggIn: flowAgg,
+		namespace:         namespace,
+		flowAggIn:         flowAgg,
+		listenerFlowCount: listenerFlowCount,
 	}
 }
 
@@ -43,6 +46,7 @@ func (d *AggregatorFormatDriver) Format(data interface{}) ([]byte, []byte, error
 	if !ok {
 		return nil, nil, fmt.Errorf("message is not flowpb.FlowMessage")
 	}
+	d.listenerFlowCount.Add(1)
 	d.flowAggIn <- ConvertFlow(flow, d.namespace)
 	return nil, nil, nil
 }

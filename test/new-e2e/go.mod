@@ -15,7 +15,7 @@ require (
 	// `TEST_INFRA_DEFINITIONS_BUILDIMAGES` matches the commit sha in the module version
 	// Example: 	github.com/DataDog/test-infra-definitions v0.0.0-YYYYMMDDHHmmSS-0123456789AB
 	// => TEST_INFRA_DEFINITIONS_BUILDIMAGES: 0123456789AB
-	github.com/DataDog/test-infra-definitions v0.0.0-20231017144910-d2510f65b6fe
+	github.com/DataDog/test-infra-definitions v0.0.0-20231020142939-8d38c2a2a794
 	github.com/aws/aws-sdk-go-v2 v1.21.2
 	github.com/aws/aws-sdk-go-v2/config v1.18.40
 	github.com/aws/aws-sdk-go-v2/service/eks v1.29.7
@@ -31,7 +31,6 @@ require (
 	golang.org/x/sys v0.10.0
 	golang.org/x/term v0.10.0
 	gopkg.in/yaml.v2 v2.4.0
-	gopkg.in/zorkian/go-datadog-api.v2 v2.30.0
 )
 
 require (
@@ -166,7 +165,10 @@ require (
 	github.com/pulumi/pulumi-eks/sdk v1.0.2 // indirect
 	github.com/pulumi/pulumi-kubernetes/sdk/v3 v3.30.2 // indirect
 	github.com/pulumi/pulumi-libvirt/sdk v0.4.0 // indirect
-	github.com/pulumi/pulumi-random/sdk/v4 v4.14.0 // indirect
+	// pulumi-random v4.14.0 uses GO 1.21:
+	// https://github.com/pulumi/pulumi-random/blob/v4.14.0/sdk/go.mod#L3
+	// So, do not upgrade pulumi-random to v4.14.0 or above before migration to GO 1.21.
+	github.com/pulumi/pulumi-random/sdk/v4 v4.13.4 // indirect
 	github.com/rivo/uniseg v0.4.4 // indirect
 	github.com/rogpeppe/go-internal v1.11.0 // indirect
 	github.com/russross/blackfriday/v2 v2.1.0 // indirect
@@ -185,7 +187,6 @@ require (
 	github.com/xanzy/ssh-agent v0.3.3 // indirect
 	github.com/xlab/treeprint v1.2.0 // indirect
 	github.com/zclconf/go-cty v1.13.2 // indirect
-	github.com/zorkian/go-datadog-api v2.30.0+incompatible // indirect
 	go.starlark.net v0.0.0-20230525235612-a134d8f9ddca // indirect
 	go.uber.org/atomic v1.11.0 // indirect
 	golang.org/x/exp v0.0.0-20230725093048-515e97ebf090 // indirect

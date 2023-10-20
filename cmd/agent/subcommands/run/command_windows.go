@@ -22,6 +22,7 @@ import (
 	// checks implemented as components
 	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer"
 	"github.com/DataDog/datadog-agent/comp/checks/agentcrashdetect"
+	comptraceconfig "github.com/DataDog/datadog-agent/comp/trace/config"
 
 	// core components
 	"github.com/DataDog/datadog-agent/comp/core"
@@ -40,7 +41,6 @@ import (
 	netflowServer "github.com/DataDog/datadog-agent/comp/netflow/server"
 	otelcollector "github.com/DataDog/datadog-agent/comp/otelcol/collector"
 	"github.com/DataDog/datadog-agent/comp/remote-config/rcclient"
-	comptraceconfig "github.com/DataDog/datadog-agent/comp/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -78,8 +78,6 @@ func StartAgentWithDefaults(ctxChan <-chan context.Context) (<-chan error, error
 			demultiplexer demultiplexer.Component,
 			hostMetadata host.Component,
 			_ netflowServer.Component,
-			_ agentcrashdetect.Component,
-			_ comptraceconfig.Component,
 		) error {
 
 			defer StopAgentWithDefaults(server, demultiplexer)
@@ -130,34 +128,6 @@ func StartAgentWithDefaults(ctxChan <-chan context.Context) (<-chan error, error
 	return errChan, nil
 }
 
-func run(log log.Component,
-	config config.Component,
-	flare flare.Component,
-	telemetry telemetry.Component,
-	sysprobeconfig sysprobeconfig.Component,
-	server dogstatsdServer.Component,
-	capture replay.Component,
-	serverDebug dogstatsdDebug.Component,
-	forwarder defaultforwarder.Component,
-	rcclient rcclient.Component,
-	metadataRunner runner.Component,
-	demux demultiplexer.Component,
-	sharedSerializer serializer.MetricSerializer,
-	cliParams *cliParams,
-	logsAgent util.Optional[logsAgent.Component],
-	otelcollector otelcollector.Component,
-	hostMetadata host.Component,
-	_ netflowServer.Component,
-	_ agentcrashdetect.Component,
-	_ comptraceconfig.Component,
-) error {
-	// commonRun provides a mechanism to have the shared run function not require the unused components
-	// (i.e. here `_ netflowServer`, `_ agentcrashdetect`, etc.).  The run function can have different
-	// parameters on different platforms based on platform-specific components.  commonRun is the shared initialization.
-
-	return commonRun(log, config, flare, telemetry, sysprobeconfig, server, capture, serverDebug, forwarder, rcclient, metadataRunner, demux, sharedSerializer, cliParams, logsAgent, otelcollector, hostMetadata)
-}
-
 func getPlatformModules() fx.Option {
 	return fx.Options(
 		agentcrashdetect.Module,
@@ -165,5 +135,6 @@ func getPlatformModules() fx.Option {
 		fx.Replace(comptraceconfig.Params{
 			FailIfAPIKeyMissing: false,
 		}),
+		fx.Invoke(func(_ agentcrashdetect.Component) {}), // Force the instanciation of the component
 	)
 }
