@@ -22,7 +22,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/networkdevice/profile/profiledefinition"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/common"
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/configvalidation"
 )
 
 const defaultProfilesFolder = "default_profiles"
@@ -46,13 +45,22 @@ func loadYamlProfiles() (ProfileConfigMap, error) {
 	}
 	log.Debugf("build yaml profiles")
 
+	profiles, err := loadProfilesV3(nil)
+	if err != nil {
+		return nil, err
+	}
+
+	SetGlobalProfileConfigMap(profiles)
+	return profiles, nil
+}
+
+func loadProfilesV3(initConfigProfiles ProfileConfigMap) (ProfileConfigMap, error) {
 	defaultProfiles, err := getProfilesDefinitionFilesV2(defaultProfilesFolder, false)
 	if err != nil {
 		// TODO: Return error?
 		log.Warnf("failed to get default profile definitions: %s", err)
 		defaultProfiles = ProfileConfigMap{}
 	}
-
 	userProfiles, err := getProfilesDefinitionFilesV2(userProfilesFolder, true)
 	if err != nil {
 		// TODO: Return error?
@@ -60,13 +68,31 @@ func loadYamlProfiles() (ProfileConfigMap, error) {
 		userProfiles = ProfileConfigMap{}
 	}
 
-	profiles, err := resolveProfiles(defaultProfiles, userProfiles)
+	if len(initConfigProfiles) > 0 {
+		// TODO: TESTME
+		for key, val := range initConfigProfiles {
+			userProfiles[key] = val
+		}
+	}
+
+	resolvedProfiles, err := resolveProfiles(defaultProfiles, userProfiles)
 	if err != nil {
 		return nil, err
 	}
 
-	SetGlobalProfileConfigMap(profiles)
-	return profiles, nil
+	// TODO: FIND BETTER DESIGN
+	if len(initConfigProfiles) > 0 {
+		filteredResolvedProfiles := ProfileConfigMap{}
+		for key, val := range resolvedProfiles {
+			if _, ok := initConfigProfiles[key]; !ok {
+				continue
+			}
+			filteredResolvedProfiles[key] = val
+		}
+		resolvedProfiles = filteredResolvedProfiles
+	}
+
+	return resolvedProfiles, nil
 }
 
 func getDefaultProfilesDefinitionFiles() (ProfileConfigMap, error) {
@@ -145,7 +171,7 @@ func getProfilesDefinitionFilesV2(profilesFolder string, isUserProfile bool) (Pr
 	return profiles, nil
 }
 
-func loadProfiles(pConfig ProfileConfigMap) (ProfileConfigMap, error) {
+func loadProfilesForInitConfig(pConfig ProfileConfigMap) (ProfileConfigMap, error) {
 	profiles := make(ProfileConfigMap, len(pConfig))
 
 	for name, profConfig := range pConfig {
@@ -155,25 +181,15 @@ func loadProfiles(pConfig ProfileConfigMap) (ProfileConfigMap, error) {
 				log.Warnf("failed to read profile definition `%s`: %s", name, err)
 				continue
 			}
-
-			err = recursivelyExpandBaseProfiles(profConfig.DefinitionFile, profDefinition, profDefinition.Extends, []string{})
-			if err != nil {
-				log.Warnf("failed to expand profile `%s`: %s", name, err)
-				continue
-			}
 			profConfig.Definition = *profDefinition
-		}
-		profiledefinition.NormalizeMetrics(profConfig.Definition.Metrics)
-		errors := configvalidation.ValidateEnrichMetadata(profConfig.Definition.Metadata)
-		errors = append(errors, configvalidation.ValidateEnrichMetrics(profConfig.Definition.Metrics)...)
-		errors = append(errors, configvalidation.ValidateEnrichMetricTags(profConfig.Definition.MetricTags)...)
-		if len(errors) > 0 {
-			log.Warnf("validation errors: %s", strings.Join(errors, "\n"))
-			continue
 		}
 		profiles[name] = profConfig
 	}
-	return profiles, nil
+	resolvedProfiles, err := loadProfilesV3(profiles)
+	if err != nil {
+		return nil, err
+	}
+	return resolvedProfiles, nil
 }
 
 func readProfileDefinition(definitionFile string) (*profiledefinition.ProfileDefinition, error) {
