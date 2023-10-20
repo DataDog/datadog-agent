@@ -17,6 +17,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
+	"github.com/DataDog/datadog-agent/pkg/serverless/trace/inferredspan"
 	"github.com/DataDog/datadog-agent/pkg/trace/api"
 	"github.com/DataDog/datadog-agent/pkg/trace/info"
 	"github.com/DataDog/datadog-agent/pkg/trace/sampler"
@@ -151,6 +152,40 @@ func (lp *LifecycleProcessor) endExecutionSpan(endDetails *InvocationEndDetails)
 	traceChunk := &pb.TraceChunk{
 		Priority: int32(executionContext.SamplingPriority),
 		Spans:    []*pb.Span{executionSpan},
+	}
+
+	tracerPayload := &pb.TracerPayload{
+		Chunks: []*pb.TraceChunk{traceChunk},
+	}
+
+	lp.ProcessTrace(&api.Payload{
+		Source:        info.NewReceiverStats().GetTagStats(info.Tags{}),
+		TracerPayload: tracerPayload,
+	})
+}
+
+// completeInferredSpan finishes the inferred span and passes it
+// as an API payload to be processed by the trace agent
+func (lp *LifecycleProcessor) completeInferredSpan(inferredSpan *inferredspan.InferredSpan, endTime time.Time, isError bool) {
+	durationIsSet := inferredSpan.Span.Duration != 0
+	if inferredSpan.IsAsync {
+		// SNSSQS span duration is set in invocationlifecycle/init.go
+		if !durationIsSet {
+			inferredSpan.Span.Duration = inferredSpan.CurrentInvocationStartTime.UnixNano() - inferredSpan.Span.Start
+		}
+	} else {
+		inferredSpan.Span.Duration = endTime.UnixNano() - inferredSpan.Span.Start
+	}
+	if isError {
+		inferredSpan.Span.Error = 1
+	}
+
+	inferredSpan.Span.TraceID = lp.GetExecutionInfo().TraceID
+
+	traceChunk := &pb.TraceChunk{
+		Origin:   "lambda",
+		Spans:    []*pb.Span{inferredSpan.Span},
+		Priority: int32(lp.GetExecutionInfo().SamplingPriority),
 	}
 
 	tracerPayload := &pb.TracerPayload{
