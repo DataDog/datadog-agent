@@ -24,14 +24,16 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/networkdevice/profile/profiledefinition"
 	"github.com/DataDog/datadog-agent/pkg/snmp/gosnmplib"
 
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/common"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/checkconfig"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/common"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/configvalidation"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/profile"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/report"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/session"
 )
 
 func TestProfileWithSysObjectIdDetection(t *testing.T) {
-	checkconfig.SetConfdPathAndCleanProfiles()
+	profile.SetConfdPathAndCleanProfiles()
 	sess := session.CreateFakeSession()
 	sessionFactory := func(*checkconfig.CheckConfig) (session.Session, error) {
 		return sess, nil
@@ -162,7 +164,7 @@ profiles:
 }
 
 func TestProfileDetectionPreservesGlobals(t *testing.T) {
-	checkconfig.SetConfdPathAndCleanProfiles()
+	profile.SetConfdPathAndCleanProfiles()
 	sess := session.CreateFakeSession()
 	sessionFactory := func(*checkconfig.CheckConfig) (session.Session, error) {
 		return sess, nil
@@ -352,8 +354,8 @@ collect_topology: false
 		},
 		{Tag: "snmp_host", Symbol: profiledefinition.SymbolConfigCompat{OID: "1.3.6.1.2.1.1.5.0", Name: "sysName"}},
 	}
-	checkconfig.ValidateEnrichMetrics(expectedMetrics)
-	checkconfig.ValidateEnrichMetricTags(expectedMetricTags)
+	configvalidation.ValidateEnrichMetrics(expectedMetrics)
+	configvalidation.ValidateEnrichMetricTags(expectedMetricTags)
 
 	assert.ElementsMatch(t, deviceCk.config.Metrics, expectedMetrics)
 
@@ -443,7 +445,7 @@ profiles:
 }
 
 func TestDeviceCheck_Hostname(t *testing.T) {
-	checkconfig.SetConfdPathAndCleanProfiles()
+	profile.SetConfdPathAndCleanProfiles()
 	// language=yaml
 	rawInstanceConfig := []byte(`
 ip_address: 1.2.3.4
@@ -474,7 +476,7 @@ community_string: public
 }
 
 func TestDeviceCheck_GetHostname(t *testing.T) {
-	checkconfig.SetConfdPathAndCleanProfiles()
+	profile.SetConfdPathAndCleanProfiles()
 	// language=yaml
 	rawInstanceConfig := []byte(`
 ip_address: 1.2.3.4
@@ -531,7 +533,7 @@ community_string: public
 }
 
 func TestDynamicTagsAreSaved(t *testing.T) {
-	checkconfig.SetConfdPathAndCleanProfiles()
+	profile.SetConfdPathAndCleanProfiles()
 	sess := session.CreateMockSession()
 	sessionFactory := func(*checkconfig.CheckConfig) (session.Session, error) {
 		return sess, nil
@@ -824,7 +826,7 @@ profiles:
 }
 
 func TestRun_sessionCloseError(t *testing.T) {
-	checkconfig.SetConfdPathAndCleanProfiles()
+	profile.SetConfdPathAndCleanProfiles()
 	sess := session.CreateMockSession()
 	sess.CloseErr = fmt.Errorf("close error")
 	sessionFactory := func(*checkconfig.CheckConfig) (session.Session, error) {
@@ -872,7 +874,7 @@ profiles:
 }
 
 func TestDeviceCheck_detectAvailableMetrics(t *testing.T) {
-	checkconfig.SetConfdPathAndCleanProfiles()
+	profile.SetConfdPathAndCleanProfiles()
 
 	sess := session.CreateMockSession()
 	sessionFactory := func(*checkconfig.CheckConfig) (session.Session, error) {
@@ -950,7 +952,7 @@ community_string: public
 		{Tag: "snmp_host2", Symbol: profiledefinition.SymbolConfigCompat{OID: "1.3.6.1.2.1.1.5.0", Name: "sysName"}},
 	}
 
-	checkconfig.ValidateEnrichMetricTags(expectedMetricsTagConfigs)
+	configvalidation.ValidateEnrichMetricTags(expectedMetricsTagConfigs)
 
 	assert.ElementsMatch(t, expectedMetricsTagConfigs, metricTagConfigs)
 }

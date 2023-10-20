@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package checkconfig
+package configvalidation
 
 import (
 	"bufio"
@@ -908,7 +908,7 @@ func Test_validateEnrichMetadata(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			errors := validateEnrichMetadata(tt.metadata)
+			errors := ValidateEnrichMetadata(tt.metadata)
 			assert.Equal(t, len(tt.expectedErrors), len(errors), fmt.Sprintf("ERRORS: %v", errors))
 			for i := range errors {
 				assert.Contains(t, errors[i], tt.expectedErrors[i])
