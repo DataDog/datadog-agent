@@ -527,7 +527,6 @@ func scanEBS(ctx context.Context, scan ebsScan) (*sbommodel.SBOMEntity, error) {
 		AWSRegion:         scan.Region,
 	})
 	if err != nil {
-		statsd.Count("datadog.sidescanner.scans.finished", 1.0, tagFailure(tags), 1.0)
 		return nil, fmt.Errorf("unable to create artifact from image: %w", err)
 	}
 	trivyDetector := ospkg.Detector{}
@@ -541,11 +540,12 @@ func scanEBS(ctx context.Context, scan ebsScan) (*sbommodel.SBOMEntity, error) {
 		ScanRemovedPackages: false,
 		ListAllPackages:     true,
 	})
-	statsd.Count("datadog.sidescanner.scans.finished", 1.0, tagSuccess(tags), 1.0)
 	statsd.Histogram("datadog.sidescanner.scans.duration", float64(time.Since(scanStartedAt).Milliseconds()), tags, 1.0)
 	if err != nil {
+		statsd.Count("datadog.sidescanner.scans.finished", 1.0, tagFailure(tags), 1.0)
 		return nil, fmt.Errorf("trivy scan failed: %w", err)
 	}
+	statsd.Count("datadog.sidescanner.scans.finished", 1.0, tagSuccess(tags), 1.0)
 
 	createdAt := time.Now()
 	duration := time.Since(scanStartedAt)
