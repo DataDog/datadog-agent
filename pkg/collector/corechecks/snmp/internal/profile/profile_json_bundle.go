@@ -24,11 +24,15 @@ func loadBundleJSONProfiles() (ProfileConfigMap, error) {
 		return nil, err
 	}
 
-	profiles, err := unmarshallProfilesBundleJSON(jsonStr)
+	userProfiles, err := unmarshallProfilesBundleJSON(jsonStr)
 	if err != nil {
 		return nil, err
 	}
-	return profiles, nil
+	resolvedProfiles, err := loadProfilesV3(nil, userProfiles)
+	if err != nil {
+		return nil, err
+	}
+	return resolvedProfiles, nil
 }
 
 func unmarshallProfilesBundleJSON(jsonStr []byte) (ProfileConfigMap, error) {
