@@ -125,11 +125,8 @@ func (p *Probe) detectKernelVersion() error {
 }
 
 // GetKernelVersion computes and returns the running kernel version
-func (p *Probe) GetKernelVersion() (*kernel.Version, error) {
-	if err := p.detectKernelVersion(); err != nil {
-		return nil, err
-	}
-	return p.kernelVersion, nil
+func (p *Probe) GetKernelVersion() *kernel.Version {
+	return p.kernelVersion
 }
 
 // UseRingBuffers returns true if eBPF ring buffers are supported and used
@@ -1793,22 +1790,14 @@ func getCGroupWriteConstants() manager.ConstantEditor {
 // GetOffsetConstants returns the offsets and struct sizes constants
 func (p *Probe) GetOffsetConstants() (map[string]uint64, error) {
 	constantFetcher := constantfetch.ComposeConstantFetchers(constantfetch.GetAvailableConstantFetchers(p.Config.Probe, p.kernelVersion, p.StatsdClient))
-	kv, err := p.GetKernelVersion()
-	if err != nil {
-		return nil, fmt.Errorf("failed to fetch probe kernel version: %w", err)
-	}
-	AppendProbeRequestsToFetcher(constantFetcher, kv)
+	AppendProbeRequestsToFetcher(constantFetcher, p.kernelVersion)
 	return constantFetcher.FinishAndGetResults()
 }
 
 // GetConstantFetcherStatus returns the status of the constant fetcher associated with this probe
 func (p *Probe) GetConstantFetcherStatus() (*constantfetch.ConstantFetcherStatus, error) {
 	constantFetcher := constantfetch.ComposeConstantFetchers(constantfetch.GetAvailableConstantFetchers(p.Config.Probe, p.kernelVersion, p.StatsdClient))
-	kv, err := p.GetKernelVersion()
-	if err != nil {
-		return nil, fmt.Errorf("failed to fetch probe kernel version: %w", err)
-	}
-	AppendProbeRequestsToFetcher(constantFetcher, kv)
+	AppendProbeRequestsToFetcher(constantFetcher, p.kernelVersion)
 	return constantFetcher.FinishAndGetStatus()
 }
 

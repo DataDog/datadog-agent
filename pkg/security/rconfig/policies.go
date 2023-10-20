@@ -76,6 +76,10 @@ func (r *RCPolicyProvider) Start() {
 
 func (r *RCPolicyProvider) rcDefaultsUpdateCallback(configs map[string]state.RawConfig, _ func(string, state.ApplyStatus)) {
 	r.Lock()
+	if len(r.lastDefaults) == 0 && len(configs) == 0 {
+		r.Unlock()
+		return
+	}
 	r.lastDefaults = configs
 	r.Unlock()
 
@@ -86,6 +90,10 @@ func (r *RCPolicyProvider) rcDefaultsUpdateCallback(configs map[string]state.Raw
 
 func (r *RCPolicyProvider) rcCustomsUpdateCallback(configs map[string]state.RawConfig, _ func(string, state.ApplyStatus)) {
 	r.Lock()
+	if len(r.lastCustoms) == 0 && len(configs) == 0 {
+		r.Unlock()
+		return
+	}
 	r.lastCustoms = configs
 	r.Unlock()
 

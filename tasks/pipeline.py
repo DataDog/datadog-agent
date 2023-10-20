@@ -385,7 +385,7 @@ def generate_failure_messages(project_name: str, failed_jobs: FailedJobs) -> Dic
     failed_job_owners = find_job_owners(failed_jobs)
     for owner, jobs in failed_job_owners.items():
         if owner == "@DataDog/multiple":
-            for job in jobs:
+            for job in jobs.all_non_infra_failures():
                 for test in get_failed_tests(project_name, job):
                     messages_to_send[all_teams].add_test_failure(test, job)
                     for owner in test.owners:

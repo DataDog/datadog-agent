@@ -29,10 +29,14 @@ generator:
       throttle: stable
       variant:
         dogstatsd:
-          metric_names_minimum: 32
-          metric_names_maximum: 128
-          tag_keys_minimum: 0
-          tag_keys_maximum: 512
+          metric_names:
+            inclusive:
+              min: 32
+              max: 128
+          tag_keys:
+            inclusive:
+              min: 0
+              max: 512
           kind_weights:
             metric: 90
             event: 5

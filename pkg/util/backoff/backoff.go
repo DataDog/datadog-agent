@@ -111,7 +111,7 @@ func (e *ExpBackoffPolicy) DecError(numErrors int) int {
 }
 
 // GetBackoffDuration returns amount of time to sleep after numErrors error
-func (c *ConstantBackoffPolicy) GetBackoffDuration(numErrors int) time.Duration {
+func (c *ConstantBackoffPolicy) GetBackoffDuration(numErrors int) time.Duration { //nolint:revive // TODO fix revive unused-parameter
 	return c.backoffTime
 }
 

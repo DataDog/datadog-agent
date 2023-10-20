@@ -349,10 +349,6 @@ func (s *GetEventsTestSuite) TestReadNewEvents() {
 	sub, err := startSubscription(s.T(), s.ti, s.channelPath)
 	require.NoError(s.T(), err)
 
-	// Eat the initial state
-	err = assertNoMoreEvents(s.T(), sub)
-	require.NoError(s.T(), err)
-
 	// Put events in the log
 	err = s.ti.GenerateEvents(s.eventSource, s.numEvents)
 	require.NoError(s.T(), err)
@@ -508,10 +504,6 @@ func (s *GetEventsTestSuite) TestHandleEarlyGetEventsLoopExit() {
 
 	// set stop event to trigger getEventsLoop to exit
 	windows.SetEvent(windows.Handle(baseSub.stopEventHandle))
-	require.NoError(s.T(), err)
-
-	// Eat the initial state
-	err = assertNoMoreEvents(s.T(), sub)
 	require.NoError(s.T(), err)
 
 	// wait for the loop to exit
@@ -772,6 +764,7 @@ func (s *GetEventsTestSuite) TestReadWhenNoEvents() {
 		WithStartAtOldestRecord())
 	require.NoError(s.T(), err)
 
+	// Channel should block when there are no events
 	err = assertNoMoreEvents(s.T(), sub)
 	require.NoError(s.T(), err)
 	err = assertNoMoreEvents(s.T(), sub)
