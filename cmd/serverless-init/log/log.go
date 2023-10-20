@@ -9,7 +9,6 @@
 package log
 
 import (
-	"bytes"
 	"os"
 	"strings"
 	"time"
@@ -33,14 +32,6 @@ type Config struct {
 	Channel      chan *logConfig.ChannelMessage
 	source       string
 	IsEnabled    bool
-}
-
-// CustomWriter wraps the log config to allow stdout/stderr redirection
-type CustomWriter struct {
-	LogConfig    *Config
-	LineBuffer   bytes.Buffer
-	ShouldBuffer bool
-	IsError      bool
 }
 
 // CreateConfig builds and returns a log config
