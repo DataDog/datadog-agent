@@ -77,16 +77,18 @@ type APIServer struct {
 
 // GetActivityDumpStream waits for activity dumps and forwards them to the stream
 func (a *APIServer) GetActivityDumpStream(params *api.ActivityDumpStreamParams, stream api.SecurityModule_GetActivityDumpStreamServer) error {
-	// read one activity dump or timeout after one second
-	select {
-	case dump := <-a.activityDumps:
-		if err := stream.Send(dump); err != nil {
-			return err
+	for {
+		select {
+		case <-stream.Context().Done():
+			return nil
+		case <-a.stopChan:
+			return nil
+		case dump := <-a.activityDumps:
+			if err := stream.Send(dump); err != nil {
+				return err
+			}
 		}
-	case <-time.After(time.Second):
-		break
 	}
-	return nil
 }
 
 // SendActivityDump queues an activity dump to the chan of activity dumps
