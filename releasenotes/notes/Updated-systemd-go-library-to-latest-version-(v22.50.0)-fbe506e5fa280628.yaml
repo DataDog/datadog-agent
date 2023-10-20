@@ -8,4 +8,3 @@
 ---
   - |
     Updated the go-systemd package to the latest version (22.5.0).
-    This shouldn't result in any behavioral changes
