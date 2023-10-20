@@ -26,7 +26,7 @@
 # Todo: is this file still needed?
 /Makefile.trace                         @DataDog/agent-platform
 
-/release.json                           @DataDog/agent-platform @DataDog/agent-shared-components
+/release.json                           @DataDog/agent-platform @DataDog/agent-shared-components @DataDog/agent-metrics-logs @DataDog/windows-kernel-integrations
 /requirements.txt                       @DataDog/agent-platform
 /pyproject.toml                         @DataDog/agent-platform
 /setup.cfg                              @DataDog/agent-platform
@@ -38,6 +38,7 @@
 /.github/dependabot.yaml                            @DataDog/agent-platform
 /.github/workflows/serverless-binary-size.yml       @DataDog/serverless
 /.github/workflows/serverless-integration.yml       @DataDog/serverless
+/.github/workflows/windows-*.yml                    @DataDog/windows-agent
 /.github/workflows/cws-btfhub-sync.yml              @DataDog/agent-security
 
 # Gitlab files
@@ -231,6 +232,7 @@
 /pkg/metrics/                           @DataDog/agent-metrics-logs
 /pkg/serializer/                        @DataDog/agent-metrics-logs
 /pkg/serverless/                        @DataDog/serverless
+/pkg/serverless/appsec/                 @DataDog/asm-go
 /pkg/status/                            @DataDog/agent-shared-components
 /pkg/status/templates/trace-agent.tmpl  @DataDog/agent-apm
 /pkg/status/templates/process-agent.tmpl    @DataDog/processes

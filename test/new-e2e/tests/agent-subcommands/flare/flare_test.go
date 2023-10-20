@@ -43,7 +43,6 @@ func requestAgentFlareAndFetchFromFakeIntake(v *commandFlareSuite, flareArgs ...
 }
 
 func (v *commandFlareSuite) TestFlareDefaultFiles() {
-	v.UpdateEnv(e2e.FakeIntakeStackDef())
 	flare := requestAgentFlareAndFetchFromFakeIntake(v, client.WithArgs([]string{"--email", "e2e@test.com", "--send"}))
 
 	assertFilesExist(v.T(), flare, defaultFlareFiles)

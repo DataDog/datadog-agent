@@ -6,6 +6,8 @@
 package run
 
 import (
+	"os"
+	"path"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -18,7 +20,7 @@ import (
 
 func TestCommand(t *testing.T) {
 	fxutil.TestOneShotSubcommand(t,
-		Commands(&command.GlobalParams{}),
+		Commands(newGlobalParamsTest(t)),
 		[]string{"run"},
 		run,
 		func(cliParams *cliParams, coreParams core.BundleParams) {
@@ -29,7 +31,7 @@ func TestCommand(t *testing.T) {
 
 func TestCommandPidfile(t *testing.T) {
 	fxutil.TestOneShotSubcommand(t,
-		Commands(&command.GlobalParams{}),
+		Commands(newGlobalParamsTest(t)),
 		[]string{"run", "--pidfile", "/pid/file"},
 		run,
 		func(cliParams *cliParams, coreParams core.BundleParams) {
@@ -37,4 +39,18 @@ func TestCommandPidfile(t *testing.T) {
 			require.Equal(t, true, coreParams.ConfigLoadSecrets())
 		})
 	workloadmeta.ResetGlobalStore()
+}
+
+func newGlobalParamsTest(t *testing.T) *command.GlobalParams {
+	// Because getSharedFxOption uses fx.Invoke, demultiplexer component is built
+	// which lead to build:
+	//   - config.Component which requires a valid datadog.yaml
+	//   - hostname.Component which requires a valid hostname
+	config := path.Join(t.TempDir(), "datadog.yaml")
+	err := os.WriteFile(config, []byte("hostname: test"), 0644)
+	require.NoError(t, err)
+
+	return &command.GlobalParams{
+		ConfFilePath: config,
+	}
 }

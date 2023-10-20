@@ -136,6 +136,29 @@ func TestOneShotSubcommand(
 	require.True(t, oneShotRan, "fxutil.OneShot wasn't called")
 }
 
+// TestOneShot is a helper for testing there is no missing dependencies when calling
+// fxutil.OneShot.
+//
+// The function passed as the first argument of fx.OneShot is not called. It
+// is validated with fx.ValidateApp, however.
+func TestOneShot(t *testing.T, fct func()) {
+	var oneShotRan bool
+	oneShotTestOverride = func(oneShotFunc interface{}, opts []fx.Option) error {
+		oneShotRan = true
+		// validate the app with the original oneShotFunc, to ensure that
+		// any types it requires are provided.
+		require.NoError(t,
+			fx.ValidateApp(
+				append(opts,
+					fx.Invoke(oneShotFunc))...))
+		return nil
+	}
+	defer func() { oneShotTestOverride = nil }()
+
+	fct()
+	require.True(t, oneShotRan, "fxutil.OneShot wasn't called")
+}
+
 // TestBundle is an helper to test Bundle.
 //
 // This function checks that all components built with fx.Provide inside a bundle can be instanciated.
@@ -189,8 +212,16 @@ func getComponents(t *testing.T, mainType reflect.Type) []reflect.Type {
 	if isFxOutType(mainType) {
 		var types []reflect.Type
 		for i := 0; i < mainType.NumField(); i++ {
-			fieldType := mainType.Field(i).Type
-			if fieldType != fxOutType {
+			field := mainType.Field(i)
+			fieldType := field.Type
+
+			// Ignore fx groups because returning an instance of
+			// type Provider struct {
+			//   fx.Out
+			//   Provider MyProvider `group:"myGroup"`
+			// }
+			// doesn't satisfy fx.Invoke(_ MyProvider)
+			if fieldType != fxOutType && field.Tag.Get("group") == "" {
 				types = append(types, getComponents(t, fieldType)...)
 			}
 		}

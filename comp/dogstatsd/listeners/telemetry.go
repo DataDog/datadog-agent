@@ -18,11 +18,13 @@ var (
 
 	// UDS
 	tlmUDSPackets = telemetry.NewCounter("dogstatsd", "uds_packets",
-		[]string{"state"}, "Dogstatsd UDS packets count")
+		[]string{"transport", "state"}, "Dogstatsd UDS packets count")
 	tlmUDSOriginDetectionError = telemetry.NewCounter("dogstatsd", "uds_origin_detection_error",
-		nil, "Dogstatsd UDS origin detection error count")
+		[]string{"transport"}, "Dogstatsd UDS origin detection error count")
 	tlmUDSPacketsBytes = telemetry.NewCounter("dogstatsd", "uds_packets_bytes",
-		nil, "Dogstatsd UDS packets bytes")
+		[]string{"transport"}, "Dogstatsd UDS packets bytes")
+	tlmUDSConnections = telemetry.NewGauge("dogstatsd", "uds_connections",
+		[]string{"transport"}, "Dogstatsd UDS connections count")
 
 	tlmListener            = telemetry.NewHistogramNoOp()
 	defaultListenerBuckets = []float64{300, 500, 1000, 1500, 2000, 2500, 3000, 10000, 20000, 50000}
@@ -39,7 +41,7 @@ func InitTelemetry(buckets []float64) {
 	tlmListener = telemetry.NewHistogram(
 		"dogstatsd",
 		"listener_read_latency",
-		[]string{"listener_type"},
+		[]string{"transport", "listener_type"},
 		"Time in nanoseconds while the listener is not reading data",
 		buckets)
 }
