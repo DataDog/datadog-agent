@@ -54,7 +54,7 @@ func (d *Monitor) SendStats() error {
 		tagsEvents := []string{
 			eventTypeTag,
 		}
-		_ = d.statsdClient.Count(metrics.MetricSyscallsInFlight, int64(inflight), tagsEvents, 1.0)
+		_ = d.statsdClient.Gauge(metrics.MetricSyscallsInFlight, float64(inflight), tagsEvents, 1.0)
 	}
 
 	return nil
