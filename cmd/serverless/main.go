@@ -76,6 +76,10 @@ func main() {
 	config.Datadog.Set("use_v2_api.series", false)
 	stopCh := make(chan struct{})
 
+	// Disable remote configuration for now as it just spams the debug logs
+	// and provides no value.
+	os.Setenv("DD_REMOTE_CONFIGURATION_ENABLED", "false")
+
 	// run the agent
 	serverlessDaemon, err := runAgent(stopCh)
 	if err != nil {
