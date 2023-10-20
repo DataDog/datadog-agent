@@ -52,20 +52,17 @@ func loadYamlProfiles() (ProfileConfigMap, error) {
 }
 
 func loadProfiles(initConfigProfiles ProfileConfigMap, userProfiles ProfileConfigMap) (ProfileConfigMap, error) {
-	defaultProfiles, err := getProfilesDefinitionFilesV2(defaultProfilesFolder, false)
-	if err != nil {
-		// TODO: Return error?
-		log.Warnf("failed to get default profile definitions: %s", err)
-		defaultProfiles = nil
-	}
+	var err error
 	if userProfiles == nil {
 		// TODO: TESTME
 		userProfiles, err = getProfilesDefinitionFilesV2(userProfilesFolder, true)
 		if err != nil {
 			// TODO: Return error?
 			log.Warnf("failed to get user profile definitions: %s", err)
-			userProfiles = nil
 		}
+	}
+	if userProfiles == nil {
+		userProfiles = ProfileConfigMap{}
 	}
 
 	if len(initConfigProfiles) > 0 {
@@ -74,7 +71,12 @@ func loadProfiles(initConfigProfiles ProfileConfigMap, userProfiles ProfileConfi
 			userProfiles[key] = val
 		}
 	}
-
+	defaultProfiles, err := getProfilesDefinitionFilesV2(defaultProfilesFolder, false)
+	if err != nil {
+		// TODO: Return error?
+		log.Warnf("failed to get default profile definitions: %s", err)
+		defaultProfiles = nil
+	}
 	resolvedProfiles, err := resolveProfiles(defaultProfiles, userProfiles)
 	if err != nil {
 		return nil, err
