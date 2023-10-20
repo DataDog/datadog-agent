@@ -20,11 +20,11 @@ import (
 func resolveProfiles(userProfiles, defaultProfiles ProfileConfigMap) (ProfileConfigMap, error) {
 	defaultExpandedProfiles, err := loadResolveProfiles(defaultProfiles, nil)
 	if err != nil {
-		return nil, fmt.Errorf("failed to load default profiles: %s", err)
+		return nil, fmt.Errorf("failed to load profiles: %s", err)
 	}
 	userExpandedProfiles, err := loadResolveProfiles(userProfiles, defaultProfiles)
 	if err != nil {
-		return nil, fmt.Errorf("failed to load default profiles: %s", err)
+		return nil, fmt.Errorf("failed to load profiles: %s", err)
 	}
 	profiles := ProfileConfigMap{}
 	for key, val := range defaultExpandedProfiles {

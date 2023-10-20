@@ -96,7 +96,7 @@ func Test_resolveProfiles(t *testing.T) {
 		},
 		{
 			name: "invalid cyclic extends",
-			//confdPath: invalidCyclicConfdPath,
+			//confdDir: invalidCyclicConfdPath,
 			profileConfigMap:      invalidCyclicProfiles,
 			expectedProfileDefMap: ProfileConfigMap{},
 			expectedLogs: []logCount{
@@ -139,7 +139,7 @@ func Test_resolveProfiles(t *testing.T) {
 			assert.Nil(t, err)
 			log.SetupLogger(l, "debug")
 
-			//config.Datadog.Set("confd_path", tt.confdPath)
+			//config.Datadog.Set("confd_path", tt.confdDir)
 
 			profiles, err := resolveProfiles(tt.defaultProfileConfigMap, tt.profileConfigMap)
 			for _, errorMsg := range tt.expectedIncludeErrors {
