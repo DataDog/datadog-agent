@@ -311,6 +311,7 @@ def lint_flavor(
         with ctx.cd(module.full_path()):
             lint_results = run_golangci_lint(
                 ctx,
+                module_path=module.path,
                 targets=module.lint_targets,
                 rtloader_root=rtloader_root,
                 build_tags=build_tags,

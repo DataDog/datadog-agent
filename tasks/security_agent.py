@@ -319,7 +319,7 @@ def build_functional_tests(
 
     if not skip_linters:
         targets = ['./pkg/security/tests']
-        results = run_golangci_lint(ctx, targets=targets, build_tags=build_tags, arch=arch)
+        results = run_golangci_lint(ctx, module_path="", targets=targets, build_tags=build_tags, arch=arch)
         for result in results:
             # golangci exits with status 1 when it finds an issue
             if result.exited != 0:

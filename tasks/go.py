@@ -30,6 +30,7 @@ GOARCH_MAPPING = {
 
 def run_golangci_lint(
     ctx,
+    module_path,
     targets,
     rtloader_root=None,
     build_tags=None,
@@ -64,7 +65,7 @@ def run_golangci_lint(
         tags_arg = " ".join(sorted(set(tags)))
         timeout_arg_value = "25m0s" if not timeout else f"{timeout}m0s"
         result = ctx.run(
-            f'golangci-lint run {verbosity} --timeout {timeout_arg_value} {concurrency_arg} --build-tags "{tags_arg}" {golangci_lint_kwargs} {target}/...',
+            f'golangci-lint run {verbosity} --timeout {timeout_arg_value} {concurrency_arg} --build-tags "{tags_arg}" --path-prefix "{module_path}" {golangci_lint_kwargs} {target}/...',
             env=env,
             warn=True,
         )
