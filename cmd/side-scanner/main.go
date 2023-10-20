@@ -378,7 +378,7 @@ func (s *sideScanner) launchScanAndSendResult(ctx context.Context, scan scanTask
 }
 
 func (s *sideScanner) sendSBOM(entity *sbommodel.SBOMEntity) error {
-	sourceAgent := "sidescanner"
+	sourceAgent := "agent"
 	envVarEnv := pkgconfig.Datadog.GetString("env")
 
 	rawEvent, err := proto.Marshal(&sbommodel.SBOMPayload{
@@ -544,7 +544,7 @@ func scanEBS(ctx context.Context, scan ebsScan) (*sbommodel.SBOMEntity, error) {
 	statsd.Count("datadog.sidescanner.scans.finished", 1.0, tagSuccess(tags), 1.0)
 	statsd.Histogram("datadog.sidescanner.scans.duration", float64(time.Since(scanStartedAt).Milliseconds()), tags, 1.0)
 	if err != nil {
-		return nil, fmt.Errorf("unable to marshal report to sbom format: %w", err)
+		return nil, fmt.Errorf("trivy scan failed: %w", err)
 	}
 
 	createdAt := time.Now()
@@ -552,7 +552,7 @@ func scanEBS(ctx context.Context, scan ebsScan) (*sbommodel.SBOMEntity, error) {
 	marshaler := cyclonedx.NewMarshaler("")
 	bom, err := marshaler.Marshal(trivyReport)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("unable to marshal report to sbom format: %w", err)
 	}
 
 	entity := &sbommodel.SBOMEntity{
