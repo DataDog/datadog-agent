@@ -20,6 +20,7 @@ import (
 type executeAgentCmdWithError func(arguments []string) (string, error)
 
 // AgentCommandRunner provides high level methods to run commands on the Agent.
+// It is used by both [VMClient] and [Docker]
 type AgentCommandRunner struct {
 	t                        *testing.T
 	executeAgentCmdWithError executeAgentCmdWithError

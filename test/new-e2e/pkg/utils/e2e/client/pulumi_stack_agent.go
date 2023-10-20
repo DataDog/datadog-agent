@@ -6,9 +6,7 @@
 package client
 
 import (
-	"strings"
 	"testing"
-	"time"
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client/agentclientparams"
 	"github.com/DataDog/test-infra-definitions/common/utils"
@@ -26,8 +24,7 @@ var _ Agent = (*PulumiStackAgent)(nil)
 type PulumiStackAgent struct {
 	deserializer utils.RemoteServiceDeserializer[agent.ClientData]
 	os           e2eOs.OS
-	*AgentCommandRunner
-	vmClient           *VMClient
+	Agent
 	shouldWaitForReady bool
 }
 
@@ -51,22 +48,10 @@ func (agent *PulumiStackAgent) setStack(t *testing.T, stackResult auto.UpResult)
 		return err
 	}
 
-	agent.vmClient, err = NewVMClient(t, &clientData.Connection, agent.os.GetType())
+	vm, err := NewVMClient(t, &clientData.Connection, agent.os.GetType())
 	if err != nil {
 		return err
 	}
-	agent.AgentCommandRunner = newAgentCommandRunner(t, agent.executeAgentCmdWithError)
-	if !agent.shouldWaitForReady {
-		return nil
-	}
-	return agent.waitForReadyTimeout(1 * time.Minute)
-}
-
-func (agent *PulumiStackAgent) executeAgentCmdWithError(arguments []string) (string, error) {
-	parameters := ""
-	if len(arguments) > 0 {
-		parameters = `"` + strings.Join(arguments, `" "`) + `"`
-	}
-	cmd := agent.os.GetRunAgentCmd(parameters)
-	return agent.vmClient.ExecuteWithError(cmd)
+	agent.Agent, err = NewAgentClient(t, vm, agent.os, agent.shouldWaitForReady)
+	return err
 }
