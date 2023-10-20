@@ -322,7 +322,6 @@ func startAgent(
 	otelcollector otelcollector.Component,
 	demultiplexer demultiplexer.Component,
 	hostMetadata host.Component,
-	langDetectionCl langDetectionCl.Component,
 ) error {
 
 	var err error

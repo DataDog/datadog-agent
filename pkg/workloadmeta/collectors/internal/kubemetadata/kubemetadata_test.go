@@ -112,11 +112,11 @@ func (f *FakeDCAClient) GetKubernetesClusterID() (string, error) {
 	return f.ClusterID, f.ClusterIDErr
 }
 
-func (f *FakeDCAClient) GetCFAppsMetadataForNode(nodename string) (map[string][]string, error) {
+func (f *FakeDCAClient) GetCFAppsMetadataForNode(_ string) (map[string][]string, error) {
 	panic("implement me")
 }
 
-func (f *FakeDCAClient) PostLanguageMetadata(ctx context.Context, request *pbgo.ParentLanguageAnnotationRequest) error {
+func (f *FakeDCAClient) PostLanguageMetadata(_ context.Context, request *pbgo.ParentLanguageAnnotationRequest) error {
 	panic("implement me")
 }
 

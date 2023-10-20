@@ -35,12 +35,6 @@ func (l languageSet) add(language string) bool {
 	return true
 }
 
-func (l languageSet) merge(lang languageSet) {
-	for language := range lang {
-		l.add(language)
-	}
-}
-
 func (l languageSet) toProto() []*pbgo.Language {
 	res := make([]*pbgo.Language, 0, len(l))
 	for lang := range l {
@@ -64,41 +58,11 @@ func (b batch) getOrAddPodInfo(podName, podnamespace string, ownerRef *workloadm
 	return b[podName]
 }
 
-func (b batch) merge(other batch) {
-	for k, v := range other {
-		podInfo, ok := b[k]
-		if !ok {
-			b[k] = v
-			continue
-		}
-		podInfo.merge(v)
-	}
-}
-
 type podInfo struct {
 	namespace         string
 	containerInfo     containerInfo
 	initContainerInfo containerInfo
 	ownerRef          *workloadmeta.KubernetesPodOwner
-}
-
-func (p *podInfo) merge(other *podInfo) {
-	for containerName, otherLangSet := range other.containerInfo {
-		langSet, ok := p.containerInfo[containerName]
-		if !ok {
-			p.containerInfo[containerName] = otherLangSet
-			continue
-		}
-		langSet.merge(otherLangSet)
-	}
-	for containerName, otherLangSet := range other.initContainerInfo {
-		langSet, ok := p.initContainerInfo[containerName]
-		if !ok {
-			p.initContainerInfo[containerName] = otherLangSet
-			continue
-		}
-		langSet.merge(otherLangSet)
-	}
 }
 
 func (p *podInfo) toProto(podName string) *pbgo.PodLanguageDetails {

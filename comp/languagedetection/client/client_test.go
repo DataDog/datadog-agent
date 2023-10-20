@@ -29,7 +29,7 @@ type MockDCAClient struct {
 	doneCh  chan struct{}
 }
 
-func (m *MockDCAClient) PostLanguageMetadata(ctx context.Context, request *pbgo.ParentLanguageAnnotationRequest) error {
+func (m *MockDCAClient) PostLanguageMetadata(_ context.Context, request *pbgo.ParentLanguageAnnotationRequest) error {
 	m.payload = append(m.payload, request)
 	go func() { m.doneCh <- struct{}{} }()
 	return nil
