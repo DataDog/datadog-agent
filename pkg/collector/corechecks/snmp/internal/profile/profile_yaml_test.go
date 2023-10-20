@@ -31,26 +31,6 @@ func getMetricFromProfile(p profiledefinition.ProfileDefinition, metricName stri
 	return nil
 }
 
-func Test_getDefaultProfilesDefinitionFiles(t *testing.T) {
-	SetConfdPathAndCleanProfiles()
-	actualProfileConfig, err := getDefaultProfilesDefinitionFiles()
-	assert.Nil(t, err)
-
-	confdPath := config.Datadog.GetString("confd_path")
-	expectedProfileConfig := ProfileConfigMap{
-		"f5-big-ip": {
-			DefinitionFile: filepath.Join(confdPath, "snmp.d", "profiles", "f5-big-ip.yaml"),
-			IsUserProfile:  true,
-		},
-		"another_profile": {
-			DefinitionFile: filepath.Join(confdPath, "snmp.d", "profiles", "another_profile.yaml"),
-			IsUserProfile:  true,
-		},
-	}
-
-	assert.Equal(t, expectedProfileConfig, actualProfileConfig)
-}
-
 func Test_resolveProfileDefinitionPath(t *testing.T) {
 	defaultTestConfdPath, _ := filepath.Abs(filepath.Join("..", "test", "user_profiles.d"))
 	config.Datadog.Set("confd_path", defaultTestConfdPath)

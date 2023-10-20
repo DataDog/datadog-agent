@@ -92,51 +92,6 @@ func loadProfilesV3(initConfigProfiles ProfileConfigMap) (ProfileConfigMap, erro
 	return resolvedProfiles, nil
 }
 
-func getDefaultProfilesDefinitionFiles() (ProfileConfigMap, error) {
-	// Get default profiles
-	profiles, err := getProfilesDefinitionFiles(defaultProfilesFolder)
-	if err != nil {
-		log.Warnf("failed to read default_profiles: %s", err)
-		profiles = make(ProfileConfigMap)
-	}
-	// Get user profiles
-	// User profiles have precedence over default profiles
-	userProfiles, err := getProfilesDefinitionFiles(userProfilesFolder)
-	if err != nil {
-		log.Warnf("failed to read user_profiles: %s", err)
-	} else {
-		for profileName, profileDef := range userProfiles {
-			profileDef.IsUserProfile = true
-			profiles[profileName] = profileDef
-		}
-	}
-	return profiles, nil
-}
-
-func getProfilesDefinitionFiles(profilesFolder string) (ProfileConfigMap, error) {
-	profilesRoot := getProfileConfdRoot(profilesFolder)
-	files, err := os.ReadDir(profilesRoot)
-	if err != nil {
-		return nil, fmt.Errorf("failed to read dir `%s`: %v", profilesRoot, err)
-	}
-
-	profiles := make(ProfileConfigMap)
-	for _, f := range files {
-		fName := f.Name()
-		// Skip partial profiles
-		if strings.HasPrefix(fName, "_") {
-			continue
-		}
-		// Skip non yaml profiles
-		if !strings.HasSuffix(fName, ".yaml") {
-			continue
-		}
-		profileName := fName[:len(fName)-len(".yaml")]
-		profiles[profileName] = ProfileConfig{DefinitionFile: filepath.Join(profilesRoot, fName)}
-	}
-	return profiles, nil
-}
-
 func getProfilesDefinitionFilesV2(profilesFolder string, isUserProfile bool) (ProfileConfigMap, error) {
 	profilesRoot := getProfileConfdRoot(profilesFolder)
 	files, err := os.ReadDir(profilesRoot)
