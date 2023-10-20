@@ -191,9 +191,9 @@ func run(log log.Component,
 	cliParams *cliParams,
 	logsAgent util.Optional[logsAgent.Component],
 	otelcollector otelcollector.Component,
-	langDetectionCl langDetectionCl.Component,
 	hostMetadata host.Component,
 	_ netflowServer.Component,
+	_ langDetectionCl.Component,
 ) error {
 	defer func() {
 		stopAgent(cliParams, server, demultiplexer)
@@ -235,7 +235,7 @@ func run(log log.Component,
 		}
 	}()
 
-	if err := startAgent(cliParams, log, flare, telemetry, sysprobeconfig, server, capture, serverDebug, rcclient, logsAgent, forwarder, sharedSerializer, otelcollector, demultiplexer, hostMetadata, langDetectionCl); err != nil {
+	if err := startAgent(cliParams, log, flare, telemetry, sysprobeconfig, server, capture, serverDebug, rcclient, logsAgent, forwarder, sharedSerializer, otelcollector, demultiplexer, hostMetadata); err != nil {
 		return err
 	}
 

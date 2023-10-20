@@ -116,7 +116,7 @@ func (f *FakeDCAClient) GetCFAppsMetadataForNode(_ string) (map[string][]string,
 	panic("implement me")
 }
 
-func (f *FakeDCAClient) PostLanguageMetadata(_ context.Context, request *pbgo.ParentLanguageAnnotationRequest) error {
+func (f *FakeDCAClient) PostLanguageMetadata(_ context.Context, _ *pbgo.ParentLanguageAnnotationRequest) error {
 	panic("implement me")
 }
 
