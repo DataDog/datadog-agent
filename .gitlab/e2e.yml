@@ -240,9 +240,10 @@ new-e2e-npm-main:
 
 new-e2e-log-agent-main:
   extends: .new_e2e_template
-  rules: !reference [.on_main]
+  rules: !reference [.on_main_and_no_skip_e2e]
   variables:
     TARGETS: ./tests/agent-metric-logs
+    TEAM: agent-metric-logs
 
 #   ^    If you create a new job here that extends `.new_e2e_template`,
 #  /!\   do not forget to add it in the `dependencies` statement of the

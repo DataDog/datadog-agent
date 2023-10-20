@@ -9,29 +9,32 @@ import (
 	"errors"
 	"fmt"
 	"strings"
-	"testing"
 	"time"
 
 	fi "github.com/DataDog/datadog-agent/test/fakeintake/client"
+	commonos "github.com/DataDog/test-infra-definitions/components/os"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
 // generateLog generates and verifies log contents.
-func generateLog(s *vmFakeintakeSuite, t *testing.T, content string) {
+func generateLog(s *vmFakeintakeSuite, content string) {
 	// Determine the OS and set the appropriate log path and command.
 	var logPath, cmd, checkCmd string
+	t := s.T()
 
-	osType, err := s.getOSType()
-	require.NoErrorf(t, err, "Failed to get OS type: %s", err)
+	osType := s.Env().VM.VMClient.OS.GetType()
+	var os string
 
 	switch osType {
-	case "windows":
+	case commonos.WindowsType:
+		os = "Windows"
 		t.Log("Generating Windows log.")
 		logPath = "C:\\logs\\hello-world.log"
 		cmd = fmt.Sprintf("echo %s > %s", strings.Repeat(content, 10), logPath)
 		checkCmd = fmt.Sprintf("Get-Content %s", logPath)
 	default: // Assuming Linux if not Windows.
+		os = "Linux"
 		t.Log("Generating Linux log.")
 		logPath = "/var/log/hello-world.log"
 		cmd = fmt.Sprintf("echo %s > %s", strings.Repeat(content, 10), logPath)
@@ -44,7 +47,7 @@ func generateLog(s *vmFakeintakeSuite, t *testing.T, content string) {
 	s.EventuallyWithT(func(c *assert.CollectT) {
 		output := s.Env().VM.Execute(checkCmd)
 		if strings.Contains(output, content) {
-			t.Logf("Finished generating %s log.", osType)
+			t.Logf("Finished generating %s log.", os)
 		} else {
 			require.Fail(t, "Log not yet generated.")
 		}
@@ -52,11 +55,11 @@ func generateLog(s *vmFakeintakeSuite, t *testing.T, content string) {
 }
 
 // checkLogs checks and verifies logs inside the intake.
-func checkLogs(fakeintake *vmFakeintakeSuite, service, content string) {
-	client := fakeintake.Env().Fakeintake
-	t := fakeintake.T()
+func checkLogs(suite *vmFakeintakeSuite, service, content string) {
+	client := suite.Env().Fakeintake
+	t := suite.T()
 
-	fakeintake.EventuallyWithT(func(c *assert.CollectT) {
+	suite.EventuallyWithT(func(c *assert.CollectT) {
 		names, err := client.GetLogServiceNames()
 		assert.NoErrorf(t, err, "Error found: %s", err)
 
@@ -89,7 +92,7 @@ func (s *vmFakeintakeSuite) getOSType() (string, error) {
 	return "", errors.New("unable to determine OS type.")
 }
 
-// cleanUp cleans up any existing log files.
+// cleanUp cleans up any existing log files (only useful when running dev mode/local runs).
 func (s *vmFakeintakeSuite) cleanUp() {
 	t := s.T()
 	osType, err := s.getOSType()
