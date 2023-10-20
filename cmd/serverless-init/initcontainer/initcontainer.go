@@ -73,7 +73,7 @@ func execute(logConfig *serverlessLog.Config, args []string) error {
 	}
 	sigs := make(chan os.Signal, 1)
 	signal.Notify(sigs)
-	go forwardSignals(cmd.Process, logConfig, sigs)
+	go forwardSignals(cmd.Process, sigs)
 	err = cmd.Wait()
 	return err
 }
@@ -94,7 +94,7 @@ func buildCommandParam(cmdArg []string) (string, []string) {
 	return commandName, []string{}
 }
 
-func forwardSignals(process *os.Process, config *serverlessLog.Config, sigs chan os.Signal) {
+func forwardSignals(process *os.Process, sigs chan os.Signal) {
 	for sig := range sigs {
 		if sig != syscall.SIGCHLD {
 			if process != nil {
