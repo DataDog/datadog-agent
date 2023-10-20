@@ -3,6 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build test
+
 package client
 
 import (
@@ -15,6 +17,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/languagedetection/languagemodels"
+	"github.com/DataDog/datadog-agent/pkg/proto/pbgo/process"
 	pbgo "github.com/DataDog/datadog-agent/pkg/proto/pbgo/process"
 	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -906,12 +909,13 @@ func TestRun(t *testing.T) {
 				Kind: "replicaset",
 			},
 		},
-	}.toProto()
+	}
 
 	// the periodic flush mechanism should send the entire data every 100ms
 	assert.Eventually(t, func() bool {
 		<-doneCh
-		return mockDCAClient.payload[len(mockDCAClient.payload)-1].String() == b.String()
+		a := protoToBatch(mockDCAClient.payload[len(mockDCAClient.payload)-1])
+		return a.Equals(b)
 	},
 		5*time.Second,
 		100*time.Millisecond,
@@ -942,15 +946,112 @@ func TestRun(t *testing.T) {
 				Kind: "replicaset",
 			},
 		},
-	}.toProto()
+	}
 
 	assert.Eventually(t, func() bool {
 		<-doneCh
-		return mockDCAClient.payload[len(mockDCAClient.payload)-1].String() == b.String()
+		a := protoToBatch(mockDCAClient.payload[len(mockDCAClient.payload)-1])
+		return a.Equals(b)
 	},
 		5*time.Second,
 		100*time.Millisecond,
 	)
 
 	client.stop(context.Background())
+}
+
+func protoToBatch(protoMessage *process.ParentLanguageAnnotationRequest) batch {
+	res := make(batch)
+
+	for _, podDetail := range protoMessage.PodDetails {
+		cInfo := make(containerInfo)
+
+		for _, container := range podDetail.ContainerDetails {
+			languageSet := make(languageSet)
+			for _, lang := range container.Languages {
+				languageSet.add(lang.Name)
+			}
+			cInfo[container.ContainerName] = languageSet
+		}
+
+		initContainerInfo := make(containerInfo)
+
+		for _, container := range podDetail.InitContainerDetails {
+			languageSet := make(languageSet)
+			for _, lang := range container.Languages {
+				languageSet.add(lang.Name)
+			}
+			initContainerInfo[container.ContainerName] = languageSet
+		}
+
+		podInfo := podInfo{
+			namespace: podDetail.Namespace,
+			ownerRef: &workloadmeta.KubernetesPodOwner{
+				Kind: podDetail.Ownerref.Kind,
+				ID:   podDetail.Ownerref.Id,
+				Name: podDetail.Ownerref.Name,
+			},
+			containerInfo:     cInfo,
+			initContainerInfo: initContainerInfo,
+		}
+
+		res[podDetail.Name] = &podInfo
+	}
+
+	return res
+}
+
+// for testing
+
+func (b batch) Equals(other batch) bool {
+	if len(b) != len(other) {
+		return false
+	}
+	for podName, podInfo := range b {
+		otherPodInfo, ok := other[podName]
+		if !ok {
+			return false
+		}
+		if !podInfo.Equals(otherPodInfo) {
+			return false
+		}
+	}
+	return true
+}
+
+func (p *podInfo) Equals(other *podInfo) bool {
+	if p == other {
+		return true
+	}
+	if p == nil || other == nil {
+		return false
+	}
+	if p.namespace != other.namespace || !(*p.ownerRef == *other.ownerRef) || !p.containerInfo.Equals(other.containerInfo) || !p.initContainerInfo.Equals(other.initContainerInfo) {
+		return false
+	}
+	return true
+}
+
+func (c containerInfo) Equals(other containerInfo) bool {
+	if len(c) != len(other) {
+		return false
+	}
+	for key, val := range c {
+		if otherVal, ok := other[key]; !ok || !val.Equals(otherVal) {
+			return false
+		}
+	}
+	return true
+}
+
+func (l languageSet) Equals(other languageSet) bool {
+	if len(l) != len(other) {
+		return false
+	}
+	for key := range l {
+		if _, ok := other[key]; !ok {
+			return false
+		}
+	}
+	return true
 }
