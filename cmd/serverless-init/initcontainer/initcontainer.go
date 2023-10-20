@@ -41,7 +41,7 @@ func Run(
 	logsAgent logsAgent.ServerlessLogsAgent,
 	args []string,
 ) {
-	log.Debug("Launching subprocess %v\n", args)
+	log.Debugf("Launching subprocess %v\n", args)
 	err := execute(logConfig, args)
 	if err != nil {
 		log.Debugf("Error exiting: %v\n", err)
