@@ -15,6 +15,7 @@ import (
 	"github.com/DataDog/test-infra-definitions/components/datadog/agentparams"
 	"github.com/DataDog/test-infra-definitions/components/vm"
 	"github.com/DataDog/test-infra-definitions/scenarios/aws"
+	"github.com/DataDog/test-infra-definitions/scenarios/aws/fakeintake/fakeintakeparams"
 	"github.com/DataDog/test-infra-definitions/scenarios/aws/vm/ec2params"
 	"github.com/DataDog/test-infra-definitions/scenarios/aws/vm/ec2vm"
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
@@ -87,6 +88,7 @@ type AgentStackDefParam struct {
 	vmParams          []ec2params.Option
 	agentClientParams []agentclientparams.Option
 	agentParams       []agentparams.Option
+	fakeintakeParams  []fakeintakeparams.Option
 }
 
 func newAgentStackDefParam(options ...func(*AgentStackDefParam) error) (*AgentStackDefParam, error) {
@@ -127,6 +129,15 @@ func WithAgentClientParams(options ...agentclientparams.Option) func(*AgentStack
 	}
 }
 
+// WithFakeIntakeParams sets FakeIntake parameters
+// See [fakeintakeparams.Params] for available options for fakeIntakeParams
+func WithFakeIntakeParams(options ...fakeintakeparams.Option) func(*AgentStackDefParam) error {
+	return func(p *AgentStackDefParam) error {
+		p.fakeintakeParams = options
+		return nil
+	}
+}
+
 // AgentStackDef creates a stack definition containing a virtual machine and an Agent.
 //
 // See [ec2vm.Params] for available options for vmParams.
@@ -138,6 +149,8 @@ func WithAgentClientParams(options ...agentclientparams.Option) func(*AgentStack
 // [ec2vm.Params]: https://pkg.go.dev/github.com/DataDog/test-infra-definitions@main/scenarios/aws/vm/ec2VM#Params
 // [agent.Params]: https://pkg.go.dev/github.com/DataDog/test-infra-definitions@main/components/datadog/agent#Params
 // [agentclientparams.Params]: https://pkg.go.dev/github.com/DataDog/datadog-agent@main/test/new-e2e/pkg/utils/e2e/client/agentclientparams#Params
+//
+// [fakeintakeparams.Params]: https://pkg.go.dev/github.com/DataDog/test-infra-definitions@main/components/scenario/aws/fakeintake/fakeintakeparams#Params
 func AgentStackDef(options ...func(*AgentStackDefParam) error) *StackDefinition[AgentEnv] {
 	return EnvFactoryStackDef(
 		func(ctx *pulumi.Context) (*AgentEnv, error) {
@@ -203,7 +216,7 @@ func FakeIntakeStackDef(options ...func(*AgentStackDefParam) error) *StackDefini
 				return nil, err
 			}
 
-			fakeintakeExporter, err := aws.NewEcsFakeintake(vm.GetAwsEnvironment())
+			fakeintakeExporter, err := aws.NewEcsFakeintake(vm.GetAwsEnvironment(), params.fakeintakeParams...)
 			if err != nil {
 				return nil, err
 			}
