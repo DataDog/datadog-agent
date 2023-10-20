@@ -19,8 +19,9 @@ import (
 func TestStartFlowRoutine_invalidType(t *testing.T) {
 	logger := fxutil.Test[log.Component](t, log.MockModule)
 	listenerErr := atomic.NewString("")
+	listenerFlowCount := atomic.NewInt64(0)
 
-	state, err := StartFlowRoutine("invalid", "my-hostname", 1234, 1, "my-ns", make(chan *common.Flow), logger, listenerErr, nil)
+	state, err := StartFlowRoutine("invalid", "my-hostname", 1234, 1, "my-ns", make(chan *common.Flow), logger, listenerErr, listenerFlowCount)
 
 	assert.EqualError(t, err, "unknown flow type: invalid")
 	assert.Nil(t, state)
