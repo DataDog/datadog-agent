@@ -46,10 +46,11 @@ type dependencies struct {
 
 // client sends language information to the Cluster-Agent
 type client struct {
-	ctx    context.Context
-	cancel context.CancelFunc
-	logger logComponent.Component
-	store  workloadmeta.Store
+	ctx     context.Context
+	cancel  context.CancelFunc
+	logger  logComponent.Component
+	store   workloadmeta.Store
+	eventCh chan workloadmeta.EventBundle
 
 	// mutex protecting UpdatedPodDetails and currentBatch
 	mutex sync.Mutex
@@ -121,6 +122,9 @@ func (c *client) start(_ context.Context) error {
 // stop stops the client
 func (c *client) stop(_ context.Context) error {
 	c.cancel()
+	if c.eventCh != nil && c.store != nil {
+		c.store.Unsubscribe(c.eventCh)
+	}
 	return nil
 }
 
@@ -132,7 +136,7 @@ func (c *client) run() {
 		c.store = workloadmeta.GetGlobalStore() // TODO(components): should be replaced by components
 	}
 
-	eventCh := c.store.Subscribe(
+	c.eventCh = c.store.Subscribe(
 		subscriber,
 		workloadmeta.NormalPriority,
 		workloadmeta.NewFilter(
@@ -155,7 +159,7 @@ func (c *client) run() {
 
 	for {
 		select {
-		case eventBundle := <-eventCh:
+		case eventBundle := <-c.eventCh:
 			c.processEvent(eventBundle)
 		case <-retryProcessWithoutPodTicker.C:
 			c.retryProcessEventsWithoutPod()
