@@ -117,6 +117,8 @@ event_monitoring_config:
 
 runtime_security_config:
   enabled: {{ .RuntimeSecurityEnabled }}
+  internal_monitoring:
+    enabled: true
   remote_configuration:
     enabled: false
   socket: /tmp/test-runtime-security.sock

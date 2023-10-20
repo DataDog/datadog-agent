@@ -22,7 +22,7 @@ func initCWSSystemProbeConfig(cfg Config) {
 	cfg.BindEnvAndSetDefault("runtime_security_config.event_server.retention", "6s")
 	cfg.BindEnvAndSetDefault("runtime_security_config.event_server.rate", 10)
 	cfg.BindEnvAndSetDefault("runtime_security_config.cookie_cache_size", 100)
-	cfg.BindEnvAndSetDefault("runtime_security_config.agent_monitoring_events", true)
+	cfg.BindEnvAndSetDefault("runtime_security_config.internal_monitoring.enabled", false)
 	cfg.BindEnvAndSetDefault("runtime_security_config.log_patterns", []string{})
 	cfg.BindEnvAndSetDefault("runtime_security_config.log_tags", []string{})
 	cfg.BindEnvAndSetDefault("runtime_security_config.self_test.enabled", true)

@@ -126,7 +126,7 @@ func TestClient(t *testing.T) {
 		assert.NotEmpty(t, metrics)
 	})
 
-	t.Run("getChekRun", func(t *testing.T) {
+	t.Run("getCheckRun", func(t *testing.T) {
 		ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			w.Write(apiV1CheckRunResponse)
 		}))
