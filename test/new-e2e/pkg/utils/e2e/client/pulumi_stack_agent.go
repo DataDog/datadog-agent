@@ -18,6 +18,7 @@ import (
 )
 
 var _ stackInitializer = (*PulumiStackAgent)(nil)
+var _ Agent = (*PulumiStackAgent)(nil)
 
 // PulumiStackAgent is an agent connected to [agent.Installer] which is created from a pulumi stack.
 //
