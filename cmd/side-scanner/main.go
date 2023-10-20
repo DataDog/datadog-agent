@@ -374,11 +374,15 @@ func (s *sideScanner) launchScanAndSendResult(ctx context.Context, scan scanTask
 		return err
 	}
 
-	return s.sendSBOM(entity)
+	sourceAgent := "agent"
+	if scan.Type == "lambda-scan" {
+		// FIXME: hack
+		sourceAgent = "ci"
+	}
+	return s.sendSBOM(sourceAgent, entity)
 }
 
-func (s *sideScanner) sendSBOM(entity *sbommodel.SBOMEntity) error {
-	sourceAgent := "agent"
+func (s *sideScanner) sendSBOM(sourceAgent string, entity *sbommodel.SBOMEntity) error {
 	envVarEnv := pkgconfig.Datadog.GetString("env")
 
 	rawEvent, err := proto.Marshal(&sbommodel.SBOMPayload{
