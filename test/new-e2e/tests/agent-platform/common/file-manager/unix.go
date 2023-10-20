@@ -14,11 +14,11 @@ import (
 
 // Unix implement filemanager interface for Unix distributions
 type Unix struct {
-	vmClient *client.VMClient
+	vmClient client.VM
 }
 
 // NewUnixFileManager create a new unix file manager
-func NewUnixFileManager(vmClient *client.VMClient) *Unix {
+func NewUnixFileManager(vmClient client.VM) *Unix {
 	return &Unix{vmClient: vmClient}
 }
 

@@ -50,7 +50,7 @@ func (agent *Agent) setStack(t *testing.T, stackResult auto.UpResult) error {
 		return err
 	}
 
-	agent.vmClient, err = newVMClient(t, &clientData.Connection, agent.os.GetType())
+	agent.vmClient, err = NewVMClient(t, &clientData.Connection, agent.os.GetType())
 	if err != nil {
 		return err
 	}

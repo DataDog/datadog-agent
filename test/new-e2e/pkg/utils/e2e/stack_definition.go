@@ -38,7 +38,7 @@ func EnvFactoryStackDef[Env any](envFactory func(ctx *pulumi.Context) (*Env, err
 
 // VMEnv contains a VM environment
 type VMEnv struct {
-	VM *client.PulumiStackVM
+	VM client.VM
 }
 
 // EC2VMStackDef creates a stack definition containing a virtual machine.
@@ -69,7 +69,7 @@ func CustomEC2VMStackDef[T any](fct func(vm.VM) (T, error), options ...ec2params
 
 // AgentEnv contains an Agent VM environment
 type AgentEnv struct {
-	VM    *client.PulumiStackVM
+	VM    client.VM
 	Agent *client.Agent
 }
 
@@ -175,7 +175,7 @@ func AgentStackDefWithDefaultVMAndAgentClient(options ...agentparams.Option) *St
 // FakeIntakeEnv contains an environment with the Agent
 // installed on a VM and a dedicated fakeintake
 type FakeIntakeEnv struct {
-	VM         *client.PulumiStackVM
+	VM         client.VM
 	Agent      *client.Agent
 	Fakeintake *client.Fakeintake
 }

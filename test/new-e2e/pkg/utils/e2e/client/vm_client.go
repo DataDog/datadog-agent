@@ -21,14 +21,16 @@ import (
 	"golang.org/x/crypto/ssh"
 )
 
-// VMClient wrap testing struct and SSH client
+var _ VM = (*VMClient)(nil)
+
+// VMClient is a type that provides methods to run remote commands on a test-infra-definition VM.
 type VMClient struct {
 	client *ssh.Client
 	osType componentos.Type
 	t      *testing.T
 }
 
-func newVMClient(t *testing.T, connection *utils.Connection, osType componentos.Type) (*VMClient, error) {
+func NewVMClient(t *testing.T, connection *utils.Connection, osType componentos.Type) (*VMClient, error) {
 	t.Logf("connecting to remote VM at %s:%s", connection.User, connection.Host)
 
 	var privateSSHKey []byte

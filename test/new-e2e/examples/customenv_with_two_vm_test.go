@@ -18,8 +18,8 @@ import (
 )
 
 type multiVMEnv struct {
-	MainVM *client.PulumiStackVM
-	AppVM  *client.PulumiStackVM
+	MainVM client.VM
+	AppVM  client.VM
 }
 
 func multiEC2VMStackDef() *e2e.StackDefinition[multiVMEnv] {

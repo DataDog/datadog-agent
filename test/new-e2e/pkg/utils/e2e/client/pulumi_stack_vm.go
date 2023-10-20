@@ -16,8 +16,9 @@ import (
 )
 
 var _ stackInitializer = (*PulumiStackVM)(nil)
+var _ VM = (*PulumiStackVM)(nil)
 
-// PulumiStackVM is a type to help creating a VM client connecting to a
+// PulumiStackVM is a type to help creating a VM (vm.go) connecting to a
 // test-infra-definiting VM from a pulumi stack.
 type PulumiStackVM struct {
 	deserializer utils.RemoteServiceDeserializer[commonvm.ClientData]
@@ -37,6 +38,6 @@ func (vm *PulumiStackVM) setStack(t *testing.T, stackResult auto.UpResult) error
 		return err
 	}
 
-	vm.VMClient, err = newVMClient(t, &clientData.Connection, vm.os.GetType())
+	vm.VMClient, err = NewVMClient(t, &clientData.Connection, vm.os.GetType())
 	return err
 }

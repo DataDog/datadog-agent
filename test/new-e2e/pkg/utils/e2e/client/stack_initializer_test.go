@@ -12,7 +12,7 @@ import (
 )
 
 type ValidEnv struct {
-	VM *PulumiStackVM
+	VM VM
 }
 
 func TestValidEnv(t *testing.T) {
@@ -21,7 +21,7 @@ func TestValidEnv(t *testing.T) {
 
 //nolint:unused
 type UnexportedFieldEnv struct {
-	vm *PulumiStackVM
+	vm VM
 }
 
 func TestUnexportedFieldEnv(t *testing.T) {
