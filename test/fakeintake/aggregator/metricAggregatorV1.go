@@ -6,9 +6,11 @@
 package aggregator
 
 import (
+	"bytes"
 	"encoding/json"
-	"github.com/DataDog/datadog-agent/test/fakeintake/api"
 	"time"
+
+	"github.com/DataDog/datadog-agent/test/fakeintake/api"
 )
 
 // DatadogMetricType represent different metrics types
@@ -75,6 +77,11 @@ func (mp *MetricSeriesV1) GetCollectedTime() time.Time {
 
 // ParseV1MetricSeries return the parsed metrics from payload
 func ParseV1MetricSeries(payload api.Payload) (metrics []*MetricSeriesV1, err error) {
+	if bytes.Equal(payload.Data, []byte("{}")) {
+		// metrics can submit empty JSON object
+		return []*MetricSeriesV1{}, nil
+	}
+
 	enflated, err := enflate(payload.Data, payload.Encoding)
 	if err != nil {
 		return nil, err
