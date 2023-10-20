@@ -174,6 +174,9 @@ func FormatDCAStatus(data []byte) (string, error) {
 			errs = append(errs, err)
 		}
 	}
+	if err := renderAutodiscoveryStats(b, stats["adEnabledFeatures"], stats["adConfigErrors"], stats["filterErrors"]); err != nil {
+		errs = append(errs, err)
+	}
 	if config.Datadog.GetBool("orchestrator_explorer.enabled") {
 		if err := RenderStatusTemplate(b, "/orchestrator.tmpl", orchestratorStats); err != nil {
 			errs = append(errs, err)
