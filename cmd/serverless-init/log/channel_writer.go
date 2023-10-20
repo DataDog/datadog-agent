@@ -26,7 +26,6 @@ type ChannelWriter struct {
 // logs to Datadog.
 func NewChannelWriter(ch chan *logConfig.ChannelMessage, isError bool) *ChannelWriter {
 	return &ChannelWriter{
-		Buffer:  bytes.Buffer{},
 		Channel: ch,
 		IsError: isError,
 	}
