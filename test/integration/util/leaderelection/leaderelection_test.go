@@ -191,7 +191,8 @@ func (suite *apiserverSuite) getNewLeaderEngine(holderIdentity string) *leaderel
 	leader := leaderelection.CreateGlobalLeaderEngine(context.Background())
 	leader.HolderIdentity = holderIdentity
 	leader.LeaseDuration = time.Second * 30
-	err := leader.Initialize()
+
+	le, err := leader.GetLeaderEngine()
 	require.Nil(suite.T(), err)
 	return leader
 }

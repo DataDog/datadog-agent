@@ -473,7 +473,9 @@ func startAgent(
 	}
 
 	// Create the Leader election engine without initializing it
-	leaderelection.CreateGlobalLeaderEngine(common.MainCtx)
+	if pkgconfig.Datadog.GetBool("leader_election") {
+		leaderelection.CreateGlobalLeaderEngine(common.MainCtx)
+	}
 
 	// start the GUI server
 	guiPort := pkgconfig.Datadog.GetString("GUI_port")
