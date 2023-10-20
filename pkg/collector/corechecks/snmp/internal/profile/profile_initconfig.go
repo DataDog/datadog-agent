@@ -7,10 +7,10 @@ package profile
 
 import "github.com/DataDog/datadog-agent/pkg/util/log"
 
-func loadProfilesForInitConfig(pConfig ProfileConfigMap) (ProfileConfigMap, error) {
-	profiles := make(ProfileConfigMap, len(pConfig))
+func loadInitConfigProfiles(initConfigProfiles ProfileConfigMap) (ProfileConfigMap, error) {
+	profiles := make(ProfileConfigMap, len(initConfigProfiles))
 
-	for name, profConfig := range pConfig {
+	for name, profConfig := range initConfigProfiles {
 		if profConfig.DefinitionFile != "" {
 			profDefinition, err := readProfileDefinition(profConfig.DefinitionFile)
 			if err != nil {
@@ -21,7 +21,7 @@ func loadProfilesForInitConfig(pConfig ProfileConfigMap) (ProfileConfigMap, erro
 		}
 		profiles[name] = profConfig
 	}
-	resolvedProfiles, err := loadProfilesV3(profiles, nil)
+	resolvedProfiles, err := loadProfiles(profiles, nil)
 	if err != nil {
 		return nil, err
 	}

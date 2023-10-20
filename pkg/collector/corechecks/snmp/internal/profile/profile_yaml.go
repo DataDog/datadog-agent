@@ -42,7 +42,7 @@ func loadYamlProfiles() (ProfileConfigMap, error) {
 	}
 	log.Debugf("build yaml profiles")
 
-	profiles, err := loadProfilesV3(nil, nil)
+	profiles, err := loadProfiles(nil, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -51,7 +51,7 @@ func loadYamlProfiles() (ProfileConfigMap, error) {
 	return profiles, nil
 }
 
-func loadProfilesV3(initConfigProfiles ProfileConfigMap, userProfiles ProfileConfigMap) (ProfileConfigMap, error) {
+func loadProfiles(initConfigProfiles ProfileConfigMap, userProfiles ProfileConfigMap) (ProfileConfigMap, error) {
 	defaultProfiles, err := getProfilesDefinitionFilesV2(defaultProfilesFolder, false)
 	if err != nil {
 		// TODO: Return error?
