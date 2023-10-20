@@ -62,7 +62,7 @@ func (cw *ChannelWriter) Write(p []byte) (n int, err error) {
 
 		select {
 		case cw.Channel <- channelMessage:
-			// Success case -- the channel isn't full, and can accomodate our message
+			// Success case -- the channel isn't full, and can accommodate our message
 		default:
 			// Channel is full (i.e, we aren't flushing data to Datadog as our backend is down).
 			// message will be dropped.
