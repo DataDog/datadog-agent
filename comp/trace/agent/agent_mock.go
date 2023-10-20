@@ -18,7 +18,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/trace/writer"
 )
 
-func newMock(deps dependencies, t testing.TB) Component {
+func newMock(deps dependencies, t testing.TB) Component { //nolint:revive // TODO fix revive unused-parameter
 	telemetryCollector := telemetry.NewCollector(deps.Config.Object())
 
 	// Several related non-components require a shared context to gracefully stop.

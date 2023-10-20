@@ -37,7 +37,7 @@ type ScanOptions struct {
 }
 
 // ScanOptionsFromConfig loads the scanning options from the configuration
-func ScanOptionsFromConfig(cfg config.Config, containers bool) (scanOpts ScanOptions) {
+func ScanOptionsFromConfig(cfg config.Config, containers bool) (scanOpts ScanOptions) { //nolint:revive // TODO fix revive unused-parameter
 	if containers {
 		scanOpts.CheckDiskUsage = config.Datadog.GetBool("sbom.container_image.check_disk_usage")
 		scanOpts.MinAvailableDisk = uint64(config.Datadog.GetSizeInBytes("sbom.container_image.min_available_disk"))

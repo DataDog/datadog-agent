@@ -151,6 +151,10 @@ func (m *Monitor) SendStats() error {
 
 // ProcessEvent processes an event through the various monitors and controllers of the probe
 func (m *Monitor) ProcessEvent(event *model.Event) {
+	if !m.probe.Config.RuntimeSecurity.InternalMonitoringEnabled {
+		return
+	}
+
 	// handle event errors
 	if event.Error == nil {
 		return

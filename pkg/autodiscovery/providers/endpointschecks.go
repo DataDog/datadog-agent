@@ -14,6 +14,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/providers/names"
+	"github.com/DataDog/datadog-agent/pkg/autodiscovery/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/errors"
 	"github.com/DataDog/datadog-agent/pkg/util/clusteragent"
@@ -46,6 +47,7 @@ func NewEndpointsChecksConfigProvider(providerConfig *config.ConfigurationProvid
 	var err error
 	c.nodeName, err = getNodename(context.TODO())
 	if err != nil {
+		telemetry.Errors.Inc(names.EndpointsChecks)
 		log.Errorf("Cannot get node name: %s", err)
 		return nil, err
 	}
@@ -95,6 +97,7 @@ func (c *EndpointsChecksConfigProvider) Collect(ctx context.Context) ([]integrat
 			return nil, nil
 		}
 
+		telemetry.Errors.Inc(names.EndpointsChecks)
 		return nil, err
 	}
 
@@ -116,6 +119,7 @@ func getNodename(ctx context.Context) (string, error) {
 	}
 	ku, err := kubelet.GetKubeUtil()
 	if err != nil {
+		telemetry.Errors.Inc(names.EndpointsChecks)
 		log.Errorf("Cannot get kubeUtil object: %s", err)
 		return "", err
 	}
@@ -128,6 +132,7 @@ func (c *EndpointsChecksConfigProvider) initClient() error {
 	if err == nil {
 		c.dcaClient = dcaClient
 	}
+	telemetry.Errors.Inc(names.EndpointsChecks)
 	return err
 }
 

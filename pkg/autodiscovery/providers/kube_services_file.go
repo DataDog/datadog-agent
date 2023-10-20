@@ -12,6 +12,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/providers/names"
+	"github.com/DataDog/datadog-agent/pkg/autodiscovery/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 )
@@ -30,6 +31,7 @@ func NewKubeServiceFileConfigProvider(*config.ConfigurationProviders) (ConfigPro
 func (c *KubeServiceFileConfigProvider) Collect(ctx context.Context) ([]integration.Config, error) {
 	configs, _, err := ReadConfigFiles(WithAdvancedADOnly)
 	if err != nil {
+		telemetry.Errors.Inc(names.KubeServicesFile)
 		return nil, err
 	}
 

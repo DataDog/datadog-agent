@@ -21,13 +21,15 @@ import (
 	"strings"
 	"time"
 
+	"gopkg.in/yaml.v2"
+
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/common/types"
 	"github.com/DataDog/datadog-agent/pkg/collector/check/defaults"
+	"github.com/DataDog/datadog-agent/pkg/config/env"
+	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/secrets"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname/validate"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-
-	"gopkg.in/yaml.v2"
 )
 
 const (
@@ -86,7 +88,7 @@ const (
 	DefaultLogsSenderBackoffRecoveryInterval = 2
 
 	// DefaultInventoriesMinInterval is the default value for inventories_min_interval, in seconds
-	DefaultInventoriesMinInterval = 5 * 60
+	DefaultInventoriesMinInterval = 60
 
 	// DefaultInventoriesMaxInterval is the default value for inventories_max_interval, in seconds
 	DefaultInventoriesMaxInterval = 10 * 60
@@ -105,9 +107,8 @@ const (
 
 // Datadog is the global configuration object
 var (
-	Datadog       Config
-	SystemProbe   Config
-	overrideFuncs = make([]func(Config), 0)
+	Datadog     Config
+	SystemProbe Config
 )
 
 // Variables to initialize at build time
@@ -195,12 +196,6 @@ type Endpoint struct {
 	URL    string `mapstructure:"url" json:"url" yaml:"url"`
 	APIKey string `mapstructure:"api_key" json:"api_key" yaml:"api_key"`
 	APPKey string `mapstructure:"app_key" json:"app_key" yaml:"app_key"`
-}
-
-// Warnings represent the warnings in the config
-type Warnings struct {
-	TraceMallocEnabledWithPy2 bool
-	Err                       error
 }
 
 // DataType represent the generic data type (e.g. metrics, logs) that can be sent by the Agent
@@ -516,7 +511,8 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("dogstatsd_queue_size", 1024)
 
 	config.BindEnvAndSetDefault("dogstatsd_non_local_traffic", false)
-	config.BindEnvAndSetDefault("dogstatsd_socket", "") // Notice: empty means feature disabled
+	config.BindEnvAndSetDefault("dogstatsd_socket", "")        // Notice: empty means feature disabled
+	config.BindEnvAndSetDefault("dogstatsd_stream_socket", "") // Experimental || Notice: empty means feature disabled
 	config.BindEnvAndSetDefault("dogstatsd_pipeline_autoadjust", false)
 	config.BindEnvAndSetDefault("dogstatsd_pipeline_count", 1)
 	config.BindEnvAndSetDefault("dogstatsd_stats_port", 5000)
@@ -1206,7 +1202,11 @@ func InitConfig(config Config) {
 
 	// Datadog security agent (runtime)
 	config.BindEnvAndSetDefault("runtime_security_config.enabled", false)
-	config.BindEnvAndSetDefault("runtime_security_config.socket", "/opt/datadog-agent/run/runtime-security.sock")
+	if runtime.GOOS == "windows" {
+		config.BindEnvAndSetDefault("runtime_security_config.socket", "localhost:3334")
+	} else {
+		config.BindEnvAndSetDefault("runtime_security_config.socket", "/opt/datadog-agent/run/runtime-security.sock")
+	}
 	config.BindEnvAndSetDefault("runtime_security_config.run_path", defaultRunPath)
 	config.BindEnvAndSetDefault("runtime_security_config.log_profiled_workloads", false)
 	config.BindEnvAndSetDefault("runtime_security_config.telemetry.ignore_dd_agent_containers", true)
@@ -1220,10 +1220,9 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("enhanced_metrics", true)
 	config.BindEnvAndSetDefault("capture_lambda_payload", false)
 	config.BindEnvAndSetDefault("capture_lambda_payload_max_depth", 10)
-	config.BindEnvAndSetDefault("serverless.trace_enabled", false, "DD_TRACE_ENABLED")
+	config.BindEnvAndSetDefault("serverless.trace_enabled", true, "DD_TRACE_ENABLED")
 	config.BindEnvAndSetDefault("serverless.trace_managed_services", true, "DD_TRACE_MANAGED_SERVICES")
 	config.BindEnvAndSetDefault("serverless.service_mapping", nil, "DD_SERVICE_MAPPING")
-	config.BindEnvAndSetDefault("serverless.constant_backoff_interval", 100*time.Millisecond)
 
 	// trace-agent's evp_proxy
 	config.BindEnv("evp_proxy_config.enabled")
@@ -1532,8 +1531,8 @@ func LoadDatadogCustom(config Config, origin string, loadSecret bool, additional
 	defer func() {
 		// Environment feature detection needs to run before applying override funcs
 		// as it may provide such overrides
-		detectFeatures()
-		applyOverrideFuncs(config)
+		env.DetectFeatures(config)
+		model.ApplyOverrideFuncs(config)
 	}()
 
 	warnings, err := LoadCustom(config, origin, loadSecret, additionalKnownEnvVars)

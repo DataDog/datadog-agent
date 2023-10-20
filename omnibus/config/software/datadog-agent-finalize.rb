@@ -87,6 +87,13 @@ build do
                 link "#{install_dir}/embedded/bin/2to3-3.9", "#{install_dir}/embedded/bin/2to3"
             end
             delete "#{install_dir}/embedded/lib/config_guess"
+
+            # Delete .pc files which aren't needed after building
+            delete "#{install_dir}/embedded/lib/pkgconfig"
+            # Same goes for .cmake files
+            delete "#{install_dir}/embedded/lib/cmake"
+            # and for libtool files
+            delete "#{install_dir}/embedded/lib/*.la"
         end
 
         if linux?
@@ -200,6 +207,10 @@ build do
             # Do not strip eBPF programs
             strip_exclude("#{install_dir}/embedded/share/system-probe/ebpf/*.o")
             strip_exclude("#{install_dir}/embedded/share/system-probe/ebpf/co-re/*.o")
+
+            # Most postgres binaries are removed in postgres' own software
+            # recipe, but we need pg_config to build psycopq.
+            delete "#{install_dir}/embedded/bin/pg_config"
         end
 
         if osx?

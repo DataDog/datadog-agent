@@ -6,6 +6,7 @@ import time
 import traceback
 from collections import defaultdict
 from datetime import datetime
+from typing import Dict
 
 import yaml
 from invoke import task
@@ -34,7 +35,7 @@ from .libs.pipeline_tools import (
     trigger_agent_pipeline,
     wait_for_pipeline,
 )
-from .libs.types import SlackMessage, TeamMessage
+from .libs.types import FailedJobs, SlackMessage, TeamMessage
 from .utils import (
     DEFAULT_BRANCH,
     GITHUB_REPO_NAME,
@@ -376,7 +377,7 @@ Please check for typos in the JOBOWNERS file and/or add them to the Github <-> S
 """
 
 
-def generate_failure_messages(project_name, failed_jobs):
+def generate_failure_messages(project_name: str, failed_jobs: FailedJobs) -> Dict[str, SlackMessage]:
     all_teams = "@DataDog/agent-all"
 
     # Generate messages for each team
@@ -386,7 +387,7 @@ def generate_failure_messages(project_name, failed_jobs):
     failed_job_owners = find_job_owners(failed_jobs)
     for owner, jobs in failed_job_owners.items():
         if owner == "@DataDog/multiple":
-            for job in jobs:
+            for job in jobs.all_non_infra_failures():
                 for test in get_failed_tests(project_name, job):
                     messages_to_send[all_teams].add_test_failure(test, job)
                     for owner in test.owners:
@@ -493,6 +494,9 @@ def is_system_probe(owners, files):
     return False
 
 
+EMAIL_SLACK_ID_MAP = {"guy20495@gmail.com": "U03LJSCAPK2", "safchain@gmail.com": "U01009CUG9X"}
+
+
 @task
 def changelog(ctx, new_commit_sha):
     old_commit_sha = ctx.run(
@@ -522,7 +526,10 @@ def changelog(ctx, new_commit_sha):
         if "dependabot" in author_email or "github-actions" in author_email:
             messages.append(f"{message_link}")
             continue
-        author_handle = ctx.run(f"email2slackid {author_email.strip()}", hide=True).stdout
+        if author_email in EMAIL_SLACK_ID_MAP:
+            author_handle = EMAIL_SLACK_ID_MAP[author_email]
+        else:
+            author_handle = ctx.run(f"email2slackid {author_email.strip()}", hide=True).stdout.strip()
         if author_handle:
             author_handle = f"<@{author_handle}>"
         else:
@@ -543,7 +550,7 @@ def changelog(ctx, new_commit_sha):
     else:
         slack_message += "No new System Probe related commits in this release :cricket:"
 
-    print(f"Posting message to slack \n {slack_message}")
+    print(f"Posting message to slack: \n {slack_message}")
     send_slack_message("system-probe-ops", slack_message)
     print(f"Writing new commit sha: {new_commit_sha} to SSM")
     ctx.run(
@@ -594,7 +601,7 @@ def notify(_, notification_type="merge", print_to_stdout=False):
 
     # From the job failures, set whether the pipeline succeeded or failed and craft the
     # base message that will be sent.
-    if failed_jobs:  # At least one job failed
+    if failed_jobs.all_mandatory_failures():  # At least one mandatory job failed
         header_icon = ":host-red:"
         state = "failed"
         coda = "If there is something wrong with the notification please contact #agent-platform"

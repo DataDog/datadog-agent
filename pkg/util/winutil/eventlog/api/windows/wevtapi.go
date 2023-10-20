@@ -5,7 +5,7 @@
 
 //go:build windows
 
-package winevtapi
+package winevtapi //nolint:revive // TODO fix revive package-comments
 
 import (
 	"fmt"
@@ -403,7 +403,7 @@ func (api *API) EvtFormatMessage(
 	PublisherMetadata evtapi.EventPublisherMetadataHandle,
 	Event evtapi.EventRecordHandle,
 	MessageID uint,
-	Values evtapi.EvtVariantValues,
+	Values evtapi.EvtVariantValues, //nolint:revive // TODO fix revive unused-parameter
 	Flags uint) (string, error) {
 
 	var BufferUsed uint32
