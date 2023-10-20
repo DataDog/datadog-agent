@@ -46,11 +46,25 @@ func loadYamlProfiles() (ProfileConfigMap, error) {
 	}
 	log.Debugf("build yaml profiles")
 
+	defaultProfiles, err := getProfilesDefinitionFilesV2(defaultProfilesFolder)
+	if err != nil {
+		log.Errorf("failed to get default profile definitions: %s", err)
+		defaultProfiles = ProfileConfigMap{}
+	}
+	log.Warnf("defaultProfiles: %v", defaultProfiles)
+
+	userProfiles, err := getProfilesDefinitionFilesV2(userProfilesFolder)
+	if err != nil {
+		log.Errorf("failed to get user profile definitions: %s", err)
+		userProfiles = ProfileConfigMap{}
+	}
+	log.Warnf("userProfiles: %v", userProfiles)
+
 	pConfig, err := getDefaultProfilesDefinitionFiles()
 	if err != nil {
 		return nil, fmt.Errorf("failed to get default profile definitions: %s", err)
 	}
-	profiles, err := loadProfiles(pConfig)
+	profiles, err := loadProfilesV2(pConfig)
 	if err != nil {
 		return nil, fmt.Errorf("failed to load default profiles: %s", err)
 	}
@@ -99,6 +113,67 @@ func getProfilesDefinitionFiles(profilesFolder string) (ProfileConfigMap, error)
 		}
 		profileName := fName[:len(fName)-len(".yaml")]
 		profiles[profileName] = ProfileConfig{DefinitionFile: filepath.Join(profilesRoot, fName)}
+	}
+	return profiles, nil
+}
+
+func getProfilesDefinitionFilesV2(profilesFolder string) (ProfileConfigMap, error) {
+	profilesRoot := getProfileConfdRoot(profilesFolder)
+	files, err := os.ReadDir(profilesRoot)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read dir `%s`: %v", profilesRoot, err)
+	}
+
+	profiles := make(ProfileConfigMap)
+	for _, f := range files {
+
+		fName := f.Name()
+		// Skip non yaml profiles
+		if !strings.HasSuffix(fName, ".yaml") {
+			continue
+		}
+		profileName := fName[:len(fName)-len(".yaml")]
+
+		absPath := filepath.Join(profilesRoot, fName)
+		definition, err := readProfileDefinition(absPath)
+		if err != nil {
+			log.Warnf("failed to read dir `%s`: %v", absPath, err)
+			continue
+		}
+		profiles[profileName] = ProfileConfig{
+			Definition: *definition,
+		}
+	}
+	return profiles, nil
+}
+
+func loadProfilesV2(pConfig ProfileConfigMap) (ProfileConfigMap, error) {
+	profiles := make(ProfileConfigMap, len(pConfig))
+
+	for name, profConfig := range pConfig {
+		if profConfig.DefinitionFile != "" {
+			profDefinition, err := readProfileDefinition(profConfig.DefinitionFile)
+			if err != nil {
+				log.Warnf("failed to read profile definition `%s`: %s", name, err)
+				continue
+			}
+
+			err = recursivelyExpandBaseProfiles(profConfig.DefinitionFile, profDefinition, profDefinition.Extends, []string{})
+			if err != nil {
+				log.Warnf("failed to expand profile `%s`: %s", name, err)
+				continue
+			}
+			profConfig.Definition = *profDefinition
+		}
+		profiledefinition.NormalizeMetrics(profConfig.Definition.Metrics)
+		errors := configvalidation.ValidateEnrichMetadata(profConfig.Definition.Metadata)
+		errors = append(errors, configvalidation.ValidateEnrichMetrics(profConfig.Definition.Metrics)...)
+		errors = append(errors, configvalidation.ValidateEnrichMetricTags(profConfig.Definition.MetricTags)...)
+		if len(errors) > 0 {
+			log.Warnf("validation errors: %s", strings.Join(errors, "\n"))
+			continue
+		}
+		profiles[name] = profConfig
 	}
 	return profiles, nil
 }
