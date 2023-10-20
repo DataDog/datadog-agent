@@ -110,10 +110,10 @@ namespace WixSetup.Datadog
                     // Run in either sequence so our CA is also run in non-UI installs
                     Sequence.InstallExecuteSequence | Sequence.InstallUISequence
                 )
-                {
-                    // Ensure we only run in one sequence
-                    Execute = Execute.firstSequence
-                }
+            {
+                // Ensure we only run in one sequence
+                Execute = Execute.firstSequence
+            }
                 .SetProperties("APPLICATIONDATADIRECTORY=[APPLICATIONDATADIRECTORY]");
 
             PatchInstaller = new CustomAction<PatchInstallerCustomAction>(
@@ -136,10 +136,10 @@ namespace WixSetup.Datadog
                     When.After,
                     Step.InstallInitialize
                 )
-                {
-                    Execute = Execute.rollback,
-                    Impersonate = false
-                }
+            {
+                Execute = Execute.rollback,
+                Impersonate = false
+            }
                 .SetProperties("APIKEY=[APIKEY], SITE=[SITE]")
                 .HideTarget(true);
 
@@ -164,10 +164,10 @@ namespace WixSetup.Datadog
                     Step.InstallServices,
                     Conditions.FirstInstall
                 )
-                {
-                    Execute = Execute.deferred,
-                    Impersonate = false
-                }
+            {
+                Execute = Execute.deferred,
+                Impersonate = false
+            }
                 .SetProperties(
                     "APPLICATIONDATADIRECTORY=[APPLICATIONDATADIRECTORY], " +
                     "PROJECTLOCATION=[PROJECTLOCATION], " +
@@ -206,10 +206,10 @@ namespace WixSetup.Datadog
                     new Step(WriteConfig.Id),
                     Conditions.FirstInstall | Conditions.Upgrading | Conditions.Maintenance
                 )
-                {
-                    Execute = Execute.rollback,
-                    Impersonate = false
-                }
+            {
+                Execute = Execute.rollback,
+                Impersonate = false
+            }
                 .SetProperties(
                     "PROJECTLOCATION=[PROJECTLOCATION], APPLICATIONDATADIRECTORY=[APPLICATIONDATADIRECTORY]");
 
@@ -221,10 +221,10 @@ namespace WixSetup.Datadog
                     new Step(CleanupOnRollback.Id),
                     Conditions.FirstInstall | Conditions.Upgrading | Conditions.Maintenance
                 )
-                {
-                    Execute = Execute.deferred,
-                    Impersonate = false
-                }
+            {
+                Execute = Execute.deferred,
+                Impersonate = false
+            }
                 .SetProperties(
                     "PROJECTLOCATION=[PROJECTLOCATION], embedded2_SIZE=[embedded2_SIZE], embedded3_SIZE=[embedded3_SIZE]");
 
@@ -250,10 +250,10 @@ namespace WixSetup.Datadog
                     Step.RemoveFiles,
                     Conditions.Uninstalling
                 )
-                {
-                    Execute = Execute.deferred,
-                    Impersonate = false
-                }
+            {
+                Execute = Execute.deferred,
+                Impersonate = false
+            }
                 .SetProperties(
                     "PROJECTLOCATION=[PROJECTLOCATION], APPLICATIONDATADIRECTORY=[APPLICATIONDATADIRECTORY]");
 
@@ -265,10 +265,10 @@ namespace WixSetup.Datadog
                     new Step(DecompressPythonDistributions.Id),
                     Condition.NOT(Conditions.Uninstalling | Conditions.RemovingForUpgrade)
                 )
-                {
-                    Execute = Execute.deferred,
-                    Impersonate = false
-                }
+            {
+                Execute = Execute.deferred,
+                Impersonate = false
+            }
                 .SetProperties("APPLICATIONDATADIRECTORY=[APPLICATIONDATADIRECTORY], " +
                                "PROJECTLOCATION=[PROJECTLOCATION], " +
                                "DDAGENTUSER_PROCESSED_NAME=[DDAGENTUSER_PROCESSED_NAME], " +
@@ -288,10 +288,10 @@ namespace WixSetup.Datadog
                     new Step(ConfigureUser.Id),
                     Condition.NOT(Conditions.Uninstalling | Conditions.RemovingForUpgrade)
                 )
-                {
-                    Execute = Execute.rollback,
-                    Impersonate = false,
-                };
+            {
+                Execute = Execute.rollback,
+                Impersonate = false,
+            };
 
             UninstallUser = new CustomAction<ConfigureUserCustomActions>(
                     new Id(nameof(UninstallUser)),
@@ -301,10 +301,10 @@ namespace WixSetup.Datadog
                     Step.StopServices,
                     Conditions.Uninstalling | Conditions.RemovingForUpgrade
                 )
-                {
-                    Execute = Execute.deferred,
-                    Impersonate = false
-                }
+            {
+                Execute = Execute.deferred,
+                Impersonate = false
+            }
                 .SetProperties("APPLICATIONDATADIRECTORY=[APPLICATIONDATADIRECTORY], " +
                                "PROJECTLOCATION=[PROJECTLOCATION], " +
                                "DDAGENTUSER_NAME=[DDAGENTUSER_NAME]");
@@ -317,10 +317,10 @@ namespace WixSetup.Datadog
                     new Step(UninstallUser.Id),
                     Conditions.Uninstalling | Conditions.RemovingForUpgrade
                 )
-                {
-                    Execute = Execute.rollback,
-                    Impersonate = false,
-                };
+            {
+                Execute = Execute.rollback,
+                Impersonate = false,
+            };
 
             ProcessDdAgentUserCredentials = new CustomAction<ProcessUserCustomActions>(
                     new Id(nameof(ProcessDdAgentUserCredentials)),
@@ -376,10 +376,10 @@ namespace WixSetup.Datadog
                     // the install_info reflects that.
                     Conditions.FirstInstall | Conditions.Upgrading
                 )
-                {
-                    Execute = Execute.deferred,
-                    Impersonate = false
-                }
+            {
+                Execute = Execute.deferred,
+                Impersonate = false
+            }
                 .SetProperties("APPLICATIONDATADIRECTORY=[APPLICATIONDATADIRECTORY]," +
                                "OVERRIDE_INSTALLATION_METHOD=[OVERRIDE_INSTALLATION_METHOD]");
 
@@ -408,12 +408,13 @@ namespace WixSetup.Datadog
                     Step.InstallServices,
                     Condition.NOT(Conditions.Uninstalling | Conditions.RemovingForUpgrade)
                 )
-                {
-                    Execute = Execute.deferred,
-                    Impersonate = false
-                }
+            {
+                Execute = Execute.deferred,
+                Impersonate = false
+            }
                 .SetProperties("DDAGENTUSER_PROCESSED_PASSWORD=[DDAGENTUSER_PROCESSED_PASSWORD], " +
-                               "DDAGENTUSER_PROCESSED_FQ_NAME=[DDAGENTUSER_PROCESSED_FQ_NAME]")
+                               "DDAGENTUSER_PROCESSED_FQ_NAME=[DDAGENTUSER_PROCESSED_FQ_NAME], " +
+                               "INSTALL_CWS=[INSTALL_CWS]")
                 .HideTarget(true);
 
             // WiX built-in StopServices only stops services if the component is changing.
@@ -472,10 +473,10 @@ namespace WixSetup.Datadog
                     // Run unless we are being uninstalled.
                     Condition.NOT(Conditions.Uninstalling | Conditions.RemovingForUpgrade)
                 )
-                {
-                    Execute = Execute.deferred,
-                    Impersonate = false
-                }
+            {
+                Execute = Execute.deferred,
+                Impersonate = false
+            }
                 .SetProperties("DDAGENTUSER_PROCESSED_DOMAIN=[DDAGENTUSER_PROCESSED_DOMAIN], " +
                                "DDAGENTUSER_PROCESSED_NAME=[DDAGENTUSER_PROCESSED_NAME]");
 
@@ -490,10 +491,10 @@ namespace WixSetup.Datadog
                     // Run only on full uninstall
                     Conditions.Uninstalling
                 )
-                {
-                    Execute = Execute.deferred,
-                    Impersonate = false
-                };
+            {
+                Execute = Execute.deferred,
+                Impersonate = false
+            };
         }
     }
 }

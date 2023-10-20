@@ -124,7 +124,7 @@ k8s-e2e-otlp-main:
 
 .new_e2e_template:
   stage: e2e
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/test-infra-definitions/runner:$TEST_INFRA_DEFINITIONS_BUILDIMAGES
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/test-infra-definitions/runner$TEST_INFRA_DEFINITIONS_BUILDIMAGES_SUFFIX:$TEST_INFRA_DEFINITIONS_BUILDIMAGES
   tags: ["arch:amd64"]
   before_script:
     # Setup AWS Credentials
@@ -143,9 +143,8 @@ k8s-e2e-otlp-main:
     E2E_PRIVATE_KEY_PATH: /tmp/agent-qa-ssh-key
     E2E_KEY_PAIR_NAME: datadog-agent-ci
     E2E_PIPELINE_ID: $CI_PIPELINE_ID
-    IMAGE_PATH_CONFIG: "-c ddagent:fullImagePath=669783387624.dkr.ecr.us-east-1.amazonaws.com/agent:${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA} -c ddagent:clusterAgentFullImagePath=669783387624.dkr.ecr.us-east-1.amazonaws.com/cluster-agent:${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}"
   script:
-    - inv -e new-e2e-tests.run --targets $TARGETS $IMAGE_PATH_CONFIG --junit-tar "junit-${CI_JOB_NAME}.tgz" ${EXTRA_PARAMS}
+    - inv -e new-e2e-tests.run --targets $TARGETS -c ddagent:fullImagePath=669783387624.dkr.ecr.us-east-1.amazonaws.com/agent:${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA} -c ddagent:clusterAgentFullImagePath=669783387624.dkr.ecr.us-east-1.amazonaws.com/cluster-agent:${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA} -c ddagent:imagePullRegistry=669783387624.dkr.ecr.us-east-1.amazonaws.com -c ddagent:imagePullUsername=AWS -c ddagent:imagePullPassword=$(aws ecr get-login-password) --junit-tar "junit-${CI_JOB_NAME}.tgz" ${EXTRA_PARAMS}
   artifacts:
     expire_in: 2 weeks
     when: always
@@ -183,6 +182,12 @@ new-e2e-containers-main:
   variables:
     TARGETS: ./tests/containers
     TEAM: container-integrations
+  parallel:
+    matrix:
+      - EXTRA_PARAMS: --run TestKindSuite
+      - EXTRA_PARAMS: --run TestEKSSuite
+      - EXTRA_PARAMS: --run TestECSSuite
+      - EXTRA_PARAMS: --skip "Test(Kind|EKS|ECS)Suite"
   # Temporary, until we manage to stabilize those tests.
   allow_failure: true
 
@@ -191,14 +196,14 @@ new-e2e-agent-subcommands-dev:
   rules: !reference [.on_dev_branch_manual]
   needs: []
   variables:
-    TARGETS: ./agent-subcommands
+    TARGETS: ./tests/agent-subcommands
     TEAM: agent-shared-components
 
 new-e2e-agent-subcommands-main:
   extends: .new_e2e_template
   rules: !reference [.on_main_and_no_skip_e2e]
   variables:
-    TARGETS: ./agent-subcommands
+    TARGETS: ./tests/agent-subcommands
     TEAM: agent-shared-components
   # Temporary, until we manage to stabilize those tests.
   allow_failure: true
@@ -208,15 +213,31 @@ new-e2e-language-detection-dev:
   rules: !reference [.on_dev_branch_manual]
   needs: []
   variables:
-    TARGETS: ./language-detection
+    TARGETS: ./tests/language-detection
     TEAM: processes
 
 new-e2e-language-detection-main:
   extends: .new_e2e_template
   rules: !reference [.on_main_and_no_skip_e2e]
   variables:
-    TARGETS: ./language-detection
+    TARGETS: ./tests/language-detection
     TEAM: processes
+
+new-e2e-npm-dev:
+  extends: .new_e2e_template
+  rules: !reference [.on_dev_branch_manual]
+  needs: []
+  variables:
+    TARGETS: ./tests/npm
+
+new-e2e-npm-main:
+  extends: .new_e2e_template
+  rules: !reference [.on_main_and_no_skip_e2e]
+  variables:
+    TARGETS: ./tests/npm
+  # Temporary, until we manage to stabilize those tests.
+  allow_failure: true
+
 #   ^    If you create a new job here that extends `.new_e2e_template`,
 #  /!\   do not forget to add it in the `dependencies` statement of the
 # /___\  `e2e_test_junit_upload` job in the `.gitlab/e2e_test_junit_upload.yml` file

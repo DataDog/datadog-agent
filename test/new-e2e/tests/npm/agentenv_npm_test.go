@@ -19,7 +19,7 @@ type vmSuiteEx6 struct {
 }
 
 func TestVMSuiteEx6(t *testing.T) {
-	e2e.Run(t, &vmSuiteEx6{}, e2e.FakeIntakeStackDef(e2e.WithAgentParams(agentparams.WithSystemProbeConfig(SystemProbeConfig))))
+	e2e.Run(t, &vmSuiteEx6{}, e2e.FakeIntakeStackDef(e2e.WithAgentParams(agentparams.WithSystemProbeConfig(systemProbeConfigNPM))))
 }
 
 func (v *vmSuiteEx6) Test1_FakeIntakeNPM() {
@@ -27,6 +27,7 @@ func (v *vmSuiteEx6) Test1_FakeIntakeNPM() {
 
 	// force pulumi to deploy before running the test
 	v.Env().VM.Execute("curl http://httpbin.org/anything")
+	v.Env().Fakeintake.FlushServerAndResetAggregators()
 
 	// This loop waits for agent and system-probe to be ready, stated by
 	// checking we eventually receive a payload
@@ -34,11 +35,11 @@ func (v *vmSuiteEx6) Test1_FakeIntakeNPM() {
 		v.Env().VM.Execute("curl http://httpbin.org/anything")
 
 		hostnameNetID, err := v.Env().Fakeintake.GetConnectionsNames()
-		assert.NoError(c, err, "fakeintake GetConnectionsNames() error")
+		if !assert.NoError(c, err, "fakeintake GetConnectionsNames() error") {
+			return
+		}
 
-		assert.NotZero(c, len(hostnameNetID), "no connections yet")
-
-		if len(hostnameNetID) > 0 {
+		if assert.NotZero(c, len(hostnameNetID), "no connections yet") {
 			t.Logf("hostname+networkID %v seen connections", hostnameNetID)
 		}
 	}, 60*time.Second, time.Second, "")

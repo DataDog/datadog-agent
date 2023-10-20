@@ -47,7 +47,7 @@ type UDPListener struct {
 }
 
 // NewUDPListener returns an idle UDP Statsd listener
-func NewUDPListener(packetOut chan packets.Packets, sharedPacketPoolManager *packets.PoolManager, cfg config.ConfigReader, capture replay.Component) (*UDPListener, error) {
+func NewUDPListener(packetOut chan packets.Packets, sharedPacketPoolManager *packets.PoolManager, cfg config.Reader, capture replay.Component) (*UDPListener, error) {
 	var err error
 	var url string
 
@@ -131,7 +131,7 @@ func (l *UDPListener) Listen() {
 		}
 
 		t2 = time.Now()
-		tlmListener.Observe(float64(t2.Sub(t1).Nanoseconds()), "udp")
+		tlmListener.Observe(float64(t2.Sub(t1).Nanoseconds()), "udp", "udp")
 	}
 }
 

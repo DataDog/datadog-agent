@@ -210,7 +210,7 @@ func getSizeOfStructInode(kv *kernel.Version) uint64 {
 	return sizeOf
 }
 
-func getSuperBlockFlagsOffset(kv *kernel.Version) uint64 {
+func getSuperBlockFlagsOffset(kv *kernel.Version) uint64 { //nolint:revive // TODO fix revive unused-parameter
 	return uint64(80)
 }
 
