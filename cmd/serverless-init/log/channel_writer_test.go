@@ -34,7 +34,7 @@ func TestChannelWriter_Write(t *testing.T) {
 	}
 	msg := <-ch
 	if string(msg.Content) != "testtest" {
-		t.Fatalf("Expected message content 'test' but got '%s'", msg.Content)
+		t.Fatalf("Expected message content 'testtest' but got '%s'", msg.Content)
 	}
 
 	// Test writing multiple newlines
