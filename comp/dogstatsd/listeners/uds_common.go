@@ -145,15 +145,19 @@ func NewUDSListener(packetOut chan packets.Packets, sharedPacketPoolManager *pac
 // Listen runs the intake loop. Should be called in its own goroutine
 func (l *UDSListener) handleConnection(conn *net.UnixConn) error {
 	listenerID := getListenerID(conn)
-	packetsBuffer := packets.NewBuffer(uint(l.config.GetInt("dogstatsd_packet_buffer_size")), l.config.GetDuration("dogstatsd_packet_buffer_flush_timeout"), l.packetOut, listenerID)
-	defer packetsBuffer.Close()
-	defer l.clearTelemetry(listenerID)
-
-	defer func() {
-		tlmUDSConnections.Dec(listenerID, l.transport)
-		_ = conn.Close()
-	}()
+	packetsBuffer := packets.NewBuffer(
+		uint(l.config.GetInt("dogstatsd_packet_buffer_size")),
+		l.config.GetDuration("dogstatsd_packet_buffer_flush_timeout"),
+		l.packetOut,
+		listenerID,
+	)
 	tlmUDSConnections.Inc(listenerID, l.transport)
+	defer func() {
+		_ = conn.Close()
+		packetsBuffer.Close()
+		l.clearTelemetry(listenerID)
+		tlmUDSConnections.Dec(listenerID, l.transport)
+	}()
 
 	var err error
 	l.OriginDetection, err = setupUnixConn(conn, l.OriginDetection, l.config)
@@ -220,7 +224,7 @@ func (l *UDSListener) handleConnection(conn *net.UnixConn) error {
 		if l.transport == "unix" {
 			// Read the expected packet length (in stream mode)
 			b := []byte{0, 0, 0, 0}
-			_, err := io.ReadFull(conn, b)
+			_, err = io.ReadFull(conn, b)
 			expectedPacketLength := binary.LittleEndian.Uint32(b)
 
 			switch {
