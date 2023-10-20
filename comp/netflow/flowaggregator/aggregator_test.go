@@ -286,7 +286,7 @@ func TestAggregator_withMockPayload(t *testing.T) {
 	// Create an error channel to pass to StartFlowRoutine
 	listenerErr := atomic.NewString("")
 
-	flowState, err := goflowlib.StartFlowRoutine(common.TypeNetFlow5, "127.0.0.1", port, 1, "default", aggregator.GetFlowInChan(), logger, listenerErr)
+	flowState, err := goflowlib.StartFlowRoutine(common.TypeNetFlow5, "127.0.0.1", port, 1, "default", aggregator.GetFlowInChan(), logger, listenerErr, nil)
 	assert.NoError(t, err)
 
 	time.Sleep(100 * time.Millisecond) // wait to make sure goflow listener is started before sending
