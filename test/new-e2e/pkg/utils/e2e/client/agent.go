@@ -6,13 +6,10 @@
 package client
 
 import (
-	"os"
 	"strings"
 	"testing"
 	"time"
 
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/runner"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/runner/parameters"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client/agentclientparams"
 	"github.com/DataDog/test-infra-definitions/common/utils"
 	"github.com/DataDog/test-infra-definitions/components/datadog/agent"
@@ -53,21 +50,7 @@ func (agent *Agent) setStack(t *testing.T, stackResult auto.UpResult) error {
 		return err
 	}
 
-	var privateSSHKey []byte
-
-	privateKeyPath, err := runner.GetProfile().ParamStore().GetWithDefault(parameters.PrivateKeyPath, "")
-	if err != nil {
-		return err
-	}
-
-	if privateKeyPath != "" {
-		privateSSHKey, err = os.ReadFile(privateKeyPath)
-		if err != nil {
-			return err
-		}
-	}
-
-	agent.vmClient, err = newVMClient(t, privateSSHKey, &clientData.Connection, agent.os)
+	agent.vmClient, err = newVMClient(t, &clientData.Connection, agent.os.GetType())
 	if err != nil {
 		return err
 	}

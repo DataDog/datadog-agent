@@ -7,11 +7,8 @@
 package client
 
 import (
-	"os"
 	"testing"
 
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/runner"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/runner/parameters"
 	"github.com/DataDog/test-infra-definitions/common/utils"
 	commonos "github.com/DataDog/test-infra-definitions/components/os"
 	commonvm "github.com/DataDog/test-infra-definitions/components/vm"
@@ -40,20 +37,6 @@ func (vm *PulumiStackVM) setStack(t *testing.T, stackResult auto.UpResult) error
 		return err
 	}
 
-	var privateSSHKey []byte
-
-	privateKeyPath, err := runner.GetProfile().ParamStore().GetWithDefault(parameters.PrivateKeyPath, "")
-	if err != nil {
-		return err
-	}
-
-	if privateKeyPath != "" {
-		privateSSHKey, err = os.ReadFile(privateKeyPath)
-		if err != nil {
-			return err
-		}
-	}
-
-	vm.VMClient, err = newVMClient(t, privateSSHKey, &clientData.Connection, vm.os)
+	vm.VMClient, err = newVMClient(t, &clientData.Connection, vm.os.GetType())
 	return err
 }
