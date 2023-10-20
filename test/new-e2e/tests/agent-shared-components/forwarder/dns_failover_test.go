@@ -19,6 +19,7 @@ import (
 	"github.com/DataDog/test-infra-definitions/components/datadog/agentparams"
 	awsResources "github.com/DataDog/test-infra-definitions/resources/aws"
 	"github.com/DataDog/test-infra-definitions/scenarios/aws"
+	"github.com/DataDog/test-infra-definitions/scenarios/aws/fakeintake/fakeintakeparams"
 	"github.com/DataDog/test-infra-definitions/scenarios/aws/vm/ec2vm"
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 	"github.com/stretchr/testify/assert"
@@ -61,12 +62,12 @@ func multiFakeintakeStackDef(agentOptions ...agentparams.Option) *e2e.StackDefin
 			return nil, err
 		}
 
-		fiExporter1, err := aws.NewEcsFakeintakeWithName(awsEnv, fakeintake1Name)
+		fiExporter1, err := aws.NewEcsFakeintake(awsEnv, fakeintakeparams.WithName(fakeintake1Name), fakeintakeparams.WithoutLoadBalancer())
 		if err != nil {
 			return nil, err
 		}
 
-		fiExporter2, err := aws.NewEcsFakeintakeWithName(awsEnv, fakeintake2Name)
+		fiExporter2, err := aws.NewEcsFakeintake(awsEnv, fakeintakeparams.WithName(fakeintake2Name), fakeintakeparams.WithoutLoadBalancer())
 		if err != nil {
 			return nil, err
 		}
