@@ -30,6 +30,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/cli/standalone"
 	"github.com/DataDog/datadog-agent/pkg/collector"
 	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
+	pkgconfiglogs "github.com/DataDog/datadog-agent/pkg/config/logs"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
@@ -87,7 +88,8 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 		}
 		params := core.BundleParams{
 			ConfigParams: config.NewAgentParamsWithSecrets(globalParams.ConfFilePath),
-			LogParams:    log.ForOneShot(command.LoggerName, cliParams.jmxLogLevel, false)}
+			LogParams:    log.ForOneShot(command.LoggerName, cliParams.jmxLogLevel, false),
+		}
 		if cliParams.logFile != "" {
 			params.LogParams.LogToFile(cliParams.logFile)
 		}
@@ -231,7 +233,7 @@ func runJmxCommandConsole(config config.Component, cliParams *cliParams, diagnos
 	// Disabling it is both more efficient and gets rid of this log spam
 	pkgconfig.Datadog.Set("language_detection.enabled", "false")
 
-	err := pkgconfig.SetupJMXLogger(cliParams.logFile, "", false, true, false)
+	err := pkgconfiglogs.SetupJMXLogger(cliParams.logFile, "", false, true, false, pkgconfig.Datadog)
 	if err != nil {
 		return fmt.Errorf("Unable to set up JMX logger: %v", err)
 	}

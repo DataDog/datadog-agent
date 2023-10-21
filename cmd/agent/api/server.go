@@ -19,9 +19,6 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
-	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
-	workloadmetaServer "github.com/DataDog/datadog-agent/pkg/workloadmeta/server"
 	"github.com/cihub/seelog"
 	gorilla "github.com/gorilla/mux"
 	grpc_auth "github.com/grpc-ecosystem/go-grpc-middleware/auth"
@@ -37,14 +34,18 @@ import (
 	dogstatsdDebug "github.com/DataDog/datadog-agent/comp/dogstatsd/serverDebug"
 	logsAgent "github.com/DataDog/datadog-agent/comp/logs/agent"
 	"github.com/DataDog/datadog-agent/comp/metadata/host"
+	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/api/util"
 	"github.com/DataDog/datadog-agent/pkg/config"
+	pkgconfiglogs "github.com/DataDog/datadog-agent/pkg/config/logs"
 	remoteconfig "github.com/DataDog/datadog-agent/pkg/config/remote/service"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
 	"github.com/DataDog/datadog-agent/pkg/tagger"
 	taggerserver "github.com/DataDog/datadog-agent/pkg/tagger/server"
 	pkgUtil "github.com/DataDog/datadog-agent/pkg/util"
 	grpcutil "github.com/DataDog/datadog-agent/pkg/util/grpc"
+	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
+	workloadmetaServer "github.com/DataDog/datadog-agent/pkg/workloadmeta/server"
 )
 
 var listener net.Listener
@@ -139,7 +140,7 @@ func StartServer(
 	mux.Handle("/", gwmux)
 
 	// Use a stack depth of 4 on top of the default one to get a relevant filename in the stdlib
-	logWriter, _ := config.NewLogWriter(5, seelog.ErrorLvl)
+	logWriter, _ := pkgconfiglogs.NewLogWriter(5, seelog.ErrorLvl)
 
 	srv := grpcutil.NewMuxedGRPCServer(
 		tlsAddr,

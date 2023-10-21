@@ -15,6 +15,7 @@ import (
 
 	coreconfig "github.com/DataDog/datadog-agent/comp/core/config"
 	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
+	pkgconfiglogs "github.com/DataDog/datadog-agent/pkg/config/logs"
 	traceconfig "github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -42,7 +43,6 @@ type cfg struct {
 
 func newConfig(deps dependencies) (Component, error) {
 	tracecfg, err := setupConfig(deps, "")
-
 	if err != nil {
 		// Allow main Agent to start with missing API key
 		if !(err == traceconfig.ErrMissingAPIKey && !deps.Params.FailIfAPIKeyMissing) {
@@ -85,7 +85,7 @@ func (c *cfg) SetHandler() http.Handler {
 				if lvl == "warning" {
 					lvl = "warn"
 				}
-				if err := pkgconfig.ChangeLogLevel(lvl); err != nil {
+				if err := pkgconfiglogs.ChangeLogLevel(lvl); err != nil {
 					httpError(w, http.StatusInternalServerError, err)
 					return
 				}

@@ -34,10 +34,6 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/agent/subcommands/run/internal/clcrunnerapi"
 	"github.com/DataDog/datadog-agent/cmd/manager"
 	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer"
-
-	// checks implemented as components
-
-	// core components
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/flare"
@@ -66,31 +62,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/providers"
 	"github.com/DataDog/datadog-agent/pkg/cloudfoundry/containertagger"
 	"github.com/DataDog/datadog-agent/pkg/collector"
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/embed/jmx"
-	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/config/remote/data"
-	remoteconfig "github.com/DataDog/datadog-agent/pkg/config/remote/service"
-	adScheduler "github.com/DataDog/datadog-agent/pkg/logs/schedulers/ad"
-	pkgMetadata "github.com/DataDog/datadog-agent/pkg/metadata"
-	"github.com/DataDog/datadog-agent/pkg/pidfile"
-	"github.com/DataDog/datadog-agent/pkg/serializer"
-	"github.com/DataDog/datadog-agent/pkg/snmp/traps"
-	"github.com/DataDog/datadog-agent/pkg/status"
-	"github.com/DataDog/datadog-agent/pkg/status/health"
-	pkgTelemetry "github.com/DataDog/datadog-agent/pkg/telemetry"
-	"github.com/DataDog/datadog-agent/pkg/util"
-	"github.com/DataDog/datadog-agent/pkg/util/cloudproviders"
-	"github.com/DataDog/datadog-agent/pkg/util/flavor"
-	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
-	"github.com/DataDog/datadog-agent/pkg/util/hostname"
-	"github.com/DataDog/datadog-agent/pkg/util/installinfo"
-	pkglog "github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/DataDog/datadog-agent/pkg/version"
-
-	// runtime init routines
-	ddruntime "github.com/DataDog/datadog-agent/pkg/runtime"
-
-	// register core checks
 	_ "github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/helm"
 	_ "github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/ksm"
 	_ "github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/kubernetesapiserver"
@@ -104,6 +75,7 @@ import (
 	_ "github.com/DataDog/datadog-agent/pkg/collector/corechecks/containers/kubelet"
 	_ "github.com/DataDog/datadog-agent/pkg/collector/corechecks/ebpf"
 	_ "github.com/DataDog/datadog-agent/pkg/collector/corechecks/embed"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/embed/jmx"
 	_ "github.com/DataDog/datadog-agent/pkg/collector/corechecks/net"
 	_ "github.com/DataDog/datadog-agent/pkg/collector/corechecks/nvidia/jetson"
 	_ "github.com/DataDog/datadog-agent/pkg/collector/corechecks/oracle-dbm"
@@ -120,9 +92,28 @@ import (
 	_ "github.com/DataDog/datadog-agent/pkg/collector/corechecks/system/winproc"
 	_ "github.com/DataDog/datadog-agent/pkg/collector/corechecks/system/winregistry"
 	_ "github.com/DataDog/datadog-agent/pkg/collector/corechecks/systemd"
-
-	// register metadata providers
 	_ "github.com/DataDog/datadog-agent/pkg/collector/metadata"
+	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
+	pkgconfiglogs "github.com/DataDog/datadog-agent/pkg/config/logs"
+	"github.com/DataDog/datadog-agent/pkg/config/remote/data"
+	remoteconfig "github.com/DataDog/datadog-agent/pkg/config/remote/service"
+	adScheduler "github.com/DataDog/datadog-agent/pkg/logs/schedulers/ad"
+	pkgMetadata "github.com/DataDog/datadog-agent/pkg/metadata"
+	"github.com/DataDog/datadog-agent/pkg/pidfile"
+	ddruntime "github.com/DataDog/datadog-agent/pkg/runtime"
+	"github.com/DataDog/datadog-agent/pkg/serializer"
+	"github.com/DataDog/datadog-agent/pkg/snmp/traps"
+	"github.com/DataDog/datadog-agent/pkg/status"
+	"github.com/DataDog/datadog-agent/pkg/status/health"
+	pkgTelemetry "github.com/DataDog/datadog-agent/pkg/telemetry"
+	"github.com/DataDog/datadog-agent/pkg/util"
+	"github.com/DataDog/datadog-agent/pkg/util/cloudproviders"
+	"github.com/DataDog/datadog-agent/pkg/util/flavor"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
+	"github.com/DataDog/datadog-agent/pkg/util/hostname"
+	"github.com/DataDog/datadog-agent/pkg/util/installinfo"
+	pkglog "github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
 type cliParams struct {
@@ -320,11 +311,10 @@ func startAgent(
 	demultiplexer demultiplexer.Component,
 	hostMetadata host.Component,
 ) error {
-
 	var err error
 
 	// Setup logger
-	syslogURI := pkgconfig.GetSyslogURI()
+	syslogURI := pkgconfiglogs.GetSyslogURI(pkgconfig.Datadog)
 	jmxLogFile := pkgconfig.Datadog.GetString("jmx_log_file")
 	if jmxLogFile == "" {
 		jmxLogFile = path.DefaultJmxLogFile
@@ -336,12 +326,13 @@ func startAgent(
 	}
 
 	// Setup JMX logger
-	jmxLoggerSetupErr := pkgconfig.SetupJMXLogger(
+	jmxLoggerSetupErr := pkgconfiglogs.SetupJMXLogger(
 		jmxLogFile,
 		syslogURI,
 		pkgconfig.Datadog.GetBool("syslog_rfc"),
 		pkgconfig.Datadog.GetBool("log_to_console"),
 		pkgconfig.Datadog.GetBool("log_format_json"),
+		pkgconfig.Datadog,
 	)
 
 	if jmxLoggerSetupErr != nil {

@@ -19,6 +19,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/trace/agent"
 	"github.com/DataDog/datadog-agent/comp/trace/config"
 	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
+	pkgconfiglogs "github.com/DataDog/datadog-agent/pkg/config/logs"
 	tracelog "github.com/DataDog/datadog-agent/pkg/trace/log"
 	"github.com/DataDog/datadog-agent/pkg/trace/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -30,7 +31,6 @@ const stackDepth = 3
 
 // MakeCommand returns the run subcommand for the 'trace-agent' command.
 func MakeCommand(globalParamsGetter func() *subcommands.GlobalParams) *cobra.Command {
-
 	cliParams := &RunParams{}
 	runCmd := &cobra.Command{
 		Use:   "run",
@@ -79,14 +79,15 @@ func runFx(ctx context.Context, cliParams *RunParams, defaultConfPath string) er
 		// TODO: corelogger must be a component (for future reference)
 		fx.Invoke(func(cfg config.Component, telemetryCollector telemetry.TelemetryCollector) error {
 			tracecfg := cfg.Object()
-			if err := pkgconfig.SetupLogger(
-				pkgconfig.LoggerName("TRACE"),
+			if err := pkgconfiglogs.SetupLogger(
+				pkgconfiglogs.LoggerName("TRACE"),
 				pkgconfig.Datadog.GetString("log_level"),
 				tracecfg.LogFilePath,
-				pkgconfig.GetSyslogURI(),
+				pkgconfiglogs.GetSyslogURI(pkgconfig.Datadog),
 				pkgconfig.Datadog.GetBool("syslog_rfc"),
 				pkgconfig.Datadog.GetBool("log_to_console"),
 				pkgconfig.Datadog.GetBool("log_format_json"),
+				pkgconfig.Datadog,
 			); err != nil {
 				telemetryCollector.SendStartupError(telemetry.CantCreateLogger, err)
 				return fmt.Errorf("Cannot create logger: %v", err)

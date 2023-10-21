@@ -3,19 +3,20 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package config
+package logs
 
 import (
+	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // GetSyslogURI returns the configured/default syslog uri
-func GetSyslogURI() string {
-	return GetSyslogURIFromConfig(Datadog)
+func GetSyslogURI(cfg model.Reader) string {
+	return GetSyslogURIFromConfig(cfg)
 }
 
 // GetSyslogURIFromConfig is like GetSyslogURI but reads from the provided config
-func GetSyslogURIFromConfig(cfg Config) string {
+func GetSyslogURIFromConfig(cfg model.Reader) string {
 	enabled := cfg.GetBool("log_to_syslog")
 
 	if enabled {

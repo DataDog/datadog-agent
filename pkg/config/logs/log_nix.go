@@ -5,16 +5,20 @@
 
 //go:build linux || freebsd || netbsd || openbsd || solaris || dragonfly || darwin || aix
 
-package config
+package logs
+
+import "github.com/DataDog/datadog-agent/pkg/config/model"
+
+const defaultSyslogURI = "unixgram:///dev/log"
 
 // GetSyslogURI returns the configured/default syslog uri.
 // Returns an empty string when syslog is disabled.
-func GetSyslogURI() string {
-	return GetSyslogURIFromConfig(Datadog)
+func GetSyslogURI(cfg model.Reader) string {
+	return GetSyslogURIFromConfig(cfg)
 }
 
 // GetSyslogURIFromConfig is like GetSyslogURI but reads from the provided config
-func GetSyslogURIFromConfig(cfg Config) string {
+func GetSyslogURIFromConfig(cfg model.Reader) string {
 	enabled := cfg.GetBool("log_to_syslog")
 	uri := cfg.GetString("syslog_uri")
 

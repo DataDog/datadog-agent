@@ -33,6 +33,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/api/security"
 	"github.com/DataDog/datadog-agent/pkg/api/util"
 	"github.com/DataDog/datadog-agent/pkg/config"
+	pkgconfiglogs "github.com/DataDog/datadog-agent/pkg/config/logs"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
 	"github.com/DataDog/datadog-agent/pkg/tagger"
 	taggerserver "github.com/DataDog/datadog-agent/pkg/tagger/server"
@@ -105,7 +106,7 @@ func StartServer(senderManager sender.DiagnoseSenderManager) error {
 	}
 
 	// Use a stack depth of 4 on top of the default one to get a relevant filename in the stdlib
-	logWriter, _ := config.NewLogWriter(4, seelog.WarnLvl)
+	logWriter, _ := pkgconfiglogs.NewLogWriter(4, seelog.WarnLvl)
 
 	authInterceptor := grpcutil.AuthInterceptor(func(token string) (interface{}, error) {
 		if token != util.GetDCAAuthToken() {
