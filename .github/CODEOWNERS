@@ -288,7 +288,7 @@
 /pkg/config/apm.go                      @DataDog/agent-apm
 /pkg/config/autodiscovery/              @Datadog/container-integrations
 /pkg/config/env                         @DataDog/container-integrations @DataDog/container-app
-/pkg/config/log*.go                     @Datadog/agent-platform
+/pkg/config/logs                        @Datadog/agent-platform
 /pkg/config/process*.go                 @DataDog/processes
 /pkg/config/system_probe.go               @DataDog/ebpf-platform
 /pkg/config/system_probe_cws.go           @DataDog/agent-security
