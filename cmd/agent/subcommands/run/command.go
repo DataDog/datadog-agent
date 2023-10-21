@@ -34,6 +34,11 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/agent/subcommands/run/internal/clcrunnerapi"
 	"github.com/DataDog/datadog-agent/cmd/manager"
 	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer"
+	netflowServer "github.com/DataDog/datadog-agent/comp/netflow/server"
+
+	// checks implemented as components
+
+	// core components
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/flare"
@@ -164,9 +169,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 // run starts the main loop.
 //
 // This is exported because it also used from the deprecated `agent start` command.
-//
-// run now has different parameters on Linux & Windows
-func commonRun(log log.Component,
+func run(log log.Component,
 	config config.Component,
 	flare flare.Component,
 	telemetry telemetry.Component,
@@ -183,6 +186,7 @@ func commonRun(log log.Component,
 	logsAgent util.Optional[logsAgent.Component],
 	otelcollector otelcollector.Component,
 	hostMetadata host.Component,
+	_ netflowServer.Component,
 ) error {
 	defer func() {
 		stopAgent(cliParams, server, demultiplexer)

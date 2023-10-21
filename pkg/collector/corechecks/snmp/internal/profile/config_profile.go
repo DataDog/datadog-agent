@@ -3,17 +3,19 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package checkconfig
+package profile
 
 import (
 	"github.com/DataDog/datadog-agent/pkg/networkdevice/profile/profiledefinition"
 )
 
-type profileConfigMap map[string]profileConfig
+// ProfileConfigMap represent a map of ProfileConfig
+type ProfileConfigMap map[string]ProfileConfig
 
-type profileConfig struct {
+// ProfileConfig represent a profile configuration
+type ProfileConfig struct {
 	DefinitionFile string                              `yaml:"definition_file"`
 	Definition     profiledefinition.ProfileDefinition `yaml:"definition"`
 
-	isUserProfile bool `yaml:"-"`
+	IsUserProfile bool `yaml:"-"`
 }

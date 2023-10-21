@@ -414,17 +414,14 @@ func (p *Probe) DispatchCustomEvent(rule *rules.Rule, event *events.CustomEvent)
 		return eventJSON, event.GetEventType(), err
 	})
 
-	// send specific event
-	if p.Config.RuntimeSecurity.CustomEventEnabled {
-		// send wildcard first
-		for _, handler := range p.customEventHandlers[model.UnknownEventType] {
-			handler.HandleCustomEvent(rule, event)
-		}
+	// send wildcard first
+	for _, handler := range p.customEventHandlers[model.UnknownEventType] {
+		handler.HandleCustomEvent(rule, event)
+	}
 
-		// send specific event
-		for _, handler := range p.customEventHandlers[event.GetEventType()] {
-			handler.HandleCustomEvent(rule, event)
-		}
+	// send specific event
+	for _, handler := range p.customEventHandlers[event.GetEventType()] {
+		handler.HandleCustomEvent(rule, event)
 	}
 }
 
@@ -493,9 +490,11 @@ func (p *Probe) UnmarshalProcessCacheEntry(ev *model.Event, data []byte) (int, e
 }
 
 func (p *Probe) onEventLost(perfMapName string, perEvent map[string]uint64) {
-	p.DispatchCustomEvent(
-		NewEventLostWriteEvent(perfMapName, perEvent),
-	)
+	if p.Config.RuntimeSecurity.InternalMonitoringEnabled {
+		p.DispatchCustomEvent(
+			NewEventLostWriteEvent(perfMapName, perEvent),
+		)
+	}
 
 	// snapshot traced cgroups if a CgroupTracing event was lost
 	if p.IsActivityDumpEnabled() && perEvent[model.CgroupTracingEventType.String()] > 0 {

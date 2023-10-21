@@ -24,6 +24,7 @@ replace (
 )
 
 replace (
+	github.com/DataDog/datadog-agent/comp/core/telemetry => ./comp/core/telemetry/
 	github.com/DataDog/datadog-agent/pkg/config/env => ./pkg/config/env
 	github.com/DataDog/datadog-agent/pkg/config/logs => ./pkg/config/logs
 	github.com/DataDog/datadog-agent/pkg/config/model => ./pkg/config/model/
@@ -35,6 +36,7 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/remoteconfig/state => ./pkg/remoteconfig/state
 	github.com/DataDog/datadog-agent/pkg/security/secl => ./pkg/security/secl
 	github.com/DataDog/datadog-agent/pkg/status/health => ./pkg/status/health
+	github.com/DataDog/datadog-agent/pkg/telemetry => ./pkg/telemetry/
 	github.com/DataDog/datadog-agent/pkg/trace => ./pkg/trace
 	github.com/DataDog/datadog-agent/pkg/util/backoff => ./pkg/util/backoff
 	github.com/DataDog/datadog-agent/pkg/util/cgroups => ./pkg/util/cgroups
@@ -93,7 +95,7 @@ require (
 	github.com/aquasecurity/trivy-db v0.0.0-20230105123735-5ce110fc82e1
 	github.com/avast/retry-go/v4 v4.5.0
 	github.com/aws/aws-lambda-go v1.37.0
-	github.com/aws/aws-sdk-go v1.45.12
+	github.com/aws/aws-sdk-go v1.46.0
 	github.com/beevik/ntp v0.3.0
 	github.com/benbjohnson/clock v1.3.0
 	github.com/bhmj/jsonslice v0.0.0-20200323023432-92c3edaad8e2
@@ -311,20 +313,20 @@ require (
 	github.com/armon/go-metrics v0.4.1 // indirect
 	github.com/asaskevich/govalidator v0.0.0-20230301143203-a9d515a09cc2 // indirect
 	github.com/awalterschulze/gographviz v2.0.3+incompatible // indirect
-	github.com/aws/aws-sdk-go-v2 v1.21.0
+	github.com/aws/aws-sdk-go-v2 v1.21.2
 	github.com/aws/aws-sdk-go-v2/config v1.18.27 // indirect
-	github.com/aws/aws-sdk-go-v2/credentials v1.13.37
-	github.com/aws/aws-sdk-go-v2/feature/ec2/imds v1.13.11 // indirect
-	github.com/aws/aws-sdk-go-v2/internal/configsources v1.1.41 // indirect
-	github.com/aws/aws-sdk-go-v2/internal/endpoints/v2 v2.4.35 // indirect
+	github.com/aws/aws-sdk-go-v2/credentials v1.13.43
+	github.com/aws/aws-sdk-go-v2/feature/ec2/imds v1.13.13 // indirect
+	github.com/aws/aws-sdk-go-v2/internal/configsources v1.1.43 // indirect
+	github.com/aws/aws-sdk-go-v2/internal/endpoints/v2 v2.4.37 // indirect
 	github.com/aws/aws-sdk-go-v2/internal/ini v1.3.35 // indirect
 	github.com/aws/aws-sdk-go-v2/service/ebs v1.15.19 // indirect
-	github.com/aws/aws-sdk-go-v2/service/ec2 v1.118.0
-	github.com/aws/aws-sdk-go-v2/service/internal/presigned-url v1.9.35 // indirect
-	github.com/aws/aws-sdk-go-v2/service/sso v1.13.6 // indirect
-	github.com/aws/aws-sdk-go-v2/service/ssooidc v1.15.6 // indirect
-	github.com/aws/aws-sdk-go-v2/service/sts v1.21.5 // indirect
-	github.com/aws/smithy-go v1.14.2 // indirect
+	github.com/aws/aws-sdk-go-v2/service/ec2 v1.126.0
+	github.com/aws/aws-sdk-go-v2/service/internal/presigned-url v1.9.37 // indirect
+	github.com/aws/aws-sdk-go-v2/service/sso v1.15.2 // indirect
+	github.com/aws/aws-sdk-go-v2/service/ssooidc v1.17.3 // indirect
+	github.com/aws/aws-sdk-go-v2/service/sts v1.23.2 // indirect
+	github.com/aws/smithy-go v1.15.0 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/bmizerany/pat v0.0.0-20170815010413-6226ea591a40 // indirect
 	github.com/briandowns/spinner v1.12.0 // indirect
@@ -526,10 +528,10 @@ require (
 	go.opentelemetry.io/otel/exporters/otlp/otlptrace v1.19.0
 	go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc v1.19.0
 	go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracehttp v1.19.0
-	go.opentelemetry.io/otel/exporters/prometheus v0.42.0
-	go.opentelemetry.io/otel/metric v1.19.0
+	go.opentelemetry.io/otel/exporters/prometheus v0.42.0 // indirect
+	go.opentelemetry.io/otel/metric v1.19.0 // indirect
 	go.opentelemetry.io/otel/sdk v1.19.0
-	go.opentelemetry.io/otel/sdk/metric v1.19.0
+	go.opentelemetry.io/otel/sdk/metric v1.19.0 // indirect
 	go.opentelemetry.io/otel/trace v1.19.0 // indirect
 	go.opentelemetry.io/proto/otlp v1.0.0 // indirect
 	golang.org/x/crypto v0.14.0 // indirect
@@ -569,6 +571,7 @@ require github.com/lorenzosaino/go-sysctl v0.3.1
 require (
 	github.com/DATA-DOG/go-sqlmock v1.5.0
 	github.com/DataDog/agent-payload/v5 v5.0.97
+	github.com/DataDog/datadog-agent/comp/core/telemetry v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/pkg/config/env v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/pkg/config/logs v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/pkg/config/model v0.0.0-00010101000000-000000000000
@@ -576,6 +579,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/networkdevice/profile v0.49.0-rc.2
 	github.com/DataDog/datadog-agent/pkg/proto v0.49.0-rc.2
 	github.com/DataDog/datadog-agent/pkg/status/health v0.0.0-00010101000000-000000000000
+	github.com/DataDog/datadog-agent/pkg/telemetry v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/pkg/util/backoff v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/pkg/util/common v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/pkg/util/compression v0.0.0-00010101000000-000000000000
