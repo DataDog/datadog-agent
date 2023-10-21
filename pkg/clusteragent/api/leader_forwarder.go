@@ -20,7 +20,7 @@ import (
 
 	"github.com/cihub/seelog"
 
-	pkgconfiglogs "github.com/DataDog/datadog-agent/pkg/config/logs"
+	"github.com/DataDog/datadog-agent/pkg/config"
 )
 
 const (
@@ -40,7 +40,7 @@ type LeaderForwarder struct {
 // NewLeaderForwarder returns a new LeaderForwarder
 func NewLeaderForwarder(apiPort, maxConnections int) *LeaderForwarder {
 	// Use a stack depth of 4 on top of the default one to get a relevant filename in the stdlib
-	logWriter, _ := pkgconfiglogs.NewLogWriter(4, seelog.DebugLvl)
+	logWriter, _ := config.NewLogWriter(4, seelog.DebugLvl)
 
 	lf := &LeaderForwarder{
 		apiPort: strconv.Itoa(apiPort),

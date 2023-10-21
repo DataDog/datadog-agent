@@ -28,7 +28,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/api/util"
 	"github.com/DataDog/datadog-agent/pkg/compliance"
 	"github.com/DataDog/datadog-agent/pkg/config"
-	pkgconfiglogs "github.com/DataDog/datadog-agent/pkg/config/logs"
 	secagent "github.com/DataDog/datadog-agent/pkg/security/agent"
 )
 
@@ -89,7 +88,7 @@ func (s *Server) Start() error {
 	}
 
 	// Use a stack depth of 4 on top of the default one to get a relevant filename in the stdlib
-	logWriter, _ := pkgconfiglogs.NewLogWriter(4, seelog.ErrorLvl)
+	logWriter, _ := config.NewLogWriter(4, seelog.ErrorLvl)
 
 	srv := &http.Server{
 		Handler:      r,

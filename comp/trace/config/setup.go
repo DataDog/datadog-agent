@@ -23,7 +23,6 @@ import (
 	corecompcfg "github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/otelcol/otlp"
 	coreconfig "github.com/DataDog/datadog-agent/pkg/config"
-	pkgconfiglogs "github.com/DataDog/datadog-agent/pkg/config/logs"
 	"github.com/DataDog/datadog-agent/pkg/config/remote"
 	"github.com/DataDog/datadog-agent/pkg/config/remote/data"
 	"github.com/DataDog/datadog-agent/pkg/config/utils"
@@ -842,7 +841,7 @@ func SetHandler() http.Handler {
 				if lvl == "warning" {
 					lvl = "warn"
 				}
-				if err := pkgconfiglogs.ChangeLogLevel(lvl); err != nil {
+				if err := coreconfig.ChangeLogLevel(lvl); err != nil {
 					httpError(w, http.StatusInternalServerError, err)
 					return
 				}

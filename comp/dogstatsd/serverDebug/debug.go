@@ -24,7 +24,6 @@ import (
 	logComponent "github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/ckey"
 	"github.com/DataDog/datadog-agent/pkg/config"
-	pkgconfiglogs "github.com/DataDog/datadog-agent/pkg/config/logs"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/tagset"
 )
@@ -269,6 +268,7 @@ func (d *serverDebug) disableMetricsStats() {
 
 // build a local dogstatsd logger and bubbling up any errors
 func (d *serverDebug) getDogstatsdDebug(cfg config.Reader) slog.LoggerInterface {
+
 	var dogstatsdLogger slog.LoggerInterface
 
 	// Configuring the log file path
@@ -279,7 +279,7 @@ func (d *serverDebug) getDogstatsdDebug(cfg config.Reader) slog.LoggerInterface 
 
 	// Set up dogstatsdLogger
 	if cfg.GetBool("dogstatsd_logging_enabled") {
-		logger, e := pkgconfiglogs.SetupDogstatsdLogger(logFile, cfg)
+		logger, e := config.SetupDogstatsdLogger(logFile)
 		if e != nil {
 			// use component logger instead of global logger.
 			d.log.Errorf("Unable to set up Dogstatsd logger: %v. || Please reach out to Datadog support at https://docs.datadoghq.com/help/ ", e)
@@ -288,4 +288,5 @@ func (d *serverDebug) getDogstatsdDebug(cfg config.Reader) slog.LoggerInterface 
 		dogstatsdLogger = logger
 	}
 	return dogstatsdLogger
+
 }

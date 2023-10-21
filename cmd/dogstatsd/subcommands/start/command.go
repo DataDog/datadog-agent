@@ -31,7 +31,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/api/healthprobe"
 	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
-	pkgconfiglogs "github.com/DataDog/datadog-agent/pkg/config/logs"
 	pkgmetadata "github.com/DataDog/datadog-agent/pkg/metadata"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
@@ -56,7 +55,7 @@ type DogstatsdComponents struct {
 
 const (
 	// loggerName is the name of the dogstatsd logger
-	loggerName pkgconfiglogs.LoggerName = "DSD"
+	loggerName pkgconfig.LoggerName = "DSD"
 )
 
 // MakeCommand returns the start subcommand for the 'dogstatsd' command.
@@ -168,7 +167,7 @@ func RunDogstatsd(ctx context.Context, cliParams *CLIParams, config config.Compo
 	}()
 
 	// Setup logger
-	syslogURI := pkgconfiglogs.GetSyslogURI(config)
+	syslogURI := pkgconfig.GetSyslogURI()
 	logFile := config.GetString("log_file")
 	if logFile == "" {
 		logFile = params.DefaultLogFile
@@ -179,7 +178,7 @@ func RunDogstatsd(ctx context.Context, cliParams *CLIParams, config config.Compo
 		logFile = ""
 	}
 
-	err = pkgconfiglogs.SetupLogger(
+	err = pkgconfig.SetupLogger(
 		loggerName,
 		config.GetString("log_level"),
 		logFile,
@@ -187,7 +186,6 @@ func RunDogstatsd(ctx context.Context, cliParams *CLIParams, config config.Compo
 		config.GetBool("syslog_rfc"),
 		config.GetBool("log_to_console"),
 		config.GetBool("log_format_json"),
-		config,
 	)
 	if err != nil {
 		log.Criticalf("Unable to setup logger: %s", err)
@@ -204,7 +202,7 @@ func RunDogstatsd(ctx context.Context, cliParams *CLIParams, config config.Compo
 	}
 
 	// Setup healthcheck port
-	healthPort := config.GetInt("health_port")
+	var healthPort = config.GetInt("health_port")
 	if healthPort > 0 {
 		err = healthprobe.Serve(ctx, healthPort)
 		if err != nil {

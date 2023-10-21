@@ -18,11 +18,10 @@ import (
 	logComponent "github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
 	"github.com/DataDog/datadog-agent/pkg/config"
-	pkgconfiglogs "github.com/DataDog/datadog-agent/pkg/config/logs"
 	"github.com/DataDog/datadog-agent/pkg/util/filesystem"
 )
 
-const LoggerName pkgconfiglogs.LoggerName = "PROCESS"
+const LoggerName config.LoggerName = "PROCESS"
 
 // DaemonLogParams are the log params should be given to the `core.BundleParams` for when the process agent is running as a daemon
 var DaemonLogParams = logComponent.ForDaemon(string(LoggerName), "process_config.log_file", config.DefaultProcessAgentLogFile)
