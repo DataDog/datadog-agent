@@ -8,6 +8,8 @@ go 1.20
 
 replace github.com/DataDog/datadog-agent/test/fakeintake => ../fakeintake
 
+replace github.com/DataDog/test-infra-definitions => ../../../test-infra-definitions
+
 require (
 	github.com/DataDog/datadog-agent/test/fakeintake v0.49.0-rc.2
 	// Are you bumping github.com/DataDog/test-infra-definitions ?
@@ -15,7 +17,7 @@ require (
 	// `TEST_INFRA_DEFINITIONS_BUILDIMAGES` matches the commit sha in the module version
 	// Example: 	github.com/DataDog/test-infra-definitions v0.0.0-YYYYMMDDHHmmSS-0123456789AB
 	// => TEST_INFRA_DEFINITIONS_BUILDIMAGES: 0123456789AB
-	github.com/DataDog/test-infra-definitions v0.0.0-20231020214536-0e9e6ffe5cf8
+	github.com/DataDog/test-infra-definitions v0.0.0-20231021090747-52cb4b7751e2
 	github.com/aws/aws-sdk-go-v2 v1.21.2
 	github.com/aws/aws-sdk-go-v2/config v1.18.40
 	github.com/aws/aws-sdk-go-v2/service/eks v1.29.7
