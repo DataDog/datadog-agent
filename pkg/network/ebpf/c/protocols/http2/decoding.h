@@ -51,7 +51,7 @@ static __always_inline bool read_var_int_with_given_current_char(struct __sk_buf
         return true;
     }
 
-    if (skb_info->data_off <= skb->len) {
+    if (skb_info->data_off <= skb_info->data_end) {
         __u8 next_char = 0;
         bpf_skb_load_bytes(skb, skb_info->data_off, &next_char, sizeof(next_char));
         if ((next_char & 128) == 0) {
@@ -72,7 +72,7 @@ static __always_inline bool read_var_int_with_given_current_char(struct __sk_buf
 //
 // The returned remain buffer is either a smaller suffix of p, or err != nil.
 static __always_inline bool read_var_int(struct __sk_buff *skb, skb_info_t *skb_info, __u8 max_number_for_bits, __u8 *out) {
-    if (skb_info->data_off > skb->len) {
+    if (skb_info->data_off > skb_info->data_end) {
         return false;
     }
     __u8 current_char_as_number = 0;
@@ -148,7 +148,7 @@ static __always_inline bool parse_field_literal(struct __sk_buff *skb, skb_info_
     }
 
     __u32 final_size = str_len < HTTP2_MAX_PATH_LEN ? str_len : HTTP2_MAX_PATH_LEN;
-    if (skb_info->data_off + final_size > skb->len) {
+    if (skb_info->data_off + final_size > skb_info->data_end) {
         goto end;
     }
 
@@ -168,7 +168,7 @@ static __always_inline __u8 filter_relevant_headers(struct __sk_buff *skb, skb_i
     __u8 interesting_headers = 0;
     http2_header_t *current_header;
     const __u32 frame_end = skb_info->data_off + frame_length;
-    const __u32 end = frame_end < skb->len + 1 ? frame_end : skb->len + 1;
+    const __u32 end = frame_end < skb_info->data_end + 1 ? frame_end : skb_info->data_end + 1;
     bool is_literal = false;
     bool is_indexed = false;
     __u8 max_bits = 0;
@@ -350,7 +350,7 @@ static __always_inline bool format_http2_frame_header(struct http2_frame *out) {
 }
 
 static __always_inline void skip_preface(struct __sk_buff *skb, skb_info_t *skb_info) {
-    if (skb_info->data_off + HTTP2_MARKER_SIZE <= skb->len) {
+    if (skb_info->data_off + HTTP2_MARKER_SIZE <= skb_info->data_end) {
         char preface[HTTP2_MARKER_SIZE];
         bpf_memset((char *)preface, 0, HTTP2_MARKER_SIZE);
         bpf_skb_load_bytes(skb, skb_info->data_off, preface, HTTP2_MARKER_SIZE);
@@ -371,7 +371,7 @@ static __always_inline __u8 find_relevant_headers(struct __sk_buff *skb, skb_inf
 #pragma unroll(HTTP2_MAX_FRAMES_TO_FILTER)
     for (__u32 iteration = 0; iteration < HTTP2_MAX_FRAMES_TO_FILTER; ++iteration) {
         // Checking we can read HTTP2_FRAME_HEADER_SIZE from the skb.
-        if (skb_info->data_off + HTTP2_FRAME_HEADER_SIZE > skb->len) {
+        if (skb_info->data_off + HTTP2_FRAME_HEADER_SIZE > skb_info->data_end) {
             break;
         }
         if (interesting_frame_index >= HTTP2_MAX_FRAMES_ITERATIONS) {
@@ -488,7 +488,7 @@ int socket__http2_frames_parser(struct __sk_buff *skb) {
     local_skb_info.data_off = current_frame.offset;
 
     parse_frame(skb, &local_skb_info, &dispatcher_args_copy.tup, http2_ctx, &current_frame.frame);
-    if (local_skb_info.data_off >= skb->len) {
+    if (local_skb_info.data_off >= local_skb_info.data_end) {
         goto delete_iteration;
     }
 
