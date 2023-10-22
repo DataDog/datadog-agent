@@ -1,6 +1,17 @@
 #ifndef __HTTP2_MAPS_DEFS_H
 #define __HTTP2_MAPS_DEFS_H
 
+// http2_packet_context maps a connection tuple to the reminder from the previous packet.
+// It is possible for frames to be split to multiple tcp packets, so we need to associate the reminder from the previous
+// packet, to the current one.
+typedef struct {
+    __u32 reminder;
+    __u32 header_length;
+    char buf[HTTP2_FRAME_HEADER_SIZE];
+} frame_header_reminder_t;
+
+BPF_HASH_MAP(http2_reminder, conn_tuple_t, frame_header_reminder_t, 2048)
+
 // http2_static_table is the map that holding the supported static values by index and its static value.
 BPF_HASH_MAP(http2_static_table, u8, static_table_value_t, 20)
 
