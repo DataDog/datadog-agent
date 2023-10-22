@@ -6,17 +6,17 @@
 package logs
 
 import (
-	"github.com/DataDog/datadog-agent/pkg/config/model"
+	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // GetSyslogURI returns the configured/default syslog uri
-func GetSyslogURI(cfg model.Reader) string {
+func GetSyslogURI(cfg pkgconfigmodel.Reader) string {
 	return GetSyslogURIFromConfig(cfg)
 }
 
 // GetSyslogURIFromConfig is like GetSyslogURI but reads from the provided config
-func GetSyslogURIFromConfig(cfg model.Reader) string {
+func GetSyslogURIFromConfig(cfg pkgconfigmodel.Reader) string {
 	enabled := cfg.GetBool("log_to_syslog")
 
 	if enabled {

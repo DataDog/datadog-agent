@@ -11,14 +11,14 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/DataDog/datadog-agent/pkg/config/model"
+	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/stretchr/testify/assert"
 )
 
 func TestGetSyslogURI(t *testing.T) {
 	assert := assert.New(t)
 
-	mockConfig := model.NewConfig("test", "DD", strings.NewReplacer(".", "_"))
+	mockConfig := pkgconfigmodel.NewConfig("test", "DD", strings.NewReplacer(".", "_"))
 
 	mockConfig.Set("log_to_syslog", true)
 	mockConfig.Set("syslog_uri", "")
@@ -37,7 +37,7 @@ func TestGetSyslogURI(t *testing.T) {
 
 func TestSetupLoggingNowhere(t *testing.T) {
 	// setup logger so that it logs nowhere: i.e.  not to file, not to syslog, not to console
-	mockConfig := model.NewConfig("test", "DD", strings.NewReplacer(".", "_"))
+	mockConfig := pkgconfigmodel.NewConfig("test", "DD", strings.NewReplacer(".", "_"))
 	seelogConfig, _ = buildLoggerConfig("agent", "info", "", "", false, false, false, mockConfig)
 	loggerInterface, err := GenerateLoggerInterface(seelogConfig)
 

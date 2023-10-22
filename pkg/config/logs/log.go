@@ -19,7 +19,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/config/model"
+	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
 	"github.com/cihub/seelog"
@@ -53,7 +53,7 @@ var (
 	dogstatsdSeelogConfig *seelogCfg.Config
 )
 
-func getLogDateFormat(cfg model.Reader) string {
+func getLogDateFormat(cfg pkgconfigmodel.Reader) string {
 	if cfg.GetBool("log_format_rfc3339") {
 		return time.RFC3339
 	}
@@ -66,7 +66,7 @@ func createQuoteMsgFormatter(params string) seelog.FormatterFunc { //nolint:revi
 	}
 }
 
-func getSyslogTLSKeyPair(cfg model.Reader) (*tls.Certificate, error) {
+func getSyslogTLSKeyPair(cfg pkgconfigmodel.Reader) (*tls.Certificate, error) {
 	var syslogTLSKeyPair *tls.Certificate
 	if cfg.IsSet("syslog_pem") && cfg.IsSet("syslog_key") {
 		cert := cfg.GetString("syslog_pem")
@@ -93,7 +93,7 @@ func getSyslogTLSKeyPair(cfg model.Reader) (*tls.Certificate, error) {
 // if a non empty logFile is provided, it will also log to the file
 // a non empty syslogURI will enable syslog, and format them following RFC 5424 if specified
 // you can also specify to log to the console and in JSON format
-func SetupLogger(loggerName LoggerName, logLevel, logFile, syslogURI string, syslogRFC, logToConsole, jsonFormat bool, cfg model.Reader) error {
+func SetupLogger(loggerName LoggerName, logLevel, logFile, syslogURI string, syslogRFC, logToConsole, jsonFormat bool, cfg pkgconfigmodel.Reader) error {
 	seelogLogLevel, err := validateLogLevel(logLevel)
 	if err != nil {
 		return err
@@ -116,7 +116,7 @@ func SetupLogger(loggerName LoggerName, logLevel, logFile, syslogURI string, sys
 // if a non empty logFile is provided, it will also log to the file
 // a non empty syslogURI will enable syslog, and format them following RFC 5424 if specified
 // you can also specify to log to the console and in JSON format
-func SetupJMXLogger(logFile, syslogURI string, syslogRFC, logToConsole, jsonFormat bool, cfg model.Reader) error {
+func SetupJMXLogger(logFile, syslogURI string, syslogRFC, logToConsole, jsonFormat bool, cfg pkgconfigmodel.Reader) error {
 	// The JMX logger always logs at level "info", because JMXFetch does its
 	// own level filtering on and provides all messages to seelog at the info
 	// or error levels, via log.JMXInfo and log.JMXError.
@@ -138,7 +138,7 @@ func SetupJMXLogger(logFile, syslogURI string, syslogRFC, logToConsole, jsonForm
 
 // SetupDogstatsdLogger sets up a logger with dogstatsd logger name and log level
 // if a non empty logFile is provided, it will also log to the file
-func SetupDogstatsdLogger(logFile string, cfg model.Reader) (seelog.LoggerInterface, error) {
+func SetupDogstatsdLogger(logFile string, cfg pkgconfigmodel.Reader) (seelog.LoggerInterface, error) {
 	seelogLogLevel, err := validateLogLevel("info")
 	if err != nil {
 		return nil, err
@@ -154,7 +154,7 @@ func SetupDogstatsdLogger(logFile string, cfg model.Reader) (seelog.LoggerInterf
 	return dogstatsdLoggerInterface, nil
 }
 
-func buildDogstatsdLoggerConfig(loggerName LoggerName, seelogLogLevel, logFile string, cfg model.Reader) *seelogCfg.Config {
+func buildDogstatsdLoggerConfig(loggerName LoggerName, seelogLogLevel, logFile string, cfg pkgconfigmodel.Reader) *seelogCfg.Config {
 	config := seelogCfg.NewSeelogConfig(string(loggerName), seelogLogLevel, "common", "", buildCommonFormat(loggerName, cfg), false)
 
 	// Configuring max roll for log file, if dogstatsd_log_file_max_rolls env var is not set (or set improperly ) within datadog.yaml then default value is 3
@@ -170,7 +170,7 @@ func buildDogstatsdLoggerConfig(loggerName LoggerName, seelogLogLevel, logFile s
 	return config
 }
 
-func buildLoggerConfig(loggerName LoggerName, seelogLogLevel, logFile, syslogURI string, syslogRFC, logToConsole, jsonFormat bool, cfg model.Reader) (*seelogCfg.Config, error) {
+func buildLoggerConfig(loggerName LoggerName, seelogLogLevel, logFile, syslogURI string, syslogRFC, logToConsole, jsonFormat bool, cfg pkgconfigmodel.Reader) (*seelogCfg.Config, error) {
 	formatID := "common"
 	if jsonFormat {
 		formatID = "json"
