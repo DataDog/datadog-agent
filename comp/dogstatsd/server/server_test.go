@@ -666,7 +666,7 @@ func TestNoMappingsConfig(t *testing.T) {
 
 	deps := fulfillDepsWithConfigYaml(t, datadogYaml)
 	s := deps.Server.(*server)
-	cw := deps.Config.(config.ConfigWriter)
+	cw := deps.Config.(config.Writer)
 	cw.Set("dogstatsd_port", listeners.RandomPortName)
 
 	samples := []metrics.MetricSample{}
@@ -677,7 +677,7 @@ func TestNoMappingsConfig(t *testing.T) {
 
 	assert.Nil(t, s.mapper)
 
-	parser := newParser(deps.Config, newFloat64ListPool())
+	parser := newParser(deps.Config, newFloat64ListPool(), 1)
 	samples, err := s.parseMetricMessage(samples, parser, []byte("test.metric:666|g"), "", false)
 	assert.NoError(t, err)
 	assert.Len(t, samples, 1)
@@ -779,7 +779,7 @@ dogstatsd_mapper_profiles:
 			deps := fulfillDepsWithConfigYaml(t, scenario.config)
 
 			s := deps.Server.(*server)
-			cw := deps.Config.(config.ConfigReaderWriter)
+			cw := deps.Config.(config.ReaderWriter)
 
 			cw.Set("dogstatsd_port", listeners.RandomPortName)
 
@@ -791,7 +791,7 @@ dogstatsd_mapper_profiles:
 
 			var actualSamples []MetricSample
 			for _, p := range scenario.packets {
-				parser := newParser(deps.Config, newFloat64ListPool())
+				parser := newParser(deps.Config, newFloat64ListPool(), 1)
 				samples, err := s.parseMetricMessage(samples, parser, []byte(p), "", false)
 				assert.NoError(t, err, "Case `%s` failed. parseMetricMessage should not return error %v", err)
 				for _, sample := range samples {
@@ -866,7 +866,7 @@ func TestProcessedMetricsOrigin(t *testing.T) {
 		assert.Len(s.cachedOriginCounters, 0, "this cache must be empty")
 		assert.Len(s.cachedOrder, 0, "this cache list must be empty")
 
-		parser := newParser(deps.Config, newFloat64ListPool())
+		parser := newParser(deps.Config, newFloat64ListPool(), 1)
 		samples := []metrics.MetricSample{}
 		samples, err := s.parseMetricMessage(samples, parser, []byte("test.metric:666|g"), "container_id://test_container", false)
 		assert.NoError(err)
@@ -940,7 +940,7 @@ func testContainerIDParsing(t *testing.T, cfg map[string]interface{}) {
 	requireStart(t, s, mockDemultiplexer(deps.Config, deps.Log))
 	s.Stop()
 
-	parser := newParser(deps.Config, newFloat64ListPool())
+	parser := newParser(deps.Config, newFloat64ListPool(), 1)
 	parser.dsdOriginEnabled = true
 
 	// Metric
@@ -982,7 +982,7 @@ func testOriginOptout(t *testing.T, cfg map[string]interface{}, enabled bool) {
 	requireStart(t, s, mockDemultiplexer(deps.Config, deps.Log))
 	s.Stop()
 
-	parser := newParser(deps.Config, newFloat64ListPool())
+	parser := newParser(deps.Config, newFloat64ListPool(), 1)
 	parser.dsdOriginEnabled = true
 
 	// Metric

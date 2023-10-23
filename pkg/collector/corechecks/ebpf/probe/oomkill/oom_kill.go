@@ -63,7 +63,7 @@ func NewProbe(cfg *ebpf.Config) (*Probe, error) {
 	return loadOOMKillRuntimeCompiledProbe(cfg)
 }
 
-func loadOOMKillCOREProbe(cfg *ebpf.Config) (*Probe, error) {
+func loadOOMKillCOREProbe(cfg *ebpf.Config) (*Probe, error) { //nolint:revive // TODO fix revive unused-parameter
 	kv, err := kernel.HostVersion()
 	if err != nil {
 		return nil, fmt.Errorf("error detecting kernel version: %s", err)
@@ -73,7 +73,7 @@ func loadOOMKillCOREProbe(cfg *ebpf.Config) (*Probe, error) {
 	}
 
 	var probe *Probe
-	err = ebpf.LoadCOREAsset(cfg, "oom-kill.o", func(buf bytecode.AssetReader, opts manager.Options) error {
+	err = ebpf.LoadCOREAsset("oom-kill.o", func(buf bytecode.AssetReader, opts manager.Options) error {
 		probe, err = startOOMKillProbe(buf, opts)
 		return err
 	})

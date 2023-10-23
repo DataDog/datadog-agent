@@ -24,7 +24,7 @@ import (
 )
 
 // NewProcessEventsCheck returns an instance of the ProcessEventsCheck.
-func NewProcessEventsCheck(config ddconfig.ConfigReader) *ProcessEventsCheck {
+func NewProcessEventsCheck(config ddconfig.Reader) *ProcessEventsCheck {
 	return &ProcessEventsCheck{
 		config: config,
 	}
@@ -34,7 +34,7 @@ func NewProcessEventsCheck(config ddconfig.ConfigReader) *ProcessEventsCheck {
 type ProcessEventsCheck struct {
 	initMutex sync.Mutex
 
-	config ddconfig.ConfigReader
+	config ddconfig.Reader
 
 	store    events.Store
 	listener *events.SysProbeListener

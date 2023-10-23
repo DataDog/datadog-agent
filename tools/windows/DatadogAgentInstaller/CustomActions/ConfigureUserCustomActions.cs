@@ -21,7 +21,7 @@ namespace Datadog.CustomActions
         private readonly IFileSystemServices _fileSystemServices;
         private readonly IServiceController _serviceController;
 
-        private RollbackDataStore _rollbackDataStore;
+        private readonly RollbackDataStore _rollbackDataStore;
 
         private SecurityIdentifier _ddAgentUserSID;
         private SecurityIdentifier _previousDdAgentUserSID;
@@ -269,7 +269,7 @@ namespace Datadog.CustomActions
                 }
             }
             // add specific files
-            fsEnum.Add( new List<string>
+            fsEnum.Add(new List<string>
                 {
                     Path.Combine(configRoot, "datadog.yaml"),
                     Path.Combine(configRoot, "system-probe.yaml"),
@@ -284,9 +284,9 @@ namespace Datadog.CustomActions
                 {
                     continue;
                 }
-                FileSystemSecurity fileSystemSecurity =
+                var fileSystemSecurity =
                     _fileSystemServices.GetAccessControl(filePath, AccessControlSections.All);
-                bool changed = false;
+                var changed = false;
 
                 // If changing agent user, remove old user as owner/group from all files/folders
                 if (_previousDdAgentUserSID != null && _previousDdAgentUserSID != _ddAgentUserSID)

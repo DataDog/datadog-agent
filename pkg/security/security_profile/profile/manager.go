@@ -176,7 +176,13 @@ func NewSecurityProfileManager(config *config.Config, statsdClient statsd.Client
 
 	// instantiate directory provider
 	if len(config.RuntimeSecurity.SecurityProfileDir) != 0 {
-		dirProvider, err := NewDirectoryProvider(config.RuntimeSecurity.SecurityProfileDir, config.RuntimeSecurity.SecurityProfileWatchDir)
+		// override the status if autosuppression is enabled
+		var status model.Status
+		if config.RuntimeSecurity.ActivityDumpAutoSuppressionEnabled {
+			status = model.AnomalyDetection | model.AutoSuppression
+		}
+
+		dirProvider, err := NewDirectoryProvider(config.RuntimeSecurity.SecurityProfileDir, config.RuntimeSecurity.SecurityProfileWatchDir, status)
 		if err != nil {
 			return nil, fmt.Errorf("couldn't instantiate a new security profile directory provider: %w", err)
 		}
@@ -642,7 +648,7 @@ func (m *SecurityProfileManager) unlinkProfile(profile *SecurityProfile, workloa
 	}
 
 	if err := m.securityProfileMap.Delete([]byte(workload.ID)); err != nil {
-		seclog.Errorf("couldn't unlink workload %s with profile %s: %v", workload.WorkloadSelector.String(), profile.Metadata.Name, err)
+		seclog.Errorf("couldn't unlink workload %s (selector: %s) with profile %s: %v", workload.ID, workload.WorkloadSelector.String(), profile.Metadata.Name, err)
 	}
 	seclog.Infof("workload %s (selector: %s) successfully unlinked from profile %s", workload.ID, workload.WorkloadSelector.String(), profile.Metadata.Name)
 }

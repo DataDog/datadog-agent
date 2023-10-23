@@ -158,7 +158,7 @@ func (d *dispatcher) expireNodes() {
 				// Requires https://github.com/prometheus/client_golang/pull/1013
 				for k, v := range d.store.idToDigest {
 					if v == digest {
-						configsInfo.Delete(name, string(k), le.JoinLeaderValue)
+						configsInfo.Delete(name, config.Name, string(k), le.JoinLeaderValue)
 					}
 				}
 			}

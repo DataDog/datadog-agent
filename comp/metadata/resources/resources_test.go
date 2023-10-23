@@ -71,7 +71,7 @@ func TestConfInterval(t *testing.T) {
 		),
 	)
 
-	assert.Equal(t, 21*time.Second, ret.Comp.(resources).collectInterval)
+	assert.Equal(t, 21*time.Second, ret.Comp.(*resources).collectInterval)
 }
 
 func TestCollect(t *testing.T) {
@@ -101,7 +101,7 @@ func TestCollect(t *testing.T) {
 		),
 	)
 
-	r := ret.Comp.(resources)
+	r := ret.Comp.(*resources)
 	r.hostname = "resources-test-hostname"
 
 	interval := r.collect(context.Background())
@@ -125,7 +125,7 @@ func TestCollectError(t *testing.T) {
 		),
 	)
 
-	r := ret.Comp.(resources)
+	r := ret.Comp.(*resources)
 	interval := r.collect(context.Background())
 	assert.Equal(t, defaultCollectInterval, interval)
 	s.AssertExpectations(t)

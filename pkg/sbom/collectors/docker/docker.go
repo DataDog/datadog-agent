@@ -32,6 +32,11 @@ type ScanRequest struct {
 	DockerClient client.ImageAPIClient
 }
 
+// GetImgMetadata returns the image metadata
+func (r *ScanRequest) GetImgMetadata() *workloadmeta.ContainerImageMetadata {
+	return r.ImageMeta
+}
+
 // Collector returns the collector name
 func (r *ScanRequest) Collector() string {
 	return collectorName

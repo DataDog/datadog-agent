@@ -25,9 +25,10 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/networkdevice/profile/profiledefinition"
 	coresnmp "github.com/DataDog/datadog-agent/pkg/snmp"
 
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/common"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/checkconfig"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/common"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/fetch"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/profile"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/report"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/session"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/valuestore"
@@ -244,7 +245,7 @@ func (d *DeviceCheck) detectMetricsToMonitor(sess session.Session) error {
 		if err != nil {
 			return fmt.Errorf("failed to fetch sysobjectid: %s", err)
 		}
-		profile, err := checkconfig.GetProfileForSysObjectID(d.config.Profiles, sysObjectID)
+		profile, err := profile.GetProfileForSysObjectID(d.config.Profiles, sysObjectID)
 		if err != nil {
 			return fmt.Errorf("failed to get profile sys object id for `%s`: %s", sysObjectID, err)
 		}
@@ -302,7 +303,7 @@ func (d *DeviceCheck) detectAvailableMetrics() ([]profiledefinition.MetricsConfi
 			}
 		}
 		for _, metricTag := range profileConfig.Definition.MetricTags {
-			if root.LeafExist(metricTag.OID) || root.LeafExist(metricTag.Column.OID) {
+			if root.LeafExist(metricTag.Symbol.OID) {
 				if metricTag.Tag != "" {
 					if alreadyGlobalTags[metricTag.Tag] {
 						continue

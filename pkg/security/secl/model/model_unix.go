@@ -6,7 +6,7 @@
 //go:build unix
 // +build unix
 
-//go:generate go run github.com/DataDog/datadog-agent/pkg/security/secl/compiler/generators/accessors -tags unix -types-file model.go -output accessors_unix.go -field-handlers field_handlers_unix.go -doc ../../../../docs/cloud-workload-security/secl.json
+//go:generate go run github.com/DataDog/datadog-agent/pkg/security/secl/compiler/generators/accessors -tags unix -types-file model.go -output accessors_unix.go -field-handlers field_handlers_unix.go -doc ../../../../docs/cloud-workload-security/secl.json -field-accessors-output field_accessors_unix.go
 
 // Package model holds model related files
 package model
@@ -248,14 +248,14 @@ type Credentials struct {
 
 // Equals returns if both credentials are equal
 func (c *Credentials) Equals(o *Credentials) bool {
-	return (c.UID == o.UID &&
+	return c.UID == o.UID &&
 		c.GID == o.GID &&
 		c.EUID == o.EUID &&
 		c.EGID == o.EGID &&
 		c.FSUID == o.FSUID &&
 		c.FSGID == o.FSGID &&
 		c.CapEffective == o.CapEffective &&
-		c.CapPermitted == o.CapPermitted)
+		c.CapPermitted == o.CapPermitted
 }
 
 // SetSpan sets the span
@@ -300,10 +300,11 @@ type Process struct {
 	LinuxBinprm LinuxBinprm `field:"interpreter,check:HasInterpreter"` // Script interpreter as identified by the shebang
 
 	// pid_cache_t
-	ForkTime time.Time `field:"-" json:"-"`
-	ExitTime time.Time `field:"-" json:"-"`
-	ExecTime time.Time `field:"-" json:"-"`
+	ForkTime time.Time `field:"fork_time,opts:getters_only" json:"-"`
+	ExitTime time.Time `field:"exit_time,opts:getters_only" json:"-"`
+	ExecTime time.Time `field:"exec_time,opts:getters_only" json:"-"`
 
+	// TODO: merge with ExecTime
 	CreatedAt uint64 `field:"created_at,handler:ResolveProcessCreatedAt"` // SECLDoc[created_at] Definition:`Timestamp of the creation of the process`
 
 	Cookie uint64 `field:"-"`
@@ -545,16 +546,18 @@ type SELinuxEvent struct {
 }
 
 const (
-	ProcessCacheEntryFromUnknown   = iota // ProcessCacheEntryFromUnknown defines a process cache entry from unknown
-	ProcessCacheEntryFromEvent            // ProcessCacheEntryFromEvent defines a process cache entry from event
-	ProcessCacheEntryFromKernelMap        // ProcessCacheEntryFromKernelMap defines a process cache entry from kernel map
-	ProcessCacheEntryFromProcFS           // ProcessCacheEntryFromProcFS defines a process cache entry from procfs. Note that some exec parent may be missing.
-	ProcessCacheEntryFromSnapshot         // ProcessCacheEntryFromSnapshot defines a process cache entry from snapshot
+	ProcessCacheEntryFromUnknown     = iota // ProcessCacheEntryFromUnknown defines a process cache entry from unknown
+	ProcessCacheEntryFromPlaceholder        // ProcessCacheEntryFromPlaceholder defines the source of a placeholder process cache entry
+	ProcessCacheEntryFromEvent              // ProcessCacheEntryFromEvent defines a process cache entry from event
+	ProcessCacheEntryFromKernelMap          // ProcessCacheEntryFromKernelMap defines a process cache entry from kernel map
+	ProcessCacheEntryFromProcFS             // ProcessCacheEntryFromProcFS defines a process cache entry from procfs. Note that some exec parent may be missing.
+	ProcessCacheEntryFromSnapshot           // ProcessCacheEntryFromSnapshot defines a process cache entry from snapshot
 )
 
 // ProcessSources defines process sources
 var ProcessSources = [...]string{
 	"unknown",
+	"placeholder",
 	"event",
 	"map",
 	"procfs_fallback",

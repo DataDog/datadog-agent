@@ -39,6 +39,18 @@ const (
 	ProfileMetricTypePercent ProfileMetricType = "percent"
 )
 
+// SymbolConfigCompat is used to deserialize string field or SymbolConfig.
+// For OID/Name to Symbol harmonization:
+// When users declare metric tag like:
+//
+//	metric_tags:
+//	  - OID: 1.2.3
+//	    symbol: aSymbol
+//
+// this will lead to OID stored as MetricTagConfig.OID  and name stored as MetricTagConfig.Symbol.Name
+// When this happens, in ValidateEnrichMetricTags we harmonize by moving MetricTagConfig.OID to MetricTagConfig.Symbol.OID.
+type SymbolConfigCompat SymbolConfig
+
 // SymbolConfig holds info for a single symbol/oid
 type SymbolConfig struct {
 	OID  string `yaml:"OID,omitempty" json:"OID,omitempty"`
@@ -47,8 +59,9 @@ type SymbolConfig struct {
 	ExtractValue         string         `yaml:"extract_value,omitempty" json:"extract_value,omitempty"`
 	ExtractValueCompiled *regexp.Regexp `yaml:"-" json:"-"`
 
-	MatchPattern         string         `yaml:"match_pattern,omitempty" json:"match_pattern,omitempty"`
-	MatchValue           string         `yaml:"match_value,omitempty" json:"match_value,omitempty"`
+	// MatchPattern/MatchValue are not exposed as json (UI) since ExtractValue can be used instead
+	MatchPattern         string         `yaml:"match_pattern,omitempty" json:"-"`
+	MatchValue           string         `yaml:"match_value,omitempty" json:"-"`
 	MatchPatternCompiled *regexp.Regexp `yaml:"-" json:"-"`
 
 	ScaleFactor      float64 `yaml:"scale_factor,omitempty" json:"scale_factor,omitempty"`
@@ -69,20 +82,22 @@ type MetricTagConfig struct {
 	// Table config
 	Index uint `yaml:"index,omitempty" json:"index,omitempty"`
 
-	// TODO: refactor to rename to `symbol` instead (keep backward compat with `column`)
-	Column SymbolConfig `yaml:"column,omitempty" json:"column,omitempty"`
+	// DEPRECATED: Column field is deprecated in favour Symbol field
+	Column SymbolConfig `yaml:"column,omitempty" json:"-"`
 
 	// Symbol config
-	OID  string `yaml:"OID,omitempty" json:"OID,omitempty"`
-	Name string `yaml:"symbol,omitempty" json:"symbol,omitempty"`
+	OID string `yaml:"OID,omitempty" json:"-"  jsonschema:"-"` // DEPRECATED replaced by Symbol field
+	// Using Symbol field below as string is deprecated
+	Symbol SymbolConfigCompat `yaml:"symbol,omitempty" json:"symbol,omitempty"`
 
 	IndexTransform []MetricIndexTransform `yaml:"index_transform,omitempty" json:"index_transform,omitempty"`
 
-	Mapping map[string]string `yaml:"mapping,omitempty" json:"mapping,omitempty"`
+	Mapping ListMap[string] `yaml:"mapping,omitempty" json:"mapping,omitempty"`
 
 	// Regex
-	Match   string            `yaml:"match,omitempty" json:"match,omitempty"`
-	Tags    map[string]string `yaml:"tags,omitempty" json:"tags,omitempty"`
+	// Match/Tags are not exposed as json (UI) since ExtractValue can be used instead
+	Match   string            `yaml:"match,omitempty" json:"-"`
+	Tags    map[string]string `yaml:"tags,omitempty" json:"-"`
 	Pattern *regexp.Regexp    `yaml:"-" json:"-"`
 
 	SymbolTag string `yaml:"-" json:"-"`
@@ -121,13 +136,15 @@ type MetricsConfig struct {
 	// Table configs
 	Symbols []SymbolConfig `yaml:"symbols,omitempty" json:"symbols,omitempty"`
 
-	StaticTags []string            `yaml:"static_tags,omitempty" json:"static_tags,omitempty"`
+	// `static_tags` is not exposed as json at the moment since we need to evaluate if we want to expose it via UI
+	StaticTags []string            `yaml:"static_tags,omitempty" json:"-"`
 	MetricTags MetricTagConfigList `yaml:"metric_tags,omitempty" json:"metric_tags,omitempty"`
 
 	ForcedType ProfileMetricType `yaml:"forced_type,omitempty" json:"forced_type,omitempty" jsonschema:"-"` // deprecated in favour of metric_type
 	MetricType ProfileMetricType `yaml:"metric_type,omitempty" json:"metric_type,omitempty"`
 
-	Options MetricsConfigOption `yaml:"options,omitempty" json:"options,omitempty"`
+	// `options` is not exposed as json at the moment since we need to evaluate if we want to expose it via UI
+	Options MetricsConfigOption `yaml:"options,omitempty" json:"-"`
 }
 
 // GetSymbolTags returns symbol tags

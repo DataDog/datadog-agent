@@ -11,6 +11,9 @@ import (
 	"fmt"
 	"time"
 
+	"go.uber.org/atomic"
+	"go.uber.org/fx"
+
 	configComponent "github.com/DataDog/datadog-agent/comp/core/config"
 	logComponent "github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
@@ -30,8 +33,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/startstop"
-	"go.uber.org/atomic"
-	"go.uber.org/fx"
 )
 
 const (
@@ -57,7 +58,7 @@ type dependencies struct {
 // a description of its operation.
 type agent struct {
 	log    logComponent.Component
-	config pkgConfig.ConfigReader
+	config pkgConfig.Reader
 
 	sources                   *sources.LogSources
 	services                  *service.Services
@@ -130,12 +131,12 @@ func (a *agent) start(context.Context) error {
 }
 
 func (a *agent) setupAgent() error {
-
-	status.CurrentTransport = status.TransportTCP
 	if a.endpoints.UseHTTP {
-		status.CurrentTransport = status.TransportHTTP
+		status.SetCurrentTransport(status.TransportHTTP)
+	} else {
+		status.SetCurrentTransport(status.TransportTCP)
 	}
-	inventories.SetAgentMetadata(inventories.AgentLogsTransport, status.CurrentTransport)
+	inventories.SetAgentMetadata(inventories.AgentLogsTransport, string(status.GetCurrentTransport()))
 
 	// setup global processing rules
 	processingRules, err := config.GlobalProcessingRules(a.config)

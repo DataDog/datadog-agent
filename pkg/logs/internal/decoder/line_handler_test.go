@@ -56,26 +56,26 @@ func TestSingleLineHandler(t *testing.T) {
 	line = "hello world"
 	h.process(getDummyMessageWithLF(line))
 	output = <-outputChan
-	assert.Equal(t, line, string(output.Content))
+	assert.Equal(t, line, string(output.GetContent()))
 	assert.Equal(t, len(line)+1, output.RawDataLen)
 
 	// too long line should be truncated
 	line = strings.Repeat("a", contentLenLimit+10)
 	h.process(getDummyMessage(line))
 	output = <-outputChan
-	assert.Equal(t, len(line)+len(truncatedFlag), len(output.Content))
+	assert.Equal(t, len(line)+len(truncatedFlag), len(output.GetContent()))
 	assert.Equal(t, len(line), output.RawDataLen)
 
 	line = strings.Repeat("a", contentLenLimit+10)
 	h.process(getDummyMessage(line))
 	output = <-outputChan
-	assert.Equal(t, len(truncatedFlag)+len(line)+len(truncatedFlag), len(output.Content))
+	assert.Equal(t, len(truncatedFlag)+len(line)+len(truncatedFlag), len(output.GetContent()))
 	assert.Equal(t, len(line), output.RawDataLen)
 
 	line = strings.Repeat("a", 10)
 	h.process(getDummyMessageWithLF(line))
 	output = <-outputChan
-	assert.Equal(t, string(truncatedFlag)+line, string(output.Content))
+	assert.Equal(t, string(truncatedFlag)+line, string(output.GetContent()))
 	assert.Equal(t, len(line)+1, output.RawDataLen)
 }
 
@@ -89,7 +89,7 @@ func TestTrimSingleLine(t *testing.T) {
 	line := whitespace + "foo" + whitespace + "bar" + whitespace
 	h.process(getDummyMessageWithLF(line))
 	output = <-outputChan
-	assert.Equal(t, "foo"+whitespace+"bar", string(output.Content))
+	assert.Equal(t, "foo"+whitespace+"bar", string(output.GetContent()))
 	assert.Equal(t, len(line)+1, output.RawDataLen)
 }
 
@@ -109,14 +109,14 @@ func TestMultiLineHandler(t *testing.T) {
 
 	output = <-outputChan
 	var expectedContent = "1.first\\nsecond"
-	assert.Equal(t, expectedContent, string(output.Content))
+	assert.Equal(t, expectedContent, string(output.GetContent()))
 	assert.Equal(t, len(expectedContent), output.RawDataLen)
 
 	assertNothingInChannel(t, outputChan)
 	h.flush()
 
 	output = <-outputChan
-	assert.Equal(t, "2. first line", string(output.Content))
+	assert.Equal(t, "2. first line", string(output.GetContent()))
 	assert.Equal(t, len("2. first line")+1, output.RawDataLen)
 
 	assertNothingInChannel(t, outputChan)
@@ -127,14 +127,14 @@ func TestMultiLineHandler(t *testing.T) {
 	h.process(getDummyMessageWithLF("con"))
 
 	output = <-outputChan
-	assert.Equal(t, "3. stringssssssize20...TRUNCATED...", string(output.Content))
+	assert.Equal(t, "3. stringssssssize20...TRUNCATED...", string(output.GetContent()))
 	assert.Equal(t, len("3. stringssssssize20"), output.RawDataLen)
 
 	assertNothingInChannel(t, outputChan)
 	h.flush()
 
 	output = <-outputChan
-	assert.Equal(t, "...TRUNCATED...con", string(output.Content))
+	assert.Equal(t, "...TRUNCATED...con", string(output.GetContent()))
 	assert.Equal(t, 4, output.RawDataLen)
 
 	// second line + TRUNCATED too long
@@ -142,11 +142,11 @@ func TestMultiLineHandler(t *testing.T) {
 	h.process(getDummyMessageWithLF("continue"))
 
 	output = <-outputChan
-	assert.Equal(t, "4. stringssssssize20...TRUNCATED...", string(output.Content))
+	assert.Equal(t, "4. stringssssssize20...TRUNCATED...", string(output.GetContent()))
 	assert.Equal(t, len("4. stringssssssize20"), output.RawDataLen)
 
 	output = <-outputChan
-	assert.Equal(t, "...TRUNCATED...continue...TRUNCATED...", string(output.Content))
+	assert.Equal(t, "...TRUNCATED...continue...TRUNCATED...", string(output.GetContent()))
 	assert.Equal(t, 9, output.RawDataLen)
 
 	// continuous too long lines
@@ -158,22 +158,22 @@ func TestMultiLineHandler(t *testing.T) {
 	h.process(getDummyMessageWithLF(shortLineTracingSpaces))
 
 	output = <-outputChan
-	assert.Equal(t, "5. stringssssssize20...TRUNCATED...", string(output.Content))
+	assert.Equal(t, "5. stringssssssize20...TRUNCATED...", string(output.GetContent()))
 	assert.Equal(t, len("5. stringssssssize20"), output.RawDataLen)
 
 	output = <-outputChan
-	assert.Equal(t, "...TRUNCATED...continu             ...TRUNCATED...", string(output.Content))
+	assert.Equal(t, "...TRUNCATED...continu             ...TRUNCATED...", string(output.GetContent()))
 	assert.Equal(t, len(longLineTracingSpaces), output.RawDataLen)
 
 	output = <-outputChan
-	assert.Equal(t, "...TRUNCATED...end", string(output.Content))
+	assert.Equal(t, "...TRUNCATED...end", string(output.GetContent()))
 	assert.Equal(t, len("end\n"), output.RawDataLen)
 
 	assertNothingInChannel(t, outputChan)
 	h.flush()
 
 	output = <-outputChan
-	assert.Equal(t, "6. next line", string(output.Content))
+	assert.Equal(t, "6. next line", string(output.GetContent()))
 	assert.Equal(t, len(shortLineTracingSpaces)+1, output.RawDataLen)
 }
 
@@ -191,7 +191,7 @@ func TestTrimMultiLine(t *testing.T) {
 	h.flush()
 
 	output = <-outputChan
-	assert.Equal(t, "foo"+whitespace+"bar", string(output.Content))
+	assert.Equal(t, "foo"+whitespace+"bar", string(output.GetContent()))
 	assert.Equal(t, len(whitespace+"foo"+whitespace+"bar"+whitespace)+1, output.RawDataLen)
 
 	// With line break
@@ -202,7 +202,7 @@ func TestTrimMultiLine(t *testing.T) {
 	h.flush()
 
 	output = <-outputChan
-	assert.Equal(t, "foo"+whitespace+"\\n"+"bar", string(output.Content))
+	assert.Equal(t, "foo"+whitespace+"\\n"+"bar", string(output.GetContent()))
 	assert.Equal(t, len(whitespace+"foo"+whitespace)+1+len("bar"+whitespace)+1, output.RawDataLen)
 }
 
@@ -222,7 +222,7 @@ func TestMultiLineHandlerDropsEmptyMessages(t *testing.T) {
 	h.flush()
 
 	output = <-outputChan
-	assert.Equal(t, "1.third line\\nfourth line", string(output.Content))
+	assert.Equal(t, "1.third line\\nfourth line", string(output.GetContent()))
 }
 
 func TestSingleLineHandlerSendsRawInvalidMessages(t *testing.T) {
@@ -232,7 +232,7 @@ func TestSingleLineHandlerSendsRawInvalidMessages(t *testing.T) {
 	h.process(getDummyMessage("one message"))
 
 	output := <-outputChan
-	assert.Equal(t, "one message", string(output.Content))
+	assert.Equal(t, "one message", string(output.GetContent()))
 }
 
 func TestMultiLineHandlerSendsRawInvalidMessages(t *testing.T) {
@@ -249,7 +249,7 @@ func TestMultiLineHandlerSendsRawInvalidMessages(t *testing.T) {
 	h.flush()
 
 	output = <-outputChan
-	assert.Equal(t, "1.third line\\nfourth line", string(output.Content))
+	assert.Equal(t, "1.third line\\nfourth line", string(output.GetContent()))
 }
 
 func TestAutoMultiLineHandlerStaysSingleLineMode(t *testing.T) {
@@ -299,7 +299,7 @@ func TestAutoMultiLineHandlerHandelsMessage(t *testing.T) {
 	h.process(getDummyMessageWithLF("Jul 12, 2021 12:55:15 PM another test message"))
 	output := <-outputChan
 
-	assert.Equal(t, "Jul 12, 2021 12:55:15 PM test message 2\\njava.lang.Exception: boom\\nat Main.funcd(Main.java:62)\\nat Main.funcc(Main.java:60)\\nat Main.funcb(Main.java:58)", string(output.Content))
+	assert.Equal(t, "Jul 12, 2021 12:55:15 PM test message 2\\njava.lang.Exception: boom\\nat Main.funcd(Main.java:62)\\nat Main.funcc(Main.java:60)\\nat Main.funcb(Main.java:58)", string(output.GetContent()))
 }
 
 func TestAutoMultiLineHandlerHandelsMessageConflictingPatterns(t *testing.T) {
@@ -324,7 +324,7 @@ func TestAutoMultiLineHandlerHandelsMessageConflictingPatterns(t *testing.T) {
 	h.process(getDummyMessageWithLF("Jul 12, 2021 12:55:15 PM another test message"))
 	output := <-outputChan
 
-	assert.Equal(t, "Jul 12, 2021 12:55:15 PM test message 2\\njava.lang.Exception: boom\\nat Main.funcd(Main.java:62)\\nat Main.funcc(Main.java:60)\\nat Main.funcb(Main.java:58)", string(output.Content))
+	assert.Equal(t, "Jul 12, 2021 12:55:15 PM test message 2\\njava.lang.Exception: boom\\nat Main.funcd(Main.java:62)\\nat Main.funcc(Main.java:60)\\nat Main.funcb(Main.java:58)", string(output.GetContent()))
 }
 
 func TestAutoMultiLineHandlerHandelsMessageConflictingPatternsNoWinner(t *testing.T) {
@@ -347,7 +347,7 @@ func TestAutoMultiLineHandlerHandelsMessageConflictingPatternsNoWinner(t *testin
 	assert.NotNil(t, h.singleLineHandler)
 	assert.Nil(t, h.multiLineHandler)
 
-	assert.Equal(t, "Jul 12, 2021 12:55:15 PM test message 2", string(output.Content))
+	assert.Equal(t, "Jul 12, 2021 12:55:15 PM test message 2", string(output.GetContent()))
 }
 
 func TestAutoMultiLineHandlerSwitchesToMultiLineModeWithDelay(t *testing.T) {

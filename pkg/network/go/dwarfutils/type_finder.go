@@ -115,8 +115,21 @@ func (f *TypeFinder) FindStructFieldOffset(structName string, fieldName string) 
 
 	var fieldOffset uint64
 	foundField := false
+
 	if structType, ok := typ.(*godwarf.StructType); ok {
 		for _, field := range structType.Field {
+			if field.Name == fieldName {
+				fieldOffset = uint64(field.ByteOffset)
+				foundField = true
+				break
+			}
+		}
+	}
+
+	// slices are an implemented as structs internally within go
+	// and are reflected as such in dwarf
+	if sliceType, ok := typ.(*godwarf.SliceType); ok {
+		for _, field := range sliceType.Field {
 			if field.Name == fieldName {
 				fieldOffset = uint64(field.ByteOffset)
 				foundField = true

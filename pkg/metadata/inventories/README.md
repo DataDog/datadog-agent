@@ -5,7 +5,7 @@ This package populates some of the agent-related fields in the `inventories` pro
 This is enabled by default but can be turned off using `inventories_enabled` config.
 
 The payload is sent every 10min (see `inventories_max_interval` in the config) or whenever it's updated with at most 1
-update every 5 minutes (see `inventories_min_interval`).
+update every 1 minute (see `inventories_min_interval`).
 
 # Content
 

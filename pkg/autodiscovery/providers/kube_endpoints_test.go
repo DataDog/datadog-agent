@@ -11,13 +11,19 @@ import (
 	"context"
 	"fmt"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/client-go/informers"
+	"k8s.io/client-go/kubernetes/fake"
 
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 )
 
@@ -133,7 +139,8 @@ func TestParseKubeServiceAnnotationsForEndpoints(t *testing.T) {
 		},
 	} {
 		t.Run("", func(t *testing.T) {
-			cfgs := parseServiceAnnotationsForEndpoints([]*v1.Service{tc.service})
+			provider := kubeEndpointsConfigProvider{}
+			cfgs := provider.parseServiceAnnotationsForEndpoints([]*v1.Service{tc.service})
 			assert.EqualValues(t, tc.expectedOut, cfgs)
 		})
 	}
@@ -739,6 +746,180 @@ func TestInvalidateIfChangedEndpoints(t *testing.T) {
 			upToDate, err := provider.IsUpToDate(ctx)
 			assert.NoError(t, err)
 			assert.Equal(t, tc.upToDate, upToDate)
+		})
+	}
+}
+
+func TestGetConfigErrors_KubeEndpoints(t *testing.T) {
+	serviceWithErrors := v1.Service{
+		TypeMeta: metav1.TypeMeta{
+			Kind: kubernetes.ServiceKind,
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "withErrors",
+			Namespace: "default",
+			UID:       "123",
+			Annotations: map[string]string{
+				"ad.datadoghq.com/endpoints.check_names":  "[\"some_check\"]",
+				"ad.datadoghq.com/endpoints.init_configs": "[{}]",
+				"ad.datadoghq.com/endpoints.instances":    "[{\"url\" \"%%host%%\"}]", // Invalid JSON (missing ":" after "url")
+			},
+		},
+	}
+
+	endpointsOfServiceWithErrors := v1.Endpoints{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "withErrors",
+			Namespace: "default",
+		},
+		Subsets: []v1.EndpointSubset{
+			{
+				Addresses: []v1.EndpointAddress{
+					{
+						IP: "10.0.0.1",
+					},
+				},
+			},
+		},
+	}
+
+	serviceWithoutErrors := v1.Service{
+		TypeMeta: metav1.TypeMeta{
+			Kind: kubernetes.ServiceKind,
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "withoutErrors",
+			Namespace: "default",
+			UID:       "456",
+			Annotations: map[string]string{ // No errors
+				"ad.datadoghq.com/endpoints.check_names":  "[\"some_check\"]",
+				"ad.datadoghq.com/endpoints.init_configs": "[{}]",
+				"ad.datadoghq.com/endpoints.instances":    "[{\"url\": \"%%host%%\"}]",
+			},
+		},
+	}
+
+	endpointsOfServiceWithoutErrors := v1.Endpoints{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "withoutErrors",
+			Namespace: "default",
+		},
+		Subsets: []v1.EndpointSubset{
+			{
+				Addresses: []v1.EndpointAddress{
+					{
+						IP: "10.0.0.2",
+					},
+				},
+			},
+		},
+	}
+
+	tests := []struct {
+		name                          string
+		currentErrors                 map[string]ErrorMsgSet
+		collectedServicesAndEndpoints []runtime.Object
+		expectedNumCollectedConfigs   int
+		expectedErrorsAfterCollect    map[string]ErrorMsgSet
+	}{
+		{
+			name:          "case without errors",
+			currentErrors: map[string]ErrorMsgSet{},
+			collectedServicesAndEndpoints: []runtime.Object{
+				&serviceWithoutErrors,
+				&endpointsOfServiceWithoutErrors,
+			},
+			expectedNumCollectedConfigs: 1,
+			expectedErrorsAfterCollect:  map[string]ErrorMsgSet{},
+		},
+		{
+			name: "endpoint that has been deleted and had errors",
+			currentErrors: map[string]ErrorMsgSet{
+				"kube_endpoint_uid://default/deletedService/": {"error1": struct{}{}},
+			},
+			collectedServicesAndEndpoints: []runtime.Object{
+				&serviceWithoutErrors,
+				&endpointsOfServiceWithoutErrors,
+			},
+			expectedNumCollectedConfigs: 1,
+			expectedErrorsAfterCollect:  map[string]ErrorMsgSet{},
+		},
+		{
+			name: "endpoint with error that has been fixed",
+			currentErrors: map[string]ErrorMsgSet{
+				"kube_endpoint_uid://default/withoutErrors/": {"error1": struct{}{}},
+			},
+			collectedServicesAndEndpoints: []runtime.Object{
+				&serviceWithoutErrors,
+				&endpointsOfServiceWithoutErrors,
+			},
+			expectedNumCollectedConfigs: 1,
+			expectedErrorsAfterCollect:  map[string]ErrorMsgSet{},
+		},
+		{
+			name:          "endpoint that did not have an error but now does",
+			currentErrors: map[string]ErrorMsgSet{},
+			collectedServicesAndEndpoints: []runtime.Object{
+				&serviceWithErrors,
+				&endpointsOfServiceWithErrors,
+			},
+			expectedNumCollectedConfigs: 0,
+			expectedErrorsAfterCollect: map[string]ErrorMsgSet{
+				"kube_endpoint_uid://default/withErrors/": {
+					"could not extract checks config: in instances: failed to unmarshal JSON: invalid character '\"' after object key": struct{}{},
+				},
+			},
+		},
+		{
+			name: "endpoint that had an error and still does",
+			currentErrors: map[string]ErrorMsgSet{
+				"kube_endpoint_uid://default/withErrors/": {
+					"could not extract checks config: in instances: failed to unmarshal JSON: invalid character '\"' after object key": struct{}{},
+				},
+			},
+			collectedServicesAndEndpoints: []runtime.Object{
+				&serviceWithErrors,
+				&endpointsOfServiceWithErrors,
+			},
+			expectedNumCollectedConfigs: 0,
+			expectedErrorsAfterCollect: map[string]ErrorMsgSet{
+				"kube_endpoint_uid://default/withErrors/": {
+					"could not extract checks config: in instances: failed to unmarshal JSON: invalid character '\"' after object key": struct{}{},
+				},
+			},
+		},
+		{
+			name:                          "nothing collected",
+			currentErrors:                 map[string]ErrorMsgSet{},
+			collectedServicesAndEndpoints: []runtime.Object{},
+			expectedNumCollectedConfigs:   0,
+			expectedErrorsAfterCollect:    map[string]ErrorMsgSet{},
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			kubeClient := fake.NewSimpleClientset(test.collectedServicesAndEndpoints...)
+			factory := informers.NewSharedInformerFactory(kubeClient, time.Duration(0))
+			serviceLister := factory.Core().V1().Services().Lister()
+			endpointsLister := factory.Core().V1().Endpoints().Lister()
+
+			stop := make(chan struct{})
+			defer close(stop)
+			factory.Start(stop)
+			factory.WaitForCacheSync(stop)
+
+			provider := kubeEndpointsConfigProvider{
+				serviceLister:      serviceLister,
+				endpointsLister:    endpointsLister,
+				configErrors:       test.currentErrors,
+				monitoredEndpoints: make(map[string]bool),
+			}
+
+			configs, err := provider.Collect(context.TODO())
+			require.NoError(t, err)
+			require.Len(t, configs, test.expectedNumCollectedConfigs)
+			assert.Equal(t, test.expectedErrorsAfterCollect, provider.GetConfigErrors())
 		})
 	}
 }

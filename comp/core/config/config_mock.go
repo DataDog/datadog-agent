@@ -12,8 +12,10 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/DataDog/datadog-agent/pkg/config"
 	"go.uber.org/fx"
+
+	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/config/env"
 )
 
 type mockDependencies struct {
@@ -35,7 +37,7 @@ func newMock(deps mockDependencies, t testing.TB) (Component, error) {
 
 	config.Datadog.CopyConfig(config.NewConfig("mock", "XXXX", strings.NewReplacer()))
 
-	config.SetFeatures(t, deps.Params.Features...)
+	env.SetFeatures(t, deps.Params.Features...)
 
 	// call InitConfig to set defaults.
 	config.InitConfig(config.Datadog)
@@ -44,7 +46,6 @@ func newMock(deps mockDependencies, t testing.TB) (Component, error) {
 	}
 
 	if !deps.Params.SetupConfig {
-
 		if deps.Params.ConfFilePath != "" {
 			config.Datadog.SetConfigType("yaml")
 			err := config.Datadog.ReadConfig(strings.NewReader(deps.Params.ConfFilePath))

@@ -29,7 +29,7 @@ import (
 type ProfileData map[string][]byte
 
 // CreateDCAArchive packages up the files
-func CreateDCAArchive(local bool, distPath, logFilePath string, senderManager sender.SenderManager, pdata ProfileData) (string, error) {
+func CreateDCAArchive(local bool, distPath, logFilePath string, pdata ProfileData, senderManager sender.DiagnoseSenderManager) (string, error) {
 	fb, err := flarehelpers.NewFlareBuilder(local)
 	if err != nil {
 		return "", err
@@ -40,11 +40,11 @@ func CreateDCAArchive(local bool, distPath, logFilePath string, senderManager se
 		"dist": filepath.Join(distPath, "conf.d"),
 	}
 
-	createDCAArchive(fb, confSearchPaths, logFilePath, senderManager, pdata)
+	createDCAArchive(fb, confSearchPaths, logFilePath, pdata, senderManager)
 	return fb.Save()
 }
 
-func createDCAArchive(fb flaretypes.FlareBuilder, confSearchPaths map[string]string, logFilePath string, senderManager sender.SenderManager, pdata ProfileData) {
+func createDCAArchive(fb flaretypes.FlareBuilder, confSearchPaths map[string]string, logFilePath string, pdata ProfileData, senderManager sender.DiagnoseSenderManager) {
 	// If the request against the API does not go through we don't collect the status log.
 	if fb.IsLocal() {
 		fb.AddFile("local", nil)
@@ -156,7 +156,7 @@ func getClusterAgentConfigCheck(fb flaretypes.FlareBuilder) error {
 	return fb.AddFile("config-check.log", b.Bytes())
 }
 
-func getClusterAgentDiagnose(fb flaretypes.FlareBuilder, senderManager sender.SenderManager) error {
+func getClusterAgentDiagnose(fb flaretypes.FlareBuilder, senderManager sender.DiagnoseSenderManager) error {
 	var b bytes.Buffer
 
 	writer := bufio.NewWriter(&b)

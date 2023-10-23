@@ -19,8 +19,8 @@ var checkRunData []byte
 
 func TestCheckRun(t *testing.T) {
 	t.Run("parseCheckRunPayload should return error on invalid data", func(t *testing.T) {
-		checks, err := ParseCheckRunPayload(api.Payload{Data: []byte(""), Encoding: encodingDeflate})
-		assert.Error(t, err)
+		checks, err := ParseCheckRunPayload(api.Payload{Data: []byte("{}"), Encoding: encodingEmpty})
+		assert.NoError(t, err)
 		assert.Empty(t, checks)
 	})
 

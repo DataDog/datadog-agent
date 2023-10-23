@@ -76,6 +76,10 @@ type Store interface {
 	// when the pod actually exists.
 	GetKubernetesPodForContainer(containerID string) (*KubernetesPod, error)
 
+	// GetKubernetesPodByName returns the first pod whose name and namespace matches those passed in
+	// to this function.
+	GetKubernetesPodByName(podName, podNamespace string) (*KubernetesPod, error)
+
 	// GetKubernetesNode returns metadata about a Kubernetes node. It fetches
 	// the entity with kind KindKubernetesNode and the given ID.
 	GetKubernetesNode(id string) (*KubernetesNode, error)
@@ -240,6 +244,18 @@ const (
 	EventTypeUnset
 )
 
+// SBOMStatus is the status of a SBOM
+type SBOMStatus string
+
+const (
+	// Pending is the status when the image was not scanned
+	Pending SBOMStatus = "Pending"
+	// Success is the status when the image was scanned
+	Success SBOMStatus = "Success"
+	// Failed is the status when the scan failed
+	Failed SBOMStatus = "Failed"
+)
+
 // Entity represents a single unit of work being done that is of interest to
 // the agent.
 //
@@ -295,8 +311,8 @@ func (e EntityMeta) String(verbose bool) string {
 	_, _ = fmt.Fprintln(&sb, "Namespace:", e.Namespace)
 
 	if verbose {
-		_, _ = fmt.Fprintln(&sb, "Annotations:", mapToString(e.Annotations))
-		_, _ = fmt.Fprintln(&sb, "Labels:", mapToString(e.Labels))
+		_, _ = fmt.Fprintln(&sb, "Annotations:", mapToScrubbedJSONString(e.Annotations))
+		_, _ = fmt.Fprintln(&sb, "Labels:", mapToScrubbedJSONString(e.Labels))
 	}
 
 	return sb.String()
@@ -769,7 +785,7 @@ func (d KubernetesDeployment) String(verbose bool) string {
 				}
 				_, _ = langSb.WriteString(string(lang.Name))
 			}
-			_, _ = fmt.Fprintf(&sb, "%s %s=>[%s]", ctype, container, langSb.String())
+			_, _ = fmt.Fprintf(&sb, "%s %s=>[%s]\n", ctype, container, langSb.String())
 		}
 	}
 	langPrinter(d.InitContainerLanguages, "InitContainer")
@@ -876,6 +892,8 @@ type SBOM struct {
 	CycloneDXBOM       *cyclonedx.BOM
 	GenerationTime     time.Time
 	GenerationDuration time.Duration
+	Status             SBOMStatus
+	Error              string // needs to be stored as a string otherwise the merge() will favor the nil value
 }
 
 // GetID implements Entity#GetID.
@@ -920,10 +938,14 @@ func (i ContainerImageMetadata) String(verbose bool) string {
 		_, _ = fmt.Fprintln(&sb, "Architecture:", i.Architecture)
 		_, _ = fmt.Fprintln(&sb, "Variant:", i.Variant)
 
-		if i.SBOM != nil {
-			_, _ = fmt.Fprintf(&sb, "SBOM: stored. Generated in: %.2f seconds\n", i.SBOM.GenerationDuration.Seconds())
-		} else {
-			_, _ = fmt.Fprintln(&sb, "SBOM: not stored")
+		_, _ = fmt.Fprintln(&sb, "----------- SBOM -----------")
+		_, _ = fmt.Fprintln(&sb, "Status:", i.SBOM.Status)
+		switch i.SBOM.Status {
+		case Success:
+			_, _ = fmt.Fprintf(&sb, "Generated in: %.2f seconds\n", i.SBOM.GenerationDuration.Seconds())
+		case Failed:
+			_, _ = fmt.Fprintf(&sb, "Error: %s\n", i.SBOM.Error)
+		default:
 		}
 
 		_, _ = fmt.Fprintln(&sb, "----------- Layers -----------")
@@ -961,8 +983,7 @@ var _ Entity = &ContainerImageMetadata{}
 
 // Process is an Entity that represents a process
 type Process struct {
-	EntityID // EntityID is the PID for now
-	EntityMeta
+	EntityID // EntityID.ID is the PID
 
 	NsPid        int32
 	ContainerID  string
@@ -994,7 +1015,7 @@ func (p *Process) Merge(e Entity) error {
 }
 
 // String implements Entity#String.
-func (p Process) String(verbose bool) string {
+func (p Process) String(verbose bool) string { //nolint:revive // TODO fix revive unused-parameter
 	var sb strings.Builder
 
 	_, _ = fmt.Fprintln(&sb, "----------- Entity ID -----------")
