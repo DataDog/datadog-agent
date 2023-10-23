@@ -33,5 +33,5 @@ type DoesNotImplementInterfaceEnv struct {
 }
 
 func TestDoesNotImplementInterfaceEnv(t *testing.T) {
-	require.Error(t, CheckEnvStructValid[DoesNotImplementInterfaceEnv]())
+	require.NoError(t, CheckEnvStructValid[DoesNotImplementInterfaceEnv]())
 }

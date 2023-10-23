@@ -64,7 +64,6 @@ func getFields[Env any](env *Env) ([]field, error) {
 		}
 	}
 
-	stackInitializerType := reflect.TypeOf((*pulumiStackInitializer)(nil)).Elem()
 	for i := 0; i < envValue.NumField(); i++ {
 		fieldName := envValue.Type().Field(i).Name
 		if _, found := exportedFields[fieldName]; !found {
@@ -72,17 +71,12 @@ func getFields[Env any](env *Env) ([]field, error) {
 		}
 
 		initializer, ok := envValue.Field(i).Interface().(pulumiStackInitializer)
-		if !ok {
-			return nil, fmt.Errorf("%v contains %v which doesn't implement %v",
-				envType,
-				fieldName,
-				stackInitializerType,
-			)
+		if ok {
+			fields = append(fields, field{
+				stackInitializer: initializer,
+				name:             fieldName,
+			})
 		}
-		fields = append(fields, field{
-			stackInitializer: initializer,
-			name:             fieldName,
-		})
 	}
 	return fields, nil
 }
