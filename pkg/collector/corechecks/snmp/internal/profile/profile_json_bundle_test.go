@@ -19,12 +19,16 @@ func Test_loadBundleJSONProfiles(t *testing.T) {
 	SetGlobalProfileConfigMap(nil)
 	config.Datadog.Set("confd_path", defaultTestConfdPath)
 
-	defaultProfiles, err := loadBundleJSONProfiles()
+	resolvedProfiles, err := loadBundleJSONProfiles()
 	assert.Nil(t, err)
 
 	var actualProfiles []string
-	for key := range defaultProfiles {
+	var actualMetrics []string
+	for key, profile := range resolvedProfiles {
 		actualProfiles = append(actualProfiles, key)
+		for _, metric := range profile.Definition.Metrics {
+			actualMetrics = append(actualMetrics, metric.Symbol.Name)
+		}
 	}
 
 	expectedProfiles := []string{
@@ -33,4 +37,21 @@ func Test_loadBundleJSONProfiles(t *testing.T) {
 		"profile-from-ui", // downloaded json profile
 	}
 	assert.ElementsMatch(t, expectedProfiles, actualProfiles)
+
+	expectedMetrics := []string{
+		"metricFromUi2",
+		"metricFromUi3",
+		"default_p1_metric",
+		"default_p1_metric", // from 2 profiles
+	}
+	assert.ElementsMatch(t, expectedMetrics, actualMetrics)
+
+	var myProfileMetrics []string
+	for _, metric := range resolvedProfiles["my-profile-name"].Definition.Metrics {
+		myProfileMetrics = append(myProfileMetrics, metric.Symbol.Name)
+	}
+	expectedMyProfileMetrics := []string{
+		"default_p1_metric",
+	}
+	assert.ElementsMatch(t, expectedMyProfileMetrics, myProfileMetrics)
 }
