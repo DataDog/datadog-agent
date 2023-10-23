@@ -49,6 +49,8 @@ func TestJavaInjection(t *testing.T) {
 	defer os.RemoveAll(fakeAgentDir)
 	_, err = nettestutil.RunCommand("install -m444 " + filepath.Join(testdataDir, "TestAgentLoaded.jar") + " " + filepath.Join(fakeAgentDir, "agent-usm.jar"))
 	require.NoError(t, err)
+	_, err = nettestutil.RunCommand("install -m444 " + filepath.Join(testdataDir, "Wait.class") + " " + filepath.Join(fakeAgentDir, "Wait.class"))
+	require.NoError(t, err)
 
 	commonTearDown := func(t *testing.T, ctx map[string]interface{}) {
 		cfg.JavaAgentArgs = ctx["JavaAgentArgs"].(string)
@@ -81,13 +83,12 @@ func TestJavaInjection(t *testing.T) {
 			preTracerSetup: func(t *testing.T, ctx map[string]interface{}) {
 				cfg.JavaDir = fakeAgentDir
 				ctx["JavaAgentArgs"] = cfg.JavaAgentArgs
-
-				ctx["testfile"] = createJavaTempFile(t, testdataDir)
+				ctx["testfile"] = createJavaTempFile(t, fakeAgentDir)
 				cfg.JavaAgentArgs += ",testfile=/v/" + filepath.Base(ctx["testfile"].(string))
 			},
 			postTracerSetup: func(t *testing.T, ctx map[string]interface{}) {
 				// if RunJavaVersion failing to start it's probably because the java process has not been injected
-				require.NoError(t, javatestutil.RunJavaVersion(t, "openjdk:8u151-jre", "Wait JustWait"), "Failed running Java version")
+				require.NoError(t, javatestutil.RunJavaVersion(t, "openjdk:8u151-jre", "Wait JustWait", fakeAgentDir), "Failed running Java version")
 			},
 			validation: commonValidation,
 			teardown:   commonTearDown,
@@ -99,8 +100,7 @@ func TestJavaInjection(t *testing.T) {
 			preTracerSetup: func(t *testing.T, ctx map[string]interface{}) {
 				cfg.JavaDir = fakeAgentDir
 				ctx["JavaAgentArgs"] = cfg.JavaAgentArgs
-
-				ctx["testfile"] = createJavaTempFile(t, testdataDir)
+				ctx["testfile"] = createJavaTempFile(t, fakeAgentDir)
 				cfg.JavaAgentArgs += ",testfile=/v/" + filepath.Base(ctx["testfile"].(string))
 
 				// testing allow/block list, as Allow list have higher priority
@@ -110,8 +110,8 @@ func TestJavaInjection(t *testing.T) {
 			},
 			postTracerSetup: func(t *testing.T, ctx map[string]interface{}) {
 				// if RunJavaVersion failing to start it's probably because the java process has not been injected
-				require.NoError(t, javatestutil.RunJavaVersion(t, "openjdk:21-oraclelinux8", "Wait JustWait"), "Failed running Java version")
-				javatestutil.RunJavaVersionAndWaitForRejection(t, "openjdk:21-oraclelinux8", "Wait AnotherWait", regexp.MustCompile(`AnotherWait pid.*`))
+				require.NoError(t, javatestutil.RunJavaVersion(t, "openjdk:21-oraclelinux8", "Wait JustWait", fakeAgentDir), "Failed running Java version")
+				javatestutil.RunJavaVersionAndWaitForRejection(t, "openjdk:21-oraclelinux8", "Wait AnotherWait", fakeAgentDir, regexp.MustCompile(`AnotherWait pid.*`))
 			},
 			validation: commonValidation,
 			teardown:   commonTearDown,
@@ -122,8 +122,7 @@ func TestJavaInjection(t *testing.T) {
 			context: make(map[string]interface{}),
 			preTracerSetup: func(t *testing.T, ctx map[string]interface{}) {
 				ctx["JavaAgentArgs"] = cfg.JavaAgentArgs
-
-				ctx["testfile"] = createJavaTempFile(t, testdataDir)
+				ctx["testfile"] = createJavaTempFile(t, fakeAgentDir)
 				cfg.JavaAgentArgs += ",testfile=/v/" + filepath.Base(ctx["testfile"].(string))
 
 				// block the agent attachment
@@ -132,8 +131,8 @@ func TestJavaInjection(t *testing.T) {
 			},
 			postTracerSetup: func(t *testing.T, ctx map[string]interface{}) {
 				// if RunJavaVersion failing to start it's probably because the java process has not been injected
-				require.NoError(t, javatestutil.RunJavaVersion(t, "openjdk:21-oraclelinux8", "Wait AnotherWait"), "Failed running Java version")
-				javatestutil.RunJavaVersionAndWaitForRejection(t, "openjdk:21-oraclelinux8", "Wait JustWait", regexp.MustCompile(`JustWait pid.*`))
+				require.NoError(t, javatestutil.RunJavaVersion(t, "openjdk:21-oraclelinux8", "Wait AnotherWait", fakeAgentDir), "Failed running Java version")
+				javatestutil.RunJavaVersionAndWaitForRejection(t, "openjdk:21-oraclelinux8", "Wait JustWait", fakeAgentDir, regexp.MustCompile(`JustWait pid.*`))
 			},
 			validation: commonValidation,
 			teardown:   commonTearDown,
@@ -143,8 +142,7 @@ func TestJavaInjection(t *testing.T) {
 			context: make(map[string]interface{}),
 			preTracerSetup: func(t *testing.T, ctx map[string]interface{}) {
 				ctx["JavaAgentArgs"] = cfg.JavaAgentArgs
-
-				ctx["testfile"] = createJavaTempFile(t, testdataDir)
+				ctx["testfile"] = createJavaTempFile(t, fakeAgentDir)
 				cfg.JavaAgentArgs += ",testfile=/v/" + filepath.Base(ctx["testfile"].(string))
 
 				// block the agent attachment
@@ -152,8 +150,8 @@ func TestJavaInjection(t *testing.T) {
 				cfg.JavaAgentBlockRegex = ".*AnotherWait.*"
 			},
 			postTracerSetup: func(t *testing.T, ctx map[string]interface{}) {
-				require.NoError(t, javatestutil.RunJavaVersion(t, "openjdk:21-oraclelinux8", "Wait JustWait"), "Failed running Java version")
-				javatestutil.RunJavaVersionAndWaitForRejection(t, "openjdk:21-oraclelinux8", "Wait AnotherWait", regexp.MustCompile(`AnotherWait pid.*`))
+				require.NoError(t, javatestutil.RunJavaVersion(t, "openjdk:21-oraclelinux8", "Wait JustWait", fakeAgentDir), "Failed running Java version")
+				javatestutil.RunJavaVersionAndWaitForRejection(t, "openjdk:21-oraclelinux8", "Wait AnotherWait", fakeAgentDir, regexp.MustCompile(`AnotherWait pid.*`))
 			},
 			validation: commonValidation,
 			teardown:   commonTearDown,
@@ -163,8 +161,7 @@ func TestJavaInjection(t *testing.T) {
 			context: make(map[string]interface{}),
 			preTracerSetup: func(t *testing.T, ctx map[string]interface{}) {
 				ctx["JavaAgentArgs"] = cfg.JavaAgentArgs
-
-				ctx["testfile"] = createJavaTempFile(t, testdataDir)
+				ctx["testfile"] = createJavaTempFile(t, fakeAgentDir)
 				cfg.JavaAgentArgs += ",testfile=/v/" + filepath.Base(ctx["testfile"].(string))
 
 				// allow has a higher priority
@@ -172,7 +169,7 @@ func TestJavaInjection(t *testing.T) {
 				cfg.JavaAgentBlockRegex = ".*JustWait.*"
 			},
 			postTracerSetup: func(t *testing.T, ctx map[string]interface{}) {
-				require.NoError(t, javatestutil.RunJavaVersion(t, "openjdk:21-oraclelinux8", "Wait JustWait"), "Failed running Java version")
+				require.NoError(t, javatestutil.RunJavaVersion(t, "openjdk:21-oraclelinux8", "Wait JustWait", fakeAgentDir), "Failed running Java version")
 			},
 			validation: commonValidation,
 			teardown:   commonTearDown,

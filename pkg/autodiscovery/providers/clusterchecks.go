@@ -12,6 +12,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/providers/names"
+	"github.com/DataDog/datadog-agent/pkg/autodiscovery/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/clusterchecks/types"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	ddErrors "github.com/DataDog/datadog-agent/pkg/errors"
@@ -56,6 +57,7 @@ func NewClusterChecksConfigProvider(providerConfig *config.ConfigurationProvider
 		if config.Datadog.GetBool("cloud_foundry") {
 			boshID := config.Datadog.GetString("bosh_id")
 			if boshID == "" {
+				telemetry.Errors.Inc(names.ClusterChecks)
 				log.Warn("configuration variable cloud_foundry is set to true, but bosh_id is empty, can't retrieve node name")
 			} else {
 				c.identifier = boshID
@@ -140,6 +142,7 @@ func (c *ClusterChecksConfigProvider) Collect(ctx context.Context) ([]integratio
 	if c.dcaClient == nil {
 		err := c.initClient()
 		if err != nil {
+			telemetry.Errors.Inc(names.ClusterChecks)
 			return nil, err
 		}
 	}
@@ -149,6 +152,7 @@ func (c *ClusterChecksConfigProvider) Collect(ctx context.Context) ([]integratio
 		if (ddErrors.IsRemoteService(err) || ddErrors.IsTimeout(err)) && c.withinDegradedModePeriod() {
 			// Degraded mode: return the error to keep the configs scheduled
 			// during a Cluster Agent / network outage
+			telemetry.Errors.Inc(names.ClusterChecks)
 			return nil, err
 		}
 
@@ -194,6 +198,7 @@ func (c *ClusterChecksConfigProvider) heartbeatSender(ctx context.Context) {
 					extraHeartbeatTime = currentTime
 					log.Infof("Sent extra heartbeat at: %v", currentTime)
 				} else {
+					telemetry.Errors.Inc(names.ClusterChecks)
 					log.Warnf("Unable to send extra heartbeat to Cluster Agent, err: %v", err)
 				}
 			}

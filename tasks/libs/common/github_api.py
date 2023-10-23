@@ -51,7 +51,7 @@ class GithubAPI:
         """
         Creates a PR in the given Github repository.
         """
-        return self._repository.create_pull(title=pr_title, body=pr_body, base=base_branch, target=target_branch)
+        return self._repository.create_pull(title=pr_title, body=pr_body, base=base_branch, head=target_branch)
 
     def update_pr(self, pull_number, milestone_number, labels):
         """

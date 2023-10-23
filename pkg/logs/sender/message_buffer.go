@@ -27,7 +27,7 @@ func NewMessageBuffer(batchSizeLimit int, contentSizeLimit int) *MessageBuffer {
 // AddMessage adds a message to the buffer if there is still some free space,
 // returns true if the message was added.
 func (p *MessageBuffer) AddMessage(message *message.Message) bool {
-	contentSize := len(message.Content)
+	contentSize := len(message.GetContent())
 	if len(p.messageBuffer) < cap(p.messageBuffer) && p.contentSize+contentSize <= p.contentSizeLimit {
 		p.messageBuffer = append(p.messageBuffer, message)
 		p.contentSize += contentSize

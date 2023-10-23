@@ -14,7 +14,7 @@ import (
 // flows to be flushed by the aggregator. It is intended for testing.
 func WaitForFlowsToBeFlushed(aggregator *FlowAggregator, timeoutDuration time.Duration, minEvents uint64) (uint64, error) {
 	timeout := time.After(timeoutDuration)
-	ticker := time.NewTicker(500 * time.Millisecond)
+	ticker := time.NewTicker(10 * time.Millisecond)
 	defer ticker.Stop()
 	// Keep trying until we're timed out or got a result or got an error
 	for {

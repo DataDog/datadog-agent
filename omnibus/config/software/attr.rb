@@ -33,6 +33,7 @@ build do
 
   configure_command = [
     "./configure",
+    "--disable-static",
     "--prefix=#{install_dir}/embedded",
   ]
 

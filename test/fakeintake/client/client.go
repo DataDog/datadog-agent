@@ -62,6 +62,7 @@ type Client struct {
 	checkRunAggregator   aggregator.CheckRunAggregator
 	logAggregator        aggregator.LogAggregator
 	connectionAggregator aggregator.ConnectionsAggregator
+	processAggregator    aggregator.ProcessAggregator
 }
 
 // NewClient creates a new fake intake client
@@ -73,6 +74,7 @@ func NewClient(fakeIntakeURL string) *Client {
 		checkRunAggregator:   aggregator.NewCheckRunAggregator(),
 		logAggregator:        aggregator.NewLogAggregator(),
 		connectionAggregator: aggregator.NewConnectionsAggregator(),
+		processAggregator:    aggregator.NewProcessAggregator(),
 	}
 }
 
@@ -106,6 +108,14 @@ func (c *Client) getConnections() error {
 		return err
 	}
 	return c.connectionAggregator.UnmarshallPayloads(payloads)
+}
+
+func (c *Client) getProcesses() error {
+	payloads, err := c.getFakePayloads("/api/v1/collector")
+	if err != nil {
+		return err
+	}
+	return c.processAggregator.UnmarshallPayloads(payloads)
 }
 
 // GetLatestFlare queries the Fake Intake to fetch flares that were sent by a Datadog Agent and returns the latest flare as a Flare struct
@@ -178,7 +188,7 @@ type MatchOpt[P aggregator.PayloadItem] func(payload P) (bool, error)
 func (c *Client) GetMetricNames() ([]string, error) {
 	err := c.getMetrics()
 	if err != nil {
-		return []string{}, nil
+		return nil, err
 	}
 	return c.metricAggregator.GetNames(), nil
 }
@@ -272,7 +282,7 @@ func (c *Client) getLog(service string) ([]*aggregator.Log, error) {
 func (c *Client) GetLogServiceNames() ([]string, error) {
 	err := c.getLogs()
 	if err != nil {
-		return []string{}, nil
+		return nil, err
 	}
 	return c.logAggregator.GetNames(), nil
 }
@@ -336,7 +346,7 @@ func WithMessageMatching(pattern string) MatchOpt[*aggregator.Log] {
 func (c *Client) GetCheckRunNames() ([]string, error) {
 	err := c.getCheckRuns()
 	if err != nil {
-		return []string{}, nil
+		return nil, err
 	}
 	return c.checkRunAggregator.GetNames(), nil
 }
@@ -395,4 +405,20 @@ func (c *Client) GetConnectionsNames() ([]string, error) {
 		return []string{}, err
 	}
 	return c.connectionAggregator.GetNames(), nil
+}
+
+// GetProcesses fetches fakeintake on `/api/v1/collector` endpoint and returns
+// all received process payloads
+func (c *Client) GetProcesses() ([]*aggregator.ProcessPayload, error) {
+	err := c.getProcesses()
+	if err != nil {
+		return nil, err
+	}
+
+	var procs []*aggregator.ProcessPayload
+	for _, name := range c.processAggregator.GetNames() {
+		procs = append(procs, c.processAggregator.GetPayloadsByName(name)...)
+	}
+
+	return procs, nil
 }

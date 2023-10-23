@@ -29,7 +29,7 @@ type Agent struct {
 	deserializer utils.RemoteServiceDeserializer[agent.ClientData]
 	os           e2eOs.OS
 	*AgentCommandRunner
-	vmClient           *vmClient
+	vmClient           *VMClient
 	shouldWaitForReady bool
 }
 

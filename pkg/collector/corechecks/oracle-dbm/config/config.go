@@ -55,6 +55,10 @@ type ProcessMemoryConfig struct {
 	Enabled bool `yaml:"enabled"`
 }
 
+type inactiveSessionsConfig struct {
+	Enabled bool `yaml:"enabled"`
+}
+
 type SharedMemoryConfig struct {
 	Enabled bool `yaml:"enabled"`
 }
@@ -87,32 +91,34 @@ type CustomQuery struct {
 
 // InstanceConfig is used to deserialize integration instance config.
 type InstanceConfig struct {
-	Server                   string               `yaml:"server"`
-	Port                     int                  `yaml:"port"`
-	ServiceName              string               `yaml:"service_name"`
-	Username                 string               `yaml:"username"`
-	Password                 string               `yaml:"password"`
-	TnsAlias                 string               `yaml:"tns_alias"`
-	TnsAdmin                 string               `yaml:"tns_admin"`
-	Protocol                 string               `yaml:"protocol"`
-	Wallet                   string               `yaml:"wallet"`
-	DBM                      bool                 `yaml:"dbm"`
-	Tags                     []string             `yaml:"tags"`
-	LogUnobfuscatedQueries   bool                 `yaml:"log_unobfuscated_queries"`
-	ObfuscatorOptions        obfuscate.SQLConfig  `yaml:"obfuscator_options"`
-	InstantClient            bool                 `yaml:"instant_client"`
-	ReportedHostname         string               `yaml:"reported_hostname"`
-	QuerySamples             QuerySamplesConfig   `yaml:"query_samples"`
-	QueryMetrics             QueryMetricsConfig   `yaml:"query_metrics"`
-	SysMetrics               SysMetricsConfig     `yaml:"sysmetrics"`
-	Tablespaces              TablespacesConfig    `yaml:"tablespaces"`
-	ProcessMemory            ProcessMemoryConfig  `yaml:"process_memory"`
-	SharedMemory             SharedMemoryConfig   `yaml:"shared_memory"`
-	ExecutionPlans           ExecutionPlansConfig `yaml:"execution_plans"`
-	AgentSQLTrace            AgentSQLTrace        `yaml:"agent_sql_trace"`
-	UseGlobalCustomQueries   string               `yaml:"use_global_custom_queries"`
-	CustomQueries            []CustomQuery        `yaml:"custom_queries"`
-	MetricCollectionInterval int64                `yaml:"metric_collection_interval"`
+	Server                             string                 `yaml:"server"`
+	Port                               int                    `yaml:"port"`
+	ServiceName                        string                 `yaml:"service_name"`
+	Username                           string                 `yaml:"username"`
+	Password                           string                 `yaml:"password"`
+	TnsAlias                           string                 `yaml:"tns_alias"`
+	TnsAdmin                           string                 `yaml:"tns_admin"`
+	Protocol                           string                 `yaml:"protocol"`
+	Wallet                             string                 `yaml:"wallet"`
+	DBM                                bool                   `yaml:"dbm"`
+	Tags                               []string               `yaml:"tags"`
+	LogUnobfuscatedQueries             bool                   `yaml:"log_unobfuscated_queries"`
+	ObfuscatorOptions                  obfuscate.SQLConfig    `yaml:"obfuscator_options"`
+	InstantClient                      bool                   `yaml:"instant_client"`
+	ReportedHostname                   string                 `yaml:"reported_hostname"`
+	QuerySamples                       QuerySamplesConfig     `yaml:"query_samples"`
+	QueryMetrics                       QueryMetricsConfig     `yaml:"query_metrics"`
+	SysMetrics                         SysMetricsConfig       `yaml:"sysmetrics"`
+	Tablespaces                        TablespacesConfig      `yaml:"tablespaces"`
+	ProcessMemory                      ProcessMemoryConfig    `yaml:"process_memory"`
+	InactiveSessions                   inactiveSessionsConfig `yaml:"inactive_sessions"`
+	SharedMemory                       SharedMemoryConfig     `yaml:"shared_memory"`
+	ExecutionPlans                     ExecutionPlansConfig   `yaml:"execution_plans"`
+	AgentSQLTrace                      AgentSQLTrace          `yaml:"agent_sql_trace"`
+	UseGlobalCustomQueries             string                 `yaml:"use_global_custom_queries"`
+	CustomQueries                      []CustomQuery          `yaml:"custom_queries"`
+	MetricCollectionInterval           int64                  `yaml:"metric_collection_interval"`
+	DatabaseInstanceCollectionInterval uint64                 `yaml:"database_instance_collection_interval"`
 }
 
 // CheckConfig holds the config needed for an integration instance to run.
@@ -156,10 +162,13 @@ func NewCheckConfig(rawInstance integration.Data, rawInitConfig integration.Data
 	instance.Tablespaces.Enabled = true
 	instance.ProcessMemory.Enabled = true
 	instance.SharedMemory.Enabled = true
+	instance.InactiveSessions.Enabled = true
 
 	instance.ExecutionPlans.Enabled = true
 
 	instance.UseGlobalCustomQueries = "true"
+
+	instance.DatabaseInstanceCollectionInterval = 1800
 	// Defaults end
 
 	if err := yaml.Unmarshal(rawInstance, &instance); err != nil {
@@ -197,6 +206,11 @@ func NewCheckConfig(rawInstance integration.Data, rawInitConfig integration.Data
 
 // GetLogPrompt returns a config based prompt
 func GetLogPrompt(c InstanceConfig) string {
+	return fmt.Sprintf("%s>", GetConnectData(c))
+}
+
+// GetConnectData returns the connection configuration
+func GetConnectData(c InstanceConfig) string {
 	if c.TnsAlias != "" {
 		return c.TnsAlias
 	}
@@ -214,6 +228,5 @@ func GetLogPrompt(c InstanceConfig) string {
 	if c.ServiceName != "" {
 		p = fmt.Sprintf("%s/%s", p, c.ServiceName)
 	}
-	p = fmt.Sprintf("%s>", p)
 	return p
 }
