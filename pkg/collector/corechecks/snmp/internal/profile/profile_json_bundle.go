@@ -28,10 +28,12 @@ func loadBundleJSONProfiles() (ProfileConfigMap, error) {
 	if err != nil {
 		return nil, err
 	}
-	resolvedProfiles, err := loadProfilesV3(nil, userProfiles)
+
+	resolvedProfiles, err := resolveProfiles(userProfiles, getYamlDefaultProfiles())
 	if err != nil {
 		return nil, err
 	}
+
 	return resolvedProfiles, nil
 }
 
