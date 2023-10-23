@@ -6,24 +6,13 @@
 package profile
 
 import (
+	"github.com/DataDog/datadog-agent/pkg/config"
 	"os"
 	"path/filepath"
 	"regexp"
-	"sort"
-
-	"github.com/DataDog/datadog-agent/pkg/config"
 
 	"github.com/DataDog/datadog-agent/pkg/networkdevice/profile/profiledefinition"
 )
-
-func convertToProfileNames(profiles ProfileConfigMap) []string {
-	var profileNames []string
-	for name := range profiles {
-		profileNames = append(profileNames, name)
-	}
-	sort.Strings(profileNames)
-	return profileNames
-}
 
 // CopyProfileDefinition copies a profile, it's used for testing
 // TODO: Use deepcopy library instead?
