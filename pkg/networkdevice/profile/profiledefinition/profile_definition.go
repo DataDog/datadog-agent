@@ -20,6 +20,7 @@ type DeviceMeta struct {
 type ProfileDefinition struct {
 	Name         string            `yaml:"name" json:"name"`
 	Description  string            `yaml:"description,omitempty" json:"description,omitempty"`
+	Version      string            `yaml:"-" json:"version,omitempty"`
 	SysObjectIds StringArray       `yaml:"sysobjectid,omitempty" json:"sysobjectid,omitempty"`
 	Extends      []string          `yaml:"extends,omitempty" json:"extends,omitempty"`
 	Metadata     MetadataConfig    `yaml:"metadata,omitempty" json:"metadata,omitempty" jsonschema:"-"`
