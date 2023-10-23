@@ -9,6 +9,9 @@ import (
 	"time"
 )
 
+// Agent is an interface to interact with the remote [agent.Installer].
+//
+// [remote agent]: https://pkg.go.dev/github.com/DataDog/test-infra-definitions@main/components/datadog/agent#Installer
 type Agent interface {
 	// Version runs version command returns the runtime Agent version
 	Version(commandArgs ...AgentArgsOption) string

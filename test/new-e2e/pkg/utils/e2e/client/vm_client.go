@@ -23,13 +23,14 @@ import (
 
 var _ VM = (*VMClient)(nil)
 
-// VMClient is a type that provides methods to run remote commands on a test-infra-definition VM.
+// VMClient is a type that implements [VM] interface to interact with a remote VM.
 type VMClient struct {
 	client *ssh.Client
 	osType componentos.Type
 	t      *testing.T
 }
 
+// NewVMClient creates a new instance of VMClient.
 func NewVMClient(t *testing.T, connection *utils.Connection, osType componentos.Type) (*VMClient, error) {
 	t.Logf("connecting to remote VM at %s:%s", connection.User, connection.Host)
 

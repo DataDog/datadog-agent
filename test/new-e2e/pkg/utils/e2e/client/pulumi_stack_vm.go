@@ -18,8 +18,10 @@ import (
 var _ stackInitializer = (*PulumiStackVM)(nil)
 var _ VM = (*PulumiStackVM)(nil)
 
-// PulumiStackVM is a type to help creating a VM (vm.go) connecting to a
-// test-infra-definiting VM from a pulumi stack.
+// PulumiStackVM is a type that implements [VM] and uses the pulumi stack filled by
+// [component.VM] to setup the connection with the VM.
+//
+// [component.VM]: https://pkg.go.dev/github.com/DataDog/test-infra-definitions@main/components/vm
 type PulumiStackVM struct {
 	deserializer utils.RemoteServiceDeserializer[commonvm.ClientData]
 	VM

@@ -18,7 +18,8 @@ import (
 var _ stackInitializer = (*PulumiStackAgent)(nil)
 var _ Agent = (*PulumiStackAgent)(nil)
 
-// PulumiStackAgent is an agent connected to [agent.Installer] which is created from a pulumi stack.
+// PulumiStackAgent is a type that implements [Agent] and uses the pulumi stack filled by
+// [agent.Installer] to setup the connection with the Agent.
 //
 // [agent.Installer]: https://pkg.go.dev/github.com/DataDog/test-infra-definitions@main/components/datadog/agent#Installer
 type PulumiStackAgent struct {
