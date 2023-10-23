@@ -40,6 +40,7 @@
 /.github/workflows/serverless-integration.yml       @DataDog/serverless
 /.github/workflows/windows-*.yml                    @DataDog/windows-agent
 /.github/workflows/cws-btfhub-sync.yml              @DataDog/agent-security
+/.github/workflows/gohai.yml                        @DataDog/agent-shared-components
 
 # Gitlab files
 # Files containing job contents are owned by teams in charge of the jobs + agent-platform
