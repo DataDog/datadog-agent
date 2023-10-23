@@ -23,9 +23,9 @@ func Test_loadBundleJSONProfiles(t *testing.T) {
 	}
 
 	expectedProfiles := []string{
-		"default-p1",
-		"my-profile-name", // downloaded profile
-		"profile-from-ui", // downloaded profile
+		"default-p1",      // yaml default profile
+		"my-profile-name", // downloaded json profile
+		"profile-from-ui", // downloaded json profile
 	}
 	assert.ElementsMatch(t, expectedProfiles, actualProfiles)
 }
