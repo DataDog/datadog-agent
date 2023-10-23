@@ -9,12 +9,12 @@ package forwarder
 import (
 	"testing"
 
-	"github.com/DataDog/datadog-agent/comp/ndmtmp/aggregator"
+	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer"
 	"github.com/DataDog/datadog-agent/pkg/epforwarder"
 	"github.com/golang/mock/gomock"
 )
 
-func getForwarder(agg aggregator.Component) (Component, error) {
+func getForwarder(agg demultiplexer.Component) (Component, error) {
 	return agg.GetEventPlatformForwarder()
 }
 

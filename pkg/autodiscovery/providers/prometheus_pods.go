@@ -14,6 +14,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/common/utils"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/providers/names"
+	"github.com/DataDog/datadog-agent/pkg/autodiscovery/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet"
 )
@@ -30,6 +31,7 @@ type PrometheusPodsConfigProvider struct {
 func NewPrometheusPodsConfigProvider(*config.ConfigurationProviders) (ConfigProvider, error) {
 	checks, err := getPrometheusConfigs()
 	if err != nil {
+		telemetry.Errors.Inc(names.PrometheusPods)
 		return nil, err
 	}
 
@@ -50,12 +52,14 @@ func (p *PrometheusPodsConfigProvider) Collect(ctx context.Context) ([]integrati
 	if p.kubelet == nil {
 		p.kubelet, err = kubelet.GetKubeUtil()
 		if err != nil {
+			telemetry.Errors.Inc(names.PrometheusPods)
 			return []integration.Config{}, err
 		}
 	}
 
 	pods, err := p.kubelet.GetLocalPodList(ctx)
 	if err != nil {
+		telemetry.Errors.Inc(names.PrometheusPods)
 		return []integration.Config{}, err
 	}
 

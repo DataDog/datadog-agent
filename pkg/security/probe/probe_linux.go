@@ -125,11 +125,8 @@ func (p *Probe) detectKernelVersion() error {
 }
 
 // GetKernelVersion computes and returns the running kernel version
-func (p *Probe) GetKernelVersion() (*kernel.Version, error) {
-	if err := p.detectKernelVersion(); err != nil {
-		return nil, err
-	}
-	return p.kernelVersion, nil
+func (p *Probe) GetKernelVersion() *kernel.Version {
+	return p.kernelVersion
 }
 
 // UseRingBuffers returns true if eBPF ring buffers are supported and used
@@ -417,17 +414,14 @@ func (p *Probe) DispatchCustomEvent(rule *rules.Rule, event *events.CustomEvent)
 		return eventJSON, event.GetEventType(), err
 	})
 
-	// send specific event
-	if p.Config.RuntimeSecurity.CustomEventEnabled {
-		// send wildcard first
-		for _, handler := range p.customEventHandlers[model.UnknownEventType] {
-			handler.HandleCustomEvent(rule, event)
-		}
+	// send wildcard first
+	for _, handler := range p.customEventHandlers[model.UnknownEventType] {
+		handler.HandleCustomEvent(rule, event)
+	}
 
-		// send specific event
-		for _, handler := range p.customEventHandlers[event.GetEventType()] {
-			handler.HandleCustomEvent(rule, event)
-		}
+	// send specific event
+	for _, handler := range p.customEventHandlers[event.GetEventType()] {
+		handler.HandleCustomEvent(rule, event)
 	}
 }
 
@@ -496,9 +490,11 @@ func (p *Probe) UnmarshalProcessCacheEntry(ev *model.Event, data []byte) (int, e
 }
 
 func (p *Probe) onEventLost(perfMapName string, perEvent map[string]uint64) {
-	p.DispatchCustomEvent(
-		NewEventLostWriteEvent(perfMapName, perEvent),
-	)
+	if p.Config.RuntimeSecurity.InternalMonitoringEnabled {
+		p.DispatchCustomEvent(
+			NewEventLostWriteEvent(perfMapName, perEvent),
+		)
+	}
 
 	// snapshot traced cgroups if a CgroupTracing event was lost
 	if p.IsActivityDumpEnabled() && perEvent[model.CgroupTracingEventType.String()] > 0 {
@@ -1793,22 +1789,14 @@ func getCGroupWriteConstants() manager.ConstantEditor {
 // GetOffsetConstants returns the offsets and struct sizes constants
 func (p *Probe) GetOffsetConstants() (map[string]uint64, error) {
 	constantFetcher := constantfetch.ComposeConstantFetchers(constantfetch.GetAvailableConstantFetchers(p.Config.Probe, p.kernelVersion, p.StatsdClient))
-	kv, err := p.GetKernelVersion()
-	if err != nil {
-		return nil, fmt.Errorf("failed to fetch probe kernel version: %w", err)
-	}
-	AppendProbeRequestsToFetcher(constantFetcher, kv)
+	AppendProbeRequestsToFetcher(constantFetcher, p.kernelVersion)
 	return constantFetcher.FinishAndGetResults()
 }
 
 // GetConstantFetcherStatus returns the status of the constant fetcher associated with this probe
 func (p *Probe) GetConstantFetcherStatus() (*constantfetch.ConstantFetcherStatus, error) {
 	constantFetcher := constantfetch.ComposeConstantFetchers(constantfetch.GetAvailableConstantFetchers(p.Config.Probe, p.kernelVersion, p.StatsdClient))
-	kv, err := p.GetKernelVersion()
-	if err != nil {
-		return nil, fmt.Errorf("failed to fetch probe kernel version: %w", err)
-	}
-	AppendProbeRequestsToFetcher(constantFetcher, kv)
+	AppendProbeRequestsToFetcher(constantFetcher, p.kernelVersion)
 	return constantFetcher.FinishAndGetStatus()
 }
 

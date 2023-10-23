@@ -19,7 +19,7 @@ import (
 
 func TestIsContainerEntry(t *testing.T) {
 	source := sources.NewLogSource("", &config.LogsConfig{})
-	tailer := NewTailer(source, nil, nil)
+	tailer := NewTailer(source, nil, nil, false)
 
 	var entry *sdjournal.JournalEntry
 
@@ -36,7 +36,7 @@ func TestIsContainerEntry(t *testing.T) {
 
 func TestGetContainerID(t *testing.T) {
 	source := sources.NewLogSource("", &config.LogsConfig{})
-	tailer := NewTailer(source, nil, nil)
+	tailer := NewTailer(source, nil, nil, false)
 
 	entry := &sdjournal.JournalEntry{
 		Fields: map[string]string{

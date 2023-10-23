@@ -11,13 +11,13 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	oidresolver "github.com/DataDog/datadog-agent/pkg/snmp/traps/oid_resolver"
 	"github.com/DataDog/datadog-agent/pkg/snmp/traps/packet"
 
 	"github.com/gosnmp/gosnmp"
 
 	"github.com/DataDog/datadog-agent/comp/core/log"
-	"github.com/DataDog/datadog-agent/comp/ndmtmp/sender"
 )
 
 const (
@@ -33,7 +33,7 @@ type Formatter interface {
 // JSONFormatter is a Formatter implementation that transforms Traps into JSON
 type JSONFormatter struct {
 	oidResolver oidresolver.OIDResolver
-	aggregator  sender.Component
+	sender      sender.Sender
 	logger      log.Component
 }
 
@@ -53,11 +53,11 @@ const (
 )
 
 // NewJSONFormatter creates a new JSONFormatter instance with an optional OIDResolver variable.
-func NewJSONFormatter(oidResolver oidresolver.OIDResolver, aggregator sender.Component, logger log.Component) (JSONFormatter, error) {
+func NewJSONFormatter(oidResolver oidresolver.OIDResolver, sender sender.Sender, logger log.Component) (JSONFormatter, error) {
 	if oidResolver == nil {
 		return JSONFormatter{}, fmt.Errorf("NewJSONFormatter called with a nil OIDResolver")
 	}
-	return JSONFormatter{oidResolver, aggregator, logger}, nil
+	return JSONFormatter{oidResolver, sender, logger}, nil
 }
 
 // FormatPacket converts a raw SNMP trap packet to a FormattedSnmpPacket containing the JSON data and the tags to attach
@@ -122,7 +122,7 @@ func (f JSONFormatter) formatV1Trap(packet *packet.SnmpPacket) map[string]interf
 	data["snmpTrapOID"] = trapOID
 	trapMetadata, err := f.oidResolver.GetTrapMetadata(trapOID)
 	if err != nil {
-		f.aggregator.Count(telemetryTrapsNotEnriched, 1, "", tags)
+		f.sender.Count(telemetryTrapsNotEnriched, 1, "", tags)
 		f.logger.Debugf("unable to resolve OID: %s", err)
 	} else {
 		data["snmpTrapName"] = trapMetadata.Name
@@ -134,7 +134,7 @@ func (f JSONFormatter) formatV1Trap(packet *packet.SnmpPacket) map[string]interf
 	parsedVariables, enrichedValues := f.parseVariables(trapOID, content.Variables)
 	enrichmentFailed := len(content.Variables) - len(enrichedValues)
 	if enrichmentFailed > 0 {
-		f.aggregator.Count(telemetryVarsNotEnriched, float64(enrichmentFailed), "", tags)
+		f.sender.Count(telemetryVarsNotEnriched, float64(enrichmentFailed), "", tags)
 	}
 	data["variables"] = parsedVariables
 	for key, value := range enrichedValues {
@@ -153,7 +153,7 @@ func (f JSONFormatter) formatTrap(packet *packet.SnmpPacket) (map[string]interfa
 
 	variables := packet.Content.Variables
 	if len(variables) < 2 {
-		f.aggregator.Count(telemetryIncorrectFormat, 1, "", append(tags, "error:invalid_variables"))
+		f.sender.Count(telemetryIncorrectFormat, 1, "", append(tags, "error:invalid_variables"))
 		return nil, fmt.Errorf("expected at least 2 variables, got %d", len(variables))
 	}
 
@@ -161,21 +161,21 @@ func (f JSONFormatter) formatTrap(packet *packet.SnmpPacket) (map[string]interfa
 
 	uptime, err := parseSysUpTime(variables[0])
 	if err != nil {
-		f.aggregator.Count(telemetryIncorrectFormat, 1, "", append(tags, "error:invalid_sys_uptime"))
+		f.sender.Count(telemetryIncorrectFormat, 1, "", append(tags, "error:invalid_sys_uptime"))
 		return nil, err
 	}
 	data["uptime"] = uptime
 
 	trapOID, err := parseSnmpTrapOID(variables[1])
 	if err != nil {
-		f.aggregator.Count(telemetryIncorrectFormat, 1, "", append(tags, "error:invalid_trap_oid"))
+		f.sender.Count(telemetryIncorrectFormat, 1, "", append(tags, "error:invalid_trap_oid"))
 		return nil, err
 	}
 	data["snmpTrapOID"] = trapOID
 
 	trapMetadata, err := f.oidResolver.GetTrapMetadata(trapOID)
 	if err != nil {
-		f.aggregator.Count(telemetryTrapsNotEnriched, 1, "", tags)
+		f.sender.Count(telemetryTrapsNotEnriched, 1, "", tags)
 		f.logger.Debugf("unable to resolve OID: %s", err)
 	} else {
 		data["snmpTrapName"] = trapMetadata.Name
@@ -185,7 +185,7 @@ func (f JSONFormatter) formatTrap(packet *packet.SnmpPacket) (map[string]interfa
 	parsedVariables, enrichedValues := f.parseVariables(trapOID, variables[2:])
 	enrichmentFailed := len(variables) - 2 - len(enrichedValues) // Subtract 2 for sysUpTime and trapOID
 	if enrichmentFailed > 0 {
-		f.aggregator.Count(telemetryVarsNotEnriched, float64(enrichmentFailed), "", tags)
+		f.sender.Count(telemetryVarsNotEnriched, float64(enrichmentFailed), "", tags)
 	}
 	data["variables"] = parsedVariables
 	for key, value := range enrichedValues {
