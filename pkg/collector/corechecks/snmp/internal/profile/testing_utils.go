@@ -9,7 +9,6 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
-	"sort"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 
@@ -57,15 +56,6 @@ func SetConfdPathAndCleanProfiles() {
 func pathExists(path string) bool {
 	_, err := os.Stat(path)
 	return !os.IsNotExist(err)
-}
-
-func convertToProfileNames(profiles ProfileConfigMap) []string {
-	var profileNames []string
-	for name := range profiles {
-		profileNames = append(profileNames, name)
-	}
-	sort.Strings(profileNames)
-	return profileNames
 }
 
 // FixtureProfileDefinitionMap returns a fixture of ProfileConfigMap with `f5-big-ip` profile
