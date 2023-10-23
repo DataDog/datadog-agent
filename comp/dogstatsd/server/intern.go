@@ -16,15 +16,15 @@ var (
 	// There are multiple instances of the interner, one per worker (depends on # of virtual CPUs).
 	// Most metrics are tagged with the instance ID, however some are left as global
 	// Note `New` vs `NewSimple`
-	tlmSIResets = telemetry.NewCounter("dogstatsd", "string_interner_resets", []string{"internerId"},
+	tlmSIResets = telemetry.NewCounter("dogstatsd", "string_interner_resets", []string{"interner_id"},
 		"Amount of resets of the string interner used in dogstatsd")
-	tlmSIRSize = telemetry.NewGauge("dogstatsd", "string_interner_entries", []string{"internerId"},
+	tlmSIRSize = telemetry.NewGauge("dogstatsd", "string_interner_entries", []string{"interner_id"},
 		"Number of entries in the string interner")
-	tlmSIRBytes = telemetry.NewGauge("dogstatsd", "string_interner_bytes", []string{"internerId"},
+	tlmSIRBytes = telemetry.NewGauge("dogstatsd", "string_interner_bytes", []string{"interner_id"},
 		"Number of bytes stored in the string interner")
-	tlmSIRHits = telemetry.NewCounter("dogstatsd", "string_interner_hits", []string{"internerId"},
+	tlmSIRHits = telemetry.NewCounter("dogstatsd", "string_interner_hits", []string{"interner_id"},
 		"Number of times string interner returned an existing string")
-	tlmSIRMiss = telemetry.NewCounter("dogstatsd", "string_interner_miss", []string{"internerId"},
+	tlmSIRMiss = telemetry.NewCounter("dogstatsd", "string_interner_miss", []string{"interner_id"},
 		"Number of times string interner created a new string object")
 	tlmSIRNew = telemetry.NewSimpleCounter("dogstatsd", "string_interner_new",
 		"Number of times string interner was created")
@@ -69,15 +69,15 @@ func (i *stringInterner) LoadOrStore(key []byte) string {
 	// See https://github.com/golang/go/commit/f5f5a8b6209f84961687d993b93ea0d397f5d5bf
 	if s, found := i.strings[string(key)]; found {
 		if i.tlmEnabled {
-			tlmSIRHits.WithTags(map[string]string{"internerId": i.id}).Inc()
+			tlmSIRHits.WithTags(map[string]string{"interner_id": i.id}).Inc()
 		}
 		return s
 	}
 	if len(i.strings) >= i.maxSize {
 		if i.tlmEnabled {
-			tlmSIResets.WithTags(map[string]string{"internerId": i.id}).Inc()
-			tlmSIRBytes.WithTags(map[string]string{"internerId": i.id}).Sub(float64(i.curBytes))
-			tlmSIRSize.WithTags(map[string]string{"internerId": i.id}).Sub(float64(len(i.strings)))
+			tlmSIResets.WithTags(map[string]string{"interner_id": i.id}).Inc()
+			tlmSIRBytes.WithTags(map[string]string{"interner_id": i.id}).Sub(float64(i.curBytes))
+			tlmSIRSize.WithTags(map[string]string{"interner_id": i.id}).Sub(float64(len(i.strings)))
 			i.curBytes = 0
 		}
 
@@ -88,9 +88,9 @@ func (i *stringInterner) LoadOrStore(key []byte) string {
 	i.strings[s] = s
 
 	if i.tlmEnabled {
-		tlmSIRMiss.WithTags(map[string]string{"internerId": i.id}).Inc()
-		tlmSIRSize.WithTags(map[string]string{"internerId": i.id}).Inc()
-		tlmSIRBytes.WithTags(map[string]string{"internerId": i.id}).Add(float64(len(s)))
+		tlmSIRMiss.WithTags(map[string]string{"interner_id": i.id}).Inc()
+		tlmSIRSize.WithTags(map[string]string{"interner_id": i.id}).Inc()
+		tlmSIRBytes.WithTags(map[string]string{"interner_id": i.id}).Add(float64(len(s)))
 		tlmSIRStrBytes.Observe(float64(len(s)))
 		i.curBytes += len(s)
 	}
