@@ -3,16 +3,25 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package containercheck
+//go:build test
+
+package impl
 
 import (
 	"testing"
 
 	"github.com/stretchr/testify/mock"
+	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/comp/process/types"
 	"github.com/DataDog/datadog-agent/pkg/process/checks"
 	"github.com/DataDog/datadog-agent/pkg/process/checks/mocks"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
+)
+
+// MockModule defines the fx options for the mock component.
+var MockModule = fxutil.Component(
+	fx.Provide(newMock),
 )
 
 var _ types.CheckComponent = (*mockCheck)(nil)

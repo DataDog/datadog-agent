@@ -3,23 +3,29 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package submitter
+// Package impl implements a component to submit collected data in the Process Agent to
+// supported Datadog intakes.
+package impl
 
 import (
 	"context"
-	"testing"
 	"time"
 
-	"github.com/stretchr/testify/mock"
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/comp/process/forwarders"
 	"github.com/DataDog/datadog-agent/comp/process/hostinfo"
+	submitterComp "github.com/DataDog/datadog-agent/comp/process/submitter"
 	"github.com/DataDog/datadog-agent/comp/process/types"
 	processRunner "github.com/DataDog/datadog-agent/pkg/process/runner"
-	"github.com/DataDog/datadog-agent/pkg/process/runner/mocks"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
+)
+
+// Module defines the fx options for this component.
+var Module = fxutil.Component(
+	fx.Provide(newSubmitter),
 )
 
 // submitter implements the Component.
@@ -41,7 +47,7 @@ type result struct {
 	fx.Out
 
 	RTResponseNotifier <-chan types.RTResponse
-	Submitter          Component
+	Submitter          submitterComp.Component
 }
 
 func newSubmitter(deps dependencies) (result, error) {
@@ -77,10 +83,4 @@ func (s *submitter) Start() error {
 
 func (s *submitter) Stop() {
 	s.s.Stop()
-}
-
-func newMock(t testing.TB) Component {
-	s := mocks.NewSubmitter(t)
-	s.On("Submit", mock.Anything, mock.Anything, mock.Anything).Maybe()
-	return s
 }

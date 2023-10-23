@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package expvars
+package impl
 
 import (
 	"net/http"
@@ -15,12 +15,13 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/comp/process/hostinfo"
+	"github.com/DataDog/datadog-agent/comp/process/expvars"
+	hostinfo "github.com/DataDog/datadog-agent/comp/process/hostinfo/impl"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
 func TestExpvarServer(t *testing.T) {
-	_ = fxutil.Test[Component](t, fx.Options(
+	_ = fxutil.Test[expvars.Component](t, fx.Options(
 		fx.Supply(core.BundleParams{}),
 
 		Module,
@@ -40,7 +41,7 @@ func TestExpvarServer(t *testing.T) {
 }
 
 func TestTelemetry(t *testing.T) {
-	_ = fxutil.Test[Component](t, fx.Options(
+	_ = fxutil.Test[expvars.Component](t, fx.Options(
 		fx.Supply(core.BundleParams{}),
 		fx.Replace(config.MockParams{Overrides: map[string]interface{}{
 			"telemetry.enabled": true,

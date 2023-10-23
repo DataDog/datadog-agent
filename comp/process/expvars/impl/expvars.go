@@ -3,7 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package expvars
+// Package impl initializes the expvar server of the process agent.
+package impl
 
 import (
 	"context"
@@ -18,14 +19,21 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
+	"github.com/DataDog/datadog-agent/comp/process/expvars"
 	"github.com/DataDog/datadog-agent/comp/process/hostinfo"
 	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/process/runner/endpoint"
 	"github.com/DataDog/datadog-agent/pkg/process/status"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
-var _ Component = (*expvarServer)(nil)
+// Module defines the fx options for this component.
+var Module = fxutil.Component(
+	fx.Provide(newExpvarServer),
+)
+
+var _ expvars.Component = (*expvarServer)(nil)
 
 type expvarServer *http.Server
 
@@ -42,7 +50,7 @@ type dependencies struct {
 	Telemetry telemetry.Component
 }
 
-func newExpvarServer(deps dependencies) (Component, error) {
+func newExpvarServer(deps dependencies) (expvars.Component, error) {
 	// Initialize status
 	err := initStatus(deps)
 	if err != nil {

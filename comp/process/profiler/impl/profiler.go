@@ -3,7 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package profiler
+// Package impl implements a component to handle starting and stopping the internal profiler.
+package impl
 
 import (
 	"context"
@@ -12,10 +13,17 @@ import (
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	profilecomp "github.com/DataDog/datadog-agent/comp/process/profiler"
 	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/profiling"
 	"github.com/DataDog/datadog-agent/pkg/version"
+)
+
+// Module defines the fx options for this component.
+var Module = fxutil.Component(
+	fx.Provide(newProfiler),
 )
 
 type dependencies struct {
@@ -25,11 +33,11 @@ type dependencies struct {
 	Config config.Component
 }
 
-var _ Component = (*profiler)(nil)
+var _ profilecomp.Component = (*profiler)(nil)
 
 type profiler struct{}
 
-func newProfiler(deps dependencies) Component {
+func newProfiler(deps dependencies) profilecomp.Component {
 	p := &profiler{}
 
 	settings := getProfilingSettings(deps.Config)
