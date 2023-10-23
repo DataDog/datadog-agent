@@ -70,34 +70,23 @@ type FlowPayload struct {
 
 // MarshalJSON Custom marshaller that moves AdditionalFields to the root of the payload
 func (p FlowPayload) MarshalJSON() ([]byte, error) {
-	// Turn FlowPayload into a map
 	type FlowPayload_ FlowPayload // prevent recursion
-	b, err := json.Marshal(FlowPayload_(p))
-
+	marshaled, err := json.Marshal(FlowPayload_(p))
 	if err != nil {
 		return nil, err
 	}
 
-	var m map[string]json.RawMessage
-	err = json.Unmarshal(b, &m)
-
+	fields := make(map[string]any)
+	err = json.Unmarshal(marshaled, &fields)
 	if err != nil {
 		return nil, err
 	}
 
-	// Move additional fields to the root of the payload
+	delete(fields, "additional_fields")
+
 	for k, v := range p.AdditionalFields {
-		if _, ok := m[k]; ok {
-			// Do not override, custom fields override is handled in goflowlib converter
-			continue
-		}
-		b, err = json.Marshal(v)
-		if err != nil {
-			// We failed to marshall a custom field, continuing anyway TODO : log
-			continue
-		}
-		m[k] = b
+		fields[k] = v
 	}
 
-	return json.Marshal(m)
+	return json.Marshal(fields)
 }
