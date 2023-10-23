@@ -1,3 +1,8 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2023-present Datadog, Inc.
+
 package netflowstate
 
 import (
@@ -19,6 +24,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 )
 
+// StateNetFlow holds a NetflowV9/IPFIX producer
 type StateNetFlow struct {
 	stopper
 
@@ -39,6 +45,7 @@ type StateNetFlow struct {
 	mappedFieldsConfig map[uint16]config.Mapping
 }
 
+// NewStateNetFlow initializes a new Netflow/IPFIX producer, with the goflow default producer and the additional fields producer
 func NewStateNetFlow(mappingConfs []config.Mapping) *StateNetFlow {
 	return &StateNetFlow{
 		ctx:                context.Background(),
@@ -48,6 +55,7 @@ func NewStateNetFlow(mappingConfs []config.Mapping) *StateNetFlow {
 	}
 }
 
+// DecodeFlow decodes a flow into common.FlowMessageWithAdditionalFields
 func (s *StateNetFlow) DecodeFlow(msg interface{}) error {
 	pkt := msg.(utils.BaseMessage)
 	buf := bytes.NewBuffer(pkt.Payload)
@@ -357,6 +365,7 @@ func mapFieldsConfig(mappingConfs []config.Mapping) map[uint16]config.Mapping {
 	return mappedFieldsConfig
 }
 
+// FlowRoutine starts a goflow flow routine
 func (s *StateNetFlow) FlowRoutine(workers int, addr string, port int, reuseport bool) error {
 	if err := s.start(); err != nil {
 		return err

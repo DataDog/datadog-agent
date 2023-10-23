@@ -72,26 +72,35 @@ type Flow struct {
 	AdditionalFields AdditionalFields
 }
 
+// AdditionalFields holds configured additional fields collected
 type AdditionalFields = map[string]any
 
+// FlowMessageWithAdditionalFields contains a goflow flowmessage and additional fields
 type FlowMessageWithAdditionalFields struct {
 	FlowMessage      *flowmessage.FlowMessage
 	AdditionalFields AdditionalFields
 }
 
+// EndianType is used to configure additional fields endianness
 type EndianType string
 
 var (
-	BigEndian    EndianType = "big"
+	// BigEndian is used to configure a big endian additional field
+	BigEndian EndianType = "big"
+	// LittleEndian is used to configure a little endian additional field
 	LittleEndian EndianType = "little"
 )
 
+// FieldType is used to configure additional fields data type
 type FieldType string
 
 var (
+	// String type is used to configure a textual additional field
 	String FieldType = "string"
+	// Varint type is used to configure an integer additional field
 	Varint FieldType = "varint"
-	Bytes  FieldType = "bytes"
+	// Bytes type is used to configure a hex additional field
+	Bytes FieldType = "bytes"
 )
 
 // AggregationHash return a hash used as aggregation key

@@ -44,6 +44,7 @@ type ListenerConfig struct {
 	Mapping   []Mapping       `mapstructure:"mapping"`
 }
 
+// Mapping contains configuration for a Netflow/IPFIX field mapping
 type Mapping struct {
 	Field       uint16            `mapstructure:"field"`
 	Destination string            `mapstructure:"destination"`

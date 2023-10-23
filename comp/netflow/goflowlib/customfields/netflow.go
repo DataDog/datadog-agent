@@ -1,3 +1,8 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2023-present Datadog, Inc.
+
 package customfields
 
 import (
@@ -10,19 +15,22 @@ import (
 	"github.com/netsampler/goflow2/producer"
 )
 
-func DecodeUNumberWithEndianness(b []byte, out *uint64, endianness common.EndianType) {
+func decodeUNumberWithEndianness(b []byte, out *uint64, endianness common.EndianType) error {
 	if endianness == common.LittleEndian {
-		producer.DecodeUNumberLE(b, out)
+		return producer.DecodeUNumberLE(b, out)
 	} else {
-		producer.DecodeUNumber(b, out)
+		return producer.DecodeUNumber(b, out)
 	}
 }
 
-func MapCustomField(additionalFields common.AdditionalFields, v []byte, cfg config.Mapping) {
+func mapCustomField(additionalFields common.AdditionalFields, v []byte, cfg config.Mapping) {
 	// TODO : Add more types (IP address, timestamp, ...)
 	if cfg.Type == common.Varint {
 		var dstVar uint64
-		DecodeUNumberWithEndianness(v, &dstVar, cfg.Endian)
+		err := decodeUNumberWithEndianness(v, &dstVar, cfg.Endian)
+		if err != nil {
+			return
+		}
 		additionalFields[cfg.Destination] = dstVar
 	} else if cfg.Type == common.String {
 		additionalFields[cfg.Destination] = string(bytes.Trim(v, "\x00")) // Removing trailing null chars
@@ -31,7 +39,7 @@ func MapCustomField(additionalFields common.AdditionalFields, v []byte, cfg conf
 	}
 }
 
-func ConvertNetFlowDataSet(record []netflow.DataField, fieldsConfig map[uint16]config.Mapping) common.AdditionalFields {
+func convertNetFlowDataSet(record []netflow.DataField, fieldsConfig map[uint16]config.Mapping) common.AdditionalFields {
 	additionalFields := make(common.AdditionalFields)
 
 	for i := range record {
@@ -47,16 +55,16 @@ func ConvertNetFlowDataSet(record []netflow.DataField, fieldsConfig map[uint16]c
 			continue
 		}
 
-		MapCustomField(additionalFields, v, mappingConfig)
+		mapCustomField(additionalFields, v, mappingConfig)
 	}
 
 	return additionalFields
 }
 
-func SearchNetFlowDataSetsRecords(dataRecords []netflow.DataRecord, fieldsConfig map[uint16]config.Mapping) []common.AdditionalFields {
+func searchNetFlowDataSetsRecords(dataRecords []netflow.DataRecord, fieldsConfig map[uint16]config.Mapping) []common.AdditionalFields {
 	var setsAdditionalFields []common.AdditionalFields
 	for _, record := range dataRecords {
-		additionalFields := ConvertNetFlowDataSet(record.Values, fieldsConfig)
+		additionalFields := convertNetFlowDataSet(record.Values, fieldsConfig)
 		if additionalFields != nil {
 			setsAdditionalFields = append(setsAdditionalFields, additionalFields)
 		}
@@ -64,10 +72,10 @@ func SearchNetFlowDataSetsRecords(dataRecords []netflow.DataRecord, fieldsConfig
 	return setsAdditionalFields
 }
 
-func SearchNetFlowDataSets(dataFlowSet []netflow.DataFlowSet, fieldsConfig map[uint16]config.Mapping) []common.AdditionalFields {
+func searchNetFlowDataSets(dataFlowSet []netflow.DataFlowSet, fieldsConfig map[uint16]config.Mapping) []common.AdditionalFields {
 	var flowsAdditonalFields []map[string]any
 	for _, dataFlowSetItem := range dataFlowSet {
-		setsAdditionalFields := SearchNetFlowDataSetsRecords(dataFlowSetItem.Records, fieldsConfig)
+		setsAdditionalFields := searchNetFlowDataSetsRecords(dataFlowSetItem.Records, fieldsConfig)
 		if setsAdditionalFields != nil {
 			flowsAdditonalFields = append(flowsAdditonalFields, setsAdditionalFields...)
 		}
@@ -85,10 +93,10 @@ func ProcessMessageNetFlowCustomFields(msgDec interface{}, fieldsConfig map[uint
 	switch msgDecConv := msgDec.(type) {
 	case netflow.NFv9Packet:
 		dataFlowSet, _, _, _ := producer.SplitNetFlowSets(msgDecConv)
-		flowsAdditonalFields = SearchNetFlowDataSets(dataFlowSet, fieldsConfig)
+		flowsAdditonalFields = searchNetFlowDataSets(dataFlowSet, fieldsConfig)
 	case netflow.IPFIXPacket:
 		dataFlowSet, _, _, _ := producer.SplitIPFIXSets(msgDecConv)
-		flowsAdditonalFields = SearchNetFlowDataSets(dataFlowSet, fieldsConfig)
+		flowsAdditonalFields = searchNetFlowDataSets(dataFlowSet, fieldsConfig)
 	default:
 		return flowsAdditonalFields, errors.New("Bad NetFlow/IPFIX version")
 	}
