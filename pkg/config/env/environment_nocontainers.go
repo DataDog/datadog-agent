@@ -5,12 +5,14 @@
 
 //go:build !(linux || windows)
 
-package config
+package env
+
+import "github.com/DataDog/datadog-agent/pkg/config/model"
 
 // IsAnyContainerFeaturePresent checks if any of known container features is present
 func IsAnyContainerFeaturePresent() bool {
 	return false
 }
 
-func detectContainerFeatures(features FeatureMap) { //nolint:revive // TODO fix revive unused-parameter
+func detectContainerFeatures(_ FeatureMap, _ model.Reader) {
 }
