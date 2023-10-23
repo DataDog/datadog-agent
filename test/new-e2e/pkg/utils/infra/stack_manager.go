@@ -52,7 +52,7 @@ func GetStackManager() *StackManager {
 	initStackManager.Do(func() {
 		var err error
 
-		stackManager, err = newStackManager(context.Background())
+		stackManager, err = newStackManager()
 		if err != nil {
 			panic(fmt.Sprintf("Got an error during StackManager singleton init, err: %v", err))
 		}
@@ -61,7 +61,7 @@ func GetStackManager() *StackManager {
 	return stackManager
 }
 
-func newStackManager(ctx context.Context) (*StackManager, error) {
+func newStackManager() (*StackManager, error) {
 	return &StackManager{
 		stacks: make(map[string]*auto.Stack),
 	}, nil
@@ -259,4 +259,20 @@ func runFuncWithRecover(f pulumi.RunFunc) pulumi.RunFunc {
 
 		return f(ctx)
 	}
+}
+
+// GetPulumiStackName returns the Pulumi stack name
+// The internal Pulumi stack name should normally remain hidden as all the Pulumi interactions
+// should be done via the StackManager.
+// The only use case for getting the internal Pulumi stack name is to interact directly with Pulumi for debug purposes.
+func (sm *StackManager) GetPulumiStackName(name string) (string, error) {
+	sm.lock.Lock()
+	defer sm.lock.Unlock()
+
+	stack, ok := sm.stacks[name]
+	if !ok {
+		return "", fmt.Errorf("stack %s not present", name)
+	}
+
+	return stack.Name(), nil
 }

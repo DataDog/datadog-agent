@@ -6,7 +6,7 @@ generator:
       duplicates: 4
       variant: "ascii"
       bytes_per_second: "100Mb"
-      maximum_bytes_per_file: "100Mb"
+      maximum_bytes_per_file: "200Mb"
       maximum_prebuild_cache_size_bytes: "400Mb"
 
 blackhole:

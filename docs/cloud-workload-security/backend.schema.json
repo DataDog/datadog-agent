@@ -628,37 +628,48 @@
     "MountEvent": {
       "properties": {
         "mp": {
-          "$ref": "#/$defs/File"
+          "$ref": "#/$defs/File",
+          "description": "Mount point file information"
         },
         "root": {
-          "$ref": "#/$defs/File"
+          "$ref": "#/$defs/File",
+          "description": "Root file information"
         },
         "mount_id": {
-          "type": "integer"
+          "type": "integer",
+          "description": "Mount ID of the new mount"
         },
         "parent_mount_id": {
-          "type": "integer"
+          "type": "integer",
+          "description": "Mount ID of the parent mount"
         },
         "bind_src_mount_id": {
-          "type": "integer"
+          "type": "integer",
+          "description": "Mount ID of the source of a bind mount"
         },
         "device": {
-          "type": "integer"
+          "type": "integer",
+          "description": "Device associated with the file"
         },
         "fs_type": {
-          "type": "string"
+          "type": "string",
+          "description": "Filesystem type"
         },
         "mountpoint.path": {
-          "type": "string"
+          "type": "string",
+          "description": "Mount point path"
         },
         "source.path": {
-          "type": "string"
+          "type": "string",
+          "description": "Mount source path"
         },
         "mountpoint.path_error": {
-          "type": "string"
+          "type": "string",
+          "description": "Mount point path error"
         },
         "source.path_error": {
-          "type": "string"
+          "type": "string",
+          "description": "Mount source path error"
         }
       },
       "additionalProperties": false,

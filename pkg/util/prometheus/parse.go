@@ -13,7 +13,11 @@ import (
 
 	"github.com/prometheus/common/expfmt"
 	"github.com/prometheus/common/model"
-	"golang.org/x/exp/maps"
+)
+
+const (
+	// TypeLabel is the special tag which signifies the type of the metric collected from Prometheus
+	TypeLabel = "__type__"
 )
 
 // ParseMetrics parses prometheus-formatted metrics from the input data.
@@ -28,9 +32,17 @@ func ParseMetrics(data []byte) (model.Vector, error) {
 		return nil, err
 	}
 
-	metrics, err := expfmt.ExtractSamples(&expfmt.DecodeOptions{Timestamp: model.Now()}, maps.Values(mf)...)
-	if err != nil {
-		return nil, err
+	var metrics model.Vector
+	for _, family := range mf {
+		samples, err := expfmt.ExtractSamples(&expfmt.DecodeOptions{Timestamp: model.Now()}, family)
+		if err != nil {
+			return nil, err
+		}
+		for i := range samples {
+			// explicitly set the metric type as a label, as it will help when handling the metric
+			samples[i].Metric[TypeLabel] = model.LabelValue(family.Type.String())
+		}
+		metrics = append(metrics, samples...)
 	}
 	return metrics, nil
 }

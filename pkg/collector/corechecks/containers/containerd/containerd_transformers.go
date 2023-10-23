@@ -35,7 +35,7 @@ func grpcServerHandlerTransformer(s sender.Sender, name string, sample model.Sam
 	}
 }
 
-func imagePullMetricTransformer(s sender.Sender, name string, sample model.Sample) {
+func imagePullMetricTransformer(s sender.Sender, _ string, sample model.Sample) {
 	metric := sample.Metric
 
 	grpcCode, ok := metric["grpc_code"]
