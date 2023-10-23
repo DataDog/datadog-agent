@@ -625,12 +625,7 @@ def cws_go_generate(ctx):
             ctx.run("GOOS=linux go generate ./...")
         ctx.run("go generate ./...")
 
-    if sys.platform == "win32":
-        shutil.copy(
-            "./pkg/security/serializers/serializers_windows_easyjson.mock",
-            "./pkg/security/serializers/serializers_windows_easyjson.go",
-        )
-    else:
+    if sys.platform == "linux":
         shutil.copy(
             "./pkg/security/serializers/serializers_linux_easyjson.mock",
             "./pkg/security/serializers/serializers_linux_easyjson.go",

@@ -23,6 +23,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/metrics"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
+	"github.com/DataDog/datadog-agent/pkg/security/utils"
 	"github.com/DataDog/datadog-agent/pkg/tagger/collectors"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/version"
@@ -183,11 +184,21 @@ type RulesetLoadedEvent struct {
 	Policies []*PolicyState `json:"policies"`
 }
 
+// ToJSON marshal using json format
+func (e RulesetLoadedEvent) ToJSON() ([]byte, error) {
+	return utils.MarshalEasyJSON(e)
+}
+
 // HeartbeatEvent is used to report the policies that has been loaded
 // easyjson:json
 type HeartbeatEvent struct {
 	events.CustomEventCommonFields
 	Policy *PolicyState `json:"policy"`
+}
+
+// ToJSON marshal using json format
+func (e HeartbeatEvent) ToJSON() ([]byte, error) {
+	return utils.MarshalEasyJSON(e)
 }
 
 // PolicyStateFromRuleDefinition returns a policy state based on the rule definition
