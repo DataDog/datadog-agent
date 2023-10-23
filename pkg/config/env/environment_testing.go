@@ -5,7 +5,7 @@
 
 //go:build test
 
-package config
+package env
 
 import "testing"
 

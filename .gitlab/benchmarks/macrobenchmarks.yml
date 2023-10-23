@@ -27,7 +27,6 @@ variables:
   variables:
     FF_USE_LEGACY_KUBERNETES_EXECUTION_STRATEGY: "true" # Important tweak for stability of benchmarks
     K6_RUN_ID_PREFIX: ci
-    KUBERNETES_SERVICE_ACCOUNT_OVERWRITE: datadog-agent
 
     # Uncomment to force k8s memory limits for CI job container.
     # KUBERNETES_MEMORY_REQUEST: "4Gi"
