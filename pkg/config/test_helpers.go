@@ -12,6 +12,15 @@ import (
 	"log"
 	"strings"
 	"testing"
+
+	"github.com/DataDog/datadog-agent/pkg/config/env"
+)
+
+var (
+	// SetFeatures is alias from env
+	SetFeatures = env.SetFeatures
+	// SetFeaturesNoCleanup is alias from env
+	SetFeaturesNoCleanup = env.SetFeaturesNoCleanup
 )
 
 // SetupConf generates and returns a new configuration

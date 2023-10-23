@@ -19,11 +19,12 @@ import (
 
 func Test_getProfiles(t *testing.T) {
 	tests := []struct {
-		name                 string
-		mockConfd            string
-		profiles             ProfileConfigMap
-		expectedProfileNames []string
-		expectedErr          string
+		name                   string
+		mockConfd              string
+		profiles               ProfileConfigMap
+		expectedProfileMetrics []string
+		expectedProfileNames   []string
+		expectedErr            string
 	}{
 		{
 			name:      "OK Use init config profiles",
@@ -34,9 +35,26 @@ func Test_getProfiles(t *testing.T) {
 						Name: "my-init-config-profile",
 					},
 				},
+				"f5-big-ip": ProfileConfig{ // should have precedence over user profiles
+					Definition: profiledefinition.ProfileDefinition{
+						Name: "f5-big-ip",
+						Metrics: []profiledefinition.MetricsConfig{
+							{
+								Symbol: profiledefinition.SymbolConfig{
+									OID:  "1.2.3.4",
+									Name: "init_config_metric",
+								},
+							},
+						},
+					},
+				},
 			},
 			expectedProfileNames: []string{
+				"f5-big-ip",
 				"my-init-config-profile",
+			},
+			expectedProfileMetrics: []string{
+				"init_config_metric",
 			},
 		},
 		{
@@ -103,6 +121,16 @@ func Test_getProfiles(t *testing.T) {
 			sort.Strings(actualProfilesNames)
 			sort.Strings(tt.expectedProfileNames)
 			assert.Equal(t, tt.expectedProfileNames, actualProfilesNames)
+
+			if len(tt.expectedProfileMetrics) > 0 {
+				var metricsNames []string
+				for _, profile := range actualProfiles {
+					for _, metric := range profile.Definition.Metrics {
+						metricsNames = append(metricsNames, metric.Symbol.Name)
+					}
+				}
+				assert.ElementsMatch(t, tt.expectedProfileMetrics, metricsNames)
+			}
 		})
 	}
 }

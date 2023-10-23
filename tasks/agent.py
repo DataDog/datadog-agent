@@ -890,7 +890,15 @@ def clean(ctx):
 
 
 @task
-def version(ctx, url_safe=False, omnibus_format=False, git_sha_length=7, major_version='7', version_cached=False):
+def version(
+    ctx,
+    url_safe=False,
+    omnibus_format=False,
+    git_sha_length=7,
+    major_version='7',
+    version_cached=False,
+    pipeline_id=None,
+):
     """
     Get the agent version.
     url_safe: get the version that is able to be addressed as a url
@@ -912,6 +920,7 @@ def version(ctx, url_safe=False, omnibus_format=False, git_sha_length=7, major_v
         git_sha_length=git_sha_length,
         major_version=major_version,
         include_pipeline_id=True,
+        pipeline_id=pipeline_id,
     )
     if omnibus_format:
         # See: https://github.com/DataDog/omnibus-ruby/blob/datadog-5.5.0/lib/omnibus/packagers/deb.rb#L599

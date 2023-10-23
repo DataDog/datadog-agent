@@ -2,7 +2,6 @@
 Release helper tasks
 """
 
-import hashlib
 import json
 import re
 import sys
@@ -467,9 +466,6 @@ COMPATIBLE_MAJOR_VERSIONS = {6: ["6", "7"], 7: ["7"]}
 # Message templates for the below functions
 # Defined here either because they're long and would make the code less legible,
 # or because they're used multiple times.
-DIFFERENT_TAGS_TEMPLATE = (
-    "The latest version of {} ({}) does not match the version used in the previous release entry ({})."
-)
 RC_TAG_QUESTION_TEMPLATE = "The {} tag found is an RC tag: {}. Are you sure you want to use it?"
 TAG_FOUND_TEMPLATE = "The {} tag is {}"
 
@@ -521,58 +517,26 @@ def _fetch_dependency_repo_version(
     return version
 
 
-def _confirm_independent_dependency_repo_version(repo, latest_version, highest_release_json_version):
+def _get_jmxfetch_release_json_info(release_json, agent_major_version, is_first_rc=False):
     """
-    Checks if the two versions of a repository we found (from release.json and from the available repo tags)
-    are different. If they are, asks the user for confirmation before updating the version.
-    """
-
-    if latest_version == highest_release_json_version:
-        return highest_release_json_version
-
-    print(color_message(DIFFERENT_TAGS_TEMPLATE.format(repo, latest_version, highest_release_json_version), "orange"))
-    if yes_no_question(f"Do you want to update {repo} to {latest_version}?", "orange", False):
-        return latest_version
-
-    return highest_release_json_version
-
-
-def _fetch_independent_dependency_repo_version(repo_name, release_json, agent_major_version, release_json_key):
-    """
-    Fetches the latest tag on a given repository whose version scheme doesn't match the one used for the Agent:
-    - first, we get the latest version used in release entries of the matching Agent major version
-    - then, we fetch the latest version available in the repository
-    - if the above two versions are different, emit a warning and ask for user confirmation before updating the version.
+    Gets the JMXFetch version info from the previous entries in the release.json file.
     """
 
-    previous_version = _get_release_version_from_release_json(
-        release_json,
-        agent_major_version,
-        VERSION_RE,
-        release_json_key=release_json_key,
-    )
-    # NOTE: This assumes that the repository doesn't change the way it prefixes versions.
-    version = _get_highest_repo_version(repo_name, previous_version.prefix, VERSION_RE)
+    release_json_version_data = _get_release_json_info_for_next_rc(release_json, agent_major_version, is_first_rc)
 
-    version = _confirm_independent_dependency_repo_version(repo_name, version, previous_version)
-    print(TAG_FOUND_TEMPLATE.format(repo_name, version))
+    jmxfetch_version = release_json_version_data['JMXFETCH_VERSION']
+    jmxfetch_shasum = release_json_version_data['JMXFETCH_HASH']
 
-    return version
+    print(f"The JMXFetch version is {jmxfetch_version}")
+
+    return jmxfetch_version, jmxfetch_shasum
 
 
 def _get_windows_ddnpm_release_json_info(release_json, agent_major_version, is_first_rc=False):
     """
     Gets the Windows NPM driver info from the previous entries in the release.json file.
     """
-
-    # First RC should use the data from nightly section otherwise reuse the last RC info
-    if is_first_rc:
-        previous_release_json_version = nightly_entry_for(agent_major_version)
-    else:
-        previous_release_json_version = release_entry_for(agent_major_version)
-
-    print(f"Using '{previous_release_json_version}' DDNPM values")
-    release_json_version_data = release_json[previous_release_json_version]
+    release_json_version_data = _get_release_json_info_for_next_rc(release_json, agent_major_version, is_first_rc)
 
     win_ddnpm_driver = release_json_version_data['WINDOWS_DDNPM_DRIVER']
     win_ddnpm_version = release_json_version_data['WINDOWS_DDNPM_VERSION']
@@ -584,6 +548,22 @@ def _get_windows_ddnpm_release_json_info(release_json, agent_major_version, is_f
     print(f"The windows ddnpm version is {win_ddnpm_version}")
 
     return win_ddnpm_driver, win_ddnpm_version, win_ddnpm_shasum
+
+
+def _get_release_json_info_for_next_rc(release_json, agent_major_version, is_first_rc=False):
+    """
+    Gets the version info from the previous entries in the release.json file.
+    """
+
+    # First RC should use the data from nightly section otherwise reuse the last RC info
+    if is_first_rc:
+        previous_release_json_version = nightly_entry_for(agent_major_version)
+    else:
+        previous_release_json_version = release_entry_for(agent_major_version)
+
+    print(f"Using '{previous_release_json_version}' values")
+
+    return release_json[previous_release_json_version]
 
 
 ##
@@ -598,6 +578,7 @@ def _update_release_json_entry(
     omnibus_software_version,
     omnibus_ruby_version,
     jmxfetch_version,
+    jmxfetch_shasum,
     security_agent_policies_version,
     macos_build_version,
     windows_ddnpm_driver,
@@ -607,14 +588,8 @@ def _update_release_json_entry(
     """
     Adds a new entry to provided release_json object with the provided parameters, and returns the new release_json object.
     """
-    import requests
 
-    jmxfetch = requests.get(
-        f"https://oss.sonatype.org/service/local/repositories/releases/content/com/datadoghq/jmxfetch/{jmxfetch_version}/jmxfetch-{jmxfetch_version}-jar-with-dependencies.jar"
-    ).content
-    jmxfetch_sha256 = hashlib.sha256(jmxfetch).hexdigest()
-
-    print(f"Jmxfetch's SHA256 is {jmxfetch_sha256}")
+    print(f"Jmxfetch's SHA256 is {jmxfetch_shasum}")
     print(f"Windows DDNPM's SHA256 is {windows_ddnpm_shasum}")
 
     new_version_config = OrderedDict()
@@ -622,7 +597,7 @@ def _update_release_json_entry(
     new_version_config["OMNIBUS_SOFTWARE_VERSION"] = omnibus_software_version
     new_version_config["OMNIBUS_RUBY_VERSION"] = omnibus_ruby_version
     new_version_config["JMXFETCH_VERSION"] = jmxfetch_version
-    new_version_config["JMXFETCH_HASH"] = jmxfetch_sha256
+    new_version_config["JMXFETCH_HASH"] = jmxfetch_shasum
     new_version_config["SECURITY_AGENT_POLICIES_VERSION"] = security_agent_policies_version
     new_version_config["MACOS_BUILD_VERSION"] = macos_build_version
     new_version_config["WINDOWS_DDNPM_DRIVER"] = windows_ddnpm_driver
@@ -704,8 +679,10 @@ def _update_release_json(release_json, release_entry, new_version: Version, max_
     )
 
     # Part 2: repositories which have their own version scheme
-    jmxfetch_version = _fetch_independent_dependency_repo_version(
-        "jmxfetch", release_json, new_version.major, "JMXFETCH_VERSION"
+
+    # jmxfetch version is updated directly by the AML team
+    jmxfetch_version, jmxfetch_shasum = _get_jmxfetch_release_json_info(
+        release_json, new_version.major, is_first_rc=(new_version.rc == 1)
     )
 
     # security agent policies are updated directly by the CWS team
@@ -726,6 +703,7 @@ def _update_release_json(release_json, release_entry, new_version: Version, max_
         omnibus_software_version,
         omnibus_ruby_version,
         jmxfetch_version,
+        jmxfetch_shasum,
         security_agent_policies_version,
         macos_build_version,
         windows_ddnpm_driver,
