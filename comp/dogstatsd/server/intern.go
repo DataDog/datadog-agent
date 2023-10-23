@@ -27,6 +27,7 @@ var (
 		"Number of times string interner returned an existing string")
 	tlmSIRMiss = telemetry.NewCounter("dogstatsd", "string_interner_miss", []string{"interner_id"},
 		"Number of times string interner created a new string object")
+
 	tlmSIRNew = telemetry.NewSimpleCounter("dogstatsd", "string_interner_new",
 		"Number of times string interner was created")
 )
@@ -88,8 +89,6 @@ func (s *stringInterner) LoadOrStore(k []byte) *StringValue {
 		v.resurrected = true
 		if s.tlmEnabled {
 			tlmSIRHits.WithTags(map[string]string{"interner_id": s.id}).Inc()
-			tlmSIRBytes.WithTags(map[string]string{"interner_id": s.id}).Add(float64(len(k)))
-			tlmSIREntries.WithTags(map[string]string{"interner_id": s.id}).Add(1)
 		}
 		return v
 	}
@@ -97,7 +96,11 @@ func (s *stringInterner) LoadOrStore(k []byte) *StringValue {
 	v = &StringValue{cmpVal: string(k)}
 	runtime.SetFinalizer(v, s.finalize)
 	s.valMap[string(k)] = uintptr(unsafe.Pointer(v))
-	tlmSIRMiss.WithTags(map[string]string{"interner_id": s.id}).Inc()
+	if s.tlmEnabled {
+		tlmSIRMiss.WithTags(map[string]string{"interner_id": s.id}).Inc()
+		tlmSIRBytes.WithTags(map[string]string{"interner_id": s.id}).Add(float64(len(k)))
+		tlmSIREntries.WithTags(map[string]string{"interner_id": s.id}).Add(1)
+	}
 	return v
 }
 
@@ -113,7 +116,9 @@ func (s *stringInterner) finalize(v *StringValue) {
 	}
 
 	deadValue := v.Get()
-	tlmSIRBytes.WithTags(map[string]string{"interner_id": s.id}).Sub(float64(len(deadValue)))
-	tlmSIREntries.WithTags(map[string]string{"interner_id": s.id}).Sub(1)
-	delete(s.valMap, v.Get())
+	if s.tlmEnabled {
+		tlmSIRBytes.WithTags(map[string]string{"interner_id": s.id}).Sub(float64(len(deadValue)))
+		tlmSIREntries.WithTags(map[string]string{"interner_id": s.id}).Sub(1)
+	}
+	delete(s.valMap, deadValue)
 }
