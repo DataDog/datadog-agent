@@ -142,6 +142,22 @@ func TestURLQuantizer(t *testing.T) {
 			path:     []byte("/abc/F05065B2-7934-4480-8500-A2C40D76F59F"),
 			expected: []byte("/abc/*"),
 		},
+		{
+			path:     []byte("/DataDog/datadog-agent/pull/19720"),
+			expected: []byte("/DataDog/datadog-agent/pull/*"),
+		},
+		{
+			path:     []byte("/DataDog/datadog-agent/blob/22ba7d3d9d7cba67886dc905970d7f2f68b37dc5/pkg/network/protocols/http/quantization_test.go"),
+			expected: []byte("/DataDog/datadog-agent/blob/*/pkg/network/protocols/http/*"),
+		},
+		{
+			path:     []byte("/uuid/v1/f475ca90-71ab-11ee-b962-0242ac120002"),
+			expected: []byte("/uuid/v1/*"),
+		},
+		{
+			path:     []byte("/uuid/v4/0253ee45-3098-4a7e-8569-73a99a9fc030"),
+			expected: []byte("/uuid/v4/*"),
+		},
 	}
 
 	for _, tc := range testCases {
