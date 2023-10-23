@@ -21,7 +21,7 @@ func parseMetricSample(t *testing.T, overrides map[string]any, rawSample []byte)
 		config.MockModule,
 		fx.Replace(config.MockParams{Overrides: overrides}),
 	))
-	parser := newParser(cfg, newFloat64ListPool())
+	parser := newParser(cfg, newFloat64ListPool(), 1)
 	return parser.parseMetricSample(rawSample)
 }
 
