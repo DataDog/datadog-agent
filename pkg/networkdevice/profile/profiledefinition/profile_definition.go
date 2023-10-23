@@ -20,7 +20,6 @@ type DeviceMeta struct {
 type ProfileDefinition struct {
 	Name         string            `yaml:"name" json:"name"`
 	Description  string            `yaml:"description,omitempty" json:"description,omitempty"`
-	Version      string            `yaml:"-" json:"version,omitempty"`
 	SysObjectIds StringArray       `yaml:"sysobjectid,omitempty" json:"sysobjectid,omitempty"`
 	Extends      []string          `yaml:"extends,omitempty" json:"extends,omitempty"`
 	Metadata     MetadataConfig    `yaml:"metadata,omitempty" json:"metadata,omitempty" jsonschema:"-"`
@@ -31,6 +30,11 @@ type ProfileDefinition struct {
 	// Used previously to pass device vendor field (has been replaced by Metadata).
 	// Used in RC for passing device vendor field.
 	Device DeviceMeta `yaml:"device,omitempty" json:"device,omitempty" jsonschema:"device,omitempty"` // DEPRECATED
+
+	// Version is the profile version.
+	// It is currently used only with downloaded/RC profiles.
+	// It's not exposed as yaml field since not necessary.
+	Version string `yaml:"-" json:"version,omitempty"`
 }
 
 // DeviceProfileRcConfig represent the profile stored in remote config.
