@@ -289,6 +289,7 @@
 /pkg/config/autodiscovery/              @Datadog/container-integrations
 /pkg/config/env                         @DataDog/container-integrations @DataDog/container-app
 /pkg/config/logs                        @Datadog/agent-platform
+/pkg/config/logs/internal/seelog/seelog_config.go          @Datadog/agent-shared-components
 /pkg/config/process*.go                 @DataDog/processes
 /pkg/config/system_probe.go               @DataDog/ebpf-platform
 /pkg/config/system_probe_cws.go           @DataDog/agent-security
