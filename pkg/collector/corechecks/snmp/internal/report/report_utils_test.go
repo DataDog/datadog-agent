@@ -21,7 +21,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/networkdevice/profile/profiledefinition"
 	"github.com/DataDog/datadog-agent/pkg/snmp/snmpintegration"
 
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/checkconfig"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/configvalidation"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/valuestore"
 )
 
@@ -779,7 +779,7 @@ metric_tags:
 			m := profiledefinition.MetricsConfig{}
 			yaml.Unmarshal(tt.rawMetricConfig, &m)
 
-			checkconfig.ValidateEnrichMetrics([]profiledefinition.MetricsConfig{m})
+			configvalidation.ValidateEnrichMetrics([]profiledefinition.MetricsConfig{m})
 			tags := getTagsFromMetricTagConfigList(m.MetricTags, tt.fullIndex, tt.values)
 
 			assert.ElementsMatch(t, tt.expectedTags, tags)

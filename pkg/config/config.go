@@ -21,13 +21,15 @@ import (
 	"strings"
 	"time"
 
+	"gopkg.in/yaml.v2"
+
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/common/types"
 	"github.com/DataDog/datadog-agent/pkg/collector/check/defaults"
+	"github.com/DataDog/datadog-agent/pkg/config/env"
+	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/secrets"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname/validate"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-
-	"gopkg.in/yaml.v2"
 )
 
 const (
@@ -105,9 +107,8 @@ const (
 
 // Datadog is the global configuration object
 var (
-	Datadog       Config
-	SystemProbe   Config
-	overrideFuncs = make([]func(Config), 0)
+	Datadog     Config
+	SystemProbe Config
 )
 
 // Variables to initialize at build time
@@ -195,12 +196,6 @@ type Endpoint struct {
 	URL    string `mapstructure:"url" json:"url" yaml:"url"`
 	APIKey string `mapstructure:"api_key" json:"api_key" yaml:"api_key"`
 	APPKey string `mapstructure:"app_key" json:"app_key" yaml:"app_key"`
-}
-
-// Warnings represent the warnings in the config
-type Warnings struct {
-	TraceMallocEnabledWithPy2 bool
-	Err                       error
 }
 
 // DataType represent the generic data type (e.g. metrics, logs) that can be sent by the Agent
@@ -1537,8 +1532,8 @@ func LoadDatadogCustom(config Config, origin string, loadSecret bool, additional
 	defer func() {
 		// Environment feature detection needs to run before applying override funcs
 		// as it may provide such overrides
-		detectFeatures()
-		applyOverrideFuncs(config)
+		env.DetectFeatures(config)
+		model.ApplyOverrideFuncs(config)
 	}()
 
 	warnings, err := LoadCustom(config, origin, loadSecret, additionalKnownEnvVars)

@@ -59,9 +59,11 @@ func TestKindSuite(t *testing.T) {
 
 	suite.Run(t, &kindSuite{
 		k8sSuite: k8sSuite{
+			baseSuite: baseSuite{
+				Fakeintake: fakeintake.NewClient(fmt.Sprintf("http://%s", fakeintakeHost)),
+			},
 			AgentLinuxHelmInstallName:   stackOutput.Outputs["agent-linux-helm-install-name"].Value.(string),
 			AgentWindowsHelmInstallName: "none",
-			Fakeintake:                  fakeintake.NewClient(fmt.Sprintf("http://%s", fakeintakeHost)),
 			K8sConfig:                   config,
 			K8sClient:                   kubernetes.NewForConfigOrDie(config),
 		},

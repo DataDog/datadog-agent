@@ -7,25 +7,26 @@ package aggregator
 
 import (
 	_ "embed"
+	"testing"
+
 	"github.com/DataDog/datadog-agent/test/fakeintake/api"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"testing"
 )
 
 //go:embed fixtures/metric_bytes_v1
 var metricsDatav1 []byte
 
 func TestV1MetricPayloads(t *testing.T) {
-	t.Run("parseMetricSeries empty body should return error", func(t *testing.T) {
+	t.Run("ParseV1MetricSeries empty JSON object should be ignored", func(t *testing.T) {
 		metrics, err := ParseV1MetricSeries(api.Payload{
-			Data:     []byte(""),
-			Encoding: encodingDeflate,
+			Data:     []byte("{}"),
+			Encoding: encodingJSON,
 		})
-		assert.Error(t, err)
+		assert.NoError(t, err)
 		assert.Empty(t, metrics)
 	})
-	t.Run("parseMetricSeries valid body should parse metrics", func(t *testing.T) {
+	t.Run("ParseV1MetricSeries valid body should parse metrics", func(t *testing.T) {
 		metrics, err := ParseV1MetricSeries(api.Payload{Data: metricsDatav1, Encoding: encodingDeflate})
 		require.NoError(t, err)
 		assert.Equal(t, metrics[0].Metric, "datadog.trace_agent.started")
