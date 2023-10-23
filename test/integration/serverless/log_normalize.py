@@ -85,6 +85,7 @@ def normalize_traces(stage):
         tags = tags.split(',')
         tags.sort()
         log["tags"]["_dd.tags.container"] = ','.join(tags)
+        return log
 
     return [
         require(r'BEGINTRACE.*ENDTRACE'),
@@ -110,6 +111,32 @@ def normalize_traces(stage):
         sort_by(trace_sort_key),
     ]
 
+
+def normalize_appsec(stage):
+    def select__dd_appsec_json(log):
+        """Selects the content of spans.*.meta.[_dd.appsec.json] which is
+        unfortunately an embedded JSON string value, so it's parsed out.
+        """
+
+        entries = []
+
+        for chunk in log["chunks"] :
+            for span in chunk.get("spans") or []:
+                meta = span.get("meta") or {}
+                data = meta.get("_dd.appsec.json")
+                if data is None:
+                    continue
+                entries.append(json.loads(data, strict=False))
+
+        return entries
+
+    return [
+        require(r'BEGINTRACE.*ENDTRACE'),
+        exclude(r'BEGINTRACE'),
+        exclude(r'ENDTRACE'),
+        replace(stage, 'XXXXXX'),
+        flat_map(select__dd_appsec_json),
+    ]
 
 #####################
 # BEGIN NORMALIZERS #
@@ -164,6 +191,23 @@ def foreach(fn):
     return _foreach
 
 
+def flat_map(fn):
+    """
+    Execute fn with each element of the list in order, flatten the results.
+    """
+
+    def _flat_map(log):
+        logs = json.loads(log, strict=False)
+
+        mapped = []
+        for log_item in logs:
+            mapped.extend(fn(log_item))
+
+        return json.dumps(mapped)
+
+    return _flat_map
+
+
 def sort_by(key):
     """
     Sort the json entries using the given key function, requires the log string
@@ -211,12 +255,17 @@ def get_normalizers(typ, stage):
         return normalize_logs(stage)
     elif typ == 'traces':
         return normalize_traces(stage)
+    elif typ == 'appsec':
+        return normalize_appsec(stage)
     else:
         raise ValueError(f'invalid type "{typ}"')
 
 
 def format_json(log):
-    return json.dumps(json.loads(log, strict=False), indent=2)
+    try:
+        return json.dumps(json.loads(log, strict=False), indent=2)
+    except Exception:
+        return log
 
 
 def parse_args():
@@ -230,6 +279,11 @@ def parse_args():
 if __name__ == '__main__':
     try:
         args = parse_args()
+
+        if args.logs.startswith('file:'):
+            with open(args.logs[5:], 'r') as f:
+                args.logs = f.read()
+
         print(normalize(args.logs, args.type, args.stage))
     except Exception:
         err = {"error": "normalization raised exception"}

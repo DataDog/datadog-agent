@@ -90,7 +90,7 @@ functions:
     handler: Handler
     package:
       individually: true
-      artifact: src/java-tests/appsec/target/hello-dev.jar
+      artifact: src/java-tests/appsec/target/appsec-dev.jar
     layers:
       - arn:aws:lambda:${self:provider.region}:464622532012:layer:dd-trace-java:${env:JAVA_TRACE_LAYER_VERSION}
       - { Ref: RecorderExtensionLambdaLayer }

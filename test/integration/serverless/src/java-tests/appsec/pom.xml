@@ -2,7 +2,7 @@
   <modelVersion>4.0.0</modelVersion>
 
   <groupId>com.integration-test</groupId>
-  <artifactId>hello</artifactId>
+  <artifactId>appsec</artifactId>
   <packaging>jar</packaging>
   <version>dev</version>
   <name>hello</name>

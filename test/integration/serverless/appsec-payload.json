@@ -12,11 +12,11 @@
     ]
   },
   "queryStringParameters": {
-    "sql": "UNION SELECT * FROM users"
+    "sql": "UNION SELECT password FROM users"
   },
   "multiValueQueryStringParameters": {
     "sql": [
-      "UNION SELECT * FROM users"
+      "UNION SELECT password FROM users"
     ]
   },
   "requestContext": {

@@ -1,134 +1,132 @@
 [
   {
-    "container_id": "",
-    "language_name": ".NET",
-    "language_version": null,
-    "tracer_version": null,
-    "runtime_id": "",
-    "chunks": [
+    "triggers": [
       {
-        "priority": 1,
-        "origin": "lambda",
-        "spans": [
-          {
-            "service": "integration-tests-service-http-client",
-            "name": "http.request",
-            "resource": "GET example.com/",
-            "trace_id": null,
-            "span_id": null,
-            "parent_id": null,
-            "start": null,
-            "duration": null,
-            "error": 0,
-            "meta": {
-              "_dd.compute_stats": "1",
-              "account_id": "425362996713",
-              "architecture": "XXX",
-              "aws_account": "425362996713",
-              "component": "WebRequest",
-              "dd_extension_version": "123",
-              "env": "integration-tests-env",
-              "function_arn": "arn:aws:lambda:eu-west-1:425362996713:function:integration-tests-extension-XXXXXX-appsec-csharp",
-              "functionname": "integration-tests-extension-XXXXXX-appsec-csharp",
-              "http.method": "GET",
-              "http.status_code": "200",
-              "http.url": "https://example.com/",
-              "memorysize": "1024",
-              "region": "eu-west-1",
-              "runtime": "dotnet6",
-              "runtime-id": "null",
-              "service": "integration-tests-service",
-              "span.kind": "client",
-              "taga": "valuea",
-              "tagb": "valueb",
-              "tagc": "valuec",
-              "tagd": "valued",
-              "version": "integration-tests-version"
-            },
-            "metrics": {
-              "_dd.top_level": 1,
-              "_dd.tracer_kr": 0,
-              "_sampling_priority_rate_v1": 1,
-              "_sampling_priority_v1": 1,
-              "_top_level": 1,
-              "process_id": null
-            },
-            "type": "http"
+        "rule": {
+          "id": "crs-942-100",
+          "name": "SQL Injection Attack Detected via libinjection",
+          "tags": {
+            "category": "attack_attempt",
+            "crs_id": "942100",
+            "type": "sql_injection"
           }
-        ],
-        "tags": null,
-        "dropped_trace": false
+        },
+        "rule_matches": [
+          {
+            "operator": "is_sqli",
+            "operator_value": "",
+            "parameters": [
+              {
+                "address": "server.request.query",
+                "key_path": [
+                  "sql",
+                  "0"
+                ],
+                "value": "UNION SELECT password FROM users",
+                "highlight": [
+                  "UEnkn"
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "rule": {
+          "id": "ua0-600-12x",
+          "name": "Arachni",
+          "tags": {
+            "confidence": "1",
+            "tool_name": "Arachni",
+            "category": "attack_attempt",
+            "type": "attack_tool"
+          }
+        },
+        "rule_matches": [
+          {
+            "operator": "match_regex",
+            "operator_value": "^Arachni\\/v",
+            "parameters": [
+              {
+                "address": "server.request.headers.no_cookies",
+                "key_path": [
+                  "user-agent",
+                  "0"
+                ],
+                "value": "Arachni/v1",
+                "highlight": [
+                  "Arachni/v"
+                ]
+              }
+            ]
+          }
+        ]
       }
-    ],
-    "tags": null,
-    "env": "integration-tests-env",
-    "hostname": "",
-    "app_version": "integration-tests-version"
+    ]
   },
   {
-    "container_id": "",
-    "language_name": ".NET",
-    "language_version": null,
-    "tracer_version": null,
-    "runtime_id": "",
-    "chunks": [
+    "triggers": [
       {
-        "priority": 1,
-        "origin": "lambda",
-        "spans": [
-          {
-            "service": "integration-tests-service-http-client",
-            "name": "http.request",
-            "resource": "GET example.com/",
-            "trace_id": null,
-            "span_id": null,
-            "parent_id": null,
-            "start": null,
-            "duration": null,
-            "error": 0,
-            "meta": {
-              "_dd.compute_stats": "1",
-              "account_id": "425362996713",
-              "architecture": "XXX",
-              "aws_account": "425362996713",
-              "component": "WebRequest",
-              "dd_extension_version": "123",
-              "env": "integration-tests-env",
-              "function_arn": "arn:aws:lambda:eu-west-1:425362996713:function:integration-tests-extension-XXXXXX-appsec-csharp",
-              "functionname": "integration-tests-extension-XXXXXX-appsec-csharp",
-              "http.method": "GET",
-              "http.status_code": "200",
-              "http.url": "https://example.com/",
-              "memorysize": "1024",
-              "region": "eu-west-1",
-              "runtime": "dotnet6",
-              "runtime-id": "null",
-              "service": "integration-tests-service",
-              "span.kind": "client",
-              "taga": "valuea",
-              "tagb": "valueb",
-              "tagc": "valuec",
-              "tagd": "valued",
-              "version": "integration-tests-version"
-            },
-            "metrics": {
-              "_dd.top_level": 1,
-              "_dd.tracer_kr": 1,
-              "_sampling_priority_rate_v1": 1,
-              "_sampling_priority_v1": 1,
-              "_top_level": 1,
-              "process_id": null
-            },
-            "type": "http"
+        "rule": {
+          "id": "crs-942-100",
+          "name": "SQL Injection Attack Detected via libinjection",
+          "tags": {
+            "category": "attack_attempt",
+            "crs_id": "942100",
+            "type": "sql_injection"
           }
-        ],
-        "tags": null,
-        "dropped_trace": false
+        },
+        "rule_matches": [
+          {
+            "operator": "is_sqli",
+            "operator_value": "",
+            "parameters": [
+              {
+                "address": "server.request.query",
+                "key_path": [
+                  "sql",
+                  "0"
+                ],
+                "value": "UNION SELECT password FROM users",
+                "highlight": [
+                  "UEnkn"
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "rule": {
+          "id": "ua0-600-12x",
+          "name": "Arachni",
+          "tags": {
+            "confidence": "1",
+            "tool_name": "Arachni",
+            "category": "attack_attempt",
+            "type": "attack_tool"
+          }
+        },
+        "rule_matches": [
+          {
+            "operator": "match_regex",
+            "operator_value": "^Arachni\\/v",
+            "parameters": [
+              {
+                "address": "server.request.headers.no_cookies",
+                "key_path": [
+                  "user-agent",
+                  "0"
+                ],
+                "value": "Arachni/v1",
+                "highlight": [
+                  "Arachni/v"
+                ]
+              }
+            ]
+          }
+        ]
       }
-    ],
-    "tags": null,
-    "env": "integration-tests-env",
-    "hostname": "",
-    "app_version": "integration-tests-version"
+    ]
   }
 ]

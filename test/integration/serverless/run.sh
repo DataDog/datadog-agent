@@ -169,7 +169,9 @@ all_functions=("${metric_functions[@]}" "${log_functions[@]}" "${trace_functions
 
 # Add a function to this list to skip checking its results
 # This should only be used temporarily while we investigate and fix the test
-functions_to_skip=()
+functions_to_skip=(
+    "appsec-go" # Pending merge/release of https://github.com/DataDog/datadog-lambda-go/pull/143
+)
 
 echo "Invoking functions for the first time..."
 set +e # Don't exit this script if an invocation fails or there's a diff
@@ -207,9 +209,9 @@ done
 wait
 
 LOGS_WAIT_MINUTES=8
-END_OF_WAIT_TIME=$(date --date="+"$LOGS_WAIT_MINUTES" minutes" +"%r")
+END_OF_WAIT_TIME=$(node -p "new Date(Date.now() + ${LOGS_WAIT_MINUTES} * 60_000).toLocaleTimeString()")
 echo "Waiting $LOGS_WAIT_MINUTES minutes for logs to flush..."
-echo "This will be done at $END_OF_WAIT_TIME"
+echo "This will be done around $END_OF_WAIT_TIME"
 sleep "$LOGS_WAIT_MINUTES"m
 
 failed_functions=()
@@ -243,6 +245,8 @@ for function_name in "${all_functions[@]}"; do
         norm_type=metrics
     elif [[ " ${log_functions[*]} " =~ " ${function_name} " ]]; then
         norm_type=logs
+    elif [[ " ${appsec_functions[*]} " =~ " ${function_name} " ]]; then
+        norm_type=appsec
     else
         norm_type=traces
     fi

@@ -6,9 +6,9 @@
           "id": "crs-942-100",
           "name": "SQL Injection Attack Detected via libinjection",
           "tags": {
-            "category": "attack_attempt",
             "crs_id": "942100",
-            "type": "sql_injection"
+            "type": "sql_injection",
+            "category": "attack_attempt"
           }
         },
         "rule_matches": [
@@ -36,9 +36,9 @@
           "id": "ua0-600-12x",
           "name": "Arachni",
           "tags": {
-            "category": "attack_attempt",
             "confidence": "1",
             "tool_name": "Arachni",
+            "category": "attack_attempt",
             "type": "attack_tool"
           }
         },
@@ -71,9 +71,9 @@
           "id": "crs-942-100",
           "name": "SQL Injection Attack Detected via libinjection",
           "tags": {
-            "category": "attack_attempt",
             "crs_id": "942100",
-            "type": "sql_injection"
+            "type": "sql_injection",
+            "category": "attack_attempt"
           }
         },
         "rule_matches": [
@@ -101,9 +101,9 @@
           "id": "ua0-600-12x",
           "name": "Arachni",
           "tags": {
-            "category": "attack_attempt",
             "confidence": "1",
             "tool_name": "Arachni",
+            "category": "attack_attempt",
             "type": "attack_tool"
           }
         },
