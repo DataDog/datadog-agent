@@ -28,7 +28,7 @@ func Test_loadBundleJSONProfiles(t *testing.T) {
 	}
 
 	expectedProfiles := []string{
-		"default-p1",      // yaml default profile
+		"def-p1",          // yaml default profile
 		"my-profile-name", // downloaded json profile
 		"profile-from-ui", // downloaded json profile
 	}

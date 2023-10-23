@@ -80,7 +80,7 @@ func Test_getProfiles(t *testing.T) {
 			name:      "OK Use json profiles.json.gz profiles",
 			mockConfd: "zipprofiles.d",
 			expectedProfileNames: []string{
-				"default-p1",
+				"def-p1",
 				"my-profile-name",
 				"profile-from-ui",
 			},

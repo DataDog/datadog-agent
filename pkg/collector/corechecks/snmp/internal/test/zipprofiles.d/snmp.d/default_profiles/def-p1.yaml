@@ -4,7 +4,7 @@ extends:
   - _base.yaml
 
 device:
-  vendor: "default-p1"
+  vendor: "def-p1"
 
 sysobjectid: 1.2.3.*
 
