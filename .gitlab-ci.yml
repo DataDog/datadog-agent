@@ -169,8 +169,8 @@ variables:
   DATADOG_AGENT_BTF_GEN_BUILDIMAGES: v21999990-f991d55
   # To use images from test-infra-definitions dev branches, set the SUFFIX variable to -dev
   # and check the job creating the image to make sure you have the right SHA prefix
-  TEST_INFRA_DEFINITIONS_BUILDIMAGES_SUFFIX: "-dev"
-  TEST_INFRA_DEFINITIONS_BUILDIMAGES: 92a24907
+  TEST_INFRA_DEFINITIONS_BUILDIMAGES_SUFFIX: ""
+  TEST_INFRA_DEFINITIONS_BUILDIMAGES: fa347534ae4c
   DATADOG_AGENT_BUILDERS: v21429255-6b46caa
 
   DATADOG_AGENT_EMBEDDED_PATH: /opt/datadog-agent/embedded
