@@ -114,6 +114,7 @@ func (p *Resolver) AddExecEntry(pid uint32, file string, argv []string, envs []s
 
 	entry.Process.ArgsEntry = &model.ArgsEntry{Values: argv}
 	if len(argv) > 0 {
+		entry.Process.Comm = argv[0]
 		entry.Process.Argv0 = argv[0]
 	}
 	entry.Process.EnvsEntry = &model.EnvsEntry{Values: envs}
