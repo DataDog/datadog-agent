@@ -42,7 +42,7 @@ func loadYamlProfiles() (ProfileConfigMap, error) {
 	}
 	log.Debugf("build yaml profiles")
 
-	profiles, err := loadProfilesV3(nil, nil)
+	profiles, err := resolveProfiles(getYamlUserProfiles(), getYamlDefaultProfiles())
 	if err != nil {
 		return nil, err
 	}
@@ -51,51 +51,7 @@ func loadYamlProfiles() (ProfileConfigMap, error) {
 	return profiles, nil
 }
 
-func loadProfilesV3(initConfigProfiles ProfileConfigMap, userProfiles ProfileConfigMap) (ProfileConfigMap, error) {
-	defaultProfiles, err := getProfilesDefinitionFilesV2(defaultProfilesFolder, false)
-	if err != nil {
-		// TODO: Return error?
-		log.Warnf("failed to get default profile definitions: %s", err)
-		defaultProfiles = nil
-	}
-	if userProfiles == nil {
-		// TODO: TESTME
-		userProfiles, err = getProfilesDefinitionFilesV2(userProfilesFolder, true)
-		if err != nil {
-			// TODO: Return error?
-			log.Warnf("failed to get user profile definitions: %s", err)
-			userProfiles = nil
-		}
-	}
-
-	if len(initConfigProfiles) > 0 {
-		// TODO: TESTME
-		for key, val := range initConfigProfiles {
-			userProfiles[key] = val
-		}
-	}
-
-	resolvedProfiles, err := resolveProfiles(defaultProfiles, userProfiles)
-	if err != nil {
-		return nil, err
-	}
-
-	// TODO: FIND BETTER DESIGN
-	if len(initConfigProfiles) > 0 {
-		filteredResolvedProfiles := ProfileConfigMap{}
-		for key, val := range resolvedProfiles {
-			if _, ok := initConfigProfiles[key]; !ok {
-				continue
-			}
-			filteredResolvedProfiles[key] = val
-		}
-		resolvedProfiles = filteredResolvedProfiles
-	}
-
-	return resolvedProfiles, nil
-}
-
-func getProfilesDefinitionFilesV2(profilesFolder string, isUserProfile bool) (ProfileConfigMap, error) {
+func getProfileDefinitions(profilesFolder string, isUserProfile bool) (ProfileConfigMap, error) {
 	profilesRoot := getProfileConfdRoot(profilesFolder)
 	files, err := os.ReadDir(profilesRoot)
 	if err != nil {
@@ -155,4 +111,22 @@ func resolveProfileDefinitionPath(definitionFile string) string {
 func getProfileConfdRoot(profileFolderName string) string {
 	confdPath := config.Datadog.GetString("confd_path")
 	return filepath.Join(confdPath, "snmp.d", profileFolderName)
+}
+
+func getYamlUserProfiles() ProfileConfigMap {
+	userProfiles, err := getProfileDefinitions(userProfilesFolder, true)
+	if err != nil {
+		log.Warnf("failed to get user profile definitions: %s", err)
+		return ProfileConfigMap{}
+	}
+	return userProfiles
+}
+
+func getYamlDefaultProfiles() ProfileConfigMap {
+	userProfiles, err := getProfileDefinitions(defaultProfilesFolder, false)
+	if err != nil {
+		log.Warnf("failed to get default profile definitions: %s", err)
+		return ProfileConfigMap{}
+	}
+	return userProfiles
 }

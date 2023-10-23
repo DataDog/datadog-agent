@@ -70,7 +70,7 @@ func Test_resolveProfileDefinitionPath(t *testing.T) {
 	}
 }
 
-func Test_loadDefaultProfiles(t *testing.T) {
+func Test_loadYamlProfiles(t *testing.T) {
 	SetConfdPathAndCleanProfiles()
 	SetGlobalProfileConfigMap(nil)
 	defaultProfiles, err := loadYamlProfiles()
@@ -81,7 +81,7 @@ func Test_loadDefaultProfiles(t *testing.T) {
 	assert.Equal(t, fmt.Sprintf("%p", defaultProfiles), fmt.Sprintf("%p", defaultProfiles2))
 }
 
-func Test_loadDefaultProfiles_withUserProfiles(t *testing.T) {
+func Test_loadYamlProfiles_withUserProfiles(t *testing.T) {
 	defaultTestConfdPath, _ := filepath.Abs(filepath.Join("..", "test", "user_profiles.d"))
 	SetGlobalProfileConfigMap(nil)
 	config.Datadog.Set("confd_path", defaultTestConfdPath)
@@ -111,7 +111,7 @@ func Test_loadDefaultProfiles_withUserProfiles(t *testing.T) {
 	assert.NotNil(t, getMetricFromProfile(p4, "p4_default_metric"))
 }
 
-func Test_loadDefaultProfiles_invalidDir(t *testing.T) {
+func Test_loadYamlProfiles_invalidDir(t *testing.T) {
 	invalidPath, _ := filepath.Abs(filepath.Join(".", "tmp", "invalidPath"))
 	config.Datadog.Set("confd_path", invalidPath)
 	SetGlobalProfileConfigMap(nil)
@@ -121,7 +121,7 @@ func Test_loadDefaultProfiles_invalidDir(t *testing.T) {
 	assert.Len(t, defaultProfiles, 0)
 }
 
-func Test_loadDefaultProfiles_invalidExtendProfile(t *testing.T) {
+func Test_loadYamlProfiles_invalidExtendProfile(t *testing.T) {
 	var b bytes.Buffer
 	w := bufio.NewWriter(&b)
 	l, err := seelog.LoggerFromWriterWithMinLevelAndFormat(w, seelog.DebugLvl, "[%LEVEL] %FuncShort: %Msg")
@@ -142,7 +142,29 @@ func Test_loadDefaultProfiles_invalidExtendProfile(t *testing.T) {
 	assert.Equal(t, ProfileConfigMap{}, defaultProfiles)
 }
 
-func Test_loadDefaultProfiles_validAndInvalidProfiles(t *testing.T) {
+func Test_loadYamlProfiles_userAndDefaultProfileFolderDoesNotExist(t *testing.T) {
+	var b bytes.Buffer
+	w := bufio.NewWriter(&b)
+	l, err := seelog.LoggerFromWriterWithMinLevelAndFormat(w, seelog.DebugLvl, "[%LEVEL] %FuncShort: %Msg")
+	assert.Nil(t, err)
+	log.SetupLogger(l, "debug")
+
+	profilesWithInvalidExtendConfdPath, _ := filepath.Abs(filepath.Join("..", "test", "does-not-exist.d"))
+	config.Datadog.Set("confd_path", profilesWithInvalidExtendConfdPath)
+	SetGlobalProfileConfigMap(nil)
+
+	defaultProfiles, err := loadYamlProfiles()
+
+	w.Flush()
+	logs := b.String()
+	assert.Nil(t, err)
+
+	assert.Equal(t, 1, strings.Count(logs, "[WARN] getYamlUserProfiles: failed to get user profile definitions"), logs)
+	assert.Equal(t, 1, strings.Count(logs, "[WARN] getYamlDefaultProfiles: failed to get default profile definitions"), logs)
+	assert.Equal(t, ProfileConfigMap{}, defaultProfiles)
+}
+
+func Test_loadYamlProfiles_validAndInvalidProfiles(t *testing.T) {
 	// Valid profiles should be returned even if some profiles are invalid
 	var b bytes.Buffer
 	w := bufio.NewWriter(&b)

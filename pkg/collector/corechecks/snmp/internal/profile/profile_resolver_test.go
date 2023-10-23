@@ -8,48 +8,43 @@ package profile
 import (
 	"bufio"
 	"bytes"
-	"github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/networkdevice/profile/profiledefinition"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/cihub/seelog"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/cihub/seelog"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
+	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
+
+	"github.com/DataDog/datadog-agent/pkg/networkdevice/profile/profiledefinition"
 )
 
 func Test_resolveProfiles(t *testing.T) {
 
 	defaultTestConfdPath, _ := filepath.Abs(filepath.Join("..", "test", "conf.d"))
 	config.Datadog.Set("confd_path", defaultTestConfdPath)
-	defaultTestConfdProfiles, err := getProfilesDefinitionFilesV2(defaultProfilesFolder, false)
+	defaultTestConfdProfiles, err := getProfileDefinitions(defaultProfilesFolder, false)
 	require.NoError(t, err)
-	userTestConfdProfiles, err := getProfilesDefinitionFilesV2(userProfilesFolder, true)
+	userTestConfdProfiles, err := getProfileDefinitions(userProfilesFolder, true)
 	require.NoError(t, err)
-
-	//defaultProfilesDef, err := getDefaultProfilesDefinitionFiles()
-	//assert.Nil(t, err)
 
 	profilesWithInvalidExtendConfdPath, _ := filepath.Abs(filepath.Join("..", "test", "invalid_ext.d"))
 	config.Datadog.Set("confd_path", profilesWithInvalidExtendConfdPath)
-	profilesWithInvalidExtendProfiles, err := getProfilesDefinitionFilesV2(userProfilesFolder, true)
+	profilesWithInvalidExtendProfiles, err := getProfileDefinitions(userProfilesFolder, true)
 	require.NoError(t, err)
 
 	invalidCyclicConfdPath, _ := filepath.Abs(filepath.Join("..", "test", "invalid_cyclic.d"))
 	config.Datadog.Set("confd_path", invalidCyclicConfdPath)
-	invalidCyclicProfiles, err := getProfilesDefinitionFilesV2(userProfilesFolder, true)
+	invalidCyclicProfiles, err := getProfileDefinitions(userProfilesFolder, true)
 	require.NoError(t, err)
 
 	profileWithInvalidExtendsFile, _ := filepath.Abs(filepath.Join("..", "test", "test_profiles", "profile_with_invalid_extends.yaml"))
 	profileWithInvalidExtends, err := readProfileDefinition(profileWithInvalidExtendsFile)
 	require.NoError(t, err)
 
-	//invalidYamlFile, _ := filepath.Abs(filepath.Join("..", "test", "test_profiles", "invalid_yaml_file.yaml"))
-	//invalidYamlProfile, err := readProfileDefinition(invalidYamlFile)
-	//require.NoError(t, err)
-
-	//invalidYamlProfile, _ := filepath.Abs(filepath.Join("..", "test", "test_profiles", "invalid_yaml_file.yaml"))
 	validationErrorProfileFile, _ := filepath.Abs(filepath.Join("..", "test", "test_profiles", "validation_error.yaml"))
 	validationErrorProfile, err := readProfileDefinition(validationErrorProfileFile)
 	require.NoError(t, err)
@@ -95,28 +90,13 @@ func Test_resolveProfiles(t *testing.T) {
 			},
 		},
 		{
-			name: "invalid cyclic extends",
-			//confdPath: invalidCyclicConfdPath,
+			name:                  "invalid cyclic extends",
 			profileConfigMap:      invalidCyclicProfiles,
 			expectedProfileDefMap: ProfileConfigMap{},
 			expectedLogs: []logCount{
 				{"[WARN] loadResolveProfiles: failed to expand profile `_extend1`: cyclic profile extend detected", 1},
 			},
 		},
-		//{
-		// TODO: Test in profile_yaml_test.go
-
-		//name: "invalid yaml profile",
-		//profileConfigMap: ProfileConfigMap{
-		//	"f5-big-ip": {
-		//		Definition: *invalidYamlProfile,
-		//	},
-		//},
-		//expectedProfileDefMap: ProfileConfigMap{},
-		//expectedLogs: []logCount{
-		//	{"[WARN] loadResolveProfiles: failed to expand profile `f5-big-ip`: extend does not exist: `does_not_exist`", 1},
-		//},
-		//},
 		{
 			name: "validation error profile",
 			profileConfigMap: ProfileConfigMap{
@@ -139,9 +119,7 @@ func Test_resolveProfiles(t *testing.T) {
 			assert.Nil(t, err)
 			log.SetupLogger(l, "debug")
 
-			//config.Datadog.Set("confd_path", tt.confdPath)
-
-			profiles, err := resolveProfiles(tt.profileConfigMap, tt.defaultProfileConfigMap)
+			profiles, err := resolveProfiles(tt.defaultProfileConfigMap, tt.profileConfigMap)
 			for _, errorMsg := range tt.expectedIncludeErrors {
 				assert.Contains(t, err.Error(), errorMsg)
 			}
