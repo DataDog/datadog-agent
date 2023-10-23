@@ -48,7 +48,6 @@ type USMgRPCSuite struct {
 }
 
 func TestGRPCScenarios(t *testing.T) {
-	t.Skip("tests are broken after upgrading go-grpc to 1.58")
 	currKernelVersion, err := kernel.HostVersion()
 	require.NoError(t, err)
 	if currKernelVersion < http2.MinimumKernelVersion {
