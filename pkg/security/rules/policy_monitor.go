@@ -146,6 +146,16 @@ func ReportRuleSetLoaded(sender events.EventSender, statsdClient statsd.ClientIn
 	sender.SendEvent(rule, event, nil, "")
 }
 
+// ReportHeartbeatEvent periodically reports to Datadog that
+func ReportHeartbeatEvent(sender events.EventSender, policies map[string]Policy) {
+	log.Infof("send heartbeat")
+
+	rule, events := NewHeartbeatEvents(policies)
+	for _, event := range events {
+		sender.SendEvent(rule, event, nil, "")
+	}
+}
+
 // RuleState defines a loaded rule
 // easyjson:json
 type RuleState struct {

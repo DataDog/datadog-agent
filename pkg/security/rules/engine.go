@@ -197,7 +197,7 @@ func (e *RuleEngine) Start(ctx context.Context, reloadChan <-chan struct{}, wg *
 			case <-ctx.Done():
 				return
 			case <-heartbeatTicker.C:
-				e.sendHeartbeatEvent()
+				ReportHeartbeatEvent(e.eventSender, e.policyMonitor.policies)
 			}
 		}
 	}()
@@ -296,18 +296,6 @@ func (e *RuleEngine) LoadPolicies(policyProviders []rules.PolicyProvider, sendLo
 	}
 
 	return nil
-}
-
-func (e *RuleEngine) sendHeartbeatEvent() {
-	seclog.Infof("send heartbeat")
-
-	e.Lock()
-	defer e.Unlock()
-
-	rule, events := NewHeartbeatEvents(e.policyMonitor.policies)
-	for _, event := range events {
-		e.eventSender.SendEvent(rule, event, nil, "")
-	}
 }
 
 func (e *RuleEngine) gatherPolicyProviders() []rules.PolicyProvider {
