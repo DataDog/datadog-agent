@@ -17,6 +17,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/metrics"
 )
 
+// UnstructuredProcessingMetricName collects how many rules are used on unstructured
+// content for tailers capable of processing both unstructured and structured content.
 const UnstructuredProcessingMetricName = "datadog.logs_agent.tailer.unstructured_processing"
 
 // A Processor updates messages from an inputChan and pushes
