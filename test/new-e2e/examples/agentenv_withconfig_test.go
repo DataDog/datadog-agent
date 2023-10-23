@@ -28,5 +28,6 @@ func TestVAgentSuiteEx3(t *testing.T) {
 }
 
 func (v *agentSuiteEx3) TestLogDebug() {
-	assert.Contains(v.T(), v.Env().Agent.Config(), "log_level: debug")
+	output, _ := v.Env().Agent.Config()
+	assert.Contains(v.T(), output, "log_level: debug")
 }
