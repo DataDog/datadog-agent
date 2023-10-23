@@ -41,6 +41,14 @@ type ListenerConfig struct {
 	BindHost  string          `mapstructure:"bind_host"`
 	Workers   int             `mapstructure:"workers"`
 	Namespace string          `mapstructure:"namespace"`
+	Mapping   []Mapping       `mapstructure:"mapping"`
+}
+
+type Mapping struct {
+	Field       uint16            `mapstructure:"field"`
+	Destination string            `mapstructure:"destination"`
+	Endian      common.EndianType `mapstructure:"endianness"`
+	Type        common.FieldType  `mapstructure:"type"`
 }
 
 // ReadConfig builds and returns configuration from Agent configuration.

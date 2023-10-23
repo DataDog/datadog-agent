@@ -17,6 +17,7 @@ import (
 	"net"
 	"testing"
 
+	"github.com/golang/mock/gomock"
 	"github.com/google/gopacket"
 	"github.com/google/gopacket/layers"
 	"github.com/google/gopacket/pcapgo"
@@ -158,6 +159,72 @@ func ExpectNetflow5Payloads(t *testing.T, mockEpForwarder forwarder.MockComponen
 		m := message.NewMessage(payloadBytes, nil, "", 0)
 
 		mockEpForwarder.EXPECT().SendEventPlatformEventBlocking(m, epforwarder.EventTypeNetworkDevicesNetFlow).Return(nil)
+	}
+}
+
+// ExpectPayloadWithCustomFields expects the payloads that should result from our
+// recorded Netflow9 pcap file with inverted source and destination ports and icmp_type custom field.
+func ExpectPayloadWithCustomFields(t *testing.T, mockEpForwarder forwarder.MockComponent) {
+	events := [][]byte{
+		[]byte(`
+{
+  "flush_timestamp": 1550505606000,
+  "type": "netflow9",
+  "sampling_rate": 0,
+  "direction": "ingress",
+  "start": 1675736722,
+  "end": 1675258375,
+  "bytes": 1139872000,
+  "packets": 35006208,
+  "ether_type": "IPv4",
+  "ip_protocol": "WB-MON",
+  "device": {
+    "namespace": "default"
+  },
+  "exporter": {
+    "ip": "127.0.0.1"
+  },
+  "source": {
+    "ip": "1.76.41.19",
+    "port": "35824",
+    "mac": "00:00:00:00:00:00",
+    "mask": "0.0.0.0/0"
+  },
+  "destination": {
+    "ip": "31.27.0.0",
+    "port": "78",
+    "mac": "00:00:00:00:00:00",
+    "mask": "0.0.0.0/0"
+  },
+  "ingress": {
+    "interface": {
+      "index": 13568
+    }
+  },
+  "egress": {
+    "interface": {
+      "index": 48576
+    }
+  },
+  "host": "my-hostname",
+  "next_hop": {
+    "ip": ""
+  },
+  "additional_fields": {
+    "icmp_type": "0000"
+  }
+}
+`),
+	}
+	for _, event := range events {
+		compactEvent := new(bytes.Buffer)
+		err := json.Compact(compactEvent, event)
+		assert.NoError(t, err)
+
+		m := message.NewMessage(compactEvent.Bytes(), nil, "", 0)
+
+		mockEpForwarder.EXPECT().SendEventPlatformEventBlocking(m, epforwarder.EventTypeNetworkDevicesNetFlow).Return(nil)
+		mockEpForwarder.EXPECT().SendEventPlatformEventBlocking(gomock.Any(), epforwarder.EventTypeNetworkDevicesNetFlow).Return(nil).Times(28)
 	}
 }
 

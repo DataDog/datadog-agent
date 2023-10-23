@@ -9,6 +9,7 @@ package common
 import (
 	"bytes"
 	"encoding/binary"
+	flowmessage "github.com/netsampler/goflow2/pb"
 	"hash/fnv"
 )
 
@@ -66,7 +67,32 @@ type Flow struct {
 	Tos uint32 // FLOW KEY
 
 	NextHop []byte // FLOW KEY
+
+	// Configured fields
+	AdditionalFields AdditionalFields
 }
+
+type AdditionalFields = map[string]any
+
+type FlowMessageWithAdditionalFields struct {
+	FlowMessage      *flowmessage.FlowMessage
+	AdditionalFields AdditionalFields
+}
+
+type EndianType string
+
+var (
+	BigEndian    EndianType = "big"
+	LittleEndian EndianType = "little"
+)
+
+type FieldType string
+
+var (
+	String FieldType = "string"
+	Varint FieldType = "varint"
+	Bytes  FieldType = "bytes"
+)
 
 // AggregationHash return a hash used as aggregation key
 func (f *Flow) AggregationHash() uint64 {
