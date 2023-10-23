@@ -9,9 +9,7 @@ import (
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client/executeparams"
 )
 
-// VM is an interface that provides methods to run remote commands on a [component.VM].
-//
-// [component.VM]: https://pkg.go.dev/github.com/DataDog/test-infra-definitions@main/components/vm
+// VM is an interface that provides methods to run commands on a virtual machine.
 type VM interface {
 	// ExecuteWithError executes a command and returns an error if any.
 	ExecuteWithError(command string, options ...executeparams.Option) (string, error)
