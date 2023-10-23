@@ -144,7 +144,7 @@
 //	}
 //
 //	func (v *agentSuite) TestBasicAgent() {
-//		config, _ := v.Env().Agent.Config()
+//		config := v.Env().Agent.Config()
 //		require.Contains(v.T(), config, "log_level: debug")
 //	}
 //
@@ -260,13 +260,13 @@
 //
 //	func (suite *multipleEnvSuite) TestLogDebug() {
 //		suite.UpdateEnv(e2e.AgentStackDef(e2e.WithAgentParams(agentparams.WithAgentConfig("log_level: debug"))))
-//		config, _ := suite.Env().Agent.Config()
+//		config := suite.Env().Agent.Config()
 //		require.Contains(suite.T(), config, "log_level: debug")
 //	}
 //
 //	func (suite *multipleEnvSuite) TestLogInfo() {
 //		suite.UpdateEnv(e2e.AgentStackDef(e2e.WithAgentParams(agentparams.WithAgentConfig("log_level: info"))))
-//		config, _ := suite.Env().Agent.Config()
+//		config := suite.Env().Agent.Config()
 //		require.Contains(suite.T(), config, "log_level: info")
 //	}
 //

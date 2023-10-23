@@ -75,10 +75,10 @@ func (v *agentSuite) TestWithTelemetry() {
 }
 
 func (v *agentSuite) TestWithLogs() {
-	config, _ := v.Env().Agent.Config()
+	config := v.Env().Agent.Config()
 	require.Contains(v.T(), config, "logs_enabled: false")
 
 	v.UpdateEnv(e2e.AgentStackDef(e2e.WithAgentParams(agentparams.WithLogs())))
-	config, _ = v.Env().Agent.Config()
+	config = v.Env().Agent.Config()
 	require.Contains(v.T(), config, "logs_enabled: true")
 }

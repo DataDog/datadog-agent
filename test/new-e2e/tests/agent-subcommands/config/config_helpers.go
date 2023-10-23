@@ -29,6 +29,8 @@ func getKeyInMap(config map[interface{}]interface{}, key string) (interface{}, b
 			currentObj = nestedMap
 		} else if idx == len(keys)-1 {
 			return value, true
+		} else {
+			return nil, false
 		}
 	}
 

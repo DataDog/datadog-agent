@@ -43,7 +43,7 @@ func TestAgentConfigSuite(t *testing.T) {
 }
 
 func getFullConfig(v *agentConfigSuite) map[interface{}]interface{} {
-	output, err := v.Env().Agent.Config()
+	output, err := v.Env().Agent.ConfigWithError()
 	require.NoError(v.T(), err)
 
 	var config map[interface{}]interface{}
@@ -82,7 +82,7 @@ func (v *agentConfigSuite) TestNonDefaultConfig() {
 }
 
 func (v *agentConfigSuite) TestConfigListRuntime() {
-	output, _ := v.Env().Agent.Config(client.WithArgs([]string{"list-runtime"}))
+	output := v.Env().Agent.Config(client.WithArgs([]string{"list-runtime"}))
 	for _, config := range visibleConfigs {
 		assert.Contains(v.T(), output, config)
 	}
@@ -95,41 +95,41 @@ func (v *agentConfigSuite) TestConfigListRuntime() {
 func (v *agentConfigSuite) TestConfigGetDefault() {
 	allRuntimeConfig := append(visibleConfigs, hiddenConfigs...)
 	for _, config := range allRuntimeConfig {
-		output, _ := v.Env().Agent.Config(client.WithArgs([]string{"get", config}))
+		output := v.Env().Agent.Config(client.WithArgs([]string{"get", config}))
 		assert.Contains(v.T(), output, fmt.Sprintf("%v is set to:", config))
 	}
 }
 
 func (v *agentConfigSuite) TestConfigSetAndGet() {
-	_, err := v.Env().Agent.Config(client.WithArgs([]string{"set", "log_level", "warn"}))
+	_, err := v.Env().Agent.ConfigWithError(client.WithArgs([]string{"set", "log_level", "warn"}))
 	assert.NoError(v.T(), err)
-	output, _ := v.Env().Agent.Config(client.WithArgs([]string{"get", "log_level"}))
+	output, _ := v.Env().Agent.ConfigWithError(client.WithArgs([]string{"get", "log_level"}))
 	assert.Contains(v.T(), output, "log_level is set to: warn")
 
-	_, err = v.Env().Agent.Config(client.WithArgs([]string{"set", "log_level", "info"}))
+	_, err = v.Env().Agent.ConfigWithError(client.WithArgs([]string{"set", "log_level", "info"}))
 	assert.NoError(v.T(), err)
-	output, _ = v.Env().Agent.Config(client.WithArgs([]string{"get", "log_level"}))
+	output = v.Env().Agent.Config(client.WithArgs([]string{"get", "log_level"}))
 	assert.Contains(v.T(), output, "log_level is set to: info")
 }
 
 func (v *agentConfigSuite) TestConfigGetInvalid() {
-	_, err := v.Env().Agent.Config(client.WithArgs([]string{"get", "dd_url"}))
+	_, err := v.Env().Agent.ConfigWithError(client.WithArgs([]string{"get", "dd_url"}))
 	assert.Error(v.T(), err)
 
-	_, err = v.Env().Agent.Config(client.WithArgs([]string{"get"}))
+	_, err = v.Env().Agent.ConfigWithError(client.WithArgs([]string{"get"}))
 	assert.Error(v.T(), err)
 
-	_, err = v.Env().Agent.Config(client.WithArgs([]string{"get", "too", "many", "args"}))
+	_, err = v.Env().Agent.ConfigWithError(client.WithArgs([]string{"get", "too", "many", "args"}))
 	assert.Error(v.T(), err)
 }
 
 func (v *agentConfigSuite) TestConfigSetInvalid() {
-	_, err := v.Env().Agent.Config(client.WithArgs([]string{"set", "dd_url", "test"}))
+	_, err := v.Env().Agent.ConfigWithError(client.WithArgs([]string{"set", "dd_url", "test"}))
 	assert.Error(v.T(), err)
 
-	_, err = v.Env().Agent.Config(client.WithArgs([]string{"set", "log_level"}))
+	_, err = v.Env().Agent.ConfigWithError(client.WithArgs([]string{"set", "log_level"}))
 	assert.Error(v.T(), err)
 
-	_, err = v.Env().Agent.Config(client.WithArgs([]string{"set", "dd_url", "too", "many", "args"}))
+	_, err = v.Env().Agent.ConfigWithError(client.WithArgs([]string{"set", "dd_url", "too", "many", "args"}))
 	assert.Error(v.T(), err)
 }

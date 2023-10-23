@@ -81,7 +81,12 @@ func (agent *AgentCommandRunner) Hostname(commandArgs ...AgentArgsOption) string
 }
 
 // Config runs config command and returns the runtime agent config
-func (agent *AgentCommandRunner) Config(commandArgs ...AgentArgsOption) (string, error) {
+func (agent *AgentCommandRunner) Config(commandArgs ...AgentArgsOption) string {
+	return agent.executeCommand("config", commandArgs...)
+}
+
+// ConfigWithError runs config command and returns the runtime agent config or an error
+func (agent *AgentCommandRunner) ConfigWithError(commandArgs ...AgentArgsOption) (string, error) {
 	arguments := append([]string{"config"}, newAgentArgs(commandArgs...).Args...)
 	return agent.executeAgentCmdWithError(arguments)
 }
