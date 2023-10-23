@@ -7,6 +7,7 @@ package settings
 
 import (
 	"github.com/DataDog/datadog-agent/pkg/config"
+	pkgconfiglogs "github.com/DataDog/datadog-agent/pkg/config/logs"
 	"github.com/DataDog/datadog-agent/pkg/metadata/inventories"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -56,7 +57,7 @@ func (l *LogLevelRuntimeSetting) GetSource() Source {
 func (l *LogLevelRuntimeSetting) Set(v interface{}, source Source) error {
 	level := v.(string)
 
-	err := config.ChangeLogLevel(level)
+	err := pkgconfiglogs.ChangeLogLevel(level)
 	if err != nil {
 		return err
 	}
