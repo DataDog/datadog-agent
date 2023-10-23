@@ -13,8 +13,11 @@ import (
 
 	"github.com/opencontainers/runtime-spec/specs-go"
 
+	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/pkg/util/containers/metrics/provider"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/pointer"
 	"github.com/DataDog/datadog-agent/pkg/util/system"
 
@@ -24,6 +27,7 @@ import (
 	"github.com/containerd/typeurl/v2"
 	"github.com/google/go-cmp/cmp"
 	"github.com/stretchr/testify/assert"
+	"go.uber.org/fx"
 	"google.golang.org/protobuf/types/known/anypb"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
@@ -97,12 +101,9 @@ func TestGetContainerStats_Containerd(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			containerID := "1"
 
-			// FIXME(components): this test is broken and needs to rely on new workloadmeta
-			//                    component logic.
 			// The container needs to exist in the workloadmeta store and have a
 			// namespace.
-
-			workloadmetaStore := fxutil.Test[workloadmeta.Component](t, fx.Options(
+			workloadmetaStore := fxutil.Test[workloadmeta.Mock](t, fx.Options(
 				log.MockModule,
 				config.MockModule,
 				workloadmeta.MockModule,
@@ -168,7 +169,7 @@ func TestGetContainerNetworkStats_Containerd(t *testing.T) {
 
 			// The container needs to exist in the workloadmeta store and have a
 			// namespace.
-			workloadmetaStore := fxutil.Test[workloadmeta.Component](t, fx.Options(
+			workloadmetaStore := fxutil.Test[workloadmeta.Mock](t, fx.Options(
 				log.MockModule,
 				config.MockModule,
 				workloadmeta.MockModule,
