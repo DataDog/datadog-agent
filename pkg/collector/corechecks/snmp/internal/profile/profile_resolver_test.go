@@ -26,8 +26,7 @@ func Test_resolveProfiles(t *testing.T) {
 
 	defaultTestConfdPath, _ := filepath.Abs(filepath.Join("..", "test", "conf.d"))
 	config.Datadog.Set("confd_path", defaultTestConfdPath)
-	defaultTestConfdProfiles, err := getProfileDefinitions(defaultProfilesFolder, false)
-	require.NoError(t, err)
+	defaultTestConfdProfiles := ProfileConfigMap{}
 	userTestConfdProfiles, err := getProfileDefinitions(userProfilesFolder, true)
 	require.NoError(t, err)
 
