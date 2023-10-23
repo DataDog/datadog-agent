@@ -11,7 +11,7 @@ import (
 	"sync"
 
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
-	pkgsender "github.com/DataDog/datadog-agent/pkg/aggregator/sender"
+	aggsender "github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	coreConfig "github.com/DataDog/datadog-agent/pkg/config"
 	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/diagnose/diagnosis"
@@ -230,7 +230,7 @@ func init() {
 }
 
 // Enumerate known epforwarder pipelines and endpoints to test each of them connectivity
-func diagnose(diagnoseCfg diagnosis.Config, senderManager pkgsender.SenderManager) []diagnosis.Diagnosis { //nolint:revive // TODO fix revive unused-parameter
+func diagnose(diagnoseCfg diagnosis.Config, _ aggsender.DiagnoseSenderManager) []diagnosis.Diagnosis { //nolint:revive // TODO fix revive unused-parameter
 
 	var diagnoses []diagnosis.Diagnosis
 

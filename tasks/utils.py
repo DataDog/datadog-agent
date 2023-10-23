@@ -368,10 +368,19 @@ def cache_version(ctx, git_sha_length=7, prefix=None):
 
 
 def get_version(
-    ctx, include_git=False, url_safe=False, git_sha_length=7, prefix=None, major_version='7', include_pipeline_id=False
+    ctx,
+    include_git=False,
+    url_safe=False,
+    git_sha_length=7,
+    prefix=None,
+    major_version='7',
+    include_pipeline_id=False,
+    pipeline_id=None,
 ):
     version = ""
-    pipeline_id = os.getenv("CI_PIPELINE_ID")
+    if pipeline_id is None:
+        pipeline_id = os.getenv("CI_PIPELINE_ID")
+
     project_name = os.getenv("CI_PROJECT_NAME")
     try:
         agent_version_cache_file_exist = os.path.exists(AGENT_VERSION_CACHE_NAME)

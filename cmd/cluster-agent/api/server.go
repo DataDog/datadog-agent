@@ -46,7 +46,7 @@ var (
 )
 
 // StartServer creates the router and starts the HTTP server
-func StartServer(senderManager sender.SenderManager) error {
+func StartServer(senderManager sender.DiagnoseSenderManager) error {
 	// create the root HTTP router
 	router = mux.NewRouter()
 	apiRouter = router.PathPrefix("/api/v1").Subrouter()

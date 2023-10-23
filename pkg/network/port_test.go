@@ -22,6 +22,7 @@ import (
 	"github.com/vishvananda/netns"
 
 	netlinktestutil "github.com/DataDog/datadog-agent/pkg/network/netlink/testutil"
+	nettestutil "github.com/DataDog/datadog-agent/pkg/network/testutil"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -120,17 +121,24 @@ func TestReadInitialUDPState(t *testing.T) {
 	err := exec.Command("testdata/setup_netns.sh", nsName).Run()
 	require.NoError(t, err, "setup_netns.sh failed")
 
-	l, err := net.ListenUDP("udp", &net.UDPAddr{})
-	require.NoError(t, err)
-	defer func() { _ = l.Close() }()
+	l := nettestutil.StartServerUDP(t, net.ParseIP("0.0.0.0"), 0)
+	t.Cleanup(func() {
+		l.Close()
+	})
 
-	l6, err := net.ListenUDP("udp6", &net.UDPAddr{})
-	require.NoError(t, err)
-	defer func() { _ = l.Close() }()
+	l6 := nettestutil.StartServerUDP(t, net.ParseIP("::"), 0)
+	t.Cleanup(func() {
+		defer l6.Close()
+	})
+
+	conn, ok := l.(*net.UDPConn)
+	require.True(t, ok)
+	connl6, ok := l6.(*net.UDPConn)
+	assert.True(t, ok)
 
 	ports := []uint16{
-		getPortUDP(t, l),
-		getPortUDP(t, l6),
+		getPortUDP(t, conn),
+		getPortUDP(t, connl6),
 		34567,
 		34568,
 	}
