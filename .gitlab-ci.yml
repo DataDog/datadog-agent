@@ -171,7 +171,7 @@ variables:
   # and check the job creating the image to make sure you have the right SHA prefix
   TEST_INFRA_DEFINITIONS_BUILDIMAGES_SUFFIX: ""
   TEST_INFRA_DEFINITIONS_BUILDIMAGES: 8d38c2a2a794
-  DATADOG_AGENT_BUILDERS: v21429255-6b46caa
+  DATADOG_AGENT_BUILDERS: v22217272-5a2ab8f_test_only
 
   DATADOG_AGENT_EMBEDDED_PATH: /opt/datadog-agent/embedded
   DEB_GPG_KEY_ID: ad9589b7
