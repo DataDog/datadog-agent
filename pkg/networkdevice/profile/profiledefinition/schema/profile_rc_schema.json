@@ -156,6 +156,9 @@
         },
         "device": {
           "$ref": "#/$defs/DeviceMeta"
+        },
+        "version": {
+          "type": "integer"
         }
       },
       "additionalProperties": false,
