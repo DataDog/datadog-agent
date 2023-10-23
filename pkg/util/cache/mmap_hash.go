@@ -258,6 +258,14 @@ func (table *mmap_hash) finalize() {
 	table.pages = nil
 }
 
+func (table *mmap_hash) finalized() bool {
+	return table.pages == nil
+}
+
+func (table *mmap_hash) accessible() bool {
+	return table.fd != nil
+}
+
 // isMapped returns (index, active, safe) for the string s.  If the address is mapped,
 // index >= 0 (else -1).  And if that mapping is still active, we get active=true.  If
 // the address is still mapped in the process address space (active or not), we get safe=true.
@@ -272,7 +280,7 @@ func isMapped(s string) (int, bool, bool) {
 		mapAddr := uintptr(unsafe.Pointer(unsafe.SliceData(t.mapping)))
 		if mapAddr <= addr && addr <= (mapAddr+unsafe.Sizeof(constP)*uintptr(len(t.mapping))) {
 			// Found it.
-			active, safe := t.pages != nil, t.fd != nil
+			active, safe := !t.finalized(), t.accessible()
 			t.lock.Unlock()
 			return n, active, safe
 		}
@@ -285,12 +293,16 @@ func isMapped(s string) (int, bool, bool) {
 // logFailedCheck returns a safe value for 'tag'.  Using the 'safe' value from isMapped,
 // logFailedCheck will log a failed call to isMapped and
 func logFailedCheck(index int, safe bool, callsite, tag string) string {
-	location := fmt.Sprintf("<%s>", all_mmaps.hashes[index].Name)
+	var name = "container"
+	if all_mmaps.hashes[index].Name[0] == '!' {
+		name = all_mmaps.hashes[index].Name
+	}
+	location := fmt.Sprintf("<%s>", name)
 	for i := 0; i < callStackDepth; i++ {
 		// skip over logFailedCheck and the in-package call site, just the ones above.
 		_, file, line, _ := runtime.Caller(2 + i)
 		location = fmt.Sprintf("%s\t[%s:%d]", location,
-			strings.Replace(file, "/go/src/github.com/DataDog/datadog-agent", "AGT", 1), line)
+			strings.Replace(file, "/go/src/github.com/DataDog/datadog-agent/pkg", "PKG", 1), line)
 	}
 	if _, found := all_mmaps.origins[location]; !found {
 		if safe {
@@ -336,11 +348,16 @@ func Report() {
 	p := message.NewPrinter(language.English)
 	nrHashes := len(all_mmaps.hashes)
 	for n, t := range all_mmaps.hashes {
-		log.Info(p.Sprintf("> %d/%d: Origin=\"%s\" mmap range starting at %p: %v bytes.", n, nrHashes, t.Name,
-			unsafe.Pointer(unsafe.SliceData(t.mapping)), len(t.mapping)))
-		log.Info(p.Sprintf("  %d/%d:   used: %v, capacity: %v.  Utilization: %4.1f%%. Active: %v.  lookup depth: %7d %7d %7d %7d %7d %7d %7d %7d", n, nrHashes, t.used, t.capacity,
-			100.0*float64(t.used)/float64(t.capacity),
-			t.pages != nil,
+		var status string
+		if t.finalized() {
+			status = "INACTIVE"
+		} else {
+			status = "ACTIVE"
+		}
+		log.Info(p.Sprintf("> %d/%d: %8s Origin=\"%s\" mmap range starting at %p: %v bytes.", n+1, nrHashes, status,
+			t.Name, unsafe.Pointer(unsafe.SliceData(t.mapping)), len(t.mapping)))
+		log.Info(p.Sprintf("  %d/%d:   used: %v, capacity: %v.  Utilization: %4.1f%%. lookup depth: %7d %7d %7d %7d %7d %7d %7d %7d",
+			n+1, nrHashes, t.used, t.capacity, 100.0*float64(t.used)/float64(t.capacity),
 			t.seedHist[0], t.seedHist[1], t.seedHist[2], t.seedHist[3],
 			t.seedHist[4], t.seedHist[5], t.seedHist[6], t.seedHist[7],
 		))

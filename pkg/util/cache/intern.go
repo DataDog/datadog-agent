@@ -22,15 +22,18 @@ import (
 // don't let this get too big compared to the MMAP region.
 const initialInternerSize = 64
 
+// TODO: Setup min size before using mmap, setup max mmap size (to effectively force
+// copying GC of strings).
 // backingBytesPerInCoreEntry is the number of bytes to allocate in the mmap file per
 // element in our LRU.  E.g., some value of initialInternerSize * POW(growthFactor, N).
 const backingBytesPerInCoreEntry = 4096
 const growthFactor = 1.5
 
-// TODO: Finalize policy on temporary path: an arg or a constant?
+// TODO: Move this to a config arg.
 const defaultTmpPath = "/tmp"
 const OriginTimeSampler = "!Timesampler"
 const OriginContextResolver = "!ContextResolver"
+const OriginCheckSampler = "!CheckSampler"
 
 type stringInterner struct {
 	cache        lruStringCache

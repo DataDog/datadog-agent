@@ -189,13 +189,15 @@ func (c *contextResolver) sendOriginTelemetry(timestamp float64, series metrics.
 	//    origin id would coalesce to no origin, making this less
 	//    useful for troubleshooting).
 	for entry, count := range perOrigin {
-		series.Append(&metrics.Serie{
+		metSeries := &metrics.Serie{
 			Name:   "datadog.agent.aggregator.dogstatsd_contexts_by_origin",
 			Host:   hostname,
 			Tags:   tagset.NewCompositeTags(constTags, entry.Tags()),
 			MType:  metrics.APIGaugeType,
 			Points: []metrics.Point{{Ts: timestamp, Value: float64(count)}},
-		})
+		}
+		entry.Retainer.CopyTo(&metSeries.References)
+		series.Append(metSeries)
 	}
 }
 

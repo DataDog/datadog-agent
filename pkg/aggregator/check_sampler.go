@@ -61,13 +61,15 @@ func (cs *CheckSampler) addSample(metricSample *metrics.MetricSample) {
 func (cs *CheckSampler) newSketchSeries(ck ckey.ContextKey, points []metrics.SketchPoint) *metrics.SketchSeries {
 	ctx, _ := cs.contextResolver.get(ck)
 	ss := &metrics.SketchSeries{
-		Name: ctx.Name,
-		Tags: ctx.Tags(),
-		Host: ctx.Host,
 		// Interval: TODO: investigate
 		Points:     points,
 		ContextKey: ck,
 	}
+	ss.Name = cs.contextResolver.resolver.interner.LoadOrStoreString(ctx.Name, cache.OriginCheckSampler, &ss.References)
+	ss.Tags = ctx.Tags().Apply(func(s string) string {
+		return cs.contextResolver.resolver.interner.LoadOrStoreString(s, cache.OriginCheckSampler, &ss.References)
+	})
+	ss.Host = cs.contextResolver.resolver.interner.LoadOrStoreString(ctx.Host, cache.OriginCheckSampler, &ss.References)
 
 	return ss
 }
@@ -149,9 +151,11 @@ func (cs *CheckSampler) commitSeries(timestamp float64) {
 			log.Errorf("Ignoring all metrics on context key '%v': inconsistent context resolver state: the context is not tracked", serie.ContextKey)
 			continue
 		}
-		serie.Name = context.Name + serie.NameSuffix
-		serie.Tags = context.Tags()
-		serie.Host = context.Host
+		serie.Name = cs.contextResolver.resolver.interner.LoadOrStoreString(context.Name+serie.NameSuffix, cache.OriginCheckSampler, &serie.References)
+		serie.Tags = context.Tags().Apply(func(tag string) string {
+			return cs.contextResolver.resolver.interner.LoadOrStoreString(tag, cache.OriginCheckSampler, &serie.References)
+		})
+		serie.Host = cs.contextResolver.resolver.interner.LoadOrStoreString(context.Host, cache.OriginCheckSampler, &serie.References)
 		serie.NoIndex = context.noIndex
 		serie.SourceTypeName = checksSourceTypeName // this source type is required for metrics coming from the checks
 

@@ -8,6 +8,7 @@ package metrics
 import (
 	"bytes"
 	"encoding/json"
+	"github.com/DataDog/datadog-agent/pkg/util/cache"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator/ckey"
 	"github.com/DataDog/datadog-agent/pkg/tagset"
@@ -22,6 +23,7 @@ type SketchSeries struct {
 	Interval   int64                `json:"interval"`
 	Points     []SketchPoint        `json:"points"`
 	ContextKey ckey.ContextKey      `json:"-"`
+	References cache.SmallRetainer  `json:"-"`
 }
 
 // String returns the JSON representation of a SketchSeries as a string

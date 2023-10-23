@@ -8,6 +8,7 @@ package metrics
 import (
 	"encoding/json"
 	"fmt"
+	"github.com/DataDog/datadog-agent/pkg/util/cache"
 	"sort"
 	"strconv"
 	"strings"
@@ -60,6 +61,7 @@ type Serie struct {
 	NoIndex        bool                 `json:"-"` // This is only used by api V2
 	Resources      []Resource           `json:"-"` // This is only used by api V2
 	Source         MetricSource         `json:"-"` // This is only used by api V2
+	References     cache.SmallRetainer  `json:"-"`
 }
 
 // SeriesAPIV2Enum returns the enumeration value for MetricPayload.MetricType in

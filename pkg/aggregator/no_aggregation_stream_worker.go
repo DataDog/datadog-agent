@@ -141,7 +141,7 @@ func (w *noAggregationStreamWorker) run() {
 	ticker := time.NewTicker(noAggWorkerStreamCheckFrequency)
 	defer ticker.Stop()
 	logPayloads := config.Datadog.GetBool("log_payloads")
-	w.seriesSink, w.sketchesSink = createIterableMetrics(w.flushConfig, w.serializer, logPayloads, false)
+	w.seriesSink, w.sketchesSink = createIterableMetrics(w.flushConfig, w.serializer, nil, logPayloads, false)
 
 	stopped := false
 	var stopBlockChan chan struct{}
@@ -242,7 +242,7 @@ func (w *noAggregationStreamWorker) run() {
 			break
 		}
 
-		w.seriesSink, w.sketchesSink = createIterableMetrics(w.flushConfig, w.serializer, logPayloads, false)
+		w.seriesSink, w.sketchesSink = createIterableMetrics(w.flushConfig, w.serializer, nil, logPayloads, false)
 	}
 
 	if stopBlockChan != nil {

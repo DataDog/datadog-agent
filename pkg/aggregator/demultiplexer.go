@@ -141,6 +141,7 @@ type flushTrigger struct {
 func createIterableMetrics(
 	flushAndSerializeInParallel FlushAndSerializeInParallel,
 	serializer serializer.MetricSerializer,
+	retainer cache.InternRetainer,
 	logPayloads bool,
 	isServerless bool,
 ) (*metrics.IterableSeries, *metrics.IterableSketches) {
@@ -152,7 +153,11 @@ func createIterableMetrics(
 			if logPayloads {
 				log.Debugf("Flushing serie: %s", se)
 			}
+			if retainer != nil {
+				retainer.Import(&se.References)
+			}
 			tagsetTlm.updateHugeSerieTelemetry(se)
+
 		}, flushAndSerializeInParallel.BufferSize, flushAndSerializeInParallel.ChannelSize)
 	}
 
@@ -163,6 +168,9 @@ func createIterableMetrics(
 			}
 			if isServerless {
 				log.DebugfServerless("Sending sketches payload : %s", sketch.String())
+			}
+			if retainer != nil {
+				retainer.Import(&sketch.References)
 			}
 			tagsetTlm.updateHugeSketchesTelemetry(sketch)
 		}, flushAndSerializeInParallel.BufferSize, flushAndSerializeInParallel.ChannelSize)

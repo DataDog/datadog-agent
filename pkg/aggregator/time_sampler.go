@@ -113,13 +113,13 @@ func (s *TimeSampler) sample(metricSample *metrics.MetricSample, timestamp float
 }
 func (s *TimeSampler) newSketchSeries(ck ckey.ContextKey, points []metrics.SketchPoint) *metrics.SketchSeries {
 	ctx, _ := s.contextResolver.get(ck)
-	references := ctx.references
+	references := &ctx.references
 	ss := &metrics.SketchSeries{
-		Name: s.interner.LoadOrStoreString(ctx.Name, cache.OriginTimeSampler, &references),
+		Name: s.interner.LoadOrStoreString(ctx.Name, cache.OriginTimeSampler, references),
 		Tags: ctx.Tags().Apply(func(tag string) string {
-			return s.interner.LoadOrStoreString(tag, cache.OriginTimeSampler, &references)
+			return s.interner.LoadOrStoreString(tag, cache.OriginTimeSampler, references)
 		}),
-		Host:       s.interner.LoadOrStoreString(ctx.Host, cache.OriginTimeSampler, &references),
+		Host:       s.interner.LoadOrStoreString(ctx.Host, cache.OriginTimeSampler, references),
 		Interval:   s.interval,
 		Points:     points,
 		ContextKey: ck,
@@ -194,9 +194,13 @@ func (s *TimeSampler) dedupSerieBySerieSignature(
 				continue
 			}
 			suffix := cache.CheckDefault(serie.NameSuffix)
-			serie.Name = cache.CheckDefault(context.Name) + suffix
-			serie.Tags = context.Tags()
-			serie.Host = cache.CheckDefault(context.Host)
+			serie.Name = s.interner.LoadOrStoreString(cache.CheckDefault(context.Name)+suffix,
+				cache.OriginTimeSampler, &serie.References)
+			serie.Tags = context.Tags().Apply(func(tag string) string {
+				return s.interner.LoadOrStoreString(tag, cache.OriginTimeSampler, &serie.References)
+			})
+			serie.Host = s.interner.LoadOrStoreString(cache.CheckDefault(context.Host), cache.OriginTimeSampler,
+				&serie.References)
 			serie.NoIndex = context.noIndex
 			serie.Interval = s.interval
 			serie.Source = context.source
