@@ -5,22 +5,23 @@
 
 //go:build serverless
 
-package config
+package logs
 
 import (
 	"fmt"
 	"strings"
 
+	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/cihub/seelog"
 )
 
 // buildCommonFormat returns the log common format seelog string
-func buildCommonFormat(loggerName LoggerName) string {
-	return fmt.Sprintf("%%Date(%s) | %s | %%LEVEL | %%Msg%%n", getLogDateFormat(), loggerName)
+func buildCommonFormat(loggerName LoggerName, cfg pkgconfigmodel.Reader) string {
+	return fmt.Sprintf("%%Date(%s) | %s | %%LEVEL | %%Msg%%n", getLogDateFormat(cfg), loggerName)
 }
 
 // buildJSONFormat returns the log JSON format seelog string
-func buildJSONFormat(loggerName LoggerName) string {
+func buildJSONFormat(loggerName LoggerName, cfg pkgconfigmodel.Reader) string {
 	seelog.RegisterCustomFormatter("QuoteMsg", createQuoteMsgFormatter) //nolint:errcheck
-	return fmt.Sprintf(`{"agent":"%s","time":"%%Date(%s)","level":"%%LEVEL","file":"","line":"","func":"%%FuncShort","msg":%%QuoteMsg}%%n`, strings.ToLower(string(loggerName)), getLogDateFormat())
+	return fmt.Sprintf(`{"agent":"%s","time":"%%Date(%s)","level":"%%LEVEL","file":"","line":"","func":"%%FuncShort","msg":%%QuoteMsg}%%n`, strings.ToLower(string(loggerName)), getLogDateFormat(cfg))
 }

@@ -3,7 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package config
+// Package logs contain methods to configure Agent logs
+package logs
 
 import (
 	"crypto/tls"
@@ -18,11 +19,12 @@ import (
 	"strings"
 	"time"
 
-	"github.com/cihub/seelog"
-
-	seelogCfg "github.com/DataDog/datadog-agent/pkg/config/internal/seelog"
+	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
+	"github.com/cihub/seelog"
+
+	seelogCfg "github.com/DataDog/datadog-agent/pkg/config/logs/internal/seelog"
 )
 
 // LoggerName specifies the name of an instantiated logger.
@@ -51,8 +53,8 @@ var (
 	dogstatsdSeelogConfig *seelogCfg.Config
 )
 
-func getLogDateFormat() string {
-	if Datadog.GetBool("log_format_rfc3339") {
+func getLogDateFormat(cfg pkgconfigmodel.Reader) string {
+	if cfg.GetBool("log_format_rfc3339") {
 		return time.RFC3339
 	}
 	return logDateFormat
@@ -64,11 +66,11 @@ func createQuoteMsgFormatter(params string) seelog.FormatterFunc { //nolint:revi
 	}
 }
 
-func getSyslogTLSKeyPair() (*tls.Certificate, error) {
+func getSyslogTLSKeyPair(cfg pkgconfigmodel.Reader) (*tls.Certificate, error) {
 	var syslogTLSKeyPair *tls.Certificate
-	if Datadog.IsSet("syslog_pem") && Datadog.IsSet("syslog_key") {
-		cert := Datadog.GetString("syslog_pem")
-		key := Datadog.GetString("syslog_key")
+	if cfg.IsSet("syslog_pem") && cfg.IsSet("syslog_key") {
+		cert := cfg.GetString("syslog_pem")
+		key := cfg.GetString("syslog_key")
 
 		if cert == "" && key == "" {
 			return nil, nil
@@ -91,12 +93,12 @@ func getSyslogTLSKeyPair() (*tls.Certificate, error) {
 // if a non empty logFile is provided, it will also log to the file
 // a non empty syslogURI will enable syslog, and format them following RFC 5424 if specified
 // you can also specify to log to the console and in JSON format
-func SetupLogger(loggerName LoggerName, logLevel, logFile, syslogURI string, syslogRFC, logToConsole, jsonFormat bool) error {
+func SetupLogger(loggerName LoggerName, logLevel, logFile, syslogURI string, syslogRFC, logToConsole, jsonFormat bool, cfg pkgconfigmodel.Reader) error {
 	seelogLogLevel, err := validateLogLevel(logLevel)
 	if err != nil {
 		return err
 	}
-	seelogConfig, err = buildLoggerConfig(loggerName, seelogLogLevel, logFile, syslogURI, syslogRFC, logToConsole, jsonFormat)
+	seelogConfig, err = buildLoggerConfig(loggerName, seelogLogLevel, logFile, syslogURI, syslogRFC, logToConsole, jsonFormat, cfg)
 	if err != nil {
 		return err
 	}
@@ -106,7 +108,7 @@ func SetupLogger(loggerName LoggerName, logLevel, logFile, syslogURI string, sys
 	}
 	_ = seelog.ReplaceLogger(loggerInterface)
 	log.SetupLogger(loggerInterface, seelogLogLevel)
-	scrubber.AddStrippedKeys(Datadog.GetStringSlice("flare_stripped_keys"))
+	scrubber.AddStrippedKeys(cfg.GetStringSlice("flare_stripped_keys"))
 	return nil
 }
 
@@ -114,7 +116,7 @@ func SetupLogger(loggerName LoggerName, logLevel, logFile, syslogURI string, sys
 // if a non empty logFile is provided, it will also log to the file
 // a non empty syslogURI will enable syslog, and format them following RFC 5424 if specified
 // you can also specify to log to the console and in JSON format
-func SetupJMXLogger(logFile, syslogURI string, syslogRFC, logToConsole, jsonFormat bool) error {
+func SetupJMXLogger(logFile, syslogURI string, syslogRFC, logToConsole, jsonFormat bool, cfg pkgconfigmodel.Reader) error {
 	// The JMX logger always logs at level "info", because JMXFetch does its
 	// own level filtering on and provides all messages to seelog at the info
 	// or error levels, via log.JMXInfo and log.JMXError.
@@ -122,7 +124,7 @@ func SetupJMXLogger(logFile, syslogURI string, syslogRFC, logToConsole, jsonForm
 	if err != nil {
 		return err
 	}
-	jmxSeelogConfig, err = buildLoggerConfig(JMXLoggerName, seelogLogLevel, logFile, syslogURI, syslogRFC, logToConsole, jsonFormat)
+	jmxSeelogConfig, err = buildLoggerConfig(JMXLoggerName, seelogLogLevel, logFile, syslogURI, syslogRFC, logToConsole, jsonFormat, cfg)
 	if err != nil {
 		return err
 	}
@@ -136,13 +138,13 @@ func SetupJMXLogger(logFile, syslogURI string, syslogRFC, logToConsole, jsonForm
 
 // SetupDogstatsdLogger sets up a logger with dogstatsd logger name and log level
 // if a non empty logFile is provided, it will also log to the file
-func SetupDogstatsdLogger(logFile string) (seelog.LoggerInterface, error) {
+func SetupDogstatsdLogger(logFile string, cfg pkgconfigmodel.Reader) (seelog.LoggerInterface, error) {
 	seelogLogLevel, err := validateLogLevel("info")
 	if err != nil {
 		return nil, err
 	}
 
-	dogstatsdSeelogConfig = buildDogstatsdLoggerConfig(DogstatsDLoggerName, seelogLogLevel, logFile)
+	dogstatsdSeelogConfig = buildDogstatsdLoggerConfig(DogstatsDLoggerName, seelogLogLevel, logFile, cfg)
 
 	dogstatsdLoggerInterface, err := GenerateLoggerInterface(dogstatsdSeelogConfig)
 	if err != nil {
@@ -150,37 +152,36 @@ func SetupDogstatsdLogger(logFile string) (seelog.LoggerInterface, error) {
 	}
 
 	return dogstatsdLoggerInterface, nil
-
 }
 
-func buildDogstatsdLoggerConfig(loggerName LoggerName, seelogLogLevel, logFile string) *seelogCfg.Config {
-	config := seelogCfg.NewSeelogConfig(string(loggerName), seelogLogLevel, "common", "", buildCommonFormat(loggerName), false)
+func buildDogstatsdLoggerConfig(loggerName LoggerName, seelogLogLevel, logFile string, cfg pkgconfigmodel.Reader) *seelogCfg.Config {
+	config := seelogCfg.NewSeelogConfig(string(loggerName), seelogLogLevel, "common", "", buildCommonFormat(loggerName, cfg), false)
 
 	// Configuring max roll for log file, if dogstatsd_log_file_max_rolls env var is not set (or set improperly ) within datadog.yaml then default value is 3
-	dogstatsdLogFileMaxRolls := Datadog.GetInt("dogstatsd_log_file_max_rolls")
+	dogstatsdLogFileMaxRolls := cfg.GetInt("dogstatsd_log_file_max_rolls")
 	if dogstatsdLogFileMaxRolls < 0 {
 		dogstatsdLogFileMaxRolls = 3
 		log.Warnf("Invalid value for dogstatsd_log_file_max_rolls, please make sure the value is equal or higher than 0")
 	}
 
 	// Configure log file, log file max size, log file roll up
-	config.EnableFileLogging(logFile, Datadog.GetSizeInBytes("dogstatsd_log_file_max_size"), uint(dogstatsdLogFileMaxRolls))
+	config.EnableFileLogging(logFile, cfg.GetSizeInBytes("dogstatsd_log_file_max_size"), uint(dogstatsdLogFileMaxRolls))
 
 	return config
 }
 
-func buildLoggerConfig(loggerName LoggerName, seelogLogLevel, logFile, syslogURI string, syslogRFC, logToConsole, jsonFormat bool) (*seelogCfg.Config, error) {
+func buildLoggerConfig(loggerName LoggerName, seelogLogLevel, logFile, syslogURI string, syslogRFC, logToConsole, jsonFormat bool, cfg pkgconfigmodel.Reader) (*seelogCfg.Config, error) {
 	formatID := "common"
 	if jsonFormat {
 		formatID = "json"
 	}
 
-	config := seelogCfg.NewSeelogConfig(string(loggerName), seelogLogLevel, formatID, buildJSONFormat(loggerName), buildCommonFormat(loggerName), syslogRFC)
+	config := seelogCfg.NewSeelogConfig(string(loggerName), seelogLogLevel, formatID, buildJSONFormat(loggerName, cfg), buildCommonFormat(loggerName, cfg), syslogRFC)
 	config.EnableConsoleLog(logToConsole)
-	config.EnableFileLogging(logFile, Datadog.GetSizeInBytes("log_file_max_size"), uint(Datadog.GetInt("log_file_max_rolls")))
+	config.EnableFileLogging(logFile, cfg.GetSizeInBytes("log_file_max_size"), uint(cfg.GetInt("log_file_max_rolls")))
 
 	if syslogURI != "" { // non-blank uri enables syslog
-		syslogTLSKeyPair, err := getSyslogTLSKeyPair()
+		syslogTLSKeyPair, err := getSyslogTLSKeyPair(cfg)
 		if err != nil {
 			return nil, err
 		}
@@ -189,7 +190,7 @@ func buildLoggerConfig(loggerName LoggerName, seelogLogLevel, logFile, syslogURI
 			useTLS = true
 			syslogTLSConfig = &tls.Config{
 				Certificates:       []tls.Certificate{*syslogTLSKeyPair},
-				InsecureSkipVerify: Datadog.GetBool("syslog_tls_verify"),
+				InsecureSkipVerify: cfg.GetBool("syslog_tls_verify"),
 			}
 		}
 		config.ConfigureSyslog(syslogURI, useTLS)
