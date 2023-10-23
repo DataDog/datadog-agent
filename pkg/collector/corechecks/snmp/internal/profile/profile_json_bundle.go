@@ -28,8 +28,8 @@ func loadBundleJSONProfiles() (ProfileConfigMap, error) {
 	if err != nil {
 		return nil, err
 	}
-	// TODO: Use default profiles from json Bundle in priority once it's implemented
-	//       (with fallback on Yaml Default Profiles).
+	// TODO (separate PR): Use default profiles from json Bundle in priority once it's implemented.
+	//       We fallback on Yaml Default Profiles if default profiles are not present in json Bundle.
 	defaultProfiles := getYamlDefaultProfiles()
 
 	resolvedProfiles, err := resolveProfiles(userProfiles, defaultProfiles)
