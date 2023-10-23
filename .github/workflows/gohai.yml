@@ -3,6 +3,9 @@ name: "Gohai Test"
 # Only run the tests if pkg/gohai was changed
 on:
   push:
+    branches:
+      - main
+      - 7.[0-9][0-9].x
     paths:
       - "pkg/gohai/**"
   pull_request:
