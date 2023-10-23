@@ -50,11 +50,11 @@ type parser struct {
 	readTimestamps bool
 }
 
-func newParser(cfg config.Reader, float64List *float64ListPool) *parser {
+func newParser(cfg config.Reader, float64List *float64ListPool, interner *stringInterner) *parser {
 	readTimestamps := cfg.GetBool("dogstatsd_no_aggregation_pipeline")
 
 	return &parser{
-		interner:         newStringInterner(),
+		interner:         interner,
 		readTimestamps:   readTimestamps,
 		float64List:      float64List,
 		dsdOriginEnabled: cfg.GetBool("dogstatsd_origin_detection_client"),

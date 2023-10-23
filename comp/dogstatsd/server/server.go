@@ -486,9 +486,10 @@ func (s *server) handleMessages() {
 	}
 
 	s.log.Debug("DogStatsD will run", workersCount, "workers")
+	sharedInterner := newStringInterner()
 
 	for i := 0; i < workersCount; i++ {
-		worker := newWorker(s, i)
+		worker := newWorker(s, sharedInterner)
 		go worker.run()
 		s.workers = append(s.workers, worker)
 	}
