@@ -10,9 +10,10 @@ package oracle
 import (
 	"fmt"
 
+	"strings"
+
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/oracle-dbm/common"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"strings"
 )
 
 const OSSTATS_QUERY = `SELECT stat_name, value
@@ -57,7 +58,7 @@ func (c *Check) OS_Stats() error {
 		if err := c.db.Get(&cpuCount, "SELECT value FROM v$parameter WHERE name = 'cpu_count'"); err == nil {
 			s.Gauge(fmt.Sprintf("%s.num_cpus", common.IntegrationName), cpuCount, "", c.tags)
 		} else {
-			log.Errorf("failed to get cpu_count: %s", err)
+			log.Errorf("%s failed to get cpu_count: %s", c.logPrompt, err)
 		}
 	}
 
