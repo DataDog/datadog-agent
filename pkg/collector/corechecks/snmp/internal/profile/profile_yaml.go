@@ -42,63 +42,13 @@ func loadYamlProfiles() (ProfileConfigMap, error) {
 	}
 	log.Debugf("build yaml profiles")
 
-	profiles, err := loadProfiles(nil, nil)
+	profiles, err := resolveProfiles(getYamlUserProfiles(), getYamlDefaultProfiles())
 	if err != nil {
 		return nil, err
 	}
 
 	SetGlobalProfileConfigMap(profiles)
 	return profiles, nil
-}
-
-func loadProfiles(initConfigProfiles ProfileConfigMap, userProfiles ProfileConfigMap) (ProfileConfigMap, error) {
-	if initConfigProfiles != nil && userProfiles != nil {
-		return nil, fmt.Errorf("passing both initConfigProfiles and userProfiles is not expected")
-	}
-
-	userProfilesToResolve := make(ProfileConfigMap)
-	if userProfiles != nil {
-		userProfilesToResolve = userProfiles
-	} else {
-		profiles, err := getProfileDefinitions(userProfilesFolder, true)
-		if err != nil {
-			log.Warnf("failed to get user profile definitions: %s", err)
-		} else {
-			userProfilesToResolve = profiles
-		}
-	}
-
-	if len(initConfigProfiles) > 0 {
-		for key, val := range initConfigProfiles {
-			userProfilesToResolve[key] = val
-		}
-	}
-
-	defaultProfiles, err := getProfileDefinitions(defaultProfilesFolder, false)
-	if err != nil {
-		log.Warnf("failed to get default profile definitions: %s", err)
-		defaultProfiles = nil
-	}
-
-	resolvedProfiles, err := resolveProfiles(userProfilesToResolve, defaultProfiles)
-	if err != nil {
-		return nil, err
-	}
-
-	// When user profiles are from initConfigProfiles
-	// only profiles listed in initConfigProfiles are returned
-	if len(initConfigProfiles) > 0 {
-		filteredResolvedProfiles := ProfileConfigMap{}
-		for key, val := range resolvedProfiles {
-			if _, ok := initConfigProfiles[key]; !ok {
-				continue
-			}
-			filteredResolvedProfiles[key] = val
-		}
-		resolvedProfiles = filteredResolvedProfiles
-	}
-
-	return resolvedProfiles, nil
 }
 
 func getProfileDefinitions(profilesFolder string, isUserProfile bool) (ProfileConfigMap, error) {
@@ -161,4 +111,22 @@ func resolveProfileDefinitionPath(definitionFile string) string {
 func getProfileConfdRoot(profileFolderName string) string {
 	confdPath := config.Datadog.GetString("confd_path")
 	return filepath.Join(confdPath, "snmp.d", profileFolderName)
+}
+
+func getYamlUserProfiles() ProfileConfigMap {
+	userProfiles, err := getProfileDefinitions(userProfilesFolder, true)
+	if err != nil {
+		log.Warnf("failed to get user profile definitions: %s", err)
+		return ProfileConfigMap{}
+	}
+	return userProfiles
+}
+
+func getYamlDefaultProfiles() ProfileConfigMap {
+	userProfiles, err := getProfileDefinitions(defaultProfilesFolder, false)
+	if err != nil {
+		log.Warnf("failed to get default profile definitions: %s", err)
+		return ProfileConfigMap{}
+	}
+	return userProfiles
 }

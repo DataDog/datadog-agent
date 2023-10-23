@@ -7,10 +7,10 @@ package profile
 
 import "github.com/DataDog/datadog-agent/pkg/util/log"
 
-func loadInitConfigProfiles(initConfigProfiles ProfileConfigMap) (ProfileConfigMap, error) {
-	profiles := make(ProfileConfigMap, len(initConfigProfiles))
+func loadInitConfigProfiles(rawInitConfigProfiles ProfileConfigMap) (ProfileConfigMap, error) {
+	initConfigProfiles := make(ProfileConfigMap, len(rawInitConfigProfiles))
 
-	for name, profConfig := range initConfigProfiles {
+	for name, profConfig := range rawInitConfigProfiles {
 		if profConfig.DefinitionFile != "" {
 			profDefinition, err := readProfileDefinition(profConfig.DefinitionFile)
 			if err != nil {
@@ -19,11 +19,23 @@ func loadInitConfigProfiles(initConfigProfiles ProfileConfigMap) (ProfileConfigM
 			}
 			profConfig.Definition = *profDefinition
 		}
-		profiles[name] = profConfig
+		initConfigProfiles[name] = profConfig
 	}
-	resolvedProfiles, err := loadProfiles(profiles, nil)
+
+	userProfiles := mergeProfiles(initConfigProfiles, getYamlUserProfiles())
+	resolvedProfiles, err := resolveProfiles(userProfiles, getYamlDefaultProfiles())
 	if err != nil {
 		return nil, err
 	}
-	return resolvedProfiles, nil
+
+	// When user profiles are from initConfigProfiles
+	// only profiles listed in initConfigProfiles are returned
+	filteredResolvedProfiles := ProfileConfigMap{}
+	for key, val := range resolvedProfiles {
+		if _, ok := initConfigProfiles[key]; !ok {
+			continue
+		}
+		filteredResolvedProfiles[key] = val
+	}
+	return filteredResolvedProfiles, nil
 }
