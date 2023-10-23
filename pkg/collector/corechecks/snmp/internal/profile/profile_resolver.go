@@ -46,12 +46,11 @@ func loadResolveProfiles(pConfig ProfileConfigMap, defaultProfiles ProfileConfig
 	profiles := make(ProfileConfigMap, len(pConfig))
 
 	for name, profConfig := range pConfig {
-		err := recursivelyExpandBaseProfilesV2(name, &profConfig.Definition, profConfig.Definition.Extends, []string{}, pConfig, defaultProfiles)
+		err := recursivelyExpandBaseProfiles(name, &profConfig.Definition, profConfig.Definition.Extends, []string{}, pConfig, defaultProfiles)
 		if err != nil {
 			log.Warnf("failed to expand profile `%s`: %s", name, err)
 			continue
 		}
-		//profConfig.Definition = *profDefinition
 		profiledefinition.NormalizeMetrics(profConfig.Definition.Metrics)
 		errors := configvalidation.ValidateEnrichMetadata(profConfig.Definition.Metadata)
 		errors = append(errors, configvalidation.ValidateEnrichMetrics(profConfig.Definition.Metrics)...)
@@ -62,11 +61,11 @@ func loadResolveProfiles(pConfig ProfileConfigMap, defaultProfiles ProfileConfig
 		}
 		profiles[name] = profConfig
 	}
+
 	return profiles, nil
 }
 
-func recursivelyExpandBaseProfilesV2(parentExtend string, definition *profiledefinition.ProfileDefinition, extends []string, extendsHistory []string, profiles ProfileConfigMap, defaultProfiles ProfileConfigMap) error {
-	//parentBasePath := filepath.Base(parentPath)
+func recursivelyExpandBaseProfiles(parentExtend string, definition *profiledefinition.ProfileDefinition, extends []string, extendsHistory []string, profiles ProfileConfigMap, defaultProfiles ProfileConfigMap) error {
 	for _, extendEntry := range extends {
 		// Skip non yaml profiles
 		if !strings.HasSuffix(extendEntry, ".yaml") {
@@ -78,7 +77,6 @@ func recursivelyExpandBaseProfilesV2(parentExtend string, definition *profiledef
 		// User profile can extend default profile by extending the default profile.
 		// If the extend entry has the same name as the profile name, we assume the extend entry is referring to a default profile.
 		if extendEntry == parentExtend {
-			//extendEntry = filepath.Join(getProfileConfdRoot(defaultProfilesFolder), extendEntry)
 			profile, ok := defaultProfiles[extendEntry]
 			if !ok {
 				return fmt.Errorf("extend does not exist: `%s`", extendEntry)
@@ -103,7 +101,7 @@ func recursivelyExpandBaseProfilesV2(parentExtend string, definition *profiledef
 		mergeProfileDefinition(definition, baseDefinition)
 
 		newExtendsHistory := append(common.CopyStrings(extendsHistory), extendEntry)
-		err := recursivelyExpandBaseProfilesV2(extendEntry, definition, baseDefinition.Extends, newExtendsHistory, profiles, defaultProfiles)
+		err := recursivelyExpandBaseProfiles(extendEntry, definition, baseDefinition.Extends, newExtendsHistory, profiles, defaultProfiles)
 		if err != nil {
 			return err
 		}

@@ -8,15 +8,18 @@ package profile
 import (
 	"bufio"
 	"bytes"
-	"github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/networkdevice/profile/profiledefinition"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/cihub/seelog"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/cihub/seelog"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
+	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
+
+	"github.com/DataDog/datadog-agent/pkg/networkdevice/profile/profiledefinition"
 )
 
 func Test_resolveProfiles(t *testing.T) {
@@ -27,9 +30,6 @@ func Test_resolveProfiles(t *testing.T) {
 	require.NoError(t, err)
 	userTestConfdProfiles, err := getProfileDefinitions(userProfilesFolder, true)
 	require.NoError(t, err)
-
-	//defaultProfilesDef, err := getDefaultProfilesDefinitionFiles()
-	//assert.Nil(t, err)
 
 	profilesWithInvalidExtendConfdPath, _ := filepath.Abs(filepath.Join("..", "test", "invalid_ext.d"))
 	config.Datadog.Set("confd_path", profilesWithInvalidExtendConfdPath)
@@ -45,11 +45,6 @@ func Test_resolveProfiles(t *testing.T) {
 	profileWithInvalidExtends, err := readProfileDefinition(profileWithInvalidExtendsFile)
 	require.NoError(t, err)
 
-	//invalidYamlFile, _ := filepath.Abs(filepath.Join("..", "test", "test_profiles", "invalid_yaml_file.yaml"))
-	//invalidYamlProfile, err := readProfileDefinition(invalidYamlFile)
-	//require.NoError(t, err)
-
-	//invalidYamlProfile, _ := filepath.Abs(filepath.Join("..", "test", "test_profiles", "invalid_yaml_file.yaml"))
 	validationErrorProfileFile, _ := filepath.Abs(filepath.Join("..", "test", "test_profiles", "validation_error.yaml"))
 	validationErrorProfile, err := readProfileDefinition(validationErrorProfileFile)
 	require.NoError(t, err)
@@ -95,28 +90,13 @@ func Test_resolveProfiles(t *testing.T) {
 			},
 		},
 		{
-			name: "invalid cyclic extends",
-			//confdDir: invalidCyclicConfdPath,
+			name:                  "invalid cyclic extends",
 			profileConfigMap:      invalidCyclicProfiles,
 			expectedProfileDefMap: ProfileConfigMap{},
 			expectedLogs: []logCount{
 				{"[WARN] loadResolveProfiles: failed to expand profile `_extend1`: cyclic profile extend detected", 1},
 			},
 		},
-		//{
-		// TODO: Test in profile_yaml_test.go
-
-		//name: "invalid yaml profile",
-		//profileConfigMap: ProfileConfigMap{
-		//	"f5-big-ip": {
-		//		Definition: *invalidYamlProfile,
-		//	},
-		//},
-		//expectedProfileDefMap: ProfileConfigMap{},
-		//expectedLogs: []logCount{
-		//	{"[WARN] loadResolveProfiles: failed to expand profile `f5-big-ip`: extend does not exist: `does_not_exist`", 1},
-		//},
-		//},
 		{
 			name: "validation error profile",
 			profileConfigMap: ProfileConfigMap{
@@ -138,8 +118,6 @@ func Test_resolveProfiles(t *testing.T) {
 			l, err := seelog.LoggerFromWriterWithMinLevelAndFormat(w, seelog.DebugLvl, "[%LEVEL] %FuncShort: %Msg")
 			assert.Nil(t, err)
 			log.SetupLogger(l, "debug")
-
-			//config.Datadog.Set("confd_path", tt.confdDir)
 
 			profiles, err := resolveProfiles(tt.defaultProfileConfigMap, tt.profileConfigMap)
 			for _, errorMsg := range tt.expectedIncludeErrors {
