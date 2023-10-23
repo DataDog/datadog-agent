@@ -192,7 +192,7 @@ func (suite *apiserverSuite) getNewLeaderEngine(holderIdentity string) *leaderel
 	leader.HolderIdentity = holderIdentity
 	leader.LeaseDuration = time.Second * 30
 
-	le, err := leaderelection.GetLeaderEngine()
+	_, err := leaderelection.GetLeaderEngine()
 	require.Nil(suite.T(), err)
 	return leader
 }
