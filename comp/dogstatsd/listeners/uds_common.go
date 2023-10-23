@@ -339,7 +339,7 @@ func (l *UDSListener) getConnID(conn *net.UnixConn) string {
 	if err != nil {
 		log.Errorf("dogstatsd-uds: error getting file from connection: %s", err)
 	} else {
-		rawConn.Control(func(fd uintptr) { fdConn = fd })
+		_ = rawConn.Control(func(fd uintptr) { fdConn = fd })
 	}
 	return strconv.Itoa(int(fdConn))
 }
