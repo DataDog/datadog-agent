@@ -5,7 +5,7 @@
 
 //go:build linux || freebsd || netbsd || openbsd || solaris || dragonfly || aix
 
-package config
+package setup
 
 const (
 	defaultConfdPath            = "/etc/datadog-agent/conf.d"
