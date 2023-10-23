@@ -95,8 +95,6 @@ stages:
   - notify
 
 variables:
-  #Do not change this - must be the repository name for Kubernetes runners to work
-  KUBERNETES_SERVICE_ACCOUNT_OVERWRITE: "datadog-agent"
   # Directory in which we execute the omnibus build.
   # For an unknown reason, it does not go well with
   # a ruby dependency if we build directly into $CI_PROJECT_DIR/.omnibus
@@ -170,7 +168,7 @@ variables:
   # To use images from test-infra-definitions dev branches, set the SUFFIX variable to -dev
   # and check the job creating the image to make sure you have the right SHA prefix
   TEST_INFRA_DEFINITIONS_BUILDIMAGES_SUFFIX: ""
-  TEST_INFRA_DEFINITIONS_BUILDIMAGES: d2510f65b6fe
+  TEST_INFRA_DEFINITIONS_BUILDIMAGES: 8d38c2a2a794
   DATADOG_AGENT_BUILDERS: v21429255-6b46caa
 
   DATADOG_AGENT_EMBEDDED_PATH: /opt/datadog-agent/embedded
@@ -398,6 +396,12 @@ workflow:
     when: never
   - <<: *if_deploy
 
+.on_deploy_a6_failure:
+  - <<: *if_not_version_6
+    when: never
+  - <<: *if_deploy
+    when: on_failure
+
 .on_deploy_a6_rc:
   - <<: *if_not_version_6
     when: never
@@ -480,6 +484,12 @@ workflow:
   - <<: *if_not_version_7
     when: never
   - <<: *if_deploy
+
+.on_deploy_a7_failure:
+  - <<: *if_not_version_7
+    when: never
+  - <<: *if_deploy
+    when: on_failure
 
 .on_deploy_a7_rc:
   - <<: *if_not_version_7
