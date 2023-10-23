@@ -62,6 +62,73 @@ layers:
       artifact: ../../../../datadog-lambda-extension/.layers/datadog_extension-${env:ARCHITECTURE}.zip
 
 functions:
+  appsec-node:
+    runtime: nodejs18.x
+    handler: src/metric.appSecHandler
+    layers:
+      - arn:aws:lambda:${self:provider.region}:464622532012:layer:Datadog-Node18-x:${env:NODE_LAYER_VERSION}
+      - { Ref: RecorderExtensionLambdaLayer }
+      - { Ref: DatadogExtensionIntegrationTestLambdaLayer }
+    environment:
+      AWS_LAMBDA_EXEC_WRAPPER: /opt/datadog_wrapper
+      DD_SERVERLESS_APPSEC_ENABLED: true
+
+  appsec-python:
+    runtime: python3.11
+    handler: datadog_lambda.handler.handler
+    layers:
+      - arn:aws:lambda:${self:provider.region}:464622532012:layer:Datadog-Python311${self:custom.ddLayerArchitectureFlag.${env:ARCHITECTURE}}:${env:PYTHON_LAYER_VERSION}
+      - { Ref: RecorderExtensionLambdaLayer }
+      - { Ref: DatadogExtensionIntegrationTestLambdaLayer }
+    environment:
+      AWS_LAMBDA_EXEC_WRAPPER: /opt/datadog_wrapper
+      DD_LAMBDA_HANDLER: src/appSecPython.handler
+      DD_SERVERLESS_APPSEC_ENABLED: true
+
+  appsec-java:
+    runtime: java8.al2
+    handler: Handler
+    package:
+      individually: true
+      artifact: src/java-tests/appsec/target/hello-dev.jar
+    layers:
+      - arn:aws:lambda:${self:provider.region}:464622532012:layer:dd-trace-java:${env:JAVA_TRACE_LAYER_VERSION}
+      - { Ref: RecorderExtensionLambdaLayer }
+      - { Ref: DatadogExtensionIntegrationTestLambdaLayer }
+    environment:
+      AWS_LAMBDA_EXEC_WRAPPER: /opt/datadog_wrapper
+      JAVA_TOOL_OPTIONS: '-javaagent:"/opt/java/lib/dd-java-agent.jar" -XX:+TieredCompilation -XX:TieredStopAtLevel=1'
+      DD_JMXFETCH_ENABLED: false
+      DD_SERVERLESS_APPSEC_ENABLED: true
+
+  appsec-go:
+    runtime: provided.al2
+    package:
+      individually: true
+      patterns:
+        - src/bin/appsec
+    handler: src/bin/appsec
+    layers:
+      - { Ref: RecorderExtensionLambdaLayer }
+      - { Ref: DatadogExtensionIntegrationTestLambdaLayer }
+    environment:
+      # AWS_LAMBDA_EXEC_WRAPPER is not applied by provided.al2 and go1.x runtimes
+      DD_SERVERLESS_APPSEC_ENABLED: true
+
+  appsec-csharp:
+    runtime: dotnet6
+    handler: CsharpHandlers::AwsDotnetCsharp.Handler::Hello
+    package:
+      individually: true
+      artifact: src/csharp-tests/bin/Release/net6.0/handler.zip
+    layers:
+      - { Ref: RecorderExtensionLambdaLayer }
+      - { Ref: DatadogExtensionIntegrationTestLambdaLayer }
+      - arn:aws:lambda:${self:provider.region}:464622532012:layer:dd-trace-dotnet${self:custom.ddLayerArchitectureFlag.${env:ARCHITECTURE}}:${env:DOTNET_TRACE_LAYER_VERSION}
+    environment:
+      AWS_LAMBDA_EXEC_WRAPPER: /opt/datadog_wrapper
+      DD_SERVERLESS_APPSEC_ENABLED: true
+
   metric-node:
     runtime: nodejs14.x
     handler: src/metric.enhancedMetricTest

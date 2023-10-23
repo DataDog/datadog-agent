@@ -157,8 +157,15 @@ trace_functions=(
     "trace-proxy"
     "otlp-python"
 )
+appsec_functions=(
+    "appsec-node"
+    "appsec-python"
+    "appsec-java"
+    "appsec-go"
+    "appsec-csharp"
+)
 
-all_functions=("${metric_functions[@]}" "${log_functions[@]}" "${trace_functions[@]}")
+all_functions=("${metric_functions[@]}" "${log_functions[@]}" "${trace_functions[@]}" "${appsec_functions[@]}")
 
 # Add a function to this list to skip checking its results
 # This should only be used temporarily while we investigate and fix the test
@@ -167,7 +174,15 @@ functions_to_skip=()
 echo "Invoking functions for the first time..."
 set +e # Don't exit this script if an invocation fails or there's a diff
 for function_name in "${all_functions[@]}"; do
-    serverless invoke --stage "${stage}" -f "${function_name}" &>/dev/null &
+    case $function_name in
+    appsec-*)
+        # Invoke appsec functions with an arbitrary attack tool user-agent to trigger a known WAF rule
+        serverless invoke --stage "${stage}" -f "${function_name}" -d "$(cat appsec-payload.json)" &>/dev/null &
+        ;;
+    *)
+        serverless invoke --stage "${stage}" -f "${function_name}" &>/dev/null &
+        ;;
+    esac
 done
 wait
 
@@ -179,7 +194,15 @@ sleep $SECONDS_BETWEEN_INVOCATIONS
 # two invocations are needed since enhanced metrics are computed with the REPORT log line (which is created at the end of the first invocation)
 echo "Invoking functions for the second time..."
 for function_name in "${all_functions[@]}"; do
-    serverless invoke --stage "${stage}" -f "${function_name}" -d '{"body": "testing request payload"}' &>/dev/null &
+    case $function_name in
+    appsec-*)
+        # Invoke appsec functions with an arbitrary attack tool user-agent to trigger a known WAF rule
+        serverless invoke --stage "${stage}" -f "${function_name}" -d "$(cat appsec-payload.json)" &>/dev/null &
+        ;;
+    *)
+        serverless invoke --stage "${stage}" -f "${function_name}" -d '{"body": "testing request payload"}' &>/dev/null &
+        ;;
+    esac
 done
 wait
 
