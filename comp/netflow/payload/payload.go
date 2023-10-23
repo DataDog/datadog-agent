@@ -6,6 +6,8 @@
 // Package payload defines the JSON payload we send to the events platform.
 package payload
 
+import "encoding/json"
+
 // Device contains device details (device sending NetFlow flows)
 type Device struct {
 	Namespace string `json:"namespace"`
@@ -64,4 +66,38 @@ type FlowPayload struct {
 	TCPFlags         []string         `json:"tcp_flags,omitempty"`
 	NextHop          NextHop          `json:"next_hop,omitempty"`
 	AdditionalFields AdditionalFields `json:"additional_fields,omitempty"`
+}
+
+// MarshalJSON Custom marshaller that moves AdditionalFields to the root of the payload
+func (p FlowPayload) MarshalJSON() ([]byte, error) {
+	// Turn FlowPayload into a map
+	type FlowPayload_ FlowPayload // prevent recursion
+	b, err := json.Marshal(FlowPayload_(p))
+
+	if err != nil {
+		return nil, err
+	}
+
+	var m map[string]json.RawMessage
+	err = json.Unmarshal(b, &m)
+
+	if err != nil {
+		return nil, err
+	}
+
+	// Move additional fields to the root of the payload
+	for k, v := range p.AdditionalFields {
+		if _, ok := m[k]; ok {
+			// Do not override, custom fields override is handled in goflowlib converter
+			continue
+		}
+		b, err = json.Marshal(v)
+		if err != nil {
+			// We failed to marshall a custom field, continuing anyway TODO : log
+			continue
+		}
+		m[k] = b
+	}
+
+	return json.Marshal(m)
 }
