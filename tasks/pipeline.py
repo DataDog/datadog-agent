@@ -903,9 +903,11 @@ def trigger_build(ctx, branch_name=None, create_branch=False):
     """
     if create_branch:
         ctx.run(f"git checkout -b {branch_name}")
-    ctx.run("git add .gitlab-ci.yml .circleci/config.yml")
     answer = input("Do you want to trigger a pipeline (will also commit and push)? [Y/n]\n")
     if len(answer) == 0 or answer.casefold() == "y":
+        ctx.run("git add .gitlab-ci.yml .circleci/config.yml")
         ctx.run("git commit -m 'Update buildimages version'")
         ctx.run(f"git push origin {branch_name}")
+        # Let Gitlab create the first events before triggering a new pipeline
+        time.sleep(30)
         run(ctx, here=True)
