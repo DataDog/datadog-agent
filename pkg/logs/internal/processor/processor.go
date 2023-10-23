@@ -17,6 +17,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/metrics"
 )
 
+const UnstructuredProcessingMetricName = "datadog.logs_agent.tailer.unstructured_processing"
+
 // A Processor updates messages from an inputChan and pushes
 // in an outputChan.
 type Processor struct {

@@ -20,9 +20,11 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/decoder"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/framer"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/parsers/noop"
+	"github.com/DataDog/datadog-agent/pkg/logs/internal/processor"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/status"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
+	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -58,6 +60,7 @@ func NewTailer(source *sources.LogSource, outputChan chan *message.Message, jour
 		log.Warn("The processing will soon apply on the message content instead of the structured log (e.g. XML or JSON).")
 		log.Warn("A flag will make possible to use the original behavior but will have to set through configuration.")
 		log.Warn("Please reach Datadog support if you have more questions.")
+		telemetry.GetStatsTelemetryProvider().Gauge(processor.UnstructuredProcessingMetricName, float64(len(source.Config.ProcessingRules)), []string{"tailer:journald"})
 	}
 
 	return &Tailer{
