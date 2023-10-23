@@ -860,7 +860,8 @@ def update_gitlab_config(file_path, image_tag, test_version):
     with open(file_path, "r") as gl:
         file_content = gl.readlines()
     gitlab_ci = yaml.safe_load("".join(file_content))
-    suffixes = [name for name in gitlab_ci["variables"].keys() if name.endswith("SUFFIX")]
+    # TEST_INFRA_DEFINITION_BUILDIMAGE label format differs from other buildimages
+    suffixes = [name for name in gitlab_ci["variables"].keys() if name.endswith("SUFFIX") and not name.startswith("TEST_INFRA_DEFINITION")]
     images = [name.replace("_SUFFIX", "") for name in suffixes]
     with open(file_path, "w") as gl:
         for line in file_content:
