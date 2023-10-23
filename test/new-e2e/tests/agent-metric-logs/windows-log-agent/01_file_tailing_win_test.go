@@ -6,6 +6,8 @@
 package windowslogagent
 
 import (
+	_ "embed"
+	"os"
 	"strings"
 	"testing"
 	"time"
@@ -22,40 +24,49 @@ import (
 
 type vmFakeintakeSuite struct {
 	e2e.Suite[e2e.FakeIntakeEnv]
+	DevMode bool
 }
+
+//go:embed log-config/log-config.yaml
+var logConfig []byte
 
 // logsExampleStackDef returns the stack definition required for the log agent test suite.
 func logsExampleStackDef() *e2e.StackDefinition[e2e.FakeIntakeEnv] {
-	windowsConfig :=
-		`logs:
-  - type: file
-    path: 'C:\\logs\\hello-world.log'
-    service: hello
-    source: custom_log
-`
+
 	return (e2e.FakeIntakeStackDef(
 		e2e.WithVMParams(ec2params.WithOS(ec2os.WindowsOS)),
 		e2e.WithAgentParams(
 			agentparams.WithLogs(),
-			agentparams.WithIntegration("custom_logs.d", windowsConfig))))
+			agentparams.WithIntegration("custom_logs.d", string(logConfig)))))
 
 }
 
 // TestE2EVMFakeintakeSuite runs the E2E test suite for the log agent with a VM and fake intake.
 func TestE2EVMFakeintakeSuite(t *testing.T) {
+	s := &vmFakeintakeSuite{}
+	if _, devmode := os.LookupEnv("TESTS_E2E_DEVMODE"); devmode {
+		s.DevMode = true
+	}
 	e2e.Run(t, &vmFakeintakeSuite{}, logsExampleStackDef(), params.WithDevMode())
 }
 
-func (s *vmFakeintakeSuite) TestWindowsLogTailing() {
-
-	// Clean up any existing log files
-	s.cleanUp()
-	defer s.cleanUp()
-
-	// Flush server and reset aggregators
+func (s *vmFakeintakeSuite) BeforeTest(suiteName, testName string) {
+	// Flush server and reset aggregators before the test is ran
+	if s.DevMode {
+		s.cleanUp()
+	}
 	s.Env().Fakeintake.FlushServerAndResetAggregators()
-	defer s.Env().Fakeintake.FlushServerAndResetAggregators()
+}
 
+func (s *vmFakeintakeSuite) TearDownSuite() {
+	// Flush server and reset aggregators after the test is ran
+	if s.DevMode {
+		s.cleanUp()
+	}
+	s.Env().Fakeintake.FlushServerAndResetAggregators()
+}
+
+func (s *vmFakeintakeSuite) TestWindowsLogTailing() {
 	// Run test cases
 	s.T().Run("WindowsLogCollection", func(t *testing.T) {
 		s.WindowsLogCollection()
@@ -104,7 +115,7 @@ func (s *vmFakeintakeSuite) WindowsLogCollection() {
 
 	// Generate logs
 	logsContent := "hello-world"
-	generateLog(s, t, logsContent)
+	generateLog(s, logsContent)
 
 	// // Part 3: Assert that logs are found in intake after generation
 	time.Sleep(30 * time.Second)
@@ -142,7 +153,7 @@ func (s *vmFakeintakeSuite) WindowsLogPermission() {
 	// Part 6: Restart the agent, generate new logs
 	s.Env().VM.Execute("& \"$env:ProgramFiles\\Datadog\\Datadog Agent\\bin\\agent.exe\" restart-service")
 
-	generateLog(s, s.T(), "hello-world")
+	generateLog(s, "hello-world")
 
 	// Check the Agent status
 	s.EventuallyWithT(func(c *assert.CollectT) {
@@ -184,7 +195,7 @@ func (s *vmFakeintakeSuite) WindowsLogRotation() {
 
 	// Generate new log
 	logsContent := "hello-new-world"
-	generateLog(s, t, logsContent)
+	generateLog(s, logsContent)
 
 	// Verify Log's content is generated and submitted
 	time.Sleep(30 * time.Second)

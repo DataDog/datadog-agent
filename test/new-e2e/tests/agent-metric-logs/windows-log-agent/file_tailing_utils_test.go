@@ -9,29 +9,32 @@ import (
 	"errors"
 	"fmt"
 	"strings"
-	"testing"
 	"time"
 
 	fi "github.com/DataDog/datadog-agent/test/fakeintake/client"
+	commonos "github.com/DataDog/test-infra-definitions/components/os"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
 // generateLog generates and verifies log contents.
-func generateLog(s *vmFakeintakeSuite, t *testing.T, content string) {
+func generateLog(s *vmFakeintakeSuite, content string) {
 	// Determine the OS and set the appropriate log path and command.
 	var logPath, cmd, checkCmd string
+	t := s.T()
 
-	osType, err := s.getOSType()
-	require.NoErrorf(t, err, "Failed to get OS type: %s", err)
+	osType := s.Env().VM.VMClient.OS.GetType()
+	var os string
 
 	switch osType {
-	case "windows":
+	case commonos.WindowsType:
+		os = "Windows"
 		t.Log("Generating Windows log.")
 		logPath = "C:\\logs\\hello-world.log"
 		cmd = fmt.Sprintf("echo %s > %s", strings.Repeat(content, 10), logPath)
 		checkCmd = fmt.Sprintf("Get-Content %s", logPath)
 	default: // Assuming Linux if not Windows.
+		os = "Linux"
 		t.Log("Generating Linux log.")
 		logPath = "/var/log/hello-world.log"
 		cmd = fmt.Sprintf("echo %s > %s", strings.Repeat(content, 10), logPath)
@@ -44,7 +47,7 @@ func generateLog(s *vmFakeintakeSuite, t *testing.T, content string) {
 	s.EventuallyWithT(func(c *assert.CollectT) {
 		output := s.Env().VM.Execute(checkCmd)
 		if strings.Contains(output, content) {
-			t.Logf("Finished generating %s log.", osType)
+			t.Logf("Finished generating %s log.", os)
 		} else {
 			require.Fail(t, "Log not yet generated.")
 		}
@@ -52,19 +55,15 @@ func generateLog(s *vmFakeintakeSuite, t *testing.T, content string) {
 }
 
 // checkLogs checks and verifies logs inside the intake.
-func checkLogs(fakeintake *vmFakeintakeSuite, service, content string) {
-	client := fakeintake.Env().Fakeintake
-	t := fakeintake.T()
-	t.Logf("service is '%s', with this content '%s'", service, content)
+func checkLogs(suite *vmFakeintakeSuite, service, content string) {
+	client := suite.Env().Fakeintake
+	t := suite.T()
 
-	err := client.GetServerHealth()
-	assert.NoErrorf(t, err, "intake is not ready: %s", err)
-
-	fakeintake.EventuallyWithT(func(c *assert.CollectT) {
+	suite.EventuallyWithT(func(c *assert.CollectT) {
 		names, err := client.GetLogServiceNames()
 		assert.NoErrorf(t, err, "Error found: %s", err)
 
-		if len(names) != 0 {
+		if len(names) > 0 {
 			logs, err := client.FilterLogs(service)
 			assert.NoErrorf(t, err, "Error found: %s", err)
 			assert.NotEmpty(t, logs, "No logs with service matching '%s' found, instead got '%s'", service, names)
@@ -73,43 +72,8 @@ func checkLogs(fakeintake *vmFakeintakeSuite, service, content string) {
 			assert.NoErrorf(t, err, "Error found: %s", err)
 			assert.True(t, len(logs) > 0, "Expected at least 1 log with content: '%s', but received %v logs.", content, len(logs))
 		}
-	}, 10*time.Minute, 1*time.Second)
+	}, 10*time.Minute, 10*time.Second)
 
-}
-
-// cleanUp cleans up any existing log files.
-func (s *vmFakeintakeSuite) cleanUp() {
-	t := s.T()
-	osType, err := s.getOSType()
-	if err != nil {
-		t.Logf("Failed to determine OS type: %v", err)
-		return
-	}
-
-	var checkCmd string
-
-	switch osType {
-	case "linux":
-		s.Env().VM.Execute("sudo rm -f /var/log/hello-world.log")
-		s.Env().VM.Execute("sudo rm -f /var/log/hello-world.log.old")
-		checkCmd = "ls /var/log/hello-world.log /var/log/hello-world.log.old 2>/dev/null || echo 'Files do not exist'"
-	case "windows":
-		s.Env().VM.Execute("if (Test-Path C:\\logs\\hello-world.log) { Remove-Item -Path C:\\logs\\hello-world.log -Force }")
-		s.Env().VM.Execute("if (Test-Path C:\\logs\\hello-world.log.old) { Remove-Item -Path C:\\logs\\hello-world.log.old -Force }")
-		checkCmd = "if (Test-Path C:\\logs\\hello-world.log) { Get-ChildItem -Path C:\\logs\\hello-world.log } elseif (Test-Path C:\\logs\\hello-world.log.old) { Get-ChildItem -Path C:\\logs\\hello-world.log.old } else { Write-Output 'Files do not exist' }"
-	default:
-		t.Logf("Unsupported OS type: %s", osType)
-		return
-	}
-
-	s.EventuallyWithT(func(c *assert.CollectT) {
-		output, err := s.Env().VM.ExecuteWithError(checkCmd)
-		if err != nil {
-			require.NoErrorf(t, err, "Having issue cleaning log files, retrying... %s", output)
-		} else {
-			t.Log("Successfully cleaned up.")
-		}
-	}, 5*time.Minute, 2*time.Second)
 }
 
 func (s *vmFakeintakeSuite) getOSType() (string, error) {
@@ -126,4 +90,36 @@ func (s *vmFakeintakeSuite) getOSType() (string, error) {
 	}
 
 	return "", errors.New("unable to determine OS type")
+}
+
+// cleanUp cleans up any existing log files (only useful when running dev mode/local runs).
+func (s *vmFakeintakeSuite) cleanUp() {
+	t := s.T()
+
+	var checkCmd string
+
+	osType := s.Env().VM.VMClient.OS.GetType()
+	var os string
+
+	switch osType {
+	default:
+		s.Env().VM.Execute("sudo rm -f /var/log/hello-world.log")
+		s.Env().VM.Execute("sudo rm -f /var/log/hello-world.log.old")
+		checkCmd = "ls /var/log/hello-world.log /var/log/hello-world.log.old 2>/dev/null || echo 'Files do not exist'"
+		os = "Linux"
+	case commonos.WindowsType:
+		s.Env().VM.Execute("if (Test-Path C:\\logs\\hello-world.log) { Remove-Item -Path C:\\logs\\hello-world.log -Force }")
+		s.Env().VM.Execute("if (Test-Path C:\\logs\\hello-world.log.old) { Remove-Item -Path C:\\logs\\hello-world.log.old -Force }")
+		checkCmd = "if (Test-Path C:\\logs\\hello-world.log) { Get-ChildItem -Path C:\\logs\\hello-world.log } elseif (Test-Path C:\\logs\\hello-world.log.old) { Get-ChildItem -Path C:\\logs\\hello-world.log.old } else { Write-Output 'Files do not exist' }"
+		os = "Windows"
+	}
+
+	s.EventuallyWithT(func(c *assert.CollectT) {
+		output, err := s.Env().VM.ExecuteWithError(checkCmd)
+		if err != nil {
+			require.NoErrorf(t, err, "Having issue cleaning %s log files, retrying... %s", os, output)
+		} else {
+			t.Logf("Successfully %s cleaned up.", os)
+		}
+	}, 5*time.Minute, 2*time.Second)
 }
