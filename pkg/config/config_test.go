@@ -911,6 +911,26 @@ func TestIsRemoteConfigEnabled(t *testing.T) {
 	require.False(t, IsRemoteConfigEnabled(testConfig))
 }
 
+func TestGetRemoteConfigurationAllowedIntegrations(t *testing.T) {
+	// EMPTY configuration
+	testConfig := SetupConfFromYAML("")
+	require.Equal(t, map[string]bool{}, GetRemoteConfigurationAllowedIntegrations(testConfig))
+
+	t.Setenv("DD_REMOTE_CONFIGURATION_AGENT_INTEGRATIONS_ALLOW_LIST", "[\"POSTgres\", \"redisDB\"]")
+	testConfig = SetupConfFromYAML("")
+	require.Equal(t,
+		map[string]bool{"postgres": true, "redisdb": true},
+		GetRemoteConfigurationAllowedIntegrations(testConfig),
+	)
+
+	t.Setenv("DD_REMOTE_CONFIGURATION_AGENT_INTEGRATIONS_BLOCK_LIST", "[\"mySQL\", \"redisDB\"]")
+	testConfig = SetupConfFromYAML("")
+	require.Equal(t,
+		map[string]bool{"postgres": true, "redisdb": false, "mysql": false},
+		GetRemoteConfigurationAllowedIntegrations(testConfig),
+	)
+}
+
 func TestLanguageDetectionSettings(t *testing.T) {
 	testConfig := SetupConfFromYAML("")
 	require.False(t, testConfig.GetBool("language_detection.enabled"))
