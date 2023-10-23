@@ -23,7 +23,7 @@ var (
 	binExtension = ""
 )
 
-func build(m *testing.M, outBin, pkg string) {
+func build(m *testing.M, outBin, pkg string) { //nolint:revive // TODO fix revive unused-parameter
 	_, err := exec.Command("go", "build", "-o", outBin+binExtension, pkg).Output()
 	if err != nil {
 		fmt.Printf("Could not compile test secretBackendCommand: %s", err)

@@ -265,9 +265,10 @@ dev_nightly-dogstatsd:
   stage: dev_container_deploy
   needs:
     - docker_build_cluster_agent_amd64
+    - docker_build_cluster_agent_arm64
   variables:
     IMG_REGISTRIES: agent-qa
-    IMG_SOURCES: ${SRC_DCA}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-amd64
+    IMG_SOURCES: ${SRC_DCA}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-amd64,${SRC_DCA}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-arm64
     IMG_DESTINATIONS: cluster-agent:${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}
 
 .qa_dogstatsd:

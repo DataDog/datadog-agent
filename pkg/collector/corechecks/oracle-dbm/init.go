@@ -61,7 +61,6 @@ func (c *Check) init() error {
 		tags = append(tags, fmt.Sprintf("host:%s", c.dbHostname), fmt.Sprintf("db_server:%s", c.dbHostname))
 	}
 	tags = append(tags, fmt.Sprintf("oracle_version:%s", c.dbVersion))
-	tags = append(tags, fmt.Sprintf("dd.internal.resource:database_instance:%s/%s", c.dbHostname, c.cdbName))
 
 	var d vDatabase
 	if isDbVersionGreaterOrEqualThan(c, minMultitenantVersion) {
@@ -75,6 +74,7 @@ func (c *Check) init() error {
 	}
 	c.cdbName = d.Name
 	tags = append(tags, fmt.Sprintf("cdb:%s", c.cdbName))
+	tags = append(tags, fmt.Sprintf("dd.internal.resource:database_instance:%s/%s", c.dbHostname, c.cdbName))
 	isMultitenant := true
 	if d.Cdb == "NO" {
 		isMultitenant = false

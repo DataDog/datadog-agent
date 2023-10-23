@@ -16,7 +16,7 @@ import (
 	"sort"
 	"text/template"
 
-	"github.com/DataDog/datadog-agent/pkg/util/winutil/eventlog/api"
+	evtapi "github.com/DataDog/datadog-agent/pkg/util/winutil/eventlog/api"
 
 	"golang.org/x/sys/windows"
 )
@@ -101,9 +101,9 @@ func (api *API) EvtSubscribe(
 // https://learn.microsoft.com/en-us/windows/win32/api/winevt/nf-winevt-evtnext
 func (api *API) EvtNext(
 	Session evtapi.EventResultSetHandle,
-	EventsArray []evtapi.EventRecordHandle,
+	EventsArray []evtapi.EventRecordHandle, //nolint:revive // TODO fix revive unused-parameter
 	EventsSize uint,
-	Timeout uint) ([]evtapi.EventRecordHandle, error) {
+	Timeout uint) ([]evtapi.EventRecordHandle, error) { //nolint:revive // TODO fix revive unused-parameter
 
 	// get subscription
 	sub, err := api.getSubscriptionByHandle(Session)
@@ -224,7 +224,7 @@ func (api *API) EvtRenderEventXml(Fragment evtapi.EventRecordHandle) ([]uint16, 
 // EvtRenderBookmark is a fake of EvtRender with EvtRenderEventBookmark
 // not implemented.
 // https://learn.microsoft.com/en-us/windows/win32/api/winevt/nf-winevt-evtrender
-func (api *API) EvtRenderBookmark(Fragment evtapi.EventBookmarkHandle) ([]uint16, error) {
+func (api *API) EvtRenderBookmark(Fragment evtapi.EventBookmarkHandle) ([]uint16, error) { //nolint:revive // TODO fix revive unused-parameter
 	return nil, fmt.Errorf("not implemented")
 }
 
@@ -303,7 +303,7 @@ func (api *API) EvtClearLog(ChannelPath string) error {
 
 // EvtCreateBookmark fake
 // https://learn.microsoft.com/en-us/windows/win32/api/winevt/nf-winevt-evtcreatebookmark
-func (api *API) EvtCreateBookmark(BookmarkXML string) (evtapi.EventBookmarkHandle, error) {
+func (api *API) EvtCreateBookmark(BookmarkXML string) (evtapi.EventBookmarkHandle, error) { //nolint:revive // TODO fix revive unused-parameter
 	var b bookmark
 
 	// TODO: parse Xml to get record ID
@@ -337,13 +337,13 @@ func (api *API) EvtUpdateBookmark(Bookmark evtapi.EventBookmarkHandle, Event evt
 // EvtCreateRenderContext fake
 // not implemented.
 // https://learn.microsoft.com/en-us/windows/win32/api/winevt/nf-winevt-evtcreaterendercontext
-func (api *API) EvtCreateRenderContext(ValuePaths []string, Flags uint) (evtapi.EventRenderContextHandle, error) {
+func (api *API) EvtCreateRenderContext(ValuePaths []string, Flags uint) (evtapi.EventRenderContextHandle, error) { //nolint:revive // TODO fix revive unused-parameter
 	return evtapi.EventRenderContextHandle(0), fmt.Errorf("not implemented")
 }
 
 // EvtRenderEventValues is a fake of EvtRender with EvtRenderEventValues
 // https://learn.microsoft.com/en-us/windows/win32/api/winevt/nf-winevt-evtrender
-func (api *API) EvtRenderEventValues(Context evtapi.EventRenderContextHandle, Fragment evtapi.EventRecordHandle) (evtapi.EvtVariantValues, error) {
+func (api *API) EvtRenderEventValues(Context evtapi.EventRenderContextHandle, Fragment evtapi.EventRecordHandle) (evtapi.EvtVariantValues, error) { //nolint:revive // TODO fix revive unused-parameter
 	return nil, fmt.Errorf("not implemented")
 }
 
@@ -351,7 +351,7 @@ func (api *API) EvtRenderEventValues(Context evtapi.EventRenderContextHandle, Fr
 // not implemented.
 // https://learn.microsoft.com/en-us/windows/win32/api/winevt/nf-winevt-evtopenpublishermetadata
 func (api *API) EvtOpenPublisherMetadata(
-	PublisherID string,
+	PublisherID string, //nolint:revive // TODO fix revive unused-parameter
 	LogFilePath string) (evtapi.EventPublisherMetadataHandle, error) {
 	return evtapi.EventPublisherMetadataHandle(0), fmt.Errorf("not implemented")
 }
@@ -360,10 +360,10 @@ func (api *API) EvtOpenPublisherMetadata(
 // not implemented.
 // https://learn.microsoft.com/en-us/windows/win32/api/winevt/nf-winevt-evtformatmessage
 func (api *API) EvtFormatMessage(
-	PublisherMetadata evtapi.EventPublisherMetadataHandle,
-	Event evtapi.EventRecordHandle,
-	MessageID uint,
-	Values evtapi.EvtVariantValues,
-	Flags uint) (string, error) {
+	PublisherMetadata evtapi.EventPublisherMetadataHandle, //nolint:revive // TODO fix revive unused-parameter
+	Event evtapi.EventRecordHandle, //nolint:revive // TODO fix revive unused-parameter
+	MessageID uint, //nolint:revive // TODO fix revive unused-parameter
+	Values evtapi.EvtVariantValues, //nolint:revive // TODO fix revive unused-parameter
+	Flags uint) (string, error) { //nolint:revive // TODO fix revive unused-parameter
 	return "", fmt.Errorf("not implemented")
 }

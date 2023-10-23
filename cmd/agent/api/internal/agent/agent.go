@@ -59,7 +59,7 @@ func SetupHandlers(
 	server dogstatsdServer.Component,
 	serverDebug dogstatsdDebug.Component,
 	logsAgent util.Optional[logsAgent.Component],
-	senderManager sender.SenderManager,
+	senderManager sender.DiagnoseSenderManager,
 	hostMetadata host.Component,
 ) *mux.Router {
 
@@ -472,7 +472,7 @@ func metadataPayload(w http.ResponseWriter, r *http.Request, hostMetadataComp ho
 	w.Write(scrubbed)
 }
 
-func getDiagnose(w http.ResponseWriter, r *http.Request, senderManager sender.SenderManager) {
+func getDiagnose(w http.ResponseWriter, r *http.Request, senderManager sender.DiagnoseSenderManager) {
 	var diagCfg diagnosis.Config
 
 	// Read parameters

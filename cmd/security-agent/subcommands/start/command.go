@@ -28,6 +28,7 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/security-agent/flags"
 	"github.com/DataDog/datadog-agent/cmd/security-agent/subcommands/compliance"
 	"github.com/DataDog/datadog-agent/cmd/security-agent/subcommands/runtime"
+	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer"
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/log"
@@ -80,6 +81,13 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				core.Bundle,
 				forwarder.Bundle,
 				fx.Provide(defaultforwarder.NewParamsWithResolvers),
+				demultiplexer.Module,
+				fx.Provide(func() demultiplexer.Params {
+					opts := aggregator.DefaultAgentDemultiplexerOptions()
+					opts.UseEventPlatformForwarder = false
+					opts.UseOrchestratorForwarder = false
+					return demultiplexer.Params{Options: opts}
+				}),
 			)
 		},
 	}
@@ -89,11 +97,11 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 	return []*cobra.Command{startCmd}
 }
 
-func start(log log.Component, config config.Component, sysprobeconfig sysprobeconfig.Component, telemetry telemetry.Component, forwarder defaultforwarder.Component, params *cliParams) error {
+func start(log log.Component, config config.Component, sysprobeconfig sysprobeconfig.Component, telemetry telemetry.Component, demultiplexer demultiplexer.Component, params *cliParams) error {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer StopAgent(cancel, log)
 
-	err := RunAgent(ctx, log, config, sysprobeconfig, telemetry, forwarder, params.pidfilePath)
+	err := RunAgent(ctx, log, config, sysprobeconfig, telemetry, params.pidfilePath, demultiplexer)
 	if errors.Is(err, errAllComponentsDisabled) || errors.Is(err, errNoAPIKeyConfigured) {
 		return nil
 	}
@@ -146,7 +154,7 @@ var errAllComponentsDisabled = errors.New("all security-agent component are disa
 var errNoAPIKeyConfigured = errors.New("no API key configured")
 
 // RunAgent initialized resources and starts API server
-func RunAgent(ctx context.Context, log log.Component, config config.Component, sysprobeconfig sysprobeconfig.Component, telemetry telemetry.Component, forwarder defaultforwarder.Component, pidfilePath string) (err error) {
+func RunAgent(ctx context.Context, log log.Component, config config.Component, sysprobeconfig sysprobeconfig.Component, telemetry telemetry.Component, pidfilePath string, demultiplexer demultiplexer.Component) (err error) {
 	if err := util.SetupCoreDump(config); err != nil {
 		log.Warnf("Can't setup core dumps: %v, core dumps might not be available after a crash", err)
 	}
@@ -213,12 +221,7 @@ func RunAgent(ctx context.Context, log log.Component, config config.Component, s
 		}
 	}
 	log.Infof("Hostname is: %s", hostnameDetected)
-
-	opts := aggregator.DefaultAgentDemultiplexerOptions()
-	opts.UseEventPlatformForwarder = false
-	opts.UseOrchestratorForwarder = false
-	demux := aggregator.InitAndStartAgentDemultiplexer(log, forwarder, opts, hostnameDetected)
-	demux.AddAgentStartupTelemetry(fmt.Sprintf("%s - Datadog Security Agent", version.AgentVersion))
+	demultiplexer.AddAgentStartupTelemetry(fmt.Sprintf("%s - Datadog Security Agent", version.AgentVersion))
 
 	stopper = startstop.NewSerialStopper()
 
@@ -260,7 +263,7 @@ func RunAgent(ctx context.Context, log log.Component, config config.Component, s
 		}
 	}
 
-	complianceAgent, err := compliance.StartCompliance(log, config, sysprobeconfig, hostnameDetected, stopper, statsdClient)
+	complianceAgent, err := compliance.StartCompliance(log, config, sysprobeconfig, hostnameDetected, stopper, statsdClient, demultiplexer)
 	if err != nil {
 		return err
 	}
@@ -270,7 +273,7 @@ func RunAgent(ctx context.Context, log log.Component, config config.Component, s
 	}
 
 	// start runtime security agent
-	runtimeAgent, err := runtime.StartRuntimeSecurity(log, config, hostnameDetected, stopper, statsdClient, aggregator.GetSenderManager())
+	runtimeAgent, err := runtime.StartRuntimeSecurity(log, config, hostnameDetected, stopper, statsdClient, demultiplexer)
 	if err != nil {
 		return err
 	}

@@ -131,7 +131,7 @@ func (l *UDPListener) Listen() {
 		}
 
 		t2 = time.Now()
-		tlmListener.Observe(float64(t2.Sub(t1).Nanoseconds()), "udp")
+		tlmListener.Observe(float64(t2.Sub(t1).Nanoseconds()), "udp", "udp")
 	}
 }
 

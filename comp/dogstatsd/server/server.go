@@ -320,13 +320,41 @@ func (s *server) Start(demultiplexer aggregator.Demultiplexer) error {
 	udsListenerRunning := false
 
 	socketPath := s.config.GetString("dogstatsd_socket")
-	if len(socketPath) > 0 {
-		unixListener, err := listeners.NewUDSListener(packetsChannel, sharedPacketPoolManager, s.config, s.tCapture)
+	socketStreamPath := s.config.GetString("dogstatsd_stream_socket")
+	originDetection := s.config.GetBool("dogstatsd_origin_detection")
+	var sharedUDSOobPoolManager *packets.PoolManager
+	if originDetection {
+		sharedUDSOobPoolManager = listeners.NewUDSOobPoolManager()
+	}
+
+	if s.tCapture != nil {
+		err := s.tCapture.RegisterSharedPoolManager(sharedPacketPoolManager)
 		if err != nil {
-			s.log.Errorf(err.Error())
+			s.log.Errorf("Can't register shared pool manager: %s", err.Error())
+		}
+		err = s.tCapture.RegisterOOBPoolManager(sharedUDSOobPoolManager)
+		if err != nil {
+			s.log.Errorf("Can't register OOB pool manager: %s", err.Error())
+		}
+	}
+
+	if len(socketPath) > 0 {
+		unixListener, err := listeners.NewUDSDatagramListener(packetsChannel, sharedPacketPoolManager, sharedUDSOobPoolManager, s.config, s.tCapture)
+		if err != nil {
+			s.log.Errorf("Can't init listener: %s", err.Error())
 		} else {
 			tmpListeners = append(tmpListeners, unixListener)
 			udsListenerRunning = true
+		}
+	}
+
+	if len(socketStreamPath) > 0 {
+		s.log.Warnf("dogstatsd_stream_socket is not yet supported, run it at your own risk")
+		unixListener, err := listeners.NewUDSStreamListener(packetsChannel, sharedPacketPoolManager, sharedUDSOobPoolManager, s.config, s.tCapture)
+		if err != nil {
+			s.log.Errorf("Can't init listener: %s", err.Error())
+		} else {
+			tmpListeners = append(tmpListeners, unixListener)
 		}
 	}
 

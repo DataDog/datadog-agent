@@ -102,6 +102,15 @@ type StatsClient interface {
 	Gauge(name string, value float64, tags []string, rate float64) error
 }
 
+// ObfuscationMode specifies the obfuscation mode to use for go-sqllexer pkg.
+type ObfuscationMode string
+
+// ObfuscationMode valid values
+const (
+	ObfuscateOnly         = ObfuscationMode("obfuscate_only")
+	ObfuscateAndNormalize = ObfuscationMode("obfuscate_and_normalize")
+)
+
 // SQLConfig holds the config for obfuscating SQL.
 type SQLConfig struct {
 	// DBMS identifies the type of database management system (e.g. MySQL, Postgres, and SQL Server).
@@ -130,6 +139,11 @@ type SQLConfig struct {
 	//
 	// https://www.postgresql.org/docs/current/sql-syntax-lexical.html#SQL-SYNTAX-DOLLAR-QUOTING
 	DollarQuotedFunc bool `json:"dollar_quoted_func"`
+
+	// ObfuscationMode specifies the obfuscation mode to use for go-sqllexer pkg.
+	// When specified, obfuscator will attempt to use go-sqllexer pkg to obfuscate (and normalize) SQL queries.
+	// Valid values are "obfuscate_only", "obfuscate_and_normalize"
+	ObfuscationMode ObfuscationMode `json:"obfuscation_mode" yaml:"obfuscation_mode"`
 
 	// Cache reports whether the obfuscator should use a LRU look-up cache for SQL obfuscations.
 	Cache bool
