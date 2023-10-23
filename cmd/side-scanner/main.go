@@ -600,6 +600,10 @@ func scanLambda(ctx context.Context, scan lambdaScan) (*sbommodel.SBOMEntity, er
 		return nil, err
 	}
 
+	if lambdaFunc.Code.Location == nil {
+		return nil, fmt.Errorf("lambdaFunc.Code.Location is nil")
+	}
+
 	tempDir, err := os.MkdirTemp("", "aws-lambda")
 	if err != nil {
 		return nil, err
