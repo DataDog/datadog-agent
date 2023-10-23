@@ -62,8 +62,8 @@ type orderedBTFLoader struct {
 	delayedFlusher *time.Timer
 }
 
-func initBTFLoader(cfg *Config) orderedBTFLoader {
-	btfLoader := orderedBTFLoader{
+func initBTFLoader(cfg *Config) *orderedBTFLoader {
+	btfLoader := &orderedBTFLoader{
 		userBTFPath: cfg.BTFPath,
 		embeddedDir: filepath.Join(cfg.BPFDir, "co-re", "btf"),
 		result:      btfNotFound,
