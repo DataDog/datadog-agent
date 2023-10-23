@@ -360,8 +360,12 @@ static __always_inline void skip_preface(struct __sk_buff *skb, skb_info_t *skb_
     }
 }
 
+// The function is trying to read the remaining of a split frame header. We have the first part in
+// `frame_state->buf` (from the previous packet), and now we're trying to read the remaining (`frame_state->remainder`
+// bytes from the current packet).
 static __always_inline void fix_header_frame(struct __sk_buff *skb, skb_info_t *skb_info, char *out, frame_header_remainder_t *frame_state) {
     bpf_memcpy(out, frame_state->buf, HTTP2_FRAME_HEADER_SIZE);
+    // Verifier is unhappy with a single call to `bpf_skb_load_bytes` with a variable length (although checking boundaries)
     switch (frame_state->remainder) {
     case 1:
         bpf_skb_load_bytes(skb, skb_info->data_off, out + HTTP2_FRAME_HEADER_SIZE - 1, 1);
