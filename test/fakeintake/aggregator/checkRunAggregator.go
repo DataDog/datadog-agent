@@ -6,6 +6,7 @@
 package aggregator
 
 import (
+	"bytes"
 	"encoding/json"
 	"time"
 
@@ -38,6 +39,11 @@ func (cr *CheckRun) GetCollectedTime() time.Time {
 
 // ParseCheckRunPayload return the parsed checkRun from payload
 func ParseCheckRunPayload(payload api.Payload) (checks []*CheckRun, err error) {
+	if bytes.Equal(payload.Data, []byte("{}")) {
+		// check_run can submit empty JSON object
+		return []*CheckRun{}, nil
+	}
+
 	enflated, err := enflate(payload.Data, payload.Encoding)
 	if err != nil {
 		return nil, err

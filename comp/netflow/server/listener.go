@@ -17,17 +17,29 @@ type netflowListener struct {
 	flowState *goflowlib.FlowStateWrapper
 	config    config.ListenerConfig
 	error     *atomic.String
+	flowCount *atomic.Int64
 }
 
 func startFlowListener(listenerConfig config.ListenerConfig, flowAgg *flowaggregator.FlowAggregator, logger log.Component) (*netflowListener, error) {
-	atomicErr := atomic.NewString("")
+	listenerAtomicErr := atomic.NewString("")
+	listenerFlowCount := atomic.NewInt64(0)
 
-	flowState, err := goflowlib.StartFlowRoutine(listenerConfig.FlowType, listenerConfig.BindHost, listenerConfig.Port, listenerConfig.Workers, listenerConfig.Namespace, flowAgg.GetFlowInChan(), logger, atomicErr)
+	flowState, err := goflowlib.StartFlowRoutine(
+		listenerConfig.FlowType,
+		listenerConfig.BindHost,
+		listenerConfig.Port,
+		listenerConfig.Workers,
+		listenerConfig.Namespace,
+		flowAgg.GetFlowInChan(),
+		logger,
+		listenerAtomicErr,
+		listenerFlowCount)
 
 	listener := &netflowListener{
 		flowState: flowState,
 		config:    listenerConfig,
-		error:     atomicErr,
+		error:     listenerAtomicErr,
+		flowCount: listenerFlowCount,
 	}
 
 	return listener, err

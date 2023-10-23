@@ -492,6 +492,9 @@ def is_system_probe(owners, files):
     return False
 
 
+EMAIL_SLACK_ID_MAP = {"guy20495@gmail.com": "U03LJSCAPK2", "safchain@gmail.com": "U01009CUG9X"}
+
+
 @task
 def changelog(ctx, new_commit_sha):
     old_commit_sha = ctx.run(
@@ -521,7 +524,10 @@ def changelog(ctx, new_commit_sha):
         if "dependabot" in author_email or "github-actions" in author_email:
             messages.append(f"{message_link}")
             continue
-        author_handle = ctx.run(f"email2slackid {author_email.strip()}", hide=True).stdout.strip()
+        if author_email in EMAIL_SLACK_ID_MAP:
+            author_handle = EMAIL_SLACK_ID_MAP[author_email]
+        else:
+            author_handle = ctx.run(f"email2slackid {author_email.strip()}", hide=True).stdout.strip()
         if author_handle:
             author_handle = f"<@{author_handle}>"
         else:
@@ -542,7 +548,7 @@ def changelog(ctx, new_commit_sha):
     else:
         slack_message += "No new System Probe related commits in this release :cricket:"
 
-    print(f"Posting message to slack \n {slack_message}")
+    print(f"Posting message to slack: \n {slack_message}")
     send_slack_message("system-probe-ops", slack_message)
     print(f"Writing new commit sha: {new_commit_sha} to SSM")
     ctx.run(
