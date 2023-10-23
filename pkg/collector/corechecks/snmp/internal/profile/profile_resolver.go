@@ -18,21 +18,14 @@ import (
 )
 
 func resolveProfiles(userProfiles, defaultProfiles ProfileConfigMap) (ProfileConfigMap, error) {
-	defaultExpandedProfiles, err := loadResolveProfiles(defaultProfiles, nil)
-	if err != nil {
-		return nil, fmt.Errorf("failed to load profiles: %s", err)
-	}
-	userExpandedProfiles, err := loadResolveProfiles(userProfiles, defaultProfiles)
+	rawProfiles := mergeProfiles(defaultProfiles, userProfiles)
+
+	userExpandedProfiles, err := loadResolveProfiles(rawProfiles, defaultProfiles)
 	if err != nil {
 		return nil, fmt.Errorf("failed to load profiles: %s", err)
 	}
 	profiles := ProfileConfigMap{}
-	for key, val := range defaultExpandedProfiles {
-		if strings.HasPrefix(key, "_") {
-			continue
-		}
-		profiles[key] = val
-	}
+
 	for key, val := range userExpandedProfiles {
 		if strings.HasPrefix(key, "_") {
 			continue

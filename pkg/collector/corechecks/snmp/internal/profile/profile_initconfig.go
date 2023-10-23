@@ -22,7 +22,7 @@ func loadInitConfigProfiles(rawInitConfigProfiles ProfileConfigMap) (ProfileConf
 		initConfigProfiles[name] = profConfig
 	}
 
-	userProfiles := mergeProfiles(initConfigProfiles, getYamlUserProfiles())
+	userProfiles := mergeProfiles(getYamlUserProfiles(), initConfigProfiles)
 	resolvedProfiles, err := resolveProfiles(userProfiles, getYamlDefaultProfiles())
 	if err != nil {
 		return nil, err
