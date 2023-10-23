@@ -56,33 +56,37 @@ func loadProfiles(initConfigProfiles ProfileConfigMap, userProfiles ProfileConfi
 		return nil, fmt.Errorf("passing both initConfigProfiles and userProfiles is not expected")
 	}
 
-	var err error
-	if userProfiles == nil {
-		userProfiles, err = getProfilesDefinitionFilesV2(userProfilesFolder, true)
+	userProfilesToResolve := make(ProfileConfigMap)
+	if userProfiles != nil {
+		userProfilesToResolve = userProfiles
+	} else {
+		profiles, err := getProfileDefinitions(userProfilesFolder, true)
 		if err != nil {
 			log.Warnf("failed to get user profile definitions: %s", err)
+		} else {
+			userProfilesToResolve = profiles
 		}
-	}
-	if userProfiles == nil {
-		userProfiles = ProfileConfigMap{}
 	}
 
 	if len(initConfigProfiles) > 0 {
 		for key, val := range initConfigProfiles {
-			userProfiles[key] = val
+			userProfilesToResolve[key] = val
 		}
 	}
-	defaultProfiles, err := getProfilesDefinitionFilesV2(defaultProfilesFolder, false)
+
+	defaultProfiles, err := getProfileDefinitions(defaultProfilesFolder, false)
 	if err != nil {
 		log.Warnf("failed to get default profile definitions: %s", err)
 		defaultProfiles = nil
 	}
-	resolvedProfiles, err := resolveProfiles(userProfiles, defaultProfiles)
+
+	resolvedProfiles, err := resolveProfiles(userProfilesToResolve, defaultProfiles)
 	if err != nil {
 		return nil, err
 	}
 
-	// TODO: FIND BETTER DESIGN
+	// When user profiles are from initConfigProfiles
+	// only profiles listed in initConfigProfiles are returned
 	if len(initConfigProfiles) > 0 {
 		filteredResolvedProfiles := ProfileConfigMap{}
 		for key, val := range resolvedProfiles {
@@ -97,7 +101,7 @@ func loadProfiles(initConfigProfiles ProfileConfigMap, userProfiles ProfileConfi
 	return resolvedProfiles, nil
 }
 
-func getProfilesDefinitionFilesV2(profilesFolder string, isUserProfile bool) (ProfileConfigMap, error) {
+func getProfileDefinitions(profilesFolder string, isUserProfile bool) (ProfileConfigMap, error) {
 	profilesRoot := getProfileConfdRoot(profilesFolder)
 	files, err := os.ReadDir(profilesRoot)
 	if err != nil {

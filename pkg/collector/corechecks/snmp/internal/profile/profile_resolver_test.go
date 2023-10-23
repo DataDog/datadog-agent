@@ -23,9 +23,9 @@ func Test_resolveProfiles(t *testing.T) {
 
 	defaultTestConfdPath, _ := filepath.Abs(filepath.Join("..", "test", "conf.d"))
 	config.Datadog.Set("confd_path", defaultTestConfdPath)
-	defaultTestConfdProfiles, err := getProfilesDefinitionFilesV2(defaultProfilesFolder, false)
+	defaultTestConfdProfiles, err := getProfileDefinitions(defaultProfilesFolder, false)
 	require.NoError(t, err)
-	userTestConfdProfiles, err := getProfilesDefinitionFilesV2(userProfilesFolder, true)
+	userTestConfdProfiles, err := getProfileDefinitions(userProfilesFolder, true)
 	require.NoError(t, err)
 
 	//defaultProfilesDef, err := getDefaultProfilesDefinitionFiles()
@@ -33,12 +33,12 @@ func Test_resolveProfiles(t *testing.T) {
 
 	profilesWithInvalidExtendConfdPath, _ := filepath.Abs(filepath.Join("..", "test", "invalid_ext.d"))
 	config.Datadog.Set("confd_path", profilesWithInvalidExtendConfdPath)
-	profilesWithInvalidExtendProfiles, err := getProfilesDefinitionFilesV2(userProfilesFolder, true)
+	profilesWithInvalidExtendProfiles, err := getProfileDefinitions(userProfilesFolder, true)
 	require.NoError(t, err)
 
 	invalidCyclicConfdPath, _ := filepath.Abs(filepath.Join("..", "test", "invalid_cyclic.d"))
 	config.Datadog.Set("confd_path", invalidCyclicConfdPath)
-	invalidCyclicProfiles, err := getProfilesDefinitionFilesV2(userProfilesFolder, true)
+	invalidCyclicProfiles, err := getProfileDefinitions(userProfilesFolder, true)
 	require.NoError(t, err)
 
 	profileWithInvalidExtendsFile, _ := filepath.Abs(filepath.Join("..", "test", "test_profiles", "profile_with_invalid_extends.yaml"))
