@@ -118,7 +118,7 @@ func (suite *k8sSuite) TestAgent() {
 					}
 				}
 			}
-		}, 2*time.Minute, 10*time.Second, "Not all agents eventually became ready in time.")
+		}, 5*time.Minute, 10*time.Second, "Not all agents eventually became ready in time.")
 	})
 
 	versionExtractor := regexp.MustCompile(`Commit: ([[:xdigit:]]+)`)

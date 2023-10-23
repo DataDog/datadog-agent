@@ -12,13 +12,18 @@ import (
 	"testing"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/util/pointer"
 	fakeintake "github.com/DataDog/datadog-agent/test/fakeintake/client"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/runner"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/infra"
 	"github.com/DataDog/test-infra-definitions/scenarios/aws/ecs"
 
+	awsconfig "github.com/aws/aws-sdk-go-v2/config"
+	awsecs "github.com/aws/aws-sdk-go-v2/service/ecs"
+	awsecstypes "github.com/aws/aws-sdk-go-v2/service/ecs/types"
 	"github.com/fatih/color"
 	"github.com/pulumi/pulumi/sdk/v3/go/auto"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
 )
@@ -71,6 +76,93 @@ type ecsSuite struct {
 	baseSuite
 
 	ecsClusterName string
+}
+
+func (suite *ecsSuite) TestAgent() {
+	ctx := context.Background()
+
+	cfg, err := awsconfig.LoadDefaultConfig(ctx)
+	suite.Require().NoErrorf(err, "Failed to load AWS config")
+
+	client := awsecs.NewFromConfig(cfg)
+
+	suite.Run("ECS tasks are ready", func() {
+		suite.EventuallyWithTf(func(collect *assert.CollectT) {
+			var initToken string
+			for nextToken := &initToken; nextToken != nil; {
+				if nextToken == &initToken {
+					nextToken = nil
+				}
+
+				servicesList, err := client.ListServices(ctx, &awsecs.ListServicesInput{
+					Cluster:    &suite.ecsClusterName,
+					MaxResults: pointer.Ptr(int32(10)), // Because `DescribeServices` takes at most 10 services in input
+					NextToken:  nextToken,
+				})
+				if err != nil {
+					collect.Errorf("Failed to list ECS services: %w", err)
+					return
+				}
+
+				nextToken = servicesList.NextToken
+
+				servicesDescription, err := client.DescribeServices(ctx, &awsecs.DescribeServicesInput{
+					Cluster:  &suite.ecsClusterName,
+					Services: servicesList.ServiceArns,
+				})
+				if err != nil {
+					collect.Errorf("Failed to describe ECS services %v: %w", servicesList.ServiceArns, err)
+					continue
+				}
+
+				for _, serviceDescription := range servicesDescription.Services {
+					if serviceDescription.DesiredCount == 0 {
+						collect.Errorf("ECS service %s has no task.", *serviceDescription.ServiceName)
+					}
+
+					for nextToken := &initToken; nextToken != nil; {
+						if nextToken == &initToken {
+							nextToken = nil
+						}
+
+						tasksList, err := client.ListTasks(ctx, &awsecs.ListTasksInput{
+							Cluster:       &suite.ecsClusterName,
+							ServiceName:   serviceDescription.ServiceName,
+							DesiredStatus: awsecstypes.DesiredStatusRunning,
+							MaxResults:    pointer.Ptr(int32(100)), // Because `DescribeTasks` takes at most 100 tasks in input
+							NextToken:     nextToken,
+						})
+						if err != nil {
+							collect.Errorf("Failed to list ECS tasks for service %s: %w", *serviceDescription.ServiceName, err)
+							break
+						}
+
+						nextToken = tasksList.NextToken
+
+						tasksDescription, err := client.DescribeTasks(ctx, &awsecs.DescribeTasksInput{
+							Cluster: &suite.ecsClusterName,
+							Tasks:   tasksList.TaskArns,
+						})
+						if err != nil {
+							collect.Errorf("Failed to describe ECS tasks %v: %w", tasksList.TaskArns, err)
+							continue
+						}
+
+						for _, taskDescription := range tasksDescription.Tasks {
+							if *taskDescription.LastStatus != string(awsecstypes.DesiredStatusRunning) ||
+								taskDescription.HealthStatus == awsecstypes.HealthStatusUnhealthy {
+								collect.Errorf("Task %s of service %s is %s %s.",
+									*taskDescription.TaskArn,
+									*serviceDescription.ServiceName,
+									*taskDescription.LastStatus,
+									taskDescription.HealthStatus)
+							}
+						}
+					}
+				}
+			}
+		}, 5*time.Minute, 10*time.Second, "Not all tasks became ready in time.")
+	})
 }
 
 func (suite *ecsSuite) TestNginx() {
