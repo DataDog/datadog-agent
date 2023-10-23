@@ -44,10 +44,10 @@ type stringInterner struct {
 	id         string
 }
 
-func newStringInterner(maxSize int, internerId int) *stringInterner {
+func newStringInterner(maxSize int, internerID int) *stringInterner {
 	i := &stringInterner{
 		strings:    make(map[string]string),
-		id:         fmt.Sprintf("interner_%d", internerId),
+		id:         fmt.Sprintf("interner_%d", internerID),
 		maxSize:    maxSize,
 		tlmEnabled: utils.IsTelemetryEnabled(),
 	}
