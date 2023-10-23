@@ -22,7 +22,7 @@ var _ VM = (*PulumiStackVM)(nil)
 // test-infra-definiting VM from a pulumi stack.
 type PulumiStackVM struct {
 	deserializer utils.RemoteServiceDeserializer[commonvm.ClientData]
-	*VMClient
+	VM
 	os commonos.OS
 }
 
@@ -38,6 +38,11 @@ func (vm *PulumiStackVM) setStack(t *testing.T, stackResult auto.UpResult) error
 		return err
 	}
 
-	vm.VMClient, err = NewVMClient(t, &clientData.Connection, vm.os.GetType())
+	vm.VM, err = NewVMClient(t, &clientData.Connection, vm.os.GetType())
 	return err
+}
+
+// GetOS is a temporary method while NewVMClient and AgentNewClient require an instance of OS.
+func (vm *PulumiStackVM) GetOS() commonos.OS {
+	return vm.os
 }

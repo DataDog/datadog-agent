@@ -15,13 +15,13 @@ import (
 
 // AgentClient is a type that provides methods to run remote commands on a test-infra-definition Agent.
 type AgentClient struct {
-	*AgentCommandRunner
+	*agentCommandRunner
 }
 
 // NewAgentClient creates a new instance of AgentClient
 func NewAgentClient(t *testing.T, vm VM, os os.OS, shouldWaitForReady bool) (*AgentClient, error) {
 	agent := &AgentClient{
-		AgentCommandRunner: newAgentCommandRunner(t, func(arguments []string) (string, error) {
+		agentCommandRunner: newAgentCommandRunner(t, func(arguments []string) (string, error) {
 			parameters := ""
 			if len(arguments) > 0 {
 				parameters = `"` + strings.Join(arguments, `" "`) + `"`

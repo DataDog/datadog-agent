@@ -77,7 +77,9 @@ func TestInstallScript(t *testing.T) {
 func (is *installScriptSuite) TestInstallAgent() {
 	fileManager := filemanager.NewUnixFileManager(is.Env().VM)
 	unixHelper := helpers.NewUnixHelper()
-	agentClient := client.NewAgentCommandRunnerFromVM(is.T(), is.Env().VM.(*client.PulumiStackVM))
+	vm := is.Env().VM.(*client.PulumiStackVM)
+	agentClient, err := client.NewAgentClient(is.T(), vm, vm.GetOS(), false)
+	require.NoError(is.T(), err)
 	client := common.NewTestClient(is.Env().VM, agentClient, fileManager, unixHelper)
 
 	install.Unix(is.T(), client)

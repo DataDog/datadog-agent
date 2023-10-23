@@ -28,7 +28,7 @@ var _ stackInitializer = (*Docker)(nil)
 //
 // [docker.Deamon]: https://pkg.go.dev/github.com/DataDog/test-infra-definitions@main/components/datadog/agent/docker#Deamon
 type Docker struct {
-	agent              *AgentCommandRunner
+	optionalAgent      Agent
 	deserializer       utils.RemoteServiceDeserializer[docker.ClientData]
 	t                  *testing.T
 	client             *client.Client
@@ -67,7 +67,7 @@ func (docker *Docker) setStack(t *testing.T, stackResult auto.UpResult) error {
 
 	docker.client, err = client.NewClientWithOpts(opts...)
 	if docker.agentContainerName != "" {
-		docker.agent = newAgentCommandRunner(t, docker.executeAgentCmdWithError)
+		docker.optionalAgent = newAgentCommandRunner(t, docker.executeAgentCmdWithError)
 	}
 	return err
 }
@@ -131,10 +131,10 @@ func (docker *Docker) GetAgentContainerName() string {
 	return docker.agentContainerName
 }
 
-// GetAgentCommandRunner gets a runner that provides high level methods to run Agent commands.
-func (docker *Docker) GetAgentCommandRunner() *AgentCommandRunner {
-	require.NotNilf(docker.t, docker.agent, "there is no agent installed on this docker instance")
-	return docker.agent
+// GetAgent gets an instance that implements the [Agent] interface. This function panics, if there is no agent container.
+func (docker *Docker) GetAgent() Agent {
+	require.NotNilf(docker.t, docker.optionalAgent, "there is no agent installed on this docker instance")
+	return docker.optionalAgent
 }
 
 func (docker *Docker) executeAgentCmdWithError(commands []string) (string, error) {

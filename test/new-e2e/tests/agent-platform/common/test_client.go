@@ -62,7 +62,7 @@ func getPackageManager(vmClient e2eClient.VM) PackageManager {
 // TestClient contain the Agent Env and SvcManager and PkgManager for tests
 type TestClient struct {
 	VMClient    e2eClient.VM
-	AgentClient *e2eClient.AgentCommandRunner
+	AgentClient e2eClient.Agent
 	Helper      Helper
 	FileManager FileManager
 	SvcManager  ServiceManager
@@ -70,7 +70,7 @@ type TestClient struct {
 }
 
 // NewTestClient create a an ExtendedClient from VMClient and AgentCommandRunner, includes svcManager and pkgManager to write agent-platform tests
-func NewTestClient(vmClient e2eClient.VM, agentClient *e2eClient.AgentCommandRunner, fileManager FileManager, helper Helper) *TestClient {
+func NewTestClient(vmClient e2eClient.VM, agentClient e2eClient.Agent, fileManager FileManager, helper Helper) *TestClient {
 	svcManager := getServiceManager(vmClient)
 	pkgManager := getPackageManager(vmClient)
 	return &TestClient{
