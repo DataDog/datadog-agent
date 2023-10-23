@@ -22,7 +22,6 @@ blackhole:
       # process agent RT mode disabled response
       raw_bytes: [0x1, 0x0, 0x17, 0x0, 0xa, 0x2, 0x20, 0x17, 0x1a, 0x2, 0x10, 0xa]
 
-
 target_metrics:
   - prometheus:
       uri: "http://127.0.0.1:5000/telemetry"
