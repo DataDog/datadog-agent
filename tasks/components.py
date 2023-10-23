@@ -230,11 +230,17 @@ def new_component(_, comp_path, overwrite=False, team="/* TODO: add team name */
         inv components.new-component /tmp/baz                 # Create the 'baz' component in the '/tmp/' folder. './comp' prefix is not enforced by the task.
     """
     template_var_mapping = {"COMPONENT_NAME": os.path.basename(comp_path), "TEAM_NAME": team}
-    create_components_framework_files(comp_path, [
-        "component.go", 
-        "component_mock.go", 
-        os.path.join("impl", "component.go"), 
-        os.path.join("impl", "component_mock.go")], template_var_mapping, overwrite)
+    create_components_framework_files(
+        comp_path,
+        [
+            "component.go",
+            "component_mock.go",
+            os.path.join("impl", "component.go"),
+            os.path.join("impl", "component_mock.go"),
+        ],
+        template_var_mapping,
+        overwrite,
+    )
 
 
 def create_components_framework_files(comp_path, new_paths, template_var_mapping, overwrite):

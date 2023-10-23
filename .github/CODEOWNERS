@@ -427,6 +427,8 @@
 /tasks/systray.py                       @DataDog/windows-agent
 /tasks/winbuildscripts/                 @DataDog/windows-agent
 /tasks/windows_resources.py             @DataDog/windows-agent
+/tasks/components.py                    @DataDog/agent-shared-components
+/tasks/components_templates/bundle_test.go.tmpl @DataDog/agent-shared-components
 /test/                                  @DataDog/agent-platform
 /test/benchmarks/                       @DataDog/agent-metrics-logs
 /test/benchmarks/kubernetes_state/      @DataDog/container-integrations
