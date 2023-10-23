@@ -98,17 +98,17 @@ func Test_loadYamlProfiles_withUserProfiles(t *testing.T) {
 	p4 := defaultProfiles["p4"].Definition // user p3
 
 	assert.Equal(t, "p1_user", p1.Device.Vendor) // overrides datadog p1 profile
-	assert.NotNil(t, getMetricFromProfile(p1, "p1_metric_override"))
+	assert.NotNil(t, getMetricFromProfile(p1, "user_p1_metric"))
 
 	assert.Equal(t, "p2_datadog", p2.Device.Vendor)
-	assert.NotNil(t, getMetricFromProfile(p2, "p2_metric"))
+	assert.NotNil(t, getMetricFromProfile(p2, "default_p2_metric"))
 
 	assert.Equal(t, "p3_user", p3.Device.Vendor)
-	assert.NotNil(t, getMetricFromProfile(p3, "p3_metric"))
+	assert.NotNil(t, getMetricFromProfile(p3, "user_p3_metric"))
 
 	assert.Equal(t, "p4_user", p4.Device.Vendor)
-	assert.NotNil(t, getMetricFromProfile(p4, "p4_user_metric"))
-	assert.NotNil(t, getMetricFromProfile(p4, "p4_default_metric"))
+	assert.NotNil(t, getMetricFromProfile(p4, "user_p4_metric"))
+	assert.NotNil(t, getMetricFromProfile(p4, "default_p4_metric"))
 }
 
 func Test_loadYamlProfiles_invalidDir(t *testing.T) {

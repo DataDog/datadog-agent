@@ -48,28 +48,49 @@ func Test_resolveProfiles(t *testing.T) {
 	validationErrorProfile, err := readProfileDefinition(validationErrorProfileFile)
 	require.NoError(t, err)
 
+	userProfilesCaseConfdPath, _ := filepath.Abs(filepath.Join("..", "test", "user_profiles.d"))
+	config.Datadog.Set("confd_path", userProfilesCaseConfdPath)
+	userProfilesCaseUserProfiles, err := getProfileDefinitions(userProfilesFolder, true)
+	require.NoError(t, err)
+	userProfilesCaseDefaultProfiles, err := getProfileDefinitions(defaultProfilesFolder, true)
+	require.NoError(t, err)
+
 	type logCount struct {
 		log   string
 		count int
 	}
 	tests := []struct {
-		name                    string
-		profileConfigMap        ProfileConfigMap
-		defaultProfileConfigMap ProfileConfigMap
-		expectedProfileDefMap   ProfileConfigMap
-		expectedIncludeErrors   []string
-		expectedLogs            []logCount
+		name                   string
+		userProfiles           ProfileConfigMap
+		defaultProfiles        ProfileConfigMap
+		expectedProfileDefMap  ProfileConfigMap
+		expectedProfileMetrics []string
+		expectedIncludeErrors  []string
+		expectedLogs           []logCount
 	}{
 		{
-			name:                    "ok case",
-			profileConfigMap:        userTestConfdProfiles,
-			defaultProfileConfigMap: defaultTestConfdProfiles,
-			expectedProfileDefMap:   FixtureProfileDefinitionMap(),
-			expectedIncludeErrors:   []string{},
+			name:                  "ok case",
+			userProfiles:          userTestConfdProfiles,
+			defaultProfiles:       defaultTestConfdProfiles,
+			expectedProfileDefMap: FixtureProfileDefinitionMap(),
+			expectedIncludeErrors: []string{},
+		},
+		{
+			name:            "ok user profiles case",
+			userProfiles:    userProfilesCaseUserProfiles,
+			defaultProfiles: userProfilesCaseDefaultProfiles,
+			expectedProfileMetrics: []string{
+				"default_p2_metric",
+				"default_p4_metric",
+				"user_p1_metric",
+				"user_p3_metric",
+				"user_p4_metric", // user p4 extends default p4
+			},
+			expectedIncludeErrors: []string{},
 		},
 		{
 			name: "invalid extends",
-			profileConfigMap: ProfileConfigMap{
+			userProfiles: ProfileConfigMap{
 				"f5-big-ip": {
 					Definition:    *profileWithInvalidExtends,
 					IsUserProfile: true,
@@ -82,7 +103,7 @@ func Test_resolveProfiles(t *testing.T) {
 		},
 		{
 			name:                  "invalid recursive extends",
-			profileConfigMap:      profilesWithInvalidExtendProfiles,
+			userProfiles:          profilesWithInvalidExtendProfiles,
 			expectedProfileDefMap: ProfileConfigMap{},
 			expectedLogs: []logCount{
 				{"loadResolveProfiles: failed to expand profile `_generic-if`: extend does not exist: `invalid`", 1},
@@ -90,7 +111,7 @@ func Test_resolveProfiles(t *testing.T) {
 		},
 		{
 			name:                  "invalid cyclic extends",
-			profileConfigMap:      invalidCyclicProfiles,
+			userProfiles:          invalidCyclicProfiles,
 			expectedProfileDefMap: ProfileConfigMap{},
 			expectedLogs: []logCount{
 				{"[WARN] loadResolveProfiles: failed to expand profile `_extend1`: cyclic profile extend detected", 1},
@@ -98,7 +119,7 @@ func Test_resolveProfiles(t *testing.T) {
 		},
 		{
 			name: "validation error profile",
-			profileConfigMap: ProfileConfigMap{
+			userProfiles: ProfileConfigMap{
 				"f5-big-ip": {
 					Definition: *validationErrorProfile,
 				},
@@ -118,7 +139,7 @@ func Test_resolveProfiles(t *testing.T) {
 			assert.Nil(t, err)
 			log.SetupLogger(l, "debug")
 
-			profiles, err := resolveProfiles(tt.defaultProfileConfigMap, tt.profileConfigMap)
+			profiles, err := resolveProfiles(tt.userProfiles, tt.defaultProfiles)
 			for _, errorMsg := range tt.expectedIncludeErrors {
 				assert.Contains(t, err.Error(), errorMsg)
 			}
@@ -135,8 +156,17 @@ func Test_resolveProfiles(t *testing.T) {
 				profile.DefinitionFile = ""
 				profiles[i] = profile
 			}
-
-			assert.Equal(t, tt.expectedProfileDefMap, profiles)
+			if len(tt.expectedProfileMetrics) > 0 {
+				var metricsNames []string
+				for _, profile := range profiles {
+					for _, metric := range profile.Definition.Metrics {
+						metricsNames = append(metricsNames, metric.Symbol.Name)
+					}
+				}
+				assert.ElementsMatch(t, tt.expectedProfileMetrics, metricsNames)
+			} else {
+				assert.Equal(t, tt.expectedProfileDefMap, profiles)
+			}
 		})
 	}
 }
