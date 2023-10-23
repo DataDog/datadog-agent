@@ -39,13 +39,12 @@ func newWorker(s *server, workerNum int) *worker {
 		batcher = newBatcher(s.demultiplexer.(aggregator.DemultiplexerWithAggregator))
 	}
 
-	w := &worker{
+	return &worker{
 		server:  s,
 		batcher: batcher,
 		parser:  newParser(s.config, s.sharedFloat64List, workerNum),
 		samples: make(metrics.MetricSampleBatch, 0, defaultSampleSize),
 	}
-	return w
 }
 
 func (w *worker) run() {
