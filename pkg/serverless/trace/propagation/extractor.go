@@ -1,0 +1,181 @@
+package propagation
+
+import (
+	"errors"
+	"fmt"
+	"net/http"
+	"strconv"
+
+	"github.com/DataDog/datadog-agent/pkg/trace/sampler"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/aws/aws-lambda-go/events"
+	"gopkg.in/DataDog/dd-trace-go.v1/ddtrace"
+	"gopkg.in/DataDog/dd-trace-go.v1/ddtrace/tracer"
+)
+
+const (
+	defaultPriority sampler.SamplingPriority = sampler.PriorityNone
+
+	ddTraceIdHeader          = "x-datadog-trace-id"
+	ddParentIdHeader         = "x-datadog-parent-id"
+	ddSpanIdHeader           = "x-datadog-span-id"
+	ddSamplingPriorityHeader = "x-datadog-sampling-priority"
+	ddInvocationErrorHeader  = "x-datadog-invocation-error"
+)
+
+var (
+	errorUnsupportedExtractionType = errors.New("Unsupported event type for trace context extraction")
+	errorNoContextFound            = errors.New("No trace context found")
+	errorNoSQSRecordFound          = errors.New("No sqs message records found for trace context extraction")
+)
+
+// Extractor inserts trace context into and extracts trace context out of
+// different types.
+type Extractor struct {
+	propagator tracer.Propagator
+}
+
+// TraceContext stores the propagated trace context values.
+type TraceContext struct {
+	TraceID          uint64
+	ParentID         uint64
+	SamplingPriority sampler.SamplingPriority
+}
+
+// TraceContextExtended stores the propagated trace context values plus other
+// non-standard header values.
+type TraceContextExtended struct {
+	TraceContext
+	SpanID          uint64
+	InvocationError bool
+}
+
+// Extract looks in the given events one by one and returns once a proper trace
+// context is found.
+func (e Extractor) Extract(events ...interface{}) (*TraceContext, error) {
+	for _, event := range events {
+		if tc, err := e.extract(event); err == nil {
+			return tc, nil
+		}
+	}
+	return nil, errorNoContextFound
+}
+
+// extract uses dd-trace-go's Propagator type to extract trace context from the
+// given event.
+func (e Extractor) extract(event interface{}) (*TraceContext, error) {
+	var carrier tracer.TextMapReader
+	var err error
+
+	switch ev := event.(type) {
+	case []byte:
+		carrier, err = rawPayloadCarrier(ev)
+	case events.SQSEvent:
+		// look for context in just the first message
+		if len(ev.Records) > 0 {
+			return e.extract(ev.Records[0])
+		}
+		return nil, errorNoSQSRecordFound
+	case events.SQSMessage:
+		if attr, ok := ev.Attributes[awsTraceHeader]; ok {
+			if tc, err := extractTraceContextfromAWSTraceHeader(attr); err == nil {
+				// Return early if AWSTraceHeader contains trace context
+				return tc, nil
+			}
+		}
+		carrier, err = sqsMessageCarrier(ev)
+	case events.APIGatewayProxyRequest:
+		carrier, err = headersCarrier(ev.Headers)
+	case events.APIGatewayV2HTTPRequest:
+		carrier, err = headersCarrier(ev.Headers)
+	case events.APIGatewayWebsocketProxyRequest:
+		carrier, err = headersCarrier(ev.Headers)
+	case events.APIGatewayCustomAuthorizerRequestTypeRequest:
+		carrier, err = headersCarrier(ev.Headers)
+	case events.ALBTargetGroupRequest:
+		carrier, err = headersCarrier(ev.Headers)
+	case events.LambdaFunctionURLRequest:
+		carrier, err = headersCarrier(ev.Headers)
+	default:
+		err = errorUnsupportedExtractionType
+	}
+
+	if err != nil {
+		return nil, err
+	}
+	if e.propagator == nil {
+		e.propagator = tracer.NewPropagator(nil)
+	}
+	sc, err := e.propagator.Extract(carrier)
+	if err != nil {
+		return nil, err
+	}
+	return &TraceContext{
+		TraceID:          sc.TraceID(),
+		ParentID:         sc.SpanID(),
+		SamplingPriority: getSamplingPriority(sc),
+	}, nil
+}
+
+// ExtractFromLayer is used for extracting context from the request headers
+// sent from a tracing layer. Currently, only datadog style headers are
+// extracted.
+func (e Extractor) ExtractFromLayer(hdr http.Header) *TraceContextExtended {
+	tc := new(TraceContextExtended)
+
+	if value, err := convertStrToUint64(hdr.Get(ddTraceIdHeader)); err == nil {
+		log.Debugf("injecting traceID = %v", value)
+		tc.TraceID = value
+	}
+
+	if value, err := convertStrToUint64(hdr.Get(ddParentIdHeader)); err == nil {
+		log.Debugf("injecting parentId = %v", value)
+		tc.ParentID = value
+	}
+
+	if value, err := convertStrToUint64(hdr.Get(ddSpanIdHeader)); err == nil {
+		log.Debugf("injecting spanId = %v", value)
+		tc.SpanID = value
+	}
+
+	tc.SamplingPriority = sampler.PriorityNone
+	if value, err := strconv.ParseInt(hdr.Get(ddSamplingPriorityHeader), 10, 8); err == nil {
+		log.Debugf("injecting samplingPriority = %v", value)
+		tc.SamplingPriority = sampler.SamplingPriority(value)
+	}
+
+	tc.InvocationError = hdr.Get(ddInvocationErrorHeader) == "true"
+	return tc
+}
+
+// InjectToLayer is used for injecting context into the response headers sent
+// to a tracing layer. Currently, only datadog style headers are injected.
+func (e Extractor) InjectToLayer(tc *TraceContext, hdr http.Header) {
+	if tc != nil {
+		hdr.Set(ddTraceIdHeader, fmt.Sprintf("%v", tc.TraceID))
+		hdr.Set(ddSamplingPriorityHeader, fmt.Sprintf("%v", tc.SamplingPriority))
+	}
+}
+
+// getSamplingPriority searches the given ddtrace.SpanContext for sampling
+// priority. Note that not all versions of ddtrace export the SamplingPriority
+// method, therefore the interface check is required.
+func getSamplingPriority(sc ddtrace.SpanContext) (priority sampler.SamplingPriority) {
+	priority = defaultPriority
+	if pc, ok := sc.(interface{ SamplingPriority() (int, bool) }); ok && pc != nil {
+		if p, ok := pc.SamplingPriority(); ok {
+			priority = sampler.SamplingPriority(p)
+		}
+	}
+	return
+}
+
+// convertStrToUint64 converts a given string to uint64 optionally returning an
+// error.
+func convertStrToUint64(s string) (uint64, error) {
+	num, err := strconv.ParseUint(s, 0, 64)
+	if err != nil {
+		log.Debugf("Error while converting %s, failing with : %s", s, err)
+	}
+	return num, err
+}
