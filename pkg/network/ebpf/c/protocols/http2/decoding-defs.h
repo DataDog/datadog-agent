@@ -40,6 +40,8 @@
 
 #define HTTP2_CONTENT_TYPE_IDX 31
 
+#define MAX_FRAME_SIZE 16384
+
 // Huffman-encoded strings for paths "/" and "/index.html". Needed for HTTP2
 // decoding, as these two paths are in the static table, we need to add the
 // encoded string ourselves instead of reading them from the Header.
@@ -120,5 +122,11 @@ typedef struct {
     __u8 frames_count;
     http2_frame_with_offset frames_array[HTTP2_MAX_FRAMES_ITERATIONS] __attribute__((aligned(8)));
 } http2_tail_call_state_t;
+
+typedef struct {
+    __u32 remainder;
+    __u32 header_length;
+    char buf[HTTP2_FRAME_HEADER_SIZE];
+} frame_header_remainder_t;
 
 #endif

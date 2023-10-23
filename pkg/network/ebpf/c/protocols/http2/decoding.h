@@ -346,7 +346,7 @@ static __always_inline bool format_http2_frame_header(struct http2_frame *out) {
     out->length = bpf_ntohl(out->length << 8);
     out->stream_id = bpf_ntohl(out->stream_id << 1);
 
-    return out->type <= kContinuationFrame && out->length <= 16384 && (out->stream_id == 0 || (out->stream_id % 2 == 1));
+    return out->type <= kContinuationFrame && out->length <= MAX_FRAME_SIZE && (out->stream_id == 0 || (out->stream_id % 2 == 1));
 }
 
 static __always_inline void skip_preface(struct __sk_buff *skb, skb_info_t *skb_info) {
@@ -360,9 +360,9 @@ static __always_inline void skip_preface(struct __sk_buff *skb, skb_info_t *skb_
     }
 }
 
-static __always_inline void fix_header_frame(struct __sk_buff *skb, skb_info_t *skb_info, char *out, frame_header_reminder_t *frame_state) {
+static __always_inline void fix_header_frame(struct __sk_buff *skb, skb_info_t *skb_info, char *out, frame_header_remainder_t *frame_state) {
     bpf_memcpy(out, frame_state->buf, HTTP2_FRAME_HEADER_SIZE);
-    switch (frame_state->reminder) {
+    switch (frame_state->remainder) {
     case 1:
         bpf_skb_load_bytes(skb, skb_info->data_off, out + HTTP2_FRAME_HEADER_SIZE - 1, 1);
         break;
@@ -398,7 +398,7 @@ static __always_inline void reset_frame(struct http2_frame *out) {
     out->flags = 0;
 }
 
-static __always_inline __u8 find_relevant_headers(struct __sk_buff *skb, skb_info_t *skb_info, http2_frame_with_offset *frames_array, frame_header_reminder_t *frame_state) {
+static __always_inline __u8 find_relevant_headers(struct __sk_buff *skb, skb_info_t *skb_info, http2_frame_with_offset *frames_array, frame_header_remainder_t *frame_state) {
     bool is_headers_frame, is_data_end_of_stream;
     __u8 interesting_frame_index = 0;
     struct http2_frame current_frame = {};
@@ -426,25 +426,25 @@ static __always_inline __u8 find_relevant_headers(struct __sk_buff *skb, skb_inf
 
     // Getting here means we have a frame state from the previous packets.
     // Scenarios in order:
-    //  1. Check if we have a frame-header reminder - if so, we must try and read the rest of the frame header.
+    //  1. Check if we have a frame-header remainder - if so, we must try and read the rest of the frame header.
     //     In case of a failure, we abort.
-    //  2. If we don't have a frame-header reminder, then we're trying to read a valid frame.
+    //  2. If we don't have a frame-header remainder, then we're trying to read a valid frame.
     //     HTTP2 can send valid frames (like SETTINGS and PING) during a split DATA frame. If such a frame exists,
-    //     then we won't have a the rest of the split frame in the same packet.
-    //  3. If we reached here, and we have a reminder, then we're consuming the reminder and checking we can read the
+    //     then we won't have the rest of the split frame in the same packet.
+    //  3. If we reached here, and we have a remainder, then we're consuming the remainder and checking we can read the
     //     next frame header.
     //  4. We failed reading any frame. Aborting.
 
-    // Frame-header-reminder.
+    // Frame-header-remainder.
     if (frame_state->header_length > 0) {
         fix_header_frame(skb, skb_info, (char*)&current_frame, frame_state);
         if (format_http2_frame_header(&current_frame)) {
-            skb_info->data_off += frame_state->reminder;
-            frame_state->reminder = 0;
+            skb_info->data_off += frame_state->remainder;
+            frame_state->remainder = 0;
             goto valid_frame;
         }
 
-        // We couldn't read frame header using the reminder.
+        // We couldn't read frame header using the remainder.
         return 0;
     }
 
@@ -458,23 +458,23 @@ static __always_inline __u8 find_relevant_headers(struct __sk_buff *skb, skb_inf
         }
     }
 
-    // We failed to read a frame, if we have a reminder trying to consume it and read the following frame.
-    if (frame_state->reminder > 0) {
-        skb_info->data_off += frame_state->reminder;
-        // The reminders "ends" the current packet. No interesting frames were found.
+    // We failed to read a frame, if we have a remainder trying to consume it and read the following frame.
+    if (frame_state->remainder > 0) {
+        skb_info->data_off += frame_state->remainder;
+        // The remainders "ends" the current packet. No interesting frames were found.
         if (skb_info->data_off == skb_info->data_end) {
-            frame_state->reminder = 0;
+            frame_state->remainder = 0;
             return 0;
         }
         reset_frame(&current_frame);
         bpf_skb_load_bytes(skb, skb_info->data_off, (char *)&current_frame, HTTP2_FRAME_HEADER_SIZE);
         if (format_http2_frame_header(&current_frame)) {
-            frame_state->reminder = 0;
+            frame_state->remainder = 0;
             skb_info->data_off += HTTP2_FRAME_HEADER_SIZE;
             goto valid_frame;
         }
     }
-    // still not valid / does not have a reminder - abort.
+    // still not valid / does not have a remainder - abort.
     return 0;
 
 valid_frame:
@@ -542,33 +542,32 @@ int socket__http2_filter(struct __sk_buff *skb) {
     // in a map, we cannot allow it to be modified. Thus, having a local copy of skb_info.
     skb_info_t local_skb_info = dispatcher_args_copy.skb_info;
 
-    frame_header_reminder_t *frame_state = bpf_map_lookup_elem(&http2_reminder, &dispatcher_args_copy.tup);
+    frame_header_remainder_t *frame_state = bpf_map_lookup_elem(&http2_remainder, &dispatcher_args_copy.tup);
     // filter frames
     iteration_value.frames_count = find_relevant_headers(skb, &local_skb_info, iteration_value.frames_array, frame_state);
 
     // if we have a state and we consumed it, then delete it.
-    if (frame_state != NULL && frame_state->reminder == 0) {
-        bpf_map_delete_elem(&http2_reminder, &dispatcher_args_copy.tup);
+    if (frame_state != NULL && frame_state->remainder == 0) {
+        bpf_map_delete_elem(&http2_remainder, &dispatcher_args_copy.tup);
     }
 
-    frame_header_reminder_t new_frame_state = {0};
-    // We have a reminder
+    frame_header_remainder_t new_frame_state = {0};
     if (local_skb_info.data_off > local_skb_info.data_end) {
-        new_frame_state.reminder = local_skb_info.data_off - local_skb_info.data_end;
-        bpf_map_update_elem(&http2_reminder, &dispatcher_args_copy.tup, &new_frame_state, BPF_ANY);
+        // We have a remainder
+        new_frame_state.remainder = local_skb_info.data_off - local_skb_info.data_end;
+        bpf_map_update_elem(&http2_remainder, &dispatcher_args_copy.tup, &new_frame_state, BPF_ANY);
     }
 
-    // Frame header reminder
     if (local_skb_info.data_off < local_skb_info.data_end && local_skb_info.data_off + HTTP2_FRAME_HEADER_SIZE > local_skb_info.data_end) {
-        new_frame_state.reminder = HTTP2_FRAME_HEADER_SIZE - (local_skb_info.data_end - local_skb_info.data_off);
+        // We have a frame header remainder
+        new_frame_state.remainder = HTTP2_FRAME_HEADER_SIZE - (local_skb_info.data_end - local_skb_info.data_off);
         bpf_memset(new_frame_state.buf, 0, HTTP2_FRAME_HEADER_SIZE);
-        __u32 iteration = 0;
     #pragma unroll(HTTP2_FRAME_HEADER_SIZE)
-        for (; iteration < HTTP2_FRAME_HEADER_SIZE && new_frame_state.reminder + iteration < HTTP2_FRAME_HEADER_SIZE; ++iteration) {
+        for (__u32 iteration = 0; iteration < HTTP2_FRAME_HEADER_SIZE && new_frame_state.remainder + iteration < HTTP2_FRAME_HEADER_SIZE; ++iteration) {
             bpf_skb_load_bytes(skb, local_skb_info.data_off + iteration, new_frame_state.buf + iteration, 1);
         }
-        new_frame_state.header_length = iteration + 1;
-        bpf_map_update_elem(&http2_reminder, &dispatcher_args_copy.tup, &new_frame_state, BPF_ANY);
+        new_frame_state.header_length = HTTP2_FRAME_HEADER_SIZE - new_frame_state.remainder;
+        bpf_map_update_elem(&http2_remainder, &dispatcher_args_copy.tup, &new_frame_state, BPF_ANY);
     }
 
     if (iteration_value.frames_count == 0) {
