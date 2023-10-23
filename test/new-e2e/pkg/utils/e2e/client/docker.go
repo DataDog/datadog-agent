@@ -22,7 +22,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-var _ stackInitializer = (*Docker)(nil)
+var _ pulumiStackInitializer = (*Docker)(nil)
 
 // A Docker client that is connected to an [docker.Deamon].
 //
@@ -45,8 +45,11 @@ func NewDocker(daemon *docker.Daemon) *Docker {
 	}
 }
 
-//lint:ignore U1000 Ignore unused function as this function is call using reflection
-func (docker *Docker) setStack(t *testing.T, stackResult auto.UpResult) error {
+// initFromPulumiStack initializes the instance from the data stored in the pulumi stack.
+// This method is called by [CallStackInitializers] using reflection.
+//
+//lint:ignore U1000 Ignore unused function as this function is called using reflection
+func (docker *Docker) initFromPulumiStack(t *testing.T, stackResult auto.UpResult) error {
 	clientData, err := docker.deserializer.Deserialize(stackResult)
 	if err != nil {
 		return err

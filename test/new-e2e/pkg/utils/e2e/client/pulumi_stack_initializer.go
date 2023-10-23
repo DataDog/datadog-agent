@@ -13,8 +13,12 @@ import (
 	"github.com/pulumi/pulumi/sdk/v3/go/auto"
 )
 
-type stackInitializer interface {
-	setStack(t *testing.T, stackResult auto.UpResult) error
+// pulumiStackInitializer defines a method which is used to initialize an object from
+// the data stored in the pulumi stack. See [CallStackInitializers] for more information.
+type pulumiStackInitializer interface {
+	// initFromPulumiStack initializes the instance from the data stored in the pulumi stack.
+	// This method is called by [CallStackInitializers] using reflection.
+	initFromPulumiStack(t *testing.T, stackResult auto.UpResult) error
 }
 
 // CheckEnvStructValid validates an environment struct
@@ -24,7 +28,8 @@ func CheckEnvStructValid[Env any]() error {
 	return err
 }
 
-// CallStackInitializers validate an environment struct and initialise a stack
+// CallStackInitializers validates an environment struct and initialise a stack.
+// If a field of Env implements [pulumiStackInitializer], then [initFromPulumiStack] is called for this field.
 func CallStackInitializers[Env any](t *testing.T, env *Env, upResult auto.UpResult) error {
 	fields, err := getFields(env)
 
@@ -34,7 +39,7 @@ func CallStackInitializers[Env any](t *testing.T, env *Env, upResult auto.UpResu
 			return fmt.Errorf("the field %v of %v is nil", field.name, reflect.TypeOf(env))
 		}
 
-		if err = initializer.setStack(t, upResult); err != nil {
+		if err = initializer.initFromPulumiStack(t, upResult); err != nil {
 			return err
 		}
 	}
@@ -43,7 +48,7 @@ func CallStackInitializers[Env any](t *testing.T, env *Env, upResult auto.UpResu
 }
 
 type field struct {
-	stackInitializer stackInitializer
+	stackInitializer pulumiStackInitializer
 	name             string
 }
 
@@ -59,14 +64,14 @@ func getFields[Env any](env *Env) ([]field, error) {
 		}
 	}
 
-	stackInitializerType := reflect.TypeOf((*stackInitializer)(nil)).Elem()
+	stackInitializerType := reflect.TypeOf((*pulumiStackInitializer)(nil)).Elem()
 	for i := 0; i < envValue.NumField(); i++ {
 		fieldName := envValue.Type().Field(i).Name
 		if _, found := exportedFields[fieldName]; !found {
 			return nil, fmt.Errorf("the field %v in %v is not exported", fieldName, envType)
 		}
 
-		initializer, ok := envValue.Field(i).Interface().(stackInitializer)
+		initializer, ok := envValue.Field(i).Interface().(pulumiStackInitializer)
 		if !ok {
 			return nil, fmt.Errorf("%v contains %v which doesn't implement %v",
 				envType,

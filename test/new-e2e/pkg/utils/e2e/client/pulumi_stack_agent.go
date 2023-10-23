@@ -15,7 +15,7 @@ import (
 	"github.com/pulumi/pulumi/sdk/v3/go/auto"
 )
 
-var _ stackInitializer = (*PulumiStackAgent)(nil)
+var _ pulumiStackInitializer = (*PulumiStackAgent)(nil)
 var _ Agent = (*PulumiStackAgent)(nil)
 
 // PulumiStackAgent is a type that implements [Agent] and uses the pulumi stack filled by
@@ -42,8 +42,11 @@ func NewPulumiStackAgent(installer *agent.Installer, agentClientOptions ...agent
 	return agentInstance
 }
 
+// initFromPulumiStack initializes the instance from the data stored in the pulumi stack.
+// This method is called by [CallStackInitializers] using reflection.
+//
 //lint:ignore U1000 Ignore unused function as this function is called using reflection
-func (agent *PulumiStackAgent) setStack(t *testing.T, stackResult auto.UpResult) error {
+func (agent *PulumiStackAgent) initFromPulumiStack(t *testing.T, stackResult auto.UpResult) error {
 	clientData, err := agent.deserializer.Deserialize(stackResult)
 	if err != nil {
 		return err

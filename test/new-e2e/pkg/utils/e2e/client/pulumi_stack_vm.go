@@ -15,7 +15,7 @@ import (
 	"github.com/pulumi/pulumi/sdk/v3/go/auto"
 )
 
-var _ stackInitializer = (*PulumiStackVM)(nil)
+var _ pulumiStackInitializer = (*PulumiStackVM)(nil)
 var _ VM = (*PulumiStackVM)(nil)
 
 // PulumiStackVM is a type that implements [VM] and uses the pulumi stack filled by
@@ -33,8 +33,11 @@ func NewPulumiStackVM(infraVM commonvm.VM) *PulumiStackVM {
 	return &PulumiStackVM{deserializer: infraVM, os: infraVM.GetOS()}
 }
 
+// initFromPulumiStack initializes the instance from the data stored in the pulumi stack.
+// This method is called by [CallStackInitializers] using reflection.
+//
 //lint:ignore U1000 Ignore unused function as this function is called using reflection
-func (vm *PulumiStackVM) setStack(t *testing.T, stackResult auto.UpResult) error {
+func (vm *PulumiStackVM) initFromPulumiStack(t *testing.T, stackResult auto.UpResult) error {
 	clientData, err := vm.deserializer.Deserialize(stackResult)
 	if err != nil {
 		return err
