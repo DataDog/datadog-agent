@@ -60,11 +60,7 @@ func loadResolveProfiles(pConfig ProfileConfigMap, defaultProfiles ProfileConfig
 
 func recursivelyExpandBaseProfiles(parentExtend string, definition *profiledefinition.ProfileDefinition, extends []string, extendsHistory []string, profiles ProfileConfigMap, defaultProfiles ProfileConfigMap) error {
 	for _, extendEntry := range extends {
-		// Skip non yaml profiles
-		if !strings.HasSuffix(extendEntry, ".yaml") {
-			continue
-		}
-		extendEntry = extendEntry[:len(extendEntry)-len(".yaml")]
+		extendEntry = strings.TrimSuffix(extendEntry, ".yaml")
 
 		var baseDefinition *profiledefinition.ProfileDefinition
 		// User profile can extend default profile by extending the default profile.
