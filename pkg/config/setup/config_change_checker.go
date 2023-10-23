@@ -3,12 +3,14 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package config
+package setup
 
 import (
 	"fmt"
 	"os"
 	"reflect"
+
+	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 )
 
 // ChangeChecker checks the state of `config.Datadog` did not change
@@ -28,17 +30,17 @@ type ChangeChecker struct {
 }
 
 // NewChangeChecker creates a new instance of ConfigChangeChecker
-func NewChangeChecker() *ChangeChecker {
+func NewChangeChecker(config pkgconfigmodel.Reader) *ChangeChecker {
 	return &ChangeChecker{
-		configSettings: Datadog.AllSettings(),
+		configSettings: config.AllSettings(),
 	}
 }
 
 // HasChanged returns whether `config.Datadog` changed since
 // `NewConfigChangeChecker`. If some changes are detected
 // this function displays on the standard error what keys changed.
-func (c *ChangeChecker) HasChanged() bool {
-	allSettingsAfter := Datadog.AllSettings()
+func (c *ChangeChecker) HasChanged(config pkgconfigmodel.Reader) bool {
+	allSettingsAfter := config.AllSettings()
 	stateHasChanged := false
 	for k, before := range c.configSettings {
 		after := allSettingsAfter[k]

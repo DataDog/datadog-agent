@@ -5,9 +5,13 @@
 
 //go:build !windows
 
-package config
+package setup
 
-func platformCWSConfig(cfg Config) {
+import (
+	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
+)
+
+func platformCWSConfig(cfg pkgconfigmodel.Config) {
 	cfg.BindEnvAndSetDefault("runtime_security_config.policies.dir", DefaultRuntimePoliciesDir)
 	cfg.BindEnvAndSetDefault("runtime_security_config.socket", "/opt/datadog-agent/run/runtime-security.sock")
 }

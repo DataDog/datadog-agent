@@ -5,7 +5,7 @@
 
 //go:build secrets
 
-package config
+package setup
 
 import (
 	"os"

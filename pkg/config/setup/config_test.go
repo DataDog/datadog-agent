@@ -3,12 +3,13 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package config
+package setup
 
 import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -16,6 +17,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/common/types"
+	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 )
 
 func unsetEnvForTest(t *testing.T, env string) {
@@ -139,7 +141,8 @@ func TestUnknownVarsWarning(t *testing.T) {
 			if unknown {
 				exp = append(exp, v)
 			}
-			assert.Equal(t, exp, findUnknownEnvVars(Mock(t), env, additional))
+			config := SetupConf()
+			assert.Equal(t, exp, findUnknownEnvVars(config, env, additional))
 		}
 	}
 	t.Run("DD_API_KEY", test("DD_API_KEY", false, nil))
@@ -173,36 +176,35 @@ func TestDDHostnameFileEnvVar(t *testing.T) {
 }
 
 func TestIsCloudProviderEnabled(t *testing.T) {
-	holdValue := Datadog.Get("cloud_provider_metadata")
-	defer Datadog.Set("cloud_provider_metadata", holdValue)
+	config := pkgconfigmodel.NewConfig("test", "DD", strings.NewReplacer(".", "_"))
 
-	Datadog.Set("cloud_provider_metadata", []string{"aws", "gcp", "azure", "alibaba", "tencent"})
-	assert.True(t, IsCloudProviderEnabled("AWS"))
-	assert.True(t, IsCloudProviderEnabled("GCP"))
-	assert.True(t, IsCloudProviderEnabled("Alibaba"))
-	assert.True(t, IsCloudProviderEnabled("Azure"))
-	assert.True(t, IsCloudProviderEnabled("Tencent"))
+	config.Set("cloud_provider_metadata", []string{"aws", "gcp", "azure", "alibaba", "tencent"})
+	assert.True(t, IsCloudProviderEnabled("AWS", config))
+	assert.True(t, IsCloudProviderEnabled("GCP", config))
+	assert.True(t, IsCloudProviderEnabled("Alibaba", config))
+	assert.True(t, IsCloudProviderEnabled("Azure", config))
+	assert.True(t, IsCloudProviderEnabled("Tencent", config))
 
-	Datadog.Set("cloud_provider_metadata", []string{"aws"})
-	assert.True(t, IsCloudProviderEnabled("AWS"))
-	assert.False(t, IsCloudProviderEnabled("GCP"))
-	assert.False(t, IsCloudProviderEnabled("Alibaba"))
-	assert.False(t, IsCloudProviderEnabled("Azure"))
-	assert.False(t, IsCloudProviderEnabled("Tencent"))
+	config.Set("cloud_provider_metadata", []string{"aws"})
+	assert.True(t, IsCloudProviderEnabled("AWS", config))
+	assert.False(t, IsCloudProviderEnabled("GCP", config))
+	assert.False(t, IsCloudProviderEnabled("Alibaba", config))
+	assert.False(t, IsCloudProviderEnabled("Azure", config))
+	assert.False(t, IsCloudProviderEnabled("Tencent", config))
 
-	Datadog.Set("cloud_provider_metadata", []string{"tencent"})
-	assert.False(t, IsCloudProviderEnabled("AWS"))
-	assert.False(t, IsCloudProviderEnabled("GCP"))
-	assert.False(t, IsCloudProviderEnabled("Alibaba"))
-	assert.False(t, IsCloudProviderEnabled("Azure"))
-	assert.True(t, IsCloudProviderEnabled("Tencent"))
+	config.Set("cloud_provider_metadata", []string{"tencent"})
+	assert.False(t, IsCloudProviderEnabled("AWS", config))
+	assert.False(t, IsCloudProviderEnabled("GCP", config))
+	assert.False(t, IsCloudProviderEnabled("Alibaba", config))
+	assert.False(t, IsCloudProviderEnabled("Azure", config))
+	assert.True(t, IsCloudProviderEnabled("Tencent", config))
 
-	Datadog.Set("cloud_provider_metadata", []string{})
-	assert.False(t, IsCloudProviderEnabled("AWS"))
-	assert.False(t, IsCloudProviderEnabled("GCP"))
-	assert.False(t, IsCloudProviderEnabled("Alibaba"))
-	assert.False(t, IsCloudProviderEnabled("Azure"))
-	assert.False(t, IsCloudProviderEnabled("Tencent"))
+	config.Set("cloud_provider_metadata", []string{})
+	assert.False(t, IsCloudProviderEnabled("AWS", config))
+	assert.False(t, IsCloudProviderEnabled("GCP", config))
+	assert.False(t, IsCloudProviderEnabled("Alibaba", config))
+	assert.False(t, IsCloudProviderEnabled("Azure", config))
+	assert.False(t, IsCloudProviderEnabled("Tencent", config))
 }
 
 func TestEnvNestedConfig(t *testing.T) {
@@ -216,12 +218,12 @@ func TestEnvNestedConfig(t *testing.T) {
 func TestProxy(t *testing.T) {
 	type testCase struct {
 		name                  string
-		setup                 func(t *testing.T, config Config)
-		tests                 func(t *testing.T, config Config)
+		setup                 func(t *testing.T, config pkgconfigmodel.Config)
+		tests                 func(t *testing.T, config pkgconfigmodel.Config)
 		proxyForCloudMetadata bool
 	}
 
-	expectedProxy := &Proxy{
+	expectedProxy := &pkgconfigmodel.Proxy{
 		HTTP:    "http_url",
 		HTTPS:   "https_url",
 		NoProxy: []string{"a", "b", "c"},
@@ -230,7 +232,7 @@ func TestProxy(t *testing.T) {
 	cases := []testCase{
 		{
 			name: "no values",
-			tests: func(t *testing.T, config Config) {
+			tests: func(t *testing.T, config pkgconfigmodel.Config) {
 				assert.Nil(t, config.Get("proxy"))
 				assert.Nil(t, config.GetProxies())
 			},
@@ -238,53 +240,53 @@ func TestProxy(t *testing.T) {
 		},
 		{
 			name: "from configuration",
-			setup: func(t *testing.T, config Config) {
+			setup: func(t *testing.T, config pkgconfigmodel.Config) {
 				config.Set("proxy", expectedProxy)
 			},
-			tests: func(t *testing.T, config Config) {
+			tests: func(t *testing.T, config pkgconfigmodel.Config) {
 				assert.Equal(t, expectedProxy, config.GetProxies())
 			},
 			proxyForCloudMetadata: true,
 		},
 		{
 			name: "from UNIX env only upper case",
-			setup: func(t *testing.T, config Config) {
+			setup: func(t *testing.T, config pkgconfigmodel.Config) {
 				t.Setenv("HTTP_PROXY", "http_url")
 				t.Setenv("HTTPS_PROXY", "https_url")
 				t.Setenv("NO_PROXY", "a,b,c") // comma-separated list
 			},
-			tests: func(t *testing.T, config Config) {
+			tests: func(t *testing.T, config pkgconfigmodel.Config) {
 				assert.Equal(t, expectedProxy, config.GetProxies())
 			},
 			proxyForCloudMetadata: true,
 		},
 		{
 			name: "from env only lower case",
-			setup: func(t *testing.T, config Config) {
+			setup: func(t *testing.T, config pkgconfigmodel.Config) {
 				t.Setenv("http_proxy", "http_url")
 				t.Setenv("https_proxy", "https_url")
 				t.Setenv("no_proxy", "a,b,c") // comma-separated list
 			},
-			tests: func(t *testing.T, config Config) {
+			tests: func(t *testing.T, config pkgconfigmodel.Config) {
 				assert.Equal(t, expectedProxy, config.GetProxies())
 			},
 			proxyForCloudMetadata: true,
 		},
 		{
 			name: "from DD env vars only",
-			setup: func(t *testing.T, config Config) {
+			setup: func(t *testing.T, config pkgconfigmodel.Config) {
 				t.Setenv("DD_PROXY_HTTP", "http_url")
 				t.Setenv("DD_PROXY_HTTPS", "https_url")
 				t.Setenv("DD_PROXY_NO_PROXY", "a b c") // space-separated list
 			},
-			tests: func(t *testing.T, config Config) {
+			tests: func(t *testing.T, config pkgconfigmodel.Config) {
 				assert.Equal(t, expectedProxy, config.GetProxies())
 			},
 			proxyForCloudMetadata: true,
 		},
 		{
 			name: "from DD env vars precedence over UNIX env vars",
-			setup: func(t *testing.T, config Config) {
+			setup: func(t *testing.T, config pkgconfigmodel.Config) {
 				t.Setenv("DD_PROXY_HTTP", "dd_http_url")
 				t.Setenv("DD_PROXY_HTTPS", "dd_https_url")
 				t.Setenv("DD_PROXY_NO_PROXY", "a b c")
@@ -292,9 +294,9 @@ func TestProxy(t *testing.T) {
 				t.Setenv("HTTPS_PROXY", "env_https_url")
 				t.Setenv("NO_PROXY", "d,e,f")
 			},
-			tests: func(t *testing.T, config Config) {
+			tests: func(t *testing.T, config pkgconfigmodel.Config) {
 				assert.Equal(t,
-					&Proxy{
+					&pkgconfigmodel.Proxy{
 						HTTP:    "dd_http_url",
 						HTTPS:   "dd_https_url",
 						NoProxy: []string{"a", "b", "c"},
@@ -305,14 +307,14 @@ func TestProxy(t *testing.T) {
 		},
 		{
 			name: "from UNIX env vars and conf",
-			setup: func(t *testing.T, config Config) {
+			setup: func(t *testing.T, config pkgconfigmodel.Config) {
 				t.Setenv("HTTP_PROXY", "http_env")
 				config.Set("proxy.no_proxy", []string{"d", "e", "f"})
 				config.Set("proxy.http", "http_conf")
 			},
-			tests: func(t *testing.T, config Config) {
+			tests: func(t *testing.T, config pkgconfigmodel.Config) {
 				assert.Equal(t,
-					&Proxy{
+					&pkgconfigmodel.Proxy{
 						HTTP:    "http_env",
 						HTTPS:   "",
 						NoProxy: []string{"d", "e", "f"},
@@ -323,14 +325,14 @@ func TestProxy(t *testing.T) {
 		},
 		{
 			name: "from DD env vars and conf",
-			setup: func(t *testing.T, config Config) {
+			setup: func(t *testing.T, config pkgconfigmodel.Config) {
 				t.Setenv("DD_PROXY_HTTP", "http_env")
 				config.Set("proxy.no_proxy", []string{"d", "e", "f"})
 				config.Set("proxy.http", "http_conf")
 			},
-			tests: func(t *testing.T, config Config) {
+			tests: func(t *testing.T, config pkgconfigmodel.Config) {
 				assert.Equal(t,
-					&Proxy{
+					&pkgconfigmodel.Proxy{
 						HTTP:    "http_env",
 						HTTPS:   "",
 						NoProxy: []string{"d", "e", "f"},
@@ -341,7 +343,7 @@ func TestProxy(t *testing.T) {
 		},
 		{
 			name: "empty values precedence",
-			setup: func(t *testing.T, config Config) {
+			setup: func(t *testing.T, config pkgconfigmodel.Config) {
 				t.Setenv("DD_PROXY_HTTP", "")
 				t.Setenv("DD_PROXY_NO_PROXY", "a b c")
 				t.Setenv("HTTP_PROXY", "env_http_url")
@@ -349,9 +351,9 @@ func TestProxy(t *testing.T) {
 				t.Setenv("NO_PROXY", "")
 				config.Set("proxy.https", "https_conf")
 			},
-			tests: func(t *testing.T, config Config) {
+			tests: func(t *testing.T, config pkgconfigmodel.Config) {
 				assert.Equal(t,
-					&Proxy{
+					&pkgconfigmodel.Proxy{
 						HTTP:    "",
 						HTTPS:   "",
 						NoProxy: []string{"a", "b", "c"},
@@ -362,13 +364,13 @@ func TestProxy(t *testing.T) {
 		},
 		{
 			name: "proxy withou no_proxy",
-			setup: func(t *testing.T, config Config) {
+			setup: func(t *testing.T, config pkgconfigmodel.Config) {
 				t.Setenv("DD_PROXY_HTTP", "http_url")
 				t.Setenv("DD_PROXY_HTTPS", "https_url")
 			},
-			tests: func(t *testing.T, config Config) {
+			tests: func(t *testing.T, config pkgconfigmodel.Config) {
 				assert.Equal(t,
-					&Proxy{
+					&pkgconfigmodel.Proxy{
 						HTTP:  "http_url",
 						HTTPS: "https_url",
 					},
@@ -379,10 +381,10 @@ func TestProxy(t *testing.T) {
 		},
 		{
 			name:  "empty config with use_proxy_for_cloud_metadata",
-			setup: func(t *testing.T, config Config) {},
-			tests: func(t *testing.T, config Config) {
+			setup: func(t *testing.T, config pkgconfigmodel.Config) {},
+			tests: func(t *testing.T, config pkgconfigmodel.Config) {
 				assert.Equal(t,
-					&Proxy{
+					&pkgconfigmodel.Proxy{
 						HTTP:    "",
 						HTTPS:   "",
 						NoProxy: []string{"169.254.169.254", "100.100.100.200"},
@@ -393,14 +395,14 @@ func TestProxy(t *testing.T) {
 		},
 		{
 			name: "use proxy for cloud metadata",
-			setup: func(t *testing.T, config Config) {
+			setup: func(t *testing.T, config pkgconfigmodel.Config) {
 				t.Setenv("DD_PROXY_HTTP", "http_url")
 				t.Setenv("DD_PROXY_HTTPS", "https_url")
 				t.Setenv("DD_PROXY_NO_PROXY", "a b c")
 			},
-			tests: func(t *testing.T, config Config) {
+			tests: func(t *testing.T, config pkgconfigmodel.Config) {
 				assert.Equal(t,
-					&Proxy{
+					&pkgconfigmodel.Proxy{
 						HTTP:    "http_url",
 						HTTPS:   "https_url",
 						NoProxy: []string{"a", "b", "c", "169.254.169.254", "100.100.100.200"},
@@ -496,20 +498,20 @@ api_key: fakeapikey
 external_config:
   external_agent_dd_url: "https://custom.external-agent.datadoghq.eu"
 `
-	AddOverrides(map[string]interface{}{
+	pkgconfigmodel.AddOverrides(map[string]interface{}{
 		"api_key": "overrided",
 	})
 
 	config := SetupConfFromYAML(datadogYaml)
-	applyOverrideFuncs(config)
+	pkgconfigmodel.ApplyOverrideFuncs(config)
 
 	assert.Equal(config.GetString("api_key"), "overrided", "the api key should have been overrided")
 	assert.Equal(config.GetString("dd_url"), "https://app.datadoghq.eu", "this shouldn't be overrided")
 
-	AddOverrides(map[string]interface{}{
+	pkgconfigmodel.AddOverrides(map[string]interface{}{
 		"dd_url": "http://localhost",
 	})
-	applyOverrideFuncs(config)
+	pkgconfigmodel.ApplyOverrideFuncs(config)
 
 	assert.Equal(config.GetString("api_key"), "overrided", "the api key should have been overrided")
 	assert.Equal(config.GetString("dd_url"), "http://localhost", "this dd_url should have been overrided")
@@ -618,7 +620,8 @@ func TestDogstatsdMappingProfilesEnv(t *testing.T) {
 			{Match: "some_other_profile.*", Name: "some_other_profile.abc", Tags: map[string]string{"a": "$1"}},
 		}},
 	}
-	mappings, _ := GetDogstatsdMappingProfiles()
+	config := SetupConf()
+	mappings, _ := GetDogstatsdMappingProfiles(config)
 	assert.Equal(t, mappings, expected)
 }
 
@@ -794,7 +797,7 @@ fips:
 	assert.Nil(t, testConfig.GetProxies())
 }
 
-func assertFipsProxyExpectedConfig(t *testing.T, expectedBaseHTTPURL, expectedBaseURL string, rng bool, c Config) {
+func assertFipsProxyExpectedConfig(t *testing.T, expectedBaseHTTPURL, expectedBaseURL string, rng bool, c pkgconfigmodel.Config) {
 	if rng {
 		assert.Equal(t, expectedBaseHTTPURL+"01", c.GetString("dd_url"))
 		assert.Equal(t, expectedBaseHTTPURL+"02", c.GetString("apm_config.apm_dd_url"))
