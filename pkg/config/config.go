@@ -130,6 +130,9 @@ var (
 	DefaultSecurityProfilesDir = filepath.Join(defaultRunPath, "runtime-security", "profiles")
 )
 
+// List of integrations allowed to be configured by RC by default
+var defaultAllowedRCIntegrations = []string{}
+
 // PrometheusScrapeChecksTransformer unmarshals a prometheus check.
 func PrometheusScrapeChecksTransformer(in string) interface{} {
 	var promChecks []*types.PrometheusCheck
@@ -2027,4 +2030,25 @@ func IsRemoteConfigEnabled(cfg Reader) bool {
 		return false
 	}
 	return cfg.GetBool("remote_configuration.enabled")
+}
+
+// GetRemoteConfigurationAllowedIntegrations returns the list of integrations that can be scheduled
+// with remote-config
+func GetRemoteConfigurationAllowedIntegrations(cfg Reader) map[string]bool {
+	allowList := cfg.GetStringSlice("remote_configuration.agent_integrations.allow_list")
+	if len(allowList) == 0 {
+		allowList = defaultAllowedRCIntegrations
+	}
+
+	allowMap := map[string]bool{}
+	for _, integration := range allowList {
+		allowMap[strings.ToLower(integration)] = true
+	}
+
+	blockList := cfg.GetStringSlice("remote_configuration.agent_integrations.block_list")
+	for _, blockedIntegration := range blockList {
+		allowMap[strings.ToLower(blockedIntegration)] = false
+	}
+
+	return allowMap
 }
