@@ -425,13 +425,13 @@ func (s *TracerSuite) TestConntrackExpiration() {
 	_, err = c.Write([]byte("ping"))
 	require.NoError(t, err)
 
-	// Give enough time for conntrack cache to be populated
-	time.Sleep(100 * time.Millisecond)
-
-	connections := getConnections(t, tr)
-	conn, ok := findConnection(c.LocalAddr(), c.RemoteAddr(), connections)
-	require.True(t, ok)
-	require.NotNil(t, tr.conntracker.GetTranslationForConn(*conn), "missing translation for connection")
+	var conn *network.ConnectionStats
+	require.Eventually(t, func() bool {
+		connections := getConnections(t, tr)
+		var ok bool
+		conn, ok = findConnection(c.LocalAddr(), c.RemoteAddr(), connections)
+		return ok && tr.conntracker.GetTranslationForConn(*conn) != nil
+	}, 3*time.Second, 100*time.Millisecond, "failed to find connection translation")
 
 	// This will force the connection to be expired next time we call getConnections, but
 	// conntrack should still have the connection information since the connection is still
