@@ -3,21 +3,29 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2023-present Datadog, Inc.
 
-package hostname
+package impl
 
 import (
 	"context"
 
-	"github.com/DataDog/datadog-agent/pkg/util/hostname"
+	"github.com/DataDog/datadog-agent/comp/core/hostname"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
+	pkghostname "github.com/DataDog/datadog-agent/pkg/util/hostname"
+	"go.uber.org/fx"
+)
+
+// Module defines the fx options for this component.
+var Module = fxutil.Component(
+	fx.Provide(newHostnameService),
 )
 
 type service struct{}
 
-var _ Component = (*service)(nil)
+var _ hostname.Component = (*service)(nil)
 
 // Get returns the hostname.
 func (hs *service) Get(ctx context.Context) (string, error) {
-	return hostname.Get(ctx)
+	return pkghostname.Get(ctx)
 }
 
 // GetSafe returns the hostname, or 'unknown host' if anything goes wrong.
@@ -30,11 +38,11 @@ func (hs *service) GetSafe(ctx context.Context) string {
 }
 
 // GetWithProvider returns the hostname for the Agent and the provider that was use to retrieve it.
-func (hs *service) GetWithProvider(ctx context.Context) (hostname.Data, error) {
-	return hostname.GetWithProvider(ctx)
+func (hs *service) GetWithProvider(ctx context.Context) (pkghostname.Data, error) {
+	return pkghostname.GetWithProvider(ctx)
 }
 
 // newHostnameService fetches the hostname and returns a service wrapping it
-func newHostnameService() Component {
+func newHostnameService() hostname.Component {
 	return &service{}
 }

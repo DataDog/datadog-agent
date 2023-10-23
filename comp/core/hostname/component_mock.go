@@ -5,22 +5,10 @@
 
 //go:build test
 
-package demultiplexer
-
-import (
-	"go.uber.org/fx"
-
-	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
-	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
-)
+package hostname
 
 // Mock implements mock-specific methods.
 type Mock interface {
-	SetDefaultSender(sender.Sender)
+	// Component methods are included in Mock.
 	Component
 }
-
-// MockModule defines the fx options for this component.
-var MockModule = fxutil.Component(
-	fx.Provide(newMock),
-)
