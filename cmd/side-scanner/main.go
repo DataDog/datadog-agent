@@ -533,6 +533,7 @@ func scanEBS(ctx context.Context, scan ebsScan) (*sbommodel.SBOMEntity, error) {
 		AWSRegion:         scan.Region,
 	})
 	if err != nil {
+		statsd.Count("datadog.sidescanner.scans.finished", 1.0, tagFailure(tags), 1.0)
 		return nil, fmt.Errorf("unable to create artifact from image: %w", err)
 	}
 	trivyDetector := ospkg.Detector{}
