@@ -188,7 +188,6 @@ def _clean_locks():
             print(f"🗑️ Deleted lock: {subdir}")
 
 
-
 def _clean_stacks(ctx: Context):
     print("🧹 Clean up stack")
     stacks = _get_existing_stacks(ctx)
