@@ -121,7 +121,7 @@ def normalize_appsec(stage):
 
         entries = []
 
-        for chunk in log["chunks"] :
+        for chunk in log["chunks"]:
             for span in chunk.get("spans") or []:
                 meta = span.get("meta") or {}
                 data = meta.get("_dd.appsec.json")
@@ -141,6 +141,7 @@ def normalize_appsec(stage):
         flat_map(select__dd_appsec_json),
         replace(stage, 'XXXXXX'),
     ]
+
 
 #####################
 # BEGIN NORMALIZERS #
@@ -290,7 +291,11 @@ if __name__ == '__main__':
 
         print(normalize(args.logs, args.type, args.stage))
     except Exception as e:
-        err = {"error": "normalization raised exception", "message": str(e), "backtrace": traceback.format_exception(type(e), e, e.__traceback__)}
+        err = {
+            "error": "normalization raised exception",
+            "message": str(e),
+            "backtrace": traceback.format_exception(type(e), e, e.__traceback__),
+        }
         err_json = json.dumps(err, indent=2)
         print(err_json)
         exit(1)
