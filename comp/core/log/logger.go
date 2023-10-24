@@ -10,12 +10,11 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/cihub/seelog"
 	"go.uber.org/fx"
 
-	"github.com/cihub/seelog"
-
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
+	pkgconfiglogs "github.com/DataDog/datadog-agent/pkg/config/logs"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -51,14 +50,15 @@ func NewLogger(lc fx.Lifecycle, params Params, config config.LogConfig) (Compone
 		return nil, errors.New("must call one of core.BundleParams.ForOneShot or ForDaemon")
 	}
 
-	err := pkgconfig.SetupLogger(
-		pkgconfig.LoggerName(params.loggerName),
+	err := pkgconfiglogs.SetupLogger(
+		pkgconfiglogs.LoggerName(params.loggerName),
 		params.logLevelFn(config),
 		params.logFileFn(config),
 		params.logSyslogURIFn(config),
 		params.logSyslogRFCFn(config),
 		params.logToConsoleFn(config),
-		params.logFormatJSONFn(config))
+		params.logFormatJSONFn(config),
+		config)
 	if err != nil {
 		return nil, err
 	}

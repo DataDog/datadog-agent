@@ -22,7 +22,6 @@ import (
 	easyjson "github.com/mailru/easyjson"
 	jwriter "github.com/mailru/easyjson/jwriter"
 	"go.uber.org/atomic"
-	"golang.org/x/time/rate"
 
 	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/security/common"
@@ -77,16 +76,18 @@ type APIServer struct {
 
 // GetActivityDumpStream waits for activity dumps and forwards them to the stream
 func (a *APIServer) GetActivityDumpStream(params *api.ActivityDumpStreamParams, stream api.SecurityModule_GetActivityDumpStreamServer) error {
-	// read one activity dump or timeout after one second
-	select {
-	case dump := <-a.activityDumps:
-		if err := stream.Send(dump); err != nil {
-			return err
+	for {
+		select {
+		case <-stream.Context().Done():
+			return nil
+		case <-a.stopChan:
+			return nil
+		case dump := <-a.activityDumps:
+			if err := stream.Send(dump); err != nil {
+				return err
+			}
 		}
-	case <-time.After(time.Second):
-		break
 	}
-	return nil
 }
 
 // SendActivityDump queues an activity dump to the chan of activity dumps
@@ -121,12 +122,8 @@ func (a *APIServer) GetEvents(params *api.GetEventParams, stream api.SecurityMod
 		case <-a.stopChan:
 			return nil
 		case msg := <-a.msgs:
-			if a.limiter.Allow(nil) {
-				if err := stream.Send(msg); err != nil {
-					return err
-				}
-			} else {
-				a.expireEvent(msg)
+			if err := stream.Send(msg); err != nil {
+				return err
 			}
 		}
 	}
@@ -449,7 +446,6 @@ func NewAPIServer(cfg *config.RuntimeSecurityConfig, probe *sprobe.Probe, client
 		activityDumps:  make(chan *api.ActivityDumpStreamMessage, model.MaxTracedCgroupsCount*2),
 		expiredEvents:  make(map[rules.RuleID]*atomic.Int64),
 		expiredDumps:   atomic.NewInt64(0),
-		limiter:        events.NewStdLimiter(rate.Limit(cfg.EventServerRate), cfg.EventServerBurst),
 		statsdClient:   client,
 		probe:          probe,
 		retention:      cfg.EventServerRetention,

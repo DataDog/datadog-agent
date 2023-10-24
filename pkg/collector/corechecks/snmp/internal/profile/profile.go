@@ -25,7 +25,7 @@ func GetProfiles(initConfigProfiles ProfileConfigMap) (ProfileConfigMap, error) 
 	if len(initConfigProfiles) > 0 {
 		// TODO: [PERFORMANCE] Load init config custom profiles once for all integrations
 		//   There are possibly multiple init configs
-		customProfiles, err := loadProfiles(initConfigProfiles)
+		customProfiles, err := loadInitConfigProfiles(initConfigProfiles)
 		if err != nil {
 			return nil, fmt.Errorf("failed to load initConfig profiles: %s", err)
 		}

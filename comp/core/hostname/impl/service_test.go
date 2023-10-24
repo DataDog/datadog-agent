@@ -3,12 +3,13 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2023-present Datadog, Inc.
 
-package hostname
+package impl
 
 import (
 	"context"
 	"testing"
 
+	"github.com/DataDog/datadog-agent/comp/core/hostname"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/cache"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -23,7 +24,7 @@ func TestGet(t *testing.T) {
 		config.Datadog.Set("hostname", "")
 	})
 	config.Datadog.Set("hostname", "test-hostname")
-	s := fxutil.Test[Component](t, Module)
+	s := fxutil.Test[hostname.Component](t, Module)
 	name, err := s.Get(context.Background())
 	require.NoError(t, err)
 	assert.Equal(t, "test-hostname", name)
@@ -36,7 +37,7 @@ func TestGetWithProvider(t *testing.T) {
 		config.Datadog.Set("hostname", "")
 	})
 	config.Datadog.Set("hostname", "test-hostname2")
-	s := fxutil.Test[Component](t, Module)
+	s := fxutil.Test[hostname.Component](t, Module)
 	data, err := s.GetWithProvider(context.Background())
 	require.NoError(t, err)
 	assert.Equal(t, "test-hostname2", data.Hostname)
