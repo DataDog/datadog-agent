@@ -29,40 +29,39 @@ func (pc *ProcessCacheEntry) SetAncestor(parent *ProcessCacheEntry) {
 	parent.Retain()
 }
 
-func hasCompleteLineageInner(pc *ProcessCacheEntry) bool {
+func hasValidLineage(pc *ProcessCacheEntry) (bool, error) {
+	var ppid uint32
+
 	for pc != nil {
-		if pc.hasCompleteLineage != nil {
-			return *pc.hasCompleteLineage
+		if pc.hasValidLineage != nil {
+			return *pc.hasValidLineage, pc.lineageError
+		}
+
+		if ppid != 0 && pc.Pid != ppid && pc.PPid != ppid {
+			return false, &ErrProcessMissingParentNode{PID: pc.Pid, PPID: ppid, ContainerID: pc.ContainerID}
+		}
+		ppid = pc.PPid
+
+		if pc.IsParentMissing {
+			return false, &ErrProcessWrongParentNode{PID: pc.Pid, PPID: ppid, ContainerID: pc.ContainerID}
 		}
 
 		if pc.Pid == 1 {
-			return true
+			if pc.Ancestor == nil {
+				return true, nil
+			}
+			return false, &ErrProcessWrongParentNode{PID: pc.Pid, PPID: pc.Ancestor.Pid, ContainerID: pc.ContainerID}
 		}
 		pc = pc.Ancestor
 	}
-	return false
-}
-
-// HasCompleteLineage returns false if, from the entry, we cannot ascend the ancestors list to PID 1
-func (pc *ProcessCacheEntry) HasCompleteLineage() bool {
-	res := hasCompleteLineageInner(pc)
-	pc.hasCompleteLineage = &res
-	return res
+	return false, &ErrProcessWrongParentNode{PID: ppid}
 }
 
 // HasValidLineage returns false if, from the entry, we cannot ascend the ancestors list to PID 1 or if a new is having a missing parent
-func (pc *ProcessCacheEntry) HasValidLineage() bool {
-	for pc != nil {
-		if pc.IsParentMissing {
-			return false
-		}
-
-		if pc.Pid == 1 {
-			return true
-		}
-		pc = pc.Ancestor
-	}
-	return false
+func (pc *ProcessCacheEntry) HasValidLineage() (bool, error) {
+	res, err := hasValidLineage(pc)
+	pc.hasValidLineage, pc.lineageError = &res, err
+	return res, err
 }
 
 // Exit a process
