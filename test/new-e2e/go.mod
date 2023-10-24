@@ -39,7 +39,7 @@ require (
 	github.com/DataDog/datadog-api-client-go v1.16.0
 	github.com/DataDog/datadog-api-client-go/v2 v2.15.0
 	github.com/docker/cli v24.0.4+incompatible
-	github.com/docker/docker v24.0.4+incompatible
+	github.com/docker/docker v24.0.6+incompatible
 	github.com/google/uuid v1.3.0
 	github.com/kr/pretty v0.3.1
 	github.com/pkg/sftp v1.13.6
