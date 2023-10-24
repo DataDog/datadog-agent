@@ -163,6 +163,17 @@ func StatusFromPath(path string) uint16 {
 	return 0
 }
 
+// GetCertsPaths returns the absolute paths to the certs located in the testdata
+// directory, so they can be used in test throughout the project
+func GetCertsPaths() (string, string, error) {
+	curDir, err := CurDir()
+	if err != nil {
+		return "", "", err
+	}
+
+	return filepath.Join(curDir, "testdata/cert.pem.0"), filepath.Join(curDir, "testdata/server.key"), nil
+}
+
 func CurDir() (string, error) {
 	_, file, _, ok := runtime.Caller(1)
 	if !ok {
