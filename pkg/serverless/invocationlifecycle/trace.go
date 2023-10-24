@@ -46,39 +46,19 @@ type invocationPayload struct {
 
 // startExecutionSpan records information from the start of the invocation.
 // It should be called at the start of the invocation.
-func (lp *LifecycleProcessor) startExecutionSpan(rawPayload []byte, startDetails *InvocationStartDetails) {
-	payload := convertRawPayload(rawPayload)
-	inferredSpan := lp.GetInferredSpan()
+func (lp *LifecycleProcessor) startExecutionSpan(event interface{}, rawPayload []byte, startDetails *InvocationStartDetails) {
 	executionContext := lp.GetExecutionInfo()
 	executionContext.requestPayload = rawPayload
 	executionContext.startTime = startDetails.StartTime
 
-	if lp.InferredSpansEnabled && inferredSpan.Span.Start != 0 {
-		executionContext.TraceID = inferredSpan.Span.TraceID
-		executionContext.parentID = inferredSpan.Span.SpanID
-	}
-
-	if payload.Headers != nil {
-
-		traceID, err := strconv.ParseUint(payload.Headers[TraceIDHeader], 0, 64)
-		if err != nil {
-			log.Debug("Unable to parse traceID from payload headers")
-		} else {
-			executionContext.TraceID = traceID
-			if lp.InferredSpansEnabled {
-				inferredSpan.Span.TraceID = traceID
-			}
-		}
-
-		parentID, err := strconv.ParseUint(payload.Headers[ParentIDHeader], 0, 64)
-		if err != nil {
-			log.Debug("Unable to parse parentID from payload headers")
-		} else {
-			if lp.InferredSpansEnabled {
-				inferredSpan.Span.ParentID = parentID
-			} else {
-				executionContext.parentID = parentID
-			}
+	if tc, err := lp.Extractor.Extract(event, rawPayload); err == nil {
+		executionContext.TraceID = tc.TraceID
+		executionContext.parentID = tc.ParentID
+		executionContext.SamplingPriority = tc.SamplingPriority
+		if lp.InferredSpansEnabled {
+			inferredSpan := lp.GetInferredSpan()
+			inferredSpan.Span.TraceID = tc.TraceID
+			inferredSpan.Span.ParentID = tc.ParentID
 		}
 	} else if startDetails.InvokeEventHeaders.TraceID != "" { // trace context from a direct invocation
 		traceID, err := strconv.ParseUint(startDetails.InvokeEventHeaders.TraceID, 0, 64)
@@ -94,8 +74,12 @@ func (lp *LifecycleProcessor) startExecutionSpan(rawPayload []byte, startDetails
 		} else {
 			executionContext.parentID = parentID
 		}
+		executionContext.SamplingPriority = getSamplingPriority(startDetails.InvokeEventHeaders.SamplingPriority)
+	} else {
+		executionContext.TraceID = 0
+		executionContext.parentID = 0
+		executionContext.SamplingPriority = sampler.PriorityNone
 	}
-	executionContext.SamplingPriority = getSamplingPriority(payload.Headers[SamplingPriorityHeader], startDetails.InvokeEventHeaders.SamplingPriority)
 }
 
 // endExecutionSpan builds the function execution span and sends it to the intake.
@@ -219,17 +203,6 @@ func ParseLambdaPayload(rawPayload []byte) []byte {
 	return rawPayload[leftIndex : rightIndex+1]
 }
 
-func convertRawPayload(payloadString []byte) invocationPayload {
-	payload := invocationPayload{}
-
-	err := json.Unmarshal(payloadString, &payload)
-	if err != nil {
-		log.Debug("Could not unmarshal the invocation event payload")
-	}
-
-	return payload
-}
-
 func convertStrToUnit64(s string) (uint64, error) {
 	num, err := strconv.ParseUint(s, 0, 64)
 	if err != nil {
@@ -238,17 +211,10 @@ func convertStrToUnit64(s string) (uint64, error) {
 	return num, err
 }
 
-func getSamplingPriority(header string, directInvokeHeader string) sampler.SamplingPriority {
-	// default priority if nothing is found from headers or direct invocation payload
+func getSamplingPriority(directInvokeHeader string) sampler.SamplingPriority {
 	samplingPriority := sampler.PriorityNone
-	if v, err := strconv.ParseInt(header, 10, 8); err == nil {
-		// if the current lambda invocation is not the head of the trace, we need to propagate the sampling decision
+	if v, err := strconv.ParseInt(directInvokeHeader, 10, 8); err == nil {
 		samplingPriority = sampler.SamplingPriority(v)
-	} else {
-		// try to look for direction invocation headers
-		if v, err := strconv.ParseInt(directInvokeHeader, 10, 8); err == nil {
-			samplingPriority = sampler.SamplingPriority(v)
-		}
 	}
 	return samplingPriority
 }

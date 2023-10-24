@@ -132,7 +132,7 @@ func TestTraceContext(t *testing.T) {
 		DetectLambdaLibrary: func() bool { return false },
 	}
 	client := &http.Client{}
-	body := bytes.NewBuffer([]byte(`{"toto": "tutu","Headers": {"x-datadog-trace-id": "2222"}}`))
+	body := bytes.NewBuffer([]byte(`{"toto": "tutu","Headers": {"x-datadog-trace-id": "2222","x-datadog-parent-id":"3333"}}`))
 	request, err := http.NewRequest(http.MethodPost, fmt.Sprintf("http://127.0.0.1:%d/lambda/start-invocation", port), body)
 	assert.Nil(err)
 	response, err := client.Do(request)
