@@ -79,6 +79,16 @@ func (a APIMetricType) SeriesAPIV2Enum() int32 {
 	}
 }
 
+func (s *Serie) RetainCopy(ctx *cache.KeyedInterner, origin string) *Serie {
+	s.Name = ctx.LoadOrStoreString(s.Name, origin, &s.References)
+	s.Tags.Apply(func(t string) string {
+		return ctx.LoadOrStoreString(t, origin, &s.References)
+	})
+	s.Host = ctx.LoadOrStoreString(s.Host, origin, &s.References)
+	s.Device = ctx.LoadOrStoreString(s.Device, origin, &s.References)
+	return s
+}
+
 // UnmarshalJSON is a custom unmarshaller for Point (used for testing)
 func (p *Point) UnmarshalJSON(buf []byte) error {
 	tmp := []interface{}{&p.Ts, &p.Value}

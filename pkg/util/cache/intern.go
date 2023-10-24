@@ -34,6 +34,8 @@ const defaultTmpPath = "/tmp"
 const OriginTimeSampler = "!Timesampler"
 const OriginContextResolver = "!ContextResolver"
 const OriginCheckSampler = "!CheckSampler"
+const OriginBufferedAggregator = "!BufferedAggregator"
+const OriginContextLimiter = "!OriginContextLimiter"
 
 type stringInterner struct {
 	cache        lruStringCache

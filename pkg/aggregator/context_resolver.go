@@ -130,7 +130,7 @@ func (cr *contextResolver) tryAdd(taggerKey ckey.TagsKey) bool {
 	taggerTags := cr.taggerBuffer.Get()
 	metricTags := cr.metricBuffer.Get()
 	// tagsLimiter should come first, contextsLimiter is stateful and successful calls to Track must be paired with Remove.
-	return cr.tagsLimiter.Check(taggerKey, taggerTags, metricTags) && cr.contextsLimiter.Track(taggerTags)
+	return cr.tagsLimiter.Check(taggerKey, taggerTags, metricTags) && cr.contextsLimiter.Track(taggerTags, cr.interner)
 }
 
 func (cr *contextResolver) get(key ckey.ContextKey) (*Context, bool) {

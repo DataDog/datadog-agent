@@ -152,6 +152,9 @@ func Serialize(
 
 	// Release any memory-holds that any in-flight data may have held.  Serialization copies everything.
 	if retentions != nil {
+		reportCopy := cache.NewRetainerBlock()
+		retentions.CopyTo(reportCopy)
+		log.Infof("metrics.Serialize: Releasing %v", reportCopy.Summarize())
 		retentions.ReleaseAll()
 	}
 }

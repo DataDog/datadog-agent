@@ -550,23 +550,23 @@ func (agg *BufferedAggregator) appendDefaultSeries(start time.Time, series metri
 				})
 		}
 		newSerie.Points = updatedPoints
-		series.Append(newSerie)
+		series.Append(newSerie.RetainCopy(agg.interner, cache.OriginBufferedAggregator))
 	}
 	recurrentSeriesLock.Unlock()
 
 	// Send along a metric that showcases that this Agent is running (internally, in backend,
 	// a `datadog.`-prefixed metric allows identifying this host as an Agent host, used for dogbone icon)
-	series.Append(&metrics.Serie{
+	series.Append((&metrics.Serie{
 		Name:           fmt.Sprintf("datadog.%s.running", agg.agentName),
 		Points:         []metrics.Point{{Value: 1, Ts: float64(start.Unix())}},
 		Tags:           tagset.CompositeTagsFromSlice(agg.tags(true)),
 		Host:           agg.hostname,
 		MType:          metrics.APIGaugeType,
 		SourceTypeName: "System",
-	})
+	}).RetainCopy(agg.interner, cache.OriginBufferedAggregator))
 
 	// Send along a metric that counts the number of times we dropped some payloads because we couldn't split them.
-	series.Append(&metrics.Serie{
+	series.Append((&metrics.Serie{
 		Name:           fmt.Sprintf("n_o_i_n_d_e_x.datadog.%s.payload.dropped", agg.agentName),
 		Points:         []metrics.Point{{Value: float64(split.GetPayloadDrops()), Ts: float64(start.Unix())}},
 		Tags:           tagset.CompositeTagsFromSlice(agg.tags(false)),
@@ -574,7 +574,7 @@ func (agg *BufferedAggregator) appendDefaultSeries(start time.Time, series metri
 		MType:          metrics.APIGaugeType,
 		SourceTypeName: "System",
 		NoIndex:        true,
-	})
+	}).RetainCopy(agg.interner, cache.OriginBufferedAggregator))
 }
 
 func (agg *BufferedAggregator) flushSeriesAndSketches(trigger flushTrigger) {

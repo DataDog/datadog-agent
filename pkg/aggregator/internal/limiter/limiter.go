@@ -6,6 +6,7 @@
 package limiter
 
 import (
+	"github.com/DataDog/datadog-agent/pkg/util/cache"
 	"math"
 	"strings"
 
@@ -20,6 +21,8 @@ type entry struct {
 	lastExpireCount int // expireCount when seen last
 
 	telemetryTags []string
+
+	retentions cache.SmallRetainer
 }
 
 // Limiter tracks number of contexts based on origin detection metrics
@@ -136,7 +139,7 @@ func (l *Limiter) updateLimit() {
 
 // Track is called for each new context. Returns true if the sample should be accepted, false
 // otherwise.
-func (l *Limiter) Track(tags []string) bool {
+func (l *Limiter) Track(tags []string, ctx *cache.KeyedInterner) bool {
 	if l == nil {
 		return true
 	}
@@ -145,8 +148,12 @@ func (l *Limiter) Track(tags []string) bool {
 
 	e := l.usage[id]
 	if e == nil {
+		telemTags := l.extractTelemetryTags(tags)
 		e = &entry{
-			telemetryTags: l.extractTelemetryTags(tags),
+			telemetryTags: make([]string, len(telemTags)),
+		}
+		for i, t := range telemTags {
+			e.telemetryTags[i] = ctx.LoadOrStoreString(t, cache.OriginContextLimiter, &e.retentions)
 		}
 		l.usage[id] = e
 		l.updateLimit()
@@ -177,6 +184,7 @@ func (l *Limiter) Remove(tags []string) {
 		e.current--
 		if e.current <= 0 {
 			delete(l.usage, id)
+			e.retentions.ReleaseAll()
 			l.updateLimit()
 		}
 	}

@@ -1,5 +1,11 @@
 package cache
 
+import (
+	"golang.org/x/text/language"
+	"golang.org/x/text/message"
+	"strings"
+)
+
 // Refcounted tracks references.  The interface doesn't provide a reference construction
 // mechanism, use the per-type implementation functions for that.
 type Refcounted interface {
@@ -116,4 +122,17 @@ func (r *RetainerBlock) CopyTo(other InternRetainer) {
 	for k, v := range r.retentions {
 		other.ReferenceN(k, v)
 	}
+}
+
+func (r *RetainerBlock) Summarize() string {
+	p := message.NewPrinter(language.English)
+	s := strings.Builder{}
+	var total int32 = 0
+	s.WriteString(p.Sprintf("{%d keys. ", len(r.retentions)))
+	for k, v := range r.retentions {
+		s.WriteString(p.Sprintf("%p: %d, ", k, v))
+		total += v
+	}
+	s.WriteString(p.Sprintf("; %d total}", total))
+	return s.String()
 }
