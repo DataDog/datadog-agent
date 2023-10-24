@@ -586,6 +586,13 @@ func scanLambda(ctx context.Context, scan lambdaScan) (*sbommodel.SBOMEntity, er
 		return nil, fmt.Errorf("lambda-scan: missing function name")
 	}
 
+	defer statsd.Flush()
+
+	tags := []string{
+		fmt.Sprintf("region:%s", scan.Region),
+		fmt.Sprintf("type:%s", "lambda-scan"),
+	}
+
 	sess, err := session.NewSession(&aws.Config{
 		Region: aws.String(scan.Region),
 	})
@@ -643,6 +650,7 @@ func scanLambda(ctx context.Context, scan lambdaScan) (*sbommodel.SBOMEntity, er
 		return nil, err
 	}
 
+	statsd.Count("datadog.sidescanner.scans.started", 1.0, tags, 1.0)
 	scanStartedAt := time.Now()
 	trivyCache := newMemoryCache()
 	trivyFSArtifact, err := local2.NewArtifact(extractedPath, trivyCache, artifact.Option{
@@ -653,6 +661,7 @@ func scanLambda(ctx context.Context, scan lambdaScan) (*sbommodel.SBOMEntity, er
 		SBOMSources:       []string{},
 	})
 	if err != nil {
+		statsd.Count("datadog.sidescanner.scans.finished", 1.0, tagFailure(tags), 1.0)
 		return nil, fmt.Errorf("unable to create artifact from fs: %w", err)
 	}
 
@@ -667,6 +676,12 @@ func scanLambda(ctx context.Context, scan lambdaScan) (*sbommodel.SBOMEntity, er
 		ScanRemovedPackages: false,
 		ListAllPackages:     true,
 	})
+	statsd.Histogram("datadog.sidescanner.scans.duration", float64(time.Since(scanStartedAt).Milliseconds()), tags, 1.0)
+	if err != nil {
+		statsd.Count("datadog.sidescanner.scans.finished", 1.0, tagFailure(tags), 1.0)
+		return nil, fmt.Errorf("trivy scan failed: %w", err)
+	}
+	statsd.Count("datadog.sidescanner.scans.finished", 1.0, tagSuccess(tags), 1.0)
 
 	createdAt := time.Now()
 	duration := time.Since(scanStartedAt)
