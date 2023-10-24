@@ -26,7 +26,7 @@
 # ENABLE_RACE_DETECTION [true|false] - Enables go race detection for the lambda extension
 # ARCHITECTURE [arm64|amd64] - Specify the architecture to test. The default is amd64
 
-DEFAULT_NODE_LAYER_VERSION=95
+DEFAULT_NODE_LAYER_VERSION=99
 DEFAULT_PYTHON_LAYER_VERSION=77
 DEFAULT_JAVA_TRACE_LAYER_VERSION=11
 DEFAULT_DOTNET_TRACE_LAYER_VERSION=9
