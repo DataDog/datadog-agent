@@ -165,7 +165,28 @@ appsec_functions=(
     "appsec-csharp"
 )
 
-all_functions=("${metric_functions[@]}" "${log_functions[@]}" "${trace_functions[@]}" "${appsec_functions[@]}")
+declare -a all_functions # This is an array
+if [ $# == 1 ]; then
+    case $1 in
+        metric)
+            all_functions=("${metric_functions[@]}")
+        ;;
+        log)
+            all_functions=("${log_functions[@]}")
+        ;;
+        trace)
+            all_functions=("${trace_functions[@]}")
+        ;;
+        appsec)
+            all_functions=("${appsec_functions[@]}")
+        ;;
+        *)
+            echo "Unknown test suite: $1 (valid names are: metric, log, trace, appsec)"
+        ;;
+    esac
+else
+    all_functions=("${metric_functions[@]}" "${log_functions[@]}" "${trace_functions[@]}" "${appsec_functions[@]}")
+fi
 
 # Add a function to this list to skip checking its results
 # This should only be used temporarily while we investigate and fix the test
@@ -218,6 +239,8 @@ failed_functions=()
 
 if [ -z $RAWLOGS_DIR ]; then
     RAWLOGS_DIR=$(mktemp -d)
+else
+    mkdir -p $RAWLOGS_DIR
 fi
 echo "Raw logs will be written to ${RAWLOGS_DIR}"
 
