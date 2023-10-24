@@ -21,9 +21,9 @@ import (
 const (
 	defaultPriority sampler.SamplingPriority = sampler.PriorityNone
 
-	ddTraceIdHeader          = "x-datadog-trace-id"
-	ddParentIdHeader         = "x-datadog-parent-id"
-	ddSpanIdHeader           = "x-datadog-span-id"
+	ddTraceIDHeader          = "x-datadog-trace-id"
+	ddParentIDHeader         = "x-datadog-parent-id"
+	ddSpanIDHeader           = "x-datadog-span-id"
 	ddSamplingPriorityHeader = "x-datadog-sampling-priority"
 	ddInvocationErrorHeader  = "x-datadog-invocation-error"
 )
@@ -128,17 +128,17 @@ func (e Extractor) extract(event interface{}) (*TraceContext, error) {
 func (e Extractor) ExtractFromLayer(hdr http.Header) *TraceContextExtended {
 	tc := new(TraceContextExtended)
 
-	if value, err := convertStrToUint64(hdr.Get(ddTraceIdHeader)); err == nil {
+	if value, err := convertStrToUint64(hdr.Get(ddTraceIDHeader)); err == nil {
 		log.Debugf("injecting traceID = %v", value)
 		tc.TraceID = value
 	}
 
-	if value, err := convertStrToUint64(hdr.Get(ddParentIdHeader)); err == nil {
+	if value, err := convertStrToUint64(hdr.Get(ddParentIDHeader)); err == nil {
 		log.Debugf("injecting parentId = %v", value)
 		tc.ParentID = value
 	}
 
-	if value, err := convertStrToUint64(hdr.Get(ddSpanIdHeader)); err == nil {
+	if value, err := convertStrToUint64(hdr.Get(ddSpanIDHeader)); err == nil {
 		log.Debugf("injecting spanId = %v", value)
 		tc.SpanID = value
 	}
@@ -157,7 +157,7 @@ func (e Extractor) ExtractFromLayer(hdr http.Header) *TraceContextExtended {
 // to a tracing layer. Currently, only datadog style headers are injected.
 func (e Extractor) InjectToLayer(tc *TraceContext, hdr http.Header) {
 	if tc != nil {
-		hdr.Set(ddTraceIdHeader, fmt.Sprintf("%v", tc.TraceID))
+		hdr.Set(ddTraceIDHeader, fmt.Sprintf("%v", tc.TraceID))
 		hdr.Set(ddSamplingPriorityHeader, fmt.Sprintf("%v", tc.SamplingPriority))
 	}
 }

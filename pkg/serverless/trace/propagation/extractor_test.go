@@ -360,7 +360,7 @@ func TestExtractorExtract(t *testing.T) {
 			expNoErr: true,
 		},
 
-		// mutliple events
+		// multiple events
 		{
 			name: "multiple-events-1",
 			events: []interface{}{
@@ -634,7 +634,7 @@ func (m mockSpanContext) SpanID() uint64 {
 func (m mockSpanContext) TraceID() uint64 {
 	return 2
 }
-func (m mockSpanContext) ForeachBaggageItem(handler func(k, v string) bool) {}
+func (m mockSpanContext) ForeachBaggageItem(_ func(k, v string) bool) {}
 
 type mockSpanContextWithSamplingPriority struct {
 	mockSpanContext
