@@ -76,6 +76,10 @@ type Store interface {
 	// when the pod actually exists.
 	GetKubernetesPodForContainer(containerID string) (*KubernetesPod, error)
 
+	// GetKubernetesPodByName returns the first pod whose name and namespace matches those passed in
+	// to this function.
+	GetKubernetesPodByName(podName, podNamespace string) (*KubernetesPod, error)
+
 	// GetKubernetesNode returns metadata about a Kubernetes node. It fetches
 	// the entity with kind KindKubernetesNode and the given ID.
 	GetKubernetesNode(id string) (*KubernetesNode, error)

@@ -10,6 +10,7 @@ include:
   - /.gitlab/source_test_junit_upload.yml
   - /.gitlab/binary_build.yml
   - /.gitlab/cancel-prev-pipelines.yml
+  - /.gitlab/do_not_merge.yml
   - /.gitlab/integration_test.yml
   - /.gitlab/package_build.yml
   - /.gitlab/kitchen_deploy.yml
@@ -94,8 +95,6 @@ stages:
   - notify
 
 variables:
-  #Do not change this - must be the repository name for Kubernetes runners to work
-  KUBERNETES_SERVICE_ACCOUNT_OVERWRITE: "datadog-agent"
   # Directory in which we execute the omnibus build.
   # For an unknown reason, it does not go well with
   # a ruby dependency if we build directly into $CI_PROJECT_DIR/.omnibus
@@ -153,22 +152,24 @@ variables:
   # To use images from datadog-agent-buildimages dev branches, set the corresponding
   # SUFFIX variable to _test_only
   DATADOG_AGENT_BUILDIMAGES_SUFFIX: ""
-  DATADOG_AGENT_BUILDIMAGES: v20878799-a2f77ae
+  DATADOG_AGENT_BUILDIMAGES: v21999990-f991d55
   DATADOG_AGENT_WINBUILDIMAGES_SUFFIX: ""
-  DATADOG_AGENT_WINBUILDIMAGES: v20878799-a2f77ae
+  DATADOG_AGENT_WINBUILDIMAGES: v21999990-f991d55
   DATADOG_AGENT_ARMBUILDIMAGES_SUFFIX: ""
-  DATADOG_AGENT_ARMBUILDIMAGES: v20878799-a2f77ae
+  DATADOG_AGENT_ARMBUILDIMAGES: v21999990-f991d55
   DATADOG_AGENT_SYSPROBE_BUILDIMAGES_SUFFIX: ""
-  DATADOG_AGENT_SYSPROBE_BUILDIMAGES: v20892657-95a4db5
+  DATADOG_AGENT_SYSPROBE_BUILDIMAGES: v21999990-f991d55
   DATADOG_AGENT_KERNEL_MATRIX_TESTING_BUILDIMAGES_SUFFIX: ""
-  DATADOG_AGENT_KERNEL_MATRIX_TESTING_BUILDIMAGES: v20878799-a2f77ae
+  DATADOG_AGENT_KERNEL_MATRIX_TESTING_BUILDIMAGES: v21999990-f991d55
   DATADOG_AGENT_NIKOS_BUILDIMAGES_SUFFIX: ""
-  DATADOG_AGENT_NIKOS_BUILDIMAGES: v20878799-a2f77ae
+  DATADOG_AGENT_NIKOS_BUILDIMAGES: v21999990-f991d55
   DATADOG_AGENT_BTF_GEN_BUILDIMAGES_SUFFIX: ""
-  DATADOG_AGENT_BTF_GEN_BUILDIMAGES: v20878799-a2f77ae
+  DATADOG_AGENT_BTF_GEN_BUILDIMAGES: v21999990-f991d55
+  # To use images from test-infra-definitions dev branches, set the SUFFIX variable to -dev
+  # and check the job creating the image to make sure you have the right SHA prefix
   TEST_INFRA_DEFINITIONS_BUILDIMAGES_SUFFIX: ""
-  TEST_INFRA_DEFINITIONS_BUILDIMAGES: d2510f65b6fe
-  DATADOG_AGENT_BUILDERS: v19474930-fe4bcd9
+  TEST_INFRA_DEFINITIONS_BUILDIMAGES: 8d38c2a2a794
+  DATADOG_AGENT_BUILDERS: v21429255-6b46caa
 
   DATADOG_AGENT_EMBEDDED_PATH: /opt/datadog-agent/embedded
   DEB_GPG_KEY_ID: ad9589b7
@@ -395,6 +396,12 @@ workflow:
     when: never
   - <<: *if_deploy
 
+.on_deploy_a6_failure:
+  - <<: *if_not_version_6
+    when: never
+  - <<: *if_deploy
+    when: on_failure
+
 .on_deploy_a6_rc:
   - <<: *if_not_version_6
     when: never
@@ -477,6 +484,12 @@ workflow:
   - <<: *if_not_version_7
     when: never
   - <<: *if_deploy
+
+.on_deploy_a7_failure:
+  - <<: *if_not_version_7
+    when: never
+  - <<: *if_deploy
+    when: on_failure
 
 .on_deploy_a7_rc:
   - <<: *if_not_version_7
@@ -752,7 +765,6 @@ workflow:
     when: never
   - <<: *if_release_branch
     when: never
-  - when: on_success
 
 .on_main_or_release_branch_or_deploy_always:
   - <<: *if_deploy

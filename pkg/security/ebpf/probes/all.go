@@ -125,6 +125,8 @@ func AllMaps() []*manager.Map {
 		{Name: "selinux_enforce_status"},
 		// Enabled event mask
 		{Name: "enabled_events"},
+		// Syscall stats monitor (inflight syscall)
+		{Name: "syscalls_stats_enabled"},
 	}
 }
 

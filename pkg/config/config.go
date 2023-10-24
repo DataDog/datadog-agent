@@ -21,13 +21,15 @@ import (
 	"strings"
 	"time"
 
+	"gopkg.in/yaml.v2"
+
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/common/types"
 	"github.com/DataDog/datadog-agent/pkg/collector/check/defaults"
+	"github.com/DataDog/datadog-agent/pkg/config/env"
+	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/secrets"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname/validate"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-
-	"gopkg.in/yaml.v2"
 )
 
 const (
@@ -85,12 +87,6 @@ const (
 	// DefaultLogsSenderBackoffRecoveryInterval is the default logs sender backoff recovery interval
 	DefaultLogsSenderBackoffRecoveryInterval = 2
 
-	// DefaultInventoriesMinInterval is the default value for inventories_min_interval, in seconds
-	DefaultInventoriesMinInterval = 60
-
-	// DefaultInventoriesMaxInterval is the default value for inventories_max_interval, in seconds
-	DefaultInventoriesMaxInterval = 10 * 60
-
 	// maxExternalMetricsProviderChunkSize ensures batch queries are limited in size.
 	maxExternalMetricsProviderChunkSize = 35
 
@@ -105,9 +101,8 @@ const (
 
 // Datadog is the global configuration object
 var (
-	Datadog       Config
-	SystemProbe   Config
-	overrideFuncs = make([]func(Config), 0)
+	Datadog     Config
+	SystemProbe Config
 )
 
 // Variables to initialize at build time
@@ -195,12 +190,6 @@ type Endpoint struct {
 	URL    string `mapstructure:"url" json:"url" yaml:"url"`
 	APIKey string `mapstructure:"api_key" json:"api_key" yaml:"api_key"`
 	APPKey string `mapstructure:"app_key" json:"app_key" yaml:"app_key"`
-}
-
-// Warnings represent the warnings in the config
-type Warnings struct {
-	TraceMallocEnabledWithPy2 bool
-	Err                       error
 }
 
 // DataType represent the generic data type (e.g. metrics, logs) that can be sent by the Agent
@@ -516,7 +505,8 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("dogstatsd_queue_size", 1024)
 
 	config.BindEnvAndSetDefault("dogstatsd_non_local_traffic", false)
-	config.BindEnvAndSetDefault("dogstatsd_socket", "") // Notice: empty means feature disabled
+	config.BindEnvAndSetDefault("dogstatsd_socket", "")        // Notice: empty means feature disabled
+	config.BindEnvAndSetDefault("dogstatsd_stream_socket", "") // Experimental || Notice: empty means feature disabled
 	config.BindEnvAndSetDefault("dogstatsd_pipeline_autoadjust", false)
 	config.BindEnvAndSetDefault("dogstatsd_pipeline_count", 1)
 	config.BindEnvAndSetDefault("dogstatsd_stats_port", 5000)
@@ -720,6 +710,7 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("leader_election", false)
 	config.BindEnvAndSetDefault("leader_lease_name", "datadog-leader-election")
 	config.BindEnvAndSetDefault("leader_election_default_resource", "configmap")
+	config.BindEnvAndSetDefault("leader_election_release_on_shutdown", true)
 	config.BindEnvAndSetDefault("kube_resources_namespace", "")
 	config.BindEnvAndSetDefault("kube_cache_sync_timeout_seconds", 5)
 
@@ -1167,8 +1158,8 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("inventories_checks_configuration_enabled", true)      // controls the checks configurations
 	config.BindEnvAndSetDefault("inventories_collect_cloud_provider_account_id", true) // collect collection of `cloud_provider_account_id`
 	// when updating the default here also update pkg/metadata/inventories/README.md
-	config.BindEnvAndSetDefault("inventories_max_interval", DefaultInventoriesMaxInterval) // integer seconds
-	config.BindEnvAndSetDefault("inventories_min_interval", DefaultInventoriesMinInterval) // integer seconds
+	config.BindEnvAndSetDefault("inventories_max_interval", 0) // 0 == default interval from inventories
+	config.BindEnvAndSetDefault("inventories_min_interval", 0) // 0 == default interval from inventories
 
 	// Datadog security agent (common)
 	config.BindEnvAndSetDefault("security_agent.cmd_port", 5010)
@@ -1224,7 +1215,7 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("enhanced_metrics", true)
 	config.BindEnvAndSetDefault("capture_lambda_payload", false)
 	config.BindEnvAndSetDefault("capture_lambda_payload_max_depth", 10)
-	config.BindEnvAndSetDefault("serverless.trace_enabled", false, "DD_TRACE_ENABLED")
+	config.BindEnvAndSetDefault("serverless.trace_enabled", true, "DD_TRACE_ENABLED")
 	config.BindEnvAndSetDefault("serverless.trace_managed_services", true, "DD_TRACE_MANAGED_SERVICES")
 	config.BindEnvAndSetDefault("serverless.service_mapping", nil, "DD_SERVICE_MAPPING")
 
@@ -1535,8 +1526,8 @@ func LoadDatadogCustom(config Config, origin string, loadSecret bool, additional
 	defer func() {
 		// Environment feature detection needs to run before applying override funcs
 		// as it may provide such overrides
-		detectFeatures()
-		applyOverrideFuncs(config)
+		env.DetectFeatures(config)
+		model.ApplyOverrideFuncs(config)
 	}()
 
 	warnings, err := LoadCustom(config, origin, loadSecret, additionalKnownEnvVars)

@@ -2093,6 +2093,11 @@ func TestProcessResolution(t *testing.T) {
 			assert.Equal(t, entry1.Pid, entry2.Pid)
 			assert.Equal(t, entry1.PPid, entry2.PPid)
 			assert.Equal(t, entry1.ContainerID, entry2.ContainerID)
+			assert.Equal(t, entry1.Cookie, entry2.Cookie)
+
+			// may not be exaclty equal because of clock drift between two boot time resolution, see time resolver
+			assert.Greater(t, time.Second, entry1.ExecTime.Sub(entry2.ExecTime).Abs())
+			assert.Greater(t, time.Second, entry1.ForkTime.Sub(entry2.ForkTime).Abs())
 		}
 
 		cacheEntry := resolvers.ProcessResolver.ResolveFromCache(pid, pid, inode)

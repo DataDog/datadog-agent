@@ -151,7 +151,7 @@ func getHostMetadata() *HostMetadata {
 
 	metadata.AgentVersion = version.AgentVersion
 
-	metadata.CloudProvider = fetchFromMetadata(HostCloudProvider, agentMetadata)
+	metadata.CloudProvider = fetchFromMetadata(HostCloudProvider, hostMetadata)
 	metadata.CloudProviderSource = fetchFromMetadata(HostCloudProviderSource, hostMetadata)
 	metadata.CloudProviderHostID = fetchFromMetadata(HostCloudProviderHostID, hostMetadata)
 	metadata.OsVersion = fetchFromMetadata(HostOSVersion, hostMetadata)
